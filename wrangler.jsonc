@@ -1,0 +1,10 @@
+// Cloudflare-Konfiguration: reine statische Website (kein Worker-Skript).
+// Cloudflare baut mit `npm run build` und veröffentlicht dann mit `npx wrangler deploy` den Ordner dist/site.
+// dist/site/_headers (CSP, Sicherheitsheader) wird von Cloudflare ausgewertet.
+{
+  "name": "emberwrath",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist/site"
+  }
+}

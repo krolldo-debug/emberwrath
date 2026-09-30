@@ -12,15 +12,15 @@ Sicherungsdatei. Kein Server, keine anderen Spieler – siehe `docs/MULTIPLAYER.
 
 - Entwicklung: `npm run dev` (oder beliebiger statischer Server im Projektordner), dann `http://localhost:8080`.
 - Build: `npm run build` bzw. `node tools/build.mjs` (Node 18 oder neuer, sonst nichts) schreibt
-  - `dist/site/` – die Website (index.html, `_headers`, robots.txt), wird auf Cloudflare Pages veröffentlicht,
+  - `dist/site/` – die Website (index.html, `_headers`, robots.txt), wird auf Cloudflare veröffentlicht,
   - `dist/emberfall.html` – eine Datei, läuft per Doppelklick,
   - `dist/emberfall.fragment.html` – zum Einbetten (Vorschau).
 - Logiktests Fortschritt: `node src/progression/test/logic.test.mjs`
 
 ## Veröffentlichen
 
-Jeder Push auf `main` wird von Cloudflare Pages gebaut und unter https://emberwrath.pages.dev veröffentlicht
-(Build-Befehl `node tools/build.mjs`, Ausgabeordner `dist/site`). Details: `docs/VEROEFFENTLICHEN.md`.
+Jeder Push auf `main` wird von Cloudflare gebaut (`npm run build`) und mit `npx wrangler deploy` veröffentlicht
+(Konfiguration `wrangler.jsonc`: statische Website aus `dist/site`). Details: `docs/VEROEFFENTLICHEN.md`.
 
 Interne Namen (`emberfall:v1:`-Speicherschlüssel, Exportformat `emberfall-save`, `window.emberfall`) bleiben absichtlich
 beim alten Namen, damit bestehende Spielstände erhalten bleiben.
