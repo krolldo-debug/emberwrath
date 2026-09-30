@@ -3,7 +3,7 @@
 //
 // Sitzung (Zugriffs- + Erneuerungstoken) liegt in localStorage unter 'emberwrath:online:session' – bewusst NICHT unter
 // dem Präfix 'emberfall:v1:', damit Tokens nie in einer exportierten Sicherungsdatei landen.
-// Anmeldungen über Links (E-Mail-Bestätigung, Passwort vergessen, Google/Apple) laufen per PKCE:
+// Anmeldungen über Links (E-Mail-Bestätigung, Passwort vergessen, Google) laufen per PKCE:
 // Der Browser merkt sich ein Geheimnis (code_verifier), die Rückleitung bringt ?code=…, das gegen eine Sitzung getauscht wird.
 const SESSION_KEY = 'emberwrath:online:session';
 const PKCE_KEY = 'emberwrath:online:pkce';
@@ -155,14 +155,14 @@ export class AuthClient {
   }
 
   // Öffentliche Auth-Einstellungen des Projekts: welche Anmeldearten in Supabase aktiv sind
-  // ({ external: { email, google, apple, … } }). So schalten sich die Knöpfe frei, sobald der Anbieter
+  // ({ external: { email, google, … } }). So schalten sich die Knöpfe frei, sobald der Anbieter
   // im Dashboard eingerichtet ist, ohne neue Version.
   async fetchSettings() {
     if (!this.configured) return null;
     return this.#request('/auth/v1/settings');
   }
 
-  // Leitet zu Google/Apple weiter. Zurück kommt der Browser mit ?code=… auf dieselbe Seite (handleRedirect()).
+  // Leitet zu Google weiter. Zurück kommt der Browser mit ?code=… auf dieselbe Seite (handleRedirect()).
   async signInWithProvider(provider) {
     if (!this.configured) throw new AuthError('not_configured', MESSAGES.not_configured);
     const { verifier, challenge } = await pkcePair();

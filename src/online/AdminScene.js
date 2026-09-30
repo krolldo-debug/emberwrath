@@ -8,7 +8,7 @@ import { describeError } from './AuthClient.js';
 // Die Oberfläche fragt vorher is_admin() nur, um eine passende Meldung zu zeigen – geschützt wird auf dem Server.
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '–');
 const fmtDateTime = (s) => (s ? new Date(s).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
-const PROVIDER = { email: 'E-Mail', google: 'Google', apple: 'Apple' };
+const PROVIDER = { email: 'E-Mail', google: 'Google' };
 
 export class AdminScene extends MenuScene {
   enter() {

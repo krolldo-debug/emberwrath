@@ -12,6 +12,5 @@ export const ONLINE_CONFIG = {
   // falls die Einstellungen nicht abrufbar sind. Einrichtung: docs/ONLINE.md Schritt 7 und 8.
   providers: {
     google: false,
-    apple: false, // braucht ein Apple-Developer-Konto (99 $/Jahr), siehe docs/ONLINE.md
   },
 };

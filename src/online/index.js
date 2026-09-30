@@ -49,12 +49,12 @@ export class Online {
   // Aktive Schnellanmeldungen: Server-Einstellung (sobald geladen), sonst config.providers.
   get providers() { return this.#providers ?? this.config.providers ?? {}; }
 
-  // Fragt einmal beim Server nach, welche Anbieter aktiv sind. Promise<{ google, apple }>.
+  // Fragt einmal beim Server nach, welche Anbieter aktiv sind. Promise<{ google }>.
   loadProviders() {
     this.#providersLoad ??= this.client.fetchSettings()
       .then((s) => {
         const ext = s?.external;
-        if (ext && typeof ext === 'object') this.#providers = { google: ext.google === true, apple: ext.apple === true };
+        if (ext && typeof ext === 'object') this.#providers = { google: ext.google === true };
         return this.providers;
       })
       .catch(() => { this.#providersLoad = null; return this.providers; });

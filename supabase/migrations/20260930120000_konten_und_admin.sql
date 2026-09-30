@@ -2,7 +2,7 @@
 -- Einmal im Supabase-SQL-Editor ausführen (oder per `supabase db push`). Siehe docs/ONLINE.md.
 --
 -- Sicherheitsmodell
---  - Anmeldung übernimmt Supabase Auth (E-Mail + Passwort, Google, Apple). Passwörter sieht das Spiel nie im Klartext gespeichert.
+--  - Anmeldung übernimmt Supabase Auth (E-Mail + Passwort, Google). Passwörter sieht das Spiel nie im Klartext gespeichert.
 --  - Tabelle characters: jede Zeile gehört genau einem Konto (user_id). Row Level Security erlaubt nur dem Besitzer
 --    Lesen, Anlegen, Ändern und Löschen seiner eigenen Zeilen.
 --  - Tabelle admins: ohne Policies, also für normale Konten weder lesbar noch schreibbar. Wer Admin ist, trägt der

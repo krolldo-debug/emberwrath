@@ -5,7 +5,7 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
 ## Was es gibt
 
 - **Registrierung und Anmeldung** mit E-Mail und Passwort (Bestätigungslink, „Passwort vergessen“, Passwort ändern),
-  Schnellanmeldung mit **Google** und **Apple** (Apple vorbereitet, siehe unten).
+  Schnellanmeldung mit **Google**.
 - **Cloud-Spielstände:** Charaktere eines Kontos liegen in der Datenbank und sind auf jedem Gerät verfügbar. Gespielt wird
   weiter lokal (schnell, auch kurz ohne Netz); nach jedem Speichern lädt das Spiel den Stand hoch. Neuerer Stand gewinnt.
 - Gespielt wird nur mit Konto. Ältere lokale Charaktere eines Geräts lassen sich als Kopie ins Konto übernehmen.
@@ -64,21 +64,13 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
       *Enable*, beide Werte eintragen → *Save*. Das Secret nur dort eintragen, nicht weitergeben.
    Mehr ist nicht nötig: Das Spiel fragt die aktiven Anbieter bei Supabase ab (`/auth/v1/settings`) und schaltet den
    Knopf „Weiter mit Google“ beim nächsten Öffnen der Anmeldeseite von selbst frei.
-8. **Apple-Anmeldung:** braucht eine Mitgliedschaft im Apple Developer Program (99 US-$ pro Jahr, Entscheidung des
-   Projektbesitzers). Danach im Apple-Developer-Bereich: eine *App ID* mit „Sign in with Apple“, eine *Services ID*
-   (z. B. `de.emberwrath.web`) mit Domain `mgjhllqnelqbdqfvczls.supabase.co` und Return-URL
-   `https://mgjhllqnelqbdqfvczls.supabase.co/auth/v1/callback`, dazu einen *Key* mit „Sign in with Apple“ (.p8-Datei).
-   In Supabase unter *Providers → Apple* die Services ID als Client ID eintragen und das Secret aus Team-ID, Key-ID und
-   .p8-Datei erzeugen (Supabase bietet dafür ein Werkzeug). Das Apple-Secret läuft nach spätestens 6 Monaten ab und muss
-   dann neu erzeugt werden. Auch hier schaltet sich der Knopf von selbst frei; bis dahin zeigt er „bald“.
-   Für eine spätere iOS-App verlangt Apple in der Regel diese Anmeldeart, sobald Google angeboten wird.
 
 ## Einbau (Architektur)
 
 - `src/main.js`: `import { installOnline } from './online/index.js';` und `.use(installOnline)` nach `installUi`.
 - `index.html`: `<link rel="stylesheet" href="src/online/online.css">` nach `world.css`.
 - `tools/build.mjs`: CSP `connect-src 'self' https://<projekt>.supabase.co` (kein Wildcard, kein Realtime nötig).
-- Anker: `…/spielen/#anmelden`, `#registrieren`, `#konto`, `#admin`. Rückleitungen (E-Mail-Links, Google, Apple) kommen
+- Anker: `…/spielen/#anmelden`, `#registrieren`, `#konto`, `#admin`. Rückleitungen (E-Mail-Links, Google) kommen
   auf dieselbe Seite zurück (`location.origin + location.pathname`) und werden dort ausgewertet.
 
 ## Schnittstelle für andere Bereiche

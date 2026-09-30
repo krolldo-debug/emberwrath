@@ -10,7 +10,6 @@
 .ef-btn.on-provider { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; font-weight: 600; }
 .ef-btn.on-google { background: #fff; color: #1f1f1f; border-color: #dadce0; }
 .ef-btn.on-google:hover:not(:disabled), .ef-btn.on-google:focus-visible { border-color: var(--ef-gold); }
-.ef-btn.on-apple { background: #000; color: #fff; border-color: #444; }
 .on-provider-icon { display: inline-flex; width: 20px; height: 20px; }
 .on-soon { font-size: 11px; font-weight: 400; padding: 1px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.12); border: 1px solid currentColor; opacity: 0.8; }
 .on-or { display: flex; align-items: center; gap: 10px; color: var(--ef-muted); font-size: 13px; }

@@ -42,7 +42,7 @@ const server = http.createServer(async (req, res) => {
   log.push(`${req.method} ${url.pathname}${url.search}`);
   const p = url.pathname;
   try {
-    if (p === '/auth/v1/settings') return send(res, 200, { external: { email: true, google: true, apple: false }, disable_signup: false });
+    if (p === '/auth/v1/settings') return send(res, 200, { external: { email: true, google: true, apple: true }, disable_signup: false });
     if (p === '/auth/v1/authorize') {
       const email = `${url.searchParams.get('provider')}user@example.com`;
       let { rows } = await pool.query('select id from auth.users where email=$1', [email]);
