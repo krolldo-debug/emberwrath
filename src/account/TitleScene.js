@@ -55,7 +55,7 @@ export class TitleScene extends MenuScene {
           g.online ? h('button.ef-btn.acc-online', { type: 'button', onclick: () => g.online.open(g.online.user ? 'account' : 'login') },
             g.online.user ? `Konto (${g.online.displayName ?? 'angemeldet'})` : 'Anmelden') : null),
         localNotice(g),
-        h('p.acc-footer', `Prototyp · Einzelspieler · Lokale Instanz · Version ${globalThis.EMBERWRATH_BUILD?.commit ?? 'dev'}`)));
+        h('p.acc-footer', 'Prototyp · Einzelspieler · Lokale Instanz · Version ', h('span.acc-version', globalThis.EMBERWRATH_BUILD?.commit ?? 'dev'))));
     if (lastChar) this.#keyContinue = true;
   }
 

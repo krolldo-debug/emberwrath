@@ -17,6 +17,7 @@
 .acc-btn-sub { font-size: 13px; font-weight: 400; color: #e8dcc4; opacity: 0.85; }
 .acc-btn-meta { font-size: 12px; font-weight: 400; color: var(--ef-muted); }
 .acc-footer { margin: 0; font-size: 12px; color: var(--ef-muted); opacity: 0.7; letter-spacing: 0.08em; text-transform: uppercase; }
+.acc-version { text-transform: none; }
 
 /* ------------------------------------------------------ Lokal-Hinweis */
 .acc-notice {
