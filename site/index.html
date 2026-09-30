@@ -4,59 +4,150 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05020a">
-  <title>Emberwrath</title>
-  <meta name="description" content="Emberwrath ist ein düsteres Pixel-Action-RPG. Kostenlos im Browser, auf PC und Handy.">
-  <meta property="og:title" content="Emberwrath">
+  <title>Emberwrath – Der Berg ist erwacht</title>
+  <meta name="description" content="Emberwrath ist ein düsteres Pixel-Action-RPG. Vier Klassen, drei Bosse und eine Krone aus Flammen. Kostenlos im Browser, auf PC und Handy.">
+  <meta property="og:title" content="Emberwrath – Der Berg ist erwacht">
   <meta property="og:description" content="Ein düsteres Pixel-Action-RPG. Kostenlos im Browser, auf PC und Handy.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://emberwrath.kroll-do.workers.dev/img/kampf-titel.webp">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" as="image" href="img/kampf-titel.webp">
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
 </head>
-<body>
+<body class="home">
 <!--#include header-->
 
 <main id="inhalt">
+
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img class="px" src="img/kampf-titel.webp" alt="Ein Krieger in der Rüstung des Tyrannen schlägt mit glühender Klinge nach Varkhul, dem Knochenfürsten" width="1536" height="864"></div>
+    <div class="hero-bg"><img class="px" src="img/kampf-titel.webp" alt="Ein Krieger in der Rüstung des Tyrannen schlägt mit glühender Klinge nach Ignaroth, dem Glut-Tyrannen" width="1267" height="713"></div>
     <canvas class="embers" aria-hidden="true"></canvas>
     <div class="hero-content">
-      <h1 id="titel">Emberwrath</h1>
-      <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="146" height="30">
-      <p class="tagline">Der Berg ist erwacht. Trag die Glut in die Dunkelheit.</p>
+      <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="438" height="90">
+      <h1 id="titel">Der Berg ist erwacht.</h1>
+      <p class="hero-sub">Ein düsteres Pixel-Action-RPG. Kostenlos im Browser, auf PC und Handy.</p>
       <div class="hero-cta">
         <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
-        <a class="btn big ghost" data-link="register" href="spielen/">Konto erstellen</a>
+        <a class="textlink" data-link="register" href="spielen/">Konto erstellen</a>
       </div>
-      <p class="hint">Kostenlos im Browser, auf PC und Handy.</p>
     </div>
   </section>
 
-  <section class="fights" aria-label="Szenen aus dem Spiel">
-    <div class="wrap shots">
-      <figure class="shot wide reveal" data-zoom="Krieger mit „Emberwrath, Klinge der Könige“ gegen Ignaroth">
-        <img class="px" src="img/kampf-krieger.webp" alt="Krieger mit flammender Klinge im Nahkampf gegen den Glut-Tyrannen Ignaroth" width="1056" height="594" loading="lazy">
-        <figcaption>Krieger gegen Ignaroth</figcaption>
+  <section class="strip" aria-label="Szenen aus dem Spiel">
+    <figure class="strip-a" data-zoom="Zwergenkrieger gegen Varkhul, den Knochenfürsten">
+      <img class="px" src="img/kampf-krieger.webp" alt="Zwergenkrieger in der Rüstung des Tyrannen im Nahkampf gegen Varkhul" width="1056" height="594" loading="lazy">
+      <figcaption>Varkhul, der Knochenfürst</figcaption>
+    </figure>
+    <figure class="strip-b" data-zoom="Glutmagier: Meteor">
+      <img class="px" src="img/kampf-magier.webp" alt="Ein Meteor schlägt mitten in einer Gruppe Feuerwichte ein" width="1056" height="594" loading="lazy">
+      <figcaption>Meteor</figcaption>
+    </figure>
+    <figure class="strip-c" data-zoom="Schurke gegen Nerith">
+      <img class="px" src="img/kampf-schurke.webp" alt="Schurke springt per Schattenschritt auf Nerith" width="1056" height="594" loading="lazy">
+      <figcaption>Schattenschritt</figcaption>
+    </figure>
+  </section>
+
+  <section class="classes" id="klassen" aria-labelledby="h-klassen">
+    <div class="wrap cls-layout">
+      <div class="cls-side">
+        <h2 id="h-klassen" class="title">Vier Klassen</h2>
+        <div class="cls-tabs" role="tablist" aria-label="Klassen">
+          <button role="tab" id="t-krieger" aria-controls="p-krieger" aria-selected="true" style="--res: #e0503a">Krieger</button>
+          <button role="tab" id="t-schurke" aria-controls="p-schurke" aria-selected="false" style="--res: #e8c25a">Schurke</button>
+          <button role="tab" id="t-waldlaeufer" aria-controls="p-waldlaeufer" aria-selected="false" style="--res: #6ee06a">Waldläufer</button>
+          <button role="tab" id="t-magier" aria-controls="p-magier" aria-selected="false" style="--res: #6a9cff">Glutmagier</button>
+        </div>
+      </div>
+
+      <article class="cls-panel" id="p-krieger" role="tabpanel" aria-labelledby="t-krieger" style="--res: #e0503a">
+        <img class="px hero-fig" src="img/held-warrior.png" alt="Krieger in der Rüstung des Tyrannen mit der Klinge Emberwrath" width="340" height="395">
+        <div class="cls-info">
+          <p class="cls-desc">Hält am meisten aus. Jeder Treffer erzeugt Wut, und Wut wird zu verheerenden Hieben.</p>
+          <ul class="skills">
+            <li><img class="px" src="img/skill-whirlwind.png" alt="" width="52" height="52">Wirbelsturm</li>
+            <li><img class="px" src="img/skill-battle_shout.png" alt="" width="52" height="52">Kriegsschrei</li>
+            <li><img class="px" src="img/skill-charge.png" alt="" width="52" height="52">Sturmangriff</li>
+            <li><img class="px" src="img/skill-earthshatter.png" alt="" width="52" height="52">Erdspalter</li>
+          </ul>
+          <p class="legend"><img class="px" src="img/item-crown_of_embers_blade.png" alt="" width="52" height="52">Emberwrath, Klinge der Könige</p>
+        </div>
+      </article>
+
+      <article class="cls-panel" id="p-schurke" role="tabpanel" aria-labelledby="t-schurke" style="--res: #e8c25a" hidden>
+        <img class="px hero-fig" src="img/held-rogue.png" alt="Glutgeborener Schurke mit dem Dolch Nachtflüstern" width="290" height="265">
+        <div class="cls-info">
+          <p class="cls-desc">Schnelle Dolchkombos und kritische Treffer. Taucht durch die Reihen, bevor jemand reagiert.</p>
+          <ul class="skills">
+            <li><img class="px" src="img/skill-shadow_step.png" alt="" width="52" height="52">Schattenschritt</li>
+            <li><img class="px" src="img/skill-fan_of_knives.png" alt="" width="52" height="52">Dolchfächer</li>
+            <li><img class="px" src="img/skill-poison_blades.png" alt="" width="52" height="52">Giftklingen</li>
+            <li><img class="px" src="img/skill-assassinate.png" alt="" width="52" height="52">Todesstoß</li>
+          </ul>
+          <p class="legend"><img class="px" src="img/item-nightwhisper.png" alt="" width="52" height="52">Nachtflüstern</p>
+        </div>
+      </article>
+
+      <article class="cls-panel" id="p-waldlaeufer" role="tabpanel" aria-labelledby="t-waldlaeufer" style="--res: #6ee06a" hidden>
+        <img class="px hero-fig" src="img/held-ranger.png" alt="Schattenelfische Waldläuferin mit dem Bogen Sternenfall" width="200" height="310">
+        <div class="cls-info">
+          <p class="cls-desc">Hält Gegner auf Abstand. Salven, Fallen und Schüsse, die ganze Reihen durchschlagen.</p>
+          <ul class="skills">
+            <li><img class="px" src="img/skill-volley.png" alt="" width="52" height="52">Pfeilsalve</li>
+            <li><img class="px" src="img/skill-piercing_shot.png" alt="" width="52" height="52">Durchschuss</li>
+            <li><img class="px" src="img/skill-fire_trap.png" alt="" width="52" height="52">Sprengfalle</li>
+            <li><img class="px" src="img/skill-arrow_rain.png" alt="" width="52" height="52">Pfeilhagel</li>
+          </ul>
+          <p class="legend"><img class="px" src="img/item-starfall.png" alt="" width="52" height="52">Sternenfall</p>
+        </div>
+      </article>
+
+      <article class="cls-panel" id="p-magier" role="tabpanel" aria-labelledby="t-magier" style="--res: #6a9cff" hidden>
+        <img class="px hero-fig" src="img/held-mage.png" alt="Glutmagierin mit dem Arkanen Weltenstab" width="335" height="330">
+        <div class="cls-info">
+          <p class="cls-desc">Zerbrechlich, aber tödlich. Glutbolzen aus sicherer Entfernung, am Ende fällt ein Meteor.</p>
+          <ul class="skills">
+            <li><img class="px" src="img/skill-flame_nova.png" alt="" width="52" height="52">Flammenring</li>
+            <li><img class="px" src="img/skill-blink.png" alt="" width="52" height="52">Blinzeln</li>
+            <li><img class="px" src="img/skill-fireball.png" alt="" width="52" height="52">Feuerball</li>
+            <li><img class="px" src="img/skill-meteor.png" alt="" width="52" height="52">Meteor</li>
+          </ul>
+          <p class="legend"><img class="px" src="img/item-worldstaff.png" alt="" width="52" height="52">Arkaner Weltenstab</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="bosses" id="bosse" aria-labelledby="h-bosse">
+    <div class="wrap">
+      <h2 id="h-bosse" class="title">Drei, die der Krone dienen</h2>
+      <p class="sec-line">Jeder hütet einen Teil des Rätsels. Am Ende wartet der Tyrann.</p>
+    </div>
+    <div class="arena">
+      <figure class="boss" style="--glow: 150, 90, 255">
+        <img class="px" src="img/boss-varkhul.png" alt="Varkhul, der Knochenfürst, holt mit seinem Großschwert aus" width="312" height="309">
+        <figcaption><b>Varkhul</b><span>Die Katakomben · Stufe 6</span></figcaption>
       </figure>
-      <figure class="shot reveal" data-zoom="Magier mit dem Arkanen Weltenstab: Meteor">
-        <img class="px" src="img/kampf-magier.webp" alt="Ein Meteor schlägt mitten in einer Gruppe Feuerteufel ein" width="1056" height="594" loading="lazy">
-        <figcaption>Magier, Meteor</figcaption>
+      <figure class="boss" style="--glow: 60, 210, 220">
+        <img class="px" src="img/boss-nerith.png" alt="Nerith, die Ertrunkene Priesterin, erhebt sich mit ihrem Dreizack" width="246" height="309">
+        <figcaption><b>Nerith</b><span>Der Versunkene Tempel · Stufe 12</span></figcaption>
       </figure>
-      <figure class="shot reveal" data-zoom="Schurke mit „Nachtflüstern“ gegen Nerith">
-        <img class="px" src="img/kampf-schurke.webp" alt="Schurke springt per Schattenschritt auf Nerith, die Ertrunkene Priesterin" width="1056" height="594" loading="lazy">
-        <figcaption>Schurke gegen Nerith</figcaption>
-      </figure>
-      <figure class="shot reveal" data-zoom="Waldläufer mit „Sternenfall“ gegen Nerith">
-        <img class="px" src="img/kampf-waldlaeufer.webp" alt="Waldläuferin feuert einen Fächer aus Lichtpfeilen auf Nerith" width="1152" height="648" loading="lazy">
-        <figcaption>Waldläufer gegen Nerith</figcaption>
+      <figure class="boss main" style="--glow: 255, 110, 30">
+        <img class="px" src="img/boss-ignaroth.png" alt="Ignaroth, der Glut-Tyrann, schwingt seine glühende Axt" width="400" height="452">
+        <figcaption><b>Ignaroth</b><span>Die Glutschmiede · Stufe 20</span></figcaption>
       </figure>
     </div>
   </section>
 
-  <section class="community" id="community" aria-label="Community">
-    <div class="wrap socials" data-socials></div>
+  <section class="final" aria-labelledby="h-final">
+    <div class="wrap final-inner">
+      <h2 id="h-final" class="title">Die Glut wartet.</h2>
+      <p class="sec-line">Deine Charaktere sind auf jedem Gerät dabei. <a href="welt">Mehr über die Welt</a></p>
+      <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
+      <div class="socials" data-socials hidden></div>
+    </div>
   </section>
 </main>
 

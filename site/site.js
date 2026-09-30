@@ -36,10 +36,11 @@
   const svg = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="${path}"/></svg>`;
   const validUrl = (u) => typeof u === 'string' && /^https:\/\//.test(u.trim());
   const entries = Object.entries(cfg.social ?? {}).filter(([k]) => SOCIAL[k]);
+  // Nur eingetragene Kanäle zeigen; ohne Adressen bleibt der Bereich ganz aus.
+  const live = entries.filter(([, url]) => validUrl(url));
   for (const box of $$('[data-socials]')) {
-    box.innerHTML = entries.map(([k, url]) => validUrl(url)
-      ? `<a class="social" href="${encodeURI(url.trim())}" target="_blank" rel="noopener me">${svg(SOCIAL[k].path)}${SOCIAL[k].name}</a>`
-      : `<span class="social soon" title="Kanal folgt">${svg(SOCIAL[k].path)}${SOCIAL[k].name} <small>bald</small></span>`).join('');
+    box.innerHTML = live.map(([k, url]) => `<a class="social" href="${encodeURI(url.trim())}" target="_blank" rel="noopener me">${svg(SOCIAL[k].path)}${SOCIAL[k].name}</a>`).join('');
+    box.hidden = !live.length;
   }
   for (const box of $$('[data-foot-socials]')) {
     box.innerHTML = entries.filter(([, url]) => validUrl(url))
@@ -75,6 +76,15 @@
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
+  // ---------- Menü auf dem Handy
+  const menuBtn = document.querySelector('.menu-btn');
+  if (menuBtn) {
+    const setMenu = (open) => { document.body.classList.toggle('menu-open', open); menuBtn.setAttribute('aria-expanded', String(open)); };
+    menuBtn.addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
+    for (const a of $$('#hauptmenue a')) a.addEventListener('click', () => setMenu(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
+  }
+
   // ---------- Einblenden beim Scrollen
   if ('IntersectionObserver' in window && !reduced) {
     const io = new IntersectionObserver((list) => {
@@ -82,6 +92,27 @@
     }, { rootMargin: '0px 0px -8% 0px' });
     $$('.reveal').forEach((el) => io.observe(el));
   } else $$('.reveal').forEach((el) => el.classList.add('in'));
+
+  // ---------- Klassen: Reiter wechseln das Porträt (Pfeiltasten wie bei Tabs üblich)
+  const tabs = $$('.cls-tabs [role="tab"]');
+  const show = (tab, focus = false) => {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    }
+    // Glut hinter der Figur in der Farbe der Klasse
+    document.querySelector('.classes')?.style.setProperty('--res', tab.style.getPropertyValue('--res'));
+    if (focus) tab.focus();
+  };
+  tabs.forEach((t, i) => {
+    t.tabIndex = i === 0 ? 0 : -1;
+    t.addEventListener('click', () => show(t));
+    t.addEventListener('keydown', (e) => {
+      const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (d) { e.preventDefault(); show(tabs[(i + d + tabs.length) % tabs.length], true); }
+    });
+  });
 
   // ---------- Bildbetrachter für die Aufnahmen
   const box = document.querySelector('.lightbox');

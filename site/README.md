@@ -21,21 +21,29 @@ Alle Pfade in den Seiten sind relativ (`img/…`, `support`), nur die Spieladres
 Social-Media-Adressen (leer = Knopf „bald“), Impressumsangaben (leer = Hinweis statt Angaben).
 Anmeldestatus liest `site.js` aus `localStorage['emberwrath:online:session']` (Format vom Login-Thread).
 
-## Bilder = echte Kampfszenen
+## Bilder = echte Spielgrafik
 
-`img/` enthält nur Aufnahmen aus dem Spiel: Helden auf Stufe 20 mit legendärer Ausrüstung im Kampf gegen Bosse
-und Gruppen (`kampf-*.webp`), dazu das Logo. Neu aufnehmen, aus einer Kopie des Projekts:
+Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
+- `kampf-*.webp`, `welt-*.webp`: Aufnahmen (Stufe-20-Helden in legendärer Ausrüstung gegen Bosse und Gruppen),
+  erzeugt mit `tools/kampfszenen.mjs`.
+- `held-*`, `boss-*`, `volk-*`, `skill-*`, `item-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert
+  mit `tools/render-assets.mjs` (Figuren, Bosse, Völker, Fähigkeits- und Gegenstandssymbole, NPC-Porträts).
+  Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×4, Bosse ×3, Völker und Porträts ×2).
+
+Neu erzeugen, aus einer Kopie des Projekts:
 
 ```sh
 # in der Kopie src/config.js spriteRes auf 4 stellen (größere Ansicht, Helden bleiben bei res 2)
 node tools/build.mjs
-npx http-server dist -p 8101 -s &
+npx http-server dist -p 8101 -s &     # gebündeltes Spiel für kampfszenen.mjs
+npx http-server .    -p 8102 -s &     # Module direkt für render-assets.mjs
 node site/tools/kampfszenen.mjs /tmp/kampf [ids,kommagetrennt]   # je Szene 18 Bilder, bestes von Hand wählen
-node site/tools/towebp.mjs 0.9 site/img /tmp/kampf/<gewählt>.png  # danach in kampf-*.webp umbenennen
-node site/tools/render-assets.mjs site/img                        # nur logo.png wird gebraucht (http-server . -p 8102)
+node site/tools/towebp.mjs 0.9 site/img /tmp/kampf/<gewählt>.png  # danach umbenennen
+node site/tools/render-assets.mjs /tmp/assets                     # Posen auswählen und nach site/img kopieren
 ```
 
 Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,
-Trefferblitze und Lebensbalken. Szenen und Ausrüstung stehen oben in `kampfszenen.mjs`.
+Trefferblitze und Lebensbalken. Szenen, Ausrüstung und Posen stehen jeweils oben in den Skripten. Nach neuen
+Figuren die `width`/`height` in index.html und die Höhen in site.css (`.hero-fig`, `.boss-fig img`) anpassen.
 
 Die Skripte erwarten Playwright global (`/opt/node22/lib/node_modules/playwright`) und Chromium unter `/opt/pw-browsers`.

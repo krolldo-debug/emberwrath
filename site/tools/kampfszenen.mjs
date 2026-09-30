@@ -6,7 +6,22 @@ const [OUT = 'action', only, URL = 'http://localhost:8101/emberfall.html'] = pro
 mkdirSync(OUT, { recursive: true });
 const TYRANT = ['tyrant_helm', 'tyrant_plate', 'tyrant_gauntlets', 'tyrant_sabatons', 'ember_heart'];
 const WARDEN = ['emberwarden_helm', 'emberwarden_mail', 'emberwarden_gauntlets', 'emberwarden_boots', 'ember_heart'];
+const CLS = {
+  warrior: ['human', ['tyrant_helm', 'tyrant_plate', 'tyrant_gauntlets', 'tyrant_sabatons', 'crown_of_embers_blade', 'ember_heart']],
+  rogue: ['emberborn', ['nightwhisper', 'nightstalker_coat', 'ember_grips', 'shadowstep_boots', 'ember_heart']],
+  ranger: ['elf', ['starfall', 'hunter_leather', 'wanderer_hood', 'borderwatch_gauntlets', 'shadowstep_boots', 'ember_heart']],
+  mage: ['elf', ['worldstaff', 'arcane_robe', 'silk_gloves', 'shadowstep_boots', 'ember_heart']],
+};
+const W = (id, cls, zone, dist, seq, extra = {}) => ({ id, race: CLS[cls][0], cls, gear: CLS[cls][1], zone, target: 'cluster', dist, zoom: 0.8, seq, ...extra });
 export const SCENES = [
+  // Regionen für /welt: eng um das Geschehen (zoom 0,42–0,45), Bild für die Seite von Hand gewählt
+  W('welt-aschenwald', 'warrior', 'ashwood', 35, [['q', 0]], { zoom: 0.45, target: 'few' }),
+  W('welt-glutsenke', 'warrior', 'emberhollow', 30, [['q', 0]], { zoom: 0.42 }),
+  W('welt-katakomben', 'mage', 'catacombs', 60, [['t', 250], ['q', 0]], { zoom: 0.42 }),
+  W('welt-tempel', 'warrior', 'sunken_temple', 30, [['g', 250], ['q', 0]], { zoom: 0.42 }),
+  W('welt-schlacke', 'mage', 'cinder_peaks', 70, [['g', 300], ['t', 0]], { zoom: 0.42 }),
+  W('welt-schmiede', 'warrior', 'molten_forge', 45, [['g', 250], ['q', 0]], { zoom: 0.42 }),
+  { id: 'titel', race: 'human', cls: 'warrior', gear: CLS.warrior[1], zone: 'molten_forge', target: 'boss', dist: 40, zoom: 0.66, shift: [-50, -6], seq: [['g', 250], ['q', 0]] },
   { id: 'krieger-ignaroth', race: 'human', cls: 'warrior', gear: [...TYRANT, 'crown_of_embers_blade'], zone: 'molten_forge', target: 'boss', dist: 40, seq: [['g', 250], ['q', 0]] },
   { id: 'magier-meteor', race: 'emberborn', cls: 'mage', gear: ['worldstaff', 'arcane_robe', 'emberwarden_helm', 'ember_grips', 'shadowstep_boots', 'ember_heart'], zone: 'cinder_peaks', target: 'cluster', dist: 70, seq: [['g', 700], ['t', 0]] },
   { id: 'waldlaeufer-pfeilhagel', race: 'elf', cls: 'ranger', gear: [...WARDEN, 'starfall'], zone: 'molten_forge', target: 'cluster', dist: 115, seq: [['g', 300], ['q', 0]] },
@@ -48,7 +63,11 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
     const alive = [...w.enemies].filter((e) => !e.dead);
     let t;
     if (target === 'boss') t = w.boss;
-    else {
+    else if (target === 'few') {
+      // kleine Gruppe (2–3 Gegner), damit das Gebiet selbst sichtbar bleibt
+      let bestD = 99;
+      for (const e of alive) { const n = alive.filter((o) => Math.hypot(o.x - e.x, o.y - e.y) < 90).length; const d = Math.abs(n - 3); if (d < bestD) { bestD = d; t = e; } }
+    } else {
       let best = 0;
       for (const e of alive) { const n = alive.filter((o) => Math.hypot(o.x - e.x, o.y - e.y) < 70).length; if (n > best) { best = n; t = e; } }
     }
