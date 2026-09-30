@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildSite } from '../site/build-site.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modules = new Map();
@@ -58,9 +59,11 @@ const fragment = `<title>Emberwrath</title>\n<style>\n:root { color-scheme: dark
 writeFileSync(resolve(root, 'dist/emberfall.fragment.html'), fragment);
 // Veröffentlichungs-Ordner für statisches Hosting (Cloudflare Pages, GitHub Pages, Netlify …):
 // dist/site/ enthält alles, was hochgeladen wird. Siehe docs/VEROEFFENTLICHEN.md.
+// Aufbau: / = Startseite (site/, siehe site/README.md), /spielen/ = das Spiel.
 const site = resolve(root, 'dist/site');
-mkdirSync(site, { recursive: true });
-writeFileSync(resolve(site, 'index.html'), out);
+mkdirSync(resolve(site, 'spielen'), { recursive: true });
+writeFileSync(resolve(site, 'spielen/index.html'), out);
+const landing = buildSite(root, site);
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
 // dazu übliche Sicherheits-Header. Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
 writeFileSync(resolve(site, '_headers'), [
@@ -74,7 +77,16 @@ writeFileSync(resolve(site, '_headers'), [
   '  Cache-Control: no-cache',
   '/',
   '  Cache-Control: no-cache',
+  '/spielen/',
+  '  Cache-Control: no-cache',
+  '/spielen/index.html',
+  '  Cache-Control: no-cache',
+  '/config.js',
+  '  Cache-Control: no-cache',
+  '/img/*',
+  '  Cache-Control: public, max-age=86400',
   '',
 ].join('\n'));
 writeFileSync(resolve(site, 'robots.txt'), 'User-agent: *\nAllow: /\n');
 console.log(`dist/emberfall.html geschrieben (${modules.size} Module, ${(out.length / 1024).toFixed(1)} KB)`);
+console.log(`dist/site: Startseite (${landing.pages} Seiten, Bilder ${landing.imagesKB} KB), Spiel unter /spielen/`);

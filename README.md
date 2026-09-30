@@ -12,7 +12,8 @@ Sicherungsdatei. Kein Server, keine anderen Spieler – siehe `docs/MULTIPLAYER.
 
 - Entwicklung: `npm run dev` (oder beliebiger statischer Server im Projektordner), dann `http://localhost:8080`.
 - Build: `npm run build` bzw. `node tools/build.mjs` (Node 18 oder neuer, sonst nichts) schreibt
-  - `dist/site/` – die Website (index.html, `_headers`, robots.txt), wird auf Cloudflare veröffentlicht,
+  - `dist/site/` – die Website, wird auf Cloudflare veröffentlicht: `/` Startseite (aus `site/`, siehe `site/README.md`),
+    `/spielen/` das Spiel, dazu `/support`, `/impressum`, `/datenschutz`, `_headers`, robots.txt,
   - `dist/emberfall.html` – eine Datei, läuft per Doppelklick,
   - `dist/emberfall.fragment.html` – zum Einbetten (Vorschau).
 - Logiktests Fortschritt: `node src/progression/test/logic.test.mjs`

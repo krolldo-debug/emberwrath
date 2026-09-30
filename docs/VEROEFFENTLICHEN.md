@@ -29,6 +29,12 @@ Lokal prüfen: `node tools/build.mjs && npx wrangler deploy --dry-run`.
 `dist/site/_headers` setzt CSP und Sicherheitsheader (INTEGRATION §11.11). Externe Skripte, Fonts oder Verbindungen
 nur zusammen mit einer Anpassung der CSP in `tools/build.mjs`.
 
+## Aufbau der Website
+
+`/` Startseite (Ordner `site/`, Einstellungen in `site/config.js`: Kontakt, Social Media, Impressum-Angaben),
+`/spielen/` das Spiel, `/support`, `/impressum`, `/datenschutz`. Lokal wie live prüfen: `node tools/build.mjs && npx wrangler dev`.
+Impressum-Angaben fehlen noch (die Seite sagt das offen); vor dem Sammeln von E-Mails ausfüllen.
+
 ## Spielstand
 
 - Liegt im Browser (localStorage, Präfix `emberfall:v1:`) der jeweiligen Adresse. Adresse nicht wechseln, sonst sind Stände
