@@ -1,0 +1,61 @@
+--- a/src/main.js
++++ b/src/main.js
+@@ -6,6 +6,7 @@
+ import { installProgression } from './progression/index.js';
+ import { installUi } from './ui/index.js';
+ import { installOnline } from './online/index.js';
++import { installNet } from './net/index.js';
+ 
+ // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
+ // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar.
+@@ -17,7 +18,8 @@
+   .use(installWorld)       // Thread B
+   .use(installProgression) // Thread C
+   .use(installUi)          // Thread D
+-  .use(installOnline);     // Online-Konten (src/online, docs/ONLINE.md)
++  .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
++  .use(installNet);        // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
+ game.scenes.register('play', (g) => new PlayScene(g));
+ window.emberfall = game;
+ game.start('title');
+--- a/index.html
++++ b/index.html
+@@ -13,6 +13,7 @@
+   <link rel="stylesheet" href="src/progression/progression.css">
+   <link rel="stylesheet" href="src/world/world.css">
+   <link rel="stylesheet" href="src/online/online.css">
++  <link rel="stylesheet" href="src/net/net.css">
+ </head>
+ <body>
+   <canvas id="game" width="480" height="270" aria-label="Emberwrath Spielszene"></canvas>
+--- a/wrangler.jsonc
++++ b/wrangler.jsonc
+@@ -1,10 +1,23 @@
+-// Cloudflare-Konfiguration: reine statische Website (kein Worker-Skript).
+-// Cloudflare baut mit `npm run build` und veröffentlicht dann mit `npx wrangler deploy` den Ordner dist/site.
+-// dist/site/_headers (CSP, Sicherheitsheader) wird von Cloudflare ausgewertet.
++// Cloudflare-Konfiguration: Website (statische Dateien aus dist/site) + Welt-Server (worker/, Durable Objects).
++// Cloudflare baut mit `npm run build` und veröffentlicht dann mit `npx wrangler deploy`.
++// Vorhandene Dateien liefert Cloudflare direkt aus (dist/site/_headers gilt weiter), nur /net/* erreicht den Worker.
++// Durable Objects mit SQLite-Speicher sind im Gratis-Tarif enthalten (src/net/README.md: Kosten und Grenzen).
+ {
+   "name": "emberwrath",
++  "main": "worker/index.js",
+   "compatibility_date": "2026-09-01",
+   "assets": {
+-    "directory": "./dist/site"
+-  }
++    "directory": "./dist/site",
++    "binding": "ASSETS"
++  },
++  "durable_objects": {
++    "bindings": [
++      { "name": "ZONE_SHARD", "class_name": "ZoneShard" },
++      { "name": "DIRECTORY", "class_name": "Directory" }
++    ]
++  },
++  "migrations": [
++    { "tag": "v1", "new_sqlite_classes": ["ZoneShard", "Directory"] }
++  ],
++  "observability": { "enabled": true }
+ }
