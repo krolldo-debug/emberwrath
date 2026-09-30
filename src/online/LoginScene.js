@@ -265,22 +265,26 @@ export class LoginScene extends MenuScene {
   // Lokale Demo-Charaktere dieses Geräts als Kopie ins Konto übernehmen.
   #importBox() {
     const g = this.game, o = this.online;
+    const copied = new Set(o.copiedLocal());
     const locals = g.save.listAccounts().filter((a) => !o.isOnlineAccount(a.id))
-      .flatMap((a) => g.save.listCharacters(a.id).map((c) => ({ acc: a, c })));
+      .flatMap((a) => g.save.listCharacters(a.id).map((c) => ({ acc: a, c })))
+      .filter(({ acc, c }) => !copied.has(`${acc.id}:${c.id}`));
     if (!locals.length) return null;
-    return h('details.on-import',
-      h('summary', `Lokale Charaktere übernehmen (${locals.length})`),
-      h('p.acc-meta', 'Kopiert einen Charakter von diesem Gerät in dein Konto. Das Original im lokalen Profil bleibt erhalten.'),
+    return h('details.on-import', { open: true },
+      h('summary', locals.length === 1 ? 'Auf diesem Gerät gefunden: 1 lokaler Charakter' : `Auf diesem Gerät gefunden: ${locals.length} lokale Charaktere`),
+      h('p.acc-meta', 'Übernimm sie in dein Konto, dann sind sie in der Cloud gesichert und auf jedem Gerät spielbar. Das Original im lokalen Profil bleibt erhalten.'),
       h('div.acc-list', locals.map(({ acc, c }) => h('div.acc-row.on-import-row',
         h('div.acc-row-main', h('div', h('strong', c.name ?? '?'), h('div.acc-meta', `${characterLine(g.content, c)} · Profil „${acc.name}“`))),
-        h('div.acc-row-actions', h('button.ef-btn.acc-small', {
+        h('div.acc-row-actions', h('button.ef-btn.primary.acc-small', {
           type: 'button',
           onclick: (e) => {
+            const btn = e.currentTarget;
             const id = o.copyLocalCharacter(acc.id, c.id);
-            e.currentTarget.disabled = true;
-            e.currentTarget.textContent = id ? 'Übernommen' : 'Fehlgeschlagen';
+            btn.disabled = true;
+            btn.textContent = id ? 'Übernommen' : 'Fehlgeschlagen';
+            if (id) setTimeout(() => { if (this.mode === 'account') this.#render(); }, 900);
           },
-        }, 'Übernehmen'))))));
+        }, 'In mein Konto übernehmen'))))));
   }
 
   #deleteButton() {

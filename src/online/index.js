@@ -95,6 +95,11 @@ export class Online {
     await this.client.signOut();
   }
 
+  // Bereits übernommene lokale Charaktere ('<accountId>:<characterId>'), damit sie nicht erneut angeboten werden.
+  copiedLocal() {
+    try { return JSON.parse(this.game.save.storage.getItem(`emberwrath:online:copied:${this.user?.id}`) ?? '[]'); } catch { return []; }
+  }
+
   // Eigenen lokalen Charakter (Demo-Account) als Kopie ins Online-Konto übernehmen.
   copyLocalCharacter(fromAccountId, characterId) {
     const save = this.game.save;
@@ -104,7 +109,11 @@ export class Online {
     const { summary, ...snap } = JSON.parse(JSON.stringify(rec));
     const newId = `chr_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     snap.meta = { ...snap.meta, accountId: accId, characterId: newId, savedAt: Date.now() };
-    return save.saveCharacter(accId, newId, snap, summary) ? newId : null;
+    if (!save.saveCharacter(accId, newId, snap, summary)) return null;
+    const copied = this.copiedLocal();
+    copied.push(`${fromAccountId}:${characterId}`);
+    try { save.storage.setItem(`emberwrath:online:copied:${this.user.id}`, JSON.stringify(copied)); } catch { /* egal */ }
+    return newId;
   }
 
   // Beim Start: gespeicherte Sitzung fortsetzen, Rückleitungen auswerten, Adress-Anker öffnen.
