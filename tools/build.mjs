@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 import { buildSite } from '../site/build-site.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,7 +39,14 @@ for (const m of modules.values()) {
   try { new Function(m.code); } catch (e) { console.error(`Syntaxfehler in ${m.id}: ${e.message}`); process.exit(1); }
 }
 
-let bundle = 'const __defs = {}, __cache = {};\n';
+// Build-Kennung: Commit (Cloudflare Workers Builds setzt WORKERS_CI_COMMIT_SHA, sonst git), sichtbar im
+// Titelbild-Fuß und unter /version.json – so lässt sich prüfen, welche Version live ausgeliefert wird.
+let commit = process.env.WORKERS_CI_COMMIT_SHA ?? '';
+if (!commit) { try { commit = execSync('git rev-parse HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { commit = ''; } }
+const build = { commit: commit ? commit.slice(0, 7) : 'lokal', builtAt: new Date().toISOString() };
+
+let bundle = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
+bundle += 'const __defs = {}, __cache = {};\n';
 bundle += 'function __require(id) { if (!(id in __cache)) __cache[id] = __defs[id](); return __cache[id]; }\n';
 for (const m of modules.values()) bundle += `__defs[${JSON.stringify(m.id)}] = function () {\n${m.code}\n};\n`;
 bundle += `__require(${JSON.stringify(relative(root, entry))});\n`;
@@ -87,10 +95,13 @@ writeFileSync(resolve(site, '_headers'), [
   '  Cache-Control: no-cache',
   '/config.js',
   '  Cache-Control: no-cache',
+  '/version.json',
+  '  Cache-Control: no-cache',
   '/img/*',
   '  Cache-Control: public, max-age=86400',
   '',
 ].join('\n'));
+writeFileSync(resolve(site, 'version.json'), JSON.stringify(build) + '\n');
 writeFileSync(resolve(site, 'robots.txt'), 'User-agent: *\nAllow: /\n');
 console.log(`dist/emberfall.html geschrieben (${modules.size} Module, ${(out.length / 1024).toFixed(1)} KB)`);
 console.log(`dist/site: Startseite (${landing.pages} Seiten, Bilder ${landing.imagesKB} KB), Spiel unter /spielen/`);

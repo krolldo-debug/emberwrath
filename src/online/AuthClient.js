@@ -19,6 +19,7 @@ const MESSAGES = {
   user_already_exists: 'Zu dieser E-Mail gibt es schon ein Konto. Melde dich an oder setze dein Passwort zurück.',
   email_exists: 'Zu dieser E-Mail gibt es schon ein Konto. Melde dich an oder setze dein Passwort zurück.',
   weak_password: 'Das Passwort ist zu schwach. Nimm mindestens 8 Zeichen mit Buchstaben und Zahlen.',
+  email_address_not_authorized: 'An diese Adresse darf der Server noch keine E-Mails schicken. Solange kein eigener Mailversand eingerichtet ist, geht das nur an die E-Mail deines Supabase-Kontos.',
   email_address_invalid: 'Diese E-Mail-Adresse wird nicht akzeptiert.',
   validation_failed: 'Bitte prüfe deine Eingaben.',
   signup_disabled: 'Neue Registrierungen sind gerade abgeschaltet.',
