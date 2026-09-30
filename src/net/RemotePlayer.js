@@ -33,7 +33,7 @@ export class RemotePlayer extends Entity {
   }
 
   get dead() { return (this.flags & FLAG_DEAD) !== 0; }
-  get riding() { return (this.flags & FLAG_RIDING) !== 0 || !!this.look?.riding; }
+  get riding() { return (this.flags & FLAG_RIDING) !== 0 || /^ride/.test(this.animator?.name ?? ''); }
 
   setAnims(anims) {
     this.anims = anims;
@@ -102,7 +102,7 @@ export class RemotePlayer extends Entity {
     if (!f) return;
     const a = this.alpha;
     if (a < 1) ctx.globalAlpha = a;
-    const sh = getShadow(this.shadowW);
+    const sh = getShadow(/^ride/.test(this.animator.name) ? 26 : this.shadowW); // Reittier: breiterer Schatten
     ctx.drawImage(sh, Math.round(this.x - cx - sh.width / 2), Math.round(this.y - cy - sh.height / 2));
     f.draw(ctx, this.x - cx, this.y - cy, { flip: this.facing < 0 });
     if (a < 1) ctx.globalAlpha = 1;
