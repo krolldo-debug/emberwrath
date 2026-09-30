@@ -107,6 +107,12 @@ export class LoginScene extends MenuScene {
     else if (this.mode === 'account' && this.online.user) body = this.#account();
     else body = this.#login();
     this.root.replaceChildren(h('div.ef-panel.acc-panel.on-panel', head, body));
+    // Alte Fehlermeldung verschwindet, sobald wieder getippt wird.
+    this.root.querySelectorAll('.on-form input').forEach((el) => el.addEventListener('input', () => {
+      const msg = this.root.querySelector('.on-msg.error');
+      if (msg) { msg.textContent = ''; msg.classList.remove('error'); }
+      if (this.message?.kind === 'error') this.message = null;
+    }));
     const first = this.root.querySelector('input:not([type=hidden])');
     if (first) focusIfDesktop(first);
   }
