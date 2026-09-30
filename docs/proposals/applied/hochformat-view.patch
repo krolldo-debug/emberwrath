@@ -1,0 +1,68 @@
+diff -ru a/src/Game.js b/src/Game.js
+--- a/src/Game.js	2026-09-30 04:11:31.253390721 +0000
++++ b/src/Game.js	2026-09-30 04:11:31.371712341 +0000
+@@ -49,6 +49,7 @@
+     this.fps = 0; this.#fpsAcc = 0; this.#fpsFrames = 0; this.#lastRender = performance.now();
+ 
+     window.addEventListener('resize', () => this.resize());
++    this.bus.on(EV.SCENE_CHANGE, () => this.resize());
+     this.resize();
+     this.loop = new GameLoop({ update: (dt) => this.update(dt), render: () => this.render() });
+   }
+@@ -166,6 +167,7 @@
+   resize() {
+     const dpr = window.devicePixelRatio || 1;
+     const aw = window.innerWidth * dpr, ah = window.innerHeight * dpr;
++    this.#chooseView(aw, ah);
+     const fit = Math.min(aw / CONFIG.viewWidth, ah / CONFIG.viewHeight);
+     const scale = fit >= 2 && Math.floor(fit) / fit >= 0.85 ? Math.floor(fit) : fit;
+     this.canvas.width = Math.round(CONFIG.viewWidth * scale);
+@@ -180,6 +182,22 @@
+     rs.setProperty('--view-scale', `${cssW / CONFIG.viewWidth}`);
+   }
+ 
++  // Hochformat: schmales, hohes internes Bild (270 × bis 480), sonst 480 × 270.
++  // Alle Systeme lesen CONFIG.viewWidth/viewHeight live; Lighting und ScreenFx passen sich selbst an.
++  #chooseView(aw, ah) {
++    const L = CONFIG.landscapeView, P = CONFIG.portraitView;
++    const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId);
++    const w = tall ? P.width : L.width;
++    const h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
++    if (w === CONFIG.viewWidth && h === CONFIG.viewHeight && this.view.width === w && this.view.height === h) return;
++    CONFIG.viewWidth = w; CONFIG.viewHeight = h;
++    this.view = makeCanvas(w, h);
++    this.ctx = this.view.getContext('2d');
++    this.input.viewW = w; this.input.viewH = h;
++    document.documentElement.classList.toggle('ef-portrait', tall);
++    this.bus.emit(EV.VIEW_RESIZED, { width: w, height: h, portrait: tall });
++  }
++
+   clientToView(cx, cy) {
+     const r = this.canvas.getBoundingClientRect();
+     return { x: ((cx - r.left) / r.width) * CONFIG.viewWidth, y: ((cy - r.top) / r.height) * CONFIG.viewHeight };
+diff -ru a/src/config.js b/src/config.js
+--- a/src/config.js	2026-09-30 04:11:31.255330067 +0000
++++ b/src/config.js	2026-09-30 04:11:31.374063991 +0000
+@@ -5,6 +5,11 @@
+   // Interne Pixel-Auflösung (16:9). Wird ganzzahlig hochskaliert (1080p = 4x).
+   viewWidth: 480,
+   viewHeight: 270,
++  // Hochformat (Handy): Das Spielbild wird schmal und hoch statt 16:9 verkleinert.
++  // Game.resize() setzt viewWidth/viewHeight zur Laufzeit; nur in diesen Szenen.
++  landscapeView: { width: 480, height: 270 },
++  portraitView: { width: 270, minHeight: 360, maxHeight: 480 },
++  portraitScenes: ['play'],
+   tileSize: 16,
+   fixedStep: 1 / 60,
+   maxFrameTime: 0.25,
+diff -ru a/src/core/events.js b/src/core/events.js
+--- a/src/core/events.js	2026-09-30 04:11:31.369298334 +0000
++++ b/src/core/events.js	2026-09-30 04:11:31.376032077 +0000
+@@ -5,6 +5,7 @@
+ export const EV = Object.freeze({
+   // Ablauf
+   SCENE_CHANGE: 'scene:change',          // { from, to }
++  VIEW_RESIZED: 'view:resized',          // { width, height, portrait }  (internes Bild hat neue Größe)
+   GAME_STARTED: 'game:started',          // { accountId, characterId, isNew }
+   GAME_SAVED: 'game:saved',              // { at, reason }
+   STATE_CHANGED: 'state:changed',        // { type, payload, result }  (nach jedem Command)

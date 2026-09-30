@@ -1,0 +1,11 @@
+{
+  "name": "emberfall",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Emberwrath – Pixel-Art Action-RPG (dunkle Fantasy). RPG-Prototyp (lokal, Web + Mobile).",
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes http-server -c-1 -p 8080 .",
+    "build": "node tools/build.mjs"
+  }
+}

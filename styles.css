@@ -1,0 +1,88 @@
+/* Basis-Layout + gemeinsamer UI-Baukasten (Architektur-Thread).
+   Das Aussehen verfeinert Thread D in src/ui/theme.css (überschreibt hier).
+   Klassen: ef-screen, ef-panel, ef-center, ef-title, ef-sub, ef-note, ef-btn(.primary/.danger),
+   ef-input, ef-list, ef-card(.selected), ef-row, ef-tabs, ef-slot, ef-tooltip, ef-badge,
+   Seltenheit: r-common r-uncommon r-rare r-epic. */
+:root {
+  color-scheme: dark;
+  --ef-bg: #05020a;
+  --ef-panel: rgba(16, 10, 24, 0.94);
+  --ef-panel-edge: #5a3a22;
+  --ef-gold: #e8c25a;
+  --ef-ember: #ff8a2a;
+  --ef-text: #efe6d2;
+  --ef-muted: #a89a7c;
+  --ef-danger: #d8403a;
+  --ef-font: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --ef-font-title: Georgia, "Times New Roman", serif;
+  --ef-touch: 44px; /* Mindestgröße für Touch-Ziele */
+  --view-w: 100vw; --view-h: 56.25vw; --view-scale: 1; /* von Game.resize() gesetzt */
+}
+html, body {
+  margin: 0; height: 100%;
+  background: var(--ef-bg);
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  font-family: var(--ef-font); color: var(--ef-text);
+}
+body { display: flex; align-items: center; justify-content: center; }
+#game {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+  box-shadow: 0 0 80px rgba(200, 66, 12, 0.08);
+}
+#boot {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  color: #ffb640; font: 700 14px/1 monospace; letter-spacing: 0.4em;
+}
+
+/* UI-Layer liegt über dem Canvas und lässt Klicks/Touches durch,
+   außer auf echten Bedienelementen. */
+#ui { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+#ui > div { position: absolute; inset: 0; }
+#ui button, #ui input, #ui select, #ui a, #ui .ef-panel, #ui .ef-interactive, #ui .ef-screen { pointer-events: auto; }
+.ui-panels .ef-panel-host {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(5, 2, 10, 0.45); pointer-events: auto;
+}
+
+.ef-screen { position: absolute; inset: 0; display: grid; place-items: center; overflow: auto; padding: 16px; box-sizing: border-box; }
+.ef-panel {
+  background: var(--ef-panel); border: 2px solid var(--ef-panel-edge);
+  box-shadow: 0 0 0 2px #120a08, 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 20px; border-radius: 4px; max-width: min(92vw, 720px); max-height: 88vh; overflow: auto; box-sizing: border-box;
+}
+.ef-center { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.ef-title { font-family: var(--ef-font-title); color: var(--ef-ember); letter-spacing: 0.12em; margin: 0 0 8px; font-size: clamp(28px, 6vw, 56px); text-shadow: 0 0 18px rgba(255, 120, 30, 0.45); }
+.ef-sub { color: var(--ef-gold); font-family: var(--ef-font-title); margin: 0; font-size: clamp(16px, 2.6vw, 22px); }
+.ef-note { color: var(--ef-muted); font-size: 14px; max-width: 46ch; margin: 4px 0; }
+.ef-btn {
+  min-height: var(--ef-touch); min-width: 180px; padding: 8px 18px; font: 600 16px var(--ef-font);
+  color: var(--ef-text); background: #24162e; border: 2px solid var(--ef-panel-edge); border-radius: 3px; cursor: pointer;
+}
+.ef-btn:hover:not(:disabled), .ef-btn:focus-visible { border-color: var(--ef-gold); outline: none; }
+.ef-btn.primary { background: #5a2410; border-color: var(--ef-ember); }
+.ef-btn.danger { border-color: var(--ef-danger); }
+.ef-btn:disabled { opacity: 0.45; cursor: default; }
+.ef-input { min-height: var(--ef-touch); padding: 6px 10px; font: 16px var(--ef-font); color: var(--ef-text); background: #140c1c; border: 2px solid var(--ef-panel-edge); border-radius: 3px; box-sizing: border-box; }
+.ef-list { display: flex; flex-direction: column; gap: 8px; }
+.ef-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ef-card { border: 2px solid #3a2a3a; background: #150d1d; padding: 10px; border-radius: 3px; cursor: pointer; }
+.ef-card.selected { border-color: var(--ef-gold); background: #22142a; }
+.ef-badge { display: inline-block; padding: 2px 8px; border: 1px solid var(--ef-panel-edge); border-radius: 10px; font-size: 12px; color: var(--ef-muted); }
+.ef-slot { width: 44px; height: 44px; border: 2px solid #3a2a3a; background: #100a16; box-sizing: border-box; }
+.ef-tooltip { position: absolute; background: #0c0712; border: 1px solid var(--ef-panel-edge); padding: 8px; font-size: 13px; pointer-events: none; }
+.r-common { color: #d8d0c0; } .r-uncommon { color: #6ee06a; } .r-rare { color: #5aa8ff; } .r-epic { color: #c07aff; }
+
+/* Hochformat auf Touch-Geräten: Das Spielbild ist 16:9 und wird schmal.
+   Ein Hinweis im freien Bereich empfiehlt Querformat; spielbar bleibt es trotzdem. */
+#rotate-hint { display: none; }
+@media (orientation: portrait) and (pointer: coarse) {
+  #ui[data-scene="play"] ~ #rotate-hint {
+    display: block; position: fixed; left: 16px; right: 16px; top: calc(50% + var(--view-h) / 2 + 12px);
+    text-align: center; color: var(--ef-muted); font-size: 14px; pointer-events: none; z-index: 1;
+  }
+}

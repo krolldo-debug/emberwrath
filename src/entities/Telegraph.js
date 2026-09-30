@@ -1,0 +1,122 @@
+import { Entity } from './Entity.js';
+import { Light } from '../gfx/Lighting.js';
+import { EV } from '../core/events.js';
+
+// Bodenwarnungen für Boss-Angriffe: zeigen VOR dem Treffer, wo es gefährlich
+// wird. Die Innenfläche füllt sich bis zum Zeitpunkt des Schlags.
+//   shape: 'circle' { r } | 'arc' { r, angle, arc } | 'line' { angle, len, width }
+export class Telegraph extends Entity {
+  constructor(x, y, { shape = 'circle', r = 30, angle = 0, arc = Math.PI, len = 100, width = 16, duration = 1, follow = null, color = [255, 70, 50] }) {
+    super(x, y);
+    Object.assign(this, { shape, r, angle, arc, len, width, duration, follow, color });
+    this.t = 0;
+    this.sortOffset = -20000; // liegt auf dem Boden, unter allen Figuren
+  }
+  update(dt, world) {
+    this.t += dt;
+    if (this.follow) { this.x = this.follow.x; this.y = this.follow.y; }
+    if (!this.light) {
+      // Rotes Licht färbt Boden UND wer darin steht – gut lesbar auch im Dunkeln
+      const line = this.shape === 'line';
+      const lx = line ? this.x + Math.cos(this.angle) * this.len / 2 : this.x;
+      const ly = line ? this.y + Math.sin(this.angle) * this.len * 0.375 : this.y;
+      this.light = world.addLight(new Light({ x: lx, y: ly, radius: line ? Math.max(30, this.len * 0.6) : this.r * 1.3, color: this.color, intensity: 0.5, flicker: 0, ttl: this.duration, bloom: 0 }));
+    }
+    if (this.follow) { this.light.x = this.x; this.light.y = this.y; }
+    if (this.t >= this.duration) this.removed = true;
+  }
+  #path(ctx, cx, cy, scale = 1) {
+    const x = this.x - cx, y = this.y - cy;
+    ctx.beginPath();
+    if (this.shape === 'circle') ctx.ellipse(x, y, this.r * scale, this.r * 0.6 * scale, 0, 0, Math.PI * 2);
+    else if (this.shape === 'arc') {
+      ctx.moveTo(x, y);
+      const n = 18;
+      for (let i = 0; i <= n; i++) {
+        const a = this.angle - this.arc / 2 + (this.arc * i) / n;
+        ctx.lineTo(x + Math.cos(a) * this.r * scale, y + Math.sin(a) * this.r * 0.6 * scale);
+      }
+      ctx.closePath();
+    } else {
+      const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75;
+      const nx = -dy, ny = dx, hw = this.width / 2, L = this.len * scale;
+      ctx.moveTo(x + nx * hw, y + ny * hw);
+      ctx.lineTo(x + dx * L + nx * hw, y + dy * L + ny * hw);
+      ctx.lineTo(x + dx * L - nx * hw, y + dy * L - ny * hw);
+      ctx.lineTo(x - nx * hw, y - ny * hw);
+      ctx.closePath();
+    }
+  }
+  // Lit-Pass: Fläche liegt unter den Figuren und füllt sich bis zum Schlag
+  render(ctx, cx, cy) {
+    const k = Math.min(1, this.t / this.duration);
+    const [r, g, b] = this.color;
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = `rgb(${r * 0.5 | 0},${g * 0.3 | 0},${b * 0.3 | 0})`;
+    this.#path(ctx, cx, cy);
+    ctx.fill();
+    ctx.globalAlpha = 0.35 + 0.4 * k;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    this.#path(ctx, cx, cy, this.shape === 'line' ? k : Math.max(0.05, k));
+    ctx.fill();
+    ctx.restore();
+  }
+  // Emissive-Pass: nur die Kontur, damit Figuren darin sichtbar bleiben
+  renderEmissive(ctx, cx, cy) {
+    const k = Math.min(1, this.t / this.duration);
+    const [r, g, b] = this.color;
+    ctx.save();
+    ctx.globalAlpha = 0.5 + 0.4 * Math.sin(this.t * 22) * (k > 0.7 ? 1 : 0.3);
+    ctx.strokeStyle = `rgb(${Math.min(255, r + 60)},${Math.min(255, g + 90)},${Math.min(255, b + 60)})`;
+    ctx.lineWidth = 1;
+    this.#path(ctx, cx, cy);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// Ringförmige Druckwelle, die sich ausbreitet. Wer im Ring steht, wird getroffen
+// (Ausweichrolle schützt). Trifft den Helden höchstens einmal.
+export class DamageWave extends Entity {
+  constructor(x, y, owner, { maxR = 110, duration = 0.8, damage = 12, color = [170, 110, 255] }) {
+    super(x, y);
+    Object.assign(this, { owner, maxR, duration, damage, color });
+    this.t = 0; this.hitDone = false; this.sortOffset = -19000;
+  }
+  get r() { return 6 + (this.maxR - 6) * Math.min(1, this.t / this.duration); }
+  update(dt, world) {
+    this.t += dt;
+    if (this.t >= this.duration) { this.removed = true; return; }
+    const h = world.hero;
+    if (this.hitDone || h.dead) return;
+    const dx = h.x - this.x, dy = (h.y - this.y) / 0.6;
+    const d = Math.hypot(dx, dy);
+    if (Math.abs(d - this.r) < 7) {
+      const l = d || 1;
+      const hit = { damage: this.damage, dirX: dx / l, dirY: dy / l, knockback: 160, source: this.owner };
+      if (h.takeHit(hit)) {
+        this.hitDone = true;
+        world.bus.emit('hit', { attacker: this.owner, target: h, damage: hit.damage, crit: false, heavy: true, dirX: hit.dirX, dirY: hit.dirY, x: h.x, y: h.centerY, killed: h.dead });
+      } else if (h.dodgedTimer > 0) this.hitDone = true;
+    }
+  }
+  renderEmissive(ctx, cx, cy) {
+    const k = this.t / this.duration;
+    const [r, g, b] = this.color;
+    ctx.save();
+    ctx.globalAlpha = 1 - k * 0.8;
+    ctx.strokeStyle = `rgb(${r},${g},${b})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(this.x - cx, this.y - cy, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = (1 - k) * 0.6;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(this.x - cx, this.y - cy, this.r - 2, (this.r - 2) * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// Kleiner Helfer, damit Boss-Banner nicht an UI-Details hängen.
+export function bossBanner(world, title, sub) {
+  world.bus.emit(EV.UI_BANNER, { title, sub, color: '#c080ff' });
+}
