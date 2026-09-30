@@ -3,10 +3,10 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 const OUT = process.argv[2] ?? 'assets2'; mkdirSync(OUT, { recursive: true });
 const HEROES = {
-  warrior: ['human', ['tyrant_helm', 'tyrant_plate', 'tyrant_gauntlets', 'tyrant_sabatons', 'crown_of_embers_blade']],
-  rogue: ['emberborn', ['nightwhisper', 'nightstalker_coat', 'ember_grips', 'shadowstep_boots']],
-  ranger: ['elf', ['starfall', 'hunter_leather', 'wanderer_hood', 'borderwatch_gauntlets', 'shadowstep_boots']],
-  mage: ['elf', ['worldstaff', 'arcane_robe', 'silk_gloves', 'shadowstep_boots']],
+  warrior: ['human', ['sovereign_helm', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'kingsbane']],
+  rogue: ['emberborn', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
+  ranger: ['elf', ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots']],
+  mage: ['elf', ['staff_of_last_ash', 'colossus_robe', 'colossus_gloves', 'colossus_slippers']],
 };
 const POSES = { idle: [0], atk1: [2, 3], atk2: [3], spin: [1], cast: [2, 3], slam: [3], lunge: [3], hurl: [3], rainshot: [2] };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });

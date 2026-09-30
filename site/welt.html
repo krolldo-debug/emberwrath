@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05020a">
   <title>Die Welt – Emberwrath</title>
-  <meta name="description" content="Die Geschichte von Emberwrath, sechs Regionen von der Glutsenke bis in die Glutschmiede, vier Völker und die Glutprüfungen nach Stufe 20.">
+  <meta name="description" content="Die Geschichte von Emberwrath, vierzehn Gebiete von der Glutsenke bis zum Aschethron, vier Völker und die Glutprüfungen bis Stufe 40.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
@@ -16,46 +16,80 @@
 <main id="inhalt">
 
   <section class="lore" aria-labelledby="h-lore">
-    <div class="lore-bg"><img class="px" src="img/welt-katakomben.webp" alt="" width="806" height="454"></div>
+    <div class="lore-bg"><img style="--fx:0.53;--fy:0.47" class="px shot" src="img/welt-aschethron.webp" alt="" width="960" height="540"></div>
     <div class="wrap lore-grid">
       <div class="lore-text">
         <h1 id="h-lore" class="title">Eine Krone aus Flammen</h1>
         <p>Vor Generationen fiel Glut vom Himmel auf die Senke unter dem Aschegrat. Die Überlebenden bauten ihre Dörfer auf der erkalteten Asche wieder auf, und der Berg schwieg.</p>
-        <p>Jetzt schweigt er nicht mehr. Die Toten steigen aus den Katakomben, und wer den Spuren folgt, findet überall dasselbe Zeichen: eine Krone aus Flammen.</p>
+        <p>Jetzt schweigt er nicht mehr. Ignaroth war nur ein Diener. Die Spur der Flammenkrone führt über Steppe, Moor und Eis bis zu Malgareth, dem Aschenfürsten, der seit Jahrhunderten auf dem Aschethron sitzt.</p>
       </div>
       <ol class="voices" aria-label="Stimmen aus dem Spiel">
         <li><img class="px" src="img/npc-elder_maren.png" alt="" width="96" height="96"><blockquote>„Unter dem Knochenwappen glüht ein zweites Zeichen, eine Krone aus Flammen.“<cite>Maren, Dorfälteste</cite></blockquote></li>
         <li><img class="px" src="img/npc-seer_ysolde.png" alt="" width="96" height="96"><blockquote>„Ich sehe … Feuer. Eine Krone. Und dich.“<cite>Ysolde, Seherin</cite></blockquote></li>
-        <li><img class="px" src="img/npc-commander_hale.png" alt="" width="96" height="96"><blockquote>„Ein Tor aus flüssigem Eisen … Dann ist es wahr. Ignaroth ist erwacht.“<cite>Hale, Kommandant der Rauhwacht</cite></blockquote></li>
+        <li><img class="px" src="img/npc-commander_hale.png" alt="" width="96" height="96"><blockquote>„Ignaroth ist gefallen, aber die Asche fällt weiter.“<cite>Hale, Kommandant der Rauhwacht</cite></blockquote></li>
       </ol>
     </div>
   </section>
 
   <section class="regions" id="regionen" aria-labelledby="h-regionen">
     <div class="wrap">
-      <h2 id="h-regionen" class="title">Sechs Regionen</h2>
-      <p class="sec-line">Die Hauptgeschichte führt dich von Stufe 1 bis 20 durch alle, jede mit eigenem Licht, Wetter und eigener Musik.</p>
+      <h2 id="h-regionen" class="title">Die Welt</h2>
+      <p class="sec-line">Jedes offene Gebiet hat seinen Dungeon. Von der Glutsenke bis zum Aschethron.</p>
     </div>
+    <h3 class="act">Stufe 1–20</h3>
     <ol class="region-list">
-      <li data-zoom="Die Glutsenke · Stufe 1–3"><img class="px" src="img/welt-glutsenke.webp" alt="Krieger mit flammender Klinge zwischen Aschewölfen" width="806" height="454" loading="lazy">
-        <div><h3>Die Glutsenke</h3><span>Stufe 1–3</span><p>Das letzte Dorf vor dem Berg. Nachts kommen die Aschewölfe bis an die Palisaden.</p></div></li>
-      <li data-zoom="Die Katakomben · Stufe 3–6"><img class="px" src="img/welt-katakomben.webp" alt="Glutmagierin mit Flammenring zwischen Skeletten" width="806" height="454" loading="lazy">
-        <div><h3>Die Katakomben</h3><span>Dungeon · Stufe 3–6</span><p>Gänge voller Knochen unter dem Dorf. Ganz unten steht ein Thron.</p></div></li>
-      <li data-zoom="Der Aschenwald · Stufe 6–11"><img class="px" src="img/welt-aschenwald.webp" alt="Krieger mit glühender Klinge zwischen Aschekeilern unter einem verkohlten Baum" width="864" height="486" loading="lazy">
-        <div><h3>Der Aschenwald</h3><span>Stufe 6–11</span><p>Verkohlte Stämme, Keiler mit Glutborsten und die Lager von Rask, dem Brandschatzer.</p></div></li>
-      <li data-zoom="Der Versunkene Tempel · Stufe 10–12"><img class="px" src="img/welt-tempel.webp" alt="Krieger schlägt einen Gezeitenkultisten im Versunkenen Tempel" width="806" height="454" loading="lazy">
-        <div><h3>Der Versunkene Tempel</h3><span>Dungeon · Stufe 10–12</span><p>Ein überfluteter Tempel am See. Seine Kultisten singen noch immer.</p></div></li>
-      <li data-zoom="Die Schlackenhöhen · Stufe 12–17"><img class="px" src="img/welt-schlacke.webp" alt="Glutmagierin schleudert Glutbolzen auf Feuerwichte in den Schlackenhöhen" width="806" height="454" loading="lazy">
-        <div><h3>Die Schlackenhöhen</h3><span>Stufe 12–17</span><p>Feuerwichte, Magmahunde und der Schlackenkoloss. Oben hält die Rauhwacht die letzte Stellung.</p></div></li>
-      <li data-zoom="Die Glutschmiede · Stufe 17–20"><img class="px" src="img/welt-schmiede.webp" alt="Krieger im Nahkampf in der Glutschmiede, dahinter ein Glutdrache" width="806" height="454" loading="lazy">
-        <div><h3>Die Glutschmiede</h3><span>Dungeon · Stufe 17–20</span><p>Hinter einem Tor aus flüssigem Eisen wartet der Tyrann.</p></div></li>
+      <li class="pair">
+        <figure data-zoom="Die Glutsenke · Stufe 1–3"><span class="frame"><img style="--fx:0.5;--fy:0.49" class="px shot" src="img/welt-glutsenke.webp" alt="Krieger mit flammender Klinge zwischen Aschewölfen" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Glutsenke</h4><span>Stufe 1–3</span><p>Das letzte Dorf vor dem Berg. Nachts kommen die Aschewölfe bis an die Palisaden.</p></figcaption></figure>
+        <figure data-zoom="Die Katakomben · Stufe 3–6"><span class="frame"><img style="--fx:0.56;--fy:0.46" class="px shot" src="img/welt-katakomben.webp" alt="Glutmagierin mit Flammenring zwischen Skeletten" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Katakomben</h4><span>Dungeon · Stufe 3–6</span><p>Gänge voller Knochen unter dem Dorf. Ganz unten steht ein Thron.</p></figcaption></figure>
+      </li>
+      <li class="pair">
+        <figure data-zoom="Der Aschenwald · Stufe 6–11"><span class="frame"><img style="--fx:0.44;--fy:0.53" class="px shot" src="img/welt-aschenwald.webp" alt="Waldläuferin im Kampf gegen Aschekeiler" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Der Aschenwald</h4><span>Stufe 6–11</span><p>Verkohlte Stämme, Keiler mit Glutborsten und die Lager von Rask, dem Brandschatzer.</p></figcaption></figure>
+        <figure data-zoom="Der Versunkene Tempel · Stufe 10–12"><span class="frame"><img style="--fx:0.54;--fy:0.46" class="px shot" src="img/welt-tempel.webp" alt="Krieger schlägt einen Gezeitenkultisten im Versunkenen Tempel" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Der Versunkene Tempel</h4><span>Dungeon · Stufe 10–12</span><p>Ein überfluteter Tempel am See. Seine Kultisten singen noch immer.</p></figcaption></figure>
+      </li>
+      <li class="pair">
+        <figure data-zoom="Die Schlackenhöhen · Stufe 12–17"><span class="frame"><img style="--fx:0.52;--fy:0.47" class="px shot" src="img/welt-schlacke.webp" alt="Glutmagierin schleudert Glutbolzen auf Feuerwichte" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Schlackenhöhen</h4><span>Stufe 12–17</span><p>Feuerwichte, Magmahunde und der Schlackenkoloss.</p></figcaption></figure>
+        <figure data-zoom="Die Glutschmiede · Stufe 17–20"><span class="frame"><img style="--fx:0.58;--fy:0.48" class="px shot" src="img/welt-schmiede.webp" alt="Schurke im Kampf gegen Glutschwinge, die Mutter der Drachen" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Glutschmiede</h4><span>Dungeon · Stufe 17–20</span><p>Glutschwinge, die Mutter der Drachen, bewacht den Weg zu Ignaroth.</p></figcaption></figure>
+      </li>
+    </ol>
+    <h3 class="act">Stufe 20–40</h3>
+    <ol class="region-list">
+      <li class="pair">
+        <figure data-zoom="Die Aschensteppe · Stufe 20–25"><span class="frame"><img style="--fx:0.5;--fy:0.41" class="px shot" src="img/welt-steppe.webp" alt="Krieger im Kampf gegen Steppenplünderer vor einem Zelt" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Aschensteppe</h4><span>Stufe 20–25</span><p>Plünderer unter Khars Bannern, Hyänenrudel und Aschegeier. Am Außenposten wartet Stallmeisterin Orla.</p></figcaption></figure>
+        <figure data-zoom="Das Heulende Hügelgrab · Stufe 24–26"><span class="frame"><img style="--fx:0.53;--fy:0.34" class="px shot" src="img/welt-huegelgrab.webp" alt="Ulgrim, der Hügelkönig, holt gegen einen Schurken zum Rundumschlag aus" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Das Heulende Hügelgrab</h4><span>Dungeon · Stufe 24–26</span><p>Unter der Steppe schläft Ulgrim, ein König, der nicht tot bleiben will.</p></figcaption></figure>
+      </li>
+      <li class="pair">
+        <figure data-zoom="Die Faulmarsch · Stufe 25–31"><span class="frame"><img style="--fx:0.33;--fy:0.45" class="px shot" src="img/welt-marsch.webp" alt="Waldläuferin zwischen Sumpfegeln in der Faulmarsch" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Faulmarsch</h4><span>Stufe 25–31</span><p>Moorlauerer, Faulschamanen und Seuchenkröten.</p></figcaption></figure>
+        <figure data-zoom="Der Sporenschlund · Stufe 30–32"><span class="frame"><img style="--fx:0.57;--fy:0.47" class="px shot" src="img/welt-sporenschlund.webp" alt="Magierin vor Mutter Fäulnis im Sporenschlund" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Der Sporenschlund</h4><span>Dungeon · Stufe 30–32</span><p>Pilze so groß wie Häuser. In ihrer Mitte wächst Mutter Fäulnis.</p></figcaption></figure>
+      </li>
+      <li class="pair">
+        <figure data-zoom="Die Frostzinnen · Stufe 31–36"><span class="frame"><img style="--fx:0.5;--fy:0.55" class="px shot" src="img/welt-frostzinnen.webp" alt="Krieger im Schnee zwischen Frostwölfen" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Frostzinnen</h4><span>Stufe 31–36</span><p>Eistrolle, Frostwölfe und Reifhexen. Frosthold hält die Pässe.</p></figcaption></figure>
+        <figure data-zoom="Die Reifhöhlen · Stufe 35–37"><span class="frame"><img style="--fx:0.61;--fy:0.38" class="px shot" src="img/welt-reifhoehlen.webp" alt="Waldläuferin im Kampf gegen Skalvyr, den Frostwurm" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Reifhöhlen</h4><span>Dungeon · Stufe 35–37</span><p>Kristallspinnen, gefrorene Ritter und Skalvyr, einst Wächter dieser Berge.</p></figcaption></figure>
+      </li>
+      <li class="pair">
+        <figure data-zoom="Die Glutöde · Stufe 36–40"><span class="frame"><img style="--fx:0.58;--fy:0.44" class="px shot" src="img/welt-gluetoede.webp" alt="Glutmagierin zwischen Schlackenrittern in der Glutöde" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Die Glutöde</h4><span>Stufe 36–40</span><p>Aschegeister und Schlackenritter vor der letzten Bastion.</p></figcaption></figure>
+        <figure data-zoom="Der Aschethron · Stufe 38–40"><span class="frame"><img style="--fx:0.53;--fy:0.36" class="px shot" src="img/welt-aschethron.webp" alt="Malgareth holt zum Hieb gegen einen Krieger aus, die Warnfläche leuchtet rot" width="960" height="540" loading="lazy"></span>
+          <figcaption><h4>Der Aschethron</h4><span>Dungeon · Stufe 38–40</span><p>Malgareth wartet. Die Flammenkrone liegt auf seinem Haupt.</p></figcaption></figure>
+      </li>
     </ol>
   </section>
 
   <section class="races" id="voelker" aria-labelledby="h-voelker">
     <div class="wrap races-grid">
       <div>
-        <h2 id="h-voelker" class="title">Vier Völker</h2>
+        <h2 id="h-voelker" class="title">Völker</h2>
         <p class="sec-line">Frei mit jeder Klasse kombinierbar.</p>
       </div>
       <ul>
@@ -70,23 +104,23 @@
   <section class="endgame" id="glutpruefungen" aria-labelledby="h-beute">
     <div class="wrap end-grid">
       <div>
-        <h2 id="h-beute" class="title">Nach dem Tyrannen</h2>
-        <p class="sec-line">Ab Stufe 20 öffnet sich die Glutpforte: dreißig Ränge Glutprüfungen, jedes Mal neu zusammengesetzt, jedes Mal mit einem Boss am Ende. Dazu 170 Gegenstände, Rüstungssets, der Schmied, Talente und Färbemittel.</p>
+        <h2 id="h-beute" class="title">Die Glutprüfungen</h2>
+        <p class="sec-line">Nach Ignaroth öffnen sie sich ab Stufe 20 und wachsen bis Stufe 40 mit: dreißig Ränge, jedes Mal neu zusammengesetzt, jedes Mal mit einem Boss am Ende. Dazu 85 Quests, zwölf Rüstungssets und Hunderte Gegenstände.</p>
       </div>
-      <ul class="loot" aria-label="Die sechs legendären Gegenstände">
-        <li><img class="px" src="img/item-crown_of_embers_blade.png" alt="" width="156" height="156"><span>Emberwrath, Klinge der Könige</span></li>
-        <li><img class="px" src="img/item-tyrant_plate.png" alt="" width="52" height="52"><span>Harnisch des Tyrannen</span></li>
-        <li><img class="px" src="img/item-nightwhisper.png" alt="" width="52" height="52"><span>Nachtflüstern</span></li>
-        <li><img class="px" src="img/item-starfall.png" alt="" width="52" height="52"><span>Sternenfall</span></li>
-        <li><img class="px" src="img/item-worldstaff.png" alt="" width="52" height="52"><span>Arkaner Weltenstab</span></li>
-        <li><img class="px" src="img/item-ember_heart.png" alt="" width="52" height="52"><span>Glutherz</span></li>
+      <ul class="loot" aria-label="Legendäre Gegenstände">
+        <li><img class="px" src="img/item-kingsbane.png" alt="" width="156" height="156"><span>Königsfall</span></li>
+        <li><img class="px" src="img/item-sovereign_plate.png" alt="" width="52" height="52"><span>Harnisch des Aschenfürsten</span></li>
+        <li><img class="px" src="img/item-sovereign_signet.png" alt="" width="52" height="52"><span>Siegel des Aschenfürsten</span></li>
+        <li><img class="px" src="img/item-veilpiercer.png" alt="" width="52" height="52"><span>Schleierstecher</span></li>
+        <li><img class="px" src="img/item-dawnstring.png" alt="" width="52" height="52"><span>Morgensehne</span></li>
+        <li><img class="px" src="img/item-staff_of_last_ash.png" alt="" width="52" height="52"><span>Stab der letzten Asche</span></li>
       </ul>
     </div>
   </section>
 
   <section class="final" aria-labelledby="h-final">
     <div class="wrap final-inner">
-      <h2 id="h-final" class="title">Die Glut wartet.</h2>
+      <h2 id="h-final" class="title">Deine Reise beginnt in der Glutsenke.</h2>
       <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
     </div>
   </section>

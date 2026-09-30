@@ -104,6 +104,7 @@
     // Glut hinter der Figur in der Farbe der Klasse
     document.querySelector('.classes')?.style.setProperty('--res', tab.style.getPropertyValue('--res'));
     if (focus) tab.focus();
+    dispatchEvent(new Event('resize'));   // neu sichtbare Figur pixelgenau runden
   };
   tabs.forEach((t, i) => {
     t.tabIndex = i === 0 ? 0 : -1;
@@ -127,11 +128,76 @@
         big.classList.toggle('px', im.classList.contains('px'));
         cap.textContent = el.dataset.zoom;
         box.showModal();
+        sizeBig();
       };
       el.addEventListener('click', open);
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
     }
+    // Größter ganzzahliger Faktor in Bildschirmpunkten, der ins Fenster passt
+    const sizeBig = () => {
+      const dpr = devicePixelRatio || 1, w = big.naturalWidth || 960, h = big.naturalHeight || 540;
+      const n = Math.floor(Math.min((innerWidth * 0.96 * dpr) / w, (innerHeight * 0.84 * dpr) / h));
+      big.style.width = n >= 1 ? `${(w * n) / dpr}px` : '';
+      big.style.height = n >= 1 ? `${(h * n) / dpr}px` : '';
+    };
+    big.addEventListener('load', sizeBig);
+    addEventListener('resize', () => { if (box.open) sizeBig(); });
     box.addEventListener('click', (e) => { if (e.target === box || e.target.closest('button')) box.close(); });
+  }
+
+  // ---------- Spielszenen pixelgenau: nur ganzzahlige Vergrößerung in Bildschirmpunkten
+  // Die Aufnahmen haben die native Auflösung des Spiels (960 × 540). CSS gibt je Bildschirmbreite einen
+  // Faktor vor (--f); hier wird er auf ganze Bildschirmpunkte gerundet, so weit erhöht, dass das Bild seinen
+  // Rahmen füllt, und der Ausschnitt (--fx/--fy = Bildpunkt, der an die Stelle --ax/--ay des Rahmens soll, sonst in die Mitte) auf ganze Punkte gesetzt.
+  const shots = $$('img.shot');
+  const fitShots = () => {
+    const dpr = devicePixelRatio || 1;
+    for (const img of shots) {
+      const frame = img.parentElement, cw = frame.clientWidth, ch = frame.clientHeight;
+      if (!cw || !ch) continue;
+      const w = Number(img.getAttribute('width')), h = Number(img.getAttribute('height'));
+      const cs = getComputedStyle(img);
+      const f = parseFloat(cs.getPropertyValue('--f')) || 2;
+      let n = Math.max(1, Math.round(f * dpr));
+      while ((w * n) / dpr < cw - 0.5 || (h * n) / dpr < ch - 0.5) n++;
+      const k = n / dpr, iw = w * k, ih = h * k;
+      const fx = parseFloat(cs.getPropertyValue('--fx')) || 0.5, fy = parseFloat(cs.getPropertyValue('--fy')) || 0.5;
+      const snap = (v) => Math.round(v * dpr) / dpr;
+      const ax = parseFloat(cs.getPropertyValue('--ax')) || 0.5, ay = parseFloat(cs.getPropertyValue('--ay')) || 0.5;
+      const left = snap(Math.min(0, Math.max(cw - iw, cw * ax - fx * iw)));
+      const top = snap(Math.min(0, Math.max(ch - ih, ch * ay - fy * ih)));
+      Object.assign(img.style, { width: `${iw}px`, height: `${ih}px`, left: `${left}px`, top: `${top}px` });
+    }
+  };
+  if (shots.length) {
+    let raf = 0;
+    const queue = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitShots); };
+    fitShots();
+    addEventListener('resize', queue);
+    if ('ResizeObserver' in window) { const ro = new ResizeObserver(queue); for (const img of shots) ro.observe(img.parentElement); }
+  }
+
+  // ---------- Figuren und Symbole (img.px): CSS-Maße sind ganzzahlige Vielfache; bei krummer Bildschirmskalierung
+  // (z. B. 125 %) auf ganze Bildschirmpunkte runden, damit jeder Spielpixel gleich breit bleibt.
+  const figs = $$('img.px:not(.shot)');
+  const fitFigs = () => {
+    const dpr = devicePixelRatio || 1;
+    for (const img of figs) {
+      if (!img.naturalWidth) continue;
+      img.style.width = img.style.height = '';
+      const w = img.getBoundingClientRect().width;
+      if (!w) continue;
+      const k = (w / img.naturalWidth) * dpr, n = Math.max(1, Math.round(k));
+      if (Math.abs(k - n) < 0.01) continue;
+      img.style.width = `${(img.naturalWidth * n) / dpr}px`;
+      img.style.height = `${(img.naturalHeight * n) / dpr}px`;
+    }
+  };
+  if (figs.length) {
+    for (const img of figs) if (!img.complete) img.addEventListener('load', fitFigs, { once: true });
+    fitFigs();
+    let raf2 = 0;
+    addEventListener('resize', () => { cancelAnimationFrame(raf2); raf2 = requestAnimationFrame(fitFigs); });
   }
 
   // ---------- Glutfunken über dem Titelbild (wie die Funken im Spiel, pixelig)

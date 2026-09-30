@@ -24,26 +24,28 @@ Anmeldestatus liest `site.js` aus `localStorage['emberwrath:online:session']` (F
 ## Bilder = echte Spielgrafik
 
 Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
-- `kampf-*.webp`, `welt-*.webp`: Aufnahmen (Stufe-20-Helden in legendärer Ausrüstung gegen Bosse und Gruppen),
-  erzeugt mit `tools/kampfszenen.mjs`.
-- `held-*`, `boss-*`, `volk-*`, `skill-*`, `item-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert
-  mit `tools/render-assets.mjs` (Figuren, Bosse, Völker, Fähigkeits- und Gegenstandssymbole, NPC-Porträts).
-  Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×4, Bosse ×3, Völker und Porträts ×2).
+- `kampf-*.webp`, `welt-*.webp`: Spielszenen in nativer Auflösung des Spiels (960 × 540, spriteRes 2 wie live), verlustfrei
+  (WebP lossless), Helligkeit beim Aufnehmen eingerechnet. Aufgenommen mit `tools/szenen.mjs`, ausgewählt mit
+  `tools/szenen-auswahl.py` (Pillow). Titelbild und Malgareth-Streifen zeigen eine Dreiergruppe.
+  Anzeige: `img.shot` mit `--fx/--fy` (Bildpunkt, der in die Mitte soll). CSS gibt je Breite einen Faktor `--f`
+  vor (×2, ab 1921 px ×3, Handy ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
+  `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
+- `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*`, `ritt-*` (Reiter auf Reittieren) und `item-*` mit `tools/render40.mjs`.
+  Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×5, Bosse ×2 bzw. Ulgrim und Malgareth ×3, Reiter ×4, Völker ×3, Symbole ×2).
 
 Neu erzeugen, aus einer Kopie des Projekts:
 
 ```sh
-# in der Kopie src/config.js spriteRes auf 4 stellen (größere Ansicht, Helden bleiben bei res 2)
 node tools/build.mjs
-npx http-server dist -p 8101 -s &     # gebündeltes Spiel für kampfszenen.mjs
+npx http-server dist -p 8101 -s &     # gebündeltes Spiel für szenen.mjs
 npx http-server .    -p 8102 -s &     # Module direkt für render-assets.mjs
-node site/tools/kampfszenen.mjs /tmp/kampf [ids,kommagetrennt]   # je Szene 18 Bilder, bestes von Hand wählen
-node site/tools/towebp.mjs 0.9 site/img /tmp/kampf/<gewählt>.png  # danach umbenennen
-node site/tools/render-assets.mjs /tmp/assets                     # Posen auswählen und nach site/img kopieren
+node site/tools/szenen.mjs cn [ids,kommagetrennt]   # je Szene eine Bildserie in cn/, Bosszustand im Dateinamen
+python3 site/tools/szenen-auswahl.py                # gewählte Bilder (oben im Skript) -> native/*.webp + focus.json
+node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 ```
 
 Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,
 Trefferblitze und Lebensbalken. Szenen, Ausrüstung und Posen stehen jeweils oben in den Skripten. Nach neuen
-Figuren die `width`/`height` in index.html und die Höhen in site.css (`.hero-fig`, `.boss-fig img`) anpassen.
+Figuren die `width`/`height` in index.html und die Höhen in site.css (`.hero-fig`, `.boss img`, `.riders img`) anpassen.
 
 Die Skripte erwarten Playwright global (`/opt/node22/lib/node_modules/playwright`) und Chromium unter `/opt/pw-browsers`.
