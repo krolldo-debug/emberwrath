@@ -1,18 +1,18 @@
 import { h } from '../core/dom.js';
 import { MenuScene } from './TitleScene.js';
-import { HeroPortrait, characterLine, zoneName, formatAgo, confirmButton, localNotice, savedLook } from './ui.js';
+import { HeroPortrait, characterLine, zoneName, formatAgo, confirmButton, localNotice, savedLook, requireOnlineAccount } from './ui.js';
 import { listSlots, storeSlot, restoreSlot, clearSlot, dropSlots, snapInfo, formatPlayTime, SLOT_COUNT } from './backups.js';
 
 export const MAX_CHARACTERS = 8;
 
-// Charaktere des eingeloggten Demo-Accounts: spielen, löschen, neu erstellen,
+// Charaktere des angemeldeten Online-Kontos: spielen, löschen, neu erstellen,
 // Speicherplätze je Charakter (backups.js) sichern und laden.
 export class CharacterListScene extends MenuScene {
   enter() {
     this.portraits = [];
     this.open = null; // Charakter-ID mit aufgeklappten Speicherplätzen
     this.root = h('div.ef-screen.acc-screen');
-    if (!this.game.account) { this.game.scenes.go('account', { next: 'characters' }); return; }
+    if (!requireOnlineAccount(this.game)) return;
     this.#render();
   }
 
@@ -25,7 +25,6 @@ export class CharacterListScene extends MenuScene {
 
   #render() {
     const g = this.game, acc = g.account;
-    const online = !!(acc && g.online?.isOnlineAccount?.(acc.id));
     const chars = g.save.listCharacters(acc.id);
     this.portraits = [];
     const cards = chars.map((c) => {
@@ -54,15 +53,13 @@ export class CharacterListScene extends MenuScene {
     const panel = h('div.ef-panel.acc-panel',
       h('header.acc-head',
         h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück zum Titel' }, '‹'),
-        h('div', h('h2.ef-sub', `Charaktere von „${acc.name}“`), h('p.acc-step', online ? 'Online-Konto · in der Cloud gesichert' : 'Lokaler Demo-Account · auf diesem Gerät gespeichert'))),
+        h('div', h('h2.ef-sub', `Charaktere von „${acc.name}“`), h('p.acc-step', 'Online-Konto · in der Cloud gesichert'))),
       cards.length ? h('div.acc-list', cards) : h('p.acc-empty', 'Dieser Account hat noch keinen Charakter.'),
       h('div.acc-actions',
         h('button.ef-btn.primary', { type: 'button', disabled: full, onclick: () => g.scenes.go('characterCreate', { from: 'characters' }) },
           full ? `Maximal ${MAX_CHARACTERS} Charaktere` : 'Neuen Charakter erschaffen'),
-        h('button.ef-btn', { type: 'button', onclick: () => (online ? g.online.open('account') : (g.logout(), g.scenes.go('account', { next: 'characters' }))) }, 'Account wechseln')),
-      online
-        ? h('div.acc-notice.acc-cloud', { role: 'note' }, h('span.acc-notice-icon', { 'aria-hidden': 'true' }, '✓'), h('div', h('p', 'In der Cloud gesichert · auf jedem Gerät mit deinem Konto spielbar')))
-        : localNotice(g, { compact: true }));
+        h('button.ef-btn', { type: 'button', onclick: () => g.online.open('account') }, 'Konto')),
+      localNotice(g, { compact: true }));
     this.root.replaceChildren(panel);
   }
 

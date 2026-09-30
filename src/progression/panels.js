@@ -293,7 +293,7 @@ function characterView(s) {
           row('Quests erfüllt', pst.questsCompleted), row('Gegenstände gefunden', pst.itemsLooted ?? 0),
           row('Geschmiedet', pst.crafted ?? 0), row('Gold verdient', pst.goldEarned), row('Spielzeit', fmtTime(st.meta.playTime ?? 0)))),
         h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements'))),
-        h('p.ef-note.pg-local', 'Lokaler Demo-Charakter – gespeichert nur auf diesem Gerät.')));
+        h('p.ef-note.pg-local', 'Gespeichert in deinem Konto · in der Cloud gesichert.')));
   };
 }
 

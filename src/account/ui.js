@@ -5,24 +5,30 @@ import { spriteStyle } from '../character/cosmetics.js';
 
 // Gemeinsame Bausteine der Menü-Bildschirme (Thread A).
 
-// Ehrlicher Hinweis zur lokalen Speicherung. persistent=false -> Warnung.
+// Hinweis unter den Menüs: Spielstände liegen im Online-Konto. Andere Spieler gibt es noch nicht.
+// (Früher: Hinweis zum lokalen Demo-Account; Demo-Accounts gibt es nicht mehr, gespielt wird nur mit Konto.)
 export function localNotice(game, { compact = false } = {}) {
+  const signedIn = !!game.online?.user;
   const lines = compact
-    ? ['Lokaler Demo-Account · Spielstand nur auf diesem Gerät']
+    ? [signedIn ? 'In deinem Konto gespeichert · in der Cloud gesichert' : 'Zum Spielen brauchst du ein Emberwrath-Konto']
     : [
-      'Lokaler Demo-Account: Dein Spielstand wird nur in diesem Browser auf diesem Gerät gespeichert.',
-      game.online?.configured
-        ? 'Ein Demo-Account hat kein Passwort und wird nicht übertragen. Mit „Anmelden“ werden deine Spielstände in der Cloud gesichert. Andere Spieler sind noch nicht im Spiel.'
-        : 'Es gibt kein Passwort, keinen Server und keine Online-Synchronisierung. Andere Spieler sind in diesem Prototyp nicht vorhanden.',
+      signedIn
+        ? 'Deine Charaktere sind in deinem Konto gespeichert und in der Cloud gesichert. Du kannst auf jedem Gerät weiterspielen.'
+        : 'Melde dich an oder erstelle ein kostenloses Konto. Deine Charaktere werden in der Cloud gesichert und sind auf jedem Gerät spielbar.',
+      'Emberwrath ist noch ein Einzelspieler-Prototyp: Andere Spieler sind noch nicht im Spiel.',
     ];
-  const box = h('div.acc-notice', { role: 'note' },
-    h('span.acc-notice-icon', { 'aria-hidden': 'true' }, 'i'),
+  return h(`div.acc-notice${signedIn ? '.acc-cloud' : ''}`, { role: 'note' },
+    h('span.acc-notice-icon', { 'aria-hidden': 'true' }, signedIn ? '✓' : 'i'),
     h('div', lines.map((t) => h('p', t))));
-  if (!game.save.persistent) {
-    box.classList.add('warn');
-    box.append(h('p.acc-warn', 'Achtung: Dieser Browser erlaubt gerade kein dauerhaftes Speichern (z. B. privates Fenster). Der Fortschritt geht beim Schließen verloren.'));
-  }
-  return box;
+}
+
+// Gespielt wird nur mit Online-Konto. true, wenn game.account das angemeldete Konto ist;
+// sonst wird das Konto eingeloggt (falls angemeldet) bzw. zur Anmeldung geleitet.
+export function requireOnlineAccount(game) {
+  const o = game.online;
+  if (!o?.user) { if (o) o.open('login'); else game.scenes.go('title'); return false; }
+  if (game.account?.id !== o.accountId) { o.sync.ensureLocalAccount(o.user); game.login(o.accountId); }
+  return true;
 }
 
 export function formatAgo(ts) {

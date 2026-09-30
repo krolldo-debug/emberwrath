@@ -8,6 +8,9 @@ const MAX_ACCOUNTS = 6;
 // params.next: 'create' (danach Charaktererstellung) | 'characters' (Charakterliste)
 export class AccountScene extends MenuScene {
   enter(params = {}) {
+    // Demo-Accounts gibt es nicht mehr: gespielt wird nur mit Online-Konto.
+    const o = this.game.online;
+    if (o) { this.root = h('div.ef-screen.acc-screen'); if (o.user) o.play(); else o.open('login'); return; }
     this.next = params.next ?? 'characters';
     this.root = h('div.ef-screen.acc-screen');
     this.#render();

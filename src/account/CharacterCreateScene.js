@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { MenuScene } from './TitleScene.js';
-import { HeroPortrait, focusIfDesktop, localNotice } from './ui.js';
+import { HeroPortrait, focusIfDesktop, localNotice, requireOnlineAccount } from './ui.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
 import { RACE_LOOK } from '../sprites/hero.js';
@@ -54,9 +54,9 @@ const PREVIEW_GEAR = {
 export class CharacterCreateScene extends MenuScene {
   enter(params = {}) {
     const g = this.game;
-    this.from = params.from ?? 'account';
+    this.from = params.from ?? 'characters';
     this.root = h('div.ef-screen.acc-screen');
-    if (!g.account) { g.scenes.go('account', { next: 'create' }); return; }
+    if (!requireOnlineAccount(g)) return;
     this.races = g.content.all('race');
     this.classes = g.content.all('class');
     this.sel = { raceId: this.races[0].id, classId: this.classes[0].id, variant: 0, hair: 0, name: '' };
@@ -71,7 +71,7 @@ export class CharacterCreateScene extends MenuScene {
     this.#refresh();
   }
 
-  back() { this.game.scenes.go(this.from === 'characters' ? 'characters' : 'account', { next: 'create' }); }
+  back() { this.game.scenes.go('characters'); }
 
   update(dt) {
     super.update(dt);
@@ -125,7 +125,7 @@ export class CharacterCreateScene extends MenuScene {
     const panel = h('div.ef-panel.acc-panel.acc-create',
       h('header.acc-head',
         h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück' }, '‹'),
-        h('div', h('h2.ef-sub', 'Charakter erschaffen'), h('p.acc-step', `Schritt 2 von 2 · Demo-Account „${g.account.name}“`))),
+        h('div', h('h2.ef-sub', 'Charakter erschaffen'), h('p.acc-step', `Konto „${g.account.name}“`))),
       h('div.acc-create-grid',
         h('section.acc-choose',
           h('h3.acc-h', 'Volk'), h('div.acc-options', this.raceBtns),

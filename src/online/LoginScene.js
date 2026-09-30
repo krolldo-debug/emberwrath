@@ -119,8 +119,7 @@ export class LoginScene extends MenuScene {
 
   #notConfigured() {
     return h('div.on-body',
-      h('p.acc-lead', 'Online-Konten sind in dieser Version noch nicht eingerichtet. Du kannst weiterhin mit einem lokalen Profil auf diesem Gerät spielen.'),
-      h('div.acc-actions', h('button.ef-btn.primary', { type: 'button', onclick: () => this.game.scenes.go('account', { next: 'characters' }) }, 'Lokal spielen')));
+      h('p.acc-lead', 'Die Anmeldung ist in dieser Version nicht erreichbar. Bitte versuche es später erneut.'));
   }
 
   #login() {
@@ -146,8 +145,7 @@ export class LoginScene extends MenuScene {
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Anmelden')),
       h('div.on-links',
         h('button.on-link', { type: 'button', onclick: () => this.#go('forgot') }, 'Passwort vergessen?'),
-        h('button.on-link', { type: 'button', onclick: () => this.#go('register') }, 'Noch kein Konto? Registrieren')),
-      h('p.on-fine', 'Ohne Konto spielen? ', h('button.on-link', { type: 'button', onclick: () => this.game.scenes.go('account', { next: 'characters' }) }, 'Lokales Profil auf diesem Gerät')));
+        h('button.on-link', { type: 'button', onclick: () => this.#go('register') }, 'Noch kein Konto? Registrieren')));
   }
 
   #register() {
@@ -259,10 +257,48 @@ export class LoginScene extends MenuScene {
             const r = await o.signOut();
             this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Abgemeldet. Deine Charaktere sind sicher in der Cloud.' : 'Abgemeldet. Nicht hochgeladene Spielstände bleiben auf diesem Gerät, bis du dich wieder anmeldest.' });
           }) }, 'Abmelden'),
-          this.#deleteButton())));
+          this.#deleteButton()),
+        this.#backupBox()));
   }
 
-  // Lokale Demo-Charaktere dieses Geräts als Kopie ins Konto übernehmen.
+  // Sicherungsdatei (INTEGRATION.md §11.11): Spielstände als Datei herunterladen und wieder einspielen.
+  // Geladene Charaktere aus älteren Sicherungen erscheinen danach oben unter „Auf diesem Gerät gefunden“.
+  #backupBox() {
+    const g = this.game;
+    const note = h('p.acc-backup-note', { role: 'status' }, this.backupNote ?? '');
+    const say = (text) => { this.backupNote = text; note.textContent = text; };
+    const file = h('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    file.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      file.value = '';
+      if (!f) return;
+      say('Sicherung wird geladen …');
+      let r;
+      try { r = await g.importSaveFile(f); } catch { r = { ok: false, reason: 'format' }; }
+      if (r?.ok) {
+        const c = r.characters ?? 0;
+        this.backupNote = `Sicherung geladen: ${c === 1 ? '1 Charakter' : `${c} Charaktere`}.`;
+        if (this.mode === 'account') this.#render();
+      } else {
+        say({
+          size: 'Die Datei ist zu groß oder leer. Bitte eine Emberwrath-Sicherung wählen.',
+          full: 'Der Speicher dieses Browsers ist voll. Bitte Platz schaffen und erneut versuchen.',
+        }[r?.reason] ?? 'Das ist keine gültige Emberwrath-Sicherung. Bitte die heruntergeladene .json-Datei wählen.');
+      }
+    });
+    return h('div.acc-backup.on-more-body',
+      h('p.acc-backup-lead', 'Zusätzlich zur Cloud kannst du deine Spielstände als Datei sichern und später wieder laden.'),
+      h('div.acc-inline',
+        h('button.ef-btn', {
+          type: 'button', disabled: typeof g.exportSaveFile !== 'function',
+          onclick: () => { let ok = false; try { ok = g.exportSaveFile() !== false; } catch { ok = false; } say(ok ? 'Sicherungsdatei heruntergeladen.' : 'Es gibt noch nichts zu sichern.'); },
+        }, 'Spielstand sichern'),
+        h('button.ef-btn', { type: 'button', disabled: typeof g.importSaveFile !== 'function', onclick: () => file.click() }, 'Sicherung laden'),
+        file),
+      note);
+  }
+
+  // Ältere lokale Charaktere dieses Geräts (oder aus einer Sicherung) als Kopie ins Konto übernehmen.
   #importBox() {
     const g = this.game, o = this.online;
     const copied = new Set(o.copiedLocal());
@@ -272,7 +308,7 @@ export class LoginScene extends MenuScene {
     if (!locals.length) return null;
     return h('details.on-import', { open: true },
       h('summary', locals.length === 1 ? 'Auf diesem Gerät gefunden: 1 lokaler Charakter' : `Auf diesem Gerät gefunden: ${locals.length} lokale Charaktere`),
-      h('p.acc-meta', 'Übernimm sie in dein Konto, dann sind sie in der Cloud gesichert und auf jedem Gerät spielbar. Das Original im lokalen Profil bleibt erhalten.'),
+      h('p.acc-meta', 'Übernimm sie in dein Konto, dann sind sie in der Cloud gesichert und auf jedem Gerät spielbar.'),
       h('div.acc-list', locals.map(({ acc, c }) => h('div.acc-row.on-import-row',
         h('div.acc-row-main', h('div', h('strong', c.name ?? '?'), h('div.acc-meta', `${characterLine(g.content, c)} · Profil „${acc.name}“`))),
         h('div.acc-row-actions', h('button.ef-btn.primary.acc-small', {
