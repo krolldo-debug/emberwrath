@@ -101,3 +101,9 @@ Frisurwahl kostenlos in der Charaktererstellung (Knopf „Frisur“ in der Vorsc
   Umhang, Robe, Schurz, Schulterstücke, Hände, Stiefel, Schild, Schal, Köcher, Bogen, Wischspuren.
 - Hero.js holt die Sprites neu, wenn sich `heroRes()` ändert (Qualitätsstufe). Waffeneffekte zeichnen im Feinraster.
 - Kosten: kompletter Satz ~0,2–0,4 s, idle+run ~30–45 ms (werden verzögert gebaut); Cache bei S = 3 höchstens 10 Sätze.
+
+### Mittelweg (Runde 6, Nutzerwunsch 14:21)
+Stufe 3 war dem Nutzer zu detailreich. Im Spiel und in Porträts zeichnen die Figuren jetzt höchstens Stufe 2
+(`HERO_MAX_RES` in sprites/hero.js); die …Hi-Funktionen greifen ab `FINE_MIN = 2`, Materialmuster (Ringe,
+Schuppen, Maserung, Fell) sind auf Stufe 2 halb so stark. Stufe 3 gibt es nur noch über `setHeroRes(3)` (Vergleich).
+Aufbau eines kompletten Satzes ~120 ms statt ~270 ms, Speicher je Satz 4× statt 9× der alten Figuren.

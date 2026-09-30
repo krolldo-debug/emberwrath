@@ -125,6 +125,8 @@ function col(c) {
 // glatt und detailliert; set/rect/line/stamp füllen ganze Weltpixel (S×S Feinpixel).
 // Feinpixel F deckt Welt-x ab: Mitte = (F + 0.5) / S - 0.5 - AX.
 let S = 1;
+// Ab dieser Feinheit zeichnen die …Hi-Funktionen (Stufe 2 = Spiel, Stufe 3 = nur Vergleich/Tests).
+const FINE_MIN = 2;
 class Raster {
   constructor() {
     this.s = S; this.fw = W * S; this.fh = H * S;
@@ -267,7 +269,7 @@ class Raster {
 // Schattierung für Glieder/Rundformen aus einer Farbrampe. Im feinen Raster (S ≥ 3)
 // mit Materialstruktur (kind: plate, chain, scale, padded, leather, robe, cloth, skin).
 const tone = (ramp, metal = false, kind = null) => (l, t, e, x, y, F, G) => {
-  if (S >= 3 && F !== undefined) return matShade(kind ?? (metal ? 'plate' : 'cloth'), ramp, l - Math.max(0, e - 0.8) * 1.2, F, G, x, y, e);
+  if (S >= FINE_MIN && F !== undefined) return matShade(kind ?? (metal ? 'plate' : 'cloth'), ramp, l - Math.max(0, e - 0.8) * 1.2, F, G, x, y, e);
   if (metal && l > 0.62 && e > 0.3) return ramp[4] ?? ramp[3];
   if (l > 0.35) return ramp[3];
   if (l > -0.35) return ramp[2];
@@ -277,6 +279,7 @@ const tone = (ramp, metal = false, kind = null) => (l, t, e, x, y, F, G) => {
 // Materialfarbe je Feinpixel. l = Licht (-1..1), F/G = Feinpixel, x/y = Welt, e = Randnähe
 function matShade(kind, A, l, F, G, x, y, e = 0) {
   const top = A.length - 1;
+  const k = S >= 3 ? 1 : 0.5;   // Musterstärke: auf Stufe 2 ruhiger, sonst flimmern Ringe/Schuppen
   switch (kind) {
     case 'plate': case 'metal': {
       let v = 2 + l * 1.8;
@@ -287,15 +290,15 @@ function matShade(kind, A, l, F, G, x, y, e = 0) {
     case 'chain': {
       // Kettenringe: versetztes 2er-Raster, helle Ringoberkante
       const odd = (G >> 1) & 1, ring = ((F + odd) & 1) === 0;
-      const v = 1.7 + l * 1.4 + (ring ? ((G & 1) === 0 ? 0.8 : 0.1) : -0.8);
+      const v = 1.7 + l * 1.4 + (ring ? ((G & 1) === 0 ? 0.8 : 0.1) : -0.8) * k;
       return band(A, Math.min(v, top - (l > 0.5 ? 0 : 1)));
     }
     case 'scale': {
       // Schuppen: 3×3-Zellen, Zeilen versetzt, dunkle Unterkante, helle Kuppe
       const row = Math.floor(G / 3), cx = (F + (row & 1) * 1.5) % 3, cy = G % 3;
       let v = 1.9 + l * 1.4;
-      if (cy === 2 || (cy === 1 && (cx < 0.6 || cx > 2.2))) v -= 1.1;
-      else if (cy === 0 && cx > 0.8 && cx < 2) v += 0.8;
+      if (cy === 2 || (cy === 1 && (cx < 0.6 || cx > 2.2))) v -= 1.1 * k;
+      else if (cy === 0 && cx > 0.8 && cx < 2) v += 0.8 * k;
       return band(A, Math.min(v, top));
     }
     case 'padded': {
@@ -306,7 +309,7 @@ function matShade(kind, A, l, F, G, x, y, e = 0) {
       return band(A, Math.min(v, top - 1));
     }
     case 'leather': {
-      const grain = hash(F, G) < 0.12 ? -0.5 : 0;
+      const grain = hash(F, G) < 0.12 * k ? -0.5 : 0;
       return band(A, Math.min(1.8 + l * 1.4 + grain, top - 1));
     }
     case 'robe': case 'cloth': {
@@ -314,7 +317,7 @@ function matShade(kind, A, l, F, G, x, y, e = 0) {
       return band(A, Math.min(1.9 + l * 1.3 + fold, top - 1));
     }
     case 'fur': {
-      const tuft = Math.sin(x * 3.1 + Math.sin(y * 2.3) * 1.5) * 0.6 + (hash(F, G) - 0.5) * 0.8;
+      const tuft = (Math.sin(x * 3.1 + Math.sin(y * 2.3) * 1.5) * 0.6 + (hash(F, G) - 0.5) * 0.8) * k;
       return band(A, Math.min(2 + l * 1.2 + tuft, top));
     }
     case 'skin': return band(A, 2.1 + l * 1.3);
@@ -485,7 +488,7 @@ function drawSmear(R, L, hx, hy, a0, a1) {
   const len = (w.family === 'sword' || w.family === 'dagger' ? w.len : null) ?? SMEAR_LEN[w.family] ?? 12;
   const c = w.glow ?? (w.family === 'staff' || w.family === 'wand' ? L.trim : ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8']);
   const rout = len + 1.5, body = Math.max(3, len * 0.5);
-  const fine = S >= 3;
+  const fine = S >= FINE_MIN;
   const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) * rout * (fine ? 4 : 1.5)));
   for (let i = 0; i <= n; i++) {
     const t = i / n, a = a0 + (a1 - a0) * t;
@@ -942,7 +945,7 @@ function drawSheath(R, w, sk) {
 // --- Feines Raster (S = 3): Kopf, Gesicht, Haar -----------------------------------------
 // Ab 3 Feinpixeln je Weltpixel werden Kopf, Haar, Helme, Rüstung und Waffen mit echten
 // Details gezeichnet; darunter gelten die alten Pixelvorlagen (…Low).
-const hi = (R) => R.s >= 3;
+const hi = (R) => R.s >= FINE_MIN;
 function drawHead(R, G, L, P, sk) { return hi(R) ? drawHeadHi(R, G, L, P, sk) : drawHeadLow(R, G, L, P, sk); }
 function drawHairBack(R, L, P, sk) { return hi(R) ? drawHairBackHi(R, L, P, sk) : drawHairBackLow(R, L, P, sk); }
 
@@ -1784,7 +1787,7 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
   const Bl = far ? dimRamp(w.blade ?? M.iron) : w.blade ?? M.iron;
   const Gd = w.guard ?? M.iron, Gr = w.grip ?? M.leather;
   const width = w.width ?? 1;
-  const half = (width >= 3 ? 1.8 : width >= 2 ? 1.35 : 1) * (S >= 3 ? (w.short ? 0.62 : 0.8) : 1);
+  const half = (width >= 3 ? 1.8 : width >= 2 ? 1.35 : 1) * (S >= FINE_MIN ? (w.short ? 0.62 : 0.8) : 1);
   const gw = w.short ? 1.8 : (w.guardW ?? 2.8);
   const curve = w.curve ?? 0;
   R.axis(hx, hy, ang, -3.2, len + 1.5, Math.max(gw, half + Math.abs(curve) + 0.6), (u, lv) => {
@@ -1936,7 +1939,7 @@ function drawBow(R, G, w, bx, by, pull, arrow, tiltA) {
     if (rec && Math.abs(t) > 0.8) x -= (Math.abs(t) - 0.8) * 6;
     pts.push({ ...T(x, i), t, lx: x, ly: i });
   }
-  const fine = S >= 3;
+  const fine = S >= FINE_MIN;
   if (fine) {
     // Bogenarme als feine, zur Spitze dünner werdende Linien; Griff umwickelt
     for (let i = 0; i < pts.length - 1; i++) {
@@ -2410,23 +2413,25 @@ const cache = new Map();
 // Auflösung der Figuren: Feinpixel je Weltpixel (frame.res). Folgt CONFIG.spriteRes
 // (Überabtastung des Spielbilds, INTEGRATION.md §11.12); setHeroRes erzwingt einen Wert (Tests, Vorschau).
 let resOverride = null;
+// Feinste Stufe im Spiel: 2 (Nutzerwunsch 14:21, res 3 war zu detailreich). 3 bleibt nur per setHeroRes (Vergleich).
+const HERO_MAX_RES = 2;
 export function setHeroRes(n) { resOverride = n == null ? null : clamp(n | 0, 1, 3); }
 // Fein (3) sobald das Spielbild mindestens 2-fach überabgetastet wird, sonst die alten Pixelvorlagen (1).
 export function heroRes() {
   if (resOverride != null) return resOverride;
-  return (CONFIG.renderScale ?? 1) >= 2 ? clamp((CONFIG.spriteRes ?? 3) | 0, 1, 3) : 1;
+  return (CONFIG.renderScale ?? 1) >= 2 ? clamp((CONFIG.spriteRes ?? 3) | 0, 1, HERO_MAX_RES) : 1;
 }
 
 export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 0, gear = null, style = null, resWanted = null) {
   const rl = RACE_LOOK[raceId] ?? RACE_LOOK.human;
   const v = Math.max(0, Math.min(rl.variants.length - 1, variant | 0));
-  const res = resWanted ?? heroRes();
+  const res = resOverride ?? Math.min(resWanted ?? heroRes(), HERO_MAX_RES);
   const key = `${res}|${raceId}|${classId}|${v}|${gearKey(gear)}|${style?.dye ?? ''}|${style?.hairStyle ?? ''}`;
   let set = cache.get(key);
   if (!set) {
     set = buildSet({ ...resolveLook(raceId, classId, v, gear, style), res });
     cache.set(key, set);
-    if (cache.size > (res >= 3 ? 10 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 9× so groß
+    if (cache.size > (res >= 3 ? 10 : res >= 2 ? 20 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 4–9× so groß
   }
   return set;
 }

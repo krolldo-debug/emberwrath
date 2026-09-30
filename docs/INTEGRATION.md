@@ -394,7 +394,7 @@ nie beim Laden zwischenspeichern.** `<html>` trägt dann `ef-portrait`; Event `v
   `ctx.setTransform(k, 0, 0, k, 0, 0)` und `imageSmoothingEnabled = false`. **Alle Systeme zeichnen weiter in Weltpixeln;**
   `CONFIG.viewWidth/viewHeight` bleiben Weltpixel. Nie `ctx.canvas.width/height` als Bildgröße lesen, nie `setTransform`/
   `resetTransform` auf dem Spiel-Kontext (nur `save/translate/restore`).
-- `k = CONFIG.renderScale` (nur Game schreibt): höchstens `CONFIG.spriteRes` (3), nie mehr als die Anzeige-Skalierung,
+- `k = CONFIG.renderScale` (nur Game schreibt): höchstens `CONFIG.spriteRes` (2, seit 30.09. wegen Rucklern; Figuren res 2 passen bei k=2 pixelgenau), nie mehr als die Anzeige-Skalierung,
   Qualität „Mittel“ (Standard auf Touch) höchstens 2, „Niedrig“ 1. Die automatische Qualität senkt bei Ruckeln weiter.
 - **`SpriteFrame.res`** (Standard 1) = Texel je Weltpixel; `canvas`, `ax`, `ay` sind in Texeln. `draw()` rechnet selbst um.
   Wer `frame.canvas` direkt zeichnet, teilt Position und Größe durch `res` (umgesetzt in Actor „Aufsteigen“, Afterimage,
