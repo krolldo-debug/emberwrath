@@ -21,24 +21,21 @@ Alle Pfade in den Seiten sind relativ (`img/…`, `support`), nur die Spieladres
 Social-Media-Adressen (leer = Knopf „bald“), Impressumsangaben (leer = Hinweis statt Angaben).
 Anmeldestatus liest `site.js` aus `localStorage['emberwrath:online:session']` (Format vom Login-Thread).
 
-## Bilder = echte Spielszenen
+## Bilder = echte Kampfszenen
 
-`img/` enthält nur Aufnahmen aus dem Spiel: Welt-, Boss- und HUD-Bilder als WebP 1440×810, Handy hochkant, Logo, Heldenfiguren und Fähigkeitssymbole direkt aus dem Spielcode.
-Neu aufnehmen (z. B. nach neuen Charaktergrafiken), aus einer Kopie des Projekts:
+`img/` enthält nur Aufnahmen aus dem Spiel: Helden auf Stufe 20 mit legendärer Ausrüstung im Kampf gegen Bosse
+und Gruppen (`kampf-*.webp`), dazu das Logo. Neu aufnehmen, aus einer Kopie des Projekts:
 
 ```sh
+# in der Kopie src/config.js spriteRes auf 4 stellen (größere Ansicht, Helden bleiben bei res 2)
 node tools/build.mjs
-npx http-server dist -p 8101 -s &      # für capture*.mjs (gebündeltes Spiel)
-npx http-server .    -p 8102 -s &      # für render-assets.mjs (Module direkt)
-mkdir -p /tmp/shots
-node site/tools/capture.mjs /tmp/shots          # Zonen + Bosse (+ -hud Varianten), PNG 1440×810
-node site/tools/capture-extra.mjs /tmp/shots    # handy.png, erstellung.png
-node site/tools/towebp.mjs 0.95 site/img /tmp/shots/{glutsenke,katakomben,aschenwald,tempel,schlackenhoehen,glutschmiede,boss-varkhul,boss-nerith,boss-ignaroth,aschenwald-hud,boss-ignaroth-hud,handy}.png
-node site/tools/render-assets.mjs site/img      # logo, held-* (zugeschnitten), skill-* als PNG
+npx http-server dist -p 8101 -s &
+node site/tools/kampfszenen.mjs /tmp/kampf [ids,kommagetrennt]   # je Szene 18 Bilder, bestes von Hand wählen
+node site/tools/towebp.mjs 0.9 site/img /tmp/kampf/<gewählt>.png  # danach in kampf-*.webp umbenennen
+node site/tools/render-assets.mjs site/img                        # nur logo.png wird gebraucht (http-server . -p 8102)
 ```
 
-Aufnahmen mit einem 1920×1080-Fenster: Das Spiel rendert dann mit Überabtastung 3 (`CONFIG.renderScale`),
-die feinen Figuren (spriteRes 3) greifen, und das Bild ist 1440×810. Szenen als WebP (≈150 KB statt ≈600 KB PNG).
-Nach neuen Heldenbildern die `width`/`height` der `held-*`-Bilder in index.html auf doppelte Pixelgröße setzen.
+Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,
+Trefferblitze und Lebensbalken. Szenen und Ausrüstung stehen oben in `kampfszenen.mjs`.
 
 Die Skripte erwarten Playwright global (`/opt/node22/lib/node_modules/playwright`) und Chromium unter `/opt/pw-browsers`.

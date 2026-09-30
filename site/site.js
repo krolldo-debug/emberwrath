@@ -69,14 +69,8 @@
     impBox.innerHTML = `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   }
 
-  // ---------- Kopfleiste: Menü auf dem Handy, fester Hintergrund beim Scrollen
+  // ---------- Kopfleiste: fester Hintergrund beim Scrollen
   const top = document.querySelector('.top');
-  const btn = document.querySelector('.menu-btn');
-  btn?.addEventListener('click', () => {
-    const open = top.classList.toggle('open');
-    btn.setAttribute('aria-expanded', String(open));
-  });
-  for (const a of $$('.top .nav a, .top .top-actions a')) a.addEventListener('click', () => { top.classList.remove('open'); btn?.setAttribute('aria-expanded', 'false'); });
   const onScroll = () => top?.classList.toggle('solid', scrollY > 40);
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();
@@ -89,24 +83,7 @@
     $$('.reveal').forEach((el) => io.observe(el));
   } else $$('.reveal').forEach((el) => el.classList.add('in'));
 
-  // ---------- Bosse: Auswahl wechselt das große Bild
-  const stage = document.querySelector('[data-stage]');
-  if (stage) {
-    const img = stage.querySelector('img');
-    const tabs = $$('.boss');
-    const pick = (tab) => {
-      for (const t of tabs) t.setAttribute('aria-selected', String(t === tab));
-      if (img.getAttribute('src') === tab.dataset.img) return;
-      img.style.opacity = '0';
-      const next = new Image();
-      next.onload = () => { img.src = tab.dataset.img; img.alt = tab.dataset.alt; img.style.opacity = '1'; };
-      next.src = tab.dataset.img;
-    };
-    tabs.forEach((t) => t.addEventListener('click', () => pick(t)));
-    tabs.forEach((t) => new Image().src = t.dataset.img); // vorladen
-  }
-
-  // ---------- Bildbetrachter für Zonen und Aufnahmen
+  // ---------- Bildbetrachter für die Aufnahmen
   const box = document.querySelector('.lightbox');
   if (box && typeof box.showModal === 'function') {
     const big = box.querySelector('img'), cap = box.querySelector('p');

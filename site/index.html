@@ -4,232 +4,59 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05020a">
-  <title>Emberwrath – Pixel-Action-RPG im Browser</title>
-  <meta name="description" content="Emberwrath ist ein düsteres Pixel-Art-Action-RPG. Sechs Gebiete, drei Bosse, vier Klassen und die Glutprüfungen – direkt im Browser, auf PC und Handy.">
+  <title>Emberwrath</title>
+  <meta name="description" content="Emberwrath ist ein düsteres Pixel-Action-RPG. Kostenlos im Browser, auf PC und Handy.">
   <meta property="og:title" content="Emberwrath">
-  <meta property="og:description" content="Ein düsteres Pixel-Action-RPG. Direkt im Browser, auf PC und Handy.">
+  <meta property="og:description" content="Ein düsteres Pixel-Action-RPG. Kostenlos im Browser, auf PC und Handy.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://emberwrath.kroll-do.workers.dev/img/boss-ignaroth-hud.webp">
+  <meta property="og:image" content="https://emberwrath.kroll-do.workers.dev/img/kampf-titel.webp">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preload" as="image" href="img/boss-ignaroth.webp">
+  <link rel="preload" as="image" href="img/kampf-titel.webp">
   <link rel="stylesheet" href="site.css">
 </head>
 <body>
 <!--#include header-->
 
 <main id="inhalt">
-  <!-- ============ Titelbild -->
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img src="img/boss-ignaroth.webp" alt="" width="1440" height="810"></div>
+    <div class="hero-bg"><img class="px" src="img/kampf-titel.webp" alt="Ein Krieger in der Rüstung des Tyrannen schlägt mit glühender Klinge nach Varkhul, dem Knochenfürsten" width="1536" height="864"></div>
     <canvas class="embers" aria-hidden="true"></canvas>
     <div class="hero-content">
       <h1 id="titel">Emberwrath</h1>
       <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="146" height="30">
-      <p class="tagline">Der Berg ist erwacht. Die Toten stehen wieder auf.<br>Trag die Glut in die Dunkelheit.</p>
+      <p class="tagline">Der Berg ist erwacht. Trag die Glut in die Dunkelheit.</p>
       <div class="hero-cta">
-        <a class="btn primary big" data-link="play" href="spielen/">Jetzt kostenlos spielen</a>
+        <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
         <a class="btn big ghost" data-link="register" href="spielen/">Konto erstellen</a>
       </div>
-      <p class="status">Früher Zugang · Einzelspieler · läuft im Browser auf PC und Handy</p>
-    </div>
-    <a class="scroll-hint" href="#welt">Entdecken</a>
-  </section>
-
-  <!-- ============ Kennzahlen -->
-  <div class="wrap">
-    <div class="facts reveal" aria-label="Emberwrath in Zahlen">
-      <div class="fact"><b>6</b><span>Gebiete, von der Glutsenke bis in die Glutschmiede</span></div>
-      <div class="fact"><b>29</b><span>Quests mit Geschichte, bis Stufe 20</span></div>
-      <div class="fact"><b>190+</b><span>Gegenstände, Sets und legendäre Waffen</span></div>
-      <div class="fact"><b>4 × 4</b><span>Klassen und Völker, frei kombinierbar</span></div>
-    </div>
-  </div>
-
-  <!-- ============ Welt -->
-  <section id="welt">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <p class="kicker">Die Welt</p>
-        <h2>Eine Welt aus Asche, Wasser und Glut</h2>
-        <p class="lead">Jedes Gebiet hat eigenes Licht, eigenes Wetter, eigene Musik und eigene Gegner. Vom Dorf am Lagerfeuer führt der Weg durch Wälder, versunkene Tempel und Schlackefelder bis an den Thron des Glut-Tyrannen.</p>
-      </div>
-      <div class="zones">
-        <figure class="zone reveal" data-zoom="Die Glutsenke · Stufe 1–3">
-          <div class="frame"><img src="img/glutsenke.webp" alt="Nächtliches Dorf in der Glutsenke, ein Krieger kämpft gegen zwei Wölfe" width="1440" height="810" loading="lazy"></div>
-          <figcaption><h3>Die Glutsenke</h3><span class="meta">Startgebiet · Stufe 1–3</span><p>Das letzte Dorf vor dem Berg. Wölfe streifen um die Palisaden, und die Dorfälteste Maren braucht Hilfe.</p></figcaption>
-        </figure>
-        <figure class="zone reveal" data-zoom="Die Katakomben · Stufe 3–6">
-          <div class="frame"><img src="img/katakomben.webp" alt="Fackelbeleuchtete Katakomben mit Spinnen und Skeletten" width="1440" height="810" loading="lazy"></div>
-          <figcaption><h3>Die Katakomben</h3><span class="meta">Dungeon · Stufe 3–6</span><p>Spinnweben, Knochenhaufen und Fackeln, die nicht lange brennen. Unten wartet der Knochenfürst.</p></figcaption>
-        </figure>
-        <figure class="zone reveal" data-zoom="Der Aschenwald · Stufe 6–11">
-          <div class="frame"><img src="img/aschenwald.webp" alt="Ein Waldläufer schießt im Aschenwald eine Pfeilsalve" width="1440" height="810" loading="lazy"></div>
-          <figcaption><h3>Der Aschenwald</h3><span class="meta">Wildnis · Stufe 6–11</span><p>Glimmende Bäume, Dornenkriecher und Banditen. Hier ziehen Gewitter über die Asche.</p></figcaption>
-        </figure>
-        <figure class="zone reveal" data-zoom="Der Versunkene Tempel · Stufe 10–12">
-          <div class="frame"><img src="img/tempel.webp" alt="Ein Magier kämpft im überfluteten Tempel gegen Ertrunkene" width="1440" height="810" loading="lazy"></div>
-          <figcaption><h3>Der Versunkene Tempel</h3><span class="meta">Dungeon · Stufe 10–12</span><p>Die Flut hat die Priesterschaft nicht getötet, sie hat sie verwandelt. Wasserlicht auf altem Stein.</p></figcaption>
-        </figure>
-        <figure class="zone reveal" data-zoom="Die Schlackenhöhen · Stufe 12–17">
-          <div class="frame"><img src="img/schlackenhoehen.webp" alt="Ein Schurke im Kampf gegen Aschegolems in den Schlackenhöhen" width="1440" height="810" loading="lazy"></div>
-          <figcaption><h3>Die Schlackenhöhen</h3><span class="meta">Wildnis · Stufe 12–17</span><p>Ascheregen, Aschegolems und das Lager der Rauhwacht, der letzte Halt vor der Schmiede.</p></figcaption>
-        </figure>
-        <figure class="zone reveal" data-zoom="Die Glutschmiede · Stufe 17–20">
-          <div class="frame"><img src="img/glutschmiede.webp" alt="Magmahunde und Lavagitter in der Glutschmiede" width="1440" height="810" loading="lazy"></div>
-          <figcaption><h3>Die Glutschmiede</h3><span class="meta">Dungeon · Stufe 17–20</span><p>Das Herz des Berges. Magma, Glutdrachen und der Thron, auf dem alles begann.</p></figcaption>
-        </figure>
-      </div>
+      <p class="hint">Kostenlos im Browser, auf PC und Handy.</p>
     </div>
   </section>
 
-  <div class="wrap"><div class="rule" aria-hidden="true"></div></div>
-
-  <!-- ============ Bosse -->
-  <section id="bosse" class="bosses">
-    <div class="wrap">
-      <div class="sec-head reveal">
-        <p class="kicker">Bosse</p>
-        <h2>Drei, die nicht fallen wollen</h2>
-        <p class="lead">Jeder Boss hat eigene Phasen, Angriffe mit Vorwarnung am Boden und eine eigene Arena. Wer zu gierig zuschlägt, liegt schnell selbst im Staub.</p>
-      </div>
-      <div class="stage">
-        <div class="stage-view frame reveal" data-stage>
-          <img src="img/boss-varkhul.webp" alt="Varkhul, der Knochenfürst, in seiner Gruft" width="1440" height="810" loading="lazy">
-        </div>
-        <div class="boss-list reveal" role="tablist" aria-label="Bosse">
-          <button class="boss" role="tab" aria-selected="true" type="button" data-img="img/boss-varkhul.webp" data-alt="Varkhul, der Knochenfürst, in seiner Gruft">
-            <strong>Varkhul, der Knochenfürst</strong><span>Die Katakomben · Stufe 6</span>
-            <p>„Er ruft die Toten. Solange er steht, finden sie keine Ruhe. Bring mir sein Siegel.“</p>
-          </button>
-          <button class="boss" role="tab" aria-selected="false" type="button" data-img="img/boss-nerith.webp" data-alt="Nerith, die Ertrunkene Priesterin, im Allerheiligsten">
-            <strong>Nerith, die Ertrunkene Priesterin</strong><span>Der Versunkene Tempel · Stufe 12</span>
-            <p>„Nerith war einst Hohepriesterin. Die Flut hat sie nicht getötet, sie hat sie verwandelt.“</p>
-          </button>
-          <button class="boss" role="tab" aria-selected="false" type="button" data-img="img/boss-ignaroth.webp" data-alt="Ignaroth, der Glut-Tyrann, vor seinem Thron">
-            <strong>Ignaroth, der Glut-Tyrann</strong><span>Die Glutschmiede · Stufe 20</span>
-            <p>„Ignaroth wartet auf seinem Thron. Er wird dreimal wiederkehren, stärker als zuvor.“</p>
-          </button>
-        </div>
-      </div>
+  <section class="fights" aria-label="Szenen aus dem Spiel">
+    <div class="wrap shots">
+      <figure class="shot wide reveal" data-zoom="Krieger mit „Emberwrath, Klinge der Könige“ gegen Ignaroth">
+        <img class="px" src="img/kampf-krieger.webp" alt="Krieger mit flammender Klinge im Nahkampf gegen den Glut-Tyrannen Ignaroth" width="1056" height="594" loading="lazy">
+        <figcaption>Krieger gegen Ignaroth</figcaption>
+      </figure>
+      <figure class="shot reveal" data-zoom="Magier mit dem Arkanen Weltenstab: Meteor">
+        <img class="px" src="img/kampf-magier.webp" alt="Ein Meteor schlägt mitten in einer Gruppe Feuerteufel ein" width="1056" height="594" loading="lazy">
+        <figcaption>Magier, Meteor</figcaption>
+      </figure>
+      <figure class="shot reveal" data-zoom="Schurke mit „Nachtflüstern“ gegen Nerith">
+        <img class="px" src="img/kampf-schurke.webp" alt="Schurke springt per Schattenschritt auf Nerith, die Ertrunkene Priesterin" width="1056" height="594" loading="lazy">
+        <figcaption>Schurke gegen Nerith</figcaption>
+      </figure>
+      <figure class="shot reveal" data-zoom="Waldläufer mit „Sternenfall“ gegen Nerith">
+        <img class="px" src="img/kampf-waldlaeufer.webp" alt="Waldläuferin feuert einen Fächer aus Lichtpfeilen auf Nerith" width="1152" height="648" loading="lazy">
+        <figcaption>Waldläufer gegen Nerith</figcaption>
+      </figure>
     </div>
   </section>
 
-  <!-- ============ Klassen -->
-  <section id="klassen">
-    <div class="wrap">
-      <div class="sec-head center reveal">
-        <p class="kicker">Klassen</p>
-        <h2>Wähle deinen Weg</h2>
-        <p class="lead">Vier Klassen mit je vier Fähigkeiten und eigenem Talentbaum, dazu vier Völker: Mensch, Zwerg, Schattenelf und Glutgeborene. Jede Rüstung, die du anlegst, siehst du an deiner Figur.</p>
-      </div>
-      <div class="classes">
-        <article class="cls reveal">
-          <div class="cls-hero"><img class="px" src="img/held-warrior.png" alt="Menschlicher Krieger in Tyrannenrüstung" width="126" height="206" loading="lazy"></div>
-          <h3>Krieger</h3>
-          <p class="role">Nahkampf · Verteidigung</p>
-          <p>Steht in der ersten Reihe und hält am meisten aus. Treffer erzeugen Wut, die in verheerende Fähigkeiten fließt.</p>
-          <ul class="skills" aria-label="Fähigkeiten">
-            <li><img class="px" src="img/skill-whirlwind.png" alt="Wirbelsturm" title="Wirbelsturm" loading="lazy"></li>
-            <li><img class="px" src="img/skill-battle_shout.png" alt="Kriegsschrei" title="Kriegsschrei" loading="lazy"></li>
-            <li><img class="px" src="img/skill-charge.png" alt="Sturmangriff" title="Sturmangriff" loading="lazy"></li>
-            <li><img class="px" src="img/skill-earthshatter.png" alt="Erdspalter" title="Erdspalter" loading="lazy"></li>
-          </ul>
-        </article>
-        <article class="cls reveal">
-          <div class="cls-hero"><img class="px" src="img/held-rogue.png" alt="Glutgeborener Schurke mit Dolchen" width="132" height="188" loading="lazy"></div>
-          <h3>Schurke</h3>
-          <p class="role">Nahkampf · Beweglichkeit</p>
-          <p>Zwei Klingen aus dem Schatten. Schnell hinein, Gift auf die Klingen, und bevor der Gegner reagiert, ist der Todesstoß schon gesetzt.</p>
-          <ul class="skills" aria-label="Fähigkeiten">
-            <li><img class="px" src="img/skill-shadow_step.png" alt="Schattenschritt" title="Schattenschritt" loading="lazy"></li>
-            <li><img class="px" src="img/skill-fan_of_knives.png" alt="Dolchfächer" title="Dolchfächer" loading="lazy"></li>
-            <li><img class="px" src="img/skill-poison_blades.png" alt="Giftklingen" title="Giftklingen" loading="lazy"></li>
-            <li><img class="px" src="img/skill-assassinate.png" alt="Todesstoß" title="Todesstoß" loading="lazy"></li>
-          </ul>
-        </article>
-        <article class="cls reveal">
-          <div class="cls-hero"><img class="px" src="img/held-ranger.png" alt="Elfischer Waldläufer mit Bogen" width="102" height="198" loading="lazy"></div>
-          <h3>Waldläufer</h3>
-          <p class="role">Fernkampf · Kontrolle</p>
-          <p>Pfeil und Bogen, Abstand und Übersicht. Salven gegen Gruppen, Durchschüsse gegen Reihen und Pfeilhagel für alles, was noch steht.</p>
-          <ul class="skills" aria-label="Fähigkeiten">
-            <li><img class="px" src="img/skill-volley.png" alt="Pfeilsalve" title="Pfeilsalve" loading="lazy"></li>
-            <li><img class="px" src="img/skill-piercing_shot.png" alt="Durchschuss" title="Durchschuss" loading="lazy"></li>
-            <li><img class="px" src="img/skill-fire_trap.png" alt="Sprengfalle" title="Sprengfalle" loading="lazy"></li>
-            <li><img class="px" src="img/skill-arrow_rain.png" alt="Pfeilhagel" title="Pfeilhagel" loading="lazy"></li>
-          </ul>
-        </article>
-        <article class="cls reveal">
-          <div class="cls-hero"><img class="px" src="img/held-mage.png" alt="Zwergischer Glutmagier mit Stab" width="94" height="186" loading="lazy"></div>
-          <h3>Glutmagier</h3>
-          <p class="role">Fernkampf · Flächenschaden</p>
-          <p>Feuer aus der Tiefe. Flammenringe, Feuerbälle und am Ende ein Meteor, der ganze Horden auf einmal auslöscht.</p>
-          <ul class="skills" aria-label="Fähigkeiten">
-            <li><img class="px" src="img/skill-flame_nova.png" alt="Flammenring" title="Flammenring" loading="lazy"></li>
-            <li><img class="px" src="img/skill-blink.png" alt="Blinzeln" title="Blinzeln" loading="lazy"></li>
-            <li><img class="px" src="img/skill-fireball.png" alt="Feuerball" title="Feuerball" loading="lazy"></li>
-            <li><img class="px" src="img/skill-meteor.png" alt="Meteor" title="Meteor" loading="lazy"></li>
-          </ul>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ Im Spiel -->
-  <section id="spiel">
-    <div class="wrap split">
-      <div class="duo">
-        <div class="frame reveal" data-zoom="Kampf gegen Ignaroth"><img src="img/boss-ignaroth-hud.webp" alt="Bosskampf gegen Ignaroth mit Lebensleiste, Fähigkeiten und Karte" width="1440" height="810" loading="lazy"></div>
-        <div class="frame reveal" data-zoom="Unterwegs im Aschenwald"><img src="img/aschenwald-hud.webp" alt="Aschenwald mit Questliste, Minikarte und Fähigkeitsleiste" width="1440" height="810" loading="lazy"></div>
-      </div>
-      <div class="reveal">
-        <p class="kicker">Im Spiel</p>
-        <h2>Schnelle Kämpfe, echte Beute</h2>
-        <ul class="features">
-          <li><b>Direkt im Browser.</b> Kein Download, keine Installation. Tastatur und Maus am PC, Touch-Steuerung auf dem Handy.</li>
-          <li><b>Beute in fünf Seltenheiten</b>, von Gewöhnlich bis Legendär, mit Sets, Verstärken beim Schmied und einer Bank für deine Schätze.</li>
-          <li><b>Talente und Titel.</b> Jede Klasse hat einen eigenen Talentbaum, dazu Erfolge und Titel, die man sich verdienen muss.</li>
-          <li><b>Die Glutprüfungen</b> ab Stufe 20: 30 Stufen gegen die Zeit, mit wechselnden Erschwernissen wie brennendem Boden, und Glutsplitter für Wächterausrüstung und legendäre Beute.</li>
-        </ul>
-      </div>
-    </div>
-    <div class="wrap split" style="margin-top: clamp(48px, 8vw, 96px);">
-      <div class="reveal">
-        <p class="kicker">Unterwegs</p>
-        <h2>Auch hochkant auf dem Handy</h2>
-        <p class="lead">Emberwrath passt sich an: im Querformat die volle Ansicht, im Hochformat ein eigenes Bild mit großen Touch-Knöpfen. Links ziehen zum Laufen, rechts Angriff, Ausweichen und vier Fähigkeiten.</p>
-        <div class="hero-cta" style="justify-content: flex-start;">
-          <a class="btn primary" data-link="play" href="spielen/">Jetzt spielen</a>
-        </div>
-      </div>
-      <div class="phone reveal" data-zoom="Emberwrath auf dem Handy"><img src="img/handy.webp" alt="Emberwrath hochkant auf einem Handy im Versunkenen Tempel" width="1170" height="2532" loading="lazy"></div>
-    </div>
-  </section>
-
-  <!-- ============ Community -->
-  <section id="community" class="community">
-    <div class="wrap">
-      <div class="sec-head center reveal" style="margin-bottom: 0;">
-        <p class="kicker">Community</p>
-        <h2>Bleib auf dem Laufenden</h2>
-        <p class="lead">Neue Gebiete, Klassen und bald das gemeinsame Spielen: Folge Emberwrath, um nichts zu verpassen.</p>
-      </div>
-      <div class="socials reveal" data-socials></div>
-    </div>
-  </section>
-
-  <!-- ============ Abschluss -->
-  <section class="final">
-    <div class="final-bg"><img src="img/boss-nerith.webp" alt="" width="1440" height="810" loading="lazy"></div>
-    <div class="wrap reveal">
-      <h2>Die Glutsenke wartet auf dich</h2>
-      <p class="lead" style="margin: 0 auto;">Erschaffe deine Figur und steh in wenigen Sekunden am Lagerfeuer.</p>
-      <div class="hero-cta">
-        <a class="btn primary big" data-link="play" href="spielen/">Jetzt kostenlos spielen</a>
-        <a class="btn big ghost" href="support">Hilfe &amp; FAQ</a>
-      </div>
-    </div>
+  <section class="community" id="community" aria-label="Community">
+    <div class="wrap socials" data-socials></div>
   </section>
 </main>
 
