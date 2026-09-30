@@ -367,6 +367,27 @@ function buildSet(B, look, res) {
   return { stand: new Animation(stand, 5), walk: new Animation(walk, 11) };
 }
 
+// Reiter + Reittier als ein Frame (für fremde Spieler, die nur frame.draw/glows kennen).
+// Versatz = Sattelpunkt minus Hüfte der Sitz-Pose; gespiegelt wird beides um den Fußpunkt.
+class RideFrame {
+  constructor(mount, rider) {
+    this.mount = mount; this.rider = rider;
+    this.res = rider.res ?? 1;
+    this.ox = mount.seat.x - (rider.hip?.x ?? 0); this.oy = mount.seat.y - (rider.hip?.y ?? -10);
+    this.glows = [...(mount.glows ?? []), ...(rider.glows ?? []).map((g) => ({ ...g, x: g.x + this.ox, y: g.y + this.oy }))];
+    this.weapon = rider.weapon ? { ...rider.weapon, x: rider.weapon.x + this.ox, y: rider.weapon.y + this.oy } : null;
+  }
+  draw(ctx, x, y, opts = {}) {
+    this.mount.draw(ctx, x, y, opts);
+    this.rider.draw(ctx, x + (opts.flip ? -this.ox : this.ox), y + this.oy, opts);
+  }
+}
+// riderAnim = Helden-Animation 'ride', mountAnim = stand/walk -> Animation mit RideFrames
+export function composeRide(riderAnim, mountAnim) {
+  const n = mountAnim.frames.length, r = riderAnim.frames;
+  return new Animation(mountAnim.frames.map((m, i) => new RideFrame(m, r[i % r.length])), mountAnim.fps);
+}
+
 const cache = new Map();
 // def = content 'mount' (sprite, look). Ohne def: Platzhalter-Pferd.
 export function getMountSprites(mountId, def = null, res = 1) {

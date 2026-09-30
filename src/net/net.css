@@ -1,0 +1,72 @@
+/* Mehrspieler-HUD (src/net/NetHud.js): Welt-Anzeige im Zonenblock, Weltwahl, Zonen-Chat. */
+
+.net-world {
+  font: 400 0.78em/1.2 var(--ef-font); color: #9fd8ff; background: none; border: 0; padding: 1px 0;
+  cursor: pointer; text-shadow: 0 1px 0 #000, 0 0 6px rgba(0, 0, 0, 0.9); pointer-events: auto;
+}
+.net-world::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; vertical-align: 1px; background: #5ad07a; box-shadow: 0 0 0 1px #0b0710, 0 0 6px rgba(90, 208, 122, 0.8); }
+.net-world:hover { color: #d4efff; text-decoration: underline; text-underline-offset: 2px; }
+.net-world[data-status="connecting"]::before, .net-world[data-status="retry"]::before { background: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710; animation: net-blink 1s steps(2) infinite; }
+.net-world[data-status="unavailable"]::before, .net-world[data-status="replaced"]::before,
+.net-world[data-status="auth"]::before, .net-world[data-status="version"]::before { background: var(--ef-danger); box-shadow: 0 0 0 1px #0b0710; }
+.net-world:not([data-status="online"]) { color: var(--ef-muted); }
+@keyframes net-blink { 50% { opacity: 0.25; } }
+
+/* Weltwahl: klappt unter dem Zonenblock auf */
+#ui .net-worlds {
+  position: fixed; inset: auto; z-index: 3; pointer-events: auto;
+  right: max(12px, calc(50% - var(--view-w) / 2 + var(--hud-gap))); top: max(60px, calc(50% - var(--view-h) / 2 + 76px));
+  width: 250px; max-width: calc(100vw - 24px); padding: 8px; display: flex; flex-direction: column; gap: 4px;
+  font: 400 13px/1.3 var(--ef-font); color: var(--ef-text);
+  background: rgba(14, 8, 22, 0.96); border: 2px solid var(--ef-panel-edge); box-shadow: 0 0 0 2px #0b0710, 0 12px 32px rgba(0, 0, 0, 0.7);
+}
+.net-worlds[hidden] { display: none !important; }
+.net-worlds-head { font-family: var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.06em; font-size: 15px; padding: 0 2px 4px; border-bottom: 1px solid rgba(184, 134, 42, 0.45); }
+.net-worlds-row {
+  display: flex; justify-content: space-between; gap: 8px; padding: 7px 8px; min-height: 34px; align-items: center;
+  font: inherit; color: var(--ef-text); text-align: left; cursor: pointer;
+  background: linear-gradient(180deg, #2c1c36, #1c1024); border: 1px solid #4a3020; border-radius: 2px;
+}
+.net-worlds-row:hover:not(:disabled) { border-color: var(--ef-gold); }
+.net-worlds-row:disabled { cursor: default; opacity: 1; }
+.net-worlds-row[aria-current="true"] { border-color: #5ad07a; background: linear-gradient(180deg, #1e2c28, #13201c); }
+.net-worlds-n { color: var(--ef-muted); font-size: 12px; }
+.net-worlds-note { color: var(--ef-muted); font-size: 11.5px; padding: 4px 2px 0; }
+
+/* Zonen-Chat: unten links über dem Spielbild; Zeilen verblassen, solange der Chat zu ist */
+#ui .net-chat {
+  position: fixed; inset: auto; z-index: 1;
+  left: max(8px, calc(50% - var(--view-w) / 2 + var(--hud-gap)));
+  bottom: max(8px, calc(50% - var(--view-h) / 2 + 22px));
+  width: min(360px, 42vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+  font: 400 13px/1.35 var(--ef-font);
+}
+.net-chat[hidden], .net-chat-btn[hidden] { display: none !important; }
+.net-chat-log { max-height: 7.2em; overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
+.net-chat.open .net-chat-log { max-height: 14em; overflow-y: auto; pointer-events: auto; background: rgba(8, 4, 14, 0.72); padding: 4px 6px; border: 1px solid rgba(106, 69, 38, 0.7); }
+.net-line { color: var(--ef-text); text-shadow: 0 1px 0 #000, 0 0 4px #000; overflow-wrap: anywhere; transition: opacity 0.6s; }
+.net-line.old { opacity: 0; }
+.net-line.sys { color: #e8d59a; font-style: italic; }
+.net-name { color: #9fd8ff; font-weight: 700; }
+.net-name.own { color: var(--ef-gold); }
+.net-chat-form { display: none; }
+.net-chat.open .net-chat-form { display: block; pointer-events: auto; }
+.net-chat-input {
+  width: 100%; box-sizing: border-box; padding: 7px 9px; font: inherit; color: var(--ef-text);
+  background: rgba(8, 4, 14, 0.92); border: 2px solid var(--ef-panel-edge); border-radius: 2px; outline: none;
+}
+.net-chat-input:focus { border-color: var(--ef-gold); }
+
+/* Touch: Sprechblasen-Knopf, Chat links oberhalb des Sticks */
+.net-chat-btn { display: none; }
+.ef-touch .net-chat-btn {
+  display: block; position: fixed; inset: auto; z-index: 1;
+  left: max(8px, calc(50% - var(--view-w) / 2 + var(--hud-gap))); top: calc(50% - 22px);
+  width: 40px; height: 40px; border-radius: 2px; border: 2px solid var(--ef-panel-edge);
+  background: rgba(14, 8, 22, 0.8) center / 22px 22px no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Cpath d='M1 2h10v6H6L3 10V8H1z' fill='%23e8c25a'/%3E%3Cpath d='M3 4h6v1H3zM3 6h4v1H3z' fill='%23140a1c'/%3E%3C/svg%3E");
+}
+.ef-touch #ui .net-chat { bottom: auto; top: calc(50% + 24px); width: min(300px, 56vw); font-size: 12px; }
+.ef-touch .net-chat-log { max-height: 5.6em; }
+.ef-portrait .net-chat-btn { top: calc(env(safe-area-inset-top, 0px) + 84px); left: 8px; width: 36px; height: 36px; }
+.ef-portrait #ui .net-chat { top: calc(env(safe-area-inset-top, 0px) + 126px); bottom: auto; left: 8px; width: min(300px, 62vw); }

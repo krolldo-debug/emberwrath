@@ -13,7 +13,7 @@ import { CONFIG } from '../config.js';
 //
 // getHeroSprites(raceId, classId, variant, gear?, style?) -> {
 //   idle, run, atk1, atk2, atk3, cast, spin, roll, dash, hurt, death,
-//   slam, lunge, coat, rainshot, plant, summon, hurl, ride }
+//   slam, lunge, coat, rainshot, plant, summon, hurl, ride, rideRun }
 // ride = Sitz-Pose auf dem Reittier (frame.hip = Hüfte relativ zum Fußpunkt, Waffe auf dem Rücken).
 // style = { dye, hairStyle } aus character/cosmetics.js (Färbung, Frisur).
 // Angriffe tragen anim.phases = { windup: [a, b], active: [c, d], recover: [e, f] }
@@ -2117,6 +2117,7 @@ function buildSet(L) {
     hurt: () => new Animation(hurtFrames(stance, frame), 10, false),
     death: () => new Animation(deathFrames(stance, frame), 9, false),
     ride: () => new Animation(rideFrames(L, frame), 3),
+    rideRun: () => set.ride,   // gleiche Sitz-Pose; der Name sagt fremden Spielern, dass das Reittier läuft
   };
   const set = {};
   for (const [name, make] of Object.entries(makers)) {

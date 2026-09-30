@@ -1,5 +1,8 @@
 import { EV } from '../core/events.js';
 import { CONFIG } from '../config.js';
+import { getHeroSprites } from '../sprites/hero.js';
+import { getMountSprites, composeRide } from '../sprites/mounts.js';
+import { spriteStyle } from './cosmetics.js';
 
 // Reittiere (Thread A, INTEGRATION §12.6). Reine Daten + Regeln, ohne DOM (serverfähig).
 //
@@ -140,5 +143,23 @@ export function installMounts(game) {
     mountReasonText: (reason) => MOUNT_REASON_TEXT[reason] ?? '',
     mounts: () => state.slices.character?.mounts ?? { owned: [], active: null, riding: false },
     mountDef: (id) => content.find('mount', id),
+    // Figur eines Mitspielers aus hero.snapshotLook() (§12.9). 'ride'/'rideRun' zeichnen Reiter + Reittier zusammen.
+    animsForLook: (look, res) => animsForLook(content, look, res),
   };
+}
+
+// Animationssatz eines fremden Helden. Ohne Reittier der normale Heldensatz; mit Reittier dieselben Animationen,
+// nur 'ride' (steht) und 'rideRun' (läuft) als zusammengesetzte Frames.
+export function animsForLook(content, look, res = 1) {
+  const raceId = content.find('race', look?.raceId) ? look.raceId : 'human';
+  const classId = content.find('class', look?.classId) ? look.classId : 'warrior';
+  const set = getHeroSprites(raceId, classId, look?.appearance?.variant ?? 0, look?.gear ?? null, spriteStyle(look?.appearance), res);
+  const def = look?.mountId ? content.find('mount', look.mountId) : null;
+  if (!def) return set;
+  const out = Object.create(set);
+  const lazy = (name, make) => Object.defineProperty(out, name, { configurable: true, enumerable: true,
+    get() { const v = make(); Object.defineProperty(out, name, { value: v, enumerable: true }); return v; } });
+  lazy('ride', () => composeRide(set.ride, getMountSprites(def.id, def, res).stand));
+  lazy('rideRun', () => composeRide(set.ride, getMountSprites(def.id, def, res).walk));
+  return out;
 }

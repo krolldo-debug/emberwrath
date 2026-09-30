@@ -373,7 +373,7 @@ export class Hero extends Actor {
     const moving = Math.hypot(axis.x, axis.y) > 0.1;
     if (this.riding) {
       if (moving && Math.abs(axis.x) > 0.1) this.facing = Math.sign(axis.x);
-      this.animator.play('ride');
+      this.animator.play(moving ? 'rideRun' : 'ride');   // Name für Mitspieler: Reittier steht bzw. läuft
       if (moving) { this.stepTimer -= dt; if (this.stepTimer <= 0) { this.stepTimer = 0.3; world.bus.emit('footstep', { actor: this, mount: this.mountId }); } }
       return;
     }

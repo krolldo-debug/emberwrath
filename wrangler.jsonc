@@ -1,10 +1,23 @@
-// Cloudflare-Konfiguration: reine statische Website (kein Worker-Skript).
-// Cloudflare baut mit `npm run build` und veröffentlicht dann mit `npx wrangler deploy` den Ordner dist/site.
-// dist/site/_headers (CSP, Sicherheitsheader) wird von Cloudflare ausgewertet.
+// Cloudflare-Konfiguration: Website (statische Dateien aus dist/site) + Welt-Server (worker/, Durable Objects).
+// Cloudflare baut mit `npm run build` und veröffentlicht dann mit `npx wrangler deploy`.
+// Vorhandene Dateien liefert Cloudflare direkt aus (dist/site/_headers gilt weiter), nur /net/* erreicht den Worker.
+// Durable Objects mit SQLite-Speicher sind im Gratis-Tarif enthalten (src/net/README.md: Kosten und Grenzen).
 {
   "name": "emberwrath",
+  "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
   "assets": {
-    "directory": "./dist/site"
-  }
+    "directory": "./dist/site",
+    "binding": "ASSETS"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ZONE_SHARD", "class_name": "ZoneShard" },
+      { "name": "DIRECTORY", "class_name": "Directory" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ZoneShard", "Directory"] }
+  ],
+  "observability": { "enabled": true }
 }
