@@ -255,7 +255,7 @@ export class LoginScene extends MenuScene {
           providers.includes('email') ? h('button.ef-btn', { type: 'button', onclick: () => this.#go('newPassword') }, 'Passwort ändern') : null,
           h('button.ef-btn', { type: 'button', onclick: () => this.#run(async () => {
             const r = await o.signOut();
-            this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Abgemeldet. Deine Charaktere sind sicher in der Cloud.' : 'Abgemeldet. Nicht hochgeladene Spielstände bleiben auf diesem Gerät, bis du dich wieder anmeldest.' });
+            this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Abgemeldet. Deine Charaktere sind sicher in der Cloud.' : 'Abgemeldet. Noch nicht hochgeladene Spielstände werden beim nächsten Anmelden übertragen.' });
           }) }, 'Abmelden'),
           this.#deleteButton()),
         this.#backupBox()));
@@ -307,7 +307,7 @@ export class LoginScene extends MenuScene {
       .filter(({ acc, c }) => !copied.has(`${acc.id}:${c.id}`));
     if (!locals.length) return null;
     return h('details.on-import', { open: true },
-      h('summary', locals.length === 1 ? 'Auf diesem Gerät gefunden: 1 lokaler Charakter' : `Auf diesem Gerät gefunden: ${locals.length} lokale Charaktere`),
+      h('summary', locals.length === 1 ? '1 Charakter aus der Testphase gefunden' : `${locals.length} Charaktere aus der Testphase gefunden`),
       h('p.acc-meta', 'Übernimm sie in dein Konto, dann sind sie in der Cloud gesichert und auf jedem Gerät spielbar.'),
       h('div.acc-list', locals.map(({ acc, c }) => h('div.acc-row.on-import-row',
         h('div.acc-row-main', h('div', h('strong', c.name ?? '?'), h('div.acc-meta', `${characterLine(g.content, c)} · Profil „${acc.name}“`))),

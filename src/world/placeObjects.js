@@ -179,7 +179,7 @@ export function placeObjects(world) {
   for (const p of L.portals ?? []) {
     const zone = world.session.content.find('zone', p.to.zoneId);
     const subs = [];
-    if (zone?.instanced) subs.push(`Lokale Instanz · max. ${zone.maxPlayers} Spieler`);
+    if (zone?.instanced) subs.push(`Instanz · bis ${zone.maxPlayers} Spieler`);
     if (p.requires?.level) subs.push(`Empfohlen ab Stufe ${p.requires.level}`);
     const sub = subs.length ? subs.join(' · ') : null;
     const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir }));

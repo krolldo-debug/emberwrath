@@ -240,8 +240,7 @@ export class Hud {
   #instanceText() {
     const z = this.s.zone;
     if (!z) return '';
-    const kind = z.def?.instanced ? 'Lokale Instanz' : 'Lokales Gebiet';
-    return `${kind} · Einzelspieler-Prototyp, Spielstand auf diesem Gerät`;
+    return z.def?.instanced ? `Dungeon-Instanz · bis ${z.def.maxPlayers ?? 5} Spieler` : 'Offenes Gebiet';
   }
 
   #questTitle(id) { return this.s.content.find('quest', id)?.title ?? this.s.content.find('quest', id)?.name ?? ''; }
@@ -264,8 +263,8 @@ export class Hud {
     this.pName.title = [race, cls].filter(Boolean).join(' · ');
     const z = this.s.zone;
     setText(this.zName, z?.def?.name ?? '');
-    setText(this.zSub, z ? (z.def?.instanced ? 'Lokale Instanz' : 'Lokales Gebiet') + ' · nur du' : '');
-    this.zSub.title = 'Dieser Prototyp läuft lokal. Andere Spieler gibt es hier noch nicht.';
+    setText(this.zSub, z ? (z.def?.instanced ? 'Dungeon-Instanz' : 'Offenes Gebiet') : '');
+    this.zSub.title = '';
     this.portraitDirty = true;
   }
 

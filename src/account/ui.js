@@ -15,7 +15,6 @@ export function localNotice(game, { compact = false } = {}) {
       signedIn
         ? 'Deine Charaktere sind in deinem Konto gespeichert und in der Cloud gesichert. Du kannst auf jedem Gerät weiterspielen.'
         : 'Melde dich an oder erstelle ein kostenloses Konto. Deine Charaktere werden in der Cloud gesichert und sind auf jedem Gerät spielbar.',
-      'Emberwrath ist noch ein Einzelspieler-Prototyp: Andere Spieler sind noch nicht im Spiel.',
     ];
   return h(`div.acc-notice${signedIn ? '.acc-cloud' : ''}`, { role: 'note' },
     h('span.acc-notice-icon', { 'aria-hidden': 'true' }, signedIn ? '✓' : 'i'),

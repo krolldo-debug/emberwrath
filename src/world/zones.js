@@ -21,7 +21,7 @@ export const ZONES = {
   },
   catacombs: {
     name: 'Die Katakomben',
-    subtitle: 'Dungeon · Lokale Instanz',
+    subtitle: 'Dungeon · Instanz',
     kind: 'dungeon',
     level: 'catacombs',
     instanced: true,
@@ -49,7 +49,7 @@ export const ZONES = {
   },
   sunken_temple: {
     name: 'Der Versunkene Tempel',
-    subtitle: 'Dungeon · Lokale Instanz',
+    subtitle: 'Dungeon · Instanz',
     kind: 'dungeon',
     level: 'sunken_temple',
     instanced: true,
@@ -77,7 +77,7 @@ export const ZONES = {
   },
   molten_forge: {
     name: 'Die Glutschmiede',
-    subtitle: 'Dungeon · Lokale Instanz',
+    subtitle: 'Dungeon · Instanz',
     kind: 'dungeon',
     level: 'molten_forge',
     instanced: true,
@@ -94,7 +94,7 @@ export const ZONES = {
   // Nachschub, Boss und Rückkehrportal steuert world/TrialDirector.js.
   ember_trial: {
     name: 'Glutprüfung',
-    subtitle: 'Endgame · Lokale Instanz',
+    subtitle: 'Endgame · Instanz',
     kind: 'dungeon',
     level: 'ember_trial',
     instanced: true,

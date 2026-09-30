@@ -308,7 +308,7 @@ export function createMapPanel(session) {
       h('button.ef-btn.map-close', { type: 'button', onclick: () => session.panels?.close?.() }, 'Schließen')),
     h('div.map-frame', canvas),
     h('footer.map-foot', tgtInfo, legend,
-      h('p.map-note', 'Karte dieser Zone auf diesem Gerät. Taste M oder Tippen auf die Minimap öffnet sie.')),
+      h('p.map-note', 'Karte dieser Zone. Taste M oder Tippen auf die Minimap öffnet sie.')),
   );
   // Ganzzahlig hochskalieren, bis die Karte den Rahmen füllt (scharfe Pixel)
   const fit = () => {

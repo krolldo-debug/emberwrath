@@ -12,7 +12,7 @@ const TIPS = [
   'Seltenheit erkennst du am Rahmen: grün, blau, lila, orange.',
   'Heiltränke (H) haben eine kurze Abklingzeit – nicht zu spät trinken.',
   'Gegner mit rotem Warnkreis holen gleich zum Schlag aus.',
-  'Dein Spielstand wird lokal auf diesem Gerät gespeichert.',
+  'Dein Fortschritt wird automatisch in deinem Konto gespeichert.',
   'Elite-Gegner (orange auf der Karte) lassen bessere Beute fallen.',
 ];
 
@@ -47,8 +47,7 @@ export class ZoneTransition {
     const bits = [];
     if (def.recommendedLevel) bits.push(`Empfohlene Stufe ${def.recommendedLevel}`);
     const subSaysInstance = /instanz/i.test(def.subtitle ?? '');
-    if (def.instanced) bits.push(subSaysInstance ? `max. ${def.maxPlayers ?? 1} Spieler` : `Lokale Instanz · max. ${def.maxPlayers ?? 1} Spieler`);
-    else bits.push('Lokales Gebiet · nur du');
+    if (def.instanced) bits.push(subSaysInstance ? `bis ${def.maxPlayers ?? 5} Spieler` : `Instanz · bis ${def.maxPlayers ?? 5} Spieler`);
     this.meta.textContent = bits.join(' · ');
     this.tip.textContent = `Tipp: ${TIPS[this.tipIndex++ % TIPS.length]}`;
     this.el.classList.toggle('dungeon', !!def.instanced || def.kind === 'dungeon');

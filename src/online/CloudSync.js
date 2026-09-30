@@ -161,7 +161,7 @@ export class CloudSync {
       }
       if (Object.keys(incoming).length) {
         const res = this.save.importAll({ format: 'emberfall-save', version: 1, entries: { [`acc:${acc}`]: { characters: incoming } } });
-        if (!res.ok) throw Object.assign(new Error('Lokaler Speicher voll'), { code: 'storage_full' });
+        if (!res.ok) throw Object.assign(new Error('Browser-Speicher voll'), { code: 'storage_full' });
       }
       for (const c of this.save.listCharacters(acc)) {
         if (remoteIds.has(c.id)) continue;

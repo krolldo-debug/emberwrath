@@ -89,6 +89,6 @@ export function createSettingsSection(game) {
     row('Minimap', check('minimap', true), 'Karte bleibt über M erreichbar'),
     h('div.set-row', h('span.set-label', 'Grafik', qNote), qual),
     h('div.set-row', h('span.set-label', 'Touch-Knöpfe', h('small.set-note', 'Größe der Bedienelemente')), sizes),
-    h('p.ef-note.set-local', 'Einstellungen gelten für dieses Gerät und werden lokal gespeichert.'),
+    h('p.ef-note.set-local', 'Einstellungen gelten für dieses Gerät.'),
   );
 }
