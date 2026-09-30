@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { MenuScene } from './TitleScene.js';
-import { HeroPortrait, focusIfDesktop, localNotice, requireOnlineAccount } from './ui.js';
+import { HeroPortrait, focusIfDesktop, requireOnlineAccount } from './ui.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
 import { RACE_LOOK } from '../sprites/hero.js';
@@ -134,7 +134,7 @@ export class CharacterCreateScene extends MenuScene {
           h('div.acc-stage', this.preview.canvas, this.swatches, this.hairBtn, this.tierBox),
           h('div.acc-namebox', h('div.acc-inline', this.nameInput, dice), this.nameErr)),
         this.summary),
-      h('footer.acc-create-foot', localNotice(g, { compact: true }), this.startBtn));
+      h('footer.acc-create-foot', this.startBtn));
     this.root.replaceChildren(panel);
     focusIfDesktop(this.nameInput);
   }

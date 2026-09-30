@@ -87,3 +87,109 @@
 .on-table .ef-badge { margin-left: 6px; font-size: 11px; }
 .ef-badge.on-badge { color: var(--ef-gold); border-color: var(--ef-gold); }
 .on-foot { margin: 0; }
+
+/* ------------------------------------------------ Titel (schlank, nur mit Konto) */
+.acc-title .acc-title-inner { width: min(380px, 100%); gap: 18px; }
+.acc-menu .acc-play { padding: 14px 20px; }
+.acc-menu .acc-play .acc-btn-title { font-size: 24px; }
+.acc-textlink {
+  align-self: flex-start; background: none; border: 0; padding: 6px 2px; cursor: pointer;
+  font: 600 14px var(--ef-font); color: var(--ef-muted); letter-spacing: 0.03em;
+}
+.acc-textlink:hover, .acc-textlink:focus-visible { color: var(--ef-gold); outline: none; text-decoration: underline; text-underline-offset: 3px; }
+.acc-footer-corner { position: absolute; left: 16px; bottom: max(10px, env(safe-area-inset-bottom)); font-size: 11px; opacity: 0.5; }
+.acc-create-foot { justify-content: flex-end; }
+
+/* ------------------------------------------------ Charakterauswahl (lb-*) */
+.ef-screen.lb-screen {
+  place-items: stretch; overflow: hidden;
+  grid-template-columns: minmax(200px, 250px) 1fr minmax(0, 250px);
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "top top top" "roster stage ." "roster info .";
+  gap: 8px 24px; padding: max(14px, env(safe-area-inset-top)) clamp(14px, 3vw, 40px) max(18px, env(safe-area-inset-bottom));
+}
+.lb-top { grid-area: top; display: flex; align-items: center; gap: 12px; }
+.lb-heading {
+  flex: 1; margin: 0; text-align: center; font: 400 15px var(--ef-font-title); color: var(--ef-gold);
+  letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.85;
+}
+.ef-btn.lb-account { display: flex; align-items: center; gap: 10px; padding: 4px 14px 4px 4px; min-width: 0; font-size: 14px; }
+.lb-account .acc-avatar { width: 32px; height: 32px; font-size: 16px; }
+.lb-account-name { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lb-roster { grid-area: roster; align-self: center; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 100%; }
+.lb-roster-head { margin: 0 0 2px; font: 600 12px var(--ef-font); color: var(--ef-muted); letter-spacing: 0.14em; text-transform: uppercase; display: flex; justify-content: space-between; }
+.lb-roster-list { display: flex; flex-direction: column; gap: 6px; overflow: auto; min-height: 0; padding: 2px; }
+.lb-slot {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; cursor: pointer;
+  padding: 10px 14px; background: rgba(14, 8, 22, 0.72); color: var(--ef-text);
+  border: 1px solid rgba(106, 69, 38, 0.6); border-left: 3px solid transparent; border-radius: 2px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.lb-slot strong { font: 700 17px var(--ef-font-title); letter-spacing: 0.02em; }
+.lb-slot span { font-size: 12.5px; color: var(--ef-muted); }
+.lb-slot:hover, .lb-slot:focus-visible { background: rgba(40, 22, 40, 0.85); border-color: var(--ef-panel-edge-hi); outline: none; }
+.lb-slot.on {
+  background: linear-gradient(90deg, rgba(122, 50, 18, 0.75), rgba(40, 16, 20, 0.7));
+  border-color: var(--ef-ember); border-left-color: var(--ef-ember); box-shadow: 0 0 18px rgba(255, 120, 30, 0.18);
+}
+.lb-slot.on span { color: #f0d8b0; }
+.lb-slot.lb-new { border-style: dashed; background: rgba(14, 8, 22, 0.45); }
+.lb-slot.lb-new strong { color: var(--ef-gold); font-size: 15px; }
+
+.lb-stage { grid-area: stage; display: grid; place-items: end center; min-height: 0; position: relative; }
+.lb-hero { position: relative; display: grid; place-items: center; }
+.lb-hero::before { /* Lichtkegel von oben */
+  content: ''; position: absolute; left: 50%; top: -12%; width: 70%; height: 110%; transform: translateX(-50%);
+  background: radial-gradient(closest-side at 50% 62%, rgba(255, 150, 70, 0.2), rgba(255, 110, 40, 0.06) 55%, transparent);
+  pointer-events: none;
+}
+.lb-hero::after { /* Podest */
+  content: ''; position: absolute; left: 50%; bottom: 9%; width: 46%; height: 9%; transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(255, 160, 80, 0.32), rgba(60, 30, 50, 0.65) 55%, transparent);
+  border-radius: 50%; z-index: 0;
+}
+.lb-hero canvas { position: relative; z-index: 1; width: min(560px, 48vw, calc((100dvh - 330px) * 72 / 56)) !important; height: auto !important; aspect-ratio: 72 / 56; }
+
+.lb-info { grid-area: info; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lb-name { margin: 0; font: 700 clamp(26px, 3.4vw, 40px) var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.06em; text-shadow: 0 2px 0 #3a0e05, 0 0 18px rgba(255, 120, 30, 0.35); }
+.lb-title { margin: 0; font: italic 15px var(--ef-font-title); color: #f0c890; }
+.lb-line { margin: 2px 0 0; font-size: 15px; color: var(--ef-text); }
+.lb-meta { margin: 0; font-size: 13px; color: var(--ef-muted); }
+.ef-btn.lb-play { margin-top: 12px; min-width: min(300px, 100%); padding: 12px 28px; font: 700 21px var(--ef-font-title); letter-spacing: 0.08em; }
+.lb-links { display: flex; gap: 22px; margin-top: 8px; }
+.lb-link { background: none; border: 0; padding: 6px 2px; cursor: pointer; font: 600 13px var(--ef-font); color: var(--ef-muted); letter-spacing: 0.04em; }
+.lb-link:hover, .lb-link:focus-visible { color: var(--ef-gold); outline: none; text-decoration: underline; text-underline-offset: 3px; }
+.lb-link.danger:hover, .lb-link.danger.armed { color: #ff8a7a; background: none; }
+
+.ef-panel.lb-drawer {
+  position: absolute; right: clamp(10px, 2vw, 24px); top: 72px; bottom: 16px; width: min(460px, calc(100% - 20px));
+  max-width: none; max-height: none; overflow: auto; display: flex; flex-direction: column; gap: 10px; z-index: 5;
+}
+.lb-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lb-drawer-head .ef-sub { margin: 0; }
+
+/* Schmal (Handy hochkant): Helden als Leiste oben, Held mittig, Spielen unten */
+@media (max-width: 760px) {
+  .ef-screen.lb-screen {
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "top" "roster" "stage" "info"; gap: 8px; padding-left: 12px; padding-right: 12px;
+  }
+  .lb-heading { font-size: 12px; letter-spacing: 0.2em; }
+  .lb-account-name { display: none; }
+  .ef-btn.lb-account { padding: 4px; }
+  .lb-roster { align-self: stretch; }
+  .lb-roster-head { display: none; }
+  .lb-roster-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; padding-bottom: 4px; }
+  .lb-slot { flex: 0 0 auto; min-width: 128px; padding: 8px 12px; scroll-snap-align: start; }
+  .lb-slot strong { font-size: 15px; }
+  .lb-hero canvas { width: min(92vw, calc((100dvh - 380px) * 72 / 56)) !important; }
+  .ef-btn.lb-play { width: 100%; }
+  .ef-panel.lb-drawer { left: 8px; right: 8px; top: 60px; width: auto; }
+}
+/* Niedrig (Handy quer) */
+@media (max-height: 520px) and (min-width: 761px) {
+  .lb-hero canvas { width: min(40vw, calc((100dvh - 230px) * 72 / 56)) !important; }
+  .ef-btn.lb-play { margin-top: 6px; padding: 8px 24px; }
+  .lb-meta { display: none; }
+}
