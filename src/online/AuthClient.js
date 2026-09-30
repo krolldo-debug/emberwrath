@@ -114,7 +114,8 @@ export class AuthClient {
         method,
         headers: {
           apikey: this.anonKey,
-          Authorization: `Bearer ${token ?? this.anonKey}`,
+          // Nur mit Nutzer-Token; ohne Token bestimmt der apikey die Rolle (neue sb_publishable_-Schlüssel sind kein JWT).
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...headers,
         },

@@ -6,7 +6,7 @@
 // Den service_role-Schlüssel NIE hier oder sonst im Repo eintragen.
 export const ONLINE_CONFIG = {
   supabaseUrl: 'https://mgjhllqnelqbdqfvczls.supabase.co',
-  supabaseAnonKey: '',  // öffentlicher anon/publishable-Schlüssel
+  supabaseAnonKey: 'sb_publishable_K_fTi48XiEfx4wB8vTOjeA_oFeyqiFq', // öffentlicher publishable-Schlüssel (kein Geheimnis)
   // Schnellanmeldung: erst auf true setzen, wenn der Anbieter in Supabase (Authentication → Providers) aktiv ist.
   providers: {
     google: false,
