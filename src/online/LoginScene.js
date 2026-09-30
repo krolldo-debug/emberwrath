@@ -79,14 +79,22 @@ export class LoginScene extends MenuScene {
   }
 
   #providers() {
-    const p = this.online.providers;
-    const btn = (id, label, icon, enabled, hint) => h(`button.ef-btn.on-provider.on-${id}`, {
-      type: 'button', disabled: !enabled, title: enabled ? label : hint,
-      onclick: () => this.#run(() => this.online.client.signInWithProvider(id)),
-    }, svgIcon(icon), h('span', label), enabled ? null : h('span.on-soon', 'bald'));
-    return h('div.on-providers',
-      btn('google', 'Weiter mit Google', GOOGLE_SVG, !!p.google, 'Google-Anmeldung ist noch nicht freigeschaltet'),
-      btn('apple', 'Weiter mit Apple', APPLE_SVG, !!p.apple, 'Apple-Anmeldung folgt, sobald das Apple-Entwicklerkonto eingerichtet ist'));
+    const o = this.online;
+    const HINTS = { google: 'Google-Anmeldung ist noch nicht freigeschaltet', apple: 'Apple-Anmeldung ist noch nicht freigeschaltet' };
+    const btn = (id, label, icon) => {
+      const soon = h('span.on-soon', 'bald');
+      const b = h(`button.ef-btn.on-provider.on-${id}`, {
+        type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider(id)),
+      }, svgIcon(icon), h('span', label), soon);
+      const set = (on) => { b.disabled = !on; b.title = on ? label : HINTS[id]; soon.hidden = on; };
+      set(!!o.providers[id]);
+      return { b, set };
+    };
+    const google = btn('google', 'Weiter mit Google', GOOGLE_SVG);
+    const apple = btn('apple', 'Weiter mit Apple', APPLE_SVG);
+    // Aktive Anbieter kommen aus den Supabase-Einstellungen (freigeschaltet ohne neue Version)
+    o.loadProviders?.().then((p) => { google.set(!!p.google); apple.set(!!p.apple); });
+    return h('div.on-providers', google.b, apple.b);
   }
 
   #messageBox() {

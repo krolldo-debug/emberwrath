@@ -16,7 +16,7 @@ async function newPage(w = 1280, h = 800) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => errs.push(e.message));
-  p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
+  p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|WebSocket connection/.test(m.text())) errs.push(m.text()); });
   return p;
 }
 const text = (p) => p.evaluate(() => document.querySelector('.ui-scene')?.innerText ?? '');
@@ -45,7 +45,8 @@ check((await text(a)).includes('bestätige zuerst'), 'Anmeldung vor Bestätigung
 // 2 Bestätigungslink
 await a.goto(globalThis.lastMail); await wait(900);
 check(a.url() === B, 'Rückleitung entfernt ?code aus der Adresse: ' + a.url());
-check((await text(a)).includes('E-Mail bestätigt') && (await text(a)).includes('Sitzheizung'), 'nach Bestätigung angemeldet, Kontoseite');
+const t48 = await text(a); check(t48.includes('E-Mail bestätigt') && t48.includes('Sitzheizung'), 'nach Bestätigung angemeldet, Kontoseite ' + (await scene(a)) + ' ' + t48.slice(0,300));
+check(await a.evaluate(() => !document.querySelector('.ui-scene').textContent.includes('Sicherung laden')), 'Kontoseite ohne Sicherungsdatei');
 await a.screenshot({ path: 'shot-account.png' });
 // 3 Spielen + Charakter anlegen -> Cloud
 await a.click('text=Spielen'); await wait(300);
@@ -71,6 +72,7 @@ check((await text(a)).includes('Kein Zugriff'), 'Admin-Seite ohne Recht: Kein Zu
 const b = await newPage(390, 844);
 await b.goto(B + '#anmelden'); await wait(500);
 await b.screenshot({ path: 'shot-login-mobile.png' });
+check(await b.evaluate(() => !document.querySelector('.on-google').disabled && document.querySelector('.on-apple').disabled), 'Google-Knopf per Server-Einstellung freigeschaltet, Apple aus');
 await b.click('.on-google'); await wait(1200);
 check((await text(b)).includes('Gustav Google') && (await text(b)).includes('Google'), 'Google-Anmeldung über Rückleitung');
 await b.click('text=Spielen'); await wait(300);
@@ -108,13 +110,20 @@ check(left === 0, 'Gerät A entfernt den anderswo gelöschten Charakter');
 await c.evaluate(() => { const g = window.emberfall; const acc = g.save.createAccount('Lokal'); g.login(acc.id); g.newGame({ character: { name: 'Lokalo', raceId: 'human', classId: 'rogue' } }); });
 await wait(800);
 await c.evaluate(() => window.emberfall.scenes.go('login', { mode: 'account' })); await wait(300);
-await c.click('text=Lokale Charaktere übernehmen'); await c.click('.on-import-row button'); await wait(3500);
+await c.click('.on-import-row button'); await wait(3500);
 ({ rows } = await pool.query("select name from public.characters c join auth.users u on u.id=c.user_id where u.email='admin@test.de'"));
 check(rows.length === 1 && rows[0].name === 'Lokalo', 'Lokaler Charakter wird ins Konto kopiert');
+await wait(1000);
+check(!(await text(c)).includes('Auf diesem Gerät gefunden'), 'übernommener Charakter wird nicht erneut angeboten');
 // 9 Abmelden entfernt lokale Kopie
 await c.click('text=Kontoeinstellungen'); await c.click('text=Abmelden'); await wait(800);
 const after = await c.evaluate(() => ({ user: !!window.emberfall.online.user, accs: window.emberfall.save.listAccounts().map((x) => x.name), sess: localStorage.getItem('emberwrath:online:session') }));
 check(!after.user && !after.sess && !after.accs.includes('Sitzheizung') && after.accs.includes('Lokal'), 'Abmelden entfernt Sitzung und Online-Kopie, lokales Profil bleibt: ' + JSON.stringify(after));
+// 9b Tippen mit echter Tastatur (p, Escape-Taste nicht)
+await c.click('.on-link:has-text("Registrieren")'); await wait(200);
+await c.locator('.on-form input').nth(0).click(); await c.keyboard.type('Pip Opa');
+check(await scene(c) === 'login' && (await c.locator('.on-form input').nth(0).inputValue()) === 'Pip Opa', 'Tippen von p im Formular bleibt auf der Seite und schreibt den Buchstaben');
+await c.click('.on-link:has-text("Anmelden")'); await wait(200);
 // 10 Passwort vergessen
 await c.click('text=Passwort vergessen?'); await c.locator('.on-form input').fill('admin@test.de'); await c.click('.on-submit'); await wait(500);
 check((await text(c)).includes('Link unterwegs'), 'Link zum Zurücksetzen angefordert');

@@ -8,7 +8,7 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
   Schnellanmeldung mit **Google** und **Apple** (Apple vorbereitet, siehe unten).
 - **Cloud-Spielstände:** Charaktere eines Kontos liegen in der Datenbank und sind auf jedem Gerät verfügbar. Gespielt wird
   weiter lokal (schnell, auch kurz ohne Netz); nach jedem Speichern lädt das Spiel den Stand hoch. Neuerer Stand gewinnt.
-- **Lokale Profile bleiben** („Ohne Konto spielen“). Lokale Charaktere lassen sich als Kopie ins Konto übernehmen.
+- Gespielt wird nur mit Konto. Ältere lokale Charaktere eines Geräts lassen sich als Kopie ins Konto übernehmen.
 - **Konto selbst löschen** (Konto + alle Online-Charaktere, DSGVO).
 - **Verwaltung** (`…/spielen/#admin` oder Knopf „Verwaltung öffnen“ im Konto): registrierte Konten (Name, E-Mail,
   Anmeldeart, Registrierungsdatum, letzte Anmeldung, Anzahl Charaktere, höchste Stufe), alle Charaktere (Volk, Klasse,
@@ -22,7 +22,7 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
   Server, ob das anfragende Konto Admin ist. Ein manipulierter Browser bekommt trotzdem nur „Kein Zugriff“.
 - Jeder Spieler kann per Row Level Security nur seine eigenen Charaktere lesen und schreiben.
 - Im Spiel steht nur der öffentliche `anon`-Schlüssel. Der `service_role`-/Secret-Schlüssel gehört nie ins Repo.
-- Sitzungstokens liegen unter `emberwrath:online:*` und landen nie in der Sicherungsdatei (`emberfall:v1:*`).
+- Sitzungstokens liegen unter `emberwrath:online:*` (getrennt von den Spielständen unter `emberfall:v1:*`).
 - Stufe und Spielstand meldet das Gerät. Für die Übersicht reicht das; gegen Schummeln hilft erst die serverseitige
   Spiellogik aus `docs/MULTIPLAYER.md`.
 
@@ -50,16 +50,28 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
    select id from auth.users where email = 'DEINE-E-MAIL@beispiel.de';
    ```
    Entfernen: `delete from public.admins where user_id = (select id from auth.users where email = '…');`
-7. **Google-Anmeldung:** [Google Cloud Console](https://console.cloud.google.com) → Projekt anlegen →
-   *APIs & Services → OAuth consent screen* (Extern, App-Name „Emberwrath“, Support-E-Mail) →
-   *Credentials → Create credentials → OAuth client ID* (Typ *Web application*),
-   *Authorized redirect URI*: `https://<projekt>.supabase.co/auth/v1/callback`.
-   Client-ID und Client-Secret in Supabase unter *Authentication → Sign In / Providers → Google* eintragen und aktivieren.
-   Dann `providers.google` in `src/online/config.js` auf `true` setzen (macht Claude).
-8. **Apple-Anmeldung (später):** braucht eine Mitgliedschaft im Apple Developer Program (99 US-$ pro Jahr). Dort eine
-   *Services ID* mit „Sign in with Apple“, Return-URL `https://<projekt>.supabase.co/auth/v1/callback` und einen
-   Schlüssel anlegen, in Supabase unter *Providers → Apple* eintragen, dann `providers.apple: true`. Bis dahin zeigt
-   der Knopf „bald“ und ist gesperrt. Für eine spätere iOS-App verlangt Apple in der Regel diese Anmeldeart, sobald Google angeboten wird.
+7. **Google-Anmeldung:** In der [Google Cloud Console](https://console.cloud.google.com):
+   1. Projekt anlegen (z. B. „Emberwrath“).
+   2. *Google Auth Platform* (früher *OAuth consent screen*) → *Get started*: App-Name „Emberwrath“, Support-E-Mail,
+      Zielgruppe *Extern*, Kontakt-E-Mail. Unter *Branding* die Startseite, Datenschutz- und Impressum-Adresse eintragen
+      (`https://emberwrath.kroll-do.workers.dev/`, `…/datenschutz.html`, `…/impressum.html`).
+      Unter *Data Access* reichen die Standard-Bereiche `openid`, `…/auth/userinfo.email`, `…/auth/userinfo.profile`.
+      Unter *Audience* auf *In production* stellen, sonst können sich nur eingetragene Testnutzer anmelden.
+   3. *Clients* → *Create client* → Typ *Web application*, Name „Emberwrath Web“.
+      *Authorized JavaScript origins*: `https://emberwrath.kroll-do.workers.dev`.
+      *Authorized redirect URIs*: `https://mgjhllqnelqbdqfvczls.supabase.co/auth/v1/callback`.
+   4. **Client ID** und **Client secret** kopieren. In Supabase: *Authentication → Sign In / Providers → Google* →
+      *Enable*, beide Werte eintragen → *Save*. Das Secret nur dort eintragen, nicht weitergeben.
+   Mehr ist nicht nötig: Das Spiel fragt die aktiven Anbieter bei Supabase ab (`/auth/v1/settings`) und schaltet den
+   Knopf „Weiter mit Google“ beim nächsten Öffnen der Anmeldeseite von selbst frei.
+8. **Apple-Anmeldung:** braucht eine Mitgliedschaft im Apple Developer Program (99 US-$ pro Jahr, Entscheidung des
+   Projektbesitzers). Danach im Apple-Developer-Bereich: eine *App ID* mit „Sign in with Apple“, eine *Services ID*
+   (z. B. `de.emberwrath.web`) mit Domain `mgjhllqnelqbdqfvczls.supabase.co` und Return-URL
+   `https://mgjhllqnelqbdqfvczls.supabase.co/auth/v1/callback`, dazu einen *Key* mit „Sign in with Apple“ (.p8-Datei).
+   In Supabase unter *Providers → Apple* die Services ID als Client ID eintragen und das Secret aus Team-ID, Key-ID und
+   .p8-Datei erzeugen (Supabase bietet dafür ein Werkzeug). Das Apple-Secret läuft nach spätestens 6 Monaten ab und muss
+   dann neu erzeugt werden. Auch hier schaltet sich der Knopf von selbst frei; bis dahin zeigt er „bald“.
+   Für eine spätere iOS-App verlangt Apple in der Regel diese Anmeldeart, sobald Google angeboten wird.
 
 ## Einbau (Architektur)
 

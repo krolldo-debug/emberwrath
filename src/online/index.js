@@ -38,13 +38,28 @@ export class Online {
   }
 
   #admin;
+  #providers = null;
+  #providersLoad = null;
 
   get configured() { return this.client.configured; }
   get user() { return this.client.user; }
   get displayName() { return displayNameOf(this.user); }
   get accountId() { return this.user ? accountIdFor(this.user.id) : null; }
   get syncStatus() { return this.sync.status; }
-  get providers() { return this.config.providers ?? {}; }
+  // Aktive Schnellanmeldungen: Server-Einstellung (sobald geladen), sonst config.providers.
+  get providers() { return this.#providers ?? this.config.providers ?? {}; }
+
+  // Fragt einmal beim Server nach, welche Anbieter aktiv sind. Promise<{ google, apple }>.
+  loadProviders() {
+    this.#providersLoad ??= this.client.fetchSettings()
+      .then((s) => {
+        const ext = s?.external;
+        if (ext && typeof ext === 'object') this.#providers = { google: ext.google === true, apple: ext.apple === true };
+        return this.providers;
+      })
+      .catch(() => { this.#providersLoad = null; return this.providers; });
+    return this.#providersLoad;
+  }
   isOnlineAccount(id) { return typeof id === 'string' && id.startsWith(ONLINE_ACCOUNT_PREFIX); }
 
   #changed() { this.game.bus.emit(EV.ONLINE_CHANGED, { user: this.user, status: this.sync.status }); }

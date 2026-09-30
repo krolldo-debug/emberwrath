@@ -154,6 +154,14 @@ export class AuthClient {
     return session;
   }
 
+  // Öffentliche Auth-Einstellungen des Projekts: welche Anmeldearten in Supabase aktiv sind
+  // ({ external: { email, google, apple, … } }). So schalten sich die Knöpfe frei, sobald der Anbieter
+  // im Dashboard eingerichtet ist, ohne neue Version.
+  async fetchSettings() {
+    if (!this.configured) return null;
+    return this.#request('/auth/v1/settings');
+  }
+
   // Leitet zu Google/Apple weiter. Zurück kommt der Browser mit ?code=… auf dieselbe Seite (handleRedirect()).
   async signInWithProvider(provider) {
     if (!this.configured) throw new AuthError('not_configured', MESSAGES.not_configured);

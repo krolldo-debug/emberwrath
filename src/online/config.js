@@ -7,7 +7,9 @@
 export const ONLINE_CONFIG = {
   supabaseUrl: 'https://mgjhllqnelqbdqfvczls.supabase.co',
   supabaseAnonKey: 'sb_publishable_K_fTi48XiEfx4wB8vTOjeA_oFeyqiFq', // öffentlicher publishable-Schlüssel (kein Geheimnis)
-  // Schnellanmeldung: erst auf true setzen, wenn der Anbieter in Supabase (Authentication → Providers) aktiv ist.
+  // Schnellanmeldung: Die Knöpfe schalten sich automatisch frei, sobald der Anbieter in Supabase
+  // (Authentication → Sign In / Providers) aktiv ist (/auth/v1/settings). Diese Werte gelten nur,
+  // falls die Einstellungen nicht abrufbar sind. Einrichtung: docs/ONLINE.md Schritt 7 und 8.
   providers: {
     google: false,
     apple: false, // braucht ein Apple-Developer-Konto (99 $/Jahr), siehe docs/ONLINE.md
