@@ -19,7 +19,7 @@ Sicherungsdatei. Kein Server, keine anderen Spieler – siehe `docs/MULTIPLAYER.
 
 ## Veröffentlichen
 
-Jeder Push auf `main` wird von Cloudflare gebaut (`npm run build`) und mit `npx wrangler deploy` veröffentlicht
+Jeder Push auf `main` wird von Cloudflare gebaut (`npm run build`) und mit `npx wrangler deploy` unter https://emberwrath.kroll-do.workers.dev veröffentlicht
 (Konfiguration `wrangler.jsonc`: statische Website aus `dist/site`). Details: `docs/VEROEFFENTLICHEN.md`.
 
 Interne Namen (`emberfall:v1:`-Speicherschlüssel, Exportformat `emberfall-save`, `window.emberfall`) bleiben absichtlich
