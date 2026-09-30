@@ -29,8 +29,24 @@ export function createHero(session, x, y) {
   hero.raceId = raceId;
   hero.gearKey = lookKey(gear, ch.appearance);
   hero.refreshLook = () => refreshLook(session, hero);   // Hero ruft das bei geänderter Bildfeinheit (renderScale)
+  hero.snapshotLook = () => snapshotLook(session, hero);
   wireSession(session);
   return hero;
+}
+
+// Helden-Abbild für andere Spieler (§12.9): reine Daten, keine Canvas. Fremde Helden zeichnet derselbe Code:
+// getHeroSprites(raceId, classId, appearance.variant, gear, spriteStyle(appearance)) + getMountSprites(mountId).
+// gear = aufgelöste Optik aus gearLook.resolveGear (Waffenform, Material, Seltenheit, Element).
+export function snapshotLook(session, hero) {
+  const s = session.state.slices;
+  const ch = s.character ?? {};
+  const m = ch.mounts ?? {};
+  return {
+    raceId: hero?.raceId ?? ch.raceId, classId: hero?.classId ?? ch.classId,
+    appearance: { ...(ch.appearance ?? {}) },
+    gear: structuredClone(resolveGear(s.inventory?.equipment, session.content) ?? null),
+    mountId: m.active ?? null, riding: !!(m.riding && m.active),
+  };
 }
 
 // Ausrüstung und Kosmetik sichtbar machen: bei Änderung neue Sprites setzen.

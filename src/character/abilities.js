@@ -372,7 +372,14 @@ export const ABILITY_IMPL = {
   whirlwind: {
     anim: 'spin', duration: 0.5,
     start(h, w, ang, def) {
-      heroHitbox(h, w, { shape: 'circle', x: h.x, y: h.y - 8, follow: true, offX: 0, offY: -8, r: 30, ttl: 0.4, damage: h.damageFor(def.mult, def.id), knockback: 180, heavy: true });
+      // Rang 2 „Zyklon“ (Talent w_cyclone): größerer Kreis, dritte Klinge, Glutwelle
+      const up = !!h.stats.upgrades?.whirlwind;
+      h.skillState.up = up;
+      heroHitbox(h, w, { shape: 'circle', x: h.x, y: h.y - 8, follow: true, offX: 0, offY: -8, r: up ? 38 : 30, ttl: 0.4, damage: h.damageFor(def.mult, def.id), knockback: up ? 220 : 180, heavy: true });
+      if (up) {
+        w.particles.ring(h.x, h.y - 4, 5, 34, ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c'], 150);
+        w.addLight(new Light({ x: h.x, y: h.y - 8, radius: 70, color: [255, 140, 60], intensity: 0.8, ttl: 0.35, bloom: 0.4 }));
+      }
       w.addEffect(new SlashEffect(h, ang, SLASH_STYLES.heroHeavy, false, 0.25));
       w.addEffect(new SlashEffect(h, ang + Math.PI, SLASH_STYLES.heroHeavy, true, 0.3));
       w.bus.emit('swing', { actor: h, heavy: true, angle: ang });
@@ -384,6 +391,11 @@ export const ABILITY_IMPL = {
         h.skillState.second = true;
         w.addEffect(new SlashEffect(h, h.aimAngle + Math.PI / 2, SLASH_STYLES.heroHeavy, false, 0.25));
         w.bus.emit('swing', { actor: h, heavy: true, angle: h.aimAngle });
+      }
+      if (h.skillState.up && t > 0.32 && !h.skillState.third) {
+        h.skillState.third = true;
+        w.addEffect(new SlashEffect(h, h.aimAngle - Math.PI / 2, SLASH_STYLES.heroHeavy, true, 0.22));
+        w.particles.ring(h.x, h.y - 4, 4, 40, ['#ffb640', '#c8420c', '#7a2208'], 120);
       }
     },
   },
@@ -429,7 +441,15 @@ export const ABILITY_IMPL = {
   fan_of_knives: {
     anim: 'spin', duration: 0.28,
     start(h, w, ang, def) {
-      for (const a of fan(7, 1.5, ang)) fireProjectile(h, w, 'dagger', a, { speed: 250, damage: h.damageFor(def.mult, def.id), knockback: 60, range: 120 });
+      // Rang 2 „Klingenwirbel“ (Talent r_bladestorm): voller Kreis und eine zweite Welle
+      const up = !!h.stats.upgrades?.fan_of_knives;
+      const dmg = h.damageFor(def.mult, def.id);
+      const wave = (a0, n, spread) => { for (const a of fan(n, spread, a0)) fireProjectile(h, w, 'dagger', a, { speed: 250, damage: dmg, knockback: 60, range: 120 }); };
+      if (up) {
+        wave(ang, 12, Math.PI * 2 * (11 / 12));
+        after(w, 0.14, () => { if (!h.dead) { wave(ang + Math.PI / 12, 12, Math.PI * 2 * (11 / 12)); w.bus.emit('swing', { actor: h, heavy: false, angle: ang }); } });
+        w.particles.ring(h.x, h.y - 6, 5, 18, ['#c8b8f0', '#645088', '#34264a'], 90);
+      } else wave(ang, 7, 1.5);
       w.bus.emit('swing', { actor: h, heavy: false, angle: ang });
     },
   },
@@ -438,7 +458,15 @@ export const ABILITY_IMPL = {
   volley: {
     anim: 'atk1', duration: 0.32,
     start(h, w, ang, def) {
-      for (const a of fan(5, 0.55, ang)) fireProjectile(h, w, 'arrow', a, { speed: 270, damage: h.damageFor(def.mult, def.id), knockback: 70, range: 200 });
+      // Rang 2 „Sturmsalve“ (Talent g_stormvolley): sieben leuchtende Pfeile, danach eine zweite, kleinere Salve
+      const up = !!h.stats.upgrades?.volley;
+      const dmg = h.damageFor(def.mult, def.id);
+      for (const a of fan(up ? 7 : 5, up ? 0.7 : 0.55, ang)) fireProjectile(h, w, 'arrow', a, { speed: up ? 300 : 270, damage: dmg, knockback: 70, range: 200 });
+      if (up) {
+        w.particles.magic(h.x + Math.cos(ang) * 8, h.y - 10 + Math.sin(ang) * 8, 10, 6);
+        w.addLight(new Light({ x: h.x, y: h.y - 10, radius: 44, color: [150, 230, 120], intensity: 0.7, ttl: 0.3, bloom: 0.4 }));
+        after(w, 0.18, () => { if (!h.dead) { for (const a of fan(4, 0.45, h.aimAngle)) fireProjectile(h, w, 'arrow', a, { speed: 300, damage: dmg * 0.6, knockback: 50, range: 190 }); w.bus.emit('shoot', { actor: h }); } });
+      }
       w.bus.emit('shoot', { actor: h });
     },
     update(h, w, dt, t) {
@@ -640,7 +668,10 @@ export const ABILITY_IMPL = {
       if (t >= 0.16 && !h.skillState.fired) {
         h.skillState.fired = true;
         const dmg = h.damageFor(def.mult, def.id);
-        fireProjectile(h, w, 'fireball', h.aimAngle, { speed: 190, damage: dmg, knockback: 160, range: 210, heavy: true, explode: { r: 26, damage: dmg, knockback: 200, heavy: true, skipDirect: true } });
+        // Rang 2 „Phönixflamme“ (Talent m_phoenix): größere Explosion und zwei Begleitflammen
+        const up = !!h.stats.upgrades?.fireball;
+        fireProjectile(h, w, 'fireball', h.aimAngle, { speed: 190, damage: dmg, knockback: 160, range: 210, heavy: true, explode: { r: up ? 34 : 26, damage: dmg, knockback: 200, heavy: true, skipDirect: true } });
+        if (up) for (const off of [-0.22, 0.22]) fireProjectile(h, w, 'bolt', h.aimAngle + off, { speed: 210, damage: dmg * 0.4, knockback: 80, range: 190, explode: { r: 16, damage: dmg * 0.3, knockback: 90, skipDirect: true } });
         w.bus.emit('swing', { actor: h, heavy: true, angle: h.aimAngle });
       }
     },

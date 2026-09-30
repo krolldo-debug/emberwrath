@@ -440,8 +440,8 @@ sehen müssen, steht in §12.9.
   `blighted_marsh ↔ spore_hollow`, `blighted_marsh ↔ frostspire`, `frostspire ↔ rime_caverns`, `frostspire ↔ ember_wastes`,
   `ember_wastes ↔ ashen_throne`. Portal-IDs `to_<zielzone>`, Spawns `start`, `respawn`, `from_<herkunftszone>` wie §11.1;
   Portal nach `ashen_steppe` mit `requires: { level: 20 }`.
-- **Neues Zonenfeld `mountable`** (bool; Standard: `true` für `outdoor`, `false` für alles andere, auch `ember_trial` und Dörfer-Innenräume).
-  Zusätzlich darf B Flächen mit `noMount: true` markieren (z. B. Lagerhütten).
+- **Neues Zonenfeld `mountable`** (bool; Standard: `true` für `outdoor`, `false` für alles andere, auch `ember_trial` und Dörfer-Innenräume);
+  A prüft `zoneMountable(def) = def.mountable ?? (def.kind === 'outdoor')`. Zusätzlich darf B Flächen in `level.areas` mit `noMount: true` markieren (z. B. Lagerhütten).
 - **Größe:** Außengebiete höchstens so groß wie `ashwood`/`cinder_peaks` (1536 × 1024 px), dafür wegen der Reittiere
   längere Wege sinnvoll anlegen (Straßen). Mehr Fläche nur nach Leistungsmessung durch Architektur.
 - **Flächen (`area:reached`):** `ashen_steppe`: `steppe_outpost` (Lager, Stallmeisterin), `warlord_camp`, `barrow_gate`, `marsh_edge`;
@@ -546,7 +546,7 @@ Reittiere kämpfen nicht, haben keine Werte außer Tempo.
 - **Eingabe (D, `Input.js`):** neue Aktion `mount`, Tasten `KeyV` und `Digit6`; Touch-Knopf „Reittier“ neben der Hotbar,
   nur sichtbar, wenn `canMount().reason !== 'level'`. Auswahl des aktiven Reittiers im Charakter-Panel (Reiter „Reittiere“, C baut
   das Panel mit A’s Daten) mit Tempo und Seltenheitsrahmen.
-- **Figur (A):** neue Datei `src/sprites/mounts.js`: je Reittier 4 Richtungen × Stehen/Laufen (≥ 4 Frames), `res` wie Helden (§11.12);
+- **Figur (A):** neue Datei `src/sprites/mounts.js`: je Reittier **nur Seitenansicht** (4 Steh- und 6 Lauf-Frames, nach links gespiegelt; Stand der Lieferung 30.09.), `res` wie Helden (§11.12);
   Heldenfigur bekommt eine Sitz-Pose, Waffe bleibt auf dem Rücken sichtbar. Hoher Wiedererkennungswert je Seltenheit
   (legendär mit Glut-/Leuchteffekt über `glows`).
 - **Events (Architektur, `events.js`):** `mount:changed { riding, mountId }` (`EV.MOUNT_CHANGED`), `mount:learned { mountId }`

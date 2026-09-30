@@ -107,3 +107,21 @@ Stufe 3 war dem Nutzer zu detailreich. Im Spiel und in Porträts zeichnen die Fi
 (`HERO_MAX_RES` in sprites/hero.js); die …Hi-Funktionen greifen ab `FINE_MIN = 2`, Materialmuster (Ringe,
 Schuppen, Maserung, Fell) sind auf Stufe 2 halb so stark. Stufe 3 gibt es nur noch über `setHeroRes(3)` (Vergleich).
 Aufbau eines kompletten Satzes ~120 ms statt ~270 ms, Speicher je Satz 4× statt 9× der alten Figuren.
+
+## Runde 3: Reiten und Stufe 40 (INTEGRATION §12.6, §12.8, §12.9)
+- **Reittiere** `character/mounts.js`: content `mount` (9 Stück, IDs wie §12.6), `speed` rare 0.6 / epic 0.8 / legendary 1.0,
+  `sprite` + `look` für `sprites/mounts.js`. Slice `character.mounts { owned, active, riding }` (Migration: fehlt -> leer).
+  Commands `mount:learn { mountId }` (schon bekannt -> `{ ok: false, known: true }`), `mount:select { mountId }`,
+  `mount:toggle { riding? }` (prüft Stufe/Lektion/Besitz; Kampf/Zone/Fläche prüft der Held). Fehlt `q_first_ride` im Inhalt,
+  gilt die Lektion als erfüllt. `game.character.canMount()` -> `{ ok, reason }`, `mountReasonText(reason)`, `mounts()`, `mountDef(id)`.
+- **Held** (`entities/Hero.js`): Taste `mount` startet 1,2 s Aufsitzen (`hero.mountCast = { t, dur }`, Event `mountCast`), bricht bei
+  Bewegung, Aktion oder Treffer ab. Beritten: `hero.riding`, `hero.mountId`, Tempo × (1 + speed); Angriff/Fähigkeit/Ausweichen sitzt
+  nur ab. Jeder Treffer, Tod, Zone ohne `mountable`, `noMount`-Fläche -> absitzen. `footstep` mit `mount` beim Reiten.
+  **Trank:** der Held blockiert ihn nicht selbst; C prüft `hero.riding` vor `usePotion`.
+- **Figuren**: `sprites/mounts.js` `getMountSprites(id, def, res)` -> `{ stand (4), walk (6) }`, Seitenansicht wie die Helden
+  (links = gespiegelt). `frame.seat` = Sattelpunkt, `frame.glows` = Augen/Glut. Helden-Animation `ride` (Sitz-Pose, Waffe auf dem
+  Rücken, `frame.hip`). Der Held zeichnet Reittier + Reiter selbst (`drawSprite`).
+- **Abbild für andere Spieler**: `hero.snapshotLook()` -> `{ raceId, classId, appearance, gear, mountId, riding }` (reine Daten).
+- **Stufe 40**: `computeStats` rechnet linear weiter. Talentreihen 22 „Erwachen“, 28 „Veredelung“ (je Klasse Rang 2 einer Fähigkeit:
+  Wirbelsturm, Messerfächer, Pfeilsalve, Feuerball), 34 „Legende“ (Meisterschaft: Blutbad, Todesmal, Sperrfeuer, Kataklysmus).
+  Kapazität je Klasse ≥ 39 Punkte. `stats.upgrades`, `stats.mastery`.

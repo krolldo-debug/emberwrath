@@ -8,6 +8,7 @@
 //   attributes: { str, agi, int, vit },
 //   raceId, classId, equipmentBonus: { … summierte Item-Werte + inventory.bonus },
 //   cooldownMult, onHitResource, abilityMods { abilityId: +Schaden }, passives { id: true },
+//   upgrades { abilityId: true } (Rang 2), mastery { bloodlustHeal, critResource, multishotPct, infernoPct },
 //   talents { id: rang }, talentPoints { total, spent, free }
 // }
 // Ausrüstungsboni stammen aus den Item-Definitionen (content 'item', Feld stats):
@@ -87,6 +88,11 @@ export function deriveStats({ raceId, classId, level = 1, equipment = null, bonu
     cooldownMult: Math.max(0.6, 1 - (t.cooldownPct ?? 0)),
     onHitResource: (res.onHit ?? 0) + (t.onHitResource ?? 0),
     abilityMods: t.ability,
+    upgrades: t.upgrades ?? {},     // Rang 2 von Fähigkeiten (Talentreihe 28), abilities.js
+    mastery: {                      // Meisterschaften (Talentreihe 34), Hero.js
+      bloodlustHeal: 0.03 + (t.bloodlustHeal ?? 0), critResource: t.critResource ?? 0,
+      multishotPct: 0.5 + (t.multishotPct ?? 0), infernoPct: 0.5 + (t.infernoPct ?? 0),
+    },
     passives,
     talents: tal,
     talentPoints: { total: talentPointsTotal(lv), spent: spentPoints(tal), free: talentPointsTotal(lv) - spentPoints(tal) },

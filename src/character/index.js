@@ -1,13 +1,15 @@
 import { RACES, DEFAULT_RACE } from './races.js';
 import { CLASSES, ABILITIES, DEFAULT_CLASS } from './classes.js';
-import { cleanTalents, canLearn } from './talents.js';
+import { cleanTalents, canLearn, TALENT_LEVEL_MAX } from './talents.js';
 import { registerTalentPanel } from './TalentPanel.js';
 import { cleanAppearance, restylePrice, DYES } from './cosmetics.js';
 import { registerAppearancePanel } from './AppearancePanel.js';
+import { installMounts, cleanMounts } from './mounts.js';
 
 // Thread A – Charakter: Völker, Klassen, Fähigkeiten, character-Slice.
 // Inhalte:  content 'race' (4), 'class' (4), 'ability' (8)
-// Slice:    character = { name, raceId, classId, appearance: { variant, dye, hairStyle }, talents: { talentId: rang } }
+// Slice:    character = { name, raceId, classId, appearance: { variant, dye, hairStyle }, talents: { talentId: rang },
+//                        mounts: { owned, active, riding } }  (Reittiere: mounts.js, §12.6)
 // Commands: character:rename { name }  (Name prüfen wie in der Erstellung)
 //           character:learnTalent { id }, character:resetTalents (kostenlos)
 //           character:restyle { variant?, dye?, hairStyle? } (kostet Gold über wallet:addGold)
@@ -33,6 +35,7 @@ export function installCharacter(game) {
   content.defineAll('race', RACES);
   content.defineAll('class', CLASSES);
   content.defineAll('ability', ABILITIES);
+  installMounts(game);
 
   const valid = (c) => ({
     // Die Erstellung prüft den Namen streng (validateName); hier wird nur bereinigt.
@@ -41,7 +44,9 @@ export function installCharacter(game) {
     classId: content.find('class', c.classId) ? c.classId : DEFAULT_CLASS,
     appearance: cleanAppearance(content.find('race', c.raceId) ? c.raceId : DEFAULT_RACE, c.appearance),
     // Stufe steht im progress-Slice; beim Laden nur Form prüfen, Punkte begrenzt computeStats
-    talents: cleanTalents(content.find('class', c.classId) ? c.classId : DEFAULT_CLASS, c.talents ?? {}, 20),
+    talents: cleanTalents(content.find('class', c.classId) ? c.classId : DEFAULT_CLASS, c.talents ?? {}, TALENT_LEVEL_MAX),
+    // Reittiere (§12.6): alte Spielstände ohne mounts -> leer
+    mounts: cleanMounts(c.mounts, (id) => !!content.find('mount', id)),
   });
 
   // Slice 'character' – Identität des Charakters (gespeichert).

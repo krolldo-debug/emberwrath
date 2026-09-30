@@ -13,7 +13,8 @@ import { CONFIG } from '../config.js';
 //
 // getHeroSprites(raceId, classId, variant, gear?, style?) -> {
 //   idle, run, atk1, atk2, atk3, cast, spin, roll, dash, hurt, death,
-//   slam, lunge, coat, rainshot, plant, summon, hurl }
+//   slam, lunge, coat, rainshot, plant, summon, hurl, ride }
+// ride = Sitz-Pose auf dem Reittier (frame.hip = Hüfte relativ zum Fußpunkt, Waffe auf dem Rücken).
 // style = { dye, hairStyle } aus character/cosmetics.js (Färbung, Frisur).
 // Angriffe tragen anim.phases = { windup: [a, b], active: [c, d], recover: [e, f] }
 // (Frame-Bereiche), damit der Held die Frames an seine Angriffszeiten koppelt.
@@ -383,8 +384,9 @@ const BASE_POSE = {
   footN: [1.5, 0], footF: [-2, 0],
   handM: [2, 6], handO: [1, 6], wM: -0.8, wO: 0.6,
   head: [0, 0], cape: 0.15, wave: 0, hurt: 0, glow: 0.3, handGlow: 0, draw: 0, arrow: 0, reach: 1, reachO: 1,
-  squint: 0,
+  squint: 0, ride: 0,
 };
+let lastHip = null;   // Hüfte des zuletzt gezeichneten Frames (Sitz-Pose: frame.hip, Hero legt sie auf den Sattel)
 
 function mixPose(a, b, t) {
   const o = {};
@@ -416,6 +418,9 @@ function drawHero(R, G, L, pose) {
     shF: { x: shX - B.back * 0.35, y: topY + 1.5 },
     neck: { x: Math.round(shX + 0.5 + P.head[0]), y: Math.round(topY - B.neck + P.head[1]) },
   };
+
+  lastHip = { x: hipX, y: hipY };
+  if (P.ride) return drawRider(R, G, L, P, sk);
 
   // 1) Hinten: Umhang, Mantel, Köcher, langes Haar
   if (L.back === 'cape' || L.back === 'cloak') drawCape(R, L, P, sk);
@@ -478,6 +483,38 @@ function drawHero(R, G, L, pose) {
     drawArm(R, L, sk.shN, armN, false);
     if (L.weapon.family === 'wand' || L.weapon.family === 'staff') drawGrip(R, L, L.weapon, armN.ex, armN.ey, P.wM);
   }
+}
+
+// Sitz-Pose (§12.6): Waffe und Schild auf dem Rücken, beide Hände vorne am Zügel, nur das nahe Bein
+// (das ferne verdeckt das Reittier). Hüfte = Sattelpunkt des Reittiers (frame.hip).
+function drawRider(R, G, L, P, sk) {
+  const B = sk.B;
+  if (L.back === 'cape' || L.back === 'cloak') drawCape(R, L, P, sk);
+  // Waffe schräg über dem Rücken: Griff hinter der Schulter, Klinge nach hinten unten
+  const bx = sk.shF.x - 0.5, by = sk.topY + 1;
+  const w = L.weapon, f = w.family;
+  if (L.offKind === 'shield') drawShield(R, L, sk.cxAt(sk.topY + 6) - B.back - 3.5, sk.topY + 6, P);
+  if (L.offKind === 'bow') drawBow(R, G, w, bx - 1.5, by + 4, 0, false, Math.PI - 0.55);
+  // Stab/Zauberstab: Griff hinten an der Hüfte, Kopf ragt über die Schulter. Klingen: Griff über der Schulter.
+  else if (f === 'staff' || f === 'wand') drawWeapon(R, G, w, bx - 1, sk.hipY - (f === 'wand' ? 4 : 1), -Math.PI * 0.5 - 0.42, P, false, 1);
+  else if (f !== 'dagger') drawWeapon(R, G, w, bx + 3, by - 3.5, Math.PI * 0.5 + 0.98, P, false, 0.8);
+  if (L.off && f === 'dagger') drawWeapon(R, G, L.off, sk.hipX - 1.5, sk.hipY - 1.5, Math.PI * 0.5 + 0.9, P, true, 1);
+  if (L.quiver) drawQuiver(R, L, sk);
+  drawHairBack(R, L, P, sk);
+  const handF = { x: sk.shF.x + P.handO[0], y: sk.shF.y + P.handO[1] };
+  const armF = ik(sk.shF.x, sk.shF.y, handF.x, handF.y, B.arm[0], B.arm[1], -1);
+  drawArm(R, L, sk.shF, armF, true);
+  drawTorso(R, L, P, sk);
+  drawLeg(R, L, P, sk, true);
+  drawLower(R, L, P, sk);
+  // Dolche stecken griffbereit am Gürtel
+  if (f === 'dagger') drawWeapon(R, G, w, sk.hipX + 0.5, sk.hipY - 1.5, Math.PI * 0.5 + 0.75, P, false, 1);
+  drawHead(R, G, L, P, sk);
+  drawPauldron(R, L, sk);
+  if (L.back === 'scarf') drawScarf(R, L, P, sk);
+  const hand = { x: sk.shN.x + P.handM[0], y: sk.shN.y + P.handM[1] };
+  const armN = ik(sk.shN.x, sk.shN.y, hand.x, hand.y, B.arm[0], B.arm[1], -1);
+  drawArm(R, L, sk.shN, armN, false);
 }
 
 // Wischspur der Waffe von Winkel a0 (alt) nach a1 (aktuell), um die Hand: eine Sichel, die zur
@@ -2019,6 +2056,7 @@ function makeFrame(L, pose, post) {
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)
+  if (pose.ride) f.hip = lastHip;
   return f;
 }
 
@@ -2078,6 +2116,7 @@ function buildSet(L) {
     hurl: () => skillAnim(L, S, 'hurl'),
     hurt: () => new Animation(hurtFrames(stance, frame), 10, false),
     death: () => new Animation(deathFrames(stance, frame), 9, false),
+    ride: () => new Animation(rideFrames(L, frame), 3),
   };
   const set = {};
   for (const [name, make] of Object.entries(makers)) {
@@ -2087,6 +2126,16 @@ function buildSet(L) {
     });
   }
   return set;
+}
+
+// Sitz-Pose: Knie nach vorne angewinkelt, Fuß hängt an der Flanke; 2 Frames Atmen (das Wippen gibt das Reittier vor)
+function rideFrames(L, frame) {
+  const B = L.body, legLen = B.thigh + B.shin;
+  const lift = legLen * 0.3 - 0.6;
+  return [0, 1].map((i) => frame({
+    ride: 1, lean: 1, breath: i, hipY: 0, footN: [3, lift], footF: [2, lift],
+    handM: [4, 5.5 + i * 0.3], handO: [5, 5], cape: 0.45, wave: i * 1.6, glow: 0.35, handGlow: 0,
+  }));
 }
 
 function idleFrames(L, stance, frame, k) {

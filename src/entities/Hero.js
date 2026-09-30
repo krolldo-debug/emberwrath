@@ -6,6 +6,8 @@ import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
 import { Light } from '../gfx/Lighting.js';
 import { heroRes } from '../sprites/hero.js';
+import { getMountSprites } from '../sprites/mounts.js';
+import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
 
@@ -24,6 +26,8 @@ const H = {
 // Öffentlich für HUD/Touch: hp, maxHp, resource, maxResource, resourceType,
 // resourceName, resourceColor, stamina, maxStamina, dead,
 // abilities [{ id, name, icon, action, cooldown, cdLeft, cost, ready }], buffs.
+// Reiten (§12.6): riding, mountId, mountCast { t, dur } | null (Wirkbalken zeichnet D), Events 'mountCast' (Start), 'footstep' { mount } beim Reiten.
+// Der Zustand steht im Slice character.mounts; der Held folgt ihm und committet mount:toggle.
 export class Hero extends Actor {
   constructor(x, y, { anims, cls, stats, abilities }) {
     super(x, y, anims);
@@ -54,6 +58,13 @@ export class Hero extends Actor {
     this.buffs = [];
     this.skill = null;
     this.skillState = {};
+    this.riding = false;
+    this.mountId = null;
+    this.mountCast = null;
+    this.mountAnims = null;
+    this.mountT = 0;
+    this.mountFrame = null;
+    this.rideOff = { x: 0, y: 0 };
 
     const res = cls.resource;
     this.resourceType = res.type;
@@ -123,9 +134,11 @@ export class Hero extends Actor {
     const onHit = this.stats.onHitResource ?? res.onHit ?? 0;
     if (onHit) this.gainResource(onHit);
     const P = this.stats.passives ?? {};
+    const ms = this.stats.mastery ?? {};
     if (e.crit && P.opportunist) this.gainResource(6);
     if (e.crit && P.ember_soul) this.gainResource(5);
-    if (e.heavy && P.bloodlust && this.healIcd <= 0) { this.healIcd = 0.3; this.heal(this.maxHp * 0.03, world); }
+    if (e.crit && ms.critResource) this.gainResource(ms.critResource);
+    if (e.heavy && P.bloodlust && this.healIcd <= 0) { this.healIcd = 0.3; this.heal(this.maxHp * (ms.bloodlustHeal ?? 0.03), world); }
     if (world && e.target && !e.target.dead && this.buffs.some((b) => b.id === 'poison')) applyPoison(this, world, e.target);
   }
 
@@ -164,6 +177,7 @@ export class Hero extends Actor {
     for (let i = 0; i < this.abilities.length; i++) if (input.pressed(this.abilities[i].action)) this.skillBuffer[i] = 0.2;
 
     const axis = input.axis();
+    this.#updateMount(dt, world, input, axis);
     switch (this.state) {
       case 'move': this.#updateMove(dt, world, axis); break;
       case 'attack': this.#updateAttack(dt, world, axis); break;
@@ -175,10 +189,94 @@ export class Hero extends Actor {
         break;
     }
     this.integrate(dt, world);
+    this.#updateRideFrame(dt);
     this.#weaponFx(dt, world);
     // Bildfeinheit geändert (Qualitätsstufe/Fenstergröße): Sprites in passender Auflösung neu holen
     const lr = heroRes();
     if (lr !== this.lookRes) { if (this.lookRes !== undefined) this.refreshLook?.(); this.lookRes = lr; }
+  }
+
+  // --- Reiten (§12.6) -------------------------------------------------------------------
+  #mountSlice(world) { return world.session?.state?.slices?.character?.mounts ?? null; }
+
+  #setMount(world, riding) {
+    const r = world.session?.state?.commit?.('mount:toggle', { riding });
+    if (r && r.ok === false && riding && r.error) world.bus.emit(EV.UI_TOAST, { text: r.error, kind: 'warn' });
+    this.#syncMount(world);
+    return r;
+  }
+
+  #syncMount(world) {
+    const m = this.#mountSlice(world);
+    const riding = !!(m?.riding && m.active), id = m?.active ?? null;
+    if (riding === this.riding && id === this.mountId && (this.mountAnims || !riding)) return;
+    this.riding = riding;
+    this.mountId = id;
+    const def = id ? world.session.content.find('mount', id) : null;
+    this.mountDef = def;
+    this.mountAnims = riding ? getMountSprites(id, def, heroRes()) : null;
+    this.mountRes = heroRes();
+    this.shadowW = riding ? 26 : 14;
+    this.bodyHeight = riding ? 30 : 18;
+    if (riding) { this.animator.play('ride', true); this.mountT = 0; }
+    else if (this.state === 'move') this.animator.play('idle', true);
+  }
+
+  #updateMount(dt, world, input, axis) {
+    this.worldRef = world;
+    this.#syncMount(world);
+    if (this.dead) return;
+    if (this.riding && this.mountRes !== heroRes()) { this.mountAnims = getMountSprites(this.mountId, this.mountDef, heroRes()); this.mountRes = heroRes(); }
+    const moving = Math.hypot(axis.x, axis.y) > 0.1;
+    // Zone ohne Reiten (Dungeon, Prüfung) oder noMount-Fläche: absitzen
+    if (this.riding && (!zoneMountable(world.zone) || noMountAt(world, this.x, this.y))) this.#setMount(world, false);
+    if (input.pressed('mount')) {
+      if (this.riding) this.#setMount(world, false);
+      else if (this.mountCast) this.mountCast = null;
+      else {
+        const c = canMount(world.session.state.slices, world.session.content, this, world);
+        if (!c.ok) world.bus.emit(EV.UI_TOAST, { text: MOUNT_REASON_TEXT[c.reason] ?? 'Du kannst gerade nicht aufsitzen', kind: 'warn' });
+        else if (this.state !== 'move') { /* erst Angriff/Fähigkeit beenden */ }
+        else if (moving) world.bus.emit(EV.UI_TOAST, { text: 'Bleib stehen, um aufzusitzen', kind: 'warn' });
+        else { this.mountCast = { t: 0, dur: MOUNT_CAST }; world.bus.emit('mountCast', { actor: this, mountId: this.#mountSlice(world)?.active ?? null }); }
+      }
+    }
+    if (this.mountCast) {
+      const wants = this.attackBuffer > 0 || this.dodgeBuffer > 0 || this.skillBuffer.some((b) => b > 0);
+      if (moving || wants || this.state !== 'move') {
+        this.mountCast = null;
+        world.bus.emit(EV.UI_TOAST, { text: 'Aufsitzen abgebrochen', kind: 'warn' });
+      } else {
+        this.mountCast.t += dt;
+        this.vx *= 0.8; this.vy *= 0.8;
+        if (this.mountCast.t >= this.mountCast.dur) {
+          this.mountCast = null;
+          const c = canMount(world.session.state.slices, world.session.content, this, world);
+          if (c.ok) this.#setMount(world, true);
+          else world.bus.emit(EV.UI_TOAST, { text: MOUNT_REASON_TEXT[c.reason] ?? '', kind: 'warn' });
+        }
+      }
+    }
+    if (!this.riding) return;
+    // Beritten: Angriff, Fähigkeit oder Ausweichen sitzt nur ab (ohne die Aktion auszuführen)
+    if (this.attackBuffer > 0 || this.dodgeBuffer > 0 || this.skillBuffer.some((b) => b > 0)) {
+      this.attackBuffer = 0; this.dodgeBuffer = 0; this.skillBuffer.fill(0);
+      this.#setMount(world, false);
+    }
+  }
+
+  // Tempo-Bonus des Reittiers (zusätzlich zur Ausrüstungs-Obergrenze)
+  get rideSpeed() { return this.riding ? 1 + (this.mountDef?.speed ?? 0.6) : 1; }
+
+  // Reittier-Frame und Versatz des Reiters (Sattelpunkt minus Hüfte der Sitz-Pose)
+  #updateRideFrame(dt) {
+    if (!this.riding || !this.mountAnims) { this.mountFrame = null; this.rideOff = { x: 0, y: 0 }; return; }
+    const walking = Math.hypot(this.vx, this.vy) > 12;
+    const anim = walking ? this.mountAnims.walk : this.mountAnims.stand;
+    this.mountT += dt * (walking ? Math.min(1.6, Math.hypot(this.vx, this.vy) / 150) : 1);
+    this.mountFrame = anim.frameAt(this.mountT);
+    const hip = this.currentFrame()?.hip ?? { x: 0, y: -10 };
+    this.rideOff = { x: (this.mountFrame.seat.x - hip.x) * (this.facing < 0 ? -1 : 1), y: this.mountFrame.seat.y - hip.y };
   }
 
   // Seltenheits-Effekte der Waffe (Stufe aus character/gearLook.js, Achse aus frame.weapon):
@@ -201,8 +299,8 @@ export class Hero extends Actor {
       this.fxAcc -= 1;
       const u = a.u0 + Math.random() * (a.u1 - a.u0);
       const side = Math.random() * 2 - 1 + (a.arc ? a.arc * (1 - ((2 * (u - a.u0)) / (a.u1 - a.u0) - 1) ** 2) : 0);
-      const x = this.x + (a.x + dx * u - dy * side) * f - (f < 0 ? 1 / (this.currentFrame().res ?? 1) : 0);
-      const y = this.y + a.y + dy * u + dx * side;
+      const x = this.x + this.rideOff.x + (a.x + dx * u - dy * side) * f - (f < 0 ? 1 / (this.currentFrame().res ?? 1) : 0);
+      const y = this.y + this.rideOff.y + a.y + dy * u + dx * side;
       const c = el.colors;
       const r = (lo, hi) => lo + Math.random() * (hi - lo);
       if (a.fx === 'fire') world.particles.spawn({ x, y, vx: r(-4, 4), rise: r(18, 34), wobble: 18, life: r(0.25, 0.55), colors: [c[0], c[1], c[2], c[3], c[4]], emissive: true });
@@ -268,11 +366,17 @@ export class Hero extends Actor {
   }
 
   #updateMove(dt, world, axis) {
-    const sp = this.speed;
+    const sp = this.speed * this.rideSpeed;
     const k = 1 - Math.exp(-dt * 18);
     this.vx += (axis.x * sp - this.vx) * k;
     this.vy += (axis.y * sp - this.vy) * k;
     const moving = Math.hypot(axis.x, axis.y) > 0.1;
+    if (this.riding) {
+      if (moving && Math.abs(axis.x) > 0.1) this.facing = Math.sign(axis.x);
+      this.animator.play('ride');
+      if (moving) { this.stepTimer -= dt; if (this.stepTimer <= 0) { this.stepTimer = 0.3; world.bus.emit('footstep', { actor: this, mount: this.mountId }); } }
+      return;
+    }
     if (moving) {
       if (Math.abs(axis.x) > 0.1) this.facing = Math.sign(axis.x);
       this.animator.play('run');
@@ -395,10 +499,12 @@ export class Hero extends Actor {
     const dmg = this.damageFor(a.mult);
     const opts = { speed: a.speed, damage: dmg, knockback: a.knockback, range: a.range };
     if (a.projectile === 'arrow' && P.piercing_arrows) opts.pierce = 1;
-    if (a.projectile === 'bolt' && P.inferno) opts.explode = { r: 18, damage: dmg * 0.5, knockback: 90, skipDirect: true };
+    const ms = this.stats.mastery ?? {};
+    const inf = ms.infernoPct ?? 0.5;
+    if (a.projectile === 'bolt' && P.inferno) opts.explode = { r: inf > 0.5 ? 24 : 18, damage: dmg * inf, knockback: 90, skipDirect: true };
     fireProjectile(this, world, a.projectile, this.aimAngle, opts);
     if (a.projectile === 'arrow' && P.multishot) {
-      for (const off of [-0.14, 0.14]) fireProjectile(this, world, 'arrow', this.aimAngle + off, { ...opts, damage: dmg * 0.5 });
+      for (const off of [-0.14, 0.14]) fireProjectile(this, world, 'arrow', this.aimAngle + off, { ...opts, damage: dmg * (ms.multishotPct ?? 0.5) });
     }
     world.bus.emit(a.projectile === 'bolt' ? 'swing' : 'shoot', { actor: this, heavy: false, angle: this.aimAngle });
   }
@@ -454,7 +560,13 @@ export class Hero extends Actor {
     const res = this.cls.resource;
     if (res.onHurt) this.gainResource(res.onHurt);
     this.combatTime = 0;
-    return super.takeHit(hit);
+    const hitOk = super.takeHit(hit);
+    // Jeder erlittene Treffer wirft ab und bricht das Aufsitzen ab
+    if (hitOk !== false) {
+      this.mountCast = null;
+      if (this.riding && this.worldRef) this.#setMount(this.worldRef, false);
+    }
+    return hitOk;
   }
 
   onHurt() {
@@ -467,6 +579,8 @@ export class Hero extends Actor {
   }
 
   die() {
+    this.mountCast = null;
+    if (this.riding && this.worldRef) this.#setMount(this.worldRef, false);
     super.die();
     this.hurtable = false;
     this.skill = null;
@@ -483,6 +597,15 @@ export class Hero extends Actor {
     this.animator.play('idle', true);
   }
 
+  // Beritten: erst das Reittier, dann der Reiter auf dem Sattel
+  drawSprite(ctx, cx, cy, opts = {}) {
+    const mf = this.mountFrame;
+    if (!this.riding || !mf || this.dead) return super.drawSprite(ctx, cx, cy, opts);
+    const x = this.x - cx, y = this.y - cy, flip = this.facing < 0;
+    mf.draw(ctx, x, y, { flip, ...opts });
+    this.currentFrame().draw(ctx, x + this.rideOff.x, y + this.rideOff.y, { flip, ...opts });
+  }
+
   render(ctx, cx, cy) {
     const blink = this.invuln > 0 && this.state !== 'roll' && this.state !== 'skill' && !this.dead && Math.floor(this.invuln * 20) % 2 === 0;
     if (blink) ctx.globalAlpha = 0.45;
@@ -496,10 +619,13 @@ export class Hero extends Actor {
     if (this.dead && this.animator.finished) return;
     // Leuchtpunkte des Frames (Augen der Glutgeborenen, Stabkristall, Zauberhand)
     const f = this.currentFrame();
-    if (f.glows?.length) {
-      for (const g of f.glows) {
-        const x = Math.round(this.x - cx + g.x * this.facing - (this.facing < 0 ? 1 / (f.res ?? 1) : 0));
-        const y = Math.round(this.y - cy + g.y);
+    const glows = [];
+    for (const g of f.glows ?? []) glows.push([g, this.rideOff.x, this.rideOff.y, f]);
+    if (this.riding && this.mountFrame) for (const g of this.mountFrame.glows ?? []) glows.push([g, 0, 0, this.mountFrame]);
+    if (glows.length) {
+      for (const [g, ox, oy, gf] of glows) {
+        const x = Math.round(this.x - cx + ox + g.x * this.facing - (this.facing < 0 ? 1 / (gf.res ?? 1) : 0));
+        const y = Math.round(this.y - cy + oy + g.y);
         const r = Math.max(1, Math.min(4, Math.round(g.r)));
         ctx.globalAlpha = 0.2;
         ctx.fillStyle = g.color;
@@ -534,8 +660,9 @@ export class Hero extends Actor {
     // Feinraster des Spielbilds (Überabtastung, INTEGRATION §11.12): Funken und Zungen feiner als ein Weltpixel
     const q = Math.max(1, Math.min(3, CONFIG.renderScale ?? 1)), P = 1 / q;
     const snap = (v) => Math.round(v * q) / q;
-    const px = (u, s = 0) => snap(this.x - cx + (a.x + dx * u - dy * (s + bend(u))) * f - (f < 0 ? 1 / (frame.res ?? 1) : 0));
-    const py = (u, s = 0) => snap(this.y - cy + a.y + dy * u + dx * (s + bend(u)));
+    const ox = this.rideOff.x, oy = this.rideOff.y;
+    const px = (u, s = 0) => snap(this.x - cx + ox + (a.x + dx * u - dy * (s + bend(u))) * f - (f < 0 ? 1 / (frame.res ?? 1) : 0));
+    const py = (u, s = 0) => snap(this.y - cy + oy + a.y + dy * u + dx * (s + bend(u)));
     const el = ELEMENTS[a.fx] ?? ELEMENTS.arcane, c = el.colors;
     const prev = ctx.globalCompositeOperation;
     ctx.globalCompositeOperation = 'lighter';
