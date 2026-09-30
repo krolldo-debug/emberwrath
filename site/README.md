@@ -26,9 +26,9 @@ Anmeldestatus liest `site.js` aus `localStorage['emberwrath:online:session']` (F
 Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
 - `kampf-*.webp`, `welt-*.webp`: Spielszenen in nativer Auflösung des Spiels (960 × 540, spriteRes 2 wie live), verlustfrei
   (WebP lossless), Helligkeit beim Aufnehmen eingerechnet. Aufgenommen mit `tools/szenen.mjs`, ausgewählt mit
-  `tools/szenen-auswahl.py` (Pillow). Titelbild und Malgareth-Streifen zeigen eine Dreiergruppe.
-  Anzeige: `img.shot` mit `--fx/--fy` (Bildpunkt, der in die Mitte soll). CSS gibt je Breite einen Faktor `--f`
-  vor (×2, ab 1921 px ×3, Handy ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
+  `tools/szenen-auswahl.py` (Pillow). Titelbild (Skalvyr) und die Malgareth-Szene sind mit `tools/keyart.mjs` inszeniert.
+  Anzeige: `img.shot` mit `--fx/--fy` (Bildpunkt, der in die Mitte soll), auf dem Handy (≤ 820 px) `--mx/--my`, falls gesetzt. CSS gibt je Breite einen Faktor `--f`
+  vor (×2; Titelbild ab 1200 px ×4, ab 2000 px ×5, ab 2400 px ×6; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Titel und Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
   `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
 - `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*`, `ritt-*` (Reiter auf Reittieren) und `item-*` mit `tools/render40.mjs`.
   Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×5, Bosse ×2 bzw. Ulgrim und Malgareth ×3, Reiter ×4, Völker ×3, Symbole ×2).
@@ -41,6 +41,8 @@ npx http-server dist -p 8101 -s &     # gebündeltes Spiel für szenen.mjs
 npx http-server .    -p 8102 -s &     # Module direkt für render-assets.mjs
 node site/tools/szenen.mjs cn [ids,kommagetrennt]   # je Szene eine Bildserie in cn/, Bosszustand im Dateinamen
 python3 site/tools/szenen-auswahl.py                # gewählte Bilder (oben im Skript) -> native/*.webp + focus.json
+node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.webp): feste Aufstellung, Warnflächen
+                                                   # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 ```
 

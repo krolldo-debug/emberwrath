@@ -150,6 +150,7 @@
   // Faktor vor (--f); hier wird er auf ganze Bildschirmpunkte gerundet, so weit erhöht, dass das Bild seinen
   // Rahmen füllt, und der Ausschnitt (--fx/--fy = Bildpunkt, der an die Stelle --ax/--ay des Rahmens soll, sonst in die Mitte) auf ganze Punkte gesetzt.
   const shots = $$('img.shot');
+  const mobile = matchMedia('(max-width: 820px)');
   const fitShots = () => {
     const dpr = devicePixelRatio || 1;
     for (const img of shots) {
@@ -161,7 +162,9 @@
       let n = Math.max(1, Math.round(f * dpr));
       while ((w * n) / dpr < cw - 0.5 || (h * n) / dpr < ch - 0.5) n++;
       const k = n / dpr, iw = w * k, ih = h * k;
-      const fx = parseFloat(cs.getPropertyValue('--fx')) || 0.5, fy = parseFloat(cs.getPropertyValue('--fy')) || 0.5;
+      // Handy: eigener Bildausschnitt (--mx/--my), sonst --fx/--fy
+      const num = (k) => parseFloat(cs.getPropertyValue(k));
+      const fx = (mobile.matches && num('--mx')) || num('--fx') || 0.5, fy = (mobile.matches && num('--my')) || num('--fy') || 0.5;
       const snap = (v) => Math.round(v * dpr) / dpr;
       const ax = parseFloat(cs.getPropertyValue('--ax')) || 0.5, ay = parseFloat(cs.getPropertyValue('--ay')) || 0.5;
       const left = snap(Math.min(0, Math.max(cw - iw, cw * ax - fx * iw)));
