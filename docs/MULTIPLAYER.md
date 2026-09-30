@@ -47,11 +47,10 @@ nötig ist und wo es im Code andockt.
 ## 4. Authentifizierung
 
 - Echte Accounts mit E-Mail + Passwort (gehasht mit Argon2/bcrypt) oder Anmeldung über einen Anbieter (OAuth/OIDC,
-  z. B. Apple/Google für Mobile).
+  z. B. Google).
 - Nach der Anmeldung kurzlebiges Zugriffstoken (JWT, ~15 min) + Refresh-Token (HttpOnly-Cookie bzw. sicherer
   Speicher in der App). Die WebSocket-Verbindung wird mit dem Token aufgebaut und vom Gateway geprüft.
-- Der heutige lokale Demo-Account bleibt als „Offline-Modus“ bestehen oder kann einmalig auf einen echten Account
-  übertragen werden (nur Name/Aussehen, keinen Fortschritt – siehe 5).
+- Charaktere aus der Testphase werden beim ersten Anmelden einmalig ins Konto übernommen (docs/ONLINE.md).
 
 ## 5. Schutz vor manipulierten Spielständen
 
