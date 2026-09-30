@@ -386,3 +386,18 @@ nie beim Laden zwischenspeichern.** `<html>` trägt dann `ef-portrait`; Event `v
 - Spielstände bleiben lokal; die Oberfläche sagt das weiterhin deutlich.
 - **Name:** sichtbar heißt das Spiel **Emberwrath** (Titel, Logo, Seitentitel, Texte). Intern bleiben `emberfall:v1:`-Schlüssel,
   das Exportformat `emberfall-save`, `window.emberfall` und der Ordnername – nicht umbenennen, sonst gehen Spielstände verloren.
+
+### 11.12 Feinere Figuren: Überabtastung (Architektur, Wunsch von A)
+
+- Das interne Bild hat `CONFIG.viewWidth × CONFIG.renderScale` Bildpunkte. Game setzt vor jedem Frame
+  `ctx.setTransform(k, 0, 0, k, 0, 0)` und `imageSmoothingEnabled = false`. **Alle Systeme zeichnen weiter in Weltpixeln;**
+  `CONFIG.viewWidth/viewHeight` bleiben Weltpixel. Nie `ctx.canvas.width/height` als Bildgröße lesen, nie `setTransform`/
+  `resetTransform` auf dem Spiel-Kontext (nur `save/translate/restore`).
+- `k = CONFIG.renderScale` (nur Game schreibt): höchstens `CONFIG.spriteRes` (3), nie mehr als die Anzeige-Skalierung,
+  Qualität „Mittel“ (Standard auf Touch) höchstens 2, „Niedrig“ 1. Die automatische Qualität senkt bei Ruckeln weiter.
+- **`SpriteFrame.res`** (Standard 1) = Texel je Weltpixel; `canvas`, `ax`, `ay` sind in Texeln. `draw()` rechnet selbst um.
+  Wer `frame.canvas` direkt zeichnet, teilt Position und Größe durch `res` (umgesetzt in Actor „Aufsteigen“, Afterimage,
+  Decals.stampFrame, Enemy.drawScaled, HUD-Porträt). Gegner/NPCs können dieselbe Mechanik nutzen.
+- `frame.weapon`/`glows` (A) bleiben in Weltpixeln relativ zum Fußpunkt.
+- Leistung (Chromium ohne GPU, also Obergrenze): k=1 ~4–6 ms, k=2 ~10–13 ms, k=3 ~17–27 ms pro Bild; Hitzeflimmern
+  (Glutgipfel, Glutschmiede) ist der teuerste Einzelposten. Mit GPU deutlich weniger.

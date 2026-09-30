@@ -33,6 +33,7 @@ export class Game {
     this.authority = new LocalAuthority(this.content);
     this.state = new GameState(this.bus, this.authority, this.content);
     this.save = new SaveStore();
+    this.save.bus = this.bus; // meldet save:character / save:deleted (z. B. für Cloud-Abgleich, src/online)
     this.font = new PixelFont();
     this.sfx = new Sfx();
     this.assets = createAssets();
@@ -189,6 +190,9 @@ export class Game {
     const now = performance.now();
     this.#fpsAcc += now - this.#lastRender; this.#lastRender = now; this.#fpsFrames++;
     if (this.#fpsAcc > 500) { this.fps = Math.round((this.#fpsFrames * 1000) / this.#fpsAcc); this.#fpsAcc = 0; this.#fpsFrames = 0; }
+    const k = CONFIG.renderScale;
+    this.ctx.setTransform(k, 0, 0, k, 0, 0);
+    this.ctx.imageSmoothingEnabled = false;
     this.ctx.fillStyle = '#05020a';
     this.ctx.fillRect(0, 0, CONFIG.viewWidth, CONFIG.viewHeight);
     this.scenes.render(this.ctx);
@@ -213,6 +217,11 @@ export class Game {
     const backing = this.#quality === 'low' ? Math.min(scale, 2) : scale;
     this.canvas.width = Math.round(CONFIG.viewWidth * backing);
     this.canvas.height = Math.round(CONFIG.viewHeight * backing);
+    // Überabtastung: nie mehr Bildpunkte je Weltpixel als die Anzeige zeigt, bei „Niedrig“ keine.
+    // „Mittel“ (Standard auf Touch-Geräten) höchstens 2-fach; die automatische Qualität senkt bei Ruckeln weiter.
+    const cap = this.#quality === 'low' ? 1 : this.#quality === 'medium' ? Math.min(2, CONFIG.spriteRes) : CONFIG.spriteRes;
+    const k = Math.max(1, Math.min(cap, Math.floor(backing + 0.01)));
+    this.#ensureView(k);
     const cssW = Math.round(CONFIG.viewWidth * scale) / dpr, cssH = Math.round(CONFIG.viewHeight * scale) / dpr;
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
@@ -230,13 +239,21 @@ export class Game {
     const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId);
     const w = tall ? P.width : L.width;
     const h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
-    if (w === CONFIG.viewWidth && h === CONFIG.viewHeight && this.view.width === w && this.view.height === h) return;
+    if (w === CONFIG.viewWidth && h === CONFIG.viewHeight) return;
     CONFIG.viewWidth = w; CONFIG.viewHeight = h;
-    this.view = makeCanvas(w, h);
-    this.ctx = this.view.getContext('2d');
+    this.#ensureView(CONFIG.renderScale);
     this.input.viewW = w; this.input.viewH = h;
     document.documentElement.classList.toggle('ef-portrait', tall);
     this.bus.emit(EV.VIEW_RESIZED, { width: w, height: h, portrait: tall });
+  }
+
+  // Internes Bild: Weltgröße × Überabtastung k (siehe CONFIG.spriteRes).
+  #ensureView(k) {
+    const w = CONFIG.viewWidth * k, h = CONFIG.viewHeight * k;
+    CONFIG.renderScale = k;
+    if (this.view.width === w && this.view.height === h) return;
+    this.view = makeCanvas(w, h);
+    this.ctx = this.view.getContext('2d');
   }
 
   clientToView(cx, cy) {

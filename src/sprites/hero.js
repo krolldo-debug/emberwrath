@@ -2,6 +2,7 @@ import { PAL } from '../gfx/Palette.js';
 import { buildFrame, Animation } from '../gfx/Sprite.js';
 import { MAT, gearKey } from '../character/gearLook.js';
 import { DYES, hairStylesFor } from '../character/cosmetics.js';
+import { CONFIG } from '../config.js';
 
 // Spielerfiguren (Thread A). Eine Skelettfigur mit Hüfte, Rumpf, Kopf und
 // zweigliedrigen Armen/Beinen (IK), die für jedes Volk (Körperbau, Gesicht,
@@ -119,16 +120,39 @@ function col(c) {
   return v;
 }
 
+// Rastert in Weltpixeln (Koordinaten wie bisher), aber mit S Feinpixeln je Weltpixel.
+// Formen (capsule, ellipse, axis, fline, dot) nutzen das feine Raster und werden dadurch
+// glatt und detailliert; set/rect/line/stamp füllen ganze Weltpixel (S×S Feinpixel).
+// Feinpixel F deckt Welt-x ab: Mitte = (F + 0.5) / S - 0.5 - AX.
+let S = 1;
 class Raster {
-  constructor() { this.buf = new Uint32Array(W * H); }
+  constructor() {
+    this.s = S; this.fw = W * S; this.fh = H * S;
+    this.buf = new Uint32Array(this.fw * this.fh);
+  }
+  // Feinpixel-Index -> Weltkoordinate der Pixelmitte
+  wx(F) { return (F + 0.5) / this.s - 0.5 - AX; }
+  wy(G) { return (G + 0.5) / this.s - 0.5 - AY; }
+  fx(x) { return Math.floor((x + 0.5 + AX) * this.s); }
+  fy(y) { return Math.floor((y + 0.5 + AY) * this.s); }
+  put(F, G, c) {
+    if (F >= 0 && G >= 0 && F < this.fw && G < this.fh) this.buf[G * this.fw + F] = col(c);
+  }
+  // ein Feinpixel an Weltposition
+  dot(x, y, c) { if (c) this.put(this.fx(x), this.fy(y), c); }
+  // ein ganzer Weltpixel (gerundet)
   set(x, y, c) {
     if (!c) return;
-    const X = Math.round(x) + AX, Y = Math.round(y) + AY;
-    if (X >= 0 && Y >= 0 && X < W && Y < H) this.buf[Y * W + X] = col(c);
+    const s = this.s, F = (Math.round(x) + AX) * s, G = (Math.round(y) + AY) * s, v = col(c);
+    for (let j = 0; j < s; j++) {
+      const gy = G + j;
+      if (gy < 0 || gy >= this.fh) continue;
+      for (let i = 0; i < s; i++) { const gx = F + i; if (gx >= 0 && gx < this.fw) this.buf[gy * this.fw + gx] = v; }
+    }
   }
   has(x, y) {
-    const X = Math.round(x) + AX, Y = Math.round(y) + AY;
-    return X >= 0 && Y >= 0 && X < W && Y < H && this.buf[Y * W + X] !== 0;
+    const F = this.fx(x), G = this.fy(y);
+    return F >= 0 && G >= 0 && F < this.fw && G < this.fh && this.buf[G * this.fw + F] !== 0;
   }
   rect(x, y, w, h, c) {
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.set(x + i, y + j, c);
@@ -146,6 +170,27 @@ class Raster {
       if (e2 <= dx) { err += dx; y0 += sy; }
     }
   }
+  // Feine Linie mit Breite w (Weltpixel), c = Farbe oder fn(t) -> Farbe
+  fline(x0, y0, x1, y1, w, c) {
+    const L = Math.hypot(x1 - x0, y1 - y0);
+    const n = Math.max(1, Math.ceil(L * this.s * 1.5));
+    const r = w / 2;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+      const cc = typeof c === 'function' ? c(t) : c;
+      if (!cc) continue;
+      if (r <= 0.5 / this.s) this.dot(x, y, cc);
+      else for (let G = this.fy(y - r); G <= this.fy(y + r); G++) for (let F = this.fx(x - r); F <= this.fx(x + r); F++) {
+        if (Math.hypot(this.wx(F) - x, this.wy(G) - y) <= r + 0.01) this.put(F, G, cc);
+      }
+    }
+  }
+  // Schleife über alle Feinpixel eines Weltbereichs: fn(x, y, F, G)
+  each(x0, y0, x1, y1, fn) {
+    const F0 = Math.max(0, this.fx(x0)), F1 = Math.min(this.fw - 1, this.fx(x1));
+    const G0 = Math.max(0, this.fy(y0)), G1 = Math.min(this.fh - 1, this.fy(y1));
+    for (let G = G0; G <= G1; G++) { const y = this.wy(G); for (let F = F0; F <= F1; F++) fn(this.wx(F), y, F, G); }
+  }
   // Form entlang einer Achse ab (ox, oy) mit Winkel ang. fn(u, lv, v) -> Farbe|null,
   // u = entlang der Achse, lv = quer (negativ = zum Licht gewandte Seite).
   axis(ox, oy, ang, u0, u1, vmax, fn) {
@@ -153,44 +198,39 @@ class Raster {
     const s = (-dy * LX + dx * LY) > 0 ? -1 : 1;
     const xs = [], ys = [];
     for (const u of [u0, u1]) for (const v of [-vmax, vmax]) { xs.push(ox + u * dx - v * dy); ys.push(oy + u * dy + v * dx); }
-    const x0 = Math.floor(Math.min(...xs)) - 1, x1 = Math.ceil(Math.max(...xs)) + 1;
-    const y0 = Math.floor(Math.min(...ys)) - 1, y1 = Math.ceil(Math.max(...ys)) + 1;
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    this.each(Math.min(...xs) - 1, Math.min(...ys) - 1, Math.max(...xs) + 1, Math.max(...ys) + 1, (x, y, F, G) => {
       const rx = x - ox, ry = y - oy;
       const u = rx * dx + ry * dy, v = -rx * dy + ry * dx;
-      if (u < u0 || u > u1 || Math.abs(v) > vmax) continue;
+      if (u < u0 || u > u1 || Math.abs(v) > vmax) return;
       const c = fn(u, v * s, v);
-      if (c) this.set(x, y, c);
-    }
+      if (c) this.put(F, G, c);
+    });
   }
-  // Glied als Kapsel von (x0,y0) nach (x1,y1), Radius r0 -> r1. shade(l, t, e) mit
-  // l = Lichtanteil (-1..1), t = Position entlang, e = Abstand zur Mitte (0..1).
+  // Glied als Kapsel von (x0,y0) nach (x1,y1), Radius r0 -> r1. shade(l, t, e, x, y) mit
+  // l = Lichtanteil (-1..1), t = Position entlang, e = Abstand zur Mitte (0..1), x/y = Weltposition.
   capsule(x0, y0, x1, y1, r0, r1, shade) {
     const dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy || 1e-6;
     const rm = Math.max(r0, r1);
-    for (let y = Math.floor(Math.min(y0, y1) - rm - 1); y <= Math.ceil(Math.max(y0, y1) + rm + 1); y++) {
-      for (let x = Math.floor(Math.min(x0, x1) - rm - 1); x <= Math.ceil(Math.max(x0, x1) + rm + 1); x++) {
-        const t = clamp(((x - x0) * dx + (y - y0) * dy) / L2, 0, 1);
-        const px = x0 + dx * t, py = y0 + dy * t;
-        const r = r0 + (r1 - r0) * t;
-        const ex = x - px, ey = y - py, d = Math.hypot(ex, ey);
-        if (d > r + 0.2) continue;
-        const l = d < 0.01 ? 0.2 : (ex * LX + ey * LY) / d * Math.min(1, d / Math.max(0.6, r));
-        this.set(x, y, shade(l, t, d / Math.max(0.5, r)));
-      }
-    }
+    this.each(Math.min(x0, x1) - rm - 1, Math.min(y0, y1) - rm - 1, Math.max(x0, x1) + rm + 1, Math.max(y0, y1) + rm + 1, (x, y, F, G) => {
+      const t = clamp(((x - x0) * dx + (y - y0) * dy) / L2, 0, 1);
+      const px = x0 + dx * t, py = y0 + dy * t;
+      const r = r0 + (r1 - r0) * t;
+      const ex = x - px, ey = y - py, d = Math.hypot(ex, ey);
+      if (d > r + 0.2) return;
+      const l = d < 0.01 ? 0.2 : (ex * LX + ey * LY) / d * Math.min(1, d / Math.max(0.6, r));
+      const c = shade(l, t, d / Math.max(0.5, r), x, y, F, G);
+      if (c) this.put(F, G, c);
+    });
   }
   ellipse(cx, cy, rx, ry, fn) {
-    for (let y = Math.floor(cy - ry - 1); y <= Math.ceil(cy + ry + 1); y++) {
-      for (let x = Math.floor(cx - rx - 1); x <= Math.ceil(cx + rx + 1); x++) {
-        const nx = (x - cx) / rx, ny = (y - cy) / ry, d = nx * nx + ny * ny;
-        if (d > 1.05) continue;
-        const c = typeof fn === 'function' ? fn(nx, ny, d) : fn;
-        if (c) this.set(x, y, c);
-      }
-    }
+    this.each(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1, (x, y, F, G) => {
+      const nx = (x - cx) / rx, ny = (y - cy) / ry, d = nx * nx + ny * ny;
+      if (d > 1.05) return;
+      const c = typeof fn === 'function' ? fn(nx, ny, d, x, y) : fn;
+      if (c) this.put(F, G, c);
+    });
   }
-  // Pixelbild aus Zeichenkette(n): map[ch] = Farbe
+  // Pixelbild aus Zeichenkette(n): map[ch] = Farbe (je Zeichen ein Weltpixel)
   stamp(x0, y0, rows, map, flipX = false) {
     for (let j = 0; j < rows.length; j++) {
       const row = rows[j];
@@ -200,29 +240,87 @@ class Raster {
       }
     }
   }
+  // Pixelbild im feinen Raster: je Zeichen ein Feinpixel, (x0, y0) in Weltkoordinaten
+  fstamp(x0, y0, rows, map) {
+    const F0 = this.fx(x0), G0 = this.fy(y0);
+    for (let j = 0; j < rows.length; j++) {
+      const row = rows[j];
+      for (let i = 0; i < row.length; i++) { const c = map[row[i]]; if (c) this.put(F0 + i, G0 + j, c); }
+    }
+  }
   // Gedrehte Kopie um (px, py) – für Rolle und Sturz (nächster Nachbar)
   rotated(ang, px, py) {
     const out = new Raster();
     const c = Math.cos(-ang), s = Math.sin(-ang);
-    for (let Y = 0; Y < H; Y++) for (let X = 0; X < W; X++) {
-      const x = X - AX - px, y = Y - AY - py;
-      const sx = Math.round(px + x * c - y * s) + AX, sy = Math.round(py + x * s + y * c) + AY;
-      if (sx >= 0 && sy >= 0 && sx < W && sy < H) out.buf[Y * W + X] = this.buf[sy * W + sx];
+    for (let G = 0; G < this.fh; G++) for (let F = 0; F < this.fw; F++) {
+      const x = this.wx(F) - px, y = this.wy(G) - py;
+      const sF = this.fx(px + x * c - y * s), sG = this.fy(py + x * s + y * c);
+      if (sF >= 0 && sG >= 0 && sF < this.fw && sG < this.fh) out.buf[G * this.fw + F] = this.buf[sG * this.fw + sF];
     }
     return out;
   }
   blit(ctx) {
-    ctx.putImageData(new ImageData(new Uint8ClampedArray(this.buf.buffer.slice(0)), W, H), 0, 0);
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(this.buf.buffer.slice(0)), this.fw, this.fh), 0, 0);
   }
 }
 
-// Schattierung für Glieder/Rundformen aus einer Farbrampe
-const tone = (ramp, metal = false) => (l, t, e) => {
+// Schattierung für Glieder/Rundformen aus einer Farbrampe. Im feinen Raster (S ≥ 3)
+// mit Materialstruktur (kind: plate, chain, scale, padded, leather, robe, cloth, skin).
+const tone = (ramp, metal = false, kind = null) => (l, t, e, x, y, F, G) => {
+  if (S >= 3 && F !== undefined) return matShade(kind ?? (metal ? 'plate' : 'cloth'), ramp, l - Math.max(0, e - 0.8) * 1.2, F, G, x, y, e);
   if (metal && l > 0.62 && e > 0.3) return ramp[4] ?? ramp[3];
   if (l > 0.35) return ramp[3];
   if (l > -0.35) return ramp[2];
   return ramp[1];
 };
+
+// Materialfarbe je Feinpixel. l = Licht (-1..1), F/G = Feinpixel, x/y = Welt, e = Randnähe
+function matShade(kind, A, l, F, G, x, y, e = 0) {
+  const top = A.length - 1;
+  switch (kind) {
+    case 'plate': case 'metal': {
+      let v = 2 + l * 1.8;
+      if (l > 0.55 && e > 0.25 && e < 0.75) v = top;             // Glanzlicht
+      if (e > 0.9) v -= 0.8;
+      return band(A, Math.min(v, top));
+    }
+    case 'chain': {
+      // Kettenringe: versetztes 2er-Raster, helle Ringoberkante
+      const odd = (G >> 1) & 1, ring = ((F + odd) & 1) === 0;
+      const v = 1.7 + l * 1.4 + (ring ? ((G & 1) === 0 ? 0.8 : 0.1) : -0.8);
+      return band(A, Math.min(v, top - (l > 0.5 ? 0 : 1)));
+    }
+    case 'scale': {
+      // Schuppen: 3×3-Zellen, Zeilen versetzt, dunkle Unterkante, helle Kuppe
+      const row = Math.floor(G / 3), cx = (F + (row & 1) * 1.5) % 3, cy = G % 3;
+      let v = 1.9 + l * 1.4;
+      if (cy === 2 || (cy === 1 && (cx < 0.6 || cx > 2.2))) v -= 1.1;
+      else if (cy === 0 && cx > 0.8 && cx < 2) v += 0.8;
+      return band(A, Math.min(v, top));
+    }
+    case 'padded': {
+      // Steppjacke: Rautennähte, gepolsterte Felder
+      const a = ((x + y) * 0.9) % 2.2, b = ((x - y) * 0.9 + 22) % 2.2;
+      const seam = a < 0.3 || b < 0.3;
+      const v = 1.9 + l * 1.3 + (seam ? -0.9 : 0.2);
+      return band(A, Math.min(v, top - 1));
+    }
+    case 'leather': {
+      const grain = hash(F, G) < 0.12 ? -0.5 : 0;
+      return band(A, Math.min(1.8 + l * 1.4 + grain, top - 1));
+    }
+    case 'robe': case 'cloth': {
+      const fold = Math.sin(x * 1.6 + y * 0.25) * 0.35;
+      return band(A, Math.min(1.9 + l * 1.3 + fold, top - 1));
+    }
+    case 'fur': {
+      const tuft = Math.sin(x * 3.1 + Math.sin(y * 2.3) * 1.5) * 0.6 + (hash(F, G) - 0.5) * 0.8;
+      return band(A, Math.min(2 + l * 1.2 + tuft, top));
+    }
+    case 'skin': return band(A, 2.1 + l * 1.3);
+    default: return band(A, 2 + l * 1.4);
+  }
+}
 const dimRamp = (r) => [r[0], r[0], r[1], r[2], r[3]];
 
 // Zweigelenk-IK: Gelenkpunkt zwischen a (Wurzel) und b (Ziel), bend = ±1
@@ -387,15 +485,17 @@ function drawSmear(R, L, hx, hy, a0, a1) {
   const len = (w.family === 'sword' || w.family === 'dagger' ? w.len : null) ?? SMEAR_LEN[w.family] ?? 12;
   const c = w.glow ?? (w.family === 'staff' || w.family === 'wand' ? L.trim : ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8']);
   const rout = len + 1.5, body = Math.max(3, len * 0.5);
-  const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) * rout * 1.5));
+  const fine = S >= 3;
+  const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) * rout * (fine ? 4 : 1.5)));
   for (let i = 0; i <= n; i++) {
     const t = i / n, a = a0 + (a1 - a0) * t;
     const ca = Math.cos(a), sa = Math.sin(a);
     const thick = 1 + body * t * t;
-    for (let d = 0; d <= thick; d += 0.6) {
+    for (let d = 0; d <= thick; d += fine ? 0.25 : 0.6) {
       const r = rout - d;
-      const col = d < 1.1 ? c[4] ?? c[3] : d < thick * 0.6 ? c[3] : c[2];
-      R.set(Math.round(hx + ca * r), Math.round(hy + sa * r), col);
+      const col = d < (fine ? 0.5 : 1.1) ? c[4] ?? c[3] : d < thick * 0.6 ? c[3] : c[2];
+      if (fine) R.dot(hx + ca * r, hy + sa * r, col);
+      else R.set(Math.round(hx + ca * r), Math.round(hy + sa * r), col);
     }
   }
 }
@@ -411,8 +511,9 @@ function drawLeg(R, L, P, sk, near) {
   const pants = st === 'plate' ? L.chest.ramp : st === 'robe' ? L.cloth : st === 'leather' ? dimRamp(L.chest.ramp) : ['#1a1414', '#2a2020', '#3e302c', '#56443c', '#6e5a4e'];
   const ramp = near ? pants : dimRamp(pants);
   const metal = st === 'plate';
-  R.capsule(hx, hy, leg.jx, leg.jy, 1.55 * lw, 1.3 * lw, tone(ramp, metal));
-  R.capsule(leg.jx, leg.jy, leg.ex, leg.ey, 1.25 * lw, 1.05 * lw, tone(ramp, metal));
+  const pk = metal ? 'plate' : st === 'robe' ? 'robe' : st === 'leather' ? 'leather' : 'cloth';
+  R.capsule(hx, hy, leg.jx, leg.jy, 1.55 * lw, 1.3 * lw, tone(ramp, metal, pk));
+  R.capsule(leg.jx, leg.jy, leg.ex, leg.ey, 1.25 * lw, 1.05 * lw, tone(ramp, metal, pk));
   if (metal || st === 'chain' || st === 'padded') {
     // Kniekachel
     const kr = st === 'plate' ? L.chest.ramp : L.chest.shoulder ?? M.iron;
@@ -423,10 +524,11 @@ function drawLeg(R, L, P, sk, near) {
 }
 
 function drawBoot(R, L, ax, ay, lift, near, leg) {
+  if (hi(R)) return drawBootHi(R, L, ax, ay, lift, near, leg);
   const b = near ? L.boots : dimRamp(L.boots);
   const x = Math.round(ax), y = Math.round(ay);
   // Schaft über dem Knöchel
-  R.capsule(leg.jx + (leg.ex - leg.jx) * 0.55, leg.jy + (leg.ey - leg.jy) * 0.55, leg.ex, leg.ey, 1.35 * L.body.limb, 1.35 * L.body.limb, tone(b, L.bootsMetal));
+  R.capsule(leg.jx + (leg.ex - leg.jx) * 0.55, leg.jy + (leg.ey - leg.jy) * 0.55, leg.ex, leg.ey, 1.35 * L.body.limb, 1.35 * L.body.limb, tone(b, L.bootsMetal, L.bootsMetal ? 'plate' : 'leather'));
   // Fuß: Zehen nach vorne, angehobener Fuß kippt leicht
   const tilt = lift > 1.2 && ax < leg.jx - 0.5 ? 1 : 0;
   R.rect(x - 1, y, 3, 2, b[2]);
@@ -443,23 +545,25 @@ function drawArm(R, L, sh, arm, far) {
   const sleeveBase = st === 'plate' ? L.chest.ramp : st === 'robe' ? L.chest.ramp : st === 'chain' ? L.chest.ramp : st === 'scale' ? L.chest.ramp : st === 'padded' ? L.chest.ramp : L.cloth;
   const sleeve = far ? dimRamp(sleeveBase) : sleeveBase;
   const metal = st === 'plate' || st === 'chain' || st === 'scale';
-  R.capsule(sh.x, sh.y, arm.jx, arm.jy, 1.3 * lw, 1.1 * lw, tone(sleeve, metal));
+  const sk2 = ['plate', 'chain', 'scale', 'padded', 'robe'].includes(st) ? st : 'cloth';
+  R.capsule(sh.x, sh.y, arm.jx, arm.jy, 1.3 * lw, 1.1 * lw, tone(sleeve, metal, sk2));
   // Unterarm: Robe = weiter Ärmel, sonst Ärmel/Armschiene
   if (st === 'robe') {
-    R.capsule(arm.jx, arm.jy, arm.ex, arm.ey, 1.1 * lw, 1.7 * lw, tone(sleeve));
+    R.capsule(arm.jx, arm.jy, arm.ex, arm.ey, 1.1 * lw, 1.7 * lw, tone(sleeve, false, 'robe'));
     const cuff = far ? dimRamp(L.trim) : L.trim;
     R.set(arm.ex - (arm.ex - arm.jx) * 0.2, arm.ey - (arm.ey - arm.jy) * 0.2 + 1, cuff[2]);
   } else {
     const gl = L.gloves ?? L.skin;
     const bracer = far ? dimRamp(gl) : gl;
-    R.capsule(arm.jx, arm.jy, arm.ex, arm.ey, 1.1 * lw, 1.05 * lw, tone(sleeve, metal));
+    R.capsule(arm.jx, arm.jy, arm.ex, arm.ey, 1.1 * lw, 1.05 * lw, tone(sleeve, metal, sk2));
     const mx = lerp(arm.jx, arm.ex, 0.45), my = lerp(arm.jy, arm.ey, 0.45);
-    if (L.gloves) R.capsule(mx, my, arm.ex, arm.ey, 1.15 * lw, 1.1 * lw, tone(bracer, L.glovesMetal));
+    if (L.gloves) R.capsule(mx, my, arm.ex, arm.ey, 1.15 * lw, 1.1 * lw, tone(bracer, L.glovesMetal, L.glovesMetal ? 'plate' : 'leather'));
   }
   drawHand(R, L, arm.ex, arm.ey, far);
 }
 
 function drawHand(R, L, x, y, far) {
+  if (hi(R)) return drawHandHi(R, L, x, y, far);
   const base = L.gloves ?? L.skin;
   const h = far ? dimRamp(base) : base;
   const X = Math.round(x), Y = Math.round(y);
@@ -477,6 +581,7 @@ function handGlow(R, G, L, x, y, k) {
 
 // Rumpf zeilenweise: Brust breit, Taille schmal, Material je Stil
 function drawTorso(R, L, P, sk) {
+  if (hi(R)) return drawTorsoHi(R, L, P, sk);
   const { topY, hipY, B } = sk;
   const C = L.chest, st = C.style, A = C.ramp;
   const rows = hipY - topY + 1;
@@ -558,6 +663,125 @@ function drawTorso(R, L, P, sk) {
   }
 }
 
+// Rumpfbreite je Weltzeile: [hinten, vorne, v (0 oben .. 1 Hüfte)]
+function torsoSpan(sk, y) {
+  const { topY, hipY, B } = sk;
+  const v = clamp((y - topY + 0.5) / (hipY - topY + 1), 0, 1);
+  const cx = sk.cxAt(y);
+  const back = B.back * (v < 0.1 ? 0.78 + v * 2.2 : v < 0.55 ? 1 : 1 - (v - 0.55) * 0.35);
+  const front = B.front * (v < 0.1 ? 0.7 + v * 3 : v < 0.45 ? 1 : 1 - (v - 0.45) * 0.3);
+  return [cx - back - 0.5, cx + front + 0.5, v];
+}
+
+function drawTorsoHi(R, L, P, sk) {
+  const { topY, hipY, B } = sk;
+  const C = L.chest, st = C.style, A = C.ramp, T = C.trim ?? L.trim;
+  const tabard = C.tabard ?? (st === 'chain' && L.classId === 'warrior' ? L.cloth : null);
+  const lo = Math.min(sk.cxAt(topY), sk.cxAt(hipY)) - B.back - 1, hiX = Math.max(sk.cxAt(topY), sk.cxAt(hipY)) + B.front + 1;
+  R.each(lo, topY - 0.5, hiX, hipY + 0.5, (x, y, F, G) => {
+    const [xa, xb, v] = torsoSpan(sk, y);
+    if (x < xa || x > xb) return;
+    const u = (x - xa) / (xb - xa);                       // 0 Rücken .. 1 Brust
+    const e = Math.max(Math.abs(u - 0.45) * 2.1, v < 0.06 ? 1 : 0);
+    let l = (0.42 - u) * 1.3 + (0.3 - v) * 0.8;
+    let c;
+    if (st === 'plate') {
+      c = matShade('plate', A, l, F, G, x, y, e);
+      if (v < 0.58 && u > 0.6 && u < 0.64) c = A[3];          // Grat der Brustplatte
+      else if (v < 0.58 && u >= 0.64 && u < 0.68) c = A[1];
+      for (const k of [0.6, 0.76]) {                          // Bauchreifen
+        if (v > k && v < k + 0.035) c = A[0];
+        else if (v >= k + 0.035 && v < k + 0.07) c = A[Math.min(4, A.length - 1)];
+      }
+      if (v < 0.06) c = A[1];                                 // Halsrand
+    } else if (st === 'chain') c = matShade('chain', A, l, F, G, x, y, e);
+    else if (st === 'scale') c = matShade('scale', A, l, F, G, x, y, e);
+    else if (st === 'padded') c = matShade('padded', A, l, F, G, x, y, e);
+    else if (st === 'leather') c = matShade('leather', A, l, F, G, x, y, e);
+    else c = matShade('robe', A, l, F, G, x, y, e);
+    if (u > 0.965 || (u < 0.03 && v > 0.15)) c = A[Math.max(0, A.indexOf(c) - 1)] ?? c;   // Kanten dunkler
+    // Wappenrock über Kette oder Platte
+    if (tabard && v > 0.14 && u > 0.5 && u < 0.84) {
+      const tu = (u - 0.5) / 0.34;
+      c = matShade('cloth', tabard, 0.1 - tu * 0.9, F, G, x, y);
+      if (tu < 0.1 || tu > 0.9) c = T[2];
+    }
+    R.put(F, G, c);
+  });
+  const midX = (y) => sk.cxAt(y) + B.front * 0.35 + 0.5;
+  // Details je Stil
+  if (st === 'plate') {
+    for (const k of [0.62, 0.78]) {
+      const y = lerp(topY, hipY + 1, k);
+      const [xa, xb] = torsoSpan(sk, y);
+      R.dot(xa + 0.6, y, A[4] ?? A[3]); R.dot(xb - 0.7, y, A[4] ?? A[3]);
+    }
+  }
+  if (st === 'leather') {
+    // Schnürung vorne, Brustgurt diagonal
+    const lx = (y) => torsoSpan(sk, y)[1] - 1.1;
+    for (let y = topY + 1.2; y < hipY - 1.5; y += 1) {
+      R.fline(lx(y) - 0.4, y, lx(y) + 0.4, y + 0.6, 0.34, M.leather[1]);
+      R.fline(lx(y) + 0.4, y, lx(y) - 0.4, y + 0.6, 0.34, A[4] ?? A[3]);
+    }
+    const [xa0] = torsoSpan(sk, topY + 0.5), [, xb1] = torsoSpan(sk, hipY - 2);
+    R.fline(xa0 + 0.6, topY + 0.6, xb1 - 0.8, hipY - 2, 1.0, (t) => M.leather[t < 0.5 ? 1 : 2]);
+    R.fline(xa0 + 0.8, topY + 0.3, xb1 - 0.6, hipY - 2.3, 0.3, M.leather[3]);
+    const mx = lerp(xa0 + 0.6, xb1 - 0.8, 0.5), my = lerp(topY + 0.6, hipY - 2, 0.5);
+    R.ellipse(mx, my, 0.55, 0.55, (a, b) => (a + b < -0.2 ? T[3] : T[1]));
+    if (C.fur) {
+      const [xa, xb] = torsoSpan(sk, topY);
+      for (let x = xa - 0.3; x < xa + 3.8; x += 0.34) {
+        const h = 0.9 + Math.sin(x * 5.3) * 0.4;
+        R.fline(x, topY + 0.3, x + 0.2, topY - h, 0.34, C.fur[Math.sin(x * 7) > 0 ? 3 : 2]);
+      }
+    }
+  }
+  if (st === 'robe') {
+    // V-Ausschnitt mit Borte und Mittelborte
+    const nx = sk.cxAt(topY) + B.front * 0.4 + 0.5;
+    R.each(nx - 1.4, topY - 0.5, nx + 1.6, topY + 2.6, (x, y, F, G) => {
+      const d = Math.abs(x - nx) - (1.4 - (y - topY + 0.5) * 0.55);
+      if (d < 0) R.put(F, G, band(L.skin, 1.5 - (y - topY) * 0.3));
+      else if (d < 0.45) R.put(F, G, T[d < 0.2 ? 3 : 2]);
+    });
+    for (let y = topY + 2.4; y <= hipY; y += 1 / 3) { R.dot(midX(y) + 0.6, y, T[2]); R.dot(midX(y) + 0.93, y, T[1]); }
+  }
+  if (st === 'padded') {
+    // Wappen auf der Brust: Glutflamme in Trim-Farbe
+    const x = midX(topY + 3), y = topY + 3.2;
+    R.fstamp(x - 0.7, y - 1, ['..a..', '.aba.', '.abba', 'abbba', '.aaa.'], { a: T[1], b: T[3] });
+  }
+  if (C.emblem || tabard) {
+    const E = C.emblem ?? T;
+    const x = midX(topY + 3.4) + (tabard ? 0.3 : 0), y = topY + 3.6;
+    if (st !== 'padded') R.fstamp(x - 0.7, y - 1, ['..a..', '.aba.', 'abcba', '.aba.', '..a..'], { a: E[1], b: E[3], c: E[4] ?? E[3] });
+  }
+  if (C.glow) {
+    const x = midX(topY + 4), y = topY + 4.2;
+    R.ellipse(x, y, 0.6, 0.6, C.glow[3]);
+    R.dot(x - 0.1, y - 0.2, C.glow[4] ?? C.glow[3]);
+  }
+  // Gürtel mit Schnalle und Tasche
+  const by = hipY - 1;
+  const belt = st === 'robe' ? L.cloth : M.leather;
+  R.each(lo, by - 0.5, hiX, by + 0.5, (x, y, F, G) => {
+    const [xa, xb] = torsoSpan(sk, y);
+    if (x < xa - 0.1 || x > xb + 0.1) return;
+    const k = (y - (by - 0.5));
+    R.put(F, G, belt[st === 'robe' ? (k < 0.34 ? 4 : 3) : (k < 0.34 ? 2 : k > 0.67 ? 0 : 1)]);
+  });
+  const [, bxb] = torsoSpan(sk, by);
+  const buckle = st === 'robe' ? L.trim : C.trim ?? M.gold;
+  R.fstamp(bxb - 1.6, by - 0.5, ['bbbb', 'b..b', 'bbbb'], { b: buckle[3] });
+  R.dot(bxb - 1.3, by - 0.5, buckle[4] ?? buckle[3]);
+  if (st !== 'robe') {
+    const [bxa] = torsoSpan(sk, by);
+    R.capsule(bxa + 2, by + 0.4, bxa + 2.1, by + 1.9, 0.9, 1.0, (l) => band(M.leather, 2 + l * 1.2));
+    R.fline(bxa + 1.3, by + 0.9, bxa + 2.9, by + 0.9, 0.34, M.leather[1]);
+  }
+}
+
 function torsoColor(L, st, A, u, v, x, y, r, rows, x0, x1) {
   // Grundschattierung: oben/hinten heller (Licht oben links), Brustseite dunkler, unten dunkler
   const top = r === 0;
@@ -582,6 +806,7 @@ function torsoColor(L, st, A, u, v, x, y, r, rows, x0, x1) {
 
 // Unterteil: Robe (Rock bis zu den Knöcheln), Waffenrock/Kettenschurz, Beintaschen
 function drawLower(R, L, P, sk) {
+  if (hi(R)) return drawLowerHi(R, L, P, sk);
   const st = L.chest.style, B = sk.B;
   const hy = sk.hipY;
   const cx = sk.cxAt(hy);
@@ -633,6 +858,7 @@ function drawLower(R, L, P, sk) {
 }
 
 function drawPauldron(R, L, sk) {
+  if (hi(R)) return drawPauldronHi(R, L, sk);
   const st = L.chest.style;
   const S = L.chest.shoulder;
   const x = Math.round(sk.shN.x), y = Math.round(sk.topY);
@@ -659,6 +885,7 @@ function drawPauldron(R, L, sk) {
 }
 
 function drawCape(R, L, P, sk) {
+  if (hi(R)) return drawCapeHi(R, L, P, sk);
   const C = L.cloth, B = sk.B;
   const cloak = L.back === 'cloak';
   const top = sk.topY - (cloak ? 1 : 0);
@@ -684,6 +911,7 @@ function drawCape(R, L, P, sk) {
 }
 
 function drawQuiver(R, L, sk) {
+  if (hi(R)) return drawQuiverHi(R, L, sk);
   const x = Math.round(sk.cxAt(sk.topY) - sk.B.back - 1), y = sk.topY - 3;
   // schräg über dem Rücken
   for (let j = 0; j < 10; j++) {
@@ -696,6 +924,7 @@ function drawQuiver(R, L, sk) {
 }
 
 function drawScarf(R, L, P, sk) {
+  if (hi(R)) return drawScarfHi(R, L, P, sk);
   const C = L.cloth;
   const x0 = sk.neck.x - 2, y0 = sk.neck.y + 1;
   for (let i = 0; i < 7; i++) {
@@ -708,6 +937,522 @@ function drawScarf(R, L, P, sk) {
 function drawSheath(R, w, sk) {
   const x = Math.round(sk.cxAt(sk.hipY) - sk.B.back), y = sk.hipY - 1;
   R.line(x, y, x - 3, y + 4, M.leather[2]); R.set(x + 1, y - 1, (w.guard ?? M.iron)[3]); R.set(x + 1, y - 2, M.leather[1]);
+}
+
+// --- Feines Raster (S = 3): Kopf, Gesicht, Haar -----------------------------------------
+// Ab 3 Feinpixeln je Weltpixel werden Kopf, Haar, Helme, Rüstung und Waffen mit echten
+// Details gezeichnet; darunter gelten die alten Pixelvorlagen (…Low).
+const hi = (R) => R.s >= 3;
+function drawHead(R, G, L, P, sk) { return hi(R) ? drawHeadHi(R, G, L, P, sk) : drawHeadLow(R, G, L, P, sk); }
+function drawHairBack(R, L, P, sk) { return hi(R) ? drawHairBackHi(R, L, P, sk) : drawHairBackLow(R, L, P, sk); }
+
+// Lichtanteil einer Kugel um (cx, cy) mit Radien rx/ry: > 0 = zum Licht (oben links)
+const lit = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) * LX + ((y - cy) / ry) * LY;
+// Rampe über kontinuierlichen Wert v (0 .. n-1), nur Stufen (keine Körnung)
+const band = (ramp, v) => ramp[clamp(Math.round(v), 0, ramp.length - 1)];
+// kleines Hash-Rauschen für Materialstruktur (deterministisch je Feinpixel)
+const hash = (x, y) => { const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return n - Math.floor(n); };
+
+// Kopfmaße (Weltpixel) relativ zu x0/y0 (linke obere Ecke der alten 9×9-Vorlage)
+function headGeo(sk, L) {
+  const x0 = sk.neck.x - 4, y0 = sk.neck.y - 9;
+  const dwarf = L.rl.face === 'dwarf';
+  return { x0, y0, cx: x0 + 4.3, cy: y0 + 4.1, rx: dwarf ? 4.3 : 4.0, ry: 4.2, dwarf };
+}
+
+function skinAt(Sk, l, e) {
+  // l: Licht (-1..1), e: Randnähe (0..1)
+  let v = 2.3 + l * 1.15 - Math.max(0, e - 0.88) * 4;
+  return band(Sk, v);
+}
+
+function drawHeadHi(R, G, L, P, sk) {
+  const g = headGeo(sk, L), { x0, y0, cx, cy } = g;
+  const Sk = L.skin, Hh = L.hair, acc = L.accent, rl = L.rl;
+  const hurt = P.hurt > 0.5;
+  const helm = L.head, closed = helm && helm.style !== 'cap';
+  // Hals
+  R.capsule(sk.neck.x + 0.2, sk.neck.y - 2, sk.neck.x + 0.6, sk.neck.y + 0.8, 1.35, 1.45, (l) => band(Sk, 1 + l * 0.8));
+  // Schädel + Kiefer, gemeinsam wie eine Kugel beleuchtet
+  const shade = (nx, ny, d, x, y) => {
+    const l = lit(x, y, cx - 0.4, cy - 0.3, 4.6, 4.8);
+    return skinAt(Sk, l, Math.sqrt(d));
+  };
+  R.ellipse(cx, cy, g.rx, g.ry, shade);
+  R.ellipse(x0 + 5.8, y0 + 6.3, g.dwarf ? 3.3 : 3.0, 2.3, shade);           // Wange/Kiefer nach vorne
+  R.ellipse(x0 + 6.4, y0 + 7.4, 1.9, 1.2, shade);                          // Kinn
+  // Unterkante des Kiefers dunkel absetzen
+  R.fline(x0 + 4.2, y0 + 8.1, x0 + 7.2, y0 + 8.5, 0.34, Sk[0]);
+  // Nase (ragt leicht über die Gesichtskante)
+  const nx = x0 + 8.35, ny = y0 + 5.9;
+  const big = g.dwarf ? 1.3 : rl.face === 'elf' ? 0.7 : 0.8;
+  R.ellipse(nx - 0.15, ny + 0.1, 0.7 * big, 1.0 * big, (a, b) => (b < -0.2 && a < 0.3 ? Sk[3] : b > 0.45 ? Sk[1] : Sk[2]));
+  R.dot(nx + 0.2, ny + 0.75 * big, Sk[0]);
+  // Augen: nah (größer) und fern (angeschnitten, am Gesichtsrand)
+  const eyeY = y0 + 4.95;
+  const glowEye = rl.cracks;
+  const iris = glowEye ? acc[4] ?? acc[3] : rl.face === 'elf' ? '#6ac0d8' : rl.face === 'dwarf' ? '#4a6a38' : '#4a3424';
+  const lid = Sk[0], white = glowEye ? acc[3] : '#e8e0d4';
+  if (hurt) {
+    R.fline(x0 + 5.2, eyeY, x0 + 6.6, eyeY + 0.25, 0.34, lid);
+    R.fline(x0 + 7.6, eyeY, x0 + 8.3, eyeY + 0.2, 0.34, lid);
+  } else {
+    R.fstamp(x0 + 5.0, eyeY - 0.6, ['.kkkk.', 'kwwipk', '.wwpp.'], { k: lid, w: white, i: iris, p: glowEye ? acc[5] ?? '#ffffff' : '#140c10' });
+    R.fstamp(x0 + 7.7, eyeY - 0.6, ['kkk', 'wip', '.p.'], { k: lid, w: white, i: iris, p: glowEye ? acc[5] ?? '#ffffff' : '#140c10' });
+    if (!glowEye) { R.dot(x0 + 6.33, eyeY - 0.26, '#fffaf0'); }
+  }
+  if (glowEye) { G.push({ x: Math.round(x0 + 6), y: Math.round(eyeY), color: acc[4] ?? acc[3], r: 1.5 }); G.push({ x: Math.round(x0 + 8), y: Math.round(eyeY), color: acc[4] ?? acc[3], r: 1 }); }
+  // Brauen
+  const brow = rl.cracks ? Sk[0] : Hh[g.dwarf ? 1 : 0];
+  const bw = g.dwarf ? 0.55 : 0.36;
+  const angry = hurt ? 0.35 : 0;
+  R.fline(x0 + 4.9, eyeY - 1.25 + angry, x0 + 6.9, eyeY - 1.05 - angry * 0.5, bw, brow);
+  R.fline(x0 + 7.6, eyeY - 1.05, x0 + 8.5, eyeY - 1.2 + angry, bw, brow);
+  // Mund
+  if (!rl.beard) {
+    if (hurt) R.fline(x0 + 6.9, y0 + 7.35, x0 + 8.0, y0 + 7.2, 0.5, Sk[0]);
+    else { R.fline(x0 + 6.9, y0 + 7.25, x0 + 7.9, y0 + 7.15, 0.34, Sk[0]); R.dot(x0 + 7.3, y0 + 7.55, Sk[3]); }
+  }
+  // Wangenschatten unter dem Jochbein
+  R.fline(x0 + 5.3, y0 + 6.4, x0 + 6.3, y0 + 6.9, 0.34, Sk[1]);
+  // Glutadern der Glutgeborenen
+  if (rl.cracks) {
+    const a = acc[3], b = acc[2];
+    R.fline(x0 + 4.4, y0 + 5.6, x0 + 5.3, y0 + 6.8, 0.34, a); R.fline(x0 + 5.3, y0 + 6.8, x0 + 5.0, y0 + 7.8, 0.34, b);
+    R.fline(x0 + 3.0, y0 + 2.8, x0 + 3.9, y0 + 4.0, 0.34, b);
+    R.fline(x0 + 7.4, y0 + 6.4, x0 + 7.9, y0 + 6.9, 0.34, a);
+  }
+  // Bart (Zwerg): breiter, strähniger Vollbart mit Schnurrbart
+  if (rl.beard) drawBeardHi(R, L, x0, y0);
+  if (L.hood) drawHoodHi(R, G, L, g, P);
+  else if (closed) drawHelmHi(R, G, L, helm, g, P);
+  else {
+    drawHairHi(R, G, L, g, P);
+    if (helm?.style === 'cap') drawHelmHi(R, G, L, helm, g, P);
+  }
+  // Ohren
+  if (!L.hood && !closed) drawEarHi(R, L, g);
+  if (rl.horns) drawHornsHi(R, L, g, !!L.hood || !!closed);
+  if (L.circlet && !helm) {
+    const T = L.trim;
+    R.fline(x0 + 3.2, y0 + 3.0, x0 + 8.6, y0 + 3.3, 0.5, (t) => T[t < 0.4 ? 1 : 2]);
+    R.fline(x0 + 3.2, y0 + 2.8, x0 + 8.6, y0 + 3.1, 0.2, T[3]);
+    R.ellipse(x0 + 8.0, y0 + 3.2, 0.55, 0.55, (a, b) => (a + b < -0.3 ? T[4] ?? T[3] : L.cloth[3] ?? T[3]));
+    G.push({ x: x0 + 8, y: y0 + 3, color: T[4] ?? T[3], r: 1.5 });
+  }
+  if (L.cowl && !helm) drawCowlHi(R, L, x0, y0);
+}
+
+function drawEarHi(R, L, g) {
+  const { x0, y0 } = g, Sk = L.skin;
+  if (L.rl.ears) {
+    // Elfenohr: lang, spitz, nach hinten oben
+    R.axis(x0 + 3.6, y0 + 5.8, -2.35, 0, 5.6, 1.2, (u, lv) => {
+      const w = 1.15 * (1 - u / 5.8) + 0.15;
+      if (Math.abs(lv) > w) return null;
+      return lv < -w * 0.3 ? Sk[3] : lv > w * 0.5 ? Sk[1] : Sk[2];
+    });
+    R.fline(x0 + 3.3, y0 + 5.3, x0 + 1.4, y0 + 3.0, 0.34, Sk[1]);
+    return;
+  }
+  const ex = x0 + 3.4, ey = y0 + 5.4;
+  R.ellipse(ex, ey, 0.95, 1.35, (a, b) => (a < -0.3 && b < 0.2 ? Sk[3] : a > 0.3 ? Sk[1] : Sk[2]));
+  R.fline(ex + 0.1, ey - 0.6, ex + 0.2, ey + 0.5, 0.34, Sk[1]);
+}
+
+function drawHornsHi(R, L, g, covered) {
+  const { x0, y0 } = g, Bn = M.bone;
+  // zwei geschwungene Hörner nach hinten (das ferne dunkler)
+  const horn = (bx, by, len, k, dim) => {
+    const pts = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, a = -1.9 - t * 1.25 * k;
+      pts.push([bx + Math.cos(a) * len * t * 0.9 - t * t * 1.2, by + Math.sin(a) * len * t * 0.8]);
+    }
+    for (let i = 0; i < 12; i++) {
+      const t = i / 12, w = 1.25 * (1 - t) + 0.2;
+      const R0 = dim ? [Bn[0], Bn[0], Bn[1], Bn[2], Bn[3]] : Bn;
+      R.fline(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w, R0[t < 0.3 ? 2 : t < 0.75 ? 3 : 4] ?? R0[3]);
+      if (i % 3 === 1) R.dot(pts[i][0] + 0.3, pts[i][1] + 0.3, R0[1]);
+    }
+  };
+  if (covered) { horn(x0 + 3.8, y0 + 0.2, 3.2, 0.8, false); return; }
+  horn(x0 + 3.0, y0 + 1.0, 4.2, 1, true);
+  horn(x0 + 4.6, y0 + 0.6, 4.8, 1, false);
+}
+
+function drawCowlHi(R, L, x0, y0) {
+  const C = L.cloth;
+  R.capsule(x0 + 1.8, y0 + 8.4, x0 + 6.6, y0 + 8.8, 1.4, 1.2, (l, t) => band(C, 2 + l * 1.4 - t * 0.4));
+  R.fline(x0 + 2.2, y0 + 9.4, x0 + 6.2, y0 + 9.6, 0.34, C[1]);
+}
+
+// Bart des Zwergs: Strähnen vom Kinn nach unten, Schnurrbart über dem Mund
+function drawBeardHi(R, L, x0, y0) {
+  const Hh = L.hair;
+  const top = y0 + 6.4;
+  R.each(x0 + 3.5, top - 1, x0 + 10, y0 + 13, (x, y, F, Gi) => {
+    const k = (y - top) / 6.2;                               // 0 oben .. 1 Spitze
+    if (k < -0.1 || k > 1) return;
+    const xa = x0 + 4.4 + k * 1.8, xb = x0 + 9.2 - k * k * 2.2;
+    if (x < xa || x > xb) return;
+    const strand = Math.sin((x - k * 1.5) * 5.2 + hash(F, 0) * 0.8);
+    let v = 1.8 - k * 0.8 + strand * 0.6 + (x - xa) / (xb - xa) * -0.6 + (x < xa + 0.4 ? -0.7 : 0);
+    if (y < top + 0.3 && x > x0 + 6.4) v += 0.8;
+    R.put(F, Gi, band(Hh, v));
+  });
+  // Schnurrbart
+  R.capsule(x0 + 6.4, y0 + 6.9, x0 + 9.0, y0 + 7.3, 0.8, 0.55, (l) => band(Hh, 2 + l * 1.2));
+  R.fline(x0 + 6.6, y0 + 7.6, x0 + 8.8, y0 + 7.7, 0.34, Hh[0]);
+  if (L.classId === 'warrior' || L.classId === 'rogue') {
+    const T = L.trim;
+    R.fline(x0 + 6.3, y0 + 11.0, x0 + 7.6, y0 + 11.0, 0.7, T[2]);
+    R.fline(x0 + 6.3, y0 + 10.8, x0 + 7.6, y0 + 10.8, 0.25, T[3]);
+  }
+}
+
+// Haarfarbe mit Strähnen: Winkel um den Scheitelpunkt ergibt Strähnenmuster
+function hairCol(Hh, x, y, px, py, l, extra = 0) {
+  const a = Math.atan2(y - py, x - px);
+  const strand = Math.sin(a * 26 + Math.hypot(x - px, y - py) * 0.6) * 0.55;
+  return band(Hh, 1.5 + l * 1.5 + strand + extra);
+}
+
+const HAIR_HI = {
+  //  len: Hinterkopf reicht bis y0+len, vol: zusätzlicher Radius, fringe: Stirnfransen
+  short: { len: 6.8, vol: 0.45, fringe: 1 },
+  long: { len: 7.2, vol: 0.55, fringe: 1, back: 10 },
+  dwarf: { len: 7.5, vol: 0.7, fringe: 1.3, back: 4 },
+  crop: { len: 6.2, vol: 0.15, fringe: 0, stubble: true },
+  tail: { len: 6.6, vol: 0.35, fringe: 0.6, tie: true },
+  mohawk: { len: 6.5, vol: 0, fringe: 0, crest: true, shaved: true },
+  mane: { len: 8.2, vol: 1.1, fringe: 1.5, wild: true, back: 5 },
+};
+
+function drawHairHi(R, G, L, g, P) {
+  const { x0, y0, cx, cy } = g;
+  const Hh = L.hair, acc = L.accent;
+  const H = HAIR_HI[L.hairStyle] ?? HAIR_HI.short;
+  const px = x0 + 5.2, py = y0 - 0.2;                       // Scheitel/Wirbel
+  const rx = g.rx + H.vol, ry = g.ry + H.vol * 0.9;
+  // Haaransatz: vorne auf Stirnhöhe, hinter dem Ohr bis in den Nacken
+  const hairline = (x) => {
+    if (x > x0 + 4.4) return y0 + 2.5 + (x - (x0 + 4.4)) * -0.08 + (H.fringe ? 0.25 : 0);
+    return y0 + 3.2 + (x0 + 4.4 - x) * ((H.len - 3.2) / 2.6);
+  };
+  if (H.shaved || H.stubble) {
+    // Stoppeln auf der Kopfhaut
+    R.each(cx - rx, cy - ry, cx + rx, cy + ry, (x, y, F, Gi) => {
+      if (((x - cx) / g.rx) ** 2 + ((y - cy + 0.1) / g.ry) ** 2 > 1 || y > hairline(x)) return;
+      if (hash(F, Gi) < (H.stubble ? 0.75 : 0.45)) R.put(F, Gi, Hh[hash(Gi, F) < 0.5 ? 0 : 1]);
+    });
+  }
+  if (!H.shaved) {
+    R.each(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry, (x, y, F, Gi) => {
+      const d = ((x - cx + 0.2) / rx) ** 2 + ((y - cy + 0.2) / ry) ** 2;
+      const wob = H.wild ? Math.sin(Math.atan2(y - cy, x - cx) * 9) * 0.12 : 0;
+      if (d > 1 + wob || y > hairline(x)) return;
+      if (H.stubble && d > 0.8) return;
+      const l = lit(x, y, cx - 0.3, cy - 0.5, rx, ry);
+      R.put(F, Gi, hairCol(Hh, x, y, px, py, l, H.stubble ? -0.6 : 0));
+    });
+    // Stirnfransen: spitze Strähnen über die Stirn
+    for (let i = 0; i < 4 * (H.fringe ?? 0); i++) {
+      const bx = x0 + 5.0 + i * 0.95, by = y0 + 1.6 + i * 0.12;
+      R.fline(bx, by, bx + 0.6, by + 1.7 + (i & 1) * 0.5, 0.55 - i * 0.05, Hh[i & 1 ? 1 : 2]);
+    }
+  }
+  if (H.crest) {
+    // Kamm: Streifen über die Kopfmitte, spitz nach oben
+    for (let i = 0; i <= 18; i++) {
+      const t = i / 18, a = Math.PI * (1.12 + t * 0.62);
+      const bx = cx + Math.cos(a) * (g.rx - 0.2), by = cy + Math.sin(a) * (g.ry - 0.2);
+      const hgt = 2.4 + Math.sin(t * Math.PI) * 1.6;
+      const tip = L.rl.cracks ? acc[3] : Hh[3];
+      R.fline(bx, by, bx + Math.cos(a) * hgt - 0.4, by + Math.sin(a) * hgt, 0.7, (s) => (s > 0.75 ? tip : Hh[s > 0.35 ? 2 : 1]));
+    }
+    if (L.rl.cracks) G.push({ x: Math.round(cx - 1), y: Math.round(y0 - 3), color: acc[3], r: 1.2 });
+  }
+  if (H.wild) {
+    // Mähne: lange, abstehende Strähnen am Hinterkopf mit Glutspitzen
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI * (0.62 + i * 0.1), r0 = g.rx - 0.5;
+      const bx = cx + Math.cos(a) * r0, by = cy + Math.sin(a) * r0 * 0.9;
+      const len = 2.2 + (i % 3) * 0.7;
+      const ex = bx + Math.cos(a) * len - P.cape * 0.8, ey = by + Math.sin(a) * len * 0.8 + 0.8;
+      for (let k = 0; k < 6; k++) {
+        const t0 = k / 6, t1 = (k + 1) / 6;
+        const c = t0 > 0.7 && L.rl.cracks ? acc[t0 > 0.8 ? 3 : 2] : Hh[t0 > 0.45 ? 1 : 2];
+        R.fline(lerp(bx, ex, t0), lerp(by, ey, t0), lerp(bx, ex, t1), lerp(by, ey, t1), 1.2 * (1 - t0) + 0.3, c);
+      }
+    }
+    if (L.rl.cracks) G.push({ x: Math.round(x0 + 1), y: Math.round(y0 + 3), color: acc[3], r: 1 });
+  }
+  if (H.back && L.hairStyle === 'dwarf') {
+    R.capsule(x0 + 1.6, y0 + 4, x0 + 1.4, y0 + 8.4, 1.9, 1.5, (l, t, e, x, y) => hairCol(Hh, x, y, px, py, l, -0.3));
+  }
+}
+
+function drawHairBackHi(R, L, P, sk) {
+  const helmClosed = L.head && L.head.style !== 'cap';
+  if (L.hood || helmClosed) return;
+  const g = headGeo(sk, L), { x0, y0 } = g, Hh = L.hair;
+  if (L.hairStyle === 'tail') {
+    const sw = P.cape * 2.5;
+    const bx = x0 + 1.4, by = y0 + 3.4;
+    let px = bx, py = by;
+    for (let i = 1; i <= 10; i++) {
+      const t = i / 10;
+      const x = bx - t * (1.4 + sw * 0.9) - Math.sin(P.wave + t * 2) * 0.3 * t, y = by + t * 7.5;
+      R.fline(px, py, x, y, 1.6 - t * 0.9, (s) => band(Hh, 1.6 - t * 0.6 + Math.sin((i + s) * 3) * 0.5));
+      px = x; py = y;
+    }
+    R.ellipse(bx - 0.2, by + 0.3, 0.7, 0.6, L.trim[2]);
+    return;
+  }
+  if (L.hairStyle === 'long' || L.hairStyle === 'mane') {
+    // langes Haar fällt über den Rücken
+    const sw = P.cape * 1.6;
+    const len = L.hairStyle === 'long' ? 9.5 : 6.5;
+    R.each(x0 - 4, y0 + 2, x0 + 5, y0 + 3 + len, (x, y, F, Gi) => {
+      const t = (y - (y0 + 3)) / len;
+      if (t < 0 || t > 1) return;
+      const xa = x0 + 0.8 - t * (1.6 + sw) - Math.sin(P.wave + t * 3) * 0.3 * t, xb = x0 + 4.4 - t * (1.2 + sw * 0.6);
+      const tip = t > 0.82 ? Math.sin(x * 4.1) * 0.5 + 0.5 < (t - 0.82) / 0.18 : false;
+      if (x < xa || x > xb || tip) return;
+      const u = (x - xa) / Math.max(0.5, xb - xa);
+      R.put(F, Gi, band(Hh, 1.2 + (0.5 - u) * 0.6 + Math.sin(x * 6.3 - t * 2) * 0.55 - t * 0.4));
+    });
+  }
+}
+
+// --- Feines Raster: Umhang, Unterteil, Schulter, Hände, Stiefel, Schild -------------------
+function drawCapeHi(R, L, P, sk) {
+  const C = L.cloth, B = sk.B, T = L.trim;
+  const cloak = L.back === 'cloak';
+  const top = sk.topY - (cloak ? 1 : 0);
+  const sx = sk.cxAt(top) - B.back + 1;
+  const hemY = cloak ? -2 : -4;
+  const flare = P.cape;
+  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0);
+  const hemFront = sk.hipX - 1 - flare * 2;
+  const rows = Math.max(1, hemY - top);
+  R.each(hemBack - 3, top - 0.5, sk.cxAt(top) + 2, hemY + 1, (x, y, F, G) => {
+    const k = clamp((y - top) / rows, 0, 1.04);
+    const wave = Math.sin(P.wave + (y - top) * 0.35) * k * (0.6 + flare * 1.2);
+    const xa = lerp(sx, hemBack, Math.pow(Math.min(1, k), 0.8)) + wave - 0.5, xb = lerp(sk.cxAt(y) + 0.5, hemFront, Math.min(1, k)) + 0.5;
+    if (x < xa || x > xb) return;
+    // gezackter Saum
+    const hem = hemY + 0.5 - Math.abs(Math.sin((x - xa) * 1.7 + P.wave)) * 0.5;
+    if (y > hem) return;
+    const u = (x - xa) / Math.max(0.5, xb - xa);
+    const fold = Math.sin((x - xa) * 1.9 + k * 2 + P.wave * 0.6);
+    let v = 2.1 + (0.35 - u) * 1.6 + fold * 0.55 * Math.min(1, k * 2.5) - k * 0.3;
+    if (y > hem - 0.7) v = 0.6 + (fold > 0 ? 0.6 : 0);           // Saumschatten
+    if (u < 0.08) v -= 0.6;
+    R.put(F, G, band(C, Math.min(v, C.length - 2)));
+  });
+  if (!cloak) {
+    R.ellipse(sx + 0.3, top + 0.3, 0.75, 0.75, (a, b) => (a + b < -0.3 ? T[4] ?? T[3] : T[2]));
+  } else {
+    // Kapuzenansatz des Mantels über den Schultern
+    R.capsule(sx - 0.2, top + 0.4, sk.cxAt(top) + 1, top - 0.2, 1.1, 1.0, (l) => band(C, 2 + l * 1.3));
+  }
+}
+
+function drawLowerHi(R, L, P, sk) {
+  const st = L.chest.style, B = sk.B, A = L.chest.ramp, T = L.chest.trim ?? L.trim;
+  const hy = sk.hipY;
+  const cx = sk.cxAt(hy);
+  const fN = P.footN[0], fF = P.footF[0];
+  if (st === 'robe') {
+    const bot = -1 - Math.min(P.footN[1], P.footF[1]) * 0.5;
+    const top = hy - 1;
+    const front0 = cx + B.front - 0.5, back0 = cx - B.back + 0.5;
+    const frontB = Math.max(fN, fF) + 2.2, backB = Math.min(fN, fF) - 2.2 - P.cape * 2;
+    const n = Math.max(1, bot - top);
+    const mid = (k) => lerp(cx + B.front * 0.35 + 1, (fN + frontB) / 2, k);
+    R.each(Math.min(back0, backB) - 1, top - 0.5, Math.max(front0, frontB) + 1, bot + 0.5, (x, y, F, G) => {
+      const k = clamp((y - top) / n, 0, 1);
+      const xa = lerp(back0, backB, k) - 0.5, xb = lerp(front0, frontB, k) + 0.5;
+      if (x < xa || x > xb) return;
+      const u = (x - xa) / Math.max(0.5, xb - xa);
+      const fold = Math.sin((x - lerp(cx, (fN + fF) / 2, k)) * 2.1) * Math.min(1, k * 2);
+      let c = band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
+      if (y > bot - 0.7) c = T[y > bot - 0.35 ? 1 : 2];             // Saumborte
+      if (Math.abs(x - mid(k)) < 0.3) c = T[2];                      // Vorderkante
+      R.put(F, G, c);
+    });
+    return;
+  }
+  // Schurz über den Oberschenkeln: Platte = Beintaschen, Kette = Kettenschurz, sonst Stoff/Leder-Laschen
+  const kind = st === 'plate' ? 'plate' : st === 'chain' ? 'chain' : st === 'scale' ? 'scale' : st === 'padded' ? 'padded' : 'leather';
+  const len = st === 'leather' ? 2.2 : 3.2;
+  R.each(cx - B.back - 2, hy - 0.5, cx + B.front + 3, hy + len, (x, y, F, G) => {
+    const j = y - hy + 0.5;
+    const xa = cx - B.back + 0.2 - j * 0.3 + Math.min(0, fF) * 0.15 * j, xb = cx + B.front - 0.2 + Math.max(0, fN) * 0.2 * j;
+    if (x < xa || x > xb) return;
+    const u = (x - xa) / Math.max(0.5, xb - xa);
+    // Laschen: unten eingeschnitten
+    const flap = (x - xa) % 1.9;
+    if (j > len - 1 && flap > 1.55) return;
+    if (st === 'plate' && j > len - 0.6 && flap > 1.2) return;
+    let c = matShade(kind, A, (0.4 - u) * 1.3 - j * 0.15, F, G, x, y, Math.abs(u - 0.45) * 2);
+    if (st === 'plate' && Math.abs(j - 1.2) < 0.18) c = A[0];
+    if (st === 'plate' && Math.abs(j - 1.5) < 0.18) c = A[4] ?? A[3];
+    R.put(F, G, c);
+  });
+  if (L.classId === 'warrior' || L.chest.tabard) {
+    // Wappenrock-Latz vorne
+    const Tb = L.chest.tabard ?? L.cloth;
+    const x = cx + B.front * 0.35;
+    R.each(x - 1.6, hy - 0.5, x + 2, hy + 5, (px, y, F, G) => {
+      const j = y - hy + 0.5, w = 1.1 - j * 0.04, c0 = x + j * 0.12 + Math.sin(P.wave + j) * 0.15 * j;
+      if (Math.abs(px - c0) > w || j > 4.6 - Math.abs(px - c0) * 0.8) return;
+      const edge = Math.abs(px - c0) > w - 0.34 || j > 4.3 - Math.abs(px - c0) * 0.8;
+      R.put(F, G, edge ? T[2] : band(Tb, 2.2 - (px - c0) * 0.9 + Math.sin(j * 2) * 0.2));
+    });
+  }
+}
+
+function drawPauldronHi(R, L, sk) {
+  const st = L.chest.style, Sh = L.chest.shoulder;
+  const x = sk.shN.x, y = sk.topY + 0.4;
+  if (st === 'plate' || (Sh && st !== 'leather')) {
+    const A = Sh ?? L.chest.ramp;
+    const big = st === 'plate' ? 1 : 0;
+    // gestufte Schulterplatten (2–3 Lagen), obere Lage am größten
+    const layers = big ? 3 : 2;
+    for (let i = layers - 1; i >= 0; i--) {
+      const ly = y + 1.2 + i * 1.1, rw = 2.7 + big * 0.7 - i * 0.35, rh = 1.7 + big * 0.3 - i * 0.2;
+      R.ellipse(x + 0.2 + i * 0.1, ly, rw, rh, (nx, ny, d) => {
+        if (ny < -0.2 && i > 0) return null;
+        const l = nx * LX + ny * LY;
+        if (d > 0.8 && ny > 0.2) return A[0];
+        return band(A, Math.min(2 + l * 2 + (l > 0.5 && d > 0.2 && d < 0.6 ? 1 : 0), A.length - 1));
+      });
+    }
+    R.ellipse(x + 0.2, y + 0.6, 2.9 + big * 0.7, 2.0 + big * 0.35, (nx, ny, d) => {
+      const l = nx * LX + ny * LY;
+      if (ny > 0.55) return null;
+      if (d > 0.82) return ny > 0 ? A[0] : A[1];
+      return band(A, Math.min(2.1 + l * 2.1 + (l > 0.45 && d > 0.15 && d < 0.55 ? 1.2 : 0), A.length - 1));
+    });
+    const T = L.trim;
+    if (T && st === 'plate') R.fline(x - 2.6 - big * 0.4, y + 1.5, x + 2.6 + big * 0.6, y + 1.5, 0.34, T[2]);
+    R.dot(x - 1.4, y + 1.0, A[4] ?? A[3]); R.dot(x + 1.6, y + 1.0, A[4] ?? A[3]);          // Nieten
+    if (L.chest.spikes) {
+      const Sp = L.chest.glow ?? A;
+      for (const [dx, h] of [[-1.6, 1.6], [-0.2, 2.1]]) {
+        R.fline(x + dx, y + 0.2, x + dx - 1.0, y - h, 0.8, (t) => (t > 0.75 ? Sp[3] : A[t > 0.35 ? 3 : 2]));
+      }
+    }
+  } else if (st === 'leather') {
+    const A = Sh ?? L.chest.ramp;
+    R.ellipse(x + 0.1, y + 0.9, 2.3, 1.4, (nx, ny, d) => (d > 0.8 ? A[1] : band(A, 2 + (nx * LX + ny * LY) * 1.6)));
+    R.fline(x - 1.8, y + 1.5, x + 1.9, y + 1.5, 0.34, M.leather[1]);
+    if (L.chest.fur) {
+      for (let i = 0; i < 9; i++) {
+        const fx = x - 2.2 + i * 0.5, h = 0.9 + Math.sin(i * 2.3) * 0.5;
+        R.fline(fx, y + 0.3, fx - 0.3, y - h, 0.45, L.chest.fur[i & 1 ? 3 : 2]);
+      }
+    }
+  } else if (st === 'robe') {
+    const A = L.chest.ramp, T = L.chest.trim ?? L.trim;
+    R.ellipse(x, y + 1, 2.2, 1.4, (nx, ny, d) => (d > 0.78 && ny > 0 ? T[2] : band(A, 2.2 + (nx * LX + ny * LY) * 1.4)));
+  }
+}
+
+function drawHandHi(R, L, x, y, far) {
+  const base = L.gloves ?? L.skin;
+  const h = far ? dimRamp(base) : base;
+  // Faust: runder Handballen, Fingerknöchel vorne, Daumen oben
+  R.ellipse(x - 0.1, y, 1.25, 1.15, (nx, ny, d) => {
+    const l = nx * LX + ny * LY;
+    if (d > 0.75 && ny > 0.1) return h[0];
+    return band(h, Math.min(1.8 + l * 1.5, h.length - 1));
+  });
+  R.fline(x + 0.5, y - 0.8, x + 0.9, y + 0.7, 0.34, h[1]);       // Fingerlinie
+  R.dot(x - 0.6, y - 0.8, h[3] ?? h[2]);
+  if (L.glovesMetal && !far) { R.dot(x + 0.1, y - 0.5, h[4] ?? h[3]); R.dot(x + 0.4, y + 0.2, h[4] ?? h[3]); }
+  if (L.glovesGlow && !far) R.dot(x, y - 0.4, L.glovesGlow[3]);
+}
+
+function drawBootHi(R, L, ax, ay, lift, near, leg) {
+  const b = near ? L.boots : dimRamp(L.boots);
+  const metal = L.bootsMetal;
+  // Schaft über dem Knöchel mit Stulpe
+  const mx = leg.jx + (leg.ex - leg.jx) * 0.5, my = leg.jy + (leg.ey - leg.jy) * 0.5;
+  R.capsule(mx, my, leg.ex, leg.ey, 1.4 * L.body.limb, 1.35 * L.body.limb, tone(b, metal, metal ? 'plate' : 'leather'));
+  R.fline(mx - 1.3 * L.body.limb, my, mx + 1.3 * L.body.limb, my - 0.1, 0.5, b[metal ? 4 : 3] ?? b[3]);   // Stulpe
+  const tilt = lift > 1.2 && ax < leg.jx - 0.5 ? 0.5 : 0;
+  // Fuß: Ferse hinten, Spitze vorne, Sohle dunkel
+  R.each(ax - 2, ay - 1, ax + 3.5, ay + 2, (x, y, F, G) => {
+    const fx = x - ax, fy = y - ay - fx * tilt * 0.3;
+    const top = fx < 0.4 ? -0.6 : -0.6 + (fx - 0.4) * 0.45;
+    const tip = 2.9 - Math.max(0, fy - 0.3) * 0.6;
+    if (fx < -1.5 || fx > tip || fy < top || fy > 1.5) return;
+    let c = band(b, 2 + (fy < 0 ? 1 : 0) - (fx > 2 ? 0.5 : 0));
+    if (fy > 1.0) c = b[0];                                      // Sohle
+    if (metal && fy < 0.3 && ((F >> 1) & 1)) c = b[3];           // Plattenschuh: Lamellen
+    R.put(F, G, c);
+  });
+  if (L.bootsGlow && near) R.dot(ax + 1.2, ay - 0.3, L.bootsGlow[3]);
+}
+
+function drawShieldHi(R, L, x, y, P) {
+  // Heraldischer Schild (Dreiviertelansicht) mit Metallrand, Buckel und Wappen
+  const C = L.cloth, Rim = M.iron, T = L.trim;
+  const cx = x + 1.3, cy = y + 0.3;
+  const shape = (px, py) => {
+    const u = (px - cx) / 3.2, v = (py - cy + 3.6) / 8.6;           // v: 0 oben .. 1 Spitze
+    if (v < 0 || v > 1) return -1;
+    const w = v < 0.55 ? 1 : 1 - Math.pow((v - 0.55) / 0.45, 1.4);
+    return Math.abs(u) <= w ? Math.abs(u) / Math.max(0.01, w) : -1;
+  };
+  R.each(cx - 4, cy - 4.5, cx + 4, cy + 5.5, (px, py, F, G) => {
+    const k = shape(px, py);
+    if (k < 0) return;
+    const v = (py - cy + 3.6) / 8.6;
+    const edge = k > 0.8 || v < 0.06 || shape(px, py + 0.5) < 0;
+    const l = (-(px - cx) * 0.3 - (py - cy) * 0.15);
+    let c;
+    if (edge) c = band(Rim, 2 + l * 0.8 + (px < cx ? 0.8 : -0.3));
+    else {
+      c = band(C, 2.2 + l * 0.5 + (px - cx < -0.2 ? 0.6 : 0));
+      if (Math.abs(px - cx - 0.1) < 0.3 || Math.abs(py - cy + 0.4) < 0.25) c = T[px < cx ? 2 : 1];  // Kreuz
+    }
+    R.put(F, G, c);
+  });
+  // Buckel
+  R.ellipse(cx + 0.1, cy - 0.4, 0.9, 0.9, (nx, ny) => (nx + ny < -0.4 ? T[4] ?? T[3] : nx + ny > 0.5 ? T[1] : T[2]));
+  R.dot(cx - 0.2, cy - 0.7, '#fff6d0');
+}
+
+function drawScarfHi(R, L, P, sk) {
+  const C = L.cloth;
+  const x0 = sk.neck.x - 2, y0 = sk.neck.y + 1;
+  let px = x0, py = y0;
+  for (let i = 1; i <= 14; i++) {
+    const t = i / 14;
+    const x = x0 - t * 7, y = y0 + Math.sin(P.wave * 1.3 + t * 6) * (0.6 + P.cape) * t + t * 3;
+    R.fline(px, py, x, y, 1.6 - t * 0.5, (s) => band(C, 2.6 - t * 1 + Math.sin((i + s) * 1.3) * 0.4));
+    px = x; py = y;
+  }
+  R.capsule(sk.neck.x - 2, y0 - 0.4, sk.neck.x + 1.6, y0 - 0.2, 1.1, 1.0, (l, t, e, x, y, F, G) => matShade('cloth', C, l + 0.3, F, G, x, y));
+}
+
+function drawQuiverHi(R, L, sk) {
+  const x = sk.cxAt(sk.topY) - sk.B.back - 1, y = sk.topY - 3;
+  R.capsule(x, y, x + 3.4, y + 9.5, 1.3, 1.1, (l, t, e, px, py, F, G) => {
+    if (Math.abs(t - 0.3) < 0.03 || Math.abs(t - 0.75) < 0.03) return L.trim[2];
+    return matShade('leather', M.leather, l, F, G, px, py);
+  });
+  // Pfeile mit Befiederung
+  for (const [dx, c] of [[-0.8, '#e8e0d0'], [0, '#c83a2a'], [0.8, '#d8d0c0']]) {
+    R.fline(x + dx, y + 0.5, x + dx - 0.3, y - 1.8, 0.34, M.wood[3]);
+    R.fline(x + dx - 0.3, y - 1.6, x + dx - 0.5, y - 2.6, 0.6, c);
+  }
 }
 
 // --- Kopf -----------------------------------------------------------------------------
@@ -830,7 +1575,7 @@ const HAIR = {
   ] },
 };
 
-function drawHairBack(R, L, P, sk) {
+function drawHairBackLow(R, L, P, sk) {
   if (L.hairStyle === 'tail' && !L.hood && !(L.head && L.head.style !== 'cap')) {
     // Zopf: vom Hinterkopf, schwingt mit dem Umhang
     const h = L.hair, x = sk.neck.x - 4, y = sk.neck.y - 7;
@@ -851,7 +1596,7 @@ function drawHairBack(R, L, P, sk) {
   }
 }
 
-function drawHead(R, G, L, P, sk) {
+function drawHeadLow(R, G, L, P, sk) {
   const x0 = sk.neck.x - 4, y0 = sk.neck.y - 9;
   const S = L.skin, Hh = L.hair, acc = L.accent;
   const hurt = P.hurt > 0.5;
@@ -1039,7 +1784,7 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
   const Bl = far ? dimRamp(w.blade ?? M.iron) : w.blade ?? M.iron;
   const Gd = w.guard ?? M.iron, Gr = w.grip ?? M.leather;
   const width = w.width ?? 1;
-  const half = width >= 3 ? 1.8 : width >= 2 ? 1.35 : 1;
+  const half = (width >= 3 ? 1.8 : width >= 2 ? 1.35 : 1) * (S >= 3 ? (w.short ? 0.62 : 0.8) : 1);
   const gw = w.short ? 1.8 : (w.guardW ?? 2.8);
   const curve = w.curve ?? 0;
   R.axis(hx, hy, ang, -3.2, len + 1.5, Math.max(gw, half + Math.abs(curve) + 0.6), (u, lv) => {
@@ -1191,23 +1936,45 @@ function drawBow(R, G, w, bx, by, pull, arrow, tiltA) {
     if (rec && Math.abs(t) > 0.8) x -= (Math.abs(t) - 0.8) * 6;
     pts.push({ ...T(x, i), t, lx: x, ly: i });
   }
-  for (const p of pts) {
-    const grip = Math.abs(p.t) < 0.12;
-    R.set(p.x, p.y, grip ? (w.grip ?? M.leather)[3] : Wd[Math.abs(p.t) > 0.85 ? 3 : 2]);
-    if (!grip && Math.abs(p.t) < 0.8) { const q = T(p.lx + 1, p.ly); R.set(q.x, q.y, Wd[1]); }
+  const fine = S >= 3;
+  if (fine) {
+    // Bogenarme als feine, zur Spitze dünner werdende Linien; Griff umwickelt
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i], q = pts[i + 1], at = Math.abs(p.t);
+      const grip = at < 0.14;
+      const wdt = grip ? 1.3 : 1.15 - at * 0.55;
+      R.fline(p.x, p.y, q.x, q.y, wdt, grip ? (w.grip ?? M.leather)[(i & 1) ? 2 : 3] : Wd[at > 0.85 ? 3 : 2]);
+      if (!grip) { const a = T(p.lx + 0.45, p.ly), b = T(q.lx + 0.45, q.ly); R.fline(a.x, a.y, b.x, b.y, 0.34, Wd[1]); }
+      if (!grip && at < 0.8) { const a = T(p.lx - 0.35, p.ly), b = T(q.lx - 0.35, q.ly); R.fline(a.x, a.y, b.x, b.y, 0.3, Wd[4] ?? Wd[3]); }
+    }
+  } else {
+    for (const p of pts) {
+      const grip = Math.abs(p.t) < 0.12;
+      R.set(p.x, p.y, grip ? (w.grip ?? M.leather)[3] : Wd[Math.abs(p.t) > 0.85 ? 3 : 2]);
+      if (!grip && Math.abs(p.t) < 0.8) { const q = T(p.lx + 1, p.ly); R.set(q.x, q.y, Wd[1]); }
+    }
   }
   const top = pts[0], bot = pts[pts.length - 1];
-  if (w.tips) { R.set(top.x, top.y, w.tips[3]); R.set(bot.x, bot.y, w.tips[3]); }
+  if (w.tips) {
+    if (fine) { R.ellipse(top.x, top.y, 0.6, 0.6, w.tips[3]); R.ellipse(bot.x, bot.y, 0.6, 0.6, w.tips[3]); }
+    else { R.set(top.x, top.y, w.tips[3]); R.set(bot.x, bot.y, w.tips[3]); }
+  }
   const s = T(-1 - pull * 7, 0);
   const str = w.string ?? '#d8d0c0';
-  R.line(top.x, top.y, s.x, s.y, str);
-  R.line(s.x, s.y, bot.x, bot.y, str);
+  const ln = (a, b, c, wd = 0.34) => (fine ? R.fline(a.x, a.y, b.x, b.y, wd, c) : R.line(a.x, a.y, b.x, b.y, c));
+  ln(top, s, str);
+  ln(s, bot, str);
   if (arrow) {
     const tip = T(8, 0);
-    R.line(s.x, s.y, tip.x, tip.y, M.wood[3]);
-    R.set(tip.x, tip.y, M.iron[4]); const h1 = T(7, -1), h2 = T(7, 1); R.set(h1.x, h1.y, M.iron[3]); R.set(h2.x, h2.y, M.iron[3]);
-    const f1 = T(-pull * 7, -1), f2 = T(1 - pull * 7, -1), f3 = T(-pull * 7, 1);
-    R.set(f1.x, f1.y, '#e8e0d0'); R.set(f2.x, f2.y, '#c83a2a'); R.set(f3.x, f3.y, '#e8e0d0');
+    ln(s, tip, M.wood[3], 0.45);
+    if (fine) {
+      R.fstamp(tip.x - 0.3, tip.y - 0.7, ['k..', 'kkk', 'k..'].map((r) => r), { k: M.iron[4] });
+      for (const [dy, c] of [[-0.6, '#e8e0d0'], [0.6, '#c83a2a']]) { const a = T(-pull * 7, dy), b = T(1.8 - pull * 7, dy * 0.3); R.fline(a.x, a.y, b.x, b.y, 0.5, c); }
+    } else {
+      R.set(tip.x, tip.y, M.iron[4]); const h1 = T(7, -1), h2 = T(7, 1); R.set(h1.x, h1.y, M.iron[3]); R.set(h2.x, h2.y, M.iron[3]);
+      const f1 = T(-pull * 7, -1), f2 = T(1 - pull * 7, -1), f3 = T(-pull * 7, 1);
+      R.set(f1.x, f1.y, '#e8e0d0'); R.set(f2.x, f2.y, '#c83a2a'); R.set(f3.x, f3.y, '#e8e0d0');
+    }
   }
   weaponAxis(G, w, bx, by, a + Math.PI / 2, -half + 1, half - 1, false);
   if (w.fx && G.length) G[G.length - 1].arc = -3.2 - pull * 0.8;   // Bogen: Achse folgt der Krümmung
@@ -1216,6 +1983,7 @@ function drawBow(R, G, w, bx, by, pull, arrow, tiltA) {
 }
 
 function drawShield(R, L, x, y, P) {
+  if (hi(R)) return drawShieldHi(R, L, x, y, P);
   // Heraldischer Schild in Dreiviertelansicht, vor dem Körper
   const C = L.cloth, Rim = M.iron, T = L.trim;
   const cx = Math.round(x + 1), cy = Math.round(y);
@@ -1239,11 +2007,13 @@ function drawShield(R, L, x, y, P) {
 
 // --- Frames -----------------------------------------------------------------------------
 function makeFrame(L, pose, post) {
+  S = L.res ?? 1;
   let R = new Raster();
   let G = [];
   drawHero(R, G, L, pose);
   if (post) ({ R, G } = post(R, G));
-  const f = buildFrame(W, H, AX, AY, (p) => R.blit(p.ctx));
+  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx));
+  if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)
   return f;
@@ -1637,15 +2407,26 @@ function spinSet(L, S) {
 // --- Öffentliche API ----------------------------------------------------------------------
 const cache = new Map();
 
-export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 0, gear = null, style = null) {
+// Auflösung der Figuren: Feinpixel je Weltpixel (frame.res). Folgt CONFIG.spriteRes
+// (Überabtastung des Spielbilds, INTEGRATION.md §11.12); setHeroRes erzwingt einen Wert (Tests, Vorschau).
+let resOverride = null;
+export function setHeroRes(n) { resOverride = n == null ? null : clamp(n | 0, 1, 3); }
+// Fein (3) sobald das Spielbild mindestens 2-fach überabgetastet wird, sonst die alten Pixelvorlagen (1).
+export function heroRes() {
+  if (resOverride != null) return resOverride;
+  return (CONFIG.renderScale ?? 1) >= 2 ? clamp((CONFIG.spriteRes ?? 3) | 0, 1, 3) : 1;
+}
+
+export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 0, gear = null, style = null, resWanted = null) {
   const rl = RACE_LOOK[raceId] ?? RACE_LOOK.human;
   const v = Math.max(0, Math.min(rl.variants.length - 1, variant | 0));
-  const key = `${raceId}|${classId}|${v}|${gearKey(gear)}|${style?.dye ?? ''}|${style?.hairStyle ?? ''}`;
+  const res = resWanted ?? heroRes();
+  const key = `${res}|${raceId}|${classId}|${v}|${gearKey(gear)}|${style?.dye ?? ''}|${style?.hairStyle ?? ''}`;
   let set = cache.get(key);
   if (!set) {
-    set = buildSet(resolveLook(raceId, classId, v, gear, style));
+    set = buildSet({ ...resolveLook(raceId, classId, v, gear, style), res });
     cache.set(key, set);
-    if (cache.size > 40) cache.delete(cache.keys().next().value);
+    if (cache.size > (res >= 3 ? 10 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 9× so groß
   }
   return set;
 }
@@ -1653,4 +2434,106 @@ export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 
 // Rückwärtskompatibel für Assets.js (Standardfigur: menschlicher Krieger).
 export function createHeroSprites() {
   return getHeroSprites('human', 'warrior', 0);
+}
+
+function drawHelmHi(R, G, L, helm, g, P) {
+  const { x0, y0, cx, cy } = g, A = helm.ramp;
+  const top = A.length - 1;
+  const metalSh = (x, y, extra = 0) => {
+    const l = lit(x, y, cx - 0.2, cy - 0.6, 4.8, 4.8);
+    let v = 2 + l * 2 + extra;
+    if (l > 0.5 && l < 0.75) v = top;                          // Glanzstreifen
+    return band(A, Math.min(v, top));
+  };
+  if (helm.style === 'cap') {
+    // Lederkappe mit Naht und Krempe
+    R.ellipse(cx - 0.1, cy - 0.5, g.rx + 0.4, g.ry, (nx, ny, d, x, y) => (y > y0 + 3.1 ? null : matShade('leather', A, lit(x, y, cx, cy - 1, 4.5, 4.5) * 1.3, R.fx(x), R.fy(y), x, y)));
+    R.fline(x0 + 0.1, y0 + 3.2, x0 + 8.9, y0 + 3.0, 0.7, (t) => A[t < 0.3 ? 3 : 2]);
+    R.fline(x0 + 4.6, y0 - 0.4, x0 + 5.2, y0 + 2.8, 0.34, A[1]);
+    for (let t = 0.1; t < 0.95; t += 0.18) R.dot(lerp(x0 + 0.4, x0 + 8.6, t), y0 + 3.5, A[1]);
+    return;
+  }
+  if (helm.style === 'hood') return drawHoodHi(R, G, { ...L, cloth: A }, g, P);
+  const closed = helm.style === 'great';
+  const brim = closed ? y0 + 9 : y0 + 3.8;
+  // Helmkuppel (bei geschlossenem Helm bis zum Kinn)
+  R.ellipse(cx, cy - 0.3, g.rx + 0.55, g.ry + 0.5, (nx, ny, d, x, y) => {
+    if (y > brim) return null;
+    if (d > 0.9 && ny > 0) return A[1];
+    return metalSh(x, y);
+  });
+  if (closed) {
+    R.ellipse(x0 + 5.9, y0 + 6.4, 3.3, 2.7, (nx, ny, d, x, y) => (d > 0.85 && ny > 0.2 ? A[0] : metalSh(x, y, -0.3)));
+    // Grat, Sehschlitz, Atemlöcher
+    R.fline(x0 + 5.6, y0 - 0.2, x0 + 6.4, y0 + 8.6, 0.34, A[top]);
+    R.fline(x0 + 4.9, y0 + 4.7, x0 + 9.1, y0 + 4.9, 0.6, '#0c0810');
+    R.fline(x0 + 4.9, y0 + 4.3, x0 + 9.0, y0 + 4.45, 0.3, A[top]);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) R.dot(x0 + 7.6 + j * 0.7, y0 + 6.2 + i * 0.66, '#0c0810');
+  } else {
+    // Stirnreif mit Nieten, Nasenschutz, Wangenklappe hinten
+    R.fline(x0 - 0.3, brim - 0.2, x0 + 9.0, brim - 0.3, 0.8, (t) => A[t < 0.45 ? 3 : 1]);
+    for (let t = 0.08; t < 0.95; t += 0.16) R.dot(lerp(x0, x0 + 8.8, t), brim - 0.3, A[top]);
+    R.fline(x0 + 8.0, brim - 0.4, x0 + 8.3, y0 + 6.5, 0.8, (t) => A[t < 0.5 ? 3 : 2]);
+    R.capsule(x0 + 2.2, brim, x0 + 2.6, y0 + 7.0, 1.2, 1.0, (l) => band(A, 1.6 + l * 1.4));
+  }
+  if (helm.style === 'horned') {
+    const Bn = M.bone;
+    const horn = (bx, by, dir, dim) => {
+      let px = bx, py = by;
+      for (let i = 1; i <= 10; i++) {
+        const t = i / 10;
+        const x = bx + dir * t * 2.6 + dir * Math.sin(t * 2.2) * 0.4, y = by - t * 4.6 + t * t * 1.2;
+        const c = (dim ? dimRamp(Bn) : Bn)[t < 0.35 ? 2 : t < 0.8 ? 3 : 4] ?? Bn[3];
+        R.fline(px, py, x, y, 1.3 * (1 - t) + 0.35, c);
+        px = x; py = y;
+      }
+    };
+    horn(x0 + 2.2, y0 + 0.6, -1, true);
+    horn(x0 + 6.8, y0 + 0.4, 1, false);
+  }
+  if (helm.crown) {
+    const C = helm.crown;
+    for (const [dx, h] of [[1.8, 2], [3.6, 3], [5.4, 3.4], [7.2, 2.2]]) {
+      R.fline(x0 + dx, y0 + 0.6, x0 + dx + 0.2, y0 + 0.6 - h, 0.9, (t) => C[t > 0.7 ? 4 : t > 0.35 ? 3 : 2] ?? C[3]);
+    }
+    R.fline(x0 + 1.2, y0 + 0.9, x0 + 7.8, y0 + 0.5, 0.6, C[2]);
+    G.push({ x: Math.round(x0 + 5), y: Math.round(y0 - 2), color: C[3], r: 2 });
+  } else if (helm.crest) {
+    // Helmbusch: viele Strähnen vom Scheitel nach hinten, wehend
+    const C = helm.crest;
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7;
+      const bx = x0 + 5.6 - t * 2.4, by = y0 - 0.9 + t * 0.3;
+      const ex = bx - 2.6 - t * 1.8 - P.cape * 1.4, ey = by + 1.2 + t * 3.5 + Math.sin(P.wave + i) * 0.3;
+      R.fline(bx, by, (bx + ex) / 2 - 0.2, by - 0.7, 0.55, C[i & 1 ? 3 : 2]);
+      R.fline((bx + ex) / 2 - 0.2, by - 0.7, ex, ey, 0.5, C[i & 1 ? 2 : 1]);
+    }
+    R.fline(x0 + 5.6, y0 - 0.7, x0 + 3.0, y0 - 1.2, 0.4, C[4] ?? C[3]);
+  }
+  if (helm.rarity === 'epic' || helm.rarity === 'legendary') {
+    const gc = helm.rarity === 'epic' ? M.purple : M.ember;
+    if (closed) { R.fline(x0 + 6.4, y0 + 4.7, x0 + 8.4, y0 + 4.85, 0.45, gc[3]); G.push({ x: Math.round(x0 + 7), y: Math.round(y0 + 5), color: gc[3], r: 1.5 }); }
+    else { R.ellipse(x0 + 5.2, y0 + 1.4, 0.55, 0.55, gc[3]); G.push({ x: Math.round(x0 + 5), y: Math.round(y0 + 1), color: gc[3], r: 1.2 }); }
+  }
+}
+
+function drawHoodHi(R, G, L, g, P) {
+  const { x0, y0, cx, cy } = g, C = L.cloth;
+  // Kapuze: weiter Stoff um den Kopf, Gesicht im Schatten, Zipfel hinten
+  R.capsule(x0 + 1.2, y0 + 3.2, x0 - 1.8 - P.cape * 0.8, y0 + 5.2 + P.cape, 2.2, 0.5, (l, t, e, x, y, F, Gi) => matShade('cloth', C, l - 0.2, F, Gi, x, y));
+  R.ellipse(cx - 0.2, cy + 0.3, g.rx + 1.1, g.ry + 1.1, (nx, ny, d, x, y) => {
+    const F = R.fx(x), Gi = R.fy(y);
+    if (d > 0.88 && ny > 0.3) return C[0];
+    return matShade('cloth', C, lit(x, y, cx - 1, cy - 1, 5.5, 5.5) * 1.2, F, Gi, x, y);
+  });
+  // Gesichtsöffnung
+  R.ellipse(x0 + 6.9, y0 + 5.4, 2.4, 2.9, (nx, ny, d) => (d > 0.72 && nx < 0 ? C[1] : '#0c0810'));
+  const Sk = L.skin;
+  R.ellipse(x0 + 7.5, y0 + 5.7, 1.5, 2.1, (nx, ny) => (ny < -0.3 ? null : band(Sk, 0.8 + nx * 0.8)));
+  const eye = L.rl.cracks ? L.accent[4] : '#d8d0c0';
+  R.fstamp(x0 + 6.8, y0 + 4.6, ['kk.kk', 'ew.ew'], { k: Sk[0], e: eye, w: L.rl.cracks ? L.accent[3] : '#9a9088' });
+  if (L.rl.cracks) G.push({ x: Math.round(x0 + 7), y: Math.round(y0 + 5), color: L.accent[4], r: 1.2 });
+  // Halstuch über Mund und Nase
+  R.capsule(x0 + 5.6, y0 + 7.4, x0 + 9.2, y0 + 7.0, 1.3, 1.1, (l, t, e, x, y, F, Gi) => matShade('cloth', C, l, F, Gi, x, y));
+  R.fline(x0 + 5.3, y0 + 8.2, x0 + 9.0, y0 + 7.9, 0.34, C[1]);
 }

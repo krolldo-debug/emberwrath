@@ -25,6 +25,7 @@ export class CharacterListScene extends MenuScene {
 
   #render() {
     const g = this.game, acc = g.account;
+    const online = !!(acc && g.online?.isOnlineAccount?.(acc.id));
     const chars = g.save.listCharacters(acc.id);
     this.portraits = [];
     const cards = chars.map((c) => {
@@ -53,13 +54,15 @@ export class CharacterListScene extends MenuScene {
     const panel = h('div.ef-panel.acc-panel',
       h('header.acc-head',
         h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück zum Titel' }, '‹'),
-        h('div', h('h2.ef-sub', `Charaktere von „${acc.name}“`), h('p.acc-step', 'Lokaler Demo-Account · auf diesem Gerät gespeichert'))),
+        h('div', h('h2.ef-sub', `Charaktere von „${acc.name}“`), h('p.acc-step', online ? 'Online-Konto · in der Cloud gesichert' : 'Lokaler Demo-Account · auf diesem Gerät gespeichert'))),
       cards.length ? h('div.acc-list', cards) : h('p.acc-empty', 'Dieser Account hat noch keinen Charakter.'),
       h('div.acc-actions',
         h('button.ef-btn.primary', { type: 'button', disabled: full, onclick: () => g.scenes.go('characterCreate', { from: 'characters' }) },
           full ? `Maximal ${MAX_CHARACTERS} Charaktere` : 'Neuen Charakter erschaffen'),
-        h('button.ef-btn', { type: 'button', onclick: () => { g.logout(); g.scenes.go('account', { next: 'characters' }); } }, 'Account wechseln')),
-      localNotice(g, { compact: true }));
+        h('button.ef-btn', { type: 'button', onclick: () => (online ? g.online.open('account') : (g.logout(), g.scenes.go('account', { next: 'characters' }))) }, 'Account wechseln')),
+      online
+        ? h('div.acc-notice.acc-cloud', { role: 'note' }, h('span.acc-notice-icon', { 'aria-hidden': 'true' }, '✓'), h('div', h('p', 'In der Cloud gesichert · auf jedem Gerät mit deinem Konto spielbar')))
+        : localNotice(g, { compact: true }));
     this.root.replaceChildren(panel);
   }
 

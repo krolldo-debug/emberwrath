@@ -10,6 +10,11 @@ export const CONFIG = {
   landscapeView: { width: 480, height: 270 },
   portraitView: { width: 270, minHeight: 360, maxHeight: 480 },
   portraitScenes: ['play'],
+  // Überabtastung (INTEGRATION §11.12): Das Spielbild wird mit bis zu spriteRes Bildpunkten je Weltpixel
+  // gezeichnet (Game setzt ctx.setTransform(k,0,0,k,0,0)). Systeme zeichnen weiter in Weltpixeln; Figuren mit
+  // frame.res > 1 zeigen dadurch feinere Details. renderScale = das aktuell genutzte k (live lesen, nur Game schreibt).
+  spriteRes: 3,
+  renderScale: 1,
   tileSize: 16,
   fixedStep: 1 / 60,
   maxFrameTime: 0.25,

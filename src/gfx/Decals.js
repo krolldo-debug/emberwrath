@@ -40,8 +40,11 @@ export class Decals {
   stampFrame(frame, x, y, flip, alpha = 1) {
     const img = flip ? frame.flipped : frame.canvas;
     const ax = flip ? frame.canvas.width - frame.ax : frame.ax;
+    const r = frame.res ?? 1; // Dekal-Ebene hat Weltauflösung: feine Frames werden verkleinert (§11.12)
     this.ctx.globalAlpha = alpha;
-    this.ctx.drawImage(img, Math.round(x - ax), Math.round(y - frame.ay));
+    this.ctx.imageSmoothingEnabled = r !== 1;
+    this.ctx.drawImage(img, Math.round(x - ax / r), Math.round(y - frame.ay / r), Math.round(img.width / r), Math.round(img.height / r));
+    this.ctx.imageSmoothingEnabled = false;
     this.ctx.globalAlpha = 1;
   }
 }

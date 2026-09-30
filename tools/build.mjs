@@ -32,6 +32,11 @@ function load(abs) {
 const entry = resolve(root, 'src/main.js');
 load(entry);
 
+// Syntaxprüfung je Modul: ein Fehler bricht den Build ab, statt still im dist zu landen.
+for (const m of modules.values()) {
+  try { new Function(m.code); } catch (e) { console.error(`Syntaxfehler in ${m.id}: ${e.message}`); process.exit(1); }
+}
+
 let bundle = 'const __defs = {}, __cache = {};\n';
 bundle += 'function __require(id) { if (!(id in __cache)) __cache[id] = __defs[id](); return __cache[id]; }\n';
 for (const m of modules.values()) bundle += `__defs[${JSON.stringify(m.id)}] = function () {\n${m.code}\n};\n`;

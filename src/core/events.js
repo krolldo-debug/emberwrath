@@ -8,6 +8,9 @@ export const EV = Object.freeze({
   VIEW_RESIZED: 'view:resized',          // { width, height, portrait }  (internes Bild hat neue Größe)
   GAME_STARTED: 'game:started',          // { accountId, characterId, isNew }
   GAME_SAVED: 'game:saved',              // { at, reason }
+  SAVE_CHARACTER: 'save:character',      // { accountId, characterId }  – jeder erfolgreiche Charakter-Schreibvorgang (SaveStore)
+  SAVE_DELETED: 'save:deleted',          // { accountId, characterId, fromSync }
+  ONLINE_CHANGED: 'online:changed',      // { user, status }  – An-/Abmeldung, Sync-Status (src/online)
   STATE_CHANGED: 'state:changed',        // { type, payload, result }  (nach jedem Command)
 
   // Account & Charakter (A)

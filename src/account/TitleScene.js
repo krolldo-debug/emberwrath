@@ -50,7 +50,10 @@ export class TitleScene extends MenuScene {
           h('button.ef-btn.acc-big', { type: 'button', onclick: () => this.#newGame() },
             h('span.acc-btn-title', 'Neues Spiel'),
             h('span.acc-btn-sub', 'Demo-Account wählen und Charakter erschaffen')),
-          h('button.ef-btn', { type: 'button', onclick: () => g.scenes.go('account', { next: 'characters' }) }, 'Accounts & Charaktere')),
+          h('button.ef-btn', { type: 'button', onclick: () => g.scenes.go('account', { next: 'characters' }) }, 'Accounts & Charaktere'),
+          // Online-Konto (src/online, docs/ONLINE.md): nur wenn eingerichtet
+          g.online ? h('button.ef-btn.acc-online', { type: 'button', onclick: () => g.online.open(g.online.user ? 'account' : 'login') },
+            g.online.user ? `Konto (${g.online.displayName ?? 'angemeldet'})` : 'Anmelden') : null),
         localNotice(g),
         h('p.acc-footer', 'Prototyp · Einzelspieler · Lokale Instanz')));
     if (lastChar) this.#keyContinue = true;

@@ -271,14 +271,16 @@ export class Hud {
 
   #drawPortrait(hero) {
     const frame = hero?.animator?.anims?.idle?.frames?.[0];
+    const r = frame?.res ?? 1; // Texel je Weltpixel (§11.12): Porträt zeigt die volle Detailtiefe
+    if (this.portrait.width !== 32 * r) { this.portrait.width = 32 * r; this.portrait.height = 32 * r; }
     const ctx = this.portrait.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, 32, 32);
+    ctx.clearRect(0, 0, this.portrait.width, this.portrait.height);
     if (!frame) return;
     const img = frame.canvas;
-    // Kopf und Oberkörper zentriert, 1:1-Pixel
-    const sx = Math.round(frame.ax - 16), sy = Math.round(frame.ay - (hero.bodyHeight ?? 16) - 14);
-    ctx.drawImage(img, sx, sy, 32, 32, 0, 0, 32, 32);
+    // Kopf und Oberkörper zentriert, 1:1-Texel
+    const sx = Math.round(frame.ax - 16 * r), sy = Math.round(frame.ay - ((hero.bodyHeight ?? 16) + 14) * r);
+    ctx.drawImage(img, sx, sy, 32 * r, 32 * r, 0, 0, 32 * r, 32 * r);
     this.portraitDirty = false;
   }
 

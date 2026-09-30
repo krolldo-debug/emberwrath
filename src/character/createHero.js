@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { computeStats } from './stats.js';
 import { DEFAULT_RACE } from './races.js';
 import { DEFAULT_CLASS } from './classes.js';
-import { getHeroSprites } from '../sprites/hero.js';
+import { getHeroSprites, heroRes } from '../sprites/hero.js';
 import { resolveGear, gearKey } from './gearLook.js';
 import { PASSIVES, TALENT_TIERS } from './talents.js';
 import { spriteStyle } from './cosmetics.js';
@@ -28,12 +28,13 @@ export function createHero(session, x, y) {
   const hero = new Hero(x, y, { anims, cls, stats: computeStats(state, content), abilities });
   hero.raceId = raceId;
   hero.gearKey = lookKey(gear, ch.appearance);
+  hero.refreshLook = () => refreshLook(session, hero);   // Hero ruft das bei geänderter Bildfeinheit (renderScale)
   wireSession(session);
   return hero;
 }
 
 // Ausrüstung und Kosmetik sichtbar machen: bei Änderung neue Sprites setzen.
-const lookKey = (gear, a) => `${gearKey(gear)}|${a?.variant ?? 0}|${a?.dye ?? ''}|${a?.hairStyle ?? ''}`;
+const lookKey = (gear, a) => `${heroRes()}|${gearKey(gear)}|${a?.variant ?? 0}|${a?.dye ?? ''}|${a?.hairStyle ?? ''}`;
 function refreshLook(session, h) {
   const { state, content } = session;
   const gear = resolveGear(state.slices.inventory?.equipment, content);

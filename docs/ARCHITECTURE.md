@@ -22,6 +22,8 @@ Reines HTML + JavaScript (ES-Module) + Canvas 2D. Keine Abhängigkeiten, keine B
 2. **Interne Pixel-Auflösung 480×270** (quer) bzw. **270×360–480** (Hochformat auf dem Handy, nur im Spiel),
    ganzzahlig hochskaliert, wenn das ≥ 85 % der Fläche nutzt. `CONFIG.viewWidth/viewHeight` ändern sich zur Laufzeit –
    immer live lesen.
+   Gezeichnet wird überabgetastet (bis 3 Bildpunkte je Weltpixel, `CONFIG.renderScale`, INTEGRATION §11.12), damit Figuren mit
+   `frame.res > 1` feiner aussehen; Systeme zeichnen trotzdem in Weltpixeln.
 3. **Fester Simulationstakt 60 Hz** (`core/GameLoop.js`), Rendering entkoppelt; Fehler in einem Frame werden
    gefangen und gemeldet, die Schleife läuft weiter.
 4. **Systeme sprechen über Events** (`core/events.js`, `EventBus.scope()` pro Sitzung): Gameplay meldet

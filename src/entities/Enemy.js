@@ -699,6 +699,7 @@ function tintedCanvas(f, tint, flip) {
 
 function drawScaled(ctx, f, img, x, y, flip, s, alpha) {
   const ax = flip ? f.canvas.width - f.ax : f.ax;
+  s /= f.res ?? 1; // Texel je Weltpixel (§11.12)
   if (alpha !== 1) ctx.globalAlpha = alpha;
   ctx.drawImage(img, Math.round(x - ax * s), Math.round(y - f.ay * s), Math.round(img.width * s), Math.round(img.height * s));
   if (alpha !== 1) ctx.globalAlpha = 1;

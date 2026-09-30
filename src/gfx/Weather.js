@@ -221,14 +221,16 @@ export class Weather {
 
   #shimmer(ctx, W, H, k) {
     // Nur die untere Bildhälfte (Hitze vom Boden), in 3-px-Streifen um bis zu 1 px versetzt
-    const src = ctx.canvas, t = this.t;
-    if (!this.buf || this.buf.width !== W || this.buf.height !== H) { this.buf = document.createElement('canvas'); this.buf.width = W; this.buf.height = H; this.bctx = this.buf.getContext('2d'); }
+    // Quelle ist das überabgetastete Bild (s Bildpunkte je Weltpixel); gezeichnet wird in Weltpixeln.
+    // Eine Kopie in einen Puffer ist deutlich billiger als Streifen direkt aus dem Bild selbst (gemessen).
+    const src = ctx.canvas, t = this.t, s = src.width / W;
+    const bw = src.width, bh = src.height;
+    if (!this.buf || this.buf.width !== bw || this.buf.height !== bh) { this.buf = document.createElement('canvas'); this.buf.width = bw; this.buf.height = bh; this.bctx = this.buf.getContext('2d'); }
     const y0 = Math.floor(H * 0.35);
-    this.bctx.clearRect(0, 0, W, H);
-    this.bctx.drawImage(src, 0, y0, W, H - y0, 0, y0, W, H - y0);
+    this.bctx.drawImage(src, 0, y0 * s, bw, (H - y0) * s, 0, y0 * s, bw, (H - y0) * s);
     for (let y = y0; y < H; y += 3) {
       const off = Math.round(Math.sin(y * 0.21 + t * 4.2) * k * ((y - y0) / (H - y0)) * 1.4);
-      if (off) ctx.drawImage(this.buf, 0, y, W, 3, off, y, W, 3);
+      if (off) ctx.drawImage(this.buf, 0, y * s, bw, 3 * s, off, y, W, 3);
     }
   }
 

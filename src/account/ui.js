@@ -11,7 +11,9 @@ export function localNotice(game, { compact = false } = {}) {
     ? ['Lokaler Demo-Account · Spielstand nur auf diesem Gerät']
     : [
       'Lokaler Demo-Account: Dein Spielstand wird nur in diesem Browser auf diesem Gerät gespeichert.',
-      'Es gibt kein Passwort, keinen Server und keine Online-Synchronisierung. Andere Spieler sind in diesem Prototyp nicht vorhanden.',
+      game.online?.configured
+        ? 'Ein Demo-Account hat kein Passwort und wird nicht übertragen. Mit „Anmelden“ werden deine Spielstände in der Cloud gesichert. Andere Spieler sind noch nicht im Spiel.'
+        : 'Es gibt kein Passwort, keinen Server und keine Online-Synchronisierung. Andere Spieler sind in diesem Prototyp nicht vorhanden.',
     ];
   const box = h('div.acc-notice', { role: 'note' },
     h('span.acc-notice-icon', { 'aria-hidden': 'true' }, 'i'),
@@ -79,10 +81,12 @@ export function confirmButton(label, confirmLabel, onConfirm, cls = 'ef-btn.dang
 
 // Pixelgenaues Porträt eines Charakters (Canvas, per CSS skaliert).
 // update(dt) animiert; mode 'showcase' wechselt Laufen/Angriff/Fähigkeit.
+const PORTRAIT_RES = 3;
 export class HeroPortrait {
   constructor({ raceId, classId, variant = 0, gear = null, style = null, mode = 'idle', scale = 3, glow = true, backdrop = true }) {
+    // Intern 3-fach aufgelöst (feine Heldenframes, frame.res = 3), gezeichnet in Weltpixeln
     this.canvas = h('canvas.acc-sprite');
-    this.canvas.width = 72; this.canvas.height = 56;
+    this.canvas.width = 72 * PORTRAIT_RES; this.canvas.height = 56 * PORTRAIT_RES;
     this.canvas.style.width = `${72 * scale}px`;
     this.canvas.style.height = `${56 * scale}px`;
     this.ctx = this.canvas.getContext('2d');
@@ -93,7 +97,7 @@ export class HeroPortrait {
   }
 
   set(raceId, classId, variant = 0, gear = null, style = null) {
-    this.anims = getHeroSprites(raceId, classId, variant, gear, style);
+    this.anims = getHeroSprites(raceId, classId, variant, gear, style, PORTRAIT_RES);
     this.t = 0;
     this.draw();
   }
@@ -115,8 +119,10 @@ export class HeroPortrait {
   }
 
   draw() {
-    const { ctx, canvas } = this;
-    const W = canvas.width, H = canvas.height;
+    const { ctx } = this;
+    const W = 72, H = 56;
+    ctx.setTransform(PORTRAIT_RES, 0, 0, PORTRAIT_RES, 0, 0);
+    ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, W, H);
     if (this.backdrop) {
       const g = ctx.createRadialGradient(W / 2, H - 10, 2, W / 2, H - 10, 44);

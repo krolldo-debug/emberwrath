@@ -1,4 +1,5 @@
 import { makeCanvas } from './PixelCanvas.js';
+import { CONFIG } from '../config.js';
 import { getLightSprite } from '../sprites/effects.js';
 
 // Punktlicht. Kann einer Entity folgen, flackern und zeitlich begrenzt sein.
@@ -47,7 +48,8 @@ export class LightingSystem {
   }
 
   apply(ctx, camX, camY, lights) {
-    if (ctx.canvas && (ctx.canvas.width !== this.w || ctx.canvas.height !== this.h)) this.resize(ctx.canvas.width, ctx.canvas.height);
+    // Weltpixel, nicht ctx.canvas: das Spielbild ist überabgetastet (CONFIG.renderScale).
+    if (CONFIG.viewWidth !== this.w || CONFIG.viewHeight !== this.h) this.resize(CONFIG.viewWidth, CONFIG.viewHeight);
     const l = this.ctx;
     const [ar, ag, ab] = this.ambient;
     const k = this.ambientBoost;

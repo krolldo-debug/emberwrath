@@ -34,7 +34,8 @@ export class Afterimage extends Entity {
     ctx.globalAlpha = (this.life / this.max) * 0.35;
     const img = this.flip ? this.frame.flashFlipped : this.frame.flash;
     const ax = this.flip ? this.frame.canvas.width - this.frame.ax : this.frame.ax;
-    ctx.drawImage(img, Math.round(this.x - cx - ax), Math.round(this.y - cy - this.frame.ay));
+    const r = this.frame.res ?? 1; // Texel je Weltpixel (§11.12)
+    ctx.drawImage(img, Math.round((this.x - cx) * r - ax) / r, Math.round((this.y - cy) * r - this.frame.ay) / r, img.width / r, img.height / r);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }

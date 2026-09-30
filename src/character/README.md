@@ -88,3 +88,16 @@ Frisurwahl kostenlos in der Charaktererstellung (Knopf „Frisur“ in der Vorsc
 - `entities/Hero.js`: animierte Effekte aus `frame.weapon`: selten = wandernder Glanz, episch = flackernde Aura, Flammenzungen bzw. Funkeln,
   Partikel je Element und ein Licht am Helden; legendär doppelt so dicht und heller.
 - Account-Auswahl: „Spielstand sichern“ und „Sicherung laden“ (INTEGRATION.md §11.11) mit verständlichen Fehlermeldungen.
+
+## Feine Figuren (Runde 5, INTEGRATION §11.12)
+
+- `sprites/hero.js` rastert mit S Feinpixeln je Weltpixel (`frame.res`). Bei `CONFIG.renderScale >= 2` wird mit S = 3 gebaut
+  (Held ~84 Texel hoch), sonst mit S = 1 (alte Pixelvorlagen, Funktionen `…Low`). `heroRes()`, `setHeroRes(n)` (Tests),
+  `getHeroSprites(…, res)` erzwingt eine Auflösung (Porträts in `account/ui.js` immer 3).
+- Raster: `set/rect/line/stamp` füllen Weltpixel, `dot/fline/fstamp/each` und alle Formen arbeiten im Feinraster.
+  `matShade(kind, …)` gibt Materialstruktur: Platte (Glanz), Kette (Ringe), Schuppen, Steppstoff, Leder, Stoff (Falten), Fell.
+- Fein neu gezeichnet: Kopf mit Augen, Brauen, Nase, Mund, Ohren; alle Frisuren mit Strähnen; Zwergenbart; Hörner;
+  Kapuze; alle Helme (Kappe, Nasal, gehörnt, Topfhelm, Busch, Krone); Rumpf je Rüstungsstil mit Gürtel, Wappen, Schnürung;
+  Umhang, Robe, Schurz, Schulterstücke, Hände, Stiefel, Schild, Schal, Köcher, Bogen, Wischspuren.
+- Hero.js holt die Sprites neu, wenn sich `heroRes()` ändert (Qualitätsstufe). Waffeneffekte zeichnen im Feinraster.
+- Kosten: kompletter Satz ~0,2–0,4 s, idle+run ~30–45 ms (werden verzögert gebaut); Cache bei S = 3 höchstens 10 Sätze.

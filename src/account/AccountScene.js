@@ -61,7 +61,8 @@ export class AccountScene extends MenuScene {
 
   #render(error = null) {
     const g = this.game, save = g.save;
-    const accounts = save.listAccounts();
+    // Online-Konten (Präfix sb_) sind Cloud-Zwischenspeicher und gehören nicht in die Demo-Liste
+    const accounts = save.listAccounts().filter((a) => !g.online?.isOnlineAccount?.(a.id));
     const input = h('input.ef-input.acc-name-input', {
       type: 'text', maxlength: 24, placeholder: 'z. B. Sitzheizung', autocomplete: 'off', spellcheck: 'false',
       'aria-label': 'Name des Demo-Accounts',

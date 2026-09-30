@@ -74,8 +74,9 @@ export class Actor extends Entity {
       // Aus dem Boden steigen: nur der obere Teil ist sichtbar
       const img = this.facing < 0 ? f.flipped : f.canvas;
       const ax = this.facing < 0 ? f.canvas.width - f.ax : f.ax;
+      const r = f.res ?? 1; // Texel je Weltpixel (§11.12)
       const visH = Math.max(1, Math.round(f.ay * this.rise));
-      ctx.drawImage(img, 0, 0, img.width, visH, Math.round(x - ax), Math.round(y - visH), img.width, visH);
+      ctx.drawImage(img, 0, 0, img.width, visH, Math.round(x * r - ax) / r, Math.round(y * r - visH) / r, img.width / r, visH / r);
       return;
     }
     f.draw(ctx, x, y, { flip: this.facing < 0, ...opts });

@@ -6,9 +6,11 @@ export class SpriteFrame {
   // Gespiegelte und weiße Varianten entstehen erst beim ersten Gebrauch: spart beim
   // Zonenaufbau Zeit und auf dem Handy drei Viertel des Grafikspeichers je Frame.
   #flipped = null; #flash = null; #flashFlipped = null;
-  constructor(canvas, anchorX, anchorY) {
+  // res = Texel je Weltpixel (INTEGRATION §11.12). canvas, ax, ay sind in Texeln; gezeichnet wird in Weltpixeln.
+  constructor(canvas, anchorX, anchorY, res = 1) {
     this.canvas = canvas;
     this.ax = anchorX; this.ay = anchorY;
+    this.res = res;
   }
   get flipped() { return this.#flipped ??= flipCanvas(this.canvas); }
   get flash() { return this.#flash ??= silhouette(this.canvas, '#ffffff'); }
@@ -17,7 +19,9 @@ export class SpriteFrame {
     const img = flash ? (flip ? this.flashFlipped : this.flash) : flip ? this.flipped : this.canvas;
     const ax = flip ? this.canvas.width - this.ax : this.ax;
     if (alpha !== 1) ctx.globalAlpha = alpha;
-    ctx.drawImage(img, Math.round(x - ax), Math.round(y - this.ay));
+    const r = this.res;
+    if (r === 1) ctx.drawImage(img, Math.round(x - ax), Math.round(y - this.ay));
+    else ctx.drawImage(img, Math.round(x * r - ax) / r, Math.round(y * r - this.ay) / r, img.width / r, img.height / r);
     if (alpha !== 1) ctx.globalAlpha = 1;
   }
 }

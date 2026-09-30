@@ -5,6 +5,8 @@ import { SLASH_STYLES } from '../sprites/effects.js';
 import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
 import { Light } from '../gfx/Lighting.js';
+import { heroRes } from '../sprites/hero.js';
+import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
 
 // Konstanten, die für alle Klassen gleich sind (Klassenwerte: character/classes.js)
@@ -174,6 +176,9 @@ export class Hero extends Actor {
     }
     this.integrate(dt, world);
     this.#weaponFx(dt, world);
+    // Bildfeinheit geändert (Qualitätsstufe/Fenstergröße): Sprites in passender Auflösung neu holen
+    const lr = heroRes();
+    if (lr !== this.lookRes) { if (this.lookRes !== undefined) this.refreshLook?.(); this.lookRes = lr; }
   }
 
   // Seltenheits-Effekte der Waffe (Stufe aus character/gearLook.js, Achse aus frame.weapon):
@@ -196,7 +201,7 @@ export class Hero extends Actor {
       this.fxAcc -= 1;
       const u = a.u0 + Math.random() * (a.u1 - a.u0);
       const side = Math.random() * 2 - 1 + (a.arc ? a.arc * (1 - ((2 * (u - a.u0)) / (a.u1 - a.u0) - 1) ** 2) : 0);
-      const x = this.x + (a.x + dx * u - dy * side) * f - (f < 0 ? 1 : 0);
+      const x = this.x + (a.x + dx * u - dy * side) * f - (f < 0 ? 1 / (this.currentFrame().res ?? 1) : 0);
       const y = this.y + a.y + dy * u + dx * side;
       const c = el.colors;
       const r = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -493,7 +498,7 @@ export class Hero extends Actor {
     const f = this.currentFrame();
     if (f.glows?.length) {
       for (const g of f.glows) {
-        const x = Math.round(this.x - cx + g.x * this.facing - (this.facing < 0 ? 1 : 0));
+        const x = Math.round(this.x - cx + g.x * this.facing - (this.facing < 0 ? 1 / (f.res ?? 1) : 0));
         const y = Math.round(this.y - cy + g.y);
         const r = Math.max(1, Math.min(4, Math.round(g.r)));
         ctx.globalAlpha = 0.2;
@@ -526,8 +531,11 @@ export class Hero extends Actor {
     const f = this.facing < 0 ? -1 : 1;
     const dx = Math.cos(a.ang), dy = Math.sin(a.ang);
     const bend = (u) => (a.arc ? a.arc * (1 - ((2 * (u - a.u0)) / (a.u1 - a.u0) - 1) ** 2) : 0); // Bogen gekrümmt
-    const px = (u, s = 0) => Math.round(this.x - cx + (a.x + dx * u - dy * (s + bend(u))) * f - (f < 0 ? 1 : 0));
-    const py = (u, s = 0) => Math.round(this.y - cy + a.y + dy * u + dx * (s + bend(u)));
+    // Feinraster des Spielbilds (Überabtastung, INTEGRATION §11.12): Funken und Zungen feiner als ein Weltpixel
+    const q = Math.max(1, Math.min(3, CONFIG.renderScale ?? 1)), P = 1 / q;
+    const snap = (v) => Math.round(v * q) / q;
+    const px = (u, s = 0) => snap(this.x - cx + (a.x + dx * u - dy * (s + bend(u))) * f - (f < 0 ? 1 / (frame.res ?? 1) : 0));
+    const py = (u, s = 0) => snap(this.y - cy + a.y + dy * u + dx * (s + bend(u)));
     const el = ELEMENTS[a.fx] ?? ELEMENTS.arcane, c = el.colors;
     const prev = ctx.globalCompositeOperation;
     ctx.globalCompositeOperation = 'lighter';
@@ -537,10 +545,10 @@ export class Hero extends Actor {
       for (let u = a.u0; u <= a.u1; u += 1.5) {
         const n = 0.5 + 0.5 * Math.sin(t * 11 + u * 1.7) * Math.sin(t * 7.3 - u);
         const x = px(u), y = py(u);
-        ctx.globalAlpha = (strong ? 0.13 : 0.08) + n * 0.08;
+        ctx.globalAlpha = (strong ? 0.1 : 0.06) + n * 0.06;
         ctx.fillStyle = c[2];
         ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
-        ctx.globalAlpha = (strong ? 0.16 : 0.1) + n * 0.12;
+        ctx.globalAlpha = (strong ? 0.12 : 0.07) + n * 0.08;
         ctx.fillStyle = c[1];
         ctx.fillRect(x - 1, y - 1, 3, 3);
       }
@@ -550,21 +558,23 @@ export class Hero extends Actor {
       for (let i = 0; i < n; i++) {
         const u = a.u0 + (a.u1 - a.u0) * ((i + 0.5) / n);
         const ph = t * (tongues ? 9 : 4) + i * 2.39;
-        const h = tongues ? Math.max(0, Math.round(1 + 2.6 * (0.5 + 0.5 * Math.sin(ph)) + (strong ? 1 : 0))) : 0;
+        const h = tongues ? Math.max(0, Math.round((1 + 2.6 * (0.5 + 0.5 * Math.sin(ph)) + (strong ? 1 : 0)) * q * 0.8)) : 0;
         const x = px(u), y = py(u);
         if (tongues) {
           for (let k = 0; k <= h; k++) {
-            ctx.globalAlpha = 0.9 - k * 0.15;
-            ctx.fillStyle = k === 0 ? c[0] : k < h ? c[1] : c[3];
-            ctx.fillRect(x + Math.round(Math.sin(ph * 0.7 + k) * 0.6), y - k - 1, 1, 1);
+            const kk = k / Math.max(1, h);
+            ctx.globalAlpha = 0.9 - kk * 0.5;
+            ctx.fillStyle = kk < 0.25 ? c[0] : kk < 0.8 ? c[1] : c[3];
+            const wdt = q > 1 && kk < 0.5 ? 2 * P : P;
+            ctx.fillRect(x + snap(Math.sin(ph * 0.7 + kk * 3) * 0.6), y - (k + 1) * P, wdt, P);
           }
         } else if (Math.sin(ph) > 0.6) {
           ctx.globalAlpha = 0.9;
           ctx.fillStyle = c[0];
-          ctx.fillRect(x, y, 1, 1);
+          ctx.fillRect(x, y, P, P);
           ctx.globalAlpha = 0.45;
           ctx.fillStyle = c[1];
-          ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3);
+          ctx.fillRect(x - 2 * P, y, 5 * P, P); ctx.fillRect(x, y - 2 * P, P, 5 * P);
         }
       }
     }
@@ -574,13 +584,14 @@ export class Hero extends Actor {
     if (p < 1) {
       const u = a.u0 + (a.u1 - a.u0) * p;
       const x = px(u), y = py(u);
+      const r1 = q > 1 ? 2 : 1, r2 = q > 1 ? 5 : 2;
       ctx.globalAlpha = 0.95;
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x, y, 1, 1);
+      ctx.fillRect(x, y, P, P);
       ctx.globalAlpha = 0.5;
-      ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3);
+      ctx.fillRect(x - r1 * P, y, (2 * r1 + 1) * P, P); ctx.fillRect(x, y - r1 * P, P, (2 * r1 + 1) * P);
       ctx.globalAlpha = 0.2;
-      ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x, y - 2, 1, 5);
+      ctx.fillRect(x - r2 * P, y, (2 * r2 + 1) * P, P); ctx.fillRect(x, y - r2 * P, P, (2 * r2 + 1) * P);
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = prev;

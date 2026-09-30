@@ -66,12 +66,15 @@ export class SaveStore {
     data.characters[characterId] = { ...snapshot, summary };
     const ok = this.#write(`acc:${accountId}`, data);
     if (ok) this.setLast(accountId, characterId);
+    if (ok) this.bus?.emit('save:character', { accountId, characterId });
     return ok;
   }
-  deleteCharacter(accountId, characterId) {
+  // opts.fromSync: Löschung kommt vom Server-Abgleich (kein erneuter Upload).
+  deleteCharacter(accountId, characterId, opts = {}) {
     const data = this.#read(`acc:${accountId}`, { characters: {} });
     delete data.characters[characterId];
     this.#write(`acc:${accountId}`, data);
+    this.bus?.emit('save:deleted', { accountId, characterId, fromSync: !!opts.fromSync });
   }
 
   // --- Dauerhaftigkeit und Sicherung
