@@ -5,7 +5,7 @@
 // Der anon-Schlüssel erlaubt nur, was die Row-Level-Security-Regeln zulassen (supabase/migrations/).
 // Den service_role-Schlüssel NIE hier oder sonst im Repo eintragen.
 export const ONLINE_CONFIG = {
-  supabaseUrl: '',      // z. B. 'https://abcdefghijklmnop.supabase.co'
+  supabaseUrl: 'https://mgjhllqnelqbdqfvczls.supabase.co',
   supabaseAnonKey: '',  // öffentlicher anon/publishable-Schlüssel
   // Schnellanmeldung: erst auf true setzen, wenn der Anbieter in Supabase (Authentication → Providers) aktiv ist.
   providers: {

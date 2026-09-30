@@ -60,6 +60,10 @@ writeFileSync(resolve(root, 'dist/emberfall.fragment.html'), fragment);
 // Veröffentlichungs-Ordner für statisches Hosting (Cloudflare Pages, GitHub Pages, Netlify …):
 // dist/site/ enthält alles, was hochgeladen wird. Siehe docs/VEROEFFENTLICHEN.md.
 // Aufbau: / = Startseite (site/, siehe site/README.md), /spielen/ = das Spiel.
+// connect-src: nur die eigene Seite und – falls eingetragen – genau das Supabase-Projekt aus src/online/config.js.
+const supabaseUrl = /supabaseUrl:\s*'([^']*)'/.exec(readFileSync(resolve(root, 'src/online/config.js'), 'utf8'))?.[1] ?? '';
+if (supabaseUrl && !/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(supabaseUrl)) { console.error(`Ungültige supabaseUrl in src/online/config.js: ${supabaseUrl}`); process.exit(1); }
+const connectSrc = supabaseUrl ? `'self' ${supabaseUrl}` : "'self'";
 const site = resolve(root, 'dist/site');
 mkdirSync(resolve(site, 'spielen'), { recursive: true });
 writeFileSync(resolve(site, 'spielen/index.html'), out);
@@ -71,7 +75,7 @@ writeFileSync(resolve(site, '_headers'), [
   '  X-Content-Type-Options: nosniff',
   '  Referrer-Policy: strict-origin-when-cross-origin',
   '  X-Frame-Options: SAMEORIGIN',
-  "  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'",
+  `  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src ${connectSrc}; frame-ancestors 'self'`,
   '  Permissions-Policy: camera=(), microphone=(), geolocation=()',
   '/index.html',
   '  Cache-Control: no-cache',

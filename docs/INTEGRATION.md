@@ -384,6 +384,7 @@ nie beim Laden zwischenspeichern.** `<html>` trägt dann `ef-portrait`; Event `v
   führt Accounts nach id zusammen, überschreibt keine anderen Accounts.
 - UI-Knöpfe (Thread A, Titel/Account-Auswahl): „Spielstand sichern“ und „Sicherung laden“ (`<input type=file accept=".json">`).
 - Spielstände bleiben lokal; die Oberfläche sagt das weiterhin deutlich.
+- CSP `connect-src`: `'self'` plus genau die `supabaseUrl` aus `src/online/config.js` (der Build liest sie aus und prüft das Format).
 - **Name:** sichtbar heißt das Spiel **Emberwrath** (Titel, Logo, Seitentitel, Texte). Intern bleiben `emberfall:v1:`-Schlüssel,
   das Exportformat `emberfall-save`, `window.emberfall` und der Ordnername – nicht umbenennen, sonst gehen Spielstände verloren.
 
