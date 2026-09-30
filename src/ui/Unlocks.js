@@ -13,6 +13,8 @@ const KIND = {
   passive: { label: 'Neue Passive', cls: 'passive' },
   talents: { label: 'Neue Talentreihe', cls: 'talents' },
   achievement: { label: 'Erfolg errungen', cls: 'achievement' },
+  mount: { label: 'Neues Reittier', cls: 'mount' },
+  riding: { label: 'Reiten gelernt', cls: 'mount' },
 };
 
 export class Unlocks {
@@ -30,10 +32,19 @@ export class Unlocks {
     this.left = 0;
     const bus = session.bus;
     bus.on('character:unlock', (e) => this.#onCharacter(e));
+    bus.on(EV.MOUNT_LEARNED, (e) => this.#onMount(e));
+    bus.on(EV.QUEST_COMPLETED, (e) => { if (e.questId === 'q_first_ride') this.push({ kind: 'riding', name: 'Reiten', icon: 'ui_mount', sub: 'Reittiere gibt es bei Stallmeisterin Orla' }); });
     bus.on(EV.ACHIEVEMENT_UNLOCKED, (e) => this.push({
       kind: 'achievement', name: e.name, icon: e.icon ?? ACHIEVEMENTS[e.id]?.icon ?? 'ui_achievements',
       sub: [e.points ? `${e.points} Punkte` : '', e.title ? `Titel „${e.title}“` : ''].filter(Boolean).join(' · '),
     }));
+  }
+
+  // Reittiere (§12.6): neues Reittier und freigeschaltetes Reiten (Reitstunde bei Orla)
+  #onMount(e) {
+    const def = this.s.content.find('mount', e.mountId);
+    const pct = def?.speed ? ` · +${Math.round(def.speed * 100)} % Tempo` : '';
+    this.push({ kind: 'mount', name: def?.name ?? 'Reittier', icon: `mount_${e.mountId}`, sub: `Aufsitzen: Taste V${pct}` });
   }
 
   #onCharacter(e) {

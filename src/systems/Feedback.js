@@ -39,7 +39,17 @@ export class FeedbackSystem {
     bus.on('arrowStuck', () => this.#sfx('thunk'));
     bus.on('roll', (e) => { this.#sfx('roll'); this.game.world.particles.dust(e.actor.x, e.actor.y, 6); });
     bus.on('rollEnd', (e) => this.game.world.particles.dust(e.actor.x, e.actor.y, 3));
-    bus.on('footstep', (e) => { this.game.world.particles.dust(e.actor.x, e.actor.y, 1); this.#sfx('step'); });
+    bus.on('footstep', (e) => {
+      // Beritten (§12.6): Hufschlag mit größerer Staubwolke
+      if (e.actor === this.game.world?.hero && this.#riding()) { this.game.world.particles.dust(e.actor.x, e.actor.y, 3); this.#sfx('hoof'); return; }
+      this.game.world.particles.dust(e.actor.x, e.actor.y, 1); this.#sfx('step');
+    });
+    bus.on(EV.MOUNT_CHANGED, (e) => {
+      const h = this.game.world?.hero;
+      if (h) { this.game.world.particles.dust(h.x - 6, h.y, 6); this.game.world.particles.dust(h.x + 6, h.y, 6); }
+      this.#sfx(e.riding ? 'mountUp' : 'mountDown');
+    });
+    bus.on('mountCast', () => this.#sfx('mountCast'));
     bus.on('deflect', (e) => {
       const w = this.game.world;
       w.particles.sparks(e.x, e.y, Math.random() * Math.PI * 2, 12, ['#ffffff', '#e0ecff', '#a8c0f0']);
@@ -102,6 +112,8 @@ export class FeedbackSystem {
       this.#sfx('heal');
     });
   }
+
+  #riding() { return !!this.game.state?.slices?.character?.mounts?.riding; }
 
   #sfx(name, opts) { this.game.sfx.play(name, opts); }
 

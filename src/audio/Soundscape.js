@@ -4,7 +4,9 @@ import { themeForZone } from './Music.js';
 // Klangbild je Zone (Thread D): wählt Musikstück und Atmo-Mischung passend zur
 // Zone, wechselt beim Bosskampf und in der Glutprüfung auf eigene Stücke und
 // danach zurück. Session-System, liest nur Zonendaten und Events.
-const ZONE_AMB = { emberhollow: 'outdoor', ashwood: 'forest', sunken_temple: 'water', cinder_peaks: 'fire', molten_forge: 'fire', ember_trial: 'fire' };
+const ZONE_AMB = { emberhollow: 'outdoor', ashwood: 'forest', sunken_temple: 'water', cinder_peaks: 'fire', molten_forge: 'fire', ember_trial: 'fire',
+  // Stufe 20–40 (§12.2)
+  ashen_steppe: 'wind', howling_barrow: 'dungeon', blighted_marsh: 'marsh', spore_hollow: 'water', frostspire: 'wind', rime_caverns: 'water', ember_wastes: 'fire', ashen_throne: 'fire' };
 
 export function ambienceForZone(def) {
   if (!def) return 'outdoor';

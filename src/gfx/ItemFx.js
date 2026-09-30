@@ -28,7 +28,10 @@ export const FX_PALETTES = Object.freeze({
 // Ausrüstung: Element genau wie an der Figur (character/gearLook.js, Thread A: fxElement).
 // Andere Items (Material, Quest): nach ID, Icon und Namen.
 const RULES = [
-  ['fire', /ember|cinder|glut|asch|ash|schlack|forge|essen|tyrant|tyrann|flamm|feuer|inferno|lava/i],
+  ['shadow', /nightmare|albtraum/i],
+  ['poison', /spore|sporen/i],
+  ['nature', /marsh_strider|sumpfschreiter/i],
+  ['fire', /drake|charger|ember|cinder|glut|asch|ash|schlack|forge|essen|tyrant|tyrann|flamm|feuer|inferno|lava/i],
   ['frost', /frost|winter|eis|ice|snow|schnee/i],
   ['water', /tide|gezeit|pearl|perle|salz|sea|meer/i],
   ['shadow', /shadow|obsidian|bone|schatten|night|nacht|dusk|knochen|varkhul|grave|grab|crypt|gruft|skull/i],

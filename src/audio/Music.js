@@ -37,7 +37,8 @@ export const THEMES = {
 };
 
 // Zone -> Stück (feste IDs aus INTEGRATION.md §11, sonst nach Art der Zone)
-const ZONE_THEMES = { emberhollow: 'village', catacombs: 'crypt', ashwood: 'forest', sunken_temple: 'temple', cinder_peaks: 'peaks', molten_forge: 'forge', ember_trial: 'trial' };
+const ZONE_THEMES = { emberhollow: 'village', catacombs: 'crypt', ashwood: 'forest', sunken_temple: 'temple', cinder_peaks: 'peaks', molten_forge: 'forge', ember_trial: 'trial',
+  ashen_steppe: 'peaks', howling_barrow: 'crypt', blighted_marsh: 'forest', spore_hollow: 'temple', frostspire: 'peaks', rime_caverns: 'temple', ember_wastes: 'forge', ashen_throne: 'forge' };
 export function themeForZone(def) {
   if (!def) return 'village';
   return def.music ?? ZONE_THEMES[def.id] ?? (def.kind === 'dungeon' || def.instanced ? 'crypt' : 'village');

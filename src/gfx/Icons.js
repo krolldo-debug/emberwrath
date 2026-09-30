@@ -911,6 +911,167 @@ export function abilityIcon(abilityId, def) {
 }
 
 // ---------------------------------------------------------------- Register
+// ---------------------------------------------------------------- Stufe 21–40: Tier 5–8 (INTEGRATION.md §12.7)
+// Jede Stufe trägt die Farben ihres Gebiets: 5 Aschensteppe (Bronze, Kriegsrot), 6 Faulmarsch (Moos, Knochen, Gift),
+// 7 Frostzinnen (Frost, Silber), 8 Glutöde (Obsidian, Gold, Glut). IDs: <visual>_t5 … _t8; Rüstung zusätzlich
+// helm_tN / hood_tN, gloves_<stil>_tN, boots_<stil>_tN (stil: cloth, leather, mail, plate), ring_tN, amulet_tN.
+// Fehlt eine Stufe (z. B. _t9), nimmt resolve() die nächstniedrigere (§12.7).
+const TIER_LOOK = {
+  5: { metal: M.bronze, trim: M.copper, gem: M.red, wood: M.ash, cloth: M.red, leather: M.leather, fur: M.fur, top: 'orb', grip: M.red },
+  6: { metal: M.iron, trim: M.bone, gem: M.green, wood: M.darkwood, cloth: M.moss, leather: M.darkleather, fur: M.moss, top: 'skull', grip: M.darkleather, jag: true },
+  7: { metal: M.frost, trim: M.silver, gem: M.blue, wood: M.silver, cloth: M.blue, leather: M.fur, fur: M.silver, top: 'crystal', grip: M.blue },
+  8: { metal: M.obsidian, trim: M.gold, gem: M.ember, wood: M.darkwood, cloth: M.red, leather: M.darkleather, fur: M.obsidian, top: 'flame', grip: M.darkleather, glow: M.ember },
+};
+export const ICON_TIERS = Object.freeze([5, 6, 7, 8]);
+for (const n of ICON_TIERS) {
+  const T = TIER_LOOK[n], t = `_t${n}`;
+  const blade = { blade: T.metal, guard: T.trim, gemRamp: T.gem, grip: T.grip, fuller: !T.jag, jag: !!T.jag, glow: T.glow, width: 2.4 };
+  SWORDS[`sword${t}`] = blade;
+  SWORDS[`greatsword${t}`] = { ...blade, width: 2.95, guardW: 5 };
+  DAGGERS[`dagger${t}`] = { ...blade, short: true, width: 1.95, guardW: 3, curve: n === 5 ? 1.8 : 0, fuller: false };
+  AXES[`axe${t}`] = { head: T.metal, haft: T.wood, double: n >= 7, bearded: n === 5, spike: n >= 6, glow: T.glow };
+  MACES[`mace${t}`] = { head: T.metal, haft: T.wood, flanged: n === 5 || n === 7, spikes: n === 6 || n === 8, r: 4 };
+  STAFFS[`staff${t}`] = { wood: T.wood, top: T.top, ramp: n === 6 ? M.green : n === 7 ? M.frost : T.gem, bands: n >= 7, gnarled: n === 6 };
+  WANDS[`wand${t}`] = { wood: T.wood, top: n === 7 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
+  BOWS[`bow${t}`] = { wood: T.wood, recurve: n >= 6, long: n === 7, tips: T.trim[3], grip: T.gem[3], string: n === 7 ? '#e8f0ff' : undefined };
+  ARMORS[`cloth${t}`] = { ramp: T.cloth, style: 'robe', trim: T.trim, long: n >= 7, emblem: T.gem, glow: T.glow };
+  ARMORS[`leather${t}`] = { ramp: T.leather, style: 'leather', shoulder: T.fur, emblem: n >= 7 ? T.gem : undefined };
+  ARMORS[`mail${t}`] = { ramp: T.metal, style: n === 6 ? 'scale' : 'chain', shoulder: T.trim };
+  ARMORS[`plate${t}`] = { ramp: T.metal, style: 'plate', shoulder: T.trim, rivets: true, tabard: n === 5 ? M.red : undefined, emblem: n >= 7 ? T.gem : undefined, glow: T.glow };
+  HELMS[`helm${t}`] = { ramp: T.metal, style: 'nasal', horns: n === 5 || n === 8, crest: n === 7 ? M.blue : undefined };
+  HELMS[`hood${t}`] = { ramp: n === 7 ? M.fur : T.leather, style: 'hood' };
+  const styleRamp = { cloth: T.cloth, leather: T.leather, mail: T.metal, plate: T.metal };
+  for (const st of ['cloth', 'leather', 'mail', 'plate']) {
+    GLOVES[`gloves_${st}${t}`] = { ramp: styleRamp[st], style: st, cuff: st === 'leather' ? T.fur : T.trim, trim: T.trim, glow: st === 'plate' ? T.glow : undefined };
+    BOOTS[`boots_${st}${t}`] = { ramp: styleRamp[st], style: st, cuff: st === 'leather' ? T.fur : T.trim, trim: T.trim, buckle: st === 'leather' || st === 'mail', glow: st === 'plate' ? T.glow : undefined };
+  }
+  GLOVES[`gloves${t}`] = GLOVES[`gloves_plate${t}`];
+  BOOTS[`boots${t}`] = BOOTS[`boots_plate${t}`];
+  JEWELRY[`ring${t}`] = () => ({ f: ring, o: { band: T.trim === M.bone ? M.silver : T.trim, gem: T.gem } });
+  JEWELRY[`amulet${t}`] = () => ({ f: amulet, o: { chain: T.trim === M.bone ? M.silver : T.trim, gem: T.gem } });
+}
+
+// ---------------------------------------------------------------- Reittiere (mount_<id>, §12.6)
+// Kopf und Hals im Profil (Blick nach rechts), aus Ellipsen und Kapseln zusammengesetzt.
+// spec: { hide, mane, maneStyle ('hair'|'ruff'|'fire'), kind ('horse'|'wolf'|'bird'|'drake'), eye, ears, antlers, horns,
+//         spikes, bone, bridle, mouthGlow, beak }
+const inEll = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+function inCapsule(x, y, x0, y0, r0, x1, y1, r1) {
+  const dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
+  const t = clamp(((x - x0) * dx + (y - y0) * dy) / L2, 0, 1);
+  const px = x0 + dx * t, py = y0 + dy * t;
+  return Math.hypot(x - px, y - py) <= r0 + (r1 - r0) * t;
+}
+const MOUNT_SHAPES = {
+  // Hals (Kapsel), Wange (Ellipse), Nasenrücken (Kapsel), Maul (Ellipse)
+  horse: { neck: [6, 24, 5.2, 11, 10, 3.6], cheek: [12.5, 9.5, 4.2, 3.8], bridge: [13, 8, 3, 19.5, 14.5, 2.3], muzzle: [19.6, 15, 2.8, 2.5], eye: [13, 8], nostril: [21, 15], ears: [[10.5, 3.5], [12.5, 3]] },
+  wolf: { neck: [5, 24, 5.8, 10, 12, 4.4], cheek: [11.5, 11, 4.6, 4], bridge: [12, 10, 3.2, 21.5, 11.5, 1.6], muzzle: [20.5, 12.5, 2, 1.6], eye: [13, 9], nostril: [22, 11], ears: [[9, 3], [12, 3.5]] },
+  bird: { neck: [7, 24, 3.4, 12, 9, 2.4], cheek: [13.5, 7.5, 3.2, 2.8], bridge: [14, 7, 1.6, 23, 10, 0.6], muzzle: [0, 0, 0, 0], eye: [14, 7], nostril: null, ears: null },
+  drake: { neck: [6, 24, 5, 11, 10.5, 3.4], cheek: [12.5, 9.5, 4, 3.6], bridge: [13, 8.5, 3, 21, 13, 1.8], muzzle: [20.5, 13.5, 2.2, 2], eye: [13.5, 8], nostril: [22, 12.5], ears: null },
+};
+function mountHead(p, o) {
+  const R = o.hide, N = o.mane ?? R, K = MOUNT_SHAPES[o.kind ?? 'horse'];
+  const inNeck = (x, y) => inCapsule(x, y, K.neck[0], K.neck[1], K.neck[2], K.neck[3], K.neck[4], K.neck[5]);
+  const inHead = (x, y) => inEll(x, y, K.cheek[0], K.cheek[1], K.cheek[2], K.cheek[3])
+    || inCapsule(x, y, K.bridge[0], K.bridge[1], K.bridge[2], K.bridge[3], K.bridge[4], K.bridge[5])
+    || (K.muzzle[2] > 0 && inEll(x, y, K.muzzle[0], K.muzzle[1], K.muzzle[2], K.muzzle[3]));
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const X = x + 0.5, Y = y + 0.5, head = inHead(X, Y), neck = inNeck(X, Y);
+    if (!head && !neck) continue;
+    // Licht von oben links, Unterseite dunkler, Hals etwas dunkler als der Kopf
+    let lvl = 2.9 - (Y - 10) / 9 - (X - 12) / 14 - (neck && !head ? 0.4 : 0);
+    if (head && !inHead(X, Y + 1.2)) lvl -= 0.9;                 // Kinnlinie
+    if (head && !inHead(X - 1.2, Y) && !neck) lvl += 0.6;        // Stirnkante
+    let c = pick(R, lvl);
+    if (o.bone && neck && !head && ((y + (x >> 1)) % 3 === 0) && inNeck(X - 1.5, Y) && inNeck(X + 1.5, Y)) c = '#140c10';   // Rippen
+    if (o.bone && head && Y > K.cheek[1] + 2 && X > K.cheek[0] + 2 && (x % 2 === 0)) c = '#140c10';                          // Zähne
+    if (o.belly && neck && !head && X > K.neck[0] + 1.5 && inNeck(X + 1.6, Y)) c = pick(o.belly, lvl);
+    p.px(x, y, c);
+  }
+  // Maulspalte, Nüstern
+  if (K.nostril) p.px(K.nostril[0], K.nostril[1], R[0]);
+  if (K.muzzle[2] > 0) p.line(Math.round(K.muzzle[0] - 3), Math.round(K.muzzle[1] + 1), Math.round(K.muzzle[0] + 1), Math.round(K.muzzle[1] + 1), o.mouthGlow ? o.mouthGlow[3] : R[0]);
+  if (o.mouthGlow) p.px(Math.round(K.muzzle[0]), Math.round(K.muzzle[1] + 1), o.mouthGlow[4]);
+  if (o.beak) { p.line(15, 7, 23, 10, o.beak[3]); p.line(15, 8, 22, 10, o.beak[2]); p.px(23, 10, o.beak[1]); }
+  // Ohren: spitze Dreiecke
+  if (o.ears && K.ears) for (const [ex, ey] of K.ears) {
+    const h = o.ears === 'tall' ? 5 : 4;
+    for (let k = 0; k < h; k++) { const w = Math.max(0, 1.6 - k * 0.45); for (let dx = -w; dx <= w; dx += 1) p.px(Math.round(ex + dx + k * 0.25), Math.round(ey + 2 - k), k === h - 1 ? R[4] : dx < 0 ? R[3] : R[1]); }
+    p.px(Math.round(ex + 0.5), Math.round(ey + 1), o.earIn ?? R[0]);
+  }
+  // Mähne entlang des Nackens (links vom Hals) und Schopf auf der Stirn
+  if (o.maneStyle) {
+    const [nx0, ny0, , nx1, ny1, r1] = K.neck;
+    for (let i = 0; i <= 18; i++) {
+      const t = i / 18, x = nx0 + (nx1 - nx0) * t - (K.neck[2] + (r1 - K.neck[2]) * t) * 0.8, y = ny0 + (ny1 - ny0) * t - 1.5;
+      const len = o.maneStyle === 'fire' ? 2 + Math.round(hash(i, 3, 7) * 3) : o.maneStyle === 'ruff' ? 2 + (i % 2) : 2 + (i % 3 === 0 ? 1 : 0);
+      for (let k = 0; k < len; k++) {
+        const col = o.maneStyle === 'fire' ? N[clamp(4 - k, 1, 4)] : N[clamp(3 - k + (i % 2), 0, 4)];
+        p.px(Math.round(x - k * 0.9), Math.round(y - k * (o.maneStyle === 'fire' ? 0.9 : 0.35)), col);
+      }
+    }
+    if (o.kind !== 'wolf') for (let k = 0; k < 3; k++) p.px(12 + k, 5 + k, N[3 - (k >> 1)]);   // Schopf
+  }
+  if (o.antlers) {
+    const A = o.antlers;
+    p.line(11, 5, 7, 0, A[3]); p.line(9, 3, 5, 3, A[2]); p.line(8, 1, 6, -1, A[4]);
+    p.line(13, 4, 17, 0, A[3]); p.line(15, 2, 19, 2, A[2]); p.line(16, 1, 15, -1, A[4]);
+  }
+  if (o.horns) { const Hn = o.horns; p.line(11, 6, 6, 2, Hn[3]); p.line(11, 7, 6, 3, Hn[1]); p.px(5, 1, Hn[4]); p.line(13, 5, 11, 1, Hn[2]); p.px(11, 0, Hn[4]); }
+  if (o.spikes) for (let i = 0; i < 5; i++) { const x = K.neck[0] - K.neck[2] + 1 + i * 1.3, y = 21 - i * 3; p.px(Math.round(x - 1), Math.round(y), o.spikes[3]); p.px(Math.round(x - 2), Math.round(y - 1), o.spikes[4]); }
+  // Auge (mit Glühen bei magischen Reittieren)
+  const E = o.eye ?? ['#140c10'];
+  p.px(K.eye[0], K.eye[1], E[0]);
+  if (E[1]) { p.px(K.eye[0] + 1, K.eye[1], E[1]); p.px(K.eye[0], K.eye[1] - 1, E[1]); }
+  else p.px(K.eye[0] + 1, K.eye[1] - 1, R[4]);
+  // Zaumzeug
+  if (o.bridle) { p.line(12, 11, 18, 13, o.bridle[2]); p.line(14, 6, 13, 11, o.bridle[2]); p.px(13, 11, M.gold[4]); }
+}
+// Sporenkäfer: runder Panzer mit Pilzhüten, Blick nach rechts
+function mountBeetle(p) {
+  const S1 = ['#10200e', '#20401a', '#3a6a28', '#62a040', '#a8e070'];
+  for (let y = 6; y < 22; y++) for (let x = 2; x < 20; x++) {
+    const dx = (x + 0.5 - 10.5) / 8.5, dy = (y + 0.5 - 14) / 7;
+    if (dx * dx + dy * dy > 1) continue;
+    let c = pick(S1, 3 - (dx + dy) * 1.2);
+    if (Math.abs(x + 0.5 - 10.5 - (y - 14) * 0.2) < 0.6 && y < 20) c = S1[0];
+    p.px(x, y, c);
+  }
+  ball(p, 19.5, 15, 3, M.darkleather); p.px(21, 14, M.green[4]); p.px(20, 13, M.green[4]);
+  p.line(21, 12, 23, 9, M.darkleather[3]); p.line(20, 12, 21, 8, M.darkleather[2]);
+  for (const [x, y, r] of [[6, 7, 3], [11, 5, 3.6], [15, 8, 2.4]]) {
+    for (let yy = -r; yy <= 0; yy++) for (let xx = -r; xx <= r; xx++) if (xx * xx + yy * yy * 1.8 <= r * r) p.px(Math.round(x + xx), Math.round(y + yy), pick(M.red, 3.2 + yy / r - xx / (r * 2)));
+    p.px(Math.round(x - 1), Math.round(y - r + 1), '#fff0e0'); p.px(Math.round(x + 1), Math.round(y - 1), '#fff0e0');
+    rect(p, Math.round(x), Math.round(y) + 1, 1, 2, M.paper[3]);
+  }
+  for (const x of [5, 9, 13, 16]) { p.px(x, 21, M.darkleather[1]); p.px(x - 1, 22, M.darkleather[1]); }
+}
+const EYE_GLOW = (R) => ['#140c10', R[4]];
+const MOUNTS = {
+  mount_steppe_horse: { kind: 'horse', hide: M.bronze, mane: M.darkwood, maneStyle: 'hair', ears: true, bridle: M.red },
+  mount_ash_wolf: { kind: 'wolf', hide: M.ash, mane: M.fur, maneStyle: 'ruff', ears: 'tall', eye: ['#140c10', '#ffb640'], belly: M.paper },
+  mount_marsh_strider: { kind: 'bird', hide: M.moss, mane: M.green, maneStyle: 'ruff', beak: M.yellow, eye: ['#140c10', '#f0dc50'], spikes: M.green },
+  mount_bone_stallion: { kind: 'horse', hide: M.bone, mane: M.green, maneStyle: 'fire', ears: true, bone: true, eye: EYE_GLOW(M.green) },
+  mount_frost_elk: { kind: 'horse', hide: M.frost, mane: M.silver, maneStyle: 'ruff', ears: true, antlers: M.silver, eye: ['#0a1838', '#ffffff'] },
+  mount_ember_charger: { kind: 'horse', hide: M.darkwood, mane: M.ember, maneStyle: 'fire', ears: true, bridle: M.gold, eye: EYE_GLOW(M.ember) },
+  mount_cinder_drake: { kind: 'drake', hide: M.obsidian, horns: M.bone, spikes: M.ember, eye: EYE_GLOW(M.ember), mouthGlow: M.ember, belly: M.ember },
+  mount_nightmare_steed: { kind: 'horse', hide: M.darkleather, mane: M.purple, maneStyle: 'fire', ears: true, eye: EYE_GLOW(M.purple), mouthGlow: M.purple },
+};
+for (const [id, o] of Object.entries(MOUNTS)) DRAW[id] = (p) => mountHead(p, o);
+DRAW.mount_spore_beetle = mountBeetle;
+DRAW.mount = DRAW.mount_steppe_horse;
+// Knopf „Reittier“: Hufeisen
+DRAW.ui_mount = (p) => {
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const dx = x + 0.5 - 12, dy = y + 0.5 - 11, d = Math.hypot(dx, dy);
+    if (d < 5.2 || d > 9 || (dy > 2 && Math.abs(dx) < 5.5)) continue;
+    if (dy > 9) continue;
+    p.px(x, y, pick(M.silver, 3 - (dx + dy) / 8 - (d > 8 ? 1 : 0)));
+  }
+  for (const [x, y] of [[5, 8], [5, 13], [18, 8], [18, 13], [8, 4], [15, 4]]) p.px(x, y, M.darkleather[0]);
+  rect(p, 3, 18, 5, 2, M.silver[2]); rect(p, 16, 18, 5, 2, M.silver[2]);
+};
+
 const REG = {};
 for (const [id, o] of Object.entries(SWORDS)) REG[id] = (p) => sword(p, o);
 for (const [id, o] of Object.entries(DAGGERS)) REG[id] = (p) => sword(p, o);
@@ -927,13 +1088,19 @@ for (const [id, mk] of Object.entries(JEWELRY)) { const { f, o } = mk(); REG[id]
 for (const [id, { f, o }] of Object.entries(CONSUMABLES)) REG[id] = (p) => f(p, o);
 Object.assign(REG, DRAW, SKILLS);
 // Familien-Aliase für die Rückfallsuche
-for (const [alias, target] of Object.entries({ robe: 'robe_mage', leather: 'leather_jerkin', plate: 'plate_iron', essence: 'essence_shadow', potion: 'potion_hp', armor: 'armor_mail', hood: 'hood' })) REG[alias] ??= REG[target];
+for (const [alias, target] of Object.entries({ robe: 'robe_mage', leather: 'leather_jerkin', plate: 'plate_iron', essence: 'essence_shadow', potion: 'potion_hp', armor: 'armor_mail', hood: 'hood', greatsword: 'sword_long', cloth: 'armor_cloth', mail: 'mail_chain' })) REG[alias] ??= REG[target];
 
 export const ICON_IDS = Object.freeze(Object.keys(REG).filter((k) => !k.startsWith('ui_') && !k.startsWith('skill_') && !k.startsWith('passive_')));
 export const SKILL_ICON_IDS = Object.freeze(Object.keys(SKILLS));
 
 function resolve(id) {
   if (id && REG[id]) return id;
+  // Stufen-Icons: fehlt _tN, die nächstniedrigere Stufe ab 5, sonst die Form ohne Stufe (gloves_plate_t9 → gloves_plate_t8)
+  const m = id ? /^(.*)_t(\d+)$/.exec(String(id)) : null;
+  if (m) {
+    for (let n = +m[2] - 1; n >= 5; n--) if (REG[`${m[1]}_t${n}`]) return `${m[1]}_t${n}`;
+    if (REG[m[1]]) return m[1];
+  }
   const fam = id ? String(id).split('_')[0] : '';
   return REG[fam] ? fam : 'bag';
 }

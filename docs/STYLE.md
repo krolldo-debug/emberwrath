@@ -135,3 +135,13 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - **Meldungen (ui/Toasts.js):** einzeilig, 12 px (Handy 11 px), linker Rand unter dem Spielerrahmen. Gewöhnliche/ungewöhnliche Beute innerhalb von 2,4 s wird zu „N Gegenstände“ mit bis zu 4 Mini-Icons; ab selten eigene Zeile. Sichtbar 2–3 s (episch 4,2 s, legendär 5 s); Desktop max. 4, Handy max. 2.
 - **Freischalt-Karte auf Touch:** klein (Icon 34 px, ohne Unterzeile), oben am Rand, 25 % kürzer.
 - **Item-Effekte (gfx/ItemFx.js, automatisch in itemIconEl):** selten = Teilchen im Element, episch = Flammen oder Lichtkranz hinter dem Item plus Leuchten, legendär = hohe Flammen, drehender Strahlenkranz, schwebendes Item. Element für Ausrüstung direkt aus `fxElement(def)` in character/gearLook.js (Thread A), sonst nach Namen; Farben aus `ELEMENTS` in gfx/Particles.js, damit Icon und Waffe an der Figur gleich leuchten. Pixel-Filmstreifen 9 × 24 px, CSS `steps(8)`; bei Qualität „Niedrig“ und reduzierter Bewegung stehend.
+
+## Erweiterung bis Stufe 40 (Thread D, §12)
+
+- **Icons Tier 5–8** (gfx/Icons.js, `ICON_TIERS`): `<visual>_t5 … _t8` für sword, greatsword, dagger, axe, mace, staff, wand, bow, cloth, leather, mail, plate; dazu `helm_tN`, `hood_tN`, `gloves_<cloth|leather|mail|plate>_tN`, `boots_<…>_tN`, `gloves_tN`/`boots_tN` (= Platte), `ring_tN`, `amulet_tN`. Farben nach Gebiet: 5 Steppe (Bronze, Kriegsrot), 6 Marsch (Moos, Knochen, Gift), 7 Zinnen (Frost, Silber), 8 Öde (Obsidian, Gold, Glut). Fehlende Stufe → nächstniedrigere, dann Grundform.
+- **Reittier-Icons** `mount_<id>` (9 Stück, Kopf im Profil; Käfer eigene Form) und `ui_mount` (Hufeisen). Seltenheitseffekte über ItemFx wie bei Waffen.
+- **Aktion `mount`**: Tasten V und 6. HUD-Platz „V“ nach dem Trank, erst sichtbar, wenn `canMount().reason !== 'level'`; leuchtet beim Reiten, Kampfknöpfe gedimmt. Touch: kleiner Knopf (42 px) oben links im Bogen.
+- **Wirkbalken** `.hud-cast` liest `hero.mountCast = { t, dur }` (Thread A).
+- **Rückmeldung**: Staubwolke + `mountUp`/`mountDown` bei `mount:changed`, Hufschlag `hoof` und größere Staubwolke bei `footstep` beritten, Karte „Neues Reittier“ bei `mount:learned`, „Reiten gelernt“ nach `q_first_ride`.
+- **Wetter** (gfx/Weather.js): neue Teilchen `snow`, `spore`, `emberrain`, `glint`, Nebelschwaden (`fog: { a, c }`), Tönung (`tint`), Zustände `ashwind`, `blizzard`, `emberstorm`, `fog`. Rezepte für alle 8 neuen Zonen; Atmo `wind`, `marsh`, `blizzard`; Musikthemen zugeordnet.
+- **Minimap**: Farbstil je Zone (`MAP_STYLE` in ui/Minimap.js), Schnee wird weniger aufgehellt. EP-Zahlen mit Tausenderpunkt.

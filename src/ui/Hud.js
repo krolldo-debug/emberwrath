@@ -24,6 +24,7 @@ const RES_NAMES = { mana: 'Mana', rage: 'Wut', energy: 'Energie' };
 function setText(el, v) { v = String(v); if (el.textContent !== v) el.textContent = v; }
 function setVar(el, name, v) { const s = String(v); if (el._v?.[name] !== s) { (el._v ??= {})[name] = s; el.style.setProperty(name, s); } }
 function toggle(el, cls, on) { if (el.classList.contains(cls) !== !!on) el.classList.toggle(cls, !!on); }
+const num = (v) => Math.round(v ?? 0).toLocaleString('de-DE');
 function frac(a, b) { return b > 0 ? Math.max(0, Math.min(1, a / b)) : 0; }
 
 function bar(cls, label) {
@@ -107,7 +108,11 @@ export class Hud {
     this.trialBar = bar('trial', 'Fortschritt der Prüfung');
     this.trialAff = el('div.hud-trial-aff');
     this.trialEl = el('div.hud-trial', el('div.hud-trial-head', this.trialTitle, this.trialTime), this.trialBar.el, this.trialAff);
-    this.viewEl = el('div.hud-view', this.bossEl, this.trialEl, this.bannerEl, this.promptEl, this.deadEl);
+    // Wirkbalken (Aufsitzen, §12.6): liest hero.mountCast { t, dur } von Thread A
+    this.castFill = el('div.hud-cast-fill');
+    this.castText = el('span.hud-cast-text', 'Aufsitzen');
+    this.castEl = el('div.hud-cast', el('div.hud-cast-bar', this.castFill), this.castText);
+    this.viewEl = el('div.hud-view', this.bossEl, this.trialEl, this.bannerEl, this.promptEl, this.castEl, this.deadEl);
 
     // Aktionsleiste
     this.slots = [
@@ -118,6 +123,7 @@ export class Hud {
       this.#slot('skill3', 'T', 'Fähigkeit 3', null),
       this.#slot('skill4', 'G', 'Fähigkeit 4', null),
       this.#slot('potion', 'H', 'Heiltrank', 'potion_hp'),
+      this.#slot('mount', 'V', 'Reittier', 'ui_mount'),
       this.#slot('interact', 'E', 'Interagieren', 'ui_interact'),
     ];
     this.barEl = el('div.hud-actions', this.slots.map((s) => s.el));
@@ -310,7 +316,7 @@ export class Hud {
     setText(this.pLevel, xi.level ?? prog.level);
     const capped = xi.capped || !Number.isFinite(xi.need);
     this.#meter(this.xp, capped ? 1 : xi.into, capped ? 1 : xi.need, dt,
-      capped ? `Stufe ${xi.level} · Höchststufe` : `Stufe ${xi.level} · ${xi.into} / ${xi.need} EP`);
+      capped ? `Stufe ${xi.level} · Höchststufe` : `Stufe ${xi.level} · ${num(xi.into)} / ${num(xi.need)} EP`);
 
     // Gold
     setText(this.gold, (s.state.slices.wallet?.gold ?? 0).toLocaleString('de-DE'));
@@ -325,6 +331,8 @@ export class Hud {
     this.#updateBanner(dt);
     this.#updatePrompt();
     this.#updateSlots(hero);
+    this.#updateCast(hero);
+    toggle(this.root, 'riding', !!this.game.character?.mounts?.()?.riding);
     this.#updateStick();
     this.#updateMenu(dt);
 
@@ -513,6 +521,18 @@ export class Hud {
           cd = frac(hero.potionCd ?? 0, hero.potionCooldown ?? 1);
           break;
         }
+        case 'mount': {
+          // Erst sichtbar, wenn Reiten grundsätzlich erreichbar ist (ab Stufe 20, §12.6)
+          const ch = this.game.character;
+          const cm = ch?.canMount?.() ?? { ok: false, reason: 'level' };
+          const riding = !!ch?.mounts?.()?.riding;
+          hidden = cm.reason === 'level';
+          disabled = !riding && !cm.ok;
+          toggle(sl.el, 'active', riding);
+          const tip = riding ? 'Absitzen (V)' : cm.ok ? 'Aufsitzen (V)' : `Reittier (V) · ${ch?.mountReasonText?.(cm.reason) ?? ''}`;
+          if (sl.el.title !== tip) sl.el.title = tip;
+          break;
+        }
         case 'interact':
           hidden = !this.prompt;
           break;
@@ -522,6 +542,13 @@ export class Hud {
       setVar(sl.el, '--cd', cd.toFixed(3));
       toggle(sl.el, 'cooling', cd > 0);
     }
+  }
+
+  #updateCast(hero) {
+    const c = hero.mountCast;
+    const on = !!c && c.dur > 0 && !hero.dead;
+    toggle(this.castEl, 'show', on);
+    if (on) setVar(this.castFill, '--f', frac(c.t, c.dur).toFixed(3));
   }
 
   #slotGlyph(sl, text) { sl.img.removeAttribute('src'); setText(sl.txt, text); }

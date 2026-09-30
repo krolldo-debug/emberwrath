@@ -23,6 +23,20 @@ const C = {
 // ------------------------------------------------------------------ Kartenbild
 const baseCache = new WeakMap(); // world -> { [scale]: canvas }
 
+// Kartenfarben je Zone: Bodenaufhellung (mul/add), Wandkante, Wandtönung. Helle Gebiete (Schnee) werden
+// weniger aufgehellt, damit Wege und Wände lesbar bleiben (Stufe 20–40, §12.2).
+const MAP_STYLE = {
+  default: { mul: 1.22, add: [14, 12, 18], edge: [92, 80, 104], wall: [8, 5, 14] },
+  ashen_steppe: { mul: 1.12, add: [14, 10, 6], edge: [150, 112, 70], wall: [16, 10, 6] },
+  howling_barrow: { mul: 1.3, add: [12, 14, 20], edge: [110, 120, 150], wall: [6, 6, 14] },
+  blighted_marsh: { mul: 1.18, add: [8, 16, 8], edge: [96, 140, 80], wall: [4, 12, 6] },
+  spore_hollow: { mul: 1.25, add: [10, 20, 8], edge: [140, 200, 90], wall: [6, 14, 6] },
+  frostspire: { mul: 0.82, add: [0, 6, 16], edge: [70, 110, 170], wall: [10, 18, 36] },
+  rime_caverns: { mul: 1.05, add: [6, 14, 28], edge: [120, 180, 240], wall: [6, 12, 28] },
+  ember_wastes: { mul: 1.15, add: [20, 8, 4], edge: [200, 110, 50], wall: [18, 6, 4] },
+  ashen_throne: { mul: 1.2, add: [22, 8, 6], edge: [230, 120, 60], wall: [20, 4, 6] },
+};
+
 export function zoneBaseImage(world, scale) {
   let entry = baseCache.get(world);
   if (!entry) { entry = {}; baseCache.set(world, entry); }
@@ -35,12 +49,13 @@ export function zoneBaseImage(world, scale) {
   if (world.background) ctx.drawImage(world.background, 0, 0, d.pixelW, d.pixelH, 0, 0, c.width, c.height);
   // Lesbarkeit: Wände dunkel, Boden etwas heller und kühler
   const img = ctx.getImageData(0, 0, c.width, c.height), px = img.data;
+  const st = MAP_STYLE[world.zone?.id ?? world.zoneId] ?? MAP_STYLE.default, [ar, ag, ab] = st.add, [wr, wg, wb] = st.wall;
   for (let ty = 0; ty < d.h; ty++) for (let tx = 0; tx < d.w; tx++) {
     const wall = d.solid[ty * d.w + tx] === 1;
     for (let y = 0; y < scale; y++) for (let x = 0; x < scale; x++) {
       const i = ((ty * scale + y) * c.width + tx * scale + x) * 4;
-      if (wall) { px[i] = px[i] * 0.28 + 8; px[i + 1] = px[i + 1] * 0.25 + 5; px[i + 2] = px[i + 2] * 0.3 + 14; }
-      else { px[i] = Math.min(255, px[i] * 1.25 + 14); px[i + 1] = Math.min(255, px[i + 1] * 1.2 + 12); px[i + 2] = Math.min(255, px[i + 2] * 1.2 + 18); }
+      if (wall) { px[i] = px[i] * 0.28 + wr; px[i + 1] = px[i + 1] * 0.25 + wg; px[i + 2] = px[i + 2] * 0.3 + wb; }
+      else { px[i] = Math.min(255, px[i] * st.mul + ar); px[i + 1] = Math.min(255, px[i + 1] * st.mul + ag); px[i + 2] = Math.min(255, px[i + 2] * st.mul + ab); }
     }
   }
   // Wandkanten (Boden neben Wand) als helle Linie – macht Räume und Wege klar
@@ -50,7 +65,7 @@ export function zoneBaseImage(world, scale) {
     if (!open) continue;
     for (let y = 0; y < scale; y++) for (let x = 0; x < scale; x++) {
       const i = ((ty * scale + y) * c.width + tx * scale + x) * 4;
-      px[i] = 92; px[i + 1] = 80; px[i + 2] = 104;
+      px[i] = st.edge[0]; px[i + 1] = st.edge[1]; px[i + 2] = st.edge[2];
     }
   }
   ctx.putImageData(img, 0, 0);

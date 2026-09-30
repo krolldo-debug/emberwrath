@@ -4,8 +4,9 @@
 // Verbindliche Aktionsnamen (siehe docs/INTEGRATION.md). Neue Aktionen nur
 // über den Architektur-Thread; die Tastenbelegung selbst darf Thread D anpassen.
 // skill3/skill4/talents: Runde 4 (INTEGRATION.md §11.7, Fähigkeiten ab Stufe 4/12 und Talentbaum von Thread A).
+// mount: Aufsitzen/Absitzen ab Stufe 20 (INTEGRATION.md §12.6, Logik in Thread A's Hero).
 export const ACTIONS = ['up', 'down', 'left', 'right', 'attack', 'dodge', 'skill1', 'skill2', 'skill3', 'skill4', 'potion',
-  'interact', 'inventory', 'character', 'quests', 'talents', 'pause', 'mute', 'debug'];
+  'mount', 'interact', 'inventory', 'character', 'quests', 'talents', 'pause', 'mute', 'debug'];
 
 const KEYMAP = {
   KeyW: 'up', ArrowUp: 'up',
@@ -19,6 +20,7 @@ const KEYMAP = {
   KeyT: 'skill3', Digit4: 'skill3',
   KeyG: 'skill4', Digit5: 'skill4',
   KeyH: 'potion', Digit3: 'potion',
+  KeyV: 'mount', Digit6: 'mount',
   KeyE: 'interact', KeyF: 'interact',
   KeyI: 'inventory', KeyB: 'inventory',
   KeyC: 'character',

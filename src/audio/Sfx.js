@@ -144,6 +144,9 @@ export class Sfx {
     storm: { outdoor: 0.05, water: 0.07 },
     water: { dungeon: 0.025, water: 0.05 },
     fire: { outdoor: 0.025, fire: 0.09 },
+    wind: { outdoor: 0.08 },
+    marsh: { outdoor: 0.02, water: 0.04 },
+    blizzard: { outdoor: 0.11 },
   };
 
   setAmbience(kind) {
@@ -335,6 +338,24 @@ export class Sfx {
       case 'fleshDeath':
         this.#tone(t, { type: 'sine', f0: 120 * p, f1: 40, dur: 0.35, peak: 0.4 });
         this.#noise(t, { dur: 0.25, type: 'lowpass', f0: 1200, f1: 200, peak: 0.3 });
+        break;
+      // --- Reiten (§12.6) ---
+      case 'hoof': // Hufschlag beim Reiten
+        this.#noise(t, { dur: 0.05, type: 'lowpass', f0: 1400 * p, f1: 300, peak: 0.16 });
+        this.#tone(t, { type: 'sine', f0: 190 * p, f1: 85, dur: 0.07, peak: 0.12 });
+        break;
+      case 'mountUp': // Aufsitzen: Schnauben und Satteldruck
+        this.#noise(t, { dur: 0.35, type: 'bandpass', f0: 700, f1: 300, q: 1.1, peak: 0.22, attack: 0.04 });
+        this.#tone(t + 0.05, { type: 'sawtooth', f0: 520 * p, f1: 380 * p, dur: 0.3, peak: 0.05, attack: 0.03 });
+        for (let i = 0; i < 2; i++) this.#noise(t + 0.18 + i * 0.12, { dur: 0.05, type: 'lowpass', f0: 1200, f1: 300, peak: 0.15 });
+        break;
+      case 'mountDown':
+        this.#tone(t, { type: 'sine', f0: 140 * p, f1: 60, dur: 0.14, peak: 0.25 });
+        this.#noise(t, { dur: 0.12, type: 'lowpass', f0: 1500, f1: 250, peak: 0.2 });
+        break;
+      case 'mountCast': // Wirkbeginn: leises Pfeifen nach dem Reittier
+        this.#tone(t, { type: 'sine', f0: 1400, f1: 1900, dur: 0.12, peak: 0.06 });
+        this.#tone(t + 0.16, { type: 'sine', f0: 1500, f1: 2100, dur: 0.18, peak: 0.06 });
         break;
       // --- Fähigkeiten (Runde 4) ---
       case 'shout':
