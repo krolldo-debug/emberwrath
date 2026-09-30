@@ -169,7 +169,8 @@ function trialsView(s) {
     const unlocked = st.slices.progress.level >= TRIAL_REQUIRES.level && st.slices.quests.completed.includes(TRIAL_REQUIRES.quest);
     const maxTier = Math.min(TRIAL_MAX_TIER, tr.best + 1);
     if (tier == null || tier > maxTier) tier = maxTier;
-    const spec = trialSpec(tier, 1), ch = trialChances(tier), rw = trialRewards(tier, { rng: () => 0.99, firstClear: !tr.cleared[tier] });
+    const lvl = st.slices.progress.level;
+    const spec = trialSpec(tier, 1, lvl), ch = trialChances(tier), rw = trialRewards(tier, { rng: () => 0.99, firstClear: !tr.cleared[tier], level: lvl });
     const run = tr.run;
     const last = run && (run.phase === 'done' || run.phase === 'failed') ? run : tr.last ?? null;
     const pct = (v) => `${Math.round(v * 1000) / 10} %`;

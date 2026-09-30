@@ -82,6 +82,25 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   (Reiter „Gespräch“ im Dialog). Die Zeilen erzählen den roten Faden (Flammenkrone: Varkhul → Rask → Nerith → Ignaroth) und
   geben Hinweise auf die seltenen Gegner.
 
+## Erweiterung Stufe 20–40 (Runde 3, §12)
+
+- `xp.js`: `LEVEL_CAP = 40`, Stufe 1–19 bitgenau wie vorher. Ab 20 berechnet `xpToNext` die XP aus der Zielzeit
+  (15 → 25 Minuten je Stufe) und `PACE` (15 Kills/min, Kampfanteil 42 %, Wirkungsgrad 0,8). 20→21 = 42 000 EP.
+  Volle Stufe-20-Stände steigen nach dem Laden normal weiter (`progress.deserialize`).
+- `test/pacing.mjs` (geeicht an „Stufe 20 nach 30 Minuten“): 1–20 ≈ 31 min; 20–40 ≈ 7,0 h, Quest-Anteil ≈ 56 %,
+  ≈ 75 Kopfgelder zwischen den Regionen, Gold 20→40 ≈ 210 000 (alle Beute verkauft), 25–35 ≈ 28 000 Gold/h.
+- `items40.js`: Tier 5–8 (`tierOf` erweitert), je Tier 3 Stile × (18 Waffen früh/spät, 16 Rüstungsteile, 2 Schmuck),
+  handgeschriebene Epics, 7 Sets von Eliten/Dungeonbossen + `sovereign`, benannte Bosswaffen, 6 Legendäre des Aschenfürsten,
+  Tränke `superior_potion`/`supreme_potion`/`greater_mana`/`supreme_mana`, Zonenmaterialien, Questgegenstände,
+  9 Reittier-Gegenstände `mount_<id>` (`type: 'mount'`, `mountId`, `price` bei Orla). Icons nach D's Schema `_t5…_t8`.
+- `quests40.js`: 55 Quests (Hauptkette Hale → Varra → Thane → Eskil → Corvane → `q_ash_sovereign`), `q_first_ride` bei Orla,
+  4 Kopfgelder, Gesprächszeilen und Händler (`stablemaster_orla` mit `gear: false`: nur Reittiere).
+- Reittiere: Stallpreise 75 000 (selten) und 150 000 (Glutross, ab Stufe 40). Drops: Hügelkönig/Mutter Fäulnis/Frostwurm/Moorgrauen 1 %,
+  Aschenfürst 0,5 %, Glutprüfung ab Prüfungsstufe 20 0,3 %. `inventory:use` auf einen Reittier-Gegenstand committet `mount:learn`
+  (Thread A); bekannt → `{ reason: 'known' }`, Gegenstand bleibt. Beritten kein Trank (`reason: 'riding'`, Toast „Nicht beritten“).
+- Charakter-Panel hat den Reiter „Reittiere“ (Daten von A). Glutprüfungen: Stufe, Boss-Leben (+5 %/Stufe über 20), Gold und
+  Beute-ilvl folgen der Spielerstufe; ab 38 zusätzlich der legendäre Pool des Aschenfürsten.
+
 ## Commands (★ = authoritative)
 
 | Command | Nutzlast | Ergebnis |

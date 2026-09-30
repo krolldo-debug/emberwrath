@@ -415,7 +415,7 @@ sehen müssen, steht in §12.9.
 ### 12.1 Stufenkurve und Tempo (C, `progression/xp.js`)
 
 - `LEVEL_CAP = 40`. Die Kurve für Stufe 1–19 bleibt **bitgenau** gleich (bestehende Spielstände, Tests). Ab Stufe 20 neue Formel,
-  Richtwert `xpToNext(L) ≈ xpToNext(19) × 1,16^(L−19)` (≈ 7 600 für 20→21, ≈ 125 000 für 39→40; Summe 20→40 ≈ 0,9 Mio.).
+  Umgesetzt (C, 30.09.): 20→21 = 42 000 EP, 20→40 ≈ 7 h (EP je Kill über `mobXp`, Nachweis `pacing.mjs`). Ursprünglicher Richtwert war `xpToNext(19) × 1,16^(L−19)`.
   Maßgeblich ist nicht die Formel, sondern das Tempo: **pro Stufe 15–25 Minuten**, zum Ende hin länger.
   C weist das mit `src/progression/test/pacing.mjs` nach (Kills/Minute und Quest-Anteil wie heute, Quest-XP ≈ 55–60 %).
 - Charaktere, die heute auf 20 „voll“ stehen (`xp = xpNext`), steigen nach dem Update normal weiter (Migration in `progress.restore`).
@@ -518,13 +518,13 @@ Reittiere kämpfen nicht, haben keine Werte außer Tempo.
 
 | Mount-ID | Name | Seltenheit | Beschaffung (C) |
 |---|---|---|---|
-| `steppe_horse` | Steppenpferd | rare | Orla, sehr teuer (Richtwert 25 000 Gold) |
-| `ash_wolf` | Aschenwolf | rare | Orla, sehr teuer (Richtwert 25 000 Gold) |
+| `steppe_horse` | Steppenpferd | rare | Orla, sehr teuer (75 000 Gold) |
+| `ash_wolf` | Aschenwolf | rare | Orla, sehr teuer (75 000 Gold) |
 | `marsh_strider` | Sumpfschreiter | rare | Elite `bog_horror`, 1 % |
 | `bone_stallion` | Knochenhengst | epic | Boss `barrow_king`, 1 % |
 | `spore_beetle` | Sporenkäfer | epic | Boss `rot_mother`, 1 % |
 | `frost_elk` | Frostelch | epic | Boss `frost_wyrm`, 1 % |
-| `ember_charger` | Glutross | epic | Orla, extrem teuer, ab Stufe 40 (Richtwert 150 000 Gold) |
+| `ember_charger` | Glutross | epic | Orla, extrem teuer, ab Stufe 40 (150 000 Gold) |
 | `cinder_drake` | Schlackendrache | legendary | Boss `ash_sovereign`, 0,5 % |
 | `nightmare_steed` | Albtraumross | legendary | Glutprüfung ab Prüfungsstufe 20, 0,3 % je Abschluss |
 
@@ -562,7 +562,7 @@ Reittiere kämpfen nicht, haben keine Werte außer Tempo.
 - **Seltenheitsgrenzen** aus §11.5 gelten unverändert auch für 21–40. Bosse: `epic` Hügelkönig 4 %, Mutter Fäulnis 5 %,
   Frostwurm 6 %, Aschenfürst 8 %; `legendary` ≤ 2 % **nur** `ash_sovereign` (neuer legendärer Pool, 6 Teile, `ilvl 40`) und
   weiter Ignaroth (sein Pool bleibt `ilvl 20`). Glutprüfungen nach §11.10.
-- `reqLevel` = `ilvl` − 2 wie bisher; Händler verkaufen weiter nur `common`/`uncommon` (Reittiere ausgenommen, §12.6).
+- `reqLevel` = `ilvl` − 1 wie bisher; Händler verkaufen weiter nur `common`/`uncommon` (Reittiere ausgenommen, §12.6).
 
 ### 12.8 Charakter bis 40 (A)
 

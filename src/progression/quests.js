@@ -16,6 +16,7 @@
 //    gear wird bei der Abgabe passend zur Klasse bestimmt (loot.js pickRewardGear) und im Dialog angezeigt.
 // Zustände: gesperrt → verfügbar → aktiv ('active') → abgabebereit ('ready') → abgeschlossen.
 import { questXp } from './xp.js';
+import { QUESTS_40, NPC_LINES_40, VENDORS_40 } from './quests40.js';
 
 const Q = (level, weight) => questXp(level, weight);
 
@@ -388,3 +389,8 @@ export const VENDORS = {
   trader_vesk: { name: 'Vesks Wagen', levels: [6, 12], goods: ['minor_potion', 'healing_potion', 'minor_mana', 'mana_potion'] },
   quartermaster_dunn: { name: 'Dunns Vorräte', levels: [12, 20], goods: ['healing_potion', 'greater_potion', 'mana_potion'], craft: true },
 };
+
+// Stufe 20–40 (quests40.js)
+for (const [id, q] of Object.entries(QUESTS_40)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
+Object.assign(NPC_LINES, NPC_LINES_40);
+Object.assign(VENDORS, VENDORS_40);

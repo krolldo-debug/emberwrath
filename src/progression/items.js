@@ -13,6 +13,9 @@
 //  classes Klassen-IDs, die die Waffe führen können (fehlt = alle)
 //  icon    Symbol-ID aus gfx/Icons.js (Thread D); unbekannte Varianten fallen auf die Familie zurück
 //  source  'boss' | 'quest' | 'vendor' | 'trial' | 'rare' – nur von dort erhältlich (nicht in Zufallsbeute)
+//  price   fester Kaufpreis (Reittiere bei Orla), sonst value × BUY_FACTOR
+// Stufe 21–40: items40.js (Tier 5–8, Sets, Reittier-Gegenstände).
+import { WEAPONS_40, ARMOR_40, JEWELRY_40, OTHER_40 } from './items40.js';
 
 export const RARITIES = {
   common: { name: 'Gewöhnlich', color: '#d8d0c0', order: 0, mult: 1.0, attrs: 0 },
@@ -30,6 +33,7 @@ export const ITEM_TYPES = {
   consumable: { name: 'Verbrauchsgut' },
   material: { name: 'Material' },
   quest: { name: 'Questgegenstand' },
+  mount: { name: 'Reittier' },
 };
 
 export const EQUIP_SLOTS = ['weapon', 'head', 'chest', 'hands', 'feet', 'ring', 'amulet'];
@@ -121,8 +125,8 @@ export function makeStats({ slot, family, ilvl: L, rarity, attrs: attrOverride, 
   return st;
 }
 
-// Tier nach INTEGRATION.md §11.5: 1 = Stufe 1–5, 2 = 6–11, 3 = 12–16, 4 = 17–20
-export function tierOf(ilvl) { return ilvl <= 5 ? 1 : ilvl <= 11 ? 2 : ilvl <= 16 ? 3 : 4; }
+// Tier nach INTEGRATION.md §11.5/§12.7: 1 = Stufe 1–5, 2 = 6–11, 3 = 12–16, 4 = 17–20, danach je 5 Stufen eins mehr
+export function tierOf(ilvl) { return ilvl <= 5 ? 1 : ilvl <= 11 ? 2 : ilvl <= 16 ? 3 : ilvl <= 20 ? 4 : 4 + Math.ceil((ilvl - 20) / 5); }
 export function itemValue(ilvl, rarity) { const m = RARITIES[rarity].mult; return Math.max(1, Math.round((2 + ilvl * 1.8) * m * m)); }
 
 // ------------------------------------------------------------------ Ausrüstung
@@ -336,9 +340,17 @@ const JEWELRY = {
   ],
 };
 
+function withLists(base, extra) {
+  const out = {};
+  for (const [k, list] of Object.entries(base)) out[k] = [...list];
+  for (const [k, list] of Object.entries(extra)) out[k] = [...(out[k] ?? []), ...list];
+  return out;
+}
+
 function buildEquipment() {
   const out = {};
-  for (const [family, list] of Object.entries(WEAPONS)) {
+  const weapons = withLists(WEAPONS, WEAPONS_40), armor = withLists(ARMOR, ARMOR_40), jewelry = withLists(JEWELRY, JEWELRY_40);
+  for (const [family, list] of Object.entries(weapons)) {
     for (const e of list) {
       out[e.id] = {
         name: e.name, type: 'weapon', slot: 'weapon', family, visual: family, rarity: e.rarity, ilvl: e.ilvl, icon: e.icon, desc: e.desc,
@@ -347,7 +359,7 @@ function buildEquipment() {
       };
     }
   }
-  for (const [slot, list] of Object.entries(ARMOR)) {
+  for (const [slot, list] of Object.entries(armor)) {
     for (const e of list) {
       out[e.id] = {
         name: e.name, type: 'armor', slot, family: e.family, visual: e.family, rarity: e.rarity, ilvl: e.ilvl, icon: e.icon, desc: e.desc, source: e.source, set: e.set,
@@ -355,7 +367,7 @@ function buildEquipment() {
       };
     }
   }
-  for (const [slot, list] of Object.entries(JEWELRY)) {
+  for (const [slot, list] of Object.entries(jewelry)) {
     for (const e of list) {
       out[e.id] = {
         name: e.name, type: 'jewelry', slot, rarity: e.rarity, ilvl: e.ilvl, icon: e.icon, desc: e.desc, source: e.source, set: e.set,
@@ -363,7 +375,8 @@ function buildEquipment() {
       };
     }
   }
-  for (const d of Object.values(out)) {
+  for (const [id, d] of Object.entries(out)) {
+    if (!d.stats) throw new Error(`Item ${id} ohne Werte`);
     d.reqLevel = Math.max(1, d.ilvl - 1);
     d.tier = tierOf(d.ilvl);
     d.value = itemValue(d.ilvl, d.rarity);
@@ -405,11 +418,13 @@ const OTHER = {
   varkhul_sigil: { name: 'Varkhuls Siegel', type: 'quest', rarity: 'epic', icon: 'seal', stack: 1, value: 0, desc: 'Das Siegel des Knochenfürsten. Maren wird es sehen wollen.' },
 };
 
-export const ITEMS = { ...buildEquipment(), ...OTHER };
-for (const d of Object.values(OTHER)) { d.ilvl = d.ilvl ?? 1; d.reqLevel = d.reqLevel ?? 1; d.tier = tierOf(d.ilvl); }
+const EQUIPMENT = buildEquipment();
+for (const id of Object.keys(OTHER_40)) if (EQUIPMENT[id] || OTHER[id]) throw new Error(`Item-ID ${id} doppelt`);
+export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40 };
+for (const d of [...Object.values(OTHER), ...Object.values(OTHER_40)]) { d.ilvl = d.ilvl ?? 1; d.reqLevel = d.reqLevel ?? 1; d.tier = tierOf(d.ilvl); }
 
 export function stackSize(def) { return Math.max(1, def?.stack ?? 1); }
-export function buyPrice(def) { return Math.max(1, Math.round((def.value || 1) * BUY_FACTOR)); }
+export function buyPrice(def) { return def.price ?? Math.max(1, Math.round((def.value || 1) * BUY_FACTOR)); }
 export function isEquippable(def) { return !!def?.slot; }
 export function equipSlotFor(def) { return def?.slot ?? null; }
 export function canUseClass(def, classId) { return !def?.classes || !classId || def.classes.includes(classId); }

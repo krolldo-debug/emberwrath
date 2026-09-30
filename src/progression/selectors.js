@@ -245,6 +245,7 @@ export function questRewardItems(state, content, questId) {
 export function vendorStock(content, vendorId) {
   const v = content.find('vendor', vendorId);
   if (!v) return [];
+  if (v.gear === false) return [...(v.goods ?? [])];
   const [lo, hi] = v.levels ?? [1, 20];
   const gear = content.all('item')
     .filter((d) => d.slot && !d.source && (d.rarity === 'common' || d.rarity === 'uncommon') && d.ilvl >= lo && d.ilvl <= hi)

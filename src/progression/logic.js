@@ -542,7 +542,17 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
   def('inventory:use', (s, { slot }, ctx) => {
     const it = bag(s)[slot];
     const item = it && ctx.content.find('item', it.itemId);
+    // Reittier-Gegenstand (§12.6): mount:learn von Thread A; bekannt → Hinweis, Gegenstand bleibt (verkaufbar)
+    if (item?.type === 'mount') {
+      if (!s.commands?.has('mount:learn')) return { ok: false, reason: 'unavailable' };
+      if (s.slices.character?.mounts?.owned?.includes(item.mountId)) return { ok: false, reason: 'known' };
+      const r = s.commit('mount:learn', { mountId: item.mountId });
+      if (!r?.ok) return { ok: false, reason: r?.known ? 'known' : 'unavailable' };
+      takeFromSlot(s, ctx, slot, 1);
+      return { ok: true, mountId: item.mountId };
+    }
     if (item?.type !== 'consumable' || !item.use) return { ok: false };
+    if (s.slices.character?.mounts?.riding) return { ok: false, reason: 'riding' };   // §12.6: beritten kein Trank
     if ((item.reqLevel ?? 1) > s.get('progress').level) return { ok: false, reason: 'level' };
     takeFromSlot(s, ctx, slot, 1);
     ctx.bus.emit(EV.ITEM_USED, { itemId: item.id, effect: item.use });
@@ -563,7 +573,9 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
   // --- Händler
   def('shop:buy', (s, { vendorId, itemId, qty = 1 }, ctx) => {
     if (!vendorStock(ctx.content, vendorId).includes(itemId)) return { ok: false, reason: 'stock' };
-    const price = buyPrice(ctx.content.get('item', itemId)) * qty;
+    const def = ctx.content.get('item', itemId);
+    if (def.type === 'mount' && (def.reqLevel ?? 1) > s.get('progress').level) return { ok: false, reason: 'level' };
+    const price = buyPrice(def) * qty;
     if (s.get('wallet').gold < price) return { ok: false, reason: 'gold' };
     if (capacityFor(s, ctx.content, itemId) < qty) return { ok: false, reason: 'full' };
     addGold(s, ctx, -price, `buy:${itemId}`);

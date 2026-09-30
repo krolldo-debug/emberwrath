@@ -117,6 +117,7 @@ export class ProgressionSystem {
   usePotion() {
     const hero = this.hero, st = this.s.state;
     if (!hero || hero.dead || this.potionCd > 0) return false;
+    if (hero.riding ?? st.slices.character?.mounts?.riding) { this.#toast('Nicht beritten'); return false; }
     if (hero.hp >= hero.maxHp) { this.#toast('Du bist unverletzt'); return false; }
     const slot = findPotionSlot(st, this.s.content, hero.maxHp - hero.hp);
     if (slot < 0) { this.#toast('Keine Heiltränke im Inventar'); return false; }

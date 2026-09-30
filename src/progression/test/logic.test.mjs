@@ -12,10 +12,12 @@ import { rollLoot, pickRewardGear, rarityWeights } from '../loot.js';
 import { ITEMS, EQUIP_SLOTS, RARITY_ORDER, WEAPON_CLASSES } from '../items.js';
 import { QUESTS, VENDORS, NPC_LINES } from '../quests.js';
 import { RECIPES } from '../crafting.js';
-import { runCampaign } from './pacing.mjs';
+import { runCampaign, expansionReport } from './pacing.mjs';
 import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
-import { trialSpec, trialChances } from '../trials.js';
+import { trialSpec, trialChances, trialRewards } from '../trials.js';
+import { MOUNT_DROPS } from '../loot.js';
+import { SOVEREIGN_LEGENDARIES } from '../items40.js';
 import { ACHIEVEMENTS } from '../achievements.js';
 import { RARE_ENEMIES, rareSpawnsFor } from '../rares.js';
 
@@ -41,9 +43,11 @@ const slotOf = (state, itemId) => state.slices.inventory.slots.findIndex((s) => 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 
-test('Levelkurve bis 20 ist monoton, Kills skalieren mit dem Stufenabstand', () => {
-  assert.equal(LEVEL_CAP, 20);
+test('Levelkurve bis 40 ist monoton, 1–19 unverändert, Kills skalieren mit dem Stufenabstand', () => {
+  assert.equal(LEVEL_CAP, 40);
   assert.equal(xpToNext(1), 100);
+  for (let l = 1; l < 20; l++) assert.equal(xpToNext(l), Math.round((100 * Math.pow(l, 1.42)) / 5) * 5, `Stufe ${l} bitgenau`);
+  assert.equal(totalXpForLevel(20), 54695);
   for (let l = 1; l < LEVEL_CAP - 1; l++) assert.ok(xpToNext(l + 1) > xpToNext(l));
   assert.equal(xpToNext(LEVEL_CAP), Infinity);
   assert.equal(totalXpForLevel(3), xpToNext(1) + xpToNext(2));
@@ -52,14 +56,14 @@ test('Levelkurve bis 20 ist monoton, Kills skalieren mit dem Stufenabstand', () 
   assert.ok(killXp(100, 9, 7) > 100);
 });
 
-test('XP führt zu Levelaufstieg mit Events und endet bei 20', () => {
+test('XP führt zu Levelaufstieg mit Events und endet bei 40', () => {
   const { c, state, events } = setup();
   c('progress:grantXp', { amount: 400, source: 't' });
   assert.equal(state.slices.progress.level, 3); // 100 + 270 = 370 <= 400
   assert.equal(events.filter(([e]) => e === EV.LEVEL_UP).length, 2);
   assert.equal(xpInfo(state).into, 30);
-  c('progress:grantXp', { amount: 10_000_000 });
-  assert.equal(state.slices.progress.level, 20);
+  c('progress:grantXp', { amount: 100_000_000 });
+  assert.equal(state.slices.progress.level, 40);
   assert.equal(xpInfo(state).capped, true);
 });
 
@@ -242,7 +246,7 @@ test('Belohnungsausrüstung passt zur Klasse und ist deterministisch', () => {
 test('Händler: nur gewöhnlich/ungewöhnlich, kaufen, verkaufen, Plunder', () => {
   const { c, state, content } = setup();
   for (const v of Object.keys(VENDORS)) for (const id of vendorStock(content, v)) {
-    assert.ok(['common', 'uncommon'].includes(ITEMS[id].rarity), `${v}: ${id}`);
+    assert.ok(['common', 'uncommon'].includes(ITEMS[id].rarity) || ITEMS[id].type === 'mount', `${v}: ${id}`);
   }
   assert.ok(vendorStock(content, 'trader_vesk').some((id) => ITEMS[id].slot));
   c('wallet:addGold', { amount: 100 });
@@ -342,17 +346,17 @@ test('Inhalte: Quests, NPCs, Händler und Items sind konsistent', () => {
   for (const v of Object.keys(VENDORS)) assert.ok(NPCS.includes(v));
   for (const [id, d] of Object.entries(ITEMS)) {
     assert.ok(d.name && d.icon && d.rarity && d.type, id);
-    if (d.slot) { assert.ok(EQUIP_SLOTS.includes(d.slot), id); assert.ok(d.ilvl >= 1 && d.ilvl <= 20, id); assert.ok(d.reqLevel <= d.ilvl, id); }
+    if (d.slot) { assert.ok(EQUIP_SLOTS.includes(d.slot), id); assert.ok(d.ilvl >= 1 && d.ilvl <= LEVEL_CAP, id); assert.ok(d.reqLevel <= d.ilvl, id); }
   }
   // Vielfalt je Tier: mindestens 2 Schwerter
-  for (const tier of [1, 2, 3, 4]) {
+  for (const tier of [1, 2, 3, 4, 5, 6, 7, 8]) {
     const swords = Object.values(ITEMS).filter((d) => d.family === 'sword' && d.tier === tier && !d.source);
     assert.ok(swords.length >= 2, `Tier ${tier}: ${swords.length} Schwerter`);
   }
 });
 
 test('Kampagne: Tempo-Richtwerte aus §11.4', () => {
-  const r = runCampaign();
+  const r = runCampaign({ until: 'q_ignaroth' });
   const m = r.milestones;
   console.log(`    Varkhul ${m.q_bonelord}, Ende Aschenwald ${m.q_temple_shore}, Nerith ${m.q_nerith}, Wächter ${m.q_forge_warden}, Ignaroth ${m.q_ignaroth}; Questanteil ${(r.questShare * 100).toFixed(0)} %`);
   assert.ok(m.q_bonelord >= 5 && m.q_bonelord <= 7);
@@ -361,6 +365,113 @@ test('Kampagne: Tempo-Richtwerte aus §11.4', () => {
   assert.ok(m.q_forge_warden >= 16 && m.q_forge_warden <= 18);
   assert.ok(m.q_ignaroth >= 19);
   assert.ok(r.questShare >= 0.5 && r.questShare <= 0.72);
+});
+
+test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () => {
+  const x = expansionReport();
+  const per = Object.values(x.full.minutesPerLevel);
+  console.log(`    20→40 ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, je Stufe ${Math.min(...per).toFixed(0)}–${Math.max(...per).toFixed(0)} min, ${x.full.bounties} Kopfgelder`);
+  assert.equal(x.full.level, 40);
+  assert.ok(x.hours20to40 >= 6 && x.hours20to40 <= 8, `${x.hours20to40} h`);
+  assert.ok(x.questShare >= 0.52 && x.questShare <= 0.62, `Quest-Anteil ${x.questShare}`);
+  const avg = per.reduce((a, b) => a + b, 0) / per.length;
+  assert.ok(avg >= 15 && avg <= 25, `Schnitt ${avg} min je Stufe`);
+  assert.ok(Math.max(...per) <= 40 && Math.min(...per) >= 8, 'keine extremen Ausreißer');
+  // Reittier-Preise: selten ≈ 3–4 h bei 75 % des verkauften Beutewerts, episch erst gegen 40
+  const rare = ITEMS.mount_steppe_horse.price, epic = ITEMS.mount_ember_charger.price;
+  const realistic = x.goldPerHour25to35 * 0.75;
+  assert.ok(rare / realistic >= 3 && rare / realistic <= 4, `seltenes Reittier ${rare} = ${(rare / realistic).toFixed(1)} h`);
+  assert.ok(x.goldAt(36) * 0.75 < epic && x.goldAt(40) * 0.8 >= epic * 0.95, 'episches Reittier erst gegen Stufe 40');
+  assert.equal(ITEMS.mount_ember_charger.reqLevel, 40);
+});
+
+test('Erweiterung: Quests, Kette und Inhalte bis 40', () => {
+  const chain = ['q_ignaroth', 'q_new_horizons', 'q_steppe_raiders', 'q_barrow_king', 'q_into_the_marsh', 'q_rot_mother', 'q_frost_pass', 'q_frost_wyrm', 'q_the_wastes', 'q_ash_sovereign'];
+  for (let i = 1; i < chain.length; i++) assert.ok(QUESTS[chain[i]], chain[i]);
+  assert.deepEqual(QUESTS.q_new_horizons.requires, ['q_ignaroth']);
+  assert.ok(QUESTS.q_ash_sovereign.objectives.some((o) => o.target === 'sovereign_crown'));
+  assert.equal(QUESTS.q_first_ride.giver, 'stablemaster_orla');
+  assert.equal(QUESTS.q_first_ride.minLevel, 20);
+  assert.ok(!QUESTS.q_first_ride.rewards.items?.some((it) => ITEMS[it.itemId].type === 'mount'), 'kein Gratis-Reittier');
+  const byGiver = {};
+  for (const q of Object.values(QUESTS)) if (q.level >= 20 && !q.repeatable) (byGiver[q.giver] ??= []).push(q);
+  for (const giver of ['captain_varra', 'warden_thane', 'jarl_eskil', 'marshal_corvane']) {
+    const n = byGiver[giver].filter((q) => q.main).length;
+    assert.ok(n >= 6 && n <= 8, `${giver}: ${n} Hauptquests`);
+  }
+  for (const giver of ['nomad_kesh', 'alchemist_brisa', 'hunter_sigrun', 'pilgrim_aldo']) assert.ok(byGiver[giver].length >= 4 && byGiver[giver].length <= 6, `${giver}: ${byGiver[giver].length}`);
+  for (const b of ['q_bounty_steppe', 'q_bounty_marsh', 'q_bounty_frost', 'q_bounty_wastes']) assert.ok(QUESTS[b].repeatable);
+  // Tiers 5–8 nach §12.7, reqLevel = ilvl − 1 wie bisher
+  assert.equal(ITEMS.nomad_sword.tier, 5); assert.equal(ITEMS.bog_sword.tier, 6); assert.equal(ITEMS.jarl_sword.tier, 7); assert.equal(ITEMS.waste_sword.tier, 8);
+  for (const d of Object.values(ITEMS)) if (d.slot && d.ilvl > 20) assert.ok(/_t[5-8]$/.test(d.icon), `${d.name}: ${d.icon}`);
+  assert.equal(SOVEREIGN_LEGENDARIES.length, 6);
+  for (const id of SOVEREIGN_LEGENDARIES) { assert.equal(ITEMS[id].rarity, 'legendary'); assert.equal(ITEMS[id].ilvl, 40); }
+  for (const id of ['superior_potion', 'supreme_potion', 'greater_mana', 'supreme_mana']) assert.ok(ITEMS[id]);
+});
+
+test('Erweiterung: volle Stufe-20-Stände steigen nach dem Update weiter', () => {
+  const { state } = setup();
+  const snap = JSON.parse(JSON.stringify(state.snapshot()));
+  snap.slices.progress = { level: 20, xp: totalXpForLevel(20), xpNext: totalXpForLevel(20), stats: {} };
+  const b = setup();
+  b.state.load(snap);
+  assert.equal(b.state.slices.progress.level, 20);
+  assert.equal(b.state.slices.progress.xpNext, totalXpForLevel(21));
+  assert.equal(xpInfo(b.state).capped, false);
+  b.c('progress:grantXp', { amount: xpToNext(20) });
+  assert.equal(b.state.slices.progress.level, 21);
+});
+
+test('Reittiere: Kauf bei Orla, Lernen per Gegenstand, Drops nur von Bossen', () => {
+  const { c, state, content } = setup();
+  // Minimaler Ersatz für Thread A (character.mounts + mount:learn)
+  state.slices.character.mounts = { owned: [], active: null, riding: false };
+  state.defineCommand('mount:learn', (s, { mountId }) => {
+    const m = s.get('character').mounts;
+    if (m.owned.includes(mountId)) return { ok: false, known: true };
+    m.owned.push(mountId); m.active ??= mountId; return { ok: true, mountId };
+  });
+  const stock = vendorStock(content, 'stablemaster_orla');
+  assert.deepEqual(stock, ['mount_steppe_horse', 'mount_ash_wolf', 'mount_ember_charger']);
+  c('progress:grantXp', { amount: totalXpForLevel(20) });
+  c('wallet:addGold', { amount: 1000 });
+  assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' }).reason, 'gold');
+  c('wallet:addGold', { amount: 400000 });
+  assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_ember_charger' }).reason, 'level');
+  const r = c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' });
+  assert.equal(r.ok, true); assert.equal(r.price, 75000);
+  const used = c('inventory:use', { slot: slotOf(state, 'mount_steppe_horse') });
+  assert.equal(used.ok, true); assert.equal(used.mountId, 'steppe_horse');
+  assert.equal(countItem(state, 'mount_steppe_horse'), 0);
+  assert.deepEqual(state.slices.character.mounts.owned, ['steppe_horse']);
+  // Schon bekannt: Gegenstand bleibt
+  c('inventory:add', { itemId: 'mount_steppe_horse', qty: 1 });
+  assert.equal(c('inventory:use', { slot: slotOf(state, 'mount_steppe_horse') }).reason, 'known');
+  assert.equal(countItem(state, 'mount_steppe_horse'), 1);
+  // Beritten kein Trank
+  state.slices.character.mounts.riding = true;
+  assert.equal(c('inventory:use', { slot: slotOf(state, 'minor_potion') }).reason, 'riding');
+  // Drops: nur die vier Dungeonbosse und das Moorgrauen, 1 % bzw. 0,5 %
+  assert.deepEqual(Object.keys(MOUNT_DROPS).sort(), ['ash_sovereign', 'barrow_king', 'bog_horror', 'frost_wyrm', 'rot_mother']);
+  assert.equal(MOUNT_DROPS.ash_sovereign[1], 0.005);
+  let n = 0;
+  for (let i = 0; i < 20000; i++) if (rollLoot({ type: 'barrow_king', level: 26, boss: true, bossId: 'barrow_king' }, { rng }).some((d) => d.itemId === 'mount_bone_stallion')) n++;
+  assert.ok(n > 120 && n < 290, `Knochenhengst ${n}/20000`);
+  for (let i = 0; i < 3000; i++) assert.ok(!rollLoot({ chest: 'boss_x', level: 30 }, { rng }).some((d) => ITEMS[d.itemId]?.type === 'mount'), 'kein Reittier in Truhen');
+});
+
+test('Glutprüfungen skalieren mit der Spielerstufe, Albtraumross ab Prüfungsstufe 20', () => {
+  const a = trialSpec(5, 3, 20), b = trialSpec(5, 3, 40);
+  assert.equal(a.level, 20); assert.equal(b.level, 40);
+  assert.ok(b.bossHp > a.bossHp * 1.9);
+  let steed = 0;
+  for (let i = 0; i < 20000; i++) {
+    const r = trialRewards(20, { rng, level: 36 });
+    if (r.items.some((it) => it.itemId === 'mount_nightmare_steed')) steed++;
+    if (i < 200) for (const it of r.items) if (ITEMS[it.itemId].slot && ITEMS[it.itemId].rarity !== 'legendary') assert.ok(ITEMS[it.itemId].ilvl >= 30, it.itemId);
+  }
+  assert.ok(steed > 20 && steed < 110, `Albtraumross ${steed}/20000`);
+  assert.ok(!trialRewards(19, { rng: () => 0, level: 40 }).items.some((it) => it.itemId === 'mount_nightmare_steed'));
 });
 
 test('Sets: Teile existieren, Boni wirken ab der Teilzahl, Bossbeute liefert Setteile', () => {

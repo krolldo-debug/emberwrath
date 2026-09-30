@@ -5,10 +5,13 @@
 //   Elite           rare 12 %, epic 1 %
 //   Seltene (rares.js) 1 Teil, rare 28 %, epic 2 %, dazu ihr eigenes Beutestück (25 %)
 //   Boss            mind. uncommon; epic Varkhul 3 %, Nerith 5 %, Ignaroth 8 %; legendary ≤ 2 % (nur Ignaroth)
+//                   ab 20 (§12.7): Hügelkönig 4 %, Mutter Fäulnis 5 %, Frostwurm 6 %, Aschenfürst 8 % (+ legendär ≤ 2 %)
+//   Reittiere       eigener Wurf außerhalb der Grenzen (§12.6): Bosse 1 %, Aschenfürst 0,5 %, Moorgrauen 1 %
 //   Truhen          höchstens rare (3 %, Bosstruhe 25 %)
 // Items mit `source` (boss/quest/vendor) fallen nie zufällig, nur über BOSS_LOOT bzw. Quests.
 import { ITEMS, RARITY_ORDER, WEAPON_CLASSES, itemScore } from './items.js';
 import { RARE_ENEMIES, RARE_GOLD_MULT, RARE_WEIGHTS } from './rares.js';
+import { SOVEREIGN_LEGENDARIES } from './items40.js';
 
 // Gewichte je Quelle. Summe beliebig; Grenzen werden in rarityWeights() erzwungen.
 const RARITY_TABLE = {
@@ -24,7 +27,21 @@ const BOSSES = {
   drowned_priestess: { weights: { uncommon: 50, rare: 45, epic: 5 }, drops: 2, gold: 14, named: [['priestess_amulet', 0.05]], set: { chance: 0.35, pieces: ['tide_circlet', 'tide_wraps', 'tide_pearl_ring'] }, quest: [['q_nerith', 'tide_pearl']] },
   // Legendär: höchstens EIN Teil pro Kill, Gesamtchance 1,8 % (bevorzugt passend zur Klasse).
   ember_tyrant: { weights: { rare: 92, epic: 8 }, drops: 3, set: { chance: 0.12, pieces: ['tyrant_helm', 'tyrant_gauntlets', 'tyrant_sabatons'] }, gold: 18, legendary: { chance: 0.018, pool: ['tyrant_plate', 'crown_of_embers_blade', 'nightwhisper', 'starfall', 'worldstaff', 'ember_heart'] }, quest: [['q_ignaroth', 'tyrant_crown']] },
+  // Stufe 20–40 (§12.7). mount: [itemId, Chance] – eigener Wurf, zählt nicht gegen die Seltenheitsgrenzen.
+  barrow_king: { weights: { uncommon: 70, rare: 26, epic: 4 }, drops: 2, gold: 14, named: [['ulgrim_blade', 0.2]], set: { chance: 0.35, pieces: ['hillking_helm', 'hillking_cuirass', 'hillking_gauntlets', 'hillking_ring'] }, quest: [['q_barrow_king', 'barrow_seal']], mount: ['mount_bone_stallion', 0.01] },
+  rot_mother: { weights: { uncommon: 50, rare: 45, epic: 5 }, drops: 2, gold: 15, named: [['rotmother_staff', 0.2]], set: { chance: 0.35, pieces: ['rotmother_hood', 'rotmother_robe', 'rotmother_gloves', 'rotmother_amulet'] }, mount: ['mount_spore_beetle', 0.01] },
+  frost_wyrm: { weights: { uncommon: 34, rare: 60, epic: 6 }, drops: 2, gold: 16, named: [['skalvyr_fang', 0.12], ['skalvyr_rib_bow', 0.12]], set: { chance: 0.35, pieces: ['wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'] }, quest: [['q_frost_wyrm', 'wyrm_heart']], mount: ['mount_frost_elk', 0.01] },
+  ash_sovereign: { weights: { rare: 92, epic: 8 }, drops: 3, gold: 20, set: { chance: 0.12, pieces: ['sovereign_helm', 'sovereign_gauntlets', 'sovereign_sabatons'] }, legendary: { chance: 0.018, pool: SOVEREIGN_LEGENDARIES }, quest: [['q_ash_sovereign', 'sovereign_crown']], mount: ['mount_cinder_drake', 0.005] },
 };
+// Benannte Eliten (Außengebiete ab 20): Set-Teil mit `set.chance`, Questgegenstand, evtl. Reittier.
+// Seltenheit der normalen Beute bleibt Elite (§11.5).
+const ELITES = {
+  steppe_warlord: { set: { chance: 0.25, pieces: ['khar_helm', 'khar_hauberk', 'khar_grips', 'khar_boots'] }, quest: [['q_steppe_warlord', 'khar_warhorn']] },
+  bog_horror: { set: { chance: 0.25, pieces: ['bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'] }, quest: [['q_bog_horror', 'horror_heart']], mount: ['mount_marsh_strider', 0.01] },
+  ice_troll_chief: { set: { chance: 0.25, pieces: ['gorm_helm', 'gorm_cuirass', 'gorm_gauntlets', 'gorm_sabatons'] }, quest: [['q_troll_chief', 'gorm_tusk']] },
+  waste_colossus: { set: { chance: 0.25, pieces: ['colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'] }, quest: [['q_colossus', 'colossus_core']] },
+};
+export const MOUNT_DROPS = Object.fromEntries([...Object.entries(BOSSES), ...Object.entries(ELITES)].filter(([, b]) => b.mount).map(([id, b]) => [id, b.mount]));
 export const LEGENDARY_MAX = 0.02;
 
 // Materialien nach Gegnertyp (Vorrang) bzw. Familie. [itemId, Chance, questBoost?]
@@ -49,14 +66,47 @@ const TYPE_MATS = {
   flame_acolyte: [['cultist_tome', 0.35, 0.6], ['ember_ore', 0.08]],
   forge_golem: [['ember_ore', 0.2], ['obsidian_shard', 0.2], ['ember_core', 0.04, 0.6]],
   ember_drake: [['ember_core', 0.1, 0.7], ['ember_ore', 0.2]],
+  // Stufe 20–40 (Gegner-IDs aus §12.4)
+  steppe_raider: [['linen', 0.25]],
+  raider_archer: [['raider_arrowhead', 0.35, 0.6]],
+  dust_hyena: [['hyena_hide', 0.4, 0.65], ['wolf_fang', 0.2]],
+  ash_vulture: [['vulture_feather', 0.4, 0.6]],
+  barrow_wight: [['barrow_bone', 0.35, 0.8], ['bone_dust', 0.3]],
+  grave_hound: [['bone_dust', 0.3], ['wolf_fang', 0.15]],
+  bone_archer: [['barrow_bone', 0.35, 0.8]],
+  wight_caller: [['barrow_bone', 0.5], ['shadow_essence', 0.05]],
+  bog_lurker: [['bog_iron', 0.08, 0.4], ['leech_ichor', 0.15]],
+  rot_shaman: [['toad_gland', 0.1], ['bog_iron', 0.05]],
+  swamp_leech: [['leech_ichor', 0.4, 0.65]],
+  plague_toad: [['toad_gland', 0.35, 0.6]],
+  sporeling: [['spore_cap', 0.3, 0.75]],
+  fungal_brute: [['spore_cap', 0.5], ['bog_iron', 0.1]],
+  spore_caster: [['spore_cap', 0.4, 0.85]],
+  ice_troll: [['troll_fat', 0.4, 0.65], ['frost_pelt', 0.1]],
+  frost_wolf: [['frost_pelt', 0.4, 0.65], ['wolf_fang', 0.2]],
+  rime_witch: [['rime_crystal', 0.06], ['linen', 0.2]],
+  snow_stalker: [['frost_pelt', 0.25]],
+  ice_elemental: [['rime_crystal', 0.15]],
+  crystal_spider: [['crystal_silk', 0.25, 0.9]],   // Reifhöhlen: 6 Spinnen, kein Respawn
+  frozen_knight: [['grave_iron', 0.3], ['rime_crystal', 0.1]],
+  ash_wraith: [['pilgrim_relic', 0.3, 0.55]],
+  cinder_knight: [['ember_ore', 0.3], ['magma_scale', 0.05]],
+  magma_serpent: [['magma_scale', 0.15, 0.55]],
+  ember_cultist_adept: [['adept_sigil', 0.4, 0.65], ['cultist_tome', 0.2]],
+  throne_guard: [['ember_ore', 0.3], ['magma_scale', 0.08]],
+  ash_priest: [['adept_sigil', 0.3], ['cultist_tome', 0.25]],
+  ember_hellhound: [['magma_scale', 0.1], ['wolf_fang', 0.2]],
 };
 const FAMILY_MATS = {
   beast: [['wolf_pelt', 0.35]], undead: [['bone_dust', 0.4]], spider: [['linen', 0.15]], humanoid: [['linen', 0.3]],
+  plant: [['spore_cap', 0.3]], dragon: [['ember_core', 0.1], ['rime_crystal', 0.15]],
 };
 const ELITE_MATS = [['ember_core', 0.15], ['shadow_essence', 0.08], ['ruby', 0.06], ['sapphire', 0.06], ['amethyst', 0.015]];
 // Questgegenstände, die nur während der Quest fallen: [questId, itemId, Chance]
 const QUEST_DROPS = {
   spider: [['q_spider_silk', 'spider_silk', 0.85]],  // Katakomben: 5 Spinnen, kein Respawn
+  rot_shaman: [['q_marsh_shamans', 'rot_idol', 0.6]],
+  ash_priest: [['q_ash_prayers', 'ash_prayer', 0.9]],   // Aschethron: 4 Priester, kein Respawn
 };
 
 // ---------------------------------------------------------------- Hilfen
@@ -100,8 +150,10 @@ export function pickEquipment({ level, rarity, classId, rng = Math.random }) {
   return null;
 }
 
-export function potionFor(level) { return level >= 12 ? 'greater_potion' : level >= 6 ? 'healing_potion' : 'minor_potion'; }
-export function manaFor(level) { return level >= 8 ? 'mana_potion' : 'minor_mana'; }
+export function potionFor(level) { return level >= 31 ? 'supreme_potion' : level >= 21 ? 'superior_potion' : level >= 12 ? 'greater_potion' : level >= 6 ? 'healing_potion' : 'minor_potion'; }
+export function manaFor(level) { return level >= 31 ? 'supreme_mana' : level >= 21 ? 'greater_mana' : level >= 8 ? 'mana_potion' : 'minor_mana'; }
+// Truhenmaterial nach Stufe
+function chestMaterial(level) { return level >= 36 ? 'magma_scale' : level >= 31 ? 'rime_crystal' : level >= 21 ? 'bog_iron' : level >= 12 ? 'ember_ore' : 'grave_iron'; }
 
 // ---------------------------------------------------------------- Würfeln
 // enemy = { type, level, family, elite, boss, bossId, rareId }  (Gegner) bzw. { chest: objectId, level }
@@ -115,6 +167,7 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   const rare = !isChest && !enemy.boss ? RARE_ENEMIES[enemy.rareId] : null;
   const kind = isChest ? (bossChest ? 'chest_boss' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.elite ? 'elite' : 'normal';
   const boss = kind === 'boss' ? BOSSES[enemy.bossId ?? enemy.type] : null;
+  const named = kind === 'elite' ? ELITES[enemy.type] : null;
 
   // Gold
   const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest' ? 3 : 1;
@@ -133,13 +186,17 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   }
   if (rare?.signature && ITEMS[rare.signature[0]] && rng() < rare.signature[1]) drops.push({ itemId: rare.signature[0], qty: 1 });
   for (const [id, chance] of boss?.named ?? []) if (ITEMS[id] && rng() < chance) drops.push({ itemId: id, qty: 1 });
-  if (boss?.set && rng() < boss.set.chance) drops.push({ itemId: boss.set.pieces[Math.floor(rng() * boss.set.pieces.length)], qty: 1 });
+  for (const src of [boss, named]) if (src?.set && rng() < src.set.chance) drops.push({ itemId: src.set.pieces[Math.floor(rng() * src.set.pieces.length)], qty: 1 });
   if (boss?.legendary && rng() < Math.min(LEGENDARY_MAX, boss.legendary.chance)) {
     const pool = boss.legendary.pool.filter((id) => ITEMS[id]);
     const fit = pool.filter((id) => !ITEMS[id].classes || !classId || ITEMS[id].classes.includes(classId));
     const from = fit.length && rng() < 0.75 ? fit : pool;
     drops.push({ itemId: from[Math.floor(rng() * from.length)], qty: 1 });
   }
+
+  // Reittier (eigener Wurf)
+  const mount = boss?.mount ?? named?.mount;
+  if (mount && ITEMS[mount[0]] && rng() < mount[1]) drops.push({ itemId: mount[0], qty: 1 });
 
   // Tränke
   if (rng() < (kind === 'normal' ? 0.1 : 0.6)) drops.push({ itemId: potionFor(lvl), qty: kind === 'normal' ? 1 : 2 });
@@ -154,11 +211,11 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
     }
     if (kind !== 'normal') for (const [id, chance] of ELITE_MATS) if (rng() < chance) drops.push({ itemId: id, qty: 1 });
   } else if (rng() < 0.5) {
-    drops.push({ itemId: lvl >= 12 ? 'ember_ore' : 'grave_iron', qty: 1 + Math.floor(rng() * 2) });
+    drops.push({ itemId: chestMaterial(lvl), qty: 1 + Math.floor(rng() * 2) });
   }
 
   // Questgegenstände
-  for (const [questId, itemId, chance = 1] of [...(QUEST_DROPS[enemy.type] ?? []), ...(boss?.quest ?? [])]) {
+  for (const [questId, itemId, chance = 1] of [...(QUEST_DROPS[enemy.type] ?? []), ...(boss?.quest ?? []), ...(named?.quest ?? [])]) {
     if (questNeed(questId, itemId) > 0 && rng() < chance) drops.push({ itemId, qty: 1, quest: true });
   }
   return drops;

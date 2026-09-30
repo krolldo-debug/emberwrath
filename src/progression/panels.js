@@ -40,12 +40,13 @@ function titleOf(st) {
   return id ? ACHIEVEMENTS[id]?.title ?? null : null;
 }
 
+const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Reittiere sind in dieser Version noch nicht verfügbar.' };
 const EQUIP_FAIL = { class: 'Deine Klasse kann das nicht führen.', level: 'Deine Stufe ist zu niedrig.', notEquippable: '' };
 const SLOT_PH = { weapon: 'sword', head: 'helm', chest: 'armor', hands: 'gloves', feet: 'boots', ring: 'ring', amulet: 'amulet' };
 const FILTERS = [
   ['all', 'Alle', () => true],
   ['gear', 'Ausrüstung', (d) => !!d.slot],
-  ['use', 'Verbrauch', (d) => d.type === 'consumable'],
+  ['use', 'Verbrauch', (d) => d.type === 'consumable' || d.type === 'mount'],
   ['mat', 'Material', (d) => d.type === 'material'],
   ['quest', 'Quest', (d) => d.type === 'quest'],
 ];
@@ -88,7 +89,11 @@ function inventoryView(s) {
       if (equipSlotFor(def)) {
         const r = act('inventory:equip', { slot: i }, (x) => EQUIP_FAIL[x.reason] ?? '');
         if (r?.ok) sel = { eq: r.slot };
-      } else if (def.type === 'consumable') act('inventory:use', { slot: i }, (x) => (x.reason === 'level' ? EQUIP_FAIL.level : ''));
+      } else if (def.type === 'consumable') act('inventory:use', { slot: i }, (x) => (x.reason === 'level' ? EQUIP_FAIL.level : x.reason === 'riding' ? 'Nicht beritten.' : ''));
+      else if (def.type === 'mount') {
+        const r = act('inventory:use', { slot: i }, (x) => MOUNT_FAIL[x.reason] ?? '');
+        if (r?.ok) { sel = null; msg = `Neues Reittier: ${s.content.find('mount', r.mountId)?.name ?? def.name}. Aufsitzen mit V oder dem Reittier-Knopf.`; redraw(); }
+      }
     };
     const unequip = (slot) => act('inventory:unequip', { slot }, () => 'Kein Platz im Inventar.');
     const detailOpts = { equipment: inv.equipment, level, classId };
@@ -171,6 +176,10 @@ function inventoryView(s) {
           : actionBtn('Ausrüsten', () => primary(sel.bag), { primary: true }));
       }
       if (def.type === 'consumable') actions.push(actionBtn('Benutzen', () => primary(sel.bag), { primary: true }));
+      if (def.type === 'mount') {
+        const known = st.slices.character?.mounts?.owned?.includes(def.mountId);
+        actions.push(known ? actionBtn('Schon bekannt', null, { disabled: true }) : actionBtn('Erlernen', () => primary(sel.bag), { primary: true }));
+      }
       if (def.type !== 'quest' && def.value) {
         const g = def.value * it.qty;
         actions.push(actionBtn(`Verkaufen +${g}`, () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${r.gold} Gold verkauft.`; redraw(); }));
@@ -253,8 +262,14 @@ const RES = { rage: 'Wut', mana: 'Mana', energy: 'Energie' };
 const ATTR = { str: 'Stärke', agi: 'Geschick', int: 'Intellekt', vit: 'Ausdauer' };
 
 function characterView(s) {
-  return () => {
+  let tab = 'overview';
+  return (redraw) => {
     const st = s.state, c = s.content, ch = st.slices.character ?? {};
+    const tabs = h('div.pg-tabs', { role: 'tablist' },
+      [['overview', 'Übersicht'], ['mounts', 'Reittiere']].map(([id, label]) => h(`button.pg-tabbtn${tab === id ? '.on' : ''}`, {
+        type: 'button', role: 'tab', 'aria-selected': String(tab === id), onclick: () => { tab = id; redraw(); },
+      }, label)));
+    if (tab === 'mounts') return panelFrame(s, 'character', 'Charakter', tabs, h('div.pg-scroll.pg-keep-scroll.pg-char', mountsSection(s)));
     const stats = safeStats(st, c);
     const xp = xpInfo(st);
     const race = ch.raceId ? c.find('race', ch.raceId) : null;
@@ -271,7 +286,7 @@ function characterView(s) {
     ];
     const attrs = stats.attributes ? Object.entries(stats.attributes).map(([k, v]) => row(ATTR[k] ?? k, Math.round(v))) : [];
     const inv = st.slices.inventory;
-    return panelFrame(s, 'character', 'Charakter',
+    return panelFrame(s, 'character', 'Charakter', tabs,
       h('div.pg-scroll.pg-keep-scroll.pg-char',
         h('section.pg-char-id',
           h('div.pg-char-name', ch.name ?? 'Unbekannt'),
@@ -295,6 +310,35 @@ function characterView(s) {
         h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements'))),
         h('p.ef-note.pg-local', 'Gespeichert in deinem Konto · in der Cloud gesichert.')));
   };
+}
+
+// Reiter „Reittiere“ (§12.6): Daten und Commands von Thread A (content 'mount', character.mounts, mount:select)
+const MOUNT_RARITY = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
+function mountLine(c, def, level) {
+  const m = c.find('mount', def.mountId);
+  return `Reittier · +${Math.round((m?.speed ?? 0) * 100)} % Tempo${(def.reqLevel ?? 1) > level ? ` · ab Stufe ${def.reqLevel}` : ''}`;
+}
+function mountsSection(s) {
+  const st = s.state, c = s.content;
+  const defs = c.all('mount');
+  if (!defs.length) return h('p.ef-note', 'Reittiere kommen mit dem nächsten Update.');
+  const m = st.slices.character?.mounts ?? { owned: [], active: null };
+  const check = s.character?.canMount?.() ?? { ok: false, reason: null };
+  const status = check.reason === 'level' || check.reason === 'lesson'
+    ? (s.character?.mountReasonText?.(check.reason) ?? 'Ab Stufe 20 bei Stallmeisterin Orla in der Aschensteppe')
+    : m.owned.length ? 'Aufsitzen mit V oder dem Reittier-Knopf. Im Kampf und in Dungeons geht es nicht.' : 'Kaufe ein Reittier bei Stallmeisterin Orla oder erbeute eines von Bossen.';
+  const order = { legendary: 0, epic: 1, rare: 2 };
+  const rows = [...defs].sort((a, b) => m.owned.includes(b.id) - m.owned.includes(a.id) || order[a.rarity] - order[b.rarity]).map((d) => {
+    const own = m.owned.includes(d.id), active = m.active === d.id;
+    return h(`li.pg-mount${own ? '' : '.locked'}${active ? '.active' : ''}`,
+      itemIconEl({ icon: `mount_${d.id}`, rarity: d.rarity }, 40),
+      h('div.pg-mount-body',
+        h(`b.r-${d.rarity}`, d.name),
+        h('small', `${MOUNT_RARITY[d.rarity] ?? ''} · +${Math.round((d.speed ?? 0) * 100)} % Tempo`),
+        own ? null : h('small.ef-note', d.source ?? '')),
+      own ? (active ? h('span.pg-mount-on', 'Aktiv') : actionBtn('Wählen', () => commit(s, 'mount:select', { mountId: d.id }), { small: true })) : null);
+  });
+  return h('section', h('p.ef-note', status), h('p.pg-mount-count', `${m.owned.length} von ${defs.length} Reittieren`), h('ul.pg-mounts', rows));
 }
 
 // ---------------------------------------------------------------- Questlog
@@ -418,7 +462,7 @@ function shopView(s, { vendorId } = {}) {
     const st = s.state, c = s.content, vendor = c.find('vendor', vendorId);
     const inv = st.slices.inventory, gold = st.slices.wallet.gold;
     const level = levelOf(s), classId = classOf(s);
-    const fail = { gold: 'Nicht genug Gold.', full: 'Kein Platz im Inventar.', stock: 'Nicht im Sortiment.', unsellable: 'Das kauft hier niemand.' };
+    const fail = { gold: 'Nicht genug Gold.', full: 'Kein Platz im Inventar.', stock: 'Nicht im Sortiment.', unsellable: 'Das kauft hier niemand.', level: 'Deine Stufe ist zu niedrig.' };
     const detailOpts = { equipment: inv.equipment, level, classId };
     const buy = (id) => { const def = c.find('item', id); const r = commit(s, 'shop:buy', { vendorId, itemId: id }); msg = r.ok ? `${def.name} gekauft.` : fail[r.reason] ?? ''; redraw(); };
 
@@ -434,7 +478,7 @@ function shopView(s, { vendorId } = {}) {
         const row = h(`li.pg-stock-row${sel === id ? '.selected' : ''}${low ? '.low' : ''}`, { onclick: () => { sel = id; msg = ''; redraw(); } },
           itemIconEl({ ...def, name: null }, 36),
           h('div.pg-stock-name', h(`span.r-${def.rarity}`, def.name, up ? h('span.pg-up.inline', ' ▲') : null),
-            h('small', def.slot ? `${typeLabel(def)} · Stufe ${def.reqLevel}` : def.desc ?? typeLabel(def))),
+            h('small', def.slot ? `${typeLabel(def)} · Stufe ${def.reqLevel}` : def.type === 'mount' ? mountLine(c, def, level) : def.desc ?? typeLabel(def))),
           goldEl(price, gold < price ? '.poor' : ''),
           actionBtn('Kaufen', (e) => { e.stopPropagation(); buy(id); }, { disabled: gold < price, small: true }));
         attachTip(row, () => itemDetail(c, id, { ...detailOpts, compact: true, price }));
