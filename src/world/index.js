@@ -2,6 +2,7 @@ import { EV } from '../core/events.js';
 import { ZONES, NPCS } from './zones.js';
 import { LEVELS } from './levels.js';
 import { LEVELS2 } from './levels2.js';
+import { LEVELS3 } from './levels3.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
 import { createWolfSprites } from '../sprites/wolf.js';
 import { createBonelordSprites } from '../sprites/bonelord.js';
@@ -15,6 +16,7 @@ import { createForgeFoes } from '../sprites/foes_forge.js';
 import { createNerithSprites } from '../sprites/nerith.js';
 import { createIgnarothSprites } from '../sprites/ignaroth.js';
 import { createNpcSprites2 } from '../sprites/npcs2.js';
+import { createNpcSprites3 } from '../sprites/npcs3.js';
 import { createAshwoodDecor } from '../sprites/decor_ashwood.js';
 import { createPeaksDecor } from '../sprites/decor_peaks.js';
 import { createBiomeTiles } from '../sprites/biomes.js';
@@ -56,7 +58,7 @@ export function installWorld(game) {
   for (const [id, def] of Object.entries(ZONES)) content.define('zone', id, def);
   for (const [id, def] of Object.entries(NPCS)) content.define('npc', id, def);
   // Karten als Inhalt (Minimap, Wegführung über Zonengrenzen)
-  for (const [id, def] of Object.entries({ ...LEVELS, ...LEVELS2 })) content.define('level', id, def);
+  for (const [id, def] of Object.entries({ ...LEVELS, ...LEVELS2, ...LEVELS3 })) content.define('level', id, def);
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     content.define('enemy', id, { name: def.name, level: def.level ?? def.levels?.[0] ?? 1, levels: def.levels ?? null, xp: def.xp, family: def.family, boss: !!def.boss, bossId: def.bossId ?? null, elite: !!def.elite });
   }
@@ -74,11 +76,21 @@ export function installWorld(game) {
   lazyAsset(assets, 'nerith', createNerithSprites);
   lazyAsset(assets, 'ignaroth', createIgnarothSprites);
   lazyAsset(assets, 'npcs2', createNpcSprites2);
+  lazyAsset(assets, 'npcs3', createNpcSprites3);
   lazyAsset(assets, 'village', createVillageProps);
   lazyAsset(assets, 'decor_ashwood', createAshwoodDecor);
   lazyAsset(assets, 'decor_peaks', createPeaksDecor);
   lazyAsset(assets, 'biome_temple', () => createBiomeTiles('temple'));
   lazyAsset(assets, 'biome_forge', () => createBiomeTiles('forge'));
+
+  // Runde 3: Platzhalter, solange eigene Grafik fehlt (Gegner -> Vorbild, Deko/Biom -> verwandter Satz)
+  for (const [id, def] of Object.entries(ENEMY_TYPES)) {
+    if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, () => assets.sprites[def.spriteBase]);
+  }
+  const R3_FALLBACK = { decor_steppe: 'decor_ashwood', decor_marsh: 'decor_ashwood', decor_frost: 'decor_peaks', decor_wastes: 'decor_peaks' };
+  for (const [k, base] of Object.entries(R3_FALLBACK)) if (!(k in assets.sprites)) lazyAsset(assets, k, () => assets.sprites[base]);
+  const R3_BIOMES = { barrow: 'temple', spore: 'temple', rime: 'temple', throne: 'forge' };
+  for (const [k, base] of Object.entries(R3_BIOMES)) if (!(('biome_' + k) in assets.sprites)) lazyAsset(assets, 'biome_' + k, () => assets.sprites['biome_' + base]);
 
   const startZone = Object.keys(ZONES).find((k) => ZONES[k].start);
   const live = { session: null };

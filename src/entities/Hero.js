@@ -265,6 +265,9 @@ export class Hero extends Actor {
     }
   }
 
+  // Tempo-Faktor aus Buffs/Debuffs: hero.buff(id, dauer, { moveSpeed: 0.7 }) bremst auf 70 % (auch beritten, mehrere multiplizieren)
+  get buffSpeed() { let m = 1; for (const b of this.buffs) if (typeof b.moveSpeed === 'number') m *= b.moveSpeed; return Math.max(0.1, m); }
+
   // Tempo-Bonus des Reittiers (zusätzlich zur Ausrüstungs-Obergrenze)
   get rideSpeed() { return this.riding ? 1 + (this.mountDef?.speed ?? 0.6) : 1; }
 
@@ -366,7 +369,7 @@ export class Hero extends Actor {
   }
 
   #updateMove(dt, world, axis) {
-    const sp = this.speed * this.rideSpeed;
+    const sp = this.speed * this.rideSpeed * this.buffSpeed;
     const k = 1 - Math.exp(-dt * 18);
     this.vx += (axis.x * sp - this.vx) * k;
     this.vy += (axis.y * sp - this.vy) * k;

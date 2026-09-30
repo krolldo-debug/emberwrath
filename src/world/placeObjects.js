@@ -195,7 +195,7 @@ export function placeObjects(world) {
   for (const m of d.npcMarks) {
     const def = world.session.content.find('npc', m.npcId);
     if (!def) continue;
-    const anims = A.sprites.npcs[m.npcId] ?? A.sprites.npcs2?.[m.npcId];
+    const anims = A.sprites.npcs[m.npcId] ?? A.sprites.npcs2?.[m.npcId] ?? A.sprites.npcs3?.[m.npcId] ?? A.sprites.npcs2?.trader_vesk;
     if (!anims?.idle) continue;
     const npc = world.spawn(new Npc(m.npcId, m.x, m.y, def, anims, world));
     world.interactables.push(npc);

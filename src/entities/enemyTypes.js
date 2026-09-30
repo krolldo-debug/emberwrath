@@ -12,6 +12,8 @@
 //   hitAndRun        nach dem Angriff kurz zurückweichen (Rudeltiere)
 //   howl             ruft beim Entdecken das Rudel (und beschleunigt es)
 //   family           grobe Art für Feedback/Sound: 'undead' | 'beast' | 'spider'
+import { createRound3Enemies } from './enemyTypes3.js';
+
 export const ENEMY_TYPES = {
   wolf: {
     name: 'Aschewolf', family: 'beast', levels: [1, 2], xp: 10,
@@ -206,3 +208,6 @@ export const ENEMY_TYPES = {
     material: 'stone', hurtTime: 0.2, eye: { x: 6, y: -64 },
   },
 };
+
+// Runde 3: Stufe 20–40 (entities/enemyTypes3.js)
+Object.assign(ENEMY_TYPES, createRound3Enemies(ENEMY_TYPES));

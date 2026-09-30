@@ -3,6 +3,7 @@ import { Dungeon } from './Dungeon.js';
 import { Outdoor } from './Outdoor.js';
 import { LEVELS } from './levels.js';
 import { LEVELS2 } from './levels2.js';
+import { LEVELS3 } from './levels3.js';
 import { TrialDirector } from './TrialDirector.js';
 import { AmbientLife } from './Ambient.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
@@ -56,7 +57,7 @@ export class World {
     this.boss = null;
     this.prompt = null;
 
-    const level = LEVELS[zone.level] ?? LEVELS2[zone.level];
+    const level = LEVELS[zone.level] ?? LEVELS2[zone.level] ?? LEVELS3[zone.level];
     if (!level) throw new Error(`Level ${zone.level} unbekannt`);
     this.dungeon = level.kind === 'outdoor' ? new Outdoor(level) : new Dungeon(level);
     this.decals = new Decals(this.dungeon.pixelW, this.dungeon.pixelH);
@@ -95,7 +96,9 @@ export class World {
     this.#spawnRares(spawnId);
     const bossMark = this.dungeon.enemyMarks.find((m) => m.boss);
     if (bossMark) {
-      this.boss = new (BOSS_CLASSES[bossMark.type] ?? Boss)(bossMark.x, bossMark.y, this.assets);
+      // Bosse ohne eigene Klasse (noch in Arbeit) laufen mit Varkhuls Logik und ihren eigenen Werten
+      const Cls = BOSS_CLASSES[bossMark.type];
+      this.boss = Cls ? new Cls(bossMark.x, bossMark.y, this.assets) : new Boss(bossMark.x, bossMark.y, this.assets, bossMark.type);
       this.actors.push(this.boss);
       this.enemies.push(this.boss);
       const a = level.arena;

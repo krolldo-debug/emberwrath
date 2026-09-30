@@ -6,6 +6,9 @@ import { Arrow, MagicBolt } from './Projectile.js';
 import { Telegraph, DamageWave } from './Telegraph.js';
 import { SLASH_STYLES } from '../sprites/effects.js';
 import { rand, angleDiff } from '../core/math.js';
+import { HazardCloud } from './Hazards.js';
+
+const CLOUD_TELE = { poison: [120, 220, 90], frost: [140, 200, 255], fire: [255, 140, 60], spore: [190, 130, 240] };
 
 // Generische Gegner-KI als Zustandsmaschine:
 //   dormant/ceiling (versteckt) -> spawn -> idle (streift umher)
@@ -429,6 +432,12 @@ export class Enemy extends Actor {
       world.spawn(new Telegraph(this.x, this.y, { shape: 'circle', r: sp.radius, duration: sp.windup, follow: this }));
     } else if (sp.kind === 'charge') {
       world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: sp.speed * sp.duration, width: 22, duration: sp.windup }));
+    } else if (sp.kind === 'cloud') {
+      // Wolke dort, wo der Held beim Ausholen steht
+      this.cloudAt = { x: world.hero.x, y: world.hero.y };
+      world.spawn(new Telegraph(this.cloudAt.x, this.cloudAt.y, { shape: 'circle', r: sp.radius, duration: sp.windup, color: CLOUD_TELE[sp.element] }));
+    } else if (sp.kind === 'summon') {
+      world.particles.magic?.(this.x, this.y - 14, 12, 10);
     }
   }
 
@@ -461,6 +470,25 @@ export class Enemy extends Actor {
         world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: true, offX: 0, offY: -8, x: this.x, y: this.y, r: 14, damage: this.#dmg(sp.damage), knockback: 240, heavy: true, ttl: sp.duration });
         this.specialTimer = sp.cooldown;
         return;
+      } else if (sp.kind === 'cloud') {
+        if (!this.animator.anims[sp.anim]) this.animator.play('strike', true);
+        const { x, y } = this.cloudAt;
+        world.spawn(new HazardCloud(x, y, this, { radius: sp.radius, duration: sp.duration ?? 5, damage: this.#dmg(sp.damage), tick: sp.tick ?? 0.5, element: sp.element ?? 'poison' }));
+        world.bus.emit('spellImpact', { x, y, element: sp.element ?? 'poison', radius: sp.radius, big: false });
+      } else if (sp.kind === 'summon') {
+        if (!this.animator.anims[sp.anim]) this.animator.play('strike', true);
+        this.summons = (this.summons ?? []).filter((e) => !e.dead && !e.removed);
+        const n = Math.min(sp.count ?? 1, (sp.max ?? 3) - this.summons.length);
+        for (let i = 0; i < n; i++) {
+          const a = (i / Math.max(1, n)) * Math.PI * 2 + rand(-0.4, 0.4);
+          const p = world.dungeon.nearestFree?.(this.x + Math.cos(a) * 22, this.y + Math.sin(a) * 14, 4) ?? { x: this.x, y: this.y };
+          const e = world.spawnEnemy(sp.type, p.x, p.y, { home: { x: this.home.x, y: this.home.y }, summoned: true });
+          e.leashFree = this.leashFree;
+          e.xpOverride = Math.max(1, Math.round((e.def.xp ?? 10) * 0.2));
+          this.summons.push(e);
+          world.particles.magic?.(p.x, p.y - 6, 10, 8);
+        }
+        world.bus.emit('enemySummon', { actor: this, type: sp.type, count: n });
       }
       return;
     }

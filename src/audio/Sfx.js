@@ -339,6 +339,16 @@ export class Sfx {
         this.#tone(t, { type: 'sine', f0: 120 * p, f1: 40, dur: 0.35, peak: 0.4 });
         this.#noise(t, { dur: 0.25, type: 'lowpass', f0: 1200, f1: 200, peak: 0.3 });
         break;
+      // --- Gegner Stufe 20–40 (B): Giftwolke/Sporenwolke, Beschwörung ---
+      case 'gas':
+        this.#noise(t, { dur: 0.55, type: 'lowpass', f0: 1800 * p, f1: 350, peak: 0.26, attack: 0.04 });
+        this.#noise(t + 0.05, { dur: 0.4, type: 'highpass', f0: 2500, f1: 1200, peak: 0.07, attack: 0.08 });
+        break;
+      case 'summon':
+        this.#tone(t, { type: 'sine', f0: 180 * p, f1: 520 * p, dur: 0.5, peak: 0.12, attack: 0.05 });
+        this.#tone(t + 0.02, { type: 'triangle', f0: 270 * p, f1: 780 * p, dur: 0.45, peak: 0.05, attack: 0.05 });
+        this.#noise(t, { dur: 0.5, type: 'bandpass', f0: 500, f1: 1600, q: 2, peak: 0.12, attack: 0.1 });
+        break;
       // --- Reiten (§12.6) ---
       case 'hoof': // Hufschlag beim Reiten
         this.#noise(t, { dur: 0.05, type: 'lowpass', f0: 1400 * p, f1: 300, peak: 0.16 });

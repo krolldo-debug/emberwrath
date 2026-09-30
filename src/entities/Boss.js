@@ -20,10 +20,10 @@ let crackDecal = null;
 // Phasen: 1 (>60 % LP), 2 (60–30 %), 3 (<30 %, rasend).
 // Für Anzeige und Tests: hp, maxHp, phase, def.name, def.bossId, world.boss.
 export class Boss extends Actor {
-  constructor(x, y, assets) {
-    const def = ENEMY_TYPES.bonelord;
-    super(x, y, assets.sprites[def.sprites]);
-    this.type = 'bonelord';
+  constructor(x, y, assets, type = 'bonelord') {
+    const def = ENEMY_TYPES[type] ?? ENEMY_TYPES.bonelord;
+    super(x, y, assets.sprites[def.sprites] ?? assets.sprites.bonelord);
+    this.type = type;
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';

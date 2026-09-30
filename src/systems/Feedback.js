@@ -50,6 +50,15 @@ export class FeedbackSystem {
       this.#sfx(e.riding ? 'mountUp' : 'mountDown');
     });
     bus.on('mountCast', () => this.#sfx('mountCast'));
+    // Beschwörung (B, Enemy.js): Ruf mit Kreis aus dunklem Licht um den Beschwörer
+    bus.on('enemySummon', (e) => {
+      const a = e.actor, w = this.game.world;
+      if (!a || !e.count) return;
+      w.addEffect(new Shockwave(a.x, a.y - 1, { radius: 30, color: '#a060f0', life: 0.5 }));
+      w.particles.ring(a.x, a.y - 2, 12, 18, ['#ffffff', '#e0b8ff', '#a060f0', '#6a2cb0'], 70);
+      w.addLight(new Light({ follow: a, offsetY: -10, radius: 80, color: [170, 100, 255], intensity: 1, ttl: 0.5, bloom: 0.5 }));
+      this.#sfx('summon');
+    });
     bus.on('deflect', (e) => {
       const w = this.game.world;
       w.particles.sparks(e.x, e.y, Math.random() * Math.PI * 2, 12, ['#ffffff', '#e0ecff', '#a8c0f0']);

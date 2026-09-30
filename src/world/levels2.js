@@ -14,7 +14,7 @@ import { MapBuilder } from './levels.js';
 //   objects    Schreine/aufhebbare Dinge (object:interact)
 
 // Unregelmäßiger Felsrand
-function rim(m, rng, W, H) {
+export function rim(m, rng, W, H) {
   for (let x = 0; x < W; x++) {
     const top = 2 + (rng.chance(0.4) ? 1 : 0);
     for (let y = 0; y < top; y++) m.set(x, y, '#');
@@ -29,7 +29,7 @@ function rim(m, rng, W, H) {
 }
 
 // Streut Deko auf freies Gras. pick(x, y) -> Zeichen oder null.
-function scatter(m, rng, keepClear, pick) {
+export function scatter(m, rng, keepClear, pick) {
   const free = (x, y) => {
     for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (m.get(x + i, y + j) !== ',') return false;
     return true;
@@ -43,11 +43,11 @@ function scatter(m, rng, keepClear, pick) {
   }
 }
 
-const inRect = (x, y, r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
-const inEll = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+export const inRect = (x, y, r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+export const inEll = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
 
 // Palisaden-/Mauerring mit Lücken. gaps: [{ side: 'n'|'s'|'w'|'e', from, to }]
-function ring(m, x0, y0, x1, y1, hCh, vCh, gaps = []) {
+export function ring(m, x0, y0, x1, y1, hCh, vCh, gaps = []) {
   const gap = (side, i) => gaps.some((g) => g.side === side && i >= g.from && i <= g.to);
   for (let x = x0; x <= x1; x++) {
     if (!gap('n', x)) m.set(x, y0, hCh);
@@ -210,6 +210,8 @@ function buildCinderPeaks() {
   m.ellipse(60, 56, 4, 2.4, '#');
   // Südausgang (Aschenwald)
   m.rect(9, 59, 6, 5, ',');
+  // Ostausgang (Aschensteppe, Runde 3)
+  m.rect(91, 29, 5, 5, ',');
 
   // Lavafluss (fest), danach Dämme für die Wege
   m.path([[2, 22], [14, 26], [26, 30], [40, 32], [52, 30], [62, 33], [72, 40], [84, 47], [94, 49]], 3, '~', [',']);
@@ -222,6 +224,7 @@ function buildCinderPeaks() {
   road([[39, 46], [50, 44], [56, 42]]);
   road([[44, 20], [58, 18], [70, 20], [78, 24]]);
   road([[56, 42], [66, 40]]);
+  road([[66, 40], [76, 35], [86, 32], [95, 31]]);
 
   // Feste Rauhwacht (Hub)
   const fort = { x: 16, y: 38, w: 23, h: 17 };
@@ -241,6 +244,7 @@ function buildCinderPeaks() {
 
   // Schmiedetor im Norden
   put(48, 5, 'Z'); put(43, 6, 'e'); put(53, 6, 'e'); put(48, 8, '4');
+  put(92, 29, 'P'); put(92, 34, 'P'); put(91, 31, '6');
 
   // Obsidianriss
   const rift = { x: 55, y: 35, w: 15, h: 11 };
@@ -268,6 +272,7 @@ function buildCinderPeaks() {
     (x, y) => inEll(x, y, 62, 40, 7, 5),
     (x, y) => inEll(x, y, 81, 20, 11.5, 8),
     (x, y) => x >= 8 && x <= 16 && y >= 55,
+    (x, y) => x >= 84 && y >= 27 && y <= 36,
   ];
   const keep = (x, y) => clearZones.some((f) => f(x, y));
   scatter(m, rng, keep, (x, y, free) => {
@@ -294,7 +299,7 @@ function buildCinderPeaks() {
       w: 'fortWall', v: 'fortWallV', G: 'fortGate', U: 'fortTower', T: 'tent', P: 'bannerPole',
       F: 'forge', c: 'crates', e: 'lavaVent', Z: 'forgeGate',
     },
-    points: { 1: 'start', 2: 'respawn', 3: 'from_ashwood', 4: 'from_molten_forge' },
+    points: { 1: 'start', 2: 'respawn', 3: 'from_ashwood', 4: 'from_molten_forge', 6: 'from_ashen_steppe' },
     npcs: { C: 'commander_hale', Y: 'seer_ysolde', D: 'quartermaster_dunn' },
     enemies: {
       i: { type: 'fire_imp' }, h: { type: 'magma_hound' }, g: { type: 'ash_golem' },
@@ -316,12 +321,14 @@ function buildCinderPeaks() {
         to: { zoneId: 'ashwood', spawnId: 'from_cinder_peaks' }, prompt: 'Hinab in den Aschenwald' },
       { id: 'to_molten_forge', x: 48, y: 4.9, range: 26, requires: { level: 17 },
         to: { zoneId: 'molten_forge', spawnId: 'start' }, prompt: 'Die Glutschmiede betreten' },
+      { id: 'to_ashen_steppe', x: 95.4, y: 31, range: 28, requires: { level: 20 }, visual: 'road', dir: [1, 0],
+        to: { zoneId: 'ashen_steppe', spawnId: 'from_cinder_peaks' }, prompt: 'Ostwärts in die Aschensteppe' },
     ],
   };
 }
 
 // ---------------------------------------------------------------- Dungeon-Helfer
-function dungeonBase(W, H, seed) {
+export function dungeonBase(W, H, seed) {
   const m = new MapBuilder(W, H, '#');
   const rooms = [];
   const room = (x, y, w, h) => { m.rect(x, y, w, h, '.'); rooms.push({ x, y, w, h }); };
