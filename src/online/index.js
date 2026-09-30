@@ -1,3 +1,4 @@
+import { EV } from '../core/events.js';
 import { ONLINE_CONFIG } from './config.js';
 import { AuthClient, describeError } from './AuthClient.js';
 import { CloudSync, accountIdFor, displayNameOf, ONLINE_ACCOUNT_PREFIX } from './CloudSync.js';
@@ -17,7 +18,7 @@ import { AdminScene } from './AdminScene.js';
 //   play()               mit dem Online-Konto zur Charakterliste
 //   isOnlineAccount(id)  gehört eine lokale Account-ID zu einem Online-Konto?
 // Szenen: 'login' { mode }, 'admin'.
-// Bus-Event (bereichsintern, frei): 'online:changed' { user, status } bei An-/Abmeldung und Sync-Status.
+// Bus-Event EV.ONLINE_CHANGED ('online:changed') { user, status } bei An-/Abmeldung und Sync-Status.
 // Adressen: …#anmelden, …#registrieren, …#konto, …#admin öffnen die jeweilige Seite (Startseite verlinkt dorthin).
 const ROUTES = { anmelden: ['login', { mode: 'login' }], registrieren: ['login', { mode: 'register' }], konto: ['login', { mode: 'account' }], admin: ['admin', {}] };
 
@@ -46,7 +47,7 @@ export class Online {
   get providers() { return this.config.providers ?? {}; }
   isOnlineAccount(id) { return typeof id === 'string' && id.startsWith(ONLINE_ACCOUNT_PREFIX); }
 
-  #changed() { this.game.bus.emit('online:changed', { user: this.user, status: this.sync.status }); }
+  #changed() { this.game.bus.emit(EV.ONLINE_CHANGED, { user: this.user, status: this.sync.status }); }
 
   isAdmin() {
     if (!this.user || !this.configured) return Promise.resolve(false);
@@ -143,20 +144,14 @@ export function installOnline(game) {
   game.scenes.register('login', (g) => new LoginScene(g));
   game.scenes.register('admin', (g) => new AdminScene(g));
 
-  // Jedes lokale Speichern/Löschen eines Online-Charakters landet in der Upload-Warteschlange.
-  // (Hülle um die Instanzmethoden von game.save; SaveStore selbst bleibt unverändert.)
-  const save = game.save;
-  const saveCharacter = save.saveCharacter.bind(save);
-  const deleteCharacter = save.deleteCharacter.bind(save);
-  save.saveCharacter = (accountId, characterId, snapshot, summary) => {
-    const ok = saveCharacter(accountId, characterId, snapshot, summary);
-    if (ok && accountId === online.sync.accountId) online.sync.markDirty(characterId);
-    return ok;
-  };
-  save.deleteCharacter = (accountId, characterId, opts = {}) => {
-    deleteCharacter(accountId, characterId);
-    if (!opts.fromSync && accountId === online.sync.accountId) online.sync.markDeleted(characterId);
-  };
+  // Jedes lokale Speichern/Löschen eines Online-Charakters landet in der Upload-Warteschlange
+  // (Events von SaveStore; Löschungen aus dem Abgleich tragen fromSync und werden nicht zurückgeschickt).
+  game.bus.on(EV.SAVE_CHARACTER, ({ accountId, characterId }) => {
+    if (accountId === online.sync.accountId) online.sync.markDirty(characterId);
+  });
+  game.bus.on(EV.SAVE_DELETED, ({ accountId, characterId, fromSync }) => {
+    if (!fromSync && accountId === online.sync.accountId) online.sync.markDeleted(characterId);
+  });
 
   window.addEventListener('online', () => { if (online.user) online.sync.syncAll().catch(() => {}); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') online.sync.flush().catch(() => {}); });

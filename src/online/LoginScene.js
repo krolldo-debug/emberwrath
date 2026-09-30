@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { EV } from '../core/events.js';
 import { MenuScene } from '../account/TitleScene.js';
 import { focusIfDesktop, formatAgo, characterLine } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
@@ -33,7 +34,7 @@ export class LoginScene extends MenuScene {
     this.message = this.online.notice; this.online.notice = null;
     this.busy = false;
     this.root = h('div.ef-screen.acc-screen.on-screen');
-    this.off = this.game.bus.on('online:changed', () => { if (this.mode === 'account') this.#render(); });
+    this.off = this.game.bus.on(EV.ONLINE_CHANGED, () => { if (this.mode === 'account') this.#render(); });
     this.#render();
   }
 
