@@ -51,6 +51,8 @@ export class TrialDirector {
     if (!this.run || h.dead) return;
     // Schadensdruck der Stufe (erneuert, solange der Lauf läuft)
     if (this.phase !== 'done' && this.run.dmgMult > 1) h.buff?.('trial_pressure', 1, { damageTaken: this.run.dmgMult });
+    // Bosse der Prüfung stammen aus Stufe ~20: ihr Schaden wächst mit der Stufe des Laufs (Diener skaliert #scale)
+    if (this.phase === 'boss' && this.bossPower > 1 && w.boss && !w.boss.dead) h.buff?.('trial_boss_level', 1, { damageTaken: this.bossPower });
     if (this.phase === 'clear') {
       this.spawnTimer -= dt;
       const alive = w.enemies.filter((e) => !e.dead && e.trial).length;
@@ -158,6 +160,9 @@ export class TrialDirector {
     if (!Cls) return;
     const b = new Cls(bx, by, w.assets);
     b.maxHp = b.hp = this.run?.bossHp ?? Math.round(b.maxHp * (this.run?.hpMult ?? 1));
+    // Bezug Stufe 20 (so war die Prüfung abgestimmt), damit Läufe auf 20 unverändert bleiben
+    const dmgAt = (L) => 86 + (L - 1) * 16.3, lvl = this.run?.level ?? 20, base = 20;
+    this.bossPower = lvl > base ? dmgAt(lvl) / dmgAt(base) : 1;
     w.boss = b;
     w.actors.push(b);
     w.enemies.push(b);

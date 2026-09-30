@@ -103,6 +103,8 @@ const BOLT_COLORS = {
   fire: ['#fff4d8', '#ffb070', '#f0602a', '#8a1a08'],
   poison: ['#f8ffc0', '#c8f060', '#70b030', '#2a5010'],
   shadow: ['#ffffff', '#e0b8ff', '#a060f0', '#3a1466'],
+  frost: ['#ffffff', '#d8f4ff', '#78c0f0', '#1e4a8a'],
+  spore: ['#f8e8ff', '#d0a0ff', '#9a58d8', '#3a1a5a'],
 };
 export class MagicBolt extends Entity {
   constructor(x, y, angle, speed, damage, owner, element = 'fire', { radius = 3, homing = 0, life = 2.4 } = {}) {

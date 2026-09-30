@@ -460,6 +460,19 @@ test('Reittiere: Kauf bei Orla, Lernen per Gegenstand, Drops nur von Bossen', ()
   for (let i = 0; i < 3000; i++) assert.ok(!rollLoot({ chest: 'boss_x', level: 30 }, { rng }).some((d) => ITEMS[d.itemId]?.type === 'mount'), 'kein Reittier in Truhen');
 });
 
+test('Aschenfürst: Flammenkrone kommt bei boss:defeated, nicht als Beute', () => {
+  const { c, state } = setup();
+  c('progress:grantXp', { amount: totalXpForLevel(39) });
+  state.slices.quests.active.q_ash_sovereign = { status: 'active', progress: {} };
+  for (let i = 0; i < 200; i++) assert.ok(!rollLoot({ type: 'ash_sovereign', level: 40, boss: true, bossId: 'ash_sovereign' }, { rng, questNeed: () => 1 }).some((d) => d.itemId === 'sovereign_crown'));
+  assert.equal(c('quest:bossReward', { bossId: 'bonelord' }).ok, false);
+  c('quest:event', { kind: 'boss', target: 'ash_sovereign' });
+  assert.equal(c('quest:bossReward', { bossId: 'ash_sovereign' }).ok, true);
+  assert.equal(countItem(state, 'sovereign_crown'), 1);
+  assert.equal(c('quest:bossReward', { bossId: 'ash_sovereign' }).ok, false, 'nur einmal');
+  assert.equal(questStatus(state, state.content ?? null, 'q_ash_sovereign') ?? 'ready', 'ready');
+});
+
 test('Glutprüfungen skalieren mit der Spielerstufe, Albtraumross ab Prüfungsstufe 20', () => {
   const a = trialSpec(5, 3, 20), b = trialSpec(5, 3, 40);
   assert.equal(a.level, 20); assert.equal(b.level, 40);

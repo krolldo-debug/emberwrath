@@ -9,7 +9,7 @@ import { EV } from '../core/events.js';
 import { LEVEL_CAP, totalXpForLevel, killXp, mobXp } from './xp.js';
 import { ITEMS, EQUIP_SLOTS, RARITIES, stackSize, buyPrice, equipSlotFor, canUseClass, itemScore } from './items.js';
 import { QUESTS, NPC_LINES, VENDORS } from './quests.js';
-import { rollLoot } from './loot.js';
+import { rollLoot, BOSS_QUEST_GRANTS } from './loot.js';
 import { RECIPES } from './crafting.js';
 import { countItem, npcShortName, questStatus, questRewardItems, vendorStock, trackedQuestId, junkSlots, isUpgrade, sellableSlots, SELL_TIERS } from './selectors.js';
 import { ACHIEVEMENTS } from './achievements.js';
@@ -374,6 +374,18 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
 
   // Erreichte Fläche / betretene Zone / besiegter Boss / benutztes Objekt / Gespräch -> Quest-Fortschritt
   def('quest:event', (s, { kind, target }, ctx) => recordQuestEvent(s, ctx, kind, target), auth);
+  // Boss besiegt: Questgegenstand direkt vergeben, wenn die Quest ihn noch braucht (z. B. Flammenkrone des Aschenfürsten)
+  def('quest:bossReward', (s, { bossId }, ctx) => {
+    const got = [];
+    for (const [questId, itemId] of BOSS_QUEST_GRANTS[bossId] ?? []) {
+      const q = s.get('quests').active[questId];
+      const need = ctx.content.find('quest', questId)?.objectives.find((o) => o.kind === 'collect' && o.target === itemId)?.count ?? 1;
+      if (!q || countItem(s, itemId) >= need) continue;
+      addItem(s, ctx, itemId, need - countItem(s, itemId), 'boss', { overflow: true });
+      got.push(itemId);
+    }
+    return { ok: got.length > 0, items: got };
+  }, auth);
 
   // --- Quests
   def('quest:accept', (s, { questId }, ctx) => {

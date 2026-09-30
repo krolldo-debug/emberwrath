@@ -145,3 +145,15 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - **Rückmeldung**: Staubwolke + `mountUp`/`mountDown` bei `mount:changed`, Hufschlag `hoof` und größere Staubwolke bei `footstep` beritten, Karte „Neues Reittier“ bei `mount:learned`, „Reiten gelernt“ nach `q_first_ride`.
 - **Wetter** (gfx/Weather.js): neue Teilchen `snow`, `spore`, `emberrain`, `glint`, Nebelschwaden (`fog: { a, c }`), Tönung (`tint`), Zustände `ashwind`, `blizzard`, `emberstorm`, `fog`. Rezepte für alle 8 neuen Zonen; Atmo `wind`, `marsh`, `blizzard`; Musikthemen zugeordnet.
 - **Minimap**: Farbstil je Zone (`MAP_STYLE` in ui/Minimap.js), Schnee wird weniger aufgehellt. EP-Zahlen mit Tausenderpunkt.
+
+### Bossklänge Stufe 20–40 (Thread D)
+
+- Feedback.js hört jetzt auf alle Boss-Events von B: bossBreath (Feuer oder `element: 'frost'`, Länge aus `actor.breathDur`),
+  bossDive/bossEmerge (bei frost_wyrm Eis statt Wasser), bossWave, bossMeteors (Frost: iceCall), bossMeteor, bossSlam,
+  bossStep, bossImpact, bossSummon, bossPillars, bossPhantoms, bossRoots, bossRing, bossSporeLob (`count`), bossBurst,
+  bossChannel (`active`, Länge aus `boss.channelDur`), bossCataclysm, bossCrownFall. Die Bosse zeichnen ihre Effekte selbst;
+  Feedback ergänzt Klang, Licht und leichtes Wackeln.
+- Eigene Elementklänge: `frost` (Knistern + Kristallton), `poison` (Blubbern); Sporen bleiben `gas`.
+- voices.js: neue Materialien `ice` (iceHit/iceShatter) und `rot` (squelch/rotDeath/croak), Einträge für alle Typen aus §12.4
+  inklusive barrow_king, rot_mother, frost_wyrm und ash_sovereign (Warnruf demonGrowl).
+- Rauschen läuft als Schleife, damit lange Klänge (Atem, Giftring, Weltenbrand) nicht nach 1 s abreißen.

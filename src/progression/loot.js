@@ -31,7 +31,7 @@ const BOSSES = {
   barrow_king: { weights: { uncommon: 70, rare: 26, epic: 4 }, drops: 2, gold: 14, named: [['ulgrim_blade', 0.2]], set: { chance: 0.35, pieces: ['hillking_helm', 'hillking_cuirass', 'hillking_gauntlets', 'hillking_ring'] }, quest: [['q_barrow_king', 'barrow_seal']], mount: ['mount_bone_stallion', 0.01] },
   rot_mother: { weights: { uncommon: 50, rare: 45, epic: 5 }, drops: 2, gold: 15, named: [['rotmother_staff', 0.2]], set: { chance: 0.35, pieces: ['rotmother_hood', 'rotmother_robe', 'rotmother_gloves', 'rotmother_amulet'] }, mount: ['mount_spore_beetle', 0.01] },
   frost_wyrm: { weights: { uncommon: 34, rare: 60, epic: 6 }, drops: 2, gold: 16, named: [['skalvyr_fang', 0.12], ['skalvyr_rib_bow', 0.12]], set: { chance: 0.35, pieces: ['wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'] }, quest: [['q_frost_wyrm', 'wyrm_heart']], mount: ['mount_frost_elk', 0.01] },
-  ash_sovereign: { weights: { rare: 92, epic: 8 }, drops: 3, gold: 20, set: { chance: 0.12, pieces: ['sovereign_helm', 'sovereign_gauntlets', 'sovereign_sabatons'] }, legendary: { chance: 0.018, pool: SOVEREIGN_LEGENDARIES }, quest: [['q_ash_sovereign', 'sovereign_crown']], mount: ['mount_cinder_drake', 0.005] },
+  ash_sovereign: { weights: { rare: 92, epic: 8 }, drops: 3, gold: 20, set: { chance: 0.12, pieces: ['sovereign_helm', 'sovereign_gauntlets', 'sovereign_sabatons'] }, legendary: { chance: 0.018, pool: SOVEREIGN_LEGENDARIES }, quest: [['q_ash_sovereign', 'sovereign_crown']], questOnDefeat: true, mount: ['mount_cinder_drake', 0.005] },
 };
 // Benannte Eliten (Außengebiete ab 20): Set-Teil mit `set.chance`, Questgegenstand, evtl. Reittier.
 // Seltenheit der normalen Beute bleibt Elite (§11.5).
@@ -41,6 +41,8 @@ const ELITES = {
   ice_troll_chief: { set: { chance: 0.25, pieces: ['gorm_helm', 'gorm_cuirass', 'gorm_gauntlets', 'gorm_sabatons'] }, quest: [['q_troll_chief', 'gorm_tusk']] },
   waste_colossus: { set: { chance: 0.25, pieces: ['colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'] }, quest: [['q_colossus', 'colossus_core']] },
 };
+// Questgegenstände, die direkt bei boss:defeated vergeben werden (B zeigt die Krone nur als Grafik): { bossId: [[questId, itemId]] }
+export const BOSS_QUEST_GRANTS = Object.fromEntries(Object.entries(BOSSES).filter(([, b]) => b.questOnDefeat).map(([id, b]) => [id, b.quest]));
 export const MOUNT_DROPS = Object.fromEntries([...Object.entries(BOSSES), ...Object.entries(ELITES)].filter(([, b]) => b.mount).map(([id, b]) => [id, b.mount]));
 export const LEGENDARY_MAX = 0.02;
 
@@ -215,7 +217,7 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   }
 
   // Questgegenstände
-  for (const [questId, itemId, chance = 1] of [...(QUEST_DROPS[enemy.type] ?? []), ...(boss?.quest ?? []), ...(named?.quest ?? [])]) {
+  for (const [questId, itemId, chance = 1] of [...(QUEST_DROPS[enemy.type] ?? []), ...(boss?.questOnDefeat ? [] : boss?.quest ?? []), ...(named?.quest ?? [])]) {
     if (questNeed(questId, itemId) > 0 && rng() < chance) drops.push({ itemId, qty: 1, quest: true });
   }
   return drops;

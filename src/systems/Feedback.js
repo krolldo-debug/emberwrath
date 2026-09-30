@@ -59,6 +59,38 @@ export class FeedbackSystem {
       w.addLight(new Light({ follow: a, offsetY: -10, radius: 80, color: [170, 100, 255], intensity: 1, ttl: 0.5, bloom: 0.5 }));
       this.#sfx('summon');
     });
+    // Bossangriffe (B): die Bosse zeichnen ihre Effekte selbst, hier kommen Klang und etwas Licht dazu.
+    bus.on('bossBreath', (e) => {
+      if (!e.active) return;
+      const dur = e.actor?.breathDur ?? 1.6;
+      this.#sfx(e.element === 'frost' ? 'frostBreath' : 'bossBreath', { dur });
+    });
+    bus.on('bossDive', (e) => this.#sfx(this.#bossId(e) === 'frost_wyrm' ? 'iceBurrow' : 'bossDive'));
+    bus.on('bossEmerge', (e) => this.#sfx(this.#bossId(e) === 'frost_wyrm' ? 'iceErupt' : 'bossEmerge'));
+    bus.on('bossWave', () => this.#sfx('bossWave'));
+    bus.on('bossMeteors', (e) => this.#sfx(e.element === 'frost' ? 'iceCall' : 'meteorFall', { pitch: 0.7 }));
+    bus.on('bossMeteor', () => { this.#sfx('quake', { pitch: 0.8 }); this.#shake(3); });
+    bus.on('bossSlam', () => this.#sfx('bossSlam'));
+    bus.on('bossStep', () => this.#sfx('bossStep'));
+    bus.on('bossImpact', () => this.#sfx('bossSlam', { pitch: 0.7 }));
+    bus.on('bossSummon', () => this.#sfx('summon', { pitch: 0.75 }));
+    bus.on('bossPillars', () => this.#sfx('bossPillars'));
+    bus.on('bossPhantoms', (e) => {
+      this.#sfx('bossPhantoms');
+      const b = this.game.world?.boss;
+      if (b) this.game.world.addLight(new Light({ x: b.x, y: b.y - 30, radius: 110, color: [120, 190, 220], intensity: 0.7, ttl: 0.9, bloom: 0.5 }));
+    });
+    bus.on('bossRoots', () => { this.#sfx('bossRoots'); this.#shake(2); });
+    bus.on('bossRing', () => { this.#sfx('bossRing'); this.#shake(1.5); });
+    bus.on('bossSporeLob', (e) => this.#sfx('bossSporeLob', { count: e.count }));
+    bus.on('bossBurst', () => this.#sfx('bossBurst'));
+    bus.on('bossChannel', (e) => {
+      if (!e.active) return;
+      this.#sfx('bossChannel', { dur: this.game.world?.boss?.channelDur ?? 4.4 });
+      if (e.x != null) this.game.world.addEffect(new Shockwave(e.x, e.y, { radius: 34, color: '#ffe08a', life: 0.8 }));
+    });
+    bus.on('bossCataclysm', () => this.#sfx('bossCataclysm'));
+    bus.on('bossCrownFall', () => this.#sfx('bossCrownFall'));
     bus.on('deflect', (e) => {
       const w = this.game.world;
       w.particles.sparks(e.x, e.y, Math.random() * Math.PI * 2, 12, ['#ffffff', '#e0ecff', '#a8c0f0']);
@@ -123,6 +155,8 @@ export class FeedbackSystem {
   }
 
   #riding() { return !!this.game.state?.slices?.character?.mounts?.riding; }
+
+  #bossId(e) { return e.bossId ?? this.game.world?.boss?.bossId; }
 
   #sfx(name, opts) { this.game.sfx.play(name, opts); }
 

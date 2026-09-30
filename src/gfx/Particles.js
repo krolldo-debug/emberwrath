@@ -11,7 +11,7 @@ export const ELEMENTS = {
   holy: { colors: ['#ffffff', '#fff0b0', '#ffd66a', '#e8a830', '#8a5a18'], light: [255, 220, 140], sound: 'magic', pitch: 1.3, rise: 26 },
   shadow: { colors: ['#e0b8ff', '#a060f0', '#6a2cb0', '#3a1466', '#1a0a2e'], light: [150, 80, 255], sound: 'magic', pitch: 0.6, rise: 10 },
   arcane: { colors: ['#ffffff', '#e0b8ff', '#c07aff', '#8a4ae0', '#4a1a90'], light: [190, 130, 255], sound: 'magic', pitch: 1, rise: 14 },
-  poison: { colors: ['#e8ffb0', '#a8e05a', '#6aa02a', '#3a6a18', '#1a300a'], light: [150, 230, 90], sound: 'gas', pitch: 0.8, rise: 8 },
+  poison: { colors: ['#e8ffb0', '#a8e05a', '#6aa02a', '#3a6a18', '#1a300a'], light: [150, 230, 90], sound: 'poison', pitch: 1, rise: 8 },
   nature: { colors: ['#f0ffe0', '#b0f080', '#60c050', '#2e8038', '#12401a'], light: [150, 240, 140], sound: 'magic', pitch: 1.1, rise: 12 },
   spore: { colors: ['#f4e0ff', '#e0b8ff', '#a070d8', '#6a4aa0', '#3a2458'], light: [180, 120, 230], sound: 'gas', pitch: 0.9, rise: 6 },
   water: { colors: ['#ffffff', '#c6eaf6', '#76bcdc', '#3886b2', '#1c5882'], light: [90, 190, 255], sound: 'splash', pitch: 0.8, rise: -6 },

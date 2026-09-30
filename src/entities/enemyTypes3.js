@@ -8,6 +8,18 @@
 // Figurensatz der Zone; solange der fehlt, auf den des Vorbilds (siehe
 // SPRITE_FALLBACK in world/index.js).
 
+import { DEFS as DEFS_WASTES } from './defs_wastes.js';
+import { DEFS as DEFS_BARROW } from './defs_barrow.js';
+import { DEFS as DEFS_SPORE } from './defs_spore.js';
+import { DEFS as DEFS_STEPPE } from './defs_steppe.js';
+import { DEFS as DEFS_FROST } from './defs_frost.js';
+import { DEFS as DEFS_MARSH } from './defs_marsh.js';
+import { DEFS as DEFS_RIME } from './defs_rime.js';
+import { DEFS as DEFS_THRONE } from './defs_throne.js';
+
+// Feinschliff der Figuren-Dateien (Maße, Angriffsart, Spezialangriffe) je Gruppe
+const GROUP_DEFS = [DEFS_STEPPE, DEFS_BARROW, DEFS_MARSH, DEFS_SPORE, DEFS_FROST, DEFS_RIME, DEFS_WASTES, DEFS_THRONE];
+
 const power = (L) => 13 + (L - 1) * 5;          // Heldenkraft der Stufe (Durchschnitt der Klassen)
 const mageHp = (L) => 86 + (L - 1) * 16.3;      // Magier-HP der Stufe
 const xpAt = (L) => Math.round(130 * 1.1 ** (L - 20)); // normaler Gegner; C darf nachregeln
@@ -61,7 +73,7 @@ export function createRound3Enemies(T) {
     steppe_raider: d('bandit', 'steppe_raider', 'Steppenräuber', [20, 23], { family: 'human' }),
     raider_archer: d('bandit_archer', 'raider_archer', 'Räuberschützin', [20, 23], { family: 'human' }),
     dust_hyena: d('wolf', 'dust_hyena', 'Staubhyäne', [21, 24], { family: 'beast', hp: 0.9, howl: true }),
-    ash_vulture: d('fire_imp', 'ash_vulture', 'Aschegeier', [22, 25], { family: 'beast', hitAndRun: 0.9, strafe: true, spawnStyle: 'drop' }),
+    ash_vulture: d('fire_imp', 'ash_vulture', 'Aschegeier', [22, 25], { family: 'beast', hitAndRun: 0.9, strafe: true, spawnStyle: 'fade' }),
     steppe_warlord: d('bandit_chief', 'steppe_warlord', 'Khar, der Steppenfürst', 25, { family: 'human', hp: 1.1 }),
     // --- Heulendes Hügelgrab (24–26)
     barrow_wight: d('skeleton', 'barrow_wight', 'Grabunhold', [24, 26], { family: 'undead' }),
@@ -77,9 +89,9 @@ export function createRound3Enemies(T) {
     bog_horror: d('magma_behemoth', 'bog_horror', 'Das Moorgrauen', 30, { family: 'beast', material: 'flesh' }),
     // --- Sporenschlund (30–32)
     sporeling: d('spider', 'sporeling', 'Sporling', [30, 31], { family: 'plant', hp: 0.55, xp: 0.45 }),
-    fungal_brute: d('ash_golem', 'fungal_brute', 'Pilzwüterich', [30, 32], { family: 'plant', material: 'wood' }),
+    fungal_brute: d('ash_golem', 'fungal_brute', 'Pilzwüterich', [30, 32], { family: 'plant', material: 'flesh' }),
     spore_caster: d('cinder_cultist', 'spore_caster', 'Sporenwirker', [30, 32], { family: 'plant' }),
-    rot_mother: boss('rot_mother', 'Mutter Fäulnis', 32, 17500, { family: 'plant', material: 'wood', radius: 14, hurtRadius: 18, bodyHeight: 46, shadowW: 48 }),
+    rot_mother: boss('rot_mother', 'Mutter Fäulnis', 32, 17500, { family: 'plant', material: 'flesh', radius: 14, hurtRadius: 18, bodyHeight: 46, shadowW: 48 }),
     // --- Frostzinnen (31–36)
     ice_troll: d('ash_golem', 'ice_troll', 'Eistroll', [32, 35], { family: 'beast', material: 'flesh' }),
     frost_wolf: d('wolf', 'frost_wolf', 'Frostwolf', [31, 34], { family: 'beast' }),
@@ -105,6 +117,7 @@ export function createRound3Enemies(T) {
     ash_sovereign: boss('ash_sovereign', 'Malgareth, der Aschenfürst', 40, 28000, { family: 'demon', material: 'stone', radius: 12, hurtRadius: 15, bodyHeight: 58, shadowW: 40, eye: { x: 5, y: -56 } }),
   };
   applyDefs(out, BASE_SPECIALS);
+  for (const D of GROUP_DEFS) applyDefs(out, D);
   return out;
 }
 
@@ -130,6 +143,8 @@ export function applyDefs(T, DEFS) {
     if (specials) {
       const base = def.attack?.damage ?? 20;
       def.specials = specials.map(({ dmgK = 1, damage: _d, ...s }) => ({ ...s, damage: Math.round(base * dmgK) }));
+      // Fernkämpfer halten ~85 % ihrer Schussweite Abstand: Wolken müssen weiter reichen, sonst kommen sie nie
+      if (def.attack?.kind === 'ranged') for (const s of def.specials) if (s.kind === 'cloud') s.range = Math.max(s.range ?? 0, def.attack.range + 20);
     }
     if (def.boss && hp) def.hp = hp; // Bosse: Leben absolut aus den Boss-Dateien
   }

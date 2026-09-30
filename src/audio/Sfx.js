@@ -64,6 +64,7 @@ export class Sfx {
     const c = this.ctx;
     const src = c.createBufferSource();
     src.buffer = this.noise;
+    src.loop = true; // lange Klänge (Atem, Ring) länger als der 1-s-Puffer
     src.playbackRate.value = 0.8 + Math.random() * 0.4;
     const filt = c.createBiquadFilter();
     filt.type = type; filt.Q.value = q;
@@ -287,9 +288,16 @@ export class Sfx {
       case 'fire':
         this.#noise(t, { dur: 0.35, type: 'lowpass', f0: 2400, f1: 300, peak: 0.3 });
         break;
-      case 'frost':
-        this.#noise(t, { dur: 0.3, type: 'highpass', f0: 5000, f1: 2000, peak: 0.12 });
-        this.#tone(t, { type: 'sine', f0: 1800 * p, f1: 900, dur: 0.2, peak: 0.05 });
+      case 'frost': // Eis: knisterndes Gefrieren, dann klarer Kristallton
+        for (let i = 0; i < 6; i++) this.#noise(t + i * 0.028 + Math.random() * 0.012, { dur: 0.035, type: 'highpass', f0: 5200 + Math.random() * 2400, f1: 3800, peak: 0.1 });
+        this.#noise(t, { dur: 0.32, type: 'highpass', f0: 6000, f1: 2600, peak: 0.08, attack: 0.02 });
+        this.#tone(t + 0.04, { type: 'sine', f0: 2100 * p, f1: 1700 * p, dur: 0.32, peak: 0.045 });
+        this.#tone(t + 0.07, { type: 'triangle', f0: 3150 * p, f1: 2800 * p, dur: 0.24, peak: 0.02 });
+        break;
+      case 'poison': // Gift: zähes Blubbern und Zischen
+        for (let i = 0; i < 5; i++) this.#tone(t + i * 0.055 + Math.random() * 0.02, { type: 'sine', f0: (140 + Math.random() * 120) * p, f1: (320 + Math.random() * 160) * p, dur: 0.06, peak: 0.07 });
+        this.#noise(t + 0.03, { dur: 0.4, type: 'bandpass', f0: 1400 * p, f1: 700, q: 1.6, peak: 0.14, attack: 0.05 });
+        this.#noise(t + 0.12, { dur: 0.3, type: 'highpass', f0: 3200, f1: 2200, peak: 0.04, attack: 0.06 });
         break;
       // --- Gegnerstimmen (Runde 4, Zuordnung in audio/voices.js) ---
       case 'growl': // Tiere: Wolf, Keiler, Magmahund
@@ -422,11 +430,13 @@ export class Sfx {
         this.#tone(t, { type: 'square', f0: (opts.freq ?? 320) * p, dur: 0.025, peak: 0.018 });
         break;
       // --- Bossangriffe (Thread B, Runde 4) ---
-      case 'bossBreath': // Feuer-/Glutatem: langes Fauchen
-        this.#tone(t, { type: 'sawtooth', f0: 75, f1: 55, dur: 1.1, peak: 0.12, attack: 0.1 });
-        this.#noise(t, { dur: 1.2, type: 'bandpass', f0: 900, f1: 2200, q: 0.7, peak: 0.4, attack: 0.15 });
-        this.#noise(t + 0.2, { dur: 0.9, type: 'lowpass', f0: 1500, f1: 400, peak: 0.25, attack: 0.1 });
+      case 'bossBreath': { // Feuer-/Glutatem: langes Fauchen, Länge = Atemdauer
+        const d = Math.max(1.1, Math.min(3.5, opts.dur ?? 1.2));
+        this.#tone(t, { type: 'sawtooth', f0: 75, f1: 55, dur: d - 0.1, peak: 0.12, attack: 0.1 });
+        this.#noise(t, { dur: d, type: 'bandpass', f0: 900, f1: 2200, q: 0.7, peak: 0.4, attack: 0.15 });
+        this.#noise(t + 0.2, { dur: d - 0.3, type: 'lowpass', f0: 1500, f1: 400, peak: 0.25, attack: 0.1 });
         break;
+      }
       case 'bossMeteor': // herabstürzender Brocken, dann Einschlag
         this.#noise(t, { dur: 0.7, type: 'bandpass', f0: 4000, f1: 500, q: 1, peak: 0.25, attack: 0.3 });
         this.#tone(t + 0.62, { type: 'sine', f0: 80, f1: 26, dur: 0.9, peak: 0.7 });
@@ -444,6 +454,128 @@ export class Sfx {
         for (let i = 0; i < 8; i++) this.#tone(t + i * 0.05, { type: 'sine', f0: 200 + Math.random() * 300, f1: 600, dur: 0.06, peak: 0.08 });
         this.#noise(t + 0.3, { dur: 0.7, type: 'bandpass', f0: 500, f1: 1600, q: 0.9, peak: 0.45, attack: 0.05 });
         this.#tone(t + 0.3, { type: 'sine', f0: 60, f1: 40, dur: 0.8, peak: 0.35 });
+        break;
+      // --- Bosse Stufe 20–40 (Thread B): Ulgrim, Mutter Fäulnis, Skalvyr ---
+      case 'frostBreath': { // Eisatem: kaltes Rauschen mit Kristallflirren, Länge = Atemdauer
+        const d = Math.max(0.8, Math.min(3.5, opts.dur ?? 1.6));
+        this.#noise(t, { dur: d, type: 'highpass', f0: 2200, f1: 4200, peak: 0.3, attack: 0.18 });
+        this.#noise(t + 0.1, { dur: d - 0.1, type: 'bandpass', f0: 700, f1: 1100, q: 0.6, peak: 0.2, attack: 0.2 });
+        this.#tone(t, { type: 'sawtooth', f0: 62, f1: 48, dur: d, peak: 0.08, attack: 0.15 });
+        for (let i = 0; i < Math.round(d * 6); i++) this.#tone(t + 0.15 + i * 0.16 + Math.random() * 0.06, { type: 'sine', f0: 2400 + Math.random() * 1600, dur: 0.07, peak: 0.018 });
+        break;
+      }
+      case 'iceBurrow': // Eingraben: Eis knirscht und bricht
+        this.#noise(t, { dur: 0.6, type: 'bandpass', f0: 2600, f1: 700, q: 0.8, peak: 0.35 });
+        for (let i = 0; i < 7; i++) this.#noise(t + i * 0.06 + Math.random() * 0.03, { dur: 0.04, type: 'highpass', f0: 4200, f1: 2500, peak: 0.12 });
+        this.#tone(t + 0.1, { type: 'sine', f0: 90, f1: 40, dur: 0.6, peak: 0.3 });
+        break;
+      case 'iceErupt': // Hervorbrechen: Grollen unter dem Eis, dann splitternder Ausbruch
+        this.#tone(t, { type: 'sine', f0: 48, f1: 70, dur: 0.35, peak: 0.3, attack: 0.2 });
+        this.#tone(t + 0.3, { type: 'sine', f0: 95, f1: 28, dur: 0.9, peak: 0.65 });
+        this.#noise(t + 0.3, { dur: 0.7, type: 'lowpass', f0: 3000, f1: 200, peak: 0.5 });
+        for (let i = 0; i < 10; i++) this.#noise(t + 0.32 + i * 0.045 + Math.random() * 0.03, { dur: 0.05, type: 'highpass', f0: 5000, f1: 3000, peak: 0.1 });
+        this.#tone(t + 0.36, { type: 'triangle', f0: 1760, f1: 1600, dur: 0.5, peak: 0.03 });
+        break;
+      case 'iceCall': // Eiszapfen herbeirufen: aufsteigendes Klirren
+        [1320, 1760, 2090, 2640].forEach((f, i) => this.#tone(t + i * 0.07, { type: 'triangle', f0: f * p, f1: f * p * 1.02, dur: 0.35, peak: 0.035 }));
+        this.#noise(t, { dur: 0.5, type: 'highpass', f0: 3000, f1: 6500, peak: 0.12, attack: 0.2 });
+        break;
+      case 'bossPhantoms': // Geisterkönige: hohles Heulen und Flüstern
+        for (let i = 0; i < 3; i++) {
+          const f = (170 + i * 57) * p;
+          this.#tone(t + i * 0.09, { type: 'sine', f0: f, f1: f * 1.5, dur: 0.6, peak: 0.07, attack: 0.2 });
+          this.#tone(t + 0.6 + i * 0.09, { type: 'sine', f0: f * 1.5, f1: f * 0.8, dur: 0.7, peak: 0.05 });
+        }
+        this.#noise(t, { dur: 1.3, type: 'bandpass', f0: 2600, f1: 1200, q: 3, peak: 0.14, attack: 0.3 });
+        this.#tone(t, { type: 'sawtooth', f0: 55, f1: 45, dur: 1.2, peak: 0.05, attack: 0.3 });
+        break;
+      case 'wail': // Warnruf Geisterwesen
+        this.#tone(t, { type: 'sine', f0: 320 * p, f1: 540 * p, dur: 0.3, peak: 0.07, attack: 0.08 });
+        this.#tone(t + 0.28, { type: 'sine', f0: 540 * p, f1: 260 * p, dur: 0.35, peak: 0.05 });
+        this.#noise(t, { dur: 0.6, type: 'bandpass', f0: 2200, f1: 1400, q: 3, peak: 0.1, attack: 0.1 });
+        break;
+      case 'bossRoots': // Wurzeln brechen durch den Boden: Knarzen und Erdreißen
+        for (let i = 0; i < 4; i++) this.#tone(t + i * 0.09, { type: 'sawtooth', f0: (70 + Math.random() * 40) * p, f1: 45, dur: 0.12, peak: 0.08 });
+        this.#noise(t + 0.05, { dur: 0.7, type: 'lowpass', f0: 900, f1: 150, peak: 0.45, attack: 0.1 });
+        this.#tone(t, { type: 'sine', f0: 60, f1: 35, dur: 0.8, peak: 0.3, attack: 0.1 });
+        break;
+      case 'bossRing': // Giftring schließt sich: langes, anschwellendes Zischen mit Blubbern
+        this.#noise(t, { dur: 1.6, type: 'bandpass', f0: 500, f1: 1800, q: 0.8, peak: 0.3, attack: 0.6 });
+        for (let i = 0; i < 10; i++) this.#tone(t + 0.2 + i * 0.12 + Math.random() * 0.05, { type: 'sine', f0: 120 + Math.random() * 140, f1: 380, dur: 0.07, peak: 0.06 });
+        this.#tone(t, { type: 'sine', f0: 45, f1: 60, dur: 1.6, peak: 0.25, attack: 0.5 });
+        break;
+      case 'bossSporeLob': { // Sporensäcke: dumpfe Plopps
+        const n = Math.max(1, Math.min(6, opts.count ?? 3));
+        for (let i = 0; i < n; i++) {
+          this.#tone(t + i * 0.08, { type: 'sine', f0: (260 + Math.random() * 60) * p, f1: 90, dur: 0.12, peak: 0.2 });
+          this.#noise(t + i * 0.08, { dur: 0.18, type: 'lowpass', f0: 1400, f1: 300, peak: 0.16 });
+        }
+        break;
+      }
+      case 'bossBurst': // Sporenexplosion: Knall, dann Giftwolke
+        this.#tone(t, { type: 'sine', f0: 110, f1: 30, dur: 0.8, peak: 0.6 });
+        this.#noise(t, { dur: 0.5, type: 'lowpass', f0: 2600, f1: 200, peak: 0.55 });
+        this.#noise(t + 0.2, { dur: 1.2, type: 'bandpass', f0: 1600, f1: 500, q: 0.9, peak: 0.25, attack: 0.1 });
+        for (let i = 0; i < 6; i++) this.#tone(t + 0.35 + i * 0.1, { type: 'sine', f0: 160 + Math.random() * 120, f1: 360, dur: 0.07, peak: 0.05 });
+        break;
+      case 'bossChannel': { // Malgareth lädt den Weltenbrand: anschwellendes Dröhnen
+        const d = Math.max(1, Math.min(5, opts.dur ?? 4.4));
+        this.#tone(t, { type: 'sawtooth', f0: 40, f1: 95, dur: d, peak: 0.12, attack: d * 0.8 });
+        this.#tone(t, { type: 'sine', f0: 55, f1: 140, dur: d, peak: 0.25, attack: d * 0.8 });
+        this.#noise(t, { dur: d, type: 'bandpass', f0: 300, f1: 2400, q: 0.8, peak: 0.3, attack: d * 0.85 });
+        break;
+      }
+      case 'bossCataclysm': // Weltenbrand entlädt sich
+        this.#tone(t, { type: 'sine', f0: 90, f1: 22, dur: 1.8, peak: 0.8 });
+        this.#tone(t, { type: 'sawtooth', f0: 130, f1: 30, dur: 1.2, peak: 0.18 });
+        this.#noise(t, { dur: 1.6, type: 'lowpass', f0: 4000, f1: 150, peak: 0.7 });
+        this.#noise(t + 0.3, { dur: 1.8, type: 'bandpass', f0: 1800, f1: 500, q: 0.7, peak: 0.3, attack: 0.2 });
+        break;
+      case 'bossCrownFall': // Krone schlägt auf: metallisches Klirren
+        [620, 931, 1245, 1870].forEach((f, i) => this.#tone(t + i * 0.012, { type: 'triangle', f0: f, f1: f * 0.98, dur: 0.9 - i * 0.12, peak: 0.07 }));
+        this.#noise(t, { dur: 0.08, type: 'highpass', f0: 4000, f1: 2500, peak: 0.25 });
+        this.#tone(t + 0.25, { type: 'triangle', f0: 1245, dur: 0.4, peak: 0.03 });
+        break;
+      case 'bossSlam': // schwerer Hieb in den Boden
+        this.#tone(t, { type: 'sine', f0: 85, f1: 30, dur: 0.6, peak: 0.6 });
+        this.#noise(t, { dur: 0.45, type: 'lowpass', f0: 2200, f1: 150, peak: 0.5 });
+        break;
+      case 'bossStep':
+        this.#tone(t, { type: 'sine', f0: 60 * p, f1: 32, dur: 0.25, peak: 0.35 });
+        this.#noise(t, { dur: 0.15, type: 'lowpass', f0: 600, f1: 120, peak: 0.2 });
+        break;
+      case 'bossPillars': // Flammensäulen brechen hervor
+        this.#noise(t, { dur: 1.0, type: 'bandpass', f0: 400, f1: 2600, q: 0.7, peak: 0.4, attack: 0.25 });
+        this.#tone(t, { type: 'sine', f0: 50, f1: 80, dur: 1.0, peak: 0.3, attack: 0.25 });
+        break;
+      case 'demonGrowl': // Warnruf Malgareth und Dämonen
+        this.#tone(t, { type: 'sawtooth', f0: 70 * p, f1: 48 * p, dur: 0.6, peak: 0.14, attack: 0.08 });
+        this.#tone(t, { type: 'square', f0: 105 * p, f1: 72 * p, dur: 0.55, peak: 0.05, attack: 0.08 });
+        this.#noise(t, { dur: 0.6, type: 'bandpass', f0: 900, f1: 400, q: 1.5, peak: 0.3, attack: 0.1 });
+        break;
+      // --- Materialklänge Stufe 20–40: Eis und Fäulnis (audio/voices.js) ---
+      case 'iceHit':
+        this.#noise(t, { dur: 0.08, type: 'highpass', f0: 4500 * p, f1: 2500, peak: 0.22 });
+        this.#tone(t, { type: 'triangle', f0: 2200 * p, f1: 1900 * p, dur: 0.12, peak: 0.04 });
+        break;
+      case 'iceShatter':
+        for (let i = 0; i < 9; i++) this.#noise(t + i * 0.03 + Math.random() * 0.02, { dur: 0.05, type: 'highpass', f0: 3500 + Math.random() * 3000, f1: 2500, peak: 0.13 });
+        this.#tone(t, { type: 'sine', f0: 140, f1: 60, dur: 0.3, peak: 0.2 });
+        [1980, 2640, 3520].forEach((f, i) => this.#tone(t + 0.05 + i * 0.04, { type: 'triangle', f0: f * p, dur: 0.4, peak: 0.02 }));
+        break;
+      case 'squelch':
+        this.#noise(t, { dur: 0.12, type: 'lowpass', f0: 900 * p, f1: 250, peak: 0.3 });
+        this.#tone(t, { type: 'sine', f0: 220 * p, f1: 110, dur: 0.09, peak: 0.1 });
+        break;
+      case 'rotDeath':
+        this.#noise(t, { dur: 0.45, type: 'lowpass', f0: 1100, f1: 150, peak: 0.35 });
+        for (let i = 0; i < 4; i++) this.#tone(t + 0.1 + i * 0.07, { type: 'sine', f0: 150 + Math.random() * 100, f1: 320, dur: 0.06, peak: 0.06 });
+        this.#noise(t + 0.15, { dur: 0.5, type: 'bandpass', f0: 1300, f1: 600, q: 1.4, peak: 0.12, attack: 0.08 });
+        break;
+      case 'croak': // Warnruf Kröten, Moorwesen
+        this.#tone(t, { type: 'square', f0: 95 * p, f1: 80 * p, dur: 0.18, peak: 0.06 });
+        this.#tone(t + 0.2, { type: 'square', f0: 90 * p, f1: 70 * p, dur: 0.2, peak: 0.05 });
+        this.#noise(t, { dur: 0.4, type: 'bandpass', f0: 500, f1: 350, q: 4, peak: 0.12 });
         break;
       // --- Welt (Thread B): Kleintiere, Fallen, Hebel, Geheimtüren ---
       case 'crow':

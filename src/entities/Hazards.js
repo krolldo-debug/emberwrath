@@ -30,6 +30,7 @@ export class HazardCloud extends Entity {
     if (this.cool <= 0 && !h.dead && Math.hypot((h.x - this.x) / this.radius, (h.y - this.y) / (this.radius * 0.6)) <= grow) {
       this.cool = this.tick;
       const hit = { damage: Math.round(this.damage * rand(0.9, 1.1)), dirX: 0, dirY: -1, knockback: 0, source: this.owner, dot: true };
+      if (this.element === 'frost') h.buff?.('frost_slow', 1.5, { moveSpeed: 0.7 }); // Frost bremst (A: Hero.buffSpeed)
       if (h.takeHit(hit)) world.bus.emit('hit', { attacker: this.owner, target: h, damage: hit.damage, crit: false, dot: true, dirX: 0, dirY: 0, x: h.x, y: h.centerY, killed: h.dead });
     }
     if (Math.random() < dt * this.radius * 0.2) world.particles?.dust?.(this.x + rand(-this.radius, this.radius), this.y + rand(-this.radius * 0.5, this.radius * 0.5), 1, this.look.puff[1]);

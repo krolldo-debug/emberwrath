@@ -16,10 +16,28 @@ import { createForgeFoes } from '../sprites/foes_forge.js';
 import { createNerithSprites } from '../sprites/nerith.js';
 import { createIgnarothSprites } from '../sprites/ignaroth.js';
 import { createNpcSprites2 } from '../sprites/npcs2.js';
+import { createSteppeFoes } from '../sprites/foes_steppe.js';
+import { createMarshFoes } from '../sprites/foes_marsh.js';
+import { createFrostFoes } from '../sprites/foes_frost.js';
+import { createRimeFoes } from '../sprites/foes_rime.js';
+import { createThroneFoes } from '../sprites/foes_throne.js';
+import { createBarrowFoes } from '../sprites/foes_barrow.js';
+import { createSporeFoes } from '../sprites/foes_spore.js';
+import { createWastesFoes } from '../sprites/foes_wastes.js';
+import { createUlgrimSprites } from '../sprites/barrow_king.js';
+import { createSkalvyrSprites } from '../sprites/frost_wyrm.js';
+import { createRotMotherSprites } from '../sprites/rot_mother.js';
+import { createMalgarethSprites } from '../sprites/ash_sovereign.js';
 import { createNpcSprites3 } from '../sprites/npcs3.js';
 import { createAshwoodDecor } from '../sprites/decor_ashwood.js';
 import { createPeaksDecor } from '../sprites/decor_peaks.js';
 import { createBiomeTiles } from '../sprites/biomes.js';
+import { createBiomeTiles3 as createBiomesBarrowSpore } from '../sprites/biomes_barrow_spore.js';
+import { createSteppeDecor } from '../sprites/decor_steppe.js';
+import { createMarshDecor } from '../sprites/decor_marsh.js';
+import { createFrostDecor } from '../sprites/decor_frost.js';
+import { createWastesDecor } from '../sprites/decor_wastes.js';
+import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createVillageProps } from '../sprites/village.js';
 
 // Grafik erst beim ersten Zugriff erzeugen (spart Ladezeit: jede Zone
@@ -40,6 +58,14 @@ const FOE_GROUPS = {
   foes_temple: [createTempleFoes, ['drowned', 'tide_cultist', 'temple_guardian']],
   foes_cinder: [createCinderFoes, ['fire_imp', 'magma_hound', 'ash_golem', 'cinder_cultist', 'magma_behemoth']],
   foes_forge: [createForgeFoes, ['forge_golem', 'flame_acolyte', 'ember_drake', 'forge_warden']],
+  foes_steppe: [createSteppeFoes, ['steppe_raider', 'raider_archer', 'dust_hyena', 'ash_vulture', 'steppe_warlord']],
+  foes_marsh: [createMarshFoes, ['bog_lurker', 'rot_shaman', 'swamp_leech', 'plague_toad', 'bog_horror']],
+  foes_frost: [createFrostFoes, ['ice_troll', 'frost_wolf', 'rime_witch', 'snow_stalker', 'ice_troll_chief']],
+  foes_rime: [createRimeFoes, ['ice_elemental', 'crystal_spider', 'frozen_knight']],
+  foes_throne: [createThroneFoes, ['throne_guard', 'ash_priest', 'ember_hellhound', 'throne_sentinel']],
+  foes_barrow: [createBarrowFoes, ['barrow_wight', 'grave_hound', 'bone_archer', 'wight_caller']],
+  foes_spore: [createSporeFoes, ['sporeling', 'fungal_brute', 'spore_caster']],
+  foes_wastes: [createWastesFoes, ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus']],
 };
 
 // Thread B – Welt: Zonen, Karten, Gegner, NPCs, Boss, world-Slice.
@@ -75,6 +101,10 @@ export function installWorld(game) {
   }
   lazyAsset(assets, 'nerith', createNerithSprites);
   lazyAsset(assets, 'ignaroth', createIgnarothSprites);
+  lazyAsset(assets, 'barrow_king', createUlgrimSprites);
+  lazyAsset(assets, 'frost_wyrm', createSkalvyrSprites);
+  lazyAsset(assets, 'rot_mother', createRotMotherSprites);
+  lazyAsset(assets, 'ash_sovereign', createMalgarethSprites);
   lazyAsset(assets, 'npcs2', createNpcSprites2);
   lazyAsset(assets, 'npcs3', createNpcSprites3);
   lazyAsset(assets, 'village', createVillageProps);
@@ -87,10 +117,14 @@ export function installWorld(game) {
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, () => assets.sprites[def.spriteBase]);
   }
-  const R3_FALLBACK = { decor_steppe: 'decor_ashwood', decor_marsh: 'decor_ashwood', decor_frost: 'decor_peaks', decor_wastes: 'decor_peaks' };
-  for (const [k, base] of Object.entries(R3_FALLBACK)) if (!(k in assets.sprites)) lazyAsset(assets, k, () => assets.sprites[base]);
-  const R3_BIOMES = { barrow: 'temple', spore: 'temple', rime: 'temple', throne: 'forge' };
-  for (const [k, base] of Object.entries(R3_BIOMES)) if (!(('biome_' + k) in assets.sprites)) lazyAsset(assets, 'biome_' + k, () => assets.sprites['biome_' + base]);
+  lazyAsset(assets, 'decor_steppe', createSteppeDecor);
+  lazyAsset(assets, 'decor_marsh', createMarshDecor);
+  lazyAsset(assets, 'decor_frost', createFrostDecor);
+  lazyAsset(assets, 'decor_wastes', createWastesDecor);
+  lazyAsset(assets, 'biome_barrow', () => createBiomesBarrowSpore('barrow'));
+  lazyAsset(assets, 'biome_spore', () => createBiomesBarrowSpore('spore'));
+  lazyAsset(assets, 'biome_rime', () => createBiomesRimeThrone('rime'));
+  lazyAsset(assets, 'biome_throne', () => createBiomesRimeThrone('throne'));
 
   const startZone = Object.keys(ZONES).find((k) => ZONES[k].start);
   const live = { session: null };

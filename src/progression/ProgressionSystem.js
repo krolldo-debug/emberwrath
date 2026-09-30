@@ -31,7 +31,7 @@ export class ProgressionSystem {
       commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, now: Date.now() });
       if (!e.summoned) this.#rollLoot({ source: 'kill', id: e.type, level: e.level, elite: e.elite, isBoss: e.isBoss, bossId, family: e.family, rareId: e.rareId }, e.x, e.y);
     });
-    bus.on(EV.BOSS_DEFEATED, (e) => commit('quest:event', { kind: 'boss', target: e.bossId }));
+    bus.on(EV.BOSS_DEFEATED, (e) => { commit('quest:event', { kind: 'boss', target: e.bossId }); commit('quest:bossReward', { bossId: e.bossId }); });
     bus.on(EV.AREA_REACHED, (e) => commit('quest:event', { kind: 'reach', target: e.areaId }));
     bus.on(EV.ZONE_ENTER, (e) => commit('quest:event', { kind: 'reach', target: `zone:${e.zoneId}` }));
     bus.on(EV.ZONE_LEAVE, () => commit('loot:reset'));

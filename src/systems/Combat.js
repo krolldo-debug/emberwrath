@@ -18,10 +18,13 @@ export class CombatSystem {
   update(dt, world) {
     const actors = world.actors;
     for (let i = this.hitboxes.length - 1; i >= 0; i--) {
+      // Treffer können die Liste mitten in der Schleife ersetzen (Boss-Phasenwechsel/Tod filtert
+      // world.combat.hitboxes neu) – dann ist der Index verrutscht: fehlende Einträge überspringen.
       const h = this.hitboxes[i];
+      if (!h) continue;
       const o = h.owner;
       // Getötete oder unterbrochene Angreifer verlieren ihre Trefferzone
-      if (o.dead || (o.team === 'enemy' && o.state === 'hurt')) { this.hitboxes.splice(i, 1); continue; }
+      if (!o || o.dead || (o.team === 'enemy' && o.state === 'hurt')) { this.#drop(h); continue; }
       if (h.follow) { h.x = o.x + h.offX; h.y = o.y + h.offY; }
 
       for (const a of actors) {
@@ -35,6 +38,7 @@ export class CombatSystem {
         }
         h.hitSet.add(a);
         this.#resolve(h, a, world);
+        if (this.hitboxes[i] !== h) break; // Liste wurde während des Treffers ersetzt
       }
 
       // Helden-Hiebe wehren Pfeile ab
@@ -50,8 +54,13 @@ export class CombatSystem {
       }
 
       h.ttl -= dt;
-      if (h.ttl <= 0) this.hitboxes.splice(i, 1);
+      if (h.ttl <= 0) this.#drop(h);
     }
+  }
+
+  #drop(h) {
+    const i = this.hitboxes.indexOf(h);
+    if (i >= 0) this.hitboxes.splice(i, 1);
   }
 
   #resolve(h, target, world) {
