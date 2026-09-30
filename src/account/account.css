@@ -282,12 +282,6 @@
 .acc-hair:hover { border-color: var(--ef-gold); }
 .ef-touch .acc-hair { top: 52px; padding: 8px 10px; font-size: 13px; }
 
-/* Sicherung (Account-Auswahl) */
-.acc-backup { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-.acc-backup-lead { margin: 4px 0 8px; font-size: 0.85em; opacity: 0.75; line-height: 1.4; }
-.acc-backup .acc-inline { flex-wrap: wrap; gap: 8px; }
-.acc-backup-note { margin: 6px 0 0; font-size: 0.85em; min-height: 1.2em; color: #f0c85a; }
-
 /* Online-Konto (src/online) */
 .acc-notice.acc-cloud { border-left-color: #6ac06a; }
 .acc-notice.acc-cloud .acc-notice-icon { background: #6ac06a; color: #0c1a0c; }

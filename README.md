@@ -5,8 +5,8 @@ Reines HTML + JavaScript (ES-Module) + Canvas 2D, keine Abhängigkeiten, alle Gr
 
 **Stand 0.6:** Einzelspieler mit lokalen Demo-Accounts. 4 Völker, 4 Klassen mit je 4 Fähigkeiten und Talenten,
 6 Gebiete bis Stufe 20, 3 Bosse, Endgame „Glutprüfungen“, Quests mit Questpfad, rund 180 Gegenstände mit sichtbarer
-Ausrüstung, Sets, Schmied, Bank und Erfolge. Der Spielstand liegt im Browser; „Spielstand sichern“ erzeugt eine
-Sicherungsdatei. Kein Server, keine anderen Spieler – siehe `docs/MULTIPLAYER.md`.
+Ausrüstung, Sets, Schmied, Bank und Erfolge. Gespielt wird mit Konto (Supabase), Charaktere liegen in der Cloud. Noch keine anderen
+Spieler in der Welt – siehe `docs/MULTIPLAYER.md`.
 
 ## Starten und bauen
 

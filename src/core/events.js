@@ -51,6 +51,8 @@ export const EV = Object.freeze({
   TRIAL_BOSS: 'trial:boss',              // { bossId }
   TRIAL_COMPLETED: 'trial:completed',    // { tier, time, rewards }
   TRIAL_FAILED: 'trial:failed',          // { reason }
+  MOUNT_CHANGED: 'mount:changed',        // { riding, mountId }  (INTEGRATION §12.6)
+  MOUNT_LEARNED: 'mount:learned',        // { mountId }
   ACHIEVEMENT_UNLOCKED: 'achievement:unlocked', // { id, name, title? }  (Thread C)
   ITEM_AUTO_SOLD: 'item:autoSold',             // { itemId, qty, gold }  (Thread C)
 

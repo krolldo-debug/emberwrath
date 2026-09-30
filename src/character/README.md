@@ -87,7 +87,7 @@ Frisurwahl kostenlos in der Charaktererstellung (Knopf „Frisur“ in der Vorsc
   Axt, Kolben und Zweihänder ruhen auf der Schulter. Jeder Frame trägt `frame.weapon = { x, y, ang, u0, u1, fx, tier, arc? }`.
 - `entities/Hero.js`: animierte Effekte aus `frame.weapon`: selten = wandernder Glanz, episch = flackernde Aura, Flammenzungen bzw. Funkeln,
   Partikel je Element und ein Licht am Helden; legendär doppelt so dicht und heller.
-- Account-Auswahl: „Spielstand sichern“ und „Sicherung laden“ (INTEGRATION.md §11.11) mit verständlichen Fehlermeldungen.
+- ~~Account-Auswahl: „Spielstand sichern“ / „Sicherung laden“~~ – am 30.09. entfernt (Spielen nur mit Konto).
 
 ## Feine Figuren (Runde 5, INTEGRATION §11.12)
 

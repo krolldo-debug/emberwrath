@@ -379,6 +379,7 @@ nie beim Laden zwischenspeichern.** `<html>` trägt dann `ef-portrait`; Event `v
 - `npm run build` schreibt zusätzlich `dist/site/` (index.html = komplettes Spiel, `_headers` mit CSP/Sicherheitsheadern, robots.txt).
   Die CSP erlaubt nur `'self'`, `data:` und `blob:` – keine externen Skripte, Fonts oder Verbindungen einbauen, ohne `_headers` anzupassen.
 - `game.save.requestPersistence()` wird nach dem ersten Speichern eines neuen Spiels aufgerufen (Browser soll den Stand nicht räumen).
+- **Entfallen (30.09.):** Sicherungsdatei. `game.exportSaveFile()`/`importSaveFile()` und die Knöpfe sind entfernt; Charaktere liegen im Konto (docs/ONLINE.md). `SaveStore.exportAll/importAll` bleiben (CloudSync nutzt `importAll`). Früher:
 - `game.exportSaveFile()` (in der claude.ai-Vorschau über die Capability `downloads` mit Rückfrage) lädt `emberfall-spielstand-JJJJ-MM-TT.json` herunter (alle Schlüssel mit Präfix `emberfall:v1:`).
 - `await game.importSaveFile(file)` → `{ ok, accounts, characters }` oder `{ ok:false, reason:'format'|'full'|'size' }`;
   führt Accounts nach id zusammen, überschreibt keine anderen Accounts.
@@ -402,3 +403,198 @@ nie beim Laden zwischenspeichern.** `<html>` trägt dann `ef-portrait`; Event `v
 - `frame.weapon`/`glows` (A) bleiben in Weltpixeln relativ zum Fußpunkt.
 - Leistung (Chromium ohne GPU, also Obergrenze): k=1 ~4–6 ms, k=2 ~10–13 ms, k=3 ~17–27 ms pro Bild; Hitzeflimmern
   (Glutgipfel, Glutschmiede) ist der teuerste Einzelposten. Mit GPU deutlich weniger.
+
+## 12. Runde 3: Erweiterung bis Stufe 40 und Reiten (fest vereinbart, 30.09.)
+
+Ziel: Stufe 20 → 40 dauert für einen normalen Spieler **6–8 Stunden** aktives Spielen (Stufe 1–20 bleibt unverändert,
+ca. 30–60 Minuten). Ab Stufe 20 kann man reiten; Reittiere sind selten und teuer. Alles ist so gebaut, dass später weitere
+Stufen (41+) nur neue Daten brauchen. Alle IDs unten sind fix; Namen/Texte dürfen die Besitzer anpassen. Bestehende IDs
+aus §8 und §11 bleiben unverändert. Später sehen sich Spieler in der Welt (eigener Multiplayer-Thread): alles, was andere
+sehen müssen, steht in §12.9.
+
+### 12.1 Stufenkurve und Tempo (C, `progression/xp.js`)
+
+- `LEVEL_CAP = 40`. Die Kurve für Stufe 1–19 bleibt **bitgenau** gleich (bestehende Spielstände, Tests). Ab Stufe 20 neue Formel,
+  Richtwert `xpToNext(L) ≈ xpToNext(19) × 1,16^(L−19)` (≈ 7 600 für 20→21, ≈ 125 000 für 39→40; Summe 20→40 ≈ 0,9 Mio.).
+  Maßgeblich ist nicht die Formel, sondern das Tempo: **pro Stufe 15–25 Minuten**, zum Ende hin länger.
+  C weist das mit `src/progression/test/pacing.mjs` nach (Kills/Minute und Quest-Anteil wie heute, Quest-XP ≈ 55–60 %).
+- Charaktere, die heute auf 20 „voll“ stehen (`xp = xpNext`), steigen nach dem Update normal weiter (Migration in `progress.restore`).
+- Richtwerte der Kette: Aschensteppe 20–25, Hügelgrab ≈ 25, Faulmarsch 25–30, Sporenschlund ≈ 31, Frostzinnen 31–35,
+  Reifhöhlen ≈ 36, Glutöde 36–40, Aschethron ≈ 40.
+- Glutprüfungen (§11.10) bleiben ab Stufe 20 offen; Gegnerstufe und Beute-`ilvl` = Stufe des Spielers (20–40), die Prüfungsstufen bleiben.
+
+### 12.2 Zonen und Reiseweg (B)
+
+| Zone-ID | Name | Art | Stufen | `maxPlayers` | `mountable` | Boss / Elite | `respawnZone` |
+|---|---|---|---|---|---|---|---|
+| `ashen_steppe` | Die Aschensteppe | outdoor | 20–25 | 40 | ja | Elite `steppe_warlord` | – |
+| `howling_barrow` | Das Heulende Hügelgrab | dungeon, `instanced` | 24–26 | 5 | nein | Boss `barrow_king` | `ashen_steppe` |
+| `blighted_marsh` | Die Faulmarsch | outdoor | 25–31 | 40 | ja | Elite `bog_horror` | – |
+| `spore_hollow` | Der Sporenschlund | dungeon, `instanced` | 30–32 | 5 | nein | Boss `rot_mother` | `blighted_marsh` |
+| `frostspire` | Die Frostzinnen | outdoor | 31–36 | 40 | ja | Elite `ice_troll_chief` | – |
+| `rime_caverns` | Die Reifhöhlen | dungeon, `instanced` | 35–37 | 5 | nein | Boss `frost_wyrm` | `frostspire` |
+| `ember_wastes` | Die Glutöde | outdoor | 36–40 | 40 | ja | Elite `waste_colossus` | – |
+| `ashen_throne` | Der Aschethron | dungeon, `instanced` | 38–40 | 5 | nein | Elite `throne_sentinel`, Boss `ash_sovereign` | `ember_wastes` |
+
+- **Reiseweg:** `cinder_peaks ↔ ashen_steppe`, `ashen_steppe ↔ howling_barrow`, `ashen_steppe ↔ blighted_marsh`,
+  `blighted_marsh ↔ spore_hollow`, `blighted_marsh ↔ frostspire`, `frostspire ↔ rime_caverns`, `frostspire ↔ ember_wastes`,
+  `ember_wastes ↔ ashen_throne`. Portal-IDs `to_<zielzone>`, Spawns `start`, `respawn`, `from_<herkunftszone>` wie §11.1;
+  Portal nach `ashen_steppe` mit `requires: { level: 20 }`.
+- **Neues Zonenfeld `mountable`** (bool; Standard: `true` für `outdoor`, `false` für alles andere, auch `ember_trial` und Dörfer-Innenräume).
+  Zusätzlich darf B Flächen mit `noMount: true` markieren (z. B. Lagerhütten).
+- **Größe:** Außengebiete höchstens so groß wie `ashwood`/`cinder_peaks` (1536 × 1024 px), dafür wegen der Reittiere
+  längere Wege sinnvoll anlegen (Straßen). Mehr Fläche nur nach Leistungsmessung durch Architektur.
+- **Flächen (`area:reached`):** `ashen_steppe`: `steppe_outpost` (Lager, Stallmeisterin), `warlord_camp`, `barrow_gate`, `marsh_edge`;
+  `howling_barrow`: `barrow_crypt`; `blighted_marsh`: `mirefort` (Lager), `sunken_village`, `spore_gate`, `frost_pass`;
+  `spore_hollow`: `mother_nest`; `frostspire`: `frosthold` (Lager), `troll_caves`, `rime_gate`, `wastes_descent`;
+  `rime_caverns`: `wyrm_lair`; `ember_wastes`: `last_bastion` (Lager), `colossus_field`, `throne_gate`; `ashen_throne`: `sovereign_hall`.
+- **Objekte:** `ashen_steppe`: `war_banner_1..3` (`shrine`); `blighted_marsh`: `rot_totem_1..3` (`shrine`), `lost_caravan` (`item`);
+  `frostspire`: `frost_beacon_1..3` (`shrine`); `ember_wastes`: `ember_obelisk_1..3` (`shrine`); Truhen `chest_*`, Bosstruhen `boss_*`.
+- **Wetter/Stimmung (B Zone, D Effekte):** Steppe = Aschewind, Marsch = Nebel/Sporen, Zinnen = Schnee, Öde = Glutregen/Hitzeflimmern
+  (Flimmern sparsam, §11.12 Leistung).
+
+### 12.3 NPCs (B platziert, C schreibt Dialoge/Quests/Sortimente)
+
+| NPC-ID | Zone | Rolle |
+|---|---|---|
+| `captain_varra` | `ashen_steppe` | Hauptquests Steppe/Hügelgrab |
+| `stablemaster_orla` | `ashen_steppe` | Reiten: Einführungsquest, **Reittier-Händlerin** (§12.6) |
+| `nomad_kesh` | `ashen_steppe` | Nebenquests |
+| `trader_imra` | `ashen_steppe` | Händler Stufe 20–26 |
+| `warden_thane` | `blighted_marsh` | Hauptquests Marsch/Sporenschlund |
+| `alchemist_brisa` | `blighted_marsh` | Nebenquests |
+| `trader_moll` | `blighted_marsh` | Händler Stufe 26–32 |
+| `jarl_eskil` | `frostspire` | Hauptquests Zinnen/Reifhöhlen |
+| `hunter_sigrun` | `frostspire` | Nebenquests |
+| `trader_fenn` | `frostspire` | Händler Stufe 32–37 |
+| `marshal_corvane` | `ember_wastes` | Hauptquests Öde/Aschethron |
+| `pilgrim_aldo` | `ember_wastes` | Nebenquests |
+| `quartermaster_ryn` | `ember_wastes` | Händler Stufe 37–40 |
+
+### 12.4 Gegner (B, `enemy:killed.type`)
+
+Wie §11.3 (`level`/`levels`, `xp`, `elite`, `boss`, `bossId`). Jede Zone bekommt mindestens 4 normale Typen mit eigenem
+Verhalten (Nah, Fern, schwer, Schwarm) und eigene Sprites; neue Bosse mit Ansage, Phasen, Telegraphs, Todesanimation wie in Runde 2.
+
+- `ashen_steppe` (20–25): `steppe_raider`, `raider_archer`, `dust_hyena` (Rudel), `ash_vulture` (fliegt, stößt herab),
+  Elite `steppe_warlord` („Khar, der Steppenfürst“).
+- `howling_barrow` (24–26): `barrow_wight`, `grave_hound`, `bone_archer`, `wight_caller` (beschwört), Boss `barrow_king`
+  („Ulgrim, der Hügelkönig“, 2 Phasen).
+- `blighted_marsh` (25–31): `bog_lurker`, `rot_shaman` (Zauberer), `swamp_leech` (Schwarm), `plague_toad` (Giftwolke),
+  Elite `bog_horror` („Das Moorgrauen“).
+- `spore_hollow` (30–32): `sporeling` (Schwarm), `fungal_brute` (schwer), `spore_caster`, Boss `rot_mother`
+  („Mutter Fäulnis“, 3 Phasen).
+- `frostspire` (31–36): `ice_troll`, `frost_wolf` (Rudel), `rime_witch` (Zauberer), `snow_stalker` (Hinterhalt),
+  Elite `ice_troll_chief` („Gorm Eisfaust“).
+- `rime_caverns` (35–37): `ice_elemental`, `crystal_spider`, `frozen_knight` (schwer), Boss `frost_wyrm`
+  („Skalvyr, der Frostwurm“, 3 Phasen).
+- `ember_wastes` (36–40): `ash_wraith`, `cinder_knight` (schwer), `magma_serpent`, `ember_cultist_adept` (Zauberer),
+  Elite `waste_colossus` („Der Glutkoloss“).
+- `ashen_throne` (38–40): `throne_guard`, `ash_priest`, `ember_hellhound`, Elite `throne_sentinel` („Wächter des Throns“),
+  Endboss `ash_sovereign` („Malgareth, der Aschenfürst“, 3 Phasen, stärkster Kampf des Spiels).
+
+### 12.5 Quests (C)
+
+Zielarten, `zone` je Ziel und `turnInNpc` wie §11.4; Questpfad (§11.6) funktioniert unverändert.
+Pro Außengebiet **6–8 Hauptquests und 4–6 Nebenquests**, dazu wiederholbare Kopfgeldquests `q_bounty_<zone>` bei jedem Händler.
+Fest sind nur die Verbindungsglieder (Rest benennt C nach Schema `q_<zone>_<thema>`):
+
+- `q_ignaroth` → `q_new_horizons` (Hale: nach `ashen_steppe`, mit `captain_varra` sprechen).
+- `q_first_ride` (Orla, ab Stufe 20, parallel): „Reitunterricht“ – schaltet Reiten frei (§12.6), **kein** Gratis-Reittier.
+- Steppe: … → `q_barrow_king` (Boss `barrow_king`) → `q_into_the_marsh` (mit `warden_thane` sprechen).
+- Marsch: … → `q_rot_mother` (Boss `rot_mother`) → `q_frost_pass` (mit `jarl_eskil` sprechen).
+- Zinnen: … → `q_frost_wyrm` (Boss `frost_wyrm`) → `q_the_wastes` (mit `marshal_corvane` sprechen).
+- Öde: … → `q_ash_sovereign` (Boss `ash_sovereign`, Quest-Item `sovereign_crown`) = Ende der Kampagne.
+
+### 12.6 Reittiere (A Logik/Figur, C Beschaffung, D Icons/HUD, B Zonenregeln)
+
+**Freischaltung:** ab Stufe 20 **und** abgeschlossener `q_first_ride`. Vorher lässt sich kein Reittier benutzen (Hinweis „Ab Stufe 20
+bei Stallmeisterin Orla in der Aschensteppe“).
+
+**Definitionen (A, neue Datei `src/character/mounts.js`, Content-Typ `mount`):**
+`{ id, name, rarity: 'rare'|'epic'|'legendary', speed, sprite, source, desc }`. Tempo-Bonus nach Seltenheit, fest:
+`rare` **+60 %**, `epic` **+80 %**, `legendary` **+100 %** Laufgeschwindigkeit (unabhängig von der 30-%-Obergrenze aus Ausrüstung).
+Reittiere kämpfen nicht, haben keine Werte außer Tempo.
+
+| Mount-ID | Name | Seltenheit | Beschaffung (C) |
+|---|---|---|---|
+| `steppe_horse` | Steppenpferd | rare | Orla, sehr teuer (Richtwert 25 000 Gold) |
+| `ash_wolf` | Aschenwolf | rare | Orla, sehr teuer (Richtwert 25 000 Gold) |
+| `marsh_strider` | Sumpfschreiter | rare | Elite `bog_horror`, 1 % |
+| `bone_stallion` | Knochenhengst | epic | Boss `barrow_king`, 1 % |
+| `spore_beetle` | Sporenkäfer | epic | Boss `rot_mother`, 1 % |
+| `frost_elk` | Frostelch | epic | Boss `frost_wyrm`, 1 % |
+| `ember_charger` | Glutross | epic | Orla, extrem teuer, ab Stufe 40 (Richtwert 150 000 Gold) |
+| `cinder_drake` | Schlackendrache | legendary | Boss `ash_sovereign`, 0,5 % |
+| `nightmare_steed` | Albtraumross | legendary | Glutprüfung ab Prüfungsstufe 20, 0,3 % je Abschluss |
+
+- Die Goldpreise stimmt C so ab, dass ein seltenes Reittier beim Händler **etwa 3–4 Stunden** Spielzeit im Bereich 25–35
+  an Gold kostet und das epische erst gegen Stufe 40 erreichbar ist. Richtwerte oben passen C nach der Tempo-Simulation an.
+- Reittier-Drops zählen **nicht** gegen die Seltenheitsgrenzen aus §11.5 (eigener Wurf, nicht persönlich übertragbar ist egal:
+  es gibt keinen Handel). Kein Reittier in Truhen.
+- **Gegenstand (C):** Beute/Kauf ist ein Item `mount_<mountId>` (`type: 'mount'`, `mountId`, `rarity`, Symbol `mount_<mountId>`).
+  Benutzen im Inventar → C committet `mount:learn { mountId }` und entfernt das Item. Schon bekannt → Hinweis, Item bleibt (verkaufbar).
+- **Zustand (A, Slice `character`):** `mounts: { owned: [mountId], active: mountId|null, riding: bool }` (Migration: fehlt → leer).
+  Commands (A): `mount:learn { mountId }`, `mount:select { mountId }`, `mount:toggle` (aufsitzen/absitzen), Selektor
+  `game.character.canMount()` → `{ ok, reason: 'level'|'lesson'|'none'|'combat'|'zone'|'area' }`.
+- **Regeln (A, in `Hero`):** Aufsitzen dauert 1,2 s Stillstand (Wirkbalken, D zeichnet ihn), bricht bei Bewegung/Treffer ab.
+  Nicht im Kampf (`hero.combatTime < 3`), nicht in Zonen mit `mountable: false`, nicht auf `noMount`-Flächen.
+  Beritten: kein Angriff, keine Fähigkeit, kein Ausweichen, kein Trank. Ein Druck auf Angriff/Fähigkeit/Ausweichen **sitzt nur ab**
+  (ohne die Aktion auszuführen). Automatisches Absitzen bei jedem erlittenen Treffer, beim Zonenwechsel in eine nicht
+  beritten erlaubte Zone und beim Tod. Interagieren (NPC, Händler, Portal) geht beritten.
+  `riding` wird gespeichert; beim Laden in eine erlaubte Zone sitzt man wieder auf.
+- **Eingabe (D, `Input.js`):** neue Aktion `mount`, Tasten `KeyV` und `Digit6`; Touch-Knopf „Reittier“ neben der Hotbar,
+  nur sichtbar, wenn `canMount().reason !== 'level'`. Auswahl des aktiven Reittiers im Charakter-Panel (Reiter „Reittiere“, C baut
+  das Panel mit A’s Daten) mit Tempo und Seltenheitsrahmen.
+- **Figur (A):** neue Datei `src/sprites/mounts.js`: je Reittier 4 Richtungen × Stehen/Laufen (≥ 4 Frames), `res` wie Helden (§11.12);
+  Heldenfigur bekommt eine Sitz-Pose, Waffe bleibt auf dem Rücken sichtbar. Hoher Wiedererkennungswert je Seltenheit
+  (legendär mit Glut-/Leuchteffekt über `glows`).
+- **Events (Architektur, `events.js`):** `mount:changed { riding, mountId }` (`EV.MOUNT_CHANGED`), `mount:learned { mountId }`
+  (`EV.MOUNT_LEARNED`). D zeigt Toast/Staubwolke, Audio Hufschlag optional.
+
+### 12.7 Gegenstände (C; Icons D)
+
+- **Tiers weiter** nach `ilvl`: 5: 21–25, 6: 26–30, 7: 31–35, 8: 36–40; allgemein `tier = 4 + ceil((ilvl − 20) / 5)` für `ilvl > 20`
+  (erweiterbar). Icons `<visual>_t5 … _t8` (D); fehlt eins, fällt D auf `_t4` zurück.
+- Je Tier dieselbe Vielfalt wie §11.5, dazu je Außengebiet ein Rüstungsset (3–4 Teile, Boni wie bisher) und je Dungeonboss
+  eine benannte Waffe und ein Set. Materialien je Zone (C benennt, Schema wie bisher), Tränke `superior_potion` (Tier 5+),
+  `supreme_potion` (Tier 7+), Manatränke entsprechend.
+- **Seltenheitsgrenzen** aus §11.5 gelten unverändert auch für 21–40. Bosse: `epic` Hügelkönig 4 %, Mutter Fäulnis 5 %,
+  Frostwurm 6 %, Aschenfürst 8 %; `legendary` ≤ 2 % **nur** `ash_sovereign` (neuer legendärer Pool, 6 Teile, `ilvl 40`) und
+  weiter Ignaroth (sein Pool bleibt `ilvl 20`). Glutprüfungen nach §11.10.
+- `reqLevel` = `ilvl` − 2 wie bisher; Händler verkaufen weiter nur `common`/`uncommon` (Reittiere ausgenommen, §12.6).
+
+### 12.8 Charakter bis 40 (A)
+
+- `computeStats` bis Stufe 40 (Klassenwerte linear weiter; Gegner-/Item-Werte von B/C darauf abgestimmt, Kampfdauer je
+  Normalgegner wie bei 1–20: 2–4 Treffer).
+- **Keine neuen Hotbar-Plätze.** Neue Talent-Stufen bei **22, 28 und 34** (je Klasse Passive oder „Rang 2“ einer bestehenden
+  Fähigkeit mit sichtbar anderem Effekt). Talentpunkte bis 40 fortschreiben.
+
+### 12.9 Vorbereitung Mehrspieler (alle)
+
+- **Sichtbar für andere Spieler** ist nur, was im Helden-Abbild steht, das der Multiplayer-Thread verschickt:
+  Position, Richtung, Animation, Volk/Klasse/Aussehen, sichtbare Ausrüstung (`visual`, Seltenheit), **`mountId` und `riding`**.
+  A stellt dafür `hero.snapshotLook()` → `{ raceId, classId, appearance, gear, mountId, riding }` bereit (reine Daten, keine Canvas).
+  Fremde Spieler zeichnet derselbe Code wie den eigenen Helden (`sprites/hero.js`, `sprites/mounts.js`) aus diesem Abbild.
+- Neue Zonen/Bosse/Gegner nur als Daten + Logik, die ohne DOM laufen kann (wie heute `world/*`, `progression/logic.js`),
+  damit ein Server sie später ausführen kann. Keine Zufallszahlen aus `Math.random()` in neuer Spiellogik, sondern den
+  vorhandenen RNG der Sitzung (`h.rng`, `world.rng`).
+- Offene Gebiete bleiben Kanäle mit `maxPlayers: 40`, Dungeons Instanzen mit 5 – der Multiplayer-Thread verteilt Spieler später
+  auf mehrere Welten/Kanäle.
+
+### 12.10 Zuständigkeiten Runde 3 (Dateien wie §9)
+
+- **A:** `character/mounts.js` (neu), `sprites/mounts.js` (neu), Reitlogik in `entities/Hero.js`, Slice `character.mounts` + Commands +
+  `canMount()`, Sitz-Pose in `sprites/hero.js`, `computeStats` bis 40, Talent-Stufen 22/28/34, `hero.snapshotLook()`.
+- **B:** 8 Zonen (§12.2) mit Portalen, Spawns, Flächen, Objekten, NPC-Plätzen, `mountable`/`noMount`, Straßen; alle neuen Gegner und
+  Sprites, 4 Bosse + 4 Eliten mit Animationen/Telegraphs; Wetter/Stimmung je Zone gemeinsam mit D.
+- **C:** `LEVEL_CAP = 40` + Kurve (§12.1) mit Tempo-Nachweis, alle Quests/Dialoge (§12.5), Items/Sets/Tränke (§12.7), Beutetabellen
+  inkl. Reittier-Drops, Händler inkl. Orla, Gold-Ökonomie, Item-Typ `mount` → `mount:learn`, Reiter „Reittiere“ im Charakter-Panel,
+  Glutprüfungen skalieren mit Spielerstufe.
+- **D:** Icons Tier 5–8 und `mount_<id>`, Aktion `mount` (Tasten + Touch-Knopf), Wirkbalken beim Aufsitzen, Staub-/Hufeffekte,
+  Schnee/Nebel/Sporen/Glutregen, Minimap-Farben der neuen Zonen, Stufenanzeige bis 40 im HUD.
+- **Architektur:** `EV.MOUNT_CHANGED`, `EV.MOUNT_LEARNED`, dieser Vertrag, Integration, Kampagnen-Bot bis 40 (beschleunigt),
+  Leistungsmessung der neuen Zonen (Desktop + Handy), Veröffentlichen.
+- **Reihenfolge:** C zuerst `xp.js` + Item-/Quest-Grundgerüst, B zuerst Zonen mit Platzhalter-Gegnern (Portale und Wege spielbar),
+  A zuerst Reitlogik mit Platzhalter-Sprite. Jede Teillieferung darf einzeln integriert werden, solange das Spiel bis 20 unverändert läuft.

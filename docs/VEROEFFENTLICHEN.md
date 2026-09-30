@@ -38,7 +38,7 @@ Impressum-Angaben fehlen noch (die Seite sagt das offen); vor dem Sammeln von E-
 ## Spielstand
 
 - Liegt im Browser (localStorage, Präfix `emberfall:v1:`) der jeweiligen Adresse. Adresse nicht wechseln, sonst sind Stände
-  dort nicht sichtbar; bei Wechsel „Spielstand sichern“ → „Sicherung laden“.
+  dort nicht sichtbar. Mit Konto liegen die Charaktere zusätzlich in der Cloud (Supabase, docs/ONLINE.md).
 - Interne Namen bleiben `emberfall` (Schlüssel, Exportformat, Ordner), damit alte Stände erhalten bleiben.
 
 ## Noch nicht

@@ -133,35 +133,6 @@ export class Game {
     return ok;
   }
 
-  // Sicherungsdatei aller Spielstände dieses Geräts herunterladen (für Gerätewechsel oder Backup).
-  exportSaveFile() {
-    if (this.scenes.currentId === 'play') this.saveNow('export');
-    const data = this.save.exportAll();
-    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-    const filename = `emberwrath-spielstand-${data.exportedAt.slice(0, 10)}.json`;
-    // In der claude.ai-Vorschau sind normale Downloads gesperrt; dort fragt der Betrachter über „downloads“ nach.
-    if (typeof window.claude?.use === 'function') {
-      window.claude.use('downloads')
-        .then((d) => (d ? d.save({ filename, data: blob }) : Promise.reject(new Error('unavailable'))))
-        .catch((e) => { if (e?.code !== 'declined') this.bus.emit(EV.UI_TOAST, { text: 'Sicherung ist in dieser Vorschau nicht möglich.', kind: 'warn' }); });
-      return Object.keys(data.entries).length > 0;
-    }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    return Object.keys(data.entries).length > 0;
-  }
-
-  // Sicherungsdatei (File aus <input type=file>) einspielen. -> Promise<{ ok, accounts, characters } | { ok:false, reason }>
-  async importSaveFile(file) {
-    try {
-      if (!file || file.size > 5_000_000) return { ok: false, reason: 'size' };
-      return this.save.importAll(JSON.parse(await file.text()));
-    } catch { return { ok: false, reason: 'format' }; }
-  }
-
   saveNow(reason = 'manual') {
     const m = this.state.meta;
     if (!m.accountId || !m.characterId) return false;
