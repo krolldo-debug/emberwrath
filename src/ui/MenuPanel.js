@@ -34,9 +34,6 @@ export function createMenuPanel(session) {
       g.panels.defs?.has('achievements')
         ? h('button.ef-btn.menu-ach', { type: 'button', onclick: () => session.panels.open('achievements') }, h('img.ef-icon', { src: iconUrl('ui_achievements'), alt: '', width: 20, height: 20 }), 'Erfolge')
         : null,
-      typeof g.exportSaveFile === 'function'
-        ? h('button.ef-btn', { type: 'button', title: 'Lädt eine Sicherungsdatei deiner Spielstände herunter', onclick: () => { let ok = true; try { ok = g.exportSaveFile() !== false; } catch { ok = false; } status.textContent = ok ? 'Sicherungsdatei heruntergeladen. Laden kannst du sie unter Konto › Kontoeinstellungen.' : 'Sicherung nicht möglich.'; } }, 'Spielstand sichern')
-        : null,
       h('button.ef-btn', { type: 'button', onclick: () => { settings.classList.toggle('open'); help.classList.remove('open'); if (settings.classList.contains('open')) settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }, 'Einstellungen'),
       h('button.ef-btn', { type: 'button', onclick: () => { help.classList.toggle('open'); settings.classList.remove('open'); } }, 'Steuerung'),
       h('button.ef-btn.danger', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); } }, 'Speichern & zum Titel'),

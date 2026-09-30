@@ -257,48 +257,10 @@ export class LoginScene extends MenuScene {
             const r = await o.signOut();
             this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Abgemeldet. Deine Charaktere sind sicher in der Cloud.' : 'Abgemeldet. Noch nicht hochgeladene Spielstände werden beim nächsten Anmelden übertragen.' });
           }) }, 'Abmelden'),
-          this.#deleteButton()),
-        this.#backupBox()));
+          this.#deleteButton())));
   }
 
-  // Sicherungsdatei (INTEGRATION.md §11.11): Spielstände als Datei herunterladen und wieder einspielen.
-  // Geladene Charaktere aus älteren Sicherungen erscheinen danach oben unter „Auf diesem Gerät gefunden“.
-  #backupBox() {
-    const g = this.game;
-    const note = h('p.acc-backup-note', { role: 'status' }, this.backupNote ?? '');
-    const say = (text) => { this.backupNote = text; note.textContent = text; };
-    const file = h('input', { type: 'file', accept: '.json,application/json', hidden: true });
-    file.addEventListener('change', async () => {
-      const f = file.files?.[0];
-      file.value = '';
-      if (!f) return;
-      say('Sicherung wird geladen …');
-      let r;
-      try { r = await g.importSaveFile(f); } catch { r = { ok: false, reason: 'format' }; }
-      if (r?.ok) {
-        const c = r.characters ?? 0;
-        this.backupNote = `Sicherung geladen: ${c === 1 ? '1 Charakter' : `${c} Charaktere`}.`;
-        if (this.mode === 'account') this.#render();
-      } else {
-        say({
-          size: 'Die Datei ist zu groß oder leer. Bitte eine Emberwrath-Sicherung wählen.',
-          full: 'Der Speicher dieses Browsers ist voll. Bitte Platz schaffen und erneut versuchen.',
-        }[r?.reason] ?? 'Das ist keine gültige Emberwrath-Sicherung. Bitte die heruntergeladene .json-Datei wählen.');
-      }
-    });
-    return h('div.acc-backup.on-more-body',
-      h('p.acc-backup-lead', 'Zusätzlich zur Cloud kannst du deine Spielstände als Datei sichern und später wieder laden.'),
-      h('div.acc-inline',
-        h('button.ef-btn', {
-          type: 'button', disabled: typeof g.exportSaveFile !== 'function',
-          onclick: () => { let ok = false; try { ok = g.exportSaveFile() !== false; } catch { ok = false; } say(ok ? 'Sicherungsdatei heruntergeladen.' : 'Es gibt noch nichts zu sichern.'); },
-        }, 'Spielstand sichern'),
-        h('button.ef-btn', { type: 'button', disabled: typeof g.importSaveFile !== 'function', onclick: () => file.click() }, 'Sicherung laden'),
-        file),
-      note);
-  }
-
-  // Ältere lokale Charaktere dieses Geräts (oder aus einer Sicherung) als Kopie ins Konto übernehmen.
+  // Ältere lokale Charaktere dieses Geräts als Kopie ins Konto übernehmen.
   #importBox() {
     const g = this.game, o = this.online;
     const copied = new Set(o.copiedLocal());
