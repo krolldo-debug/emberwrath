@@ -13,11 +13,13 @@
   "durable_objects": {
     "bindings": [
       { "name": "ZONE_SHARD", "class_name": "ZoneShard" },
-      { "name": "DIRECTORY", "class_name": "Directory" }
+      { "name": "DIRECTORY", "class_name": "Directory" },
+      { "name": "DUNGEON_FINDER", "class_name": "DungeonFinder" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["ZoneShard", "Directory"] }
+    { "tag": "v1", "new_sqlite_classes": ["ZoneShard", "Directory"] },
+    { "tag": "v2", "new_sqlite_classes": ["DungeonFinder"] }
   ],
   "observability": { "enabled": true }
 }

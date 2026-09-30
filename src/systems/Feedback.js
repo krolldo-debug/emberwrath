@@ -42,7 +42,7 @@ export class FeedbackSystem {
     bus.on('footstep', (e) => {
       // Beritten (§12.6): Hufschlag mit größerer Staubwolke
       if (e.actor === this.game.world?.hero && this.#riding()) { this.game.world.particles.dust(e.actor.x, e.actor.y, 3); this.#sfx('hoof'); return; }
-      this.game.world.particles.dust(e.actor.x, e.actor.y, 1); this.#sfx('step');
+      this.game.world.particles.dust(e.actor.x, e.actor.y, 1); if (!e.actor.companion) this.#sfx('step');
     });
     bus.on(EV.MOUNT_CHANGED, (e) => {
       const h = this.game.world?.hero;
@@ -291,6 +291,19 @@ export class FeedbackSystem {
       w.particles.element?.(t.x, t.y - (t.bodyHeight ?? 16) * 0.6, 'poison', 3, 4);
       this.#text(e.x, e.y - 10, e.damage, '#a8e05a', 1, 0.6);
       if (e.killed) this.#onKill(e, ang);
+      return;
+    }
+    if (byHero && e.attacker.companion) {
+      // Mitspieler aus der Dungeonsuche (src/finder/): Treffer sichtbar, aber ohne Hitstop/Wackeln fürs eigene Bild
+      w.particles.sparks(e.x, e.y, ang, e.heavy ? 6 : 3);
+      this.#material(t, e, ang, e.killed ? 1.4 : 0.5);
+      this.#text(e.x, e.y - 10, e.damage, e.crit ? '#e8cf7a' : '#c8c8d0', 1, 0.5);
+      if (e.killed) this.#onKill(e, ang);
+      return;
+    }
+    if (!byHero && t.companion) {
+      w.particles.gore(t.x, t.y, 10, ang, 5, PAL.blood);
+      this.#text(t.x, t.y - 24, `-${e.damage}`, '#d0706a', 1, 0.5);
       return;
     }
     if (byHero) {

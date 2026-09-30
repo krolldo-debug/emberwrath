@@ -7,6 +7,7 @@ import { installProgression } from './progression/index.js';
 import { installUi } from './ui/index.js';
 import { installOnline } from './online/index.js';
 import { installNet } from './net/index.js';
+import { installFinder } from './finder/index.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar.
@@ -19,7 +20,8 @@ game
   .use(installProgression) // Thread C
   .use(installUi)          // Thread D
   .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
-  .use(installNet);        // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
+  .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
+  .use(installFinder);     // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
 game.scenes.register('play', (g) => new PlayScene(g));
 window.emberfall = game;
 game.start('title');
