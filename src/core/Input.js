@@ -65,7 +65,8 @@ export class Input {
   #bind() {
     window.addEventListener('keydown', (e) => {
       const a = KEYMAP[e.code];
-      if (!a || (isTyping(e) && a !== 'pause')) return;
+      // Beim Tippen in Eingabefeldern löst nur Escape eine Aktion aus (KeyP ist ebenfalls 'pause').
+      if (!a || (isTyping(e) && e.code !== 'Escape')) return;
       e.preventDefault();
       if (!e.repeat) this.#press(a);
     });
