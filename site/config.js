@@ -8,7 +8,7 @@ window.EW_SITE = {
   accountUrl: '/spielen/#konto',
 
   // Kontakt für Support und Impressum, z. B. 'support@emberwrath.com'
-  supportEmail: '',
+  supportEmail: 'support@emberwrath.com',
 
   // Social Media: vollständige Adresse eintragen, z. B. 'https://discord.gg/abc123'.
   // Reihenfolge = Reihenfolge auf der Seite. Leer = „bald“.
