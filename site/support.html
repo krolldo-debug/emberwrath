@@ -27,19 +27,54 @@
 <main id="inhalt">
   <div class="wrap">
     <h1>Wie können wir helfen?</h1>
-    <p class="lead">Die häufigsten Fragen und der direkte Weg zu uns.</p>
+    <p class="lead">Schreib uns direkt hier oder finde die Antwort unten in den häufigen Fragen.</p>
 
-    <div class="cards">
-      <div class="card">
-        <h3>Kontakt</h3>
-        <p>Schreib uns bei Fragen, Fehlern oder Ideen. Wir antworten so schnell wir können.</p>
-        <div data-support-email><a class="btn primary" href="mailto:support@emberwrath.com?subject=Emberwrath%20Support">support@emberwrath.com</a></div>
-      </div>
-      <div class="card">
-        <h3>Fehler melden</h3>
-        <p>Am besten per E-Mail an <a href="mailto:support@emberwrath.com?subject=Fehler%20in%20Emberwrath">support@emberwrath.com</a>. Hilfreich sind: was du gemacht hast, was passiert ist, Gerät und Browser (z. B. „iPhone 13, Safari“) und wenn möglich ein Bildschirmfoto.</p>
-      </div>
-    </div>
+    <section class="help" id="formular" aria-labelledby="formular-titel">
+      <form class="form" data-form="support" novalidate>
+        <h2 id="formular-titel" class="sr-only">Nachricht an den Support</h2>
+        <fieldset class="seg" data-kind>
+          <legend class="sr-only">Worum geht es?</legend>
+          <label><input type="radio" name="kind" value="kontakt" checked><span>Frage oder Idee</span></label>
+          <label><input type="radio" name="kind" value="fehler"><span>Fehler melden</span></label>
+          <label><input type="radio" name="kind" value="loeschen"><span>Konto löschen</span></label>
+        </fieldset>
+        <p class="form-hint" data-for="loeschen" hidden>Bitte nutze die Adresse, mit der du dich bei Emberwrath angemeldet hast.</p>
+        <div class="row2">
+          <label class="field"><span>Name <i>(freiwillig)</i></span><input name="name" autocomplete="name" maxlength="100"></label>
+          <label class="field"><span>E&#8209;Mail</span><input name="email" type="email" autocomplete="email" maxlength="254" required><em class="err" data-err="email">Bitte eine gültige E&#8209;Mail-Adresse angeben.</em></label>
+        </div>
+        <div class="row2" data-for="fehler loeschen" hidden>
+          <label class="field"><span>Charaktername <i>(freiwillig)</i></span><input name="character" maxlength="40"></label>
+          <label class="field" data-for="fehler" hidden><span>Gerät und Browser</span><input name="device" maxlength="200" placeholder="z. B. iPhone 13, Safari"></label>
+        </div>
+        <label class="field"><span data-label-message>Nachricht</span><textarea name="message" rows="6" maxlength="5000" required></textarea><em class="err" data-err="message">Bitte schreib uns ein paar Worte (mindestens 10 Zeichen).</em></label>
+        <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <div class="form-foot">
+          <button class="btn primary" type="submit">Absenden</button>
+          <small>Wir nutzen deine Angaben nur für deine Anfrage. Mehr in der <a href="datenschutz#formulare">Datenschutzerklärung</a>.</small>
+        </div>
+        <p class="form-msg" role="status" aria-live="polite" hidden></p>
+      </form>
+      <aside class="card">
+        <div data-for="kontakt">
+          <h3>Gut zu wissen</h3>
+          <p>Viele Antworten stehen schon unten in den <a href="#faq">häufigen Fragen</a>. Ideen für Gebiete, Bosse und Klassen lesen wir alle, auch wenn nicht jede ins Spiel kommt.</p>
+        </div>
+        <div data-for="fehler" hidden>
+          <h3>Fehler melden</h3>
+          <p>Am meisten hilft uns:</p>
+          <ul class="tips"><li>was du gerade gemacht hast</li><li>was passiert ist und was du erwartet hättest</li><li>wo im Spiel es war</li><li>ein Bildschirmfoto, am einfachsten per E&#8209;Mail</li></ul>
+        </div>
+        <div data-for="loeschen" hidden>
+          <h3>Konto löschen</h3>
+          <p>Wir löschen dein Konto mit allen Charakteren und Gegenständen. Das lässt sich nicht rückgängig machen.</p>
+          <p>Vorher bekommst du eine E&#8209;Mail an die angegebene Adresse und bestätigst die Löschung.</p>
+        </div>
+        <h3 class="card-gap">Lieber per E&#8209;Mail?</h3>
+        <p>Schreib uns direkt, wir antworten so schnell wir können.</p>
+        <div data-support-email><a class="btn" href="mailto:support@emberwrath.com?subject=Emberwrath%20Support">support@emberwrath.com</a></div>
+      </aside>
+    </section>
 
     <h2 id="faq">Häufige Fragen</h2>
     <div class="faq prose">
@@ -49,7 +84,7 @@
       </details>
       <details>
         <summary>Brauche ich ein Konto?</summary>
-        <div><p>Ja. Du registrierst dich mit E-Mail-Adresse und Passwort und bestätigst die Adresse über den Link in der E-Mail. Oder du meldest dich direkt mit „Weiter mit Google“ an.</p></div>
+        <div><p>Ja. Du registrierst dich mit E&#8209;Mail-Adresse und Passwort und bestätigst die Adresse über den Link in der E&#8209;Mail. Oder du meldest dich direkt mit „Weiter mit Google“ an.</p></div>
       </details>
       <details>
         <summary>Wo wird mein Spielstand gespeichert?</summary>
@@ -59,7 +94,11 @@
       </details>
       <details>
         <summary>Passwort vergessen?</summary>
-        <div><p>Auf der Anmeldeseite „Passwort vergessen“ wählen. Du bekommst eine E-Mail mit einem Link, über den du ein neues Passwort festlegst.</p></div>
+        <div><p>Auf der Anmeldeseite „Passwort vergessen“ wählen. Du bekommst eine E&#8209;Mail mit einem Link, über den du ein neues Passwort festlegst.</p></div>
+      </details>
+      <details>
+        <summary>Wie lösche ich mein Konto?</summary>
+        <div><p>Über das Formular oben mit „Konto löschen“. Wir bestätigen die Anfrage per E&#8209;Mail und löschen dann dein Konto mit allen Charakteren.</p></div>
       </details>
       <details>
         <summary>Wie steuere ich meine Figur?</summary>

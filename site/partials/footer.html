@@ -1,10 +1,26 @@
 <footer class="foot">
+  <div class="wrap foot-news" data-newsletter hidden>
+    <div>
+      <h2>Neuigkeiten aus Emberwrath</h2>
+      <p>Neue Gebiete, Bosse und Ereignisse, höchstens ein paarmal im Monat. Abmelden geht jederzeit mit einem Klick.</p>
+    </div>
+    <form class="news-form" data-form="newsletter" novalidate>
+      <label class="sr-only" for="nl-email">E&#8209;Mail-Adresse</label>
+      <input id="nl-email" name="email" type="email" aria-label="E-Mail-Adresse für den Newsletter" autocomplete="email" placeholder="deine@email.de" maxlength="254" required>
+      <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <button class="btn primary" type="submit">Anmelden</button>
+      <small>Du bekommst eine E&#8209;Mail mit einem Bestätigungslink. Mehr in der <a href="datenschutz#newsletter">Datenschutzerklärung</a>.</small>
+      <p class="form-msg" role="status" aria-live="polite" hidden></p>
+    </form>
+  </div>
   <div class="wrap foot-inner">
     <a href="./" aria-label="Emberwrath Startseite"><img class="px" src="img/logo.png" alt="Emberwrath" width="292" height="60"></a>
     <nav aria-label="Fußzeile">
-      <a data-link="play" href="spielen/">Spielen</a>
-      <a href="welt">Die Welt</a>
-      <a href="support">Support &amp; FAQ</a>
+      <a href="./#klassen">Klassen</a>
+      <a href="./#bosse">Bosse</a>
+      <a href="welt">Welt</a>
+      <a href="support">Support</a>
+      <a href="impressum">Impressum</a>
       <a href="datenschutz">Datenschutz</a>
     </nav>
     <div class="foot-socials" data-foot-socials></div>

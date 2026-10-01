@@ -1,6 +1,7 @@
 import { ZoneShard } from './shard.js';
 import { Directory } from './directory.js';
 import { DungeonFinder } from './finder/queue.js';
+import { handleForms } from './forms.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
 
@@ -9,6 +10,7 @@ import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol
 //   /net/worlds?zone=<id>                            Welten einer Zone mit Belegung (für „Welt wechseln“)
 //   /net/status                                      Spieler online je Zone und Welt
 //   /net/finder                                      WebSocket zur Dungeonsuche (worker/finder/, src/finder/README.md)
+//   /net/forms/support, /net/newsletter/*            Support-Formular und Newsletter der Website (worker/forms.js)
 // Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
 // außer den Seitenaufrufen aus assets.run_worker_first (wrangler.jsonc): Die kommen hier vorbei, damit alte Adressen
 // (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
@@ -87,6 +89,10 @@ export default {
       if (moved) return moved;
     }
     if (url.pathname.startsWith(`${NET_PATH}/`)) {
+      const route = url.pathname.slice(NET_PATH.length);
+      if (route.startsWith('/forms/') || route.startsWith('/newsletter/')) {
+        try { return (await handleForms(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { return json({ error: 'server' }, 500); }
+      }
       if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
       try { return await handleNet(request, config(env), url); } catch (e) { return json({ error: 'server' }, 500); }
     }

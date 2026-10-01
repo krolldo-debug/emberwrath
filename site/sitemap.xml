@@ -4,5 +4,6 @@
   <url><loc>https://www.emberwrath.com/welt</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://www.emberwrath.com/spielen/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://www.emberwrath.com/support</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://www.emberwrath.com/impressum</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
   <url><loc>https://www.emberwrath.com/datenschutz</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
 </urlset>
