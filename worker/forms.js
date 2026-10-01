@@ -94,11 +94,13 @@ async function sendResend(env, { to, subject, text, headers }) {
 // ------------------------------------------------------------------ Supabase (REST mit service_role)
 async function db(env, path, { method = 'GET', body, prefer } = {}) {
   const base = String(env.SUPABASE_URL).replace(/\/$/, '');
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = String(env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
   const r = await fetch(`${base}/rest/v1/${path}`, {
     method,
     headers: {
-      apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json',
+      // Neue Secret Keys (sb_secret_…) gehören nur in apikey; als Bearer lehnt PostgREST alles ab, was kein JWT ist.
+      // Ältere service_role-Schlüssel sind JWTs (eyJ…) und gehen zusätzlich als Bearer mit.
+      apikey: key, ...(key.startsWith('eyJ') ? { authorization: `Bearer ${key}` } : {}), 'content-type': 'application/json',
       ...(prefer ? { prefer } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
