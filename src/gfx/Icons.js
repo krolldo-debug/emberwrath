@@ -1,6 +1,7 @@
 import { PAL } from './Palette.js';
 import { PixelCanvas, outlineCanvas, makeCanvas } from './PixelCanvas.js';
 import { decorateItemIcon } from './ItemFx.js';
+import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
 
 // Item-, Fähigkeits- und UI-Icons als prozedurale 24×24-Pixel-Art (mit Umriss 26×26).
 // Gemeinsam genutzt von HUD (D), Inventar/Beute/Händler (C) und Charaktererstellung (A).
@@ -1112,9 +1113,16 @@ export function iconCanvas(id) {
   const key = resolve(id);
   let c = canvasCache.get(key);
   if (!c) {
-    const p = new PixelCanvas(S, S);
-    REG[key](p);
-    c = outlineCanvas(p.canvas);
+    if (SKILL_ART[key]) {
+      // Fähigkeiten (Runde 6): 48×48-Embleme mit eigenem Rahmen, ohne Umriss
+      const p = new PixelCanvas(SKILL_ART_SIZE, SKILL_ART_SIZE);
+      SKILL_ART[key](p);
+      c = p.canvas;
+    } else {
+      const p = new PixelCanvas(S, S);
+      REG[key](p);
+      c = outlineCanvas(p.canvas);
+    }
     canvasCache.set(key, c);
   }
   return c;

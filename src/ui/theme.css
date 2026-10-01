@@ -934,3 +934,83 @@ html:not(.ef-touch) .hud-slot[data-action="mount"] { margin-left: 8px; }
 .hud-cast-text { font: 600 11px var(--ef-font); color: #fff0c8; letter-spacing: 0.06em; text-shadow: 0 1px 0 #000, 0 0 6px #000; }
 .ef-unlock.k-mount { border-color: #c89a50; background: linear-gradient(180deg, rgba(40, 26, 14, 0.96), rgba(16, 10, 6, 0.96)); }
 .ef-unlock.k-mount .ul-kind { color: #f0c870; }
+
+/* ------------------------------------------------------------ Runde 6: aufgeräumte Handy-Steuerung
+   Angriff in der Ecke, darum ein Bogen mit genau 4 Fähigkeiten (r = 106), außen ein zweiter Bogen
+   (r = 172) mit Ausweichen, Trank-Platz und Reittier; Sprechen erscheint nur bei Bedarf im Außenbogen.
+   Infos (Spieler, Quests, Karte, Zone) liegen am Bildschirmrand, nie unter den Knöpfen. */
+html.ef-touch .ef-hud .hud-actions { width: 236px; height: 236px; right: calc(env(safe-area-inset-right, 0px) + 10px); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+html.ef-touch .ef-hud .hud-slot {
+  border-radius: 50%; border: 2px solid rgba(150, 108, 54, 0.9);
+  background: radial-gradient(circle at 50% 38%, rgba(40, 26, 48, 0.92), rgba(10, 6, 14, 0.92) 72%);
+  box-shadow: 0 0 0 1px rgba(5, 2, 10, 0.9), 0 3px 8px rgba(0, 0, 0, 0.55);
+}
+html.ef-touch .ef-hud .hud-slot .hud-cd { border-radius: inherit; }
+html.ef-touch .ef-hud .hud-slot.big { width: 70px; height: 70px; right: 0; bottom: 0; border: 3px solid #c8963e; }
+html.ef-touch .ef-hud .hud-slot.big img { width: 40px; height: 40px; }
+/* Fähigkeiten: das Emblem füllt den Knopf (abgerundetes Quadrat), Goldkante wie bei Gegenständen */
+html.ef-touch .ef-hud .hud-slot[data-action^="skill"] { width: 50px; height: 50px; border-radius: 12px; padding: 0; overflow: hidden; border-color: #b8863a; background: #0e0814; }
+html.ef-touch .ef-hud .hud-slot[data-action^="skill"] img { width: 100%; height: 100%; border-radius: 9px; box-shadow: none; }
+html.ef-touch .ef-hud .hud-slot[data-action^="skill"].disabled img { filter: grayscale(0.6) brightness(0.6); }
+html.ef-touch .ef-hud .hud-slot[data-action="skill1"] { right: 116px; bottom: 10px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill2"] { right: 102px; bottom: 63px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill3"] { right: 63px; bottom: 102px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill4"] { right: 10px; bottom: 116px; }
+html.ef-touch .ef-hud .hud-slot[data-action="dodge"] { right: 180px; bottom: 20px; width: 54px; height: 54px; border-color: #c8963e; }
+html.ef-touch .ef-hud .hud-slot[data-action="dodge"] img { width: 32px; height: 32px; }
+html.ef-touch .ef-hud .hud-slot[data-action="potion"] { right: 135px; bottom: 135px; width: 44px; height: 44px; }
+html.ef-touch .ef-hud .hud-slot[data-action="potion"] img { width: 28px; height: 28px; }
+html.ef-touch .ef-hud .hud-slot[data-action="potion"] .hud-slot-count { right: -3px; bottom: -3px; min-width: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 8px; background: #0b0710; border: 1px solid #b8863a; font-size: 10px; line-height: 14px; text-align: center; }
+html.ef-touch .ef-hud .hud-slot[data-action="mount"] { right: 25px; bottom: 185px; width: 44px; height: 44px; }
+html.ef-touch .ef-hud .hud-slot[data-action="mount"] img { width: 26px; height: 26px; }
+html.ef-touch .ef-hud .hud-slot[data-action="interact"] { right: 167px; bottom: 84px; width: 48px; height: 48px; border-color: var(--ef-gold); }
+html.ef-touch .ef-hud .hud-slot[data-action="interact"] img { width: 30px; height: 30px; }
+html.ef-touch .ef-hud .hud-slot.locked { opacity: 0.7; }
+
+/* Handy quer: Info-Rahmen über den ganzen Schirm (nicht nur das Spielbild), Ränder mit Sicherheitsabstand */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-frame {
+  left: env(safe-area-inset-left, 0px); top: env(safe-area-inset-top, 0px); transform: none;
+  width: calc(100% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); height: calc(100% - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+html.ef-touch:not(.ef-portrait) .ef-hud { --hud-gap: 8px; --mm: 78px; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-player { left: 8px; top: 8px; width: 210px; }
+/* Quests links unter dem Spieler, höchstens zwei (bei wenig Höhe eine) */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-tracker { left: 8px; right: auto; top: 84px; width: 210px; gap: 4px; font-size: 0.92em; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-tracker-head { text-align: left; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-quest:nth-of-type(n+4) { display: none; }
+@media (max-height: 380px) { html.ef-touch:not(.ef-portrait) .ef-hud .hud-quest:nth-of-type(n+3) { display: none; } }
+/* Karte oben rechts neben dem Menüknopf, Zone und Gold darunter */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-minimap { left: auto; right: 64px; top: 8px; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-zone { right: 152px; top: 8px; gap: 0; font-size: 0.9em; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-zone-sub:not(:empty) { font-size: 0.72em; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-saved { position: absolute; right: 0; top: 100%; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu { right: calc(env(safe-area-inset-right, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 8px); }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu-toggle { width: 48px; height: 48px; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-xp-wrap { left: 30%; right: 30%; bottom: 2px; }
+html.ef-touch:not(.ef-portrait) .ef-toasts { left: 50%; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); transform: translateX(-50%); align-items: center; width: min(320px, 40vw); }
+/* Chat-Knopf oben in der Reihe neben dem Spielerrahmen statt mitten links */
+html.ef-touch:not(.ef-portrait) .net-chat-btn { left: calc(env(safe-area-inset-left, 0px) + 226px); top: calc(env(safe-area-inset-top, 0px) + 8px); width: 40px; height: 40px; }
+html.ef-touch:not(.ef-portrait) #ui .net-chat { left: calc(env(safe-area-inset-left, 0px) + 226px); top: calc(env(safe-area-inset-top, 0px) + 56px); bottom: auto; }
+/* Hochformat: Chat-Knopf oben links neben dem Menü statt über den Quests */
+html.ef-touch.ef-portrait .net-chat-btn { left: auto; right: calc(env(safe-area-inset-right, 0px) + 64px); top: calc(env(safe-area-inset-top, 0px) + 8px); }
+
+/* Vollbild-Hinweis fürs iPhone (ui/Fullscreen.js), einmalig */
+.ef-fs-hint {
+  position: fixed; z-index: 20; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 10px 36px 10px 14px;
+  display: flex; flex-direction: column; gap: 3px; font: 600 13px/1.35 var(--ef-font); color: var(--ef-text);
+  background: rgba(14, 8, 20, 0.95); border: 1px solid #b8863a; border-radius: 3px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  animation: ef-fade 0.4s; transition: opacity 0.5s;
+}
+.ef-fs-hint b { color: var(--ef-gold); font-family: var(--ef-font-title); font-size: 15px; letter-spacing: 0.03em; }
+.ef-fs-hint span { font-weight: 400; color: #d8cdb0; }
+.ef-fs-hint i { font-style: normal; color: #ffe08a; }
+.ef-fs-hint svg { vertical-align: -2px; color: #8ab8ff; }
+.ef-fs-hint.out { opacity: 0; }
+.ef-fs-hint-close { position: absolute; right: 4px; top: 4px; width: 32px; height: 32px; border: 0; background: none; color: var(--ef-muted); font: 400 22px/1 var(--ef-font); cursor: pointer; }
+/* Desktop: Quests unter Zone, Weltstatus und Gold (die Zeile „Welt 1 · …“ kam dazu) */
+html:not(.ef-touch) .ef-hud .hud-tracker { top: calc(var(--hud-gap) + var(--mm) + 8px + 6.9em); }
+html.ef-no-minimap:not(.ef-touch) .ef-hud .hud-tracker { top: calc(var(--hud-gap) + 8.6em); }
+/* Gold antippen öffnet den Shop, sobald es ihn gibt (.shop) */
+.hud-gold.shop { pointer-events: auto; cursor: pointer; }
+.hud-gold.shop::after { content: "+"; display: inline-grid; place-items: center; width: 14px; height: 14px; margin-left: 3px; border-radius: 50%; background: var(--ef-gold); color: #1a0e04; font: 700 12px/1 var(--ef-font); }

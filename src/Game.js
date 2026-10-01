@@ -181,7 +181,9 @@ export class Game {
     const aw = window.innerWidth * dpr, ah = window.innerHeight * dpr;
     this.#chooseView(aw, ah);
     const fit = Math.min(aw / CONFIG.viewWidth, ah / CONFIG.viewHeight);
-    const scale = fit >= 2 && Math.floor(fit) / fit >= 0.85 ? Math.floor(fit) : fit;
+    // Touch-Geräte füllen den Schirm immer ganz; sonst ganzzahlig, solange mindestens 85 % genutzt werden
+    const coarse = document.documentElement.classList.contains('ef-touch') || window.matchMedia?.('(pointer: coarse)').matches;
+    const scale = !coarse && fit >= 2 && Math.floor(fit) / fit >= 0.85 ? Math.floor(fit) : fit;
     // Qualität „Niedrig“ (ui/Quality.js, auch automatisch): Zeichenfläche höchstens 2-fach,
     // der Browser vergrößert pixelgenau per CSS. Spart auf hochauflösenden Handys den teuren Blit.
     this.#quality = document.documentElement.dataset.quality ?? '';
@@ -208,7 +210,8 @@ export class Game {
   #chooseView(aw, ah) {
     const L = CONFIG.landscapeView, P = CONFIG.portraitView;
     const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId);
-    const w = tall ? P.width : L.width;
+    // Querformat: Bildbreite folgt dem Seitenverhältnis (16:9 bis 21:9), breite Handys bekommen keine schwarzen Ränder
+    const w = tall ? P.width : Math.max(L.width, Math.min(L.maxWidth ?? 640, Math.round((L.height * aw) / ah / 2) * 2));
     const h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
     if (w === CONFIG.viewWidth && h === CONFIG.viewHeight) return;
     CONFIG.viewWidth = w; CONFIG.viewHeight = h;
