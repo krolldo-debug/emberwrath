@@ -102,6 +102,5 @@ writeFileSync(resolve(site, '_headers'), [
   '',
 ].join('\n'));
 writeFileSync(resolve(site, 'version.json'), JSON.stringify(build) + '\n');
-writeFileSync(resolve(site, 'robots.txt'), 'User-agent: *\nAllow: /\n');
 console.log(`dist/emberfall.html geschrieben (${modules.size} Module, ${(out.length / 1024).toFixed(1)} KB)`);
 console.log(`dist/site: Startseite (${landing.pages} Seiten, Bilder ${landing.imagesKB} KB), Spiel unter /spielen/`);

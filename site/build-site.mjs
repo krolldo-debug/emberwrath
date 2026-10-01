@@ -7,7 +7,8 @@ import { resolve, join, extname } from 'node:path';
 
 // impressum.html ist vorerst nicht veröffentlicht (Nutzerwunsch 30.09.); zum Aktivieren wieder eintragen und verlinken.
 const PAGES = ['index.html', 'welt.html', 'support.html', 'datenschutz.html'];
-const STATIC = ['site.css', 'site.js', 'config.js', 'favicon.svg'];
+// robots.txt und sitemap.xml nennen https://www.emberwrath.com (canonical in den Seitenköpfen ebenso).
+const STATIC = ['site.css', 'site.js', 'config.js', 'favicon.svg', 'robots.txt', 'sitemap.xml'];
 
 export function buildSite(root, outDir) {
   const src = resolve(root, 'site');
