@@ -60,10 +60,8 @@
   const imp = cfg.impressum ?? {};
   const impBox = document.querySelector('[data-impressum]');
   if (impBox && imp.name && imp.street && imp.city) {
-    const email = (imp.email || mail).trim();
     const rows = [
       ['Anbieter', `${esc(imp.name)}<br>${esc(imp.street)}<br>${esc(imp.city)}${imp.country ? `<br>${esc(imp.country)}` : ''}`],
-      ['E-Mail', email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : ''],
       ['Telefon', esc(imp.phone ?? '')],
       ['Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)', esc(imp.responsible || imp.name)],
     ].filter(([, v]) => v);
@@ -231,6 +229,118 @@
       ctx.globalAlpha = 1;
       requestAnimationFrame(tick);
     }
+  }
+
+  // ---------- Formulare (Support, Newsletter) → Worker unter /net/ (worker/forms.js)
+  const FORMS_API = cfg.formsApi ?? '/net';
+  const shownAt = performance.now();
+  const post = async (path, body) => {
+    const r = await fetch(`${FORMS_API}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...body, t: Math.round(performance.now() - shownAt) }) });
+    let data = {};
+    try { data = await r.json(); } catch { /* leer */ }
+    return { ok: r.ok && data.ok, status: r.status, data };
+  };
+  const say = (form, text, kind) => {
+    const msg = form.querySelector('.form-msg');
+    msg.textContent = text; msg.hidden = !text; msg.dataset.kind = kind ?? '';
+  };
+  const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+
+  const sup = document.querySelector('[data-form="support"]');
+  if (sup) {
+    // Kurz und lesbar statt des ganzen User-Agents, z. B. „Chrome 129, Windows“ (der Spieler kann es ändern).
+    const deviceGuess = () => {
+      const ua = navigator.userAgent;
+      const b = [['Edg/', 'Edge'], ['OPR/', 'Opera'], ['SamsungBrowser/', 'Samsung Internet'], ['Firefox/', 'Firefox'], ['FxiOS/', 'Firefox'], ['CriOS/', 'Chrome'], ['Chrome/', 'Chrome'], ['Version/', 'Safari']]
+        .find(([k]) => ua.includes(k));
+      const browser = b ? `${b[1]} ${(ua.split(b[0])[1] ?? '').split(/[.\s]/)[0]}`.trim() : '';
+      const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+        : /Mac OS X/.test(ua) ? (navigator.maxTouchPoints > 1 ? 'iPad' : 'Mac') : /CrOS/.test(ua) ? 'Chromebook' : /Linux/.test(ua) ? 'Linux' : '';
+      return [browser, os].filter(Boolean).join(', ');
+    };
+    const F = (n) => sup.elements.namedItem(n);
+    const kindNow = () => sup.querySelector('input[name="kind"]:checked')?.value ?? 'kontakt';
+    const label = sup.querySelector('[data-label-message]');
+    const applyKind = () => {
+      const k = kindNow();
+      for (const el of $$('[data-for]', sup.closest('.help') ?? sup)) el.hidden = !el.dataset.for.split(' ').includes(k);
+      label.innerHTML = k === 'fehler' ? 'Was ist passiert?' : k === 'loeschen' ? 'Anmerkung <i>(freiwillig)</i>' : 'Nachricht';
+      F('message').required = k !== 'loeschen';
+      if (k === 'fehler' && !F('device').value) F('device').value = deviceGuess();
+    };
+    const want = new URLSearchParams(location.search).get('anliegen');
+    const pre = want && sup.querySelector(`input[name="kind"][value="${CSS.escape(want)}"]`);
+    if (pre) pre.checked = true;
+    for (const r of $$('input[name="kind"]', sup)) r.addEventListener('change', applyKind);
+    applyKind();
+    // Fehlermeldung verschwindet, sobald das Feld stimmt
+    for (const f of ['email', 'message']) F(f).addEventListener('input', () => {
+      if (F(f).getAttribute('aria-invalid') !== 'true') return;
+      const ok = f === 'email' ? emailOk(F(f).value.trim()) : kindNow() === 'loeschen' || F(f).value.trim().length >= 10;
+      if (ok) { F(f).setAttribute('aria-invalid', 'false'); sup.querySelector(`[data-err="${f}"]`).classList.remove('on'); }
+    });
+    sup.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const k = kindNow();
+      const bad = { email: !emailOk(F('email').value.trim()), message: k !== 'loeschen' && F('message').value.trim().length < 10 };
+      for (const [f, on] of Object.entries(bad)) { F(f).setAttribute('aria-invalid', String(on)); sup.querySelector(`[data-err="${f}"]`).classList.toggle('on', on); }
+      if (bad.email || bad.message) { F(bad.email ? 'email' : 'message').focus(); return; }
+      const btn = sup.querySelector('button[type="submit"]');
+      btn.disabled = true; say(sup, 'Wird gesendet …');
+      try {
+        const res = await post('/forms/support', {
+          kind: k, name: F('name').value, email: F('email').value, message: F('message').value, website: F('website').value,
+          character: k === 'kontakt' ? '' : F('character').value, device: k === 'fehler' ? F('device').value : '',
+        });
+        if (res.ok) {
+          sup.reset(); sup.querySelector(`input[name="kind"][value="${k}"]`).checked = true; applyKind();
+          say(sup, k === 'loeschen' ? 'Danke. Wir schreiben dir an deine Adresse, um die Löschung zu bestätigen.' : 'Danke, deine Nachricht ist angekommen. Wir melden uns per E\u2011Mail.', 'ok');
+        } else if (res.status === 429) say(sup, 'Zu viele Anfragen in kurzer Zeit. Bitte versuch es in ein paar Minuten noch einmal.', 'err');
+        else throw new Error(String(res.status));
+      } catch {
+        say(sup, 'Das hat gerade nicht geklappt. Schreib uns bitte direkt an support@emberwrath.com.', 'err');
+      } finally { btn.disabled = false; }
+    });
+  }
+
+  // Newsletter: Formular erscheint nur, wenn Versand und Speicher eingerichtet sind. Auf der Rückmeldeseite
+  // nur nach einem abgelaufenen Link (dort ist die erneute Anmeldung gerade gefragt).
+  const nlState = new URLSearchParams(location.search).get('s');
+  const news = document.querySelector('[data-nl-title]') && nlState !== 'ungueltig' ? [] : $$('[data-newsletter]');
+  if (news.length) {
+    fetch(`${FORMS_API}/newsletter/status`).then((r) => (r.ok ? r.json() : {})).then((d) => {
+      if (d.enabled) for (const el of news) el.hidden = false;
+    }).catch(() => {});
+    for (const form of $$('[data-form="newsletter"]')) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = form.elements.namedItem('email').value.trim();
+        if (!emailOk(email)) { form.elements.namedItem('email').setAttribute('aria-invalid', 'true'); say(form, 'Bitte eine gültige E\u2011Mail-Adresse angeben.', 'err'); form.elements.namedItem('email').focus(); return; }
+        form.elements.namedItem('email').removeAttribute('aria-invalid');
+        const btn = form.querySelector('button');
+        btn.disabled = true; say(form, 'Wird gesendet …');
+        try {
+          const res = await post('/newsletter/subscribe', { email, website: form.elements.namedItem('website').value, source: location.pathname });
+          if (res.ok) { form.reset(); say(form, 'Fast geschafft: Bitte bestätige die Anmeldung über den Link in der E\u2011Mail, die wir dir gerade geschickt haben.', 'ok'); }
+          else if (res.status === 429) say(form, 'Zu viele Anfragen in kurzer Zeit. Bitte versuch es später noch einmal.', 'err');
+          else throw new Error(String(res.status));
+        } catch {
+          say(form, 'Das hat gerade nicht geklappt. Bitte versuch es später noch einmal.', 'err');
+        } finally { btn.disabled = false; }
+      });
+    }
+  }
+
+  // Rückmeldeseite /newsletter?s=…
+  const nlTitle = document.querySelector('[data-nl-title]');
+  if (nlTitle) {
+    const MSG = {
+      bestaetigt: ['Du bist dabei.', 'Danke für die Bestätigung. Ab jetzt bekommst du Neuigkeiten aus Emberwrath. Abmelden kannst du dich jederzeit über den Link in jeder E\u2011Mail.'],
+      abgemeldet: ['Du bist abgemeldet.', 'Du bekommst keinen Newsletter mehr von uns. Wenn du es dir anders überlegst, kannst du dich unten auf der Startseite wieder anmelden.'],
+      ungueltig: ['Dieser Link gilt nicht mehr.', 'Der Link ist abgelaufen oder wurde schon benutzt. Melde dich unten einfach noch einmal an, dann bekommst du einen neuen.'],
+      fehler: ['Das hat nicht geklappt.', 'Bitte versuch es später noch einmal oder schreib uns an support@emberwrath.com.'],
+    }[new URLSearchParams(location.search).get('s')];
+    if (MSG) { nlTitle.textContent = MSG[0]; document.querySelector('[data-nl-text]').textContent = MSG[1]; document.title = `${MSG[0]} – Emberwrath`; }
   }
 
   // ---------- Jahr in der Fußzeile

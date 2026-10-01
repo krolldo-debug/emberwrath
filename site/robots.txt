@@ -1,0 +1,6 @@
+# Emberwrath – alles darf durchsucht werden.
+User-agent: *
+Allow: /
+Disallow: /net/
+
+Sitemap: https://www.emberwrath.com/sitemap.xml

@@ -8,8 +8,23 @@
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./dist/site",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // Nur Seitenaufrufe laufen zuerst durch den Worker (Umleitung alter Adressen, worker/index.js);
+    // Bilder, Schriften usw. liefert Cloudflare weiter direkt und ohne Worker-Aufruf.
+    "run_worker_first": ["/", "/index.html", "/welt*", "/support*", "/datenschutz*", "/impressum*", "/newsletter*", "/spielen*"]
   },
+  // CANONICAL_HOST: Hauptadresse der Seite. Alte Adressen (REDIRECT_HOSTS) leiten mit 301 dorthin um (nicht /net/*).
+  // MAIL_FROM, SITE_URL: Absender und Links der Formular-Mails (worker/forms.js).
+  // SUPPORT_TO trägt der Nutzer im Cloudflare-Dashboard ein (Variables, Typ Text), damit die Adresse nicht im Repo steht.
+  // Secrets (Dashboard › Variables and Secrets, Typ Secret): SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY.
+  "vars": {
+    "CANONICAL_HOST": "www.emberwrath.com",
+    "REDIRECT_HOSTS": "emberwrath.com,emberwrath.kroll-do.workers.dev",
+    "MAIL_FROM": "noreply@emberwrath.com",
+    "SITE_URL": "https://www.emberwrath.com"
+  },
+  // Dashboard-Variablen und Secrets bleiben beim Deploy erhalten.
+  "keep_vars": true,
   "durable_objects": {
     "bindings": [
       { "name": "ZONE_SHARD", "class_name": "ZoneShard" },
@@ -21,5 +36,9 @@
     { "tag": "v1", "new_sqlite_classes": ["ZoneShard", "Directory"] },
     { "tag": "v2", "new_sqlite_classes": ["DungeonFinder"] }
   ],
+  // Support-Formular: Mail an die geprüfte Zieladresse aus Email Routing (SUPPORT_TO).
+  "send_email": [{ "name": "SUPPORT_MAIL" }],
+  // Höchstens 5 Formular-Absendungen pro Minute und IP (worker/forms.js).
+  "ratelimits": [{ "name": "FORM_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }],
   "observability": { "enabled": true }
 }

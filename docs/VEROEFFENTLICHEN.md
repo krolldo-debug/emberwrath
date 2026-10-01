@@ -1,6 +1,6 @@
 # Emberwrath veröffentlichen
 
-Spielname: **Emberwrath** (vom Nutzer bestätigt 2026-09-30). Adresse: https://emberwrath.kroll-do.workers.dev (Cloudflare, kostenlos, live seit 2026-09-30).
+Spielname: **Emberwrath** (vom Nutzer bestätigt 2026-09-30). Adresse: https://www.emberwrath.com (Domain seit 2026-10-01, Cloudflare). emberwrath.com und emberwrath.kroll-do.workers.dev leiten mit 301 dorthin um (worker/index.js, wrangler.jsonc `vars`).
 Anleitung für den Nutzer: Claude Doc „Emberwrath veröffentlichen – Anleitung“
 (https://claude.ai/code/artifact/0e2b855d-b000-4637-bdc1-63fe97a19da9).
 

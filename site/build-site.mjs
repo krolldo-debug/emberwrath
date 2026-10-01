@@ -5,9 +5,10 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, statSync } from 'node:fs';
 import { resolve, join, extname } from 'node:path';
 
-// impressum.html ist vorerst nicht veröffentlicht (Nutzerwunsch 30.09.); zum Aktivieren wieder eintragen und verlinken.
-const PAGES = ['index.html', 'welt.html', 'support.html', 'datenschutz.html'];
-const STATIC = ['site.css', 'site.js', 'config.js', 'favicon.svg'];
+// newsletter.html ist die Rückmeldeseite für Bestätigen/Abmelden (noindex, nicht in der Sitemap).
+const PAGES = ['index.html', 'welt.html', 'support.html', 'impressum.html', 'datenschutz.html', 'newsletter.html'];
+// robots.txt und sitemap.xml nennen https://www.emberwrath.com (canonical in den Seitenköpfen ebenso).
+const STATIC = ['site.css', 'site.js', 'config.js', 'favicon.svg', 'robots.txt', 'sitemap.xml'];
 
 export function buildSite(root, outDir) {
   const src = resolve(root, 'site');

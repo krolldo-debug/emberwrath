@@ -33,8 +33,9 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
 2. **Datenbank einrichten:** *SQL Editor* → *New query* → den kompletten Inhalt von
    `supabase/migrations/20260930120000_konten_und_admin.sql` einfügen → *Run*. Das Skript darf mehrfach laufen.
 3. **Adressen freigeben:** *Authentication → URL Configuration*
-   - Site URL: `https://emberwrath.kroll-do.workers.dev/spielen/`
-   - Redirect URLs: `https://emberwrath.kroll-do.workers.dev/**` und `http://localhost:8080/**`
+   - Site URL: `https://www.emberwrath.com/spielen/`
+   - Redirect URLs: `https://www.emberwrath.com/**`, `https://emberwrath.com/**`, `https://emberwrath.kroll-do.workers.dev/**`
+     (Übergang) und `http://localhost:8080/**`
    - Später mit eigener Domain dieselben Einträge für die Domain ergänzen.
 4. **E-Mail:** *Authentication → Sign In / Providers → Email*: „Confirm email“ eingeschaltet lassen.
    Wichtig: Der eingebaute Mailversand von Supabase schickt nur an Mitglieder des Supabase-Teams und nur wenige Mails pro
@@ -54,11 +55,11 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
    1. Projekt anlegen (z. B. „Emberwrath“).
    2. *Google Auth Platform* (früher *OAuth consent screen*) → *Get started*: App-Name „Emberwrath“, Support-E-Mail,
       Zielgruppe *Extern*, Kontakt-E-Mail. Unter *Branding* die Startseite, Datenschutz- und Impressum-Adresse eintragen
-      (`https://emberwrath.kroll-do.workers.dev/`, `…/datenschutz.html`, `…/impressum.html`).
+      (`https://www.emberwrath.com/`, `…/datenschutz`, `…/impressum`).
       Unter *Data Access* reichen die Standard-Bereiche `openid`, `…/auth/userinfo.email`, `…/auth/userinfo.profile`.
       Unter *Audience* auf *In production* stellen, sonst können sich nur eingetragene Testnutzer anmelden.
    3. *Clients* → *Create client* → Typ *Web application*, Name „Emberwrath Web“.
-      *Authorized JavaScript origins*: `https://emberwrath.kroll-do.workers.dev`.
+      *Authorized JavaScript origins*: `https://www.emberwrath.com`, `https://emberwrath.com`, `https://emberwrath.kroll-do.workers.dev`.
       *Authorized redirect URIs*: `https://mgjhllqnelqbdqfvczls.supabase.co/auth/v1/callback`.
    4. **Client ID** und **Client secret** kopieren. In Supabase: *Authentication → Sign In / Providers → Google* →
       *Enable*, beide Werte eintragen → *Save*. Das Secret nur dort eintragen, nicht weitergeben.
