@@ -34,6 +34,9 @@ export function createMenuPanel(session) {
       g.panels.defs?.has('achievements')
         ? h('button.ef-btn.menu-ach', { type: 'button', onclick: () => session.panels.open('achievements') }, h('img.ef-icon', { src: iconUrl('ui_achievements'), alt: '', width: 20, height: 20 }), 'Erfolge')
         : null,
+      g.shop?.visible
+        ? h('button.ef-btn.menu-shop', { type: 'button', onclick: () => session.panels.open('goldshop') }, h('img.ef-icon', { src: iconUrl('gold'), alt: '', width: 20, height: 20 }), 'Shop')
+        : null,
       h('button.ef-btn', { type: 'button', onclick: () => { settings.classList.toggle('open'); help.classList.remove('open'); if (settings.classList.contains('open')) settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }, 'Einstellungen'),
       h('button.ef-btn', { type: 'button', onclick: () => { help.classList.toggle('open'); settings.classList.remove('open'); } }, 'Steuerung'),
       h('button.ef-btn.danger', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); } }, 'Speichern & zum Titel'),
