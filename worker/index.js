@@ -9,7 +9,9 @@ import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol
 //   /net/worlds?zone=<id>                            Welten einer Zone mit Belegung (für „Welt wechseln“)
 //   /net/status                                      Spieler online je Zone und Welt
 //   /net/finder                                      WebSocket zur Dungeonsuche (worker/finder/, src/finder/README.md)
-// Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker.
+// Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
+// außer den Seitenaufrufen aus assets.run_worker_first (wrangler.jsonc): Die kommen hier vorbei, damit alte Adressen
+// (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
 export { ZoneShard, Directory, DungeonFinder };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -64,9 +66,26 @@ async function handleNet(request, env, url) {
   return json({ error: 'not_found' }, 404);
 }
 
+// Seitenaufruf auf einer alten Adresse → dieselbe Seite auf der Hauptadresse (Pfad und Suchteil bleiben).
+function canonicalRedirect(request, url, env) {
+  const host = String(env.CANONICAL_HOST ?? '').trim();
+  if (!host || url.hostname === host) return null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  const from = String(env.REDIRECT_HOSTS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!from.includes(url.hostname)) return null;
+  return new Response(null, {
+    status: 301,
+    headers: { location: `https://${host}${url.pathname}${url.search}`, 'cache-control': 'public, max-age=3600' },
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (!url.pathname.startsWith(`${NET_PATH}/`)) {
+      const moved = canonicalRedirect(request, url, env);
+      if (moved) return moved;
+    }
     if (url.pathname.startsWith(`${NET_PATH}/`)) {
       if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
       try { return await handleNet(request, config(env), url); } catch (e) { return json({ error: 'server' }, 500); }
