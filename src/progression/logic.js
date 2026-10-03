@@ -155,7 +155,8 @@ function takeFromSlot(s, ctx, index, qty) {
 
 function addGold(s, ctx, delta, source) {
   const w = s.get('wallet');
-  w.gold = Math.max(0, w.gold + delta);
+  // Ausgaben enden bei 0. Ein Minusstand entsteht nur durch eine Rückbuchung im Shop (shop:revoke) und wird durch Einnahmen abgebaut.
+  w.gold = delta >= 0 ? w.gold + delta : Math.max(Math.min(w.gold, 0), w.gold + delta);
   if (delta > 0) s.get('progress').stats.goldEarned += delta;
   ctx.bus.emit(EV.GOLD_CHANGED, { delta, total: w.gold, source });
 }
@@ -306,7 +307,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     },
   });
 
-  state.defineSlice('wallet', { create: () => ({ gold: 0 }), deserialize: (raw) => ({ gold: Math.max(0, raw.gold | 0) }) });
+  state.defineSlice('wallet', { create: () => ({ gold: 0 }), deserialize: (raw) => ({ gold: Math.max(-1e9, raw.gold | 0) }) });
 
   state.defineSlice('quests', {
     create: () => ({ active: {}, completed: [], repeats: {}, tracked: null, guide: null }),

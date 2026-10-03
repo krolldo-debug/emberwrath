@@ -14,19 +14,28 @@ Google Pay, Klarna usw. – je nachdem, was im Stripe-Konto aktiv ist). Das Gold
 2. Stripe meldet die Zahlung an `POST /net/shop/webhook`. Der Worker prüft die Signatur und den Betrag und setzt die
    Bestellung auf `paid`.
 3. Das Spiel holt bezahlte Bestellungen ab (`shop_pending_credits`), schreibt das Gold gut, speichert und bestätigt
-   (`shop_confirm_credits` → `credited`). Der Spielstand merkt sich gutgeschriebene Bestellungen (Slice `shop`), nichts
-   kommt doppelt an. Erstattungen und Rückbuchungen setzen die Bestellung auf `refunded` bzw. `disputed`.
+   (`shop_confirm_credits` → `credited`), erst wenn der Stand lokal und in der Cloud gespeichert ist. Der Spielstand
+   merkt sich gutgeschriebene Bestellungen (Slice `shop`), nichts kommt doppelt an.
+4. **Erstattung oder Rückbuchung:** `charge.refunded` (volle Erstattung) setzt die Bestellung auf `refunded`,
+   `charge.dispute.created` (Rückbuchung über Bank/PayPal) auf `disputed` und sperrt das Konto für weitere Käufe
+   (`public.shop_blocks`). War das Gold schon gutgeschrieben, holt das Spiel die Bestellung ab (`shop_pending_revokes`),
+   zieht das Gold beim Charakter wieder ab – auch ins Minus, wenn es schon ausgegeben ist – und bestätigt
+   (`shop_confirm_revokes` → `revoked_at`). Ein Minusstand wird durch Einnahmen abgebaut; ausgeben lässt sich dann nichts.
+   Solange ein Abzug offen ist, nimmt der Worker von diesem Konto keine Käufe an. Gewinnt der Händler die Rückbuchung
+   (`charge.dispute.closed`, `won`) und war das Gold noch nicht abgezogen, gilt die Bestellung wieder; die Kaufsperre hebt
+   ein Admin auf: `select admin_shop_unblock('<user_id>');`. Teilerstattungen bucht ein Admin von Hand nach.
 
-Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (oder per RPC).
+Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (mit Abzug `revoked_at` und Kaufsperre).
 
 ## Freischalten (einmalig)
 
-1. **Supabase:** `supabase/migrations/20261001230000_goldshop.sql` im SQL-Editor ausführen.
+1. **Supabase:** `supabase/migrations/20261001230000_goldshop.sql` und danach
+   `supabase/migrations/20261003140000_goldshop_rueckbuchung.sql` im SQL-Editor ausführen.
 2. **Stripe-Konto** anlegen (stripe.com), Firmendaten und Bankkonto hinterlegen. Erst im **Testmodus** arbeiten.
 3. **Webhook:** Stripe › Entwickler › Webhooks › Endpunkt hinzufügen:
    `https://www.emberwrath.com/net/shop/webhook`, Ereignisse `checkout.session.completed`,
    `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`,
-   `charge.refunded`, `charge.dispute.created`. Das Signatur-Geheimnis (`whsec_…`) kopieren.
+   `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`. Das Signatur-Geheimnis (`whsec_…`) kopieren.
 4. **Cloudflare** › Worker emberwrath › Settings › Variables and Secrets:
    - Secret `STRIPE_SECRET_KEY` = `sk_test_…` (später `sk_live_…`)
    - Secret `STRIPE_WEBHOOK_SECRET` = `whsec_…`
@@ -56,4 +65,4 @@ Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (oder
 ## Tests
 
 `node worker/test/shop.test.mjs` – Worker ohne Netz (Stripe und Supabase nachgestellt): Checkout, Rechte, Signatur,
-Betragsprüfung, Erstattung, doppelte Webhooks.
+Betragsprüfung, Erstattung, Rückbuchung mit Kaufsperre, doppelte Webhooks.
