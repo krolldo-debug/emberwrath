@@ -207,3 +207,4 @@
 .on-legal-link { color: var(--ef-gold); text-decoration: underline; text-underline-offset: 2px; }
 .on-legal-link:hover, .on-legal-link:focus-visible { color: #fff0b0; outline: none; }
 .on-providers .on-fine { margin-top: 2px; }
+.on-table-wrap > .net-adm { padding: 10px 12px; }
