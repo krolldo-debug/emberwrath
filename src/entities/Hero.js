@@ -509,7 +509,7 @@ export class Hero extends Actor {
     if (a.projectile === 'bolt' && P.inferno) opts.explode = { r: inf > 0.5 ? 24 : 18, damage: dmg * inf, knockback: 90, skipDirect: true };
     fireProjectile(this, world, a.projectile, this.aimAngle, opts);
     if (a.projectile === 'arrow' && P.multishot) {
-      for (const off of [-0.14, 0.14]) fireProjectile(this, world, 'arrow', this.aimAngle + off, { ...opts, damage: dmg * (ms.multishotPct ?? 0.5) });
+      for (const off of [-0.14, 0.14]) fireProjectile(this, world, 'arrow', this.aimAngle + off, { ...opts, damage: dmg * (ms.multishotPct ?? 0.25) });
     }
     world.bus.emit(a.projectile === 'bolt' ? 'swing' : 'shoot', { actor: this, heavy: false, angle: this.aimAngle });
   }
@@ -574,7 +574,9 @@ export class Hero extends Actor {
     return hitOk;
   }
 
-  onHurt() {
+  onHurt(hit) {
+    // Boden- und Wolkenschaden (hit.dot): weder Betäubung noch Unverwundbarkeit, sonst schützt eine Glutfläche vor Bossangriffen
+    if (hit?.dot) return;
     this.invuln = H.invulnAfterHit;
     if (this.state === 'skill') return; // Fähigkeiten werden nicht unterbrochen
     if (this.state !== 'attack' || this.combo < 2) {

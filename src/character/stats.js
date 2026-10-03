@@ -66,7 +66,7 @@ export function deriveStats({ raceId, classId, level = 1, equipment = null, bonu
   const maxHp = Math.round((cls.hp + vit * 4 + (lv - 1) * cls.hpPerLevel + (eq.maxHp ?? 0)) * (1 + (m.maxHpPct ?? 0) + (t.maxHpPct ?? 0)));
   const power = Math.round((cls.powerBase + primary * 0.6 + (lv - 1) * 0.8 + (eq.power ?? 0)) * (1 + (t.powerPct ?? 0)) * 10) / 10;
   const armor = Math.round(cls.armor + (m.armor ?? 0) + str * 0.15 + (eq.armor ?? 0) + (t.armor ?? 0));
-  const critChance = Math.min(0.6, cls.crit + agi * 0.002 + (m.critChance ?? 0) + (eq.critChance ?? 0) + (t.critChance ?? 0));
+  const critChance = Math.min(0.6, cls.crit + agi * 0.0016 + (m.critChance ?? 0) + (eq.critChance ?? 0) + (t.critChance ?? 0));
   const moveSpeed = Math.round(BASE_SPEED * cls.speed * (1 + (m.moveSpeed ?? 0) + Math.min(0.3, (eq.moveSpeed ?? 0) + (t.moveSpeed ?? 0))));
 
   const res = cls.resource;
@@ -91,7 +91,7 @@ export function deriveStats({ raceId, classId, level = 1, equipment = null, bonu
     upgrades: t.upgrades ?? {},     // Rang 2 von Fähigkeiten (Talentreihe 28), abilities.js
     mastery: {                      // Meisterschaften (Talentreihe 34), Hero.js
       bloodlustHeal: 0.03 + (t.bloodlustHeal ?? 0), critResource: t.critResource ?? 0,
-      multishotPct: 0.5 + (t.multishotPct ?? 0), infernoPct: 0.5 + (t.infernoPct ?? 0),
+      multishotPct: 0.25 + (t.multishotPct ?? 0), infernoPct: 0.5 + (t.infernoPct ?? 0),
     },
     passives,
     talents: tal,

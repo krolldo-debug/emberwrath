@@ -5,6 +5,8 @@ import { HeroPortrait } from '../account/ui.js';
 import { resolveGear } from './gearLook.js';
 import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle } from './cosmetics.js';
 
+const fmt = (n) => Number(n).toLocaleString('de-DE');
+
 // Panel 'appearance' (Thread A): Färben und Aussehen ändern gegen Gold.
 // Geöffnet vom Spiegel im Dorf: bus.emit(EV.UI_OPEN_PANEL, { id: 'appearance' }).
 // Auswahl wird zuerst nur in der Vorschau gezeigt; bezahlt wird mit „Übernehmen“ (character:restyle).
@@ -44,40 +46,40 @@ function appearancePanel(session) {
       choice(!pick.dye, false, 'Klassenfarbe', cur.dye ? '25 Gold' : 'aktuell', swatch(defaultRamp(ch.classId)), () => { pick.dye = null; }),
       ...Object.entries(DYES).map(([id, d]) => {
         const locked = level < (d.level ?? 1);
-        const sub = cur.dye === id ? 'aktuell' : locked ? `ab Stufe ${d.level}` : `${d.price} Gold`;
+        const sub = cur.dye === id ? 'aktuell' : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
         return choice(pick.dye === id, locked, d.name, sub, swatch(d.ramp), () => { pick.dye = id; });
       }),
     ];
     const hair = styles.map((id, i) => {
       const val = i === 0 ? null : id;
       const now = (cur.hairStyle ?? null) === val;
-      return choice((pick.hairStyle ?? null) === val, false, HAIR_STYLES[id], now ? 'aktuell' : `${HAIR_PRICE} Gold`, null, () => { pick.hairStyle = val; });
+      return choice((pick.hairStyle ?? null) === val, false, HAIR_STYLES[id], now ? 'aktuell' : `${fmt(HAIR_PRICE)} Gold`, null, () => { pick.hairStyle = val; });
     });
-    const colors = race.variants.map((v, i) => choice((pick.variant | 0) === i, false, v.label, (cur.variant | 0) === i ? 'aktuell' : `${HAIR_COLOR_PRICE} Gold`, swatch([v.hair[0], v.hair[1], v.hair[2], v.hair[3]]), () => { pick.variant = i; }));
+    const colors = race.variants.map((v, i) => choice((pick.variant | 0) === i, false, v.label, (cur.variant | 0) === i ? 'aktuell' : `${fmt(HAIR_COLOR_PRICE)} Gold`, swatch([v.hair[0], v.hair[1], v.hair[2], v.hair[3]]), () => { pick.variant = i; }));
 
     const buy = h('button.ef-btn.primary.app-buy', {
       type: 'button', disabled: price === 0 || gold < price,
       onclick: () => {
         const r = state.commit('character:restyle', { ...pick });
         if (r?.ok) {
-          note.textContent = `Neues Aussehen übernommen (${r.price} Gold).`;
+          note.textContent = `Neues Aussehen übernommen (${fmt(r.price)} Gold).`;
           bus.emit(EV.UI_TOAST, { text: 'Neues Aussehen übernommen', kind: 'info' });
           pick = { ...state.slices.character.appearance };
         } else if (r?.error) note.textContent = r.error;
       },
-    }, price ? `Übernehmen für ${price} Gold` : 'Übernehmen');
+    }, price ? `Übernehmen für ${fmt(price)} Gold` : 'Übernehmen');
 
     root.replaceChildren(
       h('header.tal-head',
         h('div', h('h2.ef-sub.tal-title', 'Aussehen ändern'),
           h('p.tal-step', 'Färbt Umhang, Kapuze und Stoffrüstung. Metall und Leder behalten ihre Farbe.')),
-        h('div.tal-points', h('strong', String(gold)), h('span', 'Gold')),
+        h('div.tal-points', h('strong', fmt(gold)), h('span', 'Gold')),
         h('button.tal-close', { type: 'button', 'aria-label': 'Schließen', onclick: () => session.panels.close() }, '×')),
       h('div.app-body',
         h('div.app-stage', portrait.canvas,
           h('div.app-total',
-            h('span', price ? `Kosten: ${price} Gold` : 'Keine Änderung'),
-            gold < price ? h('span.app-short', `Es fehlen ${price - gold} Gold`) : null),
+            h('span', price ? `Kosten: ${fmt(price)} Gold` : 'Keine Änderung'),
+            gold < price ? h('span.app-short', `Es fehlen ${fmt(price - gold)} Gold`) : null),
           h('div.app-actions',
             h('button.ef-btn.app-undo', { type: 'button', disabled: price === 0, onclick: () => { pick = { ...state.slices.character.appearance }; refreshPortrait(); render(); } }, 'Zurücksetzen'),
             buy),

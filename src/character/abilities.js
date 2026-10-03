@@ -460,7 +460,8 @@ export const ABILITY_IMPL = {
     start(h, w, ang, def) {
       // Rang 2 „Sturmsalve“ (Talent g_stormvolley): sieben leuchtende Pfeile, danach eine zweite, kleinere Salve
       const up = !!h.stats.upgrades?.volley;
-      const dmg = h.damageFor(def.mult, def.id);
+      // Rang 2 trifft große Ziele mit fast allen Pfeilen: je Pfeil 50 % Schaden
+      const dmg = h.damageFor(def.mult, def.id) * (up ? 0.5 : 1);
       for (const a of fan(up ? 7 : 5, up ? 0.7 : 0.55, ang)) fireProjectile(h, w, 'arrow', a, { speed: up ? 300 : 270, damage: dmg, knockback: 70, range: 200 });
       if (up) {
         w.particles.magic(h.x + Math.cos(ang) * 8, h.y - 10 + Math.sin(ang) * 8, 10, 6);

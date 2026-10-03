@@ -36,7 +36,7 @@ export const TALENTS = {
     w_cyclone: T(4, 'Zyklon', 'skill_whirlwind', 1, { upgrade: 'whirlwind', ability: { whirlwind: 0.2 } }, 'Wirbelsturm Rang 2: größerer Kreis, eine dritte Klinge und eine Glutwelle. +20 % Schaden.'),
     w_rampage: T(4, 'Raserei', 'skill_shout', 3, { onHitResource: 1, cooldownPct: 0.03 }, '+1 Wut je Treffer und 3 % schnellere Abklingzeiten je Rang.'),
     w_bloodbath: T(5, 'Blutbad', 'passive_bloodlust', 1, { bloodlustHeal: 0.03 }, 'Blutdurst heilt 6 % statt 3 % deines maximalen Lebens.'),
-    w_titan: T(5, 'Titanenkraft', 'sword', 5, { powerPct: 0.03, critChance: 0.01 }, '+3 % Angriffskraft und +1 % Krit je Rang.'),
+    w_titan: T(5, 'Titanenkraft', 'sword', 5, { powerPct: 0.04, critChance: 0.01 }, '+4 % Angriffskraft und +1 % Krit je Rang.'),
   },
   rogue: {
     r_precision: T(0, 'Präzision', 'dagger', 5, { critChance: 0.02 }, '+2 % kritische Trefferchance je Rang.'),
@@ -45,12 +45,12 @@ export const TALENTS = {
     r_blades: T(1, 'Scharfe Klingen', 'sword', 5, { powerPct: 0.04 }, '+4 % Angriffskraft je Rang.'),
     r_venom: T(2, 'Tödliches Gift', 'skill_poison', 3, { ability: { poison_blades: 0.25, assassinate: 0.1 } }, 'Gift +25 % und Todesstoß +10 % Schaden je Rang.'),
     r_shadow: T(2, 'Schattenmeister', 'skill_stealth', 5, { cooldownPct: 0.04 }, 'Alle Fähigkeiten laden 4 % schneller je Rang.'),
-    r_cutthroat: T(3, 'Halsabschneider', 'dagger', 3, { critChance: 0.02, powerPct: 0.03 }, '+2 % Krit und +3 % Angriffskraft je Rang.'),
+    r_cutthroat: T(3, 'Halsabschneider', 'dagger', 3, { critChance: 0.01, powerPct: 0.03 }, '+1 % Krit und +3 % Angriffskraft je Rang.'),
     r_evasion: T(3, 'Ausweichkunst', 'boots_leather', 3, { dodgeCost: -3, maxHpPct: 0.03 }, '3 weniger Ausdauer pro Ausweichen und +3 % Leben je Rang.'),
     r_bladestorm: T(4, 'Klingenwirbel', 'skill_knives', 1, { upgrade: 'fan_of_knives', ability: { fan_of_knives: 0.15 } }, 'Messerfächer Rang 2: ein voller Kreis aus Klingen und eine zweite Welle. +15 % Schaden.'),
-    r_venomcraft: T(4, 'Giftmischer', 'skill_poison', 3, { ability: { poison_blades: 0.2, assassinate: 0.08 } }, 'Gift +20 % und Todesstoß +8 % Schaden je Rang.'),
+    r_venomcraft: T(4, 'Giftmischer', 'skill_poison', 3, { ability: { poison_blades: 0.1, assassinate: 0.05 } }, 'Gift +10 % und Todesstoß +5 % Schaden je Rang.'),
     r_deathmark: T(5, 'Todesmal', 'passive_opportunist', 1, { critResource: 6 }, 'Kritische Treffer geben zusätzlich 6 Energie zurück.'),
-    r_phantom: T(5, 'Phantom', 'skill_shadow', 5, { powerPct: 0.03, resourceRegenPct: 0.04 }, '+3 % Angriffskraft und +4 % Energie-Regeneration je Rang.'),
+    r_phantom: T(5, 'Phantom', 'skill_shadow', 5, { powerPct: 0.02, resourceRegenPct: 0.04 }, '+2 % Angriffskraft und +4 % Energie-Regeneration je Rang.'),
   },
   ranger: {
     g_aim: T(0, 'Ruhige Hand', 'bow', 5, { powerPct: 0.04 }, '+4 % Angriffskraft je Rang.'),
@@ -61,9 +61,9 @@ export const TALENTS = {
     g_trapper: T(2, 'Fallensteller', 'skill_nova', 3, { ability: { fire_trap: 0.2 }, cooldownPct: 0.03 }, 'Sprengfalle +20 % Schaden, alle Fähigkeiten laden 3 % schneller je Rang.'),
     g_hawkeye: T(3, 'Falkenblick', 'charm_feather', 4, { critChance: 0.02, powerPct: 0.03 }, '+2 % Krit und +3 % Angriffskraft je Rang.'),
     g_wild: T(3, 'Wildnisblut', 'armor_leather', 3, { maxHpPct: 0.04, moveSpeed: 0.02 }, '+4 % Leben und +2 % Tempo je Rang.'),
-    g_stormvolley: T(4, 'Sturmsalve', 'skill_arrows', 1, { upgrade: 'volley', ability: { volley: 0.15 } }, 'Pfeilsalve Rang 2: sieben leuchtende Pfeile und eine zweite, kleinere Salve. +15 % Schaden.'),
+    g_stormvolley: T(4, 'Sturmsalve', 'skill_arrows', 1, { upgrade: 'volley' }, 'Pfeilsalve Rang 2: sieben leuchtende Pfeile und eine zweite, kleinere Salve.'),
     g_trueshot: T(4, 'Meisterschuss', 'skill_pierce', 3, { ability: { piercing_shot: 0.15, arrow_rain: 0.1 } }, 'Durchschuss +15 % und Pfeilhagel +10 % Schaden je Rang.'),
-    g_barrage: T(5, 'Sperrfeuer', 'passive_multishot', 1, { multishotPct: 0.25 }, 'Mehrfachschuss: die Zusatzpfeile verursachen 75 % statt 50 % Schaden.'),
+    g_barrage: T(5, 'Sperrfeuer', 'passive_multishot', 1, { multishotPct: 0.15 }, 'Mehrfachschuss: die Zusatzpfeile verursachen 40 % statt 25 % Schaden.'),
     g_apex: T(5, 'Spitzenjäger', 'bow', 5, { powerPct: 0.03, maxResource: 4 }, '+3 % Angriffskraft und +4 maximaler Fokus je Rang.'),
   },
   mage: {
@@ -94,7 +94,7 @@ export const PASSIVES = {
   ],
   ranger: [
     { id: 'piercing_arrows', level: 8, name: 'Durchschlagskraft', icon: 'passive_piercing_arrows', desc: 'Grundschüsse durchschlagen einen zusätzlichen Gegner.' },
-    { id: 'multishot', level: 16, name: 'Mehrfachschuss', icon: 'passive_multishot', desc: 'Grundschüsse feuern zwei zusätzliche Pfeile mit 50 % Schaden.' },
+    { id: 'multishot', level: 16, name: 'Mehrfachschuss', icon: 'passive_multishot', desc: 'Grundschüsse feuern zwei zusätzliche Pfeile mit 25 % Schaden.' },
   ],
   mage: [
     { id: 'ember_soul', level: 8, name: 'Glutseele', icon: 'passive_ember_soul', desc: 'Kritische Treffer geben 5 Mana zurück.' },
