@@ -77,7 +77,7 @@ check((await text(a)).includes('Kein Zugriff'), 'Admin-Seite ohne Recht: Kein Zu
 const b = await newPage(390, 844);
 await b.goto(B + '#anmelden'); await wait(500);
 await b.screenshot({ path: 'shot-login-mobile.png' });
-check(await b.evaluate(() => !document.querySelector('.on-google').disabled && !document.querySelector('.on-apple')), 'Google-Knopf per Server-Einstellung freigeschaltet, kein Apple-Knopf');
+check(await b.evaluate(() => document.querySelector('.on-google').offsetParent !== null && !document.querySelector('.on-apple')), 'Google-Knopf per Server-Einstellung freigeschaltet, kein Apple-Knopf');
 await b.click('.on-google'); await wait(1200);
 check((await text(b)).includes('Gustav Google') && (await text(b)).includes('Google'), 'Google-Anmeldung über Rückleitung');
 await b.click('text=Spielen'); await wait(300);

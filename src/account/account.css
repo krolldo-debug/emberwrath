@@ -84,6 +84,12 @@
 .acc-preview { grid-area: preview; }
 .acc-summary { grid-area: summary; }
 .ef-panel.acc-create { overflow: hidden; }
+/* Linke Spalte bleibt beim Scrollen der Beschreibungen stehen; unten Luft bis zum Rand */
+@media (min-width: 861px) and (min-height: 640px) { .acc-choose { position: sticky; top: 0; align-self: start; } }
+.acc-create-grid { padding-bottom: 12px; }
+.acc-create-foot { padding-top: 12px; border-top: 1px solid #2e2234; }
+/* Große Bildschirme: Beschreibungen nicht in einen niedrigen Scrollbereich zwängen */
+@media (min-width: 1500px) and (min-height: 900px) { .ef-panel.acc-panel.acc-create { width: min(1280px, 100%); } }
 .acc-create-foot { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
 .acc-create-foot .acc-notice { flex: 1 1 260px; align-items: center; }
 .acc-create-foot .acc-start { flex: 0 1 320px; }
@@ -171,6 +177,7 @@
   .acc-create-foot .acc-notice { padding: 4px 10px; font-size: 12px; }
   .acc-option { min-height: 50px; }
   .acc-option-text small { display: none; }
+  .acc-create-foot { padding-top: 8px; }
 }
 .acc-abilities { list-style: none; padding-left: 0; }
 .acc-abilities li { display: block; min-height: 30px; padding-left: 36px; position: relative; margin-bottom: 6px; }
@@ -182,7 +189,7 @@
 .acc-tier.r-rare { color: #5aa8ff; } .acc-tier.r-epic { color: #c07aff; } .acc-tier.r-legendary { color: #ff9a2a; }
 .acc-tier.selected { border-color: currentColor; box-shadow: 0 0 8px rgba(255, 255, 255, 0.12); }
 .ef-touch .acc-tier { min-height: 36px; }
-@media (max-width: 560px) {
+@media (max-width: 560px), (max-height: 500px) and (orientation: landscape) {
   .acc-tiers { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 6px; left: 6px; right: 6px; }
   .acc-tiers-label { display: none; }
   .acc-tier { min-width: 0; flex: 1; text-align: center; }

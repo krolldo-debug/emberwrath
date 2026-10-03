@@ -83,23 +83,20 @@ export class LoginScene extends MenuScene {
 
   #providers() {
     const o = this.online;
-    const HINTS = { google: 'Google-Anmeldung ist noch nicht freigeschaltet' };
-    const btn = (id, label, icon) => {
-      const soon = h('span.on-soon', 'bald');
-      const b = h(`button.ef-btn.on-provider.on-${id}`, {
-        type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider(id)),
-      }, svgIcon(icon), h('span', label), soon);
-      const set = (on) => { b.disabled = !on; b.title = on ? label : HINTS[id]; soon.hidden = on; };
-      set(!!o.providers[id]);
-      return { b, set };
-    };
-    const google = btn('google', 'Weiter mit Google', GOOGLE_SVG);
-    // Aktive Anbieter kommen aus den Supabase-Einstellungen (freigeschaltet ohne neue Version)
-    o.loadProviders?.().then((p) => { google.set(!!p.google); });
-    return h('div.on-providers', google.b,
+    // Nicht freigeschaltete Anbieter bleiben unsichtbar (kein „bald“-Knopf).
+    const google = h('button.ef-btn.on-provider.on-google', {
+      type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider('google')),
+    }, svgIcon(GOOGLE_SVG), h('span', 'Weiter mit Google'));
+    const box = h('div.on-providers', google,
       h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
         ` und bestätigst, mindestens ${LEGAL.minAge} Jahre alt zu sein oder die Zustimmung deiner Eltern zu haben. Infos zum Datenschutz: `,
-        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'));
+        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'),
+      h('div.on-or', h('span', 'oder mit E-Mail')));
+    const set = (on) => { box.hidden = !on; };
+    set(!!o.providers.google);
+    // Aktive Anbieter kommen aus den Supabase-Einstellungen (freigeschaltet ohne neue Version)
+    o.loadProviders?.().then((p) => set(!!p.google));
+    return box;
   }
 
   #messageBox() {
@@ -141,7 +138,7 @@ export class LoginScene extends MenuScene {
 
   #notConfigured() {
     return h('div.on-body',
-      h('p.acc-lead', 'Die Anmeldung ist in dieser Version nicht erreichbar. Bitte versuche es später erneut.'));
+      h('p.acc-lead', 'Die Anmeldung ist gerade nicht erreichbar. Bitte versuche es später erneut.'));
   }
 
   #login() {
@@ -160,7 +157,6 @@ export class LoginScene extends MenuScene {
     };
     return h('div.on-body',
       this.#providers(),
-      h('div.on-or', h('span', 'oder mit E-Mail')),
       h('form.on-form', { onsubmit: submit, novalidate: true },
         email.el, pw.el,
         this.#messageBox(),
@@ -200,7 +196,6 @@ export class LoginScene extends MenuScene {
     };
     return h('div.on-body',
       this.#providers(),
-      h('div.on-or', h('span', 'oder mit E-Mail')),
       h('form.on-form', { onsubmit: submit, novalidate: true },
         name.el, email.el, pw.el, consentEl,
         this.#messageBox(),

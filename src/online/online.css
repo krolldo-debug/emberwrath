@@ -7,11 +7,11 @@
 
 /* Anbieter-Knöpfe */
 .on-providers { display: flex; flex-direction: column; gap: 8px; }
+.on-providers[hidden] { display: none; }
 .ef-btn.on-provider { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; font-weight: 600; }
 .ef-btn.on-google { background: #fff; color: #1f1f1f; border-color: #dadce0; }
 .ef-btn.on-google:hover:not(:disabled), .ef-btn.on-google:focus-visible { border-color: var(--ef-gold); }
 .on-provider-icon { display: inline-flex; width: 20px; height: 20px; }
-.on-soon { font-size: 11px; font-weight: 400; padding: 1px 6px; border-radius: 8px; background: rgba(0, 0, 0, 0.12); border: 1px solid currentColor; opacity: 0.8; }
 .on-or { display: flex; align-items: center; gap: 10px; color: var(--ef-muted); font-size: 13px; }
 .on-or::before, .on-or::after { content: ''; flex: 1; height: 1px; background: #3a2a3a; }
 
@@ -89,6 +89,13 @@
 
 /* ------------------------------------------------ Titel (schlank, nur mit Konto) */
 .acc-title .acc-title-inner { width: min(380px, 100%); gap: 18px; }
+/* Dunkler Schleier hinter Logo und Menü, damit Wandfackeln des Hintergrunds Schriftzug und Tagline nicht überdecken */
+.acc-title .acc-title-inner { position: relative; isolation: isolate; }
+.acc-title .acc-title-inner::before {
+  content: ''; position: absolute; inset: -48px -64px; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(8, 4, 12, 0.82), rgba(8, 4, 12, 0.55) 60%, rgba(8, 4, 12, 0));
+}
+.acc-title .acc-tagline { text-shadow: 0 1px 0 #000, 0 0 8px rgba(0, 0, 0, 0.9); }
 .acc-menu .acc-play { padding: 14px 20px; }
 .acc-menu .acc-play .acc-btn-title { font-size: 24px; }
 .acc-textlink {
