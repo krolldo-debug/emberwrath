@@ -162,6 +162,13 @@ await b.click('text=Kontoeinstellungen'); await b.click('text=Konto löschen'); 
 ({ rows } = await pool.query("select count(*)::int n from auth.users where email='googleuser@example.com'"));
 const bc = await pool.query("select count(*)::int n from public.characters where name='Bruno'");
 check(rows[0].n === 0 && bc.rows[0].n === 0 && (await text(b)).includes('wurden gelöscht'), 'Konto löschen entfernt Konto und Charaktere');
+// 13 Auffälligkeiten (abgelehnte Spielstände) im Admin-Reiter
+execSync('sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 >/dev/null', { input: readFileSync(new URL('../migrations/20261003130000_spielstand_pruefung.sql', import.meta.url), 'utf8') });
+await pool.query(`insert into public.character_flags (user_id, character_id, reason, detail) select id, 'c_test', 'gold', '{"level":[5,6],"gold":[1200,9000000],"playTime":[600,900],"realSeconds":310}' from auth.users where email='admin@test.de'`);
+await a.goto(B + '#admin'); await wait(1200);
+await a.click('text=Auffälligkeiten'); await wait(800);
+{ const t = await text(a); check(t.includes('Gold zu schnell gestiegen') && t.includes('admin@test.de') && t.includes('Gold 1.200 → 9.000.000') && t.includes('Auffälligkeiten (1)'), 'Admin sieht abgelehnte Spielstände im Reiter „Auffälligkeiten“'); }
+await a.screenshot({ path: 'shot-admin-flags.png' });
 check(errs.length === 0, 'keine JS-Fehler: ' + errs.join(' | '));
 console.log(fails ? `${fails} FEHLER` : 'ALLES GRÜN');
 await browser.close(); process.exit(fails ? 1 : 0);
