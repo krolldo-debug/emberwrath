@@ -52,7 +52,7 @@ export function installProgression(game) {
     // Seltene Weltgegner (rares.js): einmal pro Zonenaufbau aufrufen. Liefert
     // [{ rareId, type, name, title, level, hpMult, dmgMult, scale, tint, spawn, elite }]; B meldet den Tod mit rareId.
     rareSpawns: (zoneId) => {
-      const list = rareSpawnsFor(zoneId, state.slices.rares, Date.now());
+      const list = rareSpawnsFor(zoneId, state.slices.rares, Date.now(), Math.random, state.slices.progress.level);
       lastRares = list.map((r) => ({ ...r, zoneId }));
       return list;
     },

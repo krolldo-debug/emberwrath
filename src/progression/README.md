@@ -168,3 +168,9 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
 - **Quests:** 13 neue Nebenquests in den Lücken (Imra, Varra, Moll, Thane, Fenn, Sigrun, Ryn, Corvane), 4 wiederholbare
   Jagdaufträge (Kesh, Brisa, Sigrun, Aldo), Nachspiel `q_homecoming` (Corvane → Hale). 5 neue Questgegenstände mit
   `QUEST_DROPS`. Questgewichte ×1,2, Malgareth 0,8 und Heimkehr 1,0 Stufen-Anteil.
+- **Glutprüfungen 20–40** (`trials.js`): 4 neue Themen mit Gegnern und Boss der Gebiete (Heulendes Grab/Ulgrim ab 22,
+  Faulender Schlund/Mutter Fäulnis ab 27, Reifgewölbe/Skalvyr ab 32, Thron der Asche/Malgareth ab 37), jeweils erst
+  nach der Story-Quest dieses Bosses (`after`). `trialThemesFor(level, completed)`, `trialSpec(…, completed)`.
+  In Prüfungen gibt es keine Reittier-Beute und keine Boss-Anrechnung für Quests.
+- **Tränke knapper:** Trankdrop normal 6 % (Prüfung 3 %), Questbelohnungen 1–20 je ein Trank weniger (ab 3).
+- **Graumaul** (`rares.js` `minPlayer: 3`) erscheint erst ab Spielerstufe 3, „Seltener Fang“ kommt nicht mehr in der ersten Minute.

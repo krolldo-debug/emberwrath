@@ -15,7 +15,7 @@ import { RECIPES } from '../crafting.js';
 import { runCampaign, expansionReport } from './pacing.mjs';
 import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
-import { trialSpec, trialChances, trialRewards } from '../trials.js';
+import { trialSpec, trialChances, trialRewards, trialThemesFor } from '../trials.js';
 import { MOUNT_DROPS } from '../loot.js';
 import { SOVEREIGN_LEGENDARIES } from '../items40.js';
 import { ACHIEVEMENTS } from '../achievements.js';
@@ -632,6 +632,10 @@ test('Glutprüfung: Freischaltung, Fortschritt, Boss, Belohnung, Scheitern', () 
   assert.ok(trialSpec(10, 2).bossHp > trialSpec(1, 2).bossHp * 3);
   assert.equal(trialSpec(3, 5).affixes.length, 1);
   assert.deepEqual(trialSpec(4, 9), trialSpec(4, 9), 'deterministisch');
+  // Themen 20–40 erst nach dem Story-Boss: eine Prüfung darf keinen Questboss vorwegnehmen.
+  assert.deepEqual(trialThemesFor(40), ['undead', 'tide', 'ember']);
+  assert.deepEqual(trialThemesFor(40, ['q_barrow_king', 'q_rot_mother', 'q_frost_wyrm', 'q_ash_sovereign']).length, 7);
+  assert.deepEqual(trialThemesFor(25, ['q_barrow_king', 'q_rot_mother']), ['undead', 'tide', 'ember', 'barrow']);
   assert.ok(trialChances(30).legendary <= 0.06 && trialChances(30).epic <= 0.4);
 });
 
@@ -659,6 +663,7 @@ test('Seltene Weltgegner: Spawn, XP, eigene Beute, Wiederkehr, Erfolge', () => {
   assert.ok(Math.abs(sig / N - 0.25) < 0.03, `Signatur ${sig / N}`);
   // Spawn: nie besiegt → immer; direkt danach → nie; nach Ablauf → mit Chance
   assert.equal(rareSpawnsFor('emberhollow', null, 0)[0]?.rareId, 'greymaw');
+  assert.equal(rareSpawnsFor('emberhollow', null, 0, Math.random, 2).length, 0);  // nicht in den ersten Minuten
   const { state, c, events } = setup();
   const r = c('progress:kill', { type: 'wolf_alpha', level: 4, elite: true, rareId: 'greymaw', now: 1000 });
   assert.ok(r.xp >= mobXp(4) * 7, 'seltene geben ×8 Erfahrung');
@@ -734,7 +739,7 @@ test('Questabgabe bei voller Tasche: Belohnung in den Questbeutel', () => {
   inv.slots[0] = null; inv.slots[1] = null; inv.slots[2] = null;
   c('inventory:sort', {});
   assert.ok(inv.slots.some((x) => x?.itemId === 'leather_jerkin'));
-  assert.ok(countItem(state, 'minor_potion') >= 3);
+  assert.ok(countItem(state, 'minor_potion') >= 2);
 });
 
 test('Auffindbarkeit: Hinführen zu Questgebern, neue Quests melden, Stufe 20 am Ende', () => {

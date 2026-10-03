@@ -170,7 +170,7 @@ function trialsView(s) {
     const maxTier = Math.min(TRIAL_MAX_TIER, tr.best + 1);
     if (tier == null || tier > maxTier) tier = maxTier;
     const lvl = st.slices.progress.level;
-    const spec = trialSpec(tier, 1, lvl), ch = trialChances(tier), rw = trialRewards(tier, { rng: () => 0.99, firstClear: !tr.cleared[tier], level: lvl });
+    const spec = trialSpec(tier, 1, lvl, st.slices.quests.completed), ch = trialChances(tier), rw = trialRewards(tier, { rng: () => 0.99, firstClear: !tr.cleared[tier], level: lvl });
     const run = tr.run;
     const last = run && (run.phase === 'done' || run.phase === 'failed') ? run : tr.last ?? null;
     const pct = (v) => `${(Math.round(v * 1000) / 10).toLocaleString('de-DE')}\u00a0%`;  // Zahl und % nie getrennt

@@ -205,11 +205,13 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   }
 
   // Reittier (eigener Wurf)
-  const mount = boss?.mount ?? named?.mount;
+  // In den Glutprüfungen gibt es nur das Albtraumross (trials.js), keine Boss-Reittiere
+  const mount = enemy.trial ? null : boss?.mount ?? named?.mount;
   if (mount && ITEMS[mount[0]] && rng() < mount[1]) drops.push({ itemId: mount[0], qty: 1 });
 
   // Tränke
-  if (rng() < (kind === 'normal' ? 0.1 : 0.6)) drops.push({ itemId: potionFor(lvl), qty: kind === 'normal' ? 1 : 2 });
+  // Release-Bewertung: Tränke waren zu reichlich. In den Prüfungen fällt von normalen Gegnern seltener etwas.
+  if (rng() < (kind === 'normal' ? (enemy.trial ? 0.03 : 0.06) : kind === 'boss' ? 0.6 : 0.4)) drops.push({ itemId: potionFor(lvl), qty: kind === 'boss' ? 2 : 1 });
   if (rng() < (kind === 'normal' ? 0.05 : 0.35)) drops.push({ itemId: manaFor(lvl), qty: 1 });
   if ((kind === 'elite' || kind === 'rare') && rng() < 0.08) drops.push({ itemId: 'ember_elixir', qty: 1 });
 

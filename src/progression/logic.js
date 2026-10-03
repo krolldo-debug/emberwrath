@@ -16,6 +16,9 @@ import { ACHIEVEMENTS } from './achievements.js';
 import { ENCHANTS, UPGRADE_MAX } from './smithing.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
 import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } from './endgame.js';
+import { TRIAL_ZONE } from './trials.js';
+
+const inTrial = (s) => s.slices.world?.zoneId === TRIAL_ZONE;
 
 export const BAG_SIZE = 36;
 const START_ITEMS = [{ itemId: 'minor_potion', qty: 5 }, { itemId: 'hearth_bread', qty: 3 }];
@@ -368,14 +371,16 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     const gained = grantXp(s, ctx, killXp(base, lvl, p.level), `kill:${type}`);
     recordQuestEvent(s, ctx, 'kill', type);
     trialKill(s, ctx, { type, elite: isElite, isBoss: boss, bossId: bossId ?? enemy?.bossId ?? (boss ? type : undefined), trialTime }, helpers);
-    if (boss) recordQuestEvent(s, ctx, 'boss', bossId ?? enemy?.bossId ?? type);
+    if (boss && !inTrial(s)) recordQuestEvent(s, ctx, 'boss', bossId ?? enemy?.bossId ?? type);
     return { xp: gained };
   }, auth);
 
   // Erreichte Fläche / betretene Zone / besiegter Boss / benutztes Objekt / Gespräch -> Quest-Fortschritt
-  def('quest:event', (s, { kind, target }, ctx) => recordQuestEvent(s, ctx, kind, target), auth);
+  // Bosse der Glutprüfungen sind Abbilder: Sie zählen nicht für Story-Quests
+  def('quest:event', (s, { kind, target }, ctx) => (kind === 'boss' && inTrial(s) ? { ok: false } : recordQuestEvent(s, ctx, kind, target)), auth);
   // Boss besiegt: Questgegenstand direkt vergeben, wenn die Quest ihn noch braucht (z. B. Flammenkrone des Aschenfürsten)
   def('quest:bossReward', (s, { bossId }, ctx) => {
+    if (inTrial(s)) return { ok: false, items: [] };
     const got = [];
     for (const [questId, itemId] of BOSS_QUEST_GRANTS[bossId] ?? []) {
       const q = s.get('quests').active[questId];
@@ -679,6 +684,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     const enemy = source === 'chest'
       ? { chest: String(id ?? 'chest'), level: lvl }
       : { type: id, level: lvl, family: family ?? e?.family, elite: elite ?? e?.elite, boss: isBoss ?? e?.boss, bossId: bossId ?? e?.bossId ?? (isBoss ? id : undefined), rareId };
+    if (inTrial(s)) enemy.trial = true;
     const drops = rollLoot(enemy, { rng, classId: s.slices.character?.classId ?? null, questNeed: questNeed(s, ctx) });
     const out = [];
     for (const d of drops) {
