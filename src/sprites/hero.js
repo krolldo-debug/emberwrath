@@ -1787,7 +1787,7 @@ function drawHelm(R, G, L, helm, x0, y0) {
     // Glutkrone: drei Zacken über dem Helm, leuchtend
     const C = helm.crown;
     for (const [dx, hgt] of [[2, 2], [4, 3], [6, 2]]) for (let i = 1; i <= hgt; i++) R.set(x0 + dx, y0 - 1 - i, C[i === hgt ? 4 : 3]);
-    G.push({ x: x0 + 4, y: y0 - 4, color: C[3], r: 1.6 });
+    if (!helm.crownDim) G.push({ x: x0 + 4, y: y0 - 4, color: C[3], r: 1.6 });
   }
   if (helm.crest && !helm.crown) {
     // Helmbusch: nach hinten wehend
@@ -2511,6 +2511,18 @@ function drawHelmHi(R, G, L, helm, g, P) {
   if (helm.style === 'hood') return drawHoodHi(R, G, { ...L, cloth: A }, g, P);
   const closed = helm.style === 'great';
   const brim = closed ? y0 + 9 : y0 + 3.8;
+  const T = helm.trim ?? A, tt = T.length - 1;
+  if (helm.coif && !closed) {
+    // Kettenhaube: Kragen um Hinterkopf, Wange und Hals, Gesicht frei
+    R.ellipse(x0 + 3.4, y0 + 5.6, 4.3, 4.4, (nx, ny, d, x, y) => {
+      if (y < brim - 0.4) return null;
+      if (x > x0 + 5.3 && y < y0 + 7.6) return null;
+      if (d > 0.88) return A[0];
+      const l = lit(x, y, cx - 1, cy, 5, 5);
+      return (R.fx(x) + R.fy(y)) & 1 ? band(A, 1.5 + l * 1.6) : band(A, 0.2 + l * 0.8);   // Kettenglieder
+    });
+    R.fline(x0 + 5.4, y0 + 7.7, x0 + 7.6, y0 + 8.4, 0.6, A[1]);
+  }
   // Helmkuppel (bei geschlossenem Helm bis zum Kinn)
   R.ellipse(cx, cy - 0.3, g.rx + 0.55, g.ry + 0.5, (nx, ny, d, x, y) => {
     if (y > brim) return null;
@@ -2520,14 +2532,16 @@ function drawHelmHi(R, G, L, helm, g, P) {
   if (closed) {
     R.ellipse(x0 + 5.9, y0 + 6.4, 3.3, 2.7, (nx, ny, d, x, y) => (d > 0.85 && ny > 0.2 ? A[0] : metalSh(x, y, -0.3)));
     // Grat, Sehschlitz, Atemlöcher
-    R.fline(x0 + 5.6, y0 - 0.2, x0 + 6.4, y0 + 8.6, 0.34, A[top]);
-    R.fline(x0 + 4.9, y0 + 4.7, x0 + 9.1, y0 + 4.9, 0.6, '#0c0810');
-    R.fline(x0 + 4.9, y0 + 4.3, x0 + 9.0, y0 + 4.45, 0.3, A[top]);
+    R.fline(x0 + 5.7, y0 - 0.2, x0 + 6.0, y0 + 3.7, 0.3, A[3]);
+    R.fline(x0 + 4.9, y0 + 4.7, x0 + 9.1, y0 + 4.9, 0.6, helm.glow ? helm.glow[3] : '#0c0810');
+    R.fline(x0 + 4.9, y0 + 4.2, x0 + 9.0, y0 + 4.35, 0.32, T[tt]);
+    if (helm.trim) R.fline(x0 + 0.4, y0 + 8.7, x0 + 8.0, y0 + 8.9, 0.7, (t) => T[t < 0.5 ? 2 : 3]);
+    if (helm.glow) G.push({ x: Math.round(x0 + 7.5), y: Math.round(y0 + 5), color: helm.glow[3], r: 1.4 });
     for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) R.dot(x0 + 7.6 + j * 0.7, y0 + 6.2 + i * 0.66, '#0c0810');
   } else {
     // Stirnreif mit Nieten, Nasenschutz, Wangenklappe hinten
-    R.fline(x0 - 0.3, brim - 0.2, x0 + 9.0, brim - 0.3, 0.8, (t) => A[t < 0.45 ? 3 : 1]);
-    for (let t = 0.08; t < 0.95; t += 0.16) R.dot(lerp(x0, x0 + 8.8, t), brim - 0.3, A[top]);
+    R.fline(x0 - 0.3, brim - 0.2, x0 + 9.0, brim - 0.3, 0.8, (t) => T[t < 0.45 ? 3 : 1]);
+    for (let t = 0.08; t < 0.95; t += 0.16) R.dot(lerp(x0, x0 + 8.8, t), brim - 0.3, T[tt]);
     R.fline(x0 + 8.0, brim - 0.4, x0 + 8.3, y0 + 6.5, 0.8, (t) => A[t < 0.5 ? 3 : 2]);
     R.capsule(x0 + 2.2, brim, x0 + 2.6, y0 + 7.0, 1.2, 1.0, (l) => band(A, 1.6 + l * 1.4));
   }
@@ -2552,18 +2566,23 @@ function drawHelmHi(R, G, L, helm, g, P) {
       R.fline(x0 + dx, y0 + 0.6, x0 + dx + 0.2, y0 + 0.6 - h, 0.9, (t) => C[t > 0.7 ? 4 : t > 0.35 ? 3 : 2] ?? C[3]);
     }
     R.fline(x0 + 1.2, y0 + 0.9, x0 + 7.8, y0 + 0.5, 0.6, C[2]);
-    G.push({ x: Math.round(x0 + 5), y: Math.round(y0 - 2), color: C[3], r: 2 });
+    if (!helm.crownDim) G.push({ x: Math.round(x0 + 5), y: Math.round(y0 - 2), color: C[3], r: 2 });
   } else if (helm.crest) {
-    // Helmbusch: viele Strähnen vom Scheitel nach hinten, wehend
-    const C = helm.crest;
-    for (let i = 0; i < 8; i++) {
-      const t = i / 7;
-      const bx = x0 + 5.6 - t * 2.4, by = y0 - 0.9 + t * 0.3;
-      const ex = bx - 2.6 - t * 1.8 - P.cape * 1.4, ey = by + 1.2 + t * 3.5 + Math.sin(P.wave + i) * 0.3;
-      R.fline(bx, by, (bx + ex) / 2 - 0.2, by - 0.7, 0.55, C[i & 1 ? 3 : 2]);
-      R.fline((bx + ex) / 2 - 0.2, by - 0.7, ex, ey, 0.5, C[i & 1 ? 2 : 1]);
+    // Kamm: schmaler Grat über die Kuppel von der Stirn bis zum Nacken (kein Federbusch)
+    const C = helm.crest, ry = g.ry + 0.5, rx = g.rx + 0.55;
+    for (let i = 0; i <= 12; i++) {
+      const a = -1.05 - (i / 12) * 1.75, x = cx + Math.cos(a) * rx * 0.96, y = cy - 0.3 + Math.sin(a) * ry * 0.96;
+      const h = 1.3 * Math.sin(Math.PI * (0.15 + 0.85 * i / 12));
+      R.fline(x, y, x + Math.cos(a) * h, y + Math.sin(a) * h, 0.5, (t) => C[t > 0.6 ? 3 : 2]);
     }
-    R.fline(x0 + 5.6, y0 - 0.7, x0 + 3.0, y0 - 1.2, 0.4, C[4] ?? C[3]);
+    if (helm.tail) {
+      // Pferdeschweif vom Scheitel, im Wind
+      for (let i = 0; i < 4; i++) {
+        const bx = x0 + 2.2 + i * 0.25, by = y0 - 0.6;
+        R.fline(bx, by, bx - 2.2 - P.cape, by + 2.6, 0.55, C[i & 1 ? 2 : 1]);
+        R.fline(bx - 2.2 - P.cape, by + 2.6, bx - 2.4 - P.cape * 1.6, by + 6 + Math.sin(P.wave + i) * 0.3, 0.5, C[i & 1 ? 1 : 2]);
+      }
+    }
   }
   if (helm.rarity === 'epic' || helm.rarity === 'legendary') {
     const gc = helm.rarity === 'epic' ? M.purple : M.ember;

@@ -73,7 +73,7 @@ export const TALENTS = {
     m_ward: T(1, 'Glutschild', 'armor_cloth', 3, { armor: 3, maxHpPct: 0.04 }, '+3 Rüstung und +4 % Leben je Rang.'),
     m_pyro: T(2, 'Pyromanie', 'skill_flame_nova', 3, { ability: { fireball: 0.12, meteor: 0.12, flame_nova: 0.12 } }, 'Feuerball, Meteor und Flammenring: +12 % Schaden je Rang.'),
     m_haste: T(2, 'Zeitfaden', 'skill_lightning', 5, { cooldownPct: 0.04 }, 'Alle Fähigkeiten laden 4 % schneller je Rang.'),
-    m_ignite: T(3, 'Entzünden', 'skill_fireball', 3, { abilityPower: 0.05 }, '+5 % Fähigkeitsschaden je Rang.'),
+    m_ignite: T(3, 'Entzünden', 'skill_fireball', 3, { powerPct: 0.05, abilityPower: 0.02 }, '+5 % Angriffskraft und +2 % Fähigkeitsschaden je Rang.'),
     m_ashward: T(3, 'Aschenmantel', 'armor_cloth', 3, { armor: 4, maxHpPct: 0.04 }, '+4 Rüstung und +4 % Leben je Rang.'),
     m_phoenix: T(4, 'Phönixflamme', 'skill_fireball', 1, { upgrade: 'fireball', ability: { fireball: 0.15 } }, 'Feuerball Rang 2: zwei kleinere Begleitflammen fliegen mit, die Explosion ist größer. +15 % Schaden.'),
     m_wellspring: T(4, 'Glutquell', 'potion_mana', 3, { maxResource: 12, resourceRegenPct: 0.06 }, '+12 Mana und +6 % Mana-Regeneration je Rang.'),

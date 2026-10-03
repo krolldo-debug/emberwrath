@@ -86,11 +86,11 @@ export const CLASSES = {
     base: { str: 5, agi: 8, int: 15, vit: 8 },
     growth: { str: 0, agi: 1, int: 2, vit: 1 },
     primary: 'int',
-    hp: 52, hpPerLevel: 6, armor: 4, crit: 0.1, speed: 1.0, powerBase: 4,
+    hp: 56, hpPerLevel: 7, armor: 5, crit: 0.1, speed: 1.0, powerBase: 4,
     resource: { type: 'mana', name: 'Mana', color: '#5a8cff', max: 50, perInt: 3, regen: 7, start: 1 },
     basic: {
       kind: 'ranged',
-      shot: { projectile: 'bolt', mult: 1.25, windup: 0.18, recover: 0.22, speed: 210, knockback: 120, range: 200 },
+      shot: { projectile: 'bolt', mult: 1.5, windup: 0.16, recover: 0.22, speed: 210, knockback: 120, range: 200 },
     },
     abilities: ['flame_nova', 'blink', 'fireball', 'meteor'],
   },
