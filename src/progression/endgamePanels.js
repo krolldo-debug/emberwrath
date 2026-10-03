@@ -173,7 +173,7 @@ function trialsView(s) {
     const spec = trialSpec(tier, 1, lvl), ch = trialChances(tier), rw = trialRewards(tier, { rng: () => 0.99, firstClear: !tr.cleared[tier], level: lvl });
     const run = tr.run;
     const last = run && (run.phase === 'done' || run.phase === 'failed') ? run : tr.last ?? null;
-    const pct = (v) => `${Math.round(v * 1000) / 10} %`;
+    const pct = (v) => `${(Math.round(v * 1000) / 10).toLocaleString('de-DE')}\u00a0%`;  // Zahl und % nie getrennt
     return panelFrame(s, 'trials', 'Glutprüfungen',
       h('div.pg-scroll.pg-keep-scroll.pg-trials',
         h('p.pg-dialog-text', '„In der Esse unter dem Berg glimmt noch Ignaroths Wille. Wer ihn bezwingt, wird stärker – und die Glut antwortet mit jeder Stufe härter.“'),
@@ -188,11 +188,11 @@ function trialsView(s) {
           h('div.pg-trial-tier', h('span.ef-note', 'Stufe'), h('b', String(tier)), tr.cleared[tier] ? h('small.ef-note', `Bestzeit ${Math.floor(tr.cleared[tier] / 60)}:${String(tr.cleared[tier] % 60).padStart(2, '0')}`) : h('small.ef-note', 'noch nicht bestanden')),
           actionBtn('+', () => { tier = Math.min(maxTier, tier + 1); redraw(); }, { disabled: tier >= maxTier })),
         h('dl.pg-kvs',
-          h('div.pg-kv', h('dt', 'Gegner'), h('dd', `Stufe 20 · Leben ×${spec.hpMult} · Schaden ×${spec.dmgMult}`)),
-          h('div.pg-kv', h('dt', 'Ablauf'), h('dd', `${spec.target} Punkte (Elite 4), dann ein Boss · ${spec.timeLimit / 60} min`)),
+          h('div.pg-kv', h('dt', 'Gegner'), h('dd', `Stufe ${spec.level ?? lvl} · Leben ×${spec.hpMult} · Schaden ×${spec.dmgMult}`)),
+          h('div.pg-kv', h('dt', 'Ablauf'), h('dd', `${spec.target} Punkte (Elite 4), dann ein Boss · ${spec.timeLimit / 60}\u00a0min`)),
           h('div.pg-kv', h('dt', 'Affixe'), h('dd', tier >= 8 ? '2 zufällige' : tier >= 3 ? '1 zufälliges' : 'keine')),
-          h('div.pg-kv', h('dt', 'Belohnung'), h('dd', `${rw.gold.toLocaleString('de-DE')} Gold · ${rw.shards} Glutsplitter · ${tier >= 5 ? 2 : 1} Teil(e) Stufe 20`)),
-          h('div.pg-kv', h('dt', 'Chancen je Teil'), h('dd', h('span.r-epic', `Episch ${pct(ch.epic)}`), ' · ', h('span.r-legendary', `Legendär ${pct(ch.legendary)}`)))),
+          h('div.pg-kv', h('dt', 'Belohnung'), h('dd', `${rw.gold.toLocaleString('de-DE')} Gold · ${rw.shards} Glutsplitter · ${tier >= 5 ? "2 Teile" : "1 Teil"} Stufe ${rw.level ?? lvl}`)),
+          h('div.pg-kv', h('dt', 'Chancen je Teil'), h('dd', h('span.r-epic.pg-nowrap', `Episch ${pct(ch.epic)}`), ' · ', h('span.r-legendary.pg-nowrap', `Legendär ${pct(ch.legendary)}`)))),
         h('p.ef-note', `Mögliche Affixe: ${Object.values(TRIAL_AFFIXES).join(' · ')}.`),
         h('p.ef-note', `Beste Stufe: ${tr.best} · Versuche bestanden: ${tr.runs}. Glutsplitter tauschst du in der Schmiede gegen Wächter-Ausrüstung.`)),
       h('footer.pg-dialog-foot', msg ? h('span.pg-msg', msg) : null,

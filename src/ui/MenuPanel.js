@@ -4,7 +4,6 @@ import { canFullscreen, isStandalone, isFullscreen, toggleFullscreen } from './F
 import { iconUrl } from '../gfx/Icons.js';
 
 // Pausemenü (Panel 'menu', öffnet mit Esc/P oder dem Menü-Knopf).
-// Ehrlich zum Speicherort: der Spielstand liegt lokal in diesem Browser.
 export function createMenuPanel(session) {
   const g = session.game;
   const status = h('p.ef-note.menu-status');
@@ -17,11 +16,16 @@ export function createMenuPanel(session) {
       h('dt', 'WASD / Pfeile'), h('dd', 'Laufen'),
       h('dt', 'J / Leertaste / Klick'), h('dd', 'Angreifen'),
       h('dt', 'K / Shift / Rechtsklick'), h('dd', 'Ausweichrolle'),
-      h('dt', 'Q · R · T · G'), h('dd', 'Fähigkeiten (1 · 2 · 4 · 5)'),
-      h('dt', 'H'), h('dd', 'Heiltrank'),
+      h('dt', 'Q · R · T · G'), h('dd', 'Fähigkeiten (auch 1 · 2 · 4 · 5)'),
+      h('dt', 'H / 3'), h('dd', 'Heiltrank'),
+      h('dt', 'V / 6'), h('dd', 'Reittier rufen'),
       h('dt', 'E / F'), h('dd', 'Sprechen, Öffnen'),
-      h('dt', 'I · C · L · U'), h('dd', 'Inventar · Charakter · Quests · Talente'),
+      h('dt', 'I / B · C'), h('dd', 'Inventar · Charakter'),
+      h('dt', 'L · U'), h('dd', 'Quests · Talente'),
       h('dt', 'M'), h('dd', 'Zonenkarte'),
+      h('dt', 'O'), h('dd', 'Dungeonsuche'),
+      h('dt', 'Enter'), h('dd', 'Chat'),
+      h('dt', 'Esc / P'), h('dd', 'Menü, Fenster schließen'),
       h('dt', 'N'), h('dd', 'Ton an/aus'),
     ),
     h('p.ef-note.menu-touch-help', 'Touch: linke Seite ziehen zum Laufen, rechts die Aktionsknöpfe. Minimap antippen öffnet die Karte.'),
@@ -41,7 +45,7 @@ export function createMenuPanel(session) {
       canFullscreen() && !isStandalone() ? h('button.ef-btn', { type: 'button', onclick: (e) => { toggleFullscreen().then(() => { e.target.textContent = isFullscreen() ? 'Vollbild beenden' : 'Vollbild'; }); } }, isFullscreen() ? 'Vollbild beenden' : 'Vollbild') : null,
       h('button.ef-btn', { type: 'button', onclick: () => { settings.classList.toggle('open'); help.classList.remove('open'); if (settings.classList.contains('open')) settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }, 'Einstellungen'),
       h('button.ef-btn', { type: 'button', onclick: () => { help.classList.toggle('open'); settings.classList.remove('open'); } }, 'Steuerung'),
-      h('button.ef-btn.danger', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); } }, 'Speichern & zum Titel'),
+      h('button.ef-btn.danger', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); }, title: 'Speichert und kehrt zum Titelbildschirm zurück' }, 'Zum Titel'),
     ),
     status,
     settings,

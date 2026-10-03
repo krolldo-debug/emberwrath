@@ -98,7 +98,7 @@ export class Hud {
     this.deadEl = el('div.hud-dead',
       el('div.hud-dead-title', 'Du bist gefallen'),
       el('div.hud-dead-sub', 'Du erwachst am letzten Lagerfeuer. Deine Beute bleibt erhalten.'),
-      el('button.ef-btn.primary.hud-respawn', { type: 'button', onclick: () => this.#tap('attack') }, 'Wiederbeleben'),
+      el('button.ef-btn.primary.hud-respawn', { type: 'button', onclick: () => this.#tap('attack') }, 'Wiederbeleben', el('kbd.hud-key', 'Leertaste')),
     );
     this.xpWrap = el('div.hud-xp-wrap', this.xp.el);
 
@@ -134,7 +134,7 @@ export class Hud {
     // Menüknöpfe
     const menuBtn = (action, key, label, icon) => el('button.hud-menu-btn', {
       type: 'button', title: `${label} (${key})`, 'aria-label': label, dataset: { action },
-      onclick: () => { this.s.sfx.play?.('ui'); this.#openMenu(false); this.#tap(action); },
+      onclick: (e) => { e.currentTarget.blur(); this.s.sfx.play?.('ui'); this.#openMenu(false); this.#tap(action); },
     }, el('img.ef-icon.hud-menu-icon', { src: iconUrl(icon), alt: '', width: 30, height: 30, draggable: 'false' }),
       el('span.hud-menu-label', label), el('kbd.hud-key', key));
     // Touch: ein einzelner Menüknopf klappt die Liste auf (spart Platz auf dem Handy);
@@ -560,7 +560,8 @@ export class Hud {
   #updateStick() {
     const t = this.input.touch, on = this.input.usingTouch && t.active;
     toggle(this.stickEl, 'show', on);
-    toggle(this.stickHint, 'show', this.input.usingTouch && !t.active && this.t < 20 && !this.s.paused);
+    if (on) this.stickUsed = true;
+    toggle(this.stickHint, 'show', this.input.usingTouch && !t.active && !this.stickUsed && this.t < 20 && !this.s.paused);
     if (!on) return;
     const r = this.input.stickRadius;
     const dx = t.x - t.cx, dy = t.y - t.cy, l = Math.hypot(dx, dy), m = Math.min(l, r);

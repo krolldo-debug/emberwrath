@@ -44,7 +44,7 @@ for (const m of modules.values()) {
 let commit = process.env.WORKERS_CI_COMMIT_SHA ?? '';
 if (!commit) { try { commit = execSync('git rev-parse HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { commit = ''; } }
 const pkgVersion = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
-const build = { version: pkgVersion, commit: commit ? commit.slice(0, 7) : 'lokal', builtAt: new Date().toISOString() };
+const build = { version: pkgVersion, commit: commit ? commit.slice(0, 7) : 'dev', builtAt: new Date().toISOString() };
 
 let bundle = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
 bundle += 'const __defs = {}, __cache = {};\n';

@@ -394,3 +394,9 @@
 .pg-mount-body small { font-size: 12px; }
 .pg-mount-on { font-size: 12px; color: #ffd27a; padding: 0 6px; }
 .pg-mount-count { margin: 4px 0 8px; font-size: 13px; }
+/* Glutprüfungen hochkant: Bezeichnung über dem Wert statt umbrochener Zeilen */
+.pg-nowrap { white-space: nowrap; }
+@media (max-width: 520px) {
+  .pg-trials .pg-kv { flex-direction: column; gap: 2px; }
+  .pg-trials .pg-kv dd { text-align: left; }
+}

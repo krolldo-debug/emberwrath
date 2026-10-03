@@ -48,7 +48,12 @@ export function createSettingsSection(game) {
   const mus = h('input.set-range', { type: 'range', min: '0', max: '100', step: '5', 'aria-label': 'Musik' });
   const syncMusic = () => { mus.value = String(Math.round((music?.volume ?? 0.6) * 100)); musVal.textContent = `${mus.value} %`; mus.disabled = !!sfx.muted; };
   mus.addEventListener('input', () => { music?.setVolume(Number(mus.value) / 100); syncMusic(); });
-  mute.addEventListener('change', () => syncMusic());
+  const fxVal = h('output.set-val');
+  const fx = h('input.set-range', { type: 'range', min: '0', max: '100', step: '5', 'aria-label': 'Effekte' });
+  const syncFx = () => { fx.value = String(Math.round((sfx.fxVolume ?? 1) * 100)); fxVal.textContent = `${fx.value} %`; fx.disabled = !!sfx.muted; };
+  fx.addEventListener('input', () => { sfx.setFxVolume?.(Number(fx.value) / 100); syncFx(); });
+  fx.addEventListener('change', () => sfx.play?.('hit'));
+  mute.addEventListener('change', () => { syncMusic(); syncFx(); });
   mute.addEventListener('change', () => { sfx.setMuted ? sfx.setMuted(mute.checked) : sfx.toggleMute(); syncSound(); });
 
   const check = (key, def) => {
@@ -77,12 +82,13 @@ export function createSettingsSection(game) {
   for (const q of QUALITY_LEVELS) {
     qual.append(h('button.set-seg-btn', { type: 'button', role: 'radio', 'data-v': q.value, onclick: () => { p.set('quality', q.value); syncQual(); sfx.play?.('ui'); } }, q.label));
   }
-  syncSound(); syncSizes(); syncMusic(); syncQual();
+  syncSound(); syncSizes(); syncMusic(); syncFx(); syncQual();
 
   return h('section.set-section', { 'aria-label': 'Einstellungen' },
     h('h3', 'Einstellungen'),
-    row('Lautstärke', h('span.set-inline', vol, volVal)),
-    row('Musik', h('span.set-inline', mus, musVal), 'prozedural erzeugt'),
+    row('Lautstärke', h('span.set-inline', vol, volVal), 'Gesamt'),
+    row('Musik', h('span.set-inline', mus, musVal)),
+    row('Effekte', h('span.set-inline', fx, fxVal), 'Kampf, Zauber, Umgebung'),
     row('Ton aus', mute, 'Taste N'),
     row('Questpfad am Boden', check('guidePath', true), 'Weg zur verfolgten Quest'),
     row('Bildschirmwackeln', check('screenShake', true), 'bei Treffern und Explosionen'),

@@ -134,8 +134,8 @@ const BODY = {
     neck: [[5, -18], [9.5, -27]], neckR: [2.4, 1.5], head: [[9.2, -28], [12, -27.4]], headR: [1.9, 1.3], beak: true, ear: null, tail: 'plume', stride: 4.2, lift: 3.2, seat: [-1, -21.2] },
   beetle: { legs: 6, shell: true, rump: [-10, -11], chest: [9, -11], rB: 7, rC: 6.4, hip: [-1, -7.5], up: 4.2, low: 5, legR: [1.3, 0.8], hoof: 'claw',
     head: [[11, -11], [16, -10.2]], headR: [3.6, 2.4], horns: 'mandible', ear: null, tail: null, stride: 2.8, lift: 1.8, seat: [-1, -19] },
-  drake: { legs: 4, rump: [-7.5, -11], chest: [6.5, -12], rB: 5, rC: 5.6, hip: [-7, -9.5], sh: [6.2, -9.5], up: 4.8, low: 5.2, legR: [2, 1.3], hoof: 'claw',
-    neck: [[8, -14], [12.5, -21]], neckR: [3.2, 2.1], head: [[12.5, -22], [18, -20.4]], headR: [2.6, 1.5], ear: null, horns: 'drake', tail: 'lizard', wings: true, stride: 3.2, lift: 2.2, seat: [-0.5, -16.8] },
+  drake: { legs: 4, plan: 'drake', rump: [-6.5, -11.6], chest: [6, -12.4], rB: 4.4, rC: 5.2, hip: [-6.5, -9.8], sh: [5.6, -9.6], up: 5.2, low: 5, legR: [2, 1.3], hoof: 'claw',
+    neck: [[8, -14], [10.6, -20.2], [13.2, -24.2]], neckR: [3.4, 2.5, 2], head: [[14.2, -25.4], [21, -23.6], [15, -23.4], [20, -22.6]], headR: [2.3, 1], ear: null, horns: 'drake', tail: 'lizard', wings: true, stride: 3, lift: 1.8, seat: [-0.5, -16.8] },
 };
 
 // Beinposition im Gang (wie die Helden): Stand vorne -> hinten, Schwung angehoben nach vorne
@@ -146,7 +146,177 @@ function footAt(ph, stride, lift) {
   return [-Math.cos(w) * stride, lift * Math.pow(Math.sin(w), 0.8)];
 }
 
+// Schlackendrache: eigener Bauplan (Seitenansicht, Blick rechts). Langer S-Hals, Keilkopf mit Kiefer und
+// zurückgelegten Hörnern, halb gehobene Schwingen mit Fingerknochen, Schuppen mit heller Bauchplatte,
+// Rückenzacken, langer Schwanz mit Spaten, Krallen. Schlacke: Kohle-/Obsidianschuppen, glühende Risse.
+const SLAG = ['#0e0b0f', '#1d171b', '#2f2629', '#483a37', '#68554d', '#8c7262'];
+const SLAG_BELLY = ['#2a1009', '#4e1e0e', '#7a3212', '#a84a18', '#d06a22'];
+const SLAG_WING = ['#1e0806', '#3a0f08', '#5e1a0c', '#86280f', '#b03c14', '#d85a1c'];
+const DRAKE_HORN = ['#2e2620', '#5a4a3a', '#968066', '#d8c6a4'];
+const EMBER = ['#c8420c', '#ff8a30', '#ffb640', '#fff0b0'];
+
+function drawDrake(R, G, B, look, pose) {
+  const T = TACK[look.tack] ?? TACK.gold;
+  const bob = pose.bob, nod = pose.nod, ph = pose.ph, walk = pose.walk;
+  const S = SLAG, Sd = [S[0], S[0], S[1], S[2], S[3], S[4]];
+  // Schuppenraster: versetzte Reihen, dunkle Unterkante je Schuppe
+  const scale = (x, y) => { const r = Math.floor(y / 1.1), u = (x / 1.3 + r * 0.5) % 1, v = (y / 1.1) % 1; return (v < 0 ? v + 1 : v) > 0.72 && Math.abs((u < 0 ? u + 1 : u) - 0.5) < 0.35 ? -0.7 : 0; };
+  // Kapsel mit Bauchseite (unten bzw. vorne) in heller Plattenfarbe
+  const seg = (x0, y0, x1, y1, r0, r1, A = S, belly = 0.4, base = 2.3) => {
+    const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
+    let nx = -dy / L, ny = dx / L; if (ny < 0) { nx = -nx; ny = -ny; }
+    R.capsule(x0, y0, x1, y1, r0, r1, (l, t, e, x, y) => {
+      const cx = x0 + dx * t, cy = y0 + dy * t, r = Math.max(0.5, r0 + (r1 - r0) * t);
+      const side = ((x - cx) * nx + (y - cy) * ny) / r;
+      if (belly < 1 && side > belly) {
+        const seam = ((t * L) % 1.5) < 0.42 ? 1 : 0;
+        return band(SLAG_BELLY, 2.4 + l * 1.2 - seam - (e > 0.9 ? 0.8 : 0));
+      }
+      return band(A, base + l * 1.7 - (e > 0.86 ? 0.8 : 0) + (e < 0.8 ? scale(x, y) : 0));
+    });
+  };
+  const spike = (x, y, ang, h, w, c0 = S[1], c1 = S[4]) => {
+    // Zacke: Basis quer zur Richtung ang (rad, 0 = nach oben), helle linke Flanke
+    const ux = Math.sin(ang), uy = -Math.cos(ang), px = -uy, py = ux;
+    const tx = x + ux * h, ty = y + uy * h;
+    R.tri(x - px * w, y - py * w, x + px * w, y + py * w, tx, ty, (u) => (u > 0.5 ? c1 : c0));
+  };
+
+  // ---- Beine: kurz, kräftig, Krallen ----
+  const legs = [{ root: [B.hip[0], B.hip[1] + bob], ph: 0, near: true, fore: false }, { root: [B.sh[0], B.sh[1] + bob], ph: Math.PI / 2, near: true, fore: true },
+    { root: [B.hip[0], B.hip[1] + bob], ph: Math.PI, near: false, fore: false }, { root: [B.sh[0], B.sh[1] + bob], ph: Math.PI * 1.5, near: false, fore: true }];
+  const drawLeg = (L) => {
+    const [fx, lift] = walk ? footAt(ph + L.ph, B.stride, B.lift) : [0, 0];
+    const ax = L.root[0] + (L.near ? 0.6 : -0.9) + fx, ay = -1.1 - lift;
+    const k = ik(L.root[0], L.root[1], ax, ay, B.up, B.low, L.fore ? 1 : -1);
+    const A = L.near ? S : Sd;
+    const sh = (l, t, e, x, y) => band(A, 2.2 + l * 1.5 - (e > 0.86 ? 0.8 : 0) + scale(x, y));
+    if (!L.fore) R.ellipse(L.root[0] - 0.2, L.root[1] - 0.4, 3.8, 3.9, (l, d, x, y) => band(A, 2.3 + l * 1.6 - (d > 0.9 ? 0.8 : 0) + scale(x, y)));
+    R.capsule(L.root[0], L.root[1], k.jx, k.jy, L.fore ? 2.3 : 2.6, 1.6, sh);
+    R.capsule(k.jx, k.jy, k.ex, k.ey, 1.5, 1.2, sh);
+    R.capsule(k.ex - 0.4, k.ey + 0.3, k.ex + 1.4, k.ey + 0.5, 1.1, 0.9, sh);
+    const cl = L.near ? DRAKE_HORN[2] : DRAKE_HORN[1];
+    for (const o of [0.4, 1.4, 2.3]) R.line(k.ex + o, k.ey + 0.5, k.ex + o + 0.8, k.ey + 1.2, 0.45, cl);
+  };
+  for (const L of legs) if (!L.near) drawLeg(L);
+
+  // ---- Schwanz: lang, spitz zulaufend, Spaten am Ende ----
+  const sway = walk ? 1.6 : 0.6;
+  const tp = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    tp.push([B.rump[0] - 2.5 - t * 17, B.rump[1] - 0.6 + bob * (1 - t) + t * 7.5 - t * t * t * 3.2 + Math.sin(ph * (walk ? 1 : 0.5) + t * 3.2) * t * sway]);
+  }
+  for (let i = 0; i < 10; i++) seg(tp[i][0], tp[i][1], tp[i + 1][0], tp[i + 1][1], 3.3 - i * 0.29, 3.3 - (i + 1) * 0.29, S, 0.45);
+  for (let i = 1; i < 9; i += 1) {
+    const [x, y] = tp[i], r = 3.3 - i * 0.29, a = Math.atan2(tp[i + 1][1] - y, tp[i + 1][0] - x);
+    spike(x, y - r * 0.85, a + Math.PI * 0.5 - 0.5, 1.6 - i * 0.1, 0.55);
+  }
+  for (let i = 2; i < 9; i++) R.line(tp[i][0], tp[i][1] + 0.3, tp[i + 1][0], tp[i + 1][1] + 0.3 + (i % 2 ? -0.5 : 0.5), 0.45, i % 3 ? EMBER[0] : EMBER[1]);
+  G.push({ x: Math.round(tp[5][0]), y: Math.round(tp[5][1]), color: '#ff6a20', r: 2 });
+  {
+    const [ex, ey] = tp[10], [qx, qy] = tp[9], a = Math.atan2(ey - qy, ex - qx), ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+    const tip = [ex + ux * 3.4, ey + uy * 3.4], w1 = [ex + ux * 0.8 + px * 1.8, ey + uy * 0.8 + py * 1.8], w2 = [ex + ux * 0.8 - px * 1.8, ey + uy * 0.8 - py * 1.8];
+    R.tri(ex, ey, w1[0], w1[1], tip[0], tip[1], S[3]); R.tri(ex, ey, w2[0], w2[1], tip[0], tip[1], S[2]);
+    R.line(ex, ey, tip[0], tip[1], 0.5, EMBER[0]);
+    G.push({ x: Math.round(tip[0] - ux), y: Math.round(tip[1] - uy), color: '#ff6a20', r: 1.6 });
+  }
+
+  // ---- Schwingen: Arm hoch nach hinten, Finger fächern, Flughaut mit Bögen ----
+  const flap = walk ? Math.sin(ph) * 1.8 : Math.sin(ph * 0.5) * 0.4;
+  const wing = (near) => {
+    const o = near ? [0, 0] : [3.2, -2.2], M = near ? SLAG_WING : [SLAG_WING[0], SLAG_WING[0], SLAG_WING[1], SLAG_WING[2], SLAG_WING[3], SLAG_WING[3]];
+    const sh = [B.sh[0] - 2.2 + o[0], B.sh[1] - 6.4 + bob + o[1]];
+    const wr = [-4 + o[0], -28.6 + bob + flap * 0.6 + o[1]];
+    const tips = [[-17.5, -31.5 + flap * 1.4], [-22.5, -24.5 + flap * 1.1], [-20, -17.2 + flap * 0.6], [-13, -15.4 + flap * 0.3]].map(([x, y]) => [x + o[0] * 0.8, y + bob + o[1]]);
+    const back = [-7 + o[0] * 0.5, -15.6 + bob + o[1] * 0.5];
+    const panels = [[wr, tips[0], tips[1]], [wr, tips[1], tips[2]], [wr, tips[2], tips[3]], [wr, tips[3], back], [wr, back, sh]];
+    panels.forEach(([a, b, c], pi) => {
+      R.tri(a[0], a[1], b[0], b[1], c[0], c[1], (u, v) => {
+        const w = 1 - u - v, s = v + w;
+        const cut = pi < 3 ? 0.2 * Math.sin(Math.PI * clamp(v / (s || 1), 0, 1)) : 0;
+        if (u < cut) return null;
+        if (pi < 3 && u < cut + 0.05) return M[near ? 5 : 3];
+        return pi < 3 ? band(M, 1.4 + (1 - u) * 2.6 - pi * 0.2) : band(M, 0.6 + (1 - u) * 1.6 + (pi === 4 ? (1 - v) * 0.8 : 0));
+      });
+    });
+    // Adern (glühend) und Fingerknochen
+    if (near) for (let i = 0; i < 3; i++) { const a = tips[i], b = tips[i + 1]; const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; R.line(wr[0] + (m[0] - wr[0]) * 0.25, wr[1] + (m[1] - wr[1]) * 0.25, wr[0] + (m[0] - wr[0]) * 0.7, wr[1] + (m[1] - wr[1]) * 0.7, 0.45, EMBER[0]); }
+    const bone = near ? [S[2], S[4], S[5]] : [S[1], S[2], S[3]];
+    for (const t of tips) R.line(wr[0], wr[1], t[0], t[1], near ? 0.8 : 0.7, (u) => bone[u < 0.6 ? 1 : 0]);
+    R.capsule(sh[0], sh[1], wr[0], wr[1], near ? 1.5 : 1.2, near ? 1.0 : 0.8, (l) => band(bone, 1 + l * 1.4));
+    R.line(wr[0], wr[1], wr[0] + 1.6, wr[1] - 1.8, 0.7, near ? DRAKE_HORN[3] : DRAKE_HORN[1]);   // Daumenkralle
+    for (const t of tips) R.dot(t[0], t[1], near ? DRAKE_HORN[2] : DRAKE_HORN[1]);
+  };
+  wing(false);
+
+  // ---- Rumpf: lang, flach, Bauchplatten, glühende Risse ----
+  const rump = [B.rump[0], B.rump[1] + bob], chest = [B.chest[0], B.chest[1] + bob];
+  seg(rump[0], rump[1], chest[0], chest[1], B.rB, B.rC, S, 0.42);
+  for (let i = 0; i < 5; i++) spike(rump[0] - 2.5 + i * 1.6, rump[1] - B.rB - 0.1 - i * 0.12, -0.45, 1.8, 0.6);
+  for (const [a, b2, c2, d] of [[-6.5, -9.2, -3.5, -7.6], [-3.5, -7.6, -1.2, -8.4], [0.5, -9, 3, -7.4], [3, -7.4, 5.4, -8.6]]) R.line(a, b2 + bob, c2, d + bob, 0.55, EMBER[1]);
+  R.line(-4, -12.8 + bob, -2.2, -11.2 + bob, 0.5, EMBER[0]);
+  G.push({ x: -2, y: Math.round(-8 + bob), color: '#ff6a20', r: 4 }, { x: 4, y: Math.round(-8 + bob), color: '#ff8a30', r: 2.5 });
+
+  // ---- Hals (S-Kurve) und Keilkopf ----
+  const hn = [nod * 0.3, nod];
+  const np = [[B.neck[0][0], B.neck[0][1] + bob], [B.neck[1][0] + hn[0] * 0.5, B.neck[1][1] + bob + hn[1] * 0.5], [B.neck[2][0] + hn[0], B.neck[2][1] + bob + hn[1]]];
+  const nr = B.neckR;
+  seg(np[0][0], np[0][1], np[1][0], np[1][1], nr[0], nr[1], S, 0.35);
+  seg(np[1][0], np[1][1], np[2][0], np[2][1], nr[1], nr[2], S, 0.35);
+  for (let i = 0; i < 5; i++) {
+    const t = i / 5, a = i < 3 ? np[0] : np[1], b2 = i < 3 ? np[1] : np[2], tt = i < 3 ? t * 5 / 3 : (t * 5 - 3) / 2;
+    const x = a[0] + (b2[0] - a[0]) * tt, y = a[1] + (b2[1] - a[1]) * tt, r = i < 3 ? nr[0] + (nr[1] - nr[0]) * tt : nr[1] + (nr[2] - nr[1]) * tt;
+    spike(x - r * 0.75, y - r * 0.55, -0.95, 1.7, 0.55);
+  }
+  const hd = B.head.map(([x, y]) => [x + hn[0], y + bob + hn[1]]);    // [Schädel, Schnauzenspitze, Kieferwinkel, Kinn]
+  const jawOpen = walk ? 0 : (Math.sin(ph) > 0.7 ? 0.4 : 0);
+  // Unterkiefer, dann Schädel/Schnauze als Keil
+  R.capsule(hd[2][0], hd[2][1] + jawOpen, hd[3][0], hd[3][1] + jawOpen * 1.6, 1.3, 0.6, (l, t, e) => band(SLAG_BELLY, 1.8 + l * 1.2 - (e > 0.85 ? 0.8 : 0)));
+  R.capsule(hd[0][0], hd[0][1], hd[1][0], hd[1][1], B.headR[0], B.headR[1], (l, t, e, x, y) => band(S, 2.4 + l * 1.8 - (e > 0.86 ? 0.8 : 0) + (e < 0.7 ? scale(x, y) * 0.6 : 0)));
+  R.line(hd[2][0] + 0.6, hd[2][1] - 0.6, hd[1][0] + 0.2, hd[1][1] + 0.7 + jawOpen, 0.45, S[0]);        // Maullinie
+  R.line(hd[2][0] + 1.6, hd[2][1] - 0.3, hd[2][0] + 3.2, hd[2][1] - 0.15, 0.4, EMBER[1]);              // Glut im Maul
+  R.dot(hd[1][0] - 0.3, hd[1][1] - 0.6, S[0]);                                                          // Nüster
+  // Hörner: zwei, weit nach hinten gelegt; Kieferstachel
+  const horn = (bx, by, len, lift, w, A0) => {
+    const mx = bx - len * 0.55, my = by - lift * 0.4, ex = bx - len, ey = by - lift;
+    R.capsule(bx, by, mx, my, w, w * 0.7, (l) => band(DRAKE_HORN, A0 + l * 1.4));
+    R.capsule(mx, my, ex, ey, w * 0.7, 0.25, (l, t) => band(DRAKE_HORN, A0 + 0.8 + l * 1.2 + t));
+  };
+  horn(hd[0][0] - 0.4, hd[0][1] - 1.2, 6.2, 3.4, 0.75, 0.6);
+  horn(hd[0][0] + 0.6, hd[0][1] - 1.7, 6.8, 4.6, 0.85, 1.3);
+  spike(hd[2][0] - 0.6, hd[2][1] + 0.4, -1.9, 2.2, 0.5, S[1], S[3]);
+  // Auge: Glut unter dunkler Braue
+  const ey = [hd[0][0] + 1.6, hd[0][1] - 0.2];
+  R.line(ey[0] - 1, ey[1] - 1.1, ey[0] + 1.3, ey[1] - 0.6, 0.6, S[0]);
+  R.dot(ey[0], ey[1], EMBER[2]); R.dot(ey[0] + 0.5, ey[1], EMBER[3]);
+  G.push({ x: Math.round(ey[0]), y: Math.round(ey[1]), color: '#ffb640', r: 1.6 }, { x: Math.round(hd[2][0] + 2.4), y: Math.round(hd[2][1]), color: '#ff6a20', r: 1.3 });
+
+  // ---- nahe Schwinge über dem Rücken ----
+  wing(true);
+
+  // ---- Sattel (Reiter sitzt zwischen den Schwingen) und Zügel ----
+  const sx = B.seat[0], sy = B.seat[1] + bob, by0 = sy + 1.6;
+  R.each(sx - 4.5, by0 - 0.5, sx + 4, by0 + 5.5, (x, y, F, Gi) => {
+    if (R.buf[Gi * R.fw + F] === 0) return;
+    const nx = (x - (sx - 0.25)) / 4.2, bottom = by0 + 3.6 - nx * nx * 1.8;
+    if (y > bottom || Math.abs(nx) > 1) return;
+    R.put(F, Gi, y > bottom - 0.7 ? T.metal[1] : band(T.cloth, 1.2 + (nx < 0 ? 0.8 : 0) - (y > by0 + 2.4 ? 0.5 : 0)));
+  });
+  R.capsule(sx - 3, sy + 0.6, sx + 2.6, sy + 0.8, 1.3, 1.4, (l) => band(T.strap, 2 + l));
+  R.line(sx - 3.4, sy - 1, sx - 3.1, sy + 0.6, 0.9, T.strap[3]);
+  R.line(sx + 2.8, sy - 1.2, sx + 3.2, sy + 0.6, 0.9, T.strap[3]);
+  R.line(sx - 0.5, sy + 2, sx - 0.3, sy + 6.8, 0.6, T.strap[1]);
+  R.dot(sx - 0.4, sy + 5.4, T.metal[2]);
+  const bit = [hd[2][0] + 1.2, hd[2][1] - 0.2];
+  R.line(bit[0], bit[1], sx + 3, sy - 0.2, 0.5, T.strap[3]);
+  R.dot(bit[0], bit[1], T.metal[2]);
+
+  for (const L of legs) if (L.near) drawLeg(L);
+}
+
 function drawMount(R, G, B, look, pose) {
+  if (B.plan === 'drake') return drawDrake(R, G, B, look, pose);
   const C = COAT[look.coat] ?? COAT.bay, Mn = MANE[look.mane] ?? MANE.dark, T = TACK[look.tack] ?? TACK.leather;
   const fire = look.mane === 'fire', ghost = look.mane === 'ghost' || look.mane === 'shadow';
   const bob = pose.bob, dy = (p) => [p[0], p[1] + bob];

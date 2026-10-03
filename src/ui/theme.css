@@ -643,7 +643,8 @@
 .ef-no-minimap.ef-portrait .ef-hud .hud-tracker { top: calc(env(safe-area-inset-top, 0px) + 100px); }
 .menu-panel { max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
 @media (max-height: 520px) {
-  .menu-panel .menu-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .menu-panel .menu-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-width: 440px; }
+  .menu-panel { min-width: min(92vw, 480px); }
   .menu-panel .menu-buttons .ef-btn { min-height: 40px; padding: 6px 10px; font-size: 0.9em; }
   .menu-panel h2 { margin: 0 0 6px; }
 }
@@ -1015,3 +1016,71 @@ html.ef-no-minimap:not(.ef-touch) .ef-hud .hud-tracker { top: calc(var(--hud-gap
 /* Gold antippen öffnet den Shop, sobald es ihn gibt (.shop) */
 .hud-gold.shop { pointer-events: auto; cursor: pointer; }
 .hud-gold.shop::after { content: "+"; display: inline-grid; place-items: center; width: 14px; height: 14px; margin-left: 3px; border-radius: 50%; background: var(--ef-gold); color: #1a0e04; font: 700 12px/1 var(--ef-font); }
+
+/* ------------------------------------------------------------ Release-Feinschliff: Fenster anderer Bereiche
+   Nur Darstellung; die Ursachen sind an die Besitzer gemeldet. */
+/* Der Fenster-Rahmen div.pg-mount (progression/widgets.js) teilt sich den Klassennamen mit den Reittier-Zeilen
+   (li.pg-mount): die Zeilen-Regel gab jedem Fenster Rand und Innenabstand, auf dem Handy ragte es 9 px aus dem Bild. */
+div.pg-mount { display: contents; padding: 0; border: 0; background: none; }
+/* Dungeonsuche: Inhalt nicht breiter als das Fenster (.ef-center zentriert sonst auf Inhaltsbreite) */
+.fd-panel .fd-body { align-self: stretch; width: 100%; min-width: 0; }
+.fd-panel .fd-dungeon { grid-template-columns: minmax(42%, 1fr) minmax(0, auto) auto; }
+.fd-panel .fd-dsub { text-align: right; }
+.fd-panel .fd-dungeon > *, .fd-panel .fd-dname { min-width: 0; }
+.fd-panel .fd-dsub { white-space: normal; }
+/* Inventar-Filter auf dem Handy: rechter Rand blendet aus, damit man sieht, dass es weitergeht */
+@media (max-width: 640px) { .pg-bagbar { -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); padding-right: 24px; } }
+/* Reiter: auf schmalen Schirmen waagerecht wischbar statt das Fenster zu verbreitern */
+.pg-tabs { overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap; flex-shrink: 0; scrollbar-width: none; }
+.pg-tabs::-webkit-scrollbar { display: none; }
+.pg-tabs .pg-tabbtn { flex: 0 0 auto; }
+/* Talente: auf Handy und kleinen Fenstern eine Talentspalte, sonst bricht jede Zeile nach zwei Wörtern um */
+@media (max-width: 960px) { .tal-panel .tal-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) {
+  .fd-panel .fd-dungeon { grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; }
+  .fd-panel .fd-dungeon .fd-dname { grid-column: 1; grid-row: 1; }
+  .fd-panel .fd-dungeon .fd-dsub { grid-column: 1; grid-row: 2; text-align: left; }
+  .fd-panel .fd-dungeon .fd-dtag { grid-column: 2; grid-row: 1 / span 2; }
+}
+/* Talentfenster: breiter auf dem Computer; Lernen-Knopf unten rechts neben den Rang-Kästchen,
+   damit Name und Beschreibung die volle Kartenbreite haben (vorher brach jede Zeile nach zwei Wörtern um) */
+.ef-panel.tal-panel { max-width: min(96vw, 920px); width: min(96vw, 920px); }
+.tal-panel .tal-talent { position: relative; }
+.tal-panel .tal-talent .tal-pips { min-height: 34px; margin-top: 2px; padding-right: 42px; }
+.tal-panel .tal-talent .tal-learn { position: absolute; right: 8px; bottom: 8px; }
+.ef-touch .tal-panel .tal-talent .tal-pips { min-height: 44px; padding-right: 52px; }
+
+/* Release-Feinschliff: HUD-Bedienung */
+/* Menüschilder nur bei echtem Mauszeiger; Tastaturfokus zeigt den Rahmen, kein schwebendes Schild,
+   das nach Klick + Esc stehen bliebe. */
+.hud-menu-btn:focus-visible .hud-menu-label { opacity: 0; }
+@media (hover: hover) and (pointer: fine) { .hud-menu-btn:hover .hud-menu-label { opacity: 1; } }
+.ef-touch .hud-menu-label { display: none; }
+.hud-menu-btn:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 2px; }
+/* Meldungen brechen auf zwei Zeilen um statt mit „…“ abzuschneiden */
+.ef-toast { white-space: normal; align-items: center; }
+.ef-toast-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; text-overflow: clip; overflow-wrap: anywhere; }
+/* Wiederbeleben: Tastenhinweis nur am Computer */
+.hud-respawn { display: inline-flex; align-items: center; gap: 8px; }
+.hud-respawn kbd.hud-key { position: static; font-size: 11px; }
+.ef-touch .hud-respawn kbd.hud-key { display: none; }
+/* Touch-Ziele mindestens 44 px */
+.ef-touch .hud-menu-toggle { width: 44px; height: 44px; }
+html.ef-touch.ef-portrait .net-chat-btn { width: 44px; height: 44px; }
+.ef-touch .ef-panel-host button[aria-label="Schließen"] { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; }
+/* Tastenschilder und Kleintext am Computer mit der Bildgröße mitwachsen lassen */
+html:not(.ef-touch) .hud-slot kbd.hud-key, html:not(.ef-touch) .hud-menu-btn kbd.hud-key { font-size: clamp(10px, calc(var(--hud-fs) * 0.8), 12px); }
+html:not(.ef-touch) .hud-lock-lvl { font-size: clamp(10px, calc(var(--hud-fs) * 0.75), 12px); }
+html:not(.ef-touch) .hud-minimap-hint { font-size: clamp(10px, calc(var(--hud-fs) * 0.75), 12px); }
+/* Balken und Nebentexte am Computer: wachsen mit der HUD-Schrift, nie unter 10 px */
+html:not(.ef-touch) .ef-hud .hud-meter.hp { height: max(16px, calc(var(--hud-fs) * 1.3)); }
+html:not(.ef-touch) .ef-hud .hud-meter.res, html:not(.ef-touch) .ef-hud .hud-meter.xp { height: max(13px, calc(var(--hud-fs) * 1.05)); }
+html:not(.ef-touch) .ef-hud .hud-bar-text { font-size: max(10px, 0.8em); }
+html:not(.ef-touch) .ef-hud .hud-meter.res .hud-bar-text, html:not(.ef-touch) .ef-hud .hud-meter.xp .hud-bar-text { font-size: max(10px, 0.74em); }
+html:not(.ef-touch) .ef-hud .hud-zone-sub, html:not(.ef-touch) .ef-hud .hud-saved, html:not(.ef-touch) .ef-hud .net-world { font-size: max(10.5px, 0.78em); }
+html:not(.ef-touch) .hud-minimap-n { font-size: 10px; }
+.ef-touch .ef-hud .hud-zone-sub, .ef-touch .ef-hud .hud-saved, .ef-touch .ef-hud .net-world { font-size: max(9.5px, 0.75em); }
+.ef-touch .ef-hud .hud-meter.hp { height: 14px; }
+.ef-touch .ef-hud .hud-meter.res { height: 13px; }
+.ef-touch .ef-hud .hud-bar-text { font-size: max(9.5px, 0.8em); }
+.ef-touch .ef-hud .hud-meter.res .hud-bar-text, .ef-touch .ef-hud .hud-meter.xp .hud-bar-text { font-size: max(9px, 0.72em); }
