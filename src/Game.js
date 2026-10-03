@@ -216,8 +216,18 @@ export class Game {
     const L = CONFIG.landscapeView, P = CONFIG.portraitView;
     const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId);
     // Querformat: Bildbreite folgt dem Seitenverhältnis (16:9 bis 21:9), breite Handys bekommen keine schwarzen Ränder
-    const w = tall ? P.width : Math.max(L.width, Math.min(L.maxWidth ?? 640, Math.round((L.height * aw) / ah / 2) * 2));
-    const h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
+    let w = tall ? P.width : Math.max(L.width, Math.min(L.maxWidth ?? 640, Math.round((L.height * aw) / ah / 2) * 2));
+    let h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
+    // Maus-Geräte: Bildausschnitt so wählen, dass ein ganzzahliger Faktor das Fenster (fast) füllt – scharfe Pixel auch
+    // bei 1280×720 (640×360 ×2), 1366×768, 1440×900 (480×300 ×3) usw. Größter Faktor mit mindestens 85 % Fläche gewinnt.
+    const coarse = document.documentElement.classList.contains('ef-touch') || window.matchMedia?.('(pointer: coarse)').matches;
+    if (!tall && !coarse) {
+      for (let k = Math.floor(Math.min(aw / L.width, ah / L.height)); k >= 2; k--) {
+        const cw = Math.min(L.maxWidth ?? 640, Math.floor(aw / k / 2) * 2), ch = Math.min(L.maxHeight ?? 360, Math.floor(ah / k / 2) * 2);
+        if (cw < L.width || ch < L.height) continue;
+        if ((cw * k * ch * k) / (aw * ah) >= 0.85) { w = cw; h = ch; break; }
+      }
+    }
     if (w === CONFIG.viewWidth && h === CONFIG.viewHeight) return;
     CONFIG.viewWidth = w; CONFIG.viewHeight = h;
     this.#ensureView(CONFIG.renderScale);

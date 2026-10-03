@@ -1,4 +1,3 @@
-import { PAL } from '../gfx/Palette.js';
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, Animation } from '../gfx/Sprite.js';
 import { hash2 } from '../core/math.js';
@@ -23,20 +22,20 @@ const W = 220, H = 150, AX = 100, AY = 140;
 const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Schwert steckt im Boden)
 
 // Bronze, alt und nachgedunkelt
-const BRZ = ['#1a140e', '#31230f', '#523a1d', '#7a5a30', '#a4834c', '#cfb27c'];
+const BRZ = ['#1a130c', '#36270f', '#5a411d', '#84632f', '#ae8848', '#d8bc86'];
 // Grünspan
 const VER = ['#15302c', '#22504a', '#337564', '#56a088', '#8cc8a8'];
 // Ausgedörrte Haut
-const SKIN = ['#1e1a18', '#3a322c', '#5a4e42', '#7e705c', '#a4967c'];
+const SKIN = ['#1c1714', '#3c322a', '#665748', '#958267', '#c6b693'];
 // Geweih / Knochen
 const ANT = ['#2e261e', '#5a4c3c', '#8a7a62', '#b8a888', '#e2d6b8'];
 // Bart und Haar (fahl)
 const BEARD = ['#3a3a3a', '#66645e', '#95928a', '#c4c0b4', '#e8e4da'];
 // Umhang: modriges Wolltuch, grünlich-grau
-const CAPE = ['#0c1012', '#161e22', '#22302f', '#2f4340', '#40584f'];
+const CAPE = ['#0a1014', '#142028', '#1f3440', '#2d4a54', '#45686a'];
 // Stoff unter der Rüstung
 const CLOTH = ['#120e10', '#221a1c', '#342628', '#48363a'];
-const LEATHER = PAL.leather;
+const LEATHER = ['#1a0d0b', '#3a1a12', '#5e2e1c', '#8a4828'];
 const VOID = '#050608';
 const RIM = [176, 226, 214];
 
@@ -369,7 +368,7 @@ function drawUlgrim(p, g, P, extra = {}) {
   // --- 5. Hals, Kopf, Bart, Geweihkrone
   p.rect(neckX - 2, neckY - 4, 4, 4, SKIN[1]); p.px(neckX - 2, neckY - 4, SKIN[2]);
   p.line(neckX - 1, neckY - 3, neckX + 1, neckY - 1, SKIN[0]);
-  head(p, g, hx, hy, P, meta, gy);
+  const beard = head(p, g, hx, hy, P, meta, gy);
 
   // --- 6. Schwung-Schleier
   if (extra.smear) smear(p, g, shF.x, shF.y + (extra.flat ? 8 : 2), extra.smear[0], extra.smear[1], 26, 60, extra.rev, extra.flat ?? 1);
@@ -391,6 +390,10 @@ function drawUlgrim(p, g, P, extra = {}) {
   hand(p, hF.x, hF.y, false, false);
   if (P.grip > 0.5) hand(p, hB.x, hB.y, false, false);
   pauldron(p, g, shF.x, shF.y, 5.5, 4.5, litB, true);
+  beard();
+  // Hände liegen vor dem Bart
+  hand(p, hF.x, hF.y, false, false);
+  if (P.grip > 0.5) hand(p, hB.x, hB.y, false, false);
   meta.hand = { x: hF.x, y: hF.y };
 
   // Geisterfeuer in der Zauberhand
@@ -520,75 +523,89 @@ function pauldron(p, g, x, y, rx, ry, ramp, front) {
   if (front) { p.px(x - 2, y - ry + 1, BRZ[5]); p.px(x - 1, y - ry + 1, BRZ[5]); p.px(x + 2, y - 1, VER[2]); }
 }
 
-// Kopf: ausgedörrter Schädel, Geisterflammen in den Augenhöhlen, Bart, Geweihkrone.
+// Kopf: ausgedörrter Schädel in Dreiviertelansicht (zwei Augenhöhlen mit
+// Geisterflammen, Nasenloch, freiliegende Zähne), Haar, Geweihkrone.
+// Gibt eine Funktion zurück, die den Bart zeichnet (kommt vor Brust und Schulter).
+const FACE = [
+  //            0123456789ABCD
+  [0, '...12333321...'],
+  [1, '..1234444321..'],
+  [2, '.123444444431.'],
+  [3, '12344444444431'],
+  [4, '12333444444442'],
+  [5, '1233110VVV3VV1'],
+  [6, '123211VVGV2VF1'],
+  [7, '122221VVVV3VV.'],
+  [8, '.12222344432V2'],
+  [9, '.0112211112VV.'],
+  [10, '..0112TtTtT1..'],
+];
+const JAW = [
+  [0, '..0112tTtT1...'],
+  [1, '...01222221...'],
+  [2, '....01111.....'],
+];
 function head(p, g, hx, hy, P, meta, gy) {
   const j = Math.round(P.jaw * 3);
   const t = P.capeT;
+  const lit = P.eye > 0.1;
   // Hinteres Geweih (dunkler)
   if (P.crown < 0.02) antler(p, g, hx + 3, hy + 2, -1, P, false);
   // Haar: dünne Strähnen hinter dem Kopf
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 8; i++) {
     const x0 = hx + 1 + i * 0.6, y0 = hy + 3 + i * 0.5;
-    const len = 9 + (hash2(i, 1, 13) * 6 | 0);
+    const len = 10 + (hash2(i, 1, 13) * 6 | 0);
     let px0 = x0, py0 = y0;
     for (let k = 1; k <= len; k++) {
-      const x = x0 - k * 0.4 - P.cape * k * 0.25 + Math.sin(t + k * 0.4 + i) * 0.5 * (k / len), y = y0 + k;
-      p.line(px0, py0, x, y, BEARD[i % 3 === 0 ? 1 : i % 3 === 1 ? 2 : 3]);
+      const x = x0 - 1 - k * 0.4 - P.cape * k * 0.25 + Math.sin(t + k * 0.4 + i) * 0.5 * (k / len), y = y0 + k;
+      const hc = BEARD[i % 3 === 0 ? 1 : i % 3 === 1 ? 2 : 3];
+      p.line(px0, py0, x, y, hc); p.px(x + 1, y, i < 2 ? BEARD[1] : hc);
       px0 = x; py0 = y;
     }
   }
-  // Schädel
-  p.ellipse(hx + 5.5, hy + 6, 5.5, 6, SKIN[1]);
-  p.ellipse(hx + 5, hy + 5, 4.3, 4.5, SKIN[2]);
-  p.ellipse(hx + 4, hy + 3.8, 2.4, 1.8, SKIN[3]);
-  p.px(hx + 3, hy + 3, SKIN[4]);
-  p.px(hx + 6, hy + 7, SKIN[1]); p.px(hx + 7, hy + 7, SKIN[1]); // Schläfe eingefallen
-  // Gesicht nach vorn
-  p.rect(hx + 8, hy + 4, 4, 6, SKIN[2]);
-  p.rect(hx + 7, hy + 4, 6, 1, SKIN[3]); p.px(hx + 12, hy + 4, SKIN[2]); // Brauenwulst
-  p.rect(hx + 8, hy + 5, 3, 2, VOID); // Augenhöhle
-  p.px(hx + 12, hy + 5, SKIN[3]); p.px(hx + 12, hy + 6, SKIN[3]); p.px(hx + 13, hy + 7, SKIN[2]); p.px(hx + 12, hy + 7, SKIN[2]); // Nase
-  p.px(hx + 12, hy + 8, VOID); // Nasenloch
-  p.px(hx + 8, hy + 7, SKIN[3]); p.px(hx + 9, hy + 7, SKIN[3]); // Wangenknochen
-  p.rect(hx + 8, hy + 8, 3, 1, SKIN[1]); // eingefallene Wange
-  if (P.eye > 0.1) {
+  const put = (rows, oy) => {
+    for (const [y, s] of rows) for (let x = 0; x < s.length; x++) {
+      const ch = s[x];
+      if (ch === '.') continue;
+      let c;
+      if (ch >= '0' && ch <= '4') c = SKIN[+ch];
+      else if (ch === 'V') c = VOID;
+      else if (ch === 'T') c = ANT[4];
+      else if (ch === 't') c = ANT[2];
+      else if (ch === 'G') c = lit ? GH[4] : VOID;
+      else if (ch === 'F') c = lit ? GH[3] : VOID;
+      p.px(hx + x, hy + oy + y, c);
+    }
+  };
+  put(FACE, 0);
+  // Mund: Kiefer klappt auf, dahinter Schwärze mit Geisterlicht
+  if (j) {
+    for (let k = 0; k < j; k++) { p.rect(hx + 4, hy + 11 + k, 8, 1, k === 0 ? SKIN[0] : VOID); p.px(hx + 3, hy + 11 + k, SKIN[1]); }
+    g.px(hx + 9, hy + 11 + Math.floor(j / 2), P.jaw > 0.6 ? 2 : 1);
+    g.epx(hx + 9, hy + 11, 3); if (j > 1) g.epx(hx + 8, hy + 12, 3);
+  }
+  put(JAW, 11 + j);
+  const ly = hy + 13 + j;
+  if (lit) {
     const e = P.eye;
-    g.px(hx + 9, hy + 5, 2 + 2 * e); g.px(hx + 10, hy + 5, 1 + 2 * e); g.px(hx + 8, hy + 5, 1 + e);
-    g.px(hx + 9, hy + 6, 1 + 2 * e); g.px(hx + 8, hy + 6, 1 + e); g.px(hx + 10, hy + 6, 1 + e);
+    // nahe Augenhöhle: heller Kern, Flammenkranz
+    g.px(hx + 8, hy + 6, 2 + 2 * e); g.px(hx + 7, hy + 6, 1 + 1.5 * e); g.px(hx + 9, hy + 6, 1 + e);
+    g.px(hx + 8, hy + 5, 1 + e); g.px(hx + 8, hy + 7, 1 + e); g.px(hx + 7, hy + 7, e);
+    // ferne Augenhöhle
+    g.px(hx + 12, hy + 6, 1 + 1.5 * e); g.px(hx + 11, hy + 6, 0.5 + e); g.px(hx + 12, hy + 5, e);
     // Geisterflamme züngelt aus der Höhle nach oben
     const fl = Math.round(1 + e * 1.5 + (Math.sin(t * 2.3) * 0.5 + 0.5) * 1.5);
-    for (let k = 1; k <= fl; k++) g.px(hx + 9 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 4 - k, k === 1 ? 3 : k < fl ? 2 : 1);
+    for (let k = 1; k <= fl; k++) g.px(hx + 8 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 5 - k, k === 1 ? 3 : k < fl ? 2 : 1);
+    g.px(hx + 12, hy + 4, 1 + e);
     // Phase 2: lange Flammenfahne nach hinten
     for (let k = 1; k <= 8; k++) {
-      const x = hx + 9 - k * 1.2 - P.cape * k * 0.2, y = hy + 4 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
+      const x = hx + 8 - k * 1.2 - P.cape * k * 0.2, y = hy + 5 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
       g.epx(x, y, k < 3 ? 4 : k < 6 ? 3 : 2);
       if (k < 5) g.epx(x, y + 1, 2);
     }
   }
-  meta.eye = { x: hx + 9, y: hy + 5 };
-  // Mund: Zahnreihe, Kiefer klappt auf
-  p.px(hx + 8, hy + 9, SKIN[0]);
-  p.px(hx + 9, hy + 9, ANT[3]); p.px(hx + 10, hy + 9, ANT[4]); p.px(hx + 11, hy + 9, ANT[3]); p.px(hx + 12, hy + 9, SKIN[1]);
-  if (j) {
-    p.rect(hx + 8, hy + 10, 5, j, VOID);
-    g.px(hx + 10, hy + 10 + Math.floor(j / 2), P.jaw > 0.6 ? 2 : 1);
-    g.epx(hx + 10, hy + 10, 3); if (j > 1) g.epx(hx + 9, hy + 11, 3);
-  }
-  const ly = hy + 10 + j;
-  p.rect(hx + 5, ly, 7, 2, SKIN[1]); p.rect(hx + 6, ly, 6, 1, SKIN[2]); p.px(hx + 10, ly, ANT[3]); p.px(hx + 11, ly, ANT[2]);
-  meta.mouth = { x: hx + 12, y: hy + 10 + Math.floor(j / 2) };
-  // Bart: lange, zerzauste Strähnen vom Kinn
-  for (let i = 0; i < 8; i++) {
-    const x0 = hx + 5 + i * 0.85, y0 = ly + 1;
-    const len = 8 + (hash2(i, 7, 13) * 5 | 0) - Math.abs(i - 4) * 0.9;
-    let px0 = x0, py0 = y0;
-    for (let k = 1; k <= len; k++) {
-      const x = x0 - k * 0.15 - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.5 + i * 0.7) * 0.45 * (k / len), y = y0 + k;
-      const c = i >= 7 ? BEARD[1] : i > 4 ? BEARD[k < 3 ? 3 : 2] : BEARD[k < 3 ? 4 : 3];
-      p.line(px0, py0, x, y, k > len - 2 ? BEARD[1] : c);
-      px0 = x; py0 = y;
-    }
-  }
+  meta.eye = { x: hx + 8, y: hy + 6 };
+  meta.mouth = { x: hx + 11, y: hy + 11 + Math.floor(j / 2) };
   // Bronzereif mit Geweih
   if (P.crown < 0.02) {
     crownBand(p, g, hx, hy + 2, 0);
@@ -598,6 +615,23 @@ function head(p, g, hx, hy, P, meta, gy) {
     crownBand(p, g, cx, cy, P.crown);
   }
   meta.head = { x: hx + 6, y: hy - 8 };
+  // Bart: lange, zerzauste Strähnen vom Kinn, fällt über die Brust
+  return () => {
+    for (let i = 0; i < 11; i++) {
+      const x0 = hx + 3 + i * 0.75, y0 = ly - 2 + Math.abs(i - 5) * 0.25;
+      const len = 11 + (hash2(i, 7, 13) * 5 | 0) - Math.abs(i - 5) * 1.1;
+      let px0 = x0, py0 = y0;
+      for (let k = 1; k <= len; k++) {
+        const x = x0 - k * 0.2 - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.5 + i * 0.7) * 0.45 * (k / len), y = y0 + k;
+        const c = i >= 9 ? BEARD[1] : i > 6 ? BEARD[k < 4 ? 3 : 2] : i < 2 ? BEARD[2] : BEARD[k < 4 ? 4 : 3];
+        p.line(px0, py0, x, y, k > len - 2 ? BEARD[1] : (i % 3 === 1 && k > 3 ? BEARD[2] : c));
+        px0 = x; py0 = y;
+      }
+    }
+    // Bartspange aus Bronze
+    const cy = ly + 4;
+    p.rect(hx + 5, cy, 3, 2, BRZ[3]); p.px(hx + 5, cy, BRZ[5]); p.px(hx + 7, cy + 1, BRZ[1]);
+  };
 }
 
 function crownBand(p, g, x, y, fall) {
@@ -667,6 +701,7 @@ function cape(p, g, tx, ty, gy, P) {
       let c = CAPE[v > 0.75 && shade > 0 ? shade - 1 : shade];
       if (v < 0.07 && shade > 1) c = CAPE[4];
       p.px(x, top + j, c);
+      if (i < N - 1) p.px(x + 1, top + j, c);   // keine Lücken zwischen den Bahnen
       lx = x;
     }
     // Geisterschimmer am Saum

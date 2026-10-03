@@ -113,9 +113,9 @@ export class Malgareth extends Actor {
     world.bus.emit(EV.BOSS_ENGAGED, { bossId: this.bossId, name: this.def.name });
     world.session.camera?.shake(4);
     ashBurst(world, this.x, this.y - 20, 20);
-    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -44, radius: 100, color: FIRE_RGB, intensity: 0.55, flicker: 0.2, bloom: 0.35 }));
+    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -50, radius: 110, color: FIRE_RGB, intensity: 0.55, flicker: 0.2, bloom: 0.35 }));
     // weiches Füll-Licht von vorn oben: die dunkle Obsidianfigur bleibt auch im Schatten lesbar
-    this.fillLight = world.addLight(new Light({ follow: this, offsetX: 10, offsetY: -46, radius: 70, color: [235, 205, 190], intensity: 0.5, flicker: 0, bloom: 0 }));
+    this.fillLight = world.addLight(new Light({ follow: this, offsetX: 12, offsetY: -56, radius: 84, color: [235, 205, 190], intensity: 0.5, flicker: 0, bloom: 0 }));
   }
 
   update(dt, world) {
@@ -145,18 +145,18 @@ export class Malgareth extends Actor {
     switch (this.state) {
       case 'sleep':
         this.vx = this.vy = 0;
-        if (Math.random() < dt * 2) world.particles.embers(this.x + rand(-8, 8), this.y - rand(20, 50), 1);
+        if (Math.random() < dt * 2) world.particles.embers(this.x + rand(-9, 9), this.y - rand(24, 60), 1);
         break;
 
       case 'intro':
         this.vx = this.vy = 0;
-        if (this.stateTime > 0.9 && this.stateTime < 1.4 && Math.random() < dt * 30) world.particles.embers(this.x + rand(-10, 16), this.y - rand(40, 70), 1);
+        if (this.stateTime > 0.9 && this.stateTime < 1.4 && Math.random() < dt * 30) world.particles.embers(this.x + rand(-12, 18), this.y - rand(48, 84), 1);
         if (this.stateTime > 2.1) { this.hurtable = true; this.cooldown = 0.6; this.setState('chase'); }
         break;
 
       case 'transform':
         this.vx *= 0.7; this.vy *= 0.7;
-        if (Math.random() < dt * 40) world.particles.element(this.x + rand(-26, 20), this.y - rand(10, 70), 'fire', 1, 4);
+        if (Math.random() < dt * 40) world.particles.element(this.x + rand(-30, 24), this.y - rand(12, 84), 'fire', 1, 4);
         if (Math.random() < dt * 20) ashBurst(world, this.x + rand(-20, 20), this.y - rand(0, 30), 1);
         if (this.animator.finished && this.stateTime > 0.5) {
           this.hurtable = true;
@@ -173,7 +173,7 @@ export class Malgareth extends Actor {
           const f = world.flow.direction(this.x, this.y - 2);
           if (f) { mx = f.x; my = f.y; }
         }
-        const want = dist > 46 ? spd : 0;
+        const want = dist > 52 ? spd : 0;
         const k = 1 - Math.exp(-dt * 5);
         this.vx += (mx * want - this.vx) * k;
         this.vy += (my * want - this.vy) * k;
@@ -255,11 +255,11 @@ export class Malgareth extends Actor {
     if (phase === 2) {
       world.bus.emit(EV.UI_BANNER, { title: 'Der Aschenfürst erhebt sich', sub: 'Malgareth ruft seine Thronwachen', color: BANNER });
       this.timers.summon = 1.5; this.timers.meteor = 4; this.timers.pillars = 7;
-      if (this.coreLight) { this.coreLight.intensity = 0.6; this.coreLight.radius = 115; this.coreLight.offsetY = -54; }
+      if (this.coreLight) { this.coreLight.intensity = 0.6; this.coreLight.radius = 125; this.coreLight.offsetY = -62; }
     } else {
       world.bus.emit(EV.UI_BANNER, { title: 'Der Thron zerbricht', sub: 'Die Arena reißt auf – nur das Gold bietet Schutz', color: '#ffe08a' });
       this.timers.channel = 22; this.timers.summon = 14; this.timers.meteor = 5;
-      if (this.coreLight) { this.coreLight.color = WHITE_RGB; this.coreLight.intensity = 0.85; this.coreLight.radius = 130; this.coreLight.offsetY = -58; }
+      if (this.coreLight) { this.coreLight.color = WHITE_RGB; this.coreLight.intensity = 0.85; this.coreLight.radius = 140; this.coreLight.offsetY = -66; }
     }
     world.bus.emit('bossPhase', { bossId: this.bossId, phase });
   }
@@ -283,10 +283,10 @@ export class Malgareth extends Actor {
     this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
     const T = this.timers, P = this.phase;
     if (P >= 3 && T.channel <= 0) return this.#beginChannel(world);
-    if (P >= 2 && T.summon <= 0 && this.adds.length < 2) { T.summon = P >= 3 ? rand(20, 24) : rand(18, 22); return this.#beginInvoke(world, 'summon'); }
+    if (P >= 2 && T.summon <= 0 && this.adds.length < 2) { T.summon = P >= 3 ? rand(17, 21) : rand(16, 20); return this.#beginInvoke(world, 'summon'); }
     const opts = [];
     const add = (id, w) => { if (w > 0) opts.push([id, id === this.last ? w * 0.25 : w]); };
-    if (dist < 64) { add('combo', 4); if (T.wave <= 0) add('wave', 1.2); if (P >= 2 && T.pillars <= 0) add('pillars', 1); }
+    if (dist < 72) { add('combo', 4); if (T.wave <= 0) add('wave', 1.2); if (P >= 2 && T.pillars <= 0) add('pillars', 1); }
     else if (dist < 150) {
       if (T.thrust <= 0) add('thrust', 2.2);
       if (T.wave <= 0) add('wave', 2.5);
@@ -313,8 +313,8 @@ export class Malgareth extends Actor {
       case 'thrust': T.thrust = rand(4, 6) * q; this.combo = { steps: ['thrust'], i: 0 }; return this.#comboStep(world, 0.85 * q);
       case 'wave': T.wave = rand(6, 8) * q; return this.#beginWave(world);
       case 'spears': T.spears = rand(6, 8) * q; return this.#beginSpears(world);
-      case 'meteor': T.meteor = rand(10, 13) * q; return this.#beginInvoke(world, 'meteor');
-      case 'pillars': T.pillars = rand(8, 10) * q; return this.#beginInvoke(world, 'pillars');
+      case 'meteor': T.meteor = rand(8.5, 11) * q; return this.#beginInvoke(world, 'meteor');
+      case 'pillars': T.pillars = rand(7, 9) * q; return this.#beginInvoke(world, 'pillars');
     }
   }
 
@@ -356,7 +356,7 @@ export class Malgareth extends Actor {
       return this.#begin(world, 'thrustWindup', wind, (w) => this.#thrust(w));
     }
     const arc = 2.3;
-    const tele = this.#tele(world, this.x, this.y - 4, { shape: 'arc', r: 62, angle: this.aim, arc, duration: wind, follow: this });
+    const tele = this.#tele(world, this.x, this.y - 4, { shape: 'arc', r: 72, angle: this.aim, arc, duration: wind, follow: this });
     this.#begin(world, kind === 'slash' ? 'slashWindup' : 'slash2Windup', wind, (w) => this.#slash(w, kind === 'slash2'), { track: wind * 0.45 });
     // Warnbogen folgt dem nachgeführten Blick
     this.pending.push(...[0.1, 0.2, 0.3].map((t) => ({ t: wind * t * 1.4, fn: () => { tele.angle = this.aim; } })));
@@ -365,14 +365,14 @@ export class Malgareth extends Actor {
   #slash(world, back) {
     this.setState('strike'); this.recover = 0.28;
     this.#play(back ? 'slash2' : 'slash');
-    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 64, angle: this.aim, arc: 2.3, damage: 80, knockback: 220, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 74, angle: this.aim, arc: 2.3, damage: 90, knockback: 220, heavy: true, ttl: 0.14 });
     this.kbx += Math.cos(this.aim) * 90; this.kby += Math.sin(this.aim) * 90;
     for (let i = 0; i < 9; i++) {
       const a = this.aim - 1.1 + i * 0.27;
-      world.particles.sparks(this.x + Math.cos(a) * 46, this.y - 10 + Math.sin(a) * 26, a, 2, this.enraged ? WHITE_FIRE : FIRE);
+      world.particles.sparks(this.x + Math.cos(a) * 54, this.y - 12 + Math.sin(a) * 30, a, 2, this.enraged ? WHITE_FIRE : FIRE);
     }
-    world.particles.dust(this.x + Math.cos(this.aim) * 26, this.y + Math.sin(this.aim) * 14, 6, '#4a3e3a');
-    world.addLight(new Light({ x: this.x + Math.cos(this.aim) * 34, y: this.y - 12, radius: 80, color: FIRE_RGB, intensity: 0.8, ttl: 0.22, bloom: 0.4 }));
+    world.particles.dust(this.x + Math.cos(this.aim) * 30, this.y + Math.sin(this.aim) * 16, 6, '#4a3e3a');
+    world.addLight(new Light({ x: this.x + Math.cos(this.aim) * 40, y: this.y - 14, radius: 90, color: FIRE_RGB, intensity: 0.8, ttl: 0.22, bloom: 0.4 }));
     world.session.camera?.shake(4);
     world.session.hitstop?.(0.04);
     world.bus.emit('enemySwing', { actor: this, heavy: true });
@@ -386,7 +386,7 @@ export class Malgareth extends Actor {
     // Treffer entlang der markierten Linie (Klinge + Glutstrahl)
     const h = world.hero;
     const ax = this.x, ay = this.y, bx = this.x + ca * len, by = this.y + sa * len * 0.75;
-    if (!h.dead && segDist(h.x, h.y, ax, ay, bx, by) < 11 + (h.hurtRadius ?? 6)) hurtHero(world, this, 105, ca, sa, 260, true);
+    if (!h.dead && segDist(h.x, h.y, ax, ay, bx, by) < 11 + (h.hurtRadius ?? 6)) hurtHero(world, this, 130, ca, sa, 260, true);
     for (let s = 20; s < len; s += 8) {
       const x = this.x + ca * s, y = this.y + sa * s * 0.75;
       world.particles.spawn({ x, y, z: 14, vx: ca * rand(60, 140), vy: sa * rand(40, 90), vz: rand(-10, 20), drag: 4, life: rand(0.25, 0.45), colors: this.enraged ? WHITE_FIRE : FIRE, emissive: true, size: 2, shrink: true });
@@ -404,7 +404,7 @@ export class Malgareth extends Actor {
       return this.#comboStep(world, [0.55, 0.5, 0.42][this.phase - 1]);
     }
     this.combo = null;
-    this.cooldown = [0.9, 0.7, 0.5][this.phase - 1] + rand(0, 0.4);
+    this.cooldown = [0.8, 0.55, 0.4][this.phase - 1] + rand(0, 0.35);
     this.setState('chase');
   }
 
@@ -425,11 +425,11 @@ export class Malgareth extends Actor {
   #wave(world) {
     this.setState('strike'); this.recover = 0.75;
     this.#play('wave');
-    const ix = this.x + Math.cos(this.aim) * 24, iy = this.y + Math.sin(this.aim) * 14;
+    const ix = this.x + Math.cos(this.aim) * 28, iy = this.y + Math.sin(this.aim) * 16;
     for (const { a, len } of this.waves) {
-      this.#hazard(world, new AshWave(this.x + Math.cos(a) * 8, this.y + Math.sin(a) * 6, a, len - 8, this, { width: this.phase === 1 ? 30 : 22, speed: [200, 225, 250][this.phase - 1], damage: 150 }));
+      this.#hazard(world, new AshWave(this.x + Math.cos(a) * 8, this.y + Math.sin(a) * 6, a, len - 8, this, { width: this.phase === 1 ? 30 : 22, speed: [200, 230, 260][this.phase - 1], damage: 180 }));
     }
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 6, r: 26, damage: 150, knockback: 260, heavy: true, ttl: 0.12 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 6, r: 30, damage: 180, knockback: 260, heavy: true, ttl: 0.12 });
     world.particles.dust(ix, iy, 20, '#4a3e3a');
     ashBurst(world, ix, iy, 16, 1.2);
     world.particles.ring(ix, iy, 8, 26, FIRE, 120);
@@ -459,7 +459,7 @@ export class Malgareth extends Actor {
       const delay = wind + 0.12 + i * 0.1 * (this.phase >= 3 ? 0.6 : 1);
       const len = Math.min(300, this.#rayLengthFrom(world, sx, sy, a));
       this.#tele(world, sx, sy, { shape: 'line', angle: a, len, width: 9, duration: delay, color: WARN_FIRE });
-      spears.push(this.#hazard(world, new EmberSpear(sx, sy, a, this, { delay, damage: 70, len })));
+      spears.push(this.#hazard(world, new EmberSpear(sx, sy, a, this, { delay, damage: 80, len })));
     }
     if (this.phase >= 3) {
       // zweite Salve (Kreuzfeuer): zielt auf die Stelle, an die der Held ausweicht
@@ -481,7 +481,7 @@ export class Malgareth extends Actor {
       const delay = 0.9 + i * 0.08;
       const len = Math.min(320, this.#rayLengthFrom(world, p.x, p.y, a));
       this.#tele(world, p.x, p.y, { shape: 'line', angle: a, len, width: 9, duration: delay, color: WARN_FIRE });
-      this.#hazard(world, new EmberSpear(p.x, p.y, a, this, { delay, damage: 70, len }));
+      this.#hazard(world, new EmberSpear(p.x, p.y, a, this, { delay, damage: 80, len }));
     }
     world.bus.emit('cast', { actor: this, element: 'fire' });
   }
@@ -496,6 +496,8 @@ export class Malgareth extends Actor {
     // Warnungen der Säulen und Meteore beginnen sofort mit dem Ausholen
     if (kind === 'pillars') this.#pillars(world, wind);
     if (kind === 'meteor') this.#meteors(world, wind);
+    // Beschwörung mit Begleitregen: Thronwachen kommen nie allein
+    if (kind === 'summon') this.#meteors(world, wind + 0.3, this.phase >= 3 ? 5 : 3);
   }
 
   #invoke(world, kind) {
@@ -506,9 +508,9 @@ export class Malgareth extends Actor {
     if (kind === 'summon') this.#summon(world);
   }
 
-  #meteors(world, wind) {
+  #meteors(world, wind, count = 0) {
     const h = world.hero, A = this.#arena(world);
-    const n = [0, 6, 9][this.phase - 1];
+    const n = count || [0, 6, 9][this.phase - 1];
     for (let i = 0; i < n; i++) {
       let tx, ty;
       if (i === 0) { tx = h.x + (h.vx ?? 0) * 0.5; ty = h.y + (h.vy ?? 0) * 0.5; }
@@ -521,7 +523,7 @@ export class Malgareth extends Actor {
       const delay = wind + 0.5 + i * 0.17 + rand(0, 0.12);
       const r = i === 0 ? 30 : 24;
       this.#tele(world, p.x, p.y, { shape: 'circle', r, duration: delay, color: WARN_FIRE });
-      this.#hazard(world, new ObsidianMeteor(p.x, p.y, this, { delay, damage: i === 0 ? 160 : 130, r, big: i === 0 }));
+      this.#hazard(world, new ObsidianMeteor(p.x, p.y, this, { delay, damage: i === 0 ? 200 : 160, r, big: i === 0 }));
     }
     world.bus.emit('bossMeteors', { bossId: this.bossId, count: n });
   }
@@ -541,7 +543,7 @@ export class Malgareth extends Actor {
         if (world.dungeon.isWall(tx, ty)) break;
         const delay = wind + 0.35 + i * 0.13;
         this.#tele(world, x, y, { shape: 'circle', r: 17, duration: delay, color: WARN_FIRE });
-        this.#hazard(world, new FirePillar(x, y, this, { delay, damage: 120, r: 17 }));
+        this.#hazard(world, new FirePillar(x, y, this, { delay, damage: 150, r: 17 }));
       }
     }
     world.bus.emit('bossPillars', { bossId: this.bossId });
@@ -586,7 +588,7 @@ export class Malgareth extends Actor {
 
   #beginChannel(world) {
     this.#cancel(world);
-    this.timers.channel = rand(24, 28);
+    this.timers.channel = rand(20, 24);
     this.setState('channelUp');
     this.animator.play('channelUp', true);
     const A = this.#arena(world), h = world.hero, mid = this.#arenaCenter(world);
@@ -603,7 +605,7 @@ export class Malgareth extends Actor {
     }
     const dur = 4.4;
     this.channelDur = dur;
-    this.cataclysm = this.#hazard(world, new Cataclysm(best.x, best.y, this, { arena: A, duration: dur + 0.7, damage: 230, r: 30 }));
+    this.cataclysm = this.#hazard(world, new Cataclysm(best.x, best.y, this, { arena: A, duration: dur + 0.7, damage: 340, r: 30 }));
     world.bus.emit(EV.UI_BANNER, { title: 'Weltenbrand', sub: 'Flieh in den goldenen Kreis!', color: '#ffe08a' });
     world.bus.emit('bossChannel', { bossId: this.bossId, active: true, x: best.x, y: best.y });
     world.bus.emit('cast', { actor: this, element: 'fire' });
@@ -658,7 +660,7 @@ export class Malgareth extends Actor {
   }
 
   #meta(key) {
-    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -50 };
+    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -58 };
     return { x: this.x + m.dx * this.facing, y: this.y + m.dy };
   }
 
@@ -673,7 +675,7 @@ export class Malgareth extends Actor {
     ];
     specs.forEach((pts, i) => {
       const P = pts.map(([u, v]) => ({ x: A.x0 + u * w + rand(-6, 6), y: A.y0 + v * h + rand(-4, 4) }));
-      const f = this.#hazard(world, new EmberFissure(P, this, { offset: 1.5 + i * 1.6, damage: 90 }));
+      const f = this.#hazard(world, new EmberFissure(P, this, { offset: 1.5 + i * 1.6, damage: 110 }));
       this.fissures.push(f);
     });
   }
@@ -699,7 +701,7 @@ export class Malgareth extends Actor {
       if (this.dead) return;
       const hero = world.hero, dx = hero.x - this.x, dy = hero.y - this.y, d = Math.hypot(dx, dy) || 1;
       if (this.state === 'transform') {
-        world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 170, duration: 1.0, damage: 60, color: [255, 150, 60] }));
+        world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 170, duration: 1.0, damage: 80, color: [255, 150, 60] }));
         ashBurst(world, this.x, this.y - 20, 30, 1.6);
         if (this.phase === 3 && !this.fissures.length) this.#spawnFissures(world);
       } else if (d < 120) { hero.kbx += (dx / d) * 260; hero.kby += (dy / d) * 260; }
@@ -720,15 +722,15 @@ export class Malgareth extends Actor {
       world.session.camera?.shake(3);
       world.bus.emit('bossCrownFall', { bossId: this.bossId, x: c.x, y: c.y });
     } else if (f.fx === 'ash') {
-      ashBurst(world, this.x, this.y - 40, 30, 1.2);
+      ashBurst(world, this.x, this.y - 48, 30, 1.2);
     }
   }
 
   #ambient(dt, world) {
     if (this.state === 'sleep' || this.dead) return;
     const rate = [3, 6, 12][this.phase - 1];
-    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-12, 12), this.y - rand(10, 60), 1);
-    if (Math.random() < dt * rate * 0.6) ashBurst(world, this.x + rand(-10, 10), this.y - rand(20, 60), 1, 0.4);
+    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-14, 14), this.y - rand(12, 72), 1);
+    if (Math.random() < dt * rate * 0.6) ashBurst(world, this.x + rand(-12, 12), this.y - rand(24, 72), 1, 0.4);
     if (this.phase >= 2 && Math.random() < dt * 14) {
       // Rauch sinkt vom Schwebenden zu Boden
       world.particles.spawn({ x: this.x + rand(-6, 6), y: this.y, z: rand(2, 10), vx: rand(-8, 8), vy: rand(-3, 3), rise: rand(-4, 2), drag: 2, life: rand(0.6, 1.1), colors: ['#3a3040', '#2a2230', '#1c1620'], size: 2, alpha: 0.7, shrink: true });
@@ -741,12 +743,12 @@ export class Malgareth extends Actor {
 
   #deathTick(dt, world) {
     const t = this.stateTime;
-    if (t < 1.3 && Math.random() < dt * 30) world.particles.element(this.x + rand(-16, 16), this.y - rand(10, 60), 'fire', 1, 4);
+    if (t < 1.3 && Math.random() < dt * 30) world.particles.element(this.x + rand(-18, 18), this.y - rand(12, 72), 'fire', 1, 4);
     // Zerfall: Asche steigt auf, Glut stiebt
     if (t > 1.9 && t < 4.2) {
       const k = (t - 1.9) / 2.3;
-      const y = this.y - 66 * (1 - k);
-      for (let i = 0; i < 3; i++) if (Math.random() < 0.8) ashBurst(world, this.x + rand(-12, 10), y + rand(-4, 4), 1, 0.7);
+      const y = this.y - 78 * (1 - k);
+      for (let i = 0; i < 3; i++) if (Math.random() < 0.8) ashBurst(world, this.x + rand(-14, 12), y + rand(-4, 4), 1, 0.7);
       if (Math.random() < 0.6) world.particles.embers(this.x + rand(-12, 10), y, 1);
     }
     if (t > 4 && t < 9 && Math.random() < dt * 4) world.particles.embers(this.x + rand(-10, 10), this.y - rand(0, 4), 1);
@@ -755,7 +757,7 @@ export class Malgareth extends Actor {
   onHurt(hit) {
     if (this.state === 'sleep') return;
     if (this.state === 'chase' && hit?.heavy && Math.random() < 0.3) this.hurtAnim = 0.25;
-    if (this.world && Math.random() < 0.4) ashBurst(this.world, this.x + rand(-6, 6), this.y - rand(20, 50), 2, 0.6);
+    if (this.world && Math.random() < 0.4) ashBurst(this.world, this.x + rand(-7, 7), this.y - rand(24, 60), 2, 0.6);
     this.world?.bus.emit('bossHurt', { actor: this });
   }
 
@@ -776,10 +778,10 @@ export class Malgareth extends Actor {
     w.session.camera?.shake(10);
     if (this.coreLight) this.coreLight.dead = true;
     if (this.fillLight) this.fillLight.dead = true;
-    w.addLight(new Light({ x: this.x, y: this.y - 50, radius: 220, color: WHITE_RGB, intensity: 1.1, ttl: 1.3, bloom: 0.8 }));
+    w.addLight(new Light({ x: this.x, y: this.y - 58, radius: 220, color: WHITE_RGB, intensity: 1.1, ttl: 1.3, bloom: 0.8 }));
     this.deathLight = w.addLight(new Light({ follow: this, offsetY: -24, radius: 115, color: FIRE_RGB, intensity: 0.9, flicker: 0.25, ttl: 9, bloom: 0.3 }));
-    w.particles.ring(this.x, this.y - 40, 10, 50, WHITE_FIRE, 180);
-    for (let i = 0; i < 40; i++) w.particles.embers(this.x + rand(-20, 20), this.y - rand(10, 70), 1);
+    w.particles.ring(this.x, this.y - 48, 10, 50, WHITE_FIRE, 180);
+    for (let i = 0; i < 40; i++) w.particles.embers(this.x + rand(-22, 22), this.y - rand(12, 84), 1);
     w.bus.emit('spellImpact', { x: this.x, y: this.y - 30, element: 'fire', radius: 70, big: true });
   }
 
