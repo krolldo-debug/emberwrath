@@ -96,8 +96,8 @@ export const QUESTS = {
   q_bandit_camp: {
     title: 'Rauch über den Bäumen', giver: 'warden_ilsa', main: true, level: 7, requires: ['q_boar_cull'],
     summary: 'Finde das Banditenlager und zerschlage die Bande.',
-    offer: 'Banditen plündern die Flüchtlinge aus der Senke. Ihr Lager liegt tiefer im Wald – folge dem Rauch. Zehn weniger, und sie überlegen es sich zweimal.',
-    progressText: 'Das Lager liegt dort, wo der Rauch am dichtesten ist.',
+    offer: 'Banditen plündern die Flüchtlinge aus der Senke. Ihr Lager liegt im Osten des Waldes – folge dem Rauch. Zehn weniger, und sie überlegen es sich zweimal.',
+    progressText: 'Das Lager liegt im Osten des Aschenwalds, dort, wo der Rauch am dichtesten ist.',
     completeText: 'Die Flüchtlinge können wieder atmen. Aber ihr Anführer lebt noch.',
     objectives: [
       { id: 'camp', text: 'Banditenlager gefunden', count: 1, kind: 'reach', target: 'bandit_camp', zone: 'ashwood' },
@@ -118,7 +118,7 @@ export const QUESTS = {
     title: 'Die Totems am Ufer', giver: 'warden_ilsa', main: true, level: 9, requires: ['q_bandit_chief'],
     summary: 'Entzünde die drei Schutztotems am Ufer des Versunkenen Tempels.',
     offer: 'Aus dem See steigen Ertrunkene. Die alten Totems am Ufer hielten sie einst zurück. Entzünde alle drei, dann können wir den Tempel betreten.',
-    progressText: 'Die Totems stehen am Ufer vor dem Tempel. Berühre jedes einzelne.',
+    progressText: 'Die Totems stehen am Ufer im Südosten des Waldes, vor dem Tempel. Berühre jedes einzelne.',
     completeText: 'Das Wasser ist still. Jetzt ist der Weg zum Tempel frei.',
     objectives: [
       { id: 'shore', text: 'Ufer des Tempels erreicht', count: 1, kind: 'reach', target: 'temple_shore', zone: 'ashwood' },
@@ -142,7 +142,7 @@ export const QUESTS = {
     title: 'Zu den Schlackenhöhen', giver: 'warden_ilsa', turnInNpc: 'commander_hale', main: true, level: 12, requires: ['q_nerith'],
     summary: 'Steige zu den Schlackenhöhen auf und melde dich bei Kommandant Hale.',
     offer: 'Der Berg ist die Quelle von allem. Kommandant Hale hält die Feste Rauhwacht am Aufstieg. Er hat nach jemandem wie dir gefragt.',
-    progressText: 'Folge der Straße bergauf zu den Schlackenhöhen.',
+    progressText: 'Folge der Straße im Nordosten des Aschenwalds bergauf zu den Schlackenhöhen.',
     completeText: 'Ilsa hat nicht übertrieben. Willkommen in Rauhwacht – hier oben brennt die Luft.',
     objectives: [{ id: 'travel', text: 'Schlackenhöhen erreicht', count: 1, kind: 'reach', target: ['zone:cinder_peaks', 'rookwatch'], zone: 'ashwood' }],
     rewards: { xp: Q(12, 0.3), gold: 30, items: [{ itemId: 'greater_potion', qty: 3 }] },
@@ -161,8 +161,8 @@ export const QUESTS = {
   q_lost_satchel: {
     title: 'Die verlorene Tasche', giver: 'herbalist_oona', level: 8, requires: ['q_road_east'],
     summary: 'Finde Oonas Kräutertasche, die sie auf der Flucht verloren hat.',
-    offer: 'Als die Banditen kamen, habe ich meine Kräutertasche fallen lassen. Irgendwo im Wald, nahe dem alten Pfad. Ohne sie kann ich kaum etwas brauen.',
-    progressText: 'Die Tasche liegt irgendwo am alten Pfad.',
+    offer: 'Als die Banditen kamen, habe ich meine Kräutertasche fallen lassen. Irgendwo im Südwesten des Waldes, nahe dem alten Pfad. Ohne sie kann ich kaum etwas brauen.',
+    progressText: 'Die Tasche liegt im Südwesten des Aschenwalds, am alten Pfad.',
     completeText: 'Meine Tasche! Alles noch da. Nimm dafür diesen Talisman – er hat mir Glück gebracht.',
     objectives: [{ id: 'satchel', text: 'Kräutertasche gefunden', count: 1, kind: 'interact', target: ['lost_satchel'], zone: 'ashwood' }],
     rewards: { xp: Q(8, 0.35), gold: 25, gear: [{ ilvl: 8, rarity: 'uncommon', slot: 'ring' }] },

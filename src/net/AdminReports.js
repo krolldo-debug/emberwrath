@@ -54,7 +54,7 @@ export function renderChatReports(client) {
         h('span.net-adm-meta', `${fmt(r.created_at)} · ${r.zone || '?'} · Welt ${r.world}`),
         h('span.net-adm-badge', STATUS[r.status] ?? r.status)),
       h('dl.net-adm-who',
-        h('dt', 'Gemeldet'), h('dd', `${r.reported_name} · ${r.reported_email ?? 'Konto gelöscht'} · ${r.reports_against} ${r.reports_against === 1 ? 'Meldung' : 'Meldungen'} insgesamt${r.muted_until ? ` · gesperrt bis ${fmt(r.muted_until)}` : ''}`),
+        h('dt', 'Gemeldet'), h('dd', `${r.reported_name} · ${r.reported_email ?? 'Konto gelöscht'} · ${Number(r.reports_against)} ${Number(r.reports_against) === 1 ? 'Meldung' : 'Meldungen'} insgesamt${r.muted_until ? ` · gesperrt bis ${fmt(r.muted_until)}` : ''}`),
         h('dt', 'Meldet'), h('dd', `${r.reporter_name} · ${r.reporter_email ?? 'Konto gelöscht'}${r.good_faith ? ' · Angaben bestätigt' : ''}`)),
       r.note ? h('blockquote.net-adm-note-text', r.note) : null,
       h('div.net-adm-chat', messages.length
