@@ -62,13 +62,40 @@ export class Telegraph extends Entity {
     ctx.fill();
     ctx.restore();
   }
-  // Emissive-Pass: nur die Kontur, damit Figuren darin sichtbar bleiben
+  // Emissive-Pass: lesbarer Rand auf jedem Boden – dunkle Kontur außen/innen, darauf ein heller,
+  // zur Gefahrenfarbe getönter Rand. Dazu die wachsende Innenkante (Zeitpunkt des Schlags)
+  // und ein leichter Farbschleier, damit der Farbcode auch im Dunkeln erhalten bleibt.
   renderEmissive(ctx, cx, cy) {
     const k = Math.min(1, this.t / this.duration);
     const [r, g, b] = this.color;
+    const thin = this.shape === 'line' && this.width < 8;
+    const pulse = k > 0.7 ? 0.5 + 0.5 * Math.sin(this.t * 26) : 0;
+    const lite = (v, m) => Math.min(255, Math.round(v + (255 - v) * m));
     ctx.save();
-    ctx.globalAlpha = 0.5 + 0.4 * Math.sin(this.t * 22) * (k > 0.7 ? 1 : 0.3);
-    ctx.strokeStyle = `rgb(${Math.min(255, r + 60)},${Math.min(255, g + 90)},${Math.min(255, b + 60)})`;
+    ctx.lineJoin = 'round';
+    // Farbschleier (nach der Beleuchtung, also auch auf dunklem Boden in Gefahrenfarbe)
+    ctx.globalAlpha = 0.05 + 0.08 * k;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    this.#path(ctx, cx, cy);
+    ctx.fill();
+    // Wachsende Innenkante: zeigt, wann der Schlag kommt
+    if (k > 0.08 && k < 0.99) {
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = `rgb(${lite(r, 0.35)},${lite(g, 0.35)},${lite(b, 0.35)})`;
+      ctx.lineWidth = 1;
+      this.#path(ctx, cx, cy, this.shape === 'line' ? k : Math.max(0.05, k));
+      ctx.stroke();
+    }
+    // Dunkle Kontur
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = 'rgb(10,6,12)';
+    ctx.lineWidth = thin ? 2.5 : 3;
+    this.#path(ctx, cx, cy);
+    ctx.stroke();
+    // Heller Rand (kurz vor dem Schlag fast weiß und pulsierend)
+    const m = 0.55 + 0.35 * pulse;
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = `rgb(${lite(r, m)},${lite(g, m)},${lite(b, m)})`;
     ctx.lineWidth = 1;
     this.#path(ctx, cx, cy);
     ctx.stroke();

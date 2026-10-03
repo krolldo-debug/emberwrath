@@ -16,7 +16,7 @@ export const DEFS = {
   crystal_spider: {
     bodyHeight: 18, eye: { x: 10, y: -10 }, radius: 8, hurtRadius: 11, shadowW: 32, mass: 1.2, speed: 80,
     material: 'chitin', spawnStyle: 'fade', strafe: true, hitAndRun: 0.5,
-    attackPatch: { range: 56, windup: 0.4, lungeSpeed: 270, hitRadius: 10 },
+    attackPatch: { range: 56, windup: 0.5, lungeSpeed: 270, hitRadius: 10 },
   },
   // Im Eis erstarrter Ritter mit Zweihänder: langsamer Bodenschlag (slam), Eis bricht auf.
   frozen_knight: {

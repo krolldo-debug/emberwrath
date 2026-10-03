@@ -32,12 +32,14 @@ const WARN_POISON = [170, 235, 60], WARN_ROOT = [255, 90, 60];
 // Schaden (Magier-HP Stufe 32 ≈ 591): normal 8–12 %, groß 20–30 %
 const DMG = { lash: 66, sweep: 60, bolt: 38, lob: 44, cloud: 17, root: 84, burst: 150, roar: 40, ring: 24 };
 
-function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false) {
+// dot: Boden-/Wolken-Takt (Hero behandelt ihn ohne Betäubung/i-Frames)
+function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false, dot = false) {
   const h = world.hero;
   if (h.dead) return false;
   const hit = { damage: Math.round(damage * rand(0.9, 1.1)), dirX, dirY, knockback, source: owner, element: 'poison' };
+  if (dot) hit.dot = true;
   if (!h.takeHit(hit)) return false;
-  world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead, element: 'poison' });
+  world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy, dot, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead, element: 'poison' });
   return true;
 }
 
@@ -136,9 +138,21 @@ export class ToxicCloud extends Entity {
     }
     this.cool -= dt;
     const h = world.hero;
-    if (this.cool <= 0 && !h.dead && life < this.duration - 0.4 && Math.hypot(h.x - this.x, (h.y - this.y) / 0.6) < this.r) {
-      if (hurtHero(world, this.owner, this.damage, 0, -1, 10)) this.cool = this.tick;
+    if (this.cool <= 0 && !h.dead && !this.owner.dead && life < this.duration - 0.4 && Math.hypot(h.x - this.x, (h.y - this.y) / 0.6) < this.r) {
+      if (hurtHero(world, this.owner, this.damage, 0, -1, 10, false, true)) this.cool = this.tick;
     }
+  }
+  // Lit-Pass: dunkler Bodenfleck, damit sich das Feld vom (oft gleichfarbigen) Boden abhebt
+  render(ctx, cx, cy) {
+    if (!this.alive) return;
+    const life = this.t - this.delay;
+    const fade = Math.min(1, life * 3, (this.duration - life) * 1.2);
+    if (fade <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = 0.3 * fade;
+    ctx.fillStyle = '#0a060c';
+    ctx.beginPath(); ctx.ellipse(this.x - cx, this.y - cy, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
   renderEmissive(ctx, cx, cy) {
     if (!this.alive) return;
@@ -165,10 +179,16 @@ export class ToxicCloud extends Entity {
         ctx.fillRect(x, y - Math.round(hgt), 1, 1);
       }
     }
-    // Rand
-    ctx.globalAlpha = 0.35 * fade;
-    ctx.strokeStyle = c[2]; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.ellipse(this.x - cx, this.y - cy, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    // Rand: dunkle Kontur + heller Saum, damit das Giftfeld auf jedem Boden (auch violett auf violett) lesbar ist
+    ctx.save();
+    const ex = this.x - cx, ey = this.y - cy;
+    ctx.globalAlpha = 0.8 * fade;
+    ctx.strokeStyle = '#0a060c'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(ex, ey, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = (0.8 + 0.15 * Math.sin(this.t * 4)) * fade;
+    ctx.strokeStyle = c[3]; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(ex, ey, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
 }
@@ -423,7 +443,7 @@ export class ToxicRing extends Entity {
     const h = world.hero;
     if (this.cool <= 0 && !h.dead && this.outside(h.x, h.y)) {
       const dx = this.x - h.x, dy = this.y - h.y, d = Math.hypot(dx, dy) || 1;
-      if (hurtHero(world, this.owner, this.damage, dx / d, dy / d, 40)) {
+      if (hurtHero(world, this.owner, this.damage, dx / d, dy / d, 40, false, true)) {
         this.cool = this.tick;
         puff(world, h.x, h.y - 6, 6, GREEN, 0.8);
       }
@@ -657,8 +677,12 @@ export class RotMother extends Actor {
     this.setState('roar');
     this.animator.play('roar', true);
     world.session.slowmo?.(0.5, 0.5);
+    // Druckwelle beim Phasenwechsel: nur Rückstoß, kein Schaden (wie bei Varkhul)
     this.pending.push({ t: 0.4, fn: () => {
-      world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 140, duration: 0.9, damage: DMG.roar, color: this.enraged ? RAGE_RGB : VIOLET_RGB }));
+      const wave = world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 140, duration: 0.9, damage: 0, color: this.enraged ? RAGE_RGB : VIOLET_RGB }));
+      if (wave) wave.hitDone = true;
+      const h = world.hero, dx = h.x - this.x, dy = h.y - this.y, d = Math.hypot(dx, dy) || 1;
+      if (!h.dead && d < 140) { h.kbx += (dx / d) * 240; h.kby += (dy / d) * 240; }
     } });
   }
 
@@ -823,8 +847,8 @@ export class RotMother extends Actor {
       if (this.dead) return;
       const a = this.aim + (Math.random() < 0.5 ? -0.45 : 0.45);
       const l2 = this.#rayLength(w, a, 140);
-      w.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: a, len: l2, width: 18, duration: 0.45, color: WARN_ROOT }));
-      this.pending.push({ t: 0.45, fn: (w2) => { if (!this.dead) w2.spawn(new VineLash(this.x + Math.cos(a) * 14, this.y + Math.sin(a) * 8, a, l2 - 14, this, { width: 18 })); } });
+      w.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: a, len: l2, width: 18, duration: 0.5, color: WARN_ROOT }));
+      this.pending.push({ t: 0.5, fn: (w2) => { if (!this.dead) w2.spawn(new VineLash(this.x + Math.cos(a) * 14, this.y + Math.sin(a) * 8, a, l2 - 14, this, { width: 18 })); } });
     } });
   }
 

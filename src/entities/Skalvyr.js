@@ -31,7 +31,9 @@ const WARN = [255, 80, 60], WARN_ICE = [90, 170, 255], WARN_TAIL = [255, 120, 70
 const OUT = '#0a1220';
 
 // Schaden (Magier-HP Stufe 37 ≈ 673): normal 8–12 %, groß 20–30 %
-const DMG = { bite: 72, tail: 84, breath: 24, shard: 78, erupt: 165, wall: 68, nova: 175, novaRing: 66, roar: 40, field: 16 };
+// Release-Abstimmung: Schaden +20 %, Pausen zwischen Angriffen −25 % (PACE)
+const DMG = Object.fromEntries(Object.entries({ bite: 72, tail: 84, breath: 24, shard: 78, erupt: 165, wall: 68, nova: 175, novaRing: 66, roar: 40, field: 16 }).map(([k, v]) => [k, Math.round(v * 1.2)]));
+const PACE = 0.75;
 
 let shadowCanvas = null;
 function wyrmShadow() {
@@ -42,12 +44,14 @@ function wyrmShadow() {
   return (shadowCanvas = p.canvas);
 }
 
-function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false) {
+// dot: Boden-Takt (Frostfeld) – Hero behandelt ihn ohne Betäubung/i-Frames
+function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false, dot = false) {
   const h = world.hero;
   if (h.dead) return false;
   const hit = { damage: Math.round(damage * rand(0.9, 1.1)), dirX, dirY, knockback, source: owner };
+  if (dot) hit.dot = true;
   if (!h.takeHit(hit)) return false;
-  world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead });
+  world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy, dot, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead });
   return true;
 }
 
@@ -216,7 +220,7 @@ export class FrostField extends Entity {
     const h = world.hero, dx = h.x - this.x, dy = (h.y - this.y) / 0.6;
     if (!h.dead && Math.hypot(dx, dy) < this.r) {
       this.owner.chill(world, 0.5);
-      if (this.cool <= 0) { this.cool = 0.5; hurtHero(world, this.owner, this.damage, 0, 0, 0); }
+      if (this.cool <= 0 && !this.owner.dead) { this.cool = 0.5; hurtHero(world, this.owner, this.damage, 0, 0, 0, false, true); }
     }
   }
   renderEmissive(ctx, cx, cy) {
@@ -236,7 +240,10 @@ export class FrostField extends Entity {
       ctx.fillStyle = tw ? '#ffffff' : '#9ae4f8';
       ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3);
     }
-    ctx.strokeStyle = '#bff0ff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.5 * k;
+    // Rand: dunkle Kontur + heller Saum, lesbar auch auf blauem Eisboden
+    ctx.strokeStyle = '#06080e'; ctx.lineWidth = 3; ctx.globalAlpha = 0.75 * k;
+    ctx.beginPath(); ctx.ellipse(x, y, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#e8fbff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.85 * k;
     ctx.beginPath(); ctx.ellipse(x, y, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
@@ -429,7 +436,7 @@ export class Skalvyr extends Actor {
       case 'emerge':
         this.vx *= 0.8; this.vy *= 0.8;
         if (this.stateTime > 0.28 && !this.hurtable) this.hurtable = true;
-        if (this.animator.finished) { this.cooldown = this.enraged ? 0.35 : 0.7; this.setState('chase'); }
+        if (this.animator.finished) { this.cooldown = (this.enraged ? 0.35 : 0.7) * PACE; this.setState('chase'); }
         break;
 
       case 'strike':
@@ -485,9 +492,13 @@ export class Skalvyr extends Actor {
     this.setState('roar');
     this.animator.play('roar', true);
     world.session.slowmo?.(0.45, 0.6);
+    // Druckwelle beim Phasenwechsel: nur Rückstoß, kein Schaden (wie bei Varkhul)
     this.pending.push({ t: 0.4, fn: () => {
       if (this.dead) return;
-      world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 150, duration: 0.9, damage: DMG.roar, color: [150, 220, 255] }));
+      const wave = world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 150, duration: 0.9, damage: 0, color: [150, 220, 255] }));
+      if (wave) wave.hitDone = true;
+      const h = world.hero, dx = h.x - this.x, dy = h.y - this.y, d = Math.hypot(dx, dy) || 1;
+      if (!h.dead && d < 150) { h.kbx += (dx / d) * 240; h.kby += (dy / d) * 240; }
     } });
   }
 
@@ -533,7 +544,7 @@ export class Skalvyr extends Actor {
     this.setState(state);
     this.animator.play(anim, true);
     this.windup = windup;
-    this.cooldown = [1.1, 0.9, 0.6][this.phase - 1] + rand(0, 0.4);
+    this.cooldown = ([1.1, 0.9, 0.6][this.phase - 1] + rand(0, 0.4)) * PACE;
     world.bus.emit('telegraph', { actor: this, attack: state });
   }
 
@@ -560,7 +571,7 @@ export class Skalvyr extends Actor {
 
   #beginBite(world) {
     this.aim = this.#clampAim(this.aim, 0.75);
-    const w = 0.6 * this.quick;
+    const w = Math.max(0.5, 0.6 * this.quick);
     const c = this.#biteCenter();
     world.spawn(new Telegraph(c.x, c.y, { shape: 'arc', r: 46, angle: this.aim, arc: 1.6, duration: w }));
     this.#begin(world, 'biteWindup', 'biteWindup', w);
@@ -584,13 +595,13 @@ export class Skalvyr extends Actor {
     // Raserei: zweiter, schnellerer Biss
     if (this.enraged && !this.doubled && Math.random() < 0.6) {
       this.doubled = true;
-      this.followUp = () => { this.aim = Math.atan2(world.hero.y - this.y, world.hero.x - this.x); this.#beginBite(world); this.windup = 0.4; };
+      this.followUp = () => { this.aim = Math.atan2(world.hero.y - this.y, world.hero.x - this.x); this.#beginBite(world); };
     } else this.doubled = false;
   }
 
   #tailPivot() { return { x: this.x - this.facing * 8, y: this.y }; }
   #beginTail(world) {
-    this.timers.tail = rand(3, 5) * this.quick;
+    this.timers.tail = rand(3, 5) * this.quick * PACE;
     const w = 0.75 * this.quick;
     const p = this.#tailPivot();
     world.spawn(new Telegraph(p.x, p.y, { shape: 'arc', r: 84, angle: this.facing > 0 ? Math.PI : 0, arc: 2.9, duration: w, color: WARN_TAIL }));
@@ -619,7 +630,7 @@ export class Skalvyr extends Actor {
   #breathOrigin() { return { x: this.x + this.facing * 40, y: this.y + 2 }; }
   #placeBreathTele() { const o = this.#breathOrigin(); this.breathTele.x = o.x; this.breathTele.y = o.y; }
   #beginBreath(world) {
-    this.timers.breath = rand(7, 9) * this.quick;
+    this.timers.breath = rand(7, 9) * this.quick * PACE;
     this.aim = this.#clampAim(this.aim, 0.95);
     const w = 0.95 * this.quick;
     const o = this.#breathOrigin();
@@ -673,7 +684,7 @@ export class Skalvyr extends Actor {
 
   // Eissplitter-Regen: brüllt zur Decke, Eiszapfen stürzen in markierte Kreise
   #beginCall(world) {
-    this.timers.call = rand(8, 11) * this.quick;
+    this.timers.call = rand(8, 11) * this.quick * PACE;
     const w = 0.95 * this.quick;
     this.#begin(world, 'castWindup', 'callWindup', w);
     world.bus.emit('cast', { actor: this, element: 'frost' });
@@ -694,7 +705,7 @@ export class Skalvyr extends Actor {
     this.timers.wall = rand(20, 24) * (this.enraged ? 0.85 : 1);
     const w = 1.15 * this.quick;
     this.#begin(world, 'slamWindup', 'slamWindup', w);
-    this.cooldown = 1.2;
+    this.cooldown = 1.2 * PACE;
     const A = world.arena ?? { x0: this.home.x - 170, x1: this.home.x + 170, y0: this.home.y - 110, y1: this.home.y + 110 };
     const h = world.hero;
     const lines = [];
@@ -756,7 +767,7 @@ export class Skalvyr extends Actor {
     world.spawn(new Telegraph(this.x, this.y, { shape: 'circle', r: 74, duration: w, color: WARN }));
     world.spawn(new Telegraph(this.x, this.y, { shape: 'circle', r: 170, duration: w, color: [150, 210, 255] }));
     this.#begin(world, 'novaWindup', 'novaWindup', w);
-    this.cooldown = 1;
+    this.cooldown = 1 * PACE;
     world.bus.emit('cast', { actor: this, element: 'frost' });
   }
   #nova(world) {
@@ -788,11 +799,11 @@ export class Skalvyr extends Actor {
   // Eingraben -> unter dem Eis zum Helden -> Hervorbrechen
   #holePos() { const m = this.animator.frame.meta?.hole; return m ? { x: this.x + m.dx * this.facing, y: this.y + m.dy } : { x: this.x + this.facing * 50, y: this.y + 3 }; }
   #beginBurrow(world) {
-    this.timers.burrow = rand(12, 15) * this.quick;
+    this.timers.burrow = rand(12, 15) * this.quick * PACE;
     this.#clearAttack(world);
     this.setState('burrow');
     this.animator.play('burrow', true);
-    this.cooldown = 0.5;
+    this.cooldown = 0.5 * PACE;
     world.bus.emit('bossDive', { bossId: this.bossId, x: this.x, y: this.y });
     world.bus.emit('telegraph', { actor: this, attack: 'burrow' });
   }

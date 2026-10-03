@@ -12,7 +12,7 @@ export const DEFS = {
   dust_hyena: {
     bodyHeight: 15, eye: { x: 13, y: -19 }, radius: 6, hurtRadius: 8, shadowW: 24, mass: 1.1, speed: 78, material: 'flesh',
     spawnStyle: 'fade', strafe: true, hitAndRun: 0.8, howl: true,
-    attackPatch: { range: 48, windup: 0.38, active: 0.2, recover: 0.3, cooldown: 1.0, lungeSpeed: 240, hitRadius: 8 },
+    attackPatch: { range: 48, windup: 0.5, active: 0.2, recover: 0.3, cooldown: 1.0, lungeSpeed: 240, hitRadius: 8 },
   },
   ash_vulture: {
     bodyHeight: 38, eye: { x: 10, y: -30 }, radius: 6, hurtRadius: 10, shadowW: 18, mass: 0.8, speed: 76, material: 'flesh',
