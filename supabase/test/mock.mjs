@@ -96,6 +96,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/auth/v1/user') {
       if (!uid) return err(res, 401, 'session_not_found', 'x');
       if (req.method === 'PUT' && json.password) { const u = await userRow(uid); pw.set(u.email, json.password); }
+      if (req.method === 'PUT' && json.data) await pool.query('update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data, \'{}\'::jsonb) || $2::jsonb where id=$1', [uid, json.data]);
       return send(res, 200, await userRow(uid));
     }
     if (p === '/auth/v1/logout') { tokens.delete(auth); return send(res, 204); }

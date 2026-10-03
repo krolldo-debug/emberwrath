@@ -9,10 +9,16 @@ import { describeError } from './AuthClient.js';
 //   'register'     Konto anlegen
 //   'forgot'       Link zum Zurücksetzen anfordern
 //   'newPassword'  neues Passwort setzen (nach Link aus der E-Mail oder im Konto)
+//   'consent'      angemeldet, aber Nutzungsbedingungen (aktuelle Fassung) noch nicht bestätigt, z. B. nach erster Google-Anmeldung
 //   'account'      angemeldet: Spielen, Verwaltung, lokale Charaktere übernehmen, Abmelden, Konto löschen
 const GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
 // Rechtstexte der Website (site/). Das Spiel liegt unter /spielen/, die Seiten im Wurzelverzeichnis.
-export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, termsVersion: '2026-10' };
+export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, adultAge: 18, termsVersion: '2026-10' };
+// Altersklausel wie in den Nutzungsbedingungen: ab 12 Jahren, unter 18 nur mit Zustimmung der Eltern.
+const AGE_CLAUSE = `ab ${LEGAL.minAge} Jahren; unter ${LEGAL.adultAge} nur mit Zustimmung der Eltern`;
+const consentMeta = () => ({ terms_version: LEGAL.termsVersion, terms_accepted_at: new Date().toISOString() });
+// Hat das Konto die aktuelle Fassung der Nutzungsbedingungen bestätigt? (Google-Konten kommen ohne Häkchen an.)
+export const needsConsent = (user) => !!user && user.user_metadata?.terms_version !== LEGAL.termsVersion;
 const legalLink = (text, href) => h('a.on-legal-link', { href, target: '_blank', rel: 'noopener' }, text);
 
 const svgIcon = (markup) => { const s = h('span.on-provider-icon'); s.innerHTML = markup; return s; };
@@ -23,6 +29,7 @@ const TITLES = {
   forgot: ['Passwort vergessen', 'Wir schicken dir einen Link zum Zurücksetzen'],
   newPassword: ['Neues Passwort', 'Wähle ein neues Passwort für dein Konto'],
   account: ['Dein Konto', ''],
+  consent: ['Nutzungsbedingungen', 'Einmal bestätigen, dann geht es los'],
 };
 
 const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
@@ -33,7 +40,7 @@ export class LoginScene extends MenuScene {
   enter(params = {}) {
     this.online = this.game.online;
     this.mode = params.mode ?? (this.online.user ? 'account' : 'login');
-    if (this.mode === 'account' && !this.online.user) this.mode = 'login';
+    if ((this.mode === 'account' || this.mode === 'consent') && !this.online.user) this.mode = 'login';
     this.message = this.online.notice; this.online.notice = null;
     this.busy = false;
     this.root = h('div.ef-screen.acc-screen.on-screen');
@@ -89,7 +96,7 @@ export class LoginScene extends MenuScene {
     }, svgIcon(GOOGLE_SVG), h('span', 'Weiter mit Google'));
     const box = h('div.on-providers', google,
       h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
-        ` und bestätigst, mindestens ${LEGAL.minAge} Jahre alt zu sein oder die Zustimmung deiner Eltern zu haben. Infos zum Datenschutz: `,
+        ` (Spielen ${AGE_CLAUSE}). Infos zum Datenschutz: `,
         legalLink('Datenschutzerklärung', LEGAL.privacy), '.'),
       h('div.on-or', h('span', 'oder mit E-Mail')));
     const set = (on) => { box.hidden = !on; };
@@ -117,6 +124,7 @@ export class LoginScene extends MenuScene {
     else if (this.mode === 'forgot') body = this.#forgot();
     else if (this.mode === 'newPassword') body = this.#newPassword();
     else if (this.mode === 'account' && this.online.user) body = this.#account();
+    else if (this.mode === 'consent' && this.online.user) body = this.#consent();
     else body = this.#login();
     // Eingaben bleiben erhalten, wenn dieselbe Seite neu gezeichnet wird (z. B. nach einer Fehlermeldung)
     const keep = this.#shownMode === this.mode ? [...this.root.querySelectorAll('.on-form input')].map((el) => (el.type === 'checkbox' ? el.checked : el.value)) : null;
@@ -166,15 +174,39 @@ export class LoginScene extends MenuScene {
         h('button.on-link', { type: 'button', onclick: () => this.#go('register') }, 'Noch kein Konto? Registrieren')));
   }
 
+  #consentBox() {
+    const consent = h('input', { type: 'checkbox', required: true });
+    const consentEl = h('label.on-check', consent,
+      h('span', 'Ich akzeptiere die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
+        ` (Spielen ${AGE_CLAUSE}). Die `,
+        legalLink('Datenschutzerklärung', LEGAL.privacy), ' habe ich zur Kenntnis genommen.'));
+    return { consent, consentEl };
+  }
+
+  // Nach der ersten Google-Anmeldung (oder neuer Fassung der Bedingungen): Zustimmung einmal nachholen und im Konto vermerken.
+  #consent() {
+    const o = this.online;
+    const { consent, consentEl } = this.#consentBox();
+    const submit = (e) => {
+      e.preventDefault();
+      if (!consent.checked) { this.message = { kind: 'error', text: 'Bitte bestätige die Nutzungsbedingungen und das Mindestalter.' }; this.#render(); return; }
+      this.#run(async () => { await o.client.updateUser({ data: consentMeta() }); o.play(); });
+    };
+    return h('div.on-body',
+      h('p.acc-lead', `Willkommen, ${o.displayName}! Bevor du spielst, bestätige bitte einmal die Nutzungsbedingungen.`),
+      h('form.on-form', { onsubmit: submit, novalidate: true },
+        consentEl,
+        this.#messageBox(),
+        h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Zustimmen und spielen')),
+      h('div.on-links',
+        h('button.on-link', { type: 'button', onclick: () => this.#run(async () => { await o.client.signOut(); this.game.scenes.go('title'); }) }, 'Abmelden')));
+  }
+
   #register() {
     const name = this.#field('Spielername', { type: 'text', autocomplete: 'nickname', required: true, minlength: 2, maxlength: 24, spellcheck: 'false' });
     const email = this.#field('E-Mail', { type: 'email', autocomplete: 'email', inputmode: 'email', required: true, maxlength: 254 });
     const pw = this.#password('Passwort (mind. 8 Zeichen, mit Zahl)', 'new-password');
-    const consent = h('input', { type: 'checkbox', required: true });
-    const consentEl = h('label.on-check', consent,
-      h('span', 'Ich akzeptiere die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
-        ` und bin mindestens ${LEGAL.minAge} Jahre alt oder habe die Zustimmung meiner Eltern. Die `,
-        legalLink('Datenschutzerklärung', LEGAL.privacy), ' habe ich zur Kenntnis genommen.'));
+    const { consent, consentEl } = this.#consentBox();
     const submit = (e) => {
       e.preventDefault();
       const n = name.input.value.trim().replace(/\s+/g, ' '), mail = email.input.value.trim();
@@ -185,7 +217,7 @@ export class LoginScene extends MenuScene {
       if (problem) { this.message = { kind: 'error', text: problem }; this.#render(); return; }
       this.#run(async () => {
         // Zustimmung im Konto vermerken (Nachweis, welche Fassung wann akzeptiert wurde)
-        const r = await this.online.client.signUp(mail, pw.input.value, n, { terms_version: LEGAL.termsVersion, terms_accepted_at: new Date().toISOString() });
+        const r = await this.online.client.signUp(mail, pw.input.value, n, consentMeta());
         if (r.needsConfirmation) {
           this.#go('login', { kind: 'ok', text: `Fast geschafft: Wir haben eine E-Mail an ${mail} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.` });
         } else {

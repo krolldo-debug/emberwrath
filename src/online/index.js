@@ -2,7 +2,7 @@ import { EV } from '../core/events.js';
 import { ONLINE_CONFIG } from './config.js';
 import { AuthClient, describeError } from './AuthClient.js';
 import { CloudSync, accountIdFor, displayNameOf, ONLINE_ACCOUNT_PREFIX } from './CloudSync.js';
-import { LoginScene } from './LoginScene.js';
+import { LoginScene, needsConsent } from './LoginScene.js';
 import { AdminScene } from './AdminScene.js';
 
 // Online-Konten (Supabase): Anmeldung, Cloud-Spielstände, Admin-Übersicht. Siehe docs/ONLINE.md.
@@ -94,8 +94,12 @@ export class Online {
   open(mode = this.user ? 'account' : 'login') { this.game.scenes.go('login', { mode }); }
 
   // Mit dem Online-Konto spielen: lokalen Zwischenspeicher-Account einloggen, dann Charakterliste.
+  // Zustimmung zu den Nutzungsbedingungen fehlt noch (z. B. erste Google-Anmeldung)?
+  needsConsent() { return needsConsent(this.user); }
+
   play() {
     if (!this.user) { this.open('login'); return; }
+    if (this.needsConsent()) { this.open('consent'); return; }
     this.sync.ensureLocalAccount(this.user);
     this.game.login(this.accountId);
     this.game.scenes.go('characters', { from: 'login' });
