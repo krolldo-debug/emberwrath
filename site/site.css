@@ -96,8 +96,8 @@ section { position: relative; }
 .pair figure { --ay: 0.42; }   /* Geschehen über der Bildunterschrift */
 @media (min-width: 1921px) { .hero-bg, .strip figure, .pair figure, .lore-bg { --f: 3; } }
 /* Titelbild und großer Streifen enger: Helden und Boss tragen das Bild */
-@media (min-width: 1200px) { .hero-bg { --f: 4; --ax: 0.77; } .strip .strip-a { --f: 3; } }
-@media (min-width: 1700px) { .hero-bg { --ax: 0.7; } }
+@media (min-width: 1200px) { .hero-bg { --f: 3; --ax: 0.77; } .strip .strip-a { --f: 3; } }
+@media (min-width: 1700px) { .hero-bg { --f: 4; --ax: 0.7; } }
 @media (min-width: 2000px) { .hero-bg { --f: 5; } }
 @media (min-width: 2400px) { .hero-bg { --f: 6; } .strip .strip-a { --f: 4; } }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -2;
@@ -134,7 +134,7 @@ section { position: relative; }
 .cls-desc { margin: 0 0 26px; font-size: clamp(17px, 1.45vw, 19px); color: var(--soft); max-width: 30em; }
 .skills { list-style: none; margin: 0 0 26px; padding: 0; display: flex; flex-wrap: wrap; gap: 18px 22px; }
 .skills li { width: 96px; text-align: center; font: 600 14px/1.3 var(--font); color: #f3e8d0; }
-.skills img { margin: 0 auto 10px; border: 2px solid #3a2a40; box-shadow: 0 0 0 2px #06030a, 0 8px 18px rgba(0, 0, 0, 0.4); }
+.skills img { margin: 0 auto 10px; box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45); }
 .legend { display: inline-flex; gap: 14px; align-items: center; margin: 0; font: 600 18px/1.25 var(--font-title); color: var(--legend); }
 .legend img { border: 2px solid var(--legend); background: #1a0c08; box-shadow: 0 0 0 2px #1a0604, 0 0 18px rgba(255, 140, 40, 0.45); }
 
@@ -166,7 +166,6 @@ section { position: relative; }
 .ride-text .sec-line + .sec-line { margin-top: 12px; }
 .riders { list-style: none; margin: 0; padding: 0 0 30px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 30px 24px; }
 .riders li { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.riders li:nth-child(even) { transform: translateY(30px); }
 .riders img { background: radial-gradient(ellipse 42% 6% at 50% 97%, rgba(0, 0, 0, 0.45), transparent 100%); }
 .riders span { font: 600 14px/1.2 var(--font); color: #e4d6b8; }
 
@@ -178,6 +177,21 @@ section { position: relative; }
 .final .title { font-size: clamp(38px, 5.4vw, 72px); }
 .final .sec-line { margin: 0 auto 34px; }
 .final .socials { margin-top: 44px; }
+.final-app { margin: 22px 0 0; font-size: 15px; color: var(--muted); }
+
+/* ---------- Spieler online (aus /net/status, erst ab ein paar Spielern sichtbar) */
+.online { display: inline-flex; align-items: center; gap: 10px; margin: 22px 0 0; font: 600 14px/1.2 var(--font); letter-spacing: 0.04em; color: var(--soft); }
+.online i { width: 9px; height: 9px; border-radius: 50%; background: #6ee06a; box-shadow: 0 0 0 3px rgba(110, 224, 106, 0.18), 0 0 12px rgba(110, 224, 106, 0.6); }
+
+/* ---------- Neu in Emberwrath */
+.news { padding: clamp(70px, 8vw, 110px) 0 0; background: linear-gradient(180deg, #0a0510, #07030b); }
+.news-list { list-style: none; margin: 26px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.news-list li { display: flex; gap: 18px; align-items: flex-start; padding: 22px; background: rgba(18, 10, 26, 0.7); border: 1px solid rgba(106, 69, 38, 0.45); }
+.news-list img { flex: none; margin: 4px; }
+.news-list img.item { margin: 0; border: 2px solid var(--legend); background: #1a0c08; box-shadow: 0 0 14px rgba(255, 140, 40, 0.35); }   /* 52 + Rahmen = 56, wie 48er-Symbol + Rand */
+.news-list b { display: block; margin: 2px 0 6px; font: 700 18px/1.25 var(--font-title); color: #fbe9c6; }
+.news-list p { margin: 0; font-size: 15px; color: var(--soft); }
+@media (max-width: 900px) { .news-list { grid-template-columns: 1fr; } }
 .socials { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .social { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 14px;
   background: rgba(14, 7, 18, 0.8); border: 2px solid rgba(106, 69, 38, 0.8); box-shadow: 0 0 0 2px #06030a; }
@@ -340,6 +354,9 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 .news-form small, .news-form .form-msg { grid-column: 1 / -1; }
 .news-form small { font-size: 12.5px; color: var(--muted); }
 .nl-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.nl-actions[hidden], .nl-step[hidden] { display: none; }
+.nl-step { margin-top: 30px; }
+.faq-gap { margin-top: 12px; }
 .page main.nl-main { padding: 0; min-height: 0; }
 .nl-hero { position: relative; isolation: isolate; display: flex; align-items: center; min-height: max(560px, 86svh); padding: 120px 0 90px; }
 .nl-bg { position: absolute; inset: 0; z-index: -2; overflow: hidden; background: #000; --f: 2; --ax: 0.68; }
@@ -358,9 +375,13 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 @media (max-width: 600px) {
   .row2 { grid-template-columns: 1fr; }
   .seg span { font-size: 12px; letter-spacing: 0.04em; padding: 0 6px; }
+  /* Vier Anliegen: zwei Reihen statt zu enger Knöpfe */
+  .seg { display: grid; grid-template-columns: 1fr 1fr; }
+  .seg span { margin: 0 0 -1px -1px; }
+  .seg label:nth-of-type(odd) span { margin-left: 0; }
   .news-form { grid-template-columns: 1fr; }
   .form-foot .btn, .help .card .btn, .nl-actions .btn { width: 100%; }
-  .foot nav { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 12px 26px; }
+  .foot nav { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; width: 100%; }
   .nl-hero { display: block; min-height: 0; padding: 0 0 56px; }
   .nl-bg { position: relative; inset: auto; height: 52svh; min-height: 300px; z-index: -2; --f: 1.67; --ax: 0.5; }
   .nl-hero::before { background: linear-gradient(0deg, var(--bg) 0%, rgba(5, 2, 10, 0.55) 22%, rgba(5, 2, 10, 0) 45%); bottom: auto; height: 52svh; min-height: 300px; }
@@ -445,12 +466,13 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .races img[src$="volk-dwarf.png"] { width: 86px; height: 114px; }
   .races img[src$="volk-elf.png"] { width: 64px; height: 132px; }
   .races img[src$="volk-emberborn.png"] { width: 64px; height: 130px; }
-  .riders { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 12px; }
-  .riders li:nth-child(even) { transform: none; }
-  .riders li:nth-child(1) img { width: 138px; height: 123px; }   /* ×3 */
-  .riders li:nth-child(2) img { width: 114px; height: 126px; }
-  .riders li:nth-child(3) img { width: 108px; height: 129px; }
-  .riders li:nth-child(4) img { width: 117px; height: 111px; }
+  /* Schlackendrache groß über die ganze Breite (×5), die übrigen drei darunter (×2) */
+  .riders { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 26px 8px; }
+  .riders li:nth-child(1) { grid-column: 1 / -1; }
+  .riders li:nth-child(1) img { width: 300px; height: 205px; }   /* ×5 */
+  .riders li:nth-child(2) img { width: 76px; height: 84px; }
+  .riders li:nth-child(3) img { width: 72px; height: 86px; }
+  .riders li:nth-child(4) img { width: 78px; height: 74px; }
   .legal dl { grid-template-columns: 1fr; }
   .legal dd { margin-bottom: 8px; }
   .foot-inner { flex-direction: column; align-items: flex-start; }

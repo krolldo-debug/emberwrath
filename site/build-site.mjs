@@ -1,4 +1,4 @@
-// Baut die Startseite und die Unterseiten (Welt, Support, Impressum, Datenschutz) nach outDir.
+// Baut die Startseite und die Unterseiten (Welt, Support, Impressum, Datenschutz, Nutzungsbedingungen) nach outDir.
 // Aufruf aus tools/build.mjs: buildSite(root, resolve(root, 'dist/site')).
 // Das Spiel selbst schreibt tools/build.mjs nach outDir/spielen/index.html.
 // Seiten binden Kopf und Fuß per <!--#include name--> aus site/partials/ ein.
@@ -6,7 +6,8 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, stat
 import { resolve, join, extname } from 'node:path';
 
 // newsletter.html ist die Rückmeldeseite für Bestätigen/Abmelden (noindex, nicht in der Sitemap).
-const PAGES = ['index.html', 'welt.html', 'support.html', 'impressum.html', 'datenschutz.html', 'newsletter.html'];
+// 404.html liefert Cloudflare bei unbekannten Pfaden aus (not_found_handling); <base href="/"> hält die Links heil.
+const PAGES = ['index.html', 'welt.html', 'support.html', 'impressum.html', 'datenschutz.html', 'nutzungsbedingungen.html', 'newsletter.html', '404.html'];
 // robots.txt und sitemap.xml nennen https://www.emberwrath.com (canonical in den Seitenköpfen ebenso).
 const STATIC = ['site.css', 'site.js', 'config.js', 'favicon.svg', 'robots.txt', 'sitemap.xml'];
 

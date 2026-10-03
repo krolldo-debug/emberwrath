@@ -63,7 +63,7 @@
     const rows = [
       ['Anbieter', `${esc(imp.name)}<br>${esc(imp.street)}<br>${esc(imp.city)}${imp.country ? `<br>${esc(imp.country)}` : ''}`],
       ['Telefon', esc(imp.phone ?? '')],
-      ['Verantwortlich für den Inhalt (§ 18 Abs. 2 MStV)', esc(imp.responsible || imp.name)],
+      ['Verantwortlich für den Inhalt <span class="nw">(§ 18 Abs. 2 MStV)</span>',esc(imp.responsible || imp.name)],
     ].filter(([, v]) => v);
     impBox.innerHTML = `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   }
@@ -264,8 +264,9 @@
     const applyKind = () => {
       const k = kindNow();
       for (const el of $$('[data-for]', sup.closest('.help') ?? sup)) el.hidden = !el.dataset.for.split(' ').includes(k);
-      label.innerHTML = k === 'fehler' ? 'Was ist passiert?' : k === 'loeschen' ? 'Anmerkung <i>(freiwillig)</i>' : 'Nachricht';
+      label.innerHTML = k === 'fehler' || k === 'melden' ? 'Was ist passiert?' : k === 'loeschen' ? 'Anmerkung <i>(freiwillig)</i>' : 'Nachricht';
       F('message').required = k !== 'loeschen';
+      F('reported').required = k === 'melden';
       if (k === 'fehler' && !F('device').value) F('device').value = deviceGuess();
     };
     const want = new URLSearchParams(location.search).get('anliegen');
@@ -274,27 +275,35 @@
     for (const r of $$('input[name="kind"]', sup)) r.addEventListener('change', applyKind);
     applyKind();
     // Fehlermeldung verschwindet, sobald das Feld stimmt
-    for (const f of ['email', 'message']) F(f).addEventListener('input', () => {
-      if (F(f).getAttribute('aria-invalid') !== 'true') return;
-      const ok = f === 'email' ? emailOk(F(f).value.trim()) : kindNow() === 'loeschen' || F(f).value.trim().length >= 10;
-      if (ok) { F(f).setAttribute('aria-invalid', 'false'); sup.querySelector(`[data-err="${f}"]`).classList.remove('on'); }
+    const check = {
+      email: () => emailOk(F('email').value.trim()),
+      reported: () => kindNow() !== 'melden' || F('reported').value.trim().length >= 2,
+      message: () => kindNow() === 'loeschen' || F('message').value.trim().length >= 10,
+    };
+    for (const f of Object.keys(check)) F(f).addEventListener('input', () => {
+      if (F(f).getAttribute('aria-invalid') === 'true' && check[f]()) { F(f).setAttribute('aria-invalid', 'false'); sup.querySelector(`[data-err="${f}"]`).classList.remove('on'); }
     });
     sup.addEventListener('submit', async (e) => {
       e.preventDefault();
       const k = kindNow();
-      const bad = { email: !emailOk(F('email').value.trim()), message: k !== 'loeschen' && F('message').value.trim().length < 10 };
+      const bad = Object.fromEntries(Object.entries(check).map(([f, ok]) => [f, !ok()]));
       for (const [f, on] of Object.entries(bad)) { F(f).setAttribute('aria-invalid', String(on)); sup.querySelector(`[data-err="${f}"]`).classList.toggle('on', on); }
-      if (bad.email || bad.message) { F(bad.email ? 'email' : 'message').focus(); return; }
+      const first = Object.keys(bad).find((f) => bad[f]);
+      if (first) { F(first).focus(); return; }
       const btn = sup.querySelector('button[type="submit"]');
       btn.disabled = true; say(sup, 'Wird gesendet …');
       try {
         const res = await post('/forms/support', {
           kind: k, name: F('name').value, email: F('email').value, message: F('message').value, website: F('website').value,
           character: k === 'kontakt' ? '' : F('character').value, device: k === 'fehler' ? F('device').value : '',
+          reported: k === 'melden' ? F('reported').value : '', place: k === 'melden' ? F('place').value : '',
         });
         if (res.ok) {
           sup.reset(); sup.querySelector(`input[name="kind"][value="${k}"]`).checked = true; applyKind();
-          say(sup, k === 'loeschen' ? 'Danke. Wir schreiben dir an deine Adresse, um die Löschung zu bestätigen.' : 'Danke, deine Nachricht ist angekommen. Wir melden uns per E\u2011Mail.', 'ok');
+          say(sup, {
+            loeschen: 'Danke. Wir schreiben dir an deine Adresse, um die Löschung zu bestätigen.',
+            melden: 'Danke, deine Meldung ist angekommen. Wir prüfen sie und schreiben dir, was wir entschieden haben.',
+          }[k] ?? 'Danke, deine Nachricht ist angekommen. Wir melden uns per E\u2011Mail.', 'ok');
         } else if (res.status === 429) say(sup, 'Zu viele Anfragen in kurzer Zeit. Bitte versuch es in ein paar Minuten noch einmal.', 'err');
         else throw new Error(String(res.status));
       } catch {
@@ -331,8 +340,32 @@
     }
   }
 
-  // Rückmeldeseite /newsletter?s=…
+  // Rückmeldeseite /newsletter?s=… und Zwischenschritt ?aktion=bestaetigen|abmelden&token=…
+  // (der Link in der Mail ändert selbst nichts, erst der Knopf schickt die Anfrage ab)
   const nlTitle = document.querySelector('[data-nl-title]');
+  const nlQ = new URLSearchParams(location.search);
+  const nlAct = { bestaetigen: ['Anmeldung bestätigen', 'Ein Klick noch, dann bekommst du Neuigkeiten aus Emberwrath.', 'Jetzt bestätigen', '/newsletter/confirm'],
+    abmelden: ['Newsletter abbestellen', 'Willst du keine E\u2011Mails mehr von uns bekommen?', 'Abmelden', '/newsletter/unsubscribe'] }[nlQ.get('aktion')];
+  const nlForm = document.querySelector('[data-nl-step]');
+  if (nlTitle && nlAct && nlForm && nlQ.get('token')) {
+    const token = nlQ.get('token');
+    nlTitle.textContent = nlAct[0]; document.querySelector('[data-nl-text]').textContent = nlAct[1]; document.title = `${nlAct[0]} – Emberwrath`;
+    const btn = nlForm.querySelector('button');
+    btn.textContent = nlAct[2]; nlForm.hidden = false; document.querySelector('.nl-actions')?.setAttribute('hidden', '');
+    nlForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      let st = 'fehler';
+      try {
+        if (nlAct[3] === '/newsletter/confirm') st = (await post(nlAct[3], { token })).data.s || st;
+        else {
+          const r = await fetch(`${FORMS_API}${nlAct[3]}?token=${encodeURIComponent(token)}`, { method: 'POST' });
+          st = (await r.json().catch(() => ({}))).s || st;
+        }
+      } catch { /* bleibt fehler */ }
+      location.replace(`newsletter?s=${encodeURIComponent(st)}`);
+    });
+  }
   if (nlTitle) {
     const MSG = {
       bestaetigt: ['Du bist dabei.', 'Danke für die Bestätigung. Ab jetzt bekommst du Neuigkeiten aus Emberwrath. Abmelden kannst du dich jederzeit über den Link in jeder E\u2011Mail.'],
@@ -341,6 +374,18 @@
       fehler: ['Das hat nicht geklappt.', 'Bitte versuch es später noch einmal oder schreib uns an support@emberwrath.com.'],
     }[new URLSearchParams(location.search).get('s')];
     if (MSG) { nlTitle.textContent = MSG[0]; document.querySelector('[data-nl-text]').textContent = MSG[1]; document.title = `${MSG[0]} – Emberwrath`; }
+  }
+
+  // ---------- Spieler online: Summe aller Welten aus /net/status, erst ab ein paar Spielern
+  const online = document.querySelector('[data-online]');
+  if (online) {
+    fetch(`${FORMS_API}/status`).then((r) => (r.ok ? r.json() : {})).then((d) => {
+      let n = 0;
+      for (const worlds of Object.values(d.zones ?? {})) for (const v of Object.values(worlds)) n += Number(v) || 0;
+      if (n < (cfg.onlineMin ?? 5)) return;
+      online.querySelector('span').textContent = `${n.toLocaleString('de-DE')} Spieler gerade online`;
+      online.hidden = false;
+    }).catch(() => {});
   }
 
   // ---------- Jahr in der Fußzeile
