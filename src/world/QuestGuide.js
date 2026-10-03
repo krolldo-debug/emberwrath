@@ -63,7 +63,9 @@ export class QuestGuide {
     if (!this.goal) { this.path = []; w.guidePath = this.path; return; }
     const h = w.hero;
     const d = Math.hypot(this.goal.x - h.x, this.goal.y - h.y);
-    if (d < (this.goal.near ?? 20)) { this.path = []; w.guidePath = this.path; return; }
+    const npc = this.goal.npc;
+    const inRange = npc ? Math.hypot(npc.x - h.x, (npc.y - h.y) * 1.3) <= (npc.interactRange ?? 26) - 4 : d < (this.goal.near ?? 20);
+    if (inRange) { this.path = []; w.guidePath = this.path; return; }
     this.path = this.#findPath(h.x, h.y - 2, this.goal.x, this.goal.y) ?? [];
     w.guidePath = this.path;
   }
@@ -87,7 +89,7 @@ export class QuestGuide {
     switch (kind) {
       case 'npc': {
         const n = w.npcs.find((x) => x.npcId === t.id);
-        return n ? { x: n.x, y: n.y + 10, near: 28, label: 'npc' } : null;
+        return n ? { x: n.x, y: n.y + 8, near: 0, npc: n, label: 'npc' } : null;
       }
       case 'area': {
         const a = w.dungeon.level.areas?.find((x) => x.id === t.id);

@@ -423,7 +423,7 @@ export class Enemy extends Actor {
     this.animator.play('windup', true);
     world.bus.emit('telegraph', { actor: this });
     const A = this.def.attack;
-    if (A.kind === 'charge') world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: A.chargeSpeed * A.active, width: 16, duration: A.windup }));
+    if (A.kind === 'charge') world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: A.chargeSpeed * A.active, width: 16, duration: A.windup, screen: true }));
     if (A.kind === 'slam') {
       const ox = this.x + Math.cos(toHero) * (A.offset ?? 14), oy = this.y + Math.sin(toHero) * (A.offset ?? 14) * 0.6;
       this.slamAt = { x: ox, y: oy };
@@ -502,7 +502,7 @@ export class Enemy extends Actor {
     } else if (sp.kind === 'spin') {
       world.spawn(new Telegraph(this.x, this.y, { shape: 'circle', r: sp.radius, duration: sp.windup, follow: this }));
     } else if (sp.kind === 'charge') {
-      world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: sp.speed * sp.duration, width: 22, duration: sp.windup }));
+      world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: sp.speed * sp.duration, width: 22, duration: sp.windup, screen: true }));
     } else if (sp.kind === 'cloud') {
       // Wolke dort, wo der Held beim Ausholen steht
       this.cloudAt = { x: world.hero.x, y: world.hero.y };

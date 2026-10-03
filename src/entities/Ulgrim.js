@@ -225,10 +225,10 @@ export class PhantomKing extends Entity {
       this.struck = true;
       const w = world;
       if (this.kind === 'sweep') {
-        w.combat.add({ owner: this.owner, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 56, angle: this.aim, arc: 2.3, damage: this.damage, knockback: 220, heavy: true, ttl: 0.12 });
+        w.combat.add({ owner: this.owner, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, lift: 6, r: 56, angle: this.aim, arc: 2.3, damage: this.damage, knockback: 220, heavy: true, ttl: 0.12 });
       } else {
         const ix = this.x + Math.cos(this.aim) * 30, iy = this.y + Math.sin(this.aim) * 18;
-        w.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 4, r: 22, damage: this.damage, knockback: 200, heavy: true, ttl: 0.12 });
+        w.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 4, lift: 4, r: 22, damage: this.damage, knockback: 200, heavy: true, ttl: 0.12 });
         earthBurst(w, ix, iy, 10, 0.9);
       }
       w.particles.ring(this.x + Math.cos(this.aim) * 24, this.y + Math.sin(this.aim) * 14, 6, 18, GHOST_HI, 90);
@@ -456,8 +456,11 @@ export class Ulgrim extends Actor {
     world.session.slowmo?.(0.5, 0.55);
     this.timers.summon = 1.2; this.timers.howl = 4; this.timers.phantom = 7; this.timers.leap = Math.min(this.timers.leap, 3);
     if (this.coreLight) { this.coreLight.color = GHOST_HI_RGB; this.coreLight.intensity = 0.75; this.coreLight.radius = 110; }
+    // Phasenwechsel schadlos (wie Varkhul/Ignaroth): Welle nur sichtbar, das Brüllen stößt zurück
     this.#after(0.4, (w) => {
-      w.addEffect(new DamageWave(this.x, this.y, this, { maxR: 140, duration: 0.85, damage: this.dmg.wave, color: GHOST_HI_RGB }));
+      w.addEffect(new DamageWave(this.x, this.y, this, { maxR: 140, duration: 0.85, damage: 0, harmless: true, color: GHOST_HI_RGB }));
+      const h = w.hero, dx = h.x - this.x, dy = h.y - this.y, d = Math.hypot(dx, dy) || 1;
+      if (!h.dead && d < 120) { h.kbx += (dx / d) * 260; h.kby += (dy / d) * 260; }
     });
     world.bus.emit('bossPhase', { bossId: this.bossId, phase: 2 });
   }
@@ -530,7 +533,7 @@ export class Ulgrim extends Actor {
     const len = Math.min(170, this.#rayLength(world, this.aim));
     this.chopLen = len;
     this.tele = null;
-    world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: this.aim, len, width: 22, duration: wind }));
+    world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: this.aim, len, width: 30, duration: wind }));
     this.#begin(world, 'chopWindup', 'chopWindup', wind);
   }
 
@@ -579,7 +582,7 @@ export class Ulgrim extends Actor {
           if (this.dead) return;
           this.aim = Math.atan2(w.hero.y - this.y, w.hero.x - this.x);
           this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
-          const wind = 0.5 * q;
+          const wind = Math.max(0.55, 0.5 * q); // Folgehieb: mindestens 0,55 s Warnung
           this.tele = w.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 60, angle: this.aim, arc: 2.4, duration: wind, follow: this }));
           this.setState('comboWindup'); this.windup = wind;
           w.bus.emit('telegraph', { actor: this, attack: 'comboWindup' });
@@ -600,7 +603,7 @@ export class Ulgrim extends Actor {
     this.setState('strike'); this.recover = this.enraged ? 0.55 : 0.85;
     this.animator.play('chop', true);
     const ix = this.x + Math.cos(this.aim) * 30, iy = this.y + Math.sin(this.aim) * 20;
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 4, r: 22, damage: this.dmg.chop, knockback: 240, heavy: true, ttl: 0.12 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 4, lift: 4, r: 16, damage: this.dmg.chop, knockback: 240, heavy: true, ttl: 0.12 });
     this.#addHazard(world, new GraveRift(this.x + Math.cos(this.aim) * 22, this.y + Math.sin(this.aim) * 14, this.aim, Math.max(20, this.chopLen - 22), this, { width: 22, speed: this.enraged ? 280 : 230, damage: this.dmg.rift }));
     earthBurst(world, ix, iy, 16, 1.2);
     world.particles.dust(ix, iy, 10, DUST);
@@ -638,7 +641,7 @@ export class Ulgrim extends Actor {
     this.hurtable = true; this.solid = true;
     this.setState('strike'); this.recover = this.enraged ? 0.6 : 0.9;
     this.animator.play('leapLand', true);
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, r: 46, damage: this.dmg.leap, knockback: 300, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, lift: 6, r: 46, damage: this.dmg.leap, knockback: 300, heavy: true, ttl: 0.14 });
     earthBurst(world, x, y, 34, 1.5);
     world.particles.dust(x, y, 22, DUST);
     world.particles.ring(x, y, 10, 30, this.enraged ? GHOST_HI : GHOST, 140);

@@ -1,7 +1,7 @@
 import { Actor } from './Actor.js';
 import { Entity } from './Entity.js';
 import { ENEMY_TYPES } from './enemyTypes.js';
-import { Telegraph, DamageWave } from './Telegraph.js';
+import { Telegraph } from './Telegraph.js';
 import { Shockwave, SpawnMarker } from './Effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
@@ -16,6 +16,7 @@ import { DEFS } from './defs_ash_sovereign.js';
 //   Glutstoß       markierte Linie, Ausfallschritt nach vorn
 //   Aschenwelle    Schwert in den Boden: eine Wand aus Asche rollt eine markierte Bahn entlang
 //   Glutspeere     3 schwebende Speere zielen, markierte Linien, fliegen dann los
+//   Glutring       (alle Phasen) wer > 3 s im Nahbereich steht: Kreis-Warnmarke r 60 um den Fürsten, dann Glutausbruch
 // Phase 2 (66–33 %) „Der Aschenfürst erhebt sich“ – schwebt, Flügel aus Rauch
 //   dazu Meteore (markierte Kreise), Feuersäulen (Kaskade entlang markierter Kreise),
 //   Thronwachen (throne_guard, höchstens 2), Aschenwelle als Fächer, 5 Speere
@@ -33,13 +34,76 @@ const GOLDC = ['#fff0a8', '#e8c25a', '#b8862a'];
 const FIRE_RGB = [255, 110, 40], GOLD_RGB = [255, 200, 110], WHITE_RGB = [255, 214, 160];
 const WARN_FIRE = [255, 120, 40];
 const BANNER = '#ffb050';
+// Glutring: Nahbereich, Verweildauer bis zum Auslösen, Abklingzeit, Radius der Warnmarke, Schaden je Phase
+const RING_NEAR = 60, RING_TIME = 3, RING_CD = 6, RING_R = 60, RING_DMG = [160, 190, 225];
 
-function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false) {
+// Lichtblitze bleiben lesbar: Leuchten (bloom × Stärke) höchstens 0,4, große Blitze (Radius ≥ 100) kürzer als 0,15 s.
+// So überstrahlt kein Angriff den Bildschirm; Held und Warnmarken bleiben sichtbar.
+function flashLight(o) {
+  const intensity = o.intensity ?? 1;
+  const bloom = Math.min(o.bloom ?? 0.25, 0.4 / Math.max(0.01, intensity));
+  const ttl = (o.radius ?? 60) >= 100 ? Math.min(o.ttl ?? 0.14, 0.14) : o.ttl;
+  return new Light({ ...o, bloom, ttl });
+}
+
+// Einschlag ohne den allgemeinen (hellen) Zauber-Einschlag: Ring, Funken, Brandfleck, Ton
+function impactFx(world, x, y, r, big = false) {
+  world.addEffect(new Shockwave(x, y, { radius: r, color: '#ffb640', life: big ? 0.5 : 0.3 }));
+  world.particles.element(x, y, 'fire', big ? 28 : 14, r * 0.5);
+  world.decals.scorch(x, y, Math.round(Math.min(18, r * 0.7)));
+  world.bus.emit('trapFlame', { x, y });
+}
+
+// Warnmarke des Fürsten: Fläche wie üblich, dazu dunkle Kontur (Lit-Pass) und heller Rand (Emissive),
+// damit sie auf Glutboden, unter Feuer und neben der hellen Figur klar lesbar bleibt.
+class MalgTelegraph extends Telegraph {
+  #outline(ctx, cx, cy, grow = 0) {
+    const x = this.x - cx, y = this.y - cy;
+    ctx.beginPath();
+    if (this.shape === 'circle') ctx.ellipse(x, y, this.r + grow, (this.r + grow) * 0.6, 0, 0, Math.PI * 2);
+    else if (this.shape === 'arc') {
+      ctx.moveTo(x, y);
+      for (let i = 0; i <= 18; i++) {
+        const a = this.angle - this.arc / 2 + (this.arc * i) / 18;
+        ctx.lineTo(x + Math.cos(a) * (this.r + grow), y + Math.sin(a) * (this.r + grow) * 0.6);
+      }
+      ctx.closePath();
+    } else {
+      const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75;
+      const nx = -dy, ny = dx, hw = this.width / 2 + grow, L = this.len + grow;
+      ctx.moveTo(x + nx * hw - dx * grow, y + ny * hw - dy * grow);
+      ctx.lineTo(x + dx * L + nx * hw, y + dy * L + ny * hw);
+      ctx.lineTo(x + dx * L - nx * hw, y + dy * L - ny * hw);
+      ctx.lineTo(x - nx * hw - dx * grow, y - ny * hw - dy * grow);
+      ctx.closePath();
+    }
+  }
+  render(ctx, cx, cy) {
+    super.render(ctx, cx, cy);
+    ctx.save();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = '#120806'; ctx.lineWidth = 2;
+    this.#outline(ctx, cx, cy, 1.5); ctx.stroke();
+    ctx.restore();
+  }
+  renderEmissive(ctx, cx, cy) {
+    const k = Math.min(1, this.t / this.duration);
+    ctx.save();
+    ctx.globalAlpha = 0.75 + 0.25 * Math.sin(this.t * 22) * (k > 0.7 ? 1 : 0.2);
+    ctx.strokeStyle = k > 0.7 ? '#fff4d8' : '#ffd08a'; ctx.lineWidth = 1;
+    this.#outline(ctx, cx, cy, 0); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// dot = Flächen-Tick (Glutrisse, Glutpfützen): Treffer wird als Tick gekennzeichnet (kein Hitstop/Wackeln).
+// Nach dem Tod des Fürsten richtet nichts mehr Schaden an.
+function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false, dot = false) {
   const h = world.hero;
-  if (!h || h.dead) return false;
+  if (!h || h.dead || owner?.dead) return false;
   const hit = { damage: Math.round(damage * rand(0.92, 1.08)), dirX, dirY, knockback, source: owner };
+  if (dot) hit.dot = true;
   if (!h.takeHit(hit)) return false;
-  world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead });
+  world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy: heavy && !dot, dot, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead });
   return true;
 }
 
@@ -84,7 +148,8 @@ export class Malgareth extends Actor {
     this.hazards = [];
     this.fissures = [];
     this.pending = [];
-    this.timers = { spears: 2.5, wave: 4, meteor: 3, pillars: 6, summon: 0, channel: 0, thrust: 1 };
+    this.timers = { spears: 2.5, wave: 4, meteor: 3, pillars: 6, summon: 0, channel: 0, thrust: 1, ring: 3 };
+    this.closeT = 0; // wie lange der Held schon dicht am Fürsten steht (Glutring)
     this.last = '';
     this.hurtAnim = 0;
     this.ghosts = [];
@@ -112,10 +177,10 @@ export class Malgareth extends Actor {
     this.animator.play('awaken', true);
     world.bus.emit(EV.BOSS_ENGAGED, { bossId: this.bossId, name: this.def.name });
     world.session.camera?.shake(4);
-    ashBurst(world, this.x, this.y - 20, 20);
-    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -50, radius: 110, color: FIRE_RGB, intensity: 0.55, flicker: 0.2, bloom: 0.35 }));
-    // weiches Füll-Licht von vorn oben: die dunkle Obsidianfigur bleibt auch im Schatten lesbar
-    this.fillLight = world.addLight(new Light({ follow: this, offsetX: 12, offsetY: -56, radius: 84, color: [235, 205, 190], intensity: 0.5, flicker: 0, bloom: 0 }));
+    ashBurst(world, this.x, this.y - 26, 20);
+    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -65, radius: 120, color: FIRE_RGB, intensity: 0.55, flicker: 0.2, bloom: 0.25 }));
+    // weiches Füll-Licht von vorn oben: die helle Knochenrüstung bleibt auch im Schatten lesbar
+    this.fillLight = world.addLight(new Light({ follow: this, offsetX: 14, offsetY: -72, radius: 96, color: [235, 205, 190], intensity: 0.32, flicker: 0, bloom: 0 }));
   }
 
   update(dt, world) {
@@ -129,6 +194,7 @@ export class Malgareth extends Actor {
     this.hazards = this.hazards.filter((h) => !h.removed);
     this.hurtAnim = Math.max(0, this.hurtAnim - dt);
     if (this.engaged && !this.dead) for (const k in this.timers) this.timers[k] -= this.state === 'chase' ? dt : dt * 0.5;
+    if (this.engaged && !this.dead && this.state !== 'chase') this.timers.ring -= dt * 0.5; // Glutring zählt immer voll
     if (!this.dead) {
       for (const p of this.pending) p.t -= dt;
       const due = this.pending.filter((p) => p.t <= 0);
@@ -139,24 +205,27 @@ export class Malgareth extends Actor {
     this.ghosts = this.ghosts.filter((g) => g.t < 0.3);
     this.#frameEvents(world);
     this.#checkPhase(world);
+    // Nahkampf-Druck: wer länger als ~3 s im Nahbereich bleibt, löst den Glutring aus
+    if (this.engaged && !this.dead && this.hurtable && !hero.dead && Math.hypot(dx, dy / 0.75) < RING_NEAR) this.closeT += dt;
+    else this.closeT = Math.max(0, this.closeT - dt * 1.5);
     this.#ambient(dt, world);
     const spd = this.def.speed * [1, 1.15, 1.3][this.phase - 1];
 
     switch (this.state) {
       case 'sleep':
         this.vx = this.vy = 0;
-        if (Math.random() < dt * 2) world.particles.embers(this.x + rand(-9, 9), this.y - rand(24, 60), 1);
+        if (Math.random() < dt * 2) world.particles.embers(this.x + rand(-9, 9), this.y - rand(30, 80), 1);
         break;
 
       case 'intro':
         this.vx = this.vy = 0;
-        if (this.stateTime > 0.9 && this.stateTime < 1.4 && Math.random() < dt * 30) world.particles.embers(this.x + rand(-12, 18), this.y - rand(48, 84), 1);
+        if (this.stateTime > 0.9 && this.stateTime < 1.4 && Math.random() < dt * 30) world.particles.embers(this.x + rand(-12, 18), this.y - rand(62, 112), 1);
         if (this.stateTime > 2.1) { this.hurtable = true; this.cooldown = 0.6; this.setState('chase'); }
         break;
 
       case 'transform':
         this.vx *= 0.7; this.vy *= 0.7;
-        if (Math.random() < dt * 40) world.particles.element(this.x + rand(-30, 24), this.y - rand(12, 84), 'fire', 1, 4);
+        if (Math.random() < dt * 40) world.particles.element(this.x + rand(-30, 24), this.y - rand(16, 110), 'fire', 1, 4);
         if (Math.random() < dt * 20) ashBurst(world, this.x + rand(-20, 20), this.y - rand(0, 30), 1);
         if (this.animator.finished && this.stateTime > 0.5) {
           this.hurtable = true;
@@ -255,11 +324,11 @@ export class Malgareth extends Actor {
     if (phase === 2) {
       world.bus.emit(EV.UI_BANNER, { title: 'Der Aschenfürst erhebt sich', sub: 'Malgareth ruft seine Thronwachen', color: BANNER });
       this.timers.summon = 1.5; this.timers.meteor = 4; this.timers.pillars = 7;
-      if (this.coreLight) { this.coreLight.intensity = 0.6; this.coreLight.radius = 125; this.coreLight.offsetY = -62; }
+      if (this.coreLight) { this.coreLight.intensity = 0.6; this.coreLight.radius = 135; this.coreLight.offsetY = -80; }
     } else {
       world.bus.emit(EV.UI_BANNER, { title: 'Der Thron zerbricht', sub: 'Die Arena reißt auf – nur das Gold bietet Schutz', color: '#ffe08a' });
       this.timers.channel = 22; this.timers.summon = 14; this.timers.meteor = 5;
-      if (this.coreLight) { this.coreLight.color = WHITE_RGB; this.coreLight.intensity = 0.85; this.coreLight.radius = 140; this.coreLight.offsetY = -66; }
+      if (this.coreLight) { this.coreLight.color = WHITE_RGB; this.coreLight.intensity = 0.85; this.coreLight.radius = 150; this.coreLight.offsetY = -86; }
     }
     world.bus.emit('bossPhase', { bossId: this.bossId, phase });
   }
@@ -283,6 +352,7 @@ export class Malgareth extends Actor {
     this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
     const T = this.timers, P = this.phase;
     if (P >= 3 && T.channel <= 0) return this.#beginChannel(world);
+    if (this.closeT >= RING_TIME && T.ring <= 0) { T.ring = RING_CD; this.closeT = 0; this.last = 'ring'; return this.#beginRing(world); }
     if (P >= 2 && T.summon <= 0 && this.adds.length < 2) { T.summon = P >= 3 ? rand(17, 21) : rand(16, 20); return this.#beginInvoke(world, 'summon'); }
     const opts = [];
     const add = (id, w) => { if (w > 0) opts.push([id, id === this.last ? w * 0.25 : w]); };
@@ -328,7 +398,7 @@ export class Malgareth extends Actor {
   }
 
   #tele(world, x, y, o) {
-    const t = world.spawn(new Telegraph(x, y, o));
+    const t = world.spawn(new MalgTelegraph(x, y, o));
     (this.teles ??= []).push(t);
     this.teles = this.teles.filter((q) => !q.removed);
     return t;
@@ -365,14 +435,14 @@ export class Malgareth extends Actor {
   #slash(world, back) {
     this.setState('strike'); this.recover = 0.28;
     this.#play(back ? 'slash2' : 'slash');
-    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 74, angle: this.aim, arc: 2.3, damage: 90, knockback: 220, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 74, angle: this.aim, arc: 2.3, damage: 104, knockback: 220, heavy: true, ttl: 0.14 });
     this.kbx += Math.cos(this.aim) * 90; this.kby += Math.sin(this.aim) * 90;
     for (let i = 0; i < 9; i++) {
       const a = this.aim - 1.1 + i * 0.27;
       world.particles.sparks(this.x + Math.cos(a) * 54, this.y - 12 + Math.sin(a) * 30, a, 2, this.enraged ? WHITE_FIRE : FIRE);
     }
     world.particles.dust(this.x + Math.cos(this.aim) * 30, this.y + Math.sin(this.aim) * 16, 6, '#4a3e3a');
-    world.addLight(new Light({ x: this.x + Math.cos(this.aim) * 40, y: this.y - 14, radius: 90, color: FIRE_RGB, intensity: 0.8, ttl: 0.22, bloom: 0.4 }));
+    world.addLight(flashLight({ x: this.x + Math.cos(this.aim) * 40, y: this.y - 14, radius: 90, color: FIRE_RGB, intensity: 0.8, ttl: 0.22, bloom: 0.4 }));
     world.session.camera?.shake(4);
     world.session.hitstop?.(0.04);
     world.bus.emit('enemySwing', { actor: this, heavy: true });
@@ -386,13 +456,13 @@ export class Malgareth extends Actor {
     // Treffer entlang der markierten Linie (Klinge + Glutstrahl)
     const h = world.hero;
     const ax = this.x, ay = this.y, bx = this.x + ca * len, by = this.y + sa * len * 0.75;
-    if (!h.dead && segDist(h.x, h.y, ax, ay, bx, by) < 11 + (h.hurtRadius ?? 6)) hurtHero(world, this, 130, ca, sa, 260, true);
+    if (!h.dead && segDist(h.x, h.y, ax, ay, bx, by) < 11 + (h.hurtRadius ?? 6)) hurtHero(world, this, 150, ca, sa, 260, true);
     for (let s = 20; s < len; s += 8) {
       const x = this.x + ca * s, y = this.y + sa * s * 0.75;
       world.particles.spawn({ x, y, z: 14, vx: ca * rand(60, 140), vy: sa * rand(40, 90), vz: rand(-10, 20), drag: 4, life: rand(0.25, 0.45), colors: this.enraged ? WHITE_FIRE : FIRE, emissive: true, size: 2, shrink: true });
     }
     world.addEffect(new ThrustFlare(this.x, this.y, this.aim, len, this));
-    world.addLight(new Light({ x: this.x + ca * len * 0.5, y: this.y + sa * len * 0.35, radius: 90, color: FIRE_RGB, intensity: 0.9, ttl: 0.25, bloom: 0.5 }));
+    world.addLight(flashLight({ x: this.x + ca * len * 0.5, y: this.y + sa * len * 0.35, radius: 90, color: FIRE_RGB, intensity: 0.9, ttl: 0.25, bloom: 0.5 }));
     world.session.camera?.shake(5);
     world.bus.emit('enemySwing', { actor: this, heavy: true });
   }
@@ -401,11 +471,42 @@ export class Malgareth extends Actor {
   #afterStrike(world) {
     if (this.combo && this.combo.i < this.combo.steps.length - 1) {
       this.combo.i++;
-      return this.#comboStep(world, [0.55, 0.5, 0.42][this.phase - 1]);
+      return this.#comboStep(world, [0.6, 0.55, 0.5][this.phase - 1]);
     }
     this.combo = null;
     this.cooldown = [0.8, 0.55, 0.4][this.phase - 1] + rand(0, 0.35);
     this.setState('chase');
+  }
+
+
+  // ---------------------------------------------------------------- Glutring (bestraft Nahkämpfer)
+
+  // Der Fürst stößt das Schwert in den Boden, ein Ring aus Glut und Asche bricht rings um ihn auf.
+  #beginRing(world) {
+    const wind = [0.8, 0.7, 0.58][this.phase - 1];
+    this.#tele(world, this.x, this.y, { shape: 'circle', r: RING_R, duration: wind, follow: this, color: WARN_FIRE });
+    this.#begin(world, 'waveWindup', wind, (w) => this.#ring(w));
+  }
+
+  #ring(world) {
+    this.setState('strike'); this.recover = 0.6;
+    this.#play('wave');
+    const h = world.hero, dmg = RING_DMG[this.phase - 1];
+    const dx = h.x - this.x, dy = (h.y - this.y) / 0.6, d = Math.hypot(dx, dy) || 1;
+    if (!h.dead && d < RING_R + (h.hurtRadius ?? 6)) hurtHero(world, this, dmg, dx / d, dy / d * 0.6, 300, true);
+    world.addEffect(new Shockwave(this.x, this.y, { radius: RING_R + 4, color: this.enraged ? '#fff4c8' : '#ffb048', life: 0.45 }));
+    world.addEffect(new Shockwave(this.x, this.y, { radius: RING_R * 0.6, color: '#f07a1c', life: 0.35 }));
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2, r = RING_R * (0.75 + Math.random() * 0.25);
+      const x = this.x + Math.cos(a) * r, y = this.y + Math.sin(a) * r * 0.6;
+      world.particles.spawn({ x, y, z: 2, vx: Math.cos(a) * 30, vy: Math.sin(a) * 18, vz: rand(30, 80), gravity: 80, drag: 2, life: rand(0.35, 0.6), colors: this.enraged ? WHITE_FIRE : FIRE, emissive: true, size: 2, shrink: true });
+      if (i % 4 === 0) world.decals.scorch(x, y, 6);
+    }
+    ashBurst(world, this.x, this.y, 18, 1.3);
+    world.addLight(flashLight({ x: this.x, y: this.y - 6, radius: 120, color: FIRE_RGB, intensity: 0.9, ttl: 0.14, bloom: 0.4 }));
+    world.session.camera?.shake(7);
+    world.session.hitstop?.(0.05);
+    world.bus.emit('bossSlam', { x: this.x, y: this.y });
   }
 
   // ---------------------------------------------------------------- Aschenwelle
@@ -434,10 +535,10 @@ export class Malgareth extends Actor {
     ashBurst(world, ix, iy, 16, 1.2);
     world.particles.ring(ix, iy, 8, 26, FIRE, 120);
     world.decals.scorch(ix, iy, 16);
-    world.addLight(new Light({ x: ix, y: iy, radius: 110, color: FIRE_RGB, intensity: 1.1, ttl: 0.35, bloom: 0.7 }));
+    world.addLight(flashLight({ x: ix, y: iy, radius: 110, color: FIRE_RGB, intensity: 1.1, ttl: 0.35, bloom: 0.7 }));
     world.session.hitstop?.(0.08);
     world.session.camera?.shake(9);
-    world.bus.emit('spellImpact', { x: ix, y: iy, element: 'fire', radius: 30, big: true });
+    impactFx(world, ix, iy, 30, true);
     world.bus.emit('bossSlam', { x: ix, y: iy });
   }
 
@@ -503,7 +604,7 @@ export class Malgareth extends Actor {
   #invoke(world, kind) {
     this.setState('strike'); this.recover = 0.6;
     const t = this.#meta('tip');
-    world.addLight(new Light({ x: t.x, y: t.y, radius: 100, color: FIRE_RGB, intensity: 1, ttl: 0.4, bloom: 0.8 }));
+    world.addLight(flashLight({ x: t.x, y: t.y, radius: 100, color: FIRE_RGB, intensity: 1, ttl: 0.4, bloom: 0.8 }));
     world.particles.element(t.x, t.y, 'fire', 16, 5);
     if (kind === 'summon') this.#summon(world);
   }
@@ -578,7 +679,7 @@ export class Malgareth extends Actor {
         this.adds.push(e);
         world.particles.element(p.x, p.y, 'fire', 18, 10);
         ashBurst(world, p.x, p.y, 12);
-        world.addLight(new Light({ x: p.x, y: p.y - 10, radius: 50, color: FIRE_RGB, intensity: 0.9, ttl: 0.6, bloom: 0.4 }));
+        world.addLight(flashLight({ x: p.x, y: p.y - 10, radius: 50, color: FIRE_RGB, intensity: 0.9, ttl: 0.6, bloom: 0.4 }));
       }));
     }
     if (n > 0) world.bus.emit('bossSummon', { bossId: this.bossId, count: n });
@@ -660,7 +761,7 @@ export class Malgareth extends Actor {
   }
 
   #meta(key) {
-    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -58 };
+    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -76 };
     return { x: this.x + m.dx * this.facing, y: this.y + m.dy };
   }
 
@@ -696,12 +797,14 @@ export class Malgareth extends Actor {
       world.session.camera?.shake(this.dead ? 6 : 10);
       world.particles.ring(h.x, h.y + 8, 12, 40, cols, 140);
       world.addEffect(new Shockwave(this.x, this.y - 4, { radius: 110, color: this.enraged ? '#fff4c8' : '#ffb048', life: 0.7 }));
-      world.addLight(new Light({ x: h.x, y: h.y, radius: 170, color: this.enraged ? WHITE_RGB : FIRE_RGB, intensity: 1.2, ttl: 0.6, bloom: 0.8 }));
+      world.addLight(flashLight({ x: h.x, y: h.y, radius: 170, color: this.enraged ? WHITE_RGB : FIRE_RGB, intensity: 1.2, ttl: 0.6, bloom: 0.8 }));
       world.bus.emit('bossRoar', { bossId: this.bossId, x: this.x, y: this.y });
       if (this.dead) return;
       const hero = world.hero, dx = hero.x - this.x, dy = hero.y - this.y, d = Math.hypot(dx, dy) || 1;
       if (this.state === 'transform') {
-        world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 170, duration: 1.0, damage: 80, color: [255, 150, 60] }));
+        // Brüllen beim Gestaltwechsel: ohne Schaden (keine Bodenwarnung möglich), nur Druckwelle und Rückstoß
+        world.addEffect(new Shockwave(this.x, this.y, { radius: 150, color: '#ffb048', life: 0.8 }));
+        if (d < 120) { hero.kbx += (dx / d) * 220; hero.kby += (dy / d) * 220; }
         ashBurst(world, this.x, this.y - 20, 30, 1.6);
         if (this.phase === 3 && !this.fissures.length) this.#spawnFissures(world);
       } else if (d < 120) { hero.kbx += (dx / d) * 260; hero.kby += (dy / d) * 260; }
@@ -718,19 +821,19 @@ export class Malgareth extends Actor {
       const c = this.#meta('crown');
       world.particles.sparks(c.x, c.y, -Math.PI / 2, 10, ['#ffffff', ...GOLDC]);
       world.particles.ring(c.x, c.y, 3, 12, GOLDC, 50);
-      world.addLight(new Light({ x: c.x, y: c.y, radius: 50, color: GOLD_RGB, intensity: 0.9, ttl: 0.5, bloom: 0.6 }));
+      world.addLight(flashLight({ x: c.x, y: c.y, radius: 50, color: GOLD_RGB, intensity: 0.9, ttl: 0.5, bloom: 0.6 }));
       world.session.camera?.shake(3);
       world.bus.emit('bossCrownFall', { bossId: this.bossId, x: c.x, y: c.y });
     } else if (f.fx === 'ash') {
-      ashBurst(world, this.x, this.y - 48, 30, 1.2);
+      ashBurst(world, this.x, this.y - 62, 30, 1.2);
     }
   }
 
   #ambient(dt, world) {
     if (this.state === 'sleep' || this.dead) return;
     const rate = [3, 6, 12][this.phase - 1];
-    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-14, 14), this.y - rand(12, 72), 1);
-    if (Math.random() < dt * rate * 0.6) ashBurst(world, this.x + rand(-12, 12), this.y - rand(24, 72), 1, 0.4);
+    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-14, 14), this.y - rand(16, 96), 1);
+    if (Math.random() < dt * rate * 0.6) ashBurst(world, this.x + rand(-12, 12), this.y - rand(30, 96), 1, 0.4);
     if (this.phase >= 2 && Math.random() < dt * 14) {
       // Rauch sinkt vom Schwebenden zu Boden
       world.particles.spawn({ x: this.x + rand(-6, 6), y: this.y, z: rand(2, 10), vx: rand(-8, 8), vy: rand(-3, 3), rise: rand(-4, 2), drag: 2, life: rand(0.6, 1.1), colors: ['#3a3040', '#2a2230', '#1c1620'], size: 2, alpha: 0.7, shrink: true });
@@ -743,11 +846,11 @@ export class Malgareth extends Actor {
 
   #deathTick(dt, world) {
     const t = this.stateTime;
-    if (t < 1.3 && Math.random() < dt * 30) world.particles.element(this.x + rand(-18, 18), this.y - rand(12, 72), 'fire', 1, 4);
+    if (t < 1.3 && Math.random() < dt * 30) world.particles.element(this.x + rand(-18, 18), this.y - rand(16, 96), 'fire', 1, 4);
     // Zerfall: Asche steigt auf, Glut stiebt
     if (t > 1.9 && t < 4.2) {
       const k = (t - 1.9) / 2.3;
-      const y = this.y - 78 * (1 - k);
+      const y = this.y - 104 * (1 - k);
       for (let i = 0; i < 3; i++) if (Math.random() < 0.8) ashBurst(world, this.x + rand(-14, 12), y + rand(-4, 4), 1, 0.7);
       if (Math.random() < 0.6) world.particles.embers(this.x + rand(-12, 10), y, 1);
     }
@@ -757,7 +860,7 @@ export class Malgareth extends Actor {
   onHurt(hit) {
     if (this.state === 'sleep') return;
     if (this.state === 'chase' && hit?.heavy && Math.random() < 0.3) this.hurtAnim = 0.25;
-    if (this.world && Math.random() < 0.4) ashBurst(this.world, this.x + rand(-7, 7), this.y - rand(24, 60), 2, 0.6);
+    if (this.world && Math.random() < 0.4) ashBurst(this.world, this.x + rand(-7, 7), this.y - rand(30, 80), 2, 0.6);
     this.world?.bus.emit('bossHurt', { actor: this });
   }
 
@@ -778,11 +881,11 @@ export class Malgareth extends Actor {
     w.session.camera?.shake(10);
     if (this.coreLight) this.coreLight.dead = true;
     if (this.fillLight) this.fillLight.dead = true;
-    w.addLight(new Light({ x: this.x, y: this.y - 58, radius: 220, color: WHITE_RGB, intensity: 1.1, ttl: 1.3, bloom: 0.8 }));
+    w.addLight(flashLight({ x: this.x, y: this.y - 76, radius: 220, color: WHITE_RGB, intensity: 1.1, ttl: 1.3, bloom: 0.8 }));
     this.deathLight = w.addLight(new Light({ follow: this, offsetY: -24, radius: 115, color: FIRE_RGB, intensity: 0.9, flicker: 0.25, ttl: 9, bloom: 0.3 }));
-    w.particles.ring(this.x, this.y - 48, 10, 50, WHITE_FIRE, 180);
-    for (let i = 0; i < 40; i++) w.particles.embers(this.x + rand(-22, 22), this.y - rand(12, 84), 1);
-    w.bus.emit('spellImpact', { x: this.x, y: this.y - 30, element: 'fire', radius: 70, big: true });
+    w.particles.ring(this.x, this.y - 62, 10, 50, WHITE_FIRE, 180);
+    for (let i = 0; i < 40; i++) w.particles.embers(this.x + rand(-22, 22), this.y - rand(16, 110), 1);
+    impactFx(w, this.x, this.y - 30, 70, true);
   }
 
   // ---------------------------------------------------------------- Zeichnen
@@ -939,7 +1042,7 @@ export class EmberSpear extends Entity {
   #burst(world) {
     world.particles.element(this.x, this.y - this.z * 0.5, 'fire', 10, 4);
     world.decals.scorch(this.x, this.y, 5);
-    world.addLight(new Light({ x: this.x, y: this.y, radius: 40, color: FIRE_RGB, intensity: 0.8, ttl: 0.2, bloom: 0.3 }));
+    world.addLight(flashLight({ x: this.x, y: this.y, radius: 40, color: FIRE_RGB, intensity: 0.8, ttl: 0.2, bloom: 0.3 }));
     world.bus.emit('arrowStuck', { x: this.x, y: this.y });
   }
   render(ctx, cx, cy) {
@@ -1002,10 +1105,10 @@ export class ObsidianMeteor extends Entity {
       world.particles.ring(x, y, 6, 22, FIRE, 120);
       ashBurst(world, x, y, 10, 1);
       world.decals.scorch(x, y, 16);
-      world.addLight(new Light({ x, y, radius: 110, color: [255, 140, 60], intensity: 1.1, ttl: 0.4, bloom: 0.7 }));
+      world.addLight(flashLight({ x, y, radius: 110, color: [255, 140, 60], intensity: 1.1, ttl: 0.4, bloom: 0.7 }));
       world.session.camera?.shake(this.big ? 8 : 4);
       if (this.big) world.session.hitstop?.(0.05);
-      world.bus.emit('spellImpact', { x, y, element: 'fire', radius: this.r, big: this.big });
+      impactFx(world, x, y, this.r, this.big);
       world.bus.emit('bossMeteor', { x, y });
       if (this.owner.phase >= 3) world.spawn(new EmberPatch(x, y, this.owner, { r: 14, duration: 4, damage: 40 }));
     }
@@ -1042,7 +1145,7 @@ class EmberPatch extends Entity {
     if (Math.random() < dt * 6) { const a = rand(0, 6.28), r = rand(0, this.r); world.particles.embers(this.x + Math.cos(a) * r, this.y + Math.sin(a) * r * 0.6, 1); }
     this.cool -= dt;
     const h = world.hero;
-    if (this.cool <= 0 && !h.dead && Math.hypot(h.x - this.x, (h.y - this.y) / 0.6) < this.r) if (hurtHero(world, this.owner, this.damage, 0, -1, 30)) this.cool = this.tick;
+    if (this.cool <= 0 && !h.dead && Math.hypot(h.x - this.x, (h.y - this.y) / 0.6) < this.r) if (hurtHero(world, this.owner, this.damage, 0, -1, 30, false, true)) this.cool = this.tick;
   }
   renderEmissive(ctx, cx, cy) {
     const fade = Math.min(1, this.t * 5, (this.duration - this.t) * 1.5);
@@ -1074,9 +1177,9 @@ export class FirePillar extends Entity {
       world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x: this.x, y: this.y - 6, r: this.r, damage: this.damage, knockback: 180, heavy: true, ttl: 0.2 });
       world.particles.element(this.x, this.y - 10, 'fire', 14, 6);
       world.decals.scorch(this.x, this.y, 10);
-      world.addLight(new Light({ x: this.x, y: this.y - 20, radius: 70, color: FIRE_RGB, intensity: 1, ttl: 0.45, bloom: 0.6 }));
+      world.addLight(flashLight({ x: this.x, y: this.y - 20, radius: 70, color: FIRE_RGB, intensity: 1, ttl: 0.45, bloom: 0.6 }));
       world.session.camera?.shake(2);
-      world.bus.emit('spellImpact', { x: this.x, y: this.y, element: 'fire', radius: this.r, big: false });
+      impactFx(world, this.x, this.y, this.r, false);
     }
     if (this.t >= this.delay + 0.55) this.removed = true;
   }
@@ -1117,7 +1220,7 @@ export class EmberFissure extends Entity {
     for (let i = 0; i < this.points.length - 1; i++) {
       const a = this.points[i], b = this.points[i + 1];
       const ang = Math.atan2((b.y - a.y) / 0.75, b.x - a.x), len = Math.hypot(b.x - a.x, (b.y - a.y) / 0.75);
-      world.spawn(new Telegraph(a.x, a.y, { shape: 'line', angle: ang, len, width: 16, duration: dur, color: WARN_FIRE }));
+      world.spawn(new MalgTelegraph(a.x, a.y, { shape: 'line', angle: ang, len, width: 16, duration: dur, color: WARN_FIRE }));
     }
     world.bus.emit('telegraph', { actor: this.owner, attack: 'fissure' });
   }
@@ -1144,14 +1247,14 @@ export class EmberFissure extends Entity {
     else if (this.phaseState === 'warn' && c >= eruptAt) {
       this.phaseState = 'erupt'; this.hitDone = false;
       for (let i = 0; i < 8; i++) { const p = this.#rand(); world.particles.element(p.x, p.y - 4, 'fire', 4, 4); }
-      world.addLight(new Light({ x: this.#mid().x, y: this.#mid().y, radius: 140, color: FIRE_RGB, intensity: 0.9, ttl: 0.5, bloom: 0.5 }));
+      world.addLight(flashLight({ x: this.#mid().x, y: this.#mid().y, radius: 140, color: FIRE_RGB, intensity: 0.9, ttl: 0.5, bloom: 0.5 }));
       world.session.camera?.shake(3);
-      world.bus.emit('spellImpact', { x: this.#mid().x, y: this.#mid().y, element: 'fire', radius: 20, big: false });
+      impactFx(world, this.#mid().x, this.#mid().y, 20, false);
     } else if (this.phaseState === 'erupt' && c < warnAt) this.phaseState = 'idle';
     if (this.phaseState === 'erupt' && !this.hitDone) {
       const h = world.hero;
       if (!h.dead && this.distTo(h.x, h.y) < 9) {
-        if (hurtHero(world, this.owner, this.damage, 0, -1, 160, true)) this.hitDone = true;
+        if (hurtHero(world, this.owner, this.damage, 0, -1, 160, true, true)) this.hitDone = true;
         else if (h.dodgedTimer > 0) this.hitDone = true;
       }
     }
@@ -1196,6 +1299,7 @@ export class Cataclysm extends Entity {
   }
   update(dt, world) {
     this.t += dt;
+    if (this.owner.dead) { this.removed = true; if (this.light) this.light.dead = true; if (this.redLight) this.redLight.dead = true; return; }
     if (!this.light) {
       this.light = world.addLight(new Light({ x: this.x, y: this.y - 10, radius: this.r * 2.4, color: GOLD_RGB, intensity: 0.8, flicker: 0.1, ttl: this.duration, bloom: 0.4 }));
       const A = this.arena;
@@ -1221,10 +1325,10 @@ export class Cataclysm extends Entity {
         world.particles.element(x, y - 4, 'fire', 2, 4);
         if (i % 5 === 0) world.decals.scorch(x, y, 8);
       }
-      world.addLight(new Light({ x: (A.x0 + A.x1) / 2, y: (A.y0 + A.y1) / 2, radius: 320, color: WHITE_RGB, intensity: 1.3, ttl: 0.6, bloom: 1 }));
+      world.addLight(flashLight({ x: (A.x0 + A.x1) / 2, y: (A.y0 + A.y1) / 2, radius: 320, color: WHITE_RGB, intensity: 1.3, ttl: 0.6, bloom: 1 }));
       world.session.camera?.shake(14);
       world.session.hitstop?.(0.12);
-      world.bus.emit('spellImpact', { x: this.owner.x, y: this.owner.y, element: 'fire', radius: 140, big: true });
+      impactFx(world, this.owner.x, this.owner.y, 140, true);
       world.bus.emit('bossCataclysm', { bossId: this.owner.bossId });
     }
     if (this.t >= this.duration || this.owner.dead) { this.removed = true; if (this.light) this.light.dead = true; if (this.redLight) this.redLight.dead = true; }
@@ -1239,8 +1343,10 @@ export class Cataclysm extends Entity {
     ctx.beginPath();
     ctx.rect(A.x0 - cx, A.y0 - 8 - cy, A.x1 - A.x0, A.y1 - A.y0 + 8);
     ctx.ellipse(this.x - cx, this.y - cy, this.r, this.r * 0.6, 0, 0, Math.PI * 2);
-    ctx.globalAlpha = this.fired ? 0.55 * burn : 0.12 + 0.3 * k;
-    ctx.fillStyle = this.fired ? '#ffb048' : '#c8300c';
+    // Ausbruch: kurzer Blitz (höchstens 38 %, 0,12 s), danach nur noch dunkles Nachglühen
+    const since = this.t - this.fireAt;
+    ctx.globalAlpha = this.fired ? (since < 0.12 ? 0.38 : 0.2 * burn) : 0.12 + 0.26 * k;
+    ctx.fillStyle = this.fired ? (since < 0.12 ? '#ffb048' : '#a8300a') : '#c8300c';
     ctx.fill('evenodd');
     // der sichere Kreis leuchtet golden
     if (!this.fired) {
@@ -1294,7 +1400,7 @@ export class Cataclysm extends Entity {
     } else {
       const b = Math.max(0, 1 - (this.t - this.fireAt) / 0.7);
       const A = this.arena;
-      ctx.globalAlpha = b;
+      ctx.globalAlpha = 0.8 * b;
       for (let i = 0; i < 160; i++) {
         const gx = A.x0 + ((i * 0.6180339) % 1) * (A.x1 - A.x0), gy = A.y0 + ((i * 0.7548776) % 1) * (A.y1 - A.y0);
         if (this.#inside(gx, gy)) continue;

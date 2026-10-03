@@ -4,10 +4,23 @@ import { EV } from '../core/events.js';
 
 // Bodenwarnungen für Boss-Angriffe: zeigen VOR dem Treffer, wo es gefährlich
 // wird. Die Innenfläche füllt sich bis zum Zeitpunkt des Schlags.
-//   shape: 'circle' { r } | 'arc' { r, angle, arc } | 'line' { angle, len, width }
+//   shape: 'circle' { r } | 'arc' { r, angle, arc } | 'line' { angle, len, width, screen }
+// Konventionen (gelten auch für die Trefferprüfung in Combat.update):
+//   circle/arc: Ellipse mit 0,6-facher Höhe um den Fußpunkt; `angle` des Bogens gilt im
+//     Ellipsenraum, d. h. getroffen wird, wer bei atan2((y - y0) / 0.6, x - x0) im Bogen steht.
+//   line: Standard (Bodenraum): Richtung (cos a, sin a · 0,75), Länge len in diesem Raum –
+//     passend zu Angriffen, die sich selbst mit 0,75 gestaucht bewegen (Wellen, Ranken …).
+//     Mit `screen: true` gilt Bildraum: Richtung (cos a, sin a), Länge len in Pixeln – passend zu
+//     allem, was sich unverzerrt bewegt (Ansturm, Geschosse mit vx = cos·v, vy = sin·v).
+//     Intern wird dafür der Winkel in den Bodenraum umgerechnet, die Zeichnung bleibt dieselbe.
+export function screenLine(angle, len) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return { angle: Math.atan2(s / 0.75, c), len: len * Math.hypot(c, s / 0.75) };
+}
 export class Telegraph extends Entity {
-  constructor(x, y, { shape = 'circle', r = 30, angle = 0, arc = Math.PI, len = 100, width = 16, duration = 1, follow = null, color = [255, 70, 50] }) {
+  constructor(x, y, { shape = 'circle', r = 30, angle = 0, arc = Math.PI, len = 100, width = 16, duration = 1, follow = null, color = [255, 70, 50], screen = false }) {
     super(x, y);
+    if (shape === 'line' && screen) ({ angle, len } = screenLine(angle, len));
     Object.assign(this, { shape, r, angle, arc, len, width, duration, follow, color });
     this.t = 0;
     this.sortOffset = -20000; // liegt auf dem Boden, unter allen Figuren
@@ -105,10 +118,11 @@ export class Telegraph extends Entity {
 
 // Ringförmige Druckwelle, die sich ausbreitet. Wer im Ring steht, wird getroffen
 // (Ausweichrolle schützt). Trifft den Helden höchstens einmal.
+// harmless: nur sichtbar (z. B. Brüllen beim Phasenwechsel), kein Treffer.
 export class DamageWave extends Entity {
-  constructor(x, y, owner, { maxR = 110, duration = 0.8, damage = 12, color = [170, 110, 255] }) {
+  constructor(x, y, owner, { maxR = 110, duration = 0.8, damage = 12, color = [170, 110, 255], harmless = false }) {
     super(x, y);
-    Object.assign(this, { owner, maxR, duration, damage, color });
+    Object.assign(this, { owner, maxR, duration, damage, color, harmless });
     this.t = 0; this.hitDone = false; this.sortOffset = -19000;
   }
   get r() { return 6 + (this.maxR - 6) * Math.min(1, this.t / this.duration); }
@@ -116,7 +130,8 @@ export class DamageWave extends Entity {
     this.t += dt;
     if (this.t >= this.duration) { this.removed = true; return; }
     const h = world.hero;
-    if (this.hitDone || h.dead) return;
+    // Nach dem Tod des Verursachers läuft die Welle nur noch optisch aus
+    if (this.harmless || this.hitDone || h.dead || this.owner?.dead) return;
     const dx = h.x - this.x, dy = (h.y - this.y) / 0.6;
     const d = Math.hypot(dx, dy);
     if (Math.abs(d - this.r) < 7) {

@@ -759,7 +759,7 @@ export class RotMother extends Actor {
       const n = this.phase >= 3 ? 7 : 5, spread = 0.95;
       for (let i = 0; i < n; i++) {
         const a = this.aim - spread / 2 + (spread * i) / (n - 1);
-        world.spawn(new Telegraph(this.x, this.y - 2, { shape: 'line', angle: a, len: 150, width: 5, duration: windup, color: WARN_POISON }));
+        world.spawn(new Telegraph(this.x, this.y - 2, { shape: 'line', angle: a, len: 150, width: 5, duration: windup, color: WARN_POISON, screen: true }));
       }
     } else if (kind === 'lob') {
       // Ziele sofort markieren: eines auf den Helden (vorausgesagt), die übrigen um ihn herum

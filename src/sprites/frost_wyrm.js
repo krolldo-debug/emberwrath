@@ -37,6 +37,7 @@ const CRYS = ['#153a62', '#25649c', '#3f9ccf', '#88d4ef', '#dcf8ff'];
 const HORN = ['#1a2638', '#2e4258', '#4c6882', '#7c9cb2', '#bcd6e2'];
 const MOUTH = ['#0a0614', '#1e0c26', '#381434', '#5a2046', '#7e3058'];
 const TONGUE = ['#4a1636', '#86305a', '#bc4e7c', '#e684a6'];
+const MAW = ['#05040a', '#0e0a1c', '#1c1028', '#341634', '#56203e', '#7c3252'];
 const THROAT = ['#06040c', '#0c1a2c', '#1c4a6a', '#3a8cb4'];
 const TEETH = ['#5a7a92', '#c4e0ec', '#f4fcff'];
 const FROZEN = ['#3e5c74', '#6a8ea6', '#9cc0d2', '#cfe8f2', '#f4fdff'];
@@ -172,6 +173,8 @@ const REST = {
   fNx: 11, fNy: 0, fFx: 3, fFy: 0,
   // Leuchten
   heart: 1, crest: 0, breath: 0, glint: 0,
+  // Brüll-Rachen: tiefer, dunkler Schlund mit kaltem Kernlicht (nur Brüll-/Rufposen)
+  maw: 0,
 };
 const pose = (o = {}) => ({ ...REST, ...o });
 const ease = (t) => t * t * (3 - 2 * t);
@@ -483,7 +486,40 @@ function drawHead(p, g, bx, by, P, o) {
     // Schlundmitte (Leuchtzentrum): tief hinten, halbe Spalthöhe
     const tc = J(3.5, LIP); const tcu = (3.5 + tc[0]) / 2 - 1, tcv = (LIP + tc[1]) / 2;
     const tr = 3.2 + P.jaw * 2.2;
-    poly([...top, ...bot], (u, v, x, y) => {
+    const maw = frozen ? 0 : P.maw;
+    if (maw > 0.05) {
+      // Brüllen: Tiefe statt Fläche. Dunkler Schlund hinten, Gaumenleisten, rosiger Zahnfleischsaum
+      // an beiden Kiefern, kaltes Kernlicht, das auf Gaumen und Zunge streut, Frost-Speichelfäden.
+      const trM = tr * (1 + 0.5 * maw);
+      poly([...top, ...bot], (u, v, x, y) => {
+        const [ju, jv] = invJ(u, v);
+        const fromTop = v - LIP, fromBot = LIP - jv, span = Math.max(0.01, fromTop + fromBot);
+        const s = fromTop / span, r = Math.max(0, Math.min(1, (u + 3) / 27));
+        const d = Math.hypot((u - tcu) / 1.6, v - tcv) / trM;
+        const dd = dith(x, y);
+        if (d < 1) {
+          const k = 1 - d;
+          const gi = Math.round(k * (1.6 + maw * 1.8 + breath * 1.6) + dd * 0.8 - 0.4);
+          if (gi >= 0) mouthGlow.push(x, y, Math.min(4, gi));
+          return THROAT[Math.max(0, Math.min(3, Math.round(k * (1.8 + maw * 1.3) + dd * 0.9 - 0.2)))];
+        }
+        // Frost-Speichelfäden zwischen den Kiefern
+        if (maw > 0.5 && s > 0.12 && s < 0.9) for (const [us, cut] of [[13.5, 0.62], [19.2, 0.3]]) {
+          const uu = (ju + u) / 2;
+          if (Math.abs(uu + (s - 0.5) * 0.8 - us) < 0.42 && Math.abs(s - cut) > 0.09) { mouthGlow.push(x, y, 1); return s < 0.5 ? TEETH[0] : CRYS[3]; }
+        }
+        // Streulicht des Kerns auf Gaumen und Zungengrund
+        if (d < 1.4 && (BAYER[(y & 3) * 4 + (x & 3)] / 16) < (1.4 - d) * 1.2) { if (d < 1.25) mouthGlow.push(x, y, 0); return THROAT[2]; }
+        const e = Math.abs(s - 0.5) * 2;
+        let idx = 0.2 + r * 2.1 + e * e * 1.3 + dd * 0.6;
+        if (s < 0.3 && r > 0.15) idx += ((((u + 0.6) / 2.4) % 1) < 0.35 ? -0.9 : 0.35);   // Gaumenleisten
+        if (r > 0.2 && fromTop < 0.85) idx = 4.3 + dd * 0.5;                                // Zahnfleisch oben
+        else if (r > 0.25 && fromBot < 0.85) idx = 3.9 + dd * 0.5;                         // Zahnfleisch unten
+        if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
+        else if (hash2(x, y, 17) < 0.05 * maw && d < 2.2) mouthGlow.push(x, y, 1);
+        return MAW[Math.max(0, Math.min(5, Math.round(idx)))];
+      }, M_MOUTH);
+    } else poly([...top, ...bot], (u, v, x, y) => {
       const [, jv] = invJ(u, v);
       const fromTop = v - LIP, fromBot = LIP - jv;
       const d = Math.hypot((u - tcu) / 1.5, v - tcv) / tr;                // 0 = Schlundmitte
@@ -513,6 +549,7 @@ function drawHead(p, g, bx, by, P, o) {
       let idx = 0.7 + h * 1.1 + dith(x, y) * 0.6;
       if (ju < 3) idx -= 0.9;
       if (Math.abs(h - 1.1) < 0.3 && ju > 3 && ju < tl - 1) idx -= 0.9;  // Mittelfurche
+      if (P.maw > 0.05 && !frozen && ju < tl * 0.45) idx -= 0.8 * P.maw;    // Zungengrund im Schlundschatten
       return TONGUE[Math.max(0, Math.min(3, Math.round(idx)))];
     }, M_MOUTH);
     for (let i = 0; i < mouthGlow.length; i += 3) g.px(mouthGlow[i], mouthGlow[i + 1], mouthGlow[i + 2]);
@@ -1083,7 +1120,7 @@ export function createSkalvyrSprites() {
   });
   const coilB = { ...coil, bulk: 1.03, heart: 0.8, chestH: -0.4 };
   const rise = pose({ len: 0.85, wave: 6, wph: 0.3, hx: 18, hh: 34, ha: 0.1, nb: 0.4, jaw: 0.1, eye: 1, heart: 1.5, tailSwing: 0.7, chestH: 2 });
-  const roarP = pose({ chestH: 11, hx: 11, hh: 72, ha: -0.62, nb: 0.6, jaw: 1, crest: 1, heart: 2.8, fNx: 14, fNy: 4, fFx: 6, fFy: 2, tailCurl: 0.9, tailLift: 7, bulk: 1.06, glint: 1 });
+  const roarP = pose({ maw: 1, chestH: 11, hx: 11, hh: 72, ha: -0.62, nb: 0.6, jaw: 1, crest: 1, heart: 2.8, fNx: 14, fNy: 4, fFx: 6, fFy: 2, tailCurl: 0.9, tailLift: 7, bulk: 1.06, glint: 1 });
   const roarP2 = { ...roarP, hh: 74, ha: -0.7, hx: 10, jaw: 0.92, heart: 3, tailCurl: 1 };
 
   // Biss: Kopf zurückziehen (S-Kurve), dann vorschnellen und zuschnappen
@@ -1108,7 +1145,7 @@ export function createSkalvyrSprites() {
 
   // Eissplitter-Ruf: aufbäumen, zur Decke brüllen
   const cw1 = pose({ chestH: 7, hx: 12, hh: 64, ha: -0.5, nb: 0.5, jaw: 0.5, heart: 2, crest: 0.6, fNy: 3 });
-  const cw2 = pose({ chestH: 12, hx: 9, hh: 76, ha: -0.95, nb: 0.7, jaw: 1, heart: 3, crest: 1.2, fNy: 6, fFy: 3, tailCurl: 1, tailLift: 8, glint: 1 });
+  const cw2 = pose({ maw: 0.9, chestH: 12, hx: 9, hh: 76, ha: -0.95, nb: 0.7, jaw: 1, heart: 3, crest: 1.2, fNy: 6, fFy: 3, tailCurl: 1, tailLift: 8, glint: 1 });
 
   // Stampfen (Eiswände): hoch aufrichten, Klauen heben, auf den Boden krachen
   const sw1 = pose({ chestH: 14, hx: 10, hh: 66, ha: -0.35, nb: 0.4, jaw: 0.6, heart: 2.2, fNx: 12, fNy: 14, fFx: 6, fFy: 12, crest: 0.7, tailCurl: 0.8 });
@@ -1119,13 +1156,13 @@ export function createSkalvyrSprites() {
   // Frostnova: eng einrollen, Stacheln aufstellen, dann explosiv aufrichten
   const nw1 = pose({ len: 0.8, wave: 6, wph: 0.5, hx: 16, hh: 30, ha: 0.45, nb: 0.3, jaw: 0.25, heart: 2.6, crest: 1.1, tailSwing: 0.8, bulk: 1.05, chestH: -1 });
   const nw2 = { ...nw1, hh: 28, heart: 3.2, crest: 1.45, bulk: 1.09, jaw: 0.35, glint: 1 };
-  const nr1 = pose({ len: 0.95, chestH: 10, hx: 12, hh: 70, ha: -0.6, nb: 0.6, jaw: 1, heart: 3.5, crest: 1.8, bulk: 1.08, tailSwing: 0.3, tailCurl: 1, glint: 1 });
+  const nr1 = pose({ maw: 0.8, len: 0.95, chestH: 10, hx: 12, hh: 70, ha: -0.6, nb: 0.6, jaw: 1, heart: 3.5, crest: 1.8, bulk: 1.08, tailSwing: 0.3, tailCurl: 1, glint: 1 });
 
   const hurtP = pose({ hx: 12, hh: 52, ha: -0.2, nb: 0.6, jaw: 0.65, eye: 0.5, chestH: 3, ox: -3, crest: 0.2, tailCurl: 0.8 });
 
   // Tod: zurückzucken, klagend aufbäumen – dann Erstarrung und Zersplittern
   const d1 = pose({ hx: 10, hh: 58, ha: -0.35, nb: 0.8, jaw: 0.9, eye: 0.6, chestH: 5, ox: -4, heart: 2.5, tailCurl: 1 });
-  const d2 = pose({ hx: 16, hh: 70, ha: -0.75, nb: 0.4, jaw: 1, eye: 0.3, chestH: 11, ox: -2, heart: 3.2, fNy: 5, tailCurl: 1.1, tailLift: 7, crest: 0.8 });
+  const d2 = pose({ maw: 0.7, hx: 16, hh: 70, ha: -0.75, nb: 0.4, jaw: 1, eye: 0.3, chestH: 11, ox: -2, heart: 3.2, fNy: 5, tailCurl: 1.1, tailLift: 7, crest: 0.8 });
 
 
   const idle = new Animation(track(idleKeys, 10, { loop: true }), 7);

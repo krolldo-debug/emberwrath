@@ -10,7 +10,23 @@ export class CombatSystem {
   }
 
   add(h) {
-    this.hitboxes.push({ shape: 'circle', arc: Math.PI * 2, angle: 0, heavy: false, ...h, hitSet: new Set() });
+    const box = { shape: 'circle', arc: Math.PI * 2, angle: 0, heavy: false, ...h, hitSet: new Set() };
+    if (box.team === 'enemy' && box.ground !== false) box.lift ??= CombatSystem.#groundLift(box);
+    this.hitboxes.push(box);
+  }
+
+  // Gegnerische Trefferzonen werden wie ihre Bodenwarnung (Telegraph) geprüft: Fußpunkt des
+  // Ziels in der Ellipse (Höhe 0,6) – wer mit den Füßen in der Warnung steht, wird getroffen.
+  // Die Zonen liegen historisch um den Körper angehoben (y − 4 … − 16); hier wird
+  // zurückgerechnet, wie weit sie über dem Boden liegen. Ausdrücklich setzbar per `lift`
+  // (Pixel über dem Boden) bzw. `ground: false` (alte Kreisprüfung um die Körpermitte).
+  // Ungewarnte Nahkampfhiebe/Sprünge normaler Gegner (mitlaufend, nach vorn versetzt: offX)
+  // behalten die alte, großzügigere Kreisprüfung, damit sie auch senkrecht treffen.
+  static #groundLift(h) {
+    const o = h.owner;
+    if (h.follow) return h.offX ? undefined : Math.max(0, -(h.offY ?? 0));
+    if (o && Math.abs(h.x - o.x) < 0.5 && o.y - h.y >= 0 && o.y - h.y <= 20) return o.y - h.y;
+    return 5; // Einschlagpunkte (y − 4 / y − 6)
   }
 
   clear() { this.hitboxes.length = 0; }
@@ -29,12 +45,22 @@ export class CombatSystem {
 
       for (const a of actors) {
         if (a.team === h.team || a.dead || !a.hurtable || h.hitSet.has(a)) continue;
-        const dx = a.x - h.x, dy = a.centerY - h.y;
-        const d = Math.hypot(dx, dy);
-        if (d > h.r + a.hurtRadius) continue;
-        if (h.shape === 'arc' && d > a.hurtRadius) {
-          const tol = Math.atan2(a.hurtRadius, d);
-          if (Math.abs(angleDiff(h.angle, Math.atan2(dy, dx))) > h.arc / 2 + tol) continue;
+        if (h.lift !== undefined) {
+          // Gegner -> Held/Verbündete: Fußpunkt in der gezeichneten Ellipse (Bogenwinkel wie
+          // Telegraph.#path im Ellipsenraum).
+          const dx = a.x - h.x, dy = (a.y - (h.y + h.lift)) / 0.6;
+          const d = Math.hypot(dx, dy);
+          if (d > h.r) continue;
+          if (h.shape === 'arc' && d > 2 && Math.abs(angleDiff(h.angle, Math.atan2(dy, dx))) > h.arc / 2) continue;
+        } else {
+          // Held -> Gegner (unverändert) und ungewarnte Gegner-Nahkampfhiebe: Kreis um die Körpermitte
+          const dx = a.x - h.x, dy = a.centerY - h.y;
+          const d = Math.hypot(dx, dy);
+          if (d > h.r + a.hurtRadius) continue;
+          if (h.shape === 'arc' && d > a.hurtRadius) {
+            const tol = Math.atan2(a.hurtRadius, d);
+            if (Math.abs(angleDiff(h.angle, Math.atan2(dy, dx))) > h.arc / 2 + tol) continue;
+          }
         }
         h.hitSet.add(a);
         this.#resolve(h, a, world);

@@ -905,10 +905,13 @@ function throneFaces(count = 8, seed = 933) {
     p.rect(0, 0, T, T, OGROUT);
     // Goldgesims
     p.rect(0, 0, T, 1, GOLD[5]); p.rect(0, 1, T, 1, GOLD[3]); p.rect(0, 2, T, 1, GOLD[1]); p.rect(0, 3, T, 1, OGROUT);
-    for (let x = 0; x < T; x += 4) p.px(x + 1, 1, GOLD[4]);
-    // Fries mit Mäander
+    p.px(8, 1, GOLD[4]); // ein Lichtpunkt je Kachel statt Nietenraster
+    // Fries: ein Mäander-Haken je Kachel (Periode 16), dazwischen ruhiges Feld mit Doppellinie
+    // und kleiner Raute – halbe Dichte, gedämpftes Gold, damit die lange Wand nicht flimmert.
     p.rect(0, 4, T, 6, OBS[1]);
-    for (let y = 0; y < 5; y++) for (let x = 0; x < T; x++) if (MEANDER[y][x & 7] === '#') p.px(x, 4 + y, y === 0 ? GOLD[4] : GOLD[2]);
+    for (let y = 0; y < 5; y++) for (let x = 0; x < 8; x++) if (MEANDER[y][x] === '#') p.px(x, 4 + y, y === 0 ? GOLD[3] : GOLD[2]);
+    p.rect(8, 4, 8, 1, GOLD[3]); p.rect(8, 8, 8, 1, GOLD[1]);
+    p.px(11, 6, GOLD[2]); p.px(12, 5, GOLD[3]); p.px(13, 6, GOLD[2]); p.px(12, 7, GOLD[1]); p.px(12, 6, OBS[0]);
     p.rect(0, 9, T, 1, OBS[0]);
     p.rect(0, 10, T, 1, GOLD[2]);
     ashlar(p, 11, 5);
@@ -935,12 +938,12 @@ function throneFaces(count = 8, seed = 933) {
       p.rect(x + 1, 8, 6, 1, OBS[k + 2]); p.rect(x, 8, 1, 8, OBS[k + 1]);
       p.rect(x + 7, 8, 1, 8, OBS[0]);
       p.rect(x + 2, 9, 1, 5, OBS[k + 1]); p.px(x + 2, 9, GLINT[0]);
-      if ((v + i) % 4 === 1) { p.px(x + 4, 11, GOLD[3]); p.px(x + 5, 11, GOLD[2]); p.px(x + 4, 12, GOLD[1]); } // Goldniete
-      if ((v * 3 + i) % 5 === 2) { p.px(x + 5, 12, EMB[1]); p.px(x + 5, 13, CRUST[4]); p.px(x + 6, 14, CRUST[3]); } // Glutriss
+      if ((v * 2 + i) % 8 === 3) { p.px(x + 4, 11, GOLD[3]); p.px(x + 5, 11, GOLD[2]); p.px(x + 4, 12, GOLD[1]); } // Goldniete (selten, kein Raster)
+      if ((v * 2 + i) % 8 === 6) { p.px(x + 5, 12, EMB[1]); p.px(x + 5, 13, CRUST[4]); p.px(x + 6, 14, CRUST[3]); } // Glutriss
     }
     // Glutwiderschein von unten + Ruß
     p.ctx.fillStyle = 'rgba(4,2,4,0.45)'; p.ctx.fillRect(0, 12, T, 4);
-    for (let x = 0; x < T; x++) if ((x + v) % 3 === 0) p.px(x, 15, CRUST[2]);
+    for (let x = 0; x < T; x++) if ((x * 7 + v * 5) % 13 === 0) p.px(x, 15, CRUST[2]);  // vereinzelte Glutkrümel statt Punktraster
     return p.canvas;
   };
   const upper = [], lower = [];

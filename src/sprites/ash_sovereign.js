@@ -23,18 +23,24 @@ import { hash2 } from '../core/math.js';
 // Blickrichtung rechts, Anker = Mitte zwischen den Füßen (am Boden, auch wenn er schwebt).
 // Animationen werden erst beim ersten Zugriff gebaut (Getter), der Boss wärmt sie vor.
 // Frame-Meta: hand, tip, blade, cast, chest, eye, mouth, head, crown, ground.
-const W = 330, H = 214, AX = 160, AY = 202;
+const W = 340, H = 262, AX = 166, AY = 248;
 
-// Obsidian: poliert, kühl-violett, mit deutlichen Helligkeitsstufen
-const OBS = ['#0d0a12', '#1d1828', '#30283f', '#4a3d5e', '#6b5a85', '#9583b0'];
-const SPEC = '#d4caf0';
+// Leitfarbe: Aschweiß/Knochengrau (Plattenrüstung aus gebleichtem Knochen und Asche) – bewusst
+// anders als das Violett/Gold seiner Thronwachen; hebt sich hell vom dunklen Thronboden ab.
+const OBS = ['#1e1918', '#3b3330', '#665b55', '#978b81', '#c6bcb0', '#ede6da'];
+const SPEC = '#fffcf2';
 const ASH = ['#241e1e', '#3e3634', '#5e5450', '#857a72', '#b0a69a', '#ddd4c6'];
 const HAIR = ['#141114', '#262024', '#3c3438', '#6e6670', '#a8a0ac'];
 // Haut: aschfahl, leicht warm – hebt sich deutlich von Haar, Krone und Rüstung ab
-const SKIN = ['#2a2026', '#4c3c40', '#7c6c68', '#a8988c', '#d2c4b0', '#f2e8d4'];
-const GOLD = PAL.gold; // ['#4a2f10', '#7d5418', '#b8862a', '#e8c25a', '#fff0a8']
+const SKIN = ['#221a1e', '#42343a', '#6a5c5c', '#8e8078', '#b4a594', '#d6c8b2'];
+// Kanten und Beschläge: verkohlt im Schatten, glutorange im Licht (kein Gold – das tragen die Wachen)
+const GOLD = ['#140d0b', '#2e201a', '#54392b', '#c4652a', '#f6a457'];
+// Krone: glühendes Schmiedeeisen (Glutorange)
+const CROWNC = ['#160c09', '#33190f', '#5e2a14', '#c4561c', '#ffab52'];
+// Klinge: schwarzes Glas (Kontrast zur hellen Rüstung)
+const BLK = ['#0b0909', '#1a1615', '#2c2624', '#463d3a', '#6c625c', '#a0958c'];
 const ROBE = ['#1e070c', '#3c0d15', '#5e141d', '#851f25', '#ae3330', '#d0523c'];
-const SMOKE = ['#100c12', '#1e1820', '#2e262e', '#40353f', '#564852', '#6e5e66'];
+const SMOKE = ['#100d0c', '#1e1a18', '#2f2926', '#433b37', '#5b524c', '#776c64'];
 const MAG = ['#2a0804', '#5a1206', '#8e2408', '#d8501a', '#ffb048'];
 const LEATHER = PAL.leather;
 const IRON = ['#141218', '#2a2630', '#46404e', '#6c6476'];
@@ -45,10 +51,12 @@ const EMB = ['#5a1406', '#a8300a', '#f0661a', '#ffb048', '#fff0c0'];
 const INF = ['#8a2a08', '#ff6a14', '#ffc048', '#fff4c8', '#ffffff'];
 
 // Pose-Werte (Pixel) sind für die alte, kleinere Figur notiert und werden mit K skaliert.
-const K = 1.15;
+// S: Endboss-Maßstab (Phase 1 rund 82 × 122 px mit Mantel, Kragen und Krone), alle Körpermaße skaliert.
+const S = 1.3;
+const K = 1.15 * S;
 const SCALED = ['hipX', 'hipY', 'fFx', 'fFy', 'fBx', 'fBy', 'hFx', 'hFy', 'hBx', 'hBy', 'hover', 'head', 'headY'];
-const THIGH = 18, SHIN = 18, SPINE = 28, UPPER = 15, FORE = 15, HIPH = 35;
-const BLADE = 54;
+const THIGH = 23, SHIN = 23, SPINE = 36, UPPER = 19, FORE = 19, HIPH = 45;
+const BLADE = 70;
 
 // ---------------------------------------------------------------- Pixelpuffer
 
@@ -245,29 +253,30 @@ function sword(p, g, hx, hy, a, P) {
   const at = (u, v) => [hx + dx * u + nx * v, hy + dy * u + ny * v];
   const up = ny < 0 ? 1 : -1; // welche v-Seite nach oben zeigt
   // Griff: Lederwicklung, Goldringe
-  for (let u = -9; u <= 2; u += 0.5) {
+  for (let u = -12; u <= 2; u += 0.5) {
     for (let v = -1.5; v <= 1.5; v += 0.5) {
       const lit = v * up > 0.6 ? 3 : v * up < -0.6 ? 0 : 1;
       let c = LEATHER[[0, 1, 2, 3][lit]];
       if (Math.round(u * 2) % 3 === 0) c = LEATHER[0];
-      if (u < -7.5 || u > 1) c = GOLD[[1, 2, 3, 4][lit]];
+      if (u < -10.5 || u > 1) c = OBS[[1, 3, 4, 5][lit]];
       const [x, y] = at(u, v); p.px(x, y, c);
     }
   }
   // Knauf mit Glutstein
-  for (let u = -13; u <= -8.5; u += 0.5) for (let v = -2.5; v <= 2.5; v += 0.5) {
-    if (Math.hypot(u + 10.8, v) > 2.6) continue;
-    const [x, y] = at(u, v); p.px(x, y, v * up > 0.8 ? GOLD[4] : v * up < -1 ? GOLD[1] : GOLD[2]);
+  for (let u = -17; u <= -11.5; u += 0.5) for (let v = -3, vv = 3; v <= vv; v += 0.5) {
+    if (Math.hypot(u + 14.2, v) > 3.1) continue;
+    const [x, y] = at(u, v); p.px(x, y, v * up > 0.9 ? OBS[5] : v * up < -1.2 ? OBS[1] : OBS[3]);
   }
-  { const [x, y] = at(-10.8, 0); p.px(x, y, MAG[4]); g.max(x, y, 3); }
+  { const [x, y] = at(-14.2, 0); p.px(x, y, MAG[4]); g.max(x, y, 3); }
   // Parierstange: geschwungen, Enden zur Klinge hin gebogen, Glutstein in der Mitte
-  for (let v = -8.5; v <= 8.5; v += 0.5) {
-    const bend = Math.abs(v) > 3.5 ? (Math.abs(v) - 3.5) * 0.5 : 0;
-    for (let w = 0; w <= 2; w += 0.5) {
+  // Parierstange: zwei geschwungene Knochenhörner
+  for (let v = -11; v <= 11; v += 0.5) {
+    const bend = Math.abs(v) > 4 ? (Math.abs(v) - 4) * 0.55 : 0;
+    for (let w = 0; w <= 2.5; w += 0.5) {
       const [x, y] = at(3 + w + bend, v);
-      p.px(x, y, w < 0.6 ? (v * up > 0 ? GOLD[4] : GOLD[3]) : w < 1.6 ? GOLD[2] : GOLD[1]);
+      p.px(x, y, w < 0.6 ? (v * up > 0 ? OBS[5] : OBS[4]) : w < 1.6 ? OBS[3] : OBS[1]);
     }
-    if (Math.abs(v) > 7.9) { const [x, y] = at(5.5 + bend, v); p.px(x, y, GOLD[4]); }
+    if (Math.abs(v) > 10.4) { const [x, y] = at(6.5 + bend, v); p.px(x, y, MAG[3]); g.max(x, y, 2); }
   }
   for (let v = -1; v <= 1; v += 0.5) { const [x, y] = at(4, v); p.px(x, y, MAG[3]); }
   { const [x, y] = at(4, 0); p.px(x, y, MAG[4]); g.max(x, y, 4); const [x2, y2] = at(4, up); g.max(x2, y2, 2); }
@@ -275,7 +284,7 @@ function sword(p, g, hx, hy, a, P) {
   const L = BLADE;
   const hwAt = (u) => {
     const t = (u - 6) / (L - 6);
-    const taper = t < 0.82 ? 3.2 - t * 1.1 : (1 - t) / 0.18 * 2.3;
+    const taper = (t < 0.82 ? 3.2 - t * 1.1 : (1 - t) / 0.18 * 2.3) * 1.25;
     return Math.max(0.4, taper + 0.6 * Math.sin(u * 0.55) * (t < 0.85 ? 1 : 0));
   };
   const heat = P.flame;
@@ -286,8 +295,8 @@ function sword(p, g, hx, hy, a, P) {
       const edge = hw - Math.abs(v);
       let c;
       if (edge < 0.6) c = v * up > 0 ? MAG[4] : MAG[3];
-      else if (edge < 1.1) c = v * up > 0 ? OBS[5] : MAG[2];
-      else c = Math.abs(v) < 0.4 ? OBS[4] : v * up > 0 ? OBS[3] : OBS[1];
+      else if (edge < 1.1) c = v * up > 0 ? BLK[5] : MAG[2];
+      else c = Math.abs(v) < 0.4 ? BLK[4] : v * up > 0 ? BLK[3] : BLK[1];
       p.px(x, y, c);
       if (edge < 0.6) g.max(x, y, heat > 0.8 ? 3 : 2);
       else if (edge < 1.1 && heat > 0.5) g.max(x, y, 1);
@@ -343,55 +352,55 @@ function drawFigure(p, g, P0, ex = {}) {
   const hov = P.hover > 0.05 ? P.hover + Math.sin(P.capeT) * 1.4 : 0;
   const gy = AY - Math.round(hov);
   const lean = P.lean, sL = Math.sin(lean), cL = Math.cos(lean);
-  const hipX = AX + P.hipX, hipY = gy - HIPH + P.hipY + P.kneel * 13;
+  const hipX = AX + P.hipX, hipY = gy - HIPH + P.hipY + P.kneel * 13 * S;
   const chX = hipX + sL * SPINE, chY = hipY - cL * SPINE;
   const perpX = cL, perpY = sL;
   const along = (s, k) => [hipX + sL * s + perpX * k, hipY - cL * s + perpY * k];
   const meta = {};
-  const dang = Math.min(1, hov / 9);
+  const dang = Math.min(1, hov / (9 * S));
 
   // Beine: im Schweben hängen die Füße locker, Zehen nach unten
-  const fF = { x: AX + P.fFx + (P.fFx * -0.55 + 3) * dang, y: gy - P.fFy - dang * 3 };
-  const fB = { x: AX + P.fBx + (P.fBx * -0.4 - 5) * dang, y: gy - P.fBy - dang * 1 };
-  const legF = ik(hipX + 3.5, hipY, fF.x, fF.y, THIGH, SHIN, -1);
-  const legB = ik(hipX - 3.5, hipY, fB.x, fB.y, THIGH, SHIN, -1);
+  const fF = { x: AX + P.fFx + (P.fFx * -0.55 + 4) * dang, y: gy - P.fFy - dang * 4 };
+  const fB = { x: AX + P.fBx + (P.fBx * -0.4 - 6) * dang, y: gy - P.fBy - dang * 1 };
+  const legF = ik(hipX + 4.5, hipY, fF.x, fF.y, THIGH, SHIN, -1);
+  const legB = ik(hipX - 4.5, hipY, fB.x, fB.y, THIGH, SHIN, -1);
   if (P.kneel > 0.01) {
-    const kx = hipX - 6 - P.kneel * 3, ky = gy - 2;
+    const kx = hipX - 8 - P.kneel * 4, ky = gy - 2;
     legB.jx += (kx - legB.jx) * P.kneel; legB.jy += (ky - legB.jy) * P.kneel;
-    legB.ex += (kx - 15 - legB.ex) * P.kneel; legB.ey += (gy - legB.ey) * P.kneel;
+    legB.ex += (kx - 19 - legB.ex) * P.kneel; legB.ey += (gy - legB.ey) * P.kneel;
   }
 
   // Schultern, Hände
-  const shF = { x: chX + perpX * 4, y: chY + perpY * 4 + 3 };
-  const shB = { x: chX - perpX * 5, y: chY - perpY * 5 + 2 };
+  const shF = { x: chX + perpX * 5, y: chY + perpY * 5 + 4 };
+  const shB = { x: chX - perpX * 6.5, y: chY - perpY * 6.5 + 3 };
   const hF = { x: chX + P.hFx, y: chY + P.hFy };
   const hB = P.grip > 0.5
-    ? { x: hF.x - Math.cos(P.sw) * 6, y: hF.y - Math.sin(P.sw) * 6 }
+    ? { x: hF.x - Math.cos(P.sw) * 8, y: hF.y - Math.sin(P.sw) * 8 }
     : { x: chX + P.hBx, y: chY + P.hBy };
   const armF = ik(shF.x, shF.y, hF.x, hF.y, UPPER, FORE, 1);
   const armB = ik(shB.x, shB.y, hB.x, hB.y, UPPER, FORE, 1);
 
   // Kopf
-  const neckX = chX + sL * 3, neckY = chY - cL * 3;
-  const hx = Math.round(neckX - 6 + P.head), hy = Math.round(neckY - 16 + P.headY);
+  const neckX = chX + sL * 4, neckY = chY - cL * 4;
+  const hx = Math.round(neckX - 7 + P.head), hy = Math.round(neckY - 19 + P.headY);
 
   // --- 0. Flügel (hinter allem)
-  if (P.wing > 0.03) wings(p, g, chX - perpX * 3, chY + 3, P);
+  if (P.wing > 0.03) wings(p, g, chX - perpX * 4, chY + 4, P);
   // --- 1. Königsmantel
-  cape(p, g, chX - perpX * 4, chY + 1, gy, P, dang);
+  cape(p, g, chX - perpX * 5, chY + 1, gy, P, dang);
 
   // --- 3. hinteres Bein, hinterer Arm
   skirtBack(p, g, hipX, hipY, gy, P);
-  leg(p, g, hipX - 3.5, hipY, legB, true, P, dang);
+  leg(p, g, hipX - 4.5, hipY, legB, true, P, dang);
   const darkA = [VOID, ASH[0], ASH[1], ASH[2]];
-  limb(p, shB.x, shB.y, armB.jx, armB.jy, 6, 5, [VOID, OBS[0], OBS[1], OBS[2]]);
-  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 5.5, 4.5, darkA);
+  limb(p, shB.x, shB.y, armB.jx, armB.jy, 6 * S, 5 * S, [VOID, OBS[0], OBS[1], OBS[2]]);
+  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 5.5 * S, 4.5 * S, darkA);
   crackLine(g, [[armB.jx, armB.jy + 1], [(armB.jx + armB.ex) / 2 - 1, (armB.jy + armB.ey) / 2], [armB.ex, armB.ey - 1]], P, 0);
   bracer(p, g, armB, true);
   if (P.grip <= 0.5) chain(p, g, armB.ex, armB.ey, P);
   claw(p, g, armB.ex, armB.ey, [VOID, OBS[1], OBS[2], OBS[3]], P.cast > 0.3 || P.spread > 0.4, false);
   meta.cast = { x: armB.ex, y: armB.ey - 6 };
-  pauldron(p, g, shB.x - 1, shB.y - 1, 6, 4.5, false, P);
+  pauldron(p, g, shB.x - 1, shB.y - 1, 6 * S, 4.5 * S, false, P);
 
   if (ex.swordBehind && P.noSword < 0.5) {
     const t = sword(p, g, hF.x, hF.y, P.sw, P);
@@ -402,26 +411,26 @@ function drawFigure(p, g, P0, ex = {}) {
   torso(p, g, along, P, meta);
   hairBack(p, g, hx, hy, P);
   // --- 5. vorderes Bein, Gürtel, Wappenrock
-  leg(p, g, hipX + 3.5, hipY, legF, false, P, dang);
+  leg(p, g, hipX + 4.5, hipY, legF, false, P, dang);
   belt(p, g, hipX, hipY, gy, P, legF, dang);
 
   // --- 6. Halsberge, Kopf, Krone
-  p.ellipse(neckX, neckY + 1, 6.5, 4, OBS[1]); p.ellipse(neckX - 0.5, neckY, 5.5, 2.6, OBS[3]);
-  p.ellipse(neckX - 1.5, neckY - 0.5, 3, 1.3, OBS[4]);
-  p.line(neckX - 5, neckY - 2, neckX + 5, neckY - 2, GOLD[3]); p.line(neckX - 6, neckY - 1, neckX + 6, neckY - 1, GOLD[2]);
-  p.line(neckX - 6, neckY, neckX + 6, neckY, GOLD[1]);
-  p.px(neckX - 3, neckY - 2, GOLD[4]); p.px(neckX - 2, neckY - 2, GOLD[4]);
+  p.ellipse(neckX, neckY + 1, 8.5, 5, OBS[1]); p.ellipse(neckX - 0.5, neckY, 7, 3.4, OBS[3]);
+  p.ellipse(neckX - 2, neckY - 0.5, 4, 1.7, OBS[4]);
+  p.line(neckX - 6, neckY - 2, neckX + 6, neckY - 2, GOLD[3]); p.line(neckX - 8, neckY - 1, neckX + 8, neckY - 1, GOLD[2]);
+  p.line(neckX - 8, neckY, neckX + 8, neckY, GOLD[1]);
+  p.px(neckX - 4, neckY - 2, GOLD[4]); p.px(neckX - 3, neckY - 2, GOLD[4]);
   head(p, g, hx, hy, P, meta);
 
   // --- 7. Schwung-Schleier
-  if (ex.smear) smear(p, g, shF.x, shF.y, ex.smear[0], ex.smear[1], 30, 74);
+  if (ex.smear) smear(p, g, shF.x, shF.y, ex.smear[0], ex.smear[1], 30 * S, 74 * S);
 
   // --- 8. vorderer Arm mit Schwert
-  limb(p, shF.x, shF.y, armF.jx, armF.jy, 6.5, 5.5, [OBS[1], OBS[2], OBS[3], OBS[4], OBS[5]]);
-  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 6, 5, [ASH[1], ASH[2], ASH[3], ASH[4], ASH[5]]);
+  limb(p, shF.x, shF.y, armF.jx, armF.jy, 6.5 * S, 5.5 * S, [OBS[1], OBS[2], OBS[3], OBS[4], OBS[5]]);
+  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 6 * S, 5 * S, [ASH[0], ASH[1], ASH[2], ASH[3], ASH[4]]);
   crackLine(g, [[armF.jx, armF.jy + 1], [(armF.jx + armF.ex) / 2 + 1, (armF.jy + armF.ey) / 2], [armF.ex - 1, armF.ey - 2]], P, 1);
   // Ellbogenkachel (Gold)
-  p.ellipse(armF.jx, armF.jy, 2.8, 2.6, GOLD[1]); p.ellipse(armF.jx - 0.5, armF.jy - 0.5, 1.8, 1.6, GOLD[3]); p.px(armF.jx - 1, armF.jy - 1, GOLD[4]);
+  p.ellipse(armF.jx, armF.jy, 3.6, 3.4, GOLD[1]); p.ellipse(armF.jx - 0.5, armF.jy - 0.5, 2.4, 2.2, OBS[4]); p.px(armF.jx - 1, armF.jy - 1, SPEC);
   bracer(p, g, armF, false);
   if (!ex.swordBehind && P.noSword < 0.5) {
     const t = sword(p, g, hF.x, hF.y, P.sw, P);
@@ -430,7 +439,7 @@ function drawFigure(p, g, P0, ex = {}) {
   if (P.noSword >= 0.5) { meta.tip = { x: hF.x, y: hF.y }; meta.blade = { x: hF.x, y: hF.y }; }
   claw(p, g, hF.x, hF.y, [OBS[1], OBS[3], OBS[4], OBS[5]], false, true);
   if (P.grip > 0.5) claw(p, g, hB.x, hB.y, [OBS[1], OBS[3], OBS[4], OBS[5]], false, true);
-  pauldron(p, g, shF.x + 0.5, shF.y - 0.5, 8, 5.5, true, P);
+  pauldron(p, g, shF.x + 0.5, shF.y - 0.5, 8 * S, 5.5 * S, true, P);
   meta.hand = { x: hF.x, y: hF.y };
 
   // Glut in der Zauberhand
@@ -457,8 +466,8 @@ function torso(p, g, along, P, meta) {
   for (let s = 0; s <= SPINE + 1; s += 0.5) {
     const t = s / SPINE;
     const sm = t * t * (3 - 2 * t);
-    const hwB = 5.5 + 4.5 * sm;
-    const hwF = 5 + 5.5 * sm + (t > 0.45 && t < 0.95 ? 2 * Math.sin((t - 0.45) / 0.5 * Math.PI) : 0);
+    const hwB = (5.5 + 4.5 * sm) * S;
+    const hwF = (5 + 5.5 * sm + (t > 0.45 && t < 0.95 ? 2 * Math.sin((t - 0.45) / 0.5 * Math.PI) : 0)) * S;
     const band = t > 0.355 && t < 0.39;
     const lame = t < 0.33 && Math.round(s * 2) % 7 === 0;
     for (let k = -hwB; k <= hwF; k += 0.5) {
@@ -476,20 +485,20 @@ function torso(p, g, along, P, meta) {
     if (t > 0.42 && t < 0.97) { const [x, y] = along(s, hwF - 0.5); p.px(x, y, t > 0.7 ? GOLD[2] : GOLD[1]); }
   }
   // Bauchschienen: Lichtkante unter jeder Fuge
-  for (let s = 1; s < SPINE * 0.34; s += 3.5) {
-    for (let k = -4; k <= 6; k += 0.5) { const [x, y] = along(s - 0.5, k); p.px(x, y, k < 0 ? OBS[4] : OBS[3]); }
+  for (let s = 1; s < SPINE * 0.34; s += 4.5) {
+    for (let k = -5.5; k <= 8; k += 0.5) { const [x, y] = along(s - 0.5, k); p.px(x, y, k < 0 ? OBS[5] : OBS[4]); }
   }
   // Goldbesatz am Halsausschnitt
-  for (let k = -6; k <= 7; k += 0.5) {
+  for (let k = -8; k <= 9; k += 0.5) {
     const [x, y] = along(SPINE - 0.5 - Math.abs(k - 0.5) * 0.4, k);
     p.px(x, y, k < -2 ? GOLD[4] : k < 3 ? GOLD[3] : GOLD[2]);
     const [x2, y2] = along(SPINE - 1.5 - Math.abs(k - 0.5) * 0.4, k);
     p.px(x2, y2, GOLD[1]);
   }
   // Glanzpunkte (Licht von links oben)
-  { const [x, y] = along(SPINE - 3.5, -6); p.px(x, y, SPEC); p.px(x + 1, y, OBS[5]); p.px(x, y + 1, OBS[5]); }
-  { const [x, y] = along(SPINE * 0.62, -4); p.px(x, y, OBS[5]); }
-  { const [x, y] = along(SPINE * 0.74, 5.5); p.px(x, y, SPEC); }
+  { const [x, y] = along(SPINE - 4.5, -8); p.px(x, y, SPEC); p.px(x + 1, y, OBS[5]); p.px(x, y + 1, OBS[5]); }
+  { const [x, y] = along(SPINE * 0.62, -5); p.px(x, y, SPEC); }
+  { const [x, y] = along(SPINE * 0.74, 7); p.px(x, y, SPEC); }
   // Kronen-Wappen auf der Brust (Gold)
   const [cx, cy] = along(SPINE * 0.74, 1);
   p.rect(cx - 3, cy, 7, 2, GOLD[2]); p.rect(cx - 3, cy, 7, 1, GOLD[3]);
@@ -500,8 +509,8 @@ function torso(p, g, along, P, meta) {
   p.px(cx, cy + 1, MAG[3]); g.max(cx, cy + 1, 2);
   // Herz: glühender Kern im Panzer
   const [kx, ky] = along(SPINE * 0.5, 0.5);
-  const r = 1.6 + P.core * 0.6;
-  p.ellipse(kx, ky, r + 1.2, r + 0.8, OBS[0]);
+  const r = (1.6 + P.core * 0.6) * S;
+  p.ellipse(kx, ky, r + 1.5, r + 1, OBS[0]);
   p.ellipse(kx, ky, r, r * 0.85, MAG[2]);
   p.px(kx, ky, MAG[4]);
   g.ellipse(kx, ky, r + 0.4, r, 1);
@@ -510,10 +519,10 @@ function torso(p, g, along, P, meta) {
   meta.chest = { x: kx, y: ky };
   // Risse vom Herz durch den Panzer
   const cracks = [
-    [[0.5, 0.5], [0.58, -3], [0.66, -3.5], [0.78, -7]],
-    [[0.5, 0.5], [0.42, 3.5], [0.3, 2.5], [0.18, 5.5]],
-    [[0.5, 0.5], [0.62, 4], [0.74, 6.5]],
-    [[0.5, 0.5], [0.38, -3], [0.26, -5]],
+    [[0.5, 0.5], [0.58, -4], [0.66, -4.5], [0.78, -9]],
+    [[0.5, 0.5], [0.42, 4.5], [0.3, 3.2], [0.18, 7]],
+    [[0.5, 0.5], [0.62, 5], [0.74, 8.5]],
+    [[0.5, 0.5], [0.38, -4], [0.26, -6.5]],
   ];
   cracks.forEach((c, n) => {
     if (n > 1 && P.crack < 0.5) return;
@@ -527,13 +536,13 @@ function torso(p, g, along, P, meta) {
 
 // Hinterer Rock: lange Obsidianschöße, hinter den Beinen
 function skirtBack(p, g, hipX, hipY, gy, P) {
-  const len = Math.min(25, gy - hipY - 7);
-  for (let i = 0; i < 11; i++) {
-    const x0 = hipX - 10 + i;
+  const len = Math.min(33, gy - hipY - 8);
+  for (let i = 0; i < 14; i++) {
+    const x0 = hipX - 13 + i;
     const L = len - Math.abs(i - 2.5) * 0.8 + (hash2(i, 3, 7) * 2 | 0);
     for (let j = 0; j < L; j++) {
       const v = j / L;
-      const x = x0 - v * v * (3 + P.cape * 7) + Math.sin(P.capeT + i * 0.7 + v * 3) * 0.8 * v;
+      const x = x0 - v * v * (4 + P.cape * 9) + Math.sin(P.capeT + i * 0.7 + v * 3) * v;
       p.px(x, hipY + j, j > L - 2 ? GOLD[2] : i < 2 ? ROBE[3] : ROBE[i % 3 === 0 ? 1 : 2]);
     }
   }
@@ -542,11 +551,11 @@ function skirtBack(p, g, hipX, hipY, gy, P) {
 function leg(p, g, hx, hy, L, back, P, dang) {
   const thigh = back ? [VOID, OBS[0], OBS[1], OBS[2]] : [OBS[0], OBS[2], OBS[3], OBS[4], OBS[5]];
   const shin = back ? [VOID, OBS[0], OBS[1], OBS[2]] : [OBS[1], OBS[2], OBS[3], OBS[4], OBS[5]];
-  limb(p, hx, hy, L.jx, L.jy, 7.5, 6, thigh);
-  limb(p, L.jx, L.jy, L.ex, L.ey - 2, 6, 5, shin);
-  // Goldene Kniekachel mit Dorn
-  p.ellipse(L.jx, L.jy, 3, 2.6, back ? GOLD[0] : GOLD[1]); p.ellipse(L.jx - 0.5, L.jy - 0.5, 2, 1.6, back ? GOLD[1] : GOLD[3]);
-  if (!back) { p.px(L.jx - 1, L.jy - 1, GOLD[4]); p.px(L.jx + 3, L.jy, GOLD[2]); p.px(L.jx + 4, L.jy, GOLD[3]); }
+  limb(p, hx, hy, L.jx, L.jy, 7.5 * S, 6 * S, thigh);
+  limb(p, L.jx, L.jy, L.ex, L.ey - 2, 6 * S, 5 * S, shin);
+  // Kniekachel mit Dorn (verkohlter Rand, Knochenkuppel)
+  p.ellipse(L.jx, L.jy, 3.9, 3.4, back ? GOLD[0] : GOLD[1]); p.ellipse(L.jx - 0.5, L.jy - 0.5, 2.6, 2.1, back ? OBS[1] : OBS[4]);
+  if (!back) { p.px(L.jx - 1, L.jy - 1, SPEC); p.px(L.jx + 4, L.jy, GOLD[2]); p.px(L.jx + 5, L.jy, GOLD[3]); p.px(L.jx + 6, L.jy - 1, GOLD[4]); }
   // Glutnaht an der Schiene
   for (const f of [0.45, 0.62]) {
     const mx = L.jx + (L.ex - L.jx) * f, my = L.jy + (L.ey - 2 - L.jy) * f;
@@ -556,13 +565,13 @@ function leg(p, g, hx, hy, L, back, P, dang) {
   const ex = L.ex, ey = L.ey;
   const s = back ? [VOID, OBS[0], OBS[1], OBS[2]] : [OBS[1], OBS[2], OBS[3], OBS[5]];
   if (dang < 0.5) {
-    p.rect(ex - 3, ey - 3, 9, 3, s[1]); p.rect(ex - 3, ey - 3, 9, 1, s[3]); p.rect(ex - 2, ey - 4, 5, 1, s[2]);
-    p.px(ex + 6, ey - 1, s[2]); p.px(ex + 7, ey - 1, back ? s[1] : GOLD[3]);
-    p.px(ex - 3, ey - 1, s[0]);
-    if (!back) { p.px(ex + 2, ey - 2, GOLD[2]); p.px(ex + 3, ey - 2, GOLD[2]); }
+    p.rect(ex - 4, ey - 4, 12, 4, s[1]); p.rect(ex - 4, ey - 4, 12, 1, s[3]); p.rect(ex - 3, ey - 6, 7, 2, s[2]); p.rect(ex - 3, ey - 6, 7, 1, s[3]);
+    p.px(ex + 8, ey - 1, s[2]); p.px(ex + 9, ey - 1, back ? s[1] : GOLD[3]); p.px(ex + 8, ey - 2, s[2]);
+    p.rect(ex - 4, ey - 1, 1, 1, s[0]);
+    if (!back) { p.rect(ex + 1, ey - 3, 4, 1, GOLD[2]); }
   } else {
-    p.rect(ex - 2, ey - 5, 5, 5, s[1]); p.rect(ex - 2, ey - 5, 1, 5, s[3]);
-    p.px(ex + 1, ey, s[2]); p.px(ex + 2, ey + 1, back ? s[1] : GOLD[3]);
+    p.rect(ex - 3, ey - 7, 6, 7, s[1]); p.rect(ex - 3, ey - 7, 1, 7, s[3]);
+    p.px(ex + 1, ey, s[2]); p.px(ex + 1, ey + 1, s[2]); p.px(ex + 2, ey + 2, back ? s[1] : GOLD[3]);
   }
 }
 
@@ -571,11 +580,11 @@ function belt(p, g, hipX, hipY, gy, P, legF, dang) {
   const sway = (legF.jx - hipX - 6) * 0.25 + Math.sin(P.capeT) * 0.6 + P.robe;
   // Seitenschöße (Obsidianplatten über den Oberschenkeln)
   for (let i = 0; i < 5; i++) {
-    const tx = hipX - 9 + i * 3.6, len = 11 - Math.abs(i - 1.5) * 1.3;
+    const tx = hipX - 12 + i * 4.7, len = 14 - Math.abs(i - 1.5) * 1.6;
     for (let j = 0; j < len; j++) {
       const x = tx + sway * 0.3 * (j / len) * (i / 4);
-      p.rect(x, hipY + j, 3, 1, j === 0 ? OBS[5] : j > len - 2 ? GOLD[2] : i === 0 ? OBS[4] : i < 3 ? OBS[3] : OBS[2]);
-      p.px(x + 3, hipY + j, OBS[0]);
+      p.rect(x, hipY + j, 4, 1, j === 0 ? OBS[5] : j > len - 2 ? GOLD[2] : i === 0 ? OBS[4] : i < 3 ? OBS[3] : OBS[2]);
+      p.px(x + 4, hipY + j, OBS[0]);
     }
   }
   // Wappenrock: karminrot mit Goldborte, hängt bis fast zum Boden
@@ -583,7 +592,7 @@ function belt(p, g, hipX, hipY, gy, P, legF, dang) {
   for (let j = 0; j < L; j++) {
     const v = j / L;
     const cx = hipX + 2.5 + sway * v * v * 1.6 + (dang > 0.1 ? -v * v * 4 * dang : 0);
-    const w = 3 + v * 1.2;
+    const w = (3 + v * 1.2) * S;
     for (let k = -w; k <= w; k += 0.5) {
       const e = w - Math.abs(k);
       let c = e < 0.6 ? GOLD[k < 0 ? 3 : 2] : k < -w * 0.45 ? ROBE[4] : k < 0 ? ROBE[3] : k > w * 0.45 ? ROBE[1] : ROBE[2];
@@ -601,14 +610,16 @@ function belt(p, g, hipX, hipY, gy, P, legF, dang) {
   }
   if (dang > 0.1) for (let k = -3; k <= 4; k++) g.max(hipX + 3 + sway * 1.6 - 4 * dang + k, hipY + L, 1);
   // Gürtel
-  p.rect(hipX - 10, hipY - 3, 21, 4, OBS[1]); p.rect(hipX - 10, hipY - 3, 21, 1, GOLD[3]); p.rect(hipX - 10, hipY, 21, 1, GOLD[1]);
-  p.rect(hipX - 10, hipY - 2, 4, 2, OBS[3]);
-  const bx = hipX + 2.5, by = hipY - 5;
-  p.rect(bx - 3, by, 7, 6, GOLD[2]); p.rect(bx - 3, by, 7, 1, GOLD[4]); p.rect(bx - 3, by, 1, 6, GOLD[3]); p.rect(bx + 3, by, 1, 6, GOLD[1]);
-  p.rect(bx - 1, by + 2, 3, 2, MAG[2]); p.px(bx, by + 2, MAG[4]); g.max(bx, by + 2, 3); g.max(bx, by + 3, 2);
+  p.rect(hipX - 13, hipY - 4, 27, 5, OBS[1]); p.rect(hipX - 13, hipY - 4, 27, 1, GOLD[3]); p.rect(hipX - 13, hipY, 27, 1, GOLD[1]);
+  p.rect(hipX - 13, hipY - 3, 5, 2, OBS[3]);
+  // Schnalle: Knochenschädel mit Glutaugen
+  const bx = hipX + 3, by = hipY - 7;
+  p.rect(bx - 4, by, 9, 8, GOLD[1]); p.rect(bx - 3, by, 7, 7, OBS[4]); p.rect(bx - 3, by, 7, 1, OBS[5]); p.rect(bx + 3, by + 1, 1, 6, OBS[2]);
+  p.rect(bx - 2, by + 5, 5, 2, OBS[3]); p.px(bx - 1, by + 6, VOID); p.px(bx + 1, by + 6, VOID);
+  p.px(bx - 1, by + 3, MAG[3]); p.px(bx + 1, by + 3, MAG[3]); g.max(bx - 1, by + 3, 3); g.max(bx + 1, by + 3, 3); g.max(bx, by + 2, 1);
   // Kettengehänge an der Hüfte
-  for (let k = 0; k < 8; k++) {
-    const x = hipX - 8 + k * 0.9 + Math.sin(P.capeT + k * 0.5) * 0.3, y = hipY + 2 + Math.sin(k / 7 * Math.PI) * 3.5;
+  for (let k = 0; k < 10; k++) {
+    const x = hipX - 11 + k * 0.95 + Math.sin(P.capeT + k * 0.5) * 0.3, y = hipY + 2 + Math.sin(k / 9 * Math.PI) * 4.5;
     p.px(x, y, k % 2 ? IRON[3] : IRON[2]);
   }
 }
@@ -617,16 +628,16 @@ function bracer(p, g, arm, back) {
   const t0 = 0.42, t1 = 0.86;
   const x0 = arm.jx + (arm.ex - arm.jx) * t0, y0 = arm.jy + (arm.ey - arm.jy) * t0;
   const x1 = arm.jx + (arm.ex - arm.jx) * t1, y1 = arm.jy + (arm.ey - arm.jy) * t1;
-  limb(p, x0, y0, x1, y1, 6.5, 6, back ? [GOLD[0], GOLD[0], GOLD[1], GOLD[1]] : [GOLD[1], GOLD[2], GOLD[2], GOLD[3], GOLD[4]]);
+  limb(p, x0, y0, x1, y1, 6.5 * S, 6 * S, back ? [VOID, OBS[0], OBS[1], OBS[2]] : [GOLD[1], OBS[2], OBS[3], OBS[4], OBS[5]]);
   if (!back) { const mx = (x0 + x1) / 2, my = (y0 + y1) / 2; p.px(mx, my, MAG[4]); g.max(mx, my, 2); }
 }
 
 // Klauenhandschuh (Obsidian)
 function claw(p, g, x, y, ramp, open, front = false) {
-  p.rect(x - 3, y - 2, 6, 5, ramp[1]); p.rect(x - 3, y - 2, 6, 1, ramp[3]); p.rect(x + 2, y - 1, 1, 4, ramp[0]);
-  if (front) { p.px(x - 2, y - 2, ramp[3]); p.px(x - 3, y - 1, ramp[2]); p.px(x - 2, y + 1, GOLD[2]); p.px(x - 1, y + 1, GOLD[2]); }
-  if (open) for (let k = -2; k <= 2; k += 2) { p.line(x + k * 0.7, y - 2, x + k * 1.4, y - 6, ramp[2]); p.px(x + k * 1.4, y - 6, GOLD[3]); }
-  else { p.px(x + 3, y + 2, GOLD[3]); p.px(x + 3, y + 1, ramp[2]); }
+  p.rect(x - 4, y - 3, 8, 6, ramp[1]); p.rect(x - 4, y - 3, 8, 1, ramp[3]); p.rect(x + 3, y - 2, 1, 5, ramp[0]);
+  if (front) { p.px(x - 3, y - 3, ramp[3]); p.px(x - 4, y - 2, ramp[2]); p.rect(x - 3, y + 1, 4, 1, GOLD[2]); }
+  if (open) for (let k = -2; k <= 2; k += 2) { p.line(x + k * 0.9, y - 3, x + k * 1.8, y - 8, ramp[2]); p.px(x + k * 1.8, y - 8, GOLD[3]); }
+  else { p.px(x + 4, y + 2, GOLD[3]); p.px(x + 4, y + 1, ramp[2]); p.px(x + 4, y + 3, GOLD[2]); }
 }
 
 // Gesprengte Kette am hinteren Handgelenk, schwingt nach
@@ -634,11 +645,11 @@ function chain(p, g, x, y, P) {
   const n = 8;
   for (let i = 1; i <= n; i++) {
     const t = i / n;
-    const cx = x - 1 - t * 2 - P.cape * 3 * t + Math.sin(P.capeT + t * 2) * 1.2 * t, cy = y + 1 + i * 1.5;
+    const cx = x - 1 - t * 2 - P.cape * 3 * t + Math.sin(P.capeT + t * 2) * 1.2 * t, cy = y + 1 + i * 1.5 * S;
     if (i % 2) { p.px(cx, cy, IRON[2]); p.px(cx + 1, cy, IRON[1]); p.px(cx, cy - 1, IRON[3]); }
     else p.px(cx, cy, IRON[3]);
   }
-  const ex = x - 3 - P.cape * 3 + Math.sin(P.capeT + 2) * 1.2, ey = y + 1 + n * 1.5 + 1;
+  const ex = x - 3 - P.cape * 3 + Math.sin(P.capeT + 2) * 1.2, ey = y + 1 + n * 1.5 * S + 1;
   p.px(ex, ey, MAG[3]); g.max(ex, ey, 2);
 }
 
@@ -646,17 +657,18 @@ function chain(p, g, x, y, P) {
 function pauldron(p, g, x, y, rx, ry, front, P) {
   if (!front) {
     // geschwungene Dornen hinter dem Kopf (Silhouette)
-    limb(p, x - 1, y - 2, x - 5, y - 12, 3.5, 1.5, [OBS[1], OBS[2], OBS[3], OBS[4]]);
-    limb(p, x - 5, y - 12, x - 4, y - 18, 1.5, 0.5, [OBS[2], OBS[3], OBS[4], SPEC]);
-    p.px(x - 4, y - 19, GOLD[4]); g.max(x - 4, y - 20, 1);
-    limb(p, x - 4, y - 1, x - 10, y - 8, 2.5, 1, [OBS[0], OBS[1], OBS[2], OBS[3]]);
-    p.px(x - 10, y - 9, GOLD[3]);
+    // Knochendornen (wie Rippen eines Riesen) ragen über die Schulter
+    limb(p, x - 1, y - 2, x - 6, y - 16, 4.5, 2, [OBS[1], OBS[2], OBS[3], OBS[4]]);
+    limb(p, x - 6, y - 16, x - 5, y - 24, 2, 0.6, [OBS[2], OBS[3], OBS[4], SPEC]);
+    p.px(x - 5, y - 25, MAG[4]); g.max(x - 5, y - 25, 3); g.max(x - 5, y - 26, 1);
+    limb(p, x - 5, y - 1, x - 13, y - 11, 3.2, 1.2, [OBS[0], OBS[1], OBS[2], OBS[3]]);
+    p.px(x - 13, y - 12, MAG[3]); g.max(x - 13, y - 12, 2);
   }
   const R = front ? [OBS[1], OBS[2], OBS[3], OBS[4], OBS[5]] : [VOID, OBS[0], OBS[1], OBS[2], OBS[2]];
   const G = front ? GOLD : [GOLD[0], GOLD[0], GOLD[1], GOLD[1], GOLD[2]];
   // untere Lage (Lamelle) mit Goldkante, dann die Kuppel mit Goldrand
   {
-    const yy = y + 3;
+    const yy = y + 4;
     p.ellipse(x + 0.5, yy, rx - 0.5, ry - 1, G[1]);
     p.ellipse(x + 0.5, yy - 0.5, rx - 1.5, ry - 2, R[1]);
     p.ellipse(x, yy - 1, rx - 2.5, ry - 3, R[2]);
@@ -671,8 +683,12 @@ function pauldron(p, g, x, y, rx, ry, front, P) {
   for (let a = Math.PI * 1.02; a <= Math.PI * 1.75; a += 0.08) p.px(x + Math.cos(a) * (rx - 0.5), y + Math.sin(a) * (ry - 0.5), G[a < Math.PI * 1.4 ? 4 : 3]);
   if (front) {
     p.px(x - rx + 2, y + ry - 1, GOLD[4]); p.px(x - rx + 3, y + ry - 1, GOLD[4]);
-    p.px(x - 4, y - ry + 2, SPEC); p.px(x - 3, y - ry + 2, SPEC);
-    p.ellipse(x + 1.5, y + 0.5, 1.2, 1.2, MAG[3]); p.px(x + 1, y, MAG[4]); g.max(x + 1, y, 3); g.max(x + 2, y + 1, 2);
+    p.px(x - 5, y - ry + 2, SPEC); p.px(x - 4, y - ry + 2, SPEC); p.px(x - 6, y - ry + 3, SPEC);
+    // Glutriss quer über die Kuppel
+    const cr = [[x - 5, y + 1], [x - 2, y - 1], [x + 1, y + 0.5], [x + 4, y - 1.5]];
+    for (let i = 0; i < 3; i++) { p.line(cr[i][0], cr[i][1], cr[i + 1][0], cr[i + 1][1], MAG[2]); g.line(cr[i][0], cr[i][1], cr[i + 1][0], cr[i + 1][1], 1 + (P.crack > 0.55 ? 1 : 0)); }
+    // Dorn vorn (Silhouette)
+    limb(p, x + 2, y - ry + 2, x + 6, y - ry - 6, 2.4, 0.8, [OBS[2], OBS[3], OBS[4], SPEC]); p.px(x + 6, y - ry - 7, MAG[3]); g.max(x + 6, y - ry - 7, 2);
   }
 }
 
@@ -680,7 +696,7 @@ function pauldron(p, g, x, y, rx, ry, front, P) {
 function hairBack(p, g, hx, hy, P) {
   for (let s = 0; s < 10; s++) {
     const x0 = hx + 1 + s * 0.55, y0 = hy + 3 + s * 0.25;
-    const L = 15 + (hash2(s, 1, 9) * 6 | 0);
+    const L = 19 + (hash2(s, 1, 9) * 8 | 0);
     for (let j = 0; j < L; j++) {
       const v = j / L;
       const x = x0 - v * (6 + P.cape * 7 + P.hair * 9) + Math.sin(P.capeT * 1.2 + v * 4 + s) * v * 1.4;
@@ -692,29 +708,32 @@ function hairBack(p, g, hx, hy, P) {
   }
 }
 
-// Kopf als Pixelkarte (13 × 18), Blick nach rechts, 3/4-Ansicht.
+// Kopf als Pixelkarte (15 × 21), Blick nach rechts, 3/4-Ansicht.
 // h/H/L/W Haar, d/s/S/T/U Haut (dunkel → hell), v Höhle, E/e Augen, b/B Bart, n Nasenspitze
 const HEAD = [
-  '....hhhhh....',
-  '..hhHHLHHh...',
-  '.hHHLLLLHHh..',
-  '.hHHsTTTTTTs.',
-  'hHHsTUUUUUUT.',
-  'hHhsddTUTdddT',
-  'hHhsvEeUTvEes',
-  'hHhssvsTTsvsn',
-  'hHhhsSSTTTTUn',
-  'hHhhssSTTTTs.',
-  '.hHhssSSTTSs.',
-  '.hHhhsmmmmms.',
-  '..hHhsdSSSs..',
-  '..hhhbBBBBb..',
-  '...hhbBLBb...',
-  '....hbBBb....',
-  '.....bBb.....',
-  '......b......',
+  '.....hhhhh.....',
+  '...hhHHLLHhh...',
+  '..hHHLLLLLHHh..',
+  '.hHHLsTTTTTTTs.',
+  '.hHHsTUUUUUUUT.',
+  'hHHhsTUUUTUUUTs',
+  'hHhsdddTUUTdddT',
+  'hHhsvvEeUTvvEes',
+  'hHhssvvsTTsvvsn',
+  'hHhhssSSTTTTTUn',
+  'hHhhssSTTTTTTUn',
+  'hHhhsssSTTTTTs.',
+  '.hHhhssSSTTTSs.',
+  '.hHhhsmmmmmmms.',
+  '..hHhhsdSSSSs..',
+  '..hhhhbBBBBBb..',
+  '...hhhbBBLBBb..',
+  '....hhbBBLBb...',
+  '.....hbBBBb....',
+  '......bBBb.....',
+  '.......bb......',
 ]
-const MOUTH_ROW = 11;
+const MOUTH_ROW = 13;
 function head(p, g, hx, hy, P, meta) {
   const j = Math.round(P.jaw * 2);
   const eyeOn = P.eye > 0.1, eyeHot = P.eye > 0.6;
@@ -733,58 +752,61 @@ function head(p, g, hx, hy, P, meta) {
       p.px(hx + c, hy + dy, C[ch]);
       if (r === MOUTH_ROW && ch === 'm') for (let q = 1; q <= j; q++) p.px(hx + c, hy + r + q, VOID);
     }
-    if (r === MOUTH_ROW && j > 0) for (let q = 1; q <= j; q++) { p.px(hx + 2, hy + r + q, HAIR[1]); p.px(hx + 3, hy + r + q, HAIR[0]); p.px(hx + 4, hy + r + q, SKIN[1]); p.px(hx + 11, hy + r + q, SKIN[2]); }
+    if (r === MOUTH_ROW && j > 0) for (let q = 1; q <= j; q++) { p.px(hx + 2, hy + r + q, HAIR[1]); p.px(hx + 3, hy + r + q, HAIR[0]); p.px(hx + 4, hy + r + q, HAIR[0]); p.px(hx + 5, hy + r + q, SKIN[1]); p.px(hx + 13, hy + r + q, SKIN[2]); }
   }
   // Augen: glühen weiß-golden
   if (eyeOn) {
-    g.px(hx + 5, hy + 6, eyeHot ? 4 : 3); g.px(hx + 6, hy + 6, eyeHot ? 3 : 2);
-    g.px(hx + 10, hy + 6, eyeHot ? 4 : 3); g.px(hx + 11, hy + 6, eyeHot ? 3 : 2);
-    if (P.eye > 0.8) { g.max(hx + 4, hy + 6, 1); g.max(hx + 12, hy + 6, 1); g.max(hx + 5, hy + 5, 1); g.max(hx + 10, hy + 5, 1); }
-    if (P.crack > 0.9) { g.max(hx + 3, hy + 6, 1); g.max(hx + 2, hy + 6, 0); g.max(hx + 12, hy + 5, 0); }
+    g.px(hx + 6, hy + 7, eyeHot ? 4 : 3); g.px(hx + 7, hy + 7, eyeHot ? 3 : 2);
+    g.px(hx + 12, hy + 7, eyeHot ? 4 : 3); g.px(hx + 13, hy + 7, eyeHot ? 3 : 2);
+    if (P.eye > 0.8) { g.max(hx + 5, hy + 7, 1); g.max(hx + 14, hy + 7, 1); g.max(hx + 6, hy + 6, 1); g.max(hx + 12, hy + 6, 1); }
+    if (P.crack > 0.9) { g.max(hx + 4, hy + 7, 1); g.max(hx + 3, hy + 7, 0); g.max(hx + 14, hy + 6, 0); }
   }
-  meta.eye = { x: hx + 10, y: hy + 6 };
+  meta.eye = { x: hx + 12, y: hy + 7 };
   // Mund: Glutspalt
-  if (j) { g.px(hx + 8, hy + MOUTH_ROW, P.jaw > 0.7 ? 3 : 2); g.px(hx + 9, hy + MOUTH_ROW + j - 1, 2); if (j > 1) g.px(hx + 8, hy + MOUTH_ROW + 1, 4); }
-  else g.max(hx + 8, hy + MOUTH_ROW, 0);
-  meta.mouth = { x: hx + 9, y: hy + MOUTH_ROW };
+  if (j) { g.px(hx + 9, hy + MOUTH_ROW, P.jaw > 0.7 ? 3 : 2); g.px(hx + 10, hy + MOUTH_ROW + j - 1, 2); if (j > 1) g.px(hx + 9, hy + MOUTH_ROW + 1, 4); }
+  else g.max(hx + 9, hy + MOUTH_ROW, 0);
+  meta.mouth = { x: hx + 10, y: hy + MOUTH_ROW };
   // Glutrisse im Gesicht
-  crackLine(g, [[hx + 4, hy + 3], [hx + 5, hy + 8], [hx + 5, hy + 10]], P, 0);
-  if (P.crack > 0.5) crackLine(g, [[hx + 10, hy + 9], [hx + 9, hy + 10 + j]], P, 0);
-  g.max(hx + 7, hy + 16 + j, 0);
+  crackLine(g, [[hx + 5, hy + 3], [hx + 6, hy + 9], [hx + 6, hy + 12]], P, 0);
+  if (P.crack > 0.5) crackLine(g, [[hx + 12, hy + 10], [hx + 11, hy + 12 + j]], P, 0);
+  g.max(hx + 9, hy + 18 + j, 0);
   // Krone
   if (P.crownDrop < 0.02) crown(p, g, hx, hy + 2, 0, P);
-  meta.head = { x: hx + 7, y: hy - 2 };
-  meta.crown = { x: hx + 7, y: hy - 1 };
+  meta.head = { x: hx + 8, y: hy - 2 };
+  meta.crown = { x: hx + 8, y: hy - 1 };
 }
 
 // Krone: Goldreif, fünf Zacken (vorn höher), Glutsteine, Flammen über den Spitzen.
 // tilt kippt die Krone (Sturz), lit=false: keine Flammen mehr
 function crown(p, g, x, y, tilt, P, lit = true) {
   const pt = (dx, dy) => [x + dx * Math.cos(tilt) - dy * Math.sin(tilt), y + dx * Math.sin(tilt) + dy * Math.cos(tilt)];
-  for (let i = 0; i <= 13; i += 0.5) {
+  for (let i = 0; i <= 15; i += 0.5) {
     for (let r = -0.5; r <= 1.5; r += 0.5) {
       const [px, py] = pt(i, r);
-      p.px(px, py, r < 0 ? (i < 6 ? GOLD[4] : GOLD[3]) : r < 1 ? (i < 4 ? GOLD[3] : GOLD[2]) : GOLD[1]);
+      p.px(px, py, r < 0 ? (i < 6 ? CROWNC[4] : CROWNC[3]) : r < 1 ? (i < 4 ? CROWNC[3] : CROWNC[2]) : CROWNC[1]);
     }
   }
-  const spikes = [[1, 4], [4, 6], [7, 9], [10, 6.5], [13, 4.5]];
+  const spikes = [[1, 6], [4.5, 9], [8, 13], [11.5, 9.5], [15, 6.5]];
   const flames = [];
   for (const [dx, h] of spikes) {
     for (let k = 1; k <= h; k += 0.5) {
       const w = k < h - 1.5 ? 1 : k < h - 0.5 ? 0.5 : 0;
       for (let q = -w; q <= w; q += 0.5) {
         const [px, py] = pt(dx + q, -k);
-        p.px(px, py, k >= h - 0.5 ? GOLD[4] : q < 0 ? GOLD[4] : q > 0.4 ? GOLD[2] : GOLD[3]);
+        p.px(px, py, k >= h - 0.5 ? CROWNC[4] : q < 0 ? CROWNC[4] : q > 0.4 ? CROWNC[2] : CROWNC[3]);
       }
     }
     const [tx, ty] = pt(dx, -h - 1);
     flames.push([tx, ty, h]);
   }
   // Glutsteine im Reif
-  for (const dx of [4, 7, 10]) {
-    const [px, py] = pt(dx, 0.5); p.px(px, py, MAG[3]); g.max(px, py, dx === 7 ? 4 : 3);
-    if (dx === 7) { const [qx, qy] = pt(dx, -1.5); p.px(qx, qy, MAG[4]); g.max(qx, qy, 3); }
+  for (const dx of [4, 8, 12]) {
+    const [px, py] = pt(dx, 0.5); p.px(px, py, MAG[4]); g.max(px, py, dx === 8 ? 4 : 3);
+    if (dx === 8) { const [qx, qy] = pt(dx, -1.5); p.px(qx, qy, MAG[4]); g.max(qx, qy, 3); const [rx, ry] = pt(dx, -3.5); p.px(rx, ry, MAG[3]); g.max(rx, ry, 2); }
   }
+  // Krone glüht selbst (Schmiedeglut): Reif und Zacken auf der Leucht-Ebene
+  for (let i = 0; i <= 15; i += 1) { const [px, py] = pt(i, -0.5); g.max(px, py, i % 2 ? 1 : 0); }
+  for (const [dx, h] of spikes) for (let k = h - 3; k <= h; k += 1) { const [px, py] = pt(dx, -k); g.max(px, py, k > h - 1.5 ? 3 : 1); }
   if (!lit || P.crownF < 0.05) return;
   // Flammen: steigen senkrecht, flackern (Seed aus capeT)
   const seed = Math.round(P.capeT * 4.1);
@@ -802,17 +824,17 @@ function crown(p, g, x, y, tilt, P, lit = true) {
 // Königsmantel: an den Schultern befestigt, weht nach hinten. Außen dunkles Karmin mit
 // Faltenlicht, Goldsaum; in Gestalt 2/3 zerfasert der untere Teil zu Rauch mit Glut.
 function cape(p, g, tx, ty, gy, P, dang) {
-  const N = 46;
-  const lift = 0.4 + P.hover / 22;
+  const N = 62;
+  const lift = 0.4 + P.hover / 29;
   const smoke = Math.min(1, P.wing * 1.2);
   for (let i = 0; i < N; i++) {
     const u = i / (N - 1);
-    const sx = tx - 10 + i * 0.5;
-    const top = ty + Math.abs(u - 0.5) * 3;
-    const len = Math.min(62, gy - ty + 8) - Math.abs(u - 0.35) * 16 + (hash2(i, 1, 13) * 6 | 0);
+    const sx = tx - 13 + i * 0.5;
+    const top = ty + Math.abs(u - 0.5) * 4;
+    const len = Math.min(84, gy - ty + 10) - Math.abs(u - 0.35) * 20 + (hash2(i, 1, 13) * 7 | 0);
     for (let j = 0; j < len; j++) {
       const v = j / len;
-      const x = sx - P.cape * 22 * v * v - (1 - u) * 9 * v - v * 5 + Math.sin(P.capeT * 1.3 + v * 4.5 + i * 0.5) * 2.4 * v;
+      const x = sx - P.cape * 29 * v * v - (1 - u) * 12 * v - v * 6 + Math.sin(P.capeT * 1.3 + v * 4.5 + i * 0.5) * 3 * v;
       const y = top + j * (1 - lift * v * 0.55);
       // Ende zerfasert (in Gestalt 2/3 deutlich stärker)
       const fray = 0.86 - smoke * 0.3;
@@ -832,17 +854,28 @@ function cape(p, g, tx, ty, gy, P, dang) {
     }
   }
   // Goldene Mantelborte an der Außenkante
-  for (let j = 0; j < 46; j += 0.5) {
-    const v = j / 52;
-    const x = tx - 10 - P.cape * 22 * v * v - 9 * v - v * 5 + Math.sin(P.capeT * 1.3 + v * 4.5) * 2.4 * v;
-    const y = ty + 1.5 + j * (1 - (0.4 + P.hover / 22) * v * 0.55);
+  for (let j = 0; j < 62; j += 0.5) {
+    const v = j / 70;
+    const x = tx - 13 - P.cape * 29 * v * v - 12 * v - v * 6 + Math.sin(P.capeT * 1.3 + v * 4.5) * 3 * v;
+    const y = ty + 1.5 + j * (1 - (0.4 + P.hover / 29) * v * 0.55);
     if (y > gy - 4 || (smoke > 0 && v > 0.6)) break;
     p.px(x, y, v < 0.4 ? GOLD[3] : GOLD[2]);
   }
-  // Stehkragen hinter dem Kopf (Gold gesäumt, Karmin innen)
-  for (let i = 0; i < 11; i++) {
-    const x = tx - 4 + i * 0.9, top = ty - 12 + Math.abs(i - 3) * 0.9;
-    for (let y = top; y < ty + 2; y++) p.px(x, y, y < top + 1 ? GOLD[3] : i < 2 ? OBS[3] : i < 5 ? ROBE[2] : ROBE[1]);
+  // Hoher Stehkragen hinter dem Kopf: Knochenplatten, nach oben aufgefächert, Glutkante –
+  // rahmt Kopf und Krone und macht die Silhouette deutlich höher
+  for (let i = 0; i < 17; i++) {
+    const u = i / 16;
+    const flare = (u - 0.35) * 5;
+    const top = ty - 20 - Math.sin(u * Math.PI) * 4 + Math.abs(u - 0.3) * 6;
+    for (let y = top; y < ty + 3; y++) {
+      const v = (y - top) / (ty + 3 - top);
+      const x = tx - 6 + i * 1.05 + flare * (1 - v);
+      let c = i < 2 ? OBS[4] : i < 4 ? OBS[3] : i < 9 ? ROBE[2] : ROBE[1];
+      if (i % 4 === 0 && i > 0) c = OBS[2];
+      if (y < top + 1) c = GOLD[3]; else if (y < top + 2) c = i < 6 ? OBS[5] : OBS[3];
+      p.px(x, y, c);
+      if (y < top + 1 && P.crack > 0.2) g.max(x, y, i < 8 ? 1 : 0);
+    }
   }
 }
 
@@ -851,8 +884,8 @@ function wings(p, g, rx, ry, P) {
   const s = P.wing;
   const flap = Math.sin(P.wingT) * 0.12 + P.spread * 0.25;
   const sets = [
-    { a0: -2.6, a1: -1.45, n: 4, L: 56, ox: 6, oy: -4, far: true },
-    { a0: -3.1, a1: -1.65, n: 5, L: 80, ox: 0, oy: 0, far: false },
+    { a0: -2.6, a1: -1.45, n: 4, L: 56 * S, ox: 8, oy: -5, far: true },
+    { a0: -3.1, a1: -1.65, n: 5, L: 80 * S, ox: 0, oy: 0, far: false },
   ];
   for (const w of sets) {
     const pts = [];
@@ -924,8 +957,8 @@ function wings(p, g, rx, ry, P) {
 // Rauchschwaden unter dem Schwebenden bis zum Boden
 function smokeTrail(p, g, hipX, gy, P, dang) {
   const top = gy - 4, bottom = AY;
-  for (let i = 0; i < 11; i++) {
-    const x0 = hipX - 5 + i * 1.2;
+  for (let i = 0; i < 13; i++) {
+    const x0 = hipX - 7 + i * 1.3;
     for (let y = top; y <= bottom; y++) {
       const v = (y - top) / Math.max(1, bottom - top);
       const x = x0 - v * 6 + Math.sin(P.capeT * 1.4 + v * 5 + i) * (1 + v * 2);
@@ -957,7 +990,7 @@ function dissolve(L, k, yTop, yBot) {
 
 function ashPile(p, g, k, cx, gy) {
   if (k <= 0) return;
-  const rx = 5 + k * 12, ry = 1 + k * 6;
+  const rx = 6 + k * 16, ry = 1 + k * 8;
   for (let y = -Math.ceil(ry); y <= 0; y++) {
     const t = 1 - (y * y) / (ry * ry);
     const hw = Math.round(rx * Math.sqrt(Math.max(0, t)));
@@ -989,7 +1022,7 @@ function rimLight(L, x0, y0, x1, y1) {
       // zweite, schwächere Lichtreihe unter Oberkanten
       if (!opaque(x, y - 2) || !opaque(x - 2, y)) {
         const [r, g, b] = rgbOf(B[i]);
-        out[i] = pack(Math.min(255, r * 0.8 + 180 * 0.2) | 0, Math.min(255, g * 0.8 + 172 * 0.2) | 0, Math.min(255, b * 0.8 + 206 * 0.2) | 0);
+        out[i] = pack(Math.min(255, r * 0.8 + 236 * 0.2) | 0, Math.min(255, g * 0.8 + 226 * 0.2) | 0, Math.min(255, b * 0.8 + 210 * 0.2) | 0);
       }
       continue;
     }
@@ -997,7 +1030,7 @@ function rimLight(L, x0, y0, x1, y1) {
     const [r, g, b] = rgbOf(B[i]);
     if (up || left) {
       // kühles Oberlicht (Licht von links oben): hebt die Silhouette vom dunklen Boden ab
-      out[i] = pack(Math.min(255, r * 0.45 + 204 * 0.55) | 0, Math.min(255, g * 0.45 + 194 * 0.55) | 0, Math.min(255, b * 0.45 + 226 * 0.55) | 0);
+      out[i] = pack(Math.min(255, r * 0.4 + 250 * 0.6) | 0, Math.min(255, g * 0.4 + 240 * 0.6) | 0, Math.min(255, b * 0.4 + 222 * 0.6) | 0);
     } else if (right) {
       // Glutkante vorn (Widerschein der Glut am Boden)
       out[i] = pack(Math.min(255, r * 0.6 + 236 * 0.4) | 0, Math.min(255, g * 0.68 + 104 * 0.32) | 0, Math.min(255, b * 0.75 + 48 * 0.25) | 0);
@@ -1076,9 +1109,9 @@ function deathFrame(P, form, fx) {
   // Krone
   if (Q.crownDrop > 0.02) {
     const k = Q.crownDrop;
-    const hx = meta.crown.x - 7, hy = meta.crown.y + 1;
+    const hx = meta.crown.x - 8, hy = meta.crown.y + 1;
     // Fall mit Aufprall bei 0.6, kleiner Sprung, liegt bei 1
-    const gx = AX + 26, gyC = AY - 2;
+    const gx = AX + 34, gyC = AY - 2;
     let x, y, tilt;
     if (k < 0.6) { const t = k / 0.6; x = hx + (gx - 4 - hx) * t; y = hy + (gyC - hy) * t * t; tilt = t * 1.4; }
     else if (k < 0.85) { const t = (k - 0.6) / 0.25; x = gx - 4 + t * 4; y = gyC - Math.sin(t * Math.PI) * 6; tilt = 1.4 + t * 1.2; }
