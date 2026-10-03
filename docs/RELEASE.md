@@ -21,9 +21,20 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 - [x] Panels: Fokus im Panel, Tab bleibt drin, Fokus kehrt zurück.
 - [x] Worker: /net/status und /net/worlds 5 s zwischengespeichert; Fehler im Log; HSTS; eigene 404-Seite
       (not_found_handling); /favicon.ico und /apple-touch-icon.png.
+- [x] Schummelschutz: Der Server prüft jeden hochgeladenen Spielstand (Stufe 1–40, Gold-Obergrenze, Stufen- und
+      Goldsprünge je Spielzeit, Spielzeit nicht schneller als echte Zeit). Verstöße werden nicht gespeichert, das Spiel
+      holt den gültigen Stand zurück, ein Vermerk landet in character_flags (Admin: admin_character_flags()).
+      window.emberfall gibt es nur noch lokal und für Admins.
 - [x] Titel zeigt „Version 1.0.0“ (package.json), der Commit steht im Tooltip und in /version.json.
 
-## 2. Vor dem Start prüfen (nach dem Merge)
+## 2. Datenbank (Nutzer, Supabase › SQL Editor, in dieser Reihenfolge, je einmal)
+
+- [ ] supabase/migrations/20261003120100_chat_meldungen.sql (Chat melden, Chatsperren)
+- [ ] supabase/migrations/20261003121500_support_meldungen.sql (Support-Kategorie „Spieler melden“)
+- [ ] supabase/migrations/20261003130000_spielstand_pruefung.sql (Schummelschutz für Spielstände)
+- Nicht jetzt: 20261001230000_goldshop.sql erst beim Einrichten von Stripe.
+
+## 2a. Vor dem Start prüfen (nach dem Merge)
 
 - [ ] Cloudflare-Build grün, /version.json zeigt den neuen Commit.
 - [ ] `curl -I https://www.emberwrath.com/spielen/` zeigt Content-Security-Policy, Strict-Transport-Security, Cache-Control: no-cache.
@@ -52,6 +63,9 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 - [ ] Texte, die nach unfertigem Stand klingen, neutral (Bereichs-Threads).
 
 ## 5. Gold-Shop (erst wenn Stripe eingerichtet wird, nicht zum Start nötig)
+
+- [ ] Gold aus Käufen serverseitig führen (eigene Tabelle, nur Server-Funktionen ändern sie). Bis dahin begrenzt die
+      Spielstand-Prüfung nur grobe Manipulation; gekauftes Gold ist erst damit wirklich geschützt.
 
 - [ ] Stripe-Konto, Schlüssel als Worker-Secrets, Webhook (docs/SHOP.md).
 - [ ] Migration supabase/migrations/20261001230000_goldshop.sql ausführen.
