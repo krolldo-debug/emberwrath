@@ -1,6 +1,7 @@
 import { h } from '../core/dom.js';
 import { MenuScene } from '../account/TitleScene.js';
 import { describeError } from './AuthClient.js';
+import { renderChatReports } from '../net/AdminReports.js';
 
 // Verwaltung (Szene 'admin'): Kennzahlen, Konten und Charaktere aller Spieler.
 // Die Daten kommen aus den Datenbankfunktionen admin_stats/admin_users/admin_characters. Diese prüfen serverseitig,
@@ -76,15 +77,22 @@ export class AdminScene extends MenuScene {
       this.#bars('Charaktere je Stufe', levels.map(([lv, n]) => ({ label: String(lv), value: n, tip: `Stufe ${lv}: ${n} ${n === 1 ? 'Charakter' : 'Charaktere'}` })), 'Noch keine Charaktere.'),
       this.#bars('Registrierungen, letzte 30 Tage', days.map(([d, n], i) => ({ label: (i % 7 === 1) || i === 29 ? `${d.slice(8, 10)}.${d.slice(5, 7)}.` : '', value: n, tip: `${d.slice(8, 10)}.${d.slice(5, 7)}.: ${n} ${n === 1 ? 'Registrierung' : 'Registrierungen'}` })), null));
 
+    const TAB_LABEL = { users: `Konten (${this.data.users.length})`, chars: `Charaktere (${this.data.chars.length})`, reports: 'Meldungen' };
     const tabs = h('div.on-tabs', { role: 'tablist' },
-      ['users', 'chars'].map((t) => h(`button.on-tab${this.tab === t ? '.active' : ''}`, {
+      ['users', 'chars', 'reports'].map((t) => h(`button.on-tab${this.tab === t ? '.active' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': this.tab === t ? 'true' : 'false',
         onclick: () => { this.tab = t; this.#render(); },
-      }, t === 'users' ? `Konten (${this.data.users.length})` : `Charaktere (${this.data.chars.length})`)));
-    const search = h('input.ef-input.on-search', { type: 'search', placeholder: 'Suchen (Name, E-Mail, Klasse …)', value: this.filter, 'aria-label': 'Tabelle durchsuchen' });
+      }, TAB_LABEL[t])));
     const tableSlot = h('div.on-table-wrap');
-    search.addEventListener('input', () => { this.filter = search.value; tableSlot.replaceChildren(this.#table()); });
-    tableSlot.append(this.#table());
+    let search = null;
+    if (this.tab === 'reports') {
+      // Chat-Meldungen (DSA): Daten und Rechte prüfen admin_chat_reports/…_resolve/…_mute serverseitig (assert_admin)
+      tableSlot.replaceChildren(renderChatReports(this.online.client));
+    } else {
+      search = h('input.ef-input.on-search', { type: 'search', placeholder: 'Suchen (Name, E-Mail, Klasse …)', value: this.filter, 'aria-label': 'Tabelle durchsuchen' });
+      search.addEventListener('input', () => { this.filter = search.value; tableSlot.replaceChildren(this.#table()); });
+      tableSlot.append(this.#table());
+    }
 
     this.#shell(tiles, charts, h('div.on-table-head', tabs, search), tableSlot,
       h('p.acc-meta.on-foot', `Stand ${fmtDateTime(this.data.at)} · Stufen stammen aus den Spielständen der Spieler (vom Gerät gemeldet).`));

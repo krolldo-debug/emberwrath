@@ -95,6 +95,14 @@ await a.click('text=Charaktere ('); await wait(200);
 const ct = await text(a);
 check(ct.includes('Bruno') && ct.includes('Ada'), 'Admin sieht Charaktere aller Konten');
 await a.screenshot({ path: 'shot-admin-chars.png' });
+// 6b Chat-Meldungen im Admin-Reiter „Meldungen“ (Migration chat_meldungen)
+execSync('sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 >/dev/null', { input: 'do $$ begin create role service_role; exception when duplicate_object then null; end $$;\n' + readFileSync(new URL('../migrations/20261003120100_chat_meldungen.sql', import.meta.url), 'utf8') });
+await pool.query("insert into public.chat_reports (reporter_id, reporter_name, reported_id, reported_name, zone, reason, note, messages, good_faith) select a.id, 'Sitzheizung', g.id, 'Gustav', 'ashen_steppe', 'beleidigung', 'Testmeldung', '[{\"text\":\"du Wurm\",\"at\":\"2026-10-03T12:00:00Z\"}]', true from auth.users a, auth.users g where a.email='admin@test.de' and g.email='googleuser@example.com'");
+await a.click('text=Meldungen'); await wait(800);
+await a.screenshot({ path: 'shot-admin-reports.png' });
+check((await text(a)).includes('Testmeldung') && (await text(a)).includes('du Wurm'), 'Admin sieht Chat-Meldung im Reiter „Meldungen“');
+await a.fill('.net-adm-decision', 'Beleidigung bestätigt'); await a.click('text=Chat sperren: 24 Stunden'); await wait(1500);
+{ const { rows: r } = await pool.query("select status, decision from public.chat_reports"); const { rows: m } = await pool.query('select count(*)::int n from public.chat_mutes'); check(r[0]?.status === 'erledigt' && m[0].n === 1, 'Chatsperre gesetzt und Meldung erledigt: ' + JSON.stringify(r)); }
 // 7 Gerätewechsel: Admin meldet sich auf Gerät C an, Charakter kommt an, Löschen synct zurück
 const c = await newPage();
 await c.goto(B + '#anmelden'); await wait(500);
