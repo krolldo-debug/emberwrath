@@ -4,6 +4,7 @@ import { MenuScene } from './TitleScene.js';
 import { HeroPortrait, focusIfDesktop, requireOnlineAccount } from './ui.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
+import { nameProblem } from '../net/names.js';
 import { RACE_LOOK } from '../sprites/hero.js';
 import { iconEl, abilityIcon } from '../gfx/Icons.js';
 import { resolveGear } from '../character/gearLook.js';
@@ -49,6 +50,11 @@ const PREVIEW_GEAR = {
     epic: { weapon: 'ember_staff', chest: 'arcane_robe', hands: 'silk_gloves' },
     legendary: { weapon: 'worldstaff', chest: 'arcane_robe', head: 'cryptlord_crown', hands: 'silk_gloves' },
   },
+};
+
+const NAME_PROBLEM = {
+  reserviert: 'Dieser Name ist für das Team reserviert. Bitte wähle einen anderen.',
+  anstoessig: 'Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.',
 };
 
 export class CharacterCreateScene extends MenuScene {
@@ -165,7 +171,8 @@ export class CharacterCreateScene extends MenuScene {
   }
 
   #validate() {
-    const err = validateName(this.sel.name);
+    // Dieselben Namensregeln wie auf dem Welt-Server (src/net/names.js): Team-Namen und Anstößiges gar nicht erst vergeben.
+    const err = validateName(this.sel.name) ?? NAME_PROBLEM[nameProblem(cleanName(this.sel.name))] ?? null;
     this.nameErr.textContent = this.sel.name.trim() && err ? err : '';
     this.startBtn.disabled = !!err;
     return !err;
