@@ -1098,3 +1098,5 @@ html:not(.ef-touch) .hud-minimap-n { font-size: 10px; }
 html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="potion"], html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="mount"] { width: 48px; height: 48px; }
 /* Hochformat: Freischalt-Karte unter Questliste und Minimap statt darüber */
 html.ef-portrait #ui > .ef-unlock { top: calc(env(safe-area-inset-top, 0px) + 158px); }
+/* Querformat: Bossleiste sitzt oben mittig, Freischalt-Karte dann darunter */
+html.ef-touch:not(.ef-portrait):has(.hud-boss.show) #ui > .ef-unlock { top: calc(env(safe-area-inset-top, 0px) + 64px); }
