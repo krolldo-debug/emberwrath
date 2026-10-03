@@ -3,7 +3,7 @@
 --
 -- Das Spiel rechnet im Browser; der Cloud-Abgleich lädt den ganzen Spielstand hoch. Diese Prüfung fängt grobe
 -- Manipulationen ab (Konsole, bearbeiteter Browser-Speicher), ohne ehrliche Spieler zu treffen:
---  - feste Grenzen: Stufe 1–40, Gold 0–50 Mio., Spalte level = Stufe im Spielstand
+--  - feste Grenzen: Stufe 1–40, Gold −1 Mio. (Minusstand nach Shop-Rückbuchung) bis 50 Mio., Spalte level = Stufe im Spielstand
 --  - je Upload eines Spielers (Rolle authenticated) im Vergleich zum gespeicherten Stand:
 --      Spielzeit wächst höchstens so schnell wie die echte Zeit seit dem letzten Speichern (+10 min Spielraum)
 --      Stufe steigt höchstens um 2 + 1 je 2 Minuten Spielzeit
@@ -61,7 +61,7 @@ begin
   -- Nur Uploads von Spielern prüfen; SQL-Editor, Server und Admin-Skripte nicht.
   if current_user <> 'authenticated' then return new; end if;
 
-  if lvl < 1 or lvl > 40 or gold < 0 or gold > 50000000 then
+  if lvl < 1 or lvl > 40 or gold < -1000000 or gold > 50000000 then
     why := 'grenze';
     info := jsonb_build_object('level', lvl, 'gold', gold);
   elsif tg_op = 'UPDATE' then

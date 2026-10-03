@@ -4,7 +4,8 @@ import { rand } from '../core/math.js';
 // Animierter Hintergrund der Menü-Bildschirme im internen Pixel-Canvas:
 // Gewölbe der Katakomben im Gegenlicht, zwei Fackeln, aufsteigende Glut.
 // Optional steht eine Figur (Frame-Quelle) auf dem Podest in der Mitte.
-const W = CONFIG.viewWidth, H = CONFIG.viewHeight;
+// W/H folgen dem Bildausschnitt (Game.#chooseView ändert ihn je nach Fenster), siehe #fit().
+let W = CONFIG.viewWidth, H = CONFIG.viewHeight;
 
 export class Backdrop {
   constructor() {
@@ -63,7 +64,17 @@ export class Backdrop {
     return c;
   }
 
+  // Bildausschnitt geändert: Größe übernehmen, Hintergrund neu aufbauen, Staub neu verteilen.
+  #fit() {
+    if (this.static.width === CONFIG.viewWidth && this.static.height === CONFIG.viewHeight) return;
+    W = CONFIG.viewWidth; H = CONFIG.viewHeight;
+    this.static = Backdrop.#buildStatic();
+    for (const d of this.dust) { d.x = rand(0, W); d.y = rand(0, H); }
+    for (let i = 0; i < this.embers.length; i++) this.embers[i] = this.#ember(true);
+  }
+
   update(dt) {
+    this.#fit();
     this.t += dt;
     this.figureTime += dt;
     for (let i = 0; i < this.embers.length; i++) {
@@ -91,6 +102,7 @@ export class Backdrop {
   }
 
   render(ctx) {
+    this.#fit();
     ctx.drawImage(this.static, 0, 0);
     // Glutschein aus der Tiefe
     const pulse = 0.8 + Math.sin(this.t * 0.9) * 0.2;
