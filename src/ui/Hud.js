@@ -74,7 +74,10 @@ export class Hud {
     this.saved = el('div.hud-saved', 'Gespeichert');
     const zone = el('div.hud-zone',
       this.zName, this.zSub,
-      el('div.hud-gold', el('img.ef-icon', { src: iconUrl('gold'), alt: '', width: 20, height: 20 }), this.gold),
+      this.goldEl = el('div.hud-gold', {
+        title: 'Gold',
+        onclick: () => { if (this.game.shop?.visible) { this.s.sfx.play?.('ui'); this.s.panels?.open?.('goldshop'); } },
+      }, el('img.ef-icon', { src: iconUrl('gold'), alt: '', width: 20, height: 20 }), this.gold),
       this.saved,
     );
 
@@ -320,6 +323,7 @@ export class Hud {
 
     // Gold
     setText(this.gold, (s.state.slices.wallet?.gold ?? 0).toLocaleString('de-DE'));
+    toggle(this.goldEl, 'shop', !!this.game.shop?.visible);
 
     // Gespeichert-Anzeige
     this.savedFlash = Math.max(0, this.savedFlash - dt);

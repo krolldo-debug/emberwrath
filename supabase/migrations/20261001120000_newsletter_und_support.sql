@@ -37,6 +37,11 @@ create table if not exists public.support_requests (
 alter table public.support_requests enable row level security;
 revoke all on public.support_requests from anon, authenticated;
 
+-- Der Worker schreibt mit dem Secret Key (Rolle service_role). Neuere Supabase-Projekte vergeben dafür keine
+-- Tabellenrechte mehr automatisch, ohne diese Zeilen antwortet PostgREST mit 403.
+grant select, insert, update, delete on public.newsletter_subscribers, public.support_requests to service_role;
+grant usage, select on all sequences in schema public to service_role;
+
 -- Unbestätigte Anmeldungen und erledigte Anfragen nicht ewig aufheben (Datensparsamkeit): täglich per pg_cron
 -- oder von Hand: select public.cleanup_forms();
 create or replace function public.cleanup_forms() returns void

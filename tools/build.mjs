@@ -1,7 +1,7 @@
 // Zero-Dependency-Build: bündelt alle ES-Module in eine einzelne HTML-Datei
 // (dist/emberfall.html), die ohne Server per Doppelklick läuft.
 // Aufruf: node tools/build.mjs
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -75,6 +75,8 @@ const connectSrc = supabaseUrl ? `'self' ${supabaseUrl}` : "'self'";
 const site = resolve(root, 'dist/site');
 mkdirSync(resolve(site, 'spielen'), { recursive: true });
 writeFileSync(resolve(site, 'spielen/index.html'), out);
+// Web-App vom Home-Bildschirm (src/ui/Fullscreen.js): Manifest und App-Symbole liegen neben dem Spiel.
+for (const f of ['manifest.webmanifest', 'app-icon-180.png', 'app-icon-192.png', 'app-icon-512.png']) copyFileSync(resolve(root, 'src/ui/pwa', f), resolve(site, 'spielen', f));
 const landing = buildSite(root, site);
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
 // dazu übliche Sicherheits-Header. Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.

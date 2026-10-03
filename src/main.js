@@ -8,6 +8,7 @@ import { installUi } from './ui/index.js';
 import { installOnline } from './online/index.js';
 import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
+import { installShop } from './shop/index.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar.
@@ -21,7 +22,8 @@ game
   .use(installUi)          // Thread D
   .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
-  .use(installFinder);     // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
+  .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
+  .use(installShop);       // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
 game.scenes.register('play', (g) => new PlayScene(g));
 window.emberfall = game;
 game.start('title');

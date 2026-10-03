@@ -11,6 +11,7 @@ import { QualityControl } from './Quality.js';
 import { installDialogPortraits } from './DialogPortrait.js';
 import { installLogoCss } from '../gfx/Logo.js';
 import { installPrefs } from './Settings.js';
+import { installFullscreen } from './Fullscreen.js';
 import { createGuideSprites } from '../sprites/effects.js';
 import { Music } from '../audio/Music.js';
 import { Soundscape } from '../audio/Soundscape.js';
@@ -20,6 +21,7 @@ import { Soundscape } from '../audio/Soundscape.js';
 export function installUi(game) {
   installLogoCss(); // Schriftzug als CSS-Variable --ef-logo (Titelbildschirm)
   installPrefs(game); // Lautstärke, Touch-Größe, Minimap aus game.prefs
+  installFullscreen(game); // Vollbild (Android/iPad) bzw. Web-App vom Home-Bildschirm (iPhone)
   // Effekt-Sprites für andere Bereiche: assets.effects.guide (Questpfad, Thread B)
   game.assets.effects ??= {};
   game.assets.effects.guide = createGuideSprites();
