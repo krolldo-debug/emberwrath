@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { hash2 } from '../core/math.js';
 import { TileMap } from './TileMap.js';
-import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND } from '../sprites/outdoor.js';
+import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, createCliffTiles } from '../sprites/outdoor.js';
 import { GROUND_STEPPE } from '../sprites/decor_steppe.js';
 import { GROUND_MARSH } from '../sprites/decor_marsh.js';
 import { GROUND_FROST } from '../sprites/decor_frost.js';
@@ -10,16 +10,24 @@ import { GROUND_WASTES } from '../sprites/decor_wastes.js';
 
 // Bodenpaletten der Runde-3-Zonen liegen bei ihren Deko-Sätzen (Import hier, sonst Kreis über decor_ashwood -> outdoor.js)
 const GROUNDS = { ...BIOME_GROUND, steppe: GROUND_STEPPE, marsh: GROUND_MARSH, frost: GROUND_FROST, wastes: GROUND_WASTES };
-// Felsfarbe je Biom: die Klippenkacheln sind dunkler Stein mit Graskante; im Schnee sonst schwarze Löcher
-const CLIFF_TINT = { frost: { top: ['#b8c8dc', 0.62], face: ['#6a7a94', 0.35] } };
-const tintCache = new Map();
-function tinted(list, [color, alpha], key) {
-  if (!tintCache.has(key)) tintCache.set(key, list.map((src) => {
-    const c = makeCanvas(src.width, src.height), x = c.getContext('2d');
-    x.drawImage(src, 0, 0); x.globalCompositeOperation = 'source-atop'; x.globalAlpha = alpha; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
-    return c;
-  }));
-  return tintCache.get(key);
+// Felsrampen je Biom (dunkel→hell). Das Plateau nimmt den Boden der Zone (bzw. Schnee), damit Felsen
+// als erhöhtes Gelände lesen und nicht als schwarze Löcher.
+const CLIFF_ROCK = {
+  outdoor: null,
+  ashwood: ['#16130f', '#211c17', '#2d2620', '#3a322a', '#4a4036', '#5c5145'],
+  cinder: ['#120e10', '#1b1517', '#251d20', '#30262a', '#3d3036', '#4c3c44'],
+  steppe: ['#1c140e', '#2a1e14', '#3a2a1c', '#4c3826', '#604832', '#765a40'],
+  marsh: ['#121612', '#1a201a', '#232b22', '#2e382c', '#3b4738', '#4b5946'],
+  frost: ['#1a2230', '#243044', '#30405a', '#40547a', '#5a7096', '#8098b8'],
+  wastes: ['#120e10', '#1b1517', '#251d20', '#30262a', '#3d3036', '#4c3c44'],
+};
+const cliffCache = new Map();
+function cliffSet(biome, pal) {
+  if (!cliffCache.has(biome)) {
+    const rock = CLIFF_ROCK[biome] ?? OUT.rock;
+    cliffCache.set(biome, createCliffTiles(6, 31, { rock, cap: pal.grass }));
+  }
+  return cliffCache.get(biome);
 }
 
 const T = CONFIG.tileSize;
@@ -137,8 +145,8 @@ export class Outdoor extends TileMap {
     }
 
     // Klippen in 3/4-Perspektive
-    const tint = CLIFF_TINT[this.groundBiome];
-    const cl = tint ? { top: tinted(O.cliff.top, tint.top, this.groundBiome + ':top'), upper: tinted(O.cliff.upper, tint.face, this.groundBiome + ':upper'), lower: tinted(O.cliff.lower, tint.face, this.groundBiome + ':lower') } : O.cliff;
+    const biome = this.groundBiome ?? 'outdoor', rockR = CLIFF_ROCK[biome] ?? OUT.rock;
+    const cl = CLIFF_ROCK[biome] ? cliffSet(biome, this.pal) : O.cliff;
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
       if (this.rows[y][x] !== '#') continue;
       const kind = this.#cliffKind(x, y);
@@ -149,14 +157,14 @@ export class Outdoor extends TileMap {
       else {
         ctx.drawImage(cl.top[Math.floor(h * cl.top.length)], px, py);
         const open = (tx, ty) => this.rows[ty]?.[tx] !== undefined && this.rows[ty][tx] !== '#';
-        ctx.fillStyle = OUT.rock[3];
+        ctx.fillStyle = rockR[3];
         if (open(x - 1, y)) ctx.fillRect(px, py, 2, T);
         if (open(x + 1, y)) ctx.fillRect(px + T - 2, py, 2, T);
         if (open(x, y - 1)) ctx.fillRect(px, py, T, 2);
-        ctx.fillStyle = OUT.rock[4];
+        ctx.fillStyle = rockR[5] ?? rockR[4];
         if (open(x - 1, y)) ctx.fillRect(px, py, 1, T);
         if (open(x, y - 1)) ctx.fillRect(px, py, T, 1);
-        if (open(x, y + 1) || this.#cliffKind(x, y + 1) === 'faceUpper') { ctx.fillStyle = (tint ? this.pal : OUT).grass[3]; ctx.fillRect(px, py + T - 1, T, 1); }
+        if (open(x, y + 1) || this.#cliffKind(x, y + 1) === 'faceUpper') { ctx.fillStyle = this.pal.grass[3]; ctx.fillRect(px, py + T - 1, T, 1); }
       }
     }
     // Schatten der Klippen/Gebäude auf dem Boden

@@ -35,7 +35,7 @@ export class Ignaroth extends Actor {
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
-    this.hurtRadius = def.hurtRadius; this.bodyHeight = def.bodyHeight;
+    this.hurtRadius = def.hurtRadius; this.bodyHeight = Math.max(def.bodyHeight, 62); // Sprite ist ~70 px hoch (ohne Hörner)
     this.shadowW = def.shadowW; this.material = def.material;
     this.home = { x, y };
     this.facing = 1;
@@ -69,7 +69,7 @@ export class Ignaroth extends Actor {
     world.bus.emit(EV.BOSS_ENGAGED, { bossId: this.bossId, name: this.def.name });
     world.session.camera?.shake(5);
     world.particles.element(this.x, this.y - 30, 'fire', 30, 16);
-    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -40, radius: 90, color: FIRE_RGB, intensity: 0.55, flicker: 0.25, bloom: 0.35 }));
+    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -44, radius: 90, color: FIRE_RGB, intensity: 0.55, flicker: 0.25, bloom: 0.35 }));
   }
 
   update(dt, world) {

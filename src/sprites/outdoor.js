@@ -102,47 +102,55 @@ export function groundPixel(kind, px, py, pal = OUT) {
 }
 
 // ------------------------------------------------------------ Klippen-Tiles
-export function createCliffTiles(count = 6, seed = 31) {
+// Klippen: Felsfront (upper/lower) und Plateau (top). rock = Felsrampe (6 Stufen, dunkel→hell),
+// cap = Bodenrampe der Hochfläche (Gras/Schnee/Asche). Ohne Angaben: Standardfels mit Waldboden.
+export function createCliffTiles(count = 6, seed = 31, { rock = OUT.rock, cap = OUT.grass, capEdge = null } = {}) {
   const rng = createRng(seed);
-  const R = OUT.rock;
+  const R = rock, G = cap, E = capEdge ?? cap;
   const make = (lower) => {
     const p = new PixelCanvas(16, 16);
     p.rect(0, 0, 16, 16, R[2]);
-    // Gesteinsschichten mit schrägen Brüchen
+    // Gesteinsschichten mit schrägen Brüchen, Licht von oben links
     for (let y = 0; y < 16; y += rng.int(3, 5)) {
       const off = rng.int(-2, 2);
       for (let x = 0; x < 16; x++) {
         const yy = y + Math.round(Math.sin((x + off) * 0.5) * 0.8);
         p.px(x, yy, R[1]);
-        if (rng.chance(0.5)) p.px(x, yy + 1, R[3]);
+        if (rng.chance(0.55)) p.px(x, yy + 1, R[3]);
+        if (rng.chance(0.18)) p.px(x, yy + 2, R[4]);
       }
     }
     for (let i = 0; i < 12; i++) p.px(rng.int(0, 15), rng.int(0, 15), rng.pick([R[1], R[3], R[4]]));
     // senkrechte Spalte
-    if (rng.chance(0.5)) { const x = rng.int(2, 13); for (let y = rng.int(0, 6); y < 16; y++) if (rng.chance(0.8)) p.px(x, y, R[0]); }
+    if (rng.chance(0.5)) { const x = rng.int(2, 13); for (let y = rng.int(0, 6); y < 16; y++) if (rng.chance(0.8)) { p.px(x, y, R[0]); if (rng.chance(0.5)) p.px(x - 1, y, R[3]); } }
     if (lower) {
-      p.ctx.fillStyle = 'rgba(5,4,10,0.5)'; p.ctx.fillRect(0, 12, 16, 4);
-      p.ctx.fillStyle = 'rgba(5,4,10,0.25)'; p.ctx.fillRect(0, 9, 16, 3);
-      for (let m = 0; m < 5; m++) p.px(rng.int(0, 15), rng.int(13, 15), rng.pick(OUT.grass.slice(2, 5)));
+      p.ctx.fillStyle = 'rgba(5,4,10,0.45)'; p.ctx.fillRect(0, 12, 16, 4);
+      p.ctx.fillStyle = 'rgba(5,4,10,0.2)'; p.ctx.fillRect(0, 9, 16, 3);
+      for (let m = 0; m < 5; m++) p.px(rng.int(0, 15), rng.int(13, 15), rng.pick(G.slice(2, 5)));
     } else {
-      // Überhängendes Gras an der Kante
-      p.rect(0, 0, 16, 1, R[4]);
+      // Überhang der Hochfläche an der Kante
+      p.rect(0, 0, 16, 1, R[5] ?? R[4]);
       for (let x = 0; x < 16; x++) {
         const len = rng.int(0, 3);
-        for (let y = 0; y < len; y++) p.px(x, y, OUT.grass[3 - Math.min(2, y)]);
+        for (let y = 0; y < len; y++) p.px(x, y, E[4 - Math.min(2, y)]);
       }
     }
     return p.canvas;
   };
   const upper = [], lower = [];
   for (let i = 0; i < count; i++) { upper.push(make(false)); lower.push(make(true)); }
-  // Plateau (Draufsicht)
+  // Plateau (Draufsicht): erhöhter Boden, etwas heller als die Ebene, mit Felsnasen
   const top = [];
   for (let i = 0; i < 4; i++) {
     const p = new PixelCanvas(16, 16);
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-      const v = hash2(x + i * 16, y, 33);
-      p.px(x, y, v < 0.5 ? '#0d1311' : v < 0.85 ? '#101814' : '#15201a');
+      const n = hash2((x + i * 16) >> 1, y >> 1, 33) * 0.6 + hash2(x + i * 16, y, 34) * 0.4;
+      p.px(x, y, n < 0.3 ? G[1] : n < 0.7 ? G[2] : n < 0.92 ? G[3] : G[4]);
+    }
+    // Felsnasen
+    for (let k = 0; k < 2; k++) if (hash2(i, k, 35) < 0.6) {
+      const cx = 3 + Math.floor(hash2(i, k, 36) * 10), cy = 3 + Math.floor(hash2(i, k, 37) * 10);
+      p.px(cx, cy, R[4]); p.px(cx + 1, cy, R[3]); p.px(cx, cy + 1, R[2]); p.px(cx + 1, cy + 1, R[1]);
     }
     top.push(p.canvas);
   }

@@ -22,25 +22,29 @@ import { hash2 } from '../core/math.js';
 const W = 200, H = 136, AX = 88, AY = 128;
 const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Axt steckt im Boden)
 
-// Obsidian: fast schwarz mit violettem Glanz
-const OBS = ['#140f1a', '#261d30', '#3a2c48', '#56426a', '#7a6494'];
-const SPEC = '#b4a2d0';
-// Erkaltete Lava (Nähte im unbeleuchteten Sprite)
-const MAG = ['#2a0804', '#5a1206', '#8e2408', '#c8420c'];
-// Basalthaut an Hals und Gelenken
-const SKIN = ['#1e1212', '#36201c', '#4e3026', '#6c4432'];
-const HORN = ['#1a1214', '#2e2224', '#4a3a36', '#6e5a4e', '#9c8670'];
-const CAPE = ['#120a0e', '#22121a', '#361a20', '#4c2224', '#682c26'];
-const GOLD = PAL.gold;
-const IRON = ['#141218', '#221f28', '#36323e', '#58525e'];
+// Geschwärzter Schmiedestahl: kühles Grau mit leichtem Blaustich, klare Stufen
+const OBS = ['#0e0e13', '#1e1f27', '#33353f', '#50545f', '#7a7f8c'];
+const SPEC = '#c6ccd6';
+// Glutnähte im unbeleuchteten Sprite (schon im Grundbild warm und lesbar)
+const MAG = ['#3a0c04', '#7a1a06', '#b8380c', '#ec6a1c'];
+// Basalthaut / Kettengeflecht an Hals und Gelenken
+const SKIN = ['#140f10', '#281c1a', '#3e2a24', '#5a3c2e'];
+// Hörner: Knochenhorn, an der Wurzel dunkel, zur Spitze elfenbeinhell
+const HORN = ['#22160f', '#46301f', '#76563a', '#ab8c64', '#dccaa2'];
+const CAPE = ['#140708', '#260b0c', '#3c1210', '#561a14', '#74261a'];
+// Messing (Beschläge, Bänder, Krone)
+const GOLD = ['#3e2410', '#73481a', '#ac7426', '#dcaa48', '#f8e09a'];
+const IRON = ['#121216', '#22232a', '#3a3c46', '#5e626e'];
 const FANG = ['#8a7a68', '#c8b8a0', '#efe4cc'];
-const EDGE = ['#6e5a60', '#a8929a', '#d8c8cc', '#f4ecee'];
-const VOID = '#07040a';
+const EDGE = ['#6a6e78', '#a2a8b4', '#d6dce4', '#f8fbff'];
+const VOID = '#060406';
+const EYE = ['#c84a10', '#ffa040', '#fff0b0'];
+const OUTLINE = '#07050a';
 // Leucht-Rampen (dunkel -> hell)
 const EMB = ['#5a1406', '#a8300a', '#f0661a', '#ffb048', '#fff0c0'];
 const INF = ['#8a2a08', '#ff6a14', '#ffc048', '#fff4c8', '#ffffff'];
 
-const THIGH = 14, SHIN = 15, SPINE = 22, UPPER = 12, FORE = 12;
+const THIGH = 15, SHIN = 16, SPINE = 24, UPPER = 12, FORE = 13;
 
 // ---------------------------------------------------------------- Pixelpuffer
 
@@ -62,17 +66,18 @@ class Layers {
     this.base = new Uint32Array(W * H);
     this.ga = new Uint32Array(W * H);
     this.gb = new Uint32Array(W * H);
+    this.nr = new Uint8Array(W * H); // 1 = kein Umriss/Randlicht (Schwung-Schleier, Funken)
   }
 }
 
 // Stift für das Grundbild: deckt darunter liegendes Glühen ab.
 class Pen {
-  constructor(L) { this.L = L; }
+  constructor(L) { this.L = L; this.soft = 0; }
   px(x, y, c) {
     x = Math.round(x); y = Math.round(y);
     if (x < 0 || y < 0 || x >= W || y >= H || y > CLIP_Y) return;
     const i = y * W + x;
-    this.L.base[i] = col(c); this.L.ga[i] = 0; this.L.gb[i] = 0;
+    this.L.base[i] = col(c); this.L.ga[i] = 0; this.L.gb[i] = 0; this.L.nr[i] = this.soft;
   }
   rect(x, y, w, h, c) {
     x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
@@ -293,6 +298,7 @@ function greataxe(p, g, hx, hy, a, heat = 0) {
 
 // Feuriger Schwung-Schleier zwischen zwei Axtwinkeln um einen Drehpunkt.
 function smear(p, g, cx, cy, a0, a1, r0, r1) {
+  p.soft = 1;
   // nur das letzte Stück des Schwungs zeigen, sonst verdeckt der Schleier die Figur
   if (Math.abs(a1 - a0) > 1.5) a0 = a1 - Math.sign(a1 - a0) * 1.5;
   const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
@@ -316,6 +322,7 @@ function smear(p, g, cx, cy, a0, a1, r0, r1) {
       g.px(cx + x, cy + y, i);
     }
   }
+  p.soft = 0;
 }
 
 // ---------------------------------------------------------------- Figur
@@ -323,7 +330,7 @@ function smear(p, g, cx, cy, a0, a1, r0, r1) {
 function drawIgnaroth(p, g, P, extra = {}) {
   const gy = AY;
   const lean = P.lean, sL = Math.sin(lean), cL = Math.cos(lean);
-  const hipX = AX + P.hipX, hipY = gy - 29 + P.hipY + P.kneel * 10;
+  const hipX = AX + P.hipX, hipY = gy - 30 + P.hipY + P.kneel * 11;
   const chX = hipX + sL * SPINE, chY = hipY - cL * SPINE;
   const perpX = cL, perpY = sL; // "nach vorn" quer zum Rumpf
   const along = (s, k) => [hipX + sL * s + perpX * k, hipY - cL * s + perpY * k];
@@ -341,8 +348,8 @@ function drawIgnaroth(p, g, P, extra = {}) {
   }
 
   // Schultern, Hände
-  const shF = { x: chX + perpX * 9, y: chY + perpY * 9 + 2 };
-  const shB = { x: chX - perpX * 7, y: chY - perpY * 7 + 1 };
+  const shF = { x: chX + perpX * 10, y: chY + perpY * 10 + 3 };
+  const shB = { x: chX - perpX * 8, y: chY - perpY * 8 + 2 };
   const hF = { x: chX + P.hFx, y: chY + P.hFy };
   const aa = P.axe;
   const hB = P.grip > 0.5
@@ -362,15 +369,15 @@ function drawIgnaroth(p, g, P, extra = {}) {
   cape(p, g, chX - perpX * 3, chY + 1, gy, P);
 
   // --- 2. Hinteres Bein, hinterer Arm, hintere Schulter (dunkler)
-  const darkO = [VOID, OBS[0], OBS[1], OBS[2]];
+  const darkO = [OBS[0], OBS[1], OBS[2], OBS[3]];
   const litO = [OBS[1], OBS[2], OBS[3], OBS[4]];
   leg(p, g, hipX - 4, hipY, legB, darkO, true, P);
-  limb(p, shB.x, shB.y, armB.jx, armB.jy, 5.5, 5, darkO);
-  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 6.5, 5.5, darkO);
+  limb(p, shB.x, shB.y, armB.jx, armB.jy, 6, 5.5, darkO);
+  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 7.5, 6.5, darkO);
   p.ellipse(armB.jx, armB.jy, 2.5, 2.5, OBS[1]);
   fist(p, g, armB.ex, armB.ey, darkO, P.cast > 0.3);
   meta.cast = { x: armB.ex, y: armB.ey - 4 };
-  pauldron(p, g, shB.x - 2, shB.y - 1, 7, 5.5, darkO, [[-4, 6, -3], [0, 7, -1]], false);
+  pauldron(p, g, shB.x - 2, shB.y - 2, 8, 6, darkO, [[-2, 8, -2]], false);
 
   if (extra.axeBehind) {
     const t = greataxe(p, g, hF.x, hF.y, aa, P.heat);
@@ -382,7 +389,7 @@ function drawIgnaroth(p, g, P, extra = {}) {
 
   // --- 4. Vorderes Bein, Tassetten, Gürtel
   leg(p, g, hipX + 4, hipY, legF, litO, false, P);
-  belt(p, g, hipX, hipY, P, legF);
+  belt(p, g, hipX, hipY, P, legF, legB);
 
   // --- 5. Halsberge und Kopf mit Hörnerkrone
   p.ellipse(neckX, neckY - 1, 6, 4, OBS[1]); p.ellipse(neckX - 0.5, neckY - 2, 5, 2.5, OBS[2]);
@@ -396,8 +403,8 @@ function drawIgnaroth(p, g, P, extra = {}) {
 
   // --- 7. Vorderer Arm mit Axt
   const drawArm = () => {
-    limb(p, shF.x, shF.y, armF.jx, armF.jy, 6, 5.5, litO);
-    limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 7, 6, litO);
+    limb(p, shF.x, shF.y, armF.jx, armF.jy, 6.5, 6, [SKIN[0], SKIN[1], SKIN[2], SKIN[3]]);
+    limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 8, 7, litO);
     // Lavanaht am Unterarm
     const mx = (armF.jx + armF.ex) / 2, my = (armF.jy + armF.ey) / 2;
     p.line(armF.jx + (mx - armF.jx) * 0.4, armF.jy + (my - armF.jy) * 0.4, mx + (armF.ex - mx) * 0.6, my + (armF.ey - my) * 0.6, MAG[1]);
@@ -413,7 +420,7 @@ function drawIgnaroth(p, g, P, extra = {}) {
     meta.tip = { x: t.tipX, y: t.tipY }; meta.axe = { x: t.headX, y: t.headY };
     fist(p, g, hF.x, hF.y, litO, false);
   } else { drawArm(); fist(p, g, hF.x, hF.y, litO, false); }
-  pauldron(p, g, shF.x + 4, shF.y + 2, 8, 6, litO, [[2, 5, 3], [5, 4, 5]], true);
+  pauldron(p, g, shF.x + 4, shF.y + 1, 9, 7, litO, [[-1, 7, 1], [4, 5, 4]], true);
   meta.hand = { x: hF.x, y: hF.y };
 
   // Feuer in der Zauberhand
@@ -431,38 +438,58 @@ function drawIgnaroth(p, g, P, extra = {}) {
   return meta;
 }
 
-// Rumpf: Plattenpanzer aus Obsidian, Lavanähte zwischen den Platten, Glutkern.
+// Rumpf: breiter Brustharnisch aus Schmiedestahl (V-Form), darunter gestaffelte
+// Bauchschienen mit Glutnähten, mittig der Glutkern in Messingfassung.
 function torso(p, g, along, P, meta) {
-  const bands = [0.2, 0.33, 0.45, 0.56]; // Oberkanten der Bauchplatten / Brustplatte
-  for (let s = 1; s <= SPINE + 1; s += 0.5) {
+  const LAME = 3.4;
+  for (let s = 0; s <= SPINE + 1.5; s += 0.5) {
     const t = s / SPINE;
     const sm = t * t * (3 - 2 * t);
-    const hwB = 6.5 + 5 * sm;
-    const hwF = 6 + 5.5 * sm + (t > 0.5 && t < 0.95 ? 1.8 * Math.sin((t - 0.5) / 0.45 * Math.PI) : 0);
-    // Plattenkante?
-    let rim = false, seam = false;
-    for (const b of bands) { if (t < b && t > b - 0.03) seam = true; if (t >= b && t < b + 0.045) rim = true; }
+    let hwB = 7 + 3.5 * sm;
+    let hwF = 7 + 4.5 * sm + (t > 0.48 && t < 0.98 ? 2 * Math.sin((t - 0.48) / 0.5 * Math.PI) : 0);
+    if (t > 0.9) { const r = Math.sqrt(Math.max(0, 1 - ((t - 0.9) / 0.17) ** 2)); hwB *= 0.55 + 0.45 * r; hwF *= 0.5 + 0.5 * r; }
+    const chest = t >= 0.5;
+    const f = (s % LAME) / LAME;
+    const seam = !chest && s > 1 && f < 0.17;
+    const lip = !chest && f > 0.78;
     for (let k = -hwB; k <= hwF; k += 0.5) {
       const rel = (k + hwB) / (hwB + hwF);
-      let i = rel < 0.1 ? 3 : rel < 0.38 ? 2 : rel < 0.82 ? 1 : 0;
-      if (rim) i = Math.min(4, i + 1);
-      if (t > 0.56 && Math.abs(k - hwF * 0.2) < 0.5) i = 3; // Brustgrat
-      if (t > 0.56 && t < 0.62) i = Math.max(0, i - 1);
+      let i = rel < 0.08 ? 1 : rel < 0.3 ? 2 : rel < 0.62 ? 3 : rel < 0.86 ? 2 : 1;
       const [x, y] = along(s, k);
-      if (seam && rel > 0.06 && rel < 0.94) { p.px(x, y, MAG[1]); if (rel > 0.15 && rel < 0.85) g.px(x, y, rel > 0.3 && rel < 0.7 ? 2 : 1); }
-      else p.px(x, y, OBS[i]);
+      if (seam) {
+        if (rel > 0.05 && rel < 0.95) { p.px(x, y, MAG[1]); if (rel > 0.12 && rel < 0.88) g.px(x, y, rel > 0.3 && rel < 0.7 ? 2 : 1); }
+        else p.px(x, y, OBS[0]);
+        continue;
+      }
+      if (lip) i = Math.min(4, i + 1);
+      if (chest) {
+        // Unterkante des Harnischs: dunkle Schattenkante
+        if (t < 0.55) i = Math.max(0, i - 1);
+        // Mittelgrat und Brustplatten
+        const ridge = hwF * 0.18;
+        if (Math.abs(k - ridge) < 0.5) i = 4;
+        else if (k > ridge && k < ridge + 1.2) i = 1;
+        if (t > 0.86 && rel > 0.2 && rel < 0.7) i = Math.min(4, i + 1);
+      }
+      p.px(x, y, OBS[i]);
     }
+    // Messingkante am unteren Harnischrand
+    if (chest && t < 0.53) for (let k = -hwB + 1; k <= hwF - 1; k += 0.5) { const [x, y] = along(s, k); p.px(x, y, (k * 2 | 0) % 4 === 0 ? GOLD[4] : GOLD[2]); }
   }
-  // Glanzpunkte (Licht von links oben)
-  { const [x, y] = along(SPINE - 1, -8); p.px(x, y, SPEC); p.px(x + 1, y, OBS[4]); }
-  { const [x, y] = along(SPINE * 0.5, -5.5); p.px(x, y, OBS[4]); }
-  // Glutkern in der Brust
-  const [cx, cy] = along(SPINE * 0.72, -1.5);
-  const r = 2.2 + P.core * 0.9;
-  p.ellipse(cx, cy, r + 1.5, r + 1, OBS[0]);
-  p.ellipse(cx, cy, r, r, MAG[1]);
-  // goldene Fassung (Krallen)
-  for (const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) p.px(cx + ox * (r + 1.5), cy + oy * (r + 0.5), GOLD[ox < 0 && oy < 0 ? 4 : 2]);
+  // Glanzpunkte
+  { const [x, y] = along(SPINE - 2, -3); p.px(x, y, SPEC); p.px(x + 1, y, OBS[4]); }
+  { const [x, y] = along(SPINE * 0.8, 6); p.px(x, y, OBS[4]); }
+  // Glutkern in Messingfassung
+  const [cx, cy] = along(SPINE * 0.66, -1.5);
+  const r = 2.4 + P.core * 0.8;
+  p.ellipse(cx, cy, r + 2.5, r + 2.2, GOLD[1]);
+  p.ellipse(cx - 0.5, cy - 0.5, r + 1.6, r + 1.4, GOLD[3]);
+  p.ellipse(cx, cy, r + 1, r + 1, OBS[0]);
+  p.ellipse(cx, cy, r, r, MAG[2]);
+  p.ellipse(cx - 0.3, cy - 0.3, Math.max(0.6, r - 1.3), Math.max(0.6, r - 1.3), MAG[3]);
+  p.px(cx - 1, cy - 1, '#ffd890');
+  // Krallen der Fassung
+  for (const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) p.px(cx + ox * (r + 2.5), cy + oy * (r + 2), GOLD[ox < 0 && oy < 0 ? 4 : 3]);
   g.ellipse(cx, cy, r + 0.5, r + 0.5, 1);
   g.ellipse(cx, cy, r - 0.3, r - 0.3, 2);
   g.ellipse(cx, cy - 0.3, Math.max(0.6, r - 1.4), Math.max(0.6, r - 1.4), 3);
@@ -473,10 +500,10 @@ function torso(p, g, along, P, meta) {
   meta.chest = { x: cx, y: cy };
   // Phase 3: Risse laufen vom Kern durch die Platten
   const cracks = [
-    [[0.72, -1.5], [0.82, -4], [0.9, -5], [1.0, -8]],
-    [[0.72, -1.5], [0.6, 3], [0.5, 1], [0.38, 5]],
-    [[0.72, -1.5], [0.58, -4], [0.44, -6], [0.3, -3], [0.2, -6]],
-    [[0.72, -1.5], [0.84, 3], [0.95, 6]],
+    [[0.66, -1.5], [0.82, -2], [0.9, -4], [1.0, -7]],
+    [[0.66, -1.5], [0.6, 5], [0.5, 3], [0.38, 7]],
+    [[0.66, -1.5], [0.58, -3], [0.44, -5], [0.3, -2], [0.2, -6]],
+    [[0.66, -1.5], [0.84, 6], [0.95, 8]],
   ];
   for (const c of cracks) {
     for (let i = 0; i < c.length - 1; i++) {
@@ -486,131 +513,172 @@ function torso(p, g, along, P, meta) {
   }
 }
 
-function belt(p, g, hipX, hipY, P, legF) {
-  // Tassetten: schwere Platten über den Oberschenkeln, schwingen mit
-  const swing = (legF.jx - hipX - 6) * 0.12;
-  for (let i = 0; i < 5; i++) {
-    const tx = hipX - 9 + i * 4, ty = hipY;
-    const len = 8 - Math.abs(i - 2) * 1.2;
-    const sw = swing * (i / 4) + Math.sin(P.capeT + i) * 0.5;
-    for (let j = 0; j < len; j++) {
-      const x = tx + sw * (j / len);
-      const c = j === 0 ? OBS[4] : j > len - 2 ? OBS[1] : i === 0 ? OBS[3] : i === 4 ? OBS[1] : OBS[2];
-      p.rect(x, ty + j, 4, 1, c);
-      if (j > len - 2) { p.px(x + 1, ty + j, MAG[1]); g.px(x + 1, ty + j, 1); }
+function belt(p, g, hipX, hipY, P, legF, legB) {
+  // Tassetten: drei schwere Platten, folgen den Oberschenkeln
+  const plates = [
+    { x: hipX - 9, w: 6, len: 8, ramp: [OBS[0], OBS[1], OBS[2], OBS[3]], sw: (legB.jx - hipX + 4) * 0.25 },
+    { x: hipX - 3, w: 7, len: 10, ramp: [OBS[1], OBS[2], OBS[3], OBS[4]], sw: 0 },
+    { x: hipX + 4, w: 7, len: 10, ramp: [OBS[1], OBS[2], OBS[3], OBS[4]], sw: (legF.jx - hipX - 4) * 0.3 },
+  ];
+  for (const pl of plates) {
+    for (let j = 0; j < pl.len; j++) {
+      const v = j / pl.len, x = pl.x + pl.sw * v + Math.sin(P.capeT + pl.x) * 0.4 * v;
+      const wj = pl.w - (j > pl.len - 3 ? (j - pl.len + 3) : 0);
+      for (let i = 0; i < wj; i++) {
+        let c = pl.ramp[i === 0 ? 3 : i < wj * 0.5 ? 2 : i < wj - 1 ? 1 : 0];
+        if (j === 0) c = pl.ramp[3];
+        if (j === 4) c = pl.ramp[0];
+        if (j === 5) c = pl.ramp[3];
+        p.px(x + i + (j > pl.len - 3 ? (j - pl.len + 3) * 0.5 : 0), hipY + j, c);
+      }
+      if (j === 4) { p.px(x + 2, hipY + j, MAG[1]); p.px(x + 3, hipY + j, MAG[1]); g.px(x + 2, hipY + j, 1); }
     }
-    p.px(tx + 1, ty + 2, OBS[4]);
+    p.px(pl.x + 1, hipY + 2, GOLD[3]);
   }
-  // Gürtel mit Dämonenschnalle
-  p.rect(hipX - 10, hipY - 3, 20, 3, OBS[1]); p.rect(hipX - 10, hipY - 3, 20, 1, OBS[3]);
-  for (let x = hipX - 9; x < hipX + 10; x += 4) p.px(x, hipY - 2, GOLD[2]);
-  const bx = hipX + 2, by = hipY - 5;
-  p.rect(bx - 2, by, 6, 5, GOLD[2]); p.rect(bx - 2, by, 6, 1, GOLD[4]); p.rect(bx - 2, by + 4, 6, 1, GOLD[1]);
-  p.px(bx - 3, by - 1, GOLD[3]); p.px(bx + 4, by - 1, GOLD[3]); // Hörnchen
-  p.px(bx - 1, by + 2, VOID); p.px(bx + 2, by + 2, VOID);
-  g.px(bx - 1, by + 2, 3); g.px(bx + 2, by + 2, 3);
+  // Gürtel aus Messing und Leder
+  p.rect(hipX - 11, hipY - 3, 23, 4, PAL.leather[0]); p.rect(hipX - 11, hipY - 3, 23, 1, PAL.leather[2]);
+  for (let x = hipX - 10; x < hipX + 12; x += 3) p.px(x, hipY - 1, GOLD[3]);
+  // Schnalle: Dämonenfratze
+  const bx = hipX + 3, by = hipY - 6;
+  p.rect(bx - 3, by, 8, 7, GOLD[1]); p.rect(bx - 2, by, 6, 6, GOLD[2]); p.rect(bx - 2, by, 6, 1, GOLD[4]); p.rect(bx - 2, by + 1, 1, 4, GOLD[3]);
+  p.px(bx - 4, by - 1, GOLD[3]); p.px(bx + 5, by - 1, GOLD[3]); p.px(bx - 4, by - 2, GOLD[4]); p.px(bx + 5, by - 2, GOLD[2]);
+  p.px(bx - 1, by + 2, VOID); p.px(bx + 2, by + 2, VOID); p.rect(bx - 1, by + 4, 4, 1, VOID);
+  g.px(bx - 1, by + 2, 3); g.px(bx + 2, by + 2, 3); g.px(bx, by + 4, 1); g.px(bx + 1, by + 4, 1);
 }
 
 function leg(p, g, hx, hy, L, ramp, back, P) {
-  // Oberschenkel (Kettenhemd + Platte), Knie mit Dorn, Beinschiene, Sabaton
-  limb(p, hx, hy, L.jx, L.jy, 7.5, 6.5, back ? [VOID, SKIN[0], SKIN[1], SKIN[2]] : [SKIN[0], SKIN[1], SKIN[2], SKIN[3]]);
-  limb(p, L.jx, L.jy, L.ex, L.ey - 3, 7, 6.5, ramp);
-  // Lavanaht an der Schiene
-  const mx = L.jx + (L.ex - L.jx) * 0.55, my = L.jy + (L.ey - 3 - L.jy) * 0.55;
-  p.line(mx - 2.5, my, mx + 2.5, my + 0.5, MAG[1]); g.line(mx - 1.5, my, mx + 2, my + 0.5, back ? 0 : 1);
+  // Oberschenkel: dunkles Kettengeflecht
+  const mail = back ? [OBS[0], SKIN[0], SKIN[1], SKIN[2]] : [SKIN[0], SKIN[1], SKIN[2], SKIN[3]];
+  limb(p, hx, hy, L.jx, L.jy, 9, 7.5, mail);
+  // Beinschiene: breit oben, schmaler zum Knöchel, Mittelgrat
+  limb(p, L.jx, L.jy, L.ex, L.ey - 4, 8, 6.5, ramp);
+  const dx = L.ex - L.jx, dy = L.ey - 4 - L.jy, len = Math.hypot(dx, dy) || 1;
+  for (let t = 0.15; t < 0.95; t += 0.05) p.px(L.jx + dx * t + 1, L.jy + dy * t, ramp[3]);
+  // Glutnaht quer über die Schiene
+  const mx = L.jx + dx * 0.6, my = L.jy + dy * 0.6;
+  p.line(mx - 3, my, mx + 3, my + 0.5, MAG[1]); g.line(mx - 2, my, mx + 2, my + 0.5, back ? 0 : 1);
   g.eline(L.jx, L.jy + 3, mx, my, back ? 1 : 2);
-  // Sabaton mit Klauen
-  const ex = L.ex, ey = L.ey;
-  p.rect(ex - 4, ey - 4, 11, 4, ramp[1]); p.rect(ex - 4, ey - 4, 11, 1, ramp[3]); p.rect(ex - 3, ey - 5, 6, 1, ramp[2]);
-  p.px(ex - 4, ey - 1, ramp[0]);
+  // Sabaton: breit, gestaffelt, Messingkappe, Krallen
+  const ex = Math.round(L.ex), ey = Math.round(L.ey);
+  p.rect(ex - 5, ey - 5, 12, 5, ramp[1]);
+  p.rect(ex - 5, ey - 5, 12, 1, ramp[3]);
+  p.rect(ex - 4, ey - 7, 7, 2, ramp[2]); p.rect(ex - 4, ey - 7, 7, 1, ramp[3]);
+  p.rect(ex + 3, ey - 3, 4, 1, ramp[2]);
+  p.rect(ex - 5, ey - 1, 12, 1, ramp[0]);
+  p.rect(ex + 4, ey - 5, 3, 1, back ? GOLD[1] : GOLD[3]);
   const cl = back ? [HORN[1], HORN[2]] : [HORN[3], HORN[4]];
-  p.px(ex + 7, ey - 2, cl[0]); p.px(ex + 8, ey - 1, cl[1]); p.px(ex + 6, ey - 1, cl[0]);
-  p.px(ex + 1, ey - 3, MAG[2]); g.px(ex + 1, ey - 3, back ? 0 : 1);
-  // Kniekachel
-  p.ellipse(L.jx, L.jy, 3.2, 3, ramp[1]); p.ellipse(L.jx - 0.5, L.jy - 0.5, 2, 2, ramp[2]); p.px(L.jx - 1, L.jy - 1.5, ramp[3]);
-  limb(p, L.jx + 1, L.jy, L.jx + 5, L.jy - 2, 2.5, 1, back ? [VOID, OBS[0], OBS[1], OBS[2]] : [OBS[1], OBS[2], OBS[4], SPEC]);
+  p.px(ex + 7, ey - 2, cl[0]); p.px(ex + 8, ey - 1, cl[1]); p.px(ex + 7, ey - 1, cl[0]); p.px(ex + 8, ey - 3, cl[0]);
+  p.px(ex, ey - 3, MAG[2]); g.px(ex, ey - 3, back ? 0 : 1);
+  // Kniekachel mit Dorn
+  p.ellipse(L.jx, L.jy, 4, 3.6, ramp[0]);
+  p.ellipse(L.jx - 0.3, L.jy - 0.3, 3.2, 2.8, ramp[1]);
+  p.ellipse(L.jx - 0.8, L.jy - 0.8, 2, 1.6, ramp[2]); p.px(L.jx - 1.5, L.jy - 1.5, ramp[3]);
+  limb(p, L.jx + 2, L.jy - 0.5, L.jx + 6.5, L.jy - 2.5, 3, 1, back ? [VOID, OBS[0], OBS[1], OBS[2]] : [OBS[1], OBS[2], OBS[4], SPEC]);
 }
 
 function fist(p, g, x, y, ramp, open) {
-  p.rect(x - 3, y - 2, 6, 5, ramp[1]); p.rect(x - 3, y - 2, 6, 1, ramp[3]); p.rect(x + 2, y - 1, 1, 4, ramp[0]);
-  p.px(x - 2, y - 3, ramp[2]); p.px(x, y - 3, ramp[2]); p.px(x + 2, y - 3, ramp[2]);
-  if (open) for (let k = -2; k <= 2; k += 2) { p.line(x + k * 0.7, y - 2, x + k * 1.3, y - 6, ramp[2]); p.px(x + k * 1.3, y - 6, HORN[4]); }
+  // Panzerhandschuh: Stulpe, Knöchel mit Messingnieten
+  p.rect(x - 4, y - 3, 8, 6, ramp[0]);
+  p.rect(x - 3, y - 3, 6, 5, ramp[1]); p.rect(x - 3, y - 3, 6, 1, ramp[3]); p.rect(x + 2, y - 2, 1, 4, ramp[0]);
+  p.px(x - 2, y - 4, ramp[2]); p.px(x, y - 4, ramp[2]); p.px(x + 2, y - 4, ramp[2]);
+  p.px(x - 2, y - 1, GOLD[3]); p.px(x + 1, y - 1, GOLD[2]);
+  if (open) for (let k = -2; k <= 2; k += 2) { p.line(x + k * 0.7, y - 3, x + k * 1.3, y - 7, ramp[2]); p.px(x + k * 1.3, y - 7, HORN[4]); }
 }
 
 function pauldron(p, g, x, y, rx, ry, ramp, spikes, front) {
+  // zwei hängende Schienen unter der Kuppel
+  for (let l = 2; l >= 1; l--) {
+    const ly = y + ry - 2 + l * 2.6, lx = x + l * 0.6, lr = rx - 1 - l * 0.8;
+    p.ellipse(lx, ly, lr, 2.6, ramp[0]);
+    p.ellipse(lx - 0.3, ly - 0.6, lr - 0.8, 1.6, ramp[2]);
+    p.line(lx - lr + 1.5, ly - 2, lx + lr - 1.5, ly - 2, ramp[3]);
+    p.line(lx - lr + 2, ly + 1, lx + lr - 2, ly + 1, MAG[1]);
+    if (front) for (let k = -lr + 3; k < lr - 2; k++) g.px(lx + k, ly + 1, k % 3 === 0 ? 2 : 1);
+  }
+  // Kuppel
   p.ellipse(x, y, rx, ry, ramp[0]);
   p.ellipse(x - 0.5, y - 0.5, rx - 1, ry - 1, ramp[1]);
-  p.ellipse(x - 1.5, y - 1.5, rx - 3, ry - 2.5, ramp[2]);
-  p.ellipse(x - 2.5, y - 2.5, rx - 5.5, ry - 4.2, ramp[3]);
-  // Gestufte Unterkante mit Lavanaht
-  p.line(x - rx + 1, y + ry - 2, x + rx - 1, y + ry - 2, MAG[1]);
-  for (let k = -rx + 2; k < rx - 1; k++) g.px(x + k, y + ry - 2, front ? (k % 3 === 0 ? 2 : 1) : 0);
-  p.line(x - rx + 2, y + ry - 1, x + rx - 2, y + ry - 1, ramp[0]);
-  if (front) { p.px(x - 3, y - ry + 2, SPEC); g.eline(x - 2, y - 2, x + 2, y + 1, 2); g.eline(x + 2, y + 1, x + 1, y + 4, 2); }
+  p.ellipse(x - 1.5, y - 1.5, rx - 2.5, ry - 2.3, ramp[2]);
+  p.ellipse(x - 2.5, y - 2.6, Math.max(0.6, rx - 5.2), Math.max(0.6, ry - 4.2), ramp[3]);
+  // Messingrand an der Unterkante
+  for (let k = -rx + 1.5; k <= rx - 1.5; k += 0.5) {
+    const yy = y + ry * Math.sqrt(Math.max(0, 1 - (k * k) / (rx * rx))) - 1;
+    p.px(x + k, yy, front ? (k < 0 ? GOLD[3] : GOLD[2]) : GOLD[1]);
+  }
+  if (front) { p.px(x - 3, y - ry + 2, SPEC); p.px(x - 2, y - ry + 2, ramp[3]); g.eline(x - 2, y - 2, x + 2, y + 1, 2); g.eline(x + 2, y + 1, x + 1, y + 4, 2); }
   for (const [sx, h, lx] of spikes) {
-    limb(p, x + sx, y - ry + 2, x + sx + lx, y - ry + 2 - h, 3.5, 1, front ? [OBS[1], OBS[2], OBS[4], SPEC] : [VOID, OBS[0], OBS[1], OBS[3]]);
+    limb(p, x + sx, y - ry + 2, x + sx + lx, y - ry + 2 - h, 4, 1, front ? [OBS[1], OBS[2], OBS[4], SPEC] : [VOID, OBS[0], OBS[1], OBS[3]]);
     g.epx(x + sx + lx, y - ry + 2 - h, 2);
   }
 }
 
-// Kopf: gehörnter Obsidianhelm mit Gesichtsmaske, glühende Augen, Reißzähne,
-// darüber eine Krone aus geschmolzenem Gold.
+// Kopf: gehörnter Schmiedehelm mit Schädelvisier, schwerer Brauenwulst,
+// glühende Augen, Reißzähne. Zwei mächtige Knochenhörner (das nahe schwingt
+// nach hinten, das ferne nach vorn) geben die Halbmond-Silhouette, dazwischen
+// eine Messingkrone.
 function head(p, g, hx, hy, P, meta, gy) {
   const j = Math.round(P.jaw * 3);
-  // Hinteres Horn (weit hinten, dunkler)
-  horn(p, g, hx + 4, hy + 2, hx - 1, hy - 10, hx + 6, hy - 16, 4, 1.2, [VOID, HORN[0], HORN[1], HORN[2], HORN[3]], true);
+  // Fernes Horn (dunkler), schwingt nach vorn oben
+  horn(p, g, hx + 9, hy + 3, hx + 21, hy + 1, hx + 19, hy - 11, 4.5, 1.2, [VOID, HORN[0], HORN[1], HORN[2], HORN[3]], true);
+  // Nackenschutz (gestaffelt)
+  for (let i = 0; i < 3; i++) { p.rect(hx - 1 + i, hy + 7 + i * 2, 6, 2, OBS[i === 0 ? 2 : 1]); p.rect(hx - 1 + i, hy + 7 + i * 2, 6, 1, OBS[3]); }
   // Helmkalotte
-  p.ellipse(hx + 6, hy + 6, 6.5, 6.5, OBS[1]);
-  p.ellipse(hx + 5.5, hy + 5.5, 5.5, 5.5, OBS[2]);
-  p.ellipse(hx + 4.5, hy + 3.8, 3.2, 2.6, OBS[3]);
-  p.px(hx + 3, hy + 2, SPEC); p.px(hx + 4, hy + 2, OBS[4]);
-  // Nackenschutz
-  p.rect(hx, hy + 8, 5, 5, OBS[1]); p.rect(hx, hy + 8, 5, 1, OBS[2]);
-  // Gesichtsmaske, nach vorn gewölbt
-  p.rect(hx + 7, hy + 5, 7, 6, OBS[2]);
-  p.rect(hx + 13, hy + 6, 1, 4, OBS[1]);
-  p.rect(hx + 6, hy + 4, 9, 2, OBS[3]); p.rect(hx + 7, hy + 4, 7, 1, OBS[4]); // Brauenwulst
-  p.px(hx + 14, hy + 5, OBS[3]);
-  p.rect(hx + 12, hy + 7, 2, 2, OBS[3]); // Nasengrat
-  // Augenschlitze
-  p.rect(hx + 8, hy + 6, 3, 1, VOID); p.rect(hx + 12, hy + 6, 2, 1, VOID);
+  p.ellipse(hx + 7, hy + 6, 7, 6.5, OBS[1]);
+  p.ellipse(hx + 6.5, hy + 5.5, 6, 5.5, OBS[2]);
+  p.ellipse(hx + 5.5, hy + 3.8, 4, 2.8, OBS[3]);
+  p.px(hx + 4, hy + 2, SPEC); p.px(hx + 5, hy + 2, OBS[4]); p.px(hx + 6, hy + 2, OBS[4]);
+  // Messingband um den Helm
+  p.line(hx + 1, hy + 8, hx + 9, hy + 7, GOLD[2]); p.px(hx + 4, hy + 8, GOLD[4]);
+  // Visier: Schädelgesicht, nach vorn gewölbt
+  p.rect(hx + 9, hy + 4, 7, 7, OBS[2]);
+  p.rect(hx + 15, hy + 6, 1, 4, OBS[1]);
+  p.rect(hx + 10, hy + 8, 4, 2, OBS[3]); // Wangenplatte
+  p.px(hx + 14, hy + 8, OBS[4]); p.px(hx + 16, hy + 7, OBS[2]); p.px(hx + 16, hy + 8, OBS[1]); // Nasengrat
+  // Brauenwulst, schräg nach vorn abfallend (zorniger Blick)
+  p.rect(hx + 8, hy + 3, 9, 2, OBS[3]); p.rect(hx + 9, hy + 3, 7, 1, OBS[4]); p.px(hx + 17, hy + 4, OBS[3]);
+  p.px(hx + 8, hy + 2, OBS[3]);
+  // Augenhöhlen und glühende Augen (schon im Grundbild hell)
+  p.rect(hx + 10, hy + 5, 3, 2, VOID); p.rect(hx + 14, hy + 5, 2, 2, VOID);
   if (P.eye > 0.15) {
-    g.px(hx + 9, hy + 6, 4); g.px(hx + 10, hy + 6, 3); g.px(hx + 8, hy + 6, 2);
-    g.px(hx + 13, hy + 6, 3); g.px(hx + 12, hy + 6, 2);
-    if (P.eye > 0.7) { g.px(hx + 7, hy + 6, 1); g.px(hx + 9, hy + 5, 1); }
-    g.epx(hx + 7, hy + 5, 2); g.epx(hx + 6, hy + 5, 1); g.epx(hx + 9, hy + 7, 2);
+    const e = P.eye > 0.6 ? 2 : 1;
+    p.px(hx + 11, hy + 5, EYE[e]); p.px(hx + 12, hy + 5, EYE[e - 1]); p.px(hx + 14, hy + 5, EYE[e]); p.px(hx + 15, hy + 5, EYE[0]);
+    p.px(hx + 11, hy + 6, EYE[0]); p.px(hx + 14, hy + 6, EYE[0]);
+    g.px(hx + 11, hy + 5, 4); g.px(hx + 12, hy + 5, 3); g.px(hx + 10, hy + 5, 2);
+    g.px(hx + 14, hy + 5, 4); g.px(hx + 15, hy + 5, 3);
+    if (P.eye > 0.7) { g.px(hx + 9, hy + 5, 1); g.px(hx + 11, hy + 6, 2); g.px(hx + 14, hy + 6, 2); }
+    g.epx(hx + 9, hy + 4, 2); g.epx(hx + 8, hy + 4, 1);
   }
-  meta.eye = { x: hx + 10, y: hy + 6 };
-  // Wangennaht
-  p.line(hx + 5, hy + 8, hx + 7, hy + 11, MAG[1]); g.line(hx + 5, hy + 8, hx + 7, hy + 11, 1);
+  meta.eye = { x: hx + 13, y: hy + 5 };
+  // Wangennaht (Glut)
+  p.line(hx + 7, hy + 7, hx + 9, hy + 10, MAG[2]); g.line(hx + 7, hy + 7, hx + 9, hy + 10, 1);
   g.eline(hx + 5, hy + 3, hx + 7, hy + 0, 2); // Riss im Helm (Phase 3)
   // Maul
-  p.rect(hx + 8, hy + 10, 6, 1, OBS[1]);
+  p.rect(hx + 9, hy + 10, 7, 1, OBS[1]);
   if (j) {
-    p.rect(hx + 8, hy + 11, 6, j, VOID);
+    p.rect(hx + 9, hy + 11, 7, j, VOID);
     const i = P.breath > 0.3 ? 3 : 1;
-    g.rect(hx + 9, hy + 11, 5, j, i);
-    if (P.breath > 0.3) { g.rect(hx + 11, hy + 11, 3, Math.max(1, j - 1), 4); }
-    else if (P.jaw > 0.6) g.rect(hx + 11, hy + 11, 2, 1, 2);
+    g.rect(hx + 10, hy + 11, 6, j, i);
+    if (P.breath > 0.3) g.rect(hx + 12, hy + 11, 4, Math.max(1, j - 1), 4);
+    else if (P.jaw > 0.6) g.rect(hx + 12, hy + 11, 3, 1, 2);
   }
   // obere Reißzähne
-  p.px(hx + 9, hy + 11, FANG[2]); p.px(hx + 12, hy + 11, FANG[2]); p.px(hx + 13, hy + 11, FANG[1]);
-  // Unterkiefer mit Dornenbart
+  p.px(hx + 10, hy + 11, FANG[2]); p.px(hx + 13, hy + 11, FANG[2]); p.px(hx + 15, hy + 11, FANG[1]);
+  // Unterkiefer mit Hauern
   const ly = hy + 11 + j;
-  p.rect(hx + 6, ly, 8, 3, OBS[1]); p.rect(hx + 7, ly, 7, 1, OBS[2]); p.px(hx + 13, ly, OBS[3]);
-  p.px(hx + 10, ly - 1, FANG[1]); p.px(hx + 13, ly - 1, FANG[2]);
-  for (const [dx, h] of [[7, 2], [9, 3], [11, 4], [13, 2]]) p.line(hx + dx, ly + 3, hx + dx - 1, ly + 2 + h, dx === 11 ? OBS[2] : OBS[1]);
-  g.px(hx + 10, ly + 3, 0);
-  meta.mouth = { x: hx + 14, y: hy + 11 + Math.floor(j / 2) };
-  // Vorderes Horn: nach oben geschwungen, Spitze nach vorn
-  horn(p, g, hx + 5, hy + 4, hx - 10, hy + 2, hx - 9, hy - 11, 5, 1.2, HORN, true);
-  // Krone aus geschmolzenem Gold
-  if (P.crown < 0.02) crownAt(p, g, hx + 1, hy + 1, 0);
+  p.rect(hx + 7, ly, 9, 3, OBS[1]); p.rect(hx + 8, ly, 8, 1, OBS[3]); p.px(hx + 15, ly + 1, OBS[2]);
+  p.px(hx + 11, ly - 1, FANG[1]); p.px(hx + 14, ly - 1, FANG[2]);
+  p.px(hx + 16, ly - 1, FANG[1]); p.px(hx + 16, ly - 2, FANG[2]); // Hauer
+  for (const [dx, h] of [[8, 2], [10, 3], [12, 3], [14, 2]]) p.line(hx + dx, ly + 3, hx + dx - 1, ly + 2 + h, dx === 12 ? OBS[2] : OBS[1]);
+  meta.mouth = { x: hx + 16, y: hy + 11 + Math.floor(j / 2) };
+  // Nahes Horn: mächtig, schwingt nach hinten und hoch
+  horn(p, g, hx + 5, hy + 4, hx - 9, hy + 3, hx - 7, hy - 12, 6, 1.2, HORN, true);
+  // Krone aus Messing zwischen den Hörnern
+  if (P.crown < 0.02) crownAt(p, g, hx + 2, hy, 0);
   else {
-    const cx = hx + 1 + P.crown * 12, cy = hy + 1 + (gy - 4 - hy - 1) * Math.min(1, P.crown * P.crown);
+    const cx = hx + 2 + P.crown * 12, cy = hy + (gy - 4 - hy) * Math.min(1, P.crown * P.crown);
     crownAt(p, g, cx, cy, P.crown);
   }
-  meta.head = { x: hx + 7, y: hy - 4 };
+  meta.head = { x: hx + 8, y: hy - 4 };
 }
 
 function crownAt(p, g, x, y, fall) {
@@ -646,7 +714,7 @@ function cape(p, g, tx, ty, gy, P) {
       let c = CAPE[v > 0.8 && shade > 0 ? shade - 1 : shade];
       if (v < 0.08 && shade > 1) c = CAPE[4];
       if (j > len - 3) c = MAG[j > len - 2 ? 2 : 1];
-      p.px(x, top + j, c);
+      p.px(x, top + j, c); p.px(x + 1, top + j, c);
       lx = x;
     }
     // brennender Saum: Flammenzungen steigen am Stoff hoch
@@ -749,7 +817,37 @@ function drawCollapse(p, g, k) {
 // ---------------------------------------------------------------- Frames
 
 // Zeichnet einen Frame in Pixelpuffer, schneidet zu, baut Umriss + Leucht-Ebenen.
+// Randlicht und Umriss: Oberkanten hell (Licht der Esse von oben), Seitenkanten
+// etwas heller, danach ein dunkler 1-px-Umriss – die Figur hebt sich so klar vom
+// dunklen Schmiedeboden ab.
+function lighten(c, k, tr, tg, tb) {
+  const r = c & 255, gg = (c >> 8) & 255, b = (c >> 16) & 255;
+  return ((255 << 24) | (Math.round(b + (tb - b) * k) << 16) | (Math.round(gg + (tg - gg) * k) << 8) | Math.round(r + (tr - r) * k)) >>> 0;
+}
+function rimAndOutline(L) {
+  const { base, ga, gb, nr } = L;
+  const solid = (x, y) => x >= 0 && y >= 0 && x < W && y < H && base[y * W + x] !== 0 && !nr[y * W + x];
+  const out = base.slice();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (!base[i] || nr[i]) continue;
+    const up = !solid(x, y - 1), up2 = !solid(x, y - 2);
+    const lf = !solid(x - 1, y), rt = !solid(x + 1, y);
+    if (up) out[i] = lighten(base[i], 0.5, 236, 214, 190);
+    else if (up2 && (lf || rt)) out[i] = lighten(base[i], 0.32, 236, 214, 190);
+    else if (rt) out[i] = lighten(base[i], 0.3, 255, 150, 80);   // Gegenlicht der Glut
+    else if (lf) out[i] = lighten(base[i], 0.2, 200, 200, 214);
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (base[i] || ga[i] || gb[i] || y > CLIP_Y) continue;
+    if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) out[i] = col(OUTLINE);
+  }
+  L.base = out;
+}
+
 function finish(L, fx, meta) {
+  rimAndOutline(L);
   let x0 = W, y0 = H, x1 = -1, y1 = -1;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
