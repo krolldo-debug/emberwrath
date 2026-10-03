@@ -85,6 +85,7 @@
 .pg-doll-mid { grid-area: mid; align-self: stretch; display: flex; flex-direction: column; justify-content: center; text-align: center; min-width: 0; }
 .pg-doll-name { font: 700 17px var(--ef-font-title); color: var(--ef-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-doll-sub { font-size: 12px; color: var(--ef-gold); margin-bottom: 8px; }
+.pg-doll-sub span { display: block; white-space: nowrap; }
 .pg-doll-stats { display: grid; grid-template-columns: auto auto; gap: 2px 10px; margin: 0 auto; font-size: 13px; }
 .pg-doll-stats dt { color: var(--ef-muted); text-align: left; } .pg-doll-stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-gs { margin: 10px auto 0; display: inline-flex; gap: 6px; align-items: baseline; padding: 3px 10px; border: 1px solid #5a3a1a; border-radius: 12px; background: rgba(60, 30, 10, 0.4); font-size: 12px; color: var(--ef-muted); }
@@ -215,6 +216,7 @@
 .pg-stock-row .ef-item-icon img { image-rendering: pixelated; }
 .pg-stock-name { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .pg-stock-name small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; font-size: 12px; color: var(--ef-muted); }
+.pg-stock-name small.pg-wrap { white-space: normal; overflow: visible; }  /* Reittiere: Sperrgrund ganz lesbar */
 .pg-gold.poor b { color: #b86a5a; }
 .pg-shop .pg-sheet, .pg-craft .pg-sheet { margin-top: 10px; }
 
@@ -385,9 +387,9 @@
 .pg-qs-last { margin: 2px 0 4px; font-size: 12px; opacity: .85; }
 /* Reittiere (Charakter-Panel) */
 .pg-mounts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.pg-mount { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; background: rgba(255, 255, 255, 0.03); }
-.pg-mount.locked { opacity: 0.55; }
-.pg-mount.active { border-color: rgba(255, 196, 90, 0.6); }
+.pg-mount-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; background: rgba(255, 255, 255, 0.03); }
+.pg-mount-row.locked { opacity: 0.55; }
+.pg-mount-row.active { border-color: rgba(255, 196, 90, 0.6); }
 .pg-mount-body { display: grid; gap: 2px; min-width: 0; }
 .pg-mount-body small { font-size: 12px; }
 .pg-mount-on { font-size: 12px; color: #ffd27a; padding: 0 6px; }

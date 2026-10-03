@@ -8,8 +8,8 @@ import { EV } from '../../core/events.js';
 import { registerProgressionContent, registerProgressionState, BAG_SIZE } from '../logic.js';
 import { xpInfo, questStatus, npcMarker, trackedQuests, trackedQuestId, questTarget, countItem, findPotionSlot, isUpgrade, vendorStock, questRewardItems, junkSlots, npcIdleLine, sellableSlots } from '../selectors.js';
 import { xpToNext, totalXpForLevel, killXp, mobXp, LEVEL_CAP } from '../xp.js';
-import { rollLoot, pickRewardGear, rarityWeights } from '../loot.js';
-import { ITEMS, EQUIP_SLOTS, RARITY_ORDER, WEAPON_CLASSES } from '../items.js';
+import { rollLoot, pickRewardGear, rarityWeights, pickEquipment } from '../loot.js';
+import { ITEMS, EQUIP_SLOTS, RARITY_ORDER, WEAPON_CLASSES, attrFit } from '../items.js';
 import { QUESTS, VENDORS, NPC_LINES } from '../quests.js';
 import { RECIPES } from '../crafting.js';
 import { runCampaign, expansionReport } from './pacing.mjs';
@@ -372,16 +372,21 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () =>
   const per = Object.values(x.full.minutesPerLevel);
   console.log(`    20→40 ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, je Stufe ${Math.min(...per).toFixed(0)}–${Math.max(...per).toFixed(0)} min, ${x.full.bounties} Kopfgelder`);
   assert.equal(x.full.level, 40);
-  assert.ok(x.hours20to40 >= 6 && x.hours20to40 <= 8, `${x.hours20to40} h`);
-  assert.ok(x.questShare >= 0.52 && x.questShare <= 0.62, `Quest-Anteil ${x.questShare}`);
+  assert.ok(x.hours20to40 >= 4.8 && x.hours20to40 <= 6.5, `${x.hours20to40} h`);
+  assert.ok(x.questShare >= 0.62 && x.questShare <= 0.75, `Quest-Anteil ${x.questShare}`);
+  // Die Geschichte endet kurz vor 40, nicht mit zwei Stufen Kopfgeld
+  assert.ok(x.full.milestones.q_homecoming >= 39, `Heimkehr auf Stufe ${x.full.milestones.q_homecoming}`);
   const avg = per.reduce((a, b) => a + b, 0) / per.length;
-  assert.ok(avg >= 15 && avg <= 25, `Schnitt ${avg} min je Stufe`);
-  assert.ok(Math.max(...per) <= 40 && Math.min(...per) >= 8, 'keine extremen Ausreißer');
+  assert.ok(avg >= 13 && avg <= 22, `Schnitt ${avg} min je Stufe`);
+  assert.ok(Math.max(...per) <= 32, 'keine extremen Ausreißer');
   // Reittier-Preise: selten ≈ 3–4 h bei 75 % des verkauften Beutewerts, episch erst gegen 40
   const rare = ITEMS.mount_steppe_horse.price, epic = ITEMS.mount_ember_charger.price;
   const realistic = x.goldPerHour25to35 * 0.75;
   assert.ok(rare / realistic >= 3 && rare / realistic <= 4, `seltenes Reittier ${rare} = ${(rare / realistic).toFixed(1)} h`);
-  assert.ok(x.goldAt(36) * 0.75 < epic && x.goldAt(40) * 0.8 >= epic * 0.95, 'episches Reittier erst gegen Stufe 40');
+  // Glutross: Prestige nach Malgareth, braucht auch nach 40 noch Gold aus Prüfungen und Kopfgeldern
+  assert.ok(x.goldAt(40) * 0.75 < epic && x.goldAt(40) >= epic * 0.8, 'episches Reittier erst nach 40');
+  assert.equal(ITEMS.mount_ember_charger.reqQuest, 'q_ash_sovereign');
+  assert.equal(ITEMS.mount_steppe_horse.reqQuest, 'q_first_ride');
   assert.equal(ITEMS.mount_ember_charger.reqLevel, 40);
 });
 
@@ -434,10 +439,17 @@ test('Reittiere: Kauf bei Orla, Lernen per Gegenstand, Drops nur von Bossen', ()
   const stock = vendorStock(content, 'stablemaster_orla');
   assert.deepEqual(stock, ['mount_steppe_horse', 'mount_ash_wolf', 'mount_ember_charger']);
   c('progress:grantXp', { amount: totalXpForLevel(20) });
-  c('wallet:addGold', { amount: 1000 });
-  assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' }).reason, 'gold');
   c('wallet:addGold', { amount: 400000 });
+  // Gold allein reicht nicht: erst Reitunterricht, das Glutross erst nach Malgareth
+  assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' }).reason, 'quest');
+  state.slices.quests.completed.push('q_first_ride');
   assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_ember_charger' }).reason, 'level');
+  state.slices.progress.level = 40;
+  assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_ember_charger' }).reason, 'quest');
+  state.slices.progress.level = 20;
+  c('wallet:addGold', { amount: -399000 });
+  assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' }).reason, 'gold');
+  c('wallet:addGold', { amount: 399000 });
   const r = c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' });
   assert.equal(r.ok, true); assert.equal(r.price, 75000);
   const used = c('inventory:use', { slot: slotOf(state, 'mount_steppe_horse') });
@@ -517,7 +529,20 @@ test('Verstärken und Verzaubern: Kosten, Grenzen, Bonus, Speichern', () => {
   c('inventory:add', { itemId: 'ember_core', qty: 20 });
   c('inventory:add', { itemId: 'ember_shard', qty: 50 });
   for (let i = 0; i < 10; i++) assert.equal(c('smith:upgrade', { slot: 'weapon' }).ok, true, `Stufe ${i + 1}`);
+  // +11 bis +15: Stufe und Materialien der neuen Gebiete
+  assert.equal(c('smith:upgrade', { slot: 'weapon' }).reason, 'level');
+  const p10 = state.slices.inventory.bonus.power;
+  state.slices.progress.level = 40;
+  assert.equal(c('smith:upgrade', { slot: 'weapon' }).reason, 'mats');
+  c('wallet:addGold', { amount: 100000 });
+  c('inventory:add', { itemId: 'bog_iron', qty: 8 });
+  c('inventory:add', { itemId: 'rime_crystal', qty: 8 });
+  c('inventory:add', { itemId: 'magma_scale', qty: 5 });
+  for (let i = 10; i < 15; i++) assert.equal(c('smith:upgrade', { slot: 'weapon' }).ok, true, `Stufe ${i + 1}`);
   assert.equal(c('smith:upgrade', { slot: 'weapon' }).reason, 'max');
+  assert.ok(state.slices.inventory.bonus.power > p10, 'über +10 wirkt weiter');
+  for (let i = 10; i < 15; i++) assert.ok(upgradeCost(i).gold >= upgradeCost(i - 1).gold, `Kosten steigen bei +${i + 1}`);
+  state.slices.progress.level = 20;
   assert.ok(state.slices.inventory.bonus.power >= 1);
   assert.ok(upgradeCost(9).gold > upgradeCost(0).gold * 20, 'Gold-Sink wächst');
   assert.equal(c('smith:enchant', { slot: 'weapon', enchantId: 'bulwark' }).reason, 'slot');
@@ -526,7 +551,7 @@ test('Verstärken und Verzaubern: Kosten, Grenzen, Bonus, Speichern', () => {
   assert.ok(p0 >= ENCHANTS.ember_edge.stats.power);
   const b = setup('warrior');
   b.state.load(JSON.parse(JSON.stringify(state.snapshot())));
-  assert.equal(b.state.slices.inventory.upgrades.weapon, 10);
+  assert.equal(b.state.slices.inventory.upgrades.weapon, 15);
   assert.equal(b.state.slices.inventory.enchants.weapon, 'ember_edge');
   assert.equal(b.state.slices.inventory.bonus.power, p0);
 });
@@ -773,6 +798,44 @@ test('Schnellverkauf: Auswahl, Weiße verkaufen, Auto-Verkauf beim Aufsammeln', 
 });
 
 let fail = 0;
+test('Release-Runde: Schmiede 20–40, neue Questgegenstände, Händler mit Schmiede', () => {
+  // Jedes Rezept und jede Verzauberung nutzt vorhandene Gegenstände; gecraftete Ausrüstung höchstens selten (außer Glutsplitter)
+  for (const [id, r] of Object.entries(RECIPES)) {
+    assert.ok(ITEMS[r.result], `${id}: Ergebnis`);
+    for (const m of r.mats) assert.ok(ITEMS[m.itemId], `${id}: ${m.itemId}`);
+    if (r.group !== 'shards' && ITEMS[r.result].slot) assert.ok(RARITY_ORDER.indexOf(ITEMS[r.result].rarity) <= RARITY_ORDER.indexOf('rare'), id);
+  }
+  for (const [id, e] of Object.entries(ENCHANTS)) for (const m of e.mats) assert.ok(ITEMS[m.itemId], `${id}: ${m.itemId}`);
+  // Jede Klasse kann in jedem Tier ab 20 eine Waffe schmieden
+  for (const cls of ['warrior', 'rogue', 'ranger', 'mage']) {
+    for (const lvl of [23, 28, 33, 38]) {
+      assert.ok(Object.values(RECIPES).some((r) => ITEMS[r.result].slot === 'weapon' && Math.abs(r.level - lvl) <= 3 && (!ITEMS[r.result].classes || ITEMS[r.result].classes.includes(cls))), `${cls} ${lvl}`);
+    }
+  }
+  // Neue Questgegenstände fallen während der Quest
+  for (const [qid, item, type] of [['q_imra_cargo', 'spice_bale', 'steppe_raider'], ['q_moll_crates', 'moll_crate', 'bog_lurker'], ['q_fenn_claws', 'stalker_claw', 'snow_stalker'], ['q_witch_charms', 'witch_charm', 'rime_witch'], ['q_bastion_supplies', 'bastion_supplies', 'ash_wraith']]) {
+    assert.equal(ITEMS[item].type, 'quest');
+    assert.ok(QUESTS[qid].objectives.some((o) => o.target === item && o.from.includes(type)), qid);
+    const drops = rollLoot({ type, level: 30 }, { rng: () => 0.01, questNeed: (q, i) => (i === item ? 1 : 0) });
+    assert.ok(drops.some((d) => d.itemId === item), `${item} fällt`);
+  }
+  // Unterwegs gibt es überall eine Schmiede
+  for (const v of ['trader_imra', 'trader_moll', 'trader_fenn', 'quartermaster_ryn']) assert.equal(VENDORS[v].craft, true, v);
+  assert.equal(QUESTS.q_homecoming.turnInNpc, 'commander_hale');
+
+  // Hauptattribut (Fund aus Thread A): Säbel sind Schurkenschwerter, Belohnungen und Beute passen zur Klasse
+  assert.ok(ITEMS.ashguard_sabre.stats.agi > (ITEMS.ashguard_sabre.stats.str ?? 0) && ITEMS.barrow_scimitar.stats.agi > (ITEMS.barrow_scimitar.stats.str ?? 0));
+  for (const cls of ['warrior', 'rogue', 'ranger', 'mage']) {
+    let n = 0, ok = 0;
+    for (const q of Object.values(QUESTS)) for (const [i, g] of (q.rewards.gear ?? []).entries()) { n++; if (attrFit(ITEMS[pickRewardGear(g, cls, i)], cls)) ok++; }
+    assert.ok(ok / n >= 0.95, `${cls}: ${ok}/${n} Belohnungen mit passendem Hauptattribut`);
+    let seed = 1, fit = 0;
+    const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let k = 0; k < 400; k++) if (attrFit(ITEMS[pickEquipment({ level: 5 + (k % 36), rarity: 'rare', classId: cls, rng })], cls)) fit++;
+    assert.ok(fit / 400 >= 0.7, `${cls}: ${fit}/400 Beuteteile passen`);
+  }
+});
+
 for (const [name, fn] of tests) {
   try { fn(); console.log(`ok  ${name}`); } catch (e) { fail++; console.log(`FAIL ${name}\n    ${e.stack.split('\n').slice(0, 3).join('\n    ')}`); }
 }

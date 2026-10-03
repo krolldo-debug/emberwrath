@@ -4,6 +4,9 @@
 //   group: 'alchemy' | 'weapon' | 'armor' | 'jewelry' – nur für die Anzeige.
 // Gecraftete Ausrüstung ist höchstens rare (wie Truhen): Epics bleiben Elite und Bossen vorbehalten –
 // außer im Endgame gegen Glutsplitter (Gruppe 'shards').
+import { ITEMS } from './items.js';
+import { TIER_STYLES } from './items40.js';
+
 const m = (itemId, qty) => ({ itemId, qty });
 const R = (group, level, gold, result, mats, qty = 1) => ({ group, level, gold, result, qty, mats });
 
@@ -58,6 +61,33 @@ export const RECIPES = {
   shard_tyrant_sabatons: R('shards', 20, 800, 'tyrant_sabatons', [m('ember_shard', 60)]),
   shard_ember_core: R('shards', 20, 20, 'ember_core', [m('ember_shard', 3)]),
   shard_elixir: R('shards', 20, 30, 'ember_elixir', [m('ember_shard', 4)], 2),
+
+  // --- Stufe 20–40: Alchemie aus den Materialien der neuen Gebiete
+  cure_steppe_jerky: R('alchemy', 20, 4, 'steppe_jerky', [m('hyena_hide', 1)], 3),
+  brew_superior_potion: R('alchemy', 24, 12, 'superior_potion', [m('leech_ichor', 2), m('toad_gland', 1)], 2),
+  brew_greater_mana: R('alchemy', 24, 12, 'greater_mana', [m('leech_ichor', 1), m('spore_cap', 1)], 2),
+  brew_supreme_potion: R('alchemy', 31, 20, 'supreme_potion', [m('troll_fat', 2), m('spore_cap', 1)], 2),
+  brew_supreme_mana: R('alchemy', 31, 20, 'supreme_mana', [m('troll_fat', 1), m('adept_sigil', 1)], 2),
 };
+
+// --- Stufe 20–40: seltene Waffen und Brustteile je Tier (Stil „rare“ aus items40.js), aus den Materialien
+// der Region. Rezeptstufe = Anlegestufe des Ergebnisses. Je Klasse mindestens zwei Waffen, je Machart ein Brustteil.
+const TIER_CRAFT = {
+  5: { gold: 600, weapon: [m('raider_arrowhead', 6), m('barrow_bone', 4)], armor: [m('hyena_hide', 6), m('barrow_bone', 4)] },
+  6: { gold: 1200, weapon: [m('bog_iron', 4), m('toad_gland', 6)], armor: [m('leech_ichor', 6), m('bog_iron', 3)] },
+  7: { gold: 2000, weapon: [m('rime_crystal', 3), m('troll_fat', 6)], armor: [m('frost_pelt', 8), m('crystal_silk', 2)] },
+  8: { gold: 3200, weapon: [m('magma_scale', 4), m('adept_sigil', 6)], armor: [m('pilgrim_relic', 6), m('magma_scale', 3)] },
+};
+const CRAFT_WEAPONS = ['blade', 'claymore', 'stiletto', 'longbow', 'quarterstaff', 'rod'];
+const CRAFT_CHESTS = ['robe', 'jerkin', 'hauberk', 'cuirass'];
+for (const [tier, t] of Object.entries(TIER_CRAFT)) {
+  const sid = TIER_STYLES[tier].rare[0];
+  for (const [group, parts] of [['weapon', CRAFT_WEAPONS], ['armor', CRAFT_CHESTS]]) {
+    for (const part of parts) {
+      const id = `${sid}_${part}`, def = ITEMS[id];
+      if (def) RECIPES[`forge_${id}`] = R(group, def.reqLevel, t.gold, id, t[group]);
+    }
+  }
+}
 
 export const RECIPE_GROUPS = { alchemy: 'Alchemie', weapon: 'Waffen', armor: 'Rüstung', jewelry: 'Schmuck', shards: 'Glutsplitter' };

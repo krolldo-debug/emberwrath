@@ -364,6 +364,7 @@ export const NPC_LINES = {
       ['q_behemoth', 'Der Koloss ist gefallen, und meine Leute singen wieder. Schlecht, aber sie singen.'],
       ['q_forge_warden', 'Nur noch der Tyrann. Ich habe mein Leben lang auf diesen Tag gewartet und hoffe, ihn zu überleben.'],
       ['q_ignaroth', 'Rauhwacht wird bleiben. Irgendwer muss den Berg im Auge behalten, auch wenn er schweigt.'],
+      ['q_homecoming', 'Die Leute fragen mich jeden Tag, ob du wirklich den Aschenfürsten gestürzt hast. Ich sage ja und zeige auf dich. Dann glauben sie es.'],
     ],
   },
   seer_ysolde: {

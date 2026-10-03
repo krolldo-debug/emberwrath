@@ -6,13 +6,26 @@
 import { ITEMS, EQUIP_SLOTS } from './items.js';
 import { SETS } from './sets.js';
 
-export const UPGRADE_MAX = 10;
-export const UPGRADE_PCT = 0.04; // je Stufe: fester Grundwert + 4 % des Hauptwerts des angelegten Teils
+export const UPGRADE_MAX = 15;
+export const UPGRADE_PCT = 0.04; // je Stufe: fester Grundwert + 4 % des Hauptwerts des angelegten Teils (ab +11 nur 2 %)
 // Hauptwert je Platz und fester Zuwachs je Stufe (wirkt auch bei leerem oder schwachem Teil)
 const UPGRADE_MAIN = { weapon: ['power', 1.2], head: ['armor', 1.5], chest: ['armor', 2], hands: ['armor', 1.2], feet: ['armor', 1.2], ring: ['maxHp', 8], amulet: ['maxHp', 10] };
 
+// Stufen +11 bis +15 (Stufe 20–40): Materialien der neuen Gebiete, damit Gold allein (auch gekauftes) nicht reicht.
+const HIGH_UPGRADES = [
+  { gold: 5000, mat: 'bog_iron', qty: 3, reqLevel: 22 },
+  { gold: 6500, mat: 'bog_iron', qty: 5, reqLevel: 26 },
+  { gold: 8500, mat: 'rime_crystal', qty: 3, reqLevel: 30 },
+  { gold: 11000, mat: 'rime_crystal', qty: 5, reqLevel: 34 },
+  { gold: 14000, mat: 'magma_scale', qty: 5, reqLevel: 38 },
+];
+// Wirksame Prozentstufen: bis +10 voll, darüber halb
+const pctSteps = (lvl) => Math.min(lvl, 10) + Math.max(0, lvl - 10) * 0.5;
+
 // Kosten der nächsten Stufe (current -> current + 1)
 export function upgradeCost(current) {
+  const hi = HIGH_UPGRADES[current - 10];
+  if (hi) return { gold: hi.gold, mats: [{ itemId: hi.mat, qty: hi.qty }], reqLevel: hi.reqLevel };
   const gold = Math.round((60 * Math.pow(1.6, current)) / 10) * 10;
   const mat = current < 3 ? 'grave_iron' : current < 6 ? 'ember_ore' : current < 9 ? 'ember_core' : 'ember_shard';
   const qty = current < 3 ? 2 + current : current < 6 ? current - 1 : current < 9 ? current - 5 : 5;
@@ -31,6 +44,16 @@ export const ENCHANTS = {
   grace: { name: 'Anmut der Katze', slots: ['hands', 'ring', 'amulet'], stats: { agi: 6 }, gold: 300, mats: [{ itemId: 'thorn_sap', qty: 4 }], level: 8 },
   insight: { name: 'Einsicht', slots: ['head', 'ring', 'amulet'], stats: { int: 6, maxResource: 15 }, gold: 300, mats: [{ itemId: 'temple_relic', qty: 3 }], level: 10 },
   warden_ward: { name: 'Wächtersegen', slots: ['chest', 'feet', 'hands'], stats: { armor: 18, maxHp: 60 }, gold: 1200, mats: [{ itemId: 'ember_shard', qty: 8 }], level: 20 },
+  // Stufe 20–40: aus den Materialien der neuen Gebiete
+  steppe_might: { name: 'Kraft der Steppe', slots: ['hands', 'ring', 'amulet'], stats: { str: 12 }, gold: 1500, mats: [{ itemId: 'hyena_hide', qty: 10 }], level: 24 },
+  ancestor_vigor: { name: 'Ahnenkraft', slots: ['chest', 'head', 'amulet'], stats: { maxHp: 110, vit: 6 }, gold: 1800, mats: [{ itemId: 'barrow_bone', qty: 10 }], level: 25 },
+  marsh_grace: { name: 'Sumpfgewandtheit', slots: ['hands', 'ring', 'amulet'], stats: { agi: 12 }, gold: 1500, mats: [{ itemId: 'leech_ichor', qty: 10 }], level: 26 },
+  spore_insight: { name: 'Sporenweisheit', slots: ['head', 'ring', 'amulet'], stats: { int: 12, maxResource: 30 }, gold: 1500, mats: [{ itemId: 'spore_cap', qty: 8 }], level: 28 },
+  rime_bite: { name: 'Reifbiss', slots: ['weapon'], stats: { power: 18, critChance: 0.02 }, gold: 2500, mats: [{ itemId: 'rime_crystal', qty: 4 }], level: 30 },
+  troll_hide: { name: 'Trollhaut', slots: ['chest', 'head'], stats: { armor: 28, maxHp: 90 }, gold: 2000, mats: [{ itemId: 'troll_fat', qty: 10 }], level: 31 },
+  stalker_step: { name: 'Pirscherschritt', slots: ['feet'], stats: { moveSpeed: 0.07 }, gold: 3000, mats: [{ itemId: 'frost_pelt', qty: 12 }, { itemId: 'crystal_silk', qty: 2 }], level: 33 },
+  magma_edge: { name: 'Magmaglut', slots: ['weapon'], stats: { power: 26, critChance: 0.03 }, gold: 5000, mats: [{ itemId: 'magma_scale', qty: 6 }, { itemId: 'adept_sigil', qty: 6 }], level: 37 },
+  pilgrim_ward: { name: 'Pilgersegen', slots: ['chest', 'feet', 'hands'], stats: { armor: 34, maxHp: 140 }, gold: 4500, mats: [{ itemId: 'pilgrim_relic', qty: 10 }], level: 38 },
 };
 
 // Aktive Setboni: [{ setId, name, count, total, bonuses: [{ count, stats, active }] }]
@@ -60,7 +83,7 @@ export function computeBonus(inv) {
     const def = ITEMS[inv.equipment?.[slot]];
     if (lvl > 0) {
       const [k, flat] = UPGRADE_MAIN[slot];
-      add(out, { [k]: Math.round(lvl * flat + (def?.stats?.[k] ?? 0) * UPGRADE_PCT * lvl) });
+      add(out, { [k]: Math.round(lvl * flat + (def?.stats?.[k] ?? 0) * UPGRADE_PCT * pctSteps(lvl)) });
     }
     const ench = ENCHANTS[inv.enchants?.[slot]];
     if (ench) add(out, ench.stats);

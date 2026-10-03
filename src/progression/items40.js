@@ -31,6 +31,11 @@ const ARMOR_PARTS = {
   feet: [['slippers', 'schuhe', 'cloth'], ['boots', 'stiefel', 'leather'], ['greaves', 'schienen', 'mail'], ['sabatons', 'sabatons', 'plate']],
 };
 const JEWELRY_PARTS = { ring: ['ring', 'ring'], amulet: ['amulet', 'amulett'] };
+// Grundform: Ring Leben + Stärke, Amulett Leben + Intelligenz (items.js makeStats); dazu die fehlenden Hauptattribute
+const RARE_JEWELRY_VARIANTS = {
+  ring: [['band', 'reif', ['vit', 'agi']], ['signet', 'siegel', ['vit', 'int']]],
+  amulet: [['pendant', 'anhänger', ['vit', 'str']], ['talisman', 'talisman', ['vit', 'agi']]],
+};
 
 // „Steppenreiter“ + „schwert“ → „Steppenreiterschwert“, lange Wörter mit Bindestrich
 function compound(prefix, word) {
@@ -64,6 +69,10 @@ function gear(tier) {
     for (const [slot, [pid, word]] of Object.entries(JEWELRY_PARTS)) {
       const at = { ring: { common: 1, uncommon: 3, rare: 4 }, amulet: { common: 2, uncommon: 4, rare: 3 } }[slot][rarity];
       jewelry[slot].push(E(`${sid}_${pid}`, compound(sname, word), b + at, rarity, `${slot}_t${tier}`));
+      // Seltener Schmuck trägt zwei Attribute: je Hauptattribut eine Fassung, damit jede Klasse passenden Schmuck findet
+      if (rarity === 'rare') {
+        for (const [vid, vword, attrs] of RARE_JEWELRY_VARIANTS[slot]) jewelry[slot].push(E(`${sid}_${vid}`, compound(sname, vword), b + at, rarity, `${slot}_t${tier}`, '', { attrs }));
+      }
     }
   }
   return { weapons, armor, jewelry };
@@ -237,18 +246,24 @@ export const OTHER_40 = {
   wyrm_heart: { name: 'Herz des Frostwurms', type: 'quest', rarity: 'epic', icon: 'gem_sapphire', stack: 1, value: 0, desc: 'Ein Eisklumpen, in dem ein Funke der Flammenkrone gefangen ist.' },
   colossus_core: { name: 'Kern des Glutkolosses', type: 'quest', rarity: 'rare', icon: 'ore_ember', stack: 1, value: 0, desc: 'Er glüht so hell, dass man nicht hineinsehen kann.' },
   ash_prayer: { name: 'Aschengebet', type: 'quest', rarity: 'common', icon: 'scroll', stack: 10, value: 0, desc: 'Ein Gebet an Malgareth, auf Haut geschrieben.' },
+  spice_bale: { name: 'Gewürzballen', type: 'quest', rarity: 'common', icon: 'bag', stack: 10, value: 0, desc: 'Safran, Zimt und Glutpfeffer. Er gehört Imra.' },
+  moll_crate: { name: 'Molls Warenkiste', type: 'quest', rarity: 'common', icon: 'potion_hp_m', stack: 10, value: 0, desc: 'Nass und verbeult. Drinnen klirren Tränke.' },
+  stalker_claw: { name: 'Pirscherkralle', type: 'quest', rarity: 'common', icon: 'charm_tooth', stack: 10, value: 0, desc: 'Weiß, gebogen und scharf wie ein Messer.' },
+  witch_charm: { name: 'Frostzeichen', type: 'quest', rarity: 'uncommon', icon: 'charm_skull', stack: 10, value: 0, desc: 'Ein Knochen an einer Schnur aus Eis. Er ist kälter als Schnee.' },
+  bastion_supplies: { name: 'Vorratsbündel', type: 'quest', rarity: 'common', icon: 'food_bread', stack: 10, value: 0, desc: 'Brot, Verbände und Pfeilspitzen für die letzte Bastion.' },
   sovereign_crown: { name: 'Flammenkrone', type: 'quest', rarity: 'legendary', icon: 'relic', stack: 1, value: 0, desc: 'Die Krone des Aschenfürsten. Das Zeichen, das alles begann.' },
 
   // Reittiere (§12.6): Benutzen → mount:learn. price = Kaufpreis bei Orla (ersetzt value × 4).
+  // reqQuest: Orla verkauft erst nach dieser Quest. Gold allein (auch gekauftes) reicht nie: Das Glutross gibt es erst nach Malgareth.
 // Preise aus test/pacing.mjs: Stufe 25–35 bringt höchstens ≈ 28 000 Gold je Stunde (alle Beute verkauft), realistisch
 // ≈ 75 % davon → seltenes Reittier ≈ 3,5 Stunden. Stufe 20→40 bringt realistisch ≈ 160 000 Gold → das epische erst gegen 40.
-  mount_steppe_horse: MOUNT_ITEM('steppe_horse', 'Zügel: Steppenpferd', 'rare', 2500, { source: 'vendor', price: 75000 }),
-  mount_ash_wolf: MOUNT_ITEM('ash_wolf', 'Halsband: Aschenwolf', 'rare', 2500, { source: 'vendor', price: 75000 }),
+  mount_steppe_horse: MOUNT_ITEM('steppe_horse', 'Zügel: Steppenpferd', 'rare', 2500, { source: 'vendor', price: 75000, reqQuest: 'q_first_ride' }),
+  mount_ash_wolf: MOUNT_ITEM('ash_wolf', 'Halsband: Aschenwolf', 'rare', 2500, { source: 'vendor', price: 75000, reqQuest: 'q_first_ride' }),
   mount_marsh_strider: MOUNT_ITEM('marsh_strider', 'Pfeife: Sumpfschreiter', 'rare', 2500, { source: 'boss' }),
   mount_bone_stallion: MOUNT_ITEM('bone_stallion', 'Totenglocke: Knochenhengst', 'epic', 8000, { source: 'boss' }),
   mount_spore_beetle: MOUNT_ITEM('spore_beetle', 'Sporenhorn: Sporenkäfer', 'epic', 8000, { source: 'boss' }),
   mount_frost_elk: MOUNT_ITEM('frost_elk', 'Eishorn: Frostelch', 'epic', 8000, { source: 'boss' }),
-  mount_ember_charger: MOUNT_ITEM('ember_charger', 'Zügel: Glutross', 'epic', 15000, { source: 'vendor', reqLevel: 40, price: 150000 }),
+  mount_ember_charger: MOUNT_ITEM('ember_charger', 'Zügel: Glutross', 'epic', 15000, { source: 'vendor', reqLevel: 40, price: 150000, reqQuest: 'q_ash_sovereign' }),
   mount_cinder_drake: MOUNT_ITEM('cinder_drake', 'Drachenei: Schlackendrache', 'legendary', 25000, { source: 'boss' }),
   mount_nightmare_steed: MOUNT_ITEM('nightmare_steed', 'Schattenzügel: Albtraumross', 'legendary', 25000, { source: 'trial' }),
 };

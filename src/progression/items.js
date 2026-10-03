@@ -16,6 +16,7 @@
 //  price   fester Kaufpreis (Reittiere bei Orla), sonst value × BUY_FACTOR
 // Stufe 21–40: items40.js (Tier 5–8, Sets, Reittier-Gegenstände).
 import { WEAPONS_40, ARMOR_40, JEWELRY_40, OTHER_40 } from './items40.js';
+import { CLASSES } from '../character/classes.js';
 
 export const RARITIES = {
   common: { name: 'Gewöhnlich', color: '#d8d0c0', order: 0, mult: 1.0, attrs: 0 },
@@ -261,6 +262,8 @@ const ARMOR = {
     E('tyrant_plate', 'Harnisch des Tyrannen', 20, 'legendary', 'plate_ember', 'Ignaroths eigene Rüstung. Die Glut darin ist noch nicht erloschen.', { family: 'plate', source: 'boss', set: 'tyrant' }),
     E('emberwarden_mail', 'Brustpanzer des Glutwächters', 20, 'epic', 'plate_ember', 'Verliehen jenen, die die Glutprüfungen überstehen.', { family: 'plate', source: 'trial', set: 'emberwarden' }),
     E('emberwing_scale', 'Schuppenhemd der Glutschwinge', 19, 'rare', 'mail_scale', 'Aus den Schuppen der Drachenmutter. Sie glühen noch.', { family: 'mail', source: 'rare', stats: { maxHp: 40, armor: 4 } }),
+    E('cinder_robe', 'Schlackenrobe', 18, 'uncommon', 'robe_novice', '', { family: 'cloth' }),
+    E('last_ember_robe', 'Robe der letzten Glut', 40, 'rare', 'cloth_t8', 'Die Magier der Bastion tragen sie bis zum letzten Funken.', { family: 'cloth' }),
   ],
   head: [
     E('varkhul_helm', 'Krone des Knochenfürsten', 6, 'rare', 'helm_horned', 'Ein Reif aus Knochen, der sich um den Schädel schließt.', { family: 'mail', source: 'boss', set: 'bonelord' }),
@@ -278,6 +281,13 @@ const ARMOR = {
     E('tidecaller_hood', 'Kapuze der Gezeitenrufer', 11, 'uncommon', 'hood', 'Riecht nach Salz und altem Weihrauch.', { family: 'cloth' }),
     E('shadow_hood', 'Kapuze der Schatten', 15, 'rare', 'hood', '', { family: 'leather' }),
     E('cryptlord_crown', 'Krone des Gruftfürsten', 18, 'epic', 'helm_horned', 'Eine Krone für einen König, der nicht sterben durfte.', { family: 'plate' }),
+    // Ergänzungen Release-Runde: Leder und Stoff für Schurke, Waldläufer und Magier in jeder Stufenlage
+    E('leather_cap', 'Lederkappe', 7, 'uncommon', 'helm_cap', '', { family: 'leather' }),
+    E('stalker_cap', 'Pirscherkappe', 13, 'uncommon', 'helm_cap', '', { family: 'leather' }),
+    E('trackers_hood', 'Kapuze des Spurenlesers', 9, 'rare', 'hood', 'Der Rand ist mit Wolfshaar besetzt.', { family: 'leather' }),
+    E('runeweave_hood', 'Runengewebte Kapuze', 9, 'rare', 'hood', 'Silberne Zeichen laufen um den Saum.', { family: 'cloth' }),
+    E('ashsilk_cowl', 'Ascheseidenhaube', 15, 'rare', 'hood', '', { family: 'cloth' }),
+    E('cinder_cowl', 'Schlackenhaube', 18, 'uncommon', 'hood', '', { family: 'cloth' }),
   ],
   hands: [
     E('varkhul_grips', 'Knochengriffe', 6, 'rare', 'gloves_mail', 'Kalt, egal wie lange man sie trägt.', { family: 'mail', source: 'boss', set: 'bonelord' }),
@@ -293,6 +303,14 @@ const ARMOR = {
     E('silk_gloves', 'Seidenhandschuhe', 14, 'uncommon', 'gloves_cloth', '', { family: 'cloth' }),
     E('ember_grips', 'Glutgreifer', 17, 'epic', 'gloves_ember', 'Die Finger glühen dunkelrot, wenn sie eine Waffe halten.', { family: 'mail' }),
     E('thornmother_grips', 'Dornenmutters Griff', 10, 'rare', 'gloves_leather', 'Kleine Dornen wachsen nach innen. Man gewöhnt sich daran.', { family: 'leather', source: 'rare', stats: { critChance: 0.015 } }),
+    E('leather_gloves', 'Lederhandschuhe', 5, 'uncommon', 'gloves_leather', '', { family: 'leather' }),
+    E('suede_grips', 'Wildledergriffe', 7, 'rare', 'gloves_leather', '', { family: 'leather' }),
+    E('linen_gloves', 'Leinenhandschuhe', 6, 'uncommon', 'gloves_cloth', '', { family: 'cloth' }),
+    E('shadow_grips', 'Schattengriffe', 12, 'uncommon', 'gloves_leather', '', { family: 'leather' }),
+    E('stalker_grips', 'Griffe des Pirschers', 15, 'rare', 'gloves_leather', '', { family: 'leather' }),
+    E('rune_gloves', 'Runenhandschuhe', 9, 'rare', 'gloves_cloth', '', { family: 'cloth' }),
+    E('embersilk_gloves', 'Glutseidenhandschuhe', 16, 'rare', 'gloves_cloth', '', { family: 'cloth' }),
+    E('cinder_wraps', 'Schlackenwickel', 18, 'uncommon', 'gloves_cloth', '', { family: 'cloth' }),
   ],
   feet: [
     E('varkhul_greaves', 'Schienen des Knochenfürsten', 6, 'rare', 'boots_mail', '', { family: 'mail', source: 'boss', set: 'bonelord' }),
@@ -306,6 +324,15 @@ const ARMOR = {
     E('forge_greaves', 'Essenschienen', 19, 'rare', 'boots_plate', '', { family: 'plate' }),
     E('ranger_boots', 'Stiefel des Waldläufers', 13, 'uncommon', 'boots_leather', '', { family: 'leather', stats: { moveSpeed: 0.03 } }),
     E('shadowstep_boots', 'Schattenschritt', 16, 'epic', 'boots_leather', 'Wer sie trägt, hinterlässt keine Spuren.', { family: 'leather', stats: { moveSpeed: 0.06 } }),
+    E('chain_greaves', 'Kettenschienen', 5, 'uncommon', 'boots_mail', '', { family: 'mail' }),
+    E('linen_shoes', 'Leinenschuhe', 5, 'uncommon', 'boots_cloth', '', { family: 'cloth' }),
+    E('temple_sandals', 'Tempelsandalen', 11, 'uncommon', 'boots_cloth', 'Das Leder ist vom Salzwasser hell geworden.', { family: 'cloth' }),
+    E('silk_slippers', 'Seidenschuhe', 17, 'uncommon', 'boots_cloth', '', { family: 'cloth' }),
+    E('hunters_boots', 'Jägerstiefel', 8, 'rare', 'boots_leather', '', { family: 'leather', stats: { moveSpeed: 0.02 } }),
+    E('rune_slippers', 'Runenschuhe', 9, 'rare', 'boots_cloth', '', { family: 'cloth' }),
+    E('nightstalker_boots', 'Stiefel des Nachtpirschers', 15, 'rare', 'boots_leather', '', { family: 'leather', stats: { moveSpeed: 0.02 } }),
+    E('ashsilk_slippers', 'Ascheseidenschuhe', 15, 'rare', 'boots_cloth', '', { family: 'cloth' }),
+    E('drifter_sandals', 'Sandalen der Wanderprediger', 21, 'uncommon', 'boots_cloth_t5', 'Sie haben mehr Asche gesehen als jeder Soldat.', { family: 'cloth' }),
   ],
 };
 
@@ -323,6 +350,10 @@ const JEWELRY = {
     E('emerald_ring', 'Smaragdring', 16, 'rare', 'ring_emerald', '', { attrs: ['agi', 'vit'] }),
     E('amethyst_seal', 'Amethystsiegel', 19, 'epic', 'ring_amethyst', 'Das Siegel eines Erzmagiers, der zu viel wusste.', { attrs: ['int', 'agi', 'vit'], stats: { critChance: 0.02 } }),
     E('salt_crown_ring', 'Reif des Salzkönigs', 12, 'rare', 'ring_sapphire', 'Mehr blieb von seiner Krone nicht übrig.', { source: 'rare', attrs: ['int', 'vit'], stats: { maxHp: 20 } }),
+    E('hunters_band', 'Reif des Jägers', 7, 'rare', 'ring_silver', '', { attrs: ['agi', 'vit'] }),
+    E('moonstone_ring', 'Mondsteinring', 8, 'rare', 'ring_sapphire', '', { attrs: ['int', 'vit'] }),
+    E('ironwill_ring', 'Ring des eisernen Willens', 17, 'rare', 'ring_gold', '', { attrs: ['str', 'vit'] }),
+    E('fire_opal_ring', 'Feueropalring', 18, 'rare', 'ring_ruby', 'Im Stein tanzt ein Funke, der nie erlischt.', { attrs: ['int', 'vit'] }),
   ],
   amulet: [
     E('bone_amulet', 'Knochenamulett', 2, 'common', 'amulet_bone'),
@@ -337,8 +368,24 @@ const JEWELRY = {
     E('forge_pendant', 'Essenanhänger', 19, 'rare', 'amulet_ruby'),
     E('sun_amulet', 'Sonnenamulett', 17, 'epic', 'amulet_sun', 'Wärmt wie ein Sommermorgen, selbst in den tiefsten Grüften.'),
     E('ember_heart', 'Glutherz', 20, 'legendary', 'amulet_ruby', 'Es pocht warm in der Hand, wie ein zweites Herz. Die letzte Glut des alten Königs.', { source: 'boss', set: 'tyrant', stats: { critChance: 0.03 } }),
+    E('acolyte_charm', 'Amulett des Akolythen', 9, 'rare', 'amulet_silver', '', { attrs: ['int', 'vit'] }),
+    E('fang_charm', 'Zahnamulett', 6, 'rare', 'charm_tooth', 'Drei Wolfszähne an einer Lederschnur.', { attrs: ['agi', 'vit'] }),
+    E('wolfsbane_amulet', 'Wolfsbann-Amulett', 17, 'rare', 'amulet_bone', '', { attrs: ['str', 'vit'] }),
+    E('falcon_amulet', 'Falkenamulett', 17, 'rare', 'charm_feather', 'Eine Falkenfeder, in Silber gefasst.', { attrs: ['agi', 'vit'] }),
   ],
 };
+
+// Säbel und Krummsäbel sind die Schwerter der Schurken: Beweglichkeit zuerst (Breitschwerter bleiben Stärke für Krieger)
+const AGILE_SWORD = /sabre|scimitar|kris|rapier/;
+const AGILE_SWORD_ATTRS = ['agi', 'str', 'vit'];
+
+// Passt das Hauptattribut eines Teils zur Klasse? (Teile ohne Stärke/Beweglichkeit/Intelligenz passen immer.)
+export function attrFit(def, classId) {
+  const primary = CLASSES[classId]?.primary, st = def?.stats;
+  if (!primary || !st) return true;
+  const best = Math.max(st.str ?? 0, st.agi ?? 0, st.int ?? 0);
+  return best === 0 || (st[primary] ?? 0) === best;
+}
 
 function withLists(base, extra) {
   const out = {};
@@ -355,7 +402,7 @@ function buildEquipment() {
       out[e.id] = {
         name: e.name, type: 'weapon', slot: 'weapon', family, visual: family, rarity: e.rarity, ilvl: e.ilvl, icon: e.icon, desc: e.desc,
         classes: WEAPON_CLASSES[family], source: e.source, set: e.set,
-        stats: makeStats({ slot: 'weapon', family, ilvl: e.ilvl, rarity: e.rarity, attrs: e.attrs, extra: e.stats }),
+        stats: makeStats({ slot: 'weapon', family, ilvl: e.ilvl, rarity: e.rarity, attrs: e.attrs ?? (family === 'sword' && AGILE_SWORD.test(e.id) ? AGILE_SWORD_ATTRS : undefined), extra: e.stats }),
       };
     }
   }

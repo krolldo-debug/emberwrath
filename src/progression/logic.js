@@ -13,7 +13,7 @@ import { rollLoot, BOSS_QUEST_GRANTS } from './loot.js';
 import { RECIPES } from './crafting.js';
 import { countItem, npcShortName, questStatus, questRewardItems, vendorStock, trackedQuestId, junkSlots, isUpgrade, sellableSlots, SELL_TIERS } from './selectors.js';
 import { ACHIEVEMENTS } from './achievements.js';
-import { ENCHANTS } from './smithing.js';
+import { ENCHANTS, UPGRADE_MAX } from './smithing.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
 import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } from './endgame.js';
 
@@ -295,7 +295,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       const upgrades = {}, enchants = {};
       for (const k of EQUIP_SLOTS) {
         const u = raw.upgrades?.[k] | 0;
-        if (u > 0) upgrades[k] = Math.min(10, u);
+        if (u > 0) upgrades[k] = Math.min(UPGRADE_MAX, u);
         if (raw.enchants?.[k]) enchants[k] = raw.enchants[k];
       }
       const questBag = (raw.questBag ?? []).filter((e) => known(e?.itemId) && e.qty > 0).map((e) => ({ itemId: e.itemId, qty: e.qty | 0 }));
@@ -587,6 +587,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     if (!vendorStock(ctx.content, vendorId).includes(itemId)) return { ok: false, reason: 'stock' };
     const def = ctx.content.get('item', itemId);
     if (def.type === 'mount' && (def.reqLevel ?? 1) > s.get('progress').level) return { ok: false, reason: 'level' };
+    if (def.reqQuest && !s.get('quests').completed.includes(def.reqQuest)) return { ok: false, reason: 'quest', questId: def.reqQuest };
     const price = buyPrice(def) * qty;
     if (s.get('wallet').gold < price) return { ok: false, reason: 'gold' };
     if (capacityFor(s, ctx.content, itemId) < qty) return { ok: false, reason: 'full' };

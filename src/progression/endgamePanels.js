@@ -62,7 +62,7 @@ function bankView(s) {
           h('section', h('h3', `Kiste (${bank.slots.filter(Boolean).length}/${bank.size})`), h('div.pg-bag.small', grid('bank', bank.slots)),
             h('div.pg-actions',
               actionBtn('Sortieren', () => act('bank:sort', {}), { small: true }),
-              cost != null ? actionBtn(`Erweitern (+8) – ${cost} Gold`, () => act('bank:expand', {}), { small: true, disabled: st.slices.wallet.gold < cost }) : h('span.ef-note', 'Größte Kiste'))),
+              cost != null ? actionBtn(`Erweitern (+8) – ${cost.toLocaleString('de-DE')} Gold`, () => act('bank:expand', {}), { small: true, disabled: st.slices.wallet.gold < cost }) : h('span.ef-note', 'Größte Kiste'))),
           h('section', h('h3', 'Tasche'), h('div.pg-bag.small', grid('bag', inv.slots)),
             h('div.pg-actions', actionBtn('Alle Materialien einlagern', () => {
               const r = commit(s, 'bank:depositMaterials', {}); msg = r.ok ? `${r.count} Materialien eingelagert.` : 'Keine Materialien in der Tasche.'; redraw();
@@ -130,7 +130,7 @@ function smithView(s, { vendorId } = {}) {
           h('div.pg-recipe-body',
             h('b', `${EQUIP_SLOT_NAMES[k]} +${lvl}`, def ? h(`span.ef-note.r-${def.rarity}`, ` · ${def.name}`) : h('span.ef-note', ' · leer')),
             h('small.ef-note', bonus ? `Bonus: ${bonus}` : 'Noch kein Bonus'),
-            cost ? h('div.pg-mats', matChips(s, cost.mats), h(`span.pg-mat${gold >= cost.gold ? '.ok' : ''}`, iconEl('gold', 16), String(cost.gold)),
+            cost ? h('div.pg-mats', matChips(s, cost.mats), h(`span.pg-mat${gold >= cost.gold ? '.ok' : ''}`, iconEl('gold', 16), cost.gold.toLocaleString('de-DE')),
               level < cost.reqLevel ? h('span.pg-mat', `ab Stufe ${cost.reqLevel}`) : null) : h('small', 'Höchststufe')),
           cost ? actionBtn(`+${lvl + 1}`, () => act('smith:upgrade', { slot: k }, `${EQUIP_SLOT_NAMES[k]} auf +${lvl + 1} verstärkt.`), { small: true, primary: can, disabled: !can }) : null);
       }));
@@ -146,7 +146,7 @@ function smithView(s, { vendorId } = {}) {
           return h(`li.pg-recipe${can ? '.can' : ''}${cur === id ? '.selected' : ''}${level < e.level ? '.locked' : ''}`,
             h('span.pg-mini.big', iconEl('essence_shadow', 24)),
             h('div.pg-recipe-body', h('b', e.name, cur === id ? h('span.pg-tag.main', 'aktiv') : null), h('small', statsText(e.stats)),
-              h('div.pg-mats', matChips(s, e.mats), h(`span.pg-mat${gold >= e.gold ? '.ok' : ''}`, iconEl('gold', 16), String(e.gold)),
+              h('div.pg-mats', matChips(s, e.mats), h(`span.pg-mat${gold >= e.gold ? '.ok' : ''}`, iconEl('gold', 16), e.gold.toLocaleString('de-DE')),
                 level < e.level ? h('span.pg-mat', `ab Stufe ${e.level}`) : null)),
             actionBtn('Verzaubern', () => act('smith:enchant', { slot, enchantId: id }, `${EQUIP_SLOT_NAMES[slot]}: ${e.name}.`), { small: true, primary: can, disabled: !can }));
         })));
@@ -191,7 +191,7 @@ function trialsView(s) {
           h('div.pg-kv', h('dt', 'Gegner'), h('dd', `Stufe 20 · Leben ×${spec.hpMult} · Schaden ×${spec.dmgMult}`)),
           h('div.pg-kv', h('dt', 'Ablauf'), h('dd', `${spec.target} Punkte (Elite 4), dann ein Boss · ${spec.timeLimit / 60} min`)),
           h('div.pg-kv', h('dt', 'Affixe'), h('dd', tier >= 8 ? '2 zufällige' : tier >= 3 ? '1 zufälliges' : 'keine')),
-          h('div.pg-kv', h('dt', 'Belohnung'), h('dd', `${rw.gold} Gold · ${rw.shards} Glutsplitter · ${tier >= 5 ? 2 : 1} Teil(e) Stufe 20`)),
+          h('div.pg-kv', h('dt', 'Belohnung'), h('dd', `${rw.gold.toLocaleString('de-DE')} Gold · ${rw.shards} Glutsplitter · ${tier >= 5 ? 2 : 1} Teil(e) Stufe 20`)),
           h('div.pg-kv', h('dt', 'Chancen je Teil'), h('dd', h('span.r-epic', `Episch ${pct(ch.epic)}`), ' · ', h('span.r-legendary', `Legendär ${pct(ch.legendary)}`)))),
         h('p.ef-note', `Mögliche Affixe: ${Object.values(TRIAL_AFFIXES).join(' · ')}.`),
         h('p.ef-note', `Beste Stufe: ${tr.best} · Versuche bestanden: ${tr.runs}. Glutsplitter tauschst du in der Schmiede gegen Wächter-Ausrüstung.`)),
