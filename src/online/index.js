@@ -27,7 +27,7 @@ export class Online {
     this.game = game;
     this.config = config;
     this.client = new AuthClient({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey });
-    this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed(), onRemote: (ids) => this.#remoteUpdated(ids) });
+    this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed(), onRemote: (ids, rejected) => this.#remoteUpdated(ids, rejected) });
     this.notice = null; // einmalige Meldung für die Anmeldeseite { kind, text }
     this.#admin = null;
     this.client.onChange((event) => {
@@ -72,13 +72,22 @@ export class Online {
 
   // Der Abgleich hat Charaktere mit dem neueren Cloud-Stand eines anderen Geräts überschrieben.
   // Läuft gerade einer davon, wird er neu geladen, sonst würde das nächste Speichern den alten Stand zurückschreiben.
-  #remoteUpdated(ids) {
+  #remoteUpdated(ids, rejected = []) {
     const g = this.game, m = g.state.meta;
     if (g.scenes.currentId !== 'play' || m.accountId !== this.sync.accountId || !ids.includes(m.characterId)) return;
     const slot = this.sync.stashed[m.characterId];
-    if (!g.loadGame(m.accountId, m.characterId)) return;
     const where = slot === 'auto' ? 'im automatischen Speicherplatz' : slot != null ? `in Speicherplatz ${slot + 1}` : null;
-    const text = `Auf einem anderen Gerät wurde weitergespielt – dieser neuere Stand ist jetzt geladen.${where ? ` Der vorherige Stand dieses Geräts liegt ${where}.` : ''}`;
+    const refused = rejected.includes(m.characterId);
+    const help = ' Wenn das ein Irrtum ist, schreib uns über den Support auf emberwrath.com.';
+    if (refused && slot === undefined) {
+      // Abgelehnt und kein gültiger Cloud-Stand vorhanden (neuer Charakter): lokal weiterspielen, aber deutlich sagen, dass nichts gesichert ist.
+      g.bus.emit(EV.UI_TOAST, { kind: 'warn', text: `Der Server hat diesen Spielstand nicht angenommen, er ist nicht in der Cloud gesichert.${help}` });
+      return;
+    }
+    if (!g.loadGame(m.accountId, m.characterId)) return;
+    const text = refused
+      ? `Der Server hat deinen letzten Spielstand nicht angenommen (ungewöhnlicher Fortschritt). Der letzte gültige Stand ist geladen.${where ? ` Dein Stand liegt ${where}.` : ''}${help}`
+      : `Auf einem anderen Gerät wurde weitergespielt – dieser neuere Stand ist jetzt geladen.${where ? ` Der vorherige Stand dieses Geräts liegt ${where}.` : ''}`;
     // Erst nach dem Szenenwechsel melden: die Meldungsanzeige gehört zur neuen Spielsitzung.
     const off = g.bus.on(EV.SCENE_CHANGE, () => { off(); setTimeout(() => g.bus.emit(EV.UI_TOAST, { kind: 'warn', text }), 0); });
   }

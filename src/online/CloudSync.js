@@ -19,7 +19,8 @@ const iso = (ms) => new Date(ms || Date.now()).toISOString();
 
 export class CloudSync {
   // client: AuthClient, save: SaveStore
-  // onRemote(ids): Charaktere wurden mit einem neueren Cloud-Stand (anderes Gerät) überschrieben;
+  // onRemote(ids, rejected): Charaktere wurden mit dem Cloud-Stand überschrieben, weil ein anderes Gerät weitergespielt hat
+  // oder weil der Server den Upload abgelehnt hat (Plausibilitätsprüfung, rejected nennt diese IDs; auch solche ohne Cloud-Stand).
   // stashed[id] nennt dann den Speicherplatz, in dem der vorherige Stand dieses Geräts liegt.
   constructor(client, save, { onStatus = () => {}, onRemote = () => {} } = {}) {
     this.client = client;
@@ -101,7 +102,7 @@ export class CloudSync {
     const todo = this.#state();
     if (!todo.dirty.length && !todo.deleted.length) return;
     const acc = this.accountId;
-    const doneDeletes = new Set(), uploaded = new Map(), adopted = new Set();
+    const doneDeletes = new Set(), uploaded = new Map(), adopted = new Set(), rejected = new Set();
     this.#set('syncing');
     try {
       for (const id of todo.deleted) {
@@ -124,8 +125,18 @@ export class CloudSync {
         st.sent = { ...st.sent };
         for (const r of rows) st.sent[r.id] = Date.parse(r.saved_at);
         this.#setState(st);
-        await this.client.rest('/characters?on_conflict=user_id,id', { method: 'POST', body: rows, prefer: 'resolution=merge-duplicates,return=minimal', keepalive: true });
-        for (const r of rows) uploaded.set(r.id, Date.parse(r.saved_at));
+        // Die Antwort nennt die gespeicherten Zeilen; fehlt eine, hat die Plausibilitätsprüfung des Servers sie abgelehnt.
+        const res = await this.client.rest('/characters?on_conflict=user_id,id&select=id', { method: 'POST', body: rows, prefer: 'resolution=merge-duplicates,return=representation', keepalive: true });
+        const kept = Array.isArray(res) ? new Set(res.map((r) => r.id)) : null;
+        for (const r of rows) {
+          if (!kept || kept.has(r.id)) uploaded.set(r.id, Date.parse(r.saved_at));
+          else rejected.add(r.id);
+        }
+        // Gültigen Cloud-Stand zurückholen, der abgelehnte Stand bleibt in einem Speicherplatz.
+        if (rejected.size) {
+          for (const id of rejected) delete this.stashed[id];
+          for (const id of await this.#adopt(acc, [...rejected], true)) adopted.add(id);
+        }
       }
       this.lastSyncAt = Date.now();
       this.#set('ok');
@@ -138,11 +149,12 @@ export class CloudSync {
       const now = this.#state();
       for (const id of doneDeletes) delete now.synced[id];
       for (const [id, at] of uploaded) { now.synced[id] = at; delete now.sent[id]; }
+      for (const id of rejected) delete now.sent[id];
       now.deleted = now.deleted.filter((id) => !doneDeletes.has(id));
-      now.dirty = now.dirty.filter((id) => !adopted.has(id) && !(todo.dirty.includes(id) && (!this.save.loadCharacter(acc, id)
+      now.dirty = now.dirty.filter((id) => !adopted.has(id) && !rejected.has(id) && !(todo.dirty.includes(id) && (!this.save.loadCharacter(acc, id)
         || (uploaded.has(id) && uploaded.get(id) >= (this.save.loadCharacter(acc, id)?.meta?.savedAt ?? 0)))));
       this.#setState(now);
-      if (adopted.size) this.onRemote([...adopted]);
+      if (adopted.size || rejected.size) this.onRemote([...new Set([...adopted, ...rejected])], [...rejected]);
     }
   }
 

@@ -143,7 +143,11 @@ export class PlayScene {
     const a = b.actor;
     if (Math.abs(a.x - hero.x) > 320 || Math.abs(a.y - hero.y) > 260) return y;
     const want = Math.min(y, (hero.y + a.y - (a.bodyHeight ?? 32) * 1.6) / 2);
-    return Math.max(want, hero.y - CONFIG.viewHeight / 2 + 70); // Held hat Vorrang: Füße bleiben über der Aktionsleiste
+    // Held hat Vorrang: Füße bleiben über der Aktionsleiste. Touch quer hat unten mittig nur die EP-Leiste (Tasten seitlich),
+    // dort darf der Held tiefer stehen, damit über ihm im 270 hohen Bild Platz für den Boss bleibt.
+    const cl = document.documentElement.classList;
+    const margin = cl.contains('ef-touch') && !cl.contains('ef-portrait') ? 26 : 70;
+    return Math.max(want, hero.y - CONFIG.viewHeight / 2 + margin);
   }
 
   hitstop(t) { this.hitstopTime = Math.max(this.hitstopTime, t); }

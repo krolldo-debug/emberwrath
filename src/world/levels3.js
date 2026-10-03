@@ -986,7 +986,9 @@ function buildAshenThrone() {
   const { m, put } = dungeonBase(W, H, 4040);
   const R = (x, y, w, h, ch = '.') => m.rect(x, y, w, h, ch);
 
-  const arena = { x: 21, y: 2, w: 26, h: 18 };
+  // Thronsaal flach und breit (28 × 13): Held und Fürst bleiben vertikal nah beieinander,
+  // so passt Malgareth (Gestalt 3 bis ~150 px hoch) auch bei 480×270 unter der Boss-Leiste ins Bild
+  const arena = { x: 20, y: 7, w: 28, h: 13 };
   R(arena.x, arena.y, arena.w, arena.h);  // G Thronsaal (sovereign_hall)
   R(32, 20, 4, 1);                        // Tordurchgang
   R(24, 21, 20, 9);                       // E Halle des Wächters
@@ -1003,9 +1005,12 @@ function buildAshenThrone() {
   // Lavagräben (fest): Längsgräben der Säulenhalle, Quergraben mit Brücke,
   // Becken in der Wächterhalle und im Thronsaal
   R(25, 34, 2, 12, '~'); R(41, 34, 2, 12, '~');
+  // Ausbuchtungen nach außen: die Längsgräben sind keine glatten Rechtecke
+  R(24, 37, 1, 2, '~'); R(24, 43, 1, 1, '~'); R(43, 36, 1, 1, '~'); R(43, 41, 1, 2, '~');
   R(27, 39, 14, 2, '~'); R(31, 39, 6, 2, '.');
-  R(26, 27, 3, 2, '~'); R(39, 27, 3, 2, '~');
-  m.ellipse(25.5, 12, 1.6, 1.6, '~'); m.ellipse(42.5, 12, 1.6, 1.6, '~');
+  // Becken der Wächterhalle: unregelmäßig statt 3 × 2-Rechteck
+  R(27, 27, 2, 1, '~'); R(26, 28, 4, 1, '~'); R(39, 27, 2, 1, '~'); R(38, 28, 4, 1, '~');
+  m.ellipse(24.5, 13.5, 1.6, 1.4, '~'); m.ellipse(43.5, 13.5, 1.6, 1.4, '~');
   wallTorches(m, 5, 2);
 
   put(27, 51, 'D'); put(28, 51, 'D'); put(27, 54, '1'); put(29, 54, '2');
@@ -1042,11 +1047,11 @@ function buildAshenThrone() {
   put(34, 25, 'W');
   for (let x = 32; x <= 35; x++) put(x, 20, 'G');
   // G – Thronsaal
-  each([[24, 5], [43, 5], [24, 16], [43, 16]], (x, y) => put(x, y, 'I'));
-  put(22, 3, 'B'); put(45, 3, 'B'); put(22, 18, 'B'); put(45, 18, 'B');
-  put(30, 6, 'n'); put(38, 6, 'n');
-  put(34, 3, 'A'); put(34, 9, '9');
-  each([[28, 3], [40, 3]], (x, y) => put(x, y, 'k'));
+  each([[25, 9], [43, 9], [25, 18], [43, 18]], (x, y) => put(x, y, 'I'));
+  put(21, 8, 'B'); put(46, 8, 'B'); put(21, 18, 'B'); put(46, 18, 'B');
+  put(29, 8, 'n'); put(39, 8, 'n');
+  put(34, 8, 'A'); put(34, 12, '9');
+  each([[31, 8], [37, 8]], (x, y) => put(x, y, 'k'));
   // Druckplatten / Flammendüsen
   put(32, 49, '^'); put(35, 50, '^'); put(19, 39, '^'); put(48, 39, '^'); put(10, 31, '^');
 
@@ -1156,6 +1161,6 @@ const RAW3 = {
   frostspire: buildFrostspire(),
   rime_caverns: buildRimeCaverns(),
   ember_wastes: buildEmberWastes(),
-  ashen_throne: shiftLevelDown(buildAshenThrone(), 8),
+  ashen_throne: shiftLevelDown(buildAshenThrone(), 3),
 };
 export const LEVELS3 = Object.fromEntries(Object.entries(RAW3).map(([id, L]) => [id, calmArrivals(id, L, 12)]));

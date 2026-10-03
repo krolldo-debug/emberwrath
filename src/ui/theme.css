@@ -470,8 +470,9 @@
 .hud-boss::after { right: 0; transform: scaleX(-1); }
 .hud-boss.enraged .hud-boss-name { color: #ff5040; animation: hud-pulse 0.6s infinite; }
 
-.ef-touch .hud-boss { top: calc(var(--hud-gap) + 78px); width: min(50%, 380px); }
-@media (orientation: portrait) { .ef-touch .hud-boss { top: var(--hud-gap); } }
+/* Touch quer: ganz oben zwischen Charakterfeld und Karte, schmal, damit über dem Helden (PlayScene#cameraY) Platz für den Boss bleibt. */
+.ef-touch .hud-boss { top: var(--hud-gap); width: min(36%, 340px); }
+@media (orientation: portrait) { .ef-touch .hud-boss { top: var(--hud-gap); width: min(50%, 380px); } }
 .ef-touch .ef-toast { font-size: 0.86em; }
 
 /* ------------------------------------------------------------ Hochformat mit hohem Spielbild
@@ -570,7 +571,7 @@
 .ef-portrait .hud-trial { top: auto; bottom: 236px; width: calc(100% - 24px); }
 .ef-portrait .hud-boss.show ~ .hud-trial { top: auto; bottom: 290px; }
 .ef-touch:not(.ef-portrait) .hud-trial { top: calc(var(--hud-gap) + 78px); width: min(44%, 340px); }
-.ef-touch:not(.ef-portrait) .hud-boss.show ~ .hud-trial { top: calc(var(--hud-gap) + 130px); }
+.ef-touch:not(.ef-portrait) .hud-boss.show ~ .hud-trial { top: calc(var(--hud-gap) + 56px); }
 
 /* ------------------------------------------------------------ Branding: Pixel-Schriftzug (gfx/Logo.js) */
 /* Der Text der Überschrift bleibt für Screenreader erhalten, sichtbar ist der Pixel-Schriftzug. */

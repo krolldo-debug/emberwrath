@@ -145,6 +145,7 @@ export class Malgareth extends Actor {
   constructor(x, y, assets) {
     const def = { ...ENEMY_TYPES.ash_sovereign, ...(DEFS.ash_sovereign ?? {}) };
     super(x, y, assets.sprites[def.sprites]);
+    this.flashMax = 0.3; // Trefferblitz gedämpft (große Figur würde den Helden überstrahlen)
     this.type = 'ash_sovereign';
     this.def = def;
     this.bossId = def.bossId;
@@ -260,7 +261,14 @@ export class Malgareth extends Actor {
           const f = world.flow.direction(this.x, this.y - 2);
           if (f) { mx = f.x; my = f.y; }
         }
-        const want = dist > 52 ? spd : 0;
+        let want = dist > 52 ? spd : 0;
+        // Gestalt 3: steht der Held deutlich südlich, gleitet der Fürst seitlich neben ihn auf
+        // gleiche Höhe (statt nördlich über ihm zu thronen) – so bleibt die hohe Gestalt im Bild
+        if (this.phase === 3 && dy > 26) {
+          const side = Math.sign(this.x - hero.x) || this.facing * -1 || 1;
+          const tx = hero.x + side * 46 - this.x, ty = hero.y - 12 - this.y, td = Math.hypot(tx, ty);
+          if (td > 8) { mx = tx / td; my = ty / td; want = spd; }
+        }
         const k = 1 - Math.exp(-dt * 5);
         this.vx += (mx * want - this.vx) * k;
         this.vy += (my * want - this.vy) * k;
@@ -293,7 +301,7 @@ export class Malgareth extends Actor {
       case 'channelUp':
         this.vx *= 0.8; this.vy *= 0.8;
         // zur Mitte der Arena gleiten
-        { const c = this.#arenaCenter(world); this.x += (c.x - this.x) * Math.min(1, dt * 3); this.y += (c.y - this.y) * Math.min(1, dt * 3); }
+        { const c = this.channelSpot ?? this.#arenaCenter(world); this.x += (c.x - this.x) * Math.min(1, dt * 3); this.y += (c.y - this.y) * Math.min(1, dt * 3); }
         if (this.stateTime >= 0.7) { this.setState('channel'); this.animator.play('channel', true); }
         break;
 
@@ -308,6 +316,8 @@ export class Malgareth extends Actor {
         break;
     }
     this.integrate(dt, world);
+    // Gestalt 3 nie an die Nordwand: mindestens 40 px unter der Oberkante der Arena
+    if (this.phase === 3 && world.arena && !this.dead) this.y = Math.max(this.y, world.arena.y0 + 40);
   }
 
   // Grafik vorwärmen: im Schlaf gemächlich, im Kampf nur in ruhigen Momenten
@@ -716,11 +726,15 @@ export class Malgareth extends Actor {
     this.timers.channel = rand(20, 24);
     this.setState('channelUp');
     this.animator.play('channelUp', true);
-    const A = this.#arena(world), h = world.hero, mid = this.#arenaCenter(world);
-    // sichere Zone: weit weg vom Helden, nicht auf einem Glutriss, frei begehbar
+    const A = this.#arena(world), h = world.hero;
+    // Kanalplatz: Mitte der Arena in x, in y nahe der Mitte, aber höchstens knapp nördlich des Helden
+    // (der Fürst ist in Gestalt 3 bis ~150 px hoch und muss unter der Boss-Leiste ganz im Bild bleiben)
+    const mid = this.channelSpot = this.#channelSpot(world);
+    // sichere Zone: weit weg vom Helden, eher seitlich als nord-südlich zum Fürsten,
+    // nicht auf einem Glutriss, frei begehbar
     let best = null, bestScore = -1;
     for (let i = 0; i < 24; i++) {
-      const x = rand(A.x0 + 36, A.x1 - 36), y = rand(A.y0 + 30, A.y1 - 22);
+      const x = rand(A.x0 + 36, A.x1 - 36), y = Math.max(A.y0 + 30, Math.min(A.y1 - 22, mid.y + rand(-34, 40)));
       const p = world.dungeon.nearestFree(x, y);
       const dh = Math.hypot(p.x - h.x, p.y - h.y);
       const df = Math.min(99, ...this.fissures.map((f) => f.distTo(p.x, p.y)));
@@ -764,6 +778,12 @@ export class Malgareth extends Actor {
     const A = world.arena;
     if (A) return A;
     return { x0: this.home.x - 170, x1: this.home.x + 170, y0: this.home.y - 110, y1: this.home.y + 110 };
+  }
+
+  #channelSpot(world) {
+    const A = this.#arena(world), h = world.hero;
+    const y = Math.max(A.y0 + 56, Math.min(A.y1 - 24, h.y - 24));
+    return world.dungeon.nearestFree((A.x0 + A.x1) / 2, y);
   }
 
   #arenaCenter(world) {

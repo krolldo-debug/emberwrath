@@ -21,9 +21,14 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 - [x] Panels: Fokus im Panel, Tab bleibt drin, Fokus kehrt zurück.
 - [x] Worker: /net/status und /net/worlds 5 s zwischengespeichert; Fehler im Log; HSTS; eigene 404-Seite
       (not_found_handling); /favicon.ico und /apple-touch-icon.png.
-- [x] Schummelschutz: Der Server prüft jeden hochgeladenen Spielstand (Stufe 1–40, Gold-Obergrenze, Stufen- und
-      Goldsprünge je Spielzeit, Spielzeit nicht schneller als echte Zeit). Verstöße werden nicht gespeichert, das Spiel
-      holt den gültigen Stand zurück, ein Vermerk landet in character_flags (Admin: admin_character_flags()).
+- [x] Schummelschutz: Der Server prüft jeden hochgeladenen Spielstand (Stufe 1–40, Gold-Obergrenze). Neue Charaktere,
+      auch nach Löschen und neu Anlegen, nur im Startstand. Spielzeit zählt nur so weit, wie echte Serverzeit vergangen
+      ist (Spalte play_verified, vom Server geführt). Stufe und Gold dürfen insgesamt nur so hoch sein, wie diese geprüfte
+      Spielzeit (plus gekaufte Shop-Pakete) hergibt. Verstöße werden nicht gespeichert: Das Spiel holt den gültigen Stand
+      zurück, legt den abgelehnten in einen Speicherplatz und sagt es dem Spieler (mit Hinweis auf den Support). Ein
+      Vermerk landet in character_flags (Admin-Reiter „Auffälligkeiten“). Vermerke lassen sich nicht über die API fälschen.
+      Grenzen: Wer schummelt, kann sich innerhalb der echten Zeit noch Gegenstände und Gold bis zur Obergrenze geben;
+      vollständig serverseitig wird das erst mit Mehrspieler Stufe 2 (siehe Shop-Start).
       window.emberfall gibt es nur noch lokal und für Admins.
 - [x] Titel zeigt „Version 1.0.0“ (package.json), der Commit steht im Tooltip und in /version.json.
 
@@ -66,6 +71,8 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 
 - [ ] Gold aus Käufen serverseitig führen (eigene Tabelle, nur Server-Funktionen ändern sie). Bis dahin begrenzt die
       Spielstand-Prüfung nur grobe Manipulation; gekauftes Gold ist erst damit wirklich geschützt.
+- [ ] Rückbuchung serverseitig vom Spielstand abziehen (heute zieht das Spiel sie beim nächsten Start ab) und
+      Gegenstände im Spielstand prüfen (nur bekannte IDs, Mengen plausibel).
 
 - [ ] Stripe-Konto, Schlüssel als Worker-Secrets, Webhook (docs/SHOP.md).
 - [ ] Migrationen ausführen: supabase/migrations/20261001230000_goldshop.sql, danach 20261003140000_goldshop_rueckbuchung.sql.

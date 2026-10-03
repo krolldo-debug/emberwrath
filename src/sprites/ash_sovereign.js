@@ -57,6 +57,8 @@ const K = 1.15 * S;
 const SCALED = ['hipX', 'hipY', 'fFx', 'fFy', 'fBx', 'fBy', 'hFx', 'hFy', 'hBx', 'hBy', 'hover', 'head', 'headY'];
 const THIGH = 23, SHIN = 23, SPINE = 36, UPPER = 19, FORE = 19, HIPH = 45;
 const BLADE = 70;
+// Höchster Punkt (über dem Boden) für Schwertspitze und Schwung-Schleier in Gestalt 3
+const FLAT_TOP = 140;
 
 // ---------------------------------------------------------------- Pixelpuffer
 
@@ -180,12 +182,15 @@ const REST = {
   sw: 1.18, grip: 0, cape: 0.25, capeT: 0, cast: 0, eye: 1, core: 1, kneel: 0,
   hover: 0, wing: 0, wingT: 0, wingFire: 0, crack: 0, inferno: 0, crownF: 0, flame: 0,
   ash: 0, crownDrop: 0, robe: 0, spread: 0, hair: 0, noSword: 0,
+  // flat: Gestalt 3 bleibt niedrig (Flügel seitlich statt hoch, Schwert nie steil über dem Kopf),
+  // damit der Fürst auch bei 480×270 unter der Boss-Leiste ganz im Bild bleibt (Gesamthöhe ≤ FLAT_TOP)
+  flat: 0,
 };
 // Gestalt-Grundwerte (werden auf die Pose addiert)
 const FORMS = {
   1: { hover: 0, wing: 0, wingFire: 0, crack: 0.25, inferno: 0, crownF: 0.55, flame: 0.55 },
   2: { hover: 10, wing: 0.72, wingFire: 0.25, crack: 0.6, inferno: 0, crownF: 0.9, flame: 0.85 },
-  3: { hover: 13, wing: 1, wingFire: 1, crack: 1, inferno: 1, crownF: 1.35, flame: 1.25 },
+  3: { hover: 4, wing: 1, wingFire: 1, crack: 1, inferno: 1, crownF: 1.05, flame: 1.25, flat: 1 },
 };
 const pose = (o = {}) => ({ ...REST, ...o });
 const ease = (t) => t * t * (3 - 2 * t);
@@ -321,13 +326,13 @@ function sword(p, g, hx, hy, a, P) {
 }
 
 // Feuriger Schwung-Schleier (goldgelb innen, glutrot außen) um einen Drehpunkt.
-function smear(p, g, cx, cy, a0, a1, r0, r1) {
+function smear(p, g, cx, cy, a0, a1, r0, r1, yMin = -1e9) {
   if (Math.abs(a1 - a0) > 1.7) a0 = a1 - Math.sign(a1 - a0) * 1.7;
   const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
   const R1 = Math.ceil(r1);
   for (let y = -R1; y <= R1; y++) for (let x = -R1; x <= R1; x++) {
     const d = Math.hypot(x, y);
-    if (d < r0 || d > r1) continue;
+    if (d < r0 || d > r1 || cy + y < yMin) continue;
     let a = Math.atan2(y, x);
     while (a < lo - Math.PI) a += Math.PI * 2;
     while (a > lo + Math.PI) a -= Math.PI * 2;
@@ -374,6 +379,16 @@ function drawFigure(p, g, P0, ex = {}) {
   const shF = { x: chX + perpX * 5, y: chY + perpY * 5 + 4 };
   const shB = { x: chX - perpX * 6.5, y: chY - perpY * 6.5 + 3 };
   const hF = { x: chX + P.hFx, y: chY + P.hFy };
+  const flat = P.flat > 0.5;
+  if (flat) {
+    // Gestalt 3: Hand höchstens knapp über Kopfhöhe, Klinge flacher statt senkrecht nach oben
+    hF.y = Math.max(hF.y, gy - 116);
+    const lim = gy - FLAT_TOP + 4;
+    if (hF.y + Math.sin(P.sw) * BLADE < lim) {
+      const s = Math.max(-1, Math.min(1, (lim - hF.y) / BLADE));
+      P.sw = Math.cos(P.sw) >= 0 ? Math.asin(s) : -Math.PI - Math.asin(s);
+    }
+  }
   const hB = P.grip > 0.5
     ? { x: hF.x - Math.cos(P.sw) * 8, y: hF.y - Math.sin(P.sw) * 8 }
     : { x: chX + P.hBx, y: chY + P.hBy };
@@ -423,7 +438,7 @@ function drawFigure(p, g, P0, ex = {}) {
   head(p, g, hx, hy, P, meta);
 
   // --- 7. Schwung-Schleier
-  if (ex.smear) smear(p, g, shF.x, shF.y, ex.smear[0], ex.smear[1], 30 * S, 74 * S);
+  if (ex.smear) smear(p, g, shF.x, shF.y, ex.smear[0], ex.smear[1], 30 * S, 74 * S, flat ? gy - FLAT_TOP : -1e9);
 
   // --- 8. vorderer Arm mit Schwert
   limb(p, shF.x, shF.y, armF.jx, armF.jy, 6.5 * S, 5.5 * S, [OBS[1], OBS[2], OBS[3], OBS[4], OBS[5]]);
@@ -883,9 +898,12 @@ function cape(p, g, tx, ty, gy, P, dang) {
 function wings(p, g, rx, ry, P) {
   const s = P.wing;
   const flap = Math.sin(P.wingT) * 0.12 + P.spread * 0.25;
+  // Gestalt 3 (flat): Schwingen weit zur Seite gespreizt und flach gestaucht statt steil nach oben
+  const fl = Math.max(0, Math.min(1, P.flat));
+  const sq = 0.95 - 0.37 * fl;
   const sets = [
-    { a0: -2.6, a1: -1.45, n: 4, L: 56 * S, ox: 8, oy: -5, far: true },
-    { a0: -3.1, a1: -1.65, n: 5, L: 80 * S, ox: 0, oy: 0, far: false },
+    { a0: -2.6 - 0.2 * fl, a1: -1.45 - 0.35 * fl, n: 4, L: 56 * S * (1 + 0.22 * fl), ox: 8, oy: -5, far: true },
+    { a0: -3.1 - 0.22 * fl, a1: -1.65 - 0.3 * fl, n: 5, L: 80 * S * (1 + 0.2 * fl), ox: 0, oy: 0, far: false },
   ];
   for (const w of sets) {
     const pts = [];
@@ -898,10 +916,10 @@ function wings(p, g, rx, ry, P) {
     // Membran: Rauch zwischen den Rippen, Rand gezackt (pixelweise über das Hüllrechteck)
     const Lmax = Math.max(...pts.map((q) => q.L));
     const bx0 = Math.floor(ox - Lmax - 1), bx1 = Math.ceil(ox + Lmax * 0.22 + 1);
-    const by0 = Math.floor(oy - Lmax - 1), by1 = Math.ceil(oy + Lmax * 0.36 + 1);
+    const by0 = Math.floor(oy - Lmax - 1), by1 = Math.ceil(oy + Lmax * 0.5 + 1);
     const aLo = pts[0].a, aHi = pts[w.n - 1].a;
     for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
-      const qx = x - ox, qy = (y - oy) / 0.95;
+      const qx = x - ox, qy = (y - oy) / sq;
       const d = Math.hypot(qx, qy);
       if (d < 3 || d > Lmax) continue;
       let a = Math.atan2(qy, qx);
@@ -924,7 +942,7 @@ function wings(p, g, rx, ry, P) {
     // Rippen: dunkler Knochen mit Glutader, Spitzen brennen
     for (const { a, L } of pts) {
       for (let d = 0; d < L; d += 0.5) {
-        const x = ox + Math.cos(a) * d, y = oy + Math.sin(a) * d * 0.95;
+        const x = ox + Math.cos(a) * d, y = oy + Math.sin(a) * d * sq;
         const t = d / L;
         p.px(x, y, w.far ? OBS[2] : t < 0.3 ? OBS[4] : OBS[3]);
         if (!w.far && t < 0.7) p.px(x, y + 1, OBS[1]);
@@ -932,7 +950,7 @@ function wings(p, g, rx, ry, P) {
       }
       // Flammenzunge an der Spitze
       const hgt = (2 + P.wingFire * 8) * s;
-      const tx = ox + Math.cos(a) * L, ty = oy + Math.sin(a) * L * 0.95;
+      const tx = ox + Math.cos(a) * L, ty = oy + Math.sin(a) * L * sq;
       for (let k = 0; k < hgt; k++) {
         const kk = k / hgt;
         g.max(tx + Math.cos(a) * k * 0.6 + Math.sin(k + P.wingT * 3) * 0.6, ty + Math.sin(a) * k * 0.6 - k * 0.5, kk < 0.3 ? 4 : kk < 0.6 ? 3 : 2);
@@ -945,7 +963,7 @@ function wings(p, g, rx, ry, P) {
         for (let t = 0; t <= 1; t += 0.04) {
           const a = A.a + (B.a - A.a) * t;
           const Lr = (A.L + (B.L - A.L) * t) * (0.7 + 0.3 * Math.pow(Math.abs(t - 0.5) * 2, 1.5)) * 0.9;
-          const x = ox + Math.cos(a) * Lr, y = oy + Math.sin(a) * Lr * 0.95;
+          const x = ox + Math.cos(a) * Lr, y = oy + Math.sin(a) * Lr * sq;
           const hh = 1 + hash2(f * 20 + Math.round(t * 25), Math.round(P.wingT * 3), 3) * 3.5 * P.wingFire;
           for (let k = 0; k < hh; k++) g.max(x, y - k, k < 1 ? 3 : 2);
         }
@@ -1211,15 +1229,15 @@ export function createMalgarethSprites() {
   const as5 = pose({ lean: 0.04, sw: 1.6, hFx: 9, hFy: 20, hBx: -7, hBy: 20, hover: 10, wing: 0.72, wingFire: 0.25, crack: 0.35, crownF: 0.35, flame: 0.3, cape: 0.3, capeT: 6, wingT: 5 });
 
   // Entfesselung (2→3): krümmt sich, Risse brechen auf, Flügel lodern, Schrei
-  const un1 = pose({ lean: 0.34, hipY: 5, head: 1.5, headY: 3, sw: 1.3, hFx: 6, hFy: 12, hBx: 2, hBy: 10, wing: -0.3, wingT: 0, cape: 0.1, core: 2, crack: 0.2, eye: 1.2 });
+  const un1 = pose({ flat: 1, lean: 0.34, hipY: 5, head: 1.5, headY: 3, sw: 1.3, hFx: 6, hFy: 12, hBx: 2, hBy: 10, wing: -0.3, wingT: 0, cape: 0.1, core: 2, crack: 0.2, eye: 1.2 });
   const un2 = pose({ ...un1, capeT: 1, crack: 0.35, core: 2.5, wing: -0.35, hipY: 6 });
-  const un3 = pose({ lean: -0.3, hipY: -2, head: -1.5, headY: -2, jaw: 1, sw: -1.9, hFx: 4, hFy: -18, hBx: -16, hBy: -8, spread: 1, cast: 1, wing: 0.3, wingFire: 0.75, wingT: 1, hover: 2, crack: 0.4, inferno: 1, crownF: 0.8, flame: 0.8, cape: 1.2, capeT: 2, core: 3, hair: 1 });
+  const un3 = pose({ lean: -0.3, hipY: -2, head: -1.5, headY: -2, jaw: 1, sw: -1.9, hFx: 4, hFy: -18, hBx: -16, hBy: -8, spread: 1, cast: 1, wing: 0.3, wingFire: 0.75, wingT: 1, hover: 2, flat: 1, crack: 0.4, inferno: 1, crownF: 0.8, flame: 0.8, cape: 1.2, capeT: 2, core: 3, hair: 1 });
   const un4 = pose({ ...un3, capeT: 4, wingT: 3 });
-  const un5 = pose({ lean: 0.04, sw: 1.6, hFx: 9, hFy: 20, hBx: -7, hBy: 20, wing: 0.28, wingFire: 0.75, hover: 3, crack: 0.4, inferno: 1, crownF: 0.45, flame: 0.4, cape: 0.3, capeT: 6, wingT: 5 });
+  const un5 = pose({ flat: 1, lean: 0.04, sw: 1.6, hFx: 9, hFy: 20, hBx: -7, hBy: 20, wing: 0.28, wingFire: 0.75, hover: 3, crack: 0.4, inferno: 1, crownF: 0.45, flame: 0.4, cape: 0.3, capeT: 6, wingT: 5 });
 
   // Kanal (Form 3): hoch erhoben, Arme ausgebreitet, Schwert über dem Kopf
-  const chA = pose({ hover: 10, lean: -0.12, sw: -1.57, hFx: 5, hFy: -24, hBx: -16, hBy: -10, spread: 1, cast: 1, jaw: 0.6, head: -1, headY: -2, cape: 1, capeT: 0, wingT: 0, core: 2.5, crownF: 0.4, flame: 0.6, hair: 0.6 });
-  const chB = pose({ ...chA, hover: 11, capeT: Math.PI, wingT: Math.PI, core: 3, jaw: 0.9, hBy: -12 });
+  const chA = pose({ hover: 3, lean: -0.12, sw: -1.57, hFx: 5, hFy: -24, hBx: -16, hBy: -10, spread: 1, cast: 1, jaw: 0.6, head: -1, headY: -2, cape: 1, capeT: 0, wingT: 0, core: 2.5, crownF: 0.4, flame: 0.6, hair: 0.6 });
+  const chB = pose({ ...chA, hover: 4, capeT: Math.PI, wingT: Math.PI, core: 3, jaw: 0.9, hBy: -12 });
 
   // Tod (aus Form 3): Aufschrei, stürzt aus der Luft, kniet, Schwert in den Boden, zerfällt
   const dA = pose({ lean: -0.3, hipX: -2, head: -2, headY: -2, jaw: 1, sw: -0.9, hFx: 10, hFy: -6, hBx: -14, hBy: -6, spread: 1, core: 3, cape: 1, capeT: 1, hair: 0.8, wingT: 1 });

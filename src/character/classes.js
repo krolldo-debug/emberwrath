@@ -72,7 +72,7 @@ export const CLASSES = {
     resource: { type: 'energy', name: 'Fokus', color: '#6ee06a', max: 100, regen: 16, start: 100 },
     basic: {
       kind: 'ranged',
-      shot: { projectile: 'arrow', mult: 1.4, windup: 0.14, recover: 0.2, speed: 280, knockback: 90, range: 220 },
+      shot: { projectile: 'arrow', mult: 1.4, early: { pct: 0.3, from: 18, to: 26 }, windup: 0.14, recover: 0.2, speed: 280, knockback: 90, range: 220 },
     },
     abilities: ['volley', 'piercing_shot', 'fire_trap', 'arrow_rain'],
   },

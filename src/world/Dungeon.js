@@ -7,6 +7,20 @@ import { TileMap } from './TileMap.js';
 const T = CONFIG.tileSize;
 const SOLID = new Set(['#', 'T', 'b', 'k', 'D', '~', '$']); // $ = verborgener Durchgang (öffnet per Hebel)
 const FLOOR = new Set(['.']);
+// Weicher, warmer Lichthof (einmal erzeugt) für den Lava-Widerschein
+let HALO = null;
+function lavaHalo() {
+  if (HALO) return HALO;
+  const R = 26;
+  HALO = makeCanvas(R * 2, R * 2);
+  const g = HALO.getContext('2d');
+  const gr = g.createRadialGradient(R, R, 0, R, R, R);
+  gr.addColorStop(0, 'rgba(255,110,36,0.16)');
+  gr.addColorStop(0.5, 'rgba(220,70,20,0.07)');
+  gr.addColorStop(1, 'rgba(160,40,10,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, R * 2, R * 2);
+  return HALO;
+}
 
 // Dungeon-Karte: Steinboden, Mauern in 3/4-Perspektive, Wanddeko.
 // Objekte (Fackeln, Säulen, Truhen …) werden als "placements" an die World gemeldet.
@@ -203,6 +217,20 @@ export class Dungeon extends TileMap {
       // Langsame Helligkeitswellen über die Fläche, damit das Kachelmuster nicht gleichförmig pulsiert
       ctx.globalAlpha = this.#flow(c, time);
       ctx.drawImage(L.glowTile ? L.glowTile(c.x, c.y, f, c.m) : L.glow[f], Math.round(px), Math.round(py));
+    }
+    // Widerschein: Uferzellen organischer Lava werfen einen weichen, warmen Schein auf den
+    // umliegenden Boden (sonst wirkt der unbeleuchtete Boden um das Becken wie ein dunkler Rahmen)
+    if (L.glowTile && L.shade) {
+      const halo = lavaHalo();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const c of this.liquidCells) {
+        if (!c.m) continue;
+        const px = c.x * T - cx + T / 2, py = c.y * T - cy + T / 2;
+        if (px < -40 || py < -40 || px > W + 40 || py > H + 40) continue;
+        ctx.globalAlpha = 0.55 * this.#flow(c, time);
+        ctx.drawImage(halo, Math.round(px - halo.width / 2), Math.round(py - halo.height / 2));
+      }
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
   }

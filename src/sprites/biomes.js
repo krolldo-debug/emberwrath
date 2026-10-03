@@ -728,6 +728,36 @@ export function makeLava({ seed, crust, emb, wall, grout, cell: GS = 21, open = 
 export function paintLavaShore(ctx, map, { wall, crust, emb, grout, seed = 5 }) {
   const lav = (x, y) => map.isLiquid(x, y);
   const ls = map.biomeTiles?.liquid?.seed ?? seed;
+  // Echter Abstand (px) zur Lava-Uferlinie: lavaDepth ist nur ~7 px weit genau und läuft danach in einen
+  // Sättigungswert; damit füllten Saum und Schlackensprenkel bisher ganze Nachbarkacheln und brachen an
+  // der Kachelgrenze ab – ein dunkler, treppiger Rechteckrahmen um jedes Becken. Daher Abstandsfeld
+  // (Chamfer 3-4, zwei Durchläufe) über das Gebiet um die Lavazellen.
+  let bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1;
+  for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (lav(x, y)) { bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x); by1 = Math.max(by1, y); }
+  if (bx1 < 0) return;
+  bx0 = Math.max(0, bx0 - 2); by0 = Math.max(0, by0 - 2); bx1 = Math.min(map.w - 1, bx1 + 2); by1 = Math.min(map.h - 1, by1 + 2);
+  const DW = (bx1 - bx0 + 1) * T, DH = (by1 - by0 + 1) * T, OX = bx0 * T, OY = by0 * T;
+  const dist = new Float32Array(DW * DH).fill(999);
+  for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+    if (!lav(x, y)) continue;
+    for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
+      const wx = x * T + u, wy = y * T + v;
+      if (lavaDepth(lav, wx, wy, ls) >= 0) dist[(wy - OY) * DW + (wx - OX)] = 0;
+    }
+  }
+  for (let y = 0; y < DH; y++) for (let x = 0; x < DW; x++) {
+    const i = y * DW + x; let d = dist[i];
+    if (x > 0) d = Math.min(d, dist[i - 1] + 3);
+    if (y > 0) { d = Math.min(d, dist[i - DW] + 3); if (x > 0) d = Math.min(d, dist[i - DW - 1] + 4); if (x < DW - 1) d = Math.min(d, dist[i - DW + 1] + 4); }
+    dist[i] = d;
+  }
+  for (let y = DH - 1; y >= 0; y--) for (let x = DW - 1; x >= 0; x--) {
+    const i = y * DW + x; let d = dist[i];
+    if (x < DW - 1) d = Math.min(d, dist[i + 1] + 3);
+    if (y < DH - 1) { d = Math.min(d, dist[i + DW] + 3); if (x < DW - 1) d = Math.min(d, dist[i + DW + 1] + 4); if (x > 0) d = Math.min(d, dist[i + DW - 1] + 4); }
+    dist[i] = d;
+  }
+  const far = (wx, wy) => dist[(wy - OY) * DW + (wx - OX)] / 3;
   for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
     const k = map.wallKind(x, y);
     if (k !== 'floor' && k !== 'liquid') continue;
@@ -737,21 +767,22 @@ export function paintLavaShore(ctx, map, { wall, crust, emb, grout, seed = 5 }) 
       const wx = x * T + u, wy = y * T + v;
       const sd = lavaDepth(lav, wx, wy, ls);
       if (sd >= 0) continue;                                          // Lava selbst
-      const e = -sd + (vnoise(wx, wy, 4, seed) - 0.5) * 1.2;
+      const e = Math.max(-sd, far(wx, wy) - 0.5) + (vnoise(wx, wy, 4, seed) - 0.5) * 1.2;
       // Richtung zur Lava: liegt sie südlich (vor dem Pixel), ist die Kante beleuchtet
       const gx = lavaDepth(lav, wx + 2, wy, ls) - lavaDepth(lav, wx - 2, wy, ls);
       const gy = lavaDepth(lav, wx, wy + 2, ls) - lavaDepth(lav, wx, wy - 2, ls);
       const below = gy > 0 && Math.abs(gy) >= Math.abs(gx) * 0.6;
       let col = null;
-      if (-sd < 1) col = below ? wall[5] : wall[2];                  // Kante: vorn Lichtkante, hinten Schatten
-      else if (e < 3.6) {
-        // Bordsteine entlang des Ufers (Fugen quer zur Uferlinie)
+      if (-sd < 1) col = below ? wall[5] : wall[4];                  // Kante: vorn Lichtkante, sonst von der Glut angestrahlt
+      else if (e < 2.8) {
+        // schmale Bordsteine entlang des Ufers (Fugen quer zur Uferlinie), von der Lava warm angestrahlt
         const along = Math.abs(gy) >= Math.abs(gx) ? wx : wy;
-        col = (along + (below ? 0 : 3)) % 6 === 0 ? grout : e < 1.9 && below ? wall[5] : hash2(wx, wy, 51) < 0.25 ? wall[3] : wall[4];
-      } else if (e < 4.4) col = wall[1];
-      else if (e < 9 && hash2(wx, wy, 53) < 0.5 * (1 - (e - 4.4) / 4.6)) col = hash2(wx, wy, 54) < 0.12 ? emb[1] : hash2(wx, wy, 55) < 0.5 ? crust[3] : crust[2];
+        col = (along + (below ? 0 : 3)) % 6 === 0 ? grout : e < 1.6 ? (hash2(wx, wy, 52) < 0.3 ? crust[4] : wall[5]) : hash2(wx, wy, 51) < 0.25 ? wall[3] : wall[4];
+      } else if (e < 3.4) col = wall[2];
+      else if (e < 7 && hash2(wx, wy, 53) < 0.28 * (1 - (e - 3.4) / 3.6)) col = hash2(wx, wy, 54) < 0.2 ? emb[1] : crust[4];
       if (col) { ctx.fillStyle = col; ctx.fillRect(wx, wy, 1, 1); }
-      else if (e < 12) { ctx.fillStyle = `rgba(90,24,8,${(0.22 * (1 - (e - 4.4) / 7.6)).toFixed(3)})`; ctx.fillRect(wx, wy, 1, 1); }
+      // warmer Widerschein auf dem Boden statt dunklem Saum, weich auslaufend
+      if (!col || e >= 3.4) if (e < 11) { ctx.fillStyle = `rgba(150,52,16,${(0.2 * (1 - Math.max(0, e - 3.4) / 7.6)).toFixed(3)})`; ctx.fillRect(wx, wy, 1, 1); }
     }
   }
 }

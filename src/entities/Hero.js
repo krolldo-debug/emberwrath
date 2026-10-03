@@ -501,7 +501,10 @@ export class Hero extends Actor {
     const dx = Math.cos(this.aimAngle), dy = Math.sin(this.aimAngle);
     this.vx = -dx * 20; this.vy = -dy * 20;
     const P = this.stats.passives ?? {};
-    const dmg = this.damageFor(a.mult);
+    // early: Bonus auf niedrigen Stufen, läuft zwischen from und to auf 0 aus (Waldläufer vor Mehrfachschuss)
+    const E = a.early, lv = this.level ?? 1;
+    const early = E ? E.pct * Math.max(0, Math.min(1, (E.to - lv) / (E.to - E.from))) : 0;
+    const dmg = this.damageFor(a.mult * (1 + early));
     const opts = { speed: a.speed, damage: dmg, knockback: a.knockback, range: a.range };
     if (a.projectile === 'arrow' && P.piercing_arrows) opts.pierce = 1;
     const ms = this.stats.mastery ?? {};

@@ -11,11 +11,11 @@ const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('de-DE', { day: '2-di
 const fmtDateTime = (s) => (s ? new Date(s).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
 const PROVIDER = { email: 'E-Mail', google: 'Google' };
 // Auffälligkeiten aus der Spielstand-Prüfung (supabase/migrations/20261003130000_spielstand_pruefung.sql)
-const FLAG_REASON = { stufe: 'Stufe zu schnell gestiegen', gold: 'Gold zu schnell gestiegen', spielzeit: 'Spielzeit schneller als echte Zeit', grenze: 'Außerhalb der Grenzen' };
+const FLAG_REASON = { stufe: 'Stufe zu schnell gestiegen', gold: 'Gold zu schnell gestiegen', spielzeit: 'Spielzeit schneller als echte Zeit', grenze: 'Außerhalb der Grenzen', neu: 'Neuer Charakter nicht im Startstand' };
 const FLAGS_PAGE = 200;
 const fmtNum = (n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('de-DE') : '?');
 const fmtMin = (sec) => `${fmtNum(Math.round(Number(sec) / 60))} min`;
-// detail: { level, gold } (grenze) oder { level: [alt, neu], gold: [alt, neu], playTime: [alt, neu], realSeconds }
+// detail: { level, gold } (grenze), { level, gold, playTime } (neu) oder { level: [alt, neu], gold: [alt, neu], playTime: [alt, neu], realSeconds, verified }
 function flagDetail(d = {}) {
   const pair = (v, f) => (Array.isArray(v) ? `${f(v[0])} → ${f(v[1])}` : f(v));
   const parts = [];
