@@ -143,7 +143,7 @@ export class PlayScene {
     const a = b.actor;
     if (Math.abs(a.x - hero.x) > 320 || Math.abs(a.y - hero.y) > 260) return y;
     const want = Math.min(y, (hero.y + a.y - (a.bodyHeight ?? 32) * 1.6) / 2);
-    return Math.max(want, hero.y - CONFIG.viewHeight / 2 + 34);
+    return Math.max(want, hero.y - CONFIG.viewHeight / 2 + 70); // Held hat Vorrang: Füße bleiben über der Aktionsleiste
   }
 
   hitstop(t) { this.hitstopTime = Math.max(this.hitstopTime, t); }

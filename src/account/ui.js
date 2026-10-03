@@ -26,6 +26,7 @@ export function localNotice(game, { compact = false } = {}) {
 export function requireOnlineAccount(game) {
   const o = game.online;
   if (!o?.user) { if (o) o.open('login'); else game.scenes.go('title'); return false; }
+  if (o.needsConsent?.()) { o.open('consent'); return false; }
   if (game.account?.id !== o.accountId) { o.sync.ensureLocalAccount(o.user); game.login(o.accountId); }
   return true;
 }

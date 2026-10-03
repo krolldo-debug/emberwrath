@@ -81,6 +81,12 @@ check(await b.evaluate(() => document.querySelector('.on-google').offsetParent !
 await b.click('.on-google'); await wait(1200);
 check((await text(b)).includes('Gustav Google') && (await text(b)).includes('Google'), 'Google-Anmeldung über Rückleitung');
 await b.click('text=Spielen'); await wait(300);
+// Google-Konten haben beim ersten Mal kein Häkchen gesetzt: Zustimmung wird einmal nachgeholt und vermerkt
+check((await text(b)).includes('Zustimmen und spielen') && (await text(b)).includes('ab 12 Jahren; unter 18 nur mit Zustimmung der Eltern'), 'Google-Konto: Zustimmung wird vor dem Spielen abgefragt');
+await b.click('text=Zustimmen und spielen'); await wait(300);
+check((await text(b)).includes('Bitte bestätige die Nutzungsbedingungen'), 'ohne Häkchen kein Weiter');
+await b.check('.on-check input'); await b.click('text=Zustimmen und spielen'); await wait(800);
+{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='googleuser@example.com'"); check(m[0]?.v === '2026-10' && (await text(b)).includes('Dein erster Held'), 'Zustimmung des Google-Kontos vermerkt, weiter zur Charakterauswahl: ' + JSON.stringify(m)); }
 await b.evaluate(() => window.emberfall.newGame({ character: { name: 'Bruno', raceId: 'dwarf', classId: 'warrior' } }));
 await wait(3500);
 const peek = await b.evaluate(async () => { const c = window.emberfall.online.client; const own = await c.rest('/characters?select=id'); let admin; try { await c.rpc('admin_stats'); admin = 'erlaubt'; } catch (e) { admin = e.message; } return { own: own.length, admin }; });

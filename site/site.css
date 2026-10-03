@@ -191,6 +191,7 @@ section { position: relative; }
 .news-list img.item { margin: 0; border: 2px solid var(--legend); background: #1a0c08; box-shadow: 0 0 14px rgba(255, 140, 40, 0.35); }   /* 52 + Rahmen = 56, wie 48er-Symbol + Rand */
 .news-list b { display: block; margin: 2px 0 6px; font: 700 18px/1.25 var(--font-title); color: #fbe9c6; }
 .news-list p { margin: 0; font-size: 15px; color: var(--soft); }
+.news-list time { display: block; font: 600 12px/1.2 var(--font); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ember); }
 @media (max-width: 900px) { .news-list { grid-template-columns: 1fr; } }
 .socials { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .social { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 14px;
