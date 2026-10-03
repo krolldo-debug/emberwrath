@@ -21,7 +21,7 @@ export function mint(sub, email, { alg = 'ES256', ttl = 3600 } = {}) {
 }
 const log = [];
 // Nachgebautes PostgREST für die Chat-Moderation (worker/moderation.js): Meldungen sammeln, Sperren ausliefern
-const rest = { reports: [], mutes: [], fail: false };
+const rest = { reports: [], mutes: [], chars: [], fail: false };
 const body = (req) => new Promise((r) => { let d = ''; req.on('data', (c) => { d += c; }); req.on('end', () => r(d ? JSON.parse(d) : null)); });
 http.createServer((req, res) => {
   const u = new URL(req.url, BASE);
@@ -43,8 +43,13 @@ http.createServer((req, res) => {
     const uid = (u.searchParams.get('user_id') || '').replace('eq.', '');
     return send(200, rest.mutes.filter((m) => m.user_id === uid && Date.parse(m.until) > Date.now()).slice(0, 1));
   }
+  if (u.pathname === '/rest/v1/characters') {
+    const uid = (u.searchParams.get('user_id') || '').replace('eq.', ''), id = (u.searchParams.get('id') || '').replace('eq.', '');
+    return send(200, rest.chars.filter((c) => c.user_id === uid && c.id === id).map(({ name, level }) => ({ name, level })));
+  }
+  if (u.pathname === '/test/char') { rest.chars.push({ user_id: u.searchParams.get('uid'), id: u.searchParams.get('id'), name: u.searchParams.get('name'), level: Number(u.searchParams.get('level')) }); return send(200, {}); }
   if (u.pathname === '/test/reports') return send(200, rest.reports);
-  if (u.pathname === '/test/reset') { Object.assign(rest, { reports: [], mutes: [], fail: false }); return send(200, {}); }
+  if (u.pathname === '/test/reset') { Object.assign(rest, { reports: [], mutes: [], chars: [], fail: false }); return send(200, {}); }
   if (u.pathname === '/test/fail') { rest.fail = u.searchParams.get('on') === '1'; return send(200, { fail: rest.fail }); }
   if (u.pathname === '/test/mute') { rest.mutes.push({ user_id: u.searchParams.get('uid'), until: new Date(Date.now() + 3600e3).toISOString(), reason: u.searchParams.get('reason') || '' }); return send(200, {}); }
   send(404, {});

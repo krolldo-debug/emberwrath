@@ -49,6 +49,10 @@ export class ModerationUi {
     this.offs = [
       client.on('reported', (m) => this.#ack(m)),
       client.on('notice', (m) => {
+        if (m.kind === 'name') {
+          this.onSystem(`Dein Charaktername ist hier nicht erlaubt (${m.reason === 'reserviert' ? 'für das Team reserviert' : 'anstößig'}). Andere sehen dich als „${m.name}“. Um ihn zu ändern, wende dich an den Support.`);
+          return;
+        }
         if (m.kind !== 'muted') return;
         const until = new Date(m.until);
         const when = Number.isFinite(until.getTime()) ? until.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : 'auf Weiteres';

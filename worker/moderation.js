@@ -38,3 +38,13 @@ export async function activeMute(env, uid) {
     return rows?.[0] ? { until: rows[0].until, reason: rows[0].reason ?? '' } : null;
   } catch { return null; }
 }
+
+// Gespeicherter Charakter (Name, Stufe) -> { name, level } | null. Quelle für das, was andere Spieler sehen:
+// der Client darf Name und Stufe nicht frei behaupten. null bei unbekannt, fehlendem Secret oder Störung.
+export async function loadCharacter(env, uid, charId) {
+  if (!moderationReady(env) || !/^[0-9a-f-]{36}$/i.test(uid) || !/^[A-Za-z0-9_-]{1,64}$/.test(String(charId ?? ''))) return null;
+  try {
+    const rows = await db(env, `characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(charId)}&select=name,level&limit=1`);
+    return rows?.[0] ? { name: String(rows[0].name ?? ''), level: Number(rows[0].level) || 1 } : null;
+  } catch { return null; }
+}

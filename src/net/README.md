@@ -79,10 +79,21 @@ Eingehende WebSocket-Nachrichten zählen 20:1 als Anfrage; ausgehende sind frei.
 - Braucht das Worker-Secret `SUPABASE_SERVICE_ROLE_KEY` (dasselbe wie für Newsletter/Support) und die Migration oben im
   Supabase-SQL-Editor. Gelöscht werden erledigte Meldungen nach 180 Tagen über `cleanup_chat_moderation()`.
 
+## Name, Stufe und Weltplätze
+
+- Name und Stufe, die andere sehen, lädt der Welt-Server aus dem gespeicherten Charakter (`characters`, per
+  `SUPABASE_SERVICE_ROLE_KEY`). Die Stufe darf eine über dem Speicherstand liegen (Aufstieg seit dem letzten Autosave),
+  nie über `LEVEL_MAX` (40, `protocol.js`). Ohne Speicherstand (neuer Charakter, Störung) gelten die Client-Angaben, geprüft.
+- `names.js` (`nameProblem`) sperrt Team-Namen (Admin, Support, GM, Emberwrath …, auch mit Zeichen-Tricks) und anstößige
+  Namen. Andere sehen dann „Abenteurer XXXX“, die Person bekommt einen Hinweis. Dieselbe Prüfung eignet sich für die
+  Charaktererstellung.
+- Ein Weltplatz zählt erst, wenn der Shard den Spieler nach geprüfter Anmeldung angenommen hat. Je Adresse sind höchstens
+  4 noch nicht angemeldete Verbindungen pro Shard offen; nach 10 s ohne Anmeldung wird getrennt.
+
 ## Test
 
 `worker`-Protokolltest (Node + ws) und Browsertest (Playwright, 6 Spieler inkl. Handy hoch/quer) gegen `wrangler dev`
 mit nachgebautem Supabase-Auth; siehe Commit-Beschreibung. Befehl lokal:
 `npx wrangler dev --var SUPABASE_URL:http://127.0.0.1:54399 --var SHARD_CAPACITY:3`.
-Moderation: `worker/test/moderation.mjs` und `worker/test/browser-moderation.mjs` (mockauth.mjs bildet dafür auch
+Moderation und Identität: `worker/test/moderation.mjs`, `worker/test/identity.mjs` und `worker/test/browser-moderation.mjs` (mockauth.mjs bildet dafür auch
 `chat_reports`/`chat_mutes` nach); zusätzlich `--var SUPABASE_SERVICE_ROLE_KEY:sb_secret_test`.

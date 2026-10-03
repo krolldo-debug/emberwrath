@@ -6,25 +6,23 @@ import { MAX_WORLDS } from '../src/net/protocol.js';
 // STALE_MS gelten als leer. Die Zahlen sind ein Hinweis: die Obergrenze prüft der Shard selbst („full“ → nächste Welt).
 // Gehalten wird alles im Speicher; nach einem Neustart füllt es sich über die Meldungen von selbst wieder.
 const STALE_MS = 150_000;
-const RESERVE_MS = 15_000;
 
 export class Directory extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.zones = new Map(); // zoneId -> Map(world -> { n, at, reserved: [ms] })
+    this.zones = new Map(); // zoneId -> Map(world -> { n, at })
   }
 
   #entry(zone, world) {
     let z = this.zones.get(zone);
     if (!z) this.zones.set(zone, (z = new Map()));
     let e = z.get(world);
-    if (!e) z.set(world, (e = { n: 0, at: 0, reserved: [] }));
+    if (!e) z.set(world, (e = { n: 0, at: 0 }));
     return e;
   }
 
   #count(e, now) {
-    e.reserved = e.reserved.filter((t) => now - t < RESERVE_MS);
-    return (now - e.at < STALE_MS ? e.n : 0) + e.reserved.length;
+    return now - e.at < STALE_MS ? e.n : 0;
   }
 
   #list(zone, cap, now) {
@@ -48,13 +46,15 @@ export class Directory extends DurableObject {
       if (!skip.has(w) && this.#count(this.#entry(zone, w), now) < cap) world = w;
     }
     world ??= 1 + Math.floor(Math.random() * MAX_WORLDS);
-    this.#entry(zone, world).reserved.push(now);
+    // Kein Platz wird hier belegt: zu diesem Zeitpunkt ist die Anmeldung noch nicht geprüft. Gezählt wird ein Spieler
+    // erst, wenn der Shard ihn angenommen hat und seine neue Spielerzahl meldet (direkt nach „welcome“). Kommen viele gleichzeitig,
+    // antwortet der Shard über der Obergrenze mit „full“ und der Client nimmt die nächste Welt.
     return { world, worlds: this.#list(zone, cap, now) };
   }
 
   report(zone, world, n) {
     const e = this.#entry(zone, world);
-    e.n = n; e.at = Date.now(); e.reserved = [];
+    e.n = n; e.at = Date.now();
     if (n === 0 && world !== 1) this.zones.get(zone)?.delete(world);
   }
 
