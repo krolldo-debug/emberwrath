@@ -118,7 +118,7 @@ export class PlayScene {
     this.pendingTravel = null;
     // Unbekanntes Ziel (z. B. Gebiet eines noch nicht eingespielten Bereichs): stehen bleiben statt neu zu laden.
     if (!this.content.find('zone', zoneId)) {
-      this.bus.emit(EV.UI_TOAST, { text: 'Dieses Gebiet ist in diesem Stand noch nicht erreichbar.', kind: 'warn' });
+      this.bus.emit(EV.UI_TOAST, { text: 'Dieser Weg ist versiegelt.', kind: 'warn' });
       return;
     }
     this.bus.emit(EV.ZONE_LEAVE, { zoneId: this.zone.zoneId });

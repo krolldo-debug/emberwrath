@@ -1,6 +1,6 @@
 {
   "name": "emberfall",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Emberwrath – Online-Action-RPG in Pixel-Art (dunkle Fantasy) für Browser und Handy.",
   "type": "module",

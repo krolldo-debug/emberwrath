@@ -70,6 +70,7 @@
 .ef-badge { border-radius: 2px; }
 .ef-icon { image-rendering: pixelated; image-rendering: crisp-edges; display: inline-block; vertical-align: middle; }
 .ef-panel-host { animation: ef-fade 0.14s ease-out; }
+.ef-panel-host:focus { outline: none; }
 .ef-panel-host > .ef-panel { animation: ef-pop 0.16s ease-out; }
 @keyframes ef-fade { from { opacity: 0; } }
 @keyframes ef-pop { from { transform: translateY(6px) scale(0.98); opacity: 0; } }

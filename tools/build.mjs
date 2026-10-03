@@ -43,7 +43,8 @@ for (const m of modules.values()) {
 // Titelbild-Fuß und unter /version.json – so lässt sich prüfen, welche Version live ausgeliefert wird.
 let commit = process.env.WORKERS_CI_COMMIT_SHA ?? '';
 if (!commit) { try { commit = execSync('git rev-parse HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { commit = ''; } }
-const build = { commit: commit ? commit.slice(0, 7) : 'lokal', builtAt: new Date().toISOString() };
+const pkgVersion = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
+const build = { version: pkgVersion, commit: commit ? commit.slice(0, 7) : 'lokal', builtAt: new Date().toISOString() };
 
 let bundle = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
 bundle += 'const __defs = {}, __cache = {};\n';
