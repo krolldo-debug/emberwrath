@@ -69,7 +69,7 @@ export class NetSession {
       c.on('leave', (m) => { this.#remove(m.id); this.hud.population(this.remotes.size); }),
       c.on('u', (m) => { const now = performance.now(); for (const s of m.s ?? []) this.remotes.get(s[0])?.push(s.slice(1), now); }),
       c.on('look', (m) => this.#setLook(m.id, m.look, m.level)),
-      c.on('chat', (m) => this.hud.chat(m, m.id === c.selfId)),
+      c.on('chat', (m) => { const r = this.remotes.get(m.id); this.hud.chat(m, m.id === c.selfId, r ? { id: r.netId, k: r.k, name: r.name } : { id: m.id, name: m.name }); }),
       c.on('resync', () => { this.lookJson = ''; this.lastSent = null; }),
       c.on('disconnected', () => this.#clear()),
       c.on('status', (e) => this.hud.status(e, this.remotes.size)),

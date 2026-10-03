@@ -15,6 +15,7 @@ export class RemotePlayer extends Entity {
   constructor(info) {
     super(info.s?.[0] ?? 0, info.s?.[1] ?? 0);
     this.netId = info.id;
+    this.k = info.k ?? null; // dauerhafter Schlüssel des Kontos (Ignorieren)
     this.name = info.name ?? '';
     this.level = info.level ?? 1;
     this.look = info.look ?? null;

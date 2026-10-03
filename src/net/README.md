@@ -61,8 +61,28 @@ Eingehende WebSocket-Nachrichten zählen 20:1 als Anfrage; ausgehende sind frei.
 - Darüber hinaus: Workers Paid (5 $/Monat, 1 Mio. Anfragen + 400 000 GB-s inklusive). Ist das Gratis-Kontingent eines
   Tages aufgebraucht, läuft das Spiel weiter, nur ohne andere Spieler (Anzeige „neuer Versuch …“) bis zum nächsten Tag.
 
+## Chat-Moderation (DSA Art. 16/17)
+
+- **Wortfilter** (`chatFilter.js`) läuft auf dem Welt-Server für jede Nachricht: grobe Beleidigungen und Hassbegriffe
+  werden zu Sternchen, Links zu „[Link entfernt]“, gesperrt geschriebene Begriffe oder Drohwendungen entfernen die ganze
+  Nachricht. Liste bewusst kurz; für alles andere gibt es „Melden“.
+- **Melden**: Name im Chat oder in der Spielerliste des Weltfensters anklicken → Grund, Beschreibung, Bestätigung „in
+  gutem Glauben“. Der Server hängt die letzten 10 Nachrichten der gemeldeten Person selbst an (Original + gefilterte
+  Anzeige), speichert in `chat_reports` (Migration `supabase/migrations/20261003120000_chat_meldungen.sql`) und
+  bestätigt den Eingang. Höchstens 6 Meldungen je Spieler in 10 Minuten. Wer das Gebiet gerade verlassen hat, kann noch
+  10 Minuten gemeldet werden. Ist Supabase gestört oder fehlt das Secret, bleibt die Meldung im Speicher des Shards und
+  wird beim nächsten Alarm (alle 60 s) nachgesendet.
+- **Ignorieren** wirkt auf dem Gerät: gespeichert wird der anonyme Schlüssel `k` (aus der Konto-ID abgeleitet, verrät
+  sie nicht), damit es über Gebiete, Welten und Neuladen hinweg gilt.
+- **Verwaltung**: `AdminReports.js` (`renderChatReports(client)`) zeigt Meldungen mit Beleg; Erledigt/Ablehnen mit
+  Begründung, Chatsperre 24 h/7/30 Tage, Sperre aufheben. Die Sperre gilt beim nächsten Betreten eines Gebiets.
+- Braucht das Worker-Secret `SUPABASE_SERVICE_ROLE_KEY` (dasselbe wie für Newsletter/Support) und die Migration oben im
+  Supabase-SQL-Editor. Gelöscht werden erledigte Meldungen nach 180 Tagen über `cleanup_chat_moderation()`.
+
 ## Test
 
 `worker`-Protokolltest (Node + ws) und Browsertest (Playwright, 6 Spieler inkl. Handy hoch/quer) gegen `wrangler dev`
 mit nachgebautem Supabase-Auth; siehe Commit-Beschreibung. Befehl lokal:
 `npx wrangler dev --var SUPABASE_URL:http://127.0.0.1:54399 --var SHARD_CAPACITY:3`.
+Moderation: `worker/test/moderation.mjs` und `worker/test/browser-moderation.mjs` (mockauth.mjs bildet dafür auch
+`chat_reports`/`chat_mutes` nach); zusätzlich `--var SUPABASE_SERVICE_ROLE_KEY:sb_secret_test`.

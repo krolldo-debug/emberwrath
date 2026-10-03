@@ -1,8 +1,11 @@
 import { h } from '../core/dom.js';
 import { NET_PATH, CHAT_MAX } from './protocol.js';
+import { IgnoreList, ModerationUi } from './Moderation.js';
 
 // HUD des Mehrspielers: Welt und Spielerzahl unter dem Zonennamen (Klick: Welt wechseln) und der Zonen-Chat.
 // Chat: Enter öffnet/sendet, Escape schließt; auf Touch-Geräten über den Sprechblasen-Knopf.
+// Bei offenem Chat öffnet ein Klick auf einen Namen „Melden“ / „Ignorieren“ (Moderation.js); dasselbe über die
+// Spielerliste im Weltfenster (auch für Spieler, die nichts geschrieben haben, z. B. wegen ihres Namens).
 const LOG_MAX = 60;
 const FADE_MS = 20_000;
 
@@ -35,12 +38,14 @@ export class NetHud {
     this.chatBtn.hidden = true;
     this.root.append(this.chatEl, this.chatBtn, this.popup);
     this.open = false;
-    this.input.addEventListener('keydown', (e) => {
-      // Tasten im Chat gehören dem Chat (auch Escape, sonst öffnet sich das Spielmenü)
+    this.ignore = net.ignore ??= new IgnoreList();
+    this.mod = new ModerationUi({ root: this.root, client: this.client, ignore: this.ignore, onSystem: (t) => this.system(t), input: session.input });
+    this.chatEl.addEventListener('keydown', (e) => {
+      // Tasten im Chat (Eingabe und Namen im Verlauf) gehören dem Chat (auch Escape, sonst öffnet sich das Spielmenü)
       e.stopPropagation();
       if (e.key === 'Escape') { e.preventDefault(); this.close(); }
     });
-    this.input.addEventListener('keyup', (e) => e.stopPropagation());
+    this.chatEl.addEventListener('keyup', (e) => e.stopPropagation());
     this.onKey = (e) => {
       if (e.key !== 'Enter' || e.repeat || this.open || this.chatEl.hidden) return;
       const t = e.target;
@@ -57,6 +62,7 @@ export class NetHud {
   // Badge sitzt unter „Offenes Gebiet“ im Zonenblock des HUD (Bereich D); sobald der da ist, einhängen.
   update() {
     if (!this.chatEl.isConnected) this.root.append(this.chatEl, this.chatBtn, this.popup);
+    this.mod.attach();
     if (!this.badge.isConnected) this.root.querySelector('.hud-zone-sub')?.after(this.badge);
     const now = Date.now();
     if (!this.open) for (const el of this.log.children) if (!el.classList.contains('old') && now - el._at > FADE_MS) el.classList.add('old');
@@ -94,9 +100,13 @@ export class NetHud {
     this.badge.dataset.status = c.status;
   }
 
-  chat(m, own) {
-    const line = h('div.net-line', h('span.net-name', { class: own ? 'net-name own' : 'net-name' }, `${m.name}:`), ' ', h('span.net-text', m.text));
-    this.#push(line);
+  // player = { id, k, name } des Absenders (k fehlt bei eigenen Nachrichten)
+  chat(m, own, player = null) {
+    if (!own && player?.k && this.ignore.has(player.k)) return;
+    const name = own || !player
+      ? h('span.net-name', { class: own ? 'net-name own' : 'net-name' }, `${m.name}:`)
+      : h('button.net-name', { type: 'button', title: `${m.name}: melden oder ignorieren`, onclick: (e) => this.mod.openMenu(player, e.currentTarget) }, `${m.name}:`);
+    this.#push(h('div.net-line', name, ' ', h('span.net-text', m.text)));
   }
 
   system(text) { this.#push(h('div.net-line.sys', text)); }
@@ -157,13 +167,22 @@ export class NetHud {
         onclick: () => { this.popup.hidden = true; this.system(`Wechsle in Welt ${w.world} …`); c.switchWorld(w.world); },
       }, h('span', `Welt ${w.world}`), h('span.net-worlds-n', mine ? `${w.n} · du bist hier` : full ? 'voll' : `${w.n} / ${w.cap}`));
     });
+    const people = [...(this.net.session?.remotes?.values() ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    const plist = people.length ? [
+      h('div.net-worlds-head.sub', `Spieler in diesem Gebiet (${people.length})`),
+      h('div.net-plist', people.slice(0, 40).map((r) => h('button.net-plist-row', {
+        type: 'button', title: 'Melden oder ignorieren',
+        onclick: (e) => this.mod.openMenu({ id: r.netId, k: r.k, name: r.name }, e.currentTarget),
+      }, h('span', r.name), h('span.net-worlds-n', `${this.ignore.has(r.k) ? 'ignoriert · ' : ''}Stufe ${r.level}`)))),
+    ] : [];
     const note = h('div.net-worlds-note', `Jede Welt fasst bis zu ${c.cap || 40} Spieler je Gebiet. Ist eine voll, öffnet sich automatisch die nächste.`);
-    this.popup.replaceChildren(h('div.net-worlds-head', 'Welten'), ...rows, note);
+    this.popup.replaceChildren(h('div.net-worlds-head', 'Welten'), ...rows, note, ...plist);
   }
 
   dispose() {
     window.removeEventListener('keydown', this.onKey);
     document.removeEventListener('pointerdown', this.onDocClick);
+    this.mod.dispose();
     this.badge.remove(); this.chatEl.remove(); this.chatBtn.remove(); this.popup.remove();
   }
 }

@@ -7,14 +7,18 @@
 //   hello { v, token, zone, world, char: { id, name, level }, look, s }   erste Nachricht, sonst nichts
 //   s     { s: [x, y, f, a, n, fl, t] }                                    eigener Zustand (höchstens SEND_HZ, nur bei Änderung)
 //   look  { level, look }                                                   Stufe/Aussehen/Ausrüstung/Reittier geändert
-//   chat  { text }                                                          Zonen-Chat
+//   chat  { text }                                                          Zonen-Chat (Server filtert, chatFilter.js)
+//   report { id, reason, note, goodFaith }                                  Spieler melden (DSA Art. 16), reason: REPORT_REASONS
 //   'ping' (reiner Text)                                                    Lebenszeichen, Server antwortet 'pong'
 // Server -> Client
-//   welcome { v, id, zone, world, cap, players: [Spieler] }                 Spieler = { id, name, level, look, s }
+//   welcome { v, id, k, zone, world, cap, players: [Spieler] }              Spieler = { id, k, name, level, look, s }
+//                                                                          k = dauerhafter Schlüssel des Kontos (Ignorieren)
 //   join    { p: Spieler }      leave { id }
 //   u       { s: [[id, x, y, f, a, n, fl, t], …] }                           geänderte Zustände seit dem letzten Paket
 //   look    { id, level, look } chat { id, name, text, at }
 //   full    { zone, world }     Shard voll -> Client fragt die nächste Welt an
+//   reported { id, ok, error }  Eingangsbestätigung einer Meldung ('rate' | 'reason' | 'target')
+//   notice  { kind: 'muted', until, reason }   Chatsperre (Nachricht wurde nicht verteilt)
 //   bye     { reason }          'replaced' (neue Verbindung desselben Kontos) | 'auth' | 'version' | 'kick'
 //
 // Zustand s = [x, y, f, a, n, fl, t]
@@ -43,6 +47,11 @@ export const FLAG_RIDING = 2;
 export const FLAG_COMBAT = 4;
 
 export const CHAT_MAX = 160;
+export const REPORT_NOTE_MAX = 500;
+export const REPORT_REASON_LABELS = {
+  beleidigung: 'Beleidigung oder Belästigung', hass: 'Hass, Hetze oder Drohung', spam: 'Spam oder Werbung',
+  betrug: 'Betrug oder Schummeln', name: 'Anstößiger Name', sonstiges: 'Etwas anderes (bitte beschreiben)',
+};
 export const NAME_MAX = 24;
 export const LOOK_MAX_BYTES = 6000;
 

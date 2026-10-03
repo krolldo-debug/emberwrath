@@ -70,3 +70,67 @@
 .ef-touch .net-chat-log { max-height: 5.6em; }
 .ef-portrait .net-chat-btn { top: calc(env(safe-area-inset-top, 0px) + 84px); left: 8px; width: 36px; height: 36px; }
 .ef-portrait #ui .net-chat { top: calc(env(safe-area-inset-top, 0px) + 126px); bottom: auto; left: 8px; width: min(300px, 62vw); }
+
+/* Moderation: Namen im Chat, Spielerliste, Menü „Melden/Ignorieren“, Meldedialog (Moderation.js) */
+button.net-name { font: inherit; font-weight: 700; color: #9fd8ff; background: none; border: 0; padding: 0; cursor: pointer; text-shadow: inherit; }
+button.net-name:hover, button.net-name:focus-visible { text-decoration: underline; text-underline-offset: 2px; outline: none; }
+.net-chat:not(.open) button.net-name { pointer-events: none; }
+.net-worlds-head.sub { font-size: 13px; margin-top: 6px; }
+.net-plist { display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
+.net-plist-row {
+  display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; min-height: 30px; align-items: center;
+  font: inherit; color: var(--ef-text); text-align: left; cursor: pointer; background: rgba(28, 16, 36, 0.9); border: 1px solid #3a2618; border-radius: 2px;
+}
+.net-plist-row:hover { border-color: var(--ef-gold); }
+#ui .net-pmenu {
+  position: fixed; inset: auto; z-index: 5; pointer-events: auto; min-width: 180px; padding: 6px; display: flex; flex-direction: column; gap: 4px;
+  font: 400 13px/1.3 var(--ef-font); color: var(--ef-text);
+  background: rgba(14, 8, 22, 0.97); border: 2px solid var(--ef-panel-edge); box-shadow: 0 0 0 2px #0b0710, 0 10px 28px rgba(0, 0, 0, 0.7);
+}
+.net-pmenu[hidden] { display: none !important; }
+.net-pmenu-name { color: #9fd8ff; font-weight: 700; padding: 2px 4px 4px; border-bottom: 1px solid rgba(184, 134, 42, 0.45); }
+.net-pmenu-btn { font: inherit; color: var(--ef-text); text-align: left; padding: 7px 8px; min-height: 34px; cursor: pointer; background: linear-gradient(180deg, #2c1c36, #1c1024); border: 1px solid #4a3020; border-radius: 2px; }
+.net-pmenu-btn:hover:not(:disabled), .net-pmenu-btn:focus-visible { border-color: var(--ef-gold); outline: none; }
+#ui .net-report-wrap { position: fixed; inset: 0; z-index: 6; pointer-events: auto; display: grid; place-items: center; background: rgba(5, 2, 10, 0.6); padding: 12px; }
+.net-report {
+  width: min(440px, 100%); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+  font: 400 14px/1.4 var(--ef-font); color: var(--ef-text);
+}
+.net-report-head { font-family: var(--ef-font-title); color: var(--ef-gold); font-size: 18px; }
+.net-report-info { margin: 0; color: var(--ef-muted); font-size: 13px; }
+.net-report-reasons { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.net-report-reasons legend { padding: 0 0 4px; color: var(--ef-text); font-weight: 700; }
+.net-report-reason, .net-report-faith { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.net-report-reason input, .net-report-faith input { margin-top: 3px; accent-color: var(--ef-gold); width: 16px; height: 16px; flex: none; }
+.net-report-note { width: 100%; box-sizing: border-box; font: inherit; color: var(--ef-text); background: rgba(8, 4, 14, 0.92); border: 2px solid var(--ef-panel-edge); border-radius: 2px; padding: 7px 9px; resize: vertical; }
+.net-report-note:focus { border-color: var(--ef-gold); outline: none; }
+.net-report-faith { font-size: 13px; }
+.net-report-err { color: #ffb0a0; font-size: 13px; min-height: 1em; }
+.net-report-err:empty { display: none; }
+.net-report-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.net-report-actions .ef-btn { min-width: 0; flex: 0 1 auto; min-height: 38px; padding: 6px 14px; color: var(--ef-text); font: inherit; cursor: pointer; }
+
+/* Verwaltung: Chat-Meldungen (AdminReports.js, eingebettet in die Verwaltung) */
+.net-adm { display: flex; flex-direction: column; gap: 10px; font: 400 14px/1.4 var(--ef-font); color: var(--ef-text); }
+.net-adm-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.net-adm-note { margin: 4px 0; color: var(--ef-muted); font-size: 13px; }
+.net-adm-note.err { color: #ffb0a0; }
+.net-adm-list { display: flex; flex-direction: column; gap: 10px; }
+.net-adm-card { border: 1px solid #4a3020; background: rgba(20, 12, 28, 0.85); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-left: 3px solid var(--ef-gold); }
+.net-adm-card[data-status="erledigt"] { border-left-color: #5ad07a; }
+.net-adm-card[data-status="abgelehnt"] { border-left-color: var(--ef-muted); }
+.net-adm-card-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.net-adm-meta { color: var(--ef-muted); font-size: 12.5px; }
+.net-adm-badge { margin-left: auto; font-size: 12px; color: var(--ef-gold); }
+.net-adm-who { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
+.net-adm-who dt { color: var(--ef-muted); }
+.net-adm-who dd { margin: 0; overflow-wrap: anywhere; }
+.net-adm-note-text { margin: 0; padding: 4px 8px; border-left: 2px solid var(--ef-panel-edge); color: #e8d59a; }
+.net-adm-chat { background: rgba(8, 4, 14, 0.8); padding: 6px 8px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.net-adm-time { color: var(--ef-muted); font-size: 12px; }
+.net-adm-filtered { color: var(--ef-muted); font-style: italic; }
+.net-adm-decision { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; color: var(--ef-text); background: rgba(8, 4, 14, 0.92); border: 1px solid var(--ef-panel-edge); padding: 6px 8px; resize: vertical; }
+.net-adm-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.net-adm-actions .danger { border-color: #8a2a24; }
+.net-adm-msg { margin: 0; font-size: 13px; color: #e8d59a; min-height: 1em; }
+.net-adm-msg:empty { display: none; }
