@@ -131,6 +131,14 @@ async function checkout(request, env, url) {
   const user = await verifyToken(token, { supabaseUrl: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY });
   if (!user) return json({ error: 'auth' }, 401);
   if (!shopEnabled(env) && !(await isAdmin(env, token))) return json({ error: 'closed' }, 403);
+  // Gesperrt nach Rückbuchung, oder erstattetes Gold ist im Spiel noch nicht wieder abgezogen.
+  const uid = encodeURIComponent(user.uid);
+  const [blocked, owed] = await Promise.all([
+    db(env, `shop_blocks?user_id=eq.${uid}&select=user_id`),
+    db(env, `gold_orders?user_id=eq.${uid}&status=in.(refunded,disputed)&credited_at=not.is.null&revoked_at=is.null&select=id&limit=1`),
+  ]);
+  if (blocked?.length) return json({ error: 'blocked' }, 403);
+  if (owed?.length) return json({ error: 'revoke_pending' }, 409);
 
   let b = null;
   try { b = await request.json(); } catch { /* unten abgelehnt */ }
@@ -175,6 +183,8 @@ async function setOrder(env, filter, from, patch) {
   await db(env, `gold_orders?${filter}&status=in.(${from.join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: patch });
 }
 
+const byPi = (pi) => `stripe_payment_intent=eq.${encodeURIComponent(pi)}`;
+
 async function webhook(request, env) {
   if (!env.STRIPE_WEBHOOK_SECRET || !env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'unavailable' }, 503);
   const payload = await request.text();
@@ -208,10 +218,28 @@ async function webhook(request, env) {
       if (byOrder) await setOrder(env, byOrder, ['pending'], { status: 'expired' });
       break;
     case 'charge.refunded':
-      if (pi && obj.refunded) await setOrder(env, `stripe_payment_intent=eq.${encodeURIComponent(pi)}`, ['paid', 'credited', 'disputed'], { status: 'refunded' });
+      // Nur volle Erstattungen; Teilerstattungen bucht ein Admin von Hand nach (docs/SHOP.md).
+      if (pi && obj.refunded) await setOrder(env, byPi(pi), ['paid', 'credited', 'disputed'], { status: 'refunded' });
       break;
-    case 'charge.dispute.created':
-      if (pi) await setOrder(env, `stripe_payment_intent=eq.${encodeURIComponent(pi)}`, ['paid', 'credited'], { status: 'disputed' });
+    case 'charge.dispute.created': {
+      // Rückbuchung durch Bank/PayPal: Gold wird im Spiel abgezogen, das Konto für weitere Käufe gesperrt.
+      if (!pi) break;
+      await setOrder(env, byPi(pi), ['paid', 'credited'], { status: 'disputed' });
+      const [order] = await db(env, `gold_orders?${byPi(pi)}&select=user_id`);
+      if (order?.user_id) {
+        await db(env, 'shop_blocks', {
+          method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal',
+          body: { user_id: order.user_id, reason: `Rückbuchung ${String(obj.id ?? '').slice(0, 60)} (${String(obj.reason ?? '').slice(0, 40)})` },
+        });
+      }
+      break;
+    }
+    case 'charge.dispute.closed':
+      // Gewonnen und Gold noch nicht abgezogen: Bestellung gilt wieder. Die Kaufsperre hebt ein Admin auf.
+      if (pi && obj.status === 'won') {
+        await setOrder(env, `${byPi(pi)}&revoked_at=is.null&credited_at=not.is.null`, ['disputed'], { status: 'credited' });
+        await setOrder(env, `${byPi(pi)}&credited_at=is.null`, ['disputed'], { status: 'paid' });
+      }
       break;
     default: break;
   }

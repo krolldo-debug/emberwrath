@@ -13,6 +13,17 @@ const USERS = { tok_admin: { id: 'u-admin', email: 'a@x.de' }, tok_player: { id:
 
 let calls = [];
 let orders = new Map();
+const blocks = new Map();
+// PostgREST-Filter (eq, in, is.null, not.is.null) auf ein Objekt anwenden.
+const match = (o, params) => [...params].every(([k, v]) => {
+  if (['select', 'limit', 'order'].includes(k)) return true;
+  const val = o[k] ?? null;
+  if (v === 'is.null') return val == null;
+  if (v === 'not.is.null') return val != null;
+  if (v.startsWith('eq.')) return String(val) === v.slice(3);
+  if (v.startsWith('in.(')) return v.slice(4, -1).split(',').includes(String(val));
+  throw new Error('Filter ' + k + '=' + v);
+});
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(String(input));
   const body = init.body;
@@ -23,14 +34,15 @@ globalThis.fetch = async (input, init = {}) => {
     return u ? res(u) : res({ msg: 'bad' }, 401);
   }
   if (url.origin === SB && url.pathname === '/rest/v1/rpc/is_admin') return res(init.headers.authorization === 'Bearer tok_admin');
+  if (url.origin === SB && url.pathname === '/rest/v1/shop_blocks') {
+    if (init.method === 'POST') { const b = JSON.parse(body); if (!blocks.has(b.user_id)) blocks.set(b.user_id, b); return res(null, 201); }
+    return res([...blocks.values()].filter((b) => match(b, url.searchParams)));
+  }
   if (url.origin === SB && url.pathname === '/rest/v1/gold_orders') {
     if (init.headers.authorization) return res({ msg: 'sb_secret als Bearer' }, 401);
     if (init.method === 'POST') { const o = JSON.parse(body); orders.set(o.id, o); return res(null, 201); }
-    const id = url.searchParams.get('id')?.replace('eq.', '');
-    const pi = url.searchParams.get('stripe_payment_intent')?.replace('eq.', '');
-    const allowed = url.searchParams.get('status')?.replace(/^in\.\(|\)$/g, '').split(',');
-    const hit = [...orders.values()].filter((o) => (id ? o.id === id : o.stripe_payment_intent === pi));
-    if (init.method === 'PATCH') { for (const o of hit) if (!allowed || allowed.includes(o.status)) Object.assign(o, JSON.parse(body)); return res(null, 204); }
+    const hit = [...orders.values()].filter((o) => match(o, url.searchParams));
+    if (init.method === 'PATCH') { for (const o of hit) Object.assign(o, JSON.parse(body)); return res(null, 204); }
     return res(hit);
   }
   if (url.hostname === 'api.stripe.com' && url.pathname === '/v1/checkout/sessions') {
@@ -115,8 +127,28 @@ ok(r.status === 200 && order.status === 'paid' && order.stripe_payment_intent ==
 order.status = 'credited';
 r = await hook(completed(order));
 ok(order.status === 'credited', 'Doppelter Webhook setzt gutgeschriebene Bestellung nicht zurück');
+order.credited_at = new Date().toISOString();
 r = await hook({ type: 'charge.refunded', data: { object: { payment_intent: 'pi_1', refunded: true } } });
 ok(order.status === 'refunded', 'Erstattung markiert Bestellung als refunded');
+r = await call(env, '/shop/checkout', { method: 'POST', token: 'tok_admin', body: buy });
+ok(r.status === 409 && r.body.error === 'revoke_pending', 'Erstattetes Gold noch nicht abgezogen: keine neuen Käufe');
+order.revoked_at = new Date().toISOString();
+r = await call(env, '/shop/checkout', { method: 'POST', token: 'tok_admin', body: buy });
+ok(r.status === 200, 'Nach dem Abzug: Kaufen wieder möglich');
+// Rückbuchung (Dispute) auf eine gutgeschriebene Bestellung des Spielers
+const disp = orders.get(r.body.orderId);
+Object.assign(disp, { status: 'credited', stripe_payment_intent: 'pi_2', credited_at: new Date().toISOString() });
+r = await hook({ type: 'charge.dispute.created', data: { object: { id: 'dp_1', payment_intent: 'pi_2', reason: 'fraudulent' } } });
+ok(disp.status === 'disputed' && blocks.has('u-admin'), 'Rückbuchung: Bestellung disputed, Konto für Käufe gesperrt');
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_admin', body: buy });
+ok(r.status === 403 && r.body.error === 'blocked', 'Gesperrtes Konto kann nicht kaufen');
+r = await hook({ type: 'charge.dispute.created', data: { object: { id: 'dp_1', payment_intent: 'pi_2', reason: 'fraudulent' } } });
+ok(r.status === 200 && blocks.size === 1, 'Doppelter Dispute-Webhook: eine Sperre');
+r = await hook({ type: 'charge.dispute.closed', data: { object: { id: 'dp_1', payment_intent: 'pi_2', status: 'won' } } });
+ok(disp.status === 'credited', 'Dispute gewonnen, Gold noch nicht abgezogen: Bestellung gilt wieder');
+disp.status = 'disputed'; disp.revoked_at = new Date().toISOString();
+r = await hook({ type: 'charge.dispute.closed', data: { object: { id: 'dp_1', payment_intent: 'pi_2', status: 'won' } } });
+ok(disp.status === 'disputed', 'Dispute gewonnen, Gold schon abgezogen: bleibt (Admin entscheidet)');
 r = await hook({ type: 'checkout.session.expired', data: { object: { id: 'cs_x', metadata: { order_id: playerOrder.id } } } });
 ok(playerOrder.status === 'expired', 'Abgelaufene Bezahlseite: expired');
 ok(!(await verifyStripeSignature('{}', await sign('{}', KEYS.STRIPE_WEBHOOK_SECRET, Math.floor(Date.now() / 1000) - 1000), KEYS.STRIPE_WEBHOOK_SECRET)), 'Alte Signatur (Replay) abgelehnt');
