@@ -138,12 +138,12 @@ export class AuthClient {
   }
 
   // ---------------------------------------------------------------- Anmeldung
-  async signUp(email, password, displayName) {
+  async signUp(email, password, displayName, meta = {}) {
     const { verifier, challenge } = await pkcePair();
     this.#savePkce(verifier, 'signup');
     const d = await this.#request(`/auth/v1/signup?redirect_to=${encodeURIComponent(this.redirectUrl())}`, {
       method: 'POST',
-      body: { email, password, data: { display_name: displayName }, code_challenge: challenge, code_challenge_method: 's256' },
+      body: { email, password, data: { ...meta, display_name: displayName }, code_challenge: challenge, code_challenge_method: 's256' },
     });
     const session = this.#fromTokenResponse(d);
     if (session) { this.#clearPkce(); this.#store(session, 'SIGNED_IN'); return { session, needsConfirmation: false }; }

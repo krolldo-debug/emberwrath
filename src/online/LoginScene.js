@@ -11,6 +11,10 @@ import { describeError } from './AuthClient.js';
 //   'newPassword'  neues Passwort setzen (nach Link aus der E-Mail oder im Konto)
 //   'account'      angemeldet: Spielen, Verwaltung, lokale Charaktere übernehmen, Abmelden, Konto löschen
 const GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+// Rechtstexte der Website (site/). Das Spiel liegt unter /spielen/, die Seiten im Wurzelverzeichnis.
+export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, termsVersion: '2026-10' };
+const legalLink = (text, href) => h('a.on-legal-link', { href, target: '_blank', rel: 'noopener' }, text);
+
 const svgIcon = (markup) => { const s = h('span.on-provider-icon'); s.innerHTML = markup; return s; };
 
 const TITLES = {
@@ -92,13 +96,18 @@ export class LoginScene extends MenuScene {
     const google = btn('google', 'Weiter mit Google', GOOGLE_SVG);
     // Aktive Anbieter kommen aus den Supabase-Einstellungen (freigeschaltet ohne neue Version)
     o.loadProviders?.().then((p) => { google.set(!!p.google); });
-    return h('div.on-providers', google.b);
+    return h('div.on-providers', google.b,
+      h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
+        ` und bestätigst, mindestens ${LEGAL.minAge} Jahre alt zu sein oder die Zustimmung deiner Eltern zu haben. Infos zum Datenschutz: `,
+        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'));
   }
 
   #messageBox() {
     const m = this.message;
     return h(`p.on-msg${m ? `.${m.kind}` : ''}`, { role: m?.kind === 'error' ? 'alert' : 'status' }, m?.text ?? '');
   }
+
+  #shownMode = null;
 
   #render() {
     const [title, sub] = TITLES[this.mode] ?? TITLES.login;
@@ -112,7 +121,14 @@ export class LoginScene extends MenuScene {
     else if (this.mode === 'newPassword') body = this.#newPassword();
     else if (this.mode === 'account' && this.online.user) body = this.#account();
     else body = this.#login();
+    // Eingaben bleiben erhalten, wenn dieselbe Seite neu gezeichnet wird (z. B. nach einer Fehlermeldung)
+    const keep = this.#shownMode === this.mode ? [...this.root.querySelectorAll('.on-form input')].map((el) => (el.type === 'checkbox' ? el.checked : el.value)) : null;
+    this.#shownMode = this.mode;
     this.root.replaceChildren(h('div.ef-panel.acc-panel.on-panel', head, body));
+    if (keep) this.root.querySelectorAll('.on-form input').forEach((el, i) => {
+      if (i >= keep.length) return;
+      if (el.type === 'checkbox') el.checked = keep[i]; else el.value = keep[i];
+    });
     // Alte Fehlermeldung verschwindet, sobald wieder getippt wird.
     this.root.querySelectorAll('.on-form input').forEach((el) => el.addEventListener('input', () => {
       const msg = this.root.querySelector('.on-msg.error');
@@ -158,15 +174,22 @@ export class LoginScene extends MenuScene {
     const name = this.#field('Spielername', { type: 'text', autocomplete: 'nickname', required: true, minlength: 2, maxlength: 24, spellcheck: 'false' });
     const email = this.#field('E-Mail', { type: 'email', autocomplete: 'email', inputmode: 'email', required: true, maxlength: 254 });
     const pw = this.#password('Passwort (mind. 8 Zeichen, mit Zahl)', 'new-password');
+    const consent = h('input', { type: 'checkbox', required: true });
+    const consentEl = h('label.on-check', consent,
+      h('span', 'Ich akzeptiere die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
+        ` und bin mindestens ${LEGAL.minAge} Jahre alt oder habe die Zustimmung meiner Eltern. Die `,
+        legalLink('Datenschutzerklärung', LEGAL.privacy), ' habe ich zur Kenntnis genommen.'));
     const submit = (e) => {
       e.preventDefault();
       const n = name.input.value.trim().replace(/\s+/g, ' '), mail = email.input.value.trim();
       const problem = n.length < 2 ? 'Der Spielername braucht mindestens 2 Zeichen.'
         : !emailOk(mail) ? 'Bitte gib eine gültige E-Mail-Adresse ein.'
-          : passwordProblem(pw.input.value);
+          : passwordProblem(pw.input.value)
+            ?? (consent.checked ? null : 'Bitte bestätige die Nutzungsbedingungen und das Mindestalter.');
       if (problem) { this.message = { kind: 'error', text: problem }; this.#render(); return; }
       this.#run(async () => {
-        const r = await this.online.client.signUp(mail, pw.input.value, n);
+        // Zustimmung im Konto vermerken (Nachweis, welche Fassung wann akzeptiert wurde)
+        const r = await this.online.client.signUp(mail, pw.input.value, n, { terms_version: LEGAL.termsVersion, terms_accepted_at: new Date().toISOString() });
         if (r.needsConfirmation) {
           this.#go('login', { kind: 'ok', text: `Fast geschafft: Wir haben eine E-Mail an ${mail} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.` });
         } else {
@@ -179,11 +202,12 @@ export class LoginScene extends MenuScene {
       this.#providers(),
       h('div.on-or', h('span', 'oder mit E-Mail')),
       h('form.on-form', { onsubmit: submit, novalidate: true },
-        name.el, email.el, pw.el,
+        name.el, email.el, pw.el, consentEl,
         this.#messageBox(),
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Konto erstellen')),
       h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('login') }, 'Schon ein Konto? Anmelden')),
-      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen.'));
+      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen. Mehr dazu in der ',
+        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'));
   }
 
   #forgot() {

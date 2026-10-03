@@ -35,8 +35,13 @@ await a.locator('.on-form input').nth(2).fill('geheim123');
 // Felder wurden durch Render geleert? neu füllen
 const i2 = a.locator('.on-form input');
 await i2.nth(0).fill('Sitzheizung'); await i2.nth(1).fill('admin@test.de'); await i2.nth(2).fill('geheim123');
+check(await a.evaluate(() => [...document.querySelectorAll('.on-legal-link')].some((l) => l.getAttribute('href') === '/nutzungsbedingungen') && [...document.querySelectorAll('.on-legal-link')].some((l) => l.getAttribute('href') === '/datenschutz')), 'Registrierung verlinkt Nutzungsbedingungen und Datenschutz');
+await a.click('.on-submit'); await wait(300);
+check((await text(a)).includes('Bitte bestätige die Nutzungsbedingungen') && (await a.locator('.on-form input').nth(1).inputValue()) === 'admin@test.de', 'ohne Zustimmung keine Registrierung, Eingaben bleiben stehen');
+await a.check('.on-check input');
 await a.click('.on-submit'); await wait(500);
 check((await text(a)).includes('Fast geschafft'), 'Registrierung verlangt E-Mail-Bestätigung');
+{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='admin@test.de'"); check(m[0]?.v === '2026-10', 'Zustimmung im Konto vermerkt: ' + JSON.stringify(m)); }
 // Anmelden vor Bestätigung
 const i3 = a.locator('.on-form input');
 await i3.nth(0).fill('admin@test.de'); await i3.nth(1).fill('geheim123');

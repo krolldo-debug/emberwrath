@@ -192,3 +192,11 @@
   .ef-btn.lb-play { margin-top: 6px; padding: 8px 24px; }
   .lb-meta { display: none; }
 }
+
+/* Zustimmung in der Registrierung, Links auf Rechtstexte */
+.on-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: #d8ccb4; cursor: pointer; }
+.on-check input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--ef-ember); cursor: pointer; }
+.ef-touch .on-check input { width: 24px; height: 24px; }
+.on-legal-link { color: var(--ef-gold); text-decoration: underline; text-underline-offset: 2px; }
+.on-legal-link:hover, .on-legal-link:focus-visible { color: #fff0b0; outline: none; }
+.on-providers .on-fine { margin-top: 2px; }
