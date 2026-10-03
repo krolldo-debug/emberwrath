@@ -1,7 +1,8 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
-import { createRng } from '../core/math.js';
+import { createRng, hash2 } from '../core/math.js';
+import { makeLava, paintLavaShore, vnoise } from './biomes.js';
 
 // Kacheln, Flüssigkeiten und Deko für zwei Dungeons der Runde 3:
 //   'rime'   – Die Reifhöhlen: Kristallhöhle aus blaugrauem Fels unter Eis und Reif,
@@ -35,6 +36,7 @@ const RED = ['#160406', '#2e080c', '#4c0e14', '#70161c', '#9a2424', '#c63c30']; 
 const EMB = PAL.ember;                                                                      // Glut / Lava
 const CRUST = ['#110506', '#1c0908', '#2a0f0b', '#3c150d', '#521d0f'];                      // Lavakruste
 const OGROUT = '#040306';
+const FLO = ['#0a080d', '#120f17', '#1b1724', '#25202f', '#302a3d', '#3e364f', '#544a6a'];  // Obsidian-Bodenplatten (heller, lesbar)
 const IRON = ['#0e0f13', '#17191f', '#22252d', '#2f333d', '#424855', '#5c6474', '#8a94a6'];
 const BONE = PAL.bone;
 
@@ -719,52 +721,52 @@ function obsGlint(p, x, y, len) {
   for (let i = 0; i < len; i++) p.px(x + i, y + i, i === 0 ? GLINT[1] : i === 1 && len > 2 ? GLINT[2] : GLINT[0]);
 }
 
-function throneFloor(count = 12, seed = 911) {
+// Bodenplatten aus poliertem Obsidian, ohne Goldraster: Fugen, Spiegelglanz, Haarrisse,
+// sparsame Glutadern; Gold nur selten als kleine Einlegearbeit (1 von 20 Varianten).
+// Gezielte Goldbänder (Raumrand, Mittelachse der Arena) legt throneDecorate() mit Kartenwissen.
+function throneFloor(count = 20, seed = 911) {
   const rng = createRng(seed);
   const tiles = [];
   for (let n = 0; n < count; n++) {
     const p = new PixelCanvas(32, 32);
     p.rect(0, 0, 32, 32, OGROUT);
     const rects = [];
-    splitRects(rng, 1, 1, 31, 31, rects, 7);
-    const medal = n === 8;
+    splitRects(rng, 0, 0, 32, 32, rects, 9);
     for (const [x, y, w, h] of rects) {
-      const base = rng.pick([2, 2, 3, 2, 3]);
-      bevelSlab(p, rng, x, y, w, h, OBS, base, OGROUT, 22);
-      // polierte Oberfläche: Spiegelung als weicher heller Keil und Glasglanz
-      if (rng.chance(0.2) && w > 9 && h > 9) { p.px(x + 2, y + 2, GLINT[0]); p.px(x + 3, y + 3, OBS[5]); }
-      if (rng.chance(0.3) && w > 9) for (let i = 0; i < Math.min(w, h) - 4; i++) p.px(x + 3 + i, y + h - 3 - i, OBS[base + 1]);
+      const base = rng.pick([2, 3, 3, 2, 3, 4]);
+      bevelSlab(p, rng, x, y, w, h, FLO, base, OGROUT, 14);
+      // polierte Oberfläche: Spiegelstreif diagonal und Glasglanz an der Lichtkante
+      if (rng.chance(0.3) && w > 9 && h > 9) { p.px(x + 2, y + 2, GLINT[0]); p.px(x + 3, y + 3, FLO[5]); }
+      if (rng.chance(0.35) && w > 9) for (let i = 0; i < Math.min(w, h) - 5; i++) p.px(x + 3 + i, y + h - 4 - i, FLO[base + 1]);
+      // abgeplatzte Ecke
+      if (rng.chance(0.25)) { p.px(x + w - 2, y + h - 2, OGROUT); p.px(x + w - 3, y + h - 2, FLO[base - 1]); }
     }
-    // Goldeinlage im 32er-Raster (oben/links jeder Makrokachel) → durchgehendes Gitter
-    for (let i = 0; i < 32; i++) {
-      p.px(i, 0, (i & 7) === 0 ? GOLD[4] : GOLD[2]);
-      p.px(0, i, (i & 7) === 0 ? GOLD[4] : GOLD[1]);
-    }
-    p.px(0, 0, GOLD[5]);
-    // Goldmedaillon: Flammenkrone im Kreis
-    if (medal) {
-      const cx = 16, cy = 16;
-      p.ellipse(cx, cy, 8, 7, OBS[1]);
-      for (let a = 0; a < Math.PI * 2; a += 0.04) {
-        const x = Math.round(cx + Math.cos(a) * 7.5), y = Math.round(cy + Math.sin(a) * 6.5);
-        p.px(x, y, Math.cos(a) + Math.sin(a) < 0 ? GOLD[3] : GOLD[1]);
+    // Haarriss (dunkel mit heller Bruchkante)
+    if (rng.chance(0.4)) {
+      let cx = rng.int(4, 27), cy = rng.int(3, 20);
+      const len = rng.int(5, 10);
+      for (let i = 0; i < len; i++) {
+        p.px(cx, cy, OGROUT); p.px(cx, cy - 1, FLO[4]);
+        cx += rng.int(-1, 1) || 1; cy += rng.chance(0.6) ? 1 : 0;
       }
-      // Kronenzacken
-      const crown = ['..#...#...#..', '..#..###..#..', '.###.###.###.', '#############', '#.#.#.#.#.#.#'];
-      for (let j = 0; j < crown.length; j++) for (let i = 0; i < crown[j].length; i++) if (crown[j][i] === '#') p.px(cx - 6 + i, cy - 3 + j, j === 3 ? GOLD[4] : j > 3 ? GOLD[1] : GOLD[2]);
-      p.px(cx, cy - 3, EMB[4]); p.px(cx - 4, cy - 2, EMB[3]); p.px(cx + 4, cy - 2, EMB[3]);
-      p.rect(cx - 4, cy + 3, 9, 1, GOLD[1]);
     }
-    // Glutriss
-    if (n === 4 || n === 9 || (!medal && rng.chance(0.25))) {
-      let cx = rng.int(5, 24), cy = rng.int(3, 12);
-      const len = rng.int(7, 13);
+    // Glutader – nur in drei Varianten
+    if (n === 4 || n === 9 || n === 17) {
+      let cx = rng.int(6, 24), cy = rng.int(4, 14);
+      const len = rng.int(8, 13);
       for (let i = 0; i < len; i++) {
         p.px(cx, cy, OGROUT);
-        if (i > 1 && i < len - 2) p.px(cx, cy, i % 3 ? CRUST[4] : EMB[1]);
-        if (i > 3 && i < len - 4 && i % 2) p.px(cx + 1, cy, EMB[2]);
+        if (i > 1 && i < len - 2) p.px(cx, cy, i % 3 ? CRUST[4] : EMB[2]);
+        if (i > 3 && i < len - 4 && i % 2) p.px(cx + 1, cy, EMB[1]);
         cx += rng.int(-1, 1) || 1; cy += rng.int(0, 1);
       }
+    }
+    // seltene Einlegearbeit: kleine Goldraute im Fugenkreuz
+    if (n === 11) {
+      const cx = 16, cy = 16;
+      p.rect(cx - 3, cy - 3, 7, 7, OGROUT);
+      for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 2) p.px(cx + i, cy + j, Math.abs(i) + Math.abs(j) === 2 ? (i + j < 0 ? GOLD[4] : GOLD[2]) : GOLD[3]);
+      p.px(cx, cy, EMB[3]); p.px(cx - 1, cy - 1, GOLD[5]);
     }
     // Asche und Glutstaub
     for (let k = 0; k < rng.int(3, 7); k++) {
@@ -775,6 +777,104 @@ function throneFloor(count = 12, seed = 911) {
     tiles.push(p.canvas);
   }
   return tiles;
+}
+
+// Goldmedaillon (Flammenkrone im Kreis), Mittelpunkt cx/cy in Weltpixeln
+function throneMedallion(ctx, cx, cy) {
+  const P = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
+  ctx.fillStyle = OBS[1];
+  for (let y = -8; y <= 8; y++) for (let x = -10; x <= 10; x++) if ((x / 9.5) ** 2 + (y / 8) ** 2 <= 1) P(cx + x, cy + y, OBS[1]);
+  for (let a = 0; a < Math.PI * 2; a += 0.03) {
+    const x = Math.round(cx + Math.cos(a) * 9.5), y = Math.round(cy + Math.sin(a) * 7.5);
+    P(x, y, Math.cos(a) + Math.sin(a) < 0 ? GOLD[4] : GOLD[2]);
+    const x2 = Math.round(cx + Math.cos(a) * 7.5), y2 = Math.round(cy + Math.sin(a) * 5.8);
+    P(x2, y2, GOLD[1]);
+  }
+  const crown = ['..#...#...#..', '..#..###..#..', '.###.###.###.', '#############', '#.#.#.#.#.#.#'];
+  for (let j = 0; j < crown.length; j++) for (let i = 0; i < crown[j].length; i++) if (crown[j][i] === '#') P(cx - 6 + i, cy - 3 + j, j === 3 ? GOLD[5] : j > 3 ? GOLD[2] : GOLD[3]);
+  P(cx, cy - 3, EMB[4]); P(cx - 4, cy - 2, EMB[3]); P(cx + 4, cy - 2, EMB[3]);
+  P(cx - 9, cy - 1, GOLD[6]);
+}
+
+// Bodenzier mit Kartenwissen (Aufruf aus Dungeon.renderBackground über biome.decorate):
+//  1) Lavaufer, 2) eingelegtes Goldband entlang des Raumrands (6 px vor der Wand, folgt Ecken
+//  und Durchgängen), 3) Prozessionsbahn aus Porphyr mit Goldsäumen auf der Mittelachse der
+//  Arena (Achse = Mitte des Arenators) und ein einzelnes Medaillon in der Arenamitte.
+function throneDecorate(ctx, map) {
+  const T = 16;
+  paintLavaShore(ctx, map, { wall: FLO, crust: CRUST, emb: EMB, grout: OGROUT, seed: 911 });
+  const P = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
+  // Wandmasse (freistehende Einzelzellen wie Fackeln/Deko im Raum bekommen keinen Goldrahmen)
+  const hard = (x, y) => map.isWall(x, y) && !map.isLiquid(x, y);
+  const solid = (x, y) => hard(x, y) && (hard(x - 1, y) || hard(x + 1, y) || hard(x, y - 1) || hard(x, y + 1));
+  const NB = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+  const IN = 6;
+  // 2) Raumrand
+  for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
+    if (map.wallKind(x, y) !== 'floor') continue;
+    const nb = NB.filter(([nx, ny]) => solid(x + nx, y + ny));
+    if (!nb.length) continue;
+    for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
+      const px = u + 0.5, py = v + 0.5;
+      let d = 99;
+      for (const [nx, ny] of nb) d = Math.min(d, Math.hypot(Math.max(nx * T - px, 0, px - nx * T - T), Math.max(ny * T - py, 0, py - ny * T - T)));
+      const wx = x * T + u, wy = y * T + v;
+      if (d >= IN - 1 && d < IN) P(wx, wy, OGROUT);
+      else if (d >= IN && d < IN + 1) P(wx, wy, ((wx + wy) & 15) === 0 ? GOLD[5] : GOLD[3]);
+      else if (d >= IN + 1 && d < IN + 2) P(wx, wy, GOLD[1]);
+    }
+  }
+  // 3) Arena-Achse
+  const A = map.level?.arena;
+  if (!A) return;
+  const gy = A.gateRow ?? A.y - 1;
+  const gx = [];
+  for (let x = A.x; x < A.x + A.w + 2; x++) if (map.rows[gy]?.[x] === 'G') gx.push(x);
+  const axis = gx.length ? (Math.min(...gx) + Math.max(...gx) + 1) / 2 * T : (A.x + A.w / 2) * T;
+  const half = gx.length ? Math.min(28, (gx.length * T) / 2 - 5) : 24;
+  // Ende der Bahn: erste echte Mauerzeile unter dem Tor (Deko-Zeichen wie der Thron zählen nicht)
+  const ax = Math.floor(axis / T);
+  let ye = gy + 1;
+  while (ye < map.h && map.rows[ye]?.[ax] !== '#') ye++;
+  const y0 = (gy + 1) * T, y1 = ye * T - IN - 2; // endet am Goldband des Raumrands
+  for (let wy = y0; wy < y1; wy++) for (let wx = Math.round(axis - half); wx < Math.round(axis + half); wx++) {
+    const tx = Math.floor(wx / T), ty = Math.floor(wy / T);
+    if (map.wallKind(tx, ty) !== 'floor') continue;
+    const dx = Math.abs(wx + 0.5 - axis), e = half - dx;
+    const ry = wy - y0;
+    let c;
+    if (wy >= y1 - 2) c = wy === y1 - 1 ? OGROUT : GOLD[3]; // Abschlussleiste
+    else if (e < 1) c = OGROUT;
+    else if (e < 2) c = wx < axis ? GOLD[4] : GOLD[3];
+    else if (e < 3) c = GOLD[1];
+    else if (e < 4) c = OGROUT;
+    else if (e < 5) c = GOLD[2];
+    else {
+      // Porphyrplatten (32×16, versetzt), poliert: Lichtkante oben/links, Schatten unten/rechts
+      const row = Math.floor(ry / 16), off = row & 1 ? 16 : 0;
+      const lx = wx - Math.round(axis - half) + off, col = Math.floor(lx / 32), cx = lx % 32, cy = ry % 16;
+      const tone = hash2(col, row, 983) < 0.4 ? 1 : 0;
+      const n = vnoise(wx, wy, 5, 977) + tone * 0.18;
+      c = n > 0.7 ? RED[3] : n > 0.45 ? RED[2] : RED[1];
+      if (cy === 0 || cx === 0) c = OGROUT;
+      else if (cy === 1 || cx === 1) c = RED[3];
+      else if (cy === 15 || cx === 31) c = RED[0];
+      else if (cy === 14) c = RED[1];
+      else if ((cx - cy + 64) % 32 === 9 && cy > 3 && cy < 12) c = RED[4];
+      else if (hash2(wx, wy, 979) < 0.05) c = RED[0];
+      else if (hash2(wx, wy, 981) < 0.025) c = RED[4];
+    }
+    P(wx, wy, c);
+  }
+  // Goldrauten auf der Achse und ein Medaillon in der Arenamitte
+  const mid = Math.round((y0 + y1) / 2 / 6) * 6;
+  for (let wy = y0 + 24; wy < y1 - 12; wy += 48) {
+    if (Math.abs(wy - mid) < 30) continue;
+    const cx = Math.round(axis), cy = wy;
+    if (map.wallKind(Math.floor(cx / T), Math.floor(cy / T)) !== 'floor') continue;
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const k = Math.abs(i) + Math.abs(j); if (k <= 3) P(cx + i, cy + j, k === 3 ? (i + j < 0 ? GOLD[4] : GOLD[2]) : k === 0 ? EMB[3] : OGROUT); }
+  }
+  if (map.wallKind(Math.floor(axis / T), Math.floor(mid / T)) === 'floor') throneMedallion(ctx, Math.round(axis), mid);
 }
 
 // Mäander (Periode 8) als Goldeinlage im Fries
@@ -861,64 +961,10 @@ function throneTop(seed = 957) {
   return p.canvas;
 }
 
-// Lavasee: große, zähe Krustenschollen (Voronoi auf dem Torus → nahtlos) treiben auf
-// hellglühender Schmelze; breite Spalten mit Hitzeverlauf, Blasen platzen.
+// Lavasee: zähe Krustenschollen und offene Schmelze als nicht periodisches Feld in Weltkoordinaten mit Uferrand
+// (Obsidian-Beckenwand hinten, Kruste seitlich/vorn) – gemeinsamer Generator aus biomes.js.
 function throneLiquid(seed = 977) {
-  const rng = createRng(seed);
-  const frames = [], glow = [];
-  const seeds = [];
-  for (const [x, y] of [[4, 5], [12, 3], [9, 12]]) seeds.push([x + rng.range(-1, 1), y + rng.range(-1, 1), rng.range(0, 6.28)]);
-  const pops = [[3, 12, 0], [14, 8, 2]];
-  for (let f = 0; f < 4; f++) {
-    const p = new PixelCanvas(T, T), g = new PixelCanvas(T, T);
-    const ph = (f / 4) * Math.PI * 2;
-    const pts = seeds.map(([x, y, a]) => [x + Math.cos(ph + a) * 0.6, y + Math.sin(ph + a) * 0.45]);
-    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
-      let d1 = 99, d2 = 99, ddx = 0, ddy = 0;
-      for (const [sx, sy] of pts) {
-        let dx = x + 0.5 - sx, dy = y + 0.5 - sy;
-        if (dx > 8) dx -= 16; if (dx < -8) dx += 16; if (dy > 8) dy -= 16; if (dy < -8) dy += 16;
-        const d = Math.hypot(dx, dy * 1.15);
-        if (d < d1) { d2 = d1; d1 = d; ddx = dx; ddy = dy; } else if (d < d2) d2 = d;
-      }
-      const gap = d2 - d1;
-      const th = (((x & 1) * 2 + (y & 1) * 3) % 4) / 4 * 0.45;
-      const pulse = 0.3 * Math.sin(ph + x * 0.5 - y * 0.3);
-      const v = gap + th - pulse * 0.5;
-      let col, gl = null;
-      if (v < 0.55) { col = EMB[5]; gl = EMB[4]; }
-      else if (v < 1.1) { col = EMB[4]; gl = EMB[3]; }
-      else if (v < 1.7) { col = EMB[3]; gl = EMB[2]; }
-      else if (v < 2.3) { col = EMB[2]; gl = EMB[1]; }
-      else if (v < 2.8) col = CRUST[4];
-      else {
-        // Kruste: glasig-schwarz, Licht von oben links, feine Glutrisse
-        const lit = -(ddx + ddy) / 6;
-        col = lit > 0.45 ? CRUST[3] : lit < -0.35 ? CRUST[0] : CRUST[1];
-        if (lit > 0.75 && (x + y) % 3 === 0) col = OBS[5];
-        if ((x * 5 + y * 3) % 17 === 0) col = CRUST[4];
-      }
-      p.px(x, y, col);
-      if (gl) g.px(x, y, gl);
-    }
-    for (const [bx, by, t] of pops) {
-      const st = (f + t) % 4;
-      if (st === 0) { p.px(bx, by, EMB[5]); g.px(bx, by, EMB[5]); }
-      else if (st === 1) { p.px(bx - 1, by, EMB[4]); p.px(bx + 1, by, EMB[4]); p.px(bx, by - 1, EMB[5]); g.px(bx, by - 1, EMB[5]); }
-    }
-    frames.push(p.canvas); glow.push(g.canvas);
-  }
-  // Uferkante: Obsidianlippe mit Goldband, Glutkontaktlinie
-  const e = new PixelCanvas(T, T);
-  e.rect(0, 0, T, 1, GOLD[5]); e.rect(0, 1, T, 1, GOLD[3]); e.rect(0, 2, T, 1, GOLD[1]);
-  for (let x = 3; x < T; x += 8) e.px(x, 1, GOLD[6]);
-  e.rect(0, 3, T, 3, OBS[3]);
-  for (let x = 0; x < T; x += 8) { e.rect(x, 3, 1, 3, OGROUT); e.px(x + 1, 3, OBS[5]); e.px(x + 3, 4, GLINT[0]); }
-  for (let x = 0; x < T; x++) e.px(x, 5, x % 3 === 0 ? EMB[1] : CRUST[4]);
-  for (let x = 0; x < T; x++) e.px(x, 6, x % 4 === 1 ? EMB[5] : EMB[4]);
-  e.ctx.fillStyle = 'rgba(30,6,4,0.55)'; e.ctx.fillRect(0, 7, T, 2);
-  e.ctx.fillStyle = 'rgba(30,6,4,0.25)'; e.ctx.fillRect(0, 9, T, 2);
-  return { frames, glow, edge: e.canvas, edgeH: 7 };
+  return makeLava({ seed, crust: CRUST, emb: EMB, wall: OBS, grout: OGROUT, cell: 19, open: 0.3, crack: 1.5 });
 }
 
 // ------------------------------------------------------------ Thron-Props
@@ -1247,6 +1293,7 @@ export function createBiomeTiles3(biome = 'rime') {
       top: throneTop(),
       topEdge: '#2a2032', topEdgeLight: '#6e4a24',
       liquid: throneLiquid(),
+      decorate: throneDecorate,
       ambientTint: [255, 105, 60],
       props: {
         obsidianPillar: [throneObsidianPillar(0), throneObsidianPillar(1)],

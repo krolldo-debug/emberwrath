@@ -1,7 +1,7 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
-import { createRng } from '../core/math.js';
+import { createRng, hash2 } from '../core/math.js';
 
 // Kacheln, Flüssigkeiten und Deko für zwei weitere Dungeons:
 //   'temple' – Der Versunkene Tempel: überfluteter Meerestempel aus türkis-grünem
@@ -541,60 +541,180 @@ function forgeTop(seed = 57) {
 }
 
 function forgeLiquid(seed = 77) {
+  return makeLava({ seed, crust: CRUST, emb: EMB, wall: BAS, grout: FGROUT, cell: 21, open: 0.22 });
+}
+
+// ------------------------------------------------------------------ Lava (geteilt mit dem Aschethron)
+// Glatte Wertrausch-Funktion in Weltkoordinaten (deterministisch, nahtlos über Zellgrenzen).
+export function vnoise(x, y, s, seed) {
+  const gx = Math.floor(x / s), gy = Math.floor(y / s), fx = x / s - gx, fy = y / s - gy;
+  const a = hash2(gx, gy, seed), b = hash2(gx + 1, gy, seed), c = hash2(gx, gy + 1, seed), d = hash2(gx + 1, gy + 1, seed);
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+}
+
+// Abstand eines Punktes zum Rechteck [x0,x1]×[y0,y1]
+const rectDist = (px, py, x0, y0, x1, y1) => Math.hypot(Math.max(x0 - px, 0, px - x1), Math.max(y0 - py, 0, py - y1));
+const NB8 = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]]; // N O S W NO SO SW NW
+
+// Lavasee als Feld in Weltkoordinaten statt einer 16er-Kachel: unregelmäßige, verschieden große
+// Krustenschollen (gewichtetes Voronoi auf gestreutem Raster mit Verzerrung), dazwischen offene
+// Schmelze mit Fließschlieren. Nicht periodisch → kein Wabenraster, kein Wiederholungsmuster;
+// jede Zelle wird beim ersten Zeichnen je Frame berechnet und zwischengespeichert.
+// Randzellen bekommen einen Uferrand: hinten (Norden) die sichtbare Beckenwand mit Glut von
+// unten, seitlich/vorn eine schmale Kruste, dazwischen eine hellglühende Kontaktlinie.
+export function makeLava({ seed, crust, emb, wall, grout, cell: GS = 21, open = 0.2, crack = 1, F = 4, face = 5 }) {
+  const TAU = Math.PI * 2;
+  const site = (i, j, ph) => {
+    const a = hash2(i, j, seed + 11) * TAU;
+    return [(i + 0.12 + 0.76 * hash2(i, j, seed)) * GS + Math.cos(ph + a) * 0.8, (j + 0.12 + 0.76 * hash2(i, j, seed + 1)) * GS + Math.sin(ph + a) * 0.55,
+      0.7 + 0.65 * hash2(i, j, seed + 2), hash2(i, j, seed + 3) < open];
+  };
+  // Farbe + Glow eines Lavapixels (Weltkoordinaten) im Frame f
+  const field = (x, y, f) => {
+    const ph = (f / F) * TAU;
+    const wx = x + (vnoise(x, y, 11, seed + 20) - 0.5) * 6, wy = y + (vnoise(x, y, 11, seed + 21) - 0.5) * 5;
+    const gi = Math.floor(wx / GS), gj = Math.floor(wy / GS);
+    let d1 = 1e9, d2 = 1e9, best = null, ddx = 0, ddy = 0, bi = 0, bj = 0;
+    for (let j = gj - 1; j <= gj + 1; j++) for (let i = gi - 1; i <= gi + 1; i++) {
+      const s = site(i, j, ph);
+      const dx = wx + 0.5 - s[0], dy = wy + 0.5 - s[1];
+      const d = Math.hypot(dx, dy * 1.2) / s[2];
+      if (d < d1) { d2 = d1; d1 = d; best = s; ddx = dx; ddy = dy; bi = i; bj = j; } else if (d < d2) d2 = d;
+    }
+    const gap = (d2 - d1) * best[2];
+    const th = (((x & 1) * 2 + (y & 1) * 3) % 4) / 4 * 0.3;           // geordnetes Dithering
+    let col, gl = null;
+    if (best[3]) {
+      // offene Schmelze: Fließschlieren, am Schollenrand kühler
+      const fl = Math.sin(wx * 0.42 + wy * 0.18 + ph + (vnoise(x, y, 9, seed + 40) - 0.5) * 7) * 0.5 + 0.5;
+      const v = fl * 1.1 + th + (gap < 1.4 ? 0.8 : 0) + (vnoise(x, y, 6, seed + 41) - 0.5) * 0.6;
+      if (v < 0.6) { col = emb[5]; gl = emb[4]; }
+      else if (v < 1.45) { col = emb[4]; gl = emb[3]; }
+      else { col = emb[3]; gl = emb[2]; }
+    } else {
+      const pulse = 0.25 * Math.sin(ph + x * 0.35 - y * 0.25);
+      const cw = (1.0 + 0.9 * hash2(bi, bj, seed + 7)) * crack;           // Spaltbreite je Scholle
+      const v = gap / cw - pulse * 0.4 + th;
+      const lit = -(ddx + ddy) / (8 * best[2]);
+      if (v < 0.5) { col = emb[5]; gl = emb[4]; }
+      else if (v < 0.95) { col = emb[4]; gl = emb[3]; }
+      else if (v < 1.35) { col = emb[3]; gl = emb[2]; }
+      else if (v < 1.7) { col = emb[2]; gl = emb[1]; }
+      else if (v < 2.15) col = crust[4];
+      else {
+        col = lit > 0.45 ? crust[3] : lit < -0.4 ? crust[0] : crust[1 + (hash2(x, y, seed + 4) < 0.18 ? 1 : 0)];
+        if (v > 3 && hash2(x >> 1, y, seed + 5) < 0.05) col = crust[4];          // feine Abkühlrisse
+        if (lit > 0.7 && hash2(x, y, seed + 9) < 0.12) col = wall[4];           // Glasglanz
+      }
+    }
+    return [col, gl];
+  };
+  const base = (cx, cy, f) => {
+    const c = new PixelCanvas(T, T), g = new PixelCanvas(T, T);
+    for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
+      const [col, gl] = field(cx * T + u, cy * T + v, f);
+      c.px(u, v, col); if (gl) g.px(u, v, gl);
+    }
+    // aufsteigende Blase
+    if (hash2(cx, cy, seed + 30) < 0.35) {
+      const bx = 3 + Math.floor(hash2(cx, cy, seed + 31) * 10), by = 3 + Math.floor(hash2(cx, cy, seed + 32) * 10);
+      const st = (f + Math.floor(hash2(cx, cy, seed + 33) * F)) % F;
+      if (st === 0) { c.px(bx, by, emb[5]); g.px(bx, by, emb[5]); }
+      else if (st === 1) { c.px(bx - 1, by, emb[4]); c.px(bx + 1, by, emb[4]); c.px(bx, by - 1, emb[5]); g.px(bx, by - 1, emb[5]); }
+    }
+    return [c, g];
+  };
   const frames = [], glow = [];
-  const rng = createRng(seed);
-  // Krustenschollen als Voronoi-Zellen auf dem Torus (16×16) → nahtlos kachelnd.
-  const seeds = [];
-  for (const [x, y] of [[4, 3], [12, 6], [6, 12], [14, 14]]) seeds.push([x + rng.range(-1, 1), y + rng.range(-1, 1), rng.range(0, 6.28), rng.range(0.8, 1)]);
-  const bubbles = [[10, 10]];
-  for (let f = 0; f < 4; f++) {
-    const p = new PixelCanvas(T, T), g = new PixelCanvas(T, T);
-    const ph = (f / 4) * Math.PI * 2;
-    // Schollen wippen auf einer kleinen Kreisbahn (Loop über 4 Frames)
-    const pts = seeds.map(([x, y, a]) => [x + Math.cos(ph + a) * 0.7, y + Math.sin(ph + a) * 0.5]);
-    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
-      let d1 = 99, d2 = 99, k1 = 0, ddx = 0, ddy = 0;
-      pts.forEach(([sx, sy], k) => {
-        let dx = Math.abs(x + 0.5 - sx), dy = Math.abs(y + 0.5 - sy);
-        dx = Math.min(dx, 16 - dx); dy = Math.min(dy, 16 - dy);
-        const d = Math.hypot(dx, dy * 1.25);
-        if (d < d1) { d2 = d1; d1 = d; k1 = k; ddx = x + 0.5 - sx; ddy = y + 0.5 - sy; if (ddx > 8) ddx -= 16; if (ddx < -8) ddx += 16; if (ddy > 8) ddy -= 16; if (ddy < -8) ddy += 16; } else if (d < d2) d2 = d;
-      });
-      const gap = d2 - d1;                           // 0 an der Spalte
-      const size = seeds[k1][3];
-      const pulse = 0.25 * Math.sin(ph * 1 + x * 0.4 + y * 0.3);
-      const th = (((x & 1) * 2 + (y & 1) * 3) % 4) / 4 * 0.5;
-      const v = gap * size - pulse * 0.4 + th;
-      let col, gl = null;
-      const lit = -(ddx + ddy) / 5;                 // Schollen: Licht oben links
-      if (v < 0.45) { col = EMB[5]; gl = EMB[4]; }
-      else if (v < 0.95) { col = EMB[4]; gl = EMB[3]; }
-      else if (v < 1.35) { col = EMB[3]; gl = EMB[2]; }
-      else if (v < 1.75) { col = EMB[2]; gl = EMB[1]; }
-      else if (v < 2.2) col = CRUST[4];
-      else col = lit > 0.5 ? CRUST[3] : lit < -0.4 ? CRUST[0] : CRUST[1 + ((x * 3 + y * 5) % 7 === 0 ? 1 : 0)];
-      p.px(x, y, col);
-      if (gl) g.px(x, y, gl);
+  for (let f = 0; f < F; f++) { const [c, g] = base(0, 0, f); frames.push(c.canvas); glow.push(g.canvas); }
+  const cache = new Map();
+  // Rand einer Lavazelle (Maske: Bits 0..7 = Nachbar N,O,S,W,NO,SO,SW,NW ist keine Lava)
+  const build = (cx, cy, f, m) => {
+    const [c, g] = base(cx, cy, f);
+    if (m) {
+      const has = (i) => (m >> i) & 1;
+      const R = 8;
+      for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
+        const px = u + 0.5, py = v + 0.5, wx = cx * T + u, wy = cy * T + v;
+        let dTop = 99, dO = 99;
+        NB8.forEach(([nx, ny], i) => {
+          if (!has(i)) return;
+          const d = rectDist(px, py, nx * T, ny * T, nx * T + T, ny * T + T);
+          if (ny < 0) dTop = Math.min(dTop, d); else dO = Math.min(dO, d);
+        });
+        // konvexe Beckenecken abrunden
+        const corner = (a, b, ox, oy, top) => {
+          if (!has(a) || !has(b)) return;
+          const qx = Math.abs(px - ox), qy = Math.abs(py - oy);
+          if (qx < R && qy < R) { const dc = R - Math.hypot(R - qx, R - qy); if (top) dTop = Math.min(dTop, dc); dO = Math.min(dO, dc); }
+        };
+        corner(0, 3, 0, 0, true); corner(0, 1, T, 0, true); corner(2, 3, 0, T, false); corner(2, 1, T, T, false);
+        const nn = (vnoise(wx, wy, 7, seed) - 0.5) * 3.6 + (vnoise(wx, wy, 3, seed + 1) - 0.5) * 1.2;
+        const t = dTop + nn * 0.4, o = dO + nn;
+        if (t < face) {
+          // Beckenwand (von vorn sichtbar): Quader mit Fugen, unten von der Glut angestrahlt
+          let col;
+          if (t < 0.9) col = wall[3];
+          else if (t > face - 1.3) { col = hash2(wx, wy, 41) < 0.35 ? emb[1] : crust[4]; g.ctx.clearRect(u, v, 1, 1); if (col === emb[1]) g.px(u, v, emb[1]); }
+          else {
+            const row = Math.floor(wy / 3);
+            col = (wx + row * 4) % 7 === 0 ? grout : hash2(wx, wy, 43) < 0.2 ? wall[1] : hash2(wx, wy, 44) < 0.12 ? wall[3] : wall[2];
+          }
+          c.px(u, v, col);
+          if (t <= face - 1.3) g.ctx.clearRect(u, v, 1, 1);
+        } else if (o < 1.9) {
+          c.px(u, v, o < 0.8 ? crust[1] : hash2(wx, wy, 45) < 0.25 ? crust[3] : crust[2]);
+          g.ctx.clearRect(u, v, 1, 1);
+        } else if (t < face + 1.1 || o < 2.9) {
+          const hot = hash2(wx >> 1, wy >> 1, 47) < 0.7;
+          c.px(u, v, hot ? emb[4] : emb[3]); g.ctx.clearRect(u, v, 1, 1); g.px(u, v, hot ? emb[3] : emb[2]);
+        }
+      }
     }
-    // Aufsteigende Blasen
-    for (const [bx, by] of bubbles) {
-      const t = (f + bx) % 4;
-      if (t === 0) { p.px(bx, by, EMB[5]); g.px(bx, by, EMB[5]); }
+    return { img: c.canvas, glow: g.canvas };
+  };
+  const get = (cx, cy, f, m) => {
+    const key = `${cx},${cy},${f}`;
+    let e = cache.get(key);
+    if (!e) { e = build(cx, cy, f, m); cache.set(key, e); }
+    return e;
+  };
+  return {
+    frames, glow, edge: null, edgeH: 0,
+    tile: (cx, cy, f, m) => get(cx, cy, f, m).img,
+    glowTile: (cx, cy, f, m) => get(cx, cy, f, m).glow,
+  };
+}
+
+// Uferzone auf dem Boden neben Lava: Bordsteinkante aus Stein, angesengter Saum, Schlacke.
+// Wird von Dungeon.renderBackground über biome.decorate(ctx, map) aufgerufen.
+export function paintLavaShore(ctx, map, { wall, crust, emb, grout, seed = 5 }) {
+  const lav = (x, y) => map.isLiquid(x, y);
+  for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
+    if (map.wallKind(x, y) !== 'floor') continue;
+    const nb = NB8.filter(([nx, ny]) => lav(x + nx, y + ny));
+    if (!nb.length) continue;
+    for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
+      const px = u + 0.5, py = v + 0.5, wx = x * T + u, wy = y * T + v;
+      let d = 99, below = false;
+      for (const [nx, ny] of nb) {
+        const dd = rectDist(px, py, nx * T, ny * T, nx * T + T, ny * T + T);
+        if (dd < d) { d = dd; below = ny > 0; }
+      }
+      const nn = (vnoise(wx, wy, 4, seed) - 0.5) * 1.6;
+      const e = d + nn;
+      let col = null;
+      if (d < 1) col = below ? wall[5] : wall[1];                      // Kante: vorn Lichtkante, hinten Schatten
+      else if (e < 3.4) {
+        // Bordsteine entlang des Ufers
+        const along = below || Math.abs(nb[0][1]) ? wx : wy;
+        col = (along + (below ? 0 : 3)) % 6 === 0 ? grout : e < 1.8 && below ? wall[4] : hash2(wx, wy, 51) < 0.25 ? wall[2] : wall[3];
+      } else if (e < 4.4) col = grout;
+      else if (e < 9 && hash2(wx, wy, 53) < 0.5 * (1 - (e - 4.4) / 4.6)) col = hash2(wx, wy, 54) < 0.12 ? emb[1] : hash2(wx, wy, 55) < 0.5 ? crust[3] : crust[2];
+      if (col) { ctx.fillStyle = col; ctx.fillRect(wx, wy, 1, 1); }
+      else if (e < 12) { ctx.fillStyle = `rgba(90,24,8,${(0.22 * (1 - (e - 4.4) / 7.6)).toFixed(3)})`; ctx.fillRect(wx, wy, 1, 1); }
     }
-    frames.push(p.canvas); glow.push(g.canvas);
   }
-  // Uferkante: Basaltlippe mit Eisenkante, darunter hellglühende Kontaktlinie
-  const e = new PixelCanvas(T, T);
-  e.rect(0, 0, T, 1, IRON[5]); e.rect(0, 1, T, 1, IRON[3]); e.rect(0, 2, T, 1, IRON[1]);
-  for (let x = 2; x < T; x += 8) { e.px(x, 1, IRON[6]); }
-  e.rect(0, 3, T, 3, BAS[2]);
-  for (let x = 0; x < T; x += 6) { e.rect(x, 3, 1, 3, FGROUT); e.px(x + 1, 3, BAS[4]); }
-  // Hitze lässt die Unterkante glühen
-  for (let x = 0; x < T; x++) e.px(x, 5, x % 3 === 0 ? EMB[1] : CRUST[4]);
-  for (let x = 0; x < T; x++) e.px(x, 6, x % 4 === 1 ? EMB[5] : EMB[4]);
-  e.ctx.fillStyle = 'rgba(30,8,4,0.55)'; e.ctx.fillRect(0, 7, T, 2);
-  e.ctx.fillStyle = 'rgba(30,8,4,0.25)'; e.ctx.fillRect(0, 9, T, 2);
-  return { frames, glow, edge: e.canvas, edgeH: 7 };
 }
 
 // ================================================================== PROPS
@@ -1375,6 +1495,7 @@ export function createBiomeTiles(biome = 'temple') {
       top: forgeTop(),
       topEdge: '#2e2527', topEdgeLight: '#4a3a36',
       liquid: forgeLiquid(),
+      decorate: (ctx, map) => paintLavaShore(ctx, map, { wall: BAS, crust: CRUST, emb: EMB, grout: FGROUT, seed: 131 }),
       ambientTint: [255, 120, 60],
       props: {
         anvil: forgeAnvil(),

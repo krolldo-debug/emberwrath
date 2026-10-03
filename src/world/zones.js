@@ -229,7 +229,7 @@ export const ZONES = {
     bossId: 'ash_sovereign',
     links: ['ember_wastes'],
     enemies: ['throne_guard', 'ash_priest', 'ember_hellhound', 'throne_sentinel', 'ash_sovereign'],
-    ambient: [66, 42, 42],
+    ambient: [86, 58, 58],
   },
 };
 

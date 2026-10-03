@@ -16,7 +16,9 @@ export class Dungeon extends TileMap {
     this.biome = 'dungeon';
     this.biomeKey = level.biome ?? null; // 'temple' | 'forge' | null (Katakomben)
     this.liquidCells = [];
-    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.rows[y][x] === '~') this.liquidCells.push({ x, y, top: this.rows[y - 1]?.[x] !== '~' });
+    // m: Uferbits der 8 Nachbarn (N,O,S,W,NO,SO,SW,NW keine Flüssigkeit) für Randkacheln
+    const NB = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.rows[y][x] === '~') this.liquidCells.push({ x, y, top: this.rows[y - 1]?.[x] !== '~', m: NB.reduce((m, [dx, dy], i) => m | (this.rows[y + dy]?.[x + dx] !== '~' ? 1 << i : 0), 0) });
   }
 
   isLiquid(tx, ty) { return this.rows[ty]?.[tx] === '~'; }
@@ -86,7 +88,8 @@ export class Dungeon extends TileMap {
         const px = x * T, py = y * T;
         if (kind === 'liquid') {
           const L = biome?.liquid;
-          if (L) { ctx.drawImage(L.frames[0], px, py); if (this.rows[y - 1]?.[x] !== '~' && L.edge) ctx.drawImage(L.edge, px, py); }
+          if (L?.tile) ctx.drawImage(L.tile(x, y, 0, this.liquidCells.find((c) => c.x === x && c.y === y).m), px, py);
+          else if (L) { ctx.drawImage(L.frames[0], px, py); if (this.rows[y - 1]?.[x] !== '~' && L.edge) ctx.drawImage(L.edge, px, py); }
           else { ctx.fillStyle = '#0a0d1e'; ctx.fillRect(px, py, T, T); }
           continue;
         }
@@ -100,6 +103,8 @@ export class Dungeon extends TileMap {
         else ctx.drawImage(top, px, py);
       }
     }
+
+    biome?.decorate?.(ctx, this); // biomeigene Bodenzier/Ufer mit Kartenwissen
 
     // Kanten der Wandkronen + Schlagschatten/AO auf dem Boden
     const open = (tx, ty) => { const k = this.wallKind(tx, ty); return k === 'floor' || k === 'faceLower' || k === 'faceUpper' || k === 'liquid'; };
@@ -161,8 +166,8 @@ export class Dungeon extends TileMap {
     for (const c of this.liquidCells) {
       const px = c.x * T - cx, py = c.y * T - cy;
       if (px < -T || py < -T || px > W || py > H) continue;
-      const f = Math.floor(time * 4 + hash2(c.x, c.y, 31) * 4) % L.frames.length;
-      ctx.drawImage(L.frames[f], Math.round(px), Math.round(py));
+      const f = Math.floor(time * 4 + (L.tile ? 0 : hash2(c.x, c.y, 31) * 4)) % L.frames.length;
+      ctx.drawImage(L.tile ? L.tile(c.x, c.y, f, c.m) : L.frames[f], Math.round(px), Math.round(py));
       const dark = 0.78 - this.#flow(c, time);
       if (dark > 0.02) { ctx.fillStyle = `rgba(10,4,6,${dark.toFixed(3)})`; ctx.fillRect(Math.round(px), Math.round(py), T, T); }
       if (c.top && L.edge) ctx.drawImage(L.edge, Math.round(px), Math.round(py));
@@ -181,10 +186,10 @@ export class Dungeon extends TileMap {
     for (const c of this.liquidCells) {
       const px = c.x * T - cx, py = c.y * T - cy;
       if (px < -T || py < -T || px > W || py > H) continue;
-      const f = Math.floor(time * 4 + hash2(c.x, c.y, 31) * 4) % L.glow.length;
+      const f = Math.floor(time * 4 + (L.glowTile ? 0 : hash2(c.x, c.y, 31) * 4)) % L.glow.length;
       // Langsame Helligkeitswellen über die Fläche, damit das Kachelmuster nicht gleichförmig pulsiert
       ctx.globalAlpha = this.#flow(c, time);
-      ctx.drawImage(L.glow[f], Math.round(px), Math.round(py));
+      ctx.drawImage(L.glowTile ? L.glowTile(c.x, c.y, f, c.m) : L.glow[f], Math.round(px), Math.round(py));
     }
     ctx.globalAlpha = 1;
   }
