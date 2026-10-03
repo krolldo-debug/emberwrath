@@ -32,7 +32,7 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 - [ ] supabase/migrations/20261003120100_chat_meldungen.sql (Chat melden, Chatsperren)
 - [ ] supabase/migrations/20261003121500_support_meldungen.sql (Support-Kategorie „Spieler melden“)
 - [ ] supabase/migrations/20261003130000_spielstand_pruefung.sql (Schummelschutz für Spielstände)
-- Nicht jetzt: 20261001230000_goldshop.sql erst beim Einrichten von Stripe.
+- Nicht jetzt: 20261001230000_goldshop.sql und 20261003140000_goldshop_rueckbuchung.sql erst beim Einrichten von Stripe (Abschnitt 5).
 
 ## 2a. Vor dem Start prüfen (nach dem Merge)
 
@@ -68,7 +68,7 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
       Spielstand-Prüfung nur grobe Manipulation; gekauftes Gold ist erst damit wirklich geschützt.
 
 - [ ] Stripe-Konto, Schlüssel als Worker-Secrets, Webhook (docs/SHOP.md).
-- [ ] Migration supabase/migrations/20261001230000_goldshop.sql ausführen.
+- [ ] Migrationen ausführen: supabase/migrations/20261001230000_goldshop.sql, danach 20261003140000_goldshop_rueckbuchung.sql.
 - [ ] Kaufbedingungen, Widerrufsbelehrung, „zahlungspflichtig bestellen“, Stripe in der Datenschutzerklärung,
       Umsatzsteuer mit Steuerberater klären.
 
