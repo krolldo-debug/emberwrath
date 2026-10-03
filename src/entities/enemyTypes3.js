@@ -80,7 +80,7 @@ export function createRound3Enemies(T) {
     grave_hound: d('wolf', 'grave_hound', 'Grabhund', [24, 26], { family: 'undead' }),
     bone_archer: d('archer', 'bone_archer', 'Knochenschütze', [24, 26], { family: 'undead' }),
     wight_caller: d('tide_cultist', 'wight_caller', 'Totenrufer', [25, 26], { family: 'undead' }),
-    barrow_king: boss('barrow_king', 'Ulgrim, der Hügelkönig', 26, 15000, { family: 'undead', material: 'bone' }),
+    barrow_king: boss('barrow_king', 'Ulgrim, der Hügelkönig', 26, 19000, { family: 'undead', material: 'bone' }),
     // --- Faulmarsch (25–31)
     bog_lurker: d('drowned', 'bog_lurker', 'Moorlauerer', [25, 28], { family: 'beast' }),
     rot_shaman: d('tide_cultist', 'rot_shaman', 'Fäulnisschamane', [26, 30], { family: 'human' }),
@@ -91,7 +91,7 @@ export function createRound3Enemies(T) {
     sporeling: d('spider', 'sporeling', 'Sporling', [30, 31], { family: 'plant', hp: 0.55, xp: 0.45 }),
     fungal_brute: d('ash_golem', 'fungal_brute', 'Pilzwüterich', [30, 32], { family: 'plant', material: 'flesh' }),
     spore_caster: d('cinder_cultist', 'spore_caster', 'Sporenwirker', [30, 32], { family: 'plant' }),
-    rot_mother: boss('rot_mother', 'Mutter Fäulnis', 32, 17500, { family: 'plant', material: 'flesh', radius: 14, hurtRadius: 18, bodyHeight: 46, shadowW: 48 }),
+    rot_mother: boss('rot_mother', 'Mutter Fäulnis', 32, 21000, { family: 'plant', material: 'flesh', radius: 14, hurtRadius: 18, bodyHeight: 46, shadowW: 48 }),
     // --- Frostzinnen (31–36)
     ice_troll: d('ash_golem', 'ice_troll', 'Eistroll', [32, 35], { family: 'beast', material: 'flesh' }),
     frost_wolf: d('wolf', 'frost_wolf', 'Frostwolf', [31, 34], { family: 'beast' }),
@@ -102,7 +102,7 @@ export function createRound3Enemies(T) {
     ice_elemental: d('fire_imp', 'ice_elemental', 'Eiselementar', [35, 37], { family: 'construct', material: 'stone', hp: 1.2 }),
     crystal_spider: d('spider', 'crystal_spider', 'Kristallspinne', [35, 37], { family: 'spider', material: 'chitin' }),
     frozen_knight: d('temple_guardian', 'frozen_knight', 'Erfrorener Ritter', [36, 37], { family: 'undead', material: 'stone' }),
-    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 20000, { family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
+    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 26000, { family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
     // --- Glutöde (36–40)
     ash_wraith: d('drowned', 'ash_wraith', 'Aschegeist', [36, 39], { family: 'undead', spawnStyle: 'fade' }),
     cinder_knight: d('forge_golem', 'cinder_knight', 'Schlackenritter', [37, 40], { family: 'construct', material: 'stone' }),

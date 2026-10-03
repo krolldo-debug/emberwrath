@@ -871,12 +871,24 @@ function drawFrostWolf(p, g, P, X) {
     const x = 2 + hash2(i, 1, 51) * 22, y = -3 + hash2(i, 2, 51) * 7;
     p.px(ox + x, Y(x, by + y), hash2(i, 3, 51) < 0.55 ? WF[3] : WF[6]);
   }
-  // Reifkristalle im Rückenfell (leuchtend)
-  for (const [x, h] of [[9, 2], [13, 3], [17, 2]]) {
+  // Eisstachel-Kamm entlang des Rückens: große, nach hinten geneigte Kristalle
+  // (prägt die Silhouette – kein anderer Wolf hat diese Zackenlinie)
+  const spike = (bx, byy, h, lean, lit) => {
     for (let j = 0; j < h; j++) {
-      const yy = Y(x, by - 5.5) - j;
-      p.px(ox + x - j * 0.4, yy, j === h - 1 ? ICE[5] : ICE[3]);
-      if (P.frost > 0.3) g.px(ox + x - j * 0.4, yy, j === h - 1 ? ICE_G[4] : ICE_G[2]);
+      const f = j / h, w = (1 - f) * 2;
+      const cx2 = bx - lean * j;
+      for (let k = -w; k <= w + 0.01; k += 0.5) {
+        const c = k < -w + 0.6 ? ICE[0] : k > w - 0.6 ? ICE[4] : f > 0.65 ? ICE[5] : ICE[3];
+        p.px(cx2 + k, byy - j, c);
+      }
+      if (lit && f > 0.35) g.px(cx2, byy - j, f > 0.75 ? ICE_G[4] : ICE_G[2]);
+    }
+    p.px(bx - lean * h, byy - h, ICE[5]);
+  };
+  if (side < 0.5) {
+    for (const [x, h] of [[6, 4], [10.5, 6], [15, 8], [19.5, 7]]) {
+      const hh = Math.round(h * (1 - lie * 0.4) * (0.7 + 0.3 * Math.min(1, P.frost)));
+      spike(ox + x, Y(x, by - 4 - (x > 15 ? (x - 15) * 0.2 : 0)), hh, 0.5, P.frost > 0.3);
     }
   }
 
@@ -885,7 +897,7 @@ function drawFrostWolf(p, g, P, X) {
   leg(22, run ? Math.PI * 1.1 : 0, true, true);
 
   // --- Hals (schräg nach oben) und Halskrause (weiß, zottig, mit Reifspitzen)
-  const hx = ox + 27 + P.leap * 2, hy = Y(27, by - 7) + lie * 3.5 + Math.max(0, P.ha) * 3;
+  const hx = ox + 27 + P.leap * 2, hy = Y(27, by - 8.5) + lie * 5 + Math.max(0, P.ha) * 3;
   limb(p, ox + 20, Y(20, by - 1), hx - 1.5, hy + 1, 7, 5, [WF[3], WF[4], WF[5], WF[6]]);
   const nx = ox + 23, ny = Y(23, by - 4);
   p.ellipse(nx, ny + 1, 4.5, 5.5, WF[5]);
@@ -896,6 +908,16 @@ function drawFrostWolf(p, g, P, X) {
     p.px(x, y, i % 2 ? WF[6] : WF[5]); p.px(x - Math.cos(a) * 0.8, y - Math.sin(a) * 0.8, WF[4]);
   }
   p.px(nx + 1, ny + 6, WF[5]); p.px(nx - 1, ny + 7, WF[4]); p.px(nx + 2, ny + 5, WF[6]);
+  // Eismähne: Kristallsplitter strahlen aus der Halskrause nach hinten/oben
+  if (side < 0.5) for (const [a0, l] of [[-2.5, 5], [-2.1, 6], [-1.7, 5], [-2.85, 4]]) {
+    const ax = Math.cos(a0), ay = Math.sin(a0);
+    for (let j = 1; j <= l; j++) {
+      const qx = nx - 1 + ax * (3 + j), qy = ny + ay * (3 + j);
+      p.px(qx, qy, j === l ? ICE[5] : j > l / 2 ? ICE[4] : ICE[3]);
+      if (j < l - 1) p.px(qx + 0.7, qy + 0.7, ICE[2]);
+      if (P.frost > 0.3 && j > l / 2) g.px(qx, qy, j === l ? ICE_G[4] : ICE_G[2]);
+    }
+  }
 
   // --- Kopf
   const ha = P.ha, d = dirOf(ha);
@@ -923,6 +945,7 @@ function drawFrostWolf(p, g, P, X) {
     p.px(tipX - d.x * 1.5, tipY + 1, '#f4f4ec'); p.px(jx - jd.x * 1.5, jy - 1.5, '#f4f4ec'); p.px(hx + d.x * 3, hy + d.y * 3 + 1.5, '#e0e0d8');
   }
   p.px(tipX, tipY - 0.5, '#0c0e14'); p.px(tipX - d.x, tipY - 1, WF[1]); // Nase
+  if (side < 0.5 && P.jaw < 0.5) { icicle(p, g, Math.round(hx + 2), Math.round(hy + 3), 3, P.frost); icicle(p, g, Math.round(hx + 4), Math.round(hy + 3), 2, P.frost); }
   // Auge: eisblau, leuchtend, dunkle Maske darum
   const ex = hx + 1 + d.x, ey = hy - 1 + d.y * 0.5;
   p.px(ex - 1, ey, WF[1]); p.px(ex + 1, ey + 0.5, WF[2]);

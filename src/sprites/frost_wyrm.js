@@ -163,6 +163,8 @@ class GlowFrame {
 const REST = {
   // Leib
   len: 1, wave: 3, wph: 0, ox: 0, bulk: 1, chestH: 0,
+  // Buckelwelle: der Leib hebt sich in wandernden Bögen vom Boden (Schlangenbewegung)
+  hump: 0, hph: 0,
   tailLift: 3, tailCurl: 0.35, tailSwing: 0, tailUp: 0,
   // Hals und Kopf
   hx: 20, hh: 46, hd: 0, nb: 0, ha: 0.28, jaw: 0.06, eye: 1,
@@ -194,6 +196,7 @@ function sample(keys, t) {
 const RAD = [1.3, 2.7, 4.5, 6.2, 7.6, 8.5, 8.9, 7.7, 6.6, 5.9];
 const BODY_X = [-68, -57, -45, -32, -19, -7, 3];
 const WAVE_AMP = [1, 1, 0.95, 0.85, 0.65, 0.35, 0.1];
+const HUMP_AMP = [0.35, 0.75, 1, 1, 0.85, 0.45, 0.1];
 
 // Steuerpunkte der Wirbelsäule aus einer Pose
 function spinePoints(P) {
@@ -201,7 +204,8 @@ function spinePoints(P) {
   for (let i = 0; i < 7; i++) {
     const x = 3 + (BODY_X[i] - 3) * P.len + P.ox * (0.4 + i * 0.1);
     const d = P.wave * Math.sin(P.wph + i * 1.15) * WAVE_AMP[i];
-    const h = RAD[i] * P.bulk + 0.3 + P.chestH * [0, 0, 0, 0, 0.12, 0.5, 1][i];
+    const h = RAD[i] * P.bulk + 0.3 + P.chestH * [0, 0, 0, 0, 0.12, 0.5, 1][i]
+      + P.hump * (0.5 + 0.5 * Math.sin(P.hph + i * 1.05)) * HUMP_AMP[i];
     pts.push({ x, d, h });
   }
   // Schwanz: schwingt um Punkt 3 in der Bodenebene, hebt sich, rollt sich ein
@@ -1048,15 +1052,25 @@ export function createFrostCrack(size = 56) {
 export function createSkalvyrSprites() {
   // --- Grundposen
   const idleA = pose();
-  const idleB = pose({ bulk: 1.035, chestH: 1.2, hh: 47.5, hx: 19, ha: 0.24, jaw: 0.12, wph: 0.35, tailCurl: 0.55, heart: 1.5, nb: 0.15 });
+  // Ruhe: eine Welle läuft vom Schwanz zur Brust, der Hals pendelt in einer S-Kurve
+  const idleKeys = [];
+  for (let i = 0; i <= 10; i++) {
+    const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph);
+    idleKeys.push([i / 10, pose({
+      wave: 4.5, wph: -ph, hump: 2.4, hph: -ph + 0.4, bulk: 1 + 0.02 * s, chestH: 0.6 + 0.7 * s,
+      nb: 0.15 + Math.sin(ph) * 0.7, hx: 21 + Math.sin(ph + 0.7) * 3, hh: 46 + s * 2, ha: 0.28 + Math.sin(ph + 1.3) * 0.09,
+      jaw: 0.06 + Math.max(0, s) * 0.08, tailCurl: 0.45 + Math.sin(ph + 2) * 0.18, tailSwing: Math.sin(ph + 1) * 0.12,
+      heart: 1.25 + 0.25 * s,
+    }), linear]);
+  }
 
   // Kriechen: Wellen laufen den Leib entlang, die Klauen greifen abwechselnd
   const walkKeys = [];
   for (let i = 0; i <= 10; i++) {
     const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph), c = Math.cos(ph);
     walkKeys.push([i / 10, pose({
-      wave: 5.5, wph: -ph, ox: s * 1.2, chestH: Math.max(0, c) * 1.5,
-      hx: 22 + s * 1.5, hh: 43 + Math.abs(c) * 2, ha: 0.32 + s * 0.05, nb: 0.25 + c * 0.15,
+      wave: 6.5, wph: -ph, hump: 4, hph: -ph + 0.8, ox: s * 1.2, chestH: Math.max(0, c) * 1.5,
+      hx: 22 + s * 2.5, hh: 43 + Math.abs(c) * 2.5, ha: 0.32 + s * 0.07, nb: 0.25 + c * 0.6,
       fNx: 7 + s * 7, fNy: Math.max(0, c) * 4, fFx: 1 - s * 7, fFy: Math.max(0, -c) * 4,
       tailCurl: 0.2, tailSwing: s * 0.18, tailLift: 2, jaw: 0.1,
     }), linear]);
@@ -1114,7 +1128,7 @@ export function createSkalvyrSprites() {
   const d2 = pose({ hx: 16, hh: 70, ha: -0.75, nb: 0.4, jaw: 1, eye: 0.3, chestH: 11, ox: -2, heart: 3.2, fNy: 5, tailCurl: 1.1, tailLift: 7, crest: 0.8 });
 
 
-  const idle = new Animation(track([[0, idleA], [0.5, idleB], [1, idleA]], 10, { loop: true }), 7);
+  const idle = new Animation(track(idleKeys, 10, { loop: true }), 7);
   const walk = new Animation(track(walkKeys, 10, { loop: true, extras: { 0: { fx: 'step' }, 5: { fx: 'step' } } }), 11);
 
   const anims = {

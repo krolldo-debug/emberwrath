@@ -91,28 +91,27 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
 
 // ---------------------------------------------------------------- Haar
 
-// Eine Strähne: treibt wie unter Wasser. Gibt die Punkte zurück.
-function strand(p, g, glow, ox, oy, dir, L, w0, j, P, { shade = 1, glint = true, glowy = 0 } = {}) {
+// Eine Strähne: treibt wie unter Wasser. Benachbarte Strähnen teilen sich die
+// Strömung (Phase hängt stetig von u ab), dadurch verschmelzen sie zu einer
+// geschlossenen Haarmasse. Licht nur als wenige durchgehende Glanzbänder.
+function strand(p, g, glow, ox, oy, dir, L, w0, j, P, { shade = 1, sheen = false, edge = false, u = 0, glowy = 0 } = {}) {
   let x = ox, y = oy;
   const wild = 1 + P.hairWild * 1.4;
-  for (let s = 0; s < L; s += 0.7) {
+  for (let s = 0; s < L; s += 0.6) {
     const f = s / L;
-    const a = dir + Math.sin(P.hairT + s * 0.15 + j * 0.9) * (0.06 + 0.5 * f) * wild
-      + Math.sin(P.hairT * 2 + j * 2.1 + s * 0.31) * 0.12 * f * P.hairWild;
-    x += Math.cos(a) * 0.7; y += Math.sin(a) * 0.7;
-    const hw = Math.max(0.5, w0 * (1 - f * 0.85)) / 2;
+    const a = dir + Math.sin(P.hairT + s * 0.13 + u * 1.6) * (0.06 + 0.42 * f) * wild
+      + Math.sin(P.hairT * 2 + u * 3.1 + s * 0.29) * 0.12 * f * P.hairWild;
+    x += Math.cos(a) * 0.6; y += Math.sin(a) * 0.6;
+    const hw = Math.max(0.5, w0 * (1 - f * f * 0.9)) / 2;
     const nx = -Math.sin(a), ny = Math.cos(a);
     const sgn = nx + ny > 0 ? -1 : 1; // Kante zum Licht (links oben)
     for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      const lit = k * sgn > hw - 0.6;
-      let c = HAIR[Math.max(0, Math.min(5, shade + (lit ? 1 : 0) - (k * sgn < -hw + 0.6 ? 1 : 0)))];
-      if (glint && lit && hash2(j, Math.floor(s / 4), 31) < 0.22) c = HAIR[Math.min(5, shade + 3)];
-      p.px(x + nx * k, y + ny * k, c);
+      let sh = shade - (f > 0.7 ? 1 : 0);
+      if (sheen && Math.abs(k * sgn - hw * 0.3) < 0.5 && f > 0.08 && f < 0.6) sh = shade + 2;
+      if (edge && k * sgn < -hw + 0.6 && f > 0.15) sh = 0; // dunkle Fuge zwischen den Büscheln
+      p.px(x + nx * k, y + ny * k, HAIR[Math.max(0, Math.min(5, sh))]);
     }
-    // Spitzen zerfasern
-    if (f > 0.86 && hash2(j, Math.floor(s), 5) < 0.4) p.px(x + Math.cos(a) * 1.5, y + Math.sin(a) * 1.5, HAIR[shade]);
     if (glowy && hash2(j, Math.floor(s * 1.5), 17) < glowy) g.px(x, y, glow[hash2(j, Math.floor(s), 19) < 0.3 ? 3 : 2]);
-    else if (hash2(j, Math.floor(s * 2), 23) < 0.012) g.px(x, y, glow[1]);
   }
   return { x, y };
 }
@@ -124,37 +123,39 @@ function veils(p, g, glow, wx, wy, P, flood) {
   const bottom = AY - 2;
   for (let j = 0; j < n; j++) {
     const u = j / (n - 1);
-    const tent = j % 4 === 1;
+    const tent = j === 2 || j === 8;
     const x0 = wx - 7 + u * 13;
-    const L = bottom - wy - 1 + hash2(j, 3, 41) * 4 - (tent ? 3 : 0);
-    const w0 = tent ? 4 : 3 + hash2(j, 2, 41) * 1.5;
-    for (let s = 0; s < L; s += 0.6) {
+    const L = bottom - wy - 1 + Math.sin(u * 9) * 2 - (tent ? 2 : 0);
+    const w0 = tent ? 4 : 4.4;
+    for (let s = 0; s < L; s += 0.5) {
       const v = s / L;
-      const curl = tent ? Math.pow(v, 3) * (2.2 + Math.sin(P.clothT + j) * 0.6) * (j % 8 === 1 ? -1 : 1) : 0;
-      let x = x0 - P.trail * 12 * v * v + Math.sin(P.clothT + j * 1.7 + v * 4) * 3 * v + (u - 0.5) * 10 * v * P.veil;
+      const curl = tent ? Math.pow(v, 3) * (2.2 + Math.sin(P.clothT + j) * 0.6) * (j === 8 ? 1 : -1) : 0;
+      let x = x0 - P.trail * 12 * v * v + Math.sin(P.clothT + u * 2.4 + v * 3.5) * 2.6 * v + (u - 0.5) * 10 * v * P.veil;
       let y = wy + 2 + s;
       if (curl) { x += Math.sin(curl) * 3 * v; y -= (1 - Math.cos(curl)) * 2 * v; }
-      const hw = w0 * (1 - v * 0.75) / 2;
-      // Spitzen lösen sich in Gischt auf (gerastert)
-      const fade = v > 0.62 ? (v - 0.62) / 0.38 : 0;
+      // Spitzen laufen spitz zu statt zu zerfasern
+      const hw = w0 * (1 - v * v * 0.88) / 2;
       for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-        if (fade && hash2(Math.round(x + k), Math.round(y), 43 + j) < fade * 0.85) continue;
-        const e = (k + hw) / (2 * hw || 1); // 0 = links (Licht)
-        let c;
-        if (v < 0.18) c = e < 0.3 ? ROBE[4] : e > 0.7 ? ROBE[1] : ROBE[2];
-        else if (tent) c = e < 0.3 ? WATER[3] : e > 0.7 ? ROBE[1] : v > 0.6 ? WATER[2] : ROBE[2];
-        else c = e < 0.25 ? WATER[4] : e > 0.72 ? WATER[1] : (hash2(j, Math.floor(s / 3), 47) < 0.5 ? WATER[2] : WATER[3]);
+        // Licht über die ganze Breite des Wasserleibs (links hell), unten heller Schaum
+        const gx = u + (k / 14);
+        let i = gx < 0.18 ? 4 : gx < 0.45 ? 3 : gx < 0.78 ? 2 : 1;
+        if (v > 0.8) i = Math.min(5, i + 1);
+        if (k > hw - 0.6 && j % 3 === 2) i = Math.max(1, i - 1); // Faltenkante
+        let c = WATER[i];
+        if (v < 0.16) c = ROBE[gx < 0.3 ? 4 : gx < 0.7 ? 3 : 2];
+        else if (tent) c = k * 2 < -hw ? WATER[4] : k > hw - 0.6 ? ROBE[1] : WATER[2];
         p.px(x + k, y, c);
       }
       if (tent && Math.floor(s) % 4 === 2 && v > 0.25 && v < 0.85) p.px(x + hw * 0.3, y, WATER[5]); // Saugnäpfe
-      // Wasserglitzern
-      if (hash2(j * 7 + Math.floor(s), Math.floor(P.clothT * 3), 53) < (flood ? 0.06 : 0.035)) g.px(x - hw * 0.4, y, glow[v > 0.7 ? 3 : 2]);
+      // Wasserglitzern (nur Leucht-Ebene)
+      if (hash2(j * 7 + Math.floor(s), Math.floor(P.clothT * 3), 53) < (flood ? 0.05 : 0.025)) g.px(x - hw * 0.4, y, glow[v > 0.7 ? 3 : 2]);
     }
-    // fallende Tropfen unter den Spitzen
-    if (hash2(j, Math.floor(P.clothT * 2), 59) < 0.35) {
+    // fallende Tropfen unter den Spitzen (nur jede dritte Bahn)
+    if (j % 3 === 1 && hash2(j, Math.floor(P.clothT * 2), 59) < 0.5) {
       const dy = (hash2(j, 9, 61) * 6 + P.clothT * 3) % 6;
-      p.px(x0 - P.trail * 12 + (u - 0.5) * 10 * P.veil, bottom + 1 + dy * 0.3, WATER[4]);
-      g.px(x0 - P.trail * 12 + (u - 0.5) * 10 * P.veil, bottom + 1 + dy * 0.3, glow[2]);
+      const dx = x0 - P.trail * 12 + (u - 0.5) * 10 * P.veil;
+      p.px(dx, bottom + 2 + dy * 0.3, WATER[4]);
+      g.px(dx, bottom + 2 + dy * 0.3, glow[2]);
     }
   }
 }
@@ -165,20 +166,18 @@ function skirt(p, g, glow, wx, wy, P) {
   for (let i = 0; i < n; i++) {
     const u = i / (n - 1);
     const x0 = wx - 7 + i * 2;
-    const len = 9 + hash2(i, 1, 71) * 8 - Math.abs(u - 0.45) * 5;
+    const len = 13 + Math.sin(u * 7) * 2.5 - Math.abs(u - 0.45) * 5;
     const sh = u < 0.2 ? 4 : u < 0.5 ? 3 : u < 0.8 ? 2 : 1;
     for (let s = 0; s < len; s++) {
       const v = s / len;
-      const x = x0 - P.trail * 7 * v * v + Math.sin(P.clothT * 1.2 + i * 0.8 + v * 3) * 1.3 * v + (u - 0.5) * 6 * v * P.veil;
+      const x = x0 - P.trail * 7 * v * v + Math.sin(P.clothT * 1.2 + u * 2.2 + v * 3) * 1.2 * v + (u - 0.5) * 6 * v * P.veil;
       const y = wy + s;
-      const wd = s > len - 2 && hash2(i, s, 73) < 0.5 ? 1 : 2;
-      p.rect(x, y, wd, 1, ROBE[s === 2 ? Math.min(5, sh + 1) : sh]);
+      const wd = s > len - 2 ? 2 : 3; // Bahnen überlappen, Enden spitz
+      p.rect(x, y, wd, 1, ROBE[s === 2 ? Math.min(5, sh + 1) : s > len - 3 ? Math.max(1, sh - 1) : sh]);
+      if (i % 2 === 1 && s > 3) p.px(x + wd - 1, y, ROBE[Math.max(0, sh - 1)]); // Faltenschatten
       if (s === 3) { p.rect(x, y, wd, 1, GOLD[u < 0.4 ? 3 : 2]); }
       if (s === 6 && i % 3 === 1) { p.px(x, y, ROBE[5]); g.px(x, y, glow[2]); g.px(x, y + 1, glow[1]); }
     }
-    // ausgefranste Enden
-    const ex = x0 - P.trail * 7 + (u - 0.5) * 6 * P.veil;
-    if (hash2(i, 5, 75) < 0.6) p.px(ex + 1, wy + len + 1, ROBE[1]);
   }
 }
 
@@ -292,13 +291,17 @@ function drawFigure(p, g, P, glow, ex, flood) {
   // --- 1. Haar hinten: breite, treibende Masse
   const nH = 18;
   const lift = P.hairLift;
-  for (let j = 0; j < nH; j++) {
-    const u = j / (nH - 1);
+  // von hinten (dunkel, außen) nach vorn (heller) zeichnen, damit die Masse geschlossen bleibt
+  for (let jj = nH - 1; jj >= 0; jj--) {
+    const j = jj, u = j / (nH - 1);
     const th = -Math.PI / 2 - u * 1.5 - 0.1;
     const ox = hcx - 1 + Math.cos(th) * 4.5, oy = hcy - 1 + Math.sin(th) * 4.5;
-    const dir = Math.PI / 2 + 0.35 + u * 0.35 + lift * (0.95 + u * 0.3) + hash2(j, 1, 37) * 0.15;
-    const L = 34 + hash2(j, 2, 37) * 16 - lift * 4 + P.hairWild * 6;
-    strand(p, g, glow, ox, oy, dir, L, 5.4 - u * 1.2, j, P, { shade: u > 0.5 ? 1 : 2, glowy: flood ? 0.04 : 0 });
+    const dir = Math.PI / 2 + 0.35 + u * 0.35 + lift * (0.95 + u * 0.3);
+    // vier Strähnenbüschel mit eigener Länge, darin nur kleine Unterschiede
+    const cu = Math.min(3.999, u * 4), clump = Math.floor(cu), cl = cu - clump;
+    // Büschel laufen spitz zu: die Mitte jedes Büschels ist am längsten
+    const L = 32 + [10, 4, 12, 6][clump] + (1 - Math.abs(cl - 0.5) * 2) * 9 - lift * 4 + P.hairWild * 6;
+    strand(p, g, glow, ox, oy, dir, L, 7 - u * 1.6, j, P, { u, shade: u < 0.3 ? 4 : u < 0.65 ? 3 : 2, sheen: j === 3 || j === 8 || j === 13, edge: cl < 0.2, glowy: flood ? 0.04 : 0 });
   }
   // Zusätzliche, wild peitschende Leuchtsträhnen (nur Leucht-Ebene, Phase 2)
   if (flood) {
@@ -449,7 +452,7 @@ function drawFigure(p, g, P, glow, ex, flood) {
   for (let j = 0; j < 3; j++) {
     const ox = hcx - 3 + j * 0.8, oy = hcy - 1 + j * 1.5;
     const dir = Math.PI / 2 + 0.1 - j * 0.1 + lift * 0.7;
-    strand(p, g, glow, ox, oy, dir, 18 + j * 5, 2.4, 40 + j, P, { shade: 2 });
+    strand(p, g, glow, ox, oy, dir, 18 + j * 5, 3, 40 + j, P, { u: 0.2 + j * 0.1, shade: 3 - (j > 1 ? 1 : 0), sheen: j === 0 });
   }
 
   // --- 7. Schwung-Schleier

@@ -22,11 +22,12 @@ import { hash2 } from '../core/math.js';
 const W = 200, H = 136, AX = 88, AY = 128;
 const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Axt steckt im Boden)
 
-// Geschwärzter Schmiedestahl: kühles Grau mit leichtem Blaustich, klare Stufen
-const OBS = ['#0e0e13', '#1e1f27', '#33353f', '#50545f', '#7a7f8c'];
-const SPEC = '#c6ccd6';
-// Glutnähte im unbeleuchteten Sprite (schon im Grundbild warm und lesbar)
-const MAG = ['#3a0c04', '#7a1a06', '#b8380c', '#ec6a1c'];
+// Erkaltete Schlacke: fast schwarz mit warmem Braunstich, Kanten rötlich angeglüht
+const OBS = ['#0a0807', '#17110f', '#261c18', '#3a2b24', '#56403a'];
+const SPEC = '#b08a70';
+// Glutnähte im unbeleuchteten Sprite (schon im Grundbild orange-gelb und lesbar)
+const MAG = ['#4a0e04', '#a2300a', '#ec6614', '#ffb23c'];
+const HOT = '#ffe08a';
 // Basalthaut / Kettengeflecht an Hals und Gelenken
 const SKIN = ['#140f10', '#281c1a', '#3e2a24', '#5a3c2e'];
 // Hörner: Knochenhorn, an der Wurzel dunkel, zur Spitze elfenbeinhell
@@ -44,7 +45,7 @@ const OUTLINE = '#07050a';
 const EMB = ['#5a1406', '#a8300a', '#f0661a', '#ffb048', '#fff0c0'];
 const INF = ['#8a2a08', '#ff6a14', '#ffc048', '#fff4c8', '#ffffff'];
 
-const THIGH = 15, SHIN = 16, SPINE = 24, UPPER = 12, FORE = 13;
+const THIGH = 15.5, SHIN = 16.5, SPINE = 27, UPPER = 13, FORE = 13.5;
 
 // ---------------------------------------------------------------- Pixelpuffer
 
@@ -330,7 +331,7 @@ function smear(p, g, cx, cy, a0, a1, r0, r1) {
 function drawIgnaroth(p, g, P, extra = {}) {
   const gy = AY;
   const lean = P.lean, sL = Math.sin(lean), cL = Math.cos(lean);
-  const hipX = AX + P.hipX, hipY = gy - 30 + P.hipY + P.kneel * 11;
+  const hipX = AX + P.hipX, hipY = gy - 31 + P.hipY + P.kneel * 11;
   const chX = hipX + sL * SPINE, chY = hipY - cL * SPINE;
   const perpX = cL, perpY = sL; // "nach vorn" quer zum Rumpf
   const along = (s, k) => [hipX + sL * s + perpX * k, hipY - cL * s + perpY * k];
@@ -348,8 +349,8 @@ function drawIgnaroth(p, g, P, extra = {}) {
   }
 
   // Schultern, Hände
-  const shF = { x: chX + perpX * 10, y: chY + perpY * 10 + 3 };
-  const shB = { x: chX - perpX * 8, y: chY - perpY * 8 + 2 };
+  const shF = { x: chX + perpX * 12, y: chY + perpY * 12 + 3 };
+  const shB = { x: chX - perpX * 9.5, y: chY - perpY * 9.5 + 2 };
   const hF = { x: chX + P.hFx, y: chY + P.hFy };
   const aa = P.axe;
   const hB = P.grip > 0.5
@@ -407,8 +408,8 @@ function drawIgnaroth(p, g, P, extra = {}) {
     limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 8, 7, litO);
     // Lavanaht am Unterarm
     const mx = (armF.jx + armF.ex) / 2, my = (armF.jy + armF.ey) / 2;
-    p.line(armF.jx + (mx - armF.jx) * 0.4, armF.jy + (my - armF.jy) * 0.4, mx + (armF.ex - mx) * 0.6, my + (armF.ey - my) * 0.6, MAG[1]);
-    g.line(armF.jx + (mx - armF.jx) * 0.4, armF.jy + (my - armF.jy) * 0.4, mx + (armF.ex - mx) * 0.6, my + (armF.ey - my) * 0.6, 1);
+    p.line(armF.jx + (mx - armF.jx) * 0.4, armF.jy + (my - armF.jy) * 0.4, mx + (armF.ex - mx) * 0.6, my + (armF.ey - my) * 0.6, MAG[3]);
+    g.line(armF.jx + (mx - armF.jx) * 0.4, armF.jy + (my - armF.jy) * 0.4, mx + (armF.ex - mx) * 0.6, my + (armF.ey - my) * 0.6, 2);
     // Ellbogen mit Dorn
     p.ellipse(armF.jx, armF.jy, 3, 3, OBS[2]); p.px(armF.jx - 1, armF.jy - 1, OBS[4]);
     const ex = armF.jx - (armF.ex - armF.jx) * 0.3, ey = armF.jy - (armF.ey - armF.jy) * 0.3;
@@ -445,8 +446,8 @@ function torso(p, g, along, P, meta) {
   for (let s = 0; s <= SPINE + 1.5; s += 0.5) {
     const t = s / SPINE;
     const sm = t * t * (3 - 2 * t);
-    let hwB = 7 + 3.5 * sm;
-    let hwF = 7 + 4.5 * sm + (t > 0.48 && t < 0.98 ? 2 * Math.sin((t - 0.48) / 0.5 * Math.PI) : 0);
+    let hwB = (7 + 3.5 * sm) * 1.16;
+    let hwF = (7 + 4.5 * sm + (t > 0.48 && t < 0.98 ? 2 * Math.sin((t - 0.48) / 0.5 * Math.PI) : 0)) * 1.16;
     if (t > 0.9) { const r = Math.sqrt(Math.max(0, 1 - ((t - 0.9) / 0.17) ** 2)); hwB *= 0.55 + 0.45 * r; hwF *= 0.5 + 0.5 * r; }
     const chest = t >= 0.5;
     const f = (s % LAME) / LAME;
@@ -457,7 +458,7 @@ function torso(p, g, along, P, meta) {
       let i = rel < 0.08 ? 1 : rel < 0.3 ? 2 : rel < 0.62 ? 3 : rel < 0.86 ? 2 : 1;
       const [x, y] = along(s, k);
       if (seam) {
-        if (rel > 0.05 && rel < 0.95) { p.px(x, y, MAG[1]); if (rel > 0.12 && rel < 0.88) g.px(x, y, rel > 0.3 && rel < 0.7 ? 2 : 1); }
+        if (rel > 0.05 && rel < 0.95) { p.px(x, y, rel > 0.25 && rel < 0.75 ? MAG[3] : MAG[2]); if (rel > 0.15 && rel < 0.85) g.px(x, y, rel > 0.3 && rel < 0.7 ? 2 : 1); }
         else p.px(x, y, OBS[0]);
         continue;
       }
@@ -479,6 +480,23 @@ function torso(p, g, along, P, meta) {
   // Glanzpunkte
   { const [x, y] = along(SPINE - 2, -3); p.px(x, y, SPEC); p.px(x + 1, y, OBS[4]); }
   { const [x, y] = along(SPINE * 0.8, 6); p.px(x, y, OBS[4]); }
+  // Risse laufen vom Kern durch die Platten
+  const cracks = [
+    [[0.66, -1.5], [0.82, -2], [0.9, -4], [1.0, -7]],
+    [[0.66, -1.5], [0.58, -3], [0.44, -5], [0.3, -2], [0.2, -6]],
+  ];
+  // Glutrisse durch die Schlacke (immer sichtbar, Phase 3 weißglühend)
+  for (const c of cracks) {
+    for (let i = 0; i < c.length - 1; i++) {
+      const [x0, y0] = along(c[i][0] * SPINE, c[i][1] * 1.16), [x1, y1] = along(c[i + 1][0] * SPINE, c[i + 1][1] * 1.16);
+      bres(x0, y0, x1, y1, (x, y) => { p.px(x, y, i === 0 ? MAG[3] : MAG[2]); g.apx(x, y, i === 0 ? 2 : 1); g.epx(x, y, i === 0 ? 4 : 3); });
+    }
+  }
+  // Rückenseitiger Glutriss am Harnisch
+  for (const [a, b] of [[[0.72, -9], [0.82, -7]], [[0.82, -7], [0.95, -9]]]) {
+    const [x0, y0] = along(a[0] * SPINE, a[1]), [x1, y1] = along(b[0] * SPINE, b[1]);
+    bres(x0, y0, x1, y1, (x, y) => { p.px(x, y, MAG[2]); g.px(x, y, 2); });
+  }
   // Glutkern in Messingfassung
   const [cx, cy] = along(SPINE * 0.66, -1.5);
   const r = 2.4 + P.core * 0.8;
@@ -498,19 +516,6 @@ function torso(p, g, along, P, meta) {
   g.eellipse(cx, cy, r, r, 3);
   g.eellipse(cx, cy, Math.max(0.6, r - 1), Math.max(0.6, r - 1), 4);
   meta.chest = { x: cx, y: cy };
-  // Phase 3: Risse laufen vom Kern durch die Platten
-  const cracks = [
-    [[0.66, -1.5], [0.82, -2], [0.9, -4], [1.0, -7]],
-    [[0.66, -1.5], [0.6, 5], [0.5, 3], [0.38, 7]],
-    [[0.66, -1.5], [0.58, -3], [0.44, -5], [0.3, -2], [0.2, -6]],
-    [[0.66, -1.5], [0.84, 6], [0.95, 8]],
-  ];
-  for (const c of cracks) {
-    for (let i = 0; i < c.length - 1; i++) {
-      const [x0, y0] = along(c[i][0] * SPINE, c[i][1]), [x1, y1] = along(c[i + 1][0] * SPINE, c[i + 1][1]);
-      g.eline(x0, y0, x1, y1, i === 0 ? 3 : 2);
-    }
-  }
 }
 
 function belt(p, g, hipX, hipY, P, legF, legB) {
@@ -556,8 +561,8 @@ function leg(p, g, hx, hy, L, ramp, back, P) {
   for (let t = 0.15; t < 0.95; t += 0.05) p.px(L.jx + dx * t + 1, L.jy + dy * t, ramp[3]);
   // Glutnaht quer über die Schiene
   const mx = L.jx + dx * 0.6, my = L.jy + dy * 0.6;
-  p.line(mx - 3, my, mx + 3, my + 0.5, MAG[1]); g.line(mx - 2, my, mx + 2, my + 0.5, back ? 0 : 1);
-  g.eline(L.jx, L.jy + 3, mx, my, back ? 1 : 2);
+  p.line(mx - 3, my, mx + 3, my + 0.5, back ? MAG[1] : MAG[3]); g.line(mx - 2, my, mx + 2, my + 0.5, back ? 1 : 2);
+  bres(L.jx + 0.5, L.jy + 3, mx, my, (x, y) => { p.px(x, y, back ? MAG[1] : MAG[2]); g.apx(x, y, back ? 0 : 1); g.epx(x, y, back ? 1 : 3); });
   // Sabaton: breit, gestaffelt, Messingkappe, Krallen
   const ex = Math.round(L.ex), ey = Math.round(L.ey);
   p.rect(ex - 5, ey - 5, 12, 5, ramp[1]);
@@ -568,7 +573,7 @@ function leg(p, g, hx, hy, L, ramp, back, P) {
   p.rect(ex + 4, ey - 5, 3, 1, back ? GOLD[1] : GOLD[3]);
   const cl = back ? [HORN[1], HORN[2]] : [HORN[3], HORN[4]];
   p.px(ex + 7, ey - 2, cl[0]); p.px(ex + 8, ey - 1, cl[1]); p.px(ex + 7, ey - 1, cl[0]); p.px(ex + 8, ey - 3, cl[0]);
-  p.px(ex, ey - 3, MAG[2]); g.px(ex, ey - 3, back ? 0 : 1);
+  p.px(ex, ey - 3, MAG[3]); p.px(ex + 1, ey - 3, MAG[2]); g.px(ex, ey - 3, back ? 1 : 3); g.px(ex + 1, ey - 3, back ? 0 : 2);
   // Kniekachel mit Dorn
   p.ellipse(L.jx, L.jy, 4, 3.6, ramp[0]);
   p.ellipse(L.jx - 0.3, L.jy - 0.3, 3.2, 2.8, ramp[1]);
@@ -592,8 +597,8 @@ function pauldron(p, g, x, y, rx, ry, ramp, spikes, front) {
     p.ellipse(lx, ly, lr, 2.6, ramp[0]);
     p.ellipse(lx - 0.3, ly - 0.6, lr - 0.8, 1.6, ramp[2]);
     p.line(lx - lr + 1.5, ly - 2, lx + lr - 1.5, ly - 2, ramp[3]);
-    p.line(lx - lr + 2, ly + 1, lx + lr - 2, ly + 1, MAG[1]);
-    if (front) for (let k = -lr + 3; k < lr - 2; k++) g.px(lx + k, ly + 1, k % 3 === 0 ? 2 : 1);
+    p.line(lx - lr + 2, ly + 1, lx + lr - 2, ly + 1, front ? MAG[2] : MAG[1]);
+    for (let k = -lr + 3; k < lr - 2; k++) g.px(lx + k, ly + 1, front ? (k % 3 === 0 ? 3 : 2) : 1);
   }
   // Kuppel
   p.ellipse(x, y, rx, ry, ramp[0]);
@@ -605,7 +610,12 @@ function pauldron(p, g, x, y, rx, ry, ramp, spikes, front) {
     const yy = y + ry * Math.sqrt(Math.max(0, 1 - (k * k) / (rx * rx))) - 1;
     p.px(x + k, yy, front ? (k < 0 ? GOLD[3] : GOLD[2]) : GOLD[1]);
   }
-  if (front) { p.px(x - 3, y - ry + 2, SPEC); p.px(x - 2, y - ry + 2, ramp[3]); g.eline(x - 2, y - 2, x + 2, y + 1, 2); g.eline(x + 2, y + 1, x + 1, y + 4, 2); }
+  if (front) {
+    p.px(x - 3, y - ry + 2, SPEC); p.px(x - 2, y - ry + 2, ramp[3]);
+    for (const [a, b, c, d] of [[x - 2, y - 2, x + 2, y + 1], [x + 2, y + 1, x + 1, y + 4], [x + 2, y + 1, x + 5, y]]) bres(a, b, c, d, (px, py) => { p.px(px, py, MAG[3]); g.apx(px, py, 3); g.epx(px, py, 4); });
+  } else {
+    bres(x - 1, y - 1, x + 2, y + 2, (px, py) => { p.px(px, py, MAG[1]); g.px(px, py, 1); });
+  }
   for (const [sx, h, lx] of spikes) {
     limb(p, x + sx, y - ry + 2, x + sx + lx, y - ry + 2 - h, 4, 1, front ? [OBS[1], OBS[2], OBS[4], SPEC] : [VOID, OBS[0], OBS[1], OBS[3]]);
     g.epx(x + sx + lx, y - ry + 2 - h, 2);
@@ -616,8 +626,34 @@ function pauldron(p, g, x, y, rx, ry, ramp, spikes, front) {
 // glühende Augen, Reißzähne. Zwei mächtige Knochenhörner (das nahe schwingt
 // nach hinten, das ferne nach vorn) geben die Halbmond-Silhouette, dazwischen
 // eine Messingkrone.
+// Flammenmähne: Feuerzungen wehen vom Helmrücken nach hinten oben.
+// Im Grundbild deckend (gelber Kern, oranger Körper, rote Spitzen), dazu Glut.
+function flameMane(p, g, hx, hy, P) {
+  const n = 5;
+  for (let f = 0; f < n; f++) {
+    const rx = hx + 6 - f * 1.8, ry = hy + 2 + f * 1.7;
+    const a = -1.95 - f * 0.22 - P.cape * 0.15;
+    const L = (13 - Math.abs(f - 1.5) * 1.8 + Math.sin(P.capeT * 1.7 + f * 1.9) * 1.8) * (P.crown > 0.5 ? 0.4 : 1);
+    for (let d = 0; d < L; d += 0.5) {
+      const t = d / L;
+      const wob = Math.sin(d * 0.45 + P.capeT * 2 + f * 1.3) * t * 2.2;
+      const cx = rx + Math.cos(a) * d - Math.sin(a) * wob, cy = ry + Math.sin(a) * d + Math.cos(a) * wob;
+      const hw = (1 - t) * 2.4 + 0.5;
+      for (let k = -hw; k <= hw; k += 0.5) {
+        const x = cx - Math.sin(a) * k, y = cy + Math.cos(a) * k;
+        const e = Math.abs(k) / hw;
+        const c = t > 0.78 ? MAG[1] : e > 0.7 ? MAG[2] : t < 0.35 && e < 0.4 ? HOT : MAG[3];
+        p.px(x, y, c);
+        const i = t > 0.78 ? 1 : e > 0.7 ? 2 : t < 0.35 && e < 0.4 ? 4 : 3;
+        if (i > 1) g.apx(x, y, i - 2); g.epx(x, y, Math.min(4, i + 1));
+      }
+    }
+  }
+}
+
 function head(p, g, hx, hy, P, meta, gy) {
   const j = Math.round(P.jaw * 3);
+  flameMane(p, g, hx, hy, P);
   // Fernes Horn (dunkler), schwingt nach vorn oben
   horn(p, g, hx + 9, hy + 3, hx + 21, hy + 1, hx + 19, hy - 11, 4.5, 1.2, [VOID, HORN[0], HORN[1], HORN[2], HORN[3]], true);
   // Nackenschutz (gestaffelt)
@@ -650,8 +686,8 @@ function head(p, g, hx, hy, P, meta, gy) {
   }
   meta.eye = { x: hx + 13, y: hy + 5 };
   // Wangennaht (Glut)
-  p.line(hx + 7, hy + 7, hx + 9, hy + 10, MAG[2]); g.line(hx + 7, hy + 7, hx + 9, hy + 10, 1);
-  g.eline(hx + 5, hy + 3, hx + 7, hy + 0, 2); // Riss im Helm (Phase 3)
+  p.line(hx + 7, hy + 7, hx + 9, hy + 10, MAG[3]); g.line(hx + 7, hy + 7, hx + 9, hy + 10, 2);
+  bres(hx + 5, hy + 3, hx + 7, hy + 0, (x, y) => { p.px(x, y, MAG[2]); g.apx(x, y, 2); g.epx(x, y, 3); }); // Glutriss im Helm
   // Maul
   p.rect(hx + 9, hy + 10, 7, 1, OBS[1]);
   if (j) {
@@ -691,6 +727,8 @@ function crownAt(p, g, x, y, fall) {
   for (const [dx, h] of spikes) {
     const yy = y - 1 + Math.round(dx * tilt);
     for (let k = 1; k <= h; k++) p.px(x + dx + (k > h - 2 ? 1 : 0) * (dx > 6 ? 1 : 0), yy - k, k === h ? GOLD[4] : dx < 5 ? GOLD[3] : GOLD[2]);
+    // glühende Zackenspitzen
+    if (fall < 0.9) { const tx = x + dx + (dx > 6 ? 1 : 0); g.px(tx, yy - h, 3); g.px(tx, yy - h + 1, 1); g.epx(tx, yy - h - 1, 3); }
   }
   p.px(x + 7, y - 1 + Math.round(7 * tilt), MAG[2]);
   g.px(x + 7, y - 1 + Math.round(7 * tilt), fall > 0.9 ? 1 : 3);
@@ -705,15 +743,18 @@ function cape(p, g, tx, ty, gy, P) {
     const u = i / (N - 1);
     const sx = tx - 10 + i * 0.95;
     const top = ty + Math.abs(u - 0.45) * 4;
-    const len = len0 - Math.abs(u - 0.4) * 10 + Math.sin(P.capeT + i * 0.8) * 2.5 + (hash2(i, 1, 5) * 5 | 0);
+    const len = len0 - Math.abs(u - 0.4) * 10 + Math.sin(P.capeT + u * 4) * 2.5 + Math.sin(u * 23) * 1.5;
     let lx = sx;
     for (let j = 0; j < len; j++) {
       const v = j / len;
       const x = sx - P.cape * 18 * v * v - (1 - u) * 5 * v + Math.sin(P.capeT * 1.3 + v * 4 + i * 0.4) * 1.6 * v;
-      const shade = u < 0.12 ? 3 : u > 0.88 ? 0 : (i % 3 === 0 ? 1 : 2);
-      let c = CAPE[v > 0.8 && shade > 0 ? shade - 1 : shade];
+      let sh = u < 0.1 ? 3.3 : 2.9 - u * 2.2 - v * 0.6;
+      const fold = Math.sin(u * Math.PI * 3 + v * 1.5 + P.capeT * 0.3);
+      if (fold > 0.75) sh += 0.9; else if (fold < -0.8) sh -= 0.9;
+      const shade = Math.max(0, Math.min(4, Math.round(sh)));
+      let c = CAPE[u > 0.9 ? 0 : shade];
       if (v < 0.08 && shade > 1) c = CAPE[4];
-      if (j > len - 3) c = MAG[j > len - 2 ? 2 : 1];
+      if (j > len - 4) c = j > len - 2 ? MAG[3] : j > len - 3 ? MAG[2] : MAG[1];
       p.px(x, top + j, c); p.px(x + 1, top + j, c);
       lx = x;
     }
@@ -833,8 +874,8 @@ function rimAndOutline(L) {
     if (!base[i] || nr[i]) continue;
     const up = !solid(x, y - 1), up2 = !solid(x, y - 2);
     const lf = !solid(x - 1, y), rt = !solid(x + 1, y);
-    if (up) out[i] = lighten(base[i], 0.5, 236, 214, 190);
-    else if (up2 && (lf || rt)) out[i] = lighten(base[i], 0.32, 236, 214, 190);
+    if (up) out[i] = lighten(base[i], 0.45, 240, 190, 140);
+    else if (up2 && (lf || rt)) out[i] = lighten(base[i], 0.3, 240, 190, 140);
     else if (rt) out[i] = lighten(base[i], 0.3, 255, 150, 80);   // Gegenlicht der Glut
     else if (lf) out[i] = lighten(base[i], 0.2, 200, 200, 214);
   }

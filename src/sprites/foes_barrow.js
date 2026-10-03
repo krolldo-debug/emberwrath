@@ -473,36 +473,55 @@ function drawHound(p, g, P, X) {
   for (let i = 0; i < 3; i++) limb(p, tpts[i][0], tpts[i][1], tpts[i + 1][0], tpts[i + 1][1], 1.8 - i * 0.3, 1.4 - i * 0.3, [HFUR[1], HFUR[2], HFUR[3], HFUR[4]]);
   if (soul > 0.2) wisp(p, g, tpts[3][0], tpts[3][1], 6, P.fl + P.t * TAU, -1, -0.2, soul);
 
-  // --- Rumpf: tiefe Brust, eingezogener Bauch, Hüftknochen
+  // --- Rumpf: ausgezehrter Knochenhund. Fell nur noch an der Hinterhand,
+  // der Brustkorb liegt frei (Rippenbögen), dazwischen glimmt die Seele.
+  // Buckel über den Schultern: Wirbelsäule steigt nach vorn an.
   const flat = 1 - lie * 0.35;
-  p.ellipse(ox + 5, Y(5, by + 3), 4.5, 3.6 * flat, HFUR[2]);                 // Becken
-  p.ellipse(ox + 12, Y(12, by + 3), 6, 2.6 * flat, HFUR[2]);                  // Lende (schmal)
-  p.ellipse(ox + 19, Y(19, by + 4.5), 5.5, 5.2 * flat, HFUR[2]);              // Brustkorb
-  // Bauchlinie scharf eingezogen (dunkel)
-  p.line(ox + 8, Y(8, by + 5.5), ox + 15, Y(15, by + 5), HFUR[0]);
-  p.ellipse(ox + 19, Y(19, by + 8), 3.5, 1.3, HFUR[1]);
-  // Licht von oben links
+  const hump = (x) => 2.4 * Math.max(0, 1 - Math.abs(x - 18) / 8) * flat;
+  const spY = (x) => Y(x, by + 0.6 - hump(x));
+  // Hinterhand mit zerfetztem Fell
+  p.ellipse(ox + 5, Y(5, by + 3), 4.5, 3.6 * flat, HFUR[2]);
   p.ellipse(ox + 5, Y(5, by + 1), 3, 1.4, HFUR[4]);
-  p.line(ox + 7, Y(7, by + 0.8), ox + 16, Y(16, by + 1), HFUR[4]);
-  p.ellipse(ox + 18, Y(18, by + 1.5), 3.5, 1.5, HFUR[4]);
-  p.px(ox + 3, Y(3, by + 0.5), HFUR[6]); p.px(ox + 4, Y(4, by), HFUR[6]);  // Hüftknochen
-  // Rippen
-  for (let i = 0; i < 4; i++) {
-    const rx = ox + 15.5 + i * 1.6, ry = Y(rx - ox, by + 3);
-    p.line(rx, ry, rx + 0.5, ry + 3.5 * flat, HFUR[1]);
-    p.line(rx + 1, ry - 0.5, rx + 1.5, ry + 3 * flat, HFUR[5]);
+  for (let i = 0; i < 4; i++) p.px(ox + 8 + i * 0.7, Y(8, by + 3 + i * 0.9), HFUR[i % 2 ? 1 : 3]); // Fetzen
+  // Beckenknochen tritt hervor
+  p.line(ox + 2, Y(2, by + 0.5), ox + 6, Y(6, by + 0.2), BN[3]); p.px(ox + 3, Y(3, by - 0.2), BN[4]); p.px(ox + 6, Y(6, by + 1), BN[2]);
+  // Sehnen zwischen Becken und Brustkorb (dünn, dunkel)
+  p.line(ox + 7, Y(7, by + 2.5), ox + 13, Y(13, by + 4), HFUR[1]);
+  p.line(ox + 7, Y(7, by + 1.6), ox + 13, Y(13, by + 2), HFUR[2]);
+  // Brusthöhle: dunkel, Seelenlicht in der Mitte
+  p.ellipse(ox + 18.5, Y(18.5, by + 4.2 - hump(18) * 0.3), 5.2, 4.6 * flat, HFUR[0]);
+  if (soul > 0.15) {
+    const cx2 = ox + 18.5, cy2 = Y(18.5, by + 4.6 - hump(18) * 0.3);
+    p.ellipse(cx2, cy2, 2.4, 1.9 * flat, GH[1]); p.ellipse(cx2, cy2, 1.4, 1.1, GH[2]); p.px(cx2, cy2, GH[soul > 0.9 ? 4 : 3]);
+    g.ellipse(cx2, cy2, 3.2, 2.6 * flat, GH[1]); g.ellipse(cx2, cy2, 2, 1.6, GH[2]); g.px(cx2, cy2, GH[4]);
   }
-  // Wirbelsäule tritt hervor
-  for (let x = 6; x <= 17; x += 2) p.px(ox + x, Y(x, by + 0.2 - (x > 11 ? 0.3 : 0)), HFUR[6]);
+  // Rippenbögen (hell, mit Lücken), vorne länger
+  for (let i = 0; i < 6; i++) {
+    const rx = ox + 13.5 + i * 1.9, ry = spY(rx - ox) + 0.8;
+    const len = (3.6 + Math.min(i, 3) * 0.9) * flat;
+    const mx = rx - 1.2, my = ry + len * 0.55, ex2 = rx - 0.4 + i * 0.12, ey2 = ry + len;
+    p.line(rx, ry, mx, my, BN[3]); p.line(mx, my, ex2, ey2, BN[2]);
+    p.px(rx, ry, BN[4]); p.px(ex2, ey2, BN[1]);
+    p.px(rx + 0.8, ry + 1, HFUR[0]);
+  }
+  // Brustbein-Spitze vorn
+  p.px(ox + 23, Y(23, by + 7), BN[2]); p.px(ox + 22, Y(22, by + 7.5), BN[1]);
+  // Wirbelsäule mit Dornfortsätzen (Silhouette: gezackter Buckel)
+  for (let x = 3; x <= 22; x += 1.5) {
+    const y = spY(x);
+    p.px(ox + x, y, BN[3]); p.px(ox + x, y + 1, BN[1]);
+    const h = x > 11 && x < 22 ? 2 + (Math.abs(x - 18) < 3 ? 1 : 0) : 1;
+    if (Math.round(x * 2) % 3 === 0) for (let j = 1; j <= h; j++) p.px(ox + x - j * 0.4, y - j, j === h ? BN[5] : BN[4]);
+  }
 
-  // --- Geistermähne: Flammenzungen entlang des Nackens/Rückens (Leucht-Ebene)
-  for (let i = 0; i < 9; i++) {
-    const x = 11 + i * 1.3, base = Y(x, by + 1.2 - Math.sin(i / 8 * Math.PI) * 1.2);
-    const h = (2.5 + ((hash2(i, 2, 95) * 3 + P.fl * 2 + i) % 3)) * soul * (0.6 + i / 12);
+  // --- Geisterflammen zwischen den Dornen (Leucht-Ebene), kürzer als früher
+  for (let i = 0; i < 6; i++) {
+    const x = 12 + i * 1.8, base = spY(x) - 1;
+    const h = (2 + ((hash2(i, 2, 95) * 3 + P.fl * 2 + i) % 3)) * soul * 0.8;
     for (let j = 0; j < h; j++) {
       const f = j / h;
       const x2 = ox + x - j * (0.55 + P.amp * 0.25) + Math.sin(P.fl * 1.7 + i + j) * 0.4, y2 = base - j * 0.8;
-      if (f < 0.4) p.px(x2, y2, GH[f < 0.2 ? 3 : 2]);
+      if (f < 0.3) p.px(x2, y2, GH[2]);
       g.px(x2, y2, GH[f < 0.3 ? 4 : f < 0.6 ? 3 : 2]);
     }
   }
@@ -511,25 +530,31 @@ function drawHound(p, g, P, X) {
   leg(7, gal ? 0.3 : Math.PI, true, false);
   leg(22, gal ? 0.8 : 0, true, true);
 
-  // --- Hals + Kopf: langer, schädelhafter Kopf
-  const hx = ox + 26 + P.up * 0.5, hy = Y(26, by + 1) + P.head * 3 - P.up * 3 + lie * 3;
+  // --- Hals + Kopf: tief gesenkt (unter der Rückenlinie), blanker Schädel
+  const hx = ox + 27 + P.up * 0.5, hy = Y(26, by + 4.5) + P.head * 3 - P.up * 4.5 + lie * 1.5;
   const up = P.up * 0.9 - P.head * 0.3;
-  limb(p, ox + 21, Y(21, by + 2.5), hx - 1, hy + 1, 5, 3.6, [HFUR[1], HFUR[2], HFUR[3], HFUR[4]]);
-  p.ellipse(hx, hy, 3.2, 2.8, HFUR[3]);
-  p.ellipse(hx - 0.5, hy - 1, 2.2, 1.4, HFUR[5]);
-  // Ohren: zerrissen, angelegt
-  p.line(hx - 2, hy - 2, hx - 4, hy - 4.5 - P.up, HFUR[4]); p.px(hx - 4, hy - 5 - P.up, HFUR[6]);
-  p.px(hx - 1, hy - 3, HFUR[5]);
+  // Halswirbel vom Buckel hinab zum Schädel
+  const n0x = ox + 21, n0y = spY(21);
+  for (let i = 0; i <= 4; i++) {
+    const f = i / 4, vx = n0x + (hx - 2 - n0x) * f, vy = n0y + (hy - 1 - n0y) * f - Math.sin(f * Math.PI) * 1.2;
+    p.rect(vx - 1, vy - 0.5, 2, 2, BN[2]); p.px(vx - 1, vy - 0.5, BN[4]);
+  }
+  limb(p, ox + 21, n0y + 2.5, hx - 1, hy + 1.5, 2.6, 1.6, [HFUR[0], HFUR[1], HFUR[2], HFUR[3]]); // Sehnenstrang
+  p.ellipse(hx, hy, 3.2, 2.6, BN[2]);
+  p.ellipse(hx - 0.3, hy - 0.8, 2.4, 1.5, BN[3]);
+  p.line(hx - 2, hy - 2, hx + 1.5, hy - 2.3, BN[4]); // Stirnwulst
+  // ein Fetzen Ohr hängt noch dran
+  p.line(hx - 2.5, hy - 1.5, hx - 4.5, hy - 2.5 - P.up, HFUR[3]); p.px(hx - 4.5, hy - 3 - P.up, HFUR[4]);
   // Schnauze: knöcherner Oberkiefer, Unterkiefer klappt auf
   const j = P.jaw;
   const sx = hx + 2, sy = hy - up * 2;
-  limb(p, sx, sy, sx + 5, sy + 0.5 - up, 3, 2, [HFUR[2], HFUR[3], BN[2], BN[3]]);
+  limb(p, sx, sy, sx + 5, sy + 0.5 - up, 2.8, 1.8, [BN[1], BN[2], BN[3], BN[4]]);
   p.px(sx + 5.5, sy + 0.5 - up, BN[1]); // Nase
   p.px(sx + 2, sy - 1, BN[4]); p.px(sx + 3, sy - 1 - up * 0.3, BN[3]);
   // Unterkiefer
   const ja = 0.25 + j * 0.45;
   const jx1 = sx + 4.5 * Math.cos(ja), jy1 = sy + 1.5 + 4.5 * Math.sin(ja) - up;
-  limb(p, sx, sy + 1.5, jx1, jy1, 1.8, 1.2, [HFUR[1], HFUR[1], HFUR[2], BN[2]]);
+  limb(p, sx, sy + 1.5, jx1, jy1, 1.8, 1.2, [BN[0], BN[1], BN[2], BN[3]]);
   if (j > 0.2) {
     // Maulinneres glimmt
     p.line(sx + 1, sy + 1.2, sx + 4, sy + 1.5 + j * 1.2 - up, GH[1]);
@@ -537,11 +562,11 @@ function drawHound(p, g, P, X) {
     // Zähne
     p.px(sx + 3, sy + 1 - up * 0.5, BN[5]); p.px(sx + 4.5, sy + 1 - up * 0.8, BN[5]); p.px(jx1 - 0.5, jy1 - 1, BN[4]);
   } else {
-    p.px(sx + 3, sy + 1.3, BN[4]); p.px(sx + 1, sy + 1.3, HFUR[0]);
+    for (let k = 0; k < 4; k++) p.px(sx + 1 + k, sy + 1.3, k % 2 ? HFUR[0] : BN[5]); // Zahnreihe
   }
   // Auge: tief, glühend
   const ex = hx + 1, ey = hy - 1;
-  p.rect(ex - 1, ey, 2, 1, HFUR[0]);
+  p.rect(ex - 1, ey - 0.5, 3, 2, HFUR[0]);
   if (P.eye > 0.2) {
     p.px(ex, ey, GH[4]); g.px(ex, ey, GH[5]); g.px(ex + 1, ey, GH[3]); g.px(ex - 1, ey, GH[2]);
     wisp(p, g, ex - 1, ey - 0.5, 5 + (P.amp > 0.5 ? 2 : 0), P.fl, -1, 0.1, P.eye * 0.8);
