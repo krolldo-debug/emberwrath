@@ -108,7 +108,9 @@ function buildAshwood() {
   const put = (x, y, ch) => m.set(x, y, ch);
   // Lager der Wächter
   put(8, 26, 'W'); put(12, 26, 'T'); put(19, 28, 'T'); put(17, 30, 'P');
-  put(10, 34, 'F'); put(8, 37, 'L'); put(21, 35, 'L'); put(18, 37, 'Q'); put(15, 37, 'L');
+  // Wachfeuer: an der offenen Ostseite (Straße, Barrikade) und zwischen den Zelten im Norden –
+  // das Lager ist sonst nur am Kochfeuer im Südwesten beleuchtet
+  put(10, 34, 'F'); put(22, 33, 'F'); put(16, 27, 'F'); put(8, 37, 'L'); put(21, 35, 'L'); put(18, 37, 'Q'); put(15, 37, 'L');
   put(14, 28, 'I'); put(13, 35, 'O'); put(17, 34, 'V');
   put(15, 32, '1'); put(11, 32, '2'); put(4, 31, '3');
   // Banditenlager

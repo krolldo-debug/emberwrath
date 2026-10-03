@@ -19,8 +19,23 @@ import { hash2 } from '../core/math.js';
 // (Umhangsaum, Flügel). Gezeichnet wird in Pixelpuffer (schnell), danach wird
 // jeder Frame auf seinen Inhalt zugeschnitten (spart Speicher).
 // Blickrichtung rechts, Anker = Mitte zwischen den Füßen.
-const W = 200, H = 136, AX = 88, AY = 128;
+// Rig-Koordinaten (alle Maße und Posen unten sind in diesem Raum angegeben)
+const AX = 88, AY = 128;
 const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Axt steckt im Boden)
+// Rig-Skalierung: die ganze Figur wird um SC um den Fußanker vergrößert. Die
+// Stifte rechnen jede Koordinate und jedes Maß (Radien, Rechtecke, Linien)
+// in den Zielpuffer um und rastern dort neu – kein Hochskalieren fertiger Pixel.
+const SC = 1.25;
+const W = 260, H = 176, BAX = 114, BAY = 168; // Zielpuffer und Anker darin
+const BCLIP = BAY + 1;
+const tx = (x) => BAX + (x - AX) * SC, ty = (y) => BAY + (y - AY) * SC;
+// Fußabdruck eines Rig-Punkts im Zielpuffer (lückenlos auch bei Ganzzahl-Schleifen)
+function foot(x, y, f) {
+  const X = tx(x), Y = ty(y);
+  const x0 = Math.round(X), y0 = Math.round(Y);
+  const x1 = Math.max(x0, Math.round(X + SC) - 1), y1 = Math.max(y0, Math.round(Y + SC) - 1);
+  for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) f(xx, yy);
+}
 
 // Erkaltete Schlacke: fast schwarz mit warmem Braunstich, Kanten rötlich angeglüht
 const OBS = ['#0a0807', '#17110f', '#261c18', '#3a2b24', '#56403a'];
@@ -72,40 +87,60 @@ class Layers {
 }
 
 // Stift für das Grundbild: deckt darunter liegendes Glühen ab.
+// px/rect/line/ellipse nehmen Rig-Koordinaten; set schreibt direkt in den Zielpuffer.
 class Pen {
-  constructor(L) { this.L = L; this.soft = 0; }
-  px(x, y, c) {
-    x = Math.round(x); y = Math.round(y);
-    if (x < 0 || y < 0 || x >= W || y >= H || y > CLIP_Y) return;
+  constructor(L) { this.L = L; this.soft = 0; this.fine = 0; }
+  set(x, y, c) {
+    if (x < 0 || y < 0 || x >= W || y >= H || y > BCLIP) return;
     const i = y * W + x;
     this.L.base[i] = col(c); this.L.ga[i] = 0; this.L.gb[i] = 0; this.L.nr[i] = this.soft;
   }
+  // fine = 1: Detailpixel (Gesicht) bleiben einzelne Pixel statt Fußabdruck
+  px(x, y, c) {
+    if (this.fine) this.set(Math.round(tx(x)), Math.round(ty(y)), c);
+    else foot(x, y, (X, Y) => this.set(X, Y, c));
+  }
   rect(x, y, w, h, c) {
     x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, c);
+    if (w <= 0 || h <= 0) return;
+    const x0 = Math.round(tx(x)), y0 = Math.round(ty(y));
+    const x1 = Math.max(x0 + 1, Math.round(tx(x + w))), y1 = Math.max(y0 + 1, Math.round(ty(y + h)));
+    for (let j = y0; j < y1; j++) for (let i = x0; i < x1; i++) this.set(i, j, c);
   }
-  line(x0, y0, x1, y1, c) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, c)); }
-  ellipse(cx, cy, rx, ry, c) { fillEllipse(cx, cy, rx, ry, (x, y) => this.px(x, y, c)); }
+  line(x0, y0, x1, y1, c) { bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.set(x, y, c)); }
+  ellipse(cx, cy, rx, ry, c) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.set(x, y, c)); }
 }
 
 // Stift für die Leucht-Ebenen: Index in die Rampe (0 dunkel … 4 weiß).
 // px zeichnet in beide Ebenen, e* nur in die Phase-3-Ebene, a* nur Phase 1–2.
 class GlowPen {
-  constructor(L) { this.L = L; }
-  set(buf, ramp, x, y, i) {
-    x = Math.round(x); y = Math.round(y);
-    if (x < 0 || y < 0 || x >= W || y >= H || y > CLIP_Y) return;
+  constructor(L) { this.L = L; this.fine = 0; }
+  put(buf, ramp, x, y, i) {
+    if (x < 0 || y < 0 || x >= W || y >= H || y > BCLIP) return;
     buf[y * W + x] = ramp[Math.max(0, Math.min(4, i))];
   }
+  set(buf, ramp, x, y, i) {
+    if (this.fine) this.put(buf, ramp, Math.round(tx(x)), Math.round(ty(y)), i);
+    else foot(x, y, (X, Y) => this.put(buf, ramp, X, Y, i));
+  }
+  tpx(X, Y, i) { this.put(this.L.ga, EMBc, X, Y, i); this.put(this.L.gb, INFc, X, Y, i); }
+  tepx(X, Y, i) { this.put(this.L.gb, INFc, X, Y, i); }
+  tapx(X, Y, i) { this.put(this.L.ga, EMBc, X, Y, i); }
   px(x, y, i) { this.set(this.L.ga, EMBc, x, y, i); this.set(this.L.gb, INFc, x, y, i); }
   epx(x, y, i) { this.set(this.L.gb, INFc, x, y, i); }
   apx(x, y, i) { this.set(this.L.ga, EMBc, x, y, i); }
-  rect(x, y, w, h, i) { for (let j = 0; j < Math.round(h); j++) for (let k = 0; k < Math.round(w); k++) this.px(x + k, y + j, i); }
-  line(x0, y0, x1, y1, i) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, i)); }
-  eline(x0, y0, x1, y1, i) { bres(x0, y0, x1, y1, (x, y) => this.epx(x, y, i)); }
-  ellipse(cx, cy, rx, ry, i) { fillEllipse(cx, cy, rx, ry, (x, y) => this.px(x, y, i)); }
-  eellipse(cx, cy, rx, ry, i) { fillEllipse(cx, cy, rx, ry, (x, y) => this.epx(x, y, i)); }
-  aellipse(cx, cy, rx, ry, i) { fillEllipse(cx, cy, rx, ry, (x, y) => this.apx(x, y, i)); }
+  rect(x, y, w, h, i) {
+    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+    if (w <= 0 || h <= 0) return;
+    const x0 = Math.round(tx(x)), y0 = Math.round(ty(y));
+    const x1 = Math.max(x0 + 1, Math.round(tx(x + w))), y1 = Math.max(y0 + 1, Math.round(ty(y + h)));
+    for (let j = y0; j < y1; j++) for (let k = x0; k < x1; k++) this.tpx(k, j, i);
+  }
+  line(x0, y0, x1, y1, i) { bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.tpx(x, y, i)); }
+  eline(x0, y0, x1, y1, i) { bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.tepx(x, y, i)); }
+  ellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.tpx(x, y, i)); }
+  eellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.tepx(x, y, i)); }
+  aellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.tapx(x, y, i)); }
 }
 
 function bres(x0, y0, x1, y1, f) {
@@ -300,6 +335,9 @@ function greataxe(p, g, hx, hy, a, heat = 0) {
 // Feuriger Schwung-Schleier zwischen zwei Axtwinkeln um einen Drehpunkt.
 function smear(p, g, cx, cy, a0, a1, r0, r1) {
   p.soft = 1;
+  // im Zielpuffer rastern (feines Rauschen statt Doppelpixel)
+  const CX = Math.round(tx(cx)), CY = Math.round(ty(cy));
+  r0 *= SC; r1 *= SC;
   // nur das letzte Stück des Schwungs zeigen, sonst verdeckt der Schleier die Figur
   if (Math.abs(a1 - a0) > 1.5) a0 = a1 - Math.sign(a1 - a0) * 1.5;
   const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
@@ -317,10 +355,10 @@ function smear(p, g, cx, cy, a0, a1, r0, r1) {
     const dens = (fresh * fresh * 0.25 + band * (0.15 + 0.8 * fresh)) * (radial > 0.55 ? 1 : 0.5);
     if (hash2(x + 99, y + 99, 17) > dens) continue;
     const c = radial > 0.88 ? '#ffe0a0' : radial > 0.72 ? '#f0a050' : fresh > 0.7 ? '#c8420c' : '#6a1a0c';
-    p.px(cx + x, cy + y, c);
+    p.set(CX + x, CY + y, c);
     if (fresh > 0.35 && radial > 0.5) {
       const i = radial > 0.88 ? 4 : radial > 0.75 ? 3 : fresh > 0.7 ? 2 : 1;
-      g.px(cx + x, cy + y, i);
+      g.tpx(CX + x, CY + y, i);
     }
   }
   p.soft = 0;
@@ -881,7 +919,7 @@ function rimAndOutline(L) {
   }
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
-    if (base[i] || ga[i] || gb[i] || y > CLIP_Y) continue;
+    if (base[i] || ga[i] || gb[i] || y > BCLIP) continue;
     if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) out[i] = col(OUTLINE);
   }
   L.base = out;
@@ -904,11 +942,11 @@ function finish(L, fx, meta) {
     return c;
   };
   const baseC = toCanvas(L.base);
-  const f = buildFrame(cw, ch, AX - x0, AY - y0, (pc) => pc.ctx.drawImage(baseC, 0, 0));
-  f.glow = new GlowFrame(toCanvas(L.ga), AX - x0, AY - y0);
-  f.glowEnraged = new GlowFrame(toCanvas(L.gb), AX - x0, AY - y0);
+  const f = buildFrame(cw, ch, BAX - x0, BAY - y0, (pc) => pc.ctx.drawImage(baseC, 0, 0));
+  f.glow = new GlowFrame(toCanvas(L.ga), BAX - x0, BAY - y0);
+  f.glowEnraged = new GlowFrame(toCanvas(L.gb), BAX - x0, BAY - y0);
   f.meta = {};
-  for (const k in meta) f.meta[k] = { dx: Math.round(meta[k].x - AX), dy: Math.round(meta[k].y - AY) };
+  for (const k in meta) f.meta[k] = { dx: Math.round((meta[k].x - AX) * SC), dy: Math.round((meta[k].y - AY) * SC) };
   f.fx = fx ?? null;
   return f;
 }

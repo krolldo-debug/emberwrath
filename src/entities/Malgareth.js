@@ -1,7 +1,7 @@
 import { Actor } from './Actor.js';
 import { Entity } from './Entity.js';
 import { ENEMY_TYPES } from './enemyTypes.js';
-import { Telegraph } from './Telegraph.js';
+import { Telegraph as TelegraphBase } from './Telegraph.js';
 import { Shockwave, SpawnMarker } from './Effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
@@ -35,6 +35,8 @@ const FIRE_RGB = [255, 110, 40], GOLD_RGB = [255, 200, 110], WHITE_RGB = [255, 2
 const WARN_FIRE = [255, 120, 40];
 const BANNER = '#ffb050';
 // Glutring: Nahbereich, Verweildauer bis zum Auslösen, Abklingzeit, Radius der Warnmarke, Schaden je Phase
+const WAVE_IMPACT_R = 30; // Aschenwelle: Einschlagkreis vor dem Fürsten
+const SLASH_R = 72; // Hieb: Warnbogen und Trefferzone gleich groß
 const RING_NEAR = 60, RING_TIME = 3, RING_CD = 6, RING_R = 60, RING_DMG = [160, 190, 225];
 
 // Lichtblitze bleiben lesbar: Leuchten (bloom × Stärke) höchstens 0,4, große Blitze (Radius ≥ 100) kürzer als 0,15 s.
@@ -56,7 +58,8 @@ function impactFx(world, x, y, r, big = false) {
 
 // Warnmarke des Fürsten: Fläche wie üblich, dazu dunkle Kontur (Lit-Pass) und heller Rand (Emissive),
 // damit sie auf Glutboden, unter Feuer und neben der hellen Figur klar lesbar bleibt.
-class MalgTelegraph extends Telegraph {
+// Gleicher Klassenname wie die Basis, damit Prüf- und Analysewerkzeuge sie als Warnung erkennen.
+class Telegraph extends TelegraphBase {
   #outline(ctx, cx, cy, grow = 0) {
     const x = this.x - cx, y = this.y - cy;
     ctx.beginPath();
@@ -105,6 +108,21 @@ function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false, do
   if (!h.takeHit(hit)) return false;
   world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy: heavy && !dot, dot, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead });
   return true;
+}
+
+// Richtungen: `aim` und alle Bahn-Winkel gelten im Bodenraum – Bewegung (cos a, sin a · 0,75),
+// passend zur Linien-Warnung (Telegraph 'line' ohne screen). Daher Winkel aus Bildpunkten
+// immer als atan2(dy / 0,75, dx) berechnen. Bögen (Hieb) prüft Combat im Ellipsenraum (Höhe 0,6).
+const groundAng = (dx, dy) => Math.atan2(dy / 0.75, dx);
+const arcAng = (a) => Math.atan2(Math.sin(a) * 0.75 / 0.6, Math.cos(a));
+// Lage eines Punktes in einer Linien-Warnung, genau wie Telegraph sie zeichnet: Richtung d = (cos a, sin a · 0,75),
+// Quer-Achse n = (−sin a · 0,75, cos a). Gibt den Quer-Abstand in Breiten-Einheiten zurück (Infinity außerhalb der Länge).
+function laneDist(px, py, x0, y0, a, len) {
+  const c = Math.cos(a), s = Math.sin(a) * 0.75, det = c * c + s * s;
+  const rx = px - x0, ry = py - y0;
+  const along = (rx * c + ry * s) / det;
+  if (along < 0 || along > len) return Infinity;
+  return Math.abs((-rx * s + ry * c) / det);
 }
 
 // Abstand eines Punktes zu einer Strecke (Boden-Koordinaten)
@@ -348,7 +366,7 @@ export class Malgareth extends Actor {
 
   #chooseAttack(world, dist) {
     const hero = world.hero;
-    this.aim = Math.atan2(hero.y - this.y, hero.x - this.x);
+    this.aim = groundAng(hero.x - this.x, hero.y - this.y);
     this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
     const T = this.timers, P = this.phase;
     if (P >= 3 && T.channel <= 0) return this.#beginChannel(world);
@@ -398,7 +416,7 @@ export class Malgareth extends Actor {
   }
 
   #tele(world, x, y, o) {
-    const t = world.spawn(new MalgTelegraph(x, y, o));
+    const t = world.spawn(new Telegraph(x, y, o));
     (this.teles ??= []).push(t);
     this.teles = this.teles.filter((q) => !q.removed);
     return t;
@@ -407,7 +425,7 @@ export class Malgareth extends Actor {
   // Blick (aim) dem Helden nachführen, höchstens rate rad/s
   #track(world, dt, rate) {
     const h = world.hero;
-    const d = angleDiff(this.aim, Math.atan2(h.y - this.y, h.x - this.x));
+    const d = angleDiff(this.aim, groundAng(h.x - this.x, h.y - this.y));
     this.aim += Math.max(-rate * dt, Math.min(rate * dt, d));
     this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
   }
@@ -417,31 +435,31 @@ export class Malgareth extends Actor {
   #comboStep(world, wind) {
     const h = world.hero;
     const kind = this.combo.steps[this.combo.i];
-    this.aim = Math.atan2(h.y - this.y, h.x - this.x);
+    this.aim = groundAng(h.x - this.x, h.y - this.y);
     this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
     if (kind === 'thrust') {
       const len = Math.min(150, this.#rayLength(world, this.aim));
       this.#tele(world, this.x, this.y, { shape: 'line', angle: this.aim, len, width: 22, duration: wind, follow: null });
-      this.thrustLen = len;
+      this.thrustLen = len; this.thrustFrom = { x: this.x, y: this.y }; // Treffer genau in der markierten Bahn
       return this.#begin(world, 'thrustWindup', wind, (w) => this.#thrust(w));
     }
     const arc = 2.3;
-    const tele = this.#tele(world, this.x, this.y - 4, { shape: 'arc', r: 72, angle: this.aim, arc, duration: wind, follow: this });
+    const tele = this.#tele(world, this.x, this.y, { shape: 'arc', r: SLASH_R, angle: arcAng(this.aim), arc, duration: wind, follow: this });
     this.#begin(world, kind === 'slash' ? 'slashWindup' : 'slash2Windup', wind, (w) => this.#slash(w, kind === 'slash2'), { track: wind * 0.45 });
     // Warnbogen folgt dem nachgeführten Blick
-    this.pending.push(...[0.1, 0.2, 0.3].map((t) => ({ t: wind * t * 1.4, fn: () => { tele.angle = this.aim; } })));
+    this.pending.push(...[0.1, 0.2, 0.3].map((t) => ({ t: wind * t * 1.4, fn: () => { tele.angle = arcAng(this.aim); } })));
   }
 
   #slash(world, back) {
     this.setState('strike'); this.recover = 0.28;
     this.#play(back ? 'slash2' : 'slash');
-    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 74, angle: this.aim, arc: 2.3, damage: 104, knockback: 220, heavy: true, ttl: 0.14 });
-    this.kbx += Math.cos(this.aim) * 90; this.kby += Math.sin(this.aim) * 90;
+    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, lift: 10, r: SLASH_R, angle: arcAng(this.aim), arc: 2.3, damage: 104, knockback: 220, heavy: true, ttl: 0.14 });
+    this.kbx += Math.cos(this.aim) * 90; this.kby += Math.sin(this.aim) * 90 * 0.75;
     for (let i = 0; i < 9; i++) {
-      const a = this.aim - 1.1 + i * 0.27;
-      world.particles.sparks(this.x + Math.cos(a) * 54, this.y - 12 + Math.sin(a) * 30, a, 2, this.enraged ? WHITE_FIRE : FIRE);
+      const a = arcAng(this.aim) - 1.1 + i * 0.27;
+      world.particles.sparks(this.x + Math.cos(a) * 54, this.y - 12 + Math.sin(a) * 32, a, 2, this.enraged ? WHITE_FIRE : FIRE);
     }
-    world.particles.dust(this.x + Math.cos(this.aim) * 30, this.y + Math.sin(this.aim) * 16, 6, '#4a3e3a');
+    world.particles.dust(this.x + Math.cos(this.aim) * 30, this.y + Math.sin(this.aim) * 22, 6, '#4a3e3a');
     world.addLight(flashLight({ x: this.x + Math.cos(this.aim) * 40, y: this.y - 14, radius: 90, color: FIRE_RGB, intensity: 0.8, ttl: 0.22, bloom: 0.4 }));
     world.session.camera?.shake(4);
     world.session.hitstop?.(0.04);
@@ -455,13 +473,14 @@ export class Malgareth extends Actor {
     const ca = Math.cos(this.aim), sa = Math.sin(this.aim);
     // Treffer entlang der markierten Linie (Klinge + Glutstrahl)
     const h = world.hero;
-    const ax = this.x, ay = this.y, bx = this.x + ca * len, by = this.y + sa * len * 0.75;
-    if (!h.dead && segDist(h.x, h.y, ax, ay, bx, by) < 11 + (h.hurtRadius ?? 6)) hurtHero(world, this, 150, ca, sa, 260, true);
+    // Fußpunkt in der markierten Bahn (Breite 22, Bodenraum) – wie die Warnung
+    const o = this.thrustFrom ?? this;
+    if (!h.dead && laneDist(h.x, h.y, o.x, o.y, this.aim, len) <= 11) hurtHero(world, this, 150, ca, sa, 260, true);
     for (let s = 20; s < len; s += 8) {
       const x = this.x + ca * s, y = this.y + sa * s * 0.75;
       world.particles.spawn({ x, y, z: 14, vx: ca * rand(60, 140), vy: sa * rand(40, 90), vz: rand(-10, 20), drag: 4, life: rand(0.25, 0.45), colors: this.enraged ? WHITE_FIRE : FIRE, emissive: true, size: 2, shrink: true });
     }
-    world.addEffect(new ThrustFlare(this.x, this.y, this.aim, len, this));
+    world.addEffect(new ThrustFlare(o.x, o.y, this.aim, len, this));
     world.addLight(flashLight({ x: this.x + ca * len * 0.5, y: this.y + sa * len * 0.35, radius: 90, color: FIRE_RGB, intensity: 0.9, ttl: 0.25, bloom: 0.5 }));
     world.session.camera?.shake(5);
     world.bus.emit('enemySwing', { actor: this, heavy: true });
@@ -493,7 +512,7 @@ export class Malgareth extends Actor {
     this.#play('wave');
     const h = world.hero, dmg = RING_DMG[this.phase - 1];
     const dx = h.x - this.x, dy = (h.y - this.y) / 0.6, d = Math.hypot(dx, dy) || 1;
-    if (!h.dead && d < RING_R + (h.hurtRadius ?? 6)) hurtHero(world, this, dmg, dx / d, dy / d * 0.6, 300, true);
+    if (!h.dead && d < RING_R + 2) hurtHero(world, this, dmg, dx / d, dy / d * 0.6, 300, true);
     world.addEffect(new Shockwave(this.x, this.y, { radius: RING_R + 4, color: this.enraged ? '#fff4c8' : '#ffb048', life: 0.45 }));
     world.addEffect(new Shockwave(this.x, this.y, { radius: RING_R * 0.6, color: '#f07a1c', life: 0.35 }));
     for (let i = 0; i < 28; i++) {
@@ -520,17 +539,22 @@ export class Malgareth extends Actor {
       this.#tele(world, this.x, this.y, { shape: 'line', angle: a, len, width: this.phase === 1 ? 30 : 22, duration: wind, color: WARN_FIRE });
       return { a, len };
     });
+    // Einschlag vor dem Fürsten: eigene Kreiswarnung; Bahnen und Einschlag starten dort, wo gewarnt wurde
+    this.waveFrom = { x: this.x, y: this.y };
+    const ix = this.x + Math.cos(this.aim) * 28, iy = this.y + Math.sin(this.aim) * 28 * 0.75;
+    this.waveImpact = { x: ix, y: iy };
+    this.#tele(world, ix, iy, { shape: 'circle', r: WAVE_IMPACT_R, duration: wind, color: WARN_FIRE });
     this.#begin(world, 'waveWindup', wind, (w) => this.#wave(w));
   }
 
   #wave(world) {
     this.setState('strike'); this.recover = 0.75;
     this.#play('wave');
-    const ix = this.x + Math.cos(this.aim) * 28, iy = this.y + Math.sin(this.aim) * 16;
+    const o = this.waveFrom ?? this, { x: ix, y: iy } = this.waveImpact ?? { x: this.x, y: this.y };
     for (const { a, len } of this.waves) {
-      this.#hazard(world, new AshWave(this.x + Math.cos(a) * 8, this.y + Math.sin(a) * 6, a, len - 8, this, { width: this.phase === 1 ? 30 : 22, speed: [200, 230, 260][this.phase - 1], damage: 180 }));
+      this.#hazard(world, new AshWave(o.x + Math.cos(a) * 8, o.y + Math.sin(a) * 6, a, len - 8, this, { width: this.phase === 1 ? 30 : 22, speed: [200, 230, 260][this.phase - 1], damage: 180 }));
     }
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 6, r: 30, damage: 180, knockback: 260, heavy: true, ttl: 0.12 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: ix, y: iy - 6, lift: 6, r: WAVE_IMPACT_R, damage: 180, knockback: 260, heavy: true, ttl: 0.12 });
     world.particles.dust(ix, iy, 20, '#4a3e3a');
     ashBurst(world, ix, iy, 16, 1.2);
     world.particles.ring(ix, iy, 8, 26, FIRE, 120);
@@ -556,7 +580,7 @@ export class Malgareth extends Actor {
       const sx = this.x - this.facing * 6 + side * 14, sy = this.y - 4 + Math.abs(side) * 3;
       const lead = i === (n - 1) / 2 ? 0.35 : 0;
       const tx = h.x + (h.vx ?? 0) * lead + side * (this.phase >= 2 ? 18 : 10), ty = h.y + (h.vy ?? 0) * lead;
-      const a = Math.atan2(ty - sy, tx - sx);
+      const a = groundAng(tx - sx, ty - sy);
       const delay = wind + 0.12 + i * 0.1 * (this.phase >= 3 ? 0.6 : 1);
       const len = Math.min(300, this.#rayLengthFrom(world, sx, sy, a));
       this.#tele(world, sx, sy, { shape: 'line', angle: a, len, width: 9, duration: delay, color: WARN_FIRE });
@@ -578,7 +602,7 @@ export class Malgareth extends Actor {
       let sx = h.x + Math.cos(a0) * 140, sy = h.y + Math.sin(a0) * 90;
       sx = Math.max(A.x0 + 12, Math.min(A.x1 - 12, sx)); sy = Math.max(A.y0 + 12, Math.min(A.y1 - 8, sy));
       const p = world.dungeon.nearestFree(sx, sy);
-      const a = Math.atan2(h.y - p.y, h.x - p.x);
+      const a = groundAng(h.x - p.x, h.y - p.y);
       const delay = 0.9 + i * 0.08;
       const len = Math.min(320, this.#rayLengthFrom(world, p.x, p.y, a));
       this.#tele(world, p.x, p.y, { shape: 'line', angle: a, len, width: 9, duration: delay, color: WARN_FIRE });
@@ -632,7 +656,7 @@ export class Malgareth extends Actor {
   // Feuersäulen: Kaskaden, die vom Fürsten aus auf den Helden zulaufen (Phase 3: drei Bahnen)
   #pillars(world, wind) {
     const h = world.hero;
-    const base = Math.atan2(h.y - this.y, h.x - this.x);
+    const base = Math.atan2((h.y - this.y) / 0.7, h.x - this.x);
     const lines = this.phase >= 3 ? [-0.55, 0, 0.55] : [0];
     const step = 26, n = this.phase >= 3 ? 8 : 7;
     for (const o of lines) {
@@ -1099,7 +1123,7 @@ export class ObsidianMeteor extends Entity {
     if (this.t >= this.delay) {
       this.removed = true;
       const { x, y } = this;
-      world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, r: this.r, damage: this.damage, knockback: 220, heavy: true, ttl: 0.1 });
+      world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, lift: 6, r: this.r, damage: this.damage, knockback: 220, heavy: true, ttl: 0.1 });
       world.particles.bones(x, y, 6, -Math.PI / 2, 12, ['#0c0a10', '#1a1622', '#2a2434', '#8e2408']);
       world.particles.element(x, y - 4, 'fire', 22, 10);
       world.particles.ring(x, y, 6, 22, FIRE, 120);
@@ -1174,7 +1198,7 @@ export class FirePillar extends Entity {
     if (this.owner.dead) { this.removed = true; return; }
     if (!this.burst && this.t >= this.delay) {
       this.burst = true;
-      world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x: this.x, y: this.y - 6, r: this.r, damage: this.damage, knockback: 180, heavy: true, ttl: 0.2 });
+      world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x: this.x, y: this.y - 6, lift: 6, r: this.r, damage: this.damage, knockback: 180, heavy: true, ttl: 0.2 });
       world.particles.element(this.x, this.y - 10, 'fire', 14, 6);
       world.decals.scorch(this.x, this.y, 10);
       world.addLight(flashLight({ x: this.x, y: this.y - 20, radius: 70, color: FIRE_RGB, intensity: 1, ttl: 0.45, bloom: 0.6 }));
@@ -1220,7 +1244,7 @@ export class EmberFissure extends Entity {
     for (let i = 0; i < this.points.length - 1; i++) {
       const a = this.points[i], b = this.points[i + 1];
       const ang = Math.atan2((b.y - a.y) / 0.75, b.x - a.x), len = Math.hypot(b.x - a.x, (b.y - a.y) / 0.75);
-      world.spawn(new MalgTelegraph(a.x, a.y, { shape: 'line', angle: ang, len, width: 16, duration: dur, color: WARN_FIRE }));
+      world.spawn(new Telegraph(a.x, a.y, { shape: 'line', angle: ang, len, width: 16, duration: dur, color: WARN_FIRE }));
     }
     world.bus.emit('telegraph', { actor: this.owner, attack: 'fissure' });
   }

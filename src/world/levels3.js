@@ -1010,13 +1010,15 @@ function buildAshenThrone() {
 
   put(27, 51, 'D'); put(28, 51, 'D'); put(27, 54, '1'); put(29, 54, '2');
   // A Vorhof: Statuen an der Achse, Glutbecken
+  // (keine Wachen im Vorhof: Gegner stehen mind. 12 Kacheln vom Ankunftspunkt)
   put(30, 53, 'S'); put(37, 53, 'S'); put(25, 53, 'B'); put(42, 53, 'B'); put(42, 57, 'R'); put(25, 57, 'n');
-  put(32, 56, 'g'); put(36, 56, 'g');
   // B Säulenhalle: zwei Säulenreihen, Glutrisse im Boden
   each([[28, 33], [39, 33], [28, 36], [39, 36], [28, 43], [39, 43], [28, 46], [39, 46]], (x, y) => put(x, y, 'I'));
   each([[33, 44], [35, 35]], (x, y) => put(x, y, 'e'));
   put(23, 33, 'B'); put(44, 33, 'B'); put(23, 46, 'B'); put(44, 46, 'B');
-  put(31, 36, 'g'); put(36, 36, 'g'); put(34, 45, 'g'); put(34, 33, 'p');
+  put(31, 36, 'g'); put(36, 36, 'g'); put(34, 33, 'p');
+  // Brückenwache südlich des Quergrabens (aus dem Vorhof hierher verlegt)
+  put(31, 42, 'g'); put(36, 42, 'g'); put(37, 44, 'g');
   // C Wachstube
   put(6, 34, 'R'); put(15, 34, 'R'); put(5, 44, 'B'); put(16, 44, 'k');
   put(8, 38, 'g'); put(13, 41, 'g'); put(10, 43, 'h');
@@ -1075,13 +1077,85 @@ function buildAshenThrone() {
   };
 }
 
-export const LEVELS3 = {
+// Fertige Level-Definition um n Kachelzeilen nach unten schieben: oben n Zeilen
+// massive Wand (fill) einfügen und alle Kachel-/Pixel-y-Koordinaten mitziehen.
+// Marken im Raster (points/Spawns, Gegner, NPCs, Deko, Truhen, Tore, Fallen)
+// wandern mit dem Raster; verschoben werden zusätzlich alle Objekte mit
+// numerischem y (areas, arena, objects, portals, secrets[].lever, buildings,
+// Lichter …), arena.gateRow, y0/y1 und Polylinien in fissures ([x, y]-Paare).
+// Rückportale anderer Zonen zielen per spawnId auf Marken – unberührt.
+// Gedacht für Arenen an der Kartenoberkante: so hat die Kamera Platz über dem
+// Boss (sie ist auf die Karte begrenzt).
+const SHIFT_SKIP = new Set(['map', 'decor', 'enemies', 'npcs', 'points', 'traps', 'to', 'dir', 'requires']);
+export function shiftLevelDown(level, n, fill = '#') {
+  if (!n) return level;
+  const w = level.map[0].length;
+  const pad = Array.from({ length: n }, () => fill.repeat(w));
+  const seen = new WeakSet(); // geteilte Objekte nur einmal verschieben
+  const walk = (o) => {
+    if (!o || typeof o !== 'object' || seen.has(o)) return;
+    seen.add(o);
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    for (const k of ['y', 'y0', 'y1', 'gateRow']) if (typeof o[k] === 'number') o[k] += n;
+    for (const [k, v] of Object.entries(o)) {
+      if (SHIFT_SKIP.has(k) || !v || typeof v !== 'object') continue;
+      if (k === 'fissures') { for (const line of v) for (const p of line) p[1] += n; continue; }
+      walk(v);
+    }
+  };
+  walk(level);
+  level.map = [...pad, ...level.map];
+  return level;
+}
+
+// Ruhige Ankunft: kein (Nicht-Boss-)Gegner näher als r Kacheln an einem
+// benannten Punkt (Start, Respawn, from_*). Zu nahe Marken wandern per
+// Breitensuche über begehbaren Boden zur nächsten freien Stelle (3 × 3 Boden)
+// außerhalb des Radius – bleiben also im selben Gelände, nur weiter weg.
+// Gibt die Verschiebungen zurück (Prüfhilfe).
+export const CALMED = [];
+export function calmArrivals(id, level, r = 12) {
+  const rows = level.map.map((row) => [...row]);
+  const H = rows.length, W = rows[0].length;
+  const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? rows[y][x] : '#');
+  const walk = level.kind === 'outdoor' ? GROUND : new Set(['.']);
+  const pts = [];
+  rows.forEach((row, y) => row.forEach((ch, x) => { if (level.points?.[ch]) pts.push([x, y]); }));
+  const far = (x, y) => pts.every(([px, py]) => Math.hypot(x - px, y - py) >= r);
+  const free = (x, y) => { for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (!walk.has(at(x + i, y + j))) return false; return true; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ch = rows[y][x], e = level.enemies?.[ch];
+    if (!e || e.boss || far(x, y)) continue;
+    // Untergrund der Marke aus den Nachbarn
+    const nb = [at(x - 1, y), at(x + 1, y), at(x, y - 1), at(x, y + 1)].filter((c) => walk.has(c));
+    rows[y][x] = nb[0] ?? [...walk][0];
+    const seen = new Set([y * W + x]), q = [[x, y]];
+    let to = null;
+    for (let k = 0; k < q.length && !to; k++) {
+      const [cx, cy] = q[k];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy, key = ny * W + nx;
+        if (seen.has(key) || !walk.has(at(nx, ny))) continue;
+        seen.add(key); q.push([nx, ny]);
+        if (far(nx, ny) && free(nx, ny)) { to = [nx, ny]; break; }
+      }
+    }
+    if (!to) { rows[y][x] = ch; MISPLACED.push(`${id}:${ch}@${x},${y} (Ankunft)`); continue; }
+    rows[to[1]][to[0]] = ch;
+    CALMED.push(`${id}: ${e.type} ${x},${y} -> ${to[0]},${to[1]}`);
+  }
+  level.map = rows.map((row) => row.join(''));
+  return level;
+}
+
+const RAW3 = {
   ashen_steppe: buildAshenSteppe(),
-  howling_barrow: buildHowlingBarrow(),
+  howling_barrow: shiftLevelDown(buildHowlingBarrow(), 8),
   blighted_marsh: buildBlightedMarsh(),
   spore_hollow: buildSporeHollow(),
   frostspire: buildFrostspire(),
   rime_caverns: buildRimeCaverns(),
   ember_wastes: buildEmberWastes(),
-  ashen_throne: buildAshenThrone(),
+  ashen_throne: shiftLevelDown(buildAshenThrone(), 8),
 };
+export const LEVELS3 = Object.fromEntries(Object.entries(RAW3).map(([id, L]) => [id, calmArrivals(id, L, 12)]));

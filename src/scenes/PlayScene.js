@@ -53,6 +53,7 @@ export class PlayScene {
     const saveOn = (ev) => this.bus.on(ev, () => g.saveNow(ev));
     [EV.LEVEL_UP, EV.QUEST_ACCEPTED, EV.QUEST_COMPLETED, EV.BOSS_DEFEATED].forEach(saveOn);
     this.bus.on(EV.ZONE_TRAVEL, (e) => this.travel(e.zoneId, e.spawnId));
+    this.bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
     this.bus.on(EV.PREFS_CHANGED, (e) => {
       if (e.key === 'screenShake' && this.camera) this.camera.enabled = e.value !== false;
     });
@@ -107,6 +108,7 @@ export class PlayScene {
     this.camera.enabled = this.game.prefs.get('screenShake', true) !== false;
     this.camera.snapTo(hero.x, hero.y);
     this.deadTime = 0;
+    this.boss = null;
     if (this.state.commands.has('world:enterZone')) this.state.commit('world:enterZone', { zoneId: def.id, spawnId });
   }
 
@@ -127,6 +129,21 @@ export class PlayScene {
     this.#loadZone(zoneId, spawnId, null);
     this.bus.emit(EV.ZONE_ENTER, { zoneId: this.zone.zoneId, instanceId: this.zone.instanceId, spawnId });
     this.game.saveNow('zone');
+  }
+
+  // Im Bosskampf das Bild nach oben schieben, damit hohe Bosse (Malgareth) nicht unter der Boss-Leiste verschwinden,
+  // wenn der Held auf gleicher Höhe oder südlich steht. Der Held bleibt dabei sicher im Bild; die Kamera dämpft selbst.
+  #cameraY(hero, y) {
+    const b = this.boss;
+    if (!b) return y;
+    if (!b.actor || b.actor.removed || b.actor.dead) {
+      b.actor = this.world.enemies?.find((e) => !e.dead && (e.def?.bossId === b.id || e.bossId === b.id || e.type === b.id || (e.def?.boss && !b.id))) ?? null;
+      if (!b.actor) { this.boss = null; return y; }
+    }
+    const a = b.actor;
+    if (Math.abs(a.x - hero.x) > 320 || Math.abs(a.y - hero.y) > 260) return y;
+    const want = Math.min(y, (hero.y + a.y - (a.bodyHeight ?? 32) * 1.6) / 2);
+    return Math.max(want, hero.y - CONFIG.viewHeight / 2 + 34);
   }
 
   hitstop(t) { this.hitstopTime = Math.max(this.hitstopTime, t); }
@@ -172,7 +189,7 @@ export class PlayScene {
     }
 
     // Kamera mit leichtem Vorlauf in Blick-/Bewegungsrichtung
-    this.camera.update(dt, hero.x + hero.vx * 0.12 + hero.facing * 4, hero.y - 10 + hero.vy * 0.12);
+    this.camera.update(dt, hero.x + hero.vx * 0.12 + hero.facing * 4, this.#cameraY(hero, hero.y - 10 + hero.vy * 0.12));
     this.authority.sendIntent({ type: 'pos', x: hero.x, y: hero.y });
   }
 

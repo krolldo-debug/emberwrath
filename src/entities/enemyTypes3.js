@@ -102,7 +102,7 @@ export function createRound3Enemies(T) {
     ice_elemental: d('fire_imp', 'ice_elemental', 'Eiselementar', [35, 37], { family: 'construct', material: 'stone', hp: 1.2 }),
     crystal_spider: d('spider', 'crystal_spider', 'Kristallspinne', [35, 37], { family: 'spider', material: 'chitin' }),
     frozen_knight: d('temple_guardian', 'frozen_knight', 'Erfrorener Ritter', [36, 37], { family: 'undead', material: 'stone' }),
-    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 26000, { family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
+    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 33000, { family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
     // --- Glutöde (36–40)
     ash_wraith: d('drowned', 'ash_wraith', 'Aschegeist', [36, 39], { family: 'undead', spawnStyle: 'fade' }),
     cinder_knight: d('forge_golem', 'cinder_knight', 'Schlackenritter', [37, 40], { family: 'construct', material: 'stone' }),

@@ -204,8 +204,8 @@ export const ENEMY_TYPES = {
   ember_tyrant: {
     name: 'Ignaroth, der Glut-Tyrann', family: 'demon', level: 20, xp: 2600, boss: true, bossId: 'ember_tyrant',
     sprites: 'ignaroth',
-    hp: 11000, speed: 44, radius: 12, mass: 8, hurtRadius: 16, bodyHeight: 60, shadowW: 44,
-    material: 'stone', hurtTime: 0.2, eye: { x: 9, y: -71 },
+    hp: 11000, speed: 44, radius: 15, mass: 8, hurtRadius: 20, bodyHeight: 75, shadowW: 55,
+    material: 'stone', hurtTime: 0.2, eye: { x: 11, y: -89 },
   },
 };
 

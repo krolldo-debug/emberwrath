@@ -88,7 +88,12 @@ export class Dungeon extends TileMap {
         const px = x * T, py = y * T;
         if (kind === 'liquid') {
           const L = biome?.liquid;
-          if (L?.tile) ctx.drawImage(L.tile(x, y, 0, this.liquidCells.find((c) => c.x === x && c.y === y).m), px, py);
+          if (L?.tile) {
+            // Randkacheln sind außerhalb der organischen Uferlinie durchsichtig: Boden darunter legen
+            const mt = floor[Math.floor(hash2(x >> 1, y >> 1, 3) * floor.length)];
+            ctx.drawImage(mt, (x & 1) * T, (y & 1) * T, T, T, px, py, T, T);
+            ctx.drawImage(L.tile(x, y, 0, this.liquidCells.find((c) => c.x === x && c.y === y).m), px, py);
+          }
           else if (L) { ctx.drawImage(L.frames[0], px, py); if (this.rows[y - 1]?.[x] !== '~' && L.edge) ctx.drawImage(L.edge, px, py); }
           else { ctx.fillStyle = '#0a0d1e'; ctx.fillRect(px, py, T, T); }
           continue;
@@ -107,6 +112,7 @@ export class Dungeon extends TileMap {
     biome?.decorate?.(ctx, this); // biomeigene Bodenzier/Ufer mit Kartenwissen
 
     // Kanten der Wandkronen + Schlagschatten/AO auf dem Boden
+    const organic = !!biome?.liquid?.tile;
     const open = (tx, ty) => { const k = this.wallKind(tx, ty); return k === 'floor' || k === 'faceLower' || k === 'faceUpper' || k === 'liquid'; };
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
@@ -125,15 +131,18 @@ export class Dungeon extends TileMap {
           ctx.fillStyle = edge; ctx.fillRect(px, py, T, 2);
         }
         if (kind !== 'floor') continue;
-        if (this.isWall(x, y - 1)) {
+        // Schlagschatten nur von echten Mauern – Becken mit organischem Ufer (Lava) sind fest,
+        // werfen aber keinen Schatten (sonst entsteht um jedes Becken ein dunkler Kachelrahmen)
+        const hw = (tx, ty) => this.isWall(tx, ty) && !(organic && this.isLiquid(tx, ty));
+        if (hw(x, y - 1)) {
           for (let i = 0; i < 7; i++) {
             ctx.fillStyle = `rgba(6,4,12,${0.6 * (1 - i / 7)})`;
             ctx.fillRect(px, py + i, T, 1);
           }
         }
-        if (this.isWall(x - 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + 3, py, 2, T); }
-        if (this.isWall(x + 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px + T - 3, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + T - 5, py, 2, T); }
-        if (this.isWall(x, y + 1)) { ctx.fillStyle = 'rgba(6,4,12,0.3)'; ctx.fillRect(px, py + T - 2, T, 2); }
+        if (hw(x - 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + 3, py, 2, T); }
+        if (hw(x + 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px + T - 3, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + T - 5, py, 2, T); }
+        if (hw(x, y + 1)) { ctx.fillStyle = 'rgba(6,4,12,0.3)'; ctx.fillRect(px, py + T - 2, T, 2); }
         if (!biome && this.isWall(x - 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebL, px, py);
         if (!biome && this.isWall(x + 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebR, px + T - 14, py);
       }
@@ -169,7 +178,11 @@ export class Dungeon extends TileMap {
       const f = Math.floor(time * 4 + (L.tile ? 0 : hash2(c.x, c.y, 31) * 4)) % L.frames.length;
       ctx.drawImage(L.tile ? L.tile(c.x, c.y, f, c.m) : L.frames[f], Math.round(px), Math.round(py));
       const dark = 0.78 - this.#flow(c, time);
-      if (dark > 0.02) { ctx.fillStyle = `rgba(10,4,6,${dark.toFixed(3)})`; ctx.fillRect(Math.round(px), Math.round(py), T, T); }
+      if (dark > 0.02) {
+        // nur die Flüssigkeit abdunkeln (Maske der Uferform), nicht den Ufersaum der Randkachel
+        if (L.shade) { ctx.globalAlpha = dark; ctx.drawImage(L.shade(c.x, c.y, c.m), Math.round(px), Math.round(py)); ctx.globalAlpha = 1; }
+        else { ctx.fillStyle = `rgba(10,4,6,${dark.toFixed(3)})`; ctx.fillRect(Math.round(px), Math.round(py), T, T); }
+      }
       if (c.top && L.edge) ctx.drawImage(L.edge, Math.round(px), Math.round(py));
     }
   }

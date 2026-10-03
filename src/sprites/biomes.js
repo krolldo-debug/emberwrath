@@ -557,6 +557,27 @@ export function vnoise(x, y, s, seed) {
 const rectDist = (px, py, x0, y0, x1, y1) => Math.hypot(Math.max(x0 - px, 0, px - x1), Math.max(y0 - py, 0, py - y1));
 const NB8 = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]]; // N O S W NO SO SW NW
 
+// Organische Uferlinie für Lavabecken: Belegung der 3 × 3 umliegenden Lavazellen, mit einem
+// Kastenfilter (Breite 2·LW px) geglättet, plus Wertrauschen. Liefert den ungefähren Abstand
+// in px zur Uferlinie (> 0 Lava, < 0 Ufer). Konvexe Ecken werden rund, gerade Kanten wellig;
+// Pixel in Nicht-Lava-Zellen sind immer Ufer. isLava(tx, ty) in Kachelkoordinaten.
+const LW = 7, LTHR = 0.62;
+const ramp = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+export function lavaDepth(isLava, wx, wy, seed) {
+  const cx = Math.floor(wx / T), cy = Math.floor(wy / T);
+  let L = 0;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    if (!isLava(cx + i, cy + j)) continue;
+    const x0 = (cx + i) * T, y0 = (cy + j) * T, px = wx + 0.5, py = wy + 0.5;
+    const fx = ramp((px - x0 + LW) / (2 * LW)) - ramp((px - x0 - T + LW) / (2 * LW));
+    const fy = ramp((py - y0 + LW) / (2 * LW)) - ramp((py - y0 - T + LW) / (2 * LW));
+    L += fx * fy;
+  }
+  const n = (vnoise(wx, wy, 7, seed + 61) - 0.5) * 0.34 + (vnoise(wx, wy, 3, seed + 62) - 0.5) * 0.12;
+  const d = (L + n - LTHR) * (2 * LW) / 1.5;
+  return isLava(cx, cy) ? d : Math.min(d, -0.5);
+}
+
 // Lavasee als Feld in Weltkoordinaten statt einer 16er-Kachel: unregelmäßige, verschieden große
 // Krustenschollen (gewichtetes Voronoi auf gestreutem Raster mit Verzerrung), dazwischen offene
 // Schmelze mit Fließschlieren. Nicht periodisch → kein Wabenraster, kein Wiederholungsmuster;
@@ -627,51 +648,64 @@ export function makeLava({ seed, crust, emb, wall, grout, cell: GS = 21, open = 
   };
   const frames = [], glow = [];
   for (let f = 0; f < F; f++) { const [c, g] = base(0, 0, f); frames.push(c.canvas); glow.push(g.canvas); }
-  const cache = new Map();
-  // Rand einer Lavazelle (Maske: Bits 0..7 = Nachbar N,O,S,W,NO,SO,SW,NW ist keine Lava)
+  const cache = new Map(), shades = new Map();
+  // Liegt die Nachbarzelle (dx, dy) einer Randzelle mit Maske m in der Lava?
+  const local = (cx, cy, m) => (tx, ty) => {
+    const dx = tx - cx, dy = ty - cy;
+    if (!dx && !dy) return true;
+    const i = NB8.findIndex(([a, b]) => a === dx && b === dy);
+    return i >= 0 && !((m >> i) & 1);
+  };
+  // Rand einer Lavazelle (Maske: Bits 0..7 = Nachbar N,O,S,W,NO,SO,SW,NW ist keine Lava).
+  // Die Uferlinie folgt nicht dem Kachelraster, sondern lavaDepth() (geglättet + Rauschen):
+  // außerhalb bleibt die Kachel durchsichtig (darunter liegt der Boden mit Ufersaum),
+  // innen hinten (Norden) eine schmale Beckenwand, sonst eine dünne Kruste und die Glutlinie.
   const build = (cx, cy, f, m) => {
     const [c, g] = base(cx, cy, f);
     if (m) {
-      const has = (i) => (m >> i) & 1;
-      const R = 8;
+      const lav = local(cx, cy, m);
       for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
-        const px = u + 0.5, py = v + 0.5, wx = cx * T + u, wy = cy * T + v;
-        let dTop = 99, dO = 99;
-        NB8.forEach(([nx, ny], i) => {
-          if (!has(i)) return;
-          const d = rectDist(px, py, nx * T, ny * T, nx * T + T, ny * T + T);
-          if (ny < 0) dTop = Math.min(dTop, d); else dO = Math.min(dO, d);
-        });
-        // konvexe Beckenecken abrunden
-        const corner = (a, b, ox, oy, top) => {
-          if (!has(a) || !has(b)) return;
-          const qx = Math.abs(px - ox), qy = Math.abs(py - oy);
-          if (qx < R && qy < R) { const dc = R - Math.hypot(R - qx, R - qy); if (top) dTop = Math.min(dTop, dc); dO = Math.min(dO, dc); }
-        };
-        corner(0, 3, 0, 0, true); corner(0, 1, T, 0, true); corner(2, 3, 0, T, false); corner(2, 1, T, T, false);
-        const nn = (vnoise(wx, wy, 7, seed) - 0.5) * 3.6 + (vnoise(wx, wy, 3, seed + 1) - 0.5) * 1.2;
-        const t = dTop + nn * 0.4, o = dO + nn;
-        if (t < face) {
+        const wx = cx * T + u, wy = cy * T + v;
+        const sd = lavaDepth(lav, wx, wy, seed);
+        if (sd < 0) { c.ctx.clearRect(u, v, 1, 1); g.ctx.clearRect(u, v, 1, 1); continue; }
+        let t = 99;                                   // Abstand zur hinteren (nördlichen) Uferlinie
+        for (let k = 1; k <= face; k++) if (lavaDepth(lav, wx, wy - k, seed) < 0) { t = k - 1; break; }
+        if (t < face - 1) {
           // Beckenwand (von vorn sichtbar): Quader mit Fugen, unten von der Glut angestrahlt
           let col;
-          if (t < 0.9) col = wall[3];
-          else if (t > face - 1.3) { col = hash2(wx, wy, 41) < 0.35 ? emb[1] : crust[4]; g.ctx.clearRect(u, v, 1, 1); if (col === emb[1]) g.px(u, v, emb[1]); }
+          if (t < 0.9) col = wall[4];
+          else if (t >= face - 2) { col = hash2(wx, wy, 41) < 0.35 ? emb[1] : crust[4]; g.ctx.clearRect(u, v, 1, 1); if (col === emb[1]) g.px(u, v, emb[1]); }
           else {
             const row = Math.floor(wy / 3);
-            col = (wx + row * 4) % 7 === 0 ? grout : hash2(wx, wy, 43) < 0.2 ? wall[1] : hash2(wx, wy, 44) < 0.12 ? wall[3] : wall[2];
+            col = (wx + row * 4) % 7 === 0 ? grout : hash2(wx, wy, 43) < 0.2 ? wall[2] : hash2(wx, wy, 44) < 0.12 ? wall[4] : wall[3];
           }
           c.px(u, v, col);
-          if (t <= face - 1.3) g.ctx.clearRect(u, v, 1, 1);
-        } else if (o < 1.9) {
-          c.px(u, v, o < 0.8 ? crust[1] : hash2(wx, wy, 45) < 0.25 ? crust[3] : crust[2]);
+          if (t < face - 2) g.ctx.clearRect(u, v, 1, 1);
+        } else if (sd < 1.4) {
+          c.px(u, v, sd < 0.7 ? crust[2] : hash2(wx, wy, 45) < 0.3 ? crust[4] : crust[3]);
           g.ctx.clearRect(u, v, 1, 1);
-        } else if (t < face + 1.1 || o < 2.9) {
+        } else if (sd < 2.6) {
           const hot = hash2(wx >> 1, wy >> 1, 47) < 0.7;
           c.px(u, v, hot ? emb[4] : emb[3]); g.ctx.clearRect(u, v, 1, 1); g.px(u, v, hot ? emb[3] : emb[2]);
         }
       }
     }
     return { img: c.canvas, glow: g.canvas };
+  };
+  // Schattenmaske (Form der Lava in der Zelle) für das Abdunkeln im Dungeon-Renderer
+  const shade = (cx, cy, m) => {
+    const key = `${cx},${cy}`;
+    let s = shades.get(key);
+    if (!s) {
+      const p = new PixelCanvas(T, T);
+      p.rect(0, 0, T, T, 'rgb(10,4,6)');
+      if (m) {
+        const lav = local(cx, cy, m);
+        for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) if (lavaDepth(lav, cx * T + u, cy * T + v, seed) < 0) p.ctx.clearRect(u, v, 1, 1);
+      }
+      s = p.canvas; shades.set(key, s);
+    }
+    return s;
   };
   const get = (cx, cy, f, m) => {
     const key = `${cx},${cy},${f}`;
@@ -683,33 +717,38 @@ export function makeLava({ seed, crust, emb, wall, grout, cell: GS = 21, open = 
     frames, glow, edge: null, edgeH: 0,
     tile: (cx, cy, f, m) => get(cx, cy, f, m).img,
     glowTile: (cx, cy, f, m) => get(cx, cy, f, m).glow,
+    shade, seed,
   };
 }
 
 // Uferzone auf dem Boden neben Lava: Bordsteinkante aus Stein, angesengter Saum, Schlacke.
-// Wird von Dungeon.renderBackground über biome.decorate(ctx, map) aufgerufen.
+// Wird von Dungeon.renderBackground über biome.decorate(ctx, map) aufgerufen. Folgt derselben
+// organischen Uferlinie wie die Lavakacheln (lavaDepth, gleicher Seed) und malt daher auch in
+// die durchsichtigen Randbereiche der Lavazellen (darunter hat der Renderer Boden gelegt).
 export function paintLavaShore(ctx, map, { wall, crust, emb, grout, seed = 5 }) {
   const lav = (x, y) => map.isLiquid(x, y);
+  const ls = map.biomeTiles?.liquid?.seed ?? seed;
   for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
-    if (map.wallKind(x, y) !== 'floor') continue;
-    const nb = NB8.filter(([nx, ny]) => lav(x + nx, y + ny));
-    if (!nb.length) continue;
+    const k = map.wallKind(x, y);
+    if (k !== 'floor' && k !== 'liquid') continue;
+    if (k === 'floor' && !NB8.some(([nx, ny]) => lav(x + nx, y + ny))) continue;
+    if (k === 'liquid' && !NB8.some(([nx, ny]) => !lav(x + nx, y + ny))) continue;
     for (let v = 0; v < T; v++) for (let u = 0; u < T; u++) {
-      const px = u + 0.5, py = v + 0.5, wx = x * T + u, wy = y * T + v;
-      let d = 99, below = false;
-      for (const [nx, ny] of nb) {
-        const dd = rectDist(px, py, nx * T, ny * T, nx * T + T, ny * T + T);
-        if (dd < d) { d = dd; below = ny > 0; }
-      }
-      const nn = (vnoise(wx, wy, 4, seed) - 0.5) * 1.6;
-      const e = d + nn;
+      const wx = x * T + u, wy = y * T + v;
+      const sd = lavaDepth(lav, wx, wy, ls);
+      if (sd >= 0) continue;                                          // Lava selbst
+      const e = -sd + (vnoise(wx, wy, 4, seed) - 0.5) * 1.2;
+      // Richtung zur Lava: liegt sie südlich (vor dem Pixel), ist die Kante beleuchtet
+      const gx = lavaDepth(lav, wx + 2, wy, ls) - lavaDepth(lav, wx - 2, wy, ls);
+      const gy = lavaDepth(lav, wx, wy + 2, ls) - lavaDepth(lav, wx, wy - 2, ls);
+      const below = gy > 0 && Math.abs(gy) >= Math.abs(gx) * 0.6;
       let col = null;
-      if (d < 1) col = below ? wall[5] : wall[1];                      // Kante: vorn Lichtkante, hinten Schatten
-      else if (e < 3.4) {
-        // Bordsteine entlang des Ufers
-        const along = below || Math.abs(nb[0][1]) ? wx : wy;
-        col = (along + (below ? 0 : 3)) % 6 === 0 ? grout : e < 1.8 && below ? wall[4] : hash2(wx, wy, 51) < 0.25 ? wall[2] : wall[3];
-      } else if (e < 4.4) col = grout;
+      if (-sd < 1) col = below ? wall[5] : wall[2];                  // Kante: vorn Lichtkante, hinten Schatten
+      else if (e < 3.6) {
+        // Bordsteine entlang des Ufers (Fugen quer zur Uferlinie)
+        const along = Math.abs(gy) >= Math.abs(gx) ? wx : wy;
+        col = (along + (below ? 0 : 3)) % 6 === 0 ? grout : e < 1.9 && below ? wall[5] : hash2(wx, wy, 51) < 0.25 ? wall[3] : wall[4];
+      } else if (e < 4.4) col = wall[1];
       else if (e < 9 && hash2(wx, wy, 53) < 0.5 * (1 - (e - 4.4) / 4.6)) col = hash2(wx, wy, 54) < 0.12 ? emb[1] : hash2(wx, wy, 55) < 0.5 ? crust[3] : crust[2];
       if (col) { ctx.fillStyle = col; ctx.fillRect(wx, wy, 1, 1); }
       else if (e < 12) { ctx.fillStyle = `rgba(90,24,8,${(0.22 * (1 - (e - 4.4) / 7.6)).toFixed(3)})`; ctx.fillRect(wx, wy, 1, 1); }

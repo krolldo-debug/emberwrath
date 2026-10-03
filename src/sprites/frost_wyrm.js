@@ -1088,28 +1088,33 @@ export function createFrostCrack(size = 56) {
 
 export function createSkalvyrSprites() {
   // --- Grundposen
-  const idleA = pose();
-  // Ruhe: eine Welle läuft vom Schwanz zur Brust, der Hals pendelt in einer S-Kurve
+  // Lauerhaltung: Hals hoch aufgerichtet in S-Kurve, Kopf leicht gesenkt
+  const LURK = { hx: 17, hh: 58, nb: 1.25, ha: 0.42, chestH: 2.5, tailCurl: 0.5, jaw: 0.08 };
+  const idleA = pose({ ...LURK, wave: 6, hump: 3.2, hph: 0.4 });
+  // Ruhe: eine deutliche Welle läuft vom Schwanz zur Brust, der Hals wiegt sich
+  // in der S-Kurve, der Kopf lauert und nickt, die Schwanzspitze peitscht
   const idleKeys = [];
   for (let i = 0; i <= 10; i++) {
-    const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph);
+    const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph), c = Math.cos(ph);
     idleKeys.push([i / 10, pose({
-      wave: 4.5, wph: -ph, hump: 2.4, hph: -ph + 0.4, bulk: 1 + 0.02 * s, chestH: 0.6 + 0.7 * s,
-      nb: 0.15 + Math.sin(ph) * 0.7, hx: 21 + Math.sin(ph + 0.7) * 3, hh: 46 + s * 2, ha: 0.28 + Math.sin(ph + 1.3) * 0.09,
-      jaw: 0.06 + Math.max(0, s) * 0.08, tailCurl: 0.45 + Math.sin(ph + 2) * 0.18, tailSwing: Math.sin(ph + 1) * 0.12,
-      heart: 1.25 + 0.25 * s,
+      ...LURK,
+      wave: 6, wph: -ph, hump: 4.2, hph: -ph + 0.4, bulk: 1 + 0.03 * s, chestH: 2.5 + 1.4 * s,
+      nb: 1.25 + Math.sin(ph) * 0.35, hx: 17 + Math.sin(ph + 0.7) * 4.5, hh: 58 + s * 3.5, ha: 0.42 + Math.sin(ph + 1.6) * 0.14,
+      jaw: 0.08 + Math.max(0, -c) * 0.07, tailCurl: 0.5 + Math.sin(ph * 2 + 2) * 0.35, tailSwing: Math.sin(ph + 1) * 0.32,
+      tailLift: 3 + Math.max(0, Math.sin(ph * 2)) * 3, heart: 1.25 + 0.3 * s,
     }), linear]);
   }
 
-  // Kriechen: Wellen laufen den Leib entlang, die Klauen greifen abwechselnd
+  // Kriechen: kräftige Schlängelwellen laufen den Leib entlang, der Leib wiegt
+  // seitlich, die Klauen greifen abwechselnd, der Kopf bleibt auf Lauerhöhe
   const walkKeys = [];
   for (let i = 0; i <= 10; i++) {
     const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph), c = Math.cos(ph);
     walkKeys.push([i / 10, pose({
-      wave: 6.5, wph: -ph, hump: 4, hph: -ph + 0.8, ox: s * 1.2, chestH: Math.max(0, c) * 1.5,
-      hx: 22 + s * 2.5, hh: 43 + Math.abs(c) * 2.5, ha: 0.32 + s * 0.07, nb: 0.25 + c * 0.6,
+      wave: 9.5, wph: -ph, hump: 6, hph: -ph + 0.8, ox: s * 2.2, chestH: 1.5 + Math.max(0, c) * 2,
+      hx: 20 + s * 4, hh: 50 + Math.abs(c) * 3.5, ha: 0.38 + s * 0.1, nb: 0.9 + c * 0.45,
       fNx: 7 + s * 7, fNy: Math.max(0, c) * 4, fFx: 1 - s * 7, fFy: Math.max(0, -c) * 4,
-      tailCurl: 0.2, tailSwing: s * 0.18, tailLift: 2, jaw: 0.1,
+      tailCurl: 0.3 + Math.sin(ph * 2) * 0.25, tailSwing: Math.sin(ph - 0.8) * 0.42, tailLift: 2.5, jaw: 0.1,
     }), linear]);
   }
 

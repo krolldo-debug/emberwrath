@@ -35,7 +35,7 @@ export class Ignaroth extends Actor {
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
-    this.hurtRadius = def.hurtRadius; this.bodyHeight = Math.max(def.bodyHeight, 62); // Sprite ist ~70 px hoch (ohne Hörner)
+    this.hurtRadius = def.hurtRadius; this.bodyHeight = Math.max(def.bodyHeight, 78); // Sprite ist ~88 px hoch (ohne Hörner)
     this.shadowW = def.shadowW; this.material = def.material;
     this.home = { x, y };
     this.facing = 1;
@@ -68,8 +68,8 @@ export class Ignaroth extends Actor {
     this.animator.play('awaken', true);
     world.bus.emit(EV.BOSS_ENGAGED, { bossId: this.bossId, name: this.def.name });
     world.session.camera?.shake(5);
-    world.particles.element(this.x, this.y - 30, 'fire', 30, 16);
-    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -44, radius: 90, color: FIRE_RGB, intensity: 0.55, flicker: 0.25, bloom: 0.35 }));
+    world.particles.element(this.x, this.y - 38, 'fire', 30, 16);
+    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -55, radius: 90, color: FIRE_RGB, intensity: 0.55, flicker: 0.25, bloom: 0.35 }));
   }
 
   update(dt, world) {
@@ -533,14 +533,14 @@ export class Ignaroth extends Actor {
 
   // Position eines Rig-Punkts (head, hand, tip, chest, eye, mouth, cast) in Weltkoordinaten
   #meta(key) {
-    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -44 };
+    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -55 };
     return { x: this.x + m.dx * this.facing, y: this.y + m.dy };
   }
 
   #ambient(dt, world) {
     if (this.state === 'sleep' || this.dead) return;
     const rate = [3, 5, 12][this.phase - 1];
-    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-14, 14), this.y - rand(10, 50), 1);
+    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-18, 18), this.y - rand(12, 62), 1);
     if (this.enraged && Math.random() < dt * 10) {
       const c = this.#meta('chest');
       world.particles.spawn({ x: c.x + rand(-3, 3), y: c.y, vx: rand(-8, 8), vy: 0, rise: rand(20, 40), wobble: 20, life: rand(0.3, 0.6), colors: WHITE_FIRE, emissive: true });
@@ -598,12 +598,12 @@ export class Ignaroth extends Actor {
     w.session.camera?.shake(10);
     if (this.coreLight) this.coreLight.dead = true;
     // Der Kern birst: Lichtblitz, Glutfontäne, Lavalache
-    w.addLight(new Light({ x: this.x, y: this.y - 30, radius: 200, color: [255, 190, 120], intensity: 1.4, ttl: 1.4, bloom: 1 }));
+    w.addLight(new Light({ x: this.x, y: this.y - 38, radius: 200, color: [255, 190, 120], intensity: 1.4, ttl: 1.4, bloom: 1 }));
     w.addLight(new Light({ x: this.x, y: this.y - 4, radius: 70, color: FIRE_RGB, intensity: 0.7, flicker: 0.3, ttl: 8, bloom: 0.3 }));
-    for (let i = 0; i < 50; i++) w.particles.embers(this.x + rand(-16, 16), this.y - rand(10, 60), 1);
-    w.particles.ring(this.x, this.y - 30, 10, 48, WHITE_FIRE, 170);
+    for (let i = 0; i < 50; i++) w.particles.embers(this.x + rand(-20, 20), this.y - rand(12, 75), 1);
+    w.particles.ring(this.x, this.y - 38, 10, 48, WHITE_FIRE, 170);
     w.decals.scorch(this.x, this.y, 30);
-    w.bus.emit('spellImpact', { x: this.x, y: this.y - 20, element: 'fire', radius: 70, big: true });
+    w.bus.emit('spellImpact', { x: this.x, y: this.y - 25, element: 'fire', radius: 70, big: true });
   }
 
   // Flammenstrahl aus dem Maul: vom Maul schräg zum Boden, fächert auf, flackert
@@ -680,7 +680,7 @@ export class Ignaroth extends Actor {
       ctx.fillStyle = '#ffe070';
       for (let i = 0; i < 3; i++) {
         const a = this.stateTime * 6 + (i * Math.PI * 2) / 3;
-        ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * 10), Math.round(h.y - cy - 6 + Math.sin(a) * 3), 2, 1);
+        ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * 12), Math.round(h.y - cy - 8 + Math.sin(a) * 3), 2, 1);
       }
     }
   }
