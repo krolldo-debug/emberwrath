@@ -5,6 +5,7 @@
 export const EV = Object.freeze({
   // Ablauf
   SCENE_CHANGE: 'scene:change',          // { from, to }
+  SCENE_FAILED: 'scene:failed',          // { id, from, error } Szene ließ sich nicht öffnen (es folgt der Titel)
   VIEW_RESIZED: 'view:resized',          // { width, height, portrait }  (internes Bild hat neue Größe)
   GAME_STARTED: 'game:started',          // { accountId, characterId, isNew }
   GAME_SAVED: 'game:saved',              // { at, reason }

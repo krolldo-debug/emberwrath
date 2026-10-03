@@ -42,7 +42,21 @@ export function restoreSlot(save, acc, chr, index) {
   const rec = index === 'auto' ? d.auto : d.slots[index];
   if (!rec?.snap) return false;
   const { summary, ...snap } = rec.snap;
+  // Neuer Zeitstempel: sonst hält der Cloud-Abgleich den (älteren) Platz für veraltet und holt den alten Stand zurück.
+  snap.meta = { ...snap.meta, savedAt: Date.now() };
   return save.saveCharacter(acc, chr, snap, summary);
+}
+
+// Einen fremden Datensatz (z. B. den Stand dieses Geräts, wenn die Cloud einen neueren eines anderen Geräts hat)
+// aufbewahren: erster freier Platz, sonst der automatische. -> 0..2 | 'auto' | null
+export function stashSnapshot(save, acc, chr, snap) {
+  if (!snap) return null;
+  const d = read(save, acc, chr);
+  const free = d.slots.findIndex((s) => !s);
+  const index = free >= 0 ? free : 'auto';
+  const rec = { at: Date.now(), snap };
+  if (index === 'auto') d.auto = rec; else d.slots[index] = rec;
+  return write(save, acc, chr, d) ? index : null;
 }
 
 export function clearSlot(save, acc, chr, index) {

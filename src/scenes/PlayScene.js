@@ -62,24 +62,37 @@ export class PlayScene {
       if (g.panels.defs.has('menu') && !this.panels.openId) this.panels.open('menu');
     };
     this.onPageHide = () => g.saveNow('pagehide');
+    // Fenster verliert den Fokus (Alt-Tab, Klick auf zweiten Bildschirm), bleibt aber sichtbar: ebenfalls anhalten.
+    this.onBlur = () => this.setPaused('blur', true);
+    this.onFocus = () => this.setPaused('blur', false);
     document.addEventListener('visibilitychange', this.onHide);
     window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('blur', this.onBlur);
+    window.addEventListener('focus', this.onFocus);
+    this.entered = true;
 
     this.bus.emit(EV.GAME_STARTED, { accountId: this.state.meta.accountId, characterId: this.state.meta.characterId, isNew: !!params.isNew });
     this.bus.emit(EV.ZONE_ENTER, { zoneId: this.zone.zoneId, instanceId: this.zone.instanceId, spawnId: this.spawnId });
   }
 
+  // Jeder Schritt einzeln abgesichert: ein Fehler in einem System darf das Aufräumen der übrigen
+  // (und vor allem das Lösen aller Bus-Abos) nicht verhindern. Auch nach fehlgeschlagenem enter() aufrufbar.
   exit() {
-    this.game.saveNow('exit');
+    const step = (what, fn) => { try { fn(); } catch (err) { console.error(`Spielsitzung beenden: ${what}`, err); } };
+    // Nur speichern, wenn die Sitzung vollständig lief; ein halb geladener Stand soll den gespeicherten nicht ersetzen.
+    if (this.entered) step('speichern', () => this.game.saveNow('exit'));
     document.removeEventListener('visibilitychange', this.onHide);
     window.removeEventListener('pagehide', this.onPageHide);
-    for (const s of this.systems) s.dispose?.();
+    window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('focus', this.onFocus);
+    for (const s of this.systems) step('System', () => s.dispose?.());
     this.systems = [];
-    this.panels.dispose();
-    this.game.ui.hud.replaceChildren();
-    this.bus.emit(EV.ZONE_LEAVE, { zoneId: this.zone?.zoneId });
-    this.authority.leaveZone();
-    this.bus.dispose();
+    step('Panels', () => this.panels?.dispose());
+    step('HUD', () => this.game.ui.hud.replaceChildren());
+    step('Zone', () => { if (this.zone) this.bus?.emit(EV.ZONE_LEAVE, { zoneId: this.zone.zoneId }); });
+    step('Zone', () => this.authority.leaveZone());
+    step('Welt', () => this.world?.dispose?.());
+    this.bus?.dispose();
   }
 
   // Zone laden. pos (Welt-Pixel) hat Vorrang vor spawnId (Fortsetzen an der Stelle).

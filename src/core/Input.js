@@ -69,10 +69,14 @@ export class Input {
       const a = KEYMAP[e.code];
       // Beim Tippen in Eingabefeldern löst nur Escape eine Aktion aus (KeyP ist ebenfalls 'pause').
       if (!a || (isTyping(e) && e.code !== 'Escape')) return;
+      // Browser-Kürzel (Strg+F, Cmd+D …) bleiben beim Browser und werden keine Spielaktion.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       e.preventDefault();
       if (!e.repeat) this.#press(a);
     });
     window.addEventListener('keyup', (e) => {
+      // macOS meldet das Loslassen anderer Tasten bei gedrückter Cmd-Taste nicht: alles lösen.
+      if (e.key === 'Meta') { this.down.clear(); return; }
       const a = KEYMAP[e.code];
       if (a) this.#release(a);
     });

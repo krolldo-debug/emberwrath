@@ -9,6 +9,8 @@
   "assets": {
     "directory": "./dist/site",
     "binding": "ASSETS",
+    // Unbekannte Adressen: nächstgelegene 404.html (eigene Fehlerseite baut site/), Status bleibt 404.
+    "not_found_handling": "404-page",
     // Nur Seitenaufrufe laufen zuerst durch den Worker (Umleitung alter Adressen, worker/index.js);
     // Bilder, Schriften usw. liefert Cloudflare weiter direkt und ohne Worker-Aufruf.
     "run_worker_first": ["/", "/index.html", "/welt*", "/support*", "/datenschutz*", "/impressum*", "/newsletter*", "/spielen*"]

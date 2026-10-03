@@ -106,7 +106,12 @@ export function installShop(game) {
           const r = state.commit('shop:credit', { orderId: o.id, gold: o.gold });
           if (r?.ok) gold += o.gold;
         }
-        if (gold) game.saveNow('shop');
+        // Erst bestätigen, wenn das Gold sicher gespeichert ist; sonst bleibt die Bestellung offen und kommt beim nächsten Start wieder.
+        if (gold && !game.saveNow('shop')) {
+          game.bus.emit(EV.UI_TOAST, { text: 'Gold erhalten, aber der Browser-Speicher ist voll. Bitte Speicher freigeben – die Gutschrift wird beim nächsten Start wiederholt.', kind: 'warn' });
+          return gold;
+        }
+        if (gold) await online().sync.flush().catch(() => {});
         await online().client.rpc('shop_confirm_credits', { p_ids: list.map((o) => o.id) }).catch(() => {});
         if (gold) {
           game.bus.emit(EV.UI_TOAST, { text: `${gold.toLocaleString('de-DE')} Gold gutgeschrieben. Danke für deine Unterstützung!`, kind: 'loot', icon: 'gold' });

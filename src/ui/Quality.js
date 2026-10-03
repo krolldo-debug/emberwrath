@@ -1,7 +1,8 @@
 // Qualitätsstufe (Thread D): Einstellung 'quality' in game.prefs:
 // 'auto' (Standard) | 'low' | 'medium' | 'high'. „Automatisch“ startet auf
 // Touch-Geräten mittel, sonst hoch, und senkt die Stufe, wenn die Bildrate
-// mehrere Sekunden unter 45 fällt (hebt sie nie selbst wieder an).
+// mehrere Sekunden unter 45 fällt (bei unter 30 schneller; hebt sie nie selbst wieder an).
+// Gemessen wird die echte Bildrate (game.fps, Uhrzeit), nicht der feste 60-Hz-Logiktakt.
 // Wirkt auf: Partikelbudget und -dichte, Leuchten (Bloom), Umgebungseffekte
 // (Menge, Hitzeflimmern). Rein darstellend; Spielablauf bleibt gleich.
 export const QUALITY_LEVELS = [
@@ -22,7 +23,7 @@ export class QualityControl {
     this.game = game;
     this.autoLevel = document.documentElement.classList.contains('ef-touch') || window.matchMedia?.('(pointer: coarse)').matches ? 'medium' : 'high';
     this.slow = 0;
-    this.frames = 0; this.acc = 0;
+    this.lastCheck = 0;
   }
 
   get setting() { return this.game.prefs?.get('quality', 'auto') ?? 'auto'; }
@@ -30,14 +31,17 @@ export class QualityControl {
 
   // pro Frame aus dem Session-System: misst die Bildrate und wendet die Stufe an
   update(dt, session, weather) {
-    if (this.setting === 'auto' && dt > 0 && dt < 0.5) {
-      this.acc += dt; this.frames++;
-      if (this.acc >= 1) {
-        const fps = this.frames / this.acc; this.acc = 0; this.frames = 0;
-        this.slow = fps < 45 && !session.paused ? this.slow + 1 : 0;
+    const now = performance.now();
+    if (this.setting === 'auto' && now - this.lastCheck >= 1000) {
+      // Lücken über 3 s (Tab war im Hintergrund) nicht werten
+      const fresh = this.lastCheck && now - this.lastCheck < 3000;
+      this.lastCheck = now;
+      const fps = this.game.fps;
+      if (fresh && fps > 0 && !session.paused) {
+        this.slow = fps < 30 ? this.slow + 2 : fps < 45 ? this.slow + 1 : 0;
         const i = ORDER.indexOf(this.autoLevel);
         if (this.slow >= 4 && i > 0) { this.autoLevel = ORDER[i - 1]; this.slow = 0; }
-      }
+      } else if (!fresh) this.slow = 0;
     }
     const lvl = this.level, P = PRESET[lvl];
     const w = session.world;

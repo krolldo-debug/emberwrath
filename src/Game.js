@@ -10,6 +10,7 @@ import { LocalAuthority } from './core/Authority.js';
 import { SaveStore } from './core/SaveStore.js';
 import { Prefs } from './core/Prefs.js';
 import { SceneManager } from './core/SceneManager.js';
+import { showErrorNotice } from './core/ErrorNotice.js';
 import { PanelRegistry } from './core/PanelHost.js';
 import { h } from './core/dom.js';
 import { PixelFont } from './ui/PixelFont.js';
@@ -52,7 +53,10 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     this.bus.on(EV.SCENE_CHANGE, () => this.resize());
     this.resize();
-    this.loop = new GameLoop({ update: (dt) => this.update(dt), render: () => this.render() });
+    this.loop = new GameLoop({
+      update: (dt) => this.update(dt), render: () => this.render(),
+      onFatal: () => showErrorNotice('Im Spiel ist ein Fehler aufgetreten. Der Spielstand wird regelmäßig gespeichert – bitte lade die Seite neu.'),
+    });
   }
 
   #fpsAcc; #fpsFrames; #lastRender; #quality = "";
@@ -152,8 +156,8 @@ export class Game {
     const inp = this.input;
     if (inp.pressed('mute')) this.sfx.toggleMute();
     if (inp.pressed('debug')) this.debug = !this.debug;
-    this.scenes.update(dt);
-    inp.endStep(dt);
+    // endStep auch nach einem Fehler, sonst löst dieselbe Eingabe (Trank, Angriff …) im nächsten Tick erneut aus.
+    try { this.scenes.update(dt); } finally { inp.endStep(dt); }
   }
 
   render() {
@@ -187,7 +191,8 @@ export class Game {
     // Qualität „Niedrig“ (ui/Quality.js, auch automatisch): Zeichenfläche höchstens 2-fach,
     // der Browser vergrößert pixelgenau per CSS. Spart auf hochauflösenden Handys den teuren Blit.
     this.#quality = document.documentElement.dataset.quality ?? '';
-    const backing = this.#quality === 'low' ? Math.min(scale, 2) : scale;
+    // „Mittel“ auf Touch-Geräten höchstens 3-fach (hochauflösende Handys hätten sonst 4-fach und mehr).
+    const backing = this.#quality === 'low' ? Math.min(scale, 2) : this.#quality === 'medium' && coarse ? Math.min(scale, 3) : scale;
     this.canvas.width = Math.round(CONFIG.viewWidth * backing);
     this.canvas.height = Math.round(CONFIG.viewHeight * backing);
     // Überabtastung: nie mehr Bildpunkte je Weltpixel als die Anzeige zeigt, bei „Niedrig“ keine.

@@ -107,9 +107,10 @@ export class AuthClient {
   }
 
   // ---------------------------------------------------------------- HTTP
-  async #request(path, { method = 'GET', body, token, headers = {} } = {}) {
+  async #request(path, { method = 'GET', body, token, headers = {}, keepalive = false } = {}) {
     if (!this.configured) throw new AuthError('not_configured', MESSAGES.not_configured);
     let res;
+    const payload = body !== undefined ? JSON.stringify(body) : undefined;
     try {
       res = await this.fetch(`${this.url}${path}`, {
         method,
@@ -120,7 +121,9 @@ export class AuthClient {
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...headers,
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: payload,
+        // keepalive: Anfrage überlebt das Schließen des Tabs; Browser erlauben das nur für kleine Körper (64 KB gesamt).
+        ...(keepalive && (payload?.length ?? 0) < 60_000 ? { keepalive: true } : {}),
       });
     } catch { throw new AuthError('network', MESSAGES.network); }
     const text = await res.text();
@@ -209,7 +212,8 @@ export class AuthClient {
       return session;
     } catch (e) {
       // Nur bei abgelehntem Token abmelden; ohne Netz bleibt die Sitzung für später erhalten.
-      if (e.code !== 'network' && e.status >= 400 && e.status < 500) this.#store(null, 'SIGNED_OUT');
+      // Zu viele Anfragen (429, z. B. viele Spieler hinter einer Adresse) ist kein abgelehntes Token.
+      if (e.code !== 'network' && e.status >= 400 && e.status < 500 && e.status !== 429 && e.status !== 408) this.#store(null, 'SIGNED_OUT');
       throw e;
     }
   }
@@ -257,9 +261,9 @@ export class AuthClient {
 
   // ---------------------------------------------------------------- Datenbank
   // PostgREST: rest('/characters?select=id', { method, body, prefer })
-  async rest(path, { method = 'GET', body, prefer } = {}) {
+  async rest(path, { method = 'GET', body, prefer, keepalive = false } = {}) {
     const token = await this.getAccessToken();
-    return this.#request(`/rest/v1${path}`, { method, body, token, headers: prefer ? { Prefer: prefer } : {} });
+    return this.#request(`/rest/v1${path}`, { method, body, token, keepalive, headers: prefer ? { Prefer: prefer } : {} });
   }
   rpc(fn, args = {}) { return this.rest(`/rpc/${fn}`, { method: 'POST', body: args }); }
 }

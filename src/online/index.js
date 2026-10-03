@@ -27,11 +27,17 @@ export class Online {
     this.game = game;
     this.config = config;
     this.client = new AuthClient({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey });
-    this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed() });
+    this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed(), onRemote: (ids) => this.#remoteUpdated(ids) });
     this.notice = null; // einmalige Meldung für die Anmeldeseite { kind, text }
     this.#admin = null;
     this.client.onChange((event) => {
-      if (event === 'SIGNED_OUT') { this.#admin = null; this.sync.stop(); }
+      if (event === 'SIGNED_OUT') {
+        // Abmeldung durch abgelaufene Sitzung mitten im Spiel: deutlich sagen, dass nur noch lokal gespeichert wird.
+        if (this.sync.userId && this.game.account?.id === this.sync.accountId && this.game.scenes.currentId === 'play') {
+          this.game.bus.emit(EV.UI_TOAST, { text: 'Anmeldung abgelaufen – Cloud-Speichern pausiert. Bitte im Menü neu anmelden.', kind: 'warn' });
+        }
+        this.#admin = null; this.sync.stop();
+      }
       if (event === 'SIGNED_IN') this.#admin = null;
       this.#changed();
     });
@@ -63,6 +69,19 @@ export class Online {
   isOnlineAccount(id) { return typeof id === 'string' && id.startsWith(ONLINE_ACCOUNT_PREFIX); }
 
   #changed() { this.game.bus.emit(EV.ONLINE_CHANGED, { user: this.user, status: this.sync.status }); }
+
+  // Der Abgleich hat Charaktere mit dem neueren Cloud-Stand eines anderen Geräts überschrieben.
+  // Läuft gerade einer davon, wird er neu geladen, sonst würde das nächste Speichern den alten Stand zurückschreiben.
+  #remoteUpdated(ids) {
+    const g = this.game, m = g.state.meta;
+    if (g.scenes.currentId !== 'play' || m.accountId !== this.sync.accountId || !ids.includes(m.characterId)) return;
+    const slot = this.sync.stashed[m.characterId];
+    if (!g.loadGame(m.accountId, m.characterId)) return;
+    const where = slot === 'auto' ? 'im automatischen Speicherplatz' : slot != null ? `in Speicherplatz ${slot + 1}` : null;
+    const text = `Auf einem anderen Gerät wurde weitergespielt – dieser neuere Stand ist jetzt geladen.${where ? ` Der vorherige Stand dieses Geräts liegt ${where}.` : ''}`;
+    // Erst nach dem Szenenwechsel melden: die Meldungsanzeige gehört zur neuen Spielsitzung.
+    const off = g.bus.on(EV.SCENE_CHANGE, () => { off(); setTimeout(() => g.bus.emit(EV.UI_TOAST, { kind: 'warn', text }), 0); });
+  }
 
   isAdmin() {
     if (!this.user || !this.configured) return Promise.resolve(false);
@@ -178,7 +197,18 @@ export function installOnline(game) {
   });
 
   window.addEventListener('online', () => { if (online.user) online.sync.syncAll().catch(() => {}); });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') online.sync.flush().catch(() => {}); });
+  // Beim Verstecken/Schließen erst speichern, dann sofort senden (der verzögerte Upload läuft im Hintergrund oft nicht mehr).
+  // Beim Zurückkehren abgleichen: ein anderes Gerät kann inzwischen weitergespielt haben.
+  const saveAndFlush = (reason) => {
+    if (!online.sync.userId) return;
+    if (game.scenes.currentId === 'play' && game.account?.id === online.sync.accountId) game.saveNow(reason);
+    online.sync.flush().catch(() => {});
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveAndFlush('hidden');
+    else if (online.sync.userId) online.sync.syncAll().catch(() => {});
+  });
+  window.addEventListener('pagehide', () => saveAndFlush('pagehide'));
   window.addEventListener('storage', (e) => { if (e.key === 'emberwrath:online:session') online.client.syncFromStorage(); });
   window.addEventListener('hashchange', () => online.routeFromHash());
 
