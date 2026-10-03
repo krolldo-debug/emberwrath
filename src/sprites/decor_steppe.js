@@ -9,7 +9,7 @@ import { mk, poly } from './decor_ashwood.js';
 // Bodenpalette (Format wie BIOME_GROUND in sprites/outdoor.js)
 export const GROUND_STEPPE = {
   grass: ['#15130d', '#1d1a11', '#262216', '#302a1b', '#3b3321', '#473d27'],
-  dirt: ['#15110e', '#1e1813', '#282019', '#33291f', '#3f3326', '#4d3f2f'],
+  dirt: ['#1b150d', '#271e12', '#352816', '#45341d', '#574224', '#6a512e'],
   water: ['#06090b', '#0a1013', '#0f191c', '#172528', '#233538'],
   tufts: false,
 };

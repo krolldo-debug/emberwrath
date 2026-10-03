@@ -68,7 +68,7 @@ Eingehende WebSocket-Nachrichten zählen 20:1 als Anfrage; ausgehende sind frei.
   Nachricht. Liste bewusst kurz; für alles andere gibt es „Melden“.
 - **Melden**: Name im Chat oder in der Spielerliste des Weltfensters anklicken → Grund, Beschreibung, Bestätigung „in
   gutem Glauben“. Der Server hängt die letzten 10 Nachrichten der gemeldeten Person selbst an (Original + gefilterte
-  Anzeige), speichert in `chat_reports` (Migration `supabase/migrations/20261003120000_chat_meldungen.sql`) und
+  Anzeige), speichert in `chat_reports` (Migration `supabase/migrations/20261003120100_chat_meldungen.sql`) und
   bestätigt den Eingang. Höchstens 6 Meldungen je Spieler in 10 Minuten. Wer das Gebiet gerade verlassen hat, kann noch
   10 Minuten gemeldet werden. Ist Supabase gestört oder fehlt das Secret, bleibt die Meldung im Speicher des Shards und
   wird beim nächsten Alarm (alle 60 s) nachgesendet.

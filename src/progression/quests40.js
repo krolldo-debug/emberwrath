@@ -46,7 +46,7 @@ export const QUESTS_40 = {
     title: 'Das Lager des Fürsten', giver: 'captain_varra', main: true, level: 22, requires: ['q_steppe_banners'],
     summary: 'Dringe zu Khars Kriegslager vor und dünne seine Krieger aus.',
     offer: 'Khar weiß jetzt, dass es dich gibt. Er zieht seine Leute im Kriegslager zusammen. Bevor er zu uns kommt, gehen wir zu ihm. Schlag dich bis zum Lager durch und erschlag fünfzehn seiner Krieger.',
-    progressText: 'Das Kriegslager liegt im Norden der Steppe, hinter den Hügeln.',
+    progressText: 'Das Kriegslager liegt im Nordosten der Steppe, hinter den Hügeln.',
     completeText: 'Du hast Khars Zelt gesehen? Dann weißt du, wo er schläft. Das ändert alles.',
     objectives: [
       { id: 'camp', text: 'Khars Kriegslager erreicht', count: 1, kind: 'reach', target: ['warlord_camp'], zone: 'ashen_steppe' },
@@ -69,8 +69,8 @@ export const QUESTS_40 = {
   q_barrow_gate: {
     title: 'Das Heulen unter der Erde', giver: 'captain_varra', main: true, level: 24, requires: ['q_steppe_warlord'],
     summary: 'Öffne das Tor zum Heulenden Hügelgrab und stelle dich den Wiedergängern.',
-    offer: 'Seit Khar gefallen ist, heult das Hügelgrab jede Nacht. Die Nomaden sagen, der Hügelkönig sei erwacht. Geh zum Grabtor im Osten, steig hinab und erschlag die Toten, die sich dort sammeln.',
-    progressText: 'Das Grabtor liegt im Osten der Steppe. Hinter ihm wartet das Heulende Hügelgrab.',
+    offer: 'Seit Khar gefallen ist, heult das Hügelgrab jede Nacht. Die Nomaden sagen, der Hügelkönig sei erwacht. Geh zum Grabtor im Südosten, steig hinab und erschlag die Toten, die sich dort sammeln.',
+    progressText: 'Das Grabtor liegt im Südosten der Steppe. Hinter ihm wartet das Heulende Hügelgrab.',
     completeText: 'Du bist zurück und bleich wie die Toten. Aber du bist zurück. Das ist mehr, als die Nomaden von ihren Kundschaftern sagen können.',
     objectives: [
       { id: 'gate', text: 'Grabtor erreicht', count: 1, kind: 'reach', target: ['barrow_gate', 'zone:howling_barrow'], zone: 'ashen_steppe' },
@@ -83,7 +83,7 @@ export const QUESTS_40 = {
     summary: 'Besiege Ulgrim, den Hügelkönig, und bring Varra sein Grabsiegel.',
     offer: 'Ulgrim war vor tausend Jahren König der Steppe. Jemand hat ihn geweckt. Geh in die tiefste Kammer des Hügelgrabs, leg ihn zurück in sein Grab und bring mir sein Siegel. Ich muss wissen, wer ihn gerufen hat.',
     progressText: 'Ulgrim wartet in der Grabkammer am Ende des Hügelgrabs.',
-    completeText: 'Wieder die Flammenkrone. Varkhul, Khar, jetzt Ulgrim. Alle tragen dasselbe Zeichen. Die Spur führt nach Norden, durch die Faulmarsch. Dort hält Wächter Thane die Mirefeste.',
+    completeText: 'Wieder die Flammenkrone. Varkhul, Khar, jetzt Ulgrim. Alle tragen dasselbe Zeichen. Die Spur führt nach Osten, in die Faulmarsch. Dort hält Wächter Thane die Mirefeste.',
     objectives: [
       { id: 'boss', text: 'Ulgrim besiegt', count: 1, kind: 'boss', target: 'barrow_king', zone: 'howling_barrow' },
       { id: 'seal', text: 'Grabsiegel des Hügelkönigs', count: 1, kind: 'collect', target: 'barrow_seal', from: ['barrow_king'], zone: 'howling_barrow' },
@@ -93,8 +93,8 @@ export const QUESTS_40 = {
   q_into_the_marsh: {
     title: 'In die Faulmarsch', giver: 'captain_varra', turnInNpc: 'warden_thane', main: true, level: 25, requires: ['q_barrow_king'],
     summary: 'Reise in die Faulmarsch und melde dich bei Wächter Thane in der Mirefeste.',
-    offer: 'Thane ist ein sturer Hund, aber er hält die Mirefeste seit zwanzig Jahren. Wenn jemand weiß, was in der Marsch vor sich geht, dann er. Nimm den Weg nach Norden, am Marschrand entlang.',
-    progressText: 'Folge der Straße nach Norden bis zum Marschrand und weiter zur Mirefeste.',
+    offer: 'Thane ist ein sturer Hund, aber er hält die Mirefeste seit zwanzig Jahren. Wenn jemand weiß, was in der Marsch vor sich geht, dann er. Nimm den Weg nach Osten zum Marschrand.',
+    progressText: 'Folge der Straße nach Osten bis zum Marschrand und weiter zur Mirefeste.',
     completeText: 'Varra schickt mir einen Helden? Hier sterben Helden schneller als Mücken. Aber gut. Komm rein, bevor der Nebel dich frisst.',
     objectives: [{ id: 'travel', text: 'Mirefeste erreicht', count: 1, kind: 'reach', target: ['zone:blighted_marsh', 'mirefort'], zone: 'ashen_steppe' }],
     rewards: { xp: Q(25, W.travel), gold: 150, items: [{ itemId: 'superior_potion', qty: 3 }] },
@@ -216,8 +216,8 @@ export const QUESTS_40 = {
   q_spore_gate: {
     title: 'Der Sporenschlund', giver: 'warden_thane', main: true, level: 30, requires: ['q_bog_horror'],
     summary: 'Dringe in den Sporenschlund ein und vernichte die Pilzbrut.',
-    offer: 'Die Pilztürme wachsen aus einem Schlund im Norden. Dort sitzt Mutter Fäulnis, und dort wachsen ihre Kinder. Geh hinab und vernichte zwölf von ihrer Brut, bevor sie die ganze Marsch überwuchert.',
-    progressText: 'Der Eingang zum Sporenschlund liegt am Sporentor im Norden der Marsch.',
+    offer: 'Die Pilztürme wachsen aus einem Schlund im Nordosten. Dort sitzt Mutter Fäulnis, und dort wachsen ihre Kinder. Geh hinab und vernichte zwölf von ihrer Brut, bevor sie die ganze Marsch überwuchert.',
+    progressText: 'Der Eingang zum Sporenschlund liegt am Sporentor im Nordosten der Marsch.',
     completeText: 'Du riechst nach Pilzen. Wasch dich, bevor du das Lager betrittst. Und dann erzähl mir, was du da unten gesehen hast.',
     objectives: [
       { id: 'gate', text: 'Sporentor erreicht', count: 1, kind: 'reach', target: ['spore_gate', 'zone:spore_hollow'], zone: 'blighted_marsh' },

@@ -5,7 +5,7 @@ import { REPORT_REASON_LABELS } from './protocol.js';
 //   import { renderChatReports } from '../net/AdminReports.js';
 //   … Reiter „Meldungen“: slot.replaceChildren(renderChatReports(this.online.client));
 // Daten und Rechte: admin_chat_reports / admin_chat_report_resolve / admin_chat_mute
-// (supabase/migrations/20261003120000_chat_meldungen.sql, prüfen serverseitig assert_admin()).
+// (supabase/migrations/20261003120100_chat_meldungen.sql, prüfen serverseitig assert_admin()).
 const fmt = (s) => (s ? new Date(s).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
 const STATUS = { offen: 'Offen', erledigt: 'Erledigt', abgelehnt: 'Abgelehnt' };
 const MUTES = [[24, '24 Stunden'], [24 * 7, '7 Tage'], [24 * 30, '30 Tage']];
@@ -19,7 +19,7 @@ export function renderChatReports(client) {
     root.replaceChildren(head(), h('p.net-adm-note', 'Meldungen werden geladen …'));
     let rows;
     try { rows = (await client.rpc('admin_chat_reports', { p_status: filter === 'alle' ? null : filter, p_limit: 200 })) ?? []; } catch (e) {
-      root.replaceChildren(head(), h('p.net-adm-note.err', { role: 'alert' }, `Laden fehlgeschlagen: ${errText(e)}. Ist die Migration 20261003120000_chat_meldungen.sql eingespielt?`));
+      root.replaceChildren(head(), h('p.net-adm-note.err', { role: 'alert' }, `Laden fehlgeschlagen: ${errText(e)}. Ist die Migration 20261003120100_chat_meldungen.sql eingespielt?`));
       return;
     }
     root.replaceChildren(head(), rows.length ? h('div.net-adm-list', rows.map(card)) : h('p.net-adm-note', filter === 'offen' ? 'Keine offenen Meldungen.' : 'Keine Meldungen.'));

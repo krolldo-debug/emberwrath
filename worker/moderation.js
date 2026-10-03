@@ -1,5 +1,5 @@
 // Moderation des Gebietschats: Meldungen speichern (DSA Art. 16) und Chatsperren lesen (Art. 17).
-// Gespeichert wird in Supabase (supabase/migrations/20261003120000_chat_meldungen.sql) mit dem Secret
+// Gespeichert wird in Supabase (supabase/migrations/20261003120100_chat_meldungen.sql) mit dem Secret
 // SUPABASE_SERVICE_ROLE_KEY, wie bei worker/forms.js. Fehlt das Secret oder ist Supabase nicht erreichbar, bleibt die
 // Meldung im Speicher des Shards (Durable-Object-Storage) und wird beim nächsten Alarm erneut gesendet; verloren geht nichts.
 

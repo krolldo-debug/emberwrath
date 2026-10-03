@@ -11,7 +11,7 @@ import { shadeLump, dustPatch, blade, bayer } from './decor_steppe.js';
 export const GROUND_MARSH = {
   grass: ['#0c120e', '#111912', '#162117', '#1c291b', '#233220', '#2c3d26'],
   dirt: ['#100e0b', '#17140f', '#1f1b14', '#28221a', '#312a20', '#3c3327'],
-  water: ['#060a08', '#0a120d', '#0f1c13', '#18291b', '#263a24'],
+  water: ['#0a1012', '#142426', '#1d3433', '#2f4b46', '#46685a'],
   tufts: true,
 };
 

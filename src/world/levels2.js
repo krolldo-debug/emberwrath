@@ -86,11 +86,19 @@ function buildAshwood() {
   road([[34, 30], [27, 42], [18, 50]]);
   road([[79, 42], [79, 46], [76, 50]]);
 
-  // Lager der Wächter (Hub): Pflaster, Palisade mit Toren West/Ost
+  // Lager der Wächter (Hub): Waldlichtung mit festgetretenem Waldboden statt Pflaster,
+  // unregelmäßige Holzpalisade (Nord mit Versatz, West mit Tor), Südosten offen und
+  // nur mit Holzstapeln und Karren verbarrikadiert; Feuer im Südwesten, Wachturm im Nordwesten.
   const camp = { x: 6, y: 24, w: 17, h: 15 };
-  m.ellipse(14, 31, 7.2, 6.2, ':', [',', '.']);
-  m.path([[7, 31.5], [21, 31.5]], 2, ':', [',', '.']);
-  ring(m, 6, 24, 22, 38, 'p', 'q', [{ side: 'w', from: 30, to: 33 }, { side: 'e', from: 30, to: 33 }]);
+  m.ellipse(14, 31, 7.6, 6.6, '.', [',']);
+  m.path([[7, 31.5], [21, 31.5]], 2, '.', [',']);
+  m.ellipse(19.5, 36.2, 2.2, 1.3, ',', ['.']); m.ellipse(7.6, 26, 1.4, 1.2, ',', ['.']); m.ellipse(20.5, 25.6, 1.6, 1, ',', ['.']);
+  for (let x = 6; x <= 16; x++) m.set(x, 24, 'p');
+  m.set(16, 25, 'q');
+  for (let x = 16; x <= 22; x++) m.set(x, 26, 'p');
+  for (let y = 25; y <= 37; y++) if (y < 30 || y > 33) m.set(6, y, 'q');
+  for (let y = 27; y <= 29; y++) m.set(22, y, 'q');
+  for (let x = 6; x <= 13; x++) m.set(x, 38, 'p');
 
   // Banditenlager: Palisade mit Toren West/Süd
   const bandit = { x: 68, y: 26, w: 23, h: 17 };
@@ -99,11 +107,10 @@ function buildAshwood() {
 
   const put = (x, y, ch) => m.set(x, y, ch);
   // Lager der Wächter
-  put(9, 27, 'T'); put(19, 27, 'T');
-  put(14, 26, 'P'); put(14, 31, 'F');
-  put(20, 36, 'W'); put(10, 36, 'Q'); put(16, 36, 'L');
-  put(14, 28, 'I'); put(18, 32, 'O'); put(10, 32, 'V');
-  put(14, 34, '1'); put(12, 33, '2'); put(4, 31, '3');
+  put(8, 26, 'W'); put(12, 26, 'T'); put(19, 28, 'T'); put(17, 30, 'P');
+  put(10, 34, 'F'); put(8, 37, 'L'); put(21, 35, 'L'); put(18, 37, 'Q'); put(15, 37, 'L');
+  put(14, 28, 'I'); put(13, 35, 'O'); put(17, 34, 'V');
+  put(15, 32, '1'); put(11, 32, '2'); put(4, 31, '3');
   // Banditenlager
   put(73, 29, 'K'); put(85, 29, 'K'); put(86, 38, 'K');
   put(79, 28, 'P'); put(79, 33, 'F'); put(72, 39, 'L'); put(75, 40, 'Q');
@@ -226,21 +233,29 @@ function buildCinderPeaks() {
   road([[56, 42], [66, 40]]);
   road([[66, 40], [76, 35], [86, 32], [95, 31]]);
 
-  // Feste Rauhwacht (Hub)
+  // Feste Rauhwacht (Hub): an die Westklippe gelehnt. Hof aus Ascheboden, Felsplatten nur am
+  // Klippenfuß und in der Schmiedeecke (Südost). Mauern mit Türmen an Nord-, Ost- und Südseite.
   const fort = { x: 16, y: 38, w: 23, h: 17 };
-  m.rect(17, 39, 21, 15, ':');
-  m.path([[27, 36], [27, 56]], 3, ':', [',', '.']);
-  m.path([[37, 46], [40, 46]], 3, ':', [',', '.']);
-  ring(m, 16, 38, 38, 54, 'w', 'v', [
-    { side: 'n', from: 26, to: 28 }, { side: 's', from: 26, to: 28 }, { side: 'e', from: 45, to: 47 },
-  ]);
+  for (let y = 36; y <= 56; y++) {
+    const edge = 18 + ((y * 7) % 5 === 0 ? 1 : 0) - (y < 38 || y > 54 ? 2 + ((y * 3) % 2) : 0);
+    for (let x = 12; x <= edge; x++) m.set(x, y, '#');
+  }
+  m.rect(19, 39, 19, 15, '.');
+  m.rect(19, 39, 3, 15, ':');
+  m.rect(31, 48, 7, 6, ':');
+  m.path([[27, 36], [27, 56]], 3, '.', [',', '.']);
+  m.path([[37, 46], [40, 46]], 3, '.', [',', '.']);
+  for (let x = 19; x <= 38; x++) {
+    if (x < 26 || x > 28) { m.set(x, 38, 'w'); m.set(x, 54, 'w'); }
+  }
+  for (let y = 39; y <= 53; y++) if (y < 45 || y > 47) m.set(38, y, 'v');
   const put = (x, y, ch) => m.set(x, y, ch);
-  put(16, 38, 'U'); put(38, 38, 'U'); put(16, 54, 'U'); put(38, 54, 'U');
+  put(19, 38, 'U'); put(38, 38, 'U'); put(19, 54, 'U'); put(38, 54, 'U');
   put(27, 54, 'G');
-  put(20, 42, 'T'); put(34, 42, 'T'); put(20, 45, 'P'); put(34, 45, 'P');
-  put(33, 51, 'F'); put(20, 51, 'c'); put(23, 52, 'c'); put(36, 50, 'c');
-  put(27, 42, 'C'); put(21, 48, 'Y'); put(31, 48, 'D');
-  put(27, 50, '1'); put(25, 50, '2'); put(12, 58, '3');
+  put(24, 41, 'T'); put(35, 42, 'T'); put(22, 45, 'P'); put(31, 41, 'P');
+  put(34, 51, 'F'); put(31, 52, 'c'); put(37, 49, 'c'); put(36, 52, 'c'); put(20, 52, 'c');
+  put(28, 42, 'C'); put(21, 49, 'Y'); put(32, 48, 'D');
+  put(27, 49, '1'); put(25, 50, '2'); put(12, 58, '3');
 
   // Schmiedetor im Norden
   put(48, 5, 'Z'); put(43, 6, 'e'); put(53, 6, 'e'); put(48, 8, '4');
@@ -347,60 +362,115 @@ export function dungeonBase(W, H, seed) {
 }
 
 // ---------------------------------------------------------------- Versunkener Tempel
+// Überflutete Tempelanlage: Vorhof -> überfluteter Säulengang -> Große Halle mit
+// Wasserbecken und Insel (Herzstück) -> Seitenschreine (Statuenhalle W,
+// Kultkammer NO, Heiligtum O) -> Altarhalle (Arena). Im Süden eine geflutete
+// Krypta mit Trittstein-Damm, im Südwesten die verborgene Schatzkammer.
 function buildSunkenTemple() {
   const W = 64, H = 56;
   const { m, room, hall, torches, put } = dungeonBase(W, H, 303);
+  const bevel = (x, y, w, h, k) => {
+    for (let j = 0; j < k; j++) for (let i = 0; i < k - j; i++) {
+      put(x + i, y + j, '#'); put(x + w - 1 - i, y + j, '#');
+      put(x + i, y + h - 1 - j, '#'); put(x + w - 1 - i, y + h - 1 - j, '#');
+    }
+  };
+  // Räume
   room(4, 4, 12, 8);    // A Vorhof
-  room(22, 3, 16, 10);  // B Flutgang
-  room(4, 18, 13, 12);  // C Statuenhalle
-  room(22, 18, 16, 12); // D Großes Becken
-  room(44, 6, 14, 12);  // E Kultkammer
-  room(44, 22, 12, 9);  // F Heiligtum (temple_sanctum)
-  room(38, 36, 22, 16); // G Arena
-  hall(16, 7, 6, 3); hall(8, 12, 3, 6); hall(38, 8, 6, 3); hall(17, 23, 5, 3);
-  hall(38, 25, 6, 3); hall(49, 18, 3, 4); hall(47, 31, 4, 5);
+  room(20, 4, 22, 7);   // B Säulengang (überflutet)
+  room(3, 16, 11, 14);  // C Statuenhalle (Seitenschrein West)
+  room(18, 15, 26, 18); // D Große Halle mit Becken
+  room(46, 21, 12, 10); // F Heiligtum (temple_sanctum)
+  room(38, 36, 22, 16); // G Altarhalle (Arena)
+  m.ellipse(52.5, 10.2, 7.2, 5.6, '.'); // E Kultkammer (rund)
+  m.rect(15, 37, 21, 14, '.');          // K Geflutete Krypta
+  // Gänge
+  hall(16, 6, 4, 3);    // A -> B
+  hall(8, 12, 3, 4);    // A -> C
+  hall(30, 11, 2, 4);   // B -> D (Achse auf die Insel)
+  hall(42, 6, 4, 3);    // B -> E
+  hall(14, 22, 4, 3);   // C -> D
+  hall(44, 23, 2, 3);   // D -> F
+  hall(51, 15, 3, 6);   // E -> F
+  hall(47, 31, 4, 5);   // F -> G (Tor)
+  hall(24, 33, 2, 4);   // D -> K
+  bevel(18, 15, 26, 18, 3);
+  bevel(38, 36, 22, 16, 2);
+  bevel(3, 16, 11, 14, 1);
   torches(5);
+  // Fackeln der runden Kultkammer
+  for (const x of [47, 50, 55, 58]) if (m.get(x, 6) === '#' && m.get(x, 7) === '.') put(x, 6, 'T');
+  for (const x of [48, 51, 54, 57]) if (m.get(x, 5) === '#' && m.get(x, 6) === '.') put(x, 5, 'T');
 
-  // Wasser (fest, niedrig) mit Brücken
-  m.rect(22, 7, 16, 2, '~'); m.rect(29, 7, 2, 2, '.');
-  m.ellipse(30, 24, 5, 2.8, '~', ['.']);
-  m.ellipse(42.5, 44, 1.6, 1.3, '~', ['.']); m.ellipse(55.5, 44, 1.6, 1.3, '~', ['.']);
-  m.rect(4, 22, 2, 4, '~');
+  // --- Wasser
+  // A: zwei Weihwasserbecken
+  m.rect(5, 9, 2, 2, '~'); m.rect(13, 9, 2, 2, '~');
+  // B: Mittelkanal mit Säulen im Wasser, Brücke auf der Achse
+  m.rect(22, 6, 18, 3, '~'); m.rect(30, 6, 2, 3, '.');
+  for (const x of [24, 27, 34, 37]) put(x, 7, 'I');
+  // C: langes Spiegelbecken
+  m.rect(7, 19, 3, 8, '~');
+  // D: großes Becken, Insel, Dämme N/S
+  m.ellipse(30.5, 24, 8.4, 4.8, '~');
+  m.ellipse(30.5, 24, 2.8, 1.6, '.');
+  m.rect(30, 19, 2, 4, '.'); m.rect(30, 25, 2, 5, '.');
+  // E: Ritualbecken
+  m.ellipse(52.5, 11.5, 2.3, 1.3, '~');
+  // F: zwei kleine Becken
+  m.rect(47, 22, 2, 2, '~'); m.rect(55, 22, 2, 2, '~');
+  // G: Seitenkanäle und Becken neben dem Altar
+  m.rect(39, 39, 2, 9, '~'); m.rect(57, 39, 2, 9, '~');
+  m.rect(43, 49, 3, 2, '~'); m.rect(52, 49, 3, 2, '~');
+  // K: Krypta geflutet, Trittstein-Damm im Zickzack, Schrein-Absatz NO
+  m.rect(15, 39, 21, 12, '~');
+  m.path([[24.5, 38], [24.5, 41.5], [19, 43], [19, 47.5], [26.5, 48], [32, 45.5], [32, 41]], 2, '.');
+  m.rect(29, 37, 7, 3, '.');
+  m.ellipse(26.5, 44, 1.6, 1.2, '.'); // kleine Insel (Urne)
 
   put(9, 3, 'D'); put(10, 3, 'D');
   put(9, 6, '1'); put(12, 6, '2');
-  // A
-  put(5, 5, 'U'); put(14, 5, 'U'); put(5, 10, 'K'); put(14, 10, 'w');
-  // B
-  put(23, 4, 'B'); put(36, 11, 'B'); put(26, 5, 'I'); put(33, 5, 'I'); put(26, 11, 'I'); put(33, 11, 'I');
-  put(25, 5, 'd'); put(35, 10, 'd'); put(31, 4, 'd'); put(28, 11, 'z'); put(36, 4, 'C'); put(23, 11, 'h');
-  // C
-  put(6, 19, 'S'); put(14, 19, 'S'); put(6, 28, 'S'); put(14, 28, 'S');
-  put(10, 23, 'g'); put(8, 20, 'z'); put(13, 26, 'z'); put(5, 28, 'C'); put(11, 27, 'x'); put(15, 23, 'K');
-  // D
-  [[24, 20], [36, 20], [24, 28], [36, 28]].forEach(([x, y]) => put(x, y, 'I'));
-  put(26, 19, 'd'); put(34, 28, 'd'); put(28, 28, 'u'); put(33, 19, 'u'); put(37, 24, 'g');
-  put(23, 24, 'w'); put(30, 28, 'h'); put(25, 22, 'K');
-  // E
-  put(45, 7, 'B'); put(56, 7, 'B'); put(50, 7, 'A');
-  put(47, 10, 'u'); put(54, 10, 'u'); put(50, 14, 'u'); put(51, 11, 'g'); put(46, 15, 'd');
-  put(56, 16, 'C'); put(45, 16, 'U'); put(57, 12, 'x');
+  // A – Vorhof
+  put(5, 5, 'U'); put(14, 5, 'U'); put(4, 8, 'K'); put(15, 11, 'w'); put(7, 11, 'h');
+  // B – Säulengang
+  put(21, 4, 'B'); put(40, 4, 'B'); put(23, 10, 'K'); put(39, 10, 'w'); put(26, 4, 'h');
+  put(25, 9, 'd'); put(35, 4, 'd'); put(33, 9, 'z'); put(38, 5, 'u'); put(28, 4, 'x');
+  // C – Statuenhalle
+  put(4, 18, 'S'); put(12, 18, 'S'); put(4, 23, 'S'); put(4, 27, 'S'); put(12, 27, 'S');
+  put(8, 28, 'A'); put(6, 17, 'B'); put(11, 17, 'B');
+  put(5, 21, 'z'); put(11, 25, 'z'); put(11, 20, 'd'); put(5, 25, 'g');
+  put(12, 29, 'C'); put(4, 29, 'U'); put(5, 28, 'x');
+  // D – Große Halle: Säulenring ums Becken, Statue auf der Insel
+  for (const [x, y] of [[21, 18], [26, 17], [35, 17], [40, 18], [21, 29], [26, 31], [35, 31], [40, 29], [20, 22], [20, 26], [41, 22], [41, 26]]) put(x, y, 'I');
+  put(30, 23, 'S'); put(28, 24, 'B'); put(33, 24, 'B');
+  put(19, 18, 'B'); put(42, 18, 'B'); put(19, 30, 'B'); put(42, 30, 'B');
+  put(22, 25, 'K'); put(39, 23, 'w'); put(23, 31, 'h'); put(37, 16, 'x');
+  put(31, 25, 'g'); put(23, 20, 'd'); put(38, 28, 'd'); put(24, 29, 'z'); put(37, 20, 'u');
+  // E – Kultkammer
+  put(52, 6, 'A'); put(49, 7, 'B'); put(56, 7, 'B');
+  put(47, 10, 'U'); put(58, 10, 'U'); put(48, 14, 'K'); put(57, 14, 'w');
+  put(49, 10, 'u'); put(56, 10, 'u'); put(52, 14, 'u'); put(54, 8, 'g'); put(50, 13, 'd');
+  put(58, 12, 'C'); put(46, 12, 'x');
   // F – Heiligtum
-  put(45, 23, 'S'); put(54, 23, 'S'); put(46, 27, 'z'); put(53, 27, 'z'); put(50, 25, 'd');
-  put(45, 29, 'w'); put(54, 29, 'K');
+  put(50, 22, 'S'); put(53, 22, 'S'); put(46, 29, 'U'); put(57, 29, 'U');
+  put(48, 26, 'z'); put(55, 26, 'd'); put(52, 28, 'x'); put(57, 25, 'h');
   for (let x = 47; x <= 50; x++) put(x, 35, 'G');
-  // G – Arena
-  [[41, 39], [56, 39], [41, 48], [56, 48]].forEach(([x, y]) => put(x, y, 'I'));
-  put(39, 37, 'B'); put(58, 37, 'B'); put(39, 50, 'B'); put(58, 50, 'B');
-  put(49, 37, 'A'); put(49, 41, '9'); put(49, 46, 'R');
-  put(44, 50, 'x'); put(54, 37, 'K'); put(44, 37, 'w');
-  // Verborgene Schatzkammer unter der Statuenhalle (Hebel an der Nordwand von C)
-  m.rect(6, 38, 11, 7, '.'); m.rect(9, 30, 2, 8, '.');
-  put(9, 30, '$'); put(10, 30, '$');
-  put(7, 37, 'T'); put(14, 37, 'T');
-  put(11, 39, 'A'); put(11, 42, 'C'); put(7, 43, 'U'); put(15, 43, 'U'); put(7, 39, 'K'); put(15, 40, 'w'); put(14, 41, 'd');
+  // G – Altarhalle
+  [[42, 39], [55, 39], [42, 46], [55, 46]].forEach(([x, y]) => put(x, y, 'I'));
+  put(40, 38, 'B'); put(57, 38, 'B'); put(41, 50, 'B'); put(56, 50, 'B');
+  put(49, 50, 'A'); put(47, 50, 'U'); put(51, 50, 'U');
+  put(49, 44, '9'); put(49, 40, 'R');
+  put(45, 37, 'K'); put(53, 37, 'w'); put(44, 48, 'x'); put(54, 42, 'h');
+  // K – Geflutete Krypta
+  put(26, 44, 'U'); put(34, 38, 'A'); put(30, 38, 'C'); put(35, 37, 'B'); put(16, 37, 'B');
+  put(19, 45, 'd'); put(26, 48, 'z'); put(32, 41, 'u'); put(23, 37, 'x');
+  for (const x of [17, 22, 27, 32]) if (m.get(x, 36) === '#') put(x, 36, 'T');
+  // Verborgene Schatzkammer (Hebel an der Nordwand der Statuenhalle)
+  m.rect(3, 36, 10, 7, '.'); m.rect(5, 30, 2, 6, '.');
+  put(5, 30, '$'); put(6, 30, '$');
+  put(4, 35, 'T'); put(11, 35, 'T');
+  put(8, 37, 'A'); put(8, 40, 'C'); put(4, 41, 'U'); put(11, 41, 'U'); put(4, 37, 'K'); put(11, 38, 'w'); put(10, 40, 'd');
   // Druckplatten
-  put(29, 9, '^'); put(30, 6, '^'); put(40, 26, '^'); put(9, 34, '^'); put(10, 35, '^'); put(49, 20, '^');
+  put(30, 9, '^'); put(31, 5, '^'); put(45, 24, '^'); put(5, 33, '^'); put(6, 34, '^'); put(52, 19, '^'); put(19, 44, '^');
 
   return {
     name: 'Der Versunkene Tempel',
@@ -417,11 +487,11 @@ function buildSunkenTemple() {
       9: { type: 'drowned_priestess', boss: true },
     },
     respawn: Infinity,
-    areas: [{ id: 'temple_sanctum', x: 44, y: 22, w: 12, h: 9 }],
+    areas: [{ id: 'temple_sanctum', x: 46, y: 21, w: 12, h: 10 }],
     arena: { x: 38, y: 36, w: 22, h: 16, gateRow: 35 },
     traps: { '^': { kind: 'spike' } },
     trapDamage: 22,
-    secrets: [{ id: 'temple_vault', lever: { x: 11, y: 18 } }],
+    secrets: [{ id: 'temple_vault', lever: { x: 12, y: 16 } }],
     portals: [{
       id: 'to_ashwood', x: 9.5, y: 3.2, range: 22,
       to: { zoneId: 'ashwood', spawnId: 'from_sunken_temple' },
@@ -431,58 +501,104 @@ function buildSunkenTemple() {
 }
 
 // ---------------------------------------------------------------- Glutschmiede
+// Schmiede im Berg: Einfahrt -> Gießerei (Gießrinne, Tiegel) -> Hauptschmiedehalle
+// mit Lavarinnen, Brücken und großer Esse -> Erzlager (Höhle) im Westen,
+// Schlackenhalde im Süden über zwei Förderschächte -> Halle des Wächters ->
+// Vorhalle -> Schmelzkammer (Arena). Verborgene Waffenkammer unter dem Erzlager.
 function buildMoltenForge() {
   const W = 68, H = 60;
   const { m, room, hall, torches, put } = dungeonBase(W, H, 404);
+  const bevel = (x, y, w, h, k) => {
+    for (let j = 0; j < k; j++) for (let i = 0; i < k - j; i++) {
+      put(x + i, y + j, '#'); put(x + w - 1 - i, y + j, '#');
+      put(x + i, y + h - 1 - j, '#'); put(x + w - 1 - i, y + h - 1 - j, '#');
+    }
+  };
+  // Räume
   room(4, 4, 12, 8);    // A Einfahrt
-  room(22, 3, 18, 11);  // B Gießerei
-  room(4, 19, 14, 12);  // C Erzstollen
-  room(24, 20, 16, 12); // D Drachengrube
-  room(46, 5, 16, 14);  // E Halle des Wächters (warden_hall)
-  room(46, 24, 14, 11); // F Vorhalle (tyrant_throne)
-  room(40, 40, 24, 17); // G Thron der Glut (Arena)
-  hall(16, 7, 6, 3); hall(8, 12, 3, 7); hall(40, 8, 6, 3); hall(18, 24, 6, 3);
-  hall(40, 27, 6, 3); hall(52, 19, 3, 5); hall(51, 35, 4, 5);
+  room(21, 3, 20, 9);   // B Gießerei
+  room(20, 15, 26, 22); // H Hauptschmiedehalle
+  room(46, 4, 17, 15);  // E Halle des Wächters (warden_hall)
+  room(48, 23, 14, 12); // F Vorhalle (tyrant_throne)
+  room(40, 40, 24, 17); // G Schmelzkammer (Arena)
+  // Erzlager (Höhle) und Schlackenhalde
+  m.ellipse(9.5, 23.5, 6.4, 5.2, '.'); m.ellipse(9.5, 29.5, 5.6, 3.4, '.');
+  m.ellipse(27.5, 49, 10.2, 5.6, '.'); m.ellipse(20.5, 47, 3.5, 3, '.');
+  // Gänge und Förderschächte
+  hall(16, 6, 5, 3);                              // A -> B
+  m.path([[9.5, 11], [9.5, 14], [10, 18]], 3, '.'); // A -> C (Schacht)
+  hall(24, 12, 3, 3); hall(35, 12, 3, 3);         // B -> H
+  hall(41, 7, 5, 3);                              // B -> E
+  m.path([[14, 30], [20, 30]], 3, '.');           // C -> H
+  hall(46, 29, 2, 3);                             // H -> F
+  hall(53, 19, 3, 4);                             // E -> F
+  hall(51, 35, 4, 5);                             // F -> G (Tor)
+  m.path([[24, 36], [24, 44]], 3, '.');           // H -> S (West-Förderschacht)
+  m.path([[35, 36], [35, 40], [33, 45]], 3, '.'); // H -> S (Ost-Förderschacht)
+  bevel(20, 15, 26, 22, 3);
+  bevel(46, 4, 17, 15, 2);
+  bevel(40, 40, 24, 17, 2);
+  bevel(48, 23, 14, 12, 1);
   torches(6);
 
-  // Lava (fest, niedrig) mit Brücke
-  m.rect(22, 9, 18, 2, '~'); m.rect(30, 9, 2, 2, '.');
-  m.ellipse(32, 26, 4.2, 2.6, '~', ['.']);
-  m.ellipse(44.5, 48, 1.4, 2.4, '~', ['.']); m.ellipse(59.5, 48, 1.4, 2.4, '~', ['.']);
+  // --- Lava
+  // B: Gießrinne vor dem Gießstand, zwei Stege
+  m.rect(22, 6, 18, 1, '~'); m.rect(26, 6, 2, 1, '.'); m.rect(34, 6, 2, 1, '.');
+  // H: Querrinne mit zwei Brücken, Zulauf von Norden, große Esse im Süden
+  m.rect(20, 25, 26, 2, '~'); m.rect(25, 25, 3, 2, '.'); m.rect(38, 25, 3, 2, '.');
+  m.rect(32, 15, 2, 10, '~'); m.rect(32, 19, 2, 2, '.');
+  m.ellipse(32.5, 31, 3.1, 1.8, '~');
+  // E: zwei Abstichgruben
+  m.ellipse(49.5, 11.5, 1.2, 2, '~'); m.ellipse(59.5, 11.5, 1.2, 2, '~');
+  // F: Rinne an der Ostwand
+  m.rect(60, 25, 1, 8, '~');
+  // G: Lavagräben an den Seiten, Gießrinne im Süden
+  m.rect(41, 43, 2, 10, '~'); m.rect(61, 43, 2, 10, '~');
+  m.rect(47, 54, 11, 2, '~'); m.rect(52, 54, 1, 2, '~');
+  // S: Schlackenbecken
+  m.ellipse(28.5, 50.5, 2.6, 1.5, '~');
 
   put(9, 3, 'D'); put(10, 3, 'D');
   put(9, 6, '1'); put(12, 6, '2');
-  // A
-  put(5, 5, 'Q'); put(14, 10, 's'); put(5, 10, 'B'); put(14, 5, 'W');
-  // B – Gießerei
-  put(24, 5, 'U'); put(37, 5, 'U'); put(27, 12, 'N'); put(35, 12, 'N'); put(31, 5, 'E'); put(23, 12, 'p'); put(38, 12, 'p');
-  put(26, 7, 'f'); put(34, 6, 'a'); put(37, 12, 'a'); put(29, 12, 'r'); put(38, 4, 'C');
-  // C – Erzstollen
-  put(6, 20, 'Q'); put(15, 29, 'Q'); put(5, 25, 's'); put(16, 21, 's'); put(10, 29, 'j');
-  put(9, 22, 'h'); put(13, 24, 'h'); put(7, 27, 'f'); put(14, 27, 'r'); put(5, 29, 'C');
-  // D – Drachengrube
-  [[25, 21], [38, 21], [25, 30], [38, 30]].forEach(([x, y]) => put(x, y, 'I'));
-  put(27, 23, 'r'); put(37, 26, 'r'); put(30, 30, 'r'); put(34, 21, 'a'); put(26, 27, 'j'); put(36, 29, 's');
+  // A – Einfahrt
+  put(5, 5, 'Q'); put(14, 5, 'W'); put(5, 10, 'B'); put(14, 10, 's'); put(4, 8, 'j'); put(15, 8, 'Q');
+  // B – Gießerei: Tiegel auf dem Gießstand, Ambosse auf dem Arbeitsboden
+  put(23, 4, 'U'); put(30, 4, 'U'); put(37, 4, 'U'); put(32, 3, 'E'); put(39, 4, 'B'); put(21, 4, 'B');
+  put(24, 9, 'N'); put(30, 9, 'N'); put(37, 9, 'N'); put(22, 11, 'p'); put(40, 11, 'p');
+  put(27, 8, 'a'); put(36, 4, 'a'); put(33, 10, 'f'); put(28, 11, 'r'); put(40, 3, 'C');
+  // H – Hauptschmiedehalle
+  [[23, 18], [42, 18], [23, 33], [42, 33], [29, 22], [36, 22]].forEach(([x, y]) => put(x, y, 'I'));
+  put(28, 31, 'N'); put(37, 31, 'N'); put(32, 34, 'N'); put(30, 28, 'U'); put(35, 28, 'U');
+  put(21, 21, 'B'); put(44, 21, 'B'); put(21, 30, 'j'); put(44, 34, 'j'); put(26, 15, 'p'); put(39, 15, 'p'); put(44, 27, 'E');
+  put(27, 19, 'r'); put(39, 20, 'r'); put(36, 33, 'r'); put(41, 29, 'a'); put(30, 17, 'h');
+  // C – Erzlager
+  put(5, 20, 'Q'); put(14, 21, 'Q'); put(4, 26, 's'); put(14, 25, 's'); put(6, 31, 'Q'); put(12, 32, 's'); put(9, 24, 'j');
+  put(5, 24, 'B'); put(13, 23, 'B');
+  put(7, 22, 'h'); put(12, 27, 'h'); put(6, 28, 'f'); put(11, 21, 'r'); put(4, 29, 'C');
+  // S – Schlackenhalde
+  put(19, 46, 's'); put(20, 50, 's'); put(36, 48, 's'); put(33, 52, 's'); put(23, 53, 'Q'); put(30, 44, 'Q');
+  put(19, 48, 'B'); put(35, 51, 'B');
+  put(27, 46, 'r'); put(33, 49, 'r'); put(22, 48, 'f'); put(28, 54, 'C');
   // E – Halle des Wächters
-  [[48, 7], [59, 7], [48, 16], [59, 16]].forEach(([x, y]) => put(x, y, 'I'));
-  put(53, 6, 'W'); put(56, 6, 'W'); put(50, 6, 'B'); put(61, 12, 'E');
-  put(54, 11, '8'); put(50, 13, 'f'); put(58, 13, 'a'); put(60, 17, 'C');
+  [[49, 6], [59, 6], [49, 16], [59, 16]].forEach(([x, y]) => put(x, y, 'I'));
+  put(52, 4, 'E'); put(56, 4, 'E'); put(54, 4, 'B'); put(47, 8, 'W'); put(61, 8, 'W'); put(47, 14, 'W'); put(61, 14, 'W');
+  put(54, 11, '8'); put(51, 15, 'f'); put(58, 14, 'a'); put(61, 16, 'C');
   // F – Vorhalle
-  put(47, 25, 'B'); put(58, 25, 'B'); put(49, 30, 'r'); put(56, 30, 'r'); put(52, 27, 'h'); put(55, 33, 'f');
-  put(47, 33, 'p'); put(58, 33, 'C'); put(52, 25, 'j');
+  put(49, 24, 'B'); put(58, 24, 'B'); put(51, 33, 'p'); put(57, 33, 'j'); put(54, 25, 'E');
+  put(52, 28, 'r'); put(56, 30, 'f'); put(59, 33, 'C');
   for (let x = 51; x <= 54; x++) put(x, 39, 'G');
-  // G – Arena
-  [[43, 43], [60, 43], [43, 53], [60, 53]].forEach(([x, y]) => put(x, y, 'I'));
-  put(41, 41, 'B'); put(62, 41, 'B'); put(41, 55, 'B'); put(62, 55, 'B');
-  put(48, 41, 'U'); put(57, 41, 'U'); put(52, 41, 'E');
-  put(52, 45, '9'); put(52, 50, 'R'); put(46, 55, 's'); put(58, 55, 'j');
-  // Verborgene Waffenkammer unter dem Erzstollen (Hebel an der Nordwand von C)
-  m.rect(5, 37, 12, 7, '.'); m.rect(10, 31, 2, 6, '.');
-  put(10, 31, '$'); put(11, 31, '$');
-  put(6, 36, 'T'); put(15, 36, 'T');
-  put(11, 40, 'C'); put(7, 38, 'W'); put(15, 38, 'W'); put(6, 42, 'U'); put(16, 42, 's'); put(14, 41, 'f');
+  // G – Schmelzkammer
+  [[45, 43], [58, 43], [45, 51], [58, 51]].forEach(([x, y]) => put(x, y, 'I'));
+  put(42, 41, 'B'); put(61, 41, 'B'); put(43, 54, 'B'); put(60, 54, 'B');
+  put(49, 53, 'U'); put(55, 53, 'U'); put(52, 53, 'E'); put(48, 41, 'p'); put(56, 41, 'p');
+  put(52, 46, '9'); put(52, 50, 'R'); put(44, 47, 's'); put(59, 47, 'j');
+  // Verborgene Waffenkammer unter dem Erzlager (Hebel an der Nordwand)
+  m.rect(3, 39, 11, 7, '.'); m.rect(8, 33, 2, 6, '.');
+  put(8, 33, '$'); put(9, 33, '$');
+  put(4, 38, 'T'); put(12, 38, 'T');
+  put(8, 42, 'C'); put(4, 40, 'W'); put(12, 40, 'W'); put(4, 44, 'U'); put(13, 44, 's'); put(11, 43, 'f');
   // Flammendüsen (J nach rechts, L nach unten) und Druckplatten
-  put(18, 7, 'L'); put(20, 7, 'L'); put(46, 29, 'J'); put(41, 27, 'L'); put(10, 34, '^'); put(11, 35, '^'); put(53, 21, '^');
+  put(17, 6, 'L'); put(19, 6, 'L'); put(48, 30, 'J'); put(39, 24, 'L'); put(8, 36, '^'); put(9, 37, '^'); put(54, 20, '^'); put(24, 40, '^');
 
   return {
     name: 'Die Glutschmiede',
@@ -501,13 +617,13 @@ function buildMoltenForge() {
     },
     respawn: Infinity,
     areas: [
-      { id: 'warden_hall', x: 46, y: 5, w: 16, h: 14 },
-      { id: 'tyrant_throne', x: 46, y: 24, w: 14, h: 11 },
+      { id: 'warden_hall', x: 46, y: 4, w: 17, h: 15 },
+      { id: 'tyrant_throne', x: 48, y: 23, w: 14, h: 12 },
     ],
     arena: { x: 40, y: 40, w: 24, h: 17, gateRow: 39 },
     traps: { '^': { kind: 'spike' }, J: { kind: 'jet', dir: [1, 0], len: 64 }, L: { kind: 'jet', dir: [0, 1], len: 40 } },
     trapDamage: 32,
-    secrets: [{ id: 'forge_armory', lever: { x: 11, y: 19 } }],
+    secrets: [{ id: 'forge_armory', lever: { x: 13, y: 20 } }],
     portals: [{
       id: 'to_cinder_peaks', x: 9.5, y: 3.2, range: 22,
       to: { zoneId: 'cinder_peaks', spawnId: 'from_molten_forge' },

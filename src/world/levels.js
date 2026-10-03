@@ -180,25 +180,45 @@ function buildEmberhollow() {
 }
 
 // ---------------------------------------------------------------- Katakomben
+// Eingangsgruft -> Grabnischen-Gänge -> Ossuarium (Knochenhalle mit Beinhaus-
+// Buchten) / Spinnennest (eingestürzte Höhle) -> Krypta (Sarkophagreihen,
+// Säulenschiff) -> Vorkammer -> Thronsaal (Arena). Verborgene Gruft unter der Krypta.
 function buildCatacombs() {
   const W = 60, H = 50;
   const m = new MapBuilder(W, H, '#');
   const rooms = [];
   const room = (x, y, w, h) => { m.rect(x, y, w, h, '.'); rooms.push({ x, y, w, h }); };
   const hall = (x, y, w, h) => m.rect(x, y, w, h, '.');
+  const put = (x, y, ch) => m.set(x, y, ch);
+  const bevel = (x, y, w, h, k) => {
+    for (let j = 0; j < k; j++) for (let i = 0; i < k - j; i++) {
+      put(x + i, y + j, '#'); put(x + w - 1 - i, y + j, '#');
+      put(x + i, y + h - 1 - j, '#'); put(x + w - 1 - i, y + h - 1 - j, '#');
+    }
+  };
 
   room(3, 4, 12, 8);    // A Eingangsgruft
-  room(22, 4, 16, 10);  // B Knochenhalle
+  room(22, 4, 16, 10);  // B Ossuarium
   room(3, 20, 14, 12);  // C Spinnennest
-  room(22, 20, 17, 11); // D Grabkammer
+  room(22, 20, 17, 11); // D Krypta
   room(45, 20, 8, 10);  // E Vorkammer
-  room(40, 35, 18, 13); // F Thronsaal (Boss)
-  hall(15, 7, 7, 3);    // A -> B
-  hall(7, 12, 3, 8);    // A -> C
+  room(36, 34, 22, 15); // F Thronsaal (Boss)
+  hall(15, 7, 7, 3);    // A -> B (Grabnischen-Gang)
+  hall(7, 12, 3, 8);    // A -> C (Grabnischen-Gang)
   hall(29, 14, 3, 6);   // B -> D
   hall(17, 25, 5, 3);   // C -> D
   hall(39, 24, 6, 3);   // D -> E
-  hall(47, 30, 4, 5);   // E -> F (Knochentor)
+  hall(47, 30, 4, 4);   // E -> F (Knochentor)
+  // Grabnischen in den Gängen (je eine Kachel tief)
+  for (const x of [16, 18, 20]) put(x, 6, '.');
+  for (const y of [13, 15, 17]) { put(6, y, '.'); put(10, y, '.'); }
+  // Ossuarium: Beinhaus-Buchten durch Mauerzungen an Nord- und Südwand
+  for (const x of [26, 33]) { m.rect(x, 4, 1, 2, '#'); m.rect(x, 12, 1, 2, '#'); }
+  // Spinnennest: eingestürzte Höhle, unregelmäßige Wand, Geröll in der Mitte
+  bevel(3, 20, 14, 12, 3);
+  m.ellipse(2.6, 25.5, 1.4, 2.4, '.'); m.ellipse(10, 32, 2.6, 1, '.'); m.ellipse(17, 29.5, 1, 1.4, '#');
+  m.ellipse(11.5, 23.2, 0.9, 0.7, '#'); m.ellipse(6.5, 28.5, 0.8, 0.6, '#');
+  bevel(36, 34, 22, 15, 2);
 
   // Wanddeko auf den oberen Wänden jedes Raums
   const rng = createRng(77);
@@ -211,42 +231,46 @@ function buildCatacombs() {
       else if (k === 3 && rng.chance(0.5)) m.set(x, y, rng.chance(0.5) ? 'b' : 'k');
     }
   }
-  const put = (x, y, ch) => m.set(x, y, ch);
   // A – Eingangsgruft: Treppe nach oben, ruhig
   put(8, 3, 'D'); put(9, 3, 'D');
   put(8, 6, '1'); put(11, 6, '2');
-  put(4, 5, 'c'); put(13, 10, 'x'); put(4, 10, 'B');
-  // B – Knochenhalle
-  [[25, 7], [34, 7], [25, 11], [34, 11]].forEach(([x, y]) => put(x, y, 'P'));
-  put(23, 5, 'B'); put(36, 12, 'B');
-  put(29, 6, 's'); put(31, 10, 's'); put(27, 9, 'z'); put(33, 9, 'z'); put(36, 5, 'a');
-  put(30, 12, 'x'); put(23, 12, 'x'); put(35, 5, 'c');
+  put(4, 5, 'c'); put(13, 10, 'x'); put(4, 10, 'B'); put(13, 5, 'Z');
+  // Grabnischen: Kerzen und Gebeine
+  put(16, 6, 'c'); put(18, 6, 'x'); put(20, 6, 'c');
+  put(6, 13, 'x'); put(10, 13, 'c'); put(6, 15, 'c'); put(10, 17, 'x'); put(6, 17, 'x');
+  // B – Ossuarium
+  [[27, 8], [32, 8], [27, 10], [32, 10]].forEach(([x, y]) => put(x, y, 'P'));
+  put(23, 5, 'B'); put(36, 12, 'B'); put(29, 4, 'c'); put(31, 4, 'c');
+  for (const [x, y] of [[24, 4], [35, 4], [27, 4], [32, 5], [25, 13], [34, 13], [27, 13], [37, 9], [22, 9]]) put(x, y, 'x');
+  put(29, 6, 's'); put(31, 10, 's'); put(24, 9, 'z'); put(35, 9, 'z'); put(36, 5, 'a');
+  put(35, 5, 'c'); put(23, 12, 'c');
   // C – Spinnennest
-  put(4, 21, 'W'); put(15, 21, 'W'); put(15, 31, 'W'); put(10, 21, 'W');
-  put(5, 23, 'O'); put(14, 30, 'O'); put(7, 30, 'O'); put(13, 22, 'O');
-  put(7, 24, 'p'); put(12, 24, 'p'); put(10, 28, 'p'); put(14, 26, 'p'); put(5, 27, 'p');
-  put(4, 30, 'C'); put(9, 26, 'x');
-  // D – Grabkammer
-  [[25, 22], [28, 22], [32, 22], [35, 22]].forEach(([x, y]) => put(x, y, 'Z'));
-  put(24, 28, 'a'); put(36, 28, 'a'); put(29, 26, 's'); put(32, 27, 's'); put(26, 25, 'z');
-  put(37, 21, 'C'); put(23, 21, 'c'); put(30, 29, 'c'); put(38, 29, 'x');
+  put(6, 21, 'W'); put(14, 22, 'W'); put(14, 30, 'W'); put(3, 24, 'W'); put(5, 30, 'W');
+  put(5, 23, 'O'); put(14, 28, 'O'); put(8, 30, 'O'); put(12, 21, 'O'); put(2, 26, 'O');
+  put(7, 24, 'p'); put(13, 25, 'p'); put(10, 28, 'p'); put(15, 26, 'p'); put(4, 27, 'p');
+  put(10, 32, 'C'); put(9, 26, 'x'); put(12, 31, 'x');
+  // D – Krypta: Sarkophagreihen, Säulenschiff
+  [[25, 21], [28, 21], [36, 21], [25, 29], [36, 29]].forEach(([x, y]) => put(x, y, 'Z'));
+  [[24, 24], [28, 24], [33, 24], [37, 24], [24, 27], [37, 27]].forEach(([x, y]) => put(x, y, 'P'));
+  put(23, 29, 'a'); put(36, 26, 'a'); put(30, 26, 's'); put(33, 28, 's'); put(26, 26, 'z'); put(31, 22, 'z');
+  put(38, 21, 'C'); put(23, 21, 'c'); put(30, 29, 'c'); put(38, 29, 'x'); put(34, 21, 'c');
   // E – Vorkammer (boss_hall)
   put(46, 21, 'B'); put(51, 21, 'B'); put(46, 27, 'z'); put(51, 25, 'z'); put(48, 24, 'x');
   // Knochentor am Übergang zum Thronsaal
-  for (let x = 47; x <= 50; x++) put(x, 34, 'G');
+  for (let x = 47; x <= 50; x++) put(x, 33, 'G');
   // F – Thronsaal
-  [[43, 38], [54, 38], [43, 44], [54, 44]].forEach(([x, y]) => put(x, y, 'P'));
-  put(41, 36, 'B'); put(56, 36, 'B'); put(41, 46, 'B'); put(56, 46, 'B');
-  put(48, 36, 'Y'); put(48, 39, '9'); put(49, 42, 'R');
-  put(45, 46, 'x'); put(52, 36, 'x'); put(44, 41, 'c'); put(53, 41, 'c');
-  // Verborgene Gruft südlich der Grabkammer (Hebel an der Nordwand von D)
+  [[39, 37], [56, 37], [39, 45], [56, 45], [43, 41], [52, 41]].forEach(([x, y]) => put(x, y, 'P'));
+  put(37, 35, 'B'); put(56, 35, 'B'); put(37, 47, 'B'); put(56, 47, 'B');
+  put(47, 46, 'Y'); put(48, 43, '9'); put(48, 38, 'R');
+  put(41, 47, 'x'); put(53, 35, 'x'); put(45, 46, 'c'); put(51, 46, 'c'); put(40, 41, 'x'); put(55, 42, 'x');
+  // Verborgene Gruft südlich der Krypta (Hebel an der Nordwand von D)
   m.rect(22, 37, 11, 7, '.'); m.rect(26, 31, 2, 6, '.');
   put(26, 31, '$'); put(27, 31, '$');
   put(23, 36, 'T'); put(31, 36, 'T');
   put(27, 40, 'C'); put(23, 38, 'c'); put(31, 38, 'c'); put(30, 42, 'x'); put(24, 42, 'x');
   put(24, 40, 'z'); put(30, 40, 'z');
   // Druckplatten
-  put(18, 8, '^'); put(20, 7, '^'); put(26, 34, '^'); put(27, 35, '^'); put(19, 26, '^'); put(9, 15, '^');
+  put(17, 8, '^'); put(20, 8, '^'); put(26, 34, '^'); put(27, 35, '^'); put(19, 26, '^'); put(8, 15, '^');
 
   return {
     name: 'Die Katakomben',
@@ -262,7 +286,7 @@ function buildCatacombs() {
     },
     respawn: Infinity, // Instanz: besiegte Gegner bleiben liegen
     areas: [{ id: 'boss_hall', x: 45, y: 20, w: 8, h: 10 }],
-    arena: { x: 40, y: 35, w: 18, h: 13, gateRow: 34 },
+    arena: { x: 36, y: 34, w: 22, h: 15, gateRow: 33 },
     traps: { '^': { kind: 'spike' } },
     trapDamage: 14,
     secrets: [{ id: 'catacombs_crypt', lever: { x: 33, y: 20 } }],
