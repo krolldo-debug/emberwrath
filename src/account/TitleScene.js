@@ -56,7 +56,7 @@ export class TitleScene extends MenuScene {
       h('div.acc-title-inner',
         h('div.acc-logo',
           h('h1.ef-title', 'EMBERWRATH'),
-          h('p.acc-tagline', 'Ein kleiner Ausschnitt einer großen Welt')),
+          h('p.acc-tagline', 'Die Glut erlischt nie')),
         h('div.acc-menu', menu)),
       h('p.acc-footer.acc-footer-corner', 'Version ', h('span.acc-version', { title: `Stand ${globalThis.EMBERWRATH_BUILD?.commit ?? 'dev'}` }, globalThis.EMBERWRATH_BUILD?.version ?? 'dev')));
     this.#keyPlay = signedIn;

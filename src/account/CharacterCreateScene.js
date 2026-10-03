@@ -205,7 +205,7 @@ export class CharacterCreateScene extends MenuScene {
     const race = g.content.get('race', raceId), cls = g.content.get('class', classId);
     const stats = deriveStats({ raceId, classId, level: 1 }, g.content);
     const abilities = cls.abilities.map((id) => g.content.get('ability', id));
-    const keys = ['Q', 'R'];
+    const keys = ['Q', 'R', 'T', 'G'];
     this.summary.replaceChildren(
       h('h3.acc-combo', `${race.name} · ${cls.name}`, h('span.ef-badge', cls.role)),
       h('div.acc-stats',
@@ -223,7 +223,7 @@ export class CharacterCreateScene extends MenuScene {
         h('div', h('h4', cls.name), h('p', cls.desc),
           h('ul.acc-abilities',
             h('li', h('b', 'Angriff'), ` ${cls.attackDesc}`),
-            abilities.map((a, i) => h('li', h('span.acc-ability-icon', iconEl(abilityIcon(a.id, a), 28)), h('b', `${a.name} (${keys[i]})`), ` ${a.desc}`, h('span.acc-cost', [a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s`].filter(Boolean).join(' · '))))))),
+            abilities.map((a, i) => h('li', h('span.acc-ability-icon', iconEl(abilityIcon(a.id, a), 28)), h('b', `${a.name} (${keys[i]})`), ` ${a.desc}`, h('span.acc-cost', [a.level > 1 ? `ab Stufe ${a.level}` : null, a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s`].filter(Boolean).join(' · '))))))),
     );
     if (!this.sel.name) this.#randomName(false);
     this.#validate();
