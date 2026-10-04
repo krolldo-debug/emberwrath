@@ -4,6 +4,7 @@ import { MenuScene } from './TitleScene.js';
 import { HeroPortrait, focusIfDesktop, requireOnlineAccount } from './ui.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
+import { nameProblem } from '../net/names.js';
 import { RACE_LOOK } from '../sprites/hero.js';
 import { iconEl, abilityIcon } from '../gfx/Icons.js';
 import { resolveGear } from '../character/gearLook.js';
@@ -49,6 +50,11 @@ const PREVIEW_GEAR = {
     epic: { weapon: 'ember_staff', chest: 'arcane_robe', hands: 'silk_gloves' },
     legendary: { weapon: 'worldstaff', chest: 'arcane_robe', head: 'cryptlord_crown', hands: 'silk_gloves' },
   },
+};
+
+const NAME_PROBLEM = {
+  reserviert: 'Dieser Name ist für das Team reserviert. Bitte wähle einen anderen.',
+  anstoessig: 'Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.',
 };
 
 export class CharacterCreateScene extends MenuScene {
@@ -120,16 +126,19 @@ export class CharacterCreateScene extends MenuScene {
     const dice = h('button.ef-btn.acc-dice', { type: 'button', title: 'Zufälliger Name', 'aria-label': 'Zufälliger Name', onclick: () => this.#randomName() }, 'Zufall');
 
     this.summary = h('div.acc-summary');
+    // Volk-Beschreibung links unter der Auswahl, Klasse und Fähigkeiten rechts: beide Spalten etwa gleich hoch
+    this.raceInfo = h('div.acc-desc.acc-race-info');
     this.startBtn = h('button.ef-btn.primary.acc-start', { type: 'button', onclick: () => this.#start() }, 'Abenteuer beginnen');
 
     const panel = h('div.ef-panel.acc-panel.acc-create',
       h('header.acc-head',
         h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück' }, '‹'),
         h('div', h('h2.ef-sub', 'Charakter erschaffen'), h('p.acc-step', `Konto „${g.account.name}“`))),
-      h('div.acc-create-grid',
+      this.grid = h('div.acc-create-grid', { onscroll: () => this.#scrollHint() },
         h('section.acc-choose',
           h('h3.acc-h', 'Volk'), h('div.acc-options', this.raceBtns),
-          h('h3.acc-h', 'Klasse'), h('div.acc-options', this.classBtns)),
+          h('h3.acc-h', 'Klasse'), h('div.acc-options', this.classBtns),
+          this.raceInfo),
         h('section.acc-preview',
           h('div.acc-stage', this.preview.canvas, this.swatches, this.hairBtn, this.tierBox),
           h('div.acc-namebox', h('div.acc-inline', this.nameInput, dice), this.nameErr)),
@@ -137,6 +146,9 @@ export class CharacterCreateScene extends MenuScene {
       h('footer.acc-create-foot', this.startBtn));
     this.root.replaceChildren(panel);
     focusIfDesktop(this.nameInput);
+    this.resizeObs?.disconnect();
+    this.resizeObs = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.#scrollHint()) : null;
+    this.resizeObs?.observe(this.grid);
   }
 
   #choose(kind, id) {
@@ -165,10 +177,19 @@ export class CharacterCreateScene extends MenuScene {
   }
 
   #validate() {
-    const err = validateName(this.sel.name);
+    // Dieselben Namensregeln wie auf dem Welt-Server (src/net/names.js): Team-Namen und Anstößiges gar nicht erst vergeben.
+    const err = validateName(this.sel.name) ?? NAME_PROBLEM[nameProblem(cleanName(this.sel.name))] ?? null;
     this.nameErr.textContent = this.sel.name.trim() && err ? err : '';
     this.startBtn.disabled = !!err;
     return !err;
+  }
+
+  exit() { super.exit(); this.resizeObs?.disconnect(); this.resizeObs = null; }
+
+  // Weicher Ausblendrand unten, solange es im Auswahlbereich noch etwas zu lesen gibt.
+  #scrollHint() {
+    const el = this.grid;
+    if (el) el.classList.toggle('more', el.scrollTop + el.clientHeight < el.scrollHeight - 8);
   }
 
   #refresh() {
@@ -205,7 +226,7 @@ export class CharacterCreateScene extends MenuScene {
     const race = g.content.get('race', raceId), cls = g.content.get('class', classId);
     const stats = deriveStats({ raceId, classId, level: 1 }, g.content);
     const abilities = cls.abilities.map((id) => g.content.get('ability', id));
-    const keys = ['Q', 'R'];
+    const keys = ['Q', 'R', 'T', 'G'];
     this.summary.replaceChildren(
       h('h3.acc-combo', `${race.name} · ${cls.name}`, h('span.ef-badge', cls.role)),
       h('div.acc-stats',
@@ -218,15 +239,15 @@ export class CharacterCreateScene extends MenuScene {
           h('span.acc-bar.res', h('span', { style: { width: '100%', background: stats.resourceColor } })),
           h('span.acc-stat-val', stats.resourceType === 'rage' ? `0–${stats.maxResource}` : stats.maxResource)),
         h('p.acc-attrs', `Stärke ${stats.attributes.str} · Geschick ${stats.attributes.agi} · Intelligenz ${stats.attributes.int} · Vitalität ${stats.attributes.vit}`)),
-      h('div.acc-desc-grid',
-        h('div', h('h4', race.name), h('p', race.desc), h('ul.acc-traits', race.traits.map((t) => h('li', t)))),
-        h('div', h('h4', cls.name), h('p', cls.desc),
-          h('ul.acc-abilities',
-            h('li', h('b', 'Angriff'), ` ${cls.attackDesc}`),
-            abilities.map((a, i) => h('li', h('span.acc-ability-icon', iconEl(abilityIcon(a.id, a), 28)), h('b', `${a.name} (${keys[i]})`), ` ${a.desc}`, h('span.acc-cost', [a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s`].filter(Boolean).join(' · '))))))),
+      h('div.acc-desc.acc-class-info', h('h4', cls.name), h('p', cls.desc),
+        h('ul.acc-abilities',
+          h('li', h('b', 'Angriff'), ` ${cls.attackDesc}`),
+          abilities.map((a, i) => h('li', h('span.acc-ability-icon', iconEl(abilityIcon(a.id, a), 28)), h('b', `${a.name} (${keys[i]})`), ` ${a.desc}`, h('span.acc-cost', [a.level > 1 ? `ab Stufe ${a.level}` : null, a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s`].filter(Boolean).join(' · ')))))),
     );
+    this.raceInfo.replaceChildren(h('h4', race.name), h('p', race.desc), h('ul.acc-traits', race.traits.map((t) => h('li', t))));
     if (!this.sel.name) this.#randomName(false);
     this.#validate();
+    this.#scrollHint();
   }
 
   #start() {

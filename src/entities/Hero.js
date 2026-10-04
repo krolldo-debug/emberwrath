@@ -291,11 +291,13 @@ export class Hero extends Actor {
     if (tier >= 2 && world.addLight) {
       if (!this.weaponLight || this.weaponLight.dead) this.weaponLight = world.addLight(new Light({ follow: this, offsetY: -12, radius: 30, intensity: 0, flicker: 0.3, bloom: 0.15 }));
       const L = this.weaponLight;
-      L.color = el.light; L.radius = tier >= 3 ? 42 : 30; L.intensity = tier >= 3 ? 0.6 : 0.4;
+      // Bogen liegt vor dem Körper: Licht und Funken gedämpft, sonst überstrahlt er die Figur
+      const dim = a.arc ? 0.5 : 1;
+      L.color = el.light; L.radius = (tier >= 3 ? 42 : 30) * (a.arc ? 0.75 : 1); L.intensity = (tier >= 3 ? 0.6 : 0.4) * dim;
       L.flicker = a.fx === 'fire' ? 0.35 : 0.15;
     } else if (this.weaponLight) this.weaponLight.intensity = 0;
     if (tier < 2 || !world.particles || this.state === 'roll') return;
-    this.fxAcc = (this.fxAcc ?? 0) + dt * (tier >= 3 ? 30 : 16);
+    this.fxAcc = (this.fxAcc ?? 0) + dt * (tier >= 3 ? 30 : 16) * (a.arc ? 0.4 : 1);
     const f = this.facing < 0 ? -1 : 1;
     const dx = Math.cos(a.ang), dy = Math.sin(a.ang);
     while (this.fxAcc >= 1) {
@@ -499,7 +501,10 @@ export class Hero extends Actor {
     const dx = Math.cos(this.aimAngle), dy = Math.sin(this.aimAngle);
     this.vx = -dx * 20; this.vy = -dy * 20;
     const P = this.stats.passives ?? {};
-    const dmg = this.damageFor(a.mult);
+    // early: Bonus auf niedrigen Stufen, läuft zwischen from und to auf 0 aus (Waldläufer vor Mehrfachschuss)
+    const E = a.early, lv = this.level ?? 1;
+    const early = E ? E.pct * Math.max(0, Math.min(1, (E.to - lv) / (E.to - E.from))) : 0;
+    const dmg = this.damageFor(a.mult * (1 + early));
     const opts = { speed: a.speed, damage: dmg, knockback: a.knockback, range: a.range };
     if (a.projectile === 'arrow' && P.piercing_arrows) opts.pierce = 1;
     const ms = this.stats.mastery ?? {};
@@ -507,7 +512,7 @@ export class Hero extends Actor {
     if (a.projectile === 'bolt' && P.inferno) opts.explode = { r: inf > 0.5 ? 24 : 18, damage: dmg * inf, knockback: 90, skipDirect: true };
     fireProjectile(this, world, a.projectile, this.aimAngle, opts);
     if (a.projectile === 'arrow' && P.multishot) {
-      for (const off of [-0.14, 0.14]) fireProjectile(this, world, 'arrow', this.aimAngle + off, { ...opts, damage: dmg * (ms.multishotPct ?? 0.5) });
+      for (const off of [-0.14, 0.14]) fireProjectile(this, world, 'arrow', this.aimAngle + off, { ...opts, damage: dmg * (ms.multishotPct ?? 0.25) });
     }
     world.bus.emit(a.projectile === 'bolt' ? 'swing' : 'shoot', { actor: this, heavy: false, angle: this.aimAngle });
   }
@@ -572,7 +577,9 @@ export class Hero extends Actor {
     return hitOk;
   }
 
-  onHurt() {
+  onHurt(hit) {
+    // Boden- und Wolkenschaden (hit.dot): weder Betäubung noch Unverwundbarkeit, sonst schützt eine Glutfläche vor Bossangriffen
+    if (hit?.dot) return;
     this.invuln = H.invulnAfterHit;
     if (this.state === 'skill') return; // Fähigkeiten werden nicht unterbrochen
     if (this.state !== 'attack' || this.combo < 2) {
@@ -672,21 +679,22 @@ export class Hero extends Actor {
     if (a.tier >= 2) {
       // weiche Aura entlang der Waffe
       const strong = a.tier >= 3;
-      for (let u = a.u0; u <= a.u1; u += 1.5) {
+      const dim = a.arc ? 0.45 : 1;   // Bogen: schwächere Aura, Zungen nur an den Enden
+      for (let u = a.u0; u <= a.u1; u += a.arc ? 3 : 1.5) {
         const n = 0.5 + 0.5 * Math.sin(t * 11 + u * 1.7) * Math.sin(t * 7.3 - u);
         const x = px(u), y = py(u);
-        ctx.globalAlpha = (strong ? 0.1 : 0.06) + n * 0.06;
+        ctx.globalAlpha = ((strong ? 0.1 : 0.06) + n * 0.06) * dim;
         ctx.fillStyle = c[2];
         ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
-        ctx.globalAlpha = (strong ? 0.12 : 0.07) + n * 0.08;
+        ctx.globalAlpha = ((strong ? 0.12 : 0.07) + n * 0.08) * dim;
         ctx.fillStyle = c[1];
         ctx.fillRect(x - 1, y - 1, 3, 3);
       }
       // Flammenzungen (Feuer, Heilig) bzw. Funkeln (andere Elemente)
       const tongues = a.fx === 'fire' || a.fx === 'holy';
-      const n = strong ? 7 : 5;
+      const n = a.arc ? 2 : strong ? 7 : 5;
       for (let i = 0; i < n; i++) {
-        const u = a.u0 + (a.u1 - a.u0) * ((i + 0.5) / n);
+        const u = a.arc ? (i ? a.u1 - 0.5 : a.u0 + 0.5) : a.u0 + (a.u1 - a.u0) * ((i + 0.5) / n);
         const ph = t * (tongues ? 9 : 4) + i * 2.39;
         const h = tongues ? Math.max(0, Math.round((1 + 2.6 * (0.5 + 0.5 * Math.sin(ph)) + (strong ? 1 : 0)) * q * 0.8)) : 0;
         const x = px(u), y = py(u);

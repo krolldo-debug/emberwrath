@@ -3,8 +3,8 @@
 // `damage` wird nur von entities/Ulgrim.js gelesen (Schaden je Angriff).
 export const DEFS = {
   barrow_king: {
-    speed: 40, radius: 11, mass: 7, hurtRadius: 14, bodyHeight: 52, shadowW: 34,
-    eye: { x: 6, y: -50 }, material: 'bone',
+    speed: 40, radius: 13, mass: 7, hurtRadius: 18, bodyHeight: 68, shadowW: 48,
+    eye: { x: 5, y: -68 }, material: 'bone',
     damage: {
       sweep: 55,      // Schwungschlag (Bogen)
       backsweep: 50,  // Rückhand in der Kombo (Phase 2)

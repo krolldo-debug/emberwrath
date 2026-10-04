@@ -45,7 +45,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['emberhollow', 'sunken_temple', 'cinder_peaks'],
     enemies: ['ash_boar', 'bandit', 'bandit_archer', 'thorn_crawler', 'bandit_chief'],
-    ambient: [100, 94, 118],
+    ambient: [122, 114, 136],
   },
   sunken_temple: {
     name: 'Der Versunkene Tempel',
@@ -73,7 +73,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['ashwood', 'molten_forge', 'ashen_steppe'],
     enemies: ['fire_imp', 'magma_hound', 'ash_golem', 'cinder_cultist', 'magma_behemoth'],
-    ambient: [100, 76, 82],
+    ambient: [116, 88, 92],
   },
   molten_forge: {
     name: 'Die Glutschmiede',
@@ -123,7 +123,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['cinder_peaks', 'howling_barrow', 'blighted_marsh'],
     enemies: ['steppe_raider', 'raider_archer', 'dust_hyena', 'ash_vulture', 'steppe_warlord'],
-    ambient: [104, 96, 110],
+    ambient: [128, 116, 120],
   },
   howling_barrow: {
     name: 'Das Heulende Hügelgrab',
@@ -139,7 +139,7 @@ export const ZONES = {
     bossId: 'barrow_king',
     links: ['ashen_steppe'],
     enemies: ['barrow_wight', 'grave_hound', 'bone_archer', 'wight_caller', 'barrow_king'],
-    ambient: [40, 54, 60],
+    ambient: [56, 72, 80],
   },
   blighted_marsh: {
     name: 'Die Faulmarsch',
@@ -153,7 +153,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['ashen_steppe', 'spore_hollow', 'frostspire'],
     enemies: ['bog_lurker', 'rot_shaman', 'swamp_leech', 'plague_toad', 'bog_horror'],
-    ambient: [72, 88, 80],
+    ambient: [100, 118, 104],
   },
   spore_hollow: {
     name: 'Der Sporenschlund',
@@ -169,7 +169,7 @@ export const ZONES = {
     bossId: 'rot_mother',
     links: ['blighted_marsh'],
     enemies: ['sporeling', 'fungal_brute', 'spore_caster', 'rot_mother'],
-    ambient: [46, 42, 60],
+    ambient: [68, 56, 86],
   },
   frostspire: {
     name: 'Die Frostzinnen',
@@ -213,7 +213,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['frostspire', 'ashen_throne'],
     enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus'],
-    ambient: [104, 74, 72],
+    ambient: [124, 90, 84],
   },
   ashen_throne: {
     name: 'Der Aschethron',
@@ -229,7 +229,7 @@ export const ZONES = {
     bossId: 'ash_sovereign',
     links: ['ember_wastes'],
     enemies: ['throne_guard', 'ash_priest', 'ember_hellhound', 'throne_sentinel', 'ash_sovereign'],
-    ambient: [66, 42, 42],
+    ambient: [86, 58, 58],
   },
 };
 

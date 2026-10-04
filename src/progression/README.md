@@ -87,8 +87,9 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
 - `xp.js`: `LEVEL_CAP = 40`, Stufe 1–19 bitgenau wie vorher. Ab 20 berechnet `xpToNext` die XP aus der Zielzeit
   (15 → 25 Minuten je Stufe) und `PACE` (15 Kills/min, Kampfanteil 42 %, Wirkungsgrad 0,8). 20→21 = 42 000 EP.
   Volle Stufe-20-Stände steigen nach dem Laden normal weiter (`progress.deserialize`).
-- `test/pacing.mjs` (geeicht an „Stufe 20 nach 30 Minuten“): 1–20 ≈ 31 min; 20–40 ≈ 7,0 h, Quest-Anteil ≈ 56 %,
-  ≈ 75 Kopfgelder zwischen den Regionen, Gold 20→40 ≈ 210 000 (alle Beute verkauft), 25–35 ≈ 28 000 Gold/h.
+- `test/pacing.mjs` (geeicht an „Stufe 20 nach 30 Minuten“): 1–20 ≈ 31 min; 20–40 ≈ 5,4 h reine Spielzeit eines schnellen
+  Spielers (ohne Dungeonsuche und Prüfungen), Quest-Anteil ≈ 66 %, Gold 20→40 ≈ 160 000 (alle Beute verkauft), 25–35 ≈ 29 000 Gold/h.
+  Die Geschichte endet mit der Heimkehr auf Stufe 39; Kopfgelder und Jagdaufträge füllen nur noch kleine Lücken.
 - `items40.js`: Tier 5–8 (`tierOf` erweitert), je Tier 3 Stile × (18 Waffen früh/spät, 16 Rüstungsteile, 2 Schmuck),
   handgeschriebene Epics, 7 Sets von Eliten/Dungeonbossen + `sovereign`, benannte Bosswaffen, 6 Legendäre des Aschenfürsten,
   Tränke `superior_potion`/`supreme_potion`/`greater_mana`/`supreme_mana`, Zonenmaterialien, Questgegenstände,
@@ -153,3 +154,23 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   Richtwerte für Gegnerstufen stehen in `test/pacing.mjs` (`ENEMY_LEVELS`).
 - **A:** 7 Ausrüstungsplätze; Items tragen `reqLevel`, `visual` (Waffe), `family` (Machart) und Werte `str/agi/int/vit/moveSpeed`.
 - **D:** `game.progression.trackedQuestId()`, `trackQuest(id)`, `questTarget()`, `xpInfo()`, `isUpgrade(itemId)`.
+
+## Release-Runde (2026-10-03)
+
+- **Wirtschaft und Gold-Shop:** Gold allein (auch gekauftes) kauft keine Macht ohne Spielen. Orla verkauft Reittiere erst nach
+  `reqQuest` (Pferd/Wolf nach `q_first_ride`, Glutross nach `q_ash_sovereign` und ab 40; `shop:buy` → `reason: 'quest'`).
+  Neue Gold-Sinks brauchen Materialien der Gebiete 20–40: Verstärken bis +15 (`smithing.js`, je Platz ≈ 45 000 Gold,
+  ab +11 halbe Prozentwirkung), 9 neue Verzauberungen (1 500–5 000 Gold), 45 neue Rezepte.
+- **Schmiede unterwegs:** Imra, Moll, Fenn und Ryn haben `craft: true` (Schmiede + Verstärken). Die Liste „Alle“ zeigt nur,
+  was gerade zählt (keine Ausrüstung > 8 Stufen unter dir, nichts > 5 Stufen über dir), Neuestes zuerst.
+- **Rezepte 20–40** (`crafting.js`): Alchemie (Dörrfleisch, Vorzügliche/Erhabene Heil- und Manatränke) und je Tier 6 Waffen
+  (jede Klasse mindestens zwei) + 4 Brustteile im Stil „selten“ aus `items40.js`, aus den Materialien der Region.
+- **Quests:** 13 neue Nebenquests in den Lücken (Imra, Varra, Moll, Thane, Fenn, Sigrun, Ryn, Corvane), 4 wiederholbare
+  Jagdaufträge (Kesh, Brisa, Sigrun, Aldo), Nachspiel `q_homecoming` (Corvane → Hale). 5 neue Questgegenstände mit
+  `QUEST_DROPS`. Questgewichte ×1,2, Malgareth 0,8 und Heimkehr 1,0 Stufen-Anteil.
+- **Glutprüfungen 20–40** (`trials.js`): 4 neue Themen mit Gegnern und Boss der Gebiete (Heulendes Grab/Ulgrim ab 22,
+  Faulender Schlund/Mutter Fäulnis ab 27, Reifgewölbe/Skalvyr ab 32, Thron der Asche/Malgareth ab 37), jeweils erst
+  nach der Story-Quest dieses Bosses (`after`). `trialThemesFor(level, completed)`, `trialSpec(…, completed)`.
+  In Prüfungen gibt es keine Reittier-Beute und keine Boss-Anrechnung für Quests.
+- **Tränke knapper:** Trankdrop normal 6 % (Prüfung 3 %), Questbelohnungen 1–20 je ein Trank weniger (ab 3).
+- **Graumaul** (`rares.js` `minPlayer: 3`) erscheint erst ab Spielerstufe 3, „Seltener Fang“ kommt nicht mehr in der ersten Minute.

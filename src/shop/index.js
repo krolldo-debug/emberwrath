@@ -11,9 +11,11 @@ import { GOLD_PACKS, packTotal, formatPrice, RETURN_PARAM } from './catalog.js';
 //   visible       true, wenn der Shop für dieses Konto sichtbar ist (freigeschaltet oder Admin-Vorschau)
 //   refresh()     Status und Admin-Recht neu laden → Promise<visible>
 //   open()        Panel 'goldshop' in der laufenden Sitzung öffnen
-//   claim()       bezahlte Bestellungen des aktuellen Charakters gutschreiben → Promise<Gold>
+//   claim()       bezahlte Bestellungen des aktuellen Charakters gutschreiben, erstattete/zurückgebuchte wieder
+//                 abziehen → Promise<Gold> (Saldo der Gutschriften)
 // Panel 'goldshop' (Menü-Knopf „Shop“, Klick auf den Goldbetrag im HUD).
-// Slice 'shop' { credited: [orderId] } verhindert doppelte Gutschrift, Command 'shop:credit' { orderId, gold }.
+// Slice 'shop' { credited: [orderId], revoked: [orderId] } verhindert doppelte Gutschrift und doppelten Abzug.
+// Commands 'shop:credit' { orderId, gold } und 'shop:revoke' { orderId, gold } (Rückbuchung, Gold darf ins Minus).
 // Gold kommt nur über bezahlte Bestellungen in der Datenbank ins Spiel (Webhook von Stripe → 'paid').
 const CREDITED_KEEP = 200;
 const RETRY_AFTER_RETURN_S = [3, 8, 15, 30, 60, 120];
@@ -21,8 +23,11 @@ const RETRY_AFTER_RETURN_S = [3, 8, 15, 30, 60, 120];
 export function installShop(game) {
   const state = game.state;
   state.defineSlice('shop', {
-    create: () => ({ credited: [] }),
-    deserialize: (raw) => ({ credited: Array.isArray(raw?.credited) ? raw.credited.slice(-CREDITED_KEEP) : [] }),
+    create: () => ({ credited: [], revoked: [] }),
+    deserialize: (raw) => ({
+      credited: Array.isArray(raw?.credited) ? raw.credited.slice(-CREDITED_KEEP) : [],
+      revoked: Array.isArray(raw?.revoked) ? raw.revoked.slice(-CREDITED_KEEP) : [],
+    }),
   });
   state.defineCommand('shop:credit', (s, { orderId, gold }) => {
     const sl = s.get('shop');
@@ -30,6 +35,17 @@ export function installShop(game) {
     sl.credited.push(orderId);
     if (sl.credited.length > CREDITED_KEEP) sl.credited.splice(0, sl.credited.length - CREDITED_KEEP);
     s.commit('wallet:addGold', { amount: gold | 0, source: `shop:${orderId}` });
+    return { ok: true, gold };
+  }, { authoritative: true });
+  // Erstattet oder zurückgebucht: Gold wieder abziehen, auch wenn es schon ausgegeben ist (Saldo wird negativ).
+  state.defineCommand('shop:revoke', (s, { orderId, gold }, ctx) => {
+    const sl = s.get('shop');
+    if (typeof orderId !== 'string' || !(gold > 0) || sl.revoked.includes(orderId)) return { ok: false };
+    sl.revoked.push(orderId);
+    if (sl.revoked.length > CREDITED_KEEP) sl.revoked.splice(0, sl.revoked.length - CREDITED_KEEP);
+    const w = s.get('wallet');
+    w.gold -= gold | 0;
+    ctx.bus.emit(EV.GOLD_CHANGED, { delta: -(gold | 0), total: w.gold, source: `shop:revoke:${orderId}` });
     return { ok: true, gold };
   }, { authoritative: true });
 
@@ -98,21 +114,50 @@ export function installShop(game) {
     claim() {
       if (!isOnlineChar()) return Promise.resolve(0);
       claiming ??= (async () => {
+        // Erst nach dem Abgleich beim Start buchen: übernimmt der Abgleich den Cloud-Stand, wäre die Buchung sonst weg.
+        for (let i = 0; i < 60 && online().sync.status === 'syncing'; i++) await new Promise((r) => setTimeout(r, 250));
         const characterId = state.meta.characterId;
-        const list = await online().client.rpc('shop_pending_credits', { p_character: characterId });
-        if (!Array.isArray(list) || !list.length || state.meta.characterId !== characterId) return 0;
-        let gold = 0;
+        const rpc = (fn, args) => online().client.rpc(fn, args);
+        const [credits, revokes] = await Promise.all([
+          rpc('shop_pending_credits', { p_character: characterId }),
+          rpc('shop_pending_revokes', { p_character: characterId }).catch(() => []), // Migration noch nicht ausgeführt
+        ]);
+        const list = Array.isArray(credits) ? credits : [];
+        const back = Array.isArray(revokes) ? revokes : [];
+        if ((!list.length && !back.length) || state.meta.characterId !== characterId) return 0;
+        let gold = 0, taken = 0;
         for (const o of list) {
           const r = state.commit('shop:credit', { orderId: o.id, gold: o.gold });
           if (r?.ok) gold += o.gold;
         }
-        if (gold) game.saveNow('shop');
-        await online().client.rpc('shop_confirm_credits', { p_ids: list.map((o) => o.id) }).catch(() => {});
+        for (const o of back) {
+          const r = state.commit('shop:revoke', { orderId: o.id, gold: o.gold });
+          if (r?.ok) taken += o.gold;
+        }
+        // Erst bestätigen, wenn der Stand lokal und in der Cloud gespeichert ist; sonst bleiben die Bestellungen offen
+        // und kommen beim nächsten Start wieder (der Spielstand merkt sich, was schon verbucht ist).
+        if ((gold || taken) && !game.saveNow('shop')) {
+          game.bus.emit(EV.UI_TOAST, { text: 'Der Browser-Speicher ist voll. Bitte Speicher freigeben – die Buchung wird beim nächsten Start wiederholt.', kind: 'warn' });
+          return gold - taken;
+        }
+        let uploaded = true;
+        if (gold || taken) uploaded = await online().sync.flush().then(() => true, () => false);
+        // Hat ein Abgleich den Spielstand inzwischen ersetzt, fehlen die Buchungen dort: dann nicht bestätigen (kommt wieder).
+        const sl = state.slices.shop;
+        const kept = state.meta.characterId === characterId && list.every((o) => sl.credited.includes(o.id)) && back.every((o) => sl.revoked.includes(o.id));
+        if (!kept) return 0;
+        if (uploaded) {
+          if (list.length) await rpc('shop_confirm_credits', { p_ids: list.map((o) => o.id) }).catch(() => {});
+          if (back.length) await rpc('shop_confirm_revokes', { p_ids: back.map((o) => o.id) }).catch(() => {});
+        }
         if (gold) {
           game.bus.emit(EV.UI_TOAST, { text: `${gold.toLocaleString('de-DE')} Gold gutgeschrieben. Danke für deine Unterstützung!`, kind: 'loot', icon: 'gold' });
           shop.returned = null;
         }
-        return gold;
+        if (taken) {
+          game.bus.emit(EV.UI_TOAST, { text: `Eine Zahlung wurde erstattet oder zurückgebucht. ${taken.toLocaleString('de-DE')} Gold wurden wieder abgezogen.`, kind: 'warn', icon: 'gold' });
+        }
+        return gold - taken;
       })().catch(() => 0).finally(() => { claiming = null; });
       return claiming;
     },
@@ -145,6 +190,8 @@ const CHECKOUT_ERRORS = {
   closed: 'Der Shop ist noch nicht geöffnet.',
   unavailable: 'Der Shop ist noch nicht geöffnet.',
   waiver: 'Bitte bestätige zuerst den Hinweis zum Widerrufsrecht.',
+  blocked: 'Käufe sind für dein Konto gesperrt. Bitte wende dich an den Support.',
+  revoke_pending: 'Eine erstattete Zahlung wird gerade verbucht. Bitte versuch es gleich noch einmal.',
 };
 
 function shopPanel(session, game, shop) {

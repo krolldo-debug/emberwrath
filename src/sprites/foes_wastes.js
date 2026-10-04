@@ -909,19 +909,35 @@ function drawAdept(p, g, P, ex) {
     }
   }
 
-  // Glutmotten, die um den Kopf kreisen (hintere Hälfte zuerst)
-  const motes = [];
-  for (let i = 0; i < 3; i++) {
-    const a = P.orb + (i * Math.PI * 2) / 3;
-    motes.push({ x: hx - 1 + Math.cos(a) * 8, y: hy - 3 + Math.sin(a) * 2.5 - 2, front: Math.sin(a) > 0 });
-  }
-  const mote = (m) => {
-    const r = P.halo;
-    p.px(m.x, m.y, LAVA[r > 1.3 ? 5 : 4]); g.px(m.x, m.y, GLOW[4]); p.px(m.x, m.y + 1, LAVA[3]); g.px(m.x, m.y + 1, GLOW[2]);
-    if (r > 0.9) { p.px(m.x - 1, m.y, LAVA[2]); g.px(m.x - 1, m.y, GLOW[1]); g.px(m.x, m.y - 1, GLOW[1]); }
-    if (r > 1.3) glowDot(g, m.x, m.y, 1);
+  // Schwebendes Glutbuch hinter der Schulter (aufgeschlagen, Seiten glühen,
+  // Funken steigen auf). Hebt sich beim Wirken (halo) und wippt mit orb.
+  const book = () => {
+    const bx0 = Math.round(sh.x - 17 - P.lean * 2), by0 = Math.round(top - 7 + Math.sin(P.orb) * 1.5 - (P.halo - 1) * 4);
+    const hot = P.halo > 1.3;
+    // Glutschein unter dem Buch
+    for (let i = 0; i < 3; i++) g.px(bx0 + 3 + i, by0 + 5 + (i === 1 ? 1 : 0), GLOW[1]);
+    // Einband (Leder, Goldecken), Unterseite
+    p.rect(bx0, by0 + 2, 9, 2, ROBE[3]); p.rect(bx0, by0 + 3, 9, 1, ROBE[1]);
+    p.px(bx0, by0 + 2, GOLD[3]); p.px(bx0 + 8, by0 + 2, GOLD[3]); p.px(bx0 + 4, by0 + 3, GOLD[4]);
+    // Seiten als flaches V (Mittelfalz tiefer)
+    for (let i = 1; i <= 7; i++) {
+      const d = Math.abs(i - 4), yt = by0 + (d === 0 ? 2 : d === 1 ? 1 : 0);
+      for (let yy = yt; yy <= by0 + 1 + (d === 0 ? 1 : 0); yy++) p.px(bx0 + i, yy, d === 0 ? '#8a6a40' : i < 4 ? '#e8d4a8' : '#f4e6c0');
+    }
+    // Glutrunen auf den Seiten
+    for (const [i, yy] of [[2, 1], [6, 0], [3, 0]]) { p.px(bx0 + i, by0 + yy, LAVA[hot ? 5 : 4]); g.px(bx0 + i, by0 + yy, GLOW[hot ? 4 : 3]); }
+    // Lesebändchen
+    p.px(bx0 + 6, by0 + 4, LAVA[2]); p.px(bx0 + 6, by0 + 5, LAVA[1]);
+    // Flämmchen und Funken aus dem Falz
+    flame(p, g, bx0 + 4, by0 + 1, 2 + Math.round(P.halo * 1.5), 0.8 + (P.halo - 1) * 0.6, P.orb * 2, { lean: -0.2, seed: 91, hot: 0.6 });
+    for (let i = 0; i < 3; i++) {
+      const f = ((P.orb / (Math.PI * 2)) * 2 + i / 3) % 1;
+      const qx = bx0 + 3 + i * 1.5 + Math.sin(P.orb * 2 + i) * 1.2, qy = by0 - 2 - f * 7;
+      if (f < 0.85) { p.px(qx, qy, LAVA[f < 0.4 ? 5 : 3]); g.px(qx, qy, GLOW[f < 0.4 ? 4 : 2]); }
+    }
+    if (hot) glowDot(g, bx0 + 4, by0, 2);
   };
-  motes.filter((m) => !m.front).forEach(mote);
+  book();
 
   // Füße
   p.rect(AX - 3 + P.stepB, gy - 2, 4, 2, ROBE_CH[1]);
@@ -953,10 +969,24 @@ function drawAdept(p, g, P, ex) {
     p.px(sh.x + dx - 1, sh.y - h + 1, OBS_SHINE);
   }
 
-  // Kapuze: hoch und spitz, nach hinten geneigt
-  poly(p, [[hx - 5, hy + 4], [hx - 6, hy - 2], [hx - 5 - P.lean * 2, hy - 9], [hx + 1, hy - 4], [hx + 4, hy + 1], [hx + 3, hy + 5]],
+  // Kapuze: weit und rund, darauf eine Zackenkrone aus Gold (Rang des Adepten)
+  poly(p, [[hx - 5, hy + 4], [hx - 6.5, hy], [hx - 5.5, hy - 4], [hx - 2, hy - 6], [hx + 2, hy - 5], [hx + 4, hy - 1], [hx + 4, hy + 2], [hx + 3, hy + 5]],
     (px2, py2) => ROBE[clamp(4 - Math.floor((px2 - (hx - 6)) / 4) - (py2 > hy + 2 ? 1 : 0), 1, 5)]);
-  p.line(hx - 5 - P.lean * 2, hy - 9, hx - 5, hy - 3, ROBE[5]);
+  p.line(hx - 5.5, hy - 3, hx - 2, hy - 5.5, ROBE[5]);
+  // Kronreif
+  const cy0 = hy - 5;
+  for (let k = -5; k <= 3; k++) { p.px(hx + k, cy0 + Math.abs(k + 1) * 0.12, k < -2 ? GOLD[2] : GOLD[3]); p.px(hx + k, cy0 + 1 + Math.abs(k + 1) * 0.12, GOLD[1]); }
+  // Zacken (hinten dunkler, vorn höher), Spitzen glühen
+  for (const [dx, h, c] of [[-4.5, 3, 2], [-1.5, 5, 4], [1.5, 4, 3]]) {
+    for (let j = 1; j <= h; j++) {
+      const w = j < h - 1 ? 1 : 0;
+      p.px(hx + dx - j * 0.15, cy0 - j, GOLD[c]);
+      if (w) p.px(hx + dx - j * 0.15 + 1, cy0 - j, GOLD[Math.max(1, c - 2)]);
+    }
+    p.px(hx + dx - h * 0.15, cy0 - h - 1, LAVA[5]); g.px(hx + dx - h * 0.15, cy0 - h - 1, GLOW[c > 3 ? 4 : 3]);
+  }
+  // Glutstein in der Krone
+  p.px(hx - 1.5, cy0, LAVA[4]); g.px(hx - 1.5, cy0, GLOW[4]); g.px(hx - 1.5, cy0 - 1, GLOW[2]);
   // Goldmaske mit Glutriss und V-Augenschlitzen
   ell(p, hx + 1.2, hy + 0.5, 2.6, 3.2, GOLD, { bias: 0.08 });
   p.px(hx + 2.5, hy + 3, GOLD[1]);
@@ -969,9 +999,8 @@ function drawAdept(p, g, P, ex) {
   p.line(hx + 1, hy + 1.5, hx + 2, hy + 3, LAVA[2]); g.px(hx + 1, hy + 2, GLOW[1]);
   p.px(hx, hy - 2, GOLD[5]);
   meta.eye = { x: hx + 2, y: hy };
-  meta.head = { x: hx - 1, y: hy - 9 };
+  meta.head = { x: hx - 1, y: hy - 11 };
 
-  motes.filter((m) => m.front).forEach(mote);
 
   // vorderer Arm, Hand mit Feuerkugel
   const hF = { x: sh.x + P.hFx, y: sh.y + P.hFy };

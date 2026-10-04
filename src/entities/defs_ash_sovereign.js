@@ -1,5 +1,7 @@
 // Werte für Malgareth (ergänzt ENEMY_TYPES.ash_sovereign aus enemyTypes3.js).
-// Maße passend zur Figur (sprites/ash_sovereign.js): Kopf ~64 px über dem Boden, schlank.
+// Maße passend zur Figur (sprites/ash_sovereign.js): Riese, rund 85 × 120 px mit Kragen und Krone,
+// Augen ~97 px über dem Boden, breite Schultern (Schatten/Trefferradius entsprechend).
+// hp absolut (Endboss: Kampf 90–150 s auf Stufe 40).
 export const DEFS = {
-  ash_sovereign: { bodyHeight: 64, eye: { x: 4, y: -66 }, radius: 11, hurtRadius: 15, shadowW: 36, mass: 9, speed: 40 },
+  ash_sovereign: { hp: 110000, bodyHeight: 100, eye: { x: 7, y: -97 }, radius: 15, hurtRadius: 23, shadowW: 58, mass: 12, speed: 42 },
 };

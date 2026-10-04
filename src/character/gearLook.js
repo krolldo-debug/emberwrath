@@ -4,7 +4,7 @@
 // gear = {
 //   weapon: { family, icon, rarity, …Materialien } | null,
 //   chest:  { style: 'plate'|'chain'|'scale'|'leather'|'robe', ramp, trim?, shoulder?, tabard?, emblem?, glow?, fur?, rarity },
-//   head:   { style: 'cap'|'nasal'|'horned'|'hood', ramp, crest?, rarity },
+//   head:   { style: 'cap'|'nasal'|'horned'|'great'|'hood', ramp, trim?, crest?, tail?, crown?, crownDim?, coif?, glow?, rarity },
 //   hands:  { style, ramp, glow?, rarity },
 //   feet:   { style, ramp, glow?, rarity },
 // }
@@ -135,6 +135,27 @@ const HEADS = {
   helm_horned: { style: 'horned', ramp: M.steel },
   hood: { style: 'hood', ramp: M.darkleather },
 };
+// Kopfteile Stufe 21–40 in den Farben ihrer Icons (gfx/Icons.js TIER_LOOK). mail = offene Haube mit Kettenkragen,
+// plate = Helm. 5 Steppe (Bronze, Hörner), 6 Moor (Eisen, Knochen), 7 Frost (Stahl, blauer Kamm), 8 Glut (Obsidian, Gold).
+const TIER_HEAD = {
+  helm_t5: { mail: { style: 'nasal', ramp: M.bronze, trim: M.iron }, plate: { style: 'horned', ramp: M.bronze, trim: M.iron } },
+  helm_t6: { mail: { style: 'nasal', ramp: M.iron, trim: M.bone }, plate: { style: 'great', ramp: M.iron, trim: M.bone } },
+  helm_t7: { mail: { style: 'nasal', ramp: M.steel, trim: M.silver, crest: M.blue }, plate: { style: 'great', ramp: M.steel, trim: M.silver, crest: M.blue } },
+  helm_t8: { mail: { style: 'horned', ramp: M.obsidian, trim: M.gold }, plate: { style: 'great', ramp: M.obsidian, trim: M.gold, glow: M.ember } },
+};
+function tierHead(tier, def) {
+  const base = tier[def.family];
+  const rarity = def.rarity ?? 'common';
+  // gewöhnlich ohne Zierrand, ab ungewöhnlich mit
+  return { ...base, trim: rarity === 'common' ? null : base.trim, rarity };
+}
+// Benannte Bosshelme mit eigenem Merkmal
+const HEAD_NAMED = {
+  khar_helm: { crest: M.darkleather, tail: true },                       // Pferdeschweif
+  hillking_helm: { crown: M.iron, crownDim: true, crest: null },        // eiserne Krone
+  gorm_helm: { style: 'horned', crest: null },
+  sovereign_helm: { crown: M.ember, crest: null },
+};
 const HANDS = {
   gloves_cloth: { style: 'cloth', ramp: M.cloth },
   gloves_leather: { style: 'leather', ramp: M.leather },
@@ -240,15 +261,18 @@ export function resolveGear(equipment, content) {
   }
   const h = get('head');
   if (h) {
-    gear.head = armorLook(HEADS, h, (d) => (d.family === 'plate' || d.family === 'mail' ? 'nasal' : d.family === 'cloth' ? 'hood' : 'cap'));
+    const tier = TIER_HEAD[h.icon];
+    gear.head = tier && (h.family === 'mail' || h.family === 'plate') ? tierHead(tier, h) : armorLook(HEADS, h, (d) => (d.family === 'plate' || d.family === 'mail' ? 'nasal' : d.family === 'cloth' ? 'hood' : 'cap'));
     const hd = gear.head;
-    // Plattenhelm = geschlossener Topfhelm; ab selten Helmbusch, legendär mit Glutkrone
-    if (hd.style === 'nasal' && h.family === 'plate') hd.style = 'great';
+    if (hd.style === 'nasal' && h.family === 'plate' && !tier) hd.style = 'great';
+    if (hd.style === 'nasal' && h.family === 'mail') hd.coif = true;
     if (hd.style !== 'hood' && hd.style !== 'cap') {
-      const plume = { rare: M.red, epic: M.purple, legendary: M.ember }[hd.rarity];
-      if (plume && !hd.crest) hd.crest = plume;
+      // Selten: Zierrand; episch: schmaler Kamm in Violett; legendär: Glutkrone. Keine Federbüsche (sahen wie Zipfelmützen aus).
+      if (hd.rarity === 'rare' && !hd.trim) hd.trim = M.gold;
+      if (hd.rarity === 'epic' && !hd.crest && !hd.crown) hd.crest = M.purple;
       if (hd.rarity === 'legendary') hd.crown = M.ember;
     }
+    Object.assign(hd, HEAD_NAMED[h.id]);
   }
   const g = get('hands');
   if (g) gear.hands = armorLook(HANDS, g, (d) => d.family ?? 'leather');
@@ -261,5 +285,5 @@ export function gearKey(gear) {
   if (!gear) return '-';
   const k = (x) => (x ? `${x.icon ?? x.style}:${x.rarity}${x.great ? ':g' : ''}` : '');
   return [k(gear.weapon), gear.chest ? `${gear.chest.style}:${gear.chest.ramp?.[2]}:${gear.chest.rarity}` : '',
-    gear.head ? `${gear.head.style}:${gear.head.ramp?.[2]}:${gear.head.rarity}` : '', gear.hands ? gear.hands.ramp?.[2] : '', gear.feet ? gear.feet.ramp?.[2] : ''].join('|');
+    gear.head ? `${gear.head.style}:${gear.head.ramp?.[2]}:${gear.head.rarity}:${gear.head.trim?.[2] ?? ''}:${gear.head.crest?.[2] ?? ''}:${gear.head.crown?.[2] ?? ''}:${gear.head.coif ? 1 : 0}${gear.head.tail ? 't' : ''}` : '', gear.hands ? gear.hands.ramp?.[2] : '', gear.feet ? gear.feet.ramp?.[2] : ''].join('|');
 }

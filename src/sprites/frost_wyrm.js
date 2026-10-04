@@ -35,8 +35,11 @@ const SCALE = ['#0a1424', '#12263e', '#1b3a58', '#275674', '#3a7892', '#5a9eb4',
 const BELLY = ['#26445c', '#40687e', '#6a94aa', '#9cc2d2', '#d2eaf2'];
 const CRYS = ['#153a62', '#25649c', '#3f9ccf', '#88d4ef', '#dcf8ff'];
 const HORN = ['#1a2638', '#2e4258', '#4c6882', '#7c9cb2', '#bcd6e2'];
-const MOUTH = ['#0c0614', '#220c28', '#3c1640', '#5e2452'];
-const TEETH = ['#7c9cb2', '#c0dcea', '#f4fcff'];
+const MOUTH = ['#0a0614', '#1e0c26', '#381434', '#5a2046', '#7e3058'];
+const TONGUE = ['#4a1636', '#86305a', '#bc4e7c', '#e684a6'];
+const MAW = ['#05040a', '#0e0a1c', '#1c1028', '#341634', '#56203e', '#7c3252'];
+const THROAT = ['#06040c', '#0c1a2c', '#1c4a6a', '#3a8cb4'];
+const TEETH = ['#5a7a92', '#c4e0ec', '#f4fcff'];
 const FROZEN = ['#3e5c74', '#6a8ea6', '#9cc0d2', '#cfe8f2', '#f4fdff'];
 const RIM = '#96d8e6', RIM2 = '#5aa2bc';
 const FROSTG = ['#0a3050', '#1670a0', '#34b8e4', '#9aeefc', '#ffffff'];
@@ -161,6 +164,8 @@ class GlowFrame {
 const REST = {
   // Leib
   len: 1, wave: 3, wph: 0, ox: 0, bulk: 1, chestH: 0,
+  // Buckelwelle: der Leib hebt sich in wandernden Bögen vom Boden (Schlangenbewegung)
+  hump: 0, hph: 0,
   tailLift: 3, tailCurl: 0.35, tailSwing: 0, tailUp: 0,
   // Hals und Kopf
   hx: 20, hh: 46, hd: 0, nb: 0, ha: 0.28, jaw: 0.06, eye: 1,
@@ -168,6 +173,8 @@ const REST = {
   fNx: 11, fNy: 0, fFx: 3, fFy: 0,
   // Leuchten
   heart: 1, crest: 0, breath: 0, glint: 0,
+  // Brüll-Rachen: tiefer, dunkler Schlund mit kaltem Kernlicht (nur Brüll-/Rufposen)
+  maw: 0,
 };
 const pose = (o = {}) => ({ ...REST, ...o });
 const ease = (t) => t * t * (3 - 2 * t);
@@ -192,6 +199,7 @@ function sample(keys, t) {
 const RAD = [1.3, 2.7, 4.5, 6.2, 7.6, 8.5, 8.9, 7.7, 6.6, 5.9];
 const BODY_X = [-68, -57, -45, -32, -19, -7, 3];
 const WAVE_AMP = [1, 1, 0.95, 0.85, 0.65, 0.35, 0.1];
+const HUMP_AMP = [0.35, 0.75, 1, 1, 0.85, 0.45, 0.1];
 
 // Steuerpunkte der Wirbelsäule aus einer Pose
 function spinePoints(P) {
@@ -199,7 +207,8 @@ function spinePoints(P) {
   for (let i = 0; i < 7; i++) {
     const x = 3 + (BODY_X[i] - 3) * P.len + P.ox * (0.4 + i * 0.1);
     const d = P.wave * Math.sin(P.wph + i * 1.15) * WAVE_AMP[i];
-    const h = RAD[i] * P.bulk + 0.3 + P.chestH * [0, 0, 0, 0, 0.12, 0.5, 1][i];
+    const h = RAD[i] * P.bulk + 0.3 + P.chestH * [0, 0, 0, 0, 0.12, 0.5, 1][i]
+      + P.hump * (0.5 + 0.5 * Math.sin(P.hph + i * 1.05)) * HUMP_AMP[i];
     pts.push({ x, d, h });
   }
   // Schwanz: schwingt um Punkt 3 in der Bodenebene, hebt sich, rollt sich ein
@@ -428,96 +437,170 @@ function foreleg(p, sx, sy, fx, fy, near, lift) {
 // ---------------------------------------------------------------- Kopf
 
 // Kopf in lokalen Koordinaten (u nach vorn, v nach unten), gedreht um ha.
+// Aufbau von hinten nach vorn: ferne Hörner, Unterkiefer, Rachen (Gaumen,
+// Schlund mit Frostleuchten, Zunge), untere Zahnreihe, Schädel/Oberkiefer,
+// obere Zahnreihe, Auge, nahe Hörner.
 function drawHead(p, g, bx, by, P, o) {
   const ca = Math.cos(P.ha), sa = Math.sin(P.ha);
-  const HS = 1.28; // Kopf etwas größer als der Leib-Maßstab: lesbares Gesicht
+  const HS = 1.36; // Kopf größer als der Leib-Maßstab: lesbares Gesicht
   const T = (u, v) => [bx + (ca * u - sa * v) * HS, by + (sa * u + ca * v) * HS];
   const inv = (x, y) => { const dx = (x + 0.5 - bx) / HS, dy = (y + 0.5 - by) / HS; return [ca * dx + sa * dy, -sa * dx + ca * dy]; };
   const poly = (pts, shade, m) => fillPoly(pts.map(([u, v]) => T(u, v)), (x, y) => { const [u, v] = inv(x, y); const c = shade(u, v, x, y); if (c) p.px(x, y, c, m); });
   const frozen = o.frozen;
-  const jawA = P.jaw * 0.78;
+  const open = P.jaw > 0.16;
+  const jawA = open ? (P.jaw - 0.1) * 0.74 : 0;
   const jc = Math.cos(jawA), js = Math.sin(jawA);
-  const hingeU = 1, hingeV = 2.5;
+  const hingeU = -1, hingeV = 2.6;
   const J = (u, v) => [hingeU + jc * (u - hingeU) - js * (v - hingeV), hingeV + js * (u - hingeU) + jc * (v - hingeV)];
   const invJ = (u, v) => [hingeU + jc * (u - hingeU) + js * (v - hingeV), hingeV - js * (u - hingeU) + jc * (v - hingeV)];
   const dith = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] - 7.5) / 16;
+  const LIP = 2.5; // Oberkante des Unterkiefers / Unterkante des Oberkiefers (v)
 
   // Hintere Hörner (ferne Seite, dunkler)
   hornCurve(p, g, T, [[3, -6], [-5, -12], [-16, -11]], 4, 1, true, P, frozen);
 
-  // Unterkiefer (dreht um das Kiefergelenk)
-  const jaw = [[-2, 1], [8, 2.2], [17, 2.4], [22, 2.6], [22.5, 4], [18, 5.3], [9, 6.2], [1, 6.4], [-3, 4.5]];
+  // Unterkiefer: kräftiger Knochen mit Kinn, Unterseite dunkel, Kieferkante hell
+  const jaw = [[-4, 1.2], [4, LIP], [12, LIP], [19, LIP - 0.1], [23.5, LIP - 0.2], [24.5, 3.6], [23, 5.4], [18, 6.4], [10, 7.4], [3, 7.7], [-3, 6.5], [-5, 4]];
   poly(jaw.map(([u, v]) => J(u, v)), (u, v, x, y) => {
     const [ju, jv] = invJ(u, v);
-    let idx = 3.2 - (jv - 2.2) * 0.75 + dith(x, y) * 0.8;
-    if (jv < 3.1 && ju > 3) idx += 0.8;
-    if (((ju / 3) % 1) < 0.2 && jv > 4) idx -= 0.7;
+    let idx = 4 - (jv - LIP) * 0.62 + dith(x, y) * 0.8;
+    if (jv < LIP + 0.9 && ju > 2) idx += 0.9;                          // Lippenkante
+    if (jv > 5 && (((ju + 0.5) / 3) % 1) < 0.22) idx -= 0.8;           // Kehlschuppen
+    if (ju < 1 && jv > 3 && jv < 5.5 && ju > -3) idx -= 0.6;           // Kiefermuskel
     return SCALE[Math.max(1, Math.min(6, Math.round(idx)))];
   }, M_SCALE);
   // Kinnbart aus Eiszapfen
-  for (const [u, len] of [[5, 3.5], [9, 4.5], [13, 2.5]]) {
-    const [a0, b0] = J(u, 6.2), [a1, b1] = J(u - 1.2, 6.2 + len);
+  for (const [u, len] of [[6, 3.5], [11, 4.5], [16, 2.8], [20, 1.8]]) {
+    const [a0, b0] = J(u, 6.6 - u * 0.03), [a1, b1] = J(u - 1.3, 6.6 + len);
     const [x0, y0] = T(a0, b0), [x1, y1] = T(a1, b1);
     p.line(x0, y0, x1, y1, CRYS[1], M_CRYS); p.px(x1, y1, CRYS[3], M_CRYS);
     if (!frozen) g.px(x1, y1, 1);
   }
-  // Untere Zähne
-  for (const u of [10, 15, 20]) {
-    const [a, b] = J(u, 2.2), [a2, b2] = J(u + 0.3, 0.6);
-    const [x0, y0] = T(a, b), [x1, y1] = T(a2, b2);
-    p.line(x0, y0, x1, y1, TEETH[1], M_HORN); p.px(x1, y1, TEETH[2], M_HORN);
-  }
-  // Rachen (sichtbar, wenn der Kiefer offen ist)
+
+  // Rachen
   const mouthGlow = [];
-  if (P.jaw > 0.12) {
-    const top = [[0, 2], [6, 2.1], [14, 2.1], [21, 2]];
-    const bot = [[21, 2.4], [14, 2.4], [6, 2.3], [0, 2.3]].map(([u, v]) => J(u, v));
-    poly([...top, ...bot], (u, v, x, y) => {
-      const depth = (u + 2) / 24;
-      const gl = P.breath;
-      if (!frozen && gl > 0.05 && hash2(x, y, 13) < 0.25 + gl * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(gl * 2.4 - depth * 2.2 + 0.6))));
-      return depth < 0.35 ? MOUTH[0] : v > 3 + P.jaw * 4 && depth > 0.3 ? MOUTH[3] : depth < 0.7 ? MOUTH[1] : MOUTH[2];
+  if (open) {
+    const breath = frozen ? 0 : P.breath;
+    const top = [[-3, LIP - 0.1], [6, LIP], [16, LIP], [24.5, LIP]];
+    const bot = [[24, LIP], [16, LIP], [6, LIP], [-3, LIP - 0.1]].map(([u, v]) => J(u, v));
+    // Schlundmitte (Leuchtzentrum): tief hinten, halbe Spalthöhe
+    const tc = J(3.5, LIP); const tcu = (3.5 + tc[0]) / 2 - 1, tcv = (LIP + tc[1]) / 2;
+    const tr = 3.2 + P.jaw * 2.2;
+    const maw = frozen ? 0 : P.maw;
+    if (maw > 0.05) {
+      // Brüllen: Tiefe statt Fläche. Dunkler Schlund hinten, Gaumenleisten, rosiger Zahnfleischsaum
+      // an beiden Kiefern, kaltes Kernlicht, das auf Gaumen und Zunge streut, Frost-Speichelfäden.
+      const trM = tr * (1 + 0.5 * maw);
+      poly([...top, ...bot], (u, v, x, y) => {
+        const [ju, jv] = invJ(u, v);
+        const fromTop = v - LIP, fromBot = LIP - jv, span = Math.max(0.01, fromTop + fromBot);
+        const s = fromTop / span, r = Math.max(0, Math.min(1, (u + 3) / 27));
+        const d = Math.hypot((u - tcu) / 1.6, v - tcv) / trM;
+        const dd = dith(x, y);
+        if (d < 1) {
+          const k = 1 - d;
+          const gi = Math.round(k * (1.6 + maw * 1.8 + breath * 1.6) + dd * 0.8 - 0.4);
+          if (gi >= 0) mouthGlow.push(x, y, Math.min(4, gi));
+          return THROAT[Math.max(0, Math.min(3, Math.round(k * (1.8 + maw * 1.3) + dd * 0.9 - 0.2)))];
+        }
+        // Frost-Speichelfäden zwischen den Kiefern
+        if (maw > 0.5 && s > 0.12 && s < 0.9) for (const [us, cut] of [[13.5, 0.62], [19.2, 0.3]]) {
+          const uu = (ju + u) / 2;
+          if (Math.abs(uu + (s - 0.5) * 0.8 - us) < 0.42 && Math.abs(s - cut) > 0.09) { mouthGlow.push(x, y, 1); return s < 0.5 ? TEETH[0] : CRYS[3]; }
+        }
+        // Streulicht des Kerns auf Gaumen und Zungengrund
+        if (d < 1.4 && (BAYER[(y & 3) * 4 + (x & 3)] / 16) < (1.4 - d) * 1.2) { if (d < 1.25) mouthGlow.push(x, y, 0); return THROAT[2]; }
+        const e = Math.abs(s - 0.5) * 2;
+        let idx = 0.2 + r * 2.1 + e * e * 1.3 + dd * 0.6;
+        if (s < 0.3 && r > 0.15) idx += ((((u + 0.6) / 2.4) % 1) < 0.35 ? -0.9 : 0.35);   // Gaumenleisten
+        if (r > 0.2 && fromTop < 0.85) idx = 4.3 + dd * 0.5;                                // Zahnfleisch oben
+        else if (r > 0.25 && fromBot < 0.85) idx = 3.9 + dd * 0.5;                         // Zahnfleisch unten
+        if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
+        else if (hash2(x, y, 17) < 0.05 * maw && d < 2.2) mouthGlow.push(x, y, 1);
+        return MAW[Math.max(0, Math.min(5, Math.round(idx)))];
+      }, M_MOUTH);
+    } else poly([...top, ...bot], (u, v, x, y) => {
+      const [, jv] = invJ(u, v);
+      const fromTop = v - LIP, fromBot = LIP - jv;
+      const d = Math.hypot((u - tcu) / 1.5, v - tcv) / tr;                // 0 = Schlundmitte
+      const dd = dith(x, y);
+      // Schlund: Ringe aus kaltem Licht
+      if (d < 1) {
+        const k = 1 - d;
+        if (!frozen) {
+          const gi = Math.round(k * (1.4 + P.jaw * 0.8 + breath * 2.4) + dd * 0.8 - 0.3);
+          if (gi >= 0) mouthGlow.push(x, y, Math.min(4, gi));
+        }
+        return THROAT[Math.max(0, Math.min(3, Math.round(k * (1.6 + breath * 1.6) + dd * 0.9)))];
+      }
+      let idx = 1.2 + Math.min(1.5, (u - tcu) / 12) + dd * 0.55;
+      if (fromTop < 1.3) idx = 2.3 + ((((u + 0.6) / 2.6) % 1) < 0.4 ? -0.9 : 0.6);  // Gaumenleisten
+      else if (fromBot < 0.9) idx = 3.3;                                   // Zahnfleisch unten
+      else if (fromTop < 2) idx -= 0.8;                                    // Schatten unter dem Gaumen
+      if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
+      return MOUTH[Math.max(0, Math.min(4, Math.round(idx)))];
+    }, M_MOUTH);
+    // Zunge: liegt auf dem Unterkiefer, Spitze gespalten und leicht gehoben
+    const tl = 9 + P.jaw * 6, lift = P.jaw * 1.2;
+    const tongue = [[0, LIP - 0.2], [4, LIP - 2], [tl * 0.6, LIP - 2.3 - lift * 0.4], [tl, LIP - 1.9 - lift], [tl + 2, LIP - 2.6 - lift * 1.3], [tl + 1, LIP - 1.4 - lift], [tl + 2.2, LIP - 0.9 - lift * 0.8], [tl - 0.5, LIP - 0.6], [3, LIP]];
+    poly(tongue.map(([u, v]) => J(u, v)), (u, v, x, y) => {
+      const [ju, jv] = invJ(u, v);
+      const h = (LIP - jv) - Math.max(0, ju - tl * 0.6) / tl * lift;
+      let idx = 0.7 + h * 1.1 + dith(x, y) * 0.6;
+      if (ju < 3) idx -= 0.9;
+      if (Math.abs(h - 1.1) < 0.3 && ju > 3 && ju < tl - 1) idx -= 0.9;  // Mittelfurche
+      if (P.maw > 0.05 && !frozen && ju < tl * 0.45) idx -= 0.8 * P.maw;    // Zungengrund im Schlundschatten
+      return TONGUE[Math.max(0, Math.min(3, Math.round(idx)))];
     }, M_MOUTH);
     for (let i = 0; i < mouthGlow.length; i += 3) g.px(mouthGlow[i], mouthGlow[i + 1], mouthGlow[i + 2]);
   }
+  // Untere Zahnreihe (zeigt nach oben); hinten kurz, vorn ein Fangzahn
+  const lowTeeth = open ? [[7, 1], [10.5, 1.6], [14, 1.3], [17.2, 1.9], [20.6, 3.2], [23.2, 1.5]] : [[20.6, 2.2]];
+  for (const [u, len] of lowTeeth) tooth(p, T, J(u, LIP), J(u + 0.35, LIP - len), len);
 
   // Schädel und Oberkiefer
-  const skull = [[-6, -3], [-4, -7], [1, -9], [7, -9.2], [11, -7.4], [16, -5.8], [21, -4.8], [25, -3.8], [27, -2.2], [27, 0.4], [25, 2.2], [18, 2.4], [9, 2.5], [2, 3.4], [-4, 3.6]];
+  const skull = [[-6, -3], [-4, -7.4], [1, -9.6], [6, -10.3], [10, -9], [13, -6.6], [17, -5.6], [21.5, -4.8], [25, -3.9], [27.5, -2.4], [28, 0.2], [26.5, LIP], [18, LIP], [9, LIP], [2, LIP + 0.6], [-4, 3.8]];
   poly(skull, (u, v, x, y) => {
-    // Oberseite hell, Kiefer dunkler; Brauenwulst, Schnauzenkamm, Wangenplatten
-    let idx = 4.3 - (v + 8) * 0.28 + dith(x, y) * 0.9;
-    if (v > 0.8) idx -= 1.2;
-    if (u > 4 && u < 13 && v < -6.3) idx += 1;            // Brauenwulst
-    if (u > 13 && v < -3.6 && v > -5.4 && ((u | 0) % 3 === 0)) idx -= 1; // Schnauzenschuppen
+    let idx = 4.4 - (v + 8) * 0.28 + dith(x, y) * 0.9;
+    if (v > 0.6) idx -= 1.1;                                              // Oberlippe im Schatten
+    if (v > LIP - 0.9 && u > 3) idx = 2.6 + dith(x, y);                  // Lippenkante
+    if (u > 3 && u < 12 && v < -7.6) idx += 1.1;                          // Brauenwulst hell
+    if (u > 5 && u < 13 && v > -7.6 && v < -6.6) idx -= 1.3;              // Schatten unter dem Wulst
+    if (u > 13 && v < -3.8 && v > -5.4 && ((u | 0) % 3 === 0)) idx -= 1;  // Schnauzenschuppen
     if (u < 4 && u > -4 && v > -1 && v < 2 && ((((u + v) / 2.5) % 1 + 1) % 1) < 0.3) idx -= 1; // Wangenplatten
-    if (u > 21 && v < -1.6 && v > -3.4 && u < 24) idx = 0.5; // Nüster
+    if (u > 22.5 && u < 25 && v < -1.6 && v > -3.2) idx = 0.5;            // Nüster
+    if (u > 6.5 && u < 12.5 && v > -6.7 && v < -3.4) idx = Math.min(idx, 1.4 + dith(x, y)); // Augenhöhle
     return SCALE[Math.max(0, Math.min(6, Math.round(idx)))];
   }, M_SCALE);
   // Brauenkristall über dem Auge
-  hornCurve(p, g, T, [[9, -8.5], [5, -12], [0, -13.5]], 2.2, 0.8, false, P, frozen);
-  // Obere Fangzähne (Eiszapfen)
-  for (const [u, len] of [[9, 1.5], [13, 1.8], [18.5, 3.4], [23, 2]]) {
-    const [x0, y0] = T(u, 2.3), [x1, y1] = T(u - 0.4, 2.3 + len);
-    p.line(x0, y0, x1, y1, TEETH[1], M_HORN); p.px(x1, y1, TEETH[2], M_HORN);
-    if (len > 3) p.px(x0, y0, TEETH[2], M_HORN);
+  hornCurve(p, g, T, [[9, -9], [5, -12.5], [0, -14]], 2.4, 0.8, false, P, frozen);
+  // Obere Zahnreihe (zeigt nach unten), großer Eisfang vorn
+  const upTeeth = [[5.5, 1], [8.8, 1.5], [12.2, 1.9], [15.4, 1.5], [18.6, 4], [21.8, 1.6], [24.8, 2.4]];
+  for (const [u, len] of upTeeth) {
+    if (!open && len < 2.3) continue;
+    tooth(p, T, [u, LIP - 0.3], [u - 0.35, LIP + len], len);
   }
-  // Auge
-  const [ex, ey] = T(9.2, -4.9);
+  // Mundwinkel
+  { const [x0, y0] = T(-3.5, LIP + 0.1), [x1, y1] = T(1.5, LIP + 0.2); p.line(x0, y0, x1, y1, SCALE[0], M_SCALE); }
+
+  // Auge: Schlitzpupille in leuchtender Iris, dunkle Höhle
+  const [ex, ey] = T(9.4, -5);
   const exr = Math.round(ex), eyr = Math.round(ey);
-  p.px(exr - 1, eyr, SCALE[0]); p.px(exr, eyr + 1, SCALE[0]); p.px(exr + 1, eyr + 1, SCALE[0]); p.px(exr + 2, eyr, SCALE[0]);
+  for (const [dx, dy] of [[-2, 0], [-1, 1], [0, 1], [1, 1], [2, 1], [3, 0], [-1, -1], [0, -1], [1, -1], [2, -1]]) p.px(exr + dx, eyr + dy, SCALE[0]);
   if (P.eye > 0.4 && !frozen) {
-    p.px(exr, eyr, '#dffaff', M_EYE); p.px(exr + 1, eyr, '#8fe6ff', M_EYE);
-    g.px(exr, eyr, 4); g.px(exr + 1, eyr, P.eye > 0.8 ? 3 : 2);
-    if (P.eye > 0.8) { g.apx(exr - 1, eyr, 1); g.epx(exr - 1, eyr, 2); g.epx(exr + 2, eyr, 1); }
+    p.px(exr - 1, eyr, '#8fe6ff', M_EYE); p.px(exr, eyr, '#f2feff', M_EYE); p.px(exr + 1, eyr, '#0a1424', M_EYE); p.px(exr + 2, eyr, '#8fe6ff', M_EYE);
+    if (P.eye > 0.8) { p.px(exr, eyr - 1, '#5ac4e8', M_EYE); p.px(exr + 1, eyr - 1, '#5ac4e8', M_EYE); }
+    g.px(exr, eyr, 4); g.px(exr - 1, eyr, 3); g.px(exr + 2, eyr, P.eye > 0.8 ? 3 : 2);
+    if (P.eye > 0.8) { g.apx(exr - 2, eyr, 1); g.epx(exr - 2, eyr, 2); g.epx(exr + 3, eyr, 2); g.epx(exr + 4, eyr, 1); }
   } else {
     p.px(exr, eyr, SCALE[2]); p.px(exr + 1, eyr, SCALE[1]);
     if (!frozen && P.eye > 0.05) g.px(exr + 1, eyr, 1);
   }
   // Nüsterfrost
-  if (!frozen) { const [nx, ny] = T(24, -2.6); g.apx(nx, ny, P.breath > 0.3 ? 2 : 0); g.epx(nx, ny, 1); }
+  if (!frozen) { const [nx, ny] = T(24, -2.4); g.apx(nx, ny, P.breath > 0.3 ? 2 : 0); g.epx(nx, ny, 1); }
   // Vordere Hörner: langes, zurückgeschwungenes Kristallhorn + kürzeres oberes
-  hornCurve(p, g, T, [[1, -6.5], [-8, -14], [-21, -13]], 5, 1.2, false, P, frozen);
-  hornCurve(p, g, T, [[4.5, -8], [0, -15], [-6, -19]], 3.6, 1, false, P, frozen);
+  hornCurve(p, g, T, [[1, -7], [-8, -14.5], [-22, -13.5]], 5.4, 1.2, false, P, frozen);
+  hornCurve(p, g, T, [[4.5, -8.5], [0, -15.5], [-6, -20]], 3.8, 1, false, P, frozen);
   // Wangendorn nach hinten unten
   hornCurve(p, g, T, [[-1, 2], [-5, 5], [-8, 9]], 2.6, 1, false, P, frozen, true);
 
@@ -526,6 +609,18 @@ function drawHead(p, g, bx, by, P, o) {
     mouth: { x: mouth[0], y: mouth[1] }, eye: { x: ex, y: ey },
     head: (([x, y]) => ({ x, y }))(T(8, -8)),
   };
+}
+
+// Zahn als spitzes Dreieck von der Wurzel (a) zur Spitze (b), lokale Kopfkoordinaten
+function tooth(p, T, [ua, va], [ub, vb], len) {
+  const [x0, y0] = T(ua, va), [x1, y1] = T(ub, vb);
+  const w = len > 2.5 ? 0.9 : 0.55;
+  const [xa, ya] = T(ua - w, va), [xb, yb] = T(ua + w, va);
+  fillPoly([[xa, ya], [xb, yb], [x1 + 0.5, y1 + 0.5]], (x, y) => p.px(x, y, TEETH[1], M_HORN));
+  p.line(x0, y0, x1, y1, TEETH[1], M_HORN);
+  p.px(xa, ya, TEETH[0], M_HORN);
+  p.px(x1, y1, TEETH[2], M_HORN);
+  if (len > 2.5) { const [xm, ym] = T((ua + ub) / 2 + 0.3, (va + vb) / 2); p.px(xm, ym, TEETH[2], M_HORN); }
 }
 
 // Kristallhorn entlang einer quadratischen Kurve (lokale Kopfkoordinaten)
@@ -993,18 +1088,33 @@ export function createFrostCrack(size = 56) {
 
 export function createSkalvyrSprites() {
   // --- Grundposen
-  const idleA = pose();
-  const idleB = pose({ bulk: 1.035, chestH: 1.2, hh: 47.5, hx: 19, ha: 0.24, jaw: 0.12, wph: 0.35, tailCurl: 0.55, heart: 1.5, nb: 0.15 });
+  // Lauerhaltung: Hals hoch aufgerichtet in S-Kurve, Kopf leicht gesenkt
+  const LURK = { hx: 17, hh: 58, nb: 1.25, ha: 0.42, chestH: 2.5, tailCurl: 0.5, jaw: 0.08 };
+  const idleA = pose({ ...LURK, wave: 6, hump: 3.2, hph: 0.4 });
+  // Ruhe: eine deutliche Welle läuft vom Schwanz zur Brust, der Hals wiegt sich
+  // in der S-Kurve, der Kopf lauert und nickt, die Schwanzspitze peitscht
+  const idleKeys = [];
+  for (let i = 0; i <= 10; i++) {
+    const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph), c = Math.cos(ph);
+    idleKeys.push([i / 10, pose({
+      ...LURK,
+      wave: 6, wph: -ph, hump: 4.2, hph: -ph + 0.4, bulk: 1 + 0.03 * s, chestH: 2.5 + 1.4 * s,
+      nb: 1.25 + Math.sin(ph) * 0.35, hx: 17 + Math.sin(ph + 0.7) * 4.5, hh: 58 + s * 3.5, ha: 0.42 + Math.sin(ph + 1.6) * 0.14,
+      jaw: 0.08 + Math.max(0, -c) * 0.07, tailCurl: 0.5 + Math.sin(ph * 2 + 2) * 0.35, tailSwing: Math.sin(ph + 1) * 0.32,
+      tailLift: 3 + Math.max(0, Math.sin(ph * 2)) * 3, heart: 1.25 + 0.3 * s,
+    }), linear]);
+  }
 
-  // Kriechen: Wellen laufen den Leib entlang, die Klauen greifen abwechselnd
+  // Kriechen: kräftige Schlängelwellen laufen den Leib entlang, der Leib wiegt
+  // seitlich, die Klauen greifen abwechselnd, der Kopf bleibt auf Lauerhöhe
   const walkKeys = [];
   for (let i = 0; i <= 10; i++) {
     const ph = (i / 10) * Math.PI * 2, s = Math.sin(ph), c = Math.cos(ph);
     walkKeys.push([i / 10, pose({
-      wave: 5.5, wph: -ph, ox: s * 1.2, chestH: Math.max(0, c) * 1.5,
-      hx: 22 + s * 1.5, hh: 43 + Math.abs(c) * 2, ha: 0.32 + s * 0.05, nb: 0.25 + c * 0.15,
+      wave: 9.5, wph: -ph, hump: 6, hph: -ph + 0.8, ox: s * 2.2, chestH: 1.5 + Math.max(0, c) * 2,
+      hx: 20 + s * 4, hh: 50 + Math.abs(c) * 3.5, ha: 0.38 + s * 0.1, nb: 0.9 + c * 0.45,
       fNx: 7 + s * 7, fNy: Math.max(0, c) * 4, fFx: 1 - s * 7, fFy: Math.max(0, -c) * 4,
-      tailCurl: 0.2, tailSwing: s * 0.18, tailLift: 2, jaw: 0.1,
+      tailCurl: 0.3 + Math.sin(ph * 2) * 0.25, tailSwing: Math.sin(ph - 0.8) * 0.42, tailLift: 2.5, jaw: 0.1,
     }), linear]);
   }
 
@@ -1015,7 +1125,7 @@ export function createSkalvyrSprites() {
   });
   const coilB = { ...coil, bulk: 1.03, heart: 0.8, chestH: -0.4 };
   const rise = pose({ len: 0.85, wave: 6, wph: 0.3, hx: 18, hh: 34, ha: 0.1, nb: 0.4, jaw: 0.1, eye: 1, heart: 1.5, tailSwing: 0.7, chestH: 2 });
-  const roarP = pose({ chestH: 11, hx: 11, hh: 72, ha: -0.62, nb: 0.6, jaw: 1, crest: 1, heart: 2.8, fNx: 14, fNy: 4, fFx: 6, fFy: 2, tailCurl: 0.9, tailLift: 7, bulk: 1.06, glint: 1 });
+  const roarP = pose({ maw: 1, chestH: 11, hx: 11, hh: 72, ha: -0.62, nb: 0.6, jaw: 1, crest: 1, heart: 2.8, fNx: 14, fNy: 4, fFx: 6, fFy: 2, tailCurl: 0.9, tailLift: 7, bulk: 1.06, glint: 1 });
   const roarP2 = { ...roarP, hh: 74, ha: -0.7, hx: 10, jaw: 0.92, heart: 3, tailCurl: 1 };
 
   // Biss: Kopf zurückziehen (S-Kurve), dann vorschnellen und zuschnappen
@@ -1040,7 +1150,7 @@ export function createSkalvyrSprites() {
 
   // Eissplitter-Ruf: aufbäumen, zur Decke brüllen
   const cw1 = pose({ chestH: 7, hx: 12, hh: 64, ha: -0.5, nb: 0.5, jaw: 0.5, heart: 2, crest: 0.6, fNy: 3 });
-  const cw2 = pose({ chestH: 12, hx: 9, hh: 76, ha: -0.95, nb: 0.7, jaw: 1, heart: 3, crest: 1.2, fNy: 6, fFy: 3, tailCurl: 1, tailLift: 8, glint: 1 });
+  const cw2 = pose({ maw: 0.9, chestH: 12, hx: 9, hh: 76, ha: -0.95, nb: 0.7, jaw: 1, heart: 3, crest: 1.2, fNy: 6, fFy: 3, tailCurl: 1, tailLift: 8, glint: 1 });
 
   // Stampfen (Eiswände): hoch aufrichten, Klauen heben, auf den Boden krachen
   const sw1 = pose({ chestH: 14, hx: 10, hh: 66, ha: -0.35, nb: 0.4, jaw: 0.6, heart: 2.2, fNx: 12, fNy: 14, fFx: 6, fFy: 12, crest: 0.7, tailCurl: 0.8 });
@@ -1051,16 +1161,16 @@ export function createSkalvyrSprites() {
   // Frostnova: eng einrollen, Stacheln aufstellen, dann explosiv aufrichten
   const nw1 = pose({ len: 0.8, wave: 6, wph: 0.5, hx: 16, hh: 30, ha: 0.45, nb: 0.3, jaw: 0.25, heart: 2.6, crest: 1.1, tailSwing: 0.8, bulk: 1.05, chestH: -1 });
   const nw2 = { ...nw1, hh: 28, heart: 3.2, crest: 1.45, bulk: 1.09, jaw: 0.35, glint: 1 };
-  const nr1 = pose({ len: 0.95, chestH: 10, hx: 12, hh: 70, ha: -0.6, nb: 0.6, jaw: 1, heart: 3.5, crest: 1.8, bulk: 1.08, tailSwing: 0.3, tailCurl: 1, glint: 1 });
+  const nr1 = pose({ maw: 0.8, len: 0.95, chestH: 10, hx: 12, hh: 70, ha: -0.6, nb: 0.6, jaw: 1, heart: 3.5, crest: 1.8, bulk: 1.08, tailSwing: 0.3, tailCurl: 1, glint: 1 });
 
   const hurtP = pose({ hx: 12, hh: 52, ha: -0.2, nb: 0.6, jaw: 0.65, eye: 0.5, chestH: 3, ox: -3, crest: 0.2, tailCurl: 0.8 });
 
   // Tod: zurückzucken, klagend aufbäumen – dann Erstarrung und Zersplittern
   const d1 = pose({ hx: 10, hh: 58, ha: -0.35, nb: 0.8, jaw: 0.9, eye: 0.6, chestH: 5, ox: -4, heart: 2.5, tailCurl: 1 });
-  const d2 = pose({ hx: 16, hh: 70, ha: -0.75, nb: 0.4, jaw: 1, eye: 0.3, chestH: 11, ox: -2, heart: 3.2, fNy: 5, tailCurl: 1.1, tailLift: 7, crest: 0.8 });
+  const d2 = pose({ maw: 0.7, hx: 16, hh: 70, ha: -0.75, nb: 0.4, jaw: 1, eye: 0.3, chestH: 11, ox: -2, heart: 3.2, fNy: 5, tailCurl: 1.1, tailLift: 7, crest: 0.8 });
 
 
-  const idle = new Animation(track([[0, idleA], [0.5, idleB], [1, idleA]], 10, { loop: true }), 7);
+  const idle = new Animation(track(idleKeys, 10, { loop: true }), 7);
   const walk = new Animation(track(walkKeys, 10, { loop: true, extras: { 0: { fx: 'step' }, 5: { fx: 'step' } } }), 11);
 
   const anims = {

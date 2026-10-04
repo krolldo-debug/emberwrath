@@ -8,9 +8,10 @@
 import { questXp } from './xp.js';
 
 const Q = (level, weight) => questXp(level, weight);
-// Gewichte (Anteil der Stufe, auf der die Quest liegt, × 0,75). Abgestimmt mit test/pacing.mjs:
-// 20→40 ≈ 7 Stunden, Quest-Anteil ≈ 57 %, dazu Kopfgelder zwischen den Regionen.
-const W = { travel: 0.06, kill: 0.13, main: 0.15, elite: 0.18, boss: 0.25, side: 0.11, dungeonSide: 0.13, bounty: 0.096, lesson: 0.06 };
+// Gewichte (Anteil der Stufe, auf der die Quest liegt, × 0,75). Abgestimmt mit test/pacing.mjs (Release-Runde):
+// Die Geschichte trägt den Großteil, Malgareth und die Heimkehr bringen fast eine ganze Stufe.
+// Kopfgelder und Jagdaufträge füllen die Lücken; Dungeonsuche und Glutprüfungen kommen im Spiel noch dazu.
+const W = { travel: 0.07, kill: 0.155, main: 0.18, elite: 0.215, boss: 0.3, side: 0.13, dungeonSide: 0.155, bounty: 0.096, lesson: 0.06, finale: 0.8, epilogue: 1, hunt: 0.06 };
 
 export const QUESTS_40 = {
   // ================================================================ Aschensteppe & Hügelgrab (20–25)
@@ -45,7 +46,7 @@ export const QUESTS_40 = {
     title: 'Das Lager des Fürsten', giver: 'captain_varra', main: true, level: 22, requires: ['q_steppe_banners'],
     summary: 'Dringe zu Khars Kriegslager vor und dünne seine Krieger aus.',
     offer: 'Khar weiß jetzt, dass es dich gibt. Er zieht seine Leute im Kriegslager zusammen. Bevor er zu uns kommt, gehen wir zu ihm. Schlag dich bis zum Lager durch und erschlag fünfzehn seiner Krieger.',
-    progressText: 'Das Kriegslager liegt im Norden der Steppe, hinter den Hügeln.',
+    progressText: 'Das Kriegslager liegt im Nordosten der Steppe, hinter den Hügeln.',
     completeText: 'Du hast Khars Zelt gesehen? Dann weißt du, wo er schläft. Das ändert alles.',
     objectives: [
       { id: 'camp', text: 'Khars Kriegslager erreicht', count: 1, kind: 'reach', target: ['warlord_camp'], zone: 'ashen_steppe' },
@@ -68,8 +69,8 @@ export const QUESTS_40 = {
   q_barrow_gate: {
     title: 'Das Heulen unter der Erde', giver: 'captain_varra', main: true, level: 24, requires: ['q_steppe_warlord'],
     summary: 'Öffne das Tor zum Heulenden Hügelgrab und stelle dich den Wiedergängern.',
-    offer: 'Seit Khar gefallen ist, heult das Hügelgrab jede Nacht. Die Nomaden sagen, der Hügelkönig sei erwacht. Geh zum Grabtor im Osten, steig hinab und erschlag die Toten, die sich dort sammeln.',
-    progressText: 'Das Grabtor liegt im Osten der Steppe. Hinter ihm wartet das Heulende Hügelgrab.',
+    offer: 'Seit Khar gefallen ist, heult das Hügelgrab jede Nacht. Die Nomaden sagen, der Hügelkönig sei erwacht. Geh zum Grabtor im Südosten, steig hinab und erschlag die Toten, die sich dort sammeln.',
+    progressText: 'Das Grabtor liegt im Südosten der Steppe. Hinter ihm wartet das Heulende Hügelgrab.',
     completeText: 'Du bist zurück und bleich wie die Toten. Aber du bist zurück. Das ist mehr, als die Nomaden von ihren Kundschaftern sagen können.',
     objectives: [
       { id: 'gate', text: 'Grabtor erreicht', count: 1, kind: 'reach', target: ['barrow_gate', 'zone:howling_barrow'], zone: 'ashen_steppe' },
@@ -82,7 +83,7 @@ export const QUESTS_40 = {
     summary: 'Besiege Ulgrim, den Hügelkönig, und bring Varra sein Grabsiegel.',
     offer: 'Ulgrim war vor tausend Jahren König der Steppe. Jemand hat ihn geweckt. Geh in die tiefste Kammer des Hügelgrabs, leg ihn zurück in sein Grab und bring mir sein Siegel. Ich muss wissen, wer ihn gerufen hat.',
     progressText: 'Ulgrim wartet in der Grabkammer am Ende des Hügelgrabs.',
-    completeText: 'Wieder die Flammenkrone. Varkhul, Khar, jetzt Ulgrim. Alle tragen dasselbe Zeichen. Die Spur führt nach Norden, durch die Faulmarsch. Dort hält Wächter Thane die Mirefeste.',
+    completeText: 'Wieder die Flammenkrone. Varkhul, Khar, jetzt Ulgrim. Alle tragen dasselbe Zeichen. Die Spur führt nach Osten, in die Faulmarsch. Dort hält Wächter Thane die Mirefeste.',
     objectives: [
       { id: 'boss', text: 'Ulgrim besiegt', count: 1, kind: 'boss', target: 'barrow_king', zone: 'howling_barrow' },
       { id: 'seal', text: 'Grabsiegel des Hügelkönigs', count: 1, kind: 'collect', target: 'barrow_seal', from: ['barrow_king'], zone: 'howling_barrow' },
@@ -92,8 +93,8 @@ export const QUESTS_40 = {
   q_into_the_marsh: {
     title: 'In die Faulmarsch', giver: 'captain_varra', turnInNpc: 'warden_thane', main: true, level: 25, requires: ['q_barrow_king'],
     summary: 'Reise in die Faulmarsch und melde dich bei Wächter Thane in der Mirefeste.',
-    offer: 'Thane ist ein sturer Hund, aber er hält die Mirefeste seit zwanzig Jahren. Wenn jemand weiß, was in der Marsch vor sich geht, dann er. Nimm den Weg nach Norden, am Marschrand entlang.',
-    progressText: 'Folge der Straße nach Norden bis zum Marschrand und weiter zur Mirefeste.',
+    offer: 'Thane ist ein sturer Hund, aber er hält die Mirefeste seit zwanzig Jahren. Wenn jemand weiß, was in der Marsch vor sich geht, dann er. Nimm den Weg nach Osten zum Marschrand.',
+    progressText: 'Folge der Straße nach Osten bis zum Marschrand und weiter zur Mirefeste.',
     completeText: 'Varra schickt mir einen Helden? Hier sterben Helden schneller als Mücken. Aber gut. Komm rein, bevor der Nebel dich frisst.',
     objectives: [{ id: 'travel', text: 'Mirefeste erreicht', count: 1, kind: 'reach', target: ['zone:blighted_marsh', 'mirefort'], zone: 'ashen_steppe' }],
     rewards: { xp: Q(25, W.travel), gold: 150, items: [{ itemId: 'superior_potion', qty: 3 }] },
@@ -215,8 +216,8 @@ export const QUESTS_40 = {
   q_spore_gate: {
     title: 'Der Sporenschlund', giver: 'warden_thane', main: true, level: 30, requires: ['q_bog_horror'],
     summary: 'Dringe in den Sporenschlund ein und vernichte die Pilzbrut.',
-    offer: 'Die Pilztürme wachsen aus einem Schlund im Norden. Dort sitzt Mutter Fäulnis, und dort wachsen ihre Kinder. Geh hinab und vernichte zwölf von ihrer Brut, bevor sie die ganze Marsch überwuchert.',
-    progressText: 'Der Eingang zum Sporenschlund liegt am Sporentor im Norden der Marsch.',
+    offer: 'Die Pilztürme wachsen aus einem Schlund im Nordosten. Dort sitzt Mutter Fäulnis, und dort wachsen ihre Kinder. Geh hinab und vernichte zwölf von ihrer Brut, bevor sie die ganze Marsch überwuchert.',
+    progressText: 'Der Eingang zum Sporenschlund liegt am Sporentor im Nordosten der Marsch.',
     completeText: 'Du riechst nach Pilzen. Wasch dich, bevor du das Lager betrittst. Und dann erzähl mir, was du da unten gesehen hast.',
     objectives: [
       { id: 'gate', text: 'Sporentor erreicht', count: 1, kind: 'reach', target: ['spore_gate', 'zone:spore_hollow'], zone: 'blighted_marsh' },
@@ -493,12 +494,12 @@ export const QUESTS_40 = {
     summary: 'Stürze Malgareth, den Aschenfürsten, und nimm ihm die Flammenkrone.',
     offer: 'Malgareth. Der Aschenfürst. Er hat Varkhul gerufen, Ignaroth geschickt, Khar gekrönt, Mutter Fäulnis gezüchtet und Skalvyr versklavt. Alles für seine Krone. Geh in die Thronhalle und nimm sie ihm. Dann ist es vorbei.',
     progressText: 'Malgareth erwartet dich in der Thronhalle.',
-    completeText: 'Die Flammenkrone … Sie ist kalt. Zum ersten Mal seit tausend Jahren. Du hast getan, was keiner vor dir geschafft hat. Emberfall ist frei. Und die Asche hört auf zu fallen.',
+    completeText: 'Die Flammenkrone … Sie ist kalt. Zum ersten Mal seit tausend Jahren. Du hast getan, was keiner vor dir geschafft hat. Das Land ist frei. Und die Asche hört auf zu fallen. Bring die Krone zu Hale. Er hat diesen Weg mit dir begonnen.',
     objectives: [
       { id: 'boss', text: 'Malgareth gestürzt', count: 1, kind: 'boss', target: 'ash_sovereign', zone: 'ashen_throne' },
       { id: 'crown', text: 'Flammenkrone', count: 1, kind: 'collect', target: 'sovereign_crown', from: ['ash_sovereign'], zone: 'ashen_throne' },
     ],
-    rewards: { xp: Q(40, W.boss), gold: 1500, gear: [{ ilvl: 40, rarity: 'epic', slot: 'weapon' }] },
+    rewards: { xp: Q(40, W.finale), gold: 1500, gear: [{ ilvl: 40, rarity: 'epic', slot: 'weapon' }] },
   },
 
   // --- Aldo (Nebenquests)
@@ -548,6 +549,143 @@ export const QUESTS_40 = {
     rewards: { xp: Q(39, W.dungeonSide), gold: 360, gear: [{ ilvl: 40, rarity: 'rare', slot: 'ring' }] },
   },
 
+  // ================================================================ Nachspiel
+  q_homecoming: {
+    title: 'Heimkehr', giver: 'marshal_corvane', turnInNpc: 'commander_hale', main: true, level: 40, requires: ['q_ash_sovereign'],
+    summary: 'Bring die Nachricht vom Fall des Aschenfürsten zu Kommandant Hale in die Rauhwacht.',
+    offer: 'Hale hat dich losgeschickt, also soll er es von dir hören, nicht von einem Boten. Nimm den langen Weg zurück: durch die Zinnen, die Marsch, die Steppe. Sieh dir an, was du verändert hast. Dann sag ihm, dass es vorbei ist.',
+    progressText: 'Der Weg zurück zur Rauhwacht führt durch alle Lande, die du befreit hast.',
+    completeText: 'Du lebst. Und Malgareth nicht. Ich habe dich in die Steppe geschickt, weil ich niemanden sonst hatte. Heute weiß ich, dass ich keinen Besseren hätte schicken können. Ruh dich aus. Hinter dem Thron gibt es noch Länder, die keiner von uns kennt. Irgendwann wirst du sie sehen.',
+    objectives: [{ id: 'travel', text: 'Rauhwacht erreicht', count: 1, kind: 'reach', target: ['zone:cinder_peaks', 'rookwatch'], zone: 'ember_wastes' }],
+    rewards: { xp: Q(39, W.epilogue), gold: 2500, items: [{ itemId: 'supreme_potion', qty: 5 }] },
+  },
+
+  // ================================================================ Weitere Nebenquests (Lücken zwischen den Hauptquests)
+  // --- Aschensteppe
+  q_vulture_cull: {
+    title: 'Aasfresser über der Straße', giver: 'trader_imra', level: 22, requires: ['q_new_horizons'],
+    summary: 'Vertreibe die Aschegeier, die Imras Karawanen bis zum Außenposten folgen.',
+    offer: 'Die Geier folgen jeder Karawane. Sie warten, bis ein Zugtier stolpert, und dann warten sie nicht mehr. Meine Treiber haben Angst vor dem Himmel. Hol zwölf von ihnen herunter.',
+    progressText: 'Die Aschegeier kreisen über der Straße zum Außenposten.',
+    completeText: 'Der Himmel ist leer. Meine Treiber schauen wieder nach vorn statt nach oben. Das spart mir Zugtiere und dir eine Menge Ärger mit mir.',
+    objectives: [{ id: 'vultures', text: 'Aschegeier erlegt', count: 12, kind: 'kill', target: 'ash_vulture', zone: 'ashen_steppe' }],
+    rewards: { xp: Q(22, W.side), gold: 130, items: [{ itemId: 'superior_potion', qty: 3 }] },
+  },
+  q_imra_cargo: {
+    title: 'Gestohlene Ballen', giver: 'trader_imra', level: 23, requires: ['q_vulture_cull'],
+    summary: 'Hol Imras Gewürzballen von den Plünderern zurück.',
+    offer: 'Letzte Woche haben die Plünderer eine ganze Ladung Gewürze geraubt. Gewürze! Was will ein Plünderer mit Safran? Sie tragen die Ballen noch mit sich herum, weil sie keiner kaufen will. Bring mir sechs zurück.',
+    progressText: 'Die Steppenplünderer schleppen Imras Gewürzballen mit sich.',
+    completeText: 'Riechst du das? Safran, Zimt, Glutpfeffer. Damit bezahle ich einen Monat Miete am Außenposten. Hier, dein Anteil, und sag keinem, wie viel er ist.',
+    objectives: [{ id: 'bales', text: 'Gewürzballen zurückgeholt', count: 6, kind: 'collect', target: 'spice_bale', from: ['steppe_raider'], zone: 'ashen_steppe' }],
+    rewards: { xp: Q(23, W.side), gold: 220, gear: [{ ilvl: 24, rarity: 'uncommon', slot: 'amulet' }] },
+  },
+  q_scattered_riders: {
+    title: 'Versprengte Reiter', giver: 'captain_varra', level: 24, requires: ['q_steppe_warlord'],
+    summary: 'Treib die Reiter auseinander, die sich nach Khars Fall neu sammeln.',
+    offer: 'Khar ist tot, aber seine Reiter sind es nicht. Sie sammeln sich in kleinen Gruppen und suchen einen neuen Anführer. Lass sie keinen finden. Fünfzehn weniger, und die Stämme wissen, wohin der Wind weht.',
+    progressText: 'Die versprengten Reiter lagern verstreut in der Steppe.',
+    completeText: 'Die letzten sind nach Süden geflohen. Ohne Horn, ohne Banner, ohne Fürst. Die Steppe gehört wieder den Nomaden.',
+    objectives: [{ id: 'riders', text: 'Versprengte Reiter besiegt', count: 15, kind: 'kill', target: ['steppe_raider', 'raider_archer'], zone: 'ashen_steppe' }],
+    rewards: { xp: Q(24, W.side), gold: 200, gear: [{ ilvl: 25, rarity: 'uncommon', slot: 'feet' }] },
+  },
+
+  // --- Faulmarsch
+  q_moll_crates: {
+    title: 'Kisten im Schlamm', giver: 'trader_moll', level: 26, requires: ['q_into_the_marsh'],
+    summary: 'Hol Molls Warenkisten zurück, die die Moorlauerer in den Schlamm gezogen haben.',
+    offer: 'Mein Boot ist gekentert. Nicht meine Schuld, ein Lauerer hat dran gezogen. Jetzt liegen meine Kisten im Schlamm, und die Lauerer schleppen sie in ihre Nester, weil sie glänzen. Bring mir sechs zurück, bevor sie verrotten.',
+    progressText: 'Die Moorlauerer horten Molls Kisten in ihren Nestern am Ufer.',
+    completeText: 'Nass, verbeult, aber voll. Meine Tränke haben überlebt. Das ist mehr, als ich von meinem Boot sagen kann.',
+    objectives: [{ id: 'crates', text: 'Warenkisten geborgen', count: 6, kind: 'collect', target: 'moll_crate', from: ['bog_lurker'], zone: 'blighted_marsh' }],
+    rewards: { xp: Q(26, W.side), gold: 230, items: [{ itemId: 'superior_potion', qty: 4 }] },
+  },
+  q_toad_wall: {
+    title: 'Kröten an der Mauer', giver: 'warden_thane', level: 27, requires: ['q_marsh_totems'],
+    summary: 'Erlege die Seuchenkröten, die sich an der Mauer der Mirefeste sammeln.',
+    offer: 'Seit die Totems brennen, kriechen die Seuchenkröten aus dem Nebel an meine Mauer. Ihr Gift frisst den Mörtel. Ich habe Wachen, aber keine, die eine Kröte anfassen wollen. Erschlag zwölf.',
+    progressText: 'Die Seuchenkröten hocken im Schilf rund um die Mirefeste.',
+    completeText: 'Die Mauer steht, und meine Wachen haben aufgehört, sich zu kratzen. Wasch dir die Hände, bevor du hier etwas anfasst.',
+    objectives: [{ id: 'toads', text: 'Seuchenkröten erlegt', count: 12, kind: 'kill', target: 'plague_toad', zone: 'blighted_marsh' }],
+    rewards: { xp: Q(27, W.side), gold: 240, gear: [{ ilvl: 28, rarity: 'uncommon', slot: 'hands' }] },
+  },
+  q_black_market: {
+    title: 'Faule Geschäfte', giver: 'trader_moll', level: 28, requires: ['q_moll_crates', 'q_marsh_shamans'],
+    summary: 'Die Faulschamanen überfallen Händler auf den Stegen. Mach dem ein Ende.',
+    offer: 'Die Schamanen lassen sich ihre Götzen bezahlen. Von Händlern. Mit Händlern, wenn du verstehst. Zwei meiner Kollegen sind auf den Stegen verschwunden. Erschlag acht Schamanen, dann wird das Geschäft wieder sicher.',
+    progressText: 'Die Faulschamanen lauern an den Stegen zum versunkenen Dorf.',
+    completeText: 'Auf den Stegen ist es ruhig. Ich habe drei Händler gesehen, die heute lebend angekommen sind. Ein Rekord. Nimm das, du hast es verdient.',
+    objectives: [{ id: 'shamans', text: 'Faulschamanen besiegt', count: 8, kind: 'kill', target: 'rot_shaman', zone: 'blighted_marsh' }],
+    rewards: { xp: Q(28, W.side), gold: 260, gear: [{ ilvl: 29, rarity: 'rare', slot: 'amulet' }] },
+  },
+  q_deep_mist: {
+    title: 'Tiefer in den Nebel', giver: 'warden_thane', level: 29, requires: ['q_sunken_village'],
+    summary: 'Halte die Stege zum Sporenschlund frei, damit Thanes Späher durchkommen.',
+    offer: 'Meine Späher müssen bis zum Sporenschlund, aber auf den Stegen wimmelt es von Getier. Lauerer, Egel, Kröten, alles, was beißt. Mach zwanzig davon unschädlich. Dann schicke ich meine Leute los.',
+    progressText: 'Die Stege zum Sporenschlund führen durch den tiefsten Nebel der Marsch.',
+    completeText: 'Meine Späher sind durch. Sie sagen, aus dem Schlund steigt ein Leuchten, das nicht von dieser Welt ist. Ich glaube ihnen. Leider.',
+    objectives: [{ id: 'beasts', text: 'Kreaturen auf den Stegen besiegt', count: 20, kind: 'kill', target: ['bog_lurker', 'swamp_leech', 'plague_toad'], zone: 'blighted_marsh' }],
+    rewards: { xp: Q(29, W.side), gold: 280, gear: [{ ilvl: 30, rarity: 'uncommon', slot: 'head' }] },
+  },
+
+  // --- Frostzinnen
+  q_fenn_claws: {
+    title: 'Krallen für den Handel', giver: 'trader_fenn', level: 31, requires: ['q_frost_pass'],
+    summary: 'Bring Fenn Pirscherkrallen. In den Städten des Südens zahlt man gut dafür.',
+    offer: 'Weißt du, was eine Schneepirscherkralle im Süden kostet? Ich auch nicht genau, aber viel. Die Reichen hängen sie sich um den Hals. Bring mir sechs, dann teilen wir den Gewinn. Ehrlich.',
+    progressText: 'Die Schneepirscher jagen an den Hängen oberhalb von Frosthold.',
+    completeText: 'Schöne Krallen. Scharf, weiß, unversehrt. Die Reichen werden sich darum prügeln. Hier ist dein Anteil, und der ist wirklich ehrlich. Fast.',
+    objectives: [{ id: 'claws', text: 'Pirscherkrallen gesammelt', count: 6, kind: 'collect', target: 'stalker_claw', from: ['snow_stalker'], zone: 'frostspire' }],
+    rewards: { xp: Q(31, W.side), gold: 300, items: [{ itemId: 'supreme_potion', qty: 3 }] },
+  },
+  q_witch_charms: {
+    title: 'Hexenzeichen', giver: 'trader_fenn', level: 32, requires: ['q_fenn_claws'],
+    summary: 'Nimm den Reifhexen ihre Frostzeichen ab, bevor sie Frosthold verfluchen.',
+    offer: 'Die Reifhexen hängen Zeichen an die Bäume rund um Frosthold. Wer darunter durchgeht, friert von innen. Ich verkaufe warme Sachen, aber dagegen hilft keine Wolle. Bring mir fünf ihrer Zeichen, ich werfe sie in die Esse.',
+    progressText: 'Die Reifhexen tragen ihre Zeichen bei sich, an Schnüren aus Eis.',
+    completeText: 'Sie schmelzen nicht einmal im Feuer. Ich werfe sie in die Schlucht. Soll sich das Eis darum kümmern.',
+    objectives: [{ id: 'charms', text: 'Frostzeichen erbeutet', count: 5, kind: 'collect', target: 'witch_charm', from: ['rime_witch'], zone: 'frostspire' }],
+    rewards: { xp: Q(32, W.side), gold: 320, gear: [{ ilvl: 33, rarity: 'rare', slot: 'ring' }] },
+  },
+  q_white_hunt: {
+    title: 'Die weiße Jagd', giver: 'hunter_sigrun', level: 33, requires: ['q_snow_stalkers'],
+    summary: 'Geh mit Sigrun auf die große Winterjagd: Frostwölfe und Schneepirscher.',
+    offer: 'Einmal im Jahr jagen die Frostholder, bis der Schnee rot ist. Dieses Jahr war keiner da, der jagen konnte. Du bist da. Fünfzehn Wölfe oder Pirscher, dann hat Frosthold Fleisch für den Winter.',
+    progressText: 'Wölfe und Pirscher streifen über die Hänge der Frostzinnen.',
+    completeText: 'Fleisch für den ganzen Winter. Heute Abend wird in der Halle gesungen, und dein Name kommt in der dritten Strophe vor. Die erste und zweite gehören den Toten.',
+    objectives: [{ id: 'hunt', text: 'Wölfe und Pirscher erlegt', count: 15, kind: 'kill', target: ['frost_wolf', 'snow_stalker'], zone: 'frostspire' }],
+    rewards: { xp: Q(33, W.side), gold: 330, gear: [{ ilvl: 34, rarity: 'uncommon', slot: 'chest' }] },
+  },
+
+  // --- Glutöde
+  q_bastion_supplies: {
+    title: 'Nachschub für die Bastion', giver: 'quartermaster_ryn', level: 37, requires: ['q_the_wastes'],
+    summary: 'Die Aschegeister haben Ryns Nachschub zerstreut. Sammle die Vorräte wieder ein.',
+    offer: 'Der letzte Nachschubzug kam nie an. Die Aschegeister haben ihn auf der Straße zerrissen und tragen die Reste mit sich herum, als wüssten sie noch, wofür sie gut sind. Bring mir sechs Vorratsbündel zurück.',
+    progressText: 'Die Aschegeister schweben über der Straße zur Bastion.',
+    completeText: 'Brot, Verbände, Pfeilspitzen. Nichts davon ist mehr warm, aber alles ist da. Die Bastion hält eine Woche länger. Das ist hier eine Ewigkeit.',
+    objectives: [{ id: 'supplies', text: 'Vorratsbündel geborgen', count: 6, kind: 'collect', target: 'bastion_supplies', from: ['ash_wraith'], zone: 'ember_wastes' }],
+    rewards: { xp: Q(37, W.side), gold: 380, items: [{ itemId: 'supreme_potion', qty: 4 }] },
+  },
+  q_serpent_pits: {
+    title: 'Die Schlangengruben', giver: 'quartermaster_ryn', level: 37, requires: ['q_bastion_supplies'],
+    summary: 'Erlege die Magmaschlangen, die die Wasserstellen der Bastion vergiften.',
+    offer: 'Die Magmaschlangen nisten in den Gruben, aus denen wir unser Wasser holen. Das Wasser kocht, wenn sie darin schwimmen. Erschlag zehn, dann trinken wir wieder etwas anderes als Asche.',
+    progressText: 'Die Magmaschlangen nisten in den Gruben vor der Bastion.',
+    completeText: 'Das Wasser ist trüb, aber kalt. Kalt! Ich hatte vergessen, wie sich das anfühlt.',
+    objectives: [{ id: 'serpents', text: 'Magmaschlangen erlegt', count: 10, kind: 'kill', target: 'magma_serpent', zone: 'ember_wastes' }],
+    rewards: { xp: Q(37, W.side), gold: 400, gear: [{ ilvl: 38, rarity: 'uncommon', slot: 'feet' }] },
+  },
+  q_adept_hunt: {
+    title: 'Die Adepten der Krone', giver: 'marshal_corvane', level: 38, requires: ['q_wastes_obelisks'],
+    summary: 'Erschlag die Glutadepten, die neue Obelisken entzünden wollen.',
+    offer: 'Die Obelisken sind aus, aber die Adepten haben es noch nicht begriffen. Sie schleichen nachts hinaus und versuchen, sie wieder zu entzünden. Ich will, dass keiner von ihnen zurückkommt. Zehn genügen, um es den anderen klarzumachen.',
+    progressText: 'Die Glutadepten sammeln sich bei den erloschenen Obelisken.',
+    completeText: 'Die Obelisken bleiben kalt. Meine Wachen haben in der letzten Nacht nicht einen einzigen Funken gesehen. Gut gemacht.',
+    objectives: [{ id: 'adepts', text: 'Glutadepten besiegt', count: 10, kind: 'kill', target: 'ember_cultist_adept', zone: 'ember_wastes' }],
+    rewards: { xp: Q(38, W.side), gold: 420, gear: [{ ilvl: 39, rarity: 'rare', slot: 'amulet' }] },
+  },
+
   // ================================================================ Kopfgelder (wiederholbar)
   q_bounty_steppe: {
     title: 'Kopfgeld: Aschensteppe', giver: 'trader_imra', repeatable: true, level: 22, requires: ['q_new_horizons'],
@@ -585,6 +723,43 @@ export const QUESTS_40 = {
     objectives: [{ id: 'kills', text: 'Feinde in der Glutöde besiegt', count: 20, kind: 'kill', target: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept'], zone: 'ember_wastes' }],
     rewards: { xp: Q(38, W.bounty), gold: 270, items: [{ itemId: 'supreme_potion', qty: 2 }] },
   },
+  // Kleinere Jagdaufträge je Region (wiederholbar, andere Ziele als das Kopfgeld)
+  q_hunt_steppe: {
+    title: 'Jagdrecht der Nomaden', giver: 'nomad_kesh', repeatable: true, level: 23, requires: ['q_steppe_hyenas'],
+    summary: 'Kesh teilt sein Jagdrecht mit dir: Hyänen und Geier.',
+    offer: 'Die Steppe gibt, und die Steppe nimmt. Die Hyänen und Geier nehmen gerade mehr, als sie sollten. Zwölf weniger, und ich teile, was mein Stamm entbehren kann. Komm wieder, wann du willst.',
+    progressText: 'Hyänen und Aschegeier in der offenen Steppe.',
+    completeText: 'Gute Jagd. Der Wind ist auf deiner Seite.',
+    objectives: [{ id: 'hunt', text: 'Hyänen und Geier erlegt', count: 12, kind: 'kill', target: ['dust_hyena', 'ash_vulture'], zone: 'ashen_steppe' }],
+    rewards: { xp: Q(23, W.hunt), gold: 100, items: [{ itemId: 'steppe_jerky', qty: 3 }] },
+  },
+  q_hunt_marsh: {
+    title: 'Frische Zutaten', giver: 'alchemist_brisa', repeatable: true, level: 28, requires: ['q_marsh_leeches'],
+    summary: 'Brisa braucht ständig frische Egel und Kröten.',
+    offer: 'Meine Tränke werden nicht von allein. Zwölf Egel oder Kröten, frisch erlegt, und ich zahle in Gold und Glas. Und ja, du darfst jederzeit wiederkommen. Bitte komm wieder.',
+    progressText: 'Sumpfegel und Seuchenkröten in der Faulmarsch.',
+    completeText: 'Frisch und eklig. Genau so, wie ich sie mag.',
+    objectives: [{ id: 'hunt', text: 'Egel und Kröten erlegt', count: 12, kind: 'kill', target: ['swamp_leech', 'plague_toad'], zone: 'blighted_marsh' }],
+    rewards: { xp: Q(28, W.hunt), gold: 150, items: [{ itemId: 'superior_potion', qty: 2 }] },
+  },
+  q_hunt_frost: {
+    title: 'Winterjagd', giver: 'hunter_sigrun', repeatable: true, level: 33, requires: ['q_frost_pelts'],
+    summary: 'Sigrun jagt jeden Tag. Jag mit.',
+    offer: 'Frosthold isst, was die Jäger bringen. Zwölf Wölfe oder Pirscher, dann isst Frosthold heute. Morgen fragen wir wieder.',
+    progressText: 'Frostwölfe und Schneepirscher an den Hängen.',
+    completeText: 'Frosthold isst heute. Danke, Jägerin. Oder Jäger. Im Schnee sehen wir alle gleich aus.',
+    objectives: [{ id: 'hunt', text: 'Wölfe und Pirscher erlegt', count: 12, kind: 'kill', target: ['frost_wolf', 'snow_stalker'], zone: 'frostspire' }],
+    rewards: { xp: Q(33, W.hunt), gold: 170, items: [{ itemId: 'supreme_potion', qty: 1 }] },
+  },
+  q_hunt_wastes: {
+    title: 'Die Pilgerstraße', giver: 'pilgrim_aldo', repeatable: true, level: 38, requires: ['q_magma_serpents'],
+    summary: 'Halte die Pilgerstraße frei von Geistern und Schlangen.',
+    offer: 'Es kommen wieder Pilger. Nicht viele, aber sie kommen. Und die Straße ist voller Aschegeister und Schlangen. Zwölf weniger, und ein paar mehr kommen an. Ich bete für dich, jedes Mal.',
+    progressText: 'Aschegeister und Magmaschlangen entlang der Pilgerstraße.',
+    completeText: 'Die Straße ist frei, für heute. Morgen kommen neue. Und neue Pilger.',
+    objectives: [{ id: 'hunt', text: 'Geister und Schlangen besiegt', count: 12, kind: 'kill', target: ['ash_wraith', 'magma_serpent'], zone: 'ember_wastes' }],
+    rewards: { xp: Q(38, W.hunt), gold: 190, items: [{ itemId: 'supreme_potion', qty: 1 }] },
+  },
 };
 
 // Gesprächszeilen der neuen NPCs (Namen legt Thread B als content 'npc' an; hier Rückfall)
@@ -619,6 +794,7 @@ export const NPC_LINES_40 = {
     lines: [
       [null, 'Alles, was du brauchst, für einen Preis, den du nicht magst. So ist die Steppe.'],
       ['q_steppe_warlord', 'Ohne Khar kommen die Karawanen wieder durch. Heute gibt es bei mir Rabatt. Einen ganz kleinen.'],
+      ['q_imra_cargo', 'Seit die Gewürze zurück sind, riecht der ganze Außenposten nach Glutpfeffer. Die Wachen niesen, aber sie beschweren sich nicht.'],
     ],
   },
   warden_thane: {
@@ -640,7 +816,10 @@ export const NPC_LINES_40 = {
   },
   trader_moll: {
     name: 'Moll, der Händler', idle: 'Tränke, Verbände, Stiefel ohne Löcher. Was darf es sein?',
-    lines: [[null, 'Tränke, Verbände, Stiefel ohne Löcher. Was darf es sein? Hier in der Marsch ist alles teuer, besonders das Überleben.']],
+    lines: [
+      [null, 'Tränke, Verbände, Stiefel ohne Löcher. Was darf es sein? Hier in der Marsch ist alles teuer, besonders das Überleben.'],
+      ['q_black_market', 'Die Stege sind sicher, und die Händler kommen zurück. Schlecht für meine Preise, gut für meine Nerven.'],
+    ],
   },
   jarl_eskil: {
     name: 'Jarl Eskil', idle: 'Frosthold steht, solange einer von uns noch eine Axt heben kann.', bank: true,
@@ -660,7 +839,10 @@ export const NPC_LINES_40 = {
   },
   trader_fenn: {
     name: 'Fenn, der Händler', idle: 'Warme Sachen und heiße Tränke. Mehr braucht man hier oben nicht.',
-    lines: [[null, 'Warme Sachen und heiße Tränke. Mehr braucht man hier oben nicht. Außer Mut. Den verkaufe ich nicht.']],
+    lines: [
+      [null, 'Warme Sachen und heiße Tränke. Mehr braucht man hier oben nicht. Außer Mut. Den verkaufe ich nicht.'],
+      ['q_witch_charms', 'Unter den Bäumen friert keiner mehr von innen. Nur noch von außen. Dagegen habe ich Mäntel.'],
+    ],
   },
   marshal_corvane: {
     name: 'Marschall Corvane', idle: 'Die Bastion steht. Frag mich nicht, wie lange noch.', bank: true,
@@ -680,15 +862,19 @@ export const NPC_LINES_40 = {
   },
   quartermaster_ryn: {
     name: 'Quartiermeister Ryn', idle: 'Was die Bastion hat, hast du. Gegen Gold natürlich.',
-    lines: [[null, 'Was die Bastion hat, hast du. Gegen Gold natürlich. Gold hält die Mauern nicht, aber es hält die Leute auf den Mauern.']],
+    lines: [
+      [null, 'Was die Bastion hat, hast du. Gegen Gold natürlich. Gold hält die Mauern nicht, aber es hält die Leute auf den Mauern.'],
+      ['q_serpent_pits', 'Kaltes Wasser in der Glutöde. Wenn du mich fragst, ist das das größere Wunder als der tote Koloss.'],
+    ],
   },
 };
 
-// Händler ab Stufe 20 (Ausrüstung nur gewöhnlich/ungewöhnlich; Orla verkauft Reittiere, gear: false)
+// Händler ab Stufe 20 (Ausrüstung nur gewöhnlich/ungewöhnlich; Orla verkauft Reittiere, gear: false).
+// craft: Schmiede und Verstärken auch unterwegs, damit niemand für die Esse zurück nach Brom oder Dunn muss.
 export const VENDORS_40 = {
-  trader_imra: { name: 'Imras Karawane', levels: [20, 26], goods: ['superior_potion', 'greater_mana', 'steppe_jerky'] },
+  trader_imra: { name: 'Imras Karawane', levels: [20, 26], goods: ['superior_potion', 'greater_mana', 'steppe_jerky'], craft: true },
   stablemaster_orla: { name: 'Orlas Stall', gear: false, goods: ['mount_steppe_horse', 'mount_ash_wolf', 'mount_ember_charger'] },
-  trader_moll: { name: 'Molls Vorräte', levels: [26, 32], goods: ['superior_potion', 'greater_mana', 'steppe_jerky'] },
-  trader_fenn: { name: 'Fenns Laden', levels: [32, 37], goods: ['supreme_potion', 'supreme_mana', 'steppe_jerky'] },
+  trader_moll: { name: 'Molls Vorräte', levels: [26, 32], goods: ['superior_potion', 'greater_mana', 'steppe_jerky'], craft: true },
+  trader_fenn: { name: 'Fenns Laden', levels: [32, 37], goods: ['supreme_potion', 'supreme_mana', 'steppe_jerky'], craft: true },
   quartermaster_ryn: { name: 'Ryns Vorräte', levels: [37, 40], goods: ['supreme_potion', 'supreme_mana', 'steppe_jerky'], craft: true },
 };

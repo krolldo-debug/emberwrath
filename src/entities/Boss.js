@@ -113,7 +113,10 @@ export class Boss extends Actor {
 
       case 'cleaveWindup':
         this.vx *= 0.8; this.vy *= 0.8;
-        if (this.stateTime < 0.45) this.aim += angleDiff(this.aim, Math.atan2(dy, dx)) * Math.min(1, dt * 6);
+        if (this.stateTime < 0.45) {
+          this.aim += angleDiff(this.aim, Math.atan2(dy, dx)) * Math.min(1, dt * 6);
+          if (this.tele && !this.tele.removed) this.tele.angle = this.aim; // Warnbogen folgt dem Nachzielen
+        }
         if (this.stateTime >= this.windup) this.#cleave(world);
         break;
 
@@ -134,7 +137,7 @@ export class Boss extends Actor {
         if (this.stateTime >= this.windup) {
           this.setState('charge');
           this.animator.play('charge', true);
-          world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: true, offX: 0, offY: -12, x: this.x, y: this.y, r: 16, damage: 24, knockback: 260, heavy: true, ttl: 1.0 });
+          world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: true, offX: 0, offY: -12, x: this.x, y: this.y, r: 14, damage: 24, knockback: 260, heavy: true, ttl: 1.0 });
           world.bus.emit('bossCharge', { actor: this });
         }
         break;
@@ -208,12 +211,12 @@ export class Boss extends Actor {
     if (this.phase >= 3 && this.chargeTimer <= 0 && dist > 60) {
       this.chargeTimer = rand(7, 10);
       const len = this.#rayLength(world, ang);
-      world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: ang, len, width: 28, duration: 0.95 }));
+      world.spawn(new Telegraph(this.x, this.y, { shape: 'line', screen: true, angle: ang, len, width: 32, duration: 0.95 }));
       return this.#begin(world, 'chargeWindup', 'chargeWindup', 0.95);
     }
     if (dist < 50) {
       if (Math.random() < 0.6) {
-        world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 50, angle: ang, arc: 2.6, duration: this.enraged ? 0.6 : 0.8, follow: this }));
+        this.tele = world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 50, angle: ang, arc: 2.6, duration: this.enraged ? 0.6 : 0.8, follow: this }));
         return this.#begin(world, 'cleaveWindup', 'cleaveWindup', this.enraged ? 0.6 : 0.8);
       }
       return this.#beginSlam(world);
@@ -237,10 +240,13 @@ export class Boss extends Actor {
     this.castOpts = opts;
     if (opts.spears || opts.summon) world.bus.emit('cast', { actor: this, element: 'shadow' });
     if (opts.spears) {
+      // Warnlinien genau auf der Bahn der Speere (Startpunkt wie #release; der Speer trifft
+      // ~5 px unter seiner Bodenspur, weil er gegen die Körpermitte des Helden prüft)
       const n = this.phase >= 2 ? 7 : 5, spread = 0.9;
+      const hx = this.x + this.facing * 6, hy = this.y - 2;
       for (let i = 0; i < n; i++) {
         const a = this.aim - spread / 2 + (spread * i) / (n - 1);
-        world.spawn(new Telegraph(this.x, this.y - 2, { shape: 'line', angle: a, len: 150, width: 5, duration: windup, color: [190, 120, 255] }));
+        world.spawn(new Telegraph(hx + Math.cos(a) * 12, hy + Math.sin(a) * 8 + 5, { shape: 'line', screen: true, angle: a, len: 150, width: 8, duration: windup, color: [190, 120, 255] }));
       }
     }
     world.bus.emit('telegraph', { actor: this, attack: state });
@@ -249,7 +255,7 @@ export class Boss extends Actor {
   #cleave(world) {
     this.setState('strike'); this.recover = this.enraged ? 0.45 : 0.7;
     this.animator.play('cleave', true);
-    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 52, angle: this.aim, arc: 2.6, damage: 20, knockback: 240, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 50, angle: this.aim, arc: 2.6, damage: 20, knockback: 240, heavy: true, ttl: 0.14 });
     this.kbx += Math.cos(this.aim) * 90; this.kby += Math.sin(this.aim) * 90;
     for (let i = 0; i < 7; i++) {
       const a = this.aim - 1.2 + i * 0.4;
@@ -264,7 +270,7 @@ export class Boss extends Actor {
     this.setState('strike'); this.recover = this.enraged ? 0.55 : 0.85;
     this.animator.play('slam', true);
     const { x, y } = this.impact;
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 4, r: 44, damage: 18, knockback: 220, heavy: true, ttl: 0.12 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 4, lift: 4, r: 44, damage: 18, knockback: 220, heavy: true, ttl: 0.12 });
     world.particles.dust(x, y, 20, '#4d4459');
     world.particles.bones(x, y, 4, -Math.PI / 2, 8, ['#80755c', '#bcae8e', '#e6dcc0']);
     world.particles.ring(x, y, 8, 24, ['#e0b8ff', '#a060f0', '#6a2cb0'], 110);

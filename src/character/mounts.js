@@ -42,7 +42,7 @@ export const MOUNTS = {
     'Selten vom Frostwurm in den Reifhöhlen', 'Ein weißer Elch mit Geweih aus klarem Eis. Wo er tritt, knirscht Reif.'),
   ember_charger: M('Glutross', 'epic', 'horse',
     { coat: 'coal', mane: 'fire', tack: 'gold', eyes: 'fire' },
-    'Stallmeisterin Orla, ab Stufe 40', 'Ein schwarzes Schlachtross mit brennender Mähne, der Stolz der Stallmeisterin.'),
+    'Stallmeisterin Orla, ab Stufe 40, nach Malgareths Fall', 'Ein schwarzes Schlachtross mit brennender Mähne, der Stolz der Stallmeisterin.'),
   cinder_drake: M('Schlackendrache', 'legendary', 'drake',
     { coat: 'cinder', mane: 'fire', tack: 'gold', eyes: 'fire', glow: 'fire' },
     'Äußerst selten vom Aschenfürsten im Aschethron', 'Ein junger Drache aus erkalteter Schlacke. In seinen Rissen glüht noch das Feuer des Throns.'),

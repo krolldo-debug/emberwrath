@@ -5,6 +5,8 @@ import { RK } from './foes_rime.js';
 
 // Gegner des Aschethrons (Obsidianpalast, Stufe 38–40): Thronwache,
 // Aschepriester, Glut-Höllenhund und der Wächter des Throns (Elite).
+// Unterscheidung: Thronwache = kleiner Hellebardier mit Turmschild, Schaller-Helm, roter Rosshaarbusch;
+// Wächter = Koloss mit Zweihänder (beidhändig), gehörntem Großhelm und Flammenbanner auf dem Rücken.
 //
 // Gleicher Ansatz wie foes_rime.js / foes_cinder.js: Rigs mit Schlüsselposen,
 // weich interpoliert; Obsidian + Gold, Glut auf der Leucht-Ebene (frame.glow),
@@ -42,7 +44,7 @@ const TG_REST = {
   hFx: 5, hFy: 6, hBx: 5, hBy: 4, ha: -1.35, grip: 8, shT: 0, cape: 0.1, capeT: 0, eye: 1, kneel: 0,
 };
 const tgp = (o) => ({ ...TG_REST, ...o });
-const HAL_L = 30;
+const HAL_L = 36; // lange Hellebarde: überragt die Wache deutlich (Silhouette des Hellebardiers)
 
 // Hellebarde: Hand bei (hx,hy), Achse a, grip = Abstand Hand–Schaftende.
 function halberd(p, g, hx, hy, a, grip, heat) {
@@ -181,19 +183,26 @@ function drawThroneGuard(p, g, P, ex) {
   occlude(null);
 
 
-  // --- 7. Helm: hoher Obsidianhelm, T-Visier mit Glut, goldener Fächerkamm
+  // --- 7. Helm: spitzer Schaller-Helm (Obsidian), T-Visier mit Glut, karminroter Rosshaarbusch
+  // (bewusst anders als der gehörnte Großhelm des Wächters und die Glutkrone des Fürsten)
   const neck = pt(GD.spine + 2, 0.8);
   const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 4 + P.headY);
-  // Kamm (hinter dem Helm)
-  // Kamm: goldener Sichelkamm über den Helm (von der Stirn bis in den Nacken)
-  for (let i = 0; i <= 14; i++) {
-    const a = -2.95 + i * 0.12, r0 = 3.5, r1 = 7.5 + Math.sin(i / 14 * Math.PI) * 1.5 - (i > 11 ? (i - 11) * 0.8 : 0);
-    for (let r = r0; r <= r1; r += 0.5) {
-      const x = hx - 0.5 + Math.cos(a) * r, y = hy - 1 + Math.sin(a) * r;
-      p.px(x, y, r > r1 - 0.8 ? GOLD[5] : i % 3 === 0 ? GOLD[1] : r > r1 - 2 ? GOLD[4] : GOLD[3]);
+  // Rosshaarbusch: steigt aus der Helmspitze und fällt nach hinten über den Nacken
+  const PLUME = ['#ff7a5a', '#e0483a', '#b02c26', '#861c20', '#5e1218'];
+  for (let i = 0; i < 8; i++) {
+    const L = 11 + i * 0.7;
+    for (let j = 0; j < L; j++) {
+      const v = j / L;
+      const x = hx + 1 - i * 0.3 - v * (6 + P.cape * 3) + Math.sin(P.capeT + v * 3 + i) * 0.6 * v;
+      const y = hy - 8 + i * 0.3 - Math.sin(v * Math.PI) * 3.5 + v * 8;
+      p.px(x, y, j === 0 ? GOLD[4] : PLUME[Math.min(4, (i >> 1) + (v > 0.75 ? 1 : 0))]);
     }
   }
   ell(p, hx, hy, 3.8, 4.4, OBS, { bias: 0.1 });
+  // Helmspitze (Schaller) und Nackenschirm
+  poly(p, [[hx - 2.5, hy - 3], [hx + 0.5, hy - 7.5], [hx + 2.5, hy - 3]], OBS[4]);
+  p.line(hx - 2, hy - 3.5, hx + 0.5, hy - 7.5, OBS[6]); p.px(hx + 0.5, hy - 8, GOLD[5]);
+  poly(p, [[hx - 3.5, hy + 1], [hx - 6, hy + 4], [hx - 3, hy + 4]], OBS[3]); p.line(hx - 6, hy + 4, hx - 3, hy + 4, GOLD[2]);
   poly(p, [[hx - 3.5, hy], [hx + 4, hy - 1], [hx + 4.5, hy + 3], [hx + 1, hy + 5], [hx - 3, hy + 4]], OBS[3]);
   p.line(hx - 3, hy - 1, hx + 4, hy - 2, GOLD[4]);                    // Stirnreif
   p.px(hx + 1, hy - 2, LAVA[3]); g.px(hx + 1, hy - 2, GLOW[2]);
@@ -668,7 +677,7 @@ const SN = { W: 140, H: 112, AX: 62, AY: 100, pad: 14 };
 const SD = { legH: 22, thigh: 12, shin: 12.5, spine: 19, upper: 10, fore: 10.5, sh: 3, hipW: 4 };
 const SN_REST = {
   hipX: 0, hipY: 0, lean: 0.06, head: 0, headY: 0, fFx: 9, fFy: 0, fBx: -9, fBy: 0,
-  hFx: 12, hFy: 16, sw: -1.1, hBx: -10, hBy: 16, heat: 1, visor: 1, kneel: 0, spin: -1, crk: 0,
+  hFx: 12, hFy: 16, sw: -1.1, hBx: -10, hBy: 16, heat: 1, visor: 1, kneel: 0, spin: -1, crk: 0, two: 0, ban: 0,
 };
 const snp = (o) => ({ ...SN_REST, ...o });
 const BLADE = 38;
@@ -730,6 +739,40 @@ function plate(p, x, y, pts, rimC = GOLD[3]) {
   }
 }
 
+// Flammenbanner auf dem Rücken des Wächters: Stange hinter der Schulter, Tuch in Violett/Gold
+// mit Glutflamme, oben eine echte Flamme. sway = Wehen (Pose), t = Zeit
+function flameBanner(p, g, bx, by, sway, t, heat) {
+  const top = by - 50;
+  // Stange (dunkles Holz, Goldringe), Spitze mit Glutschale
+  for (let y = top; y <= by; y++) { p.px(bx, y, '#24140c'); p.px(bx + 1, y, y % 9 === 0 ? GOLD[3] : '#3a2214'); }
+  p.rect(bx - 2, top - 1, 6, 2, GOLD[3]); p.line(bx - 2, top - 1, bx + 3, top - 1, GOLD[5]);
+  // Querstange
+  p.line(bx - 18, top + 3, bx + 1, top + 3, GOLD[2]); p.px(bx - 18, top + 3, GOLD[5]); p.px(bx - 19, top + 2, GOLD[4]);
+  // Tuch: hängt von der Querstange, weht nach hinten (links), Schwalbenschwanz unten
+  const W = 17, Hh = 30;
+  for (let i = 0; i <= W; i++) {
+    const u = i / W;
+    const len = Hh - (u > 0.3 && u < 0.7 ? 5 * (1 - Math.abs(u - 0.5) / 0.2) : 0);
+    for (let j = 0; j < len; j++) {
+      const v = j / Hh;
+      const x = bx - 1 - i - sway * v * 3 + Math.sin(t * 5 + v * 4 + u * 2) * v * 1.2, y = top + 4 + j;
+      const edge = i === 0 || j >= len - 1;
+      const fold = Math.sin(u * 9 + v * 3 - t * 4);
+      let c = edge ? (j >= len - 1 ? GOLD[3] : GOLD[4]) : fold > 0.55 ? OBS[5] : fold > -0.2 ? OBS[4] : OBS[3];
+      if (i === W) c = OBS[2];
+      if (!edge && j > 1 && j < 3) c = GOLD[4];
+      if (!edge && j >= len - 3 && j < len - 1) c = GOLD[2];
+      p.px(x, y, c);
+    }
+  }
+  // gestickte Flamme (Glut) in der Mitte des Tuchs
+  const fx = bx - 1 - W / 2, fy = top + 18;
+  const F = [[0, -8], [0, -7], [-1, -6], [1, -6], [-1, -5], [0, -5], [2, -5], [-2, -4], [-1, -4], [0, -4], [1, -4], [2, -3], [-2, -3], [-1, -3], [0, -3], [1, -3], [-3, -1], [-2, -2], [-1, -2], [0, -2], [1, -2], [2, -2], [3, -1], [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1], [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0], [-1, 1], [0, 1], [1, 1]];
+  for (const [dx, dy] of F) { const x = fx + dx - sway * ((fy + dy - top) / Hh) * 3, y = fy + dy; const inner = Math.abs(dx) <= 1 && dy > -4; p.px(x, y, inner ? LAVA[5] : dy < -4 ? LAVA[4] : LAVA[3]); g.px(x, y, GLOW[inner ? 3 : 2]); }
+  // echte Flamme auf der Stangenspitze
+  flame(p, g, bx + 0.5, top - 2, Math.round(6 + heat * 3), 2, t * 7, { seed: 11, hot: heat });
+}
+
 function drawSentinel(p, g, P, ex) {
   const { AX, AY } = SN;
   const K = P.kneel;
@@ -751,7 +794,7 @@ function drawSentinel(p, g, P, ex) {
     swA = Math.atan2(vy, vx); swL = Math.max(0.3, Math.hypot(vx, vy));
     hF.x = chest.x + 2 + vx * 11; hF.y = chest.y + 9 + vy * 11;
   }
-  const hB = ex.twoHand || spinning ? { x: hF.x - Math.cos(swA) * 6 * swL, y: hF.y - Math.sin(swA) * 6 * swL } : { x: chest.x + P.hBx, y: chest.y + P.hBy };
+  const hB = ex.twoHand || spinning || P.two > 0.5 ? { x: hF.x - Math.cos(swA) * 6 * swL, y: hF.y - Math.sin(swA) * 6 * swL } : { x: chest.x + P.hBx, y: chest.y + P.hBy };
   const armF = ik(shF.x, shF.y, hF.x, hF.y, SD.upper, SD.fore, 1);
   const armB = ik(shB.x, shB.y, hB.x, hB.y, SD.upper, SD.fore, 1);
   const behind = spinning ? Math.sin(P.spin * TAU) < 0 : !!ex.bladeBehind;
@@ -764,6 +807,8 @@ function drawSentinel(p, g, P, ex) {
       p.px(x, y, j % 2 ? GOLD[2] : GOLD[3]); p.px(x, y + 1, j % 2 ? GOLD[1] : GOLD[4]);
     }
   }
+  // --- Flammenbanner auf dem Rücken (hinter allem)
+  { const bp = pt(SD.spine + 1, -7); flameBanner(p, g, bp.x - 1, bp.y + 10, 0.6 + P.ban + Math.sin(ex.t * 3) * 0.3, ex.t, heat); }
   // --- Klinge hinten
   let bl = null;
   const smear = () => {
@@ -836,16 +881,22 @@ function drawSentinel(p, g, P, ex) {
   ell(p, hx, hy, 6, 6.8, OBS, { bias: 0.1 });
   poly(p, [[hx - 6, hy], [hx + 6.5, hy - 1], [hx + 7, hy + 4], [hx + 2, hy + 7], [hx - 5, hy + 6]], OBS[3]);
   poly(p, [[hx - 6, hy], [hx, hy - 0.5], [hx - 1, hy + 6], [hx - 5, hy + 6]], OBS[4]);
-  // Krone: fünf Goldzacken, Mitte am höchsten
-  p.rect(hx - 6, hy - 4, 13, 2, GOLD[3]); p.line(hx - 6, hy - 4, hx + 6, hy - 4, GOLD[5]); p.line(hx - 6, hy - 3, hx + 6, hy - 3, GOLD[2]);
-  for (let i = 0; i < 5; i++) {
-    const bx = hx - 5 + i * 2.8, h = [4, 6, 8, 6, 4][i];
-    poly(p, [[bx - 1.2, hy - 4], [bx, hy - 4 - h], [bx + 1.2, hy - 4]], i < 2 ? GOLD[4] : GOLD[3]);
-    p.px(bx, hy - 4 - h, GOLD[5]);
+  // Gehörnter Großhelm (keine Krone – die trägt nur der Fürst): flacher Scheitel mit Goldgrat,
+  // zwei mächtige Stierhörner, die nach oben-vorn schwingen
+  p.rect(hx - 6, hy - 4, 13, 2, OBS[4]); p.line(hx - 6, hy - 4, hx + 6, hy - 4, OBS[6]); p.line(hx - 6, hy - 3, hx + 6, hy - 3, GOLD[3]);
+  for (let i = -5; i <= 5; i++) p.px(hx + i * 0.5, hy - 5 - (5 - Math.abs(i)) * 0.35, GOLD[i < 0 ? 5 : 4]);
+  for (const side of [-1, 1]) {
+    const bx = hx + (side < 0 ? -5 : 5), by = hy - 2;
+    for (let k = 0; k <= 12; k += 0.5) {
+      const f = k / 12;
+      const x = bx + side * (k * 0.75 - f * f * 3) + (side < 0 ? -1 : 0), y = by - k * 0.55 - f * f * 6;
+      const w = Math.max(0.5, 1.8 * (1 - f));
+      for (let q = -w; q <= w; q += 0.5) p.px(x, y + q, f > 0.8 ? GOLD[5] : q < 0 ? (side < 0 ? OBS[5] : OBS[6]) : (side < 0 ? OBS[2] : OBS[3]));
+      if (f > 0.85) g.px(x, y, GLOW[1]);
+    }
+    p.px(bx, by, GOLD[3]); p.px(bx, by + 1, GOLD[2]);
   }
-  p.px(hx, hy - 5, LAVA[4]); g.px(hx, hy - 5, GLOW[3]);
-  // Seitliche Hörner (nach vorn geschwungen)
-  for (let i = 0; i < 6; i++) { const x = hx - 6 - i * 0.7, y = hy - 1 - i * 1.4 + i * i * 0.2; p.rect(x, y, 2 - (i > 3 ? 1 : 0), 1, i < 2 ? OBS[4] : OBS[6]); }
+  p.px(hx, hy - 4, LAVA[4]); g.px(hx, hy - 4, GLOW[3]);
   // Visierschlitz
   const vs = P.visor, ec = ex.hurt ? '#ffffff' : LAVA[5];
   p.rect(hx + 0, hy + 1, 7, 2, VOID);
@@ -904,11 +955,15 @@ function drawSentinel(p, g, P, ex) {
   return meta;
 }
 
-// Zerborstener Wächter: Obsidiantrümmer, Krone, Schwert (k 0..1)
+// Zerborstener Wächter: Obsidiantrümmer, gehörnter Helm, Schwert (k 0..1)
 function drawSentinelRubble(p, g, k) {
   const { AX, AY } = SN;
   const gy = AY;
   const heat = 1 - k;
+  // umgestürztes Flammenbanner hinter den Trümmern
+  for (let x = AX - 50; x <= AX - 6; x++) { p.px(x, gy - 2, '#3a2214'); p.px(x, gy - 3, (x % 9) ? '#24140c' : GOLD[3]); }
+  for (let i = 0; i < 14; i++) for (let j = 0; j < 7; j++) p.px(AX - 44 + i + j * 0.4, gy - 4 - j * 0.6 + (i % 4 === 0 ? 1 : 0), j === 6 || i === 0 ? GOLD[3] : (i + j) % 5 === 0 ? OBS[5] : OBS[4]);
+  if (heat > 0.2) flame(p, g, AX - 50, gy - 3, Math.round(1 + heat * 3), 1.2, k * 5, { seed: 12, hot: heat });
   obsidianBlade(p, g, AX + 6, gy - 3, -0.04, 1, heat * 0.8);
   const chunks = [[-26, 5, 4], [-18, 7, 6], [-8, 9, 8], [4, 8, 7], [14, 6, 5], [-30, 4, 3], [22, 5, 4]];
   for (const [dx, rx, ry] of chunks) ell(p, AX + dx, gy - ry * 0.8, rx, ry, OBS, { noise: 0.15, seed: dx + 50 });
@@ -918,10 +973,11 @@ function drawSentinelRubble(p, g, k) {
   ell(p, AX - 4, gy - 12, 4, 4, GOLD.slice(1));
   ell(p, AX - 4, gy - 12, 2.2, 2.2, heat > 0.3 ? [LAVA[2], LAVA[3], LAVA[4]] : [CHAR[1], CHAR[2]]);
   if (heat > 0.1) glowDot(g, AX - 4, gy - 12, 1 + heat * 2);
-  // Krone liegt davor
+  // Gehörnter Helm liegt davor
   const cx = AX + 20;
-  p.rect(cx - 5, gy - 3, 11, 2, GOLD[3]); p.line(cx - 5, gy - 3, cx + 5, gy - 3, GOLD[5]);
-  for (let i = 0; i < 5; i++) poly(p, [[cx - 4 + i * 2.2 - 1, gy - 3], [cx - 4 + i * 2.2, gy - 3 - [3, 4, 6, 4, 3][i]], [cx - 4 + i * 2.2 + 1, gy - 3]], GOLD[4]);
+  ell(p, cx, gy - 4, 5, 4, OBS, { bias: 0.1 });
+  p.line(cx - 5, gy - 6, cx + 5, gy - 6, GOLD[3]); p.rect(cx + 1, gy - 4, 4, 1, heat > 0.3 ? LAVA[3] : VOID);
+  for (const side of [-1, 1]) for (let k = 0; k <= 7; k += 0.5) { const f = k / 7; p.px(cx + side * (4 + k * 0.7), gy - 6 - k * 0.5 - f * f * 3, f > 0.8 ? GOLD[5] : OBS[5]); }
   for (let i = 0; i < 6; i++) if (heat > 0.2) flame(p, g, AX - 22 + i * 8, gy - 6, Math.round(1 + heat * 4 * hash2(i, 2, 7)), 1.2, k * 6 + i, { seed: 80 + i, hot: heat });
   return { eye: { x: AX - 4, y: gy - 12 }, head: { x: cx, y: gy - 10 }, hand: { x: AX + 6, y: gy - 3 }, chest: { x: AX - 4, y: gy - 12 }, tip: { x: AX + 44, y: gy - 3 } };
 }
@@ -931,7 +987,7 @@ function createSentinel() {
   const idle = [];
   for (let i = 0; i <= 6; i++) {
     const ph = (i / 6) * TAU, sn = Math.sin(ph);
-    idle.push([i / 6, snp({ hipY: Math.max(0, sn), lean: 0.06 + sn * 0.012, hFy: 16 + Math.max(0, sn), hBy: 16 + Math.max(0, sn), headY: Math.max(0, sn), heat: 0.9 + sn * 0.15, visor: 1, sw: -1.1 + sn * 0.03 }), linear]);
+    idle.push([i / 6, snp({ two: 1, hipY: Math.max(0, sn), lean: 0.06 + sn * 0.012, hFx: 9, hFy: 12 + Math.max(0, sn), headY: Math.max(0, sn), heat: 0.9 + sn * 0.15, visor: 1, sw: -1.32 + sn * 0.03, ban: sn * 0.3 }), linear]);
   }
   const walk = [];
   for (let i = 0; i <= 8; i++) {
@@ -939,7 +995,7 @@ function createSentinel() {
     walk.push([i / 8, snp({
       hipX: 1, hipY: 1.5 - Math.abs(c) * 2.5, lean: 0.12 + sn * 0.02, head: sn * 0.5, headY: Math.abs(c),
       fFx: 3 + sn * 10, fFy: Math.max(0, -c) * 5, fBx: -4 - sn * 10, fBy: Math.max(0, c) * 5,
-      hFx: 13 - sn * 2, hFy: 16, sw: -1.0 - sn * 0.06, hBx: -11 + sn * 3, hBy: 15,
+      two: 1, hFx: 10 - sn * 1.5, hFy: 12, sw: -1.25 - sn * 0.05, ban: 0.6,
     }), linear]);
   }
   // Hieb: Schwert über die Schulter, dann schräg nach vorn-unten

@@ -9,6 +9,9 @@ import { rim, scatter, ring, dungeonBase, inRect, inEll } from './levels2.js';
 // Obergrenze aus §12.2) mit langen Straßen für Reittiere.
 //
 // Neu: areas[].noMount (Lager: Absitzen, A prüft das in canMount()).
+//
+// Bodenzeichen außen: ',' Gras/Asche, '.' Erde/Kies/Brandboden, ':' Pflaster,
+// '~' Wasser/Lava (fest), '#' Fels. Straßen über Wasser sind Dämme ('.').
 
 const road4 = (m) => (pts, w = 2) => m.path(pts, w, '.', [',', '~']);
 const near = (m, x, y, ch, r = 1) => {
@@ -17,51 +20,147 @@ const near = (m, x, y, ch, r = 1) => {
 };
 const box = (r, pad = 1) => (x, y) => x >= r.x - pad && y >= r.y - pad && x < r.x + r.w + pad && y < r.y + r.h + pad;
 const each = (list, fn) => list.forEach(([x, y]) => fn(x, y));
+const GROUND = new Set([',', '.', ':']);
+
+// Unregelmäßiger Fleck aus einer Grundellipse und versetzten Teilellipsen
+function blob(m, rng, cx, cy, rx, ry, ch, only = null, n = 4) {
+  m.ellipse(cx, cy, rx, ry, ch, only);
+  for (let i = 0; i < n; i++) {
+    m.ellipse(cx + rng.range(-rx, rx) * 0.6, cy + rng.range(-ry, ry) * 0.6, rx * rng.range(0.35, 0.65), ry * rng.range(0.35, 0.65), ch, only);
+  }
+}
+
+// Wegenetz: malt Straßen in die Karte und merkt sie in einer Maske, damit
+// die Streudeko einen Rand frei lässt.
+function roadNet(m) {
+  const mask = new MapBuilder(m.w, m.h, ' ');
+  const road = (pts, w = 2, ch = '.', only = [',', '~']) => { m.path(pts, w, ch, only); mask.path(pts, w + 1.2, 'R'); };
+  return { road, mask, onRoad: (x, y) => mask.get(x, y) === 'R' };
+}
+
+// Prüfhilfe: Marken, für die kein freier Boden gefunden wurde (sollte leer sein)
+export const MISPLACED = [];
+
+// Gegner/Marke auf den nächsten freien Boden (3 × 3 nur Boden) setzen –
+// nie in Wasser, Fels oder Deko.
+function foe(m, x, y, ch) {
+  for (let r = 0; r <= 5; r++) {
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
+      if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+      let ok = true;
+      for (let b = -1; b <= 1 && ok; b++) for (let a = -1; a <= 1; a++) if (!GROUND.has(m.get(x + i + a, y + j + b))) { ok = false; break; }
+      if (ok) { m.set(x + i, y + j, ch); return; }
+    }
+  }
+  MISPLACED.push(`${ch}@${x},${y}`);
+  m.set(x, y, ch);
+}
+
+// Streudeko auf Bodenzeichen `grounds`; meidet Straßen und Sperrflächen.
+// pick(x, y, ground, free) -> Zeichen oder null; free = 3 × 3 nur Boden.
+function strew(m, net, rng, keep, pick, grounds = ',') {
+  const G = new Set(grounds);
+  const free = (x, y) => {
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (!GROUND.has(m.get(x + i, y + j))) return false;
+    return true;
+  };
+  for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) {
+    const ch = m.get(x, y);
+    if (!G.has(ch) || keep(x, y) || net.onRoad(x, y)) continue;
+    const r = pick(x, y, ch, free(x, y));
+    if (r) m.set(x, y, r);
+  }
+}
+
+// Kreis aus Zeichen (Steinkreise, Säulenringe)
+function circle(m, cx, cy, rx, ry, n, ch, a0 = 0) {
+  for (let i = 0; i < n; i++) {
+    const a = a0 + (i / n) * Math.PI * 2;
+    m.set(Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry), ch);
+  }
+}
 
 // ---------------------------------------------------------------- Aschensteppe (20–25)
+// Gliederung: Weideland um den Außenposten (West), ausgetrocknetes Flussbett
+// quer durch die Mitte, alte gepflasterte Heerstraße nach Osten (Marsch),
+// Hügelkamm vor Khars Kriegslager (Nordost), Staubpfannen mit Riesenknochen
+// (Ost/Südost), Steinallee zum Hügelgrab (Südost), Steinkreis (Nordwest),
+// Ruine einer Wegstation, verlassene Karawane (Südwest).
 function buildAshenSteppe() {
   const W = 96, H = 64;
   const m = new MapBuilder(W, H, ',');
   const rng = createRng(2020);
   rim(m, rng, W, H);
-  // Felsgrate und Hügel
-  m.ellipse(44, 8, 7, 3, '#');
-  m.ellipse(30, 55, 5, 2.4, '#');
-  m.ellipse(84, 44, 3.4, 5, '#');
-  m.ellipse(56, 30, 2.6, 1.8, '#');
+  const net = roadNet(m);
+  const road = net.road;
+
   // Ausgänge: West (Schlackenhöhen), Ost (Faulmarsch)
   m.rect(0, 30, 4, 5, ',');
-  m.rect(92, 16, 4, 5, ',');
-  // Wasserloch
-  m.ellipse(40, 40, 4.5, 2.4, '~');
+  m.rect(92, 24, 4, 5, ',');
 
-  const road = road4(m);
-  road([[0, 32], [8, 32]]);
-  road([[27, 32], [38, 31], [50, 26], [62, 22], [74, 19], [86, 18], [95, 18]]);   // Heerstraße nach Osten
-  road([[50, 26], [52, 36], [56, 46], [60, 52]]);                                 // zum Hügelgrab
-  road([[62, 22], [66, 14], [74, 10]]);                                           // zum Kriegslager
-  road([[38, 31], [34, 42], [24, 48], [14, 52]]);                                 // Südweide
+  // Staubpfannen (nackte Erde) im Osten und Südosten
+  blob(m, rng, 72, 39, 11, 5.5, '.', [','], 6);
+  blob(m, rng, 86, 54, 6, 4, '.', [','], 3);
+  blob(m, rng, 58, 58, 6, 2.6, '.', [','], 3);
+  // Zertrampelter Boden um den Steinkreis
+  m.ellipse(28, 12, 3.4, 2.4, '.', [',']);
 
-  // Außenposten (Hub): Pflaster, Palisade mit Toren West/Ost, Stall im Süden
+  // Felsen und Hügel: Kamm vor dem Kriegslager mit Pass, Tafelberge
+  blob(m, rng, 61, 19, 6.5, 1.8, '#', null, 3);
+  blob(m, rng, 87, 19.5, 5, 1.6, '#', null, 2);
+  blob(m, rng, 41, 7, 5, 2.4, '#', null, 3);
+  blob(m, rng, 13, 54, 5, 2.4, '#', null, 3);
+  blob(m, rng, 89, 41, 2.8, 4, '#', null, 2);
+  m.ellipse(64, 57, 2.6, 1.6, '#');
+  m.ellipse(8, 12, 2.6, 2, '#');
+
+  // Ausgetrocknetes Flussbett (Kies) mit Restpfützen und steilen Uferkanten
+  const river = [[53, 1], [51, 8], [55, 14], [50, 23], [44, 30], [42, 37], [46, 44], [44, 51], [48, 57], [46, 63]];
+  m.path(river, 4.4, '.', [',']);
+  const riverMask = new MapBuilder(W, H, ' ');
+  riverMask.path(river, 8, 'B'); riverMask.path(river, 4.4, 'W');
+  // ausgewaschene Uferfelsen und zwei Restwasserlöcher
+  blob(m, rng, 57.5, 12, 2.2, 1.6, '#', [','], 2);
+  blob(m, rng, 38, 41, 1.8, 1.5, '#', [','], 1);
+  blob(m, rng, 50, 47, 2, 1.4, '#', [','], 1);
+  blob(m, rng, 41, 25, 1.6, 1.2, '#', [','], 1);
+  m.ellipse(43, 36.5, 3.2, 1.9, '~');
+  m.ellipse(46.5, 50, 2.4, 1.4, '~');
+
+  // Alte Heerstraße: gebrochenes Pflaster auf Erdbankett, steinerne Furt
+  const army = [[27, 32], [34, 31.5], [43, 31], [52, 29], [62, 27.5], [72, 26.5], [84, 26], [95, 26]];
+  road([[0, 32], [8, 32]], 2.4);
+  road(army, 3.2);
+  m.path(army.slice(1), 1.6, ':', ['.']);
+  for (let y = 0; y < H; y++) for (let x = 30; x < W; x++) if (m.get(x, y) === ':' && rng.chance(0.22)) m.set(x, y, '.');
+  m.path([[40, 31.2], [48, 30.2]], 3, ':', ['.', ',']);
+  // Pfade (Erde)
+  road([[72, 26.5], [73, 21], [73.5, 15]], 2.4);                                    // durch den Pass zum Kriegslager
+  road([[18, 40], [20, 46], [28, 50], [38, 51], [50, 51], [60, 52], [68, 53]], 2.2); // Südweg zum Hügelgrab
+  road([[62, 27.5], [64, 36], [68, 44], [72, 50]], 2);                              // Abzweig von der Heerstraße
+  road([[34, 31.5], [32, 22], [30, 15]], 1.6);                                      // Trampelpfad zum Steinkreis
+
+  // Außenposten (Hub): festgestampfter Lehm, Jurten im Kreis um eine steinerne
+  // Feuerstelle, Palisade mit Toren West/Ost/Süd, Stall und Karren im Süden
   const outpost = { x: 8, y: 24, w: 20, h: 17 };
-  m.ellipse(18, 32, 8.4, 6.6, ':', [',', '.']);
-  m.path([[8, 32], [27, 32]], 2, ':', [',', '.']);
+  m.ellipse(18, 32, 8.4, 6.6, '.', [',']);
+  m.ellipse(18, 32.3, 1.7, 1.2, ':');
   ring(m, 8, 24, 27, 40, 'p', 'q', [{ side: 'w', from: 31, to: 33 }, { side: 'e', from: 31, to: 33 }, { side: 's', from: 17, to: 19 }]);
 
-  // Kriegslager des Steppenfürsten (Nordost)
+  // Kriegslager des Steppenfürsten (Nordost, hinter dem Hügelkamm)
   const war = { x: 66, y: 4, w: 24, h: 12 };
   m.ellipse(78, 10, 11, 5, '.', [',']);
   ring(m, 66, 4, 89, 15, 'p', 'q', [{ side: 's', from: 72, to: 75 }, { side: 'w', from: 9, to: 11 }]);
 
-  // Grabhügel (Süden)
-  const barrow = { x: 52, y: 48, w: 18, h: 12 };
-  m.ellipse(60, 54, 8, 4.5, '.', [',']);
+  // Hügelgrab (Südosten) mit Vorplatz
+  const barrow = { x: 65, y: 44, w: 18, h: 14 };
+  m.ellipse(74, 53, 7, 3.6, '.', [',']);
 
   const put = (x, y, ch) => m.set(x, y, ch);
   // Außenposten
-  put(12, 27, 'Y'); put(24, 27, 'Y'); put(18, 26, 'P'); put(18, 32, 'F');
-  put(11, 37, 'S'); put(14, 38, 'h'); put(23, 38, 'Q');
-  put(18, 29, 'A'); put(15, 36, 'O'); put(22, 34, 'K'); put(13, 31, 'I');
+  put(12, 27, 'Y'); put(24, 27, 'Y'); put(11, 35, 'Y'); put(25, 36, 'Y'); put(18, 28, 'P'); put(18, 32, 'F');
+  put(13, 39, 'S'); put(9, 38, 'h'); put(22, 39, 'Q');
+  put(20, 29, 'A'); put(15, 37, 'O'); put(21, 36, 'K'); put(13, 30, 'I');
   put(18, 35, '1'); put(16, 35, '2'); put(4, 32, '3');
   // Kriegslager
   put(70, 7, 'X'); put(86, 7, 'X'); put(78, 6, 'P'); put(78, 10, 'F'); put(72, 13, 'Y'); put(86, 13, 'h');
@@ -69,28 +168,64 @@ function buildAshenSteppe() {
   each([[71, 9], [75, 12], [82, 9], [84, 12], [80, 13], [68, 13]], (x, y) => put(x, y, 'x'));
   each([[74, 7], [83, 11], [88, 10]], (x, y) => put(x, y, 'y'));
   put(79, 12, 'Z');
-  // Kriegsbanner (Schreine) rund ums Lager
-  // Grabhügel
-  put(60, 50, 'M'); put(56, 53, 'j'); put(64, 53, 'j'); put(60, 56, '4');
-  // Gegner: Räuber am Weg, Hyänenrudel, Geier über der Ebene
-  each([[40, 22], [44, 24], [58, 16], [34, 20], [46, 18], [88, 28], [86, 32], [70, 30], [74, 34]], (x, y) => put(x, y, 'x'));
-  each([[42, 20], [60, 14], [72, 32], [90, 30]], (x, y) => put(x, y, 'y'));
-  each([[30, 46], [33, 48], [28, 50], [44, 52], [47, 50], [45, 55], [76, 48], [79, 50], [74, 52]], (x, y) => put(x, y, 'e'));
-  each([[36, 38], [48, 42], [62, 36], [70, 42], [82, 38], [24, 14], [14, 12], [50, 12]], (x, y) => put(x, y, 'v'));
-  // Rand der Marsch (Osten)
-  put(90, 16, 'P'); put(90, 21, 'P'); put(92, 18, '5');
+  // Wachtürme am Pass
+  put(67, 22, 'W'); put(80, 22, 'P');
+  // Hügelgrab: Tor, flankierende Steine, Steinallee entlang des Zugangs
+  put(74, 49, 'M'); put(70, 52, 'j'); put(78, 52, 'j'); put(74, 55, '4');
+  each([[69, 55], [79, 55], [66, 54], [82, 54]], (x, y) => put(x, y, 's'));
+  each([[64, 47], [69, 45], [66, 41], [71, 48]], (x, y) => put(x, y, 's'));
+  // Steinkreis (Nordwest)
+  circle(m, 28, 12, 4.6, 3.4, 9, 's', 0.3);
+  // Ruine einer Wegstation an der Heerstraße
+  blob(m, rng, 63, 32, 3.4, 2, ':', [',', '.'], 2);
+  each([[60, 30], [66, 30], [60, 34], [66, 34]], (x, y) => put(x, y, 's'));
+  put(63, 34, 'b');
+  // Brückenpfeiler der alten Furt
+  put(39, 29, 's'); put(49, 28, 's');
+  // Verlassene Karawane (Südwest)
+  put(30, 54, 'Q'); put(34, 56, 'h'); put(27, 56, 'o');
+  // Riesenknochen auf den Staubpfannen, ein Schädel am Flussbett
+  each([[70, 37], [79, 41], [86, 55]], (x, y) => put(x, y, 'o'));
+  put(45, 41, 'o');
+  // Lagerfeuer der Bannerwachen (Rauch weithin sichtbar)
+  put(38, 21, 'F'); put(58, 42, 'F'); put(84, 35, 'F');
+  put(80, 50, 'P');
 
-  const clear = [box(outpost), box(war), box(barrow, 0), (x, y) => x <= 5 && y >= 28 && y <= 36, (x, y) => x >= 86 && y >= 14 && y <= 22];
-  scatter(m, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, free) => {
-    if (near(m, x, y, '.', 1)) return null;
-    if (near(m, x, y, '~', 1) && rng.chance(0.3)) return 'g';
-    if (free && rng.chance(0.02)) return 'b';
-    if (free && rng.chance(0.012)) return 'o';
-    if (free && rng.chance(0.006)) return 's';
-    if (rng.chance(0.07)) return 'g';
-    if (rng.chance(0.025)) return 'n';
+  // Rand der Marsch (Osten)
+  put(90, 23, 'P'); put(90, 29, 'P'); put(92, 26, '5');
+
+  // Gegner (vor der Streudeko, damit Felsen sie nicht einschließen)
+  // Bannerwachen und Hinterhalt an der Furt: Plünderer + Schützen
+  each([[34, 19], [41, 23], [55, 39], [60, 44], [83, 32], [88, 36], [47, 27], [41, 35], [51, 34]], (x, y) => foe(m, x, y, 'x'));
+  each([[37, 17], [56, 37], [87, 32], [44, 26]], (x, y) => foe(m, x, y, 'y'));
+  // Hyänenrudel: Staubpfanne, Südost, Karawane
+  each([[72, 41], [75, 43], [69, 43], [86, 50], [89, 52], [84, 52], [25, 52], [29, 58], [23, 55]], (x, y) => foe(m, x, y, 'e'));
+  // Geier über Steinkreis, Knochenfeldern und Karawane
+  each([[25, 8], [33, 15], [66, 36], [80, 44], [33, 59], [38, 45], [58, 8], [12, 16]], (x, y) => foe(m, x, y, 'v'));
+
+  const shrines = [[36, 19], [56, 41], [86, 34]];
+  const clear = [box(outpost), box(war), box(barrow, 0), (x, y) => x <= 5 && y >= 28 && y <= 36, (x, y) => x >= 86 && y >= 21 && y <= 31,
+    (x, y) => shrines.some(([sx, sy]) => Math.abs(x - sx) <= 2 && Math.abs(y - sy) <= 2)];
+  const meadow = (x, y) => x < 38 && y > 14 && y < 50;
+  const thorns = (x, y) => inEll(x, y, 18, 56, 10, 5) || inEll(x, y, 58, 9, 6, 4) || inEll(x, y, 90, 46, 4, 6);
+  strew(m, net, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, g, free) => {
+    const bed = riverMask.get(x, y);
+    if (g === '.') {
+      // Flussbett: Geröll; Staubpfanne: fast nackt
+      if (bed === 'W' && free && rng.chance(0.07)) return 'b';
+      if (free && rng.chance(0.012)) return 'b';
+      return null;
+    }
+    if (bed === 'B' && rng.chance(0.3)) return rng.chance(0.75) ? 'g' : 'n';
+    if (near(m, x, y, '~', 1) && rng.chance(0.4)) return 'g';
+    if (near(m, x, y, '#', 1) && free && rng.chance(0.06)) return 'b';
+    if (thorns(x, y) && rng.chance(0.13)) return 'n';
+    if (meadow(x, y) && rng.chance(0.11)) return 'g';
+    if (free && rng.chance(0.008)) return 'b';
+    if (rng.chance(0.035)) return 'g';
+    if (rng.chance(0.008)) return 'n';
     return null;
-  });
+  }, ',.');
 
   return {
     name: 'Die Aschensteppe',
@@ -115,89 +250,135 @@ function buildAshenSteppe() {
       { id: 'steppe_outpost', ...outpost, noMount: true },
       { id: 'warlord_camp', ...war },
       { id: 'barrow_gate', ...barrow },
-      { id: 'marsh_edge', x: 84, y: 12, w: 12, h: 12 },
+      { id: 'marsh_edge', x: 84, y: 20, w: 12, h: 12 },
     ],
     objects: [
-      { id: 'war_banner_1', kind: 'shrine', decor: 'warBanner', prompt: 'Banner niederreißen', x: 63, y: 9 },
-      { id: 'war_banner_2', kind: 'shrine', decor: 'warBanner', prompt: 'Banner niederreißen', x: 78, y: 18 },
-      { id: 'war_banner_3', kind: 'shrine', decor: 'warBanner', prompt: 'Banner niederreißen', x: 92, y: 9 },
+      { id: 'war_banner_1', kind: 'shrine', decor: 'warBanner', prompt: 'Banner niederreißen', x: shrines[0][0], y: shrines[0][1] },
+      { id: 'war_banner_2', kind: 'shrine', decor: 'warBanner', prompt: 'Banner niederreißen', x: shrines[1][0], y: shrines[1][1] },
+      { id: 'war_banner_3', kind: 'shrine', decor: 'warBanner', prompt: 'Banner niederreißen', x: shrines[2][0], y: shrines[2][1] },
     ],
     portals: [
       { id: 'to_cinder_peaks', x: 0.6, y: 32, range: 26, visual: 'road', dir: [-1, 0],
         to: { zoneId: 'cinder_peaks', spawnId: 'from_ashen_steppe' }, prompt: 'Westwärts zu den Schlackenhöhen' },
-      { id: 'to_howling_barrow', x: 60, y: 51.2, range: 26, requires: { level: 23 },
+      { id: 'to_howling_barrow', x: 74, y: 50.2, range: 26, requires: { level: 23 },
         to: { zoneId: 'howling_barrow', spawnId: 'start' }, prompt: 'Das Heulende Hügelgrab betreten' },
-      { id: 'to_blighted_marsh', x: 95.4, y: 18, range: 28, requires: { level: 25 }, visual: 'road', dir: [1, 0],
+      { id: 'to_blighted_marsh', x: 95.4, y: 26, range: 28, requires: { level: 25 }, visual: 'road', dir: [1, 0],
         to: { zoneId: 'blighted_marsh', spawnId: 'from_ashen_steppe' }, prompt: 'Ostwärts in die Faulmarsch' },
     ],
-    signText: 'Ost: Die Faulmarsch · Süd: Das Hügelgrab · West: Die Schlackenhöhen',
+    signText: 'Ost: Die Faulmarsch · Südost: Das Hügelgrab · Nord: Khars Kriegslager · West: Die Schlackenhöhen',
   };
 }
 
 // ---------------------------------------------------------------- Faulmarsch (25–31)
+// Ein echtes Moor: großer Faulsee in der Mitte mit der Insel des Moorgrauens,
+// versunkenes Dorf in einer Lagune nördlich der Feste, Ostsumpf mit
+// Pfahlhütten, Südsumpf mit dem alten Damm (Karawane). Knüppeldämme und
+// Stege (Erdzeichen über Wasser) verbinden Inseln; Schilf an allen Ufern.
 function buildBlightedMarsh() {
   const W = 96, H = 64;
   const m = new MapBuilder(W, H, ',');
   const rng = createRng(2525);
   rim(m, rng, W, H);
+  const net = roadNet(m);
+  const road = net.road;
   // Ausgänge: West (Steppe), Nord (Frostpass)
   m.rect(0, 38, 4, 5, ',');
-  m.rect(66, 0, 8, 5, ',');
-  // Moorwasser: viele Tümpel und ein großer Sumpfsee (mit Stegen)
-  const pools = [[30, 20, 7, 4], [46, 34, 9, 5.5], [20, 52, 6, 3], [62, 46, 7, 4], [80, 30, 5, 7], [52, 14, 4, 2.4], [38, 50, 3.4, 2]];
-  pools.forEach(([cx, cy, rx, ry]) => m.ellipse(cx, cy, rx, ry, '~', [',']));
-  // Versunkenes Dorf: Wasser mit Ruinen
-  m.ellipse(46, 34, 9, 5.5, '~');
+  m.rect(46, 0, 8, 5, ',');
 
-  const road = road4(m);
-  road([[0, 40], [8, 40]]);
-  road([[27, 40], [36, 42], [46, 42], [56, 40], [66, 36], [70, 26], [70, 14], [70, 0]]); // Knüppeldamm nach Norden
-  road([[56, 40], [66, 50], [76, 54], [84, 52]]);                                     // zum Sporentor
-  road([[36, 42], [34, 30], [40, 26], [46, 28]]);                                     // Steg ins versunkene Dorf
-  road([[27, 40], [22, 30], [18, 18], [26, 10]]);                                     // Nordwestpfad
+  // Moorwasser
+  blob(m, rng, 55, 35, 15, 9, '~', [','], 8);        // Faulsee
+  blob(m, rng, 22, 14, 10, 5.5, '~', [','], 6);      // Lagune des versunkenen Dorfs
+  blob(m, rng, 83, 40, 8, 11, '~', [','], 7);        // Ostsumpf
+  blob(m, rng, 38, 56, 12, 3.6, '~', [','], 5);      // Südsumpf
+  blob(m, rng, 70, 56, 9, 3.4, '~', [','], 4);
+  blob(m, rng, 64, 12, 7, 4, '~', [','], 4);         // Nordtümpel
+  const pools = [[8, 54, 3, 1.8], [14, 27, 2.4, 1.4], [34, 26, 3, 1.8], [40, 9, 2.6, 1.6], [76, 26, 2.6, 1.6], [90, 12, 2, 1.6],
+    [28, 48, 2, 1.3], [86, 58, 2.4, 1.4], [50, 54, 1.8, 1.2], [6, 22, 1.8, 2.4], [32, 4, 2, 1.2], [74, 6, 2.4, 1.2],
+    [46, 20, 4.6, 2.2], [60, 22, 3, 1.8], [87, 22, 3.6, 2], [16, 52, 3, 1.6], [8, 28, 2.4, 1.4], [24, 27, 2.4, 1.2], [56, 4, 2.2, 1.2], [38, 47, 2.2, 1.2]];
+  pools.forEach(([cx, cy, rx, ry]) => blob(m, rng, cx, cy, rx, ry, '~', [','], 2));
+  // Inseln
+  blob(m, rng, 54, 33, 5, 3, ',', ['~'], 3);           // Insel des Moorgrauens
+  m.ellipse(44, 31, 2.2, 1.4, ',', ['~']);
+  m.ellipse(64, 30, 2.4, 1.6, ',', ['~']);
+  m.ellipse(62, 41, 2, 1.2, ',', ['~']);
+  m.ellipse(17, 11, 3, 1.8, ',', ['~']);
+  m.ellipse(27, 16, 3.2, 1.8, ',', ['~']);
+  m.ellipse(13, 17, 2.2, 1.4, ',', ['~']);
+  blob(m, rng, 85, 30, 3.4, 2.4, ',', ['~'], 2);       // Pfahlhütten-Insel
+  blob(m, rng, 84, 47, 3, 2, ',', ['~'], 2);
 
-  // Moorfeste (Hub): Pfahlbauten auf Pflaster, Palisade
+  // Knüppeldämme und Stege
+  road([[0, 40], [8, 40]], 2.4);
+  road([[27, 40], [34, 40], [41, 42.5], [48, 43.5], [56, 43], [63, 38], [69, 31], [75, 23], [81, 17], [84, 15]], 2.4); // alter Damm zum Sporentor
+  road([[18, 31], [19, 26], [25, 22], [33, 18], [41, 13], [47, 8], [50, 0]], 2.2);                                 // Frostpfad
+  road([[52, 43.5], [53, 38], [54, 35]], 1.4);                                     // Steg zur Grauen-Insel
+  road([[19, 24], [17, 19], [16, 13], [21, 10], [27, 12], [28, 17]], 1.4);         // Stege durchs versunkene Dorf
+  road([[56, 43], [61, 49], [67, 53], [75, 55]], 2);                               // alter Damm nach Süden (Karawane)
+  road([[34, 40], [32, 47], [26, 52], [24, 56]], 1.6);                             // Pfad zum Südsumpf
+  road([[69, 31], [76, 32], [83, 31]], 1.4);                                       // Steg zu den Pfahlhütten
+  road([[81, 31], [82, 38], [84, 46]], 1.4);
+  road([[41, 13], [40, 8], [36, 7]], 1.4);                                         // zum Nordtotem
+
+  // Moorfeste (Hub): Pfahlhütten im Wasser, verbunden durch Bohlenstege,
+  // Feuerplattform in der Mitte, Palisade
   const fort = { x: 8, y: 32, w: 20, h: 16 };
-  m.ellipse(18, 40, 8.2, 6.4, ':', [',', '.', '~']);
-  m.path([[8, 40], [27, 40]], 2, ':', [',', '.']);
+  m.rect(9, 33, 18, 14, '~');
+  m.rect(8, 39, 20, 3, '.');                         // Hauptsteg West–Ost
+  m.rect(17, 31, 3, 16, '.');                        // Steg Nord–Süd
+  m.ellipse(18, 40, 3.4, 2.4, '.');                  // Feuerplattform
+  m.rect(10, 33, 5, 4, '.'); m.rect(22, 33, 5, 4, '.'); m.rect(10, 42, 5, 4, '.'); m.rect(22, 42, 5, 4, '.'); // Hüttenplattformen
+  m.rect(14, 43, 3, 2, '.'); m.rect(20, 43, 2, 2, '.');
   ring(m, 8, 32, 27, 47, 'p', 'q', [{ side: 'w', from: 39, to: 41 }, { side: 'e', from: 39, to: 41 }, { side: 'n', from: 17, to: 19 }]);
 
-  const village = { x: 36, y: 27, w: 20, h: 14 };
-  const sporeGate = { x: 78, y: 48, w: 14, h: 10 };
-  m.ellipse(85, 53, 6, 3.4, '.', [',']);
+  const village = { x: 9, y: 5, w: 24, h: 17 };
+  const sporeGate = { x: 76, y: 5, w: 16, h: 13 };
+  m.ellipse(84, 14, 5.4, 2.8, '.', [',', '~']);
 
   const put = (x, y, ch) => m.set(x, y, ch);
   // Moorfeste
-  put(12, 35, 'H'); put(24, 35, 'H'); put(12, 44, 'H'); put(18, 34, 'P'); put(18, 40, 'F'); put(24, 44, 'W');
-  put(15, 43, 'L'); put(21, 36, 'L');
-  put(18, 37, 'A'); put(14, 40, 'B'); put(22, 40, 'M');
+  put(12, 35, 'H'); put(24, 35, 'H'); put(12, 44, 'H'); put(18, 33, 'P'); put(18, 40, 'F'); put(24, 45, 'W');
+  put(16, 38, 'L'); put(20, 42, 'L'); put(10, 40, 'L'); put(26, 40, 'L');
+  put(18, 36, 'A'); put(14, 41, 'B'); put(23, 39, 'M');
   put(18, 43, '1'); put(16, 43, '2'); put(4, 40, '3');
-  // Versunkenes Dorf (Ruinen im Wasser, Wege dazwischen)
-  each([[40, 31], [51, 31], [44, 37], [53, 37]], (x, y) => put(x, y, 'R'));
-  // Sporentor
-  put(86, 51, 'G'); put(85, 55, '4'); put(80, 53, 'L'); put(90, 53, 'L');
+  // Versunkenes Dorf: halb versunkene Häuser an den Inselrändern, Laternen an den Stegen
+  each([[15, 10], [23, 8], [29, 15], [12, 17], [20, 18]], (x, y) => put(x, y, 'R'));
+  put(17, 15, 'L'); put(26, 11, 'L');
+  // Sporentor (Nordost)
+  put(84, 11, 'G'); put(83, 15, '4'); put(79, 13, 'L'); put(89, 13, 'L');
   // Frostpass
-  put(67, 4, 'P'); put(73, 4, 'P'); put(70, 6, '5');
-  // Gegner
-  each([[30, 26], [24, 22], [36, 18], [56, 24], [60, 20], [30, 56], [26, 48], [58, 52], [68, 44], [44, 48]], (x, y) => put(x, y, 'l'));
-  each([[40, 29], [52, 29], [48, 39], [42, 39], [56, 34]], (x, y) => put(x, y, 'l'));
-  each([[34, 12], [40, 10], [80, 12], [84, 20], [88, 40], [76, 40]], (x, y) => put(x, y, 's'));
-  each([[14, 22], [16, 24], [12, 20], [62, 30], [64, 32], [74, 20], [76, 22], [46, 56], [48, 58], [88, 24], [86, 26]], (x, y) => put(x, y, 'e'));
-  each([[28, 14], [58, 56], [72, 58], [90, 14], [80, 44], [62, 12]], (x, y) => put(x, y, 't'));
-  put(80, 42, 'Z');
+  put(47, 4, 'P'); put(53, 4, 'P'); put(50, 6, '5');
+  // Laternen am Damm, Pfahlhütten im Ostsumpf, Hütte am Südende des Damms
+  each([[33, 38], [47, 45], [60, 41], [70, 28], [78, 21]], (x, y) => put(x, y, 'L'));
+  put(86, 29, 'H'); put(65, 51, 'H');
 
-  // Schilf an allen Ufern
+  // Gegner
+  // Moorlauerer neben den Dämmen und Stegen, vier davon bei der Karawane
+  each([[37, 43], [45, 41], [50, 46], [58, 46], [70, 38], [73, 34], [73, 26], [79, 20], [29, 21], [37, 16], [44, 11],
+    [63, 52], [70, 52], [73, 57], [77, 53]], (x, y) => foe(m, x, y, 'l'));
+  // Faulpriester an den Totems
+  each([[34, 9], [38, 6], [22, 57], [27, 55], [88, 33], [84, 33]], (x, y) => foe(m, x, y, 's'));
+  // Sumpfegel: Dorf, Südsumpf, Ostsumpf
+  each([[18, 13], [24, 16], [27, 18], [12, 13], [20, 9], [44, 53], [48, 51], [55, 58], [83, 48], [86, 46], [80, 44]], (x, y) => foe(m, x, y, 'e'));
+  // Seuchenkröten in den Sümpfen nördlich der Feste
+  each([[9, 26], [13, 29], [28, 26], [31, 30], [16, 21], [24, 20]], (x, y) => foe(m, x, y, 't'));
+  foe(m, 55, 32, 'Z');
+
+  const totems = [[36, 8], [24, 58], [86, 32]];
+  const caravan = [75, 56];
+  // Schilfgürtel an allen Ufern
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-    if (m.get(x, y) !== ',') continue;
-    if (near(m, x, y, '~', 1) && !near(m, x, y, '.', 1) && rng.chance(0.32)) m.set(x, y, 'r');
+    if (m.get(x, y) !== ',' || net.onRoad(x, y) || box(fort)(x, y)) continue;
+    if (near(m, x, y, '~', 1) && rng.chance(0.5)) m.set(x, y, 'r');
   }
-  const clear = [box(fort), box(sporeGate, 0), (x, y) => x <= 5 && y >= 36 && y <= 44, (x, y) => x >= 64 && x <= 76 && y <= 8, box(village, 0)];
-  scatter(m, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, free) => {
-    if (near(m, x, y, '.', 1)) return null;
-    if (free && rng.chance(0.07)) return 'w';
+  const clear = [box(fort), box(sporeGate, 0), (x, y) => x <= 5 && y >= 36 && y <= 44, (x, y) => x >= 44 && x <= 56 && y <= 8,
+    (x, y) => [...totems, caravan].some(([sx, sy]) => Math.abs(x - sx) <= 2 && Math.abs(y - sy) <= 2)];
+  strew(m, net, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, g, free) => {
+    if (g !== ',') return null;
+    const island = near(m, x, y, '~', 3);
+    if (free && rng.chance(island ? 0.09 : 0.05)) return 'w';
     if (free && rng.chance(0.03)) return 'd';
-    if (rng.chance(0.03)) return 'u';
-    if (rng.chance(0.015)) return 'k';
+    if (rng.chance(0.035)) return 'u';
+    if (free && rng.chance(0.012)) return 'k';
     return null;
   });
 
@@ -224,23 +405,23 @@ function buildBlightedMarsh() {
       { id: 'mirefort', ...fort, noMount: true },
       { id: 'sunken_village', ...village },
       { id: 'spore_gate', ...sporeGate },
-      { id: 'frost_pass', x: 64, y: 1, w: 12, h: 9 },
+      { id: 'frost_pass', x: 44, y: 1, w: 12, h: 9 },
     ],
     objects: [
-      { id: 'rot_totem_1', kind: 'shrine', decor: 'rotTotem', prompt: 'Totem verbrennen', x: 30, y: 12 },
-      { id: 'rot_totem_2', kind: 'shrine', decor: 'rotTotem', prompt: 'Totem verbrennen', x: 60, y: 58 },
-      { id: 'rot_totem_3', kind: 'shrine', decor: 'rotTotem', prompt: 'Totem verbrennen', x: 88, y: 18 },
-      { id: 'lost_caravan', kind: 'item', decor: 'caravanWreck', prompt: 'Wrack durchsuchen', x: 14, y: 56 },
+      { id: 'rot_totem_1', kind: 'shrine', decor: 'rotTotem', prompt: 'Totem verbrennen', x: totems[0][0], y: totems[0][1] },
+      { id: 'rot_totem_2', kind: 'shrine', decor: 'rotTotem', prompt: 'Totem verbrennen', x: totems[1][0], y: totems[1][1] },
+      { id: 'rot_totem_3', kind: 'shrine', decor: 'rotTotem', prompt: 'Totem verbrennen', x: totems[2][0], y: totems[2][1] },
+      { id: 'lost_caravan', kind: 'item', decor: 'caravanWreck', prompt: 'Wrack durchsuchen', x: caravan[0], y: caravan[1] },
     ],
     portals: [
       { id: 'to_ashen_steppe', x: 0.6, y: 40, range: 26, visual: 'road', dir: [-1, 0],
         to: { zoneId: 'ashen_steppe', spawnId: 'from_blighted_marsh' }, prompt: 'Westwärts in die Aschensteppe' },
-      { id: 'to_spore_hollow', x: 86, y: 52.2, range: 26, requires: { level: 29 },
+      { id: 'to_spore_hollow', x: 84, y: 12.2, range: 26, requires: { level: 29 },
         to: { zoneId: 'spore_hollow', spawnId: 'start' }, prompt: 'Den Sporenschlund betreten' },
-      { id: 'to_frostspire', x: 70, y: 1.2, range: 28, requires: { level: 31 }, visual: 'road', dir: [0, -1],
+      { id: 'to_frostspire', x: 50, y: 1.2, range: 28, requires: { level: 31 }, visual: 'road', dir: [0, -1],
         to: { zoneId: 'frostspire', spawnId: 'from_blighted_marsh' }, prompt: 'Den Frostpass hinauf' },
     ],
-    signText: 'Nord: Der Frostpass · Südost: Der Sporenschlund · West: Die Aschensteppe',
+    signText: 'Nord: Der Frostpass · Nordost: Der Sporenschlund · West: Die Aschensteppe',
   };
 }
 
@@ -271,7 +452,10 @@ function buildFrostspire() {
 
   // Frosthold (Hub): Festung mit Langhäusern
   const hold = { x: 18, y: 32, w: 20, h: 14 };
-  m.rect(19, 33, 18, 12, ':');
+  // Schneehof: Steinpflaster nur auf Wegen und um das Feuer, sonst Schnee
+  m.path([[27.5, 45], [27.5, 32]], 3, ':', [',', '.']);
+  m.path([[20, 38], [38, 38]], 2.6, ':', [',', '.']);
+  m.ellipse(27.5, 40.5, 3.4, 2.2, ':', [',', '.']);
   m.path([[24, 46], [27, 44]], 3, ':', [',', '.']);
   m.path([[36, 38], [38, 38]], 3, ':', [',', '.']);
   m.path([[28, 31], [28, 33]], 3, ':', [',', '.']);
@@ -279,7 +463,7 @@ function buildFrostspire() {
   const put = (x, y, ch) => m.set(x, y, ch);
   put(18, 32, 'U'); put(37, 32, 'U'); put(18, 45, 'U'); put(37, 45, 'U'); put(27, 45, 'G');
   put(23, 36, 'L'); put(33, 36, 'L'); put(27, 40, 'F'); put(22, 42, 'T'); put(33, 42, 'P');
-  put(27, 37, 'A'); put(23, 40, 'B'); put(31, 40, 'M');
+  put(27, 37, 'A'); put(24, 43, 'B'); put(31, 43, 'M');
   put(27, 42, '1'); put(25, 42, '2'); put(20, 60, '3');
 
   // Trollhöhlen (Osten), Reiftor (Nordwest)
@@ -351,63 +535,121 @@ function buildFrostspire() {
 }
 
 // ---------------------------------------------------------------- Glutöde (36–40)
+// Gliederung: Letzte Bastion (West), Pilgerstraße über eine Basaltbrücke des
+// großen Lavastroms nach Osten, Obsidianfeld (Nord), Aschedünen (Südwest),
+// verbranntes Dorf (Süd), Geysirfeld am Lavasee (Südost), Kolossfeld mit
+// Prozessionsweg zum Throntor (Nordost).
 function buildEmberWastes() {
   const W = 96, H = 64;
   const m = new MapBuilder(W, H, ',');
   const rng = createRng(3636);
   rim(m, rng, W, H);
-  m.ellipse(40, 50, 6, 3, '#');
-  m.ellipse(60, 20, 4, 3, '#');
-  m.ellipse(18, 10, 5, 3, '#');
-  // Ausgänge: West (Frostzinnen)
+  const net = roadNet(m);
+  const road = net.road;
+  // Ausgang: West (Frostzinnen)
   m.rect(0, 18, 4, 5, ',');
-  // Lavaströme (fest) mit Dämmen
-  m.path([[30, 2], [34, 14], [44, 26], [48, 38], [58, 48], [70, 62]], 2.6, '~', [',']);
-  m.path([[96, 30], [84, 34], [72, 36], [58, 48]], 2.2, '~', [',']);
-  m.ellipse(76, 52, 3, 2, '~', [',']);
 
-  const road = road4(m);
-  road([[0, 20], [8, 20]]);
-  road([[26, 20], [36, 20], [46, 24], [56, 28], [64, 24], [72, 16], [80, 10], [80, 5]]); // zur Thronpforte
-  road([[46, 24], [52, 36], [62, 40], [74, 44], [84, 48]]);                             // Kolossfeld
-  road([[26, 20], [24, 32], [20, 44], [26, 54]]);                                       // Südwestpfad
+  // Basaltkuppen
+  blob(m, rng, 54, 6, 3.4, 1.8, '#', null, 2);
+  blob(m, rng, 30, 38, 2.6, 1.6, '#', null, 2);
+  blob(m, rng, 64, 30, 3, 1.8, '#', null, 2);
+  blob(m, rng, 92, 30, 2.4, 3, '#', null, 1);
+  m.ellipse(8, 58, 3, 2, '#');
+  m.ellipse(35, 4, 2.4, 1.4, '#');
+
+  // Brandboden (rötliche Erde): Kolossfeld, Geysirfeld, Brandflächen
+  blob(m, rng, 79, 19, 11, 7, '.', [','], 6);
+  blob(m, rng, 80, 48, 9, 6, '.', [','], 5);
+  blob(m, rng, 46, 52, 8, 4.6, '.', [','], 4);
+  blob(m, rng, 20, 44, 6, 3, '.', [','], 3);
+
+  // Lavaströme (fest): großer Strom Nord -> Süd, Nebenarm aus Osten, Lavasee
+  m.path([[37, 1], [39, 9], [44, 16], [46, 25], [50, 33], [56, 41], [60, 50], [62, 63]], 3, '~', [',', '.']);
+  m.path([[95, 38], [86, 37.5], [76, 40], [66, 41], [57, 42]], 2.2, '~', [',', '.']);
+  blob(m, rng, 81, 55, 5.5, 2.8, '~', [',', '.'], 3);
+  m.ellipse(74, 50, 1.6, 1, '~');
+  m.ellipse(87, 47, 1.4, 1, '~');
+  m.ellipse(48, 9, 1.6, 1, '~');
+
+  // Straßen: Pilgerstraße mit Basaltbrücke, Südweg durch Dünen und Dorf,
+  // Querweg über den Nebenarm, Prozessionsweg zum Throntor
+  road([[0, 20], [8, 20]], 2.4);
+  const pilgrim = [[26, 20], [34, 21], [42, 20.5], [50, 21], [58, 20], [66, 19.5], [74, 19]];
+  road(pilgrim, 2.8);
+  m.path(pilgrim.slice(1), 1.4, ':', ['.']);
+  for (let y = 16; y < 25; y++) for (let x = 28; x < 76; x++) if (m.get(x, y) === ':' && rng.chance(0.3)) m.set(x, y, '.');
+  road([[17, 28], [18, 36], [24, 43], [34, 47], [44, 50], [53, 49], [62, 46], [70, 45], [78, 46]], 2.2);
+  road([[80, 45], [82, 37], [80, 28], [79, 24]], 2);
+  road([[50, 21], [51, 14], [49, 10]], 1.6);
+  m.path([[79, 26], [79, 13], [80, 7]], 3, ':', [',', '.']);
+  net.mask.path([[79, 26], [79, 13], [80, 7]], 4, 'R');
 
   // Letzte Bastion (Hub)
   const bastion = { x: 8, y: 12, w: 18, h: 16 };
-  m.rect(9, 13, 16, 14, ':');
-  m.path([[8, 20], [10, 20]], 3, ':', [',', '.']);
-  m.path([[24, 20], [26, 20]], 3, ':', [',', '.']);
+  // Brandboden mit Basaltplatten-Kreuz zwischen den Toren, Windschutzmauern
+  m.rect(9, 13, 16, 14, '.');
+  m.path([[8, 20], [26, 20]], 3, ':', [',', '.']);
+  m.path([[17, 13], [17, 28]], 3, ':', [',', '.']);
+  for (let y = 13; y < 27; y++) for (let x = 9; x < 25; x++) if (m.get(x, y) === '.' && (x * 7 + y * 13) % 11 === 0) m.set(x, y, ':');
   ring(m, 8, 12, 25, 27, 'w', 'v', [{ side: 'w', from: 19, to: 21 }, { side: 'e', from: 19, to: 21 }, { side: 's', from: 16, to: 18 }]);
   const put = (x, y, ch) => m.set(x, y, ch);
   put(8, 12, 'U'); put(25, 12, 'U'); put(8, 27, 'U'); put(25, 27, 'U');
-  put(12, 15, 'T'); put(21, 15, 'T'); put(17, 15, 'P'); put(17, 20, 'F'); put(12, 24, 'K'); put(21, 24, 'x'); put(22, 25, 'x');
-  put(17, 17, 'A'); put(13, 20, 'B'); put(21, 21, 'M');
+  for (const x of [10, 11, 12, 13, 21, 22, 23]) put(x, 15, 'w');
+  put(12, 17, 'T'); put(22, 17, 'T'); put(17, 14, 'P'); put(17, 20, 'F'); put(12, 24, 'K'); put(22, 24, 'x'); put(23, 25, 'x');
+  put(17, 17, 'A'); put(12, 19, 'B'); put(20, 24, 'M');
   put(17, 23, '1'); put(15, 23, '2'); put(4, 20, '3');
 
-  const field = { x: 66, y: 38, w: 24, h: 18 };
-  m.ellipse(78, 46, 10, 6.4, '.', [',']);
+  // Kolossfeld vor dem Throntor
+  const field = { x: 67, y: 10, w: 25, h: 19 };
   const gate = { x: 72, y: 1, w: 16, h: 9 };
-  m.ellipse(80, 6, 6, 3, '.', [',']);
+  m.ellipse(80, 6, 5, 2.4, ':', [',', '.']);
   put(80, 3, 'R'); put(80, 7, '4');
+  each([[76, 8], [84, 8], [76, 13], [83, 13]], (x, y) => put(x, y, 'P'));
+  // Prozessionsweg: Obsidiansplitter als Spalier, Knochenhaufen gefallener Pilger
+  each([[77, 16], [82, 16], [76, 21], [83, 21]], (x, y) => put(x, y, 'o'));
+  each([[71, 14], [88, 13], [73, 24], [87, 24], [69, 19]], (x, y) => put(x, y, 'y'));
+  each([[70, 11], [89, 19], [86, 27]], (x, y) => put(x, y, 'h'));
+  // Verbranntes Dorf: Pflasterreste, Ruinen in Straßenzügen, verkohlte Bäume
+  blob(m, rng, 46, 52, 5, 2.6, ':', ['.', ','], 3);
+  for (let y = 46; y < 58; y++) for (let x = 38; x < 56; x++) if (m.get(x, y) === ':' && rng.chance(0.3)) m.set(x, y, '.');
+  each([[40, 47], [46, 46], [52, 46], [41, 55], [47, 56], [53, 54]], (x, y) => put(x, y, 'h'));
+  each([[38, 51], [55, 51], [44, 58]], (x, y) => put(x, y, 'd'));
+  // Geysirfeld am Lavasee
+  each([[74, 46], [78, 43], [84, 44], [86, 50], [76, 52], [71, 49], [89, 54], [82, 51]], (x, y) => put(x, y, 'g'));
+  // Brücke: Banner der Pilger an beiden Enden
+  put(40, 18, 'P'); put(48, 23, 'P');
 
-  each([[36, 12], [40, 16], [52, 14], [66, 12], [72, 22], [62, 32], [34, 36], [28, 44], [16, 40], [14, 50]], (x, y) => put(x, y, 'a'));
-  each([[56, 26], [60, 30], [70, 18], [74, 12], [86, 14]], (x, y) => put(x, y, 'k'));
-  each([[38, 28], [42, 34], [50, 44], [64, 54], [86, 26], [88, 58]], (x, y) => put(x, y, 's'));
-  each([[30, 24], [44, 8], [58, 36], [34, 54], [52, 58], [90, 40]], (x, y) => put(x, y, 'c'));
-  each([[72, 42], [84, 42], [70, 50], [86, 52], [78, 40]], (x, y) => put(x, y, 'k'));
-  put(78, 46, 'Z');
+  // Gegner
+  // Aschengeister rund um die Bastion und auf dem Kolossfeld
+  each([[30, 14], [30, 26], [13, 32], [24, 32], [28, 8], [5, 10], [69, 12], [90, 11], [68, 26], [90, 26]], (x, y) => foe(m, x, y, 'a'));
+  // Schlackenritter: Streifen auf der Pilgerstraße, Wache am Kolossfeld
+  each([[36, 23], [38, 18], [53, 18], [55, 23], [62, 17], [64, 22], [76, 11], [84, 11], [73, 25], [86, 25]], (x, y) => foe(m, x, y, 'k'));
+  // Magmaschlangen an den Lavaufern
+  each([[42, 12], [43, 27], [53, 36], [63, 53], [70, 38], [86, 57]], (x, y) => foe(m, x, y, 's'));
+  // Glutadepten zwischen den Obelisken
+  const obelisks = [[52, 10], [22, 49], [88, 46]];
+  each([[50, 8], [55, 11], [20, 47], [25, 51], [85, 45], [90, 49]], (x, y) => foe(m, x, y, 'c'));
+  foe(m, 79, 18, 'Z');
 
-  const clear = [box(bastion), box(field, 0), box(gate, 0), (x, y) => x <= 5 && y >= 15 && y <= 25];
-  scatter(m, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, free) => {
-    if (near(m, x, y, '.', 1)) return null;
-    if (near(m, x, y, '~', 1) && rng.chance(0.08)) return 'o';
-    if (free && rng.chance(0.025)) return 'h';
-    if (free && rng.chance(0.02)) return 'd';
-    if (rng.chance(0.03)) return 'n';
-    if (rng.chance(0.012)) return 'y';
-    if (free && rng.chance(0.006)) return 'g';
+  const clear = [box(bastion), box(gate, 0), (x, y) => x <= 5 && y >= 15 && y <= 25,
+    (x, y) => obelisks.some(([sx, sy]) => Math.abs(x - sx) <= 2 && Math.abs(y - sy) <= 2), (x, y) => inEll(x, y, 79, 18, 7, 4)];
+  const dunes = (x, y) => inEll(x, y, 18, 50, 15, 9);
+  const obsidian = (x, y) => inEll(x, y, 52, 8, 11, 5);
+  const ruins = (x, y) => inEll(x, y, 46, 52, 10, 6);
+  const geysers = (x, y) => inEll(x, y, 80, 49, 11, 7);
+  strew(m, net, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, g, free) => {
+    if (near(m, x, y, '~', 1)) return free && rng.chance(0.03) ? 'o' : rng.chance(0.07) ? 'o' : null;
+    if (obsidian(x, y) && rng.chance(0.1)) return 'o';
+    if (dunes(x, y) && rng.chance(0.13)) return 'n';
+    if (ruins(x, y) && free && rng.chance(0.04)) return rng.chance(0.5) ? 'd' : 'y';
+    if (geysers(x, y) && free && rng.chance(0.02)) return 'g';
+    if (g === '.') return free && rng.chance(0.006) ? 'y' : null;
+    if (rng.chance(0.022)) return 'n';
+    if (free && rng.chance(0.008)) return 'd';
+    if (free && rng.chance(0.006)) return 'h';
+    if (rng.chance(0.006)) return 'y';
     return null;
-  });
+  }, ',.');
 
   return {
     name: 'Die Glutöde',
@@ -434,9 +676,9 @@ function buildEmberWastes() {
       { id: 'throne_gate', ...gate },
     ],
     objects: [
-      { id: 'ember_obelisk_1', kind: 'shrine', decor: 'emberObelisk', prompt: 'Obelisk löschen', x: 44, y: 12 },
-      { id: 'ember_obelisk_2', kind: 'shrine', decor: 'emberObelisk', prompt: 'Obelisk löschen', x: 30, y: 50 },
-      { id: 'ember_obelisk_3', kind: 'shrine', decor: 'emberObelisk', prompt: 'Obelisk löschen', x: 90, y: 20 },
+      { id: 'ember_obelisk_1', kind: 'shrine', decor: 'emberObelisk', prompt: 'Obelisk löschen', x: obelisks[0][0], y: obelisks[0][1] },
+      { id: 'ember_obelisk_2', kind: 'shrine', decor: 'emberObelisk', prompt: 'Obelisk löschen', x: obelisks[1][0], y: obelisks[1][1] },
+      { id: 'ember_obelisk_3', kind: 'shrine', decor: 'emberObelisk', prompt: 'Obelisk löschen', x: obelisks[2][0], y: obelisks[2][1] },
     ],
     portals: [
       { id: 'to_frostspire', x: 0.6, y: 20, range: 26, visual: 'road', dir: [-1, 0],
@@ -444,7 +686,7 @@ function buildEmberWastes() {
       { id: 'to_ashen_throne', x: 80, y: 4.2, range: 26, requires: { level: 38 },
         to: { zoneId: 'ashen_throne', spawnId: 'start' }, prompt: 'Den Aschethron betreten' },
     ],
-    signText: 'Nordost: Der Aschethron · West: Die Frostzinnen',
+    signText: 'Nordost: Kolossfeld und Aschethron · West: Die Frostzinnen',
   };
 }
 
@@ -452,48 +694,104 @@ function buildEmberWastes() {
 // Gemeinsamer Aufbau wie Tempel/Glutschmiede: Räume, Gänge, Arena mit Tor (G)
 // und Bossmarke 9, Eingangstreppe D mit Rückportal.
 
+// Wandfackeln auf Mauerfronten mit Boden davor (für frei geformte Dungeons)
+function wallTorches(m, every = 6, seed = 0) {
+  for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) {
+    if ((x + y * 3 + seed) % every) continue;
+    if (m.get(x, y) !== '#' || m.get(x - 1, y) !== '#' || m.get(x + 1, y) !== '#') continue;
+    if (m.get(x, y + 1) !== '.' || m.get(x - 1, y + 1) !== '.' || m.get(x + 1, y + 1) !== '.') continue;
+    m.set(x, y, 'T');
+  }
+}
+
+// Heulendes Hügelgrab: verwinkelte Grabgänge statt Rasterräume. Eingang mit
+// Grabnischen-Galerie, runde Grabkammern (Knochengrube, Rufer-Kapelle im
+// Steinkreis, Totenwacht), lange Sarkophag-Halle, Vorkammer und Grabkammer
+// des Königs (Arena) im Nordosten; das Tor liegt in deren Südwand, der Thron
+// an der Nordwand gegenüber.
 function buildHowlingBarrow() {
   const W = 64, H = 56;
-  const { m, room, hall, torches, put } = dungeonBase(W, H, 2424);
-  room(4, 4, 12, 8);    // A Eingang
-  room(22, 4, 16, 9);   // B Gräberhalle
-  room(4, 18, 14, 12);  // C Knochengrube
-  room(24, 19, 14, 11); // D Rufer-Kapelle
-  room(44, 5, 15, 13);  // E Totenwacht
-  room(44, 24, 13, 9);  // F Vorkammer (barrow_crypt)
-  room(38, 38, 22, 15); // G Grabkammer des Königs (Arena)
-  hall(16, 7, 6, 3); hall(9, 12, 3, 6); hall(38, 8, 6, 3); hall(18, 23, 6, 3);
-  hall(38, 25, 6, 3); hall(49, 18, 3, 6); hall(47, 33, 4, 5);
-  torches(6);
+  const { m, put } = dungeonBase(W, H, 2424);
+  const cave = (cx, cy, rx, ry) => m.ellipse(cx, cy, rx, ry, '.');
+  const tunnel = (pts, w = 2.4) => m.path(pts, w, '.');
+
+  // A Eingang (rund) mit Treppe
+  cave(10, 7, 6, 3.2); m.rect(8, 4, 4, 2, '.');
+  // B Grabnischen-Galerie: Gang mit Nischen nach Nord und Süd
+  m.rect(21, 5, 17, 4, '.');
+  for (const x of [23, 29, 35]) m.rect(x, 3, 2, 2, '.');
+  for (const x of [26, 32]) m.rect(x, 9, 2, 2, '.');
+  tunnel([[15, 7], [22, 7]], 2.6);
+  // C1 Knochengrube
+  cave(11, 22, 6.5, 5);
+  tunnel([[8, 10], [6, 13], [8, 16], [10, 18]], 2.6);
+  // C2 Rufer-Kapelle (Steinkreis)
+  cave(31, 23, 6.2, 4.8);
+  tunnel([[17, 22], [21, 20], [26, 22]], 2.4);
+  tunnel([[31, 9], [33, 13], [31, 18]], 2.2);
+  // C3 Totenwacht
+  cave(14, 42, 7.5, 5.5);
+  tunnel([[9, 26], [7, 31], [10, 37]], 2.4);
+  // Sarkophag-Halle
+  m.rect(27, 38, 22, 11, '.');
+  tunnel([[21, 43], [28, 43.5]], 2.8);
+  tunnel([[32, 27], [36, 32], [37, 38]], 2.2);
+  // F Vorkammer (barrow_crypt) und Gang aus der Halle herauf
+  m.rect(44, 18, 14, 8, '.');
+  tunnel([[48, 43], [54, 42], [57, 36], [54, 30], [51, 25]], 2.4);
+  // Beinhaus unter der Halle und Seitengrab am Aufgang
+  cave(38, 52, 7, 2.4); tunnel([[38, 48], [38, 51]], 2.2);
+  cave(57, 48, 3.6, 2.6); tunnel([[54, 42], [56, 46]], 2);
+  // G Grabkammer des Königs (Arena), Tor in der Südwand
+  const arena = { x: 40, y: 2, w: 22, h: 15 };
+  m.rect(arena.x, arena.y, arena.w, arena.h, '.');
+  m.rect(49, 17, 4, 1, '.');
+  // Verborgene Ahnenkammer unter der Totenwacht (Hebel an deren Nordwand)
+  m.rect(14, 49, 2, 2, '.'); m.rect(9, 51, 13, 3, '.');
   // Grabwasser
-  m.ellipse(10, 24, 2.4, 1.6, '~', ['.']);
-  m.rect(24, 24, 2, 3, '~');
+  m.ellipse(11, 23, 2.2, 1.3, '~');
+  m.rect(37, 46, 2, 2, '~'); m.rect(37, 39, 2, 2, '~');
+  wallTorches(m, 6);
 
   put(9, 3, 'D'); put(10, 3, 'D'); put(9, 6, '1'); put(12, 6, '2');
   // A
-  put(5, 5, 'S'); put(14, 5, 'S'); put(5, 10, 'U'); put(14, 10, 'c');
-  // B: Grabreihen
-  each([[24, 6], [28, 6], [32, 6], [36, 6], [24, 11], [28, 11], [32, 11], [36, 11]], (x, y) => put(x, y, 'K'));
-  each([[26, 8], [34, 8], [30, 10]], (x, y) => put(x, y, 'w'));
-  put(30, 6, 'a');
-  // C
-  each([[6, 20], [15, 20], [6, 28], [15, 28]], (x, y) => put(x, y, 'P'));
-  put(11, 22, 'x'); put(8, 26, 'x'); put(13, 26, 'x'); put(10, 28, 'b'); put(14, 24, 'h'); put(6, 23, 'h');
-  // D
-  put(31, 20, 'B'); put(26, 21, 'U'); put(36, 21, 'U'); put(31, 26, 'r'); put(28, 24, 'w'); put(34, 24, 'w'); put(31, 28, 'a');
-  // E
-  each([[46, 7], [56, 7], [46, 15], [56, 15]], (x, y) => put(x, y, 'P'));
-  each([[48, 9], [54, 9], [51, 12], [48, 14], [54, 14]], (x, y) => put(x, y, 'w'));
-  put(51, 8, 'a'); put(51, 16, 'h'); put(47, 11, 'b');
-  // F
-  put(45, 25, 'S'); put(55, 25, 'S'); put(48, 28, 'w'); put(53, 28, 'w'); put(50, 30, 'r'); put(55, 31, 'C');
-  for (let x = 47; x <= 50; x++) put(x, 37, 'G');
+  put(5, 6, 'S'); put(15, 5, 'S'); put(6, 9, 'U'); put(14, 9, 'c');
+  // B: Hügelgräber in den Nischen, Urnen, Truhe am Ende
+  each([[24, 3], [30, 3], [36, 3], [27, 10], [33, 10]], (x, y) => put(x, y, 'K'));
+  put(22, 6, 'U'); put(37, 8, 'C'); put(21, 8, 'b');
+  put(26, 6, 'w'); put(34, 7, 'w'); put(30, 7, 'a');
+  // C1 Knochengrube: schlafende Wiedergänger zwischen Knochenhaufen
+  each([[6, 20], [16, 20], [7, 26], [15, 26], [11, 19]], (x, y) => put(x, y, 'b'));
+  put(8, 22, 'x'); put(14, 23, 'x'); put(11, 26, 'x'); put(13, 20, 'w');
+  // C2 Rufer-Kapelle: Steinkreis um zwei Totenrufer
+  circle(m, 31, 23, 5, 3.6, 8, 'S', 0.4);
+  put(29, 23, 'r'); put(33, 23, 'r'); put(31, 21, 'B'); put(28, 26, 'w'); put(34, 20, 'w');
+  // C3 Totenwacht: Wurzelsäulen, Grabhunde
+  each([[9, 39], [19, 39], [9, 45], [19, 45]], (x, y) => put(x, y, 'P'));
+  put(14, 38, 'U'); put(14, 46, 'U');
+  put(12, 41, 'h'); put(16, 42, 'h'); put(14, 44, 'h'); put(11, 44, 'w');
+  // Sarkophag-Halle: zwei Reihen Sarkophage, Geisterbecken an den Enden
+  each([[30, 41], [34, 41], [42, 41], [46, 41], [30, 47], [34, 47], [42, 47], [46, 47]], (x, y) => put(x, y, 'Z'));
+  put(28, 39, 'B'); put(47, 39, 'B'); put(28, 47, 'B'); put(47, 45, 'B');
+  put(38, 43, 'j');
+  put(32, 44, 'w'); put(36, 42, 'w'); put(40, 45, 'w'); put(44, 43, 'w'); put(45, 39, 'a');
+  // Beinhaus und Seitengrab
+  each([[32, 52], [44, 52], [35, 53], [41, 51]], (x, y) => put(x, y, 'b'));
+  put(38, 53, 'U'); put(31, 51, 'U'); put(45, 51, 'c'); put(58, 49, 'C'); put(55, 48, 'K'); put(59, 47, 'U');
+  // Ahnenkammer hinter der Geheimwand
+  put(14, 48, '$'); put(15, 48, '$');
+  put(15, 52, 'C'); put(11, 52, 'j'); put(20, 51, 'B'); put(10, 51, 'B'); put(18, 53, 'U'); put(12, 53, 'K');
+  // F Vorkammer
+  put(45, 19, 'S'); put(56, 19, 'S'); put(45, 24, 'U'); put(56, 24, 'c');
+  put(48, 22, 'w'); put(54, 22, 'w'); put(51, 20, 'a'); put(57, 22, 'C');
+  for (let x = 49; x <= 52; x++) put(x, 17, 'G');
   // G – Arena
-  each([[41, 41], [56, 41], [41, 50], [56, 50]], (x, y) => put(x, y, 'P'));
-  put(39, 39, 'B'); put(58, 39, 'B'); put(39, 51, 'B'); put(58, 51, 'B');
-  put(49, 40, 'Y'); put(49, 43, '9'); put(45, 50, 'j'); put(53, 50, 'j');
-  // Druckplatten
-  put(18, 8, '^'); put(19, 8, '^'); put(10, 15, '^'); put(41, 26, '^'); put(49, 21, '^');
+  each([[43, 5], [58, 5], [43, 14], [58, 14]], (x, y) => put(x, y, 'P'));
+  put(41, 3, 'B'); put(60, 3, 'B'); put(41, 15, 'B'); put(60, 15, 'B');
+  put(51, 4, 'Y'); put(51, 8, '9'); put(47, 14, 'j'); put(55, 14, 'j');
+  each([[45, 3], [56, 3]], (x, y) => put(x, y, 'K'));
+  // Druckplatten in den Gängen
+  put(7, 13, '^'); put(7, 14, '^'); put(32, 13, '^'); put(56, 36, '^'); put(55, 37, '^'); put(24, 43, '^');
 
   return {
     name: 'Das Heulende Hügelgrab',
@@ -511,10 +809,11 @@ function buildHowlingBarrow() {
       9: { type: 'barrow_king', boss: true },
     },
     respawn: Infinity,
-    areas: [{ id: 'barrow_crypt', x: 44, y: 24, w: 13, h: 9 }],
-    arena: { x: 38, y: 38, w: 22, h: 15, gateRow: 37 },
+    areas: [{ id: 'barrow_crypt', x: 44, y: 18, w: 14, h: 8 }],
+    arena: { ...arena, gateRow: 17 },
     traps: { '^': { kind: 'spike' } },
     trapDamage: 60,
+    secrets: [{ id: 'barrow_ancestors', lever: { x: 16, y: 37 } }],
     portals: [{
       id: 'to_ashen_steppe', x: 9.5, y: 3.2, range: 22,
       to: { zoneId: 'ashen_steppe', spawnId: 'from_howling_barrow' }, prompt: 'Zurück in die Aschensteppe',
@@ -536,6 +835,11 @@ function buildSporeHollow() {
   m.rect(38, 40, 22, 15, '.');         // G Nest (Arena)
   hall(13, 7, 6, 3); hall(8, 11, 3, 9); hall(31, 8, 12, 3); hall(16, 25, 8, 3);
   hall(37, 27, 10, 3); hall(51, 17, 3, 9); hall(47, 34, 4, 6);
+  // Kokonkammer (Nebenweg unter der Schleimgrube) und verborgener Sporenhort
+  m.path([[10, 30], [11, 34], [13, 38]], 2.2, '.');
+  m.ellipse(14, 42, 6.4, 3.6, '.');
+  m.rect(22, 42, 4, 2, '.');
+  m.ellipse(30, 44, 5, 3.4, '.');
   torches(8);
   // Schleim (Flüssigkeit, fest)
   m.ellipse(10, 27, 2.6, 1.6, '~', ['.']);
@@ -564,6 +868,13 @@ function buildSporeHollow() {
   each([[41, 43], [56, 43], [41, 52], [56, 52]], (x, y) => put(x, y, 'M'));
   put(39, 41, 'o'); put(58, 41, 'o'); put(39, 53, 'o'); put(58, 53, 'o');
   put(49, 42, 'A'); put(49, 46, '9');
+  // Kokonkammer: Truhe zwischen Kokons, Hebel an der Nordwand
+  put(9, 44, 'C'); put(12, 40, 'b'); put(18, 44, 'b'); put(16, 45, 'g'); put(7, 42, 'o');
+  put(21, 42, '$'); put(21, 43, '$');
+  // Sporenhort hinter der Geheimwand
+  put(30, 41, 'A'); put(30, 44, 'C'); put(27, 43, 'o'); put(33, 46, 'o'); put(34, 42, 'M'); put(26, 46, 'g');
+  // Truhe im Pilzwald
+  put(36, 24, 'C');
 
   return {
     name: 'Der Sporenschlund',
@@ -581,6 +892,7 @@ function buildSporeHollow() {
     respawn: Infinity,
     areas: [{ id: 'mother_nest', x: 46, y: 26, w: 12, h: 9 }],
     arena: { x: 38, y: 40, w: 22, h: 15, gateRow: 39 },
+    secrets: [{ id: 'spore_hoard', lever: { x: 17, y: 39 } }],
     portals: [{
       id: 'to_blighted_marsh', x: 8.5, y: 3.2, range: 22,
       to: { zoneId: 'blighted_marsh', spawnId: 'from_spore_hollow' }, prompt: 'Zurück in die Faulmarsch',
@@ -601,6 +913,11 @@ function buildRimeCaverns() {
   room(38, 40, 24, 15);               // G Hort des Frostwurms (Arena)
   hall(16, 7, 5, 3); hall(9, 12, 3, 7); hall(35, 8, 11, 3); hall(18, 24, 6, 3);
   hall(38, 27, 10, 3); hall(52, 18, 3, 8); hall(48, 34, 4, 6);
+  // Eisgrotte (Nebenweg unter der Gefrorenen Halle) und verborgener Eishort
+  m.path([[10, 30], [11, 34], [12, 37]], 2.2, '.');
+  m.ellipse(12, 40, 6.4, 3.4, '.');
+  m.rect(20, 40, 4, 2, '.');
+  m.ellipse(28, 42, 5, 3.4, '.');
   torches(7);
   m.ellipse(30, 27, 4, 2.2, '~', ['.']);
   m.rect(4, 24, 2, 3, '~');
@@ -626,6 +943,13 @@ function buildRimeCaverns() {
   each([[41, 43], [58, 43], [41, 52], [58, 52]], (x, y) => put(x, y, 'I'));
   put(39, 41, 'B'); put(60, 41, 'B'); put(39, 53, 'B'); put(60, 53, 'B');
   put(50, 42, 'u'); put(50, 46, '9');
+  // Eisgrotte: Truhe, Kristalle, Hebel an der Nordwand
+  put(7, 41, 'C'); put(9, 38, 'K'); put(16, 42, 'K'); put(10, 43, 'w');
+  put(19, 40, '$'); put(19, 41, '$');
+  // Eishort hinter der Geheimwand: im Eis eingeschlossene Wächter
+  put(28, 40, 'B'); put(28, 42, 'C'); put(25, 41, 'F'); put(31, 41, 'F'); put(30, 44, 'w'); put(26, 44, 'K');
+  // Truhe in der Kristallgrotte
+  put(33, 12, 'C');
 
   return {
     name: 'Die Reifhöhlen',
@@ -643,6 +967,7 @@ function buildRimeCaverns() {
     respawn: Infinity,
     areas: [{ id: 'wyrm_lair', x: 47, y: 26, w: 12, h: 9 }],
     arena: { x: 38, y: 40, w: 24, h: 15, gateRow: 39 },
+    secrets: [{ id: 'rime_hoard', lever: { x: 14, y: 37 } }],
     traps: { '^': { kind: 'spike' } },
     trapDamage: 80,
     portals: [{
@@ -652,48 +977,83 @@ function buildRimeCaverns() {
   };
 }
 
+// Aschethron: monumentale Nord-Süd-Achse. Vorhof (Süden, Treppe) -> Säulenhalle
+// mit Lavagräben und Brücke -> Halle des Wächters -> Thronsaal (Arena) im
+// Norden, Thron an der Nordwand, Tor in der Südwand. Seitenflügel: Wachstube
+// und Hundezwinger (West), Priesterhalle und Schatzkammer (Ost).
 function buildAshenThrone() {
   const W = 68, H = 62;
-  const { m, room, hall, torches, put } = dungeonBase(W, H, 4040);
-  room(4, 4, 12, 8);    // A Vorhof
-  room(22, 3, 18, 10);  // B Säulengang
-  room(4, 18, 14, 12);  // C Wachstube
-  room(24, 18, 16, 12); // D Priesterhalle
-  room(46, 4, 16, 14);  // E Halle des Wächters (throne_sentinel)
-  room(46, 24, 16, 10); // F Thronvorhalle
-  room(38, 40, 26, 18); // G Thronsaal (sovereign_hall, Arena)
-  hall(16, 7, 6, 3); hall(9, 12, 3, 6); hall(40, 8, 6, 3); hall(18, 23, 6, 3);
-  hall(40, 26, 6, 3); hall(53, 18, 3, 6); hall(49, 34, 4, 6);
-  torches(5);
-  // Glutrisse (Lava, fest)
-  m.rect(28, 23, 8, 2, '~'); m.rect(31, 23, 2, 2, '.');
-  m.ellipse(42.5, 50, 1.6, 1.6, '~', ['.']); m.ellipse(59.5, 50, 1.6, 1.6, '~', ['.']);
+  const { m, put } = dungeonBase(W, H, 4040);
+  const R = (x, y, w, h, ch = '.') => m.rect(x, y, w, h, ch);
 
-  put(9, 3, 'D'); put(10, 3, 'D'); put(9, 6, '1'); put(12, 6, '2');
-  put(5, 5, 'S'); put(14, 5, 'S'); put(5, 10, 'B'); put(14, 10, 'B');
-  // B
-  each([[24, 5], [28, 5], [32, 5], [36, 5], [24, 11], [28, 11], [32, 11], [36, 11]], (x, y) => put(x, y, 'I'));
-  each([[26, 8], [34, 8], [30, 6]], (x, y) => put(x, y, 'g'));
-  put(30, 10, 'h');
-  // C
-  put(6, 19, 'k'); put(15, 19, 'k'); put(6, 28, 'R'); put(15, 28, 'B');
-  each([[8, 22], [13, 22], [10, 26]], (x, y) => put(x, y, 'g')); put(12, 28, 'h');
-  // D
-  each([[26, 19], [37, 19], [26, 28], [37, 28]], (x, y) => put(x, y, 'I'));
-  put(30, 20, 'p'); put(34, 20, 'p'); put(32, 27, 'p'); put(28, 27, 'h'); put(36, 26, 'C');
-  // E – Wächter
-  each([[48, 6], [60, 6], [48, 16], [60, 16]], (x, y) => put(x, y, 'I'));
-  put(54, 5, 'S'); put(50, 10, 'n'); put(58, 10, 'n'); put(54, 11, 'W');
-  // F
-  put(47, 25, 'k'); put(61, 25, 'k'); put(50, 28, 'g'); put(58, 28, 'g'); put(54, 30, 'p'); put(48, 32, 'e'); put(60, 32, 'e');
-  for (let x = 49; x <= 52; x++) put(x, 39, 'G');
+  // Thronsaal flach und breit (28 × 13): Held und Fürst bleiben vertikal nah beieinander,
+  // so passt Malgareth (Gestalt 3 bis ~150 px hoch) auch bei 480×270 unter der Boss-Leiste ins Bild
+  const arena = { x: 20, y: 7, w: 28, h: 13 };
+  R(arena.x, arena.y, arena.w, arena.h);  // G Thronsaal (sovereign_hall)
+  R(32, 20, 4, 1);                        // Tordurchgang
+  R(24, 21, 20, 9);                       // E Halle des Wächters
+  R(31, 30, 6, 2);                        // Achse
+  R(22, 32, 24, 16);                      // B Säulenhalle
+  R(31, 48, 6, 4);                        // Achse
+  R(24, 52, 20, 7);                       // A Vorhof
+  R(4, 33, 14, 13); R(18, 38, 4, 3);      // C Wachstube + Tür
+  R(4, 20, 14, 10); R(9, 30, 3, 3); R(18, 24, 6, 3);   // Hundezwinger + Gänge
+  R(50, 33, 14, 13); R(46, 38, 4, 3);     // D Priesterhalle + Tür
+  R(50, 20, 14, 10); R(56, 30, 3, 3); R(44, 24, 6, 3); // Schatzkammer + Gänge
+  // Verborgene Schatzkammer über der Schatzkammer (Hebel an deren Nordwand)
+  R(56, 15, 2, 4); R(50, 6, 13, 9);
+  // Lavagräben (fest): Längsgräben der Säulenhalle, Quergraben mit Brücke,
+  // Becken in der Wächterhalle und im Thronsaal
+  R(25, 34, 2, 12, '~'); R(41, 34, 2, 12, '~');
+  // Ausbuchtungen nach außen: die Längsgräben sind keine glatten Rechtecke
+  R(24, 37, 1, 2, '~'); R(24, 43, 1, 1, '~'); R(43, 36, 1, 1, '~'); R(43, 41, 1, 2, '~');
+  R(27, 39, 14, 2, '~'); R(31, 39, 6, 2, '.');
+  // Becken der Wächterhalle: unregelmäßig statt 3 × 2-Rechteck
+  R(27, 27, 2, 1, '~'); R(26, 28, 4, 1, '~'); R(39, 27, 2, 1, '~'); R(38, 28, 4, 1, '~');
+  m.ellipse(24.5, 13.5, 1.6, 1.4, '~'); m.ellipse(43.5, 13.5, 1.6, 1.4, '~');
+  wallTorches(m, 5, 2);
+
+  put(27, 51, 'D'); put(28, 51, 'D'); put(27, 54, '1'); put(29, 54, '2');
+  // A Vorhof: Statuen an der Achse, Glutbecken
+  // (keine Wachen im Vorhof: Gegner stehen mind. 12 Kacheln vom Ankunftspunkt)
+  put(30, 53, 'S'); put(37, 53, 'S'); put(25, 53, 'B'); put(42, 53, 'B'); put(42, 57, 'R'); put(25, 57, 'n');
+  // B Säulenhalle: zwei Säulenreihen, Glutrisse im Boden
+  each([[28, 33], [39, 33], [28, 36], [39, 36], [28, 43], [39, 43], [28, 46], [39, 46]], (x, y) => put(x, y, 'I'));
+  each([[33, 44], [35, 35]], (x, y) => put(x, y, 'e'));
+  put(23, 33, 'B'); put(44, 33, 'B'); put(23, 46, 'B'); put(44, 46, 'B');
+  put(31, 36, 'g'); put(36, 36, 'g'); put(34, 33, 'p');
+  // Brückenwache südlich des Quergrabens (aus dem Vorhof hierher verlegt)
+  put(31, 42, 'g'); put(36, 42, 'g'); put(37, 44, 'g');
+  // C Wachstube
+  put(6, 34, 'R'); put(15, 34, 'R'); put(5, 44, 'B'); put(16, 44, 'k');
+  put(8, 38, 'g'); put(13, 41, 'g'); put(10, 43, 'h');
+  // Hundezwinger
+  put(5, 21, 'k'); put(16, 21, 'k'); put(6, 27, 'x'); put(15, 26, 'x'); put(11, 22, 'x');
+  put(8, 24, 'h'); put(13, 26, 'h');
+  // D Priesterhalle
+  put(51, 34, 'S'); put(62, 34, 'S'); put(54, 34, 'n'); put(59, 34, 'n'); put(51, 44, 'B'); put(62, 44, 'B');
+  put(56, 40, 'e');
+  put(53, 38, 'p'); put(60, 38, 'p'); put(57, 43, 'p');
+  // Schatzkammer
+  put(51, 21, 'B'); put(62, 21, 'B'); put(60, 23, 'C'); put(53, 27, 'R'); put(62, 27, 'k');
+  put(57, 25, 'g');
+  // Nebentruhen in Wachstube und Zwinger
+  put(14, 45, 'C'); put(16, 28, 'C');
+  // Verborgene Schatzkammer
+  put(56, 19, '$'); put(57, 19, '$');
+  put(56, 8, 'C'); put(51, 7, 'B'); put(61, 7, 'B'); put(53, 7, 'S'); put(59, 7, 'S'); put(52, 13, 'R'); put(60, 13, 'R');
+  // E Halle des Wächters
+  put(26, 22, 'S'); put(41, 22, 'S'); put(30, 22, 'n'); put(37, 22, 'n'); put(25, 28, 'B'); put(42, 28, 'B');
+  put(34, 25, 'W');
+  for (let x = 32; x <= 35; x++) put(x, 20, 'G');
   // G – Thronsaal
-  each([[41, 43], [60, 43], [41, 54], [60, 54]], (x, y) => put(x, y, 'I'));
-  put(39, 41, 'B'); put(62, 41, 'B'); put(39, 56, 'B'); put(62, 56, 'B');
-  put(47, 44, 'n'); put(55, 44, 'n');
-  put(51, 42, 'T'); put(51, 41, 'A'); put(51, 47, '9');
+  each([[25, 9], [43, 9], [25, 18], [43, 18]], (x, y) => put(x, y, 'I'));
+  put(21, 8, 'B'); put(46, 8, 'B'); put(21, 18, 'B'); put(46, 18, 'B');
+  put(29, 8, 'n'); put(39, 8, 'n');
+  put(34, 8, 'A'); put(34, 12, '9');
+  each([[31, 8], [37, 8]], (x, y) => put(x, y, 'k'));
   // Druckplatten / Flammendüsen
-  put(19, 8, '^'); put(20, 8, '^'); put(10, 15, '^'); put(43, 27, '^'); put(54, 21, '^');
+  put(32, 49, '^'); put(35, 50, '^'); put(19, 39, '^'); put(48, 39, '^'); put(10, 31, '^');
 
   return {
     name: 'Der Aschethron',
@@ -710,24 +1070,97 @@ function buildAshenThrone() {
       9: { type: 'ash_sovereign', boss: true },
     },
     respawn: Infinity,
-    areas: [{ id: 'sovereign_hall', x: 38, y: 40, w: 26, h: 18 }],
-    arena: { x: 38, y: 40, w: 26, h: 18, gateRow: 39 },
+    areas: [{ id: 'sovereign_hall', ...arena }],
+    arena: { ...arena, gateRow: 20 },
     traps: { '^': { kind: 'spike' } },
     trapDamage: 90,
+    secrets: [{ id: 'throne_vault', lever: { x: 52, y: 20 } }],
     portals: [{
-      id: 'to_ember_wastes', x: 9.5, y: 3.2, range: 22,
+      id: 'to_ember_wastes', x: 27.5, y: 51.2, range: 22,
       to: { zoneId: 'ember_wastes', spawnId: 'from_ashen_throne' }, prompt: 'Zurück in die Glutöde',
     }],
   };
 }
 
-export const LEVELS3 = {
+// Fertige Level-Definition um n Kachelzeilen nach unten schieben: oben n Zeilen
+// massive Wand (fill) einfügen und alle Kachel-/Pixel-y-Koordinaten mitziehen.
+// Marken im Raster (points/Spawns, Gegner, NPCs, Deko, Truhen, Tore, Fallen)
+// wandern mit dem Raster; verschoben werden zusätzlich alle Objekte mit
+// numerischem y (areas, arena, objects, portals, secrets[].lever, buildings,
+// Lichter …), arena.gateRow, y0/y1 und Polylinien in fissures ([x, y]-Paare).
+// Rückportale anderer Zonen zielen per spawnId auf Marken – unberührt.
+// Gedacht für Arenen an der Kartenoberkante: so hat die Kamera Platz über dem
+// Boss (sie ist auf die Karte begrenzt).
+const SHIFT_SKIP = new Set(['map', 'decor', 'enemies', 'npcs', 'points', 'traps', 'to', 'dir', 'requires']);
+export function shiftLevelDown(level, n, fill = '#') {
+  if (!n) return level;
+  const w = level.map[0].length;
+  const pad = Array.from({ length: n }, () => fill.repeat(w));
+  const seen = new WeakSet(); // geteilte Objekte nur einmal verschieben
+  const walk = (o) => {
+    if (!o || typeof o !== 'object' || seen.has(o)) return;
+    seen.add(o);
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    for (const k of ['y', 'y0', 'y1', 'gateRow']) if (typeof o[k] === 'number') o[k] += n;
+    for (const [k, v] of Object.entries(o)) {
+      if (SHIFT_SKIP.has(k) || !v || typeof v !== 'object') continue;
+      if (k === 'fissures') { for (const line of v) for (const p of line) p[1] += n; continue; }
+      walk(v);
+    }
+  };
+  walk(level);
+  level.map = [...pad, ...level.map];
+  return level;
+}
+
+// Ruhige Ankunft: kein (Nicht-Boss-)Gegner näher als r Kacheln an einem
+// benannten Punkt (Start, Respawn, from_*). Zu nahe Marken wandern per
+// Breitensuche über begehbaren Boden zur nächsten freien Stelle (3 × 3 Boden)
+// außerhalb des Radius – bleiben also im selben Gelände, nur weiter weg.
+// Gibt die Verschiebungen zurück (Prüfhilfe).
+export const CALMED = [];
+export function calmArrivals(id, level, r = 12) {
+  const rows = level.map.map((row) => [...row]);
+  const H = rows.length, W = rows[0].length;
+  const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? rows[y][x] : '#');
+  const walk = level.kind === 'outdoor' ? GROUND : new Set(['.']);
+  const pts = [];
+  rows.forEach((row, y) => row.forEach((ch, x) => { if (level.points?.[ch]) pts.push([x, y]); }));
+  const far = (x, y) => pts.every(([px, py]) => Math.hypot(x - px, y - py) >= r);
+  const free = (x, y) => { for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (!walk.has(at(x + i, y + j))) return false; return true; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ch = rows[y][x], e = level.enemies?.[ch];
+    if (!e || e.boss || far(x, y)) continue;
+    // Untergrund der Marke aus den Nachbarn
+    const nb = [at(x - 1, y), at(x + 1, y), at(x, y - 1), at(x, y + 1)].filter((c) => walk.has(c));
+    rows[y][x] = nb[0] ?? [...walk][0];
+    const seen = new Set([y * W + x]), q = [[x, y]];
+    let to = null;
+    for (let k = 0; k < q.length && !to; k++) {
+      const [cx, cy] = q[k];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy, key = ny * W + nx;
+        if (seen.has(key) || !walk.has(at(nx, ny))) continue;
+        seen.add(key); q.push([nx, ny]);
+        if (far(nx, ny) && free(nx, ny)) { to = [nx, ny]; break; }
+      }
+    }
+    if (!to) { rows[y][x] = ch; MISPLACED.push(`${id}:${ch}@${x},${y} (Ankunft)`); continue; }
+    rows[to[1]][to[0]] = ch;
+    CALMED.push(`${id}: ${e.type} ${x},${y} -> ${to[0]},${to[1]}`);
+  }
+  level.map = rows.map((row) => row.join(''));
+  return level;
+}
+
+const RAW3 = {
   ashen_steppe: buildAshenSteppe(),
-  howling_barrow: buildHowlingBarrow(),
+  howling_barrow: shiftLevelDown(buildHowlingBarrow(), 8),
   blighted_marsh: buildBlightedMarsh(),
   spore_hollow: buildSporeHollow(),
   frostspire: buildFrostspire(),
   rime_caverns: buildRimeCaverns(),
   ember_wastes: buildEmberWastes(),
-  ashen_throne: buildAshenThrone(),
+  ashen_throne: shiftLevelDown(buildAshenThrone(), 3),
 };
+export const LEVELS3 = Object.fromEntries(Object.entries(RAW3).map(([id, L]) => [id, calmArrivals(id, L, 12)]));

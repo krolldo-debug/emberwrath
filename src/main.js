@@ -1,4 +1,5 @@
 import { Game } from './Game.js';
+import { EV } from './core/events.js';
 import { PlayScene } from './scenes/PlayScene.js';
 import { installCharacter } from './character/index.js';
 import { installAccount } from './account/index.js';
@@ -11,7 +12,7 @@ import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
-// Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar.
+// Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
 const canvas = document.getElementById('game');
 const game = new Game(canvas);
 game
@@ -25,6 +26,12 @@ game
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
   .use(installShop);       // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
 game.scenes.register('play', (g) => new PlayScene(g));
-window.emberfall = game;
+// Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.
+// (Der Server prüft Spielstände zusätzlich, siehe supabase/migrations/20261003130000_spielstand_pruefung.sql.)
+const devHost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) || window.location.protocol === 'file:';
+if (devHost) window.emberfall = game;
+else game.bus.on(EV.ONLINE_CHANGED, ({ user }) => {
+  if (user && !window.emberfall) game.online?.isAdmin().then((ok) => { if (ok) window.emberfall = game; });
+});
 game.start('title');
 document.getElementById('boot')?.remove();

@@ -9,7 +9,7 @@
 //   Reittiere       eigener Wurf außerhalb der Grenzen (§12.6): Bosse 1 %, Aschenfürst 0,5 %, Moorgrauen 1 %
 //   Truhen          höchstens rare (3 %, Bosstruhe 25 %)
 // Items mit `source` (boss/quest/vendor) fallen nie zufällig, nur über BOSS_LOOT bzw. Quests.
-import { ITEMS, RARITY_ORDER, WEAPON_CLASSES, itemScore } from './items.js';
+import { ITEMS, RARITY_ORDER, WEAPON_CLASSES, itemScore, attrFit } from './items.js';
 import { RARE_ENEMIES, RARE_GOLD_MULT, RARE_WEIGHTS } from './rares.js';
 import { SOVEREIGN_LEGENDARIES } from './items40.js';
 
@@ -109,6 +109,11 @@ const QUEST_DROPS = {
   spider: [['q_spider_silk', 'spider_silk', 0.85]],  // Katakomben: 5 Spinnen, kein Respawn
   rot_shaman: [['q_marsh_shamans', 'rot_idol', 0.6]],
   ash_priest: [['q_ash_prayers', 'ash_prayer', 0.9]],   // Aschethron: 4 Priester, kein Respawn
+  steppe_raider: [['q_imra_cargo', 'spice_bale', 0.45]],
+  bog_lurker: [['q_moll_crates', 'moll_crate', 0.45]],
+  snow_stalker: [['q_fenn_claws', 'stalker_claw', 0.5]],
+  rime_witch: [['q_witch_charms', 'witch_charm', 0.5]],
+  ash_wraith: [['q_bastion_supplies', 'bastion_supplies', 0.45]],
 };
 
 // ---------------------------------------------------------------- Hilfen
@@ -134,7 +139,7 @@ export function rarityWeights(kind, level, bossId) {
 const EQUIP = Object.entries(ITEMS).filter(([, d]) => d.slot && !d.source).map(([id, d]) => ({ id, ...d }));
 
 // Ein zufälliges Ausrüstungsteil passender Stufe und Seltenheit.
-// Bevorzugt (60 %) Teile, die die Klasse des Spielers tragen kann.
+// Bevorzugt (75 %) Teile, die die Klasse des Spielers tragen kann und deren Hauptattribut passt.
 export function pickEquipment({ level, rarity, classId, rng = Math.random }) {
   let r = RARITY_ORDER.indexOf(rarity);
   for (; r >= 0; r--) {
@@ -142,9 +147,11 @@ export function pickEquipment({ level, rarity, classId, rng = Math.random }) {
     for (const spread of [[3, 1], [5, 2], [8, 4], [20, 20]]) {
       let pool = EQUIP.filter((d) => d.rarity === rar && d.ilvl >= level - spread[0] && d.ilvl <= level + spread[1]);
       if (!pool.length) continue;
-      if (classId && rng() < 0.6) {
+      if (classId && rng() < 0.75) {
         const fit = pool.filter((d) => !d.classes || d.classes.includes(classId));
         if (fit.length) pool = fit;
+        const own = pool.filter((d) => attrFit(d, classId));
+        if (own.length) pool = own;
       }
       return pool[Math.floor(rng() * pool.length)].id;
     }
@@ -191,17 +198,20 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   for (const src of [boss, named]) if (src?.set && rng() < src.set.chance) drops.push({ itemId: src.set.pieces[Math.floor(rng() * src.set.pieces.length)], qty: 1 });
   if (boss?.legendary && rng() < Math.min(LEGENDARY_MAX, boss.legendary.chance)) {
     const pool = boss.legendary.pool.filter((id) => ITEMS[id]);
-    const fit = pool.filter((id) => !ITEMS[id].classes || !classId || ITEMS[id].classes.includes(classId));
-    const from = fit.length && rng() < 0.75 ? fit : pool;
+    const usable = pool.filter((id) => !ITEMS[id].classes || !classId || ITEMS[id].classes.includes(classId));
+    const fit = usable.filter((id) => attrFit(ITEMS[id], classId));
+    const from = rng() < 0.75 ? (fit.length ? fit : usable.length ? usable : pool) : pool;
     drops.push({ itemId: from[Math.floor(rng() * from.length)], qty: 1 });
   }
 
   // Reittier (eigener Wurf)
-  const mount = boss?.mount ?? named?.mount;
+  // In den Glutprüfungen gibt es nur das Albtraumross (trials.js), keine Boss-Reittiere
+  const mount = enemy.trial ? null : boss?.mount ?? named?.mount;
   if (mount && ITEMS[mount[0]] && rng() < mount[1]) drops.push({ itemId: mount[0], qty: 1 });
 
   // Tränke
-  if (rng() < (kind === 'normal' ? 0.1 : 0.6)) drops.push({ itemId: potionFor(lvl), qty: kind === 'normal' ? 1 : 2 });
+  // Release-Bewertung: Tränke waren zu reichlich. In den Prüfungen fällt von normalen Gegnern seltener etwas.
+  if (rng() < (kind === 'normal' ? (enemy.trial ? 0.03 : 0.06) : kind === 'boss' ? 0.6 : 0.4)) drops.push({ itemId: potionFor(lvl), qty: kind === 'boss' ? 2 : 1 });
   if (rng() < (kind === 'normal' ? 0.05 : 0.35)) drops.push({ itemId: manaFor(lvl), qty: 1 });
   if ((kind === 'elite' || kind === 'rare') && rng() < 0.08) drops.push({ itemId: 'ember_elixir', qty: 1 });
 
@@ -234,6 +244,9 @@ export function pickRewardGear(spec, classId, salt = 0) {
     const own = pool.filter((d) => WEAPON_CLASSES[d.family]?.[0] === classId);
     if (own.length) pool = own;
   }
+  // Hauptattribut der Klasse, solange es ein passendes Teil in der Nähe der Stufe gibt
+  const attr = pool.filter((d) => attrFit(d, classId) && Math.abs(d.ilvl - spec.ilvl) <= 3);
+  if (attr.length) pool = attr;
   if (!pool.length) return null;
   // Nächste Gegenstandsstufe zuerst; bei Gleichstand das stärkere Teil
   pool.sort((a, b) => Math.abs(a.ilvl - spec.ilvl) - Math.abs(b.ilvl - spec.ilvl) || itemScore(b) - itemScore(a) || a.id.localeCompare(b.id));

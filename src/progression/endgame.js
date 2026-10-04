@@ -202,7 +202,7 @@ export function registerEndgameState(state, h) {
     if (t < 1 || t > Math.min(TRIAL_MAX_TIER, tr.best + 1)) return { ok: false, reason: 'tier' };
     if (tr.run && tr.run.phase !== 'done' && tr.run.phase !== 'failed') return { ok: false, reason: 'running' };
     const seed = 1 + Math.floor(h.rng() * 1e6);
-    tr.run = { runId: `tr${seed}`, ...trialSpec(t, seed, s.get('progress').level), value: 0, phase: 'clear', time: 0 };
+    tr.run = { runId: `tr${seed}`, ...trialSpec(t, seed, s.get('progress').level, s.get('quests').completed), value: 0, phase: 'clear', time: 0 };
     ctx.bus.emit(TRIAL_EV.STARTED, { run: tr.run });
     return { ok: true, run: tr.run };
   }, auth);

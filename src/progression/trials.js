@@ -20,7 +20,17 @@ export const TRIAL_THEMES = {
   undead: { name: 'Gruft der Knochen', pool: ['skeleton', 'archer', 'spider'], elites: ['wolf_alpha'], bossId: 'bonelord', bossHp: 0.9 },
   tide: { name: 'Versunkene Hallen', pool: ['drowned', 'tide_cultist', 'temple_guardian'], elites: ['bandit_chief'], bossId: 'drowned_priestess', bossHp: 1 },
   ember: { name: 'Herz der Esse', pool: ['fire_imp', 'magma_hound', 'ash_golem', 'forge_golem', 'flame_acolyte', 'ember_drake'], elites: ['magma_behemoth', 'forge_warden'], bossId: 'ember_tyrant', bossHp: 1.1 },
+  // Gebiete 20–40 (Thread B, §12.4), ab der Stufe, auf der man das Gebiet erreicht. Bosskämpfe hier zählen nicht für Quests.
+  barrow: { name: 'Heulendes Grab', minLevel: 22, after: 'q_barrow_king', pool: ['steppe_raider', 'raider_archer', 'dust_hyena', 'barrow_wight', 'grave_hound', 'bone_archer'], elites: ['steppe_warlord'], bossId: 'barrow_king', bossHp: 1 },
+  blight: { name: 'Faulender Schlund', minLevel: 27, after: 'q_rot_mother', pool: ['bog_lurker', 'swamp_leech', 'plague_toad', 'rot_shaman', 'sporeling', 'spore_caster'], elites: ['bog_horror', 'fungal_brute'], bossId: 'rot_mother', bossHp: 1.05 },
+  rime: { name: 'Reifgewölbe', minLevel: 32, after: 'q_frost_wyrm', pool: ['frost_wolf', 'snow_stalker', 'rime_witch', 'ice_elemental', 'crystal_spider', 'frozen_knight'], elites: ['ice_troll_chief'], bossId: 'frost_wyrm', bossHp: 1.1 },
+  ashen: { name: 'Thron der Asche', minLevel: 37, after: 'q_ash_sovereign', pool: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'throne_guard', 'ember_hellhound'], elites: ['waste_colossus'], bossId: 'ash_sovereign', bossHp: 1.2 },
 };
+// Themen, die eine Spielerstufe sehen kann
+export function trialThemesFor(level, completed = []) {
+  const done = new Set(completed);
+  return Object.keys(TRIAL_THEMES).filter((id) => (TRIAL_THEMES[id].minLevel ?? 0) <= trialLevel(level) && (!TRIAL_THEMES[id].after || done.has(TRIAL_THEMES[id].after)));
+}
 export const TRIAL_AFFIXES = {
   burning_ground: 'Brennender Boden',
   hasty: 'Hast – Gegner sind schneller',
@@ -40,11 +50,11 @@ function mulberry(seed) {
 export const TRIAL_BOSS_HP = 9000;
 
 // Laufbeschreibung für Stufe `tier` (1…). B spawnt danach; C zählt Fortschritt und vergibt Belohnung.
-export function trialSpec(tier, seed = 1, playerLevel = 20) {
+export function trialSpec(tier, seed = 1, playerLevel = 20, completed = []) {
   const lvl = trialLevel(playerLevel), scale = trialLevelScale(lvl);
   const t = Math.max(1, Math.min(TRIAL_MAX_TIER, tier | 0));
   const r = mulberry(seed * 7919 + t);
-  const themeIds = Object.keys(TRIAL_THEMES);
+  const themeIds = trialThemesFor(lvl, completed);
   const themeId = themeIds[(seed + t) % themeIds.length];
   const theme = TRIAL_THEMES[themeId];
   const affixIds = Object.keys(TRIAL_AFFIXES);

@@ -40,7 +40,10 @@ function titleOf(st) {
   return id ? ACHIEVEMENTS[id]?.title ?? null : null;
 }
 
-const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Reittiere sind in dieser Version noch nicht verfügbar.' };
+// Tausenderpunkte für Goldbeträge in Texten; Touch-Geräte bekommen Tipp-Hinweise, Maus-Geräte Klick-Hinweise
+const fmt = (n) => Number(n).toLocaleString('de-DE');
+const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Das Reittier lässt sich gerade nicht erlernen. Versuch es gleich noch einmal.' };
 const EQUIP_FAIL = { class: 'Deine Klasse kann das nicht führen.', level: 'Deine Stufe ist zu niedrig.', notEquippable: '' };
 const SLOT_PH = { weapon: 'sword', head: 'helm', chest: 'armor', hands: 'gloves', feet: 'boots', ring: 'ring', amulet: 'amulet' };
 const FILTERS = [
@@ -156,7 +159,7 @@ function inventoryView(s) {
       h('div.pg-doll-mid',
         h('div.pg-doll-name', st.slices.character?.name ?? 'Held'),
         titleOf(st) ? h('div.pg-doll-title', titleOf(st)) : null,
-        h('div.pg-doll-sub', `Stufe ${level}${cls ? ` · ${cls.name}` : ''}`),
+        h('div.pg-doll-sub', h('span', `Stufe ${level}`), cls ? h('span', cls.name) : null),
         h('dl.pg-doll-stats',
           h('dt', 'Leben'), h('dd', String(stats.maxHp ?? 0)),
           h('dt', STAT_NAMES.power), h('dd', String(Math.round(stats.power ?? 0))),
@@ -182,7 +185,7 @@ function inventoryView(s) {
       }
       if (def.type !== 'quest' && def.value) {
         const g = def.value * it.qty;
-        actions.push(actionBtn(`Verkaufen +${g}`, () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${r.gold} Gold verkauft.`; redraw(); }));
+        actions.push(actionBtn(`Verkaufen +${g}`, () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }));
       }
       if (def.type !== 'quest') {
         const valuable = RARITIES[def.rarity].order >= 2;
@@ -204,7 +207,7 @@ function inventoryView(s) {
         itemDetail(content, selItemId, { ...detailOpts, actions, compare: sel?.bag != null, actionsTop: true }),
         msg ? h('p.pg-msg', msg) : null)
       : h('div.pg-sheet', h('div.pg-detail.empty',
-        h('p.ef-note', 'Antippen zeigt Details und Vergleich. Doppeltippen legt an oder benutzt.'),
+        h('p.ef-note', TOUCH ? 'Antippen zeigt Details und Vergleich. Doppeltippen legt an oder benutzt.' : 'Klick zeigt Details und Vergleich. Doppelklick legt an oder benutzt.'),
         h('p.ef-note', '▲ = besser als deine Ausrüstung. Heiltränke: Taste H oder Trank-Knopf.')),
       msg ? h('p.pg-msg', msg) : null);
 
@@ -214,8 +217,8 @@ function inventoryView(s) {
         const list = [...multi].filter((i) => inv.slots[i]);
         const gold = sellValue(st, content, list);
         return h('div.pg-quicksell.multi',
-          h('span.pg-qs-info', list.length ? `${list.length} gewählt · +${gold} Gold` : 'Teile antippen zum Auswählen'),
-          actionBtn('Verkaufen', () => { const r = act('inventory:sell', { slots: list }); if (r?.ok) { msg = `${r.count} Teile für ${r.gold} Gold verkauft.`; multi = null; redraw(); } }, { small: true, primary: true, disabled: !list.length }),
+          h('span.pg-qs-info', list.length ? `${list.length} gewählt · +${fmt(gold)} Gold` : 'Teile antippen zum Auswählen'),
+          actionBtn('Verkaufen', () => { const r = act('inventory:sell', { slots: list }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; multi = null; redraw(); } }, { small: true, primary: true, disabled: !list.length }),
           actionBtn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }, { small: true }));
       }
       const junk = sellableSlots(st, content, 'common');
@@ -224,7 +227,7 @@ function inventoryView(s) {
       const next = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
       return h('div.pg-quicksell',
         junk.length ? actionBtn(`Weiße verkaufen · ${junk.length} (+${sellValue(st, content, junk)})`, () => {
-          const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${r.gold} Gold verkauft.`; sel = null; redraw(); }
+          const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
         }, { small: true }) : h('span.pg-qs-info', 'Kein weißer Plunder'),
         h(`button.pg-chip.pg-auto${auto ? '.on' : ''}`, { type: 'button', title: 'Beim Aufsammeln automatisch verkaufen (Verbesserungen werden behalten)', onclick: () => { act('inventory:autoSell', { mode: next }); } },
           `Auto-Verkauf: ${AUTO.find(([m]) => m === auto)[1]}`));
@@ -314,10 +317,14 @@ function characterView(s) {
 
 // Reiter „Reittiere“ (§12.6): Daten und Commands von Thread A (content 'mount', character.mounts, mount:select)
 const MOUNT_RARITY = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
-function mountLine(c, def, level) {
+function mountLine(c, def, level, st) {
   const m = c.find('mount', def.mountId);
-  return `Reittier · +${Math.round((m?.speed ?? 0) * 100)} % Tempo${(def.reqLevel ?? 1) > level ? ` · ab Stufe ${def.reqLevel}` : ''}`;
+  const q = def.reqQuest && !st?.slices.quests?.completed.includes(def.reqQuest) ? c.find('quest', def.reqQuest) : null;
+  // Sperrgrund zuerst: Auf dem Handy wird die Zeile hinten abgeschnitten
+  const lock = [(def.reqLevel ?? 1) > level ? `Ab Stufe ${def.reqLevel}` : null, q ? `nach „${q.title}“` : null].filter(Boolean).join(', ');
+  return `${lock ? `${lock} · ` : 'Reittier · '}+${Math.round((m?.speed ?? 0) * 100)} % Tempo`;
 }
+const questLocked = (st, def) => !!def.reqQuest && !st.slices.quests?.completed.includes(def.reqQuest);
 function mountsSection(s) {
   const st = s.state, c = s.content;
   const defs = c.all('mount');
@@ -330,7 +337,7 @@ function mountsSection(s) {
   const order = { legendary: 0, epic: 1, rare: 2 };
   const rows = [...defs].sort((a, b) => m.owned.includes(b.id) - m.owned.includes(a.id) || order[a.rarity] - order[b.rarity]).map((d) => {
     const own = m.owned.includes(d.id), active = m.active === d.id;
-    return h(`li.pg-mount${own ? '' : '.locked'}${active ? '.active' : ''}`,
+    return h(`li.pg-mount-row${own ? '' : '.locked'}${active ? '.active' : ''}`,
       itemIconEl({ icon: `mount_${d.id}`, rarity: d.rarity }, 40),
       h('div.pg-mount-body',
         h(`b.r-${d.rarity}`, d.name),
@@ -464,7 +471,12 @@ function shopView(s, { vendorId } = {}) {
     const level = levelOf(s), classId = classOf(s);
     const fail = { gold: 'Nicht genug Gold.', full: 'Kein Platz im Inventar.', stock: 'Nicht im Sortiment.', unsellable: 'Das kauft hier niemand.', level: 'Deine Stufe ist zu niedrig.' };
     const detailOpts = { equipment: inv.equipment, level, classId };
-    const buy = (id) => { const def = c.find('item', id); const r = commit(s, 'shop:buy', { vendorId, itemId: id }); msg = r.ok ? `${def.name} gekauft.` : fail[r.reason] ?? ''; redraw(); };
+    const buy = (id) => {
+      const def = c.find('item', id), r = commit(s, 'shop:buy', { vendorId, itemId: id });
+      const q = r.reason === 'quest' ? c.find('quest', r.questId) : null;
+      msg = r.ok ? `${def.name} gekauft.` : q ? `Erst nach der Quest „${q.title}“.` : fail[r.reason] ?? '';
+      redraw();
+    };
 
     let main;
     if (tab === 'buy') {
@@ -474,11 +486,11 @@ function shopView(s, { vendorId } = {}) {
       const rows = ids.map((id) => {
         const def = c.find('item', id), price = buyPrice(def);
         const up = def.slot && isUpgrade(st, c, id);
-        const low = (def.reqLevel ?? 1) > level;
+        const low = (def.reqLevel ?? 1) > level || questLocked(st, def);
         const row = h(`li.pg-stock-row${sel === id ? '.selected' : ''}${low ? '.low' : ''}`, { onclick: () => { sel = id; msg = ''; redraw(); } },
           itemIconEl({ ...def, name: null }, 36),
           h('div.pg-stock-name', h(`span.r-${def.rarity}`, def.name, up ? h('span.pg-up.inline', ' ▲') : null),
-            h('small', def.slot ? `${typeLabel(def)} · Stufe ${def.reqLevel}` : def.type === 'mount' ? mountLine(c, def, level) : def.desc ?? typeLabel(def))),
+            h(def.type === 'mount' ? 'small.pg-wrap' : 'small', def.slot ? `${typeLabel(def)} · Stufe ${def.reqLevel}` : def.type === 'mount' ? mountLine(c, def, level, st) : def.desc ?? typeLabel(def))),
           goldEl(price, gold < price ? '.poor' : ''),
           actionBtn('Kaufen', (e) => { e.stopPropagation(); buy(id); }, { disabled: gold < price, small: true }));
         attachTip(row, () => itemDetail(c, id, { ...detailOpts, compact: true, price }));
@@ -507,7 +519,7 @@ function shopView(s, { vendorId } = {}) {
         return el;
       });
       const lastDef = last != null && marked.has(last) && inv.slots[last] ? c.find('item', inv.slots[last].itemId) : null;
-      const sellList = (slots) => { const r = commit(s, 'inventory:sell', { slots }); msg = r.ok ? `${r.count} Teile für ${r.gold} Gold verkauft.` : fail[r.reason] ?? ''; if (r.ok) marked.clear(); redraw(); };
+      const sellList = (slots) => { const r = commit(s, 'inventory:sell', { slots }); msg = r.ok ? `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.` : fail[r.reason] ?? ''; if (r.ok) marked.clear(); redraw(); };
       main = h('div.pg-shop-sell',
         h('div.pg-quicksell',
           junk.length ? actionBtn(`Weiße verkaufen · ${junk.length} (+${sellValue(st, c, junk)})`, () => sellList(junk), { small: true })
@@ -538,7 +550,9 @@ function craftView(s, { vendorId } = {}) {
     const recipes = c.all('recipe')
       .filter((r) => group === 'all' || r.group === group)
       .filter((r) => { const d = c.find('item', r.result); return !d?.slot || canUseClass(d, classId) || group !== 'all'; })
-      .sort((a, b) => (a.level > level) - (b.level > level) || a.level - b.level);
+      // „Alle“ zeigt nur, was gerade zählt: keine veraltete Ausrüstung, nichts weit über der eigenen Stufe
+      .filter((r) => group !== 'all' || r.group === 'shards' || (r.level <= level + 5 && r.level >= level - (c.find('item', r.result)?.slot ? 8 : 15)))
+      .sort((a, b) => (a.level > level) - (b.level > level) || b.level - a.level);  // Neuestes zuerst
     const rows = recipes.map((r) => {
       const def = c.find('item', r.result);
       if (!def) return null;
@@ -552,7 +566,7 @@ function craftView(s, { vendorId } = {}) {
           h('small.ef-note', locked ? `ab Stufe ${r.level}` : `${RECIPE_GROUPS[r.group] ?? ''}${def.slot ? ` · ${typeLabel(def)}` : ''}`),
           h('div.pg-mats', mats.map((m) => h(`span.pg-mat${m.have >= m.qty ? '.ok' : ''}`, { title: m.def?.name ?? m.itemId },
             m.def ? iconEl(m.def.icon, 16) : null, `${Math.min(m.have, 999)}/${m.qty}`)),
-          r.gold ? h(`span.pg-mat${gold >= r.gold ? '.ok' : ''}`, iconEl('gold', 16), String(r.gold)) : null)),
+          r.gold ? h(`span.pg-mat${gold >= r.gold ? '.ok' : ''}`, iconEl('gold', 16), fmt(r.gold)) : null)),
         actionBtn('Herstellen', (e) => {
           e.stopPropagation();
           const res = commit(s, 'craft:make', { recipeId: r.id });

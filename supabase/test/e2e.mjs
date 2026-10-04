@@ -35,8 +35,13 @@ await a.locator('.on-form input').nth(2).fill('geheim123');
 // Felder wurden durch Render geleert? neu füllen
 const i2 = a.locator('.on-form input');
 await i2.nth(0).fill('Sitzheizung'); await i2.nth(1).fill('admin@test.de'); await i2.nth(2).fill('geheim123');
+check(await a.evaluate(() => [...document.querySelectorAll('.on-legal-link')].some((l) => l.getAttribute('href') === '/nutzungsbedingungen') && [...document.querySelectorAll('.on-legal-link')].some((l) => l.getAttribute('href') === '/datenschutz')), 'Registrierung verlinkt Nutzungsbedingungen und Datenschutz');
+await a.click('.on-submit'); await wait(300);
+check((await text(a)).includes('Bitte bestätige die Nutzungsbedingungen') && (await a.locator('.on-form input').nth(1).inputValue()) === 'admin@test.de', 'ohne Zustimmung keine Registrierung, Eingaben bleiben stehen');
+await a.check('.on-check input');
 await a.click('.on-submit'); await wait(500);
 check((await text(a)).includes('Fast geschafft'), 'Registrierung verlangt E-Mail-Bestätigung');
+{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='admin@test.de'"); check(m[0]?.v === '2026-10', 'Zustimmung im Konto vermerkt: ' + JSON.stringify(m)); }
 // Anmelden vor Bestätigung
 const i3 = a.locator('.on-form input');
 await i3.nth(0).fill('admin@test.de'); await i3.nth(1).fill('geheim123');
@@ -72,10 +77,16 @@ check((await text(a)).includes('Kein Zugriff'), 'Admin-Seite ohne Recht: Kein Zu
 const b = await newPage(390, 844);
 await b.goto(B + '#anmelden'); await wait(500);
 await b.screenshot({ path: 'shot-login-mobile.png' });
-check(await b.evaluate(() => !document.querySelector('.on-google').disabled && !document.querySelector('.on-apple')), 'Google-Knopf per Server-Einstellung freigeschaltet, kein Apple-Knopf');
+check(await b.evaluate(() => document.querySelector('.on-google').offsetParent !== null && !document.querySelector('.on-apple')), 'Google-Knopf per Server-Einstellung freigeschaltet, kein Apple-Knopf');
 await b.click('.on-google'); await wait(1200);
 check((await text(b)).includes('Gustav Google') && (await text(b)).includes('Google'), 'Google-Anmeldung über Rückleitung');
 await b.click('text=Spielen'); await wait(300);
+// Google-Konten haben beim ersten Mal kein Häkchen gesetzt: Zustimmung wird einmal nachgeholt und vermerkt
+check((await text(b)).includes('Zustimmen und spielen') && (await text(b)).includes('ab 12 Jahren; unter 18 nur mit Zustimmung der Eltern'), 'Google-Konto: Zustimmung wird vor dem Spielen abgefragt');
+await b.click('text=Zustimmen und spielen'); await wait(300);
+check((await text(b)).includes('Bitte bestätige die Nutzungsbedingungen'), 'ohne Häkchen kein Weiter');
+await b.check('.on-check input'); await b.click('text=Zustimmen und spielen'); await wait(800);
+{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='googleuser@example.com'"); check(m[0]?.v === '2026-10' && (await text(b)).includes('Dein erster Held'), 'Zustimmung des Google-Kontos vermerkt, weiter zur Charakterauswahl: ' + JSON.stringify(m)); }
 await b.evaluate(() => window.emberfall.newGame({ character: { name: 'Bruno', raceId: 'dwarf', classId: 'warrior' } }));
 await wait(3500);
 const peek = await b.evaluate(async () => { const c = window.emberfall.online.client; const own = await c.rest('/characters?select=id'); let admin; try { await c.rpc('admin_stats'); admin = 'erlaubt'; } catch (e) { admin = e.message; } return { own: own.length, admin }; });
@@ -90,6 +101,14 @@ await a.click('text=Charaktere ('); await wait(200);
 const ct = await text(a);
 check(ct.includes('Bruno') && ct.includes('Ada'), 'Admin sieht Charaktere aller Konten');
 await a.screenshot({ path: 'shot-admin-chars.png' });
+// 6b Chat-Meldungen im Admin-Reiter „Meldungen“ (Migration chat_meldungen)
+execSync('sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 >/dev/null', { input: 'do $$ begin create role service_role; exception when duplicate_object then null; end $$;\n' + readFileSync(new URL('../migrations/20261003120100_chat_meldungen.sql', import.meta.url), 'utf8') });
+await pool.query("insert into public.chat_reports (reporter_id, reporter_name, reported_id, reported_name, zone, reason, note, messages, good_faith) select a.id, 'Sitzheizung', g.id, 'Gustav', 'ashen_steppe', 'beleidigung', 'Testmeldung', '[{\"text\":\"du Wurm\",\"at\":\"2026-10-03T12:00:00Z\"}]', true from auth.users a, auth.users g where a.email='admin@test.de' and g.email='googleuser@example.com'");
+await a.click('text=Meldungen'); await wait(800);
+await a.screenshot({ path: 'shot-admin-reports.png' });
+check((await text(a)).includes('Testmeldung') && (await text(a)).includes('du Wurm'), 'Admin sieht Chat-Meldung im Reiter „Meldungen“');
+await a.fill('.net-adm-decision', 'Beleidigung bestätigt'); await a.click('text=Chat sperren: 24 Stunden'); await wait(1500);
+{ const { rows: r } = await pool.query("select status, decision from public.chat_reports"); const { rows: m } = await pool.query('select count(*)::int n from public.chat_mutes'); check(r[0]?.status === 'erledigt' && m[0].n === 1, 'Chatsperre gesetzt und Meldung erledigt: ' + JSON.stringify(r)); }
 // 7 Gerätewechsel: Admin meldet sich auf Gerät C an, Charakter kommt an, Löschen synct zurück
 const c = await newPage();
 await c.goto(B + '#anmelden'); await wait(500);
@@ -149,6 +168,13 @@ await b.click('text=Kontoeinstellungen'); await b.click('text=Konto löschen'); 
 ({ rows } = await pool.query("select count(*)::int n from auth.users where email='googleuser@example.com'"));
 const bc = await pool.query("select count(*)::int n from public.characters where name='Bruno'");
 check(rows[0].n === 0 && bc.rows[0].n === 0 && (await text(b)).includes('wurden gelöscht'), 'Konto löschen entfernt Konto und Charaktere');
+// 13 Auffälligkeiten (abgelehnte Spielstände) im Admin-Reiter
+execSync('sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 >/dev/null', { input: readFileSync(new URL('../migrations/20261003130000_spielstand_pruefung.sql', import.meta.url), 'utf8') });
+await pool.query(`insert into public.character_flags (user_id, character_id, reason, detail) select id, 'c_test', 'gold', '{"level":[5,6],"gold":[1200,9000000],"playTime":[600,900],"realSeconds":310}' from auth.users where email='admin@test.de'`);
+await a.goto(B + '#admin'); await wait(1200);
+await a.click('text=Auffälligkeiten'); await wait(800);
+{ const t = await text(a); check(t.includes('Gold zu schnell gestiegen') && t.includes('admin@test.de') && t.includes('Gold 1.200 → 9.000.000') && t.includes('Auffälligkeiten (1)'), 'Admin sieht abgelehnte Spielstände im Reiter „Auffälligkeiten“'); }
+await a.screenshot({ path: 'shot-admin-flags.png' });
 check(errs.length === 0, 'keine JS-Fehler: ' + errs.join(' | '));
 console.log(fails ? `${fails} FEHLER` : 'ALLES GRÜN');
 await browser.close(); process.exit(fails ? 1 : 0);

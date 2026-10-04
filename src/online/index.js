@@ -2,7 +2,7 @@ import { EV } from '../core/events.js';
 import { ONLINE_CONFIG } from './config.js';
 import { AuthClient, describeError } from './AuthClient.js';
 import { CloudSync, accountIdFor, displayNameOf, ONLINE_ACCOUNT_PREFIX } from './CloudSync.js';
-import { LoginScene } from './LoginScene.js';
+import { LoginScene, needsConsent } from './LoginScene.js';
 import { AdminScene } from './AdminScene.js';
 
 // Online-Konten (Supabase): Anmeldung, Cloud-Spielstände, Admin-Übersicht. Siehe docs/ONLINE.md.
@@ -27,11 +27,17 @@ export class Online {
     this.game = game;
     this.config = config;
     this.client = new AuthClient({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey });
-    this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed() });
+    this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed(), onRemote: (ids, rejected) => this.#remoteUpdated(ids, rejected) });
     this.notice = null; // einmalige Meldung für die Anmeldeseite { kind, text }
     this.#admin = null;
     this.client.onChange((event) => {
-      if (event === 'SIGNED_OUT') { this.#admin = null; this.sync.stop(); }
+      if (event === 'SIGNED_OUT') {
+        // Abmeldung durch abgelaufene Sitzung mitten im Spiel: deutlich sagen, dass nur noch lokal gespeichert wird.
+        if (this.sync.userId && this.game.account?.id === this.sync.accountId && this.game.scenes.currentId === 'play') {
+          this.game.bus.emit(EV.UI_TOAST, { text: 'Anmeldung abgelaufen – Cloud-Speichern pausiert. Bitte im Menü neu anmelden.', kind: 'warn' });
+        }
+        this.#admin = null; this.sync.stop();
+      }
       if (event === 'SIGNED_IN') this.#admin = null;
       this.#changed();
     });
@@ -64,6 +70,28 @@ export class Online {
 
   #changed() { this.game.bus.emit(EV.ONLINE_CHANGED, { user: this.user, status: this.sync.status }); }
 
+  // Der Abgleich hat Charaktere mit dem neueren Cloud-Stand eines anderen Geräts überschrieben.
+  // Läuft gerade einer davon, wird er neu geladen, sonst würde das nächste Speichern den alten Stand zurückschreiben.
+  #remoteUpdated(ids, rejected = []) {
+    const g = this.game, m = g.state.meta;
+    if (g.scenes.currentId !== 'play' || m.accountId !== this.sync.accountId || !ids.includes(m.characterId)) return;
+    const slot = this.sync.stashed[m.characterId];
+    const where = slot === 'auto' ? 'im automatischen Speicherplatz' : slot != null ? `in Speicherplatz ${slot + 1}` : null;
+    const refused = rejected.includes(m.characterId);
+    const help = ' Wenn das ein Irrtum ist, schreib uns über den Support auf emberwrath.com.';
+    if (refused && slot === undefined) {
+      // Abgelehnt und kein gültiger Cloud-Stand vorhanden (neuer Charakter): lokal weiterspielen, aber deutlich sagen, dass nichts gesichert ist.
+      g.bus.emit(EV.UI_TOAST, { kind: 'warn', text: `Der Server hat diesen Spielstand nicht angenommen, er ist nicht in der Cloud gesichert.${help}` });
+      return;
+    }
+    if (!g.loadGame(m.accountId, m.characterId)) return;
+    const text = refused
+      ? `Der Server hat deinen letzten Spielstand nicht angenommen (ungewöhnlicher Fortschritt). Der letzte gültige Stand ist geladen.${where ? ` Dein Stand liegt ${where}.` : ''}${help}`
+      : `Auf einem anderen Gerät wurde weitergespielt – dieser neuere Stand ist jetzt geladen.${where ? ` Der vorherige Stand dieses Geräts liegt ${where}.` : ''}`;
+    // Erst nach dem Szenenwechsel melden: die Meldungsanzeige gehört zur neuen Spielsitzung.
+    const off = g.bus.on(EV.SCENE_CHANGE, () => { off(); setTimeout(() => g.bus.emit(EV.UI_TOAST, { kind: 'warn', text }), 0); });
+  }
+
   isAdmin() {
     if (!this.user || !this.configured) return Promise.resolve(false);
     // Nur ein „ja“ wird gemerkt; ein „nein“ wird beim nächsten Mal neu erfragt (Recht kann nachträglich vergeben werden).
@@ -75,8 +103,12 @@ export class Online {
   open(mode = this.user ? 'account' : 'login') { this.game.scenes.go('login', { mode }); }
 
   // Mit dem Online-Konto spielen: lokalen Zwischenspeicher-Account einloggen, dann Charakterliste.
+  // Zustimmung zu den Nutzungsbedingungen fehlt noch (z. B. erste Google-Anmeldung)?
+  needsConsent() { return needsConsent(this.user); }
+
   play() {
     if (!this.user) { this.open('login'); return; }
+    if (this.needsConsent()) { this.open('consent'); return; }
     this.sync.ensureLocalAccount(this.user);
     this.game.login(this.accountId);
     this.game.scenes.go('characters', { from: 'login' });
@@ -178,7 +210,18 @@ export function installOnline(game) {
   });
 
   window.addEventListener('online', () => { if (online.user) online.sync.syncAll().catch(() => {}); });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') online.sync.flush().catch(() => {}); });
+  // Beim Verstecken/Schließen erst speichern, dann sofort senden (der verzögerte Upload läuft im Hintergrund oft nicht mehr).
+  // Beim Zurückkehren abgleichen: ein anderes Gerät kann inzwischen weitergespielt haben.
+  const saveAndFlush = (reason) => {
+    if (!online.sync.userId) return;
+    if (game.scenes.currentId === 'play' && game.account?.id === online.sync.accountId) game.saveNow(reason);
+    online.sync.flush().catch(() => {});
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveAndFlush('hidden');
+    else if (online.sync.userId) online.sync.syncAll().catch(() => {});
+  });
+  window.addEventListener('pagehide', () => saveAndFlush('pagehide'));
   window.addEventListener('storage', (e) => { if (e.key === 'emberwrath:online:session') online.client.syncFromStorage(); });
   window.addEventListener('hashchange', () => online.routeFromHash());
 

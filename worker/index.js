@@ -18,9 +18,23 @@ import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol
 // (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
 export { ZoneShard, Directory, DungeonFinder };
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+const json = (body, status = 200, cache = 'no-store') => new Response(JSON.stringify(body), {
+  status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': cache },
 });
+
+// Öffentliche Übersichten (/net/status, /net/worlds) wenige Sekunden zwischenspeichern:
+// sonst landet jeder Aufruf (Startseite, Abfragen von außen) beim einzigen Directory-Objekt.
+async function cachedJson(request, ctx, make) {
+  const cache = globalThis.caches?.default;
+  const key = new Request(new URL(request.url).toString(), { method: 'GET' });
+  if (cache && request.method === 'GET') {
+    const hit = await cache.match(key).catch(() => null);
+    if (hit) return hit;
+  }
+  const res = json(await make(), 200, 'public, max-age=5');
+  if (cache && request.method === 'GET') ctx?.waitUntil?.(cache.put(key, res.clone()).catch(() => {}));
+  return res;
+}
 
 function config(env) {
   return {
@@ -41,10 +55,10 @@ function originOk(request, url, env) {
   return String(env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean).includes(origin);
 }
 
-async function handleNet(request, env, url) {
+async function handleNet(request, env, url, ctx) {
   const route = url.pathname.slice(NET_PATH.length);
   const zone = url.searchParams.get('zone') ?? '';
-  if (route === '/status') return json({ zones: await directory(env).overview() });
+  if (route === '/status') return cachedJson(request, ctx, async () => ({ zones: await directory(env).overview() }));
   if (route === '/finder') {
     if (!env.DUNGEON_FINDER) return json({ error: 'unavailable' }, 503);
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);
@@ -53,7 +67,7 @@ async function handleNet(request, env, url) {
   }
   if (!ZONE_ID_RE.test(zone)) return json({ error: 'zone' }, 400);
 
-  if (route === '/worlds') return json({ zone, worlds: await directory(env).list(zone, capacity(env)) });
+  if (route === '/worlds') return cachedJson(request, ctx, async () => ({ zone, worlds: await directory(env).list(zone, capacity(env)) }));
 
   if (route === '/ws') {
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);
@@ -84,7 +98,7 @@ function canonicalRedirect(request, url, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith(`${NET_PATH}/`)) {
       const moved = canonicalRedirect(request, url, env);
@@ -93,13 +107,13 @@ export default {
     if (url.pathname.startsWith(`${NET_PATH}/`)) {
       const route = url.pathname.slice(NET_PATH.length);
       if (route.startsWith('/forms/') || route.startsWith('/newsletter/')) {
-        try { return (await handleForms(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { return json({ error: 'server' }, 500); }
+        try { return (await handleForms(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('forms', e?.message); return json({ error: 'server' }, 500); }
       }
       if (route.startsWith('/shop/')) {
         try { return (await handleShop(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('shop', e?.message); return json({ error: 'server' }, 500); }
       }
       if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
-      try { return await handleNet(request, config(env), url); } catch (e) { return json({ error: 'server' }, 500); }
+      try { return await handleNet(request, config(env), url, ctx); } catch (e) { console.error('net', e?.message); return json({ error: 'server' }, 500); }
     }
     return env.ASSETS.fetch(request);
   },

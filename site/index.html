@@ -16,11 +16,11 @@
   <meta property="og:image" content="https://www.emberwrath.com/img/og-emberwrath.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Krieger, Magier und Waldläuferin vor Skalvyr, dem Frostwurm">
+  <meta property="og:image:alt" content="Emberwrath: Krieger, Magier und Waldläuferin vor Skalvyr, dem Frostwurm">
   <meta name="twitter:card" content="summary_large_image">
-  <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://www.emberwrath.com/#website", "url": "https://www.emberwrath.com/", "name": "Emberwrath", "inLanguage": "de"}, {"@type": "VideoGame", "@id": "https://www.emberwrath.com/#game", "name": "Emberwrath", "url": "https://www.emberwrath.com/", "description": "Emberwrath ist ein düsteres Pixel-Action-RPG: vier Klassen, Stufe 40, vierzehn Gebiete, Bosse, Reittiere und andere Spieler in derselben Welt. Kostenlos im Browser spielen, auf PC und Handy, ohne Download.", "image": "https://www.emberwrath.com/img/og-emberwrath.png", "inLanguage": "de", "genre": ["Action-Rollenspiel", "Online-Rollenspiel", "Pixel-Art"], "gamePlatform": ["Webbrowser", "PC", "Smartphone"], "applicationCategory": "Game", "operatingSystem": "Windows, macOS, Linux, Android, iOS (im Browser)", "playMode": "MultiPlayer", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/OnlineOnly", "url": "https://www.emberwrath.com/spielen/"}, "potentialAction": {"@type": "PlayAction", "target": "https://www.emberwrath.com/spielen/"}}]}</script>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://www.emberwrath.com/#website", "url": "https://www.emberwrath.com/", "name": "Emberwrath", "inLanguage": "de"}, {"@type": "VideoGame", "@id": "https://www.emberwrath.com/#game", "name": "Emberwrath", "url": "https://www.emberwrath.com/", "description": "Emberwrath ist ein düsteres Pixel-Action-RPG: vier Klassen, Stufe 40, vierzehn Gebiete, Bosse, Reittiere und andere Spieler in derselben Welt. Kostenlos im Browser spielen, auf PC und Handy, ohne Download.", "image": "https://www.emberwrath.com/img/og-emberwrath.png", "inLanguage": "de", "genre": ["Action-Rollenspiel", "Online-Rollenspiel", "Pixel-Art"], "gamePlatform": ["Webbrowser", "PC", "Smartphone"], "applicationCategory": "Game", "operatingSystem": "Windows, macOS, Linux, Android, iOS (im Browser)", "playMode": "MultiPlayer", "isAccessibleForFree": true, "publisher": {"@type": "Person", "name": "Dominic Paul Kroll"}, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/OnlineOnly", "url": "https://www.emberwrath.com/spielen/"}, "potentialAction": {"@type": "PlayAction", "target": "https://www.emberwrath.com/spielen/"}}]}</script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preload" as="image" href="img/kampf-titel.webp">
+  <link rel="preload" as="image" href="img/kampf-titel.webp" fetchpriority="high">
   <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
 </head>
@@ -30,7 +30,7 @@
 <main id="inhalt">
 
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img style="--fx:0.495;--fy:0.45;--mx:0.5;--my:0.46" class="px shot" src="img/kampf-titel.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
+    <div class="hero-bg"><img style="--fx:0.5;--fy:0.42;--mx:0.5;--my:0.46" class="px shot" fetchpriority="high" src="img/kampf-titel.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
     <canvas class="embers" aria-hidden="true"></canvas>
     <div class="hero-content">
       <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="438" height="90">
@@ -38,13 +38,15 @@
       <p class="hero-sub">Ein düsteres Pixel-Action-RPG mit anderen Spielern in einer Welt. Kostenlos im Browser, auf PC und Handy.</p>
       <div class="hero-cta">
         <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
+        <a class="btn big" href="welt">Die Welt ansehen</a>
       </div>
+      <p class="online" data-online hidden><i aria-hidden="true"></i><span></span></p>
     </div>
   </section>
 
   <section class="strip" aria-label="Szenen aus dem Spiel">
     <figure class="strip-a" data-zoom="Malgareth, der Aschenfürst">
-      <img style="--fx:0.5;--fy:0.48;--mx:0.5;--my:0.5" class="px shot" src="img/kampf-aschenfuerst.webp" alt="Malgareth, der Aschenfürst, hebt seine Flammenklinge gegen Krieger, Magier und Waldläuferin." width="960" height="540" loading="lazy">
+      <img style="--fx:0.51;--fy:0.44;--mx:0.5;--my:0.5" class="px shot" src="img/kampf-aschenfuerst.webp" alt="Malgareth, der Aschenfürst, hebt seine Flammenklinge gegen Krieger, Magier und Waldläuferin." width="960" height="540" loading="lazy">
       <figcaption>Malgareth, der Aschenfürst</figcaption>
     </figure>
   </section>
@@ -66,10 +68,10 @@
         <div class="cls-info">
           <p class="cls-desc">Hält am meisten aus. Jeder Treffer erzeugt Wut, und Wut wird zu verheerenden Hieben.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-whirlwind.png" alt="" width="52" height="52">Wirbelsturm</li>
-            <li><img class="px" src="img/skill-battle_shout.png" alt="" width="52" height="52">Kriegsschrei</li>
-            <li><img class="px" src="img/skill-charge.png" alt="" width="52" height="52">Sturmangriff</li>
-            <li><img class="px" src="img/skill-earthshatter.png" alt="" width="52" height="52">Erdspalter</li>
+            <li><img class="px" src="img/skill-whirlwind.png" alt="" width="48" height="48">Wirbelsturm</li>
+            <li><img class="px" src="img/skill-battle_shout.png" alt="" width="48" height="48">Kriegsschrei</li>
+            <li><img class="px" src="img/skill-charge.png" alt="" width="48" height="48">Sturmangriff</li>
+            <li><img class="px" src="img/skill-earthshatter.png" alt="" width="48" height="48">Erdspalter</li>
           </ul>
           <p class="legend"><img class="px" src="img/item-kingsbane.png" alt="" width="52" height="52">Königsfall</p>
         </div>
@@ -80,10 +82,10 @@
         <div class="cls-info">
           <p class="cls-desc">Schnelle Dolchkombos und kritische Treffer. Taucht durch die Reihen, bevor jemand reagiert.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-shadow_step.png" alt="" width="52" height="52">Schattenschritt</li>
-            <li><img class="px" src="img/skill-fan_of_knives.png" alt="" width="52" height="52">Dolchfächer</li>
-            <li><img class="px" src="img/skill-poison_blades.png" alt="" width="52" height="52">Giftklingen</li>
-            <li><img class="px" src="img/skill-assassinate.png" alt="" width="52" height="52">Todesstoß</li>
+            <li><img class="px" src="img/skill-shadow_step.png" alt="" width="48" height="48">Schattenschritt</li>
+            <li><img class="px" src="img/skill-fan_of_knives.png" alt="" width="48" height="48">Dolchfächer</li>
+            <li><img class="px" src="img/skill-poison_blades.png" alt="" width="48" height="48">Giftklingen</li>
+            <li><img class="px" src="img/skill-assassinate.png" alt="" width="48" height="48">Todesstoß</li>
           </ul>
           <p class="legend"><img class="px" src="img/item-veilpiercer.png" alt="" width="52" height="52">Schleierstecher</p>
         </div>
@@ -94,10 +96,10 @@
         <div class="cls-info">
           <p class="cls-desc">Hält Gegner auf Abstand. Salven, Fallen und Schüsse, die ganze Reihen durchschlagen.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-volley.png" alt="" width="52" height="52">Pfeilsalve</li>
-            <li><img class="px" src="img/skill-piercing_shot.png" alt="" width="52" height="52">Durchschuss</li>
-            <li><img class="px" src="img/skill-fire_trap.png" alt="" width="52" height="52">Sprengfalle</li>
-            <li><img class="px" src="img/skill-arrow_rain.png" alt="" width="52" height="52">Pfeilhagel</li>
+            <li><img class="px" src="img/skill-volley.png" alt="" width="48" height="48">Pfeilsalve</li>
+            <li><img class="px" src="img/skill-piercing_shot.png" alt="" width="48" height="48">Durchschuss</li>
+            <li><img class="px" src="img/skill-fire_trap.png" alt="" width="48" height="48">Sprengfalle</li>
+            <li><img class="px" src="img/skill-arrow_rain.png" alt="" width="48" height="48">Pfeilhagel</li>
           </ul>
           <p class="legend"><img class="px" src="img/item-dawnstring.png" alt="" width="52" height="52">Morgensehne</p>
         </div>
@@ -108,10 +110,10 @@
         <div class="cls-info">
           <p class="cls-desc">Zerbrechlich, aber tödlich. Glutbolzen aus sicherer Entfernung, am Ende fällt ein Meteor.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-flame_nova.png" alt="" width="52" height="52">Flammenring</li>
-            <li><img class="px" src="img/skill-blink.png" alt="" width="52" height="52">Blinzeln</li>
-            <li><img class="px" src="img/skill-fireball.png" alt="" width="52" height="52">Feuerball</li>
-            <li><img class="px" src="img/skill-meteor.png" alt="" width="52" height="52">Meteor</li>
+            <li><img class="px" src="img/skill-flame_nova.png" alt="" width="48" height="48">Flammenring</li>
+            <li><img class="px" src="img/skill-blink.png" alt="" width="48" height="48">Blinzeln</li>
+            <li><img class="px" src="img/skill-fireball.png" alt="" width="48" height="48">Feuerball</li>
+            <li><img class="px" src="img/skill-meteor.png" alt="" width="48" height="48">Meteor</li>
           </ul>
           <p class="legend"><img class="px" src="img/item-staff_of_last_ash.png" alt="" width="52" height="52">Stab der letzten Asche</p>
         </div>
@@ -121,7 +123,7 @@
 
   <section class="bosses" id="bosse" aria-labelledby="h-bosse">
     <div class="wrap">
-      <h2 id="h-bosse" class="title">Die Diener der Flammenkrone</h2>
+      <h2 id="h-bosse" class="title">Die Flammenkrone und ihre Diener</h2>
       <p class="sec-line">Jeder hütet einen Dungeon. Am Ende sitzt Malgareth auf dem Aschethron.</p>
     </div>
     <div class="arena">
@@ -147,7 +149,7 @@
   <section class="ride" id="reiten" aria-labelledby="h-reiten">
     <div class="wrap ride-grid">
       <ul class="riders" aria-label="Reittiere">
-        <li><img class="px" src="img/ritt-cinder_drake.png" alt="Krieger auf dem Schlackendrachen" width="184" height="164"><span>Schlackendrache</span></li>
+        <li><img class="px" src="img/ritt-cinder_drake.png" alt="Krieger auf dem Schlackendrachen" width="240" height="164"><span>Schlackendrache</span></li>
         <li><img class="px" src="img/ritt-nightmare_steed.png" alt="Schurke auf dem Albtraumross" width="152" height="168"><span>Albtraumross</span></li>
         <li><img class="px" src="img/ritt-frost_elk.png" alt="Waldläuferin auf dem Frostelch" width="144" height="172"><span>Frostelch</span></li>
         <li><img class="px" src="img/ritt-ash_wolf.png" alt="Magier auf dem Aschenwolf" width="156" height="148"><span>Aschenwolf</span></li>
@@ -156,9 +158,18 @@
         <div>
           <h2 id="h-reiten" class="title">Ab Stufe 20 reitest du</h2>
           <p class="sec-line">Neun Reittiere. Manche verkauft die Stallmeisterin, die seltensten lassen nur Bosse und Glutprüfungen fallen.</p>
-          <p class="sec-line">In der offenen Welt triffst du andere Spieler und schreibst im Gebietschat.</p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="news" aria-labelledby="h-news">
+    <div class="wrap">
+      <h2 id="h-news" class="title">Neu in Emberwrath</h2>
+      <ul class="news-list">
+        <li><img class="px" src="img/skill-meteor.png" alt="" width="48" height="48"><div><time datetime="2026-10">Oktober 2026</time><b>Neue Steuerung fürs Handy</b><p>Vier Fähigkeiten, Trank und Reittier liegen jetzt direkt unter dem Daumen. Emberwrath lässt sich als App auf den Startbildschirm legen.</p></div></li>
+        <li><img class="px item" src="img/item-staff_of_last_ash.png" alt="" width="52" height="52"><div><time datetime="2026-10">Oktober 2026</time><b>Bis Stufe 40</b><p>Acht neue Gebiete von der Aschensteppe bis zum Aschethron, dazu neue Ausrüstungssets und Glutprüfungen.</p></div></li>
+      </ul>
     </div>
   </section>
 
@@ -167,6 +178,7 @@
       <h2 id="h-final" class="title">Kostenlos, ohne Download.</h2>
       <p class="sec-line">Dein Charakter liegt in deinem Konto und ist auf jedem Gerät dabei. <a href="welt">Mehr über die Welt</a></p>
       <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
+      <p class="final-app">Auf dem Handy auch als App: <a href="support#app">so geht’s</a></p>
       <div class="socials" data-socials hidden></div>
     </div>
   </section>

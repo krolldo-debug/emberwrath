@@ -97,7 +97,7 @@ function talentPanel(session, game) {
       h('div.tal-scroll',
         h('section.tal-abilities', h('h3.tal-h', 'Fähigkeiten'), h('div.tal-list', abilities, passives)),
         h('div.tal-tree',
-          h('p.tal-hint', `Pro Stufe ab Stufe 2 gibt es einen Talentpunkt (${pts.spent} von ${pts.total} verteilt). Zurücksetzen ist jederzeit kostenlos.`),
+          h('p.tal-hint', pts.total ? `${pts.spent} von ${pts.total} Talentpunkten verteilt. Jede neue Stufe bringt einen weiteren, Zurücksetzen ist jederzeit kostenlos.` : 'Ab Stufe 2 bringt jede neue Stufe einen Talentpunkt. Zurücksetzen ist jederzeit kostenlos.'),
           tiers,
           h('div.tal-foot', reset))));
   };

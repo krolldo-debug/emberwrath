@@ -82,7 +82,11 @@ export class NetClient {
     const gen = ++this.gen;
     this.#setStatus(this.attempt ? 'retry' : 'connecting');
     let token;
-    try { token = await this.getToken(); } catch { token = null; }
+    try { token = await this.getToken(); } catch (e) {
+      // Ohne Netz (z. B. Laptop aufgeweckt, WLAN noch nicht da) ist das kein Anmeldeproblem: später erneut versuchen.
+      if (gen === this.gen && e?.code === 'network') { this.#scheduleRetry(gen); return; }
+      token = null;
+    }
     if (gen !== this.gen) return;
     if (!token) { this.#setStatus('auth'); return; }
     const q = new URLSearchParams({ zone: this.zone, world: String(this.wantWorld ?? 'auto') });
@@ -122,6 +126,7 @@ export class NetClient {
         if (Number.isInteger(m.world) && !this.exclude.includes(m.world)) this.exclude.push(m.world);
         if (this.exclude.length >= MAX_WORLDS) this.exclude = [];
         this.wantWorld = 'auto';
+        this.fullPending = true;
         this.#emit('full', m);
         return;
       case 'bye':
@@ -146,7 +151,9 @@ export class NetClient {
       if (this.authRetried) { this.#setStatus('auth'); return; }
       this.authRetried = true;
     }
-    if (this.exclude.length && !wasOnline) { this.#connect(); return; } // Welt war voll: sofort die nächste
+    // Welt war voll: sofort die nächste. Nur direkt nach „voll“, sonst (Netz weg) normal mit Wartezeit.
+    const full = this.fullPending; this.fullPending = false;
+    if (full && !wasOnline) { this.#connect(); return; }
     this.#scheduleRetry(gen);
   }
 

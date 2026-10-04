@@ -13,9 +13,12 @@ import { rollLoot, BOSS_QUEST_GRANTS } from './loot.js';
 import { RECIPES } from './crafting.js';
 import { countItem, npcShortName, questStatus, questRewardItems, vendorStock, trackedQuestId, junkSlots, isUpgrade, sellableSlots, SELL_TIERS } from './selectors.js';
 import { ACHIEVEMENTS } from './achievements.js';
-import { ENCHANTS } from './smithing.js';
+import { ENCHANTS, UPGRADE_MAX } from './smithing.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
 import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } from './endgame.js';
+import { TRIAL_ZONE } from './trials.js';
+
+const inTrial = (s) => s.slices.world?.zoneId === TRIAL_ZONE;
 
 export const BAG_SIZE = 36;
 const START_ITEMS = [{ itemId: 'minor_potion', qty: 5 }, { itemId: 'hearth_bread', qty: 3 }];
@@ -155,7 +158,8 @@ function takeFromSlot(s, ctx, index, qty) {
 
 function addGold(s, ctx, delta, source) {
   const w = s.get('wallet');
-  w.gold = Math.max(0, w.gold + delta);
+  // Ausgaben enden bei 0. Ein Minusstand entsteht nur durch eine Rückbuchung im Shop (shop:revoke) und wird durch Einnahmen abgebaut.
+  w.gold = delta >= 0 ? w.gold + delta : Math.max(Math.min(w.gold, 0), w.gold + delta);
   if (delta > 0) s.get('progress').stats.goldEarned += delta;
   ctx.bus.emit(EV.GOLD_CHANGED, { delta, total: w.gold, source });
 }
@@ -295,7 +299,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       const upgrades = {}, enchants = {};
       for (const k of EQUIP_SLOTS) {
         const u = raw.upgrades?.[k] | 0;
-        if (u > 0) upgrades[k] = Math.min(10, u);
+        if (u > 0) upgrades[k] = Math.min(UPGRADE_MAX, u);
         if (raw.enchants?.[k]) enchants[k] = raw.enchants[k];
       }
       const questBag = (raw.questBag ?? []).filter((e) => known(e?.itemId) && e.qty > 0).map((e) => ({ itemId: e.itemId, qty: e.qty | 0 }));
@@ -306,7 +310,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     },
   });
 
-  state.defineSlice('wallet', { create: () => ({ gold: 0 }), deserialize: (raw) => ({ gold: Math.max(0, raw.gold | 0) }) });
+  state.defineSlice('wallet', { create: () => ({ gold: 0 }), deserialize: (raw) => ({ gold: Math.max(-1e9, raw.gold | 0) }) });
 
   state.defineSlice('quests', {
     create: () => ({ active: {}, completed: [], repeats: {}, tracked: null, guide: null }),
@@ -368,14 +372,16 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     const gained = grantXp(s, ctx, killXp(base, lvl, p.level), `kill:${type}`);
     recordQuestEvent(s, ctx, 'kill', type);
     trialKill(s, ctx, { type, elite: isElite, isBoss: boss, bossId: bossId ?? enemy?.bossId ?? (boss ? type : undefined), trialTime }, helpers);
-    if (boss) recordQuestEvent(s, ctx, 'boss', bossId ?? enemy?.bossId ?? type);
+    if (boss && !inTrial(s)) recordQuestEvent(s, ctx, 'boss', bossId ?? enemy?.bossId ?? type);
     return { xp: gained };
   }, auth);
 
   // Erreichte Fläche / betretene Zone / besiegter Boss / benutztes Objekt / Gespräch -> Quest-Fortschritt
-  def('quest:event', (s, { kind, target }, ctx) => recordQuestEvent(s, ctx, kind, target), auth);
+  // Bosse der Glutprüfungen sind Abbilder: Sie zählen nicht für Story-Quests
+  def('quest:event', (s, { kind, target }, ctx) => (kind === 'boss' && inTrial(s) ? { ok: false } : recordQuestEvent(s, ctx, kind, target)), auth);
   // Boss besiegt: Questgegenstand direkt vergeben, wenn die Quest ihn noch braucht (z. B. Flammenkrone des Aschenfürsten)
   def('quest:bossReward', (s, { bossId }, ctx) => {
+    if (inTrial(s)) return { ok: false, items: [] };
     const got = [];
     for (const [questId, itemId] of BOSS_QUEST_GRANTS[bossId] ?? []) {
       const q = s.get('quests').active[questId];
@@ -587,6 +593,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     if (!vendorStock(ctx.content, vendorId).includes(itemId)) return { ok: false, reason: 'stock' };
     const def = ctx.content.get('item', itemId);
     if (def.type === 'mount' && (def.reqLevel ?? 1) > s.get('progress').level) return { ok: false, reason: 'level' };
+    if (def.reqQuest && !s.get('quests').completed.includes(def.reqQuest)) return { ok: false, reason: 'quest', questId: def.reqQuest };
     const price = buyPrice(def) * qty;
     if (s.get('wallet').gold < price) return { ok: false, reason: 'gold' };
     if (capacityFor(s, ctx.content, itemId) < qty) return { ok: false, reason: 'full' };
@@ -678,6 +685,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     const enemy = source === 'chest'
       ? { chest: String(id ?? 'chest'), level: lvl }
       : { type: id, level: lvl, family: family ?? e?.family, elite: elite ?? e?.elite, boss: isBoss ?? e?.boss, bossId: bossId ?? e?.bossId ?? (isBoss ? id : undefined), rareId };
+    if (inTrial(s)) enemy.trial = true;
     const drops = rollLoot(enemy, { rng, classId: s.slices.character?.classId ?? null, questNeed: questNeed(s, ctx) });
     const out = [];
     for (const d of drops) {

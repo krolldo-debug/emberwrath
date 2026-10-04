@@ -4,7 +4,8 @@ export class Sfx {
   constructor() {
     this.ctx = null;
     this.muted = false;
-    this.volume = 1;     // 0..1, Geräte-Einstellung 'volume'
+    this.volume = 1;     // 0..1, Geräte-Einstellung 'volume' (gesamt, auch Musik)
+    this.fxVolume = 1;   // 0..1, Geräte-Einstellung 'fxVolume' (nur Effekte und Umgebung)
     this.prefs = null;   // game.prefs (bindPrefs), speichert 'muted'/'volume'
     this.master = null;
     const unlock = () => this.#init();
@@ -20,6 +21,10 @@ export class Sfx {
     this.master.gain.value = this.#gain();
     const comp = this.ctx.createDynamicsCompressor();
     this.master.connect(comp).connect(this.ctx.destination);
+    // Effekte laufen über einen eigenen Regler; die Musik hängt direkt an master (output).
+    this.fx = this.ctx.createGain();
+    this.fx.gain.value = this.fxVolume;
+    this.fx.connect(this.master);
     const len = this.ctx.sampleRate;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -35,7 +40,10 @@ export class Sfx {
     this.prefs = prefs;
     this.muted = !!prefs.get('muted', false);
     this.volume = Math.max(0, Math.min(1, Number(prefs.get('volume', 1)) || 0));
+    const fv = Number(prefs.get('fxVolume', 1));
+    this.fxVolume = Number.isFinite(fv) ? Math.max(0, Math.min(1, fv)) : 1;
     this.#applyGain();
+    if (this.fx) this.fx.gain.value = this.fxVolume;
   }
 
   setMuted(on) {
@@ -51,6 +59,12 @@ export class Sfx {
     this.volume = Math.max(0, Math.min(1, v));
     this.#applyGain();
     this.prefs?.set('volume', this.volume);
+  }
+
+  setFxVolume(v) {
+    this.fxVolume = Math.max(0, Math.min(1, v));
+    if (this.fx) this.fx.gain.setTargetAtTime(this.fxVolume, this.ctx.currentTime, 0.05);
+    this.prefs?.set('fxVolume', this.fxVolume);
   }
 
   // --- Bausteine -----------------------------------------------------------
@@ -72,7 +86,7 @@ export class Sfx {
     filt.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     const g = c.createGain();
     this.#env(g, t, attack, dur, peak);
-    src.connect(filt).connect(g).connect(this.master);
+    src.connect(filt).connect(g).connect(this.fx);
     src.start(t, Math.random() * 0.5, dur + attack + 0.05);
   }
   #tone(t, { type = 'sine', f0 = 200, f1 = f0, dur = 0.2, peak = 0.4, attack = 0.005 }) {
@@ -83,7 +97,7 @@ export class Sfx {
     o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     const g = c.createGain();
     this.#env(g, t, attack, dur, peak);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(this.fx);
     o.start(t); o.stop(t + attack + dur + 0.05);
   }
 
@@ -101,7 +115,7 @@ export class Sfx {
       const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
       o.connect(lp); o.start();
     });
-    lp.connect(dg).connect(this.master);
+    lp.connect(dg).connect(this.fx);
     lfo.start();
     this.amb.dungeon = dg;
 
@@ -111,7 +125,7 @@ export class Sfx {
     const wl = c.createOscillator(); wl.frequency.value = 0.11;
     const wlG = c.createGain(); wlG.gain.value = 220;
     wl.connect(wlG).connect(bp.frequency);
-    wind.connect(bp).connect(og).connect(this.master);
+    wind.connect(bp).connect(og).connect(this.fx);
     wind.start(); wl.start();
     this.amb.outdoor = og;
 
@@ -122,7 +136,7 @@ export class Sfx {
     const wlo = c.createOscillator(); wlo.frequency.value = 0.18;
     const wloG = c.createGain(); wloG.gain.value = 260;
     wlo.connect(wloG).connect(wlp.frequency);
-    water.connect(wlp).connect(wg).connect(this.master);
+    water.connect(wlp).connect(wg).connect(this.fx);
     water.start(); wlo.start();
     this.amb.water = wg;
 
@@ -130,7 +144,7 @@ export class Sfx {
     const fg = c.createGain(); fg.gain.value = 0;
     const rum = c.createBufferSource(); rum.buffer = this.noise; rum.loop = true; rum.playbackRate.value = 0.35;
     const flp = c.createBiquadFilter(); flp.type = 'lowpass'; flp.frequency.value = 110; flp.Q.value = 1.4;
-    rum.connect(flp).connect(fg).connect(this.master);
+    rum.connect(flp).connect(fg).connect(this.fx);
     rum.start();
     this.amb.fire = fg;
     this.setAmbience(this.ambKind ?? 'dungeon');

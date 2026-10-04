@@ -53,6 +53,7 @@ export class PlayScene {
     const saveOn = (ev) => this.bus.on(ev, () => g.saveNow(ev));
     [EV.LEVEL_UP, EV.QUEST_ACCEPTED, EV.QUEST_COMPLETED, EV.BOSS_DEFEATED].forEach(saveOn);
     this.bus.on(EV.ZONE_TRAVEL, (e) => this.travel(e.zoneId, e.spawnId));
+    this.bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
     this.bus.on(EV.PREFS_CHANGED, (e) => {
       if (e.key === 'screenShake' && this.camera) this.camera.enabled = e.value !== false;
     });
@@ -62,24 +63,37 @@ export class PlayScene {
       if (g.panels.defs.has('menu') && !this.panels.openId) this.panels.open('menu');
     };
     this.onPageHide = () => g.saveNow('pagehide');
+    // Fenster verliert den Fokus (Alt-Tab, Klick auf zweiten Bildschirm), bleibt aber sichtbar: ebenfalls anhalten.
+    this.onBlur = () => this.setPaused('blur', true);
+    this.onFocus = () => this.setPaused('blur', false);
     document.addEventListener('visibilitychange', this.onHide);
     window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('blur', this.onBlur);
+    window.addEventListener('focus', this.onFocus);
+    this.entered = true;
 
     this.bus.emit(EV.GAME_STARTED, { accountId: this.state.meta.accountId, characterId: this.state.meta.characterId, isNew: !!params.isNew });
     this.bus.emit(EV.ZONE_ENTER, { zoneId: this.zone.zoneId, instanceId: this.zone.instanceId, spawnId: this.spawnId });
   }
 
+  // Jeder Schritt einzeln abgesichert: ein Fehler in einem System darf das Aufräumen der übrigen
+  // (und vor allem das Lösen aller Bus-Abos) nicht verhindern. Auch nach fehlgeschlagenem enter() aufrufbar.
   exit() {
-    this.game.saveNow('exit');
+    const step = (what, fn) => { try { fn(); } catch (err) { console.error(`Spielsitzung beenden: ${what}`, err); } };
+    // Nur speichern, wenn die Sitzung vollständig lief; ein halb geladener Stand soll den gespeicherten nicht ersetzen.
+    if (this.entered) step('speichern', () => this.game.saveNow('exit'));
     document.removeEventListener('visibilitychange', this.onHide);
     window.removeEventListener('pagehide', this.onPageHide);
-    for (const s of this.systems) s.dispose?.();
+    window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('focus', this.onFocus);
+    for (const s of this.systems) step('System', () => s.dispose?.());
     this.systems = [];
-    this.panels.dispose();
-    this.game.ui.hud.replaceChildren();
-    this.bus.emit(EV.ZONE_LEAVE, { zoneId: this.zone?.zoneId });
-    this.authority.leaveZone();
-    this.bus.dispose();
+    step('Panels', () => this.panels?.dispose());
+    step('HUD', () => this.game.ui.hud.replaceChildren());
+    step('Zone', () => { if (this.zone) this.bus?.emit(EV.ZONE_LEAVE, { zoneId: this.zone.zoneId }); });
+    step('Zone', () => this.authority.leaveZone());
+    step('Welt', () => this.world?.dispose?.());
+    this.bus?.dispose();
   }
 
   // Zone laden. pos (Welt-Pixel) hat Vorrang vor spawnId (Fortsetzen an der Stelle).
@@ -94,6 +108,7 @@ export class PlayScene {
     this.camera.enabled = this.game.prefs.get('screenShake', true) !== false;
     this.camera.snapTo(hero.x, hero.y);
     this.deadTime = 0;
+    this.boss = null;
     if (this.state.commands.has('world:enterZone')) this.state.commit('world:enterZone', { zoneId: def.id, spawnId });
   }
 
@@ -105,7 +120,7 @@ export class PlayScene {
     this.pendingTravel = null;
     // Unbekanntes Ziel (z. B. Gebiet eines noch nicht eingespielten Bereichs): stehen bleiben statt neu zu laden.
     if (!this.content.find('zone', zoneId)) {
-      this.bus.emit(EV.UI_TOAST, { text: 'Dieses Gebiet ist in diesem Stand noch nicht erreichbar.', kind: 'warn' });
+      this.bus.emit(EV.UI_TOAST, { text: 'Dieser Weg ist versiegelt.', kind: 'warn' });
       return;
     }
     this.bus.emit(EV.ZONE_LEAVE, { zoneId: this.zone.zoneId });
@@ -114,6 +129,25 @@ export class PlayScene {
     this.#loadZone(zoneId, spawnId, null);
     this.bus.emit(EV.ZONE_ENTER, { zoneId: this.zone.zoneId, instanceId: this.zone.instanceId, spawnId });
     this.game.saveNow('zone');
+  }
+
+  // Im Bosskampf das Bild nach oben schieben, damit hohe Bosse (Malgareth) nicht unter der Boss-Leiste verschwinden,
+  // wenn der Held auf gleicher Höhe oder südlich steht. Der Held bleibt dabei sicher im Bild; die Kamera dämpft selbst.
+  #cameraY(hero, y) {
+    const b = this.boss;
+    if (!b) return y;
+    if (!b.actor || b.actor.removed || b.actor.dead) {
+      b.actor = this.world.enemies?.find((e) => !e.dead && (e.def?.bossId === b.id || e.bossId === b.id || e.type === b.id || (e.def?.boss && !b.id))) ?? null;
+      if (!b.actor) { this.boss = null; return y; }
+    }
+    const a = b.actor;
+    if (Math.abs(a.x - hero.x) > 320 || Math.abs(a.y - hero.y) > 260) return y;
+    const want = Math.min(y, (hero.y + a.y - (a.bodyHeight ?? 32) * 1.6) / 2);
+    // Held hat Vorrang: Füße bleiben über der Aktionsleiste. Touch quer hat unten mittig nur die EP-Leiste (Tasten seitlich),
+    // dort darf der Held tiefer stehen, damit über ihm im 270 hohen Bild Platz für den Boss bleibt.
+    const cl = document.documentElement.classList;
+    const margin = cl.contains('ef-touch') && !cl.contains('ef-portrait') ? 26 : 70;
+    return Math.max(want, hero.y - CONFIG.viewHeight / 2 + margin);
   }
 
   hitstop(t) { this.hitstopTime = Math.max(this.hitstopTime, t); }
@@ -159,7 +193,7 @@ export class PlayScene {
     }
 
     // Kamera mit leichtem Vorlauf in Blick-/Bewegungsrichtung
-    this.camera.update(dt, hero.x + hero.vx * 0.12 + hero.facing * 4, hero.y - 10 + hero.vy * 0.12);
+    this.camera.update(dt, hero.x + hero.vx * 0.12 + hero.facing * 4, this.#cameraY(hero, hero.y - 10 + hero.vy * 0.12));
     this.authority.sendIntent({ type: 'pos', x: hero.x, y: hero.y });
   }
 

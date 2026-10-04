@@ -1,8 +1,11 @@
 import { DurableObject } from 'cloudflare:workers';
 import { verifyToken } from './auth.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
+import { filterChat } from '../src/net/chatFilter.js';
+import { REPORT_REASONS, saveReport, activeMute, loadCharacter } from './moderation.js';
+import { nameProblem } from '../src/net/names.js';
 import {
-  NET_VERSION, BROADCAST_MS, cleanState, cleanLook, cleanName, cleanChat, cleanLevel,
+  NET_VERSION, BROADCAST_MS, cleanState, cleanLook, cleanName, cleanChat, cleanLevel, cleanText, REPORT_NOTE_MAX, LEVEL_MAX,
 } from '../src/net/protocol.js';
 
 // Ein Shard = eine offene Zone in einer Welt ('<zoneId>~<welt>'), ein Durable Object.
@@ -12,9 +15,20 @@ import {
 // Kosten: WebSocket-Hibernation. Solange niemand etwas sendet (alle stehen), schläft das Objekt und kostet keine
 // Laufzeit; 'ping' beantwortet Cloudflare selbst, ohne das Objekt zu wecken.
 const HELLO_TIMEOUT_MS = 10_000;
+const PENDING_PER_IP = 4;
 const REPORT_MS = 60_000;
 const RATE_PER_S = 30, RATE_BURST = 60, ABUSE_DROPS = 300;
 const CHAT_GAP_MS = 1200, CHAT_BURST = 3;
+// Moderation: letzte Nachrichten je Spieler als Beleg für Meldungen (nur im Speicher), auch kurz nach dem Verlassen.
+const EVIDENCE_MSGS = 10, GONE_KEEP_MS = 10 * 60_000;
+const REPORTS_PER_WINDOW = 6, REPORT_WINDOW_MS = 10 * 60_000;
+const QUEUE_PREFIX = 'report:';
+
+// Öffentlicher, dauerhafter Schlüssel eines Kontos für „Ignorieren“ (verrät die Konto-ID nicht).
+async function ignoreKey(uid) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`emberwrath-ignore:${uid}`));
+  return [...new Uint8Array(d).slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export class ZoneShard extends DurableObject {
   constructor(ctx, env) {
@@ -25,6 +39,7 @@ export class ZoneShard extends DurableObject {
     this.seq = 0;
     this.zone = null; this.world = null;
     this.capacity = Number(env.SHARD_CAPACITY) || 40;
+    this.gone = new Map(); // id -> { uid, name, msgs, at } gerade gegangene Spieler (Meldung bleibt möglich)
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     // Nach dem Aufwachen aus dem Ruhezustand: Spieler aus den Anhängen der offenen Verbindungen wiederherstellen.
     for (const ws of ctx.getWebSockets()) {
@@ -34,7 +49,7 @@ export class ZoneShard extends DurableObject {
       if (a.id) {
         this.seq = Math.max(this.seq, a.id);
         this.players.set(ws, { ...a, look: null, needLook: true, tokens: RATE_BURST, last: Date.now(), drops: 0, chat: [] });
-      } else this.players.set(ws, { pending: true, since: a.since ?? Date.now(), zone: a.zone, world: a.world });
+      } else this.players.set(ws, { pending: true, since: a.since ?? Date.now(), ip: a.ip ?? '', zone: a.zone, world: a.world });
     }
   }
 
@@ -44,12 +59,19 @@ export class ZoneShard extends DurableObject {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('WebSocket erwartet', { status: 426 });
     this.zone ??= url.searchParams.get('zone');
     this.world ??= Number(url.searchParams.get('world'));
+    // Noch nicht angemeldete Verbindungen je Adresse begrenzen (sonst ließe sich eine Welt mit leeren Sockets füllen)
+    const ip = request.headers.get('CF-Connecting-IP') ?? '';
+    if (ip) {
+      let open = 0;
+      for (const q of this.players.values()) if (q.pending && q.ip === ip) open++;
+      if (open >= PENDING_PER_IP) return new Response('Zu viele Verbindungen', { status: 429 });
+    }
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
     const since = Date.now();
-    server.serializeAttachment({ since, zone: this.zone, world: this.world });
-    this.players.set(server, { pending: true, since });
+    server.serializeAttachment({ since, ip, zone: this.zone, world: this.world });
+    this.players.set(server, { pending: true, since, ip });
     setTimeout(() => this.#dropStalePending(), HELLO_TIMEOUT_MS + 50);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -70,7 +92,7 @@ export class ZoneShard extends DurableObject {
       }
       case 'look': {
         const look = cleanLook(m.look);
-        p.level = cleanLevel(m.level ?? p.level);
+        p.level = Math.min(cleanLevel(m.level ?? p.level), p.levelMax ?? LEVEL_MAX);
         if (look) p.look = look;
         p.needLook = false;
         this.#attach(ws, p);
@@ -80,12 +102,18 @@ export class ZoneShard extends DurableObject {
       case 'chat': {
         const text = cleanChat(m.text);
         const now = Date.now();
+        if (!text) break;
+        if (p.mute && Date.parse(p.mute.until) > now) { this.#send(ws, { t: 'notice', kind: 'muted', until: p.mute.until, reason: p.mute.reason }); break; }
         p.chat = (p.chat ?? []).filter((t) => now - t < CHAT_GAP_MS * CHAT_BURST);
-        if (!text || p.chat.length >= CHAT_BURST) break;
+        if (p.chat.length >= CHAT_BURST) break;
         p.chat.push(now);
-        this.#broadcast({ t: 'chat', id: p.id, name: p.name, text, at: now });
+        const shown = filterChat(text).text;
+        (p.msgs ??= []).push({ text, shown: shown !== text ? shown : undefined, at: now });
+        if (p.msgs.length > EVIDENCE_MSGS) p.msgs.shift();
+        this.#broadcast({ t: 'chat', id: p.id, name: p.name, text: shown, at: now });
         break;
       }
+      case 'report': await this.#reportPlayer(ws, p, m); break;
       default: break; // unbekannte Typen (neuere Clients) ignorieren
     }
   }
@@ -97,7 +125,44 @@ export class ZoneShard extends DurableObject {
     this.#dropStalePending();
     const n = this.#count();
     await this.#report();
-    if (n > 0) await this.ctx.storage.setAlarm(Date.now() + REPORT_MS);
+    const queued = await this.#flushReports();
+    if (n > 0 || queued > 0) await this.ctx.storage.setAlarm(Date.now() + REPORT_MS);
+  }
+
+  // Meldung eines Spielers (DSA Art. 16). Der Beleg (letzte Nachrichten) kommt vom Server, nicht vom Client.
+  async #reportPlayer(ws, p, m) {
+    const now = Date.now();
+    const ack = (ok, error) => this.#send(ws, { t: 'reported', id: m.id, ok, error });
+    p.reports = (p.reports ?? []).filter((t) => now - t < REPORT_WINDOW_MS);
+    if (p.reports.length >= REPORTS_PER_WINDOW) { ack(false, 'rate'); return; }
+    if (!REPORT_REASONS.includes(m.reason)) { ack(false, 'reason'); return; }
+    let target = null;
+    for (const q of this.players.values()) if (!q.pending && q.id === m.id) target = q;
+    for (const [id, g] of this.gone) if (now - g.at > GONE_KEEP_MS) this.gone.delete(id);
+    target ??= this.gone.get(m.id) ?? null;
+    if (!target || target.uid === p.uid) { ack(false, 'target'); return; }
+    p.reports.push(now);
+    const row = {
+      reporter_id: p.uid, reporter_name: p.name, reported_id: target.uid, reported_name: target.name,
+      zone: this.zone ?? '', world: this.world ?? 1, reason: m.reason, note: cleanText(m.note, REPORT_NOTE_MAX),
+      messages: (target.msgs ?? []).map((x) => ({ text: x.text, ...(x.shown ? { shown: x.shown } : {}), at: new Date(x.at).toISOString() })),
+      good_faith: m.goodFaith === true, created_at: new Date(now).toISOString(),
+    };
+    try { await saveReport(this.env, row); } catch {
+      // Später erneut senden (Alarm); bis dahin im Speicher des Shards
+      await this.ctx.storage.put(`${QUEUE_PREFIX}${now}-${p.id}`, row);
+      if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + REPORT_MS);
+    }
+    ack(true);
+  }
+
+  async #flushReports() {
+    const queued = await this.ctx.storage.list({ prefix: QUEUE_PREFIX, limit: 50 });
+    let left = queued.size;
+    for (const [key, row] of queued) {
+      try { await saveReport(this.env, row); await this.ctx.storage.delete(key); left--; } catch { break; }
+    }
+    return left;
   }
 
   // ------------------------------------------------------------------ intern
@@ -115,8 +180,18 @@ export class ZoneShard extends DurableObject {
     if (this.#count() >= this.capacity) { this.#send(ws, { t: 'full', zone: this.zone, world: this.world }); this.#close(ws, 4001, 'full'); this.players.delete(ws); this.#report(); return; }
 
     const ch = m.char && typeof m.char === 'object' ? m.char : {};
+    const [k, mute, stored] = await Promise.all([ignoreKey(user.uid), activeMute(this.env, user.uid), loadCharacter(this.env, user.uid, ch.id)]);
+    if (!this.players.has(ws)) return;
+    // Name und Stufe, die andere sehen: aus dem gespeicherten Charakter (Supabase). Die Stufe darf um eine über dem letzten
+    // Speicherstand liegen (Aufstieg seit dem letzten Autosave). Ohne Speicherstand (neuer Charakter, Störung): Angaben
+    // des Clients, aber geprüft. Reservierte oder anstößige Namen sieht niemand; dann „Abenteurer XXXX“.
+    let name = cleanName(stored?.name || ch.name);
+    const blocked = nameProblem(name);
+    if (blocked) name = `Abenteurer ${k.slice(0, 4).toUpperCase()}`;
+    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : LEVEL_MAX;
+    const level = Math.max(stored?.level ?? 1, Math.min(cleanLevel(ch.level), levelMax));
     const player = {
-      id: ++this.seq, uid: user.uid, name: cleanName(ch.name), level: cleanLevel(ch.level),
+      id: ++this.seq, uid: user.uid, k, mute, msgs: [], name, level, levelMax,
       look: cleanLook(m.look), s: cleanState(m.s) ?? [0, 0, 1, 'idle', 0, 0, 0],
       zone: this.zone, world: this.world,
       tokens: RATE_BURST, last: Date.now(), drops: 0, chat: [],
@@ -125,7 +200,9 @@ export class ZoneShard extends DurableObject {
     this.#attach(ws, player);
     const others = [];
     for (const [other, q] of this.players) if (other !== ws && !q.pending) others.push(this.#public(q));
-    this.#send(ws, { t: 'welcome', v: NET_VERSION, id: player.id, zone: this.zone, world: this.world, cap: this.capacity, players: others });
+    this.#send(ws, { t: 'welcome', v: NET_VERSION, id: player.id, k: player.k, zone: this.zone, world: this.world, cap: this.capacity, players: others });
+    if (mute) this.#send(ws, { t: 'notice', kind: 'muted', until: mute.until, reason: mute.reason });
+    if (blocked) this.#send(ws, { t: 'notice', kind: 'name', reason: blocked, name });
     // Nach einem Aufwachen fehlt das Aussehen der bisherigen Spieler: nachfordern.
     for (const [other, q] of this.players) if (!q.pending && q.needLook) { q.needLook = false; this.#send(other, { t: 'resync' }); }
     this.#broadcast({ t: 'join', p: this.#public(player) }, ws);
@@ -133,7 +210,7 @@ export class ZoneShard extends DurableObject {
     if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + REPORT_MS);
   }
 
-  #public(q) { return { id: q.id, name: q.name, level: q.level, look: q.look, s: q.s }; }
+  #public(q) { return { id: q.id, k: q.k, name: q.name, level: q.level, look: q.look, s: q.s }; }
 
   #count() { let n = 0; for (const q of this.players.values()) if (!q.pending) n++; return n; }
 
@@ -167,7 +244,7 @@ export class ZoneShard extends DurableObject {
 
   // Anhang überlebt den Ruhezustand (max. 2 KB): alles außer dem Aussehen.
   #attach(ws, p) {
-    try { ws.serializeAttachment({ id: p.id, uid: p.uid, name: p.name, level: p.level, s: p.s, zone: this.zone, world: this.world }); } catch { /* egal */ }
+    try { ws.serializeAttachment({ id: p.id, uid: p.uid, k: p.k, mute: p.mute ?? null, name: p.name, level: p.level, levelMax: p.levelMax, s: p.s, zone: this.zone, world: this.world }); } catch { /* egal */ }
   }
 
   #broadcast(msg, except = null) {
@@ -185,6 +262,7 @@ export class ZoneShard extends DurableObject {
     this.players.delete(ws);
     this.dirty.delete(ws);
     if (p.pending) return;
+    if (p.msgs?.length) this.gone.set(p.id, { uid: p.uid, name: p.name, msgs: p.msgs, at: Date.now() });
     this.#broadcast({ t: 'leave', id: p.id });
     this.#report();
   }

@@ -28,7 +28,7 @@ export const DEFS = {
   snow_stalker: {
     bodyHeight: 18, eye: { x: 15, y: -18 }, radius: 7, hurtRadius: 9, shadowW: 28, mass: 1.3, speed: 62,
     material: 'flesh', spawnStyle: 'rise', strafe: true, hitAndRun: 0.5,
-    attackPatch: { range: 28, reach: 30, arc: 2.0, windup: 0.35, cooldown: 0.75, lunge: 130 },
+    attackPatch: { range: 28, reach: 30, arc: 2.0, windup: 0.5, cooldown: 0.75, lunge: 130 },
   },
   // Gorm Eisfaust (Elite): Faustschmettern, Spezial beidhändiger Eisdorn-Slam und Sturmlauf.
   ice_troll_chief: {

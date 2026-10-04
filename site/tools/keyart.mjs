@@ -1,12 +1,12 @@
 // Key-Art für die Website: echte Spielgrafik, aber inszeniert. Feste Aufstellung (Weltkoordinaten relativ zum
 // Ziel), Kamera auf die Szene, Warnflächen und Namensschilder beim Zeichnen ausgeblendet, Gegenlicht als echtes
 // Licht der Engine, Farbgebung beim Export eingerechnet. Quer (1920×1080 → 960×540) und hoch (390×844 @3 → 540×…).
-// Aufruf: node keyart.mjs OUT ids [URL]
+// Aufruf: node keyart.mjs OUT ids [URL]; Standard-URL :8103 = Server im Ordner emberfall/ (python3 -m http.server 8103), Quellstand mit import("/src/...")
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
-const [OUT = 'ka', only, URL = 'http://localhost:8101/emberfall.html'] = process.argv.slice(2);
+const [OUT = 'ka', only, URL = 'http://localhost:8103/index.html'] = process.argv.slice(2);
 mkdirSync(OUT, { recursive: true });
-const SOV = ['gorm_helm', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'sovereign_signet'];
+const SOV = [process.env.HELM ?? 'rimeforged_coif', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'sovereign_signet'];
 const G40 = {
   warrior: ['human', [...SOV, 'kingsbane']],
   rogue: ['emberborn', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
@@ -38,7 +38,7 @@ const meta = {};
 for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) {
   const ctx = await b.newContext(sc.portrait ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: false, hasTouch: false } : { viewport: { width: 1920, height: 1080 } });
   const p = await ctx.newPage();
-  p.on('pageerror', (e) => console.log('ERR', sc.id, e.message));
+  p.on('pageerror', (e) => console.log('ERR', sc.id, e.message)); p.on('console', (m) => { if (m.type() === 'warning' && /missing/.test(m.text())) console.log(m.text()); });
   await p.goto(URL);
   await p.waitForFunction(() => window.emberfall?.scenes.currentId === 'title');
   await p.evaluate(async (sc) => {
@@ -77,9 +77,21 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
       fl.forEach((t, i) => { if (keep.includes(i)) return; const c = t.canvas ?? t, x = c.getContext('2d'), src = fl[keep[i % keep.length]]; x.clearRect(0, 0, c.width, c.height); x.drawImage(src.canvas ?? src, 0, 0); });
     }
     g.scenes.current.travel(sc.zone, 'start'); await wait(2500);
+    {
+      const [{ getHeroSprites }, { resolveGear }, { spriteStyle }] = await Promise.all([import('/src/sprites/hero.js'), import('/src/character/gearLook.js'), import('/src/character/cosmetics.js')]);
+      const CG = { ranger: ['jarl_cap', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots', 'dawnstring'], mage: [sc.mageHood, 'colossus_robe', 'colossus_gloves', 'colossus_slippers', 'staff_of_last_ash'] };
+      for (const c of g.scenes.current.world.actors.filter((a) => a.companion)) {
+        const cls = c.member?.classId ?? c.cls?.id, ids = CG[cls]; if (!ids) continue;
+        const eq = {}; for (const id of ids) { const d = g.content.get('item', id); if (d?.slot) eq[d.slot] = id; else console.warn('missing item', id); }
+        const gear = resolveGear(eq, g.content), look = c.member?.look ?? {};
+        c.equipment = eq;
+        c.refreshLook = () => c.setAnims(getHeroSprites(c.raceId, cls, look.variant ?? 0, gear, spriteStyle(look)));
+        c.refreshLook();
+      }
+    }
     if (sc.density != null) g.scenes.current.world.particles.density = sc.density;
     setInterval(() => { const w = g.scenes.current.world; if (!w) return; for (const a of w.actors) if (a === w.hero || a.companion) { a.hp = a.maxHp; a.resource = a.maxResource; } }, 50);
-  }, { ...sc, race: G40[sc.cls][0], gear: G40[sc.cls][1] });
+  }, { ...sc, mageHood: process.env.MAGEHOOD ?? 'colossus_hood', race: G40[sc.cls][0], gear: G40[sc.cls][1] });
   await p.addStyleTag({ content: '#ui{display:none!important}' });
   await p.waitForTimeout(800);
   const tp = await p.evaluate((sc) => {
@@ -136,13 +148,24 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
           const n = arr[j]?.constructor?.name;
           if (n === 'FloatingText') arr.splice(j, 1);
           else if (sc.hideFx && new RegExp(sc.hideFx).test(n ?? '')) hidden.push([arr, arr.splice(j, 1)[0]]);
-          else if (/Telegraph|DamageWave|Marker|Fissure|Spear|Meteor|Pillar|Cataclysm|Patch|AshWave|GraveRift/.test(n ?? '')) hidden.push([arr, arr.splice(j, 1)[0]]);
+          else if (/Telegraph|DamageWave|Marker|Fissure|Spear|Meteor|Pillar|Cataclysm|Patch|AshWave|GraveRift|Shockwave|SpinVortex|ChargeGlow|RiftFlash|NovaBurst|FlameRing|Whirlpool|FrostField|ToxicRing|RootSpikes|FireField/.test(n ?? '')) hidden.push([arr, arr.splice(j, 1)[0]]);
         }
       }
       const names = {};
       for (const key of ['effects', 'entities', 'particles']) for (const e of (Array.isArray(w[key]) ? w[key] : [])) { const n = key + ':' + e?.constructor?.name; names[n] = (names[n] ?? 0) + 1; }
       window.__names = names;
       for (const a of [...(w.actors ?? []), ...(w.enemies ?? [])]) { a.flash = 0; a.hpBarTimer = 0; }
+      const undo = [];
+      for (const a of [...(w.actors ?? []), ...(w.enemies ?? [])]) if (typeof a.type === 'string' && a.def) {
+        Object.defineProperty(a, 'isEngaged', { value: false, configurable: true, writable: true });
+        const nh = a.nearHero; a.nearHero = false; undo.push(() => { delete a.isEngaged; a.nearHero = nh; });
+      }
+      const F = Object.getPrototypeOf(g.font), fd = F.draw; F.draw = () => {}; undo.push(() => { F.draw = fd; });
+      const C = CanvasRenderingContext2D.prototype, oe = C.ellipse, ob = C.beginPath, os = C.stroke;
+      C.ellipse = function (...a) { this.__ell = true; return oe.apply(this, a); };
+      C.beginPath = function () { this.__ell = false; return ob.call(this); };
+      C.stroke = function (...a) { if (this.__ell) return; return os.apply(this, a); };
+      undo.push(() => { C.ellipse = oe; C.beginPath = ob; C.stroke = os; });
       s.hurtFlash = 0;
       const saved = { x: cam.x, y: cam.y, sx: cam.shakeX, sy: cam.shakeY, kx: cam.kickX, ky: cam.kickY };
       const VW = w.lighting?.w ?? null;
@@ -158,7 +181,7 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
       const ems = [];
       if (sc.probe) for (const a of hs) { ems.push([a, a.renderEmissive]); a.renderEmissive = () => {}; }
       if (sc.noGlows) for (const a of hs) { const f = a.currentFrame?.(); if (f?.glows?.length) { ems.push([f, null, f.glows]); f.glows = []; } }
-      g.render(0);
+      try { g.render(0); } finally { for (const u of undo.reverse()) u(); }
       for (const [o, fn, gl] of ems) { if (gl) o.glows = gl; else delete o.renderEmissive; }
       performance.now = pn;
       const v = g.view;

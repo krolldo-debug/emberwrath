@@ -36,18 +36,23 @@
           <legend class="sr-only">Worum geht es?</legend>
           <label><input type="radio" name="kind" value="kontakt" checked><span>Frage oder Idee</span></label>
           <label><input type="radio" name="kind" value="fehler"><span>Fehler melden</span></label>
+          <label><input type="radio" name="kind" value="melden"><span>Spieler melden</span></label>
           <label><input type="radio" name="kind" value="loeschen"><span>Konto löschen</span></label>
         </fieldset>
         <p class="form-hint" data-for="loeschen" hidden>Bitte nutze die Adresse, mit der du dich bei Emberwrath angemeldet hast.</p>
         <div class="row2">
           <label class="field"><span>Name <i>(freiwillig)</i></span><input name="name" autocomplete="name" maxlength="100"></label>
-          <label class="field"><span>E&#8209;Mail</span><input name="email" type="email" autocomplete="email" maxlength="254" required><em class="err" data-err="email">Bitte eine gültige E&#8209;Mail-Adresse angeben.</em></label>
+          <label class="field"><span>E&#8209;Mail</span><input name="email" type="email" autocomplete="email" maxlength="254" required aria-describedby="err-email"><em class="err" id="err-email" data-err="email">Bitte eine gültige E&#8209;Mail-Adresse angeben.</em></label>
         </div>
-        <div class="row2" data-for="fehler loeschen" hidden>
-          <label class="field"><span>Charaktername <i>(freiwillig)</i></span><input name="character" maxlength="40"></label>
+        <div class="row2" data-for="melden" hidden>
+          <label class="field"><span>Wen meldest du?</span><input name="reported" maxlength="40" placeholder="Name des Charakters" aria-describedby="err-reported"><em class="err" id="err-reported" data-err="reported">Bitte den Namen des Charakters angeben.</em></label>
+          <label class="field"><span>Wo und wann? <i>(freiwillig)</i></span><input name="place" maxlength="200" placeholder="z. B. Aschensteppe, 20 Uhr"></label>
+        </div>
+        <div class="row2" data-for="fehler melden loeschen" hidden>
+          <label class="field"><span>Dein Charaktername <i>(freiwillig)</i></span><input name="character" maxlength="40"></label>
           <label class="field" data-for="fehler" hidden><span>Gerät und Browser</span><input name="device" maxlength="200" placeholder="z. B. iPhone 13, Safari"></label>
         </div>
-        <label class="field"><span data-label-message>Nachricht</span><textarea name="message" rows="6" maxlength="5000" required></textarea><em class="err" data-err="message">Bitte schreib uns ein paar Worte (mindestens 10 Zeichen).</em></label>
+        <label class="field"><span data-label-message>Nachricht</span><textarea name="message" rows="6" maxlength="5000" required aria-describedby="err-message"></textarea><em class="err" id="err-message" data-err="message">Bitte schreib uns ein paar Worte (mindestens 10 Zeichen).</em></label>
         <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
         <div class="form-foot">
           <button class="btn primary" type="submit">Absenden</button>
@@ -65,10 +70,16 @@
           <p>Am meisten hilft uns:</p>
           <ul class="tips"><li>was du gerade gemacht hast</li><li>was passiert ist und was du erwartet hättest</li><li>wo im Spiel es war</li><li>ein Bildschirmfoto, am einfachsten per E&#8209;Mail</li></ul>
         </div>
+        <div data-for="melden" hidden>
+          <h3>Spieler melden</h3>
+          <p>Beleidigungen, Belästigung, Betrug oder Cheats meldest du hier. Schreib möglichst genau, was passiert ist und was im Chat stand.</p>
+          <p>Wir prüfen jede Meldung und sagen dir, was wir entschieden haben. Die Regeln stehen in den <a href="nutzungsbedingungen#regeln">Nutzungsbedingungen</a>.</p>
+        </div>
         <div data-for="loeschen" hidden>
           <h3>Konto löschen</h3>
           <p>Wir löschen dein Konto mit allen Charakteren und Gegenständen. Das lässt sich nicht rückgängig machen.</p>
           <p>Vorher bekommst du eine E&#8209;Mail an die angegebene Adresse und bestätigst die Löschung.</p>
+          <p>Schneller geht es im Spiel: nach der Anmeldung „Konto löschen“.</p>
         </div>
         <h3 class="card-gap">Lieber per E&#8209;Mail?</h3>
         <p>Schreib uns direkt, wir antworten so schnell wir können.</p>
@@ -98,7 +109,7 @@
       </details>
       <details>
         <summary>Wie lösche ich mein Konto?</summary>
-        <div><p>Über das Formular oben mit „Konto löschen“. Wir bestätigen die Anfrage per E&#8209;Mail und löschen dann dein Konto mit allen Charakteren.</p></div>
+        <div><p>Am schnellsten im Spiel: Nach der Anmeldung auf „Konto löschen“ tippen und bestätigen. Alternativ über das Formular oben mit „Konto löschen“. Dann bestätigen wir die Anfrage per E&#8209;Mail und löschen dein Konto mit allen Charakteren.</p></div>
       </details>
       <details>
         <summary>Wie steuere ich meine Figur?</summary>
@@ -106,24 +117,38 @@
           <p><b>Am PC</b></p>
           <dl class="keys">
             <dt><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dt><dd>Laufen (oder Pfeiltasten)</dd>
-            <dt>Linke Maustaste / <kbd>Leertaste</kbd></dt><dd>Angreifen, die Maus gibt die Richtung vor</dd>
-            <dt><kbd>Shift</kbd> / rechte Maustaste</dt><dd>Ausweichen</dd>
+            <dt>Linke Maustaste / <kbd>Leertaste</kbd> / <kbd>J</kbd></dt><dd>Angreifen, die Maus gibt die Richtung vor</dd>
+            <dt><kbd>Shift</kbd> / rechte Maustaste / <kbd>K</kbd></dt><dd>Ausweichen</dd>
             <dt><kbd>Q</kbd> <kbd>R</kbd> <kbd>T</kbd> <kbd>G</kbd></dt><dd>Fähigkeiten 1 bis 4</dd>
             <dt><kbd>H</kbd></dt><dd>Heiltrank</dd>
-            <dt><kbd>E</kbd></dt><dd>Sprechen, öffnen, aufheben</dd>
+            <dt><kbd>V</kbd></dt><dd>Auf- und absitzen (ab Stufe 20)</dd>
+            <dt><kbd>E</kbd> / <kbd>F</kbd></dt><dd>Sprechen, öffnen, aufheben</dd>
+            <dt><kbd>Enter</kbd></dt><dd>Chat</dd>
             <dt><kbd>I</kbd> <kbd>C</kbd> <kbd>L</kbd> <kbd>U</kbd> <kbd>M</kbd></dt><dd>Inventar, Charakter, Quests, Talente, Karte</dd>
+            <dt><kbd>N</kbd></dt><dd>Ton aus und an</dd>
             <dt><kbd>Esc</kbd></dt><dd>Menü und Pause</dd>
           </dl>
-          <p style="margin-top: 14px;"><b>Auf dem Handy:</b> Links auf dem Bildschirm ziehen zum Laufen, rechts liegen Angriff, Ausweichen, Trank und die Fähigkeiten. Das Menü öffnest du oben rechts.</p>
+          <p class="faq-gap"><b>Auf dem Handy:</b> Links auf dem Bildschirm ziehen zum Laufen. Rechts liegen Angriff, Ausweichen, die vier Fähigkeiten, der Trank und ab Stufe 20 das Reittier. Den Chat öffnest du mit der Sprechblase, das Menü oben rechts.</p>
         </div>
       </details>
       <details>
         <summary>Läuft Emberwrath auf meinem Handy oder Tablet?</summary>
-        <div><p>Ja, in aktuellen Browsern auf iPhone, iPad und Android (Safari, Chrome, Firefox, Edge). Hochkant und quer werden unterstützt. Läuft es ruckelig, stell im Menü unter Einstellungen die Grafikqualität auf „Niedrig“.</p></div>
+        <div><p>Ja, in aktuellen Browsern auf iPhone, iPad und Android (Safari, Chrome, Firefox, Edge). Hochkant und quer werden unterstützt, quer siehst du mehr von der Welt. Läuft es ruckelig, stell im Menü unter Einstellungen die Grafikqualität auf „Niedrig“.</p></div>
+      </details>
+      <details id="app">
+        <summary>Kann ich Emberwrath als App installieren?</summary>
+        <div>
+          <p>Ja. Öffne <a data-link="play" href="spielen/">das Spiel</a> und leg es auf deinen Startbildschirm. Danach startet es wie eine App, im Vollbild und ohne Adressleiste.</p>
+          <p><b>iPhone und iPad:</b> in Safari auf Teilen tippen, dann „Zum Home-Bildschirm“.<br><b>Android:</b> in Chrome das Menü oben rechts öffnen, dann „App installieren“ oder „Zum Startbildschirm hinzufügen“.<br><b>PC:</b> in Chrome oder Edge auf das Installieren-Symbol in der Adressleiste klicken.</p>
+        </div>
       </details>
       <details>
         <summary>Kann ich mit Freunden zusammen spielen?</summary>
-        <div><p>Ja. In der offenen Welt siehst du andere Spieler und schreibst im Gebietschat.</p></div>
+        <div><p>Ja. In der offenen Welt siehst du andere Spieler und schreibst im Gebietschat. Damit ihr euch trefft, wählt im Spiel dieselbe Welt.</p></div>
+      </details>
+      <details>
+        <summary>Jemand benimmt sich im Chat daneben. Was tun?</summary>
+        <div><p>Im Spiel klickst du im Chat oder in der Spielerliste auf den Namen und wählst „Melden …“. Wer dich stört, kannst du dort auch ignorieren. Ohne Spiel geht es über das Formular oben mit „Spieler melden“: Gib den Namen des Charakters an und schreib, was passiert ist. Wir prüfen jede Meldung. Die Regeln stehen in den <a href="nutzungsbedingungen#regeln">Nutzungsbedingungen</a>.</p></div>
       </details>
       <details>
         <summary>Das Spiel lädt nicht oder zeigt nur einen schwarzen Bildschirm.</summary>

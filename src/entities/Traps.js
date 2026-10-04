@@ -101,7 +101,7 @@ export class JetTrap extends Entity {
       this.phase = phase;
       if (phase === 'warn') {
         const near = Math.hypot(world.hero.x - this.x, world.hero.y - this.y) < 260;
-        if (near) world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: this.angle, len: this.len, width: 16, duration: 0.7, color: [255, 120, 40] }));
+        if (near) world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: this.angle, len: this.len, width: 16, duration: 0.7, color: [255, 120, 40], screen: true }));
       }
       if (phase === 'fire') {
         const near = Math.hypot(world.hero.x - this.x, world.hero.y - this.y) < 260;

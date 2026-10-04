@@ -72,9 +72,9 @@ export const ENEMY_TYPES = {
     name: 'Varkhul, der Knochenfürst', family: 'undead', level: 6, xp: 260,
     boss: true, bossId: 'bonelord',
     sprites: 'bonelord',
-    hp: 3000, speed: 40, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 44, shadowW: 34,
+    hp: 3800, speed: 40, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 34,
     material: 'bone',
-    eye: { x: 3, y: -54 },
+    eye: { x: 3, y: -63 },
     hurtTime: 0,
     aggro: 0, leash: Infinity, wander: 0, spawnStyle: 'rise',
     attack: { kind: 'boss' },
@@ -198,14 +198,14 @@ export const ENEMY_TYPES = {
   drowned_priestess: {
     name: 'Nerith, die Ertrunkene Priesterin', family: 'undead', level: 12, xp: 900, boss: true, bossId: 'drowned_priestess',
     sprites: 'nerith',
-    hp: 6000, speed: 46, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 30,
+    hp: 8000, speed: 46, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 30,
     material: 'flesh', hurtTime: 0.2, eye: { x: 4, y: -55 },
   },
   ember_tyrant: {
     name: 'Ignaroth, der Glut-Tyrann', family: 'demon', level: 20, xp: 2600, boss: true, bossId: 'ember_tyrant',
     sprites: 'ignaroth',
-    hp: 11000, speed: 44, radius: 12, mass: 8, hurtRadius: 15, bodyHeight: 56, shadowW: 40,
-    material: 'stone', hurtTime: 0.2, eye: { x: 6, y: -64 },
+    hp: 11000, speed: 44, radius: 15, mass: 8, hurtRadius: 20, bodyHeight: 75, shadowW: 55,
+    material: 'stone', hurtTime: 0.2, eye: { x: 11, y: -89 },
   },
 };
 

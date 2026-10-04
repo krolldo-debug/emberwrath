@@ -1,7 +1,7 @@
 import { Actor } from './Actor.js';
 import { Entity } from './Entity.js';
 import { ENEMY_TYPES } from './enemyTypes.js';
-import { Telegraph, DamageWave } from './Telegraph.js';
+import { Telegraph, DamageWave, screenLine } from './Telegraph.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, angleDiff } from '../core/math.js';
@@ -35,7 +35,7 @@ export class Ignaroth extends Actor {
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
-    this.hurtRadius = def.hurtRadius; this.bodyHeight = def.bodyHeight;
+    this.hurtRadius = def.hurtRadius; this.bodyHeight = Math.max(def.bodyHeight, 78); // Sprite ist ~88 px hoch (ohne Hörner)
     this.shadowW = def.shadowW; this.material = def.material;
     this.home = { x, y };
     this.facing = 1;
@@ -68,8 +68,8 @@ export class Ignaroth extends Actor {
     this.animator.play('awaken', true);
     world.bus.emit(EV.BOSS_ENGAGED, { bossId: this.bossId, name: this.def.name });
     world.session.camera?.shake(5);
-    world.particles.element(this.x, this.y - 30, 'fire', 30, 16);
-    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -40, radius: 90, color: FIRE_RGB, intensity: 0.55, flicker: 0.25, bloom: 0.35 }));
+    world.particles.element(this.x, this.y - 38, 'fire', 30, 16);
+    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -55, radius: 90, color: FIRE_RGB, intensity: 0.55, flicker: 0.25, bloom: 0.35 }));
   }
 
   update(dt, world) {
@@ -127,7 +127,7 @@ export class Ignaroth extends Actor {
         if (this.enraged && this.timers.patch <= 0 && want > 1) {
           this.timers.patch = 1.3;
           if (this.hazards.filter((h) => h.patch).length < 9) {
-            const f = this.#addHazard(world, new FireField(this.x, this.y, this, { r: 13, duration: 7, damage: 22, delay: 0.3 }));
+            const f = this.#addHazard(world, new FireField(this.x, this.y, this, { r: 13, duration: 7, damage: 16, delay: 0.3 }));
             f.patch = true;
           }
         }
@@ -137,7 +137,10 @@ export class Ignaroth extends Actor {
 
       case 'cleaveWindup':
         this.vx *= 0.8; this.vy *= 0.8;
-        if (this.stateTime < this.windup * 0.5) this.#track(world, dt, 5);
+        if (this.stateTime < this.windup * 0.5) {
+          this.#track(world, dt, 5);
+          if (this.cleaveTele && !this.cleaveTele.removed) this.cleaveTele.angle = this.aim; // Warnbogen folgt
+        }
         if (this.stateTime >= this.windup) this.#cleave(world);
         break;
 
@@ -149,7 +152,7 @@ export class Ignaroth extends Actor {
 
       case 'breathWindup': {
         this.vx *= 0.8; this.vy *= 0.8;
-        this.#track(world, dt, 3);
+        this.#track(world, dt, 3, true);
         const m = this.#meta('mouth');
         if (Math.random() < dt * 30) world.particles.embers(m.x, m.y, 1);
         if (this.breathTele) this.breathTele.angle = this.aim;
@@ -176,7 +179,7 @@ export class Ignaroth extends Actor {
           this.setState('charge');
           this.animator.play('charge', true);
           this.chargeDrop = 0;
-          world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: true, offX: 0, offY: -16, x: this.x, y: this.y, r: 19, damage: 120, knockback: 300, heavy: true, ttl: 1.1 });
+          world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: true, offX: 0, offY: -16, x: this.x, y: this.y, r: 17, damage: 120, knockback: 300, heavy: true, ttl: 1.1 });
           world.bus.emit('bossCharge', { actor: this });
         }
         break;
@@ -192,7 +195,7 @@ export class Ignaroth extends Actor {
         this.chargeDrop += sp * dt;
         if (this.enraged && this.chargeDrop > 22) {
           this.chargeDrop = 0;
-          this.#addHazard(world, new FireField(this.x, this.y, this, { r: 12, duration: 3.5, damage: 22, delay: 0.25 }));
+          this.#addHazard(world, new FireField(this.x, this.y, this, { r: 12, duration: 3.5, damage: 16, delay: 0.25 }));
         }
         const res = this.integrate(dt, world);
         if (res.hitX || res.hitY || this.stateTime > 1.1) {
@@ -274,7 +277,8 @@ export class Ignaroth extends Actor {
     this.animator.play('roar', true);
     world.session.slowmo?.(0.45, 0.6);
     this.pending.push({ t: 0.35, fn: () => {
-      world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 150, duration: 0.9, damage: 40, color: [255, 130, 50] }));
+      // Phasenwechsel schadlos (wie bei Varkhul): Welle nur sichtbar, das Brüllen stößt zurück
+      world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 150, duration: 0.9, damage: 0, harmless: true, color: [255, 130, 50] }));
       world.particles.ring(this.x, this.y, 14, 40, this.enraged ? WHITE_FIRE : FIRE, 160);
     } });
   }
@@ -310,7 +314,7 @@ export class Ignaroth extends Actor {
     switch (pick) {
       case 'cleave': {
         const w = 0.85 * q;
-        world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 62, angle: this.aim, arc: 2.4, duration: w, follow: this }));
+        this.cleaveTele = world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 62, angle: this.aim, arc: 2.4, duration: w, follow: this }));
         return this.#begin(world, 'cleaveWindup', 'cleaveWindup', w);
       }
       case 'slam': {
@@ -325,6 +329,7 @@ export class Ignaroth extends Actor {
       case 'breath': {
         T.breath = rand(6, 8) * q;
         const w = 0.9 * q;
+        this.aim = Math.atan2((hero.y - this.y) / 0.6, hero.x - this.x); // Kegelwinkel im Ellipsenraum (wie Telegraph)
         this.breathTele = world.spawn(new Telegraph(this.x, this.y - 2, { shape: 'arc', r: 112, angle: this.aim, arc: 0.85, duration: w, follow: this, color: [255, 120, 40] }));
         return this.#begin(world, 'breathWindup', 'breathWindup', w);
       }
@@ -335,7 +340,7 @@ export class Ignaroth extends Actor {
         const w = 1.0 * q;
         const len = this.#rayLength(world, this.aim);
         this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
-        world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: this.aim, len, width: 34, duration: w }));
+        world.spawn(new Telegraph(this.x, this.y, { shape: 'line', screen: true, angle: this.aim, len, width: 40, duration: w }));
         return this.#begin(world, 'chargeWindup', 'chargeWindup', w);
       }
     }
@@ -355,9 +360,10 @@ export class Ignaroth extends Actor {
   }
 
   // Blick (aim) dem Helden nachführen, höchstens rate rad/s
-  #track(world, dt, rate) {
+  // ell: Winkel im Ellipsenraum (für Kegel, die wie die Bodenwarnung geprüft werden)
+  #track(world, dt, rate, ell = false) {
     const h = world.hero;
-    const want = Math.atan2(h.y - this.y, h.x - this.x);
+    const want = Math.atan2((h.y - this.y) / (ell ? 0.6 : 1), h.x - this.x);
     const d = angleDiff(this.aim, want);
     this.aim += Math.max(-rate * dt, Math.min(rate * dt, d));
     this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
@@ -378,10 +384,11 @@ export class Ignaroth extends Actor {
     world.session.camera?.shake(5);
     world.session.hitstop?.(0.05);
     world.addLight(new Light({ x: this.x + Math.cos(this.aim) * 30, y: this.y - 10, radius: 80, color: FIRE_RGB, intensity: 0.8, ttl: 0.25, bloom: 0.4 }));
-    // Feuerspur: eine Linie in Schlagrichtung brennt nach
-    const len = 92;
-    world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: this.aim, len, width: 14, duration: 0.25, color: [255, 120, 40] }));
-    this.#addHazard(world, new FireField(this.x, this.y, this, { line: true, angle: this.aim, len, width: 14, duration: this.enraged ? 3 : 2.2, damage: 28, delay: 0.25 }));
+    // Feuerspur: eine Linie in Schlagrichtung brennt nach – erst nach 0,65 s und mit eigener
+    // Warnung, damit man nach dem Hieb (und dem Rückstoß entlang der Spur) heraus kann
+    const sl = screenLine(this.aim, 92), delay = 0.65;
+    world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: sl.angle, len: sl.len, width: 14, duration: delay, color: [255, 120, 40] }));
+    this.#addHazard(world, new FireField(this.x, this.y, this, { line: true, angle: sl.angle, len: sl.len, width: 14, duration: this.enraged ? 3 : 2.2, damage: 21, delay }));
     world.bus.emit('enemySwing', { actor: this, heavy: true });
   }
 
@@ -389,7 +396,7 @@ export class Ignaroth extends Actor {
     this.setState('strike'); this.recover = this.enraged ? 0.6 : 0.9;
     this.animator.play('slam', true);
     const { x, y } = this.impact;
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, r: 48, damage: 110, knockback: 240, heavy: true, ttl: 0.12 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, lift: 6, r: 48, damage: 110, knockback: 240, heavy: true, ttl: 0.12 });
     world.particles.dust(x, y, 22, '#4a2e24');
     world.particles.bones(x, y, 4, -Math.PI / 2, 14, ['#18121e', '#261d2e', '#382a42', '#5a1206']);
     world.particles.ring(x, y, 8, 30, FIRE, 130);
@@ -418,7 +425,7 @@ export class Ignaroth extends Actor {
   }
 
   #breathTick(dt, world) {
-    this.#track(world, dt, [0.5, 0.65, 0.85][this.phase - 1]);
+    this.#track(world, dt, [0.5, 0.65, 0.85][this.phase - 1], true);
     if (this.breathTele) this.breathTele.angle = this.aim;
     const m = this.#meta('mouth');
     const ca = Math.cos(this.aim), sa = Math.sin(this.aim);
@@ -491,7 +498,8 @@ export class Ignaroth extends Actor {
   }
 
   #summon(world, types) {
-    const n = Math.min(types.length, 5 - this.adds.length);
+    this.adds = this.adds.filter((a) => !a.removed && !a.dead);
+    const n = Math.max(0, Math.min(types.length, 3 - this.adds.length)); // höchstens 3 Diener gleichzeitig
     for (let i = 0; i < n; i++) {
       let type = types[i];
       if (!world.assets.sprites[type]?.idle) type = 'skeleton';
@@ -525,14 +533,14 @@ export class Ignaroth extends Actor {
 
   // Position eines Rig-Punkts (head, hand, tip, chest, eye, mouth, cast) in Weltkoordinaten
   #meta(key) {
-    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -44 };
+    const m = this.animator.frame.meta?.[key] ?? { dx: 0, dy: -55 };
     return { x: this.x + m.dx * this.facing, y: this.y + m.dy };
   }
 
   #ambient(dt, world) {
     if (this.state === 'sleep' || this.dead) return;
     const rate = [3, 5, 12][this.phase - 1];
-    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-14, 14), this.y - rand(10, 50), 1);
+    if (Math.random() < dt * rate) world.particles.embers(this.x + rand(-18, 18), this.y - rand(12, 62), 1);
     if (this.enraged && Math.random() < dt * 10) {
       const c = this.#meta('chest');
       world.particles.spawn({ x: c.x + rand(-3, 3), y: c.y, vx: rand(-8, 8), vy: 0, rise: rand(20, 40), wobble: 20, life: rand(0.3, 0.6), colors: WHITE_FIRE, emissive: true });
@@ -590,12 +598,12 @@ export class Ignaroth extends Actor {
     w.session.camera?.shake(10);
     if (this.coreLight) this.coreLight.dead = true;
     // Der Kern birst: Lichtblitz, Glutfontäne, Lavalache
-    w.addLight(new Light({ x: this.x, y: this.y - 30, radius: 200, color: [255, 190, 120], intensity: 1.4, ttl: 1.4, bloom: 1 }));
+    w.addLight(new Light({ x: this.x, y: this.y - 38, radius: 200, color: [255, 190, 120], intensity: 1.4, ttl: 1.4, bloom: 1 }));
     w.addLight(new Light({ x: this.x, y: this.y - 4, radius: 70, color: FIRE_RGB, intensity: 0.7, flicker: 0.3, ttl: 8, bloom: 0.3 }));
-    for (let i = 0; i < 50; i++) w.particles.embers(this.x + rand(-16, 16), this.y - rand(10, 60), 1);
-    w.particles.ring(this.x, this.y - 30, 10, 48, WHITE_FIRE, 170);
+    for (let i = 0; i < 50; i++) w.particles.embers(this.x + rand(-20, 20), this.y - rand(12, 75), 1);
+    w.particles.ring(this.x, this.y - 38, 10, 48, WHITE_FIRE, 170);
     w.decals.scorch(this.x, this.y, 30);
-    w.bus.emit('spellImpact', { x: this.x, y: this.y - 20, element: 'fire', radius: 70, big: true });
+    w.bus.emit('spellImpact', { x: this.x, y: this.y - 25, element: 'fire', radius: 70, big: true });
   }
 
   // Flammenstrahl aus dem Maul: vom Maul schräg zum Boden, fächert auf, flackert
@@ -672,7 +680,7 @@ export class Ignaroth extends Actor {
       ctx.fillStyle = '#ffe070';
       for (let i = 0; i < 3; i++) {
         const a = this.stateTime * 6 + (i * Math.PI * 2) / 3;
-        ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * 10), Math.round(h.y - cy - 6 + Math.sin(a) * 3), 2, 1);
+        ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * 12), Math.round(h.y - cy - 8 + Math.sin(a) * 3), 2, 1);
       }
     }
   }
@@ -680,10 +688,10 @@ export class Ignaroth extends Actor {
 
 // ------------------------------------------------------------ Gefahrenflächen
 
-function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false) {
+function hurtHero(world, owner, damage, dirX, dirY, knockback, heavy = false, dot = false) {
   const h = world.hero;
   if (h.dead) return false;
-  const hit = { damage: Math.round(damage * rand(0.9, 1.1)), dirX, dirY, knockback, source: owner };
+  const hit = { damage: Math.round(damage * rand(0.9, 1.1)), dirX, dirY, knockback, source: owner, dot };
   if (!h.takeHit(hit)) return false;
   world.bus.emit('hit', { attacker: owner, target: h, damage: hit.damage, crit: false, heavy, dirX, dirY, x: h.x, y: h.centerY, killed: h.dead });
   return true;
@@ -725,8 +733,8 @@ export class FireField extends Entity {
     if (Math.random() < dt * n) { const [x, y] = this.#point(Math.random()); world.particles.embers(x, y, 1); }
     this.cool -= dt;
     const h = world.hero;
-    if (this.cool <= 0 && !h.dead && this.#inside(h.x, h.y)) {
-      if (hurtHero(world, this.owner, this.damage, 0, -1, 30)) this.cool = this.tick;
+    if (this.cool <= 0 && !h.dead && !this.owner?.dead && this.#inside(h.x, h.y)) {
+      if (hurtHero(world, this.owner, this.damage, 0, -1, 30, false, true)) this.cool = this.tick; // Flächen-Tick (dot)
     }
   }
   renderEmissive(ctx, cx, cy) {
@@ -768,7 +776,7 @@ export class Meteor extends Entity {
     if (this.t >= this.delay) {
       this.removed = true;
       const { x, y } = this;
-      world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, r: this.r, damage: this.damage, knockback: 200, heavy: true, ttl: 0.1 });
+      world.combat.add({ owner: this.owner, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, lift: 6, r: this.r, damage: this.damage, knockback: 200, heavy: true, ttl: 0.1 });
       world.particles.bones(x, y, 6, -Math.PI / 2, 10, ['#18121e', '#382a42', '#5a1206', '#8e2408']);
       world.particles.element(x, y - 4, 'fire', 22, 10);
       world.particles.ring(x, y, 6, 20, FIRE, 110);

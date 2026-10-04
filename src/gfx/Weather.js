@@ -70,9 +70,9 @@ export class Weather {
     this.fogs = [];
     const fog = this.recipe?.fog;
     if (fog) {
-      this.fogSprite = this.#fogSprite(fog.c);
+      this.fogSprites = [0, 1, 2, 3].map((k) => this.#fogSprite(fog.c, k));
       const n = Math.max(3, Math.round(7 * this.scale * (W * H) / (480 * 270)));
-      for (let i = 0; i < n; i++) this.fogs.push({ x: rnd(-40, W), y: rnd(H * 0.1, H), w: rnd(140, 220), h: rnd(50, 80), v: rnd(3, 8), ph: rnd(0, 6.28) });
+      for (let i = 0; i < n; i++) { const k = i % 4, sp = this.fogSprites[k]; this.fogs.push({ x: rnd(-40, W), y: rnd(H * 0.1, H), k, w: sp.width, h: sp.height, v: rnd(3, 8), ph: rnd(0, 6.28) }); }
     }
     for (const L of this.recipe?.layers ?? []) {
       const n = Math.round(L.n * this.scale * (W * H) / (480 * 270));
@@ -201,9 +201,9 @@ export class Weather {
     if (this.state === 'ashwind') { ctx.fillStyle = `rgba(80,64,52,${0.08 * this.mix})`; ctx.fillRect(0, 0, W, H); }
     if (R.tint) { const [r, g, b, a] = R.tint; ctx.fillStyle = `rgba(${r},${g},${b},${a})`; ctx.fillRect(0, 0, W, H); }
     if (this.blizzard) { ctx.fillStyle = `rgba(220,235,255,${0.12 * this.mix})`; ctx.fillRect(0, 0, W, H); }
-    if (this.fogs?.length && this.fogSprite) {
+    if (this.fogs?.length && this.fogSprites) {
       const a = R.fog.a * (this.state === 'fog' ? 0.6 + 0.4 * this.mix : 0.6);
-      for (const f of this.fogs) { ctx.globalAlpha = a * (0.7 + 0.3 * Math.sin(t * 0.3 + f.ph)); ctx.drawImage(this.fogSprite, f.x | 0, f.y | 0, f.w, f.h); }
+      for (const f of this.fogs) { ctx.globalAlpha = a * (0.7 + 0.3 * Math.sin(t * 0.3 + f.ph)); ctx.drawImage(this.fogSprites[f.k], f.x | 0, (f.y + Math.sin(t * 0.21 + f.ph) * 2) | 0); }
       ctx.globalAlpha = 1;
     }
 
@@ -279,11 +279,38 @@ export class Weather {
     if (this.flash > 0) { ctx.globalAlpha = this.flash * 0.35; ctx.fillStyle = '#dce8ff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   }
 
-  #fogSprite([r, g, b]) {
-    const c = document.createElement('canvas'); c.width = 64; c.height = 32;
-    const x = c.getContext('2d'), gr = x.createRadialGradient(32, 16, 2, 32, 16, 32);
-    gr.addColorStop(0, `rgba(${r},${g},${b},0.9)`); gr.addColorStop(0.5, `rgba(${r},${g},${b},0.4)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    x.fillStyle = gr; x.save(); x.scale(1, 0.5); x.fillRect(0, 0, 64, 64); x.restore();
+  // Nebelschwade: weiche, unregelmäßige Wolke aus mehreren Dichteballen, Ränder laufen über
+  // geordnetes Dithering (4x4 Bayer, 5 Alphastufen) aus – kein Rechteck, keine harte Kante.
+  // Deterministisch je Variante k, gezeichnet 1:1 in Bildpunkten der internen Auflösung.
+  #fogSprite([r, g, b], k = 0) {
+    let s = 0x9e3779b1 ^ (k * 2654435761);
+    const rand = () => { s = (s ^ (s << 13)) >>> 0; s = (s ^ (s >>> 17)) >>> 0; s = (s ^ (s << 5)) >>> 0; return s / 4294967296; };
+    const w = 150 + Math.floor(rand() * 60), h = 44 + Math.floor(rand() * 20);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'), img = x.createImageData(w, h), d = img.data;
+    const blobs = [];
+    const nb = 6 + Math.floor(rand() * 4);
+    for (let i = 0; i < nb; i++) {
+      const u = 0.15 + rand() * 0.7;
+      blobs.push({ x: u * w, y: h * (0.42 + (rand() - 0.5) * 0.3), rx: w * (0.1 + rand() * 0.14) * (1 - Math.abs(u - 0.5)), ry: h * (0.16 + rand() * 0.14), a: 0.55 + rand() * 0.45 });
+    }
+    const ph1 = rand() * 6.28, ph2 = rand() * 6.28;
+    const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+      let dens = 0;
+      for (const o of blobs) { const dx = (px - o.x) / o.rx, dy = (py - o.y) / o.ry; dens += o.a * Math.exp(-(dx * dx + dy * dy)); }
+      // Fasern: langgezogene Schlieren entlang der Zugrichtung
+      dens *= 0.78 + 0.22 * Math.sin(px * 0.045 + Math.sin(py * 0.21 + ph1) * 1.6 + ph2);
+      const ex = Math.min(px, w - 1 - px) / (w * 0.18), ey = Math.min(py, h - 1 - py) / (h * 0.3);
+      const edge = Math.min(1, ex) * Math.min(1, ey);
+      dens = Math.min(1, dens) * edge * edge * (3 - 2 * edge);
+      const lv = dens * 4 + B[(py & 3) * 4 + (px & 3)] / 16 - 0.5;
+      const q = Math.max(0, Math.min(4, Math.round(lv)));
+      if (!q) continue;
+      const i = (py * w + px) * 4;
+      d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = [0, 46, 92, 140, 190][q];
+    }
+    x.putImageData(img, 0, 0);
     return c;
   }
 

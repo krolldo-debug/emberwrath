@@ -89,6 +89,7 @@ export class Actor extends Entity {
   }
 
   renderEmissive(ctx, cx, cy) {
-    if (this.flash > 0 && this.rise >= 1) this.drawSprite(ctx, cx, cy, { flash: true, alpha: Math.min(1, this.flash * 14) });
+    // flashMax: große Bosse blitzen gedämpft, damit der weiße Umriss den Helden nicht verdeckt
+    if (this.flash > 0 && this.rise >= 1) this.drawSprite(ctx, cx, cy, { flash: true, alpha: Math.min(this.flashMax ?? 1, this.flash * 14) });
   }
 }

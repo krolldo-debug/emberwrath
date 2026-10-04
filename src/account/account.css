@@ -84,6 +84,11 @@
 .acc-preview { grid-area: preview; }
 .acc-summary { grid-area: summary; }
 .ef-panel.acc-create { overflow: hidden; }
+/* Unten Luft bis zum Rand */
+.acc-create-grid { padding-bottom: 12px; }
+.acc-create-foot { padding-top: 12px; border-top: 1px solid #2e2234; }
+/* Große Bildschirme: Beschreibungen nicht in einen niedrigen Scrollbereich zwängen */
+@media (min-width: 1500px) and (min-height: 900px) { .ef-panel.acc-panel.acc-create { width: min(1280px, 100%); } }
 .acc-create-foot { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
 .acc-create-foot .acc-notice { flex: 1 1 260px; align-items: center; }
 .acc-create-foot .acc-start { flex: 0 1 320px; }
@@ -120,9 +125,12 @@
 .acc-dice { padding: 6px 12px; }
 .acc-combo { margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 600 18px var(--ef-font-title); color: #fff4e0; }
 .acc-summary { display: flex; flex-direction: column; gap: 10px; }
-.acc-desc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.acc-desc-grid h4 { margin: 0 0 4px; font-size: 13px; color: var(--ef-gold); letter-spacing: 0.06em; }
-.acc-desc-grid p { margin: 0 0 6px; font-size: 13px; line-height: 1.4; color: #d8ccb4; }
+.acc-desc h4 { margin: 0 0 4px; font-size: 13px; color: var(--ef-gold); letter-spacing: 0.06em; }
+.acc-desc p { margin: 0 0 6px; font-size: 13px; line-height: 1.4; color: #d8ccb4; }
+.acc-race-info { margin-top: 14px; padding: 10px 12px; background: rgba(10, 6, 14, 0.6); border: 1px solid #2e2234; }
+@media (min-width: 1100px) { .acc-class-info .acc-abilities { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; } }
+/* Unten ausblenden, solange der Bereich weiter scrollt (Klasse .more setzt CharacterCreateScene) */
+.acc-create-grid.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent); mask-image: linear-gradient(#000 calc(100% - 36px), transparent); }
 .acc-traits, .acc-abilities { margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.4; color: #e8dcc4; }
 .acc-traits li, .acc-abilities li { margin-bottom: 3px; }
 .acc-abilities b { color: #ffcf8a; font-weight: 600; }
@@ -145,7 +153,6 @@
 }
 @media (max-width: 560px) {
   .acc-title { place-items: center; padding-left: 12px; }
-  .acc-desc-grid { grid-template-columns: 1fr; }
   .acc-option { min-height: 56px; gap: 4px; padding-right: 6px; }
   .acc-option-art { width: 34px; }
   .acc-option-text strong { font-size: 14px; }
@@ -171,6 +178,7 @@
   .acc-create-foot .acc-notice { padding: 4px 10px; font-size: 12px; }
   .acc-option { min-height: 50px; }
   .acc-option-text small { display: none; }
+  .acc-create-foot { padding-top: 8px; }
 }
 .acc-abilities { list-style: none; padding-left: 0; }
 .acc-abilities li { display: block; min-height: 30px; padding-left: 36px; position: relative; margin-bottom: 6px; }
@@ -182,7 +190,7 @@
 .acc-tier.r-rare { color: #5aa8ff; } .acc-tier.r-epic { color: #c07aff; } .acc-tier.r-legendary { color: #ff9a2a; }
 .acc-tier.selected { border-color: currentColor; box-shadow: 0 0 8px rgba(255, 255, 255, 0.12); }
 .ef-touch .acc-tier { min-height: 36px; }
-@media (max-width: 560px) {
+@media (max-width: 860px) and (orientation: portrait), (max-height: 500px) and (orientation: landscape), (max-width: 560px) {
   .acc-tiers { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 6px; left: 6px; right: 6px; }
   .acc-tiers-label { display: none; }
   .acc-tier { min-width: 0; flex: 1; text-align: center; }
@@ -285,3 +293,9 @@
 /* Online-Konto (src/online) */
 .acc-notice.acc-cloud { border-left-color: #6ac06a; }
 .acc-notice.acc-cloud .acc-notice-icon { background: #6ac06a; color: #0c1a0c; }
+/* Laptop-Höhe (z. B. 1280×720): Werte zweispaltig, damit Klasse und Fähigkeiten weiter oben stehen */
+@media (min-width: 861px) and (max-height: 820px) and (min-height: 501px) {
+  .acc-stats { grid-template-columns: 1fr 1fr; column-gap: 18px; }
+  .acc-stat { grid-template-columns: 84px 1fr 44px; }
+  .acc-attrs { grid-column: 1 / -1; }
+}

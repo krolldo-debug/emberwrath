@@ -43,7 +43,8 @@ for (const m of modules.values()) {
 // Titelbild-Fuß und unter /version.json – so lässt sich prüfen, welche Version live ausgeliefert wird.
 let commit = process.env.WORKERS_CI_COMMIT_SHA ?? '';
 if (!commit) { try { commit = execSync('git rev-parse HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { commit = ''; } }
-const build = { commit: commit ? commit.slice(0, 7) : 'lokal', builtAt: new Date().toISOString() };
+const pkgVersion = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
+const build = { version: pkgVersion, commit: commit ? commit.slice(0, 7) : 'dev', builtAt: new Date().toISOString() };
 
 let bundle = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
 bundle += 'const __defs = {}, __cache = {};\n';
@@ -77,6 +78,16 @@ mkdirSync(resolve(site, 'spielen'), { recursive: true });
 writeFileSync(resolve(site, 'spielen/index.html'), out);
 // Web-App vom Home-Bildschirm (src/ui/Fullscreen.js): Manifest und App-Symbole liegen neben dem Spiel.
 for (const f of ['manifest.webmanifest', 'app-icon-180.png', 'app-icon-192.png', 'app-icon-512.png']) copyFileSync(resolve(root, 'src/ui/pwa', f), resolve(site, 'spielen', f));
+// Browser und iOS fragen diese Adressen ohne Verweis im HTML ab: /apple-touch-icon.png und /favicon.ico (ICO mit eingebettetem PNG).
+copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-touch-icon.png'));
+{
+  const png = readFileSync(resolve(root, 'src/ui/pwa/app-icon-192.png'));
+  const head = Buffer.alloc(22);
+  head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4); // ICO, ein Bild
+  head.writeUInt8(192, 6); head.writeUInt8(192, 7); head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12);
+  head.writeUInt32LE(png.length, 14); head.writeUInt32LE(22, 18);
+  writeFileSync(resolve(site, 'favicon.ico'), Buffer.concat([head, png]));
+}
 const landing = buildSite(root, site);
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
 // dazu übliche Sicherheits-Header. Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
@@ -87,6 +98,7 @@ writeFileSync(resolve(site, '_headers'), [
   '  X-Frame-Options: SAMEORIGIN',
   `  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src ${connectSrc}; frame-ancestors 'self'`,
   '  Permissions-Policy: camera=(), microphone=(), geolocation=()',
+  '  Strict-Transport-Security: max-age=31536000; includeSubDomains',
   '/index.html',
   '  Cache-Control: no-cache',
   '/',

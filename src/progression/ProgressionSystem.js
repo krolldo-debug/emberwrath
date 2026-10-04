@@ -48,7 +48,7 @@ export class ProgressionSystem {
       else {
         // Zone von Thread B fehlt noch: Lauf nicht hängen lassen
         queueMicrotask(() => commit('trial:leave', {}));
-        bus.emit(EV.UI_TOAST, { text: 'Die Glutprüfungen öffnen sich bald – die Esse ist noch nicht bereit.', kind: 'warn' });
+        bus.emit(EV.UI_TOAST, { text: 'Die Glutprüfung lässt sich gerade nicht betreten. Versuch es gleich noch einmal.', kind: 'warn' });
       }
     });
     bus.on(EV.PLAYER_DIED, () => { if (this.#trialActive()) commit('trial:fail', { reason: 'death' }); });
@@ -59,7 +59,7 @@ export class ProgressionSystem {
         commit('trial:leave', {});
       }
     });
-    bus.on(TRIAL_EV.COMPLETED, (e) => bus.emit(EV.UI_BANNER, { title: `Glutprüfung ${e.tier} bestanden`, sub: `${Math.floor(e.time / 60)}:${String(e.time % 60).padStart(2, '0')} · ${e.rewards.gold} Gold · ${e.rewards.shards} Glutsplitter`, color: '#ffb040' }));
+    bus.on(TRIAL_EV.COMPLETED, (e) => bus.emit(EV.UI_BANNER, { title: `Glutprüfung ${e.tier} bestanden`, sub: `${Math.floor(e.time / 60)}:${String(e.time % 60).padStart(2, '0')} · ${e.rewards.gold.toLocaleString('de-DE')} Gold · ${e.rewards.shards} Glutsplitter`, color: '#ffb040' }));
     bus.on(TRIAL_EV.FAILED, (e) => bus.emit(EV.UI_BANNER, { title: `Glutprüfung ${e.tier} gescheitert`, sub: e.reason === 'time' ? 'Die Zeit ist abgelaufen' : e.reason === 'death' ? 'Du bist gefallen' : 'Du hast die Esse verlassen', color: '#ff6a5a' }));
     // Seltene Weltgegner: Hinweis beim Betreten, Banner beim Sieg
     bus.on(EV.ZONE_ENTER, (e) => {
@@ -129,7 +129,7 @@ export class ProgressionSystem {
     if (this.autoSold && (this.autoSold.t -= dt) <= 0) {
       const { n, gold } = this.autoSold;
       this.autoSold = null;
-      this.s.bus.emit(EV.UI_TOAST, { text: `Automatisch verkauft: ${n} ${n === 1 ? 'Teil' : 'Teile'} (+${gold} Gold)`, kind: 'loot', icon: 'gold' });
+      this.s.bus.emit(EV.UI_TOAST, { text: `Automatisch verkauft: ${n} ${n === 1 ? 'Teil' : 'Teile'} (+${gold.toLocaleString('de-DE')} Gold)`, kind: 'loot', icon: 'gold' });
     }
     const hero = this.hero;
     if (this.pendingLevelHeal && hero && !hero.dead) { hero.hp = hero.maxHp; this.pendingLevelHeal = false; }

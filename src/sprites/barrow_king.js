@@ -1,4 +1,3 @@
-import { PAL } from '../gfx/Palette.js';
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, Animation } from '../gfx/Sprite.js';
 import { hash2 } from '../core/math.js';
@@ -19,24 +18,26 @@ import { hash2 } from '../core/math.js';
 // darunter). Nach dem Zeichnen: Randlicht (kaltes Oberlicht auf den Kanten,
 // Geisterschimmer am Rücken), damit die Figur vor dunklem Erdboden lesbar bleibt.
 // Blickrichtung rechts, Anker = Mitte zwischen den Füßen.
-const W = 220, H = 150, AX = 100, AY = 140;
+// Z: Maßstab der Figur (Release-Runde: Ulgrim 35 % größer, Kopf/Gesicht bleibt pixelgenau)
+const Z = 1.35;
+const W = 260, H = 200, AX = 120, AY = 188;
 const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Schwert steckt im Boden)
 
 // Bronze, alt und nachgedunkelt
-const BRZ = ['#1a140e', '#31230f', '#523a1d', '#7a5a30', '#a4834c', '#cfb27c'];
+const BRZ = ['#170f08', '#3a2710', '#634520', '#93702f', '#c49a4a', '#f0d48e'];
 // Grünspan
 const VER = ['#15302c', '#22504a', '#337564', '#56a088', '#8cc8a8'];
 // Ausgedörrte Haut
-const SKIN = ['#1e1a18', '#3a322c', '#5a4e42', '#7e705c', '#a4967c'];
+const SKIN = ['#1c1714', '#3c322a', '#665748', '#958267', '#c6b693'];
 // Geweih / Knochen
 const ANT = ['#2e261e', '#5a4c3c', '#8a7a62', '#b8a888', '#e2d6b8'];
 // Bart und Haar (fahl)
 const BEARD = ['#3a3a3a', '#66645e', '#95928a', '#c4c0b4', '#e8e4da'];
 // Umhang: modriges Wolltuch, grünlich-grau
-const CAPE = ['#0c1012', '#161e22', '#22302f', '#2f4340', '#40584f'];
+const CAPE = ['#0a1014', '#142028', '#1f3440', '#2d4a54', '#45686a'];
 // Stoff unter der Rüstung
 const CLOTH = ['#120e10', '#221a1c', '#342628', '#48363a'];
-const LEATHER = PAL.leather;
+const LEATHER = ['#1a0d0b', '#3a1a12', '#5e2e1c', '#8a4828'];
 const VOID = '#050608';
 const RIM = [176, 226, 214];
 
@@ -44,7 +45,9 @@ const RIM = [176, 226, 214];
 const GH = ['#0b3a40', '#127272', '#22b0a4', '#7ef0d6', '#e8fff8'];
 const GHX = ['#0e4c5c', '#1c9aa6', '#4ae6d8', '#baffee', '#ffffff'];
 
-const THIGH = 12.5, SHIN = 13.5, SPINE = 18, UPPER = 11.5, FORE = 11;
+const THIGH = 12.5 * Z, SHIN = 13.5 * Z, SPINE = 18 * Z, UPPER = 11.5 * Z, FORE = 11 * Z;
+const PXF = ['hipX', 'hipY', 'fFx', 'fFy', 'fBx', 'fBy', 'hFx', 'hFy', 'hBx', 'hBy'];
+const scaleP = (P) => { const o = { ...P }; for (const k of PXF) o[k] = P[k] * Z; return o; };
 
 // ---------------------------------------------------------------- Pixelpuffer
 
@@ -207,72 +210,78 @@ function runeSword(p, g, hx, hy, a, power = 0) {
   const at = (u, v) => [hx + dx * u + nx * v, hy + dy * u + ny * v];
   const up = ny < 0 ? 1 : -1; // welche Querseite zeigt nach oben (Licht)
   // Griff: Lederwicklung, Bronzeknauf mit Geisterstein
-  for (let u = -8; u <= 4; u += 0.5) {
-    for (let v = -1; v <= 1; v += 0.5) {
-      const lit = v * up > 0.4 ? 3 : v * up < -0.4 ? 0 : 1;
+  for (let u = -10; u <= 5; u += 0.5) {
+    for (let v = -1.5; v <= 1.5; v += 0.5) {
+      const lit = v * up > 0.6 ? 3 : v * up < -0.6 ? 0 : 1;
       let c = LEATHER[lit];
-      if (Math.round(u * 2) % 3 === 0) c = LEATHER[Math.max(0, lit - 1)];
+      if (Math.round(u * 2) % 4 === 0) c = LEATHER[Math.max(0, lit - 1)];
       const [x, y] = at(u, v); p.px(x, y, c);
     }
   }
-  for (let u = -12; u <= -8; u += 0.5) for (let v = -2.5; v <= 2.5; v += 0.5) {
-    const r = Math.hypot((u + 10) / 2.1, v / 2.5);
+  for (let u = -16; u <= -9; u += 0.5) for (let v = -3.5; v <= 3.5; v += 0.5) {
+    const r = Math.hypot((u + 12.5) / 3, v / 3.3);
     if (r > 1) continue;
     const [x, y] = at(u, v);
-    p.px(x, y, r < 0.45 ? BRZ[2] : v * up > 0.3 ? BRZ[4] : BRZ[2]);
+    p.px(x, y, r > 0.82 ? BRZ[0] : r < 0.45 ? BRZ[2] : v * up > 0.3 ? BRZ[4] : BRZ[2]);
   }
-  { const [x, y] = at(-10, 0); p.px(x, y, GH[2]); g.px(x, y, 3); }
+  { const [x, y] = at(-12.5, 0); const [x2, y2] = at(-12.5, up); p.px(x, y, GH[3]); p.px(x2, y2, GH[2]); g.px(x, y, 4); g.px(x2, y2, 2); }
   // Parierstange: geschwungene Enden (Widderhörner)
-  for (let v = -6.5; v <= 6.5; v += 0.5) {
-    const curl = Math.max(0, Math.abs(v) - 4.5) * 0.9;
-    for (let u = 4.5; u <= 6.5; u += 0.5) {
+  for (let v = -8.5; v <= 8.5; v += 0.5) {
+    const curl = Math.max(0, Math.abs(v) - 6) * 0.9;
+    for (let u = 5.5; u <= 8; u += 0.5) {
       const [x, y] = at(u - curl, v);
-      const lit = (u > 6 ? 1 : 0) + (v * up > 0 ? 1 : 0);
-      p.px(x, y, [BRZ[1], BRZ[3], BRZ[4]][lit]);
+      const lit = (u > 7.4 ? 1 : 0) + (v * up > 0 ? 1 : 0);
+      p.px(x, y, u < 6 ? BRZ[0] : [BRZ[1], BRZ[3], BRZ[5]][lit]);
     }
   }
-  { const [x, y] = at(5.5, 0); p.px(x, y, VER[3]); }
+  { const [x, y] = at(6.8, 0); p.px(x, y, GH[2]); g.px(x, y, 3); }
   // Klinge: Blattform, am Ansatz schmal, bei 70 % am breitesten
-  const L = 50;
+  const L = 60, B0 = 9; // Spitze bleibt nah am Angriffsbogen (r 60)
   const half = (u) => {
-    const t = (u - 7) / (L - 7);
+    const t = (u - B0) / (L - B0);
     if (t < 0 || t > 1) return 0;
-    const leaf = t < 0.72 ? 2.2 + 1.5 * Math.sin((t / 0.72) * Math.PI * 0.5) : 3.7 * Math.sqrt(Math.max(0, (1 - t) / 0.28));
+    const leaf = t < 0.72 ? 2.9 + 2 * Math.sin((t / 0.72) * Math.PI * 0.5) : 4.9 * Math.sqrt(Math.max(0, (1 - t) / 0.28));
     return leaf;
   };
-  for (let u = 7; u <= L; u += 0.5) {
+  for (let u = B0; u <= L; u += 0.5) {
     const hw = half(u);
     for (let v = -hw; v <= hw; v += 0.5) {
       const e = Math.abs(v) / (hw || 1);
       const side = v * up; // > 0 = Oberseite
       let c;
-      if (e > 0.78) c = side > 0 ? BRZ[5] : BRZ[3]; // geschliffene Schneide
-      else if (Math.abs(v) < 0.6) c = BRZ[1]; // Hohlkehle
+      if (e > 0.82) c = side > 0 ? '#f0dcaa' : BRZ[1]; // geschliffene Schneide
+      else if (e > 0.64) c = side > 0 ? BRZ[5] : BRZ[3];
+      else if (Math.abs(v) < 0.8) c = VOID; // Hohlkehle (leuchtet)
       else c = side > 0 ? BRZ[4] : BRZ[2];
       // Grünspan-Flecken auf der Fläche
       const hv = hash2(Math.round(u * 2), Math.round(v * 2) + 20, 41);
-      if (e < 0.75 && Math.abs(v) >= 0.6 && hv < 0.12) c = hv < 0.03 ? VER[3] : VER[side > 0 ? 2 : 1];
+      if (e < 0.6 && Math.abs(v) >= 0.8 && hv < 0.1) c = hv < 0.03 ? VER[3] : VER[side > 0 ? 2 : 1];
       const [x, y] = at(u, v); p.px(x, y, c);
     }
   }
-  // Runen in der Hohlkehle
-  const runes = [13, 20, 27, 34];
+  // Hohlkehle: durchgehende Geisterlinie, Runen darin heller
+  for (let u = B0 + 2; u <= L - 9; u += 0.5) {
+    const [x, y] = at(u, 0);
+    p.px(x, y, GH[1]);
+    g.px(x, y, 1 + power * 0.6);
+  }
+  const runes = [16, 24, 32, 40];
   for (const u of runes) {
-    const [x, y] = at(u, 0); const [x2, y2] = at(u + 1.5, 0);
-    p.px(x, y, VER[1]); p.px(x2, y2, VER[1]);
-    g.px(x, y, 2 + power); g.px(x2, y2, 1 + power);
+    const [x, y] = at(u, 0); const [x2, y2] = at(u + 1.5, 0); const [x3, y3] = at(u + 0.8, up * 0.9);
+    p.px(x, y, GH[3]); p.px(x2, y2, GH[2]);
+    g.px(x, y, 3 + power); g.px(x2, y2, 2 + power); g.px(x3, y3, 1);
     g.epx(x, y, 4);
   }
   // Schneide glänzt (Geisterlicht) bei Schlägen
   if (power > 0) {
-    for (let u = 14; u <= L - 1; u += 1) {
+    for (let u = 18; u <= L - 1; u += 1) {
       const hw = half(u);
       const [x, y] = at(u, hw * (up > 0 ? 1 : -1) * 0.9);
-      g.px(x, y, u > L - 12 ? 2 : 1);
+      g.px(x, y, u > L - 14 ? 2 : 1);
     }
   }
   const [tx, ty] = at(L, 0);
-  const [mx, my] = at(30, 0);
+  const [mx, my] = at(36, 0);
   return { tipX: tx, tipY: ty, midX: mx, midY: my };
 }
 
@@ -302,10 +311,11 @@ function smear(p, g, cx, cy, a0, a1, r0, r1, rev = false, flat = 1) {
 
 // ---------------------------------------------------------------- Figur
 
-function drawUlgrim(p, g, P, extra = {}) {
+function drawUlgrim(p, g, P0, extra = {}) {
+  const P = scaleP(P0);
   const gy = AY;
   const lean = P.lean, sL = Math.sin(lean), cL = Math.cos(lean);
-  const hipX = AX + P.hipX, hipY = gy - 25 + P.hipY + P.kneel * 9;
+  const hipX = AX + P.hipX, hipY = gy - 25 * Z + P.hipY + P.kneel * 9 * Z;
   const chX = hipX + sL * SPINE, chY = hipY - cL * SPINE;
   const perpX = cL, perpY = sL;
   const along = (s, k) => [hipX + sL * s + perpX * k, hipY - cL * s + perpY * k];
@@ -314,27 +324,27 @@ function drawUlgrim(p, g, P, extra = {}) {
   // Beine
   const fF = { x: AX + P.fFx, y: gy - P.fFy };
   const fB = { x: AX + P.fBx, y: gy - P.fBy };
-  const legF = ik(hipX + 3, hipY, fF.x, fF.y, THIGH, SHIN, -1);
-  const legB = ik(hipX - 3, hipY, fB.x, fB.y, THIGH, SHIN, -1);
+  const legF = ik(hipX + 4, hipY, fF.x, fF.y, THIGH, SHIN, -1);
+  const legB = ik(hipX - 4, hipY, fB.x, fB.y, THIGH, SHIN, -1);
   if (P.kneel > 0.01) {
     // hinteres Knie auf dem Boden
-    const kx = hipX - 5 - P.kneel * 2, ky = gy - 2;
+    const kx = hipX - 7 - P.kneel * 3, ky = gy - 3;
     legB.jx += (kx - legB.jx) * P.kneel; legB.jy += (ky - legB.jy) * P.kneel;
-    legB.ex += (kx - 11 - legB.ex) * P.kneel; legB.ey += (gy - legB.ey) * P.kneel;
+    legB.ex += (kx - 15 - legB.ex) * P.kneel; legB.ey += (gy - legB.ey) * P.kneel;
   }
 
   // Schultern, Hände
-  const shF = { x: chX + perpX * 7, y: chY + perpY * 7 + 2 };
-  const shB = { x: chX - perpX * 6, y: chY - perpY * 6 + 1 };
+  const shF = { x: chX + perpX * 9.5, y: chY + perpY * 9.5 + 3 };
+  const shB = { x: chX - perpX * 8, y: chY - perpY * 8 + 1 };
   const hF = { x: chX + P.hFx, y: chY + P.hFy };
   const sa = P.sw;
   const hB = P.grip > 0.5
-    ? { x: hF.x - Math.cos(sa) * 5, y: hF.y - Math.sin(sa) * 5 }
+    ? { x: hF.x - Math.cos(sa) * 7, y: hF.y - Math.sin(sa) * 7 }
     : { x: chX + P.hBx, y: chY + P.hBy };
   const armF = ik(shF.x, shF.y, hF.x, hF.y, UPPER, FORE, 1);
   const armB = ik(shB.x, shB.y, hB.x, hB.y, UPPER, FORE, 1);
 
-  const neckX = chX + sL * 2 + 1, neckY = chY - cL * 2;
+  const neckX = chX + sL * 3 + 1, neckY = chY - cL * 3;
   const hx = Math.round(neckX - 6 + P.head), hy = Math.round(neckY - 13 + P.headY + P.bow * 2);
 
   // --- 0. Geisterschleier (nur Phase 2, hinter allem)
@@ -346,13 +356,13 @@ function drawUlgrim(p, g, P, extra = {}) {
   // --- 2. Hinteres Bein, hinterer Arm (dunkler)
   const darkB = [VOID, BRZ[0], BRZ[1], BRZ[2]];
   const litB = [BRZ[1], BRZ[2], BRZ[3], BRZ[4]];
-  leg(p, g, hipX - 3, hipY, legB, true, P);
-  limb(p, shB.x, shB.y, armB.jx, armB.jy, 4.5, 4, [VOID, CLOTH[0], CLOTH[1], CLOTH[2]]);
-  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 5, 4.5, darkB);
-  p.ellipse(armB.jx, armB.jy, 2, 2, BRZ[1]);
+  leg(p, g, hipX - 4, hipY, legB, true, P);
+  limb(p, shB.x, shB.y, armB.jx, armB.jy, 6, 5.5, [VOID, CLOTH[0], CLOTH[1], CLOTH[2]]);
+  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 6.5, 6, darkB);
+  p.ellipse(armB.jx, armB.jy, 2.6, 2.6, BRZ[1]);
   hand(p, armB.ex, armB.ey, true, P.cast > 0.3);
   meta.cast = { x: armB.ex, y: armB.ey - 3 };
-  pauldron(p, g, shB.x - 1, shB.y - 1, 4.5, 4, darkB, false);
+  pauldron(p, g, shB.x - 1, shB.y - 1, 6, 5.2, darkB, false);
 
   if (extra.swordBehind) {
     const t = runeSword(p, g, hF.x, hF.y, sa, extra.power ?? 0);
@@ -363,25 +373,25 @@ function drawUlgrim(p, g, P, extra = {}) {
   torso(p, g, along, P, meta);
 
   // --- 4. Vorderes Bein, Gürtel mit Lederstreifen
-  leg(p, g, hipX + 3, hipY, legF, false, P);
+  leg(p, g, hipX + 4, hipY, legF, false, P);
   belt(p, g, hipX, hipY, P, legF);
 
   // --- 5. Hals, Kopf, Bart, Geweihkrone
-  p.rect(neckX - 2, neckY - 4, 4, 4, SKIN[1]); p.px(neckX - 2, neckY - 4, SKIN[2]);
-  p.line(neckX - 1, neckY - 3, neckX + 1, neckY - 1, SKIN[0]);
-  head(p, g, hx, hy, P, meta, gy);
+  p.rect(neckX - 3, neckY - 5, 6, 6, SKIN[1]); p.px(neckX - 3, neckY - 5, SKIN[2]);
+  p.line(neckX - 1, neckY - 4, neckX + 2, neckY - 1, SKIN[0]);
+  const beard = head(p, g, hx, hy, P, meta, gy);
 
   // --- 6. Schwung-Schleier
-  if (extra.smear) smear(p, g, shF.x, shF.y + (extra.flat ? 8 : 2), extra.smear[0], extra.smear[1], 26, 60, extra.rev, extra.flat ?? 1);
+  if (extra.smear) smear(p, g, shF.x, shF.y + (extra.flat ? 8 : 2), extra.smear[0], extra.smear[1], 34, 80, extra.rev, extra.flat ?? 1);
 
   // --- 7. Vorderer Arm mit Schwert
   const drawArm = () => {
-    limb(p, shF.x, shF.y, armF.jx, armF.jy, 5, 4.5, [CLOTH[0], CLOTH[1], CLOTH[2], CLOTH[3]]);
-    limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 5.5, 5, litB);
+    limb(p, shF.x, shF.y, armF.jx, armF.jy, 6.5, 6, [CLOTH[0], CLOTH[1], CLOTH[2], CLOTH[3]]);
+    limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 7.5, 6.5, litB);
     // Armschiene: Grünspan-Band, Kante
     const mx = armF.jx + (armF.ex - armF.jx) * 0.35, my = armF.jy + (armF.ey - armF.jy) * 0.35;
-    p.px(mx, my, VER[2]); p.px(mx + 1, my, VER[1]);
-    p.ellipse(armF.jx, armF.jy, 2.2, 2.2, BRZ[2]); p.px(armF.jx - 1, armF.jy - 1, BRZ[4]);
+    p.px(mx, my, VER[2]); p.px(mx + 1, my, VER[1]); p.px(mx, my + 1, VER[1]);
+    p.ellipse(armF.jx, armF.jy, 2.8, 2.8, BRZ[2]); p.px(armF.jx - 1, armF.jy - 1, BRZ[4]);
   };
   drawArm();
   if (!extra.swordBehind) {
@@ -390,12 +400,16 @@ function drawUlgrim(p, g, P, extra = {}) {
   }
   hand(p, hF.x, hF.y, false, false);
   if (P.grip > 0.5) hand(p, hB.x, hB.y, false, false);
-  pauldron(p, g, shF.x, shF.y, 5.5, 4.5, litB, true);
+  pauldron(p, g, shF.x, shF.y, 7.4, 6, litB, true);
+  beard();
+  // Hände liegen vor dem Bart
+  hand(p, hF.x, hF.y, false, false);
+  if (P.grip > 0.5) hand(p, hB.x, hB.y, false, false);
   meta.hand = { x: hF.x, y: hF.y };
 
   // Geisterfeuer in der Zauberhand
   if (P.cast > 0.05) {
-    const r = 1 + P.cast * 3, { x, y } = meta.cast;
+    const r = 1 + P.cast * 4, { x, y } = meta.cast;
     g.ellipse(x, y, r + 1.5, r + 1.5, 1);
     g.ellipse(x, y - 0.5, r, r, 2);
     g.ellipse(x, y - 1, Math.max(0.6, r - 1.6), Math.max(0.6, r - 1.6), 3);
@@ -413,12 +427,13 @@ function torso(p, g, along, P, meta) {
   for (let s = 0; s <= SPINE + 1; s += 0.5) {
     const t = s / SPINE;
     const sm = t * t * (3 - 2 * t);
-    const hwB = 5 + 3.2 * sm;
-    const hwF = 4.5 + 3.6 * sm + (t > 0.45 && t < 0.95 ? 1.6 * Math.sin((t - 0.45) / 0.5 * Math.PI) : 0);
+    const hwB = (5 + 3.2 * sm) * Z;
+    const hwF = (4.5 + 3.6 * sm + (t > 0.45 && t < 0.95 ? 1.6 * Math.sin((t - 0.45) / 0.5 * Math.PI) : 0)) * Z;
     for (let k = -hwB; k <= hwF; k += 0.5) {
       const rel = (k + hwB) / (hwB + hwF);
-      let i = rel < 0.1 ? 4 : rel < 0.3 ? 3 : rel < 0.72 ? 2 : 1;
-      if (rel > 0.93) i = 0;
+      let i = rel < 0.08 ? 5 : rel < 0.24 ? 4 : rel < 0.46 ? 3 : rel < 0.76 ? 2 : 1;
+      if (rel > 0.92) i = 0;
+      if (t < 0.32 && i > 1 && rel > 0.2) i -= 1;
       // Brustmuskel: oben heller, darunter Schattenkante
       const pec = 0.6 + (rel - 0.6) * (rel - 0.6) * 0.5;
       if (t > pec + 0.02 && t < pec + 0.16 && rel > 0.28 && rel < 0.8) i = Math.min(5, i + 1);
@@ -437,11 +452,11 @@ function torso(p, g, along, P, meta) {
     }
   }
   // Glanz (Licht von links oben)
-  { const [x, y] = along(SPINE - 1.5, -5); p.px(x, y, BRZ[5]); p.px(x + 1, y, BRZ[5]); }
-  { const [x, y] = along(SPINE * 0.7, -1); p.px(x, y, BRZ[5]); }
+  { const [x, y] = along(SPINE - 2, -7); p.px(x, y, BRZ[5]); p.px(x + 1, y, BRZ[5]); p.px(x + 2, y + 1, BRZ[4]); }
+  { const [x, y] = along(SPINE * 0.7, -2); p.px(x, y, BRZ[5]); p.px(x, y + 1, BRZ[4]); }
   // Runensiegel auf der Brust
-  const [cx, cy] = along(SPINE * 0.45, 2);
-  p.ellipse(cx, cy, 2.2, 2.2, BRZ[1]);
+  const [cx, cy] = along(SPINE * 0.45, 3);
+  p.ellipse(cx, cy, 3, 3, BRZ[0]); p.ellipse(cx, cy, 2.2, 2.2, BRZ[1]);
   p.px(cx, cy - 1, VER[1]); p.px(cx - 1, cy + 1, VER[1]); p.px(cx + 1, cy + 1, VER[1]); p.px(cx, cy, VER[1]);
   const pulse = P.eye;
   g.px(cx, cy - 1, 1 + 2 * pulse); g.px(cx - 1, cy + 1, 1 + pulse); g.px(cx + 1, cy + 1, 1 + pulse); g.px(cx, cy, 1 + pulse);
@@ -450,7 +465,7 @@ function torso(p, g, along, P, meta) {
   // Phase 2: Risse vom Siegel, dahinter leuchten die Rippen
   const cracks = [[[0.45, 2], [0.56, 4], [0.66, 3], [0.8, 6]], [[0.45, 2], [0.32, -1], [0.22, 0]], [[0.45, 2], [0.58, -2], [0.7, -4]]];
   for (const c of cracks) for (let i = 0; i < c.length - 1; i++) {
-    const [x0, y0] = along(c[i][0] * SPINE, c[i][1]), [x1, y1] = along(c[i + 1][0] * SPINE, c[i + 1][1]);
+    const [x0, y0] = along(c[i][0] * SPINE, c[i][1] * Z), [x1, y1] = along(c[i + 1][0] * SPINE, c[i + 1][1] * Z);
     g.eline(x0, y0, x1, y1, i === 0 ? 3 : 2);
   }
 }
@@ -458,59 +473,60 @@ function torso(p, g, along, P, meta) {
 function belt(p, g, hipX, hipY, P, legF) {
   // Tunika-Saum darunter, darüber Lederstreifen (Pteryges) mit Bronzebeschlägen
   const swing = (legF.jx - hipX - 5) * 0.12;
-  for (let x = hipX - 7; x <= hipX + 8; x++) {
-    const len = 6 + (hash2(x, 2, 9) * 2 | 0);
-    for (let j = 0; j < len; j++) p.px(x + swing * (j / len), hipY + j, j > len - 2 ? CLOTH[0] : CLOTH[x < hipX - 3 ? 2 : 1]);
+  for (let x = hipX - 10; x <= hipX + 11; x++) {
+    const len = 8 + (hash2(x, 2, 9) * 2 | 0);
+    for (let j = 0; j < len; j++) p.px(x + swing * (j / len), hipY + j, j > len - 2 ? CLOTH[0] : CLOTH[x < hipX - 4 ? 2 : 1]);
   }
-  for (let i = 0; i < 6; i++) {
-    const tx = hipX - 7 + i * 3, ty = hipY;
-    const len = 7 - Math.abs(i - 2.5) * 0.8 + (hash2(i, 3, 9) * 2 | 0);
+  for (let i = 0; i < 7; i++) {
+    const tx = hipX - 10 + i * 3.2, ty = hipY;
+    const len = 10 - Math.abs(i - 3) * 0.9 + (hash2(i, 3, 9) * 2 | 0);
     const sw = swing * (0.5 + i / 10) + Math.sin(P.capeT + i * 1.3) * 0.4;
     for (let j = 0; j < len; j++) {
       const x = tx + sw * (j / len);
-      const lit = i < 2 ? 3 : i < 4 ? 2 : 1;
-      p.px(x, ty + j, LEATHER[j === 0 ? 3 : lit]); p.px(x + 1, ty + j, LEATHER[Math.max(0, lit - 1)]);
+      const lit = i < 2 ? 3 : i < 5 ? 2 : 1;
+      p.px(x, ty + j, LEATHER[j === 0 ? 3 : lit]); p.px(x + 1, ty + j, LEATHER[Math.max(0, lit - 1)]); p.px(x + 2, ty + j, LEATHER[0]);
     }
     const ex = tx + sw;
     p.px(ex, ty + len - 1, BRZ[4]); p.px(ex + 1, ty + len - 1, BRZ[2]);
   }
   // Gürtel mit Bronzescheiben
-  p.rect(hipX - 9, hipY - 3, 18, 3, LEATHER[1]); p.rect(hipX - 9, hipY - 3, 18, 1, LEATHER[3]);
-  for (let x = hipX - 7; x < hipX + 9; x += 4) { p.px(x, hipY - 2, BRZ[4]); p.px(x + 1, hipY - 2, BRZ[2]); }
-  const bx = hipX + 3, by = hipY - 4;
-  p.ellipse(bx, by + 1.5, 2.5, 2.2, BRZ[2]); p.px(bx - 1, by, BRZ[5]); p.px(bx, by + 1, VER[2]);
+  p.rect(hipX - 12, hipY - 4, 24, 4, LEATHER[1]); p.rect(hipX - 12, hipY - 4, 24, 1, LEATHER[3]); p.rect(hipX - 12, hipY - 1, 24, 1, LEATHER[0]);
+  for (let x = hipX - 10; x < hipX + 12; x += 4) { p.px(x, hipY - 3, BRZ[5]); p.px(x + 1, hipY - 3, BRZ[3]); p.px(x, hipY - 2, BRZ[2]); p.px(x + 1, hipY - 2, BRZ[1]); }
+  const bx = hipX + 4, by = hipY - 5;
+  p.ellipse(bx, by + 2, 3.5, 3, BRZ[1]); p.ellipse(bx - 0.5, by + 1.5, 2.6, 2.2, BRZ[3]); p.px(bx - 1, by, BRZ[5]); p.px(bx - 2, by + 1, BRZ[5]);
+  p.px(bx, by + 2, GH[2]); p.px(bx + 1, by + 2, GH[1]); g.px(bx, by + 2, 2); g.px(bx + 1, by + 2, 1);
 }
 
 function leg(p, g, hx, hy, L, back, P) {
   const cloth = back ? [VOID, CLOTH[0], CLOTH[1], CLOTH[2]] : [CLOTH[0], CLOTH[1], CLOTH[2], CLOTH[3]];
   const ramp = back ? [VOID, BRZ[0], BRZ[1], BRZ[2]] : [BRZ[1], BRZ[2], BRZ[3], BRZ[4]];
-  limb(p, hx, hy, L.jx, L.jy, 6, 5, cloth);
+  limb(p, hx, hy, L.jx, L.jy, 8, 7, cloth);
   // Beinschiene (Bronze, Grünspan-Kante)
-  limb(p, L.jx, L.jy, L.ex, L.ey - 3, 5.5, 4.5, ramp);
-  const mx = L.jx + (L.ex - L.jx) * 0.6, my = L.jy + (L.ey - 3 - L.jy) * 0.6;
+  limb(p, L.jx, L.jy, L.ex, L.ey - 4, 7.5, 6, ramp);
+  const mx = L.jx + (L.ex - L.jx) * 0.6, my = L.jy + (L.ey - 4 - L.jy) * 0.6;
   p.px(mx, my, back ? VER[0] : VER[2]); p.px(mx + 1, my + 1, back ? VER[0] : VER[1]);
   // Schuh: umwickeltes Leder, Bronzekappe
   const ex = L.ex, ey = L.ey;
-  p.rect(ex - 3, ey - 3, 8, 3, back ? LEATHER[0] : LEATHER[1]); p.rect(ex - 3, ey - 3, 8, 1, back ? LEATHER[1] : LEATHER[3]);
-  p.rect(ex + 3, ey - 3, 3, 3, ramp[1]); p.px(ex + 3, ey - 3, ramp[3]);
-  p.px(ex - 1, ey - 2, back ? VOID : LEATHER[0]);
+  p.rect(ex - 4, ey - 4, 10, 4, back ? LEATHER[0] : LEATHER[1]); p.rect(ex - 4, ey - 4, 10, 1, back ? LEATHER[1] : LEATHER[3]);
+  p.rect(ex + 4, ey - 4, 4, 4, ramp[1]); p.rect(ex + 4, ey - 4, 3, 1, ramp[3]); p.px(ex + 7, ey - 1, ramp[0]);
+  p.px(ex - 1, ey - 3, back ? VOID : LEATHER[0]); p.px(ex + 1, ey - 2, back ? VOID : LEATHER[0]);
   // Kniekachel
-  p.ellipse(L.jx, L.jy, 2.6, 2.4, ramp[1]); p.ellipse(L.jx - 0.5, L.jy - 0.5, 1.6, 1.4, ramp[2]); p.px(L.jx - 1, L.jy - 1, ramp[3]);
+  p.ellipse(L.jx, L.jy, 3.4, 3.1, ramp[0]); p.ellipse(L.jx - 0.3, L.jy - 0.3, 2.7, 2.4, ramp[1]); p.ellipse(L.jx - 0.8, L.jy - 0.8, 1.6, 1.4, ramp[2]); p.px(L.jx - 1, L.jy - 1, ramp[3]);
 }
 
 function hand(p, x, y, back, open) {
   const s = back ? [VOID, SKIN[0], SKIN[1], SKIN[2]] : [SKIN[1], SKIN[2], SKIN[3], SKIN[4]];
-  p.rect(x - 2, y - 2, 4, 4, s[1]); p.rect(x - 2, y - 2, 4, 1, s[3]); p.px(x + 1, y + 1, s[0]);
-  p.px(x - 1, y - 2, s[2]);
+  p.rect(x - 3, y - 2, 5, 5, s[1]); p.rect(x - 3, y - 2, 5, 1, s[3]); p.px(x + 1, y + 2, s[0]); p.px(x - 3, y + 2, s[0]);
+  p.px(x - 1, y - 2, s[2]); p.line(x - 2, y, x + 1, y, s[0]);
   if (open) for (let k = -2; k <= 2; k += 2) { p.line(x + k * 0.6, y - 2, x + k * 1.1, y - 6, s[2]); p.px(x + k * 1.1, y - 6, s[3]); }
 }
 
 function pauldron(p, g, x, y, rx, ry, ramp, front) {
   // Kuppel und drei gestaffelte Schienen darunter
   for (let l = 2; l >= 0; l--) {
-    const cy = y + 1 + l * 2, r = rx - l * 0.6;
-    p.ellipse(x + l * 0.3, cy, r, 2, ramp[0]);
-    p.ellipse(x + l * 0.3 - 0.3, cy - 0.5, r - 0.6, 1.3, ramp[l === 0 ? 2 : 1]);
+    const cy = y + 1 + l * 2.6, r = rx - l * 0.7;
+    p.ellipse(x + l * 0.3, cy, r, 2.6, ramp[0]);
+    p.ellipse(x + l * 0.3 - 0.3, cy - 0.6, r - 0.8, 1.7, ramp[l === 0 ? 2 : 1]);
     p.line(x - r + 1.5 + l * 0.3, cy - 1, x + r - 1.5, cy - 1, ramp[3]);
     if (front && hash2(l, 1, 3) < 0.6) p.px(x + r - 2, cy, VER[2]);
   }
@@ -520,75 +536,91 @@ function pauldron(p, g, x, y, rx, ry, ramp, front) {
   if (front) { p.px(x - 2, y - ry + 1, BRZ[5]); p.px(x - 1, y - ry + 1, BRZ[5]); p.px(x + 2, y - 1, VER[2]); }
 }
 
-// Kopf: ausgedörrter Schädel, Geisterflammen in den Augenhöhlen, Bart, Geweihkrone.
+// Kopf: ausgedörrter Schädel in Dreiviertelansicht (zwei Augenhöhlen mit
+// Geisterflammen, Nasenloch, freiliegende Zähne), Haar, Geweihkrone.
+// Gibt eine Funktion zurück, die den Bart zeichnet (kommt vor Brust und Schulter).
+const FACE = [
+  //            0123456789ABCD
+  [0, '...12333321...'],
+  [1, '..1234444321..'],
+  [2, '.123444444431.'],
+  [3, '12344444444431'],
+  [4, '12333444444442'],
+  [5, '1233110VVV3VV1'],
+  [6, '123211VVGV2VF1'],
+  [7, '122221VVVV3VV.'],
+  [8, '.12222344432V2'],
+  [9, '.0112211112VV.'],
+  [10, '..0112TtTtT1..'],
+];
+const JAW = [
+  [0, '..0112tTtT1...'],
+  [1, '...01222221...'],
+  [2, '....01111.....'],
+];
 function head(p, g, hx, hy, P, meta, gy) {
   const j = Math.round(P.jaw * 3);
   const t = P.capeT;
+  const lit = P.eye > 0.1;
   // Hinteres Geweih (dunkler)
   if (P.crown < 0.02) antler(p, g, hx + 3, hy + 2, -1, P, false);
   // Haar: dünne Strähnen hinter dem Kopf
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 8; i++) {
     const x0 = hx + 1 + i * 0.6, y0 = hy + 3 + i * 0.5;
-    const len = 9 + (hash2(i, 1, 13) * 6 | 0);
+    const len = 14 + (hash2(i, 1, 13) * 7 | 0);
     let px0 = x0, py0 = y0;
     for (let k = 1; k <= len; k++) {
-      const x = x0 - k * 0.4 - P.cape * k * 0.25 + Math.sin(t + k * 0.4 + i) * 0.5 * (k / len), y = y0 + k;
-      p.line(px0, py0, x, y, BEARD[i % 3 === 0 ? 1 : i % 3 === 1 ? 2 : 3]);
+      const x = x0 - 1 - k * 0.4 - P.cape * k * 0.25 + Math.sin(t + k * 0.4 + i) * 0.5 * (k / len), y = y0 + k;
+      const hc = BEARD[i % 3 === 0 ? 1 : i % 3 === 1 ? 2 : 3];
+      p.line(px0, py0, x, y, hc); p.px(x + 1, y, i < 2 ? BEARD[1] : hc);
       px0 = x; py0 = y;
     }
   }
-  // Schädel
-  p.ellipse(hx + 5.5, hy + 6, 5.5, 6, SKIN[1]);
-  p.ellipse(hx + 5, hy + 5, 4.3, 4.5, SKIN[2]);
-  p.ellipse(hx + 4, hy + 3.8, 2.4, 1.8, SKIN[3]);
-  p.px(hx + 3, hy + 3, SKIN[4]);
-  p.px(hx + 6, hy + 7, SKIN[1]); p.px(hx + 7, hy + 7, SKIN[1]); // Schläfe eingefallen
-  // Gesicht nach vorn
-  p.rect(hx + 8, hy + 4, 4, 6, SKIN[2]);
-  p.rect(hx + 7, hy + 4, 6, 1, SKIN[3]); p.px(hx + 12, hy + 4, SKIN[2]); // Brauenwulst
-  p.rect(hx + 8, hy + 5, 3, 2, VOID); // Augenhöhle
-  p.px(hx + 12, hy + 5, SKIN[3]); p.px(hx + 12, hy + 6, SKIN[3]); p.px(hx + 13, hy + 7, SKIN[2]); p.px(hx + 12, hy + 7, SKIN[2]); // Nase
-  p.px(hx + 12, hy + 8, VOID); // Nasenloch
-  p.px(hx + 8, hy + 7, SKIN[3]); p.px(hx + 9, hy + 7, SKIN[3]); // Wangenknochen
-  p.rect(hx + 8, hy + 8, 3, 1, SKIN[1]); // eingefallene Wange
-  if (P.eye > 0.1) {
+  const put = (rows, oy) => {
+    for (const [y, s] of rows) for (let x = 0; x < s.length; x++) {
+      const ch = s[x];
+      if (ch === '.') continue;
+      let c;
+      if (ch >= '0' && ch <= '4') c = SKIN[+ch];
+      else if (ch === 'V') c = VOID;
+      else if (ch === 'T') c = ANT[4];
+      else if (ch === 't') c = ANT[2];
+      else if (ch === 'G') c = lit ? GH[4] : VOID;
+      else if (ch === 'F') c = lit ? GH[3] : VOID;
+      p.px(hx + x, hy + oy + y, c);
+    }
+  };
+  put(FACE, 0);
+  // Mund: Kiefer klappt auf, dahinter Schwärze mit Geisterlicht
+  if (j) {
+    for (let k = 0; k < j; k++) { p.rect(hx + 4, hy + 11 + k, 8, 1, k === 0 ? SKIN[0] : VOID); p.px(hx + 3, hy + 11 + k, SKIN[1]); }
+    g.px(hx + 9, hy + 11 + Math.floor(j / 2), P.jaw > 0.6 ? 2 : 1);
+    g.epx(hx + 9, hy + 11, 3); if (j > 1) g.epx(hx + 8, hy + 12, 3);
+  }
+  put(JAW, 11 + j);
+  const ly = hy + 13 + j;
+  if (lit) {
     const e = P.eye;
-    g.px(hx + 9, hy + 5, 2 + 2 * e); g.px(hx + 10, hy + 5, 1 + 2 * e); g.px(hx + 8, hy + 5, 1 + e);
-    g.px(hx + 9, hy + 6, 1 + 2 * e); g.px(hx + 8, hy + 6, 1 + e); g.px(hx + 10, hy + 6, 1 + e);
+    // nahe Augenhöhle: heller Kern, Flammenkranz
+    // Leuchthof um beide Höhlen (dunkel, damit der Kern hell heraussticht)
+    for (let yy = 4; yy <= 8; yy++) for (let xx = 6; xx <= 13; xx++) if (Math.abs(yy - 6) + Math.abs(xx - (xx < 10 ? 8 : 12)) <= 2) g.px(hx + xx, hy + yy, 0.4 * e);
+    g.px(hx + 8, hy + 6, 3 + 1.5 * e); g.px(hx + 7, hy + 6, 2 + 1.2 * e); g.px(hx + 9, hy + 6, 1.5 + e);
+    g.px(hx + 8, hy + 5, 1.5 + e); g.px(hx + 8, hy + 7, 1 + e); g.px(hx + 7, hy + 7, 0.5 + e); g.px(hx + 6, hy + 6, e);
+    // ferne Augenhöhle
+    g.px(hx + 12, hy + 6, 2 + 1.5 * e); g.px(hx + 11, hy + 6, 1 + e); g.px(hx + 12, hy + 5, 0.5 + e); g.px(hx + 13, hy + 6, e);
     // Geisterflamme züngelt aus der Höhle nach oben
     const fl = Math.round(1 + e * 1.5 + (Math.sin(t * 2.3) * 0.5 + 0.5) * 1.5);
-    for (let k = 1; k <= fl; k++) g.px(hx + 9 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 4 - k, k === 1 ? 3 : k < fl ? 2 : 1);
+    for (let k = 1; k <= fl; k++) g.px(hx + 8 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 5 - k, k === 1 ? 3 : k < fl ? 2 : 1);
+    g.px(hx + 12, hy + 4, 1 + e);
     // Phase 2: lange Flammenfahne nach hinten
     for (let k = 1; k <= 8; k++) {
-      const x = hx + 9 - k * 1.2 - P.cape * k * 0.2, y = hy + 4 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
+      const x = hx + 8 - k * 1.2 - P.cape * k * 0.2, y = hy + 5 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
       g.epx(x, y, k < 3 ? 4 : k < 6 ? 3 : 2);
       if (k < 5) g.epx(x, y + 1, 2);
     }
   }
-  meta.eye = { x: hx + 9, y: hy + 5 };
-  // Mund: Zahnreihe, Kiefer klappt auf
-  p.px(hx + 8, hy + 9, SKIN[0]);
-  p.px(hx + 9, hy + 9, ANT[3]); p.px(hx + 10, hy + 9, ANT[4]); p.px(hx + 11, hy + 9, ANT[3]); p.px(hx + 12, hy + 9, SKIN[1]);
-  if (j) {
-    p.rect(hx + 8, hy + 10, 5, j, VOID);
-    g.px(hx + 10, hy + 10 + Math.floor(j / 2), P.jaw > 0.6 ? 2 : 1);
-    g.epx(hx + 10, hy + 10, 3); if (j > 1) g.epx(hx + 9, hy + 11, 3);
-  }
-  const ly = hy + 10 + j;
-  p.rect(hx + 5, ly, 7, 2, SKIN[1]); p.rect(hx + 6, ly, 6, 1, SKIN[2]); p.px(hx + 10, ly, ANT[3]); p.px(hx + 11, ly, ANT[2]);
-  meta.mouth = { x: hx + 12, y: hy + 10 + Math.floor(j / 2) };
-  // Bart: lange, zerzauste Strähnen vom Kinn
-  for (let i = 0; i < 8; i++) {
-    const x0 = hx + 5 + i * 0.85, y0 = ly + 1;
-    const len = 8 + (hash2(i, 7, 13) * 5 | 0) - Math.abs(i - 4) * 0.9;
-    let px0 = x0, py0 = y0;
-    for (let k = 1; k <= len; k++) {
-      const x = x0 - k * 0.15 - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.5 + i * 0.7) * 0.45 * (k / len), y = y0 + k;
-      const c = i >= 7 ? BEARD[1] : i > 4 ? BEARD[k < 3 ? 3 : 2] : BEARD[k < 3 ? 4 : 3];
-      p.line(px0, py0, x, y, k > len - 2 ? BEARD[1] : c);
-      px0 = x; py0 = y;
-    }
-  }
+  meta.eye = { x: hx + 8, y: hy + 6 };
+  meta.mouth = { x: hx + 11, y: hy + 11 + Math.floor(j / 2) };
   // Bronzereif mit Geweih
   if (P.crown < 0.02) {
     crownBand(p, g, hx, hy + 2, 0);
@@ -598,45 +630,73 @@ function head(p, g, hx, hy, P, meta, gy) {
     crownBand(p, g, cx, cy, P.crown);
   }
   meta.head = { x: hx + 6, y: hy - 8 };
+  // Bart: lange, zerzauste Strähnen vom Kinn, fällt über die Brust
+  return () => {
+    for (let i = 0; i < 11; i++) {
+      const x0 = hx + 3 + i * 0.75, y0 = ly - 2 + Math.abs(i - 5) * 0.25;
+      const len = 15 + (hash2(i, 7, 13) * 6 | 0) - Math.abs(i - 5) * 1.3;
+      let px0 = x0, py0 = y0;
+      for (let k = 1; k <= len; k++) {
+        const x = x0 - k * 0.2 - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.5 + i * 0.7) * 0.45 * (k / len), y = y0 + k;
+        const c = i >= 9 ? BEARD[1] : i > 6 ? BEARD[k < 4 ? 3 : 2] : i < 2 ? BEARD[2] : BEARD[k < 4 ? 4 : 3];
+        p.line(px0, py0, x, y, k > len - 2 ? BEARD[1] : (i % 3 === 1 && k > 3 ? BEARD[2] : c));
+        px0 = x; py0 = y;
+      }
+    }
+    // Bartspange aus Bronze
+    const cy = ly + 4;
+    p.rect(hx + 5, cy, 3, 2, BRZ[3]); p.px(hx + 5, cy, BRZ[5]); p.px(hx + 7, cy + 1, BRZ[1]);
+  };
 }
 
+// Krone: Bronzereif mit hellem Goldglanz und dunkler Unterkante, drei hohe Zacken.
+const GOLD = ['#2a1a08', '#6e4c18', '#b48a3a', '#e2c070', '#fff0c0'];
 function crownBand(p, g, x, y, fall) {
   const tilt = fall * 0.45;
-  for (let i = 0; i < 12; i++) {
+  for (let i = -1; i < 14; i++) {
     const yy = y + Math.round(i * tilt) + (i < 3 ? -1 : 0);
-    p.px(x + i, yy, i < 4 ? BRZ[3] : BRZ[2]); p.px(x + i, yy - 1, i < 5 ? BRZ[5] : BRZ[4]);
-    p.px(x + i, yy + 1, BRZ[1]);
+    p.px(x + i, yy - 2, GOLD[0]);
+    p.px(x + i, yy - 1, i < 6 ? GOLD[4] : GOLD[3]);
+    p.px(x + i, yy, i < 5 ? GOLD[3] : GOLD[2]);
+    p.px(x + i, yy + 1, GOLD[1]); p.px(x + i, yy + 2, GOLD[0]);
     if (i % 4 === 2) p.px(x + i, yy, VER[2]);
   }
-  // Zacken und Geisterstein vorn
-  for (const dx of [2, 6, 10]) p.px(x + dx, y - 2 + Math.round(dx * tilt), BRZ[4]);
+  // Zacken (3 px hoch, links hell, rechts Schatten)
+  for (const dx of [1, 5, 9, 12]) {
+    const by = y - 2 + Math.round(dx * tilt) + (dx < 3 ? -1 : 0);
+    const h = dx === 5 || dx === 9 ? 3 : 2;
+    for (let k = 1; k <= h; k++) { p.px(x + dx, by - k, k === h ? GOLD[4] : GOLD[3]); p.px(x + dx + 1, by - k + 1, GOLD[1]); }
+    p.px(x + dx - 1, by, GOLD[0]);
+  }
   const gx = x + 9, gyy = y + Math.round(9 * tilt);
-  p.px(gx, gyy, GH[2]); p.px(gx, gyy - 1, GH[3]); g.px(gx, gyy, fall > 0.9 ? 1 : 3); g.px(gx, gyy - 1, fall > 0.9 ? 1 : 2); g.epx(gx, gyy - 2, 2);
+  p.px(gx, gyy, GH[3]); p.px(gx, gyy - 1, GH[4]); p.px(gx + 1, gyy, GH[2]);
+  g.px(gx, gyy, fall > 0.9 ? 1 : 3); g.px(gx, gyy - 1, fall > 0.9 ? 1 : 4); g.px(gx + 1, gyy, fall > 0.9 ? 0 : 2); g.epx(gx, gyy - 2, 3);
   if (fall > 0.3) {
     // gefallene Krone: Geweihstümpfe
-    for (const [dx, h] of [[2, 4], [9, 5]]) for (let k = 1; k <= h; k++) p.px(x + dx - k * 0.4, y - 1 + Math.round(dx * tilt) - k, ANT[k === h ? 4 : 2]);
+    for (const [dx, h] of [[2, 5], [9, 7]]) for (let k = 1; k <= h; k++) { p.px(x + dx - k * 0.4, y - 2 + Math.round(dx * tilt) - k, ANT[k === h ? 4 : 2]); p.px(x + dx + 1 - k * 0.4, y - 2 + Math.round(dx * tilt) - k, ANT[0]); }
   }
 }
 
-// Geweih: schlanke Stange, schwingt nach außen und oben, Enden zeigen nach oben.
+// Geweih: kräftige Stange mit dunkler Kante und hellem Grat, schwingt nach außen und oben.
 function antler(p, g, x, y, dir, P, front) {
-  const R = front ? [ANT[1], ANT[2], ANT[3], ANT[4]] : [VOID, ANT[0], ANT[1], ANT[2]];
-  const beam = front ? [x, y, x + 6, y - 4, x + 5, y - 16] : [x, y, x - 7, y - 4, x - 6, y - 15];
-  const n = 12;
+  const R = front ? [ANT[0], ANT[2], ANT[3], '#f8f2e0'] : [VOID, ANT[0], ANT[1], ANT[2]];
+  const beam = front ? [x, y, x + 9, y - 6, x + 7, y - 23] : [x, y, x - 10, y - 6, x - 8, y - 21];
+  const n = 16;
   let px0 = beam[0], py0 = beam[1];
   for (let i = 1; i <= n; i++) {
     const [bx, by] = bez(...beam, i / n);
-    const w = 2.4 - (i / n) * 1.3;
+    const w = 3.6 - (i / n) * 1.9;
     limb(p, px0, py0, bx, by, w, w, R);
     px0 = bx; py0 = by;
   }
-  const tines = front ? [[0.35, 5, -2.2], [0.62, 5, -1.95], [0.85, 4, -1.2]] : [[0.4, 5, -1.0], [0.68, 4, -1.25], [0.88, 3, -1.9]];
+  const tines = front ? [[0.3, 7, -2.3], [0.56, 7, -2.0], [0.8, 5, -1.25]] : [[0.36, 6, -0.95], [0.64, 6, -1.25], [0.86, 4, -1.9]];
   for (const [tt, len, a] of tines) {
     const [bx, by] = bez(...beam, tt);
     const ex = bx + Math.cos(a) * len, ey = by + Math.sin(a) * len;
-    limb(p, bx, by, ex, ey, 1.4, 1, R);
+    limb(p, bx, by, ex, ey, 2, 1.2, R);
     p.px(ex, ey, R[3]);
     if (front) {
+      g.apx(ex, ey, 0);
       const fl = 2 + Math.round((Math.sin(P.capeT * 2 + tt * 9) * 0.5 + 0.5) * 2);
       for (let k = 1; k <= fl; k++) g.epx(ex - k * 0.3, ey - k, k === 1 ? 4 : k < fl ? 3 : 1);
     } else g.epx(ex, ey - 1, 2);
@@ -647,38 +707,57 @@ function antler(p, g, x, y, dir, P, front) {
   for (let k = 1; k <= fl; k++) g.epx(tx - k * 0.3, ty - k, k < 2 ? 4 : k < 4 ? 3 : 1);
 }
 
-// Zerschlissener Umhang, Saum mit Löchern, Geisterschimmer am Saum.
+// Umhang als geschlossene Fläche: weicher Verlauf (Licht links), zwei, drei
+// breite Falten, wenige lange Fetzen am Saum. Der Saum geht in Geisterlicht über.
+const CAPE_HEM = ['#10282c', '#1a4044', '#2a6460'];
 function cape(p, g, tx, ty, gy, P) {
-  const N = 18;
-  const len0 = Math.min(40, gy - ty - 4) - P.kneel * 7;
+  const N = 27;
+  const len0 = Math.min(58, gy - ty - 5) - P.kneel * 10;
+  const tongue = (u) => {
+    let t = 0;
+    for (const [c, w, d] of [[0.16, 0.07, 7], [0.47, 0.06, 9], [0.8, 0.06, 6]]) t += Math.max(0, 1 - Math.abs(u - c) / w) * d;
+    for (const [c, w, d] of [[0.31, 0.05, 6], [0.64, 0.05, 7]]) t -= Math.max(0, 1 - Math.abs(u - c) / w) * d;
+    return t;
+  };
   for (let i = 0; i < N; i++) {
     const u = i / (N - 1);
-    const sx = tx - 8 + i * 0.95;
-    const top = ty + Math.abs(u - 0.45) * 3;
-    const tear = hash2(i, 1, 5);
-    const len = len0 - Math.abs(u - 0.4) * 8 + Math.sin(P.capeT + i * 0.8) * 2 + (tear * 7 | 0) - (tear > 0.8 ? 6 : 0);
+    const sx = tx - 12 + i * 0.95;
+    const top = ty + Math.abs(u - 0.45) * 4;
+    const len = len0 - Math.abs(u - 0.4) * 10 + Math.sin(P.capeT + u * 3) * 2 + tongue(u);
     let lx = sx;
     for (let j = 0; j < len; j++) {
       const v = j / len;
-      const x = sx - P.cape * 15 * v * v - (1 - u) * 4 * v + Math.sin(P.capeT * 1.3 + v * 4 + i * 0.4) * 1.4 * v;
-      // Löcher im unteren Drittel
-      if (v > 0.8 && hash2(i, j, 17) < (v - 0.8) * 0.5) { lx = x; continue; }
-      const shade = u < 0.14 ? 3 : u > 0.86 ? 0 : (i % 3 === 0 ? 1 : 2);
-      let c = CAPE[v > 0.75 && shade > 0 ? shade - 1 : shade];
-      if (v < 0.07 && shade > 1) c = CAPE[4];
+      const x = sx - P.cape * 20 * v * v - (1 - u) * 5 * v + Math.sin(P.capeT * 1.3 + v * 3.5 + u * 2.5) * 1.6 * v;
+      // Grundton: Licht von links, nach rechts und unten dunkler
+      let sh = u < 0.08 ? 3.4 : 3 - u * 2.2 - v * 0.5;
+      // breite Falten
+      const f = Math.sin(u * Math.PI * 3.2 + v * 1.4 + P.capeT * 0.25);
+      if (f > 0.72) sh += 1; else if (f < -0.78) sh -= 0.9;
+      let c = CAPE[Math.max(0, Math.min(4, Math.round(sh)))];
+      if (v < 0.06 && u < 0.7) c = CAPE[4];
+      if (u > 0.94) c = CAPE[0];
+      const hemD = len - j;
+      if (hemD <= 1) c = CAPE_HEM[2];
+      else if (hemD <= 3 && v > 0.6) c = CAPE_HEM[1];
+      else if (hemD <= 6 && v > 0.6) c = sh > 1.8 ? CAPE_HEM[1] : CAPE_HEM[0];
       p.px(x, top + j, c);
+      if (i < N - 1) p.px(x + 1, top + j, c);   // keine Lücken zwischen den Bahnen
       lx = x;
     }
     // Geisterschimmer am Saum
     const by = top + len;
-    if (hash2(i, 4, 5) < 0.55) g.px(lx, by - 1, 1);
-    const fl = 1 + Math.round((Math.sin(P.capeT * 2 + i * 1.7) * 0.5 + 0.5) * 3 + hash2(i, 7, 5) * 2);
-    for (let k = 0; k < fl; k++) g.epx(lx + Math.sin(k * 0.8 + i) * 0.6, by - 1 - k, k === 0 ? 3 : k < fl / 2 ? 2 : 1);
+    g.apx(lx, by - 1, 1); if (i % 2 === 0) g.apx(lx, by - 2, 0);
+    g.epx(lx, by - 1, 2);
+    if (i % 3 === 0) {
+      const fl = 1 + Math.round((Math.sin(P.capeT * 2 + i * 1.7) * 0.5 + 0.5) * 3 + hash2(i, 7, 5) * 2);
+      for (let k = 0; k < fl; k++) g.epx(lx + Math.sin(k * 0.8 + i) * 0.6, by - 1 - k, k === 0 ? 3 : k < fl / 2 ? 2 : 1);
+    }
   }
   // Kragen: Pelz / Stoffwulst über den Schultern
-  for (let i = 0; i < 11; i++) {
-    const x = tx - 4 + i * 0.95, top = ty - 3 + Math.abs(i - 3) * 0.5;
-    for (let y = top; y < ty + 3; y++) p.px(x, y, CAPE[i < 2 ? 4 : i < 6 ? 3 : 2]);
+  for (let i = 0; i < 15; i++) {
+    const x = tx - 6 + i * 0.95, top = ty - 4 + Math.abs(i - 4) * 0.5;
+    for (let y = top; y < ty + 4; y++) p.px(x, y, CAPE[i < 3 ? 4 : i < 8 ? 3 : 2]);
+    p.px(x, ty + 4, CAPE[1]);
     if (hash2(i, 2, 7) < 0.5) p.px(x, top - 1, CAPE[3]);
   }
 }
@@ -687,9 +766,9 @@ function cape(p, g, tx, ty, gy, P) {
 function aura(g, chX, chY, gy, P) {
   const s = P.spirit;
   for (let i = 0; i < 9; i++) {
-    const bx = chX - 12 + i * 3 + Math.sin(P.capeT + i) * 1.5;
-    const by = gy - 6 - hash2(i, 3, 29) * 30;
-    const L = (8 + hash2(i, 5, 29) * 12) * (0.6 + s * 0.6);
+    const bx = chX - 16 + i * 4 + Math.sin(P.capeT + i) * 1.5;
+    const by = gy - 8 - hash2(i, 3, 29) * 40;
+    const L = (11 + hash2(i, 5, 29) * 16) * (0.6 + s * 0.6);
     for (let k = 0; k < L; k += 1) {
       const x = bx - k * 0.35 + Math.sin(P.capeT * 2 + k * 0.4 + i) * 1.2, y = by - k;
       const idx = k < L * 0.3 ? 1 : 0;
@@ -704,26 +783,29 @@ function aura(g, chX, chY, gy, P) {
 // Brustpanzer, Schulterschalen, Krone.
 function drawPile(p, g, k) {
   const gy = AY, cx = AX + 1;
+  // Maßstab-Hilfen (Z): Ellipse und Glied relativ zu (cx, gy)
+  const E = (dx, dy, rx, ry, c) => p.ellipse(cx + dx * Z, gy + dy * Z, rx * Z, ry * Z, c);
+  const X = (dx) => cx + dx * Z, Y = (dy) => gy + dy * Z;
   // Umhang zusammengesackt
-  p.ellipse(cx - 4, gy - 3, 15, 3.5, CAPE[1]); p.ellipse(cx - 6, gy - 4, 10, 2.5, CAPE[2]); p.ellipse(cx - 9, gy - 5, 4, 1.2, CAPE[3]);
-  for (let i = 0; i < 8; i++) g.px(cx - 16 + i * 4, gy - 1, hash2(i, 1, 3) < 0.5 ? 1 : 0);
+  E(-4, -3, 15, 3.5, CAPE[1]); E(-6, -4, 10, 2.5, CAPE[2]); E(-9, -5, 4, 1.2, CAPE[3]);
+  for (let i = 0; i < 10; i++) g.px(X(-16 + i * 3.2), gy - 1, hash2(i, 1, 3) < 0.5 ? 1 : 0);
   // Beinschienen
-  limb(p, cx + 3, gy - 2, cx + 13, gy - 3, 4, 3.5, [BRZ[1], BRZ[2], BRZ[3], BRZ[4]]);
-  limb(p, cx - 15, gy - 2, cx - 7, gy - 1, 3.5, 3, [VOID, BRZ[1], BRZ[2], BRZ[3]]);
+  limb(p, X(3), Y(-2), X(13), Y(-3), 5.5, 4.5, [BRZ[1], BRZ[2], BRZ[3], BRZ[4]]);
+  limb(p, X(-15), Y(-2), X(-7), Y(-1), 4.5, 4, [VOID, BRZ[1], BRZ[2], BRZ[3]]);
   // Brustpanzer (liegt schräg)
-  p.ellipse(cx - 1, gy - 6, 7, 4.5, BRZ[1]); p.ellipse(cx - 1.5, gy - 7, 6, 3.5, BRZ[2]); p.ellipse(cx - 3, gy - 8, 3.5, 1.8, BRZ[3]);
-  p.px(cx - 5, gy - 9, BRZ[5]); p.px(cx + 2, gy - 6, VER[2]); p.px(cx + 3, gy - 7, VER[1]); p.px(cx - 2, gy - 4, VER[2]);
+  E(-1, -6, 7, 4.5, BRZ[1]); E(-1.5, -7, 6, 3.5, BRZ[2]); E(-3, -8, 3.5, 1.8, BRZ[3]);
+  p.px(X(-5), Y(-9), BRZ[5]); p.px(X(2), Y(-6), VER[2]); p.px(X(3), Y(-7), VER[1]); p.px(X(-2), Y(-4), VER[2]);
   // Siegel verglimmt
-  p.px(cx, gy - 7, VER[1]); g.px(cx, gy - 7, k < 0.5 ? 3 : 1);
+  p.px(X(0), Y(-7), VER[1]); g.px(X(0), Y(-7), k < 0.5 ? 3 : 1);
   // Schulterschalen
-  p.ellipse(cx - 9, gy - 4, 4, 2.5, BRZ[2]); p.ellipse(cx - 10, gy - 5, 2.5, 1.2, BRZ[4]);
-  p.ellipse(cx + 8, gy - 4, 4, 2.5, BRZ[1]); p.ellipse(cx + 7, gy - 5, 2.5, 1.2, BRZ[3]);
+  E(-9, -4, 4, 2.5, BRZ[2]); E(-10, -5, 2.5, 1.2, BRZ[4]);
+  E(8, -4, 4, 2.5, BRZ[1]); E(7, -5, 2.5, 1.2, BRZ[3]);
   // Knochenreste / Schädel
-  p.ellipse(cx + 5, gy - 9, 2.5, 2.2, SKIN[2]); p.px(cx + 6, gy - 9, VOID); p.px(cx + 4, gy - 10, SKIN[3]);
+  E(5, -9, 2.5, 2.2, SKIN[2]); p.px(X(6), Y(-9), VOID); p.px(X(4), Y(-10), SKIN[3]);
   // Schwert steckt vor dem Haufen im Boden
-  runeSword(p, g, cx + 17, gy - 21, Math.PI / 2 + 0.08, 0);
+  runeSword(p, g, X(17), gy - 28, Math.PI / 2 + 0.08, 0);
   // Krone ist heruntergefallen
-  crownBand(p, g, cx + 20, gy - 2, 1);
+  crownBand(p, g, X(20), gy - 3, 1);
 }
 
 // ---------------------------------------------------------------- Frames
@@ -751,7 +833,7 @@ function rimLight(L) {
 }
 
 function finish(L, fx, meta, rim = true) {
-  if (rim) rimLight(L);
+  if (rim) rimLight(L); // dunkle Kontur setzt buildFrame
   let x0 = W, y0 = H, x1 = -1, y1 = -1;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
@@ -791,7 +873,7 @@ function dissolveFrame(P, k) {
   const L = new Layers();
   const pile = Math.min(1, k * 1.6);
   if (pile > 0.05) drawPile(new Pen(L), new GlowPen(L), k);
-  const top = 70;
+  const top = 95;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
     const v = Lb.base[i];
@@ -815,9 +897,9 @@ function dissolveFrame(P, k) {
     }
   }
   return finish(L, null, {
-    head: { x: AX + 4, y: AY - 30 }, chest: { x: AX, y: AY - 8 }, hand: { x: AX + 14, y: AY - 20 },
-    tip: { x: AX + 18, y: AY }, eye: { x: AX + 6, y: AY - 10 }, mouth: { x: AX + 6, y: AY - 9 },
-    cast: { x: AX, y: AY - 10 }, blade: { x: AX + 18, y: AY - 10 },
+    head: { x: AX + 5, y: AY - 40 }, chest: { x: AX, y: AY - 11 }, hand: { x: AX + 19, y: AY - 27 },
+    tip: { x: AX + 24, y: AY }, eye: { x: AX + 8, y: AY - 13 }, mouth: { x: AX + 8, y: AY - 12 },
+    cast: { x: AX, y: AY - 13 }, blade: { x: AX + 24, y: AY - 13 },
   }, false);
 }
 

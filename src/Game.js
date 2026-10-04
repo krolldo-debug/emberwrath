@@ -10,6 +10,7 @@ import { LocalAuthority } from './core/Authority.js';
 import { SaveStore } from './core/SaveStore.js';
 import { Prefs } from './core/Prefs.js';
 import { SceneManager } from './core/SceneManager.js';
+import { showErrorNotice } from './core/ErrorNotice.js';
 import { PanelRegistry } from './core/PanelHost.js';
 import { h } from './core/dom.js';
 import { PixelFont } from './ui/PixelFont.js';
@@ -52,7 +53,10 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     this.bus.on(EV.SCENE_CHANGE, () => this.resize());
     this.resize();
-    this.loop = new GameLoop({ update: (dt) => this.update(dt), render: () => this.render() });
+    this.loop = new GameLoop({
+      update: (dt) => this.update(dt), render: () => this.render(),
+      onFatal: () => showErrorNotice('Im Spiel ist ein Fehler aufgetreten. Der Spielstand wird regelmäßig gespeichert – bitte lade die Seite neu.'),
+    });
   }
 
   #fpsAcc; #fpsFrames; #lastRender; #quality = "";
@@ -152,8 +156,8 @@ export class Game {
     const inp = this.input;
     if (inp.pressed('mute')) this.sfx.toggleMute();
     if (inp.pressed('debug')) this.debug = !this.debug;
-    this.scenes.update(dt);
-    inp.endStep(dt);
+    // endStep auch nach einem Fehler, sonst löst dieselbe Eingabe (Trank, Angriff …) im nächsten Tick erneut aus.
+    try { this.scenes.update(dt); } finally { inp.endStep(dt); }
   }
 
   render() {
@@ -187,7 +191,8 @@ export class Game {
     // Qualität „Niedrig“ (ui/Quality.js, auch automatisch): Zeichenfläche höchstens 2-fach,
     // der Browser vergrößert pixelgenau per CSS. Spart auf hochauflösenden Handys den teuren Blit.
     this.#quality = document.documentElement.dataset.quality ?? '';
-    const backing = this.#quality === 'low' ? Math.min(scale, 2) : scale;
+    // „Mittel“ auf Touch-Geräten höchstens 3-fach (hochauflösende Handys hätten sonst 4-fach und mehr).
+    const backing = this.#quality === 'low' ? Math.min(scale, 2) : this.#quality === 'medium' && coarse ? Math.min(scale, 3) : scale;
     this.canvas.width = Math.round(CONFIG.viewWidth * backing);
     this.canvas.height = Math.round(CONFIG.viewHeight * backing);
     // Überabtastung: nie mehr Bildpunkte je Weltpixel als die Anzeige zeigt, bei „Niedrig“ keine.
@@ -211,8 +216,18 @@ export class Game {
     const L = CONFIG.landscapeView, P = CONFIG.portraitView;
     const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId);
     // Querformat: Bildbreite folgt dem Seitenverhältnis (16:9 bis 21:9), breite Handys bekommen keine schwarzen Ränder
-    const w = tall ? P.width : Math.max(L.width, Math.min(L.maxWidth ?? 640, Math.round((L.height * aw) / ah / 2) * 2));
-    const h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
+    let w = tall ? P.width : Math.max(L.width, Math.min(L.maxWidth ?? 640, Math.round((L.height * aw) / ah / 2) * 2));
+    let h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;
+    // Maus-Geräte: Bildausschnitt so wählen, dass ein ganzzahliger Faktor das Fenster (fast) füllt – scharfe Pixel auch
+    // bei 1280×720 (640×360 ×2), 1366×768, 1440×900 (480×300 ×3) usw. Größter Faktor mit mindestens 85 % Fläche gewinnt.
+    const coarse = document.documentElement.classList.contains('ef-touch') || window.matchMedia?.('(pointer: coarse)').matches;
+    if (!tall && !coarse) {
+      for (let k = Math.floor(Math.min(aw / L.width, ah / L.height)); k >= 2; k--) {
+        const cw = Math.min(L.maxWidth ?? 640, Math.floor(aw / k / 2) * 2), ch = Math.min(L.maxHeight ?? 360, Math.floor(ah / k / 2) * 2);
+        if (cw < L.width || ch < L.height) continue;
+        if ((cw * k * ch * k) / (aw * ah) >= 0.85) { w = cw; h = ch; break; }
+      }
+    }
     if (w === CONFIG.viewWidth && h === CONFIG.viewHeight) return;
     CONFIG.viewWidth = w; CONFIG.viewHeight = h;
     this.#ensureView(CONFIG.renderScale);

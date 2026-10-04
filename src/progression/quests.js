@@ -29,7 +29,7 @@ export const QUESTS = {
     progressText: 'Die Wölfe heulen noch immer. Sechs müssen fallen.',
     completeText: 'Die Nacht ist ruhig wie lange nicht. Nimm das hier, es hat meinem Sohn gehört.',
     objectives: [{ id: 'wolves', text: 'Aschewölfe erlegt', count: 6, kind: 'kill', target: 'wolf', zone: 'emberhollow' }],
-    rewards: { xp: Q(1, 1.1), gold: 12, items: [{ itemId: 'leather_jerkin', qty: 1 }, { itemId: 'minor_potion', qty: 3 }] },
+    rewards: { xp: Q(1, 1.1), gold: 12, items: [{ itemId: 'leather_jerkin', qty: 1 }, { itemId: 'minor_potion', qty: 2 }] },
   },
   q_glutfang: {
     title: 'Glutfang', giver: 'smith_brom', level: 3, requires: ['q_ashen_wolves'],
@@ -50,7 +50,7 @@ export const QUESTS = {
       { id: 'gate', text: 'Katakomben betreten', count: 1, kind: 'reach', target: ['catacombs_gate', 'zone:catacombs'], zone: 'emberhollow' },
       { id: 'skeletons', text: 'Skelettkrieger zerschlagen', count: 8, kind: 'kill', target: 'skeleton', zone: 'catacombs' },
     ],
-    rewards: { xp: Q(3, 0.7), gold: 25, items: [{ itemId: 'minor_potion', qty: 3 }], gear: [{ ilvl: 4, rarity: 'uncommon', slot: 'head' }] },
+    rewards: { xp: Q(3, 0.7), gold: 25, items: [{ itemId: 'minor_potion', qty: 2 }], gear: [{ ilvl: 4, rarity: 'uncommon', slot: 'head' }] },
   },
   q_spider_silk: {
     title: 'Seide für die Esse', giver: 'smith_brom', level: 3, requires: ['q_ashen_wolves'],
@@ -80,7 +80,7 @@ export const QUESTS = {
     progressText: 'Folge dem Pfad nach Osten in den Aschenwald.',
     completeText: 'Maren schickt dich? Dann bist du der, der Varkhul erschlagen hat. Gut. Wir brauchen jede Klinge.',
     objectives: [{ id: 'travel', text: 'Aschenwald erreicht', count: 1, kind: 'reach', target: ['zone:ashwood', 'ashwood_camp'], zone: 'emberhollow' }],
-    rewards: { xp: Q(6, 0.3), gold: 15, items: [{ itemId: 'healing_potion', qty: 3 }] },
+    rewards: { xp: Q(6, 0.3), gold: 15, items: [{ itemId: 'healing_potion', qty: 2 }] },
   },
 
   // ================================================================ Aschenwald & Versunkener Tempel (6–12)
@@ -96,8 +96,8 @@ export const QUESTS = {
   q_bandit_camp: {
     title: 'Rauch über den Bäumen', giver: 'warden_ilsa', main: true, level: 7, requires: ['q_boar_cull'],
     summary: 'Finde das Banditenlager und zerschlage die Bande.',
-    offer: 'Banditen plündern die Flüchtlinge aus der Senke. Ihr Lager liegt tiefer im Wald – folge dem Rauch. Zehn weniger, und sie überlegen es sich zweimal.',
-    progressText: 'Das Lager liegt dort, wo der Rauch am dichtesten ist.',
+    offer: 'Banditen plündern die Flüchtlinge aus der Senke. Ihr Lager liegt im Osten des Waldes – folge dem Rauch. Zehn weniger, und sie überlegen es sich zweimal.',
+    progressText: 'Das Lager liegt im Osten des Aschenwalds, dort, wo der Rauch am dichtesten ist.',
     completeText: 'Die Flüchtlinge können wieder atmen. Aber ihr Anführer lebt noch.',
     objectives: [
       { id: 'camp', text: 'Banditenlager gefunden', count: 1, kind: 'reach', target: 'bandit_camp', zone: 'ashwood' },
@@ -118,7 +118,7 @@ export const QUESTS = {
     title: 'Die Totems am Ufer', giver: 'warden_ilsa', main: true, level: 9, requires: ['q_bandit_chief'],
     summary: 'Entzünde die drei Schutztotems am Ufer des Versunkenen Tempels.',
     offer: 'Aus dem See steigen Ertrunkene. Die alten Totems am Ufer hielten sie einst zurück. Entzünde alle drei, dann können wir den Tempel betreten.',
-    progressText: 'Die Totems stehen am Ufer vor dem Tempel. Berühre jedes einzelne.',
+    progressText: 'Die Totems stehen am Ufer im Südosten des Waldes, vor dem Tempel. Berühre jedes einzelne.',
     completeText: 'Das Wasser ist still. Jetzt ist der Weg zum Tempel frei.',
     objectives: [
       { id: 'shore', text: 'Ufer des Tempels erreicht', count: 1, kind: 'reach', target: 'temple_shore', zone: 'ashwood' },
@@ -142,10 +142,10 @@ export const QUESTS = {
     title: 'Zu den Schlackenhöhen', giver: 'warden_ilsa', turnInNpc: 'commander_hale', main: true, level: 12, requires: ['q_nerith'],
     summary: 'Steige zu den Schlackenhöhen auf und melde dich bei Kommandant Hale.',
     offer: 'Der Berg ist die Quelle von allem. Kommandant Hale hält die Feste Rauhwacht am Aufstieg. Er hat nach jemandem wie dir gefragt.',
-    progressText: 'Folge der Straße bergauf zu den Schlackenhöhen.',
+    progressText: 'Folge der Straße im Nordosten des Aschenwalds bergauf zu den Schlackenhöhen.',
     completeText: 'Ilsa hat nicht übertrieben. Willkommen in Rauhwacht – hier oben brennt die Luft.',
     objectives: [{ id: 'travel', text: 'Schlackenhöhen erreicht', count: 1, kind: 'reach', target: ['zone:cinder_peaks', 'rookwatch'], zone: 'ashwood' }],
-    rewards: { xp: Q(12, 0.3), gold: 30, items: [{ itemId: 'greater_potion', qty: 3 }] },
+    rewards: { xp: Q(12, 0.3), gold: 30, items: [{ itemId: 'greater_potion', qty: 2 }] },
   },
 
   // --- Oona (Nebenquests)
@@ -156,13 +156,13 @@ export const QUESTS = {
     progressText: 'Die Kriecher lauern im Dickicht. Ihr Saft ist grün und stinkt.',
     completeText: 'Wunderbar ekelhaft! Hier, das Gegengift wirkt auch als Heiltrank.',
     objectives: [{ id: 'sap', text: 'Dornensaft gesammelt', count: 6, kind: 'collect', target: 'thorn_sap', from: ['thorn_crawler'], zone: 'ashwood' }],
-    rewards: { xp: Q(7, 0.45), gold: 30, items: [{ itemId: 'healing_potion', qty: 4 }, { itemId: 'mana_potion', qty: 2 }] },
+    rewards: { xp: Q(7, 0.45), gold: 30, items: [{ itemId: 'healing_potion', qty: 3 }, { itemId: 'mana_potion', qty: 2 }] },
   },
   q_lost_satchel: {
     title: 'Die verlorene Tasche', giver: 'herbalist_oona', level: 8, requires: ['q_road_east'],
     summary: 'Finde Oonas Kräutertasche, die sie auf der Flucht verloren hat.',
-    offer: 'Als die Banditen kamen, habe ich meine Kräutertasche fallen lassen. Irgendwo im Wald, nahe dem alten Pfad. Ohne sie kann ich kaum etwas brauen.',
-    progressText: 'Die Tasche liegt irgendwo am alten Pfad.',
+    offer: 'Als die Banditen kamen, habe ich meine Kräutertasche fallen lassen. Irgendwo im Südwesten des Waldes, nahe dem alten Pfad. Ohne sie kann ich kaum etwas brauen.',
+    progressText: 'Die Tasche liegt im Südwesten des Aschenwalds, am alten Pfad.',
     completeText: 'Meine Tasche! Alles noch da. Nimm dafür diesen Talisman – er hat mir Glück gebracht.',
     objectives: [{ id: 'satchel', text: 'Kräutertasche gefunden', count: 1, kind: 'interact', target: ['lost_satchel'], zone: 'ashwood' }],
     rewards: { xp: Q(8, 0.35), gold: 25, gear: [{ ilvl: 8, rarity: 'uncommon', slot: 'ring' }] },
@@ -212,7 +212,7 @@ export const QUESTS = {
     progressText: 'Das Tor liegt am Ende der Straße, oberhalb der Spalte.',
     completeText: 'Ein Tor aus flüssigem Eisen … Dann ist es wahr. Ignaroth ist erwacht.',
     objectives: [{ id: 'gate', text: 'Tor der Glutschmiede gefunden', count: 1, kind: 'reach', target: ['forge_gate', 'zone:molten_forge'], zone: 'cinder_peaks' }],
-    rewards: { xp: Q(16, 0.4), gold: 60, items: [{ itemId: 'greater_potion', qty: 3 }], gear: [{ ilvl: 16, rarity: 'uncommon', slot: 'amulet' }] },
+    rewards: { xp: Q(16, 0.4), gold: 60, items: [{ itemId: 'greater_potion', qty: 2 }], gear: [{ ilvl: 16, rarity: 'uncommon', slot: 'amulet' }] },
   },
   q_forge_warden: {
     title: 'Der Wächter der Esse', giver: 'commander_hale', main: true, level: 17, requires: ['q_forge_gate'],
@@ -230,7 +230,7 @@ export const QUESTS = {
     progressText: 'Vier Glutkerne. Ohne die bleibt jede Ramme Brennholz.',
     completeText: 'Sie pochen noch. Unheimlich. Aber sie halten die Hitze. Hier, für deine Mühe – aus meinem persönlichen Vorrat.',
     objectives: [{ id: 'cores', text: 'Glutkerne gesammelt', count: 4, kind: 'collect', target: 'ember_core', from: ['forge_golem', 'ember_drake'], zone: 'molten_forge' }],
-    rewards: { xp: Q(18, 0.5), gold: 150, items: [{ itemId: 'greater_potion', qty: 4 }], gear: [{ ilvl: 18, rarity: 'uncommon', slot: 'hands' }] },
+    rewards: { xp: Q(18, 0.5), gold: 150, items: [{ itemId: 'greater_potion', qty: 3 }], gear: [{ ilvl: 18, rarity: 'uncommon', slot: 'hands' }] },
   },
   q_ember_drakes: {
     title: 'Brut der Esse', giver: 'seer_ysolde', level: 18, requires: ['q_forge_gate'],
@@ -364,6 +364,7 @@ export const NPC_LINES = {
       ['q_behemoth', 'Der Koloss ist gefallen, und meine Leute singen wieder. Schlecht, aber sie singen.'],
       ['q_forge_warden', 'Nur noch der Tyrann. Ich habe mein Leben lang auf diesen Tag gewartet und hoffe, ihn zu überleben.'],
       ['q_ignaroth', 'Rauhwacht wird bleiben. Irgendwer muss den Berg im Auge behalten, auch wenn er schweigt.'],
+      ['q_homecoming', 'Die Leute fragen mich jeden Tag, ob du wirklich den Aschenfürsten gestürzt hast. Ich sage ja und zeige auf dich. Dann glauben sie es.'],
     ],
   },
   seer_ysolde: {

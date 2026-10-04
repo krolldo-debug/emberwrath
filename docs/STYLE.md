@@ -157,3 +157,23 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - voices.js: neue Materialien `ice` (iceHit/iceShatter) und `rot` (squelch/rotDeath/croak), Einträge für alle Typen aus §12.4
   inklusive barrow_king, rot_mother, frost_wyrm und ash_sovereign (Warnruf demonGrowl).
 - Rauschen läuft als Schleife, damit lange Klänge (Atem, Giftring, Weltenbrand) nicht nach 1 s abreißen.
+
+## Runde 6: Handy-Steuerung, Fähigkeitssymbole, Vollbild
+
+- Touch: Angriff (70 px) in der Ecke, genau 4 Fähigkeiten auf einem Bogen r = 106 (abgerundete Quadrate, Emblem füllt den Knopf),
+  außen r = 172: Ausweichen, Trank-Platz (mit Zähler), Reittier; Sprechen erscheint bei Bedarf im Außenbogen.
+- Handy quer: Info-Rahmen am Bildschirmrand (Safe-Area), Quests links unter dem Spieler, Karte oben rechts neben dem Menü,
+  Zone und Gold links der Karte, Meldungen unten mittig, Chat-Knopf neben dem Spielerrahmen.
+- Fähigkeitssymbole: src/gfx/SkillArt.js, 48×48 mit Bronzerahmen und Klassenfarbe (Krieger blutrot, Schurke Schattenviolett,
+  Waldläufer Moosgrün, Glutmagier Glut). Icons.js nimmt sie automatisch für skill_*-IDs.
+- Vollbild: ui/Fullscreen.js. Android/iPad beim ersten Antippen, Menü › Vollbild; iPhone als Web-App vom Home-Bildschirm
+  (Manifest und App-Symbole in src/ui/pwa/, einmaliger Hinweis). Breitbild-Ansicht braucht den Patch in Game.js (Architektur).
+
+## Release-Runde (03.10.)
+- Fenster anderer Bereiche werden nur über theme.css korrigiert (Abschnitt „Release-Feinschliff“), mit höherer Spezifität, weil theme.css vor den Bereichs-CSS lädt.
+- Menüschilder der HUD-Knöpfe nur bei echtem Mauszeiger (hover + pointer fine); Knöpfe geben nach Klick den Fokus ab.
+- Meldungen (Toasts) brechen zweizeilig um, keine „…“-Kürzung. Goldbeträge immer mit Tausenderpunkt (de-DE).
+- HUD-Mindestschrift: Computer 10 px, Touch 9 px; Balkenhöhen wachsen am Computer mit --hud-fs.
+- Touch-Ziele mindestens 44 px, auch Schließen-× in Fenstern.
+- Audio: Sfx hat einen eigenen Effekt-Bus (sfx.fx, Einstellung fxVolume); Musik hängt an sfx.output (Gesamtlautstärke).
+- Schlackendrache: eigener Zeichenweg drawDrake (BODY.drake.plan = 'drake') in sprites/mounts.js.

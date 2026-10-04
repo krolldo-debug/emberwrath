@@ -205,7 +205,7 @@ export class Whirlpool extends Entity {
     if (!this.burst && this.t >= this.delay) {
       this.burst = true;
       const o = this.owner;
-      world.combat.add({ owner: o, team: 'enemy', shape: 'circle', follow: false, x: this.x, y: this.y - 6, r: this.r * 0.9, damage: this.damage, knockback: 170, heavy: false, ttl: 0.12 });
+      world.combat.add({ owner: o, team: 'enemy', shape: 'circle', follow: false, x: this.x, y: this.y - 6, lift: 6, r: this.r * 0.9, damage: this.damage, knockback: 170, heavy: false, ttl: 0.12 });
       spray(world, this.x, this.y, 26, 1.3);
       for (let i = 0; i < 10; i++) world.particles.spawn({ x: this.x + rand(-4, 4), y: this.y, z: rand(0, 6), vx: rand(-8, 8), vy: rand(-4, 4), vz: rand(160, 240), gravity: 420, life: rand(0.6, 0.9), colors: ['#ffffff', '#c6eaf6'], size: 2, emissive: true });
       ripple(world, this.x, this.y, this.r * 0.6);
@@ -368,6 +368,7 @@ export class Nerith extends Actor {
         if (this.stateTime < this.windup * 0.55) {
           this.aim += angleDiff(this.aim, Math.atan2(dy, dx)) * Math.min(1, dt * 6);
           this.facing = Math.cos(this.aim) >= 0 ? 1 : -1;
+          if (this.sweepTele && !this.sweepTele.removed) this.sweepTele.angle = this.aim; // Warnbogen folgt
         }
         if (this.stateTime >= this.windup) this.#sweep(world);
         break;
@@ -490,7 +491,7 @@ export class Nerith extends Actor {
   #beginSweep(world) {
     const T = this.#tempo;
     const wind = 0.8 * T;
-    world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 54, angle: this.aim, arc: 2.5, duration: wind, follow: this }));
+    this.sweepTele = world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 54, angle: this.aim, arc: 2.5, duration: wind, follow: this }));
     this.#begin(world, 'sweepWindup', 'sweepWindup', wind);
     this.#floodExtra(world, 0.35);
   }
@@ -510,13 +511,16 @@ export class Nerith extends Actor {
     const o = { [kind]: true };
     if (kind === 'pearls') {
       const n = this.phase >= 2 ? 7 : 5, spread = 1.0;
-      for (let i = 0; i < n; i++) {
-        const a = this.aim - spread / 2 + (spread * i) / (n - 1);
-        world.spawn(new Telegraph(this.x, this.y - 2, { shape: 'line', angle: a, len: 150, width: 5, duration: wind, color: WARN_WATER }));
+      // Phase 2: zweite, versetzte Salve wird ebenfalls angezeigt
+      const offs = this.phase >= 2 ? [0, spread / (n - 1) / 2] : [0];
+      for (let j = 0; j < n * offs.length; j++) {
+        const i = j % n, a = this.aim - spread / 2 + (spread * i) / (n - 1) + offs[(j / n) | 0];
+        // genau auf der Perlenbahn (Start wie #release; Treffer ~5 px unter der Bodenspur)
+        world.spawn(new Telegraph(this.x + Math.cos(a) * 10, this.y + Math.sin(a) * 6 + 5, { shape: 'line', screen: true, angle: a, len: 150, width: offs.length > 1 ? 4 : 7, duration: wind, color: WARN_WATER }));
       }
       this.#floodExtra(world, 0.4);
     } else if (kind === 'spiral') {
-      for (let i = 0; i < 10; i++) world.spawn(new Telegraph(this.x, this.y - 2, { shape: 'line', angle: (i / 10) * Math.PI * 2, len: 70, width: 4, duration: wind, color: WARN_WATER }));
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; world.spawn(new Telegraph(this.x + Math.cos(a) * 8, this.y + Math.sin(a) * 5 + 5, { shape: 'line', screen: true, angle: a, len: 70, width: 4, duration: wind, color: WARN_WATER })); }
     } else if (kind === 'whirl') {
       // Strudel setzen sofort ein, Nerith lenkt sie mit erhobenem Stab
       const h = world.hero, n = this.phase >= 2 ? 5 : 3, T = this.#tempo;
@@ -560,7 +564,7 @@ export class Nerith extends Actor {
     this.animator.play('emerge', true);
     const h = world.hero;
     if (Math.abs(h.x - x) > 3) this.facing = Math.sign(h.x - x);
-    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, r: 40, damage: 42, knockback: 300, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x, y: y - 6, lift: 6, r: 40, damage: 42, knockback: 300, heavy: true, ttl: 0.14 });
     spray(world, x, y, 50, 1.6);
     ripple(world, x, y, 18);
     world.addEffect(new Shockwave(x, y - 2, { radius: 46, color: '#c6eaf6', life: 0.5 }));
@@ -587,7 +591,7 @@ export class Nerith extends Actor {
   #sweep(world) {
     this.setState('strike'); this.recover = this.enraged ? 0.45 : 0.7;
     this.animator.play('sweep', true);
-    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 12, r: 56, angle: this.aim, arc: 2.5, damage: 34, knockback: 240, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 12, r: 54, angle: this.aim, arc: 2.5, damage: 34, knockback: 240, heavy: true, ttl: 0.14 });
     this.kbx += Math.cos(this.aim) * 70; this.kby += Math.sin(this.aim) * 70;
     for (let i = 0; i < 9; i++) {
       const a = this.aim - 1.2 + i * 0.3;

@@ -38,19 +38,34 @@ export class PanelHost {
       console.error(`Panel ${id} konnte nicht geöffnet werden`, err);
       return;
     }
-    const el = h('div.ef-panel-host', { 'data-panel': id }, panel.root);
+    const el = h('div.ef-panel-host', { 'data-panel': id, tabindex: '-1' }, panel.root);
     el.addEventListener('pointerdown', (ev) => { if (ev.target === el) this.close(); });
+    // Tastatur: Fokus ins Panel (der Rahmen selbst, damit kein Knopf versehentlich auslöst), Tab bleibt im Panel.
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Tab') return;
+      const items = [...el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((n) => !n.disabled && n.offsetParent !== null);
+      if (!items.length) { ev.preventDefault(); return; }
+      const first = items[0], last = items[items.length - 1];
+      if (ev.shiftKey && (document.activeElement === first || document.activeElement === el)) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+    });
+    const before = document.activeElement;
     this.container.append(el);
-    this.open_ = { def, panel, el };
+    this.open_ = { def, panel, el, before };
+    if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
     if (def.pauses) this.session.setPaused('panel', true);
   }
 
   close() {
     if (!this.open_) return;
-    const { panel, el } = this.open_;
+    const { panel, el, before } = this.open_;
+    const hadFocus = el.contains(document.activeElement);
     panel.dispose?.();
     el.remove();
     this.open_ = null;
+    // Fokus zurückgeben (z. B. an den HUD-Knopf, der das Panel geöffnet hat)
+    if (hadFocus && before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
     this.session.setPaused('panel', false);
   }
 

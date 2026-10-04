@@ -169,10 +169,41 @@ export class Enemy extends Actor {
         const hasLos = A.kind !== 'ranged' || world.dungeon.lineOfSight(this.x, this.y - 8, hero.x, hero.centerY);
         this.lostSight = clearPath ? 0 : this.lostSight + dt;
         if (this.lostSight > 5 && dist > this.def.aggro * 2 && !this.leashFree) { this.#returnHome(world); break; }
-        if (!clearPath) {
+        // Bewegung: Die Sichtlinie sieht über Lava/Wasser und niedrige Hindernisse hinweg,
+        // laufen kann man dort aber nicht. Darum zusätzlich ein begehbarer Strahl (eigener
+        // Fußabdruck) und eine Hänger-Erkennung; in beiden Fällen führt das Flow-Field.
+        const moved = Math.hypot(this.x - (this.chasePrev?.x ?? this.x), this.y - (this.chasePrev?.y ?? this.y));
+        const wanted = (this.chaseWant ?? 0) * dt;
+        this.chasePrev = { x: this.x, y: this.y };
+        if (wanted > 0.05 && moved < wanted * 0.3 && dist > A.range * 0.7) this.stuckTime += dt;
+        else this.stuckTime = Math.max(0, this.stuckTime - dt * 0.5);
+        // Völlig festgeklemmt (z. B. breiter Körper in Deko eingekeilt): auf freien Boden schieben
+        this.frozen = wanted > 0.05 && moved < 0.01 && dist > A.range * 0.7 ? (this.frozen ?? 0) + dt : 0;
+        if (this.frozen > 1.5) {
+          const p = world.dungeon.nearestFree?.(this.x + Math.sign(dx) * 6, this.y + Math.sign(dy) * 4, Math.max(6, this.radius ?? 6));
+          if (p) { this.x = p.x; this.y = p.y; }
+          this.frozen = 0;
+        }
+        if (this.stuckTime > 0.4) {
+          // Hängt er schon auf dem Umweg (z. B. breiter Körper in enger Lücke): seitlich abgleiten
+          if (this.detour > 0) { this.slide = 0.7; this.sidestep = -this.sidestep; }
+          this.detour = 1.5; this.stuckTime = 0;
+        }
+        this.detour = Math.max(0, (this.detour ?? 0) - dt);
+        this.slide = Math.max(0, (this.slide ?? 0) - dt);
+        this.walkCheck = (this.walkCheck ?? 0) - dt;
+        if (this.walkCheck <= 0) { this.walkCheck = 0.25; this.walkClear = clearPath && this.#walkRay(world, hero.x, hero.y); }
+        const walkable = clearPath && this.walkClear;
+        if (!walkable || this.detour > 0) {
           const f = world.flow.direction(this.x, this.y - 2);
           if (f) { mx = f.x; my = f.y; }
-        }
+          // Kein Landweg (z. B. Held hinter Lava): Nahkämpfer geben auf und setzen sich zurück
+          // (heilen sich wie beim Leinen-Rückzug), statt sich gefahrlos töten zu lassen.
+          const noWay = !f && !walkable && dist > A.range;
+          this.unreach = noWay || (this.detour > 0 && moved < wanted * 0.3 && !walkable) ? (this.unreach ?? 0) + dt : 0;
+          if (this.unreach > 2.5 && A.kind !== 'ranged' && !this.leashFree) { this.unreach = 0; this.#returnHome(world); break; }
+        } else this.unreach = 0;
+        if (this.slide > 0) { const px = -my * this.sidestep, py = mx * this.sidestep; mx = px * 0.85 + mx * 0.15; my = py * 0.85 + my * 0.15; }
         if (A.kind === 'ranged') {
           // Fernkämpfer: Abstand halten, nach dem Schuss seitlich umsetzen,
           // an Wänden entlang ausweichen und nicht auf Artgenossen stehen
@@ -202,14 +233,37 @@ export class Enemy extends Actor {
           if (waiting && dist < 40) { mx -= dx / (dist || 1) * 0.8; my -= dy / (dist || 1) * 0.8; }
           const l = Math.hypot(mx, my) || 1; mx /= l; my /= l;
         }
-        if (A.kind === 'melee' && dist < A.range * 0.7) speed *= 0.2;
+        // Geplanter Anlauf-Angriff (charge mit minRange): erst Abstand gewinnen
+        const plan = this.specialTimer <= 0 ? this.nextSpecial : null;
+        const backOff = plan?.minRange && dist < plan.minRange + 6 && walkable;
+        if (backOff) {
+          mx = -dx / (dist || 1); my = -dy / (dist || 1); speed = this.def.speed * 0.75;
+          const ax = this.x + mx * 10, ay = this.y + my * 10;
+          if (world.dungeon.collidesRect(ax - 4, ay - 3, ax + 4, ay + 1)) { const px = -my * this.sidestep, py = mx * this.sidestep; mx = px; my = py; }
+        } else if (A.kind === 'melee' && dist < A.range * 0.7) speed *= 0.2;
         const k = 1 - Math.exp(-dt * 8);
         this.vx += (mx * speed - this.vx) * k;
         this.vy += (my * speed - this.vy) * k;
+        this.chaseWant = speed;
         if (Math.abs(dx) > 2) this.facing = Math.sign(dx);
         this.animator.play(speed > 1 ? 'walk' : 'idle');
         this.specialTimer -= dt;
-        const sp = this.def.specials?.find((x) => dist < x.range && dist >= (x.minRange ?? 0));
+        // Spezialangriff: Sobald der Timer abläuft, wird der nächste geplant – zufällig unter
+        // allen außer dem zuletzt benutzten (sonst kämen zweite Spezialangriffe nie dran).
+        // Passt der geplante 3,5 s lang nicht (Reichweite), darf jeder passende kommen.
+        let sp = null;
+        const SPS = this.def.specials;
+        if (SPS?.length && this.specialTimer <= 0) {
+          if (!this.nextSpecial) {
+            const pool = SPS.length > 1 ? SPS.filter((x) => x !== this.lastSpecial) : SPS;
+            this.nextSpecial = pool[Math.floor(Math.random() * pool.length)];
+            this.planWait = 0;
+          }
+          this.planWait += dt;
+          const fits = (x) => dist < x.range && dist >= (x.minRange ?? 0);
+          if (fits(this.nextSpecial)) sp = this.nextSpecial;
+          else if (this.planWait > 3.5) sp = SPS.find(fits) ?? null;
+        }
         if (sp && this.specialTimer <= 0 && !waiting && clearPath) { this.#beginSpecial(world, sp, toHero); break; }
         const inRange = dist < A.range && (A.kind !== 'ranged' || dist >= A.minRange * 0.6);
         if (inRange && hasLos && !waiting) this.#beginWindup(world, toHero);
@@ -369,7 +423,7 @@ export class Enemy extends Actor {
     this.animator.play('windup', true);
     world.bus.emit('telegraph', { actor: this });
     const A = this.def.attack;
-    if (A.kind === 'charge') world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: A.chargeSpeed * A.active, width: 16, duration: A.windup }));
+    if (A.kind === 'charge') world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: A.chargeSpeed * A.active, width: 16, duration: A.windup, screen: true }));
     if (A.kind === 'slam') {
       const ox = this.x + Math.cos(toHero) * (A.offset ?? 14), oy = this.y + Math.sin(toHero) * (A.offset ?? 14) * 0.6;
       this.slamAt = { x: ox, y: oy };
@@ -416,8 +470,25 @@ export class Enemy extends Actor {
     }
   }
 
+  // Begehbarer Strahl zum Ziel: Fußabdruck entlang der Strecke gegen Wände, Lava/Wasser
+  // und alle Boxen (auch niedrige) prüfen – anders als die Sichtlinie.
+  #walkRay(world, tx, ty) {
+    const D = world.dungeon, ax = this.x, ay = this.y;
+    const L = Math.hypot(tx - ax, ty - ay), steps = Math.ceil(L / 5);
+    const r = Math.min(4, this.radius ?? 4);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      if (L * (1 - t) < 6) break; // am Ziel selbst nicht prüfen
+      const x = ax + (tx - ax) * t, y = ay + (ty - ay) * t;
+      if (D.collidesRect(x - r, y - 2, x + r, y + 1)) return false;
+    }
+    return true;
+  }
+
   #beginSpecial(world, sp, toHero) {
     this.special = sp;
+    this.lastSpecial = sp;
+    this.nextSpecial = null;
     this.aim = toHero;
     this.setState('special');
     this.specialPhase = 'windup';
@@ -431,7 +502,7 @@ export class Enemy extends Actor {
     } else if (sp.kind === 'spin') {
       world.spawn(new Telegraph(this.x, this.y, { shape: 'circle', r: sp.radius, duration: sp.windup, follow: this }));
     } else if (sp.kind === 'charge') {
-      world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: sp.speed * sp.duration, width: 22, duration: sp.windup }));
+      world.spawn(new Telegraph(this.x, this.y, { shape: 'line', angle: toHero, len: sp.speed * sp.duration, width: 22, duration: sp.windup, screen: true }));
     } else if (sp.kind === 'cloud') {
       // Wolke dort, wo der Held beim Ausholen steht
       this.cloudAt = { x: world.hero.x, y: world.hero.y };

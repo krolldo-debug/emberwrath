@@ -20,6 +20,9 @@ export function mint(sub, email, { alg = 'ES256', ttl = 3600 } = {}) {
   return `${h}.${p}.${sig}`;
 }
 const log = [];
+// Nachgebautes PostgREST für die Chat-Moderation (worker/moderation.js): Meldungen sammeln, Sperren ausliefern
+const rest = { reports: [], mutes: [], chars: [], fail: false };
+const body = (req) => new Promise((r) => { let d = ''; req.on('data', (c) => { d += c; }); req.on('end', () => r(d ? JSON.parse(d) : null)); });
 http.createServer((req, res) => {
   const u = new URL(req.url, BASE);
   log.push(u.pathname);
@@ -32,5 +35,22 @@ http.createServer((req, res) => {
   }
   if (u.pathname === '/mint') return send(200, { token: mint(u.searchParams.get('sub'), u.searchParams.get('email'), { alg: u.searchParams.get('alg') || 'ES256', ttl: Number(u.searchParams.get('ttl') || 3600) }) });
   if (u.pathname === '/log') return send(200, log);
+  if (u.pathname === '/rest/v1/chat_reports' && req.method === 'POST') {
+    if (rest.fail || !req.headers.apikey) { res.writeHead(503); return res.end(); }
+    return body(req).then((b) => { rest.reports.push(b); res.writeHead(201); res.end(); });
+  }
+  if (u.pathname === '/rest/v1/chat_mutes') {
+    const uid = (u.searchParams.get('user_id') || '').replace('eq.', '');
+    return send(200, rest.mutes.filter((m) => m.user_id === uid && Date.parse(m.until) > Date.now()).slice(0, 1));
+  }
+  if (u.pathname === '/rest/v1/characters') {
+    const uid = (u.searchParams.get('user_id') || '').replace('eq.', ''), id = (u.searchParams.get('id') || '').replace('eq.', '');
+    return send(200, rest.chars.filter((c) => c.user_id === uid && c.id === id).map(({ name, level }) => ({ name, level })));
+  }
+  if (u.pathname === '/test/char') { rest.chars.push({ user_id: u.searchParams.get('uid'), id: u.searchParams.get('id'), name: u.searchParams.get('name'), level: Number(u.searchParams.get('level')) }); return send(200, {}); }
+  if (u.pathname === '/test/reports') return send(200, rest.reports);
+  if (u.pathname === '/test/reset') { Object.assign(rest, { reports: [], mutes: [], chars: [], fail: false }); return send(200, {}); }
+  if (u.pathname === '/test/fail') { rest.fail = u.searchParams.get('on') === '1'; return send(200, { fail: rest.fail }); }
+  if (u.pathname === '/test/mute') { rest.mutes.push({ user_id: u.searchParams.get('uid'), until: new Date(Date.now() + 3600e3).toISOString(), reason: u.searchParams.get('reason') || '' }); return send(200, {}); }
   send(404, {});
 }).listen(PORT, () => console.log('mockauth', BASE));

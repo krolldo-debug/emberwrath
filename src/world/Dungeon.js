@@ -7,6 +7,20 @@ import { TileMap } from './TileMap.js';
 const T = CONFIG.tileSize;
 const SOLID = new Set(['#', 'T', 'b', 'k', 'D', '~', '$']); // $ = verborgener Durchgang (öffnet per Hebel)
 const FLOOR = new Set(['.']);
+// Weicher, warmer Lichthof (einmal erzeugt) für den Lava-Widerschein
+let HALO = null;
+function lavaHalo() {
+  if (HALO) return HALO;
+  const R = 26;
+  HALO = makeCanvas(R * 2, R * 2);
+  const g = HALO.getContext('2d');
+  const gr = g.createRadialGradient(R, R, 0, R, R, R);
+  gr.addColorStop(0, 'rgba(255,110,36,0.16)');
+  gr.addColorStop(0.5, 'rgba(220,70,20,0.07)');
+  gr.addColorStop(1, 'rgba(160,40,10,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, R * 2, R * 2);
+  return HALO;
+}
 
 // Dungeon-Karte: Steinboden, Mauern in 3/4-Perspektive, Wanddeko.
 // Objekte (Fackeln, Säulen, Truhen …) werden als "placements" an die World gemeldet.
@@ -16,7 +30,9 @@ export class Dungeon extends TileMap {
     this.biome = 'dungeon';
     this.biomeKey = level.biome ?? null; // 'temple' | 'forge' | null (Katakomben)
     this.liquidCells = [];
-    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.rows[y][x] === '~') this.liquidCells.push({ x, y, top: this.rows[y - 1]?.[x] !== '~' });
+    // m: Uferbits der 8 Nachbarn (N,O,S,W,NO,SO,SW,NW keine Flüssigkeit) für Randkacheln
+    const NB = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.rows[y][x] === '~') this.liquidCells.push({ x, y, top: this.rows[y - 1]?.[x] !== '~', m: NB.reduce((m, [dx, dy], i) => m | (this.rows[y + dy]?.[x + dx] !== '~' ? 1 << i : 0), 0) });
   }
 
   isLiquid(tx, ty) { return this.rows[ty]?.[tx] === '~'; }
@@ -86,7 +102,13 @@ export class Dungeon extends TileMap {
         const px = x * T, py = y * T;
         if (kind === 'liquid') {
           const L = biome?.liquid;
-          if (L) { ctx.drawImage(L.frames[0], px, py); if (this.rows[y - 1]?.[x] !== '~' && L.edge) ctx.drawImage(L.edge, px, py); }
+          if (L?.tile) {
+            // Randkacheln sind außerhalb der organischen Uferlinie durchsichtig: Boden darunter legen
+            const mt = floor[Math.floor(hash2(x >> 1, y >> 1, 3) * floor.length)];
+            ctx.drawImage(mt, (x & 1) * T, (y & 1) * T, T, T, px, py, T, T);
+            ctx.drawImage(L.tile(x, y, 0, this.liquidCells.find((c) => c.x === x && c.y === y).m), px, py);
+          }
+          else if (L) { ctx.drawImage(L.frames[0], px, py); if (this.rows[y - 1]?.[x] !== '~' && L.edge) ctx.drawImage(L.edge, px, py); }
           else { ctx.fillStyle = '#0a0d1e'; ctx.fillRect(px, py, T, T); }
           continue;
         }
@@ -101,7 +123,10 @@ export class Dungeon extends TileMap {
       }
     }
 
+    biome?.decorate?.(ctx, this); // biomeigene Bodenzier/Ufer mit Kartenwissen
+
     // Kanten der Wandkronen + Schlagschatten/AO auf dem Boden
+    const organic = !!biome?.liquid?.tile;
     const open = (tx, ty) => { const k = this.wallKind(tx, ty); return k === 'floor' || k === 'faceLower' || k === 'faceUpper' || k === 'liquid'; };
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
@@ -120,15 +145,18 @@ export class Dungeon extends TileMap {
           ctx.fillStyle = edge; ctx.fillRect(px, py, T, 2);
         }
         if (kind !== 'floor') continue;
-        if (this.isWall(x, y - 1)) {
+        // Schlagschatten nur von echten Mauern – Becken mit organischem Ufer (Lava) sind fest,
+        // werfen aber keinen Schatten (sonst entsteht um jedes Becken ein dunkler Kachelrahmen)
+        const hw = (tx, ty) => this.isWall(tx, ty) && !(organic && this.isLiquid(tx, ty));
+        if (hw(x, y - 1)) {
           for (let i = 0; i < 7; i++) {
             ctx.fillStyle = `rgba(6,4,12,${0.6 * (1 - i / 7)})`;
             ctx.fillRect(px, py + i, T, 1);
           }
         }
-        if (this.isWall(x - 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + 3, py, 2, T); }
-        if (this.isWall(x + 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px + T - 3, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + T - 5, py, 2, T); }
-        if (this.isWall(x, y + 1)) { ctx.fillStyle = 'rgba(6,4,12,0.3)'; ctx.fillRect(px, py + T - 2, T, 2); }
+        if (hw(x - 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + 3, py, 2, T); }
+        if (hw(x + 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px + T - 3, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + T - 5, py, 2, T); }
+        if (hw(x, y + 1)) { ctx.fillStyle = 'rgba(6,4,12,0.3)'; ctx.fillRect(px, py + T - 2, T, 2); }
         if (!biome && this.isWall(x - 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebL, px, py);
         if (!biome && this.isWall(x + 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebR, px + T - 14, py);
       }
@@ -161,10 +189,14 @@ export class Dungeon extends TileMap {
     for (const c of this.liquidCells) {
       const px = c.x * T - cx, py = c.y * T - cy;
       if (px < -T || py < -T || px > W || py > H) continue;
-      const f = Math.floor(time * 4 + hash2(c.x, c.y, 31) * 4) % L.frames.length;
-      ctx.drawImage(L.frames[f], Math.round(px), Math.round(py));
+      const f = Math.floor(time * 4 + (L.tile ? 0 : hash2(c.x, c.y, 31) * 4)) % L.frames.length;
+      ctx.drawImage(L.tile ? L.tile(c.x, c.y, f, c.m) : L.frames[f], Math.round(px), Math.round(py));
       const dark = 0.78 - this.#flow(c, time);
-      if (dark > 0.02) { ctx.fillStyle = `rgba(10,4,6,${dark.toFixed(3)})`; ctx.fillRect(Math.round(px), Math.round(py), T, T); }
+      if (dark > 0.02) {
+        // nur die Flüssigkeit abdunkeln (Maske der Uferform), nicht den Ufersaum der Randkachel
+        if (L.shade) { ctx.globalAlpha = dark; ctx.drawImage(L.shade(c.x, c.y, c.m), Math.round(px), Math.round(py)); ctx.globalAlpha = 1; }
+        else { ctx.fillStyle = `rgba(10,4,6,${dark.toFixed(3)})`; ctx.fillRect(Math.round(px), Math.round(py), T, T); }
+      }
       if (c.top && L.edge) ctx.drawImage(L.edge, Math.round(px), Math.round(py));
     }
   }
@@ -181,10 +213,24 @@ export class Dungeon extends TileMap {
     for (const c of this.liquidCells) {
       const px = c.x * T - cx, py = c.y * T - cy;
       if (px < -T || py < -T || px > W || py > H) continue;
-      const f = Math.floor(time * 4 + hash2(c.x, c.y, 31) * 4) % L.glow.length;
+      const f = Math.floor(time * 4 + (L.glowTile ? 0 : hash2(c.x, c.y, 31) * 4)) % L.glow.length;
       // Langsame Helligkeitswellen über die Fläche, damit das Kachelmuster nicht gleichförmig pulsiert
       ctx.globalAlpha = this.#flow(c, time);
-      ctx.drawImage(L.glow[f], Math.round(px), Math.round(py));
+      ctx.drawImage(L.glowTile ? L.glowTile(c.x, c.y, f, c.m) : L.glow[f], Math.round(px), Math.round(py));
+    }
+    // Widerschein: Uferzellen organischer Lava werfen einen weichen, warmen Schein auf den
+    // umliegenden Boden (sonst wirkt der unbeleuchtete Boden um das Becken wie ein dunkler Rahmen)
+    if (L.glowTile && L.shade) {
+      const halo = lavaHalo();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const c of this.liquidCells) {
+        if (!c.m) continue;
+        const px = c.x * T - cx + T / 2, py = c.y * T - cy + T / 2;
+        if (px < -40 || py < -40 || px > W + 40 || py > H + 40) continue;
+        ctx.globalAlpha = 0.55 * this.#flow(c, time);
+        ctx.drawImage(halo, Math.round(px - halo.width / 2), Math.round(py - halo.height / 2));
+      }
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
   }
