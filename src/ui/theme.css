@@ -1100,3 +1100,40 @@ html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="potion"], html.ef-touch
 html.ef-portrait #ui > .ef-unlock { top: calc(env(safe-area-inset-top, 0px) + 158px); }
 /* Querformat: Bossleiste sitzt oben mittig, Freischalt-Karte dann darunter */
 html.ef-touch:not(.ef-portrait):has(.hud-boss.show) #ui > .ef-unlock { top: calc(env(safe-area-inset-top, 0px) + 64px); }
+
+/* ===================== Handy-Runde 7: kompakter Aktionsbogen, aufgeräumtes Querformat ===================== */
+/* Angriff etwas von der Ecke abgerückt; vier Fähigkeiten dicht im Bogen (Radius 84, Winkel −16/20/70/106°, Felder überlappen nicht) darum,
+   Ausweichen, Interagieren, Trank und Reittier als äußerer Ring (Radius 128-132). */
+html.ef-touch .ef-hud .hud-actions { width: 230px; height: 230px; right: calc(env(safe-area-inset-right, 0px) + 6px); bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); }
+html.ef-touch .ef-hud .hud-slot.big { width: 74px; height: 74px; right: 12px; bottom: 12px; }
+html.ef-touch .ef-hud .hud-slot.big img { width: 42px; height: 42px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill1"] { right: 106px; bottom: 2px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill2"] { right: 104px; bottom: 54px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill3"] { right: 54px; bottom: 104px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill4"] { right: 2px; bottom: 106px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="dodge"] { right: 154px; bottom: 22px; width: 54px; height: 54px; }
+html.ef-touch .ef-hud .hud-slot[data-action="interact"] { right: 145px; bottom: 89px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="potion"] { right: 108px; bottom: 152px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="mount"] { right: 35px; bottom: 160px; width: 46px; height: 46px; }
+html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="potion"], html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="mount"] { width: 48px; height: 48px; }
+/* Niedrige Querformate (Safari mit Leisten): Bogen kleiner, damit nichts unter die Minimap rutscht */
+@media (max-height: 360px) { html.ef-touch:not(.ef-portrait) .ef-hud .hud-actions { transform: scale(calc(var(--touch-scale, 1) * 0.92)); transform-origin: 100% 100%; } }
+/* „Hier ziehen zum Laufen“ entfällt; der Stick erscheint weiter, wo man hintippt */
+html .ef-hud .hud-stick-hint, html .ef-hud .hud-stick-hint.show { display: none !important; }
+/* Chat-Zeilen (auch „Du bist in Welt …“) nicht mehr mitten über der Szene: unten links, klein,
+   mit dunklem Grund, höchstens zwei Zeilen; geöffnet wie gewohnt größer */
+html.ef-touch:not(.ef-portrait) #ui .net-chat { left: calc(env(safe-area-inset-left, 0px) + 8px); top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 34px); width: min(280px, 34vw); font-size: 11px; }
+html.ef-touch:not(.ef-portrait) .net-chat:not(.open) .net-chat-log { max-height: 2.8em; }
+html.ef-touch .net-chat:not(.open) .net-line:not(.old) { align-self: flex-start; background: rgba(8, 4, 14, 0.62); padding: 1px 6px; border-radius: 2px; font-style: normal; }
+html.ef-touch.ef-portrait #ui .net-chat { width: min(260px, 60vw); font-size: 11px; }
+html.ef-touch.ef-portrait .net-chat:not(.open) .net-chat-log { max-height: 2.8em; }
+/* Questliste im Querformat schlanker: erledigte Teilziele ausblenden, nur die verfolgte Quest bei wenig Höhe */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-tracker { width: 196px; }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-obj.done { display: none; }
+@media (max-height: 420px) {
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-quest ~ .hud-quest { display: none; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-tracker-head { display: none; }
+}
+/* Hochformat: Bogen über der EP-Leiste halten */
+html.ef-touch.ef-portrait .ef-hud .hud-actions { bottom: calc(env(safe-area-inset-bottom, 0px) + 28px); }
+html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 226px); left: calc(env(safe-area-inset-left, 0px) + 8px); }
