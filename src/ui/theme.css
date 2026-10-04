@@ -1102,18 +1102,18 @@ html.ef-portrait #ui > .ef-unlock { top: calc(env(safe-area-inset-top, 0px) + 15
 html.ef-touch:not(.ef-portrait):has(.hud-boss.show) #ui > .ef-unlock { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 
 /* ===================== Handy-Runde 7: kompakter Aktionsbogen, aufgeräumtes Querformat ===================== */
-/* Angriff etwas von der Ecke abgerückt; vier Fähigkeiten dicht im Bogen (Radius 78) darum,
+/* Angriff etwas von der Ecke abgerückt; vier Fähigkeiten dicht im Bogen (Radius 84, Winkel −16/20/70/106°, Felder überlappen nicht) darum,
    Ausweichen, Interagieren, Trank und Reittier als äußerer Ring (Radius 128-132). */
 html.ef-touch .ef-hud .hud-actions { width: 230px; height: 230px; right: calc(env(safe-area-inset-right, 0px) + 6px); bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); }
 html.ef-touch .ef-hud .hud-slot.big { width: 74px; height: 74px; right: 12px; bottom: 12px; }
 html.ef-touch .ef-hud .hud-slot.big img { width: 42px; height: 42px; }
-html.ef-touch .ef-hud .hud-slot[data-action="skill1"] { right: 100px; bottom: 5px; width: 48px; height: 48px; }
-html.ef-touch .ef-hud .hud-slot[data-action="skill2"] { right: 96px; bottom: 58px; width: 48px; height: 48px; }
-html.ef-touch .ef-hud .hud-slot[data-action="skill3"] { right: 58px; bottom: 96px; width: 48px; height: 48px; }
-html.ef-touch .ef-hud .hud-slot[data-action="skill4"] { right: 5px; bottom: 100px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill1"] { right: 106px; bottom: 2px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill2"] { right: 104px; bottom: 54px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill3"] { right: 54px; bottom: 104px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="skill4"] { right: 2px; bottom: 106px; width: 48px; height: 48px; }
 html.ef-touch .ef-hud .hud-slot[data-action="dodge"] { right: 154px; bottom: 22px; width: 54px; height: 54px; }
 html.ef-touch .ef-hud .hud-slot[data-action="interact"] { right: 145px; bottom: 89px; width: 48px; height: 48px; }
-html.ef-touch .ef-hud .hud-slot[data-action="potion"] { right: 98px; bottom: 142px; width: 48px; height: 48px; }
+html.ef-touch .ef-hud .hud-slot[data-action="potion"] { right: 108px; bottom: 152px; width: 48px; height: 48px; }
 html.ef-touch .ef-hud .hud-slot[data-action="mount"] { right: 35px; bottom: 160px; width: 46px; height: 46px; }
 html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="potion"], html.ef-touch.ef-portrait .ef-hud .hud-slot[data-action="mount"] { width: 48px; height: 48px; }
 /* Niedrige Querformate (Safari mit Leisten): Bogen kleiner, damit nichts unter die Minimap rutscht */

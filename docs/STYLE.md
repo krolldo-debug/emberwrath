@@ -179,7 +179,7 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - Schlackendrache: eigener Zeichenweg drawDrake (BODY.drake.plan = 'drake') in sprites/mounts.js.
 
 ## Handy-Runde 7 (04.10.)
-- Aktionsbogen: Angriff 74 px, Mitte 49/49 px von der Ecke des Aktionsfelds; vier Fähigkeiten 48 px im Bogen (Radius 78, Winkel −15/25/65/105°); äußerer Ring: Ausweichen, Interagieren, Trank, Reittier (Radius 132–138). Bei Höhe ≤ 360 px auf 92 % verkleinert.
+- Aktionsbogen: Angriff 74 px, Mitte 49/49 px von der Ecke des Aktionsfelds; vier Fähigkeiten 48 px im Bogen (Radius 84, Winkel −16/20/70/106°); äußerer Ring: Ausweichen, Interagieren, Trank, Reittier (Radius 132–138). Bei Höhe ≤ 360 px auf 92 % verkleinert.
 - Kein „Hier ziehen zum Laufen“-Kreis mehr.
 - Chat- und Systemzeilen auf Touch unten links mit dunklem Grund, höchstens zwei Zeilen; nie über der Bildmitte.
 - Questliste quer: erledigte Teilziele aus, bei Höhe ≤ 420 px nur die verfolgte Quest.
