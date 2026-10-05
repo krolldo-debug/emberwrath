@@ -14,6 +14,7 @@ const USERS = { tok_admin: { id: 'u-admin', email: 'a@x.de' }, tok_player: { id:
 let calls = [];
 let orders = new Map();
 const blocks = new Map();
+const revoked = [];
 // PostgREST-Filter (eq, in, is.null, not.is.null) auf ein Objekt anwenden.
 const match = (o, params) => [...params].every(([k, v]) => {
   if (['select', 'limit', 'order'].includes(k)) return true;
@@ -22,6 +23,7 @@ const match = (o, params) => [...params].every(([k, v]) => {
   if (v === 'not.is.null') return val != null;
   if (v.startsWith('eq.')) return String(val) === v.slice(3);
   if (v.startsWith('in.(')) return v.slice(4, -1).split(',').includes(String(val));
+  if (v.startsWith('ov.{')) return v.slice(4, -1).split(',').some((x) => (val ?? []).includes(x));
   throw new Error('Filter ' + k + '=' + v);
 });
 globalThis.fetch = async (input, init = {}) => {
@@ -44,6 +46,10 @@ globalThis.fetch = async (input, init = {}) => {
     const hit = [...orders.values()].filter((o) => match(o, url.searchParams));
     if (init.method === 'PATCH') { for (const o of hit) Object.assign(o, JSON.parse(body)); return res(null, 204); }
     return res(hit);
+  }
+  if (url.origin === SB && url.pathname === '/rest/v1/rpc/shop_server_revoke') {
+    if (init.headers.authorization) return res({ msg: 'sb_secret als Bearer' }, 401);
+    revoked.push(JSON.parse(body).p_order); return res(1);
   }
   if (url.hostname === 'api.stripe.com' && url.pathname === '/v1/checkout/sessions') {
     return res({ id: 'cs_test_1', url: 'https://checkout.stripe.com/c/pay/cs_test_1', livemode: false });
@@ -130,6 +136,7 @@ ok(order.status === 'credited', 'Doppelter Webhook setzt gutgeschriebene Bestell
 order.credited_at = new Date().toISOString();
 r = await hook({ type: 'charge.refunded', data: { object: { payment_intent: 'pi_1', refunded: true } } });
 ok(order.status === 'refunded', 'Erstattung markiert Bestellung als refunded');
+ok(revoked.includes(order.id), 'Erstattung: Server zieht das Gold im Spielstand ab (shop_server_revoke)');
 r = await call(env, '/shop/checkout', { method: 'POST', token: 'tok_admin', body: buy });
 ok(r.status === 409 && r.body.error === 'revoke_pending', 'Erstattetes Gold noch nicht abgezogen: keine neuen Käufe');
 order.revoked_at = new Date().toISOString();
@@ -151,6 +158,28 @@ r = await hook({ type: 'charge.dispute.closed', data: { object: { id: 'dp_1', pa
 ok(disp.status === 'disputed', 'Dispute gewonnen, Gold schon abgezogen: bleibt (Admin entscheidet)');
 r = await hook({ type: 'checkout.session.expired', data: { object: { id: 'cs_x', metadata: { order_id: playerOrder.id } } } });
 ok(playerOrder.status === 'expired', 'Abgelaufene Bezahlseite: expired');
+
+// Designs
+r = await call(open, '/shop/status');
+ok(r.body.designs?.length >= 3 && r.body.designs.every((d) => d.items.length && d.priceCents > 0), 'Status nennt die Designs');
+calls = [];
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'design_soul', waiver: true, from: 'web', priceCents: 1 } });
+const dOrder = orders.get(r.body.orderId);
+const dForm = new URLSearchParams(calls.find((c) => c.url.includes('api.stripe.com'))?.body?.toString());
+ok(r.status === 200 && dOrder.kind === 'design' && dOrder.gold === 0 && dOrder.character_id === null && dOrder.items.includes('mount:soul_wolf') && dOrder.amount_cents === 999,
+  'Design-Kauf ohne Charakter: Bestellung mit Gegenständen und Katalogpreis');
+ok(dForm.get('success_url') === 'https://www.emberwrath.com/shop?kauf=erfolg' && dForm.get('line_items[0][price_data][product_data][name]').startsWith('Seelenwolf'), 'Von der Website: Rückkehr auf /shop');
+r = await hook(completed(dOrder, { payment_intent: 'pi_d' }));
+ok(dOrder.status === 'paid', 'Design bezahlt');
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'design_soul', waiver: true } });
+ok(r.status === 409 && r.body.error === 'owned', 'Design schon gekauft: 409 owned');
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'gold_35k', waiver: true } });
+ok(r.status === 400, 'Gold ohne Charakter: 400');
+r = await hook({ type: 'charge.refunded', data: { object: { payment_intent: 'pi_d', refunded: true } } });
+ok(dOrder.status === 'refunded' && revoked.includes(dOrder.id), 'Design erstattet: Server entfernt es aus den Spielständen');
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'design_soul', waiver: true } });
+ok(r.status === 200, 'Nach Erstattung kann das Design neu gekauft werden');
+
 ok(!(await verifyStripeSignature('{}', await sign('{}', KEYS.STRIPE_WEBHOOK_SECRET, Math.floor(Date.now() / 1000) - 1000), KEYS.STRIPE_WEBHOOK_SECRET)), 'Alte Signatur (Replay) abgelehnt');
 ok(formEncode({ a: { b: { 0: { c: 1 } } }, d: null }).toString() === 'a%5Bb%5D%5B0%5D%5Bc%5D=1', 'Formular-Kodierung für Stripe');
 

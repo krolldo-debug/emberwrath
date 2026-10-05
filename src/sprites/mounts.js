@@ -88,6 +88,9 @@ const COAT = {
   coal: ['#0c0a0e', '#1a161c', '#2a242e', '#3e3644', '#5a505e'],
   cinder: ['#140c0c', '#281818', '#3c2622', '#56382e', '#74503e'],
   night: ['#0a0816', '#16122a', '#241e42', '#36305c', '#4c4478'],
+  // Exklusiv (Shop-Designs)
+  astral: ['#0a0c2a', '#161e56', '#22348a', '#3452ba', '#6c8eea'],
+  spirit: ['#0a2224', '#124044', '#1c6464', '#2c9488', '#5ccab4'],
 };
 const MANE = {
   dark: ['#120a08', '#24140e', '#3a2418', '#50341e'],
@@ -98,6 +101,8 @@ const MANE = {
   snow: ['#8aa4c4', '#b8cce4', '#dce8f6', '#ffffff'],
   fire: ['#7a2208', '#c8420c', '#f07a1c', '#ffb640', '#fff0b0'],
   shadow: ['#1a0a2e', '#3a1466', '#6a2cb0', '#a060f0', '#e0b8ff'],
+  starlight: ['#2a3c9a', '#4e72d8', '#8eb0ff', '#d0e0ff', '#ffffff'],
+  soul: ['#0e5a4c', '#1e9878', '#40d8a4', '#9cf8d4', '#effff8'],
 };
 const TACK = {
   leather: { strap: ['#1e120c', '#3a2416', '#5a3a22', '#7a5230'], metal: ['#4a4a52', '#7a7a86', '#b0b0bc'], cloth: ['#3a1414', '#6a2020', '#9a3028'] },
@@ -105,9 +110,13 @@ const TACK = {
   iron: { strap: ['#141418', '#2a2a32', '#44444e', '#62626e'], metal: ['#3a3a44', '#6a6c7a', '#a4a6b4'], cloth: ['#1a2a1e', '#2a4a34', '#3e6a4a'] },
   silver: { strap: ['#1e2a3a', '#344a64', '#4e6a8a', '#7090b0'], metal: ['#6a7a8c', '#a4b4c8', '#e0ecf8'], cloth: ['#1a2a4a', '#2a4478', '#4064a4'] },
   gold: { strap: ['#1e120c', '#3a2416', '#5a3a22', '#7a5230'], metal: ['#8a5a18', '#e8a830', '#ffe08a'], cloth: ['#4a0e0e', '#7a1414', '#b02020'] },
+  astral: { strap: ['#0e1028', '#1c2248', '#2c3668', '#40508c'], metal: ['#8a9ac8', '#d0dcff', '#ffffff'], cloth: ['#24104a', '#3e1c7a', '#6030b0'] },
+  spirit: { strap: ['#101a1a', '#1e2e2e', '#2e4444', '#425e5c'], metal: ['#4a8a7a', '#8ad8c0', '#e0fff4'], cloth: ['#0c2a2a', '#16484a', '#22706c'] },
 };
-const EYES = { ghost: '#8affb0', spore: '#e0a0ff', frost: '#c0f0ff', fire: '#ffb640', shadow: '#c07aff' };
+const EYES = { ghost: '#8affb0', spore: '#e0a0ff', frost: '#c0f0ff', fire: '#ffb640', shadow: '#c07aff', star: '#e8f2ff', soul: '#7affd4' };
 
+const MANE_GLOW = { fire: '#ff8a30', starlight: '#8eb0ff', soul: '#40d8a4' };
+const HOOF_GLOW = { ghost: '#8affb0', starlight: '#c4d8ff', soul: '#7affd4' };
 const band = (A, v) => A[clamp(Math.round(v), 0, A.length - 1)];
 const shadeOf = (A, base = 2, k = 1.4, rim = 0.85) => (l, t, e) => band(A, base + l * k - (e > rim ? 0.7 : 0));
 const dim = (A) => [A[0], A[0], A[1], A[2], A[3]];
@@ -155,8 +164,22 @@ const SLAG_BELLY = ['#2a1009', '#4e1e0e', '#7a3212', '#a84a18', '#d06a22'];
 const SLAG_WING = ['#1e0806', '#3a0f08', '#5e1a0c', '#86280f', '#b03c14', '#d85a1c'];
 const DRAKE_HORN = ['#2e2620', '#5a4a3a', '#968066', '#d8c6a4'];
 const EMBER = ['#c8420c', '#ff8a30', '#ffb640', '#fff0b0'];
+// Drachen-Farben je Fell (look.coat); GLOW = Leuchtfarben (Glut, Funken, Auge)
+const DRAKE_PAL = {
+  cinder: { SLAG, SLAG_BELLY, SLAG_WING, DRAKE_HORN, EMBER, GLOW: ['#ff6a20', '#ff8a30', '#ffb640'] },
+  // Exklusiv: Phönixschwinge – goldrote Schuppen, Schwingen aus Flammen, weißgoldene Glut
+  phoenix: {
+    SLAG: ['#2a0806', '#5a1208', '#8c220c', '#c04412', '#e8822a', '#ffc85a'],
+    SLAG_BELLY: ['#6a3a0a', '#9a5c12', '#cc8a22', '#f2bc44', '#fff0a0'],
+    SLAG_WING: ['#4a0a04', '#86180a', '#c4340e', '#ec6416', '#ffa22e', '#ffe48a'],
+    DRAKE_HORN: ['#5a3a10', '#a07020', '#e0b444', '#fff4c8'],
+    EMBER: ['#ffb640', '#ffe080', '#fff4c8', '#ffffff'],
+    GLOW: ['#ff9a30', '#ffc850', '#fff0b0'],
+  },
+};
 
 function drawDrake(R, G, B, look, pose) {
+  const { SLAG, SLAG_BELLY, SLAG_WING, DRAKE_HORN, EMBER, GLOW } = DRAKE_PAL[look.coat] ?? DRAKE_PAL.cinder;
   const T = TACK[look.tack] ?? TACK.gold;
   const bob = pose.bob, nod = pose.nod * 0.6, ph = pose.ph, walk = pose.walk;
   const S = SLAG, Sd = [S[0], S[0], S[1], S[2], S[3], S[4]];
@@ -214,13 +237,13 @@ function drawDrake(R, G, B, look, pose) {
     spike(x, y - r * 0.85, a + Math.PI * 0.5 - 0.5, 1.8 - i * 0.12, 0.6);
   }
   for (let i = 2; i < 9; i++) R.line(tp[i][0], tp[i][1] + 0.6, tp[i + 1][0], tp[i + 1][1] + 0.6 + (i % 2 ? -0.5 : 0.5), 0.45, i % 3 ? EMBER[0] : EMBER[1]);
-  G.push({ x: Math.round(tp[5][0]), y: Math.round(tp[5][1]), color: '#ff6a20', r: 2 });
+  G.push({ x: Math.round(tp[5][0]), y: Math.round(tp[5][1]), color: GLOW[0], r: 2 });
   {
     const [ex, ey] = tp[10], [qx, qy] = tp[9], a = Math.atan2(ey - qy, ex - qx), ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
     const tip = [ex + ux * 3.6, ey + uy * 3.6], w1 = [ex + ux * 0.8 + px * 2.2, ey + uy * 0.8 + py * 2.2], w2 = [ex + ux * 0.8 - px * 2.2, ey + uy * 0.8 - py * 2.2];
     R.tri(ex, ey, w1[0], w1[1], tip[0], tip[1], S[3]); R.tri(ex, ey, w2[0], w2[1], tip[0], tip[1], S[2]);
     R.line(ex, ey, tip[0], tip[1], 0.5, EMBER[0]);
-    G.push({ x: Math.round(tip[0] - ux), y: Math.round(tip[1] - uy), color: '#ff6a20', r: 1.6 });
+    G.push({ x: Math.round(tip[0] - ux), y: Math.round(tip[1] - uy), color: GLOW[0], r: 1.6 });
   }
 
   // ---- Schwingen: Arm steil hoch, Finger weit nach hinten gefächert, große Flughaut ----
@@ -257,7 +280,7 @@ function drawDrake(R, G, B, look, pose) {
   for (let i = 0; i < 5; i++) spike(rump[0] - 3 + i * 1.7, rump[1] - B.rB - 0.1, -0.45, 1.9, 0.65);
   for (const [a, b2, c2, d] of [[-7, -5.4, -4, -4], [-4, -4, -1.5, -4.8], [0.5, -5, 3, -3.8], [3, -3.8, 6, -5]]) R.line(a, b2 + bob, c2, d + bob, 0.55, EMBER[1]);
   R.line(-5, -10 + bob, -3, -8.6 + bob, 0.5, EMBER[0]);
-  G.push({ x: -2, y: Math.round(-5 + bob), color: '#ff6a20', r: 4 }, { x: 5, y: Math.round(-5 + bob), color: '#ff8a30', r: 2.5 });
+  G.push({ x: -2, y: Math.round(-5 + bob), color: GLOW[0], r: 4 }, { x: 5, y: Math.round(-5 + bob), color: GLOW[1], r: 2.5 });
 
   // ---- Hals: kräftig, fast waagerecht nach vorne ----
   const hn = [nod * 0.3, nod];
@@ -297,7 +320,7 @@ function drawDrake(R, G, B, look, pose) {
   const ey = [hd[0][0] + 2.2, hd[0][1] - 0.3];
   R.line(ey[0] - 1.4, ey[1] - 1.4, ey[0] + 1.6, ey[1] - 0.8, 0.8, S[0]);
   R.dot(ey[0], ey[1], EMBER[2]); R.dot(ey[0] + 0.5, ey[1], EMBER[3]); R.dot(ey[0] + 0.5, ey[1] + 0.5, EMBER[2]);
-  G.push({ x: Math.round(ey[0]), y: Math.round(ey[1]), color: '#ffb640', r: 1.8 }, { x: Math.round((hd[2][0] + chin[0]) / 2), y: Math.round(chin[1] - 1), color: '#ff6a20', r: 1.6 });
+  G.push({ x: Math.round(ey[0]), y: Math.round(ey[1]), color: GLOW[2], r: 1.8 }, { x: Math.round((hd[2][0] + chin[0]) / 2), y: Math.round(chin[1] - 1), color: GLOW[0], r: 1.6 });
 
   // ---- nahe Schwinge über dem Rücken ----
   wing(true);
@@ -325,7 +348,10 @@ function drawDrake(R, G, B, look, pose) {
 function drawMount(R, G, B, look, pose) {
   if (B.plan === 'drake') return drawDrake(R, G, B, look, pose);
   const C = COAT[look.coat] ?? COAT.bay, Mn = MANE[look.mane] ?? MANE.dark, T = TACK[look.tack] ?? TACK.leather;
-  const fire = look.mane === 'fire', ghost = look.mane === 'ghost' || look.mane === 'shadow';
+  const fire = look.mane === 'fire', ghost = ['ghost', 'shadow', 'starlight', 'soul'].includes(look.mane);
+  // Lodernde Mähne und Schweif (Feuer, Sternenlicht, Seelenlicht): nach oben wehend, helle Spitzen, leuchtet
+  const flame = fire || look.mane === 'starlight' || look.mane === 'soul';
+  const flameGlow = MANE_GLOW[look.mane] ?? '#ff8a30';
   const bob = pose.bob, dy = (p) => [p[0], p[1] + bob];
   const rump = dy(B.rump), chest = dy(B.chest);
   const bodyShade = shadeOf(C, 2.1, 1.35);
@@ -360,7 +386,7 @@ function drawMount(R, G, B, look, pose) {
       const hc = look.coat === 'bone' ? ['#2a2418', '#4a4030', '#6a5c44'] : ['#0e0a08', '#1e1814', '#34302a'];
       R.capsule(k.ex - 0.3, k.ey + 0.2, k.ex + 0.7, k.ey + 0.6, 1.2, 1.2, (l) => hc[clamp(Math.round(1 + l - hv), 0, 2)]);
       if (look.tack === 'gold' || look.tack === 'silver') R.line(k.ex - 1.1, k.ey - 0.8, k.ex + 1.1, k.ey - 0.8, 0.5, T.metal[1 + (L.near ? 1 : 0)]);
-      if (fire || ghost) G.push({ x: Math.round(k.ex), y: Math.round(k.ey), color: fire ? '#ffb640' : look.mane === 'ghost' ? '#8affb0' : '#a060f0', r: 1.5 });
+      if (fire || ghost) G.push({ x: Math.round(k.ex), y: Math.round(k.ey), color: fire ? '#ffb640' : HOOF_GLOW[look.mane] ?? '#a060f0', r: 1.5 });
     } else if (B.hoof === 'paw') {
       R.ellipse(k.ex + 0.8, k.ey + 0.3, 1.6, 0.9, (l) => band(L.near ? C : dim(C), 1.6 + l));
     } else {
@@ -376,11 +402,12 @@ function drawMount(R, G, B, look, pose) {
   if (B.tail === 'long') {
     for (let s = -1; s <= 1; s++) {
       const ex = tailRoot[0] - 3 + sw + s * 0.8, ey = tailRoot[1] + 10;
-      R.line(tailRoot[0], tailRoot[1], ex, ey, 1.4, (t) => fire ? Mn[clamp(Math.round(4 - t * 3 + s * 0.5), 0, 4)] : Mn[clamp(Math.round(2.6 - t * 1.6 + s * 0.5), 0, Mn.length - 1)]);
+      R.line(tailRoot[0], tailRoot[1], ex, ey, 1.4, (t) => flame ? Mn[clamp(Math.round(4 - t * 3 + s * 0.5), 0, 4)] : Mn[clamp(Math.round(2.6 - t * 1.6 + s * 0.5), 0, Mn.length - 1)]);
     }
-    if (fire) G.push({ x: Math.round(tailRoot[0] - 2 + sw), y: Math.round(tailRoot[1] + 6), color: '#ff8a30', r: 3 });
+    if (flame) G.push({ x: Math.round(tailRoot[0] - 2 + sw), y: Math.round(tailRoot[1] + 6), color: flameGlow, r: 3 });
   } else if (B.tail === 'bushy') {
-    R.capsule(tailRoot[0], tailRoot[1], tailRoot[0] - 5, tailRoot[1] + 3 + sw, 1.6, 2.2, (l, t) => band(C, 1.6 + l * 1.3 + (t > 0.8 ? 1.5 : 0)));
+    R.capsule(tailRoot[0], tailRoot[1], tailRoot[0] - 5, tailRoot[1] + 3 + sw, 1.6, 2.2, (l, t) => (ghost && t > 0.55 ? band(Mn, 1 + l * 1.4 + (t - 0.55) * 4) : band(C, 1.6 + l * 1.3 + (t > 0.8 ? 1.5 : 0))));
+    if (ghost) for (let i = 0; i < 3; i++) R.line(tailRoot[0] - 4.5, tailRoot[1] + 2.5 + sw, tailRoot[0] - 7 - i * 0.8, tailRoot[1] - 1.5 + i * 1.6 + sw * 0.6, 0.8, (t) => band(Mn, 2.6 - t * 1.6));
   } else if (B.tail === 'stub') {
     R.ellipse(tailRoot[0] - 0.5, tailRoot[1] - 0.5, 1.4, 1.1, (l) => band(C, 3 + l));
   } else if (B.tail === 'plume') {
@@ -429,6 +456,27 @@ function drawMount(R, G, B, look, pose) {
     G.push({ x: 0, y: Math.round(-12 + bob), color: '#ff6a20', r: 4 });
   }
   if (look.glow === 'shadow') G.push({ x: -2, y: Math.round(-12 + bob), color: '#8a40e0', r: 5 });
+  if (look.glow === 'astral') {
+    // Sternbild im Fell: helle Sterne mit Kreuzschein, funkeln versetzt
+    const stars = [[-9, -14.5], [-5.5, -11.2], [-2, -15.8], [1.5, -12.4], [5, -15], [7.5, -11.8], [-7, -9.8], [3.5, -9.6]];
+    stars.forEach(([x, y], i) => {
+      const tw = (Math.sin(pose.ph * 2 + i * 1.7) + 1) / 2;
+      const big = i % 3 === 0, arm = big ? 1.2 : 0.6;
+      R.line(x - arm, y + bob, x + arm, y + bob, 0.45, '#8eb0ff');
+      R.line(x, y - arm + bob, x, y + arm + bob, 0.45, '#8eb0ff');
+      R.ellipse(x, y + bob, 0.55, 0.55, () => (tw > 0.35 || big ? '#ffffff' : '#d0e0ff'));
+      if (i % 2 === 0) G.push({ x: Math.round(x), y: Math.round(y + bob), color: '#a8c4ff', r: 1 + tw });
+    });
+    for (const [a, b] of [[0, 2], [2, 4], [4, 5], [1, 3]]) R.line(stars[a][0], stars[a][1] + bob, stars[b][0], stars[b][1] + bob, 0.3, '#4a64c8');
+    G.push({ x: -1, y: Math.round(-13 + bob), color: '#4a64d0', r: 6 });
+  }
+  if (look.glow === 'soul') {
+    // Seelenlicht: Flammenzeichnung auf der Flanke, Schein um den Körper
+    for (const [a, b, c2, d] of [[-6.5, -8.6, -4, -12.4], [-3.4, -8.4, -0.8, -13], [-0.2, -8.8, 2.6, -12.2], [2.6, -9.4, 4.8, -11.6]]) { R.line(a, b + bob, c2, d + bob, 0.7, '#3cd6a4'); R.line(a + 0.3, b - 0.4 + bob, c2, d + bob, 0.35, '#c8ffe8'); }
+    // Seelenfunken über dem Rücken, steigen mit der Animation
+    for (let i = 0; i < 3; i++) { const t = ((pose.ph / TAU) + i / 3) % 1; const wx = -6 + i * 4.5, wy = -16 - t * 5 + bob; R.dot(wx + Math.sin(t * 6 + i) * 0.8, wy, t < 0.6 ? '#b8fae0' : '#4ad8a8'); G.push({ x: Math.round(wx), y: Math.round(wy), color: '#7affd4', r: 1 }); }
+    G.push({ x: -1, y: Math.round(-11 + bob), color: '#2ad8a0', r: 6 }, { x: Math.round(tailRoot[0] - 4), y: Math.round(tailRoot[1] + 3 + sw), color: '#7affd4', r: 3 });
+  }
   if (look.coat === 'spore') {
     // leuchtende Pilze auf dem Panzer
     for (const [x, h] of [[-7.5, 2.6], [-5, 1.6], [6, 2]]) {
@@ -467,9 +515,10 @@ function drawMount(R, G, B, look, pose) {
         for (let i = 0; i <= n; i++) {
           const t = i / n, x = n0[0] + (n1[0] - n0[0]) * t - 1.8, y = n0[1] + (n1[1] - n0[1]) * t - (B.neckR[0] + (B.neckR[1] - B.neckR[0]) * t) * 0.7;
           const len = B.ear === 'wolf' ? 1.6 : 2.6 + Math.sin(t * 5 + pose.ph) * 0.5;
-          R.line(x + 1, y, x - len * 0.7, y + len * 0.5 + (fire ? -len : 0), 1.1, (u) => fire ? Mn[clamp(Math.round(3 + u * 1.4 - (i % 2)), 0, 4)] : B.ear === 'wolf' ? band(C, 1.3 + u) : Mn[clamp(Math.round(2.5 - u * 2 + (i % 2) * 0.5), 0, Mn.length - 1)]);
+          const wl = B.ear === 'wolf' && flame ? len + 1.6 : len;
+          R.line(x + 1, y, x - wl * 0.7, y + wl * 0.5 + (flame ? -wl : 0), 1.1, (u) => flame ? Mn[clamp(Math.round(3 + u * 1.4 - (i % 2)), 0, 4)] : B.ear === 'wolf' ? band(C, 1.3 + u) : Mn[clamp(Math.round(2.5 - u * 2 + (i % 2) * 0.5), 0, Mn.length - 1)]);
         }
-        if (fire) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 3), color: '#ff8a30', r: 3 });
+        if (flame) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 3), color: flameGlow, r: 3 });
         if (ghost) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 2), color: EYES[look.mane] ?? '#a060f0', r: 3 });
       }
     }

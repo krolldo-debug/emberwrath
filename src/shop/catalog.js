@@ -19,3 +19,21 @@ export const formatPrice = (cents) => (cents / 100).toLocaleString('de-DE', { st
 
 // Rückkehr von der Bezahlseite: /spielen/?kauf=erfolg bzw. ?kauf=abbruch
 export const RETURN_PARAM = 'kauf';
+
+// Exklusive Designs: nur hier erhältlich, nicht erspielbar. Gelten für alle Charaktere des Kontos.
+// items: Schlüssel 'mount:<id>' (src/character/mounts.js, exclusive) und 'dye:<id>' (src/character/cosmetics.js, exclusive).
+// Der Server prüft beim Speichern, dass exklusive Reittiere und Färbungen im Spielstand bezahlt sind (Migration 20261005120000).
+export const DESIGNS = [
+  { id: 'design_phoenix', name: 'Phönixschwinge', priceCents: 1499, tag: 'Legendär',
+    items: ['mount:phoenix_wing', 'dye:phoenix'],
+    desc: 'Ein Drache aus lebender Glut mit goldenen Hörnern und brennenden Schwingen. Dazu die Färbung „Phönixglut“.' },
+  { id: 'design_astral', name: 'Sternenhengst', priceCents: 1299,
+    items: ['mount:astral_stallion', 'dye:starnight'],
+    desc: 'Ein Hengst aus dem Nachthimmel, in dessen Fell Sternbilder funkeln. Dazu die Färbung „Sternennacht“.' },
+  { id: 'design_soul', name: 'Seelenwolf', priceCents: 999,
+    items: ['mount:soul_wolf', 'dye:soullight'],
+    desc: 'Ein Geisterwolf mit lodernder Seelenmähne, der Funken hinter sich herzieht. Dazu die Färbung „Seelenlicht“.' },
+];
+export const findDesign = (id) => DESIGNS.find((d) => d.id === id) ?? null;
+// Alle Schlüssel, die nur über den Shop zu haben sind.
+export const DESIGN_ITEMS = DESIGNS.flatMap((d) => d.items);

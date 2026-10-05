@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { RACE_LOOK } from '../sprites/hero.js';
 import { HeroPortrait } from '../account/ui.js';
 import { resolveGear } from './gearLook.js';
-import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle } from './cosmetics.js';
+import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle, ownsDesign, sameLook } from './cosmetics.js';
 
 const fmt = (n) => Number(n).toLocaleString('de-DE');
 
@@ -45,8 +45,9 @@ function appearancePanel(session) {
     const dyes = [
       choice(!pick.dye, false, 'Klassenfarbe', cur.dye ? '25 Gold' : 'aktuell', swatch(defaultRamp(ch.classId)), () => { pick.dye = null; }),
       ...Object.entries(DYES).map(([id, d]) => {
-        const locked = level < (d.level ?? 1);
-        const sub = cur.dye === id ? 'aktuell' : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
+        const shopOnly = d.exclusive && !ownsDesign(state.slices, `dye:${id}`);
+        const locked = level < (d.level ?? 1) || shopOnly;
+        const sub = cur.dye === id ? 'aktuell' : shopOnly ? 'im Shop' : d.exclusive ? 'Exklusiv' : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
         return choice(pick.dye === id, locked, d.name, sub, swatch(d.ramp), () => { pick.dye = id; });
       }),
     ];
@@ -58,7 +59,7 @@ function appearancePanel(session) {
     const colors = race.variants.map((v, i) => choice((pick.variant | 0) === i, false, v.label, (cur.variant | 0) === i ? 'aktuell' : `${fmt(HAIR_COLOR_PRICE)} Gold`, swatch([v.hair[0], v.hair[1], v.hair[2], v.hair[3]]), () => { pick.variant = i; }));
 
     const buy = h('button.ef-btn.primary.app-buy', {
-      type: 'button', disabled: price === 0 || gold < price,
+      type: 'button', disabled: (price === 0 && sameLook(pick, cur)) || gold < price,
       onclick: () => {
         const r = state.commit('character:restyle', { ...pick });
         if (r?.ok) {
