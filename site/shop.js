@@ -95,10 +95,11 @@
     for (const p of status?.products ?? []) {
       const btn = $(`[data-buy="${p.id}"]`);
       if (!btn) continue;
-      btn.textContent = price(p.priceCents);
+      btn.textContent = `Kaufen · ${price(p.priceCents)}`;
       btn.disabled = !canBuy() || !waiver.checked || !charSelect.value;
     }
     charField.hidden = !user || !chars.length;
+    if (status?.priceNote) $('[data-price-note]').textContent = status.priceNote;
   }
 
   async function load() {
@@ -137,7 +138,7 @@
     try {
       const r = await fetch('/net/shop/checkout', {
         method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${tok}` },
-        body: JSON.stringify({ productId, characterId: productId.startsWith('gold_') ? charSelect.value : undefined, waiver: true, from: 'web' }),
+        body: JSON.stringify({ productId, characterId: productId.startsWith('gold_') ? charSelect.value : undefined, waiver: true, from: 'web', lang: document.documentElement.lang?.startsWith('en') ? 'en' : 'de' }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) throw new Error(ERRORS[d.error] ?? 'Die Bezahlseite ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.');

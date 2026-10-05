@@ -2,16 +2,21 @@
 // Aufruf: node worker/test/shop.test.mjs
 import { handleShop, verifyStripeSignature, formEncode, emailHash } from '../shop.js';
 import { findPack, packTotal } from '../../src/shop/catalog.js';
+import { readFileSync } from 'node:fs';
 
 let fails = 0;
 const ok = (c, m) => { console.log(c ? '✓' : '✗', m); if (!c) fails++; };
 
 const SB = 'https://sb.test';
 const BASE_ENV = { SUPABASE_URL: SB, SUPABASE_ANON_KEY: 'sb_publishable_x', SITE_URL: 'https://www.emberwrath.com' };
-const KEYS = { STRIPE_SECRET_KEY: 'sk_test_1', STRIPE_WEBHOOK_SECRET: 'whsec_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_x' };
+const ASSETS = { fetch: async (req) => new URL(req.url).pathname === '/kaufbedingungen.html' ? new Response(TERMS_HTML) : new Response('nf', { status: 404 }) };
+const KEYS = { STRIPE_SECRET_KEY: 'sk_test_1', STRIPE_WEBHOOK_SECRET: 'whsec_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_x', RESEND_API_KEY: 're_x', ASSETS };
 const USERS = { tok_admin: { id: 'u-admin', email: 'a@x.de' }, tok_player: { id: 'u-player', email: 'p@x.de' },
   tok_new: { id: 'u-new', email: 'A@X.de' }, tok_spam: { id: 'u-spam', email: 's@x.de' } };
 
+const TERMS_HTML = readFileSync(new URL('./fixtures/kaufbedingungen.html', import.meta.url), 'utf8');
+const mails = [];
+let mailFail = false;
 let calls = [];
 let orders = new Map();
 const blocks = new Map();
@@ -58,6 +63,13 @@ globalThis.fetch = async (input, init = {}) => {
     if (init.headers.authorization) return res({ msg: 'sb_secret als Bearer' }, 401);
     revoked.push(JSON.parse(body).p_order); return res(1);
   }
+  if (url.hostname === 'api.resend.com') {
+    if (mailFail) return res({ message: 'down' }, 500);
+    mails.push({ ...JSON.parse(body), idem: init.headers['idempotency-key'], orderStatus: [...orders.values()].find((o) => body.includes(o.id.replace(/-/g, '').slice(0, 10).toUpperCase()))?.status });
+    return res({ id: 'm1' });
+  }
+  if (url.hostname === 'api.stripe.com' && url.pathname.startsWith('/v1/payment_intents/')) return res({ id: 'pi_1', payment_method: { type: 'paypal' } });
+  if (url.origin === SB && url.pathname === '/rest/v1/characters') return res(url.searchParams.get('id') === 'eq.chr_abc' ? [{ name: 'Kael' }] : []);
   if (url.hostname === 'api.stripe.com' && url.pathname === '/v1/checkout/sessions') {
     return res({ id: 'cs_test_1', url: 'https://checkout.stripe.com/c/pay/cs_test_1', livemode: false });
   }
@@ -101,6 +113,9 @@ ok(form.get('line_items[0][price_data][unit_amount]') === String(pack.priceCents
 ok(stripeCall.headers['idempotency-key'] === order.id, 'Idempotency-Key = Bestell-ID');
 ok(order.stripe_session_id === 'cs_test_1', 'Session-ID an Bestellung gespeichert');
 ok(!form.has('consent_collection[terms_of_service]'), 'AGB-Zustimmung nur mit STRIPE_REQUIRE_TOS');
+ok(form.get('submit_type') === 'pay' && form.get('custom_text[submit][message]').includes('www.emberwrath.com/kaufbedingungen'), 'Stripe: Knopf „Bezahlen“, Kaufbedingungen genannt');
+ok(form.get('line_items[0][price_data][product_data][description]') === '35.000 Gold für Kael in Emberwrath, sofort gutgeschrieben', 'Stripe-Beschreibung mit Menge und Charakter');
+ok(order.terms_version === '2026-10-05' && order.lang === 'de', 'Bestellung speichert Fassung der Kaufbedingungen und Sprache');
 const open = { ...env, SHOP_ENABLED: 'true' };
 r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { ...buy, waiver: false } });
 ok(r.status === 400 && r.body.error === 'waiver', 'Ohne Verzicht auf Widerruf kein Kauf');
@@ -135,11 +150,21 @@ r = await hook(completed(order, { amount_total: 1 }));
 ok(r.status === 200 && order.status === 'pending', 'Betrag passt nicht zur Bestellung: nicht bezahlt');
 r = await hook(completed(order, { payment_status: 'unpaid' }));
 ok(order.status === 'pending', 'Zahlung noch offen (z. B. Überweisung): bleibt pending');
-r = await hook(completed(order));
-ok(r.status === 200 && order.status === 'paid' && order.stripe_payment_intent === 'pi_1' && order.paid_at, 'Bezahlt: Bestellung paid');
+mailFail = true;
+r = await hook(completed(order, { customer_details: { email: 'a@x.de' } }));
+ok(r.status === 500 && order.status === 'paid' && order.confirmation_error && !order.confirmation_sent_at, 'Mail fehlgeschlagen: trotzdem paid, Fehler vermerkt, Stripe wiederholt (500)');
+mailFail = false;
+r = await hook(completed(order, { customer_details: { email: 'a@x.de' } }));
+ok(r.status === 200 && order.status === 'paid' && order.stripe_payment_intent === 'pi_1' && order.paid_at && order.confirmation_sent_at, 'Bezahlt: Bestellung paid, Bestätigung verschickt');
+const mail = mails[0];
+ok(mails.length === 1 && mail.to[0] === 'a@x.de' && mail.subject.startsWith('Deine Bestellung bei Emberwrath (Nr. ') && mail.idem === `order-${order.id}`, 'Bestellbestätigung an die Kontoadresse');
+ok(mail.text.includes('35.000 Gold für deinen Charakter Kael') && mail.text.includes('9,99') && mail.text.includes('PayPal über Stripe') && mail.text.includes('Stahnsdorf'), 'Mail nennt Angebot, Preis, Zahlungsart, Anbieter');
+ok(/Du hast am \d\d\.\d\d\.\d{4}, \d\d:\d\d Uhr ausdrücklich zugestimmt/.test(mail.text), 'Mail enthält die Verzichtserklärung mit Zeitpunkt');
+ok(mail.text.includes('Widerrufsbelehrung') && mail.text.includes('Muster-Widerrufsformular') && mail.text.includes('Hiermit widerrufe(n) ich/wir') && mail.html.includes('Folgen des Widerrufs') && !mail.html.includes('<!--'), 'Mail enthält die vollständigen Kaufbedingungen (Text und HTML)');
+ok(mail.html.includes('href="https://www.emberwrath.com/nutzungsbedingungen"'), 'Links in den Bedingungen absolut');
 order.status = 'credited';
 r = await hook(completed(order));
-ok(order.status === 'credited', 'Doppelter Webhook setzt gutgeschriebene Bestellung nicht zurück');
+ok(order.status === 'credited' && mails.length === 1, 'Doppelter Webhook: nichts zurückgesetzt, keine zweite Mail');
 order.delivered_at = new Date().toISOString(); // abgeholt, aber nie bestätigt (Sicherheitsprüfung D4)
 r = await hook({ type: 'charge.refunded', data: { object: { payment_intent: 'pi_1', refunded: true } } });
 ok(order.status === 'refunded', 'Erstattung markiert Bestellung als refunded');
@@ -168,6 +193,7 @@ ok(playerOrder.status === 'expired', 'Abgelaufene Bezahlseite: expired');
 
 // Designs
 r = await call(open, '/shop/status');
+ok(r.body.priceNote?.startsWith('Alle Preise sind Endpreise') && !r.body.products.some((p) => p.tag === 'Beliebt'), 'Status: Preishinweis, kein „Beliebt“');
 ok(r.body.designs?.length >= 3 && r.body.designs.every((d) => d.items.length && d.priceCents > 0), 'Status nennt die Designs');
 calls = [];
 r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'design_soul', waiver: true, from: 'web', priceCents: 1 } });
@@ -176,7 +202,8 @@ const dForm = new URLSearchParams(calls.find((c) => c.url.includes('api.stripe.c
 ok(r.status === 200 && dOrder.kind === 'design' && dOrder.gold === 0 && dOrder.character_id === null && dOrder.items.includes('mount:soul_wolf') && dOrder.amount_cents === 999,
   'Design-Kauf ohne Charakter: Bestellung mit Gegenständen und Katalogpreis');
 ok(dForm.get('success_url') === 'https://www.emberwrath.com/shop?kauf=erfolg' && dForm.get('line_items[0][price_data][product_data][name]').startsWith('Seelenwolf'), 'Von der Website: Rückkehr auf /shop');
-r = await hook(completed(dOrder, { payment_intent: 'pi_d' }));
+r = await hook(completed(dOrder, { payment_intent: 'pi_d', customer_details: { email: 'p@x.de' } }));
+ok(mails.at(-1).text.includes('Reittier Seelenwolf und Färbung Seelenlicht für alle Charaktere deines Kontos') && mails.at(-1).orderStatus === 'pending', 'Design-Mail, verschickt bevor freigegeben wird');
 ok(dOrder.status === 'paid', 'Design bezahlt');
 r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'design_soul', waiver: true } });
 ok(r.status === 409 && r.body.error === 'owned', 'Design schon gekauft: 409 owned');

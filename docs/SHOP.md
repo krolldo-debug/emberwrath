@@ -41,7 +41,15 @@ Bilder für die Website: `site/tools/render-shop.mjs` (Bildstreifen der Laufanim
    auch wenn das Spiel den Erhalt nie bestätigt hat (D4). Kaufsperren hängen zusätzlich an einem Hash der normalisierten
    E-Mail-Adresse (`shop_block_marks`) und überleben das Löschen des Kontos (D5); `admin_shop_unblock` hebt beides auf.
    Höchstens 10 Bezahlseiten je Konto in 10 Minuten (429 `rate_limited`, S13).
-7. **Designs:** Bestellungen mit `kind = 'design'` und `items` (z. B. `mount:soul_wolf`, `dye:soullight`). Besitz =
+7. **Bestellbestätigung** (Rechtsprüfung 05.10., `worker/shop-mail.js`): Beim Webhook „bezahlt“ geht zuerst per Resend
+   eine Mail an die Käuferadresse (Angebot, Preis, Zahlungsart, Anbieter, Verzichtserklärung mit Zeitpunkt und der volle
+   Text der Kaufbedingungen von `/kaufbedingungen`, bei englischer Oberfläche zusätzlich `/en/kaufbedingungen`), danach
+   wird freigegeben. Ohne diese Bestätigung erlischt das Widerrufsrecht nicht. Schlägt der Versand fehl, ist die
+   Bestellung trotzdem bezahlt, `confirmation_error` wird vermerkt und Stripe wiederholt den Webhook, bis die Mail raus ist.
+   Prüfen: `select id, status, confirmation_error from gold_orders where confirmation_sent_at is null and status in ('paid','credited');`
+   Umsatzsteuer-Hinweis: `TAX_MODE` in `src/shop/catalog.js` (`'ust'` oder `'kleinunternehmer'`, dazu Abschnitt 4 der
+   Kaufbedingungen anpassen). Fassung der Kaufbedingungen: `TERMS_VERSION`, wird je Bestellung gespeichert.
+8. **Designs:** Bestellungen mit `kind = 'design'` und `items` (z. B. `mount:soul_wolf`, `dye:soullight`). Besitz =
    bezahlte Design-Bestellungen (`shop_designs()`), das Spiel trägt sie in den Spielstand ein (Slice `shop.owned`, Command
    `shop:designs`). Zweimal kaufen geht nicht (409 `owned`). Neue Designs: Eintrag in `DESIGNS`, Reittier/Färbung mit
    `exclusive: true`, Schlüssel in `public.shop_exclusive_items` eintragen.

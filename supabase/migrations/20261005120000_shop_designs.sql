@@ -31,6 +31,11 @@ create index if not exists gold_orders_design_idx on public.gold_orders (user_id
 alter table public.gold_orders add column if not exists delivered_at timestamptz;
 alter table public.gold_orders add column if not exists email_hash text check (email_hash is null or email_hash ~ '^[0-9a-f]{64}$');
 update public.gold_orders set delivered_at = credited_at where delivered_at is null and credited_at is not null;
+-- Rechtsprüfung 05.10.: Fassung der Kaufbedingungen, Sprache und Bestellbestätigung per E-Mail (worker/shop-mail.js).
+alter table public.gold_orders add column if not exists terms_version text check (terms_version is null or char_length(terms_version) <= 20);
+alter table public.gold_orders add column if not exists lang text not null default 'de' check (lang in ('de', 'en'));
+alter table public.gold_orders add column if not exists confirmation_sent_at timestamptz;
+alter table public.gold_orders add column if not exists confirmation_error text check (confirmation_error is null or char_length(confirmation_error) <= 200);
 create index if not exists gold_orders_recent_idx on public.gold_orders (user_id, created_at);
 
 -- ------------------------------------------------------------------ Abholen = geliefert (D4)
@@ -87,6 +92,14 @@ begin
     where m.email_hash in (select o.email_hash from public.gold_orders o where o.user_id = p_user and o.email_hash is not null);
   return n > 0 or found;
 end $$;
+-- Löschfrist: Sperrvermerke nach drei Jahren (Datenschutzerklärung). Aufruf aus cleanup_personal_data() (täglich, pg_cron).
+create or replace function public.cleanup_shop() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  delete from public.shop_block_marks where blocked_at < now() - interval '3 years';
+end $$;
+revoke execute on function public.cleanup_shop() from public, anon, authenticated;
+
 revoke execute on function public.admin_shop_unblock(uuid) from public, anon;
 grant execute on function public.admin_shop_unblock(uuid) to authenticated;
 

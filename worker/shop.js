@@ -1,5 +1,6 @@
 import { verifyToken } from './auth.js';
-import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, packName, RETURN_PARAM } from '../src/shop/catalog.js';
+import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, packName, RETURN_PARAM, PRICE_NOTE, TERMS_VERSION, TERMS_PATH, productDescription } from '../src/shop/catalog.js';
+import { sendConfirmation } from './shop-mail.js';
 
 // Shop: Gold und exklusive Designs für Echtgeld über Stripe Checkout. Gutgeschrieben wird nur nach einer von Stripe signierten
 // Zahlungsbestätigung (Webhook), nie auf Zuruf des Spiels. Einrichtung und Freischalten: docs/SHOP.md.
@@ -17,6 +18,7 @@ import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, pa
 //   STRIPE_REQUIRE_TOS        Variable 'true': Stripe verlangt beim Bezahlen die Zustimmung zu den AGB
 //                             (AGB-Adresse vorher in Stripe › Einstellungen › Öffentliche Details eintragen).
 //   SUPABASE_SERVICE_ROLE_KEY Secret (wie für den Newsletter), Bestellungen in public.gold_orders.
+//   RESEND_API_KEY            Secret (wie für den Newsletter): Bestellbestätigung mit Kaufbedingungen (worker/shop-mail.js).
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 const SIGNATURE_TOLERANCE_S = 300;
@@ -92,6 +94,12 @@ export function formEncode(obj, prefix = '', out = new URLSearchParams()) {
   return out;
 }
 
+async function stripeGet(env, path) {
+  const r = await fetch(`${STRIPE_API}${path}`, { headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
+  if (!r.ok) throw new Error(`stripe ${r.status}`);
+  return r.json();
+}
+
 async function stripe(env, path, params, idempotencyKey) {
   const r = await fetch(`${STRIPE_API}${path}`, {
     method: 'POST',
@@ -137,6 +145,8 @@ function status(env) {
     products: GOLD_PACKS.map((p) => ({ id: p.id, gold: p.gold, bonus: p.bonus, total: packTotal(p), priceCents: p.priceCents, tag: p.tag ?? null })),
     designs: DESIGNS.map((d) => ({ id: d.id, name: d.name, items: d.items, priceCents: d.priceCents, tag: d.tag ?? null })),
     currency: SHOP_CURRENCY,
+    priceNote: PRICE_NOTE,
+    terms: TERMS_PATH,
   });
 }
 
@@ -177,6 +187,12 @@ async function checkout(request, env, url) {
   const orderId = crypto.randomUUID();
   const now = new Date().toISOString();
   const characterId = pack ? b.characterId : null;
+  const lang = b.lang === 'en' ? 'en' : 'de';
+  let characterName = null;
+  if (pack) {
+    const [ch] = await db(env, `characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(characterId)}&select=name`).catch(() => []);
+    characterName = ch?.name ?? null;
+  }
   const priceCents = pack ? pack.priceCents : design.priceCents;
   await db(env, 'gold_orders', {
     method: 'POST', prefer: 'return=minimal',
@@ -184,6 +200,7 @@ async function checkout(request, env, url) {
       id: orderId, user_id: user.uid, character_id: characterId, product_id: (pack ?? design).id,
       kind: pack ? 'gold' : 'design', items: pack ? [] : design.items, gold: pack ? packTotal(pack) : 0,
       amount_cents: priceCents, currency: SHOP_CURRENCY, status: 'pending', withdrawal_waiver_at: now, email_hash: mailHash,
+      terms_version: TERMS_VERSION, lang,
     },
   });
 
@@ -191,19 +208,21 @@ async function checkout(request, env, url) {
   const meta = { order_id: orderId, user_id: user.uid, character_id: characterId, product_id: (pack ?? design).id };
   const session = await stripe(env, '/checkout/sessions', {
     mode: 'payment',
-    locale: 'de',
+    submit_type: 'pay',
+    locale: lang,
     client_reference_id: orderId,
     customer_email: user.email ?? undefined,
     success_url: `${back}erfolg`,
     cancel_url: `${back}abbruch`,
-    line_items: { 0: { quantity: 1, price_data: { currency: SHOP_CURRENCY, unit_amount: priceCents, product_data: pack
-      ? { name: packName(pack), description: 'Emberwrath – Gold für deinen Charakter' }
-      : { name: `${design.name} (exklusives Design)`, description: 'Emberwrath – exklusives Design für alle Charaktere deines Kontos' } } } },
+    line_items: { 0: { quantity: 1, price_data: { currency: SHOP_CURRENCY, unit_amount: priceCents, product_data: {
+      name: pack ? packName(pack) : `${design.name} (exklusives Design)`,
+      description: productDescription(pack ?? design, characterName),
+    } } } },
     metadata: meta,
     payment_intent_data: { metadata: meta },
-    custom_text: { submit: { message: pack
+    custom_text: { submit: { message: `${pack
       ? 'Das Gold wird sofort nach der Zahlung gutgeschrieben. Mit dem Kauf erlischt dein Widerrufsrecht (§ 356 Abs. 5 BGB).'
-      : 'Das Design wird sofort nach der Zahlung freigeschaltet. Mit dem Kauf erlischt dein Widerrufsrecht (§ 356 Abs. 5 BGB).' } },
+      : 'Das Design wird sofort nach der Zahlung freigeschaltet. Mit dem Kauf erlischt dein Widerrufsrecht (§ 356 Abs. 5 BGB).'} Es gelten die Kaufbedingungen: www.emberwrath.com${TERMS_PATH}` } },
     ...(flag(env.STRIPE_REQUIRE_TOS) ? { consent_collection: { terms_of_service: 'required' } } : {}),
   }, orderId);
 
@@ -216,6 +235,33 @@ async function checkout(request, env, url) {
 // Bestellung zu einer Checkout-Session aktualisieren, nur aus den erlaubten Vorgängerzuständen (idempotent).
 async function setOrder(env, filter, from, patch) {
   await db(env, `gold_orders?${filter}&status=in.(${from.join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: patch });
+}
+
+// -> true, wenn die Bestätigung verschickt ist (oder schon war)
+async function confirm(env, byOrder, session, pi) {
+  const [order] = await db(env, `gold_orders?${byOrder}&select=*`);
+  if (!order || order.confirmation_sent_at || ['refunded', 'disputed'].includes(order.status)) return true;
+  try {
+    let characterName = null;
+    if (order.character_id && order.user_id) {
+      const [ch] = await db(env, `characters?user_id=eq.${encodeURIComponent(order.user_id)}&id=eq.${encodeURIComponent(order.character_id)}&select=name`).catch(() => []);
+      characterName = ch?.name ?? null;
+    }
+    let paymentMethod = null;
+    if (pi) {
+      const intent = await stripeGet(env, `/payment_intents/${encodeURIComponent(pi)}?expand[]=payment_method`).catch(() => null);
+      const pm = intent?.payment_method;
+      paymentMethod = pm?.card?.wallet?.type ?? pm?.type ?? null;
+    }
+    const to = session.customer_details?.email ?? session.customer_email;
+    await sendConfirmation(env, { order, to, characterName, paymentMethod, site: site(env) });
+    await db(env, `gold_orders?${byOrder}`, { method: 'PATCH', prefer: 'return=minimal', body: { confirmation_sent_at: new Date().toISOString(), confirmation_error: null } });
+    return true;
+  } catch (e) {
+    console.error('shop confirmation', e?.message);
+    await db(env, `gold_orders?${byOrder}`, { method: 'PATCH', prefer: 'return=minimal', body: { confirmation_error: String(e?.message ?? e).slice(0, 200) } }).catch(() => {});
+    return false;
+  }
 }
 
 const byPi = (pi) => `stripe_payment_intent=eq.${encodeURIComponent(pi)}`;
@@ -250,9 +296,13 @@ async function webhook(request, env) {
       const [order] = await db(env, `gold_orders?${byOrder}&select=amount_cents,currency`);
       // Betrag und Währung müssen zur Bestellung passen, sonst wird nichts gutgeschrieben.
       if (!order || obj.amount_total !== order.amount_cents || String(obj.currency).toLowerCase() !== order.currency) break;
+      // Erst die Bestellbestätigung (Pflicht für das Erlöschen des Widerrufsrechts), dann freigeben. Schlägt sie fehl, wird die
+      // Bestellung trotzdem bezahlt (der Kunde hat gezahlt), der Fehler vermerkt und Stripe wiederholt den Webhook (Antwort 500).
+      const sent = await confirm(env, byOrder, obj, pi);
       await setOrder(env, byOrder, ['pending', 'failed', 'expired'], {
         status: 'paid', paid_at: new Date().toISOString(), stripe_payment_intent: pi, stripe_session_id: obj.id, livemode: !!obj.livemode,
       });
+      if (!sent) return json({ error: 'confirmation' }, 500);
       break;
     }
     case 'checkout.session.async_payment_failed':

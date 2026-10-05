@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { iconEl } from '../gfx/Icons.js';
 import { panelFrame, goldEl } from '../progression/widgets.js';
 import { resolveGear } from '../character/gearLook.js';
-import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM } from './catalog.js';
+import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE } from './catalog.js';
 
 // Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
 //
@@ -134,7 +134,7 @@ export function installShop(game) {
       const r = await fetch('/net/shop/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game' }),
+        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game', lang: document.documentElement.lang?.startsWith('en') ? 'en' : 'de' }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) throw new Error(CHECKOUT_ERRORS[d.error] ?? 'Die Bezahlseite ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.');
@@ -293,7 +293,7 @@ function shopPanel(session, game, shop) {
         h('div.sh-stage', preview(d)),
         h('div.sh-dname', d.name),
         h('p.sh-ddesc', d.desc),
-        owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, formatPrice(d.priceCents)));
+        owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, `Kaufen · ${formatPrice(d.priceCents)}`));
     });
 
     const cards = products.map((p) => h(`div.sh-pack${p.tag ? '.tagged' : ''}`,
@@ -302,7 +302,7 @@ function shopPanel(session, game, shop) {
       h('div.sh-amount', p.total.toLocaleString()),
       h('div.sh-unit', 'Gold'),
       p.bonus ? h('div.sh-bonus', `inkl. ${p.bonus.toLocaleString()} Bonus`) : h('div.sh-bonus.none', ' '),
-      buyButton(p.id, formatPrice(p.priceCents)),
+      buyButton(p.id, `Kaufen · ${formatPrice(p.priceCents)}`),
     ));
 
     return panelFrame(session, 'goldshop', 'Shop', h('div.pg-scroll.sh-body',
@@ -310,8 +310,10 @@ function shopPanel(session, game, shop) {
       notice,
       h('label.sh-waiver',
         h('input', { type: 'checkbox', checked: waiver, onchange: (e) => { waiver = e.target.checked; draw(); } }),
-        h('span', 'Ich möchte, dass mein Kauf sofort ausgeführt wird, und weiß, dass ich damit mein Widerrufsrecht verliere.'),
+        h('span', WAIVER_TEXT),
       ),
+      h('p.sh-terms', h('a', { href: TERMS_PATH, target: '_blank', rel: 'noopener' }, 'Es gelten die Kaufbedingungen mit Widerrufsbelehrung.')),
+      h('p.sh-minor', MINOR_NOTE),
       h('h3.sh-head', 'Exklusive Designs'),
       h('p.sh-sub', 'Nur hier erhältlich, nicht im Spiel zu finden. Gilt für alle Charaktere deines Kontos, jeweils mit passender Färbung für Umhang und Stoffrüstung.'),
       h('div.sh-designs', designs),
@@ -319,7 +321,7 @@ function shopPanel(session, game, shop) {
       h('div.sh-grid', cards),
       error ? h('p.sh-error', { role: 'alert' }, error) : null,
       h('p.ef-note.sh-legal',
-        `Gold geht an ${charName}. Preise inklusive Mehrwertsteuer. Bezahlung sicher über Stripe. `,
+        `Gold geht an ${charName}.`, ' ', PRICE_NOTE, ' ', 'Bezahlung sicher über Stripe.', ' ',
         h('a', { href: '/impressum', target: '_blank', rel: 'noopener' }, 'Impressum'), ' · ',
         h('a', { href: '/support', target: '_blank', rel: 'noopener' }, 'Hilfe zu Käufen'),
       ),

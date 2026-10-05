@@ -45,6 +45,8 @@
 
 .shop-waiver { display: flex; gap: 12px; align-items: flex-start; max-width: 46em; margin: 44px 0 0; font-size: 15px; color: var(--text); cursor: pointer; }
 .shop-waiver input { flex: none; width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--ember); }
+.shop-terms { margin: 10px 0 0 34px; font-size: 15px; }
+.shop-minor { margin: 4px 0 0 34px; font-size: 13px; color: var(--muted); }
 .shop-error { margin: 14px 0 0; color: #ff8f72; }
 .shop-fine { margin: 18px 0 0; max-width: 46em; font-size: 14px; color: var(--muted); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
