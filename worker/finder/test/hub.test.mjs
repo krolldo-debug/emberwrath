@@ -88,5 +88,26 @@ async function join(hub, name, uid, { classId = 'mage', role = 'dps', dungeonId 
   ok(t.last('requeued') && b.last('requeued') && a.last('cancelled')?.reason === 'declined', 'Ablehnen: die anderen suchen weiter');
 }
 
+// Name und Stufe vom Server (Speicherstand), gesperrte Namen
+{
+  const profiles = { u1: { name: 'Aria', level: 12 } };
+  const slow = async (uid) => { await new Promise((r) => setTimeout(r, 20)); return profiles[uid] ?? null; };
+  const hub = new FinderHub({ verify, profile: slow, now, humanGroups: true });
+  const s1 = sock('fake');
+  hub.open(s1);
+  const p = hub.message(s1, JSON.stringify({ t: 'hello', v: 1, token: 'ok:u1', char: { id: 'c1', name: 'Admin', level: 99, classId: 'mage', raceId: 'human' } }));
+  await hub.message(s1, JSON.stringify({ t: 'queue', dungeonId: 'catacombs', role: 'dps' }));
+  await p; await wait();
+  const t1 = [...hub.mm.tickets.values()][0];
+  ok(s1.last('queued') && t1?.name === 'Aria' && t1.level === 13, `Speicherstand gewinnt: ${t1?.name} Stufe ${t1?.level} (Client wollte Admin 99)`);
+  const s2 = sock('admin');
+  hub.open(s2);
+  const p2 = hub.message(s2, JSON.stringify({ t: 'hello', v: 1, token: 'ok:u2', char: { id: 'c2', name: 'Ａｄｍｉｎ', level: 99, classId: 'mage', raceId: 'human' } }));
+  await hub.message(s2, JSON.stringify({ t: 'queue', dungeonId: 'catacombs', role: 'dps' }));
+  await p2; await wait();
+  const t2 = [...hub.mm.tickets.values()].find((t) => t.id !== t1.id);
+  ok(t2?.name === 'Abenteurer' && t2.level === 40, `ohne Speicherstand: Name „${t2?.name}“, Stufe ${t2?.level}`);
+}
+
 console.log(fails ? `${fails} Fehler` : 'alles grün');
 process.exit(fails ? 1 : 0);

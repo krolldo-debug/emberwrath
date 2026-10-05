@@ -50,7 +50,12 @@ export class ModerationUi {
       client.on('reported', (m) => this.#ack(m)),
       client.on('notice', (m) => {
         if (m.kind === 'name') {
-          this.onSystem(`Dein Charaktername ist hier nicht erlaubt (${m.reason === 'reserviert' ? 'für das Team reserviert' : 'anstößig'}). Andere sehen dich als „${m.name}“. Um ihn zu ändern, wende dich an den Support.`);
+          // ganze Sätze je Fall (Übersetzung), Name als Platzhalter
+          const text = {
+            reserviert: `Dein Charaktername ist für das Team reserviert. Andere sehen dich als „${m.name}“. Um ihn zu ändern, wende dich an den Support.`,
+            zeichen: `Dein Charaktername enthält Zeichen, die hier nicht erlaubt sind. Andere sehen dich als „${m.name}“. Um ihn zu ändern, wende dich an den Support.`,
+          }[m.reason] ?? `Dein Charaktername ist hier nicht erlaubt. Andere sehen dich als „${m.name}“. Um ihn zu ändern, wende dich an den Support.`;
+          this.onSystem(text);
           return;
         }
         if (m.kind !== 'muted') return;
@@ -70,7 +75,7 @@ export class ModerationUi {
     this.returnFocus = document.activeElement;
     const ignored = this.ignore.has(player.k);
     this.menu.replaceChildren(
-      h('div.net-pmenu-name', player.name),
+      h('div.net-pmenu-name', { translate: 'no' }, player.name),
       h('button.net-pmenu-btn', { type: 'button', role: 'menuitem', onclick: () => { this.closeMenu(); this.openReport(player); } }, 'Melden …'),
       h('button.net-pmenu-btn', {
         type: 'button', role: 'menuitem', disabled: !player.k,

@@ -1,18 +1,24 @@
 import { Matchmaker } from '../../src/finder/matchmaker.js';
 import { FINDER_VERSION, TIMING, cleanChar, cleanDungeon, cleanRole, roleAllowed } from '../../src/finder/protocol.js';
+import { nameProblem } from '../../src/net/names.js';
+import { LEVEL_MAX } from '../../src/net/protocol.js';
 
 // Kern der Gruppensuche auf dem Server, ohne Cloudflare-Abhängigkeiten (in Node testbar, worker/finder/test/).
 // Eine Verbindung = ein suchender Spieler = ein Ticket im Matchmaker. Das Durable Object (queue.js) reicht nur
 // Nachrichten, Schließen und den Takt herein.
 //   socket: { send(string), close(code, reason) }
 //   verify(token) -> Promise<{ uid } | null>
+//   profile(uid, charId) -> Promise<{ name, level } | null>  gespeicherter Charakter (Name und Stufe, die andere sehen)
+// Name und Stufe wie auf dem Welt-Server (worker/shard.js): aus dem Speicherstand, Stufe höchstens eine darüber,
+// gesperrte Namen (src/net/names.js) werden zu „Abenteurer“.
 const HELLO_TIMEOUT_MS = 10_000;
 const MAX_MSG = 4096;
 const RATE_PER_S = 5, RATE_BURST = 20;
 
 export class FinderHub {
-  constructor({ verify, humanGroups = false, now = () => Date.now(), timing = TIMING } = {}) {
+  constructor({ verify, profile = null, humanGroups = false, now = () => Date.now(), timing = TIMING } = {}) {
     this.verify = verify;
+    this.profile = profile;
     this.now = now;
     this.timing = timing;
     this.mm = new Matchmaker({ humanGroups, now, timing });
@@ -84,8 +90,16 @@ export class FinderHub {
     if (!user) { this.#bye(c, 'auth'); return; }
     // Dasselbe Konto sucht schon (zweiter Tab, Neuladen): die alte Suche endet.
     for (const o of [...this.conns.values()]) if (o !== c && o.uid === user.uid) this.#bye(o, 'replaced');
+    const char = cleanChar(m.char);
+    const stored = this.profile ? await this.profile(user.uid, char.id).catch(() => null) : null;
+    if (!this.conns.has(c.socket)) return;
+    if (stored?.name) char.name = stored.name;
+    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : LEVEL_MAX;
+    char.level = Math.max(stored?.level ?? 1, Math.min(char.level, levelMax));
+    if (nameProblem(char.name)) char.name = 'Abenteurer';
+    // erst jetzt als angemeldet gelten (bis hierhin wartende 'queue'-Nachrichten laufen unten mit fertigem char)
+    c.char = char;
     c.uid = user.uid;
-    c.char = cleanChar(m.char);
     this.#send(c, { t: 'welcome', v: FINDER_VERSION });
     for (const x of c.later.splice(0)) this.#handle(c, x);
   }

@@ -6,7 +6,7 @@ function conn(token, name, { world = 'auto', zone = 'emberhollow', exclude = '' 
   return new Promise((res) => {
     const ws = new WebSocket(`${W}?zone=${zone}&world=${world}${exclude ? `&exclude=${exclude}` : ''}`);
     const c = { ws, msgs: [], name, closed: null };
-    ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', v: 1, token, char: { id: 'c_' + name, name, level: 7 }, look: { raceId: 'elf', classId: 'mage', appearance: { variant: 1 } }, s: [100, 200, 1, 'idle', 0, 0, 1] })));
+    ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', v: 2, token, char: { id: 'c_' + name, name, level: 7 }, look: { raceId: 'elf', classId: 'mage', appearance: { variant: 1 } }, s: [100, 200, 1, 'idle', 0, 0, 1] })));
     ws.on('message', (d) => { const s = d.toString(); const m = s === 'pong' ? { t: 'pong' } : JSON.parse(s); c.msgs.push(m); if (m.t === 'welcome' || m.t === 'full' || m.t === 'bye') res(c); });
     ws.on('close', (code) => { c.closed = code; res(c); });
   });
@@ -26,8 +26,8 @@ b.ws.send(JSON.stringify({ t: 'chat', text: 'Hallo\u0000 <b>Welt</b>   ' }));
 await wait(150);
 const ch = a.msgs.find((m) => m.t === 'chat');
 ok(ch && ch.text === 'Hallo <b>Welt</b>' && ch.name === 'Borin', 'Chat kommt bereinigt an: ' + ch?.text);
-b.ws.send(JSON.stringify({ t: 'look', level: 9, look: { raceId: 'dwarf', classId: 'warrior', gear: { weapon: { icon: 'x', rarity: 'epic' } } } }));
-await wait(150);
+b.ws.send(JSON.stringify({ t: 'look', level: 9, look: { raceId: 'dwarf', classId: 'warrior', items: { weapon: 'iron_sword' } } }));
+await wait(1700); // Aussehen höchstens alle 1,5 s
 ok(a.msgs.some((m) => m.t === 'look' && m.level === 9 && m.look.raceId === 'dwarf'), 'Aussehen-Änderung kommt an');
 const bad = await conn('eyJhbGciOiJFUzI1NiIsImtpZCI6ImsxIn0.eyJzdWIiOiJ4In0.AAAA', 'Fake');
 ok(bad.msgs.some((m) => m.t === 'bye' && m.reason === 'auth') || bad.closed, 'gefälschtes Token abgewiesen');

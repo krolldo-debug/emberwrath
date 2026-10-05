@@ -12,7 +12,7 @@ function conn(token, name) {
   return new Promise((res) => {
     const ws = new WebSocket(`${W}?zone=${zone}&world=1`);
     const c = { ws, msgs: [], name, send: (m) => ws.send(JSON.stringify(m)), last: (t) => c.msgs.filter((m) => m.t === t).at(-1) };
-    ws.on('open', () => c.send({ t: 'hello', v: 1, token, char: { id: 'c_' + name, name, level: 7 }, look: { raceId: 'elf', classId: 'mage' }, s: [100, 200, 1, 'idle', 0, 0, 1] }));
+    ws.on('open', () => c.send({ t: 'hello', v: 2, token, char: { id: 'c_' + name, name, level: 7 }, look: { raceId: 'elf', classId: 'mage' }, s: [100, 200, 1, 'idle', 0, 0, 1] }));
     ws.on('message', (d) => { const s = d.toString(); const m = s === 'pong' ? { t: 'pong' } : JSON.parse(s); c.msgs.push(m); if (m.t === 'welcome' || m.t === 'bye') res(c); });
     ws.on('close', () => res(c));
   });
