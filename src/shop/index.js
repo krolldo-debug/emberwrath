@@ -241,6 +241,7 @@ export function installShop(game) {
 
 const CHECKOUT_ERRORS = {
   owned: 'Dieses Design gehört dir schon.',
+  rate_limited: 'Zu viele Kaufversuche in kurzer Zeit. Bitte warte ein paar Minuten.',
   auth: 'Deine Anmeldung ist abgelaufen. Bitte melde dich neu an.',
   closed: 'Der Shop ist noch nicht geöffnet.',
   unavailable: 'Der Shop ist noch nicht geöffnet.',

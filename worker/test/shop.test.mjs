@@ -1,6 +1,6 @@
 // Gold-Shop im Worker (worker/shop.js) ohne Netz: Stripe und Supabase werden über einen fetch-Ersatz nachgestellt.
 // Aufruf: node worker/test/shop.test.mjs
-import { handleShop, verifyStripeSignature, formEncode } from '../shop.js';
+import { handleShop, verifyStripeSignature, formEncode, emailHash } from '../shop.js';
 import { findPack, packTotal } from '../../src/shop/catalog.js';
 
 let fails = 0;
@@ -9,12 +9,14 @@ const ok = (c, m) => { console.log(c ? '✓' : '✗', m); if (!c) fails++; };
 const SB = 'https://sb.test';
 const BASE_ENV = { SUPABASE_URL: SB, SUPABASE_ANON_KEY: 'sb_publishable_x', SITE_URL: 'https://www.emberwrath.com' };
 const KEYS = { STRIPE_SECRET_KEY: 'sk_test_1', STRIPE_WEBHOOK_SECRET: 'whsec_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_x' };
-const USERS = { tok_admin: { id: 'u-admin', email: 'a@x.de' }, tok_player: { id: 'u-player', email: 'p@x.de' } };
+const USERS = { tok_admin: { id: 'u-admin', email: 'a@x.de' }, tok_player: { id: 'u-player', email: 'p@x.de' },
+  tok_new: { id: 'u-new', email: 'A@X.de' }, tok_spam: { id: 'u-spam', email: 's@x.de' } };
 
 let calls = [];
 let orders = new Map();
 const blocks = new Map();
 const revoked = [];
+const marks = new Map();
 // PostgREST-Filter (eq, in, is.null, not.is.null) auf ein Objekt anwenden.
 const match = (o, params) => [...params].every(([k, v]) => {
   if (['select', 'limit', 'order'].includes(k)) return true;
@@ -23,6 +25,7 @@ const match = (o, params) => [...params].every(([k, v]) => {
   if (v === 'not.is.null') return val != null;
   if (v.startsWith('eq.')) return String(val) === v.slice(3);
   if (v.startsWith('in.(')) return v.slice(4, -1).split(',').includes(String(val));
+  if (v.startsWith('gte.')) return String(val) >= v.slice(4);
   if (v.startsWith('ov.{')) return v.slice(4, -1).split(',').some((x) => (val ?? []).includes(x));
   throw new Error('Filter ' + k + '=' + v);
 });
@@ -40,9 +43,13 @@ globalThis.fetch = async (input, init = {}) => {
     if (init.method === 'POST') { const b = JSON.parse(body); if (!blocks.has(b.user_id)) blocks.set(b.user_id, b); return res(null, 201); }
     return res([...blocks.values()].filter((b) => match(b, url.searchParams)));
   }
+  if (url.origin === SB && url.pathname === '/rest/v1/shop_block_marks') {
+    if (init.method === 'POST') { const b = JSON.parse(body); if (!marks.has(b.email_hash)) marks.set(b.email_hash, b); return res(null, 201); }
+    return res([...marks.values()].filter((b) => match(b, url.searchParams)));
+  }
   if (url.origin === SB && url.pathname === '/rest/v1/gold_orders') {
     if (init.headers.authorization) return res({ msg: 'sb_secret als Bearer' }, 401);
-    if (init.method === 'POST') { const o = JSON.parse(body); orders.set(o.id, o); return res(null, 201); }
+    if (init.method === 'POST') { const o = JSON.parse(body); orders.set(o.id, { created_at: new Date().toISOString(), ...o }); return res(null, 201); }
     const hit = [...orders.values()].filter((o) => match(o, url.searchParams));
     if (init.method === 'PATCH') { for (const o of hit) Object.assign(o, JSON.parse(body)); return res(null, 204); }
     return res(hit);
@@ -133,7 +140,7 @@ ok(r.status === 200 && order.status === 'paid' && order.stripe_payment_intent ==
 order.status = 'credited';
 r = await hook(completed(order));
 ok(order.status === 'credited', 'Doppelter Webhook setzt gutgeschriebene Bestellung nicht zurück');
-order.credited_at = new Date().toISOString();
+order.delivered_at = new Date().toISOString(); // abgeholt, aber nie bestätigt (Sicherheitsprüfung D4)
 r = await hook({ type: 'charge.refunded', data: { object: { payment_intent: 'pi_1', refunded: true } } });
 ok(order.status === 'refunded', 'Erstattung markiert Bestellung als refunded');
 ok(revoked.includes(order.id), 'Erstattung: Server zieht das Gold im Spielstand ab (shop_server_revoke)');
@@ -179,6 +186,17 @@ r = await hook({ type: 'charge.refunded', data: { object: { payment_intent: 'pi_
 ok(dOrder.status === 'refunded' && revoked.includes(dOrder.id), 'Design erstattet: Server entfernt es aus den Spielständen');
 r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { productId: 'design_soul', waiver: true } });
 ok(r.status === 200, 'Nach Erstattung kann das Design neu gekauft werden');
+
+
+// Sicherheitsprüfung D5, S13
+ok(marks.has(await emailHash('a@x.de')), 'Rückbuchung merkt den E-Mail-Hash');
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_new', body: buy });
+ok(r.status === 403 && r.body.error === 'blocked', 'Neues Konto mit derselben E-Mail bleibt gesperrt');
+ok(await emailHash('Max.Muster+emberwrath@googlemail.com') === await emailHash('maxmuster@gmail.com') && await emailHash('a.b@web.de') !== await emailHash('ab@web.de'), 'E-Mail normalisiert (Gmail-Punkte, +Zusatz)');
+ok(orders.get(disp.id).email_hash === await emailHash('a@x.de'), 'Bestellung speichert nur den Hash');
+for (let i = 0; i < 10; i++) await call(open, '/shop/checkout', { method: 'POST', token: 'tok_spam', body: buy });
+r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_spam', body: buy });
+ok(r.status === 429 && r.body.error === 'rate_limited', 'Mehr als 10 Bezahlseiten in 10 Minuten: 429');
 
 ok(!(await verifyStripeSignature('{}', await sign('{}', KEYS.STRIPE_WEBHOOK_SECRET, Math.floor(Date.now() / 1000) - 1000), KEYS.STRIPE_WEBHOOK_SECRET)), 'Alte Signatur (Replay) abgelehnt');
 ok(formEncode({ a: { b: { 0: { c: 1 } } }, d: null }).toString() === 'a%5Bb%5D%5B0%5D%5Bc%5D=1', 'Formular-Kodierung für Stripe');

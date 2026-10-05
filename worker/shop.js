@@ -21,6 +21,19 @@ import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, pa
 const STRIPE_API = 'https://api.stripe.com/v1';
 const SIGNATURE_TOLERANCE_S = 300;
 const CHARACTER_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const CHECKOUT_LIMIT = 10;              // Bezahlseiten je Konto …
+const CHECKOUT_WINDOW_MS = 10 * 60_000; // … in 10 Minuten
+
+// Kaufsperre nach Rückbuchung soll das Löschen des Kontos überleben: Hash der normalisierten E-Mail-Adresse
+// (Kleinschreibung, ohne +Zusatz; bei Gmail ohne Punkte, googlemail = gmail). Nur der Hash wird gespeichert.
+export async function emailHash(email) {
+  let [local = '', domain = ''] = String(email ?? '').trim().toLowerCase().split('@');
+  if (!local || !domain) return null;
+  local = local.split('+')[0];
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  if (domain === 'gmail.com') local = local.replace(/\./g, '');
+  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${local}@${domain}`)));
+}
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
@@ -134,14 +147,19 @@ async function checkout(request, env, url) {
   const user = await verifyToken(token, { supabaseUrl: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY });
   if (!user) return json({ error: 'auth' }, 401);
   if (!shopEnabled(env) && !(await isAdmin(env, token))) return json({ error: 'closed' }, 403);
-  // Gesperrt nach Rückbuchung, oder erstattetes Gold ist im Spiel noch nicht wieder abgezogen.
+  // Gesperrt nach Rückbuchung (Konto oder E-Mail), erstattetes Gold noch nicht abgezogen, zu viele Bezahlseiten.
   const uid = encodeURIComponent(user.uid);
-  const [blocked, owed] = await Promise.all([
+  const mailHash = await emailHash(user.email);
+  const since = new Date(Date.now() - CHECKOUT_WINDOW_MS).toISOString();
+  const [blocked, marked, owed, recent] = await Promise.all([
     db(env, `shop_blocks?user_id=eq.${uid}&select=user_id`),
-    db(env, `gold_orders?user_id=eq.${uid}&status=in.(refunded,disputed)&credited_at=not.is.null&revoked_at=is.null&select=id&limit=1`),
+    mailHash ? db(env, `shop_block_marks?email_hash=eq.${mailHash}&select=email_hash`).catch(() => []) : [],
+    db(env, `gold_orders?user_id=eq.${uid}&status=in.(refunded,disputed)&delivered_at=not.is.null&revoked_at=is.null&select=id&limit=1`),
+    db(env, `gold_orders?user_id=eq.${uid}&created_at=gte.${encodeURIComponent(since)}&select=id&limit=${CHECKOUT_LIMIT}`),
   ]);
-  if (blocked?.length) return json({ error: 'blocked' }, 403);
+  if (blocked?.length || marked?.length) return json({ error: 'blocked' }, 403);
   if (owed?.length) return json({ error: 'revoke_pending' }, 409);
+  if ((recent?.length ?? 0) >= CHECKOUT_LIMIT) return json({ error: 'rate_limited' }, 429);
 
   let b = null;
   try { b = await request.json(); } catch { /* unten abgelehnt */ }
@@ -165,7 +183,7 @@ async function checkout(request, env, url) {
     body: {
       id: orderId, user_id: user.uid, character_id: characterId, product_id: (pack ?? design).id,
       kind: pack ? 'gold' : 'design', items: pack ? [] : design.items, gold: pack ? packTotal(pack) : 0,
-      amount_cents: priceCents, currency: SHOP_CURRENCY, status: 'pending', withdrawal_waiver_at: now,
+      amount_cents: priceCents, currency: SHOP_CURRENCY, status: 'pending', withdrawal_waiver_at: now, email_hash: mailHash,
     },
   });
 
@@ -254,12 +272,14 @@ async function webhook(request, env) {
       // Rückbuchung durch Bank/PayPal: Gold wird im Spiel abgezogen, das Konto für weitere Käufe gesperrt.
       if (!pi) break;
       await setOrder(env, byPi(pi), ['paid', 'credited'], { status: 'disputed' });
-      const [order] = await db(env, `gold_orders?${byPi(pi)}&select=user_id`);
+      const [order] = await db(env, `gold_orders?${byPi(pi)}&select=user_id,email_hash`);
+      const reason = `Rückbuchung ${String(obj.id ?? '').slice(0, 60)} (${String(obj.reason ?? '').slice(0, 40)})`;
       if (order?.user_id) {
-        await db(env, 'shop_blocks', {
-          method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal',
-          body: { user_id: order.user_id, reason: `Rückbuchung ${String(obj.id ?? '').slice(0, 60)} (${String(obj.reason ?? '').slice(0, 40)})` },
-        });
+        await db(env, 'shop_blocks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { user_id: order.user_id, reason } });
+      }
+      if (order?.email_hash) {
+        await db(env, 'shop_block_marks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { email_hash: order.email_hash, reason } })
+          .catch((e) => console.error('shop mark', e?.message));
       }
       await serverRevoke(env, pi);
       break;

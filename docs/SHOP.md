@@ -37,7 +37,11 @@ Bilder für die Website: `site/tools/render-shop.mjs` (Bildstreifen der Laufanim
    enthalten, erstattetes Gold noch führen oder eine unmögliche Tasche haben (über 36 Plätze, Mengen außerhalb 1–999);
    Vermerk in `character_flags` (Gründe `design`, `rueckbuchung`, `gegenstaende`). Unbekannte Gegenstände verwirft das
    Spiel selbst beim Laden.
-6. **Designs:** Bestellungen mit `kind = 'design'` und `items` (z. B. `mount:soul_wolf`, `dye:soullight`). Besitz =
+6. **Sicherheitsprüfung 05.10.:** Abholen setzt `delivered_at`; ab dann zieht eine Rückbuchung das Gold serverseitig ab,
+   auch wenn das Spiel den Erhalt nie bestätigt hat (D4). Kaufsperren hängen zusätzlich an einem Hash der normalisierten
+   E-Mail-Adresse (`shop_block_marks`) und überleben das Löschen des Kontos (D5); `admin_shop_unblock` hebt beides auf.
+   Höchstens 10 Bezahlseiten je Konto in 10 Minuten (429 `rate_limited`, S13).
+7. **Designs:** Bestellungen mit `kind = 'design'` und `items` (z. B. `mount:soul_wolf`, `dye:soullight`). Besitz =
    bezahlte Design-Bestellungen (`shop_designs()`), das Spiel trägt sie in den Spielstand ein (Slice `shop.owned`, Command
    `shop:designs`). Zweimal kaufen geht nicht (409 `owned`). Neue Designs: Eintrag in `DESIGNS`, Reittier/Färbung mit
    `exclusive: true`, Schlüssel in `public.shop_exclusive_items` eintragen.
@@ -71,7 +75,8 @@ Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (mit 
 - **Widerrufsrecht:** Das Spiel holt vor jedem Kauf die ausdrückliche Zustimmung zur sofortigen Gutschrift und die
   Bestätigung ein, dass das Widerrufsrecht damit erlischt (§ 356 Abs. 5 BGB). Eine Widerrufsbelehrung gehört trotzdem in
   die AGB, die Bestätigung schickt Stripe per Beleg-Mail (Stripe › Einstellungen › E-Mails › Belege einschalten).
-- **Datenschutzerklärung:** Abschnitt zu Stripe als Zahlungsdienstleister ergänzen.
+- **Datenschutzerklärung:** Abschnitt zu Stripe als Zahlungsdienstleister ergänzen, dazu der E-Mail-Hash für Kaufsperren
+  nach Rückbuchung (Betrugsabwehr, Art. 6 Abs. 1 f DSGVO, bleibt nach Kontolöschung).
 - **Steuern:** Umsatzsteuer auf digitale Leistungen (EU-weit Steuersatz des Käuferlandes, OSS-Verfahren, ggf.
   Kleinunternehmerregelung) mit Steuerberater klären; Stripe Tax kann das automatisch berechnen.
 - **Minderjährige:** Käufe Minderjähriger sind ohne Zustimmung der Eltern schwebend unwirksam; Erstattungen über Stripe

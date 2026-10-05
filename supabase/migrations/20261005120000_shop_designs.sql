@@ -13,6 +13,10 @@
 --    b) die eine erstattete Gold-Bestellung noch als gutgeschrieben führen, ohne den Abzug ('rueckbuchung'),
 --    c) deren Tasche unmöglich ist: mehr als 36 Plätze, Mengen außerhalb 1–999 ('gegenstaende').
 --    Unbekannte Gegenstands-IDs verwirft das Spiel selbst beim Laden (src/progression/logic.js, inventory.deserialize).
+-- 4. Sicherheitsprüfung 05.10. (D4, D5): Abholen setzt delivered_at (shop_pending_credits). Ab dann gilt Gold als geliefert,
+--    auch wenn das Spiel den Erhalt nie bestätigt; eine Rückbuchung zieht es serverseitig ab. Kaufsperren nach Rückbuchung
+--    hängen zusätzlich an einem Hash der E-Mail-Adresse (shop_block_marks) und überleben so das Löschen des Kontos
+--    (Betrugsabwehr, Art. 6 Abs. 1 f DSGVO; in der Datenschutzerklärung nennen).
 
 -- ------------------------------------------------------------------ Bestellungen verallgemeinern
 alter table public.gold_orders add column if not exists kind text not null default 'gold';
@@ -24,6 +28,67 @@ alter table public.gold_orders add constraint gold_orders_kind_check check (
   (kind = 'gold' and gold > 0 and character_id is not null and cardinality(items) = 0)
   or (kind = 'design' and gold = 0 and cardinality(items) between 1 and 8));
 create index if not exists gold_orders_design_idx on public.gold_orders (user_id) where kind = 'design';
+alter table public.gold_orders add column if not exists delivered_at timestamptz;
+alter table public.gold_orders add column if not exists email_hash text check (email_hash is null or email_hash ~ '^[0-9a-f]{64}$');
+update public.gold_orders set delivered_at = credited_at where delivered_at is null and credited_at is not null;
+create index if not exists gold_orders_recent_idx on public.gold_orders (user_id, created_at);
+
+-- ------------------------------------------------------------------ Abholen = geliefert (D4)
+create or replace function public.shop_pending_credits(p_character text)
+returns table (id uuid, gold int, product_id text, paid_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+begin
+  return query
+    update public.gold_orders o set delivered_at = coalesce(o.delivered_at, now())
+    where o.user_id = (select auth.uid()) and o.character_id = p_character and o.status = 'paid' and o.kind = 'gold'
+    returning o.id, o.gold, o.product_id, o.paid_at;
+end $$;
+
+create or replace function public.shop_pending_revokes(p_character text)
+returns table (id uuid, gold int, product_id text, status text)
+language sql stable security definer set search_path = '' as $$
+  select o.id, o.gold, o.product_id, o.status from public.gold_orders o
+  where o.user_id = (select auth.uid()) and o.character_id = p_character and o.kind = 'gold'
+    and o.status in ('refunded', 'disputed') and o.delivered_at is not null and o.revoked_at is null
+  order by o.updated_at;
+$$;
+
+create or replace function public.shop_confirm_revokes(p_ids uuid[])
+returns int
+language plpgsql security definer set search_path = '' as $$
+declare n int;
+begin
+  update public.gold_orders o set revoked_at = now()
+  where o.id = any (p_ids) and o.user_id = (select auth.uid())
+    and o.status in ('refunded', 'disputed') and o.delivered_at is not null and o.revoked_at is null;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- ------------------------------------------------------------------ Kaufsperre über Kontolöschung hinaus (D5)
+create table if not exists public.shop_block_marks (
+  email_hash text primary key check (email_hash ~ '^[0-9a-f]{64}$'),
+  reason     text not null check (char_length(reason) <= 200),
+  blocked_at timestamptz not null default now()
+);
+alter table public.shop_block_marks enable row level security;
+revoke all on public.shop_block_marks from anon, authenticated;
+grant select, insert, update, delete on public.shop_block_marks to service_role;
+
+create or replace function public.admin_shop_unblock(p_user uuid)
+returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare n int;
+begin
+  perform public.assert_admin();
+  delete from public.shop_blocks where user_id = p_user;
+  get diagnostics n = row_count;
+  delete from public.shop_block_marks m
+    where m.email_hash in (select o.email_hash from public.gold_orders o where o.user_id = p_user and o.email_hash is not null);
+  return n > 0 or found;
+end $$;
+revoke execute on function public.admin_shop_unblock(uuid) from public, anon;
+grant execute on function public.admin_shop_unblock(uuid) to authenticated;
 
 -- Schlüssel, die es nur im Shop gibt (src/shop/catalog.js DESIGN_ITEMS). Neue Designs hier ergänzen.
 create table if not exists public.shop_exclusive_items (
@@ -103,12 +168,11 @@ begin
       snap := c.snapshot;
       if coalesce((snap #> '{slices,shop,revoked}') ? o.id::text, false) then continue; end if;
       had := coalesce((snap #> '{slices,shop,credited}') ? o.id::text, false);
-      -- Weder gutgeschrieben noch je bestätigt: nichts abzuziehen.
-      if not had and o.credited_at is null then continue; end if;
-      if had then
-        snap := jsonb_set(snap, '{slices,wallet,gold}',
-          to_jsonb(coalesce((snap #>> '{slices,wallet,gold}')::numeric, 0) - o.gold));
-      end if;
+      -- Nie abgeholt und nicht im Spielstand: nichts abzuziehen.
+      if not had and o.delivered_at is null and o.credited_at is null then continue; end if;
+      -- Abgeholt gilt als geliefert, auch wenn der Spielstand die Gutschrift (angeblich) nicht kennt.
+      snap := jsonb_set(snap, '{slices,wallet,gold}',
+        to_jsonb(coalesce((snap #>> '{slices,wallet,gold}')::numeric, 0) - o.gold));
       snap := jsonb_set(snap, '{slices,shop}', coalesce(snap #> '{slices,shop}', '{}'::jsonb));
       snap := jsonb_set(snap, '{slices,shop,revoked}',
         (case when jsonb_typeof(snap #> '{slices,shop,revoked}') = 'array' then snap #> '{slices,shop,revoked}' else '[]'::jsonb end)
@@ -118,7 +182,7 @@ begin
       n := n + 1;
     end loop;
     -- Ohne geänderten Spielstand und ohne Gutschrift bleibt revoked_at leer (sonst verlangte die Prüfung einen Vermerk).
-    if n > 0 or o.credited_at is not null then
+    if n > 0 or o.credited_at is not null or o.delivered_at is not null then
       update public.gold_orders set revoked_at = now(), credited_at = coalesce(credited_at, now()) where id = o.id;
     end if;
   else

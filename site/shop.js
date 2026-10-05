@@ -27,6 +27,7 @@
     blocked: 'Käufe sind für dein Konto gesperrt. Bitte wende dich an den Support.',
     revoke_pending: 'Eine erstattete Zahlung wird gerade verbucht. Bitte starte einmal das Spiel und versuch es dann noch einmal.',
     owned: 'Dieses Design gehört dir schon.',
+    rate_limited: 'Zu viele Kaufversuche in kurzer Zeit. Bitte warte ein paar Minuten.',
   };
 
   // Rückkehr von Stripe
