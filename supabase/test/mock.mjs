@@ -12,9 +12,11 @@ async function userRow(id) {
   const u = rows[0]; if (!u) return null;
   return { id: u.id, email: u.email, created_at: u.created_at, user_metadata: u.raw_user_meta_data, app_metadata: u.raw_app_meta_data };
 }
-async function session(uid) {
+// authAt: Zeitpunkt der echten Anmeldung (Sekunden) wie im amr-Claim von Supabase; Token-Erneuerung übernimmt ihn.
+// globalThis.AUTH_AGE (Sekunden) lässt eine Anmeldung im Test älter erscheinen.
+async function session(uid, authAt = Math.floor(Date.now() / 1000) - (globalThis.AUTH_AGE ?? 0)) {
   const at = 'at_' + crypto.randomUUID(), rt = 'rt_' + crypto.randomUUID();
-  tokens.set(at, { uid, exp: Date.now() / 1000 + (globalThis.TTL ?? 3600) }); refresh.set(rt, uid);
+  tokens.set(at, { uid, authAt, exp: Date.now() / 1000 + (globalThis.TTL ?? 3600) }); refresh.set(rt, { uid, authAt });
   await pool.query('update auth.users set last_sign_in_at=now() where id=$1', [uid]);
   return { access_token: at, refresh_token: rt, expires_in: globalThis.TTL ?? 3600, token_type: 'bearer', user: await userRow(uid) };
 }
@@ -23,12 +25,16 @@ function send(res, status, body, extra = {}) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', ...extra });
   res.end(body === undefined ? '' : JSON.stringify(body));
 }
-async function asUser(uid, fn) {
+// auth.jwt() wie bei Supabase (Claims des Zugriffstokens)
+await pool.query(`create or replace function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$`);
+async function asUser(tok, fn) {
+  const uid = tok?.uid ?? null, authAt = tok?.authAt ?? null;
   const c = await pool.connect();
   try {
     await c.query('begin');
     await c.query(`set local role ${uid ? 'authenticated' : 'anon'}`);
     await c.query(`select set_config('request.jwt.claim.sub', $1, true)`, [uid ?? '']);
+    await c.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify(uid ? { sub: uid, role: 'authenticated', amr: [{ method: 'password', timestamp: authAt }] } : { role: 'anon' })]);
     const r = await fn(c);
     await c.query('commit');
     return r;
@@ -84,7 +90,7 @@ const server = http.createServer(async (req, res) => {
         if (!rows[0].email_confirmed_at) return err(res, 400, 'email_not_confirmed', 'not confirmed');
         return send(res, 200, await session(rows[0].id));
       }
-      if (g === 'refresh_token') { const u = refresh.get(json.refresh_token); if (!u) return err(res, 400, 'refresh_token_not_found', 'x'); refresh.delete(json.refresh_token); return send(res, 200, await session(u)); }
+      if (g === 'refresh_token') { const u = refresh.get(json.refresh_token); if (!u) return err(res, 400, 'refresh_token_not_found', 'x'); refresh.delete(json.refresh_token); return send(res, 200, await session(u.uid, u.authAt)); }
       if (g === 'pkce') {
         const c = codes.get(json.auth_code); if (!c) return err(res, 404, 'flow_state_not_found', 'x');
         const ch = b64url(crypto.createHash('sha256').update(json.code_verifier).digest());
@@ -103,15 +109,15 @@ const server = http.createServer(async (req, res) => {
     if (p.startsWith('/rest/v1/rpc/')) {
       const fn = p.slice(13).replace(/\W/g, '');
       const names = Object.keys(json); const args = names.map((n, i) => `${n} => $${i + 1}`).join(',');
-      const r = await asUser(uid, (c) => c.query(`select * from public.${fn}(${args})`, names.map((n) => json[n])));
+      const r = await asUser(tok, (c) => c.query(`select * from public.${fn}(${args})`, names.map((n) => json[n])));
       const scalar = r.fields.length === 1 && r.fields[0].name === fn;
       return send(res, 200, scalar ? r.rows[0]?.[fn] : r.rows);
     }
     if (p === '/rest/v1/characters') {
-      if (req.method === 'GET') { const r = await asUser(uid, (c) => c.query('select id, saved_at, snapshot from public.characters')); return send(res, 200, r.rows); }
-      if (req.method === 'DELETE') { const id = url.searchParams.get('id').replace(/^eq\./, ''); await asUser(uid, (c) => c.query('delete from public.characters where id=$1', [id])); return send(res, 204); }
+      if (req.method === 'GET') { const r = await asUser(tok, (c) => c.query('select id, saved_at, snapshot from public.characters')); return send(res, 200, r.rows); }
+      if (req.method === 'DELETE') { const id = url.searchParams.get('id').replace(/^eq\./, ''); await asUser(tok, (c) => c.query('delete from public.characters where id=$1', [id])); return send(res, 204); }
       if (req.method === 'POST') {
-        await asUser(uid, async (c) => { for (const r of json) await c.query(`insert into public.characters (user_id,id,name,race_id,class_id,level,zone_id,snapshot,saved_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        await asUser(tok, async (c) => { for (const r of json) await c.query(`insert into public.characters (user_id,id,name,race_id,class_id,level,zone_id,snapshot,saved_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
           on conflict (user_id,id) do update set name=excluded.name,race_id=excluded.race_id,class_id=excluded.class_id,level=excluded.level,zone_id=excluded.zone_id,snapshot=excluded.snapshot,saved_at=excluded.saved_at`, [r.user_id, r.id, r.name, r.race_id, r.class_id, r.level, r.zone_id, r.snapshot, r.saved_at]); });
         return send(res, 201);
       }

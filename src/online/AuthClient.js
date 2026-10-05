@@ -37,6 +37,8 @@ const MESSAGES = {
   not_configured: 'Online-Konten sind noch nicht eingerichtet.',
   access_denied: 'Die Anmeldung wurde abgebrochen.',
   redirect_failed: 'Die Anmeldung hat nicht geklappt. Bitte versuche es erneut.',
+  reauth_required: 'Bitte bestätige das Löschen noch einmal mit deiner Anmeldung.',
+  reauthentication_needed: 'Bitte melde dich zur Sicherheit neu an und ändere danach dein Passwort.',
 };
 export function describeError(e) {
   if (e instanceof AuthError) return MESSAGES[e.code] ?? e.message ?? 'Unbekannter Fehler.';
@@ -168,10 +170,11 @@ export class AuthClient {
   }
 
   // Leitet zu Google weiter. Zurück kommt der Browser mit ?code=… auf dieselbe Seite (handleRedirect()).
-  async signInWithProvider(provider) {
+  // intent 'reauth': erneute Anmeldung als Bestätigung (z. B. vor dem Löschen des Kontos)
+  async signInWithProvider(provider, intent = 'oauth') {
     if (!this.configured) throw new AuthError('not_configured', MESSAGES.not_configured);
     const { verifier, challenge } = await pkcePair();
-    this.#savePkce(verifier, 'oauth');
+    this.#savePkce(verifier, intent);
     const q = new URLSearchParams({ provider, redirect_to: this.redirectUrl(), code_challenge: challenge, code_challenge_method: 's256' });
     this.location.assign(`${this.url}/auth/v1/authorize?${q}`);
   }
@@ -234,7 +237,7 @@ export class AuthClient {
   #readPkce() { try { return JSON.parse(this.storage?.getItem(PKCE_KEY) ?? 'null'); } catch { return null; } }
 
   // Wertet eine Rückleitung aus und entfernt die Parameter aus der Adresszeile.
-  // -> null (keine Rückleitung) | { intent: 'signup'|'recovery'|'oauth'|null, session } | { intent, error }
+  // -> null (keine Rückleitung) | { intent: 'signup'|'recovery'|'oauth'|'reauth'|null, session } | { intent, error }
   async handleRedirect() {
     const url = new URL(this.location.href);
     const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
