@@ -3,6 +3,8 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 execSync('sudo -u postgres psql -q -f /tmp/mock.sql >/dev/null 2>&1 && sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 -f /tmp/mig.sql >/dev/null');
+// Zustimmungs-Nachweis (Trigger auf auth.users) gleich zu Beginn, damit Registrierung und Google-Bestätigung erfasst werden
+execSync('sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 >/dev/null', { input: 'do $$ begin create role service_role; exception when duplicate_object then null; end $$;\n' + readFileSync(new URL('../migrations/20261005100000_zustimmung_nutzungsbedingungen.sql', import.meta.url), 'utf8') });
 const { pool } = await import('./mock.mjs');
 const html = readFileSync('work/dist/emberfall.html');
 http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(html); }).listen(8099);
@@ -86,6 +88,7 @@ check((await text(b)).includes('Zustimmen und spielen') && (await text(b)).inclu
 await b.click('text=Zustimmen und spielen'); await wait(300);
 check((await text(b)).includes('Bitte bestätige die Nutzungsbedingungen'), 'ohne Häkchen kein Weiter');
 await b.check('.on-check input'); await b.click('text=Zustimmen und spielen'); await wait(800);
+{ const { rows: tc } = await pool.query("select u.email, c.terms_version, c.source from public.terms_consents c join auth.users u on u.id = c.user_id order by c.id"); check(tc.length === 2 && tc[0].email === 'admin@test.de' && tc[0].source === 'registrierung' && tc[1].email === 'googleuser@example.com' && tc[1].source === 'bestaetigung' && tc.every((r) => r.terms_version === '2026-10'), 'Zustimmung serverseitig mit Serverzeit erfasst: ' + JSON.stringify(tc)); }
 { const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='googleuser@example.com'"); check(m[0]?.v === '2026-10' && (await text(b)).includes('Dein erster Held'), 'Zustimmung des Google-Kontos vermerkt, weiter zur Charakterauswahl: ' + JSON.stringify(m)); }
 await b.evaluate(() => window.emberfall.newGame({ character: { name: 'Bruno', raceId: 'dwarf', classId: 'warrior' } }));
 await wait(3500);
@@ -162,6 +165,11 @@ const ie = e.locator('.on-form input'); await ie.nth(0).fill('admin@test.de'); a
 const refreshed = await e.evaluate(async () => { const c = window.emberfall.online.client; const before = c.session.access_token; const r = await c.rpc('is_admin'); return { r, changed: before !== c.session.access_token }; });
 check(refreshed.r === true && refreshed.changed, 'abgelaufenes Token wird erneuert: ' + JSON.stringify(refreshed));
 globalThis.TTL = 3600;
+// 11b Präparierter Fehler-Link: kein fremder Text im Anmeldefenster, nur eigene Meldung
+await b.goto(B + '?error=server_error&error_description=Konto%20gesperrt.%20Bitte%20sofort%200900-123%20anrufen#anmelden'); await wait(900);
+{ const t = await text(b); check(!t.includes('0900-123') && t.includes('Die Anmeldung hat nicht geklappt'), 'Fehlertext aus der Adresse wird nicht angezeigt'); }
+await b.goto(B + '?error=access_denied&error_description=x'); await wait(900);
+check((await text(b)).includes('Die Anmeldung wurde abgebrochen'), 'bekannter Fehlercode bekommt eigenen Text');
 // 12 Konto löschen (Google-Konto)
 await b.evaluate(() => window.emberfall.scenes.go('login', { mode: 'account' })); await wait(300);
 await b.click('text=Kontoeinstellungen'); await b.click('text=Konto löschen'); await b.click('text=Wirklich endgültig löschen?'); await wait(900);

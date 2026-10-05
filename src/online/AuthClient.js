@@ -35,6 +35,8 @@ const MESSAGES = {
   refresh_token_not_found: 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
   network: 'Keine Verbindung zum Server. Prüfe deine Internetverbindung.',
   not_configured: 'Online-Konten sind noch nicht eingerichtet.',
+  access_denied: 'Die Anmeldung wurde abgebrochen.',
+  redirect_failed: 'Die Anmeldung hat nicht geklappt. Bitte versuche es erneut.',
 };
 export function describeError(e) {
   if (e instanceof AuthError) return MESSAGES[e.code] ?? e.message ?? 'Unbekannter Fehler.';
@@ -245,7 +247,13 @@ export class AuthClient {
     for (const k of ['code', 'error', 'error_code', 'error_description', 'type']) url.searchParams.delete(k);
     const cleanHash = errCode || err ? '' : url.hash;
     try { window.history.replaceState(null, '', `${url.pathname}${url.search}${cleanHash}`); } catch { /* egal */ }
-    if (!code) { this.#clearPkce(); return { intent, error: new AuthError(errCode ?? 'unknown', err ?? 'Anmeldung abgebrochen.') }; }
+    // Fehler aus der Adresse: nur bekannte Codes mit eigenem Text zeigen, nie den Text aus der URL (sonst lässt sich
+    // über einen präparierten Link beliebiger Text ins Anmeldefenster schreiben). Die gespeicherte PKCE-Anfrage bleibt
+    // erhalten, damit ein fremder Fehler-Link einen noch offenen Bestätigungslink nicht unbrauchbar macht.
+    if (!code) {
+      const known = Object.hasOwn(MESSAGES, errCode ?? '') ? errCode : 'redirect_failed';
+      return { intent, error: new AuthError(known, MESSAGES[known]) };
+    }
     if (!pkce?.verifier) return { intent, error: new AuthError('bad_code_verifier', MESSAGES.bad_code_verifier) };
     try {
       const d = await this.#request('/auth/v1/token?grant_type=pkce', { method: 'POST', body: { auth_code: code, code_verifier: pkce.verifier } });

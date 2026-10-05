@@ -15,11 +15,13 @@ const GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden=
 // Rechtstexte der Website (site/). Das Spiel liegt unter /spielen/, die Seiten im Wurzelverzeichnis.
 export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, adultAge: 18, termsVersion: '2026-10' };
 // Altersklausel wie in den Nutzungsbedingungen: ab 12 Jahren, unter 18 nur mit Zustimmung der Eltern.
-const AGE_CLAUSE = `ab ${LEGAL.minAge} Jahren; unter ${LEGAL.adultAge} nur mit Zustimmung der Eltern`;
+const AGE_CLAUSE = `Spielen ab ${LEGAL.minAge} Jahren; unter ${LEGAL.adultAge} nur mit Zustimmung der Eltern.`;
 const consentMeta = () => ({ terms_version: LEGAL.termsVersion, terms_accepted_at: new Date().toISOString() });
 // Hat das Konto die aktuelle Fassung der Nutzungsbedingungen bestätigt? (Google-Konten kommen ohne Häkchen an.)
 export const needsConsent = (user) => !!user && user.user_metadata?.terms_version !== LEGAL.termsVersion;
 const legalLink = (text, href) => h('a.on-legal-link', { href, target: '_blank', rel: 'noopener' }, text);
+// Ganze Sätze als ein Text (Übersetzung beim Anzeigen), die Links darunter als eigene Zeile.
+const legalLinks = () => h('p.on-legal-links', legalLink('Nutzungsbedingungen', LEGAL.terms), legalLink('Datenschutzerklärung', LEGAL.privacy));
 
 const svgIcon = (markup) => { const s = h('span.on-provider-icon'); s.innerHTML = markup; return s; };
 
@@ -95,9 +97,9 @@ export class LoginScene extends MenuScene {
       type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider('google')),
     }, svgIcon(GOOGLE_SVG), h('span', 'Weiter mit Google'));
     const box = h('div.on-providers', google,
-      h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
-        ` (Spielen ${AGE_CLAUSE}). Infos zum Datenschutz: `,
-        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'),
+      h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die Nutzungsbedingungen.'),
+      h('p.on-fine', AGE_CLAUSE),
+      legalLinks(),
       h('div.on-or', h('span', 'oder mit E-Mail')));
     const set = (on) => { box.hidden = !on; };
     set(!!o.providers.google);
@@ -177,10 +179,8 @@ export class LoginScene extends MenuScene {
   #consentBox() {
     const consent = h('input', { type: 'checkbox', required: true });
     const consentEl = h('label.on-check', consent,
-      h('span', 'Ich akzeptiere die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
-        ` (Spielen ${AGE_CLAUSE}). Die `,
-        legalLink('Datenschutzerklärung', LEGAL.privacy), ' habe ich zur Kenntnis genommen.'));
-    return { consent, consentEl };
+      h('span', h('span', 'Ich akzeptiere die Nutzungsbedingungen und habe die Datenschutzerklärung zur Kenntnis genommen.'), ' ', h('span', AGE_CLAUSE)));
+    return { consent, consentEl: h('div.on-consent', consentEl, legalLinks()) };
   }
 
   // Nach der ersten Google-Anmeldung (oder neuer Fassung der Bedingungen): Zustimmung einmal nachholen und im Konto vermerken.
@@ -233,8 +233,7 @@ export class LoginScene extends MenuScene {
         this.#messageBox(),
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Konto erstellen')),
       h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('login') }, 'Schon ein Konto? Anmelden')),
-      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen. Mehr dazu in der ',
-        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'));
+      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen. Mehr dazu steht in der Datenschutzerklärung.'));
   }
 
   #forgot() {
@@ -296,7 +295,7 @@ export class LoginScene extends MenuScene {
       h('div.on-who',
         h('span.acc-avatar', { 'aria-hidden': 'true' }, o.displayName.slice(0, 1).toUpperCase()),
         h('div',
-          h('strong', o.displayName),
+          h('strong', { translate: 'no' }, o.displayName),
           h('div.acc-meta', [u.email, via ? `angemeldet über ${via}` : null].filter(Boolean).join(' · ')))),
       this.#syncLine(),
       this.#messageBox(),
