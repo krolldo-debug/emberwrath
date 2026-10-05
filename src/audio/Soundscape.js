@@ -1,8 +1,8 @@
 import { EV } from '../core/events.js';
-import { themeForZone } from './Music.js';
+import { themeForZone, themeForBoss } from './Music.js';
 
 // Klangbild je Zone (Thread D): wählt Musikstück und Atmo-Mischung passend zur
-// Zone, wechselt beim Bosskampf und in der Glutprüfung auf eigene Stücke und
+// Zone, wechselt beim Bosskampf (eigenes Stück je Boss, themeForBoss) und in der Glutprüfung auf eigene Stücke und
 // danach zurück. Session-System, liest nur Zonendaten und Events.
 const ZONE_AMB = { emberhollow: 'outdoor', ashwood: 'forest', sunken_temple: 'water', cinder_peaks: 'fire', molten_forge: 'fire', ember_trial: 'fire',
   // Stufe 20–40 (§12.2)
@@ -22,11 +22,11 @@ export class Soundscape {
     const bus = session.bus;
     const offs = [
       bus.on(EV.ZONE_ENTER, () => { this.boss = false; this.trial = false; this.#apply(); }),
-      bus.on(EV.BOSS_ENGAGED, () => { this.boss = true; this.#apply(); }),
+      bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = true; this.bossId = e?.bossId ?? null; this.#apply(); }),
       bus.on(EV.BOSS_DEFEATED, () => { this.boss = false; this.#apply(); }),
       bus.on(EV.PLAYER_DIED, () => { this.boss = false; this.#apply(); }),
       bus.on(EV.TRIAL_STARTED, () => { this.trial = true; this.#apply(); }),
-      bus.on(EV.TRIAL_BOSS, () => { this.boss = true; this.#apply(); }),
+      bus.on(EV.TRIAL_BOSS, () => { this.boss = true; this.bossId = null; this.#apply(); }),
       bus.on(EV.TRIAL_COMPLETED, () => { this.trial = false; this.boss = false; this.#apply(); }),
       bus.on(EV.TRIAL_FAILED, () => { this.trial = false; this.boss = false; this.#apply(); }),
     ];
@@ -43,7 +43,7 @@ export class Soundscape {
   #apply() {
     const def = this.#zoneDef();
     this.s.game.sfx.setAmbience?.(ambienceForZone(def));
-    this.music.play(this.boss ? 'boss' : this.trial ? 'trial' : themeForZone(def));
+    this.music.play(this.boss ? themeForBoss(this.bossId) : this.trial ? 'trial' : themeForZone(def));
   }
 
   update() { this.music.update(); }
