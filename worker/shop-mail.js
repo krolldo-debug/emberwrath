@@ -53,7 +53,7 @@ const T = {
 const DESIGN_DETAILS_EN = {
   design_phoenix: 'Mount Phoenix Wing and dye Phoenix Ember',
   design_astral: 'Mount Star Stallion and dye Starry Night',
-  design_soul: 'Mount Soul Wolf and dye Soul Light',
+  design_soul: 'Mount Soul Wolf and dye Soullight',
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
