@@ -189,9 +189,36 @@ async function subscribe(request, env) {
   if (row) await db(env, `newsletter_subscribers?email=eq.${q}`, { method: 'PATCH', body: fields, prefer: 'return=minimal' });
   else await db(env, 'newsletter_subscribers', { method: 'POST', body: { email, ...fields }, prefer: 'return=minimal' });
 
-  const link = `${site(env)}/newsletter?aktion=bestaetigen&token=${confirm}`;
-  await sendResend(env, {
-    to: email,
+  const lang = subscriberLang(fields.source);
+  const link = `${site(env)}${lang === 'en' ? '/en' : ''}/newsletter?aktion=bestaetigen&token=${confirm}`;
+  await sendResend(env, { to: email, ...confirmMail(lang, link, site(env)) });
+  return json({ ok: true });
+}
+
+// Sprache eines Abonnenten: steht in source (Pfad der Seite, auf der angemeldet wurde, z. B. /en/ oder /en/world).
+// Englische Seiten liegen unter /en/ (site/i18n/build-en.mjs). Gilt auch für spätere Newsletter-Versände.
+export const subscriberLang = (source) => (/^\/en(\/|$)/.test(String(source ?? '')) ? 'en' : 'de');
+
+function confirmMail(lang, link, home) {
+  if (lang === 'en') {
+    return {
+      subject: 'Please confirm your Emberwrath newsletter',
+      text: [
+        'Hello,',
+        '',
+        'you (or someone using your address) signed up for the Emberwrath newsletter.',
+        'Please open this link and confirm your subscription there with one click:',
+        '',
+        link,
+        '',
+        `The link is valid for ${CONFIRM_TTL_H} hours. If you did not sign up, simply ignore this email and you will not hear from us.`,
+        '',
+        'Emberwrath',
+        `${home}/en/`,
+      ].join('\n'),
+    };
+  }
+  return {
     subject: 'Bitte bestätige deinen Emberwrath-Newsletter',
     text: [
       'Hallo,',
@@ -204,10 +231,9 @@ async function subscribe(request, env) {
       `Der Link gilt ${CONFIRM_TTL_H} Stunden. Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach, dann bekommst du nichts von uns.`,
       '',
       'Emberwrath',
-      site(env),
+      home,
     ].join('\n'),
-  });
-  return json({ ok: true });
+  };
 }
 
 async function confirm(env, t) {

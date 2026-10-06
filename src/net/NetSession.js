@@ -116,11 +116,11 @@ export class NetSession {
       const x = Math.round(r.x - cx), y = Math.round(r.y - cy - (r.riding ? 42 : 34));
       if (x < -40 || y < -10 || x > W + 40 || y > H + 40) continue;
       const lvl = String(r.level), name = r.name;
-      const wl = font.measure(lvl), wn = font.measure(name), total = wl + 3 + wn;
+      const wl = font.measure(lvl), wn = font.measure(name, 1, true), total = wl + 3 + wn;
       const x0 = Math.round(x - total / 2);
       ctx.globalAlpha = r.dead ? 0.5 : 0.95 * r.alpha;
       font.draw(ctx, lvl, x0, y, { color: '#f2c14e', outline: true });
-      font.draw(ctx, name, x0 + wl + 3, y, { color: '#9fd8ff', outline: true });
+      font.draw(ctx, name, x0 + wl + 3, y, { color: '#9fd8ff', outline: true, raw: true });
       ctx.globalAlpha = 1;
     }
   }

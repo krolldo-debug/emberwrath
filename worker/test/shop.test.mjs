@@ -13,6 +13,11 @@ const ASSETS = { fetch: async (req) => new URL(req.url).pathname === '/kaufbedin
 const KEYS = { STRIPE_SECRET_KEY: 'sk_test_1', STRIPE_WEBHOOK_SECRET: 'whsec_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_x', RESEND_API_KEY: 're_x', ASSETS };
 const USERS = { tok_admin: { id: 'u-admin', email: 'a@x.de' }, tok_player: { id: 'u-player', email: 'p@x.de' },
   tok_new: { id: 'u-new', email: 'A@X.de' }, tok_spam: { id: 'u-spam', email: 's@x.de' } };
+// worker/auth.js nimmt nur JWTs mit Supabase-Angaben (aud, role, iss); HS256 fragt dann /auth/v1/user.
+const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const JWT = Object.fromEntries(Object.entries(USERS).map(([t, u]) => [t, `${b64u({ alg: 'HS256', typ: 'JWT' })}.${b64u({
+  sub: u.id, email: u.email, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated', aud: 'authenticated', iss: `${SB}/auth/v1` })}.c2ln`]));
+const TOKEN_OF = Object.fromEntries(Object.entries(JWT).map(([t, j]) => [j, t]));
 
 const TERMS_HTML = readFileSync(new URL('./fixtures/kaufbedingungen.html', import.meta.url), 'utf8');
 const mails = [];
@@ -40,10 +45,11 @@ globalThis.fetch = async (input, init = {}) => {
   calls.push({ url: String(url), method: init.method ?? 'GET', headers: init.headers ?? {}, body });
   const res = (d, s = 200) => new Response(d == null ? null : JSON.stringify(d), { status: s, headers: { 'content-type': 'application/json' } });
   if (url.origin === SB && url.pathname === '/auth/v1/user') {
-    const u = USERS[(init.headers?.authorization ?? '').replace('Bearer ', '')];
+    const bearer = (init.headers?.authorization ?? '').replace('Bearer ', '');
+    const u = USERS[TOKEN_OF[bearer] ?? bearer];
     return u ? res(u) : res({ msg: 'bad' }, 401);
   }
-  if (url.origin === SB && url.pathname === '/rest/v1/rpc/is_admin') return res(init.headers.authorization === 'Bearer tok_admin');
+  if (url.origin === SB && url.pathname === '/rest/v1/rpc/is_admin') return res(init.headers.authorization === `Bearer ${JWT.tok_admin}`);
   if (url.origin === SB && url.pathname === '/rest/v1/shop_blocks') {
     if (init.method === 'POST') { const b = JSON.parse(body); if (!blocks.has(b.user_id)) blocks.set(b.user_id, b); return res(null, 201); }
     return res([...blocks.values()].filter((b) => match(b, url.searchParams)));
@@ -78,7 +84,7 @@ globalThis.fetch = async (input, init = {}) => {
 
 const req = (path, { method = 'GET', token, body, headers = {} } = {}) => new Request(`https://www.emberwrath.com/net${path}`, {
   method, body: body == null ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
-  headers: { origin: 'https://www.emberwrath.com', 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
+  headers: { origin: 'https://www.emberwrath.com', 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${JWT[token] ?? token}` } : {}), ...headers },
 });
 const call = async (env, path, opts) => {
   const r = req(path, opts);

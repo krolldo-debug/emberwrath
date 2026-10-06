@@ -1,6 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { QUALITY_LEVELS } from './Quality.js';
+import { langSwitch } from '../i18n/index.js';
 
 // Geräte-Einstellungen (game.prefs, INTEGRATION.md §11.8) – Thread D.
 // Schlüssel: volume (0..1), musicVolume (0..1), muted, guidePath (Questpfad, B liest), screenShake,
@@ -94,6 +95,7 @@ export function createSettingsSection(game) {
     row('Bildschirmwackeln', check('screenShake', true), 'bei Treffern und Explosionen'),
     row('Minimap', check('minimap', true), 'Karte bleibt über M erreichbar'),
     h('div.set-row', h('span.set-label', 'Grafik', qNote), qual),
+    h('div.set-row', h('span.set-label', 'Sprache'), langSwitch({ cls: 'set-seg', btnCls: 'set-seg-btn', role: 'radio' })),
     h('div.set-row', h('span.set-label', 'Touch-Knöpfe', h('small.set-note', 'Größe der Bedienelemente')), sizes),
     h('p.ef-note.set-local', 'Einstellungen gelten für dieses Gerät.'),
   );

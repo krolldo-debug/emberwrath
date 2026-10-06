@@ -407,12 +407,12 @@ export class Party {
       if (x < -60 || y < -10 || x > CONFIG.viewWidth + 60 || y > CONFIG.viewHeight + 40) continue;
       const lvl = String(b.level), name = b.name;
       const tag = FINDER_CONFIG.labelMercs;
-      const wl = font.measure(lvl), wn = font.measure(name), total = wl + 3 + wn + (tag ? 7 : 0);
+      const wl = font.measure(lvl), wn = font.measure(name, 1, true), total = wl + 3 + wn + (tag ? 7 : 0);
       let x0 = Math.round(x - total / 2);
       ctx.globalAlpha = b.dead ? 0.45 : 0.95;
       if (tag) { drawBadge(ctx, x0, y); x0 += 7; }
       font.draw(ctx, lvl, x0, y, { color: '#f2c14e', outline: true });
-      font.draw(ctx, name, x0 + wl + 3, y, { color: b.dead ? '#a8a0a0' : '#8fe08a', outline: true });
+      font.draw(ctx, name, x0 + wl + 3, y, { color: b.dead ? '#a8a0a0' : '#8fe08a', outline: true, raw: true });
       if (this.speaking.has(b)) drawSpeech(ctx, x0 + wl + 3 + wn + 3, y - 1, this.t);
       // kleine Lebensleiste unter dem Namen, sobald angeschlagen
       if (!b.dead && b.hp < b.maxHp) {

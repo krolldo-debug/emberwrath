@@ -4,6 +4,7 @@ import { iconUrl, abilityIcon } from '../gfx/Icons.js';
 import { xpToNext } from '../progression/xp.js';
 import { trackedQuestId } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
+import { tr } from '../i18n/index.js';
 
 // HTML-HUD der Spielsitzung (liest nur Zustand, Held und Inhalte; schreibt nie).
 // Aufbau:
@@ -21,7 +22,8 @@ import { talentPointsTotal, spentPoints } from '../character/talents.js';
 const RES_NAMES = { mana: 'Mana', rage: 'Wut', energy: 'Energie' };
 
 // Kleiner Helfer: Text/Stil nur setzen, wenn sich etwas ändert.
-function setText(el, v) { v = String(v); if (el.textContent !== v) el.textContent = v; }
+// tr() schon hier: sonst unterscheidet sich der übersetzte Text jedes Bild vom deutschen und wird neu gesetzt.
+function setText(el, v) { v = tr(String(v)); if (el.textContent !== v) el.textContent = v; }
 function setVar(el, name, v) { const s = String(v); if (el._v?.[name] !== s) { (el._v ??= {})[name] = s; el.style.setProperty(name, s); } }
 function toggle(el, cls, on) { if (el.classList.contains(cls) !== !!on) el.classList.toggle(cls, !!on); }
 const num = (v) => Math.round(v ?? 0).toLocaleString();

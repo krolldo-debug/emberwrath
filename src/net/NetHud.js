@@ -1,6 +1,7 @@
 import { h } from '../core/dom.js';
 import { NET_PATH, CHAT_MAX } from './protocol.js';
 import { IgnoreList, ModerationUi } from './Moderation.js';
+import { tr } from '../i18n/index.js';
 
 // HUD des Mehrspielers: Welt und Spielerzahl unter dem Zonennamen (Klick: Welt wechseln) und der Zonen-Chat.
 // Chat: Enter öffnet/sendet, Escape schließt; auf Touch-Geräten über den Sprechblasen-Knopf.
@@ -96,7 +97,7 @@ export class NetHud {
     const text = c.status === 'online'
       ? `Welt ${c.world} · ${this.others + 1} Spieler`
       : STATUS_TEXT[c.status] ?? '';
-    if (this.badge.textContent !== text) this.badge.textContent = text;
+    if (this.badge.textContent !== tr(text)) this.badge.textContent = tr(text);
     this.badge.dataset.status = c.status;
   }
 
