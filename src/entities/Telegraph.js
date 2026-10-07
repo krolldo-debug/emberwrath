@@ -17,6 +17,25 @@ export function screenLine(angle, len) {
   const c = Math.cos(angle), s = Math.sin(angle);
   return { angle: Math.atan2(s / 0.75, c), len: len * Math.hypot(c, s / 0.75) };
 }
+// Pfeilform als Pixelmaske, Spitze in Richtung `ang` (Bildraum), auf 8 Richtungen gerastet.
+// Gerade: ">" mit 45°-Stufen; schräg: rechter Winkel, dessen Ecke in Laufrichtung zeigt.
+const CHEVRONS = new Map();
+export function chevronMask(ang, big) {
+  const idx = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8, key = idx * 2 + (big ? 1 : 0);
+  if (CHEVRONS.has(key)) return CHEVRONS.get(key);
+  const pts = [], n = big ? 4 : 3, th = big ? 2 : 1;
+  if (idx % 2 === 0) {
+    for (let r = -n; r <= n; r++) for (let t = 0; t < th; t++) pts.push([n - Math.abs(r) - t - Math.round(n / 2), r]);
+  } else {
+    for (let i = 0; i <= n + 1; i++) for (let t = 0; t < th; t++) { pts.push([1 - t, 1 - i]); pts.push([1 - i, 1 - t]); }
+  }
+  // um Vielfache von 90° drehen: (x, y) → (−y, x)
+  let out = pts;
+  for (let q = 0; q < (idx >> 1); q++) out = out.map(([x, y]) => [-y, x]);
+  const uniq = [...new Map(out.map((p) => [p[0] * 64 + p[1], p])).values()];
+  CHEVRONS.set(key, uniq);
+  return uniq;
+}
 export class Telegraph extends Entity {
   constructor(x, y, { shape = 'circle', r = 30, angle = 0, arc = Math.PI, len = 100, width = 16, duration = 1, follow = null, color = [255, 70, 50], screen = false }) {
     super(x, y);
@@ -95,18 +114,19 @@ export class Telegraph extends Entity {
   // Lit-Pass: zarte, durchscheinende Fläche, die sich bis zum Schlag füllt
   render(ctx, cx, cy) {
     const k = this.#k(), [r, g, b] = this.color;
+    if (this.shape === 'line' && this.width < 8) return; // schmale Strahlen: nur der Pixelstrahl im Emissive-Pass
     const intro = Math.min(1, this.t / 0.12);
     // Kühle Farben (Wasser, Eis, Gift) wirken auf dunklem Boden heller: Fläche etwas zarter
     const cool = b > r || g > r ? 0.75 : 1;
     const rgba = (m, a) => `rgba(${r * m | 0},${g * m | 0},${b * m | 0},${a * cool})`;
     ctx.save();
     ctx.globalAlpha = intro;
-    this.#fill(ctx, cx, cy, 1, rgba(0.4, 0.05), rgba(0.6, 0.14));
-    if (k > 0.02) this.#fill(ctx, cx, cy, this.#fillScale(k), rgba(0.9, 0.06 + 0.08 * k), rgba(1, 0.15 + 0.13 * k));
+    this.#fill(ctx, cx, cy, 1, rgba(0.4, 0.04), rgba(0.6, 0.1));
+    if (k > 0.02) this.#fill(ctx, cx, cy, this.#fillScale(k), rgba(0.9, 0.04 + 0.04 * k), rgba(1, 0.09 + 0.07 * k));
     ctx.restore();
   }
   // Umriss als Pixelpunkte (ganzzahlig, ohne Kantenglättung – passt zum Pixelstil)
-  #outline(cx, cy, scale = 1) {
+  #outline(cx, cy, scale = 1, grow = 0) {
     const ox = this.x - cx, oy = this.y - cy, pts = new Map();
     const put = (x, y) => { const px = Math.round(x), py = Math.round(y); pts.set(px * 4096 + py, [px, py]); };
     // Bresenham: genau ein Pixel breite Kanten ohne Doppelpunkte
@@ -117,16 +137,19 @@ export class Telegraph extends Entity {
       for (;;) { put(x, y); if (x === X && y === Y) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x += sx; } if (e2 <= dx) { err += dx; y += sy; } }
     };
     if (this.shape === 'line') {
-      const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, hw = this.width / 2, L = this.len * scale;
+      const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, d = Math.hypot(dx, dy), g = grow / d;
+      const hw = this.width / 2 + g, L = this.len * scale + g;
       const P = (u, v) => [ox + dx * u - dy * v, oy + dy * u + dx * v];
-      const c = [P(0, -hw), P(L, -hw), P(L, hw), P(0, hw)];
+      const c = [P(-g, -hw), P(L, -hw), P(L, hw), P(-g, hw)];
       for (let i = 0; i < 4; i++) seg(...c[i], ...c[(i + 1) % 4]);
     } else {
-      const R = this.r * scale, full = this.shape === 'circle';
+      const R = this.r * scale + grow, Ry = this.r * 0.6 * scale + grow, full = this.shape === 'circle';
       const a0 = full ? 0 : this.angle - this.arc / 2, span = full ? Math.PI * 2 : this.arc;
-      const n = Math.max(12, Math.ceil(R * span * 1.1));
-      for (let i = 0; i <= n; i++) { const a = a0 + span * i / n; put(ox + Math.cos(a) * R, oy + Math.sin(a) * R * 0.6); }
-      if (!full) { seg(ox, oy, ox + Math.cos(a0) * R, oy + Math.sin(a0) * R * 0.6); seg(ox, oy, ox + Math.cos(a0 + span) * R, oy + Math.sin(a0 + span) * R * 0.6); }
+      // Stützpunkte etwa alle 2 px, dazwischen Bresenham: saubere, einfache Pixelkontur
+      const n = Math.max(12, Math.ceil(R * span / 2));
+      let px = ox + Math.cos(a0) * R, py = oy + Math.sin(a0) * Ry;
+      for (let i = 1; i <= n; i++) { const a = a0 + span * i / n, qx = ox + Math.cos(a) * R, qy = oy + Math.sin(a) * Ry; seg(px, py, qx, qy); px = qx; py = qy; }
+      if (!full) { seg(ox, oy, ox + Math.cos(a0) * R, oy + Math.sin(a0) * Ry); seg(ox, oy, ox + Math.cos(a0 + span) * R, oy + Math.sin(a0 + span) * Ry); }
     }
     return [...pts.values()];
   }
@@ -135,7 +158,7 @@ export class Telegraph extends Entity {
   // bzw. Laufpfeile und aufsteigende Funken. Kurz vor dem Schlag blinkt der Rand heller.
   renderEmissive(ctx, cx, cy) {
     const k = this.#k(), [r, g, b] = this.color;
-    const thin = this.shape === 'line' && this.width < 8;
+    const thin = this.shape === 'line' && this.width < 8, cool = b > r || g > r;
     const intro = Math.min(1, this.t / 0.12);
     const hot = k > 0.7 && Math.sin(this.t * 24) > 0;
     const lite = (m) => `rgb(${Math.round(r + (255 - r) * m)},${Math.round(g + (255 - g) * m)},${Math.round(b + (255 - b) * m)})`;
@@ -150,16 +173,15 @@ export class Telegraph extends Entity {
       if (this.shape === 'line') this.#chevrons(ctx, cx, cy, k, intro, lite);
       else this.#runes(ctx, cx, cy, k, intro, lite);
       // Wachsende Schlagkante
-      if (k > 0.06 && k < 0.995) {
-        ctx.globalAlpha = 0.8 * intro; ctx.fillStyle = lite(0.4);
+      if (k > 0.06 && k < 0.88) {
+        ctx.globalAlpha = 0.7 * intro; ctx.fillStyle = lite(0.4);
         this.#dots(ctx, this.#outline(cx, cy, this.#fillScale(k)));
       }
       // Rand: dunkle Pixelkante rundum, darauf der Glutrand
-      const pts = this.#outline(cx, cy);
-      ctx.globalAlpha = 0.75 * intro; ctx.fillStyle = 'rgb(14,6,10)';
-      for (const [x, y] of pts) { ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
-      ctx.globalAlpha = intro; ctx.fillStyle = lite(hot ? 0.7 : 0.4);
-      this.#dots(ctx, pts);
+      ctx.globalAlpha = 0.55 * intro; ctx.fillStyle = 'rgb(14,6,10)';
+      this.#dots(ctx, this.#outline(cx, cy, 1, 1));
+      ctx.globalAlpha = intro; ctx.fillStyle = lite(hot ? 0.6 : cool ? 0.2 : 0.35);
+      this.#dots(ctx, this.#outline(cx, cy));
       this.#embers(ctx, cx, cy, intro, lite);
     }
     ctx.restore();
@@ -189,48 +211,42 @@ export class Telegraph extends Entity {
       if (big) { ctx.fillRect(x, y - 2, 1, 1); ctx.fillRect(x, y + 2, 1, 1); }
     }
   }
-  // Laufpfeile entlang der Angriffsrichtung, als Pixeltreppen
+  // Laufpfeile entlang der Angriffsrichtung: handgesetzte Pixelformen in 8 Richtungen (keine gedrehten Linien)
   #chevrons(ctx, cx, cy, k, intro, lite) {
-    const hw = this.width / 2, gap = Math.max(16, Math.round(this.width * 0.9)), w = Math.max(3, Math.round(Math.min(hw * 0.5, 8))), L = this.len;
-    const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, ox = this.x - cx, oy = this.y - cy;
-    const thick = this.width >= 24;
-    const off = (this.t * 60) % gap, front = L * k;
-    for (let u0 = off + 3; u0 < L - w - 3; u0 += gap) {
+    const hw = this.width / 2, big = this.width >= 24, gap = Math.max(16, Math.round(this.width * 0.9)), L = this.len, span = big ? 6 : 4;
+    const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, d = Math.hypot(dx, dy), ox = this.x - cx, oy = this.y - cy;
+    const mask = chevronMask(Math.atan2(dy, dx), big);
+    const off = (this.t * 60) % gap, front = L * k, step = span / d;
+    for (let u0 = off + 3; u0 < L - step - 3; u0 += gap) {
       // Pfeil, den die Schlagkante gerade kreuzt, auslassen (kein abgeschnittener Pfeil)
-      if (front > u0 - 2 && front < u0 + w + 2) continue;
-      const done = u0 + w < front;
+      if (front > u0 - 2 && front < u0 + step + 2) continue;
+      const done = u0 + step < front, uc = u0 + step / 2;
       ctx.globalAlpha = (done ? 0.75 : 0.4) * intro;
       ctx.fillStyle = lite(done ? 0.6 : 0.3);
-      const seen = new Set();
-      for (let s = -1; s <= 1; s += 0.08) {
-        const v = s * w, u = u0 + w - Math.abs(v);
-        for (let t = 0; t <= (thick ? 1 : 0); t++) {
-          const px = Math.round(ox + dx * (u - t) - dy * v), py = Math.round(oy + dy * (u - t) + dx * v), key = px * 4096 + py;
-          if (!seen.has(key)) { seen.add(key); ctx.fillRect(px, py, 1, 1); }
-        }
-      }
+      const X = Math.round(ox + dx * uc), Y = Math.round(oy + dy * uc);
+      for (const [mx, my] of mask) ctx.fillRect(X + mx, Y + my, 1, 1);
     }
   }
   // Schmale Strahlen (Pfeile, Speere, Stacheln): Pixelstrahl, zur Spitze schwächer, mit wanderndem Lichtpunkt
   #thinBeam(ctx, cx, cy, k, intro, hot, lite) {
     const x = this.x - cx, y = this.y - cy;
     const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, L = this.len;
-    const n = Math.ceil(L * 1.2), side = this.width >= 5;
-    const nx = -dy, ny = dx;
-    ctx.fillStyle = lite(0.15);
-    for (let i = 0; i <= n; i++) {
-      const q = i / n, px = x + dx * L * q, py = y + dy * L * q;
-      ctx.globalAlpha = (0.85 - 0.6 * q) * intro * (hot ? 1 : 0.8);
-      if (side) { ctx.fillRect(Math.round(px + nx), Math.round(py + ny), 1, 1); ctx.fillRect(Math.round(px - nx), Math.round(py - ny), 1, 1); }
+    // Ein einzelner, sauberer Pixelstrahl (Bresenham), zur Spitze hin schwächer
+    const X0 = Math.round(x), Y0 = Math.round(y), X1 = Math.round(x + dx * L), Y1 = Math.round(y + dy * L);
+    const ax = Math.abs(X1 - X0), ay = -Math.abs(Y1 - Y0), sx = X0 < X1 ? 1 : -1, sy = Y0 < Y1 ? 1 : -1, n = Math.max(ax, -ay) || 1;
+    let px = X0, py = Y0, err = ax + ay, i = 0;
+    ctx.fillStyle = lite(hot ? 0.6 : 0.35);
+    for (;;) {
+      ctx.globalAlpha = (0.9 - 0.75 * (i++ / n)) * intro;
+      ctx.fillRect(px, py, 1, 1);
+      if (px === X1 && py === Y1) break;
+      const e2 = 2 * err;
+      if (e2 >= ay) { err += ay; px += sx; }
+      if (e2 <= ax) { err += ax; py += sy; }
     }
-    ctx.fillStyle = lite(hot ? 0.85 : 0.55);
-    for (let i = 0; i <= n; i++) {
-      const q = i / n;
-      ctx.globalAlpha = (1 - 0.65 * q) * intro;
-      ctx.fillRect(Math.round(x + dx * L * q), Math.round(y + dy * L * q), 1, 1);
-    }
-    ctx.globalAlpha = intro; ctx.fillStyle = '#ffffff';
-    ctx.fillRect(Math.round(x + dx * L * k) - 1, Math.round(y + dy * L * k) - 1, 2, 2);
+    // Wandernder Lichtpunkt zeigt Richtung und Zeitpunkt
+    ctx.globalAlpha = intro; ctx.fillStyle = lite(0.75);
+    ctx.fillRect(Math.round(x + dx * L * k), Math.round(y + dy * L * k), 2, 1);
   }
   // Aufsteigende Funken am Rand
   #embers(ctx, cx, cy, intro, lite) {

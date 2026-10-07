@@ -141,14 +141,6 @@ class Raster {
   put(F, G, c) {
     if (F >= 0 && G >= 0 && F < this.fw && G < this.fh) this.buf[G * this.fw + F] = col(c);
   }
-  // Feinpixel mit Deckkraft a (0..1) über das Vorhandene legen (durchscheinende Wischspur)
-  blend(F, G, c, a) {
-    if (!c || a <= 0 || F < 0 || G < 0 || F >= this.fw || G >= this.fh) return;
-    const i = G * this.fw + F, o = this.buf[i], v = col(c);
-    const oa = (o >>> 24) / 255, na = Math.min(1, a), out = na + oa * (1 - na);
-    const ch = (sh) => Math.round((((v >>> sh) & 255) * na + ((o >>> sh) & 255) * oa * (1 - na)) / out);
-    this.buf[i] = ((Math.round(out * 255) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)) >>> 0;
-  }
   // ein Feinpixel an Weltposition
   dot(x, y, c) { if (c) this.put(this.fx(x), this.fy(y), c); }
   // ein ganzer Weltpixel (gerundet)
@@ -540,7 +532,7 @@ function drawRider(R, G, L, P, sk) {
 const SMEAR_LEN = { sword: 15, dagger: 7, axe: 15, mace: 15, staff: 15, wand: 8 };
 function drawSmear(R, L, hx, hy, a0, a1) {
   const w = L.weapon;
-  if (w.great) { drawGreatSmear(R, w, hx, hy, a0, a1); return; }
+  if (w.great) return;   // Zweihänder: genau ein Bogen je Hieb – der SlashEffect im Spiel (sprites/effects.js), keiner im Sprite
   const len = (w.family === 'sword' || w.family === 'dagger' ? w.len : null) ?? SMEAR_LEN[w.family] ?? 12;
   const c = w.glow ?? (w.family === 'staff' || w.family === 'wand' ? L.trim : ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8']);
   const rout = len + 1.5, body = Math.max(3, len * 0.5);
@@ -561,34 +553,6 @@ function drawSmear(R, L, hx, hy, a0, a1) {
 
 // Zweihänder: durchscheinender Hiebbogen statt voller Sichel. Je Feinpixel einmal gemischt:
 // heller, dünner Außenrand an der Klingenspitze, nach innen und zum Anfang des Hiebs hin auslaufend.
-function drawGreatSmear(R, w, hx, hy, a0, a1) {
-  // Geschlossenes, durchscheinendes Band auf der Bahn der Klingenspitze. Breiteste Stelle (~2,6 px) kurz vor der Klinge,
-  // zur Spitze hin wieder schmal: der Bogen läuft tangential in die Spitze aus statt mit dickem Ende einen Haken zu bilden.
-  const len = w.len ?? 22, da = a1 - a0;
-  if (Math.abs(da) < 0.05) return;
-  const c = w.edge ?? w.glow ?? ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8'];
-  const rout = len + 0.5, TAU = Math.PI * 2, PEAK = 0.78;
-  R.each(hx - rout - 1, hy - rout - 1, hx + rout + 1, hy + rout + 1, (x, y, F, G) => {
-    const dx = x - hx, dy = y - hy, r = Math.hypot(dx, dy);
-    if (r > rout || r < len * 0.4) return;
-    const phi = Math.atan2(dy, dx);
-    const delta = da > 0 ? ((phi - a0) % TAU + TAU) % TAU : -(((a0 - phi) % TAU + TAU) % TAU);
-    const t = delta / da;
-    if (t < 0 || t > 1) return;
-    const thick = 0.35 + 2.25 * (t < PEAK ? Math.pow(t / PEAK, 1.3) : Math.pow(1 - (t - PEAK) / (1 - PEAK), 0.8)), d = rout - r;
-    if (d > thick) {
-      // zarter Fächer zwischen Bogen und Klinge im letzten Teil des Hiebs: rundet den Übergang an der Spitze
-      const ft = (t - 0.55) / 0.45, fr = (r - len * 0.4) / (rout - thick - len * 0.4);
-      if (ft > 0) R.blend(F, G, c[3], 0.34 * ft * fr * fr);
-      return;
-    }
-    const k = d / thick;
-    const tip = t > 0.92 ? 0.5 + 0.5 * (1 - t) / 0.08 : 1, tp = Math.min(t, PEAK) / PEAK;
-    if (d < 0.6) R.blend(F, G, c[4] ?? c[3], (0.3 + 0.65 * tp) * tip);                 // heller Außenrand (Spitzenbahn)
-    else R.blend(F, G, k < 0.5 ? c[4] ?? c[3] : c[3], (0.3 + 0.45 * tp) * (1 - 0.5 * k) * tip);
-  });
-}
-
 // --- Körperteile ----------------------------------------------------------------------------
 function drawLeg(R, L, P, sk, near) {
   const B = sk.B, lw = B.limb;
@@ -2186,8 +2150,7 @@ function makeFrame(L, pose, post) {
   let G = [];
   drawHero(R, G, L, pose);
   if (post) ({ R, G } = post(R, G));
-  // Durchscheinende Hiebbögen (Zweihänder) behalten ihr Alpha statt als volle Sichel umrandet zu werden
-  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx), { keepAlpha: !!pose.smear && !!L.weapon?.great });
+  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx));
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)

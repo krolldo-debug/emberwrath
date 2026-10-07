@@ -541,24 +541,26 @@ function pauldron(p, g, x, y, rx, ry, ramp, front) {
 // Geisterlicht, Nasenrücken und Wangenknochen im Licht, eingefallene Wange, Zahnreihe.
 // o = dunkle Kontur, 0–4 Haut (dunkel → hell), V Höhle, G/F Geisterauge (Kern/Rand), T/t Zähne.
 // Gibt eine Funktion zurück, die den Bart zeichnet (kommt vor Brust und Schulter).
-// Leichenhaut nur fürs Gesicht: graues Elfenbein mit einem Hauch Grün, gedämpft
-const CORPSE = ['#1c1c19', '#45463e', '#6e7064', '#9a9b8a', '#c0bfab'];
+// Mumienhaut nur fürs Gesicht: dunkles, warmes Grau-Braun wie altes Leder, kühle Schatten.
+// Lesbar über Helligkeit (Stirn und Wangenknochen im Licht, Höhlen schwarz), nicht über Farbe.
+const MUMMY = ['#131118', '#2e2522', '#4f3f33', '#7e6850', '#ac9572'];
 const FACE = [
-  //            0123456789ABCD
-  [0, '...o123321o...'],
-  [1, '..o12333332o..'],
-  [2, '.o1233444433o.'],
-  [3, 'o123344444443o'],
-  [4, 'o1233444444443'],
-  [5, 'o1234444444444'],
+  //            0123456789ABCDEF
+  [0, '...o122221o...'],
+  [1, '..o12233332o..'],
+  [2, '.o1223344433o.'],
+  [3, 'o122334444443o'],
+  [4, 'o1223344444443'],
+  [5, 'o1223444444444'],
   [6, 'o122100003400o'],
   [7, 'o122VVGVV34VGo'],
-  [8, 'o122VVFV034VF3o'],
-  [9, 'o1233VV03444443o'],
-  [10, 'o1234443200ooo'],
-  [11, '.o12oTtTtTto..'],
-  [12, '..o1ooooooo...'],
+  [8, 'o122VVVVV34VV3o'],
+  [9, 'o12344412344443o'],
+  [10, 'o1122111oooooo'],
+  [11, '.o11oTtTtTo..'],
+  [12, '..o1oooooo...'],
 ];
+const EYE_PT = '#e6f1ff';
 const JAW = [
   [0, '..o12tTtTt1o..'],
   [1, '...o122221o...'],
@@ -583,12 +585,11 @@ function head(p, g, hx, hy, P, meta, gy) {
       const ch = s[x];
       if (ch === '.') continue;
       let c;
-      if (ch >= '0' && ch <= '4') c = CORPSE[+ch];
+      if (ch >= '0' && ch <= '4') c = MUMMY[+ch];
       else if (ch === 'o' || ch === 'V') c = VOID;
-      else if (ch === 'T') c = ANT[4];
+      else if (ch === 'T') c = ANT[3];
       else if (ch === 't') c = ANT[2];
-      else if (ch === 'G') c = lit ? GH[4] : CORPSE[1];
-      else if (ch === 'F') c = lit ? GH[2] : VOID;
+      else if (ch === 'G') c = lit ? EYE_PT : MUMMY[1];
       p.px(hx + x, hy + oy + y, c);
     }
   };
@@ -604,9 +605,10 @@ function head(p, g, hx, hy, P, meta, gy) {
   if (lit) {
     const e = P.eye;
     // Leuchthof um beide Höhlen (dunkel, damit der Kern hell heraussticht)
-    // Geisterlicht als klare Punkte in den Höhlen (Kern hell, darunter schwächer)
-    g.px(hx + 6, hy + 7, 3 + 1.5 * e); g.px(hx + 6, hy + 8, 1.5 + e);
-    g.px(hx + 12, hy + 7, 2.5 + 1.5 * e); g.px(hx + 12, hy + 8, 1 + e);
+    // Augen: blasse weißblaue Punkte (im Grundbild). Leuchten nur als schwacher weißer
+    // Schein auf dem Punkt selbst (kein türkiser Hof); Phase 2: kalter Hof in der Höhle.
+    g.apx(hx + 6, hy + 7, 4); g.apx(hx + 12, hy + 7, 4);
+    g.epx(hx + 6, hy + 7, 4); g.epx(hx + 12, hy + 7, 4); g.epx(hx + 5, hy + 7, 1); g.epx(hx + 7, hy + 7, 1); g.epx(hx + 11, hy + 7, 1);
     // Phase 2: lange Flammenfahne nach hinten
     for (let k = 1; k <= 8; k++) {
       const x = hx + 5 - k * 1.2 - P.cape * k * 0.2, y = hy + 6 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;

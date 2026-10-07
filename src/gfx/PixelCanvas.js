@@ -67,8 +67,7 @@ export class PixelCanvas {
 // Selektiver Umriss (Standard): unten/seitlich fast schwarz, oben leicht in der
 // Farbe des angrenzenden Materials getönt – Figuren wirken weniger "ausgestanzt",
 // die Silhouette bleibt trotzdem auf dunklem Boden klar lesbar.
-// keepAlpha: durchscheinende Pixel (Alpha < 250, z. B. Hiebbogen des Zweihänders) bleiben durchscheinend und bekommen keinen Umriss.
-export function outlineCanvas(src, color = PAL.outline, { selective = true, keepAlpha = false } = {}) {
+export function outlineCanvas(src, color = PAL.outline, { selective = true } = {}) {
   const sw = src.width, sh = src.height;
   const w = sw + 2, h = sh + 2;
   const out = makeCanvas(w, h);
@@ -80,7 +79,7 @@ export function outlineCanvas(src, color = PAL.outline, { selective = true, keep
   // Deckungsmaske mit 1 px Rand (Ausgabe-Koordinaten): spart die Bereichsprüfung je Nachbar.
   const mask = new Uint8Array(w * h);
   for (let y = 0; y < sh; y++) {
-    for (let x = 0; x < sw; x++) { const a = sd[(y * sw + x) * 4 + 3]; if (a > 40 && (!keepAlpha || a >= 250)) mask[(y + 1) * w + x + 1] = 1; }
+    for (let x = 0; x < sw; x++) if (sd[(y * sw + x) * 4 + 3] > 40) mask[(y + 1) * w + x + 1] = 1;
   }
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -92,13 +91,7 @@ export function outlineCanvas(src, color = PAL.outline, { selective = true, keep
       }
       const below = y + 1 < h && mask[m + w] === 1, above = y > 0 && mask[m - w] === 1;
       const left = x > 0 && mask[m - 1] === 1, right = x + 1 < w && mask[m + 1] === 1;
-      if (!(below || above || left || right)) {
-        if (keepAlpha && x > 0 && y > 0 && x <= sw && y <= sh) {
-          const si = ((y - 1) * sw + x - 1) * 4;
-          if (sd[si + 3]) { od[i] = sd[si]; od[i + 1] = sd[si + 1]; od[i + 2] = sd[si + 2]; od[i + 3] = sd[si + 3]; }
-        }
-        continue;
-      }
+      if (!(below || above || left || right)) continue;
       od[i + 3] = 255;
       // Oberkante (Pixel liegt über dem Material): getönt. Sonst: Grundfarbe.
       if (selective && below && !above) {
