@@ -111,7 +111,7 @@ section { position: relative; }
 .hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 28px; margin-top: clamp(30px, 3.4vw, 46px); }
 
 /* ---------- Action-Streifen: randlos, ein großes Bild und zwei kleine */
-.strip { display: grid; grid-template-columns: 1fr; height: clamp(420px, 40vw, 780px); background: #000; }
+.strip { display: grid; grid-template-columns: 1fr; height: clamp(420px, 47vw, 860px); background: #000; }
 .strip figure { position: relative; margin: 0; overflow: hidden; cursor: zoom-in; }
 .strip figcaption { position: absolute; left: 0; bottom: 0; padding: 40px 22px 16px; width: 100%; font: 600 clamp(15px, 1.3vw, 19px)/1.2 var(--font-title); color: #fbe9c6; background: linear-gradient(180deg, transparent, rgba(5, 2, 10, 0.8)); letter-spacing: 0.04em; }
 .strip-a figcaption { font-size: clamp(18px, 1.8vw, 26px); padding: 60px 30px 24px; }
@@ -142,14 +142,15 @@ section { position: relative; }
 .bosses { padding: clamp(80px, 9vw, 130px) 0 0; overflow: hidden;
   background: radial-gradient(ellipse 55% 45% at 72% 78%, rgba(160, 50, 14, 0.35), transparent 70%), linear-gradient(180deg, #07030a, #10070a); }
 /* Alle Bosse im selben Faktor: ×2, auf breiten Bildschirmen ×3 */
-@media (min-width: 1720px) {
-  .bosses .arena { max-width: 1680px; gap: 30px; }
+@media (min-width: 1500px) {
+  .bosses .arena, .bosses .wrap { max-width: 1400px; }
+  .bosses .arena { gap: 30px; }
   .boss img[src$="boss-ulgrim.png"] { width: 228px; height: 405px; }
   .boss img[src$="boss-rotmother.png"] { width: 330px; height: 366px; }
   .boss img[src$="boss-skalvyr.png"] { width: 348px; height: 315px; }
-  .boss img[src$="boss-malgareth.png"] { width: 576px; height: 462px; }
+  .boss img[src$="boss-malgareth.png"] { width: 339px; height: 480px; }
 }
-.arena { position: relative; display: flex; justify-content: flex-end; align-items: flex-end; gap: clamp(20px, 4vw, 70px); max-width: var(--max); margin: -40px auto 0; padding: 0 var(--gutter); }
+.arena { position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: clamp(20px, 4vw, 70px); max-width: var(--max); margin: 36px auto 0; padding: 0 var(--gutter); }
 .arena::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; z-index: -1;
   background: linear-gradient(180deg, rgba(40, 18, 14, 0.0), #1a0c0a 40%, #0c0506), repeating-linear-gradient(90deg, transparent 0 62px, rgba(0, 0, 0, 0.35) 62px 64px); }
 .boss { position: relative; flex: none; margin: 0; display: flex; flex-direction: column; align-items: center; }
@@ -516,10 +517,11 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   /* Handy: zwei große Szenen untereinander */
   .strip { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
   .strip figure { aspect-ratio: 4 / 5; --f: 1.67; }   /* hochkant, eigener Ausschnitt (--mx/--my) */
+  .strip .strip-a { --f: 1.34; }   /* Malgareth samt Gruppe ganz im Bild */
   .cls-layout { grid-template-columns: 1fr; grid-template-rows: auto; }
   .cls-side, .hero-fig, .cls-info { grid-column: 1; grid-row: auto; }
   .hero-fig { margin: 30px 0 0; }
-  #p-krieger .hero-fig { width: 231px; height: 264px; }
+  #p-krieger .hero-fig { width: 237px; height: 180px; }
   #p-schurke .hero-fig { width: 174px; height: 162px; }
   #p-waldlaeufer .hero-fig { width: 114px; height: 186px; }
   #p-magier .hero-fig { width: 195px; height: 198px; }
