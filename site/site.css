@@ -518,7 +518,7 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .cls-layout { grid-template-columns: 1fr; grid-template-rows: auto; }
   .cls-side, .hero-fig, .cls-info { grid-column: 1; grid-row: auto; }
   .hero-fig { margin: 30px 0 0; }
-  #p-krieger .hero-fig { width: 222px; height: 252px; }
+  #p-krieger .hero-fig { width: 216px; height: 267px; }
   #p-schurke .hero-fig { width: 174px; height: 162px; }
   #p-waldlaeufer .hero-fig { width: 114px; height: 186px; }
   #p-magier .hero-fig { width: 195px; height: 198px; }
