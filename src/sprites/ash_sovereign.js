@@ -723,72 +723,70 @@ function hairBack(p, g, hx, hy, P) {
   }
 }
 
-// Kopf als Pixelkarte (15 × 21), Blick nach rechts, 3/4-Ansicht. Licht von vorn oben:
-// Stirn, Nasenrücken und Wangenknochen hell, schwere dunkle Brauen über tiefen Höhlen
-// mit weißglühenden Augen, eingefallene Wangen, schmaler harter Mund, Aschebart.
-// h/H/L Haar, o Kontur, d/s/S/T/U Haut (dunkel → hell), v Höhle, E/e Augen (Kern/Glut),
-// m Mund, b/B Bart, n Nasenspitze
+// Kopf als Pixelkarte (16 × 22), Blick nach rechts, 3/4-Ansicht. Aschweißes Gesicht mit
+// hartem Licht von vorn oben: Stirn, Nasenrücken, Wangenknochen hell, Hinterseite dunkel.
+// Schwere Brauen über tiefen Höhlen mit glühenden Augen (2 px hoch), ausgeprägte Nase,
+// eingefallene Wangen, harter Mund, Aschebart. Flache Töne, kein Raster.
+// h/H/L Haar, o Kontur, 1–5 Haut (dunkel → hell), v Höhle, E/e Auge (Kern/Glut),
+// m Mund, b/B Bart
+const ASHFACE = ['#1c1518', '#4a3f43', '#7d7371', '#b4aca4', '#dcd6cc', '#f6f2e8'];
 const HEAD = [
-  '.....hhhhh.....',
-  '...hhHHLLHhh...',
-  '..hHHLLLLLHHh..',
-  '.hHHLoSSSSSSSo.',
-  '.hHHoSTTUUUUUTo',
-  'hHHhoSTUUUUUUUo',
-  'hHhosSTTUUUUTTo',
-  'hHhosdooooSoooo',
-  'hHhosvEevTdvEeo',
-  'hHhossvvsUTsvvn',
-  'hHhhsSTTSUUTSTn',
-  'hHhhsdSSSTTdddo',
-  'hHhhsddSSTTTSso',
-  '.hHhhsdommmmmdo',
-  '.hHhhsdSSTTSdo.',
-  '..hhhhbBBLBBb..',
-  '...hhhbBBLBBb..',
-  '....hhbBBLBb...',
-  '.....hbBBBb....',
-  '......bBBb.....',
-  '.......bb......',
+  '.....hhhhhh.....',
+  '...hhHHLLLHhh...',
+  '..hHHLLLLLLHHh..',
+  '.hHHLo34444444o.',
+  '.hHHo234555555o.',
+  'hHHho2345555555o',
+  'hHhho2344555554o',
+  'hHhho2ooooo5ooo.',
+  'hHhho2vEevv5vEo.',
+  'hHhho2veevv5veo.',
+  'hHhho234432555o.',
+  'hHhho2455325555o',
+  'hHhho1243321ooo.',
+  'hHhho12233344o..',
+  '.hHho12ommmmmo..',
+  '.hHho1233445o...',
+  '..hhhbBBLBBBb...',
+  '...hhbBBLBBb....',
+  '....hhbBLBBb....',
+  '.....hbBBBb.....',
+  '......bBBb......',
+  '.......bb.......',
 ];
-const MOUTH_ROW = 13;
+const MOUTH_ROW = 14;
 function head(p, g, hx, hy, P, meta) {
   const j = Math.round(P.jaw * 2);
   const eyeOn = P.eye > 0.1, eyeHot = P.eye > 0.6;
   const C = {
     h: HAIR[0], H: HAIR[1], L: HAIR[3], W: HAIR[4],
-    o: SKIN[0], d: SKIN[1], s: SKIN[2], S: SKIN[3], T: SKIN[4], U: SKIN[5], n: SKIN[4],
+    o: ASHFACE[0], 1: ASHFACE[1], 2: ASHFACE[2], 3: ASHFACE[3], 4: ASHFACE[4], 5: ASHFACE[5],
     v: VOID, m: VOID, b: HAIR[1], B: HAIR[2],
-    E: eyeOn ? '#fff0b0' : SKIN[0], e: eyeOn ? MAG[3] : SKIN[0],
+    E: eyeOn ? '#fff0b0' : ASHFACE[1], e: eyeOn ? MAG[3] : VOID,
   };
-  for (let r = 0; r < HEAD.length; r++) {
-    const row = HEAD[r];
-    const dy = r > MOUTH_ROW ? r + j : r;
-    for (let c = 0; c < row.length; c++) {
-      const ch = row[c];
-      if (ch === '.') continue;
-      p.px(hx + c, hy + dy, C[ch]);
-      if (r === MOUTH_ROW && ch === 'm') for (let q = 1; q <= j; q++) p.px(hx + c, hy + r + q, VOID);
-    }
-    if (r === MOUTH_ROW && j > 0) for (let q = 1; q <= j; q++) { p.px(hx + 2, hy + r + q, HAIR[1]); p.px(hx + 3, hy + r + q, HAIR[0]); p.px(hx + 4, hy + r + q, HAIR[0]); p.px(hx + 5, hy + r + q, SKIN[1]); p.px(hx + 13, hy + r + q, SKIN[2]); }
-  }
+  const row = (r, y, open) => {
+    const s = HEAD[r];
+    for (let c = 0; c < s.length; c++) if (s[c] !== '.') p.px(hx + c, y, open && s[c] === 'm' ? VOID : C[s[c]]);
+  };
+  for (let r = 0; r <= MOUTH_ROW; r++) row(r, hy + r, false);
+  for (let q = 1; q <= j; q++) row(MOUTH_ROW, hy + MOUTH_ROW + q, true);
+  for (let r = MOUTH_ROW + 1; r < HEAD.length; r++) row(r, hy + r + j, false);
   // Augen: glühen weiß-golden
   if (eyeOn) {
-    g.px(hx + 6, hy + 8, eyeHot ? 4 : 3); g.px(hx + 7, hy + 8, eyeHot ? 3 : 2);
-    g.px(hx + 12, hy + 8, eyeHot ? 4 : 3); g.px(hx + 13, hy + 8, eyeHot ? 3 : 2);
-    if (P.eye > 0.8) { g.max(hx + 5, hy + 8, 1); g.max(hx + 8, hy + 8, 1); g.max(hx + 11, hy + 8, 1); g.max(hx + 6, hy + 9, 0); g.max(hx + 12, hy + 9, 0); }
-    if (P.crack > 0.9) { g.max(hx + 4, hy + 8, 1); g.max(hx + 3, hy + 7, 0); g.max(hx + 14, hy + 7, 0); }
+    g.px(hx + 7, hy + 8, eyeHot ? 4 : 3); g.px(hx + 8, hy + 8, eyeHot ? 3 : 2); g.px(hx + 7, hy + 9, 2); g.px(hx + 8, hy + 9, 2);
+    g.px(hx + 13, hy + 8, eyeHot ? 4 : 3); g.px(hx + 13, hy + 9, 2);
+    if (P.eye > 0.8) { g.max(hx + 6, hy + 8, 1); g.max(hx + 9, hy + 8, 1); g.max(hx + 12, hy + 8, 1); }
+    if (P.crack > 0.9) { g.max(hx + 5, hy + 8, 1); g.max(hx + 4, hy + 7, 0); g.max(hx + 14, hy + 7, 0); }
   }
-  meta.eye = { x: hx + 12, y: hy + 8 };
+  meta.eye = { x: hx + 13, y: hy + 8 };
   // Mund: Glutspalt
   if (j) { g.px(hx + 9, hy + MOUTH_ROW, P.jaw > 0.7 ? 3 : 2); g.px(hx + 10, hy + MOUTH_ROW + j - 1, 2); if (j > 1) g.px(hx + 9, hy + MOUTH_ROW + 1, 4); }
   else g.max(hx + 9, hy + MOUTH_ROW, 0);
   meta.mouth = { x: hx + 10, y: hy + MOUTH_ROW };
-  // Glutrisse im Gesicht
-  // (nur ab Gestalt 2, und an Schläfe und Wange vorbei an Augen und Mund)
-  if (P.crack > 0.5) crackLine(g, [[hx + 4, hy + 4], [hx + 5, hy + 7], [hx + 4, hy + 11]], P, 0);
-  if (P.crack > 0.9) crackLine(g, [[hx + 11, hy + 10], [hx + 12, hy + 12]], P, 0);
-  g.max(hx + 9, hy + 18 + j, 0);
+  // Glutrisse im Gesicht (nur ab Gestalt 2, an Schläfe und Wange vorbei an Augen und Mund)
+  if (P.crack > 0.5) crackLine(g, [[hx + 5, hy + 4], [hx + 6, hy + 7], [hx + 5, hy + 12]], P, 0);
+  if (P.crack > 0.9) crackLine(g, [[hx + 10, hy + 11], [hx + 11, hy + 13]], P, 0);
+  g.max(hx + 9, hy + 19 + j, 0);
   // Krone
   if (P.crownDrop < 0.02) crown(p, g, hx, hy + 2, 0, P);
   meta.head = { x: hx + 8, y: hy - 2 };

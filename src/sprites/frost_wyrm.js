@@ -47,6 +47,8 @@ const FURYG = ['#1c2c80', '#3a6cf0', '#7ec4ff', '#d8f4ff', '#ffffff'];
 
 // Materialien (für Randlicht und Erstarren)
 const M_SCALE = 1, M_BELLY = 2, M_CRYS = 3, M_HORN = 4, M_MOUTH = 5, M_CLAW = 6, M_EYE = 7;
+// Kopfschuppen: bekommen nur die obere Lichtkante (keine Streupixel an schrägen Unterkanten)
+const M_HEAD = 8;
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
@@ -437,6 +439,8 @@ function foreleg(p, sx, sy, fx, fy, near, lift) {
 // ---------------------------------------------------------------- Kopf
 
 // Kopf in lokalen Koordinaten (u nach vorn, v nach unten), gedreht um ha.
+const SKULL_TOP = [[-6, -3], [-4, -7.4], [1, -9.6], [6, -10.3], [10, -9], [13, -6.6], [17, -5.6], [21.5, -4.8], [25, -3.9], [27.5, -2.4], [28, 0.2]];
+
 // Aufbau von hinten nach vorn: ferne Hörner, Unterkiefer, Rachen (Gaumen,
 // Schlund mit Frostleuchten, Zunge), untere Zahnreihe, Schädel/Oberkiefer,
 // obere Zahnreihe, Auge, nahe Hörner.
@@ -453,7 +457,7 @@ function drawHead(p, g, bx, by, P, o) {
   const hingeU = -1, hingeV = 2.6;
   const J = (u, v) => [hingeU + jc * (u - hingeU) - js * (v - hingeV), hingeV + js * (u - hingeU) + jc * (v - hingeV)];
   const invJ = (u, v) => [hingeU + jc * (u - hingeU) + js * (v - hingeV), hingeV - js * (u - hingeU) + jc * (v - hingeV)];
-  const dith = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] - 7.5) / 16;
+  const dith = () => 0; // Kopf flach schattiert: kein Raster, kein Rauschen
   const LIP = 2.5; // Oberkante des Unterkiefers / Unterkante des Oberkiefers (v)
 
   // Hintere Hörner (ferne Seite, dunkler)
@@ -463,18 +467,16 @@ function drawHead(p, g, bx, by, P, o) {
   const jaw = [[-4, 1.2], [4, LIP], [12, LIP], [19, LIP - 0.1], [23.5, LIP - 0.2], [24.5, 3.6], [23, 5.4], [18, 6.4], [10, 7.4], [3, 7.7], [-3, 6.5], [-5, 4]];
   poly(jaw.map(([u, v]) => J(u, v)), (u, v, x, y) => {
     const [ju, jv] = invJ(u, v);
-    let idx = 4 - (jv - LIP) * 0.62 + dith(x, y) * 0.45;
-    if (jv < LIP + 0.9 && ju > 2) idx += 0.9;                          // Lippenkante
-    if (jv > 5 && (((ju + 0.5) / 3) % 1) < 0.22) idx -= 0.8;           // Kehlschuppen
-    if (ju < 1 && jv > 3 && jv < 5.5 && ju > -3) idx -= 0.6;           // Kiefermuskel
-    return SCALE[Math.max(1, Math.min(6, Math.round(idx)))];
-  }, M_SCALE);
+    // drei flache Bänder: helle Kieferkante, Seite, dunkle Unterseite
+    const idx = jv < LIP + 1.4 ? 4 : jv < LIP + 3.6 ? 3 : 2;
+    return SCALE[idx];
+  }, M_HEAD);
   // Kinnbart aus Eiszapfen
-  for (const [u, len] of [[6, 3.5], [11, 4.5], [16, 2.8], [20, 1.8]]) {
-    const [a0, b0] = J(u, 6.6 - u * 0.03), [a1, b1] = J(u - 1.3, 6.6 + len);
+  for (const [u, len] of [[5, 3.2], [10, 4.2], [15, 2.6]]) {
+    const [a0, b0] = J(u, 6.2 - u * 0.03), [a1, b1] = J(u - 1.3, 6.6 + len);
     const [x0, y0] = T(a0, b0), [x1, y1] = T(a1, b1);
-    p.line(x0, y0, x1, y1, CRYS[1], M_CRYS); p.px(x1, y1, CRYS[3], M_CRYS);
-    if (!frozen) g.px(x1, y1, 1);
+    p.line(x0, y0, x1, y1, CRYS[1], M_CRYS); p.line(x0 + 1, y0, x1, y1, CRYS[0], M_CRYS);
+    if (!frozen && len > 4) g.px(x1, y1, 1);
   }
 
   // Rachen
@@ -509,14 +511,13 @@ function drawHead(p, g, bx, by, P, o) {
           if (Math.abs(uu + (s - 0.5) * 0.8 - us) < 0.42 && Math.abs(s - cut) > 0.09) { mouthGlow.push(x, y, 1); return s < 0.5 ? TEETH[0] : CRYS[3]; }
         }
         // Streulicht des Kerns auf Gaumen und Zungengrund
-        if (d < 1.4 && (BAYER[(y & 3) * 4 + (x & 3)] / 16) < (1.4 - d) * 1.2) { if (d < 1.25) mouthGlow.push(x, y, 0); return THROAT[2]; }
+        if (d < 1.25) { mouthGlow.push(x, y, 0); return THROAT[2]; }
         const e = Math.abs(s - 0.5) * 2;
         let idx = 0.2 + r * 2.1 + e * e * 1.3 + dd * 0.6;
-        if (s < 0.3 && r > 0.15) idx += ((((u + 0.6) / 2.4) % 1) < 0.35 ? -0.9 : 0.35);   // Gaumenleisten
+        if (s < 0.3 && r > 0.15) idx -= 0.4;                                                // Gaumen im Schatten
         if (r > 0.2 && fromTop < 0.85) idx = 4.3 + dd * 0.5;                                // Zahnfleisch oben
         else if (r > 0.25 && fromBot < 0.85) idx = 3.9 + dd * 0.5;                         // Zahnfleisch unten
         if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
-        else if (hash2(x, y, 17) < 0.05 * maw && d < 2.2) mouthGlow.push(x, y, 1);
         return MAW[Math.max(0, Math.min(5, Math.round(idx)))];
       }, M_MOUTH);
     } else poly([...top, ...bot], (u, v, x, y) => {
@@ -534,7 +535,7 @@ function drawHead(p, g, bx, by, P, o) {
         return THROAT[Math.max(0, Math.min(3, Math.round(k * (1.6 + breath * 1.6) + dd * 0.9)))];
       }
       let idx = 1.2 + Math.min(1.5, (u - tcu) / 12) + dd * 0.55;
-      if (fromTop < 1.3) idx = 2.3 + ((((u + 0.6) / 2.6) % 1) < 0.4 ? -0.9 : 0.6);  // Gaumenleisten
+      if (fromTop < 1.3) idx = 2;                                          // Gaumen
       else if (fromBot < 0.9) idx = 3.3;                                   // Zahnfleisch unten
       else if (fromTop < 2) idx -= 0.8;                                    // Schatten unter dem Gaumen
       if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
@@ -560,42 +561,62 @@ function drawHead(p, g, bx, by, P, o) {
 
   // Schädel und Oberkiefer
   const skull = [[-6, -3], [-4, -7.4], [1, -9.6], [6, -10.3], [10, -9], [13, -6.6], [17, -5.6], [21.5, -4.8], [25, -3.9], [27.5, -2.4], [28, 0.2], [26.5, LIP], [18, LIP], [9, LIP], [2, LIP + 0.6], [-4, 3.8]];
-  poly(skull, (u, v, x, y) => {
-    let idx = 4.4 - (v + 8) * 0.28 + dith(x, y) * 0.45;                  // wenig Raster: ruhige Flächen im Gesicht
-    if (v > 0.6) idx -= 1.1;                                              // Oberlippe im Schatten
-    if (v > LIP - 0.9 && u > 3) idx = 1.4;                               // Lippenkante: klare dunkle Maullinie
-    if (u > 3 && u < 13 && v < -7.6) idx += 1.4;                          // Brauenwulst hell
-    if (u > 5 && u < 13.5 && v > -7.6 && v < -6.3) idx -= 2.2;            // tiefer Schatten unter dem Wulst
-    if (u > 13 && v < -3.8 && v > -5.4 && ((u | 0) % 3 === 0)) idx -= 1;  // Schnauzenschuppen
-    if (u < 4 && u > -4 && v > -1 && v < 2 && ((((u + v) / 2.5) % 1 + 1) % 1) < 0.3) idx -= 1; // Wangenplatten
-    if (u > 22.5 && u < 25 && v < -1.6 && v > -3.2) idx = 0.5;            // Nüster
-    if (u > 6.5 && u < 12.5 && v > -6.7 && v < -3.4) idx = Math.min(idx, 1.4 + dith(x, y)); // Augenhöhle
-    return SCALE[Math.max(0, Math.min(6, Math.round(idx)))];
-  }, M_SCALE);
+  // Flache Ebenen statt Verlauf: Oberseite hell, Seite mittel, Oberlippe dunkel.
+  // Darüber ein klarer Brauenwulst, darunter die tiefe Augenhöhle, vorn die Nüster.
+  const topV = (u) => {
+    for (let i = 0; i < SKULL_TOP.length - 1; i++) {
+      const [u0, v0] = SKULL_TOP[i], [u1, v1] = SKULL_TOP[i + 1];
+      if (u <= u1) return v0 + (v1 - v0) * Math.max(0, (u - u0) / (u1 - u0));
+    }
+    return SKULL_TOP[SKULL_TOP.length - 1][1];
+  };
+  poly(skull, (u, v) => {
+    const h = (LIP - v) / Math.max(1, LIP - topV(u));                   // 0 Lippe … 1 Oberkante
+    let idx = h > 0.72 ? 4 : 3;
+    if (u < -1.5 && h < 0.72) idx = Math.min(idx, 2);                    // Wange hinten im Schatten
+    if (u > 14 && u < 23 && h > 0.72 && ((u - 14) % 3.2) < 0.75) idx = 5; // Schnauzenschuppen (Höcker)
+    return SCALE[idx];
+  }, M_HEAD);
+  // Brauenwulst: kräftiger Knochenbogen über dem Auge, vorn tiefer (finsterer Blick):
+  // zwei helle Linien, darunter eine harte Schattenkante zur Augenhöhle
+  const tl = (u0, v0, u1, v1, c) => { const [x0, y0] = T(u0, v0), [x1, y1] = T(u1, v1); p.line(x0, y0, x1, y1, c, M_HEAD); };
+  // Maullinie: eine saubere dunkle Linie vom Mundwinkel bis zur Schnauzenspitze
+  tl(-3.4, LIP - 0.45, 26.8, LIP - 0.45, SCALE[0]);
+  tl(-3, LIP + 0.3, 26.4, LIP + 0.3, SCALE[0]);
+  tl(1, LIP - 1.25, 25.5, LIP - 1.25, SCALE[4]); // heller Lippenwulst darüber
+  // Nüster: dunkler Schlitz mit hellem Rand darüber
+  for (const [du, dv, c] of [[22.4, -2.5, 5], [23.4, -2.7, 5], [24.4, -2.8, 5], [22.6, -1.7, 0], [23.6, -1.85, 0], [24.6, -2, 0], [21.6, -1.6, 0]]) {
+    const [x, y] = T(du, dv); p.px(x, y, SCALE[c], M_HEAD);
+  }
   // Brauenkristall über dem Auge
   hornCurve(p, g, T, [[9, -9], [5, -12.5], [0, -14]], 2.4, 0.8, false, P, frozen);
   // Obere Zahnreihe (zeigt nach unten), großer Eisfang vorn
   const upTeeth = [[5.5, 1], [8.8, 1.5], [12.2, 1.9], [15.4, 1.5], [18.6, 4], [21.8, 1.6], [24.8, 2.4]];
-  for (const [u, len] of upTeeth) {
-    if (!open && len < 1.4) continue;
-    tooth(p, T, [u, LIP - 0.3], [u - 0.35, LIP + len], len);
-  }
+  for (const [u, len] of upTeeth) { const l = open ? len : Math.max(1.6, Math.min(len, 2.8)); tooth(p, T, [u, LIP + 1], [u - 0.2, LIP + 0.6 + l], l); }
   // Mundwinkel
-  { const [x0, y0] = T(-3.5, LIP + 0.1), [x1, y1] = T(1.5, LIP + 0.2); p.line(x0, y0, x1, y1, SCALE[0], M_SCALE); }
+  { const [x0, y0] = T(-3.5, LIP + 0.1), [x1, y1] = T(1.5, LIP + 0.2); p.line(x0, y0, x1, y1, SCALE[0], M_HEAD); }
 
-  // Auge: Schlitzpupille in leuchtender Iris, dunkle Höhle
-  const [ex, ey] = T(9.4, -5);
+  // Auge: große leuchtende Iris mit senkrechter Schlitzpupille in dunkler Höhle,
+  // schräger Oberrand unter dem Brauenwulst (finsterer Blick)
+  const [ex, ey] = T(9.6, -5.1);
   const exr = Math.round(ex), eyr = Math.round(ey);
-  // Höhle mit dunklem Rand; schräger Oberrand (finsterer Blick)
-  for (const [dx, dy] of [[-3, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1], [3, 1], [4, 0], [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1], [3, -1], [-1, -2], [0, -2], [1, -2], [2, -2], [3, -2], [4, -1]]) p.px(exr + dx, eyr + dy, SCALE[0]);
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -4; dx <= 4; dx++) {
+    if (Math.abs(dy) === 2 && (dx < -2 || dx > 3)) continue;
+    if (dy === -2 && dx < -1) continue;
+    p.px(exr + dx, eyr + dy, SCALE[0], M_HEAD);
+  }
   if (P.eye > 0.4 && !frozen) {
-    p.px(exr - 2, eyr, '#3a9ccc', M_EYE); p.px(exr - 1, eyr, '#8fe6ff', M_EYE); p.px(exr, eyr, '#f2feff', M_EYE); p.px(exr + 1, eyr, '#0a1424', M_EYE); p.px(exr + 2, eyr, '#8fe6ff', M_EYE); p.px(exr + 3, eyr, '#3a9ccc', M_EYE);
-    p.px(exr, eyr - 1, '#5ac4e8', M_EYE); p.px(exr + 1, eyr - 1, '#0a1424', M_EYE); p.px(exr + 2, eyr - 1, '#5ac4e8', M_EYE);
-    g.px(exr, eyr, 4); g.px(exr - 1, eyr, 3); g.px(exr + 2, eyr, P.eye > 0.8 ? 3 : 2);
-    g.px(exr - 2, eyr, 1); g.px(exr + 3, eyr, 1); g.px(exr, eyr - 1, 2); g.px(exr + 2, eyr - 1, 2);
-    if (P.eye > 0.8) { g.apx(exr - 2, eyr, 1); g.epx(exr - 2, eyr, 2); g.epx(exr + 3, eyr, 2); g.epx(exr + 4, eyr, 1); }
+    // Iris: 6×3, außen kräftiges Eisblau, innen hell, Glanzpunkt oben links
+    const IR = [[-2, -1, 1], [-1, -1, 2], [0, -1, 2], [2, -1, 2], [3, -1, 1],
+      [-3, 0, 1], [-2, 0, 2], [-1, 0, 3], [0, 0, 3], [2, 0, 3], [3, 0, 2], [4, 0, 1],
+      [-2, 1, 1], [-1, 1, 2], [0, 1, 2], [2, 1, 2], [3, 1, 1]];
+    const EC = ['', '#2f8cc0', '#7fdcff', '#d8faff'];
+    for (const [dx, dy, k] of IR) { p.px(exr + dx, eyr + dy, EC[k], M_EYE); g.px(exr + dx, eyr + dy, k + (P.eye > 0.8 ? 1 : 0)); }
+    p.px(exr - 1, eyr - 1, '#f6feff', M_EYE); g.px(exr - 1, eyr - 1, 4);
+    for (let dy = -1; dy <= 1; dy++) p.px(exr + 1, eyr + dy, '#060c18', M_EYE); // Schlitzpupille
+    if (P.eye > 0.8) { g.epx(exr - 4, eyr, 1); g.epx(exr + 5, eyr, 1); }
   } else {
-    p.px(exr, eyr, SCALE[2]); p.px(exr + 1, eyr, SCALE[1]);
+    for (let dx = -2; dx <= 3; dx++) p.px(exr + dx, eyr, dx === 1 ? SCALE[1] : SCALE[2], M_HEAD);
     if (!frozen && P.eye > 0.05) g.px(exr + 1, eyr, 1);
   }
   // Nüsterfrost
@@ -603,6 +624,10 @@ function drawHead(p, g, bx, by, P, o) {
   // Vordere Hörner: langes, zurückgeschwungenes Kristallhorn + kürzeres oberes
   hornCurve(p, g, T, [[1, -7], [-8, -14.5], [-22, -13.5]], 5.4, 1.2, false, P, frozen);
   hornCurve(p, g, T, [[4.5, -8.5], [0, -15.5], [-6, -20]], 3.8, 1, false, P, frozen);
+  // Brauenwulst vor den Hornansätzen: zwei helle Linien, darunter harte Schattenkante
+  tl(4, -9.5, 15, -7.9, SCALE[6]);
+  tl(4.5, -8.7, 15.5, -7.1, SCALE[5]);
+  tl(5.5, -7.9, 15.2, -6.4, SCALE[0]);
   // Wangendorn nach hinten unten
   hornCurve(p, g, T, [[-1, 2], [-5, 5], [-8, 9]], 2.6, 1, false, P, frozen, true);
 
@@ -615,14 +640,11 @@ function drawHead(p, g, bx, by, P, o) {
 
 // Zahn als spitzes Dreieck von der Wurzel (a) zur Spitze (b), lokale Kopfkoordinaten
 function tooth(p, T, [ua, va], [ub, vb], len) {
+  // sauberer Strich von der Wurzel zur Spitze; große Fänge doppelt breit mit Schattenseite
   const [x0, y0] = T(ua, va), [x1, y1] = T(ub, vb);
-  const w = len > 2.5 ? 0.9 : 0.55;
-  const [xa, ya] = T(ua - w, va), [xb, yb] = T(ua + w, va);
-  fillPoly([[xa, ya], [xb, yb], [x1 + 0.5, y1 + 0.5]], (x, y) => p.px(x, y, TEETH[1], M_HORN));
+  if (len > 2.5) { const [xs, ys] = T(ua + 0.8, va), [xt, yt] = T(ub + 0.5, vb - Math.sign(vb - va) * 0.6); p.line(xs, ys, xt, yt, TEETH[0], M_HORN); }
   p.line(x0, y0, x1, y1, TEETH[1], M_HORN);
-  p.px(xa, ya, TEETH[0], M_HORN);
   p.px(x1, y1, TEETH[2], M_HORN);
-  if (len > 2.5) { const [xm, ym] = T((ua + ub) / 2 + 0.3, (va + vb) / 2); p.px(xm, ym, TEETH[2], M_HORN); }
 }
 
 // Kristallhorn entlang einer quadratischen Kurve (lokale Kopfkoordinaten)
@@ -693,9 +715,14 @@ function rimLight(L) {
   const top = [];
   for (let y = 1; y < H; y++) for (let x = 1; x < W; x++) {
     const i = y * W + x, m = L.mat[i];
-    if (m !== M_SCALE && m !== M_CLAW && m !== M_BELLY) continue;
-    if (!L.base[i - W]) top.push(i, 1);
-    else if (!L.base[i - 1]) top.push(i, 2);
+    if (m !== M_SCALE && m !== M_CLAW && m !== M_BELLY && m !== M_HEAD) continue;
+    if (!L.base[i - W]) {
+      // keine Lichtkante in schmalen Spalten direkt unter Kiefer und Zähnen
+      const up2 = y > 2 ? L.mat[i - 2 * W] : 0, up3 = y > 3 ? L.mat[i - 3 * W] : 0;
+      if (up2 !== M_HEAD && up2 !== M_HORN && up3 !== M_HEAD && up3 !== M_HORN) top.push(i, 1);
+    }
+    // Seitenkante nicht am Kopf und nicht direkt unter Kiefer/Zähnen (dort entstünden Streupixel)
+    else if (!L.base[i - 1] && m !== M_HEAD && L.mat[i - W] !== M_HEAD && L.mat[i - W] !== M_HORN) top.push(i, 2);
   }
   for (let k = 0; k < top.length; k += 2) { const i = top[k]; if (!L.ga[i]) L.base[i] = top[k + 1] === 1 ? rim : rim2; }
 }

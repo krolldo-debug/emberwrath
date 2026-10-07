@@ -29,24 +29,25 @@ const THIGH = 15, SHIN = 15, SPINE = 22, UPPER = 12.5, FORE = 12.5, BLADE = 45;
 const SK = 1.16;
 const SCALED = ['hipX', 'hipY', 'fFx', 'fFy', 'fBx', 'fBy', 'hFx', 'hFy', 'hBx', 'hBy'];
 
-// Schädel (Dreiviertelansicht, Blick nach rechts): 0–4 = Knochenrampe, V = Höhle,
-// T/t = Zähne. Brauen fallen zur Nase hin ab (finsterer Blick).
+// Schädel (Dreiviertelansicht, Blick nach rechts): 0–4 = Knochenrampe (Hinterkopf im
+// Schatten, Stirn und Wangenknochen vorn im Licht), o = dunkle Kante, V = tiefe Höhle,
+// E/e = Seelenfeuer im Auge (Kern/Rand), T/t = Zähne. Brauen fallen zur Nase hin ab.
 const SKULL = [
   '....12333321....',
   '..123444444321..',
   '.12344444444431.',
-  '1234444444444431',
-  '1233444444444443',
-  '12333VV444443VV2',
-  '12332VVVV443VVV1',
-  '12322VVVV323VVV1',
-  '122221VVV232VV21',
-  '1222234432VV3442',
-  '.112221111V12221',
-  '..0112TtTtTtTt1.',
+  '1233444444444442',
+  '12233ooo444444o2',
+  '1223oVVVoo44oVVo',
+  '1223oVEeVo42oEVo',
+  '1222oVVeVo32oVVo',
+  '12223oVVo3443oo2',
+  '1222234443oVo432',
+  '.112221110oVo221',
+  '..o112TtTtTtTto.',
 ];
 const SKULL_JAW = [
-  '...012tTtTtTt1..',
+  '...o12tTtTtTto..',
   '....0122222221..',
   '.....01111110...',
 ];
@@ -348,7 +349,8 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
     for (let y = 0; y < rows.length; y++) for (let x = 0; x < rows[y].length; x++) {
       const ch = rows[y][x];
       if (ch === '.') continue;
-      const c = ch === 'V' ? VOID : ch === 'T' ? B[4] : ch === 't' ? B[2] : B[+ch];
+      const c = ch === 'V' || ch === 'o' ? VOID : ch === 'T' ? B[4] : ch === 't' ? B[2]
+        : ch === 'E' ? (P.eye > 0.2 ? glow[3] : VOID) : ch === 'e' ? (P.eye > 0.2 ? glow[2] : VOID) : B[+ch];
       p.px(ox + x, oy + y, c);
     }
   };
@@ -363,18 +365,14 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
   if (jaw) { p.px(hx + 7, hy + 11 + jaw, B[3]); p.px(hx + 11, hy + 11 + jaw, B[3]); }
   // Augen: Seelenfeuer in den Höhlen
   if (P.eye > 0.2) {
-    // Glimmen schon im Grundbild (lesbar auch ohne Leucht-Ebene, z. B. Webseite)
-    p.px(hx + 7, hy + 7, glow[2]); p.px(hx + 6, hy + 7, glow[1]); p.px(hx + 13, hy + 7, glow[2]);
     // kleiner, heißer Kern – die dunkle Höhle bleibt drumherum sichtbar
-    g.px(hx + 7, hy + 7, glow[4]); g.px(hx + 6, hy + 7, glow[3]); g.px(hx + 7, hy + 6, glow[2]);
-    g.px(hx + 13, hy + 7, glow[3]); g.px(hx + 13, hy + 6, glow[1]);
+    g.px(hx + 6, hy + 6, glow[4]); g.px(hx + 7, hy + 6, glow[3]); g.px(hx + 7, hy + 7, glow[2]);
+    g.px(hx + 13, hy + 6, glow[3]); g.px(hx + 13, hy + 7, glow[1]);
     if (P.eye > 0.8) {
-      g.px(hx + 8, hy + 7, glow[1]);
-      // Flammenzungen aus den Höhlen nach oben hinten
-      g.px(hx + 6, hy + 5, glow[1]); g.px(hx + 5, hy + 4, glow[1]); g.px(hx + 14, hy + 5, glow[1]);
+      g.px(hx + 6, hy + 7, glow[1]); g.px(hx + 6, hy + 5, glow[1]); g.px(hx + 14, hy + 6, glow[1]);
     }
   }
-  meta.eye = { x: hx + 7, y: hy + 6 };
+  meta.eye = { x: hx + 6, y: hy + 6 };
   // Eisenreif mit Knochendornen
   p.rect(hx, hy - 1, 16, 3, St[1]); p.rect(hx, hy - 1, 16, 1, St[3]); p.rect(hx, hy + 1, 16, 1, St[0]);
   for (let x = hx + 2; x < hx + 16; x += 4) p.px(x, hy, St[4]);

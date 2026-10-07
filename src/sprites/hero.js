@@ -432,6 +432,15 @@ function drawHero(R, G, L, pose) {
 
   // 1) Hinten: Umhang, Mantel, Köcher, langes Haar
   if (L.back === 'cape' || L.back === 'cloak') drawCape(R, L, P, sk);
+  // Zweihänder im Ausholen (wBack): Klinge hinter Kopf und Körper, damit der Helm sichtbar bleibt
+  if (P.wBack && L.weapon.great) {
+    const armB = ik(sk.shN.x, sk.shN.y, sk.shN.x + P.handM[0], sk.shN.y + P.handM[1], B.arm[0], B.arm[1], -1);
+    const n0 = G.length;
+    drawWeapon(R, G, L.weapon, armB.ex, armB.ey, P.wM, P, false, P.reach);
+    // Leuchtpunkte/Waffeneffekte würden im Emissive-Pass über dem Kopf liegen: Punkte weg, Achse als verdeckt markieren
+    const added = G.splice(n0);
+    for (const g of added) if (g.axis) G.push({ ...g, back: true });
+  }
   if (L.quiver) drawQuiver(R, L, sk);
   drawHairBack(R, L, P, sk);
 
@@ -486,8 +495,9 @@ function drawHero(R, G, L, pose) {
     const armN = ik(sk.shN.x, sk.shN.y, hand.x, hand.y, B.arm[0], B.arm[1], -1);
     const behind = L.weapon.family === 'staff';
     if (P.smear) drawSmear(R, L, armN.ex, armN.ey, P.smear[0], P.smear[1]);
-    if (behind) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
-    if (!behind) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
+    const back = P.wBack && L.weapon.great;
+    if (behind && !back) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
+    if (!behind && !back) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
     drawArm(R, L, sk.shN, armN, false);
     if (L.weapon.family === 'wand' || L.weapon.family === 'staff') drawGrip(R, L, L.weapon, armN.ex, armN.ey, P.wM);
   }
@@ -552,23 +562,22 @@ function drawSmear(R, L, hx, hy, a0, a1) {
 // Zweihänder: durchscheinender Hiebbogen statt voller Sichel. Je Feinpixel einmal gemischt:
 // heller, dünner Außenrand an der Klingenspitze, nach innen und zum Anfang des Hiebs hin auslaufend.
 function drawGreatSmear(R, w, hx, hy, a0, a1) {
-  const len = w.len ?? 21, da = a1 - a0;
+  // Geschlossenes, durchscheinendes Band, das an der Klingenspitze ansetzt: vorn ~2,5 px breit, zum Schweif hin schmal und blasser.
+  const len = w.len ?? 22, da = a1 - a0;
   if (Math.abs(da) < 0.05) return;
   const c = w.edge ?? w.glow ?? ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8'];
-  const rout = len + 0.8, body = len * 0.2, TAU = Math.PI * 2;
+  const rout = len + 0.6, TAU = Math.PI * 2;
   R.each(hx - rout - 1, hy - rout - 1, hx + rout + 1, hy + rout + 1, (x, y, F, G) => {
     const dx = x - hx, dy = y - hy, r = Math.hypot(dx, dy);
-    if (r > rout || r < rout - body - 1) return;
+    if (r > rout || r < rout - 3.5) return;
     const phi = Math.atan2(dy, dx);
     const delta = da > 0 ? ((phi - a0) % TAU + TAU) % TAU : -(((a0 - phi) % TAU + TAU) % TAU);
     const t = delta / da;
     if (t < 0 || t > 1) return;
-    const fade = t * Math.sqrt(t);
-    const thick = 0.7 + body * t * t * (1 - 0.75 * Math.max(0, (t - 0.78) / 0.22)), d = rout - r;
+    const thick = 0.45 + 2.3 * Math.pow(t, 1.3), d = rout - r;
     if (d > thick) return;
-    const k = d / thick;
-    if (d < 0.5) R.blend(F, G, c[4] ?? c[3], 0.72 * fade + 0.06);
-    else R.blend(F, G, k < 0.3 ? c[4] ?? c[3] : c[3], 0.45 * (1 - k) * Math.sqrt(1 - k) * fade);
+    const k = d / thick, a = 0.25 + 0.5 * t;
+    R.blend(F, G, k < 0.3 ? c[4] ?? c[3] : k < 0.7 ? c[3] : c[2], a * (1 - 0.55 * k));
   });
 }
 
@@ -2345,6 +2354,17 @@ function withPhases(anim, phases) { anim.phases = phases; return anim; }
 // Keyframes -> Frames: keys = [pose, pose, ...] in Frame-Reihenfolge
 function frames(L, S, keys) { return keys.map((o) => makeFrame(L, S(o))); }
 
+// Zweihänder: Ausholen hinter dem Kopf (wBack), aktive Schläge flacher nach vorn, damit die lange Klinge den Helm nicht verdeckt.
+const GREAT_ATK = {
+  atk1: [{ wBack: true }, { wBack: true }, null, null, null, { wBack: true }],
+  atk2: [null, null, null, { handM: [6.5, -2], wM: -0.95, smear: [0.4, -0.95] }, { wBack: true }, { wBack: true }],
+  atk3: [{ wBack: true }, { wBack: true }, { handM: [7.5, -2.5], wM: -0.8, smear: [-2.8, -0.8] }],
+};
+function greatKeys(L, name, keys) {
+  if (!L.weapon?.great) return keys;
+  return keys.map((k, i) => ({ ...k, ...(GREAT_ATK[name][i] ?? {}) }));
+}
+
 function attackSet(L, S) {
   const k = L.classId;
   const phases = { windup: [0, 1], active: [2, 3], recover: [4, 5] };
@@ -2414,30 +2434,30 @@ function attackSet(L, S) {
   // Krieger (Schwert, Axt, Kolben)
   const wBase = S().wM;
   return {
-    atk1: frames(L, S, [
+    atk1: frames(L, S, greatKeys(L, 'atk1', [
       { handM: [0, 1], wM: -1.8, lean: -1, handO: [3, 4] },
       { handM: [-2, -3], wM: -2.5, lean: -1, handO: [3.5, 4], footN: [3, 0], cape: 0.2 },
       { handM: [6, -2], wM: -0.6, lean: 2, footN: [4, 0], footF: [-3, 0], handO: [2, 5], cape: 0.5, wave: 1, smear: [-2.5, -0.6] },
       { handM: [7, 2], wM: 0.55, lean: 2, hipY: 1, footN: [4, 0], footF: [-3, 0], handO: [2, 5], cape: 0.65, wave: 2, smear: [-1.3, 0.55] },
       { handM: [5, 5], wM: 1.25, lean: 1, hipY: 1, footN: [3, 0], footF: [-3, 0], handO: [3, 4], cape: 0.5, wave: 3 },
       { handM: [3, 5], wM: wBase + 0.4, cape: 0.3, wave: 4 },
-    ]),
-    atk2: frames(L, S, [
+    ])),
+    atk2: frames(L, S, greatKeys(L, 'atk2', [
       { handM: [3, 6], wM: 1.3, lean: -1, hipY: 1, handO: [2, 3] },
       { handM: [1, 7], wM: 1.9, lean: -1, hipY: 1, handO: [2, 2], footN: [3, 0], cape: 0.2 },
       { handM: [7, 1], wM: -0.4, lean: 2, footN: [4, 0], footF: [-3, 0], handO: [1, 5], cape: 0.5, wave: 1, smear: [1.9, -0.4] },
       { handM: [5, -3], wM: -1.25, lean: 1, footN: [4, 0], footF: [-3, 0], handO: [1, 5], cape: 0.6, wave: 2, smear: [0.4, -1.25] },
       { handM: [3, -2], wM: -1.6, lean: 0, footN: [3, 0], handO: [2, 4], cape: 0.45, wave: 3 },
       { wM: wBase - 0.2, cape: 0.3, wave: 4 },
-    ]),
-    atk3: frames(L, S, [
+    ])),
+    atk3: frames(L, S, greatKeys(L, 'atk3', [
       { hipY: 3, handM: [0, 1], wM: -2.2, lean: -1, handO: [3, 4], footN: [3, 0], footF: [-3, 0] },
       { hipY: -1, handM: [-1, -7], wM: -2.8, lean: -1, handO: [3, 2], footN: [3, 1.5], footF: [-2, 0.5], cape: 0.3 },
       { hipY: 1, handM: [5, -5], wM: -1.1, lean: 2, handO: [2, 4], footN: [4, 0], footF: [-4, 0], cape: 0.6, wave: 1, smear: [-2.8, -1.1] },
       { hipY: 4, handM: [7, 3], wM: 0.85, lean: 3, handO: [2, 5], footN: [5, 0], footF: [-4.5, 0], cape: 0.85, wave: 2, smear: [-1.6, 0.85] },
       { hipY: 4, handM: [6, 6], wM: 1.3, lean: 3, handO: [2, 5], footN: [5, 0], footF: [-4.5, 0], cape: 0.6, wave: 3 },
       { hipY: 2, handM: [4, 5], wM: 0.6, lean: 1, footN: [3, 0], footF: [-3, 0], cape: 0.35, wave: 4 },
-    ]),
+    ])),
     phases,
   };
 }

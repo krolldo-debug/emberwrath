@@ -663,7 +663,7 @@ export class Hero extends Actor {
   // Leuchten an der Waffe: selten = wandernder Glanz, episch/legendär = flackernde Aura und Flammenzungen.
   #renderWeaponFx(ctx, cx, cy, frame) {
     const a = frame.weapon;
-    if (!a || !a.tier) return;
+    if (!a || !a.tier || a.back) return;   // back: Zweihänder hinter dem Kopf (Ausholen), Effekt nicht über den Helm legen
     const t = performance.now() / 1000;
     const f = this.facing < 0 ? -1 : 1;
     const dx = Math.cos(a.ang), dy = Math.sin(a.ang);

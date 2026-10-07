@@ -57,7 +57,7 @@ function buildSlashFrame({ radius, width, span, heavy, soft }, dirIndex, frame, 
       const i = (y * size + x) * 4;
       d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
       // soft (Zweihänder): durchscheinender Schleier, nach innen und zum Schweif hin ausblendend
-      const body = soft ? (edge < 0.18 ? 0.85 : 0.5 * (1 - edge) ** 1.5) * (1 - behind) * fade : Math.min(1, (1.15 - behind) * fade + 0.1);
+      const body = soft ? (edge < 0.18 ? 0.95 : 0.62 * (1 - edge) ** 1.3) * (1 - behind) * fade : Math.min(1, (1.15 - behind) * fade + 0.1);
       d[i + 3] = Math.round(255 * body);
     }
   }

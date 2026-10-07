@@ -31,6 +31,7 @@ const M = {
   obsidian: ['#0c0614', '#20122e', '#3a2058', '#6a3aa0', '#c898ff'],
   frost: ['#18306a', '#3470b8', '#72b8ec', '#bee6ff', '#ffffff'],
   ember: ['#3a0e05', '#7a2208', '#c8420c', '#f07a1c', '#ffd890'],
+  ashsteel: ['#1c1a24', '#3c3848', '#666076', '#aaa4ba', '#f4f0fa'],
   wood: ['#2a1810', '#4a2c1a', '#6e4428', '#946038', '#b8844e'],
   darkwood: ['#160c0a', '#2a1a14', '#40281e', '#5a3a2a', '#7a5238'],
   ash: ['#3a3028', '#5e5040', '#867358', '#ad9a78', '#d6c6a2'],
@@ -121,10 +122,11 @@ function sword(p, o) {
     else if (vv < 0) c = B[3];
     else c = B[2];
     if (o.fuller && Math.abs(vv) < 0.45 && t < 0.72) c = B[1];
-    if (o.runes && Math.abs(vv) < 0.5 && t > 0.1 && t < 0.72 && ((u * 1.7) | 0) % 2 === 0) c = o.runes[((u | 0) % 2) ? 3 : 4];
+    if (o.runeFuller && Math.abs(vv) < 0.55 && t > 0.06 && t < 0.72) c = o.runes[((u * 1.3) | 0) % 3 ? 3 : 2];   // glimmende Hohlkehle
+    else if (o.runes && Math.abs(vv) < 0.5 && t > 0.1 && t < 0.72 && ((u * 1.7) | 0) % 2 === 0) c = o.runes[((u | 0) % 2) ? 3 : 4];
     if (o.rust && hash(x, y, 3) < o.rust) c = pick(M.rusty, 1 + hash(x, y, 9) * 2);
     if (o.glow && edge > 0.62 && vv > 0) c = o.glow[3];
-    if (o.glow && t > 0.55 && hash(x, y, 5) < 0.35) c = o.glow[4];
+    if (o.glow && !o.calm && t > 0.55 && hash(x, y, 5) < 0.35) c = o.glow[4];
     return c;
   });
 }
@@ -951,6 +953,10 @@ for (const n of ICON_TIERS) {
   JEWELRY[`ring${t}`] = () => ({ f: ring, o: { band: T.trim === M.bone ? M.silver : T.trim, gem: T.gem } });
   JEWELRY[`amulet${t}`] = () => ({ f: amulet, o: { chain: T.trim === M.bone ? M.silver : T.trim, gem: T.gem } });
 }
+
+// Zweihänder Stufe 8 (Königsfall, Aschefall): wie die Klinge am Helden – Aschestahl, Goldparier, Glutstein,
+// glimmende Runen in der Hohlkehle, glühende Gegenschneide.
+SWORDS.greatsword_t8 = { blade: M.ashsteel, guard: M.gold, gemRamp: M.ember, grip: M.red, runes: M.ember, runeFuller: true, glow: M.ember, calm: true, width: 2.95, guardW: 5 };
 
 // ---------------------------------------------------------------- Reittiere (mount_<id>, §12.6)
 // Kopf und Hals im Profil (Blick nach rechts), aus Ellipsen und Kapseln zusammengesetzt.
