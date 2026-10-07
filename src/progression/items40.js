@@ -265,5 +265,7 @@ export const OTHER_40 = {
   mount_frost_elk: MOUNT_ITEM('frost_elk', 'Eishorn: Frostelch', 'epic', 8000, { source: 'boss' }),
   mount_ember_charger: MOUNT_ITEM('ember_charger', 'Zügel: Glutross', 'epic', 15000, { source: 'vendor', reqLevel: 40, price: 150000, reqQuest: 'q_ash_sovereign' }),
   mount_cinder_drake: MOUNT_ITEM('cinder_drake', 'Drachenei: Schlackendrache', 'legendary', 25000, { source: 'boss' }),
+  mount_hellhound: MOUNT_ITEM('hellhound', 'Glutkette: Höllenhund', 'legendary', 25000, { source: 'boss' }),
+  mount_rime_drake: MOUNT_ITEM('rime_drake', 'Eisei: Reifschwinge', 'legendary', 25000, { source: 'boss' }),
   mount_nightmare_steed: MOUNT_ITEM('nightmare_steed', 'Schattenzügel: Albtraumross', 'legendary', 25000, { source: 'trial' }),
 };

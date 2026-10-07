@@ -88,6 +88,7 @@ const COAT = {
   coal: ['#0c0a0e', '#1a161c', '#2a242e', '#3e3644', '#5a505e'],
   cinder: ['#140c0c', '#281818', '#3c2622', '#56382e', '#74503e'],
   night: ['#0a0816', '#16122a', '#241e42', '#36305c', '#4c4478'],
+  magma: ['#0a0607', '#170d0d', '#271514', '#3a201c', '#553026'],
   // Exklusiv (Shop-Designs)
   astral: ['#0a0c2a', '#161e56', '#22348a', '#3452ba', '#6c8eea'],
   spirit: ['#0a2224', '#124044', '#1c6464', '#2c9488', '#5ccab4'],
@@ -111,6 +112,7 @@ const TACK = {
   silver: { strap: ['#1e2a3a', '#344a64', '#4e6a8a', '#7090b0'], metal: ['#6a7a8c', '#a4b4c8', '#e0ecf8'], cloth: ['#1a2a4a', '#2a4478', '#4064a4'] },
   gold: { strap: ['#1e120c', '#3a2416', '#5a3a22', '#7a5230'], metal: ['#8a5a18', '#e8a830', '#ffe08a'], cloth: ['#4a0e0e', '#7a1414', '#b02020'] },
   astral: { strap: ['#0e1028', '#1c2248', '#2c3668', '#40508c'], metal: ['#8a9ac8', '#d0dcff', '#ffffff'], cloth: ['#24104a', '#3e1c7a', '#6030b0'] },
+  hell: { strap: ['#0c0808', '#1c1212', '#2e1e1c', '#46302a'], metal: ['#3a2622', '#7a4a32', '#e08a3c'], cloth: ['#220404', '#440a08', '#741410'] },
   spirit: { strap: ['#101a1a', '#1e2e2e', '#2e4444', '#425e5c'], metal: ['#4a8a7a', '#8ad8c0', '#e0fff4'], cloth: ['#0c2a2a', '#16484a', '#22706c'] },
 };
 const EYES = { ghost: '#8affb0', spore: '#e0a0ff', frost: '#c0f0ff', fire: '#ffb640', shadow: '#c07aff', star: '#e8f2ff', soul: '#7affd4' };
@@ -146,6 +148,14 @@ const BODY = {
   drake: { legs: 4, plan: 'drake', rump: [-6, -8.6], chest: [5.4, -9.2], rB: 4.8, rC: 5.2, hip: [-6.2, -6.6], sh: [5, -6.6], up: 3.2, low: 3, legR: [2, 1.3], hoof: 'claw',
     neck: [[8.4, -10.6], [12.6, -13.2], [16.2, -14.4]], neckR: [4, 3.2, 2.7], head: [[18, -15.6], [27.2, -13.6], [19, -12.6], [25.6, -11.4]], headR: [3.4, 1.6], ear: null, horns: 'drake', tail: 'lizard', wings: true, stride: 2.6, lift: 1.4, seat: [-0.5, -14.4] },
 };
+// Höllenhund: ein Wolf, ein Fünftel größer (k = Maßstab für die Zeichnung auf dem Fell)
+const grow = (b, k) => {
+  const g = (v) => (typeof v === 'number' ? v * k : Array.isArray(v) ? v.map(g) : v);
+  const o = { k };
+  for (const [key, v] of Object.entries(b)) o[key] = ['legs', 'hoof', 'ear', 'tail', 'horns', 'plan', 'shell', 'beak', 'wings'].includes(key) ? v : g(v);
+  return o;
+};
+BODY.hound = grow(BODY.wolf, 1.2);
 
 // Beinposition im Gang (wie die Helden): Stand vorne -> hinten, Schwung angehoben nach vorne
 function footAt(ph, stride, lift) {
@@ -175,6 +185,15 @@ const DRAKE_PAL = {
     DRAKE_HORN: ['#5a3a10', '#a07020', '#e0b444', '#fff4c8'],
     EMBER: ['#ffb640', '#ffe080', '#fff4c8', '#ffffff'],
     GLOW: ['#ff9a30', '#ffc850', '#fff0b0'],
+  },
+  // Reifschwinge: Eisschuppen, tiefblaue Schwingenhaut mit Frostadern, kaltes Leuchten statt Glut
+  rime: {
+    SLAG: ['#1a2c4a', '#2e4c74', '#4c78a4', '#7eaad0', '#b6d6f0', '#eaf6ff'],
+    SLAG_BELLY: ['#4a6a90', '#7096bc', '#9cc0e0', '#c8e2f6', '#f4fbff'],
+    SLAG_WING: ['#0c1636', '#16285a', '#22408a', '#3462b4', '#5a90d8', '#9cc8f4'],
+    DRAKE_HORN: ['#3a6a9a', '#7ab0de', '#c4e6ff', '#ffffff'],
+    EMBER: ['#5ac8f0', '#9ae4ff', '#d4f4ff', '#ffffff'],
+    GLOW: ['#5ab8f0', '#8ad4ff', '#d8f4ff'],
   },
 };
 
@@ -324,6 +343,19 @@ function drawDrake(R, G, B, look, pose) {
 
   // ---- nahe Schwinge über dem Rücken ----
   wing(true);
+  if (look.coat === 'rime') {
+    // Reifschwinge: Schnee rieselt aus den Schwingen, Frostatem vor dem Maul
+    for (let i = 0; i < 6; i++) {
+      const t = ((ph / TAU) * 0.8 + i / 6) % 1, x0 = -24 + (i % 3) * 6.5, x = x0 + Math.sin(t * 9 + i) * 1.2 - t * 3, y = -28 + (i % 2) * 6 + t * 22 + bob;
+      R.dot(x, y, t < 0.5 ? '#ffffff' : '#c4e6ff');
+      if (i % 2 === 0) G.push({ x: Math.round(x), y: Math.round(y), color: '#b8e4ff', r: 1 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const t = ((ph / TAU) * 1.2 + i / 3) % 1, x = hd[1][0] + 1 + t * 5, y = hd[1][1] + 0.6 + jaw - t * 1.4 + Math.sin(t * 6 + i) * 0.5;
+      R.ellipse(x, y, 0.6 + t * 0.9, 0.5 + t * 0.6, () => (t < 0.5 ? '#e8f8ff' : '#9cc8f4'));
+    }
+    G.push({ x: Math.round(hd[1][0] + 3), y: Math.round(hd[1][1] + 1), color: '#9ae4ff', r: 2.5 }, { x: -12, y: Math.round(-24 + bob), color: '#5ab8f0', r: 5 });
+  }
 
   // ---- Sattel (Reiter sitzt zwischen den Schwingen) und Zügel ----
   const sx = B.seat[0], sy = B.seat[1] + bob, by0 = sy + 1.6;
@@ -389,6 +421,12 @@ function drawMount(R, G, B, look, pose) {
       if (fire || ghost) G.push({ x: Math.round(k.ex), y: Math.round(k.ey), color: fire ? '#ffb640' : HOOF_GLOW[look.mane] ?? '#a060f0', r: 1.5 });
     } else if (B.hoof === 'paw') {
       R.ellipse(k.ex + 0.8, k.ey + 0.3, 1.6, 0.9, (l) => band(L.near ? C : dim(C), 1.6 + l));
+      if (look.glow === 'magma') {
+        // glühende Pfoten: Krallen aus Glut, Lavaader am Lauf
+        for (const o of [0.6, 1.6, 2.5]) R.line(k.ex + o, k.ey + 0.2, k.ex + o + 0.7, k.ey + 0.9, 0.4, L.near ? '#ffd070' : '#c85a1c');
+        R.line(k.jx, k.jy, k.ex + 0.2, k.ey - 0.6, 0.35, L.near ? '#ff8a30' : '#a83a10');
+        G.push({ x: Math.round(k.ex + 1), y: Math.round(k.ey), color: '#ff7a20', r: L.near ? 2 : 1.4 });
+      }
     } else {
       const cl = look.coat === 'spore' ? '#e0c8ff' : '#1a1410';
       for (const o of [-0.9, 0.3, 1.5]) R.line(k.ex, k.ey, k.ex + o + 0.7, k.ey + 0.8, 0.45, cl);
@@ -407,6 +445,12 @@ function drawMount(R, G, B, look, pose) {
     if (flame) G.push({ x: Math.round(tailRoot[0] - 2 + sw), y: Math.round(tailRoot[1] + 6), color: flameGlow, r: 3 });
   } else if (B.tail === 'bushy') {
     R.capsule(tailRoot[0], tailRoot[1], tailRoot[0] - 5, tailRoot[1] + 3 + sw, 1.6, 2.2, (l, t) => (ghost && t > 0.55 ? band(Mn, 1 + l * 1.4 + (t - 0.55) * 4) : band(C, 1.6 + l * 1.3 + (t > 0.8 ? 1.5 : 0))));
+    if (look.glow === 'magma') {
+      // Schweif endet in einer lodernden Flamme
+      const tx = tailRoot[0] - 5, ty = tailRoot[1] + 3 + sw;
+      for (let i = 0; i < 4; i++) { const fl = 3.2 + Math.sin(pose.ph * 2 + i * 1.9) * 0.9; R.line(tx + 0.5 - i * 0.6, ty + 0.5, tx - 1 - i * 1.1, ty - fl * 1.2 - (3 - i) * 0.5, 1, (t) => Mn[clamp(Math.round(1 + t * 3.4 - (i % 2) * 0.5), 0, 4)]); }
+      G.push({ x: Math.round(tx - 2), y: Math.round(ty - 2), color: '#ff7a20', r: 3.5 });
+    }
     if (ghost) for (let i = 0; i < 3; i++) R.line(tailRoot[0] - 4.5, tailRoot[1] + 2.5 + sw, tailRoot[0] - 7 - i * 0.8, tailRoot[1] - 1.5 + i * 1.6 + sw * 0.6, 0.8, (t) => band(Mn, 2.6 - t * 1.6));
   } else if (B.tail === 'stub') {
     R.ellipse(tailRoot[0] - 0.5, tailRoot[1] - 0.5, 1.4, 1.1, (l) => band(C, 3 + l));
@@ -477,6 +521,22 @@ function drawMount(R, G, B, look, pose) {
     for (let i = 0; i < 3; i++) { const t = ((pose.ph / TAU) + i / 3) % 1; const wx = -6 + i * 4.5, wy = -16 - t * 5 + bob; R.dot(wx + Math.sin(t * 6 + i) * 0.8, wy, t < 0.6 ? '#b8fae0' : '#4ad8a8'); G.push({ x: Math.round(wx), y: Math.round(wy), color: '#7affd4', r: 1 }); }
     G.push({ x: -1, y: Math.round(-11 + bob), color: '#2ad8a0', r: 6 }, { x: Math.round(tailRoot[0] - 4), y: Math.round(tailRoot[1] + 3 + sw), color: '#7affd4', r: 3 });
   }
+  if (look.glow === 'magma') {
+    // Höllenhund: Lavaadern unter dem schwarzen Fell, pulsierend; Funken steigen vom Rücken
+    const pulse = (Math.sin(pose.ph * 1.5) + 1) / 2, k = B.k ?? 1;
+    const veins = [[[-10, -10.5], [-7.5, -12.5], [-5, -11.6], [-2.5, -13.8]], [[-7.5, -12.5], [-8, -15]], [[-4, -8.4], [-1, -10], [2, -9.2], [4.5, -11.4], [7.5, -10.4]], [[2, -9.2], [3, -7.4]], [[1, -14.2], [3.6, -13], [6, -14.6]]];
+    for (const v of veins) for (let i = 0; i < v.length - 1; i++) {
+      const [a, b2] = [v[i], v[i + 1]].map(([vx, vy]) => [vx * k, vy * k + bob]);
+      R.line(a[0], a[1], b2[0], b2[1], 0.7, '#a82c0c');
+      R.line(a[0], a[1], b2[0], b2[1], 0.35, pulse > 0.5 ? '#ffc060' : '#ff8a30');
+    }
+    for (let i = 0; i < 4; i++) {
+      const t = ((pose.ph / TAU) * 1.3 + i / 4) % 1, wx = (-8 + i * 4.4) * k + Math.sin(t * 7 + i) * 1.1, wy = -15 * k - t * 9 + bob;
+      R.dot(wx, wy, t < 0.35 ? '#fff0b0' : t < 0.7 ? '#ffb640' : '#c8420c');
+      if (t < 0.6) G.push({ x: Math.round(wx), y: Math.round(wy), color: '#ff9a30', r: 1 });
+    }
+    G.push({ x: -2, y: Math.round(-11 * k + bob), color: '#ff5a18', r: 3 + pulse });
+  }
   if (look.coat === 'spore') {
     // leuchtende Pilze auf dem Panzer
     for (const [x, h] of [[-7.5, 2.6], [-5, 1.6], [6, 2]]) {
@@ -529,6 +589,17 @@ function drawMount(R, G, B, look, pose) {
   // Ohren, Hörner, Geweih
   if (B.ear === 'horse') { R.line(h0[0] - 0.6, h0[1] - 2, h0[0] - 1.2, h0[1] - 4.2, 1.1, C[2]); R.dot(h0[0] - 1.2, h0[1] - 3.6, C[3]); }
   if (B.ear === 'wolf') { R.line(h0[0] - 0.5, h0[1] - 2.2, h0[0] - 0.9, h0[1] - 5, 1.4, (t) => band(C, 2.5 - t)); R.line(h0[0] + 1.2, h0[1] - 2.2, h0[0] + 1.4, h0[1] - 4.6, 1.1, C[3]); }
+  if (look.glow === 'magma' && B.neck) {
+    // Gebogene Hörner und ein Stachelhalsband
+    const HN = ['#2a1c16', '#5a4232', '#8e6c4c', '#d0aa7c'];
+    R.capsule(h0[0] + 0.4, h0[1] - 2, h0[0] - 2.2, h0[1] - 5.6, 1, 0.7, (l) => band(HN, 1.4 + l));
+    R.capsule(h0[0] - 2.2, h0[1] - 5.6, h0[0] - 5, h0[1] - 5.4, 0.7, 0.25, (l, t) => band(HN, 2 + l + t));
+    R.dot(h0[0] - 5.1, h0[1] - 5.4, '#ffb640');
+    G.push({ x: Math.round(h0[0] - 5), y: Math.round(h0[1] - 5.4), color: '#ff8a30', r: 1 });
+    const n0 = dy(B.neck[0]), n1 = dy(B.neck[1]), cx = n0[0] + (n1[0] - n0[0]) * 0.35, cy = n0[1] + (n1[1] - n0[1]) * 0.35;
+    R.capsule(cx - 1.6, cy - 3, cx + 1.4, cy + 2.6, 1, 1, (l) => band(T.strap, 1.6 + l));
+    for (const [ox, oy, ax, ay] of [[-1.6, -3, -2.6, -4.4], [-1.4, -0.6, -3, -0.6], [-0.4, 2, -1.6, 3.4]]) R.line(cx + ox, cy + oy, cx + ax, cy + ay, 0.5, (t) => (t > 0.6 ? T.metal[2] : T.metal[1]));
+  }
   if (B.horns === 'antler') {
     const ice = look.coat === 'frost';
     const A = ice ? ['#3a78c0', '#7ac0f0', '#c0e8ff', '#ffffff'] : ['#3a2a1a', '#6a5030', '#9a7a50', '#c8a878'];

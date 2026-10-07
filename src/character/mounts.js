@@ -8,7 +8,7 @@ import { spriteStyle } from './cosmetics.js';
 //
 // content 'mount': { id, name, rarity, speed, sprite, source, desc }
 //   speed  = Tempo-Bonus als Anteil (rare 0.6, epic 0.8, legendary 1.0), gilt zusätzlich zur Ausrüstungs-Obergrenze.
-//   sprite = Körperbau in sprites/mounts.js (horse, wolf, strider, beetle, elk, drake) + Farben (look).
+//   sprite = Körperbau in sprites/mounts.js (horse, wolf, hound, strider, beetle, elk, drake) + Farben (look).
 // Slice character.mounts = { owned: [mountId], active: mountId|null, riding: bool }
 // Commands: mount:learn { mountId }, mount:select { mountId }, mount:toggle { riding? }
 //   mount:toggle prüft nur den Spielstand (Stufe, Lektion, Besitz). Kampf, Zone und Fläche prüft der Held
@@ -49,6 +49,13 @@ export const MOUNTS = {
   nightmare_steed: M('Albtraumross', 'legendary', 'horse',
     { coat: 'night', mane: 'shadow', tack: 'gold', eyes: 'shadow', glow: 'shadow' },
     'Äußerst selten aus den Glutprüfungen ab Stufe 20', 'Ein Ross aus Schatten und Rauch. Seine Hufe berühren den Boden kaum.'),
+  // Die zwei seltensten erspielbaren Reittiere (Runde 07.10.): je 0,4 % von einem Boss, sonst nirgends.
+  hellhound: M('Höllenhund', 'legendary', 'hound',
+    { coat: 'magma', mane: 'fire', tack: 'hell', eyes: 'fire', glow: 'magma' },
+    'Äußerst selten von Ignaroth in der Glutschmiede', 'Ignaroths Wachhund, in der Esse geboren. Unter seinem schwarzen Fell fließt flüssiges Gestein, und wo er läuft, steigen Funken auf.'),
+  rime_drake: M('Reifschwinge', 'legendary', 'drake',
+    { coat: 'rime', mane: 'snow', tack: 'silver', eyes: 'frost', glow: 'rime' },
+    'Äußerst selten von Skalvyr in den Reifhöhlen', 'Das letzte Junge des Frostwurms. Seine Schuppen sind klares Eis, und aus seinen Schwingen rieselt feiner Schnee.'),
   // Exklusive Designs aus dem Shop (src/shop/catalog.js): nicht erspielbar, Besitz führt der Server (shop_entitlements).
   // Tempo wie epische Reittiere (kein Vorteil durch Echtgeld), Aussehen über allem, was es im Spiel gibt.
   phoenix_wing: { ...M('Phönixschwinge', 'legendary', 'drake',
