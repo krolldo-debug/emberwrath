@@ -155,7 +155,8 @@ const grow = (b, k) => {
   for (const [key, v] of Object.entries(b)) o[key] = ['legs', 'hoof', 'ear', 'tail', 'horns', 'plan', 'shell', 'beak', 'wings'].includes(key) ? v : g(v);
   return o;
 };
-BODY.hound = grow(BODY.wolf, 1.2);
+// Kurzer, kräftiger Nacken nach vorne und ein breiter, stumpfer Hundekopf (kein Pferdeprofil)
+BODY.hound = { ...grow(BODY.wolf, 1.2), neck: [[9, -13.6], [12, -15.8]], neckR: [5, 4.2], head: [[13.4, -16.6], [18.8, -15.4]], headR: [3.4, 2.2], jaw: true };
 
 // Beinposition im Gang (wie die Helden): Stand vorne -> hinten, Schwung angehoben nach vorne
 function footAt(ph, stride, lift) {
@@ -578,17 +579,31 @@ function drawMount(R, G, B, look, pose) {
           const wl = B.ear === 'wolf' && flame ? len + 1.6 : len;
           R.line(x + 1, y, x - wl * 0.7, y + wl * 0.5 + (flame ? -wl : 0), 1.1, (u) => flame ? Mn[clamp(Math.round(3 + u * 1.4 - (i % 2)), 0, 4)] : B.ear === 'wolf' ? band(C, 1.3 + u) : Mn[clamp(Math.round(2.5 - u * 2 + (i % 2) * 0.5), 0, Mn.length - 1)]);
         }
-        if (flame) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 3), color: flameGlow, r: 3 });
+        if (flame && !B.jaw) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 3), color: flameGlow, r: 3 });
         if (ghost) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 2), color: EYES[look.mane] ?? '#a060f0', r: 3 });
       }
     }
   }
   const h0 = dy([B.head[0][0] + pose.nod * 0.3, B.head[0][1] + pose.nod]), h1 = dy([B.head[1][0] + pose.nod * 0.3, B.head[1][1] + pose.nod]);
   R.capsule(h0[0], h0[1], h1[0], h1[1], B.headR[0], B.headR[1], bodyShade);
+  if (B.jaw) {
+    // Unterkiefer mit Reißzähnen, glühender Rachen dazwischen
+    const open = pose.walk ? 0.5 : (Math.sin(pose.ph) > 0.5 ? 0.9 : 0.4);
+    R.line(h0[0] + 1.6, h0[1] + 2.2, h1[0] + 0.6, h1[1] + 1.5 + open * 0.5, 0.7, '#ff7a20');
+    R.capsule(h0[0] + 1, h0[1] + 2.6 + open, h1[0] - 0.2, h1[1] + 2.2 + open, 1.7, 1.1, (l) => band(C, 1.4 + l * 1.2));
+    for (const t of [0.55, 0.9]) { const fx = h0[0] + 1.6 + (h1[0] - h0[0]) * t, fy = h0[1] + 1.8 + (h1[1] - h0[1]) * t; R.line(fx, fy, fx + 0.2, fy + 1.3 + open * 0.4, 0.45, '#f4ead8'); }
+    R.line(h0[0] - 1.6, h0[1] - 1.4, h0[0] + 2.2, h0[1] - 0.9, 0.8, C[0]);               // schwere Braue
+    R.line(h0[0] + 2.4, h0[1] - 1.6, h1[0] - 0.4, h1[1] - 1.4, 0.5, C[4]);              // Licht auf dem Nasenrücken
+    R.ellipse(h1[0] + 1.2, h1[1] - 0.6, 0.9, 0.7, () => '#060304');                      // Nase
+    G.push({ x: Math.round((h0[0] + h1[0]) / 2 + 1), y: Math.round(h1[1] + 1.6), color: '#ff7a20', r: 1.6 });
+  }
   if (B.beak) R.capsule(h1[0] - 0.4, h1[1], h1[0] + 3.2, h1[1] + 0.6, 1, 0.35, (l) => band(['#6a4a10', '#a07820', '#d8b040', '#f0d870'], 1.5 + l));
   // Ohren, Hörner, Geweih
   if (B.ear === 'horse') { R.line(h0[0] - 0.6, h0[1] - 2, h0[0] - 1.2, h0[1] - 4.2, 1.1, C[2]); R.dot(h0[0] - 1.2, h0[1] - 3.6, C[3]); }
-  if (B.ear === 'wolf') { R.line(h0[0] - 0.5, h0[1] - 2.2, h0[0] - 0.9, h0[1] - 5, 1.4, (t) => band(C, 2.5 - t)); R.line(h0[0] + 1.2, h0[1] - 2.2, h0[0] + 1.4, h0[1] - 4.6, 1.1, C[3]); }
+  if (B.jaw) {
+    // spitze Ohren, innen glühend
+    for (const [ox, h, far] of [[-0.6, 4.6, true], [1.2, 4.2, false]]) { const bx = h0[0] + ox, by = h0[1] - 2; R.tri(bx - 1.3, by + 0.4, bx + 1.1, by + 0.4, bx - 0.6, by - h, (u) => (far ? C[2] : u > 0.55 ? C[4] : C[3])); if (!far) R.line(bx - 0.3, by - 0.2, bx - 0.5, by - h + 1.4, 0.4, '#c8420c'); }
+  } else if (B.ear === 'wolf') { R.line(h0[0] - 0.5, h0[1] - 2.2, h0[0] - 0.9, h0[1] - 5, 1.4, (t) => band(C, 2.5 - t)); R.line(h0[0] + 1.2, h0[1] - 2.2, h0[0] + 1.4, h0[1] - 4.6, 1.1, C[3]); }
   if (look.glow === 'magma' && B.neck) {
     // Gebogene Hörner und ein Stachelhalsband
     const HN = ['#2a1c16', '#5a4232', '#8e6c4c', '#d0aa7c'];
