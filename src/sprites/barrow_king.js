@@ -541,21 +541,23 @@ function pauldron(p, g, x, y, rx, ry, ramp, front) {
 // Geisterlicht, Nasenrücken und Wangenknochen im Licht, eingefallene Wange, Zahnreihe.
 // o = dunkle Kontur, 0–4 Haut (dunkel → hell), V Höhle, G/F Geisterauge (Kern/Rand), T/t Zähne.
 // Gibt eine Funktion zurück, die den Bart zeichnet (kommt vor Brust und Schulter).
+// Leichenblasse Haut nur fürs Gesicht (kühl, hebt sich von Bronze, Bart und Haar ab)
+const CORPSE = ['#1a1f1d', '#46514b', '#7c897d', '#b3bead', '#dfe7d5'];
 const FACE = [
   //            0123456789ABCD
   [0, '...o123321o...'],
   [1, '..o12333332o..'],
-  [2, '.o1233333333o.'],
-  [3, 'o123333333333o'],
-  [4, 'o1233333333333'],
+  [2, '.o1233444433o.'],
+  [3, 'o123344444443o'],
+  [4, 'o1233444444443'],
   [5, 'o1234444444444'],
-  [6, 'o122000003400o'],
-  [7, 'o12VVGFV024VGo'],
-  [8, 'o12VFGVV124VFo'],
-  [9, 'o122VVV024443o'],
-  [10, 'o11234421ooo..'],
-  [11, '.o11oTtTtTto..'],
-  [12, '..o1oVVVVVo...'],
+  [6, 'o122100003400o'],
+  [7, 'o122VVGVV34VGo'],
+  [8, 'o122VVFV034VF3o'],
+  [9, 'o1233VV03444443o'],
+  [10, 'o1234443200ooo'],
+  [11, '.o12oTtTtTto..'],
+  [12, '..o1ooooooo...'],
 ];
 const JAW = [
   [0, '..o12tTtTt1o..'],
@@ -568,28 +570,21 @@ function head(p, g, hx, hy, P, meta, gy) {
   const lit = P.eye > 0.1;
   // Hinteres Geweih (dunkler)
   if (P.crown < 0.02) antler(p, g, hx + 3, hy + 1, -1, P, false);
-  // Haar: dünne Strähnen hinter dem Kopf
-  for (let i = 0; i < 8; i++) {
-    const x0 = hx + 1 + i * 0.6, y0 = hy + 3 + i * 0.5;
-    const len = 14 + (hash2(i, 1, 13) * 7 | 0);
-    let px0 = x0, py0 = y0;
-    for (let k = 1; k <= len; k++) {
-      const x = x0 - 1 - k * 0.4 - P.cape * k * 0.25 + Math.sin(t + k * 0.4 + i) * 0.5 * (k / len), y = y0 + k;
-      const hc = BEARD[i % 3 === 0 ? 1 : i % 3 === 1 ? 2 : 3];
-      p.line(px0, py0, x, y, hc); p.px(x + 1, y, i < 2 ? BEARD[1] : hc);
-      px0 = x; py0 = y;
-    }
+  // Haar: drei klar umrissene Strähnen hinter dem Kopf (flach schattiert, kein Flimmern)
+  for (let i = 0; i < 3; i++) {
+    const sway = (k) => -k * (0.35 + i * 0.12) - P.cape * k * 0.25 + Math.sin(t + k * 0.3 + i) * 0.4 * (k / 18);
+    strand(p, hx + 1.5 + i * 1.5, hy + 4 + i, 17 - i * 2, 2, sway, i === 2 ? HAIR_B : HAIR_F);
   }
   const put = (rows, oy) => {
     for (const [y, s] of rows) for (let x = 0; x < s.length; x++) {
       const ch = s[x];
       if (ch === '.') continue;
       let c;
-      if (ch >= '0' && ch <= '4') c = SKIN[+ch];
+      if (ch >= '0' && ch <= '4') c = CORPSE[+ch];
       else if (ch === 'o' || ch === 'V') c = VOID;
       else if (ch === 'T') c = ANT[4];
       else if (ch === 't') c = ANT[2];
-      else if (ch === 'G') c = lit ? GH[4] : SKIN[1];
+      else if (ch === 'G') c = lit ? GH[4] : CORPSE[1];
       else if (ch === 'F') c = lit ? GH[2] : VOID;
       p.px(hx + x, hy + oy + y, c);
     }
@@ -606,23 +601,17 @@ function head(p, g, hx, hy, P, meta, gy) {
   if (lit) {
     const e = P.eye;
     // Leuchthof um beide Höhlen (dunkel, damit der Kern hell heraussticht)
-    for (let yy = 6; yy <= 9; yy++) for (let xx = 3; xx <= 13; xx++) if (Math.abs(yy - 7.5) + Math.abs(xx - (xx < 9 ? 5.5 : 12)) <= 2) g.px(hx + xx, hy + yy, 0.4 * e);
-    // nahe Augenhöhle: heller Kern, Flammenkranz
-    g.px(hx + 5, hy + 7, 3 + 1.5 * e); g.px(hx + 5, hy + 8, 2 + 1.2 * e); g.px(hx + 6, hy + 7, 2 + e); g.px(hx + 4, hy + 8, 1 + e);
-    g.px(hx + 6, hy + 8, 1 + e); g.px(hx + 4, hy + 7, 0.5 + e);
-    // ferne Augenhöhle
-    g.px(hx + 12, hy + 7, 2.5 + 1.5 * e); g.px(hx + 12, hy + 8, 1.5 + e); g.px(hx + 11, hy + 7, 0.5 + e);
-    // Geisterflamme züngelt aus der Höhle nach oben
-    const fl = Math.round(1 + e * 1.5 + (Math.sin(t * 2.3) * 0.5 + 0.5) * 1.5);
-    for (let k = 1; k <= fl; k++) g.px(hx + 4 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 6 - k, k === 1 ? 3 : k < fl ? 2 : 1);
+    // Geisterlicht als klare Punkte in den Höhlen (Kern hell, darunter schwächer)
+    g.px(hx + 6, hy + 7, 3 + 1.5 * e); g.px(hx + 6, hy + 8, 1.5 + e);
+    g.px(hx + 12, hy + 7, 2.5 + 1.5 * e); g.px(hx + 12, hy + 8, 1 + e);
     // Phase 2: lange Flammenfahne nach hinten
     for (let k = 1; k <= 8; k++) {
-      const x = hx + 4 - k * 1.2 - P.cape * k * 0.2, y = hy + 6 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
+      const x = hx + 5 - k * 1.2 - P.cape * k * 0.2, y = hy + 6 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
       g.epx(x, y, k < 3 ? 4 : k < 6 ? 3 : 2);
       if (k < 5) g.epx(x, y + 1, 2);
     }
   }
-  meta.eye = { x: hx + 5, y: hy + 7 };
+  meta.eye = { x: hx + 6, y: hy + 7 };
   meta.mouth = { x: hx + 9, y: hy + 13 + Math.floor(j / 2) };
   // Bronzereif mit Geweih
   if (P.crown < 0.02) {
@@ -633,23 +622,48 @@ function head(p, g, hx, hy, P, meta, gy) {
     crownBand(p, g, cx, cy, P.crown);
   }
   meta.head = { x: hx + 6, y: hy - 8 };
-  // Bart: lange, zerzauste Strähnen vom Kinn, fällt über die Brust
+  // Bart: fünf klar umrissene Strähnen vom Kinn, flach in drei Tönen, dunkle Kontur.
+  // Hintere Strähnen zuerst (dunkler), die lange Mittelsträhne liegt vorn.
   return () => {
-    for (let i = 0; i < 11; i++) {
-      const x0 = hx + 3 + i * 0.75, y0 = ly - 1 + Math.abs(i - 5) * 0.25;
-      const len = 15 + (hash2(i, 7, 13) * 6 | 0) - Math.abs(i - 5) * 1.3;
-      let px0 = x0, py0 = y0;
-      for (let k = 1; k <= len; k++) {
-        const x = x0 - k * 0.2 - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.5 + i * 0.7) * 0.45 * (k / len), y = y0 + k;
-        const c = i >= 9 ? BEARD[1] : i > 6 ? BEARD[k < 4 ? 3 : 2] : i < 2 ? BEARD[2] : BEARD[k < 4 ? 4 : 3];
-        p.line(px0, py0, x, y, k > len - 2 ? BEARD[1] : (i % 3 === 1 && k > 3 ? BEARD[2] : c));
-        px0 = x; py0 = y;
-      }
-    }
-    // Bartspange aus Bronze
-    const cy = ly + 4;
-    p.rect(hx + 5, cy, 3, 2, BRZ[3]); p.px(hx + 5, cy, BRZ[5]); p.px(hx + 7, cy + 1, BRZ[1]);
+    const sw = (ph, lean) => (k) => -k * lean - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.35 + ph) * 0.5 * (k / 18);
+    strand(p, hx + 10.5, ly - 1, 10, 2.2, sw(2.1, 0.25), BEARD_B);
+    strand(p, hx + 3.5, ly - 1, 13, 2.2, sw(0.4, 0.3), BEARD_B);
+    strand(p, hx + 9, ly - 1, 15, 2.5, sw(1.5, 0.2), BEARD_F);
+    strand(p, hx + 5, ly - 1, 16, 2.5, sw(0.9, 0.25), BEARD_F);
+    strand(p, hx + 7, ly - 1, 19, 2.8, sw(0.2, 0.18), BEARD_F);
+    // Bartspange aus Bronze auf der Mittelsträhne
+    const cx = Math.round(hx + 7 + sw(0.2, 0.18)(5)), cy = ly + 4;
+    p.rect(cx - 2, cy, 4, 2, BRZ[3]); p.px(cx - 2, cy, BRZ[5]); p.px(cx + 1, cy + 1, BRZ[1]); p.px(cx - 3, cy, BRZ[0]); p.px(cx + 2, cy, BRZ[0]); p.px(cx - 3, cy + 1, BRZ[0]); p.px(cx + 2, cy + 1, BRZ[0]);
   };
+}
+
+// Strähne (Bart/Haar): je Zeile eine Spanne mit dunkler Kontur links/rechts, Grundton,
+// Glanzlinie links (Licht von links). Verjüngt sich zur Spitze. ramp = [Kontur, Spitze, Grund, Glanz].
+const BEARD_F = ['#57544b', '#8a867b', '#b9b5a8', '#ebe7da'];
+const BEARD_B = ['#34322d', '#625f57', '#8a867b', '#b0ac9f'];
+const HAIR_F = ['#2a2925', '#55534c', '#7c796f', '#a8a498'];
+const HAIR_B = ['#1c1b18', '#3a3934', '#55534c', '#7c796f'];
+function strand(p, x0, y0, len, w0, sway, ramp) {
+  let prev = x0 + sway(0);
+  // Neigung der ganzen Strähne (nicht je Zeile, sonst flackert das Muster)
+  const steep = Math.abs(sway(len) - sway(0)) / len < 0.45;
+  for (let k = 0; k <= len; k++) {
+    const u = k / len, w = w0 * (1 - u * 0.75) + 0.3;
+    const cx = x0 + sway(k), y = Math.round(y0 + k);
+    // Spanne deckt auch die vorige Mitte ab: schräge Strähnen bleiben geschlossen (keine Treppenlücken)
+    const xl = Math.round(Math.min(cx, prev) - w), xr = Math.max(xl + 1, Math.round(Math.max(cx, prev) + w));
+    prev = cx;
+    for (let x = xl; x <= xr; x++) {
+      let c = ramp[2];
+      if (x === xl) c = ramp[0];
+      else if (x === xr) c = steep ? ramp[0] : ramp[2];
+      else if (steep && x === xl + 1 && xr - xl >= 3) c = ramp[3];
+      if (u > 0.85 && x !== xl && x !== xr) c = ramp[1];
+      p.px(x, y, c);
+    }
+  }
+  const tx = Math.round(x0 + sway(len + 1)), ty = Math.round(y0 + len + 1);
+  p.px(tx, ty, ramp[0]);
 }
 
 // Krone: Bronzereif mit hellem Goldglanz und dunkler Unterkante, drei hohe Zacken.

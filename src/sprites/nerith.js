@@ -31,19 +31,27 @@ const GLOW = {
   flood: ['#0a1c5c', '#2050d0', '#60a8ff', '#c8e6ff', '#ffffff'],
 };
 
-// Gesicht (9 × 10), Ursprung (hcx − 2, hcy − 4). Siehe Kopf in drawNerith.
+// Gesicht (11 × 12), Ursprung (hcx − 3, hcy − 4). Siehe Kopf in drawNerith.
+// 3/4 nach rechts, Licht von links oben: nahe Wange und Stirn hell (4/5), Seite hinter
+// dem Nasenrücken im Schatten (2/3). b Brauen, k Augenhöhle, E/e Auge (Kern/Rand),
+// m Mund, h/H Haar, o Kontur.
 const NE_FACE = [
-  'hH34555o.',
-  'hH345554o',
-  'h23oo4oo.',
-  'h2oEe4Eo.',
-  'h2344445o',
-  'h234443o.',
-  'h234mm3o.',
-  '.h23343o.',
-  '.hh233o..',
-  '..hoo....',
+  'hH4555543o.',
+  'hH45555432o',
+  'h3bbbb5bb2o',
+  'h4kEek5Ek2o',
+  'h443345222o',
+  'h454444522o',
+  'h344444353o',
+  'h34444311o.',
+  'h2344mmm2o.',
+  '.h3334432o.',
+  '..ho3332o..',
+  '....ooo....',
 ];
+
+const NE_SOCKET = '#101820', NE_MOUTH = '#1e1824';
+const NE_EYE = ['#b4fff4', '#34d2d6'];
 
 const SPINE = 16, UPPER = 9, FORE = 9;
 const WL = AY - 3; // Wasserlinie im Canvas
@@ -406,31 +414,41 @@ function drawFigure(p, g, P, glow, ex, flood) {
   p.ellipse(hcx - 2, hcy - 0.5, 4.5, 5, HAIR[2]);
   p.ellipse(hcx - 2.5, hcy - 2, 3.2, 3, HAIR[3]);
   p.px(hcx - 4, hcy - 3, HAIR[4]); p.px(hcx - 3, hcy - 4, HAIR[4]); p.px(hcx - 5, hcy - 1, HAIR[4]);
-  // Gesicht als Pixelkarte (3/4 nach rechts): Stirn und Nasenrücken im Licht, dunkle Brauen
-  // über leuchtenden Augen, Wangenknochen, Nasenspitze, schmaler Mund, Kinn; Kontur zum Haar.
-  // o Kontur, 1–5 Haut, h/H Haar, E/e Auge (Kern/Rand), m Mund
+  // Gesicht als Pixelkarte (3/4 nach rechts): flache Töne, helle nahe Gesichtshälfte vor
+  // dunklem Haar, Schattenseite hinter dem Nasenrücken, dunkle Brauen über leuchtend
+  // türkisen Augen in dunklen Höhlen, Nasenrücken und -spitze, Mund, Kinn.
   const lit = P.eye > 0.15;
-  const FC = { o: SKIN[0], 1: SKIN[1], 2: SKIN[2], 3: SKIN[3], 4: SKIN[4], 5: SKIN[5], h: HAIR[2], H: HAIR[3], E: lit ? PEARL[3] : SKIN[2], e: lit ? WATER[4] : SKIN[1], m: SKIN[0] };
-  const fx0 = hcx - 2, fy0 = hcy - 4;
+  const FC = {
+    o: SKIN[0], 1: SKIN[1], 2: SKIN[2], 3: SKIN[3], 4: SKIN[4], 5: SKIN[5], h: HAIR[2], H: HAIR[3],
+    b: HAIR[1], k: NE_SOCKET, m: NE_MOUTH,
+    E: lit ? NE_EYE[0] : SKIN[2], e: lit ? NE_EYE[1] : SKIN[1],
+  };
+  const fx0 = hcx - 3, fy0 = hcy - 4;
   for (let r = 0; r < NE_FACE.length; r++) for (let c = 0; c < NE_FACE[r].length; c++) {
     const ch = NE_FACE[r][c];
     if (ch !== '.') p.px(fx0 + c, fy0 + r, FC[ch]);
   }
+  // Augen: nahes Auge (2 px) und fernes Auge (1 px) in Zeile 3
+  const ey = fy0 + 3;
   if (lit) {
-    g.px(hcx + 1, hcy - 1, glow[4]); g.px(hcx + 2, hcy - 1, glow[2]); g.px(hcx + 4, hcy - 1, glow[flood ? 4 : 3]);
+    g.px(fx0 + 3, ey, glow[4]); g.px(fx0 + 4, ey, glow[4]); g.px(fx0 + 7, ey, glow[4]);
     if (P.eye > 0.7) {
-      g.px(hcx, hcy - 1, glow[1]); g.px(hcx + 1, hcy - 2, glow[1]); g.px(hcx + 5, hcy - 1, glow[1]);
-      // Leuchtende Tränenspur (Wasser)
-      g.px(hcx + 1, hcy + 1, glow[2]); g.px(hcx + 1, hcy + 2, glow[1]); if (flood) g.px(hcx + 1, hcy + 3, glow[1]);
+      g.px(fx0 + 2, ey, glow[1]); g.px(fx0 + 5, ey, glow[1]); g.px(fx0 + 8, ey, glow[1]);
+      // Leuchtende Tränenspur (Wasser) unter dem nahen Auge
+      g.px(fx0 + 3, ey + 2, glow[1]); g.px(fx0 + 3, ey + 3, glow[1]); if (flood) g.px(fx0 + 3, ey + 4, glow[1]);
     }
   }
-  meta.eye = { x: hcx + 2, y: hcy - 1 };
-  // Mund
+  meta.eye = { x: fx0 + 4, y: ey };
+  // Mund: öffnet sich nach unten, Unterlippe wandert mit
   const jaw = Math.round(P.jaw * 2.4);
-  if (jaw) { p.rect(hcx + 2, hcy + 2, 2, jaw + 1, SKIN[0]); p.rect(hcx + 1, hcy + 3 + jaw, 3, 1, SKIN[2]); p.px(hcx + 2, hcy + 4 + jaw, SKIN[3]); }
-  // Scheitel und nasse Strähne vor dem Ohr
-  p.rect(hcx - 3, hcy - 5, 6, 1, HAIR[4]); p.rect(hcx - 4, hcy - 4, 4, 1, HAIR[3]); p.px(hcx + 3, hcy - 4, HAIR[3]);
-  p.px(hcx - 2, hcy - 3, HAIR[3]); p.line(hcx - 2, hcy - 2, hcx - 2, hcy + 5, HAIR[2]); p.px(hcx - 1, hcy + 5, HAIR[3]);
+  if (jaw) {
+    p.rect(fx0 + 5, fy0 + 8, 3, jaw + 1, NE_MOUTH);
+    p.rect(fx0 + 5, fy0 + 9 + jaw, 3, 1, SKIN[4]); p.px(fx0 + 7, fy0 + 9 + jaw, SKIN[3]);
+    p.rect(fx0 + 4, fy0 + 10 + jaw, 4, 1, SKIN[3]); p.px(fx0 + 8, fy0 + 9 + jaw, SKIN[0]); p.rect(fx0 + 4, fy0 + 11 + jaw, 4, 1, SKIN[0]);
+  }
+  // Scheitel und nasse Strähne hinter der Schläfe (verdeckt das Gesicht nicht)
+  p.rect(hcx - 3, hcy - 5, 6, 1, HAIR[4]); p.rect(hcx - 4, hcy - 4, 2, 1, HAIR[3]); p.px(hcx + 3, hcy - 4, HAIR[3]);
+  p.line(hcx - 3, hcy - 2, hcx - 3, hcy + 5, HAIR[2]); p.px(hcx - 3, hcy + 6, HAIR[3]);
   // Korallenkrone: Goldreif mit verzweigten Korallen
   for (let k = -4; k <= 4; k++) {
     const y = hcy - 5 + Math.round(k * k * 0.06);
@@ -456,7 +474,7 @@ function drawFigure(p, g, P, glow, ex, flood) {
     if (flood && i % 2 === 0) g.px(x, y, glow[2]);
   }
   meta.head = { x: hcx, y: hcy - 8 };
-  meta.mouth = { x: hcx + 3, y: hcy + 3 };
+  meta.mouth = { x: hcx + 3, y: hcy + 4 };
 
   // --- 6. Vorderes Haar über der Schulter
   for (let j = 0; j < 3; j++) {
