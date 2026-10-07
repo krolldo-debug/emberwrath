@@ -36,6 +36,7 @@ export const MAT = {
   moss: ['#12200e', '#22381a', '#3a5a2a', '#5e8440', '#9ac070'],
   fur: ['#241e26', '#3e3640', '#5e5462', '#867a88', '#b0a6b2'],
   holy: ['#4a3208', '#9a7018', '#e0b030', '#fff080', '#fffbe0'],
+  ashsteel: ['#1c1a24', '#3c3848', '#666076', '#aaa4ba', '#f4f0fa'],
 };
 const M = MAT;
 
@@ -63,6 +64,9 @@ const WEAPONS = {
   sword_ember: { blade: M.iron, guard: M.darkwood, grip: M.darkleather, glow: M.ember, flame: true, width: 2, gem: M.ember },
   sword_frost: { blade: M.frost, guard: M.silver, width: 2, gem: M.blue, glow: M.frost, fuller: true },
   sword_obsidian: { blade: M.obsidian, guard: M.obsidian, grip: M.darkleather, jag: true, width: 2, gem: M.purple, glow: M.purple },
+  // Zweihänder ab Stufe 34 (Icon greatsword_t7/t8): eigene Klingenoptik statt Seltenheits-Ersatz
+  greatsword_t7: { blade: M.frost, guard: M.silver, grip: M.darkleather, gem: M.blue, glow: M.frost, runes: M.frost },
+  greatsword_t8: { blade: M.ashsteel, guard: M.iron, grip: M.darkleather, gem: M.ember, runes: M.ember },
   sword_royal: { blade: M.silver, guard: M.gold, grip: M.red, width: 2, guardW: 3, len: 16, gem: M.red, glow: M.ember, fuller: true },
 
   dagger: { blade: M.iron, guard: M.bronze },
@@ -206,6 +210,12 @@ export function fxElement(def) {
   return lookElement({ icon: def.icon, glow: base?.glow ?? base?.ramp ?? R.glow, gem: base?.gem ?? R.gem }, def);
 }
 
+// Benannte Waffen mit eigener Optik (überschreibt das Icon-Aussehen)
+const WEAPON_NAMED = {
+  // Königsfall: geschwärzter Aschestahl, Goldparier, Glutrunen in der Hohlkehle, glühende Schneide
+  kingsbane: { blade: M.ashsteel, guard: M.gold, grip: M.red, gem: M.ember, glow: M.ember, runes: M.ember, edge: M.ember, wings: true },
+};
+
 function weaponLook(def) {
   // Zweihänder (family 'greatsword') ist fürs Aussehen ein großes Schwert
   const great = def.family === 'greatsword';
@@ -213,8 +223,8 @@ function weaponLook(def) {
   const rarity = def.rarity ?? 'common';
   const R = RARITY_LOOK[rarity] ?? RARITY_LOOK.common;
   const base = WEAPONS[def.icon] ?? WEAPONS[family] ?? {};
-  const known = !!WEAPONS[def.icon];
-  const look = { family, icon: def.icon, rarity, ...base };
+  const known = !!WEAPONS[def.icon] || !!WEAPON_NAMED[def.id];
+  const look = { family, icon: def.icon, rarity, ...base, ...WEAPON_NAMED[def.id] };
   // Unbekanntes Icon: Material nach Seltenheit, damit „lila“ auch lila aussieht.
   if (!known) {
     if (family === 'sword' || family === 'dagger') { look.blade = R.metal; look.guard = rarity === 'legendary' ? M.gold : R.metal; }
@@ -226,7 +236,7 @@ function weaponLook(def) {
   // Ab episch leuchtet jede Waffe ein wenig, legendäre deutlich.
   if (!look.glow && (rarity === 'epic' || rarity === 'legendary')) look.glow = look.ramp ?? look.gem ?? R.glow;
   look.shine = rarity === 'legendary' ? 2 : rarity === 'epic' ? 1 : 0;
-  if (great) Object.assign(look, { great: true, len: Math.max(look.len ?? 15, 19), width: 3, guardW: 3.8, fuller: true });
+  if (great) Object.assign(look, { great: true, len: Math.max(look.len ?? 15, 22), width: 3, guardW: 4.4, fuller: true });
   // Effektstufe am Helden (entities/Hero.js): 1 = selten (Glanzlicht), 2 = episch (Flammen/Glühen), 3 = legendär (stark)
   look.tier = rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : 0;
   if (look.tier >= 1 && !look.gem) look.gem = rarity === 'rare' ? M.blue : R.gem;

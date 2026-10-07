@@ -463,7 +463,7 @@ function drawHead(p, g, bx, by, P, o) {
   const jaw = [[-4, 1.2], [4, LIP], [12, LIP], [19, LIP - 0.1], [23.5, LIP - 0.2], [24.5, 3.6], [23, 5.4], [18, 6.4], [10, 7.4], [3, 7.7], [-3, 6.5], [-5, 4]];
   poly(jaw.map(([u, v]) => J(u, v)), (u, v, x, y) => {
     const [ju, jv] = invJ(u, v);
-    let idx = 4 - (jv - LIP) * 0.62 + dith(x, y) * 0.8;
+    let idx = 4 - (jv - LIP) * 0.62 + dith(x, y) * 0.45;
     if (jv < LIP + 0.9 && ju > 2) idx += 0.9;                          // Lippenkante
     if (jv > 5 && (((ju + 0.5) / 3) % 1) < 0.22) idx -= 0.8;           // Kehlschuppen
     if (ju < 1 && jv > 3 && jv < 5.5 && ju > -3) idx -= 0.6;           // Kiefermuskel
@@ -561,11 +561,11 @@ function drawHead(p, g, bx, by, P, o) {
   // Schädel und Oberkiefer
   const skull = [[-6, -3], [-4, -7.4], [1, -9.6], [6, -10.3], [10, -9], [13, -6.6], [17, -5.6], [21.5, -4.8], [25, -3.9], [27.5, -2.4], [28, 0.2], [26.5, LIP], [18, LIP], [9, LIP], [2, LIP + 0.6], [-4, 3.8]];
   poly(skull, (u, v, x, y) => {
-    let idx = 4.4 - (v + 8) * 0.28 + dith(x, y) * 0.9;
+    let idx = 4.4 - (v + 8) * 0.28 + dith(x, y) * 0.45;                  // wenig Raster: ruhige Flächen im Gesicht
     if (v > 0.6) idx -= 1.1;                                              // Oberlippe im Schatten
-    if (v > LIP - 0.9 && u > 3) idx = 2.6 + dith(x, y);                  // Lippenkante
-    if (u > 3 && u < 12 && v < -7.6) idx += 1.1;                          // Brauenwulst hell
-    if (u > 5 && u < 13 && v > -7.6 && v < -6.6) idx -= 1.3;              // Schatten unter dem Wulst
+    if (v > LIP - 0.9 && u > 3) idx = 1.4;                               // Lippenkante: klare dunkle Maullinie
+    if (u > 3 && u < 13 && v < -7.6) idx += 1.4;                          // Brauenwulst hell
+    if (u > 5 && u < 13.5 && v > -7.6 && v < -6.3) idx -= 2.2;            // tiefer Schatten unter dem Wulst
     if (u > 13 && v < -3.8 && v > -5.4 && ((u | 0) % 3 === 0)) idx -= 1;  // Schnauzenschuppen
     if (u < 4 && u > -4 && v > -1 && v < 2 && ((((u + v) / 2.5) % 1 + 1) % 1) < 0.3) idx -= 1; // Wangenplatten
     if (u > 22.5 && u < 25 && v < -1.6 && v > -3.2) idx = 0.5;            // Nüster
@@ -577,7 +577,7 @@ function drawHead(p, g, bx, by, P, o) {
   // Obere Zahnreihe (zeigt nach unten), großer Eisfang vorn
   const upTeeth = [[5.5, 1], [8.8, 1.5], [12.2, 1.9], [15.4, 1.5], [18.6, 4], [21.8, 1.6], [24.8, 2.4]];
   for (const [u, len] of upTeeth) {
-    if (!open && len < 2.3) continue;
+    if (!open && len < 1.4) continue;
     tooth(p, T, [u, LIP - 0.3], [u - 0.35, LIP + len], len);
   }
   // Mundwinkel
@@ -586,11 +586,13 @@ function drawHead(p, g, bx, by, P, o) {
   // Auge: Schlitzpupille in leuchtender Iris, dunkle Höhle
   const [ex, ey] = T(9.4, -5);
   const exr = Math.round(ex), eyr = Math.round(ey);
-  for (const [dx, dy] of [[-2, 0], [-1, 1], [0, 1], [1, 1], [2, 1], [3, 0], [-1, -1], [0, -1], [1, -1], [2, -1]]) p.px(exr + dx, eyr + dy, SCALE[0]);
+  // Höhle mit dunklem Rand; schräger Oberrand (finsterer Blick)
+  for (const [dx, dy] of [[-3, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1], [3, 1], [4, 0], [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1], [3, -1], [-1, -2], [0, -2], [1, -2], [2, -2], [3, -2], [4, -1]]) p.px(exr + dx, eyr + dy, SCALE[0]);
   if (P.eye > 0.4 && !frozen) {
-    p.px(exr - 1, eyr, '#8fe6ff', M_EYE); p.px(exr, eyr, '#f2feff', M_EYE); p.px(exr + 1, eyr, '#0a1424', M_EYE); p.px(exr + 2, eyr, '#8fe6ff', M_EYE);
-    if (P.eye > 0.8) { p.px(exr, eyr - 1, '#5ac4e8', M_EYE); p.px(exr + 1, eyr - 1, '#5ac4e8', M_EYE); }
+    p.px(exr - 2, eyr, '#3a9ccc', M_EYE); p.px(exr - 1, eyr, '#8fe6ff', M_EYE); p.px(exr, eyr, '#f2feff', M_EYE); p.px(exr + 1, eyr, '#0a1424', M_EYE); p.px(exr + 2, eyr, '#8fe6ff', M_EYE); p.px(exr + 3, eyr, '#3a9ccc', M_EYE);
+    p.px(exr, eyr - 1, '#5ac4e8', M_EYE); p.px(exr + 1, eyr - 1, '#0a1424', M_EYE); p.px(exr + 2, eyr - 1, '#5ac4e8', M_EYE);
     g.px(exr, eyr, 4); g.px(exr - 1, eyr, 3); g.px(exr + 2, eyr, P.eye > 0.8 ? 3 : 2);
+    g.px(exr - 2, eyr, 1); g.px(exr + 3, eyr, 1); g.px(exr, eyr - 1, 2); g.px(exr + 2, eyr - 1, 2);
     if (P.eye > 0.8) { g.apx(exr - 2, eyr, 1); g.epx(exr - 2, eyr, 2); g.epx(exr + 3, eyr, 2); g.epx(exr + 4, eyr, 1); }
   } else {
     p.px(exr, eyr, SCALE[2]); p.px(exr + 1, eyr, SCALE[1]);

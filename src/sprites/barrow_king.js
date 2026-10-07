@@ -536,34 +536,38 @@ function pauldron(p, g, x, y, rx, ry, ramp, front) {
   if (front) { p.px(x - 2, y - ry + 1, BRZ[5]); p.px(x - 1, y - ry + 1, BRZ[5]); p.px(x + 2, y - 1, VER[2]); }
 }
 
-// Kopf: ausgedörrter Schädel in Dreiviertelansicht (zwei Augenhöhlen mit
-// Geisterflammen, Nasenloch, freiliegende Zähne), Haar, Geweihkrone.
+// Kopf: ausgedörrter Schädel in Dreiviertelansicht, Blick nach rechts. Klare Formen statt
+// Rauschen: heller Brauenwulst mit tiefem Schatten darunter, zwei Augenhöhlen mit
+// Geisterlicht, Nasenrücken und Wangenknochen im Licht, eingefallene Wange, Zahnreihe.
+// o = dunkle Kontur, 0–4 Haut (dunkel → hell), V Höhle, G/F Geisterauge (Kern/Rand), T/t Zähne.
 // Gibt eine Funktion zurück, die den Bart zeichnet (kommt vor Brust und Schulter).
 const FACE = [
   //            0123456789ABCD
-  [0, '...12333321...'],
-  [1, '..1234444321..'],
-  [2, '.123444444431.'],
-  [3, '12344444444431'],
-  [4, '12333444444442'],
-  [5, '1233110VVV3VV1'],
-  [6, '123211VVGV2VF1'],
-  [7, '122221VVVV3VV.'],
-  [8, '.12222344432V2'],
-  [9, '.0112211112VV.'],
-  [10, '..0112TtTtT1..'],
+  [0, '...o123321o...'],
+  [1, '..o12333332o..'],
+  [2, '.o1233333333o.'],
+  [3, 'o123333333333o'],
+  [4, 'o1233333333333'],
+  [5, 'o1234444444444'],
+  [6, 'o122000003400o'],
+  [7, 'o12VVGFV024VGo'],
+  [8, 'o12VFGVV124VFo'],
+  [9, 'o122VVV024443o'],
+  [10, 'o11234421ooo..'],
+  [11, '.o11oTtTtTto..'],
+  [12, '..o1oVVVVVo...'],
 ];
 const JAW = [
-  [0, '..0112tTtT1...'],
-  [1, '...01222221...'],
-  [2, '....01111.....'],
+  [0, '..o12tTtTt1o..'],
+  [1, '...o122221o...'],
+  [2, '....o1111o....'],
 ];
 function head(p, g, hx, hy, P, meta, gy) {
   const j = Math.round(P.jaw * 3);
   const t = P.capeT;
   const lit = P.eye > 0.1;
   // Hinteres Geweih (dunkler)
-  if (P.crown < 0.02) antler(p, g, hx + 3, hy + 2, -1, P, false);
+  if (P.crown < 0.02) antler(p, g, hx + 3, hy + 1, -1, P, false);
   // Haar: dünne Strähnen hinter dem Kopf
   for (let i = 0; i < 8; i++) {
     const x0 = hx + 1 + i * 0.6, y0 = hy + 3 + i * 0.5;
@@ -582,58 +586,57 @@ function head(p, g, hx, hy, P, meta, gy) {
       if (ch === '.') continue;
       let c;
       if (ch >= '0' && ch <= '4') c = SKIN[+ch];
-      else if (ch === 'V') c = VOID;
+      else if (ch === 'o' || ch === 'V') c = VOID;
       else if (ch === 'T') c = ANT[4];
       else if (ch === 't') c = ANT[2];
-      else if (ch === 'G') c = lit ? GH[4] : VOID;
-      else if (ch === 'F') c = lit ? GH[3] : VOID;
+      else if (ch === 'G') c = lit ? GH[4] : SKIN[1];
+      else if (ch === 'F') c = lit ? GH[2] : VOID;
       p.px(hx + x, hy + oy + y, c);
     }
   };
   put(FACE, 0);
   // Mund: Kiefer klappt auf, dahinter Schwärze mit Geisterlicht
   if (j) {
-    for (let k = 0; k < j; k++) { p.rect(hx + 4, hy + 11 + k, 8, 1, k === 0 ? SKIN[0] : VOID); p.px(hx + 3, hy + 11 + k, SKIN[1]); }
-    g.px(hx + 9, hy + 11 + Math.floor(j / 2), P.jaw > 0.6 ? 2 : 1);
-    g.epx(hx + 9, hy + 11, 3); if (j > 1) g.epx(hx + 8, hy + 12, 3);
+    for (let k = 0; k < j; k++) { p.rect(hx + 4, hy + 13 + k, 7, 1, VOID); p.px(hx + 3, hy + 13 + k, SKIN[1]); p.px(hx + 11, hy + 13 + k, VOID); }
+    g.px(hx + 8, hy + 13 + Math.floor(j / 2), P.jaw > 0.6 ? 2 : 1);
+    g.epx(hx + 8, hy + 13, 3); if (j > 1) g.epx(hx + 7, hy + 14, 3);
   }
-  put(JAW, 11 + j);
-  const ly = hy + 13 + j;
+  put(JAW, 13 + j);
+  const ly = hy + 14 + j;
   if (lit) {
     const e = P.eye;
-    // nahe Augenhöhle: heller Kern, Flammenkranz
     // Leuchthof um beide Höhlen (dunkel, damit der Kern hell heraussticht)
-    for (let yy = 4; yy <= 8; yy++) for (let xx = 6; xx <= 13; xx++) if (Math.abs(yy - 6) + Math.abs(xx - (xx < 10 ? 8 : 12)) <= 2) g.px(hx + xx, hy + yy, 0.4 * e);
-    g.px(hx + 8, hy + 6, 3 + 1.5 * e); g.px(hx + 7, hy + 6, 2 + 1.2 * e); g.px(hx + 9, hy + 6, 1.5 + e);
-    g.px(hx + 8, hy + 5, 1.5 + e); g.px(hx + 8, hy + 7, 1 + e); g.px(hx + 7, hy + 7, 0.5 + e); g.px(hx + 6, hy + 6, e);
+    for (let yy = 6; yy <= 9; yy++) for (let xx = 3; xx <= 13; xx++) if (Math.abs(yy - 7.5) + Math.abs(xx - (xx < 9 ? 5.5 : 12)) <= 2) g.px(hx + xx, hy + yy, 0.4 * e);
+    // nahe Augenhöhle: heller Kern, Flammenkranz
+    g.px(hx + 5, hy + 7, 3 + 1.5 * e); g.px(hx + 5, hy + 8, 2 + 1.2 * e); g.px(hx + 6, hy + 7, 2 + e); g.px(hx + 4, hy + 8, 1 + e);
+    g.px(hx + 6, hy + 8, 1 + e); g.px(hx + 4, hy + 7, 0.5 + e);
     // ferne Augenhöhle
-    g.px(hx + 12, hy + 6, 2 + 1.5 * e); g.px(hx + 11, hy + 6, 1 + e); g.px(hx + 12, hy + 5, 0.5 + e); g.px(hx + 13, hy + 6, e);
+    g.px(hx + 12, hy + 7, 2.5 + 1.5 * e); g.px(hx + 12, hy + 8, 1.5 + e); g.px(hx + 11, hy + 7, 0.5 + e);
     // Geisterflamme züngelt aus der Höhle nach oben
     const fl = Math.round(1 + e * 1.5 + (Math.sin(t * 2.3) * 0.5 + 0.5) * 1.5);
-    for (let k = 1; k <= fl; k++) g.px(hx + 8 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 5 - k, k === 1 ? 3 : k < fl ? 2 : 1);
-    g.px(hx + 12, hy + 4, 1 + e);
+    for (let k = 1; k <= fl; k++) g.px(hx + 4 - k * 0.5 + Math.sin(t * 3 + k) * 0.4, hy + 6 - k, k === 1 ? 3 : k < fl ? 2 : 1);
     // Phase 2: lange Flammenfahne nach hinten
     for (let k = 1; k <= 8; k++) {
-      const x = hx + 8 - k * 1.2 - P.cape * k * 0.2, y = hy + 5 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
+      const x = hx + 4 - k * 1.2 - P.cape * k * 0.2, y = hy + 6 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
       g.epx(x, y, k < 3 ? 4 : k < 6 ? 3 : 2);
       if (k < 5) g.epx(x, y + 1, 2);
     }
   }
-  meta.eye = { x: hx + 8, y: hy + 6 };
-  meta.mouth = { x: hx + 11, y: hy + 11 + Math.floor(j / 2) };
+  meta.eye = { x: hx + 5, y: hy + 7 };
+  meta.mouth = { x: hx + 9, y: hy + 13 + Math.floor(j / 2) };
   // Bronzereif mit Geweih
   if (P.crown < 0.02) {
-    crownBand(p, g, hx, hy + 2, 0);
-    antler(p, g, hx + 8, hy + 2, 1, P, true);
+    crownBand(p, g, hx, hy + 1, 0);
+    antler(p, g, hx + 8, hy + 1, 1, P, true);
   } else {
-    const cx = hx + P.crown * 10, cy = hy + 2 + (gy - 3 - hy - 2) * Math.min(1, P.crown * P.crown);
+    const cx = hx + P.crown * 10, cy = hy + 1 + (gy - 3 - hy - 1) * Math.min(1, P.crown * P.crown);
     crownBand(p, g, cx, cy, P.crown);
   }
   meta.head = { x: hx + 6, y: hy - 8 };
   // Bart: lange, zerzauste Strähnen vom Kinn, fällt über die Brust
   return () => {
     for (let i = 0; i < 11; i++) {
-      const x0 = hx + 3 + i * 0.75, y0 = ly - 2 + Math.abs(i - 5) * 0.25;
+      const x0 = hx + 3 + i * 0.75, y0 = ly - 1 + Math.abs(i - 5) * 0.25;
       const len = 15 + (hash2(i, 7, 13) * 6 | 0) - Math.abs(i - 5) * 1.3;
       let px0 = x0, py0 = y0;
       for (let k = 1; k <= len; k++) {

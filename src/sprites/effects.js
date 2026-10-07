@@ -11,7 +11,7 @@ const cache = new Map();
 const HOT = ['#fff8e0', '#ffe8a0', '#ffc050', '#f07a1c', '#c8420c', '#7a2208'].map(hexToRgb);
 const COLD = ['#ffffff', '#e0ecff', '#a8c0f0', '#7088c8', '#48527a', '#2d3548'].map(hexToRgb);
 
-function buildSlashFrame({ radius, width, span, heavy }, dirIndex, frame, reverse) {
+function buildSlashFrame({ radius, width, span, heavy, soft }, dirIndex, frame, reverse) {
   const R = radius + 3;
   const size = R * 2 + 1;
   const c = makeCanvas(size, size);
@@ -53,10 +53,12 @@ function buildSlashFrame({ radius, width, span, heavy }, dirIndex, frame, revers
       const edge = (radius - r) / Math.max(thick, 0.001); // 0 = Schneide außen
       let idx = Math.floor(edge * 2.2 + behind * 3.2 + (1 - fade) * 2);
       idx = Math.max(0, Math.min(ramp.length - 1, idx));
-      const col = ramp[idx];
+      const col = ramp[soft ? Math.min(idx, 2) : idx];
       const i = (y * size + x) * 4;
       d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
-      d[i + 3] = Math.round(255 * Math.min(1, (1.15 - behind) * fade + 0.1));
+      // soft (Zweihänder): durchscheinender Schleier, nach innen und zum Schweif hin ausblendend
+      const body = soft ? (edge < 0.18 ? 0.85 : 0.5 * (1 - edge) ** 1.5) * (1 - behind) * fade : Math.min(1, (1.15 - behind) * fade + 0.1);
+      d[i + 3] = Math.round(255 * body);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -78,6 +80,9 @@ export const SLASH_STYLES = {
   hero: { key: 'hero', radius: 21, width: 10, span: 2.6, heavy: false },
   heroHeavy: { key: 'heroHeavy', radius: 27, width: 13, span: 3.7, heavy: true },
   enemy: { key: 'enemy', radius: 17, width: 5, span: 2.0, heavy: false },
+  // Zweihänder: Bogen an der Klingenspitze, schmaler und durchscheinend statt voller Sichel
+  great: { key: 'great', radius: 24, width: 8, span: 2.6, heavy: false, soft: true },
+  greatHeavy: { key: 'greatHeavy', radius: 28, width: 10, span: 3.7, heavy: true, soft: true },
 };
 
 // Enemy-Hiebe in kalter, fahler Farbe – visuell klar vom Helden getrennt.

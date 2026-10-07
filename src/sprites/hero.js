@@ -141,6 +141,14 @@ class Raster {
   put(F, G, c) {
     if (F >= 0 && G >= 0 && F < this.fw && G < this.fh) this.buf[G * this.fw + F] = col(c);
   }
+  // Feinpixel mit Deckkraft a (0..1) über das Vorhandene legen (durchscheinende Wischspur)
+  blend(F, G, c, a) {
+    if (!c || a <= 0 || F < 0 || G < 0 || F >= this.fw || G >= this.fh) return;
+    const i = G * this.fw + F, o = this.buf[i], v = col(c);
+    const oa = (o >>> 24) / 255, na = Math.min(1, a), out = na + oa * (1 - na);
+    const ch = (sh) => Math.round((((v >>> sh) & 255) * na + ((o >>> sh) & 255) * oa * (1 - na)) / out);
+    this.buf[i] = ((Math.round(out * 255) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)) >>> 0;
+  }
   // ein Feinpixel an Weltposition
   dot(x, y, c) { if (c) this.put(this.fx(x), this.fy(y), c); }
   // ein ganzer Weltpixel (gerundet)
@@ -522,6 +530,7 @@ function drawRider(R, G, L, P, sk) {
 const SMEAR_LEN = { sword: 15, dagger: 7, axe: 15, mace: 15, staff: 15, wand: 8 };
 function drawSmear(R, L, hx, hy, a0, a1) {
   const w = L.weapon;
+  if (w.great) { drawGreatSmear(R, w, hx, hy, a0, a1); return; }
   const len = (w.family === 'sword' || w.family === 'dagger' ? w.len : null) ?? SMEAR_LEN[w.family] ?? 12;
   const c = w.glow ?? (w.family === 'staff' || w.family === 'wand' ? L.trim : ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8']);
   const rout = len + 1.5, body = Math.max(3, len * 0.5);
@@ -538,6 +547,29 @@ function drawSmear(R, L, hx, hy, a0, a1) {
       else R.set(Math.round(hx + ca * r), Math.round(hy + sa * r), col);
     }
   }
+}
+
+// Zweihänder: durchscheinender Hiebbogen statt voller Sichel. Je Feinpixel einmal gemischt:
+// heller, dünner Außenrand an der Klingenspitze, nach innen und zum Anfang des Hiebs hin auslaufend.
+function drawGreatSmear(R, w, hx, hy, a0, a1) {
+  const len = w.len ?? 21, da = a1 - a0;
+  if (Math.abs(da) < 0.05) return;
+  const c = w.edge ?? w.glow ?? ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8'];
+  const rout = len + 0.8, body = len * 0.2, TAU = Math.PI * 2;
+  R.each(hx - rout - 1, hy - rout - 1, hx + rout + 1, hy + rout + 1, (x, y, F, G) => {
+    const dx = x - hx, dy = y - hy, r = Math.hypot(dx, dy);
+    if (r > rout || r < rout - body - 1) return;
+    const phi = Math.atan2(dy, dx);
+    const delta = da > 0 ? ((phi - a0) % TAU + TAU) % TAU : -(((a0 - phi) % TAU + TAU) % TAU);
+    const t = delta / da;
+    if (t < 0 || t > 1) return;
+    const fade = t * Math.sqrt(t);
+    const thick = 0.7 + body * t * t * (1 - 0.75 * Math.max(0, (t - 0.78) / 0.22)), d = rout - r;
+    if (d > thick) return;
+    const k = d / thick;
+    if (d < 0.5) R.blend(F, G, c[4] ?? c[3], 0.72 * fade + 0.06);
+    else R.blend(F, G, k < 0.3 ? c[4] ?? c[3] : c[3], 0.45 * (1 - k) * Math.sqrt(1 - k) * fade);
+  });
 }
 
 // --- Körperteile ----------------------------------------------------------------------------
@@ -1817,10 +1849,11 @@ function drawWeapon(R, G, w, hx, hy, ang, P, far, reach = 1) {
 // Wird als Eintrag mit axis: true in G gesammelt und in makeFrame als frame.weapon abgelegt.
 function weaponAxis(G, w, hx, hy, ang, u0, u1, far) {
   if (far || !w.fx) return;
-  G.push({ axis: true, x: hx, y: hy, ang, u0, u1, fx: w.fx, tier: w.tier ?? 0 });
+  G.push({ axis: true, x: hx, y: hy, ang, u0, u1, fx: w.fx, tier: w.tier ?? 0, great: !!w.great });
 }
 
 function drawBlade(R, G, w, hx, hy, ang, len, far) {
+  if (w.great) { drawGreatBlade(R, G, w, hx, hy, ang, len, far); return; }
   const Bl = far ? dimRamp(w.blade ?? M.iron) : w.blade ?? M.iron;
   const Gd = w.guard ?? M.iron, Gr = w.grip ?? M.leather;
   const width = w.width ?? 1;
@@ -1862,6 +1895,90 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
   }
   if (w.gem && !far && (w.rarity === 'epic' || w.rarity === 'legendary')) {
     G.push({ x: Math.round(hx + Math.cos(ang) * 1.2), y: Math.round(hy + Math.sin(ang) * 1.2), color: w.gem[3], r: 1 });
+  }
+}
+
+// Zweihänder: langer Griff mit Wicklung, Knauf mit Stein, breite geschwungene Parierstange,
+// Fehlschärfe mit Parierhaken, breite gerade Klinge mit heller Schneide, dunkler Hohlkehle
+// (Runen) und Mittelgrat zur Spitze. edge: glühende Gegenschneide (legendär).
+const GREAT_RUNE = [1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0];
+function drawGreatBlade(R, G, w, hx, hy, ang, len, far) {
+  const Bl = far ? dimRamp(w.blade ?? M.steel) : w.blade ?? M.steel;
+  const Gd = far ? dimRamp(w.guard ?? M.iron) : w.guard ?? M.iron, Gr = w.grip ?? M.darkleather;
+  const gem = w.gem, Ru = far ? null : w.runes, E = far ? null : w.edge;
+  const fine = S >= FINE_MIN, q = fine ? 2 : 1;
+  const half = 1.75, gw = w.guardW ?? 4.4, bend = w.wings ? 0.075 : 0.05;
+  const B0 = 2.7, RIC = 4.3;                                     // Klingenansatz, Ende der Fehlschärfe
+  R.axis(hx, hy, ang, -5.8, len + 0.3, gw + 1, (u, lv) => {
+    const a = Math.abs(lv);
+    // Knauf: Scheibe mit Stein
+    const pd = Math.hypot(u + 4.6, lv * 1.1);
+    if (pd < 1.3) {
+      if (gem && pd < 0.72) return lv < -0.1 && u < -4.7 ? gem[4] : lv > 0.2 ? gem[2] : gem[3];
+      return pd > 1.0 ? Gd[1] : Gd[lv < 0 ? 4 : 2];
+    }
+    if (u < -3.3) return a < 0.5 ? Gd[2] : null;
+    // Griff: gewickelt
+    if (u < 0.95) {
+      if (a > 0.8) return null;
+      const wrap = (Math.floor((u + 10) * 1.6) + (lv < 0 ? 0 : 1)) % 2;
+      return a > 0.62 ? Gr[0] : lv < 0 ? Gr[wrap ? 3 : 2] : Gr[wrap ? 2 : 1];
+    }
+    // Parierstange: zur Klinge hin geschwungen, Enden verdickt, Stein in der Mitte
+    const uc = 1.7 + bend * a * a, du = u - uc;
+    if (a <= gw + 0.6 && u < B0 + 2.2) {
+      const tipD = Math.hypot(du, a - gw);
+      if (a > gw - 0.2 && tipD < 0.75) return tipD > 0.5 ? Gd[1] : Gd[lv < 0 ? 4 : 3];
+      if (a <= gw && Math.abs(du) < 0.62 - a * 0.04) {
+        if (gem && a < 0.6 && Math.abs(du) < 0.5) return lv < -0.15 ? gem[4] : gem[3];
+        return du < -0.3 ? Gd[4] : du > 0.32 ? Gd[1] : Gd[lv < 0 ? 3 : 2];
+      }
+      // Mittelstück (Langet) über dem Klingenansatz
+      if (a < 1.25 && u > 1.7 && u < B0 + 0.4) return a > 0.95 ? Gd[1] : Gd[lv < 0 ? 3 : 2];
+    }
+    if (u > len || u < B0) return null;
+    const t = (u - B0) / (len - B0);
+    let hw = half * (1 - 0.16 * t);
+    if (u < RIC) hw = half * 0.72;
+    if (t > 0.85) hw *= Math.max(0, (1 - t) / 0.15);
+    if (w.flame) hw *= 0.9 + 0.12 * Math.sin(t * 16);
+    // Parierhaken am Ende der Fehlschärfe
+    if (u >= RIC - 0.1 && u < RIC + 0.8 && a < half + 0.9 && a > hw) {
+      const hk = u - RIC + 0.1;
+      if (a < half + 0.9 - hk * 0.9) return hk < 0.3 ? Gd[3] : Gd[1];
+    }
+    if (a > hw + 0.1) return null;
+    const e = hw - a;
+    if (u < RIC) return e < 0.35 ? Bl[1] : lv < 0 ? Bl[3] : Bl[2];       // Fehlschärfe: stumpf, matt
+    if (w.jag && lv > 0 && e < 0.6 && Math.floor(u * q) % 3 === 0) return null;
+    if (e < 0.5) {                                                          // Schneiden
+      if (lv < 0) return Bl[4];
+      if (E && t > 0.06) return E[3];
+      return Bl[3];
+    }
+    if (e < hw * 0.42) return lv < 0 ? Bl[3] : Bl[1];                       // Fase
+    if (t < 0.68) {                                                         // Hohlkehle
+      if (a < 0.42) {
+        if (Ru && t > 0.04) return GREAT_RUNE[Math.floor((u - RIC) * q) % GREAT_RUNE.length] ? Ru[3] : Ru[2];
+        return Bl[0];
+      }
+      if (a < 0.7) return lv < 0 ? Bl[1] : Bl[3];
+    } else if (a < 0.3) return Bl[3];                                       // Mittelgrat zur Spitze
+    return lv < 0 ? Bl[2] : Bl[1];
+  });
+  weaponAxis(G, w, hx, hy, ang, RIC, len, far);
+  if (far) return;
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const glow = w.runes ?? w.glow;
+  if (glow && w.glow) {                                                    // Runen glimmen (nur Leuchtklingen)
+    for (let i = 1; i <= 2; i++) {
+      const u = RIC + (len * 0.68 - RIC) * (i / 2.3);
+      G.push({ x: Math.round(hx + dx * u), y: Math.round(hy + dy * u), color: glow[3], r: w.shine >= 2 ? 2 : 1.5 });
+    }
+  }
+  if (gem && (w.rarity === 'epic' || w.rarity === 'legendary')) {
+    G.push({ x: Math.round(hx + dx * 1.7), y: Math.round(hy + dy * 1.7), color: gem[3], r: 1 });
+    G.push({ x: Math.round(hx - dx * 4.6), y: Math.round(hy - dy * 4.6), color: gem[3], r: 1 });
   }
 }
 
@@ -2479,7 +2596,10 @@ export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 
   const key = `${res}|${raceId}|${classId}|${v}|${gearKey(gear)}|${style?.dye ?? ''}|${style?.hairStyle ?? ''}`;
   let set = cache.get(key);
   if (!set) {
-    set = buildSet({ ...resolveLook(raceId, classId, v, gear, style), res });
+    const L = { ...resolveLook(raceId, classId, v, gear, style), res };
+    set = buildSet(L);
+    // Zweihänder in der Hand: der Held wählt damit den durchscheinenden Hiebbogen (entities/Hero.js)
+    Object.defineProperty(set, 'greatWeapon', { value: !!L.weapon?.great });
     cache.set(key, set);
     if (cache.size > (res >= 3 ? 10 : res >= 2 ? 20 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 4–9× so groß
   }

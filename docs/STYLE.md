@@ -190,3 +190,9 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - Neue Instrumente: Chor (Formanten), Schalmei (reed), Zupfen (pluck), Celesta; Flächen organ, ice, murk, drone; Trommeln Taiko (t), Rahmentrommel (f), Shaker (s), Snare (n).
 - Sfx: kurzer Raumhall (wet), Treffer/Krit/Bogen/Zauber/Feuer/Schrei/Wirbel mehrschichtig. Pegel gemessen: Krit-Spitze 0,23, Zonenmusik RMS 0,02–0,03, Boss 0,04–0,045.
 - Umgebung: zufällige Einzelgeräusche je Atmo (Vögel, Tropfen, Ketten, Knistern, Kröten, Böen), alle 2,5–8 s, sehr leise.
+
+## Runde 9: Gesichter, Königsfall, Bodenwarnungen (07.10.)
+- **Bodenwarnungen (entities/Telegraph.js):** Look einer glühenden Bodenrune statt flacher Flächen/Kästen. Lit-Pass: Verlauf (Mitte zart, Rand kräftig), wachsende Füllung. Emissive: weicher Außenschein, dunkle Kontur, heller Glutrand, wachsende Schlagkante mit Schein, aufsteigende Funken; Kreise/Bögen mit kreisendem Runenkranz, breite Linien mit gerundeten Ecken und Laufpfeilen in Angriffsrichtung, schmale Linien (< 8 px) als auslaufender Lichtstrahl mit wanderndem Lichtpunkt. Geometrie und Trefferprüfung unverändert. Eigene Warnmarken-Unterklassen sollen den Basis-Look nicht überschreiben (Malgareth nutzt ihn jetzt).
+- **Porträts (gfx/Portraits.js):** native 96×96, Gesicht ~37 px breit. Anzeige nur in ganzzahligen Faktoren (Dialog Desktop 192 = ×2, schmal/Hochformat/niedrig 96 = ×1; Website 96 = ×1). Keine Skalier-Animationen auf Pixelbildern (nur Helligkeit).
+- **Zweihänder (sprites/hero.js drawGreatBlade/drawGreatSmear):** echte Klingenform; Schwungspur durchscheinend statt vollflächiger Sichel. Königsfall hat eigenes Aussehen (gearLook WEAPON_NAMED.kingsbane).
+- **Bossgesichter:** Pixel-Maps mit Stirnlicht, dunklen Augenhöhlen, leuchtenden Augen; Augen auch in der Basis-Ebene gefärbt (Website-Renders nutzen keine Leucht-Ebene).
