@@ -463,12 +463,17 @@ test('Reittiere: Kauf bei Orla, Lernen per Gegenstand, Drops nur von Bossen', ()
   // Beritten kein Trank
   state.slices.character.mounts.riding = true;
   assert.equal(c('inventory:use', { slot: slotOf(state, 'minor_potion') }).reason, 'riding');
-  // Drops: nur die vier Dungeonbosse und das Moorgrauen, 1 % bzw. 0,5 %
-  assert.deepEqual(Object.keys(MOUNT_DROPS).sort(), ['ash_sovereign', 'barrow_king', 'bog_horror', 'frost_wyrm', 'rot_mother']);
+  // Drops: fünf Dungeonbosse und das Moorgrauen, 1 % bzw. 0,5 %; Höllenhund und Reifschwinge je 0,4 %
+  assert.deepEqual(Object.keys(MOUNT_DROPS).sort(), ['ash_sovereign', 'barrow_king', 'bog_horror', 'ember_tyrant', 'frost_wyrm', 'rot_mother']);
   assert.equal(MOUNT_DROPS.ash_sovereign[1], 0.005);
   let n = 0;
   for (let i = 0; i < 20000; i++) if (rollLoot({ type: 'barrow_king', level: 26, boss: true, bossId: 'barrow_king' }, { rng }).some((d) => d.itemId === 'mount_bone_stallion')) n++;
   assert.ok(n > 120 && n < 290, `Knochenhengst ${n}/20000`);
+  const rate = (bossId, level, itemId) => { let k = 0; for (let i = 0; i < 50000; i++) if (rollLoot({ type: bossId, level, boss: true, bossId }, { rng }).some((d) => d.itemId === itemId)) k++; return k; };
+  const hh = rate('ember_tyrant', 20, 'mount_hellhound'), rd = rate('frost_wyrm', 37, 'mount_rime_drake'), fe = rate('frost_wyrm', 37, 'mount_frost_elk');
+  assert.ok(hh > 120 && hh < 290, `Höllenhund ${hh}/50000`);
+  assert.ok(rd > 120 && rd < 290, `Reifschwinge ${rd}/50000`);
+  assert.ok(fe > 380 && fe < 620, `Frostelch weiter 1 % (${fe}/50000)`);
   for (let i = 0; i < 3000; i++) assert.ok(!rollLoot({ chest: 'boss_x', level: 30 }, { rng }).some((d) => ITEMS[d.itemId]?.type === 'mount'), 'kein Reittier in Truhen');
 });
 

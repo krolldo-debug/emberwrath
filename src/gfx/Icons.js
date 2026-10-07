@@ -1057,6 +1057,9 @@ const MOUNTS = {
   mount_ember_charger: { kind: 'horse', hide: M.darkwood, mane: M.ember, maneStyle: 'fire', ears: true, bridle: M.gold, eye: EYE_GLOW(M.ember) },
   mount_cinder_drake: { kind: 'drake', hide: M.obsidian, horns: M.bone, spikes: M.ember, eye: EYE_GLOW(M.ember), mouthGlow: M.ember, belly: M.ember },
   mount_nightmare_steed: { kind: 'horse', hide: M.darkleather, mane: M.purple, maneStyle: 'fire', ears: true, eye: EYE_GLOW(M.purple), mouthGlow: M.purple },
+  // Seltenste Bossbeute (Runde 07.10.)
+  mount_hellhound: { kind: 'wolf', hide: ['#080405', '#140a0a', '#261210', '#3e1c16', '#5e2a1c'], mane: M.ember, maneStyle: 'fire', ears: 'tall', horns: M.bone, eye: EYE_GLOW(M.ember), mouthGlow: M.ember, belly: ['#3a0e05', '#7a2208', '#c8420c', '#f07a1c', '#ffd890'] },
+  mount_rime_drake: { kind: 'drake', hide: ['#1a2c4a', '#3a6290', '#7eaad0', '#c4e2f6', '#ffffff'], horns: M.silver, spikes: M.frost, eye: ['#0a1838', '#ffffff'], mouthGlow: M.frost, belly: M.frost },
   // Exklusive Shop-Designs (character/mounts.js)
   mount_phoenix_wing: { kind: 'drake', hide: ['#5a1208', '#8c220c', '#c04412', '#e8822a', '#ffc85a'], horns: M.gold, spikes: ['#86180a', '#c4340e', '#ec6416', '#ffa22e', '#ffe48a'], eye: ['#3a0804', '#fff0b0'], mouthGlow: M.gold, belly: M.gold },
   mount_astral_stallion: { kind: 'horse', hide: ['#08081e', '#12163a', '#1c265e', '#2a3a8a', '#4660bc'], mane: ['#3a58c0', '#7c9cf0', '#c4d8ff', '#e8f0ff', '#ffffff'], maneStyle: 'fire', ears: true, bridle: M.silver, eye: ['#0a1030', '#ffffff'] },

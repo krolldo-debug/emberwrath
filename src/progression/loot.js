@@ -26,11 +26,11 @@ const BOSSES = {
   bonelord: { weights: { uncommon: 75, rare: 22, epic: 3 }, drops: 2, gold: 12, named: [['varkhul_cleaver', 0.2]], set: { chance: 0.35, pieces: ['varkhul_helm', 'bone_mail', 'varkhul_grips', 'varkhul_greaves'] }, quest: [['q_bonelord', 'varkhul_sigil']] },
   drowned_priestess: { weights: { uncommon: 50, rare: 45, epic: 5 }, drops: 2, gold: 14, named: [['priestess_amulet', 0.05]], set: { chance: 0.35, pieces: ['tide_circlet', 'tide_wraps', 'tide_pearl_ring'] }, quest: [['q_nerith', 'tide_pearl']] },
   // Legendär: höchstens EIN Teil pro Kill, Gesamtchance 1,8 % (bevorzugt passend zur Klasse).
-  ember_tyrant: { weights: { rare: 92, epic: 8 }, drops: 3, set: { chance: 0.12, pieces: ['tyrant_helm', 'tyrant_gauntlets', 'tyrant_sabatons'] }, gold: 18, legendary: { chance: 0.018, pool: ['tyrant_plate', 'crown_of_embers_blade', 'nightwhisper', 'starfall', 'worldstaff', 'ember_heart'] }, quest: [['q_ignaroth', 'tyrant_crown']] },
-  // Stufe 20–40 (§12.7). mount: [itemId, Chance] – eigener Wurf, zählt nicht gegen die Seltenheitsgrenzen.
+  ember_tyrant: { weights: { rare: 92, epic: 8 }, drops: 3, set: { chance: 0.12, pieces: ['tyrant_helm', 'tyrant_gauntlets', 'tyrant_sabatons'] }, gold: 18, legendary: { chance: 0.018, pool: ['tyrant_plate', 'crown_of_embers_blade', 'nightwhisper', 'starfall', 'worldstaff', 'ember_heart'] }, quest: [['q_ignaroth', 'tyrant_crown']], mount: ['mount_hellhound', 0.004] },
+  // Stufe 20–40 (§12.7). mount: [itemId, Chance] oder eine Liste solcher Paare – je ein eigener Wurf, zählt nicht gegen die Seltenheitsgrenzen.
   barrow_king: { weights: { uncommon: 70, rare: 26, epic: 4 }, drops: 2, gold: 14, named: [['ulgrim_blade', 0.2]], set: { chance: 0.35, pieces: ['hillking_helm', 'hillking_cuirass', 'hillking_gauntlets', 'hillking_ring'] }, quest: [['q_barrow_king', 'barrow_seal']], mount: ['mount_bone_stallion', 0.01] },
   rot_mother: { weights: { uncommon: 50, rare: 45, epic: 5 }, drops: 2, gold: 15, named: [['rotmother_staff', 0.2]], set: { chance: 0.35, pieces: ['rotmother_hood', 'rotmother_robe', 'rotmother_gloves', 'rotmother_amulet'] }, mount: ['mount_spore_beetle', 0.01] },
-  frost_wyrm: { weights: { uncommon: 34, rare: 60, epic: 6 }, drops: 2, gold: 16, named: [['skalvyr_fang', 0.12], ['skalvyr_rib_bow', 0.12]], set: { chance: 0.35, pieces: ['wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'] }, quest: [['q_frost_wyrm', 'wyrm_heart']], mount: ['mount_frost_elk', 0.01] },
+  frost_wyrm: { weights: { uncommon: 34, rare: 60, epic: 6 }, drops: 2, gold: 16, named: [['skalvyr_fang', 0.12], ['skalvyr_rib_bow', 0.12]], set: { chance: 0.35, pieces: ['wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'] }, quest: [['q_frost_wyrm', 'wyrm_heart']], mount: [['mount_frost_elk', 0.01], ['mount_rime_drake', 0.004]] },
   ash_sovereign: { weights: { rare: 92, epic: 8 }, drops: 3, gold: 20, set: { chance: 0.12, pieces: ['sovereign_helm', 'sovereign_gauntlets', 'sovereign_sabatons'] }, legendary: { chance: 0.018, pool: SOVEREIGN_LEGENDARIES }, quest: [['q_ash_sovereign', 'sovereign_crown']], questOnDefeat: true, mount: ['mount_cinder_drake', 0.005] },
 };
 // Benannte Eliten (Außengebiete ab 20): Set-Teil mit `set.chance`, Questgegenstand, evtl. Reittier.
@@ -43,6 +43,8 @@ const ELITES = {
 };
 // Questgegenstände, die direkt bei boss:defeated vergeben werden (B zeigt die Krone nur als Grafik): { bossId: [[questId, itemId]] }
 export const BOSS_QUEST_GRANTS = Object.fromEntries(Object.entries(BOSSES).filter(([, b]) => b.questOnDefeat).map(([id, b]) => [id, b.quest]));
+// mount ist ein Paar [itemId, Chance] oder eine Liste davon
+export const mountRolls = (m) => (!m ? [] : Array.isArray(m[0]) ? m : [m]);
 export const MOUNT_DROPS = Object.fromEntries([...Object.entries(BOSSES), ...Object.entries(ELITES)].filter(([, b]) => b.mount).map(([id, b]) => [id, b.mount]));
 export const LEGENDARY_MAX = 0.02;
 
@@ -207,7 +209,7 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   // Reittier (eigener Wurf)
   // In den Glutprüfungen gibt es nur das Albtraumross (trials.js), keine Boss-Reittiere
   const mount = enemy.trial ? null : boss?.mount ?? named?.mount;
-  if (mount && ITEMS[mount[0]] && rng() < mount[1]) drops.push({ itemId: mount[0], qty: 1 });
+  for (const [id, chance] of mountRolls(mount)) if (ITEMS[id] && rng() < chance) drops.push({ itemId: id, qty: 1 });
 
   // Tränke
   // Release-Bewertung: Tränke waren zu reichlich. In den Prüfungen fällt von normalen Gegnern seltener etwas.
