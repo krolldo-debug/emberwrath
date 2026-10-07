@@ -9,7 +9,7 @@ import { npcPortraitUrl } from '../gfx/Portraits.js';
 export function dialogPortraitEl(session, npcId) {
   const def = session.content.find('npc', npcId);
   return h('figure.dlg-portrait', { 'aria-hidden': 'true' },
-    h('div.dlg-frame', h('img.dlg-img', { src: npcPortraitUrl(npcId, def), alt: '', width: 48, height: 48, draggable: 'false' })),
+    h('div.dlg-frame', h('img.dlg-img', { src: npcPortraitUrl(npcId, def), alt: '', width: 96, height: 96, draggable: 'false' })),
     h('figcaption.dlg-plate', h('b', def?.name ?? ''), def?.title ? h('small', def.title) : null));
 }
 

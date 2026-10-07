@@ -718,7 +718,7 @@
 .dlg-wrap { display: flex; align-items: flex-end; gap: 12px; max-width: 96vw; }
 .dlg-portrait { margin: 0; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; animation: dlg-in 0.28s ease-out; }
 .dlg-frame {
-  width: 152px; height: 152px; padding: 4px; box-sizing: border-box;
+  width: 206px; height: 206px; padding: 4px; box-sizing: border-box; /* Innenmaß 192 = 96 × 2, ganzzahlig = saubere Pixel */
   background: #0b0710; border: 3px solid #b8862a; border-radius: 4px;
   box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px rgba(255, 220, 160, 0.25), 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 22px rgba(255, 170, 60, 0.18);
 }
@@ -727,16 +727,16 @@
 .dlg-plate b { font-family: var(--ef-font-title); color: #ffd66a; font-size: 16px; line-height: 1.1; }
 .dlg-plate small { color: var(--ef-muted); font-size: 11px; }
 @keyframes dlg-in { from { opacity: 0; transform: translateX(-14px); } }
-@keyframes dlg-breathe { 50% { transform: scaleY(1.012); } }
+@keyframes dlg-breathe { 50% { filter: brightness(1.07); } } /* kein Skalieren: hielte die Pixel nicht scharf */
 /* Hochformat / schmal: Porträt klein über dem Dialog, Name daneben */
 @media (max-width: 720px), (orientation: portrait) {
   .dlg-wrap { flex-direction: column; align-items: stretch; gap: 6px; }
   .dlg-portrait { flex-direction: row; align-items: flex-end; gap: 8px; }
-  .dlg-frame { width: 84px; height: 84px; padding: 2px; border-width: 2px; }
+  .dlg-frame { width: 104px; height: 104px; padding: 2px; border-width: 2px; } /* Innenmaß 96 = ×1 */
   .dlg-plate { align-items: flex-start; }
 }
 @media (max-height: 480px) and (orientation: landscape) {
-  .dlg-frame { width: 112px; height: 112px; }
+  .dlg-frame { width: 110px; height: 110px; } /* Innenmaß 96 = ×1 */
 }
 @media (prefers-reduced-motion: reduce) { .dlg-img, .dlg-portrait { animation: none; } }
 .hud-trial-aff { margin-top: 2px; text-align: center; font-size: 0.78em; color: #ffb070; text-shadow: 0 1px 0 #000; }

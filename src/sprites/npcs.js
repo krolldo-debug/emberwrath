@@ -37,6 +37,7 @@ function drawMaren(p, { bob = 0, sway = 0, talk = 0 } = {}) {
   p.px(hx + 5, hy + 4, '#1a1014'); p.px(hx + 6, hy + 5, SKIN[1]);
   p.px(hx + 5, hy + 6, talk ? '#2a1010' : SKIN[1]);
   p.px(hx + 6, hy + 3, SKIN[3]);
+  p.px(hx + 5, hy + 3, HAIR[0]); p.px(hx + 4, hy + 5, SKIN[3]); p.px(hx + 4, hy + 6, SKIN[1]); // Braue, Wangenlicht, Falte
   // Arm + Stab mit Laterne
   const sx = tx + 9 + sway * 0.3;
   p.rect(tx + 5, ty + 2, 3, 5, ROBE[3]); p.rect(tx + 7, ty + 6, 2, 2, SKIN[2]);

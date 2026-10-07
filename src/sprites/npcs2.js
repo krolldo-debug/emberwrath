@@ -48,6 +48,10 @@ function head(p, hx, hy, o) {
   if (o.talk) p.px(hx + 5, hy + 6, '#2a0e10');
   p.px(hx + 3, hy + 4, S[1]); p.px(hx + 3, hy + 5, S[0]); // Ohr
   p.px(hx + 6, hy + 5, S[3]);
+  // Volumen: Wangenlicht, Kieferschatten, Lidschatten über dem Auge
+  p.px(hx + 1, hy + 5, S[1]); p.px(hx + 1, hy + 6, S[1]); p.px(hx + 2, hy + 6, S[1]);
+  p.px(hx + 6, hy + 3, S[3]); p.px(hx + 4, hy + 5, S[3]);
+  if (!o.noEye) p.px(hx + 5, hy + 5, S[1]);
 }
 
 function legs(p, cx, fy, top, pants, boots, step = 0) {

@@ -363,6 +363,8 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
   if (jaw) { p.px(hx + 7, hy + 11 + jaw, B[3]); p.px(hx + 11, hy + 11 + jaw, B[3]); }
   // Augen: Seelenfeuer in den Höhlen
   if (P.eye > 0.2) {
+    // Glimmen schon im Grundbild (lesbar auch ohne Leucht-Ebene, z. B. Webseite)
+    p.px(hx + 7, hy + 7, glow[2]); p.px(hx + 6, hy + 7, glow[1]); p.px(hx + 13, hy + 7, glow[2]);
     // kleiner, heißer Kern – die dunkle Höhle bleibt drumherum sichtbar
     g.px(hx + 7, hy + 7, glow[4]); g.px(hx + 6, hy + 7, glow[3]); g.px(hx + 7, hy + 6, glow[2]);
     g.px(hx + 13, hy + 7, glow[3]); g.px(hx + 13, hy + 6, glow[1]);

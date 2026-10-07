@@ -56,47 +56,10 @@ function impactFx(world, x, y, r, big = false) {
   world.bus.emit('trapFlame', { x, y });
 }
 
-// Warnmarke des Fürsten: Fläche wie üblich, dazu dunkle Kontur (Lit-Pass) und heller Rand (Emissive),
-// damit sie auf Glutboden, unter Feuer und neben der hellen Figur klar lesbar bleibt.
-// Gleicher Klassenname wie die Basis, damit Prüf- und Analysewerkzeuge sie als Warnung erkennen.
-class Telegraph extends TelegraphBase {
-  #outline(ctx, cx, cy, grow = 0) {
-    const x = this.x - cx, y = this.y - cy;
-    ctx.beginPath();
-    if (this.shape === 'circle') ctx.ellipse(x, y, this.r + grow, (this.r + grow) * 0.6, 0, 0, Math.PI * 2);
-    else if (this.shape === 'arc') {
-      ctx.moveTo(x, y);
-      for (let i = 0; i <= 18; i++) {
-        const a = this.angle - this.arc / 2 + (this.arc * i) / 18;
-        ctx.lineTo(x + Math.cos(a) * (this.r + grow), y + Math.sin(a) * (this.r + grow) * 0.6);
-      }
-      ctx.closePath();
-    } else {
-      const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75;
-      const nx = -dy, ny = dx, hw = this.width / 2 + grow, L = this.len + grow;
-      ctx.moveTo(x + nx * hw - dx * grow, y + ny * hw - dy * grow);
-      ctx.lineTo(x + dx * L + nx * hw, y + dy * L + ny * hw);
-      ctx.lineTo(x + dx * L - nx * hw, y + dy * L - ny * hw);
-      ctx.lineTo(x - nx * hw - dx * grow, y - ny * hw - dy * grow);
-      ctx.closePath();
-    }
-  }
-  render(ctx, cx, cy) {
-    super.render(ctx, cx, cy);
-    ctx.save();
-    ctx.globalAlpha = 0.85; ctx.strokeStyle = '#120806'; ctx.lineWidth = 2;
-    this.#outline(ctx, cx, cy, 1.5); ctx.stroke();
-    ctx.restore();
-  }
-  renderEmissive(ctx, cx, cy) {
-    const k = Math.min(1, this.t / this.duration);
-    ctx.save();
-    ctx.globalAlpha = 0.75 + 0.25 * Math.sin(this.t * 22) * (k > 0.7 ? 1 : 0.2);
-    ctx.strokeStyle = k > 0.7 ? '#fff4d8' : '#ffd08a'; ctx.lineWidth = 1;
-    this.#outline(ctx, cx, cy, 0); ctx.stroke();
-    ctx.restore();
-  }
-}
+// Warnmarke des Fürsten: die allgemeine Bodenwarnung (dunkle Kontur, heller Glutrand, Schein) ist
+// auch auf Glutboden lesbar. Gleicher Klassenname wie die Basis, damit Prüf- und Analysewerkzeuge
+// sie als Warnung erkennen.
+class Telegraph extends TelegraphBase {}
 
 // dot = Flächen-Tick (Glutrisse, Glutpfützen): Treffer wird als Tick gekennzeichnet (kein Hitstop/Wackeln).
 // Nach dem Tod des Fürsten richtet nichts mehr Schaden an.

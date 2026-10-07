@@ -492,7 +492,8 @@ export class Hero extends Actor {
       r: a.reach, angle: this.aimAngle, arc: a.arc,
       damage: this.damageFor(a.mult), knockback: a.knockback, heavy: !!a.heavy, ttl: a.active,
     });
-    const style = a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
+    const great = !!this.animator.anims?.greatWeapon;
+    const style = great ? (a.heavy ? SLASH_STYLES.greatHeavy : SLASH_STYLES.great) : a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
     world.addEffect(new SlashEffect(this, this.aimAngle, style, this.combo === 1, a.active + 0.08));
     world.bus.emit('swing', { actor: this, heavy: !!a.heavy, angle: this.aimAngle });
   }
@@ -679,7 +680,7 @@ export class Hero extends Actor {
     if (a.tier >= 2) {
       // weiche Aura entlang der Waffe
       const strong = a.tier >= 3;
-      const dim = a.arc ? 0.45 : 1;   // Bogen: schwächere Aura, Zungen nur an den Enden
+      const dim = a.arc ? 0.45 : a.great ? 0.35 : 1;   // Bogen: schwächere Aura, Zungen nur an den Enden; Zweihänder: Klinge bleibt lesbar
       for (let u = a.u0; u <= a.u1; u += a.arc ? 3 : 1.5) {
         const n = 0.5 + 0.5 * Math.sin(t * 11 + u * 1.7) * Math.sin(t * 7.3 - u);
         const x = px(u), y = py(u);
@@ -692,7 +693,7 @@ export class Hero extends Actor {
       }
       // Flammenzungen (Feuer, Heilig) bzw. Funkeln (andere Elemente)
       const tongues = a.fx === 'fire' || a.fx === 'holy';
-      const n = a.arc ? 2 : strong ? 7 : 5;
+      const n = a.arc ? 2 : a.great ? 3 : strong ? 7 : 5;
       for (let i = 0; i < n; i++) {
         const u = a.arc ? (i ? a.u1 - 0.5 : a.u0 + 0.5) : a.u0 + (a.u1 - a.u0) * ((i + 0.5) / n);
         const ph = t * (tongues ? 9 : 4) + i * 2.39;

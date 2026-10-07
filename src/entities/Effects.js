@@ -19,7 +19,11 @@ export class SlashEffect extends Entity {
   renderEmissive(ctx, cx, cy) {
     const f = Math.min(SLASH_FRAMES - 1, Math.floor((this.t / this.duration) * SLASH_FRAMES));
     const img = this.enemy ? getEnemySlashFrame(this.angle, f) : getSlashFrame(this.style, this.angle, f, this.reverse);
+    // Zweihänder (soft): additiv, damit der durchscheinende Bogen leuchtet statt grau zu wirken
+    const prev = ctx.globalCompositeOperation;
+    if (this.style?.soft) ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(img, Math.round(this.x - cx - img.width / 2), Math.round(this.y - cy - img.height / 2));
+    ctx.globalCompositeOperation = prev;
   }
 }
 

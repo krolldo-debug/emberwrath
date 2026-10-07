@@ -689,6 +689,30 @@ function flameMane(p, g, hx, hy, P) {
   }
 }
 
+// Visier (Pixelkarte im Zielpuffer, 12 breit). o Kontur, 1–4 Schlacke (dunkel → hell),
+// L/S/H Licht/Glanz, V Höhle, E/e/r Auge (Kern/Glut/Rand), F/f Zähne
+const IG_VISOR = [
+  '..o344444o..',
+  '.o4LSSSLL4o.',
+  'o4SHHHHSSHHo',
+  'o23ooooo4ooo',
+  'o2VrEeVoLVEo',
+  'o2VVreVo4Vro',
+  'o24VVV34L4Vo',
+  'o234SSSLS4oo',
+  'o1234444L42o',
+  'o11223333o1o',
+  'o1oooooooooo',
+  'o1VFVVFVVFFo',
+];
+const IG_JAW = [
+  'o1fVVfVVfVFo',
+  'o23444444LL1',
+  '.o122333441o',
+  '..o1122221o.',
+  '...oooooo...',
+];
+
 function head(p, g, hx, hy, P, meta, gy) {
   const j = Math.round(P.jaw * 3);
   flameMane(p, g, hx, hy, P);
@@ -703,46 +727,42 @@ function head(p, g, hx, hy, P, meta, gy) {
   p.px(hx + 4, hy + 2, SPEC); p.px(hx + 5, hy + 2, OBS[4]); p.px(hx + 6, hy + 2, OBS[4]);
   // Messingband um den Helm
   p.line(hx + 1, hy + 8, hx + 9, hy + 7, GOLD[2]); p.px(hx + 4, hy + 8, GOLD[4]);
-  // Visier: Schädelgesicht, nach vorn gewölbt
-  p.rect(hx + 9, hy + 4, 7, 7, OBS[2]);
-  p.rect(hx + 15, hy + 6, 1, 4, OBS[1]);
-  p.rect(hx + 10, hy + 8, 4, 2, OBS[3]); // Wangenplatte
-  p.px(hx + 14, hy + 8, OBS[4]); p.px(hx + 16, hy + 7, OBS[2]); p.px(hx + 16, hy + 8, OBS[1]); // Nasengrat
-  // Brauenwulst, schräg nach vorn abfallend (zorniger Blick)
-  p.rect(hx + 8, hy + 3, 9, 2, OBS[3]); p.rect(hx + 9, hy + 3, 7, 1, OBS[4]); p.px(hx + 17, hy + 4, OBS[3]);
-  p.px(hx + 8, hy + 2, OBS[3]);
-  // Augenhöhlen und glühende Augen (schon im Grundbild hell)
-  p.rect(hx + 10, hy + 5, 3, 2, VOID); p.rect(hx + 14, hy + 5, 2, 2, VOID);
-  if (P.eye > 0.15) {
-    const e = P.eye > 0.6 ? 2 : 1;
-    p.px(hx + 11, hy + 5, EYE[e]); p.px(hx + 12, hy + 5, EYE[e - 1]); p.px(hx + 14, hy + 5, EYE[e]); p.px(hx + 15, hy + 5, EYE[0]);
-    p.px(hx + 11, hy + 6, EYE[0]); p.px(hx + 14, hy + 6, EYE[0]);
-    g.px(hx + 11, hy + 5, 4); g.px(hx + 12, hy + 5, 3); g.px(hx + 10, hy + 5, 2);
-    g.px(hx + 14, hy + 5, 4); g.px(hx + 15, hy + 5, 3);
-    if (P.eye > 0.7) { g.px(hx + 9, hy + 5, 1); g.px(hx + 11, hy + 6, 2); g.px(hx + 14, hy + 6, 2); }
-    g.epx(hx + 9, hy + 4, 2); g.epx(hx + 8, hy + 4, 1);
-  }
-  meta.eye = { x: hx + 13, y: hy + 5 };
-  // Wangennaht (Glut)
-  p.line(hx + 7, hy + 7, hx + 9, hy + 10, MAG[3]); g.line(hx + 7, hy + 7, hx + 9, hy + 10, 2);
-  bres(hx + 5, hy + 3, hx + 7, hy + 0, (x, y) => { p.px(x, y, MAG[2]); g.apx(x, y, 2); g.epx(x, y, 3); }); // Glutriss im Helm
-  // Maul
-  p.rect(hx + 9, hy + 10, 7, 1, OBS[1]);
-  if (j) {
-    p.rect(hx + 9, hy + 11, 7, j, VOID);
+  // Visier: Schädelgesicht als Pixelkarte im Zielpuffer (pixelgenau, nicht skaliert):
+  // heller Brauenwulst, tiefe Höhlen mit glühenden Augen, Nasengrat und Wangenplatte im
+  // Licht, Maul mit Reißzähnen, Unterkiefer mit Hauer. Kontur trennt es vom Helm.
+  const VX = Math.round(tx(hx + 8)), VY = Math.round(ty(hy + 2));
+  const jt = Math.round(j * SC);
+  const lit = P.eye > 0.15, hot = P.eye > 0.6;
+  const VC = {
+    o: OUTLINE, 1: OBS[1], 2: OBS[2], 3: OBS[3], 4: OBS[4], L: HORN[2], S: SPEC, H: HORN[3], V: VOID,
+    E: lit ? (hot ? HOT : EYE[2]) : OBS[1], e: lit ? EYE[1] : VOID, r: lit ? EYE[0] : VOID,
+    F: FANG[2], f: FANG[1], M: MAG[3],
+  };
+  const stamp = (rows, y0) => {
+    for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[r].length; c++) {
+      const ch = rows[r][c];
+      if (ch !== '.') p.set(VX + c, y0 + r, VC[ch]);
+    }
+  };
+  stamp(IG_VISOR, VY);
+  // Maul offen: Schlund (Glut/Feueratem) zwischen den Zahnreihen
+  if (jt) {
+    for (let k = 0; k < jt; k++) for (let c = 1; c <= 11; c++) p.set(VX + c, VY + 12 + k, c === 1 ? OBS[1] : c === 11 ? OUTLINE : VOID);
     const i = P.breath > 0.3 ? 3 : 1;
-    g.rect(hx + 10, hy + 11, 6, j, i);
-    if (P.breath > 0.3) g.rect(hx + 12, hy + 11, 4, Math.max(1, j - 1), 4);
-    else if (P.jaw > 0.6) g.rect(hx + 12, hy + 11, 3, 1, 2);
+    for (let k = 0; k < jt; k++) for (let c = 3; c <= 11; c++) g.tpx(VX + c, VY + 12 + k, c > 6 && P.breath > 0.3 ? 4 : i + (c > 7 && P.jaw > 0.6 ? 1 : 0));
   }
-  // obere Reißzähne
-  p.px(hx + 10, hy + 11, FANG[2]); p.px(hx + 13, hy + 11, FANG[2]); p.px(hx + 15, hy + 11, FANG[1]);
-  // Unterkiefer mit Hauern
+  stamp(IG_JAW, VY + 12 + jt);
+  if (lit) {
+    for (const [c, r, i] of [[3, 5, 4], [4, 5, 3], [2, 5, 2], [9, 5, 4], [10, 5, 3], [3, 6, 2]]) g.tpx(VX + c, VY + r, i);
+    if (P.eye > 0.7) for (const [c, r] of [[1, 5], [5, 5], [8, 5], [9, 6]]) g.tpx(VX + c, VY + r, 1);
+    g.tepx(VX, VY + 4, 2); g.tepx(VX - 1, VY + 4, 1);
+  }
+  meta.eye = { x: hx + 10.5, y: hy + 5 };
+  // Wangennaht (Glut) hinter der Wangenplatte, Glutriss im Helm
+  p.line(hx + 6, hy + 7, hx + 7.5, hy + 10, MAG[3]); g.line(hx + 6, hy + 7, hx + 7.5, hy + 10, 2);
+  bres(hx + 5, hy + 3, hx + 7, hy + 0, (x, y) => { p.px(x, y, MAG[2]); g.apx(x, y, 2); g.epx(x, y, 3); });
   const ly = hy + 11 + j;
-  p.rect(hx + 7, ly, 9, 3, OBS[1]); p.rect(hx + 8, ly, 8, 1, OBS[3]); p.px(hx + 15, ly + 1, OBS[2]);
-  p.px(hx + 11, ly - 1, FANG[1]); p.px(hx + 14, ly - 1, FANG[2]);
-  p.px(hx + 16, ly - 1, FANG[1]); p.px(hx + 16, ly - 2, FANG[2]); // Hauer
-  for (const [dx, h] of [[8, 2], [10, 3], [12, 3], [14, 2]]) p.line(hx + dx, ly + 3, hx + dx - 1, ly + 2 + h, dx === 12 ? OBS[2] : OBS[1]);
+  for (const [dx, h] of [[9, 2], [11, 3], [13, 3], [15, 2]]) p.line(hx + dx, ly + 3.5, hx + dx - 1, ly + 2.5 + h, dx === 13 ? OBS[2] : OBS[1]);
   meta.mouth = { x: hx + 16, y: hy + 11 + Math.floor(j / 2) };
   // Nahes Horn: mächtig, schwingt nach hinten und hoch
   horn(p, g, hx + 5, hy + 4, hx - 9, hy + 3, hx - 7, hy - 12, 6, 1.2, HORN, true);
