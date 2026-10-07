@@ -19,7 +19,7 @@
 //   full    { zone, world }     Shard voll -> Client fragt die nächste Welt an
 //   reported { id, ok, error }  Eingangsbestätigung einer Meldung ('rate' | 'reason' | 'target')
 //   notice  { kind: 'muted', until, reason }   Chatsperre (Nachricht wurde nicht verteilt)
-//   notice  { kind: 'name', reason, name }     Name nicht erlaubt ('reserviert'|'anstoessig'), andere sehen `name`
+//   notice  { kind: 'name', reason, name }     Name nicht erlaubt ('zeichen'|'reserviert'|'anstoessig'), andere sehen `name`
 //   bye     { reason }          'replaced' (neue Verbindung desselben Kontos) | 'auth' | 'version' | 'kick'
 //
 // Zustand s = [x, y, f, a, n, fl, t]
@@ -30,7 +30,7 @@
 // Stufe 2 (serverseitige Gegner/Beute) ergänzt nur neue Typen (e = Gegner-Zustände, hit, loot, …) und neue Flag-Bits;
 // bestehende Felder bleiben. Unbekannte Typen ignorieren beide Seiten.
 
-export const NET_VERSION = 1;
+export const NET_VERSION = 2; // 2: Aussehen mit Gegenstands-IDs (items) statt fertiger Optik (gear)
 export const NET_PATH = '/net';
 
 export const SEND_HZ = 8;            // Client: höchstens so viele Zustände pro Sekunde
@@ -54,16 +54,17 @@ export const REPORT_REASON_LABELS = {
   betrug: 'Betrug oder Schummeln', name: 'Anstößiger Name', sonstiges: 'Etwas anderes (bitte beschreiben)',
 };
 export const NAME_MAX = 24;
-export const LOOK_MAX_BYTES = 6000;
 
 // Shard-Name für Durable Objects: '<zoneId>~<welt>'. Neue Zonen brauchen keine Codeänderung.
 export const shardName = (zoneId, world) => `${zoneId}~${world}`;
 export const ZONE_ID_RE = /^[a-z][a-z0-9_]{0,47}$/;
 const ANIM_RE = /^[a-z][a-z0-9_]{0,23}$/;
 
-const CTRL = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g;
+// Steuerzeichen, Richtungswechsel und unsichtbare/leere Zeichen (weiches Trennzeichen, Nullbreite, Wortverbinder,
+// Hangul-Füller, Mongolischer Vokaltrenner, BOM). Danach NFC, damit gleiche Buchstaben gleich kodiert sind.
+const CTRL = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0]/g;
 export function cleanText(s, max) {
-  return String(s ?? '').replace(CTRL, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  return String(s ?? '').normalize('NFC').replace(CTRL, '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 export const cleanName = (s) => cleanText(s, NAME_MAX) || 'Unbekannt';
 export const cleanChat = (s) => cleanText(s, CHAT_MAX);
@@ -80,20 +81,25 @@ export function cleanState(s) {
   return [int(s[0], -1000, 100_000), int(s[1], -1000, 100_000), s[2] < 0 ? -1 : 1, a, int(s[4], 0, 1e9), int(s[5], 0, 0xffff), int(s[6], 0, 2 ** 52)];
 }
 
-// Helden-Abbild (INTEGRATION §12.9, hero.snapshotLook()) als reine Daten; der Server prüft nur Form und Größe.
-// { raceId, classId, appearance: { variant, dye, hairStyle }, gear, mountId, riding }
-export function cleanLook(look) {
+// Helden-Abbild als reine Daten. Ausrüstung reist nur als Gegenstands-IDs der sichtbaren Plätze; die Optik daraus
+// berechnet jeder Empfänger selbst (resolveGear). Der Server prüft die IDs gegen den Katalog (isItem), der Client
+// nur die Form. { raceId, classId, appearance: { variant, dye, hairStyle }, items: { weapon, chest, head, hands, feet },
+// mountId, riding }
+export const LOOK_SLOTS = ['weapon', 'chest', 'head', 'hands', 'feet'];
+export const LOOK_MIN_MS = 1500; // Aussehen höchstens so oft je Spieler (Client sendet, Server verteilt)
+export function cleanLook(look, isItem = null) {
   if (!look || typeof look !== 'object' || Array.isArray(look)) return null;
   const id = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,48}$/.test(v) ? v : null);
   const ap = look.appearance && typeof look.appearance === 'object' ? look.appearance : {};
-  const out = {
+  const src = look.items && typeof look.items === 'object' && !Array.isArray(look.items) ? look.items : {};
+  const items = {};
+  for (const slot of LOOK_SLOTS) {
+    const v = id(src[slot]);
+    items[slot] = v && (!isItem || isItem(slot, v)) ? v : null;
+  }
+  return {
     raceId: id(look.raceId), classId: id(look.classId),
     appearance: { variant: int(ap.variant, 0, 31), dye: id(ap.dye), hairStyle: id(ap.hairStyle) },
-    gear: look.gear && typeof look.gear === 'object' && !Array.isArray(look.gear) ? look.gear : null,
-    mountId: id(look.mountId), riding: !!look.riding,
+    items, mountId: id(look.mountId), riding: !!look.riding,
   };
-  let size = 0;
-  try { size = JSON.stringify(out).length; } catch { return null; }
-  if (size > LOOK_MAX_BYTES) out.gear = null;
-  return out;
 }

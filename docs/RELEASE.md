@@ -69,13 +69,15 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 
 ## 5. Gold-Shop (erst wenn Stripe eingerichtet wird, nicht zum Start nötig)
 
-- [ ] Gold aus Käufen serverseitig führen (eigene Tabelle, nur Server-Funktionen ändern sie). Bis dahin begrenzt die
-      Spielstand-Prüfung nur grobe Manipulation; gekauftes Gold ist erst damit wirklich geschützt.
-- [ ] Rückbuchung serverseitig vom Spielstand abziehen (heute zieht das Spiel sie beim nächsten Start ab) und
-      Gegenstände im Spielstand prüfen (nur bekannte IDs, Mengen plausibel).
+- [x] Gekauftes serverseitig führen: Gold kommt nur über vom Server bezahlte Bestellungen ins Spiel, Designs nur über
+      `shop_designs()`; der Trigger `characters_shop_check` lehnt unbezahlte Designs ab (Migration 20261005120000).
+      Ein vollständig serverseitiges Goldkonto gehört zu Mehrspieler Stufe 2 (das ganze Wirtschaftssystem rechnet heute im Spiel).
+- [x] Rückbuchung serverseitig vom Spielstand abziehen (`shop_server_revoke`, vom Webhook aufgerufen) und Tasche prüfen
+      (höchstens 36 Plätze, Mengen 1–999; unbekannte IDs verwirft das Spiel beim Laden).
 
 - [ ] Stripe-Konto, Schlüssel als Worker-Secrets, Webhook (docs/SHOP.md).
-- [ ] Migrationen ausführen: supabase/migrations/20261001230000_goldshop.sql, danach 20261003140000_goldshop_rueckbuchung.sql.
+- [ ] Migrationen ausführen: supabase/migrations/20261001230000_goldshop.sql, danach 20261003140000_goldshop_rueckbuchung.sql,
+      danach 20261005120000_shop_designs.sql.
 - [ ] Kaufbedingungen, Widerrufsbelehrung, „zahlungspflichtig bestellen“, Stripe in der Datenschutzerklärung,
       Umsatzsteuer mit Steuerberater klären.
 

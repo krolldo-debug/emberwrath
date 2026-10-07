@@ -5,7 +5,7 @@ import { resolveGear } from '../character/gearLook.js';
 import { spriteStyle } from '../character/cosmetics.js';
 import { RemotePlayer } from './RemotePlayer.js';
 import { NetHud } from './NetHud.js';
-import { SEND_HZ, IDLE_RESEND_S, FLAG_DEAD, FLAG_RIDING, FLAG_COMBAT, cleanLook } from './protocol.js';
+import { SEND_HZ, IDLE_RESEND_S, FLAG_DEAD, FLAG_RIDING, FLAG_COMBAT, LOOK_SLOTS, LOOK_MIN_MS, cleanLook } from './protocol.js';
 
 // Sitzungssystem 'net' (eine Spielsitzung = PlayScene): verbindet NetClient und Welt.
 //  - andere Spieler als RemotePlayer in world.entities (auch nach Zonenwechsel), Figuren aus ihrem Abbild
@@ -14,26 +14,29 @@ import { SEND_HZ, IDLE_RESEND_S, FLAG_DEAD, FLAG_RIDING, FLAG_COMBAT, cleanLook 
 //  - Namensschilder über anderen Spielern, HUD (Welt, Spielerzahl, Weltwechsel, Zonen-Chat)
 const MAX_FINE = 12; // höchstens so viele fremde Figuren in voller Feinheit, der Rest einfacher (Speicher auf Handys)
 
-// Abbild des eigenen Helden (INTEGRATION §12.9). Solange hero.snapshotLook() fehlt, aus dem Spielstand.
+// Abbild des eigenen Helden für andere (INTEGRATION §12.9), Ausrüstung nur als Gegenstands-IDs (siehe protocol.js).
 export function lookOf(session) {
   const hero = session.world?.hero;
-  if (typeof hero?.snapshotLook === 'function') { try { return hero.snapshotLook(); } catch { /* Rückfall */ } }
   const st = session.state.slices, ch = st.character ?? {}, ap = ch.appearance ?? {};
   const mounts = ch.mounts ?? {};
+  const eq = st.inventory?.equipment ?? {};
+  const itemId = (e) => (typeof e === 'string' ? e : e?.itemId ?? null);
+  const items = Object.fromEntries(LOOK_SLOTS.map((k) => [k, itemId(eq[k] ?? (k === 'chest' ? eq.armor : null))]));
   return {
-    raceId: hero?.raceId ?? ch.raceId ?? null, classId: ch.classId ?? null,
+    raceId: hero?.raceId ?? ch.raceId ?? null, classId: hero?.classId ?? ch.classId ?? null,
     appearance: { variant: ap.variant ?? 0, dye: ap.dye ?? null, hairStyle: ap.hairStyle ?? null },
-    gear: resolveGear(st.inventory?.equipment, session.content),
-    mountId: mounts.active ?? null, riding: !!mounts.riding,
+    items, mountId: mounts.active ?? null, riding: !!(mounts.riding && mounts.active),
   };
 }
 
 // Figur eines fremden Spielers aus seinem Abbild. Bereich A kann game.character.animsForLook(look, res) bereitstellen
 // (z. B. mit Reittier); sonst die normale Heldenfigur.
-function buildAnims(game, look, res) {
+function buildAnims(game, wire, res) {
+  const c = game.content;
+  // Optik der Ausrüstung aus den IDs (unbekannte IDs fallen weg); danach dieselbe Form wie hero.snapshotLook()
+  const look = wire ? { ...wire, gear: resolveGear(wire.items ?? null, c) } : wire;
   const custom = game.character?.animsForLook;
   if (typeof custom === 'function') { try { const a = custom(look, res); if (a?.idle) return a; } catch (e) { console.warn(e); } }
-  const c = game.content;
   const raceId = c.find('race', look?.raceId) ? look.raceId : 'human';
   const classId = c.find('class', look?.classId) ? look.classId : 'warrior';
   try {
@@ -113,11 +116,11 @@ export class NetSession {
       const x = Math.round(r.x - cx), y = Math.round(r.y - cy - (r.riding ? 42 : 34));
       if (x < -40 || y < -10 || x > W + 40 || y > H + 40) continue;
       const lvl = String(r.level), name = r.name;
-      const wl = font.measure(lvl), wn = font.measure(name), total = wl + 3 + wn;
+      const wl = font.measure(lvl), wn = font.measure(name, 1, true), total = wl + 3 + wn;
       const x0 = Math.round(x - total / 2);
       ctx.globalAlpha = r.dead ? 0.5 : 0.95 * r.alpha;
       font.draw(ctx, lvl, x0, y, { color: '#f2c14e', outline: true });
-      font.draw(ctx, name, x0 + wl + 3, y, { color: '#9fd8ff', outline: true });
+      font.draw(ctx, name, x0 + wl + 3, y, { color: '#9fd8ff', outline: true, raw: true });
       ctx.globalAlpha = 1;
     }
   }
@@ -190,14 +193,15 @@ export class NetSession {
   }
 
   #sendOwn(dt, now) {
-    // Aussehen/Stufe höchstens einmal pro Sekunde prüfen (oder sofort nach einer Zustandsänderung)
+    // Aussehen/Stufe höchstens einmal pro Sekunde prüfen (oder bald nach einer Zustandsänderung) und nur bei Änderung
+    // senden, höchstens alle LOOK_MIN_MS (so oft verteilt der Server es auch höchstens weiter)
     this.lookCheck -= dt;
-    if (this.lookCheck <= 0) {
+    if (this.lookCheck <= 0 && now - (this.lookSentAt ?? -1e9) >= LOOK_MIN_MS) {
       this.lookCheck = 1;
       const level = this.s.state.slices.progress?.level ?? 1;
       const look = cleanLook(lookOf(this.s));
       const json = JSON.stringify([level, look]);
-      if (json !== this.lookJson && this.client.send({ t: 'look', level, look })) this.lookJson = json;
+      if (json !== this.lookJson && this.client.send({ t: 'look', level, look })) { this.lookJson = json; this.lookSentAt = now; }
     }
     const s = this.#ownState(now);
     const prev = this.lastSent;

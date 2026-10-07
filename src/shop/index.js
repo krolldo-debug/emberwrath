@@ -2,9 +2,10 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconEl } from '../gfx/Icons.js';
 import { panelFrame, goldEl } from '../progression/widgets.js';
-import { GOLD_PACKS, packTotal, formatPrice, RETURN_PARAM } from './catalog.js';
+import { resolveGear } from '../character/gearLook.js';
+import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE } from './catalog.js';
 
-// Gold-Shop: Gold-Pakete für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
+// Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
 //
 // game.shop
 //   status        { enabled, configured, products } vom Server oder null (noch nicht geladen / nicht erreichbar)
@@ -12,9 +13,12 @@ import { GOLD_PACKS, packTotal, formatPrice, RETURN_PARAM } from './catalog.js';
 //   refresh()     Status und Admin-Recht neu laden → Promise<visible>
 //   open()        Panel 'goldshop' in der laufenden Sitzung öffnen
 //   claim()       bezahlte Bestellungen des aktuellen Charakters gutschreiben, erstattete/zurückgebuchte wieder
-//                 abziehen → Promise<Gold> (Saldo der Gutschriften)
+//                 abziehen, gekaufte Designs übernehmen → Promise<Gold> (Saldo der Gutschriften)
+//   owns(designId) true, wenn das Design zum Konto gehört (laut Spielstand, vom Server abgeglichen)
 // Panel 'goldshop' (Menü-Knopf „Shop“, Klick auf den Goldbetrag im HUD).
-// Slice 'shop' { credited: [orderId], revoked: [orderId] } verhindert doppelte Gutschrift und doppelten Abzug.
+// Slice 'shop' { credited: [orderId], revoked: [orderId], owned: ['mount:<id>'|'dye:<id>'] }: credited/revoked verhindern
+// doppelte Gutschrift und doppelten Abzug; owned sind die bezahlten Designs des Kontos (Server: shop_designs()).
+// Command 'shop:designs' { items } gleicht Designs ab: exklusive Reittiere lernen bzw. entfernen, Färbung zurücksetzen.
 // Commands 'shop:credit' { orderId, gold } und 'shop:revoke' { orderId, gold } (Rückbuchung, Gold darf ins Minus).
 // Gold kommt nur über bezahlte Bestellungen in der Datenbank ins Spiel (Webhook von Stripe → 'paid').
 const CREDITED_KEEP = 200;
@@ -23,12 +27,35 @@ const RETRY_AFTER_RETURN_S = [3, 8, 15, 30, 60, 120];
 export function installShop(game) {
   const state = game.state;
   state.defineSlice('shop', {
-    create: () => ({ credited: [], revoked: [] }),
+    create: () => ({ credited: [], revoked: [], owned: [] }),
     deserialize: (raw) => ({
       credited: Array.isArray(raw?.credited) ? raw.credited.slice(-CREDITED_KEEP) : [],
       revoked: Array.isArray(raw?.revoked) ? raw.revoked.slice(-CREDITED_KEEP) : [],
+      owned: Array.isArray(raw?.owned) ? raw.owned.filter((k) => DESIGN_ITEMS.includes(k)) : [],
     }),
   });
+  // Designs laut Server übernehmen. Der Server lehnt Spielstände mit unbezahlten exklusiven Designs ab.
+  state.defineCommand('shop:designs', (s, { items }, ctx) => {
+    if (!Array.isArray(items)) return { ok: false };
+    const owned = DESIGN_ITEMS.filter((k) => items.includes(k));
+    const sl = s.get('shop');
+    const ch = s.get('character');
+    const added = owned.filter((k) => !sl.owned.includes(k));
+    sl.owned = owned;
+    for (const k of owned) if (k.startsWith('mount:')) s.commit('mount:learn', { mountId: k.slice(6), shop: true });
+    const m = ch.mounts;
+    const lost = m.owned.filter((id) => DESIGN_ITEMS.includes(`mount:${id}`) && !owned.includes(`mount:${id}`));
+    if (lost.length) {
+      m.owned = m.owned.filter((id) => !lost.includes(id));
+      if (lost.includes(m.active)) {
+        m.active = m.owned[0] ?? null;
+        if (m.riding) { m.riding = false; ctx.bus.emit(EV.MOUNT_CHANGED, { riding: false, mountId: m.active }); }
+      }
+    }
+    const dye = ch.appearance?.dye;
+    if (dye && DESIGN_ITEMS.includes(`dye:${dye}`) && !owned.includes(`dye:${dye}`)) ch.appearance.dye = null;
+    return { ok: true, added, removed: lost.length > 0 };
+  }, { authoritative: true });
   state.defineCommand('shop:credit', (s, { orderId, gold }) => {
     const sl = s.get('shop');
     if (typeof orderId !== 'string' || !(gold > 0) || sl.credited.includes(orderId)) return { ok: false };
@@ -78,6 +105,10 @@ export function installShop(game) {
     get admin() { return admin; },
     get canBuy() { return !!this.status && isOnlineChar() && (this.status.enabled || (admin && this.status.configured)); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    owns(designId) {
+      const d = DESIGNS.find((x) => x.id === designId);
+      return !!d && d.items.every((k) => state.slices.shop?.owned?.includes(k));
+    },
 
     refresh() {
       loading ??= (async () => {
@@ -96,14 +127,14 @@ export function installShop(game) {
 
     // Weiter zur Bezahlseite. Vorher speichern, damit beim Zurückkommen nichts fehlt.
     async checkout(productId) {
-      if (!isOnlineChar()) throw new Error('Gold kaufen geht nur mit einem Charakter in deinem Konto.');
+      if (!isOnlineChar()) throw new Error('Kaufen geht nur mit einem Charakter in deinem Konto.');
       const token = await online().client.getAccessToken();
       game.saveNow('shop');
       try { await online().sync.flush(); } catch { /* Cloud holt es nach */ }
       const r = await fetch('/net/shop/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true }),
+        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game', lang: document.documentElement.lang?.startsWith('en') ? 'en' : 'de' }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) throw new Error(CHECKOUT_ERRORS[d.error] ?? 'Die Bezahlseite ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.');
@@ -118,13 +149,36 @@ export function installShop(game) {
         for (let i = 0; i < 60 && online().sync.status === 'syncing'; i++) await new Promise((r) => setTimeout(r, 250));
         const characterId = state.meta.characterId;
         const rpc = (fn, args) => online().client.rpc(fn, args);
-        const [credits, revokes] = await Promise.all([
+        const [credits, revokes, designs] = await Promise.all([
           rpc('shop_pending_credits', { p_character: characterId }),
           rpc('shop_pending_revokes', { p_character: characterId }).catch(() => []), // Migration noch nicht ausgeführt
+          rpc('shop_designs', {}).catch(() => null),
         ]);
         const list = Array.isArray(credits) ? credits : [];
         const back = Array.isArray(revokes) ? revokes : [];
-        if ((!list.length && !back.length) || state.meta.characterId !== characterId) return 0;
+        if (state.meta.characterId !== characterId) return 0;
+        let designChange = false;
+        if (Array.isArray(designs)) {
+          const sl = state.slices.shop;
+          const want = DESIGN_ITEMS.filter((k) => designs.includes(k));
+          const ch = state.slices.character;
+          const stale = ch?.mounts?.owned?.some((id) => DESIGN_ITEMS.includes(`mount:${id}`) && !want.includes(`mount:${id}`))
+            || want.some((k) => k.startsWith('mount:') && !ch?.mounts?.owned?.includes(k.slice(6)));
+          if (stale || want.join() !== (sl.owned ?? []).join()) {
+            const r = state.commit('shop:designs', { items: want });
+            designChange = !!r?.ok;
+            const names = DESIGNS.filter((d) => d.items.some((k) => r?.added?.includes(k))).map((d) => d.name);
+            if (names.length) {
+              game.bus.emit(EV.UI_TOAST, { text: `Exklusives Design freigeschaltet: ${names.join(', ')}. Danke für deine Unterstützung!`, kind: 'loot' });
+              shop.returned = null;
+            }
+          }
+        }
+        if (!list.length && !back.length) {
+          if (designChange) { game.saveNow('shop'); online().sync.flush().catch(() => {}); }
+          changed();
+          return 0;
+        }
         let gold = 0, taken = 0;
         for (const o of list) {
           const r = state.commit('shop:credit', { orderId: o.id, gold: o.gold });
@@ -173,7 +227,7 @@ export function installShop(game) {
     shop.refresh();
     shop.claim();
     if (shop.returned === 'ok') {
-      sess.bus.emit(EV.UI_TOAST, { text: 'Zahlung erhalten. Dein Gold wird gleich gutgeschrieben.', kind: 'info', icon: 'gold' });
+      sess.bus.emit(EV.UI_TOAST, { text: 'Zahlung erhalten. Dein Kauf wird gleich freigeschaltet.', kind: 'info', icon: 'gold' });
       for (const sec of RETRY_AFTER_RETURN_S) timers.push(setTimeout(() => { if (shop.returned === 'ok') shop.claim(); }, sec * 1000));
     } else if (shop.returned === 'cancel') {
       sess.bus.emit(EV.UI_TOAST, { text: 'Kauf abgebrochen. Es wurde nichts abgebucht.', kind: 'info' });
@@ -186,6 +240,8 @@ export function installShop(game) {
 }
 
 const CHECKOUT_ERRORS = {
+  owned: 'Dieses Design gehört dir schon.',
+  rate_limited: 'Zu viele Kaufversuche in kurzer Zeit. Bitte warte ein paar Minuten.',
   auth: 'Deine Anmeldung ist abgelaufen. Bitte melde dich neu an.',
   closed: 'Der Shop ist noch nicht geöffnet.',
   unavailable: 'Der Shop ist noch nicht geöffnet.',
@@ -199,6 +255,22 @@ function shopPanel(session, game, shop) {
   let waiver = false;
   let busy = null; // productId während der Weiterleitung
   let error = null;
+  const previews = new Map(); // designId → Vorschau mit dem eigenen Helden auf dem Reittier
+
+  const buyButton = (id, label) => h('button.ef-btn.primary.sh-buy', {
+    type: 'button',
+    disabled: !(shop.canBuy && !busy) || !waiver,
+    title: !waiver ? 'Bitte zuerst den Hinweis unten bestätigen' : null,
+    onclick: async () => {
+      busy = id; error = null; draw();
+      try { await shop.checkout(id); } catch (e) { busy = null; error = e.message; draw(); }
+    },
+  }, busy === id ? 'Weiter …' : label);
+
+  const preview = (d) => {
+    if (!previews.has(d.id)) previews.set(d.id, designPreview(game, session, d));
+    return previews.get(d.id).canvas;
+  };
 
   const render = () => {
     const st = shop.status;
@@ -208,28 +280,29 @@ function shopPanel(session, game, shop) {
 
     let notice = null;
     if (!st) notice = h('p.sh-notice', 'Der Shop lädt …');
-    else if (!game.online?.user) notice = h('p.sh-notice', 'Melde dich mit deinem Konto an, um Gold zu kaufen.');
+    else if (!game.online?.user) notice = h('p.sh-notice', 'Melde dich mit deinem Konto an, um im Shop zu kaufen.');
     else if (!st.enabled && shop.admin) notice = h('p.sh-notice.sh-admin', st.configured
       ? 'Admin-Vorschau: Für Spieler ist der Shop noch geschlossen. Käufe gehen nur mit deinem Admin-Konto.'
       : 'Admin-Vorschau: Zahlungen sind noch nicht eingerichtet (Stripe-Schlüssel fehlen, siehe docs/SHOP.md).');
     else if (!st.enabled) notice = h('p.sh-notice', 'Der Shop öffnet in Kürze.');
 
-    const canBuy = shop.canBuy && !busy;
+    const designs = DESIGNS.map((d) => {
+      const owned = shop.owns(d.id);
+      return h(`div.sh-design${d.tag ? '.tagged' : ''}${owned ? '.owned' : ''}`,
+        d.tag ? h('span.sh-tag', d.tag) : null,
+        h('div.sh-stage', preview(d)),
+        h('div.sh-dname', d.name),
+        h('p.sh-ddesc', d.desc),
+        owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, `Kaufen · ${formatPrice(d.priceCents)}`));
+    });
+
     const cards = products.map((p) => h(`div.sh-pack${p.tag ? '.tagged' : ''}`,
       p.tag ? h('span.sh-tag', p.tag) : null,
       h('div.sh-coins', iconEl('gold', 40)),
-      h('div.sh-amount', p.total.toLocaleString('de-DE')),
+      h('div.sh-amount', p.total.toLocaleString()),
       h('div.sh-unit', 'Gold'),
-      p.bonus ? h('div.sh-bonus', `inkl. ${p.bonus.toLocaleString('de-DE')} Bonus`) : h('div.sh-bonus.none', ' '),
-      h('button.ef-btn.primary.sh-buy', {
-        type: 'button',
-        disabled: !canBuy || !waiver,
-        title: !waiver ? 'Bitte zuerst den Hinweis unten bestätigen' : null,
-        onclick: async () => {
-          busy = p.id; error = null; draw();
-          try { await shop.checkout(p.id); } catch (e) { busy = null; error = e.message; draw(); }
-        },
-      }, busy === p.id ? 'Weiter …' : formatPrice(p.priceCents)),
+      p.bonus ? h('div.sh-bonus', `inkl. ${p.bonus.toLocaleString()} Bonus`) : h('div.sh-bonus.none', ' '),
+      buyButton(p.id, `Kaufen · ${formatPrice(p.priceCents)}`),
     ));
 
     return panelFrame(session, 'goldshop', 'Shop', h('div.pg-scroll.sh-body',
@@ -237,12 +310,18 @@ function shopPanel(session, game, shop) {
       notice,
       h('label.sh-waiver',
         h('input', { type: 'checkbox', checked: waiver, onchange: (e) => { waiver = e.target.checked; draw(); } }),
-        h('span', 'Ich möchte, dass das Gold sofort gutgeschrieben wird, und weiß, dass ich damit mein Widerrufsrecht verliere.'),
+        h('span', WAIVER_TEXT),
       ),
+      h('p.sh-terms', h('a', { href: TERMS_PATH, target: '_blank', rel: 'noopener' }, 'Es gelten die Kaufbedingungen mit Widerrufsbelehrung.')),
+      h('p.sh-minor', MINOR_NOTE),
+      h('h3.sh-head', 'Exklusive Designs'),
+      h('p.sh-sub', 'Nur hier erhältlich, nicht im Spiel zu finden. Gilt für alle Charaktere deines Kontos, jeweils mit passender Färbung für Umhang und Stoffrüstung.'),
+      h('div.sh-designs', designs),
+      h('h3.sh-head', 'Gold'),
       h('div.sh-grid', cards),
       error ? h('p.sh-error', { role: 'alert' }, error) : null,
       h('p.ef-note.sh-legal',
-        `Das Gold geht an ${charName}. Preise inklusive Mehrwertsteuer. Bezahlung sicher über Stripe. `,
+        `Gold geht an ${charName}.`, ' ', PRICE_NOTE, ' ', 'Bezahlung sicher über Stripe.', ' ',
         h('a', { href: '/impressum', target: '_blank', rel: 'noopener' }, 'Impressum'), ' · ',
         h('a', { href: '/support', target: '_blank', rel: 'noopener' }, 'Hilfe zu Käufen'),
       ),
@@ -250,9 +329,52 @@ function shopPanel(session, game, shop) {
   };
   const draw = () => root.replaceChildren(render());
   const off = shop.onChange(draw);
-  const offState = session.bus.on(EV.STATE_CHANGED, (e) => { if (e.type === 'wallet:addGold' || e.type === 'shop:credit') draw(); });
+  const offState = session.bus.on(EV.STATE_CHANGED, (e) => { if (e.type === 'wallet:addGold' || e.type === 'shop:credit' || e.type === 'shop:designs') draw(); });
   draw();
   shop.refresh();
   shop.claim();
-  return { root, dispose: () => { off(); offState(); } };
+  return {
+    root,
+    update: (dt) => { for (const p of previews.values()) p.update(dt); },
+    dispose: () => { off(); offState(); },
+  };
+}
+
+// Der eigene Held mit Ausrüstung und Design-Färbung auf dem exklusiven Reittier, laufend, mit Leuchten.
+const PREVIEW_W = 136, PREVIEW_H = 100; // Spielpixel × 2 (Feinpixel)
+function designPreview(game, session, design) {
+  const canvas = h('canvas.sh-preview', { width: PREVIEW_W, height: PREVIEW_H, 'aria-hidden': 'true' });
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const mountId = design.items.find((k) => k.startsWith('mount:'))?.slice(6);
+  const dye = design.items.find((k) => k.startsWith('dye:'))?.slice(4) ?? null;
+  const sl = session.state.slices;
+  let anim = null;
+  try {
+    anim = game.character?.animsForLook?.({
+      raceId: sl.character?.raceId, classId: sl.character?.classId, mountId,
+      appearance: { ...(sl.character?.appearance ?? {}), dye },
+      gear: resolveGear(sl.inventory?.equipment, session.content),
+    }, 2)?.rideRun ?? null;
+  } catch { anim = null; }
+  let t = 0, shown = -1;
+  const paint = () => {
+    if (!anim?.frames?.length) return;
+    const i = Math.floor(t * (anim.fps || 8)) % anim.frames.length;
+    if (i === shown) return;
+    shown = i;
+    const fr = anim.frames[i];
+    ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+    ctx.save(); ctx.scale(2, 2); fr.draw(ctx, PREVIEW_W / 4, PREVIEW_H / 2 - 4, {}); ctx.restore();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const g of fr.glows ?? []) {
+      const r = g.r * 4, x = PREVIEW_W / 2 + g.x * 2, y = PREVIEW_H - 8 + g.y * 2;
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, `${g.color}99`); grad.addColorStop(1, `${g.color}00`);
+      ctx.fillStyle = grad; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  };
+  paint();
+  return { canvas, update: (dt) => { t += dt; paint(); } };
 }

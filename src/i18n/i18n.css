@@ -1,0 +1,5 @@
+/* Sprachumschalter (src/i18n/index.js langSwitch), z. B. auf dem Titelbild */
+.ef-lang { display: inline-flex; align-self: flex-start; gap: 2px; margin-top: 14px; border: 1px solid #5a3a1a; background: #0d0814cc; }
+.ef-lang button { font: inherit; font-size: 0.8em; color: var(--ef-muted, #a89ab8); background: transparent; border: 0; padding: 5px 10px; cursor: pointer; min-height: 30px; }
+.ef-lang button[aria-pressed="true"] { color: #1a0c04; background: linear-gradient(#f0c870, #c88a30); font-weight: 700; }
+.ef-lang button:focus-visible { outline: 2px solid #f0c870; outline-offset: 1px; }

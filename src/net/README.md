@@ -90,10 +90,25 @@ Eingehende WebSocket-Nachrichten zählen 20:1 als Anfrage; ausgehende sind frei.
 - Ein Weltplatz zählt erst, wenn der Shard den Spieler nach geprüfter Anmeldung angenommen hat. Je Adresse sind höchstens
   4 noch nicht angemeldete Verbindungen pro Shard offen; nach 10 s ohne Anmeldung wird getrennt.
 
+## Sicherheit (Prüfung 05.10.)
+
+- Anmeldung (`worker/auth.js`): Signatur gegen die Projekt-Schlüssel, dazu Pflicht auf `exp`, `nbf`, `aud`/`role`
+  „authenticated“, Aussteller dieses Projekts, keine anonyme Anmeldung. Nachfrage bei Supabase nur für HS256-Tokens,
+  Fehlschläge werden eine Minute gemerkt.
+- Ein Konto steht in genau einem Shard: das Verzeichnis merkt sich, wo es angemeldet ist; ein neuer Shard meldet es
+  im alten ab („replaced“). Gleichzeitige Anmeldungen belegen ihren Platz vor dem Warten, die Obergrenze hält.
+- Aussehen: nur Gegenstands-IDs der sichtbaren Plätze, vom Server gegen den Katalog geprüft; je Spieler höchstens alle
+  1,5 s und nur bei Änderung weitergegeben (`NET_VERSION` 2).
+- Namen nur aus lateinischen Buchstaben, Leerzeichen, Bindestrich, Apostroph (wie die Charaktererstellung); Prüfung
+  auf Team-Namen nach Unicode-Normalisierung. Chatfilter mit derselben Normalisierung, unsichtbare Zeichen entfernt.
+- Chat- und Meldegrenzen je Konto (bleiben nach Neuverbinden), Chatsperren jede Minute neu gelesen, bei Störung gilt
+  die bekannte Sperre weiter. Obergrenzen für Meldewarteschlange und Speicher.
+- Ignorier-Schlüssel per HMAC mit `NET_KEY_SECRET` (sonst dem Service-Secret).
+
 ## Test
 
 `worker`-Protokolltest (Node + ws) und Browsertest (Playwright, 6 Spieler inkl. Handy hoch/quer) gegen `wrangler dev`
 mit nachgebautem Supabase-Auth; siehe Commit-Beschreibung. Befehl lokal:
 `npx wrangler dev --var SUPABASE_URL:http://127.0.0.1:54399 --var SHARD_CAPACITY:3`.
-Moderation und Identität: `worker/test/moderation.mjs`, `worker/test/identity.mjs` und `worker/test/browser-moderation.mjs` (mockauth.mjs bildet dafür auch
+Moderation, Identität und Sicherheit: `worker/test/moderation.mjs`, `worker/test/identity.mjs`, `worker/test/sicherheit.mjs` und `worker/test/browser-moderation.mjs` (mockauth.mjs bildet dafür auch
 `chat_reports`/`chat_mutes` nach); zusätzlich `--var SUPABASE_SERVICE_ROLE_KEY:sb_secret_test`.

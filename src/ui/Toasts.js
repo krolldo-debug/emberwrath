@@ -48,10 +48,10 @@ export class Toasts {
       // Kurz aufeinanderfolgende Goldfunde zu einer Meldung zusammenfassen
       if (this.gold && this.gold.age < 1.5 && this.items.includes(this.gold)) {
         this.gold.sum += e.delta; this.gold.age = 0; this.gold.el.classList.remove('out');
-        this.gold.el.querySelector('.ef-toast-text').textContent = `+${this.gold.sum.toLocaleString('de-DE')} Gold`;
+        this.gold.el.querySelector('.ef-toast-text').textContent = `+${this.gold.sum.toLocaleString()} Gold`;
         return;
       }
-      this.push(`+${e.delta.toLocaleString('de-DE')} Gold`, 'gold', 'gold');
+      this.push(`+${e.delta.toLocaleString()} Gold`, 'gold', 'gold');
       this.gold = this.items[this.items.length - 1]; this.gold.sum = e.delta;
     });
     bus.on(EV.QUEST_ACCEPTED, (e) => this.push(`Neue Quest: ${qTitle(e.questId)}`, 'quest', 'scroll'));

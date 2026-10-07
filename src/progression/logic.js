@@ -17,18 +17,11 @@ import { ENCHANTS, UPGRADE_MAX } from './smithing.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
 import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } from './endgame.js';
 import { TRIAL_ZONE } from './trials.js';
+import { START_ITEMS, STARTER_GEAR } from '../character/startKit.js';
 
 const inTrial = (s) => s.slices.world?.zoneId === TRIAL_ZONE;
 
 export const BAG_SIZE = 36;
-const START_ITEMS = [{ itemId: 'minor_potion', qty: 5 }, { itemId: 'hearth_bread', qty: 3 }];
-// Startausrüstung je Klasse (common), damit die Figur von Anfang an Waffe und Rüstung zeigt.
-export const STARTER_GEAR = {
-  warrior: { weapon: 'notched_blade', chest: 'recruit_mail' },
-  rogue: { weapon: 'rusty_dagger', chest: 'padded_vest' },
-  ranger: { weapon: 'short_bow', chest: 'padded_vest' },
-  mage: { weapon: 'ashwood_staff', chest: 'novice_robe' },
-};
 
 // Inhalte registrieren (Items, Quests, Händler, Rezepte). NPC-Namen legt Thread B als content 'npc' an;
 // NPC_LINES dient als Rückfall für Namen und Grußtexte.

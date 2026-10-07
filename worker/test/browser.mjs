@@ -4,7 +4,7 @@ const tok = async (sub) => (await (await fetch(`${M}/mint?sub=${sub}&email=${sub
 let fails = 0; const ok = (c, m) => { console.log(c ? '✓' : '✗', m); if (!c) fails++; };
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'] });
 const errors = [];
-async function player(sub, name, raceId, classId, ctxOpts = { viewport: { width: 1280, height: 720 } }) {
+async function player(sub, name, raceId, classId, ctxOpts = { locale: 'de-DE', viewport: { width: 1280, height: 720 } }) {
   const token = await tok(sub);
   const ctx = await browser.newContext(ctxOpts);
   const user = { id: sub, email: `${sub}@x.de`, created_at: new Date().toISOString(), user_metadata: { display_name: name } };
@@ -130,7 +130,7 @@ na = await net(A);
 ok(na.world === 1 && na.zone === 'ashwood', 'A verbindet sich nach Abbruch wieder (Welt ' + na.world + ')');
 // Pause (Menü offen) -> andere bewegen sich trotzdem
 // Handy
-const P = await player('up', 'Pia', 'human', 'mage', { ...devices['iPhone 13'] });
+const P = await player('up', 'Pia', 'human', 'mage', { ...devices['iPhone 13'], locale: 'de-DE' });
 await P.page.waitForTimeout(800);
 const np = await net(P);
 ok(np.status === 'online', 'Handy online in Welt ' + np.world);
@@ -141,7 +141,7 @@ if (SHOTS) {
   await P.page.locator('.net-chat-btn').tap();
   await P.page.waitForTimeout(300);
   await P.page.screenshot({ path: `${SHOTS}/handy-chat.png` });
-  const L = await player('ul', 'Lio', 'elf', 'ranger', { ...devices['iPhone 13 landscape'] });
+  const L = await player('ul', 'Lio', 'elf', 'ranger', { ...devices['iPhone 13 landscape'], locale: 'de-DE' });
   await L.page.waitForTimeout(3500);
   await L.page.evaluate(() => { const g = window.emberfall; g.net.session.hud.chat({ name: 'Borin', text: 'Wer kommt mit in die Katakomben?' }, false); });
   await L.page.screenshot({ path: `${SHOTS}/handy-quer.png` });

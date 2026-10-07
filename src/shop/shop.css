@@ -1,5 +1,18 @@
-/* Gold-Shop (src/shop/index.js, Panel 'goldshop'). Baut auf .pg-panel aus progression.css auf. */
-.pg-panel.pg-goldshop { width: min(96vw, 700px); }
+/* Shop (src/shop/index.js, Panel 'goldshop'). Baut auf .pg-panel aus progression.css auf. */
+.pg-panel.pg-goldshop { width: min(96vw, 760px); }
+.sh-head { margin: 16px 0 4px; font: 700 15px var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.08em; text-transform: uppercase; }
+.sh-sub { margin: 0 0 12px; font-size: 13px; color: var(--ef-muted); }
+.sh-designs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.sh-design { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 10px 10px; min-width: 0;
+  background: radial-gradient(120% 80% at 50% 30%, #2a1838 0%, #140c1c 60%, #0c0810 100%); border: 2px solid #6a4a8a; border-radius: 4px; text-align: center;
+  box-shadow: inset 0 0 18px rgba(150, 110, 255, 0.12); }
+.sh-design.tagged { border-color: var(--ef-gold); box-shadow: 0 0 18px rgba(255, 150, 50, 0.3), inset 0 0 18px rgba(255, 140, 40, 0.12); }
+.sh-design.owned { border-color: #3c8a6a; }
+.sh-stage { display: flex; justify-content: center; align-items: flex-end; width: 100%; min-height: 100px; }
+.sh-preview { image-rendering: pixelated; width: 136px; height: 100px; }
+.sh-dname { font: 700 17px var(--ef-font-title); color: #ffe2a8; text-shadow: 0 0 8px rgba(255, 170, 60, 0.35); }
+.sh-ddesc { margin: 0; flex: 1; font-size: 12px; line-height: 1.4; color: var(--ef-text); }
+.sh-owned { margin-top: 6px; padding: 8px 6px; width: 100%; box-sizing: border-box; border: 1px solid #3c8a6a; border-radius: 3px; color: #9be3c4; font-size: 13px; }
 .sh-balance { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px;
   border: 1px solid #4a3020; border-radius: 4px; background: rgba(40, 22, 10, 0.55); color: var(--ef-muted); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
 .sh-balance .pg-gold b { font-size: 18px; letter-spacing: 0; }
@@ -20,8 +33,14 @@
 .sh-waiver { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; font-size: 13px; color: var(--ef-text); cursor: pointer; }
 .sh-waiver input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--ef-ember); }
 .sh-legal { margin-top: 12px !important; font-size: 12px; }
+.sh-terms { margin: -6px 0 4px; font-size: 13px; }
+.sh-terms a { color: var(--ef-gold); }
+.sh-minor { margin: 0 0 14px; font-size: 12px; color: var(--ef-muted); }
 .sh-legal a { color: var(--ef-muted); }
 @media (max-width: 520px) {
+  .sh-designs { grid-template-columns: 1fr; }
+  .sh-preview { width: 272px; height: 200px; }
+  .sh-stage { min-height: 200px; }
   .sh-grid { grid-template-columns: repeat(2, 1fr); }
   .sh-pack:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .sh-grid { gap: 12px 8px; }

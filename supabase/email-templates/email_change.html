@@ -1,0 +1,36 @@
+<!-- Emberwrath · Supabase-Vorlage „email_change“ · erzeugt von build.mjs. Betreff: Neue E-Mail-Adresse bestätigen / Confirm your new email – Emberwrath -->
+<div style="background:#0b0710;padding:32px 20px">
+<div style="max-width:520px;margin:0 auto;background:#150d1c;border:1px solid #5a3a1a;padding:28px">
+  <p style="margin:0 0 20px;font:700 14px Georgia,serif;letter-spacing:4px;color:#e8742c">EMBERWRATH</p>
+{{ if .Data.lang }}{{ if eq .Data.lang "en" }}
+  <div lang="en">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Confirm your new email address</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Please confirm that your Emberwrath account should use {{ .NewEmail }} from now on.</p>
+    <p style="margin:0 0 20px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;background:#c8641e;color:#fff;font:700 15px Arial,sans-serif;text-decoration:none;border-radius:3px">Confirm address</a></p>
+    <p style="margin:0 0 16px;font:12px/1.5 Arial,sans-serif;color:#a89ab8">Button not working? Open this link:<br><a href="{{ .ConfirmationURL }}" style="color:#f0c870;word-break:break-all">{{ .ConfirmationURL }}</a></p>
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">If this was not you, write to us at support@emberwrath.com.</p>
+  </div>{{ else }}
+  <div lang="de">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Neue E-Mail-Adresse bestätigen</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Bitte bestätige, dass dein Emberwrath-Konto ab jetzt {{ .NewEmail }} verwenden soll.</p>
+    <p style="margin:0 0 20px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;background:#c8641e;color:#fff;font:700 15px Arial,sans-serif;text-decoration:none;border-radius:3px">Adresse bestätigen</a></p>
+    <p style="margin:0 0 16px;font:12px/1.5 Arial,sans-serif;color:#a89ab8">Knopf geht nicht? Öffne diesen Link:<br><a href="{{ .ConfirmationURL }}" style="color:#f0c870;word-break:break-all">{{ .ConfirmationURL }}</a></p>
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">Wenn du das nicht warst, schreib uns an support@emberwrath.com.</p>
+  </div>{{ end }}{{ else }}
+  <div lang="de">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Neue E-Mail-Adresse bestätigen</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Bitte bestätige, dass dein Emberwrath-Konto ab jetzt {{ .NewEmail }} verwenden soll.</p>
+    <p style="margin:0 0 20px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;background:#c8641e;color:#fff;font:700 15px Arial,sans-serif;text-decoration:none;border-radius:3px">Adresse bestätigen</a></p>
+    <p style="margin:0 0 16px;font:12px/1.5 Arial,sans-serif;color:#a89ab8">Knopf geht nicht? Öffne diesen Link:<br><a href="{{ .ConfirmationURL }}" style="color:#f0c870;word-break:break-all">{{ .ConfirmationURL }}</a></p>
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">Wenn du das nicht warst, schreib uns an support@emberwrath.com.</p>
+  </div>
+  <hr style="border:0;border-top:1px solid #3a2a1a;margin:28px 0">
+  <div lang="en">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Confirm your new email address</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Please confirm that your Emberwrath account should use {{ .NewEmail }} from now on.</p>
+    <p style="margin:0 0 20px"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;background:#c8641e;color:#fff;font:700 15px Arial,sans-serif;text-decoration:none;border-radius:3px">Confirm address</a></p>
+    <p style="margin:0 0 16px;font:12px/1.5 Arial,sans-serif;color:#a89ab8">Button not working? Open this link:<br><a href="{{ .ConfirmationURL }}" style="color:#f0c870;word-break:break-all">{{ .ConfirmationURL }}</a></p>
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">If this was not you, write to us at support@emberwrath.com.</p>
+  </div>{{ end }}
+</div>
+</div>

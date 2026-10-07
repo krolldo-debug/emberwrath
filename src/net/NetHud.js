@@ -1,6 +1,7 @@
 import { h } from '../core/dom.js';
 import { NET_PATH, CHAT_MAX } from './protocol.js';
 import { IgnoreList, ModerationUi } from './Moderation.js';
+import { tr } from '../i18n/index.js';
 
 // HUD des Mehrspielers: Welt und Spielerzahl unter dem Zonennamen (Klick: Welt wechseln) und der Zonen-Chat.
 // Chat: Enter öffnet/sendet, Escape schließt; auf Touch-Geräten über den Sprechblasen-Knopf.
@@ -96,7 +97,7 @@ export class NetHud {
     const text = c.status === 'online'
       ? `Welt ${c.world} · ${this.others + 1} Spieler`
       : STATUS_TEXT[c.status] ?? '';
-    if (this.badge.textContent !== text) this.badge.textContent = text;
+    if (this.badge.textContent !== tr(text)) this.badge.textContent = tr(text);
     this.badge.dataset.status = c.status;
   }
 
@@ -104,9 +105,9 @@ export class NetHud {
   chat(m, own, player = null) {
     if (!own && player?.k && this.ignore.has(player.k)) return;
     const name = own || !player
-      ? h('span.net-name', { class: own ? 'net-name own' : 'net-name' }, `${m.name}:`)
-      : h('button.net-name', { type: 'button', title: `${m.name}: melden oder ignorieren`, onclick: (e) => this.mod.openMenu(player, e.currentTarget) }, `${m.name}:`);
-    this.#push(h('div.net-line', name, ' ', h('span.net-text', m.text)));
+      ? h('span.net-name', { class: own ? 'net-name own' : 'net-name', translate: 'no' }, `${m.name}:`)
+      : h('button.net-name', { type: 'button', translate: 'no', title: `${m.name}: melden oder ignorieren`, onclick: (e) => this.mod.openMenu(player, e.currentTarget) }, `${m.name}:`);
+    this.#push(h('div.net-line', name, ' ', h('span.net-text', { translate: 'no' }, m.text)));
   }
 
   system(text) { this.#push(h('div.net-line.sys', text)); }
@@ -173,7 +174,7 @@ export class NetHud {
       h('div.net-plist', people.slice(0, 40).map((r) => h('button.net-plist-row', {
         type: 'button', title: 'Melden oder ignorieren',
         onclick: (e) => this.mod.openMenu({ id: r.netId, k: r.k, name: r.name }, e.currentTarget),
-      }, h('span', r.name), h('span.net-worlds-n', `${this.ignore.has(r.k) ? 'ignoriert · ' : ''}Stufe ${r.level}`)))),
+      }, h('span', { translate: 'no' }, r.name), h('span.net-worlds-n', `${this.ignore.has(r.k) ? 'ignoriert · ' : ''}Stufe ${r.level}`)))),
     ] : [];
     const note = h('div.net-worlds-note', `Jede Welt fasst bis zu ${c.cap || 40} Spieler je Gebiet. Ist eine voll, öffnet sich automatisch die nächste.`);
     this.popup.replaceChildren(h('div.net-worlds-head', 'Welten'), ...rows, note, ...plist);

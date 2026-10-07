@@ -49,6 +49,20 @@ export const MOUNTS = {
   nightmare_steed: M('Albtraumross', 'legendary', 'horse',
     { coat: 'night', mane: 'shadow', tack: 'gold', eyes: 'shadow', glow: 'shadow' },
     'Äußerst selten aus den Glutprüfungen ab Stufe 20', 'Ein Ross aus Schatten und Rauch. Seine Hufe berühren den Boden kaum.'),
+  // Exklusive Designs aus dem Shop (src/shop/catalog.js): nicht erspielbar, Besitz führt der Server (shop_entitlements).
+  // Tempo wie epische Reittiere (kein Vorteil durch Echtgeld), Aussehen über allem, was es im Spiel gibt.
+  phoenix_wing: { ...M('Phönixschwinge', 'legendary', 'drake',
+    { coat: 'phoenix', mane: 'fire', tack: 'gold', eyes: 'fire', glow: 'fire' },
+    'Exklusives Design aus dem Emberwrath-Shop', 'Ein Drache, aus der eigenen Asche wiedergeboren. Seine Schwingen sind reines Feuer, seine Schuppen glühendes Gold.'),
+    speed: MOUNT_SPEED.epic, exclusive: true },
+  astral_stallion: { ...M('Sternenhengst', 'legendary', 'horse',
+    { coat: 'astral', mane: 'starlight', tack: 'astral', eyes: 'star', glow: 'astral' },
+    'Exklusives Design aus dem Emberwrath-Shop', 'Ein Hengst aus dem Nachthimmel über der Aschensteppe. In seinem Fell leuchten die alten Sternbilder.'),
+    speed: MOUNT_SPEED.epic, exclusive: true },
+  soul_wolf: { ...M('Seelenwolf', 'legendary', 'wolf',
+    { coat: 'spirit', mane: 'soul', tack: 'spirit', eyes: 'soul', glow: 'soul' },
+    'Exklusives Design aus dem Emberwrath-Shop', 'Der Geist des ersten Wolfs, der dem Glutfeuer folgte. Er läuft lautlos und hinterlässt grünes Seelenlicht.'),
+    speed: MOUNT_SPEED.epic, exclusive: true },
 };
 
 export const RARITY_NAME = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
@@ -102,8 +116,10 @@ export function installMounts(game) {
   content.defineAll('mount', MOUNTS);
   const has = (id) => !!content.find('mount', id);
 
-  state.defineCommand('mount:learn', (s, { mountId }, ctx) => {
+  state.defineCommand('mount:learn', (s, { mountId, shop = false }, ctx) => {
     if (!has(mountId)) return { ok: false, error: 'Unbekanntes Reittier.' };
+    // Exklusive Designs nur über den Shop (shop:sync); der Server prüft den Besitz beim Speichern.
+    if (content.find('mount', mountId).exclusive && !shop) return { ok: false, error: 'Dieses Reittier gibt es nur im Shop.' };
     const m = s.get('character').mounts;
     if (m.owned.includes(mountId)) return { ok: false, error: 'Dieses Reittier kennst du schon.', known: true };
     m.owned.push(mountId);

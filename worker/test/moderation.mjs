@@ -12,7 +12,7 @@ function conn(token, name) {
   return new Promise((res) => {
     const ws = new WebSocket(`${W}?zone=${zone}&world=1`);
     const c = { ws, msgs: [], name, send: (m) => ws.send(JSON.stringify(m)), last: (t) => c.msgs.filter((m) => m.t === t).at(-1) };
-    ws.on('open', () => c.send({ t: 'hello', v: 1, token, char: { id: 'c_' + name, name, level: 7 }, look: { raceId: 'elf', classId: 'mage' }, s: [100, 200, 1, 'idle', 0, 0, 1] }));
+    ws.on('open', () => c.send({ t: 'hello', v: 2, token, char: { id: 'c_' + name, name, level: 7 }, look: { raceId: 'elf', classId: 'mage' }, s: [100, 200, 1, 'idle', 0, 0, 1] }));
     ws.on('message', (d) => { const s = d.toString(); const m = s === 'pong' ? { t: 'pong' } : JSON.parse(s); c.msgs.push(m); if (m.t === 'welcome' || m.t === 'bye') res(c); });
     ws.on('close', () => res(c));
   });
@@ -83,6 +83,7 @@ await get('/test/fail?on=0');
 console.log('… warte auf Alarm (bis 90 s)');
 let flushed = false;
 for (let i = 0; i < 90 && !flushed; i++) { await wait(1000); flushed = (await get('/test/reports')).length > before; }
+await wait(3000); // Nachsenden läuft nacheinander: kurz ausklingen lassen
 const all = await get('/test/reports');
 ok(flushed && all.length === before + 4 && all.at(-1).reported_id === uid(3), `Warteschlange nach Störung nachgesendet (${all.length - before} von 4)`);
 

@@ -5,6 +5,7 @@ import { handleForms } from './forms.js';
 import { handleShop } from './shop.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
+import { ZONES } from '../src/world/zones.js';
 
 // Cloudflare Worker von Emberwrath: liefert die Website (statische Dateien aus dist/site) und betreibt die Welt-Server.
 //   /net/ws?zone=<id>&world=<n|auto>&exclude=<n,n>   WebSocket zu einem Shard (Zone × Welt), siehe src/net/protocol.js
@@ -24,9 +25,12 @@ const json = (body, status = 200, cache = 'no-store') => new Response(JSON.strin
 
 // Öffentliche Übersichten (/net/status, /net/worlds) wenige Sekunden zwischenspeichern:
 // sonst landet jeder Aufruf (Startseite, Abfragen von außen) beim einzigen Directory-Objekt.
-async function cachedJson(request, ctx, make) {
+// Schlüssel nur aus Pfad und den bekannten Parametern: /net/status?x=zufall umgeht den Zwischenspeicher nicht.
+async function cachedJson(request, ctx, make, params = []) {
   const cache = globalThis.caches?.default;
-  const key = new Request(new URL(request.url).toString(), { method: 'GET' });
+  const src = new URL(request.url), clean = new URL(src.pathname, src.origin);
+  for (const k of params) if (src.searchParams.has(k)) clean.searchParams.set(k, src.searchParams.get(k));
+  const key = new Request(clean.toString(), { method: 'GET' });
   if (cache && request.method === 'GET') {
     const hit = await cache.match(key).catch(() => null);
     if (hit) return hit;
@@ -45,6 +49,20 @@ function config(env) {
 }
 
 const capacity = (env) => Number(env.SHARD_CAPACITY) || 40;
+
+// Nur echte Zonen (src/world/zones.js): Zufallsnamen erzeugen weder Einträge im Directory noch Durable Objects.
+// Tests mit Zufallszonen: wrangler dev --var NET_ANY_ZONE:true.
+const ZONE_IDS = new Set(Object.keys(ZONES));
+
+// Anfragen je Adresse begrenzen (Binding NET_LIMITER, 120 je Minute und Route; mehrere Spieler hinter einer
+// Mobilfunk-Adresse bleiben weit darunter). Fehlt das Binding (Tests), gilt kein Limit.
+async function limited(request, env, route) {
+  if (!env.NET_LIMITER) return false;
+  const ip = request.headers.get('CF-Connecting-IP') ?? '';
+  if (!ip) return false;
+  const { success } = await env.NET_LIMITER.limit({ key: `${route}:${ip}` }).catch(() => ({ success: true }));
+  return !success;
+}
 const directory = (env) => env.DIRECTORY.get(env.DIRECTORY.idFromName('main'));
 
 // Nur die eigene Seite darf Welt-Verbindungen öffnen (Browser schicken Origin immer mit).
@@ -59,15 +77,18 @@ async function handleNet(request, env, url, ctx) {
   const route = url.pathname.slice(NET_PATH.length);
   const zone = url.searchParams.get('zone') ?? '';
   if (route === '/status') return cachedJson(request, ctx, async () => ({ zones: await directory(env).overview() }));
+  if ((route === '/finder' || route === '/ws' || route === '/worlds') && await limited(request, env, route)) {
+    return json({ error: 'rate_limited' }, 429);
+  }
   if (route === '/finder') {
     if (!env.DUNGEON_FINDER) return json({ error: 'unavailable' }, 503);
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);
     if (!originOk(request, url, env)) return json({ error: 'origin' }, 403);
     return env.DUNGEON_FINDER.get(env.DUNGEON_FINDER.idFromName('main')).fetch(request);
   }
-  if (!ZONE_ID_RE.test(zone)) return json({ error: 'zone' }, 400);
+  if (!ZONE_ID_RE.test(zone) || (!ZONE_IDS.has(zone) && env.NET_ANY_ZONE !== 'true')) return json({ error: 'zone' }, 400);
 
-  if (route === '/worlds') return cachedJson(request, ctx, async () => ({ zone, worlds: await directory(env).list(zone, capacity(env)) }));
+  if (route === '/worlds') return cachedJson(request, ctx, async () => ({ zone, worlds: await directory(env).list(zone, capacity(env)) }), ['zone']);
 
   if (route === '/ws') {
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);

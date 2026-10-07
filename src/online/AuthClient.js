@@ -35,6 +35,10 @@ const MESSAGES = {
   refresh_token_not_found: 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
   network: 'Keine Verbindung zum Server. Prüfe deine Internetverbindung.',
   not_configured: 'Online-Konten sind noch nicht eingerichtet.',
+  access_denied: 'Die Anmeldung wurde abgebrochen.',
+  redirect_failed: 'Die Anmeldung hat nicht geklappt. Bitte versuche es erneut.',
+  reauth_required: 'Bitte bestätige das Löschen noch einmal mit deiner Anmeldung.',
+  reauthentication_needed: 'Bitte melde dich zur Sicherheit neu an und ändere danach dein Passwort.',
 };
 export function describeError(e) {
   if (e instanceof AuthError) return MESSAGES[e.code] ?? e.message ?? 'Unbekannter Fehler.';
@@ -143,7 +147,7 @@ export class AuthClient {
     this.#savePkce(verifier, 'signup');
     const d = await this.#request(`/auth/v1/signup?redirect_to=${encodeURIComponent(this.redirectUrl())}`, {
       method: 'POST',
-      body: { email, password, data: { ...meta, display_name: displayName }, code_challenge: challenge, code_challenge_method: 's256' },
+      body: { email, password, data: { ...meta, display_name: displayName, lang: document.documentElement.lang === 'en' ? 'en' : 'de' }, code_challenge: challenge, code_challenge_method: 's256' },
     });
     const session = this.#fromTokenResponse(d);
     if (session) { this.#clearPkce(); this.#store(session, 'SIGNED_IN'); return { session, needsConfirmation: false }; }
@@ -166,10 +170,11 @@ export class AuthClient {
   }
 
   // Leitet zu Google weiter. Zurück kommt der Browser mit ?code=… auf dieselbe Seite (handleRedirect()).
-  async signInWithProvider(provider) {
+  // intent 'reauth': erneute Anmeldung als Bestätigung (z. B. vor dem Löschen des Kontos)
+  async signInWithProvider(provider, intent = 'oauth') {
     if (!this.configured) throw new AuthError('not_configured', MESSAGES.not_configured);
     const { verifier, challenge } = await pkcePair();
-    this.#savePkce(verifier, 'oauth');
+    this.#savePkce(verifier, intent);
     const q = new URLSearchParams({ provider, redirect_to: this.redirectUrl(), code_challenge: challenge, code_challenge_method: 's256' });
     this.location.assign(`${this.url}/auth/v1/authorize?${q}`);
   }
@@ -232,7 +237,7 @@ export class AuthClient {
   #readPkce() { try { return JSON.parse(this.storage?.getItem(PKCE_KEY) ?? 'null'); } catch { return null; } }
 
   // Wertet eine Rückleitung aus und entfernt die Parameter aus der Adresszeile.
-  // -> null (keine Rückleitung) | { intent: 'signup'|'recovery'|'oauth'|null, session } | { intent, error }
+  // -> null (keine Rückleitung) | { intent: 'signup'|'recovery'|'oauth'|'reauth'|null, session } | { intent, error }
   async handleRedirect() {
     const url = new URL(this.location.href);
     const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
@@ -245,7 +250,13 @@ export class AuthClient {
     for (const k of ['code', 'error', 'error_code', 'error_description', 'type']) url.searchParams.delete(k);
     const cleanHash = errCode || err ? '' : url.hash;
     try { window.history.replaceState(null, '', `${url.pathname}${url.search}${cleanHash}`); } catch { /* egal */ }
-    if (!code) { this.#clearPkce(); return { intent, error: new AuthError(errCode ?? 'unknown', err ?? 'Anmeldung abgebrochen.') }; }
+    // Fehler aus der Adresse: nur bekannte Codes mit eigenem Text zeigen, nie den Text aus der URL (sonst lässt sich
+    // über einen präparierten Link beliebiger Text ins Anmeldefenster schreiben). Die gespeicherte PKCE-Anfrage bleibt
+    // erhalten, damit ein fremder Fehler-Link einen noch offenen Bestätigungslink nicht unbrauchbar macht.
+    if (!code) {
+      const known = Object.hasOwn(MESSAGES, errCode ?? '') ? errCode : 'redirect_failed';
+      return { intent, error: new AuthError(known, MESSAGES[known]) };
+    }
     if (!pkce?.verifier) return { intent, error: new AuthError('bad_code_verifier', MESSAGES.bad_code_verifier) };
     try {
       const d = await this.#request('/auth/v1/token?grant_type=pkce', { method: 'POST', body: { auth_code: code, code_verifier: pkce.verifier } });

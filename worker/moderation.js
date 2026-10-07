@@ -30,13 +30,18 @@ export async function saveReport(env, row) {
   await db(env, 'chat_reports', { method: 'POST', body: row });
 }
 
-// Laufende Chatsperre eines Kontos -> { until, reason } | null. Fehler: keine Sperre (Chat bleibt nutzbar).
-export async function activeMute(env, uid) {
-  if (!moderationReady(env) || !/^[0-9a-f-]{36}$/i.test(uid)) return null;
+// Laufende Chatsperren mehrerer Konten -> Map(uid -> { until, reason }) (ohne Sperre: kein Eintrag).
+// undefined bei Störung oder fehlendem Secret: dann gilt die zuletzt bekannte Sperre weiter (worker/shard.js).
+export async function activeMutes(env, uids) {
+  const list = [...new Set(uids)].filter((u) => /^[0-9a-f-]{36}$/i.test(u));
+  if (!moderationReady(env)) return undefined;
+  if (!list.length) return new Map();
   try {
-    const rows = await db(env, `chat_mutes?user_id=eq.${uid}&until=gt.${encodeURIComponent(new Date().toISOString())}&select=until,reason&order=until.desc&limit=1`);
-    return rows?.[0] ? { until: rows[0].until, reason: rows[0].reason ?? '' } : null;
-  } catch { return null; }
+    const rows = await db(env, `chat_mutes?user_id=in.(${list.join(',')})&until=gt.${encodeURIComponent(new Date().toISOString())}&select=user_id,until,reason&order=until.desc`);
+    const out = new Map();
+    for (const r of rows ?? []) if (!out.has(r.user_id)) out.set(r.user_id, { until: r.until, reason: r.reason ?? '' });
+    return out;
+  } catch { return undefined; }
 }
 
 // Gespeicherter Charakter (Name, Stufe) -> { name, level } | null. Quelle für das, was andere Spieler sehen:

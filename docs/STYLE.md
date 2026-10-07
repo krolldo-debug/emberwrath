@@ -183,3 +183,10 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - Kein „Hier ziehen zum Laufen“-Kreis mehr.
 - Chat- und Systemzeilen auf Touch unten links mit dunklem Grund, höchstens zwei Zeilen; nie über der Bildmitte.
 - Questliste quer: erledigte Teilziele aus, bei Höhe ≤ 420 px nur die verfolgte Quest.
+
+## Musik und Klang, Runde 8 (05.10.)
+- Eigene Stücke für alle Gebiete ab Stufe 20 (steppe, barrow, marsh, spores, frost, rime, wastes, throne) und je Boss (themeForBoss: boss_bones, boss_drowned, boss_barrow, boss_rot, boss_frost, boss_sovereign; Varkhul und Glutprüfung behalten 'boss').
+- Aufbau: Motiv-Melodie (1 Takt, Wiederholung, Abwandlung, Antwort), Teil B über chordsB in jeder zweiten Phrase, Auftakt ohne Trommeln (intro), Trommelwirbel vor dem Phrasenwechsel. motif: false = frei schweifend (Gruft, Hügelgrab, Reifhöhlen).
+- Neue Instrumente: Chor (Formanten), Schalmei (reed), Zupfen (pluck), Celesta; Flächen organ, ice, murk, drone; Trommeln Taiko (t), Rahmentrommel (f), Shaker (s), Snare (n).
+- Sfx: kurzer Raumhall (wet), Treffer/Krit/Bogen/Zauber/Feuer/Schrei/Wirbel mehrschichtig. Pegel gemessen: Krit-Spitze 0,23, Zonenmusik RMS 0,02–0,03, Boss 0,04–0,045.
+- Umgebung: zufällige Einzelgeräusche je Atmo (Vögel, Tropfen, Ketten, Knistern, Kröten, Böen), alle 2,5–8 s, sehr leise.

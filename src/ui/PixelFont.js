@@ -1,4 +1,5 @@
 import { makeCanvas } from '../gfx/PixelCanvas.js';
+import { tr } from '../i18n/index.js';
 
 // Eigene 5px-Bitmap-Schrift: scharf bei jeder Ganzzahl-Skalierung,
 // unabhängig von Browser-Fonts. Zeilen durch "|" getrennt.
@@ -43,7 +44,9 @@ export class PixelFont {
     return c;
   }
 
-  measure(text, scale = 1) {
+  // raw = true: nicht übersetzen (Spielernamen)
+  measure(text, scale = 1, raw = false) {
+    if (!raw) text = tr(String(text));
     let w = 0;
     for (const ch of text.toUpperCase()) w += ((this.glyphs[ch] ?? this.glyphs['?']).w + 1) * scale;
     return Math.max(0, w - scale);
@@ -51,9 +54,9 @@ export class PixelFont {
 
   // outline: 1px-Rand ringsum (in Skalierungsstufen) – beste Lesbarkeit über
   // bewegtem, hellem Hintergrund (Schadenszahlen).
-  draw(ctx, text, x, y, { color = '#ffffff', scale = 1, align = 'left', shadow = false, shadowColor = '#0b0710', outline = false } = {}) {
-    text = String(text).toUpperCase();
-    const w = this.measure(text, scale);
+  draw(ctx, text, x, y, { color = '#ffffff', scale = 1, align = 'left', shadow = false, shadowColor = '#0b0710', outline = false, raw = false } = {}) {
+    text = (raw ? String(text) : tr(String(text))).toUpperCase();
+    const w = this.measure(text, scale, true);
     let cx = Math.round(align === 'center' ? x - w / 2 : align === 'right' ? x - w : x);
     y = Math.round(y);
     if (outline) {

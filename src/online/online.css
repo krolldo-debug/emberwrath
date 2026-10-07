@@ -210,3 +210,7 @@
 .on-table-wrap > .net-adm { padding: 10px 12px; }
 .on-table-note { margin: 8px 10px; }
 .on-flags-more { margin: 4px 10px 10px; }
+.on-consent { display: flex; flex-direction: column; gap: 4px; }
+.on-legal-links { margin: 0; display: flex; gap: 4px 12px; flex-wrap: wrap; font-size: 12px; }
+.on-consent .on-legal-links { padding-left: 30px; }
+.ef-touch .on-consent .on-legal-links { padding-left: 34px; }

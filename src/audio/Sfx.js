@@ -25,6 +25,13 @@ export class Sfx {
     this.fx = this.ctx.createGain();
     this.fx.gain.value = this.fxVolume;
     this.fx.connect(this.master);
+    // Kurzer Raumhall für Treffer und Zauber (Parameter wet in #noise/#tone)
+    this.room = this.ctx.createConvolver();
+    const rl = Math.floor(this.ctx.sampleRate * 0.7), rb = this.ctx.createBuffer(2, rl, this.ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = rb.getChannelData(ch); for (let i = 0; i < rl; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 4); }
+    this.room.buffer = rb;
+    this.roomIn = this.ctx.createGain(); this.roomIn.gain.value = 0.5;
+    this.roomIn.connect(this.room).connect(this.fx);
     const len = this.ctx.sampleRate;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -74,7 +81,8 @@ export class Sfx {
     g.exponentialRampToValueAtTime(peak, t + attack);
     g.exponentialRampToValueAtTime(0.0001, t + attack + decay);
   }
-  #noise(t, { dur = 0.2, type = 'bandpass', f0 = 1000, f1 = f0, q = 1, peak = 0.5, attack = 0.005 }) {
+  #send(g, wet) { if (!wet || !this.roomIn) return; const s = this.ctx.createGain(); s.gain.value = wet; g.connect(s).connect(this.roomIn); }
+  #noise(t, { dur = 0.2, type = 'bandpass', f0 = 1000, f1 = f0, q = 1, peak = 0.5, attack = 0.005, wet = 0 }) {
     const c = this.ctx;
     const src = c.createBufferSource();
     src.buffer = this.noise;
@@ -87,9 +95,10 @@ export class Sfx {
     const g = c.createGain();
     this.#env(g, t, attack, dur, peak);
     src.connect(filt).connect(g).connect(this.fx);
+    this.#send(g, wet);
     src.start(t, Math.random() * 0.5, dur + attack + 0.05);
   }
-  #tone(t, { type = 'sine', f0 = 200, f1 = f0, dur = 0.2, peak = 0.4, attack = 0.005 }) {
+  #tone(t, { type = 'sine', f0 = 200, f1 = f0, dur = 0.2, peak = 0.4, attack = 0.005, wet = 0 }) {
     const c = this.ctx;
     const o = c.createOscillator();
     o.type = type;
@@ -98,6 +107,7 @@ export class Sfx {
     const g = c.createGain();
     this.#env(g, t, attack, dur, peak);
     o.connect(g).connect(this.fx);
+    this.#send(g, wet);
     o.start(t); o.stop(t + attack + dur + 0.05);
   }
 
@@ -166,10 +176,33 @@ export class Sfx {
 
   setAmbience(kind) {
     this.ambKind = kind;
+    if (!this.ambTimer) this.#ambDetail();
     if (!this.amb) return;
     const t = this.ctx.currentTime;
     const mix = Sfx.AMB_MIX[kind] ?? Sfx.AMB_MIX.dungeon;
     for (const [layer, g] of Object.entries(this.amb)) g.gain.setTargetAtTime(mix[layer] ?? 0, t, 0.8);
+  }
+
+  // Kleine Umgebungsgeräusche in zufälligen Abständen: Vögel, Tropfen, Knistern, Kröten, Böen.
+  #ambDetail() {
+    this.ambTimer = setTimeout(() => { this.ambTimer = null; this.#ambDetail(); }, 2500 + Math.random() * 5500);
+    if (!this.ctx || this.muted || this.ctx.state !== 'running' || document.hidden) return;
+    const t = this.ctx.currentTime + 0.05, k = this.ambKind, r = Math.random();
+    const bird = () => { const f = 2400 + Math.random() * 1600; for (let i = 0, n = 2 + Math.floor(Math.random() * 3); i < n; i++) this.#tone(t + i * 0.11, { type: 'sine', f0: f * (1 + i * 0.04), f1: f * 1.25, dur: 0.07, peak: 0.018 }); };
+    const drip = () => { const f = 900 + Math.random() * 900; this.#tone(t, { type: 'sine', f0: f, f1: f * 1.9, dur: 0.06, peak: 0.03, wet: 0.6 }); };
+    const crackle = () => { for (let i = 0; i < 3; i++) this.#noise(t + i * 0.05 + Math.random() * 0.05, { dur: 0.02, type: 'highpass', f0: 2500 + Math.random() * 3000, peak: 0.035 }); };
+    const gust = () => this.#noise(t, { dur: 1.6, type: 'bandpass', f0: 300, f1: 900, q: 0.8, peak: 0.035, attack: 0.6 });
+    const frog = () => { for (let i = 0; i < 3; i++) this.#tone(t + i * 0.09, { type: 'square', f0: 140, f1: 110, dur: 0.05, peak: 0.012 }); };
+    const chain = () => { for (let i = 0; i < 3; i++) this.#tone(t + i * 0.07, { type: 'triangle', f0: 1700 + i * 140, f1: 1600, dur: 0.05, peak: 0.01, wet: 0.7 }); };
+    switch (k) {
+      case 'outdoor': if (r < 0.5) bird(); else if (r < 0.75) gust(); break;
+      case 'forest': if (r < 0.75) bird(); else crackle(); break;
+      case 'dungeon': if (r < 0.55) drip(); else if (r < 0.7) chain(); break;
+      case 'water': case 'rain': drip(); break;
+      case 'fire': crackle(); break;
+      case 'marsh': if (r < 0.55) frog(); else drip(); break;
+      case 'wind': case 'blizzard': case 'storm': if (r < 0.7) gust(); break;
+    }
   }
 
   // Für die Musik (audio/Music.js): Kontext und Ausgang, sobald der Ton entsperrt ist.
@@ -182,20 +215,31 @@ export class Sfx {
     const p = opts.pitch ?? (0.92 + Math.random() * 0.16);
     switch (name) {
       case 'swing':
-        this.#noise(t, { dur: 0.13, f0: 700 * p, f1: 2600 * p, q: 1.2, peak: 0.28 });
+        // Luftzug mit leisem Klingenpfeifen
+        this.#noise(t, { dur: 0.14, f0: 600 * p, f1: 2800 * p, q: 1.3, peak: 0.26, attack: 0.012 });
+        this.#noise(t + 0.02, { dur: 0.08, type: 'highpass', f0: 4200 * p, f1: 6500, peak: 0.07 });
         break;
       case 'swingHeavy':
-        this.#noise(t, { dur: 0.22, f0: 400 * p, f1: 1800 * p, q: 0.9, peak: 0.4, attack: 0.02 });
-        this.#tone(t, { type: 'sine', f0: 120, f1: 60, dur: 0.2, peak: 0.15 });
+        this.#noise(t, { dur: 0.24, f0: 350 * p, f1: 1900 * p, q: 0.9, peak: 0.4, attack: 0.03 });
+        this.#tone(t, { type: 'sine', f0: 130, f1: 55, dur: 0.22, peak: 0.18 });
+        this.#noise(t + 0.05, { dur: 0.12, type: 'highpass', f0: 3500, f1: 5500, peak: 0.06 });
         break;
       case 'hit':
-        this.#tone(t, { type: 'sine', f0: 160 * p, f1: 45, dur: 0.14, peak: 0.6 });
-        this.#noise(t, { dur: 0.07, type: 'lowpass', f0: 2500, f1: 400, peak: 0.5 });
+        // Körper (tiefer Schlag) + Knall (Mitten) + Spritzer (Höhen) + kurzer Raum
+        this.#tone(t, { type: 'sine', f0: 150 * p, f1: 42, dur: 0.15, peak: 0.62, wet: 0.12 });
+        this.#tone(t, { type: 'triangle', f0: 320 * p, f1: 110, dur: 0.06, peak: 0.22 });
+        this.#noise(t, { dur: 0.06, type: 'bandpass', f0: 1900 * p, f1: 700, q: 1.4, peak: 0.42, wet: 0.15 });
+        this.#noise(t, { dur: 0.03, type: 'highpass', f0: 5000, peak: 0.16 });
         break;
       case 'crit':
-        this.#tone(t, { type: 'sine', f0: 190, f1: 40, dur: 0.2, peak: 0.7 });
-        this.#noise(t, { dur: 0.1, type: 'lowpass', f0: 4000, f1: 500, peak: 0.55 });
-        this.#tone(t + 0.01, { type: 'triangle', f0: 1400, f1: 1300, dur: 0.18, peak: 0.12 });
+        // wie Treffer, nur wuchtiger, dazu ein heller Metallklang und ein tiefer Nachschlag
+        this.#tone(t, { type: 'sine', f0: 185, f1: 36, dur: 0.24, peak: 0.75, wet: 0.2 });
+        this.#tone(t, { type: 'square', f0: 260, f1: 90, dur: 0.07, peak: 0.08 });
+        this.#noise(t, { dur: 0.11, type: 'bandpass', f0: 2600, f1: 600, q: 1.1, peak: 0.55, wet: 0.25 });
+        this.#noise(t, { dur: 0.04, type: 'highpass', f0: 6000, peak: 0.2 });
+        this.#tone(t + 0.008, { type: 'triangle', f0: 1480, f1: 1440, dur: 0.32, peak: 0.1, wet: 0.35 });
+        this.#tone(t + 0.008, { type: 'sine', f0: 2210, f1: 2180, dur: 0.22, peak: 0.06, wet: 0.35 });
+        this.#tone(t + 0.05, { type: 'sine', f0: 70, f1: 32, dur: 0.3, peak: 0.35 });
         break;
       case 'bone':
         for (let i = 0; i < 4; i++) this.#noise(t + i * 0.025 + Math.random() * 0.02, { dur: 0.03, type: 'highpass', f0: 2500 + Math.random() * 2000, peak: 0.22 });
@@ -236,8 +280,11 @@ export class Sfx {
         this.#noise(t, { dur: 0.6, type: 'bandpass', f0: 300, f1: 1400, q: 4, peak: 0.1, attack: 0.2 });
         break;
       case 'shoot':
-        this.#noise(t, { dur: 0.08, type: 'highpass', f0: 1500, f1: 3000, peak: 0.2 });
-        this.#tone(t, { type: 'triangle', f0: 180, f1: 90, dur: 0.1, peak: 0.12 });
+        // Bogensehne: gezupfter Ton + Sirren + Pfeilflug
+        this.#tone(t, { type: 'triangle', f0: 230 * p, f1: 205 * p, dur: 0.16, peak: 0.14 });
+        this.#tone(t, { type: 'sine', f0: 115 * p, f1: 80, dur: 0.08, peak: 0.12 });
+        this.#noise(t, { dur: 0.05, type: 'bandpass', f0: 2800, q: 3, peak: 0.12 });
+        this.#noise(t + 0.02, { dur: 0.16, type: 'bandpass', f0: 1600 * p, f1: 3800 * p, q: 2.2, peak: 0.12, attack: 0.02 });
         break;
       case 'deflect':
         this.#tone(t, { type: 'sine', f0: 1850, f1: 1800, dur: 0.3, peak: 0.18 });
@@ -296,11 +343,16 @@ export class Sfx {
         this.#tone(t, { type: 'square', f0: 880, f1: 660, dur: 0.04, peak: 0.04 });
         break;
       case 'magic':
-        this.#tone(t, { type: 'sine', f0: 600 * p, f1: 1400 * p, dur: 0.25, peak: 0.1 });
-        this.#noise(t, { dur: 0.25, f0: 2000, f1: 6000, q: 2, peak: 0.08 });
+        // Zauber: schimmernder Akkord (drei leicht verstimmte Sinustöne) + Luftrauschen
+        for (const [m, d] of [[1, 0], [1.5, 0.03], [2, 0.06]]) this.#tone(t + d, { type: 'sine', f0: 520 * p * m, f1: 1240 * p * m, dur: 0.28, peak: 0.07, wet: 0.35 });
+        this.#noise(t, { dur: 0.3, f0: 1800, f1: 6500, q: 2, peak: 0.08, attack: 0.03, wet: 0.2 });
+        this.#tone(t, { type: 'sine', f0: 160 * p, f1: 90, dur: 0.18, peak: 0.12 });
         break;
       case 'fire':
-        this.#noise(t, { dur: 0.35, type: 'lowpass', f0: 2400, f1: 300, peak: 0.3 });
+        // Feuer: Verpuffung (tiefes Wumm) + knisternde Funken
+        this.#noise(t, { dur: 0.38, type: 'lowpass', f0: 2600, f1: 260, peak: 0.32, wet: 0.2 });
+        this.#tone(t, { type: 'sine', f0: 110 * p, f1: 45, dur: 0.25, peak: 0.25 });
+        for (let i = 0; i < 5; i++) this.#noise(t + 0.04 + i * 0.045 + Math.random() * 0.03, { dur: 0.02, type: 'highpass', f0: 2500 + Math.random() * 3000, peak: 0.09 });
         break;
       case 'frost': // Eis: knisterndes Gefrieren, dann klarer Kristallton
         for (let i = 0; i < 6; i++) this.#noise(t + i * 0.028 + Math.random() * 0.012, { dur: 0.035, type: 'highpass', f0: 5200 + Math.random() * 2400, f1: 3800, peak: 0.1 });
@@ -391,39 +443,52 @@ export class Sfx {
         break;
       // --- Fähigkeiten (Runde 4) ---
       case 'shout':
-        this.#tone(t, { type: 'sawtooth', f0: 180, f1: 140, dur: 0.45, peak: 0.1, attack: 0.03 });
+        // Kampfschrei: rauer Ruf mit Brustresonanz
+        this.#tone(t, { type: 'sawtooth', f0: 180, f1: 140, dur: 0.45, peak: 0.11, attack: 0.03, wet: 0.3 });
         this.#tone(t, { type: 'sawtooth', f0: 271, f1: 210, dur: 0.45, peak: 0.06, attack: 0.03 });
-        this.#noise(t, { dur: 0.4, type: 'bandpass', f0: 900, f1: 600, q: 1.5, peak: 0.15, attack: 0.03 });
+        this.#tone(t, { type: 'sine', f0: 90, f1: 70, dur: 0.4, peak: 0.18, attack: 0.03 });
+        this.#noise(t, { dur: 0.4, type: 'bandpass', f0: 900, f1: 600, q: 1.5, peak: 0.16, attack: 0.03, wet: 0.25 });
         break;
       case 'whoosh': // Wirbelwind, Sturmangriff
-        this.#noise(t, { dur: 0.45, type: 'bandpass', f0: 400 * p, f1: 2200 * p, q: 1.4, peak: 0.3, attack: 0.08 });
+        this.#noise(t, { dur: 0.45, type: 'bandpass', f0: 380 * p, f1: 2300 * p, q: 1.4, peak: 0.3, attack: 0.08 });
+        this.#noise(t + 0.1, { dur: 0.3, type: 'bandpass', f0: 1200 * p, f1: 500 * p, q: 2, peak: 0.12, attack: 0.05 });
+        this.#tone(t, { type: 'sine', f0: 80, f1: 120, dur: 0.35, peak: 0.12, attack: 0.08 });
         break;
       case 'quake': // Erdspalter, Meteor-Einschlag
-        this.#tone(t, { type: 'sine', f0: 70, f1: 28, dur: 0.9, peak: 0.6 });
-        this.#noise(t, { dur: 0.7, type: 'lowpass', f0: 900, f1: 90, peak: 0.5 });
-        for (let i = 0; i < 5; i++) this.#noise(t + 0.08 + i * 0.07, { dur: 0.06, type: 'lowpass', f0: 1400, f1: 300, peak: 0.18 });
+        this.#tone(t, { type: 'sine', f0: 70, f1: 28, dur: 0.9, peak: 0.6, wet: 0.2 });
+        this.#tone(t, { type: 'square', f0: 110, f1: 40, dur: 0.12, peak: 0.08 });
+        this.#noise(t, { dur: 0.7, type: 'lowpass', f0: 900, f1: 90, peak: 0.5, wet: 0.3 });
+        for (let i = 0; i < 6; i++) this.#noise(t + 0.08 + i * 0.07 + Math.random() * 0.03, { dur: 0.06, type: 'lowpass', f0: 1400, f1: 300, peak: 0.18 });
         break;
       case 'shadow': // Schattenschritt, Tarnung, Meucheln
-        this.#tone(t, { type: 'sine', f0: 900 * p, f1: 180 * p, dur: 0.28, peak: 0.1 });
+        this.#tone(t, { type: 'sine', f0: 900 * p, f1: 180 * p, dur: 0.28, peak: 0.1, wet: 0.4 });
+        this.#tone(t + 0.02, { type: 'sine', f0: 1350 * p, f1: 260 * p, dur: 0.24, peak: 0.05, wet: 0.4 });
         this.#noise(t, { dur: 0.3, type: 'highpass', f0: 3000, f1: 800, peak: 0.1, attack: 0.03 });
         break;
       case 'knives':
-        for (let i = 0; i < 5; i++) this.#noise(t + i * 0.022, { dur: 0.06, type: 'highpass', f0: 3500 + i * 300, f1: 6000, peak: 0.12 });
+        for (let i = 0; i < 6; i++) {
+          this.#noise(t + i * 0.02, { dur: 0.06, type: 'highpass', f0: 3500 + i * 300, f1: 6500, peak: 0.12 });
+          this.#tone(t + i * 0.02, { type: 'triangle', f0: 2400 + i * 180, f1: 2200 + i * 180, dur: 0.05, peak: 0.025 });
+        }
         break;
       case 'bowDraw':
         this.#tone(t, { type: 'triangle', f0: 120 * p, f1: 260 * p, dur: 0.25, peak: 0.06, attack: 0.1 });
         this.#noise(t, { dur: 0.22, type: 'bandpass', f0: 1500, f1: 2400, q: 4, peak: 0.05, attack: 0.1 });
         break;
       case 'arrowRain':
-        for (let i = 0; i < 9; i++) this.#noise(t + i * 0.05 + Math.random() * 0.03, { dur: 0.09, type: 'highpass', f0: 2000 + Math.random() * 1500, f1: 4500, peak: 0.1 });
+        // Salve: Sehnen, dann Pfeilhagel mit dumpfen Einschlägen
+        this.#tone(t, { type: 'triangle', f0: 220, f1: 200, dur: 0.15, peak: 0.12 });
+        for (let i = 0; i < 9; i++) this.#noise(t + 0.05 + i * 0.05 + Math.random() * 0.03, { dur: 0.09, type: 'highpass', f0: 2000 + Math.random() * 1500, f1: 4500, peak: 0.1 });
+        for (let i = 0; i < 5; i++) this.#noise(t + 0.4 + i * 0.06 + Math.random() * 0.04, { dur: 0.04, type: 'lowpass', f0: 900, f1: 250, peak: 0.16 });
         break;
       case 'trap':
         this.#tone(t, { type: 'square', f0: 700, f1: 500, dur: 0.05, peak: 0.05 });
         this.#noise(t + 0.03, { dur: 0.06, type: 'highpass', f0: 3000, peak: 0.12 });
         break;
       case 'blink':
-        this.#tone(t, { type: 'sine', f0: 400 * p, f1: 1800 * p, dur: 0.18, peak: 0.1 });
-        this.#tone(t + 0.1, { type: 'sine', f0: 1800 * p, f1: 900 * p, dur: 0.16, peak: 0.06 });
+        this.#tone(t, { type: 'sine', f0: 400 * p, f1: 1800 * p, dur: 0.18, peak: 0.1, wet: 0.4 });
+        this.#tone(t + 0.1, { type: 'sine', f0: 1800 * p, f1: 900 * p, dur: 0.16, peak: 0.06, wet: 0.4 });
+        this.#noise(t + 0.08, { dur: 0.08, type: 'highpass', f0: 5000, peak: 0.08 });
         break;
       case 'meteorFall':
         this.#noise(t, { dur: 0.8, type: 'bandpass', f0: 3000, f1: 400, q: 1, peak: 0.25, attack: 0.3 });

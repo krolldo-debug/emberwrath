@@ -8,7 +8,7 @@ const get = async (p) => (await fetch(`${M}${p}`)).json();
 let fails = 0; const ok = (c, m) => { console.log(c ? '✓' : '✗', m); if (!c) fails++; };
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'] });
 const errors = [];
-async function player(sub, name, raceId, classId, ctxOpts = { viewport: { width: 1280, height: 720 } }) {
+async function player(sub, name, raceId, classId, ctxOpts = { locale: 'de-DE', viewport: { width: 1280, height: 720 } }) {
   const token = await tok(sub);
   const ctx = await browser.newContext(ctxOpts);
   const user = { id: sub, email: `${sub}@x.de`, created_at: new Date().toISOString(), user_metadata: { display_name: name } };

@@ -10,16 +10,19 @@ import { describeError } from './AuthClient.js';
 //   'forgot'       Link zum Zurücksetzen anfordern
 //   'newPassword'  neues Passwort setzen (nach Link aus der E-Mail oder im Konto)
 //   'consent'      angemeldet, aber Nutzungsbedingungen (aktuelle Fassung) noch nicht bestätigt, z. B. nach erster Google-Anmeldung
+//   'deleteAccount' Konto löschen nach erneuter Anmeldung (Passwort bzw. Google; der Server verlangt eine frische Anmeldung)
 //   'account'      angemeldet: Spielen, Verwaltung, lokale Charaktere übernehmen, Abmelden, Konto löschen
 const GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
 // Rechtstexte der Website (site/). Das Spiel liegt unter /spielen/, die Seiten im Wurzelverzeichnis.
-export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, adultAge: 18, termsVersion: '2026-10' };
+export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, adultAge: 18, termsVersion: '2026-10-05' };
 // Altersklausel wie in den Nutzungsbedingungen: ab 12 Jahren, unter 18 nur mit Zustimmung der Eltern.
-const AGE_CLAUSE = `ab ${LEGAL.minAge} Jahren; unter ${LEGAL.adultAge} nur mit Zustimmung der Eltern`;
+const AGE_CLAUSE = `Spielen ab ${LEGAL.minAge} Jahren; unter ${LEGAL.adultAge} nur mit Zustimmung der Eltern.`;
 const consentMeta = () => ({ terms_version: LEGAL.termsVersion, terms_accepted_at: new Date().toISOString() });
 // Hat das Konto die aktuelle Fassung der Nutzungsbedingungen bestätigt? (Google-Konten kommen ohne Häkchen an.)
 export const needsConsent = (user) => !!user && user.user_metadata?.terms_version !== LEGAL.termsVersion;
 const legalLink = (text, href) => h('a.on-legal-link', { href, target: '_blank', rel: 'noopener' }, text);
+// Ganze Sätze als ein Text (Übersetzung beim Anzeigen), die Links darunter als eigene Zeile.
+const legalLinks = () => h('p.on-legal-links', legalLink('Nutzungsbedingungen', LEGAL.terms), legalLink('Datenschutzerklärung', LEGAL.privacy));
 
 const svgIcon = (markup) => { const s = h('span.on-provider-icon'); s.innerHTML = markup; return s; };
 
@@ -30,6 +33,7 @@ const TITLES = {
   newPassword: ['Neues Passwort', 'Wähle ein neues Passwort für dein Konto'],
   account: ['Dein Konto', ''],
   consent: ['Nutzungsbedingungen', 'Einmal bestätigen, dann geht es los'],
+  deleteAccount: ['Konto löschen', 'Bitte bestätige mit deiner Anmeldung'],
 };
 
 const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
@@ -40,7 +44,7 @@ export class LoginScene extends MenuScene {
   enter(params = {}) {
     this.online = this.game.online;
     this.mode = params.mode ?? (this.online.user ? 'account' : 'login');
-    if ((this.mode === 'account' || this.mode === 'consent') && !this.online.user) this.mode = 'login';
+    if (['account', 'consent', 'deleteAccount'].includes(this.mode) && !this.online.user) this.mode = 'login';
     this.message = this.online.notice; this.online.notice = null;
     this.busy = false;
     this.root = h('div.ef-screen.acc-screen.on-screen');
@@ -52,7 +56,7 @@ export class LoginScene extends MenuScene {
 
   back() {
     if (this.mode === 'forgot' || this.mode === 'register') { this.#go('login'); return; }
-    if (this.mode === 'newPassword' && this.online.user) { this.#go('account'); return; }
+    if ((this.mode === 'newPassword' || this.mode === 'deleteAccount') && this.online.user) { this.#go('account'); return; }
     this.game.scenes.go('title');
   }
 
@@ -95,9 +99,9 @@ export class LoginScene extends MenuScene {
       type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider('google')),
     }, svgIcon(GOOGLE_SVG), h('span', 'Weiter mit Google'));
     const box = h('div.on-providers', google,
-      h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
-        ` (Spielen ${AGE_CLAUSE}). Infos zum Datenschutz: `,
-        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'),
+      h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die Nutzungsbedingungen.'),
+      h('p.on-fine', AGE_CLAUSE),
+      legalLinks(),
       h('div.on-or', h('span', 'oder mit E-Mail')));
     const set = (on) => { box.hidden = !on; };
     set(!!o.providers.google);
@@ -125,6 +129,7 @@ export class LoginScene extends MenuScene {
     else if (this.mode === 'newPassword') body = this.#newPassword();
     else if (this.mode === 'account' && this.online.user) body = this.#account();
     else if (this.mode === 'consent' && this.online.user) body = this.#consent();
+    else if (this.mode === 'deleteAccount' && this.online.user) body = this.#deleteAccount();
     else body = this.#login();
     // Eingaben bleiben erhalten, wenn dieselbe Seite neu gezeichnet wird (z. B. nach einer Fehlermeldung)
     const keep = this.#shownMode === this.mode ? [...this.root.querySelectorAll('.on-form input')].map((el) => (el.type === 'checkbox' ? el.checked : el.value)) : null;
@@ -177,10 +182,8 @@ export class LoginScene extends MenuScene {
   #consentBox() {
     const consent = h('input', { type: 'checkbox', required: true });
     const consentEl = h('label.on-check', consent,
-      h('span', 'Ich akzeptiere die ', legalLink('Nutzungsbedingungen', LEGAL.terms),
-        ` (Spielen ${AGE_CLAUSE}). Die `,
-        legalLink('Datenschutzerklärung', LEGAL.privacy), ' habe ich zur Kenntnis genommen.'));
-    return { consent, consentEl };
+      h('span', h('span', 'Ich akzeptiere die Nutzungsbedingungen und habe die Datenschutzerklärung zur Kenntnis genommen.'), ' ', h('span', AGE_CLAUSE)));
+    return { consent, consentEl: h('div.on-consent', consentEl, legalLinks()) };
   }
 
   // Nach der ersten Google-Anmeldung (oder neuer Fassung der Bedingungen): Zustimmung einmal nachholen und im Konto vermerken.
@@ -233,8 +236,7 @@ export class LoginScene extends MenuScene {
         this.#messageBox(),
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Konto erstellen')),
       h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('login') }, 'Schon ein Konto? Anmelden')),
-      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen. Mehr dazu in der ',
-        legalLink('Datenschutzerklärung', LEGAL.privacy), '.'));
+      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen. Mehr dazu steht in der Datenschutzerklärung.'));
   }
 
   #forgot() {
@@ -296,7 +298,7 @@ export class LoginScene extends MenuScene {
       h('div.on-who',
         h('span.acc-avatar', { 'aria-hidden': 'true' }, o.displayName.slice(0, 1).toUpperCase()),
         h('div',
-          h('strong', o.displayName),
+          h('strong', { translate: 'no' }, o.displayName),
           h('div.acc-meta', [u.email, via ? `angemeldet über ${via}` : null].filter(Boolean).join(' · ')))),
       this.#syncLine(),
       this.#messageBox(),
@@ -314,7 +316,7 @@ export class LoginScene extends MenuScene {
             const r = await o.signOut();
             this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Abgemeldet. Deine Charaktere sind sicher in der Cloud.' : 'Abgemeldet. Noch nicht hochgeladene Spielstände werden beim nächsten Anmelden übertragen.' });
           }) }, 'Abmelden'),
-          this.#deleteButton())));
+          h('button.ef-btn.danger', { type: 'button', onclick: () => this.#go('deleteAccount') }, 'Konto löschen'))));
   }
 
   // Ältere lokale Charaktere dieses Geräts als Kopie ins Konto übernehmen.
@@ -342,15 +344,43 @@ export class LoginScene extends MenuScene {
         }, 'In mein Konto übernehmen'))))));
   }
 
-  #deleteButton() {
-    let armed = false;
-    const btn = h('button.ef-btn.danger', { type: 'button', onclick: () => {
-      if (!armed) { armed = true; btn.textContent = 'Wirklich endgültig löschen?'; setTimeout(() => { armed = false; btn.textContent = 'Konto löschen'; }, 4000); return; }
-      this.#run(async () => {
-        await this.online.deleteAccount();
-        this.#go('login', { kind: 'ok', text: 'Dein Konto und alle Online-Charaktere wurden gelöscht.' });
-      });
-    } }, 'Konto löschen');
-    return btn;
+  // Konto löschen: erst erneut anmelden (Schutz, falls jemand ein offenes Gerät benutzt), dann endgültig löschen.
+  #deleteAccount() {
+    const o = this.online, u = o.user;
+    const providers = (u.app_metadata?.providers ?? [u.app_metadata?.provider]).filter(Boolean);
+    const remove = async () => {
+      try { await o.deleteAccount(); } catch (e) {
+        if (e?.code === 'reauth_required') { this.message = { kind: 'error', text: describeError(e) }; this.#render(); return; }
+        throw e;
+      }
+      this.#go('login', { kind: 'ok', text: 'Dein Konto und alle Charaktere wurden gelöscht.' });
+    };
+    const cancel = h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('account') }, 'Abbrechen'));
+    const intro = h('p.acc-lead', 'Das Löschen lässt sich nicht rückgängig machen. Alle Charaktere, Spielstände und Einstellungen deines Kontos werden entfernt.');
+    let step;
+    if (o.freshSignIn()) {
+      step = h('form.on-form', { onsubmit: (e) => { e.preventDefault(); this.#run(remove); }, novalidate: true },
+        h('p.acc-meta', 'Deine Anmeldung ist bestätigt.'),
+        this.#messageBox(),
+        h('button.ef-btn.danger.on-submit', { type: 'submit' }, 'Konto endgültig löschen'));
+    } else if (providers.includes('email')) {
+      const pw = this.#password('Dein Passwort', 'current-password');
+      step = h('form.on-form', { onsubmit: (e) => {
+        e.preventDefault();
+        if (!pw.input.value) { this.message = { kind: 'error', text: 'Bitte gib dein Passwort ein.' }; this.#render(); return; }
+        this.#run(async () => { await o.reauthenticate({ password: pw.input.value }); await remove(); });
+      }, novalidate: true },
+        h('p.acc-meta', 'Gib zur Bestätigung dein Passwort ein.'),
+        pw.el,
+        this.#messageBox(),
+        h('button.ef-btn.danger.on-submit', { type: 'submit' }, 'Konto endgültig löschen'));
+    } else {
+      step = h('div.on-form',
+        h('p.acc-meta', 'Bestätige das Löschen mit einer erneuten Anmeldung bei Google. Danach kommst du hierher zurück.'),
+        this.#messageBox(),
+        h('button.ef-btn.danger.on-submit', { type: 'button', onclick: () => this.#run(() => o.reauthenticate()) }, 'Mit Google bestätigen'));
+    }
+    return h('div.on-body', intro, step, cancel);
   }
+
 }

@@ -3,6 +3,8 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 execSync('sudo -u postgres psql -q -f /tmp/mock.sql >/dev/null 2>&1 && sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 -f /tmp/mig.sql >/dev/null');
+// Zustimmungs-Nachweis (Trigger auf auth.users) gleich zu Beginn, damit Registrierung und Google-Bestätigung erfasst werden
+execSync('sudo -u postgres psql -q -d sbtest -v ON_ERROR_STOP=1 >/dev/null', { input: 'do $$ begin create role service_role; exception when duplicate_object then null; end $$;\n' + readFileSync(new URL('../migrations/20261005100000_zustimmung_nutzungsbedingungen.sql', import.meta.url), 'utf8') + readFileSync(new URL('../migrations/20261005110000_konto_loeschen_neu_anmelden.sql', import.meta.url), 'utf8') });
 const { pool } = await import('./mock.mjs');
 const html = readFileSync('work/dist/emberfall.html');
 http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(html); }).listen(8099);
@@ -41,7 +43,7 @@ check((await text(a)).includes('Bitte bestätige die Nutzungsbedingungen') && (a
 await a.check('.on-check input');
 await a.click('.on-submit'); await wait(500);
 check((await text(a)).includes('Fast geschafft'), 'Registrierung verlangt E-Mail-Bestätigung');
-{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='admin@test.de'"); check(m[0]?.v === '2026-10', 'Zustimmung im Konto vermerkt: ' + JSON.stringify(m)); }
+{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='admin@test.de'"); check(m[0]?.v === '2026-10-05', 'Zustimmung im Konto vermerkt: ' + JSON.stringify(m)); }
 // Anmelden vor Bestätigung
 const i3 = a.locator('.on-form input');
 await i3.nth(0).fill('admin@test.de'); await i3.nth(1).fill('geheim123');
@@ -86,7 +88,8 @@ check((await text(b)).includes('Zustimmen und spielen') && (await text(b)).inclu
 await b.click('text=Zustimmen und spielen'); await wait(300);
 check((await text(b)).includes('Bitte bestätige die Nutzungsbedingungen'), 'ohne Häkchen kein Weiter');
 await b.check('.on-check input'); await b.click('text=Zustimmen und spielen'); await wait(800);
-{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='googleuser@example.com'"); check(m[0]?.v === '2026-10' && (await text(b)).includes('Dein erster Held'), 'Zustimmung des Google-Kontos vermerkt, weiter zur Charakterauswahl: ' + JSON.stringify(m)); }
+{ const { rows: tc } = await pool.query("select u.email, c.terms_version, c.source from public.terms_consents c join auth.users u on u.id = c.user_id order by c.id"); check(tc.length === 2 && tc[0].email === 'admin@test.de' && tc[0].source === 'registrierung' && tc[1].email === 'googleuser@example.com' && tc[1].source === 'bestaetigung' && tc.every((r) => r.terms_version === '2026-10-05'), 'Zustimmung serverseitig mit Serverzeit erfasst: ' + JSON.stringify(tc)); }
+{ const { rows: m } = await pool.query("select raw_user_meta_data->>'terms_version' v from auth.users where email='googleuser@example.com'"); check(m[0]?.v === '2026-10-05' && (await text(b)).includes('Dein erster Held'), 'Zustimmung des Google-Kontos vermerkt, weiter zur Charakterauswahl: ' + JSON.stringify(m)); }
 await b.evaluate(() => window.emberfall.newGame({ character: { name: 'Bruno', raceId: 'dwarf', classId: 'warrior' } }));
 await wait(3500);
 const peek = await b.evaluate(async () => { const c = window.emberfall.online.client; const own = await c.rest('/characters?select=id'); let admin; try { await c.rpc('admin_stats'); admin = 'erlaubt'; } catch (e) { admin = e.message; } return { own: own.length, admin }; });
@@ -162,9 +165,29 @@ const ie = e.locator('.on-form input'); await ie.nth(0).fill('admin@test.de'); a
 const refreshed = await e.evaluate(async () => { const c = window.emberfall.online.client; const before = c.session.access_token; const r = await c.rpc('is_admin'); return { r, changed: before !== c.session.access_token }; });
 check(refreshed.r === true && refreshed.changed, 'abgelaufenes Token wird erneuert: ' + JSON.stringify(refreshed));
 globalThis.TTL = 3600;
+// 11b Präparierter Fehler-Link: kein fremder Text im Anmeldefenster, nur eigene Meldung
+await b.goto(B + '?error=server_error&error_description=Konto%20gesperrt.%20Bitte%20sofort%200900-123%20anrufen#anmelden'); await wait(900);
+{ const t = await text(b); check(!t.includes('0900-123') && t.includes('Die Anmeldung hat nicht geklappt'), 'Fehlertext aus der Adresse wird nicht angezeigt'); }
+await b.goto(B + '?error=access_denied&error_description=x'); await wait(900);
+check((await text(b)).includes('Die Anmeldung wurde abgebrochen'), 'bekannter Fehlercode bekommt eigenen Text');
+// 11c E-Mail-Konto: Löschen nur mit Passwort; falsches Passwort löscht nichts
+await a.evaluate(() => { window.emberfall.online.signedInAt = 0; window.emberfall.scenes.go('login', { mode: 'deleteAccount' }); }); await wait(300);
+await a.fill('.on-form input[type=password]', 'falsch999'); await a.click('text=Konto endgültig löschen'); await wait(600);
+{ const { rows: r } = await pool.query("select count(*)::int n from auth.users where email='admin@test.de'"); check(r[0].n === 1 && (await text(a)).includes('E-Mail oder Passwort stimmt nicht'), 'falsches Passwort: Konto bleibt'); }
+await a.click('text=Abbrechen'); await wait(300);
 // 12 Konto löschen (Google-Konto)
 await b.evaluate(() => window.emberfall.scenes.go('login', { mode: 'account' })); await wait(300);
-await b.click('text=Kontoeinstellungen'); await b.click('text=Konto löschen'); await b.click('text=Wirklich endgültig löschen?'); await wait(900);
+await b.click('text=Kontoeinstellungen'); await b.click('text=Konto löschen'); await wait(300);
+check((await text(b)).includes('Mit Google bestätigen'), 'Google-Konto: Löschen verlangt erneute Google-Anmeldung');
+// Server lehnt eine zu alte Anmeldung ab, auch wenn das Spiel sie für frisch hält
+globalThis.AUTH_AGE = 3600;
+await b.click('text=Mit Google bestätigen'); await wait(1200);
+await b.click('text=Konto endgültig löschen'); await wait(900);
+({ rows } = await pool.query("select count(*)::int n from auth.users where email='googleuser@example.com'"));
+check(rows[0].n === 1 && (await text(b)).includes('Bitte bestätige das Löschen noch einmal') && (await text(b)).includes('Mit Google bestätigen'), 'Server verweigert Löschen ohne frische Anmeldung');
+globalThis.AUTH_AGE = 0;
+await b.click('text=Mit Google bestätigen'); await wait(1200);
+await b.click('text=Konto endgültig löschen'); await wait(900);
 ({ rows } = await pool.query("select count(*)::int n from auth.users where email='googleuser@example.com'"));
 const bc = await pool.query("select count(*)::int n from public.characters where name='Bruno'");
 check(rows[0].n === 0 && bc.rows[0].n === 0 && (await text(b)).includes('wurden gelöscht'), 'Konto löschen entfernt Konto und Charaktere');

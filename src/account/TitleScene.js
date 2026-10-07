@@ -3,6 +3,7 @@ import { sharedBackdrop } from './Backdrop.js';
 import { savedLook } from './ui.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { snapInfo } from './backups.js';
+import { langSwitch } from '../i18n/index.js';
 
 // Basis der Menü-Bildschirme: animierter Hintergrund + DOM-Oberfläche.
 // Unterklassen setzen this.root in enter() und können back() überschreiben
@@ -57,7 +58,8 @@ export class TitleScene extends MenuScene {
         h('div.acc-logo',
           h('h1.ef-title', 'EMBERWRATH'),
           h('p.acc-tagline', 'Die Glut erlischt nie')),
-        h('div.acc-menu', menu)),
+        h('div.acc-menu', menu),
+        langSwitch()),
       h('p.acc-footer.acc-footer-corner', 'Version ', h('span.acc-version', { title: `Stand ${globalThis.EMBERWRATH_BUILD?.commit ?? 'dev'}` }, globalThis.EMBERWRATH_BUILD?.version ?? 'dev')));
     this.#keyPlay = signedIn;
     // Titel neu aufbauen, wenn die Anmeldung sich ändert (z. B. Sitzung wird beim Start wiederhergestellt)

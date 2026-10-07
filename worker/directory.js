@@ -6,12 +6,17 @@ import { MAX_WORLDS } from '../src/net/protocol.js';
 // STALE_MS gelten als leer. Die Zahlen sind ein Hinweis: die Obergrenze prüft der Shard selbst („full“ → nächste Welt).
 // Gehalten wird alles im Speicher; nach einem Neustart füllt es sich über die Meldungen von selbst wieder.
 const STALE_MS = 150_000;
+const ACCOUNTS_MAX = 50_000;
 
 export class Directory extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.zones = new Map(); // zoneId -> Map(world -> { n, at })
+    this.accounts = new Map(); // uid -> { zone, world } wo ein Konto gerade angemeldet ist (ein Konto, ein Shard)
   }
+
+  // Lesen ohne anzulegen: Anfragen für unbekannte Zonen hinterlassen nichts im Speicher.
+  #peek(zone, world) { return this.zones.get(zone)?.get(world) ?? null; }
 
   #entry(zone, world) {
     let z = this.zones.get(zone);
@@ -22,6 +27,7 @@ export class Directory extends DurableObject {
   }
 
   #count(e, now) {
+    if (!e) return 0;
     return now - e.at < STALE_MS ? e.n : 0;
   }
 
@@ -43,7 +49,7 @@ export class Directory extends DurableObject {
     // dasselbe Konto noch mit einer alten Verbindung steht. Ist sie wirklich voll, antwortet er „full“.
     if (Number.isInteger(pref) && pref >= 1 && pref <= MAX_WORLDS && !skip.has(pref)) world = pref;
     for (let w = 1; world == null && w <= MAX_WORLDS; w++) {
-      if (!skip.has(w) && this.#count(this.#entry(zone, w), now) < cap) world = w;
+      if (!skip.has(w) && this.#count(this.#peek(zone, w), now) < cap) world = w;
     }
     world ??= 1 + Math.floor(Math.random() * MAX_WORLDS);
     // Kein Platz wird hier belegt: zu diesem Zeitpunkt ist die Anmeldung noch nicht geprüft. Gezählt wird ein Spieler
@@ -53,9 +59,29 @@ export class Directory extends DurableObject {
   }
 
   report(zone, world, n) {
+    if (n === 0) {
+      const z = this.zones.get(zone);
+      z?.delete(world);
+      if (z && !z.size) this.zones.delete(zone);
+      return;
+    }
     const e = this.#entry(zone, world);
     e.n = n; e.at = Date.now();
-    if (n === 0 && world !== 1) this.zones.get(zone)?.delete(world);
+  }
+
+  // Ein Konto steht immer nur in einem Shard. Der Shard meldet sein neues Mitglied an; die Antwort nennt den Shard,
+  // in dem das Konto bisher stand (der meldet es dann dort ab), sonst null.
+  claim(uid, zone, world) {
+    const prev = this.accounts.get(uid) ?? null;
+    this.accounts.delete(uid); // neu einsortieren (älteste Einträge vorn, siehe Obergrenze)
+    this.accounts.set(uid, { zone, world });
+    while (this.accounts.size > ACCOUNTS_MAX) this.accounts.delete(this.accounts.keys().next().value);
+    return prev && (prev.zone !== zone || prev.world !== world) ? prev : null;
+  }
+
+  release(uid, zone, world) {
+    const cur = this.accounts.get(uid);
+    if (cur && cur.zone === zone && cur.world === world) this.accounts.delete(uid);
   }
 
   list(zone, cap) { return this.#list(zone, cap, Date.now()); }

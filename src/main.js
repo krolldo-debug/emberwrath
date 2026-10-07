@@ -1,3 +1,4 @@
+import { installI18n } from './i18n/index.js';
 import { Game } from './Game.js';
 import { EV } from './core/events.js';
 import { PlayScene } from './scenes/PlayScene.js';
@@ -13,6 +14,7 @@ import { installShop } from './shop/index.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
+installI18n(); // Sprache zuerst: alle Oberflächen entstehen danach (src/i18n/README.md)
 const canvas = document.getElementById('game');
 const game = new Game(canvas);
 game

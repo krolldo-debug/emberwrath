@@ -20,6 +20,7 @@ import { AdminScene } from './AdminScene.js';
 // Szenen: 'login' { mode }, 'admin'.
 // Bus-Event EV.ONLINE_CHANGED ('online:changed') { user, status } bei An-/Abmeldung und Sync-Status.
 // Adressen: …#anmelden, …#registrieren, …#konto, …#admin öffnen die jeweilige Seite (Startseite verlinkt dorthin).
+const REAUTH_MS = 9 * 60 * 1000; // etwas unter der Server-Grenze (10 Minuten)
 const ROUTES = { anmelden: ['login', { mode: 'login' }], registrieren: ['login', { mode: 'register' }], konto: ['login', { mode: 'account' }], admin: ['admin', {}] };
 
 export class Online {
@@ -30,6 +31,7 @@ export class Online {
     this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed(), onRemote: (ids, rejected) => this.#remoteUpdated(ids, rejected) });
     this.notice = null; // einmalige Meldung für die Anmeldeseite { kind, text }
     this.#admin = null;
+    this.signedInAt = 0; // letzte echte Anmeldung in dieser Sitzung (nicht: Token-Erneuerung)
     this.client.onChange((event) => {
       if (event === 'SIGNED_OUT') {
         // Abmeldung durch abgelaufene Sitzung mitten im Spiel: deutlich sagen, dass nur noch lokal gespeichert wird.
@@ -38,7 +40,7 @@ export class Online {
         }
         this.#admin = null; this.sync.stop();
       }
-      if (event === 'SIGNED_IN') this.#admin = null;
+      if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') { this.#admin = null; this.signedInAt = Date.now(); }
       this.#changed();
     });
   }
@@ -131,9 +133,23 @@ export class Online {
     return { removedLocalCopy: removed };
   }
 
+  // Zeitpunkt der letzten Anmeldung in dieser Sitzung (Formular oder Rückleitung). Der Server verlangt für das
+  // Löschen eine Anmeldung der letzten 10 Minuten (delete_my_account prüft den amr-Zeitstempel im Token).
+  freshSignIn() { return this.signedInAt && Date.now() - this.signedInAt < REAUTH_MS; }
+
+  // Erneut anmelden, um das Löschen zu bestätigen: mit Passwort sofort, mit Google über die Rückleitung.
+  async reauthenticate({ password } = {}) {
+    if (password != null) { await this.client.signIn(this.user.email, password); return true; }
+    await this.client.signInWithProvider('google', 'reauth');
+    return false; // Seite wechselt zu Google
+  }
+
   // Konto endgültig löschen (Server löscht Konto + Charaktere), danach lokale Kopie entfernen.
   async deleteAccount() {
-    await this.client.rpc('delete_my_account');
+    try { await this.client.rpc('delete_my_account'); } catch (e) {
+      if (e?.message === 'reauth_required') { this.signedInAt = 0; e.code = 'reauth_required'; }
+      throw e;
+    }
     const accId = this.accountId, uid = this.user?.id;
     this.sync.stop();
     if (this.game.account?.id === accId) this.game.logout();
@@ -174,6 +190,7 @@ export class Online {
       return;
     }
     if (result?.session) {
+      if (result.intent === 'reauth') { this.game.scenes.go('login', { mode: 'deleteAccount' }); this.afterSignIn(); return; }
       if (result.intent === 'recovery') { this.game.scenes.go('login', { mode: 'newPassword' }); this.afterSignIn(); return; }
       this.notice = { kind: 'ok', text: result.intent === 'signup' ? 'E-Mail bestätigt. Willkommen in Emberwrath!' : `Angemeldet als ${this.displayName}.` };
       this.game.scenes.go('login', { mode: 'account' });

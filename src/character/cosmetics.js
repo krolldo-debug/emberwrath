@@ -18,7 +18,15 @@ export const DYES = {
   bone: { name: 'Knochenweiß', price: 200, level: 8, ramp: ['#3a342c', '#6a6254', '#9c9282', '#c8bfae', '#ece4d4'] },
   obsidian: { name: 'Obsidian', price: 300, level: 12, ramp: ['#060408', '#0e0a12', '#18121e', '#241c2c', '#362a40'] },
   royal_gold: { name: 'Königsgold', price: 600, level: 18, ramp: ['#3a2a05', '#6a4c0c', '#a07818', '#d0a42a', '#f0d060'] },
+  // Exklusiv aus dem Shop (src/shop/catalog.js, Besitz in slices.shop.owned als 'dye:<id>'): kein Goldpreis.
+  phoenix: { name: 'Phönixglut', price: 0, exclusive: true, ramp: ['#3a0804', '#8a1c08', '#d0480e', '#f8941e', '#ffe08a'] },
+  starnight: { name: 'Sternennacht', price: 0, exclusive: true, ramp: ['#0a0a26', '#18205a', '#283c96', '#5a7ad8', '#c4d8ff'] },
+  soullight: { name: 'Seelenlicht', price: 0, exclusive: true, ramp: ['#04201c', '#0c4a40', '#18806a', '#3cc49a', '#a8ffe0'] },
 };
+
+// Besitzt der Spielstand ein exklusives Shop-Design? (slices.shop.owned, vom Server abgeglichen)
+export const sameLook = (a, b) => ['variant', 'dye', 'hairStyle'].every((k) => (a?.[k] ?? (k === 'variant' ? 0 : null)) === (b?.[k] ?? (k === 'variant' ? 0 : null)));
+export const ownsDesign = (slices, key) => !!slices?.shop?.owned?.includes(key);
 
 export const HAIR_STYLES = {
   short: 'Kurz', long: 'Lang', crop: 'Stoppeln', tail: 'Zopf', dwarf: 'Zottelig', mane: 'Mähne', mohawk: 'Kamm',
@@ -50,7 +58,7 @@ export function cleanAppearance(raceId, a) {
 // Preis für den Wechsel von cur nach next (nur geänderte Teile kosten). Zurück zur Klassenfarbe kostet 25 Gold.
 export function restylePrice(cur, next) {
   let gold = 0;
-  if ((next.dye ?? null) !== (cur.dye ?? null)) gold += next.dye ? DYES[next.dye].price : 25;
+  if ((next.dye ?? null) !== (cur.dye ?? null)) gold += next.dye ? DYES[next.dye].price : cur.dye && DYES[cur.dye]?.exclusive ? 0 : 25;
   if ((next.hairStyle ?? null) !== (cur.hairStyle ?? null)) gold += HAIR_PRICE;
   if ((next.variant | 0) !== (cur.variant | 0)) gold += HAIR_COLOR_PRICE;
   return gold;

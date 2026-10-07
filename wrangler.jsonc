@@ -13,7 +13,7 @@
     "not_found_handling": "404-page",
     // Nur Seitenaufrufe laufen zuerst durch den Worker (Umleitung alter Adressen, worker/index.js);
     // Bilder, Schriften usw. liefert Cloudflare weiter direkt und ohne Worker-Aufruf.
-    "run_worker_first": ["/", "/index.html", "/welt*", "/support*", "/datenschutz*", "/impressum*", "/newsletter*", "/nutzungsbedingungen*", "/spielen*", "/net/*"]
+    "run_worker_first": ["/", "/index.html", "/welt*", "/support*", "/datenschutz*", "/impressum*", "/newsletter*", "/nutzungsbedingungen*", "/kaufbedingungen*", "/shop*", "/spielen*", "/net/*"]
   },
   // CANONICAL_HOST: Hauptadresse der Seite. Alte Adressen (REDIRECT_HOSTS) leiten mit 301 dorthin um (nicht /net/*).
   // MAIL_FROM, SITE_URL: Absender und Links der Formular-Mails (worker/forms.js).
@@ -41,6 +41,9 @@
   // Support-Formular: Mail an die geprüfte Zieladresse aus Email Routing (SUPPORT_TO).
   "send_email": [{ "name": "SUPPORT_MAIL" }],
   // Höchstens 5 Formular-Absendungen pro Minute und IP (worker/forms.js).
-  "ratelimits": [{ "name": "FORM_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }],
+  "ratelimits": [
+    { "name": "FORM_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "NET_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }
+  ],
   "observability": { "enabled": true }
 }

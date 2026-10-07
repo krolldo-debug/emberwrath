@@ -1,0 +1,32 @@
+<!-- Emberwrath · Supabase-Vorlage „reauthentication“ · erzeugt von build.mjs. Betreff: Dein Bestätigungscode für Emberwrath / Your Emberwrath confirmation code -->
+<div style="background:#0b0710;padding:32px 20px">
+<div style="max-width:520px;margin:0 auto;background:#150d1c;border:1px solid #5a3a1a;padding:28px">
+  <p style="margin:0 0 20px;font:700 14px Georgia,serif;letter-spacing:4px;color:#e8742c">EMBERWRATH</p>
+{{ if .Data.lang }}{{ if eq .Data.lang "en" }}
+  <div lang="en">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Confirmation code</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Enter this code in the game to confirm the action: <b style="font-size:20px;letter-spacing:3px">{{ .Token }}</b></p>
+    
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">If this was not you, please change your password.</p>
+  </div>{{ else }}
+  <div lang="de">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Bestätigungscode</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Gib diesen Code im Spiel ein, um die Aktion zu bestätigen: <b style="font-size:20px;letter-spacing:3px">{{ .Token }}</b></p>
+    
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">Wenn du das nicht warst, ändere bitte dein Passwort.</p>
+  </div>{{ end }}{{ else }}
+  <div lang="de">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Bestätigungscode</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Gib diesen Code im Spiel ein, um die Aktion zu bestätigen: <b style="font-size:20px;letter-spacing:3px">{{ .Token }}</b></p>
+    
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">Wenn du das nicht warst, ändere bitte dein Passwort.</p>
+  </div>
+  <hr style="border:0;border-top:1px solid #3a2a1a;margin:28px 0">
+  <div lang="en">
+    <h1 style="margin:0 0 12px;font:700 22px Georgia,serif;color:#f0c870">Confirmation code</h1>
+    <p style="margin:0 0 20px;font:16px/1.5 Arial,sans-serif;color:#e8e0d4">Enter this code in the game to confirm the action: <b style="font-size:20px;letter-spacing:3px">{{ .Token }}</b></p>
+    
+    <p style="margin:0;font:13px/1.5 Arial,sans-serif;color:#a89ab8">If this was not you, please change your password.</p>
+  </div>{{ end }}
+</div>
+</div>

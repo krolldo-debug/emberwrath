@@ -1,10 +1,13 @@
 import { verifyToken } from './auth.js';
-import { GOLD_PACKS, SHOP_CURRENCY, findPack, packTotal, packName, RETURN_PARAM } from '../src/shop/catalog.js';
+import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, packName, RETURN_PARAM, PRICE_NOTE, TERMS_VERSION, TERMS_PATH, productDescription } from '../src/shop/catalog.js';
+import { sendConfirmation } from './shop-mail.js';
 
-// Gold-Shop: Gold für Echtgeld über Stripe Checkout. Gutgeschrieben wird nur nach einer von Stripe signierten
+// Shop: Gold und exklusive Designs für Echtgeld über Stripe Checkout. Gutgeschrieben wird nur nach einer von Stripe signierten
 // Zahlungsbestätigung (Webhook), nie auf Zuruf des Spiels. Einrichtung und Freischalten: docs/SHOP.md.
-//   GET  /net/shop/status     → { enabled, configured, products }
-//   POST /net/shop/checkout   { productId, characterId, waiver: true }, Authorization: Bearer <Supabase-Token> → { url }
+//   GET  /net/shop/status     → { enabled, configured, products, designs }
+//   POST /net/shop/checkout   { productId, characterId, waiver: true, from: 'game'|'web' }, Authorization: Bearer <Supabase-Token> → { url }
+//                             Gold-Pakete brauchen characterId, Designs gelten fürs ganze Konto (characterId entfällt).
+//                             from 'web': Rückkehr auf die Shop-Seite der Website (/shop), sonst ins Spiel (/spielen/).
 //   POST /net/shop/webhook    Stripe-Webhook (Signatur im Header Stripe-Signature)
 //
 // Variablen und Secrets (Cloudflare › Settings › Variables and Secrets):
@@ -15,10 +18,24 @@ import { GOLD_PACKS, SHOP_CURRENCY, findPack, packTotal, packName, RETURN_PARAM 
 //   STRIPE_REQUIRE_TOS        Variable 'true': Stripe verlangt beim Bezahlen die Zustimmung zu den AGB
 //                             (AGB-Adresse vorher in Stripe › Einstellungen › Öffentliche Details eintragen).
 //   SUPABASE_SERVICE_ROLE_KEY Secret (wie für den Newsletter), Bestellungen in public.gold_orders.
+//   RESEND_API_KEY            Secret (wie für den Newsletter): Bestellbestätigung mit Kaufbedingungen (worker/shop-mail.js).
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 const SIGNATURE_TOLERANCE_S = 300;
 const CHARACTER_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const CHECKOUT_LIMIT = 10;              // Bezahlseiten je Konto …
+const CHECKOUT_WINDOW_MS = 10 * 60_000; // … in 10 Minuten
+
+// Kaufsperre nach Rückbuchung soll das Löschen des Kontos überleben: Hash der normalisierten E-Mail-Adresse
+// (Kleinschreibung, ohne +Zusatz; bei Gmail ohne Punkte, googlemail = gmail). Nur der Hash wird gespeichert.
+export async function emailHash(email) {
+  let [local = '', domain = ''] = String(email ?? '').trim().toLowerCase().split('@');
+  if (!local || !domain) return null;
+  local = local.split('+')[0];
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  if (domain === 'gmail.com') local = local.replace(/\./g, '');
+  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${local}@${domain}`)));
+}
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
@@ -77,6 +94,12 @@ export function formEncode(obj, prefix = '', out = new URLSearchParams()) {
   return out;
 }
 
+async function stripeGet(env, path) {
+  const r = await fetch(`${STRIPE_API}${path}`, { headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
+  if (!r.ok) throw new Error(`stripe ${r.status}`);
+  return r.json();
+}
+
 async function stripe(env, path, params, idempotencyKey) {
   const r = await fetch(`${STRIPE_API}${path}`, {
     method: 'POST',
@@ -120,7 +143,10 @@ function status(env) {
     enabled: shopEnabled(env),
     configured: shopConfigured(env),
     products: GOLD_PACKS.map((p) => ({ id: p.id, gold: p.gold, bonus: p.bonus, total: packTotal(p), priceCents: p.priceCents, tag: p.tag ?? null })),
+    designs: DESIGNS.map((d) => ({ id: d.id, name: d.name, items: d.items, priceCents: d.priceCents, tag: d.tag ?? null })),
     currency: SHOP_CURRENCY,
+    priceNote: PRICE_NOTE,
+    terms: TERMS_PATH,
   });
 }
 
@@ -131,44 +157,72 @@ async function checkout(request, env, url) {
   const user = await verifyToken(token, { supabaseUrl: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY });
   if (!user) return json({ error: 'auth' }, 401);
   if (!shopEnabled(env) && !(await isAdmin(env, token))) return json({ error: 'closed' }, 403);
-  // Gesperrt nach Rückbuchung, oder erstattetes Gold ist im Spiel noch nicht wieder abgezogen.
+  // Gesperrt nach Rückbuchung (Konto oder E-Mail), erstattetes Gold noch nicht abgezogen, zu viele Bezahlseiten.
   const uid = encodeURIComponent(user.uid);
-  const [blocked, owed] = await Promise.all([
+  const mailHash = await emailHash(user.email);
+  const since = new Date(Date.now() - CHECKOUT_WINDOW_MS).toISOString();
+  const [blocked, marked, owed, recent] = await Promise.all([
     db(env, `shop_blocks?user_id=eq.${uid}&select=user_id`),
-    db(env, `gold_orders?user_id=eq.${uid}&status=in.(refunded,disputed)&credited_at=not.is.null&revoked_at=is.null&select=id&limit=1`),
+    mailHash ? db(env, `shop_block_marks?email_hash=eq.${mailHash}&select=email_hash`).catch(() => []) : [],
+    db(env, `gold_orders?user_id=eq.${uid}&status=in.(refunded,disputed)&delivered_at=not.is.null&revoked_at=is.null&select=id&limit=1`),
+    db(env, `gold_orders?user_id=eq.${uid}&created_at=gte.${encodeURIComponent(since)}&select=id&limit=${CHECKOUT_LIMIT}`),
   ]);
-  if (blocked?.length) return json({ error: 'blocked' }, 403);
+  if (blocked?.length || marked?.length) return json({ error: 'blocked' }, 403);
   if (owed?.length) return json({ error: 'revoke_pending' }, 409);
+  if ((recent?.length ?? 0) >= CHECKOUT_LIMIT) return json({ error: 'rate_limited' }, 429);
 
   let b = null;
   try { b = await request.json(); } catch { /* unten abgelehnt */ }
   const pack = findPack(b?.productId);
-  if (!pack || !CHARACTER_RE.test(String(b?.characterId ?? ''))) return json({ error: 'bad_request' }, 400);
+  const design = pack ? null : findDesign(b?.productId);
+  if (!pack && !design) return json({ error: 'bad_request' }, 400);
+  if (pack && !CHARACTER_RE.test(String(b?.characterId ?? ''))) return json({ error: 'bad_request' }, 400);
   if (b.waiver !== true) return json({ error: 'waiver' }, 400);
+  if (design) {
+    // Schon bezahlt (auch über ein anderes Design mit denselben Gegenständen)? Dann nicht doppelt verkaufen.
+    const have = await db(env, `gold_orders?user_id=eq.${uid}&kind=eq.design&status=in.(paid,credited)&items=ov.${encodeURIComponent(`{${design.items.join(',')}}`)}&select=id&limit=1`);
+    if (have?.length) return json({ error: 'owned' }, 409);
+  }
 
   const orderId = crypto.randomUUID();
   const now = new Date().toISOString();
+  const characterId = pack ? b.characterId : null;
+  const lang = b.lang === 'en' ? 'en' : 'de';
+  let characterName = null;
+  if (pack) {
+    const [ch] = await db(env, `characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(characterId)}&select=name`).catch(() => []);
+    characterName = ch?.name ?? null;
+  }
+  const priceCents = pack ? pack.priceCents : design.priceCents;
   await db(env, 'gold_orders', {
     method: 'POST', prefer: 'return=minimal',
     body: {
-      id: orderId, user_id: user.uid, character_id: b.characterId, product_id: pack.id, gold: packTotal(pack),
-      amount_cents: pack.priceCents, currency: SHOP_CURRENCY, status: 'pending', withdrawal_waiver_at: now,
+      id: orderId, user_id: user.uid, character_id: characterId, product_id: (pack ?? design).id,
+      kind: pack ? 'gold' : 'design', items: pack ? [] : design.items, gold: pack ? packTotal(pack) : 0,
+      amount_cents: priceCents, currency: SHOP_CURRENCY, status: 'pending', withdrawal_waiver_at: now, email_hash: mailHash,
+      terms_version: TERMS_VERSION, lang,
     },
   });
 
-  const back = `${site(env)}/spielen/?${RETURN_PARAM}=`;
-  const meta = { order_id: orderId, user_id: user.uid, character_id: b.characterId, product_id: pack.id };
+  const back = b.from === 'web' ? `${site(env)}/shop?${RETURN_PARAM}=` : `${site(env)}/spielen/?${RETURN_PARAM}=`;
+  const meta = { order_id: orderId, user_id: user.uid, character_id: characterId, product_id: (pack ?? design).id };
   const session = await stripe(env, '/checkout/sessions', {
     mode: 'payment',
-    locale: 'de',
+    submit_type: 'pay',
+    locale: lang,
     client_reference_id: orderId,
     customer_email: user.email ?? undefined,
     success_url: `${back}erfolg`,
     cancel_url: `${back}abbruch`,
-    line_items: { 0: { quantity: 1, price_data: { currency: SHOP_CURRENCY, unit_amount: pack.priceCents, product_data: { name: packName(pack), description: 'Emberwrath – Gold für deinen Charakter' } } } },
+    line_items: { 0: { quantity: 1, price_data: { currency: SHOP_CURRENCY, unit_amount: priceCents, product_data: {
+      name: pack ? packName(pack) : `${design.name} (exklusives Design)`,
+      description: productDescription(pack ?? design, characterName),
+    } } } },
     metadata: meta,
     payment_intent_data: { metadata: meta },
-    custom_text: { submit: { message: 'Das Gold wird sofort nach der Zahlung gutgeschrieben. Mit dem Kauf erlischt dein Widerrufsrecht (§ 356 Abs. 5 BGB).' } },
+    custom_text: { submit: { message: `${pack
+      ? 'Das Gold wird sofort nach der Zahlung gutgeschrieben. Mit dem Kauf erlischt dein Widerrufsrecht (§ 356 Abs. 5 BGB).'
+      : 'Das Design wird sofort nach der Zahlung freigeschaltet. Mit dem Kauf erlischt dein Widerrufsrecht (§ 356 Abs. 5 BGB).'} Es gelten die Kaufbedingungen: www.emberwrath.com${TERMS_PATH}` } },
     ...(flag(env.STRIPE_REQUIRE_TOS) ? { consent_collection: { terms_of_service: 'required' } } : {}),
   }, orderId);
 
@@ -183,7 +237,43 @@ async function setOrder(env, filter, from, patch) {
   await db(env, `gold_orders?${filter}&status=in.(${from.join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: patch });
 }
 
+// -> true, wenn die Bestätigung verschickt ist (oder schon war)
+async function confirm(env, byOrder, session, pi) {
+  const [order] = await db(env, `gold_orders?${byOrder}&select=*`);
+  if (!order || order.confirmation_sent_at || ['refunded', 'disputed'].includes(order.status)) return true;
+  try {
+    let characterName = null;
+    if (order.character_id && order.user_id) {
+      const [ch] = await db(env, `characters?user_id=eq.${encodeURIComponent(order.user_id)}&id=eq.${encodeURIComponent(order.character_id)}&select=name`).catch(() => []);
+      characterName = ch?.name ?? null;
+    }
+    let paymentMethod = null;
+    if (pi) {
+      const intent = await stripeGet(env, `/payment_intents/${encodeURIComponent(pi)}?expand[]=payment_method`).catch(() => null);
+      const pm = intent?.payment_method;
+      paymentMethod = pm?.card?.wallet?.type ?? pm?.type ?? null;
+    }
+    const to = session.customer_details?.email ?? session.customer_email;
+    await sendConfirmation(env, { order, to, characterName, paymentMethod, site: site(env) });
+    await db(env, `gold_orders?${byOrder}`, { method: 'PATCH', prefer: 'return=minimal', body: { confirmation_sent_at: new Date().toISOString(), confirmation_error: null } });
+    return true;
+  } catch (e) {
+    console.error('shop confirmation', e?.message);
+    await db(env, `gold_orders?${byOrder}`, { method: 'PATCH', prefer: 'return=minimal', body: { confirmation_error: String(e?.message ?? e).slice(0, 200) } }).catch(() => {});
+    return false;
+  }
+}
+
 const byPi = (pi) => `stripe_payment_intent=eq.${encodeURIComponent(pi)}`;
+
+// Erstattete/zurückgebuchte Bestellungen serverseitig abziehen (Gold im Spielstand, Designs aus allen Charakteren).
+// Fehlt die Funktion noch (Migration 20261005120000 nicht ausgeführt), zieht das Spiel das Gold beim nächsten Start ab.
+async function serverRevoke(env, pi) {
+  try {
+    const orders = await db(env, `gold_orders?${byPi(pi)}&status=in.(refunded,disputed)&revoked_at=is.null&select=id`);
+    for (const o of orders ?? []) await db(env, 'rpc/shop_server_revoke', { method: 'POST', body: { p_order: o.id } });
+  } catch (e) { console.error('shop revoke', e?.message); }
+}
 
 async function webhook(request, env) {
   if (!env.STRIPE_WEBHOOK_SECRET || !env.SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'unavailable' }, 503);
@@ -206,9 +296,13 @@ async function webhook(request, env) {
       const [order] = await db(env, `gold_orders?${byOrder}&select=amount_cents,currency`);
       // Betrag und Währung müssen zur Bestellung passen, sonst wird nichts gutgeschrieben.
       if (!order || obj.amount_total !== order.amount_cents || String(obj.currency).toLowerCase() !== order.currency) break;
+      // Erst die Bestellbestätigung (Pflicht für das Erlöschen des Widerrufsrechts), dann freigeben. Schlägt sie fehl, wird die
+      // Bestellung trotzdem bezahlt (der Kunde hat gezahlt), der Fehler vermerkt und Stripe wiederholt den Webhook (Antwort 500).
+      const sent = await confirm(env, byOrder, obj, pi);
       await setOrder(env, byOrder, ['pending', 'failed', 'expired'], {
         status: 'paid', paid_at: new Date().toISOString(), stripe_payment_intent: pi, stripe_session_id: obj.id, livemode: !!obj.livemode,
       });
+      if (!sent) return json({ error: 'confirmation' }, 500);
       break;
     }
     case 'checkout.session.async_payment_failed':
@@ -219,23 +313,30 @@ async function webhook(request, env) {
       break;
     case 'charge.refunded':
       // Nur volle Erstattungen; Teilerstattungen bucht ein Admin von Hand nach (docs/SHOP.md).
-      if (pi && obj.refunded) await setOrder(env, byPi(pi), ['paid', 'credited', 'disputed'], { status: 'refunded' });
+      if (pi && obj.refunded) {
+        await setOrder(env, byPi(pi), ['paid', 'credited', 'disputed'], { status: 'refunded' });
+        await serverRevoke(env, pi);
+      }
       break;
     case 'charge.dispute.created': {
       // Rückbuchung durch Bank/PayPal: Gold wird im Spiel abgezogen, das Konto für weitere Käufe gesperrt.
       if (!pi) break;
       await setOrder(env, byPi(pi), ['paid', 'credited'], { status: 'disputed' });
-      const [order] = await db(env, `gold_orders?${byPi(pi)}&select=user_id`);
+      const [order] = await db(env, `gold_orders?${byPi(pi)}&select=user_id,email_hash`);
+      const reason = `Rückbuchung ${String(obj.id ?? '').slice(0, 60)} (${String(obj.reason ?? '').slice(0, 40)})`;
       if (order?.user_id) {
-        await db(env, 'shop_blocks', {
-          method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal',
-          body: { user_id: order.user_id, reason: `Rückbuchung ${String(obj.id ?? '').slice(0, 60)} (${String(obj.reason ?? '').slice(0, 40)})` },
-        });
+        await db(env, 'shop_blocks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { user_id: order.user_id, reason } });
       }
+      if (order?.email_hash) {
+        await db(env, 'shop_block_marks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { email_hash: order.email_hash, reason } })
+          .catch((e) => console.error('shop mark', e?.message));
+      }
+      await serverRevoke(env, pi);
       break;
     }
     case 'charge.dispute.closed':
       // Gewonnen und Gold noch nicht abgezogen: Bestellung gilt wieder. Die Kaufsperre hebt ein Admin auf.
+      // Designs (nie 'credited') gelten wieder als bezahlt und kommen beim nächsten Abgleich ins Spiel zurück.
       if (pi && obj.status === 'won') {
         await setOrder(env, `${byPi(pi)}&revoked_at=is.null&credited_at=not.is.null`, ['disputed'], { status: 'credited' });
         await setOrder(env, `${byPi(pi)}&credited_at=is.null`, ['disputed'], { status: 'paid' });

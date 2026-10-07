@@ -2,6 +2,7 @@ import { h, clear } from '../core/dom.js';
 import { iconUrl } from '../gfx/Icons.js';
 import { ROLES } from './protocol.js';
 import { finderIcon } from './icons.js';
+import { tr } from '../i18n/index.js';
 
 // HUD der Gruppensuche (HTML-Ebene):
 //   Menüknopf „Dungeonsuche“ (in der Knopfreihe des HUD, Taste O), Suchanzeige mit Zeit,
@@ -104,7 +105,7 @@ export class FinderHud {
         const row = h('li.fd-prop-row',
           h('img.ef-icon.fd-role-icon', { src: finderIcon(m.role, 1), alt: ROLES[m.role]?.name ?? '', title: ROLES[m.role]?.name ?? '', width: 16, height: 16 }),
           cls ? h('img.ef-icon', { src: iconUrl(cls.icon), alt: '', width: 18, height: 18 }) : null,
-          h('span.fd-prop-name', m.self ? `${m.name} (du)` : m.name),
+          h('span.fd-prop-name', { translate: 'no' }, m.name, m.self ? h('span', ' (du)') : null),
           m.kind === 'merc' && this.finder.labelMercs ? h('span.fd-tag', { title: 'Füllt einen freien Platz' }, 'Söldner') : null,
           h('span.fd-prop-lv', `Stufe ${m.level} ${cls?.name ?? ''}`),
           mark);
@@ -147,7 +148,7 @@ export class FinderHud {
       const s = Math.floor((Date.now() - (f.req?.since ?? Date.now())) / 1000);
       const d = this.content.find('zone', f.req?.dungeonId);
       const text = `Suche Gruppe · ${d?.name ?? ''} · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-      if (this.queueEl.textContent !== text) this.queueEl.textContent = text;
+      if (this.queueEl.textContent !== tr(text)) this.queueEl.textContent = tr(text);
     }
     if (!this.propEl.hidden && f.group) {
       const left = Math.max(0, f.group.expires - Date.now());
@@ -192,7 +193,7 @@ export class FinderHud {
       f.hp.style.setProperty('--f', (b.dead ? 0 : b.hp / b.maxHp).toFixed(3));
       f.res.style.setProperty('--f', (b.maxResource ? b.resource / b.maxResource : 0).toFixed(3));
       const state = b.dead ? 'Gefallen' : '';
-      if (f.st.textContent !== state) f.st.textContent = state;
+      if (f.st.textContent !== tr(state)) f.st.textContent = tr(state);
       f.el.classList.toggle('dead', !!b.dead);
       f.el.classList.toggle('low', !b.dead && b.hp / b.maxHp < 0.3);
     }
@@ -221,7 +222,7 @@ export class FinderHud {
   line({ from = null, text, kind = 'group', merc = false }) {
     const el = kind === 'sys'
       ? h('div.fd-line.sys', text)
-      : h('div.fd-line', h('span.fd-lgroup', '[Gruppe] '), h('span', { class: from?.self ? 'fd-lname own' : 'fd-lname' }, `${from?.name ?? '?'}:`), ' ', h('span.fd-ltext', text));
+      : h('div.fd-line', h('span.fd-lgroup', '[Gruppe] '), h('span', { class: from?.self ? 'fd-lname own' : 'fd-lname', translate: 'no' }, `${from?.name ?? '?'}:`), ' ', h('span.fd-ltext', { translate: merc || from?.kind === 'merc' ? null : 'no' }, text));
     el._at = Date.now();
     this.log.append(el);
     while (this.log.children.length > LOG_MAX) this.log.firstElementChild.remove();

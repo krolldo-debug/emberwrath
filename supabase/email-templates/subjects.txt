@@ -1,0 +1,5 @@
+confirm: Bestätige dein Emberwrath-Konto / Confirm your Emberwrath account
+recovery: Neues Passwort für Emberwrath / Reset your Emberwrath password
+email_change: Neue E-Mail-Adresse bestätigen / Confirm your new email – Emberwrath
+magic_link: Dein Anmeldelink für Emberwrath / Your Emberwrath sign-in link
+reauthentication: Dein Bestätigungscode für Emberwrath / Your Emberwrath confirmation code

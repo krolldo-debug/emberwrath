@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05020a">
+  <title>Shop – Emberwrath</title>
+  <meta name="description" content="Exklusive Reittiere und Färbungen für Emberwrath, nur hier erhältlich. Dazu Gold für deinen Charakter.">
+  <!-- Bis der Shop für alle geöffnet ist (SHOP_ENABLED, docs/SHOP.md): nicht in Suchmaschinen und nicht in der Sitemap. -->
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://www.emberwrath.com/shop">
+  <meta property="og:site_name" content="Emberwrath">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.emberwrath.com/shop">
+  <meta property="og:title" content="Shop – Emberwrath">
+  <meta property="og:description" content="Exklusive Reittiere und Färbungen für Emberwrath, nur hier erhältlich.">
+  <meta property="og:image" content="https://www.emberwrath.com/img/og-emberwrath.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Krieger, Magier und Waldläuferin vor Skalvyr, dem Frostwurm">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="shop.css">
+</head>
+<body class="page shop-page">
+<!--#include header-->
+
+<main id="inhalt">
+  <div class="wrap">
+    <h1>Shop</h1>
+    <p class="lead">Reittiere, die es nirgends sonst gibt. Jedes Design gilt für alle Charaktere deines Kontos und bringt eine eigene Färbung für Umhang und Stoffrüstung mit.</p>
+
+    <div class="shop-bar" data-shop-bar>
+      <p class="shop-state" data-shop-state role="status">Der Shop lädt …</p>
+      <a class="btn" data-shop-login href="spielen/#anmelden" hidden>Anmelden</a>
+    </div>
+    <p class="note shop-thanks" data-shop-thanks hidden>Danke für deinen Kauf! Die Zahlung ist eingegangen. Designs und Gold erscheinen beim nächsten Spielstart automatisch.</p>
+    <p class="note shop-thanks" data-shop-cancel hidden>Der Kauf wurde abgebrochen. Es wurde nichts abgebucht.</p>
+
+    <section class="designs" aria-labelledby="designs-titel">
+      <h2 id="designs-titel" class="shop-h">Exklusive Designs</h2>
+      <div class="design-list">
+        <article class="design" data-design="design_phoenix" style="--glow: 255, 120, 30">
+          <span class="design-tag">Legendär</span>
+          <div class="design-stage"><div class="rider px" role="img" aria-label="Held auf der Phönixschwinge" style="--img: url(img/shop-phoenix_wing.png); --w: 123; --h: 89; --n: 6"></div></div>
+          <div class="design-body">
+            <h3>Phönixschwinge</h3>
+            <p>Ein Drache, aus der eigenen Asche wiedergeboren. Seine Schwingen sind reines Feuer, seine Schuppen glühendes Gold.</p>
+            <ul class="design-items">
+              <li>Reittier „Phönixschwinge“, legendär</li>
+              <li>Färbung „Phönixglut“</li>
+            </ul>
+            <div class="design-buy">
+              <strong class="price" data-price>14,99&nbsp;€</strong>
+              <button class="btn primary" type="button" data-buy="design_phoenix" disabled>Kaufen</button>
+            </div>
+          </div>
+        </article>
+        <article class="design" data-design="design_astral" style="--glow: 110, 150, 255">
+          <div class="design-stage"><div class="rider px" role="img" aria-label="Held auf dem Sternenhengst" style="--img: url(img/shop-astral_stallion.png); --w: 87; --h: 88; --n: 6"></div></div>
+          <div class="design-body">
+            <h3>Sternenhengst</h3>
+            <p>Ein Hengst aus dem Nachthimmel über der Aschensteppe. In seinem Fell leuchten die alten Sternbilder.</p>
+            <ul class="design-items">
+              <li>Reittier „Sternenhengst“, legendär</li>
+              <li>Färbung „Sternennacht“</li>
+            </ul>
+            <div class="design-buy">
+              <strong class="price" data-price>12,99&nbsp;€</strong>
+              <button class="btn primary" type="button" data-buy="design_astral" disabled>Kaufen</button>
+            </div>
+          </div>
+        </article>
+        <article class="design" data-design="design_soul" style="--glow: 70, 230, 170">
+          <div class="design-stage"><div class="rider px" role="img" aria-label="Held auf dem Seelenwolf" style="--img: url(img/shop-soul_wolf.png); --w: 82; --h: 78; --n: 6"></div></div>
+          <div class="design-body">
+            <h3>Seelenwolf</h3>
+            <p>Der Geist des ersten Wolfs, der dem Glutfeuer folgte. Er läuft lautlos und hinterlässt grünes Seelenlicht.</p>
+            <ul class="design-items">
+              <li>Reittier „Seelenwolf“, legendär</li>
+              <li>Färbung „Seelenlicht“</li>
+            </ul>
+            <div class="design-buy">
+              <strong class="price" data-price>9,99&nbsp;€</strong>
+              <button class="btn primary" type="button" data-buy="design_soul" disabled>Kaufen</button>
+            </div>
+          </div>
+        </article>
+      </div>
+      <p class="shop-fine">Exklusive Reittiere laufen so schnell wie epische Reittiere aus dem Spiel. Du kaufst Aussehen, keinen Vorteil im Kampf. Reiten ab Stufe 20.</p>
+    </section>
+
+    <section class="gold" aria-labelledby="gold-titel">
+      <h2 id="gold-titel" class="shop-h">Gold</h2>
+      <label class="field shop-char" data-char-field hidden>
+        <span>Gold geht an</span>
+        <select data-char></select>
+      </label>
+      <ul class="packs" data-packs>
+        <li class="pack"><b>5.000</b><span>Gold</span><em></em><button class="btn" type="button" data-buy="gold_5k" disabled>Kaufen · 1,99&nbsp;€</button></li>
+        <li class="pack"><b>15.000</b><span>Gold</span><em>inkl. 2.000 Bonus</em><button class="btn" type="button" data-buy="gold_15k" disabled>Kaufen · 4,99&nbsp;€</button></li>
+        <li class="pack"><b>35.000</b><span>Gold</span><em>inkl. 9.000 Bonus</em><button class="btn" type="button" data-buy="gold_35k" disabled>Kaufen · 9,99&nbsp;€</button></li>
+        <li class="pack"><b>80.000</b><span>Gold</span><em>inkl. 28.000 Bonus</em><button class="btn" type="button" data-buy="gold_80k" disabled>Kaufen · 19,99&nbsp;€</button></li>
+        <li class="pack tagged"><i>Bester Wert</i><b>220.000</b><span>Gold</span><em>inkl. 90.000 Bonus</em><button class="btn" type="button" data-buy="gold_220k" disabled>Kaufen · 49,99&nbsp;€</button></li>
+      </ul>
+    </section>
+
+    <label class="shop-waiver">
+      <input type="checkbox" data-waiver>
+      <span>Ich stimme zu, dass mein Kauf sofort und damit vor Ablauf der Widerrufsfrist ausgeführt wird. Mir ist bekannt, dass ich dadurch mein Widerrufsrecht verliere.</span>
+    </label>
+    <p class="shop-terms"><a href="kaufbedingungen">Es gelten die Kaufbedingungen mit Widerrufsbelehrung.</a></p>
+    <p class="shop-minor">Unter 18? Kaufe nur mit Erlaubnis deiner Eltern.</p>
+    <p class="shop-error" data-shop-error role="alert" hidden></p>
+    <p class="shop-fine"><span data-price-note>Alle Preise sind Endpreise inklusive Umsatzsteuer.</span> Bezahlung sicher über Stripe. <a href="support">Fragen zu einem Kauf beantwortet der Support.</a></p>
+  </div>
+</main>
+
+<!--#include footer-->
+<script src="config.js"></script>
+<script src="site.js"></script>
+<script src="shop.js"></script>
+</body>
+</html>
