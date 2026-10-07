@@ -8,8 +8,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 const OUT = process.argv[2] ?? 'ritte'; mkdirSync(OUT, { recursive: true });
 const BASE = process.env.EW_URL ?? 'http://localhost:8102';
 const RIDERS = {
-  hellhound: ['emberborn', 'warrior', ['tyrant_helm', 'tyrant_plate', 'tyrant_gauntlets', 'tyrant_sabatons', 'crown_of_embers_blade']],
-  rime_drake: ['elf', 'ranger', ['skalvyr_rib_bow', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
+  hellhound: ['dwarf', 'warrior', ['tyrant_helm', 'tyrant_plate', 'tyrant_gauntlets', 'tyrant_sabatons', 'crown_of_embers_blade']],
+  rime_drake: ['dwarf', 'ranger', ['skalvyr_rib_bow', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
   cinder_drake: ['human', 'warrior', ['sovereign_helm', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'kingsbane']],
   nightmare_steed: ['emberborn', 'rogue', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
   frost_elk: ['elf', 'ranger', ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots']],

@@ -51,7 +51,7 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const mail = (cfg.supportEmail ?? '').trim();
   for (const el of $$('[data-support-email]')) {
-    if (mail) el.innerHTML = `<a class="btn primary" href="mailto:${esc(mail)}?subject=${encodeURIComponent('Emberwrath Support')}">${esc(mail)}</a>`;
+    if (mail) el.innerHTML = `<a href="mailto:${esc(mail)}?subject=${encodeURIComponent('Emberwrath Support')}">${esc(mail)}</a>`;
   }
   for (const el of $$('[data-if-email]')) el.hidden = !mail;
   for (const el of $$('[data-if-no-email]')) el.hidden = !!mail;
@@ -207,8 +207,7 @@
   }
 
   // ---------- Glutfunken über dem Titelbild (wie die Funken im Spiel, pixelig)
-  const cv = document.querySelector('.embers');
-  if (cv && !reduced) {
+  for (const cv of reduced ? [] : $$('.embers')) {
     const ctx = cv.getContext('2d');
     const P = 3; // Pixelgröße der Funken
     let W = 0, H = 0, sparks = [], last = 0, running = true;
@@ -216,7 +215,7 @@
     const spawn = (y = H + 2) => ({ x: Math.random() * W, y, vy: 6 + Math.random() * 14, drift: (Math.random() - 0.5) * 6, life: 0, max: 4 + Math.random() * 7, phase: Math.random() * 6.28 });
     resize();
     addEventListener('resize', resize);
-    sparks = Array.from({ length: 70 }, () => spawn(Math.random() * H));
+    sparks = Array.from({ length: Number(cv.dataset.n) || 70 }, () => spawn(Math.random() * H));
     const COLORS = ['#fff2b0', '#ffd46a', '#ffa030', '#ef6a1c', '#b02e10'];
     new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running) requestAnimationFrame(tick); }).observe(cv);
     function tick(t) {
