@@ -98,7 +98,7 @@ section { position: relative; }
 /* Titelbild und großer Streifen enger: Helden und Boss tragen das Bild */
 @media (min-width: 1200px) { .hero-bg { --f: 3; --ax: 0.77; } }
 @media (min-width: 1921px) { .strip .strip-a { --f: 2; } }
-@media (min-width: 1700px) { .hero-bg { --f: 4; --ax: 0.7; } }
+@media (min-width: 1700px) { .hero-bg { --f: 4; --ax: 0.75; } }
 @media (min-width: 2000px) { .hero-bg { --f: 5; } }
 @media (min-width: 2400px) { .hero-bg { --f: 6; } .strip .strip-a { --f: 3; } }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -2;
