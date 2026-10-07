@@ -478,7 +478,6 @@
 /* ------------------------------------------------------------ Hochformat mit hohem Spielbild
    Game.resize setzt <html class="ef-portrait">, wenn das interne Bild hochkant ist (270 × bis 480).
    Das Spielbild füllt dann fast den ganzen Schirm: Infos oben, Steuerung unten, beides über dem Bild. */
-.ef-portrait #rotate-hint { display: none !important; }
 .ef-portrait .hud-frame { left: 0; top: 0; width: 100%; height: 100%; transform: none; }
 .ef-portrait .hud-player { top: calc(env(safe-area-inset-top, 0px) + 8px); left: 8px; width: calc(100% - 232px); min-width: 150px; }
 .ef-portrait .hud-menu-btn { width: 46px; height: 46px; }

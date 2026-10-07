@@ -84,6 +84,8 @@ export function installFullscreen(game) {
   const sync = () => { root.classList.toggle('ef-fullscreen', isFullscreen()); game?.resize?.(); };
   document.addEventListener('fullscreenchange', sync);
   document.addEventListener('webkitfullscreenchange', sync);
+  // Als App gestartet: Querformat festhalten, wo der Browser es dort erlaubt (das Manifest verlangt es ohnehin)
+  if (standalone) { try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch { /* nicht unterstützt */ } }
   if (standalone || !touchDevice()) return;
 
   // Erstes Antippen im Spiel schaltet Vollbild ein (Browser verlangen eine Nutzergeste).
