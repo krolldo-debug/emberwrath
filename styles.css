@@ -77,12 +77,43 @@ body { display: flex; align-items: center; justify-content: center; }
 .ef-tooltip { position: absolute; background: #0c0712; border: 1px solid var(--ef-panel-edge); padding: 8px; font-size: 13px; pointer-events: none; }
 .r-common { color: #d8d0c0; } .r-uncommon { color: #6ee06a; } .r-rare { color: #5aa8ff; } .r-epic { color: #c07aff; }
 
-/* Hochformat auf Touch-Geräten: Das Spielbild ist 16:9 und wird schmal.
-   Ein Hinweis im freien Bereich empfiehlt Querformat; spielbar bleibt es trotzdem. */
-#rotate-hint { display: none; }
-@media (orientation: portrait) and (pointer: coarse) {
-  #ui[data-scene="play"] ~ #rotate-hint {
-    display: block; position: fixed; left: 16px; right: 16px; top: calc(50% + var(--view-h) / 2 + 12px);
-    text-align: center; color: var(--ef-muted); font-size: 14px; pointer-events: none; z-index: 1;
-  }
+/* Handy und Tablet hochkant: Hinweis zum Drehen über allem, das Spiel steht still (src/ui/RotateGate.js). */
+#ef-rotate {
+  position: fixed; inset: 0; z-index: 9000; display: none; place-items: center; overflow: hidden;
+  padding: env(safe-area-inset-top, 0px) 24px env(safe-area-inset-bottom, 0px);
+  background: radial-gradient(120% 70% at 50% 108%, #3a140c 0%, #170812 46%, #05020a 78%);
+  color: var(--ef-text); text-align: center; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.ef-rotate-on #ef-rotate { display: grid; }
+.ef-rotate-on #ui, .ef-rotate-on #game { visibility: hidden; }
+.ef-rotate-glow {
+  position: absolute; left: 50%; bottom: -30vh; width: 140vw; height: 60vh; transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(255, 120, 40, 0.28), transparent);
+  animation: ef-rotate-breathe 4.5s ease-in-out infinite;
+}
+.ef-rotate-card { position: relative; display: grid; justify-items: center; gap: 18px; }
+.ef-rotate-anim { position: relative; width: 120px; height: 120px; display: grid; place-items: center; }
+.ef-rotate-phone {
+  image-rendering: pixelated; filter: drop-shadow(0 0 14px rgba(232, 194, 90, 0.35));
+  animation: ef-rotate-turn 2.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.ef-rotate-arrow {
+  position: absolute; inset: 0; border: 2px dashed rgba(232, 194, 90, 0.35); border-radius: 50%;
+  animation: ef-rotate-spin 10s linear infinite;
+}
+#ef-rotate h2 {
+  margin: 6px 0 0; font: 700 26px/1.15 var(--ef-font-title); letter-spacing: 0.06em;
+  color: var(--ef-gold); text-shadow: 0 2px 0 #3a1408, 0 0 18px rgba(255, 140, 50, 0.35);
+}
+#ef-rotate p { margin: 0; max-width: 260px; color: var(--ef-muted); font-size: 15px; line-height: 1.45; }
+@keyframes ef-rotate-turn {
+  0%, 18% { transform: rotate(0deg); }
+  48%, 78% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes ef-rotate-spin { to { transform: rotate(360deg); } }
+@keyframes ef-rotate-breathe { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .ef-rotate-phone { animation: none; transform: rotate(-90deg); }
+  .ef-rotate-arrow, .ef-rotate-glow { animation: none; }
 }

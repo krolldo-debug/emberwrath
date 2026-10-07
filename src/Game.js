@@ -16,6 +16,7 @@ import { h } from './core/dom.js';
 import { PixelFont } from './ui/PixelFont.js';
 import { Sfx } from './audio/Sfx.js';
 import { createAssets } from './Assets.js';
+import { isMobileDevice } from './ui/RotateGate.js';
 
 // Host des Spiels: besitzt die langlebigen Dienste (Bus, Input, Zustand,
 // Speicher, Inhalte, Szenen) und die Präsentation (internes View-Canvas ->
@@ -157,7 +158,8 @@ export class Game {
     if (inp.pressed('mute')) this.sfx.toggleMute();
     if (inp.pressed('debug')) this.debug = !this.debug;
     // endStep auch nach einem Fehler, sonst löst dieselbe Eingabe (Trank, Angriff …) im nächsten Tick erneut aus.
-    try { this.scenes.update(dt); } finally { inp.endStep(dt); }
+    // Handy/Tablet hochkant (ui/RotateGate.js): Spiel steht still, bis das Gerät gedreht ist
+    try { if (!this.paused) this.scenes.update(dt); } finally { inp.endStep(dt); }
   }
 
   render() {
@@ -214,7 +216,8 @@ export class Game {
   // Alle Systeme lesen CONFIG.viewWidth/viewHeight live; Lighting und ScreenFx passen sich selbst an.
   #chooseView(aw, ah) {
     const L = CONFIG.landscapeView, P = CONFIG.portraitView;
-    const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId);
+    // Handy und Tablet spielen nur quer (ui/RotateGate.js); das hohe Bild bleibt schmalen Desktop-Fenstern
+    const tall = ah > aw * 1.15 && CONFIG.portraitScenes.includes(this.scenes?.currentId) && !isMobileDevice();
     // Querformat: Bildbreite folgt dem Seitenverhältnis (16:9 bis 21:9), breite Handys bekommen keine schwarzen Ränder
     let w = tall ? P.width : Math.max(L.width, Math.min(L.maxWidth ?? 640, Math.round((L.height * aw) / ah / 2) * 2));
     let h = tall ? Math.max(P.minHeight, Math.min(P.maxHeight, Math.round((P.width * ah) / aw / 2) * 2)) : L.height;

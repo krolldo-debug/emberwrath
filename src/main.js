@@ -11,6 +11,7 @@ import { installOnline } from './online/index.js';
 import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
+import { installRotateGate } from './ui/RotateGate.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
@@ -35,5 +36,6 @@ if (devHost) window.emberfall = game;
 else game.bus.on(EV.ONLINE_CHANGED, ({ user }) => {
   if (user && !window.emberfall) game.online?.isAdmin().then((ok) => { if (ok) window.emberfall = game; });
 });
+installRotateGate(game); // Handy/Tablet: nur Querformat
 game.start('title');
 document.getElementById('boot')?.remove();
