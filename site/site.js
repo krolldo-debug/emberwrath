@@ -42,8 +42,8 @@
     box.innerHTML = live.map(([k, url]) => `<a class="social" href="${encodeURI(url.trim())}" target="_blank" rel="noopener me">${svg(SOCIAL[k].path)}${SOCIAL[k].name}</a>`).join('');
     box.hidden = !live.length;
   }
-  for (const box of $$('[data-foot-socials]')) {
-    box.innerHTML = entries.filter(([, url]) => validUrl(url))
+  for (const box of $$('[data-social-icons]')) {
+    box.innerHTML = live
       .map(([k, url]) => `<a href="${encodeURI(url.trim())}" target="_blank" rel="noopener me" aria-label="${SOCIAL[k].name}">${svg(SOCIAL[k].path)}</a>`).join('');
   }
 
@@ -192,6 +192,11 @@
       if (Math.abs(k - n) < 0.01) continue;
       img.style.width = `${(img.naturalWidth * n) / dpr}px`;
       img.style.height = `${(img.naturalHeight * n) / dpr}px`;
+    }
+    // Reiter im Lauf: das Fenster zeigt genau einen Frame des Streifens (Breite / Anzahl Frames)
+    for (const box of $$('.rider')) {
+      const img = box.querySelector('img'), n = parseFloat(getComputedStyle(box).getPropertyValue('--n')) || 1;
+      box.style.width = img?.naturalWidth ? `${img.getBoundingClientRect().width / n}px` : '';
     }
   };
   if (figs.length) {

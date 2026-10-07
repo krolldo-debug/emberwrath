@@ -30,7 +30,9 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   Anzeige: `img.shot` mit `--fx/--fy` (Bildpunkt, der in die Mitte soll), auf dem Handy (≤ 820 px) `--mx/--my`, falls gesetzt. CSS gibt je Breite einen Faktor `--f`
   vor (×2; Titelbild ab 1200 px ×4, ab 2000 px ×5, ab 2400 px ×6; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Titel und Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
   `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
-- `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*`, `ritt-*` (Reiter auf Reittieren) und `item-*` mit `tools/render40.mjs`.
+- `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*` und `item-*` mit `tools/render40.mjs`.
+- `ritt-*-lauf.png`: Reiter im Lauf, alle Frames von `rideRun` nebeneinander (`tools/ritte.mjs site/img`). Die Seite zeigt je einen Frame
+  und blättert mit CSS `steps()` im Takt des Spiels (`--n` Frames, `--t` Dauer, `--fw` Fensterbreite in index.html, Werte gibt das Skript aus).
   Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×5, Bosse ×2 bzw. Ulgrim und Malgareth ×3, Reiter ×4, Völker ×3, Symbole ×2).
 
 Neu erzeugen, aus einer Kopie des Projekts:
@@ -44,6 +46,7 @@ python3 site/tools/szenen-auswahl.py                # gewählte Bilder (oben im 
 node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.webp): feste Aufstellung, Warnflächen
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
+node site/tools/ritte.mjs site/img                   # Reiter im Lauf (Bildstreifen, Maße in der Ausgabe)
 ```
 
 Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,

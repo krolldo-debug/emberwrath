@@ -1,17 +1,22 @@
 <footer class="foot">
-  <div class="wrap foot-news" data-newsletter hidden>
-    <div>
-      <h2>Neuigkeiten aus Emberwrath</h2>
-      <p>Neue Gebiete, Bosse und Ereignisse, höchstens ein paarmal im Monat. Abmelden geht jederzeit mit einem Klick.</p>
+  <div class="wrap" data-newsletter hidden>
+    <div class="nl-card">
+      <div class="nl-card-bg"><img style="--fx:0.62;--fy:0.5" class="px shot" src="img/welt-schmiede.webp" alt="" width="960" height="540" loading="lazy"></div>
+      <div class="nl-card-copy">
+        <h2>Neuigkeiten aus Emberwrath</h2>
+        <p>Neue Gebiete, Bosse und Ereignisse, höchstens ein paarmal im Monat.</p>
+      </div>
+      <form class="news-form" data-form="newsletter" novalidate>
+        <label class="sr-only" for="nl-email">E&#8209;Mail-Adresse</label>
+        <div class="news-field">
+          <input id="nl-email" name="email" type="email" aria-label="E-Mail-Adresse für den Newsletter" autocomplete="email" placeholder="deine@email.de" maxlength="254" required>
+          <button class="btn primary" type="submit">Anmelden</button>
+        </div>
+        <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <small>Ab 16 Jahren. Mehr in der <a href="datenschutz#newsletter">Datenschutzerklärung</a>.</small>
+        <p class="form-msg" role="status" aria-live="polite" hidden></p>
+      </form>
     </div>
-    <form class="news-form" data-form="newsletter" novalidate>
-      <label class="sr-only" for="nl-email">E&#8209;Mail-Adresse</label>
-      <input id="nl-email" name="email" type="email" aria-label="E-Mail-Adresse für den Newsletter" autocomplete="email" placeholder="deine@email.de" maxlength="254" required>
-      <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
-      <button class="btn primary" type="submit">Anmelden</button>
-      <small>Ab 16 Jahren. Du bekommst eine E&#8209;Mail mit einem Bestätigungslink. Mehr in der <a href="datenschutz#newsletter">Datenschutzerklärung</a>.</small>
-      <p class="form-msg" role="status" aria-live="polite" hidden></p>
-    </form>
   </div>
   <div class="wrap foot-inner">
     <a href="./" aria-label="Emberwrath Startseite"><img class="px" src="img/logo.png" alt="Emberwrath" width="292" height="60"></a>
@@ -25,7 +30,7 @@
       <a href="nutzungsbedingungen">Nutzungsbedingungen</a>
       <a href="kaufbedingungen">Kaufbedingungen</a>
     </nav>
-    <div class="foot-socials" data-foot-socials></div>
+    <div class="foot-socials" data-social-icons></div>
     <small>© <span data-year>2026</span> Emberwrath</small>
   </div>
 </footer>
