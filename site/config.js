@@ -15,8 +15,8 @@ window.EW_SITE = {
   social: {
     discord: '',
     youtube: '',
-    tiktok: '',
-    instagram: '',
+    tiktok: 'https://www.tiktok.com/@emberwrathgame',
+    instagram: 'https://www.instagram.com/emberwrathgame/',
     x: '',
   },
 

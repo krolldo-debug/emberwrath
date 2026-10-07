@@ -24,13 +24,17 @@
 <body class="page">
 <!--#include header-->
 
-<main id="inhalt">
+<main id="inhalt" class="support-main">
+  <section class="page-hero">
+    <div class="page-hero-bg"><img style="--fx:0.5;--fy:0.27" class="px shot" src="img/welt-katakomben.webp" alt="" width="960" height="540"></div>
+    <div class="wrap">
+      <h1>Wie können wir helfen?</h1>
+    </div>
+  </section>
   <div class="wrap">
-    <h1>Wie können wir helfen?</h1>
-    <p class="lead">Schreib uns direkt hier oder finde die Antwort unten in den häufigen Fragen.</p>
 
     <section class="help" id="formular" aria-labelledby="formular-titel">
-      <form class="form" data-form="support" novalidate>
+      <form class="form ef-frame" data-form="support" novalidate>
         <h2 id="formular-titel" class="sr-only">Nachricht an den Support</h2>
         <fieldset class="seg" data-kind>
           <legend class="sr-only">Worum geht es?</legend>
@@ -39,6 +43,13 @@
           <label><input type="radio" name="kind" value="melden"><span>Spieler melden</span></label>
           <label><input type="radio" name="kind" value="loeschen"><span>Konto löschen</span></label>
         </fieldset>
+        <div class="form-hint" data-for="fehler" hidden><p>Am meisten hilft uns:</p>
+          <ul class="tips"><li>was du gerade gemacht hast</li><li>was passiert ist und was du erwartet hättest</li><li>wo im Spiel es war</li><li>ein Bildschirmfoto, am einfachsten per E&#8209;Mail</li></ul></div>
+        <div class="form-hint" data-for="melden" hidden><p>Beleidigungen, Belästigung, Betrug oder Cheats meldest du hier. Schreib möglichst genau, was passiert ist und was im Chat stand.</p>
+          <p>Wir prüfen jede Meldung und sagen dir, was wir entschieden haben. Die Regeln stehen in den <a href="nutzungsbedingungen#regeln">Nutzungsbedingungen</a>.</p></div>
+        <div class="form-hint" data-for="loeschen" hidden><p>Wir löschen dein Konto mit allen Charakteren und Gegenständen. Das lässt sich nicht rückgängig machen.</p>
+          <p>Vorher bekommst du eine E&#8209;Mail an die angegebene Adresse und bestätigst die Löschung.</p>
+          <p>Schneller geht es im Spiel: nach der Anmeldung „Konto löschen“.</p></div>
         <p class="form-hint" data-for="loeschen" hidden>Bitte nutze die Adresse, mit der du dich bei Emberwrath angemeldet hast.</p>
         <div class="row2">
           <label class="field"><span>Name <i>(freiwillig)</i></span><input name="name" autocomplete="name" maxlength="100"></label>
@@ -60,31 +71,7 @@
         </div>
         <p class="form-msg" role="status" aria-live="polite" hidden></p>
       </form>
-      <aside class="card">
-        <div data-for="kontakt">
-          <h3>Gut zu wissen</h3>
-          <p>Viele Antworten stehen schon unten in den <a href="#faq">häufigen Fragen</a>. Ideen für Gebiete, Bosse und Klassen lesen wir alle, auch wenn nicht jede ins Spiel kommt.</p>
-        </div>
-        <div data-for="fehler" hidden>
-          <h3>Fehler melden</h3>
-          <p>Am meisten hilft uns:</p>
-          <ul class="tips"><li>was du gerade gemacht hast</li><li>was passiert ist und was du erwartet hättest</li><li>wo im Spiel es war</li><li>ein Bildschirmfoto, am einfachsten per E&#8209;Mail</li></ul>
-        </div>
-        <div data-for="melden" hidden>
-          <h3>Spieler melden</h3>
-          <p>Beleidigungen, Belästigung, Betrug oder Cheats meldest du hier. Schreib möglichst genau, was passiert ist und was im Chat stand.</p>
-          <p>Wir prüfen jede Meldung und sagen dir, was wir entschieden haben. Die Regeln stehen in den <a href="nutzungsbedingungen#regeln">Nutzungsbedingungen</a>.</p>
-        </div>
-        <div data-for="loeschen" hidden>
-          <h3>Konto löschen</h3>
-          <p>Wir löschen dein Konto mit allen Charakteren und Gegenständen. Das lässt sich nicht rückgängig machen.</p>
-          <p>Vorher bekommst du eine E&#8209;Mail an die angegebene Adresse und bestätigst die Löschung.</p>
-          <p>Schneller geht es im Spiel: nach der Anmeldung „Konto löschen“.</p>
-        </div>
-        <h3 class="card-gap">Lieber per E&#8209;Mail?</h3>
-        <p>Schreib uns direkt, wir antworten so schnell wir können.</p>
-        <div data-support-email><a class="btn" href="mailto:support@emberwrath.com?subject=Emberwrath%20Support">support@emberwrath.com</a></div>
-      </aside>
+      <p class="help-mail">Lieber per E&#8209;Mail? <span data-support-email><a href="mailto:support@emberwrath.com?subject=Emberwrath%20Support">support@emberwrath.com</a></span></p>
     </section>
 
     <h2 id="faq">Häufige Fragen</h2>
@@ -137,7 +124,7 @@
       </details>
       <details>
         <summary>Läuft Emberwrath auf meinem Handy oder Tablet?</summary>
-        <div><p>Ja, in aktuellen Browsern auf iPhone, iPad und Android (Safari, Chrome, Firefox, Edge). Hochkant und quer werden unterstützt, quer siehst du mehr von der Welt. Läuft es ruckelig, stell im Menü unter Einstellungen die Grafikqualität auf „Niedrig“.</p></div>
+        <div><p>Ja, in aktuellen Browsern auf iPhone, iPad und Android (Safari, Chrome, Firefox, Edge). Gespielt wird im Querformat. Läuft es ruckelig, stell im Menü unter Einstellungen die Grafikqualität auf „Niedrig“.</p></div>
       </details>
       <details id="app">
         <summary>Kann ich Emberwrath als App installieren?</summary>
