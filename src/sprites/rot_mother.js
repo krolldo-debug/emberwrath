@@ -439,44 +439,48 @@ function mantle(pt, P, L) {
   }
 }
 
-// Kopf: fahles, pilzgrünes Gesicht als Pixelkarte (aufrecht, keine Scherung: saubere
-// Kanten). Flache Schattierung: linke Hälfte im Licht, rechte im Schatten, dunkle
-// Kontur. Knochenwulst als Stirnband, drei Augen (je 2×2-Kern in dunkler Höhle),
-// Nasenschlitz und ein Maul mit oberer und unterer Zahnreihe.
-// o Kontur, 1–4 Haut (Schatten → Glanz), B/b Knochenwulst, k Höhle, E/e Augenkern,
-// n Nasenschlitz, M Maulspalt, T/t Zähne
+// Kopf: hageres Pilzweib als Pixelkarte (aufrecht, saubere Kanten, flache Töne).
+// Runder, leicht schiefer Schädel, Licht von links oben; eingefallene Wangen und
+// Schläfen mit violetten und braunen Fäulnisschatten. Schräge, mandelförmige
+// Leuchtaugen unter einem schiefen Knochenwulst, kleines drittes Auge auf der Stirn,
+// lange Hakennase, schiefes Maul mit ungleichen Fängen, spitzes Kinn.
+// o Kontur, 1–5 Haut (Schatten → Glanz), p/q Fäulnisschatten (violett/braun),
+// B/b Knochenwulst, k Höhle, E/e Auge (Kern/Rand), n Nasenloch, M Maul, T/t Fänge
 const RM_FACE = [
-  //0123456789ABCDEFG
-  '....ooooooooo....',
-  '..oo334333222oo..',
-  '.o3344333322221o.',
-  '.o3433kkkk22221o.',
-  'o33433kEek222211o',
-  'o33433keek222211o',
-  'o33333kkkk222211o',
-  'obBBBBBBBBBBBBbbo',
-  'o2kkkkbbbbkkkk11o',
-  'o3kEek3332kEek21o',
-  'o3keek3432keek21o',
-  'o4kkkk3332kkkk21o',
-  'o4433333n2222211o',
-  'o3233334n2221111o',
-  'o2233334nn221111o',
-  'o233333332222111o',
-  'o233MMMMMMMMM211o',
-  'o23MTMTMTMtMtM21o',
-  'o23MTMTMTMtMtM21o',
-  '.o23MMMMMMMMM21o.',
-  '..o33333322221o..',
-  '...oo3332221oo...',
-  '.....ooooooo.....',
+  '.......oooooo.......',
+  '....ooo44444333o....',
+  '...o44444444333q1o..',
+  '..o44544444k333q211o',
+  '..o4454444kEek32211o',
+  '.o445544444kk332211o',
+  '.o4BBb444444332bb21o',
+  '.o44BBBb4444bBBb221o',
+  'o44kkk3bb43bbkkk1p1o',
+  'o4kEEek3543kEEek2p1o',
+  'o44kkeek543keekkp11o',
+  'o553kkk35433kkk2pp1o',
+  'o45333335433322q1p1o',
+  'o45pp333543332qpp1po',
+  '.o4pp33355433222pp1o',
+  '.o4qp333n2n33222p1o.',
+  '.o33p33ooooooo2p21o.',
+  '.o3p3oMTMMTTMo22p1o.',
+  '.o33poMTMMMTMMo2p1o.',
+  '.o33p3oMtMMMtMMo21o.',
+  '..o33poMMtMMtMo1o...',
+  '..o333pooooooo21o...',
+  '...o333223322qp1o...',
+  '....oo3333222poo....',
+  '......oo432poo......',
+  '........oooo........',
 ];
-const RM_SPLIT = 18; // ab dieser Zeile (untere Zahnreihe) klappt der Unterkiefer nach unten
-const RM_SKIN = R(['#10160c', '#34442a', '#5e7646', '#93ad6a', '#c6d898']);
-const RM_EYE = R(['#f6ffd8', '#b8f04a']), RM_EYE_OFF = R(['#2a3420', '#1c2416']);
-const RM_MAW = hex('#1c0e16');
-// Augenkerne (Spalte, Zeile der linken oberen Ecke) – Stirnauge, linkes, rechtes Auge
-const RM_EYES = [[7, 4], [3, 9], [11, 9]];
+const RM_SPLIT = 19; // ab dieser Zeile (untere Fänge) klappt der Unterkiefer nach unten
+const RM_MAW_X0 = 6, RM_MAW_X1 = 13; // Maulspalte (Spalten)
+// kräftig gesättigtes Grün: bleibt unter dem violetten Umgebungslicht des Sporenschlunds grün
+const RM_SKIN = R(['#140a12', '#182c14', '#284a1c', '#3f7024', '#5a922e', '#82bc40']);
+const RM_ROT = R(['#3c2042', '#4e3424']);
+const RM_EYE = R(['#f4ffc0', '#8fe03a']), RM_EYE_OFF = R(['#2a3420', '#1c2416']);
+const RM_MAW = hex('#1c0812'), RM_FANG = R(['#e6dab2', '#a8946a']), RM_BROW = R(['#cbb98c', '#8c7650']);
 function headPos(P, L) {
   const { N } = L, ca = Math.cos(P.lean), sa = Math.sin(P.lean);
   return { x: N.x + ca * 6 + sa * 4 + P.head, y: N.y - ca * 4 + sa * 3 + P.headY };
@@ -484,49 +488,49 @@ function headPos(P, L) {
 function head(pt, P, L, meta) {
   const { N } = L;
   const { x: hx, y: hy } = headPos(P, L);
-  const ox = Math.round(hx) - 7, oy = Math.round(hy) - 10;
+  const ox = Math.round(hx) - 9, oy = Math.round(hy) - 11;
   // Hals mit Sehnen
-  const nk = qbez({ x: N.x, y: N.y + 2 }, { x: (N.x + hx) / 2, y: (N.y + hy) / 2 + 3 }, { x: ox + 7, y: oy + 19 }, 8);
-  tube(pt, nk, () => 7, (e) => SKIN[e > 0.35 ? 4 : e < -0.35 ? 2 : 3]);
+  const nk = qbez({ x: N.x, y: N.y + 2 }, { x: (N.x + hx) / 2, y: (N.y + hy) / 2 + 3 }, { x: ox + 9, y: oy + 21 }, 8);
+  tube(pt, nk, () => 7, (e) => e > 0.35 ? RM_SKIN[3] : e < -0.35 ? RM_ROT[0] : RM_SKIN[2]);
   const j = Math.round(P.jaw * 7);
   const lit = P.eye > 0.15;
   const C = {
-    o: RM_SKIN[0], 1: RM_SKIN[1], 2: RM_SKIN[2], 3: RM_SKIN[3], 4: RM_SKIN[4],
-    B: BONE[3], b: BONE[2], k: RM_SKIN[0], n: RM_SKIN[0], M: RM_MAW, T: BONE[3], t: BONE[2],
+    o: RM_SKIN[0], 1: RM_SKIN[1], 2: RM_SKIN[2], 3: RM_SKIN[3], 4: RM_SKIN[4], 5: RM_SKIN[5],
+    p: RM_ROT[0], q: RM_ROT[1], B: RM_BROW[0], b: RM_BROW[1], k: RM_SKIN[0], n: RM_SKIN[0],
+    M: RM_MAW, T: RM_FANG[0], t: RM_FANG[1],
     E: lit ? RM_EYE[0] : RM_EYE_OFF[0], e: lit ? RM_EYE[1] : RM_EYE_OFF[1],
+  };
+  const glowAt = (ch, x, y) => {
+    if (!lit) return;
+    if (ch === 'E') pt.gl(x, y, K_EYE, 2.8 + P.eye * 0.9);
+    else if (ch === 'e') pt.gl(x, y, K_EYE, 1.6 + P.eye * 0.6);
   };
   const row = (r, y) => {
     const s = RM_FACE[r];
-    for (let x = 0; x < s.length; x++) if (s[x] !== '.') pt.px(ox + x, y, C[s[x]]);
+    for (let x = 0; x < s.length; x++) if (s[x] !== '.') { pt.px(ox + x, y, C[s[x]]); glowAt(s[x], ox + x, y); }
   };
   for (let r = 0; r < RM_SPLIT; r++) row(r, oy + r);
   // offenes Maul: Wangen strecken sich, dazwischen der dunkle Schlund (glimmt grün)
   for (let k = 0; k < j; k++) {
     const y = oy + RM_SPLIT + k, s = RM_FACE[RM_SPLIT - 1];
     for (let x = 0; x < s.length; x++) {
-      const inMaw = x >= 3 && x <= 13;
+      if (s[x] === '.') continue;
+      const inMaw = x >= RM_MAW_X0 && x <= RM_MAW_X1;
       pt.px(ox + x, y, inMaw ? RM_MAW : C[s[x]]);
-      if (inMaw && x > 4 && x < 12 && j >= 2) pt.gl(ox + x, y, K_EYE, 0.6 + (k / j) * 1.6 * Math.min(1.3, P.eye));
+      if (inMaw && x > RM_MAW_X0 && x < RM_MAW_X1 && j >= 2) pt.gl(ox + x, y, K_EYE, 0.6 + (k / j) * 1.6 * Math.min(1.3, P.eye));
     }
   }
   for (let r = RM_SPLIT; r < RM_FACE.length; r++) row(r, oy + r + j);
   // Konsolenpilze am Hinterkopf (auf der Kontur, nicht im Gesicht)
   for (let k = 0; k < 3; k++) {
-    const x = ox - 1, y = oy + 9 + k * 3;
+    const x = ox - 1, y = oy + 10 + k * 3;
     pt.px(x - 1, y, CAP[5]); pt.px(x, y, CAP[4]); pt.px(x - 1, y + 1, GILL[3]); pt.gl(x - 1, y + 1, K_GILL, 1.8);
   }
-  // Augen leuchten: heller 2×2-Kern, schwacher Hof in der Höhle
-  if (lit) {
-    for (const [ex, ey] of RM_EYES) {
-      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) pt.gl(ox + ex + dx, oy + ey + dy, K_EYE, (dx + dy === 0 ? 3.2 : 2.6) + P.eye * 0.8);
-      if (P.eye > 0.9) for (const [dx, dy] of [[-1, 0], [2, 0], [-1, 1], [2, 1]]) pt.gl(ox + ex + dx, oy + ey + dy, K_EYE, 0.9 * P.eye);
-    }
-  }
   meta.eye = { x: ox + 8, y: oy + 9 };
-  meta.mouth = { x: ox + 8, y: oy + 17 + j * 0.5 };
+  meta.mouth = { x: ox + 10, y: oy + 18 + j * 0.5 };
   // Kinnfäden
   for (let k = 0; k < 4; k++) {
-    let x = ox + 4 + k * 3, y = oy + 21 + j - (k === 0 || k === 3 ? 1 : 0);
+    let x = ox + 7 + k * 2, y = oy + 23 + j - (k === 0 || k === 3 ? 1 : 0);
     const len = 3 + k * 1.1 + hash2(k, 1, 251) * 3;
     for (let st = 0; st < len; st++) {
       x += Math.sin(P.hyT * 1.3 + k * 2 + st * 0.4) * 0.35 + (P.lean - 0.3) * 0.3; y += 0.9;

@@ -32,14 +32,14 @@ const R = {
 
 // Datensätze je NPC (IDs aus INTEGRATION.md §11.2 und world/zones.js)
 export const PORTRAITS = {
-  elder_maren: { skin: 'skinOld', hair: 'long', hairC: 'grey', head: 'hood', hoodC: 'brownCloth', cloth: 'shawl', clothC: 'brownCloth', eyes: '#3a5a7a', wrinkles: true, extra: ['lantern'], face: { w: 18, jaw: 'pointed', eye: 'hooded', brow: 'thin', nose: 'hooked', lips: 'thin', mw: 5 }, bg: 'village' },
-  smith_brom: { skin: 'skin', hair: 'bald', beard: 'full', beardC: 'auburn', cloth: 'apron', clothC: 'leather', brows: 'heavy', extra: ['soot', 'hammer'], eyes: '#4a3020', face: { w: 20, jaw: 'square', eye: 'narrow', brow: 'bushy', nose: 'broad', lips: 'thin', mw: 6 }, bg: 'forge', male: true },
-  warden_ilsa: { skin: 'skin', hair: 'braid', hairC: 'auburn', head: 'hood', hoodC: 'green', cloth: 'cloak', clothC: 'green', eyes: '#3a6a3a', extra: ['bow', 'scarCheek'], face: { w: 18, jaw: 'pointed', eye: 'almond', brow: 'straight', nose: 'small', lips: 'mid', mw: 5 }, bg: 'forest' },
-  herbalist_oona: { skin: 'skinPale', hair: 'long', hairC: 'blond', cloth: 'robe', clothC: 'tan', eyes: '#5a7a3a', extra: ['wreath', 'freckles'], face: { w: 17.5, jaw: 'round', eye: 'round', brow: 'high', nose: 'small', lips: 'full', mw: 5 }, bg: 'forest' },
-  trader_vesk: { skin: 'skin', hair: 'short', hairC: 'dark', beard: 'goatee', beardC: 'dark', head: 'hat', hatC: 'dark', cloth: 'coat', clothC: 'red', eyes: '#2a1a10', extra: ['earring'], face: { w: 18, jaw: 'pointed', eye: 'narrow', brow: 'high', nose: 'hooked', lips: 'thin', mw: 7 }, bg: 'village', male: true },
-  commander_hale: { skin: 'skin', hair: 'short', hairC: 'grey', beard: 'stubble', beardC: 'grey', head: 'helm', cloth: 'armor', clothC: 'steel', eyes: '#3a4a6a', brows: 'heavy', extra: ['scar', 'cape'], face: { w: 19.5, jaw: 'square', eye: 'hooded', brow: 'stern', nose: 'straight', lips: 'thin', mw: 6, cleft: true }, bg: 'peaks', male: true },
-  seer_ysolde: { skin: 'skinPale', hair: 'long', hairC: 'dark', head: 'hood', hoodC: 'violet', cloth: 'robe', clothC: 'violet', eyes: '#c8a0ff', extra: ['glowEyes', 'circlet'], face: { w: 17.5, jaw: 'pointed', eye: 'almond', brow: 'thin', nose: 'small', lips: 'full', mw: 5 }, bg: 'arcane' },
-  quartermaster_dunn: { skin: 'skin', hair: 'short', hairC: 'brown', beard: 'moustache', beardC: 'brown', head: 'cap', hatC: 'navy', cloth: 'coat', clothC: 'navy', eyes: '#2a2018', brows: 'heavy', extra: ['stout', 'quill'], face: { w: 20, jaw: 'round', eye: 'round', brow: 'bushy', nose: 'broad', lips: 'full', mw: 6 }, bg: 'peaks', male: true },
+  elder_maren: { skin: 'skinOld', hair: 'long', hairC: 'grey', head: 'hood', hoodC: 'brownCloth', cloth: 'shawl', clothC: 'brownCloth', eyes: '#3a5a7a', wrinkles: true, extra: ['lantern'], face: { shape: 'long', ey: 1, eye: 'hooded', brow: 'thin', nose: 'hooked', nl: 2, lips: 'thin', mw: 5, my: 2, expr: 'smile', age: 'old' }, bg: 'village' },
+  smith_brom: { skin: 'skinRuddy', hair: 'bald', beard: 'full', beardC: 'auburn', cloth: 'apron', clothC: 'leather', brows: 'heavy', extra: ['soot', 'hammer'], eyes: '#4a3020', face: { shape: 'square', eg: 2, eye: 'narrow', brow: 'bushy', nose: 'broad', lips: 'thin', mw: 6, age: 'mid', blush: true }, bg: 'forge', male: true },
+  warden_ilsa: { skin: 'skinTan', hair: 'braid', hairC: 'auburn', head: 'hood', hoodC: 'green', cloth: 'cloak', clothC: 'green', eyes: '#3a6a3a', extra: ['bow', 'scarCheek'], face: { shape: 'cheeky', ey: -1, eye: 'almond', brow: 'straight', nose: 'straight', lips: 'mid', mw: 5 }, bg: 'forest' },
+  herbalist_oona: { skin: 'skinPale', hair: 'long', hairC: 'blond', cloth: 'robe', clothC: 'tan', eyes: '#5a7a3a', extra: ['wreath', 'freckles'], face: { shape: 'round', ey: 1, eg: 1, eye: 'wide', brow: 'high', nose: 'small', lips: 'full', mw: 5, expr: 'smile' }, bg: 'forest' },
+  trader_vesk: { skin: 'skinOlive', hair: 'short', hairC: 'dark', beard: 'goatee', beardC: 'dark', head: 'hat', hatC: 'dark', cloth: 'coat', clothC: 'red', eyes: '#2a1a10', extra: ['earring'], face: { shape: 'long', ey: -1, eg: -1, eye: 'heavy', brow: 'high', nose: 'hooked', nl: 1, lips: 'thin', mw: 7, my: 1, expr: 'smirk' }, bg: 'village', male: true },
+  commander_hale: { skin: 'skinTan', hair: 'short', hairC: 'grey', beard: 'stubble', beardC: 'grey', head: 'helm', cloth: 'armor', clothC: 'steel', eyes: '#3a4a6a', brows: 'heavy', extra: ['scar', 'cape'], face: { shape: 'square', eg: 1, eye: 'hooded', brow: 'stern', nose: 'straight', nl: 1, lips: 'thin', mw: 6, expr: 'frown', age: 'weathered', cleft: true }, bg: 'peaks', male: true },
+  seer_ysolde: { skin: 'skinCool', hair: 'long', hairC: 'dark', head: 'hood', hoodC: 'violet', cloth: 'robe', clothC: 'violet', eyes: '#c8a0ff', extra: ['glowEyes', 'circlet'], face: { shape: 'oval', eye: 'almond', brow: 'thin', nose: 'small', lips: 'full', expr: 'pursed' }, bg: 'arcane' },
+  quartermaster_dunn: { skin: 'skinDeep', hair: 'short', hairC: 'brown', beard: 'moustache', beardC: 'brown', head: 'cap', hatC: 'navy', cloth: 'coat', clothC: 'navy', eyes: '#2a2018', brows: 'heavy', extra: ['stout', 'quill'], face: { shape: 'round', ey: 1, eye: 'round', brow: 'bushy', nose: 'broad', nl: 1, lips: 'full', mw: 6, expr: 'smile', age: 'mid', bags: true }, bg: 'peaks', male: true },
 };
 
 const BG = {
@@ -63,14 +63,16 @@ function derived(id, def) {
   const h = hashStr(id);
   const choose = (arr, k) => arr[(h >>> k) % arr.length];
   const male = (h & 1) === 0;
-  return {
-    skin: choose(['skin', 'skinPale', 'skinDark', 'skinOld'], 3), hair: choose(male ? ['short', 'bald', 'short'] : ['long', 'braid', 'bun'], 5),
+  const o = {
+    skin: choose(['skin', 'skinPale', 'skinDark', 'skinOld', 'skinTan', 'skinRuddy', 'skinOlive', 'skinDeep', 'skinCool'], 3), hair: choose(male ? ['short', 'bald', 'short'] : ['long', 'braid', 'bun'], 5),
     hairC: choose(['dark', 'brown', 'auburn', 'blond', 'grey'], 7), beard: male ? choose(['none', 'full', 'moustache', 'stubble'], 9) : 'none',
     beardC: choose(['dark', 'brown', 'auburn', 'grey'], 11), cloth: choose(['coat', 'robe', 'cloak', 'shawl'], 13),
     clothC: choose(['red', 'green', 'navy', 'brownCloth', 'violet', 'tan'], 15), eyes: choose(['#2a2018', '#3a5a7a', '#4a3020', '#3a6a3a'], 17), male,
-    face: { w: choose(male ? [18.5, 19.5, 20] : [17.5, 18, 18.5], 19), jaw: choose(male ? ['square', 'round', 'pointed'] : ['round', 'pointed'], 21), eye: choose(['almond', 'round', 'narrow', 'hooded'], 23), brow: choose(male ? ['straight', 'bushy', 'arch'] : ['arch', 'thin', 'high'], 25), nose: choose(['straight', 'small', 'hooked', 'broad'], 27), lips: choose(male ? ['thin', 'mid'] : ['mid', 'full'], 29), mw: choose([5, 6, 6, 7], 30) },
+    face: { shape: choose(['oval', 'long', 'round', 'square', 'cheeky'], 19), ey: choose([-1, 0, 1, 2], 21), eg: choose([-1, 0, 1, 2], 22), eye: choose(['almond', 'round', 'narrow', 'hooded', 'wide', 'heavy'], 23), brow: choose(male ? ['straight', 'bushy', 'arch', 'stern'] : ['arch', 'thin', 'high', 'straight'], 25), nose: choose(['straight', 'small', 'hooked', 'broad'], 27), nl: choose([-1, 0, 1, 2], 26), lips: choose(male ? ['thin', 'mid'] : ['mid', 'full'], 29), mw: choose([4, 5, 6, 7], 30), expr: choose(['neutral', 'smile', 'frown', 'smirk', 'pursed'], 28), age: choose(['young', 'mid', 'weathered'], 24) },
     bg: def?.zoneId === 'ashwood' ? 'forest' : def?.zoneId === 'cinder_peaks' ? 'peaks' : 'village',
   };
+  if (o.skin === 'skinOld') { o.face.age = 'old'; o.wrinkles = true; o.hairC = 'grey'; }
+  return o;
 }
 
 export function npcPortrait(npcId, def = null) {
@@ -94,15 +96,28 @@ const SKIN = {
   skinOld: ['#33201e', '#5e4034', '#8a6250', '#b28872', '#d2ac94', '#ead0bc'],
   skinPale: ['#33222a', '#6a4c56', '#9c7a80', '#c6a2a2', '#e4c6be', '#f8e6de'],
   skinDark: ['#1a0e0a', '#36201a', '#56362a', '#7a5038', '#9c6c4c', '#bc8c66'],
+  skinTan: ['#2a160e', '#5a3220', '#8a5634', '#b47a50', '#d29c6c', '#eabc8c'],
+  skinRuddy: ['#301412', '#64302a', '#9a5244', '#c67a64', '#e4a088', '#f6c4a8'],
+  skinOlive: ['#241a10', '#4e3a24', '#7a5c3a', '#a07c54', '#c09c70', '#d8b88c'],
+  skinDeep: ['#140a08', '#2e1a14', '#4c2c20', '#6c4230', '#8c5a40', '#ac7656'],
+  skinCool: ['#2c2232', '#5e4c60', '#907c8c', '#bca8b2', '#dcccd0', '#f2e8ea'],
 };
-const HX = 48, HY = 45, HRY = 23;
-// Gesichtsform je Porträt (wird in drawPortrait gesetzt): Breite, Kieferverjüngung, Beginn der Verjüngung
-let HRX = 18.5, JAW = 0.03, JAW0 = 5;
-const JAWS = { round: [0.03, 5], pointed: [0.042, 3], square: [0.02, 9] };
+const HX = 48, HY = 45;
+// Kopfumriss je Porträt: Halbachsen, Kieferverjüngung ab j0, Exponent p (>2 = kantig), Wangenknochen-Auswölbung
+const SHAPES = {
+  oval: { rx: 18.5, ry: 23, jaw: 0.03, j0: 5, p: 2, cheek: 0 },
+  long: { rx: 17, ry: 25.5, jaw: 0.032, j0: 6, p: 2, cheek: 0 },
+  round: { rx: 19.5, ry: 21.5, jaw: 0.016, j0: 6, p: 2, cheek: 0 },
+  square: { rx: 19.5, ry: 23, jaw: 0.012, j0: 9, p: 2.7, cheek: 0 },
+  cheeky: { rx: 17.5, ry: 23.5, jaw: 0.045, j0: 5, p: 2, cheek: 2 },
+};
+let G = SHAPES.oval, HRX = 18.5, HRY = 23; // wird in drawPortrait gesetzt
 function headD(x, y) {
-  const dx = (x + 0.5 - HX) / HRX, dy = (y + 0.5 - HY) / HRY;
-  const jaw = y > HY + JAW0 ? 1 + (y - HY - JAW0) * JAW : 1;
-  return dx * dx * jaw * jaw + dy * dy;
+  const dy = (y + 0.5 - HY) / G.ry;
+  const rx = G.rx + G.cheek * (Math.abs(y + 0.5 - 46) < 12 ? (1 + Math.cos((y + 0.5 - 46) / 12 * Math.PI)) / 2 : 0);
+  const jaw = y > HY + G.j0 ? 1 + (y - HY - G.j0) * G.jaw : 1;
+  const dx = (x + 0.5 - HX) / rx * jaw;
+  return G.p === 2 ? dx * dx + dy * dy : Math.abs(dx) ** G.p + Math.abs(dy) ** G.p;
 }
 const inHead = (x, y) => headD(x, y) <= 1;
 function hex(c) { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
@@ -120,26 +135,38 @@ export function drawPortrait(o) {
   const beardR = R[o.beardC] ?? hairR;
   const hood = o.head === 'hood';
   const stout = has('stout');
-  const F = { w: 18.5, jaw: 'round', eye: 'almond', brow: o.brows === 'heavy' ? 'stern' : 'arch', nose: 'straight', lips: 'mid', mw: 6, ...o.face };
-  HRX = F.w; [JAW, JAW0] = JAWS[F.jaw] ?? JAWS.round;
+  const F = { shape: 'oval', eye: 'almond', brow: o.brows === 'heavy' ? 'stern' : 'arch', nose: 'straight', lips: 'mid', mw: 6, ...o.face };
+  G = SHAPES[F.shape] ?? SHAPES.oval; HRX = G.rx; HRY = G.ry;
   // Haarsträhnen: Lichter und Fugen entlang der Fallrichtung (kein Rauschen)
   const strand = (x, y, k = 1) => { const s = Math.sin((x - HX) * 1.05 + Math.sign(x - HX || 1) * y * 0.09 * k); return s > 0.62 ? 0.85 : s < -0.8 ? -0.7 : 0; };
 
+  // Stoff: drei flache Töne (Licht links, Mitte, Schatten rechts), Lichtkante oben, weiche Falten
+  const zone = (dx, dy, d) => (dx < -0.48 ? 3 : dx < 0.32 ? 2 : 1) + (d > 0.84 && dy < 0 && dx < 0.25 ? 1 : 0);
+  const folds = (x, y, list, y0) => { // -1 Faltental, +1 Faltengrat, 0 nichts
+    if (y < y0) return 0;
+    for (const [cx, ph] of list) {
+      const wv = 0.8 + (y - y0) / 9, xc = cx + Math.sin(y * 0.11 + ph) * 1.6;
+      if (Math.abs(x + 0.5 - xc) < wv) return -1;
+      if (x + 0.5 >= xc - wv - 1.6 && x + 0.5 < xc - wv) return 1;
+    }
+    return 0;
+  };
+  const BODYF = [[30, 0], [41, 2], [61, 4], [70, 1]];
   // Umhang hinter den Schultern
-  if (has('cape')) ell(48, 104, 47, 42, (x, y, dx) => { if (y > 62) px(x, y, pick(R.red, 2.6 - Math.abs(dx) * 1.2 - (y - 62) / 34 - dx * 0.6)); });
+  if (has('cape')) ell(48, 104, 47, 42, (x, y, dx, dy, d) => { if (y > 62) px(x, y, R.red[clamp(zone(dx, dy, d) - (Math.abs(dx) > 0.8 ? 1 : 0) + folds(x, y, [[8, 1], [88, 3]], 76), 0, 4)]); });
   if (has('bow')) { for (let a = -1.25; a <= 1.25; a += 0.015) { px(2 + Math.cos(a) * 9, 58 + Math.sin(a) * 34, R.leather[3]); px(3 + Math.cos(a) * 9, 58 + Math.sin(a) * 34, R.leather[1]); } rect(4, 25, 1, 66, '#d8d0c0'); }
   // Langes Haar hinten
   if (o.hair === 'long' && !hood) ell(48, 54, 25, 36, (x, y, dx) => { if (y < 60 || Math.abs(dx) > 0.33) px(x, y, pick(hairR, 2.7 - dx * 1.1 - (y - 20) / 40 + strand(x, y))); });
 
   // Oberkörper
   const shW = stout ? 50 : 45;
-  ell(48, 114, shW, 42, (x, y, dx) => {
-    let t = 3 - dx * 1.6 - (y - 72) / 20;
-    if (o.cloth === 'armor') t += (y === 82 || y === 83 || y === 92 || y === 93 ? -1.1 : 0) + (Math.abs(dx) > 0.55 && y < 88 ? 0.6 : 0);
-    px(x, y, pick(o.cloth === 'armor' ? R[o.clothC] ?? R.steel : cloth, t));
+  ell(48, 114, shW, 42, (x, y, dx, dy, d) => {
+    let t = zone(dx, dy, d);
+    if (o.cloth === 'armor') { t += (y === 82 || y === 83 || y === 92 || y === 93 ? -1 : 0) + (Math.abs(dx) > 0.55 && y < 88 ? 1 : 0) + (y === 84 || y === 94 ? 1 : 0); px(x, y, (R[o.clothC] ?? R.steel)[clamp(t, 0, 4)]); return; }
+    px(x, y, cloth[clamp(t + folds(x, y, BODYF, 80), 0, 4)]);
   });
   // Kleidungsdetails
-  if (o.cloth === 'apron') { for (let y = 82; y < S; y++) for (let x = 32; x < 65; x++) px(x, y, pick(R.leather, 2.7 - (x - 32) / 18)); rect(33, 82, 31, 2, R.leather[0]); for (let y = 72; y < 82; y++) { px(35, y, R.leather[1]); px(61, y, R.leather[1]); } px(48, 88, R.iron[3]); }
+  if (o.cloth === 'apron') { for (let y = 82; y < S; y++) for (let x = 32; x < 65; x++) px(x, y, R.leather[clamp((x < 38 ? 3 : x < 56 ? 2 : 1) + folds(x, y, [[44, 1], [53, 3]], 86), 0, 4)]); rect(33, 82, 31, 2, R.leather[0]); for (let y = 72; y < 82; y++) { px(35, y, R.leather[1]); px(61, y, R.leather[1]); } px(48, 88, R.iron[3]); }
   if (o.cloth === 'coat') { for (let y = 74; y < S; y++) { px(46 + (y - 74) * 0.15, y, cloth[0]); px(50 - (y - 74) * 0.1, y, R.gold[2]); px(51 - (y - 74) * 0.1, y, R.gold[1]); } for (const y of [80, 87, 94]) { px(53, y, R.gold[4]); px(54, y, R.gold[2]); px(53, y + 1, R.gold[2]); } }
   if (o.cloth === 'robe') { for (let y = 72; y < S; y++) { const x = 48 + Math.round(Math.sin(y * 0.2) * 1.5); px(x, y, cloth[4]); px(x + 1, y, cloth[1]); } for (let x = 36; x < 61; x++) px(x, 72 + Math.round(Math.abs(x - 48) * 0.18), cloth[4]); }
   if (o.cloth === 'shawl') {
@@ -150,9 +177,9 @@ export function drawPortrait(o) {
       if (dxs * dxs + dys * dys > 1) continue;
       const yb = 93 - ax * 0.32, open = ax < 10.5 - (y - 70) * 0.5;
       if (y > yb || open) continue;
-      const fold = Math.sin(Math.atan2(x + 0.5 - 48, y - 58) * 16) > 0.72 ? -0.7 : 0;
-      const edge = !(ax < 10.5 - (y - 69) * 0.5) ? 0 : 0.9; // Lichtkante am V
-      px(x, y, pick(Sh, 3.1 - dxs * 1.5 - (y - 66) / 22 + fold + edge));
+      const edge = ax < 10.5 - (y - 68) * 0.5 ? 1 : 0; // Lichtkante am V
+      const fl = folds(x, y, [[25, 0.5], [35, 2], [63, 4], [72, 1.5]], 72);
+      px(x, y, Sh[clamp((dxs < -0.45 ? 3 : dxs < 0.3 ? 2 : 1) + edge + fl, 0, 4)]);
       if (y > yb - 1 && x % 2 === 0) { px(x, y + 1, Sh[2]); px(x, y + 2, Sh[1]); }
     }
   }
@@ -191,9 +218,32 @@ export function drawPortrait(o) {
   drawFace96(px, o, skin, hairR, beardR, has, F);
 
   // Bart
-  if (o.beard === 'full') for (let y = 52; y < 82; y++) for (let x = 26; x < 70; x++) { const ax = Math.abs(x + 0.5 - 48); const inB = (inHead(x, y) && (y > 54 || (ax > HRX - 6 && y > 47))) || (y >= 62 && !inHead(x, y) && ax < 12 - (y - 62) * 0.5); const mouth = y >= 60 && y <= 62 && ax < 6; if (inB && !mouth) px(x, y, pick(beardR, 3.1 - (x - 48) / 14 - (y - 54) / 18 + strand(x, y, 0.5))); }
-  if (o.beard === 'moustache') { for (let x = 39; x < 58; x++) { const dy = Math.round(Math.abs(x - 48) * 0.18); px(x, 58 + dy, beardR[x < 48 ? 3 : 2]); px(x, 59 + dy, beardR[x < 48 ? 2 : 1]); if (Math.abs(x - 48) < 7) px(x, 57 + dy, beardR[x < 48 ? 2 : 1]); } }
-  if (o.beard === 'goatee') for (let y = 63; y < 74; y++) for (let x = 43; x < 54; x++) if (Math.abs(x + 0.5 - 48.5) < 6 - (y - 63) * 0.3) px(x, y, pick(beardR, 3 - (x - 43) / 6 - (y - 63) / 8 + strand(x, y, 0.3)));
+  if (o.beard === 'full') {
+    // Vollbart aus Locken-Büscheln: jedes Büschel oben links hell, unten rechts dunkel, dunkle Fugen dazwischen
+    const big = stout || F.shape === 'square';
+    const lobes = [];
+    for (let r = 0; r < 5; r++) for (let c = -3; c <= 3; c++) lobes.push([48 + c * 8 + (r % 2) * 4 + Math.sin(r * 3.1 + c * 1.7) * 1.6, 54 + r * 6.5 + Math.cos(r * 1.3 + c * 2.3) * 1.2]);
+    const MYb = 61 + (F.my ?? 0);
+    for (let y = 46; y < 90; y++) for (let x = 22; x < 74; x++) {
+      const ax = Math.abs(x + 0.5 - 48);
+      const ex = (x + 0.5 - 48) / (HRX + (big ? 2.5 : 0.5)), eyv = (y + 0.5 - 60) / (big ? 24 : 19);
+      let inB = ex * ex + eyv * eyv <= 1 && (y > 54 || (ax > HRX - 5 && y > 47));
+      if (!big && !inHead(x, y) && y < 64) inB = false;
+      if (!inB || (y >= MYb - 1 && y <= MYb + 1 && ax < (F.mw ?? 6) - 1)) continue;
+      let d1 = 9, d2 = 9, lx = 0, ly = 0;
+      for (const [cx, cy] of lobes) { const ux = (x + 0.5 - cx) / 4.8, uy = (y + 0.5 - cy) / 5.6, dd = ux * ux + uy * uy; if (dd < d1) { d2 = d1; d1 = dd; lx = ux; ly = uy; } else if (dd < d2) d2 = dd; }
+      if (y > (big ? 76 : 70) && d1 > 0.9) continue; // gewellter Saum
+      let tt = 3.2 - lx * 0.55 - ly * 0.75 - (x - 48) / 15 - (y - 52) / 30;
+      if (d2 - d1 < 0.22 && ly > -0.2) tt -= 1.1; // Fuge unter dem Büschel
+      else if (ly < -0.55 && lx < 0.3) tt += 0.6; // Glanz oben am Büschel
+      px(x, y, pick(beardR, tt));
+    }
+    // Schnurrbart über dem Mund
+    for (let x = 48 - (F.mw ?? 6) - 2; x <= 48 + (F.mw ?? 6) + 2; x++) { const k = Math.abs(x + 0.5 - 48); px(x, MYb - 2 + Math.round(k * 0.12), beardR[x < 48 ? 3 : 2]); px(x, MYb - 3 + Math.round(k * 0.12), beardR[x < 48 ? 2 : 1]); }
+  }
+  const MYo = 61 + (F.my ?? 0);
+  if (o.beard === 'moustache') { for (let x = 39; x < 58; x++) { const dy = Math.round(Math.abs(x - 48) * 0.18); px(x, MYo - 3 + dy, beardR[x < 48 ? 3 : 2]); px(x, MYo - 2 + dy, beardR[x < 48 ? 2 : 1]); if (Math.abs(x - 48) < 7) px(x, MYo - 4 + dy, beardR[x < 48 ? 2 : 1]); } }
+  if (o.beard === 'goatee') for (let y = MYo + 3; y < MYo + 14; y++) for (let x = 43; x < 54; x++) if (Math.abs(x + 0.5 - 48.5) < 5.5 - (y - MYo - 3) * 0.3) px(x, y, pick(beardR, 3 - (x - 43) / 6 - (y - MYo - 3) / 8 + strand(x, y, 0.3)));
 
   // Haare oben / Kopfbedeckung
   const hairTop = (lo, side) => ell(48, 40, 21, 21, (x, y, dx) => { if (y < lo - Math.abs(dx) * 3 || (side && y < 50 && (x < 31 || x > 65))) px(x, y, pick(hairR, 3.3 - dx * 1.2 - (y - 19) / 14 + strand(x, y, 2))); });
@@ -270,16 +320,25 @@ const EYES = {
   round: ['..lllll..', '.kkkkkkk.', 'kkwIhpIwc', 'kvwiipiwL', '.vwiiiiw.', '..sssss..'],
   narrow: ['.........', '..lllll..', '.kkkkkkk.', 'kkwIhpIwc', '..siiis..', '...sss...'],
   hooded: ['.lllllll.', 'llllllll.', '.kkkkkkk.', 'kkwIhpIwc', '.vwiipiws', '..sssss..'],
+  // weit offen: Weiß auch unter der Iris
+  wide: ['..lllll..', '.kkkkkkk.', 'kvwIhpIwc', 'kvwiipiwL', '.vwiiiiw.', '..vwwwv..', '...sss...'],
+  // schwere Lider: Lidschatten liegt halb über der Iris, kein Glanz
+  heavy: ['.lllllll.', '.DDDDDDD.', 'kkkkkkkkk', 'kvwIIpIwc', '.vwiipiws', '..sssss..'],
 };
 function drawFace96(px, o, skin, hairR, beardR, has, F) {
   const stub = o.beard === 'stubble';
   const hood = o.head === 'hood', helm = o.head === 'helm';
-  const old = !!o.wrinkles, stern = o.brows === 'heavy', glow = has('glowEyes');
-  const stubAt = (x, y) => stub && ((y >= 57 && !(y >= 59 && y <= 63 && Math.abs(x - 48) < 7)) || (y >= 50 && Math.abs(x + 0.5 - HX) > 12));
+  const age = F.age ?? (o.wrinkles ? 'old' : 'young');
+  const old = age === 'old', glow = has('glowEyes');
+  const ey = F.ey ?? 0, eg = F.eg ?? 0, nl = F.nl ?? 0, my = F.my ?? 0;
+  const expr = F.expr ?? 'neutral';
+  const MY = 61 + my; // Mundspalte
+  const mw = expr === 'pursed' ? 3 : F.mw ?? 6;
+  const stubAt = (x, y) => stub && ((y >= MY - 4 && !(y >= MY - 2 && y <= MY + 2 && Math.abs(x - 48) < mw + 1)) || (y >= 50 && Math.abs(x + 0.5 - HX) > HRX - 6));
   const tint = (x, y, c) => (stubAt(x, y) ? mixHex(c, beardR[1], 0.32) : c);
   const sk = (x, y, i) => px(x, y, tint(x, y, skin[i]));
   // Grundfläche: klare Tonflächen
-  for (let y = 18; y < 72; y++) for (let x = 26; x < 70; x++) {
+  for (let y = 16; y < 76; y++) for (let x = 24; x < 72; x++) {
     if (!inHead(x, y)) continue;
     const dx = (x + 0.5 - HX) / HRX, dy = (y + 0.5 - HY) / HRY;
     const d = headD(x, y);
@@ -291,12 +350,14 @@ function drawFace96(px, o, skin, hairR, beardR, has, F) {
     if (helm && y < 40) i = Math.max(1, i - (y < 37 ? 2 : 1));
     sk(x, y, i);
   }
+  const lx = 34 - eg, rx = 54 + eg, EY = 40 + ey; // Augen-Anker
   // Augenhöhlen und Schläfen
-  for (let y = 39; y < 44; y++) { for (const x of [44, 45]) sk(x, y, 2); for (const x of [51, 52, 53]) sk(x, y, 2); }
-  for (let y = 40; y < 50; y++) sk(65 - Math.round((y - 40) * 0.1), y, 1);
-  // Wangenknochen
-  for (const [x, y] of [[33, 50], [34, 50], [35, 50], [36, 50], [34, 51], [35, 51]]) sk(x, y, 5);
-  if (old || stern) for (let y = 50; y < 57; y++) sk(61 + Math.round((y - 50) * 0.3), y, 2);
+  for (let y = EY - 1; y < EY + 4; y++) { for (const x of [lx + 10, lx + 11]) sk(x, y, 2); for (const x of [rx - 3, rx - 2, rx - 1]) sk(x, y, 2); }
+  for (let y = 40; y < 50; y++) sk(Math.round(HX + HRX - 3.5 - (y - 40) * 0.1), y, 1);
+  // Wangenknochen; breite Wangenknochen mit Höhlung darunter
+  const cy = 50 + Math.round(ey / 2), cheeky = F.shape === 'cheeky';
+  for (const [x, y] of [[33, cy], [34, cy], [35, cy], [36, cy], [34, cy + 1], [35, cy + 1]]) sk(x - (cheeky ? 2 : 0), y, 5);
+  if (old || cheeky || age === 'weathered') for (let y = cy; y < cy + 8; y++) { sk(Math.round(HX + HRX - 6 + (y - cy) * 0.3), y, 2); if (cheeky) sk(Math.round(HX - HRX + 6 + (y - cy) * 0.2), y + 2, 3); }
 
   // Augen
   const eyeC = o.eyes ?? '#2a1a10';
@@ -304,16 +365,19 @@ function drawFace96(px, o, skin, hairR, beardR, has, F) {
     ? { i: '#b48cff', I: '#6a3ab8', p: '#241040', h: '#ffffff', w: '#efe6f4', v: '#c4b0d4' }
     : { i: mixHex(eyeC, '#ffffff', 0.22), I: mixHex(eyeC, '#000000', 0.3), p: '#0e080c', h: '#ffffff', w: '#ebe2da', v: '#bcaea6' };
   const lash = mixHex(skin[0], '#000000', 0.45);
-  for (const [x0, mirror] of [[34, false], [54, true]]) {
-    (EYES[F.eye] ?? EYES.almond).forEach((row, r) => { for (let c = 0; c < 9; c++) {
+  const tpl = EYES[F.eye] ?? EYES.almond;
+  for (const [x0, mirror] of [[lx, false], [rx, true]]) {
+    tpl.forEach((row, r) => { for (let c = 0; c < 9; c++) {
       const ch = row[c]; if (ch === '.') continue;
       const irisCh = 'iIph'.includes(ch);
-      const x = mirror ? (irisCh ? x0 + c - 1 : x0 + 8 - c) : x0 + c, y = 40 + r;
-      const col = { k: lash, l: skin[2], s: skin[2], L: skin[2], c: '#c87a70', w: mirror ? C.v : C.w, v: C.v, i: C.i, I: C.I, p: C.p, h: C.h }[ch];
-      if (ch === 'l' || ch === 's' || ch === 'L') sk(x, y, 2); else px(x, y, col);
+      const x = mirror ? (irisCh ? x0 + c - 1 : x0 + 8 - c) : x0 + c, y = EY + r;
+      if (ch === 'l' || ch === 's' || ch === 'L') sk(x, y, 2);
+      else if (ch === 'D') sk(x, y, 1);
+      else px(x, y, { k: lash, c: '#c87a70', w: mirror ? C.v : C.w, v: C.v, i: C.i, I: C.I, p: C.p, h: C.h }[ch]);
     } });
-    if (glow) px(mirror ? x0 + 4 : x0 + 5, 44, '#e6d4ff');
-    if (old) { for (let c = 2; c < 7; c++) sk(mirror ? x0 + 8 - c : x0 + c, 47, 2); sk(mirror ? x0 + 1 : x0 + 7, 48, 2); }
+    if (glow) px(mirror ? x0 + 4 : x0 + 5, EY + 4, '#e6d4ff');
+    const ly = EY + tpl.length;
+    if (old || F.bags) { for (let c = 2; c < 7; c++) sk(mirror ? x0 + 8 - c : x0 + c, ly, 2); sk(mirror ? x0 + 1 : x0 + 7, ly + 1, 2); if (F.bags) for (let c = 3; c < 6; c++) px(mirror ? x0 + 8 - c : x0 + c, ly - 1, mixHex(skin[2], '#4a2a40', 0.25)); }
     // Brauen
     const B = (o.hair === 'bald' ? beardR : hairR);
     for (let c = -1; c < 10; c++) {
@@ -323,22 +387,24 @@ function drawFace96(px, o, skin, hairR, beardR, has, F) {
       let y = 37 - Math.round(Math.sin(tt * Math.PI) * 1.4) + (c < 1 ? 1 : 0);
       if (bt === 'stern') y = 36 + Math.round(tt * 1.6);
       else if (bt === 'straight') y = 37 + (c < 1 ? 1 : 0);
-      else if (bt === 'high') y = 36 - Math.round(Math.sin(tt * Math.PI) * 2) + (c < 1 ? 1 : 0);
-      if (F.eye === 'hooded' && bt !== 'stern') y -= 1;
+      else if (bt === 'high') y = 35 - Math.round(Math.sin(tt * Math.PI) * 2) + (c < 1 ? 1 : 0);
+      if ((F.eye === 'hooded' || F.eye === 'heavy') && bt !== 'stern') y -= 1;
+      y += ey;
       px(x, y, B[1]);
       if (bt !== 'thin' && c > 0 && c < 9) px(x, y - 1, c < 6 ? B[2] : B[1]);
       if (bt === 'bushy' && c > 0 && c < 8) { px(x, y - 2, B[c < 5 ? 3 : 2]); px(x, y + 1, B[0]); }
       if (bt === 'stern' && c > 1 && c < 9) px(x, y + 1, B[0]);
     }
   }
-  // Nase: Rücken im Licht, Flanke im Schatten, Nasenflügel, Nasenlöcher
-  // Form je Porträt: small = kürzer, hooked = Höcker und hängende Spitze, broad = breite Flügel
-  const n = F.nose, ny = n === 'small' ? -1 : n === 'hooked' ? 1 : 0, w = n === 'broad' ? 1 : 0;
-  for (let y = 43; y < 52 + ny; y++) { sk(46, y, 3); sk(47, y, y < 49 ? 4 : 5); sk(48, y, 3); if (y > 46) sk(50, y, 2); }
-  if (n === 'hooked') { sk(46, 46, 4); sk(47, 46, 5); sk(48, 46, 4); sk(47, 47, 5); sk(48, 47, 4); sk(49, 47, 3); sk(48, 48, 2); sk(49, 48, 2); }
-  if (n === 'broad') for (let y = 45; y < 52; y++) sk(49, y, 3);
-  for (let y = 49; y < 55 + ny; y++) sk(51 + w, y, 2);
-  const t = 52 + ny;
+
+  // Nase: Länge (nl) und Form je Porträt
+  const n = F.nose, w = n === 'broad' ? 1 : 0;
+  const t = 52 + nl + (n === 'small' ? -1 : n === 'hooked' ? 1 : 0); // Oberkante der Nasenspitze
+  for (let y = 43 + ey; y < t; y++) { sk(46, y, 3); sk(47, y, y < t - 3 ? 4 : 5); sk(48, y, 3); if (y > 45 + ey) sk(50 + w, y, 2); }
+  if (n === 'hooked') { const b = Math.round((43 + ey + t) / 2) - 1; sk(46, b, 4); sk(47, b, 5); sk(48, b, 4); sk(47, b + 1, 5); sk(48, b + 1, 4); sk(49, b + 1, 3); sk(48, b + 2, 2); sk(49, b + 2, 2); }
+  if (n === 'broad') for (let y = 45 + ey; y < t; y++) sk(49, y, 3);
+  if (n === 'small') for (let y = 43 + ey; y < t - 2; y++) sk(47, y, 4);
+  for (let y = t - 3; y < t + 3; y++) sk(51 + w, y, 2);
   for (let x = 46 - w; x <= 48 + w; x++) { sk(x, t, x === 47 ? 5 : 4); sk(x, t + 1, x <= 47 ? 5 : 4); }
   sk(49 + w, t + 1, 3); sk(49 + w, t, 3); sk(50 + w, t, 2); sk(50 + w, t + 1, 2);
   sk(44 - w, t + 1, 3); sk(43 - w, t + 2, 2); sk(43 - w, t + 3, 2); sk(44 - w, t + 4, 2); sk(44 - w, t + 2, 4); // linker Flügel
@@ -346,50 +412,59 @@ function drawFace96(px, o, skin, hairR, beardR, has, F) {
   for (let x = 45 - w; x < 51 + w; x++) sk(x, t + 3, x < 47 ? 3 : 2);
   for (let x = 45 - w; x < 51 + w; x++) sk(x, t + 4, x <= 46 - w || x >= 49 + w ? 1 : 2); // Nasenlöcher
   if (n === 'hooked') { sk(47, t + 2, 4); sk(48, t + 2, 3); sk(47, t + 3, 2); sk(48, t + 3, 1); }
-  sk(47, 58, 2); sk(49, 58, 1); // Philtrum
-  // Mund: Oberlippe dunkler, Unterlippe heller, Mundspalte
+  if (MY - 3 > t + 4) { sk(47, MY - 3, 2); sk(49, MY - 3, 1); } // Philtrum
+
+  // Mund: Breite, Lippenfülle und Ausdruck (Lächeln, Grimm, Schmunzeln, gespitzt)
   const m = !!o.male;
   const lipU = mixHex(skin[2], '#8a3436', m ? 0.12 : 0.38), lipU2 = mixHex(skin[2], '#6a2028', m ? 0.18 : 0.42);
   const lipL = mixHex(skin[3], '#c4605a', m ? 0.1 : 0.32), lipH = mixHex(lipL, '#ffffff', 0.22);
   const line = mixHex(skin[0], '#3a0c14', 0.3);
-  const mw = F.mw, L0 = 48 - mw, L1 = 48 + mw, thin = F.lips === 'thin', full = F.lips === 'full';
-  for (let x = L0 + 1; x < L1; x++) px(x, 60, tint(x, 60, thin ? mixHex(skin[2], x < 48 ? lipU : lipU2, 0.5) : x < 48 ? lipU : lipU2));
-  if (full || !m) for (let x = 45; x < 52; x++) if (x !== 48) px(x, 59, x < 48 ? lipU : lipU2);
-  for (let x = L0; x <= L1; x++) px(x, 61, line);
-  const down = old || stern;
-  sk(L0 - 1, down ? 62 : 60, 1); sk(L1 + 1, down ? 62 : 60, 1);
-  if (thin) { for (let x = 45; x < 52; x++) px(x, 62, tint(x, 62, mixHex(skin[3], x < 48 ? lipH : lipL, 0.45))); for (let x = 45; x < 52; x++) sk(x, 63, 2); }
+  const L0 = 48 - mw, L1 = 48 + mw, thin = F.lips === 'thin', full = F.lips === 'full' || expr === 'pursed';
+  const edge = (x) => Math.abs(x - 48) > mw - 2;
+  const lineY = (x) => MY + (expr === 'smile' && edge(x) ? -1 : expr === 'frown' && edge(x) ? 1 : expr === 'smirk' && x - 48 > mw - 3 ? -1 : 0);
+  for (let x = L0 + 1; x < L1; x++) px(x, lineY(x) - 1, tint(x, lineY(x) - 1, thin ? mixHex(skin[2], x < 48 ? lipU : lipU2, 0.5) : x < 48 ? lipU : lipU2));
+  if ((full || !m) && expr !== 'smile') for (let x = 48 - Math.min(3, mw - 1); x <= 48 + Math.min(3, mw - 1); x++) if (x !== 48) px(x, MY - 2, x < 48 ? lipU : lipU2);
+  for (let x = L0; x <= L1; x++) px(x, lineY(x), line);
+  const cl = { neutral: [MY - 1, MY - 1], smile: [MY - 2, MY - 2], frown: [MY + 2, MY + 2], smirk: [MY, MY - 2], pursed: [MY, MY] }[expr] ?? [MY - 1, MY - 1];
+  sk(L0 - 1, cl[0], 1); sk(L1 + 1, cl[1], 1);
+  if (expr === 'smile') { sk(L0 - 2, MY - 1, 2); sk(L1 + 2, MY - 1, 2); sk(L0 - 1, MY - 3, 4); }
+  if (expr === 'smirk') { sk(L1 + 2, MY - 1, 2); sk(L1 + 2, MY - 3, 2); }
+  if (expr === 'pursed') { sk(L0 - 1, MY - 2, 2); sk(L1 + 1, MY - 2, 2); sk(L0, MY + 2, 2); sk(L1, MY + 2, 2); }
+  const lw = expr === 'pursed' ? 1 : 2;
+  if (thin) { for (let x = 45; x < 52; x++) px(x, MY + 1, tint(x, MY + 1, mixHex(skin[3], x < 48 ? lipH : lipL, 0.45))); for (let x = 45; x < 52; x++) sk(x, MY + 2, 2); }
   else {
-    for (let x = L0 + 2; x < L1 - 1; x++) px(x, 62, x < 47 ? lipH : lipL);
-    for (let x = L0 + 3; x < L1 - 2; x++) px(x, 63, x < 48 ? lipL : mixHex(lipL, skin[2], 0.5));
-    if (full) for (let x = L0 + 3; x < L1 - 2; x++) px(x, 64, x < 47 ? lipL : mixHex(lipL, skin[2], 0.55));
-    for (let x = 45; x < 52; x++) sk(x, full ? 65 : 64, 2);
+    for (let x = L0 + lw; x <= L1 - lw; x++) px(x, MY + 1, x < 47 ? lipH : lipL);
+    for (let x = L0 + lw + 1; x <= L1 - lw - 1; x++) px(x, MY + 2, x < 48 ? lipL : mixHex(lipL, skin[2], 0.5));
+    if (full) for (let x = L0 + lw + 1; x <= L1 - lw - 1; x++) px(x, MY + 3, x < 47 ? lipL : mixHex(lipL, skin[2], 0.55));
+    for (let x = 45; x < 52; x++) sk(x, full ? MY + 4 : MY + 3, 2);
   }
-  if (F.cleft) { sk(48, 67, 2); sk(48, 68, 2); }
-  sk(45, 67, 4); sk(46, 67, 4); sk(46, 66, 4); // Kinnlicht
+  const chin = Math.round(HY + HRY * (G.p > 2 ? 0.97 : 0.93)) - 2;
+  sk(45, chin, 4); sk(46, chin, 4); sk(46, chin - 1, 4);
+  if (F.cleft) { sk(48, chin, 2); sk(48, chin + 1, 2); }
   // Wangenröte
-  if (!m || old) for (const [x, y] of [[35, 53], [36, 53], [37, 53], [36, 54], [60, 53], [61, 53]]) px(x, y, mixHex(skin[3], '#d05a50', x > 50 ? 0.18 : 0.28));
+  if (!m || old || F.blush) for (const [x, y] of [[35, cy + 3], [36, cy + 3], [37, cy + 3], [36, cy + 4], [60, cy + 3], [61, cy + 3]]) px(x, y, mixHex(skin[3], '#d05a50', x > 50 ? 0.18 : 0.28));
 
-  // Alter: Stirnfalten, Krähenfüße, Tränensäcke, Nasolabial- und Marionettenfalten
+  // Alterszeichen
+  const crow = (k) => { for (const [x, y] of [[lx - 2, EY + 1], [lx - 3, EY], [lx - 2, EY + 3], [lx - 3, EY + 3], [lx - 2, EY + 5], [lx - 3, EY + 6]].slice(0, k)) sk(x, y, 2); for (const [x, y] of [[rx + 10, EY + 1], [rx + 11, EY], [rx + 10, EY + 3], [rx + 11, EY + 3], [rx + 10, EY + 5]].slice(0, k)) sk(x, y, 1); };
+  const fold = (len, dark) => { for (let i = 0; i < len; i++) { const y = t + 4 + i; sk(Math.round(43 - w - i * 0.45), y, dark); if (dark === 2) sk(Math.round(42 - w - i * 0.45), y, 4); sk(Math.round(53 + w + i * 0.45), y, 1); } };
   if (old) {
     for (const [y, x0, x1] of [[29, 38, 46], [29, 50, 57], [32, 40, 56]]) for (let x = x0; x < x1; x++) { sk(x, y, 2); sk(x, y + 1, 4); }
-    for (const [x, y] of [[32, 41], [31, 40], [30, 39], [32, 43], [31, 43], [30, 43], [32, 45], [31, 46], [30, 47]]) sk(x, y, 2);
-    for (const [x, y] of [[64, 41], [65, 40], [64, 43], [65, 43], [64, 45], [65, 46]]) sk(x, y, 1);
-    for (const [x, y] of [[41, 56], [40, 57], [40, 58], [39, 59], [39, 60], [39, 61]]) { sk(x, y, 2); sk(x - 1, y, 4); }
-    for (const [x, y] of [[55, 56], [56, 57], [56, 58], [57, 59], [57, 60], [57, 61]]) sk(x, y, 1);
-    for (const [x, y] of [[41, 63], [41, 64], [42, 65], [55, 63], [55, 64], [54, 65]]) sk(x, y, 2);
-  }
-  // Wetter-gegerbt (Kommandant): Krähenfüße und Kinngrübchen
-  if (stern && !old) { for (const [x, y] of [[32, 41], [32, 44], [64, 41], [64, 44]]) sk(x, y, 2); sk(48, 66, 2); for (const [x, y] of [[41, 57], [40, 58], [40, 59]]) sk(x, y, 2); for (const [x, y] of [[55, 57], [56, 58], [56, 59]]) sk(x, y, 1); }
-  if (has('freckles')) for (const [x, y] of [[38, 51], [41, 50], [43, 52], [54, 51], [57, 50]]) px(x, y, mixHex(skin[3], '#b07850', 0.3));
+    crow(9); fold(Math.max(3, MY - t - 3), 2);
+    for (const [x, y] of [[L0 - 1, MY + 2], [L0 - 1, MY + 3], [L0, MY + 4], [L1 + 1, MY + 2], [L1 + 1, MY + 3], [L1, MY + 4]]) sk(x, y, 2);
+  } else if (age === 'mid') {
+    if (!hood && o.head !== 'hat' && o.head !== 'cap') for (let x = 40; x < 57; x++) { sk(x, 31, 2); sk(x, 32, 4); }
+    crow(3); fold(3, 2);
+  } else if (age === 'weathered') { crow(4); fold(3, 2); }
+  if (expr === 'smile' && !old) { if (age !== 'young') fold(Math.max(2, MY - t - 4), 2); for (const [x, y] of [[36, cy + 2], [37, cy + 2], [59, cy + 2]]) sk(x, y, x < 48 ? 5 : 3); }
+  if (has('freckles')) for (const [x, y] of [[38, cy + 1], [41, cy], [43, cy + 2], [54, cy + 1], [57, cy]]) px(x, y, mixHex(skin[3], '#b07850', 0.3));
   // Narbe: über Braue und Wange der Lichtseite, das Auge bleibt frei
-  if (has('scar')) for (const [x, y] of [[43, 33], [42, 34], [42, 35], [41, 36], [41, 37], [40, 38], [37, 47], [37, 48], [36, 49], [36, 50], [35, 51], [35, 52], [34, 53]]) { px(x, y, '#e2a698'); px(x + 1, y, '#8a3e38'); }
-  if (has('scarCheek')) for (let i = 0; i < 7; i++) { px(36 + i, 50 + i, '#e0a090'); px(37 + i, 50 + i, '#8a3e38'); }
+  if (has('scar')) for (const [x, y] of [[43, 33], [42, 34], [42, 35], [41, 36], [41, 37], [40, 38], [37, 47], [37, 48], [36, 49], [36, 50], [35, 51], [35, 52], [34, 53]]) { px(x - eg, y + (y < 40 ? ey : ey + 1), '#e2a698'); px(x + 1 - eg, y + (y < 40 ? ey : ey + 1), '#8a3e38'); }
+  if (has('scarCheek')) for (let i = 0; i < 7; i++) { px(35 + i, cy + i, '#e0a090'); px(36 + i, cy + i, '#8a3e38'); }
   if (has('soot')) for (const [x, y] of [[36, 55], [37, 55], [38, 56], [58, 37], [59, 37], [42, 27], [43, 27], [44, 28], [60, 58]]) px(x, y, mixHex(skin[2], '#201410', 0.45));
   // Seherin: Stirnzeichen und Linien unter den Augen
   if (glow) {
     const v = '#9a6ad8', vl = '#e0c8ff';
-    for (const [x, y, c] of [[48, 33, vl], [47, 34, v], [49, 34, v], [48, 34, '#ffffff'], [46, 35, v], [50, 35, v], [47, 36, v], [49, 36, v], [48, 37, vl], [48, 35, vl]]) px(x, y, c);
-    for (let i = 0; i < 3; i++) { px(38 - i, 47 + i, mixHex(v, skin[4], 0.15 + i * 0.25)); px(58 + i, 47 + i, mixHex(v, skin[3], 0.15 + i * 0.25)); }
+    for (const [x, y, c] of [[48, 33, vl], [47, 34, v], [49, 34, v], [48, 34, '#ffffff'], [46, 35, v], [50, 35, v], [47, 36, v], [49, 36, v], [48, 37, vl], [48, 35, vl]]) px(x, y + ey, c);
+    for (let i = 0; i < 3; i++) { px(lx + 4 - i, EY + 7 + i, mixHex(v, skin[4], 0.15 + i * 0.25)); px(rx + 4 + i, EY + 7 + i, mixHex(v, skin[3], 0.15 + i * 0.25)); }
   }
 }

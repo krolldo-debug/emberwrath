@@ -562,22 +562,30 @@ function drawSmear(R, L, hx, hy, a0, a1) {
 // Zweihänder: durchscheinender Hiebbogen statt voller Sichel. Je Feinpixel einmal gemischt:
 // heller, dünner Außenrand an der Klingenspitze, nach innen und zum Anfang des Hiebs hin auslaufend.
 function drawGreatSmear(R, w, hx, hy, a0, a1) {
-  // Geschlossenes, durchscheinendes Band, das an der Klingenspitze ansetzt: vorn ~2,5 px breit, zum Schweif hin schmal und blasser.
+  // Geschlossenes, durchscheinendes Band auf der Bahn der Klingenspitze. Breiteste Stelle (~2,6 px) kurz vor der Klinge,
+  // zur Spitze hin wieder schmal: der Bogen läuft tangential in die Spitze aus statt mit dickem Ende einen Haken zu bilden.
   const len = w.len ?? 22, da = a1 - a0;
   if (Math.abs(da) < 0.05) return;
   const c = w.edge ?? w.glow ?? ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8'];
-  const rout = len + 0.6, TAU = Math.PI * 2;
+  const rout = len + 0.5, TAU = Math.PI * 2, PEAK = 0.78;
   R.each(hx - rout - 1, hy - rout - 1, hx + rout + 1, hy + rout + 1, (x, y, F, G) => {
     const dx = x - hx, dy = y - hy, r = Math.hypot(dx, dy);
-    if (r > rout || r < rout - 3.5) return;
+    if (r > rout || r < len * 0.4) return;
     const phi = Math.atan2(dy, dx);
     const delta = da > 0 ? ((phi - a0) % TAU + TAU) % TAU : -(((a0 - phi) % TAU + TAU) % TAU);
     const t = delta / da;
     if (t < 0 || t > 1) return;
-    const thick = 0.45 + 2.3 * Math.pow(t, 1.3), d = rout - r;
-    if (d > thick) return;
-    const k = d / thick, a = 0.25 + 0.5 * t;
-    R.blend(F, G, k < 0.3 ? c[4] ?? c[3] : k < 0.7 ? c[3] : c[2], a * (1 - 0.55 * k));
+    const thick = 0.35 + 2.25 * (t < PEAK ? Math.pow(t / PEAK, 1.3) : Math.pow(1 - (t - PEAK) / (1 - PEAK), 0.8)), d = rout - r;
+    if (d > thick) {
+      // zarter Fächer zwischen Bogen und Klinge im letzten Teil des Hiebs: rundet den Übergang an der Spitze
+      const ft = (t - 0.55) / 0.45, fr = (r - len * 0.4) / (rout - thick - len * 0.4);
+      if (ft > 0) R.blend(F, G, c[3], 0.34 * ft * fr * fr);
+      return;
+    }
+    const k = d / thick;
+    const tip = t > 0.92 ? 0.5 + 0.5 * (1 - t) / 0.08 : 1, tp = Math.min(t, PEAK) / PEAK;
+    if (d < 0.6) R.blend(F, G, c[4] ?? c[3], (0.3 + 0.65 * tp) * tip);                 // heller Außenrand (Spitzenbahn)
+    else R.blend(F, G, k < 0.5 ? c[4] ?? c[3] : c[3], (0.3 + 0.45 * tp) * (1 - 0.5 * k) * tip);
   });
 }
 
@@ -2178,7 +2186,8 @@ function makeFrame(L, pose, post) {
   let G = [];
   drawHero(R, G, L, pose);
   if (post) ({ R, G } = post(R, G));
-  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx));
+  // Durchscheinende Hiebbögen (Zweihänder) behalten ihr Alpha statt als volle Sichel umrandet zu werden
+  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx), { keepAlpha: !!pose.smear && !!L.weapon?.great });
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)

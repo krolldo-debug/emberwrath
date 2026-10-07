@@ -96,18 +96,26 @@ export class Telegraph extends Entity {
   render(ctx, cx, cy) {
     const k = this.#k(), [r, g, b] = this.color;
     const intro = Math.min(1, this.t / 0.12);
-    const rgba = (m, a) => `rgba(${r * m | 0},${g * m | 0},${b * m | 0},${a})`;
+    // Kühle Farben (Wasser, Eis, Gift) wirken auf dunklem Boden heller: Fläche etwas zarter
+    const cool = b > r || g > r ? 0.75 : 1;
+    const rgba = (m, a) => `rgba(${r * m | 0},${g * m | 0},${b * m | 0},${a * cool})`;
     ctx.save();
     ctx.globalAlpha = intro;
-    this.#fill(ctx, cx, cy, 1, rgba(0.4, 0.08), rgba(0.6, 0.24));
-    if (k > 0.02) this.#fill(ctx, cx, cy, this.#fillScale(k), rgba(0.9, 0.1 + 0.12 * k), rgba(1, 0.26 + 0.2 * k));
+    this.#fill(ctx, cx, cy, 1, rgba(0.4, 0.05), rgba(0.6, 0.14));
+    if (k > 0.02) this.#fill(ctx, cx, cy, this.#fillScale(k), rgba(0.9, 0.06 + 0.08 * k), rgba(1, 0.15 + 0.13 * k));
     ctx.restore();
   }
   // Umriss als Pixelpunkte (ganzzahlig, ohne Kantenglättung – passt zum Pixelstil)
   #outline(cx, cy, scale = 1) {
     const ox = this.x - cx, oy = this.y - cy, pts = new Map();
     const put = (x, y) => { const px = Math.round(x), py = Math.round(y); pts.set(px * 4096 + py, [px, py]); };
-    const seg = (x0, y0, x1, y1) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 1.5)); for (let i = 0; i <= n; i++) put(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n); };
+    // Bresenham: genau ein Pixel breite Kanten ohne Doppelpunkte
+    const seg = (x0, y0, x1, y1) => {
+      let x = Math.round(x0), y = Math.round(y0);
+      const X = Math.round(x1), Y = Math.round(y1), dx = Math.abs(X - x), dy = -Math.abs(Y - y), sx = x < X ? 1 : -1, sy = y < Y ? 1 : -1;
+      let err = dx + dy;
+      for (;;) { put(x, y); if (x === X && y === Y) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x += sx; } if (e2 <= dx) { err += dx; y += sy; } }
+    };
     if (this.shape === 'line') {
       const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, hw = this.width / 2, L = this.len * scale;
       const P = (u, v) => [ox + dx * u - dy * v, oy + dy * u + dx * v];
@@ -133,7 +141,7 @@ export class Telegraph extends Entity {
     const lite = (m) => `rgb(${Math.round(r + (255 - r) * m)},${Math.round(g + (255 - g) * m)},${Math.round(b + (255 - b) * m)})`;
     ctx.save();
     // Farbschleier, damit der Farbcode auch auf dunklem Boden erhalten bleibt
-    ctx.globalAlpha = (0.04 + 0.06 * k) * intro;
+    ctx.globalAlpha = (0.03 + 0.04 * k) * intro;
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     this.#path(ctx, cx, cy);
     ctx.fill();
@@ -150,7 +158,7 @@ export class Telegraph extends Entity {
       const pts = this.#outline(cx, cy);
       ctx.globalAlpha = 0.75 * intro; ctx.fillStyle = 'rgb(14,6,10)';
       for (const [x, y] of pts) { ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
-      ctx.globalAlpha = intro; ctx.fillStyle = lite(hot ? 0.85 : 0.45);
+      ctx.globalAlpha = intro; ctx.fillStyle = lite(hot ? 0.7 : 0.4);
       this.#dots(ctx, pts);
       this.#embers(ctx, cx, cy, intro, lite);
     }
@@ -186,10 +194,13 @@ export class Telegraph extends Entity {
     const hw = this.width / 2, gap = Math.max(16, Math.round(this.width * 0.9)), w = Math.max(3, Math.round(Math.min(hw * 0.5, 8))), L = this.len;
     const dx = Math.cos(this.angle), dy = Math.sin(this.angle) * 0.75, ox = this.x - cx, oy = this.y - cy;
     const thick = this.width >= 24;
-    const off = (this.t * 60) % gap;
-    ctx.globalAlpha = (0.4 + 0.45 * k) * intro;
-    ctx.fillStyle = lite(0.3 + 0.4 * k);
+    const off = (this.t * 60) % gap, front = L * k;
     for (let u0 = off + 3; u0 < L - w - 3; u0 += gap) {
+      // Pfeil, den die Schlagkante gerade kreuzt, auslassen (kein abgeschnittener Pfeil)
+      if (front > u0 - 2 && front < u0 + w + 2) continue;
+      const done = u0 + w < front;
+      ctx.globalAlpha = (done ? 0.75 : 0.4) * intro;
+      ctx.fillStyle = lite(done ? 0.6 : 0.3);
       const seen = new Set();
       for (let s = -1; s <= 1; s += 0.08) {
         const v = s * w, u = u0 + w - Math.abs(v);

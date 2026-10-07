@@ -27,10 +27,10 @@ export class SpriteFrame {
 }
 
 // Baut einen Frame über eine Zeichenfunktion und versieht ihn mit Outline.
-export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true } = {}) {
+export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true, keepAlpha = false } = {}) {
   const pc = new PixelCanvas(w, h);
   drawFn(pc);
-  const canvas = outline ? outlineCanvas(pc.canvas) : pc.canvas;
+  const canvas = outline ? outlineCanvas(pc.canvas, undefined, { keepAlpha }) : pc.canvas;
   const pad = outline ? 1 : 0;
   return new SpriteFrame(canvas, anchorX + pad, anchorY + pad);
 }
