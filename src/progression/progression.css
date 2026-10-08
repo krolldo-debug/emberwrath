@@ -274,7 +274,9 @@
 .pg-achs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; }
 .pg-ach { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #2e2032; border-radius: 4px; background: rgba(8, 5, 12, 0.5); }
 .pg-ach.got { border-color: #6a5418; background: linear-gradient(90deg, rgba(60, 40, 10, 0.5), rgba(8, 5, 12, 0.5)); }
-.pg-ach-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #140c1c; border: 1px solid #3a2a3a; filter: grayscale(1) opacity(0.5); }
+.pg-ach-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #1e1426; border: 1px solid #4a3a4c; }
+/* Offene Erfolge: gedimmt, aber mit dunklem Umriss gut erkennbar */
+.pg-ach:not(.got) .pg-ach-icon > * { filter: grayscale(0.85) brightness(1.05) opacity(0.6) drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000); }
 .pg-ach.got .pg-ach-icon { filter: none; border-color: var(--ef-gold); box-shadow: 0 0 8px rgba(232, 194, 90, 0.35); }
 .pg-ach-icon img { image-rendering: pixelated; }
 .pg-ach-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -289,8 +291,21 @@
 .pg-ach-sum { display: flex; align-items: baseline; gap: 4px; }
 .pg-ach-dot { color: var(--ef-muted); margin: 0 6px; }
 .pg-titlesel { display: flex; align-items: center; gap: 8px; }
-.pg-select { font: 14px var(--ef-font); color: var(--ef-text); background: #140c1c; border: 1px solid #4a3450; border-radius: 4px; padding: 4px 8px; min-height: 32px; max-width: 200px; }
+/* Titel-Auswahl im Pixel-Stil: eckiger Rahmen mit hellem Innenrand, Pfeil aus Pixeln */
+.pg-select-wrap { position: relative; display: inline-flex; max-width: 220px; }
+.pg-select-wrap::after { content: ''; position: absolute; right: 10px; top: 50%; width: 2px; height: 2px; margin-top: -2px; background: transparent; pointer-events: none;
+  box-shadow: -4px 0 var(--ef-gold), -2px 0 var(--ef-gold), 0 0 var(--ef-gold), 2px 0 var(--ef-gold), 4px 0 var(--ef-gold), -2px 2px var(--ef-gold), 0 2px var(--ef-gold), 2px 2px var(--ef-gold), 0 4px var(--ef-gold); }
+.pg-select { appearance: none; -webkit-appearance: none; width: 100%; font: 600 14px var(--ef-font); color: var(--ef-gold); background: rgba(40, 22, 30, 0.9);
+  border: 2px solid #1a0e14; border-radius: 0; box-shadow: inset 0 0 0 1px #5a3a44, inset 0 2px 0 rgba(255, 220, 160, 0.08); padding: 4px 30px 4px 10px; min-height: 32px; cursor: pointer;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.pg-select:hover { box-shadow: inset 0 0 0 1px var(--ef-gold), inset 0 2px 0 rgba(255, 220, 160, 0.12); }
 .pg-select:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
+.pg-select option { color: var(--ef-text); background: #1a0f18; }
+/* Fester Kopf über der scrollenden Liste, unten sauber abgeschlossen */
+.pg-ach-top { flex: none; padding: 12px 18px 10px; border-bottom: 1px solid #3a2530; box-shadow: 0 6px 8px -4px rgba(0, 0, 0, 0.7); position: relative; z-index: 1; }
+.pg-ach-top .pg-ach-head { margin-bottom: 6px; }
+.pg-achp { padding-top: 12px; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px); mask-image: linear-gradient(to bottom, transparent 0, #000 16px); }
+.pg-ach-top .pg-achtotal { margin: 0; }
 .pg-achtotal { height: 6px; margin: 2px 0 12px; } .pg-achtotal .pg-bar-text { display: none; }
 .pg-ach-sec { font: 600 12px var(--ef-font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ef-muted); margin: 12px 0 6px; }
 .pg-ach-sec:first-of-type { margin-top: 0; }
@@ -301,7 +316,10 @@
 .pg-ach.mini .pg-ach-icon { width: 28px; height: 28px; }
 .pg-ach.mini .pg-ach-name { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .pg-ach.mini .pg-ach-pts { font-size: 13px; min-width: 24px; }
-@media (max-width: 520px) { .pg-achs.grid { grid-template-columns: minmax(0, 1fr); } .pg-titlesel { width: 100%; } .pg-select { flex: 1; max-width: none; } }
+/* Kleines Titel-Wimpel-Symbol auf erreichten Kacheln mit Titel-Belohnung */
+.pg-ach-tmark { flex: none; width: 10px; height: 14px; background: #a070e0; box-shadow: inset 2px 0 0 #d0b0ff, inset -1px 0 0 #5a2c8a;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); image-rendering: pixelated; }
+@media (max-width: 520px) { .pg-achs.grid { grid-template-columns: minmax(0, 1fr); } .pg-titlesel { width: 100%; } .pg-select-wrap { flex: 1; max-width: none; } .pg-ach-top { padding: 8px 12px; } }
 
 /* Schmied */
 .pg-mini.big { width: 40px; height: 40px; }

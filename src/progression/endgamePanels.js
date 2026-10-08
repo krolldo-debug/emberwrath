@@ -104,18 +104,21 @@ function achievementsView(s) {
     const gotRows = got.map(([id, d]) => h('li.pg-ach.got.mini', { title: d.desc },
       h('span.pg-ach-icon', iconEl(d.icon, 20)),
       h('span.pg-ach-name', d.name),
+      d.title ? h('span.pg-ach-tmark', { title: d.title, 'aria-label': d.title, translate: 'no' }) : null,
       h('span.pg-ach-pts', String(d.points))));
     const titleSel = titles.length ? h('label.pg-titlesel', h('span.ef-note', 'Titel'),
-      h('select.pg-select', { onchange: (e) => commit(s, 'achievement:title', { id: e.target.value || null }) },
+      h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => commit(s, 'achievement:title', { id: e.target.value || null }) },
         h('option', { value: '', selected: !a.title }, 'Kein Titel'),
-        titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title)))) : null;
+        titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null;
     return panelFrame(s, 'achievements', 'Erfolge',
       tabs([['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)], group, (g) => { group = g; redraw(); }),
-      h('div.pg-scroll.pg-keep-scroll.pg-achp',
+      // Kopf bleibt stehen, nur die Liste darunter scrollt
+      h('div.pg-ach-top',
         h('div.pg-ach-head',
           h('div.pg-ach-sum', h('b', `${done} / ${all.length}`), h('span.ef-note', ' Erfolge'), h('span.pg-ach-dot', '·'), h('b', `${points} / ${maxPoints}`), h('span.ef-note', ' Punkte')),
           titleSel),
-        barEl(done / all.length, '', '.pg-achtotal'),
+        barEl(done / all.length, '', '.pg-achtotal')),
+      h('div.pg-scroll.pg-keep-scroll.pg-achp',
         open.length ? h('h3.pg-ach-sec', `Offen (${open.length})`) : null,
         open.length ? h('ul.pg-achs', openRows) : null,
         got.length ? h('h3.pg-ach-sec', `Erreicht (${got.length})`) : null,
