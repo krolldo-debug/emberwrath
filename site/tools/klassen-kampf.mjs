@@ -11,7 +11,7 @@ const [OUT = 'kampf', only, URL = 'http://localhost:8103/index.html'] = process.
 mkdirSync(OUT, { recursive: true });
 const SOV = ['rimeforged_coif', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'sovereign_signet'];
 // Gleicher Rahmen für alle Klassen (links, oben, rechts, unten ab den Füßen), damit das Feld beim Wechsel nicht springt
-const BOX = [40, 66, 88, 14];
+const BOX = [46, 70, 90, 24];
 const FPS = 12, STEPS = 60 / FPS;
 // Drehbuch: [Bild, Aktion]; Aktion = 'attack' (Linksklick) oder skill1..skill4 (Q, R, T, G)
 const CLASSES = {

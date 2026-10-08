@@ -1,6 +1,6 @@
 // Hintergrund „Gewölbe“ für Support und Newsletter: das Titelbild des Spiels (Bögen, Fackeln, Glut) ohne Spieloberfläche.
 // Aufruf: node gewoelbe.mjs OUT.png [Breite Höhe] (1920 × 1080 → 960 × 540, 2560 × 1080 → 1280 × 540);
-// danach verlustfrei als img/gewoelbe.webp bzw. img/gewoelbe-breit.webp speichern. Server :8103 = Ordner emberfall/.
+// danach um 50 % aufgehellt (Pillow ImageEnhance.Brightness 1.5) verlustfrei als img/gewoelbe.webp bzw. img/gewoelbe-breit.webp speichern. Server :8103 = Ordner emberfall/.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const [out, w = 1920, h = 1080] = process.argv.slice(2);
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });

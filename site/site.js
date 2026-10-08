@@ -216,7 +216,7 @@
       const want = parseFloat(getComputedStyle(f).getPropertyValue('--s')) || 4, lay = f.closest('.cls-layout'), cs = lay && getComputedStyle(lay);
       const room = lay ? lay.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 1e4;
       // Streifen in doppelter Detailauflösung: gerade Anzahl Bildpunkte je Weltpixel, damit jeder Bildpunkt gleich groß bleibt
-      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 256)));
+      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 272)));
       if (Math.abs(k / dpr - want) > 0.001) f.style.setProperty('--s', String(k / dpr));
     }
     // Reiter im Lauf: das Fenster zeigt genau einen Frame des Streifens (Breite / Anzahl Frames)
