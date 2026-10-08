@@ -192,7 +192,7 @@ export class Online {
     if (result?.session) {
       if (result.intent === 'reauth') { this.game.scenes.go('login', { mode: 'deleteAccount' }); this.afterSignIn(); return; }
       if (result.intent === 'recovery') { this.game.scenes.go('login', { mode: 'newPassword' }); this.afterSignIn(); return; }
-      this.notice = { kind: 'ok', text: result.intent === 'signup' ? 'E-Mail bestätigt. Willkommen in Emberwrath!' : `Angemeldet als ${this.displayName}.` };
+      if (result.intent === 'signup') this.notice = { kind: 'ok', text: 'E-Mail bestätigt. Willkommen in Emberwrath!' };
       this.game.scenes.go('login', { mode: 'account' });
       this.afterSignIn();
       return;

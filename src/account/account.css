@@ -45,6 +45,12 @@
   background: #1a1024; border: 2px solid var(--ef-panel-edge); border-radius: 2px; cursor: pointer;
 }
 .acc-back:hover, .acc-back:focus-visible { border-color: var(--ef-gold); outline: none; }
+.acc-back.acc-back-text {
+  width: auto; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 10px;
+  font: 600 15px var(--ef-font); letter-spacing: 0.04em; color: #f0e2c4;
+}
+.acc-back-arrow { font: 700 22px/1 var(--ef-font); color: var(--ef-gold); }
+.acc-back.acc-back-text:hover .acc-back-label { color: #fff4e0; }
 .acc-lead { margin: 0; color: #d8ccb4; font-size: 14px; line-height: 1.45; }
 .acc-list { display: flex; flex-direction: column; gap: 8px; }
 .acc-row, .acc-char { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -74,47 +80,42 @@
 .acc-char-name { font-size: 17px; font-family: var(--ef-font-title); color: #fff4e0; }
 
 /* ---------------------------------------------------- Erstellung */
-.ef-panel.acc-panel.acc-create { width: min(1080px, 100%); }
+/* Aufgeräumt: links Volk + Klasse (nur Namen), rechts Bühne mit Name und darunter eine knappe Übersicht.
+   Fähigkeiten als Symbolreihe; nur die gewählte wird beschrieben. */
+.ef-panel.acc-panel.acc-create { width: min(1000px, 100%); overflow: hidden; }
 .acc-create-grid {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto 1fr;
-  grid-template-areas: "choose preview" "choose summary"; column-gap: 18px; row-gap: 10px;
-  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px;
+  display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); grid-template-rows: auto 1fr;
+  grid-template-areas: "choose preview" "choose summary"; column-gap: 22px; row-gap: 14px;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 12px 0;
 }
-.acc-choose { grid-area: choose; }
-.acc-preview { grid-area: preview; }
-.acc-summary { grid-area: summary; }
-.ef-panel.acc-create { overflow: hidden; }
-/* Unten Luft bis zum Rand */
-.acc-create-grid { padding-bottom: 12px; }
-.acc-create-foot { padding-top: 12px; border-top: 1px solid #2e2234; }
-/* Große Bildschirme: Beschreibungen nicht in einen niedrigen Scrollbereich zwängen */
-@media (min-width: 1500px) and (min-height: 900px) { .ef-panel.acc-panel.acc-create { width: min(1280px, 100%); } }
-.acc-create-foot { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
-.acc-create-foot .acc-notice { flex: 1 1 260px; align-items: center; }
-.acc-create-foot .acc-start { flex: 0 1 320px; }
-.acc-h { margin: 0 0 8px; font: 600 13px var(--ef-font); color: var(--ef-gold); letter-spacing: 0.12em; text-transform: uppercase; }
-.acc-h + .acc-options + .acc-h { margin-top: 14px; }
+.acc-choose { grid-area: choose; display: flex; flex-direction: column; gap: 8px; }
+.acc-preview { grid-area: preview; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.acc-summary { grid-area: summary; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* Unten ausblenden, solange der Bereich weiter scrollt (Klasse .more setzt CharacterCreateScene) */
+.acc-create-grid.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent); mask-image: linear-gradient(#000 calc(100% - 36px), transparent); }
+.acc-create-foot { display: flex; justify-content: flex-end; padding-top: 12px; border-top: 1px solid #2e2234; }
+.acc-start { flex: 0 1 320px; min-height: 52px; font-size: 18px; font-family: var(--ef-font-title); }
+
+.acc-h { margin: 0; font: 600 12px var(--ef-font); color: var(--ef-gold); letter-spacing: 0.14em; text-transform: uppercase; }
+.acc-options + .acc-h, .acc-traits + .acc-h { margin-top: 10px; }
 .acc-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .acc-option {
-  display: flex; align-items: center; gap: 8px; min-height: 64px; padding: 4px 10px 4px 2px; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 2px 10px 2px 2px; text-align: left; cursor: pointer;
   color: var(--ef-text); font: inherit; background: #150d1d; border: 2px solid #3a2a3a; border-radius: 2px;
   transition: border-color 0.12s, background 0.12s;
 }
 .acc-option:hover { border-color: #6a4a5a; }
 .acc-option:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
 .acc-option.selected { border-color: var(--ef-gold); background: linear-gradient(180deg, #2a1a2a, #1c1022); box-shadow: 0 0 14px rgba(232, 150, 60, 0.18); }
-.acc-option-art { flex: none; width: 48px; height: 56px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-.acc-option-art canvas { flex: none; }
-.acc-option-art canvas { margin-top: -6px; }
-.acc-option-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.acc-option-text strong { font-size: 15px; display: flex; align-items: center; gap: 6px; }
-.acc-option-text small { font-size: 12px; color: var(--ef-muted); line-height: 1.25; }
+.acc-option-art { flex: none; width: 44px; height: 52px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+.acc-option-art canvas { flex: none; margin-top: -6px; }
+.acc-option-text { min-width: 0; }
+.acc-option-text strong { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .acc-option-icon { display: inline-flex; }
 
-.acc-preview { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .acc-stage {
-  position: relative; display: flex; align-items: flex-end; justify-content: center; min-height: 150px;
-  background: radial-gradient(ellipse at 50% 90%, rgba(255, 130, 50, 0.16), rgba(0, 0, 0, 0) 60%), linear-gradient(180deg, #0c0612, #160c16);
+  position: relative; display: flex; align-items: flex-end; justify-content: center; min-height: 170px; padding-bottom: 42px;
+  background: radial-gradient(ellipse at 50% 80%, rgba(255, 130, 50, 0.16), rgba(0, 0, 0, 0) 60%), linear-gradient(180deg, #0c0612, #160c16);
   border: 1px solid #3a2a3a;
 }
 .acc-preview-canvas { max-width: 100%; height: auto !important; }
@@ -122,41 +123,50 @@
 .acc-swatch { width: 28px; height: 28px; padding: 0; border: 2px solid #3a2a3a; border-radius: 2px; cursor: pointer; }
 .ef-touch .acc-swatch { width: 36px; height: 36px; }
 .acc-swatch.selected { border-color: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710, 0 0 10px rgba(232, 194, 90, 0.4); }
+/* Ausrüstungs-Vorschau als Leiste unten in der Bühne */
+.acc-tiers { position: absolute; left: 6px; right: 6px; bottom: 6px; display: flex; gap: 4px; }
+.acc-tier { flex: 1; min-width: 0; padding: 4px 6px; font-size: 12px; text-align: center; color: #d8d0c0; background: rgba(12, 6, 18, 0.85); border: 1px solid #3a2a3a; border-radius: 2px; cursor: pointer; }
+.acc-tier.r-rare { color: #5aa8ff; } .acc-tier.r-epic { color: #c07aff; } .acc-tier.r-legendary { color: #ff9a2a; }
+.acc-tier.selected { border-color: currentColor; box-shadow: 0 0 8px rgba(255, 255, 255, 0.12); }
+.ef-touch .acc-tier { min-height: 36px; }
 .acc-dice { padding: 6px 12px; }
+.acc-namebox .acc-error:empty { min-height: 0; }
+
+/* Übersicht: Kombination, ein Satz zur Klasse, Fähigkeiten-Symbole, Stärken als Chips */
 .acc-combo { margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 600 18px var(--ef-font-title); color: #fff4e0; }
-.acc-summary { display: flex; flex-direction: column; gap: 10px; }
-.acc-desc h4 { margin: 0 0 4px; font-size: 13px; color: var(--ef-gold); letter-spacing: 0.06em; }
-.acc-desc p { margin: 0 0 6px; font-size: 13px; line-height: 1.4; color: #d8ccb4; }
-.acc-race-info { margin-top: 14px; padding: 10px 12px; background: rgba(10, 6, 14, 0.6); border: 1px solid #2e2234; }
-@media (min-width: 1100px) { .acc-class-info .acc-abilities { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; } }
-/* Unten ausblenden, solange der Bereich weiter scrollt (Klasse .more setzt CharacterCreateScene) */
-.acc-create-grid.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent); mask-image: linear-gradient(#000 calc(100% - 36px), transparent); }
-.acc-traits, .acc-abilities { margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.4; color: #e8dcc4; }
-.acc-traits li, .acc-abilities li { margin-bottom: 3px; }
-.acc-abilities b { color: #ffcf8a; font-weight: 600; }
-.acc-cost { display: block; font-size: 11px; color: var(--ef-muted); }
-.acc-stats { display: grid; gap: 4px; padding: 8px 10px; background: rgba(10, 6, 14, 0.6); border: 1px solid #2e2234; }
-.acc-stat { display: grid; grid-template-columns: 96px 1fr 48px; align-items: center; gap: 8px; font-size: 13px; }
-.acc-stat-label { color: var(--ef-muted); }
-.acc-stat-val { text-align: right; font-variant-numeric: tabular-nums; color: #fff4e0; }
-.acc-bar { height: 6px; background: #1e1426; box-shadow: inset 0 0 0 1px #0b0710; }
-.acc-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #a8642a, var(--ef-gold)); transition: width 0.2s ease-out; }
-.acc-attrs { margin: 4px 0 0; font-size: 12px; color: var(--ef-muted); }
-.acc-start { min-height: 52px; font-size: 18px; font-family: var(--ef-font-title); }
+.acc-class-desc { margin: 0; font-size: 13px; line-height: 1.45; color: #d8ccb4; }
+.acc-skills { display: flex; gap: 6px; flex-wrap: wrap; }
+.acc-skill {
+  position: relative; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; cursor: pointer;
+  background: #150d1d; border: 2px solid #3a2a3a; border-radius: 2px;
+}
+.acc-skill img { display: block; }
+.acc-skill:hover { border-color: #6a4a5a; }
+.acc-skill:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
+.acc-skill.selected { border-color: var(--ef-gold); box-shadow: 0 0 10px rgba(232, 150, 60, 0.25); }
+.acc-skill-key {
+  position: absolute; right: -4px; bottom: -4px; min-width: 16px; padding: 0 3px; font: 700 10px/16px var(--ef-font);
+  color: #1a0e08; background: var(--ef-gold); border-radius: 2px;
+}
+.acc-skill-info { min-height: 64px; padding: 8px 10px; background: rgba(10, 6, 14, 0.6); border: 1px solid #2e2234; }
+.acc-skill-info h4 { margin: 0 0 4px; font-size: 14px; color: #ffcf8a; font-weight: 600; }
+.acc-skill-info p { margin: 0; font-size: 13px; line-height: 1.4; color: #e8dcc4; }
+.acc-skill-info .acc-cost { margin-top: 4px; font-size: 12px; color: var(--ef-muted); }
+.acc-traits { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.acc-traits li { padding: 2px 8px; font-size: 12px; color: #e8dcc4; background: rgba(232, 194, 90, 0.08); border: 1px solid #4a3a3a; border-radius: 2px; }
 
 /* ------------------------------------------------------ Kleine Bildschirme */
 @media (max-width: 860px) and (orientation: portrait), (max-width: 600px) {
   .acc-create-grid { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: "preview" "choose" "summary"; }
-  .acc-stage { min-height: 120px; }
+  .acc-stage { min-height: 150px; }
   .acc-preview-canvas { width: 144px !important; }
-  .acc-create-foot .acc-start { flex: 1 1 100%; order: -1; }
+  .acc-create-foot .acc-start { flex: 1 1 100%; }
 }
 @media (max-width: 560px) {
   .acc-title { place-items: center; padding-left: 12px; }
-  .acc-option { min-height: 56px; gap: 4px; padding-right: 6px; }
+  .acc-option { min-height: 50px; gap: 4px; padding-right: 6px; }
   .acc-option-art { width: 34px; }
   .acc-option-text strong { font-size: 14px; }
-  .acc-option-text small { display: none; }
   .ef-panel.acc-panel { padding: 14px; }
   .acc-row-actions { width: 100%; }
   .acc-row-actions .ef-btn { flex: 1; }
@@ -171,30 +181,13 @@
   .ef-panel.acc-panel { padding: 10px 14px; gap: 8px; max-height: calc(100dvh - 12px); }
   .acc-screen { padding: 6px; }
   .acc-step, .acc-lead { display: none; }
-  .acc-back { width: 40px; height: 40px; }
-  .acc-stage { min-height: 96px; }
-  .acc-preview-canvas { width: 120px !important; }
-  .acc-create-foot .acc-start { min-height: 44px; font-size: 16px; }
-  .acc-create-foot .acc-notice { padding: 4px 10px; font-size: 12px; }
-  .acc-option { min-height: 50px; }
-  .acc-option-text small { display: none; }
+  .acc-back { height: 40px; }
+  .acc-stage { min-height: 120px; }
+  .acc-preview-canvas { width: 112px !important; }
   .acc-create-foot { padding-top: 8px; }
-}
-.acc-abilities { list-style: none; padding-left: 0; }
-.acc-abilities li { display: block; min-height: 30px; padding-left: 36px; position: relative; margin-bottom: 6px; }
-.acc-ability-icon { position: absolute; left: 0; top: 1px; }
-.acc-ability-icon img { display: block; }
-.acc-tiers { position: absolute; left: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }
-.acc-tiers-label { font-size: 11px; color: var(--ef-muted); letter-spacing: 0.04em; }
-.acc-tier { min-width: 74px; padding: 3px 8px; font-size: 12px; text-align: left; color: #d8d0c0; background: rgba(12, 6, 18, 0.8); border: 1px solid #3a2a3a; border-radius: 2px; cursor: pointer; }
-.acc-tier.r-rare { color: #5aa8ff; } .acc-tier.r-epic { color: #c07aff; } .acc-tier.r-legendary { color: #ff9a2a; }
-.acc-tier.selected { border-color: currentColor; box-shadow: 0 0 8px rgba(255, 255, 255, 0.12); }
-.ef-touch .acc-tier { min-height: 36px; }
-@media (max-width: 860px) and (orientation: portrait), (max-height: 500px) and (orientation: landscape), (max-width: 560px) {
-  .acc-tiers { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 6px; left: 6px; right: 6px; }
-  .acc-tiers-label { display: none; }
-  .acc-tier { min-width: 0; flex: 1; text-align: center; }
-  .acc-stage { padding-bottom: 44px; }
+  .acc-create-foot .acc-start { min-height: 44px; font-size: 16px; }
+  .acc-option { min-height: 46px; }
+  .acc-skill-info { min-height: 0; }
 }
 
 /* ---- Talent-Panel (Thread A, Panel 'talents') ---- */
@@ -293,9 +286,4 @@
 /* Online-Konto (src/online) */
 .acc-notice.acc-cloud { border-left-color: #6ac06a; }
 .acc-notice.acc-cloud .acc-notice-icon { background: #6ac06a; color: #0c1a0c; }
-/* Laptop-Höhe (z. B. 1280×720): Werte zweispaltig, damit Klasse und Fähigkeiten weiter oben stehen */
-@media (min-width: 861px) and (max-height: 820px) and (min-height: 501px) {
-  .acc-stats { grid-template-columns: 1fr 1fr; column-gap: 18px; }
-  .acc-stat { grid-template-columns: 84px 1fr 44px; }
-  .acc-attrs { grid-column: 1 / -1; }
-}
+
