@@ -88,7 +88,7 @@ export class World {
 
     // Startpunkt: gespeicherte Position (nur wenn frei) > benannter Spawn > Start
     let s = this.dungeon.spawns[spawnId] ?? this.dungeon.spawns.start ?? this.dungeon.heroStart;
-    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) s = this.dungeon.nearestFree(pos.x, pos.y);
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) s = this.#safeSaved(pos, s);
     this.hero = createHero(session, s.x, s.y);
     this.actors.push(this.hero);
     this.life = new AmbientLife(this);
@@ -125,6 +125,20 @@ export class World {
       if (Math.random() < 0.3) this.decals.splat(x, y, ['#1e0a0e', '#2a0e12', '#35141a'], rand(3, 6));
       else for (let k = 0; k < 3; k++) this.decals.pixel(x + rand(-4, 4), y + rand(-2, 2), pick(['#6e6450', '#a89a7c', '#3b3328']));
     }
+  }
+
+  // Gespeicherte Position nur, wenn sie frei ist und mit dem Startpunkt der Zone verbunden (Kartenumbau, Steckenbleiben).
+  // Sonst der Wegstein der Zone, sonst der Spawn-Punkt.
+  #safeSaved(pos, fallback) {
+    const d = this.dungeon;
+    const home = d.spawns.start ?? d.heroStart ?? fallback;
+    const p = d.nearestFree(pos.x, pos.y);
+    const free = !d.collidesRect(p.x - 5, p.y - 5, p.x + 5, p.y + 2.5);
+    if (free && (!home || d.reachable(p.x, p.y, home.x, home.y))) return p;
+    const stone = d.spawns.waystone;
+    const back = stone && (!home || d.reachable(stone.x, stone.y, home.x, home.y)) ? stone : fallback;
+    console.warn(`Gespeicherte Position (${Math.round(pos.x)}, ${Math.round(pos.y)}) in ${this.zone.id} nicht erreichbar, Held an ${stone && back === stone ? 'den Wegstein' : 'den Startpunkt'} gesetzt`);
+    return back;
   }
 
   // Seltene Weltgegner (C: game.progression.rareSpawns). Ort je Hinweis:
