@@ -25,17 +25,12 @@
 <!--#include header-->
 
 <main id="inhalt" class="support-main">
-  <section class="page-hero">
-    <div class="page-hero-bg"><img style="--fx:0.5;--fy:0.27" class="px shot" src="img/welt-katakomben.webp" alt="" width="960" height="540"></div>
-    <div class="wrap">
-      <h1>Wie können wir helfen?</h1>
-    </div>
-  </section>
-  <div class="wrap">
-
-    <section class="help" id="formular" aria-labelledby="formular-titel">
-      <form class="form ef-frame" data-form="support" novalidate>
-        <h2 id="formular-titel" class="sr-only">Nachricht an den Support</h2>
+  <section class="vault" id="formular" aria-labelledby="formular-titel">
+    <div class="vault-bg"><img class="px shot" src="img/gewoelbe.webp" alt="" width="960" height="540"></div>
+    <canvas class="embers" aria-hidden="true" data-n="50"></canvas>
+    <div class="gp gp-wide">
+      <h1 id="formular-titel" class="gp-title">Wie können wir helfen?</h1>
+      <form class="form" data-form="support" novalidate>
         <fieldset class="seg" data-kind>
           <legend class="sr-only">Worum geht es?</legend>
           <label><input type="radio" name="kind" value="kontakt" checked><span>Frage oder Idee</span></label>
@@ -66,13 +61,15 @@
         <label class="field"><span data-label-message>Nachricht</span><textarea name="message" rows="6" maxlength="5000" required aria-describedby="err-message"></textarea><em class="err" id="err-message" data-err="message">Bitte schreib uns ein paar Worte (mindestens 10 Zeichen).</em></label>
         <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
         <div class="form-foot">
-          <button class="btn primary" type="submit">Absenden</button>
+          <button class="gp-btn" type="submit">Absenden</button>
           <small>Wir nutzen deine Angaben nur für deine Anfrage. Mehr in der <a href="datenschutz#formulare">Datenschutzerklärung</a>.</small>
         </div>
         <p class="form-msg" role="status" aria-live="polite" hidden></p>
       </form>
       <p class="help-mail">Lieber per E&#8209;Mail? <span data-support-email><a href="mailto:support@emberwrath.com?subject=Emberwrath%20Support">support@emberwrath.com</a></span></p>
-    </section>
+    </div>
+  </section>
+  <div class="wrap faq-wrap">
 
     <h2 id="faq">Häufige Fragen</h2>
     <div class="faq prose">

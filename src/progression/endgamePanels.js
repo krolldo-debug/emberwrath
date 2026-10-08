@@ -82,33 +82,48 @@ function achievementsView(s) {
   return (redraw) => {
     const st = s.state, a = st.slices.achievements;
     const all = Object.entries(ACHIEVEMENTS);
+    const done = Object.keys(a.unlocked).length;
     const points = all.reduce((n, [id, d]) => n + (a.unlocked[id] ? d.points : 0), 0);
     const maxPoints = all.reduce((n, [, d]) => n + d.points, 0);
     const titles = all.filter(([id, d]) => d.title && a.unlocked[id]);
-    const rows = all.filter(([, d]) => group === 'all' || d.group === group)
-      .sort(([ia], [ib]) => !!a.unlocked[ib] - !!a.unlocked[ia])
-      .map(([id, d]) => {
-        let v = 0; try { v = d.value(st); } catch { v = 0; }
-        const got = !!a.unlocked[id];
-        return h(`li.pg-ach${got ? '.got' : ''}`,
-          h('span.pg-ach-icon', iconEl(d.icon, 28)),
-          h('div.pg-ach-body',
-            h('div.pg-ach-name', d.name, d.title ? h('span.pg-tag.title', `Titel: ${d.title}`) : null),
-            h('small', d.desc),
-            !got && d.goal > 1 ? barEl(v / d.goal, `${Math.min(v, d.goal).toLocaleString('de-DE')} / ${d.goal.toLocaleString('de-DE')}`, '.pg-achbar') : null),
-          h('span.pg-ach-pts', got ? `✓ ${d.points}` : String(d.points)));
-      });
+    const shown = all.filter(([, d]) => group === 'all' || d.group === group);
+    const progress = (id, d) => { let v = 0; try { v = d.value(st); } catch { v = 0; } return v; };
+    // Offen: nach Fortschritt sortiert (was bald fällig ist, steht oben)
+    const open = shown.filter(([id]) => !a.unlocked[id])
+      .map(([id, d]) => [id, d, progress(id, d)])
+      .sort((x, y) => y[2] / (y[1].goal || 1) - x[2] / (x[1].goal || 1));
+    const got = shown.filter(([id]) => a.unlocked[id]);
+    const openRows = open.map(([id, d, v]) => h('li.pg-ach',
+      h('span.pg-ach-icon', iconEl(d.icon, 24)),
+      h('div.pg-ach-body',
+        h('div.pg-ach-name', d.name, d.title ? h('span.pg-tag.title', 'Titel') : null),
+        h('small', d.desc),
+        d.goal > 1 && v > 0 ? barEl(v / d.goal, `${Math.min(v, d.goal).toLocaleString()} / ${d.goal.toLocaleString()}`, '.pg-achbar') : null),
+      h('span.pg-ach-pts', String(d.points))));
+    // Erreicht: kompakte Kacheln, Beschreibung als Hinweis beim Darüberfahren
+    const gotRows = got.map(([id, d]) => h('li.pg-ach.got.mini', { title: d.desc },
+      h('span.pg-ach-icon', iconEl(d.icon, 20)),
+      h('span.pg-ach-name', d.name),
+      d.title ? h('span.pg-ach-tmark', { title: d.title, 'aria-label': d.title, translate: 'no' }) : null,
+      h('span.pg-ach-pts', String(d.points))));
+    const titleSel = titles.length ? h('label.pg-titlesel', h('span.ef-note', 'Titel'),
+      h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => commit(s, 'achievement:title', { id: e.target.value || null }) },
+        h('option', { value: '', selected: !a.title }, 'Kein Titel'),
+        titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null;
     return panelFrame(s, 'achievements', 'Erfolge',
       tabs([['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)], group, (g) => { group = g; redraw(); }),
-      h('div.pg-scroll.pg-keep-scroll.pg-achp',
+      // Kopf bleibt stehen, nur die Liste darunter scrollt
+      h('div.pg-ach-top',
         h('div.pg-ach-head',
-          h('div', h('b', `${Object.keys(a.unlocked).length} / ${all.length}`), h('span.ef-note', ' Erfolge')),
-          h('div', h('b', `${points} / ${maxPoints}`), h('span.ef-note', ' Punkte'))),
-        titles.length ? h('div.pg-titles', h('span.ef-note', 'Titel:'),
-          h(`button.pg-chip${!a.title ? '.on' : ''}`, { type: 'button', onclick: () => commit(s, 'achievement:title', { id: null }) }, 'keiner'),
-          titles.map(([id, d]) => h(`button.pg-chip${a.title === id ? '.on' : ''}`, { type: 'button', onclick: () => commit(s, 'achievement:title', { id }) }, d.title)))
-          : h('p.ef-note', 'Manche Erfolge schalten einen Titel frei, der unter deinem Namen steht.'),
-        h('ul.pg-achs', rows)));
+          h('div.pg-ach-sum', h('b', `${done} / ${all.length}`), h('span.ef-note', ' Erfolge'), h('span.pg-ach-dot', '·'), h('b', `${points} / ${maxPoints}`), h('span.ef-note', ' Punkte')),
+          titleSel),
+        barEl(done / all.length, '', '.pg-achtotal')),
+      h('div.pg-scroll.pg-keep-scroll.pg-achp',
+        open.length ? h('h3.pg-ach-sec', `Offen (${open.length})`) : null,
+        open.length ? h('ul.pg-achs', openRows) : null,
+        got.length ? h('h3.pg-ach-sec', `Erreicht (${got.length})`) : null,
+        got.length ? h('ul.pg-achs.grid', gotRows) : null,
+        !open.length && !got.length ? h('p.ef-note', 'Hier gibt es noch keine Erfolge.') : null));
   };
 }
 

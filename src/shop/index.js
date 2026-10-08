@@ -257,11 +257,17 @@ function shopPanel(session, game, shop) {
   let error = null;
   const previews = new Map(); // designId → Vorschau mit dem eigenen Helden auf dem Reittier
 
+  let nudge = false; // Kauf ohne Häkchen versucht → Hinweis hervorheben
+
   const buyButton = (id, label) => h('button.ef-btn.primary.sh-buy', {
     type: 'button',
-    disabled: !(shop.canBuy && !busy) || !waiver,
-    title: !waiver ? 'Bitte zuerst den Hinweis unten bestätigen' : null,
+    disabled: !(shop.canBuy && !busy),
     onclick: async () => {
+      if (!waiver) {
+        nudge = true; draw();
+        root.querySelector('.sh-waiver')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return;
+      }
       busy = id; error = null; draw();
       try { await shop.checkout(id); } catch (e) { busy = null; error = e.message; draw(); }
     },
@@ -282,8 +288,8 @@ function shopPanel(session, game, shop) {
     if (!st) notice = h('p.sh-notice', 'Der Shop lädt …');
     else if (!game.online?.user) notice = h('p.sh-notice', 'Melde dich mit deinem Konto an, um im Shop zu kaufen.');
     else if (!st.enabled && shop.admin) notice = h('p.sh-notice.sh-admin', st.configured
-      ? 'Admin-Vorschau: Für Spieler ist der Shop noch geschlossen. Käufe gehen nur mit deinem Admin-Konto.'
-      : 'Admin-Vorschau: Zahlungen sind noch nicht eingerichtet (Stripe-Schlüssel fehlen, siehe docs/SHOP.md).');
+      ? 'Admin-Vorschau: Für Spieler noch geschlossen.'
+      : 'Admin-Vorschau: Stripe ist noch nicht eingerichtet.');
     else if (!st.enabled) notice = h('p.sh-notice', 'Der Shop öffnet in Kürze.');
 
     const designs = DESIGNS.map((d) => {
@@ -292,7 +298,6 @@ function shopPanel(session, game, shop) {
         d.tag ? h('span.sh-tag', d.tag) : null,
         h('div.sh-stage', preview(d)),
         h('div.sh-dname', d.name),
-        h('p.sh-ddesc', d.desc),
         owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, `Kaufen · ${formatPrice(d.priceCents)}`));
     });
 
@@ -308,20 +313,20 @@ function shopPanel(session, game, shop) {
     return panelFrame(session, 'goldshop', 'Shop', h('div.pg-scroll.sh-body',
       h('div.sh-balance', h('span', 'Dein Gold'), goldEl(gold)),
       notice,
-      h('label.sh-waiver',
-        h('input', { type: 'checkbox', checked: waiver, onchange: (e) => { waiver = e.target.checked; draw(); } }),
-        h('span', WAIVER_TEXT),
-      ),
-      h('p.sh-terms', h('a', { href: TERMS_PATH, target: '_blank', rel: 'noopener' }, 'Es gelten die Kaufbedingungen mit Widerrufsbelehrung.')),
-      h('p.sh-minor', MINOR_NOTE),
       h('h3.sh-head', 'Exklusive Designs'),
-      h('p.sh-sub', 'Nur hier erhältlich, nicht im Spiel zu finden. Gilt für alle Charaktere deines Kontos, jeweils mit passender Färbung für Umhang und Stoffrüstung.'),
+      h('p.sh-sub', 'Reittier mit Färbung, für alle deine Charaktere.'),
       h('div.sh-designs', designs),
       h('h3.sh-head', 'Gold'),
+      h('p.sh-sub', `Für ${charName}.`),
       h('div.sh-grid', cards),
       error ? h('p.sh-error', { role: 'alert' }, error) : null,
+      h(`label.sh-waiver${nudge && !waiver ? '.nudge' : ''}`,
+        h('input', { type: 'checkbox', checked: waiver, onchange: (e) => { waiver = e.target.checked; nudge = false; draw(); } }),
+        h('span', WAIVER_TEXT),
+      ),
       h('p.ef-note.sh-legal',
-        `Gold geht an ${charName}.`, ' ', PRICE_NOTE, ' ', 'Bezahlung sicher über Stripe.', ' ',
+        h('a', { href: TERMS_PATH, target: '_blank', rel: 'noopener' }, 'Kaufbedingungen'), ' · ',
+        MINOR_NOTE, ' · ', PRICE_NOTE, ' · ',
         h('a', { href: '/impressum', target: '_blank', rel: 'noopener' }, 'Impressum'), ' · ',
         h('a', { href: '/support', target: '_blank', rel: 'noopener' }, 'Hilfe zu Käufen'),
       ),
