@@ -3872,5 +3872,10 @@ export const EN = {
   "Zwischen uns und dem Thron steht der Glutkoloss. Er bewacht das Tor, seit ich hier bin. Keiner von uns ist ihm nahe gekommen und hat es überlebt. Du wirst der Erste sein. Bring mir seinen Kern, dann marschieren wir.": "Between us and the Throne stands the Ember Colossus. It's guarded the gate since I came here. None of us has come near it and lived. You'll be the first. Bring me its core, and then we march.",
   "Zwölf Feinde im Aschenwald. Egal welche.": "Twelve enemies in the Ashwood. Any kind.",
   "Zwölf. Ich werde ihre Namen nicht aussprechen. Aber ich werde sie nie vergessen. Danke.": "Twelve. I won't speak their names. But I'll never forget them. Thank you.",
+  "{0} (Taste {1})": "{0} ({1} key)",
+  "Stärken: {0}": "Strengths: {0}",
+  "So kann dein Held mit besserer Beute aussehen": "How your hero can look with better loot",
+  "Neuer Charakter mit mehr als dem Startpaket": "New character with more than the starter kit",
+  "Zurückgebuchtes Gold nicht abgezogen": "Refunded gold not deducted",
   "Zyklon": "Cyclone"
 };
