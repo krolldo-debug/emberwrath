@@ -4,7 +4,7 @@ import { computeStats } from './stats.js';
 import { DEFAULT_RACE } from './races.js';
 import { DEFAULT_CLASS } from './classes.js';
 import { getHeroSprites, heroRes } from '../sprites/hero.js';
-import { resolveGear, gearKey } from './gearLook.js';
+import { resolveGear, gearKey, shownEquipment } from './gearLook.js';
 import { PASSIVES, TALENT_TIERS } from './talents.js';
 import { spriteStyle } from './cosmetics.js';
 
@@ -22,7 +22,7 @@ export function createHero(session, x, y) {
   const ch = state.slices.character ?? {};
   const cls = content.find('class', ch.classId) ?? content.get('class', DEFAULT_CLASS);
   const raceId = content.find('race', ch.raceId) ? ch.raceId : DEFAULT_RACE;
-  const gear = resolveGear(state.slices.inventory?.equipment, content);
+  const gear = resolveGear(shownEquipment(state.slices, content), content);
   const anims = getHeroSprites(raceId, cls.id, ch.appearance?.variant ?? 0, gear, spriteStyle(ch.appearance));
   const abilities = cls.abilities.map((id) => content.get('ability', id));
   const hero = new Hero(x, y, { anims, cls, stats: computeStats(state, content), abilities });
@@ -44,7 +44,7 @@ export function snapshotLook(session, hero) {
   return {
     raceId: hero?.raceId ?? ch.raceId, classId: hero?.classId ?? ch.classId,
     appearance: { ...(ch.appearance ?? {}) },
-    gear: structuredClone(resolveGear(s.inventory?.equipment, session.content) ?? null),
+    gear: structuredClone(resolveGear(shownEquipment(s, session.content), session.content) ?? null),
     mountId: m.active ?? null, riding: !!(m.riding && m.active),
   };
 }
@@ -53,7 +53,7 @@ export function snapshotLook(session, hero) {
 const lookKey = (gear, a) => `${heroRes()}|${gearKey(gear)}|${a?.variant ?? 0}|${a?.dye ?? ''}|${a?.hairStyle ?? ''}`;
 function refreshLook(session, h) {
   const { state, content } = session;
-  const gear = resolveGear(state.slices.inventory?.equipment, content);
+  const gear = resolveGear(shownEquipment(state.slices, content), content);
   const ch = state.slices.character ?? {};
   const key = lookKey(gear, ch.appearance);
   if (key === h.gearKey) return;

@@ -18,6 +18,7 @@ export const EV = Object.freeze({
   ACCOUNT_LOGIN: 'account:login',        // { accountId, name }
   ACCOUNT_LOGOUT: 'account:logout',      // {}
   CHARACTER_CREATED: 'character:created',// { characterId, name, raceId, classId }
+  WARDROBE_UNLOCKED: 'wardrobe:unlocked', // { itemIds }  (neue Aussehen für die Garderobe, character/wardrobe.js)
 
   // Welt (B)
   ZONE_ENTER: 'zone:enter',              // { zoneId, instanceId, spawnId }
@@ -28,6 +29,9 @@ export const EV = Object.freeze({
   ENEMY_KILLED: 'enemy:killed',          // { enemyId, type, level, x, y, zoneId, isBoss, xp }
   BOSS_ENGAGED: 'boss:engaged',          // { bossId }
   BOSS_DEFEATED: 'boss:defeated',        // { bossId, x, y }
+  TRAVEL_OPEN: 'travel:open',            // Teleporter-Fenster öffnen (erkundete Städte, Welt B)
+  TRAVEL_GO: 'travel:go',                // Teleport zu einer erkundeten Stadt (Welt B)
+  BOARD_OPEN: 'board:open',              // Auftragsbrett öffnen (Welt B)
   OBJECT_INTERACT: 'object:interact',    // { objectId, kind, x, y }  (Truhen, Hebel …)
   PLAYER_DIED: 'player:died',            // { zoneId }
   PLAYER_RESPAWNED: 'player:respawned',  // { zoneId, spawnId }

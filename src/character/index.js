@@ -5,11 +5,13 @@ import { registerTalentPanel } from './TalentPanel.js';
 import { cleanAppearance, restylePrice, DYES, ownsDesign, sameLook } from './cosmetics.js';
 import { registerAppearancePanel } from './AppearancePanel.js';
 import { installMounts, cleanMounts } from './mounts.js';
+import { installWardrobe, cleanWardrobe, hasLook } from './wardrobe.js';
 
 // Thread A – Charakter: Völker, Klassen, Fähigkeiten, character-Slice.
 // Inhalte:  content 'race' (4), 'class' (4), 'ability' (8)
 // Slice:    character = { name, raceId, classId, appearance: { variant, dye, hairStyle }, talents: { talentId: rang },
-//                        mounts: { owned, active, riding } }  (Reittiere: mounts.js, §12.6)
+//                        mounts: { owned, active, riding },  (Reittiere: mounts.js, §12.6)
+//                        wardrobe: { looks, shown } }        (Garderobe: wardrobe.js)
 // Commands: character:rename { name }  (Name prüfen wie in der Erstellung)
 //           character:learnTalent { id }, character:resetTalents (kostenlos)
 //           character:restyle { variant?, dye?, hairStyle? } (kostet Gold über wallet:addGold)
@@ -36,6 +38,7 @@ export function installCharacter(game) {
   content.defineAll('class', CLASSES);
   content.defineAll('ability', ABILITIES);
   installMounts(game);
+  installWardrobe(game);
 
   const valid = (c) => ({
     // Die Erstellung prüft den Namen streng (validateName); hier wird nur bereinigt.
@@ -47,6 +50,8 @@ export function installCharacter(game) {
     talents: cleanTalents(content.find('class', c.classId) ? c.classId : DEFAULT_CLASS, c.talents ?? {}, TALENT_LEVEL_MAX),
     // Reittiere (§12.6): alte Spielstände ohne mounts -> leer
     mounts: cleanMounts(c.mounts, (id) => !!content.find('mount', id)),
+    // Garderobe: gesammelte Aussehen; Gegenstände definiert C erst nach A, darum Prüfung erst beim Laden
+    wardrobe: cleanWardrobe(c.wardrobe, (id) => !content.kinds.has('item') || hasLook(content.find('item', id))),
   });
 
   // Slice 'character' – Identität des Charakters (gespeichert).
