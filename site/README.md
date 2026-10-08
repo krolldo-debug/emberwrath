@@ -31,6 +31,12 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   vor (×2; Titelbild ab 1200 px ×4, ab 2000 px ×5, ab 2400 px ×6; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Titel und Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
   `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
 - `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*` und `item-*` mit `tools/render40.mjs`.
+- `kampf-<klasse>.png`: kurze Kampfszene je Klasse (Klassenbereich der Startseite), Streifen aus 128 × 80 Weltpixeln je Bild in
+  doppelter Detailauflösung, 12 Bilder pro Sekunde (`tools/klassen-kampf.mjs`, echte Spiellogik, Gegner wird nicht verletzt). Läuft beim
+  Wechsel der Klasse und beim ersten Hineinscrollen einmal ab und bleibt auf dem letzten Bild stehen (`.fight`, `playFight` in site.js).
+- `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
+  `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
+- `gewoelbe.webp`, `gewoelbe-breit.webp`: Titelbild des Spiels als Hintergrund für Support und Newsletter (`tools/gewoelbe.mjs`).
 - `ritt-*-lauf.png`: Reiter im Lauf, alle Frames von `rideRun` nebeneinander (`tools/ritte.mjs site/img`). Die Seite zeigt je einen Frame
   und blättert mit CSS `steps()` im Takt des Spiels (`--n` Frames, `--t` Dauer, `--fw` Fensterbreite in index.html, Werte gibt das Skript aus).
   Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×5, Bosse ×2 bzw. Ulgrim und Malgareth ×3, Reiter ×4, Völker ×3, Symbole ×2).
@@ -47,6 +53,8 @@ node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.w
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/ritte.mjs site/img                   # Reiter im Lauf (Bildstreifen, Maße in der Ausgabe)
+node site/tools/klassen-kampf.mjs site/img          # Kampfszenen der Klassen (kampf-<klasse>.png, Bildzahl in kampf.json → --n in index.html)
+node site/tools/welt.mjs wl leben-quest,leben-handel # Szenen auf /welt
 ```
 
 Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,
