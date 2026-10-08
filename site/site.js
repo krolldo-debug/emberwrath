@@ -88,8 +88,24 @@
     const io = new IntersectionObserver((list) => {
       for (const e of list) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
     }, { rootMargin: '0px 0px -8% 0px' });
-    $$('.reveal').forEach((el) => io.observe(el));
-  } else $$('.reveal').forEach((el) => el.classList.add('in'));
+    $$('.reveal, .talk').forEach((el) => io.observe(el));
+  } else $$('.reveal, .talk').forEach((el) => el.classList.add('in'));
+
+  // ---------- Kampfszene der Klasse einmal abspielen (beim Wechsel und wenn der Bereich ins Bild kommt)
+  const playFight = (panel) => {
+    const f = panel?.querySelector('.fight');
+    if (!f || reduced) return;
+    f.classList.remove('play'); void f.offsetWidth; f.classList.add('play');
+  };
+  const clsSec = document.querySelector('.classes');
+  if (clsSec && 'IntersectionObserver' in window) {
+    const io2 = new IntersectionObserver((es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      io2.disconnect();
+      playFight(clsSec.querySelector('.cls-panel:not([hidden])'));
+    }, { threshold: 0.45 });
+    io2.observe(clsSec);
+  }
 
   // ---------- Klassen: Reiter wechseln das Porträt (Pfeiltasten wie bei Tabs üblich)
   const tabs = $$('.cls-tabs [role="tab"]');
@@ -103,6 +119,7 @@
     document.querySelector('.classes')?.style.setProperty('--res', tab.style.getPropertyValue('--res'));
     if (focus) tab.focus();
     dispatchEvent(new Event('resize'));   // neu sichtbare Figur pixelgenau runden
+    playFight(document.getElementById(tab.getAttribute('aria-controls')));
   };
   tabs.forEach((t, i) => {
     t.tabIndex = i === 0 ? 0 : -1;
@@ -193,6 +210,15 @@
       img.style.width = `${(img.naturalWidth * n) / dpr}px`;
       img.style.height = `${(img.naturalHeight * n) / dpr}px`;
     }
+    // Kampfszenen: größter ganzzahliger Bildschirmpunkt-Faktor, der in die Spalte passt, höchstens der CSS-Wert
+    for (const f of $$('.fight')) {
+      f.style.removeProperty('--s');
+      const want = parseFloat(getComputedStyle(f).getPropertyValue('--s')) || 4, lay = f.closest('.cls-layout'), cs = lay && getComputedStyle(lay);
+      const room = lay ? lay.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 1e4;
+      // Streifen in doppelter Detailauflösung: gerade Anzahl Bildpunkte je Weltpixel, damit jeder Bildpunkt gleich groß bleibt
+      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 256)));
+      if (Math.abs(k / dpr - want) > 0.001) f.style.setProperty('--s', String(k / dpr));
+    }
     // Reiter im Lauf: das Fenster zeigt genau einen Frame des Streifens (Breite / Anzahl Frames)
     for (const box of $$('.rider')) {
       const img = box.querySelector('img'), n = parseFloat(getComputedStyle(box).getPropertyValue('--n')) || 1;
@@ -214,7 +240,9 @@
     const resize = () => { W = cv.width = Math.ceil(cv.clientWidth / P); H = cv.height = Math.ceil(cv.clientHeight / P); };
     const spawn = (y = H + 2) => ({ x: Math.random() * W, y, vy: 6 + Math.random() * 14, drift: (Math.random() - 0.5) * 6, life: 0, max: 4 + Math.random() * 7, phase: Math.random() * 6.28 });
     resize();
-    addEventListener('resize', resize);
+    // auch wenn der Bereich erst später sichtbar wird (Newsletter nach der Statusabfrage)
+    if ('ResizeObserver' in window) new ResizeObserver(() => { const was = H; resize(); if (!was && H) sparks = sparks.map(() => spawn(Math.random() * H)); }).observe(cv);
+    else addEventListener('resize', resize);
     sparks = Array.from({ length: Number(cv.dataset.n) || 70 }, () => spawn(Math.random() * H));
     const COLORS = ['#fff2b0', '#ffd46a', '#ffa030', '#ef6a1c', '#b02e10'];
     new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running) requestAnimationFrame(tick); }).observe(cv);

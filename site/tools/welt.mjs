@@ -40,6 +40,12 @@ export const SCENES = [
   W('welt-reifhoehlen', { cls: 'ranger', zone: 'rime_caverns', target: 'boss', hero: [-66, 16], foes: [], keys: [['r', 1500]], cam: [-24, -14] }),
   W('welt-gluetoede', { cls: 'mage', zone: 'ember_wastes', target: 'type:cinder_knight', pos: [1250, 690], hero: [-50, 6], foes: [[-104, 14], [26, 28]], keys: [['t', 1300]], cam: [-30, -16] }),
   W('welt-aschethron', { cls: 'warrior', zone: 'ashen_throne', target: 'boss', hero: [-52, 14], foes: [], keys: [['q', 1500]], cam: [-22, -28], floorPatch: 'biome_throne', amb: 1.7, light: [[-52, 4, 70, [255, 200, 160], 0.55], [-10, -40, 90, [255, 140, 80], 0.35]], grade: 'brightness(1.45) contrast(1.1) saturate(1.05)' }),
+  // Leben in der Welt (ohne Kampf): Quest, Schmied, Händler, Reiten, Gruppe in der Stadt
+  W('leben-quest', { cls: 'warrior', g20: true, zone: 'emberhollow', target: 'npc:elder_maren', hero: [34, 10], face: -1, foes: [], click: false, keys: [], cam: [18, -14], density: 0.6 }),
+  W('leben-schmied', { cls: 'mage', zone: 'emberhollow', target: 'npc:smith_brom', hero: [-34, 8], foes: [], click: false, keys: [], cam: [-16, -14], density: 0.6 }),
+  W('leben-handel', { cls: 'rogue', zone: 'ashen_steppe', target: 'npc:trader_imra', hero: [-30, 6], foes: [], click: false, keys: [], cam: [-10, -30], density: 0.6, amb: 1.5, light: [[-16, -6, 70, [255, 200, 150], 0.4]] }),
+  W('leben-ritt', { cls: 'warrior', zone: 'frostspire', target: 'pos', pos: [760, 560], hero: [0, 0], face: 1, mount: 'rime_drake', hold: 'KeyD', foes: [], click: false, keys: [], cam: [-20, -20], density: 0.6 }),
+  W('leben-gruppe', { cls: 'warrior', zone: 'frostspire', target: 'npc:jarl_eskil', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-30, 26], comps: [[-68, 12, 1], [-56, 40, 1]], foes: [], click: false, keys: [], cam: [-22, -6], density: 0.6 }),
 ];
 const env = (k, d) => (process.env[k] ? JSON.parse(process.env[k]) : d);
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -52,6 +58,8 @@ const run = async (sc0) => {
   p.on('pageerror', (e) => console.log('ERR', sc.id, e.message));
   await p.goto(URL);
   await p.waitForFunction(() => window.emberfall?.scenes.currentId === 'title', null, { timeout: 90000 });
+  // Volle Bildqualität erzwingen: „Auto“ senkt sie im Headless-Browser sonst auf 480 × 270
+  await p.evaluate(() => { window.emberfall.prefs.set('quality', 'high'); window.dispatchEvent(new Event('resize')); });
   await p.evaluate(async (sc) => {
     const g = window.emberfall;
     g.prefs.set('muted', true); g.prefs.set('guidePath', false);
@@ -74,8 +82,29 @@ const run = async (sc0) => {
       const fl = g.assets.sprites[sc.floorPatch].floor, m = fl[8]?.canvas ?? fl[8], z = fl[0]?.canvas ?? fl[0];
       if (m && z) { const x = m.getContext('2d'); x.clearRect(0, 0, m.width, m.height); x.drawImage(z, 0, 0); }
     }
-    g.scenes.current.travel(sc.zone, 'start'); await wait(2500);
+    if (sc.party) {
+      // Mitspieler (Söldner-Gruppe der Dungeonsuche) als Begleiter, Ausrüstung wie bei keyart.mjs
+      const members = [{ kind: 'player', role: 'tank', classId: sc.cls, raceId: sc.race, level: 40, name: 'Zolva' }];
+      sc.party.forEach(([cls, role, race], i) => members.push({ kind: 'merc', id: 'm' + i, name: 'x' + i, level: 40, role, classId: cls, raceId: race, look: { variant: i, hairStyle: null, dye: null }, gearSeed: 7 + i * 13, style: { reaction: 0.2, skill: 0.9, chatty: 0, caps: 0, lang: 'de' } }));
+      g.finder.group = { id: 'g1', dungeonId: sc.zone, members };
+      g.finder.state = 'active';
+    }
+    if (sc.mount) { g.state.commit('mount:learn', { mountId: sc.mount, shop: true }); g.state.commit('mount:select', { mountId: sc.mount }); }
+    g.scenes.current.travel(sc.zone, sc.spawn ?? 'start'); await wait(2500);
     const w0 = g.scenes.current.world;
+    if (sc.party) {
+      const [{ getHeroSprites }, { resolveGear }, { spriteStyle }] = await Promise.all([import('/src/sprites/hero.js'), import('/src/character/gearLook.js'), import('/src/character/cosmetics.js')]);
+      const CG = { ranger: ['jarl_cap', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots', 'dawnstring'], mage: ['colossus_robe', 'colossus_gloves', 'colossus_slippers', 'staff_of_last_ash'], rogue: ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'] };
+      for (const c of w0.actors.filter((a) => a.companion)) {
+        const cls = c.member?.classId ?? c.cls?.id, ids = CG[cls]; if (!ids) continue;
+        const eq = {}; for (const id of ids) { const d = g.content.get('item', id); if (d?.slot) eq[d.slot] = id; }
+        const gear = resolveGear(eq, g.content), look = c.member?.look ?? {};
+        c.equipment = eq;
+        c.refreshLook = () => c.setAnims(getHeroSprites(c.raceId, cls, look.variant ?? 0, gear, spriteStyle(look)));
+        c.refreshLook();
+      }
+      const party = g.finder?.session?.party; if (party) party.draw = () => {};
+    }
     if (sc.density != null) w0.particles.density = sc.density;
     if (sc.amb) w0.lighting.ambient = w0.lighting.ambient.map((v) => v * sc.amb);
     // kein Blut am Boden, wenig Blutspritzer
@@ -95,6 +124,8 @@ const run = async (sc0) => {
     const near = (e, r) => alive.filter((o) => Math.hypot(o.x - e.x, o.y - e.y) < r).length;
     let t;
     if (sc.target === 'boss') t = w.boss;
+    else if (sc.target === 'pos') t = { x: 0, y: 0 };
+    else if (sc.target.startsWith('npc:')) t = [...w.actors, ...w.entities].find((a) => a.constructor.name === 'Npc' && (a.npcId ?? a.id) === sc.target.slice(4));
     else if (sc.target.startsWith('rare:')) t = alive.find((e) => e.rareName === sc.target.slice(5));
     else {
       const type = sc.target.slice(5);
@@ -106,7 +137,9 @@ const run = async (sc0) => {
     const ft = sc.foeType ?? t.type;
     const foes = alive.filter((e) => e !== t && e.type === ft && !e.rareId && !e.def?.elite).sort((a, b2) => Math.hypot(a.x - T.x, a.y - T.y) - Math.hypot(b2.x - T.x, b2.y - T.y)).slice(0, sc.foes.length);
     window.__foes = foes;
-    const keep = new Set([t, ...foes]), far = new Map();
+    const keep = new Set([t, ...foes]), far = new Map(), comps = w.actors.filter((a) => a.companion);
+    // Aufsitzen ohne Reitstunde (q_first_ride): Zustand direkt setzen, der Held übernimmt ihn im nächsten Schritt
+    if (sc.mount) g.state.slices.character.mounts.riding = true;
     const set = () => {
       // keine Toten (keine Leichen/Beute), andere Gegner aus dem Bild halten
       for (const e of w.enemies) {
@@ -121,7 +154,8 @@ const run = async (sc0) => {
       h.x = T.x + sc.hero[0]; h.y = T.y + sc.hero[1];
       foes.forEach((f, i) => { f.x = T.x + sc.foes[i][0]; f.y = T.y + sc.foes[i][1]; });
       for (const e of [t, ...foes]) if (e.facing !== undefined) e.facing = Math.sign(h.x - e.x) || -1;
-      h.facing = Math.sign(T.x - h.x) || 1;
+      h.facing = sc.face ?? (Math.sign(T.x - h.x) || 1);
+      comps.forEach((c, i) => { if (!sc.comps?.[i]) return; c.x = T.x + sc.comps[i][0]; c.y = T.y + sc.comps[i][1]; if (sc.comps[i][2]) c.facing = sc.comps[i][2]; });
     };
     set(); setInterval(set, 8);
     const L = w.lights[0]?.constructor;
@@ -140,6 +174,7 @@ const run = async (sc0) => {
     });
     await p.mouse.move(pt.x, pt.y);
   };
+  if (sc.hold) await p.keyboard.down(sc.hold);
   let ki = 0, tk = 0;
   for (let i = 0; i < sc.frames; i++) {
     await aim();
