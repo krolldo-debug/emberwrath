@@ -53,6 +53,9 @@ Bilder für die Website: `site/tools/render-shop.mjs` (Bildstreifen der Laufanim
    bezahlte Design-Bestellungen (`shop_designs()`), das Spiel trägt sie in den Spielstand ein (Slice `shop.owned`, Command
    `shop:designs`). Zweimal kaufen geht nicht (409 `owned`). Neue Designs: Eintrag in `DESIGNS`, Reittier/Färbung mit
    `exclusive: true`, Schlüssel in `public.shop_exclusive_items` eintragen.
+   **Geschenkte Designs** (z. B. für das Admin-Konto) stehen in `public.shop_grants` und zählen wie gekaufte
+   (`shop_owned_items()`); Vorlage `supabase/admin/shop-designs-schenken.sql`. Eintrag löschen nimmt sie beim nächsten
+   Spielstart wieder weg.
 
 Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (mit Abzug `revoked_at` und Kaufsperre).
 

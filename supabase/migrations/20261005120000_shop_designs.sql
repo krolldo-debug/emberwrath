@@ -116,12 +116,38 @@ alter table public.shop_exclusive_items enable row level security;
 revoke all on public.shop_exclusive_items from anon, authenticated;
 grant select on public.shop_exclusive_items to service_role;
 
+-- Vom Admin geschenkte Designs (z. B. für das eigene Konto oder als Entschädigung). Nur per SQL-Editor:
+--   insert into public.shop_grants (user_id, item, note)
+--     select u.id, k, 'Geschenk' from auth.users u, unnest(array['mount:soul_wolf','dye:soullight']) k
+--     where u.email = '…' on conflict do nothing;
+create table if not exists public.shop_grants (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  item       text not null check (item ~ '^(mount|dye):[a-z0-9_]{1,40}$'),
+  note       text check (note is null or char_length(note) <= 200),
+  granted_at timestamptz not null default now(),
+  primary key (user_id, item)
+);
+alter table public.shop_grants enable row level security;
+revoke all on public.shop_grants from anon, authenticated;
+grant select, insert, update, delete on public.shop_grants to service_role;
+
+-- Besitz eines Kontos: bezahlte Design-Bestellungen und Geschenke. Nur innerhalb der Shop-Funktionen.
+create or replace function public.shop_owned_items(p_user uuid, p_except uuid default null) returns text[]
+language sql stable security definer set search_path = '' as $$
+  select coalesce(array_agg(distinct i order by i), '{}') from (
+    select unnest(o.items) i from public.gold_orders o
+      where o.user_id = p_user and o.kind = 'design' and o.status in ('paid', 'credited') and o.id is distinct from p_except
+    union all
+    select g.item from public.shop_grants g where g.user_id = p_user
+  ) x;
+$$;
+revoke execute on function public.shop_owned_items(uuid, uuid) from public, anon, authenticated;
+
 -- ------------------------------------------------------------------ Designs des angemeldeten Kontos
 create or replace function public.shop_designs()
 returns text[]
 language sql stable security definer set search_path = '' as $$
-  select coalesce(array_agg(distinct i order by i), '{}') from public.gold_orders o, unnest(o.items) i
-  where o.user_id = (select auth.uid()) and o.kind = 'design' and o.status in ('paid', 'credited');
+  select public.shop_owned_items((select auth.uid()));
 $$;
 revoke execute on function public.shop_designs() from public, anon;
 grant execute on function public.shop_designs() to authenticated;
@@ -199,8 +225,7 @@ begin
       update public.gold_orders set revoked_at = now(), credited_at = coalesce(credited_at, now()) where id = o.id;
     end if;
   else
-    select coalesce(array_agg(distinct i), '{}') into keep from public.gold_orders x, unnest(x.items) i
-      where x.user_id = o.user_id and x.kind = 'design' and x.status in ('paid', 'credited') and x.id <> o.id;
+    keep := public.shop_owned_items(o.user_id, o.id);
     lost := array(select unnest(o.items) except select unnest(keep));
     for c in select * from public.characters where user_id = o.user_id for update loop
       snap := public.shop_strip_designs(c.snapshot, lost);
@@ -230,9 +255,8 @@ declare
 begin
   if pg_trigger_depth() < 1 then raise exception 'nicht erlaubt' using errcode = '42501'; end if;
 
-  -- a) Exklusive Designs nur, wenn bezahlt
-  select coalesce(array_agg(distinct i), '{}') into owned from public.gold_orders o, unnest(o.items) i
-    where o.user_id = p_user and o.kind = 'design' and o.status in ('paid', 'credited');
+  -- a) Exklusive Designs nur, wenn bezahlt oder geschenkt
+  owned := public.shop_owned_items(p_user);
   arr := p_snap #> '{slices,character,mounts,owned}';
   select array_agg(distinct u) into bad from (
       select 'mount:' || m as u from jsonb_array_elements_text(case when jsonb_typeof(arr) = 'array' then arr else '[]'::jsonb end) m
