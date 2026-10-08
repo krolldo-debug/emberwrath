@@ -18,10 +18,11 @@ export function levelGapMult(att, def) {
   if (!Number.isFinite(att) || !Number.isFinite(def)) return 1;
   const gap = Math.round(def - att);
   if (gap > 0) {
-    // Ziel liegt höher: 1–2 Stufen kaum spürbar, 3–4 deutlich, ab 5 steil, ab etwa 10 fast wirkungslos
+    // Ziel liegt höher: 1–2 Stufen kaum spürbar, 3–4 deutlich, ab 5 steil, ab 10 nahezu immun
+    // (Messung B 08.10.: bei ×0,60 auf −5 gewann der Held jeden Kampf)
     if (gap <= GAP_FREE) return 1 - 0.04 * gap;
-    if (gap <= GAP_STEEP) return 0.92 - 0.1 * (gap - GAP_FREE);
-    return Math.max(0.1, 0.72 - 0.12 * (gap - GAP_STEEP));
+    if (gap <= GAP_STEEP) return 0.92 - 0.13 * (gap - GAP_FREE);
+    return Math.max(0.05, 0.40 - 0.08 * (gap - GAP_STEEP - 1));
   }
   // Ziel liegt tiefer: der Stärkere trifft etwas härter (höchstens +25 %)
   if (gap < 0) return Math.min(1.25, 1 + 0.025 * -gap);
@@ -35,17 +36,24 @@ export function levelGapTakenMult(att, def) {
   const gap = Math.round(att - def);
   if (gap <= 0) return Math.max(0.6, 1 - 0.04 * -gap);
   if (gap <= GAP_FREE) return 1 + 0.06 * gap;
-  if (gap <= GAP_STEEP) return 1.12 + 0.2 * (gap - GAP_FREE);
-  return Math.min(4, 1.52 + 0.3 * (gap - GAP_STEEP));
+  if (gap <= GAP_STEEP) return 1.12 + 0.25 * (gap - GAP_FREE);
+  return Math.min(4, 2.4 + 0.3 * (gap - GAP_STEEP - 1));
 }
 
 const levelOf = (a) => (a && Number.isFinite(a.level) ? a.level : null);
 
-// Passt hit.damage an. source = hit.source (Angreifer, bei Geschossen der Schütze).
+// Geschosse, Explosionen und Warnflächen tragen sich selbst als source (ohne Stufe):
+// dann zählt die Stufe des Schützen.
+function attackerOf(src) {
+  if (!src || levelOf(src) != null) return src;
+  return src.hero ?? src.owner ?? src.caster ?? src;
+}
+
+// Passt hit.damage an. source = hit.source (Angreifer, Geschoss oder Trefferzone).
 // Gegner → Held: levelGapTakenMult; Held/Verbündete → Gegner: levelGapMult.
 export function applyLevelGap(hit, target) {
   if (!hit || hit.levelGap != null || !target) return hit;
-  const src = hit.source;
+  const src = attackerOf(hit.source);
   const a = levelOf(src), d = levelOf(target);
   if (a == null || d == null || !src.team || src.team === target.team) { hit.levelGap = 1; return hit; }
   const m = target.team === 'enemy' ? levelGapMult(a, d) : levelGapTakenMult(a, d);

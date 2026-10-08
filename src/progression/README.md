@@ -196,3 +196,8 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   (Montag–Sonntag). Region nach Spielerstufe am Tagesbeginn. Auf 40 mit Prüfungen/Bossen aller Gebiete, Gold + Material statt Erfahrung.
   B: `board:open` { zoneId } öffnet das Panel, `game.progression.boardHasOffers(zoneId)` für den Leucht-Hinweis.
 - **Tempo** (pacing.mjs): 1–20 ≈ 40 min (vorher 31, mehr Quests), 20–40 ≈ 4,9 h Sim; echte Zeit steigt durch größere Karten und den Stufenabstand.
+
+### Nachtrag 08.10. (Balance-Messung B)
+- `applyLevelGap` nimmt bei Geschossen/Trefferzonen ohne Stufe die Stufe von `source.hero ?? owner ?? caster`.
+- Kurve steiler: 3/4 Stufen ×0,79/×0,66 Schaden, ×1,37/×1,62 erlitten; ab 5 `max(0,05, 0,40−0,08·(g−5))` bzw. `min(4, 2,4+0,3·(g−5))`.
+- Tränke: im Kampf (Treffer in den letzten 5 s) 10 s Abklingzeit, sonst 1,5 s (`POTION_COOLDOWN_COMBAT`, `hero.potionCooldown` für die HUD-Anzeige).
