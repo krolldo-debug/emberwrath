@@ -174,3 +174,25 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   In Prüfungen gibt es keine Reittier-Beute und keine Boss-Anrechnung für Quests.
 - **Tränke knapper:** Trankdrop normal 6 % (Prüfung 3 %), Questbelohnungen 1–20 je ein Trank weniger (ab 3).
 - **Graumaul** (`rares.js` `minPlayer: 3`) erscheint erst ab Spielerstufe 3, „Seltener Fang“ kommt nicht mehr in der ersten Minute.
+
+## Runde 08.10.: Balancing, Questvielfalt, Items, Auftragsbrett
+
+- **Stufenabstand** (`levelGap.js`): `applyLevelGap(hit, target)` in `Actor.takeHit`/`Hero.takeHit` (B/A).
+  Ziel 3 Stufen höher: 82 % Schaden, ×1,32 erlitten; 5 höher: 60 %/×1,82; ab 10: 10 %/bis ×4. Stufe 24 gegen Malgareth ist chancenlos.
+  `levelGapColor()` für die Stufenzahl über Gegnern.
+- **Materialbeutel:** Materialien liegen in `inventory.mats` und belegen keine Taschenplätze (alte Stände werden umgelagert).
+  `inventory:sellMat`, Selektor `materialList`. Neue Charaktere haben Auto-Verkauf „Weiße“.
+- **Weniger Plunder:** Weiße Ausrüstung normaler Gegner fällt direkt als Gold (`junk: true`), Grün dafür öfter (29 % statt 14 % der Teile), Blau je Kill unverändert.
+- **Varianten:** Jedes grüne/blaue Zufallsteil gibt es zusätzlich in 2 Fassungen mit Beinamen (`VARIANTS`: des Bären/Wächters/Fuchses/Falken, der Eule/Glut),
+  andere Attribute + kleiner Zusatzwert. ID `<basis>_<variante>`, Felder `variant`, `base`.
+- **Neue Zielarten** (logic.js `recordQuestEvent`): `sequence` (Reihenfolge, falsch = von vorn, `failText`), `use` (`item` wird verbraucht, `startItems` bei Annahme),
+  `reach` mit mehreren Flächen (Erkunden), `escort`/`defend` (B meldet `quest:objective` { kind, target }, `…Failed` setzt zurück),
+  `choices` bei der Abgabe (`quest:turnIn { choice }`, `requiresChoice` für Folgequests, `quests.choices`).
+  Quests mit `needs: 'escort'|'defend'` bleiben verborgen, bis B `game.progression.setWorldFeatures([...])` meldet. `game.progression.openObjectives()` für B.
+- **Quests:** 22 neue in `questsVariety.js` (alle Gebiete, 2 Entscheidungsketten mit Wendung: Vesks Kontobuch, Kessel der Moorhexe; Schicksal der Krone auf 40).
+  5 alte umgebaut: Siegel der Spalte, Faultotems, Glutobelisken (Reihenfolge); Banner, Leuchtfeuer (Benutzen).
+- **Champions** (B, Idee 1): `champion` in `progress:kill`/`loot:roll` → ×4 Erfahrung, 1 Teil mind. grün (blau 15 %, lila 1 %), 35 % ein zweites grünes, Gold ×5.
+- **Auftragsbrett** (`board.js`, Panel `board`): 3 Tagesaufträge (UTC-Tag, Würfel aus Tag + Region, für alle gleich), Wochentruhe nach 10 Aufträgen
+  (Montag–Sonntag). Region nach Spielerstufe am Tagesbeginn. Auf 40 mit Prüfungen/Bossen aller Gebiete, Gold + Material statt Erfahrung.
+  B: `board:open` { zoneId } öffnet das Panel, `game.progression.boardHasOffers(zoneId)` für den Leucht-Hinweis.
+- **Tempo** (pacing.mjs): 1–20 ≈ 40 min (vorher 31, mehr Quests), 20–40 ≈ 4,9 h Sim; echte Zeit steigt durch größere Karten und den Stufenabstand.

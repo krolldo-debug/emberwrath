@@ -5,12 +5,12 @@
 //   node src/character/startKitSql.mjs --test     # vergleicht JS und SQL an Beispielständen (braucht psql/initdb)
 //
 // Ändert sich das Startpaket in startKit.js, die Migration neu erzeugen und ausführen.
-import { START_ITEMS, STARTER_GEAR, START_ZONE_ITEMS, START_ZONE_QUESTS, START_ACHIEVEMENTS, START_BANK_SIZE, START_MAX_LEVEL, START_MAX_GOLD, startKitProblem } from './startKit.js';
+import { START_ITEMS, STARTER_GEAR, START_ZONE_QUESTS, START_ACHIEVEMENTS, START_BANK_SIZE, START_MAX_LEVEL, START_MAX_GOLD, START_VARIANTS, startAllowedItems, startKitProblem } from './startKit.js';
 
 const lit = (a) => `array[${[...new Set(a)].map((x) => `'${String(x).replace(/'/g, "''")}'`).join(', ')}]::text[]`;
 
 export function startKitSql() {
-  const items = [...START_ZONE_ITEMS, ...START_ITEMS.map((i) => i.itemId), ...Object.values(STARTER_GEAR).flatMap((g) => Object.values(g))];
+  const items = startAllowedItems();
   return `-- Emberwrath: Startpaket neuer Charaktere serverseitig prüfen (Sicherheitsbericht D3 Punkt 3).
 -- Erzeugt mit: node src/character/startKitSql.mjs (Quelle: src/character/startKit.js). Mehrfach ausführbar.
 -- Die Funktion liefert null, wenn der Spielstand ein frisches Startpaket ist (kleiner Spielraum für die ersten
@@ -38,6 +38,7 @@ begin
      or coalesce(jsonb_typeof(nullif(s -> 'world', 'null')), 'object') <> 'object'
      or coalesce(jsonb_typeof(nullif(s -> 'trials', 'null')), 'object') <> 'object'
      or coalesce(jsonb_typeof(nullif(s -> 'achievements', 'null')), 'object') <> 'object'
+     or coalesce(jsonb_typeof(nullif(s -> 'board', 'null')), 'object') <> 'object'
      or jsonb_typeof(inv) <> 'object' then return 'format'; end if;
   if coalesce(jsonb_typeof(nullif(s #> '{progress,level}', 'null')), 'number') <> 'number'
      or coalesce(jsonb_typeof(nullif(s #> '{wallet,gold}', 'null')), 'number') <> 'number' then return 'format'; end if;
@@ -79,6 +80,13 @@ begin
     end loop;
   end loop;
 
+  -- Materialbeutel { itemId: Anzahl }
+  v := coalesce(nullif(inv -> 'mats', 'null'), '{}');
+  if jsonb_typeof(v) <> 'object' then return 'gegenstand'; end if;
+  for id, e in select key, value from jsonb_each(v) loop
+    if not (id = any(allowed)) or jsonb_typeof(e) <> 'number' or (e #>> '{}')::numeric <> trunc((e #>> '{}')::numeric) or (e #>> '{}')::numeric < 0 then return 'gegenstand'; end if;
+  end loop;
+
   v := coalesce(nullif(inv -> 'equipment', 'null'), '{}');
   if jsonb_typeof(v) <> 'object' then return 'ausruestung'; end if;
   for e in select value from jsonb_each(v) loop
@@ -115,6 +123,13 @@ begin
   v := coalesce(nullif(s #> '{achievements,unlocked}', 'null'), '{}');
   if jsonb_typeof(v) <> 'object' or exists (select 1 from jsonb_object_keys(v) k where not (k = any(achiev)))
      or not (coalesce(s #> '{achievements,title}', 'null') = any(falsy)) then return 'erfolg'; end if;
+
+  -- Auftragsbrett: angenommen darf schon sein, erledigt oder Wochenbelohnung noch nicht
+  v := coalesce(nullif(s -> 'board', 'null'), '{}');
+  if coalesce(jsonb_typeof(nullif(v -> 'done', 'null')), 'array') <> 'array'
+     or coalesce(nullif(v -> 'done', 'null'), '[]') <> '[]'::jsonb
+     or not (coalesce(v -> 'weekDone', 'null') = any(falsy)) or not (coalesce(v -> 'weekClaimed', 'null') = any(falsy))
+     or coalesce(jsonb_typeof(nullif(v -> 'taken', 'null')), 'object') <> 'object' then return 'auftrag'; end if;
   return null;
 exception when others then
   return 'format';
@@ -138,7 +153,8 @@ function samples() {
       trials: { best: 0, runs: 0, cleared: {}, run: null },
       achievements: { unlocked: {}, title: null },
       shop: { credited: [] },
-      inventory: { slots: [...START_ITEMS.map((i) => ({ ...i })), ...Array(34).fill(null)], equipment: { weapon: STARTER_GEAR[cls].weapon, head: null, chest: STARTER_GEAR[cls].chest, hands: null, feet: null, ring: null, amulet: null }, upgrades: {}, enchants: {}, questBag: [], autoSell: null },
+      board: { day: 0, level: 1, week: 0, taken: {}, done: [], weekDone: 0, weekClaimed: false },
+      inventory: { slots: [...START_ITEMS.map((i) => ({ ...i })), ...Array(34).fill(null)], equipment: { weapon: STARTER_GEAR[cls].weapon, head: null, chest: STARTER_GEAR[cls].chest, hands: null, feet: null, ring: null, amulet: null }, upgrades: {}, enchants: {}, questBag: [], mats: {}, autoSell: 'common' },
     },
   });
   const mod = (f) => { const x = fresh(); f(x.slices); return x; };
@@ -172,6 +188,15 @@ function samples() {
     ['Prüfung', mod((s) => { s.trials = { best: 12, runs: 3, cleared: {}, run: null }; }), null],
     ['Erfolg früh', mod((s) => { s.achievements = { unlocked: { first_blood: 123 }, title: null }; }), null],
     ['Erfolg Titel', mod((s) => { s.achievements = { unlocked: { ignaroth: 1 }, title: 'Königsmörder' }; }), null],
+    ['Materialbeutel', mod((s) => { s.inventory.mats = { wolf_pelt: 4, wolf_fang: 2 }; }), null],
+    ['Material fremd', mod((s) => { s.inventory.mats = { ember_core: 50 }; }), null],
+    ['Material negativ', mod((s) => { s.inventory.mats = { wolf_pelt: -3 }; }), null],
+    ['Material als Liste', mod((s) => { s.inventory.mats = ['wolf_pelt']; }), null],
+    ['Variante Startzone', mod((s) => { s.inventory.slots[3] = { itemId: 'iron_sword_bear', qty: 1 }; s.inventory.equipment.chest = 'padded_vest_fox'; }), null],
+    ['Variante Stufe 30', mod((s) => { s.inventory.slots[3] = { itemId: 'starfall_bear', qty: 1 }; }), null],
+    ['Brett frisch', mod((s) => { s.board = { day: 1, level: 1, week: 1, taken: { a: 1 }, done: [], weekDone: 0, weekClaimed: false }; }), null],
+    ['Brett erledigt', mod((s) => { s.board = { day: 1, level: 1, week: 1, taken: {}, done: ['a'], weekDone: 1, weekClaimed: false }; }), null],
+    ['Brett Woche', mod((s) => { s.board = { day: 1, taken: {}, done: [], weekClaimed: true }; }), null],
   ];
 }
 
@@ -186,6 +211,13 @@ async function test() {
   pg('pg_ctl', '-D', `${dir}/db`, '-o', `-k ${dir} -p 55433 -c listen_addresses=''`, '-l', `${dir}/log`, '-w', 'start');
   const psql = (sql) => execFileSync('psql', ['-h', dir, '-p', '55433', '-U', 'postgres', '-At', '-v', 'ON_ERROR_STOP=1', '-f', '-'], { input: sql, encoding: 'utf8' });
   let fails = 0;
+  // Varianten-Liste muss zu progression/items.js passen (falls die Varianten dort schon existieren)
+  const items = await import('../progression/items.js');
+  if (items.VARIANTS) {
+    const want = Object.keys(items.VARIANTS).sort().join(','), have = [...START_VARIANTS].sort().join(',');
+    console.log(`${want === have ? 'ok  ' : 'FEHL'} Varianten ${have}`);
+    if (want !== have) fails++;
+  }
   try {
     psql(`create role anon; create role authenticated; create role service_role;\n${startKitSql()}`);
     for (const [name, snap, cls] of samples()) {

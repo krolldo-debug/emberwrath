@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
-import { renderZoneMap, mapLabels } from './MapArt.js';
+import { renderZoneMap, renderLabels } from './MapArt.js';
 
 // Minimap (HUD) und Zonenkarte (Panel 'map') – Thread D.
 // Liest nur: session.world (Hintergrund, Raster, NPCs, Portale, Gegner), session.zone,
@@ -10,7 +10,7 @@ import { renderZoneMap, mapLabels } from './MapArt.js';
 const T = CONFIG.tileSize;
 const MM = 56;            // interne Pixel der Minimap (quadratisch)
 const MM_SCALE = 2;       // Kartenpixel je Tile in der Minimap
-const MAP_SCALE = 4;      // Kartenpixel je Tile in der Zonenkarte
+// Zonenkarte: Kartenpixel je Tile (3–8) und Bildschirmzoom werden passend zum Rahmen gewählt
 
 // Farben für Pergament: Tusche, Siegelrot, Gold mit dunklem Rand
 const C = {
@@ -196,7 +196,7 @@ function drawTarget(ctx, x, y, t, big = false) {
 
 // Held als Pfeil in Blickrichtung
 function drawHero(ctx, x, y, ang, big = false) {
-  const c = Math.cos(ang), s = Math.sin(ang), m = big ? 1.6 : 1;
+  const c = Math.cos(ang), s = Math.sin(ang), m = big ? 2 : 1;
   const pts = [[2.6 * m, 0], [-1.6 * m, -1.8 * m], [-0.6 * m, 0], [-1.6 * m, 1.8 * m]];
   ctx.fillStyle = C.heroEdge;
   for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -217,17 +217,19 @@ function heroAngle(hero) {
 }
 
 // Alle Marker einer Zone in Kartenkoordinaten: map(x,y) -> [px,py]
-function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, big = false } = {}) {
+function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, big = false, clamp = null } = {}) {
+  const cl = (p) => (clamp ? [Math.min(clamp[2], Math.max(clamp[0], p[0])), Math.min(clamp[3], Math.max(clamp[1], p[1]))] : p);
   const w = session.world, prog = session.game?.progression ?? session.progression;
   const inside = (p) => !clipRect || (p[0] >= clipRect[0] && p[1] >= clipRect[1] && p[0] < clipRect[2] && p[1] < clipRect[3]);
   // Portale
-  for (const e of w.entities) if (e.to?.zoneId) { const p = map(e.x, e.y); if (inside(p)) glyph(ctx, p[0], p[1], 'portal', t, big); }
+  for (const e of w.entities) if (e.to?.zoneId) { const p = cl(map(e.x, e.y)); if (inside(p)) glyph(ctx, p[0], p[1], 'portal', t, big); }
   // Gegner
   if (enemies) for (const e of w.enemies) {
     if (e.dead || e.rise < 1) continue;
     const p = map(e.x, e.y); if (!inside(p)) continue;
     if (e.def?.boss || e.boss || e === w.boss) glyph(ctx, p[0], p[1], 'boss', t, big);
-    else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, (e.def?.elite || e.elite ? 2 : 1) + (big ? 1 : 0));
+    else if (big) { const el = e.def?.elite || e.elite || e.champion; dot(ctx, p[0], p[1], '#1a0408', el ? 5 : 4); dot(ctx, p[0], p[1], el ? C.elite : C.enemy, el ? 3 : 2); }
+    else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, e.def?.elite || e.elite ? 2 : 1);
   }
   // NPCs mit Questmarkierung
   for (const n of w.npcs) {
@@ -302,56 +304,81 @@ function edgeArrow(ctx, cx, cy, tx, ty, t) {
 
 // ------------------------------------------------------------------ Zonenkarte (Panel)
 export function createMapPanel(session) {
-  const w = session.world, content = session.content;
+  const w = session.world, content = session.content, d = w.dungeon;
   const zoneDef = session.zone?.def ?? content.find('zone', session.state.slices.world?.zoneId);
-  const base = zoneBaseImage(w, MAP_SCALE);
-  const canvas = h('canvas.map-canvas', { width: base.width, height: base.height });
+  const canvas = h('canvas.map-canvas', { width: 1, height: 1 });
   const ctx = canvas.getContext('2d');
-  // Beschriftungen als Schrift über dem Bild (scharf und übersetzbar)
-  const labels = mapLabels(w, content).map((l) => h(`span.map-label.${l.kind}`, {
-    style: { left: `${(l.x / w.dungeon.w) * 100}%`, top: `${(l.y / w.dungeon.h) * 100}%` },
-  }, l.text));
-  const sheet = h('div.map-sheet', canvas, ...labels);
+  const sheet = h('div.map-sheet', canvas);
   const tgtInfo = h('div.map-target');
   const legend = h('ul.map-legend',
     legendItem('hero', 'Du'), legendItem('target', 'Questziel'), legendItem('offer', 'Quest'),
     legendItem('portal', 'Portal'), legendItem('boss', 'Boss'));
+  const frameEl = h('div.map-frame', sheet);
   const root = h('div.ef-panel.map-panel', { role: 'dialog', 'aria-label': 'Zonenkarte' },
     h('header.map-head',
       h('div', h('h2.map-title', zoneDef?.name ?? 'Karte'), h('div.map-sub', [zoneDef?.subtitle, zoneDef?.recommendedLevel ? `Stufe ${zoneDef.recommendedLevel}` : null].filter(Boolean).join(' · '))),
       h('button.pg-close.map-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (M)', onclick: () => session.panels?.close?.() }, '✕')),
-    h('div.map-frame', sheet),
+    frameEl,
     h('footer.map-foot', tgtInfo, legend),
   );
-  // Karte füllt den Rahmen: in Viertelschritten skaliert (scharfe Pixel), auf kleinen Schirmen auch kleiner als 1
-  const frameEl = root.querySelector('.map-frame');
+  // Maßstab: Kartenpixel je Tile (3–8) × ganzzahliger Zoom, so groß wie der Rahmen erlaubt – alles im selben
+  // Pixelraster. Ist die Karte dann deutlich schmaler als der Rahmen (Handy quer), füllt sie die Breite und
+  // lässt sich senkrecht verschieben; sie startet auf dem Helden.
+  let scale = 0, zoom = 1, base = null, labels = null, k = 1, centered = false;
+  const choose = (aw, ah, widthOnly) => {
+    let best = null;
+    for (let z = 1; z <= 4; z++) {
+      const sc = Math.min(8, Math.floor(widthOnly ? aw / (d.w * z) : Math.min(aw / (d.w * z), ah / (d.h * z))));
+      if (sc < 3) continue;
+      if (!best || sc * z > best.s * best.z || (sc * z === best.s * best.z && sc > best.s)) best = { s: sc, z };
+    }
+    return best;
+  };
   const fit = () => {
-    const aw = (frameEl.clientWidth || window.innerWidth * 0.9) - 16, ah = (frameEl.clientHeight || window.innerHeight * 0.6) - 16;
-    const raw = Math.min(aw / base.width, ah / base.height);
-    const fz = raw >= 1 ? Math.floor(raw * 4) / 4 : Math.max(0.4, raw);
-    sheet.style.width = `${Math.round(base.width * fz)}px`; sheet.style.height = `${Math.round(base.height * fz)}px`;
-    sheet.style.setProperty('--map-z', String(fz));
+    const aw = (frameEl.clientWidth || window.innerWidth * 0.9) - 8, ah = (frameEl.clientHeight || window.innerHeight * 0.6) - 8;
+    let best = choose(aw, ah, false), scroll = false;
+    if (!best || (ah < 380 && best.s * best.z * d.w < aw * 0.7)) { const wide = choose(aw, ah, true); if (wide) { best = wide; scroll = best.s * best.z * d.h > ah; } }
+    best ??= { s: 3, z: 1 };
+    if (best.s !== scale || best.z !== zoom) {
+      scale = best.s; zoom = best.z; k = scale / T;
+      base = zoneBaseImage(w, scale);
+      const T0 = T, avoid = [];
+      for (const n of w.npcs) avoid.push([(n.x / T0) * scale, (n.y / T0) * scale - 3, 6]);
+      for (const e of w.entities) if (e.to?.zoneId) avoid.push([(e.x / T0) * scale, (e.y / T0) * scale, 6]);
+      labels = renderLabels(w, content, scale, zoom, avoid);
+      canvas.width = base.width; canvas.height = base.height;
+      acc = 1;
+    }
+    sheet.style.width = `${base.width * zoom}px`; sheet.style.height = `${base.height * zoom}px`;
+    frameEl.classList.toggle('scroll', scroll);
+    if (scroll && !centered) {
+      centered = true;
+      requestAnimationFrame(() => { frameEl.scrollTop = Math.max(0, w.hero.y * k * zoom - frameEl.clientHeight / 2); });
+    }
   };
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
   ro?.observe(frameEl);
   requestAnimationFrame(fit);
   window.addEventListener('resize', fit);
   let t = 0, acc = 1, lastTarget = '';
-  const k = MAP_SCALE / T;
   const map = (x, y) => [x * k, y * k];
   return {
     root,
     dispose() { window.removeEventListener('resize', fit); ro?.disconnect(); },
     update(dt) {
       t += dt; acc += dt;
+      if (!base) { fit(); if (!base) return; }
       if (acc < 1 / 15) return;
       acc = 0;
       ctx.drawImage(base, 0, 0);
-      drawMarkers(ctx, session, map, t, { enemies: true, big: true });
+      ctx.drawImage(labels, 0, 0);
+      const W = base.width, H = base.height;
+      drawMarkers(ctx, session, map, t, { enemies: true, big: true, clamp: [6, 6, W - 6, H - 6] });
       const target = session.game?.progression?.questTarget?.() ?? null;
       const tgt = resolveTarget(session, target);
-      if (tgt) { const [px, py] = map(tgt.x, tgt.y); drawTarget(ctx, px, py, t, true); }
+      if (tgt) { const [px, py] = map(tgt.x, tgt.y); drawTarget(ctx, Math.min(W - 9, Math.max(9, px)), Math.min(H - 9, Math.max(9, py)), t, true); }
       const hero = w.hero, hp = map(hero.x, hero.y);
+      heroPulse(ctx, hp[0], hp[1], t);
       drawHero(ctx, hp[0], hp[1], heroAngle(hero), true);
       const key = target ? `${target.title}|${target.text}|${tgt?.via ?? ''}` : '';
       if (key !== lastTarget) {
@@ -362,6 +389,17 @@ export function createMapPanel(session) {
       }
     },
   };
+}
+
+// Pulsierender Ring um den Helden (dunkel mit hellem Kern), damit er auf jeder Fläche sofort auffällt
+function heroPulse(ctx, x, y, t) {
+  const p = (t * 1.2) % 1, r = 4 + p * 7;
+  const n = Math.round(r * 5);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, px = Math.round(x + Math.cos(a) * r), py = Math.round(y + Math.sin(a) * r);
+    ctx.fillStyle = p < 0.6 ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'; ctx.fillRect(px, py, 1, 1);
+    ctx.fillStyle = 'rgba(26,16,32,0.6)'; ctx.fillRect(px, py + 1, 1, 1);
+  }
 }
 
 function legendItem(kind, text) {

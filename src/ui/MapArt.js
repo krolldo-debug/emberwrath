@@ -1,5 +1,7 @@
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { hash2 } from '../core/math.js';
+import { PixelFont } from './PixelFont.js';
+import { tr } from '../i18n/index.js';
 
 // Gezeichnete Zonenkarte im Pixelstil – Thread D.
 // Aus dem Zeichenraster der Zone (level.map), den Deko-Platzierungen und den Flächen entsteht
@@ -70,6 +72,23 @@ function glyphKind(name) {
   return null;
 }
 
+const TREES = new Set(['pine', 'snowpine', 'willow', 'deadtree']);
+
+function forestMask(d) {
+  const T = d.pixelW / d.w, n = new Uint8Array(d.w * d.h), out = new Uint8Array(d.w * d.h);
+  for (const pl of d.placements) {
+    if (!TREES.has(glyphKind(pl.type === 'bdecor' ? pl.name : pl.type) ?? '')) continue;
+    const tx = Math.floor(pl.x / T), ty = Math.floor(pl.y / T);
+    if (tx >= 0 && ty >= 0 && tx < d.w && ty < d.h) n[ty * d.w + tx]++;
+  }
+  for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
+    let c = 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < d.w && yy < d.h) c += n[yy * d.w + xx]; }
+    out[y * d.w + x] = c >= 4 ? 1 : 0;
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ Gelände je Kachel
 function classify(d) {
   const L = d.level, outdoor = L.kind === 'outdoor';
@@ -122,6 +141,9 @@ export function renderZoneMap(world, scale, { detail = true, frame = detail } = 
   const wash = outdoor ? (WASH[biome] ?? WASH.outdoor) : null;
   const dun = outdoor ? null : (DUNGEON[biome] ?? DUNGEON.crypt);
 
+  // Walddichte je Kachel: dichte Baumgruppen bekommen eine dunklere Laubfläche, Lichtungen bleiben hell
+  const forest = outdoor ? forestMask(d) : null;
+
   // Gelände je Pixel mit leicht verrauschter Grenze (wirkt gezeichnet statt gekachelt)
   const pc = new Array(W * H);
   const jit = Math.max(0.5, scale * 0.45);
@@ -149,7 +171,11 @@ export function renderZoneMap(world, scale, { detail = true, frame = detail } = 
     // Lavierung: ungleichmäßig wie mit dem Pinsel aufgetragen
     const brush = 0.82 + vn(x / 5, y / 5, 10) * 0.3;
     if (outdoor) {
-      if (k === 'ground') mix(i, wash.ground, wash.ground[3] * brush);
+      if (k === 'ground') {
+        mix(i, wash.ground, wash.ground[3] * brush);
+        const fx = Math.floor((x + (vn(x / 6, y / 6, 12) - 0.5) * scale * 1.6) / scale), fy = Math.floor((y + (vn(x / 6, y / 6, 13) - 0.5) * scale * 1.6) / scale);
+        if (forest[Math.max(0, Math.min(d.h - 1, fy)) * d.w + Math.max(0, Math.min(d.w - 1, fx))]) mix(i, biome === 'frost' ? [150, 176, 168] : [58, 84, 46], 0.32 * brush);
+      }
       else if (k === 'dirt') mix(i, wash.dirt, wash.dirt[3] * brush);
       else if (k === 'pave') { mix(i, wash.ground, wash.ground[3] * 0.5); mix(i, PAVE, PAVE[3]); }
       else if (k === 'rock') mix(i, wash.rock, wash.rock[3] * brush);
@@ -220,7 +246,7 @@ export function renderZoneMap(world, scale, { detail = true, frame = detail } = 
     const at = (tx, ty) => cls[ty * d.w + tx];
     if (outdoor) drawMountains(ctx, d, at, scale, biome);
     drawHouses(ctx, d, cls, scale);
-    drawPlacements(ctx, d, scale, biome, outdoor);
+    drawPlacements(ctx, d, scale, biome, outdoor, forest);
   }
   else if (outdoor && scale >= 2) {
     // Minimap: Bäume als zweifarbige Tupfen, damit Wälder lesbar bleiben
@@ -303,7 +329,7 @@ function house(ctx, x, y, w, h) {
   for (let yy = y + 2; yy < y + h - 1; yy += 2) for (let xx = x + 1 + ((yy - y) % 4 === 0 ? 1 : 0); xx < x + w - 1; xx += 3) ctx.fillRect(xx, yy, 1, 1);
 }
 
-function drawPlacements(ctx, d, s, biome, outdoor) {
+function drawPlacements(ctx, d, s, biome, outdoor, forest) {
   const T = d.pixelW / d.w;
   const list = [...d.placements].sort((a, b) => a.y - b.y);
   for (const pl of list) {
@@ -311,6 +337,8 @@ function drawPlacements(ctx, d, s, biome, outdoor) {
     const x = Math.round((pl.x / T) * s), y = Math.round((pl.y / T) * s);
     if (!outdoor) { dungeonGlyph(ctx, pl.type === 'bdecor' ? pl.name : pl.type, x, y, s, biome); continue; }
     const kind = glyphKind(name);
+    // In dichtem Wald nur etwa jeden zweiten Baum zeichnen: Laubfläche trägt die Masse, Bäume bilden Gruppen
+    if (TREES.has(kind) && forest?.[pl.ty * d.w + pl.tx] && hash2(pl.tx, pl.ty, 71) < 0.42) continue;
     if (kind) glyph(ctx, kind, x, y - Math.round(s * 0.4), s, biome, pl.tx * 31 + pl.ty);
   }
 }
@@ -457,17 +485,86 @@ export function mapLabels(world, content) {
   for (const a of L.areas ?? []) {
     const text = a.name ?? AREA_NAMES[a.id];
     if (!text) continue;
-    out.push({ text, x: a.x + a.w / 2, y: a.y + Math.min(a.h / 2, 2.2), kind: a.town || TOWNS.has(a.id) ? 'town' : 'area' });
+    const cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+    out.push({ text, x: cx, y: cy, anchorX: cx, anchorY: cy, kind: a.town || TOWNS.has(a.id) ? 'town' : 'area' });
   }
   for (const e of world.entities ?? []) {
     const to = e.to?.zoneId; if (!to) continue;
     const z = content?.find?.('zone', to); if (!z?.name) continue;
+    // Anker etwas zur Kartenmitte hin, damit der Name neben und nicht auf dem Portal steht
     let x = e.x / T, y = e.y / T;
-    // vom Rand zur Mitte ziehen, damit die Schrift nicht abgeschnitten wird
-    // Schrift unter das Portal setzen, am Nordrand darunter, sonst darüber
-    y += y < d.h / 2 ? 2.2 : -2.2;
-    x = Math.min(d.w - 8, Math.max(8, x)); y = Math.min(d.h - 3, Math.max(3, y));
-    out.push({ text: z.name, x, y, kind: 'portal' });
+    const dx = d.w / 2 - x, dy = d.h / 2 - y, len = Math.hypot(dx, dy) || 1;
+    x += (dx / len) * 4; y += (dy / len) * 3;
+    x = Math.min(d.w - 6, Math.max(6, x)); y = Math.min(d.h - 4, Math.max(4, y));
+    out.push({ text: z.name, x, y, anchorX: x, anchorY: y, kind: 'portal' });
   }
   return out;
+}
+
+// ------------------------------------------------------------------ Beschriftung im Pixelstil
+// Zeichnet die Namen mit der Pixelschrift in eine eigene Ebene (gleiche Größe wie das Kartenbild).
+// Jede Beschriftung sucht sich unter mehreren Lagen die mit den wenigsten Hindernissen: Mauern,
+// Häuser, Fels, Wasser, Marker (avoid: [[x, y, r]] in Kartenpixeln), Rand und andere Namen.
+// z = Bildschirmzoom: auf kleinen Schirmen wird die Schrift größer gezeichnet, damit sie lesbar bleibt.
+const FONT = new PixelFont();
+const LABEL_INK = { town: '#5a1a10', area: '#2e1e12', portal: '#3a1a5a' };
+const PENALTY = { wall: 6, house: 6, rock: 1.2, water: 1.5, lava: 2, dwall: 2 };
+const UMLAUT = { Ä: 'A', Ö: 'O', Ü: 'U' };
+
+// Pixelschrift mit Umlauten als Grundbuchstabe plus zwei Punkte darüber (die 5-px-Glyphen sind dafür zu klein)
+function drawText(ctx, text, x, y, f, color) {
+  let cx = x;
+  for (const ch of text.toUpperCase()) {
+    const base = UMLAUT[ch] ?? ch;
+    FONT.draw(ctx, base, cx, y, { color, scale: f });
+    const gw = FONT.measure(base, f);
+    if (UMLAUT[ch]) { ctx.fillStyle = color; ctx.fillRect(cx, y - 2 * f, f, f); ctx.fillRect(cx + gw - f, y - 2 * f, f, f); }
+    cx += gw + f;
+  }
+}
+const measureText = (text, f) => FONT.measure([...text.toUpperCase()].map((ch) => UMLAUT[ch] ?? ch).join(''), f);
+
+export function renderLabels(world, content, scale, z, avoid = []) {
+  const d = world.dungeon, W = d.w * scale, H = d.h * scale, T = d.pixelW / d.w;
+  const { cls } = classify(d);
+  const c = makeCanvas(W, H), ctx = c.getContext('2d');
+  const placed = [];
+  const order = { town: 0, area: 1, portal: 2 };
+  const labels = mapLabels(world, content).sort((a, b) => order[a.kind] - order[b.kind]);
+  for (const l of labels) {
+    const f = l.kind === 'town' ? Math.max(1, Math.round(3 / z)) : Math.max(1, Math.round(2 / z));
+    const text = tr(l.text);
+    const tw = measureText(text, f) + (l.kind === 'town' ? 5 * f : 0), th = 7 * f;
+    const ax = l.anchorX * scale, ay = l.anchorY * scale;
+    const cands = [];
+    for (const [ox, oy] of [[0, 0], [0, -1.6], [0, 1.6], [0, -3], [0, 3], [-0.7, 0], [0.7, 0], [-0.7, -1.8], [0.7, -1.8], [-0.7, 1.8], [0.7, 1.8], [0, -4.5], [0, 4.5]]) cands.push([ax + ox * tw, ay + oy * th]);
+    let best = null;
+    for (const [cx, cy] of cands) {
+      const x0 = Math.round(cx - tw / 2) - 2, y0 = Math.round(cy - th / 2) - 2, x1 = x0 + tw + 4, y1 = y0 + th + 4;
+      let score = Math.hypot(cx - ax, cy - ay) * 0.04;
+      if (x0 < 8 || y0 < 8 || x1 > W - 8 || y1 > H - 8) score += 400;
+      for (let ty = Math.max(0, Math.floor(y0 / scale)); ty <= Math.min(d.h - 1, Math.floor(y1 / scale)); ty++) {
+        for (let tx = Math.max(0, Math.floor(x0 / scale)); tx <= Math.min(d.w - 1, Math.floor(x1 / scale)); tx++) score += PENALTY[cls[ty * d.w + tx]] ?? 0;
+      }
+      for (const [mx, my, r] of avoid) if (mx + r > x0 && mx - r < x1 && my + r > y0 && my - r < y1) score += 60;
+      for (const p of placed) if (p[0] < x1 && p[2] > x0 && p[1] < y1 && p[3] > y0) score += 200;
+      if (!best || score < best.score) best = { score, x0, y0, x1, y1 };
+    }
+    placed.push([best.x0, best.y0, best.x1, best.y1]);
+    const tx = best.x0 + 2, ty = best.y0 + 2 + 2 * f;
+    let textX = tx;
+    if (l.kind === 'town') {
+      // kleines Banner vor dem Stadtnamen
+      const bx = tx, by = ty;
+      ctx.fillStyle = '#e8d8b0'; ctx.fillRect(bx - 1, by - 1, 3 * f + 2, 5 * f + 2);
+      ctx.fillStyle = '#8a2a1a'; ctx.fillRect(bx, by, 3 * f, 4 * f);
+      ctx.fillStyle = '#e8d8b0'; ctx.fillRect(bx + f, by + 4 * f - f, f, f);
+      ctx.fillStyle = '#3a1a10'; ctx.fillRect(bx, by, f, 5 * f);
+      textX = tx + 5 * f;
+    }
+    // heller Halo (1 Kartenpixel), dann Tusche
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) drawText(ctx, text, textX + ox, ty + oy, f, '#efe2c0');
+    drawText(ctx, text, textX, ty, f, LABEL_INK[l.kind]);
+  }
+  return c;
 }

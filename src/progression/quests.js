@@ -17,6 +17,7 @@
 // Zustände: gesperrt → verfügbar → aktiv ('active') → abgabebereit ('ready') → abgeschlossen.
 import { questXp } from './xp.js';
 import { QUESTS_40, NPC_LINES_40, VENDORS_40 } from './quests40.js';
+import { QUESTS_VARIETY, NPC_LINES_VARIETY } from './questsVariety.js';
 
 const Q = (level, weight) => questXp(level, weight);
 
@@ -267,10 +268,10 @@ export const QUESTS = {
   q_rift_seals: {
     title: 'Die Siegel der Spalte', giver: 'seer_ysolde', level: 14, requires: ['q_obsidian_shards'],
     summary: 'Erneuere die drei Siegel an der Obsidianspalte.',
-    offer: 'Drei Siegel halten die Spalte geschlossen. Sie flackern. Wenn sie brechen, strömt Glut in die Täler. Erneuere sie – berühre jedes, der Rest geschieht von selbst.',
-    progressText: 'Die Siegel stehen an den Rändern der Obsidianspalte.',
+    offer: 'Drei Siegel halten die Spalte geschlossen: Asche, Glut und Feuer. Sie flackern. Wenn sie brechen, strömt Glut in die Täler. Die Siegel antworten nur in der alten Folge. Erst die Asche, die bleibt. Dann die Glut, die wartet. Zuletzt das Feuer, das alles beendet.',
+    progressText: 'Erst die Asche, dann die Glut, zuletzt das Feuer. Berührst du sie falsch, erlöschen alle drei.',
     completeText: 'Ich spüre es – die Spalte ist ruhig. Für jetzt.',
-    objectives: [{ id: 'seals', text: 'Siegel erneuert', count: 3, kind: 'interact', target: ['rift_seal_1', 'rift_seal_2', 'rift_seal_3'], zone: 'cinder_peaks' }],
+    objectives: [{ id: 'seals', text: 'Siegel in der alten Folge erneuert (Asche, Glut, Feuer)', count: 3, kind: 'sequence', target: ['rift_seal_2', 'rift_seal_1', 'rift_seal_3'], zone: 'cinder_peaks', failText: 'Die Siegel erlöschen. Erst die Asche, dann die Glut, zuletzt das Feuer.' }],
     rewards: { xp: Q(14, 0.45), gold: 80, items: [{ itemId: 'ember_elixir', qty: 1 }], gear: [{ ilvl: 15, rarity: 'uncommon', slot: 'chest' }] },
   },
   q_cultist_tomes: {
@@ -395,3 +396,6 @@ export const VENDORS = {
 for (const [id, q] of Object.entries(QUESTS_40)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
 Object.assign(NPC_LINES, NPC_LINES_40);
 Object.assign(VENDORS, VENDORS_40);
+// Questvielfalt (questsVariety.js): neue Zielarten in allen Gebieten
+for (const [id, q] of Object.entries(QUESTS_VARIETY)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
+for (const [npc, lines] of Object.entries(NPC_LINES_VARIETY)) if (NPC_LINES[npc]) NPC_LINES[npc].lines = [...NPC_LINES[npc].lines, ...lines];

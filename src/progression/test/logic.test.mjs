@@ -15,6 +15,9 @@ import { RECIPES } from '../crafting.js';
 import { runCampaign, expansionReport } from './pacing.mjs';
 import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
+import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier } from '../levelGap.js';
+import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers } from '../board.js';
+import { setWorldFeatures, openObjectives } from '../selectors.js';
 import { trialSpec, trialChances, trialRewards, trialThemesFor } from '../trials.js';
 import { MOUNT_DROPS } from '../loot.js';
 import { SOVEREIGN_LEGENDARIES } from '../items40.js';
@@ -170,7 +173,9 @@ test('Seltenheitsgrenzen (Runde 5: Blau besonders, Lila selten) halten statistis
   assert.equal(low.t.rare + low.t.epic + low.t.legendary, 0, 'Tier 1: keine blauen Drops');
   const mid = tally({ type: 'bandit', level: 9, family: 'humanoid' });
   assert.equal(mid.t.epic + mid.t.legendary, 0, 'normale Gegner nie episch');
-  assert.ok(mid.t.rare / mid.gear <= 0.01 + 0.004, `rare ${mid.t.rare / mid.gear}`);
+  // Blau je Kill unverändert (6 % × 0,8 %); Weiße normaler Gegner fallen als Gold, kommen also nicht mehr in die Zählung
+  assert.ok(mid.t.rare / N <= 0.0009, `rare je Kill ${mid.t.rare / N}`);
+  assert.equal(mid.t.common, 0, 'keine weißen Teile von normalen Gegnern');
   const elite = tally({ type: 'bandit_chief', level: 9, elite: true });
   assert.ok(elite.t.epic / elite.gear <= 0.015, `elite epic ${elite.t.epic / elite.gear}`);
   assert.ok(Math.abs(elite.t.rare / elite.gear - 0.12) < 0.03, `elite rare ${elite.t.rare / elite.gear}`);
@@ -290,7 +295,7 @@ test('Kopfgeld ist wiederholbar', () => {
   const { c, state, content } = setup();
   const id = 'q_bounty_emberhollow', q = QUESTS[id];
   state.slices.progress.level = q.minLevel ?? q.level;
-  for (const r of [...(q.requires ?? []), 'q_glutfang', 'q_spider_silk']) state.slices.quests.completed.push(r);
+  for (const r of [...(q.requires ?? []), 'q_glutfang', 'q_spider_silk', 'q_beacon_stones']) state.slices.quests.completed.push(r);
   assert.equal(npcMarker(state, content, q.giver), 'repeatable');
   for (let round = 0; round < 2; round++) {
     assert.equal(c('quest:accept', { questId: id }).ok, true);
@@ -404,7 +409,7 @@ test('Erweiterung: Quests, Kette und Inhalte bis 40', () => {
     const n = byGiver[giver].filter((q) => q.main).length;
     assert.ok(n >= 6 && n <= 8, `${giver}: ${n} Hauptquests`);
   }
-  for (const giver of ['nomad_kesh', 'alchemist_brisa', 'hunter_sigrun', 'pilgrim_aldo']) assert.ok(byGiver[giver].length >= 4 && byGiver[giver].length <= 6, `${giver}: ${byGiver[giver].length}`);
+  for (const giver of ['nomad_kesh', 'alchemist_brisa', 'hunter_sigrun', 'pilgrim_aldo']) assert.ok(byGiver[giver].length >= 4 && byGiver[giver].length <= 8, `${giver}: ${byGiver[giver].length}`);
   for (const b of ['q_bounty_steppe', 'q_bounty_marsh', 'q_bounty_frost', 'q_bounty_wastes']) assert.ok(QUESTS[b].repeatable);
   // Tiers 5–8 nach §12.7, reqLevel = ilvl − 1 wie bisher
   assert.equal(ITEMS.nomad_sword.tier, 5); assert.equal(ITEMS.bog_sword.tier, 6); assert.equal(ITEMS.jarl_sword.tier, 7); assert.equal(ITEMS.waste_sword.tier, 8);
@@ -561,6 +566,159 @@ test('Verstärken und Verzaubern: Kosten, Grenzen, Bonus, Speichern', () => {
   assert.equal(b.state.slices.inventory.bonus.power, p0);
 });
 
+test('Stufenabstand: weit über der eigenen Stufe kaum Schaden, viel erlittener Schaden', () => {
+  assert.equal(levelGapMult(30, 30), 1);
+  assert.ok(levelGapMult(38, 40) >= 0.9 && levelGapTakenMult(40, 38) <= 1.15, 'zwei Stufen bleiben fair');
+  assert.ok(levelGapMult(24, 40) <= 0.1 && levelGapTakenMult(40, 24) >= 3.9, 'Stufe 24 gegen Malgareth chancenlos');
+  assert.ok(levelGapMult(35, 40) * (1 / levelGapTakenMult(40, 35)) < 0.35, 'fünf Stufen darunter: weniger als ein Drittel');
+  for (let g = 0; g < 15; g++) assert.ok(levelGapMult(20, 20 + g + 1) <= levelGapMult(20, 20 + g) && levelGapTakenMult(20 + g + 1, 20) >= levelGapTakenMult(20 + g, 20), `monoton ${g}`);
+  assert.ok(levelGapMult(40, 10) <= 1.25 && levelGapTakenMult(10, 40) >= 0.6);
+  // Treffer: nur zwischen Teams, nur einmal, mindestens 1
+  const hero = { team: 'hero', level: 24 }, boss = { team: 'enemy', level: 40 };
+  const hit = applyLevelGap({ damage: 100, source: hero }, boss);
+  assert.equal(hit.damage, 10);
+  assert.equal(applyLevelGap(hit, boss).damage, 10, 'kein zweites Mal');
+  assert.equal(applyLevelGap({ damage: 100, source: boss }, hero).damage, 400);
+  assert.equal(applyLevelGap({ damage: 100, source: boss }, { team: 'enemy', level: 1 }).damage, 100, 'eigenes Team');
+  assert.equal(applyLevelGap({ damage: 100, source: null }, hero).damage, 100, 'ohne Quelle');
+  assert.equal(applyLevelGap({ damage: 3, source: hero }, boss).damage, 1);
+  assert.equal(levelGapTier(24, 40), 'skull');
+  assert.equal(levelGapTier(30, 30), 'even');
+  assert.equal(levelGapTier(30, 20), 'trivial');
+});
+
+test('Questvielfalt: Reihenfolge, Benutzen, Erkunden, Eskorte und Entscheidungen', () => {
+  const { c, state, content, events } = setup();
+  const q = state.slices.quests;
+  const done = (...ids) => q.completed.push(...ids);
+  // Reihenfolge: falsches Siegel setzt zurück, richtige Folge erfüllt
+  done('q_ashen_wolves', 'q_road_east', 'q_to_the_peaks', 'q_obsidian_shards');
+  state.slices.progress.level = 14;
+  assert.equal(c('quest:accept', { questId: 'q_rift_seals' }).ok, true);
+  const seq = QUESTS.q_rift_seals.objectives[0].target;
+  c('quest:event', { kind: 'interact', target: seq[0] });
+  c('quest:event', { kind: 'interact', target: seq[2] });
+  assert.equal(q.active.q_rift_seals.progress.seals, 0, 'falsch: von vorn');
+  assert.ok(events.some(([e, p]) => e === EV.UI_TOAST && /Asche/.test(p.text)));
+  assert.equal(questTarget(state, content).id, seq[0], 'Pfad zum nächsten richtigen Siegel');
+  for (const id of seq) c('quest:event', { kind: 'interact', target: id });
+  assert.equal(q.active.q_rift_seals.status, 'ready');
+  // Benutzen: Gegenstand bei Annahme, wird verbraucht, jedes Objekt einmal
+  assert.equal(c('quest:accept', { questId: 'q_poisoned_wells' }).ok, true);
+  assert.equal(countItem(state, 'clean_salts'), 2);
+  c('quest:event', { kind: 'interact', target: 'well_village' });
+  c('quest:event', { kind: 'interact', target: 'well_village' });
+  assert.equal(q.active.q_poisoned_wells.progress.wells, 1);
+  assert.equal(countItem(state, 'clean_salts'), 1);
+  c('quest:event', { kind: 'interact', target: 'well_mill' });
+  assert.equal(q.active.q_poisoned_wells.status, 'ready');
+  // Erkunden: mehrere Flächen, jede einmal, Pfad zur nächsten offenen
+  done('q_boar_cull'); state.slices.progress.level = 7;
+  c('quest:accept', { questId: 'q_ashwood_lookouts' });
+  c('quest:event', { kind: 'reach', target: 'ashwood_lookout_n' });
+  c('quest:event', { kind: 'reach', target: 'ashwood_lookout_n' });
+  assert.equal(q.active.q_ashwood_lookouts.progress.posts, 1);
+  // Eskorte: verborgen, bis die Welt sie kann; Fehlschlag setzt zurück
+  done('q_bandit_camp'); state.slices.progress.level = 9;
+  setWorldFeatures([]);
+  assert.equal(questStatus(state, content, 'q_vesk_cart'), 'locked');
+  setWorldFeatures(['escort', 'defend']);
+  assert.equal(c('quest:accept', { questId: 'q_vesk_cart' }).ok, true);
+  assert.ok(openObjectives(state, content).some((o) => o.kind === 'escort' && o.start?.id === 'vesk_cart' && !o.done));
+  c('quest:event', { kind: 'escortFailed', target: 'escort_vesk_cart' });
+  c('quest:event', { kind: 'escort', target: 'escort_vesk_cart' });
+  assert.equal(q.active.q_vesk_cart.status, 'ready');
+  setWorldFeatures([]);
+  // Entscheidung: ohne Wahl keine Abgabe, Wahl schaltet genau eine Folgequest frei, überlebt Speichern
+  done('q_bandit_chief'); state.slices.progress.level = 10;
+  c('quest:accept', { questId: 'q_bandit_ledger' });
+  c('quest:event', { kind: 'interact', target: 'bandit_strongbox' });
+  assert.equal(c('quest:turnIn', { questId: 'q_bandit_ledger' }).reason, 'choice');
+  const g0 = state.slices.wallet.gold;
+  assert.equal(c('quest:turnIn', { questId: 'q_bandit_ledger', choice: 'expose' }).ok, true);
+  assert.equal(state.slices.wallet.gold - g0, QUESTS.q_bandit_ledger.rewards.gold + 60);
+  assert.equal(questStatus(state, content, 'q_vesk_penance'), 'available');
+  assert.equal(questStatus(state, content, 'q_vesk_debt'), 'locked');
+  state.load(JSON.parse(JSON.stringify(state.snapshot())));
+  assert.equal(state.slices.quests.choices.q_bandit_ledger, 'expose');
+  // Inhalt: jede Entscheidung hat Folgen, jede Reihenfolge passt zu count, Weltobjekte sind benannt
+  for (const [id, d] of Object.entries(QUESTS)) {
+    for (const o of d.objectives) if (o.kind === 'sequence') assert.equal(o.count, o.target.length, id);
+    for (const ch of d.choices ?? []) assert.ok(ch.label && ch.hint, id);
+    if (d.requiresChoice) assert.ok(QUESTS[d.requiresChoice[0]]?.choices?.some((x) => x.id === d.requiresChoice[1]), id);
+  }
+});
+
+test('Champions: mindestens grün, ×4 Erfahrung, zählen fürs Auftragsbrett', () => {
+  let green = 0, rare = 0, epic = 0, gear = 0;
+  for (let i = 0; i < 4000; i++) {
+    const d = rollLoot({ type: 'bandit', level: 12, family: 'humanoid', champion: true }, { rng, classId: 'warrior' });
+    const g = d.filter((x) => ITEMS[x.itemId]?.slot);
+    assert.ok(g.length >= 1 && g.every((x) => ITEMS[x.itemId].rarity !== 'common' && ITEMS[x.itemId].rarity !== 'legendary'));
+    for (const x of g) { gear++; const r = ITEMS[x.itemId].rarity; if (r === 'uncommon') green++; if (r === 'rare') rare++; if (r === 'epic') epic++; }
+  }
+  assert.ok(rare / 4000 > 0.1 && rare / 4000 < 0.2 && epic / 4000 < 0.02, `blau ${rare / 4000} lila ${epic / 4000}`);
+  const { c, state } = setup();
+  state.slices.progress.level = 12;
+  const a = c('progress:kill', { type: 'bandit', level: 12 }).xp;
+  const b = c('progress:kill', { type: 'bandit', level: 12, champion: { affixes: ['flink'] } }).xp;
+  assert.ok(Math.abs(b / a - 4) < 0.2, `${b} / ${a}`);
+});
+
+test('Auftragsbrett: Tagesrotation fest, Fortschritt, Belohnung, Wochentruhe', () => {
+  const day = boardDay(Date.now()) + 1, now = day * 86400000 + 3600e3;
+  assert.equal(boardDay(now), day);
+  assert.deepEqual(boardOffers(day, 22), boardOffers(day, 22), 'für alle gleich');
+  assert.notDeepEqual(boardOffers(day, 22), boardOffers(day + 1, 22), 'jeden Tag neu');
+  for (let d = day; d < day + 60; d++) for (const lvl of [3, 15, 27, 40]) {
+    const o = boardOffers(d, lvl);
+    assert.equal(o.length, 3);
+    assert.equal(new Set(o.map((x) => x.kind)).size, 3, 'nie zweimal dieselbe Art');
+    if (lvl < 40) assert.ok(!o.some((x) => x.kind === 'trial'));
+  }
+  assert.ok(offerRewards(boardOffers(day, 40)[0], 40).xp === 0, 'auf 40 Gold statt Erfahrung');
+  assert.equal(boardWeek(Date.UTC(2026, 9, 5)), boardWeek(Date.UTC(2026, 9, 11, 23)), 'Montag bis Sonntag');
+  assert.notEqual(boardWeek(Date.UTC(2026, 9, 11, 23)), boardWeek(Date.UTC(2026, 9, 12, 1)));
+
+  const { c, state } = setup();
+  state.slices.progress.level = 12;
+  c('board:sync', { now });
+  const b = state.slices.board;
+  assert.equal(b.level, 12);
+  assert.ok(boardHasOffers(state, now));
+  const offers = boardOffers(day, 12);
+  const kill = offers.find((o) => o.kind === 'kill' || o.kind === 'elite' || o.kind === 'gather') ?? offers[0];
+  assert.equal(c('board:accept', { offerId: kill.id, now }).ok, true);
+  assert.equal(c('board:claim', { offerId: kill.id, now }).reason, 'notReady');
+  for (let i = 0; i < kill.count; i++) {
+    if (kill.kind === 'gather') state.commit('inventory:add', { itemId: kill.target[0], qty: 1, source: 'loot' });
+    else c('progress:kill', { type: kill.target[0], level: 12 });
+  }
+  const g0 = state.slices.wallet.gold;
+  assert.equal(c('board:claim', { offerId: kill.id, now }).ok, true);
+  assert.ok(state.slices.wallet.gold > g0);
+  assert.equal(c('board:claim', { offerId: kill.id, now }).ok, false, 'nur einmal');
+  // Stufenaufstieg am selben Tag ändert die Aufträge nicht mehr
+  state.slices.progress.level = 20;
+  c('board:sync', { now });
+  assert.equal(state.slices.board.level, 12);
+  // Rückwärts geht die Zeit nicht, nächster Tag setzt zurück
+  c('board:sync', { now: now - 86400000 });
+  assert.equal(state.slices.board.day, day);
+  c('board:sync', { now: now + 86400000 });
+  assert.equal(state.slices.board.done.length, 0);
+  assert.equal(state.slices.board.level, 20);
+  // Wochentruhe
+  assert.equal(c('board:claimWeek', { now: now + 86400000 }).reason, 'notReady');
+  state.slices.board.weekDone = WEEK_GOAL;
+  const r = c('board:claimWeek', { now: now + 86400000 });
+  assert.equal(r.ok, true);
+  assert.ok(r.gear && ['uncommon', 'rare'].includes(ITEMS[r.gear].rarity));
+  assert.equal(c('board:claimWeek', { now: now + 86400000 }).ok, false);
+  state.load(JSON.parse(JSON.stringify(state.snapshot())));
+  assert.equal(state.slices.board.weekClaimed, true);
+});
+
 test('Bank: einlagern, entnehmen, erweitern, Materialien', () => {
   const { c, state } = setup();
   const bank = () => state.slices.bank;
@@ -569,10 +727,15 @@ test('Bank: einlagern, entnehmen, erweitern, Materialien', () => {
   c('inventory:add', { itemId: 'bone_dust', qty: 3 });
   c('inventory:add', { itemId: 'spider_silk', qty: 1 });
   assert.equal(c('bank:deposit', { slot: slotOf(state, 'spider_silk') }).reason, 'quest');
-  assert.equal(c('bank:depositMaterials', {}).count, 8);
-  assert.equal(countItem(state, 'wolf_pelt'), 0);
-  const i = bank().slots.findIndex((x) => x?.itemId === 'wolf_pelt');
-  assert.equal(c('bank:withdraw', { slot: i }).qty, 5);
+  // Materialien liegen im Materialbeutel, nicht in der Tasche
+  assert.equal(state.slices.inventory.mats.wolf_pelt, 5);
+  assert.equal(c('bank:depositMaterials', {}).count, 0);
+  c('inventory:add', { itemId: 'cudgel', qty: 1 });
+  assert.equal(c('bank:deposit', { slot: slotOf(state, 'cudgel') }).ok, true);
+  // Altes Material in der Kiste wandert beim Entnehmen in den Materialbeutel
+  bank().slots[5] = { itemId: 'linen', qty: 4 };
+  assert.equal(c('bank:withdraw', { slot: 5 }).qty, 4);
+  assert.equal(state.slices.inventory.mats.linen, 4);
   assert.equal(countItem(state, 'wolf_pelt'), 5);
   assert.equal(c('bank:expand', {}).reason, 'gold');
   c('wallet:addGold', { amount: 200 });
@@ -707,24 +870,27 @@ test('Questbeutel: Sammelobjekte bei voller Tasche, zählt für Quests, leert si
   assert.equal(c('quest:accept', { questId: 'q_obsidian_shards' }).ok, true);
   const inv = state.slices.inventory;
   inv.slots = inv.slots.map(() => ({ itemId: 'copper_ring', qty: 1 }));
-  // Plunder passt nicht, Questmaterial schon
-  assert.equal(c('inventory:add', { itemId: 'linen', qty: 1 }).added, 0);
+  // Materialien passen immer (Materialbeutel), auch bei voller Tasche
+  assert.equal(c('inventory:add', { itemId: 'linen', qty: 1 }).added, 1);
   c('inventory:add', { itemId: 'obsidian_shard', qty: 3 });
   assert.equal(countItem(state, 'obsidian_shard'), 3);
-  assert.deepEqual(inv.questBag, [{ itemId: 'obsidian_shard', qty: 3 }]);
+  assert.deepEqual(inv.questBag, []);
   const q = content.get('quest', 'q_obsidian_shards').objectives[0];
   c('inventory:add', { itemId: 'obsidian_shard', qty: q.count });
   assert.equal(state.slices.quests.active.q_obsidian_shards.status, 'ready');
-  // Nach Erfüllung: kein Questbeutel mehr für Überschuss
-  assert.equal(c('inventory:add', { itemId: 'obsidian_shard', qty: 1 }).added, 0);
-  // Platz frei -> wandert zurück in die Tasche
+  // Questgegenstände ohne Platz: Questbeutel, wandert zurück, sobald Platz frei ist
+  c('inventory:add', { itemId: 'varkhul_sigil', qty: 1 });
+  assert.deepEqual(inv.questBag, [{ itemId: 'varkhul_sigil', qty: 1 }]);
   inv.slots[0] = null; inv.slots[1] = null;
   c('inventory:sort', {});
-  assert.ok(inv.slots.some((x) => x?.itemId === 'obsidian_shard'));
-  // Speichern/Laden
+  assert.ok(inv.slots.some((x) => x?.itemId === 'varkhul_sigil'));
+  // Speichern/Laden; alte Spielstände mit Material in der Tasche werden umgelagert
   const snap = JSON.parse(JSON.stringify(state.snapshot()));
+  snap.slices.inventory.slots[1] = { itemId: 'wolf_pelt', qty: 7 };
   state.load(snap);
   assert.equal(countItem(state, 'obsidian_shard'), 3 + q.count);
+  assert.equal(state.slices.inventory.mats.wolf_pelt, 7);
+  assert.ok(!state.slices.inventory.slots.some((x) => x?.itemId === 'wolf_pelt'));
   // Abgabe nimmt auch aus dem Questbeutel
   c('quest:turnIn', { questId: 'q_obsidian_shards' });
   assert.ok(state.slices.quests.completed.includes('q_obsidian_shards') || state.slices.quests.active.q_obsidian_shards);
@@ -774,16 +940,16 @@ test('Auffindbarkeit: Hinführen zu Questgebern, neue Quests melden, Stufe 20 am
 test('Schnellverkauf: Auswahl, Weiße verkaufen, Auto-Verkauf beim Aufsammeln', () => {
   const { state, c, content } = setup('warrior');
   const inv = state.slices.inventory;
-  for (const id of ['cudgel', 'militia_sword', 'iron_mace', 'wolf_pelt', 'spider_silk']) c('inventory:add', { itemId: id, qty: 1 });
+  for (const id of ['cudgel', 'militia_sword', 'iron_mace', 'minor_mana', 'spider_silk']) c('inventory:add', { itemId: id, qty: 1 });
   const g0 = state.slices.wallet.gold;
   // Weiße verkaufen: nur gewöhnliche Ausrüstung ohne Verbesserung
   const junk = sellableSlots(state, content, 'common').map((i) => inv.slots[i].itemId);
-  assert.ok(!junk.includes('iron_mace') && !junk.includes('wolf_pelt') && !junk.includes('spider_silk'));
+  assert.ok(!junk.includes('iron_mace') && !junk.includes('minor_mana') && !junk.includes('spider_silk'));
   const r = c('inventory:sellJunk', { upTo: 'common' });
   assert.equal(r.ok, true);
   assert.equal(state.slices.wallet.gold, g0 + r.gold);
   // Mehrfachauswahl: Questgegenstände bleiben
-  const slots = [slotOf(state, 'iron_mace'), slotOf(state, 'wolf_pelt'), slotOf(state, 'spider_silk')];
+  const slots = [slotOf(state, 'iron_mace'), slotOf(state, 'minor_mana'), slotOf(state, 'spider_silk')];
   const r2 = c('inventory:sell', { slots });
   assert.equal(r2.count, 2);
   assert.ok(slotOf(state, 'spider_silk') >= 0 && slotOf(state, 'iron_mace') < 0);

@@ -28,13 +28,17 @@ export class ProgressionSystem {
 
     bus.on(EV.ENEMY_KILLED, (e) => {
       const bossId = e.bossId ?? (e.isBoss ? e.type : undefined);
-      commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, now: Date.now() });
-      if (!e.summoned) this.#rollLoot({ source: 'kill', id: e.type, level: e.level, elite: e.elite, isBoss: e.isBoss, bossId, family: e.family, rareId: e.rareId }, e.x, e.y);
+      commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, champion: e.champion ?? null, now: Date.now() });
+      if (!e.summoned) this.#rollLoot({ source: 'kill', id: e.type, level: e.level, elite: e.elite, isBoss: e.isBoss, bossId, family: e.family, rareId: e.rareId, champion: !!e.champion }, e.x, e.y);
     });
     bus.on(EV.BOSS_DEFEATED, (e) => { commit('quest:event', { kind: 'boss', target: e.bossId }); commit('quest:bossReward', { bossId: e.bossId }); });
     bus.on(EV.AREA_REACHED, (e) => commit('quest:event', { kind: 'reach', target: e.areaId }));
     bus.on(EV.ZONE_ENTER, (e) => commit('quest:event', { kind: 'reach', target: `zone:${e.zoneId}` }));
     bus.on(EV.ZONE_LEAVE, () => commit('loot:reset'));
+    // Auftragsbrett (B: Objekt quest_board)
+    bus.on(EV.BOARD_OPEN ?? 'board:open', (e) => { commit('board:sync', { now: Date.now() }); session.panels.open('board', { zoneId: e.zoneId }); });
+    // Eskorte/Verteidigen (B): { kind: 'escort'|'defend'|'escortFailed'|'defendFailed', target }
+    bus.on(EV.QUEST_OBJECTIVE ?? 'quest:objective', (e) => commit('quest:event', { kind: e.kind, target: e.target }));
     bus.on(EV.OBJECT_INTERACT, (e) => {
       if (e.kind === 'chest') this.#rollLoot({ source: 'chest', id: e.objectId, level: e.level }, e.x, e.y);
       else if (e.kind === 'bank') session.panels.open('bank');

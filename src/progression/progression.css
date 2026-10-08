@@ -437,3 +437,20 @@
   .pg-trials .pg-kv { flex-direction: column; gap: 2px; }
   .pg-trials .pg-kv dd { text-align: left; }
 }
+
+/* Entscheidungen bei der Questabgabe (quest.choices) */
+.pg-choice { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; }
+.pg-choice small { opacity: .8; }
+/* Materialbeutel im Inventar */
+.pg-matbag { margin-top: 8px; }
+.pg-matbag-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.pg-matbag-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+/* Auftragsbrett */
+.pg-board-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pg-board-offer { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; }
+.pg-board-offer.ready { border-color: rgba(255,216,74,.5); }
+.pg-board-offer.done { opacity: .55; }
+.pg-board-main { flex: 1 1 240px; min-width: 0; }
+.pg-board-main p { margin: 2px 0 4px; }
+.pg-board-act { flex: 0 0 auto; min-width: 120px; }
+.pg-board-week { margin-top: 10px; }

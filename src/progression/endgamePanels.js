@@ -6,6 +6,7 @@ import { UPGRADE_MAX, upgradeCost, ENCHANTS, slotBonus, activeSets } from './smi
 import { TRIAL_REQUIRES, TRIAL_MAX_TIER, TRIAL_AFFIXES, trialSpec, trialChances, trialRewards } from './trials.js';
 import { BANK_SIZES, BANK_COSTS } from './endgame.js';
 import { countItem } from './selectors.js';
+import { boardView } from './boardPanel.js';
 import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, barEl, attachTip, reactive, tapper, setInfoEl } from './widgets.js';
 
 // Endgame-Panels von Thread C:
@@ -19,6 +20,7 @@ export function registerEndgamePanels(game) {
   P.register('achievements', (s) => reactive(s, achievementsView(s)), { title: 'Erfolge' });
   P.register('smith', (s, p) => reactive(s, smithView(s, p)), { title: 'Verstärken' });
   P.register('trials', (s) => reactive(s, trialsView(s)), { title: 'Glutprüfungen' });
+  P.register('board', (s) => reactive(s, boardView(s)), { title: 'Auftragsbrett' });
 }
 
 const commit = (s, type, payload) => s.state.commit(type, payload);
@@ -63,10 +65,8 @@ function bankView(s) {
             h('div.pg-actions',
               actionBtn('Sortieren', () => act('bank:sort', {}), { small: true }),
               cost != null ? actionBtn(`Erweitern (+8) – ${cost.toLocaleString('de-DE')} Gold`, () => act('bank:expand', {}), { small: true, disabled: st.slices.wallet.gold < cost }) : h('span.ef-note', 'Größte Kiste'))),
-          h('section', h('h3', 'Tasche'), h('div.pg-bag.small', grid('bag', inv.slots)),
-            h('div.pg-actions', actionBtn('Alle Materialien einlagern', () => {
-              const r = commit(s, 'bank:depositMaterials', {}); msg = r.ok ? `${r.count} Materialien eingelagert.` : 'Keine Materialien in der Tasche.'; redraw();
-            }, { small: true })))),
+          // Materialien liegen im Materialbeutel (ohne Größe); alte Materialien in der Kiste lassen sich weiter entnehmen.
+          h('section', h('h3', 'Tasche'), h('div.pg-bag.small', grid('bag', inv.slots)))),
         selIt ? h('div.pg-sheet.open',
           h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', onclick: () => { sel = null; redraw(); } }, '✕'),
           itemDetail(c, selIt.itemId, { ...opts, compact: true, actions: [sel.where === 'bag'

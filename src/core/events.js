@@ -50,6 +50,9 @@ export const EV = Object.freeze({
   QUEST_READY: 'quest:ready',            // { questId }  (alle Ziele erfüllt, Abgabe offen)
   QUEST_COMPLETED: 'quest:completed',    // { questId, rewards }
   QUEST_TRACKED: 'quest:tracked',        // { questId | null }  (Questpfad neu berechnen)
+  QUEST_OBJECTIVE: 'quest:objective',    // { kind: 'escort'|'defend'|'escortFailed'|'defendFailed', target }  (Welt meldet Sonderziele)
+  BOARD_CHANGED: 'board:changed',        // Auftragsbrett: Tagesaufträge neu (progression/board.js)
+  BOARD_PROGRESS: 'board:progress',      // Auftragsbrett: Fortschritt eines Auftrags
   // Endgame „Glutprüfungen“ (Thread C, Zone ember_trial)
   TRIAL_STARTED: 'trial:started',        // { run }
   TRIAL_PROGRESS: 'trial:progress',      // { value, target, timeLeft }

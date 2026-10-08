@@ -91,6 +91,12 @@ export class Hud {
     this.bossName = el('div.hud-boss-name');
     this.bossBar = bar('boss', 'Boss');
     this.bossEl = el('div.hud-boss', { style: `--boss-skull: url(${iconUrl('relic')})` }, this.bossName, this.bossBar.el);
+    // Champion (Vertrag B): enemy.champion { affixes, labels, color }, enemy.displayName
+    this.champName = el('div.hud-champ-name');
+    this.champAff = el('div.hud-champ-aff');
+    this.champBar = bar('champ', 'Champion');
+    this.champEl = el('div.hud-champ', this.champName, this.champBar.el, this.champAff);
+    this.champ = null;
 
     // Banner, Hinweis, Tod
     this.bTitle = el('div.hud-banner-title');
@@ -117,7 +123,7 @@ export class Hud {
     this.castFill = el('div.hud-cast-fill');
     this.castText = el('span.hud-cast-text', 'Aufsitzen');
     this.castEl = el('div.hud-cast', el('div.hud-cast-bar', this.castFill), this.castText);
-    this.viewEl = el('div.hud-view', this.bossEl, this.trialEl, this.bannerEl, this.promptEl, this.castEl, this.deadEl);
+    this.viewEl = el('div.hud-view', this.bossEl, this.champEl, this.trialEl, this.bannerEl, this.promptEl, this.castEl, this.deadEl);
 
     // Aktionsleiste
     this.slots = [
@@ -333,6 +339,7 @@ export class Hud {
 
     this.#updateTracker();
     this.#updateBoss(dt);
+    this.#updateChampion(dt, hero);
     this.#updateTrial(dt);
     this.#updateBanner(dt);
     this.#updatePrompt();
@@ -437,6 +444,29 @@ export class Hud {
     const a = b.actor;
     this.#meter(this.bossBar, Math.max(0, a.hp), a.maxHp, dt, `${Math.max(0, Math.ceil(a.hp))} / ${a.maxHp}`);
     toggle(this.bossEl, 'enraged', !!a.enraged || a.phase > 1);
+  }
+
+  // Nächster lebender Champion in Reichweite (angegriffen oder nah); Leiste blendet sich sonst aus
+  #updateChampion(dt, hero) {
+    const w = this.s.world;
+    let best = null, bd = Infinity;
+    if (w?.enemies && hero && !hero.dead) for (const e of w.enemies) {
+      if (!e.champion || e.dead || e.removed) continue;
+      const d = Math.hypot(e.x - hero.x, e.y - hero.y);
+      const range = e.aggroed || e.hp < e.maxHp ? 300 : 170;
+      if (d < range && d < bd) { best = e; bd = d; }
+    }
+    toggle(this.champEl, 'show', !!best);
+    if (!best) return;
+    if (best !== this.champ) {
+      this.champ = best;
+      this.champBar.ready = false;
+      const c = best.champion;
+      setText(this.champName, best.displayName ?? best.def?.name ?? 'Champion');
+      setText(this.champAff, (c.labels ?? []).join(' · '));
+      setVar(this.champEl, '--champ', c.color ?? '#ff8a3a');
+    }
+    this.#meter(this.champBar, Math.max(0, best.hp), best.maxHp, dt, '');
   }
 
   #updateBanner(dt) {

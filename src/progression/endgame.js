@@ -6,6 +6,7 @@ import { ACHIEVEMENTS } from './achievements.js';
 import { UPGRADE_MAX, upgradeCost, ENCHANTS, computeBonus } from './smithing.js';
 import { TRIAL_REQUIRES, TRIAL_MAX_TIER, KILL_VALUE, trialSpec, trialRewards } from './trials.js';
 import { countItem } from './selectors.js';
+import { boardProgress } from './board.js';
 
 export const BANK_SIZES = [16, 24, 32, 40, 48];
 export const BANK_COSTS = [200, 600, 1500, 4000]; // Gold für die nächste Erweiterung
@@ -65,6 +66,7 @@ export function trialKill(s, ctx, { type, elite, isBoss, bossId, trialTime }, h)
       if (got < it.qty) h.bankOverflow(s, it.itemId, it.qty - got);
     }
     ctx.bus.emit(TRIAL_EV.COMPLETED, { tier: run.tier, time: run.time, rewards, firstClear });
+    boardProgress(s, ctx, { kind: 'trial', tier: run.tier });
   }
 }
 
