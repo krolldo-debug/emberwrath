@@ -13,10 +13,10 @@ export const ZONES = {
     start: true,
     instanced: false,
     maxPlayers: 40,
-    recommendedLevel: '1–3',
+    recommendedLevel: '1–5',
     respawnSpawn: 'respawn',
     links: ['catacombs', 'ashwood'],
-    enemies: ['wolf', 'wolf_alpha'],
+    enemies: ['wolf', 'wolf_alpha', 'ember_beetle'],
     ambient: [92, 88, 126], // Nacht mit Mondlicht, heller als der Dungeon
   },
   catacombs: {
@@ -44,7 +44,7 @@ export const ZONES = {
     recommendedLevel: '6–11',
     respawnSpawn: 'respawn',
     links: ['emberhollow', 'sunken_temple', 'cinder_peaks'],
-    enemies: ['ash_boar', 'bandit', 'bandit_archer', 'thorn_crawler', 'bandit_chief'],
+    enemies: ['ash_boar', 'bandit', 'bandit_archer', 'thorn_crawler', 'bandit_chief', 'ember_beetle', 'bandit_shieldbearer'],
     ambient: [122, 114, 136],
   },
   sunken_temple: {
@@ -72,8 +72,8 @@ export const ZONES = {
     recommendedLevel: '12–17',
     respawnSpawn: 'respawn',
     links: ['ashwood', 'molten_forge', 'ashen_steppe'],
-    enemies: ['fire_imp', 'magma_hound', 'ash_golem', 'cinder_cultist', 'magma_behemoth'],
-    ambient: [116, 88, 92],
+    enemies: ['fire_imp', 'magma_hound', 'ash_golem', 'cinder_cultist', 'magma_behemoth', 'cinder_sapper', 'cliff_harpy'],
+    ambient: [118, 114, 110],
   },
   molten_forge: {
     name: 'Die Glutschmiede',
@@ -122,7 +122,7 @@ export const ZONES = {
     recommendedLevel: '20–25',
     respawnSpawn: 'respawn',
     links: ['cinder_peaks', 'howling_barrow', 'blighted_marsh'],
-    enemies: ['steppe_raider', 'raider_archer', 'dust_hyena', 'ash_vulture', 'steppe_warlord'],
+    enemies: ['steppe_raider', 'raider_archer', 'dust_hyena', 'ash_vulture', 'steppe_warlord', 'cliff_harpy', 'dust_shaman', 'gnoll_trapper'],
     ambient: [128, 116, 120],
   },
   howling_barrow: {
@@ -152,8 +152,8 @@ export const ZONES = {
     recommendedLevel: '25–31',
     respawnSpawn: 'respawn',
     links: ['ashen_steppe', 'spore_hollow', 'frostspire'],
-    enemies: ['bog_lurker', 'rot_shaman', 'swamp_leech', 'plague_toad', 'bog_horror'],
-    ambient: [100, 118, 104],
+    enemies: ['bog_lurker', 'rot_shaman', 'swamp_leech', 'plague_toad', 'bog_slime', 'marsh_hag', 'bog_horror'],
+    ambient: [132, 150, 136],
   },
   spore_hollow: {
     name: 'Der Sporenschlund',
@@ -182,7 +182,7 @@ export const ZONES = {
     recommendedLevel: '31–36',
     respawnSpawn: 'respawn',
     links: ['blighted_marsh', 'rime_caverns', 'ember_wastes'],
-    enemies: ['ice_troll', 'frost_wolf', 'rime_witch', 'snow_stalker', 'ice_troll_chief'],
+    enemies: ['ice_troll', 'frost_wolf', 'rime_witch', 'snow_stalker', 'frost_revenant', 'snow_burrower', 'ice_troll_chief'],
     ambient: [118, 126, 148],
   },
   rime_caverns: {
@@ -212,8 +212,8 @@ export const ZONES = {
     recommendedLevel: '36–40',
     respawnSpawn: 'respawn',
     links: ['frostspire', 'ashen_throne'],
-    enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus'],
-    ambient: [124, 90, 84],
+    enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus', 'cinder_bombardier', 'phase_wraith'],
+    ambient: [148, 120, 98],
   },
   ashen_throne: {
     name: 'Der Aschethron',

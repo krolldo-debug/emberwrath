@@ -1,6 +1,8 @@
 import { Entity, getShadow } from './Entity.js';
 import { Animator } from '../gfx/Sprite.js';
 import { moveAndCollide } from '../systems/Physics.js';
+import { applyLevelGap } from '../progression/levelGap.js';
+import { applyBossPower } from '../world/bossFury.js';
 
 // Lebewesen: HP, Treffer-Reaktion, Rückstoß, Animation, Zustandsmaschine.
 export class Actor extends Entity {
@@ -33,6 +35,8 @@ export class Actor extends Entity {
 
   takeHit(hit) {
     if (this.dead || this.invuln > 0 || !this.hurtable) return false;
+    applyLevelGap(hit, this); // Stufenabstand (progression/levelGap.js, Thread C), einmal pro Treffer
+    applyBossPower(hit, this); // Boss-Schadensfaktor + Raserei (world/bossFury.js, Thread B), einmal pro Treffer
     this.hp -= hit.damage;
     this.flash = 0.1;
     this.hpBarTimer = 2.5;

@@ -160,6 +160,10 @@ export class TrialDirector {
     if (!Cls) return;
     const b = new Cls(bx, by, w.assets);
     b.maxHp = b.hp = this.run?.bossHp ?? Math.round(b.maxHp * (this.run?.hpMult ?? 1));
+    // Prüfungsboss kämpft auf Prüfungsstufe (sonst wirkt der Stufenabstand, z. B. Varkhul 6 gegen Held 30)
+    // und mit einheitlichem Schadensfaktor statt def.dmgMult (C: trials.js TRIAL_BOSS_DMG)
+    b.level = this.run?.level ?? b.level;
+    b.trialDmgMult = this.run?.bossDmgMult ?? 1;
     // Bezug Stufe 20 (so war die Prüfung abgestimmt), damit Läufe auf 20 unverändert bleiben
     const dmgAt = (L) => 86 + (L - 1) * 16.3, lvl = this.run?.level ?? 20, base = 20;
     this.bossPower = lvl > base ? dmgAt(lvl) / dmgAt(base) : 1;

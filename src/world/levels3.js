@@ -1,6 +1,13 @@
 import { createRng } from '../core/math.js';
 import { MapBuilder } from './levels.js';
 import { rim, scatter, ring, dungeonBase, inRect, inEll } from './levels2.js';
+import { buildAshenSteppe as buildAshenSteppeNew } from './outdoor/ashen_steppe.js';
+import { road4, near, box, each, GROUND, blob, roadNet, MISPLACED, foe, strew, circle } from './mapkit.js';
+import { buildEmberWastes as buildEmberWastesR5 } from './outdoor/ember_wastes.js';
+import { buildEmberhollow as buildEmberhollowR5 } from './outdoor/emberhollow.js';
+import { buildAshwood as buildAshwoodR5 } from './outdoor/ashwood.js';
+import { buildBlightedMarsh as buildBlightedMarshR5 } from './outdoor/blighted_marsh.js';
+import { buildFrostspire as buildFrostspireR5 } from './outdoor/frostspire.js';
 
 // Runde-3-Gebiete (INTEGRATION.md §12.2), Stufe 20–40: Aschensteppe,
 // Heulendes Hügelgrab, Faulmarsch, Sporenschlund, Frostzinnen, Reifhöhlen,
@@ -12,73 +19,6 @@ import { rim, scatter, ring, dungeonBase, inRect, inEll } from './levels2.js';
 //
 // Bodenzeichen außen: ',' Gras/Asche, '.' Erde/Kies/Brandboden, ':' Pflaster,
 // '~' Wasser/Lava (fest), '#' Fels. Straßen über Wasser sind Dämme ('.').
-
-const road4 = (m) => (pts, w = 2) => m.path(pts, w, '.', [',', '~']);
-const near = (m, x, y, ch, r = 1) => {
-  for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (m.get(x + i, y + j) === ch) return true;
-  return false;
-};
-const box = (r, pad = 1) => (x, y) => x >= r.x - pad && y >= r.y - pad && x < r.x + r.w + pad && y < r.y + r.h + pad;
-const each = (list, fn) => list.forEach(([x, y]) => fn(x, y));
-const GROUND = new Set([',', '.', ':']);
-
-// Unregelmäßiger Fleck aus einer Grundellipse und versetzten Teilellipsen
-function blob(m, rng, cx, cy, rx, ry, ch, only = null, n = 4) {
-  m.ellipse(cx, cy, rx, ry, ch, only);
-  for (let i = 0; i < n; i++) {
-    m.ellipse(cx + rng.range(-rx, rx) * 0.6, cy + rng.range(-ry, ry) * 0.6, rx * rng.range(0.35, 0.65), ry * rng.range(0.35, 0.65), ch, only);
-  }
-}
-
-// Wegenetz: malt Straßen in die Karte und merkt sie in einer Maske, damit
-// die Streudeko einen Rand frei lässt.
-function roadNet(m) {
-  const mask = new MapBuilder(m.w, m.h, ' ');
-  const road = (pts, w = 2, ch = '.', only = [',', '~']) => { m.path(pts, w, ch, only); mask.path(pts, w + 1.2, 'R'); };
-  return { road, mask, onRoad: (x, y) => mask.get(x, y) === 'R' };
-}
-
-// Prüfhilfe: Marken, für die kein freier Boden gefunden wurde (sollte leer sein)
-export const MISPLACED = [];
-
-// Gegner/Marke auf den nächsten freien Boden (3 × 3 nur Boden) setzen –
-// nie in Wasser, Fels oder Deko.
-function foe(m, x, y, ch) {
-  for (let r = 0; r <= 5; r++) {
-    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
-      if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
-      let ok = true;
-      for (let b = -1; b <= 1 && ok; b++) for (let a = -1; a <= 1; a++) if (!GROUND.has(m.get(x + i + a, y + j + b))) { ok = false; break; }
-      if (ok) { m.set(x + i, y + j, ch); return; }
-    }
-  }
-  MISPLACED.push(`${ch}@${x},${y}`);
-  m.set(x, y, ch);
-}
-
-// Streudeko auf Bodenzeichen `grounds`; meidet Straßen und Sperrflächen.
-// pick(x, y, ground, free) -> Zeichen oder null; free = 3 × 3 nur Boden.
-function strew(m, net, rng, keep, pick, grounds = ',') {
-  const G = new Set(grounds);
-  const free = (x, y) => {
-    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (!GROUND.has(m.get(x + i, y + j))) return false;
-    return true;
-  };
-  for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) {
-    const ch = m.get(x, y);
-    if (!G.has(ch) || keep(x, y) || net.onRoad(x, y)) continue;
-    const r = pick(x, y, ch, free(x, y));
-    if (r) m.set(x, y, r);
-  }
-}
-
-// Kreis aus Zeichen (Steinkreise, Säulenringe)
-function circle(m, cx, cy, rx, ry, n, ch, a0 = 0) {
-  for (let i = 0; i < n; i++) {
-    const a = a0 + (i / n) * Math.PI * 2;
-    m.set(Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry), ch);
-  }
-}
 
 // ---------------------------------------------------------------- Aschensteppe (20–25)
 // Gliederung: Weideland um den Außenposten (West), ausgetrocknetes Flussbett
@@ -1154,13 +1094,15 @@ export function calmArrivals(id, level, r = 12) {
 }
 
 const RAW3 = {
-  ashen_steppe: buildAshenSteppe(),
+  ashen_steppe: buildAshenSteppeNew(),
   howling_barrow: shiftLevelDown(buildHowlingBarrow(), 8),
-  blighted_marsh: buildBlightedMarsh(),
+  blighted_marsh: buildBlightedMarshR5(),
   spore_hollow: buildSporeHollow(),
-  frostspire: buildFrostspire(),
+  frostspire: buildFrostspireR5(),
   rime_caverns: buildRimeCaverns(),
-  ember_wastes: buildEmberWastes(),
+  ember_wastes: buildEmberWastesR5(),
+  emberhollow: buildEmberhollowR5(),
+  ashwood: buildAshwoodR5(),
   ashen_throne: shiftLevelDown(buildAshenThrone(), 3),
 };
 export const LEVELS3 = Object.fromEntries(Object.entries(RAW3).map(([id, L]) => [id, calmArrivals(id, L, 12)]));

@@ -48,6 +48,9 @@ function mulberry(seed) {
 // Stufe 20 mit epischer Ausrüstung macht effektiv rund 250–300 Schaden/s → 30–40 s auf Stufe 1,
 // ab Stufe ~4 im Zielbereich 40–60 s (mit Verstärkungen/Sets entsprechend höher).
 export const TRIAL_BOSS_HP = 9000;
+// Schadensfaktor der Prüfungsbosse. Ersetzt in der Prüfung das def.dmgMult der Story-Bosse (×1,1 bis ×4,
+// abgestimmt auf lange Story-Kämpfe), damit jedes Thema gleich hart ist und nur die Prüfungsstufe zählt.
+export const TRIAL_BOSS_DMG = 1.5;
 
 // Laufbeschreibung für Stufe `tier` (1…). B spawnt danach; C zählt Fortschritt und vergibt Belohnung.
 export function trialSpec(tier, seed = 1, playerLevel = 20, completed = []) {
@@ -68,6 +71,7 @@ export function trialSpec(tier, seed = 1, playerLevel = 20, completed = []) {
     pool: [...theme.pool], elites: [...theme.elites], eliteEvery: Math.max(6, 12 - Math.floor(t / 2)),
     target: 60, bossId: theme.bossId, timeLimit: 600, affixes,
     // Absolute Boss-Lebenspunkte (schon mit hpMult); B setzt b.maxHp = run.bossHp
+    bossDmgMult: TRIAL_BOSS_DMG,
     bossHp: Math.round(TRIAL_BOSS_HP * scale * (theme.bossHp ?? 1) * (1 + 0.25 * (t - 1)) / 100) * 100,
   };
 }

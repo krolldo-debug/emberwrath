@@ -2,7 +2,8 @@ import { CONFIG } from '../config.js';
 import { Prop } from '../entities/Prop.js';
 import { Decor } from '../entities/Decor.js';
 import { RuneGlow } from '../entities/Effects.js';
-import { Chest, Gate, Portal, AreaTrigger, WorldObject } from '../entities/Interactive.js';
+import { Chest, Gate, Portal, AreaTrigger, WorldObject, Waystone, QuestBoard } from '../entities/Interactive.js';
+import { waystoneOf, waystoneFlag, travelInfo, inCombat } from './waystones.js';
 import { Npc } from '../entities/Npc.js';
 import { SpikeTrap, JetTrap, Lever } from '../entities/Traps.js';
 import { Light } from '../gfx/Lighting.js';
@@ -41,7 +42,16 @@ export function placeObjects(world) {
     // Mehrteilige Kollision (Tore, Ruinen): einzelne Pfeiler statt eines Kastens
     for (const [a, b, c, dd] of e.boxes ?? []) d.boxes.push({ x0: pl.x + a, y0: pl.y + b, x1: pl.x + c, y1: pl.y + dd, low: false });
     for (const l of e.lights ?? []) world.addLight(new Light({ x: pl.x + l.dx, y: pl.y + l.dy, radius: l.radius, color: l.color, intensity: l.intensity ?? 0.9, flicker: 0.2, bloom: 0.3 }));
-    return add(pl.x, pl.y, opts);
+    const o = add(pl.x, pl.y, opts);
+    // Wegweiser im Deko-Satz (extra.sign): liest level.signText vor
+    if (e.sign) {
+      world.interactables.push({
+        x: pl.x, y: pl.y, interactRange: 20,
+        canInteract: () => true, prompt: () => 'Wegweiser lesen', promptAnchor: () => ({ x: pl.x, y: pl.y - 30 }),
+        interact: (w) => w.bus.emit(EV.UI_TOAST, { text: L.signText ?? '', kind: 'info' }),
+      });
+    }
+    return o;
   };
 
   for (const pl of d.placements) {
@@ -159,7 +169,19 @@ export function placeObjects(world) {
 
   // Schreine und aufhebbare Objekte (level.objects)
   for (const o of L.objects ?? []) {
-    let looks = (o.set ? A.sprites[o.set] : decoSet)?.[o.decor];
+    // Truhe als Objekt ({ id, kind: 'chest', x, y }): einmal öffnen, bleibt für den Charakter offen
+    if (o.kind === 'chest') {
+      const x = o.x * T + T / 2, y = o.y * T + 14;
+      const id = `${world.zone.id}_${o.id}`;
+      const persistent = !world.zone.instanced;
+      const opened = persistent && !!world.state.slices.world?.flags?.[`chest:${id}`];
+      const c = world.spawn(new Chest(x, y, { id, sprites: Chest.sprites(A), persistent, opened }));
+      d.boxes.push({ x0: x - 7, y0: y - 4, x1: x + 7, y1: y + 1, low: true });
+      world.interactables.push(c);
+      continue;
+    }
+    // Fehlt das Bild im Deko-Satz der Zone: Eskorte-/Ritual-Bilder (decor 'cart' | 'caravan' | 'riftCircle')
+    let looks = (o.set ? A.sprites[o.set] : decoSet)?.[o.decor] ?? A.sprites.caravan?.[o.decor];
     if (Array.isArray(looks)) looks = looks[0];
     if (!looks) continue;
     const obj = world.spawn(new WorldObject(o.x * T + T / 2, o.y * T + T - 2, { id: o.id, kind: o.kind, looks, prompt: o.prompt, pickup: o.kind === 'item' }));
@@ -167,6 +189,49 @@ export function placeObjects(world) {
     const bx = (looks.off ?? looks).box;
     if (o.kind !== 'item' && s) d.boxes.push(bx ? { x0: obj.x + bx[0], y0: obj.y + bx[1], x1: obj.x + bx[2], y1: obj.y + bx[3], low: true } : { x0: obj.x - 5, y0: obj.y - 4, x1: obj.x + 5, y1: obj.y + 1, low: true });
     world.interactables.push(obj);
+  }
+
+  // Wegstein (Teleporter): level.waystone = { x, y } in Kacheln (Fußpunkt des Steins),
+  // alternativ ein Eintrag { kind: 'waystone', x, y } in level.objects. Ankunftspunkt =
+  // Spawn-Punkt 'waystone' der Karte (points), sonst automatisch direkt südlich vor dem Stein.
+  const ws = L.waystone ?? (L.objects ?? []).find((o) => o.kind === 'waystone');
+  if (ws && A.sprites.waystone) {
+    const zid = world.zone.id;
+    const x = ws.x * T + T / 2, y = ws.y * T + T - 2;
+    const looks = A.sprites.waystone;
+    const site = waystoneOf(zid) ?? { zoneId: zid, spawnId: 'waystone', name: ws.name ?? world.zone.name, region: world.zone.name, levels: world.zone.recommendedLevel ?? '' };
+    const unlocked = !!world.state.slices.world?.flags?.[waystoneFlag(zid)];
+    const stone = world.spawn(new Waystone(x, y, { zoneId: zid, site, unlocked, looks, travelInfo, inCombat }));
+    const [bx0, by0, bx1, by1] = looks.box;
+    d.boxes.push({ x0: x + bx0, y0: y + by0, x1: x + bx1, y1: y + by1, low: false });
+    world.interactables.push(stone);
+    world.waystone = stone;
+    if (!d.spawns.waystone) d.spawns.waystone = d.nearestFree(x, y + 16);
+  }
+
+  // Auftragsbrett: level.board = { x, y, id? } in Kacheln (Fußpunkt), alternativ { kind: 'quest_board', x, y, id? }
+  // in level.objects. boardId = id ?? 'board_<zoneId>'. Angebote: world.boardHasOffers(zoneId, boardId)
+  // (Standard: game.boardHasOffers-Hook von Thread C, sonst false).
+  const bd = L.board ?? (L.objects ?? []).find((o) => o.kind === 'quest_board');
+  if (bd && A.sprites.quest_board) {
+    const zid = world.zone.id, looks = A.sprites.quest_board;
+    const x = bd.x * T + T / 2, y = bd.y * T + T - 2;
+    world.boardHasOffers ??= (zoneId, boardId) => !!world.session.game?.boardHasOffers?.(zoneId, boardId);
+    const board = world.spawn(new QuestBoard(x, y, { zoneId: zid, boardId: bd.id ?? `board_${zid}`, looks }));
+    const [bx0, by0, bx1, by1] = looks.box;
+    d.boxes.push({ x0: x + bx0, y0: y + by0, x1: x + bx1, y1: y + by1, low: false });
+    world.interactables.push(board);
+    world.questBoard = board;
+  }
+
+  // Versteckte Truhen in Außenkarten (level.chests: [{ x, y }] in Kacheln), je Charakter einmal
+  for (const c of L.chests ?? []) {
+    const x = c.x * T + T / 2, y = c.y * T + T / 2 + 5;
+    const id = `${world.zone.id}_chest_${c.x}_${c.y}`;
+    const opened = !!world.state.slices.world?.flags?.[`chest:${id}`];
+    const ch = world.spawn(new Chest(x, y, { id, sprites: Chest.sprites(A), persistent: true, opened }));
+    d.boxes.push({ x0: x - 7, y0: y - 4, x1: x + 7, y1: y + 1, low: true });
+    world.interactables.push(ch);
   }
 
   // Hebel für verborgene Durchgänge (level.secrets)
@@ -180,9 +245,11 @@ export function placeObjects(world) {
     const zone = world.session.content.find('zone', p.to.zoneId);
     const subs = [];
     if (zone?.instanced) subs.push(`Instanz · bis ${zone.maxPlayers} Spieler`);
+    // Dungeons sind ab empfohlener Stufe − 3 betretbar (requires.minLevel überschreibt); Außenzonen bleiben offen.
+    const minLevel = p.requires?.minLevel ?? (zone?.instanced && p.requires?.level ? Math.max(1, p.requires.level - 3) : null);
     if (p.requires?.level) subs.push(`Empfohlen ab Stufe ${p.requires.level}`);
     const sub = subs.length ? subs.join(' · ') : null;
-    const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir }));
+    const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir, minLevel }));
     world.interactables.push(portal);
   }
 

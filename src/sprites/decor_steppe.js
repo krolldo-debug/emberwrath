@@ -1,17 +1,66 @@
 import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
 import { mk, poly } from './decor_ashwood.js';
+import { PixelCanvas } from '../gfx/PixelCanvas.js';
+import { buildFrame } from '../gfx/Sprite.js';
+import { groundPixel, vnoise } from './outdoor.js';
 
 // Aschensteppe: trockene Grassteppe unter Aschehimmel. Nomadenlager, Kriegsherren,
 // Grabhügel und die Knochen uralter Bestien. Licht von links oben; alles Leuchtende
 // zusätzlich auf der Glow-Ebene ((W+2)×(H+2), 1 px Versatz wie decor_ashwood.js).
 
 // Bodenpalette (Format wie BIOME_GROUND in sprites/outdoor.js)
+// Runde 2: Grundton trockenes Steppengras; level.soil färbt Flächen um:
+// g sattes Gras (Wasserlöcher), r Rotsand (Tafelberge/Schlucht), s Salzkruste, b trockenes Flussbett, a Ascheflur.
+const ST_DIRT = ['#211a11', '#2d2316', '#3b2e1c', '#4a3a23', '#5a472b', '#6c5533'];
+const ST_SUB = {
+  g: { grass: ['#131b0d', '#1a2511', '#223016', '#2b3c1a', '#35491f', '#415725'], dirt: ST_DIRT },
+  a: { grass: ['#191817', '#22201f', '#2c2a28', '#373431', '#423e3a', '#504b46'], dirt: ST_DIRT },
+};
+const hexRgbS = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const ST_RED = ['#24130c', '#341b10', '#452414', '#572d18', '#6a381d', '#7e4423'].map(hexRgbS);
+const ST_SALT = ['#34322d', '#45423b', '#57534a', '#6a655a', '#7e786a', '#948d7c'].map(hexRgbS);
+const ST_BED = ['#2c251b', '#3f3528', '#4e4333', '#5d503e', '#6c5d49', '#7d6c55'].map(hexRgbS);
+function steppeSoil(level, px, py) {
+  const S = level?.soil; if (!S) return ' ';
+  const jx = px + (vnoise(px / 11, py / 11, 401) - 0.5) * 18, jy = py + (vnoise(px / 11, py / 11, 402) - 0.5) * 18;
+  return S[Math.floor(jy / 16)]?.[Math.floor(jx / 16)] ?? ' ';
+}
+function steppePixel(kind, px, py, level) {
+  if (kind !== ',' && kind !== '.') return groundPixel(kind, px, py, GROUND_STEPPE);
+  const s = steppeSoil(level, px, py);
+  if (s === 'g' || s === 'a') return groundPixel(kind, px, py, ST_SUB[s]);
+  if (s !== 'r' && s !== 's' && s !== 'b') return groundPixel(kind, px, py, GROUND_STEPPE);
+  const n = vnoise(px / 9, py / 9, 11) * 0.6 + vnoise(px / 3, py / 3, 12) * 0.4, h = hash2(px, py, 13);
+  let i = 1 + Math.floor(n * 3) + (kind === '.' ? 1 : 0);
+  if (s === 'r') {
+    // Rotsand mit Windrippeln
+    const rip = Math.sin(px * 0.42 + py * 0.16 + vnoise(px / 13, py / 13, 403) * 7);
+    if (rip > 0.82) i = Math.min(5, i + 1); else if (rip < -0.9) i = Math.max(0, i - 1);
+    if (h < 0.02) i = 0;
+    return ST_RED[Math.max(0, Math.min(5, i))];
+  }
+  // Salz und Flussbett: Trockenrisse als Netz
+  const crackA = Math.abs(vnoise(px / 7, py / 6, s === 's' ? 404 : 406) - 0.5) < 0.035;
+  const crackB = Math.abs(vnoise(px / 11, py / 9, s === 's' ? 405 : 407) - 0.5) < 0.025;
+  if (s === 's') {
+    if (crackA || crackB) return ST_SALT[1];
+    if (h < 0.05) i = 5;
+    return ST_SALT[Math.max(2, Math.min(5, i + 1))];
+  }
+  if (crackA) return ST_BED[0];
+  // Uferkante: dunkler, wo das Bett endet
+  if (steppeSoil(level, px, py - 7) !== 'b' || steppeSoil(level, px, py + 7) !== 'b') return ST_BED[Math.max(0, Math.min(2, i - 1))];
+  if (h < 0.07) { const p = hash2(px >> 1, py >> 1, 408); return p < 0.5 ? [112, 104, 94] : [74, 66, 58]; }  // Kiesel
+  return ST_BED[Math.max(1, Math.min(5, i))];
+}
 export const GROUND_STEPPE = {
-  grass: ['#15130d', '#1d1a11', '#262216', '#302a1b', '#3b3321', '#473d27'],
-  dirt: ['#1b150d', '#271e12', '#352816', '#45341d', '#574224', '#6a512e'],
+  grass: ['#1d1b10', '#282514', '#35301a', '#433c20', '#524926', '#62572d'],
+  dirt: ST_DIRT,
   water: ['#06090b', '#0a1013', '#0f191c', '#172528', '#233538'],
+  cliffCap: ['#4e321e', '#5e3c23', '#6e4629', '#7e5030', '#8e5a36', '#a0663e'],
   tufts: false,
+  pixel: steppePixel,
 };
 
 const STRAW = ['#1c160c', '#2b2212', '#3f3219', '#554422', '#6d592d', '#88713c', '#a68f55'];
@@ -1051,6 +1100,627 @@ function barrowMound() {
   });
 }
 
+// ============================================================ Runde 5: Tafelberge, Schlucht, Landmarken
+const MES = ['#140d09', '#21150d', '#311e11', '#452a16', '#5b381c', '#734823', '#8e5b2c', '#ab7339', '#c99250'];
+const SALT = ['#4a4640', '#6a655c', '#8f897c', '#b5ad9c', '#d6cfbd', '#efe9da'];
+const REED = ['#1a1a0e', '#2a2914', '#3d3a1b', '#545024', '#6c6630', '#88803e'];
+const BLUEF = ['#141820', '#1e2430', '#2a3344', '#384660', '#4c5c7a', '#6a7c98'];
+
+function mkFlat(W, H, draw, { ax, ay, extra } = {}) {
+  const gl = new PixelCanvas(W + 2, H + 2);
+  gl.ctx.translate(1, 1);
+  let used = false;
+  const g = { px: (x, y, c) => { used = true; gl.px(x, y, c); }, rect: (x, y, w, h, c) => { used = true; gl.rect(x, y, w, h, c); } };
+  const sprite = buildFrame(W, H, ax, ay, (p) => draw(p, g), { outline: false });
+  const e = { sprite };
+  if (used) e.glow = gl.canvas;
+  if (extra) Object.assign(e, extra);
+  return e;
+}
+
+// ------------------------------------------------------------ Schichtwand der Tafelberge (eine Kachel breit)
+// Gesteinsbänder hängen nur von y ab -> Nachbarkacheln passen nahtlos; Rinnen, Wüstenlack und Geröll je Variante.
+const STRATA = [8, 7, 6, 4, 5, 6, 6, 5, 3, 2, 4, 5, 5, 6, 5, 4, 4, 3, 5, 6, 6, 5, 4, 3, 2, 4, 4, 3, 3, 2, 2, 1];
+function mesaFace(v) {
+  const W = 16, H = 36, FH = 32;
+  return mkFlat(W, H, (p, g) => {
+    const grooves = [[3, 9], [7, 12], [11, 4], [5, 14], [2, 8, 13], [10], [6, 12], [4, 11]][v];
+    for (let x = 0; x < W; x++) {
+      const drip = hash2(x, v, 1201) < 0.22 ? 6 + Math.floor(hash2(x, v, 1202) * 12) : 0;   // Wüstenlack
+      for (let y = 0; y < FH; y++) {
+        let k = STRATA[y];
+        const wav = Math.round(Math.sin((x + v * 5) * 0.7) * 0.6);
+        if (y > 1 && y < FH - 4) k = STRATA[Math.max(2, Math.min(FH - 5, y + wav))];
+        if (grooves.some((gx) => gx === x)) k -= 2;
+        else if (grooves.some((gx) => gx === x - 1)) k += 1;
+        if (drip && y > 1 && y < drip) k -= 1;
+        if (hash2(x, y, 1203 + v) < 0.06) k -= 1;
+        if (y > FH - 4) k = Math.min(k, 3) - (y > FH - 2 ? 1 : 0);
+        p.px(x, y, MES[clampI(k, MES.length)]);
+      }
+      p.px(x, 0, hash2(x, 3, 1204) < 0.5 ? MES[8] : DRYG[4]);   // Kante mit Grasrand
+    }
+    // Felsbrocken am Fuß
+    for (let i = 0; i < 3; i++) {
+      const x = 1 + Math.floor(hash2(v, i, 1205) * 12), y = FH - 2;
+      p.px(x, y, MES[5]); p.px(x + 1, y, MES[3]); p.px(x, y - 1, MES[6]); p.px(x + 1, y + 1, MES[2]);
+    }
+    for (let y = FH; y < H; y++) for (let x = 0; x < W; x++) if ((x + y) % 2 === 0 || y < FH + 2) p.px(x, y, `rgba(10,6,4,${0.45 - (y - FH) * 0.1})`);
+  }, { ax: 8, ay: 30 });
+}
+
+// ------------------------------------------------------------ Salzkruste (flach, Bodenstück)
+function saltCrust(v) {
+  // unregelmäßiger Krustenfleck, größer als eine Kachel, damit kein Raster sichtbar wird
+  const W = 34, H = 24, cx = 17, cy = 12;
+  return mkFlat(W, H, (p) => {
+    const rng = createRng(1210 + v);
+    const cells = [];
+    for (let i = 0; i < 6; i++) cells.push([rng.range(3, W - 3), rng.range(3, H - 3)]);
+    const rx = 12 + rng.range(0, 4), ry = 7.5 + rng.range(0, 3);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const nx = (x - cx) / rx, ny = (y - cy) / ry;
+      const wob = (hash2(x >> 1, y >> 1, 1214 + v) - 0.5) * 0.55 + (hash2(x, y, 1215 + v) - 0.5) * 0.25;
+      const r = Math.hypot(nx, ny) + wob;
+      if (r > 1) continue;
+      if (r > 0.82 && hash2(x, y, 1211 + v) < 0.55) continue;
+      if (hash2(x, y, 1212 + v) < 0.05) continue;
+      const ds = cells.map(([qx, qy]) => Math.hypot(x - qx, y - qy)).sort((a, b) => a - b);
+      const edge = ds[1] - ds[0] < 1.0;
+      let k = edge ? 1 : r > 0.75 ? 2 : ds[0] < 2.5 ? 4 : 3;
+      if (!edge && hash2(x, y, 1213) < 0.08) k = 5;
+      p.px(x, y, SALT[k]);
+    }
+  }, { ax: 17, ay: -2 });
+}
+
+// ------------------------------------------------------------ Schilf am Wasserloch
+function reeds(v) {
+  const W = 18, H = 22, by = H - 1;
+  return mk(W, H, (p) => {
+    const rng = createRng(1220 + v);
+    dustPatch(p, 9, by - 1, 7, 1, 1221 + v);
+    const n = [9, 12, 7][v];
+    for (let i = 0; i < n; i++) {
+      const x = rng.int(2, 15), h = rng.int(9, 19), bend = rng.range(-3, 3);
+      const [tx, ty] = blade(p, x, by, h, bend, REED, 1, 5);
+      if (rng.chance(0.4)) { p.rect(tx - (bend > 0 ? 1 : 0), ty, 2, 4, HIDE[2]); p.px(tx, ty, HIDE[4]); }
+    }
+  });
+}
+
+// ------------------------------------------------------------ Totempfahl (bemalt, mit Hörnern)
+function totemPole(v) {
+  const W = 20, H = 46, by = H - 1, cx = 10;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, cx, by - 1, 7, 1, 1231 + v);
+    pole(p, cx - 3, 8, by - 1, 7, GW, 1232 + v);
+    // geschnitzte Gesichter (drei Stufen)
+    const faces = v ? [12, 22, 32] : [11, 23, 33];
+    faces.forEach((fy, i) => {
+      const paint = [RED[4], GOLD[2], BLUEF[4]][(i + v) % 3];
+      p.rect(cx - 4, fy - 1, 9, 1, GW[6]); p.rect(cx - 4, fy + 6, 9, 1, GW[1]);
+      p.px(cx - 2, fy + 1, INTERIOR); p.px(cx + 2, fy + 1, INTERIOR); p.px(cx - 2, fy + 2, paint); p.px(cx + 2, fy + 2, paint);
+      p.rect(cx - 1, fy + 3, 3, 1, GW[1]); p.rect(cx - 2, fy + 4, 5, 1, paint);
+      p.px(cx - 4, fy + 2, paint); p.px(cx + 4, fy + 2, paint);
+    });
+    // Flügel/Arme
+    p.rect(cx - 9, 19, 5, 2, GW[4]); p.rect(cx + 5, 19, 5, 2, GW[2]); p.px(cx - 9, 19, RED[4]); p.px(cx + 9, 19, RED[3]);
+    // Kopf: Auerochsenschädel mit Hörnern und Federn
+    p.rect(cx - 3, 3, 7, 5, BONE[4]); p.rect(cx - 2, 8, 5, 2, BONE[3]); p.px(cx - 3, 3, BONE[6]);
+    p.px(cx - 2, 5, INTERIOR); p.px(cx + 2, 5, INTERIOR);
+    p.line(cx - 3, 4, cx - 8, 1, BONE[5]); p.line(cx + 3, 4, cx + 8, 1, BONE[3]);
+    for (let i = 0; i < 3; i++) { p.line(cx - 6 + i * 6, 9, cx - 7 + i * 6, 14, i === 1 ? RED[4] : STRAW[5]); }
+    if (v) { p.px(cx - 2, 5, EMB[3]); p.px(cx + 2, 5, EMB[3]); g.px(cx - 2, 5, EMB[4]); g.px(cx + 2, 5, EMB[4]); }
+  }, { ax: 10, box: [-3, -3, 3, 1] });
+}
+
+// ------------------------------------------------------------ Kleine Jurte (blaugrauer Filz, bemalt)
+function yurtSmall() {
+  const W = 36, H = 30;
+  return mk(W, H, (p, g) => {
+    const cx = 18, by = H - 1, rw = 14, ry = 3;
+    const wallTop = by - 12, wallBot = by - 4;
+    dustPatch(p, cx, by - 2, 16, 2, 1241);
+    cylWall(p, cx, rw, wallTop, wallBot, ry, (x, y, rel, s, dy, hgt) => {
+      let i = litIdx(rel, s, 6) + 1;
+      if (hash2(x, y, 1242) < 0.1) i -= 1;
+      let c = BLUEF[clampI(i - 1, 6)];
+      if (dy === 2) c = (x % 3 === 0) ? GOLD[i > 3 ? 3 : 2] : RED[clampI(i, 6)];
+      if (dy === hgt - 1) c = HIDE[clampI(i - 1, 6)];
+      return c;
+    });
+    const crownY = by - 25, rr = rw + 2;
+    for (let x = Math.ceil(cx - rr); x <= Math.floor(cx + rr); x++) {
+      const rel = (x + 0.5 - cx) / rr; if (Math.abs(rel) > 1) continue;
+      const s = Math.sqrt(1 - rel * rel);
+      const eave = Math.round(wallTop + s * ry) + 1;
+      const topY = Math.round(crownY + Math.pow(Math.abs(rel), 1.2) * (wallTop - crownY - 2) - s);
+      for (let y = topY; y <= eave; y++) {
+        let i = litIdx(rel * 0.9, 0.7, 6);
+        if (y === eave) i = Math.max(0, i - 3);
+        if (hash2(x, y, 1243) < 0.08) i -= 1;
+        p.px(x, y, FELT[clampI(i, 7)]);
+      }
+      if (rel < 0.2 && hash2(x, 0, 1244) < 0.5) p.px(x, topY, ASH[5]);
+    }
+    p.ellipse(cx, crownY + 1, 3, 1.2, GW[2]); p.px(cx, crownY + 1, INTERIOR);
+    const d0 = cx - 3, dTop = wallTop + ry + 2, dBot = wallBot + ry;
+    p.rect(d0 - 1, dTop - 1, 8, dBot - dTop + 2, GW[1]);
+    p.rect(d0, dTop, 6, dBot - dTop + 1, '#2a3a5a'); p.rect(d0, dTop, 1, dBot - dTop + 1, '#4a5a7a');
+    p.px(d0 + 2, dTop + 2, GOLD[3]); p.px(d0 + 3, dTop + 4, GOLD[3]);
+    footGrassSeeded(p, 1245, 1, W - 2, by, 6);
+  }, { ax: 18, box: [-13, -6, 13, 1], extra: { smoke: { dx: 0, dy: -25, rate: 1.6 } } });
+}
+
+// ------------------------------------------------------------ Verbrannte Jurte (Gitterwand, Dachstangen)
+function yurtBurnt() {
+  const W = 42, H = 32;
+  return mk(W, H, (p, g) => {
+    const cx = 21, by = H - 1;
+    dustPatch(p, cx, by - 2, 19, 3, 1251, ['#141014', '#1d181a', '#272022', '#302829']);
+    // Aschering
+    p.ellipse(cx, by - 4, 15, 4, ASH[1]); p.ellipse(cx - 1, by - 5, 11, 2.6, ASH[2]);
+    // Scherengitter (Rest der Wand), hinten
+    for (let i = -14; i <= 14; i += 4) {
+      const x = cx + i, h = 8 - Math.abs(i) / 4 + (hash2(i, 0, 1252) < 0.4 ? -3 : 0);
+      if (h < 2) continue;
+      p.line(x - 2, by - 5, x + 2, by - 5 - h, GW[1]); p.line(x + 2, by - 5, x - 2, by - 5 - h, GW[0]);
+    }
+    // Dachstangen, teils gebrochen
+    for (let i = 0; i < 7; i++) {
+      const a = Math.PI + 0.25 + i * 0.44, len = 13 - (i % 3) * 3;
+      const x2 = cx + Math.cos(a) * len, y2 = by - 22 - Math.sin(a) * len * 0.2 + len * 0.6;
+      p.line(cx, by - 22, x2, y2, i % 2 ? CHAR_S[2] : CHAR_S[3]);
+    }
+    p.ellipse(cx, by - 22, 2.5, 1, GW[2]); p.line(cx, by - 22, cx, by - 5, CHAR_S[2]);
+    // glimmende Reste und verkohlte Filzfetzen
+    for (const [x, y] of [[cx - 6, by - 4], [cx + 3, by - 3], [cx + 9, by - 5], [cx - 11, by - 4]]) { p.px(x, y, EMB[3]); p.px(x + 1, y, EMB[2]); g.px(x, y, EMB[4]); }
+    p.rect(cx + 6, by - 7, 5, 2, FELT[1]); p.rect(cx - 13, by - 6, 4, 2, FELT[2]);
+    p.rect(cx - 4, by - 4, 3, 2, BONE[3]); p.px(cx - 4, by - 4, BONE[5]);
+  }, { ax: 21, box: [-12, -5, 12, 1], extra: { smoke: { dx: 0, dy: -8, rate: 2.5 } } });
+}
+const CHAR_S = ['#0b0809', '#151011', '#201819', '#2d2223'];
+
+// ------------------------------------------------------------ Fellgestell der Fallensteller
+function hideRack() {
+  const W = 30, H = 28, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 15, by - 1, 13, 2, 1261);
+    pole(p, 3, 3, by - 1, 2, GW, 1262); pole(p, 25, 4, by - 1, 2, GW, 1263);
+    p.rect(1, 4, 28, 2, GW[4]); p.rect(1, 4, 28, 1, GW[6]);
+    // zwei aufgespannte Felle
+    for (const [x0, w, c] of [[6, 8, HIDE], [16, 8, HORSE]]) {
+      for (let y = 7; y < 21; y++) for (let x = x0; x < x0 + w; x++) {
+        const edge = (y === 7 || y === 20 || x === x0 || x === x0 + w - 1);
+        const bulge = Math.sin(((x - x0) / (w - 1)) * Math.PI);
+        p.px(x, y, c[clampI(edge ? 1 : 3 + Math.round(bulge) - (y > 16 ? 1 : 0), c.length)]);
+      }
+      for (let y = 8; y < 20; y += 3) { p.px(x0 - 1, y, STRAW[4]); p.px(x0 + w, y, STRAW[4]); }
+    }
+    // Netz und Fangeisen
+    for (let i = 0; i < 4; i++) p.line(26 + (i % 2), 6 + i * 3, 28, 9 + i * 3, STRAW[3]);
+    p.ellipse(9, by - 2, 3, 1.2, IRON[2]); p.px(7, by - 3, IRON[4]); p.px(11, by - 3, IRON[4]);
+  }, { ax: 15, extra: { boxes: [[-13, -3, -10, 1], [9, -3, 12, 1]] } });
+}
+
+// ------------------------------------------------------------ Knochenbogen (Rippenpaar über der Heerstraße)
+function boneArch() {
+  const W = 92, H = 84, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 10, by - 1, 9, 2, 1271); dustPatch(p, 82, by - 1, 9, 2, 1272);
+    // zwei gekreuzte Rippen je Seite, oben verschränkt; Lichtseite links
+    // Rippe als Bogen von einem Fuß über den Scheitel hinaus (∩), zur Spitze hin dünner
+    const rib = (sign, R, Ry, thick, over, dx) => {
+      const pts = [];
+      for (let th = 0; th <= Math.PI / 2 + over; th += 0.008) {
+        const x = 46 + dx - sign * R * Math.cos(th), y = by - 2 - Ry * Math.sin(th);
+        pts.push([x, y, Math.max(2, thick * (1 - (th / (Math.PI / 2 + over)) * 0.6))]);
+      }
+      return pts;
+    };
+    const ribs = [rib(1, 38, 74, 8, 0.32, 0), rib(-1, 38, 70, 8, 0.36, 0), rib(1, 31, 60, 6, 0.3, 3), rib(-1, 31, 57, 6, 0.3, -3)];
+    ribs.forEach((pts, ri) => pts.forEach(([x, y, th], i) => {
+      for (let j = -th / 2; j <= th / 2; j++) {
+        const rel = (j + th / 2) / th;                                   // 0 = Oberkante
+        let k = rel < 0.25 ? 6 : rel < 0.55 ? 5 : rel < 0.85 ? 3 : 2;
+        if (ri >= 2) k -= 1;
+        if (hash2(Math.round(x), Math.round(y + j), 1273) < 0.06) k -= 1;
+        if (i % 17 === 0 && rel > 0.3) k -= 1;                          // Wachstumsringe
+        p.px(Math.round(x), Math.round(y + j), BONE[clampI(k, 7)]);
+      }
+    }));
+    // Füße im Boden: Erdwulst und Kerben
+    for (const fx of [8, 84]) { p.ellipse(fx, by - 1, 8, 2.2, MES[3]); p.ellipse(fx - 1, by - 2, 6, 1.4, MES[5]); }
+    // Lederriemen, Schädel und Fetische an der Krone
+    p.line(42, 10, 42, 22, HIDE[2]); p.line(52, 12, 52, 20, HIDE[2]);
+    p.rect(39, 22, 7, 5, BONE[4]); p.px(40, 24, INTERIOR); p.px(43, 24, INTERIOR); p.rect(40, 27, 5, 2, BONE[3]);
+    for (let i = 0; i < 4; i++) p.px(50 + i, 21 + (i % 2), [RED[4], STRAW[5], RED[3], GOLD[3]][i]);
+  }, { ax: 46, extra: { boxes: [[-44, -4, -32, 1], [32, -4, 44, 1]] } });
+}
+
+// ------------------------------------------------------------ Rabenfels (Felsnadel mit Raben)
+function ravenRock() {
+  const W = 48, H = 92, by = H - 1;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, 24, by - 1, 22, 3, 1281);
+    // Nadel: schmal nach oben, geschichtet, Licht links
+    for (let y = 6; y <= by - 1; y++) {
+      const t = (y - 6) / (by - 7);
+      const half = 5 + t * 15 + Math.sin(y * 0.35) * 1.5 + (t > 0.85 ? (t - 0.85) * 40 : 0);
+      const cx = 24 + Math.sin(t * 3.1) * 2;
+      for (let x = Math.round(cx - half); x <= Math.round(cx + half); x++) {
+        const rel = (x - (cx - half)) / (2 * half);
+        let k = STRATA[Math.floor(y / 3) % STRATA.length] - (rel > 0.55 ? 2 : rel > 0.35 ? 1 : 0) + (rel < 0.12 ? 1 : 0);
+        if (hash2(x, y, 1282) < 0.07) k -= 1;
+        if ((x * 7 + Math.floor(y / 5)) % 23 === 0) k -= 2;
+        p.px(x, y, MES[clampI(k, MES.length)]);
+      }
+      // Kotstreifen
+      if (hash2(0, y >> 2, 1283) < 0.4) p.px(Math.round(cx - half * 0.3), y, SALT[3]);
+    }
+    // Kappe mit Nest
+    p.ellipse(24, 6, 7, 2.6, MES[6]); p.ellipse(23, 5, 5, 1.6, MES[7]);
+    for (let i = 0; i < 10; i++) p.line(17 + i, 4 - (i % 2), 18 + i + (i % 3), 2, GW[2 + (i % 3)]);
+    // Raben
+    const raven = (x, y, flip) => { p.rect(x, y, 4, 2, HAIR[1]); p.px(x + (flip ? -1 : 4), y, HAIR[2]); p.px(x + (flip ? -2 : 5), y + 1, BONE[3]); p.px(x + 1, y - 1, HAIR[2]); p.line(x, y + 2, x - 1, y + 3, HAIR[0]); };
+    raven(18, 1, false); raven(27, 3, true); raven(12, 30, false); raven(33, 48, true); raven(14, 62, false);
+  }, { ax: 24, box: [-16, -8, 16, 1] });
+}
+
+// ------------------------------------------------------------ Gebrochene Brücke (Widerlager mit abgerissenem Steg)
+function bridgeStub(east) {
+  const W = 60, H = 44, by = H - 1;
+  return mk(W, H, (p) => {
+    const X = (x) => (east ? W - 1 - x : x);
+    // Widerlager (Bruchstein)
+    for (let y = 12; y <= by; y++) for (let x = 0; x < 16; x++) {
+      const course = Math.floor((y - 12) / 4), brick = (x + course * 5) % 8 === 0 || (y - 12) % 4 === 0;
+      let k = brick ? 2 : x < 4 ? 6 : x < 11 ? 5 : 4;
+      if (hash2(x, y, 1291) < 0.07) k--;
+      p.px(X(x), y, SST[clampI(east ? k - 1 : k, SST.length)]);
+    }
+    for (let x = 0; x < 16; x++) p.px(X(x), 12, SST[7]);
+    // Steg aus Bohlen, Ende abgerissen und hängend
+    for (let x = 14; x < 50; x++) {
+      const broken = x > 40;
+      const sag = broken ? Math.round((x - 40) * 0.9) : 0;
+      if (broken && hash2(x, 1, 1292) < 0.25) continue;
+      for (let y = 14 + sag; y < 20 + sag; y++) {
+        let k = (x - 14) % 5 === 0 ? 1 : y === 14 + sag ? 5 : 3;
+        p.px(X(x), y, GW[clampI(k, GW.length)]);
+      }
+    }
+    // Seil-Geländer mit Pfosten
+    for (const px of [16, 28, 40]) { p.rect(X(px), 6, 2, 9, GW[4]); p.px(X(px), 6, GW[6]); }
+    for (let x = 16; x < 46; x++) { const sag = Math.round(Math.sin(((x - 16) % 12) / 12 * Math.PI) * 2) + (x > 40 ? (x - 40) * 2 : 0); p.px(X(x), 8 + sag, STRAW[4]); }
+    // herabhängende Planken und Seilenden
+    p.line(X(46), 22, X(48), 36, STRAW[3]); p.rect(X(47) - (east ? 3 : 0), 30, 4, 6, GW[3]);
+    p.line(X(43), 24, X(42), 33, STRAW[2]);
+  }, { ax: east ? W - 8 : 8, box: [east ? -8 : -8, -6, east ? 8 : 8, 1] });
+}
+
+// ------------------------------------------------------------ Laternenpfahl (Lager, Straße)
+function lanternPost() {
+  const W = 14, H = 32, by = H - 1;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, 5, by - 1, 4, 1, 1301);
+    pole(p, 3, 4, by - 1, 2, GW, 1302);
+    p.rect(3, 4, 8, 1, GW[5]); p.line(10, 5, 10, 8, IRON[2]);
+    p.rect(8, 9, 5, 6, IRON[1]); p.rect(9, 10, 3, 4, EMB[4]); p.px(9, 10, EMB[5]); p.rect(8, 9, 5, 1, IRON[3]);
+    g.rect(8, 9, 5, 6, EMB[3]); g.rect(9, 10, 3, 4, EMB[5]);
+  }, { ax: 4, box: [-2, -2, 2, 1], light: { dx: 6, dy: -20, radius: 74, color: [255, 170, 90], intensity: 0.85 } });
+}
+
+// ------------------------------------------------------------ Ahnenstein (Geisterwasser)
+function ancestorStone(wet) {
+  const W = 26, H = 44, by = H - 1;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, 13, by - 1, 11, 2, 1311);
+    menhir(p, 7, 18, 3, by - 2, 1, 1312, false);
+    // Ahnengesicht
+    const fx = 13, fy = 12;
+    p.rect(fx - 4, fy, 3, 1, SST[1]); p.rect(fx + 2, fy, 3, 1, SST[1]);
+    p.px(fx - 3, fy + 1, wet ? COLD[3] : SST[0]); p.px(fx + 3, fy + 1, wet ? COLD[3] : SST[0]);
+    p.line(fx, fy + 1, fx, fy + 5, SST[2]); p.rect(fx - 2, fy + 7, 5, 1, SST[1]);
+    carve(p, fx - 1, fy + 11, RUNE_PATH, SST[1], SST[6]);
+    // Opferschale
+    p.ellipse(13, by - 2, 5, 1.6, SST[3]); p.ellipse(13, by - 3, 4, 1, wet ? COLD[2] : SST[1]);
+    if (wet) {
+      for (const x of [fx - 3, fx + 3, fx + 1]) for (let y = fy + 2; y < by - 6; y++) if (hash2(x, y, 1313) < 0.7) { p.px(x, y, COLD[2]); g.px(x, y, COLD[3]); }
+      g.px(fx - 3, fy + 1, COLD[4]); g.px(fx + 3, fy + 1, COLD[4]); g.rect(10, by - 3, 7, 1, COLD[3]);
+      for (const [x, y] of RUNE_PATH) g.px(fx - 1 + x, fy + 11 + y, COLD[3]);
+    }
+    // Bänder
+    p.rect(7, 22, 12, 1, RED[3]); p.px(19, 23, RED[4]); p.px(20, 25, RED[3]);
+  }, { ax: 13, box: [-6, -4, 6, 1], light: wet ? { dx: 0, dy: -20, radius: 70, color: [90, 220, 220], intensity: 0.9 } : undefined });
+}
+
+// ------------------------------------------------------------ Imras Karawane (Planwagen mit Waren)
+function caravan() {
+  const W = 58, H = 40, by = H - 1;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, 28, by - 1, 26, 2, 1321);
+    p.line(0, by - 4, 12, by - 12, GW[4]); p.line(0, by - 3, 12, by - 11, GW[2]);
+    p.ellipse(42, by - 8, 7.5, 8, GW[0]); p.ellipse(42, by - 8, 5.5, 6, INTERIOR);
+    p.rect(8, by - 16, 42, 6, GW[3]); p.rect(8, by - 16, 42, 1, GW[5]); p.rect(8, by - 11, 42, 1, GW[1]);
+    for (let x = 10; x <= 48; x++) {
+      const rel = (x - 29) / 19;
+      const top = Math.round(by - 16 - Math.sqrt(Math.max(0, 1 - rel * rel * 0.3)) * 16);
+      for (let y = top; y < by - 15; y++) {
+        const k = (y - top) / Math.max(1, by - 16 - top);
+        let i = 5 - Math.round(k * 2.5) + (x < 14 ? 1 : 0) - (x > 45 ? 1 : 0);
+        if ((x - 10) % 7 === 0) i -= 1;
+        let c = BLUEF[clampI(i, 6)];
+        if (y === top + 5 || y === top + 6) c = (x % 4 < 2) ? GOLD[clampI(i - 2, 5)] : RED[clampI(i, 6)];   // Zierband
+        p.px(x, y, c);
+      }
+      p.px(x, top, (x - 10) % 7 === 0 ? GW[5] : BLUEF[5]);
+    }
+    // Waren hinten: Teppichrollen und Gewürzkisten
+    p.rect(46, by - 22, 9, 4, RED[3]); p.rect(46, by - 22, 9, 1, RED[5]); p.ellipse(55, by - 20, 1, 2, RED[2]);
+    p.rect(48, by - 17, 8, 6, GW[3]); p.rect(48, by - 17, 8, 1, GW[5]); p.px(51, by - 15, GOLD[3]);
+    // Laterne vorn am Bock
+    p.line(12, by - 30, 12, by - 16, GW[3]); p.rect(10, by - 30, 5, 5, IRON[1]); p.rect(11, by - 29, 3, 3, EMB[4]);
+    g.rect(10, by - 30, 5, 5, EMB[3]); g.rect(11, by - 29, 3, 3, EMB[5]);
+    const wx = 18, wy = by - 8;
+    p.ellipse(wx, wy, 8, 8, GW[1]); p.ellipse(wx, wy, 7, 7, GW[3]); p.ellipse(wx, wy, 6, 6, INTERIOR);
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; p.line(wx, wy, wx + Math.cos(a) * 6, wy + Math.sin(a) * 6, i < 5 ? GW[3] : GW[4]); }
+    p.ellipse(wx, wy, 1.8, 1.8, GW[5]);
+    footGrassSeeded(p, 1322, 1, W - 2, by, 8);
+  }, { ax: 28, box: [-22, -6, 24, 1], light: { dx: -16, dy: -28, radius: 60, color: [255, 170, 90], intensity: 0.8 } });
+}
+
+// ------------------------------------------------------------ Versteck auf dem Geierhorst
+function steppeCache(open) {
+  const W = 26, H = 22, by = H - 1;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, 13, by - 1, 12, 2, 1331);
+    p.rect(4, 10, 18, 10, GW[3]); p.rect(4, 10, 2, 10, GW[5]); p.rect(20, 10, 2, 10, GW[1]);
+    for (const x of [4, 12, 20]) { p.rect(x, 10, 2, 10, HIDE[1]); p.px(x, 10, HIDE[4]); }
+    if (!open) {
+      p.rect(4, 5, 18, 5, GW[4]); p.rect(4, 5, 18, 1, GW[6]); p.rect(4, 9, 18, 1, GW[0]);
+      p.rect(9, 3, 8, 3, BONE[4]); p.px(10, 4, INTERIOR); p.px(14, 4, INTERIOR); p.px(9, 3, BONE[6]);
+      p.rect(12, 9, 2, 3, GOLD[2]); p.px(12, 9, GOLD[4]);
+    } else {
+      p.rect(4, 1, 18, 4, GW[3]); p.rect(4, 1, 18, 1, GW[5]);
+      p.rect(6, 5, 14, 5, INTERIOR); p.px(10, 8, GOLD[3]); p.px(15, 7, GOLD[4]); g.px(15, 7, GOLD[2]);
+    }
+    p.line(1, by - 2, 5, by - 6, BONE[4]); p.line(21, by - 3, 25, by - 1, BONE[3]);
+  }, { ax: 13, box: [-9, -4, 9, 1] });
+}
+
+// ============================================================ Runde 2: Points of Interest der Steppe
+
+// Wegmarke: Pfahl mit Pferdeschädel, Stoffbändern und Steinhaufen am Fuß
+function wayMarker(v) {
+  const W = 16, H = 34, by = H - 1;
+  return mk(W, H, (p) => {
+    const rng = createRng(1501 + v);
+    dustPatch(p, 7, by - 1, 6, 1.5, 1502 + v);
+    // Steinhaufen
+    for (const [x, y, r] of [[4, by - 2, 2.2], [9, by - 2, 2.6], [7, by - 4, 2]]) { p.ellipse(x, y, r, r * 0.8, SST[3]); p.px(x - 1, y - 1, SST[5]); p.px(x + 1, y + 1, SST[1]); }
+    pole(p, 6, 6, by - 4, 2, GW, 1503 + v);
+    // Pferdeschädel (Seitenansicht, Schnauze nach links bzw. rechts)
+    const d = v % 2 ? 1 : -1, sx = 7, sy = 6;
+    p.ellipse(sx, sy, 3, 2.4, BONE[4]);
+    for (let i = 1; i <= 5; i++) { p.px(sx + d * (2 + i), sy + 1 + (i > 3 ? 1 : 0), BONE[i < 4 ? 4 : 3]); p.px(sx + d * (2 + i), sy + 2, BONE[2]); }
+    p.px(sx + d, sy - 1, INTERIOR); p.px(sx, sy - 2, BONE[6]); p.px(sx - d * 2, sy + 1, BONE[2]);
+    // Stoffbänder
+    const cols = [RED, BLUEF, [null, '#3a2e14', '#5a4820', '#7a6428', '#9a8030', '#b89a3c']][v % 3];
+    for (let k = 0; k < 2; k++) {
+      let x = 7 + (k ? 1 : 0), y = 10 + k * 3;
+      for (let i = 0; i < 7; i++) { x += (k ? 1 : -1) * (i % 2 ? 1 : 0) + (rng.chance(0.3) ? -d : 0); y += 1; p.px(x, y, cols[clampI(4 - (i >> 1), 6)]); p.px(x + 1, y, cols[clampI(3 - (i >> 1), 6)] ?? cols[2]); }
+    }
+    blade(p, 2, by, 3, -1, STRAW, 1, 4); blade(p, 12, by, 4, 1, STRAW, 1, 4);
+  }, { ax: 7, box: [-3, -3, 3, 1] });
+}
+
+// Hirtenbrunnen: Steinring, Ziehgestell, Eimer, Tränke
+function steppeWell() {
+  const W = 46, H = 40, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 23, by - 2, 21, 3, 1511);
+    const cx = 18, cy = by - 9;
+    // Brunnenschacht
+    p.ellipse(cx, cy, 10, 4.5, SST[2]);
+    p.ellipse(cx, cy - 1, 7.5, 3, INTERIOR);
+    p.ellipse(cx, cy, 6, 1.8, '#0e1a1e'); p.px(cx - 2, cy, '#2a4a52'); p.px(cx + 1, cy - 1, '#1c3238');
+    // Steinring: Vorderwand mit Fugen
+    for (let x = cx - 10; x <= cx + 10; x++) {
+      const rel = (x - cx) / 10, s = Math.sqrt(Math.max(0, 1 - rel * rel));
+      const top = Math.round(cy + s * 3.2), bot = top + 5;
+      for (let y = top; y <= bot; y++) {
+        const brick = (y - top) % 3 === 0 || (x + ((y - top) / 3 | 0) * 2) % 5 === 0;
+        let k = rel < -0.3 ? 5 : rel < 0.4 ? 4 : 3; if (brick) k -= 2; if (y === bot) k = 1;
+        p.px(x, y, SST[clampI(k, 8)]);
+      }
+      p.px(x, top, SST[6]);
+    }
+    // Ziehgestell (A-Rahmen) mit Rolle und Seil
+    p.line(cx - 9, cy + 2, cx - 4, cy - 20, GW[4]); p.line(cx - 8, cy + 2, cx - 3, cy - 20, GW[2]);
+    p.line(cx + 9, cy + 2, cx + 4, cy - 20, GW[3]); p.line(cx + 8, cy + 2, cx + 3, cy - 20, GW[1]);
+    p.rect(cx - 5, cy - 21, 11, 2, GW[5]); p.rect(cx - 5, cy - 19, 11, 1, GW[2]);
+    p.ellipse(cx, cy - 18, 2, 2, IRON[2]); p.px(cx - 1, cy - 19, IRON[4]);
+    p.line(cx + 1, cy - 17, cx + 1, cy - 7, HIDE[4]);
+    p.rect(cx - 1, cy - 7, 5, 4, GW[3]); p.rect(cx - 1, cy - 7, 5, 1, IRON[3]); p.px(cx, cy - 6, GW[5]);
+    // Tränke rechts (ausgehöhlter Stamm mit Wasser)
+    p.rect(30, by - 8, 14, 5, GW[2]); p.rect(30, by - 8, 14, 1, GW[5]); p.rect(31, by - 7, 12, 2, '#13262a'); p.px(34, by - 7, '#3a6a72'); p.px(39, by - 7, '#2a4a52');
+    p.rect(30, by - 3, 14, 1, GW[0]); p.rect(31, by - 3, 2, 3, GW[1]); p.rect(41, by - 3, 2, 3, GW[1]);
+    footGrassSeeded(p, 1512, 2, W - 3, by, 9);
+  }, { ax: 23, box: [-16, -10, 21, 1] });
+}
+
+// Verbrannte Karawane: umgestürzter Wagen, Rad, verkohlte Planken, Kisten
+function caravanWreck() {
+  const W = 60, H = 34, by = H - 1;
+  return mk(W, H, (p, g) => {
+    dustPatch(p, 30, by - 2, 28, 3, 1521, ASH);
+    // Wagenkasten auf der Seite
+    poly(p, [[10, by - 4], [42, by - 4], [46, by - 14], [14, by - 16]], (x, y) => CHAR_S[clampI(1 + ((x + y) % 7 === 0 ? 0 : 2) - (hash2(x, y, 1522) < 0.15 ? 1 : 0), 4)]);
+    for (let x = 12; x < 44; x += 5) p.line(x, by - 4, x + 3, by - 15, GW[1]);
+    p.line(14, by - 16, 46, by - 14, GW[3]); p.line(10, by - 4, 42, by - 4, GW[0]);
+    // verkohlte Planenbögen
+    for (const x of [18, 26, 34]) { for (let t = 0; t <= 1; t += 0.06) p.px(Math.round(x + Math.sin(t * Math.PI) * 6), Math.round(by - 16 - t * 10), CHAR_S[3]); }
+    p.rect(20, by - 24, 6, 2, RED[1]); p.px(22, by - 23, RED[2]);    // Planenfetzen
+    // Glut im Holz
+    for (const [x, y] of [[20, by - 6], [31, by - 7], [37, by - 9]]) { p.px(x, y, EMB[3]); g.px(x, y, EMB[4]); }
+    // abgefallenes Rad
+    const wx = 50, wy = by - 7;
+    p.ellipse(wx, wy, 7, 6, GW[1]); p.ellipse(wx, wy, 5.5, 4.6, INTERIOR);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; if (i !== 3) p.line(wx, wy, wx + Math.cos(a) * 5, wy + Math.sin(a) * 4.4, GW[3]); }
+    p.ellipse(wx, wy, 1.5, 1.4, GW[5]);
+    // Kisten und Ballen verstreut
+    p.rect(2, by - 7, 7, 5, GW[3]); p.rect(2, by - 7, 7, 1, GW[5]); p.line(2, by - 7, 8, by - 3, GW[1]);
+    p.ellipse(44, by - 2, 4, 2, STRAW[3]); p.px(43, by - 3, STRAW[5]);
+    p.rect(26, by - 3, 5, 3, CHAR_S[2]);
+    // Rauchfahne als Glow-loser Hauch
+    for (let i = 0; i < 6; i++) p.px(33 + (i % 2), by - 20 - i * 2, ASH[2 + (i % 2)]);
+    footGrassSeeded(p, 1523, 1, W - 2, by, 6);
+  }, { ax: 30, box: [-22, -6, 16, 1], extra: { smoke: { dx: 4, dy: -14, rate: 1.2 } } });
+}
+
+// Wachturm-Ruine: Steinturm, oben abgebrochen, Geröll
+function towerRuin() {
+  const W = 44, H = 62, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 22, by - 2, 20, 3, 1531);
+    const x0 = 9, x1 = 33;
+    // Turmschaft (leicht konisch), Oberkante gezackt
+    const topAt = (x) => 10 + Math.round(Math.abs(Math.sin(x * 0.7)) * 3 + (x > 24 ? (x - 24) * 1.6 : 0) + hash2(x, 1, 1532) * 2);
+    for (let x = x0; x <= x1; x++) {
+      const rel = (x - x0) / (x1 - x0);
+      for (let y = topAt(x); y <= by - 3; y++) {
+        const row = Math.floor((y - 10) / 4), lx = (x + (row % 2) * 3) % 6, ly = (y - 10) % 4;
+        let k = rel < 0.25 ? 6 : rel < 0.55 ? 5 : rel < 0.85 ? 4 : 3;
+        if (ly === 0 || lx === 0) k -= 2;
+        if (hash2(x, y, 1533) < 0.08) k -= 1;
+        p.px(x, y, SST[clampI(k, 8)]);
+      }
+      p.px(x, topAt(x), SST[7]);
+    }
+    // Schießscharten, Tor
+    p.rect(17, 22, 2, 6, INTERIOR); p.rect(25, 30, 2, 5, INTERIOR);
+    poly(p, [[16, by - 3], [16, by - 14], [21, by - 18], [26, by - 14], [26, by - 3]], INTERIOR);
+    p.line(16, by - 14, 21, by - 18, SST[6]); p.line(21, by - 18, 26, by - 14, SST[3]);
+    // Riss
+    let cx = 29; for (let y = 16; y < 40; y++) { cx += hash2(y, 2, 1534) < 0.3 ? -1 : 0; p.px(cx, y, SST[1]); }
+    // Geröll rechts und links
+    for (const [x, y, r] of [[36, by - 4, 3.5], [40, by - 3, 2.6], [33, by - 2, 2.2], [5, by - 3, 2.4], [8, by - 2, 1.8]]) { p.ellipse(x, y, r, r * 0.75, SST[4]); p.px(x - 1, y - 1, SST[6]); p.px(x + 1, y + 1, SST[2]); }
+    // Flechten
+    for (let i = 0; i < 14; i++) p.px(x0 + 1 + ((i * 7) % 22), 14 + ((i * 11) % 34), LICH[i % 4]);
+    footGrassSeeded(p, 1535, 3, W - 4, by, 10);
+  }, { ax: 22, box: [-13, -6, 12, 1] });
+}
+
+// Gnollbau: Fell-Unterstand über Knochengerüst, Schädel auf Pflöcken
+function gnollDen(v) {
+  const W = 48, H = 38, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 24, by - 2, 22, 3, 1541 + v);
+    // Knochenstangen
+    boneStroke(p, [[8, by - 2], [16, by - 22], [26, by - 28]], 2.4, 1.6, 1542 + v);
+    boneStroke(p, [[40, by - 2], [33, by - 22], [26, by - 28]], 2.4, 1.6, 1543 + v);
+    // Fellbahnen (Flicken)
+    poly(p, [[10, by - 3], [17, by - 21], [26, by - 26], [35, by - 21], [38, by - 3]], (x, y) => {
+      const patch = (Math.floor(x / 6) + Math.floor(y / 5)) % 3;
+      const rel = (x - 10) / 28;
+      let k = rel < 0.35 ? 4 : rel < 0.7 ? 3 : 2; if (patch === 1) k -= 1;
+      if (hash2(x, y, 1544 + v) < 0.1) k -= 1;
+      return (patch === 2 ? HORSE : HIDE)[clampI(k, 6)];
+    });
+    // Nähte
+    for (let y = by - 22; y < by - 3; y += 3) p.px(18 + ((y * 3) % 5), y, HIDE[0]);
+    // Eingang
+    poly(p, [[20, by - 3], [23, by - 13], [27, by - 14], [30, by - 3]], INTERIOR);
+    // Schädel auf Pflöcken
+    for (const x of v ? [5, 44] : [4, 43]) { pole(p, x, by - 14, by - 1, 1, GW, 1545); p.ellipse(x, by - 16, 2.2, 2, BONE[4]); p.px(x - 1, by - 16, INTERIOR); p.px(x + 1, by - 16, INTERIOR); p.px(x, by - 18, BONE[6]); }
+    // Knochenhaufen
+    for (let i = 0; i < 7; i++) { const x = 30 + i * 2, y = by - 1 - (i % 3); p.line(x, y, x + 3, y - 1, BONE[3 + (i % 2)]); }
+    footGrassSeeded(p, 1546 + v, 1, W - 2, by, 7);
+  }, { ax: 24, box: [-16, -6, 16, 1] });
+}
+
+// Himmelsgrab: Gerüst aus vier Stangen mit verhülltem Leichnam, Bänder, Krähenfedern
+function burialScaffold(v) {
+  const W = 34, H = 48, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 17, by - 1, 14, 2, 1551 + v);
+    // hintere Stangen
+    pole(p, 8, 14, by - 4, 1, GW, 1552); pole(p, 25, 14, by - 4, 1, GW, 1553);
+    // Plattform
+    p.rect(4, 17, 27, 3, GW[3]); p.rect(4, 17, 27, 1, GW[5]); p.rect(4, 20, 27, 1, GW[0]);
+    for (let x = 6; x < 30; x += 4) p.px(x, 18, GW[1]);
+    // verhüllter Leichnam
+    p.ellipse(17, 14, 10, 3, FELT[3]); p.ellipse(16, 13, 8, 2, FELT[5]);
+    for (let x = 9; x < 26; x += 4) p.line(x, 12, x, 16, RED[3]);
+    p.ellipse(8, 13, 2.4, 2, FELT[4]);
+    // vordere Stangen (länger), Querstreben
+    pole(p, 4, 6, by - 1, 2, GW, 1554); pole(p, 29, 8, by - 1, 2, GW, 1555);
+    p.line(5, 30, 29, 26, GW[2]); p.line(5, 26, 29, 30, GW[1]);
+    // Bänder und Federn an den Stangenköpfen
+    for (const [x, y, c] of [[5, 6, RED], [30, 8, BLUEF]]) { for (let i = 0; i < 6; i++) p.px(x + (i % 2) + 1, y + i + 1, c[clampI(4 - (i >> 1), 6)]); p.px(x - 1, y + 1, HAIR[1]); p.px(x - 2, y + 2, HAIR[2]); }
+    // Opfergaben am Fuß
+    p.ellipse(17, by - 2, 3, 1.3, SST[3]); p.px(16, by - 3, GOLD[3]); p.px(18, by - 3, BONE[4]);
+    footGrassSeeded(p, 1556 + v, 1, W - 2, by, 6);
+  }, { ax: 17, extra: { boxes: [[-14, -3, -10, 1], [11, -3, 15, 1]] } });
+}
+
+// Riesenrippe, die aus dem Boden ragt (n: Bogen nach Süden geneigt, s: nach Norden)
+function giantRib(south) {
+  const W = 30, H = 56, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 15, by - 1, 12, 2, south ? 1561 : 1562);
+    // Mittellinie: steigt steil auf und krümmt sich oben zur Wirbelsäule
+    const c = (t) => { const a = t * Math.PI * 0.62; return [7 + (1 - Math.cos(a)) * 17, by - 2 - Math.sin(a) * 48]; };
+    const N = 90, pts = [];
+    for (let i = 0; i <= N; i++) { const t = i / N, [x, y] = c(t); pts.push([south ? W - 1 - x : x, y, 3.4 - t * 1.9]); }
+    // Schatten-, Grund-, Lichtdurchgang (Licht von links oben)
+    for (const [x, y, r] of pts) p.ellipse(x + 0.6, y + 0.6, r, r, BONE[1]);
+    for (const [x, y, r] of pts) p.ellipse(x, y, r * 0.85, r * 0.85, BONE[3]);
+    for (const [x, y, r] of pts) p.ellipse(x - r * 0.35, y - r * 0.2, r * 0.4, r * 0.4, BONE[5]);
+    for (let i = 10; i < N; i += 17) { const [x, y, r] = pts[i]; p.px(Math.round(x + r * 0.4), Math.round(y), BONE[2]); }
+    // Bruchkerbe
+    const [kx, ky] = pts[38]; p.px(Math.round(kx), Math.round(ky), BONE[1]); p.px(Math.round(kx) + 1, Math.round(ky) + 1, BONE[1]);
+    const [fx] = pts[0];
+    p.ellipse(fx, by - 1, 5, 1.6, DUST[3]); p.px(fx - 3, by - 2, STRAW[3]);
+    blade(p, Math.round(fx) - 4, by - 1, 4, -1, STRAW, 1, 4); blade(p, Math.round(fx) + 3, by - 1, 3, 1, STRAW, 1, 4);
+  }, { ax: south ? 22 : 8, box: [-5, -3, 5, 1] });
+}
+
+// Riesenwirbel (halb im Boden)
+function giantVertebra(v) {
+  const W = 22, H = 18, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 11, by - 1, 9, 1.6, 1571 + v);
+    shadeLump(p, 11, by - 5, 7, 4.2, BONE.slice(1), 1572 + v, { rough: 0.08, flat: 0.2, rim: BONE[3] });
+    boneStroke(p, [[11, by - 8], [10 + v, by - 14], [9 + v * 2, by - 16]], 3, 1.4, 1573 + v);
+    boneStroke(p, [[5, by - 5], [1, by - 4]], 2.4, 1.6, 1574); boneStroke(p, [[17, by - 5], [21, by - 4]], 2.4, 1.6, 1575);
+    p.ellipse(11, by - 5, 1.6, 1.2, BONE[2]);
+  }, { ax: 11, box: [-6, -3, 6, 1] });
+}
+
+// Großer Riesenschädel: doppelte Größe des Steppenschädels, Hörner, halb versunken
+function giantSkullBig() {
+  const W = 84, H = 50, by = H - 1;
+  return mk(W, H, (p) => {
+    dustPatch(p, 42, by - 3, 40, 4, 1581);
+    shadeLump(p, 50, by - 15, 17, 13, BONE.slice(1), 1582, { rough: 0.05, flat: 0.3, rim: BONE[3] });
+    poly(p, [[36, by - 24], [14, by - 16], [6, by - 9], [8, by - 4], [36, by - 4], [42, by - 12]], (x, y) => boneShade(x, y, (y - (by - 24)) / 20 + (x > 30 ? 0.15 : 0), 1583));
+    p.line(14, by - 16, 35, by - 24, BONE[6]); p.line(15, by - 15, 35, by - 23, BONE[5]);
+    p.ellipse(11, by - 10, 2, 1.6, INTERIOR);
+    p.ellipse(41, by - 18, 5, 4, INTERIOR); p.px(39, by - 19, '#1a1410'); p.line(36, by - 23, 46, by - 23, BONE[6]);
+    for (let x = 10; x < 36; x += 3) { p.rect(x, by - 5, 2, 2, BONE[5]); p.px(x, by - 3, BONE[3]); }
+    for (const side of [0, 1]) {
+      const horn = [];
+      for (let t = 0; t <= 1; t += 0.025) { const a = -0.2 - t * 3.2 - side * 0.4, r = 15 - t * 10; horn.push([54 + side * 10 + Math.cos(a) * r, by - 28 + Math.sin(a) * r * 0.75]); }
+      boneStroke(p, horn, 6, 1.2, 1584 + side, side === 1);
+    }
+    p.line(52, by - 26, 57, by - 17, BONE[1]); p.line(57, by - 17, 55, by - 11, BONE[1]);
+    for (let i = 0; i < 12; i++) blade(p, 4 + i * 6, by - 1, 2 + (i % 3), (i % 2 ? 1 : -1), STRAW, 1, 4);
+  }, { ax: 42, box: [-34, -7, 30, 1] });
+}
+
 export function createSteppeDecor() {
   return {
     steppeGrass: [0, 1, 2].map(steppeGrass),
@@ -1070,5 +1740,32 @@ export function createSteppeDecor() {
     cart: cart(),
     warBanner: { off: warBanner(false), on: warBanner(true) },
     barrowMound: barrowMound(),
+    // Runde 5: Tafelberge, Schlucht, Landmarken, Lager
+    mesaFace: [0, 1, 2, 3, 4, 5, 6, 7].map(mesaFace),
+    saltCrust: [0, 1, 2, 3].map(saltCrust),
+    reeds: [0, 1, 2].map(reeds),
+    totemPole: [0, 1].map(totemPole),
+    yurtSmall: yurtSmall(),
+    yurtBurnt: yurtBurnt(),
+    hideRack: hideRack(),
+    boneArch: boneArch(),
+    ravenRock: ravenRock(),
+    bridgeStubW: bridgeStub(false),
+    bridgeStubE: bridgeStub(true),
+    lanternPost: lanternPost(),
+    ancestorStone: { off: ancestorStone(false), on: ancestorStone(true) },
+    caravan: caravan(),
+    hiddenCache: { off: steppeCache(false), on: steppeCache(true) },
+    // Runde 2: Wegmarken und Points of Interest
+    wayMarker: [0, 1, 2, 3].map(wayMarker),
+    steppeWell: steppeWell(),
+    caravanWreck: caravanWreck(),
+    towerRuin: towerRuin(),
+    gnollDen: [0, 1].map(gnollDen),
+    burialScaffold: [0, 1].map(burialScaffold),
+    giantRibN: giantRib(false),
+    giantRibS: giantRib(true),
+    giantVertebra: [0, 1].map(giantVertebra),
+    giantSkullBig: giantSkullBig(),
   };
 }

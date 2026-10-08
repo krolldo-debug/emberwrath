@@ -48,6 +48,9 @@ export class QualityControl {
     if (w?.particles) { w.particles.max = P.maxParticles; w.particles.density = P.density; }
     if (w?.lighting) w.lighting.bloomScale = P.bloom;
     weather?.setQuality(lvl);
-    document.documentElement.dataset.quality = lvl;
+    // Attribut nur bei Änderung schreiben: jeder Schreibzugriff (auch mit gleichem Wert) macht das
+    // Dokument-Styling ungültig – im Profil 4 % Selbstzeit je Bild.
+    const root = document.documentElement;
+    if (root.dataset.quality !== lvl) root.dataset.quality = lvl;
   }
 }

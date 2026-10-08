@@ -224,7 +224,7 @@ export const QUESTS_VARIETY = {
     summary: 'Begleite die Pilger zum Schrein am Thronweg.',
     offer: 'Seit hundert Jahren geht jedes Jahr ein Pilgerzug zum Schrein am Thronweg. Letztes Jahr kam keiner zurück. Dieses Jahr sind es nur noch sechs. Ich gehe mit ihnen. Komm mit uns, und wir kommen vielleicht an.',
     progressText: 'Die Pilger warten am Lager. Die Bombardiere des Aschenfürsten lauern am Weg.',
-    completeText: 'Wir sind da. Alle sechs. Der Schrein ist kalt, aber wir haben ihn gefunden. Danke.',
+    completeText: 'Wir sind da. Der Schrein ist kalt, aber wir haben ihn gefunden. Wer es nicht geschafft hat, für den beten wir zuerst. Danke.',
     objectives: [{ id: 'pilgrims', text: 'Pilger zum Schrein gebracht', count: 1, kind: 'escort', target: 'escort_pilgrims', start: { kind: 'npc', id: 'pilgrim_aldo' }, zone: 'ember_wastes', failText: 'Der Pilgerzug ist zerstreut. Aldo sammelt die Pilger wieder am Lager.' }],
     rewards: { xp: Q(37, W.event), gold: 380, gear: [{ ilvl: 38, rarity: 'uncommon', slot: 'amulet' }] },
   },

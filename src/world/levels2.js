@@ -1,5 +1,6 @@
 import { createRng } from '../core/math.js';
 import { MapBuilder } from './levels.js';
+import { buildCinderPeaks as buildCinderPeaksNew } from './outdoor/cinder_peaks.js';
 
 // Runde-2-Gebiete (INTEGRATION.md §11.1): Aschenwald, Versunkener Tempel,
 // Schlackenhöhen, Glutschmiede. Aufbau wie in levels.js: deterministischer
@@ -668,8 +669,7 @@ function buildEmberTrial() {
 
 export const LEVELS2 = {
   ember_trial: buildEmberTrial(),
-  ashwood: buildAshwood(),
-  cinder_peaks: buildCinderPeaks(),
+  cinder_peaks: buildCinderPeaksNew(),
   sunken_temple: buildSunkenTemple(),
   molten_forge: buildMoltenForge(),
 };

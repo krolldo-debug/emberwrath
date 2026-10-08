@@ -72,7 +72,7 @@ export const ENEMY_TYPES = {
     name: 'Varkhul, der Knochenfürst', family: 'undead', level: 6, xp: 260,
     boss: true, bossId: 'bonelord',
     sprites: 'bonelord',
-    hp: 3800, speed: 40, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 34,
+    hp: 21000, dmgMult: 3, speed: 40, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 34,
     material: 'bone',
     eye: { x: 3, y: -63 },
     hurtTime: 0,
@@ -194,17 +194,58 @@ export const ENEMY_TYPES = {
       { kind: 'charge', range: 170, minRange: 70, windup: 0.8, speed: 260, duration: 0.65, damage: 60, cooldown: 8, stun: 1.4 },
     ],
   },
+  // --- Runde 5: neue Gegner Stufe 2–24 (Verhalten in Enemy.js, Figuren sprites/foes_new1.js).
+  // spriteBase = Platzhalter-Figur, solange die eigene fehlt (world/index.js aliasiert dann).
+  // zoneVariants: gleiche Typ-ID, in dieser Zone andere Stufe/Werte (Werte der Grundstufe).
+  ember_beetle: {
+    name: 'Glutkäfer', family: 'beast', levels: [2, 5], xp: 14, sprites: 'ember_beetle', spriteBase: 'spider',
+    hp: 36, speed: 40, radius: 8, mass: 1.1, hurtRadius: 11, bodyHeight: 14, shadowW: 30, material: 'chitin',
+    eye: { x: 13, y: -7 }, hurtTime: 0.22, aggro: 95, leash: 260, wander: 14, spawnStyle: 'rise',
+    attack: { kind: 'lunge', range: 30, windup: 0.5, active: 0.18, recover: 0.5, cooldown: 1.1, damage: 9, knockback: 100, lungeSpeed: 170, hitRadius: 7 },
+    // gräbt sich ein, der Erdhügel wandert zum Helden, Kreiswarnung 0,75 s, dann Auftauchen
+    specials: [{ kind: 'burrow', anim: 'dig', range: 200, minRange: 0, windup: 0.5, speed: 78, maxTravel: 2.6, warn: 0.75, radius: 17, damage: 13, knockback: 170, recover: 0.8, cooldown: 6.5 }],
+    specialStart: 1.2,
+    zoneVariants: { ashwood: { levels: [6, 8], hp: 175, damage: 18, xp: 38 } },
+  },
+  bandit_shieldbearer: {
+    name: 'Schildträger', family: 'human', levels: [7, 10], xp: 55, sprites: 'bandit_shieldbearer', spriteBase: 'bandit',
+    hp: 300, speed: 34, radius: 7, mass: 1.8, hurtRadius: 9, bodyHeight: 27, shadowW: 18, material: 'flesh',
+    eye: { x: 3, y: -23 }, hurtTime: 0.26, aggro: 105, leash: 280, wander: 10, spawnStyle: 'fade',
+    // Frontalschaden −80 %, dreht sich erst nach 0,75 s zum Helden: flankieren/umrollen lohnt
+    shield: { front: 0.2, arc: 2.4, turnDelay: 0.75 },
+    attack: { kind: 'melee', range: 24, windup: 0.55, active: 0.12, recover: 0.5, cooldown: 1.0, damage: 18, knockback: 150, reach: 24, arc: 2.0, lunge: 60 },
+    specials: [{ kind: 'bash', anim: 'windup', range: 46, windup: 0.6, reach: 34, arc: 1.7, damage: 24, knockback: 280, recover: 0.7, cooldown: 6 }],
+  },
+  cinder_sapper: {
+    name: 'Schlackensprenger', family: 'human', levels: [13, 18], xp: 50, sprites: 'cinder_sapper', spriteBase: 'fire_imp',
+    hp: 150, speed: 84, radius: 7, mass: 0.8, hurtRadius: 9, bodyHeight: 27, shadowW: 19, material: 'flesh',
+    eye: { x: 14, y: -22 }, fuse: { x: -2, y: -31 }, hurtTime: 0.22, aggro: 125, leash: 300, wander: 20, spawnStyle: 'fade',
+    walkAnim: 'fuse',
+    // kein Grundangriff: rennt heran und zündet (0,85 s Kreiswarnung), stirbt dabei
+    attack: { kind: 'melee', range: 0, windup: 0.5, active: 0.1, recover: 0.5, cooldown: 1, damage: 0, knockback: 0, reach: 0, arc: 1, lunge: 0 },
+    specials: [{ kind: 'explode', anim: 'windup', range: 30, windup: 0.85, blastAnim: 0.58, radius: 34, damage: 70, knockback: 240, cooldown: 0 }],
+    specialStart: 0,
+  },
+  cliff_harpy: {
+    name: 'Klippenharpyie', family: 'beast', levels: [14, 18], xp: 70, sprites: 'cliff_harpy', spriteBase: 'ash_vulture',
+    hp: 260, speed: 70, radius: 6, mass: 0.9, hurtRadius: 10, bodyHeight: 34, shadowW: 20, material: 'flesh',
+    eye: { x: 5, y: -27 }, hurtTime: 0.2, aggro: 135, leash: 320, wander: 30, spawnStyle: 'fade', hitAndRun: 1.0,
+    // fliegt über Hindernisse, kreist; Sturzflug entlang fester Linienwarnung, danach am Boden verwundbar
+    flying: { hover: 6, orbit: 66, orbitSpeed: 0.9 }, // Figur schwebt im Sprite schon 14–19 px
+    attack: { kind: 'dive', fixed: true, range: 130, minRange: 34, windup: 0.7, active: 0.5, recover: 0.9, cooldown: 2.4, damage: 30, knockback: 150, speed: 240, overshoot: 28, maxLen: 180, hitRadius: 9 },
+    zoneVariants: { ashen_steppe: { levels: [20, 24], hp: 380, damage: 40, xp: 140 } },
+  },
   // --- Bosse Runde 2 (Logik in Nerith.js / Ignaroth.js)
   drowned_priestess: {
     name: 'Nerith, die Ertrunkene Priesterin', family: 'undead', level: 12, xp: 900, boss: true, bossId: 'drowned_priestess',
     sprites: 'nerith',
-    hp: 8000, speed: 46, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 30,
+    hp: 31000, dmgMult: 3, speed: 46, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 30,
     material: 'flesh', hurtTime: 0.2, eye: { x: 4, y: -55 },
   },
   ember_tyrant: {
     name: 'Ignaroth, der Glut-Tyrann', family: 'demon', level: 20, xp: 2600, boss: true, bossId: 'ember_tyrant',
     sprites: 'ignaroth',
-    hp: 11000, speed: 44, radius: 15, mass: 8, hurtRadius: 20, bodyHeight: 75, shadowW: 55,
+    hp: 47000, dmgMult: 1.1, speed: 44, radius: 15, mass: 8, hurtRadius: 20, bodyHeight: 75, shadowW: 55,
     material: 'stone', hurtTime: 0.2, eye: { x: 11, y: -89 },
   },
 };

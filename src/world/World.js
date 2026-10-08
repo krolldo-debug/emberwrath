@@ -30,6 +30,7 @@ const BOSS_CLASSES = { bonelord: Boss, drowned_priestess: Nerith, ember_tyrant: 
 import { Chest, ExitPortal } from '../entities/Interactive.js';
 import { FlowField } from './FlowField.js';
 import { QuestGuide } from './QuestGuide.js';
+import { updateBossFury } from './bossFury.js';
 import { rand, pick } from '../core/math.js';
 
 const T = CONFIG.tileSize;
@@ -216,6 +217,7 @@ export class World {
     this.#reportKills();
     this.spawner.update(dt);
     this.#updateBossArena();
+    updateBossFury(this, dt);
     separateActors(this.actors, this.dungeon);
     this.particles.update(dt);
     for (const l of this.lights) l.update(dt, this.time);
@@ -296,6 +298,7 @@ export class World {
         enemyId: e.id, type: e.type, level: e.level ?? def.level ?? 1, x: e.x, y: e.y,
         zoneId: this.zone.id, isBoss: !!def.boss, bossId: def.bossId, xp: e.xpOverride ?? def.xp ?? 10,
         elite: !!def.elite || !!e.rareId, summoned: !!e.summoned, rareId: e.rareId,
+        champion: e.champion ? { affixes: [...e.champion.affixes], level: e.level } : undefined,
       });
     }
   }
@@ -337,9 +340,11 @@ export class World {
     this.view.x = cx; this.view.y = cy;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(this.background, cx, cy, W, H, 0, 0, W, H);
+    // Außenkarten (Outdoor.chunked) zeichnen ihren Boden kachelweise in renderLiquid; background ist dort nur das Übersichtsbild
+    if (!this.dungeon.chunked) ctx.drawImage(this.background, cx, cy, W, H, 0, 0, W, H);
     this.dungeon.renderLiquid?.(ctx, cx, cy, this.time);
-    ctx.drawImage(this.decals.canvas, cx, cy, W, H, 0, 0, W, H);
+    // Dekal-Ebene kachelweise (gfx/Decals.js render); Altform: eine weltgroße Leinwand
+    if (this.decals.render) this.decals.render(ctx, cx, cy, W, H); else ctx.drawImage(this.decals.canvas, cx, cy, W, H, 0, 0, W, H);
     this.particles.drawShadows(ctx, cx, cy);
     this.guide.render(ctx, cx, cy);
 
