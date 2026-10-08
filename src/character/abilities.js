@@ -1,4 +1,5 @@
 import { Entity } from '../entities/Entity.js';
+import { levelGapMult } from '../progression/levelGap.js';
 import { SlashEffect, Afterimage } from '../entities/Effects.js';
 import { SLASH_STYLES } from '../sprites/effects.js';
 import { Light } from '../gfx/Lighting.js';
@@ -229,13 +230,14 @@ class Poison extends Entity {
     this.t -= dt;
     if (this.t > 0) return;
     this.t = 0.5;
-    const dmg = Math.max(1, Math.round(this.damage * (0.9 + Math.random() * 0.2)));
+    // Stufenabstand wie bei normalen Treffern (der Gifttick läuft sonst an takeHit vorbei)
+    const dmg = Math.max(1, Math.round(this.damage * (0.9 + Math.random() * 0.2) * levelGapMult(this.hero.level, e.level)));
     if (e.hp - dmg > 0) {
       e.hp -= dmg; e.flash = 0.05; e.hpBarTimer = 2.5;
       w.bus.emit('hit', { attacker: this.hero, target: e, damage: dmg, crit: false, heavy: false, dot: true, dirX: 0, dirY: 0, x: e.x, y: e.centerY - 2, killed: false, element: 'poison' });
     } else {
       // tödlich: normaler Treffer, damit Tod, Beute und XP wie gewohnt laufen
-      const hit = { damage: dmg, crit: false, heavy: false, dirX: 0, dirY: 0, knockback: 0, source: this.hero };
+      const hit = { damage: dmg, crit: false, heavy: false, dirX: 0, dirY: 0, knockback: 0, source: this.hero, levelGap: 1 };   // Malus schon eingerechnet
       if (e.takeHit(hit)) w.bus.emit('hit', { attacker: this.hero, target: e, damage: hit.damage, crit: false, heavy: false, dot: true, dirX: 0, dirY: 0, x: e.x, y: e.centerY - 2, killed: e.dead, element: 'poison' });
     }
     if (--this.ticks <= 0) this.removed = true;

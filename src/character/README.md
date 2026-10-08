@@ -125,3 +125,18 @@ Aufbau eines kompletten Satzes ~120 ms statt ~270 ms, Speicher je Satz 4× statt
 - **Stufe 40**: `computeStats` rechnet linear weiter. Talentreihen 22 „Erwachen“, 28 „Veredelung“ (je Klasse Rang 2 einer Fähigkeit:
   Wirbelsturm, Messerfächer, Pfeilsalve, Feuerball), 34 „Legende“ (Meisterschaft: Blutbad, Todesmal, Sperrfeuer, Kataklysmus).
   Kapazität je Klasse ≥ 39 Punkte. `stats.upgrades`, `stats.mastery`.
+
+## Garderobe (Runde 08.10.)
+`wardrobe.js`: Jedes Teil mit sichtbarem Aussehen (Waffe, Brust, Kopf, Hände, Füße) wird beim Aufheben, Kaufen,
+Ausrüsten oder Einlagern gesammelt (nach jedem Command und beim Spielstart; alte Spielstände holen alles aus
+Tasche, Ausrüstung und Bank nach). Das Aussehen bleibt, auch wenn das Teil verkauft wird.
+- Speicher: `character.wardrobe = { looks: [itemId], shown: { weapon, chest, head, hands, feet } }`,
+  `shown[slot]` = itemId | null (eigene Ausrüstung) | `'none'` (nur Kopf: Helm ausblenden).
+- Commands: `wardrobe:unlock { itemIds }`, `wardrobe:show { slot, itemId }` (Gründe: slot, locked, class).
+- Ereignis: `EV.WARDROBE_UNLOCKED ?? 'wardrobe:unlocked'` `{ itemIds }`.
+- Optik: `gearLook.shownEquipment(slices, content)` statt `inventory.equipment` für alles Sichtbare
+  (eigener Held, snapshotLook, `net/NetSession.lookOf`). Werte rechnen weiter mit der echten Ausrüstung.
+- Regeln: Aussehen nur, wenn im Platz etwas getragen wird; Waffen nur, wenn die Klasse sie führen darf.
+- Panel (D): `game.character.wardrobe.entries(slot)` → `{ current, equipped, list: [{ itemId, name, rarity, icon, usable, shown }] }`
+  (gleiches Aussehen einmal), `show(slot, value)`, `count()`; Vorschau `game.character.previewGear(overrides)`.
+- Test: `node src/character/test/wardrobe.test.mjs`.

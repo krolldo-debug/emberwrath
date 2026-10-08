@@ -46,36 +46,46 @@ function ik(ax, ay, tx, ty, l1, l2, bend) {
 }
 
 // Dickes Glied mit Licht von links oben (ramp: 4 Stufen dunkel → hell).
+// Pixelgenau gerastert (Kapsel um die Strecke): saubere Lichtbänder ohne
+// Sprenkel, die beim Überzeichnen halber Schritte entstanden.
 function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
-  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy || 0.0001, len = Math.sqrt(len2);
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }
-  const steps = Math.ceil(len * 2);
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
-    const hw = (w0 + (w1 - w0) * t) / 2;
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      const c = k > hw - 1 ? ramp[3] : k < -hw + 1 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
-      p.px(x + nx * k, y + ny * k, c);
-    }
+  const R = Math.max(w0, w1) / 2 + 1;
+  const xa = Math.floor(Math.min(x0, x1) - R), xb = Math.ceil(Math.max(x0, x1) + R);
+  const ya = Math.floor(Math.min(y0, y1) - R), yb = Math.ceil(Math.max(y0, y1) + R);
+  for (let Y = ya; Y <= yb; Y++) for (let X = xa; X <= xb; X++) {
+    const t = Math.max(0, Math.min(1, ((X - x0) * dx + (Y - y0) * dy) / len2));
+    const ox = X - (x0 + dx * t), oy = Y - (y0 + dy * t);
+    const hw = Math.max(0.62, (w0 + (w1 - w0) * t) / 2);
+    if (ox * ox + oy * oy > hw * hw + 0.15) continue;
+    const k = ox * nx + oy * ny;
+    const c = k > hw - 1 ? ramp[3] : k < -hw + 1 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
+    p.px(X, Y, c);
   }
 }
 
-// Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy),
-// frisch (am Ende) dicht und hell, am Anfang ausgedünnt. sy staucht die
-// Bahn senkrecht (waagerechte Hiebe in 3/4-Sicht).
+// Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy).
+// Geschlossene Sichel ohne Rauschen: am Anfang ein dünner Faden, zum frischen
+// Ende hin breit; Außenkante hell, innen dunkler. sy staucht die Bahn
+// senkrecht (waagerechte Hiebe in 3/4-Sicht).
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.4) + 2;
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 2) + 2;
+  const seen = new Set();
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
-    for (let r = r0; r <= r1; r += 0.5) {
-      const radial = (r - r0) / (r1 - r0 || 1);
+    const th = (0.12 + 0.88 * Math.pow(f, 1.3)) * Math.min(1, 8 / (r1 - r0)); // höchstens ~8 px breit
+    const rin = r1 - (r1 - r0) * th;
+    for (let r = r1; r >= rin; r -= 0.5) {
       const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
-      const dens = f * f * 0.55 + radial * (0.2 + 0.8 * f) - 0.12;
-      if (hash2(x + 50, y + 50, 31) > dens) continue;
-      const c = radial > 0.82 ? cols[2] : radial > 0.5 ? cols[1] : cols[0];
+      const key = x * 1000 + y;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const radial = (r - rin) / (r1 - rin || 1);
+      const c = radial > 0.75 || f < 0.25 ? cols[2] : radial > 0.4 ? cols[1] : cols[0];
       p.px(x, y, c);
-      if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.82 ? gcols[1] : gcols[0]);
+      if (g && gcols && f > 0.3 && radial > 0.4) g.px(x, y, radial > 0.75 ? gcols[1] : gcols[0]);
     }
   }
 }
@@ -96,6 +106,18 @@ function rotBlit(src, dst, px, py, ang) {
     d[di] = s[si]; d[di + 1] = s[si + 1]; d[di + 2] = s[si + 2]; d[di + 3] = s[si + 3];
   }
   dst.ctx.putImageData(img, 0, 0);
+}
+
+// Pixelkarte: jede Zeile ein String, jedes Zeichen ein Schlüssel in pal
+// ('.' und Leerzeichen = frei). Für Köpfe/Gesichter, die pixelgenau sitzen müssen.
+function pmap(p, x0, y0, rows, pal) {
+  for (let j = 0; j < rows.length; j++) {
+    const r = rows[j];
+    for (let i = 0; i < r.length; i++) {
+      const c = pal[r[i]];
+      if (c) p.px(x0 + i, y0 + j, c);
+    }
+  }
 }
 
 // Baut einen Frame: draw(p, g, P, extra) -> meta (absolute Koordinaten).
@@ -215,16 +237,20 @@ function drawDrowned(p, g, P, X) {
 
   // --- aufgedunsener Rumpf mit zerrissenem Hemd
   const hp = pt(0, 0.5), cp = pt(DD.spine, 0.5);
-  limb(p, hp.x, hp.y, cp.x, cp.y, 7.5, 7, [D_SKIN[1], D_SKIN[2], D_SKIN[3], D_SKIN[4]]);
+  limb(p, hp.x, hp.y, cp.x, cp.y, 7.5, 7, [D_SKIN[0], D_SKIN[1], D_SKIN[2], D_SKIN[2]]);
   const belly = pt(3, 1.8);
-  p.ellipse(belly.x, belly.y, 3.5, 3, D_SKIN[3]); p.ellipse(belly.x - 0.5, belly.y - 1, 2, 1.5, D_SKIN[4]);
+  p.ellipse(belly.x, belly.y, 3.5, 3, D_SKIN[2]); p.ellipse(belly.x - 0.5, belly.y - 1, 2, 1.5, D_SKIN[3]); p.px(belly.x - 1.5, belly.y - 1.5, D_SKIN[4]);
   const q = (u, k, c) => { const o = pt(u, k); p.px(o.x, o.y, c); };
-  // Hemdfetzen
-  for (let u = 4; u <= 8; u += 0.5) for (let k = -3.5; k <= 0.5; k += 0.5) {
-    if (hash2(Math.round(u * 2), Math.round(k * 2), 61) < 0.25 && u < 5.5) continue;
-    q(u, k, k < -2.5 ? RAG[1] : u > 7 ? RAG[3] : RAG[2]);
+  // Zerrissenes Hemd: deckt Rücken und Brust, vorn unten aufgerissen (der
+  // aufgedunsene Bauch quillt heraus). Licht von hinten oben = Rückenseite hell.
+  for (let u = 3; u <= 8.5; u += 0.5) for (let k = -3.5; k <= 2.5; k += 0.5) {
+    const torn = k > 0.2 && u < 6.2 - (k - 0.2) * 0.5 + hash2(Math.round(u * 2), 3, 64) * 1.2;
+    if (torn) continue;
+    if (u < 4 && hash2(Math.round(k * 2), 5, 61) < 0.45) continue; // ausgefranster Saum
+    q(u, k, k < -2.4 ? RAG[3] : k > 1.6 ? RAG[1] : u > 7.5 ? RAG[3] : (Math.round(u * 2 + k) % 5 === 0 ? RAG[1] : RAG[2]));
   }
-  for (let k = -3; k <= 0; k += 1) q(3.5 + (hash2(k, 2, 62) * 1.5 | 0), k, RAG[1]); // Fransen
+  for (let u = 4.5; u <= 8; u += 0.5) q(u, -1.5 + (u - 4.5) * 0.2, RAG[1]); // Falte
+  q(8, 1.5, RAG[0]); q(7.5, 2, RAG[0]); // Kragenschatten
   q(6, 2.5, D_SKIN[1]); q(5, 3, D_SKIN[2]); // Nabel/Falte
   // Seepocken an der Schulter
   q(7.5, -2, BARN[1]); q(8, -1, BARN[2]); q(7, -1, BARN[0]);
@@ -236,43 +262,51 @@ function drawDrowned(p, g, P, X) {
   p.rect(legF.ex - 1, legF.ey - 1, 3, 1, D_SKIN[2]); p.px(legF.ex + 2, legF.ey - 1, D_SKIN[3]);
   p.px(legF.jx - 1, legF.jy - 1, D_PANTS[3]); p.px(legF.jx, legF.jy + 1, D_PANTS[0]); // zerrissenes Hosenbein
 
-  // --- Kopf: kahl, aufgedunsen, hängender Kiefer, trübe leuchtende Augen
-  const neck = pt(DD.spine + 1.5, 1.5);
-  const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 3 + P.loll);
-  p.ellipse(hx, hy, 3.6, 3.4, D_SKIN[3]);
-  p.ellipse(hx - 0.7, hy - 1, 2.6, 2.2, D_SKIN[4]);
-  p.px(hx - 2, hy - 2, D_SKIN[5]);
-  p.ellipse(hx + 1, hy + 2, 2.5, 1.2, D_SKIN[2]); // aufgedunsene Wange
-  // strähniges Haar / Tang
-  for (let i = 0; i < 3; i++) {
-    const x = hx - 2.5 + i * 1.3, y = hy - 3 + i * 0.4;
-    const len = 4 + i * 1.5;
-    for (let j = 0; j < len; j++) p.px(x - j * 0.45 + Math.sin(P.weed + i + j * 0.8) * 0.4, y + j, j < 2 ? WEED[3] : WEED[1 + (i & 1)]);
-  }
-  // Augen
-  const eyeOn = P.eye > 0.3;
-  p.rect(hx + 1, hy - 1, 3, 2, D_SKIN[0]);
-  p.px(hx + 2, hy - 1, eyeOn ? G[2] : D_SKIN[1]);
-  if (eyeOn) { g.px(hx + 2, hy - 1, G[2]); g.px(hx + 3, hy - 1, G[1]); g.px(hx + 2, hy, G[0]); }
-  meta.eye = { x: hx + 2, y: hy - 1 };
-  // Nase, hängender Kiefer
-  p.px(hx + 4, hy, D_SKIN[3]);
-  const jaw = Math.round(P.jaw * 2);
-  if (jaw) p.rect(hx + 1, hy + 2, 3, jaw, '#0a1210');
-  p.rect(hx, hy + 2 + jaw, 4, 1, D_SKIN[2]); p.px(hx + 3, hy + 2 + jaw, D_SKIN[3]);
-  if (jaw) p.px(hx + 2, hy + 2, BARN[2]);
-  meta.mouth = { x: hx + 3, y: hy + 2 };
-  meta.head = { x: hx, y: hy - 4 };
-
   // --- vorderer Arm
   if (X.smear) smearArc(p, g, shF.x, shF.y, X.smear[0], X.smear[1], 5, 12, COLD, COLD_G, 0.8);
-  limb(p, shF.x, shF.y, armF.jx, armF.jy, 3.5, 3, [D_SKIN[2], D_SKIN[3], D_SKIN[4], D_SKIN[5]]);
-  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 3, 2.5, [D_SKIN[2], D_SKIN[3], D_SKIN[4], D_SKIN[4]]);
+  limb(p, shF.x, shF.y, armF.jx, armF.jy, 3, 2.6, [D_SKIN[1], D_SKIN[2], D_SKIN[3], D_SKIN[4]]);
+  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 2.6, 2.4, [D_SKIN[1], D_SKIN[2], D_SKIN[3], D_SKIN[4]]);
+  p.px(armF.jx, armF.jy, D_SKIN[4]); // Ellbogen im Licht
   // Tang um den Unterarm
   const mx = (armF.jx + armF.ex) / 2, my = (armF.jy + armF.ey) / 2;
   p.px(mx, my, WEED[3]); p.px(mx - 1, my + 1, WEED[2]); p.px(mx - 1, my + 2, WEED[2]); p.px(mx - 1.5, my + 3 + Math.sin(P.weed) * 0.5, WEED[1]);
   claw(armF.ex, armF.ey, true);
   meta.hand = { x: armF.ex + 2, y: armF.ey + 1 };
+
+  // --- Kopf (nach dem Arm gezeichnet: der vorgereckte Kopf liegt vorn): kahl, aufgedunsen, hängender Kiefer, trübe leuchtende Augen
+  const neck = pt(DD.spine + 1.5, 1.5);
+  const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 3 + P.loll);
+  // Kopf als Pixelkarte: kahl, aufgedunsen, wulstige Stirn über tiefer Augenhöhle,
+  // platte Nase, Seepocken am Hinterkopf; der Kiefer hängt (P.jaw)
+  const jaw = Math.max(1, Math.round(P.jaw * 2));
+  const DS = { 0: D_SKIN[0], 1: D_SKIN[1], 2: D_SKIN[2], 3: D_SKIN[3], 4: D_SKIN[4], 5: D_SKIN[5], k: '#0a1210', b: BARN[2], B: BARN[1] };
+  // Schlund (immer offen) und hängender Unterkiefer
+  p.rect(hx, hy + 2, 4, jaw, '#0a1210');
+  pmap(p, hx - 1, hy + 2 + jaw, ['22333', '.0110'], DS);
+  p.px(hx + 1, hy + 2 + jaw, BARN[2]); p.px(hx + 3, hy + 2, BARN[1]); p.px(hx + 1, hy + 2, BARN[0]); // faule Zähne
+  pmap(p, hx - 4, hy - 5, [
+    '..34443..',
+    '.3455543.',
+    '345555443',
+    'b44555553',
+    'B3442kek.',
+    '233432123',
+    '1233322..',
+  ], DS);
+  p.px(hx - 2, hy + 2, D_SKIN[0]); p.px(hx - 1, hy + 2, D_SKIN[1]); // Schatten unter dem Kinn
+  // strähniges Haar / Tang fällt am Hinterkopf herab (nicht übers Gesicht)
+  for (let i = 0; i < 3; i++) {
+    const x = hx - 3.5 + i * 1.1, y = hy - 4 + i * 0.4;
+    const len = 4 + i * 1.5;
+    for (let j = 0; j < len; j++) p.px(x - j * 0.5 + Math.sin(P.weed + i + j * 0.8) * 0.4, y + j, j < 1 ? WEED[3] : WEED[1 + (i & 1) - (j > 3 ? 1 : 0)]);
+  }
+  // Auge: trübes, kaltes Glimmen in der Höhle
+  const eyeOn = P.eye > 0.3;
+  p.px(hx + 2, hy - 1, eyeOn ? G[2] : D_SKIN[1]);
+  if (eyeOn) { g.px(hx + 2, hy - 1, G[2]); g.px(hx + 1, hy - 1, G[1]); g.px(hx + 2, hy, G[0]); g.px(hx + 3, hy - 1, G[0]); }
+  meta.eye = { x: hx + 2, y: hy - 1 };
+  meta.mouth = { x: hx + 3, y: hy + 2 };
+  meta.head = { x: hx, y: hy - 4 };
 
   // --- Wassertropfen (fallen je nach Phase)
   const drops = [[armF.ex + 1, armF.ey + 3], [armB.ex + 1, armB.ey + 3], [hx - 3, hy + 4], [back.x - 1, back.y + 9]];
@@ -280,8 +314,8 @@ function drawDrowned(p, g, P, X) {
     const t = (P.drip + i * 0.37) % 1;
     const yy = y + t * 7;
     if (yy > DAY - 1) return;
-    p.px(x, yy, WATER[4]); if (t > 0.3) p.px(x, yy - 1, WATER[3]);
-    g.px(x, yy, WATER[2]);
+    p.px(x, yy, WATER[3]); if (t > 0.3) p.px(x, yy - 1, WATER[2]);
+    g.px(x, yy, WATER[1]);
   });
   return meta;
 }
@@ -469,18 +503,25 @@ function drawCultist(p, g, P, X) {
   p.ellipse(hx - 1, hy - 1, 3, 2.8, ROBE[3]);
   p.px(hx - 3, hy - 2, ROBE[5]); p.px(hx - 2, hy - 3, ROBE[4]);
   // Kapuzenspitze nach hinten
-  for (let i = 0; i < 4; i++) p.px(hx - 3 - i + P.hood * i * 0.3, hy - 3 - i * 0.6 + i * i * 0.2, ROBE[i < 2 ? 3 : 2]);
-  // Maske: bleiches Profil mit leerer Augenhöhle und aufgemalter Tränenlinie
-  p.rect(hx + 1, hy - 2, 3, 5, MASK[2]);
-  p.rect(hx + 1, hy - 2, 2, 1, MASK[3]);
-  p.px(hx + 4, hy, MASK[2]); p.px(hx + 4, hy + 1, MASK[1]); // Nasenrücken
-  p.px(hx + 1, hy + 2, MASK[1]); p.px(hx + 2, hy + 2, MASK[1]); p.px(hx + 3, hy + 2, MASK[0]);
-  p.px(hx + 3, hy - 1, '#061012'); p.px(hx + 2, hy - 1, MASK[1]);
-  if (P.eye > 0.3) { g.px(hx + 3, hy - 1, PEARL[2]); g.px(hx + 4, hy - 1, PEARL[0]); }
-  p.px(hx + 3, hy, ROBE[4]); p.px(hx + 3, hy + 1, ROBE[3]);
+  for (let i = 0; i < 5; i++) {
+    const x = hx - 3 - i * 0.9 + P.hood * i * 0.3, y = hy - 3 + i * 0.45 + i * i * 0.12;
+    p.px(x, y, ROBE[i < 2 ? 4 : 3]); p.px(x + 0.5, y + 1, ROBE[2]);
+  }
+  // Kapuzeninneres: tiefer Schatten rund um die Maske
+  p.rect(hx, hy - 2, 1, 5, ROBE[0]); p.rect(hx + 1, hy - 3, 3, 1, ROBE[1]);
+  // Maske: bleiches Profil – Stirn im Licht, dunkle Augenhöhle, aufgemalte
+  // Tränenlinie in Gezeitenfarbe, vorspringende Nase, schmaler Mund
+  pmap(p, hx + 1, hy - 2, [
+    '332.',
+    '21k2',
+    '2t22',
+    '2t21',
+    '1100',
+  ], { 3: MASK[3], 2: MASK[2], 1: MASK[1], 0: MASK[0], k: '#061012', t: ROBE[4] });
+  p.px(hx + 4, hy, MASK[3]); p.px(hx + 4, hy + 1, MASK[1]);
+  if (P.eye > 0.3) { g.px(hx + 3, hy - 1, PEARL[3]); g.px(hx + 2, hy - 1, PEARL[1]); g.px(hx + 4, hy - 1, PEARL[0]); }
   // Kapuzenrand wirft Schatten über die Stirn
   p.px(hx + 1, hy - 3, ROBE[3]); p.px(hx + 2, hy - 3, ROBE[2]); p.px(hx + 3, hy - 3, ROBE[2]); p.px(hx + 4, hy - 2, ROBE[1]);
-  p.px(hx, hy - 1, ROBE[1]); p.px(hx, hy, ROBE[1]); p.px(hx, hy + 1, ROBE[1]);
   meta.eye = { x: hx + 3, y: hy - 1 };
   meta.head = { x: hx, y: hy - 5 };
 
@@ -564,27 +605,40 @@ const G_REST = {
 const gpose = (o = {}) => ({ ...G_REST, ...o });
 
 // Bronze mit Grünspan: Grundton aus der Bronzerampe, in Schattenbereichen
-// und zufälligen Flecken durch Patina ersetzt.
+// und zusammenhängenden Flecken durch Patina ersetzt. Die Flecken kommen aus
+// grobem Wertrauschen (Raster 3 px), damit sie als Flächen lesen und nicht
+// als Pixelsprenkel.
+function blot(x, y, seed) {
+  const gx = x / 3, gy = y / 3, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+  const a = hash2(ix, iy, seed), b = hash2(ix + 1, iy, seed), c = hash2(ix, iy + 1, seed), d = hash2(ix + 1, iy + 1, seed);
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  return (a + (b - a) * sx) + ((c + (d - c) * sx) - (a + (b - a) * sx)) * sy;
+}
 function patina(p, x, y, k, seed) {
   // k: 0..3 Helligkeitsstufe
-  const h = hash2(Math.round(x), Math.round(y), seed);
+  const X = Math.round(x), Y = Math.round(y);
+  const n = blot(X, Y, seed % 7 + 3);
   const shade = k <= 1;
-  if (h < (shade ? 0.55 : 0.2)) p.px(x, y, VERD[Math.min(5, k + 1 + (h < 0.08 ? 1 : 0))]);
-  else p.px(x, y, BRZ[k + 1 + (k >= 3 && h > 0.9 ? 1 : 0)]);
+  if (n < (shade ? 0.5 : 0.28)) p.px(X, Y, VERD[Math.min(5, k + 1 + (n < 0.14 ? 1 : 0))]);
+  else p.px(X, Y, BRZ[k + 1 + (k >= 3 && n > 0.86 ? 1 : 0)]);
 }
+// Bronzeglied, pixelgenau gerastert wie limb()
 function bronzeLimb(p, x0, y0, x1, y1, w0, w1, seed, dark = 0) {
-  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy || 0.0001, len = Math.sqrt(len2);
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }
-  const steps = Math.ceil(len * 2);
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
-    const hw = (w0 + (w1 - w0) * t) / 2;
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      let lvl = k > hw - 1 ? 3 : k < -hw + 1 ? 0 : k > 0 ? 2 : 1;
-      lvl = Math.max(0, lvl - dark);
-      patina(p, x + nx * k, y + ny * k, lvl, seed);
-    }
+  const R = Math.max(w0, w1) / 2 + 1;
+  const xa = Math.floor(Math.min(x0, x1) - R), xb = Math.ceil(Math.max(x0, x1) + R);
+  const ya = Math.floor(Math.min(y0, y1) - R), yb = Math.ceil(Math.max(y0, y1) + R);
+  for (let Y = ya; Y <= yb; Y++) for (let X = xa; X <= xb; X++) {
+    const t = Math.max(0, Math.min(1, ((X - x0) * dx + (Y - y0) * dy) / len2));
+    const ox = X - (x0 + dx * t), oy = Y - (y0 + dy * t);
+    const hw = Math.max(0.62, (w0 + (w1 - w0) * t) / 2);
+    if (ox * ox + oy * oy > hw * hw + 0.15) continue;
+    const k = ox * nx + oy * ny;
+    let lvl = k > hw - 1 ? 3 : k < -hw + 1 ? 0 : k > 0 ? 2 : 1;
+    lvl = Math.max(0, lvl - dark);
+    patina(p, X, Y, lvl, seed);
   }
 }
 function barnacles(p, x, y, n, seed) {
@@ -699,22 +753,22 @@ function drawGuardian(p, g, P, X) {
     const h = 3 + Math.sin(i / 6 * Math.PI) * 4;
     for (let j = 0; j < h; j++) p.px(bx - j * 0.55, by - j, j === Math.floor(h) - 1 ? VERD[4] : i % 2 ? VERD[2] : VERD[3]);
   }
-  // Helmkuppe
-  for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++) {
-    if (x * x / 20 + y * y / 17 > 1) continue;
-    const lvl = x + y < -4 ? 3 : x + y < 0 ? 2 : x + y < 4 ? 1 : 0;
-    patina(p, hx + x, hy + y, lvl, 51);
-  }
-  // Gesichtsmaske (Profil, strenger Mund)
-  p.rect(hx + 1, hy - 1, 4, 5, BRZ[3]);
-  p.rect(hx + 4, hy, 1, 3, BRZ[4]); p.px(hx + 5, hy + 1, BRZ[4]); // Nase
-  p.rect(hx + 2, hy + 3, 3, 1, BRZ[1]); // Mund
-  p.px(hx + 1, hy + 4, VERD[1]); p.px(hx + 3, hy + 4, VERD[2]);
-  // Wangenschutz
-  p.rect(hx - 1, hy, 2, 5, BRZ[2]); p.px(hx - 1, hy, BRZ[4]);
-  // Augen: tiefe Schlitze, türkis leuchtend
+  // Helm als Pixelkarte: gewölbte Kuppe (Licht oben links), strenge Gesichtsmaske
+  // mit Brauenschatten, glühendem Augenschlitz, Nase und schmalem Mund
   const eyeOn = P.eye > 0.3;
-  p.rect(hx + 2, hy, 3, 1, eyeOn ? TURQ[2] : '#0a1210');
+  pmap(p, hx - 4, hy - 4, [
+    '..hhsshm..',
+    '.hsshhmmm.',
+    'hshhmmmmmd',
+    'hhmmVmdddd',
+    'hmmvmdeeEm',
+    'dmmmmmmmhs',
+    'dhmmvmmmm.',
+    '.dmmmmkkd.',
+    '..ddmmmd..',
+  ], { s: BRZ[5], h: BRZ[4], m: BRZ[3], d: BRZ[2], o: BRZ[1], v: VERD[2], V: VERD[3], k: '#0a1210', e: eyeOn ? TURQ[2] : '#0a1210', E: eyeOn ? TURQ[3] : '#0a1210' });
+  // Wangen-/Nackenschutz hinten
+  p.rect(hx - 5, hy, 2, 4, BRZ[2]); p.px(hx - 5, hy, BRZ[4]); p.px(hx - 4, hy + 3, VERD[2]);
   if (eyeOn) {
     g.rect(hx + 2, hy, 3, 1, TURQ[3]); g.px(hx + 4, hy, TURQ[4]);
     g.px(hx + 5, hy, TURQ[1]); g.px(hx + 3, hy - 1, TURQ[0]); g.px(hx + 3, hy + 1, TURQ[0]);
@@ -723,7 +777,7 @@ function drawGuardian(p, g, P, X) {
   meta.eye = { x: hx + 4, y: hy };
   meta.head = { x: hx, y: hy - 8 };
   meta.mouth = { x: hx + 4, y: hy + 3 };
-  barnacles(p, hx - 3, hy + 2, 2, 47);
+  barnacles(p, hx - 4, hy - 1, 1, 47);
 
   // --- vorderer Arm + Dreizack
   const drawArm = () => {

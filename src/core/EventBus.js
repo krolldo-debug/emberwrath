@@ -19,7 +19,14 @@ export class EventBus {
   scope() {
     const offs = [];
     return {
-      on: (type, fn) => { const off = this.on(type, fn); offs.push(off); return off; },
+      // Einzeln gelöste Abos verlassen auch die Sammelliste – sonst hält sie die Hörer (und z. B. jede
+      // besuchte World samt Leinwänden über QuestGuide) bis zum Ende der Sitzung fest.
+      on: (type, fn) => {
+        const off = this.on(type, fn);
+        const once = () => { off(); const i = offs.indexOf(once); if (i >= 0) offs.splice(i, 1); };
+        offs.push(once);
+        return once;
+      },
       emit: (type, payload) => this.emit(type, payload),
       dispose: () => { for (const off of offs.splice(0)) off(); },
     };

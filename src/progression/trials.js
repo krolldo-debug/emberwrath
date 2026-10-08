@@ -17,14 +17,14 @@ export function trialLevelScale(level) { return 1 + (trialLevel(level) - 20) * 0
 
 // Themen: Gegnertypen von Thread B (§11.3); der letzte ist der Boss.
 export const TRIAL_THEMES = {
-  undead: { name: 'Gruft der Knochen', pool: ['skeleton', 'archer', 'spider'], elites: ['wolf_alpha'], bossId: 'bonelord', bossHp: 0.9 },
-  tide: { name: 'Versunkene Hallen', pool: ['drowned', 'tide_cultist', 'temple_guardian'], elites: ['bandit_chief'], bossId: 'drowned_priestess', bossHp: 1 },
-  ember: { name: 'Herz der Esse', pool: ['fire_imp', 'magma_hound', 'ash_golem', 'forge_golem', 'flame_acolyte', 'ember_drake'], elites: ['magma_behemoth', 'forge_warden'], bossId: 'ember_tyrant', bossHp: 1.1 },
+  undead: { name: 'Gruft der Knochen', pool: ['skeleton', 'archer', 'spider'], elites: ['wolf_alpha'], bossId: 'bonelord', bossHp: 0.9, bossDmg: 2.8 },
+  tide: { name: 'Versunkene Hallen', pool: ['drowned', 'tide_cultist', 'temple_guardian'], elites: ['bandit_chief'], bossId: 'drowned_priestess', bossHp: 1, bossDmg: 2.4 },
+  ember: { name: 'Herz der Esse', pool: ['fire_imp', 'magma_hound', 'ash_golem', 'forge_golem', 'flame_acolyte', 'ember_drake'], elites: ['magma_behemoth', 'forge_warden'], bossId: 'ember_tyrant', bossHp: 1.1, bossDmg: 0.7 },
   // Gebiete 20–40 (Thread B, §12.4), ab der Stufe, auf der man das Gebiet erreicht. Bosskämpfe hier zählen nicht für Quests.
-  barrow: { name: 'Heulendes Grab', minLevel: 22, after: 'q_barrow_king', pool: ['steppe_raider', 'raider_archer', 'dust_hyena', 'barrow_wight', 'grave_hound', 'bone_archer'], elites: ['steppe_warlord'], bossId: 'barrow_king', bossHp: 1 },
-  blight: { name: 'Faulender Schlund', minLevel: 27, after: 'q_rot_mother', pool: ['bog_lurker', 'swamp_leech', 'plague_toad', 'rot_shaman', 'sporeling', 'spore_caster'], elites: ['bog_horror', 'fungal_brute'], bossId: 'rot_mother', bossHp: 1.05 },
-  rime: { name: 'Reifgewölbe', minLevel: 32, after: 'q_frost_wyrm', pool: ['frost_wolf', 'snow_stalker', 'rime_witch', 'ice_elemental', 'crystal_spider', 'frozen_knight'], elites: ['ice_troll_chief'], bossId: 'frost_wyrm', bossHp: 1.1 },
-  ashen: { name: 'Thron der Asche', minLevel: 37, after: 'q_ash_sovereign', pool: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'throne_guard', 'ember_hellhound'], elites: ['waste_colossus'], bossId: 'ash_sovereign', bossHp: 1.2 },
+  barrow: { name: 'Heulendes Grab', minLevel: 22, after: 'q_barrow_king', pool: ['steppe_raider', 'raider_archer', 'dust_hyena', 'barrow_wight', 'grave_hound', 'bone_archer'], elites: ['steppe_warlord'], bossId: 'barrow_king', bossHp: 1, bossDmg: 1.6 },
+  blight: { name: 'Faulender Schlund', minLevel: 27, after: 'q_rot_mother', pool: ['bog_lurker', 'swamp_leech', 'plague_toad', 'rot_shaman', 'sporeling', 'spore_caster'], elites: ['bog_horror', 'fungal_brute'], bossId: 'rot_mother', bossHp: 1.05, bossDmg: 0.9 },
+  rime: { name: 'Reifgewölbe', minLevel: 32, after: 'q_frost_wyrm', pool: ['frost_wolf', 'snow_stalker', 'rime_witch', 'ice_elemental', 'crystal_spider', 'frozen_knight'], elites: ['ice_troll_chief'], bossId: 'frost_wyrm', bossHp: 1.1, bossDmg: 2.2 },
+  ashen: { name: 'Thron der Asche', minLevel: 37, after: 'q_ash_sovereign', pool: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'throne_guard', 'ember_hellhound'], elites: ['waste_colossus'], bossId: 'ash_sovereign', bossHp: 1.2, bossDmg: 0.9 },
 };
 // Themen, die eine Spielerstufe sehen kann
 export function trialThemesFor(level, completed = []) {
@@ -48,6 +48,9 @@ function mulberry(seed) {
 // Stufe 20 mit epischer Ausrüstung macht effektiv rund 250–300 Schaden/s → 30–40 s auf Stufe 1,
 // ab Stufe ~4 im Zielbereich 40–60 s (mit Verstärkungen/Sets entsprechend höher).
 export const TRIAL_BOSS_HP = 9000;
+// Schadensfaktor der Prüfungsbosse (Rückfall). Ersetzt in der Prüfung das def.dmgMult der Story-Bosse;
+// je Thema gilt theme.bossDmg (Messung B 08.10., 300 Läufe), damit alle Themen ähnlich hart sind.
+export const TRIAL_BOSS_DMG = 1.5;
 
 // Laufbeschreibung für Stufe `tier` (1…). B spawnt danach; C zählt Fortschritt und vergibt Belohnung.
 export function trialSpec(tier, seed = 1, playerLevel = 20, completed = []) {
@@ -68,6 +71,7 @@ export function trialSpec(tier, seed = 1, playerLevel = 20, completed = []) {
     pool: [...theme.pool], elites: [...theme.elites], eliteEvery: Math.max(6, 12 - Math.floor(t / 2)),
     target: 60, bossId: theme.bossId, timeLimit: 600, affixes,
     // Absolute Boss-Lebenspunkte (schon mit hpMult); B setzt b.maxHp = run.bossHp
+    bossDmgMult: theme.bossDmg ?? TRIAL_BOSS_DMG,
     bossHp: Math.round(TRIAL_BOSS_HP * scale * (theme.bossHp ?? 1) * (1 + 0.25 * (t - 1)) / 100) * 100,
   };
 }

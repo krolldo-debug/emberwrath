@@ -13,8 +13,32 @@ import { RK } from './foes_rime.js';
 // warmes Randlicht (Gold) oben links und Glut-Gegenlicht rechts für eine klare
 // Silhouette auf dunklem Palastboden. Blickrichtung rechts, Anker = Bodenkontakt.
 
-const { GLOW, LAVA, linear, snap, clamp, ell, cap, poly, ik, glowDot, veins, flame, fireball, track, still, arcSmear, dustRing, occlude, robe, hash2, CHAR, VOID } = FK;
+const { GLOW, LAVA, linear, snap, clamp, ell, cap, poly, ik, glowDot, veins, flame, fireball, track, still, dustRing, occlude, robe, hash2, CHAR, VOID } = FK;
 const { mixP, shard, halo, spec, stillR, rig, smearArc, TAU } = RK;
+
+// Schwung-Schleier als geschlossene Sichel (ersetzt das gerasterte FK.arcSmear):
+// am frischen Ende breit und hell, zum Anfang spitz auslaufend, harte Stufen –
+// keine Rasterkrümel, an denen die Kontur ausfranst. Signatur wie FK.arcSmear.
+function arcSmear(p, g, cx, cy, a0, a1, r0, r1, cols, seed = 13, glowIt = true) {
+  const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
+  const R1 = Math.ceil(r1);
+  for (let y = -R1; y <= R1; y++) for (let x = -R1; x <= R1; x++) {
+    const d = Math.hypot(x, y);
+    if (d < r0 || d > r1) continue;
+    let a = Math.atan2(y, x);
+    while (a < lo - Math.PI) a += Math.PI * 2;
+    while (a > lo + Math.PI) a -= Math.PI * 2;
+    if (a < lo || a > hi) continue;
+    const fresh = a1 > a0 ? (a - lo) / span : (hi - a) / span;
+    const radial = (d - r0) / (r1 - r0 || 1);
+    const th = 0.15 + 0.85 * fresh * fresh;
+    if (radial < 1 - th) continue;
+    const rr = (radial - (1 - th)) / th;
+    p.px(cx + x, cy + y, rr > 0.7 ? cols[2] : rr > 0.3 ? cols[1] : cols[0]);
+    if (glowIt && fresh > 0.4 && rr > 0.4) g.px(cx + x, cy + y, rr > 0.7 ? GLOW[3] : GLOW[1]);
+  }
+}
+
 
 // ================================================================ Materialien
 
@@ -207,12 +231,14 @@ function drawThroneGuard(p, g, P, ex) {
   p.line(hx - 3, hy - 1, hx + 4, hy - 2, GOLD[4]);                    // Stirnreif
   p.px(hx + 1, hy - 2, LAVA[3]); g.px(hx + 1, hy - 2, GLOW[2]);
   // T-Visier
-  const ec = ex.hurt ? '#ffffff' : LAVA[4];
-  p.rect(hx, hy, 4, 1, VOID); p.rect(hx + 2, hy, 1, 3, VOID);
+  const ec = ex.hurt ? '#ffffff' : LAVA[5];
+  p.line(hx - 1, hy - 1, hx + 4, hy - 1, OBS[6]);                       // Visierkante im Licht
+  p.rect(hx - 1, hy, 6, 1, VOID); p.rect(hx + 2, hy, 1, 3, VOID);
+  p.px(hx + 3, hy + 2, OBS[1]); p.px(hx + 4, hy + 1, OBS[5]);           // Kinnplatte, Atemloch
   if (P.eye > 0.3) {
-    p.px(hx + 1, hy, ec); p.px(hx + 3, hy, LAVA[3]); p.px(hx + 2, hy + 1, LAVA[2]);
-    g.px(hx + 1, hy, GLOW[4]); g.px(hx + 3, hy, GLOW[3]); g.px(hx + 2, hy + 1, GLOW[2]);
-    if (P.eye > 1.2) g.rect(hx + 1, hy, 4, 1, GLOW[3]);
+    p.px(hx, hy, LAVA[3]); p.px(hx + 1, hy, ec); p.px(hx + 3, hy, ec); p.px(hx + 4, hy, LAVA[3]); p.px(hx + 2, hy + 1, LAVA[2]);
+    g.px(hx + 1, hy, GLOW[4]); g.px(hx + 3, hy, GLOW[4]); g.px(hx, hy, GLOW[2]); g.px(hx + 4, hy, GLOW[2]); g.px(hx + 2, hy + 1, GLOW[2]);
+    if (P.eye > 1.2) g.rect(hx, hy, 5, 1, GLOW[3]);
   }
   p.px(hx - 2, hy - 3, OBS[6]);
   meta.eye = { x: hx + 2, y: hy };
@@ -319,7 +345,7 @@ function hellHead(p, g, nx, ny, P, ex, meta) {
   const c = Math.cos(ra), s = Math.sin(ra);
   const R = (u, v) => [nx + u * c - v * s, ny + u * s + v * c];
   // Schädel
-  ell(p, nx, ny, 4.8, 4, HIDE, { noise: 0.2, seed: 31 });
+  ell(p, nx, ny, 4.8, 4, HIDE, { noise: 0.09, seed: 31 });
   // Schnauze (lang, flach)
   poly(p, [R(1, -2.2), R(8.5, -0.8), R(9, 1.4), R(1, 2)], (x, y) => (y < ny + 0 ? HIDE[4] : HIDE[3]));
   const ln = [R(2, -2.2), R(8, -1)]; p.line(ln[0][0], ln[0][1], ln[1][0], ln[1][1], HIDE[5]);
@@ -344,6 +370,9 @@ function hellHead(p, g, nx, ny, P, ex, meta) {
   const e0 = R(-2, -2); poly(p, [e0, [e0[0] - 4, e0[1] - 2], [e0[0] + 1, e0[1] - 1]], HIDE[3]);
   // Augen: Glut
   const ey = R(2, -1.3), ec = ex.hurt ? '#ffffff' : LAVA[5];
+  p.rect(ey[0] - 1, ey[1] - 1, 4, 3, VOID);
+  const bw = R(0.5, -3); p.line(bw[0], bw[1], bw[0] + 4 * c, bw[1] + 4 * s, HIDE[5]);   // Brauenwulst im Licht
+  p.px(ey[0] - 1, ey[1], LAVA[2]);
   p.px(ey[0], ey[1], ec); p.px(ey[0] + 1, ey[1], LAVA[3]);
   g.px(ey[0], ey[1], GLOW[4]); g.px(ey[0] + 1, ey[1], GLOW[3]); g.px(ey[0] - 1, ey[1], GLOW[1]); g.px(ey[0] + 2, ey[1], GLOW[1]);
   meta.eye = { x: ey[0], y: ey[1] };
@@ -381,9 +410,9 @@ function drawHellhound(p, g, P, ex) {
   flame(p, g, tx, ty + 1, Math.round(5 + heat * 2), 1.6, P.fl, { lean: -0.5, seed: 9, hot: 0.7 + heat * 0.3 });
 
   // Rumpf: hager, Rippen glühen durch die verkohlte Haut
-  cap(p, hip.x, hip.y, sh.x, sh.y, 4.4, 5.4, HIDE, { noise: 0.2, seed: 11 });
-  ell(p, hip.x - 0.5, hip.y, 5, 4.6, HIDE, { noise: 0.2, seed: 12 });
-  ell(p, sh.x, sh.y + 0.5 - P.breath * 0.5, 6, 5.8 + P.breath * 0.5, HIDE, { noise: 0.2, seed: 13 });
+  cap(p, hip.x, hip.y, sh.x, sh.y, 4.4, 5.4, HIDE, { noise: 0.09, seed: 11 });
+  ell(p, hip.x - 0.5, hip.y, 5, 4.6, HIDE, { noise: 0.09, seed: 12 });
+  ell(p, sh.x, sh.y + 0.5 - P.breath * 0.5, 6, 5.8 + P.breath * 0.5, HIDE, { noise: 0.09, seed: 13 });
   // Rippen
   for (let i = 0; i < 4; i++) {
     const u = 0.35 + i * 0.15, x = hip.x + (sh.x - hip.x) * u, y = hip.y + (sh.y - hip.y) * u;
@@ -410,7 +439,7 @@ function drawHellhound(p, g, P, ex) {
   // Hals + goldenes Stachelhalsband
   const na = -0.55 + P.head - P.pitch * 0.3 - P.howl * 0.9;
   const nx = sh.x + 4 + Math.cos(na) * 4, ny = sh.y - 2 + Math.sin(na) * 4;
-  cap(p, sh.x + 2, sh.y - 1, nx, ny, 4, 3.2, HIDE, { noise: 0.2, seed: 14 });
+  cap(p, sh.x + 2, sh.y - 1, nx, ny, 4, 3.2, HIDE, { noise: 0.09, seed: 14 });
   const cx = sh.x + 3 + Math.cos(na) * 2, cy = sh.y - 1.5 + Math.sin(na) * 2;
   for (let k = -3; k <= 3; k++) {
     const x = cx + Math.cos(na + Math.PI / 2) * k, y = cy + Math.sin(na + Math.PI / 2) * k;
@@ -426,9 +455,9 @@ function drawHellhoundCorpse(p, g, k) {
   const { AX, AY } = HH;
   const cx = AX - 1, cy = AY - 4;
   for (const [x, a] of [[-8, 0.3], [-4, 0.6], [6, 0.2], [9, 0.5]]) cap(p, cx + x, cy + 2, cx + x + 4 + a * 3, cy + 4, 1.5, 1.2, HIDE.slice(0, 4));
-  ell(p, cx, cy, 11, 4.4, HIDE, { noise: 0.2, seed: 12 });
+  ell(p, cx, cy, 11, 4.4, HIDE, { noise: 0.09, seed: 12 });
   for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const x = cx - 3 + i * 2.5 + j * 0.3, y = cy - 1 + j; if ((1 - k) > 0.2) { p.px(x, y, LAVA[k < 0.5 ? 3 : 1]); g.px(x, y, GLOW[k < 0.5 ? 2 : 1]); } else p.px(x, y, HIDE[0]); }
-  ell(p, cx + 12, cy + 1, 3.8, 3, HIDE, { noise: 0.2, seed: 31 });
+  ell(p, cx + 12, cy + 1, 3.8, 3, HIDE, { noise: 0.09, seed: 31 });
   poly(p, [[cx + 13, cy], [cx + 20, cy + 1], [cx + 20, cy + 3], [cx + 13, cy + 3]], HIDE[3]);
   for (let i = 0; i < 4; i++) p.px(cx + 10 - i, cy - 3 - i * 0.6, PAL.bone[2]);
   const ember = 1 - k;
@@ -839,8 +868,8 @@ function drawSentinel(p, g, P, ex) {
     p.px(a.x + 1, a.y + 1, OBS[6]);
   }
   const hp = pt(1, 0), cp = pt(SD.spine - 3, 0.5);
-  cap(p, hp.x, hp.y, cp.x, cp.y, 8, 11, OBS, { noise: 0.12, seed: 3 });
-  ell(p, cp.x + 1, cp.y, 12.5, 10, OBS, { rot: P.lean, bias: 0.05, noise: 0.12, seed: 4 });
+  cap(p, hp.x, hp.y, cp.x, cp.y, 8, 11, OBS, { noise: 0.05, seed: 3 });
+  ell(p, cp.x + 1, cp.y, 12.5, 10, OBS, { rot: P.lean, bias: 0.05, noise: 0.05, seed: 4 });
   const q = (u, k, c) => { const o = pt(u, k); p.px(o.x, o.y, c); };
   for (let k = -9; k <= 9; k += 0.5) { q(2, k, GOLD[2]); q(2.7, k, GOLD[k < 0 ? 4 : 3]); }          // Gürtel
   for (let k = -10; k <= 10; k += 0.5) q(SD.spine - 9 + Math.abs(k) * 0.12, k, GOLD[k < -2 ? 4 : 3]); // Brustband
@@ -900,8 +929,11 @@ function drawSentinel(p, g, P, ex) {
   // Visierschlitz
   const vs = P.visor, ec = ex.hurt ? '#ffffff' : LAVA[5];
   p.rect(hx + 0, hy + 1, 7, 2, VOID);
+  for (let i = -4; i <= -1; i += 3) p.px(hx + i, hy + 2, GOLD[4]);           // Nieten
   if (vs > 0.2) {
-    p.rect(hx + 1, hy + 1, 5, 1, vs > 0.8 ? ec : LAVA[3]); p.rect(hx + 1, hy + 2, 5, 1, LAVA[2]);
+    // ein glühender Schlitz (zwei heiße Augenpunkte), darunter tiefer Schatten
+    p.rect(hx + 1, hy + 1, 5, 1, LAVA[3]); p.rect(hx + 1, hy + 2, 5, 1, VOID);
+    p.px(hx + 2, hy + 1, ec); p.px(hx + 4, hy + 1, ec); p.px(hx + 3, hy + 1, LAVA[4]);
     g.rect(hx + 1, hy + 1, 5, 1, GLOW[vs > 0.8 ? 4 : 2]); g.rect(hx + 1, hy + 2, 5, 1, GLOW[2]);
     if (vs > 1.2) { g.rect(hx + 1, hy + 1, 7, 2, GLOW[3]); g.rect(hx + 2, hy + 1, 5, 1, GLOW[4]); }
   }
@@ -922,10 +954,12 @@ function drawSentinel(p, g, P, ex) {
   if (!behind) { smear(); arm(); bl = obsidianBlade(p, g, hF.x, hF.y, swA, swL, heat); ell(p, hF.x, hF.y, 3, 3, OBS, { bias: 0.1 }); p.px(hF.x - 1, hF.y - 2, GOLD[4]); }
   else arm();
   occlude(g);
-  plate(p, shF.x, shF.y - 1, [[-7, -3], [3, -7], [9, -2], [7, 5], [-5, 5]], GOLD[4]);
+  // Schulterplatte etwas tiefer und nach hinten gesetzt, Dorn hinten: der Helm mit
+  // dem Glutvisier bleibt frei sichtbar (vorher verdeckte die Platte das Gesicht)
+  plate(p, shF.x - 1, shF.y + 1, [[-7, -2], [2, -5], [7, -1], [6, 5], [-5, 5]], GOLD[4]);
   occlude(null);
-  poly(p, [[shF.x - 1, shF.y - 5], [shF.x - 1, shF.y - 14], [shF.x + 3, shF.y - 6]], OBS[4]);
-  p.line(shF.x - 1, shF.y - 6, shF.x - 1, shF.y - 14, OBS[6]); p.px(shF.x - 1, shF.y - 14, GOLD[5]);
+  poly(p, [[shF.x - 5, shF.y - 3], [shF.x - 6, shF.y - 12], [shF.x - 2, shF.y - 4]], OBS[4]);
+  p.line(shF.x - 5, shF.y - 4, shF.x - 6, shF.y - 12, OBS[6]); p.px(shF.x - 6, shF.y - 12, GOLD[5]);
   p.px(shF.x + 1, shF.y + 1, LAVA[3]); g.px(shF.x + 1, shF.y + 1, GLOW[2]);
   meta.hand = { x: hF.x, y: hF.y };
   meta.tip = bl.tip;
@@ -966,7 +1000,7 @@ function drawSentinelRubble(p, g, k) {
   if (heat > 0.2) flame(p, g, AX - 50, gy - 3, Math.round(1 + heat * 3), 1.2, k * 5, { seed: 12, hot: heat });
   obsidianBlade(p, g, AX + 6, gy - 3, -0.04, 1, heat * 0.8);
   const chunks = [[-26, 5, 4], [-18, 7, 6], [-8, 9, 8], [4, 8, 7], [14, 6, 5], [-30, 4, 3], [22, 5, 4]];
-  for (const [dx, rx, ry] of chunks) ell(p, AX + dx, gy - ry * 0.8, rx, ry, OBS, { noise: 0.15, seed: dx + 50 });
+  for (const [dx, rx, ry] of chunks) ell(p, AX + dx, gy - ry * 0.8, rx, ry, OBS, { noise: 0.07, seed: dx + 50 });
   for (const [dx, rx] of chunks) veins(p, g, AX + dx, gy - 4, rx, 3, dx + 90, 2, heat * 0.9, { len: 4, dark: CHAR[1] });
   plate(p, AX - 12, gy - 16, [[-7, -3], [3, -7], [9, -2], [7, 5], [-5, 5]], GOLD[3]);
   // Brustkern verglimmt

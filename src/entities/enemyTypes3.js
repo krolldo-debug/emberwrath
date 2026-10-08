@@ -16,9 +16,10 @@ import { DEFS as DEFS_FROST } from './defs_frost.js';
 import { DEFS as DEFS_MARSH } from './defs_marsh.js';
 import { DEFS as DEFS_RIME } from './defs_rime.js';
 import { DEFS as DEFS_THRONE } from './defs_throne.js';
+import { DEFS as DEFS_NEW2 } from './defs_new2.js';
 
 // Feinschliff der Figuren-Dateien (Maße, Angriffsart, Spezialangriffe) je Gruppe
-const GROUP_DEFS = [DEFS_STEPPE, DEFS_BARROW, DEFS_MARSH, DEFS_SPORE, DEFS_FROST, DEFS_RIME, DEFS_WASTES, DEFS_THRONE];
+const GROUP_DEFS = [DEFS_STEPPE, DEFS_BARROW, DEFS_MARSH, DEFS_SPORE, DEFS_FROST, DEFS_RIME, DEFS_WASTES, DEFS_THRONE, DEFS_NEW2];
 
 const power = (L) => 13 + (L - 1) * 5;          // Heldenkraft der Stufe (Durchschnitt der Klassen)
 const mageHp = (L) => 86 + (L - 1) * 16.3;      // Magier-HP der Stufe
@@ -80,7 +81,7 @@ export function createRound3Enemies(T) {
     grave_hound: d('wolf', 'grave_hound', 'Grabhund', [24, 26], { family: 'undead' }),
     bone_archer: d('archer', 'bone_archer', 'Knochenschütze', [24, 26], { family: 'undead' }),
     wight_caller: d('tide_cultist', 'wight_caller', 'Totenrufer', [25, 26], { family: 'undead' }),
-    barrow_king: boss('barrow_king', 'Ulgrim, der Hügelkönig', 26, 19000, { family: 'undead', material: 'bone' }),
+    barrow_king: boss('barrow_king', 'Ulgrim, der Hügelkönig', 26, 85000, { dmgMult: 3, family: 'undead', material: 'bone' }),
     // --- Faulmarsch (25–31)
     bog_lurker: d('drowned', 'bog_lurker', 'Moorlauerer', [25, 28], { family: 'beast' }),
     rot_shaman: d('tide_cultist', 'rot_shaman', 'Fäulnisschamane', [26, 30], { family: 'human' }),
@@ -91,7 +92,7 @@ export function createRound3Enemies(T) {
     sporeling: d('spider', 'sporeling', 'Sporling', [30, 31], { family: 'plant', hp: 0.55, xp: 0.45 }),
     fungal_brute: d('ash_golem', 'fungal_brute', 'Pilzwüterich', [30, 32], { family: 'plant', material: 'flesh' }),
     spore_caster: d('cinder_cultist', 'spore_caster', 'Sporenwirker', [30, 32], { family: 'plant' }),
-    rot_mother: boss('rot_mother', 'Mutter Fäulnis', 32, 21000, { family: 'plant', material: 'flesh', radius: 14, hurtRadius: 18, bodyHeight: 46, shadowW: 48 }),
+    rot_mother: boss('rot_mother', 'Mutter Fäulnis', 32, 110000, { dmgMult: 2, family: 'plant', material: 'flesh', radius: 14, hurtRadius: 18, bodyHeight: 46, shadowW: 48 }),
     // --- Frostzinnen (31–36)
     ice_troll: d('ash_golem', 'ice_troll', 'Eistroll', [32, 35], { family: 'beast', material: 'flesh' }),
     frost_wolf: d('wolf', 'frost_wolf', 'Frostwolf', [31, 34], { family: 'beast' }),
@@ -102,7 +103,7 @@ export function createRound3Enemies(T) {
     ice_elemental: d('fire_imp', 'ice_elemental', 'Eiselementar', [35, 37], { family: 'construct', material: 'stone', hp: 1.2 }),
     crystal_spider: d('spider', 'crystal_spider', 'Kristallspinne', [35, 37], { family: 'spider', material: 'chitin' }),
     frozen_knight: d('temple_guardian', 'frozen_knight', 'Erfrorener Ritter', [36, 37], { family: 'undead', material: 'stone' }),
-    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 33000, { family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
+    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 155000, { dmgMult: 4, family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
     // --- Glutöde (36–40)
     ash_wraith: d('drowned', 'ash_wraith', 'Aschegeist', [36, 39], { family: 'undead', spawnStyle: 'fade' }),
     cinder_knight: d('forge_golem', 'cinder_knight', 'Schlackenritter', [37, 40], { family: 'construct', material: 'stone' }),
@@ -114,6 +115,17 @@ export function createRound3Enemies(T) {
     ash_priest: d('flame_acolyte', 'ash_priest', 'Aschepriester', [38, 40], { family: 'human' }),
     ember_hellhound: d('magma_hound', 'ember_hellhound', 'Glut-Höllenhund', [38, 40], { family: 'demon' }),
     throne_sentinel: d('forge_warden', 'throne_sentinel', 'Wächter des Throns', 40, { family: 'construct', hp: 1.15 }),
+    // --- Runde 5: neue Gegner 20–40 (Verhalten: Enemy.js, Feinschliff: defs_new2.js, Figuren: sprites/foes_new2.js)
+    dust_shaman: d('cinder_cultist', 'dust_shaman', 'Staubschamane', [20, 24], { family: 'human', kite: true, spriteBase: 'raider_archer' }),
+    dust_totem: d('cinder_cultist', 'dust_totem', 'Staubtotem', 22, { family: 'construct', hp: 0.8, xp: 0.15, spriteBase: 'thorn_crawler' }),
+    gnoll_trapper: d('bandit_archer', 'gnoll_trapper', 'Fallensteller', [21, 24], { family: 'beast', kite: true, spriteBase: 'raider_archer' }),
+    bog_slime: d('temple_guardian', 'bog_slime', 'Moorschleim', [25, 29], { family: 'beast', material: 'flesh', hp: 0.75, spriteBase: 'plague_toad' }),
+    bog_slime_small: d('spider', 'bog_slime_small', 'Kleiner Moorschleim', [25, 29], { family: 'beast', material: 'flesh', hp: 0.4, xp: 0.25, spriteBase: 'swamp_leech' }),
+    marsh_hag: d('tide_cultist', 'marsh_hag', 'Sumpfhexe', [26, 30], { family: 'human', spriteBase: 'rot_shaman' }),
+    frost_revenant: d('bandit', 'frost_revenant', 'Frostwiedergänger', [31, 35], { family: 'undead', material: 'ice', spriteBase: 'frozen_knight' }),
+    snow_burrower: d('ash_boar', 'snow_burrower', 'Schneewurm', [32, 35], { family: 'beast', material: 'flesh' }),
+    cinder_bombardier: d('flame_acolyte', 'cinder_bombardier', 'Aschebombardier', [36, 39], { family: 'human', kite: true, dmg: 1.6, spriteBase: 'ember_cultist_adept' }),
+    phase_wraith: d('bandit', 'phase_wraith', 'Phasengeist', [37, 39], { family: 'undead', hp: 0.9, dmg: 1.1, spawnStyle: 'fade', spriteBase: 'ash_wraith' }),
     ash_sovereign: boss('ash_sovereign', 'Malgareth, der Aschenfürst', 40, 28000, { family: 'demon', material: 'stone', radius: 12, hurtRadius: 15, bodyHeight: 58, shadowW: 40, eye: { x: 5, y: -56 } }),
   };
   applyDefs(out, BASE_SPECIALS);

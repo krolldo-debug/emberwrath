@@ -246,6 +246,12 @@ export const OTHER_40 = {
   wyrm_heart: { name: 'Herz des Frostwurms', type: 'quest', rarity: 'epic', icon: 'gem_sapphire', stack: 1, value: 0, desc: 'Ein Eisklumpen, in dem ein Funke der Flammenkrone gefangen ist.' },
   colossus_core: { name: 'Kern des Glutkolosses', type: 'quest', rarity: 'rare', icon: 'ore_ember', stack: 1, value: 0, desc: 'Er glüht so hell, dass man nicht hineinsehen kann.' },
   ash_prayer: { name: 'Aschengebet', type: 'quest', rarity: 'common', icon: 'scroll', stack: 10, value: 0, desc: 'Ein Gebet an Malgareth, auf Haut geschrieben.' },
+  // Questvielfalt (questsVariety.js, Zielart 'use'): gibt es bei der Annahme
+  fire_oil: { name: 'Brandöl', type: 'quest', rarity: 'common', icon: 'potion_hp_s', stack: 5, value: 0, desc: 'Ein Krug zähes, schwarzes Öl. Brennt auch im Schnee.' },
+  pitch_torch: { name: 'Pechfackel', type: 'quest', rarity: 'common', icon: 'ore_ember', stack: 5, value: 0, desc: 'Getränkt in Pech. Ein Funke genügt.' },
+  spirit_water: { name: 'Geisterwasser', type: 'quest', rarity: 'common', icon: 'potion_mana_s', stack: 5, value: 0, desc: 'Wasser aus der Quelle der Ahnen. Kesh sagt, es ist heilig.' },
+  blast_powder: { name: 'Sprengpulver', type: 'quest', rarity: 'common', icon: 'bag', stack: 5, value: 0, desc: 'Ein kleines Fass. Nicht schütteln.' },
+  clean_salts: { name: 'Reinsalz', type: 'quest', rarity: 'common', icon: 'dust', stack: 5, value: 0, desc: 'Grobes, weißes Salz in einem Leinenbeutel. Marens letzter Vorrat.' },
   spice_bale: { name: 'Gewürzballen', type: 'quest', rarity: 'common', icon: 'bag', stack: 10, value: 0, desc: 'Safran, Zimt und Glutpfeffer. Er gehört Imra.' },
   moll_crate: { name: 'Molls Warenkiste', type: 'quest', rarity: 'common', icon: 'potion_hp_m', stack: 10, value: 0, desc: 'Nass und verbeult. Drinnen klirren Tränke.' },
   stalker_claw: { name: 'Pirscherkralle', type: 'quest', rarity: 'common', icon: 'charm_tooth', stack: 10, value: 0, desc: 'Weiß, gebogen und scharf wie ein Messer.' },

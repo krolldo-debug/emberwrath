@@ -299,6 +299,5 @@ function buildCatacombs() {
 }
 
 export const LEVELS = {
-  emberhollow: buildEmberhollow(),
   catacombs: buildCatacombs(),
 };

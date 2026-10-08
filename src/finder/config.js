@@ -7,7 +7,7 @@ export const FINDER_CONFIG = {
 
   // Gegner in Gruppen-Dungeons halten mehr aus (drei statt einer Person teilen Schaden aus).
   hpScale: 1.8,
-  bossHpScale: 2.3,
+  bossHpScale: 2.7,
 
   // Gefallene Gruppenmitglieder stehen so viele Sekunden nach Kampfende wieder auf (mit 40 % Leben).
   reviveAfter: 3,

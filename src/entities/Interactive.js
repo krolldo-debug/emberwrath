@@ -10,9 +10,10 @@ import { rand } from '../core/math.js';
 
 // Übergang in eine andere Zone (Dungeon-Eingang, Treppe, Rückkehr-Portal).
 export class Portal extends Entity {
-  constructor(x, y, { id, to, prompt, range = 24, sub = null, visual = null, dir = null }) {
+  constructor(x, y, { id, to, prompt, range = 24, sub = null, visual = null, dir = null, minLevel = null }) {
     super(x, y);
     this.portalId = id; this.to = to; this.promptText = prompt; this.interactRange = range; this.sub = sub;
+    this.minLevel = minLevel; // harte Sperre (Dungeons ab empfohlener Stufe − 3)
     // visual 'road': Wegausgang am Kartenrand – glimmende Pfeile am Boden zeigen hinaus
     this.visual = visual; this.dir = dir ?? [0, -1]; this.t = 0;
     if (visual === 'road') this.sortOffset = -9000;
@@ -47,6 +48,10 @@ export class Portal extends Entity {
   prompt() { return this.sub ? `${this.promptText} (${this.sub})` : this.promptText; }
   promptAnchor() { return { x: this.x, y: this.y - 26 }; }
   interact(world) {
+    if (this.minLevel && (world.hero.level ?? 1) < this.minLevel) {
+      world.bus.emit(EV.UI_TOAST, { text: `Zu gefährlich – erst ab Stufe ${this.minLevel}.`, kind: 'warn' });
+      return;
+    }
     world.bus.emit(EV.ZONE_TRAVEL, { zoneId: this.to.zoneId, spawnId: this.to.spawnId });
   }
 }
@@ -222,6 +227,209 @@ export class WorldObject extends Entity {
     if (!L.glow || !s) return;
     ctx.globalAlpha = 0.75 + 0.25 * Math.sin(this.t * 3);
     ctx.drawImage(L.glow, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Wegstein (Teleporter zwischen Städten/Lagern, world/waystones.js).
+// Schaltet sich beim ersten Besuch frei (Held näher als 4 Kacheln): Flag
+// 'waystone:<zoneId>' + Meldung. Interaktion -> Bus 'travel:open' (Reisemenü);
+// depart(world, zoneId) spielt die Lichtsäule (~0,6 s) und reist per EV.ZONE_TRAVEL.
+const WS_RUNE = ['#0d3e52', '#15708a', '#2fb2cf', '#86ecff', '#e6ffff'];
+export class Waystone extends Entity {
+  constructor(x, y, { zoneId, site, unlocked, looks, travelInfo, inCombat }) {
+    super(x, y);
+    this.zoneId = zoneId; this.site = site; this.looks = looks;
+    this.unlocked = !!unlocked; this.k = this.unlocked ? 1 : 0; // 0 = dunkel, 1 = erwacht
+    this.travelInfo = travelInfo; this.inCombat = inCombat;
+    this.interactRange = 28; this.t = 0; this.flash = 0;
+    this.departing = null; // { zoneId, t }
+    this.arriving = 0;
+    this.light = null;
+  }
+  canInteract(world) { return !world.hero.dead && !this.departing; }
+  prompt() { return this.unlocked ? 'Wegstein: Reisen' : 'Wegstein berühren'; }
+  promptAnchor() { return { x: this.x, y: this.y - 40 }; }
+
+  unlock(world) {
+    if (this.unlocked) return;
+    this.unlocked = true; this.flash = 1;
+    world.state.commit('world:setFlag', { key: `waystone:${this.zoneId}` });
+    world.particles.ring(this.x, this.y - 30, 6, 22, ['#ffffff', ...WS_RUNE.slice(2)], 70);
+    world.particles.magic(this.x, this.y - 24, 18, 10);
+    world.addLight(new Light({ x: this.x, y: this.y - 30, radius: 120, color: [140, 230, 255], intensity: 1.2, ttl: 1.2, bloom: 0.7 }));
+    world.bus.emit('waystone:unlocked', { zoneId: this.zoneId, x: this.x, y: this.y });
+    world.bus.emit(EV.UI_TOAST, { text: `Wegstein von ${this.site?.name ?? world.zone.name} entdeckt`, kind: 'quest' });
+  }
+
+  interact(world) {
+    this.unlock(world);
+    world.bus.emit('objectUse', { objectId: `waystone_${this.zoneId}`, kind: 'waystone', x: this.x, y: this.y });
+    world.bus.emit('travel:open', this.travelInfo(world));
+  }
+
+  // Reise antreten (vom Bus 'travel:go'). Prüft Freischaltung und Kampf erneut.
+  depart(world, zoneId) {
+    if (this.departing || world.hero.dead) return false;
+    const flags = world.state.slices.world?.flags ?? {};
+    if (zoneId === world.zone.id) return false;
+    if (!flags[`waystone:${zoneId}`]) { world.bus.emit(EV.UI_TOAST, { text: 'Diesen Wegstein hast du noch nicht entdeckt.', kind: 'warn' }); return false; }
+    if (this.inCombat(world)) { world.bus.emit(EV.UI_TOAST, { text: 'Im Kampf kannst du nicht reisen.', kind: 'warn' }); return false; }
+    this.departing = { zoneId, t: 0, paused: 0 };
+    const h = world.hero;
+    world.addLight(new Light({ follow: h, offsetY: -20, radius: 110, color: [150, 230, 255], intensity: 1.3, ttl: 0.8, bloom: 0.8 }));
+    world.particles.ring(h.x, h.y - 4, 4, 16, ['#ffffff', ...WS_RUNE.slice(2)], 60);
+    world.bus.emit('waystone:depart', { zoneId, x: h.x, y: h.y });
+    return true;
+  }
+  // Ankunft (Spawn 'waystone'): kurze Lichtsäule über dem Helden, sobald der
+  // Ladebildschirm (ui/ZoneTransition, ~1,5 s) ausblendet.
+  arrive(world, delay = 1.35) { this.arriveIn = delay; }
+  #arriveNow(world) {
+    this.arriving = 0.7;
+    const h = world.hero;
+    world.addLight(new Light({ follow: h, offsetY: -20, radius: 110, color: [150, 230, 255], intensity: 1.2, ttl: 0.9, bloom: 0.8 }));
+    world.particles.ring(h.x, h.y - 4, 4, 18, ['#ffffff', ...WS_RUNE.slice(2)], 60);
+  }
+  #go(world) {
+    const z = this.departing.zoneId;
+    this.departing = null;
+    world.bus.emit(EV.ZONE_TRAVEL, { zoneId: z, spawnId: 'waystone' });
+  }
+  // Notausgang, falls ein Panel die Welt nach 'travel:go' pausiert lässt (Sitzungssystem ruft das).
+  tickPaused(dt, world) {
+    if (!this.departing) return;
+    this.departing.paused += dt;
+    if (this.departing.paused > 1) this.#go(world);
+  }
+
+  update(dt, world) {
+    this.t += dt;
+    const h = world.hero;
+    this.heroRef = h;
+    if (!this.unlocked && !h.dead && Math.hypot(h.x - this.x, h.y - this.y) < 4 * 16) this.unlock(world);
+    this.k += ((this.unlocked ? 1 : 0) - this.k) * Math.min(1, dt * 2.5);
+    this.flash = Math.max(0, this.flash - dt * 1.2);
+    this.arriving = Math.max(0, this.arriving - dt);
+    if (this.arriveIn > 0 && (this.arriveIn -= dt) <= 0) this.#arriveNow(world);
+    if (!this.light) this.light = world.addLight(new Light({ x: this.x, y: this.y - 30, radius: 84, color: [90, 200, 255], intensity: 0.25, flicker: 0.12, bloom: 0.35 }));
+    this.light.intensity = 0.22 + this.k * 0.55 + this.flash * 0.6 + Math.sin(this.t * 2.1) * 0.05 * this.k;
+    this.light.radius = 70 + this.k * 30;
+    // Aufsteigende Runenfunken
+    const rate = 0.6 + this.k * 3;
+    if (Math.random() < dt * rate) {
+      world.particles.spawn({ x: this.x + rand(-5, 5), y: this.y - rand(14, 40), vx: 0, vy: 0, rise: rand(8, 18), wobble: 6, life: rand(0.8, 1.6), colors: this.k > 0.5 ? ['#e6ffff', '#86ecff', '#2fb2cf'] : ['#2fb2cf', '#15708a'], emissive: true });
+    }
+    if (this.departing) {
+      const D = this.departing;
+      if (h.dead) { this.departing = null; return; }
+      // Während der Lichtsäule getroffen -> Reise abgebrochen
+      if (D.t > 0 && (h.combatTime ?? 99) < D.t) { this.departing = null; world.bus.emit(EV.UI_TOAST, { text: 'Reise unterbrochen – du wirst angegriffen.', kind: 'warn' }); return; }
+      D.t += dt; D.paused = 0;
+      if (Math.random() < dt * 40) world.particles.spawn({ x: h.x + rand(-6, 6), y: h.y - rand(0, 30), vx: 0, vy: 0, rise: rand(40, 90), wobble: 4, life: rand(0.3, 0.6), colors: ['#ffffff', '#86ecff', '#2fb2cf'], emissive: true });
+      if (D.t >= 0.6) this.#go(world);
+    }
+  }
+
+  render(ctx, cx, cy) {
+    const L = this.looks;
+    L.sprite.draw(ctx, this.x - cx, this.y - cy);
+    const bob = Math.round(Math.sin(this.t * 1.6) * 1.5 * (0.4 + this.k * 0.6));
+    const cy0 = this.y - cy + L.crystalY - 3 + bob;
+    if (this.k < 0.99) L.crystalDim.draw(ctx, this.x - cx, cy0);
+    if (this.k > 0.01) L.crystal.draw(ctx, this.x - cx, cy0, { alpha: Math.min(1, this.k) });
+  }
+  // Lichtsäule: schmaler Kern + breiter Schein, von den Füßen bis über den Bildrand
+  #pillar(ctx, x, y, a, w) {
+    if (a <= 0.01) return;
+    const top = -40;
+    ctx.globalAlpha = a * 0.35; ctx.fillStyle = '#2fb2cf';
+    ctx.fillRect(Math.round(x - w), top, Math.round(w * 2), Math.round(y - top));
+    ctx.globalAlpha = a * 0.6; ctx.fillStyle = '#86ecff';
+    ctx.fillRect(Math.round(x - w * 0.55), top, Math.max(1, Math.round(w * 1.1)), Math.round(y - top));
+    ctx.globalAlpha = a; ctx.fillStyle = '#e6ffff';
+    ctx.fillRect(Math.round(x - w * 0.2), top, Math.max(1, Math.round(w * 0.4)), Math.round(y - top));
+    // Bodenring
+    ctx.globalAlpha = a * 0.7; ctx.fillStyle = '#86ecff';
+    ctx.fillRect(Math.round(x - w * 1.6), Math.round(y - 1), Math.round(w * 3.2), 2);
+    ctx.globalAlpha = 1;
+  }
+  renderEmissive(ctx, cx, cy) {
+    const L = this.looks, s = L.sprite;
+    const x0 = Math.round(this.x - cx - s.ax), y0 = Math.round(this.y - cy - s.ay);
+    const pulse = 0.78 + 0.22 * Math.sin(this.t * 2.4) + this.flash * 0.4;
+    // Gedimmte Runen (noch nicht entdeckt) flimmern schwach
+    const dimA = (1 - this.k) * (0.45 + 0.25 * Math.sin(this.t * 1.3 + Math.sin(this.t * 3.7)));
+    if (dimA > 0.01) { ctx.globalAlpha = Math.min(1, dimA); ctx.drawImage(L.glowDim, x0, y0); }
+    if (this.k > 0.01) { ctx.globalAlpha = Math.min(1, this.k * pulse); ctx.drawImage(L.glowLit, x0, y0); }
+    const c = L.crystal, bob = Math.round(Math.sin(this.t * 1.6) * 1.5 * (0.4 + this.k * 0.6));
+    ctx.globalAlpha = Math.min(1, 0.08 + this.k * 0.8 * pulse);
+    ctx.drawImage(L.crystalGlow, Math.round(this.x - cx - c.ax), Math.round(this.y - cy + L.crystalY - 3 + bob - c.ay));
+    ctx.globalAlpha = 1;
+    // Freischalt-Funkeln: Sternkreuz am Kristall
+    if (this.flash > 0) {
+      const fx = Math.round(this.x - cx), fy = Math.round(this.y - cy + L.crystalY - 9 + bob), r = Math.round(4 + (1 - this.flash) * 10);
+      ctx.globalAlpha = this.flash; ctx.fillStyle = '#e6ffff';
+      ctx.fillRect(fx - r, fy, r * 2 + 1, 1); ctx.fillRect(fx, fy - r, 1, r * 2 + 1);
+      ctx.fillRect(fx - 1, fy - 1, 3, 3);
+      ctx.globalAlpha = 1;
+    }
+    if (this.departing || this.arriving > 0) {
+      const h = this.heroRef;
+      if (!h) return;
+      let a, w;
+      if (this.departing) { const p = Math.min(1, this.departing.t / 0.6); a = 0.4 + p * 0.6; w = 2 + p * 7; }
+      else { const p = this.arriving / 0.7; a = p; w = 3 + p * 6; }
+      this.#pillar(ctx, h.x - cx, h.y - cy, a, w);
+    }
+  }
+}
+
+// Auftragsbrett (Städte/Lager). Interaktion -> Bus 'board:open' { zoneId, boardId }
+// (Panel von Thread C). Das Ausrufezeichen leuchtet, wenn world.boardHasOffers(zoneId, boardId)
+// true liefert (Standard: game.boardHasOffers-Hook, sonst false); abgefragt alle 0,5 s.
+export class QuestBoard extends Entity {
+  constructor(x, y, { zoneId, boardId, looks }) {
+    super(x, y);
+    this.zoneId = zoneId; this.boardId = boardId; this.looks = looks;
+    this.interactRange = 24; this.t = Math.random() * 3; this.poll = 0;
+    this.offers = false; this.k = 0; this.light = null;
+  }
+  canInteract(world) { return !world.hero.dead; }
+  prompt() { return this.offers ? 'Auftragsbrett lesen (neue Aufträge)' : 'Auftragsbrett lesen'; }
+  promptAnchor() { return { x: this.x, y: this.y - 46 }; }
+  interact(world) {
+    world.bus.emit('objectUse', { objectId: this.boardId, kind: 'quest_board', x: this.x, y: this.y });
+    world.bus.emit('board:open', { zoneId: this.zoneId, boardId: this.boardId });
+  }
+  update(dt, world) {
+    this.t += dt;
+    if ((this.poll -= dt) <= 0) {
+      this.poll = 0.5;
+      try { this.offers = !!world.boardHasOffers?.(this.zoneId, this.boardId); } catch { this.offers = false; }
+    }
+    this.k += ((this.offers ? 1 : 0) - this.k) * Math.min(1, dt * 4);
+    if (!this.light) {
+      const l = this.looks.lantern;
+      this.light = world.addLight(new Light({ x: this.x + l.dx, y: this.y + l.dy, radius: 54, color: [255, 170, 90], intensity: 0.75, flicker: 0.25, bloom: 0.3 }));
+    }
+    if (this.k > 0.5 && Math.random() < dt * 2) world.particles.spawn({ x: this.x + rand(-3, 3), y: this.y + this.looks.markY + 2, vx: 0, vy: 0, rise: rand(6, 12), wobble: 5, life: rand(0.5, 1), colors: ['#fff0a8', '#e8c25a'], emissive: true });
+  }
+  #markPos() { return Math.round(Math.sin(this.t * 3) * 1.5); }
+  render(ctx, cx, cy) {
+    const L = this.looks;
+    L.sprite.draw(ctx, this.x - cx, this.y - cy);
+    if (this.k > 0.02) L.mark.draw(ctx, this.x - cx, this.y - cy + L.markY + this.#markPos(), { alpha: Math.min(1, this.k) });
+  }
+  renderEmissive(ctx, cx, cy) {
+    const L = this.looks, s = L.sprite;
+    ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.t * 7 + Math.sin(this.t * 13));
+    ctx.drawImage(L.glow, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+    if (this.k > 0.02) {
+      const m = L.mark;
+      ctx.globalAlpha = this.k * (0.7 + 0.3 * Math.sin(this.t * 4));
+      ctx.drawImage(L.markGlow, Math.round(this.x - cx - m.ax), Math.round(this.y - cy + L.markY + this.#markPos() - m.ay));
+    }
     ctx.globalAlpha = 1;
   }
 }

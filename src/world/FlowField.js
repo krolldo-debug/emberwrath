@@ -2,6 +2,7 @@ import { CONFIG } from '../config.js';
 
 const T = CONFIG.tileSize;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+const MAX_DIST = 64;
 
 // Flow-Field-Pathfinding: eine Breitensuche vom Helden aus liefert für
 // jede Bodenzelle die Distanz. Beliebig viele Gegner navigieren damit
@@ -28,26 +29,38 @@ export class FlowField {
 
   #free(x, y) { return x >= 0 && y >= 0 && x < this.w && y < this.h && !this.blocked[y * this.w + x]; }
 
+  // Distanzfeld ab Heldenzelle. Ringpuffer mit „steht schon an“-Markierung: jede Zelle höchstens einmal
+  // gleichzeitig in der Warteschlange (früher Int32Array(w*h) ohne Markierung – auf offenen Karten mehr
+  // Einreihungen als Plätze, überzählige wurden still verworfen). Suche endet bei MAX_DIST Kacheln Wegstrecke
+  // (weiter jagt kein Gegner: Leine ≤ 20 Kacheln) – auf 160×104-Karten ein Bruchteil der Zellen.
   update(tx, ty) {
     const gx = Math.floor(tx / T), gy = Math.floor(ty / T);
     const key = gy * this.w + gx;
     if (key === this.targetKey) return;
     this.targetKey = key;
-    const dist = this.dist;
+    const dist = this.dist, n = this.w * this.h;
     dist.fill(Infinity);
-    const queue = new Int32Array(this.w * this.h);
-    let head = 0, tail = 0;
-    dist[key] = 0; queue[tail++] = key;
-    while (head < tail) {
-      const i = queue[head++];
+    if (gx < 0 || gy < 0 || gx >= this.w || gy >= this.h) return;
+    const queue = this.queue ??= new Int32Array(n);
+    const queued = this.queued ??= new Uint8Array(n);
+    queued.fill(0);
+    let head = 0, size = 0;
+    dist[key] = 0; queue[0] = key; size = 1; queued[key] = 1;
+    while (size > 0) {
+      const i = queue[head]; head = head + 1 === n ? 0 : head + 1; size--; queued[i] = 0;
+      const di = dist[i];
+      if (di >= MAX_DIST) continue;
       const x = i % this.w, y = (i / this.w) | 0;
       for (const [dx, dy] of DIRS) {
         const nx = x + dx, ny = y + dy;
         if (!this.#free(nx, ny)) continue;
         if (dx && dy && (!this.#free(x + dx, y) || !this.#free(x, y + dy))) continue; // keine Ecken schneiden
         const ni = ny * this.w + nx;
-        const nd = dist[i] + (dx && dy ? 1.414 : 1);
-        if (nd < dist[ni]) { dist[ni] = nd; queue[tail++] = ni; }
+        const nd = di + (dx && dy ? 1.414 : 1);
+        if (nd < dist[ni]) {
+          dist[ni] = nd;
+          if (!queued[ni]) { queued[ni] = 1; let tail = head + size; if (tail >= n) tail -= n; queue[tail] = ni; size++; }
+        }
       }
     }
   }

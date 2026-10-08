@@ -834,6 +834,685 @@ function reeds(v) {
   }, { ax: 8 });
 }
 
+
+// ====================================================================== Runde 5: neuer Aschenwald
+// Dichter Wald (feste Waldmassen), Hängebrücke über die Aschenschlucht, Knüppelbrücke
+// über den Aschbach, Furt, Burgruine der Banditen, verwunschener Hain.
+const FIR = ['#0b0f0d', '#111815', '#18211c', '#202b24', '#2a362d', '#364337'];
+const RSTONE = ['#121014', '#1c181d', '#272227', '#342e33', '#443c41', '#574e51', '#6c6262'];
+const GHOST = ['#1a2a24', '#2e4a3e', '#4e7e66', '#86c8a0', '#d4ffe4'];
+const SHROOM = ['#1a1030', '#3a2066', '#6a3cb0', '#a070f0', '#e0c8ff'];
+const DARK = '#040406';
+const flatE = (W, H, ax, ay, draw) => ({ sprite: buildFrame(W, H, ax, ay, draw, { outline: false }) });
+
+// Aschtanne: dunkle, staubige Nadeln, Asche auf den Zweigen, kaum Licht
+function ashFir(seed, H = 50, W = 32) {
+  const rng = createRng(seed);
+  const cx = Math.floor(W / 2), bottom = H - 1, top = 2;
+  return mk(W, H, (p, g) => {
+    ashPatch(p, cx, bottom - 1, 9, 2, seed);
+    p.rect(cx - 2, bottom - 8, 4, 8, CHAR[2]); p.rect(cx - 2, bottom - 8, 1, 8, CHAR[4]); p.rect(cx + 1, bottom - 8, 1, 8, CHAR[0]);
+    const tiers = 6;
+    for (let t = 0; t < tiers; t++) {
+      const k0 = t / tiers;
+      const baseY = Math.round(bottom - 7 - (bottom - 7 - top) * k0);
+      const half = (W / 2 - 2) * (1 - k0 * 0.8);
+      const th = Math.round((bottom - top) / tiers) + 4;
+      for (let dy = 0; dy < th; dy++) {
+        const y = baseY - dy, k = dy / th;
+        const hw = Math.max(0.5, half * (1 - k) + rng.range(-1.2, 1.2));
+        for (let x = Math.round(cx - hw); x <= Math.round(cx + hw); x++) {
+          const rel = (x - cx) / Math.max(1, hw);
+          let i = 2;
+          if (rel < -0.5) i = 4; else if (rel < -0.1) i = 3; else if (rel > 0.5) i = 1;
+          if (dy < 2) i -= 1;
+          if (hash2(x, y, seed) < 0.15) i += hash2(x, y, seed + 1) < 0.5 ? 1 : -1;
+          p.px(x, y, FIR[clampI(i, 6)]);
+        }
+        if (dy === 0) for (let x = Math.round(cx - hw); x <= Math.round(cx + hw); x++) if (hash2(x, t, seed + 2) < 0.4) p.px(x, y + 1, FIR[1]);
+      }
+      // Asche auf den Zweigoberseiten links
+      for (let dy = 2; dy < th - 1; dy += 2) { const y = baseY - dy, hw = half * (1 - dy / th); p.px(Math.round(cx - hw) + 1, y, ASH[4]); if (hash2(t, dy, seed) < 0.5) p.px(Math.round(cx - hw) + 2, y - 1, ASH[3]); }
+    }
+    // vereinzelte Glutreste in den Nadeln
+    if (rng.chance(0.5)) { const y = rng.int(bottom - 30, bottom - 12), x = cx + rng.int(-5, 5); p.px(x, y, EMB[2]); g.px(x, y, EMB[3]); }
+    p.px(cx, top - 1, FIR[3]);
+  }, { ax: cx, box: [-3, -3, 3, 1] });
+}
+
+// Waldmasse: drei Bäume (Aschtanne/verkohlte Kiefer/Birke), hinten dunkler, Unterholzsaum
+function deepWood(seed, dy = 0, dx = 0) {
+  const rng = createRng(seed);
+  const W = 50, H = 66, cx = 25, bottom = H - 1;
+  const parts = [];
+  for (let i = 0; i < 3; i++) {
+    const back = i === 0;
+    const r = rng.next();
+    const s = back || r < 0.6 ? ashFir(seed * 11 + i, back ? 56 : rng.int(44, 52)).sprite : r < 0.85 ? charredPine(seed * 5 + i, rng.int(44, 52), false).sprite : deadBirch(seed * 3 + i, 44).sprite;
+    parts.push({ s, x: back ? cx + rng.int(-6, 6) : cx + (i === 1 ? -10 : 10) + rng.int(-2, 2), y: back ? bottom - 9 : bottom - (i === 1 ? 1 : 4), back });
+  }
+  const sprite = buildFrame(W, H, cx + dx, bottom - 2 + dy, (p) => {
+    for (const q of parts) {
+      if (q.back) p.ctx.filter = 'brightness(0.6)';
+      p.ctx.drawImage(q.s.canvas, Math.round(q.x - q.s.ax), Math.round(q.y - q.s.ay));
+      p.ctx.filter = 'none';
+    }
+    for (let x = 3; x < W - 3; x++) {
+      const h = 2 + Math.round(hash2(x, 1, seed) * 4);
+      for (let y = bottom - h; y <= bottom - 1; y++) p.px(x, y, y === bottom - h ? (hash2(x, y, seed) < 0.3 ? ASH[3] : CHAR[3]) : hash2(x, y, seed + 4) < 0.5 ? CHAR[1] : CHAR[0]);
+    }
+  }, { outline: false });
+  return { sprite };
+}
+
+// Hängebrücke (Nord–Süd): Segment je Stegzeile, Anker in der Zeile darüber.
+// end: 0 Mitte, -1 Nordende (hohe Pfosten), 1 Südende.
+function ropeBridgeSeg(end, v) {
+  const tall = end !== 0;
+  const W = 44, H = tall ? 44 : 16, ax = 14, ay = tall ? (end < 0 ? 26 : 26) : -2;
+  const top = tall ? 28 : 0; // y der Stegzeile im Sprite
+  return flatE(W, H, ax, ay, (p) => {
+    // Bohlen quer, Lücken zeigen den Abgrund
+    for (let y = top; y < top + 16; y++) {
+      const e = (y + v) % 4;
+      for (let x = 7; x < 37; x++) {
+        const jag = (x < 9 || x > 34) && hash2(y >> 2, x, 960 + v) < 0.5;
+        if (jag) continue;
+        let c = e === 3 ? DARK : e === 0 ? WOOD[3] : WOOD[2];
+        if (e !== 3 && hash2(x, y, 961 + v) < 0.06) c = WOOD[1];
+        if (e === 2 && x % 9 === 4) c = WOOD[1];
+        p.px(x, y, c);
+      }
+    }
+    // Längsseile unter den Bohlen und Handseile
+    for (let y = top; y < top + 16; y++) {
+      for (const [x, c] of [[5, CANVAS[2]], [6, CANVAS[1]], [37, CANVAS[1]], [38, CANVAS[0]]]) p.px(x, y, c);
+      if (y % 4 === 1) { p.px(4, y, CANVAS[3]); p.px(39, y, CANVAS[2]); } // Knoten / Halteseile
+    }
+    if (tall) {
+      // Ankerpfosten (Nordende oben, Südende unten verankert)
+      const py0 = end < 0 ? 0 : 4;
+      for (const x of [1, 38]) {
+        p.rect(x, py0, 5, top + 12 - py0, WOOD[2]); p.rect(x, py0, 1, top + 12 - py0, WOOD[4]); p.rect(x + 4, py0, 1, top + 12 - py0, WOOD[0]);
+        p.rect(x - 1, py0, 7, 2, WOOD[3]); p.px(x + 2, py0 + 6, IRON[3]);
+        for (let y = py0 + 8; y < py0 + 14; y += 2) p.rect(x, y, 5, 1, CANVAS[2]); // Seilwicklung
+      }
+      // Querbalken über dem Zugang (Nordende), Laterne
+      if (end < 0) {
+        p.rect(1, 4, 42, 3, WOOD[3]); p.rect(1, 4, 42, 1, WOOD[4]); p.rect(1, 6, 42, 1, WOOD[1]);
+        p.line(6, 7, 20, top, CANVAS[2]); p.line(38, 7, 24, top, CANVAS[1]);
+      }
+    }
+  });
+}
+
+// Knüppelbrücke über den Bach (Ost–West), Segmente wie die Dorfbrücke
+function logBridgeSeg(end) {
+  const W = 16, H = 54;
+  return flatE(W, H, 8, 14, (p) => {
+    for (let y = 0; y < 10; y++) for (let x = 0; x < W; x++) {
+      if (end) p.px(x, y, hash2(x, y, 970) < 0.5 ? ASH[2] : ASH[1]);
+      else p.px(x, y, (x + y) % 5 === 0 ? WATER[1] : WATER[0]);
+    }
+    // Rundhölzer längs (Ost–West), je 5 px
+    for (let y = 10; y < 48; y++) {
+      const k = (y - 10) % 5;
+      for (let x = 0; x < W; x++) {
+        let c = k === 0 ? CHAR[1] : k === 1 ? WOOD[3] : k === 2 ? WOOD[2] : k === 3 ? WOOD[2] : WOOD[1];
+        if (hash2(x, y, 971) < 0.07) c = CHAR[2];
+        if (k === 1 && hash2(x, y >> 2, 972) < 0.15) c = ASH[4];
+        p.px(x, y, c);
+      }
+    }
+    // Stirnseite (vorn): Rundholzenden über dem Wasser
+    for (let x = 0; x < W; x++) for (let y = 48; y < 54; y++) p.px(x, y, y === 48 ? WOOD[3] : (x + y) % 6 === 0 ? WOOD[3] : CHAR[2]);
+    // Seilgeländer an Pfählen (hinten)
+    const postX = end < 0 ? 2 : end > 0 ? 11 : 6;
+    p.rect(postX, 0, 3, 12, WOOD[2]); p.rect(postX, 0, 1, 12, WOOD[4]);
+    p.line(0, 3, 15, 4, CANVAS[2]); p.line(0, 4, 15, 5, CANVAS[1]);
+    if (end) { p.rect(postX, 40, 3, 10, WOOD[2]); p.rect(postX, 40, 1, 10, WOOD[4]); }
+  });
+}
+
+// Trittsteine in der Furt (kachelgenau): Wasser mit flachen Steinen
+function steppingStones(v) {
+  return flatE(16, 16, 8, 14, (p) => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) p.px(x, y, (x * 3 + y * 5 + v) % 11 === 0 ? WATER[3] : (x + y) % 4 === 0 ? WATER[1] : WATER[2]);
+    const stones = v === 0 ? [[4, 5, 3.6, 2.6], [11, 11, 3.2, 2.4]] : v === 1 ? [[8, 7, 4.2, 3]] : [[4, 11, 3, 2.2], [11, 4, 3.4, 2.4]];
+    for (const [x, y, rx, ry] of stones) {
+      p.ellipse(x, y + 1, rx, ry, WATER[0]);
+      p.ellipse(x, y, rx, ry, RSTONE[3]); p.ellipse(x - 0.6, y - 0.6, rx - 1.2, ry - 1, RSTONE[4]); p.px(x - 1, y - 1, RSTONE[5]);
+      p.px(x + Math.round(rx) - 1, y + 1, ALGAE[1]);
+      p.px(x - Math.round(rx), y + 1, '#8aa0bc');
+    }
+  });
+}
+
+// Burgruine: Mauerstücke (waagrecht/senkrecht), Turmstumpf
+function ruinWall(v) {
+  const H = [30, 24, 16][v], W = 16;
+  return flatE(W, H, 8, H - 3, (p) => {
+    const top = (x) => [2, 0, 6][v] + Math.round(Math.abs(Math.sin(x * 0.8 + v * 2)) * [5, 6, 3][v]);
+    for (let x = 0; x < W; x++) for (let y = top(x); y < H; y++) {
+      const row = Math.floor(y / 5), lx = (x + (row % 2) * 4) % 8, ly = y % 5;
+      let c = ly === 4 || lx === 0 ? RSTONE[1] : ly === 0 ? RSTONE[4] : RSTONE[2 + (hash2(x >> 3, row, 980 + v) < 0.35 ? 1 : 0)];
+      if (y === top(x)) c = RSTONE[5];
+      if (y > H - 5) c = RSTONE[Math.max(0, RSTONE.indexOf(c) - 1)];
+      if (hash2(x, y, 981) < 0.05) c = RSTONE[1];
+      p.px(x, y, c);
+    }
+    for (let x = 0; x < W; x++) { if (hash2(x, 0, 982 + v) < 0.5) p.px(x, top(x) + 1, ALGAE[1]); if (hash2(x, 1, 983) < 0.3) p.px(x, H - 2, ALGAE[2]); }
+    if (v === 2) for (let i = 0; i < 4; i++) p.ellipse(2 + i * 4, H - 2, 2, 1.2, RSTONE[3]); // Schutt
+  });
+}
+function ruinWallV(v) {
+  const H = 30 - v * 6, W = 16;
+  return flatE(W, H, 8, H - 3, (p) => {
+    for (let y = v * 2; y < H; y++) for (let x = 3; x < 13; x++) {
+      const ly = y % 5, lx = (x + (Math.floor(y / 5) % 2) * 3) % 6;
+      let c = x === 3 ? RSTONE[5] : x > 10 ? RSTONE[1] : ly === 4 || lx === 0 ? RSTONE[1] : RSTONE[3];
+      if (y === v * 2) c = RSTONE[5];
+      if (hash2(x, y, 985 + v) < 0.06) c = RSTONE[1];
+      p.px(x, y, c);
+    }
+    for (let y = v * 2 + 2; y < H; y += 3) if (hash2(1, y, 986) < 0.4) p.px(4, y, ALGAE[1]);
+  });
+}
+function ruinTower() {
+  const W = 52, H = 80, cx = 26, bottom = H - 1;
+  return mk(W, H, (p, g) => {
+    ashPatch(p, cx, bottom - 1, 24, 3, 990);
+    const r = 20;
+    for (let y = 10; y <= bottom - 2; y++) {
+      const brk = 10 + Math.round(Math.abs(Math.sin((y) * 0.9)) * 2);
+      for (let x = cx - r; x <= cx + r; x++) {
+        const t = (x - cx) / r;
+        const yTop = 10 + Math.round((1 - Math.sqrt(Math.max(0, 1 - t * t))) * 4) + Math.round(Math.abs(Math.sin(x * 0.7)) * 6 + (x > cx + 4 ? 8 : 0));
+        if (y < yTop) continue;
+        const row = Math.floor(y / 5), ang = Math.asin(Math.max(-1, Math.min(1, t))) * 6, lx = Math.floor(ang + (row % 2) * 0.5);
+        const ly = y % 5;
+        let i = t < -0.6 ? 4 : t < -0.1 ? 3 : t < 0.5 ? 2 : 1;
+        if (ly === 4) i -= 1; else if (ly === 0) i += 1;
+        if (Math.abs((ang + (row % 2) * 0.5) % 1) < 0.12) i -= 1;
+        if (hash2(x, y, 991) < 0.05) i -= 1;
+        if (y === yTop) i = 5;
+        p.px(x, y, RSTONE[clampI(i, 7)]);
+      }
+      void brk;
+    }
+    // Tor (Bogen), dunkel; Schießscharte mit Licht
+    for (let y = bottom - 22; y < bottom - 2; y++) for (let x = cx - 7; x <= cx + 7; x++) {
+      const dy = y - (bottom - 15); if (dy < 0 && ((x - cx) / 7.5) ** 2 + (dy / 7) ** 2 > 1) continue;
+      p.px(x, y, '#060507');
+    }
+    for (let x = cx - 8; x <= cx + 8; x += 2) { const dy = -Math.sqrt(Math.max(0, 1 - ((x - cx) / 8.5) ** 2)) * 8; p.px(x, bottom - 15 + dy - 1, RSTONE[5]); }
+    p.rect(cx - 9, 30, 3, 8, '#070608'); p.rect(cx - 8, 31, 1, 6, EMB[2]); g.rect(cx - 8, 31, 1, 6, EMB[4]);
+    // Banditenflagge auf dem Stumpf, Efeu, Schutt
+    p.line(cx - 10, 12, cx - 10, -0 + 0, WOOD[3]);
+    for (let y = 1; y < 8; y++) for (let x = cx - 9; x < cx - 9 + 10 - Math.floor(y / 2); x++) p.px(x, y, y < 3 ? CRIM[3] : CRIM[2]);
+    p.px(cx - 6, 3, '#1a0a0a'); p.px(cx - 5, 4, '#1a0a0a'); p.px(cx - 4, 3, '#1a0a0a');
+    for (let i = 0; i < 70; i++) { const x = cx - r + Math.floor(hash2(i, 1, 992) * 14), y = 20 + Math.floor(hash2(i, 2, 992) * 50); p.px(x, y, ALGAE[1 + (i % 2)]); }
+    for (let i = 0; i < 6; i++) p.ellipse(cx - 20 + i * 8, bottom - 1, 2.5, 1.4, RSTONE[2 + (i % 2)]);
+  }, { ax: cx, box: [-19, -10, 19, 1], light: { dx: -8, dy: -46, radius: 50, color: [255, 140, 60], intensity: 0.6 } });
+}
+
+// Verwunschener Hain: Runenstein, bleicher Baum, Leuchtpilze
+function runeStone(v) {
+  const H = [36, 30, 40][v];
+  return mk(18, H, (p, g) => {
+    const bottom = H - 1;
+    ashPatch(p, 9, bottom - 1, 7, 2, 1000 + v);
+    poly(p, [[3, bottom], [4, 7], [8, 1], [12, 4], [14, bottom]], (x, y) => {
+      let i = x < 6 ? 5 : x < 9 ? 4 : x < 12 ? 3 : 2;
+      if (hash2(x, y, 1001 + v) < 0.08) i -= 1;
+      if ((y + v * 2) % 8 === 0 && x > 5) i -= 1;
+      return RSTONE[clampI(i, 7)];
+    });
+    for (let y = bottom - 8; y < bottom; y++) for (let x = 3; x < 14; x++) if (hash2(x, y, 1002) < 0.4) p.px(x, y, ALGAE[1 + (x % 2)]);
+    const glyphs = [[[0, 0], [0, 1], [0, 2], [1, 1], [2, 0], [2, 2]], [[1, 0], [0, 1], [2, 1], [1, 2], [1, 3]], [[0, 0], [1, 1], [2, 2], [0, 2], [2, 0]]];
+    for (let k = 0; k < 2; k++) for (const [dx, dy] of glyphs[(v + k) % 3]) { const x = 7 + dx, y = 9 + k * 7 + dy; p.px(x, y, GHOST[2]); g.px(x, y, GHOST[3 + ((dx + dy) % 2)]); }
+  }, { ax: 9, box: [-5, -3, 5, 1], light: v === 0 ? { dx: 0, dy: -16, radius: 46, color: [120, 230, 170], intensity: 0.5 } : undefined });
+}
+function hauntedTree(v) {
+  const rng = createRng(1010 + v);
+  const W = 44, H = 56, cx = 22, bottom = H - 1;
+  return mk(W, H, (p, g) => {
+    ashPatch(p, cx, bottom - 1, 12, 2, 1011 + v);
+    const branch = (x, y, a, len, th, depth) => {
+      const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len;
+      for (let i = 0; i < th; i++) p.line(x + i, y, x2 + i * 0.5, y2, i === 0 ? BIRCH[4] : BIRCH[2]);
+      if (depth <= 0 || len < 3) { if (rng.chance(0.5)) p.line(x2, y2, x2 + rng.int(-1, 1), y2 + rng.int(3, 7), GHOST[1]); return; }
+      const n = rng.int(1, 2);
+      for (let k = 0; k < n; k++) branch(x2, y2, a + rng.range(-0.9, 0.9), len * rng.range(0.55, 0.75), Math.max(1, th - 1), depth - 1);
+    };
+    // gedrehter Stamm
+    for (let y = bottom - 26; y <= bottom; y++) {
+      const off = Math.round(Math.sin(y * 0.25 + v) * 2), hw = 3 + (y > bottom - 4 ? bottom - y > 1 ? 1 : 3 : 0);
+      for (let x = cx - hw + off; x <= cx + hw + off; x++) p.px(x, y, BIRCH[x === cx - hw + off ? 5 : x === cx + hw + off ? 1 : (x + y) % 5 === 0 ? 2 : 3]);
+    }
+    branch(cx, bottom - 25, -Math.PI / 2 + rng.range(-0.2, 0.2), 12, 3, 4);
+    branch(cx - 1, bottom - 20, -Math.PI / 2 - 1.0, 11, 2, 3);
+    branch(cx + 1, bottom - 22, -Math.PI / 2 + 1.0, 11, 2, 3);
+    // Gesicht im Stamm: zwei leuchtende Höhlen
+    p.rect(cx - 3, bottom - 17, 2, 3, DARK); p.rect(cx + 1, bottom - 16, 2, 3, DARK); p.rect(cx - 2, bottom - 11, 4, 2, DARK);
+    g.px(cx - 3, bottom - 16, GHOST[3]); g.px(cx + 2, bottom - 15, GHOST[3]);
+    // Irrlichter
+    for (const [x, y] of [[6, 14], [38, 20], [30, 6]].slice(0, 2 + v)) { p.px(x, y, GHOST[3]); g.px(x, y, GHOST[4]); g.px(x - 1, y, GHOST[2]); g.px(x + 1, y, GHOST[2]); g.px(x, y - 1, GHOST[2]); g.px(x, y + 1, GHOST[2]); }
+  }, { ax: cx, box: [-4, -3, 4, 1], light: { dx: 0, dy: -30, radius: 60, color: [120, 230, 170], intensity: 0.45 } });
+}
+function glowShrooms(v) {
+  return mk(14, 12, (p, g) => {
+    const caps = [[3, 8, 2], [8, 6, 3], [11, 9, 1.6]].slice(0, 2 + (v % 2));
+    for (const [x, y, r] of caps) {
+      p.rect(x, y, 1, 11 - y, BIRCH[3]);
+      p.ellipse(x, y, r, r * 0.6, SHROOM[2]); p.px(x - 1, y - 1, SHROOM[3]);
+      g.ellipse(x, y, r, r * 0.6, SHROOM[3]); g.px(x - 1, y - 1, SHROOM[4]);
+    }
+  }, { ax: 7, light: v === 0 ? { dx: 0, dy: -6, radius: 34, color: [170, 110, 255], intensity: 0.5 } : undefined });
+}
+function fallenTree(v) {
+  return mk(46, 20, (p, g) => {
+    ashPatch(p, 23, 17, 21, 2, 1020 + v);
+    for (let x = 4; x < 40; x++) for (let y = 7; y <= 14; y++) {
+      const k = (y - 7) / 7;
+      let i = k < 0.2 ? 4 : k < 0.5 ? 3 : k < 0.85 ? 2 : 1;
+      if ((x * 2 + y) % 6 === 0) i -= 1;
+      if (hash2(x, y, 1021) < 0.1) i -= 1;
+      p.px(x, y, CHAR[clampI(i, 6)]);
+    }
+    p.ellipse(41, 10.5, 2.4, 4, WOOD[1]); p.ellipse(41, 10.5, 1.5, 2.8, '#6a4a30'); p.px(41, 10, '#8a6a44');
+    // Wurzelteller links
+    for (let i = 0; i < 9; i++) { const a = -Math.PI / 2 + (i / 8 - 0.5) * 2.6; p.line(4, 11, 4 + Math.cos(a + Math.PI) * 6, 11 + Math.sin(a) * 7, CHAR[2]); }
+    p.line(16, 7, 13, 1, CHAR[3]); p.line(28, 7, 31, 2, CHAR[2]); p.line(31, 2, 34, 1, CHAR[2]);
+    for (let x = 6; x < 38; x++) if (hash2(x, 0, 1022 + v) < 0.5) p.px(x, 7, ASH[4]);
+    if (v === 0) { p.px(22, 10, EMB[3]); p.px(23, 11, EMB[2]); g.px(22, 10, EMB[4]); g.px(23, 11, EMB[3]); }
+  }, { ax: 23, ay: 17, box: [-17, -7, 17, 0] });
+}
+
+// ------------------------------------------------------------ Runde 5: Questobjekte der Banditen
+// Eisenbeschlagene Truhe des Anführers (geschlossen / offen)
+function strongbox(on) {
+  const W = 24, H = 20;
+  return mk(W, H, (p, g) => {
+    const b = H - 1;
+    ashPatch(p, 12, b - 1, 11, 2, 1101);
+    // Korpus
+    p.rect(2, 8, 20, 10, WOOD[2]); p.rect(2, 8, 3, 10, WOOD[3]); p.rect(20, 8, 2, 10, WOOD[1]);
+    for (let x = 2; x < 22; x += 5) p.rect(x, 9, 1, 9, WOOD[1]);
+    p.rect(2, 17, 20, 1, WOOD[0]);
+    // Eisenbänder und Ecken
+    for (const x of [4, 18]) { p.rect(x, 8, 2, 10, IRON[1]); p.rect(x, 8, 1, 10, IRON[3]); }
+    p.rect(2, 16, 3, 2, IRON[2]); p.rect(19, 16, 3, 2, IRON[1]);
+    if (!on) {
+      // gewölbter Deckel
+      for (let x = 2; x < 22; x++) { const t = Math.abs(x - 11.5) / 10; const top = 3 + Math.round(t * t * 3); for (let y = top; y < 8; y++) p.px(x, y, y === top ? WOOD[4] : x < 5 ? WOOD[3] : WOOD[2]); }
+      for (const x of [4, 18]) for (let y = 3; y < 8; y++) p.px(x, y, IRON[2]);
+      p.rect(2, 7, 20, 1, IRON[1]);
+      // Schloss
+      p.rect(10, 6, 4, 5, GOLD[2]); p.rect(10, 6, 4, 1, GOLD[4]); p.px(11, 8, '#140c06'); p.px(11, 9, '#140c06');
+      g.px(10, 6, GOLD[4]); g.px(13, 6, GOLD[3]);
+      // Banditenzeichen (roter Krähenfuß)
+      p.line(7, 11, 9, 14, CRIM[3]); p.line(9, 14, 9, 11, CRIM[3]); p.line(9, 14, 11, 12, CRIM[2]);
+    } else {
+      // aufgeklappter Deckel nach hinten, Inneres dunkel, Goldglanz
+      p.rect(2, 0, 20, 5, WOOD[2]); p.rect(2, 0, 20, 1, WOOD[4]); for (const x of [4, 18]) p.rect(x, 0, 2, 5, IRON[2]);
+      p.rect(3, 5, 18, 4, '#0d0806');
+      for (let i = 0; i < 9; i++) { const x = 5 + i * 2, y = 6 + (i % 2); p.px(x, y, GOLD[3]); g.px(x, y, GOLD[4]); }
+      p.px(12, 5, GOLD[4]);
+    }
+  }, { ax: 12, box: [-10, -5, 10, 1], light: on ? { dx: 0, dy: -10, radius: 40, color: [255, 210, 120], intensity: 0.5 } : undefined });
+}
+
+// Waffenkiste der Banditen: Speere und Schwertgriffe ragen heraus (zu / aufgebrochen)
+function weaponCrate(on) {
+  const W = 28, H = 26;
+  return mk(W, H, (p) => {
+    const b = H - 1;
+    ashPatch(p, 14, b - 1, 13, 2, 1111);
+    // Speere hinter der Kiste
+    if (!on) {
+      for (const [x, top] of [[7, 0], [10, 2], [19, 1]]) {
+        p.line(x, top + 4, x, 12, WOOD[3]);
+        p.px(x, top, IRON[4]); p.px(x, top + 1, IRON[3]); p.px(x - 1, top + 2, IRON[2]); p.px(x + 1, top + 2, IRON[2]); p.px(x, top + 2, IRON[3]); p.px(x, top + 3, IRON[2]);
+      }
+      // Schwertgriffe
+      for (const x of [14, 22]) { p.rect(x, 6, 1, 6, LEA[2]); p.rect(x - 2, 10, 5, 1, IRON[3]); p.px(x, 5, GOLD[3]); }
+    }
+    // Kiste
+    p.rect(2, 11, 24, 13, WOOD[2]); p.rect(2, 11, 24, 1, WOOD[4]); p.rect(2, 11, 2, 13, WOOD[3]); p.rect(24, 12, 2, 12, WOOD[1]);
+    for (let y = 15; y < 24; y += 4) p.rect(3, y, 22, 1, WOOD[1]);
+    p.line(4, 12, 24, 23, WOOD[3]); p.line(4, 13, 23, 23, WOOD[1]);
+    p.rect(2, 23, 24, 1, WOOD[0]);
+    // rotes Tuch
+    p.rect(15, 12, 7, 4, CRIM[2]); p.rect(15, 12, 7, 1, CRIM[3]); p.px(21, 16, CRIM[1]); p.px(16, 16, CRIM[1]);
+    if (on) {
+      // Deckel daneben, Kiste leer und dunkel
+      p.rect(3, 12, 22, 3, '#0e0907');
+      p.line(1, 24, 8, 21, WOOD[3]); p.line(1, 25, 9, 22, WOOD[2]);
+      p.px(12, 13, IRON[2]); p.px(13, 13, IRON[1]);
+    }
+  }, { ax: 14, box: [-12, -6, 12, 1] });
+}
+
+// Versteck der Banditen: unter einer Steinplatte (Turm) oder unter den Wurzeln am Bach
+function banditCache(where, on) {
+  const W = 26, H = 18;
+  return mk(W, H, (p, g) => {
+    const b = H - 1;
+    if (where === 'tower') {
+      // Trümmersteine rundherum
+      for (const [x, y, r] of [[3, 14, 2.6], [22, 13, 3], [6, 9, 2], [20, 7, 2.2], [13, 6, 1.6]]) { p.ellipse(x, y, r, r * 0.75, RSTONE[3]); p.px(Math.round(x - 1), Math.round(y - 1), RSTONE[5]); }
+      if (!on) {
+        // Platte leicht verschoben, Spalt mit roter Stoffecke
+        poly(p, [[5, 10], [21, 9], [23, 15], [4, 16]], (x, y) => (y === 9 || y === 10 ? RSTONE[5] : hash2(x, y, 1121) < 0.12 ? RSTONE[2] : RSTONE[4]));
+        p.line(5, 16, 22, 15, RSTONE[1]); p.line(21, 9, 23, 15, RSTONE[2]);
+        p.rect(19, 15, 4, 2, CRIM[2]); p.px(22, 16, CRIM[3]);
+        p.px(9, 12, RSTONE[2]); p.px(10, 13, RSTONE[2]); p.px(15, 11, RSTONE[2]);
+      } else {
+        poly(p, [[1, 12], [9, 11], [10, 16], [1, 17]], RSTONE[4]);
+        p.ellipse(16, 13, 6, 3, '#090708'); p.ellipse(16, 13, 4.5, 2, '#040304');
+        p.px(14, 12, LEA[2]); p.px(18, 14, LEA[1]);
+      }
+    } else {
+      // Bachufer: Wurzelbogen, Kiesel, Lederbeutel
+      for (let i = 0; i < 6; i++) { const x0 = 2 + i * 4; p.line(x0, 4 + (i % 2), x0 + 3, 15, WOOD[1 + (i % 2)]); p.line(x0 + 1, 4 + (i % 2), x0 + 4, 15, WOOD[0]); }
+      p.ellipse(13, 12, 9, 4, '#0b0908');
+      for (const [x, y] of [[2, 16], [6, 17], [11, 16], [17, 17], [22, 16], [24, 14]]) { p.ellipse(x, y, 1.8, 1, PAL.stone[2]); p.px(x - 1, y - 1, PAL.stone[4]); }
+      if (!on) {
+        p.ellipse(12, 12, 4, 3, LEA[2]); p.rect(10, 9, 4, 2, LEA[3]); p.px(12, 8, LEA[1]); p.px(11, 11, GOLD[3]); g.px(11, 11, GOLD[4]);
+        p.rect(16, 11, 3, 2, CRIM[2]);
+      }
+      for (let x = 1; x < W - 1; x++) if (hash2(x, 0, 1122) < 0.4) p.px(x, 3 + (x % 3 === 0 ? 1 : 0), GREEN[3]);
+    }
+  }, { ax: 13, box: where === 'tower' ? [-11, -4, 11, 1] : [-9, -3, 9, 1] });
+}
+
+// Umgestürzter Turm: liegender Mauerzylinder mit abgebrochener Krone (Karten-Deko, fest)
+function fallenTower() {
+  const W = 76, H = 36;
+  return mk(W, H, (p, g) => {
+    const b = H - 1;
+    ashPatch(p, 38, b - 2, 36, 3, 1131);
+    // Schaft (liegend, Quader in Reihen, Licht von oben)
+    for (let x = 6; x < 62; x++) {
+      const top = 8 + Math.round(Math.abs(Math.sin(x * 0.31)) * 1.5 + (x > 54 ? (x - 54) * 0.6 : 0));
+      for (let y = top; y < b - 2; y++) {
+        const t = (y - top) / (b - 2 - top);
+        const col = Math.floor((x + (Math.floor(y / 5) % 2) * 3) / 6);
+        let i = t < 0.15 ? 5 : t < 0.45 ? 4 : t < 0.75 ? 3 : 2;
+        if ((x + (Math.floor(y / 5) % 2) * 3) % 6 === 0 || y % 5 === 0) i -= 1;
+        if (hash2(x, y, 1132 + col) < 0.06) i -= 1;
+        p.px(x, y, RSTONE[clampI(i, 7)]);
+      }
+    }
+    // Stirnseite (Ring) links, mit dunklem Inneren
+    p.ellipse(7, 20, 6, 12, RSTONE[2]); p.ellipse(7, 20, 4, 9.5, '#070608');
+    for (let a = 0; a < 10; a++) { const t = (a / 10) * Math.PI * 2; p.px(Math.round(7 + Math.cos(t) * 5.5), Math.round(20 + Math.sin(t) * 11.5), RSTONE[a < 5 ? 3 : 5]); }
+    // abgebrochene Krone rechts: Zacken und Schutt
+    for (let i = 0; i < 9; i++) { const x = 60 + Math.floor(hash2(i, 1, 1133) * 14), y = b - 2 - Math.floor(hash2(i, 2, 1133) * 10); p.ellipse(x, y, 2 + (i % 2), 1.6, RSTONE[2 + (i % 3)]); p.px(x - 1, y - 1, RSTONE[5]); }
+    // Efeu, Asche, eine Schießscharte
+    for (let i = 0; i < 60; i++) { const x = 8 + Math.floor(hash2(i, 3, 1134) * 50), y = 9 + Math.floor(hash2(i, 4, 1134) * 6); p.px(x, y, ALGAE[1 + (i % 2)]); }
+    p.rect(30, 16, 6, 3, '#070608'); p.px(31, 17, EMB[2]); g.px(31, 17, EMB[3]);
+    // rote Fetzen der Banditen
+    p.line(44, 9, 44, 1, WOOD[3]); for (let y = 1; y < 6; y++) for (let x = 45; x < 52 - y; x++) p.px(x, y, y < 3 ? CRIM[3] : CRIM[2]);
+  }, { ax: 36, ay: H - 3, box: [-32, -14, 30, 0] });
+}
+
+// Alte Eiche: mächtiger, noch grüner Baum im Süden (Aussichtspunkt)
+function ancientOak() {
+  const W = 84, H = 96, cx = 42, b = H - 1;
+  const OAKL = ['#0c140d', '#132015', '#1b2d1c', '#253c24', '#33502e', '#46663a', '#5e7e48'];
+  const rng = createRng(1141);
+  return mk(W, H, (p, g) => {
+    ashPatch(p, cx, b - 2, 30, 4, 1142);
+    // Wurzeln
+    for (const [dx, len] of [[-1, 18], [1, 20], [-1, 11], [1, 12]]) {
+      for (let i = 0; i < len; i++) { const x = cx + dx * (6 + i), y = b - 3 + Math.round(i * 0.18); p.rect(x, y - 2 + Math.floor(i / 8), 1, 3 - Math.floor(i / 8), WOOD[i % 3 === 0 ? 1 : 2]); }
+    }
+    // Stamm (breit, knorrig)
+    for (let y = 44; y < b - 1; y++) {
+      const hw = 7 + Math.round(Math.max(0, (y - (b - 14)) * 0.5)) + Math.round(Math.sin(y * 0.4) * 0.8);
+      for (let x = cx - hw; x <= cx + hw; x++) {
+        const t = (x - (cx - hw)) / (2 * hw);
+        let i = t < 0.18 ? 4 : t < 0.5 ? 3 : t < 0.8 ? 2 : 1;
+        if ((x * 3 + Math.floor(y / 3)) % 7 === 0) i -= 1;
+        p.px(x, y, WOOD[clampI(i, 6)]);
+      }
+    }
+    // Astloch, Kerben
+    p.ellipse(cx + 2, 66, 2.5, 3.5, '#070506'); p.px(cx + 1, 64, WOOD[4]);
+    // Äste
+    p.line(cx - 3, 50, cx - 20, 36, WOOD[2]); p.line(cx - 3, 51, cx - 20, 37, WOOD[1]); p.line(cx - 4, 49, cx - 21, 35, WOOD[3]);
+    p.line(cx + 3, 48, cx + 22, 34, WOOD[2]); p.line(cx + 3, 49, cx + 22, 35, WOOD[1]);
+    // Krone: viele Blattballen, hinten dunkler
+    const blobs = [];
+    for (let i = 0; i < 26; i++) blobs.push([cx + rng.range(-32, 32), rng.range(10, 46), rng.range(7, 12)]);
+    blobs.sort((a, c) => a[1] - c[1]);
+    for (const [bx, by, r] of blobs) {
+      for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+        const d = (x * x + y * y) / (r * r); if (d > 1) continue;
+        const px = Math.round(bx + x), py = Math.round(by + y * 0.85);
+        if (px < 1 || px >= W - 1 || py < 1) continue;
+        const light = (-x - y) / r;
+        let i = 2 + Math.round(light * 1.6) + (by < 26 ? 1 : 0);
+        if (hash2(px, py, 1143) < 0.12) i -= 1;
+        if (d > 0.82 && hash2(px, py, 1144) < 0.5) continue;
+        p.px(px, py, OAKL[clampI(i, 7)]);
+      }
+    }
+    // Bänder und Kerzen der Wächter am Stamm (Aussichtspunkt)
+    p.rect(cx - 7, 58, 15, 2, GREEN[3]); p.rect(cx - 7, 58, 4, 2, GREEN[4]);
+    p.px(cx - 9, b - 4, PAL.bone[3]); p.px(cx - 9, b - 5, EMB[4]); g.px(cx - 9, b - 5, EMB[5]);
+  }, { ax: cx, ay: b - 1, box: [-9, -6, 9, 1], light: { dx: -9, dy: -6, radius: 40, color: [255, 160, 80], intensity: 0.5 } });
+}
+
+// ------------------------------------------------------------ Runde 5b: Waldvielfalt, Baumlager, Köhlerei
+const AUT = ['#130b09', '#22120d', '#371d12', '#512a16', '#6e3d1c', '#8c5525', '#a97236'];
+const OLIVE = ['#0f130b', '#192011', '#262f17', '#36411e', '#4a5627', '#626c33'];
+const LEAFY = ['#0d140f', '#152017', '#1f2e1f', '#2b3e28', '#3b5233', '#506a40'];
+
+// Laubballen (sortiert nach y), Licht von links oben
+function leafBlobs(p, blobs, pal, seed, W) {
+  blobs.sort((a, c) => a[1] - c[1]);
+  for (const [bx, by, r, k] of blobs) {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+      const d = (x * x + y * y) / (r * r); if (d > 1) continue;
+      const px = Math.round(bx + x), py = Math.round(by + y * 0.85);
+      if (px < 1 || px >= W - 1 || py < 1) continue;
+      if (d > 0.78 && hash2(px, py, seed) < 0.5) continue;
+      let i = 2 + Math.round(((-x - y) / r) * 1.5) + (k ?? 0);
+      if (hash2(px, py, seed + 1) < 0.14) i -= 1;
+      p.px(px, py, pal[clampI(i, pal.length)]);
+    }
+  }
+}
+
+// Laubbaum mit rostrotem oder oliv Laub
+function broadleaf(seed, H = 56, pal = AUT) {
+  const rng = createRng(seed);
+  const W = 46, cx = 23, b = H - 1;
+  return mk(W, H, (p) => {
+    ashPatch(p, cx, b - 1, 10, 2, seed);
+    for (let y = Math.round(H * 0.45); y < b; y++) {
+      const hw = 2 + (y > b - 4 ? 1 : 0);
+      for (let x = cx - hw; x <= cx + hw; x++) p.px(x, y, WOOD[x === cx - hw ? 4 : x === cx + hw ? 1 : (x + y) % 5 ? 2 : 3]);
+    }
+    p.line(cx, Math.round(H * 0.55), cx - 9, Math.round(H * 0.38), WOOD[2]); p.line(cx, Math.round(H * 0.5), cx + 10, Math.round(H * 0.34), WOOD[1]);
+    const blobs = [];
+    const top = 4, mid = Math.round(H * 0.33);
+    for (let i = 0; i < 9; i++) blobs.push([cx + rng.range(-14, 14), rng.range(top + 6, mid + 8), rng.range(6, 9)]);
+    leafBlobs(p, blobs, pal, seed, W);
+  }, { ax: cx, box: [-3, -3, 3, 1], shadow: 16 });
+}
+
+// Lebende Birke (helle Rinde, lichte Krone)
+function liveBirch(seed, H = 50) {
+  const rng = createRng(seed);
+  const W = 30, cx = 14, b = H - 1;
+  return mk(W, H, (p) => {
+    ashPatch(p, cx, b - 1, 6, 2, seed);
+    const blobs = [];
+    for (let i = 0; i < 7; i++) blobs.push([cx + rng.range(-8, 8), rng.range(8, H * 0.55), rng.range(4, 6)]);
+    leafBlobs(p, blobs, OLIVE, seed, W);
+    for (let y = 6; y < b; y++) {
+      const x = cx + Math.round(Math.sin(y * 0.1 + seed) * 1.1);
+      p.px(x - 1, y, BIRCH[5]); p.px(x, y, BIRCH[4]); p.px(x + 1, y, BIRCH[2]);
+      if (hash2(0, y, seed) < 0.18) { p.px(x, y, '#161214'); p.px(x + 1, y, '#161214'); }
+    }
+    for (let i = 0; i < 10; i++) { const x = cx + rng.int(-9, 9), y = rng.int(8, Math.round(H * 0.6)); p.px(x, y, '#8a8a3a'); }
+  }, { ax: cx, box: [-2, -2, 2, 1], shadow: 12 });
+}
+
+// Baumgruppe aus fertigen Sprites (fest, ohne Kasten – Kachel ist fest)
+function clump(seed, makers, W = 54, H = 68, dy = 0, dx = 0) {
+  const rng = createRng(seed);
+  const cx = Math.floor(W / 2), bottom = H - 1;
+  const parts = makers.map((mkr, i) => {
+    const back = i === 0, s = mkr(seed * 7 + i, back).sprite;
+    return { s, x: back ? cx + rng.int(-5, 5) : cx + (i === 1 ? -11 : 11) + rng.int(-2, 2), y: back ? bottom - 9 : bottom - (i === 1 ? 1 : 4), back };
+  });
+  const sprite = buildFrame(W, H, cx + dx, bottom - 2 + dy, (p) => {
+    for (const q of parts) {
+      if (q.back) p.ctx.filter = 'brightness(0.62)';
+      p.ctx.drawImage(q.s.canvas, Math.round(q.x - q.s.ax), Math.round(q.y - q.s.ay));
+      p.ctx.filter = 'none';
+    }
+    for (let x = 8; x < W - 8; x++) if (hash2(x, 1, seed) < 0.55) p.px(x, bottom - 1 - (hash2(x, 2, seed) < 0.4 ? 1 : 0), LEAFY[2]);
+  }, { outline: false });
+  return { sprite };
+}
+const broadClump = (seed, dy = 0, dx = 0) => clump(seed, [
+  (s) => broadleaf(s, 60, s % 2 ? AUT : LEAFY), (s) => broadleaf(s + 1, 54, s % 3 ? AUT : OLIVE), (s) => (s % 2 ? liveBirch(s, 48) : broadleaf(s + 2, 50, LEAFY)),
+], 58, 70, dy, dx);
+const birchClump = (seed, dy = 0, dx = 0) => clump(seed, [(s) => liveBirch(s, 54), (s) => liveBirch(s + 1, 48), (s) => (s % 3 ? liveBirch(s + 2, 44) : broadleaf(s, 46, OLIVE))], 46, 62, dy, dx);
+
+// Baumlager: alte Tanne mit Plattform, Hütte, Leiter, Laterne
+function treePlatform(v) {
+  const W = 76, H = 128, cx = 38, b = H - 1;
+  const rng = createRng(1601 + v);
+  return mk(W, H, (p, g) => {
+    ashPatch(p, cx, b - 2, 18, 3, 1602 + v);
+    // Wurzeln und Stamm
+    for (const s of [-1, 1]) for (let i = 0; i < 10; i++) p.rect(cx + s * (6 + i), b - 3 + (i >> 2), 1, 3 - (i >> 2), WOOD[i % 3 ? 2 : 1]);
+    for (let y = 18; y < b - 1; y++) {
+      const hw = 5 + (y > b - 8 ? 2 : 0);
+      for (let x = cx - hw; x <= cx + hw; x++) { const t = (x - cx + hw) / (2 * hw); p.px(x, y, WOOD[t < 0.2 ? 4 : t < 0.55 ? 3 : t < 0.85 ? 2 : 1]); }
+      if (hash2(0, y, 1603) < 0.12) p.px(cx - 1, y, WOOD[0]);
+    }
+    // Krone (Tanne, über und hinter der Hütte)
+    for (let t = 0; t < 6; t++) {
+      const y0 = 2 + t * 8, half = 7 + t * 4;
+      for (let y = y0; y < y0 + 11; y++) {
+        const w = Math.round(half * ((y - y0) / 11) + 3);
+        for (let x = cx - w; x <= cx + w; x++) {
+          const k = (x - cx) / Math.max(1, w);
+          let i = k < -0.45 ? 4 : k < 0.1 ? 3 : k < 0.6 ? 2 : 1;
+          if (y === y0 + 10 && hash2(x, y, 1604) < 0.5) continue;
+          if (hash2(x, y, 1605 + v) < 0.1) i -= 1;
+          p.px(x, y, FIR[clampI(i, 6)]);
+        }
+      }
+    }
+    // Plattform
+    const py = 66;
+    p.rect(cx - 30, py, 60, 4, WOOD[2]); p.rect(cx - 30, py, 60, 1, WOOD[4]); p.rect(cx - 30, py + 3, 60, 1, WOOD[0]);
+    for (let x = cx - 30; x < cx + 30; x += 6) p.px(x, py + 1, WOOD[1]);
+    // Stützbalken
+    p.line(cx - 26, py + 4, cx - 6, py + 22, WOOD[1]); p.line(cx + 26, py + 4, cx + 6, py + 22, WOOD[1]);
+    // Geländer
+    for (let x = cx - 30; x <= cx + 30; x += 5) p.rect(x, py - 7, 1, 7, WOOD[3]);
+    p.rect(cx - 30, py - 7, 61, 1, WOOD[3]);
+    // Hütte auf der Plattform (Rindendach, grünes Tuch)
+    p.rect(cx - 14, py - 20, 28, 20, WOOD[2]); p.rect(cx - 14, py - 20, 3, 20, WOOD[3]); p.rect(cx + 12, py - 20, 2, 20, WOOD[1]);
+    for (let y = py - 18; y < py; y += 4) p.rect(cx - 14, y, 28, 1, WOOD[1]);
+    poly(p, [[cx - 19, py - 19], [cx, py - 31], [cx + 19, py - 19]], (x, y) => ((x + y) % 4 ? CHAR[3] : CHAR[2]));
+    p.line(cx - 19, py - 19, cx, py - 31, CHAR[5]);
+    p.rect(cx - 4, py - 13, 7, 13, '#0a0706');
+    p.rect(cx + 6, py - 15, 4, 4, EMB[3]); g.rect(cx + 6, py - 15, 4, 4, EMB[4]);
+    p.rect(cx - 13, py - 6, 9, 3, GREEN[3]); p.rect(cx - 13, py - 6, 9, 1, GREEN[4]);
+    // Leiter links
+    const lx = cx - 22 + (v % 2) * 40;
+    for (let y = py + 4; y < b - 2; y++) { p.px(lx, y, WOOD[3]); p.px(lx + 5, y, WOOD[1]); if ((y - py) % 5 === 0) p.rect(lx, y, 6, 1, WOOD[2]); }
+    // Laterne am Plattformrand
+    const ax0 = cx + (v % 2 ? -27 : 27);
+    p.line(ax0, py, ax0, py + 6, WOOD[1]); p.rect(ax0 - 1, py + 6, 3, 4, IRON[1]); p.px(ax0, py + 7, GOLD[4]); g.rect(ax0 - 1, py + 6, 3, 4, GOLD[3]); g.px(ax0, py + 7, '#fff2c0');
+    // Wimpel
+    p.line(cx + 1, py - 31, cx + 1, py - 40, WOOD[3]); p.rect(cx + 2, py - 40, 6, 3, GREEN[4]);
+    void rng;
+  }, { ax: cx, ay: b - 1, box: [-7, -4, 7, 1], light: { dx: v % 2 ? -27 : 27, dy: -50, radius: 90, color: [255, 190, 110], intensity: 0.8 } });
+}
+
+// Kohlenmeiler: Erdkuppel mit Rauch, glimmenden Luftlöchern
+function charcoalKiln(v) {
+  const W = 46, H = 30, cx = 23, b = H - 1;
+  return mk(W, H, (p, g) => {
+    ashPatch(p, cx, b - 1, 21, 3, 1611 + v);
+    for (let y = 4; y < b - 1; y++) for (let x = 2; x < W - 2; x++) {
+      const dx = (x - cx) / 20, dy = (b - 1 - y) / 24;
+      if (dx * dx + dy * dy > 1) continue;
+      const shade = -dx * 0.8 + dy * 0.6;
+      let i = shade > 0.5 ? 4 : shade > 0.1 ? 3 : shade > -0.3 ? 2 : 1;
+      if (hash2(x >> 1, y >> 1, 1612 + v) < 0.18) i -= 1;
+      p.px(x, y, (x + y * 3) % 7 === 0 ? LEAFY[clampI(i, 6)] : ASH[clampI(i + 1, 7)]);
+    }
+    // Luftlöcher mit Glut
+    for (const [x, y] of [[12, 20], [21, 22], [31, 19], [17, 13], [28, 12], [23, 7]].slice(0, 4 + (v % 3))) {
+      p.rect(x, y, 2, 2, EMB[3]); p.px(x, y, EMB[5]); g.rect(x, y, 2, 2, EMB[4]); g.px(x, y, '#fff0b0');
+    }
+    // Stangen und Schaufel
+    p.line(41, b - 2, 44, 6, WOOD[3]); p.rect(42, 3, 3, 4, IRON[2]);
+  }, { ax: cx, box: [-18, -8, 18, 1], light: { dx: 0, dy: -12, radius: 70, color: [255, 120, 50], intensity: 0.6 }, extra: { smoke: { dx: 0, dy: -24, rate: 4 } } });
+}
+
+// Steinmann (Wegzeichen)
+function cairn(v) {
+  return mk(14, 20, (p) => {
+    ashPatch(p, 7, 18, 6, 1, 1621 + v);
+    const st = [[7, 16, 5, 2.6], [7, 12, 4, 2.2], [7 + (v % 2), 8, 3, 2], [7, 5 - (v % 2), 2, 1.6]];
+    for (const [x, y, rx, ry] of st) { p.ellipse(x, y, rx, ry, RSTONE[3]); p.ellipse(x - 0.8, y - 0.6, rx - 1.2, ry - 0.8, RSTONE[5]); p.px(x + rx - 2, y + 1, RSTONE[1]); }
+  }, { ax: 7, box: [-4, -3, 4, 1] });
+}
+
+// Laternenpfahl am Weg
+function lanternPost() {
+  return mk(14, 34, (p, g) => {
+    p.rect(5, 6, 2, 27, WOOD[2]); p.rect(5, 6, 1, 27, WOOD[4]); p.rect(5, 6, 7, 1, WOOD[3]);
+    p.rect(9, 8, 4, 6, IRON[1]); p.rect(10, 9, 2, 4, GOLD[4]); g.rect(10, 9, 2, 4, GOLD[3]); g.px(10, 10, '#fff2c0');
+    p.rect(4, 32, 4, 1, WOOD[1]);
+  }, { ax: 6, box: [-2, -2, 2, 1], light: { dx: 5, dy: -22, radius: 70, color: [255, 180, 100], intensity: 0.8 } });
+}
+
+// Mühlenruine auf der Bachinsel: Mauerreste und gebrochenes Rad
+function millRuin() {
+  const W = 70, H = 56, b = H - 1;
+  return mk(W, H, (p) => {
+    ashPatch(p, 35, b - 2, 32, 3, 1631);
+    // Mauern (zwei Wände mit Bruchkante)
+    for (let x = 14; x < 58; x++) {
+      const top = 14 + Math.round(Math.abs(Math.sin(x * 0.45)) * 5 + (x > 40 ? (x - 40) * 0.8 : 0));
+      for (let y = top; y < b - 2; y++) {
+        const row = Math.floor(y / 4), lx = (x + (row % 2) * 3) % 7;
+        let i = x < 22 ? 4 : x < 44 ? 3 : 2;
+        if (lx === 0 || y % 4 === 0) i -= 1;
+        if (hash2(x, y, 1632) < 0.06) i -= 1;
+        if (y === top) i = 5;
+        p.px(x, y, RSTONE[clampI(i, 7)]);
+      }
+    }
+    p.rect(30, 30, 9, 23, '#070608'); p.rect(20, 24, 5, 6, '#070608'); p.rect(46, 30, 5, 5, '#070608');
+    for (let i = 0; i < 60; i++) { const x = 14 + Math.floor(hash2(i, 1, 1633) * 44), y = 18 + Math.floor(hash2(i, 2, 1633) * 30); p.px(x, y, ALGAE[1 + (i % 2)]); }
+    // gebrochenes Rad links
+    const wx = 9, wy = 34;
+    p.ellipse(wx, wy, 9, 11, WOOD[1]); p.ellipse(wx, wy, 7, 9, '#0b0908');
+    for (let i = 0; i < 8; i++) { if (i === 2 || i === 5) continue; const a = (i / 8) * Math.PI * 2; p.line(wx, wy, wx + Math.cos(a) * 8, wy + Math.sin(a) * 10, WOOD[i % 2 ? 2 : 3]); }
+    p.ellipse(wx, wy, 1.6, 1.6, WOOD[4]);
+    // Schutt
+    for (let i = 0; i < 7; i++) p.ellipse(16 + i * 7, b - 1, 2.4, 1.3, RSTONE[2 + (i % 3)]);
+  }, { ax: 35, ay: b - 1, box: [-21, -10, 23, 1] });
+}
+
+// Anker-Versatz je Variante (Pixel): Waldkacheln wählen per Hash, so liegen die Bäume nicht in Reihen
+const JIT = [[0, 0], [-6, 3], [5, -4], [-3, -6], [7, 5], [-8, -2], [3, 7], [-5, 6], [8, -7], [-2, -3], [6, 2], [-7, -5]];
 export function createAshwoodDecor() {
   return {
     charredPines: [charredPine(201, 48, false), charredPine(207, 54, false), charredPine(213, 44, false), charredPine(219, 40, true)],
@@ -855,5 +1534,23 @@ export function createAshwoodDecor() {
     satchel: satchel(),
     templeRuin: templeRuin(),
     reeds: [0, 1, 2].map(reeds),
+    // Runde 5
+    deepWood: JIT.map(([dy, dx], i) => deepWood([101, 103, 107, 109, 113][i % 5], dy, dx)),
+    ropeBridge: [ropeBridgeSeg(0, 0), ropeBridgeSeg(0, 1)], ropeBridgeN: ropeBridgeSeg(-1, 0), ropeBridgeS: ropeBridgeSeg(1, 2),
+    logBridgeL: logBridgeSeg(-1), logBridgeM: logBridgeSeg(0), logBridgeR: logBridgeSeg(1),
+    steppingStones: [0, 1, 2].map(steppingStones),
+    ruinWall: [0, 1, 2].map(ruinWall), ruinWallV: [0, 1].map(ruinWallV), ruinTower: ruinTower(),
+    runeStone: [0, 1, 2].map(runeStone), hauntedTree: [0, 1].map(hauntedTree), glowShrooms: [0, 1, 2].map(glowShrooms),
+    fallenTree: [fallenTree(0), fallenTree(1)],
+    strongbox: { off: strongbox(false), on: strongbox(true) },
+    weaponCrate: { off: weaponCrate(false), on: weaponCrate(true) },
+    cacheTower: { off: banditCache('tower', false), on: banditCache('tower', true) },
+    cacheBrook: { off: banditCache('brook', false), on: banditCache('brook', true) },
+    fallenTower: fallenTower(), ancientOak: ancientOak(),
+    // Runde 5b
+    broadClump: JIT.map(([dy, dx], i) => broadClump([1701, 1703, 1707, 1709, 1711][i % 5], dy, dx)), birchClump: JIT.map(([dy, dx], i) => birchClump([1801, 1803, 1807, 1809][i % 4], dy, dx)),
+    broadleaf: [broadleaf(1901, 56, AUT), broadleaf(1903, 52, LEAFY), broadleaf(1907, 58, OLIVE), liveBirch(1909, 50)],
+    treePlatform: [treePlatform(0), treePlatform(1)], charcoalKiln: [0, 1, 2].map(charcoalKiln),
+    cairn: [0, 1].map(cairn), lanternPost: lanternPost(), millRuin: millRuin(),
   };
 }

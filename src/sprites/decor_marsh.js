@@ -2,6 +2,8 @@ import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
 import { mk, poly } from './decor_ashwood.js';
 import { shadeLump, dustPatch, blade, bayer } from './decor_steppe.js';
+import { PixelCanvas, outlineCanvas } from '../gfx/PixelCanvas.js';
+import { SpriteFrame } from '../gfx/Sprite.js';
 
 // Faulmarsch: fauliges Moor unter Nebel, Sporen, tote Weiden, Pfahlbauten der Moorleute,
 // versunkene Ruinen und der Sporenschlund. Licht von links oben; alles Leuchtende
@@ -522,11 +524,42 @@ function campfireBig() {
 }
 
 // ------------------------------------------------------------ Fäulnistotem (Schrein)
-function rotTotem(on) {
+// Merkmale der drei Rätsel-Totems: Knochenhaufen, Moospolster, Schlammkruste
+function totemBase(p, kind, by) {
+  if (kind === 'mud') { for (let x = 1; x < 25; x++) for (let y = by - 3; y <= by; y++) if (hash2(x, y, 1176) < 0.8 - Math.abs(x - 12) / 30) p.px(x, y, MUD[(x + y) % 3 + 1]); }
+  if (kind === 'moss') { for (let x = 2; x < 24; x++) for (let y = by - 2; y <= by; y++) if (hash2(x, y, 1177) < 0.7) p.px(x, y, MOSS[2 + ((x * 3 + y) % 3)]); }
+}
+function totemOverlay(p, g, kind, on, by) {
+  if (kind === 'bone') {
+    // Schädelhaufen am Fuß, Knochen gekreuzt am Pfahl
+    for (const [x, y, s] of [[5, by - 3, 1], [19, by - 2, 0], [9, by - 1, 0], [16, by - 5, 1]]) {
+      p.rect(x - 2, y - 2, 4 + s, 3 + s, BONE[3]); p.px(x - 2, y - 2, BONE[4]); p.px(x - 1, y - 1, INTERIOR); p.px(x + 1, y - 1, INTERIOR); p.rect(x - 1, y + 1 + s, 3, 1, BONE[2]);
+      if (on) { p.px(x - 1, y - 1, GLG[3]); g.px(x - 1, y - 1, GLG[4]); }
+    }
+    p.line(7, 30, 18, 36, BONE[3]); p.line(18, 30, 7, 36, BONE[2]); p.px(7, 30, BONE[4]); p.px(18, 30, BONE[4]);
+    for (const x of [8, 17]) { p.line(x, 12, x, 18, BEARD[2]); p.rect(x - 1, 18, 2, 3, BONE[3]); }
+  } else if (kind === 'moss') {
+    // dichtes Moos, Farnwedel, kleine Leuchtpilze
+    for (let y = 14; y < by; y++) for (let x = 9; x <= 16; x++) if (hash2(x, y >> 1, 1178) < 0.45) p.px(x, y, MOSS[3 + ((x + y) % 4)]);
+    for (const s of [-1, 1]) for (let k = 0; k < 7; k++) { p.px(12 + s * (3 + k), by - 4 - Math.round(k * 0.9), MOSS[5]); p.px(12 + s * (3 + k), by - 3 - Math.round(k * 0.9), MOSS[3]); }
+    beard(p, 6, 6, 10, 4); beard(p, 19, 5, 12, 5);
+    glowShroom(p, on ? g : { px() {}, rect() {} }, 6, by - 4, 1, 2, GLT, 1179);
+  } else if (kind === 'mud') {
+    // Schlammkruste mit Tropfnasen, Fußabdrücke
+    for (let y = 18; y < by; y++) for (let x = 9; x <= 16; x++) if (hash2(x, y >> 2, 1180) < 0.55) p.px(x, y, MUD[2 + ((x + y) % 3 === 0 ? 1 : 0)]);
+    for (const x of [9, 12, 15]) for (let y = 18; y < 18 + 4 + (x % 3) * 2; y++) p.px(x, y, MUD[4]);
+    for (const [x, y] of [[3, by - 1], [21, by]]) { p.ellipse(x, y, 2, 1, MUD[0]); p.px(x, y, SW[3]); }
+    p.ellipse(12, 6, 6, 2, MUD[2]); p.px(10, 5, MUD[4]);
+  }
+}
+
+// kind: 'rot' (Bestand) | 'bone' Knochentotem | 'moss' Moostotem | 'mud' Schlammtotem (Reihenfolge-Rätsel)
+function rotTotem(on, kind = 'rot') {
   const W = 26, H = 46;
   return mk(W, H, (p, g) => {
     const bottom = H - 1, x0 = 10, x1 = 15;
     mudPatch(p, 12, bottom - 1, 10, 2, 1171);
+    totemBase(p, kind, bottom);
     // Pfahl mit Ranken
     for (let y = 14; y < bottom; y++) for (let x = x0; x <= x1; x++) {
       const rel = (x - x0) / (x1 - x0);
@@ -558,6 +591,7 @@ function rotTotem(on) {
     glowShroom(p, on ? g : { px() {}, rect() {} }, x1 + 4, bottom, 1, 2, on ? GLG : ['#1a1a14', '#2a2a20', '#3a3a2c', '#4a4a3a', '#5a5a48'], 1174);
     // Sporenwolke (aktiv)
     if (on) for (let k = 0; k < 10; k++) { const x = 4 + Math.round(hash2(k, 0, 1175) * 18), y = 2 + Math.round(hash2(k, 1, 1175) * 26); p.px(x, y, GLG[3]); g.px(x, y, k % 3 ? GLG[3] : GLG[4]); }
+    totemOverlay(p, g, kind, on, bottom);
   }, { ax: 12, box: [-5, -3, 5, 1], light: on ? { dx: 0, dy: -24, radius: 76, color: [120, 240, 150], intensity: 0.85 } : undefined });
 }
 
@@ -752,6 +786,758 @@ function lanternPost() {
   }, { ax: 5, box: [-2, -2, 2, 1], light: { dx: 6, dy: -30, radius: 64, color: [230, 220, 130], intensity: 0.8 } });
 }
 
+// ============================================================ Runde 5: Inselarchipel
+// Bohlenstege, Furten, Dammufer, Wasserdeko, Riesenpilze, Hexenhütte.
+//
+// Bohlen und Furten liegen flach über dem Wasser. Damit der Held nie von den
+// Brettern überdeckt wird, zeichnet jede begehbare Bohlenzelle nur ab ihrem
+// Ankerpunkt nach unten (16 px bis zum Anker der nächsten Zeile); die oberste
+// Bohlenreihe stammt von einer festen Trägerzelle im Wasser darüber
+// ('deckCarrier*', mit Geländerpfosten). Flache Teile ohne Umriss (flat()).
+
+const PLANK = ['#0e0d0b', '#191713', '#25221b', '#322d23', '#40392c', '#4f4635', '#615643', '#776a52'];
+const SILT = ['#2a2c20', '#3a3c2a', '#4e4e36'];
+
+// Flaches Sprite ohne Umriss; Leuchtebene in Sprite-Größe (Anker gleich).
+function flat(W, H, ax, ay, draw, extra = null) {
+  const p = new PixelCanvas(W, H), gl = new PixelCanvas(W, H);
+  let used = false;
+  const g = { px: (x, y, c) => { used = true; gl.px(x, y, c); }, rect: (x, y, w, h, c) => { used = true; gl.rect(x, y, w, h, c); } };
+  draw(p, g);
+  const e = { sprite: new SpriteFrame(p.canvas, ax, ay) };
+  if (used) e.glow = gl.canvas;
+  if (extra) Object.assign(e, extra);
+  return e;
+}
+// Teilzeichnung mit 1-px-Umriss in ein flaches Sprite übernehmen
+function outlined(p, W, H, draw) {
+  const t = new PixelCanvas(W, H);
+  draw(t);
+  p.ctx.drawImage(outlineCanvas(t.canvas), -1, -1);
+}
+// Mondlicht-Kante: oberstes Pixel jeder Spalte (und linke Kanten) aufhellen
+function rimLight(q, W, H, col, colL = col) {
+  const d = q.ctx.getImageData(0, 0, W, H).data, on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4 + 3] > 40;
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if (on(x, y)) { q.px(x, y, col); if (on(x, y + 1) && x < W / 2) q.px(x, y + 1, colL); break; }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W / 2; x++) if (on(x, y)) { if (!on(x - 1, y)) q.px(x, y, colL); break; }
+}
+const rgba = (r, g, b, a) => `rgba(${r},${g},${b},${a})`;
+// weiches Wertrauschen (bilinear über hash2) für Nebel, Schlick
+function vn(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash2(xi, yi, s), b = hash2(xi + 1, yi, s), c = hash2(xi, yi + 1, s), d = hash2(xi + 1, yi + 1, s);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+
+// Ein senkrechtes Brett (Ost-West-Steg: Bretter laufen Nord–Süd). x0 = linke Kante, y0..y1
+function vBoard(p, x0, y0, y1, seed) {
+  const base = 3 + Math.floor(hash2(x0, 0, seed) * 2.2);
+  for (let y = y0; y <= y1; y++) {
+    for (let i = 0; i < 3; i++) {
+      let k = base + (i === 0 ? 1 : i === 2 ? -1 : 0);
+      if (hash2(x0 + i, y >> 1, seed + 1) < 0.08) k -= 1;                  // Maserung
+      if (hash2(x0 + i, y, seed + 2) < 0.04) k += 1;
+      p.px(x0 + i, y, PLANK[clampI(k, PLANK.length)]);
+    }
+    p.px(x0 + 3, y, PLANK[0]);                                            // Fuge
+  }
+}
+// Stoß (Brettende) mit Nägeln
+function vSeam(p, x0, y) { p.rect(x0, y, 3, 1, PLANK[0]); p.px(x0, y - 1, PLANK[6]); p.px(x0 + 2, y + 1, '#8a8a80'); p.px(x0, y + 1, '#5a5a52'); }
+function mossPx(p, x, y, seed) { if (hash2(x, y, seed) < 0.5) p.px(x, y, MOSS[3 + (hash2(x, y, seed + 1) * 3 | 0)]); }
+
+// Bohlenfläche einer Zelle ab dem Anker (Ost-West-Bretter)
+function deckBoardsInto(p, oy, v, seed) {
+  for (let b = 0; b < 4; b++) {
+    vBoard(p, b * 4, oy, oy + 15, seed + b * 7);
+    if (hash2(b, v, seed) < 0.45) vSeam(p, b * 4, oy + 2 + Math.floor(hash2(b, v, seed + 3) * 11));
+  }
+  // Moos in den Fugen, nasse Stellen
+  for (let k = 0; k < 4; k++) mossPx(p, 3 + 4 * (k % 4), oy + Math.floor(hash2(k, v, seed + 5) * 16), seed + 6 + k);
+  if (v === 2) { p.px(6, oy + 7, PLANK[1]); p.px(5, oy + 8, PLANK[1]); p.px(9, oy + 4, '#3a4a30'); }
+}
+function deckBoards(v) {
+  return flat(16, 16, 8, 0, (p) => deckBoardsInto(p, 0, v, 2100 + v * 13));
+}
+// Letzte Bohlenreihe: Kante, Stützpfahl, Schatten und Spiegelung im Wasser darunter
+function deckEdge(v) {
+  return flat(16, 15, 8, 0, (p) => {
+    for (let b = 0; b < 4; b++) vBoard(p, b * 4, 0, 1, 2140 + v * 5 + b);
+    p.rect(0, 2, 16, 1, PLANK[5]); p.rect(0, 3, 16, 1, PLANK[2]); p.rect(0, 4, 16, 1, PLANK[1]); // Randbalken
+    for (let x = 0; x < 16; x++) if (hash2(x, 0, 2150 + v) < 0.25) p.px(x, 2, PLANK[6]);
+    for (let y = 5; y < 10; y++) p.rect(0, y, 16, 1, rgba(2, 6, 4, 0.5 - (y - 5) * 0.09));     // Schatten auf dem Wasser
+    const px = [3, 10, 6][v];
+    for (let y = 5; y < 10; y++) { p.px(px, y, PLANK[y < 7 ? 3 : 2]); p.px(px + 1, y, PLANK[1]); }  // Pfahl
+    p.px(px - 1, 10, SW[4]); p.px(px + 2, 10, SW[4]); p.px(px, 11, SW[3]); p.px(px + 1, 11, SW[3]);   // Kringel
+    for (let y = 11; y < 14; y++) if (y % 2) p.px(px, y, rgba(10, 16, 12, 0.6));               // Spiegelung
+    if (v === 1) { p.px(12, 6, MOSS[4]); p.px(12, 7, MOSS[3]); p.px(13, 8, BEARD[2]); }
+    if (v === 2) { p.px(13, 11, SW[5]); p.px(14, 11, SW[4]); }
+  });
+}
+// Trägerzelle im Wasser über der ersten Bohlenreihe: Geländer (Pfosten + Seil) und die Bretter der Reihe darunter.
+// post: Pfosten links; lantern: Laternenpfahl statt Pfosten
+function deckCarrier(v, post, lantern = false) {
+  const top = lantern ? 30 : 18;           // Pixel über dem Anker
+  const W = 16, H = top + 16;
+  return flat(W, H, 8, top, (p, g) => {
+    const a = top;                         // Ankerzeile im Sprite
+    deckBoardsInto(p, a, v, 2160 + v * 11 + (post ? 50 : 0));
+    p.rect(0, a, 16, 1, PLANK[2]);         // Nordkante (Stirnholz im Schatten)
+    // Seil zwischen den Pfosten (Periode 32 px, Pfosten bei x = 2)
+    const off = post ? 0 : 16;
+    for (let x = 0; x < 16; x++) {
+      const t = (x + off - 2) / 32;
+      if (t < 0.04 || t > 1) continue;
+      const y = a - 11 + Math.round(Math.sin(Math.PI * t) * 4);
+      p.px(x, y, BEARD[2]); if ((x + off) % 3 === 0) p.px(x, y + 1, BEARD[1]);
+      if (hash2(x + off, v, 2170) < 0.12) beard(p, x, y + 1, 3 + (x % 3), x);
+    }
+    if (post || lantern) {
+      const ph = lantern ? 28 : 13;
+      pole(p, 1, a - ph, a + 2, 2, PLANK.slice(1), 2171 + v);
+      p.px(1, a - ph, PLANK[7]); p.px(2, a - ph, PLANK[5]);
+      for (let y = a - ph + 3; y < a; y += 4) p.px(1, y, MOSS[4]);
+      p.px(1, a - 11, BEARD[3]); p.px(2, a - 10, BEARD[2]);
+    }
+    if (lantern) {
+      // Galgenarm mit Laterne über dem Steg
+      p.rect(1, a - 27, 9, 2, PLANK[4]); p.rect(1, a - 27, 9, 1, PLANK[6]); p.line(3, a - 22, 7, a - 26, PLANK[3]);
+      const lx = 8, ly = a - 22;
+      p.line(lx + 1, a - 25, lx + 1, ly - 1, IRON[2]);
+      p.rect(lx - 1, ly, 5, 1, IRON[3]); p.rect(lx - 1, ly + 1, 5, 5, IRON[1]); p.rect(lx, ly + 1, 3, 5, '#6a6420');
+      p.px(lx + 1, ly + 2, '#fff4a8'); p.px(lx + 1, ly + 3, '#f0e070'); p.px(lx, ly + 4, '#c8b848'); p.px(lx + 2, ly + 4, '#a89830');
+      p.rect(lx - 1, ly + 6, 5, 1, IRON[2]);
+      g.rect(lx, ly + 1, 3, 5, '#a8a040'); g.px(lx + 1, ly + 2, '#fffad0'); g.px(lx + 1, ly + 3, '#fff0a0');
+      // Lichtfleck auf den Brettern
+      for (let y = a + 2; y < a + 9; y++) for (let x = 4; x < 14; x++) if (((x + y) & 1) && Math.hypot(x - 9, (y - a - 5) * 1.6) < 5) p.px(x, y, PLANK[6]);
+    }
+  }, lantern ? { light: { dx: 1, dy: -16, radius: 66, color: [230, 220, 130], intensity: 0.8 } } : null);
+}
+// Nord-Süd-Steg (1 breit) und breite Gänge: waagrechte Bretter. side: 'one' | 'L' | 'R'
+function stegNS(v, post, side = 'one') {
+  const W = 22, H = 16, c0 = 3;            // Zelle bei x = 3..18
+  return flat(W, H, 11, 0, (p) => {
+    const xl = side === 'R' ? c0 : c0 + 1, xr = side === 'L' ? c0 + 15 : c0 + 14;
+    // Schatten rechts neben dem Steg (Licht von links oben)
+    if (side !== 'L') for (let y = 0; y < 16; y++) { p.px(xr + 1, y, rgba(2, 6, 4, 0.55)); p.px(xr + 2, y, rgba(2, 6, 4, 0.3)); }
+    for (let j = 0; j < 4; j++) {
+      const y0 = j * 4, s = 2200 + v * 17 + j * 3 + (side === 'R' ? 40 : 0);
+      const e0 = side === 'R' ? xl : xl - (hash2(j, v, s) < 0.3 ? 1 : 0), e1 = side === 'L' ? xr : xr + (hash2(j, v, s + 1) < 0.3 ? 1 : 0);
+      const base = 3 + Math.floor(hash2(j, v, s + 2) * 2.2);
+      for (let x = e0; x <= e1; x++) for (let r = 0; r < 3; r++) {
+        let k = base + (r === 0 ? 1 : r === 2 ? -1 : 0);
+        if (hash2(x >> 1, y0 + r, s + 3) < 0.08) k -= 1;
+        if (side !== 'R' && x === e0) k += 1;
+        p.px(x, y0 + r, PLANK[clampI(k, PLANK.length)]);
+      }
+      p.rect(e0, y0 + 3, e1 - e0 + 1, 1, PLANK[0]);
+      if (side !== 'R') { p.px(e0 + 1, y0 + 1, '#6a6a60'); } if (side !== 'L') p.px(e1 - 1, y0 + 1, '#5a5a52');
+      if (hash2(j, v, s + 4) < 0.3) mossPx(p, xl + 2 + Math.floor(hash2(j, v, s + 5) * 10), y0 + 3, s + 6);
+    }
+    if (v === 1) { p.rect(c0 + 6, 9, 3, 2, PLANK[1]); p.px(c0 + 7, 9, '#0a0e0c'); } // abgebrochene Brettecke
+    if (post) {
+      const sides = side === 'one' ? [c0 - 2, c0 + 16] : side === 'L' ? [c0 - 2] : [c0 + 16];
+      for (const x of sides) {
+        for (let y = 3; y < 13; y++) { p.px(x, y, PLANK[y < 5 ? 6 : 3]); p.px(x + 1, y, PLANK[y < 5 ? 4 : 1]); }
+        p.px(x - 1, 13, SW[4]); p.px(x + 2, 13, SW[4]); p.px(x, 14, SW[3]); p.px(x + 1, 14, SW[3]);
+        if (hash2(x, v, 2230) < 0.6) { p.px(x, 6, MOSS[4]); p.px(x, 7, MOSS[3]); }
+      }
+    }
+  });
+}
+// Furt: Schlick unter Flachwasser, Trittsteine, Kringel
+function fordShallows(v) {
+  return flat(20, 16, 10, 0, (p) => {
+    for (let y = 0; y < 16; y++) for (let x = 2; x < 18; x++) {
+      const n = vn((x + v * 5) / 5, y / 4, 2300) * 0.7 + hash2(x, y, 2301 + v) * 0.3;
+      if (n < 0.42) continue;
+      const c = n > 0.75 ? SILT[2] : n > 0.6 ? SILT[1] : SILT[0];
+      if (((x + y) & 1) || n > 0.7) p.px(x, y, c);
+    }
+    const stones = [[[6, 5, 3, 2], [13, 11, 2.4, 1.6]], [[11, 4, 2.6, 1.8], [5, 12, 2, 1.4]], [[9, 8, 3.4, 2.2]], [[4, 3, 2, 1.4], [12, 8, 2.6, 1.8], [7, 13, 1.8, 1.2]]][v];
+    for (const [sx, sy, rx, ry] of stones) {
+      p.ellipse(sx + 1, sy + 1, rx + 0.5, ry, rgba(2, 6, 4, 0.55));                       // Wasserlinie/Schatten
+      shadeLump(p, sx, sy, rx, ry, MST.slice(2), 2310 + sx * 3 + sy, { rough: 0.15, flat: 0.3 });
+      p.px(Math.round(sx - rx + 1), Math.round(sy - ry + 1), MST[7]);
+      if (hash2(sx, sy, 2311) < 0.6) p.px(Math.round(sx), Math.round(sy - ry), MOSS[5]);
+      p.px(Math.round(sx - rx - 1), Math.round(sy + ry), SW[4]); p.px(Math.round(sx + rx + 1), Math.round(sy + ry), SW[5]);
+    }
+    for (let k = 0; k < 3; k++) { const x = 3 + Math.floor(hash2(k, v, 2320) * 13), y = 1 + Math.floor(hash2(k, v, 2321) * 14); p.px(x, y, SW[5]); p.px(x + 1, y, SW[4]); }
+  });
+}
+// Dammufer: Faschinen (Reisigbündel) und Pflöcke an der Böschungskante
+function fascine(p, x0, x1, y, seed) {
+  for (let x = x0; x <= x1; x++) {
+    for (let r = 0; r < 3; r++) {
+      let k = r === 0 ? 5 : r === 1 ? 3 : 2;
+      if (((x * 3 + r * 5 + seed) % 7) === 0) k -= 2;
+      p.px(x, y + r, ROT[clampI(k, 7)]);
+    }
+    if ((x + seed) % 6 === 0) { p.px(x, y, '#6a6040'); p.px(x, y + 1, '#4a4430'); p.px(x, y + 2, '#3a3424'); } // Bindung
+  }
+}
+function stake(p, x, yTop, yBot) {
+  for (let y = yTop; y <= yBot; y++) { p.px(x, y, ROT[y === yTop ? 6 : 4]); p.px(x + 1, y, ROT[y === yTop ? 5 : 2]); }
+}
+function damBank(v, south) {
+  const W = 18, ax = 9;
+  if (!south) {
+    // Nordböschung: Kante oben an der Zelle (Zelle selbst zeigt Dammerde)
+    return flat(W, 15, ax, 18, (p) => {
+      for (let x = 0; x < W; x++) if (hash2(x, v, 2400) < 0.5) p.px(x, 0, SW[3]);       // Wasserkante
+      fascine(p, 0, W - 1, 3, v * 3);
+      for (let x = 1 + v; x < W - 1; x += 5) stake(p, x, hash2(x, v, 2401) < 0.5 ? 0 : 1, 6);
+      for (let x = 0; x < W; x++) { p.px(x, 6, MUD[3]); if (hash2(x, v, 2402) < 0.4) p.px(x, 7, MUD[2]); }
+      for (let i = 0; i < 3; i++) blade(p, 2 + Math.floor(hash2(i, v, 2403) * 14), 8, 2 + i, i % 2 ? 1 : -1, REED, 1, 4);
+    });
+  }
+  // Südböschung: Kante unten an der Zelle, Pflöcke im Wasser davor
+  return flat(W, 14, ax, 6, (p) => {
+    for (let x = 0; x < W; x++) { p.px(x, 0, MUD[2]); if (hash2(x, v, 2410) < 0.6) p.px(x, 1, MUD[1]); }
+    fascine(p, 0, W - 1, 4, v * 5 + 1);
+    for (let x = 0; x < W; x++) p.px(x, 7, PLANK[1]);
+    for (let x = 2 + v; x < W - 1; x += 5) { stake(p, x, 2, 9); p.px(x - 1, 10, SW[4]); p.px(x + 2, 10, SW[4]); }
+    for (let y = 8; y < 13; y++) for (let x = 0; x < W; x++) if (((x + y) & 1) && hash2(x, y, 2411 + v) < 0.7 - (y - 8) * 0.12) p.px(x, y, rgba(2, 6, 4, 0.45));
+    for (let x = 0; x < W; x++) if (hash2(x, v, 2412) < 0.3) p.px(x, 12, SW[4]);
+  });
+}
+// Seitenpflöcke an Nord-Süd-Dämmen (side -1: Damm liegt rechts, Pflöcke am linken Zellrand)
+function damStakes(v, side) {
+  const W = 10, ax = side < 0 ? 8 : 2;
+  return flat(W, 20, ax, 16, (p) => {
+    const xs = side < 0 ? [2, 5] : [3, 6];
+    for (let y = 0; y < 20; y++) {
+      const fx = side < 0 ? 4 : 3;
+      p.px(fx, y, ROT[(y + v) % 4 === 0 ? 2 : 4]); p.px(fx + 1, y, ROT[3]); p.px(fx + 2, y, ROT[2]);   // Faschine senkrecht
+    }
+    for (let y = v * 2; y < 18; y += 6) { const x = xs[(y / 6) & 1]; for (let k = 0; k < 4; k++) { p.px(x, y + k, ROT[k === 0 ? 6 : 4]); p.px(x + 1, y + k, ROT[k === 0 ? 5 : 2]); } }
+    const wx = side < 0 ? 0 : 8;
+    for (let y = 0; y < 20; y++) if (hash2(y, v, 2420) < 0.4) p.px(wx + (side < 0 ? 1 : 0), y, SW[4]);
+  });
+}
+// Seerosen
+function lilyPads(v) {
+  return flat(28, 16, 14, 9, (p) => {
+    const pads = [[[8, 7, 4, 2.2], [17, 10, 3.4, 1.8], [13, 4, 2.4, 1.3]], [[12, 8, 5, 2.6], [21, 5, 2.6, 1.4], [5, 11, 2.2, 1.2]], [[7, 5, 3, 1.6], [15, 8, 3.8, 2], [22, 11, 2.6, 1.4], [10, 12, 2, 1.1]]][v];
+    pads.forEach(([x, y, rx, ry], i) => {
+      p.ellipse(x + 1, y + 1, rx, ry, rgba(2, 6, 4, 0.5));
+      p.ellipse(x, y, rx, ry, MOSS[3]); p.ellipse(x - 0.5, y - 0.3, rx - 0.8, ry - 0.6, MOSS[4]);
+      p.px(Math.round(x - rx * 0.5), Math.round(y - ry * 0.4), MOSS[6]);
+      // Kerbe
+      const a = hash2(i, v, 2500) * Math.PI * 2;
+      for (let r = 0; r < rx; r++) p.px(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * ry / rx), SW[2]);
+      p.px(Math.round(x), Math.round(y), MOSS[2]);
+    });
+    if (v !== 1) { const [x, y] = pads[1]; p.px(x - 1, y - 2, '#e8d8e0'); p.px(x, y - 2, '#f8eef2'); p.px(x + 1, y - 2, '#d8b8c8'); p.px(x, y - 3, '#ffffff'); p.px(x, y - 1, '#e0c040'); }
+    for (let k = 0; k < 4; k++) { const x = 2 + Math.floor(hash2(k, v, 2501) * 24), y = 2 + Math.floor(hash2(k, v, 2502) * 12); p.px(x, y, SW[4]); }
+  });
+}
+// Versunkene Dächer: v0 Strohgiebel, v1 Schieferdach mit Schornstein, v2 Kapellenspitze
+function sunkenRoof(v) {
+  const W = [48, 46, 26][v], H = [30, 32, 50][v], wl = H - 6, cx = W / 2;
+  return flat(W, H, Math.floor(cx), wl, (p, g) => {
+    // Unterwasserteil: dunkle Silhouette durch das Wasser
+    for (let y = wl; y < H; y++) for (let x = 0; x < W; x++) {
+      const e = Math.abs(x - cx) / (cx - 2) + (y - wl) / 7;
+      if (e < 1 && ((x + y) & 1)) p.px(x, y, rgba(2, 8, 6, 0.55 - (y - wl) * 0.06));
+    }
+    outlined(p, W, H, (q) => {
+      if (v === 0) {
+        poly(q, [[3, wl], [cx, wl - 19], [W - 3, wl]], (x, y) => {
+          let i = x < cx ? 4 : 2; if ((y + (x >> 1)) % 3 === 0) i--; if (hash2(x, y, 2600) < 0.1) i--;
+          if (x > cx + 3 && x < cx + 9 && y > wl - 8 && y < wl - 3 && hash2(x >> 1, y, 2601) < 0.6) return INTERIOR;
+          return (hash2(x >> 2, y >> 1, 2602) < 0.4 ? MOSS : THATCH)[clampI(i, 7)];
+        });
+        q.line(cx - 1, wl - 19, cx - 4, wl - 23, ROT[5]); q.line(cx + 1, wl - 19, cx + 4, wl - 22, ROT[4]);
+        rimLight(q, W, H, '#a89a68', '#8a7e54');   // gekreuzte Giebelbalken
+      } else if (v === 1) {
+        poly(q, [[4, wl], [10, wl - 13], [W - 8, wl - 13], [W - 3, wl]], (x, y) => {
+          const row = (wl - y) % 3, col = (x + ((wl - y) / 3 | 0) * 2) % 5;
+          let c = row === 0 || col === 0 ? MST[1] : MST[3 + (hash2(x, y, 2610) < 0.3 ? 1 : 0)];
+          if (x < 10) c = row === 0 ? MST[2] : MST[5];
+          if (hash2(x >> 1, y >> 1, 2611) < 0.08) c = INTERIOR;
+          return c;
+        });
+        rimLight(q, W, H, '#8a9488', MST[6]);
+        // Schornstein
+        q.rect(W - 15, wl - 22, 5, 10, '#4a2e24'); q.rect(W - 15, wl - 22, 2, 10, '#6a4434');
+        for (let y = wl - 21; y < wl - 12; y += 3) q.rect(W - 15, y, 5, 1, '#2a1a14');
+        q.rect(W - 16, wl - 23, 7, 2, MST[4]);
+        for (let x = 12; x < W - 10; x++) if (hash2(x, 3, 2612) < 0.35) q.px(x, wl - 12, MOSS[5]);
+      } else {
+        // Kapellenspitze mit Glocke und Wetterhahn
+        poly(q, [[4, wl], [cx, wl - 34], [W - 4, wl]], (x, y) => {
+          const row = (wl - y) % 3;
+          let i = x < cx ? 4 : 2; if (row === 0) i--; if (hash2(x, y, 2620) < 0.08) i--;
+          return MST[clampI(i + 1, 8)];
+        });
+        rimLight(q, W, H, '#9aa498', MST[7]);
+        q.rect(cx - 3, wl - 14, 6, 7, INTERIOR); q.px(cx - 3, wl - 15, MST[5]); q.px(cx + 2, wl - 15, MST[3]);
+        q.rect(cx - 2, wl - 12, 4, 3, '#8a6a2a'); q.px(cx - 1, wl - 12, '#c8a050'); q.px(cx, wl - 9, '#4a3410');
+        q.line(cx, wl - 34, cx, wl - 41, IRON[3]); q.line(cx - 2, wl - 39, cx + 2, wl - 39, IRON[3]); q.px(cx + 1, wl - 42, IRON[4]); q.px(cx + 2, wl - 41, IRON[2]);
+        for (let y = wl - 30; y < wl; y += 4) beard(q, cx - 4 + ((y * 3) % 7), y, 3, y);
+      }
+    });
+    // Wasserlinie: Kringel und Schaum
+    for (let x = 1; x < W - 1; x++) {
+      const e = Math.abs(x - cx) / (cx - 1);
+      if (e > 0.95) continue;
+      if (hash2(x, v, 2630) < 0.55) p.px(x, wl, SW[4]); if (hash2(x, v, 2631) < 0.25) p.px(x, wl + 1, SW[5]);
+    }
+    p.px(2, wl + 2, SW[4]); p.px(W - 3, wl + 2, SW[4]); p.px(3, wl + 3, SW[3]); p.px(W - 4, wl + 3, SW[3]);
+    if (v === 0) { g.px(cx + 5, wl - 5, GLG[2]); p.px(cx + 5, wl - 5, GLG[3]); }                  // Irrlicht im Dachloch
+  });
+}
+// Nebelschwaden über dem Nebelsee (halbdurchsichtig)
+function mistWisps(v) {
+  const W = 64, H = 24;
+  return flat(W, H, 32, 13, (p) => {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const e = ((x - 32) / 31) ** 2 + ((y - 12) / 11) ** 2;
+      if (e > 1) continue;
+      const n = vn(x / 9 + v * 3, y / 4, 2700) * 0.65 + vn(x / 4, y / 2.5, 2701 + v) * 0.35;
+      const a = (n - 0.42) * 1.4 * (1 - e);
+      if (a <= 0.03) continue;
+      if (a < 0.12 && ((x + y) & 1)) continue;
+      p.px(x, y, rgba(150, 172, 150, Math.min(0.34, a).toFixed(3)));
+    }
+  });
+}
+// Bootswrack: Ruderboot, Bug ragt schräg aus dem Wasser
+function drownedBoat(v) {
+  const W = 40, H = 24, wl = 18;
+  return flat(W, H, 20, wl, (p) => {
+    for (let y = wl; y < H; y++) for (let x = 4; x < W - 4; x++) if (((x + y) & 1) && Math.abs(x - 20) / 16 + (y - wl) / 6 < 1) p.px(x, y, rgba(2, 8, 6, 0.5));
+    outlined(p, W, H, (q) => {
+      const s = v ? -1 : 1, bx = v ? 30 : 10;
+      // Rumpf als schräges Viereck: Heck unter Wasser, Bug oben
+      poly(q, [[20 - s * 14, wl], [bx, wl - 13], [bx + s * 5, wl - 12], [20 + s * 10, wl]], (x, y) => {
+        const k = ((y + Math.round(x * 0.4 * s)) % 3 === 0) ? 2 : y < wl - 6 ? 5 : 4;
+        return ROT[clampI(k - (hash2(x, y, 2800) < 0.1 ? 1 : 0), 7)];
+      });
+      q.line(20 - s * 14, wl, bx, wl - 13, ROT[6]);
+      // Innenraum dunkel, Ruderbank
+      poly(q, [[20 - s * 9, wl], [bx + s * 1, wl - 10], [bx + s * 4, wl - 9], [20 + s * 6, wl]], INTERIOR);
+      q.line(20 - s * 3, wl - 5, 20 + s * 3, wl - 6, ROT[5]);
+      // Ruder treibt daneben
+      q.line(20 + s * 8, wl + 1, 20 + s * 17, wl - 1, ROT[4]); q.rect(20 + s * 17 - (s < 0 ? 3 : 0), wl - 2, 4, 2, ROT[5]);
+      beard(q, bx + s, wl - 12, 5, v + 1);
+    });
+    for (let x = 3; x < W - 3; x += 2) if (hash2(x, v, 2801) < 0.6) p.px(x, wl, SW[4]);
+  });
+}
+// Riesenpilze (Pilzwald)
+function giantShroom(v) {
+  const G = [GLV, GLT, GLG][v];
+  const CAP = [['#1a0e26', '#2a1640', '#3c2058', '#523074', '#6c4892'], ['#08201e', '#0e3230', '#164644', '#205e5a', '#2e7a72'], ['#0c1e10', '#142e18', '#1e4224', '#2a5a30', '#3a743e']][v];
+  const H = [66, 78, 56][v], W = 56, cx = 28;
+  const capR = [17, 21, 14][v], capY = [20, 22, 18][v];
+  return mk(W, H, (p, g) => {
+    const by = H - 1;
+    mudPatch(p, cx, by - 1, 14, 3, 2900 + v);
+    // Stiel: leicht gebogen, Ring, Knolle
+    const bend = [3, -4, 2][v];
+    const sx = (y) => cx + Math.round(bend * Math.sin(((y - capY) / (by - capY)) * Math.PI));
+    for (let y = capY; y < by; y++) {
+      const t = (y - capY) / (by - capY), hw = 3 + Math.round(t * t * 4) + (y > by - 5 ? 2 : 0);
+      for (let x = sx(y) - hw; x <= sx(y) + hw; x++) {
+        const rel = (x - (sx(y) - hw)) / (2 * hw);
+        let c = rel < 0.25 ? '#c8c4b0' : rel < 0.6 ? '#a8a490' : rel < 0.85 ? '#7c7868' : '#5a5648';
+        if (hash2(x, y >> 1, 2910 + v) < 0.1) c = '#8c8876';
+        p.px(x, y, c);
+      }
+    }
+    // Ring (Manschette)
+    const ry = capY + Math.round((by - capY) * 0.32);
+    for (let x = sx(ry) - 7; x <= sx(ry) + 7; x++) { p.px(x, ry, '#d8d4c0'); p.px(x, ry + 1, '#9a9682'); if (hash2(x, 0, 2911) < 0.5) p.px(x, ry + 2, '#7a7666'); }
+    // Lamellen-Unterseite leuchtet
+    for (let x = cx - capR + 2; x <= cx + capR - 2; x++) {
+      const d = Math.abs(x - cx) / capR;
+      const yy = capY + 1 + Math.round((1 - d * d) * 3);
+      for (let y = capY; y <= yy; y++) { p.px(x, y, (x % 2) ? G[1] : G[2]); g.px(x, y, (x % 2) ? G[1] : G[2]); }
+      if (x % 3 === 0) g.px(x, yy, G[3]);
+    }
+    // Hut (Kuppel) mit Licht von links oben
+    shadeLump(p, cx, capY - 4, capR, capR * 0.55, CAP, 2920 + v, { rough: 0.06, keep: (x, y) => y <= capY });
+    for (let x = cx - capR; x <= cx + capR; x++) if (hash2(x, 1, 2921 + v) < 0.7) p.px(x, capY + 1, CAP[0]);
+    // Leuchtflecken
+    for (let k = 0; k < 9 + v * 2; k++) {
+      const a = hash2(k, 0, 2930 + v) * Math.PI, r = Math.sqrt(hash2(k, 1, 2930 + v)) * 0.85;
+      const x = Math.round(cx + Math.cos(a) * capR * r), y = Math.round(capY - 4 - Math.sin(a) * capR * 0.5 * r);
+      const big = hash2(k, 2, 2930) < 0.4;
+      p.px(x, y, G[3]); g.px(x, y, G[4]);
+      if (big) { p.px(x + 1, y, G[2]); p.px(x, y + 1, G[2]); g.px(x + 1, y, G[3]); }
+    }
+    // Sporenfäden hängen vom Hutrand
+    for (let k = 0; k < 5; k++) {
+      const x = cx - capR + 3 + Math.floor(hash2(k, 3, 2940 + v) * (capR * 2 - 6)), len = 3 + Math.floor(hash2(k, 4, 2940) * 7);
+      for (let i = 0; i < len; i++) { p.px(x, capY + 3 + i, i === len - 1 ? G[4] : G[1]); if (i === len - 1) g.px(x, capY + 3 + i, G[4]); }
+    }
+    // kleine Pilze am Fuß, schwebende Sporen
+    glowShroom(p, g, cx - 9, by - 1, 2, 3, G, 2950 + v); glowShroom(p, g, cx + 10, by, 1, 2, G, 2951 + v);
+    for (let k = 0; k < 6; k++) { const x = 6 + Math.floor(hash2(k, 5, 2960 + v) * 44), y = 2 + Math.floor(hash2(k, 6, 2960 + v) * (capY + 6)); g.px(x, y, G[3]); if (k % 2) p.px(x, y, G[3]); }
+  }, { ax: cx, box: [-5, -4, 5, 1], light: { dx: 0, dy: -(H - capY) + 4, radius: 74, color: [[190, 110, 255], [90, 230, 210], [110, 240, 140]][v], intensity: 0.55 } });
+}
+// Hexenhütte (Geheimecke im Pilzwald)
+function witchHut() {
+  const W = 74, H = 72;
+  return mk(W, H, (p, g) => {
+    const by = H - 1, cx = 36, floorY = by - 10, wTop = 34;
+    mudPatch(p, cx, by - 2, 34, 4, 3001);
+    // krumme Stelzen
+    for (const [x, d] of [[16, -1], [30, 1], [44, 0], [56, 1]]) { for (let y = floorY; y < by - 2; y++) { const xx = x + Math.round(d * (y - floorY) / 5); p.px(xx, y, ROT[3]); p.px(xx + 1, y, ROT[1]); } }
+    // Bodenplatte
+    p.rect(12, floorY - 2, 50, 3, ROT[4]); p.rect(12, floorY - 2, 50, 1, ROT[6]); p.rect(12, floorY + 1, 50, 1, ROT[1]);
+    // Wände: schiefe Bretter, verzogen
+    for (let x = 14; x <= 58; x++) {
+      const lean = Math.round((x - 36) * 0.06);
+      for (let y = wTop + Math.abs(lean); y < floorY - 2; y++) {
+        const b = (x - 14) % 5;
+        let i = b === 0 ? 1 : b === 1 ? 5 : 3;
+        if (x < 18) i += 1; if (hash2(x, y >> 2, 3002) < 0.12) i -= 1;
+        p.px(x + (y < wTop + 8 ? lean : 0), y, ROT[clampI(i, 7)]);
+      }
+    }
+    // Rundfenster mit Grünlicht, Tür mit Schädel
+    p.ellipse(22, 46, 4, 4, '#1a2a10'); p.ellipse(22, 46, 3, 3, '#3a8a2a'); p.px(21, 45, '#c8ff90'); p.line(22, 42, 22, 50, ROT[2]); p.line(18, 46, 26, 46, ROT[2]);
+    g.ellipse(22, 46, 3, 3, '#4aa83a'); g.px(21, 45, '#e0ffc0');
+    p.rect(38, 40, 10, floorY - 42, INTERIOR); p.rect(37, 39, 12, 1, ROT[5]); p.rect(37, 40, 1, floorY - 42, ROT[5]);
+    p.rect(41, 42, 4, 3, BONE[3]); p.px(42, 43, INTERIOR); p.px(44, 43, INTERIOR); p.rect(42, 45, 2, 1, BONE[2]);
+    // Strohdach, durchhängend, mit Moos und schiefem Schornstein
+    const rTop = 8, rBot = wTop + 2;
+    for (let y = rTop; y <= rBot; y++) {
+      const k = (y - rTop) / (rBot - rTop), sag = Math.round(Math.sin(k * Math.PI) * 2);
+      const xl = Math.round(cx - 5 - k * 28), xr = Math.round(cx + 8 + k * 27);
+      for (let x = xl; x <= xr; x++) {
+        const rel = (x - xl) / (xr - xl);
+        let i = rel < 0.25 ? 5 : rel < 0.55 ? 4 : rel < 0.8 ? 3 : 2;
+        if ((y + (x >> 1)) % 4 === 0) i -= 1; if (hash2(x, y, 3003) < 0.1) i -= 1;
+        const mossy = hash2(x >> 2, (y + sag) >> 1, 3004) < 0.35;
+        p.px(x, y + sag, (mossy ? MOSS : THATCH)[clampI(i + (mossy ? 1 : 0), 7)]);
+      }
+    }
+    for (let x = cx - 33; x <= cx + 35; x++) { const l = 1 + Math.round(hash2(x, 3, 3005) * 3); for (let k = 0; k < l; k++) p.px(x, rBot + 2 + k, THATCH[k === 0 ? 2 : 1]); }
+    beard(p, 12, rBot + 3, 7, 1); beard(p, 26, rBot + 3, 5, 2); beard(p, 60, rBot + 3, 8, 3);
+    // Schornstein (Rauch per extra.smoke)
+    for (let y = 2; y < 16; y++) { const x = 46 + Math.round((16 - y) * 0.25); p.rect(x, y, 5, 1, y % 3 ? '#4a3a30' : '#2a2018'); p.px(x, y, '#6a5444'); }
+    p.rect(46, 1, 7, 2, MST[4]);
+    // Kräuterleine und Knochenmobile unter der Traufe
+    p.line(10, rBot + 6, 30, rBot + 8, BEARD[2]);
+    for (const x of [13, 18, 23, 27]) { const y = rBot + 6 + Math.round((x - 10) / 10); p.rect(x, y + 1, 2, 4, x % 2 ? '#4a6a2a' : '#6a4a2a'); p.px(x, y + 1, '#8aa04a'); }
+    // Kessel links vor der Hütte mit grünem Sud
+    const kx = 9, ky = by - 6;
+    p.ellipse(kx, ky, 7, 5, '#14140f'); p.ellipse(kx, ky - 1, 6, 4, '#2a2a22'); p.ellipse(kx, ky - 4, 6, 1.6, '#3a8a2a'); p.px(kx - 2, ky - 4, '#c8ff90'); p.px(kx + 2, ky - 5, '#8ae060');
+    g.ellipse(kx, ky - 4, 6, 1.6, '#4aa83a'); g.px(kx - 2, ky - 4, '#e0ffc0'); g.px(kx + 1, ky - 6, '#8ae060'); g.px(kx - 1, ky - 8, '#4aa83a');
+    p.px(kx + 1, ky - 6, '#8ae060'); p.px(kx - 1, ky - 8, '#6ac04a');
+    for (let x = kx - 4; x <= kx + 4; x += 2) { p.px(x, ky + 4, EMB[3]); g.px(x, ky + 4, EMB[4]); }
+    // Schädel auf Pfahl rechts
+    p.line(68, by - 2, 68, by - 18, ROT[4]); p.rect(66, by - 22, 5, 4, BONE[3]); p.px(67, by - 21, INTERIOR); p.px(69, by - 21, INTERIOR); p.rect(67, by - 18, 3, 1, BONE[2]);
+    p.px(67, by - 21, GLG[3]); g.px(67, by - 21, GLG[4]); g.px(69, by - 21, GLG[4]); p.px(69, by - 21, GLG[3]);
+    // Kerzen auf der Schwelle
+    for (const x of [34, 50]) { p.rect(x, floorY - 5, 2, 3, '#d8d0b0'); p.px(x, floorY - 6, '#ffd060'); g.px(x, floorY - 6, '#ffe890'); g.px(x, floorY - 7, '#ffb040'); }
+  }, { ax: 36, box: [-24, -14, 26, -4], light: { dx: -26, dy: -8, radius: 84, color: [140, 240, 120], intensity: 0.8 }, extra: { smoke: { dx: 14, dy: -70, rate: 1.5 } } });
+}
+// Truhen der Geheimecken
+function cacheChest(kind, open) {
+  const W = 22, H = 18;
+  return mk(W, H, (p, g) => {
+    const by = H - 1;
+    mudPatch(p, 11, by - 1, 10, 2, 3100, false);
+    const wood = kind === 'witch' ? ROT : PLANK, band = kind === 'witch' ? BONE : IRON;
+    p.rect(3, 8, 16, by - 9, wood[3]); p.rect(3, 8, 16, 1, wood[5]); p.rect(3, by - 2, 16, 1, wood[1]); p.rect(3, 8, 2, by - 9, wood[5]);
+    for (const x of [6, 15]) p.rect(x, 8, 2, by - 9, band[2]);
+    if (open) {
+      p.rect(3, 2, 16, 6, wood[2]); p.rect(3, 2, 16, 1, wood[4]); p.rect(4, 7, 14, 2, INTERIOR);
+      p.px(8, 8, GOLD[4]); p.px(11, 8, GOLD[3]); p.px(14, 8, GOLD[4]);
+    } else {
+      p.ellipse(11, 7, 8, 3, wood[4]); p.rect(3, 7, 16, 2, wood[4]); p.line(4, 5, 18, 5, wood[6]);
+      p.rect(10, 9, 3, 3, kind === 'witch' ? '#3a8a2a' : GOLD[2]); p.px(11, 10, kind === 'witch' ? '#c8ff90' : GOLD[4]);
+      if (kind === 'witch') { g.px(11, 10, '#e0ffc0'); g.px(10, 9, '#4aa83a'); p.rect(9, 3, 5, 3, BONE[3]); p.px(10, 4, INTERIOR); p.px(12, 4, INTERIOR); }
+      else { g.px(11, 10, GOLD[4]); }
+    }
+    if (kind === 'witch') { beard(p, 4, 9, 4, 1); glowShroom(p, g, 19, by - 1, 1, 2, GLG, 3101); }
+  }, { ax: 11, box: [-8, -5, 8, 1] });
+}
+
+// Ertrunkene Bäume: kahle Stämme im tiefen Wasser
+function drownedTree(v) {
+  const rng = createRng(3200 + v);
+  const H = [52, 44, 60][v], W = 44, cx = 22, wl = H - 5;
+  return mk(W, H, (p) => {
+    for (let y = wl; y < H; y++) for (let x = 4; x < W - 4; x++) if (((x + y) & 1) && Math.abs(x - cx) / 16 + (y - wl) / 5 < 1) p.px(x, y, rgba(2, 8, 6, 0.5));
+    const top = [12, 16, 8][v], lean = [2, -3, 1][v];
+    const tx = (y) => cx + Math.round(lean * (wl - y) / (wl - top));
+    for (let y = top; y <= wl; y++) {
+      const hw = 2 + ((y - top) / (wl - top)) * 2.4;
+      for (let x = Math.round(tx(y) - hw); x <= Math.round(tx(y) + hw); x++) {
+        const rel = (x - (tx(y) - hw)) / (2 * hw);
+        let i = rel < 0.25 ? 5 : rel < 0.55 ? 4 : rel < 0.8 ? 3 : 2;
+        if ((x * 2 + y) % 7 === 0) i -= 2; if (y > wl - 6) i -= 1;
+        p.px(x, y, MST[clampI(i, 8)]);
+      }
+    }
+    // kahle Äste
+    for (let k = 0; k < 5; k++) {
+      const y0 = top + rng.int(0, Math.round((wl - top) * 0.5)), s = k % 2 ? 1 : -1, len = rng.int(7, 14);
+      let x = tx(y0), y = y0;
+      for (let t = 0; t < len; t++) { x += s; if (t % 2 === 0) y -= 1; p.px(x, y, MST[t < 4 ? 4 : 3]); if (t < 3) p.px(x, y + 1, MST[2]); }
+      p.line(x, y, x + s * 2, y - 3, MST[3]);
+      if (rng.chance(0.6)) beard(p, x - s * 2, y + 1, rng.int(4, 9), k + v);
+    }
+    // Stammbruch oben, Moosring an der Wasserlinie
+    p.px(tx(top) - 1, top - 1, MST[5]); p.px(tx(top) + 1, top - 2, MST[4]);
+    for (let x = tx(wl) - 5; x <= tx(wl) + 5; x++) { p.px(x, wl - 1, MOSS[3 + (x % 2)]); if (hash2(x, v, 3201) < 0.5) p.px(x, wl - 2, MOSS[4]); }
+    for (let x = tx(wl) - 8; x <= tx(wl) + 8; x += 3) p.px(x, wl + 1, SW[4]);
+    p.px(tx(wl) - 9, wl, SW[5]); p.px(tx(wl) + 9, wl, SW[5]);
+  }, { ax: cx });
+}
+// Irrlicht über dem Wasser (Glühen + Licht, ohne Umriss)
+function willWisp(v) {
+  const C = [GLT, GLG, GLV][v];
+  return flat(16, 30, 8, 18, (p, g) => {
+    const y = 4 + v * 2;
+    p.px(8, y, C[4]); p.px(7, y, C[3]); p.px(9, y, C[3]); p.px(8, y - 1, C[3]); p.px(8, y + 1, C[2]);
+    g.rect(6, y - 1, 5, 3, C[2]); g.px(8, y, C[4]); g.px(7, y, C[4]); g.px(8, y - 2, C[2]); g.px(8, y + 2, C[1]);
+    for (let k = 0; k < 4; k++) { const x = 5 + Math.floor(hash2(k, v, 3300) * 7), yy = y + 3 + k * 2; g.px(x, yy, C[k < 2 ? 2 : 1]); }
+    // Spiegelung auf dem Wasser
+    for (let x = 5; x < 12; x++) if (x % 2) p.px(x, 20, rgba(110, 230, 200, 0.25));
+    p.px(8, 21, rgba(150, 255, 220, 0.3));
+  }, { light: { dx: 0, dy: -12 + v * 2, radius: 46, color: [[90, 230, 210], [110, 240, 140], [190, 120, 255]][v], intensity: 0.6 } });
+}
+// Quest-Laternen (Reihenfolge Rot → Grün → Blau → Weiß)
+const LANTERN_COL = { red: ['#3a0e0c', '#8a2018', '#e04a30', '#ffb0a0'], green: ['#0c2a12', '#1e7a34', '#4ae070', '#c8ffd0'], blue: ['#0c1638', '#1e4a9a', '#4a90f0', '#c8e0ff'], white: ['#2a2a2a', '#8a8a86', '#e6e6dc', '#ffffff'] };
+const LANTERN_LIGHT = { red: [255, 90, 70], green: [110, 240, 130], blue: [100, 160, 255], white: [240, 240, 230] };
+function questLantern(color, on) {
+  const C = LANTERN_COL[color];
+  return mk(18, 40, (p, g) => {
+    const by = 39, x0 = 5;
+    mudPatch(p, x0 + 2, by - 1, 5, 1, 3400, false);
+    pole(p, x0, 4, by - 1, 2, ROT.slice(1), 3401);
+    p.rect(x0, 4, 9, 2, ROT[4]); p.rect(x0, 4, 9, 1, ROT[6]); p.line(x0 + 2, 10, x0 + 6, 6, ROT[3]);
+    const lx = x0 + 6, ly = 9;
+    p.line(lx + 1, 6, lx + 1, ly - 1, IRON[2]);
+    p.rect(lx - 1, ly, 5, 1, IRON[3]); p.rect(lx - 2, ly + 1, 7, 7, IRON[1]); p.rect(lx - 1, ly + 1, 5, 6, on ? C[2] : C[0]);
+    p.px(lx, ly + 2, on ? C[3] : C[1]); p.px(lx + 1, ly + 3, on ? C[3] : C[1]); p.line(lx + 1, ly + 1, lx + 1, ly + 6, IRON[1]);
+    p.rect(lx - 2, ly + 8, 7, 1, IRON[2]); p.px(lx + 1, ly + 9, IRON[1]);
+    if (on) { g.rect(lx - 1, ly + 1, 5, 6, C[2]); g.px(lx, ly + 2, C[3]); g.px(lx + 1, ly + 3, C[3]); g.px(lx + 1, ly - 2, C[1]); }
+    // farbiges Band am Pfahl (auch erloschen erkennbar)
+    p.rect(x0, 20, 2, 3, C[1]); p.px(x0, 20, C[2]);
+  }, { ax: 6, box: [-2, -2, 2, 1], light: on ? { dx: 6, dy: -26, radius: 70, color: LANTERN_LIGHT[color], intensity: 0.9 } : undefined });
+}
+// Hexenkessel im Schilf
+function hagCauldron(on) {
+  return mk(30, 26, (p, g) => {
+    const by = 25, kx = 15, ky = by - 7;
+    mudPatch(p, kx, by - 1, 13, 2, 3500);
+    for (const x of [6, 24]) { p.line(x, by - 1, kx, ky - 9, ROT[3]); }
+    p.ellipse(kx, ky, 8, 6, '#14140f'); p.ellipse(kx, ky - 1, 7, 5, '#2a2a22'); p.ellipse(kx - 2, ky - 2, 3, 2, '#3a3a30');
+    const brew = on ? ['#3a2a10', '#6a5020'] : ['#2a6a1e', '#6ac04a'];
+    p.ellipse(kx, ky - 5, 7, 1.8, brew[0]); p.px(kx - 2, ky - 5, brew[1]); p.px(kx + 3, ky - 6, brew[1]);
+    if (!on) { g.ellipse(kx, ky - 5, 7, 1.8, '#3a8a2a'); g.px(kx - 2, ky - 5, '#c8ff90'); g.px(kx + 1, ky - 8, '#8ae060'); g.px(kx - 1, ky - 11, '#4aa83a'); p.px(kx + 1, ky - 8, '#8ae060'); }
+    for (let x = kx - 5; x <= kx + 5; x += 2) { p.px(x, by - 1, on ? ROT[1] : EMB[3]); if (!on) g.px(x, by - 1, EMB[4]); }
+    p.rect(kx + 9, by - 6, 3, 4, BONE[3]); p.px(kx + 9, by - 5, INTERIOR);
+    for (let i = 0; i < 6; i++) blade(p, 2 + i * 5, by, 5 + (i % 3) * 3, i % 2 ? 1 : -1, REED, 1, 5);
+  }, { ax: 15, box: [-8, -5, 8, 1], light: on ? undefined : { dx: 0, dy: -12, radius: 60, color: [140, 240, 120], intensity: 0.6 } });
+}
+// Gräber der Ertrunkenen (Holzkreuze, Grabsteine im Moos)
+function marshGraves(v) {
+  return mk(22, 22, (p) => {
+    const by = 21;
+    mudPatch(p, 11, by - 1, 9, 2, 3600 + v, false);
+    if (v === 0) { p.rect(9, 6, 3, 15, ROT[4]); p.rect(9, 6, 1, 15, ROT[6]); p.rect(5, 9, 11, 3, ROT[4]); p.rect(5, 9, 11, 1, ROT[6]); beard(p, 14, 12, 5, 1); }
+    else if (v === 1) { shadeLump(p, 11, 12, 5, 8, MST.slice(1), 3601, { rough: 0.05, keep: (x, y) => y <= by - 1 }); p.rect(9, 9, 4, 1, MST[2]); p.rect(10, 7, 2, 5, MST[2]); mossCap(p, [[7, 6], [8, 5], [9, 4], [10, 4], [11, 4]], 1, 3602); }
+    else { p.rect(6, 10, 3, 11, ROT[3]); p.rect(4, 12, 7, 2, ROT[4]); p.rect(13, 13, 6, 8, MST[3]); p.rect(13, 13, 6, 1, MST[5]); p.px(15, 16, MST[1]); }
+    for (let i = 0; i < 4; i++) blade(p, 3 + i * 5, by, 2 + (i % 2) * 2, i % 2 ? 1 : -1, REED, 1, 4);
+  }, { ax: 11, box: [-6, -4, 6, 1] });
+}
+
+// ------------------------------------------------------------ Runde 5/2: knorrige Stege
+// Alle Stegteile zeichnen die Bretter der Zelle UNTER dem Anker (Zelle x = 2..17
+// im 20 px breiten Sprite). Flags: 1 = Steg/Land setzt sich dort fort (glatter Stoß),
+// 0 = offenes Ende (ausgefranste Brettenden, Kantenbalken, Schatten aufs Wasser).
+const WC0 = 2, WC1 = 17;
+// Steg Nord–Süd: waagrechte Bohlen. fl = 'LR'
+function walkY(fl, v) {
+  const L = fl[0] === '1', R = fl[1] === '1', top = 6;
+  return flat(20, top + 18, 10, top, (p) => {
+    const s0 = 3100 + v * 31 + (L ? 7 : 0) + (R ? 13 : 0);
+    const ends = [];
+    for (let j = 0; j < 4; j++) {
+      const y0 = top + j * 4, s = s0 + j * 5;
+      if (v === 1 && j === 2 && !L && !R) { ends.push(null); continue; }            // fehlende Bohle
+      const e0 = L ? WC0 : WC0 + Math.floor(hash2(j, v, s) * 3);
+      const e1 = R ? WC1 : WC1 - Math.floor(hash2(j, v, s + 1) * 3);
+      ends.push([e0, e1]);
+      const base = 3 + Math.floor(hash2(j, v, s + 2) * 2.2);
+      for (let x = e0; x <= e1; x++) for (let r = 0; r < 3; r++) {
+        let k = base + (r === 0 ? 1 : r === 2 ? -1 : 0);
+        if (hash2(x >> 1, y0 + r, s + 3) < 0.09) k -= 1;
+        if (hash2(x, y0 + r, s + 4) < 0.03) k += 1;
+        if ((!L && x === e0) || (!R && x === e1)) k += r === 0 ? 2 : 0;          // Stirnholz im Licht
+        p.px(x, y0 + r, PLANK[clampI(k, PLANK.length)]);
+      }
+      p.rect(e0, y0 + 3, e1 - e0 + 1, 1, PLANK[0]);
+      // Nägel über den Längsbalken
+      if (!L || hash2(j, v, s + 5) < 0.5) p.px(e0 + 2, y0 + 1, '#6a6a60');
+      if (!R || hash2(j, v, s + 6) < 0.5) p.px(e1 - 2, y0 + 1, '#5a5a52');
+      if (hash2(j, v, s + 7) < 0.35) mossPx(p, e0 + 3 + Math.floor(hash2(j, v, s + 8) * 9), y0 + 3, s + 9);
+      if (hash2(j, v, s + 10) < 0.2) { const x = e0 + 4 + Math.floor(hash2(j, v, s + 11) * 7); p.px(x, y0 + 1, PLANK[1]); p.px(x + 1, y0 + 1, PLANK[2]); } // Astloch
+    }
+    // Schatten der offenen Ränder auf dem Wasser
+    for (let j = 0; j < 4; j++) {
+      const e = ends[j]; if (!e) continue;
+      for (let r = 0; r < 4; r++) {
+        if (!R) { p.px(e[1] + 1, top + j * 4 + r, rgba(2, 6, 4, 0.55)); p.px(e[1] + 2, top + j * 4 + r, rgba(2, 6, 4, 0.25)); }
+      }
+    }
+    // Längsbalken unter den Bohlen an offenen Seiten (sichtbar, wo Bohlen kürzer sind)
+    if (!L) for (let y = top; y < top + 16; y++) if (p.ctx.getImageData(WC0 + 1, y, 1, 1).data[3] === 0) p.px(WC0 + 1, y, PLANK[1]);
+    if (!R) for (let y = top; y < top + 16; y++) if (p.ctx.getImageData(WC1 - 1, y, 1, 1).data[3] === 0) p.px(WC1 - 1, y, PLANK[1]);
+    // Stummelpfosten an offenen Rändern
+    if (!L && v === 0) { pole(p, 0, top - 5, top + 9, 2, PLANK.slice(1), 3150); p.px(0, top - 5, PLANK[7]); p.px(0, top - 2, MOSS[4]); ripple(p, 0, top + 10, 1); }
+    if (!R && v === 1) { pole(p, 18, top - 3, top + 11, 2, PLANK.slice(1), 3151); p.px(18, top - 3, PLANK[6]); ripple(p, 18, top + 12, 1); }
+    if (v === 1 && !L && !R) {                                                    // Lücke: Balken sichtbar, Wasser dazwischen
+      p.rect(WC0 + 1, top + 8, 1, 4, PLANK[2]); p.rect(WC1 - 1, top + 8, 1, 4, PLANK[2]);
+      p.rect(WC0 + 2, top + 9, WC1 - WC0 - 3, 2, rgba(4, 10, 8, 0.35));
+    }
+  });
+}
+// Steg Ost–West: senkrechte Bohlen. fl = 'UD' (oben/unten fortgesetzt)
+function walkX(fl, v) {
+  const U = fl[0] === '1', D = fl[1] === '1';
+  return flat(16, 16, 8, 0, (p) => {
+    const s0 = 3200 + v * 29 + (U ? 5 : 0) + (D ? 11 : 0);
+    for (let b = 0; b < 4; b++) {
+      const y0 = U ? 0 : Math.floor(hash2(b, v, s0) * 3);
+      const y1 = 15;
+      vBoard(p, b * 4, y0, y1, s0 + b * 7);
+      if (!U) { p.rect(b * 4, y0, 3, 1, PLANK[6]); p.px(b * 4 + 1, y0 + 1, '#6a6a60'); }
+      if (hash2(b, v, s0 + 3) < 0.4) vSeam(p, b * 4, 3 + Math.floor(hash2(b, v, s0 + 4) * 10));
+    }
+    if (!U) for (let x = 0; x < 16; x++) if (p.ctx.getImageData(x, 0, 1, 1).data[3] === 0) p.px(x, 0, rgba(2, 6, 4, 0.3));
+    for (let k = 0; k < 3; k++) mossPx(p, 3 + 4 * k, Math.floor(hash2(k, v, s0 + 5) * 16), s0 + 6 + k);
+    if (v === 1) { p.px(6, 7, PLANK[1]); p.px(5, 8, PLANK[1]); p.px(9, 4, '#3a4a30'); }
+  });
+}
+// Stegkante (letzte Reihe): Randbalken, Stützpfahl, Schatten, Kringel. fl = 'LR'
+function walkRim(fl, v) {
+  const L = fl[0] === '1', R = fl[1] === '1';
+  return flat(20, 15, 10, 0, (p) => {
+    const s = 3300 + v * 17 + (L ? 3 : 0) + (R ? 9 : 0);
+    const x0 = L ? WC0 : WC0 + 1 + Math.floor(hash2(0, v, s) * 2), x1 = R ? WC1 : WC1 - 1 - Math.floor(hash2(1, v, s) * 2);
+    for (let x = x0; x <= x1; x++) for (let y = 0; y < 2; y++) p.px(x, y, PLANK[(x & 3) === 3 ? 0 : 3 + (hash2(x >> 2, y, s) < 0.5 ? 1 : 0)]);
+    const sag = v === 1 ? 1 : 0;                                              // durchhängender Balken
+    for (let x = x0; x <= x1; x++) {
+      const d = sag && x > 7 && x < 13 ? 1 : 0;
+      p.px(x, 2 + d, PLANK[hash2(x, v, s + 1) < 0.25 ? 6 : 5]); p.px(x, 3 + d, PLANK[2]); p.px(x, 4 + d, PLANK[1]);
+    }
+    for (let y = 5; y < 10; y++) for (let x = x0; x <= x1 + 1; x++) p.px(x, y, rgba(2, 6, 4, 0.5 - (y - 5) * 0.09));
+    const pxs = [L ? 5 : x0 + 1, R ? 13 : x1 - 2][v];
+    for (let y = 2; y < 11; y++) { p.px(pxs, y, PLANK[y < 5 ? 5 : 3]); p.px(pxs + 1, y, PLANK[y < 5 ? 3 : 1]); }
+    p.px(pxs, 7, MOSS[4]); p.px(pxs + 1, 8, MOSS[3]); if (v === 0) beard(p, pxs + 1, 5, 4, s);
+    p.px(pxs - 1, 11, SW[4]); p.px(pxs + 2, 11, SW[4]); p.px(pxs, 12, SW[3]); p.px(pxs + 1, 12, SW[3]);
+    for (let y = 12; y < 15; y++) if (y % 2) p.px(pxs, y, rgba(10, 16, 12, 0.6));
+    if (!L) { p.px(x0 - 1, 3, PLANK[2]); p.px(x0 - 1, 4, PLANK[1]); }
+  });
+}
+// Einzelner schiefer Pfahl neben dem Steg (fest)
+function walkPost(v) {
+  const H = 26;
+  return flat(10, H, 5, H - 6, (p) => {
+    const lean = v === 0 ? 1 : v === 1 ? -1 : 0, h = [16, 12, 19][v];
+    for (let y = H - 6 - h; y < H - 4; y++) {
+      const x = 4 + Math.round(lean * (H - 6 - y) / h);
+      p.px(x, y, PLANK[y < H - 6 - h + 2 ? 6 : 4]); p.px(x + 1, y, PLANK[2]);
+    }
+    const tx = 4 + lean;
+    p.px(tx, H - 6 - h, PLANK[7]);
+    for (let k = 0; k < 3; k++) p.px(4 + lean * (k / 3) | 0, H - 10 - k * 3, MOSS[3 + k % 2]);
+    if (v !== 1) { p.line(tx + 1, H - 6 - h + 3, tx + 3, H - 6 - h + 5, BEARD[2]); beard(p, tx + 2, H - h - 2, 4, v); }
+    p.px(2, H - 4, SW[4]); p.px(7, H - 4, SW[4]); p.px(3, H - 3, SW[3]); p.px(6, H - 3, SW[3]);
+    for (let y = H - 3; y < H; y++) if (y % 2) p.px(4, y, rgba(10, 16, 12, 0.6));
+  });
+}
+// Vertäuter Kahn neben dem Steg
+function mooredBoat(v) {
+  const W = 36, H = 20, wl = 13, s = v ? -1 : 1;
+  return mk(W, H, (p) => {
+    for (let y = wl; y < H; y++) for (let x = 2; x < W - 2; x++) if (((x + y) & 1) && Math.abs(x - 18) / 16 + (y - wl) / 6 < 1) p.px(x, y, rgba(2, 8, 6, 0.55));
+    // Rumpf (spitz an beiden Enden)
+    for (let x = 4; x < W - 4; x++) {
+      const t = Math.abs(x - 18) / 14, d = Math.round(5 * Math.sqrt(Math.max(0, 1 - t * t)));
+      const yt = wl - 2 - d + Math.round(t * t * 3);
+      for (let y = yt; y <= wl + 1; y++) {
+        let k = y === yt ? 6 : y === yt + 1 ? 2 : y > wl - 1 ? 2 : 4;
+        if ((y - yt) === 3 && hash2(x, 0, 3400 + v) < 0.7) k = 3;
+        if (hash2(x, y, 3401 + v) < 0.08) k--;
+        p.px(x, y, ROT[clampI(k, 7)]);
+      }
+      if (d > 1) for (let y = yt + 1; y < yt + 1 + Math.max(1, d - 2); y++) p.px(x, y, INTERIOR);
+    }
+    p.rect(13, wl - 6, 2, 3, ROT[5]); p.rect(22, wl - 6, 2, 3, ROT[4]);           // Ruderbänke
+    p.line(10, wl - 4, 26, wl - 6, ROT[5]);                                      // Ruder im Boot
+    if (v === 0) { p.rect(17, wl - 7, 4, 3, '#4a4436'); p.px(18, wl - 7, '#6a6250'); } // Korb
+    // Tau zum Steg (nach oben)
+    const tx = s > 0 ? 6 : W - 7;
+    p.line(tx, wl - 3, tx - s * 3, 0, BEARD[3]); p.px(tx - s * 3, 0, BEARD[4]);
+    for (let x = 4; x < W - 4; x += 3) if (hash2(x, v, 3402) < 0.6) p.px(x, wl + 2, SW[4]);
+  }, { ay: wl });
+}
+// Fischreuse / Netzgestell im Wasser
+function netRack(v) {
+  const W = 30, H = 34;
+  return mk(W, H, (p) => {
+    const by = H - 4;
+    for (const x of [3, 25]) { pole(p, x, 3 + (x > 10 ? 2 : 0), by, 2, ROT, 3410 + x); ripple(p, x, by + 1, 1); }
+    p.line(3, 5, 26, 7, ROT[4]); p.line(3, 6, 26, 8, ROT[2]);
+    for (let y = 8; y < by - 2; y++) for (let x = 5; x < 25; x++) {
+      const sag = Math.round(Math.sin((x - 5) / 20 * Math.PI) * 3);
+      if (y > by - 4 + sag - (v ? 4 : 0)) continue;
+      if ((x + y) % 3 === 0 || (x - y + 60) % 3 === 0) if (hash2(x, y, 3412 + v) < 0.82) p.px(x, y, (x + y) % 2 ? BEARD[3] : BEARD[2]);
+    }
+    // Schwimmer und hängender Tang
+    for (let x = 7; x < 24; x += 5) { p.px(x, 7, '#7a6a4a'); p.px(x + 1, 7, '#5a4a32'); }
+    beard(p, 12, 12, 6, v + 3); beard(p, 20, 10, 5, v + 5);
+    if (v === 1) for (const fx of [9, 15, 21]) { p.rect(fx, 9, 2, 4, '#6a6a5a'); p.px(fx, 9, '#9a9a82'); }
+    for (let x = 2; x < W - 2; x += 2) if (hash2(x, v, 3413) < 0.5) p.px(x, by + 2, SW[4]);
+  }, { ay: H - 4, box: [-13, -4, 13, 2] });
+}
+// Egelgelege: glitschige Eierballen mit fahlem Leuchten
+function leechClutch(v) {
+  const W = 28, H = 18;
+  return mk(W, H, (p, g) => {
+    mudPatch(p, 14, 13, 12, 4, 3420 + v, true);
+    const eggs = [[[8, 10, 4, 3], [15, 9, 5, 4], [21, 11, 3, 2.4], [12, 13, 3, 2]], [[10, 11, 5, 3.4], [17, 10, 3.6, 3], [20, 13, 3, 2], [6, 13, 2.4, 1.8]]][v];
+    for (const [x, y, rx, ry] of eggs) {
+      p.ellipse(x, y, rx, ry, FLESH[2]);
+      p.ellipse(x - 0.6, y - 0.6, rx - 1, ry - 1, FLESH[3]);
+      p.px(Math.round(x - rx / 2), Math.round(y - ry / 2), FLESH[5]);
+      for (let k = 0; k < 3; k++) { const ex = Math.round(x - rx + 1 + hash2(k, x, 3421) * (rx * 2 - 2)), ey = Math.round(y - ry + 1 + hash2(k, y, 3422) * (ry * 2 - 2)); p.px(ex, ey, '#2a1a10'); g.px(ex, ey, '#4a6a30'); }
+      g.px(Math.round(x), Math.round(y), '#3a5a28');
+    }
+    for (let k = 0; k < 5; k++) { const x = 4 + Math.floor(hash2(k, v, 3423) * 20); p.px(x, 15, '#6a7a50'); p.px(x + 1, 16, '#4a5a3a'); } // Schleim
+  }, { ay: 14, box: [-10, -6, 10, 2] });
+}
+// Trockengestell mit Fischen und Fellen am Ufer
+function dryingRack(v) {
+  const W = 30, H = 34;
+  return mk(W, H, (p) => {
+    const by = H - 2;
+    for (const x of [3, 25]) { pole(p, x, 4, by, 2, ROT, 3430 + x); }
+    p.line(2, 6, 4, 2, ROT[5]); p.line(4, 6, 2, 2, ROT[4]); p.line(24, 6, 26, 2, ROT[5]); p.line(26, 6, 24, 2, ROT[4]);
+    p.rect(3, 4, 24, 2, ROT[5]); p.rect(3, 4, 24, 1, ROT[6]);
+    if (v === 0) {
+      for (let k = 0; k < 6; k++) { const fx = 6 + k * 3; const l = 6 + (k % 2) * 2; p.line(fx, 6, fx, 7, BEARD[2]); p.rect(fx - 1, 8, 2, l, '#6a6a5a'); p.px(fx - 1, 8, '#9a9a82'); p.px(fx, 8 + l, '#3a3a30'); p.px(fx - 1, 8 + l + 1, '#5a5a48'); }
+    } else {
+      // Fell aufgespannt
+      for (let y = 7; y < 22; y++) for (let x = 7; x < 23; x++) { const e = ((x - 15) / 8) ** 2 + ((y - 14) / 7.5) ** 2; if (e > 1) continue; p.px(x, y, ['#3a2a1c', '#4c3624', '#5e4630'][(x + 2 * y + (hash2(x, y, 3431) * 3 | 0)) % 3]); }
+      for (const [a, b] of [[8, 8], [22, 8], [8, 20], [22, 20]]) p.line(a, b, a < 15 ? 4 : 25, b < 14 ? 6 : 22, BEARD[3]);
+    }
+    for (let x = 1; x < W - 1; x++) if (hash2(x, v, 3432) < 0.35) p.px(x, by, MUD[2]);
+  }, { ay: H - 2, box: [-13, -4, 13, 1] });
+}
+
 export function createMarshDecor() {
   return {
     willowTrees: [willowTree(1001, 58, 0), willowTree(1013, 64, 1), willowTree(1027, 52, 2)],
@@ -770,5 +1556,46 @@ export function createMarshDecor() {
     sunkenHouse: [0, 1].map(sunkenHouse),
     sporeGate: sporeGate(),
     lanternPost: lanternPost(),
+    // Runde 5: Inselarchipel
+    deckCarrierPost: [0, 1, 2].map((v) => deckCarrier(v, true)),
+    deckCarrier: [0, 1, 2].map((v) => deckCarrier(v, false)),
+    deckCarrierLantern: deckCarrier(0, true, true),
+    deckBoards: [0, 1, 2].map(deckBoards),
+    deckEdge: [0, 1, 2].map(deckEdge),
+    stegPost: [0, 1, 2].map((v) => stegNS(v, true)),
+    stegBoards: [0, 1, 2].map((v) => stegNS(v, false)),
+    deckWideL: [0, 1].map((v) => stegNS(v, v === 0, 'L')),
+    deckWideR: [0, 1].map((v) => stegNS(v, v === 0, 'R')),
+    fordShallows: [0, 1, 2, 3].map(fordShallows),
+    damBankN: [0, 1, 2].map((v) => damBank(v, false)),
+    damBankS: [0, 1, 2].map((v) => damBank(v, true)),
+    damStakesL: [0, 1, 2].map((v) => damStakes(v, -1)),
+    damStakesR: [0, 1, 2].map((v) => damStakes(v, 1)),
+    lilyPads: [0, 1, 2].map(lilyPads),
+    sunkenRoof: [0, 1, 2].map(sunkenRoof),
+    mistWisps: [0, 1, 2].map(mistWisps),
+    drownedBoat: [0, 1].map(drownedBoat),
+    giantShroom: [0, 1, 2].map(giantShroom),
+    witchHut: witchHut(),
+    witchChest: { off: cacheChest('witch', false), on: cacheChest('witch', true) },
+    chapelChest: { off: cacheChest('chapel', false), on: cacheChest('chapel', true) },
+    drownedTree: [0, 1, 2].map(drownedTree),
+    willWisp: [0, 1, 2].map(willWisp),
+    marshGraves: [0, 1, 2].map(marshGraves),
+    rotTotemBone: { off: rotTotem(false, 'bone'), on: rotTotem(true, 'bone') },
+    rotTotemMoss: { off: rotTotem(false, 'moss'), on: rotTotem(true, 'moss') },
+    rotTotemMud: { off: rotTotem(false, 'mud'), on: rotTotem(true, 'mud') },
+    lanternRed: { off: questLantern('red', false), on: questLantern('red', true) },
+    lanternGreen: { off: questLantern('green', false), on: questLantern('green', true) },
+    lanternBlue: { off: questLantern('blue', false), on: questLantern('blue', true) },
+    lanternWhite: { off: questLantern('white', false), on: questLantern('white', true) },
+    hagCauldron: { off: hagCauldron(false), on: hagCauldron(true) },
+    // Runde 5/2: knorrige Stege und Pfahldorf
+    ...Object.fromEntries(['00', '01', '10', '11'].flatMap((f) => [['walkY' + f, [0, 1].map((v) => walkY(f, v))], ['walkX' + f, [0, 1].map((v) => walkX(f, v))], ['walkRim' + f, [0, 1].map((v) => walkRim(f, v))]])),
+    walkPost: [0, 1, 2].map(walkPost),
+    mooredBoat: [0, 1].map(mooredBoat),
+    netRack: [0, 1].map(netRack),
+    leechClutch: [0, 1].map(leechClutch),
+    dryingRack: [0, 1].map(dryingRack),
   };
 }

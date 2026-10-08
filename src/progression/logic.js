@@ -9,7 +9,7 @@ import { EV } from '../core/events.js';
 import { LEVEL_CAP, totalXpForLevel, killXp, mobXp } from './xp.js';
 import { ITEMS, EQUIP_SLOTS, RARITIES, stackSize, buyPrice, equipSlotFor, canUseClass, itemScore } from './items.js';
 import { QUESTS, NPC_LINES, VENDORS } from './quests.js';
-import { rollLoot, BOSS_QUEST_GRANTS } from './loot.js';
+import { rollLoot, BOSS_QUEST_GRANTS, pickEquipment } from './loot.js';
 import { RECIPES } from './crafting.js';
 import { countItem, npcShortName, questStatus, questRewardItems, vendorStock, trackedQuestId, junkSlots, isUpgrade, sellableSlots, SELL_TIERS } from './selectors.js';
 import { ACHIEVEMENTS } from './achievements.js';
@@ -17,11 +17,13 @@ import { ENCHANTS, UPGRADE_MAX } from './smithing.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
 import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } from './endgame.js';
 import { TRIAL_ZONE } from './trials.js';
+import { registerBoardState, boardProgress } from './board.js';
 import { START_ITEMS, STARTER_GEAR } from '../character/startKit.js';
 
 const inTrial = (s) => s.slices.world?.zoneId === TRIAL_ZONE;
 
 export const BAG_SIZE = 36;
+export const CHAMPION_XP_MULT = 4;
 
 // Inhalte registrieren (Items, Quests, Händler, Rezepte). NPC-Namen legt Thread B als content 'npc' an;
 // NPC_LINES dient als Rückfall für Namen und Grußtexte.
@@ -36,6 +38,12 @@ export function registerProgressionContent(content) {
 
 // --- Hilfen (nur innerhalb von Command-Handlern verwenden)
 function bag(s) { return s.get('inventory').slots; }
+
+// Materialbeutel (Nutzerwunsch 08.10.: „Inventar ständig voll“): Materialien belegen keine Taschenplätze,
+// sondern liegen in inventory.mats { itemId: Anzahl } ohne Platzgrenze (je Sorte höchstens MAT_MAX).
+export const MAT_MAX = 9999;
+function isMat(content, itemId) { return content.find('item', itemId)?.type === 'material'; }
+function mats(s) { const inv = s.get('inventory'); return (inv.mats ??= {}); }
 
 // Questbeutel: Questgegenstände und Sammelobjekte aktiver Quests, die nicht mehr in die Tasche passen.
 // Er hat keine Größe, zählt bei countItem mit und wird geleert, sobald in der Tasche Platz ist (settleQuestBag).
@@ -58,6 +66,7 @@ function settleQuestBag(s, content) {
 }
 
 function capacityFor(s, content, itemId) {
+  if (isMat(content, itemId)) return MAT_MAX - (mats(s)[itemId] ?? 0);
   if (questBagFor(s, content, itemId)) return Infinity;
   const max = stackSize(content.get('item', itemId));
   let n = 0;
@@ -80,6 +89,7 @@ function fitsAll(s, content, items, removeFirst = []) {
     }
   }
   for (const { itemId, qty } of items) {
+    if (isMat(content, itemId)) continue;
     const max = stackSize(content.get('item', itemId));
     let left = qty;
     for (const sl of slots) if (left > 0 && sl?.itemId === itemId && sl.qty < max) { const k = Math.min(left, max - sl.qty); sl.qty += k; left -= k; }
@@ -92,8 +102,9 @@ function fitsAll(s, content, items, removeFirst = []) {
 // overflow: was nicht passt, kommt in den Questbeutel (Questbelohnungen – die Abgabe klappt immer)
 function addItem(s, ctx, itemId, qty, source, { overflow = false } = {}) {
   const max = stackSize(ctx.content.get('item', itemId));
-  const slots = bag(s);
+  const slots = isMat(ctx.content, itemId) ? [] : bag(s);
   let left = qty;
+  if (isMat(ctx.content, itemId)) { const m = mats(s), k = Math.max(0, Math.min(left, MAT_MAX - (m[itemId] ?? 0))); if (k) m[itemId] = (m[itemId] ?? 0) + k; left -= k; }
   for (const slot of slots) {
     if (left <= 0) break;
     if (slot && slot.itemId === itemId && slot.qty < max) { const k = Math.min(left, max - slot.qty); slot.qty += k; left -= k; }
@@ -115,6 +126,7 @@ function addItem(s, ctx, itemId, qty, source, { overflow = false } = {}) {
     const rar = ctx.content.get('item', itemId).rarity;
     if (['loot', 'quest', 'trial', 'craft'].includes(source) && (rar === 'epic' || rar === 'legendary') && ctx.content.get('item', itemId).slot) st[`${rar}Found`] = (st[`${rar}Found`] ?? 0) + added;
     ctx.bus.emit(EV.ITEM_ADDED, { itemId, qty: added, source });
+    if (source === 'loot' && isMat(ctx.content, itemId)) boardProgress(s, ctx, { kind: 'gather', itemId, qty: added });
     refreshQuests(s, ctx);
   }
   return added;
@@ -123,6 +135,8 @@ function addItem(s, ctx, itemId, qty, source, { overflow = false } = {}) {
 function removeItem(s, ctx, itemId, qty) {
   const slots = bag(s);
   let left = qty;
+  const m = mats(s);
+  if (m[itemId]) { const k = Math.min(left, m[itemId]); m[itemId] -= k; left -= k; if (m[itemId] <= 0) delete m[itemId]; }
   const qb = s.get('inventory').questBag ?? [];
   for (const e of qb) if (e.itemId === itemId && left > 0) { const k = Math.min(left, e.qty); e.qty -= k; left -= k; }
   if (qb.length) s.get('inventory').questBag = qb.filter((e) => e.qty > 0);
@@ -197,6 +211,10 @@ function refreshQuests(s, ctx) {
   }
 }
 
+function mergeRewards(a, b) {
+  return { ...a, gold: (a.gold ?? 0) + (b.gold ?? 0), xp: (a.xp ?? 0) + (b.xp ?? 0) };
+}
+
 function setProgress(ctx, questId, a, o, value) {
   const v = Math.max(0, Math.min(o.count, value));
   if ((a.progress[o.id] ?? 0) === v) return;
@@ -207,17 +225,45 @@ function setProgress(ctx, questId, a, o, value) {
 function matches(target, value) { return Array.isArray(target) ? target.includes(value) : target === value || target === '*'; }
 
 // Zählbare Ereignisse (kill, reach, boss, interact, talk) auf alle aktiven Quests anwenden.
+// Neue Zielarten (Runde 08.10., Questvielfalt). Alle laufen über Welt-Ereignisse, die es schon gibt
+// (object:interact, area:reached) oder über 'quest:objective' von B (Eskorte, Verteidigen):
+//   sequence  Objekte in fester Reihenfolge benutzen (Runen, Hebel). Falsches Objekt = von vorn.
+//   use       Objekt mit einem Gegenstand benutzen (o.item wird verbraucht), jedes Objekt einmal.
+//   reach     mehrere Flächen (target = Liste, count > 1) = Erkunden; jede Fläche zählt einmal.
+//   escort / defend  B meldet Erfolg; '…Failed' setzt das Ziel zurück.
+function questToast(ctx, text) { ctx.bus.emit(EV.UI_TOAST, { text, kind: 'warn', icon: 'scroll' }); }
+function sequenceStep(s, ctx, questId, a, o, target) {
+  const list = o.target, at = a.progress[o.id] ?? 0;
+  if (at >= o.count) return;
+  if (list[at] === target) { setProgress(ctx, questId, a, o, at + 1); return; }
+  if (list.slice(0, at).includes(target)) return;   // schon aktiviert: nichts passiert
+  setProgress(ctx, questId, a, o, list[0] === target ? 1 : 0);
+  if (at > 0 || list[0] !== target) questToast(ctx, o.failText ?? 'Die Zeichen erlöschen. Die Reihenfolge war falsch.');
+}
 function recordQuestEvent(s, ctx, kind, target, n = 1) {
   const q = s.get('quests');
   for (const [questId, a] of Object.entries(q.active)) {
     const def = ctx.content.find('quest', questId);
     for (const o of def?.objectives ?? []) {
-      if (o.kind !== kind || !matches(o.target, target)) continue;
-      if (kind === 'interact') {
-        // Jedes Objekt zählt nur einmal
+      if (kind === 'interact' && o.kind === 'sequence' && matches(o.target, target)) { sequenceStep(s, ctx, questId, a, o, target); continue; }
+      if (kind === `${o.kind}Failed` && matches(o.target, target)) {
+        if ((a.progress[o.id] ?? 0) < o.count) { setProgress(ctx, questId, a, o, 0); if (o.failText) questToast(ctx, o.failText); }
+        continue;
+      }
+      const useHit = kind === 'interact' && o.kind === 'use';
+      if (!useHit && o.kind !== kind) continue;
+      if (!matches(o.target, target) || (a.progress[o.id] ?? 0) >= o.count) continue;
+      if (kind === 'interact' || kind === 'reach') {
+        // Jedes Objekt und jede Fläche zählt nur einmal
         a.seen ??= {};
         const seen = (a.seen[o.id] ??= []);
         if (seen.includes(target)) continue;
+        if (useHit && o.item) {
+          // Gegenstände aus startItems blockieren nie (ältere Spielstände haben sie nicht bekommen)
+          const given = def.startItems?.some((x) => x.itemId === o.item);
+          if (countItem(s, o.item) >= 1) removeItem(s, ctx, o.item, 1);
+          else if (!given) { questToast(ctx, `Dafür brauchst du: ${ctx.content.find('item', o.item)?.name ?? o.item}`); continue; }
+        }
         seen.push(target);
       }
       if (kind === 'boss') a.bossSeen = true;
@@ -275,7 +321,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       START_ITEMS.forEach((it, i) => { slots[i] = { ...it }; });
       // Die Charakter-Slice (Thread A) ist bei reset() schon neu angelegt (A wird vor C installiert).
       const starter = STARTER_GEAR[state.slices.character?.classId] ?? {};
-      const inv = { slots, equipment: Object.fromEntries(EQUIP_SLOTS.map((k) => [k, starter[k] ?? null])), upgrades: {}, enchants: {}, questBag: [], autoSell: null };
+      const inv = { slots, equipment: Object.fromEntries(EQUIP_SLOTS.map((k) => [k, starter[k] ?? null])), upgrades: {}, enchants: {}, questBag: [], mats: {}, autoSell: 'common' };
       recomputeBonus(inv);
       return inv;
     },
@@ -295,8 +341,13 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
         if (u > 0) upgrades[k] = Math.min(UPGRADE_MAX, u);
         if (raw.enchants?.[k]) enchants[k] = raw.enchants[k];
       }
+      // Materialien aus alten Spielständen wandern aus der Tasche in den Materialbeutel
+      const matBag = {};
+      const addMat = (id, n) => { if (known(id) && ITEMS[id].type === 'material' && n > 0) matBag[id] = Math.min(MAT_MAX, (matBag[id] ?? 0) + (n | 0)); };
+      for (const [id, n] of Object.entries(raw.mats ?? {})) addMat(id, n);
+      slots.forEach((sl, j) => { if (sl && ITEMS[sl.itemId].type === 'material') { addMat(sl.itemId, sl.qty); slots[j] = null; } });
       const questBag = (raw.questBag ?? []).filter((e) => known(e?.itemId) && e.qty > 0).map((e) => ({ itemId: e.itemId, qty: e.qty | 0 }));
-      const inv = { slots, equipment: migrateEquipment(raw.equipment, slots), upgrades, enchants, questBag, autoSell: Object.hasOwn(SELL_TIERS, raw.autoSell ?? '') ? raw.autoSell : null };
+      const inv = { slots, equipment: migrateEquipment(raw.equipment, slots), upgrades, enchants, questBag, mats: matBag, autoSell: Object.hasOwn(SELL_TIERS, raw.autoSell ?? '') ? raw.autoSell : null };
       for (const k of Object.keys(enchants)) if (!ENCHANTS[enchants[k]]?.slots.includes(k)) delete enchants[k];
       recomputeBonus(inv);
       return inv;
@@ -306,7 +357,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
   state.defineSlice('wallet', { create: () => ({ gold: 0 }), deserialize: (raw) => ({ gold: Math.max(-1e9, raw.gold | 0) }) });
 
   state.defineSlice('quests', {
-    create: () => ({ active: {}, completed: [], repeats: {}, tracked: null, guide: null }),
+    create: () => ({ active: {}, completed: [], repeats: {}, choices: {}, tracked: null, guide: null }),
     deserialize: (raw) => {
       const active = {};
       for (const [id, a] of Object.entries(raw.active ?? {})) {
@@ -314,7 +365,9 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
         active[id] = { status: a.status === 'ready' ? 'ready' : 'active', progress: { ...a.progress }, ...(a.seen ? { seen: a.seen } : {}), ...(a.bossSeen ? { bossSeen: true } : {}) };
       }
       const completed = (raw.completed ?? []).filter((id) => Object.hasOwn(QUESTS, id));
-      return { active, completed, repeats: { ...raw.repeats }, tracked: active[raw.tracked] ? raw.tracked : null, guide: Object.hasOwn(QUESTS, raw.guide ?? '') ? raw.guide : null };
+      // Entscheidungen bei der Abgabe (quest.choices): { questId: choiceId }
+      const choices = Object.fromEntries(Object.entries(raw.choices ?? {}).filter(([id, c]) => QUESTS[id]?.choices?.some((x) => x.id === c)));
+      return { active, completed, repeats: { ...raw.repeats }, choices, tracked: active[raw.tracked] ? raw.tracked : null, guide: Object.hasOwn(QUESTS, raw.guide ?? '') ? raw.guide : null };
     },
   });
 
@@ -336,7 +389,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     return r;
   }, opts);
   // Hilfen für endgame.js (Bank, Schmiede, Glutprüfungen)
-  const helpers = { def, rng, bag, addItem, removeItem, takeFromSlot, addGold, fitsAll, capacityFor };
+  const helpers = { def, rng, bag, addItem, removeItem, takeFromSlot, addGold, fitsAll, capacityFor, grantXp, pickEquipment };
 
   // --- Erfahrung
   def('progress:grantXp', (s, { amount, source }, ctx) => grantXp(s, ctx, amount | 0, source), auth);
@@ -344,7 +397,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
   // Ein besiegter Gegner: XP (nach Stufe/Elite/Boss), Statistik, Quest-Fortschritt.
   // summoned: beschworene Diener (Boss-Adds) geben nur 20 % Erfahrung, zählen aber für Quests.
   // rareId: seltener Weltgegner (rares.js) – ×8 Erfahrung, Wiederkehr ab `now` (ms)
-  def('progress:kill', (s, { type, level, isBoss, bossId, elite, summoned, trialTime, rareId, now = 0 }, ctx) => {
+  def('progress:kill', (s, { type, level, isBoss, bossId, elite, summoned, trialTime, rareId, champion = null, now = 0 }, ctx) => {
     const p = s.get('progress');
     const enemy = ctx.content.find('enemy', type);
     const lvl = level ?? enemy?.level ?? p.level;
@@ -361,11 +414,15 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       r.killedAt[rare] = now;
       ctx.bus.emit('rare:killed', { rareId: rare, name: RARE_ENEMIES[rare].name });
     }
-    const base = rare ? mobXp(lvl) * RARE_XP_MULT : mobXp(lvl, { elite: isElite, boss }) * (summoned ? 0.2 : 1);
+    // Champion (B, Idee 1): verstärkte Variante normaler Gegner, ×4 Erfahrung
+    const champ = !!champion && !boss && !rare;
+    if (champ) p.stats.championKills = (p.stats.championKills ?? 0) + 1;
+    const base = rare ? mobXp(lvl) * RARE_XP_MULT : mobXp(lvl, { elite: isElite, boss }) * (summoned ? 0.2 : 1) * (champ ? CHAMPION_XP_MULT : 1);
     const gained = grantXp(s, ctx, killXp(base, lvl, p.level), `kill:${type}`);
     recordQuestEvent(s, ctx, 'kill', type);
     trialKill(s, ctx, { type, elite: isElite, isBoss: boss, bossId: bossId ?? enemy?.bossId ?? (boss ? type : undefined), trialTime }, helpers);
     if (boss && !inTrial(s)) recordQuestEvent(s, ctx, 'boss', bossId ?? enemy?.bossId ?? type);
+    if (!inTrial(s) && !summoned) boardProgress(s, ctx, { kind: 'kill', type, champion: champ, boss, bossId: bossId ?? enemy?.bossId ?? type });
     return { xp: gained };
   }, auth);
 
@@ -399,6 +456,8 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     }
     // Boss schon besiegt (z. B. vor Annahme): zählt rückwirkend
     if ((s.slices.world?.bossesDefeated ?? []).some((b) => quest.objectives.some((o) => o.kind === 'boss' && o.target === b))) a.bossSeen = true;
+    // Gegenstände zum Benutzen (Zielart 'use'): gibt es bei der Annahme, fehlende Menge wird aufgefüllt
+    for (const it of quest.startItems ?? []) { const miss = it.qty - countItem(s, it.itemId); if (miss > 0) addItem(s, ctx, it.itemId, miss, 'quest', { overflow: true }); }
     ctx.bus.emit(EV.QUEST_ACCEPTED, { questId });
     if (s.get('quests').guide === questId) s.get('quests').guide = null;
     // Neue Hauptquests oder erste Quest automatisch verfolgen
@@ -427,21 +486,27 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     const q = s.get('quests');
     if (!q.active[questId]) return { ok: false };
     delete q.active[questId];
+    for (const it of ctx.content.find('quest', questId)?.startItems ?? []) if (ctx.content.find('item', it.itemId)?.type === 'quest') removeItem(s, ctx, it.itemId, countItem(s, it.itemId));
     if (q.tracked === questId) setTracked(s, ctx, trackedQuestId(s, ctx.content));
     return { ok: true };
   });
 
-  def('quest:turnIn', (s, { questId }, ctx) => {
+  def('quest:turnIn', (s, { questId, choice = null }, ctx) => {
     const q = s.get('quests');
     const a = q.active[questId];
     if (!a || a.status !== 'ready') return { ok: false, reason: 'notReady' };
     const quest = ctx.content.get('quest', questId);
-    const rewards = quest.rewards ?? {};
+    // Entscheidung (quest.choices): Pflicht, bestimmt Zusatzbelohnung und welche Folgequest kommt
+    const picked = quest.choices ? quest.choices.find((c) => c.id === choice) : null;
+    if (quest.choices && !picked) return { ok: false, reason: 'choice' };
+    const rewards = picked?.rewards ? mergeRewards(quest.rewards ?? {}, picked.rewards) : quest.rewards ?? {};
     const collect = quest.objectives.filter((o) => o.kind === 'collect').map((o) => ({ itemId: o.target, qty: o.count }));
-    const items = questRewardItems(s, ctx.content, questId);
+    const items = [...questRewardItems(s, ctx.content, questId), ...(picked?.rewards?.items ?? [])];
 
     const availBefore = new Set(ctx.content.all('quest').filter((x) => questStatus(s, ctx.content, x.id) === 'available').map((x) => x.id));
     delete q.active[questId];
+    if (picked) (q.choices ??= {})[questId] = picked.id;
+    for (const it of quest.startItems ?? []) if (ctx.content.find('item', it.itemId)?.type === 'quest') removeItem(s, ctx, it.itemId, countItem(s, it.itemId));
     if (quest.repeatable) q.repeats[questId] = (q.repeats[questId] ?? 0) + 1;
     else q.completed.push(questId);
     if (!q.completed.includes(questId) && quest.repeatable && !q.completed.includes(questId)) { /* wiederholbar: nie „abgeschlossen“ */ }
@@ -618,6 +683,15 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     if (gold) addGold(s, ctx, gold, 'sell:inventory');
     return { ok: count > 0, gold, count };
   }, auth);
+  // Material aus dem Materialbeutel verkaufen (qty fehlt = alles dieser Sorte)
+  def('inventory:sellMat', (s, { itemId, qty }, ctx) => {
+    const d = ctx.content.find('item', itemId), have = mats(s)[itemId] ?? 0;
+    if (!d || d.type !== 'material' || !d.value || !have) return { ok: false };
+    const n = Math.max(1, Math.min(have, qty == null ? have : qty | 0));
+    removeItem(s, ctx, itemId, n);
+    addGold(s, ctx, d.value * n, `sell:${itemId}`);
+    return { ok: true, gold: d.value * n, count: n };
+  }, auth);
   // Alles Weiße (bzw. Weiße + Grüne) verkaufen, außer Verbesserungen
   def('inventory:sellJunk', (s, { upTo = 'common' }, ctx) => {
     let gold = 0, count = 0;
@@ -672,12 +746,12 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
 
   // source: 'kill' (id = Gegnertyp) oder 'chest' (id = objectId). Questgegenstände
   // wandern direkt ins Inventar, alles andere wird als Beute in die Welt gelegt.
-  def('loot:roll', (s, { source = 'kill', id, level, elite, isBoss, bossId, family, rareId, x = 0, y = 0 }, ctx) => {
+  def('loot:roll', (s, { source = 'kill', id, level, elite, isBoss, bossId, family, rareId, champion = false, x = 0, y = 0 }, ctx) => {
     const e = source === 'kill' ? ctx.content.find('enemy', id) : null;
     const lvl = level ?? e?.level ?? s.get('progress').level;
     const enemy = source === 'chest'
       ? { chest: String(id ?? 'chest'), level: lvl }
-      : { type: id, level: lvl, family: family ?? e?.family, elite: elite ?? e?.elite, boss: isBoss ?? e?.boss, bossId: bossId ?? e?.bossId ?? (isBoss ? id : undefined), rareId };
+      : { type: id, level: lvl, family: family ?? e?.family, elite: elite ?? e?.elite, boss: isBoss ?? e?.boss, bossId: bossId ?? e?.bossId ?? (isBoss ? id : undefined), rareId, champion: !!champion };
     if (inTrial(s)) enemy.trial = true;
     const drops = rollLoot(enemy, { rng, classId: s.slices.character?.classId ?? null, questNeed: questNeed(s, ctx) });
     const out = [];
@@ -714,5 +788,6 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
   def('loot:reset', () => { ledger.clear(); });
 
   registerEndgameState(state, helpers);
+  registerBoardState(state, helpers);
   return { ledger };
 }

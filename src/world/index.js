@@ -24,6 +24,8 @@ import { createThroneFoes } from '../sprites/foes_throne.js';
 import { createBarrowFoes } from '../sprites/foes_barrow.js';
 import { createSporeFoes } from '../sprites/foes_spore.js';
 import { createWastesFoes } from '../sprites/foes_wastes.js';
+import { createNew1Foes } from '../sprites/foes_new1.js';
+import { createNew2Foes } from '../sprites/foes_new2.js';
 import { createUlgrimSprites } from '../sprites/barrow_king.js';
 import { createSkalvyrSprites } from '../sprites/frost_wyrm.js';
 import { createRotMotherSprites } from '../sprites/rot_mother.js';
@@ -39,6 +41,10 @@ import { createFrostDecor } from '../sprites/decor_frost.js';
 import { createWastesDecor } from '../sprites/decor_wastes.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createVillageProps } from '../sprites/village.js';
+import { createWaystoneSprites } from '../sprites/waystone.js';
+import { createBoardSprites } from '../sprites/board.js';
+import { createCaravanSprites } from '../sprites/caravan.js';
+import { installQuestRuns } from './questRuns.js';
 
 // Grafik erst beim ersten Zugriff erzeugen (spart Ladezeit: jede Zone
 // braucht nur ihre eigenen Gegner und Deko).
@@ -66,6 +72,8 @@ const FOE_GROUPS = {
   foes_barrow: [createBarrowFoes, ['barrow_wight', 'grave_hound', 'bone_archer', 'wight_caller']],
   foes_spore: [createSporeFoes, ['sporeling', 'fungal_brute', 'spore_caster']],
   foes_wastes: [createWastesFoes, ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus']],
+  foes_new1: [createNew1Foes, ['ember_beetle', 'bandit_shieldbearer', 'cinder_sapper', 'cliff_harpy']],
+  foes_new2: [createNew2Foes, ['dust_shaman', 'dust_totem', 'gnoll_trapper', 'bog_slime', 'bog_slime_small', 'marsh_hag', 'frost_revenant', 'snow_burrower', 'cinder_bombardier', 'phase_wraith']],
 };
 
 // Thread B – Welt: Zonen, Karten, Gegner, NPCs, Boss, world-Slice.
@@ -108,6 +116,9 @@ export function installWorld(game) {
   lazyAsset(assets, 'npcs2', createNpcSprites2);
   lazyAsset(assets, 'npcs3', createNpcSprites3);
   lazyAsset(assets, 'village', createVillageProps);
+  lazyAsset(assets, 'waystone', createWaystoneSprites);
+  lazyAsset(assets, 'quest_board', createBoardSprites);
+  lazyAsset(assets, 'caravan', createCaravanSprites); // Eskorte/Verteidigen: Karren, Planwagen, Ritualkreis
   lazyAsset(assets, 'decor_ashwood', createAshwoodDecor);
   lazyAsset(assets, 'decor_peaks', createPeaksDecor);
   lazyAsset(assets, 'biome_temple', () => createBiomeTiles('temple'));
@@ -166,8 +177,27 @@ export function installWorld(game) {
   }, { authoritative: true });
 
   // Hält die laufende Sitzung für serialize() fest (Position beim Speichern).
+  // Wegsteine: 'travel:go' { zoneId } (Reisemenü, Panel 'travel' von D) -> Abreise am Wegstein der
+  // aktuellen Welt (prüft Freischaltung und Kampf, Lichtsäule ~0,6 s, dann EV.ZONE_TRAVEL).
+  // Ankunft über Spawn 'waystone' -> Lichtsäule am Helden.
   game.addSessionSystem('world', (session) => {
     live.session = session;
-    return { dispose() { if (live.session === session) live.session = null; } };
+    session.bus.on('travel:go', (e) => {
+      const w = session.world;
+      if (!w || !e?.zoneId) return;
+      if (w.waystone) w.waystone.depart(w, e.zoneId);
+    });
+    session.bus.on(EV.ZONE_ENTER, (e) => {
+      if (e?.spawnId !== 'waystone') return;
+      const w = session.world;
+      if (w?.waystone) { w.waystone.unlock(w); w.waystone.arrive(w); }
+    });
+    return {
+      update(dt, s) { if (s.paused && s.world?.waystone?.departing) s.world.waystone.tickPaused(dt, s.world); },
+      dispose() { if (live.session === session) live.session = null; },
+    };
   }, 5);
+
+  // Eskorte und Verteidigen (questRuns.js, Vertrag C §4); meldet game.progression.setWorldFeatures beim Weltstart.
+  installQuestRuns(game);
 }

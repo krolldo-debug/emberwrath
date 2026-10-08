@@ -18,6 +18,7 @@ export const EV = Object.freeze({
   ACCOUNT_LOGIN: 'account:login',        // { accountId, name }
   ACCOUNT_LOGOUT: 'account:logout',      // {}
   CHARACTER_CREATED: 'character:created',// { characterId, name, raceId, classId }
+  WARDROBE_UNLOCKED: 'wardrobe:unlocked', // { itemIds }  (neue Aussehen für die Garderobe, character/wardrobe.js)
 
   // Welt (B)
   ZONE_ENTER: 'zone:enter',              // { zoneId, instanceId, spawnId }
@@ -28,6 +29,9 @@ export const EV = Object.freeze({
   ENEMY_KILLED: 'enemy:killed',          // { enemyId, type, level, x, y, zoneId, isBoss, xp }
   BOSS_ENGAGED: 'boss:engaged',          // { bossId }
   BOSS_DEFEATED: 'boss:defeated',        // { bossId, x, y }
+  TRAVEL_OPEN: 'travel:open',            // Teleporter-Fenster öffnen (erkundete Städte, Welt B)
+  TRAVEL_GO: 'travel:go',                // Teleport zu einer erkundeten Stadt (Welt B)
+  BOARD_OPEN: 'board:open',              // Auftragsbrett öffnen (Welt B)
   OBJECT_INTERACT: 'object:interact',    // { objectId, kind, x, y }  (Truhen, Hebel …)
   PLAYER_DIED: 'player:died',            // { zoneId }
   PLAYER_RESPAWNED: 'player:respawned',  // { zoneId, spawnId }
@@ -46,6 +50,9 @@ export const EV = Object.freeze({
   QUEST_READY: 'quest:ready',            // { questId }  (alle Ziele erfüllt, Abgabe offen)
   QUEST_COMPLETED: 'quest:completed',    // { questId, rewards }
   QUEST_TRACKED: 'quest:tracked',        // { questId | null }  (Questpfad neu berechnen)
+  QUEST_OBJECTIVE: 'quest:objective',    // { kind: 'escort'|'defend'|'escortFailed'|'defendFailed', target }  (Welt meldet Sonderziele)
+  BOARD_CHANGED: 'board:changed',        // Auftragsbrett: Tagesaufträge neu (progression/board.js)
+  BOARD_PROGRESS: 'board:progress',      // Auftragsbrett: Fortschritt eines Auftrags
   // Endgame „Glutprüfungen“ (Thread C, Zone ember_trial)
   TRIAL_STARTED: 'trial:started',        // { run }
   TRIAL_PROGRESS: 'trial:progress',      // { value, target, timeLeft }

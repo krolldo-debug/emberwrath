@@ -8,6 +8,7 @@
 //                   ab 20 (§12.7): Hügelkönig 4 %, Mutter Fäulnis 5 %, Frostwurm 6 %, Aschenfürst 8 % (+ legendär ≤ 2 %)
 //   Reittiere       eigener Wurf außerhalb der Grenzen (§12.6): Bosse 1 %, Aschenfürst 0,5 %, Moorgrauen 1 %
 //   Truhen          höchstens rare (3 %, Bosstruhe 25 %)
+//   Champions       1 Teil mind. uncommon (rare 15 %, epic 1 %), 35 % ein zweites grünes, Gold ×5
 // Items mit `source` (boss/quest/vendor) fallen nie zufällig, nur über BOSS_LOOT bzw. Quests.
 import { ITEMS, RARITY_ORDER, WEAPON_CLASSES, itemScore, attrFit } from './items.js';
 import { RARE_ENEMIES, RARE_GOLD_MULT, RARE_WEIGHTS } from './rares.js';
@@ -16,10 +17,13 @@ import { SOVEREIGN_LEGENDARIES } from './items40.js';
 // Gewichte je Quelle. Summe beliebig; Grenzen werden in rarityWeights() erzwungen.
 const RARITY_TABLE = {
   // Runde 5 (Nutzerwunsch): Blau soll besonders sein, Lila wirklich selten
-  normal: { common: 85, uncommon: 14.2, rare: 0.8 },
+  // 08.10. (Nutzer: „weniger Trash, Inventar ständig voll“): Weiße von normalen Gegnern fallen als Gold (Plunder), dafür öfter Grün.
+  normal: { common: 70, uncommon: 29.2, rare: 0.8 },
   elite: { common: 30, uncommon: 57, rare: 12, epic: 1 },
   chest: { common: 55, uncommon: 42, rare: 3 },
   chest_boss: { uncommon: 75, rare: 25 },
+  // Champions (B, Idee 1): mindestens grün, etwas öfter blau als Eliten, Lila so selten wie bei Eliten
+  champion: { uncommon: 84, rare: 15, epic: 1 },
 };
 const BOSSES = {
   // set: je Kill mit `chance` ein zufälliges Teil des Boss-Sets (sets.js), zusätzlich zu den normalen Teilen.
@@ -133,7 +137,7 @@ export function rarityWeights(kind, level, bossId) {
   if (kind === 'rare') return { ...RARE_WEIGHTS };
   const w = { ...(RARITY_TABLE[kind] ?? RARITY_TABLE.normal) };
   if (kind === 'normal') { delete w.epic; delete w.legendary; if (level < 6) delete w.rare; }
-  if (kind === 'chest' || kind === 'chest_boss' || kind === 'elite') delete w.legendary;
+  if (kind === 'chest' || kind === 'chest_boss' || kind === 'elite' || kind === 'champion') delete w.legendary;
   if (kind === 'chest' || kind === 'chest_boss') delete w.epic;
   return w;
 }
@@ -166,6 +170,11 @@ export function manaFor(level) { return level >= 31 ? 'supreme_mana' : level >= 
 // Truhenmaterial nach Stufe
 function chestMaterial(level) { return level >= 36 ? 'magma_scale' : level >= 31 ? 'rime_crystal' : level >= 21 ? 'bog_iron' : level >= 12 ? 'ember_ore' : 'grave_iron'; }
 
+function addJunkGold(drops, value) {
+  const g = drops.find((d) => d.gold != null);
+  if (g) { g.gold += value; g.junk = true; } else drops.push({ gold: Math.max(1, value), junk: true });
+}
+
 // ---------------------------------------------------------------- Würfeln
 // enemy = { type, level, family, elite, boss, bossId, rareId }  (Gegner) bzw. { chest: objectId, level }
 // questNeed(questId, itemId) -> fehlende Stückzahl (0 = Quest nicht aktiv / fertig)
@@ -176,12 +185,12 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   const isChest = !!enemy.chest;
   const bossChest = isChest && String(enemy.chest).startsWith('boss');
   const rare = !isChest && !enemy.boss ? RARE_ENEMIES[enemy.rareId] : null;
-  const kind = isChest ? (bossChest ? 'chest_boss' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.elite ? 'elite' : 'normal';
+  const kind = isChest ? (bossChest ? 'chest_boss' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.champion ? 'champion' : enemy.elite ? 'elite' : 'normal';
   const boss = kind === 'boss' ? BOSSES[enemy.bossId ?? enemy.type] : null;
   const named = kind === 'elite' ? ELITES[enemy.type] : null;
 
   // Gold
-  const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest' ? 3 : 1;
+  const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'champion' ? 5 : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest' ? 3 : 1;
   if (kind !== 'normal' || rng() < 0.65) {
     const lo = 1 + lvl * 0.6, hi = 3 + lvl * 1.3;
     drops.push({ gold: Math.max(1, Math.round((lo + rng() * (hi - lo)) * goldMult)) });
@@ -193,8 +202,12 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   for (let i = 0; i < count; i++) {
     const rarity = pickWeighted(weights, rng);
     const id = rarity && pickEquipment({ level: lvl, rarity, classId, rng });
-    if (id) drops.push({ itemId: id, qty: 1 });
+    if (!id) continue;
+    // Plunder: gewöhnliche Ausrüstung normaler Gegner gleich als Gold (Verkaufswert), belegt keinen Platz
+    if (kind === 'normal' && rarity === 'common') { addJunkGold(drops, ITEMS[id].value ?? 1); continue; }
+    drops.push({ itemId: id, qty: 1 });
   }
+  if (kind === 'champion' && rng() < 0.35) { const id = pickEquipment({ level: lvl, rarity: 'uncommon', classId, rng }); if (id) drops.push({ itemId: id, qty: 1 }); }
   if (rare?.signature && ITEMS[rare.signature[0]] && rng() < rare.signature[1]) drops.push({ itemId: rare.signature[0], qty: 1 });
   for (const [id, chance] of boss?.named ?? []) if (ITEMS[id] && rng() < chance) drops.push({ itemId: id, qty: 1 });
   for (const src of [boss, named]) if (src?.set && rng() < src.set.chance) drops.push({ itemId: src.set.pieces[Math.floor(rng() * src.set.pieces.length)], qty: 1 });

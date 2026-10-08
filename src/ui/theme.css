@@ -194,6 +194,14 @@
 .hud-boss.show { opacity: 1; }
 .hud-boss-name { color: #ff9080; font-family: var(--ef-font-title); font-size: 1.1em; letter-spacing: 0.06em; margin-bottom: 3px; text-shadow: 0 1px 0 #000, 0 0 10px rgba(200, 30, 30, 0.8); }
 .hud-boss.enraged .hud-meter { animation: hud-pulse 0.6s infinite; }
+/* Champion: kleinere Leiste unter dem Boss-Platz, Name in Championfarbe, Kräfte darunter */
+.hud-champ { --champ: #ff8a3a; position: absolute; left: 50%; top: var(--hud-gap); transform: translateX(-50%); width: min(30%, 280px); text-align: center; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+.hud-champ.show { opacity: 1; }
+.hud-boss.show ~ .hud-champ { top: calc(var(--hud-gap) + 58px); }
+.hud-champ-name { color: var(--champ); font: 700 1.12em var(--ef-font-title); letter-spacing: 0.04em; margin-bottom: 2px; text-shadow: 0 1px 0 #000, 0 0 8px rgba(0, 0, 0, 0.9); }
+.hud-champ .hud-meter.champ { height: 9px; border: 1px solid #000; box-shadow: 0 0 0 1px color-mix(in srgb, var(--champ) 60%, #000), 0 0 10px color-mix(in srgb, var(--champ) 35%, transparent); }
+.hud-meter.champ { --c: var(--ef-hp); --hi: var(--ef-hp-hi); --lo: #7a1a26; }
+.hud-champ-aff { display: inline-block; margin-top: 3px; padding: 1px 8px; font: 700 0.86em var(--ef-font); color: #f4e8d0; letter-spacing: 0.04em; background: rgba(10, 6, 14, 0.78); border: 1px solid color-mix(in srgb, var(--champ) 45%, #000); text-shadow: 0 1px 0 #000; }
 
 /* Banner */
 .hud-banner {
@@ -509,7 +517,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .hud-minimap-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
-.hud-minimap::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 12px 3px rgba(6, 2, 12, 0.85); border-radius: 2px; }
+.hud-minimap::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(20, 12, 6, 0.9), inset 0 0 8px 2px rgba(40, 24, 10, 0.6); border-radius: 2px; }
 .hud-minimap-n { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); font: 700 9px/1 var(--ef-font); color: #0b0710; background: var(--ef-gold); padding: 1px 3px; border-radius: 2px; z-index: 1; }
 .hud-minimap-hint { position: absolute; bottom: 2px; right: 3px; font-size: 9px; color: var(--ef-muted); opacity: 0; transition: opacity 0.15s; z-index: 1; text-shadow: 0 1px 0 #000; }
 .hud-minimap:hover { border-color: var(--ef-gold); }
@@ -531,20 +539,95 @@
 .ef-portrait .ef-hud .hud-tracker { top: calc(env(safe-area-inset-top, 0px) + 100px); width: calc(100% - 120px); }
 
 /* ------------------------------------------------------------ Zonenkarte (Panel 'map') */
-.map-panel { width: min(92vw, 900px); max-height: 92vh; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-sizing: border-box; }
-.map-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.map-panel { width: min(96vw, 1080px); max-width: min(96vw, 1080px); height: min(94vh, 820px); max-height: 94vh; overflow: hidden; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; box-sizing: border-box; }
+.map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .map-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.5em; letter-spacing: 0.04em; }
 .map-sub { color: var(--ef-muted); font-size: 0.85em; }
-.map-frame { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; background: #06030a; border: 2px solid #8a6230; box-shadow: inset 0 0 24px #000; padding: 6px; overflow: auto; }
-.map-canvas { image-rendering: pixelated; display: block; }
-.map-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+/* Holzrahmen um das Pergament */
+.map-frame { flex: 1 1 0; min-height: 0; display: grid; place-items: center; padding: 4px; overflow: auto; scrollbar-width: thin;
+  background: linear-gradient(180deg, #2a1a10, #1a0f08); border: 2px solid #0e0805; box-shadow: inset 0 0 0 1px #5a3a20, inset 0 0 18px #000; }
+.map-frame.scroll { place-items: start center; }
+.map-sheet { position: relative; flex: none; box-shadow: 0 0 0 2px #0e0805, 0 6px 18px rgba(0, 0, 0, 0.8); }
+.map-canvas { image-rendering: pixelated; display: block; width: 100%; height: 100%; }
+.map-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
 .map-target { display: flex; flex-direction: column; min-width: 200px; flex: 1 1 240px; }
 .map-target-title { color: var(--ef-gold); font-weight: 700; }
 .map-target-text { color: var(--ef-text, #e8dcc8); font-size: 0.9em; }
-.map-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; font-size: 0.82em; color: var(--ef-muted); }
-.map-legend li { display: flex; align-items: center; gap: 4px; }
-.map-legend-icon { width: 18px; height: 18px; image-rendering: pixelated; }
-.map-note { flex-basis: 100%; margin: 0; font-size: 0.75em; color: var(--ef-muted); }
+.map-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; font-size: 0.82em; color: var(--ef-muted); }
+.map-legend li { display: flex; align-items: center; gap: 5px; }
+.map-legend-icon { width: 22px; height: 22px; image-rendering: pixelated; }
+.map-close { flex: none; }
+
+/* Garderobe: große Vorschau links, Aussehen als Icon-Kacheln rechts (Name unter der Vorschau) */
+.wd-panel { width: min(96vw, 860px); max-width: min(96vw, 860px); max-height: 94vh; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; }
+.wd-head { display: flex; align-items: center; justify-content: space-between; }
+.wd-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
+.wd-tabs { padding: 0; }
+.wd-body { display: flex; gap: 14px; min-height: 0; flex: 1 1 auto; padding-top: 8px; }
+.wd-stage { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 296px; }
+.wd-stage canvas { image-rendering: pixelated; border: 1px solid #3a2530; background: #0e0912; }
+.wd-pick { display: flex; flex-direction: column; align-items: center; min-height: 36px; text-align: center; }
+.wd-pick-name { font: 700 15px var(--ef-font-title); color: var(--ef-text); }
+.wd-pick-sub { font-size: 12px; color: #ff8a7a; }
+.wd-alt { display: flex; gap: 6px; }
+.wd-altbtn { width: auto; min-width: 0; flex: none; min-height: 30px; padding: 2px 12px; font-size: 13px; }
+.wd-altbtn.on { border-color: var(--ef-gold); color: var(--ef-gold); }
+.wd-apply { width: auto; min-width: 160px; }
+.wd-msg { margin: 0; font-size: 12px; color: #ff8a7a; }
+.wd-grid { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, 76px); gap: 6px; align-content: start; justify-content: start; padding: 2px; }
+.wd-tile { --wd-r: #6a5a70; position: relative; width: 76px; height: 76px; padding: 0; display: grid; place-items: center; background: #140c1c; border: 2px solid #0b0710; box-shadow: inset 0 0 0 1px var(--wd-r), inset 0 0 12px rgba(0, 0, 0, 0.7); cursor: pointer; }
+.wd-tile > img, .wd-tile > canvas { width: 64px; height: 64px; image-rendering: pixelated; }
+.wd-tile:hover { border-color: #6a4a70; }
+.wd-tile.sel { border-color: var(--ef-gold); box-shadow: inset 0 0 0 1px var(--ef-gold), 0 0 10px rgba(232, 194, 90, 0.35); }
+.wd-tile.off > img, .wd-tile.off > canvas { filter: grayscale(1) brightness(0.45); }
+/* Häkchen (getragen) und Schloss (andere Klasse) als kleine Pixel-Plaketten in der Ecke */
+.wd-check { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+.wd-check::after { content: ''; position: absolute; left: 3px; top: 2px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
+.wd-lock { position: absolute; inset: 0; margin: auto; width: 16px; height: 13px; top: 8px; background: #b8a888; border: 2px solid #0b0710; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.wd-lock::before { content: ''; position: absolute; left: 1px; top: -10px; width: 10px; height: 9px; border: 2px solid #b8a888; border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 0 0 1px #0b0710; }
+.wd-foot { display: flex; justify-content: flex-end; }
+@media (max-height: 500px) {
+  .wd-panel { max-height: 96vh; padding: 6px 10px; gap: 4px; }
+  .wd-body { padding-top: 4px; gap: 10px; }
+  .wd-stage { width: 210px; gap: 4px; }
+  .wd-stage canvas { width: 180px !important; height: 140px !important; }
+  .wd-pick { min-height: 0; } .wd-pick-name { font-size: 13px; }
+  .wd-alt .wd-altbtn, .wd-apply { min-height: 28px; padding: 2px 10px; font-size: 13px; } .wd-apply { min-width: 120px; }
+  .wd-grid { grid-template-columns: repeat(auto-fill, 60px); }
+  .wd-tile { width: 60px; height: 60px; } .wd-tile > img, .wd-tile > canvas { width: 48px; height: 48px; }
+  .wd-foot { display: none; }
+}
+
+/* Reisemenü am Wegstein */
+.tv-panel { width: min(94vw, 480px); max-height: 92vh; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-sizing: border-box; }
+.tv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tv-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
+.tv-blocked { margin: 0; color: #ff8a7a; font-size: 0.9em; }
+.tv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; overflow: auto; min-height: 0; }
+.tv-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid #2e2032; background: rgba(8, 5, 12, 0.5); }
+.tv-row.open { border-color: #4a3450; }
+.tv-row.open:hover { border-color: var(--ef-gold); background: rgba(40, 22, 30, 0.7); }
+.tv-row.here { border-color: #6a5418; background: linear-gradient(90deg, rgba(60, 40, 10, 0.5), rgba(8, 5, 12, 0.5)); }
+.tv-row.locked { opacity: 0.55; }
+.tv-stone { flex: none; width: 32px; height: 36px; image-rendering: pixelated; }
+.tv-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tv-name { font: 700 15px var(--ef-font-title); color: var(--ef-text); }
+.tv-row.here .tv-name { color: var(--ef-gold); }
+.tv-sub { font-size: 12px; color: var(--ef-muted); }
+.tv-go { flex: none; width: auto; min-width: 0; min-height: 34px; padding: 4px 18px; }
+.tv-here { font-size: 12px; color: var(--ef-gold); }
+.tv-locked { font-size: 12px; color: var(--ef-muted); }
+@media (max-height: 500px) { .tv-panel { max-height: 96vh; padding: 8px 10px; gap: 4px; } .tv-row { padding: 3px 8px; } .tv-stone { width: 24px; height: 27px; } }
+/* Niedrige Schirme (Handy quer): schmaler Kopf, Legende ausgeblendet, Ziel einzeilig */
+@media (max-height: 500px) {
+  .map-panel { height: 96vh; max-height: 96vh; padding: 6px 10px; gap: 4px; }
+  .map-title { font-size: 1.1em; } .map-sub { display: none; }
+  .map-frame { padding: 2px; }
+  .map-legend { display: none; }
+  .map-target { flex-direction: row; gap: 8px; align-items: baseline; min-width: 0; }
+  .map-target-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 /* Hochformat mit Tastatur (kein ef-touch): Menüknöpfe oben rechts, Leiste unten mittig über der EP-Leiste */
 .ef-portrait:not(.ef-touch) .hud-menu { right: 8px; top: calc(env(safe-area-inset-top, 0px) + 8px); bottom: auto; }
 .ef-portrait:not(.ef-touch) .hud-menu-label { display: none; }

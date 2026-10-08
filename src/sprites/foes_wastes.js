@@ -17,8 +17,32 @@ import { FK } from './foes_cinder.js';
 
 const {
   GLOW, LAVA, linear, snap, clamp, sample, ell, cap, poly, ik, glowDot, veins, flame, fireball,
-  arcSmear, dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, VOID,
+  dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, VOID, rimGlow,
 } = FK;
+
+// Schwung-Schleier als geschlossene Sichel (ersetzt das gerasterte FK.arcSmear):
+// am frischen Ende breit und hell, zum Anfang spitz auslaufend, harte Stufen –
+// keine Rasterkrümel, an denen die Kontur ausfranst. Signatur wie FK.arcSmear.
+function arcSmear(p, g, cx, cy, a0, a1, r0, r1, cols, seed = 13, glowIt = true) {
+  const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
+  const R1 = Math.ceil(r1);
+  for (let y = -R1; y <= R1; y++) for (let x = -R1; x <= R1; x++) {
+    const d = Math.hypot(x, y);
+    if (d < r0 || d > r1) continue;
+    let a = Math.atan2(y, x);
+    while (a < lo - Math.PI) a += Math.PI * 2;
+    while (a > lo + Math.PI) a -= Math.PI * 2;
+    if (a < lo || a > hi) continue;
+    const fresh = a1 > a0 ? (a - lo) / span : (hi - a) / span;
+    const radial = (d - r0) / (r1 - r0 || 1);
+    const th = 0.15 + 0.85 * fresh * fresh;
+    if (radial < 1 - th) continue;
+    const rr = (radial - (1 - th)) / th;
+    p.px(cx + x, cy + y, rr > 0.7 ? cols[2] : rr > 0.3 ? cols[1] : cols[0]);
+    if (glowIt && fresh > 0.4 && rr > 0.4) g.px(cx + x, cy + y, rr > 0.7 ? GLOW[3] : GLOW[1]);
+  }
+}
+
 
 // ================================================================ Rahmen mit Randlicht
 
@@ -200,14 +224,14 @@ function drawWraith(p, g, P, ex) {
 
   const arm = (sh, tx, ty, ramp, back) => {
     const k = ik(sh.x, sh.y, tx, ty, 8, 9, 1);
-    cap(p, sh.x, sh.y, k.jx, k.jy, back ? 1.8 : 2.1, 1.5, ramp, { noise: 0.2, seed: back ? 5 : 6 });
+    cap(p, sh.x, sh.y, k.jx, k.jy, back ? 1.8 : 2.1, 1.5, ramp, { noise: 0.09, seed: back ? 5 : 6 });
     // zerfetzter Ärmel hängt vom Unterarm
     for (let i = 0; i < 4; i++) {
       const u = 0.15 + i * 0.2, sx = k.jx + (k.ex - k.jx) * u, sy = k.jy + (k.ey - k.jy) * u;
       const L = 3 + (i % 2) * 2 + Math.sin(P.tail + i) * 0.8;
       p.line(sx, sy + 1, sx - 1 - P.drift * 1.5, sy + L, ramp[back ? 1 : 2 + (i % 2)]);
     }
-    cap(p, k.jx, k.jy, k.ex, k.ey, 1.4, 1.2, ramp, { noise: 0.2, seed: back ? 7 : 8 });
+    cap(p, k.jx, k.jy, k.ex, k.ey, 1.4, 1.2, ramp, { noise: 0.09, seed: back ? 7 : 8 });
     // Glutriss im Unterarm
     if (!back) {
       const mx = (k.jx + k.ex) / 2, my = (k.jy + k.ey) / 2;
@@ -235,7 +259,7 @@ function drawWraith(p, g, P, ex) {
     tail.push([tx, ty, nx, ny, u]);
     tx = nx; ty = ny;
   }
-  for (const [x0, y0, x1, y1, u] of tail) cap(p, x0, y0, x1, y1, 5.8 * (1 - u) ** 1.1 + 0.5, 5.8 * (1 - u + 1 / N) ** 1.1 * 0.9 + 0.4, ASHW, { noise: 0.25, seed: 11 });
+  for (const [x0, y0, x1, y1, u] of tail) cap(p, x0, y0, x1, y1, 5.8 * (1 - u) ** 1.1 + 0.5, 5.8 * (1 - u + 1 / N) ** 1.1 * 0.9 + 0.4, ASHW, { noise: 0.11, seed: 11 });
   // Fransen am Ende
   for (let s = 0; s < 3; s++) {
     let fx = tx + 1, fy = ty - 1 + s;
@@ -258,8 +282,8 @@ function drawWraith(p, g, P, ex) {
   }
 
   // --- Rumpf: gebeugter Brustkorb aus gebackener Asche, Mantelfetzen
-  cap(p, waist.x, waist.y, ch.x, ch.y, 4.6, 6.2, ASHW, { noise: 0.22, seed: 13 });
-  ell(p, ch.x - 0.5, ch.y, 6.8, 6.4, ASHW, { noise: 0.2, seed: 14, rot: lean });
+  cap(p, waist.x, waist.y, ch.x, ch.y, 4.6, 6.2, ASHW, { noise: 0.1, seed: 13 });
+  ell(p, ch.x - 0.5, ch.y, 6.8, 6.4, ASHW, { noise: 0.09, seed: 14, rot: lean });
   // Rippen: kurze helle Bögen, dazwischen Glut
   for (let r = 0; r < 3; r++) {
     const ry = ch.y - 1 + r * 2.4;
@@ -285,7 +309,7 @@ function drawWraith(p, g, P, ex) {
   const hx = ch.x + 3.5 + lean * 3 + P.head, hy = ch.y - 9.5 + P.headY;
   // Kapuzenzipfel sackt nach hinten
   poly(p, [[hx - 2, hy - 5.5], [hx - 7 - P.drift * 2, hy - 3.5], [hx - 9 - P.drift * 3, hy + 1 + Math.sin(P.tail) * 0.8], [hx - 7 - P.drift * 2, hy + 5], [hx - 3, hy + 4]], (x, y) => ASHW[(y < hy - 2 ? 3 : 2) - (hash2(x, y, 27) < 0.15 ? 1 : 0)]);
-  ell(p, hx - 0.5, hy, 5.2, 5.4, ASHW, { noise: 0.18, seed: 21, bias: 0.04 });
+  ell(p, hx - 0.5, hy, 5.2, 5.4, ASHW, { noise: 0.08, seed: 21, bias: 0.04 });
   // Gesichtsöffnung
   ell(p, hx + 2, hy + 0.8, 3, 3.6, [VOID, '#1a1014']);
   // Schädelmaske (fahles Knochengrau) im Schatten
@@ -462,8 +486,8 @@ function drawKnight(p, g, P, ex) {
       const kx = hx - 2, ky = gy - 2;
       k = { jx: k.jx + (kx - k.jx) * P.kneel, jy: k.jy + (ky - k.jy) * P.kneel, ex: k.ex + (kx - 9 - k.ex) * P.kneel, ey: k.ey };
     }
-    cap(p, hx, hy, k.jx, k.jy, 3.8, 3.2, ramp, { noise: 0.14, seed: 3 });
-    cap(p, k.jx, k.jy, k.ex, k.ey - 3, 3.2, 3.4, ramp, { noise: 0.14, seed: 4 });
+    cap(p, hx, hy, k.jx, k.jy, 3.8, 3.2, ramp, { noise: 0.06, seed: 3 });
+    cap(p, k.jx, k.jy, k.ex, k.ey - 3, 3.2, 3.4, ramp, { noise: 0.06, seed: 4 });
     // Sabaton aus Schlackenplatten
     const bx = Math.round(k.ex - 4), by = Math.round(k.ey - 4);
     ell(p, bx + 5, by + 2, 5.5, 2.6, ramp, { bias: 0.04 });
@@ -509,11 +533,11 @@ function drawKnight(p, g, P, ex) {
   for (let i = 0; i < 4; i++) {
     const tx = hip.x - 7 + i * 4, ty = hip.y + 1;
     const sw = lean * 2;
-    ell(p, tx + 2 + sw * 0.5, ty + 3, 2.4, 3.8 - Math.abs(i - 1.5) * 0.5, i % 2 ? SLAG : SLAG_D.concat(SLAG[4]), { noise: 0.1, seed: 40 + i });
+    ell(p, tx + 2 + sw * 0.5, ty + 3, 2.4, 3.8 - Math.abs(i - 1.5) * 0.5, i % 2 ? SLAG : SLAG_D.concat(SLAG[4]), { noise: 0.05, seed: 40 + i });
   }
   seam(p, g, hip.x - 7, hip.y + 1, hip.x + 7, hip.y + 1, heat * 0.8, 41);
-  ell(p, hip.x, hip.y - 1, 7.5, 3.5, SLAG, { noise: 0.1, seed: 42 });
-  ell(p, ch.x, ch.y + 1, 9, 9.5, SLAG, { rot: lean, noise: 0.16, seed: 43, bias: 0.05 });
+  ell(p, hip.x, hip.y - 1, 7.5, 3.5, SLAG, { noise: 0.05, seed: 42 });
+  ell(p, ch.x, ch.y + 1, 9, 9.5, SLAG, { rot: lean, noise: 0.07, seed: 43, bias: 0.05 });
   // Plattenfugen quer und längs
   seam(p, g, ch.x - 8 + px * 0, ch.y - 3 + py * -8, ch.x + 7, ch.y - 4 + py * 7, heat, 44);
   seam(p, g, ch.x - 7, ch.y + 4 - py * 7, ch.x + 7, ch.y + 4 + py * 7, heat * 0.9, 45);
@@ -533,9 +557,9 @@ function drawKnight(p, g, P, ex) {
   // --- Helm: Topfhelm aus Schlacke, T-Visier, nach hinten geschwungene Hörner
   const hx = ch.x + px * 2 + P.head, hy = ch.y - 12 + P.headY;
   ell(p, hx - 1, hy + 6, 5, 2.5, SLAG_D.concat(SLAG[4])); // Halsberge
-  ell(p, hx, hy - 1.5, 5, 4, SLAG, { bias: 0.08, noise: 0.08, seed: 47 });
+  ell(p, hx, hy - 1.5, 5, 4, SLAG, { bias: 0.08, noise: 0.04, seed: 47 });
   p.rect(hx - 5, hy - 1, 10, 6, SLAG[3]);
-  ell(p, hx, hy + 1, 5, 4.5, SLAG, { bias: 0.02, noise: 0.1, seed: 48 });
+  ell(p, hx, hy + 1, 5, 4.5, SLAG, { bias: 0.02, noise: 0.05, seed: 48 });
   // Horn nach hinten
   for (let i = 0; i < 7; i++) { const x = hx - 3 - i * 0.9, y = hy - 1 - i * 1.3 + i * i * 0.05; p.rect(x, y, i < 4 ? 2 : 1, 1, i < 2 ? OBS[3] : OBS[4]); if (i > 2) p.px(x + 1, y + 1, OBS[2]); }
   p.px(hx - 9, hy - 9, OBS_SHINE);
@@ -556,14 +580,14 @@ function drawKnight(p, g, P, ex) {
   if (ex.smear) arcSmear(p, g, shF.x, shF.y, ex.smear[0], ex.smear[1], 16, 30, SMEAR, 51, false);
   if (!behind) mace = knightMace(p, g, kf.ex, kf.ey, P.ma, heat, false);
   occlude(g);
-  cap(p, shF.x, shF.y, kf.jx, kf.jy, 3, 2.6, SLAG, { noise: 0.12, seed: 52 });
-  cap(p, kf.jx, kf.jy, kf.ex, kf.ey, 2.6, 2.9, SLAG, { noise: 0.12, seed: 53 });
+  cap(p, shF.x, shF.y, kf.jx, kf.jy, 3, 2.6, SLAG, { noise: 0.05, seed: 52 });
+  cap(p, kf.jx, kf.jy, kf.ex, kf.ey, 2.6, 2.9, SLAG, { noise: 0.05, seed: 53 });
   ell(p, kf.ex, kf.ey, 2.5, 2.5, SLAG, { bias: 0.1 });
   occlude(null);
   seam(p, g, kf.jx - 1, kf.jy + 1, kf.jx + 2, kf.jy - 1, heat * 0.9, 54);
   // Schulterplatte: großer Schlackenbuckel mit Obsidiandornen
   occlude(g);
-  ell(p, shF.x, shF.y - 1, 6, 4.8, SLAG, { bias: 0.1, noise: 0.14, seed: 55 });
+  ell(p, shF.x, shF.y - 1, 6, 4.8, SLAG, { bias: 0.1, noise: 0.06, seed: 55 });
   occlude(null);
   seam(p, g, shF.x - 5, shF.y + 1, shF.x + 5, shF.y + 2, heat, 56);
   for (const [dx, h] of [[-3, 5], [0, 6], [3, 4]]) poly(p, [[shF.x + dx - 1.2, shF.y - 3], [shF.x + dx - 1 - h * 0.3, shF.y - 3 - h], [shF.x + dx + 1.2, shF.y - 3]], OBS[3]);
@@ -593,13 +617,13 @@ function drawKnightFallen(p, g, k) {
   cap(p, AX - 18, gy - 3, AX - 8, gy - 4, 3, 3.2, SLAG_D);
   cap(p, AX - 16, gy - 2, AX - 6, gy - 2, 3, 3.2, SLAG);
   // Rumpf auf dem Bauch
-  ell(p, AX, gy - 5, 10, 5.5, SLAG, { noise: 0.15, seed: 43 });
+  ell(p, AX, gy - 5, 10, 5.5, SLAG, { noise: 0.07, seed: 43 });
   seam(p, g, AX - 8, gy - 6, AX + 8, gy - 7, heat, 44);
   seam(p, g, AX - 2, gy - 9, AX + 1, gy - 2, heat * 0.8, 45);
-  ell(p, AX + 5, gy - 8, 5.5, 4, SLAG, { bias: 0.08, noise: 0.14, seed: 55 });
+  ell(p, AX + 5, gy - 8, 5.5, 4, SLAG, { bias: 0.08, noise: 0.06, seed: 55 });
   // Helm abgerollt
   const hx = AX + 15 + k * 3;
-  ell(p, hx, gy - 4, 4.6, 4, SLAG, { noise: 0.1, seed: 48 });
+  ell(p, hx, gy - 4, 4.6, 4, SLAG, { noise: 0.05, seed: 48 });
   p.rect(hx + 1, gy - 5, 3, 1, heat > 0.3 ? LAVA[3] : VOID); if (heat > 0.3) g.rect(hx + 1, gy - 5, 3, 1, GLOW[2]);
   for (let i = 0; i < 4; i++) p.px(hx - 3 - i, gy - 7 - i * 0.7, OBS[4]);
   // Kolben daneben
@@ -607,6 +631,11 @@ function drawKnightFallen(p, g, k) {
   if (heat > 0.3) for (let i = 0; i < 3; i++) g.px(AX - 1 + i, gy - 13 - i * 2 - k * 3, GLOW[0]);
   return { eye: { x: hx + 2, y: gy - 5 }, head: { x: hx, y: gy - 9 }, chest: { x: AX, y: gy - 6 }, hand: { x: AX - 10, y: gy - 11 }, tip: { x: AX + 12, y: gy - 9 } };
 }
+
+// Zusätzliches Randlicht des Schlackenritters auf der Leuchtebene: die Rüstung ist
+// fast schwarz, die Lichtkarte der Öde schluckt das Randlicht der Farbebene.
+// Heller Ascheschein oben, Glutsaum an den Seiten – unabhängig von der Beleuchtung.
+const KNIGHT_RIM = { top: '#e8c8a8', side: '#a06040', glowTop: '#a08a7a', glowSide: '#7a3418', k: 0.12 };
 
 function createKnight() {
   const S = { ...KN, draw: drawKnight };
@@ -634,7 +663,7 @@ function createKnight() {
   const d1 = knp({ lean: -0.26, hipX: -3, head: -1.5, headY: -1, gx: 5, gy: 6, ma: -1.8, visor: 1.3, heat: 1.4, cape: 0.8 });
   const d2 = knp({ lean: 0.4, kneel: 1, hipY: 3, head: 1, headY: 2, gx: 12, gy: 12, ma: 0.4, visor: 0.8, heat: 0.9 });
   const d3 = knp({ lean: 0.85, kneel: 1, hipY: 7, head: 2, headY: 4, gx: 14, gy: 12, ma: 0.1, visor: 0.3, heat: 0.6 });
-  return {
+  return rimGlow({
     idle: new Animation(track(S, idle, 4, { loop: true }), 5),
     walk: new Animation(track(S, walk, 8, { loop: true, extras: { 0: { fx: 'step' }, 4: { fx: 'step' } } }), 9),
     windup: new Animation(track(S, [[0, idle[0][1]], [0.45, w1], [1, w2]], 4, { extras: { 2: { maceBehind: true }, 3: { maceBehind: true } } }), 7, false),
@@ -648,7 +677,7 @@ function createKnight() {
       still(S, (p, g) => drawKnightFallen(p, g, 0.5)),
       still(S, (p, g) => drawKnightFallen(p, g, 1)),
     ], 7, false),
-  };
+  }, KNIGHT_RIM);
 }
 
 
@@ -693,7 +722,7 @@ function serpentSpine(P, gy, AX) {
 
 // Ein Leibsegment: Kruste, glühende Bauchnaht, Magmaringe zwischen den Schuppenringen
 function serpentSeg(p, g, a, b, i, crust, heat, thr) {
-  cap(p, a.x, a.y, b.x, b.y, a.r, b.r, crust, { noise: 0.2, seed: 60 + (i % 5) });
+  cap(p, a.x, a.y, b.x, b.y, a.r, b.r, crust, { noise: 0.09, seed: 60 + (i % 5) });
   const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
   let nx = -dy / d, ny = dx / d; if (ny < 0) { nx = -nx; ny = -ny; }
   const hh = heat * (b.neck != null ? 0.8 + thr * 0.45 : 0.85);
@@ -766,7 +795,7 @@ function drawSerpent(p, g, P, ex) {
   const hw = 2 + hood * 3, hh = 5.5 + hood * 2.8;
   const hcx = (nk.x + H.x) / 2 - 1.5, hcy = (nk.y + H.y) / 2 + 0.5;
   const hr = Math.atan2(H.y - nk.y, H.x - nk.x) + Math.PI / 2;
-  ell(p, hcx - 1, hcy, hw + 1, hh, crust, { rot: hr, noise: 0.15, seed: 72, bias: 0.1 });
+  ell(p, hcx - 1, hcy, hw + 1, hh, crust, { rot: hr, noise: 0.07, seed: 72, bias: 0.1 });
   if (hood > 0.2) {
     // Innenhaut der Haube: dunkelrote Membran mit Glutadern
     const iw = hw - 0.6, ih = hh - 1.6;
@@ -782,7 +811,7 @@ function drawSerpent(p, g, P, ex) {
     }
   }
   p.line(hcx - hw - 1, hcy - hh + 2, hcx - hw, hcy + hh - 2, OBS[3]);
-  ell(p, H.x, H.y, 5.2, 4.6, crust, { noise: 0.15, seed: 70, bias: 0.05 });
+  ell(p, H.x, H.y, 5.2, 4.6, crust, { noise: 0.07, seed: 70, bias: 0.05 });
   // Oberkiefer: breiter Keil
   poly(p, [T(-1, -3.4), T(5, -2.6), T(9.5, -0.8), T(9.5, 0.8), T(0, 1.2)], (x, y) => (y < T(4, -1.5)[1] ? crust[4] : crust[3]));
   p.line(...T(0, -3.2), ...T(6, -2.4), crust[5]);
@@ -808,9 +837,13 @@ function drawSerpent(p, g, P, ex) {
   // Auge mit Brauenwulst
   const e = T(3, -1.8);
   const ec = ex.hurt ? '#ffffff' : heat < 0.3 ? CRUST[1] : LAVA[5];
-  p.px(e[0], e[1], ec); p.px(e[0] + 1, e[1], heat < 0.3 ? CRUST[1] : LAVA[3]);
-  if (heat >= 0.3) { g.px(e[0], e[1], GLOW[4]); g.px(e[0] + 1, e[1], GLOW[2]); }
-  const br = T(2, -3.2); p.line(br[0], br[1], br[0] + 3 * hc, br[1] + 3 * hs, OBS[4]);
+  p.rect(e[0] - 1, e[1] - 1, 4, 3, VOID);                                   // Augenhöhle
+  p.px(e[0], e[1], ec); p.px(e[0] + 1, e[1], heat < 0.3 ? CRUST[1] : LAVA[4]); p.px(e[0] - 1, e[1], heat < 0.3 ? CRUST[1] : LAVA[2]);
+  if (heat >= 0.3) { g.px(e[0], e[1], GLOW[4]); g.px(e[0] + 1, e[1], GLOW[3]); g.px(e[0] - 1, e[1], GLOW[1]); g.px(e[0], e[1] + 1, GLOW[1]); }
+  const br = T(1.5, -3.4); p.line(br[0], br[1], br[0] + 4 * hc, br[1] + 4 * hs, OBS[4]);
+  p.line(br[0], br[1] - 1, br[0] + 3 * hc, br[1] + 3 * hs - 1, OBS[5] ?? OBS_SHINE);
+  // Schuppenplatten auf dem Schädel (helle Kanten oben)
+  for (const u of [-1.5, 1, 3.5]) { const q = T(u, -4); p.px(q[0], q[1], crust[5]); p.px(q[0] + 1, q[1], crust[4]); }
   meta.eye = { x: e[0], y: e[1] };
   meta.head = { x: H.x, y: H.y - 7 };
 
@@ -988,15 +1021,22 @@ function drawAdept(p, g, P, ex) {
   // Glutstein in der Krone
   p.px(hx - 1.5, cy0, LAVA[4]); g.px(hx - 1.5, cy0, GLOW[4]); g.px(hx - 1.5, cy0 - 1, GLOW[2]);
   // Goldmaske mit Glutriss und V-Augenschlitzen
-  ell(p, hx + 1.2, hy + 0.5, 2.6, 3.2, GOLD, { bias: 0.08 });
-  p.px(hx + 2.5, hy + 3, GOLD[1]);
-  const ec = ex.hurt ? '#ffffff' : LAVA[5];
+  // Kapuzenschatten rahmt die Maske (Kontrast), Maske selbst gedämpftes Gold
+  ell(p, hx + 0.8, hy + 0.6, 3.4, 3.9, [VOID, ROBE[0]]);
+  ell(p, hx + 1.2, hy + 0.5, 2.6, 3.2, GOLD.slice(0, 5), { bias: 0.02 });
+  p.px(hx + 2.5, hy + 3, GOLD[1]); p.px(hx + 3, hy + 2, GOLD[1]);
+  // V-Augenschlitze: dunkle Kerbe, innen tiefer (zorniger Blick), glühender Kern
+  const ec = ex.hurt ? '#ffffff' : LAVA[4];
+  p.px(hx, hy - 1, VOID); p.px(hx + 1, hy, VOID); p.px(hx + 3, hy, VOID); p.px(hx + 4, hy - 1, VOID);
+  p.px(hx + 2, hy - 1, GOLD[4]);                                  // Nasengrat im Licht
   if (P.eye > 0.3) {
-    p.px(hx + 1, hy, ec); p.px(hx + 2, hy + 0.5, LAVA[4]); p.px(hx + 3, hy, ec);
-    g.px(hx + 1, hy, GLOW[4]); g.px(hx + 3, hy, GLOW[4]); g.px(hx + 2, hy + 1, GLOW[2]);
-    if (P.halo > 1.3) { g.px(hx + 4, hy, GLOW[2]); g.px(hx + 1, hy - 1, GLOW[1]); }
-  } else { p.px(hx + 1, hy, VOID); p.px(hx + 3, hy, VOID); }
+    p.px(hx + 1, hy, ec); p.px(hx + 3, hy, ec); p.px(hx, hy - 1, LAVA[2]); p.px(hx + 4, hy - 1, LAVA[2]);
+    g.px(hx + 1, hy, GLOW[4]); g.px(hx + 3, hy, GLOW[4]); g.px(hx, hy - 1, GLOW[2]); g.px(hx + 4, hy - 1, GLOW[2]);
+    if (P.halo > 1.3) { g.px(hx + 5, hy, GLOW[2]); g.px(hx + 1, hy - 1, GLOW[1]); }
+  }
+  // Glutriss quer über die Maske, schmaler Mundschlitz
   p.line(hx + 1, hy + 1.5, hx + 2, hy + 3, LAVA[2]); g.px(hx + 1, hy + 2, GLOW[1]);
+  p.line(hx + 2, hy + 2.5, hx + 3, hy + 2.5, VOID);
   p.px(hx, hy - 2, GOLD[5]);
   meta.eye = { x: hx + 2, y: hy };
   meta.head = { x: hx - 1, y: hy - 11 };
@@ -1100,7 +1140,7 @@ const cop = (o) => ({ ...CO_REST, ...o });
 
 // Fels mit Facetten, Rauschen und Glutrissen
 function boulder(p, g, x, y, rx, ry, ramp, seed, heat, cracks = 2, o = {}) {
-  ell(p, x, y, rx, ry, ramp, { noise: 0.2, seed, ...o });
+  ell(p, x, y, rx, ry, ramp, { noise: 0.09, seed, ...o });
   // Facettenkanten oben links
   const n = Math.max(2, Math.round(rx / 2));
   for (let i = 0; i < n; i++) {
@@ -1138,8 +1178,8 @@ function drawColossus(p, g, P, ex) {
       const kx = hx + 6, ky = gy - 3;
       k = { jx: k.jx + (kx - k.jx) * P.kneel, jy: k.jy + (ky - k.jy) * P.kneel, ex: k.ex + (kx - 12 - k.ex) * P.kneel, ey: k.ey };
     }
-    cap(p, hx, hy, k.jx, k.jy, 6.5, 5.6, ramp, { noise: 0.18, seed });
-    cap(p, k.jx, k.jy, k.ex, k.ey - 4, 5.4, 6, ramp, { noise: 0.18, seed: seed + 1 });
+    cap(p, hx, hy, k.jx, k.jy, 6.5, 5.6, ramp, { noise: 0.08, seed });
+    cap(p, k.jx, k.jy, k.ex, k.ey - 4, 5.4, 6, ramp, { noise: 0.08, seed: seed + 1 });
     boulder(p, g, k.jx + 1, k.jy, 5, 4.4, ramp, seed + 2, heat * (back ? 0.5 : 0.9), back ? 0 : 1);
     // Fuß: flacher Felsblock
     boulder(p, g, k.ex + 3, k.ey - 3, 8.5, 3.8, ramp, seed + 3, heat * 0.6, back ? 0 : 1);
@@ -1147,9 +1187,9 @@ function drawColossus(p, g, P, ex) {
   };
   const arm = (sh, tx, ty, ramp, back, seed) => {
     const k = ik(sh.x, sh.y, tx, ty, 15, 16, 1);
-    cap(p, sh.x, sh.y, k.jx, k.jy, 6, 5, ramp, { noise: 0.18, seed, rim: back ? 0 : 1 });
+    cap(p, sh.x, sh.y, k.jx, k.jy, 6, 5, ramp, { noise: 0.08, seed, rim: back ? 0 : 1 });
     boulder(p, g, (sh.x + k.jx) / 2, (sh.y + k.jy) / 2, 5.5, 5, ramp, seed + 1, heat * (back ? 0.4 : 0.9), back ? 0 : 1);
-    cap(p, k.jx, k.jy, k.ex, k.ey, 5.2, 6.2, ramp, { noise: 0.18, seed: seed + 2, rim: back ? 0 : 1 });
+    cap(p, k.jx, k.jy, k.ex, k.ey, 5.2, 6.2, ramp, { noise: 0.08, seed: seed + 2, rim: back ? 0 : 1 });
     boulder(p, g, k.jx, k.jy, 4.4, 4.4, ramp, seed + 3, heat * 0.8, back ? 0 : 1);
     // Faust
     const fr = 7.5 + P.fist * 0.8;
@@ -1251,13 +1291,22 @@ function drawColossus(p, g, P, ex) {
   shard(p, g, hx + 1, hy - 4, -1.9, 4, 1.3, heat);
   // Augen
   const ec = ex.hurt ? '#ffffff' : LAVA[5];
-  p.rect(hx + 1, hy - 1, 2, 1, ec); p.rect(hx + 4, hy - 1, 2, 1, ec);
-  g.rect(hx + 1, hy - 1, 2, 1, GLOW[4]); g.rect(hx + 4, hy - 1, 2, 1, GLOW[4]);
+  p.rect(hx, hy - 1, 7, 2, VOID);                                              // Schattenband unter dem Wulst
+  p.px(hx + 1, hy - 1, LAVA[3]); p.px(hx + 2, hy, ec); p.px(hx + 4, hy, ec); p.px(hx + 5, hy - 1, LAVA[3]);
+  p.px(hx + 2, hy - 1, LAVA[4]); p.px(hx + 4, hy - 1, LAVA[4]);
+  g.px(hx + 2, hy, GLOW[4]); g.px(hx + 4, hy, GLOW[4]); g.px(hx + 2, hy - 1, GLOW[3]); g.px(hx + 4, hy - 1, GLOW[3]);
+  g.px(hx + 1, hy - 1, GLOW[2]); g.px(hx + 5, hy - 1, GLOW[2]);
   g.rect(hx, hy - 2, 7, 3, GLOW[0]);
+  p.px(hx + 3, hy, ROCK[3]); p.px(hx + 3, hy + 1, ROCK[4]);                    // Nasenrücken
+  p.px(hx - 3, hy, ROCK[5]); p.px(hx - 2, hy + 1, ROCK[4]);                    // Wangenkante im Licht
   // Maul: glühender Spalt, öffnet sich beim Brüllen
   const jo = Math.round(P.jaw * 4);
   p.rect(hx, hy + 2, 6, 1 + jo, VOID);
-  if (jo > 0) { p.rect(hx + 1, hy + 2, 4, jo, LAVA[3]); p.rect(hx + 2, hy + 2, 2, jo, LAVA[5]); g.rect(hx + 1, hy + 2, 4, jo, GLOW[3]); }
+  if (jo > 0) {
+    p.rect(hx + 1, hy + 2, 4, jo, LAVA[3]); p.rect(hx + 2, hy + 2, 2, jo, LAVA[5]); g.rect(hx + 1, hy + 2, 4, jo, GLOW[3]);
+    // Steinzähne oben und unten
+    p.px(hx + 1, hy + 2, ROCK[5]); p.px(hx + 4, hy + 2, ROCK[5]); p.px(hx + 2, hy + 1 + jo, ROCK[4]); p.px(hx + 5, hy + 1 + jo, ROCK[4]);
+  }
   else { p.rect(hx + 1, hy + 2, 4, 1, LAVA[2]); g.rect(hx + 1, hy + 2, 4, 1, GLOW[1]); }
   p.rect(hx - 1, hy + 3 + jo, 8, 2, ROCK[2]); p.px(hx + 6, hy + 3 + jo, ROCK[3]);
   meta.eye = { x: hx + 3, y: hy - 1 };

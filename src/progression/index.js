@@ -3,7 +3,8 @@ import { ProgressionSystem } from './ProgressionSystem.js';
 import { registerPanels } from './panels.js';
 import { xpToNext, totalXpForLevel, LEVEL_CAP, LEVEL_GROWTH } from './xp.js';
 import { rareSpawnsFor } from './rares.js';
-import { xpInfo, equipmentBonus, trackedQuests, trackedQuestId, questTarget, npcMarker, questStatus, questsForNpc, potionCount, countItem, vendorStock, isUpgrade } from './selectors.js';
+import { boardHasOffers } from './board.js';
+import { xpInfo, equipmentBonus, trackedQuests, trackedQuestId, questTarget, npcMarker, questStatus, questsForNpc, potionCount, countItem, vendorStock, isUpgrade, openObjectives, setWorldFeatures } from './selectors.js';
 
 // Thread C – Fortschritt: Erfahrung und Stufen, Beute, Inventar, Gold, Quests, Händler.
 //
@@ -36,6 +37,9 @@ export function installProgression(game) {
     trackedQuestId: () => trackedQuestId(state, content),   // verfolgte Quest (gewählt oder erste Hauptquest)
     focusedQuestId: () => trackedQuestId(state, content),   // Alias
     questTarget: () => questTarget(state, content),         // Ziel für den Questpfad, INTEGRATION.md §11.6
+    openObjectives: () => openObjectives(state, content),   // offene Ziele aktiver Quests (B: Eskorte/Verteidigen starten, Objekte markieren)
+    setWorldFeatures: (list) => setWorldFeatures(list),      // B meldet, welche Questarten die Welt kann: ['escort', 'defend']
+    boardHasOffers: (_zoneId) => boardHasOffers(state, Date.now()), // Auftragsbrett leuchtet (B), gleiche Aufträge an jedem Brett
     trackQuest: (questId) => state.commit('quest:track', { questId }),
     guideQuest: (questId) => state.commit('quest:guide', { questId }), // Weg zum Questgeber einer verfügbaren Quest
     vendorStock: (vendorId) => vendorStock(content, vendorId),

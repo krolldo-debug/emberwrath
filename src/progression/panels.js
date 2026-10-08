@@ -4,7 +4,7 @@ import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { computeStats } from '../character/stats.js';
 import { EQUIP_SLOTS, EQUIP_SLOT_NAMES, STAT_NAMES, RARITIES, buyPrice, equipSlotFor, canUseClass, typeLabel, itemScore } from './items.js';
 import { RECIPE_GROUPS } from './crafting.js';
-import { xpInfo, trackedQuests, trackedQuestId, questStatus, questsForNpc, npcName, npcShortName, freeSlots, isUpgrade, countItem, turnInOf, questRewardItems, vendorStock, npcIdleLine, sellableSlots, sellValue } from './selectors.js';
+import { xpInfo, trackedQuests, trackedQuestId, questStatus, questsForNpc, npcName, npcShortName, freeSlots, isUpgrade, countItem, turnInOf, questRewardItems, vendorStock, npcIdleLine, sellableSlots, sellValue, materialList } from './selectors.js';
 import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, rewardsEl, barEl, objectivesEl, attachTip, hideTip, reactive, tapper } from './widgets.js';
 import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
@@ -50,7 +50,6 @@ const FILTERS = [
   ['all', 'Alle', () => true],
   ['gear', 'Ausrüstung', (d) => !!d.slot],
   ['use', 'Verbrauch', (d) => d.type === 'consumable' || d.type === 'mount'],
-  ['mat', 'Material', (d) => d.type === 'material'],
   ['quest', 'Quest', (d) => d.type === 'quest'],
 ];
 
@@ -82,7 +81,7 @@ function inventoryView(s) {
       redraw();
       return r;
     };
-    const selItemId = sel?.bag != null ? inv.slots[sel.bag]?.itemId : sel?.eq ? inv.equipment[sel.eq] : null;
+    const selItemId = sel?.bag != null ? inv.slots[sel.bag]?.itemId : sel?.eq ? inv.equipment[sel.eq] : sel?.mat && inv.mats?.[sel.mat] ? sel.mat : null;
     if (sel && !selItemId) sel = null;
 
     const primary = (i) => {
@@ -200,6 +199,12 @@ function inventoryView(s) {
       }
     } else if (sel?.eq) {
       actions.push(actionBtn('Ablegen', () => unequip(sel.eq), { primary: true }));
+    } else if (sel?.mat) {
+      const def = content.find('item', sel.mat), n = inv.mats?.[sel.mat] ?? 0;
+      if (def?.value && n) {
+        const one = sel.mat;
+        actions.push(actionBtn(`Alle verkaufen +${fmt(def.value * n)}`, () => { sel = null; const r = act('inventory:sellMat', { itemId: one }); if (r?.ok) msg = `${r.count}× ${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }));
+      }
     }
     const detail = selItemId
       ? h('div.pg-sheet.open',
@@ -233,6 +238,18 @@ function inventoryView(s) {
           `Auto-Verkauf: ${AUTO.find(([m]) => m === auto)[1]}`));
     }
 
+    // Materialbeutel: belegt keine Taschenplätze, hat keine Größe
+    function matSection() {
+      const list = materialList(st, content);
+      return h('section.pg-matbag', { 'aria-label': 'Materialbeutel' },
+        h('div.pg-matbag-head', h('span.pg-questbag-label', 'Materialbeutel'), h('span.pg-qs-info', list.length ? 'Belegt keine Taschenplätze' : 'Noch leer. Materialien landen hier und belegen keine Taschenplätze.')),
+        list.length ? h('div.pg-matbag-grid', list.map((e) => {
+          const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, size: 36, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
+          attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
+          return el;
+        })) : null);
+    }
+
     const used = inv.slots.length - freeSlots(st);
     return panelFrame(s, 'inventory', 'Inventar',
       h('div.pg-scroll.pg-keep-scroll.pg-inv',
@@ -246,6 +263,7 @@ function inventoryView(s) {
             h(`button.pg-chip.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere Teile antippen und zusammen verkaufen', onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, multi ? '✓ Auswahl' : '☐ Auswählen'))),
           quickSellBar(),
           h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
+          matSection(),
           inv.questBag?.length ? h('div.pg-questbag', { title: 'Questgegenstände und Questbelohnungen, für die in der Tasche kein Platz war. Sie wandern zurück, sobald Platz frei ist.' },
             h('span.pg-questbag-label', 'Questbeutel'),
             inv.questBag.map((e) => { const d = content.find('item', e.itemId); return h('span.pg-questbag-item', itemIconEl({ ...d, name: null }, 24), h('b', `${e.qty}× ${d?.name ?? e.itemId}`)); })) : null,
@@ -426,15 +444,19 @@ function questDialogView(s, { npcId } = {}) {
       if (status === 'available') {
         actions.push(actionBtn('Annehmen', () => { const r = commit(s, 'quest:accept', { questId: def.id }); msg = r.ok ? '' : 'Das geht gerade nicht.'; redraw(); }, { primary: true }));
       } else if (status === 'ready' && turnInOf(def) === npcId) {
-        actions.push(actionBtn('Quest abschließen', () => {
-          const r = commit(s, 'quest:turnIn', { questId: def.id });
+        const turnIn = (choice) => {
+          const r = commit(s, 'quest:turnIn', { questId: def.id, choice });
           msg = r.ok ? '' : r.reason === 'full' ? `Du brauchst ${r.need} freie Plätze im Inventar.` : 'Noch nicht erfüllt.';
           redraw();
-        }, { primary: true }));
+        };
+        // Entscheidung: jede Wahl ist ein eigener Knopf, darunter steht, was sie bewirkt
+        if (def.choices) for (const ch of def.choices) actions.push(h('div.pg-choice', actionBtn(ch.label, () => turnIn(ch.id), { primary: true }), ch.hint ? h('small.pg-wrap', ch.hint) : null));
+        else actions.push(actionBtn('Quest abschließen', () => turnIn(null), { primary: true }));
       }
       body = h('div.pg-dialog-quest',
         h('div.pg-quest-title.big', def.title, h('span.pg-quest-lvl', ` · Stufe ${def.level ?? 1}`), def.repeatable ? h('span.pg-tag.rep', 'Kopfgeld') : null),
         h('p.pg-dialog-text', `„${text ?? def.summary}“`),
+        status === 'ready' && def.choices && turnInOf(def) === npcId ? h('p.pg-hint', 'Deine Entscheidung bestimmt, wie es weitergeht.') : null,
         def.objectives.length ? h('div', h('h3', 'Ziele'), objectivesEl(objectives)) : null,
         rewardsEl(c, def.rewards, questRewardItems(st, c, def.id)),
         a?.status === 'ready' && turnInOf(def) !== npcId ? h('p.pg-hint', `Abgeben bei ${npcShortName(c, turnInOf(def))}`) : null,

@@ -1,7 +1,7 @@
 import { EV } from '../core/events.js';
 import { CONFIG } from '../config.js';
 import { getHeroSprites, heroRes } from '../sprites/hero.js';
-import { resolveGear } from '../character/gearLook.js';
+import { resolveGear, shownEquipment } from '../character/gearLook.js';
 import { spriteStyle } from '../character/cosmetics.js';
 import { RemotePlayer } from './RemotePlayer.js';
 import { NetHud } from './NetHud.js';
@@ -19,7 +19,8 @@ export function lookOf(session) {
   const hero = session.world?.hero;
   const st = session.state.slices, ch = st.character ?? {}, ap = ch.appearance ?? {};
   const mounts = ch.mounts ?? {};
-  const eq = st.inventory?.equipment ?? {};
+  // Sichtbare Ausrüstung inkl. Garderobe (character/wardrobe.js): andere sehen das gewählte Aussehen
+  const eq = shownEquipment(st, session.content);
   const itemId = (e) => (typeof e === 'string' ? e : e?.itemId ?? null);
   const items = Object.fromEntries(LOOK_SLOTS.map((k) => [k, itemId(eq[k] ?? (k === 'chest' ? eq.armor : null))]));
   return {

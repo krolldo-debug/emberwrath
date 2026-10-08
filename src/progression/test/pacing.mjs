@@ -11,7 +11,7 @@ import { Content } from '../../core/Content.js';
 import { GameState } from '../../core/GameState.js';
 import { LocalAuthority } from '../../core/Authority.js';
 import { registerProgressionContent, registerProgressionState } from '../logic.js';
-import { questStatus } from '../selectors.js';
+import { questStatus, setWorldFeatures } from '../selectors.js';
 import { rollLoot } from '../loot.js';
 import { ITEMS } from '../items.js';
 import { PACE } from '../xp.js';
@@ -64,6 +64,7 @@ export function runCampaign({ trash = 2, sideQuests = true, until = null, log = 
   state.defineSlice('character', { create: () => ({ name: 'Sim', classId: 'mage' }) });
   registerProgressionContent(content);
   registerProgressionState(state, { rng: () => 0.5 });
+  setWorldFeatures(['escort', 'defend']);
   const rng = mulberry(seed);
   const c = (t, p) => state.commit(t, p);
   const P = () => state.slices.progress;
@@ -96,12 +97,15 @@ export function runCampaign({ trash = 2, sideQuests = true, until = null, log = 
           if (!BOSS.has(from[0]) && !ELITE.has(from[0])) for (let k = 0; k < 2; k++) kill(from[k % Math.max(1, from.length)] ?? TRASH[zone][0]);
           c('inventory:add', { itemId: o.target, qty: 1 });
         } else if (o.kind === 'interact') { c('quest:event', { kind: 'interact', target: targets[i] ?? targets[0] }); kill(TRASH[zone]?.[0] ?? 'wolf'); }
-        else if (o.kind === 'reach') { c('quest:event', { kind: 'reach', target: targets[0] }); for (let k = 0; k < 4; k++) kill(TRASH[zone]?.[k % 2] ?? 'wolf'); }
+        else if (o.kind === 'reach') { c('quest:event', { kind: 'reach', target: targets[i] ?? targets[0] }); for (let k = 0; k < 4; k++) kill(TRASH[zone]?.[k % 2] ?? 'wolf'); }
         else if (o.kind === 'talk') c('quest:event', { kind: 'talk', target: o.target });
+        // Questvielfalt: Rätsel/Benutzen wie Objekte (mit etwas Kampf am Weg), Eskorte/Verteidigen mit Wellen
+        else if (o.kind === 'sequence' || o.kind === 'use') { c('quest:event', { kind: 'interact', target: targets[i] }); kill(TRASH[zone]?.[i % 2] ?? 'wolf'); }
+        else if (o.kind === 'escort' || o.kind === 'defend') { c('quest:event', { kind: o.kind, target: o.target }); for (let k = 0; k < 8; k++) kill(TRASH[zone]?.[k % 2] ?? 'wolf'); }
       }
     }
     const xp0 = P().xp, g0 = state.slices.wallet.gold;
-    const r = c('quest:turnIn', { questId: q.id });
+    const r = c('quest:turnIn', { questId: q.id, choice: q.choices?.[0]?.id ?? null });
     if (!r.ok) throw new Error(`Abgabe fehlgeschlagen: ${q.id} (${r.reason})`);
     questXp += P().xp - xp0; questGold += state.slices.wallet.gold - g0;
     seconds += SEC_PER_QUEST; quests++;

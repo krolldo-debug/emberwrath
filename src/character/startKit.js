@@ -28,6 +28,16 @@ export const START_ZONE_ITEMS = [
 ];
 export const START_ZONE_QUESTS = ['q_ashen_wolves', 'q_bounty_emberhollow', 'q_glutfang', 'q_into_catacombs', 'q_spider_silk'];
 
+// Beutevarianten (progression/items.js VARIANTS, Runde 08.10.): `<basis>_<variante>` zählt wie die Basis.
+// Muss den Schlüsseln von VARIANTS entsprechen (startKitSql.mjs --test prüft das).
+export const START_VARIANTS = ['bear', 'guard', 'fox', 'hawk', 'owl', 'ember'];
+
+// Alle erlaubten Gegenstände eines frischen Charakters (Startzone, Startpaket, Startausrüstung, je mit Varianten).
+export function startAllowedItems() {
+  const base = [...START_ZONE_ITEMS, ...START_ITEMS.map((i) => i.itemId), ...Object.values(STARTER_GEAR).flatMap((g) => Object.values(g))];
+  return [...new Set(base.flatMap((id) => [id, ...START_VARIANTS.map((v) => `${id}_${v}`)]))];
+}
+
 export const START_ACHIEVEMENTS = ['first_blood', 'first_quest'];
 export const START_BANK_SIZE = 16;
 export const START_MAX_LEVEL = 3;
@@ -37,7 +47,7 @@ const itemIdOf = (e) => (typeof e === 'string' ? e : isObj(e) && typeof e.itemId
 
 // Prüft einen Spielstand (wie er hochgeladen wird: { slices, meta }) gegen das Startpaket.
 // -> null (in Ordnung) oder Grund: 'format'|'klasse'|'stufe'|'gold'|'reittier'|'talente'|'quest'|'gegenstand'|'ausruestung'|'schmiede'
-//    |'bank'|'boss'|'pruefung'|'erfolg'
+//    |'bank'|'boss'|'pruefung'|'erfolg'|'auftrag'
 // Muss dieselben Regeln haben wie public.character_start_kit_problem (startKitSql.mjs prüft das gegen Postgres).
 const isObj = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
 const notObj = (v) => v != null && !isObj(v);
@@ -47,7 +57,7 @@ export function startKitProblem(snapshot, classId = null) {
   const s = snapshot?.slices;
   if (!isObj(s)) return 'format';
   const ch = s.character, inv = s.inventory ?? {};
-  if ([ch, s.progress, s.wallet, s.quests, s.inventory, s.bank, s.world, s.trials, s.achievements].some(notObj)) return 'format';
+  if ([ch, s.progress, s.wallet, s.quests, s.inventory, s.bank, s.world, s.trials, s.achievements, s.board].some(notObj)) return 'format';
   const level = s.progress?.level ?? 1, gold = s.wallet?.gold ?? 0;
   if (typeof level !== 'number' || typeof gold !== 'number') return 'format';
   const cls = ch?.classId;
@@ -66,10 +76,12 @@ export function startKitProblem(snapshot, classId = null) {
   if (ranks > level - 1) return 'talente';
   const done = s.quests?.completed ?? [];
   if (!Array.isArray(done) || done.some((q) => !START_ZONE_QUESTS.includes(q))) return 'quest';
-  const allowed = new Set([...START_ZONE_ITEMS, ...START_ITEMS.map((i) => i.itemId)]);
+  const allowed = new Set(startAllowedItems());
   const bad = (e) => e != null && !allowed.has(itemIdOf(e));
-  const slots = inv.slots ?? [], bag = inv.questBag ?? [], eq = inv.equipment ?? {};
+  const slots = inv.slots ?? [], bag = inv.questBag ?? [], eq = inv.equipment ?? {}, mats = inv.mats ?? {};
   if (!Array.isArray(slots) || !Array.isArray(bag) || slots.some(bad) || bag.some(bad)) return 'gegenstand';
+  // Materialbeutel { itemId: Anzahl } (Runde 08.10.)
+  if (notObj(mats) || Object.entries(mats).some(([id, n]) => !allowed.has(id) || !Number.isInteger(n) || n < 0)) return 'gegenstand';
   if (notObj(eq) || Object.values(eq).some(bad)) return 'ausruestung';
   const up = inv.upgrades ?? {}, en = inv.enchants ?? {};
   if (notObj(up) || notObj(en) || Object.values(up).some(truthy) || Object.values(en).some(truthy)) return 'schmiede';
@@ -81,5 +93,8 @@ export function startKitProblem(snapshot, classId = null) {
   if (truthy(t.best) || truthy(t.runs) || truthy(t.run) || (t.cleared != null && !(isObj(t.cleared) && !Object.keys(t.cleared).length))) return 'pruefung';
   const ach = s.achievements ?? {}, unl = ach.unlocked ?? {};
   if (notObj(unl) || Object.keys(unl).some((k) => !START_ACHIEVEMENTS.includes(k)) || truthy(ach.title)) return 'erfolg';
+  // Auftragsbrett: angenommen darf schon sein, erledigt oder Wochenbelohnung noch nicht
+  const bd = s.board ?? {}, bdone = bd.done ?? [];
+  if (!Array.isArray(bdone) || bdone.length || truthy(bd.weekDone) || truthy(bd.weekClaimed) || notObj(bd.taken)) return 'auftrag';
   return null;
 }

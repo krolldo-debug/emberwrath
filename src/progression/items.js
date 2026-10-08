@@ -394,6 +394,36 @@ function withLists(base, extra) {
   return out;
 }
 
+// ------------------------------------------------------------------ Varianten (Runde 08.10.)
+// Nutzer: „Mehr Variationen bei Rüstung und Waffen“. Jede grüne und blaue Zufallsbeute (ohne source/Set) gibt es
+// zusätzlich in zwei Fassungen mit Beinamen: andere Attribute und ein kleiner Zusatzwert.
+// ID `<basis>_<variante>`, Felder `variant` und `base` (A kann daran Farbtöne im Aussehen festmachen).
+export const VARIANTS = {
+  bear: { suffix: 'des Bären', attrs: ['str', 'vit', 'agi'], extra: (L, m) => ({ maxHp: Math.round((3 + L * 1.6) * m * 0.5) }) },
+  guard: { suffix: 'des Wächters', attrs: ['vit', 'str', 'int'], extra: (L, m) => ({ armor: Math.max(1, Math.round((2 + L * 0.6) * m * 0.5)) }) },
+  fox: { suffix: 'des Fuchses', attrs: ['agi', 'vit', 'str'], extra: (_L, m) => ({ critChance: Math.round(0.008 * m * 1000) / 1000 }) },
+  hawk: { suffix: 'des Falken', attrs: ['agi', 'int', 'vit'], extra: (L, m) => ({ power: Math.max(1, Math.round((0.5 + L * 0.2) * m)) }) },
+  owl: { suffix: 'der Eule', attrs: ['int', 'vit', 'agi'], extra: (L, m) => ({ maxResource: Math.max(2, Math.round((2 + L * 0.6) * m)) }) },
+  ember: { suffix: 'der Glut', attrs: ['int', 'agi', 'str'], extra: (_L, m) => ({ critChance: Math.round(0.008 * m * 1000) / 1000 }) },
+};
+const VARIANTS_FOR = {
+  sword: ['bear', 'fox'], greatsword: ['bear', 'guard'], axe: ['bear', 'guard'], mace: ['bear', 'guard'],
+  dagger: ['fox', 'hawk'], bow: ['hawk', 'fox'], staff: ['owl', 'ember'], wand: ['owl', 'ember'],
+  cloth: ['owl', 'ember'], leather: ['fox', 'hawk'], mail: ['bear', 'hawk'], plate: ['bear', 'guard'],
+};
+function addVariants(out) {
+  for (const [id, d] of Object.entries(out)) {
+    if (d.source || d.set || (d.rarity !== 'uncommon' && d.rarity !== 'rare') || (d.type !== 'weapon' && d.type !== 'armor')) continue;
+    for (const v of VARIANTS_FOR[d.family] ?? []) {
+      const V = VARIANTS[v], vid = `${id}_${v}`;
+      if (out[vid]) continue;
+      const m = RARITIES[d.rarity].mult;
+      out[vid] = { ...d, name: `${d.name} ${V.suffix}`, variant: v, base: id,
+        stats: makeStats({ slot: d.slot, family: d.family, ilvl: d.ilvl, rarity: d.rarity, attrs: V.attrs, extra: V.extra(d.ilvl, m) }) };
+    }
+  }
+}
+
 function buildEquipment() {
   const out = {};
   const weapons = withLists(WEAPONS, WEAPONS_40), armor = withLists(ARMOR, ARMOR_40), jewelry = withLists(JEWELRY, JEWELRY_40);
@@ -422,6 +452,7 @@ function buildEquipment() {
       };
     }
   }
+  addVariants(out);
   for (const [id, d] of Object.entries(out)) {
     if (!d.stats) throw new Error(`Item ${id} ohne Werte`);
     d.reqLevel = Math.max(1, d.ilvl - 1);

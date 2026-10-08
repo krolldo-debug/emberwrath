@@ -10,6 +10,8 @@ import { getMountSprites } from '../sprites/mounts.js';
 import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
+import { applyLevelGap } from '../progression/levelGap.js';
+import { applyBossPower } from '../world/bossFury.js';
 
 // Konstanten, die für alle Klassen gleich sind (Klassenwerte: character/classes.js)
 const H = {
@@ -558,6 +560,9 @@ export class Hero extends Actor {
       return false;
     }
     if (this.dead || this.invuln > 0 || !this.hurtable) return false;
+    // Stufenabstand zuerst, damit Rüstung und „Unbeugsam“ mit dem echten Schaden rechnen (wirkt einmal je Treffer)
+    applyLevelGap(hit, this);
+    applyBossPower(hit, this); // Boss-Schadensfaktor und Raserei, ebenfalls vor „Unbeugsam“
     let mult = 1 - this.stats.damageReduction;
     for (const b of this.buffs) if (b.damageTaken) mult *= b.damageTaken;
     hit.damage = Math.max(1, Math.round(hit.damage * mult));

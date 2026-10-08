@@ -6,6 +6,10 @@ import { TRIAL_EV } from './endgame.js';
 import { TRIAL_ZONE } from './trials.js';
 
 export const POTION_COOLDOWN = 1.5;
+// Im Kampf (Treffer gegeben oder erhalten in den letzten COMBAT_LINGER s) wirkt der nächste Trank
+// erst nach 10 s: sonst lässt sich jeder Bosskampf mit gekauften Tränken aussitzen (Messung B 08.10.).
+export const POTION_COOLDOWN_COMBAT = 10;
+export const COMBAT_LINGER = 5;
 
 // Sitzungssystem von Thread C (order 10). Übersetzt Spielereignisse in Commands:
 //   enemy:killed    -> progress:kill (XP, Quests) + loot:roll (Beute in die Welt)
@@ -20,21 +24,32 @@ export class ProgressionSystem {
   constructor(session, opts = {}) {
     this.s = session;
     this.potionCd = 0;
+    this.potionCdMax = POTION_COOLDOWN;
+    this.combatT = 0;
     this.pendingLevelHeal = false;
     this.toastCd = 0;
     this.trialTime = 0;
     const { bus } = session;
     const commit = (t, p) => session.state.commit(t, p);
 
+    bus.on('hit', (e) => {
+      const hero = this.hero;
+      if (hero && e && (e.target === hero || e.attacker === hero) && e.attacker !== e.target) this.combatT = COMBAT_LINGER;
+    });
+
     bus.on(EV.ENEMY_KILLED, (e) => {
       const bossId = e.bossId ?? (e.isBoss ? e.type : undefined);
-      commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, now: Date.now() });
-      if (!e.summoned) this.#rollLoot({ source: 'kill', id: e.type, level: e.level, elite: e.elite, isBoss: e.isBoss, bossId, family: e.family, rareId: e.rareId }, e.x, e.y);
+      commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, champion: e.champion ?? null, now: Date.now() });
+      if (!e.summoned) this.#rollLoot({ source: 'kill', id: e.type, level: e.level, elite: e.elite, isBoss: e.isBoss, bossId, family: e.family, rareId: e.rareId, champion: !!e.champion }, e.x, e.y);
     });
     bus.on(EV.BOSS_DEFEATED, (e) => { commit('quest:event', { kind: 'boss', target: e.bossId }); commit('quest:bossReward', { bossId: e.bossId }); });
     bus.on(EV.AREA_REACHED, (e) => commit('quest:event', { kind: 'reach', target: e.areaId }));
     bus.on(EV.ZONE_ENTER, (e) => commit('quest:event', { kind: 'reach', target: `zone:${e.zoneId}` }));
     bus.on(EV.ZONE_LEAVE, () => commit('loot:reset'));
+    // Auftragsbrett (B: Objekt quest_board)
+    bus.on(EV.BOARD_OPEN ?? 'board:open', (e) => { commit('board:sync', { now: Date.now() }); session.panels.open('board', { zoneId: e.zoneId }); });
+    // Eskorte/Verteidigen (B): { kind: 'escort'|'defend'|'escortFailed'|'defendFailed', target }
+    bus.on(EV.QUEST_OBJECTIVE ?? 'quest:objective', (e) => commit('quest:event', { kind: e.kind, target: e.target }));
     bus.on(EV.OBJECT_INTERACT, (e) => {
       if (e.kind === 'chest') this.#rollLoot({ source: 'chest', id: e.objectId, level: e.level }, e.x, e.y);
       else if (e.kind === 'bank') session.panels.open('bank');
@@ -104,7 +119,7 @@ export class ProgressionSystem {
     if (effect.resource && hero.maxResource && hero.resourceType !== 'rage') {
       hero.resource = Math.min(hero.maxResource, (hero.resource ?? 0) + effect.resource);
     }
-    if (effect.heal) this.potionCd = POTION_COOLDOWN;
+    if (effect.heal) this.potionCd = this.potionCdMax = this.combatT > 0 ? POTION_COOLDOWN_COMBAT : POTION_COOLDOWN;
   }
 
   #toast(text, kind = 'warn') {
@@ -135,12 +150,13 @@ export class ProgressionSystem {
     if (this.pendingLevelHeal && hero && !hero.dead) { hero.hp = hero.maxHp; this.pendingLevelHeal = false; }
     if (session.paused) return;
     this.potionCd = Math.max(0, this.potionCd - dt);
+    this.combatT = Math.max(0, this.combatT - dt);
     if (this.#trialActive()) {
       this.trialTime += dt;
       const run = session.state.slices.trials.run;
       if (this.trialTime >= run.timeLimit) session.state.commit('trial:fail', { reason: 'time' });
     }
-    if (hero) { hero.potionCd = this.potionCd; hero.potionCooldown = POTION_COOLDOWN; }
+    if (hero) { hero.potionCd = this.potionCd; hero.potionCooldown = this.potionCdMax; }
     if (session.input.pressed('potion')) this.usePotion();
   }
 

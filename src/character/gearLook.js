@@ -297,3 +297,33 @@ export function gearKey(gear) {
   return [k(gear.weapon), gear.chest ? `${gear.chest.style}:${gear.chest.ramp?.[2]}:${gear.chest.rarity}` : '',
     gear.head ? `${gear.head.style}:${gear.head.ramp?.[2]}:${gear.head.rarity}:${gear.head.trim?.[2] ?? ''}:${gear.head.crest?.[2] ?? ''}:${gear.head.crown?.[2] ?? ''}:${gear.head.coif ? 1 : 0}${gear.head.tail ? 't' : ''}` : '', gear.hands ? gear.hands.ramp?.[2] : '', gear.feet ? gear.feet.ramp?.[2] : ''].join('|');
 }
+
+// ---------------------------------------------------------------- Garderobe (character/wardrobe.js)
+// Sichtbare Ausrüstung: getragene Teile, überlagert mit dem gewählten Aussehen aus character.wardrobe.
+//   shownEquipment(slices, content) -> { weapon, chest, head, hands, feet } (Item-IDs, wie inventory.equipment)
+// Ein Aussehen gilt nur, wenn im Platz etwas getragen wird, es freigeschaltet ist und die Klasse es führen darf.
+// shown.head === 'none' blendet den Helm aus. Alle Darstellungen (eigener Held, Mehrspieler-Look) nehmen das hier.
+export const LOOK_SLOTS = ['weapon', 'chest', 'head', 'hands', 'feet'];
+export const HIDE_LOOK = 'none';
+const idOf = (e) => (typeof e === 'string' ? e : e?.itemId ?? null);
+export function lookAllowed(def, slot, classId) {
+  if (!def || !LOOK_SLOTS.includes(slot)) return false;
+  const s = def.slot === 'armor' ? 'chest' : def.slot;
+  if (s !== slot) return false;
+  return !def.classes || !classId || def.classes.includes(classId);
+}
+export function shownEquipment(slices, content) {
+  const eq = slices?.inventory?.equipment ?? {};
+  const ch = slices?.character ?? {}, w = ch.wardrobe;
+  const out = {};
+  for (const slot of LOOK_SLOTS) {
+    const worn = idOf(eq[slot] ?? (slot === 'chest' ? eq.armor : null));
+    out[slot] = worn;
+    const want = w?.shown?.[slot];
+    if (!worn || !want) continue;
+    if (want === HIDE_LOOK) { if (slot === 'head') out[slot] = null; continue; }
+    if (!w.looks?.includes(want)) continue;
+    if (lookAllowed(content?.find('item', want), slot, ch.classId)) out[slot] = want;
+  }
+  return out;
+}

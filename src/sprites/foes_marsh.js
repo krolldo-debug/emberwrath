@@ -444,7 +444,12 @@ function drawLurker(p, g, P, X) {
   if (jw <= 0.2) {
     const m0 = H(-1.5, 1.5), m1 = H(6.5, 1.1); p.line(m0.x, m0.y, m1.x, m1.y, S[0]);
     const l0 = H(-0.5, 0.6), l1 = H(5.5, 0.3); p.line(l0.x, l0.y, l1.x, l1.y, S[5]);
+    // Überbiss: Hauer des Oberkiefers ragen über die Lippe
+    for (const u of [1.5, 4]) { const t = H(u, 2.3); p.px(t.x, t.y, BONE[4]); p.px(t.x, t.y + 1, BONE[2]); }
   }
+  // Augenwulst: dunkle Falte vor und unter dem Glotzauge
+  const br = H(3.6, -2.4), br2 = H(0.2, -1.6);
+  p.px(br.x, br.y, S[1]); p.px(br2.x, br2.y, S[2]);
   // Glotzaugen oben auf dem Schädel
   const eyeOn = P.eye > 0.3;
   const eye = H(1.5, -3.2), eye2 = H(-1.5, -3.4);
@@ -452,8 +457,10 @@ function drawLurker(p, g, P, X) {
   ell(p, eye.x, eye.y, 2.3, 2.1, [S[3], S[4], S[5], S[6]]);
   const Y = ['#3a3004', '#8a7a0a', '#e0d030', '#fffaa0'];
   if (eyeOn) {
-    p.rect(eye.x - 0.5, eye.y - 0.5, 2, 2, Y[2]); p.px(eye.x + 0.5, eye.y - 0.5, Y[3]);
-    p.px(eye.x + 1, eye.y + 0.5, '#101008'); p.px(eye.x + 1, eye.y - 0.5, '#101008');
+    // Iris mit dunklem Ring, senkrechte Schlitzpupille, Glanzpunkt oben links
+    p.rect(eye.x - 1, eye.y - 1, 3, 3, Y[1]);
+    p.rect(eye.x - 0.5, eye.y - 0.5, 2, 2, Y[2]); p.px(eye.x - 1, eye.y - 1, Y[3]);
+    p.px(eye.x + 0.5, eye.y - 0.5, '#101008'); p.px(eye.x + 0.5, eye.y + 0.5, '#101008');
     p.px(eye2.x + 0.3, eye2.y, Y[1]);
     g.rect(eye.x - 0.5, eye.y - 0.5, 2, 2, '#a09010'); g.px(eye.x + 0.5, eye.y - 0.5, '#f8f0a0'); g.px(eye2.x + 0.3, eye2.y, '#5a5008');
   } else { p.line(eye.x - 1, eye.y, eye.x + 1, eye.y, S[1]); }
@@ -581,7 +588,7 @@ function lurkerAnims() {
 // Gebeugter Moorpriester in Lumpen und Moosmantel, Hirschschädel-Maske mit
 // kleinen Geweihstangen, Knochenstab mit einem Wurzelkäfig, in dem eine
 // Faulkugel glimmt (= Mündung der Giftbolzen, meta.hand).
-const SH = { W: 64, H: 58, AX: 28, AY: 50, pad: 10, rim: '#c8e0b8', back: '#8aa4c0', rimK: 0.55, backK: 0.4, draw: drawShaman };
+const SH = { W: 64, H: 58, AX: 28, AY: 50, pad: 10, rim: '#c8e0b8', back: '#8aa4c0', rimK: 0.3, backK: 0.12, draw: drawShaman };
 const SD = { legH: 11, thigh: 5.5, shin: 6, spine: 9, upper: 5, fore: 5, sh: 1.5, hipW: 1 };
 const RAG = ['#100c0e', '#1e181a', '#2e2426', '#41342f', '#56463c', '#6e5b4a', '#8c7660'];
 const S_SKIN = ['#141812', '#232a20', '#343d2e', '#48533e', '#606c50'];
@@ -695,7 +702,7 @@ function drawShaman(p, g, P, X) {
   const shade = (x, y) => {
     const u = (x - hemL) / (hemR - hemL || 1);
     const fold = Math.sin(u * 9 + P.robeT * 0.3) > 0.55 ? -1 : 0;
-    const k = clamp(Math.round(4 - u * 2.2 + fold - (y > hemY - 2 ? 1 : 0) + (hash2(x, y, 95) < 0.08 ? -1 : 0)), 1, 5);
+    const k = clamp(Math.round(4.4 - u * 2.6 + fold - (y > hemY - 2 ? 1 : 0)), 1, 5);
     return RAG[k];
   };
   poly(p, [[c0.x, c0.y], [c1.x, c1.y], ...hem], shade);
@@ -717,7 +724,7 @@ function drawShaman(p, g, P, X) {
 
   // --- Moosmantel über den Schultern + Kapuze
   const col = pt(SD.spine, -0.5);
-  ell(p, col.x, col.y, 5, 2.8, MOSS, { noise: 0.4, seed: 21 });
+  ell(p, col.x, col.y, 5, 2.8, MOSS, { noise: 0.2, seed: 21 });
   for (let i = -4; i <= 4; i += 1.3) {
     const x = col.x + i, y = col.y + 2 + (hash2(Math.round(i * 3), 1, 22) * 2.5 | 0);
     p.line(x, col.y + 1, x - P.robe * 0.5, y, MOSS[i < 0 ? 2 : 3]);
@@ -745,6 +752,8 @@ function drawShaman(p, g, P, X) {
   cap(p, m0.x, m0.y, m1.x, m1.y, 2.2, 1.2, [BONE[1], BONE[2], BONE[3], BONE[4], BONE[5]]);
   p.px(m1.x + 0.5, m1.y + 0.5, BONE[1]); p.px(m1.x - 1, m1.y + 1, BONE[1]); // Nasenloch, Kieferkante
   p.px(hx + 3, hy + 2.5, BONE[1]); p.px(hx + 2, hy + 2.5, BONE[3]);
+  for (const u of [2.5, 3.5, 4.5]) p.px(hx + u, hy + 3, u === 3.5 ? BONE[2] : BONE[4]);   // Zahnreihe
+  p.px(hx + 1.5, hy + 1.2, BONE[1]);                                                    // Wangenbogen-Schatten
   // leuchtende Augenhöhlen
   const eOn = P.eye > 0.3;
   p.rect(hx + 1, hy - 1, 2, 2, '#0a0806');
@@ -838,7 +847,7 @@ function shamanAnims() {
 // leuchtenden Rückenpunkten, vorn eine Saugscheibe mit Zahnkranz.
 // Kriecht in Wellen (Buckel läuft von hinten nach vorn), bäumt sich zum
 // Sprung auf und schnellt mit offener Scheibe vor.
-const LE = { W: 48, H: 30, AX: 22, AY: 24, pad: 8, rim: '#d0c8c0', back: '#8a90b0', rimK: 0.5, draw: drawLeech };
+const LE = { W: 48, H: 30, AX: 22, AY: 24, pad: 8, rim: '#d0c8c0', back: '#8a90b0', rimK: 0.3, backK: 0.22, draw: drawLeech };
 const LEECH = ['#0a0708', '#170f12', '#26181b', '#382226', '#4e3032', '#6a4442', '#8a6058'];
 const STRIPE = ['#4a120e', '#7e2416', '#b44a24', '#e07a3a'];
 const E_REST = { t: 0, amp: 0, rear: 0, reach: 0, open: 0, curl: 0, shrivel: 0, glow: 1, lunge: 0, air: 0, head: 0, twitch: 0 };
@@ -883,15 +892,21 @@ function drawLeech(p, g, P) {
     // Flankenlinie (unteres Drittel)
     const sx = a.x + nx * a.r * 0.45, sy = a.y + ny * a.r * 0.45;
     p.px(sx, sy, STRIPE[2]); p.px(sx + dx / l, sy + dy / l, STRIPE[i % 2 ? 1 : 2]);
-    // Glanz (oben links)
-    p.line(a.x - nx * a.r * 0.6, a.y - ny * a.r * 0.6, b.x - nx * b.r * 0.6, b.y - ny * b.r * 0.6, i % 3 === 1 ? LEECH[6] : LEECH[5]);
+    // nasser Glanz: kurze, harte Lichtflecken je Ring statt durchgehender Linie
+    if (i % 2 === 1) {
+      const hx0 = a.x - nx * a.r * 0.62, hy0 = a.y - ny * a.r * 0.62;
+      p.px(hx0, hy0, LEECH[6]); p.px(hx0 + dx / l, hy0 + dy / l, i % 4 === 1 ? '#c4948a' : LEECH[6]);
+    } else p.px(a.x - nx * a.r * 0.55, a.y - ny * a.r * 0.55, LEECH[5]);
+    // Leuchtpunkte auf dem Rücken mit dunklem Hof
     if (i % 2 === 0 && i < N - 2 && P.glow > 0.1) {
       const gx = a.x - nx * a.r * 0.2, gy = a.y - ny * a.r * 0.2;
+      p.px(gx + 1, gy, LEECH[1]); p.px(gx, gy + 1, LEECH[1]);
       p.px(gx, gy, WISP[P.glow > 0.6 ? 3 : 2]); g.px(gx, gy, WISP[P.glow > 0.6 ? 3 : 1]);
+      if (P.glow > 0.6) { p.px(gx - 0.6, gy, WISP[2]); g.px(gx - 1, gy, WISP[1]); }
     }
   }
   // Bauch dunkler
-  for (let i = 1; i < N - 1; i++) { const a = pts[i]; p.px(a.x, a.y + a.r - 0.5, LEECH[1]); }
+  for (let i = 1; i < N - 1; i++) { const a = pts[i]; p.px(a.x, a.y + a.r - 0.5, LEECH[1]); if (i % 2) p.px(a.x, a.y + a.r - 1.5, STRIPE[0]); }
   // --- Kopf mit Saugscheibe
   const h = pts[N - 1], h2 = pts[N - 2];
   const ang = Math.atan2(h.y - h2.y, h.x - h2.x) + P.head;
@@ -907,9 +922,13 @@ function drawLeech(p, g, P) {
     }
     g.px(dx + ux, dy + uy, '#4a0a0a');
   } else p.line(dx + ux * 0.8 - uy * (dr - 1), dy + uy * 0.8 + ux * (dr - 1), dx + ux * 0.8 + uy * (dr - 1), dy + uy * 0.8 - ux * (dr - 1), LEECH[0]);
-  // Augenpunkte (rot glimmend)
+  // Augenpunkte: Reihe roter Punktaugen auf dem Kopflappen, darüber eine dunkle Falte
   const ex = h.x - uy * -h.r * 0.1 + ux * 0.5, ey = h.y - h.r * 0.6;
-  if (P.glow > 0.1) { p.px(ex, ey, '#e0402a'); p.px(ex - 1.5, ey + 0.3, '#a02418'); g.px(ex, ey, '#c03020'); }
+  p.px(ex - 0.5, ey - 1, LEECH[1]); p.px(ex - 2, ey - 0.7, LEECH[2]);
+  if (P.glow > 0.1) {
+    p.px(ex, ey, '#ff6a40'); p.px(ex - 1.5, ey + 0.3, '#c03020'); p.px(ex - 3, ey + 0.6, '#801c14');
+    g.px(ex, ey, '#c03020'); g.px(ex - 1.5, ey + 0.3, '#601008');
+  }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: dx + ux, y: dy + uy };
   meta.hand = meta.mouth;
@@ -960,7 +979,7 @@ function leechAnims() {
 // einer Kehlblase. Spuckt Giftschleim (meta.hand = Maul) und bläht sich zur
 // Giftwolke auf (Animation 'puff').
 const TD = { W: 64, H: 50, AX: 28, AY: 42, pad: 14, rim: '#d0d0a0', back: '#8098a8', draw: drawToad, sinkH: 20 };
-const TOAD = ['#0e0c07', '#1c190e', '#2d2915', '#423c1f', '#59512a', '#736936', '#918546'];
+const TOAD = ['#0d0b06', '#1b190d', '#2c2a14', '#413e1d', '#5a5527', '#767032', '#968f40', '#b6ad56'];
 const T_BELLY = ['#2e2a18', '#4e4828', '#72693c', '#978c52', '#bcb070'];
 const T_REST = { puff: 0, sac: 0, air: 0, crouch: 0, headUp: 0, mouth: 0, eye: 1, legExt: 0, splat: 0, pust: 0.7, gas: 0, spit: 0, lean: 0, ph: 0 };
 const tpose = (o = {}) => ({ ...T_REST, ...o });
@@ -1016,7 +1035,7 @@ function drawToad(p, g, P) {
     const a = hash2(i, 1, 35) * TAU, r = Math.sqrt(hash2(i, 2, 35)) * 0.85;
     const x = bx + Math.cos(a) * rx * r, y = by + Math.sin(a) * ry * r * 0.8 - 1;
     if (y > by + ry * 0.35) continue;
-    p.px(x, y, TOAD[2]); p.px(x - 0.5, y - 1, TOAD[hash2(i, 3, 35) < 0.5 ? 5 : 6]);
+    p.px(x, y, TOAD[1]); p.px(x - 0.5, y - 1, TOAD[hash2(i, 3, 35) < 0.5 ? 6 : 7]);
   }
   // Leuchtbeulen auf dem Rücken
   const pusts = [[-5, -0.6], [-1.5, -0.85], [2.5, -0.75], [-7.5, -0.2], [0.5, -0.45], [-3.5, -0.3]];
@@ -1031,6 +1050,8 @@ function drawToad(p, g, P) {
   // --- Kopf (vorn im Rumpf), Kehlblase, Maul
   const hx = bx + rx * 0.62, hy = by - ry * 0.12 - P.headUp * 1.5;
   ell(p, hx + 1, hy + 0.5, 6, 4.3 * (1 - P.splat * 0.3), near, { noise: 0.12, seed: 37, rot: -P.headUp * 0.3 });
+  // Hautfalte zwischen Kopf und Leib
+  for (let j = -3; j <= 3; j++) p.px(hx - 5 + Math.abs(j) * 0.35, hy + j, j < 0 ? TOAD[2] : TOAD[1]);
   const mo = P.mouth;
   // Kehlblase (fahl, durchscheinend)
   const sr = 1.2 + P.sac * 4.2;
@@ -1055,13 +1076,18 @@ function drawToad(p, g, P) {
   const ex = hx + 1, ey = hy - 3.8 * (1 - P.splat * 0.3);
   ell(p, ex - 5, ey + 1.5, 2.6, 1.6, near, { seed: 39 });    // Drüse
   p.px(ex - 6, ey + 1, TOX[2]); g.px(ex - 6, ey + 1, GT[1]); p.px(ex - 4, ey + 1.5, TOX[2]);
-  ell(p, ex, ey, 2.4, 2.1, [TOAD[2], TOAD[4], TOAD[5], TOAD[6]]);
+  ell(p, ex, ey, 2.7, 2.4, [TOAD[2], TOAD[4], TOAD[5], TOAD[6], TOAD[7]]);
   const eOn = P.eye > 0.3;
   if (eOn) {
-    p.rect(ex - 0.5, ey - 0.5, 2, 2, '#e89a18'); p.px(ex, ey - 0.5, '#ffd060');
-    p.line(ex - 0.5, ey + 0.5, ex + 1.5, ey + 0.5, '#140a04');
+    // goldene Iris mit dunklem Rand, waagerechte Pupille, Glanzpunkt
+    p.rect(ex - 1, ey - 1, 3, 3, '#8a4a0a');
+    p.rect(ex - 0.5, ey - 1, 2, 2, '#e89a18'); p.px(ex - 1, ey - 1, '#ffe080');
+    p.line(ex - 1, ey + 0.5, ex + 1.5, ey + 0.5, '#140a04');
     g.px(ex, ey - 0.5, '#a05a08'); g.px(ex + 1, ey - 0.5, '#6a3a04');
   } else p.line(ex - 1, ey + 0.5, ex + 1.5, ey + 0.5, TOAD[1]);
+  // schwerer Augenwulst: helle Oberkante, Schatten darunter
+  p.line(ex - 2, ey - 2.5, ex + 1.5, ey - 2.8, TOAD[7]); p.px(ex + 2.5, ey - 2, TOAD[5]);
+  p.px(ex - 2.5, ey + 1.5, TOAD[1]); p.px(ex + 2.6, ey + 1, TOAD[1]);
   meta.eye = { x: ex, y: ey };
   meta.head = { x: ex, y: ey - 4 };
   // --- nahe Beine

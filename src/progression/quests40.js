@@ -36,10 +36,11 @@ export const QUESTS_40 = {
   q_steppe_banners: {
     title: 'Banner der Krone', giver: 'captain_varra', main: true, level: 21, requires: ['q_steppe_raiders'],
     summary: 'Reiß die drei Kriegsbanner nieder, mit denen Khar die Stämme sammelt.',
-    offer: 'Khar hat drei Kriegsbanner in der Steppe aufgestellt. Wo sie wehen, strömen die Stämme zu ihm. Reiß sie nieder, eins nach dem anderen. Ohne Banner ist er nur ein Mann mit einem großen Pferd.',
+    offer: 'Khar hat drei Kriegsbanner in der Steppe aufgestellt. Wo sie wehen, strömen die Stämme zu ihm. Nimm diese Pechfackeln und brenn sie nieder, eins nach dem anderen. Ohne Banner ist er nur ein Mann mit einem großen Pferd.',
     progressText: 'Die Banner stehen weit verstreut in der Steppe. Such nach dem Rauch der Wachfeuer.',
     completeText: 'Drei Banner im Staub. Die Stämme werden sich fragen, ob Khar wirklich so stark ist, wie er behauptet.',
-    objectives: [{ id: 'banners', text: 'Kriegsbanner niedergerissen', count: 3, kind: 'interact', target: ['war_banner_1', 'war_banner_2', 'war_banner_3'], zone: 'ashen_steppe' }],
+    startItems: [{ itemId: 'pitch_torch', qty: 3 }],
+    objectives: [{ id: 'banners', text: 'Kriegsbanner mit Pechfackeln verbrannt', count: 3, kind: 'use', item: 'pitch_torch', target: ['war_banner_1', 'war_banner_2', 'war_banner_3'], zone: 'ashen_steppe' }],
     rewards: { xp: Q(21, W.main), gold: 160, gear: [{ ilvl: 22, rarity: 'uncommon', slot: 'chest' }] },
   },
   q_steppe_warcamp: {
@@ -171,10 +172,10 @@ export const QUESTS_40 = {
   q_marsh_totems: {
     title: 'Totems der Fäulnis', giver: 'warden_thane', main: true, level: 26, requires: ['q_marsh_lurkers'],
     summary: 'Verbrenne die drei Faultotems, die den Nebel über der Marsch halten.',
-    offer: 'Der Nebel ist nicht natürlich. Die Faulpriester haben drei Totems aufgestellt, die ihn nähren. Verbrenn sie. Wenn der Nebel lichter wird, sehen wir endlich, womit wir es zu tun haben.',
+    offer: 'Der Nebel ist nicht natürlich. Die Faulpriester haben drei Totems aufgestellt, die ihn nähren: eins aus Knochen, eins aus Moos, eins aus Schlamm. Sie stützen sich gegenseitig. Brich zuerst das aus Knochen, dann das aus Moos, zuletzt das aus Schlamm, sonst wachsen die anderen nach. Wenn der Nebel lichter wird, sehen wir endlich, womit wir es zu tun haben.',
     progressText: 'Die Totems stehen tief im Nebel. Folge dem Gestank.',
     completeText: 'Der Nebel reißt auf. Und da hinten, siehst du das? Pilze, groß wie Türme. Irgendetwas wächst dort, und es wächst schnell.',
-    objectives: [{ id: 'totems', text: 'Faultotems verbrannt', count: 3, kind: 'interact', target: ['rot_totem_1', 'rot_totem_2', 'rot_totem_3'], zone: 'blighted_marsh' }],
+    objectives: [{ id: 'totems', text: 'Faultotems gebrochen (Knochen, Moos, Schlamm)', count: 3, kind: 'sequence', target: ['rot_totem_1', 'rot_totem_2', 'rot_totem_3'], zone: 'blighted_marsh', failText: 'Die Totems wachsen nach. Zuerst Knochen, dann Moos, zuletzt Schlamm.' }],
     rewards: { xp: Q(26, W.main), gold: 210, gear: [{ ilvl: 27, rarity: 'uncommon', slot: 'chest' }] },
   },
   q_marsh_shamans: {
@@ -307,10 +308,11 @@ export const QUESTS_40 = {
   q_frost_beacons: {
     title: 'Die Leuchtfeuer', giver: 'jarl_eskil', main: true, level: 32, requires: ['q_frost_wolves'],
     summary: 'Entzünde die drei Leuchtfeuer der Frostzinnen.',
-    offer: 'Früher brannten drei Leuchtfeuer auf den Zinnen. Solange sie brannten, wagte sich kein Troll ins Tal. Die Hexen haben sie gelöscht. Entzünde sie wieder, und die Trolle bleiben, wo sie hingehören.',
+    offer: 'Früher brannten drei Leuchtfeuer auf den Zinnen. Solange sie brannten, wagte sich kein Troll ins Tal. Die Hexen haben sie gelöscht. Nimm diese drei Krüge Brandöl, gieß sie in die Feuerschalen und entzünde sie wieder. Dann bleiben die Trolle, wo sie hingehören.',
     progressText: 'Die Leuchtfeuer stehen auf drei Gipfeln der Frostzinnen.',
     completeText: 'Drei Feuer auf den Zinnen. Mein Vater hätte geweint. Ich weine nicht. Es ist nur der Wind.',
-    objectives: [{ id: 'beacons', text: 'Leuchtfeuer entzündet', count: 3, kind: 'interact', target: ['frost_beacon_1', 'frost_beacon_2', 'frost_beacon_3'], zone: 'frostspire' }],
+    startItems: [{ itemId: 'fire_oil', qty: 3 }],
+    objectives: [{ id: 'beacons', text: 'Leuchtfeuer mit Brandöl entzündet', count: 3, kind: 'use', item: 'fire_oil', target: ['frost_beacon_1', 'frost_beacon_2', 'frost_beacon_3'], zone: 'frostspire' }],
     rewards: { xp: Q(32, W.main), gold: 260, gear: [{ ilvl: 33, rarity: 'uncommon', slot: 'chest' }] },
   },
   q_troll_caves: {
@@ -440,10 +442,10 @@ export const QUESTS_40 = {
   q_wastes_obelisks: {
     title: 'Die Glutobelisken', giver: 'marshal_corvane', main: true, level: 37, requires: ['q_wastes_wraiths'],
     summary: 'Lösche die drei Glutobelisken, die den Glutregen nähren.',
-    offer: 'Der Feuerregen kommt nicht vom Himmel. Er kommt von drei Obelisken, die der Aschenfürst aufgestellt hat. Lösch ihr Feuer, und wir können wieder Patrouillen schicken, ohne dass sie verbrennen.',
+    offer: 'Der Feuerregen kommt nicht vom Himmel. Er kommt von drei Obelisken, die der Aschenfürst aufgestellt hat. Die Gelehrten sagen, sie hängen aneinander wie Glieder einer Kette: der Obelisk am Lavafluss speist den am Krater, der am Krater den am Thronweg. Lösch sie von der Quelle her, sonst entzünden sie sich gegenseitig neu.',
     progressText: 'Die Glutobelisken glühen weithin sichtbar über der Öde.',
     completeText: 'Der Regen hört auf. Ich habe den Himmel über der Öde seit zehn Jahren nicht mehr gesehen. Er ist grau. Aber es ist ein Himmel.',
-    objectives: [{ id: 'obelisks', text: 'Glutobelisken gelöscht', count: 3, kind: 'interact', target: ['ember_obelisk_1', 'ember_obelisk_2', 'ember_obelisk_3'], zone: 'ember_wastes' }],
+    objectives: [{ id: 'obelisks', text: 'Glutobelisken von der Quelle her gelöscht (Lavafluss, Krater, Thronweg)', count: 3, kind: 'sequence', target: ['ember_obelisk_1', 'ember_obelisk_2', 'ember_obelisk_3'], zone: 'ember_wastes', failText: 'Die Obelisken entzünden sich neu. Von der Quelle her: Lavafluss, Krater, Thronweg.' }],
     rewards: { xp: Q(37, W.main), gold: 320, gear: [{ ilvl: 38, rarity: 'uncommon', slot: 'chest' }] },
   },
   q_cinder_knights: {

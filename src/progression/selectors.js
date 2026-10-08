@@ -21,7 +21,15 @@ export function countItem(state, itemId) {
   let n = 0;
   for (const s of state.slices.inventory.slots) if (s?.itemId === itemId) n += s.qty;
   for (const e of state.slices.inventory.questBag ?? []) if (e.itemId === itemId) n += e.qty;
+  n += state.slices.inventory.mats?.[itemId] ?? 0;
   return n;
+}
+// Inhalt des Materialbeutels, nach Stufe der Herkunft (Gegenstandsstufe/Wert) und Name sortiert
+export function materialList(state, content) {
+  return Object.entries(state.slices.inventory.mats ?? {})
+    .map(([itemId, qty]) => ({ itemId, qty, def: content.find('item', itemId) }))
+    .filter((e) => e.def && e.qty > 0)
+    .sort((a, b) => (a.def.value ?? 0) - (b.def.value ?? 0) || a.def.name.localeCompare(b.def.name, 'de'));
 }
 export function freeSlots(state) { return state.slices.inventory.slots.filter((s) => !s).length; }
 
@@ -97,6 +105,10 @@ export function potionCount(state, content) {
 export function turnInOf(def) { return def.turnInNpc ?? def.turnIn ?? def.giver; }
 
 // 'locked' | 'available' | 'active' | 'ready' | 'completed'
+// Welche Questfunktionen die Welt kann (B meldet sie über game.progression.setWorldFeatures(['escort', 'defend'])).
+export const WORLD_FEATURES = new Set();
+export function setWorldFeatures(list) { WORLD_FEATURES.clear(); for (const f of list ?? []) WORLD_FEATURES.add(f); }
+
 export function questStatus(state, content, questId) {
   const q = state.slices.quests;
   const a = q.active[questId];
@@ -105,6 +117,10 @@ export function questStatus(state, content, questId) {
   if (!def) return 'locked';
   if (!def.repeatable && q.completed.includes(questId)) return 'completed';
   if ((def.requires ?? []).some((r) => !q.completed.includes(r))) return 'locked';
+  // Folgequest nur für eine bestimmte Entscheidung: requiresChoice = [questId, choiceId]
+  if (def.requiresChoice && q.choices?.[def.requiresChoice[0]] !== def.requiresChoice[1]) return 'locked';
+  // Quests mit Weltfunktionen (Eskorte, Verteidigen), die B noch nicht gemeldet hat, bleiben verborgen
+  if (def.needs && !WORLD_FEATURES.has(def.needs)) return 'locked';
   if ((def.minLevel ?? 1) > state.slices.progress.level) return 'locked';
   return 'available';
 }
@@ -222,8 +238,19 @@ export function questTarget(state, content) {
       // Zonenziel ('zone:<id>') hat Vorrang: B führt zum Portal dorthin. Sonst die Fläche in o.zone.
       const zoneT = list.find((x) => x.startsWith('zone:'));
       if (zoneT) return mk({ ...base, kind: 'zone', id: zoneT.slice(5), zoneId: zoneT.slice(5) });
-      return mk({ ...base, kind: 'area', id: list[0] });
+      const seenA = a.seen?.[o.id] ?? [];
+      const openA = list.filter((x) => !seenA.includes(x));
+      return mk({ ...base, kind: 'area', id: openA[0] ?? list[0], ids: openA });
     }
+    case 'use': {
+      const seen = a.seen?.[o.id] ?? [];
+      const open = list.filter((x) => !seen.includes(x));
+      return mk({ ...base, kind: 'object', id: open[0] ?? list[0], ids: open, itemId: o.item ?? null });
+    }
+    // Reihenfolge: zum nächsten richtigen Objekt führen
+    case 'sequence': return mk({ ...base, kind: 'object', id: list[Math.min(a.progress[o.id] ?? 0, list.length - 1)], ids: list });
+    // Eskorte/Verteidigen: Startpunkt ist ein NPC oder Objekt (o.start = { kind: 'npc'|'object', id })
+    case 'escort': case 'defend': return mk({ ...base, kind: o.start?.kind ?? 'object', id: o.start?.id ?? o.target });
     default: return null;
   }
 }
@@ -260,4 +287,17 @@ export function npcIdleLine(state, content, npcId) {
   let text = line?.idle ?? null;
   for (const [questId, t] of line?.lines ?? []) if (!questId || done.includes(questId)) text = t;
   return text;
+}
+
+// Offene Ziele aller aktiven Quests für die Welt (B): Eskorte/Verteidigen starten, Objekte hervorheben.
+// -> [{ questId, objectiveId, kind, target, start?, item?, done }]
+export function openObjectives(state, content) {
+  const out = [];
+  for (const [questId, a] of Object.entries(state.slices.quests.active)) {
+    const def = content.find('quest', questId);
+    for (const o of def?.objectives ?? []) {
+      out.push({ questId, objectiveId: o.id, kind: o.kind, target: o.target, start: o.start ?? null, item: o.item ?? null, zone: o.zone ?? null, done: (a.progress[o.id] ?? 0) >= o.count });
+    }
+  }
+  return out;
 }

@@ -2,6 +2,8 @@ import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
 import { OUT } from './outdoor.js';
 import { mk, poly, drawTent } from './decor_ashwood.js';
+import { PixelCanvas } from '../gfx/PixelCanvas.js';
+import { SpriteFrame } from '../gfx/Sprite.js';
 
 // Frostzinnen: verschneite Gipfel, Nordmänner-Feste, Eishöhlen und die
 // Knochen erschlagener Eistrolle. Licht von links oben (Mond), Schnee liegt
@@ -924,6 +926,869 @@ function trollBones(v) {
   }, { ax: v ? 25 : 20, ay: H - 2, box: v ? [-18, -5, 18, 1] : [-12, -6, 12, 1] });
 }
 
+// ============================================================ Runde 5: neue Frostzinnen
+// Flache Teile (Eisrisse, Spalten, Brücken, Eiszapfen) ohne Umriss; aufrechte
+// Objekte mit mk(). Begehbare Bodendecals ('iceCracks', 'snowBridge') liegen
+// unter dem Anker (ay = 0) bzw. sind in der Mitte durchsichtig, damit sie den
+// Helden nie überdecken.
+function flat(W, H, ax, ay, draw, extra = null) {
+  const p = new PixelCanvas(W, H), gl = new PixelCanvas(W, H);
+  let used = false;
+  const g = { px: (x, y, c) => { used = true; gl.px(x, y, c); }, rect: (x, y, w, h, c) => { used = true; gl.rect(x, y, w, h, c); }, ctx: gl.ctx };
+  draw(p, g);
+  const e = { sprite: new SpriteFrame(p.canvas, ax, ay) };
+  if (used) e.glow = gl.canvas;
+  if (extra) Object.assign(e, extra);
+  return e;
+}
+const rgba = (r, g, b, a) => `rgba(${r},${g},${b},${a})`;
+const DEEP = ['#03070d', '#060e18', '#0a1724', '#0f2234'];
+
+// ------------------------------------------------------------ Eisrisse auf dem See
+function iceCracks(v) {
+  const rng = createRng(1500 + v * 17);
+  return flat(18, 16, 9, 0, (p, g) => {
+    // Glanzstreifen (Mondlicht auf blankem Eis)
+    if (v !== 2) for (let i = 0; i < 7; i++) { const x = 3 + i + v * 2, y = 2 + i; if (x < 18 && y < 16) p.ctx.fillStyle = rgba(200, 236, 255, 0.10), p.ctx.fillRect(x, y, 3, 1); }
+    // Risse: Hauptlinie mit Verästelungen, dunkler Kern und heller Rand
+    const branches = [[rng.range(1, 4), rng.range(2, 13), rng.range(-0.5, 0.5), 14]];
+    const pts = [];
+    while (branches.length) {
+      let [x, y, a, n] = branches.pop();
+      for (let i = 0; i < n; i++) {
+        const xi = Math.round(x), yi = Math.round(y);
+        if (xi < 0 || yi < 0 || xi >= 18 || yi >= 16) break;
+        pts.push([xi, yi]);
+        if (rng.chance(0.12) && n > 4) branches.push([x, y, a + rng.range(-1.4, 1.4), Math.floor(n * 0.45)]);
+        a += rng.range(-0.45, 0.45); x += Math.cos(a); y += Math.sin(a) * 0.8;
+      }
+    }
+    for (const [x, y] of pts) { p.px(x, y - 1, rgba(220, 245, 255, 0.55)); }
+    for (const [x, y] of pts) { p.px(x, y, '#1a3e58'); }
+    for (const [x, y] of pts) if (hash2(x, y, 1501 + v) < 0.3) g.px(x, y, '#2a6a90');
+    // Eingeschlossene Luftblasen
+    for (let i = 0; i < 3 + v; i++) { const x = rng.int(1, 16), y = rng.int(1, 14); p.px(x, y, rgba(230, 248, 255, 0.7)); if (rng.chance(0.4)) p.px(x + 1, y, rgba(200, 236, 255, 0.4)); }
+  });
+}
+
+// ------------------------------------------------------------ Eisloch mit Angelstock
+function iceHole(v) {
+  const W = 28, H = 20;
+  return flat(W, H, 14, 14, (p, g) => {
+    const cx = 14, cy = 10, rx = 7.5 + v, ry = 4.2;
+    // aufgeworfener Eisrand (dicke Schollen)
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const d = ((x - cx) / (rx + 3.2)) ** 2 + ((y - cy) / (ry + 2.4)) ** 2;
+      if (d > 1 || hash2(x, y, 1510 + v) < (d > 0.8 ? 0.5 : 0)) continue;
+      const lit = (x - cx) + (y - cy) * 1.4 < 0;
+      p.px(x, y, lit ? ICE[5] : ICE[4]);
+    }
+    // Schnee auf dem Rand
+    for (let x = 2; x < W - 2; x++) if (hash2(x, 0, 1511 + v) < 0.55) { const y = Math.round(cy - ry - 1.4 - hash2(x, 1, 1512) * 1.4); p.px(x, y, SNOW[6]); }
+    // offenes Wasser
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+      if (d > 1) continue;
+      const k = y < cy - ry * 0.4 ? 0 : d > 0.6 ? 2 : 1;
+      p.px(x, y, DEEP[k + 1]);
+    }
+    // Kante der Eisdecke (innen, Wasser spiegelt den Rand)
+    for (let x = Math.ceil(cx - rx + 1); x <= cx + rx - 1; x++) p.px(x, Math.round(cy - ry * Math.sqrt(Math.max(0, 1 - ((x - cx) / rx) ** 2))) + 1, ICE[2]);
+    // Schwimmende Splitter und Lichtglanz
+    p.px(cx - 2, cy + 1, ICE[5]); p.px(cx - 1, cy + 1, ICE[4]); p.px(cx + 3, cy - 1, ICE[4]);
+    g.px(cx + 1, cy + 2, '#1a4a6a'); g.px(cx - 3, cy, '#123850');
+    // Angelstock aus Holz mit Schnur (nur Variante 0)
+    if (v === 0) {
+      p.line(W - 5, H - 3, W - 9, 2, WOOD[3]); p.line(W - 4, H - 3, W - 8, 2, WOOD[1]);
+      p.line(W - 9, 2, cx + 2, cy, '#8a96a4');
+      p.px(W - 5, H - 2, SNOW[6]); p.px(W - 4, H - 2, SNOW[5]);
+    } else {
+      // abgelegter Fisch
+      p.rect(3, H - 4, 5, 2, '#6a7a88'); p.px(3, H - 4, '#aab8c4'); p.px(8, H - 4, '#4a5864'); p.px(8, H - 3, '#4a5864');
+    }
+  });
+}
+
+// ------------------------------------------------------------ Eisfischerhütte auf Kufen
+function fishHut() {
+  const W = 34, H = 38;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, x0 = 6, x1 = 27, wallTop = 14, wallBot = bottom - 5;
+    snowPatch(p, 17, bottom - 1, 15, 2, 1520);
+    // Kufen
+    p.rect(x0 - 2, bottom - 3, x1 - x0 + 5, 2, WOOD[1]); p.rect(x0 - 2, bottom - 3, x1 - x0 + 5, 1, WOOD[3]);
+    p.px(x0 - 3, bottom - 4, WOOD[3]); p.px(x1 + 3, bottom - 4, WOOD[2]);
+    // Bretterwand
+    for (let y = wallTop; y <= wallBot; y++) for (let x = x0; x <= x1; x++) {
+      const lx = (x - x0) % 4;
+      let k = lx === 0 ? 1 : lx === 1 ? 4 : 3;
+      if (hash2(x, y >> 1, 1521) < 0.1) k -= 1;
+      if (x > x1 - 5) k -= 1;
+      p.px(x, y, WOOD[clampI(k, 5)]);
+    }
+    // Tür, Fenster mit warmem Licht
+    p.rect(9, wallTop + 6, 6, wallBot - wallTop - 5, WOOD[0]); p.rect(10, wallTop + 7, 4, wallBot - wallTop - 7, WOOD[2]); p.px(13, wallTop + 13, IRON[4]);
+    p.rect(19, wallTop + 6, 5, 4, '#1a0e0a'); p.rect(20, wallTop + 7, 3, 2, EMB[4]); g.rect(20, wallTop + 7, 3, 2, EMB[4]);
+    p.rect(19, wallTop + 10, 5, 1, SNOW[5]);
+    // Pultdach mit dicker Schneedecke und Eiszapfen
+    for (let x = x0 - 2; x <= x1 + 2; x++) {
+      const top = Math.round(wallTop - 6 + (x - x0) * 0.18);
+      for (let y = top; y < wallTop; y++) p.px(x, y, y < top + 3 ? (y === top ? SNOW[6] : SNOW[5]) : y === wallTop - 1 ? WOOD[0] : SNOW[3]);
+    }
+    icicles(p, g, x0 - 1, x1 + 1, wallTop, 1522, 4);
+    // Ofenrohr
+    p.rect(23, 1, 3, 10, IRON[2]); p.rect(23, 1, 1, 10, IRON[4]); p.rect(22, 0, 5, 2, IRON[1]);
+    // Schnee an der Wand, Werkzeug
+    for (let x = x0; x <= x1; x++) if (hash2(x, 2, 1523) < 0.6) p.px(x, wallBot, SNOW[5]);
+    p.line(29, bottom - 4, 31, wallTop + 2, WOOD[3]); p.rect(30, wallTop, 3, 2, IRON[3]);
+  }, { ax: 17, ay: H - 2, box: [-11, -6, 11, 1], light: { dx: 4, dy: -16, radius: 46, color: [255, 170, 90], intensity: 0.6 }, extra: { smoke: { dx: 7, dy: -36, rate: 2 } } });
+}
+
+// ------------------------------------------------------------ Eingefrorenes Boot
+function frozenBoat() {
+  const W = 44, H = 24;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1;
+    // Eisschollen um den Rumpf
+    for (let x = 1; x < W - 1; x++) { const hh = 2 + Math.round(hash2(x, 0, 1530) * 2); for (let y = bottom - hh; y <= bottom - 1; y++) p.px(x, y, y === bottom - hh ? ICE[6] : ICE[4]); }
+    // Rumpf schräg, Planken
+    const rim = (x) => 9 + Math.round((x - 6) * 0.12 + Math.sin((x - 6) / 32 * Math.PI) * -3);
+    for (let x = 6; x < 39; x++) {
+      const top = rim(x), keel = bottom - 3 + Math.round(Math.abs(x - 22) * -0.05);
+      for (let y = top; y < keel; y++) {
+        const row = Math.floor((y - top) / 3);
+        let k = row % 2 ? 2 : 3;
+        if ((y - top) % 3 === 0) k = 1;
+        if (x < 9 || x > 35) k -= 1;
+        p.px(x, y, WOOD[clampI(k, 5)]);
+      }
+      p.px(x, top, WOOD[4]); p.px(x, top - 1, SNOW[hash2(x, 1, 1531) < 0.7 ? 6 : 5]);
+    }
+    // Bug hoch, Heck gebrochen
+    p.line(38, rim(38), 41, 4, WOOD[3]); p.line(39, rim(38), 42, 4, WOOD[2]); p.px(41, 3, SNOW[6]);
+    for (let y = 12; y < 18; y++) p.px(6 + (y % 2), y, '#0a0806');
+    // Mast-Stumpf, Ruder im Eis
+    p.rect(21, 1, 2, rim(21) - 1, WOOD[3]); p.px(21, 0, SNOW[6]); p.px(22, 0, SNOW[5]); p.line(23, 2, 25, 0, WOOD[2]);
+    p.line(30, bottom - 2, 34, 6, WOOD[2]); p.rect(33, 4, 3, 4, WOOD[3]); p.px(33, 3, SNOW[6]);
+    // Eiszapfen an der Bordwand
+    icicles(p, g, 10, 34, rim(22) + 1, 1532, 3, 0.3);
+  }, { ax: 22, ay: H - 2, box: [-15, -5, 15, 1] });
+}
+
+// ------------------------------------------------------------ Gletscherspalten
+// Eine Zelle je Kartenspalte; l/r = Verlauf zum Nachbarn: 'S' gleiche Zeile,
+// 'U' eine Zeile höher, 'D' tiefer, 'N' kein Nachbar (spitzes Ende). Die
+// Mittellinie trifft die Zellkante links bei S = Zellmitte, U = Oberkante,
+// D = Unterkante, so setzen Nachbarzellen nahtlos fort.
+// Sprite 20 × 30: Kachel bei x 2..17, y 7..22; Anker = Kachel-Oberkante + 14.
+const smooth = (t) => t * t * (3 - 2 * t);
+function crevasseLR(l, r, v) {
+  const W = 20, H = 30, oy = 7;
+  const lvl = (s) => (s === 'U' ? 0 : s === 'D' ? 16 : 8);
+  return flat(W, H, 10, oy + 14, (p, g) => {
+    for (let x = 0; x < W; x++) {
+      const t = Math.max(0, Math.min(1, (x - 2 + 0.5) / 16));
+      const yc = oy + (t < 0.5 ? lvl(l) + (8 - lvl(l)) * smooth(t / 0.5) : 8 + (lvl(r) - 8) * smooth((t - 0.5) / 0.5));
+      // Breite: Rauschen, an offenen Enden spitz
+      let k = 1;
+      if (l === 'N') k = Math.min(k, Math.max(0, (t - 0.12) / 0.45));
+      if (r === 'N') k = Math.min(k, Math.max(0, (0.88 - t) / 0.45));
+      if ((l === 'N' && x < 2) || (r === 'N' && x > W - 3)) continue;
+      const n1 = hash2(x + v * 23, 0, 1540), n2 = hash2(x + v * 23, 1, 1541);
+      const ht = (5 + n1 * 1.8) * k, hb = (3.4 + n2 * 1.6) * k;
+      if (ht + hb < 1.2) continue;
+      const y0 = Math.round(yc - ht), y1 = Math.round(yc + hb);
+      for (let y = y0; y <= y1; y++) {
+        const d = y - y0;
+        let c = d === 0 ? ICE[5] : d === 1 ? ICE[4] : d === 2 ? ICE[3] : d === 3 && k > 0.6 ? ICE[1] : hash2(x, y, 1543 + v) < 0.07 ? DEEP[2] : DEEP[0];
+        if (y === y1 && y1 - y0 > 2) c = DEEP[2];
+        p.px(x, y, c);
+      }
+      // Schneelippen: oben hell (Mondlicht), unten Überhang mit Schatten
+      p.px(x, y0 - 1, SNOW[6]); if (n1 < 0.45) p.px(x, y0 - 2, SNOW[5]);
+      p.px(x, y1 + 1, SNOW[6]); if (n2 > 0.55) p.px(x, y1 + 2, SNOW[4]);
+      if (k > 0.6 && hash2(x, 3, 1545 + v) < 0.25) { p.px(x, y0 + 2, ICE[4]); p.px(x, y0 + 3, ICE[3]); g.px(x, y0 + 3, '#1a5070'); }
+      if (k > 0.8 && x % 4 === v % 4) g.px(x, Math.round(yc + 1), '#0e3048');
+    }
+  });
+}
+
+// Schneebrücke: begehbar, in der Mitte durchsichtig. 'L'/'R': auf dieser Seite
+// läuft die Spalte unter den Brückenbogen (dunkle Kehle unter Schneelippe).
+function snowBridge(side, v) {
+  const W = 20, H = 30, oy = 7;
+  return flat(W, H, 10, oy + 14, (p) => {
+    if (side !== 'M') {
+      for (let i = 0; i < 6; i++) {
+        const x = side === 'L' ? i : W - 1 - i, k = 1 - i / 6;
+        const ht = Math.round(5.6 * k), hb = Math.round(4 * k), yc = oy + 8;
+        for (let y = yc - ht; y <= yc + hb; y++) p.px(x, y, y === yc - ht ? ICE[4] : DEEP[1]);
+        p.px(x, yc - ht - 1, SNOW[6]); p.px(x, yc + hb + 1, SNOW[6]);
+      }
+      // Bogenschatten unter der Brücke
+      const ax = side === 'L' ? 6 : W - 7;
+      for (let y = oy + 5; y <= oy + 11; y++) p.px(ax + (side === 'L' ? Math.round(Math.abs(y - oy - 8) * 0.4) : -Math.round(Math.abs(y - oy - 8) * 0.4)), y, rgba(40, 80, 120, 0.45));
+    }
+    // Durchhang und Trittspuren
+    for (let x = 0; x < W; x++) if (hash2(x, v, 1550) < 0.5) { p.px(x, oy + 3, rgba(40, 80, 120, 0.25)); p.px(x, oy + 13, rgba(40, 80, 120, 0.3)); }
+    for (let y = oy + 1; y < oy + 16; y += 4) { const x = 9 + ((y >> 2) % 2) * 2; p.px(x, y, rgba(60, 80, 110, 0.35)); }
+  });
+}
+
+// ------------------------------------------------------------ Eiszapfenvorhang an Höhlenwänden
+function icicleCurtain(v) {
+  const W = 20, H = 26;
+  return flat(W, H, 10, 24, (p, g) => {
+    // vereiste Wandfläche oberhalb der Zelle
+    for (let x = 0; x < W; x++) {
+      const t = 3 + Math.round(hash2(x, 0, 1560 + v) * 4);
+      for (let y = t; y < 11; y++) p.px(x, y, (x + y) % 5 === 0 ? ICE[4] : y < t + 2 ? ICE[5] : ICE[3]);
+    }
+    // Zapfen
+    for (let x = 0; x < W; x++) {
+      const h = hash2(x, 1, 1561 + v);
+      if (h > 0.62) continue;
+      const len = 3 + Math.floor(hash2(x, 2, 1562 + v) * (v === 2 ? 14 : 10));
+      for (let k = 0; k < len; k++) {
+        const y = 11 + k;
+        p.px(x, y, k === len - 1 ? ICE[6] : x % 2 ? ICE[3] : ICE[4]);
+        if (k > len - 3) g.px(x, y, ICE[3]);
+      }
+    }
+    // Frosthauch
+    for (let i = 0; i < 4; i++) { const x = 2 + i * 5, y = 6 + (i % 2); g.px(x, y, '#2a6a90'); }
+  });
+}
+
+// ------------------------------------------------------------ Eissäule
+function icePillar(v) {
+  const W = 18, H = 42;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 9;
+    snowPatch(p, cx, bottom - 1, 7, 1, 1570 + v);
+    for (let y = 0; y < bottom - 1; y++) {
+      const w = 3.6 + Math.sin(y * 0.22 + v) * 0.8 + (y > bottom - 8 ? (y - bottom + 8) * 0.5 : 0) + (y < 6 ? (6 - y) * 0.4 : 0);
+      for (let x = Math.round(cx - w); x <= Math.round(cx + w); x++) {
+        const rel = (x - (cx - w)) / (2 * w);
+        let c = rel < 0.2 ? ICE[6] : rel < 0.45 ? ICE[5] : rel < 0.75 ? ICE[4] : ICE[2];
+        if (hash2(x, y >> 1, 1571 + v) < 0.06) c = ICE[1];
+        p.px(x, y, c);
+      }
+      if (y % 3 === 0) g.px(cx - 1, y, ICE[4]);
+    }
+    // eingeschlossene Luftblasen / Knochen
+    for (let i = 0; i < 5; i++) p.px(cx - 1 + (i % 3), 8 + i * 6, ICE[6]);
+    if (v === 1) { p.line(cx - 2, 20, cx + 2, 24, BONE[3]); p.px(cx - 2, 19, BONE[4]); }
+    // Fuß: Eisgeröll
+    for (const dx of [-6, -4, 4, 6]) { p.px(cx + dx, bottom - 1, ICE[4]); p.px(cx + dx, bottom - 2, ICE[6]); }
+  }, { ax: 9, ay: H - 2, box: [-4, -4, 4, 1], light: { dx: 0, dy: -18, radius: 50, color: [110, 190, 255], intensity: 0.5 } });
+}
+
+// ------------------------------------------------------------ Höhlenmünder (begehbare Bögen)
+// Fels-/Eisbogen über einem Gang; Pfeiler stehen auf den Felszellen links
+// und rechts, die Öffnung ist durchsichtig (nur ein Schatten unter dem Sturz).
+function caveArch(troll) {
+  const W = 72, H = 60;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 36, ow = 20, otop = 18;
+    const mask = new Uint8Array(W * H);
+    const openAt = (x, y) => { const t = (x - cx) / ow; if (Math.abs(t) > 1) return false; const arch = otop + (1 - Math.sqrt(1 - t * t)) * 14; return y >= arch; };
+    for (let y = 2; y <= bottom; y++) for (let x = 0; x < W; x++) {
+      const outer = Math.abs(x - cx) <= 33 - Math.max(0, (14 - y)) * 0.9 - hash2(x >> 1, y >> 2, 1580) * 2;
+      if (!outer || openAt(x, y)) continue;
+      const facet = Math.floor((x + y * 0.7) / 7);
+      let k = hash2(facet, Math.floor(y / 9), 1581) < 0.5 ? 3 : 2;
+      const lx = (x + y * 0.7) % 7;
+      if (lx < 1.1) k = 5; else if (lx > 5.8) k = 1;
+      if (x > cx + 10) k -= 1;
+      p.px(x, y, ROCK[clampI(k, 7)]);
+      mask[y * W + x] = 1;
+    }
+    snowOnMask(p, mask, W, H, { depth: 2, seed: 1582, left: 0.5, chance: 0.95 });
+    // Schatten im Durchgang (halbdurchsichtig, Held bleibt sichtbar)
+    for (let y = otop; y < otop + 22; y++) for (let x = cx - ow; x <= cx + ow; x++) {
+      if (!openAt(x, y)) continue;
+      const a = Math.max(0, 0.55 - (y - otop) * 0.028);
+      p.px(x, y, rgba(4, 6, 12, a));
+    }
+    if (troll) {
+      // Schädel und Hauer am Sturz, Knochen am Fuß
+      for (const [sx, sy] of [[cx - 9, otop - 2], [cx, otop - 4], [cx + 9, otop - 2]]) {
+        p.ellipse(sx, sy, 3, 2.6, BONE[4]); p.ellipse(sx - 1, sy - 1, 1.6, 1.2, BONE[5]); p.px(sx - 1, sy, '#0c0a0e'); p.px(sx + 1, sy, '#0c0a0e'); p.rect(sx - 1, sy + 2, 3, 1, BONE[2]);
+      }
+      for (const s of [-1, 1]) { const bx = cx + s * (ow + 2); p.line(bx, otop + 2, bx + s * 4, otop - 8, BONE[4]); p.line(bx + s, otop + 2, bx + s * 5, otop - 8, BONE[2]); p.px(bx + s * 5, otop - 9, BONE[5]); }
+      for (const [bx, by] of [[cx - 26, bottom - 3], [cx + 24, bottom - 2], [cx - 18, bottom - 1]]) { p.line(bx, by, bx + 6, by - 2, BONE[4]); p.px(bx - 1, by, BONE[5]); p.px(bx + 7, by - 3, BONE[5]); }
+      // Krallenspuren
+      for (let i = 0; i < 3; i++) p.line(cx - 28 + i * 2, 28, cx - 25 + i * 2, 36, ROCK[0]);
+      g.px(cx - 10, otop - 2, '#5a2a10'); g.px(cx + 8, otop - 2, '#5a2a10');
+    } else {
+      // Eisrahmen und Zapfen am Sturz, blaues Leuchten aus dem Gang
+      for (let x = cx - ow; x <= cx + ow; x++) {
+        const t = (x - cx) / ow; const y = Math.round(otop + (1 - Math.sqrt(Math.max(0, 1 - t * t))) * 14);
+        p.px(x, y - 1, ICE[5]); p.px(x, y - 2, ICE[4]);
+        if (hash2(x, 0, 1583) < 0.5) { const len = 2 + Math.floor(hash2(x, 1, 1584) * 6); for (let k = 0; k < len; k++) p.px(x, y + k, k === len - 1 ? ICE[6] : ICE[4]); g.px(x, y + len - 1, ICE[3]); }
+      }
+      for (let y = otop + 4; y < otop + 16; y++) for (let x = cx - 12; x <= cx + 12; x += 2) if (hash2(x, y, 1585) < 0.12) g.px(x, y, '#1a4a70');
+    }
+  }, { ax: 36, ay: H - 3, light: troll ? undefined : { dx: 0, dy: -24, radius: 64, color: [110, 190, 255], intensity: 0.55 }, extra: { occlude: [-34, -58, 34, 0] } });
+}
+
+// ------------------------------------------------------------ Höhlenfeuer der Trolle
+function caveFire() {
+  const W = 28, H = 24;
+  return mk(W, H, (p, g) => {
+    const cx = 14, cy = H - 6;
+    p.ellipse(cx, cy + 1, 11, 3.4, '#15100e');
+    for (let i = 0; i < 18; i++) { const x = cx + Math.round(Math.cos(i * 2.4) * (i % 6)), y = cy + Math.round(Math.sin(i * 2.4) * (i % 6) * 0.35); p.px(x, y, i % 3 ? EMB[2] : EMB[3]); g.px(x, y, EMB[3]); }
+    // Knochenspieß mit Keule
+    p.line(2, cy - 14, 4, cy + 2, BONE[3]); p.line(26, cy - 14, 24, cy + 2, BONE[2]); p.line(1, cy - 13, 27, cy - 13, WOOD[2]);
+    p.ellipse(cx, cy - 13, 5, 2.4, '#6a3a24'); p.ellipse(cx - 1, cy - 14, 3, 1.2, '#8a5434');
+    // Steine statt Ring: Schädel
+    for (const [x, y] of [[cx - 9, cy + 1], [cx + 9, cy + 1], [cx - 5, cy + 3], [cx + 5, cy + 3]]) { p.ellipse(x, y, 2, 1.6, BONE[3]); p.px(x - 1, y - 1, BONE[5]); p.px(x, y, '#0c0a0e'); }
+    flame(p, g, cx - 2, cy - 1, 6, 1); flame(p, g, cx + 1, cy - 2, 9, 2); flame(p, g, cx + 4, cy - 1, 5, 1);
+  }, { ax: 14, ay: H - 3, box: [-7, -4, 7, 1], light: { dx: 0, dy: -8, radius: 96, color: [255, 140, 60], intensity: 0.95 }, extra: { embers: { dx: 0, dy: -10, rate: 4 } } });
+}
+
+// ------------------------------------------------------------ Sigruns Jagdhütte
+function huntLodge() {
+  const W = 84, H = 70;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 42, x0 = 10, x1 = 73, wallTop = 30, wallBot = bottom - 5;
+    snowPatch(p, cx, bottom - 1, 40, 3, 1590);
+    fieldstones(p, x0 - 1, wallBot, x1 - x0 + 3, 5, 1591);
+    // Blockbohlen (liegende Stämme, runde Enden an den Ecken)
+    for (let y = wallTop; y < wallBot; y++) {
+      const row = Math.floor((y - wallTop) / 4), ly = (y - wallTop) % 4;
+      for (let x = x0; x <= x1; x++) {
+        let k = ly === 0 ? 4 : ly === 3 ? 1 : ly === 1 ? 3 : 2;
+        if (hash2(x >> 2, row, 1592) < 0.15 && ly > 0) k -= 1;
+        p.px(x, y, WOOD[clampI(k, 5)]);
+      }
+      if (ly === 1) for (const ex of [x0 - 2, x1 + 2]) { p.ellipse(ex, y + 0.5, 2.2, 1.8, '#8a6a44'); p.px(ex, y, '#5a4228'); }
+    }
+    // Tür mit Geweih darüber
+    p.rect(cx - 6, wallTop + 8, 12, wallBot - wallTop - 8, WOOD[0]);
+    p.rect(cx - 5, wallTop + 9, 10, wallBot - wallTop - 9, WOOD[2]);
+    for (let y = wallTop + 9; y < wallBot; y += 3) p.rect(cx - 5, y, 10, 1, WOOD[1]);
+    p.px(cx + 3, wallTop + 17, IRON[4]);
+    for (const s of [-1, 1]) {
+      p.line(cx, wallTop + 4, cx + s * 9, wallTop - 3, BONE[4]);
+      for (const t of [3, 6, 8]) p.line(cx + s * t, wallTop + 4 - t * 0.8, cx + s * (t + 1), wallTop - 2 - t * 0.6, BONE[3]);
+    }
+    p.ellipse(cx, wallTop + 5, 2.4, 2, BONE[5]); p.px(cx - 1, wallTop + 5, '#0c0a0e'); p.px(cx + 1, wallTop + 5, '#0c0a0e');
+    // Fenster mit warmem Licht
+    for (const wx of [18, 58]) {
+      p.rect(wx - 1, wallTop + 7, 10, 9, WOOD[0]); p.rect(wx, wallTop + 8, 8, 7, EMB[3]); p.rect(wx, wallTop + 8, 8, 2, EMB[4]);
+      g.rect(wx, wallTop + 8, 8, 7, EMB[4]); p.rect(wx + 3, wallTop + 8, 1, 7, WOOD[1]); p.rect(wx, wallTop + 11, 8, 1, WOOD[1]);
+      p.rect(wx - 2, wallTop + 16, 12, 1, SNOW[6]);
+    }
+    // Felle an der Wand
+    for (const [fx, c] of [[30, HIDE[3]], [52, BONE[3]]]) { p.ellipse(fx, wallTop + 14, 4, 6, c); p.ellipse(fx - 1, wallTop + 12, 2, 2.5, c === HIDE[3] ? HIDE[4] : BONE[4]); p.px(fx, wallTop + 7, IRON[3]); }
+    // Satteldach mit Schnee (Giebel vorn)
+    for (let y = 4; y < wallTop; y++) {
+      const half = (y - 4) * 1.32 + 6;
+      for (let x = Math.round(cx - half); x <= Math.round(cx + half); x++) {
+        if (x < x0 - 6 || x > x1 + 6) continue;
+        const edge = Math.abs(x - cx) > half - 2;
+        let c = (y - 4) < 4 ? SNOW[6] : edge ? SNOW[3] : (x < cx ? SNOW[5] : SNOW[4]);
+        if (!edge && hash2(x, y, 1593) < 0.05) c = SNOW[3];
+        p.px(x, y, c);
+      }
+    }
+    for (let x = x0 - 6; x <= x1 + 6; x++) { p.px(x, wallTop, WOOD[0]); p.px(x, wallTop - 1, SNOW[3]); }
+    icicles(p, g, x0 - 5, x1 + 5, wallTop + 1, 1594, 5, 0.35);
+    // Steinkamin rechts
+    fieldstones(p, 60, 0, 8, 14, 1595); p.rect(60, 0, 8, 1, SNOW[6]);
+    // Geweihgiebelzier
+    p.line(cx, 4, cx - 3, 0, WOOD[3]); p.line(cx, 4, cx + 3, 0, WOOD[3]);
+  }, { ax: 42, ay: H - 2, box: [-34, -16, 34, 1], light: { dx: 0, dy: -20, radius: 86, color: [255, 170, 90], intensity: 0.75 }, extra: { smoke: { dx: 22, dy: -70, rate: 3 }, occlude: [-40, -70, 40, -16] } });
+}
+
+// ------------------------------------------------------------ Fellgestell, Holzstapel, Steinmann
+function peltRack() {
+  const W = 30, H = 30;
+  return mk(W, H, (p) => {
+    const bottom = H - 1;
+    snowPatch(p, 15, bottom - 1, 13, 1, 1600);
+    p.line(3, bottom - 1, 5, 3, WOOD[3]); p.line(26, bottom - 1, 24, 3, WOOD[2]);
+    p.rect(2, 4, 26, 2, WOOD[3]); p.rect(2, 4, 26, 1, WOOD[4]); p.rect(2, 3, 26, 1, SNOW[6]);
+    // gespannte Felle: Wolf (grau), Bär (braun)
+    const hide = (x0, w, pal) => {
+      for (let y = 7; y < 24; y++) {
+        const half = w / 2 - Math.abs(Math.sin((y - 7) / 17 * Math.PI)) * -1.2 - (y > 20 ? (y - 20) : 0);
+        for (let x = Math.round(x0 + w / 2 - half); x <= Math.round(x0 + w / 2 + half); x++) p.px(x, y, pal[hash2(x, y, 1601) < 0.2 ? 1 : x < x0 + w / 2 ? 3 : 2]);
+      }
+      p.line(x0 + 1, 6, x0 + w - 1, 6, LEA[1]);
+    };
+    hide(6, 8, ['#2a2e36', '#4a505a', '#6a707a', '#8a909a']);
+    hide(16, 9, HIDE.slice(1));
+  }, { ax: 15, ay: H - 2, box: [-11, -4, 11, 1] });
+}
+
+function woodPile() {
+  const W = 28, H = 20;
+  return mk(W, H, (p) => {
+    const bottom = H - 1;
+    snowPatch(p, 14, bottom - 1, 13, 1, 1610);
+    for (let row = 0; row < 3; row++) for (let i = 0; i < 5 - row; i++) {
+      const x = 4 + i * 5 + row * 2.5, y = bottom - 4 - row * 4;
+      p.ellipse(x, y, 2.6, 2.2, WOOD[1]); p.ellipse(x, y, 1.8, 1.5, '#8a6a44'); p.px(x, y, '#5a4228'); p.px(x - 1, y - 1, '#a88452');
+    }
+    for (let x = 3; x < 26; x++) if (hash2(x, 0, 1611) < 0.7) p.px(x, bottom - 14 + Math.round(Math.abs(x - 14) * 0.45), SNOW[6]);
+    p.line(22, bottom - 2, 26, bottom - 9, WOOD[3]); p.rect(25, bottom - 11, 2, 3, IRON[3]);
+  }, { ax: 14, ay: H - 2, box: [-11, -4, 11, 1] });
+}
+
+function cairn() {
+  const W = 16, H = 26;
+  return mk(W, H, (p) => {
+    const bottom = H - 1;
+    snowPatch(p, 8, bottom - 1, 7, 1, 1620);
+    const stones = [[8, bottom - 3, 6, 2.6], [7, bottom - 8, 5, 2.4], [9, bottom - 12, 4, 2.2], [8, bottom - 16, 3, 2], [8, bottom - 19, 2, 1.4]];
+    for (const [x, y, rx, ry] of stones) { p.ellipse(x, y, rx, ry, ROCK[3]); p.ellipse(x - 1, y - 0.6, rx - 1, ry - 1, ROCK[4]); p.rect(Math.round(x - rx + 1), Math.round(y - ry), Math.round(rx), 1, SNOW[6]); }
+    // Wimpel
+    p.line(10, bottom - 20, 10, 2, WOOD[3]); p.rect(11, 2, 4, 3, CRIM[3]); p.px(14, 4, CRIM[1]);
+  }, { ax: 8, ay: H - 2, box: [-5, -3, 5, 1] });
+}
+
+// ------------------------------------------------------------ Eisfall an einer Felswand
+function iceFall(v) {
+  const W = 36, H = 54;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 18;
+    // Felsnische
+    for (let y = 0; y < bottom - 6; y++) for (let x = 0; x < W; x++) {
+      const half = 16 - y * 0.05;
+      if (Math.abs(x - cx) > half) continue;
+      p.px(x, y, ROCK[(x + (y >> 2)) % 7 === 0 ? 3 : 2]);
+    }
+    // Eiskaskade: senkrechte Säulen
+    for (let x = 6; x < 30; x++) {
+      const len = bottom - 6 - Math.round(hash2(x, 0, 1630 + v) * 10);
+      const start = Math.round(hash2(x, 1, 1631 + v) * 4);
+      for (let y = start; y < len; y++) {
+        const lane = (x + Math.floor(y / 9)) % 3;
+        let c = lane === 0 ? ICE[6] : lane === 1 ? ICE[4] : ICE[3];
+        if (x > 24) c = lane === 0 ? ICE[4] : ICE[2];
+        p.px(x, y, c);
+        if (lane === 0 && y % 4 === 0) g.px(x, y, ICE[4]);
+      }
+    }
+    // Becken unten
+    p.ellipse(cx, bottom - 4, 16, 4, ICE[4]); p.ellipse(cx - 2, bottom - 5, 11, 2.4, ICE[5]); p.ellipse(cx, bottom - 3, 14, 1.5, ICE[3]);
+    for (let i = 0; i < 6; i++) { const x = 4 + i * 5; p.px(x, bottom - 2, SNOW[6]); }
+  }, { ax: 18, ay: H - 2, box: [-14, -6, 14, 1], light: { dx: 0, dy: -20, radius: 64, color: [120, 200, 255], intensity: 0.55 } });
+}
+
+// ------------------------------------------------------------ Abgestorbene Kiefer
+function deadPine(v) {
+  const W = 30, H = 50;
+  return mk(W, H, (p) => {
+    const bottom = H - 1, cx = 15;
+    snowPatch(p, cx, bottom - 1, 9, 1, 1640 + v);
+    for (let y = 4 + v * 6; y < bottom; y++) { const w = 1 + Math.floor((y - 4) / 16); for (let x = cx - w; x <= cx + w; x++) p.px(x, y, x === cx - w ? '#5a4a3c' : x === cx + w ? '#1e1814' : '#3a2e24'); }
+    const rng = createRng(1641 + v);
+    for (let y = 10 + v * 6; y < bottom - 10; y += rng.int(4, 7)) {
+      const s = rng.chance(0.5) ? 1 : -1, len = rng.int(4, 10 - Math.floor(y / 12));
+      p.line(cx, y, cx + s * len, y - Math.round(len * 0.4), '#3a2e24');
+      p.px(cx + s * len, y - Math.round(len * 0.4) - 1, SNOW[6]);
+      for (let k = 1; k < len; k += 2) p.px(cx + s * k, y - Math.round(k * 0.4) - 1, SNOW[5]);
+    }
+    if (v === 1) { p.line(cx + 1, 10, cx + 5, 6, '#3a2e24'); }
+    p.px(cx, 3 + v * 6, SNOW[6]); p.px(cx - 1, 4 + v * 6, SNOW[5]);
+  }, { ax: 15, ay: H - 2, box: [-3, -3, 3, 1], extra: { occlude: [-10, -46, 10, -6] } });
+}
+
+// ------------------------------------------------------------ Wühlerbau (Questobjekt)
+function burrowHole(on) {
+  const W = 38, H = 26;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 19, cy = bottom - 8;
+    // Aufgeworfener Schneehügel mit Erdbrocken
+    for (let y = 2; y <= bottom; y++) for (let x = 0; x < W; x++) {
+      const d = ((x - cx) / 17) ** 2 + ((y - cy - 2) / 9) ** 2;
+      if (d > 1 || (d > 0.85 && hash2(x, y, 1650) < 0.5)) continue;
+      const lit = (x - cx) * 0.8 + (y - cy) < -2;
+      p.px(x, y, lit ? SNOW[6] : d > 0.6 ? SNOW[4] : SNOW[5]);
+    }
+    for (let i = 0; i < 14; i++) { const a = i * 0.9, r = 9 + (i % 5) * 1.6; const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + 2 + Math.sin(a) * r * 0.45); p.px(x, y, i % 2 ? '#3a2a20' : '#2a1e16'); }
+    if (!on) {
+      // dunkles Loch mit Krallenspuren und Knochen
+      p.ellipse(cx, cy, 7, 4, '#05070c'); p.ellipse(cx, cy - 1, 6, 2.6, '#0a0e16');
+      for (let x = cx - 6; x <= cx + 6; x++) p.px(x, Math.round(cy - 4 * Math.sqrt(Math.max(0, 1 - ((x - cx) / 7) ** 2))), SNOW[3]);
+      for (const s of [-1, 1]) for (let i = 0; i < 3; i++) p.line(cx + s * (9 + i * 2), cy - 3, cx + s * (11 + i * 2), cy + 3, SNOW[2]);
+      p.line(cx + 9, bottom - 3, cx + 14, bottom - 5, BONE[4]); p.px(cx + 15, bottom - 6, BONE[5]); p.px(cx + 8, bottom - 3, BONE[5]);
+      g.px(cx - 2, cy, '#3a5a20'); g.px(cx + 2, cy, '#3a5a20');   // Augen in der Tiefe
+    } else {
+      // eingestürzt: Rußstern, Brocken, Rauch
+      for (let i = 0; i < 40; i++) { const a = i * 0.7, r = (i % 9) * 1.2; p.px(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.5), i % 3 ? '#18141a' : '#2a2226'); }
+      for (const [x, y] of [[cx - 5, cy - 1], [cx + 4, cy], [cx, cy + 2], [cx - 2, cy - 2]]) { p.ellipse(x, y, 2.4, 1.6, ROCK[2]); p.px(x - 1, y - 1, ROCK[4]); p.px(x, y - 1, SNOW[5]); }
+      for (let i = 0; i < 4; i++) { p.px(cx - 3 + i * 2, cy - 1 + (i % 2), EMB[2]); g.px(cx - 3 + i * 2, cy - 1 + (i % 2), EMB[3]); }
+    }
+  }, { ax: 19, ay: H - 3, box: [-10, -5, 10, 1], extra: on ? { smoke: { dx: 0, dy: -10, rate: 3 } } : undefined });
+}
+
+// ------------------------------------------------------------ Feste: Vorräte, Schlitten, Waffengestell
+function supplies() {
+  const W = 30, H = 26;
+  return mk(W, H, (p) => {
+    const bottom = H - 1;
+    snowPatch(p, 15, bottom - 1, 14, 1, 1660);
+    // Fässer
+    for (const [bx, by] of [[7, bottom - 2], [14, bottom - 1]]) {
+      p.rect(bx - 3, by - 10, 7, 10, WOOD[2]); p.rect(bx - 3, by - 10, 2, 10, WOOD[3]); p.rect(bx + 3, by - 10, 1, 10, WOOD[1]);
+      for (const y of [by - 8, by - 3]) p.rect(bx - 3, y, 7, 1, IRON[2]);
+      p.ellipse(bx, by - 10, 3.5, 1.2, WOOD[3]); p.rect(bx - 2, by - 11, 5, 1, SNOW[6]);
+    }
+    // Kiste mit Plane
+    p.rect(18, bottom - 12, 10, 11, WOOD[2]); p.rect(18, bottom - 12, 10, 1, WOOD[4]); p.rect(18, bottom - 7, 10, 1, WOOD[1]); p.rect(18, bottom - 12, 1, 11, WOOD[3]);
+    p.rect(17, bottom - 14, 12, 3, HIDE[3]); p.rect(17, bottom - 14, 12, 1, SNOW[6]); p.px(28, bottom - 11, HIDE[1]);
+  }, { ax: 15, ay: H - 2, box: [-12, -4, 12, 1] });
+}
+
+function sled() {
+  const W = 34, H = 20;
+  return mk(W, H, (p) => {
+    const bottom = H - 1;
+    p.rect(3, bottom - 3, 28, 1, WOOD[3]); p.line(30, bottom - 3, 33, bottom - 7, WOOD[3]); p.rect(3, bottom - 2, 28, 1, WOOD[1]);
+    for (const x of [6, 14, 22, 28]) p.rect(x, bottom - 6, 1, 3, WOOD[2]);
+    p.rect(4, bottom - 7, 26, 2, WOOD[3]); p.rect(4, bottom - 7, 26, 1, WOOD[4]);
+    // Bündel und Felle
+    p.ellipse(11, bottom - 10, 6, 3.4, HIDE[3]); p.ellipse(10, bottom - 11, 4, 2, HIDE[4]);
+    p.ellipse(22, bottom - 10, 5, 3, '#4a505a'); p.ellipse(21, bottom - 11, 3, 1.6, '#6a707a');
+    p.line(6, bottom - 13, 27, bottom - 8, LEA[2]);
+    p.rect(8, bottom - 14, 6, 1, SNOW[6]); p.rect(19, bottom - 13, 5, 1, SNOW[6]);
+  }, { ax: 17, ay: H - 2, box: [-13, -4, 13, 1] });
+}
+
+function weaponRack() {
+  const W = 26, H = 30;
+  return mk(W, H, (p) => {
+    const bottom = H - 1;
+    snowPatch(p, 13, bottom - 1, 11, 1, 1670);
+    p.rect(3, 8, 2, bottom - 8, WOOD[3]); p.rect(21, 8, 2, bottom - 8, WOOD[2]);
+    p.rect(2, 10, 22, 2, WOOD[3]); p.rect(2, bottom - 6, 22, 2, WOOD[2]); p.rect(2, 9, 22, 1, SNOW[6]);
+    // Speere, Axt, Rundschild
+    for (const x of [7, 10]) { p.rect(x, 2, 1, bottom - 3, WOOD[4]); p.px(x, 1, IRON[4]); p.px(x, 0, IRON[5]); p.px(x - 1, 2, IRON[3]); p.px(x + 1, 2, IRON[3]); }
+    p.rect(14, 6, 1, bottom - 7, WOOD[3]); p.rect(15, 6, 4, 5, IRON[3]); p.rect(15, 6, 4, 1, IRON[5]); p.px(19, 8, IRON[2]);
+    p.ellipse(19, 18, 4, 4, WOOD[1]); p.ellipse(19, 18, 3, 3, NBLUE[3]); p.rect(16, 18, 7, 1, BONE[3]); p.px(19, 18, IRON[4]);
+  }, { ax: 13, ay: H - 2, box: [-10, -3, 10, 1] });
+}
+
+// ============================================================ Runde 5/2: Gebirge und Points of Interest
+// Felsband/Schneeterrasse im Massiv: deckt eine feste Zelle ohne Fels (die Wand darüber
+// zeichnet der Boden-Renderer). Anker = Zellmitte unten (Zelle reicht -14..+2).
+function ledgeSnow(v) {
+  const W = 24, H = 24, ax = 12, ay = 18, G = GROUND_FROST.grass;
+  return flat(W, H, ax, ay, (p) => {
+    const s = 2900 + v * 13;
+    for (let x = 0; x < W; x++) {
+      // Ränder laufen an den Sprite-Seiten auf gleiche Höhe aus (nahtlos nebeneinander)
+      const edge = Math.min(x, W - 1 - x) / 6, e = Math.min(1, edge);
+      const top = 2 + Math.round(vnoiseLite(x / 5, v, s) * 2.4 * e);
+      const bot = H - 4 - Math.round(vnoiseLite(x / 4, v + 3, s + 1) * 2 * e);
+      for (let y = top; y <= bot; y++) {
+        const t = (y - top) / Math.max(1, bot - top);
+        let k = t < 0.2 ? 1 : t < 0.5 ? 3 : t < 0.85 ? 2 : 4;
+        if (hash2(x, y, s + 2) < 0.06) k += 1;
+        p.px(x, y, G[clampI(k, 6)]);
+      }
+      p.px(x, bot + 1, G[0]); if (hash2(x, 0, s + 3) < 0.5) p.px(x, bot + 2, rgba(6, 10, 20, 0.35));
+    }
+    // Geröll, das durch den Schnee stößt
+    for (let k = 0; k < 2; k++) {
+      const x = 4 + Math.floor(hash2(k, v, s + 4) * 15), y = 8 + Math.floor(hash2(k, v, s + 5) * 7);
+      p.px(x, y, ROCK[3]); p.px(x + 1, y, ROCK[2]); p.px(x, y - 1, G[5]);
+    }
+    if (v === 2) { for (let y = 5; y < 15; y++) p.px(16, y, PINE[3]); for (let i = 0; i < 5; i++) { p.rect(14 - (i >> 1), 6 + i * 2, 5 + (i & ~1), 1, PINE[2 + (i & 1)]); p.px(14 - (i >> 1), 6 + i * 2, SNOW[5]); } }
+  });
+}
+
+// Bergspitze: verschneiter Felsgipfel mit Graten und Rinnen (auf Schneeterrassen im Massiv)
+function mountainPeak(v) {
+  const W = [76, 58, 92][v], H = [88, 66, 104][v];
+  const rng = createRng(2950 + v);
+  return mk(W, H, (p, g) => {
+    const base = H - 6, mask = new Uint8Array(W * H);
+    // Kammlinie: ein bis zwei Gipfel, gezackt
+    const peaks = v === 2 ? [[W * 0.38, 4], [W * 0.7, 18]] : v === 1 ? [[W * 0.46, 6]] : [[W * 0.42, 3], [W * 0.74, 24]];
+    const ridge = (x) => {
+      let y = base;
+      for (const [px, py] of peaks) { const slope = (base - py) / (W * 0.5); y = Math.min(y, py + Math.abs(x - px) * slope * (x < px ? 1.05 : 0.95)); }
+      return y + (vnoiseLite(x / 3, v, 2951) - 0.5) * 5 + (hash2(x, v, 2952) < 0.12 ? 2 : 0);
+    };
+    const tops = [];
+    for (let x = 0; x < W; x++) {
+      const t = Math.max(1, Math.round(ridge(x)));
+      tops.push(t);
+      for (let y = t; y <= base + 3; y++) if (y < H) mask[y * W + x] = 1;
+    }
+    // Grate (helle/dunkle Facetten) – je Gipfel eine Hauptkante nach unten rechts versetzt
+    const crest = (x, y) => {
+      let best = 1e9;
+      for (const [px, py] of peaks) best = Math.min(best, x - (px + (y - py) * 0.32 + (vnoiseLite(y / 6, px, 2953) - 0.5) * 6));
+      return best;
+    };
+    const snowLine = (x) => base - (H * 0.42) + (vnoiseLite(x / 6, v, 2954) - 0.5) * 18;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!mask[y * W + x]) continue;
+      const c = crest(x, y);
+      let k = c < 0 ? 5 : 2;                                                 // links Licht, rechts Schatten
+      if (c < 0 && c > -3) k = 6;                                            // Gratkante
+      const band = Math.floor((y + x * 0.3 + vnoiseLite(x / 8, y / 12, 2955) * 6) / 6);
+      if (((y + x * 0.3 + vnoiseLite(x / 8, y / 12, 2955) * 6) % 6) < 1) k -= 1; // Schichtung
+      if (hash2(x, band, 2956) < 0.04) k -= 2;                                // Risse
+      let col = ROCK[clampI(k, 7)];
+      // Schnee: oberhalb der Schneegrenze auf der Lichtseite fast ganz, im Schatten in Rinnen
+      const sl = snowLine(x), gully = vnoiseLite(x / 2.6, y / 14, 2957);
+      if (y < sl) {
+        if (c < 0) col = gully > 0.28 ? (c > -3 ? SNOW[6] : SNOW[5]) : ROCK[4];
+        else col = gully > 0.55 ? SNOW[3] : gully > 0.42 ? SNOW[2] : ROCK[clampI(k, 7)];
+      } else if (gully > 0.74 && hash2(x, y >> 1, 2958) < 0.8) col = c < 0 ? SNOW[4] : SNOW[2];
+      if (y - tops[x] < 2) col = c < 0 ? SNOW[6] : SNOW[4];                  // Firn auf dem Kamm
+      p.px(x, y, col);
+    }
+    // Eis in einer Rinne
+    for (let i = 0; i < 4; i++) { const x = Math.round(peaks[0][0] + 6 + i * 3), y = Math.round(base - H * 0.3 + i * 4); if (mask[y * W + x]) { p.px(x, y, ICE[4]); p.px(x, y + 1, ICE[3]); g.px(x, y, ICE[3]); } }
+    // Fuß: Geröll und Schneewehe
+    for (let x = 2; x < W - 2; x++) for (let y = base - 2; y <= base + 3; y++) {
+      if (!mask[y * W + x]) continue;
+      const h = hash2(x, y, 2959);
+      if (y >= base + 1 || h < 0.35) p.px(x, y, h < 0.25 ? ROCK[3] : y === base + 3 ? SNOW[3] : SNOW[4]);
+    }
+    for (let i = 0; i < 5; i++) { const x = rng.int(4, W - 6), y = base - rng.int(0, 2); p.px(x, y, ROCK[5]); p.px(x + 1, y, ROCK[3]); p.px(x, y - 1, SNOW[6]); }
+  }, { ax: Math.floor(W / 2), ay: H - 4, extra: { occlude: [-W / 2 + 6, -H + 8, W / 2 - 6, -10] } });
+}
+
+// Felsnadel: freistehender, schlanker Zacken auf den Schneefeldern
+function rockSpire(v) {
+  const W = [32, 42, 26][v], H = [70, 88, 54][v];
+  return mk(W, H, (p, g) => {
+    const bottom = H - 3, cx = W / 2;
+    const mask = new Uint8Array(W * H);
+    const needles = v === 1 ? [[cx - 6, 4, 9], [cx + 8, 26, 6]] : v === 0 ? [[cx, 2, 9]] : [[cx - 1, 3, 7], [cx + 6, 22, 4]];
+    for (const [nx, top, half] of needles) {
+      for (let y = top; y <= bottom; y++) {
+        const t = (y - top) / (bottom - top);
+        const hw = 1 + half * Math.pow(t, 0.7) + (vnoiseLite(y / 4, nx, 2960) - 0.5) * 2.4;
+        const lean = (1 - t) * (v === 2 ? -3 : 2);
+        for (let x = Math.floor(nx + lean - hw); x <= Math.ceil(nx + lean + hw); x++) {
+          if (x < 0 || x >= W) continue;
+          mask[y * W + x] = 1;
+          const rel = (x - (nx + lean - hw)) / (2 * hw);
+          let k = rel < 0.3 ? 5 : rel < 0.55 ? 4 : rel < 0.8 ? 3 : 2;
+          const strata = (y + Math.round(x * 0.5)) % 7;
+          if (strata === 0) k -= 1;
+          if (hash2(x, y >> 2, 2961 + v) < 0.05) k -= 2;
+          p.px(x, y, ROCK[clampI(k, 7)]);
+        }
+      }
+    }
+    // Schnee auf allen Absätzen, Eis in Spalten
+    snowOnMask(p, mask, W, H, { depth: 2, seed: 2962 + v, left: 0.55, chance: 0.95 });
+    for (let y = 8; y < bottom; y += 9) { const x = Math.round(needles[0][0] + 1), on = mask[y * W + x]; if (on) { p.px(x, y, ICE[4]); p.px(x, y + 1, ICE[3]); p.px(x, y + 2, ICE[2]); g.px(x, y, ICE[3]); } }
+    for (const [nx, top] of needles) { p.px(Math.round(nx), top, SNOW[6]); p.px(Math.round(nx) - 1, top + 1, SNOW[6]); }
+    snowPatch(p, Math.round(cx), bottom, Math.round(W / 2) - 1, 2, 2963 + v);
+    for (let i = 0; i < 3; i++) { const x = 3 + Math.floor(hash2(i, v, 2964) * (W - 6)); p.px(x, bottom + 1, ROCK[3]); p.px(x + 1, bottom + 1, ROCK[2]); }
+  }, { ax: Math.floor(W / 2), ay: H - 3, box: [-Math.floor(W / 2) + 4, -6, Math.floor(W / 2) - 4, 2], extra: { occlude: [-W / 2 + 2, -H + 6, W / 2 - 2, -10] } });
+}
+
+// Gefrorener Teich (begehbar, Bodendecal unter dem Anker)
+function frozenPond(v) {
+  const W = [80, 56][v], H = [44, 32][v], rx = W / 2 - 4, ry = H / 2 - 4, cx = W / 2, cy = H / 2;
+  return flat(W, H, Math.floor(W / 2), 0, (p, g) => {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const e = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + (vnoiseLite(x / 6, y / 6, 2970 + v) - 0.5) * 0.35;
+      if (e > 1.22) continue;
+      if (e > 1) { p.px(x, y, hash2(x, y, 2971) < 0.5 ? SNOW[5] : SNOW[4]); continue; }      // Schneewall am Ufer
+      const depth = 1 - e;
+      let col = depth > 0.55 ? ICE[2] : depth > 0.25 ? ICE[3] : ICE[4];
+      const streak = Math.sin((x * 0.35 - y * 0.9) + vnoiseLite(x / 9, y / 9, 2972) * 4);
+      if (streak > 0.93) col = ICE[5];
+      if (e > 0.82 && hash2(x, y, 2973) < 0.5) col = SNOW[4];                             // Schneeanflug am Rand
+      if (vnoiseLite(x / 7, y / 5, 2974 + v) > 0.72 && depth < 0.7) col = hash2(x, y, 2975) < 0.6 ? SNOW[5] : SNOW[4]; // Schneeflecken
+      p.px(x, y, col);
+      if (col === ICE[5]) g.px(x, y, ICE[2]);
+    }
+    // Risse
+    const rng = createRng(2976 + v);
+    for (let k = 0; k < 3; k++) {
+      let x = cx + rng.int(-rx / 2, rx / 2), y = cy + rng.int(-ry / 2, ry / 2);
+      for (let i = 0; i < 14; i++) { p.px(Math.round(x), Math.round(y), ICE[1]); p.px(Math.round(x) + 1, Math.round(y) - 1, ICE[6]); x += rng.range(-1.6, 1.6); y += rng.range(-0.8, 0.8); }
+    }
+    // eingefrorenes Schilf und Steine am Rand
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + v, x = Math.round(cx + Math.cos(a) * rx * 0.95), y = Math.round(cy + Math.sin(a) * ry * 0.95);
+      if (k % 2) { for (let i = 0; i < 4; i++) p.px(x + (i & 1), y - i, i === 3 ? SNOW[6] : '#5a5a44'); }
+      else { p.px(x, y, ROCK[4]); p.px(x + 1, y, ROCK[3]); p.px(x, y - 1, SNOW[6]); }
+    }
+  });
+}
+
+// Spuren im Schnee (begehbar): Wolf, Schlitten mit Stiefeln, Troll
+function tracks(v) {
+  const W = 56, H = 22;
+  return flat(W, H, 28, 0, (p) => {
+    const dent = (x, y, c = SNOW[2], c2 = SNOW[5]) => { p.px(x, y, c); p.px(x, y + 1, c2); };
+    if (v === 0) {
+      for (let i = 0; i < 9; i++) {
+        const x = 3 + i * 6, y = 4 + Math.round(Math.sin(i * 0.8) * 3) + (i % 2) * 4;
+        dent(x, y); dent(x + 1, y); p.px(x - 1, y - 1, SNOW[2]); p.px(x + 2, y - 1, SNOW[2]); p.px(x, y - 2, SNOW[2]);
+      }
+    } else if (v === 1) {
+      for (let x = 2; x < W - 2; x++) {
+        const y = 7 + Math.round(Math.sin(x / 12) * 2);
+        p.px(x, y, SNOW[2]); p.px(x, y + 1, SNOW[5]); p.px(x, y + 6, SNOW[2]); p.px(x, y + 7, SNOW[5]);
+        if (x % 7 === 0) { p.rect(x + 1, y + 3, 2, 1, SNOW[2]); p.px(x + 1, y + 4, SNOW[5]); }
+      }
+    } else {
+      for (let i = 0; i < 5; i++) {
+        const x = 4 + i * 11, y = 4 + (i % 2) * 7;
+        p.ellipse(x + 2, y + 3, 3, 2.2, SNOW[2]); p.rect(x, y + 5, 5, 1, SNOW[5]);
+        for (let t = 0; t < 3; t++) { p.px(x + t * 2, y, SNOW[1]); p.px(x + t * 2, y + 1, SNOW[2]); }
+      }
+    }
+  });
+}
+
+// Verfallener Wachturm (Ruine)
+function ruinTower() {
+  const W = 52, H = 76;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 2, x0 = 10, x1 = 41;
+    const topAt = (x) => 14 + Math.round(Math.abs(Math.sin(x * 0.7)) * 4) + (x > 28 ? Math.round((x - 28) * 1.3) : 0) + (hash2(x, 0, 2980) < 0.3 ? 3 : 0);
+    for (let x = x0; x <= x1; x++) {
+      const t = topAt(x);
+      for (let y = t; y < bottom - 2; y++) {
+        const row = Math.floor(y / 5), off = (row % 2) * 4, lx = (x + off) % 8, ly = y % 5;
+        let k = x < x0 + 6 ? 5 : x < x0 + 18 ? 4 : x < x1 - 5 ? 3 : 2;
+        if (ly === 0 || lx === 0) k -= 2; else if (ly === 1) k += 1;
+        if (hash2(x >> 3, row, 2981) < 0.15) k -= 1;
+        p.px(x, y, STONE[clampI(k, STONE.length)]);
+      }
+      p.px(x, t, SNOW[6]); p.px(x, t + 1, SNOW[5]);
+    }
+    // Schießscharte und Bresche
+    p.rect(22, 30, 3, 8, '#06080e'); p.px(22, 30, STONE[1]);
+    for (let y = 46; y < bottom - 2; y++) for (let x = 27; x < 36; x++) if (Math.abs(x - 31) < (y - 44) * 0.45) p.px(x, y, '#05070c');
+    // Trümmer davor, Eiszapfen an der Krone
+    for (let i = 0; i < 6; i++) { const x = 6 + i * 7, y = bottom - 1 - (i % 2); p.ellipse(x, y, 3, 2, STONE[2]); p.px(x - 1, y - 2, SNOW[6]); p.px(x, y - 2, SNOW[5]); }
+    icicles(p, g, 12, 26, 19, 2982, 4, 0.4);
+    snowPatch(p, 26, bottom - 1, 22, 2, 2983);
+  }, { ax: 26, ay: H - 3, box: [-15, -8, 15, 1], extra: { occlude: [-20, -66, 20, -10] } });
+}
+function ruinWall(v) {
+  const W = 46, H = 34;
+  return mk(W, H, (p) => {
+    const bottom = H - 2;
+    for (let x = 2; x < W - 2; x++) {
+      const t = 5 + Math.round(vnoiseLite(x / 5, v, 2984) * 14) + (x > W - 12 ? (x - (W - 12)) * 1.2 | 0 : 0) + (hash2(x, v, 2985) < 0.2 ? 2 : 0);
+      for (let y = t; y < bottom - 1; y++) {
+        const row = Math.floor(y / 5), lx = (x + (row % 2) * 4) % 8, ly = y % 5;
+        let k = 4 - (x > W * 0.6 ? 1 : 0);
+        if (ly === 0 || lx === 0) k -= 2; else if (ly === 1) k += 1;
+        p.px(x, y, STONE[clampI(k, STONE.length)]);
+      }
+      p.px(x, t, SNOW[6]); if (hash2(x, 1, 2986) < 0.6) p.px(x, t + 1, SNOW[5]);
+    }
+    snowPatch(p, 23, bottom - 1, 21, 2, 2987 + v);
+  }, { ax: 23, ay: H - 3, box: [-20, -6, 20, 1] });
+}
+// Runenstein (Thingkreis), Runen glimmen kalt
+function runeStone(v) {
+  const W = 18, H = [36, 28][v];
+  return mk(W, H, (p, g) => {
+    const bottom = H - 2, top = 2;
+    for (let y = top; y < bottom; y++) {
+      const t = (y - top) / (bottom - top), hw = 4 + t * 2 + (y < top + 3 ? -1.5 : 0);
+      for (let x = Math.round(9 - hw); x <= Math.round(9 + hw); x++) {
+        const rel = (x - (9 - hw)) / (2 * hw);
+        let k = rel < 0.3 ? 5 : rel < 0.7 ? 4 : 2;
+        if (hash2(x, y, 2990 + v) < 0.08) k -= 1;
+        p.px(x, y, ROCK[clampI(k, 7)]);
+      }
+    }
+    p.rect(7, top, 4, 1, SNOW[6]); p.px(6, top + 1, SNOW[5]); p.px(11, top + 1, SNOW[4]);
+    const runes = [[8, 8], [9, 13], [8, 18], [9, 23]].slice(0, v ? 3 : 4);
+    for (const [x, y] of runes) { p.px(x, y, NBLUE[5]); p.px(x, y + 1, NBLUE[4]); p.px(x + 1, y + 2, NBLUE[4]); p.px(x - 1, y + 2, NBLUE[4]); g.px(x, y, NBLUE[4]); g.px(x, y + 1, NBLUE[4]); }
+    snowPatch(p, 9, bottom, 7, 1, 2991 + v);
+  }, { ax: 9, ay: H - 2, box: [-5, -4, 5, 1] });
+}
+// Grassodenhaus: niedrige Feldsteinwand, dickes Sodendach unter Schnee
+function sodHut(v) {
+  const W = 72, H = 56;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 2, x0 = 8, x1 = 63, wallTop = bottom - 16;
+    snowPatch(p, 36, bottom, 34, 2, 2995 + v);
+    fieldstones(p, x0, wallTop, x1 - x0, bottom - wallTop - 1, 2996 + v);
+    // Tür (Fellvorhang) und Fensterluke mit Licht
+    const dx = v ? 44 : 22;
+    p.rect(dx, wallTop + 3, 9, bottom - wallTop - 4, '#120a06'); p.rect(dx, wallTop + 3, 9, 1, WOOD[3]); p.rect(dx + 1, wallTop + 4, 4, bottom - wallTop - 6, HIDE[2]);
+    const wx = v ? 18 : 48; p.rect(wx, wallTop + 5, 6, 4, '#2a1406'); p.rect(wx + 1, wallTop + 6, 4, 2, EMB[3]); g.rect(wx + 1, wallTop + 6, 4, 2, EMB[4]);
+    // Sodendach: gewölbt, Schnee oben, Grasbüschel an der Traufe
+    for (let x = x0 - 4; x <= x1 + 4; x++) {
+      const t = (x - (x0 - 4)) / (x1 - x0 + 8), top = 6 + Math.round(Math.pow(Math.abs(t - 0.45) * 2, 2) * 12);
+      for (let y = top; y <= wallTop + 1; y++) {
+        const snowy = y < top + 9 + Math.round(hash2(x, 0, 2997) * 4);
+        let col = snowy ? (t < 0.45 ? SNOW[6] : SNOW[5]) : (y > wallTop - 2 ? '#2a3020' : '#3a4230');
+        if (!snowy && hash2(x, y, 2998) < 0.15) col = '#4a5238';
+        if (snowy && t > 0.7) col = SNOW[4];
+        p.px(x, y, col);
+      }
+      if (hash2(x, 2, 2999) < 0.35) p.px(x, wallTop + 2, '#4a5238');
+    }
+    icicles(p, g, x0, x1, wallTop + 2, 3000 + v, 3, 0.3);
+    // Rauchloch
+    p.rect(v ? 26 : 42, 8, 4, 2, ROCK[1]);
+  }, { ax: 36, ay: H - 3, box: [-28, -10, 28, 1], extra: { smoke: { dx: (v ? 26 : 42) - 34, dy: -48, rate: 1 }, occlude: [-30, -50, 30, -12] } });
+}
+// Wegstange mit Lappen (markiert Pass und Wege)
+function markerPole(v) {
+  const W = 14, H = 40;
+  return mk(W, H, (p) => {
+    const bottom = H - 2;
+    for (let y = 4; y < bottom; y++) { p.px(6, y, WOOD[4]); p.px(7, y, WOOD[2]); }
+    p.px(6, 3, SNOW[6]); p.px(7, 3, SNOW[5]);
+    const C = v ? NBLUE : CRIM;
+    for (let y = 7; y < 12; y++) for (let x = 8; x < 8 + 4 - ((y - 7) >> 1); x++) p.px(x, y, C[(x + y) % 2 ? 3 : 2]);
+    p.px(11, 12, C[1]);
+    for (let y = 14; y < bottom - 2; y += 6) p.px(5, y, SNOW[5]);
+    p.rect(3, bottom - 1, 8, 1, SNOW[4]); p.px(4, bottom - 2, SNOW[5]); p.px(9, bottom - 2, SNOW[3]);
+  }, { ax: 6, ay: H - 2, box: [-2, -3, 2, 1] });
+}
+// Kalte Feuerstelle eines verlassenen Lagers
+function coldFire() {
+  const W = 26, H = 14;
+  return mk(W, H, (p) => {
+    snowPatch(p, 13, 8, 12, 4, 3010);
+    for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, x = Math.round(13 + Math.cos(a) * 8), y = Math.round(7 + Math.sin(a) * 3.4); p.ellipse(x, y, 1.6, 1.2, ROCK[3]); p.px(x - 1, y - 1, SNOW[6]); }
+    p.ellipse(13, 7, 5, 2, '#1a1612'); p.line(9, 6, 17, 8, '#2a2018'); p.line(10, 8, 16, 5, '#3a2c20'); p.px(12, 6, SNOW[5]); p.px(15, 7, SNOW[6]);
+  }, { ax: 13, ay: 10, box: [-9, -4, 9, 2] });
+}
+// Großer gefrorener Wasserfall an einer Felswand
+function frozenCascade(v) {
+  const W = 54, H = 92;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 27;
+    for (let y = 0; y < bottom - 8; y++) {
+      const half = 12 + y * 0.12 + (vnoiseLite(y / 9, v, 3020) - 0.5) * 4;
+      for (let x = Math.round(cx - half); x <= Math.round(cx + half); x++) {
+        if (x < 0 || x >= W) continue;
+        const lane = (x + Math.floor(y / (7 + (x % 3)))) % 4;
+        let c = lane === 0 ? ICE[6] : lane === 1 ? ICE[4] : lane === 2 ? ICE[3] : ICE[5];
+        if (x > cx + half - 5) c = lane === 0 ? ICE[4] : ICE[2];
+        if (x < cx - half + 2) c = ICE[5];
+        if (hash2(x, y >> 3, 3021 + v) < 0.06) c = ICE[2];
+        p.px(x, y, c);
+        if (lane === 0 && y % 5 === 0) g.px(x, y, ICE[4]);
+      }
+    }
+    // Zapfenvorhang und Becken
+    for (let x = 4; x < W - 4; x++) { const len = Math.round(hash2(x, 3, 3022 + v) * 10); for (let k = 0; k < len; k++) p.px(x, bottom - 12 + k, k < len - 2 ? ICE[4] : ICE[5]); }
+    p.ellipse(cx, bottom - 4, 25, 4.4, ICE[4]); p.ellipse(cx - 3, bottom - 5, 17, 2.4, ICE[5]); p.ellipse(cx, bottom - 2, 23, 1.6, SNOW[5]);
+  }, { ax: 27, ay: H - 2, box: [-22, -7, 22, 1], light: { dx: 0, dy: -36, radius: 84, color: [120, 200, 255], intensity: 0.6 }, extra: { occlude: [-24, -86, 24, -12] } });
+}
+
 export function createFrostDecor() {
   return {
     snowPines: [snowPine(701, 50), snowPine(705, 58), snowPine(709, 42)],
@@ -941,5 +1806,44 @@ export function createFrostDecor() {
     frostBeacon: { off: frostBeacon(false), on: frostBeacon(true) },
     rimeGate: rimeGate(),
     trollBones: [0, 1].map(trollBones),
+    // Runde 5
+    iceCracks: [0, 1, 2, 3].map(iceCracks),
+    iceHole: [0, 1].map(iceHole),
+    fishHut: fishHut(),
+    frozenBoat: frozenBoat(),
+    // Gletscherspalten: crevSS, crevSU, … crevNN (l, r ∈ S U D N)
+    ...Object.fromEntries(['S', 'U', 'D', 'N'].flatMap((l) => ['S', 'U', 'D', 'N'].map((r) => [`crev${l}${r}`, [0, 1].map((v) => crevasseLR(l, r, v))]))),
+    snowBridge: [0, 1].map((v) => snowBridge('M', v)),
+    snowBridgeL: [0, 1].map((v) => snowBridge('L', v)),
+    snowBridgeR: [0, 1].map((v) => snowBridge('R', v)),
+    icicleCurtain: [0, 1, 2].map(icicleCurtain),
+    icePillar: [0, 1].map(icePillar),
+    trollCave: caveArch(true),
+    grottoMouth: caveArch(false),
+    caveFire: caveFire(),
+    huntLodge: huntLodge(),
+    peltRack: peltRack(),
+    woodPile: woodPile(),
+    cairn: cairn(),
+    iceFall: [0, 1].map(iceFall),
+    deadPine: [0, 1].map(deadPine),
+    burrowHole: { off: burrowHole(false), on: burrowHole(true) },
+    supplies: supplies(),
+    sled: sled(),
+    weaponRack: weaponRack(),
+    // Runde 5/2: Gebirge und Points of Interest
+    ledgeSnow: [0, 1, 0, 1, 2].map(ledgeSnow),
+    mountainPeak: [0, 1, 2].map(mountainPeak),
+    rockSpire: [0, 1, 2].map(rockSpire),
+    frozenPond: [0, 1].map(frozenPond),
+    frozenPondSmall: frozenPond(1),
+    tracks: [0, 1, 2].map(tracks),
+    ruinTower: ruinTower(),
+    ruinWall: [0, 1].map(ruinWall),
+    runeStone: [0, 1].map(runeStone),
+    sodHut: [0, 1].map(sodHut),
+    markerPole: [0, 1].map(markerPole),
+    coldFire: coldFire(),
+    frozenCascade: [0, 1].map(frozenCascade),
   };
 }
