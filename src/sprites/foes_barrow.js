@@ -339,7 +339,7 @@ function drawWight(p, g, P, X) {
   p.rect(legF.ex - 1, legF.ey - 1, 4, 1, SHR[2]); p.px(legF.ex + 2, legF.ey - 1, SHR[3]);
 
   // --- 6. Kopf: geschlossener Bronzehelm (korinthisch) mit Rosshaarbusch.
-  // Im T-Schlitz liegt das eingefallene Gesicht, ein Geisterauge glüht.
+  // Im T-Schlitz glühen zwei kalte Geisteraugen.
   const neck = pt(WD.spine + 1.5, 0.6);
   const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 3.5);
   // Busch: Strähnen von der Stirn über den Scheitel nach hinten, Spitzen wehen
@@ -357,26 +357,31 @@ function drawWight(p, g, P, X) {
   const nk = pt(WD.spine + 0.6, 0.4);
   p.ellipse(nk.x, nk.y, 3.2, 1.6, SHR[2]); p.ellipse(nk.x - 0.6, nk.y - 0.5, 2.2, 0.8, SHR[4]);
   p.px(nk.x + 2, nk.y + 1, SHR[1]); p.px(nk.x - 3, nk.y + 1, SHR[3]); p.px(nk.x - 3.5, nk.y + 2.5, SHR[2]);
+  // T-Sehschlitz: Querbalken mit zwei Geisteraugen (fernes Auge schwächer),
+  // darunter der senkrechte Schlitz; Brauenband dunkel, damit die Augen strahlen.
+  const eyeOn = P.eye > 0.3;
   pmap(p, hx - 6, hy - 7, [
     '...lhhhl...',
     '..lhsshllm.',
     '.lhsshhlmmd',
     '.hshhllmmdd',
     'lhllmmmmmdd',
-    'hrdddrdddrd',
-    'lmmmmmmkkek',
-    'llmVmmmlkFl',
-    'dmmmmmmlkkk',
-    '.dmmmVdlkd.',
+    'hrddooooood',
+    'lmmmmkakkek',
+    'llmvmmokkol',
+    'dmmmmmmkkdd',
+    '.dmmmvdkkd.',
     '..ooddd.o..',
-  ], HB);
-  if (P.eye <= 0.3) p.px(hx + 3, hy - 1, '#050608');
-  else {
-    p.px(hx + 2, hy - 1, GH[1]);
-    g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 2, hy - 1, GH[3]); g.px(hx + 1, hy - 1, GH[1]); g.px(hx + 4, hy - 1, GH[2]);
-    g.px(hx + 3, hy - 2, GH[2]); g.px(hx + 3, hy, GH[1]);
+  ], { ...HB, a: eyeOn ? GH[3] : '#050608', e: eyeOn ? GH[4] : '#050608' });
+  if (eyeOn) {
+    const b = Math.min(1, P.eye);
+    // nahes Auge (hx+3): heller Kern, knapper kalter Schein (Schlitz bleibt dunkel)
+    g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 4, hy - 1, GH[2]); g.px(hx + 2, hy - 1, GH[1]);
+    if (b > 0.6) { g.px(hx + 3, hy - 2, GH[1]); g.px(hx + 5, hy - 1, GH[1]); }
+    // fernes Auge (hx): etwas schwächer
+    g.px(hx, hy - 1, GH[4]); g.px(hx - 1, hy - 1, GH[1]);
     // schwacher Geisterhauch aus dem Schlitz, nur auf der Leucht-Ebene
-    for (let i = 0; i < 4; i++) g.px(hx + 4 + i * 0.6, hy - 2 - i + Math.sin(P.wph + i) * 0.5, GH[i < 2 ? 2 : 1]);
+    for (let i = 0; i < 4; i++) g.px(hx + 5 + i * 0.6, hy - 2 - i + Math.sin(P.wph + i) * 0.5, GH[i < 2 ? 2 : 1]);
   }
   meta.eye = { x: hx + 3, y: hy - 1 };
   meta.head = { x: hx, y: hy - 7 };

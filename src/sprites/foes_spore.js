@@ -248,17 +248,18 @@ function sporePuff(p, g, x, y, r, k, seed, n = 18, ramp = GG) {
 
 // Pilzhut: Kuppel mit Licht von links oben, Leuchtflecken, Lamellenrand.
 // cx/cy = Mitte des Hutrands, rx/ry = Halbachsen der Kuppel.
-function drawCap(p, g, cx, cy, rx, ry, spots, glowK, seed, ramp = CAP, droop = 0) {
+// calm = true: ruhigere Fassung (weniger Lamellenstriche, kaum Hautrauschen)
+function drawCap(p, g, cx, cy, rx, ry, spots, glowK, seed, ramp = CAP, droop = 0, calm = false) {
   const dr = (u) => droop * u * u * 1.5;              // Hängen der Hutkrempe
   // Lamellen (Unterseite): dunkle Schale, Rippen laufen strahlenförmig zum Stiel
   const gy = Math.max(1.2, ry * 0.3);
   p.ellipse(cx, cy + 0.5, rx - 0.5, gy, GILL[1]);
   p.ellipse(cx + 0.5, cy + 0.5, rx * 0.45, gy * 0.6, GILL[0]);
-  for (let x = -rx + 1.5; x <= rx - 1.5; x += 1.5) {
+  for (let x = -rx + 1.5; x <= rx - 1.5; x += calm ? 3 : 1.5) {
     const u = x / rx, yy = cy + 0.5 + dr(u) + (Math.abs(u) < 0.5 ? 0.5 : 0);
     p.px(cx + x, yy, x < 0 ? GILL[3] : GILL[2]);
-    if (Math.abs(u) > 0.35) p.px(cx + x * 0.8, yy + 0.6, GILL[2]);
-    if (glowK > 0) g.px(cx + x, yy + 0.5, glowK > 0.9 && (Math.round(x * 2) % 3 === 0) ? GG[2] : GG[1]);
+    if (!calm && Math.abs(u) > 0.35) p.px(cx + x * 0.8, yy + 0.6, GILL[2]);
+    if (glowK > (calm ? 0.9 : 0)) g.px(cx + x, yy + 0.5, glowK > 0.9 && (Math.round(x * 2) % 3 === 0) ? GG[2] : GG[1]);
   }
   // Kuppel: per Normale schattiert, feines Fleischrauschen, unten dunkler Saum
   const R = Math.ceil(rx) + 1;
@@ -268,7 +269,7 @@ function drawCap(p, g, cx, cy, rx, ry, spots, glowK, seed, ramp = CAP, droop = 0
       const d2 = u * u + v * v;
       if (d2 > 1) continue;
       const nz = Math.sqrt(1 - d2) * 0.9 + 0.1;
-      const n = (hash2(x - Math.round(cx) + 64, y - Math.round(cy) + 64, seed) - 0.5) * 0.12;
+      const n = (hash2(x - Math.round(cx) + 64, y - Math.round(cy) + 64, seed) - 0.5) * (calm ? 0.03 : 0.12);
       let c = tone(ramp, u, v, nz, 0.06, n);
       const edge = cy - y < 1.2;
       if (edge) c = ramp[Math.max(1, ramp.indexOf(c) - 2)];
@@ -315,57 +316,58 @@ function drawSporeling(p, g, P, X) {
   const cyB = by - 1.5 - bh;                    // Körpermitte
   const t = P.tilt;
 
-  // --- Wurzelfüßchen (hinteres im Schatten), mit Zehenfasern
+  // --- Wurzelfüßchen (hinteres im Schatten): kompakte Klötzchen, oben Licht
   const legY = by, dang = P.air > 0.5 ? 1 : 0;
   const lf = Math.sin(P.leg * TAU) * 1.2, lb = -lf;
   const flatL = d > 0.5 ? 1 : 0;
   const foot = (x, y, near) => {
-    const R = near ? ROOT : [ROOT[0], ROOT[0], ROOT[1], ROOT[2], ROOT[2]];
-    p.rect(x, y, 2, 2 - flatL, R[2]); p.px(x, y, R[near ? 4 : 3]); p.px(x + 1, y + 1 - flatL, R[1]);
-    p.px(x + 2, y + 1 - flatL, R[1]);                    // Zehenfaser nach vorn
+    x = Math.round(x); y = Math.round(y);
+    if (flatL) { p.rect(x, y + 1, 3, 1, near ? ROOT[3] : ROOT[2]); return; }
+    p.rect(x, y, 3, 2, near ? ROOT[2] : ROOT[1]);
+    p.rect(x, y, 2, 1, near ? ROOT[4] : ROOT[2]);
   };
   foot(bx - 2 + lb - dang, legY - 1 - dang * 0.5, false);
   foot(bx + 1 + lf + dang, legY - 1 + dang * 0.5, true);
 
-  // --- Stielkörper: rundlich, blass, mit Längsfasern und Schattenseite
+  // --- Stielkörper: rundlich, blass; nur drei Töne (Licht links, Schatten rechts)
   const tx0 = bx + t * 0.5;
-  ell(p, tx0, cyB + 0.5, bw, bh, FL.slice(1), { bias: 0.1 });
-  p.px(tx0 + bw - 1.5, cyB + bh - 1, FL[2]); p.px(tx0 + 0.5, cyB + bh - 0.5, FL[2]);   // Faserkerben unten
-  // Ärmchen: kurze Wurzelstummel mit Fingerfasern
+  const BODY = [FL[2], FL[3], FL[4], FL[4], FL[5]];
+  ell(p, tx0, cyB + 0.5, bw, bh, BODY, { bias: 0.08 });
+  // Ärmchen: kurze, zwei Pixel dicke Stummel in einem Ton (Ansatz im Körper)
   const aw = Math.sin(P.arm) * 1.2;
-  const ax1 = bx + bw + 1.5 + t * 0.6, ay1 = cyB + 2 + aw;
-  p.line(tx0 - bw + 0.5, cyB + 0.5, bx - bw - 1.2 + t * 0.4, cyB + 2 - aw, FL[1]);
-  p.line(bx + bw - 0.5 + t * 0.5, cyB + 0.5, ax1, ay1, FL[4]);
-  p.px(ax1 + 1, ay1, FL[3]); p.px(ax1, ay1 + 1, FL[2]);
+  const ax1 = Math.round(bx + bw + 1.5 + t * 0.6), ay1 = Math.round(cyB + 2 + aw);
+  const bx1 = Math.round(bx - bw - 1.2 + t * 0.4), by1 = Math.round(cyB + 2 - aw);
+  const ra = (x0, y0, x1, y1, cTop, cBot) => {
+    x0 = Math.round(x0); y0 = Math.round(y0);
+    p.line(x0, y0 + 1, x1, y1 + 1, cBot); p.line(x0, y0, x1, y1, cTop);
+  };
+  ra(tx0 - bw + 1.5, cyB + 0.5, bx1, by1, FL[2], FL[1]);
+  ra(bx + bw - 1.5 + t * 0.5, cyB + 0.5, ax1, ay1, FL[4], FL[3]);
+  p.px(ax1 + 1, ay1, FL[4]); p.px(ax1 + 1, ay1 + 1, FL[3]);
 
   const fx = Math.round(bx + bw - 1.5 + t * 0.6), fy = Math.round(cyB);
 
   // --- Hut: breit, leicht schief, wackelt
   const crx = 6.8 * (1 + sq * 0.18) - d * 0.6, cry = 6.6 * (1 - sq * 0.25) * (1 - d * 0.35);
   const ccx = bx + t * 1.6 + Math.sin(P.wob) * 0.6, ccy = cyB - bh + 1.5 + d * 1.5;
-  drawCap(p, g, ccx, ccy, crx, cry, 5, P.glow, 7, CAP, d * 1.2);
+  drawCap(p, g, ccx, ccy, crx, cry, 5, P.glow, 7, CAP, d * 1.2, true);
   // --- Gesicht liegt vor den Lamellen: Stiel oben neu, darauf Kragen und Gesicht
   if (d < 0.5) {
-    ell(p, tx0, cyB + 0.5, bw, bh, FL.slice(1), { bias: 0.1, clip: (x, y) => y >= fy - 2 });
-    // Ring (Manschette): gefranster Kragen
+    ell(p, tx0, cyB + 0.5, bw, bh, BODY, { bias: 0.08, clip: (x, y) => y >= fy - 2 });
+    // Ring (Manschette): durchgehender Kragen, links im Licht
     const ry0 = fy - 3;
-    for (let x = -bw + 0.5; x <= bw - 0.5; x += 1) p.px(tx0 + x, ry0 + 1, x < 0 ? FL[5] : FL[3]);
-    p.px(tx0 - bw - 0.5, ry0 + 2, FL[4]); p.px(tx0 + bw + 0.5, ry0 + 2, FL[2]);       // Fransenenden
+    for (let x = -bw + 0.5; x <= bw - 0.5; x += 1) p.px(tx0 + x, ry0 + 1, x < 0.5 ? FL[5] : FL[3]);
   }
 
-  // --- Gesicht: tiefliegende Leuchtaugen unter zornigen Brauen, gezacktes Maul
+  // --- Gesicht: zwei Leuchtaugen in dunklen Höhlen, schlichtes Maul
   const eyeOn = P.eye > 0.3;
-  // Augenhöhlen (dunkler Schatten unter dem Kragen) und Brauen schräg nach innen
-  p.px(fx, fy, FL[0]); p.px(fx - 2, fy, FL[0]);
-  p.px(fx - 1, fy - 1, FL[1]); p.px(fx - 2, fy - 1, FL[2]); p.px(fx, fy - 1, FL[2]);
-  if (eyeOn) {
-    p.px(fx, fy, GG[4]); p.px(fx - 2, fy, GG[3]);
-    g.px(fx, fy, GG[5]); g.px(fx + 1, fy, GG[2]); g.px(fx - 2, fy, GG[4]); g.px(fx - 3, fy, GG[1]); g.px(fx, fy - 1, GG[1]);
-  }
+  p.rect(fx - 3, fy, 4, 1, FL[1]);                                     // Augenschatten
+  p.px(fx, fy, eyeOn ? GG[4] : FL[0]); p.px(fx - 2, fy, eyeOn ? GG[3] : FL[0]);
+  if (eyeOn) { g.px(fx, fy, GG[5]); g.px(fx + 1, fy, GG[2]); g.px(fx - 2, fy, GG[4]); g.px(fx - 3, fy, GG[1]); }
   if (P.mouth > 0.4) {
-    p.rect(fx - 2, fy + 2, 3, 2, FL[0]); p.px(fx - 2, fy + 2, FL[6]); p.px(fx, fy + 2, FL[6]); p.px(fx - 1, fy + 3, FL[5]);
+    p.rect(fx - 2, fy + 2, 3, 2, FL[0]); p.px(fx - 1, fy + 2, FL[5]);
     if (eyeOn) g.px(fx - 1, fy + 3, GG[1]);
-  } else { p.px(fx - 2, fy + 2, FL[0]); p.px(fx - 1, fy + 2, FL[0]); p.px(fx, fy + 2, FL[1]); }
+  } else p.rect(fx - 2, fy + 2, 2, 1, FL[1]);
   meta.eye = { x: fx, y: fy };
   meta.mouth = { x: fx, y: fy + 2 };
 
@@ -439,7 +441,7 @@ const fpose = (o = {}) => ({ ...F_REST, ...o });
 // Knorrige Wurzelfaust mit Leuchtpilzchen
 function rootFist(p, g, x, y, r, near, glow, seed) {
   const bias = near ? 0 : -0.2;
-  ell(p, x, y, r, r * 0.9, ROOT, { noise: 0.25, seed: 7 + seed, bias });
+  ell(p, x, y, r, r * 0.9, ROOT, { noise: 0.06, seed: 7 + seed, bias });
   // Knöchelwülste: kleine runde Knorren mit eigenem Glanz
   for (let i = 0; i < 4; i++) {
     const a = -0.7 + i * 0.5;
@@ -470,7 +472,6 @@ function bracket(p, g, x, y, w, glow, seed) {
     const f = i / (w - 1 || 1), h = Math.sin(f * Math.PI) * 2.4 + 0.6;
     for (let j = 0; j < h; j++) p.px(x + i, y - j, j >= h - 1 ? (f < 0.5 ? FL[6] : FL[5]) : j === 0 ? FL[2] : f < 0.4 ? FL[4] : FL[3]);
     p.px(x + i, y + 1, GILL[1]);
-    if (i % 2) p.px(x + i, y + 1, GILL[3]);
     if (glow > 0.3 && (i + seed) % 4 === 0) g.px(x + i, y + 1, GG[1]);
   }
   p.px(x, y - 1, FL[6]);
@@ -497,13 +498,13 @@ function drawBrute(p, g, P, X) {
   };
 
   // --- 1. hinterer Arm (massig, im Schatten)
-  capsule(p, shB.x, shB.y, armB.jx, armB.jy, 4.6, 4, MOSS, { noise: 0.3, seed: 11, bias: -0.22 });
-  capsule(p, armB.jx, armB.jy, armB.ex, armB.ey, 4, 4.4, ROOT, { noise: 0.25, seed: 12, bias: -0.2 });
+  capsule(p, shB.x, shB.y, armB.jx, armB.jy, 4.6, 4, MOSS, { noise: 0.08, seed: 11, bias: -0.22 });
+  capsule(p, armB.jx, armB.jy, armB.ex, armB.ey, 4, 4.4, ROOT, { noise: 0.06, seed: 12, bias: -0.2 });
   rootFist(p, g, armB.ex, armB.ey, 5.5, false, glow, 2);
 
   // --- 2. hinteres Bein (stämmig, Wurzelzehen)
-  capsule(p, hip.x - 3, hip.y, legB.jx, legB.jy, 4.8, 4.2, MOSS, { noise: 0.3, seed: 13, bias: -0.22 });
-  capsule(p, legB.jx, legB.jy, legB.ex, legB.ey - 2, 4, 4.6, ROOT, { noise: 0.25, seed: 14, bias: -0.2 });
+  capsule(p, hip.x - 3, hip.y, legB.jx, legB.jy, 4.8, 4.2, MOSS, { noise: 0.08, seed: 13, bias: -0.22 });
+  capsule(p, legB.jx, legB.jy, legB.ex, legB.ey - 2, 4, 4.6, ROOT, { noise: 0.06, seed: 14, bias: -0.2 });
   toes(legB.ex, legB.ey, false);
 
   // --- 3. Rumpf: fassförmiger Leib aus Moos und Pilzgeflecht
@@ -513,16 +514,17 @@ function drawBrute(p, g, P, X) {
   const q = (u, k, c) => { const o = pt(u, k); p.px(o.x, o.y, c); };
   // Bauch: blasses, faseriges Pilzfleisch, rund schattiert, mit Längsfasern
   const bc = pt(7.2, 5.6);
-  ell(p, bc.x, bc.y, 4.4, 7, FL.slice(1), { rot: P.lean, noise: 0.16, seed: 9 });
-  for (let k = 3.5; k <= 8; k += 1.5) for (let u = 1.5; u <= 12.5; u += 1) if ((u * 2 + k) % 3 > 0.8) {
+  ell(p, bc.x, bc.y, 4.4, 7, FL.slice(1), { rot: P.lean, noise: 0.04, seed: 9 });
+  // zwei durchgehende Längsfasern statt Strichraster
+  for (const k of [4.5, 7]) for (let u = 1.5; u <= 12.5; u += 0.5) {
     const o = pt(u, k);
     const dx = o.x - bc.x, dy = o.y - bc.y;
     const cl = Math.cos(P.lean), sl = Math.sin(P.lean);
     const uu = (dx * cl + dy * sl) / 4.4, vv = (-dx * sl + dy * cl) / 7;
-    if (uu * uu + vv * vv < 0.8) p.px(o.x, o.y, k > 6.5 ? FL[1] : FL[2]);
+    if (uu * uu + vv * vv < 0.62) p.px(o.x, o.y, k > 6.5 ? FL[2] : FL[3]);
   }
   // Moosbüschel: heller Kopf, dunkle Unterseite (Licht von oben)
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 8; i++) {
     const u = 1.5 + hash2(i, 1, 41) * (FD.spine - 2), k = -9 + hash2(i, 2, 41) * 11;
     const o = pt(u, k);
     p.px(o.x, o.y, MOSS[5]); p.px(o.x + 1, o.y, MOSS[4]); p.px(o.x, o.y + 1, MOSS[1]); p.px(o.x + 1, o.y + 1, MOSS[0]);
@@ -531,7 +533,7 @@ function drawBrute(p, g, P, X) {
   // hängende Moosfäden unter dem Bauch
   for (let i = 0; i < 5; i++) { const o = pt(0.5, -6 + i * 3); p.line(o.x, o.y, o.x - 0.5, o.y + 2 + (i & 1), MOSS[2]); }
   // Leuchtknoten (wenige, dafür deutlich, mit dunklem Hof)
-  const nodes = [[6, -3], [10, 1.5], [3.5, 1], [12, -5]];
+  const nodes = [[6, -3]];
   // als Büschel winziger Leuchtpilze: Stielchen, leuchtendes Köpfchen
   for (const [u, k] of nodes) {
     const o = pt(u, k), ox = Math.round(o.x), oy = Math.round(o.y);
@@ -549,8 +551,8 @@ function drawBrute(p, g, P, X) {
   bracket(p, g, b2.x - 3, b2.y, 5, glow, 3);
 
   // --- 4. vorderes Bein
-  capsule(p, hip.x + 3, hip.y, legF.jx, legF.jy, 5, 4.4, MOSS, { noise: 0.3, seed: 15 });
-  capsule(p, legF.jx, legF.jy, legF.ex, legF.ey - 2, 4.3, 4.9, ROOT, { noise: 0.25, seed: 16 });
+  capsule(p, hip.x + 3, hip.y, legF.jx, legF.jy, 5, 4.4, MOSS, { noise: 0.08, seed: 15 });
+  capsule(p, legF.jx, legF.jy, legF.ex, legF.ey - 2, 4.3, 4.9, ROOT, { noise: 0.06, seed: 16 });
   p.line(legF.jx - 1, legF.jy + 2, legF.ex + 1, legF.ey - 4, ROOT[1]);       // Rindenriss am Schienbein
   toes(legF.ex + 1, legF.ey, true);
   p.px(legF.jx - 3, legF.jy - 1, MOSS[5]); p.px(legF.jx - 2, legF.jy - 2, MOSS[5]); p.px(legF.jx - 1, legF.jy - 2, MOSS[4]);
@@ -567,8 +569,8 @@ function drawBrute(p, g, P, X) {
   meta.mouth = { x: hx + 5, y: hy + 2 };
   meta.head = { x: cx, y: cy - cry };
   const drawArm = () => {
-    capsule(p, shF.x, shF.y, armF.jx, armF.jy, 5.2, 4.4, MOSS, { noise: 0.3, seed: 17 });
-    capsule(p, armF.jx, armF.jy, armF.ex, armF.ey, 4.3, 4.8, ROOT, { noise: 0.25, seed: 18 });
+    capsule(p, shF.x, shF.y, armF.jx, armF.jy, 5.2, 4.4, MOSS, { noise: 0.08, seed: 17 });
+    capsule(p, armF.jx, armF.jy, armF.ex, armF.ey, 4.3, 4.8, ROOT, { noise: 0.06, seed: 18 });
     for (let s = 0.25; s < 0.8; s += 0.25) {                                   // Rindenringe am Unterarm
       const rx = armF.jx + (armF.ex - armF.jx) * s, ry = armF.jy + (armF.ey - armF.jy) * s;
       p.px(rx - 2, ry, ROOT[1]); p.px(rx - 1, ry + 0.5, ROOT[1]); p.px(rx, ry + 1, ROOT[0]);
@@ -578,12 +580,11 @@ function drawBrute(p, g, P, X) {
   };
   const drawCapAll = () => {
     // --- 7. Riesenhut: wächst aus Nacken und Schultern, überdacht den Kopf
-    drawCap(p, g, cx, cy, crx, cry, 9, glow, 5, CAP, 1.2 + K * 1.5 + P.capTilt);
+    drawCap(p, g, cx, cy, crx, cry, 6, glow, 5, CAP, 1.2 + K * 1.5 + P.capTilt, true);
     // Lamellenfransen hängen vorn und hinten
     for (let i = 0; i < 10; i++) {
-      const x = cx - crx + 3 + i * 3, l = 1 + ((i * 7 + Math.round(P.capT * 2)) % 3);
-      for (let j = 0; j < l; j++) p.px(x + Math.sin(P.capT + i) * 0.4, cy + 2 + j, j === l - 1 ? FL[4] : FL[2]);
-      if (glow > 0.3 && i % 3 === 1) g.px(x, cy + 1 + l, GG[2]);
+      const x = cx - crx + 3 + i * 3, l = 1 + ((i * 7) % 3);                  // feste Längen: kein Flimmern
+      for (let j = 0; j < l; j++) p.px(x, cy + 2 + j, j === l - 1 ? FL[4] : FL[2]);
     }
   };
   const drawHead = () => {

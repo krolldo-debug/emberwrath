@@ -740,28 +740,32 @@ function drawCrawler(p, g, P, X) {
   for (let i = 0; i < 3; i++) limb(p, tailPts[i][0], tailPts[i][1], tailPts[i + 1][0], tailPts[i + 1][1], 2.5 - i * 0.6, 2 - i * 0.6, [BARK[1], BARK[1], BARK[2], BARK[3]]);
   p.px(ox - 4, gy - 3, THORN[2]); p.px(ox - 7, gy - 2, THORN[1]);
 
+  // --- vordere Beine: hinter dem Panzer angesetzt, nur Unterschenkel und Füße
+  // ragen darunter hervor (klare Silhouette, keine Striche quer über den Rumpf)
+  legs(true);
+
   // --- Rumpf: Borkenpanzer aus drei gewölbten Platten (Volumen, Licht oben links),
   // Moospolster obenauf, glühender Saft in den Fugen
   const cx = ox + 11, cy = top + 4;
   vol(p, cx, cy + 1, 11, 4.6 - dead * 0.5, BARK.slice(0, 4));
   const sapOn = P.sap > 0.2;
-  const plates = [[cx - 6, 4.8, 4.4], [cx, 5.4, 5], [cx + 6, 4.4, 4.2]];
+  // Details auf ganzzahligem Raster, damit sie über die Frames nicht springen
+  const cxI = Math.round(cx), cyI = Math.round(cy);
+  const plates = [[cxI - 6, 4.8, 4.4], [cxI, 5.4, 5], [cxI + 6, 4.4, 4.2]];
   plates.forEach(([px_, rx, ry], i) => {
     vol(p, px_, cy - 1, rx, ry - dead * 0.4, PLATE, 0.04);
-    // Rindenfurchen längs der Wölbung
-    p.line(px_ - 1, cy - 1, px_ + 1, cy + 1.5, BARK[1]); p.px(px_ + 2, cy, BARK[2]);
-    // Moospolster auf der Oberseite
-    const mx = px_ - 1 + (i === 1 ? 1 : 0), ry1 = ry + 0.5;
-    p.rect(mx - 2, cy - ry1 + 0.5, 4, 1, MOSS[3]); p.px(mx - 2, cy - ry1 + 0.5, MOSS[4]);
-    p.rect(mx - 2.5, cy - ry1 + 1.5, 5, 1, MOSS[2]); p.px(mx + 2.5, cy - ry1 + 2.5, MOSS[1]); p.px(mx - 3, cy - ry1 + 2.5, MOSS[1]);
+    // Moospolster obenauf: ein geschlossenes Kissen, Licht nur an der linken Kante
+    const mx = px_ - 1 + (i === 1 ? 1 : 0), my = Math.round(cy - ry - 0.5 + 0.5);
+    p.rect(mx - 2, my, 4, 1, MOSS[3]); p.px(mx - 2, my, MOSS[4]);
+    p.rect(mx - 2, my + 1, 5, 1, MOSS[2]);
   });
-  // Fugen zwischen den Platten: dunkler Spalt mit leuchtendem Saft
-  for (const sx of [cx - 3, cx + 3]) {
+  // Fugen zwischen den Platten: gerader dunkler Spalt, darin ein kurzer Saftstreifen
+  for (const sx of [cxI - 3, cxI + 3]) {
     for (let k = -3; k <= 2; k++) {
-      const x = sx + (k & 1 ? 0.5 : 0), y = cy - 0.5 + k;
-      p.px(x - 1, y, BARK[0]);
-      p.px(x, y, sapOn ? (k === -1 ? SAP[3] : SAP[2]) : BARK[0]);
-      if (sapOn) g.px(x, y, P.sap > 0.8 ? SAP[3] : SAP[1]);
+      const y = cyI + k, sapK = sapOn && k >= -2 && k <= 1;
+      p.px(sx - 1, y, BARK[0]);
+      p.px(sx, y, sapK ? (k === -1 ? SAP[3] : SAP[2]) : BARK[1]);
+      if (sapK) g.px(sx, y, k === -1 && P.sap > 0.8 ? SAP[3] : SAP[2]);
     }
   }
   // Dornen auf dem Rücken: breiter Fuß, knochenhelle Spitze
@@ -774,23 +778,23 @@ function drawCrawler(p, g, P, X) {
     p.px(tx, ty, THORN[3]);
   }
   // Saftperlen, die heraustropfen
-  if (sapOn) { p.px(cx + 4, cy + 4, SAP[2]); g.px(cx + 4, cy + 4, SAP[3]); p.px(cx - 5, cy + 4 + (P.bob ? 1 : 0), SAP[1]); g.px(cx - 5, cy + 4 + (P.bob ? 1 : 0), SAP[2]); }
+  if (sapOn) { p.px(cxI + 3, cyI + 3, SAP[2]); g.px(cxI + 3, cyI + 3, SAP[3]); }
 
   // --- Kopf mit Zangen
   const hx = ox + 22, hy = cy + 1 + dead;
   // Kopfschild: gewölbter Borkenhelm mit hellem Stirnrand
   vol(p, hx, hy, 4.5, 3.6, PLATE, 0.06);
-  p.line(hx - 3, hy - 2.5, hx + 1, hy - 3.5, BARK[5]); p.px(hx - 2, hy - 3, THORN[2]);
-  p.px(hx - 1, hy + 1, BARK[1]); p.px(hx - 2, hy, BARK[1]);
+  p.line(hx - 3, hy - 2.5, hx + 1, hy - 3.5, BARK[5]);
   p.rect(hx - 2, hy - 4, 3, 1, MOSS[3]); p.px(hx - 2, hy - 4, MOSS[4]);
   const j = P.jaw;
   // obere und untere Dornzange: zweifarbig, Spitze hell, nach innen gekrümmt
   p.rect(hx + 2, hy, 2, 1 + j, sapOn ? SAP[2] : BARK[0]);   // Giftmaul (hinter den Zangen)
   if (sapOn) { g.rect(hx + 2, hy, 2, 1 + j, SAP[3]); g.px(hx + 4, hy + j * 0.5, SAP[2]); }
-  limb(p, hx + 2, hy - 1, hx + 5, hy - 2 - j, 2, 1.5, [THORN[0], THORN[0], THORN[1], THORN[2]]);
-  p.px(hx + 6, hy - 1 - j, THORN[3]); p.px(hx + 6, hy - j, THORN[2]);
-  limb(p, hx + 2, hy + 2, hx + 5, hy + 3 + j, 2, 1.5, [THORN[0], THORN[0], THORN[1], THORN[2]]);
-  p.px(hx + 6, hy + 2 + j, THORN[3]); p.px(hx + 6, hy + 1 + j, THORN[2]);
+  // zwei Pixel dick: Oberkante hell, Unterkante dunkler, eine helle Spitze
+  p.line(hx + 2, hy - 2, hx + 5, hy - 2 - j, THORN[2]); p.line(hx + 2, hy - 1, hx + 5, hy - 1 - j, THORN[1]);
+  p.px(hx + 6, hy - 1 - j, THORN[3]);
+  p.line(hx + 2, hy + 1 + j, hx + 5, hy + 2 + j, THORN[2]); p.line(hx + 2, hy + 2 + j, hx + 5, hy + 3 + j, THORN[0]);
+  p.px(hx + 6, hy + 2 + j, THORN[3]);
   // Augen: zwei leuchtende Saftaugen unter dem Stirnrand, dunkel umrandet
   const eyeOn = P.sap > 0.1;
   p.rect(hx, hy - 2, 3, 1, BARK[0]); p.px(hx - 1, hy - 1, BARK[0]);
@@ -802,9 +806,6 @@ function drawCrawler(p, g, P, X) {
   meta.eye = { x: hx + 1, y: hy - 2 };
   meta.mouth = { x: hx + 4, y: hy };
   meta.head = { x: hx, y: hy - 4 };
-
-  // --- vordere Beine
-  legs(true);
 
   // --- Peitschenranke (wurzelt oben auf dem Panzer)
   if (X.smear) smearArc(p, g, ox + 7, top - 1, X.smear[0], X.smear[1], 15, 23, [BARK[3], THORN[2], SAP[3]], [SAP[0], SAP[2]], 1);
