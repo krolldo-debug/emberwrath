@@ -541,24 +541,26 @@ function pauldron(p, g, x, y, rx, ry, ramp, front) {
 // Geisterlicht, Nasenrücken und Wangenknochen im Licht, eingefallene Wange, Zahnreihe.
 // o = dunkle Kontur, 0–4 Haut (dunkel → hell), V Höhle, G/F Geisterauge (Kern/Rand), T/t Zähne.
 // Gibt eine Funktion zurück, die den Bart zeichnet (kommt vor Brust und Schulter).
-// Leichenblasse Haut nur fürs Gesicht (kühl, hebt sich von Bronze, Bart und Haar ab)
-const CORPSE = ['#1a1f1d', '#46514b', '#7c897d', '#b3bead', '#dfe7d5'];
+// Mumienhaut nur fürs Gesicht: dunkles, warmes Grau-Braun wie altes Leder, kühle Schatten.
+// Lesbar über Helligkeit (Stirn und Wangenknochen im Licht, Höhlen schwarz), nicht über Farbe.
+const MUMMY = ['#131118', '#2e2522', '#4f3f33', '#7e6850', '#ac9572'];
 const FACE = [
-  //            0123456789ABCD
-  [0, '...o123321o...'],
-  [1, '..o12333332o..'],
-  [2, '.o1233444433o.'],
-  [3, 'o123344444443o'],
-  [4, 'o1233444444443'],
-  [5, 'o1234444444444'],
+  //            0123456789ABCDEF
+  [0, '...o122221o...'],
+  [1, '..o12233332o..'],
+  [2, '.o1223344433o.'],
+  [3, 'o122334444443o'],
+  [4, 'o1223344444443'],
+  [5, 'o1223444444444'],
   [6, 'o122100003400o'],
   [7, 'o122VVGVV34VGo'],
-  [8, 'o122VVFV034VF3o'],
-  [9, 'o1233VV03444443o'],
-  [10, 'o1234443200ooo'],
-  [11, '.o12oTtTtTto..'],
-  [12, '..o1ooooooo...'],
+  [8, 'o122VVVVV34VV3o'],
+  [9, 'o12344412344443o'],
+  [10, 'o1122111oooooo'],
+  [11, '.o11oTtTtTo..'],
+  [12, '..o1oooooo...'],
 ];
+const EYE_PT = '#e6f1ff';
 const JAW = [
   [0, '..o12tTtTt1o..'],
   [1, '...o122221o...'],
@@ -570,22 +572,24 @@ function head(p, g, hx, hy, P, meta, gy) {
   const lit = P.eye > 0.1;
   // Hinteres Geweih (dunkler)
   if (P.crown < 0.02) antler(p, g, hx + 3, hy + 1, -1, P, false);
-  // Haar: drei klar umrissene Strähnen hinter dem Kopf (flach schattiert, kein Flimmern)
-  for (let i = 0; i < 3; i++) {
-    const sway = (k) => -k * (0.35 + i * 0.12) - P.cape * k * 0.25 + Math.sin(t + k * 0.3 + i) * 0.4 * (k / 18);
-    strand(p, hx + 1.5 + i * 1.5, hy + 4 + i, 17 - i * 2, 2, sway, i === 2 ? HAIR_B : HAIR_F);
-  }
+  // Haar: drei weiche Strähnenbüschel hinter dem Kopf, gebogen und verjüngt
+  const hairC = [
+    { x: hx + 1.5, y: hy + 4, len: 17, w: 2.2, bend: -5 - P.cape * 3, ph: 0.3 },
+    { x: hx + 3, y: hy + 5, len: 14, w: 2, bend: -4 - P.cape * 3, ph: 1.7 },
+    { x: hx + 4.5, y: hy + 6, len: 11, w: 1.8, bend: -3 - P.cape * 2, ph: 2.9 },
+  ];
+  for (const c of hairC) clump(p, c, t, 0, HAIR_OUT, true);
+  for (const c of hairC) clump(p, c, t, 0, HAIR_T, false);
   const put = (rows, oy) => {
     for (const [y, s] of rows) for (let x = 0; x < s.length; x++) {
       const ch = s[x];
       if (ch === '.') continue;
       let c;
-      if (ch >= '0' && ch <= '4') c = CORPSE[+ch];
+      if (ch >= '0' && ch <= '4') c = MUMMY[+ch];
       else if (ch === 'o' || ch === 'V') c = VOID;
-      else if (ch === 'T') c = ANT[4];
+      else if (ch === 'T') c = ANT[3];
       else if (ch === 't') c = ANT[2];
-      else if (ch === 'G') c = lit ? GH[4] : CORPSE[1];
-      else if (ch === 'F') c = lit ? GH[2] : VOID;
+      else if (ch === 'G') c = lit ? EYE_PT : MUMMY[1];
       p.px(hx + x, hy + oy + y, c);
     }
   };
@@ -601,9 +605,10 @@ function head(p, g, hx, hy, P, meta, gy) {
   if (lit) {
     const e = P.eye;
     // Leuchthof um beide Höhlen (dunkel, damit der Kern hell heraussticht)
-    // Geisterlicht als klare Punkte in den Höhlen (Kern hell, darunter schwächer)
-    g.px(hx + 6, hy + 7, 3 + 1.5 * e); g.px(hx + 6, hy + 8, 1.5 + e);
-    g.px(hx + 12, hy + 7, 2.5 + 1.5 * e); g.px(hx + 12, hy + 8, 1 + e);
+    // Augen: blasse weißblaue Punkte (im Grundbild). Leuchten nur als schwacher weißer
+    // Schein auf dem Punkt selbst (kein türkiser Hof); Phase 2: kalter Hof in der Höhle.
+    g.apx(hx + 6, hy + 7, 4); g.apx(hx + 12, hy + 7, 4);
+    g.epx(hx + 6, hy + 7, 4); g.epx(hx + 12, hy + 7, 4); g.epx(hx + 5, hy + 7, 1); g.epx(hx + 7, hy + 7, 1); g.epx(hx + 11, hy + 7, 1);
     // Phase 2: lange Flammenfahne nach hinten
     for (let k = 1; k <= 8; k++) {
       const x = hx + 5 - k * 1.2 - P.cape * k * 0.2, y = hy + 6 - k * 0.7 + Math.sin(t * 2 + k * 0.8) * 0.7;
@@ -622,48 +627,53 @@ function head(p, g, hx, hy, P, meta, gy) {
     crownBand(p, g, cx, cy, P.crown);
   }
   meta.head = { x: hx + 6, y: hy - 8 };
-  // Bart: fünf klar umrissene Strähnen vom Kinn, flach in drei Tönen, dunkle Kontur.
-  // Hintere Strähnen zuerst (dunkler), die lange Mittelsträhne liegt vorn.
+  // Bart: sechs gebogene Büschel unterschiedlicher Länge, die sich überlappen und zur Spitze
+  // verjüngen; gemeinsame dunkle Außenkontur, innen nur weiche Rillen (drei Töne).
   return () => {
-    const sw = (ph, lean) => (k) => -k * lean - P.beard * k * 0.35 + Math.sin(t * 1.3 + k * 0.35 + ph) * 0.5 * (k / 18);
-    strand(p, hx + 10.5, ly - 1, 10, 2.2, sw(2.1, 0.25), BEARD_B);
-    strand(p, hx + 3.5, ly - 1, 13, 2.2, sw(0.4, 0.3), BEARD_B);
-    strand(p, hx + 9, ly - 1, 15, 2.5, sw(1.5, 0.2), BEARD_F);
-    strand(p, hx + 5, ly - 1, 16, 2.5, sw(0.9, 0.25), BEARD_F);
-    strand(p, hx + 7, ly - 1, 19, 2.8, sw(0.2, 0.18), BEARD_F);
-    // Bartspange aus Bronze auf der Mittelsträhne
-    const cx = Math.round(hx + 7 + sw(0.2, 0.18)(5)), cy = ly + 4;
+    const y0 = ly - 1, bl = P.beard;
+    const C = [
+      { x: hx + 11, y: y0, len: 11, w: 1.8, bend: -2 - bl * 3, arc: 1.6, ph: 2.0, back: true },
+      { x: hx + 3.5, y: y0, len: 14, w: 1.9, bend: -1 - bl * 4, arc: -2, ph: 0.5, back: true },
+      { x: hx + 12, y: y0 - 1, len: 7, w: 1.4, bend: -1 - bl * 2, arc: 1.2, ph: 3.1 },
+      { x: hx + 9.5, y: y0, len: 16, w: 2.3, bend: -4 - bl * 5, arc: 1.8, ph: 1.4 },
+      { x: hx + 5, y: y0, len: 17, w: 2.3, bend: -1 - bl * 5, arc: -1.6, ph: 0.8 },
+      { x: hx + 7.5, y: y0, len: 20, w: 2.6, bend: -3 - bl * 6, arc: 0.9, ph: 0.1 },
+    ];
+    for (const c of C) clump(p, c, t, 1, BEARD_OUT, true);
+    for (const c of C) clump(p, c, t, 1, c.back ? BEARD_BK : BEARD_FR, false);
+    // Bartspange aus Bronze auf dem langen Mittelbüschel
+    const m = C[5], k = 5, cx = Math.round(m.x + clumpX(m, t, 1, k)), cy = m.y + k;
     p.rect(cx - 2, cy, 4, 2, BRZ[3]); p.px(cx - 2, cy, BRZ[5]); p.px(cx + 1, cy + 1, BRZ[1]); p.px(cx - 3, cy, BRZ[0]); p.px(cx + 2, cy, BRZ[0]); p.px(cx - 3, cy + 1, BRZ[0]); p.px(cx + 2, cy + 1, BRZ[0]);
   };
 }
 
-// Strähne (Bart/Haar): je Zeile eine Spanne mit dunkler Kontur links/rechts, Grundton,
-// Glanzlinie links (Licht von links). Verjüngt sich zur Spitze. ramp = [Kontur, Spitze, Grund, Glanz].
-const BEARD_F = ['#57544b', '#8a867b', '#b9b5a8', '#ebe7da'];
-const BEARD_B = ['#34322d', '#625f57', '#8a867b', '#b0ac9f'];
-const HAIR_F = ['#2a2925', '#55534c', '#7c796f', '#a8a498'];
-const HAIR_B = ['#1c1b18', '#3a3934', '#55534c', '#7c796f'];
-function strand(p, x0, y0, len, w0, sway, ramp) {
-  let prev = x0 + sway(0);
-  // Neigung der ganzen Strähne (nicht je Zeile, sonst flackert das Muster)
-  const steep = Math.abs(sway(len) - sway(0)) / len < 0.45;
-  for (let k = 0; k <= len; k++) {
-    const u = k / len, w = w0 * (1 - u * 0.75) + 0.3;
-    const cx = x0 + sway(k), y = Math.round(y0 + k);
-    // Spanne deckt auch die vorige Mitte ab: schräge Strähnen bleiben geschlossen (keine Treppenlücken)
-    const xl = Math.round(Math.min(cx, prev) - w), xr = Math.max(xl + 1, Math.round(Math.max(cx, prev) + w));
-    prev = cx;
+// Haar-/Bartbüschel: Mittellinie biegt sich zur Seite (bend), bauscht sich (arc), schwingt leicht,
+// Breite schwillt in Wellen an und läuft spitz aus. outline = nur dunkle Kontur (1 px breiter),
+// sonst flache Töne [Rille, Grund, Licht]: Licht links, Rille rechts, Spitze im Grundton.
+const BEARD_OUT = '#24221d';
+const BEARD_FR = ['#5c5950', '#938d80', '#c4bead'];
+const BEARD_BK = ['#403e37', '#69655b', '#8c877b'];
+const HAIR_OUT = '#171614';
+const HAIR_T = ['#33322d', '#4f4d46', '#77736a'];
+function clumpX(c, t, sway, k) {
+  const u = k / c.len;
+  return c.bend * u * u + (c.arc ?? 0) * Math.sin(u * Math.PI) + Math.sin(t * 1.3 + k * 0.35 + c.ph) * 0.6 * u * sway;
+}
+function clump(p, c, t, sway, ramp, outline) {
+  for (let k = 0; k <= c.len; k++) {
+    const u = k / c.len;
+    const w = c.w * (1 - u * u) * (1 + 0.22 * Math.sin(k * 0.7 + c.ph * 2)) + 0.35;
+    const cx = c.x + clumpX(c, t, sway, k), y = c.y + k;
+    const xl = Math.round(cx - w), xr = Math.max(xl, Math.round(cx + w));
+    if (outline) { for (let x = xl - 1; x <= xr + 1; x++) p.px(x, y, ramp); if (k === c.len) p.px(Math.round(cx), y + 1, ramp); continue; }
+    const lw = Math.max(1, Math.round((xr - xl) * 0.35));
     for (let x = xl; x <= xr; x++) {
-      let c = ramp[2];
-      if (x === xl) c = ramp[0];
-      else if (x === xr) c = steep ? ramp[0] : ramp[2];
-      else if (steep && x === xl + 1 && xr - xl >= 3) c = ramp[3];
-      if (u > 0.85 && x !== xl && x !== xr) c = ramp[1];
-      p.px(x, y, c);
+      let col = ramp[1];
+      if (u < 0.8 && x < xl + lw) col = ramp[2];
+      if (x === xr && xr - xl >= 2) col = ramp[0];
+      p.px(x, y, col);
     }
   }
-  const tx = Math.round(x0 + sway(len + 1)), ty = Math.round(y0 + len + 1);
-  p.px(tx, ty, ramp[0]);
 }
 
 // Krone: Bronzereif mit hellem Goldglanz und dunkler Unterkante, drei hohe Zacken.

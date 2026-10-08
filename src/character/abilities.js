@@ -5,6 +5,9 @@ import { Light } from '../gfx/Lighting.js';
 import { PAL } from '../gfx/Palette.js';
 import { EV } from '../core/events.js';
 
+// Zweihänder in der Hand: schmaler, durchscheinender Hiebbogen wie beim Grundangriff (sprites/effects.js SLASH_STYLES.greatHeavy)
+function heavySlash(h) { return h.animator?.anims?.greatWeapon ? SLASH_STYLES.greatHeavy : SLASH_STYLES.heroHeavy; }
+
 // Verhalten der Klassenfähigkeiten und Helden-Geschosse (Thread A).
 // Daten (Name, Kosten, Abklingzeit, Schadensfaktor) stehen in classes.js.
 //
@@ -380,8 +383,8 @@ export const ABILITY_IMPL = {
         w.particles.ring(h.x, h.y - 4, 5, 34, ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c'], 150);
         w.addLight(new Light({ x: h.x, y: h.y - 8, radius: 70, color: [255, 140, 60], intensity: 0.8, ttl: 0.35, bloom: 0.4 }));
       }
-      w.addEffect(new SlashEffect(h, ang, SLASH_STYLES.heroHeavy, false, 0.25));
-      w.addEffect(new SlashEffect(h, ang + Math.PI, SLASH_STYLES.heroHeavy, true, 0.3));
+      w.addEffect(new SlashEffect(h, ang, heavySlash(h), false, 0.25));
+      w.addEffect(new SlashEffect(h, ang + Math.PI, heavySlash(h), true, 0.3));
       w.bus.emit('swing', { actor: h, heavy: true, angle: ang });
     },
     update(h, w, dt, t) {
@@ -389,12 +392,12 @@ export const ABILITY_IMPL = {
       h.facing = Math.floor(t * 14) % 2 === 0 ? 1 : -1;
       if (t > 0.2 && !h.skillState.second) {
         h.skillState.second = true;
-        w.addEffect(new SlashEffect(h, h.aimAngle + Math.PI / 2, SLASH_STYLES.heroHeavy, false, 0.25));
+        w.addEffect(new SlashEffect(h, h.aimAngle + Math.PI / 2, heavySlash(h), false, 0.25));
         w.bus.emit('swing', { actor: h, heavy: true, angle: h.aimAngle });
       }
       if (h.skillState.up && t > 0.32 && !h.skillState.third) {
         h.skillState.third = true;
-        w.addEffect(new SlashEffect(h, h.aimAngle - Math.PI / 2, SLASH_STYLES.heroHeavy, true, 0.22));
+        w.addEffect(new SlashEffect(h, h.aimAngle - Math.PI / 2, heavySlash(h), true, 0.22));
         w.particles.ring(h.x, h.y - 4, 4, 40, ['#ffb640', '#c8420c', '#7a2208'], 120);
       }
     },
@@ -624,7 +627,7 @@ export const ABILITY_IMPL = {
         const dx = Math.cos(h.aimAngle), dy = Math.sin(h.aimAngle);
         heroHitbox(h, w, { shape: 'arc', x: h.x + dx * 4, y: h.y - 8 + dy * 4, r: 26, angle: h.aimAngle, arc: 2.2, ttl: 0.08,
           damage: h.damageFor(def.mult, def.id), knockback: 200, heavy: true, critChance: Math.min(0.95, h.stats.critChance + 0.5) });
-        w.addEffect(new SlashEffect(h, h.aimAngle, SLASH_STYLES.heroHeavy, false, 0.2));
+        w.addEffect(new SlashEffect(h, h.aimAngle, heavySlash(h), false, 0.2));
         w.bus.emit('swing', { actor: h, heavy: true, angle: h.aimAngle });
       }
     },

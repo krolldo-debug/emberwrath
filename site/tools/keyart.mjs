@@ -41,6 +41,8 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
   p.on('pageerror', (e) => console.log('ERR', sc.id, e.message)); p.on('console', (m) => { if (m.type() === 'warning' && /missing/.test(m.text())) console.log(m.text()); });
   await p.goto(URL);
   await p.waitForFunction(() => window.emberfall?.scenes.currentId === 'title');
+  // Volle Bildqualität erzwingen: „Auto“ senkt sie im Headless-Browser sonst auf 480 × 270
+  await p.evaluate(() => { window.emberfall.prefs.set('quality', 'high'); window.dispatchEvent(new Event('resize')); });
   await p.evaluate(async (sc) => {
     const g = window.emberfall, G = sc.G;
     g.prefs.set('muted', true); g.prefs.set('guidePath', false);

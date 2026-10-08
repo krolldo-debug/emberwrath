@@ -141,14 +141,6 @@ class Raster {
   put(F, G, c) {
     if (F >= 0 && G >= 0 && F < this.fw && G < this.fh) this.buf[G * this.fw + F] = col(c);
   }
-  // Feinpixel mit Deckkraft a (0..1) über das Vorhandene legen (durchscheinende Wischspur)
-  blend(F, G, c, a) {
-    if (!c || a <= 0 || F < 0 || G < 0 || F >= this.fw || G >= this.fh) return;
-    const i = G * this.fw + F, o = this.buf[i], v = col(c);
-    const oa = (o >>> 24) / 255, na = Math.min(1, a), out = na + oa * (1 - na);
-    const ch = (sh) => Math.round((((v >>> sh) & 255) * na + ((o >>> sh) & 255) * oa * (1 - na)) / out);
-    this.buf[i] = ((Math.round(out * 255) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)) >>> 0;
-  }
   // ein Feinpixel an Weltposition
   dot(x, y, c) { if (c) this.put(this.fx(x), this.fy(y), c); }
   // ein ganzer Weltpixel (gerundet)
@@ -540,7 +532,7 @@ function drawRider(R, G, L, P, sk) {
 const SMEAR_LEN = { sword: 15, dagger: 7, axe: 15, mace: 15, staff: 15, wand: 8 };
 function drawSmear(R, L, hx, hy, a0, a1) {
   const w = L.weapon;
-  if (w.great) { drawGreatSmear(R, w, hx, hy, a0, a1); return; }
+  if (w.great) return;   // Zweihänder: genau ein Bogen je Hieb – der SlashEffect im Spiel (sprites/effects.js), keiner im Sprite
   const len = (w.family === 'sword' || w.family === 'dagger' ? w.len : null) ?? SMEAR_LEN[w.family] ?? 12;
   const c = w.glow ?? (w.family === 'staff' || w.family === 'wand' ? L.trim : ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8']);
   const rout = len + 1.5, body = Math.max(3, len * 0.5);
@@ -561,26 +553,6 @@ function drawSmear(R, L, hx, hy, a0, a1) {
 
 // Zweihänder: durchscheinender Hiebbogen statt voller Sichel. Je Feinpixel einmal gemischt:
 // heller, dünner Außenrand an der Klingenspitze, nach innen und zum Anfang des Hiebs hin auslaufend.
-function drawGreatSmear(R, w, hx, hy, a0, a1) {
-  // Geschlossenes, durchscheinendes Band, das an der Klingenspitze ansetzt: vorn ~2,5 px breit, zum Schweif hin schmal und blasser.
-  const len = w.len ?? 22, da = a1 - a0;
-  if (Math.abs(da) < 0.05) return;
-  const c = w.edge ?? w.glow ?? ['#2e2e38', '#5a5a68', '#9a9cac', '#d0d2dc', '#f4f4f8'];
-  const rout = len + 0.6, TAU = Math.PI * 2;
-  R.each(hx - rout - 1, hy - rout - 1, hx + rout + 1, hy + rout + 1, (x, y, F, G) => {
-    const dx = x - hx, dy = y - hy, r = Math.hypot(dx, dy);
-    if (r > rout || r < rout - 3.5) return;
-    const phi = Math.atan2(dy, dx);
-    const delta = da > 0 ? ((phi - a0) % TAU + TAU) % TAU : -(((a0 - phi) % TAU + TAU) % TAU);
-    const t = delta / da;
-    if (t < 0 || t > 1) return;
-    const thick = 0.45 + 2.3 * Math.pow(t, 1.3), d = rout - r;
-    if (d > thick) return;
-    const k = d / thick, a = 0.25 + 0.5 * t;
-    R.blend(F, G, k < 0.3 ? c[4] ?? c[3] : k < 0.7 ? c[3] : c[2], a * (1 - 0.55 * k));
-  });
-}
-
 // --- Körperteile ----------------------------------------------------------------------------
 function drawLeg(R, L, P, sk, near) {
   const B = sk.B, lw = B.limb;

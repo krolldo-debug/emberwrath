@@ -38,6 +38,15 @@ function buildSlashFrame({ radius, width, span, heavy, soft }, dirIndex, frame, 
       if (behind > 1) continue;
       const thick = width * (1 - behind) * (0.4 + 0.6 * fade);
       const inner = radius - thick;
+      if (soft) {
+        // Zweihänder: wie der Bogen am Helden – heller Rand auf der Spitzenbahn, darunter ein dünner, durchscheinender Glutschleier
+        if (r > radius || r < inner) continue;
+        const i4s = (y * size + x) * 4, e = (radius - r) / Math.max(thick, 0.001);
+        const col = e < 0.22 ? ramp[1] : e < 0.6 ? ramp[2] : ramp[3];
+        const al = (e < 0.22 ? 1 : 0.68 * (1 - e)) * (1 - behind * 0.8) * fade;
+        d[i4s] = col[0]; d[i4s + 1] = col[1]; d[i4s + 2] = col[2]; d[i4s + 3] = Math.round(255 * Math.min(1, al));
+        continue;
+      }
       const i4 = (y * size + x) * 4;
       // Nachglühen: weicher Saum innen, heller 1-px-Rand außen an der Spitze
       if (r < inner && r >= inner - 3 && behind < 0.8) {
@@ -81,8 +90,8 @@ export const SLASH_STYLES = {
   heroHeavy: { key: 'heroHeavy', radius: 27, width: 13, span: 3.7, heavy: true },
   enemy: { key: 'enemy', radius: 17, width: 5, span: 2.0, heavy: false },
   // Zweihänder: Bogen an der Klingenspitze, schmaler und durchscheinend statt voller Sichel
-  great: { key: 'great', radius: 24, width: 8, span: 2.6, heavy: false, soft: true },
-  greatHeavy: { key: 'greatHeavy', radius: 28, width: 10, span: 3.7, heavy: true, soft: true },
+  great: { key: 'great', radius: 25, width: 5.5, span: 2.6, heavy: false, soft: true },
+  greatHeavy: { key: 'greatHeavy', radius: 28, width: 6.5, span: 3.7, heavy: true, soft: true },
 };
 
 // Enemy-Hiebe in kalter, fahler Farbe – visuell klar vom Helden getrennt.
