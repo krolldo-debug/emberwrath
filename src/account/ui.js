@@ -5,22 +5,6 @@ import { spriteStyle } from '../character/cosmetics.js';
 
 // Gemeinsame Bausteine der Menü-Bildschirme (Thread A).
 
-// Hinweis unter den Menüs: Spielstände liegen im Online-Konto. Andere Spieler gibt es noch nicht.
-// (Früher: Hinweis zum lokalen Demo-Account; Demo-Accounts gibt es nicht mehr, gespielt wird nur mit Konto.)
-export function localNotice(game, { compact = false } = {}) {
-  const signedIn = !!game.online?.user;
-  const lines = compact
-    ? [signedIn ? 'In deinem Konto gespeichert · in der Cloud gesichert' : 'Zum Spielen brauchst du ein Emberwrath-Konto']
-    : [
-      signedIn
-        ? 'Deine Charaktere sind in deinem Konto gespeichert und in der Cloud gesichert. Du kannst auf jedem Gerät weiterspielen.'
-        : 'Melde dich an oder erstelle ein kostenloses Konto. Deine Charaktere werden in der Cloud gesichert und sind auf jedem Gerät spielbar.',
-    ];
-  return h(`div.acc-notice${signedIn ? '.acc-cloud' : ''}`, { role: 'note' },
-    h('span.acc-notice-icon', { 'aria-hidden': 'true' }, signedIn ? '✓' : 'i'),
-    h('div', lines.map((t) => h('p', t))));
-}
-
 // Gespielt wird nur mit Online-Konto. true, wenn game.account das angemeldete Konto ist;
 // sonst wird das Konto eingeloggt (falls angemeldet) bzw. zur Anmeldung geleitet.
 export function requireOnlineAccount(game) {
@@ -66,6 +50,12 @@ export function savedLook(save, content, accountId, characterId) {
 
 export function zoneName(content, zoneId) {
   return zoneId ? content.find('zone', zoneId)?.name ?? null : null;
+}
+
+// Gut sichtbarer Zurück-Pfeil oben links in den Menüs.
+export function backButton(onclick, label = 'Zurück') {
+  return h('button.acc-back.acc-back-text', { type: 'button', onclick, 'aria-label': label },
+    h('span.acc-back-arrow', { 'aria-hidden': 'true' }, '←'), h('span.acc-back-label', 'Zurück'));
 }
 
 // Button, der beim ersten Klick nach Bestätigung fragt.

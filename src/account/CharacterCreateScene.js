@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { MenuScene } from './TitleScene.js';
-import { HeroPortrait, focusIfDesktop, requireOnlineAccount } from './ui.js';
+import { HeroPortrait, focusIfDesktop, requireOnlineAccount, backButton } from './ui.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
 import { nameProblem } from '../net/names.js';
@@ -12,15 +12,8 @@ import { pick } from '../core/math.js';
 import { hairStylesFor, HAIR_STYLES } from '../character/cosmetics.js';
 
 // Charaktererstellung: Volk, Klasse, Aussehen, Name -> neues Spiel auf Stufe 1.
-// Alle Werte in der Vorschau kommen aus deriveStats() – also genau das, was
-// der Held im Spiel bekommt.
-const STAT_ROWS = [
-  { key: 'maxHp', label: 'Leben', fmt: (v) => v },
-  { key: 'power', label: 'Angriffskraft', fmt: (v) => Math.round(v) },
-  { key: 'armor', label: 'Rüstung', fmt: (v) => v },
-  { key: 'critChance', label: 'Kritisch', fmt: (v) => `${Math.round(v * 100)} %` },
-  { key: 'moveSpeed', label: 'Tempo', fmt: (v) => v },
-];
+// Bewusst schlicht: links Volk und Klasse, rechts die Figur mit Name, darunter Rolle, Fähigkeiten (antippen zeigt die
+// Beschreibung) und die Stärken des Volkes. Kosten der Fähigkeiten kommen aus deriveStats() (Ressourcenname).
 
 // Beispielausrüstung für die Vorschau (nur Anzeige, wird nicht vergeben)
 const GEAR_TIERS = [
@@ -52,6 +45,9 @@ const PREVIEW_GEAR = {
   },
 };
 
+// Überschrift einer Fähigkeit: Name, bei Fähigkeiten mit Taste (ganzer Text für die Übersetzung)
+const skillTitle = (sk) => (sk.key ? `${sk.name} (Taste ${sk.key})` : sk.name);
+
 const NAME_PROBLEM = {
   reserviert: 'Dieser Name ist für das Team reserviert. Bitte wähle einen anderen.',
   anstoessig: 'Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.',
@@ -67,12 +63,7 @@ export class CharacterCreateScene extends MenuScene {
     this.classes = g.content.all('class');
     this.sel = { raceId: this.races[0].id, classId: this.classes[0].id, variant: 0, hair: 0, name: '' };
     this.nameTouched = false;
-    // Maxima für die Vergleichsbalken (alle Kombinationen auf Stufe 1)
-    this.max = {};
-    for (const r of this.races) for (const c of this.classes) {
-      const s = deriveStats({ raceId: r.id, classId: c.id, level: 1 }, g.content);
-      for (const row of STAT_ROWS) this.max[row.key] = Math.max(this.max[row.key] ?? 0, s[row.key]);
-    }
+    this.skill = 0; // angetippte Fähigkeit (0 = Grundangriff)
     this.#build();
     this.#refresh();
   }
@@ -95,8 +86,8 @@ export class CharacterCreateScene extends MenuScene {
       const btn = h('button.acc-option', { type: 'button', 'aria-pressed': 'false', dataset: { kind, id: def.id }, onclick: () => this.#choose(kind, def.id) },
         h('span.acc-option-art', mini.canvas),
         h('span.acc-option-text',
-          h('strong', extra ? h('span.acc-option-icon', extra) : null, def.name),
-          h('small', def.tagline)));
+          h('strong', extra ? h('span.acc-option-icon', extra) : null, def.name)));
+      btn.title = def.tagline;
       return btn;
     };
     this.raceBtns = this.races.map((r) => option('race', r));
@@ -115,7 +106,7 @@ export class CharacterCreateScene extends MenuScene {
       class: `acc-tier r-${t.id}${t.id === this.tier ? ' selected' : ''}`,
       onclick: () => { this.tier = t.id; this.#refresh(); },
     }, t.label));
-    this.tierBox = h('div.acc-tiers', { role: 'group', 'aria-label': 'Ausrüstungs-Vorschau' }, h('span.acc-tiers-label', 'Beute-Vorschau'), this.tierBtns);
+    this.tierBox = h('div.acc-tiers', { role: 'group', 'aria-label': 'Ausrüstungs-Vorschau', title: 'So kann dein Held mit besserer Beute aussehen' }, this.tierBtns);
 
     this.nameInput = h('input.ef-input.acc-name-input', {
       type: 'text', maxlength: NAME_MAX, placeholder: 'Name deines Charakters', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Name des Charakters',
@@ -126,19 +117,15 @@ export class CharacterCreateScene extends MenuScene {
     const dice = h('button.ef-btn.acc-dice', { type: 'button', title: 'Zufälliger Name', 'aria-label': 'Zufälliger Name', onclick: () => this.#randomName() }, 'Zufall');
 
     this.summary = h('div.acc-summary');
-    // Volk-Beschreibung links unter der Auswahl, Klasse und Fähigkeiten rechts: beide Spalten etwa gleich hoch
-    this.raceInfo = h('div.acc-desc.acc-race-info');
+    this.traits = h('ul.acc-traits');
     this.startBtn = h('button.ef-btn.primary.acc-start', { type: 'button', onclick: () => this.#start() }, 'Abenteuer beginnen');
 
     const panel = h('div.ef-panel.acc-panel.acc-create',
-      h('header.acc-head',
-        h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück' }, '‹'),
-        h('div', h('h2.ef-sub', 'Charakter erschaffen'), h('p.acc-step', `Konto „${g.account.name}“`))),
+      h('header.acc-head', backButton(() => this.back()), h('h2.ef-sub', 'Charakter erschaffen')),
       this.grid = h('div.acc-create-grid', { onscroll: () => this.#scrollHint() },
         h('section.acc-choose',
-          h('h3.acc-h', 'Volk'), h('div.acc-options', this.raceBtns),
-          h('h3.acc-h', 'Klasse'), h('div.acc-options', this.classBtns),
-          this.raceInfo),
+          h('h3.acc-h', 'Volk'), h('div.acc-options', this.raceBtns), this.traits,
+          h('h3.acc-h', 'Klasse'), h('div.acc-options', this.classBtns)),
         h('section.acc-preview',
           h('div.acc-stage', this.preview.canvas, this.swatches, this.hairBtn, this.tierBox),
           h('div.acc-namebox', h('div.acc-inline', this.nameInput, dice), this.nameErr)),
@@ -157,7 +144,7 @@ export class CharacterCreateScene extends MenuScene {
       this.sel.raceId = id;
       // Zufallsnamen passend zum Volk nachziehen, solange der Spieler nichts getippt hat
       if (!this.nameTouched || this.#isSuggested(prevRace)) this.#randomName(false);
-    } else this.sel.classId = id;
+    } else { if (this.sel.classId !== id) this.skill = 0; this.sel.classId = id; }
     this.#refresh();
   }
 
@@ -225,26 +212,34 @@ export class CharacterCreateScene extends MenuScene {
 
     const race = g.content.get('race', raceId), cls = g.content.get('class', classId);
     const stats = deriveStats({ raceId, classId, level: 1 }, g.content);
-    const abilities = cls.abilities.map((id) => g.content.get('ability', id));
     const keys = ['Q', 'R', 'T', 'G'];
+    // Grundangriff + vier Fähigkeiten als Symbolleiste; die angetippte wird darunter beschrieben.
+    const skills = [
+      { name: 'Angriff', key: null, desc: cls.attackDesc, meta: null, icon: iconEl(cls.icon, 28) },
+      ...cls.abilities.map((id, i) => {
+        const a = g.content.get('ability', id);
+        const meta = [a.level > 1 ? `ab Stufe ${a.level}` : null, a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s Abklingzeit`].filter(Boolean).join(' · ');
+        return { name: a.name, key: keys[i], desc: a.desc, meta, icon: iconEl(abilityIcon(a.id, a), 28) };
+      }),
+    ];
+    this.skill = Math.min(this.skill, skills.length - 1);
+    const cur = skills[this.skill];
     this.summary.replaceChildren(
       h('h3.acc-combo', `${race.name} · ${cls.name}`, h('span.ef-badge', cls.role)),
-      h('div.acc-stats',
-        STAT_ROWS.map((row) => h('div.acc-stat',
-          h('span.acc-stat-label', row.label),
-          h('span.acc-bar', h('span', { style: { width: `${Math.round((stats[row.key] / this.max[row.key]) * 100)}%` } })),
-          h('span.acc-stat-val', row.fmt(stats[row.key])))),
-        h('div.acc-stat',
-          h('span.acc-stat-label', stats.resourceName),
-          h('span.acc-bar.res', h('span', { style: { width: '100%', background: stats.resourceColor } })),
-          h('span.acc-stat-val', stats.resourceType === 'rage' ? `0–${stats.maxResource}` : stats.maxResource)),
-        h('p.acc-attrs', `Stärke ${stats.attributes.str} · Geschick ${stats.attributes.agi} · Intelligenz ${stats.attributes.int} · Vitalität ${stats.attributes.vit}`)),
-      h('div.acc-desc.acc-class-info', h('h4', cls.name), h('p', cls.desc),
-        h('ul.acc-abilities',
-          h('li', h('b', 'Angriff'), ` ${cls.attackDesc}`),
-          abilities.map((a, i) => h('li', h('span.acc-ability-icon', iconEl(abilityIcon(a.id, a), 28)), h('b', `${a.name} (${keys[i]})`), ` ${a.desc}`, h('span.acc-cost', [a.level > 1 ? `ab Stufe ${a.level}` : null, a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s`].filter(Boolean).join(' · ')))))),
+      h('p.acc-class-desc', cls.desc),
+      h('div.acc-skills', { role: 'group', 'aria-label': 'Fähigkeiten' },
+        skills.map((sk, i) => h(`button.acc-skill${i === this.skill ? '.selected' : ''}`, {
+          type: 'button', title: sk.name, 'aria-label': sk.name, 'aria-pressed': i === this.skill ? 'true' : 'false',
+          onclick: () => { this.skill = i; this.#refresh(); },
+        }, sk.icon, sk.key ? h('span.acc-skill-key', sk.key) : null))),
+      h('div.acc-skill-info',
+        h('h4', skillTitle(cur)),
+        h('p', cur.desc),
+        cur.meta ? h('p.acc-cost', cur.meta) : null),
     );
-    this.raceInfo.replaceChildren(h('h4', race.name), h('p', race.desc), h('ul.acc-traits', race.traits.map((t) => h('li', t))));
+    // Stärken des Volks direkt unter der Volkswahl
+    this.traits.setAttribute('aria-label', `Stärken: ${race.name}`);
+    this.traits.replaceChildren(...race.traits.map((t) => h('li', t)));
     if (!this.sel.name) this.#randomName(false);
     this.#validate();
     this.#scrollHint();

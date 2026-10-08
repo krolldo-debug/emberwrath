@@ -1,5 +1,6 @@
 import { h } from '../core/dom.js';
 import { MenuScene } from '../account/TitleScene.js';
+import { backButton } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
 import { renderChatReports } from '../net/AdminReports.js';
 
@@ -42,7 +43,7 @@ export class AdminScene extends MenuScene {
   #shell(...body) {
     this.root.replaceChildren(h('div.ef-panel.acc-panel.on-panel.on-admin-panel',
       h('header.acc-head',
-        h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück' }, '‹'),
+        backButton(() => this.back()),
         h('div', h('h2.ef-sub', 'Verwaltung'), h('p.acc-step', 'Konten und Charaktere aller Spieler')),
         this.data ? h('button.ef-btn.acc-small.on-refresh', { type: 'button', onclick: () => { this.flags = null; this.#load(); } }, 'Aktualisieren') : null),
       ...body));

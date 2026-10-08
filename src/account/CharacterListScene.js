@@ -1,6 +1,6 @@
 import { h } from '../core/dom.js';
 import { MenuScene } from './TitleScene.js';
-import { HeroPortrait, characterLine, zoneName, formatAgo, confirmButton, savedLook, requireOnlineAccount } from './ui.js';
+import { HeroPortrait, characterLine, zoneName, formatAgo, confirmButton, savedLook, requireOnlineAccount, backButton } from './ui.js';
 import { listSlots, storeSlot, restoreSlot, clearSlot, dropSlots, snapInfo, formatPlayTime, SLOT_COUNT } from './backups.js';
 
 export const MAX_CHARACTERS = 8;
@@ -57,7 +57,7 @@ export class CharacterListScene extends MenuScene {
     const name = o?.displayName ?? acc.name;
 
     const top = h('header.lb-top',
-      h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück zum Titel' }, '‹'),
+      backButton(() => this.back()),
       h('h1.lb-heading', 'Charakterauswahl'),
       h('button.ef-btn.lb-account', { type: 'button', onclick: () => o?.open('account'), title: 'Konto und Einstellungen' },
         h('span.acc-avatar', { 'aria-hidden': 'true' }, name.slice(0, 1).toUpperCase()),

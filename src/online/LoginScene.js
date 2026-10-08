@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { MenuScene } from '../account/TitleScene.js';
-import { focusIfDesktop, formatAgo, characterLine } from '../account/ui.js';
+import { focusIfDesktop, characterLine, backButton } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
 
 // Anmeldeseite (Szene 'login'). params.mode:
@@ -26,11 +26,12 @@ const legalLinks = () => h('p.on-legal-links', legalLink('Nutzungsbedingungen', 
 
 const svgIcon = (markup) => { const s = h('span.on-provider-icon'); s.innerHTML = markup; return s; };
 
+// Untertitel nur, wo er etwas erklärt (Anmelde- und Kontoseite bleiben schlank).
 const TITLES = {
-  login: ['Anmelden', 'Mit deinem Emberwrath-Konto spielen'],
-  register: ['Konto erstellen', 'Deine Charaktere sicher in der Cloud, auf jedem Gerät'],
+  login: ['Anmelden', ''],
+  register: ['Konto erstellen', ''],
   forgot: ['Passwort vergessen', 'Wir schicken dir einen Link zum Zurücksetzen'],
-  newPassword: ['Neues Passwort', 'Wähle ein neues Passwort für dein Konto'],
+  newPassword: ['Neues Passwort', ''],
   account: ['Dein Konto', ''],
   consent: ['Nutzungsbedingungen', 'Einmal bestätigen, dann geht es los'],
   deleteAccount: ['Konto löschen', 'Bitte bestätige mit deiner Anmeldung'],
@@ -98,10 +99,8 @@ export class LoginScene extends MenuScene {
     const google = h('button.ef-btn.on-provider.on-google', {
       type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider('google')),
     }, svgIcon(GOOGLE_SVG), h('span', 'Weiter mit Google'));
+    // Kein Kleingedrucktes: Neue Google-Konten bestätigen Nutzungsbedingungen und Alter danach auf der Seite 'consent'.
     const box = h('div.on-providers', google,
-      h('p.on-fine', 'Mit „Weiter mit Google“ akzeptierst du die Nutzungsbedingungen.'),
-      h('p.on-fine', AGE_CLAUSE),
-      legalLinks(),
       h('div.on-or', h('span', 'oder mit E-Mail')));
     const set = (on) => { box.hidden = !on; };
     set(!!o.providers.google);
@@ -120,7 +119,7 @@ export class LoginScene extends MenuScene {
   #render() {
     const [title, sub] = TITLES[this.mode] ?? TITLES.login;
     const head = h('header.acc-head',
-      h('button.acc-back', { type: 'button', onclick: () => this.back(), 'aria-label': 'Zurück' }, '‹'),
+      backButton(() => this.back()),
       h('div', h('h2.ef-sub', title), sub ? h('p.acc-step', sub) : null));
     let body;
     if (!this.online.configured) body = this.#notConfigured();
@@ -164,7 +163,7 @@ export class LoginScene extends MenuScene {
       if (!pw.input.value) { this.message = { kind: 'error', text: 'Bitte gib dein Passwort ein.' }; this.#render(); return; }
       this.#run(async () => {
         await this.online.client.signIn(mail, pw.input.value);
-        this.#go('account', { kind: 'ok', text: `Angemeldet als ${this.online.displayName}.` });
+        this.#go('account');
         this.online.afterSignIn();
       });
     };
@@ -176,7 +175,8 @@ export class LoginScene extends MenuScene {
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Anmelden')),
       h('div.on-links',
         h('button.on-link', { type: 'button', onclick: () => this.#go('forgot') }, 'Passwort vergessen?'),
-        h('button.on-link', { type: 'button', onclick: () => this.#go('register') }, 'Noch kein Konto? Registrieren')));
+        h('button.on-link', { type: 'button', onclick: () => this.#go('register') }, 'Noch kein Konto? Registrieren')),
+      legalLinks());
   }
 
   #consentBox() {
@@ -235,8 +235,7 @@ export class LoginScene extends MenuScene {
         name.el, email.el, pw.el, consentEl,
         this.#messageBox(),
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Konto erstellen')),
-      h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('login') }, 'Schon ein Konto? Anmelden')),
-      h('p.on-fine', 'Wir speichern deine E-Mail, deinen Spielernamen und deine Spielstände, um dein Konto zu betreiben. Du kannst dein Konto jederzeit selbst löschen. Mehr dazu steht in der Datenschutzerklärung.'));
+      h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('login') }, 'Schon ein Konto? Anmelden')));
   }
 
   #forgot() {
@@ -272,22 +271,20 @@ export class LoginScene extends MenuScene {
       h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Passwort speichern')));
   }
 
+  // Abgleich läuft unsichtbar; eine Zeile erscheint nur, wenn etwas nicht klappt.
   #syncLine() {
     const s = this.online.sync;
     const text = {
-      idle: 'Wird verbunden …',
-      syncing: 'Spielstände werden abgeglichen …',
-      ok: `Spielstände in der Cloud gesichert${s.lastSyncAt ? ` (${formatAgo(s.lastSyncAt)})` : ''}.`,
       offline: 'Keine Verbindung. Du kannst weiterspielen, wir laden hoch, sobald du wieder online bist.',
       error: `Abgleich fehlgeschlagen: ${s.lastError ? describeError(s.lastError) : 'unbekannter Fehler'}`,
     }[s.status];
+    if (!text) return null;
     return h(`p.on-sync.${s.status}`, { role: 'status' }, h('span.on-dot', { 'aria-hidden': 'true' }), text);
   }
 
   #account() {
     const o = this.online, g = this.game, u = o.user;
     const providers = (u.app_metadata?.providers ?? [u.app_metadata?.provider]).filter(Boolean);
-    const via = providers.map((p) => ({ email: 'E-Mail', google: 'Google' }[p] ?? p)).join(', ');
     const count = g.save.listCharacters(o.accountId).length;
     const adminSlot = h('div.on-admin-slot');
     o.isAdmin().then((yes) => {
@@ -297,9 +294,7 @@ export class LoginScene extends MenuScene {
     return h('div.on-body',
       h('div.on-who',
         h('span.acc-avatar', { 'aria-hidden': 'true' }, o.displayName.slice(0, 1).toUpperCase()),
-        h('div',
-          h('strong', { translate: 'no' }, o.displayName),
-          h('div.acc-meta', [u.email, via ? `angemeldet über ${via}` : null].filter(Boolean).join(' · ')))),
+        h('strong', { translate: 'no' }, o.displayName)),
       this.#syncLine(),
       this.#messageBox(),
       h('div.acc-actions',
@@ -314,7 +309,7 @@ export class LoginScene extends MenuScene {
           providers.includes('email') ? h('button.ef-btn', { type: 'button', onclick: () => this.#go('newPassword') }, 'Passwort ändern') : null,
           h('button.ef-btn', { type: 'button', onclick: () => this.#run(async () => {
             const r = await o.signOut();
-            this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Abgemeldet. Deine Charaktere sind sicher in der Cloud.' : 'Abgemeldet. Noch nicht hochgeladene Spielstände werden beim nächsten Anmelden übertragen.' });
+            this.#go('login', { kind: 'ok', text: r.removedLocalCopy ? 'Du bist abgemeldet.' : 'Abgemeldet. Noch nicht hochgeladene Spielstände werden beim nächsten Anmelden übertragen.' });
           }) }, 'Abmelden'),
           h('button.ef-btn.danger', { type: 'button', onclick: () => this.#go('deleteAccount') }, 'Konto löschen'))));
   }
