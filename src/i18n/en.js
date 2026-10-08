@@ -3877,5 +3877,10 @@ export const EN = {
   "So kann dein Held mit besserer Beute aussehen": "How your hero can look with better loot",
   "Neuer Charakter mit mehr als dem Startpaket": "New character with more than the starter kit",
   "Zurückgebuchtes Gold nicht abgezogen": "Refunded gold not deducted",
+  "Offen ({0})": "Open ({0})",
+  "Erreicht ({0})": "Completed ({0})",
+  "Kein Titel": "No title",
+  "Titel": "Title",
+  "Hier gibt es noch keine Erfolge.": "No achievements here yet.",
   "Zyklon": "Cyclone"
 };

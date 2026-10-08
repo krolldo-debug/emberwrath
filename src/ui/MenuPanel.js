@@ -6,7 +6,6 @@ import { iconUrl } from '../gfx/Icons.js';
 // Pausemenü (Panel 'menu', öffnet mit Esc/P oder dem Menü-Knopf).
 export function createMenuPanel(session) {
   const g = session.game;
-  const status = h('p.ef-note.menu-status');
   const settings = createSettingsSection(g);
   settings.classList.add('menu-settings');
 
@@ -35,7 +34,6 @@ export function createMenuPanel(session) {
     h('h2.ef-sub', 'Pause'),
     h('div.ef-list.menu-buttons',
       h('button.ef-btn.primary', { type: 'button', onclick: () => session.panels.close() }, 'Weiterspielen'),
-      h('button.ef-btn', { type: 'button', onclick: () => { const ok = g.saveNow('manual'); status.textContent = ok ? 'Spielstand gespeichert.' : 'Speichern nicht möglich – der Browser blockiert den Speicher.'; } }, 'Jetzt speichern'),
       g.panels.defs?.has('achievements')
         ? h('button.ef-btn.menu-ach', { type: 'button', onclick: () => session.panels.open('achievements') }, h('img.ef-icon', { src: iconUrl('ui_achievements'), alt: '', width: 20, height: 20 }), 'Erfolge')
         : null,
@@ -47,10 +45,8 @@ export function createMenuPanel(session) {
       h('button.ef-btn', { type: 'button', onclick: () => { help.classList.toggle('open'); settings.classList.remove('open'); } }, 'Steuerung'),
       h('button.ef-btn.danger', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); }, title: 'Speichert und kehrt zum Titelbildschirm zurück' }, 'Zum Titel'),
     ),
-    status,
     settings,
     help,
-    h('p.ef-note.menu-local', 'Dein Spielstand wird in deinem Konto gespeichert und in der Cloud gesichert.'),
   );
   return { root };
 }
