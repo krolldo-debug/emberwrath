@@ -254,8 +254,14 @@ function iceBurst(p, g, cx, gy, s, n = 5, seed = 1) {
 
 // ================================================================ Eistroll + Gorm Eisfaust
 
-// Blaugraue Trollhaut (dunkel → hell); die Häuptlingshaut etwas kälter/heller.
-const T_SKIN = ['#121a2c', '#1f2c46', '#2e4262', '#405c84', '#5a7ca4', '#80a2c4', '#a8c6de'];
+// Eistroll: eigener Farbakzent gegen die hellblauen Eisfiguren (Eiselementar,
+// Erfrorener Ritter) – flechtengrüne Felshaut, braunes Zottelfell und bernstein
+// glühende Augen; nur die Eiskristalle auf Rücken und Schulter bleiben eisblau.
+// Gorm Eisfaust (Häuptling) behält die kalte blaugraue Haut.
+const T_SKIN = ['#121a16', '#1f2e26', '#2e4436', '#405c48', '#58785c', '#7c9a78', '#a6bc9a'];
+const T_MANE = ['#140e0a', '#24180f', '#3a2716', '#543a20', '#70502e', '#8e6c44'];
+const T_EYE = ['#5a2a06', '#b8600e', '#f0a020', '#ffd870', '#fff6d0'];
+const T_EYE_G = ['#4a1c04', '#a04a08', '#e88a18', '#ffc850', '#fff0c0'];
 const G_SKIN = ['#101628', '#1b2842', '#283c5e', '#385480', '#4e72a0', '#7496c0', '#9ebcda'];
 const MANE = ['#0e1018', '#1a1e2a', '#2a303e', '#3e4656', '#586274', '#7a8698'];
 const PELT = ['#3c4452', '#5e6878', '#8894a4', '#b2bcc8', '#d6dde4', '#f0f4f8'];
@@ -466,7 +472,7 @@ function drawTroll(p, g, P, X, T) {
 
   // --- 5. Mähne / Eisbärenfell über Buckel und Rücken, Eiszapfen
   const maneTop = pt(D.spine + 1 * k, -1 * k);
-  const MN = chief ? CHIEF_FUR : MANE;
+  const MN = chief ? CHIEF_FUR : T_MANE;
   const strands = chief ? 16 : 11;
   for (let i = 0; i < strands; i++) {
     const u = i / (strands - 1);
@@ -537,7 +543,7 @@ function drawTroll(p, g, P, X, T) {
   // Haarschopf, der in die Mähne übergeht
   for (let i = 0; i < 5; i++) {
     const bx = hx - 3 * k + i * 1.2 * k, by = hy - 4 * k + Math.abs(i - 1.5) * 0.4;
-    p.line(bx, by, bx - 3 - P.sway, by + 1 + i * 0.3, i % 2 ? MANE[2] : MANE[3]);
+    p.line(bx, by, bx - 3 - P.sway, by + 1 + i * 0.3, i % 2 ? (chief ? MANE : MN)[2] : (chief ? MANE : MN)[3]);
   }
   // spitzes Ohr nach hinten oben
   p.line(hx - 3.5 * k, hy - 0.5 * k, hx - 7 * k, hy - 3.5 * k, S[4]); p.line(hx - 3.5 * k, hy + 0.5 * k, hx - 6.5 * k, hy - 2.5 * k, S[2]);
@@ -553,10 +559,13 @@ function drawTroll(p, g, P, X, T) {
   p.px(ex + 1, ey - 1, S[4]); p.px(ex + 2, ey - 1, S[5]);       // Wulst knickt über dem Auge ab
   p.px(bx2 + 1, ey + 1, S[2]); p.px(ex - 1, ey + 1, S[2]);       // Tränensäcke
   // Augen: zweistufig (Iris + weißer Kern), das hintere kleiner
-  p.px(ex, ey, eyeOn ? ICE[5] : S[1]); p.px(ex - 1, ey, eyeOn ? ICE[3] : S[0]);
-  p.px(bx2, ey, eyeOn ? ICE[4] : S[1]);
-  if (chief) p.px(bx2 + 1, ey, eyeOn ? ICE[2] : S[0]);
-  if (eyeOn) { g.px(ex, ey, ICE_G[5]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex + 1, ey, ICE_G[2]); g.px(bx2, ey, ICE_G[4]); g.px(bx2 - 1, ey, ICE_G[1]); g.px(ex, ey - 1, ICE_G[1]); }
+  // Eistroll: Bernsteinaugen (Iris 1..4 von T_EYE), Häuptling: Eisaugen
+  const EC = chief ? [ICE[2], ICE[3], ICE[4], ICE[5]] : [T_EYE[1], T_EYE[2], T_EYE[3], T_EYE[4]];
+  const EG = chief ? [ICE_G[1], ICE_G[2], ICE_G[3], ICE_G[4], ICE_G[5]] : T_EYE_G;
+  p.px(ex, ey, eyeOn ? EC[3] : S[1]); p.px(ex - 1, ey, eyeOn ? EC[1] : S[0]);
+  p.px(bx2, ey, eyeOn ? EC[2] : S[1]);
+  if (chief) p.px(bx2 + 1, ey, eyeOn ? EC[0] : S[0]);
+  if (eyeOn) { g.px(ex, ey, EG[4]); g.px(ex - 1, ey, EG[2]); g.px(ex + 1, ey, EG[1]); g.px(bx2, ey, EG[3]); g.px(bx2 - 1, ey, EG[0]); g.px(ex, ey - 1, EG[0]); }
   meta.eye = { x: ex, y: ey };
   // Knollennase, ragt über den Kiefer; dunkles Nasenloch
   p.ellipse(hx + 5.2 * k, hy + 0.6 * k, 1.8 * k, 1.5 * k, S[4]);

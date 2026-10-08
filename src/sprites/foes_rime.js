@@ -140,8 +140,15 @@ const FROST = ['#2a7aa8', '#4cb0d8', '#8ae0f4', '#cdf8ff', '#ffffff'];
 const IGL = ['#0c3a58', '#2474a4', '#3aa2d2', '#6cd2f2', '#c8f6ff'];   // Leucht-Ebene
 const RIM_ICE = '#d8f6ff', BACK_ICE = '#5cc8ec';
 const CHIT = ['#06070d', '#0c0f1b', '#141a2c', '#1e2740', '#2c3856', '#3e4d70', '#5a6c90'];
-const STEEL_F = ['#0c1018', '#161d2a', '#222d40', '#334258', '#4a5e78', '#6c84a0', '#9cb2c8', '#d4e2ee'];
-const CLOTH_F = ['#0e1020', '#171a30', '#232846', '#30395e', '#46547a'];
+// Erfrorener Ritter: eigener Farbakzent gegen die hellblauen Eisfiguren der Zone
+// (Eiselementar, Eistroll) – neutral-graues Alteisen statt Blaustahl, ein
+// erstarrter weinroter Umhang und violettes Totenlicht in Sehschlitz, Frostherz
+// und Klingenrune. Eiskristalle bleiben eisblau.
+const STEEL_F = ['#0e0e13', '#1a1a21', '#282830', '#3a3a44', '#52525e', '#72717c', '#9c9aa4', '#dcdae0'];
+const CLOTH_F = ['#16070d', '#290c17', '#431422', '#601c2e', '#82293c'];
+const VIO = ['#3a1660', '#6a2ea8', '#a868e8', '#dcb8ff', '#ffffff'];   // Totenlicht (Farbebene)
+const VIG = ['#2a0c4c', '#5a1e9a', '#8c48dc', '#c08cff', '#f0e0ff'];   // Totenlicht (Leucht-Ebene)
+const RIM_KN = '#e4e0ec', BACK_KN = '#8a5cd0';
 const VOIDB = '#040810';
 
 // ================================================================ Eiselementar
@@ -594,8 +601,8 @@ function iceGreatsword(p, g, hx, hy, a, glow) {
   // Hohlkehle mit Frostrune (Leuchten)
   for (let t = b0 + 1; t < b1 - 5; t += 1) {
     const x = hx + c * t, y = hy + s * t;
-    p.px(x, y, t % 3 === 0 ? FROST[2] : STEEL_F[3]);
-    if (glow > 0.2 && t % 3 === 0) g.px(x, y, IGL[glow > 0.8 ? 3 : 2]);
+    p.px(x, y, t % 3 === 0 ? VIO[2] : STEEL_F[3]);
+    if (glow > 0.2 && t % 3 === 0) g.px(x, y, VIG[glow > 0.8 ? 3 : 2]);
   }
   // Eisbewuchs: Kristalle wachsen schräg aus der Klinge
   const growth = [[9, 1, 0.7, 4], [15, 1, 0.9, 5], [19, -1, -0.6, 3]];
@@ -605,7 +612,7 @@ function iceGreatsword(p, g, hx, hy, a, glow) {
     shard(p, g, bx, by, ang, len, 1.1, ICE, { base: 0.3 });
   }
   const tip = { x: hx + c * b1, y: hy + s * b1 };
-  if (glow > 0.5) { g.px(tip.x, tip.y, IGL[3]); }
+  if (glow > 0.5) { g.px(tip.x, tip.y, VIG[3]); }
   return tip;
 }
 
@@ -687,8 +694,8 @@ function drawFrozenKnight(p, g, P, ex) {
   frostCrust(p, g, fc.x, fc.y, 2.4, 11, 9);
   // Kern: blaues Frostherz leuchtet durch einen Riss im Panzer
   const hc = pt(KD.spine - 3.5, 2.5);
-  p.px(hc.x, hc.y, FROST[3]); p.px(hc.x + 1, hc.y + 1, FROST[1]); p.px(hc.x - 1, hc.y + 1, FROST[0]); p.px(hc.x, hc.y + 2, FROST[1]);
-  g.px(hc.x, hc.y, IGL[3]); g.px(hc.x + 1, hc.y + 1, IGL[2]); g.px(hc.x, hc.y + 2, IGL[1]); g.px(hc.x - 1, hc.y + 1, IGL[1]);
+  p.px(hc.x, hc.y, VIO[3]); p.px(hc.x + 1, hc.y + 1, VIO[2]); p.px(hc.x - 1, hc.y + 1, VIO[1]); p.px(hc.x, hc.y + 2, VIO[2]);
+  g.px(hc.x, hc.y, VIG[4]); g.px(hc.x + 1, hc.y + 1, VIG[3]); g.px(hc.x, hc.y + 2, VIG[2]); g.px(hc.x - 1, hc.y + 1, VIG[2]);
   meta.chest = { x: hc.x, y: hc.y };
 
   // --- 5. vorderes Bein (Beinschiene, Kniekachel, Sabaton)
@@ -720,16 +727,16 @@ function drawFrozenKnight(p, g, P, ex) {
   shard(p, g, hx, hy - 4, -1.65, 8, 1.6, ICE, { base: 0.3 });
   shard(p, g, hx + 3, hy - 3, -1.2, 5, 1.2, ICE, { base: 0.3 });
   // Sehschlitz (T-Form) mit kaltem Glimmen; Kante darüber im Licht, Nieten
-  const ec = ex.hurt ? '#ffffff' : FROST[4];
+  const ec = ex.hurt ? '#ffffff' : VIO[3];
   p.line(hx - 1, hy, hx + 5, hy, STEEL_F[7]);
   p.rect(hx, hy + 1, 6, 1, VOIDB);
   p.rect(hx + 3, hy + 2, 1, 3, VOIDB);
   p.px(hx - 3, hy + 2, STEEL_F[7]); p.px(hx - 3, hy + 3, STEEL_F[2]); p.px(hx + 5, hy + 3, STEEL_F[6]);
   p.px(hx - 3, hy - 3, STEEL_F[7]); p.px(hx - 2, hy - 3, STEEL_F[6]);      // Glanzpunkt auf der Helmkuppe
   if (P.eye > 0.3) {
-    p.px(hx + 2, hy + 1, ec); p.px(hx + 3, hy + 1, ec); p.px(hx + 4, hy + 1, FROST[2]); p.px(hx + 1, hy + 1, FROST[1]);
-    g.px(hx + 2, hy + 1, IGL[4]); g.px(hx + 3, hy + 1, IGL[4]); g.px(hx + 4, hy + 1, IGL[3]); g.px(hx + 1, hy + 1, IGL[2]);
-    if (P.eye > 1.2) { g.rect(hx + 1, hy + 1, 5, 1, IGL[3]); g.px(hx + 6, hy + 1, IGL[1]); }
+    p.px(hx + 2, hy + 1, ec); p.px(hx + 3, hy + 1, ec); p.px(hx + 4, hy + 1, VIO[2]); p.px(hx + 1, hy + 1, VIO[1]);
+    g.px(hx + 2, hy + 1, VIG[4]); g.px(hx + 3, hy + 1, VIG[4]); g.px(hx + 4, hy + 1, VIG[3]); g.px(hx + 1, hy + 1, VIG[2]);
+    if (P.eye > 1.2) { g.rect(hx + 1, hy + 1, 5, 1, VIG[3]); g.px(hx + 6, hy + 1, VIG[1]); }
   }
   icicles(p, hx - 4, hy + 5, hx + 3, hy + 5, 17, 3);
   meta.eye = { x: hx + 3, y: hy + 1 };
@@ -793,7 +800,7 @@ function drawKnightFallen(p, g, k) {
   const hx = cx + 10 + k * 2;
   ell(p, hx, gy - 5, 4.5, 4.5, STEEL_F, { bias: 0.08 });
   p.rect(hx - 1, gy - 4, 4, 1, VOIDB);
-  if (k < 0.5) { p.px(hx + 1, gy - 4, FROST[2]); g.px(hx + 1, gy - 4, IGL[2]); }
+  if (k < 0.5) { p.px(hx + 1, gy - 4, VIO[2]); g.px(hx + 1, gy - 4, VIG[2]); }
   shard(p, g, hx - 2, gy - 8, -2.3, 4, 1.2, ICE, { base: 0.3 });
   // Schwert steckt schräg im Boden
   iceGreatsword(p, g, cx + 22, gy - 22 + k * 0, 1.35, 1 - k);
@@ -804,13 +811,13 @@ function drawKnightFallen(p, g, k) {
   }
   // Frostherz verlischt
   const heat = 1 - k;
-  if (heat > 0.1) { p.px(cx - 2, gy - 6, FROST[3]); halo(g, cx - 2, gy - 6, 0.5 + heat * 1.2, [IGL[2], IGL[3], IGL[4]]); }
+  if (heat > 0.1) { p.px(cx - 2, gy - 6, VIO[3]); halo(g, cx - 2, gy - 6, 0.5 + heat * 1.2, [VIG[2], VIG[3], VIG[4]]); }
   if (k < 0.8) frostMist(p, g, cx, gy, 40, k * 6, 67, [IGL[2], IGL[3], ICE[5]]);
   return { eye: { x: hx + 1, y: gy - 4 }, head: { x: hx, y: gy - 10 }, hand: { x: cx + 22, y: gy - 22 }, chest: { x: cx - 2, y: gy - 6 }, tip: { x: cx + 26, y: gy } };
 }
 
 function createFrozenKnight() {
-  const S = spec(FKN, drawFrozenKnight, RIM_ICE, BACK_ICE);
+  const S = spec(FKN, drawFrozenKnight, RIM_KN, BACK_KN);
   // Ruhe: Schwert gesenkt vor dem Körper, schweres Atmen (Frosthauch)
   const idleA = fkp({ hFx: 6, hFy: 12, sw: -0.95 });
   const idleB = fkp({ hFx: 6, hFy: 13, sw: -0.88, hipY: 1, lean: 0.09, headY: 1, capeT: Math.PI });
@@ -850,9 +857,9 @@ function createFrozenKnight() {
     hurt: new Animation(track(S, [[0, hurtP], [1, idleA]], 2, { extras: { 0: { hurt: true } } }), 9, false),
     death: new Animation([
       ...track(S, [[0, hurtP], [0.35, d1], [0.7, d2, snap], [1, d3]], 4, { extras: { 0: { hurt: true }, 2: { fx: 'impact' } } }),
-      stillR(S, (p, g) => drawKnightFallen(p, g, 0), 'impact', RIM_ICE, BACK_ICE),
-      stillR(S, (p, g) => drawKnightFallen(p, g, 0.5), null, RIM_ICE, BACK_ICE),
-      stillR(S, (p, g) => drawKnightFallen(p, g, 1), null, RIM_ICE, BACK_ICE),
+      stillR(S, (p, g) => drawKnightFallen(p, g, 0), 'impact', RIM_KN, BACK_KN),
+      stillR(S, (p, g) => drawKnightFallen(p, g, 0.5), null, RIM_KN, BACK_KN),
+      stillR(S, (p, g) => drawKnightFallen(p, g, 1), null, RIM_KN, BACK_KN),
     ], 7, false),
   };
 }

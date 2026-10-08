@@ -17,7 +17,7 @@ import { FK } from './foes_cinder.js';
 
 const {
   GLOW, LAVA, linear, snap, clamp, sample, ell, cap, poly, ik, glowDot, veins, flame, fireball,
-  dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, VOID,
+  dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, VOID, rimGlow,
 } = FK;
 
 // Schwung-Schleier als geschlossene Sichel (ersetzt das gerasterte FK.arcSmear):
@@ -632,6 +632,11 @@ function drawKnightFallen(p, g, k) {
   return { eye: { x: hx + 2, y: gy - 5 }, head: { x: hx, y: gy - 9 }, chest: { x: AX, y: gy - 6 }, hand: { x: AX - 10, y: gy - 11 }, tip: { x: AX + 12, y: gy - 9 } };
 }
 
+// Zusätzliches Randlicht des Schlackenritters auf der Leuchtebene: die Rüstung ist
+// fast schwarz, die Lichtkarte der Öde schluckt das Randlicht der Farbebene.
+// Heller Ascheschein oben, Glutsaum an den Seiten – unabhängig von der Beleuchtung.
+const KNIGHT_RIM = { top: '#e8c8a8', side: '#a06040', glowTop: '#a08a7a', glowSide: '#7a3418', k: 0.12 };
+
 function createKnight() {
   const S = { ...KN, draw: drawKnight };
   const idle = cycle((ph) => {
@@ -658,7 +663,7 @@ function createKnight() {
   const d1 = knp({ lean: -0.26, hipX: -3, head: -1.5, headY: -1, gx: 5, gy: 6, ma: -1.8, visor: 1.3, heat: 1.4, cape: 0.8 });
   const d2 = knp({ lean: 0.4, kneel: 1, hipY: 3, head: 1, headY: 2, gx: 12, gy: 12, ma: 0.4, visor: 0.8, heat: 0.9 });
   const d3 = knp({ lean: 0.85, kneel: 1, hipY: 7, head: 2, headY: 4, gx: 14, gy: 12, ma: 0.1, visor: 0.3, heat: 0.6 });
-  return {
+  return rimGlow({
     idle: new Animation(track(S, idle, 4, { loop: true }), 5),
     walk: new Animation(track(S, walk, 8, { loop: true, extras: { 0: { fx: 'step' }, 4: { fx: 'step' } } }), 9),
     windup: new Animation(track(S, [[0, idle[0][1]], [0.45, w1], [1, w2]], 4, { extras: { 2: { maceBehind: true }, 3: { maceBehind: true } } }), 7, false),
@@ -672,7 +677,7 @@ function createKnight() {
       still(S, (p, g) => drawKnightFallen(p, g, 0.5)),
       still(S, (p, g) => drawKnightFallen(p, g, 1)),
     ], 7, false),
-  };
+  }, KNIGHT_RIM);
 }
 
 

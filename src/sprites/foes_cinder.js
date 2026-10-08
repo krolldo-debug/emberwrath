@@ -251,6 +251,57 @@ function dustRing(p, g, x, y, r, seed, cols, sparks = true) {
 }
 
 
+// Randlicht für dunkle Figuren (Nachbearbeitung fertiger Frames): die äußerste
+// Materialreihe innerhalb der Kontur bekommt oben (und schwächer an den Seiten)
+// einen hellen Saum – auf der Farbebene aufgehellt und zusätzlich auf der
+// Leucht-Ebene, damit die Silhouette auch auf fast schwarzem Boden (Glutöde,
+// Schlackenhöhen, Faulmarsch) lesbar bleibt, wo die Lichtkarte die Farbebene
+// abdunkelt. Glühende Stellen bleiben unberührt. Anker/Meta/Größen ändern sich nicht.
+// rim = { top, side, glowTop, glowSide, k }
+function rimGlow(anims, rim) {
+  const hexc = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  const T = hexc(rim.top), Sd = hexc(rim.side ?? rim.top);
+  const GT = hexc(rim.glowTop), GS = rim.glowSide ? hexc(rim.glowSide) : null;
+  const k = rim.k ?? 0.45;
+  const done = new Set();
+  for (const a of Object.values(anims)) for (const f of a.frames) {
+    if (done.has(f)) continue;
+    done.add(f);
+    const c = f.canvas, W = c.width, H = c.height;
+    const cx = c.getContext('2d'), img = cx.getImageData(0, 0, W, H), d = img.data;
+    const gc = f.glow?.canvas, gW = gc ? gc.width : 0, gH = gc ? gc.height : 0;
+    const gx = gc ? gc.getContext('2d') : null, gimg = gx ? gx.getImageData(0, 0, gW, gH) : null, gd = gimg?.data;
+    // Glow-Ebene liegt ohne Konturrand: Versatz aus den Ankern
+    const ox = gc ? Math.round(f.ax - f.glow.ax) : 0, oy = gc ? Math.round(f.ay - f.glow.ay) : 0;
+    const A = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) A[i] = d[i * 4 + 3] > 0 ? 1 : 0;
+    const op = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? A[y * W + x] : 0);
+    // Kontur = deckende Pixel mit freiem Nachbarn
+    const O = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (A[y * W + x] && (!op(x - 1, y) || !op(x + 1, y) || !op(x, y - 1) || !op(x, y + 1))) O[y * W + x] = 1;
+    }
+    const ring = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? O[y * W + x] : 1);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const m = y * W + x;
+      if (!A[m] || O[m]) continue;
+      const up = ring(x, y - 1), side = ring(x - 1, y) || ring(x + 1, y);
+      if (!up && !side) continue;
+      const qx = x - ox, qy = y - oy, gi = (qy * gW + qx) * 4;
+      const inG = gd && qx >= 0 && qy >= 0 && qx < gW && qy < gH;
+      if (inG && gd[gi + 3] > 0) continue; // Glut bleibt Glut
+      const i = m * 4, col = up ? T : Sd, f2 = up ? k : k * 0.6;
+      d[i] += (col[0] - d[i]) * f2; d[i + 1] += (col[1] - d[i + 1]) * f2; d[i + 2] += (col[2] - d[i + 2]) * f2;
+      const gcol = up ? GT : GS;
+      if (inG && gcol) { gd[gi] = gcol[0]; gd[gi + 1] = gcol[1]; gd[gi + 2] = gcol[2]; gd[gi + 3] = 255; }
+    }
+    cx.putImageData(img, 0, 0);
+    if (gx) gx.putImageData(gimg, 0, 0);
+  }
+  return anims;
+}
+
+
 // ================================================================ Materialien
 
 const BASALT = ['#0c0a0e', '#17131a', '#231d24', '#322a31', '#443a41', '#5a4f55'];
@@ -743,6 +794,9 @@ function drawGolemRubble(p, g, k) {
   return { eye: { x: hx + 2, y: hy }, head: { x: hx, y: hy - 4 }, hand: { x: AX + 10, y: gy - 4 }, chest: { x: AX + 2, y: gy - 6 } };
 }
 
+// Randlicht des Aschegolems: kühles Aschgrau oben, Glutsaum an den Seiten
+const GOLEM_RIM = { top: '#c4b8ae', side: '#8a6a5c', glowTop: '#9c867a', glowSide: '#6c3a26', k: 0.5 };
+
 function createAshGolem() {
   const S = { ...GOLEM, draw: drawAshGolem };
   const idle = [];
@@ -768,7 +822,7 @@ function createAshGolem() {
   const hurtP = gp({ lean: -0.15, hipX: -2, head: -1, hFx: 8, hFy: 9, hBx: -11, hBy: 9, heat: 1.3 });
   const d1 = gp({ lean: -0.2, hipX: -2, hipY: 2, head: -1, hFx: 7, hFy: 11, hBx: -11, hBy: 11, heat: 1.1 });
   const d2 = gp({ lean: 0.3, hipY: 7, head: 1, hFx: 10, hFy: 16, hBx: 4, hBy: 18, fFx: 7, fBx: -8, heat: 0.7 });
-  return {
+  return rimGlow({
     idle: new Animation(track(S, idle, 4, { loop: true }), 5),
     walk: new Animation(track(S, walk, 8, { loop: true, extras: { 0: { fx: 'step' }, 4: { fx: 'step' } } }), 9),
     windup: new Animation(track(S, [[0, idle[0][1]], [0.45, w1], [1, w2]], 4), 7, false),
@@ -782,7 +836,7 @@ function createAshGolem() {
       still(S, (p, g) => drawGolemRubble(p, g, 0.4)),
       still(S, (p, g) => drawGolemRubble(p, g, 1)),
     ], 7, false),
-  };
+  }, GOLEM_RIM);
 }
 
 
@@ -1241,5 +1295,5 @@ export function createCinderFoes(only) {
 // Werkzeugkasten für foes_forge.js
 export const FK = {
   GLOW, LAVA, ease, linear, snap, clamp, mix, sample, ell, cap, poly, ik, glowDot, veins, flame, fireball,
-  makeFrame, track, still, arcSmear, dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, MASK, VOID,
+  makeFrame, track, still, arcSmear, dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, MASK, VOID, rimGlow,
 };
