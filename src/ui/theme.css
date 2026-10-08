@@ -509,7 +509,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .hud-minimap-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
-.hud-minimap::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 12px 3px rgba(6, 2, 12, 0.85); border-radius: 2px; }
+.hud-minimap::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(20, 12, 6, 0.9), inset 0 0 8px 2px rgba(40, 24, 10, 0.6); border-radius: 2px; }
 .hud-minimap-n { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); font: 700 9px/1 var(--ef-font); color: #0b0710; background: var(--ef-gold); padding: 1px 3px; border-radius: 2px; z-index: 1; }
 .hud-minimap-hint { position: absolute; bottom: 2px; right: 3px; font-size: 9px; color: var(--ef-muted); opacity: 0; transition: opacity 0.15s; z-index: 1; text-shadow: 0 1px 0 #000; }
 .hud-minimap:hover { border-color: var(--ef-gold); }
@@ -531,20 +531,61 @@
 .ef-portrait .ef-hud .hud-tracker { top: calc(env(safe-area-inset-top, 0px) + 100px); width: calc(100% - 120px); }
 
 /* ------------------------------------------------------------ Zonenkarte (Panel 'map') */
-.map-panel { width: min(92vw, 900px); max-height: 92vh; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-sizing: border-box; }
-.map-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.map-panel { width: min(96vw, 1080px); max-width: min(96vw, 1080px); height: min(94vh, 820px); max-height: 94vh; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-sizing: border-box; }
+.map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .map-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.5em; letter-spacing: 0.04em; }
 .map-sub { color: var(--ef-muted); font-size: 0.85em; }
-.map-frame { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; background: #06030a; border: 2px solid #8a6230; box-shadow: inset 0 0 24px #000; padding: 6px; overflow: auto; }
-.map-canvas { image-rendering: pixelated; display: block; }
-.map-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+/* Holzrahmen um das Pergament */
+.map-frame { flex: 1 1 0; min-height: 0; display: grid; place-items: center; padding: 8px; overflow: hidden;
+  background: linear-gradient(180deg, #2a1a10, #1a0f08); border: 2px solid #0e0805; box-shadow: inset 0 0 0 1px #5a3a20, inset 0 0 18px #000; }
+.map-sheet { position: relative; box-shadow: 0 0 0 2px #0e0805, 0 6px 18px rgba(0, 0, 0, 0.8); }
+.map-canvas { image-rendering: pixelated; display: block; width: 100%; height: 100%; }
+.map-label { position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
+  font: 700 clamp(10px, calc(6.5px * var(--map-z, 2)), 15px) var(--ef-font-title); color: #2e1e12; letter-spacing: 0.03em;
+  text-shadow: 0 0 2px #e8d8b0, 0 0 3px #e8d8b0, 1px 1px 0 rgba(232, 216, 176, 0.9); }
+.map-label.town { font-size: clamp(11px, calc(8px * var(--map-z, 2)), 18px); font-variant: small-caps; color: #5a1a10; }
+.map-label.town::before { content: ''; display: inline-block; width: calc(3px * var(--map-z, 2)); height: calc(4px * var(--map-z, 2)); margin-right: 0.3em; vertical-align: -0.05em;
+  background: #8a2a1a; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%); box-shadow: inset 1px 0 0 #c05030; }
+.map-label.area { font-style: italic; font-weight: 600; color: #3e2a1a; }
+.map-label.portal { font-size: clamp(9px, calc(5.5px * var(--map-z, 2)), 13px); font-weight: 600; color: #4a2a6a; font-style: italic; }
+.map-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
 .map-target { display: flex; flex-direction: column; min-width: 200px; flex: 1 1 240px; }
 .map-target-title { color: var(--ef-gold); font-weight: 700; }
 .map-target-text { color: var(--ef-text, #e8dcc8); font-size: 0.9em; }
-.map-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; font-size: 0.82em; color: var(--ef-muted); }
-.map-legend li { display: flex; align-items: center; gap: 4px; }
-.map-legend-icon { width: 18px; height: 18px; image-rendering: pixelated; }
-.map-note { flex-basis: 100%; margin: 0; font-size: 0.75em; color: var(--ef-muted); }
+.map-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; font-size: 0.82em; color: var(--ef-muted); }
+.map-legend li { display: flex; align-items: center; gap: 5px; }
+.map-legend-icon { width: 22px; height: 22px; image-rendering: pixelated; }
+.map-close { flex: none; }
+
+/* Reisemenü am Wegstein */
+.tv-panel { width: min(94vw, 480px); max-height: 92vh; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-sizing: border-box; }
+.tv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tv-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
+.tv-blocked { margin: 0; color: #ff8a7a; font-size: 0.9em; }
+.tv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; overflow: auto; min-height: 0; }
+.tv-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid #2e2032; background: rgba(8, 5, 12, 0.5); }
+.tv-row.open { border-color: #4a3450; }
+.tv-row.open:hover { border-color: var(--ef-gold); background: rgba(40, 22, 30, 0.7); }
+.tv-row.here { border-color: #6a5418; background: linear-gradient(90deg, rgba(60, 40, 10, 0.5), rgba(8, 5, 12, 0.5)); }
+.tv-row.locked { opacity: 0.55; }
+.tv-stone { flex: none; width: 32px; height: 36px; image-rendering: pixelated; }
+.tv-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tv-name { font: 700 15px var(--ef-font-title); color: var(--ef-text); }
+.tv-row.here .tv-name { color: var(--ef-gold); }
+.tv-sub { font-size: 12px; color: var(--ef-muted); }
+.tv-go { flex: none; width: auto; min-width: 0; min-height: 34px; padding: 4px 18px; }
+.tv-here { font-size: 12px; color: var(--ef-gold); }
+.tv-locked { font-size: 12px; color: var(--ef-muted); }
+@media (max-height: 500px) { .tv-panel { max-height: 96vh; padding: 8px 10px; gap: 4px; } .tv-row { padding: 3px 8px; } .tv-stone { width: 24px; height: 27px; } }
+/* Niedrige Schirme (Handy quer): schmaler Kopf, Legende ausgeblendet, Ziel einzeilig */
+@media (max-height: 500px) {
+  .map-panel { height: 96vh; max-height: 96vh; padding: 6px 10px; gap: 4px; }
+  .map-title { font-size: 1.1em; } .map-sub { display: none; }
+  .map-frame { padding: 4px; }
+  .map-legend { display: none; }
+  .map-target { flex-direction: row; gap: 8px; align-items: baseline; min-width: 0; }
+  .map-target-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 /* Hochformat mit Tastatur (kein ef-touch): Menüknöpfe oben rechts, Leiste unten mittig über der EP-Leiste */
 .ef-portrait:not(.ef-touch) .hud-menu { right: 8px; top: calc(env(safe-area-inset-top, 0px) + 8px); bottom: auto; }
 .ef-portrait:not(.ef-touch) .hud-menu-label { display: none; }

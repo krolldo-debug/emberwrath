@@ -4,6 +4,7 @@ import { Toasts } from './Toasts.js';
 import { ScreenFx } from './ScreenFx.js';
 import { createMenuPanel } from './MenuPanel.js';
 import { Minimap, createMapPanel } from './Minimap.js';
+import { installTravel, listenTravel } from './TravelPanel.js';
 import { ZoneTransition } from './ZoneTransition.js';
 import { Unlocks } from './Unlocks.js';
 import { Weather } from '../gfx/Weather.js';
@@ -47,6 +48,7 @@ export function installUi(game) {
     const minimap = new Minimap(session, hud.frame);
     const zt = new ZoneTransition(session);
     const unlocks = new Unlocks(session, hud);
+    listenTravel(session); // Wegstein -> Reisemenü
     return {
       update: (dt) => { fx.update(dt); hud.update(dt); toasts.update(dt); minimap.update(dt); zt.update(dt); unlocks.update(dt); },
       draw: (ctx) => fx.draw(ctx),
@@ -55,4 +57,5 @@ export function installUi(game) {
   }, 100);
   game.panels.register('menu', (session) => createMenuPanel(session), { pauses: true, title: 'Menü' });
   game.panels.register('map', (session) => createMapPanel(session), { pauses: false, title: 'Karte' });
+  installTravel(game);
 }

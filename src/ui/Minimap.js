@@ -1,77 +1,29 @@
 import { h } from '../core/dom.js';
 import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
+import { renderZoneMap, mapLabels } from './MapArt.js';
 
 // Minimap (HUD) und Zonenkarte (Panel 'map') – Thread D.
 // Liest nur: session.world (Hintergrund, Raster, NPCs, Portale, Gegner), session.zone,
 // game.progression (questTarget, npcMarker). Nichts wird geschrieben.
-// Das Bild der Zone entsteht aus dem vorgerenderten Welt-Hintergrund (verkleinert),
-// Wände werden abgedunkelt, begehbarer Boden leicht aufgehellt.
+// Das Bild der Zone ist eine gezeichnete Pergamentkarte (MapArt.js).
 const T = CONFIG.tileSize;
 const MM = 56;            // interne Pixel der Minimap (quadratisch)
 const MM_SCALE = 2;       // Kartenpixel je Tile in der Minimap
 const MAP_SCALE = 4;      // Kartenpixel je Tile in der Zonenkarte
 
+// Farben für Pergament: Tusche, Siegelrot, Gold mit dunklem Rand
 const C = {
   hero: '#ffffff', heroEdge: '#1a1020',
-  portal: '#b884ff', portalCore: '#f0e0ff',
-  npc: '#d8c8a8', offer: '#ffd84a', ready: '#ffd84a', active: '#a8a8a8',
-  enemy: '#e04040', elite: '#ff9a2a', boss: '#ff3030',
-  target: '#ffe070', path: 'rgba(255,224,112,0.55)',
+  portal: '#8a4ad8', portalCore: '#f0e0ff',
+  npc: '#3a2818', offer: '#ffd84a', ready: '#ffd84a', active: '#a8a8a8',
+  enemy: '#b01818', elite: '#e06010', boss: '#a01010',
+  target: '#b81414', path: 'rgba(184,20,20,0.55)',
 };
 
 // ------------------------------------------------------------------ Kartenbild
-const baseCache = new WeakMap(); // world -> { [scale]: canvas }
-
-// Kartenfarben je Zone: Bodenaufhellung (mul/add), Wandkante, Wandtönung. Helle Gebiete (Schnee) werden
-// weniger aufgehellt, damit Wege und Wände lesbar bleiben (Stufe 20–40, §12.2).
-const MAP_STYLE = {
-  default: { mul: 1.22, add: [14, 12, 18], edge: [92, 80, 104], wall: [8, 5, 14] },
-  ashen_steppe: { mul: 1.12, add: [14, 10, 6], edge: [150, 112, 70], wall: [16, 10, 6] },
-  howling_barrow: { mul: 1.3, add: [12, 14, 20], edge: [110, 120, 150], wall: [6, 6, 14] },
-  blighted_marsh: { mul: 1.18, add: [8, 16, 8], edge: [96, 140, 80], wall: [4, 12, 6] },
-  spore_hollow: { mul: 1.25, add: [10, 20, 8], edge: [140, 200, 90], wall: [6, 14, 6] },
-  frostspire: { mul: 0.82, add: [0, 6, 16], edge: [70, 110, 170], wall: [10, 18, 36] },
-  rime_caverns: { mul: 1.05, add: [6, 14, 28], edge: [120, 180, 240], wall: [6, 12, 28] },
-  ember_wastes: { mul: 1.15, add: [20, 8, 4], edge: [200, 110, 50], wall: [18, 6, 4] },
-  ashen_throne: { mul: 1.2, add: [22, 8, 6], edge: [230, 120, 60], wall: [20, 4, 6] },
-};
-
-export function zoneBaseImage(world, scale) {
-  let entry = baseCache.get(world);
-  if (!entry) { entry = {}; baseCache.set(world, entry); }
-  if (entry[scale]) return entry[scale];
-  const d = world.dungeon;
-  const c = makeCanvas(d.w * scale, d.h * scale);
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  if (world.background) ctx.drawImage(world.background, 0, 0, d.pixelW, d.pixelH, 0, 0, c.width, c.height);
-  // Lesbarkeit: Wände dunkel, Boden etwas heller und kühler
-  const img = ctx.getImageData(0, 0, c.width, c.height), px = img.data;
-  const st = MAP_STYLE[world.zone?.id ?? world.zoneId] ?? MAP_STYLE.default, [ar, ag, ab] = st.add, [wr, wg, wb] = st.wall;
-  for (let ty = 0; ty < d.h; ty++) for (let tx = 0; tx < d.w; tx++) {
-    const wall = d.solid[ty * d.w + tx] === 1;
-    for (let y = 0; y < scale; y++) for (let x = 0; x < scale; x++) {
-      const i = ((ty * scale + y) * c.width + tx * scale + x) * 4;
-      if (wall) { px[i] = px[i] * 0.28 + wr; px[i + 1] = px[i + 1] * 0.25 + wg; px[i + 2] = px[i + 2] * 0.3 + wb; }
-      else { px[i] = Math.min(255, px[i] * st.mul + ar); px[i + 1] = Math.min(255, px[i + 1] * st.mul + ag); px[i + 2] = Math.min(255, px[i + 2] * st.mul + ab); }
-    }
-  }
-  // Wandkanten (Boden neben Wand) als helle Linie – macht Räume und Wege klar
-  for (let ty = 0; ty < d.h; ty++) for (let tx = 0; tx < d.w; tx++) {
-    if (d.solid[ty * d.w + tx] !== 1) continue;
-    const open = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const x = tx + dx, y = ty + dy; return x >= 0 && y >= 0 && x < d.w && y < d.h && d.solid[y * d.w + x] === 0; });
-    if (!open) continue;
-    for (let y = 0; y < scale; y++) for (let x = 0; x < scale; x++) {
-      const i = ((ty * scale + y) * c.width + tx * scale + x) * 4;
-      px[i] = st.edge[0]; px[i + 1] = st.edge[1]; px[i + 2] = st.edge[2];
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  entry[scale] = c;
-  return c;
-}
+// Gezeichnete Pergamentkarte aus MapArt.js (Zonenkarte mit Symbolen und Rahmen, Minimap schlicht).
+export function zoneBaseImage(world, scale) { return renderZoneMap(world, scale, { detail: scale >= 3 }); }
 
 // ------------------------------------------------------------------ Questziel -> Weltposition
 // target = game.progression.questTarget(): { kind, id, ids?, zoneId? }
@@ -163,27 +115,59 @@ function portalToward(session, from, to) {
 // ------------------------------------------------------------------ Marker zeichnen
 function dot(ctx, x, y, col, s = 1) { ctx.fillStyle = col; ctx.fillRect(Math.round(x - (s - 1) / 2), Math.round(y - (s - 1) / 2), s, s); }
 
-function glyph(ctx, x, y, kind, t) {
+function glyph(ctx, x, y, kind, t, big = false) {
   x = Math.round(x); y = Math.round(y);
   const o = (dx, dy, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, 1, 1); };
+  const ink = '#1a1020';
   switch (kind) {
     case 'portal': {
       const p = Math.sin(t * 4) > 0;
+      if (big) {
+        // Wirbel: dunkler Ring, violette Spirale, heller Kern
+        for (const [dx, dy] of [[-1, -3], [0, -3], [1, -3], [-2, -2], [2, -2], [-3, -1], [3, -1], [-3, 0], [3, 0], [-3, 1], [3, 1], [-2, 2], [2, 2], [-1, 3], [0, 3], [1, 3]]) o(dx, dy, ink);
+        for (const [dx, dy] of [[-1, -2], [0, -2], [1, -2], [-2, -1], [2, -1], [-2, 0], [2, 0], [-2, 1], [2, 1], [-1, 2], [0, 2], [1, 2]]) o(dx, dy, C.portal);
+        for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) o(dx, dy, '#c8a0ff');
+        o(p ? 1 : -1, p ? -1 : 1, C.portal);
+        o(0, 0, C.portalCore);
+        break;
+      }
       for (const [dx, dy] of [[0, -2], [-1, -1], [1, -1], [-2, 0], [2, 0], [-1, 1], [1, 1], [0, 2]]) o(dx, dy, '#2a1040');
       for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) o(dx, dy, C.portal);
       o(0, 0, p ? C.portalCore : C.portal);
       break;
     }
     case 'offer': case 'ready': {
+      if (big) {
+        // Goldenes Siegel mit Ausrufe- bzw. Fragezeichen
+        const bob = Math.sin(t * 3) > 0.6 ? -1 : 0; y += bob;
+        ctx.fillStyle = ink; ctx.fillRect(x - 3, y - 6, 7, 9); ctx.fillRect(x - 4, y - 5, 9, 7);
+        ctx.fillStyle = '#8a5a10'; ctx.fillRect(x - 2, y - 5, 5, 7); ctx.fillRect(x - 3, y - 4, 7, 5);
+        ctx.fillStyle = C.offer; ctx.fillRect(x - 2, y - 5, 4, 6); ctx.fillRect(x - 3, y - 4, 1, 4);
+        ctx.fillStyle = ink;
+        if (kind === 'offer') { ctx.fillRect(x, y - 4, 1, 3); ctx.fillRect(x, y, 1, 1); }
+        else { ctx.fillRect(x - 1, y - 4, 2, 1); ctx.fillRect(x + 1, y - 3, 1, 1); ctx.fillRect(x, y - 2, 1, 1); ctx.fillRect(x, y, 1, 1); }
+        break;
+      }
       // Ausrufe-/Fragezeichen mit dunklem Rand
-      ctx.fillStyle = '#1a1020'; ctx.fillRect(x - 1, y - 4, 3, 7);
+      ctx.fillStyle = ink; ctx.fillRect(x - 1, y - 4, 3, 7);
       ctx.fillStyle = C.offer;
       if (kind === 'offer') { ctx.fillRect(x, y - 3, 1, 3); ctx.fillRect(x, y + 1, 1, 1); }
-      else { ctx.fillRect(x - 1, y - 3, 2, 1); ctx.fillRect(x + 1, y - 2, 1, 1); ctx.fillRect(x, y - 1, 1, 1); ctx.fillRect(x, y + 1, 1, 1); ctx.fillStyle = '#1a1020'; ctx.fillRect(x - 2, y - 3, 1, 1); }
+      else { ctx.fillRect(x - 1, y - 3, 2, 1); ctx.fillRect(x + 1, y - 2, 1, 1); ctx.fillRect(x, y - 1, 1, 1); ctx.fillRect(x, y + 1, 1, 1); ctx.fillStyle = ink; ctx.fillRect(x - 2, y - 3, 1, 1); }
       break;
     }
-    case 'npc': o(0, 0, C.npc); o(0, -1, C.npc); break;
+    case 'npc':
+      if (big) { o(0, -1, C.npc); o(-1, 0, C.npc); o(0, 0, '#e8d8b0'); o(1, 0, C.npc); o(0, 1, C.npc); }
+      else { o(0, 0, C.npc); o(0, -1, C.npc); }
+      break;
     case 'boss': {
+      if (big) {
+        // Totenschädel in Siegelrot
+        ctx.fillStyle = ink; ctx.fillRect(x - 3, y - 4, 7, 6); ctx.fillRect(x - 2, y + 2, 5, 2);
+        ctx.fillStyle = '#e8dcc0'; ctx.fillRect(x - 2, y - 3, 5, 4); ctx.fillRect(x - 1, y + 1, 3, 2);
+        ctx.fillStyle = C.boss; ctx.fillRect(x - 2, y - 1, 2, 2); ctx.fillRect(x + 1, y - 1, 2, 2);
+        ctx.fillStyle = ink; ctx.fillRect(x, y + 1, 1, 1); ctx.fillRect(x - 1, y + 2, 1, 1); ctx.fillRect(x + 1, y + 2, 1, 1);
+        break;
+      }
       ctx.fillStyle = '#1a0408'; ctx.fillRect(x - 2, y - 2, 5, 5);
       ctx.fillStyle = C.boss; ctx.fillRect(x - 1, y - 1, 3, 2); ctx.fillRect(x - 1, y + 1, 1, 1); ctx.fillRect(x + 1, y + 1, 1, 1);
       o(0, 0, '#1a0408');
@@ -193,23 +177,33 @@ function glyph(ctx, x, y, kind, t) {
   }
 }
 
+// Questziel: rotes Kreuz im pulsierenden Ring (wie auf einer Schatzkarte)
 function drawTarget(ctx, x, y, t, big = false) {
-  const r = (big ? 4 : 3) + (Math.sin(t * 5) > 0 ? 1 : 0);
+  x = Math.round(x); y = Math.round(y);
+  const r = (big ? 6 : 3) + (Math.sin(t * 5) > 0 ? 1 : 0);
+  for (let a = 0; a < (big ? 28 : 14); a++) {
+    const an = (a / (big ? 28 : 14)) * Math.PI * 2;
+    const px = Math.round(x + Math.cos(an) * r), py = Math.round(y + Math.sin(an) * r);
+    ctx.fillStyle = '#fff0d0'; ctx.fillRect(px + 1, py + 1, 1, 1);
+    ctx.fillStyle = C.target; ctx.fillRect(px, py, 1, 1);
+  }
+  const k = big ? 3 : 1;
+  ctx.fillStyle = '#fff0d0';
+  for (let i = -k; i <= k; i++) { ctx.fillRect(x + i + 1, y + i, 1, 1); ctx.fillRect(x + i + 1, y - i, 1, 1); }
   ctx.fillStyle = C.target;
-  for (let a = 0; a < 12; a++) { const an = (a / 12) * Math.PI * 2; ctx.fillRect(Math.round(x + Math.cos(an) * r), Math.round(y + Math.sin(an) * r), 1, 1); }
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  for (let i = -k; i <= k; i++) { ctx.fillRect(x + i, y + i, 1, 1); ctx.fillRect(x + i, y - i, 1, 1); if (big) { ctx.fillRect(x + i + 1, y + i, 1, 1); ctx.fillRect(x + i + 1, y - i, 1, 1); } }
 }
 
 // Held als Pfeil in Blickrichtung
-function drawHero(ctx, x, y, ang) {
-  const c = Math.cos(ang), s = Math.sin(ang);
-  const pts = [[2.6, 0], [-1.6, -1.8], [-0.6, 0], [-1.6, 1.8]];
+function drawHero(ctx, x, y, ang, big = false) {
+  const c = Math.cos(ang), s = Math.sin(ang), m = big ? 1.6 : 1;
+  const pts = [[2.6 * m, 0], [-1.6 * m, -1.8 * m], [-0.6 * m, 0], [-1.6 * m, 1.8 * m]];
   ctx.fillStyle = C.heroEdge;
   for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    for (let u = -2; u <= 3; u += 0.5) for (let v = -2; v <= 2; v += 0.5) if (inTri(u, v, pts)) ctx.fillRect(Math.round(x + u * c - v * s) + dx, Math.round(y + u * s + v * c) + dy, 1, 1);
+    for (let u = -2 * m; u <= 3 * m; u += 0.5) for (let v = -2 * m; v <= 2 * m; v += 0.5) if (inTri(u, v, pts)) ctx.fillRect(Math.round(x + u * c - v * s) + dx, Math.round(y + u * s + v * c) + dy, 1, 1);
   }
   ctx.fillStyle = C.hero;
-  for (let u = -2; u <= 3; u += 0.5) for (let v = -2; v <= 2; v += 0.5) if (inTri(u, v, pts)) ctx.fillRect(Math.round(x + u * c - v * s), Math.round(y + u * s + v * c), 1, 1);
+  for (let u = -2 * m; u <= 3 * m; u += 0.5) for (let v = -2 * m; v <= 2 * m; v += 0.5) if (inTri(u, v, pts)) ctx.fillRect(Math.round(x + u * c - v * s), Math.round(y + u * s + v * c), 1, 1);
 }
 function inTri(u, v, [a, b, m, d]) {
   // Pfeilform: zwei Dreiecke (Spitze a, Flügel b/d, Kerbe m)
@@ -223,23 +217,23 @@ function heroAngle(hero) {
 }
 
 // Alle Marker einer Zone in Kartenkoordinaten: map(x,y) -> [px,py]
-function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true } = {}) {
+function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, big = false } = {}) {
   const w = session.world, prog = session.game?.progression ?? session.progression;
   const inside = (p) => !clipRect || (p[0] >= clipRect[0] && p[1] >= clipRect[1] && p[0] < clipRect[2] && p[1] < clipRect[3]);
   // Portale
-  for (const e of w.entities) if (e.to?.zoneId) { const p = map(e.x, e.y); if (inside(p)) glyph(ctx, p[0], p[1], 'portal', t); }
+  for (const e of w.entities) if (e.to?.zoneId) { const p = map(e.x, e.y); if (inside(p)) glyph(ctx, p[0], p[1], 'portal', t, big); }
   // Gegner
   if (enemies) for (const e of w.enemies) {
     if (e.dead || e.rise < 1) continue;
     const p = map(e.x, e.y); if (!inside(p)) continue;
-    if (e.def?.boss || e.boss || e === w.boss) glyph(ctx, p[0], p[1], 'boss', t);
-    else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, e.def?.elite || e.elite ? 2 : 1);
+    if (e.def?.boss || e.boss || e === w.boss) glyph(ctx, p[0], p[1], 'boss', t, big);
+    else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, (e.def?.elite || e.elite ? 2 : 1) + (big ? 1 : 0));
   }
   // NPCs mit Questmarkierung
   for (const n of w.npcs) {
     const p = map(n.x, n.y); if (!inside(p)) continue;
     const m = prog?.npcMarker?.(n.npcId);
-    glyph(ctx, p[0], p[1], m === 'available' || m === 'repeatable' ? 'offer' : m === 'ready' ? 'ready' : 'npc', t);
+    glyph(ctx, p[0], p[1], m === 'available' || m === 'repeatable' ? 'offer' : m === 'ready' ? 'ready' : 'npc', t, big);
   }
 }
 
@@ -276,7 +270,7 @@ export class Minimap {
     const ctx = this.ctx, hero = w.hero;
     const k = MM_SCALE / T;
     const cx = hero.x * k - MM / 2, cy = hero.y * k - MM / 2;
-    ctx.fillStyle = '#0a0610'; ctx.fillRect(0, 0, MM, MM);
+    ctx.fillStyle = '#2a2016'; ctx.fillRect(0, 0, MM, MM);
     ctx.drawImage(base, Math.round(cx), Math.round(cy), MM, MM, 0, 0, MM, MM);
     const map = (x, y) => [x * k - Math.round(cx), y * k - Math.round(cy)];
     drawMarkers(ctx, s, map, this.t, { clipRect: [1, 1, MM - 1, MM - 1] });
@@ -313,43 +307,52 @@ export function createMapPanel(session) {
   const base = zoneBaseImage(w, MAP_SCALE);
   const canvas = h('canvas.map-canvas', { width: base.width, height: base.height });
   const ctx = canvas.getContext('2d');
+  // Beschriftungen als Schrift über dem Bild (scharf und übersetzbar)
+  const labels = mapLabels(w, content).map((l) => h(`span.map-label.${l.kind}`, {
+    style: { left: `${(l.x / w.dungeon.w) * 100}%`, top: `${(l.y / w.dungeon.h) * 100}%` },
+  }, l.text));
+  const sheet = h('div.map-sheet', canvas, ...labels);
   const tgtInfo = h('div.map-target');
   const legend = h('ul.map-legend',
-    legendItem('hero', 'Du'), legendItem('target', 'Questziel'), legendItem('offer', 'Neue Quest / Abgabe'),
-    legendItem('portal', 'Portal'), legendItem('enemy', 'Gegner'), legendItem('boss', 'Boss'));
+    legendItem('hero', 'Du'), legendItem('target', 'Questziel'), legendItem('offer', 'Quest'),
+    legendItem('portal', 'Portal'), legendItem('boss', 'Boss'));
   const root = h('div.ef-panel.map-panel', { role: 'dialog', 'aria-label': 'Zonenkarte' },
     h('header.map-head',
       h('div', h('h2.map-title', zoneDef?.name ?? 'Karte'), h('div.map-sub', [zoneDef?.subtitle, zoneDef?.recommendedLevel ? `Stufe ${zoneDef.recommendedLevel}` : null].filter(Boolean).join(' · '))),
-      h('button.ef-btn.map-close', { type: 'button', onclick: () => session.panels?.close?.() }, 'Schließen')),
-    h('div.map-frame', canvas),
-    h('footer.map-foot', tgtInfo, legend,
-      h('p.map-note', 'Karte dieser Zone. Taste M oder Tippen auf die Minimap öffnet sie.')),
+      h('button.pg-close.map-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (M)', onclick: () => session.panels?.close?.() }, '✕')),
+    h('div.map-frame', sheet),
+    h('footer.map-foot', tgtInfo, legend),
   );
-  // Ganzzahlig hochskalieren, bis die Karte den Rahmen füllt (scharfe Pixel)
+  // Karte füllt den Rahmen: in Viertelschritten skaliert (scharfe Pixel), auf kleinen Schirmen auch kleiner als 1
+  const frameEl = root.querySelector('.map-frame');
   const fit = () => {
-    const maxW = Math.min(window.innerWidth * 0.92, 900) - 44, maxH = window.innerHeight * (window.innerHeight > window.innerWidth ? 0.52 : 0.6);
-    const z = Math.max(1, Math.floor(Math.min(maxW / base.width, maxH / base.height) * 2) / 2);
-    canvas.style.width = `${Math.round(base.width * z)}px`; canvas.style.height = `${Math.round(base.height * z)}px`;
+    const aw = (frameEl.clientWidth || window.innerWidth * 0.9) - 16, ah = (frameEl.clientHeight || window.innerHeight * 0.6) - 16;
+    const raw = Math.min(aw / base.width, ah / base.height);
+    const fz = raw >= 1 ? Math.floor(raw * 4) / 4 : Math.max(0.4, raw);
+    sheet.style.width = `${Math.round(base.width * fz)}px`; sheet.style.height = `${Math.round(base.height * fz)}px`;
+    sheet.style.setProperty('--map-z', String(fz));
   };
-  fit();
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
+  ro?.observe(frameEl);
+  requestAnimationFrame(fit);
   window.addEventListener('resize', fit);
   let t = 0, acc = 1, lastTarget = '';
   const k = MAP_SCALE / T;
   const map = (x, y) => [x * k, y * k];
   return {
     root,
-    dispose() { window.removeEventListener('resize', fit); },
+    dispose() { window.removeEventListener('resize', fit); ro?.disconnect(); },
     update(dt) {
       t += dt; acc += dt;
       if (acc < 1 / 15) return;
       acc = 0;
       ctx.drawImage(base, 0, 0);
-      drawMarkers(ctx, session, map, t, { enemies: true });
+      drawMarkers(ctx, session, map, t, { enemies: true, big: true });
       const target = session.game?.progression?.questTarget?.() ?? null;
       const tgt = resolveTarget(session, target);
       if (tgt) { const [px, py] = map(tgt.x, tgt.y); drawTarget(ctx, px, py, t, true); }
       const hero = w.hero, hp = map(hero.x, hero.y);
-      drawHero(ctx, hp[0], hp[1], heroAngle(hero));
+      drawHero(ctx, hp[0], hp[1], heroAngle(hero), true);
       const key = target ? `${target.title}|${target.text}|${tgt?.via ?? ''}` : '';
       if (key !== lastTarget) {
         lastTarget = key;
@@ -362,10 +365,10 @@ export function createMapPanel(session) {
 }
 
 function legendItem(kind, text) {
-  const c = makeCanvas(9, 9), ctx = c.getContext('2d');
-  if (kind === 'hero') drawHero(ctx, 4, 4, -Math.PI / 2);
-  else if (kind === 'target') drawTarget(ctx, 4, 4, 0);
-  else if (kind === 'enemy') dot(ctx, 4, 4, C.enemy, 2);
-  else glyph(ctx, 4, 5, kind, 0);
+  const c = makeCanvas(15, 15), ctx = c.getContext('2d');
+  if (kind === 'hero') drawHero(ctx, 7, 7, -Math.PI / 2, true);
+  else if (kind === 'target') drawTarget(ctx, 7, 7, 0, true);
+  else if (kind === 'enemy') dot(ctx, 7, 7, C.enemy, 3);
+  else glyph(ctx, 7, kind === 'offer' ? 9 : 7, kind, 0, true);
   return h('li', h('img.map-legend-icon', { src: c.toDataURL(), alt: '' }), h('span', text));
 }
