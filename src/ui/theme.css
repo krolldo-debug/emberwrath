@@ -201,7 +201,7 @@
 .hud-champ-name { color: var(--champ); font: 700 1.12em var(--ef-font-title); letter-spacing: 0.04em; margin-bottom: 2px; text-shadow: 0 1px 0 #000, 0 0 8px rgba(0, 0, 0, 0.9); }
 .hud-champ .hud-meter.champ { height: 9px; border: 1px solid #000; box-shadow: 0 0 0 1px color-mix(in srgb, var(--champ) 60%, #000), 0 0 10px color-mix(in srgb, var(--champ) 35%, transparent); }
 .hud-meter.champ { --c: var(--ef-hp); --hi: var(--ef-hp-hi); --lo: #7a1a26; }
-.hud-champ-aff { margin-top: 3px; font-size: 0.78em; color: #e8dcc8; letter-spacing: 0.03em; text-shadow: 0 1px 0 #000, 0 0 6px #000; }
+.hud-champ-aff { display: inline-block; margin-top: 3px; padding: 1px 8px; font: 700 0.86em var(--ef-font); color: #f4e8d0; letter-spacing: 0.04em; background: rgba(10, 6, 14, 0.78); border: 1px solid color-mix(in srgb, var(--champ) 45%, #000); text-shadow: 0 1px 0 #000; }
 
 /* Banner */
 .hud-banner {
@@ -558,31 +558,46 @@
 .map-legend-icon { width: 22px; height: 22px; image-rendering: pixelated; }
 .map-close { flex: none; }
 
-/* Garderobe: Vorschau links, Aussehen als Kacheln rechts */
-.wd-panel { width: min(96vw, 760px); max-width: min(96vw, 760px); max-height: 94vh; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; }
+/* Garderobe: große Vorschau links, Aussehen als Icon-Kacheln rechts (Name unter der Vorschau) */
+.wd-panel { width: min(96vw, 860px); max-width: min(96vw, 860px); max-height: 94vh; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; }
 .wd-head { display: flex; align-items: center; justify-content: space-between; }
 .wd-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
 .wd-tabs { padding: 0; }
 .wd-body { display: flex; gap: 14px; min-height: 0; flex: 1 1 auto; padding-top: 8px; }
-.wd-stage { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 228px; }
+.wd-stage { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 296px; }
 .wd-stage canvas { image-rendering: pixelated; border: 1px solid #3a2530; background: #0e0912; }
-.wd-pick { display: flex; flex-direction: column; align-items: center; min-height: 34px; text-align: center; }
-.wd-pick-name { font: 700 14px var(--ef-font-title); color: var(--ef-text); }
+.wd-pick { display: flex; flex-direction: column; align-items: center; min-height: 36px; text-align: center; }
+.wd-pick-name { font: 700 15px var(--ef-font-title); color: var(--ef-text); }
 .wd-pick-sub { font-size: 12px; color: #ff8a7a; }
-.wd-apply { min-width: 140px; }
+.wd-alt { display: flex; gap: 6px; }
+.wd-altbtn { width: auto; min-width: 0; flex: none; min-height: 30px; padding: 2px 12px; font-size: 13px; }
+.wd-altbtn.on { border-color: var(--ef-gold); color: var(--ef-gold); }
+.wd-apply { width: auto; min-width: 160px; }
 .wd-msg { margin: 0; font-size: 12px; color: #ff8a7a; }
-.wd-grid { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; align-content: start; padding-right: 2px; }
-.wd-tile { --wd-r: #6a5a70; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px; min-height: 76px; background: rgba(8, 5, 12, 0.55); border: 1px solid #2e2032; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6); color: var(--ef-text); cursor: pointer; font: 12px var(--ef-font); }
-.wd-tile > img, .wd-tile > canvas, .wd-tile > span:first-child { border: 1px solid var(--wd-r); background: #140c1c; image-rendering: pixelated; }
+.wd-grid { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, 76px); gap: 6px; align-content: start; justify-content: start; padding: 2px; }
+.wd-tile { --wd-r: #6a5a70; position: relative; width: 76px; height: 76px; padding: 0; display: grid; place-items: center; background: #140c1c; border: 2px solid #0b0710; box-shadow: inset 0 0 0 1px var(--wd-r), inset 0 0 12px rgba(0, 0, 0, 0.7); cursor: pointer; }
+.wd-tile > img, .wd-tile > canvas { width: 64px; height: 64px; image-rendering: pixelated; }
 .wd-tile:hover { border-color: #6a4a70; }
-.wd-tile.sel { border-color: var(--ef-gold); background: rgba(60, 40, 10, 0.45); box-shadow: inset 0 0 0 1px rgba(232, 194, 90, 0.35); }
-.wd-tile.cur::after { content: ''; position: absolute; }
-.wd-tile.cur .wd-tile-name { color: var(--ef-gold); }
-.wd-tile.off { opacity: 0.5; }
-.wd-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
-.wd-glyph { width: 34px; height: 34px; display: grid; place-items: center; font-size: 18px; color: var(--ef-muted); }
+.wd-tile.sel { border-color: var(--ef-gold); box-shadow: inset 0 0 0 1px var(--ef-gold), 0 0 10px rgba(232, 194, 90, 0.35); }
+.wd-tile.off > img, .wd-tile.off > canvas { filter: grayscale(1) brightness(0.45); }
+/* Häkchen (getragen) und Schloss (andere Klasse) als kleine Pixel-Plaketten in der Ecke */
+.wd-check { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+.wd-check::after { content: ''; position: absolute; left: 3px; top: 2px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
+.wd-lock { position: absolute; inset: 0; margin: auto; width: 16px; height: 13px; top: 8px; background: #b8a888; border: 2px solid #0b0710; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.wd-lock::before { content: ''; position: absolute; left: 1px; top: -10px; width: 10px; height: 9px; border: 2px solid #b8a888; border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 0 0 1px #0b0710; }
 .wd-foot { display: flex; justify-content: flex-end; }
-@media (max-height: 500px) { .wd-panel { max-height: 96vh; padding: 6px 10px; } .wd-stage { width: 170px; } .wd-stage canvas { width: 144px !important; height: 112px !important; } .wd-tile { min-height: 64px; padding: 4px; } }
+@media (max-height: 500px) {
+  .wd-panel { max-height: 96vh; padding: 6px 10px; gap: 4px; }
+  .wd-body { padding-top: 4px; gap: 10px; }
+  .wd-stage { width: 210px; gap: 4px; }
+  .wd-stage canvas { width: 180px !important; height: 140px !important; }
+  .wd-pick { min-height: 0; } .wd-pick-name { font-size: 13px; }
+  .wd-alt .wd-altbtn, .wd-apply { min-height: 28px; padding: 2px 10px; font-size: 13px; } .wd-apply { min-width: 120px; }
+  .wd-grid { grid-template-columns: repeat(auto-fill, 60px); }
+  .wd-tile { width: 60px; height: 60px; } .wd-tile > img, .wd-tile > canvas { width: 48px; height: 48px; }
+  .wd-foot { display: none; }
+}
 
 /* Reisemenü am Wegstein */
 .tv-panel { width: min(94vw, 480px); max-height: 92vh; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-sizing: border-box; }

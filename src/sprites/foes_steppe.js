@@ -125,19 +125,20 @@ function poly(p, pts, col) {
 }
 
 // Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy),
-// am Ende dicht und hell, am Anfang ausgedünnt; sy staucht die Bahn senkrecht.
+// am Ende breit und hell, am Anfang schmal; sy staucht die Bahn senkrecht.
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.4) + 2;
+  // geschlossene Sichel ohne Raster: dünn am Anfang, zur Klinge hin breit,
+  // Außenkante hell (Klingenbahn), innen dunkler auslaufend
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.6) + 2;
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
-    for (let r = r0; r <= r1; r += 0.5) {
-      const radial = (r - r0) / (r1 - r0 || 1);
+    const w = (r1 - r0) * (0.12 + 0.88 * f * f);
+    for (let r = r1 - w; r <= r1; r += 0.5) {
+      const radial = (r - (r1 - w)) / (w || 1);
       const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
-      const dens = f * f * 0.55 + radial * (0.2 + 0.8 * f) - 0.12;
-      if (hash2(x + 50, y + 50, 31) > dens) continue;
-      const c = radial > 0.82 ? cols[2] : radial > 0.5 ? cols[1] : cols[0];
+      const c = radial > 0.8 ? cols[2] : radial > 0.4 ? cols[1] : cols[0];
       p.px(x, y, c);
-      if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.82 ? gcols[1] : gcols[0]);
+      if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.8 ? gcols[1] : gcols[0]);
     }
   }
 }
@@ -452,9 +453,10 @@ function drawRaider(p, g, P, X, archer) {
     // Lamellenpanzer: Reihen aus Leder mit Bronzenieten
     for (let u = 2.2; u <= 6.8; u += 1.5) {
       for (let k = -2.5; k <= 2.6; k += 1) {
-        q(u, k, (k + 2.5) % 2 < 1 ? LEA[4] : LEA[3]);
-        q(u - 0.7, k, LEA[1]);
-        if ((Math.round(k + 2.5) + Math.round(u)) % 5 === 0) q(u, k, BRZ[4]);
+        const seam = Math.round(k + 2.5) % 3 === 0;
+        q(u, k, seam ? LEA[2] : k < 0 ? LEA[5] : LEA[4]);   // Plattenkante, links im Licht
+        q(u - 0.7, k, LEA[1]);                             // Schatten unter der Reihe
+        if (seam && Math.round(u * 2) % 3 === 1) q(u, k, BRZ[4]);
       }
     }
     // Bronzescheibe (Brustspiegel)
@@ -489,29 +491,31 @@ function drawRaider(p, g, P, X, archer) {
   if (!archer) drawTarge(p, armB.ex + 1, armB.ey - 1, P.sh);
 
   // --- 8. Kopf
-  ell(p, hx + 0.5, hy + 0.5, 3.2, 3.3, SK);
+  ell(p, hx + 0.5, hy + 0.5, 3.2, 3.3, SK, { bias: 0.08 });
   p.px(hx - 1, hy + 1, SK[1]);                     // Ohr
   // Gesicht: Nase, Mund, Kriegsbemalung
   p.px(hx + 3.5, hy + 1, SK[4]); p.px(hx + 4, hy + 1.5, SK[3]);
   if (archer) {
-    p.px(hx + 1, hy + 1, OCHRE[3]); p.px(hx + 1, hy + 2, OCHRE[2]);   // roter Wangenstrich
-    if (P.eye > 0.5) { p.px(hx + 2, hy, '#efe2c8'); p.px(hx + 3, hy, '#1a0e0a'); } else { p.px(hx + 2, hy, SK[2]); p.px(hx + 3, hy, SK[2]); }
-    p.px(hx + 2, hy - 1, HAIR[2]); p.px(hx + 3, hy - 1, HAIR[2]);     // Braue
+    p.px(hx + 1, hy + 2, OCHRE[3]); p.px(hx + 2, hy + 2, OCHRE[2]);   // roter Wangenstrich
+    p.px(hx + 1, hy, SK[1]);                                          // Augenschatten (Kohle)
+    if (P.eye > 0.5) { p.px(hx + 2, hy, '#efe2c8'); p.px(hx + 3, hy, '#1a0e0a'); } else { p.px(hx + 2, hy, SK[1]); p.px(hx + 3, hy, SK[1]); }
+    p.px(hx + 2, hy - 1, HAIR[1]); p.px(hx + 3, hy - 1, HAIR[2]);     // Braue
+    p.px(hx + 2, hy + 1, SK[5]);                                      // Wangenlicht
     p.px(hx + 3, hy + 2, '#7a3228');             // Lippen
     p.px(hx - 1, hy + 2, BRZ[5]); g.px(hx - 1, hy + 2, BRZ[3]); // Ohrring
   } else {
-    // roter Ockerstreifen durchs Auge, darunter ein Ascheweiß-Strich
-    p.px(hx, hy, OCHRE[2]); p.px(hx + 1, hy, OCHRE[3]); p.px(hx + 1, hy + 1, OCHRE[2]);
-    p.px(hx, hy + 1, PAINT_W);
-    if (P.eye > 0.5) { p.px(hx + 2, hy, '#f2e6c8'); p.px(hx + 3, hy, '#1a0a06'); g.px(hx + 2, hy, '#4a2208'); }
-    else { p.px(hx + 2, hy, SK[1]); p.px(hx + 3, hy, SK[1]); }
-    p.px(hx + 2, hy - 1, HAIR[1]); p.px(hx + 3, hy - 1, HAIR[2]);   // Braue
-    // Hängeschnurrbart, Kinnbart
+    // Kriegsbemalung: Ruß in der Augenhöhle, ein Ockerstrich auf der Wange
+    p.px(hx + 1, hy, '#2a1810'); p.px(hx, hy, SK[2]);
+    p.px(hx + 1, hy + 1, OCHRE[3]);
+    p.px(hx + 2, hy + 1, SK[5]); p.px(hx + 3, hy + 1, SK[4]);         // Wangenknochen im Licht
+    if (P.eye > 0.5) { p.px(hx + 2, hy, '#f2e6c8'); p.px(hx + 3, hy, '#120604'); g.px(hx + 2, hy, '#4a2208'); }
+    p.px(hx + 1, hy - 1, HAIR[1]); p.px(hx + 2, hy - 1, HAIR[1]); p.px(hx + 3, hy - 1, HAIR[2]);   // zornige Braue
+    // Hängeschnurrbart, Kinnbart; beim Brüllen offener Mund mit Zähnen
     const jw = Math.round(P.jaw * 1.5);
-    p.px(hx + 3, hy + 2, HAIR[3]); p.px(hx + 4, hy + 2, HAIR[2]);
-    p.px(hx + 4, hy + 3 + jw, HAIR[1]); p.px(hx + 2, hy + 3, HAIR[1]);
-    if (jw) p.px(hx + 3, hy + 3, '#2a0806');
-    p.px(hx + 1, hy + 4 + jw, HAIR[1]);
+    p.px(hx + 3, hy + 2, HAIR[3]); p.px(hx + 4, hy + 2, HAIR[2]); p.px(hx + 2, hy + 2, HAIR[2]);
+    if (jw) { p.px(hx + 3, hy + 3, '#2a0806'); p.px(hx + 4, hy + 3, '#2a0806'); p.px(hx + 3, hy + 2.6, '#e8dcc0'); }
+    p.rect(hx + 1, hy + 3 + jw, 3, 1, HAIR[1]); p.px(hx + 4, hy + 3 + jw, HAIR[2]);
+    p.px(hx + 1, hy + 4 + jw, HAIR[1]); p.px(hx + 2, hy + 4 + jw, HAIR[0]);
   }
   meta.eye = { x: hx + 2, y: hy };
   meta.mouth = { x: hx + 4, y: hy + 2 };
@@ -521,7 +525,8 @@ function drawRaider(p, g, P, X, archer) {
     ell(p, hx + 0.3, hy - 2.8, 3.5, 2.0, FELT);
     poly(p, [[hx - 2.5, hy - 3], [hx + 2.5, hy - 3.5], [hx - 3.5 - P.cape, hy - 8]], FELT[3]);
     p.line(hx - 3.5 - P.cape, hy - 8, hx + 1, hy - 4, FELT[4]);
-    for (let x = -3; x <= 3; x++) p.px(hx + x, hy - 1, FUR[(x + 9) % 2 ? 5 : 4]);
+    for (let x = -3; x <= 3; x++) p.px(hx + x, hy - 1, x < 0 ? FUR[6] : FUR[4]);
+    p.px(hx + 3, hy - 1, FUR[3]);
     p.px(hx - 3, hy, FUR[3]);
     p.line(hx - 2, hy - 3, hx - 5 - P.cape, hy - 6, PAINT_W); p.px(hx - 5 - P.cape, hy - 6, HAIR[1]);
     meta.head = { x: hx, y: hy - 8 };
@@ -714,13 +719,14 @@ function drawHyena(p, g, P, X) {
   // Bauch dunkel
   ell(p, ox + 11, Y(11, by + 3.4), 6, 1.2, HY_D.slice(1));
   // Flecken
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 11; i++) {
     const x = 3 + hash2(i, 1, 61) * 17, y = -2.5 + hash2(i, 2, 61) * 5;
     const topY = -3.2 - Math.max(0, x - 8) * 0.12;
     if (y < topY + 0.5) continue;
     const c = SPOT[i % 2];
     p.px(ox + x, Y(x, by + y), c);
-    if (hash2(i, 3, 61) < 0.4) p.px(ox + x + 1, Y(x, by + y), c);
+    p.px(ox + x + 1, Y(x, by + y), c);                       // Flecken je 2 px, klar statt Rauschen
+    if (hash2(i, 3, 61) < 0.4) p.px(ox + x, Y(x, by + y) + 1, SPOT[1]);
   }
   // Mähne: dunkle Borsten vom Nacken bis zur Rückenmitte
   for (let x = 7; x <= 23; x += 1) {
@@ -728,8 +734,8 @@ function drawHyena(p, g, P, X) {
     const h = 1.5 + (hash2(x, 5, 63) * 2 | 0) + (x > 13 && x < 21 ? 1 : 0) + (X.bristle ? 1 : 0);
     const lean = -0.6 - hash2(x, 6, 63) * 0.4 - P.amp * 0.3;
     const y0 = Y(x, by + top * flat + 1);
-    p.line(ox + x, y0, ox + x + lean * h, y0 - h, x % 3 === 0 ? MANE[1] : MANE[2]);
-    p.px(ox + x + lean * h, y0 - h, x % 2 ? MANE[4] : MANE[3]);
+    p.line(ox + x, y0, ox + x + lean * h, y0 - h, MANE[x % 4 === 0 ? 1 : 2]);
+    p.px(ox + x + lean * h, y0 - h, MANE[3]);                      // Spitzen einheitlich: Kamm statt Rauschen
   }
 
   // --- Vorderbeine (nahe Seite)
@@ -745,7 +751,7 @@ function drawHyena(p, g, P, X) {
     const x = ox + 20 + k * (hx - 2 - ox - 20) / 5, y = Y(20, by - 6.5) + k * (hy - 3 - Y(20, by - 6.5)) / 5;
     p.line(x, y + 1, x - 1, y - 1 - (k % 2), MANE[2]); p.px(x - 1, y - 1 - (k % 2), MANE[4]);
   }
-  ell(p, hx, hy, 3.3, 3.0, HY);
+  ell(p, hx, hy, 3.3, 3.0, HY, { bias: 0.08 });
   // Schnauze: Richtung mu (+ = nach unten)
   const mu = -up * 0.9 + hd * 0.25;
   const mx = Math.cos(mu), my = Math.sin(mu);
@@ -765,15 +771,21 @@ function drawHyena(p, g, P, X) {
   // Ohren (rund, dunkel gerändert)
   const ear = (ex, ey, near) => {
     ell(p, ex, ey - P.ear * 0.5, 1.7, 2.3, near ? HY.slice(2, 7) : HY_D, { rot: -0.35 - P.ear * 0.3 });
-    p.px(ex + 0.3, ey + 0.3 - P.ear * 0.5, MANE[1]); p.px(ex + 0.3, ey - 0.7 - P.ear * 0.5, MANE[2]);
+    p.px(ex + 0.3, ey + 0.3 - P.ear * 0.5, near ? '#5a3a30' : MANE[1]); p.px(ex + 0.3, ey - 0.7 - P.ear * 0.5, MANE[2]);
+    p.px(ex - 0.7, ey - 1.8 - P.ear * 0.5, MANE[1]);                       // dunkler Ohrrand
   };
   ear(hx - 3, hy - 3.2, false);
   ear(hx - 1, hy - 3.6, true);
   // Wangenfleck, Auge mit bernsteinfarbenem Glanz
   p.px(hx - 1, hy + 1, SPOT[0]); p.px(hx - 2, hy + 0, SPOT[1]);
   const ex = hx + 1.2, ey = hy - 1;
-  p.rect(ex - 1, ey, 2, 1, MANE[1]);
-  if (P.eye > 0.3) { p.px(ex, ey, '#f0b43c'); g.px(ex, ey, '#e0a030'); g.px(ex - 1, ey, '#5a3008'); }
+  // Auge: dunkle Maske, bernsteinfarbene Iris, heller Brauenwulst darüber
+  p.rect(ex - 1, ey, 3, 1, MANE[1]); p.px(ex - 1, ey + 1, MANE[2]);
+  p.px(ex - 1, ey - 1, HY[6]); p.px(ex, ey - 1, HY[5]); p.px(ex + 1, ey - 1, HY[3]);
+  if (P.eye > 0.3) { p.px(ex, ey, '#f0b43c'); p.px(ex + 1, ey, '#1a0e06'); g.px(ex, ey, '#e0a030'); g.px(ex - 1, ey, '#5a3008'); }
+  // Fangzahn ragt auch bei geschlossenem Maul über die Lefze
+  if (jw < 0.5) { p.px(sx - mx * 1.3, sy + 1.4, BONE[4]); p.px(sx - mx * 1.3, sy + 2.2, BONE[2]); }
+  p.px(sx - mx * 2.4, sy + 1.4, MANE[0]);                                   // Lefzenfalte
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: sx + mx, y: sy + 0.5 };
   meta.head = { x: hx, y: hy - 5 };
@@ -978,6 +990,10 @@ function drawVulture(p, g, P, X) {
   }
   // glühendes Auge
   const ex = hx + 0.6, ey = hy - 0.6;
+  // Augenhöhle und finsterer Brauenwulst, Wachshaut am Schnabelansatz
+  p.px(ex - 1, ey, NECK[0]); p.px(ex, ey + 1, NECK[1]);
+  p.px(ex - 1, ey - 1, NECK[5]); p.px(ex, ey - 1.2, NECK[4]); p.px(ex + 1, ey - 0.8, NECK[1]);
+  p.px(bx0 - 0.2, by0 - 0.6, BONE[4]); p.px(bx0 + 0.6, by0 - 0.4, BONE[3]);
   p.px(ex, ey, P.eye > 0.3 ? '#ff5a30' : NECK[0]);
   if (P.eye > 0.3) { g.px(ex, ey, '#ff8040'); g.px(ex + 1, ey, '#8a1a08'); g.px(ex, ey - 1, '#5a1004'); }
   meta.eye = { x: ex, y: ey };

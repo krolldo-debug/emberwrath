@@ -88,19 +88,19 @@ function shard(p, g, x, y, a, len, w, ramp, o = {}) {
 }
 
 
-// Schwung-Schleier wie foes_ashwood.js: überstreicht a0 → a1 um (cx,cy); frisch
-// (am Ende) dicht und hell, am Anfang ausgedünnt. sy staucht die Bahn senkrecht.
+// Schwung-Schleier: geschlossene Sichel von a0 nach a1 um (cx,cy). Am Ende
+// (frisch) breit und hell, zum Anfang hin spitz auslaufend; harte Stufen statt
+// Rasterrauschen, damit die Kontur keine Krümel bildet. sy staucht senkrecht.
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.4) + 2;
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 2) + 2;
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
-    for (let r = r0; r <= r1; r += 0.5) {
-      const radial = (r - r0) / (r1 - r0 || 1);
+    const th = (r1 - r0) * (0.12 + 0.75 * f * f);
+    for (let r = r1 - th; r <= r1; r += 0.5) {
+      const radial = (r - (r1 - th)) / (th || 1);
       const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
-      const dens = f * f * 0.5 + radial * radial * (0.15 + 0.7 * f) - 0.15;
-      if (hash2(x + 50, y + 50, 31) > dens) continue;
-      p.px(x, y, radial > 0.85 ? cols[2] : radial > 0.55 ? cols[1] : cols[0]);
-      if (g && gcols && f > 0.4 && radial > 0.5) g.px(x, y, radial > 0.85 ? gcols[1] : gcols[0]);
+      p.px(x, y, radial > 0.72 ? cols[2] : radial > 0.3 ? cols[1] : cols[0]);
+      if (g && gcols && f > 0.35 && radial > 0.4) g.px(x, y, radial > 0.72 ? gcols[1] : gcols[0]);
     }
   }
 }
@@ -119,8 +119,7 @@ function frostMist(p, g, x, y, w, ph, seed, cols) {
   for (let i = 0; i < 14; i++) {
     const u = hash2(i, 1, seed) - 0.5, v = hash2(i, 2, seed);
     const xx = x + u * w + Math.sin(ph + i) * 1.2, yy = y - v * 2 - ((ph * 2 + i * 0.7) % 3);
-    if (hash2(i, 3, seed) < 0.5) g.px(xx, yy, cols[0]);
-    else { g.px(xx, yy, cols[1]); if (p) p.px(xx, yy, cols[2]); }
+    g.px(xx, yy, hash2(i, 3, seed) < 0.5 ? cols[0] : cols[1]);
   }
 }
 
@@ -251,18 +250,22 @@ function drawIceElemental(p, g, P, ex) {
   shard(p, g, hh.x - 1, hh.y + 1, -1.9, 9, 2.4, ICE, { base: 0.4 });           // hinterer Kronenzacken
   shard(p, g, hh.x + 1, hh.y + 1, -1.45, 11, 2.6, ICE, { base: 0.4 });         // Mittelzacken
   // Gesichtsplatte (keilförmig nach vorn)
-  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 6, hh.y], [hh.x + 3, hh.y + 4], [hh.x - 3, hh.y + 3]], ICE[3]);
-  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 1, hh.y], [hh.x - 3, hh.y + 1]], ICE[5]);
+  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 6, hh.y], [hh.x + 3, hh.y + 4], [hh.x - 3, hh.y + 3]], ICE[2]);
+  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 1, hh.y - 1], [hh.x - 3, hh.y]], ICE[4]);
   p.line(hh.x - 3, hh.y - 2, hh.x + 2, hh.y - 4, ICE[7]);
   p.line(hh.x + 6, hh.y, hh.x + 3, hh.y + 4, ICE[1]);
   shard(p, g, hh.x + 3, hh.y - 1, -0.9, 7, 1.6, ICE, { base: 0.35 });          // vorderer Zacken
-  // Augen
+  // Augen: dunkle Höhle unter einer vorspringenden Brauenkante, schräger
+  // Glutschlitz (zornig zur Mitte hin abfallend), darunter ein Kieferspalt
   const ec = hurt ? '#ffffff' : FROST[4];
+  p.line(hh.x, hh.y - 2, hh.x + 5, hh.y - 1, ICE[7]);
+  p.line(hh.x, hh.y - 1, hh.x + 5, hh.y, ICE[1]);
+  p.rect(hh.x + 1, hh.y, 4, 1, VOIDB); p.px(hh.x + 1, hh.y + 1, VOIDB);
   if (P.eye > 0.3) {
-    p.rect(hh.x + 1, hh.y, 4, 1, VOIDB);
-    p.px(hh.x + 2, hh.y, ec); p.px(hh.x + 4, hh.y, FROST[3]); p.px(hh.x + 3, hh.y, FROST[2]);
-    g.px(hh.x + 2, hh.y, IGL[4]); g.px(hh.x + 4, hh.y, IGL[3]); g.px(hh.x + 3, hh.y, IGL[3]);
-  } else p.rect(hh.x + 1, hh.y, 4, 1, VOIDB);
+    p.px(hh.x + 2, hh.y, ec); p.px(hh.x + 3, hh.y, ec); p.px(hh.x + 4, hh.y, FROST[2]); p.px(hh.x + 1, hh.y + 1, FROST[1]);
+    g.px(hh.x + 2, hh.y, IGL[4]); g.px(hh.x + 3, hh.y, IGL[4]); g.px(hh.x + 4, hh.y, IGL[3]); g.px(hh.x + 1, hh.y + 1, IGL[2]); g.px(hh.x + 5, hh.y, IGL[1]);
+  }
+  p.line(hh.x + 2, hh.y + 2, hh.x + 4, hh.y + 2, VOIDB);
   meta.eye = { x: hh.x + 3, y: hh.y };
   meta.head = { x: hh.x, y: hh.y - 10 };
   meta.mouth = { x: hh.x + 5, y: hh.y + 2 };
@@ -386,6 +389,10 @@ function spiderLeg(p, g, bx, by, fx, fy, kh, ramp, near, P, i) {
   if (P.curl > 0) { fX = fx + (bx - fx) * P.curl * 0.8; fY = fy + (by - 6 - fy) * P.curl; }
   limb(p, bx, by, kx, ky, near ? 3 : 2.5, 2.2, ramp);
   limb(p, kx, ky, fX, fY, 2.2, 1.2, ramp);
+  // Gelenke: Hüftring und dunkles Band unterhalb des Knies (gegliederter Chitinpanzer)
+  p.px(bx, by, ramp[3]); p.px(bx + 1, by + 1, ramp[0]);
+  const sx = kx + (fX - kx) * 0.35, sy = ky + (fY - ky) * 0.35;
+  p.px(sx, sy, ramp[0]); p.px(sx + 0.7, sy, ramp[0]);
   // Kristalldorn am Knie
   shard(p, g, kx, ky, -Math.PI / 2 - (fx > bx ? -0.4 : 0.4), near ? 4 : 3, 1, near ? CRYS : CRYS.slice(0, 5).concat(CRYS[4]), { base: 0.3, spark: near });
   p.px(fX, fY, near ? CRYS[4] : CRYS[2]);
@@ -410,13 +417,15 @@ function drawCrystalSpider(p, g, P, ex) {
       if (i === 0 && P.rear > 0) { fx += P.rear * 3; fy -= P.rear * 13; }
       if (i === 1 && P.rear > 0) { fx += P.rear * 2; fy -= P.rear * 6; }
       const bx = ch.x + L.ax - 2 + (near ? 0.5 : -0.5), by = ch.y + (near ? 1 : 0);
-      spiderLeg(p, g, bx, by, fx, fy, L.kh + (i === 0 ? P.rear * 3 : 0), near ? [CHIT[3], CHIT[4], CHIT[5], CRYS[3]] : [CHIT[1], CHIT[2], CHIT[3], CHIT[4]], near, P, i);
+      spiderLeg(p, g, bx, by, fx, fy, L.kh + (i === 0 ? P.rear * 3 : 0), near ? [CHIT[2], CHIT[4], CHIT[5], CHIT[6]] : [CHIT[0], CHIT[1], CHIT[2], CHIT[3]], near, P, i);
     });
   };
   legs(false);
 
   // --- Hinterleib: dunkler Panzer, Kristalldrusen
-  ell(p, ab.x, ab.y, 10, 7 - P.sink * 0.3, CHIT, { rot: -0.15 + P.rear * 0.15, noise: 0.15, seed: 5 });
+  ell(p, ab.x, ab.y, 10, 7 - P.sink * 0.3, CHIT, { rot: -0.15 + P.rear * 0.15, noise: 0.04, seed: 5 });
+  // Panzersegmente: helle Kante oben, dunkle Fuge darunter
+  for (const dx of [-5, -1, 3]) { p.line(ab.x + dx, ab.y - 4, ab.x + dx - 1, ab.y + 4, CHIT[1]); p.line(ab.x + dx + 1, ab.y - 4, ab.x + dx, ab.y + 2, CHIT[5]); }
   // Leuchtende Zeichnung (Rautenmuster)
   const gl = P.glow;
   for (let i = 0; i < 3; i++) {
@@ -432,10 +441,13 @@ function drawCrystalSpider(p, g, P, ex) {
     const bx = ab.x + dx, by = ab.y - 4.5 + Math.abs(dx) * 0.15;
     shard(p, g, bx, by, a + P.rear * 0.2, len * (1 - P.sink * 0.03), 1.8 + len * 0.12, CRYS, { base: 0.3, gl: gl > 0.3 ? [IGL[1], IGL[gl > 0.8 ? 3 : 2]] : null });
   });
-  // innere Glut der Drusen (Hof)
+  // nahe Beine: vor dem Hinterleib, aber unter der Kopfbrust (Ansätze verdeckt)
+  legs(true);
 
   // --- Kopfbrust
-  ell(p, ch.x, ch.y, 6, 4.2, CHIT, { rot: -P.rear * 0.4, noise: 0.12, seed: 9 });
+  ell(p, ch.x, ch.y, 6, 4.2, CHIT, { rot: -P.rear * 0.4, noise: 0.04, seed: 9 });
+  // dunkle Gesichtsplatte, auf der die Augen leuchten
+  ell(p, ch.x + 4 + P.rear, ch.y - 1.5 - P.rear, 2.6, 2, [CHIT[0], CHIT[1], CHIT[2]]);
   p.line(ch.x - 4, ch.y - 3, ch.x + 2, ch.y - 4, CHIT[6]);
   // Kristallkamm auf dem Kopf
   shard(p, g, ch.x - 1, ch.y - 3, -1.9, 4, 1.3, CRYS, { base: 0.3 });
@@ -448,6 +460,8 @@ function drawCrystalSpider(p, g, P, ex) {
     const x = ex0 + dx, y = ey0 + dy;
     p.px(x, y, P.eye > 0.3 ? (big ? ec : FROST[2]) : CHIT[0]);
     if (P.eye > 0.3) g.px(x, y, IGL[big ? 4 : 3]);
+    // Hauptaugen: zweistufig (Iris unter dem Glanzpunkt)
+    if (big) { p.px(x, y + 1, P.eye > 0.3 ? FROST[1] : CHIT[0]); if (P.eye > 0.3) g.px(x, y + 1, IGL[2]); }
   }
   meta.eye = { x: ex0 + 1, y: ey0 };
   meta.head = { x: ch.x + 2, y: ch.y - 7 };
@@ -465,7 +479,6 @@ function drawCrystalSpider(p, g, P, ex) {
   }
   meta.mouth = { x: ch.x + 7, y: ch.y + 4 };
 
-  legs(true);
   if (ex.smear) smearArc(p, g, ch.x + 2, ch.y + 1, ex.smear[0], ex.smear[1], 6, 12, [ICE[4], ICE[6], ICE[7]], [IGL[1], IGL[2]], 1);
   return meta;
 }
@@ -533,22 +546,28 @@ const fkp = (o) => ({ ...FK_REST, ...o });
 const SWORD_L = 24;
 
 // Frostkruste: Eisschicht mit kleinen Kristallen auf einer Fläche (Kreis um x,y)
+// Frostkruste: zusammenhängende Eisplatte (dunkle Unterkante, helle Facette oben
+// links, Glanzpunkt) mit ein, zwei kleinen Kristallspitzen – kein Streurauschen.
 function frostCrust(p, g, x, y, r, seed, n = 6) {
-  for (let i = 0; i < n; i++) {
-    const a = hash2(i, 1, seed) * TAU, d = hash2(i, 2, seed) * r;
-    const px_ = x + Math.cos(a) * d, py_ = y + Math.sin(a) * d * 0.8;
-    p.px(px_, py_, i % 3 === 0 ? ICE[6] : ICE[4]);
-    if (i % 2 === 0) p.px(px_ + 1, py_, ICE[5]);
+  const rx = Math.max(1.4, r * 0.7), ry = Math.max(1, r * 0.45);
+  p.ellipse(x, y + 0.5, rx + 0.5, ry + 0.5, ICE[2]);
+  p.ellipse(x - 0.3, y, rx, ry, ICE[4]);
+  p.ellipse(x - rx * 0.35, y - ry * 0.35, rx * 0.5, Math.max(0.6, ry * 0.45), ICE[5]);
+  p.px(x - rx * 0.5, y - ry * 0.5, ICE[7]);
+  const m = Math.min(2, Math.floor(n / 4));
+  for (let i = 0; i < m; i++) {
+    const sx = x + (hash2(i, 1, seed) - 0.5) * rx * 1.4, sy = y - ry;
+    p.px(sx, sy, ICE[5]); p.px(sx, sy - 1, ICE[6]);
   }
 }
 
 // Eiszapfen hängen von einer Kante (x0..x1 auf Höhe y)
 function icicles(p, x0, y0, x1, y1, seed, maxL = 4) {
-  const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 2));
+  const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 3));
   for (let i = 0; i <= n; i++) {
     const t = i / n, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
     const L = 1 + Math.floor(hash2(i, 5, seed) * maxL);
-    for (let j = 0; j < L; j++) p.px(x, y + j, j === L - 1 ? ICE[6] : j === 0 ? ICE[3] : ICE[5]);
+    for (let j = 0; j < L; j++) { p.px(x, y + j, j === L - 1 ? ICE[7] : j === 0 ? ICE[3] : ICE[5]); if (j < L - 1 && L > 2) p.px(x - 1, y + j, ICE[2]); }
   }
 }
 
@@ -579,7 +598,7 @@ function iceGreatsword(p, g, hx, hy, a, glow) {
     if (glow > 0.2 && t % 3 === 0) g.px(x, y, IGL[glow > 0.8 ? 3 : 2]);
   }
   // Eisbewuchs: Kristalle wachsen schräg aus der Klinge
-  const growth = [[8, 1, 0.7, 4], [12, -1, -0.8, 3], [15, 1, 0.9, 5], [19, -1, -0.6, 3], [21, 1, 0.5, 3], [10, -1, -1.1, 2]];
+  const growth = [[9, 1, 0.7, 4], [15, 1, 0.9, 5], [19, -1, -0.6, 3]];
   for (const [t, side, da, len] of growth) {
     const bx = hx + c * t + nx * side * 1.2, by = hy + s * t + ny * side * 1.2;
     const ang = Math.atan2(ny * side, nx * side) + da * 0.6 * side + 0.35;
@@ -620,8 +639,8 @@ function drawFrozenKnight(p, g, P, ex) {
       const v = j / len;
       const x = ct.x - 2 - i * 0.8 - P.cape * 9 * v * v + Math.sin(P.capeT + v * 2 + i * 0.5) * 0.5 * v;
       const y = ct.y + j + i * 0.2;
-      const c = (i + j) % 7 === 0 ? CLOTH_F[0] : i < 2 ? CLOTH_F[3] : i % 3 === 0 ? CLOTH_F[1] : CLOTH_F[2];
-      p.px(x, y, v > 0.82 ? (hash2(i, j, 5) < 0.5 ? ICE[3] : ICE[2]) : c);
+      const c = i < 2 ? CLOTH_F[3] : i % 3 === 0 ? CLOTH_F[1] : i % 3 === 1 ? CLOTH_F[3] : CLOTH_F[2];
+      p.px(x, y, v > 0.84 ? (v > 0.93 ? ICE[4] : ICE[2]) : c);
       if (j === Math.floor(len) - 1) cw.push([x, y + 1]);
     }
   }
@@ -658,11 +677,14 @@ function drawFrozenKnight(p, g, P, ex) {
   for (let u = 4; u <= KD.spine + 1; u += 0.5) q(u, 2.5, STEEL_F[7]);
   for (let k = -6; k <= 6; k += 0.5) { q(1.5, k, CLOTH_F[1]); q(2, k, CLOTH_F[2]); }
   q(1.8, 3, STEEL_F[6]); q(1.8, 2.5, STEEL_F[5]);
+  // Metall: harter Glanzpunkt oben links auf der Brustplatte, dunkle Spiegelung
+  // darunter, Nietenreihe am Kragen
+  q(KD.spine - 2, -2.5, STEEL_F[7]); q(KD.spine - 2.5, -2, STEEL_F[7]); q(KD.spine - 3, -1.5, STEEL_F[6]);
+  q(KD.spine - 6, -1, STEEL_F[2]); q(KD.spine - 6.5, 0, STEEL_F[2]);
+  for (let k = -4; k <= 4; k += 2) { q(KD.spine, k, STEEL_F[7]); q(KD.spine - 0.5, k + 0.5, STEEL_F[1]); }
   // Frostkruste auf Brust und Schulter, gesprungener Eispanzer mit blauem Schimmer
-  const fc = pt(KD.spine - 3, -1);
-  frostCrust(p, g, fc.x, fc.y, 4, 11, 9);
-  const fc2 = pt(5, 3);
-  frostCrust(p, g, fc2.x, fc2.y, 2.5, 12, 5);
+  const fc = pt(KD.spine - 6, -3.5);
+  frostCrust(p, g, fc.x, fc.y, 2.4, 11, 9);
   // Kern: blaues Frostherz leuchtet durch einen Riss im Panzer
   const hc = pt(KD.spine - 3.5, 2.5);
   p.px(hc.x, hc.y, FROST[3]); p.px(hc.x + 1, hc.y + 1, FROST[1]); p.px(hc.x - 1, hc.y + 1, FROST[0]); p.px(hc.x, hc.y + 2, FROST[1]);
@@ -697,16 +719,18 @@ function drawFrozenKnight(p, g, P, ex) {
   shard(p, g, hx - 3, hy - 3, -2.1, 6, 1.4, ICE, { base: 0.3 });
   shard(p, g, hx, hy - 4, -1.65, 8, 1.6, ICE, { base: 0.3 });
   shard(p, g, hx + 3, hy - 3, -1.2, 5, 1.2, ICE, { base: 0.3 });
-  frostCrust(p, g, hx - 2, hy - 1, 2, 13, 4);
-  // Sehschlitz mit kaltem Glimmen
+  // Sehschlitz (T-Form) mit kaltem Glimmen; Kante darüber im Licht, Nieten
   const ec = ex.hurt ? '#ffffff' : FROST[4];
-  p.rect(hx, hy + 1, 5, 1, VOIDB);
+  p.line(hx - 1, hy, hx + 5, hy, STEEL_F[7]);
+  p.rect(hx, hy + 1, 6, 1, VOIDB);
+  p.rect(hx + 3, hy + 2, 1, 3, VOIDB);
+  p.px(hx - 3, hy + 2, STEEL_F[7]); p.px(hx - 3, hy + 3, STEEL_F[2]); p.px(hx + 5, hy + 3, STEEL_F[6]);
+  p.px(hx - 3, hy - 3, STEEL_F[7]); p.px(hx - 2, hy - 3, STEEL_F[6]);      // Glanzpunkt auf der Helmkuppe
   if (P.eye > 0.3) {
-    p.px(hx + 2, hy + 1, ec); p.px(hx + 4, hy + 1, FROST[2]);
-    g.px(hx + 2, hy + 1, IGL[4]); g.px(hx + 4, hy + 1, IGL[3]); g.px(hx + 3, hy + 1, IGL[2]);
+    p.px(hx + 2, hy + 1, ec); p.px(hx + 3, hy + 1, ec); p.px(hx + 4, hy + 1, FROST[2]); p.px(hx + 1, hy + 1, FROST[1]);
+    g.px(hx + 2, hy + 1, IGL[4]); g.px(hx + 3, hy + 1, IGL[4]); g.px(hx + 4, hy + 1, IGL[3]); g.px(hx + 1, hy + 1, IGL[2]);
     if (P.eye > 1.2) { g.rect(hx + 1, hy + 1, 5, 1, IGL[3]); g.px(hx + 6, hy + 1, IGL[1]); }
   }
-  for (let i = 0; i < 3; i++) p.px(hx + 3, hy + 3 + i * 0.7, VOIDB);
   icicles(p, hx - 4, hy + 5, hx + 3, hy + 5, 17, 3);
   meta.eye = { x: hx + 3, y: hy + 1 };
   meta.head = { x: hx, y: hy - 11 };
@@ -729,7 +753,9 @@ function drawFrozenKnight(p, g, P, ex) {
   ell(p, shF.x + 0.5, shF.y - 0.5, 5, 4, STEEL_F, { bias: 0.1 });
   occlude(null);
   p.line(shF.x - 4, shF.y + 2, shF.x + 5, shF.y + 2, STEEL_F[2]);
-  frostCrust(p, g, shF.x - 1, shF.y - 2, 2.5, 19, 5);
+  // Schulterplatte: harter Glanzpunkt, Nietenreihe am Rand, Eiszapfen am Saum
+  p.px(shF.x - 2, shF.y - 3, STEEL_F[7]); p.px(shF.x - 1, shF.y - 3, STEEL_F[7]); p.px(shF.x - 2, shF.y - 2, STEEL_F[6]);
+  for (let i = -3; i <= 3; i += 2) p.px(shF.x + i, shF.y + 1, STEEL_F[6]);
   icicles(p, shF.x - 4, shF.y + 3, shF.x + 4, shF.y + 3, 21, 4);
   meta.hand = { x: hF.x, y: hF.y };
   meta.tip = tip;

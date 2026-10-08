@@ -8,7 +8,7 @@ import { FK } from './foes_cinder.js';
 
 const {
   GLOW, LAVA, linear, snap, clamp, ell, cap, poly, ik, glowDot, veins, flame,
-  track, still, arcSmear, dustRing, occlude, robe, hash2, SMEAR, CHAR, VOID,
+  track, still, dustRing, occlude, robe, hash2, SMEAR, CHAR, VOID,
 } = FK;
 
 // ================================================================ Materialien
@@ -20,11 +20,48 @@ const SHINE = PAL.steel[5];
 const ACO = ['#170808', '#2c0e0c', '#481610', '#6a2414', '#8e3a1a', '#b25a26'];
 const ACO_CH = ['#120a0a', '#201212', '#2e1a16', '#40241c'];
 const SKIN = ['#3a2218', '#5e3624', '#8a5238', '#b0724c'];
+const FACE = ['#40261c', '#74483a', '#a8735a', '#d4a07c']; // Gesicht etwas heller als die Hände: hebt sich von der roten Kutte ab
 const DRK = ['#16060a', '#2e0c10', '#4c1416', '#6e2018', '#98321e', '#c0502a'];
 const DRK_D = ['#10050a', '#1e080c', '#320e12', '#481614', '#5e1e18'];
 const BELLY = ['#4a1c10', '#7a3818', '#a85a24', '#d08a3a', '#f0b860'];
 const MEMB = ['#1a060a', '#34100e', '#561a12', '#7e2a16'];
 const HORN = PAL.bone;
+
+// Pixelkarte: jede Zeile ein String, jedes Zeichen ein Schlüssel in pal
+// ('.' und Leerzeichen = frei). Für Köpfe/Gesichter, die pixelgenau sitzen müssen.
+function pmap(p, x0, y0, rows, pal) {
+  x0 = Math.round(x0); y0 = Math.round(y0);
+  for (let j = 0; j < rows.length; j++) {
+    const r = rows[j];
+    for (let i = 0; i < r.length; i++) {
+      const c = pal[r[i]];
+      if (c) p.px(x0 + i, y0 + j, c);
+    }
+  }
+}
+
+// Schwungsichel (ersetzt FK.arcSmear): geschlossene Fläche ohne Rauschen.
+// Alter Teil der Bahn ist ein dünner Faden an der Außenkante, das frische Ende
+// am breitesten; Außenkante hell. Gleiche Signatur wie FK.arcSmear.
+function arcSmear(p, g, cx, cy, a0, a1, r0, r1, cols, seed = 13, glowIt = true) {
+  const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
+  const R1 = Math.ceil(r1);
+  for (let y = -R1; y <= R1; y++) for (let x = -R1; x <= R1; x++) {
+    const d = Math.hypot(x, y);
+    if (d < r0 || d > r1) continue;
+    let a = Math.atan2(y, x);
+    while (a < lo - Math.PI) a += Math.PI * 2;
+    while (a > lo + Math.PI) a -= Math.PI * 2;
+    if (a < lo || a > hi) continue;
+    const fresh = a1 > a0 ? (a - lo) / span : (hi - a) / span;
+    const th = (0.12 + 0.88 * Math.pow(fresh, 1.3)) * Math.min(1, 8 / (r1 - r0)); // höchstens ~8 px breit
+    const rin = r1 - (r1 - r0) * th;
+    if (d < rin) continue;
+    const radial = (d - rin) / (r1 - rin || 1);
+    p.px(cx + x, cy + y, radial > 0.72 || fresh < 0.25 ? cols[2] : radial > 0.38 ? cols[1] : cols[0]);
+    if (glowIt && fresh > 0.4 && radial > 0.4) g.px(cx + x, cy + y, radial > 0.72 ? GLOW[3] : GLOW[1]);
+  }
+}
 
 // Kantiger Block (Licht oben links, abgeschrägte Ecken)
 function box(p, x, y, w, h, ramp, o = {}) {
@@ -177,6 +214,10 @@ function drawForgeGolem(p, g, P, ex) {
   p.rect(hx - 1, hy - 1, 5, 1, ec); p.px(hx + 2, hy - 1, LAVA[5]);
   g.rect(hx - 1, hy - 1, 5, 1, GLOW[3]); g.px(hx + 2, hy - 1, GLOW[4]); g.px(hx + 4, hy - 1, GLOW[1]);
   p.px(hx - 2, hy - 3, IRON[5]);
+  // Stirnplatte wirft Schatten über den Sehschlitz, Lüftungsgitter als Kiefer
+  p.line(hx - 2, hy - 2, hx + 4, hy - 2, IRON[0]); p.line(hx - 1, hy - 3, hx + 3, hy - 3, IRON[4]); p.px(hx, hy - 4, IRON[5]);
+  for (let k = 0; k <= 4; k += 2) { p.px(hx + k, hy + 1, IRON_D[0]); p.px(hx + k, hy + 2, BRASS[1]); }
+  rivet(p, hx - 3, hy); p.px(hx + 4, hy, IRON[1]);
   meta.eye = { x: hx + 2, y: hy - 1 };
   meta.head = { x: hx, y: hy - 5 };
 
@@ -326,18 +367,28 @@ function drawAcolyte(p, g, P, ex) {
   for (let k = -5; k <= 5; k++) { p.px(x + k + P.lean * 1.5, by, k < -2 ? BRASS[1] : BRASS[3]); }
   for (let k = -4; k <= 4; k += 2) { p.px(x + k + P.lean * 1.5, by + 1, LAVA[2]); g.px(x + k + P.lean * 1.5, by + 1, GLOW[1]); }
   for (let j = 0; j < 10; j++) p.px(x + 4 + P.lean * (1.5 - j * 0.1), top + 2 + j, j % 3 === 0 ? BRASS[4] : BRASS[2]);
-  // Kapuze offen, Gesicht, Messingreif
+  // Kapuze offen, Gesicht als Pixelkarte (Profil: gerunzelte Braue, Glutauge,
+  // Hakennase, verkniffener Mund, Glutmal auf der Wange), Messingreif
   const hx = sh.x + 1 + P.head, hy = top - 4;
+  const fx0 = Math.round(hx), fy0 = Math.round(hy);
   ell(p, hx - 1, hy + 0.5, 4.8, 4.6, ACO, { bias: -0.05 });
-  ell(p, hx + 1.5, hy + 0.5, 3, 3.4, SKIN, { bias: 0.05 });
-  p.rect(hx - 1, hy - 2, 5, 1, BRASS[4]); p.px(hx + 1, hy - 3, LAVA[3]); g.px(hx + 1, hy - 3, GLOW[3]);
-  p.px(hx + 3.5, hy + 1.5, SKIN[1]); // Nase-Schatten
-  p.rect(hx + 1, hy + 3, 3, 1, SKIN[0]); // Bart/Schatten
+  p.rect(fx0 - 2, fy0 - 1, 2, 5, ACO[1]); // Schatten im Kapuzeninneren
   const ec = ex.hurt ? '#ffffff' : LAVA[4];
-  if (P.eye > 0.3) { p.px(hx + 2, hy, ec); g.px(hx + 2, hy, GLOW[4]); g.px(hx + 3, hy, GLOW[1]); p.px(hx + 4, hy, SKIN[2]); }
-  else p.px(hx + 2, hy, SKIN[0]);
-  // Glutmal auf der Wange
-  p.px(hx + 1, hy + 2, LAVA[2]); g.px(hx + 1, hy + 2, GLOW[1]);
+  const eyeOn = P.eye > 0.3;
+  pmap(p, fx0 - 1, fy0 - 1, [
+    '120032.',
+    '121e33.',
+    '1222233',
+    '11L221.',
+    '.10k0..',
+    '..111..',
+  ], { 0: FACE[0], 1: FACE[1], 2: FACE[2], 3: FACE[3], k: ACO_CH[0], L: LAVA[2], e: eyeOn ? ec : FACE[0] });
+  // Kapuzenrand rahmt die Stirn
+  for (let k = -2; k <= 3; k++) p.px(fx0 + k, fy0 - 3 + (k > 1 ? 1 : 0), k < 0 ? ACO[5] : ACO[4]);
+  p.rect(fx0 - 1, fy0 - 2, 5, 1, BRASS[4]); p.px(fx0 - 1, fy0 - 2, BRASS[5]); p.px(fx0 + 3, fy0 - 2, BRASS[2]);
+  p.px(fx0 + 1, fy0 - 3, LAVA[3]); g.px(fx0 + 1, fy0 - 3, GLOW[3]);
+  if (eyeOn) { g.px(fx0 + 2, fy0, GLOW[4]); g.px(fx0 + 3, fy0, GLOW[1]); }
+  g.px(fx0 + 1, fy0 + 2, GLOW[1]);
   meta.eye = { x: hx + 2, y: hy };
   meta.head = { x: hx, y: hy - 5 };
   // vorderer Arm + Stab
@@ -497,9 +548,9 @@ function drawDrake(p, g, P, ex) {
   p.px(tx - 2, ty - 1, LAVA[2]); g.px(tx - 2, ty - 1, GLOW[1]);
 
   // Rumpf: Schuppen oben, heller Bauch
-  cap(p, hip.x, hip.y, sh.x, sh.y, 5, 5.6, DRK, { noise: 0.12, seed: 3 });
-  ell(p, hip.x - 1, hip.y, 5.8, 5, DRK, { noise: 0.12, seed: 4 });
-  ell(p, sh.x, sh.y + 0.5, 5.6, 5.8, DRK, { noise: 0.12, seed: 5 });
+  cap(p, hip.x, hip.y, sh.x, sh.y, 5, 5.6, DRK, { noise: 0.05, seed: 3 });
+  ell(p, hip.x - 1, hip.y, 5.8, 5, DRK, { noise: 0.05, seed: 4 });
+  ell(p, sh.x, sh.y + 0.5, 5.6, 5.8, DRK, { noise: 0.05, seed: 5 });
   // Bauchplatten
   const bl = 12;
   for (let i = 0; i <= bl; i++) {
@@ -532,7 +583,7 @@ function drawDrake(p, g, P, ex) {
     segs.push([nx, ny, qx, qy]);
     nx = qx; ny = qy;
   }
-  segs.forEach(([x0, y0, x1, y1], i) => cap(p, x0, y0, x1, y1, 3.6 - i * 0.5, 3.1 - i * 0.5, DRK, { noise: 0.1, seed: 6 + i }));
+  segs.forEach(([x0, y0, x1, y1], i) => cap(p, x0, y0, x1, y1, 3.6 - i * 0.5, 3.1 - i * 0.5, DRK, { noise: 0.04, seed: 6 + i }));
   segs.forEach(([x0, y0, x1, y1], i) => {
     const d = Math.hypot(x1 - x0, y1 - y0) || 1;
     const ox = -(y1 - y0) / d, oy = (x1 - x0) / d; // Unterseite (rechts der Laufrichtung)
@@ -549,17 +600,23 @@ function drawDrake(p, g, P, ex) {
   if (heat > 0.8) glowDot(g, (segs[1][0] + segs[1][2]) / 2, (segs[1][1] + segs[1][3]) / 2 + 2, heat * 1.5);
   meta.throat = { x: segs[1][2], y: segs[1][3] + 2 };
 
-  // Kopf
+  // Kopf: wuchtiger Schädel mit Wangenzacken, schwerem Brauenwulst über dem
+  // Glutauge, Nasenrücken im Licht und sichtbarer Zahnreihe
   const ha = 0.18 + P.head;
   const hc = Math.cos(ha), hs = Math.sin(ha);
   const H = (u, v) => [nx + u * hc - v * hs, ny + u * hs + v * hc];
-  ell(p, nx, ny, 3.6, 3.2, DRK, { noise: 0.1, seed: 9, rim: 1 });
-  // Hörner nach hinten
-  const h1 = H(-5, -4), h2 = H(-1, -3);
-  p.line(h2[0], h2[1], h1[0], h1[1], HORN[3]); p.px(h1[0], h1[1], HORN[4]);
-  const h3 = H(-4, -1.5); p.line(nx - 1, ny, h3[0], h3[1], HORN[2]);
+  const L2 = (a, b, c) => { const A = H(...a), B = H(...b); p.line(A[0], A[1], B[0], B[1], c); };
+  // Wangenzacken (Kragen) hinter dem Kiefer
+  L2([-1.5, 1], [-5, 2.5], HORN[2]); L2([-1, 2], [-3.5, 4.2], HORN[1]);
+  { const t = H(-5, 2.5); p.px(t[0], t[1], HORN[3]); }
+  ell(p, nx, ny, 3.8, 3.3, DRK, { noise: 0.04, seed: 9, rim: 1 });
+  // Hörner nach hinten: doppelt so kräftig, zweifarbig
+  L2([-1, -3], [-6, -5], HORN[2]); L2([-1, -2.2], [-5.5, -4], HORN[3]);
+  { const t = H(-6.5, -5.3); p.px(t[0], t[1], HORN[4]); }
+  L2([-2, -1.5], [-4.5, -1.5], HORN[2]);
   // Oberkiefer (Schnauze)
   poly(p, [H(0, -2.6), H(7.5, -1), H(8, 0.8), H(0, 1.2)], (x, y) => (y < H(4, -1)[1] ? DRK[4] : DRK[3]));
+  L2([1, -2.4], [6.5, -1.2], DRK[5]); // Nasenrücken im Licht
   const nost = H(7, -1); p.px(nost[0], nost[1], VOID);
   // Maul offen
   const ja = P.jaw * 0.7;
@@ -571,13 +628,19 @@ function drawDrake(p, g, P, ex) {
     for (let u = 2; u < 7; u++) { const q = J(u, -0.3); g.px(q[0], q[1], GLOW[3]); const q2 = H(u, 1.3); g.px(q2[0], q2[1], GLOW[2]); }
   }
   poly(p, [J(0, 0), J(7, 0), J(6.5, 1.8), J(0, 2)], DRK[2]);
-  for (const u of [3, 5.5]) { const t1 = H(u, 1.2), t2 = J(u + 0.5, 0); p.px(t1[0], t1[1], HORN[4]); p.px(t2[0], t2[1], HORN[3]); }
+  L2([0.5, 1.6], [6, 1.4], DRK[3]); // Kieferkante
+  // Zähne: Reißzahn vorn, Reihe dahinter (oben und unten)
+  for (const u of [2.5, 4, 5.5]) { const t1 = H(u, 1.4); p.px(t1[0], t1[1], HORN[4]); }
+  { const f1 = H(7, 1.5), f2 = H(7, 2.3); p.px(f1[0], f1[1], HORN[4]); p.px(f2[0], f2[1], HORN[3]); }
+  for (const u of [3.5, 5.5]) { const t2 = J(u, -0.2); p.px(t2[0], t2[1], HORN[3]); }
   const m = H(8.5, 1 + P.jaw * 2);
   meta.mouth = { x: m[0], y: m[1] };
-  // Auge
+  // Auge: dunkle Höhle unter dem Brauenwulst, glühender Schlitz
   const e = H(2, -1.8);
   const ec = ex.hurt ? '#ffffff' : LAVA[4];
-  p.px(e[0], e[1], ec); g.px(e[0], e[1], GLOW[4]); p.px(e[0] - 1, e[1] - 1, DRK[5]);
+  L2([0.5, -3], [3.5, -2.8], DRK[5]); L2([1, -2.4], [3.2, -2.3], DRK[1]); // Brauenwulst + Schatten
+  { const s0 = H(1, -1.7); p.px(s0[0], s0[1], DRK[0]); const s1 = H(3, -1.6); p.px(s1[0], s1[1], LAVA[3]); g.px(s1[0], s1[1], GLOW[2]); }
+  p.px(e[0], e[1], ec); g.px(e[0], e[1], GLOW[4]);
   meta.eye = { x: e[0], y: e[1] };
   meta.head = { x: nx, y: ny - 5 };
 

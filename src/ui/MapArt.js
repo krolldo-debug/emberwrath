@@ -507,22 +507,28 @@ export function mapLabels(world, content) {
 // Häuser, Fels, Wasser, Marker (avoid: [[x, y, r]] in Kartenpixeln), Rand und andere Namen.
 // z = Bildschirmzoom: auf kleinen Schirmen wird die Schrift größer gezeichnet, damit sie lesbar bleibt.
 const FONT = new PixelFont();
-const LABEL_INK = { town: '#5a1a10', area: '#2e1e12', portal: '#3a1a5a' };
+const LABEL_INK = { town: '#5a1a10', area: '#2e1e12', portal: '#3e1e66' };
 const PENALTY = { wall: 6, house: 6, rock: 1.2, water: 1.5, lava: 2, dwall: 2 };
 const UMLAUT = { Ä: 'A', Ö: 'O', Ü: 'U' };
 
 // Pixelschrift mit Umlauten als Grundbuchstabe plus zwei Punkte darüber (die 5-px-Glyphen sind dafür zu klein)
 function drawText(ctx, text, x, y, f, color) {
   let cx = x;
-  for (const ch of text.toUpperCase()) {
+  for (const ch0 of text) {
+    const ch = ch0 === 'ß' ? 'ß' : ch0.toUpperCase();
     const base = UMLAUT[ch] ?? ch;
-    FONT.draw(ctx, base, cx, y, { color, scale: f });
-    const gw = FONT.measure(base, f);
+    let gw;
+    if (ch === 'ß') {
+      // eigene Glyphe zeichnen: PixelFont macht aus ß sonst „SS“
+      const gl = FONT.glyphs['ß']; ctx.fillStyle = color;
+      gl.rows.forEach((row, ry) => [...row].forEach((p, rx) => { if (p === '#') ctx.fillRect(cx + rx * f, y + ry * f, f, f); }));
+      gw = gl.w * f;
+    } else { FONT.draw(ctx, base, cx, y, { color, scale: f }); gw = FONT.measure(base, f); }
     if (UMLAUT[ch]) { ctx.fillStyle = color; ctx.fillRect(cx, y - 2 * f, f, f); ctx.fillRect(cx + gw - f, y - 2 * f, f, f); }
     cx += gw + f;
   }
 }
-const measureText = (text, f) => FONT.measure([...text.toUpperCase()].map((ch) => UMLAUT[ch] ?? ch).join(''), f);
+const measureText = (text, f) => [...text].reduce((w, ch0) => { const ch = ch0 === 'ß' ? 'ß' : ch0.toUpperCase(); return w + (ch === 'ß' ? FONT.glyphs['ß'].w * f : FONT.measure(UMLAUT[ch] ?? ch, f)) + f; }, -f);
 
 export function renderLabels(world, content, scale, z, avoid = []) {
   const d = world.dungeon, W = d.w * scale, H = d.h * scale, T = d.pixelW / d.w;
@@ -552,18 +558,20 @@ export function renderLabels(world, content, scale, z, avoid = []) {
     }
     placed.push([best.x0, best.y0, best.x1, best.y1]);
     const tx = best.x0 + 2, ty = best.y0 + 2 + 2 * f;
+    // Pergament-Plakette mit Tuschekante hinter jedem Namen: lesbar auf jedem Gelände
+    const px0 = best.x0, py0 = best.y0, pw = best.x1 - best.x0, ph = best.y1 - best.y0;
+    ctx.fillStyle = 'rgba(40,26,16,0.35)'; ctx.fillRect(px0 + 1, py0 + 1, pw, ph);
+    ctx.fillStyle = '#2e1e12'; ctx.fillRect(px0, py0, pw, ph);
+    ctx.fillStyle = l.kind === 'town' ? '#f2e6c8' : '#eadcb8'; ctx.fillRect(px0 + 1, py0 + 1, pw - 2, ph - 2);
     let textX = tx;
     if (l.kind === 'town') {
       // kleines Banner vor dem Stadtnamen
-      const bx = tx, by = ty;
-      ctx.fillStyle = '#e8d8b0'; ctx.fillRect(bx - 1, by - 1, 3 * f + 2, 5 * f + 2);
-      ctx.fillStyle = '#8a2a1a'; ctx.fillRect(bx, by, 3 * f, 4 * f);
-      ctx.fillStyle = '#e8d8b0'; ctx.fillRect(bx + f, by + 4 * f - f, f, f);
-      ctx.fillStyle = '#3a1a10'; ctx.fillRect(bx, by, f, 5 * f);
+      const bx = tx, by = ty - f;
+      ctx.fillStyle = '#8a2a1a'; ctx.fillRect(bx, by, 3 * f, 5 * f);
+      ctx.fillStyle = '#f2e6c8'; ctx.fillRect(bx + f, by + 4 * f, f, f);
+      ctx.fillStyle = '#3a1a10'; ctx.fillRect(bx, by, f, 6 * f);
       textX = tx + 5 * f;
     }
-    // heller Halo (1 Kartenpixel), dann Tusche
-    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) drawText(ctx, text, textX + ox, ty + oy, f, '#efe2c0');
     drawText(ctx, text, textX, ty, f, LABEL_INK[l.kind]);
   }
   return c;

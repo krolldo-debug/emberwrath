@@ -228,7 +228,7 @@ function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, bi
     if (e.dead || e.rise < 1) continue;
     const p = map(e.x, e.y); if (!inside(p)) continue;
     if (e.def?.boss || e.boss || e === w.boss) glyph(ctx, p[0], p[1], 'boss', t, big);
-    else if (big) { const el = e.def?.elite || e.elite || e.champion; dot(ctx, p[0], p[1], '#1a0408', el ? 5 : 4); dot(ctx, p[0], p[1], el ? C.elite : C.enemy, el ? 3 : 2); }
+    else if (big) { const el = e.def?.elite || e.elite || e.champion; dot(ctx, p[0], p[1], '#1a0408', el ? 7 : 5); dot(ctx, p[0], p[1], '#f4e6c4', el ? 5 : 4); dot(ctx, p[0], p[1], el ? C.elite : '#d02020', el ? 3 : 2); }
     else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, e.def?.elite || e.elite ? 2 : 1);
   }
   // NPCs mit Questmarkierung
@@ -344,6 +344,7 @@ export function createMapPanel(session) {
       base = zoneBaseImage(w, scale);
       const T0 = T, avoid = [];
       for (const n of w.npcs) avoid.push([(n.x / T0) * scale, (n.y / T0) * scale - 3, 6]);
+      avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 14]);
       for (const e of w.entities) if (e.to?.zoneId) avoid.push([(e.x / T0) * scale, (e.y / T0) * scale, 6]);
       labels = renderLabels(w, content, scale, zoom, avoid);
       canvas.width = base.width; canvas.height = base.height;
@@ -393,7 +394,13 @@ export function createMapPanel(session) {
 
 // Pulsierender Ring um den Helden (dunkel mit hellem Kern), damit er auf jeder Fläche sofort auffällt
 function heroPulse(ctx, x, y, t) {
-  const p = (t * 1.2) % 1, r = 4 + p * 7;
+  // fester Ring: dunkel außen, hell innen
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    ctx.fillStyle = '#1a1020'; ctx.fillRect(Math.round(x + Math.cos(a) * 8), Math.round(y + Math.sin(a) * 8), 1, 1);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x + Math.cos(a) * 7), Math.round(y + Math.sin(a) * 7), 1, 1);
+  }
+  const p = (t * 1.2) % 1, r = 8 + p * 7;
   const n = Math.round(r * 5);
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2, px = Math.round(x + Math.cos(a) * r), py = Math.round(y + Math.sin(a) * r);

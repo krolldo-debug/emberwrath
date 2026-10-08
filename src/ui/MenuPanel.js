@@ -37,6 +37,9 @@ export function createMenuPanel(session) {
       g.panels.defs?.has('achievements')
         ? h('button.ef-btn.menu-ach', { type: 'button', onclick: () => session.panels.open('achievements') }, h('img.ef-icon', { src: iconUrl('ui_achievements'), alt: '', width: 20, height: 20 }), 'Erfolge')
         : null,
+      g.character?.wardrobe
+        ? h('button.ef-btn.menu-wardrobe', { type: 'button', onclick: () => session.panels.open('wardrobe') }, 'Garderobe')
+        : null,
       g.shop?.visible
         ? h('button.ef-btn.menu-shop', { type: 'button', onclick: () => session.panels.open('goldshop') }, h('img.ef-icon', { src: iconUrl('gold'), alt: '', width: 20, height: 20 }), 'Shop')
         : null,

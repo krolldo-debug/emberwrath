@@ -46,36 +46,46 @@ function ik(ax, ay, tx, ty, l1, l2, bend) {
 }
 
 // Dickes Glied mit Licht von links oben (ramp: 4 Stufen dunkel → hell).
+// Pixelgenau gerastert (Kapsel um die Strecke): saubere Lichtbänder ohne
+// Sprenkel, die beim Überzeichnen halber Schritte entstanden.
 function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
-  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy || 0.0001, len = Math.sqrt(len2);
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }
-  const steps = Math.ceil(len * 2);
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
-    const hw = (w0 + (w1 - w0) * t) / 2;
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      const c = k > hw - 1 ? ramp[3] : k < -hw + 1 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
-      p.px(x + nx * k, y + ny * k, c);
-    }
+  const R = Math.max(w0, w1) / 2 + 1;
+  const xa = Math.floor(Math.min(x0, x1) - R), xb = Math.ceil(Math.max(x0, x1) + R);
+  const ya = Math.floor(Math.min(y0, y1) - R), yb = Math.ceil(Math.max(y0, y1) + R);
+  for (let Y = ya; Y <= yb; Y++) for (let X = xa; X <= xb; X++) {
+    const t = Math.max(0, Math.min(1, ((X - x0) * dx + (Y - y0) * dy) / len2));
+    const ox = X - (x0 + dx * t), oy = Y - (y0 + dy * t);
+    const hw = Math.max(0.62, (w0 + (w1 - w0) * t) / 2);
+    if (ox * ox + oy * oy > hw * hw + 0.15) continue;
+    const k = ox * nx + oy * ny;
+    const c = k > hw - 1 ? ramp[3] : k < -hw + 1 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
+    p.px(X, Y, c);
   }
 }
 
-// Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy),
-// frisch (am Ende) dicht und hell, am Anfang ausgedünnt. sy staucht die
-// Bahn senkrecht (waagerechte Hiebe in 3/4-Sicht).
+// Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy).
+// Geschlossene Sichel ohne Rauschen: am Anfang ein dünner Faden, zum frischen
+// Ende hin breit; Außenkante hell, innen dunkler. sy staucht die Bahn
+// senkrecht (waagerechte Hiebe in 3/4-Sicht).
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.4) + 2;
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 2) + 2;
+  const seen = new Set();
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
-    for (let r = r0; r <= r1; r += 0.5) {
-      const radial = (r - r0) / (r1 - r0 || 1);
+    const th = (0.12 + 0.88 * Math.pow(f, 1.3)) * Math.min(1, 8 / (r1 - r0)); // höchstens ~8 px breit
+    const rin = r1 - (r1 - r0) * th;
+    for (let r = r1; r >= rin; r -= 0.5) {
       const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
-      const dens = f * f * 0.55 + radial * (0.2 + 0.8 * f) - 0.12;
-      if (hash2(x + 50, y + 50, 31) > dens) continue;
-      const c = radial > 0.82 ? cols[2] : radial > 0.5 ? cols[1] : cols[0];
+      const key = x * 1000 + y;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const radial = (r - rin) / (r1 - rin || 1);
+      const c = radial > 0.75 || f < 0.25 ? cols[2] : radial > 0.4 ? cols[1] : cols[0];
       p.px(x, y, c);
-      if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.82 ? gcols[1] : gcols[0]);
+      if (g && gcols && f > 0.3 && radial > 0.4) g.px(x, y, radial > 0.75 ? gcols[1] : gcols[0]);
     }
   }
 }
@@ -96,6 +106,18 @@ function rotBlit(src, dst, px, py, ang) {
     d[di] = s[si]; d[di + 1] = s[si + 1]; d[di + 2] = s[si + 2]; d[di + 3] = s[si + 3];
   }
   dst.ctx.putImageData(img, 0, 0);
+}
+
+// Pixelkarte: jede Zeile ein String, jedes Zeichen ein Schlüssel in pal
+// ('.' und Leerzeichen = frei). Für Köpfe/Gesichter, die pixelgenau sitzen müssen.
+function pmap(p, x0, y0, rows, pal) {
+  for (let j = 0; j < rows.length; j++) {
+    const r = rows[j];
+    for (let i = 0; i < r.length; i++) {
+      const c = pal[r[i]];
+      if (c) p.px(x0 + i, y0 + j, c);
+    }
+  }
 }
 
 // Baut einen Frame: draw(p, g, P, extra) -> meta (absolute Koordinaten).
@@ -178,13 +200,14 @@ const GH_EDGE_G = [GH[1], GH[3]];
 
 // Geisterfahne: wellige, nach hinten verwehende Spur auf der Leucht-Ebene
 // (Kern hell, Schweif dunkler). dir = -1 weht nach links (hinten).
-function wisp(p, g, x, y, len, ph, dir = -1, rise = 0.35, bright = 1) {
+// base = false: nur Leucht-Ebene (über Gesichtern, damit sie lesbar bleiben).
+function wisp(p, g, x, y, len, ph, dir = -1, rise = 0.35, bright = 1, base = true) {
   for (let i = 0; i < len; i++) {
     const f = i / len;
     const wx = x + dir * i, wy = y - i * rise + Math.sin(ph + i * 0.7) * f * 1.4;
     const c = f < 0.25 ? GH[4] : f < 0.55 ? GH[3] : f < 0.8 ? GH[2] : GH[1];
     if (bright > 0.2) g.px(wx, wy, bright > 0.7 || f > 0.3 ? c : GH[2]);
-    if (f < 0.35) p.px(wx, wy, GH[f < 0.15 ? 4 : 3]);
+    if (base && f < 0.35) p.px(wx, wy, GH[f < 0.15 ? 4 : 3]);
   }
 }
 
@@ -297,10 +320,11 @@ function drawWight(p, g, P, X) {
   for (let u = 1.5; u <= 3.5; u += 1) { q(u, 0.5, MUM[4]); q(u, 1.5, MUM[1]); q(u, -0.5, MUM[1]); }
   // Brustpanzer (gewölbt, endet über dem Bauch)
   const bp = pt(4.5, 0.3);
-  limb(p, bp.x, bp.y, cp.x, cp.y, 7, 8, [BRZ[2], BRZ[3], BRZ[4], BRZ[5]]);
+  limb(p, bp.x, bp.y, cp.x, cp.y, 7, 8, [VERD[1], VERD[2], BRZ[3], BRZ[4]]); // Schattenseite grün angelaufen
   q(4.5, -2.5, BRZ[1]); q(4.5, -1.5, BRZ[5]); q(4.5, -0.5, BRZ[5]); q(4.5, 0.5, BRZ[5]); q(4.5, 1.5, BRZ[4]); q(4.5, 2.5, BRZ[3]); // Unterkante
   q(7.5, 1.5, BRZ[2]); q(7, 2.5, BRZ[2]); q(8.5, 0, BRZ[6]); q(8.2, -1, BRZ[6]); q(9, 0.5, BRZ[5]);
-  q(6, -1.5, VERD[2]); q(5.5, -2, VERD[3]); q(6.5, -2.5, VERD[2]); q(5.5, 3, VERD[3]); q(6, 2.3, VERD[2]); q(9, -2.5, VERD[3]);
+  // Grünspan in zusammenhängenden Flecken (nicht als Einzelpixel)
+  q(6, -2, VERD[2]); q(5.5, -2, VERD[2]); q(6, -2.5, VERD[3]); q(5.5, 2.5, VERD[2]); q(5.5, 3, VERD[3]); q(5, 3, VERD[2]);
   // Riss im Panzer: dahinter glimmt das Geisterlicht
   const crack = [[8, 1.3], [7.2, 0.6], [6.5, 1.1], [5.8, 0.5]];
   for (const [u, k] of crack) { const o = pt(u, k); p.px(o.x, o.y, soul > 0.3 ? GH[2] : MUM[0]); if (soul > 0.3) g.px(o.x, o.y, soul > 0.8 ? GH[3] : GH[1]); }
@@ -310,35 +334,49 @@ function drawWight(p, g, P, X) {
 
   // --- 5. vorderes Bein
   wrapLimb(p, hip.x + 1, hip.y, legF.jx, legF.jy, 3.2, 2.8, true, 2);
-  limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 1, 3.2, 2.8, [BRZ[2], BRZ[3], BRZ[4], BRZ[5]]);
+  limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 1, 3.2, 2.8, [VERD[1], VERD[3], BRZ[4], BRZ[5]]);
   p.px(legF.jx - 0.5, legF.jy - 0.5, BRZ[6]); p.px(legF.jx + 0.5, legF.jy + 2, VERD[3]);
   p.rect(legF.ex - 1, legF.ey - 1, 4, 1, SHR[2]); p.px(legF.ex + 2, legF.ey - 1, SHR[3]);
 
-  // --- 6. Kopf: geschlossener Bronzehelm mit Busch, im Sehschlitz ein Geisterauge
+  // --- 6. Kopf: geschlossener Bronzehelm (korinthisch) mit Rosshaarbusch.
+  // Im T-Schlitz liegt das eingefallene Gesicht, ein Geisterauge glüht.
   const neck = pt(WD.spine + 1.5, 0.6);
   const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 3.5);
-  for (let i = 0; i < 10; i++) {
-    const cx = hx + 2 - i * 0.95 - P.cape * i * 0.2, cy = hy - 5.5 + i * 0.3 + (i * i) * 0.035;
-    const h = 3.2 - Math.abs(i - 3) * 0.22;
-    for (let j = 0; j < h; j++) p.px(cx, cy - j, CREST[j === Math.ceil(h) - 1 ? 4 : i < 3 ? 3 : 2]);
-    if (i > 5) p.px(cx - 0.5, cy + 1 + Math.sin(P.capeT + i) * 0.6, CREST[1]);
+  // Busch: Strähnen von der Stirn über den Scheitel nach hinten, Spitzen wehen
+  for (let i = 0; i < 11; i++) {
+    const cx = hx + 1.5 - i * 0.9 - P.cape * i * 0.2, cy = hy - 7 + i * 0.3 + (i * i) * 0.05;
+    const h = 4.6 - Math.abs(i - 3) * 0.3;
+    for (let j = 0; j < h; j++) {
+      const top = j >= Math.ceil(h) - 1;
+      p.px(cx, cy - j, top ? CREST[i < 4 ? 4 : 3] : (i + j) % 3 === 0 ? CREST[1] : CREST[2 + (i < 3 ? 1 : 0)]);
+    }
+    if (i > 5) p.px(cx - 0.5, cy + 1 + Math.sin(P.capeT + i) * 0.6, CREST[i & 1 ? 1 : 2]);
   }
-  p.ellipse(hx + 0.5, hy - 1, 4, 4.3, BRZ[3]);
-  p.ellipse(hx, hy - 2, 3, 2.8, BRZ[4]);
-  p.px(hx - 2, hy - 4, BRZ[6]); p.px(hx - 1, hy - 5, BRZ[5]); p.px(hx - 3, hy - 2, BRZ[5]);
-  p.rect(hx - 4, hy, 3, 4, BRZ[2]); p.px(hx - 4, hy, BRZ[3]);           // Nackenschutz
-  p.rect(hx + 1, hy + 1, 4, 3, BRZ[3]); p.px(hx + 4, hy + 3, BRZ[2]);   // Wangenklappe
-  p.px(hx + 1, hy + 3, BRZ[4]); p.px(hx + 2, hy + 3, BRZ[1]);
-  p.px(hx + 5, hy, BRZ[4]); p.px(hx + 5, hy - 1, BRZ[3]);               // Nasal
-  patina(p, hx - 1, hy - 1, 3, 3, 1.5);
-  // Sehschlitz + Mundspalt: Schwärze
-  p.rect(hx + 2, hy - 1, 3, 1, '#050608'); p.rect(hx + 3, hy, 1, 2, '#050608');
-  if (P.eye > 0.3) {
-    p.px(hx + 3, hy - 1, GH[4]); p.px(hx + 4, hy - 1, GH[2]);
-    g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 4, hy - 1, GH[4]); g.px(hx + 2, hy - 1, GH[3]); g.px(hx + 5, hy - 1, GH[2]);
-    g.px(hx + 3, hy - 2, GH[1]); g.px(hx + 3, hy, GH[1]);
-    wisp(p, g, hx - 3, hy - 0.5, 8, P.wph, -1, 0.45, P.eye);
-    wisp(p, g, hx - 4, hy + 2, 6, P.wph + 2, -1, 0.2, P.eye * 0.6);
+  const HB = { s: BRZ[6], h: BRZ[5], l: BRZ[4], m: BRZ[3], d: BRZ[2], o: BRZ[1], v: VERD[2], V: VERD[3], k: '#050608', f: MUM[1], F: MUM[2], e: GH[4], r: BRZ[5] };
+  // Halstuch aus Leichentuch trennt Helm und Panzer
+  const nk = pt(WD.spine + 0.6, 0.4);
+  p.ellipse(nk.x, nk.y, 3.2, 1.6, SHR[2]); p.ellipse(nk.x - 0.6, nk.y - 0.5, 2.2, 0.8, SHR[4]);
+  p.px(nk.x + 2, nk.y + 1, SHR[1]); p.px(nk.x - 3, nk.y + 1, SHR[3]); p.px(nk.x - 3.5, nk.y + 2.5, SHR[2]);
+  pmap(p, hx - 6, hy - 7, [
+    '...lhhhl...',
+    '..lhsshllm.',
+    '.lhsshhlmmd',
+    '.hshhllmmdd',
+    'lhllmmmmmdd',
+    'hrdddrdddrd',
+    'lmmmmmmkkek',
+    'llmVmmmlkFl',
+    'dmmmmmmlkkk',
+    '.dmmmVdlkd.',
+    '..ooddd.o..',
+  ], HB);
+  if (P.eye <= 0.3) p.px(hx + 3, hy - 1, '#050608');
+  else {
+    p.px(hx + 2, hy - 1, GH[1]);
+    g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 2, hy - 1, GH[3]); g.px(hx + 1, hy - 1, GH[1]); g.px(hx + 4, hy - 1, GH[2]);
+    g.px(hx + 3, hy - 2, GH[2]); g.px(hx + 3, hy, GH[1]);
+    // schwacher Geisterhauch aus dem Schlitz, nur auf der Leucht-Ebene
+    for (let i = 0; i < 4; i++) g.px(hx + 4 + i * 0.6, hy - 2 - i + Math.sin(P.wph + i) * 0.5, GH[i < 2 ? 2 : 1]);
   }
   meta.eye = { x: hx + 3, y: hy - 1 };
   meta.head = { x: hx, y: hy - 7 };
@@ -347,7 +385,7 @@ function drawWight(p, g, P, X) {
   // --- 7. vorderer Arm + Schwert
   if (X.smear) smearArc(p, g, shF.x, shF.y + 1, X.smear[0], X.smear[1], 8, 19, GH_EDGE, GH_EDGE_G, X.smear[2] ?? 0.8);
   wrapLimb(p, shF.x, shF.y, armF.jx, armF.jy, 2.8, 2.3, true, 3);
-  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 2.8, 2.6, [BRZ[2], BRZ[3], BRZ[4], BRZ[5]]);
+  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 2.8, 2.6, [VERD[1], VERD[3], BRZ[4], BRZ[5]]);
   p.ellipse(shF.x, shF.y, 2.8, 2.2, BRZ[3]); p.ellipse(shF.x - 0.5, shF.y - 0.7, 1.8, 1.2, BRZ[5]);
   p.px(shF.x - 2, shF.y - 1, BRZ[6]); p.px(shF.x + 1.5, shF.y + 1.5, VERD[3]);
   const tip = drawBronzeSword(p, g, armF.ex, armF.ey, P.sw, X.bladeGlow ?? 0);
@@ -489,40 +527,49 @@ function drawHound(p, g, P, X) {
   p.line(ox + 7, Y(7, by + 2.5), ox + 13, Y(13, by + 4), HFUR[1]);
   p.line(ox + 7, Y(7, by + 1.6), ox + 13, Y(13, by + 2), HFUR[2]);
   // Brusthöhle: dunkel, Seelenlicht in der Mitte
-  p.ellipse(ox + 18.5, Y(18.5, by + 4.2 - hump(18) * 0.3), 5.2, 4.6 * flat, HFUR[0]);
+  const cavY = by + 4.2 - hump(18) * 0.3;
+  p.ellipse(ox + 18.5, Y(18.5, cavY), 5.4, 4.6 * flat, HFUR[0]);
+  p.ellipse(ox + 19, Y(19, cavY + 0.5), 4, 3.4 * flat, '#07090a');
   if (soul > 0.15) {
     const cx2 = ox + 18.5, cy2 = Y(18.5, by + 4.6 - hump(18) * 0.3);
-    p.ellipse(cx2, cy2, 2.4, 1.9 * flat, GH[1]); p.ellipse(cx2, cy2, 1.4, 1.1, GH[2]); p.px(cx2, cy2, GH[soul > 0.9 ? 4 : 3]);
-    g.ellipse(cx2, cy2, 3.2, 2.6 * flat, GH[1]); g.ellipse(cx2, cy2, 2, 1.6, GH[2]); g.px(cx2, cy2, GH[4]);
+    p.ellipse(cx2, cy2, 2.2, 1.7 * flat, GH[1]); p.ellipse(cx2, cy2, 1.2, 0.9, GH[2]); p.px(cx2, cy2, GH[soul > 0.9 ? 4 : 3]);
+    g.ellipse(cx2, cy2, 3.4, 2.8 * flat, GH[0]); g.ellipse(cx2, cy2, 2.4, 1.9 * flat, GH[1]); g.ellipse(cx2, cy2, 1.3, 1, GH[3]); g.px(cx2, cy2, GH[5]);
   }
-  // Rippenbögen (hell, mit Lücken), vorne länger
-  for (let i = 0; i < 6; i++) {
-    const rx = ox + 13.5 + i * 1.9, ry = spY(rx - ox) + 0.8;
-    const len = (3.6 + Math.min(i, 3) * 0.9) * flat;
-    const mx = rx - 1.2, my = ry + len * 0.55, ex2 = rx - 0.4 + i * 0.12, ey2 = ry + len;
-    p.line(rx, ry, mx, my, BN[3]); p.line(mx, my, ex2, ey2, BN[2]);
-    p.px(rx, ry, BN[4]); p.px(ex2, ey2, BN[1]);
-    p.px(rx + 0.8, ry + 1, HFUR[0]);
+  // Rippenbögen: saubere, 1 px breite Bögen (oben hell, unten im Schatten),
+  // dazwischen dunkle Lücken, durch die das Seelenlicht scheint
+  for (let i = 0; i < 5; i++) {
+    const rx = ox + 14.5 + i * 2.2, ry = spY(rx - ox) + 1;
+    const len = (3.8 + Math.min(i, 2) * 1.1) * flat;
+    let lx = rx, ly = ry;
+    for (let j = 1; j <= Math.ceil(len); j++) {
+      const f = j / len, x = rx - Math.sin(f * 2.2) * 1.6 + f * 0.3 * i, y = ry + j;
+      p.px(x, y, f < 0.35 ? BN[4] : f < 0.75 ? BN[3] : BN[2]);
+      lx = x; ly = y;
+    }
+    p.px(lx + 0.6, ly + 0.4, BN[1]);
   }
   // Brustbein-Spitze vorn
-  p.px(ox + 23, Y(23, by + 7), BN[2]); p.px(ox + 22, Y(22, by + 7.5), BN[1]);
-  // Wirbelsäule mit Dornfortsätzen (Silhouette: gezackter Buckel)
-  for (let x = 3; x <= 22; x += 1.5) {
+  p.px(ox + 23, Y(23, by + 7), BN[3]); p.px(ox + 22, Y(22, by + 7.5), BN[2]); p.px(ox + 21, Y(21, by + 8), BN[1]);
+  // Wirbelsäule: durchgehender Strang mit Dornfortsätzen (gezackter Buckel)
+  for (let x = 3; x <= 22; x += 0.5) {
     const y = spY(x);
     p.px(ox + x, y, BN[3]); p.px(ox + x, y + 1, BN[1]);
-    const h = x > 11 && x < 22 ? 2 + (Math.abs(x - 18) < 3 ? 1 : 0) : 1;
-    if (Math.round(x * 2) % 3 === 0) for (let j = 1; j <= h; j++) p.px(ox + x - j * 0.4, y - j, j === h ? BN[5] : BN[4]);
+  }
+  for (let x = 4; x <= 21; x += 2.5) {
+    const y = spY(x);
+    const h = x > 11 ? 2 + (Math.abs(x - 18) < 3.5 ? 1 : 0) : 1;
+    for (let j = 1; j <= h; j++) p.px(ox + x - j * 0.5, y - j, j === h ? BN[5] : BN[4]);
+    p.px(ox + x + 0.5, y - 1, BN[2]);
   }
 
-  // --- Geisterflammen zwischen den Dornen (Leucht-Ebene), kürzer als früher
+  // --- Geisterflammen zwischen den Dornen (nur Leucht-Ebene, kein Sprenkel im Bild)
   for (let i = 0; i < 6; i++) {
     const x = 12 + i * 1.8, base = spY(x) - 1;
     const h = (2 + ((hash2(i, 2, 95) * 3 + P.fl * 2 + i) % 3)) * soul * 0.8;
     for (let j = 0; j < h; j++) {
       const f = j / h;
       const x2 = ox + x - j * (0.55 + P.amp * 0.25) + Math.sin(P.fl * 1.7 + i + j) * 0.4, y2 = base - j * 0.8;
-      if (f < 0.3) p.px(x2, y2, GH[2]);
-      g.px(x2, y2, GH[f < 0.3 ? 4 : f < 0.6 ? 3 : 2]);
+      g.px(x2, y2, GH[f < 0.3 ? 3 : f < 0.6 ? 2 : 1]);
     }
   }
 
@@ -540,36 +587,43 @@ function drawHound(p, g, P, X) {
     p.rect(vx - 1, vy - 0.5, 2, 2, BN[2]); p.px(vx - 1, vy - 0.5, BN[4]);
   }
   limb(p, ox + 21, n0y + 2.5, hx - 1, hy + 1.5, 2.6, 1.6, [HFUR[0], HFUR[1], HFUR[2], HFUR[3]]); // Sehnenstrang
-  p.ellipse(hx, hy, 3.2, 2.6, BN[2]);
-  p.ellipse(hx - 0.3, hy - 0.8, 2.4, 1.5, BN[3]);
-  p.line(hx - 2, hy - 2, hx + 1.5, hy - 2.3, BN[4]); // Stirnwulst
+  // Schädel: gewölbter Hirnschädel (Licht oben links), Jochbogen, tiefe Augenhöhle
+  p.ellipse(hx, hy, 3.4, 2.7, BN[1]);
+  p.ellipse(hx - 0.3, hy - 0.4, 3, 2.2, BN[2]);
+  p.ellipse(hx - 0.6, hy - 1, 2.2, 1.4, BN[3]);
+  p.line(hx - 2, hy - 2, hx + 0.5, hy - 2.5, BN[4]); p.px(hx - 1, hy - 2.5, BN[5]); // Scheitelkamm
   // ein Fetzen Ohr hängt noch dran
-  p.line(hx - 2.5, hy - 1.5, hx - 4.5, hy - 2.5 - P.up, HFUR[3]); p.px(hx - 4.5, hy - 3 - P.up, HFUR[4]);
-  // Schnauze: knöcherner Oberkiefer, Unterkiefer klappt auf
+  p.line(hx - 2.5, hy - 1.5, hx - 4.5, hy - 2.5 - P.up, HFUR[3]); p.px(hx - 4.5, hy - 3 - P.up, HFUR[4]); p.px(hx - 3, hy - 1, HFUR[1]);
+  // Schnauze: spitz zulaufender Oberkiefer, Unterkiefer klappt auf
   const j = P.jaw;
   const sx = hx + 2, sy = hy - up * 2;
-  limb(p, sx, sy, sx + 5, sy + 0.5 - up, 2.8, 1.8, [BN[1], BN[2], BN[3], BN[4]]);
-  p.px(sx + 5.5, sy + 0.5 - up, BN[1]); // Nase
-  p.px(sx + 2, sy - 1, BN[4]); p.px(sx + 3, sy - 1 - up * 0.3, BN[3]);
-  // Unterkiefer
-  const ja = 0.25 + j * 0.45;
-  const jx1 = sx + 4.5 * Math.cos(ja), jy1 = sy + 1.5 + 4.5 * Math.sin(ja) - up;
-  limb(p, sx, sy + 1.5, jx1, jy1, 1.8, 1.2, [BN[0], BN[1], BN[2], BN[3]]);
+  // Unterkiefer zuerst (liegt hinter dem Oberkiefer)
+  const ja = 0.22 + j * 0.45;
+  const jx1 = sx + 4.8 * Math.cos(ja), jy1 = sy + 1.6 + 4.8 * Math.sin(ja) - up;
+  limb(p, sx - 0.5, sy + 1.6, jx1, jy1, 2, 1.2, [BN[0], BN[1], BN[2], BN[3]]);
   if (j > 0.2) {
-    // Maulinneres glimmt
-    p.line(sx + 1, sy + 1.2, sx + 4, sy + 1.5 + j * 1.2 - up, GH[1]);
-    g.line(sx + 1, sy + 1.2, sx + 4, sy + 1.5 + j * 1.2 - up, GH[2]);
-    // Zähne
-    p.px(sx + 3, sy + 1 - up * 0.5, BN[5]); p.px(sx + 4.5, sy + 1 - up * 0.8, BN[5]); p.px(jx1 - 0.5, jy1 - 1, BN[4]);
-  } else {
-    for (let k = 0; k < 4; k++) p.px(sx + 1 + k, sy + 1.3, k % 2 ? HFUR[0] : BN[5]); // Zahnreihe
+    // Maulinneres glimmt, Zähne im Unterkiefer stehen nach oben
+    p.line(sx + 1, sy + 1.4, sx + 4, sy + 1.6 + j * 1.2 - up, GH[1]);
+    g.line(sx + 1, sy + 1.4, sx + 4, sy + 1.6 + j * 1.2 - up, GH[2]);
+    p.px(jx1 - 0.7, jy1 - 1, BN[5]); p.px(jx1 - 2.2, jy1 - 1.4 + j * 0.3, BN[4]);
   }
-  // Auge: tief, glühend
+  limb(p, sx - 0.5, sy, sx + 5.2, sy + 0.6 - up, 3, 1.6, [BN[1], BN[2], BN[3], BN[4]]);
+  p.px(sx + 5.6, sy + 0.2 - up, '#0b0d0e'); // Nasenöffnung
+  p.px(sx + 1.5, sy - 1, BN[5]); p.px(sx + 3, sy - 0.6 - up * 0.3, BN[4]); // Nasenrücken im Licht
+  // Oberkiefer-Zähne: Reißzahn vorn lang, dahinter kleine Zacken
+  p.px(sx + 4.2, sy + 1.4 - up * 0.8, BN[5]); p.px(sx + 4.2, sy + 2.2 - up * 0.8, BN[4]);
+  p.px(sx + 2.6, sy + 1.6 - up * 0.5, BN[5]); p.px(sx + 1.2, sy + 1.6 - up * 0.3, BN[4]);
+  if (j <= 0.2) for (let k = 0; k < 4; k++) p.px(sx + 0.8 + k, sy + 2.3 - up * 0.4, k % 2 ? HFUR[0] : BN[3]);
+  // Jochbogen unter dem Auge
+  p.line(hx - 1, hy + 1.5, hx + 2, hy + 1, BN[1]);
+  // Auge: tiefe Höhle unter dem Stirnwulst, glühender Punkt
   const ex = hx + 1, ey = hy - 1;
-  p.rect(ex - 1, ey - 0.5, 3, 2, HFUR[0]);
+  p.rect(ex - 1, ey - 0.5, 3, 2, '#07090a');
+  p.line(ex - 1, ey - 1.5, ex + 1.5, ey - 1.5, BN[5]); // Stirnwulst
   if (P.eye > 0.2) {
-    p.px(ex, ey, GH[4]); g.px(ex, ey, GH[5]); g.px(ex + 1, ey, GH[3]); g.px(ex - 1, ey, GH[2]);
-    wisp(p, g, ex - 1, ey - 0.5, 5 + (P.amp > 0.5 ? 2 : 0), P.fl, -1, 0.1, P.eye * 0.8);
+    p.px(ex, ey, GH[4]); p.px(ex + 1, ey, GH[2]);
+    g.px(ex, ey, GH[5]); g.px(ex + 1, ey, GH[3]); g.px(ex - 1, ey, GH[2]); g.px(ex, ey + 1, GH[1]);
+    wisp(p, g, ex - 1, ey - 0.5, 5 + (P.amp > 0.5 ? 2 : 0), P.fl, -1, 0.1, P.eye * 0.8, false);
   }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: sx + 5, y: sy + 1 };
@@ -752,28 +806,40 @@ function drawBoneArcher(p, g, P, X) {
   // --- Schädel mit Bronzekappe
   const neck = pt(AD.spine + 1.5, 0.5);
   const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 3);
-  p.ellipse(hx, hy, 3.2, 3.3, BN[3]);
-  p.ellipse(hx - 0.5, hy - 1, 2.2, 2, BN[4]);
-  p.px(hx - 2, hy - 2, BN[5]);
-  // Kiefer
+  // Schädel als Pixelkarte: Licht oben links, tiefe Augenhöhle, Nasenloch, Zahnreihe
+  const SK = { s: BN[5], h: BN[4], l: BN[3], m: BN[2], d: BN[1], w: BN[5], k: '#07080a', e: GH[4], n: '#07080a' };
   const jw = P.jaw;
-  p.rect(hx, hy + 2 + jw, 3.5, 1.5, BN[2]); p.px(hx + 3, hy + 2 + jw, BN[3]);
-  p.px(hx + 1, hy + 2, BN[5]); p.px(hx + 2, hy + 2, '#08090a'); p.px(hx + 3, hy + 2, BN[5]);
-  if (jw > 0.4) p.rect(hx + 1, hy + 2, 2, jw, '#08090a');
-  // Nasenloch, Wangenknochen
-  p.px(hx + 3, hy + 0.5, '#08090a'); p.px(hx + 2, hy + 1, BN[1]);
-  // Augenhöhle mit Geisterlicht
-  p.rect(hx + 1, hy - 1, 2, 2, '#050607');
-  if (P.eye > 0.3) {
-    p.px(hx + 2, hy - 1, GH[4]); g.px(hx + 2, hy - 1, GH[5]); g.px(hx + 1, hy - 1, GH[3]); g.px(hx + 3, hy - 1, GH[2]); g.px(hx + 2, hy, GH[2]);
-    wisp(p, g, hx + 1, hy - 1.5, 6, P.wph, -1, 0.35, P.eye);
+  // Unterkiefer (klappt nach unten)
+  pmap(p, hx - 1, hy + 2 + Math.round(jw), [
+    jw > 0.4 ? 'dmwkwk' : 'dmmmml',
+    '.ddmmd',
+  ], SK);
+  if (jw > 0.4) p.rect(hx + 1, hy + 2, 3, Math.round(jw), '#07080a');
+  pmap(p, hx - 3, hy - 4, [
+    '.lhhhl.',
+    'lhsshhl',
+    'hshhhmm',
+    'hhhmkek',
+    'mhhmkkd',
+    'dmmmmmn',
+    '.dmwkwk',
+  ], SK);
+  if (P.eye <= 0.3) p.px(hx + 2, hy - 1, '#07080a');
+  else {
+    g.px(hx + 2, hy - 1, GH[5]); g.px(hx + 1, hy - 1, GH[3]); g.px(hx + 3, hy - 1, GH[2]); g.px(hx + 2, hy, GH[2]);
+    wisp(p, g, hx + 1, hy - 1.5, 6, P.wph, -1, 0.35, P.eye, false);
   }
   // Bronzekappe (Spangenhelm, spitz) mit Wangenrest
-  p.ellipse(hx - 0.5, hy - 3, 3.4, 1.8, BRZ[3]);
-  p.rect(hx - 4, hy - 2.5, 7, 1, BRZ[2]); p.px(hx + 2, hy - 2.5, BRZ[4]);
-  p.px(hx - 0.5, hy - 5, BRZ[5]); p.px(hx - 1, hy - 4, BRZ[5]); p.px(hx - 2, hy - 4, BRZ[4]); p.px(hx - 3, hy - 3, BRZ[5]);
-  p.px(hx, hy - 6, BRZ[6]); p.px(hx, hy - 5, BRZ[4]);
-  patina(p, hx, hy - 3.5, 5, 2, 1.2);
+  pmap(p, hx - 4, hy - 8, [
+    '....s...',
+    '...hl...',
+    '..hhlm..',
+    '.hhllmd.',
+    'hllmmmdd',
+  ], { s: BRZ[6], h: BRZ[5], l: BRZ[4], m: BRZ[3], d: BRZ[2] });
+  p.rect(hx - 4, hy - 3, 8, 1, BRZ[2]); p.px(hx - 4, hy - 3, BRZ[4]); p.px(hx - 1, hy - 3, BRZ[5]); p.px(hx + 3, hy - 3, BRZ[1]); // Rand mit Niete
+  p.px(hx, hy - 6, VERD[3]); p.px(hx + 1, hy - 5, VERD[2]);
+  p.px(hx - 3, hy - 2, BRZ[2]); p.px(hx - 3, hy - 1, BRZ[1]); // Wangenrest
   meta.eye = { x: hx + 2, y: hy - 1 };
   meta.head = { x: hx, y: hy - 6 };
   meta.mouth = { x: hx + 3, y: hy + 2 };
@@ -782,7 +848,7 @@ function drawBoneArcher(p, g, P, X) {
   boneLimb(p, shF.x, shF.y, armF.jx, armF.jy, 2, true);
   boneLimb(p, armF.jx, armF.jy, armF.ex, armF.ey, 1.7, true);
   // Schulterstück: Bronzeplatte
-  p.ellipse(shF.x, shF.y, 2.2, 1.6, BRZ[3]); p.px(shF.x - 1, shF.y - 1, BRZ[5]); p.px(shF.x + 1, shF.y + 1, VERD[3]);
+  p.ellipse(shF.x - 0.5, shF.y + 0.5, 1.6, 1.2, BRZ[3]); p.px(shF.x - 1.5, shF.y - 0.5, BRZ[5]); p.px(shF.x + 0.5, shF.y + 1.5, VERD[2]);
   const nock = P.draw > 0.02 || P.arrow > 0.5 ? { x: armB.ex, y: armB.ey } : null;
   const hand = drawLongbow(p, g, armF.ex, armF.ey, P.bowA, P.draw, nock, P.arrow > 0.5, P.draw * soul);
   p.rect(armF.ex - 1, armF.ey - 1, 2, 2, BN[3]); p.px(armF.ex - 1, armF.ey - 1, BN[5]);
@@ -981,18 +1047,21 @@ function drawCaller(p, g, P, X) {
     p.px(hx + k, hy - 4, BRZ[3]);
     if ((k & 1) === 0) { p.px(hx + k, hy - 5, BRZ[5]); p.px(hx + k, hy - 6, BRZ[6]); }
   }
-  // Maske: Bronzeprofil, leere Augen mit Geisterlicht
-  p.rect(hx + 1, hy - 2, 3, 5, BRZ[4]);
-  p.rect(hx + 1, hy - 2, 2, 1, BRZ[5]);
-  p.px(hx + 4, hy, BRZ[4]); p.px(hx + 4, hy + 1, BRZ[3]);
-  p.px(hx + 1, hy + 2, BRZ[3]); p.px(hx + 2, hy + 2, BRZ[2]); p.px(hx + 3, hy + 2, BRZ[1]);
-  p.px(hx + 2, hy + 1, VERD[3]); p.px(hx + 1, hy, VERD[2]);
-  p.px(hx + 3, hy - 1, '#040506'); p.px(hx + 2, hy - 1, BRZ[3]);
-  if (P.eye > 0.3) {
-    p.px(hx + 3, hy - 1, GH[4]); g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 4, hy - 1, GH[2]); g.px(hx + 3, hy, GH[1]);
-    wisp(p, g, hx + 2, hy - 1.5, 5, P.wph, -1, 0.25, P.eye);
+  // Maske: Bronze-Totenmaske im Profil (Stirn, Augenloch, Nasenrücken, Mundschlitz)
+  p.rect(hx, hy - 2, 1, 5, ROBE_B[0]); // Kapuzenschatten hinter der Maske
+  pmap(p, hx + 1, hy - 2, [
+    'shhl',
+    'hkel',
+    'lmmh',
+    'mVmd',
+    'dkkd',
+  ], { s: BRZ[6], h: BRZ[5], l: BRZ[4], m: BRZ[3], d: BRZ[2], V: VERD[3], k: '#040506', e: GH[4] });
+  p.px(hx + 4, hy + 2, ROBE_B[1]);
+  if (P.eye <= 0.3) p.px(hx + 3, hy - 1, '#040506');
+  else {
+    g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 2, hy - 1, GH[3]); g.px(hx + 4, hy - 1, GH[2]); g.px(hx + 3, hy, GH[1]);
+    wisp(p, g, hx + 2, hy - 1.5, 5, P.wph, -1, 0.25, P.eye, false);
   }
-  p.px(hx, hy - 1, ROBE_B[1]); p.px(hx, hy, ROBE_B[1]); p.px(hx, hy + 1, ROBE_B[1]);
   p.px(hx + 1, hy - 3, ROBE_B[3]); p.px(hx + 2, hy - 3, ROBE_B[2]); p.px(hx + 3, hy - 3, ROBE_B[2]);
   meta.eye = { x: hx + 3, y: hy - 1 };
   meta.head = { x: hx, y: hy - 7 };

@@ -4069,5 +4069,18 @@ export const EN = {
   "Ich verkaufe jetzt nur noch an eine Seite. Die richtige, hoffe ich.": "I only sell to one side now. The right one, I hope.",
   "Du hast etwas gut bei mir. Erzähl es nur nicht Ilsa.": "I owe you one. Just don't tell Ilsa.",
   "Moll löst seine Schuld ein: Er kennt das Versteck einer Schmugglerbande.": "Moll repays a debt: the hideout of a smuggler gang.",
-  "Zyklon": "Cyclone"
+  "Zyklon": "Cyclone",
+  "Garderobe": "Wardrobe",
+  "Angelegt": "Equipped",
+  "Ausblenden": "Hide",
+  "Anlegen": "Apply",
+  "Andere Klasse": "Other class",
+  "Helm ausgeblendet": "Helmet hidden",
+  "Angelegter Gegenstand": "Equipped item",
+  "Aussehen angelegt": "Appearance applied",
+  "{0} Aussehen gesammelt": "{0} appearances collected",
+  "Die Garderobe ist gerade nicht verfügbar.": "The wardrobe is unavailable right now.",
+  "Dieser Platz hat kein eigenes Aussehen.": "This slot has no appearance of its own.",
+  "Noch nicht gesammelt.": "Not collected yet.",
+  "Nur für eine andere Klasse.": "Only for another class."
 };

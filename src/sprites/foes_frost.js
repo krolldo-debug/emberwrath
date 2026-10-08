@@ -101,6 +101,31 @@ function rotBlit(src, dst, px, py, ang) {
   dst.ctx.putImageData(img, 0, 0);
 }
 
+// Licht-Durchgang nach dem Zeichnen: Pixel mit freier Oberkante/linker Kante
+// werden zum kalten Schlüssellicht gezogen, Pixel mit freier Unter-/rechter
+// Kante leicht in den violett-blauen Kernschatten. Gibt jeder Figur Volumen und
+// trennt die Silhouette auch auf hellem Schnee sauber vom Boden.
+const RIM_KEY = [226, 244, 255], RIM_SHADE = [10, 14, 34];
+function shadePass(p, keyK = 0.3, shadeK = 0.28) {
+  const W = p.w, H = p.h;
+  const img = p.ctx.getImageData(0, 0, W, H), d = img.data;
+  const A = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) A[i] = d[i * 4 + 3] > 40 ? 1 : 0;
+  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : A[y * W + x]);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!A[y * W + x]) continue;
+    const i = (y * W + x) * 4;
+    const up = !at(x, y - 1), lf = !at(x - 1, y), dn = !at(x + 1, y + 1) || !at(x, y + 1), rt = !at(x + 1, y);
+    let t = 0, c = null;
+    if (up || lf) { t = keyK * (up && lf ? 1.2 : up ? 1 : 0.7); c = RIM_KEY; }
+    else if (dn && rt) { t = shadeK; c = RIM_SHADE; }
+    else if (dn || rt) { t = shadeK * 0.55; c = RIM_SHADE; }
+    if (!c) continue;
+    d[i] += (c[0] - d[i]) * t; d[i + 1] += (c[1] - d[i + 1]) * t; d[i + 2] += (c[2] - d[i + 2]) * t;
+  }
+  p.ctx.putImageData(img, 0, 0);
+}
+
 // Baut einen Frame: draw(p, g, P, extra) -> meta (absolute Koordinaten).
 // extra.rot = [winkel, drehpunktX, drehpunktY] kippt die ganze Figur (Sturz),
 // extra.post(p, g) zeichnet danach ungedreht (z. B. liegende Waffe, Bodeneis).
@@ -128,6 +153,7 @@ function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
         meta[k] = { x: rx + dx * c - dy * s, y: ry0 + dx * s + dy * c + shift };
       }
     } else meta = draw(p, g, P, extra) || {};
+    shadePass(p, extra.rimK ?? 0.3);
     if (extra.post) Object.assign(meta, extra.post(p, g) || {});
   });
   f.glow = new SpriteFrame(g.canvas, AX, AY);
@@ -233,6 +259,8 @@ const T_SKIN = ['#121a2c', '#1f2c46', '#2e4262', '#405c84', '#5a7ca4', '#80a2c4'
 const G_SKIN = ['#101628', '#1b2842', '#283c5e', '#385480', '#4e72a0', '#7496c0', '#9ebcda'];
 const MANE = ['#0e1018', '#1a1e2a', '#2a303e', '#3e4656', '#586274', '#7a8698'];
 const PELT = ['#3c4452', '#5e6878', '#8894a4', '#b2bcc8', '#d6dde4', '#f0f4f8'];
+// Wolfsfellmantel des Häuptlings: kaltes Grau, damit er nicht als weißer Streifen wirkt
+const CHIEF_FUR = ['#1e2432', '#2e3646', '#444e62', '#5e6a80', '#808ca2', '#a8b4c6'];
 const LOIN = ['#1c120c', '#302016', '#463022', '#5e4430', '#7a5c40'];
 
 const TROLL = {
@@ -414,12 +442,12 @@ function drawTroll(p, g, P, X, T) {
   // Bauch (heller, etwas grünlich-blau)
   p.ellipse(belly.x + 3 * k, belly.y + 1 * k, 4 * k, 4.5 * k, S[3]);
   p.ellipse(belly.x + 3.5 * k, belly.y + 0.5 * k, 2.2 * k, 3 * k, S[4]);
-  // Warzen / Reifflecken auf der Haut
-  for (let i = 0; i < 10 * k; i++) {
-    const u = hash2(i, 1, chief ? 77 : 71) * D.spine, kk = (hash2(i, 2, 71) - 0.5) * 12 * k;
-    const o = pt(u, kk);
-    p.px(o.x, o.y, hash2(i, 3, 71) < 0.5 ? S[1] : S[5]);
+  // Narben (zwei helle Kratzer mit dunkler Kante) statt Flecken-Rauschen
+  for (const [u0, k0, len] of [[D.spine - 5 * k, 2 * k, 3], [D.spine - 9 * k, 4.5 * k, 2]]) {
+    for (let j = 0; j < len * k; j++) { const o = pt(u0 - j * 0.8, k0 + j * 0.6); p.px(o.x, o.y, S[5]); p.px(o.x + 0.6, o.y + 1, S[1]); }
   }
+  // Brustbehaarung: kurze dunkle Strähnen auf der Brustmitte
+  for (let i = 0; i < 4; i++) { const o = pt(D.spine - (3 + i * 1.6) * k, (2.5 + (i % 2)) * k); p.px(o.x, o.y, S[1]); p.px(o.x + 0.6, o.y + 1, S[1]); }
   // Gürtel mit Fellschurz vorn
   for (let kk = -6 * k; kk <= 7 * k; kk += 0.5) { const o = pt(0.8 * k, kk); p.px(o.x, o.y, LOIN[1]); const o2 = pt(1.5 * k, kk); p.px(o2.x, o2.y, LOIN[3]); }
   for (let i = 0; i < 3; i++) {
@@ -438,7 +466,7 @@ function drawTroll(p, g, P, X, T) {
 
   // --- 5. Mähne / Eisbärenfell über Buckel und Rücken, Eiszapfen
   const maneTop = pt(D.spine + 1 * k, -1 * k);
-  const MN = chief ? PELT : MANE;
+  const MN = chief ? CHIEF_FUR : MANE;
   const strands = chief ? 16 : 11;
   for (let i = 0; i < strands; i++) {
     const u = i / (strands - 1);
@@ -457,13 +485,6 @@ function drawTroll(p, g, P, X, T) {
     const o = pt(D.spine + (1.5 - i * 1.1) * k, (-4.5 - Math.sin(i / 8 * Math.PI) * 1.2) * k);
     p.px(o.x, o.y, i % 3 === 1 ? '#f4f8fc' : MN[5 - (chief ? 0 : 1)]);
     p.px(o.x, o.y + 1, MN[3]);
-  }
-  if (chief) { // Bärenkopf-Kapuze über der Schulter
-    const bh = pt(D.spine + 1 * k, -5.5 * k);
-    p.ellipse(bh.x, bh.y, 5, 3.5, PELT[3]); p.ellipse(bh.x - 1, bh.y - 1, 3.5, 2, PELT[4]);
-    p.px(bh.x - 4, bh.y - 3, PELT[2]); p.px(bh.x - 4, bh.y - 4, PELT[3]); // Ohr
-    p.px(bh.x + 1, bh.y + 1, '#101218'); p.px(bh.x + 4, bh.y + 1, PELT[1]);
-    for (let i = 0; i < 4; i++) p.px(bh.x + 1 + i, bh.y + 3, i % 2 ? BONE[4] : BONE[3]); // Bärenzähne
   }
   // Eiszapfen, die vom Mähnensaum herabhängen
   const icN = chief ? 6 : 4;
@@ -484,8 +505,10 @@ function drawTroll(p, g, P, X, T) {
   }
 
   // --- 6. vorderes Bein (dicke Säule, Fußklauen)
-  limb(p, hip.x + D.hipW, hip.y, legF.jx, legF.jy, 7 * k, 6 * k, R4(1, 2, 3, 4));
-  limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 1.5 * k, 6 * k, 5.5 * k, R4(1, 2, 3, 4));
+  limb(p, hip.x + D.hipW, hip.y, legF.jx, legF.jy, 7 * k, 6 * k, R4(0, 2, 3, 4));
+  limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 1.5 * k, 6 * k, 5.5 * k, R4(0, 2, 3, 4));
+  // Muskelwulst am Oberschenkel (Licht oben links)
+  { const mt = { x: (hip.x + D.hipW + legF.jx) / 2, y: (hip.y + legF.jy) / 2 }; p.ellipse(mt.x - 0.5, mt.y - 1, 1.8 * k, 2.4 * k, S[4]); p.px(mt.x - 1, mt.y - 2.5 * k, S[5]); }
   p.px(legF.jx - 1, legF.jy - 1, S[5]); p.px(legF.jx, legF.jy - 1, S[5]);
   p.ellipse(legF.ex + 1.5 * k, legF.ey - 1.2 * k, 3.8 * k, 1.7 * k, S[2]);
   p.px(legF.ex, legF.ey - 2 * k, S[4]);
@@ -519,19 +542,34 @@ function drawTroll(p, g, P, X, T) {
   // spitzes Ohr nach hinten oben
   p.line(hx - 3.5 * k, hy - 0.5 * k, hx - 7 * k, hy - 3.5 * k, S[4]); p.line(hx - 3.5 * k, hy + 0.5 * k, hx - 6.5 * k, hy - 2.5 * k, S[2]);
   p.px(hx - 7 * k, hy - 3.5 * k, S[5]);
-  // Stirnwulst: heller Grat, tiefer Schatten darunter
-  p.rect(hx - 0.5 * k, hy - 2 * k, 5.5 * k, 1, S[5]);
-  p.rect(hx - 0.5 * k, hy - 1 * k, 5.5 * k, 1.4 * k, S[0]);
-  // Augen tief im Schatten, eisblau glühend
+  // Stirnwulst: schwerer, heller Grat, der zur Nase hin abfällt (finsterer Blick),
+  // darunter eine tiefe Schattenhöhle für die Augen
   const ex = hx + Math.round(3 * k), ey = hy - Math.round(0.4 * k);
   const eyeOn = P.eye > 0.3;
-  p.px(ex, ey, eyeOn ? ICE[5] : S[1]); p.px(ex - Math.round(2.2 * k), ey, eyeOn ? ICE[3] : S[1]);
-  if (chief) p.px(ex - 1, ey, eyeOn ? ICE[4] : S[1]);
-  if (eyeOn) { g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[3]); g.px(ex - Math.round(2.2 * k), ey, ICE_G[3]); g.px(ex, ey - 1, ICE_G[1]); g.px(ex - 1, ey, ICE_G[2]); }
+  const bx2 = ex - Math.round(2.2 * k);
+  p.rect(hx - 1 * k, hy - 2.4 * k, 6 * k, 1, S[5]);
+  p.rect(hx - 0.5 * k, hy - 2.4 * k - 1, 3 * k, 1, S[6]);
+  p.rect(bx2 - 1, ey - 1, ex - bx2 + 3, 2, S[0]);
+  p.px(ex + 1, ey - 1, S[4]); p.px(ex + 2, ey - 1, S[5]);       // Wulst knickt über dem Auge ab
+  p.px(bx2 + 1, ey + 1, S[2]); p.px(ex - 1, ey + 1, S[2]);       // Tränensäcke
+  // Augen: zweistufig (Iris + weißer Kern), das hintere kleiner
+  p.px(ex, ey, eyeOn ? ICE[5] : S[1]); p.px(ex - 1, ey, eyeOn ? ICE[3] : S[0]);
+  p.px(bx2, ey, eyeOn ? ICE[4] : S[1]);
+  if (chief) p.px(bx2 + 1, ey, eyeOn ? ICE[2] : S[0]);
+  if (eyeOn) { g.px(ex, ey, ICE_G[5]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex + 1, ey, ICE_G[2]); g.px(bx2, ey, ICE_G[4]); g.px(bx2 - 1, ey, ICE_G[1]); g.px(ex, ey - 1, ICE_G[1]); }
   meta.eye = { x: ex, y: ey };
-  // Knollennase, ragt über den Kiefer
+  // Knollennase, ragt über den Kiefer; dunkles Nasenloch
   p.ellipse(hx + 5.2 * k, hy + 0.6 * k, 1.8 * k, 1.5 * k, S[4]);
-  p.px(hx + 5 * k, hy - 0.2 * k, S[5]); p.px(hx + 6 * k, hy + 1.5 * k, S[1]); p.px(hx + 4.5 * k, hy + 1.6 * k, S[1]);
+  p.px(hx + 5 * k, hy - 0.2 * k, S[6]); p.px(hx + 6 * k, hy + 1.5 * k, S[1]); p.px(hx + 4.5 * k, hy + 1.6 * k, S[1]);
+  p.px(hx + 5.6 * k, hy + 1.1 * k, S[0]);
+  // Lippennaht mit gezackter oberer Zahnreihe (geschlossen) bzw. Zähne im offenen Maul
+  if (jaw <= 0) {
+    p.line(hx - 1 * k, hy + 1.6 * k, hx + 4.2 * k, hy + 1.6 * k, S[0]);
+    for (let i = 0; i < 3; i++) p.px(hx + (0.2 + i * 1.3) * k, hy + 1.6 * k + 1, i % 2 ? BONE[3] : BONE[4]);
+  } else {
+    for (let i = 0; i < 4; i++) p.px(hx + (-0.5 + i * 1.3) * k, hy + 1.2 * k + 1, i % 2 ? BONE[3] : BONE[4]);
+    p.px(hx + 2 * k, hy + 1.2 * k + jaw - 1, '#7a3046');      // Zunge
+  }
   // Hauer aus dem Unterkiefer (ragen vor der Oberlippe hoch)
   const tusk = (tx, big) => {
     const ty = hy + 2.2 * k + jaw;
@@ -574,9 +612,11 @@ function drawTroll(p, g, P, X, T) {
     limb(p, shF.x, shF.y, armF.jx, armF.jy, 5.5 * k, 5 * k, R4(2, 3, 5, 6));
     club();
   }
-  limb(p, shF.x, shF.y, armF.jx, armF.jy, 5.5 * k, 5 * k, R4(2, 3, 5, 6));
+  limb(p, shF.x, shF.y, armF.jx, armF.jy, 5.5 * k, 5 * k, R4(0, 3, 4, 6));
   p.px(shF.x - 1, shF.y - 2, S[6]); p.px(shF.x, shF.y - 2, S[5]);
-  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 5 * k, 4.8 * k, R4(1, 3, 4, 5));
+  limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 5 * k, 4.8 * k, R4(0, 2, 4, 5));
+  // Bizepswulst + Ellbogenschatten
+  { const bm = { x: shF.x + (armF.jx - shF.x) * 0.45, y: shF.y + (armF.jy - shF.y) * 0.45 }; p.ellipse(bm.x - 0.5, bm.y - 0.5, 1.6 * k, 1.6 * k, S[5]); p.px(bm.x - 1, bm.y - 1.5, S[6]); p.px(armF.jx, armF.jy + 1, S[1]); }
   // Eisschulterpanzer (Eis-Verkrustung auf der Schulter)
   const sp = { x: shF.x - 0.5, y: shF.y - 1 * k };
   p.ellipse(sp.x, sp.y, 3.2 * k, 2.4 * k, ICE[2]); p.ellipse(sp.x - 0.8, sp.y - 0.8, 2.2 * k, 1.4 * k, ICE[3]);
@@ -866,10 +906,12 @@ function drawFrostWolf(p, g, P, X) {
   for (let x = 2; x <= 22; x++) p.px(ox + x, Y(x, by - 5 - (x > 15 ? (x - 15) * 0.2 : 0)) + (x % 3 === 0 ? 1 : 0), x % 4 === 0 ? WF[7] : WF[6]);
   // Oberschenkel-Wölbung
   p.ellipse(ox + 5, Y(5, by + 1), 3.5, 3.5, WF[3]); p.ellipse(ox + 4.5, Y(4.5, by), 2.5, 2.5, WF[5]);
-  // Fellstruktur
-  for (let i = 0; i < 26; i++) {
-    const x = 2 + hash2(i, 1, 51) * 22, y = -3 + hash2(i, 2, 51) * 7;
-    p.px(ox + x, Y(x, by + y), hash2(i, 3, 51) < 0.55 ? WF[3] : WF[6]);
+  // Fellstruktur: gerichtete Strähnen (nach hinten-unten gekämmt) statt Rauschen;
+  // oben helle Spitzen, an der Flanke dunkle Strähnen, die zum Bauch hin dichter werden
+  for (let i = 0; i < 16; i++) {
+    const x = 3 + hash2(i, 1, 51) * 19, y = -2.5 + hash2(i, 2, 51) * 6;
+    const c = y < 0 ? WF[6] : y < 2 ? WF[3] : WF[2];
+    p.px(ox + x, Y(x, by + y), c); p.px(ox + x - 1, Y(x - 1, by + y + 1), c);
   }
   // Eisstachel-Kamm entlang des Rückens: große, nach hinten geneigte Kristalle
   // (prägt die Silhouette – kein anderer Wolf hat diese Zackenlinie)
@@ -921,8 +963,11 @@ function drawFrostWolf(p, g, P, X) {
 
   // --- Kopf
   const ha = P.ha, d = dirOf(ha);
-  p.ellipse(hx, hy, 3.6, 3.1, WF[4]);
-  p.ellipse(hx - 0.5, hy - 1, 2.8, 1.8, WF[6]);
+  // Schädel etwas wuchtiger, Unterseite im Schatten
+  p.ellipse(hx, hy + 0.3, 4.1, 3.5, WF[3]);
+  p.ellipse(hx - 0.2, hy - 0.3, 3.7, 3, WF[4]);
+  p.ellipse(hx - 0.5, hy - 1.2, 3, 1.8, WF[6]);
+  p.px(hx - 1.5, hy - 2.5, WF[7]);
   // Ohren (spitz, zurückgelegt beim Knurren)
   const earBack = P.ear;
   const ear = (ex, ey, near) => {
@@ -944,13 +989,26 @@ function drawFrostWolf(p, g, P, X) {
     p.line(hx + 2, hy + 1.5, jx - jd.x * 1.5, jy - 1, '#6a2a3a');
     p.px(tipX - d.x * 1.5, tipY + 1, '#f4f4ec'); p.px(jx - jd.x * 1.5, jy - 1.5, '#f4f4ec'); p.px(hx + d.x * 3, hy + d.y * 3 + 1.5, '#e0e0d8');
   }
-  p.px(tipX, tipY - 0.5, '#0c0e14'); p.px(tipX - d.x, tipY - 1, WF[1]); // Nase
+  // Nasenrücken hell (Licht von oben), Stirnabsatz, helle Wangenkrause
+  p.line(sx0 + 0.5, sy0 - 1.2, tipX - d.x * 1.5, tipY - 1.6 - d.y, WF[6]);
+  p.px(hx + 2, hy - 2, WF[6]);
+  p.px(hx - 1, hy + 2, WF[6]); p.px(hx - 2, hy + 2.5, WF[5]); p.px(hx, hy + 2.5, WF[5]);
+  // geschlossenes Maul: dunkle Lefzenlinie mit Fangzahn
+  if (P.jaw <= 0.2) {
+    p.line(hx + 1.5, hy + 1.6, tipX - d.x * 1.2, tipY + 0.4, WF[0]);
+    p.px(hx + d.x * 4.5, hy + d.y * 4.5 + 2.2, '#f4f4ec');
+  }
+  // Nase: kräftig, 2×2 mit Glanzpunkt
+  p.rect(tipX - 1, tipY - 1, 2, 2, '#0c0e14'); p.px(tipX - 1, tipY - 1, WF[2]); // Nase
   if (side < 0.5 && P.jaw < 0.5) { icicle(p, g, Math.round(hx + 2), Math.round(hy + 3), 3, P.frost); icicle(p, g, Math.round(hx + 4), Math.round(hy + 3), 2, P.frost); }
   // Auge: eisblau, leuchtend, dunkle Maske darum
   const ex = hx + 1 + d.x, ey = hy - 1 + d.y * 0.5;
-  p.px(ex - 1, ey, WF[1]); p.px(ex + 1, ey + 0.5, WF[2]);
-  if (P.eye > 0.3) { p.px(ex, ey, ICE[4]); g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[1]); }
-  else p.px(ex, ey, WF[1]);
+  // dunkle Augenmaske: Band vom Ohr zum Auge, Brauenkante, Tränenlinie zur Schnauze
+  p.line(ex - 4, ey - 1, ex - 2, ey, WF[2]);
+  p.px(ex - 1, ey - 1, WF[1]); p.px(ex, ey - 1, WF[0]); p.px(ex + 1, ey - 1, WF[1]);
+  p.px(ex + 1, ey + 0.5, WF[1]); p.px(ex + 2, ey + 1, WF[2]);
+  if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); p.px(ex - 1, ey, ICE[3]); g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[3]); }
+  else { p.px(ex, ey, WF[1]); p.px(ex - 1, ey, WF[1]); }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: tipX, y: tipY + 1 };
   meta.head = { x: hx, y: hy - 6 };
@@ -1030,7 +1088,10 @@ function drawStalker(p, g, P, X) {
     if (lie > 0) { fx = hx + (front ? 6 : -5) * lie + (fx - hx) * (1 - lie); }
     if (sw > 0) { fx += (hx + sx - fx) * sw; fy += (hy + sy - fy) * sw; }
     const L = qLeg(p, hx, hy - 1, fx, fy, front ? 7.5 : 8, front ? 7 : 8.5, front, near ? 3.8 : 3.2, col, 4);
-    if (!front) p.ellipse(hx - 0.5, hy + 1.5, near ? 3.5 : 3, near ? 4 : 3.5, col[1]);
+    if (!front) { // Keule: gewölbt, Licht oben links (kein dunkles „Loch“)
+      p.ellipse(hx - 0.5, hy + 1.5, near ? 3.5 : 3, near ? 4 : 3.5, col[near ? 2 : 1]);
+      if (near) { p.ellipse(hx - 1.2, hy + 0.5, 2.2, 2.4, col[3]); p.px(hx - 2, hy - 0.5, CF[6]); }
+    }
     // Streifen am Bein
     if (near) p.px((hx + L.jx) / 2, (hy + L.jy) / 2, STRIPE[1]);
     // Krallen bei erhobener Pranke
@@ -1062,7 +1123,7 @@ function drawStalker(p, g, P, X) {
   p.ellipse(ox + 14, Y(14, by - 3.8), 8, 1, CF[6]);
   p.ellipse(ox + 23, Y(23, by - 4), 4, 1.5, CF[6]);
   // Hinterbacke + Schulterblatt
-  p.ellipse(ox + 5, Y(5, by + 1), 3.5, 3.5, CF[3]); p.ellipse(ox + 4.5, Y(4.5, by), 2.5, 2.2, CF[5]);
+  p.ellipse(ox + 5, Y(5, by + 1), 3.5, 3.5, CF[4]); p.ellipse(ox + 4.5, Y(4.5, by), 2.5, 2.2, CF[5]);
   // Tigerstreifen (dunkel, quer)
   const stripes = [[4, -2, 2], [8, -4, 5], [11, -4, 6], [14, -4, 5], [17, -4, 6], [20, -4, 4], [24, -5, 3]];
   for (const [x, y0, len] of stripes) {
@@ -1071,11 +1132,14 @@ function drawStalker(p, g, P, X) {
       p.px(ox + xx, Y(xx, by + y0 + j), j < 1 ? STRIPE[2] : STRIPE[1]);
     }
   }
-  // Fellrauschen
-  for (let i = 0; i < 22; i++) {
-    const x = 2 + hash2(i, 1, 57) * 26, y = -3 + hash2(i, 2, 57) * 6;
-    p.px(ox + x, Y(x, by + y), hash2(i, 3, 57) < 0.5 ? CF[3] : CF[6]);
+  // Fellstruktur: kurze, nach hinten gekämmte Strähnen; Rücken hell, Flanke dunkler
+  for (let i = 0; i < 14; i++) {
+    const x = 3 + hash2(i, 1, 57) * 23, y = -2.5 + hash2(i, 2, 57) * 5.5;
+    const c = y < -0.5 ? CF[6] : CF[3];
+    p.px(ox + x, Y(x, by + y), c); p.px(ox + x - 1, Y(x - 1, by + y + 1), c);
   }
+  // heller Bauchpelz (Schneetarnung)
+  p.ellipse(ox + 18, Y(18, by + 3), 5, 1, CF[5]);
   // Eiskristalle auf den Schulterblättern (Tarnung im Schnee, leuchten kalt)
   for (const [x, h, l] of [[20, 4, -0.5], [22.5, 5, -0.3], [25, 3, -0.2]]) {
     for (let j = 0; j < h; j++) {
@@ -1093,8 +1157,10 @@ function drawStalker(p, g, P, X) {
   // --- Kopf: flach, breit, Säbelzähne
   const ha = P.ha, d = dirOf(ha);
   const hx = ox + 30, hy = Y(30, by - 3.5) + lie * 1.5;
-  p.ellipse(hx, hy, 4.2, 3.4, CF[4]);
-  p.ellipse(hx - 0.5, hy - 1, 3.2, 1.8, CF[6]);
+  p.ellipse(hx, hy + 0.3, 4.7, 3.8, CF[3]);
+  p.ellipse(hx - 0.2, hy - 0.1, 4.3, 3.3, CF[4]);
+  p.ellipse(hx - 0.6, hy - 1.1, 3.4, 1.9, CF[6]);
+  p.px(hx - 2, hy - 2.6, CF[7]);
   p.ellipse(hx - 2, hy + 1.5, 2.5, 2, CF[5]); // Backenbart
   p.px(hx - 4, hy + 2, CF[6]); p.px(hx - 4, hy + 3, CF[5]);
   // Stirnstreifen
@@ -1103,9 +1169,13 @@ function drawStalker(p, g, P, X) {
   const earY = hy - 3 + P.ear * 1.5;
   p.ellipse(hx - 2.5 - P.ear, earY - 1, 1.3, 1.5, CF[3]); p.px(hx - 2.5 - P.ear, earY - 2, CF[6]);
   p.ellipse(hx - 0.5 - P.ear, earY - 1.3, 1.3, 1.5, CF[5]); p.px(hx - 0.5 - P.ear, earY - 1.5, STRIPE[1]);
-  // kurze Schnauze
+  // kurze Schnauze: helles Schnurrhaarpolster, dunkle Nase, Nasenrücken im Licht
   const sx = hx + d.x * 4, sy = hy + d.y * 4 + 0.5;
-  p.ellipse(sx, sy, 2.3, 1.8, CF[5]); p.px(sx + 1.5, sy - 1, '#1a1418'); p.px(sx + 1, sy - 1.5, CF[6]);
+  p.ellipse(sx, sy, 2.3, 1.8, CF[5]);
+  p.ellipse(sx - 0.3, sy + 0.6, 1.6, 1, CF[7]);
+  p.line(hx + 1, hy - 1.8, sx + 0.5, sy - 1.6, CF[6]);
+  p.rect(sx + 1, sy - 1.5, 2, 1, '#1a1418'); p.px(sx + 1.5, sy - 0.5, '#3a2228');
+  p.px(sx - 1, sy + 0.5, CF[3]); p.px(sx, sy + 1, CF[3]);         // Schnurrhaarpunkte
   // Maul: Unterkiefer klappt auf
   const jo = P.jaw * 2.5;
   if (P.jaw > 0.1) { p.rect(sx - 2, sy + 1, 4, jo, '#1a0c14'); p.px(sx - 1, sy + 1 + jo * 0.6, '#7a2a3a'); }
@@ -1117,9 +1187,12 @@ function drawStalker(p, g, P, X) {
   }
   // Auge: schmal, eisblau
   const ex = hx + 1.5 + d.x, ey = hy - 1 + d.y * 0.5;
-  p.px(ex - 1, ey, STRIPE[1]); p.px(ex + 1, ey, STRIPE[2]);
-  if (P.eye > 0.3) { p.px(ex, ey, ICE[4]); g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[1]); }
-  else p.px(ex, ey, STRIPE[1]);
+  // Katzenauge: dunkler Lidstrich, schwere Braue, Tränenstreif bis zur Schnauze
+  p.px(ex - 1, ey - 1, STRIPE[1]); p.px(ex, ey - 1, STRIPE[0]); p.px(ex + 1, ey - 1, STRIPE[1]);
+  p.px(ex - 2, ey, STRIPE[1]); p.px(ex + 1, ey, STRIPE[1]);
+  p.px(ex + 1, ey + 1, STRIPE[1]); p.px(ex + 1.5, ey + 2, STRIPE[2]);
+  if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); p.px(ex - 1, ey, ICE[3]); g.px(ex, ey, ICE_G[5]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex + 1, ey, ICE_G[2]); }
+  else { p.px(ex, ey, STRIPE[1]); p.px(ex - 1, ey, STRIPE[1]); }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: sx + 2, y: sy + 1 };
   meta.head = { x: hx, y: hy - 6 };
@@ -1181,7 +1254,8 @@ function stalkerAnims() {
 const HW = 64, HH = 58, HAX = 28, HAY = 52;
 const HD = { legH: 11, thigh: 5.5, shin: 6, spine: 9, upper: 5, fore: 5.5, sh: 1.5, hipW: 1 };
 const ROBE = ['#0a0e1c', '#141b30', '#1f2a48', '#2c3c62', '#3e5282', '#56709e'];
-const HSKIN = ['#243444', '#3e5668', '#62808e', '#8eaab2', '#bcd2d6', '#e2f0f0'];
+// Frostblaue Haut: hebt das Gesicht klar vom Silberhaar und der Eiskrone ab
+const HSKIN = ['#16243e', '#26406a', '#3a6294', '#5a8cbc', '#8cbadc', '#c8e4f4'];
 const HAIR = ['#5a6878', '#8494a4', '#b0bcc8', '#d6dee6', '#f2f6fa'];
 const H_REST = {
   hipX: 0, hipY: 0, lean: 0.14, head: 0, headY: 0, fFx: 2.5, fFy: 0, fBx: -2.5, fBy: 0,
@@ -1259,7 +1333,7 @@ function drawWitch(p, g, P, X) {
       const v = j / len;
       const x = hx - 2 - i * 0.5 - v * 3 + Math.sin(P.hairT + v * 3 + i * 0.7) * 1.2 * v;
       const y = hy - 2 + j + i * 0.25;
-      p.px(x, y, v < 0.2 ? HAIR[3] : (i + j) % 4 === 0 ? HAIR[0] : i % 2 ? HAIR[1] : HAIR[2]);
+      p.px(x, y, v < 0.2 ? HAIR[3] : v > 0.75 ? HAIR[0] : i % 3 === 2 ? HAIR[0] : i % 2 ? HAIR[1] : HAIR[2]);
     }
   }
   // --- hinterer Arm (knochige Krallenhand)
@@ -1313,42 +1387,62 @@ function drawWitch(p, g, P, X) {
   p.px(bl.x + 2, bl.y + 2, BONE[3]); p.px(bl.x + 2, bl.y + 3, BONE[4]); p.px(bl.x + 1, bl.y + 4, ICE[4]); g.px(bl.x + 1, bl.y + 4, ICE_G[3]);
 
   // --- Fellstola über den Schultern mit Eiszapfen
+  // dunkler Wolfspelz (Kontrast zu Haar und Gesicht), helle Strähnenspitzen oben
   const col = pt(HD.spine, 0);
-  p.ellipse(col.x, col.y + 0.5, 4.8, 2.4, PELT[2]);
-  p.ellipse(col.x - 0.7, col.y - 0.3, 3.8, 1.5, PELT[4]);
-  p.px(col.x - 3, col.y - 1, PELT[5]); p.px(col.x - 1, col.y - 1.5, PELT[5]);
-  for (let i = -4; i <= 4; i += 1) p.px(col.x + i, col.y + 2.5 + ((i + 8) % 2), PELT[i % 2 ? 1 : 2]);
+  p.ellipse(col.x, col.y + 0.5, 4.8, 2.4, MANE[2]);
+  p.ellipse(col.x - 0.7, col.y - 0.3, 3.8, 1.5, MANE[3]);
+  for (let i = -4; i <= 3; i += 2) { p.px(col.x + i, col.y - 1.2, MANE[5]); p.px(col.x + i + 1, col.y - 0.4, MANE[4]); }
+  for (let i = -4; i <= 4; i += 1) p.px(col.x + i, col.y + 2.5 + ((i + 8) % 2), MANE[i % 2 ? 1 : 2]);
   icicle(p, g, col.x - 3, col.y + 3, 3, 1); icicle(p, g, col.x + 2, col.y + 3, 2, 1);
 
-  // --- Kopf: hager, blasse Blauhaut, Hakennase, Eiskrone
-  p.ellipse(hx + 0.5, hy, 2.8, 3.2, HSKIN[2]);
-  p.ellipse(hx + 1, hy - 0.5, 1.8, 2, HSKIN[3]);
-  p.px(hx + 1, hy - 2, HSKIN[4]);
-  // eingefallene Wange, Kinn
-  p.px(hx + 1, hy + 1, HSKIN[1]); p.px(hx + 2, hy + 2.5, HSKIN[2]); p.px(hx + 3, hy + 2, HSKIN[3]);
-  // Hakennase
-  p.px(hx + 3, hy - 0.5, HSKIN[3]); p.px(hx + 4, hy + 0.5, HSKIN[3]); p.px(hx + 4, hy + 1, HSKIN[2]);
-  // Mund
-  p.px(hx + 2, hy + 1.5 + P.jaw, '#1a1020'); if (P.jaw > 0.5) p.px(hx + 3, hy + 1.8, '#1a1020');
-  // Augen: tief, eisweiß glühend
-  const ex = hx + 2, ey = hy - 1;
-  p.px(ex - 1, ey, HSKIN[0]);
-  if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[1]); }
-  else p.px(ex, ey, HSKIN[0]);
-  meta.eye = { x: ex, y: ey };
-  meta.mouth = { x: hx + 3, y: hy + 2 };
-  // Scheitelhaar (vorn übers Gesicht, Strähnen)
-  p.ellipse(hx - 1.2, hy - 2.6, 3, 1.5, HAIR[2]); p.px(hx - 2, hy - 3, HAIR[4]); p.px(hx, hy - 3.5, HAIR[3]); p.px(hx + 2, hy - 2, HSKIN[4]);
-  p.px(hx - 2, hy, HAIR[1]); p.px(hx - 2, hy + 1, HAIR[2]); p.px(hx - 1.5, hy + 2, HAIR[1]);
-  // Eiskrone: 5 Zacken, mittlere am höchsten
-  const crown = [[-2, 3], [-0.5, 4], [1, 6], [2.5, 4], [3.5, 2]];
-  for (const [cx, h] of crown) {
-    for (let j = 0; j < h; j++) {
-      const x = hx + cx - j * 0.15, y = hy - 3.5 - j;
-      p.px(x, y, j === h - 1 ? ICE[5] : j > h / 2 ? ICE[4] : ICE[3]);
-      g.px(x, y, j === h - 1 ? ICE_G[5] : ICE_G[2]);
+  // --- Kopf: hager, frostblaue Haut, Hakennase, Eiskrone. Pixelgenau gesetzt
+  // (Spalten ab hx, Zeilen ab hy), damit Auge, Nase und Mund auf 5 px Breite
+  // eindeutig lesbar bleiben. Zeichen: H/h Haar, 0–5 Haut, E Augenhöhle, * Auge,
+  // m Mund, t Zahn.
+  const eyeOn = P.eye > 0.3, open = P.jaw > 0.5;
+  // Hinterkopf: Haarmasse, Licht oben links
+  p.ellipse(hx - 1.5, hy - 0.2, 2.2, 3.4, HAIR[1]);
+  p.ellipse(hx - 1.9, hy - 1.4, 1.4, 1.8, HAIR[2]);
+  const FACE = [
+    [-3, 'hHH32.'],
+    [-2, 'h2343.'],
+    [-1, 'hE*E3.'],
+    [0, 'h1232 '],
+    [1, 'h12m2.'],
+    [2, '.122..'],
+    [3, '..1...'],
+  ];
+  const fc = { h: HAIR[1], H: HAIR[3], E: HSKIN[0], m: '#1a1020', t: '#e8f0f0' };
+  for (const [dy, row] of FACE) {
+    for (let i = 0; i < row.length; i++) {
+      let ch = row[i];
+      if (ch === '.' || ch === ' ') continue;
+      if (ch === '*') ch = eyeOn ? '*' : 'E';
+      if (ch === 'm' && open) { p.px(hx + i, hy + dy, fc.m); p.px(hx + i, hy + dy + 1, fc.m); p.px(hx + i + 1, hy + dy, fc.t); continue; }
+      const c = ch === '*' ? ICE[5] : fc[ch] ?? HSKIN[+ch];
+      p.px(hx + i, hy + dy, c);
     }
   }
+  // Hakennase ragt eine Spalte vor
+  p.px(hx + 5, hy, HSKIN[3]); p.px(hx + 5, hy + 1, HSKIN[1]);
+  // Augenglühen (+ schwaches hinteres Auge in der Höhle)
+  const ex = hx + 2, ey = hy - 1;
+  if (eyeOn) { g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex, ey - 1, ICE_G[1]); }
+  meta.eye = { x: ex, y: ey };
+  meta.mouth = { x: hx + 3, y: hy + 2 };
+  // Stirnsträhne fällt vorn über die Schläfe
+  p.px(hx + 1, hy - 3, HAIR[4]); p.px(hx, hy - 2, HAIR[2]); p.px(hx - 1, hy + 2, HAIR[1]); p.px(hx, hy + 3, HAIR[0]);
+  // Eiskrone: schmales Band, 5 Zacken (mittlere am höchsten), nur Spitzen leuchten
+  p.line(hx - 1, hy - 4, hx + 3, hy - 4, ICE[1]);
+  const crown = [[-1, 2], [0, 3], [1, 5], [2, 3], [3, 2]];
+  for (const [cx, h] of crown) {
+    for (let j = 0; j < h; j++) {
+      const x = hx + cx, y = hy - 5 - j;
+      p.px(x, y, j === h - 1 ? (h > 4 ? ICE[5] : ICE[4]) : j === 0 ? ICE[2] : ICE[3]);
+      if (j === h - 1) g.px(x, y, h > 4 ? ICE_G[5] : ICE_G[3]);
+    }
+  }
+  p.px(hx + 1, hy - 4, ICE[4]); g.px(hx + 1, hy - 4, ICE_G[3]);    // Stirnjuwel
   meta.head = { x: hx, y: hy - 10 };
 
   // --- vorderer Arm + Stab

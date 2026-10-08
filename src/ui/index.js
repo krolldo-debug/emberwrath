@@ -5,6 +5,7 @@ import { ScreenFx } from './ScreenFx.js';
 import { createMenuPanel } from './MenuPanel.js';
 import { Minimap, createMapPanel } from './Minimap.js';
 import { installTravel, listenTravel } from './TravelPanel.js';
+import { installWardrobe } from './WardrobePanel.js';
 import { ZoneTransition } from './ZoneTransition.js';
 import { Unlocks } from './Unlocks.js';
 import { Weather } from '../gfx/Weather.js';
@@ -58,4 +59,5 @@ export function installUi(game) {
   game.panels.register('menu', (session) => createMenuPanel(session), { pauses: true, title: 'Menü' });
   game.panels.register('map', (session) => createMapPanel(session), { pauses: false, title: 'Karte' });
   installTravel(game);
+  installWardrobe(game);
 }
