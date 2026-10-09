@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
-import { rim, inRect, inEll } from '../levels2.js';
+import { inRect, inEll } from '../levels2.js';
 import { near, box, each, GROUND, blob, roadNet, foe, strew, circle } from '../mapkit.js';
 
 // ---------------------------------------------------------------- Die Glutöde (36–40)
@@ -13,6 +13,10 @@ import { near, box, each, GROUND, blob, roadNet, foe, strew, circle } from '../m
 //    über Brunnenplatz, Glutbrücke und Scherbenmarkt zum Osttor und weiter zum Aschethron).
 //    Krumme Gassen, Plätze verschiedener Größe (Säulenplatz, Brunnenplatz, Glutkai, Markt,
 //    Tempelvorplatz), eingestürzte Viertel im Nordwesten und Südosten. Ein Lavastrom teilt die Stadt.
+//    Runde 6: verfallene statt gerasterte Stadt – Häuser verschiedener Größe und Form (Winkelbauten),
+//    Zustand je Viertel (stehend, eingebrochen, nur Fassade, Mauerwinkel, Grundmauern), Schuttkegel,
+//    gestürzte Säulen, Landmarken (Geborstener Turm, Gildenhalle), Lava durch zwei Häuser gebrochen.
+//    Felskanten und Kartenrand als weiche Basaltkante (level.organicCliffs, VORSCHLAG_Outdoor.js.diff).
 //  - Obsidianfeld (Südwest): natürlich gewachsene Nadeln, Lavaadern mit Krustenfurten, Herz mit Anker.
 //  - Verbrannte Vorstadt mit Aschefriedhof (Süd), Geysirfeld am Glutsee (Südost),
 //    Schlackenlager der Kultisten (Ost), Prozessionsweg, Kolossfeld und Throntor (Nordost).
@@ -23,7 +27,7 @@ const W = 160, H = 104;
 export function buildEmberWastes() {
   const m = new MapBuilder(W, H, ',');
   const rng = createRng(4040);
-  rim(m, rng, W, H);
+  for (let i = 0; i < 2 * (W + H); i++) rng.next();    // Zufallsfolge wie mit dem alten Kachelrand (rim)
   const net = roadNet(m);
   const road = net.road;
   const put = (x, y, ch) => m.set(x, y, ch);
@@ -57,17 +61,33 @@ export function buildEmberWastes() {
   };
 
   // ------------------------------------------------------------ Gelände
-  // Basalthochland im Norden hinter der Stadt (zerklüftete Kante), Felsmassiv am Throntor
+  // Kartenrand: weich geschwungene Basaltkante (Rauschen niedriger Frequenz, 1–4 Kacheln, einzelne
+  // Felsnasen) statt Einzelkachel-Zacken. Am Westausgang (Frostzinnen) bleibt der Rand schmal.
+  const edge = (t, seed) => 1 + Math.round(vn(t, 0.5, 9, seed) * 2.6 + vn(t, 2.5, 3.5, seed + 1) * 1.2 - 0.3);
+  for (let x = 0; x < W; x++) {
+    const t = edge(x, 4031), b = edge(x, 4033);
+    for (let y = 0; y < t; y++) put(x, y, '#');
+    for (let y = H - b; y < H; y++) put(x, y, '#');
+  }
+  for (let y = 0; y < H; y++) {
+    const l = Math.abs(y - 20) <= 3 ? 2 : edge(y, 4035), r = edge(y, 4037);
+    for (let x = 0; x < l; x++) put(x, y, '#');
+    for (let x = W - r; x < W; x++) put(x, y, '#');
+  }
+  // Basalthochland im Norden hinter der Stadt: geschwungene Kante mit Buchten und Felsnasen
   for (let x = 44; x < 122; x++) {
-    const top = 7 + Math.round(hash2(x >> 2, 1, 4041) * 3 + Math.sin(x * 0.19) * 2 + (x > 112 ? (x - 112) * 0.6 : 0));
+    const top = 6 + Math.round(vn(x, 1.5, 7, 4041) * 4 + Math.sin(x * 0.13) * 1.4 + vn(x, 4.5, 2.6, 4044) * 1.3 + (x > 112 ? (x - 112) * 0.6 : 0));
     for (let y = 0; y <= top; y++) put(x, y, '#');
   }
-  m.rect(116, 0, 44, 4, '#');
-  for (let y = 4; y < 14; y++) for (let x = 116; x < 160; x++) {
-    const half = 7 + (y - 4) * 1.4 + hash2(x, y, 4042) * 1.5;
+  for (const [x, y, rx, ry] of [[52, 9, 2.6, 2], [71, 10, 3.2, 1.8], [96, 9, 2.4, 2.2], [107, 10, 3, 1.6]]) m.ellipse(x, y, rx, ry, '#', [',', '.']);
+  // Felsmassiv am Throntor: Trichter zum Tor, Flanken mit Rauschen statt gerader Diagonale
+  m.rect(116, 0, 44, 3, '#');
+  for (let y = 3; y < 15; y++) for (let x = 116; x < 160; x++) {
+    const half = 7.5 + (y - 4) * 1.35 + (vn(x, y, 3.2, 4042) - 0.5) * 3 + (x < 138 ? vn(y, 1, 4, 4045) - 0.5 : vn(y, 3, 4, 4046) - 0.5) * 2.4;
     if (Math.abs(x - 138) > half) put(x, y, '#');
   }
-  for (let x = 134; x <= 142; x++) put(x, 4, ',');
+  for (let x = 134; x <= 142; x++) put(x, 3, '#');
+  for (let x = 133; x <= 143; x++) put(x, 4, ',');
   // Grat zwischen Tempelviertel und Kolossfeld (geschwungen)
   for (let y = 10; y < 43; y++) {
     const c = 119 + Math.round(Math.sin(y * 0.22) * 1.5), w = 2 + Math.round(vn(1, y, 3, 4043) * 3);
@@ -137,70 +157,113 @@ export function buildEmberWastes() {
     }
   };
 
-  // ------------------------------------------------------------ Bauten: Hilfen
-  // Ruinenhaus: Nordmauer H (hoch), Südmauer i (niedrig), Seiten I, Ecken J; Tür, Breschen (r)
+  // ------------------------------------------------------------ Bauten: Hilfen (Runde 6)
+  // Ruinen entstehen aus einem Grundriss (Vereinigung von Rechtecken: Haus, Winkelbau, Halle). Die Mauerart
+  // je Randkachel folgt aus der Nachbarschaft (Nord H hoch, Süd i niedrig, Seiten I, obere Ecken J). Danach
+  // Verfall je Zustand: 'whole' (Tür, eine Bresche), 'broken' (zusammenhängende Einstürze mit Schuttkegel),
+  // 'shell' (nur Mauerwinkel an einzelnen Ecken), 'base' (Grundmauern: niedrig und lückig).
+  // Zeichen der Runde 6: '6' Schuttkegel, 't' umgestürzte Säule, '7' geborstener Turm.
   const occ = new Uint8Array(W * H);
-  const house = (x0, y0, w, h, { door = null, breaches = 2, yard = false } = {}) => {
-    const x1 = x0 + w - 1, y1 = y0 + h - 1;
-    m.rect(x0 + 1, y0 + 1, w - 2, h - 2, '.');
-    for (let x = x0; x <= x1; x++) { put(x, y0, 'H'); put(x, y1, 'i'); }
-    for (let y = y0 + 1; y < y1; y++) { put(x0, y, 'I'); put(x1, y, 'I'); }
-    put(x0, y0, 'J'); put(x1, y0, 'J');
-    const out = (side) => side === 'n' ? [[x0 + 1, y0 - 1], [x1 - 1, y0 - 1]] : side === 's' ? [[x0 + 1, y1 + 1], [x1 - 1, y1 + 1]] : side === 'w' ? [[x0 - 1, y0 + 1], [x0 - 1, y1 - 1]] : [[x1 + 1, y0 + 1], [x1 + 1, y1 - 1]];
-    const sides = [];
-    for (const s of ['s', 'n', 'w', 'e']) {
-      const [[ax, ay], [bx, by]] = out(s);
-      let pav = 0, free = 0;
-      for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) { if (get(x, y) === ':') pav++; if (GROUND.has(get(x, y))) free++; }
-      sides.push({ s, pav, free });
-    }
-    sides.sort((a, b) => b.pav - a.pav || b.free - a.free);
-    const ds = door ?? sides[0].s;
-    const opening = (s, len, ch) => {
-      if (s === 'n' || s === 's') {
-        const y = s === 'n' ? y0 : y1, x = x0 + 1 + Math.floor((w - 2 - len) / 2 + (rng.next() - 0.5) * Math.max(0, w - 4 - len));
-        for (let i = 0; i < len; i++) put(Math.min(x1 - 1, Math.max(x0 + 1, x + i)), y, ch);
-      } else {
-        const x = s === 'w' ? x0 : x1, y = y0 + 1 + Math.floor((h - 2 - len) / 2 + (rng.next() - 0.5) * Math.max(0, h - 4 - len));
-        for (let i = 0; i < len; i++) put(x, Math.min(y1 - 1, Math.max(y0 + 1, y + i)), ch);
-      }
-    };
-    opening(ds, 2, ':');
-    // zweiter Ausgang, damit Häuser keine Sackgassen bilden
-    const second = sides.find((s) => s.s !== ds && s.free >= 2);
-    if (second) opening(second.s, 1, '.');
-    for (let i = 0; i < breaches; i++) opening(rng.pick(['n', 's', 'w', 'e'].filter((s) => s !== ds)), rng.int(1, 2), 'r');
-    if (yard && w >= 9 && h >= 7) {
-      const vx = x0 + Math.floor(w / 2) + rng.int(-1, 1);
-      for (let y = y0 + 1; y < y1; y++) put(vx, y, 'I');
-      put(vx, y0 + 1 + rng.int(1, h - 4), '.'); put(vx, y1 - 1, '.');
-      put(vx + 2 + rng.int(0, Math.max(0, x1 - vx - 4)), y0 + 2, 'd');
-    }
-    keep((x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
-  };
-  // Eingestürztes Haus: Eckpfeiler, Mauerstümpfe, Schutt
-  const collapsed = (x0, y0, w, h) => {
-    const x1 = x0 + w - 1, y1 = y0 + h - 1, sd = x0 * 7 + y0;
-    m.rect(x0, y0, w, h, '.');
-    put(x0, y0, 'J'); put(x1, y0, 'J');
-    for (let x = x0 + 1; x < x1; x++) { const k = hash2(x, y0, 4045 + sd); if (k < 0.5) put(x, y0, 'H'); else if (k < 0.72) put(x, y0, 'r'); }
-    for (let y = y0 + 1; y < y1; y++) {
-      if (hash2(x0, y, 4047 + sd) < 0.45) put(x0, y, 'I');
-      if (hash2(x1, y, 4048 + sd) < 0.3) put(x1, y, 'I'); else if (hash2(x1, y, 4049 + sd) < 0.2) put(x1, y, 'r');
-    }
-    for (let x = x0 + 1; x < x1; x++) { const k = hash2(x, y1, 4050 + sd); if (k < 0.3) put(x, y1, 'i'); else if (k < 0.45) put(x, y1, 'r'); }
-    // Schutthaufen im Inneren, manchmal eine umgestürzte Säule
-    const n = 1 + (w * h > 30 ? 1 : 0);
-    for (let i = 0; i < n; i++) put(x0 + 1 + rng.int(0, w - 3), y0 + 1 + rng.int(0, Math.max(0, h - 3)), rng.chance(0.75) ? 'r' : 'l');
-    keep((x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
-  };
-  // Baufreiheit: Haus samt 1 Kachel Rand nur auf Boden, nicht auf Straßen, nicht an der Lava
   const reserved = [];
-  const canBuild = (x0, y0, w, h, inside) => {
+  const ROAD = (x, y) => net.onRoad(x, y) || get(x, y) === ':';
+  const free1 = (x, y) => get(x, y) === '.' || get(x, y) === ',';
+  const ruin = (rects, state, { door = true, props = true } = {}) => {
+    let bx0 = 1e9, by0 = 1e9, bx1 = -1, by1 = -1;
+    for (const [a, b, w, h] of rects) { bx0 = Math.min(bx0, a); by0 = Math.min(by0, b); bx1 = Math.max(bx1, a + w - 1); by1 = Math.max(by1, b + h - 1); }
+    const inF = (x, y) => rects.some(([a, b, w, h]) => x >= a && x < a + w && y >= b && y < b + h);
+    const isWall = (x, y) => { if (!inF(x, y)) return false; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (!inF(x + i, y + j)) return true; return false; };
+    const isIn = (x, y) => inF(x, y) && !isWall(x, y);
+    const walls = [], inner = [];
+    for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+      if (!inF(x, y)) continue;
+      if (!isWall(x, y)) { put(x, y, ','); inner.push([x, y]); continue; }     // Asche im dachlosen Raum
+      let c, out;
+      if (isIn(x, y + 1)) { c = 'H'; out = [x, y - 1]; }
+      else if (isIn(x, y - 1)) { c = 'i'; out = [x, y + 1]; }
+      else if (isIn(x + 1, y)) { c = 'I'; out = [x - 1, y]; }
+      else if (isIn(x - 1, y)) { c = 'I'; out = [x + 1, y]; }
+      else if (isWall(x, y + 1)) { c = isWall(x, y - 1) ? 'I' : 'J'; out = null; }
+      else { c = 'i'; out = null; }
+      walls.push({ x, y, c, out, corner: !out });
+    }
+    for (const w of walls) put(w.x, w.y, w.c);
+    const sd = bx0 * 131 + by0 * 17;
+    const gone = new Set();
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const heaps = [];
+    if (state === 'broken') {
+      const n = 1 + (walls.length > 24 ? 1 : 0) + (walls.length > 40 ? 1 : 0);
+      for (let k = 0; k < n; k++) {
+        const c = rng.pick(walls), rad = rng.range(1.1, 2.9);
+        for (const w of walls) if (dist(w, c) <= rad) gone.add(w);
+        heaps.push(c);
+      }
+    } else if (state === 'facade') {
+      // Fassade steht noch (Nordmauer mit Ecken), Rückwand und Seiten größtenteils gefallen
+      const keepN = (w) => w.c === 'H' || w.c === 'J' || ((w.c === 'I') && walls.some((v) => (v.c === 'J') && v.x === w.x && w.y - v.y <= 1 + (hash2(w.x, w.y, sd) < 0.5 ? 1 : 0)));
+      for (const w of walls) if (!keepN(w) && hash2(w.x, w.y, sd + 5) > 0.22) gone.add(w);
+      for (const w of walls) if ((w.c === 'H' || w.c === 'J') && hash2(w.x >> 1, w.y, sd + 6) < 0.18) gone.add(w);
+      heaps.push(rng.pick(walls.filter((w) => w.c === 'i' || w.c === 'I') .concat(walls)));
+    } else if (state === 'shell') {
+      const corners = walls.filter((w) => w.corner);
+      const keepC = corners.filter(() => rng.chance(0.5));
+      if (!keepC.length && corners.length) keepC.push(rng.pick(corners));
+      for (const w of walls) if (!keepC.some((c) => dist(w, c) <= 1 + hash2(w.x, w.y, sd) * 2.4)) gone.add(w);
+      if (rng.chance(0.6)) heaps.push(rng.pick(walls));
+    } else if (state === 'base') {
+      for (const w of walls) if (hash2(w.x >> 1, w.y >> 1, sd + 1) < 0.5 || (w.c === 'I' && hash2(w.x, w.y, sd + 2) < 0.35)) gone.add(w);
+    }
+    // einzelne Mauerkacheln ohne Nachbarn wirken wie Pfosten: zu Schutt
+    const kept = (w) => !gone.has(w);
+    for (const w of walls) if (kept(w) && state !== 'whole' && !walls.some((v) => v !== w && kept(v) && Math.abs(v.x - w.x) + Math.abs(v.y - w.y) === 1)) gone.add(w);
+    for (const w of walls) {
+      if (gone.has(w)) { put(w.x, w.y, hash2(w.x, w.y, sd + 3) < (state === 'base' ? 0.18 : 0.32) ? 'r' : '.'); continue; }
+      if (state === 'base' && (w.c === 'H' || w.c === 'J')) put(w.x, w.y, 'i');
+    }
+    // Schuttkegel am Einsturz: auf der Mauerlinie oder knapp davor (nie auf Straßen)
+    for (const c of heaps) {
+      for (const [dx, dy] of [[0, 0], ...(c.out ? [[c.out[0] - c.x, c.out[1] - c.y]] : []), [1, 0], [-1, 0]]) {
+        const x = c.x + dx, y = c.y + dy;
+        if (free1(x, y) && !ROAD(x, y) && free1(x - 1, y) && free1(x + 1, y)) { put(x, y, '6'); break; }
+      }
+    }
+    // Tür (2 breit) zur nächsten Straße, wenn die Mauer noch geschlossen ist
+    if (door && (state === 'whole' || state === 'broken')) {
+      let best = null, bd = 1e9;
+      for (const w of walls) {
+        if (!w.out || gone.has(w) || get(w.x, w.y) !== w.c) continue;
+        const [ox, oy] = w.out;
+        let d = 99;
+        for (let r = 0; r <= 6 && d === 99; r++) for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (ROAD(ox + i, oy + j)) d = Math.min(d, r);
+        d += hash2(w.x, w.y, sd + 4) * 0.8;
+        if (d < bd) { bd = d; best = w; }
+      }
+      if (best) {
+        put(best.x, best.y, '.');
+        const nb = walls.find((w) => w !== best && w.c === best.c && Math.abs(w.x - best.x) + Math.abs(w.y - best.y) === 1 && !w.corner);
+        if (nb) put(nb.x, nb.y, '.');
+        if (state === 'whole') { const b = rng.pick(walls.filter((w) => !w.corner)); if (b) put(b.x, b.y, 'r'); }
+      }
+    }
+    // Inneres: Schutt, Schuttkegel, Säulenstumpf, Knochen (keine Bäume: die glühen und sprühen Funken)
+    if (props && inner.length >= 4) {
+      const n = Math.min(3, Math.floor(inner.length / 9) + (state === 'whole' ? 0 : 1));
+      for (let k = 0; k < n; k++) {
+        const [x, y] = rng.pick(inner);
+        if (get(x, y) !== ',') continue;
+        const q = rng.next();
+        put(x, y, q < 0.5 ? 'r' : q < 0.65 && inner.length >= 12 ? '6' : q < 0.8 ? 'l' : 'y');
+      }
+    }
+    for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) if (inF(x, y)) occ[y * W + x] = 1;
+    keep((x, y) => inF(x, y));
+  };
+  // Baufreiheit: Grundriss samt 1 Kachel Rand nur auf Boden, nicht auf Straßen, nicht an der Lava
+  const canBuild = (x0, y0, w, h, inside, pad = 1) => {
     if (x0 < 4 || y0 < 4 || x0 + w > W - 4 || y0 + h > H - 4) return false;
-    for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) {
+    for (let y = y0 - pad; y < y0 + h + pad; y++) for (let x = x0 - pad; x < x0 + w + pad; x++) {
       if (occ[y * W + x]) return false;
-      const c = get(x, y), edge = y === y0 - 1 || y === y0 + h || x === x0 - 1 || x === x0 + w;
+      const c = get(x, y), edge = y < y0 || y >= y0 + h || x < x0 || x >= x0 + w;
       if (c === '~' || c === 'z') return false;
       if (!edge && (c !== ',' && c !== '.')) return false;
       if (!edge && net.onRoad(x, y)) return false;
@@ -209,45 +272,96 @@ export function buildEmberWastes() {
     }
     return true;
   };
-  const claim = (x0, y0, w, h, pad = 0) => { for (let y = y0 - pad; y < y0 + h + pad; y++) for (let x = x0 - pad; x < x0 + w + pad; x++) if (m.in(x, y)) occ[y * W + x] = 1; };
-  // Bau je nach Viertel: intakt, mit Hof oder eingestürzt
-  let ruinOf = () => 0.15;
-  const build = (x0, y0, w, h) => {
-    claim(x0, y0, w, h, hash2(x0, y0, 4064) < 0.15 ? 1 : 0);
-    if (rng.next() < ruinOf(x0 + w / 2, y0 + h / 2)) collapsed(x0, y0, w, h);
-    else house(x0, y0, w, h, { breaches: rng.int(1, 3), yard: w >= 9 && h >= 7 && rng.chance(0.6) });
+  // Verfall je Ort: Viertel-Grundwert + Nähe zum Strom + weiches Rauschen (Nachbarn ähneln sich)
+  let decayAt = () => 0.3;
+  const stateAt = (x, y) => {
+    const d = decayAt(x, y) + (rng.next() - 0.5) * 0.3;
+    return d < 0.26 ? 'whole' : d < 0.5 ? 'broken' : d < 0.66 ? 'facade' : d < 0.84 ? 'shell' : 'base';
   };
-  // Häuser entlang einer Straße (beidseitig, Flucht leicht versetzt)
-  const lots = (pts, sw, inside, { gap = [1, 2], sides = [1, -1] } = {}) => {
-    const hw = sw / 2 + 0.7;
+  // Größen: viele kleine Häuser, einige mittlere, wenige große (Breite × Tiefe)
+  const SIZES = [[4, 3], [4, 4], [4, 4], [5, 4], [5, 4], [5, 5], [6, 4], [6, 5], [6, 5], [7, 5], [7, 6], [8, 6], [9, 6], [10, 7], [11, 8]];
+  // Ein Bau: Grundrechteck, manchmal mit Flügel (Winkelbau) oder Anbau
+  const building = (x0, y0, w, h, inside) => {
+    if (!canBuild(x0, y0, w, h, inside)) return false;
+    const rects = [[x0, y0, w, h]];
+    if (w >= 5 && h >= 4 && rng.chance(0.45)) {
+      const k = rng.int(0, 3);
+      const ww = rng.int(3, Math.max(3, w - 2)), hh = rng.int(3, 4);
+      const wing = k === 0 ? [x0 + (rng.chance(0.5) ? 0 : w - ww), y0 + h - 1, ww, hh]
+        : k === 1 ? [x0 + (rng.chance(0.5) ? 0 : w - ww), y0 - hh + 1, ww, hh]
+        : k === 2 ? [x0 + w - 1, y0 + rng.int(0, Math.max(0, h - 3)), hh, rng.int(3, Math.max(3, h - 1))]
+        : [x0 - hh + 1, y0 + rng.int(0, Math.max(0, h - 3)), hh, rng.int(3, Math.max(3, h - 1))];
+      const [a, b, c, d] = wing;
+      let ok = true;
+      for (let y = b - 1; y <= b + d && ok; y++) for (let x = a - 1; x <= a + c && ok; x++) {
+        if (x >= x0 && x < x0 + w && y >= y0 && y < y0 + h) continue;
+        if (occ[y * W + x] || !free1(x, y) || net.onRoad(x, y) || reserved.some((f) => f(x, y)) || (inside && !inside(x, y))) ok = false;
+      }
+      if (ok) rects.push(wing);
+    }
+    ruin(rects, stateAt(x0 + w / 2, y0 + h / 2));
+    return true;
+  };
+  // Häuser entlang einer Straße (über die ganze Polylinie gemessen): Flucht springt vor und zurück,
+  // Lücken (Höfe, Brachen), Größen gemischt
+  const fronts = [];   // Fluchtkanten gesetzter Straßenhäuser (auch über Straßenzüge hinweg)
+  const street = (pts, sw, inside, { skip = 0.2, sides = [1, -1] } = {}) => {
+    const hw = sw / 2 + 0.7, seg = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) { const L = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); seg.push([total, L, pts[i], pts[i + 1]]); total += L; }
+    const at = (s) => { const g = seg.find(([t0, L]) => s < t0 + L) ?? seg[seg.length - 1]; const [t0, L, [ax, ay], [bx, by]] = g; const t = Math.min(1, (s - t0) / L); return [ax + (bx - ax) * t, ay + (by - ay) * t, Math.abs(bx - ax) >= Math.abs(by - ay)]; };
     for (const side of sides) {
-      for (let i = 0; i < pts.length - 1; i++) {
-        const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
-        const L = Math.hypot(bx - ax, by - ay);
-        let s = rng.range(0, 2);
-        while (s < L) {
-          const t = s / L, px = ax + (bx - ax) * t, py = ay + (by - ay) * t;
-          const horiz = Math.abs(bx - ax) >= Math.abs(by - ay);
-          const w = rng.int(4, 8), h = rng.int(4, 7);
-          let done = false;
-          for (let back = rng.int(-1, 0); back <= 2 && !done; back++) {
-            let x0, y0;
-            if (horiz) { x0 = Math.round(px - w / 2); y0 = side > 0 ? Math.round(py + hw + back) : Math.round(py - hw - back) - h + 1; }
-            else { y0 = Math.round(py - h / 2); x0 = side > 0 ? Math.round(px + hw + back) : Math.round(px - hw - back) - w + 1; }
-            if (canBuild(x0, y0, w, h, inside)) { build(x0, y0, w, h); s += (horiz ? w : h) + rng.int(gap[0], gap[1]); done = true; }
-          }
-          if (!done) s += 1.5;
+      let s = rng.range(0, 3);
+      while (s < total) {
+        if (rng.chance(skip)) { s += rng.int(2, 5); continue; }
+        let [w, h] = rng.pick(SIZES);
+        const [, , hz0] = at(s);
+        if (!hz0 && rng.chance(0.5)) [w, h] = [h, w];
+        const front = hz0 ? w : h;
+        const [px, py, horiz] = at(Math.min(total - 0.01, s + front / 2));
+        let done = false;
+        for (let back = rng.int(-1, 1); back <= 5 && !done; back++) {
+          let x0, y0;
+          if (horiz) { x0 = Math.round(px - w / 2); y0 = side > 0 ? Math.round(py + hw + back) : Math.round(py - hw - back) - h + 1; }
+          else { y0 = Math.round(py - h / 2); x0 = side > 0 ? Math.round(px + hw + back) : Math.round(px - hw - back) - w + 1; }
+          // Flucht springt: Nachbarhäuser (≤ 11 Kacheln) nie mit gleicher Vorder- oder Rückkante, sonst entsteht eine Zeile
+          const e0 = horiz ? y0 : x0, e1 = horiz ? y0 + h : x0 + w, cx = x0 + w / 2, cy = y0 + h / 2;
+          if (fronts.some((f) => f.horiz === horiz && Math.hypot(f.cx - cx, f.cy - cy) < 11 && (Math.abs(f.e0 - e0) < 2 || Math.abs(f.e1 - e1) < 2))) continue;
+          done = building(x0, y0, w, h, inside);
+          if (done) fronts.push({ horiz, e0, e1, cx, cy });
         }
+        s += done ? front + rng.int(1, 3) : 1;
       }
     }
   };
-  // Restflächen eines Viertels auffüllen (Zufallsproben, Gassen bleiben frei)
-  const fill = (r, tries, inside) => {
-    for (let k = 0; k < tries; k++) {
-      const w = rng.int(4, 8), h = rng.int(4, 7);
-      const x0 = rng.int(r.x, r.x + r.w - w), y0 = rng.int(r.y, r.y + r.h - h);
-      if (canBuild(x0, y0, w, h, inside)) build(x0, y0, w, h);
+  // Hinterhöfe: Bauten abseits der Gassen mit wechselndem Abstand (es bleiben Brachen und Schuttflächen).
+  // Kandidaten in gemischter Reihenfolge; je Kandidat zuerst eine große, dann kleinere Größen.
+  const backlots = (r, share, inside) => {
+    const cand = [];
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) cand.push([x, y, rng.next()]);
+    cand.sort((p, q) => p[2] - q[2]);
+    for (const [x, y] of cand) {
+      if (occ[y * W + x] || !rng.chance(share)) continue;
+      const pad = rng.chance(0.6) ? 1 : 2;
+      for (let k = 0; k < 3; k++) {
+        let [w, h] = rng.pick(SIZES);
+        if (rng.chance(0.25)) [w, h] = [h, w];
+        if (canBuild(x, y, w, h, inside, pad) && building(x, y, w, h, inside)) break;
+      }
     }
+  };
+  // Lava, die durch ein Haus gebrochen ist: Zunge vom Strom, Mauern auf ihrem Weg fort, Kruste am Rand
+  const lavaBreak = (pts, w) => {
+    m.path(pts, w, '~', [',', '.', 'H', 'i', 'I', 'J', 'r', 'l', '6', 'd', 'y']);
+    for (const [fx, fy] of pts) for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+      const x = Math.round(fx), y = Math.round(fy);
+      const c = get(x + i, y + j);
+      if ((c === '.' || c === ',') && near(m, x + i, y + j, '~', 1) && hash2(x + i, y + j, 4140) < 0.25) put(x + i, y + j, 'r');
+    }
+  };
+  const lying = (x, y) => {   // umgestürzte Säule (drei Kacheln Platz quer)
+    for (let i = -1; i <= 1; i++) if (!free1(x + i, y) || ROAD(x + i, y)) return false;
+    put(x, y, 't'); return true;
   };
 
   // ------------------------------------------------------------ Questobjekte (Thread C)
@@ -291,9 +405,9 @@ export function buildEmberWastes() {
   circle(m, 22, 9.5, 5.6, 3.6, 12, 'o', 0.2);
   each([[21, 13], [22, 13], [23, 13], [21, 14], [22, 14], [23, 14]], (x, y) => put(x, y, '.'));
   // Versteckte Senke im Nordwesten (Felsring, schmaler Spalt): Truhe
-  m.rect(2, 2, 11, 9, '#');
-  m.rect(5, 4, 5, 4, ',');
-  put(10, 6, ','); put(11, 6, ','); put(12, 6, ',');
+  m.ellipse(7.2, 5.6, 6.2, 5, '#'); m.rect(0, 0, 12, 3, '#');
+  m.ellipse(7, 5.6, 2.9, 2.3, ',');
+  for (let x = 10; x <= 14; x++) put(x, 6, ',');
   chests.push({ x: 7, y: 5 });
   put(6, 7, 'y'); put(9, 4, 'd');
   keep((x, y) => x >= 3 && x <= 13 && y <= 10);
@@ -353,6 +467,8 @@ export function buildEmberWastes() {
   const MA3 = wob([[89, 49], [95, 47], [100, 46]], 0.6, 4072);
   const MA4 = wob([[104, 47], [110, 49], [117, 50]], 0.8, 4073);
   for (const p of [MA, MA2, MA3, MA4]) pave(p, 3);
+  const mainRd = new MapBuilder(W, H, ' ');      // Hauptachse bleibt vollständig gepflastert (Eskorte, Tempo)
+  for (const p of [MA, MA2, MA3, MA4]) { mainRd.path(p, 14, 'n'); mainRd.path(p, 5, 'R'); }
   bridgeEW(77, 88, 48, 50);                     // Glutbrücke
   // Brunnenplatz (groß, unregelmäßig)
   const fountainSq = { x: 58, y: 37, w: 16, h: 13 };
@@ -411,11 +527,19 @@ export function buildEmberWastes() {
   dirt(SE1, 2);
   bridgeNS(99, 101, 82, 90);                    // Südbrücke über den Strom
 
-  // Stadtgrenze (Mauerreste mit Torpfeilern an West- und Osttor)
-  const cityIn = (x, y) => inEll(x, y, 82, 45, 46, 42) && x >= 47 && x <= 117 && y >= 10 && y <= 79;
+  // Stadtgrenze: Mauerzüge mit Lücken und Eckpfeilern, Torpfeiler an West- und Osttor
+  const cityIn = (x, y) => (inEll(x, y, 82, 45, 46, 42) || (x <= 78 && y >= 12 && y <= 36)) && x >= 47 && x <= 117 && y >= 10 && y <= 79;
   each([[47, 49], [47, 55], [117, 47], [117, 53]], (x, y) => put(x, y, 'Q'));
-  for (let y = 40; y <= 60; y++) if (y < 48 || y > 56) { const x = 47 + (y % 7 === 0 ? 1 : 0); if (get(x, y) === ',' || get(x, y) === '.') put(x, y, hash2(x, y, 4084) < 0.6 ? 'I' : 'r'); }
-  for (let y = 44; y <= 58; y++) if (y < 46 || y > 55) { if (get(117, y) === ',' || get(117, y) === '.') put(117, y, hash2(117, y, 4085) < 0.6 ? 'I' : 'r'); }
+  const cityWall = (x, ya, yb, seed) => {
+    let prev = false;
+    for (let y = ya; y <= yb; y++) {
+      if (!(get(x, y) === ',' || get(x, y) === '.') || net.onRoad(x, y)) { prev = false; continue; }
+      const k = vn(x, y, 2.4, seed);
+      const run = k > 0.42 && vn(x, y + 1, 2.4, seed) > 0.42 || prev && k > 0.42;   // nur Züge ab 2 Kacheln
+      if (run) { put(x, y, prev ? 'I' : 'J'); prev = true; } else { prev = false; if (k > 0.3 && hash2(x, y, seed) < 0.5) put(x + (hash2(x, y, seed + 1) < 0.5 ? -1 : 1), y, 'r'); }
+    }
+  };
+  cityWall(47, 38, 47, 4084); cityWall(47, 57, 63, 4085); cityWall(117, 42, 45, 4086); cityWall(117, 56, 60, 4087);
 
   // Tempel der Ersten Flamme (NO): Vorhalle am Fels, Säulenschiff, Ausgang zum Markt
   const temple = { x: 97, y: 13, w: 18, h: 28 };
@@ -425,14 +549,23 @@ export function buildEmberWastes() {
   put(97, 40, 'J'); put(114, 40, 'J');
   for (let y = 14; y <= 17; y++) for (let x = 98; x <= 113; x++) put(x, y, '#');
   put(105, 18, 'D');
-  m.rect(104, 19, 3, 21, ':');
-  m.rect(99, 28, 15, 3, ':');
+  m.path(wob([[105, 19], [105, 29], [105.4, 39.5]], 0.6, 4132, 3), 3, ':', ['.']);
+  m.path(wob([[99.5, 29.2], [105, 29.5], [112.5, 29]], 0.7, 4133, 3), 2.6, ':', ['.']);
+  for (let y = 19; y <= 39; y++) for (let x = 98; x <= 113; x++) if (get(x, y) === ':' && hash2(x, y, 4134) < 0.12) put(x, y, '.');
   for (const y of [21, 24, 27, 32, 35, 38]) { put(101, y, 'L'); put(110, y, 'L'); }
   for (let y = 33; y <= 35; y++) put(97, y, ':');
   for (let x = 104; x <= 106; x++) put(x, 40, ':');
   put(113, 37, 'r'); put(113, 38, 'r');
   put(99, 20, 'u'); put(112, 22, 'q'); put(98, 22, 'q'); put(100, 37, 'y'); put(112, 33, 'l');
   m.rect(104, 41, 3, 2, ':');
+  // Verfall: Westmauer eingestürzt (Schuttkegel davor), Südmauer gebrochen, Säulen gestürzt
+  for (let y = 23; y <= 26; y++) put(97, y, y === 23 ? 'r' : '.');
+  put(96, 25, '6'); put(95, 23, 'r'); put(98, 26, 'r');
+  for (const y of [30, 31, 37]) put(97, y, y === 31 ? 'r' : '.');
+  put(96, 31, 'r'); put(98, 37, 'r');
+  for (let x = 99; x <= 101; x++) put(x, 40, x === 100 ? 'r' : '.');
+  for (const y of [27, 28, 34]) put(114, y, y === 28 ? 'r' : '.');
+  put(110, 24, '.'); put(109, 25, 't'); put(101, 35, 'l'); put(110, 38, 'l'); put(112, 39, '6');
   // Sakristei hinter dem Tempel (Engstelle Ostseite): Truhe
   put(114, 21, '.');
   m.rect(115, 18, 2, 6, '.');
@@ -442,18 +575,74 @@ export function buildEmberWastes() {
   reserved.push((x, y) => x >= 95 && x <= 117 && y >= 12 && y <= 42);
   keep(box(temple, 1));
 
-  // Häuser: zuerst entlang Flammenweg und Gassen, dann Viertel auffüllen.
-  // Eingestürztes Viertel (NW) und Brandviertel (SO) fast nur Trümmer.
-  const fallenQ = (x, y) => x < 62 && y < 36;
+  // ---------------------------------------------- Landmarken der Altstadt
+  // Geborstener Turm im eingestürzten Viertel: Rundturm mit Schuttkegeln und gestürzten Trommeln
+  const tower = { x: 50, y: 14, w: 11, h: 10 };
+  put(55, 19, '7');
+  each([[52, 20], [58, 21]], (x, y) => put(x, y, '6'));
+  each([[51, 17], [57, 16], [53, 22], [59, 18]], (x, y) => put(x, y, 'r'));
+  lying(56, 23);
+  reserved.push(box(tower, 0));
+  keep(box(tower, 0));
+  // Gildenhalle südlich des Brunnenplatzes: große Halle mit zwei Säulenreihen, Dach und Ostflügel eingestürzt,
+  // Vorplatz zum Flammenweg
+  const hall = { x: 55, y: 57, w: 14, h: 10 };
+  m.path([[62, 49], [62, 56]], 3, ':', [',', '.']); net.mask.path([[62, 49], [62, 56]], 4.2, 'R');
+  m.ellipse(62, 53.5, 3.4, 2.2, ':', [',', '.']);
+  ruin([[hall.x, hall.y, hall.w, hall.h]], 'whole', { door: false, props: false });
+  for (let x = 61; x <= 63; x++) put(x, hall.y, ':');
+  each([[60, 57], [64, 57]], (x, y) => put(x, y, 'J'));
+  for (const y of [59, 63]) for (const x of [58, 61, 64]) put(x, y, x === 64 && y === 63 ? '.' : 'L');
+  put(66, 59, 'l'); lying(65, 61);
+  // Ostflügel und Südostecke eingestürzt
+  for (let y = 60; y <= 66; y++) put(68, y, y === 62 ? 'r' : '.');
+  for (let x = 63; x <= 68; x++) put(x, 66, x === 65 ? 'r' : '.');
+  each([[67, 64], [69, 61]], (x, y) => put(x, y, '6'));
+  each([[66, 65], [69, 65], [57, 64], [59, 61]], (x, y) => put(x, y, 'r'));
+  put(56, 65, 'y');
+  reserved.push(box(hall, 1));
+  for (let y = hall.y - 1; y <= hall.y + hall.h; y++) for (let x = hall.x - 1; x <= hall.x + hall.w; x++) occ[y * W + x] = 1;
+  // Lava hat sich durch Häuser gefressen: am Westufer (Nordstadt) und am Nebenarm (Südstadt)
+  ruin([[71, 29, 7, 7]], 'broken', { props: false });
+  lavaBreak([[81, 33.5], [77.5, 33], [74.5, 32.2]], 1.8);
+  m.ellipse(73.6, 31.8, 1.6, 1.2, '~', ['.', 'r', 'l', '6', 'd', 'y']);
+  ruin([[63, 65, 8, 6], [63, 62, 4, 4]], 'broken', { props: false });
+  lavaBreak([[71, 73.6], [68.6, 70.2], [66.4, 67.8]], 1.7);
+  m.ellipse(66, 67.4, 1.5, 1.1, '~', ['.', 'r', 'l', '6', 'd', 'y']);
+  // Ausgebrannter Speicher im Brandviertel (nur Mauerwinkel), verkohlte Ruinen daneben
+  ruin([[107, 64, 10, 7]], 'shell');
+  each([[113, 72], [97, 71]], (x, y) => { if (free1(x, y)) put(x, y, 'h'); });
+  // Kleine Plätze an Gassenknoten (unregelmäßig gepflastert), je mit einem Fundstück
+  m.ellipse(102.5, 62.5, 3, 2.2, ':', [',', '.']); lying(104, 60);
+  m.ellipse(93.5, 28, 2.6, 2, ':', [',', '.']); put(95, 27, 'l');
+  for (const [x, y] of [[102.5, 62.5], [93.5, 28]]) reserved.push((a, b) => inEll(a, b, x, y, 4, 3));
+  // Säulenplatz: eine Säule gestürzt
+  put(65, 25, 'l'); lying(67, 27);
+
+  // ---------------------------------------------- Häuser: entlang der Gassen, dann wenige Hinterhofbauten
+  // Eingestürztes Viertel (NW) und Brandviertel (SO) fast nur Trümmer; am Strom stärker zerstört.
+  const fallenQ = (x, y) => x < 64 && y < 37;
   const burntQ = (x, y) => x > 98 && y > 58;
-  ruinOf = (x, y) => fallenQ(x, y) ? 0.8 : burntQ(x, y) ? 0.65 : 0.12;
-  for (const [p, w] of [[MA, 3], [MA2, 3], [MA3, 3], [MA4, 3], [N1, 2], [N2, 2], [N3, 2], [S1, 2], [S3, 2], [NW1, 1.8], [SW1, 2], [SE1, 2]]) lots(p, w, cityIn);
-  fill({ x: 48, y: 11, w: 30, h: 66 }, 2500, cityIn);
-  fill({ x: 87, y: 11, w: 30, h: 68 }, 2500, cityIn);
-  // Schuttfelder in den eingestürzten Vierteln
+  decayAt = (x, y) => (fallenQ(x, y) ? 0.72 : burntQ(x, y) ? 0.6 : 0.16) + (Math.abs(x - 83) < 10 ? 0.12 : 0) + (vn(x, y, 8, 4130) - 0.5) * 0.5
+    - (mainRd.get(Math.round(x), Math.round(y)) !== ' ' ? 0.16 : 0);   // am Flammenweg stehen die Häuser noch am ehesten
+  for (const [p, w, sk] of [[MA, 3, 0.05], [MA2, 3, 0.05], [MA3, 3, 0.05], [MA4, 3, 0.05], [N1, 2, 0.3], [N2, 2, 0.3], [N3, 2, 0.2], [S1, 2, 0.2], [S3, 2, 0.22], [NW1, 1.8, 0.35], [SW1, 2, 0.25], [SE1, 2, 0.3]]) street(p, w, cityIn, { skip: sk });
+  backlots({ x: 48, y: 11, w: 30, h: 66 }, 0.85, cityIn);
+  backlots({ x: 87, y: 11, w: 30, h: 68 }, 0.85, cityIn);
+  // Schuttfelder: Streuschutt, Schuttkegel und gestürzte Säulen in den zerstörten Vierteln
   for (let y = 11; y < 79; y++) for (let x = 48; x < 117; x++) {
-    if (!(fallenQ(x, y) || burntQ(x, y)) || !cityIn(x, y) || occ[y * W + x] || net.onRoad(x, y)) continue;
-    if ((get(x, y) === ',' || get(x, y) === '.') && hash2(x, y, 4086) < 0.07) put(x, y, hash2(x, y, 4087) < 0.7 ? 'r' : 'l');
+    if (!(fallenQ(x, y) || burntQ(x, y)) || !cityIn(x, y) || occ[y * W + x] || net.onRoad(x, y) || !free1(x, y)) continue;
+    if (reserved.some((f) => f(x, y))) continue;
+    const h = hash2(x, y, 4086);
+    if (h < 0.05) put(x, y, hash2(x, y, 4087) < 0.75 ? 'r' : 'l');
+    else if (h < 0.058 && free1(x - 1, y) && free1(x + 1, y)) put(x, y, '6');
+    else if (h < 0.061) lying(x, y);
+  }
+
+  // Abgetretene Pflasterränder: einzelne Randsteine fehlen (weiche, unregelmäßige Straßenkanten)
+  for (let y = 11; y < 80; y++) for (let x = 47; x < 118; x++) {
+    if (get(x, y) !== ':' || mainRd.get(x, y) === 'R' || near(m, x, y, '~', 2) || near(m, x, y, 'm', 1) || near(m, x, y, 'j', 1)) continue;
+    const edgeN = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([i, j]) => get(x + i, y + j) !== ':').length;
+    if (edgeN && hash2(x, y, 4135) < 0.07 + edgeN * 0.05) put(x, y, '.');
   }
 
   // ------------------------------------------------------------ Obsidianfeld (SW)
@@ -505,7 +694,7 @@ export function buildEmberWastes() {
   cairnAt(SV2, 9, 2.6, 3); cairnAt(SV3, 9, 2.6, 4);
   // Gehöfte und Scheunen (verbrannt)
   for (const [x, y, w, h, c] of [[64, 80, 7, 5, 1], [73, 78, 8, 6, 0], [86, 95, 6, 5, 1], [79, 96, 6, 5, 0], [90, 80, 7, 5, 1], [70, 85, 6, 4, 1], [84, 84, 7, 5, 0], [47, 76, 6, 5, 1], [94, 86, 5, 4, 1]]) {
-    if (canBuild(x, y, w, h)) { claim(x, y, w, h); c ? collapsed(x, y, w, h) : house(x, y, w, h, { breaches: 2 }); }
+    if (canBuild(x, y, w, h)) ruin([[x, y, w, h]], c ? (hash2(x, y, 4131) < 0.5 ? 'shell' : 'base') : 'broken');
   }
   // Aschefriedhof um den dritten Phasenanker: Stelen in Reihen, Knochen, Kohlebecken am Eingang
   m.ellipse(62, 95, 7, 4.2, '.', [',']);
@@ -537,9 +726,15 @@ export function buildEmberWastes() {
         acc += 1; if (acc < 6 || ay + (by - ay) * (s / L) < 14) continue;
         acc = 0; n++;
         const px = ax + (bx - ax) * (s / L), py = ay + (by - ay) * (s / L);
+        // Runde 6: nicht spiegelgleich – Abstand zur Achse schwankt, einzelne Stellen fehlen,
+        // manche Statuen liegen umgestürzt, manche Becken sind nur noch Stümpfe
         for (const side of [1, -1]) {
-          const x = Math.round(px + nx * 4 * side), y = Math.round(py + ny * 4 * side);
-          if (get(x, y) === ',' || get(x, y) === '.') put(x, y, n % 2 ? 'S' : 'q');
+          const k = n * 2 + (side > 0 ? 1 : 0);
+          const h = hash2(k, 71, 4160), d = 4 + Math.round((hash2(k, 72, 4161) - 0.5) * 2.4), sh = Math.round((hash2(k, 73, 4162) - 0.5) * 2);
+          if (h < 0.08) continue;
+          const x = Math.round(px + nx * d * side + (bx - ax) / L * sh), y = Math.round(py + ny * d * side + (by - ay) / L * sh);
+          const ch = n % 2 ? (h > 0.84 ? 'u' : 'S') : (h > 0.86 ? 'l' : 'q');
+          if (get(x, y) === ',' || get(x, y) === '.') put(x, y, ch);
         }
       }
     }
@@ -552,8 +747,8 @@ export function buildEmberWastes() {
   each([[124, 30], [146, 18], [131, 34], [154, 29], [125, 40]], (x, y) => put(x, y, 'y'));
   each([[147, 41], [123, 17], [155, 37]], (x, y) => put(x, y, 'l'));
   // Felsnische hinter dem Kolosshaupt (Engstelle, Truhe)
-  m.rect(150, 13, 8, 6, '#');
-  m.rect(152, 15, 4, 2, '.');
+  m.ellipse(154, 15.6, 4.6, 3.4, '#'); m.rect(156, 12, 4, 8, '#');
+  m.ellipse(154, 15.6, 2.2, 1.2, '.');
   put(151, 16, '.'); put(150, 16, '.'); put(149, 16, '.');
   chests.push({ x: 154, y: 15 });
 
@@ -567,8 +762,28 @@ export function buildEmberWastes() {
   each([[124, 59], [134, 70], [156, 63], [127, 67]], (x, y) => put(x, y, 'h'));
   keep(box(camp, 0));
   // Geysire am Glutsee, Furt zur Insel (Truhe zwischen Kolosstrümmern)
-  const geys = [[108, 76], [116, 84], [124, 76], [138, 78], [146, 84], [152, 90], [150, 97], [114, 97], [106, 95], [121, 99], [143, 99], [156, 76]];
-  each(geys, (x, y) => { if (GROUND.has(get(x, y))) put(x, y, 'g'); });
+  // Runde 6: Geysire nicht mehr im Raster, sondern in Gruppen und Ketten auf glühenden Erdrissen
+  // (level.fissures, nur Bodengrafik, begehbar), mit wechselnden Abständen und Lücken.
+  const cracks = [
+    { pts: [[103, 75], [107, 77], [111, 78.5]], at: [1.2, 4.6] },
+    { pts: [[115, 80.5], [120, 82], [125, 81.5], [129, 83.5]], at: [2, 3.9, 9.2, 13.6] },
+    { pts: [[144, 85.5], [147, 83], [150.5, 81.6]], at: [1, 5.6] },
+    { pts: [[102, 96], [107, 95.5], [112, 97], [117, 98], [122, 98.6]], at: [2.2, 4.1, 11.6, 18.3] },
+    { pts: [[141, 98.6], [146, 97], [150, 94], [153, 91], [156, 88.5]], at: [1.6, 7.2, 9.1, 15.4] },
+  ];
+  for (const { pts, at } of cracks) {
+    let t0 = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[i + 1], L = Math.hypot(bx - ax, by - ay);
+      for (const a of at) if (a >= t0 && a < t0 + L) {
+        const f = (a - t0) / L, h = hash2(Math.round(a * 10), i, 4170), o = h < 0.3 ? -1 : h > 0.75 ? 1 : 0;
+        const x = Math.round(ax + (bx - ax) * f - (by - ay) / L * o), y = Math.round(ay + (by - ay) * f + (bx - ax) / L * o);
+        if (GROUND.has(get(x, y))) put(x, y, 'g');
+      }
+      t0 += L;
+    }
+  }
+  const fissures = cracks.map((c) => c.pts);
   ford([[132, 81], [132, 88]], 2.2);
   m.ellipse(132, 90.5, 4.2, 2.2, '.', ['~']);
   chests.push({ x: 134, y: 91 });
@@ -668,12 +883,16 @@ export function buildEmberWastes() {
   keep((x, y) => chests.some((c) => Math.abs(x - c.x) <= 1 && Math.abs(y - c.y) <= 1));
   keep((x, y) => Math.abs(x - 138) <= 4 && y < 44);
   keep((x, y) => inEll(x, y, 128, 29, 6, 4));
+  // Geysire (Dampf) und verkohlte Bäume (Funkenflug) sind animiert: höchstens so viele wie bisher (16 / 18)
+  let geyserN = 0, treeN = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (get(x, y) === 'g') geyserN++; if (get(x, y) === 'd') treeN++; }
+  const tree = () => treeN < 18 ? (treeN++, 'd') : null;
   strew(m, net, rng, (x, y) => clear.some((f) => f(x, y)), (x, y, g, free) => {
     if (near(m, x, y, '~', 1)) return free && rng.chance(0.05) ? 'o' : null;
     if (dunes(x, y)) {
       if (free && vn(x, y, 7, 4120) > 0.62 && rng.chance(0.09)) return 'E';
       if (vn(x, y, 7, 4120) > 0.55 && rng.chance(0.05)) return 'n';
-      if (free && rng.chance(0.007)) return 'd';
+      if (free && rng.chance(0.007)) return tree();
       if (free && rng.chance(0.006)) return 'y';
       if (free && rng.chance(0.004)) return 'O';
       return null;
@@ -683,7 +902,7 @@ export function buildEmberWastes() {
       if (rng.chance(0.02)) return 'r';
       if (rng.chance(0.006)) return 'l';
       if (rng.chance(0.005)) return 'y';
-      if (rng.chance(0.004)) return 'd';
+      if (rng.chance(0.004)) return tree();
       return null;
     }
     if (pits(x, y)) {
@@ -694,7 +913,7 @@ export function buildEmberWastes() {
     }
     if (geyserF(x, y)) {
       if (!free) return null;
-      if (rng.chance(0.012)) return 'g';
+      if (rng.chance(0.012) && geyserN < 0) { geyserN++; return 'g'; }   // Geysire nur noch auf den Rissen
       if (rng.chance(0.02)) return 'o';
       return null;
     }
@@ -709,7 +928,7 @@ export function buildEmberWastes() {
     if (southFields(x, y)) {
       if (free && rng.chance(0.014)) return 'E';
       if (rng.chance(0.012)) return 'n';
-      if (free && rng.chance(0.012)) return 'd';
+      if (free && rng.chance(0.012)) return tree();
       if (free && rng.chance(0.008)) return 'r';
       if (free && rng.chance(0.005)) return 'y';
       return null;
@@ -757,6 +976,8 @@ export function buildEmberWastes() {
     name: 'Die Glutöde',
     kind: 'outdoor',
     biome: 'wastes',
+    organicCliffs: 'basalt',
+    fissures,          // VORSCHLAG_Outdoor.js.diff: Säulenbasalt ohne Kachelkanten
     decorSet: 'decor_wastes',
     map: m.rows(),
     solid: 'wvUHIJiNmejQV',
@@ -768,6 +989,7 @@ export function buildEmberWastes() {
       S: 'statues', u: 'fallenStatues', W: 'fountain', N: 'obsidianNeedles', q: 'brazier', m: 'bridgeRail', e: 'bridgePier',
       j: 'bridgeRailV', z: 'lavaCrust', E: 'ashDrifts', C: 'colossusRemains', D: 'templeFacade', Q: 'gatePylon', X: 'marketStalls',
       O: 'cairns', V: 'barricades', Y: 'steles',
+      6: 'rubbleHeaps', t: 'fallenColumns', 7: 'towerStump',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_frostspire', 4: 'from_ashen_throne', 5: 'waystone' },
     waystone,
