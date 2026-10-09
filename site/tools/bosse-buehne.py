@@ -144,12 +144,18 @@ def pulse(f):
     return PULSE[(f // 2) % 4]
 
 
-def warn(L, mask, f, prog=None, prog_mask=None):
-    """Warnfläche: gefüllte rote Bodenmarke, Rand 1 px (vorn 2 px), 3 Pulsstufen; prog_mask = wachsende Innenfläche."""
+def warn(L, mask, f, prog=None, prog_mask=None, tex=None):
+    """Warnfläche: gefüllte rote Bodenmarke, Rand 1 px (vorn 2 px), 3 Pulsstufen; prog_mask = wachsende Innenfläche.
+    tex (Rauschfeld 0..1): Bodentextur – dunkle Körnung und gestufter Innenrand, damit die Bahn nicht wie ein Brett wirkt."""
     l = pulse(f)
     L.over(mask, RED[3], [0.34, 0.44, 0.54][l])
     if prog_mask is not None:
         L.over(prog_mask & mask, RED[4], 0.42)
+    if tex is not None:
+        inner = rim(mask & ~rim(mask))                       # zweite Randreihe: gestufter Rand
+        L.over(inner, RED[2], 0.55)
+        L.over(mask & ~inner & (tex < 0.09), RED[1], 0.7)    # Körnung (Einzelpixel)
+        L.over(mask & ~inner & (tex > 0.95), RED[5], 0.5)
     r = rim(mask)
     lip = mask & ~np.roll(mask, -1, axis=0)  # Unterkante
     lip2 = mask & ~np.roll(mask, -2, axis=0)
@@ -709,7 +715,7 @@ def stage_malgareth(cfg, W, H):
             if S.marks['warn'] <= f and front < ln['L']:
                 wl = (f - S.marks['warn']) / max(1, f_go - S.marks['warn'])
                 prog = m & (al <= ln['L'] * min(1, (int(wl * 4) + 1) / 4))
-                warn(L, m & (al > front), f, prog_mask=prog & (al > front))
+                warn(L, m & (al > front), f, prog_mask=prog & (al > front), tex=NOISE)
             if f >= f_go:
                 # Brandspur: füllt genau die Bahn (frisch glühend → rot → verkohlt → gerastert weg)
                 age = f - f_go - np.floor(al / speed)
@@ -736,42 +742,44 @@ def stage_malgareth(cfg, W, H):
             grow = min(1.0, (f - f_go + 1) / 2)
             fade = 1.0 if front < ln['L'] else 0.55
             p0 = ln['a0'] + ln['u'] * s_
-            light(L, p0[0] + 4, p0[1], 26, 13, EMB[4], k=1.0 * fade)
             hw = ln['hw']
-            # Wellenkrone im Seitenprofil: steile Vorderseite mit überhängender Lippe, Glutzungen oben, Ascheschweif hinten.
-            # Je Spalte gestufte Farben nach Höhe (dunkelrot → orange → gelb → weißgelbe Spitze), keine Verläufe.
-            T = 30; Hm = 26 * grow * fade
+            # Wellenkrone als Flammenwand im Seitenprofil: gezackte Flammenzungen, Farbe nach Abstand zur Silhouette in
+            # harten Stufen (dunkelroter Saum → orange → gelb → heller Kern), unten wieder dunkler; Glut-/Aschepunkte als Einzelpixel.
+            T = 26; Hm = 24 * grow * fade
             for j in range(T - 1, -1, -1):
                 sj = s_ - j
                 if sj < 0:
                     continue
                 c = ln['a0'] + ln['u'] * sj
-                x = int(round(c[0])); yt = int(round(c[1] - hw * abs(ln['n'][1]))); yb = int(round(c[1] + hw * abs(ln['n'][1])))
-                pr = [0.62, 0.86, 1.0][j] if j < 3 else math.exp(-(j - 2) / 12.0)
-                tongue = 4 if (x * 7 + f * 3) % 6 == 0 else 2 if (x * 3 + f) % 4 == 0 else 0
-                ym = int(round(c[1]))
-                top = int(round(ym - Hm * pr - tongue * (j < 14) * grow))
-                if top > ym - 2:
+                x = int(round(c[0])); ym = int(round(c[1])); yb = int(round(c[1] + hw * abs(ln['n'][1])))
+                pr = [0.55, 0.8, 0.95, 1.0][j] if j < 4 else math.exp(-(j - 3) / 9.0)
+                # Zungen: Sägezahn, Spitzen wandern je Bild, zwei Frequenzen
+                ph = (x + f * 2) % 5; ph2 = (x * 3 + f) % 7
+                tongue = [7, 3, 0, 1, 4][ph] * (1 if j < 18 else 0.4) + (3 if ph2 == 0 else 0)
+                top = int(round(ym - Hm * pr - tongue * grow * fade))
+                if top > ym - 1:
                     continue
                 for y in range(top, yb + 1):
-                    q = (yb - y) / max(1, yb - top)
-                    if j >= 21:
-                        col = ASH[2] if q < 0.5 else ASH[3] if q < 0.85 else ASH[4]
-                    elif j >= 14:
-                        col = EMB[2] if q < 0.35 else EMB[3] if q < 0.75 else EMB[4]
-                    elif j < 2:
-                        col = EMB[3] if q < 0.4 else EMB[4] if q < 0.8 else EMB[5]
+                    dt = y - top + (1 if NOISE[min(H - 1, max(0, y)), x % W] > 0.7 else 0)
+                    db = yb - y
+                    if dt < 2 or db < 2:
+                        col = EMB[2]
+                    elif dt < 5 or db < 5:
+                        col = EMB[3] if j > 12 else EMB[4]
+                    elif dt < 9 or db < 8:
+                        col = EMB[4] if j > 12 else EMB[5]
                     else:
-                        col = EMB[3] if q < 0.3 else EMB[4] if q < 0.6 else EMB[5] if q < 0.88 else EMB[6]
-                    if y <= top + 1 and j < 9:
-                        col = EMB[6]
+                        col = EMB[5] if (j > 6 or dt > 14 or (x + y) % 5 == 0) else EMB[6]
                     L.px(x, y, col)
-            # Lippe: Kronenspitze kippt 2 px nach vorn
-            c = ln['a0'] + ln['u'] * s_
-            xf = int(round(c[0])); yt = int(round(c[1] - hw * abs(ln['n'][1])))
-            lip_top = int(round(yt - Hm * 0.95))
-            if grow > 0.5:
-                L.rect(xf + 1, lip_top, 2, 3, EMB[5]); L.px(xf + 3, lip_top + 1, EMB[6]); L.rect(xf + 1, lip_top, 1, 1, EMB[6])
+            # Funken und Asche über der Krone: Einzelpixel, je Bild neu gestreut
+            Rs = rng(1000 + f)
+            for k in range(14):
+                j = int(Rs.integers(0, 16)); sj = s_ - j
+                if sj < 0:
+                    continue
+                c = ln['a0'] + ln['u'] * sj
+                y = int(round(c[1] - Hm * (0.8 + Rs.random() * 0.9) - Rs.integers(0, 10)))
+                L.px(int(round(c[0])) + int(Rs.integers(-2, 3)), y, [EMB[6], EMB[5], EMB[4], ASH[4], ASH[3]][k % 5])
         bits.draw(L, f)
         frames.append(L.u8())
     return frames, [ln['m'] for ln in lanes]
