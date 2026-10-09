@@ -67,7 +67,7 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     let simT = 0;
     const cracks = [], CRACK_LIFE = 2.2;
     const scorch = w.decals.scorch?.bind(w.decals);
-    w.decals.scorch = (sx, sy, r) => { if (!cracks.some((ck) => Math.abs(ck.x - sx) < 2 && simT - ck.t < 0.2)) cracks.push({ x: sx, y: sy, t: simT }); return scorch?.(sx, sy, r); };
+    if (cls === 'warrior') w.decals.scorch = (sx, sy, r) => { if (!cracks.some((ck) => Math.abs(ck.x - sx) < 2 && simT - ck.t < 0.2)) cracks.push({ x: sx, y: sy, t: simT }); return scorch?.(sx, sy, r); };
     const hash = (a, b2) => { const v = Math.sin(a * 127.1 + b2 * 311.7) * 43758.5453; return v - Math.floor(v); };
     const drawCracks = (x, ox, oy) => {
       cracks.forEach((ck, i) => {

@@ -93,12 +93,14 @@
     $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => io.observe(el));
   } else $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => el.classList.add('in'));
 
-  // ---------- Bildstreifen abspielen: ein Element zeigt jeweils ein Bild eines waagerechten Streifens (Hintergrundbild).
+  // ---------- Bildstreifen abspielen: ein Element zeigt jeweils ein Bild eines waagerechten Streifens (Hintergrundbild),
+  // oder eine Zeichenfläche bekommt das Bild per drawImage (große Streifen: kein riesiges skaliertes Hintergrundbild,
+  // das der Browser beim Wechsel erst neu rastern müsste).
   // Ein gemeinsamer Takt (requestAnimationFrame) für alle Figuren; Figuren außerhalb des Bildschirms stehen still.
   const decoded = new Map();
   const loadImg = (src) => {
     let p = decoded.get(src);
-    if (!p) { const im = new Image(); im.src = src; p = (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).catch(() => {}); decoded.set(src, p); }
+    if (!p) { const im = new Image(); im.src = src; p = (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).then(() => im, () => im); decoded.set(src, p); }
     return p;
   };
   const players = new Set();
@@ -114,19 +116,26 @@
     for (const e of es) { const pl = e.target.__strip; if (pl) { pl.visible = e.isIntersecting; if (pl.visible) kick(); } }
   }, { rootMargin: '80px' }) : null;
   class Strip {
-    constructor(el) { this.el = el; this.seq = null; this.token = 0; this.visible = !seen; el.__strip = this; seen?.observe(el); players.add(this); }
+    constructor(el) { this.el = el; this.cv = el instanceof HTMLCanvasElement ? el : null; this.seq = null; this.token = 0; this.visible = !seen; el.__strip = this; seen?.observe(el); players.add(this); }
     // seq: { src, n, ms (Zahl oder Liste je Bild), loop, done }
     async play(seq) {
       const tok = ++this.token;
-      await loadImg(seq.src);
+      const img = await loadImg(seq.src);
       if (tok !== this.token) return;
-      this.el.style.backgroundImage = `url(${seq.src})`;
-      this.el.style.setProperty('--n', seq.n);
+      if (this.cv) this.img = img;
+      else { this.el.style.backgroundImage = `url(${seq.src})`; this.el.style.setProperty('--n', seq.n); }
       this.seq = seq; this.i = 0; this.t = 0; this.show();
       if (reduced) { this.seq = null; seq.done?.(); return; }
       kick();
     }
-    show() { this.el.style.backgroundPosition = `${this.seq.n > 1 ? (this.i / (this.seq.n - 1)) * 100 : 0}% 0`; }
+    show() {
+      if (!this.cv) { this.el.style.backgroundPosition = `${this.seq.n > 1 ? (this.i / (this.seq.n - 1)) * 100 : 0}% 0`; return; }
+      const im = this.img, w = im.naturalWidth / this.seq.n, h = im.naturalHeight, c = this.cv;
+      if (!w) return;
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const x = c.getContext('2d'); x.clearRect(0, 0, w, h); x.drawImage(im, this.i * w, 0, w, h, 0, 0, w, h);
+      if (!c.__on) { c.__on = true; c.parentElement.classList.add('live'); }
+    }
     step(dt) {
       const s = this.seq, dur = (i) => (Array.isArray(s.ms) ? s.ms[i] : s.ms);
       this.t += dt;
@@ -161,7 +170,8 @@
     if (!fig) return null;
     if (fig.__ctl) return fig.__ctl;
     const cls = fig.dataset.cls, [nFight, nIdle, ...nSkill] = fig.dataset.n.split(' ').map(Number);
-    const pl = new Strip(fig.querySelector('i')), lis = [...panel.querySelectorAll('.skills li')];
+    const cv = document.createElement('canvas'); cv.setAttribute('aria-hidden', 'true'); fig.append(cv);
+    const pl = new Strip(cv), lis = [...panel.querySelectorAll('.skills li')];
     let timer = 0, next = 0;
     const mark = (k) => lis.forEach((li, i) => li.classList.toggle('on', i === k));
     const idle = () => { mark(-1); pl.play({ src: `${IMG}ruhe-${cls}.webp`, n: nIdle, ms: F12, loop: true }); wait(); };
@@ -288,8 +298,8 @@
       ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(16), cv.width, px(16));
       // Schatten werden mit der Höhe kleiner und blasser
       for (const r of runners) {
-        const { lift } = heightOf(r), k = Math.max(0.3, 1 - lift / 46);
-        shadow(r.x + (r.d.fly ? 2 : 0), r.d.w * (r.d.fly ? 0.3 : 0.32) * k, 0.45 * k);
+        const { lift } = heightOf(r), k = Math.max(0.5, 1 - lift / 60);
+        shadow(r.x + (r.d.fly ? 2 : 0), r.d.w * (r.d.fly ? 0.34 : 0.32) * k, (r.d.fly ? 0.62 : 0.48) * k);
       }
       for (const q of dust) { ctx.globalAlpha = Math.max(0, 1 - q.life / q.max) * q.a; ctx.fillStyle = q.c; ctx.fillRect(px(q.x), px(q.y), wp, wp); }
       ctx.globalAlpha = 1;
@@ -315,6 +325,13 @@
         const d = r.d, back = r.x - d.fx * 0.7, { lift } = heightOf(r);
         if (!d.fly && lift < 1 && Math.random() < dt * 26) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -CAM - 6 - Math.random() * 12, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', a: 0.7 });
         if (d.glow && Math.random() < dt * (d.fly ? 16 : 9)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - lift - d.fy * (0.2 + Math.random() * 0.5), vx: -CAM - 10 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: d.glow, a: 0.95 });
+      }
+      // Sicherheitsabstand am Boden: niemand läuft durch das Tier vor ihm (Flieger haben ihre eigene Bahn)
+      let ahead = null;
+      for (const r of runners) {
+        if (r.d.fly) continue;
+        if (ahead) r.x = Math.min(r.x, ahead.x - ahead.d.fx - (r.d.w - r.d.fx) - 10);
+        ahead = r;
       }
       for (const q of dust) { q.life += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 18 * dt; }
       dust = dust.filter((q) => q.life < q.max).slice(-260);
