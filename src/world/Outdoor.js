@@ -9,6 +9,51 @@ import { GROUND_FROST } from '../sprites/decor_frost.js';
 import { GROUND_WASTES } from '../sprites/decor_wastes.js';
 import { GROUND_PEAKS } from '../sprites/decor_peaks.js';
 
+// Wertrauschen mit gemerkter Gitterzelle je Aufrufstelle (Formel wie vnoise, bitgleich): benachbarte
+// Pixel liegen fast immer in derselben Zelle, dann entfallen die vier Hashes
+const VNC = new Float64Array(12 * 7).fill(NaN);
+function vnc(s, x, y, seed) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), o = s * 7;
+  if (VNC[o] !== x0 || VNC[o + 1] !== y0 || VNC[o + 6] !== seed) {
+    VNC[o] = x0; VNC[o + 1] = y0; VNC[o + 6] = seed;
+    const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
+    VNC[o + 2] = a; VNC[o + 3] = b - a; VNC[o + 4] = c - a; VNC[o + 5] = a - b - c + d;   // wie vnoise gerechnet
+  }
+  const fx = x - x0, fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  return VNC[o + 2] + VNC[o + 3] * sx + VNC[o + 4] * sy + VNC[o + 5] * sx * sy;
+}
+
+// Hochfläche der organischen Gipfel: Grundton (Schnee mit Windrippen) und vereinzelte kleine Felsnasen
+// (je 12-px-Zelle höchstens eine, oben verschneit; null = keine)
+const DITH = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// Hex-Farbe -> Zahl, gemerkt (je Pixel kein slice/parseInt)
+const HEXI = new Map();
+function hexInt(hex) {
+  let v = HEXI.get(hex);
+  if (v === undefined) { v = parseInt(hex.slice(1), 16); HEXI.set(hex, v); }
+  return v;
+}
+function capBase(px, py, G) {
+  const n = vnc(5, px / 9, py / 9, 313) * 0.55 + vnc(6, px / 3, py / 3, 314) * 0.3 + hash2(px, py, 315) * 0.15;
+  let k = Math.floor(2.5 + n * 2.6);
+  const rip = Math.sin(py * 0.85 + vnc(9, px / 14, py / 10, 316) * 9);
+  const ripZone = vnc(10, px / 22, py / 18, 323);
+  const dt = DITH[(py & 3) * 4 + (px & 3)] / 16;
+  if (ripZone > 0.5 && rip > 0.88 && dt < (ripZone - 0.5) * 3) k -= 1; else if (ripZone > 0.55 && rip < -0.92 && dt < 0.4) k += 1;
+  return G[Math.max(0, Math.min(5, k))];
+}
+function capNose(px, py, G, R) {
+  const cx0 = Math.floor(px / 12), cy0 = Math.floor(py / 12);
+  if (hash2(cx0, cy0, 317) >= 0.16) return null;
+  const rx = cx0 * 12 + 3 + Math.floor(hash2(cx0, cy0, 318) * 6), ry = cy0 * 12 + 3 + Math.floor(hash2(cx0, cy0, 319) * 6);
+  const rr = 1.6 + hash2(cx0, cy0, 322) * 1.6, ex = (px - rx) / (rr * 1.3), ey = (py - ry) / rr;
+  const q = ex * ex + ey * ey;
+  if (q < 1) return ey < -0.3 ? G[4] : ex < -0.2 ? R[4] : ey > 0.45 ? R[2] : R[3];
+  if (q < 1.9 && py > ry && Math.abs(ex) < 1) return G[1];          // kurzer Schatten
+  return null;
+}
+
 // Bodenpaletten der Runde-3-Zonen liegen bei ihren Deko-Sätzen (Import hier, sonst Kreis über decor_ashwood -> outdoor.js)
 const GROUNDS = { ...BIOME_GROUND, steppe: GROUND_STEPPE, marsh: GROUND_MARSH, frost: GROUND_FROST, wastes: GROUND_WASTES, peaks: GROUND_PEAKS };
 // Felsrampen je Biom (dunkel→hell). Das Plateau nimmt den Boden der Zone (bzw. Schnee), damit Felsen
@@ -25,6 +70,42 @@ const CLIFF_ROCK = {
 };
 // Biome, deren Felsgipfel organisch (pixelweise, ohne Kachelkanten) gezeichnet werden
 const ORGANIC_CLIFFS = new Set(['frost']);
+// Säulenbasalt (level.organicCliffs = 'basalt'), dunkel → hell
+// Kachelbare Voronoi-Textur der Basaltsäulenköpfe (128 × 96 px, Zellen ~8 × 6 px), einmal je Sitzung
+const HEX_W = 128, HEX_H = 96;
+let hexTex = null;
+function basaltHex() {
+  if (hexTex) return hexTex;
+  const NX = HEX_W / 8, NY = HEX_H / 6, n = HEX_W * HEX_H;
+  const pt = (cx, cy) => { const wx = ((cx % NX) + NX) % NX, wy = ((cy % NY) + NY) % NY; return [cx * 8 + (cy & 1 ? 4 : 0) + hash2(wx, wy, 401) * 3, cy * 6 + hash2(wx, wy, 402) * 3, wy * NX + wx]; };
+  const t = { edge: new Float32Array(n), ox: new Float32Array(n), oy: new Float32Array(n), id: new Int32Array(n) };
+  for (let py = 0; py < HEX_H; py++) for (let px = 0; px < HEX_W; px++) {
+    const gx = Math.floor(px / 8), gy = Math.floor(py / 6);
+    let d1 = 1e9, d2 = 1e9, best = null;
+    for (let j = -2; j <= 1; j++) for (let i = -2; i <= 1; i++) {
+      const p = pt(gx + i, gy + j), dx = px - p[0], dy = py - p[1], dd = dx * dx + dy * dy;
+      if (dd < d1) { d2 = d1; d1 = dd; best = [p, dx, dy]; } else if (dd < d2) d2 = dd;
+    }
+    const k = py * HEX_W + px;
+    t.edge[k] = Math.sqrt(d2) - Math.sqrt(d1); t.ox[k] = best[1]; t.oy[k] = best[2]; t.id[k] = best[0][2];
+  }
+  return (hexTex = t);
+}
+// Randrauschen der Basaltmaske: 512 × 512 px kachelbar vorberechnet, blockweise erst bei Bedarf (32 × 32 px)
+const BN = 512;
+let bnTab = null, bnDone = null;
+function basaltN(px, py) {
+  const x = px & (BN - 1), y = py & (BN - 1), b = (y >> 5) * (BN >> 5) + (x >> 5);
+  if (!bnTab) { bnTab = new Float32Array(BN * BN); bnDone = new Uint8Array((BN >> 5) * (BN >> 5)); }
+  if (!bnDone[b]) {
+    bnDone[b] = 1;
+    const bx = x & ~31, by = y & ~31;
+    for (let j = by; j < by + 32; j++) for (let i = bx; i < bx + 32; i++)
+      bnTab[j * BN + i] = (vnoise(i / 13, j / 11, 300) - 0.5) * 0.55 + (vnoise(i / 6, j / 6, 301) - 0.5) * 0.35 + (vnoise(i / 2.5, j / 2.5, 302) - 0.5) * 0.14;
+  }
+  return bnTab[y * BN + x];
+}
+const BASALT = ['#0b0809', '#141011', '#1d1718', '#271f1f', '#332827', '#43342f', '#56443a', '#6c5646'];
 const cliffCache = new Map();
 function cliffSet(biome, pal) {
   if (!cliffCache.has(biome)) {
@@ -95,15 +176,15 @@ export class Outdoor extends TileMap {
       const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
       const tx = Math.floor(x / T), ty = Math.floor(y / T);
       const ch = this.rows[ty]?.[tx];
-      if (ch === undefined || ch === '#' || ch === 'H') return false;
+      if (ch === undefined || ch === '#' || ch === 'H' || this.level.rockChars?.includes(ch)) return false;
       for (const b of this.boxesAt(x, y)) if (!b.off && !b.low && x > b.x0 - 3 && x < b.x1 + 3 && y > b.y0 - 3 && y < b.y1 + 3) return false;
     }
     return true;
   }
 
   #jitterTerrain(px, py) {
-    const jx = px + (vnoise(px / 7, py / 7, 21) - 0.5) * 9;
-    const jy = py + (vnoise(px / 7, py / 7, 22) - 0.5) * 9;
+    const jx = px + (vnc(0, px / 7, py / 7, 21) - 0.5) * 9;
+    const jy = py + (vnc(1, px / 7, py / 7, 22) - 0.5) * 9;
     return this.terrainAt(Math.floor(jx / T), Math.floor(jy / T));
   }
 
@@ -166,12 +247,20 @@ export class Outdoor extends TileMap {
     const O = this.assets.sprites.outdoor;
     this.tufts = O.tufts;
     const biome = this.groundBiome ?? 'outdoor';
-    this.rockR = CLIFF_ROCK[biome] ?? OUT.rock;
+    // Biom-Paletten dürfen eine eigene Felsrampe mitbringen (Frost: pal.cliffRock)
+    this.rockR = this.pal.cliffRock ?? CLIFF_ROCK[biome] ?? OUT.rock;
     this.cl = CLIFF_ROCK[biome] ? cliffSet(biome, this.pal) : O.cliff;
-    this.organic = ORGANIC_CLIFFS.has(biome);
+    // level.organicCliffs = 'basalt': organische Felsen auch außerhalb der Frostzinnen (Säulenbasalt, Glutöde)
+    this.basalt = this.level.organicCliffs === 'basalt';
+    this.organic = ORGANIC_CLIFFS.has(biome) || this.basalt;
+    // level.paintedCliffs: das Biom malt seine Felsen selbst (pal.paintCliffs je Chunk), keine Kachelklippen
+    this.painter = this.level.paintedCliffs && typeof this.pal.paintCliffs === 'function' ? this.pal.paintCliffs : null;
     this.fiss = (this.level.fissures ?? []).map((line) => this.#fissureGeom(line));
     this.rockMask = new Uint8Array(this.w * this.h);
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.rows[y][x] === '#') this.rockMask[y * this.w + x] = 1;
+    // Deko, die auf dem Fels steht (level.rockDecor, Frost: Gipfel): Hochfläche darunter, keine Wand, kein Wasser
+    const rd = this.level.rockDecor;
+    if (rd) for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (rd.includes(this.rows[y][x])) { this.rockMask[y * this.w + x] = 1; this.terrain[y][x] = '#'; }
   }
 
   // Glutspalte entlang einer Polylinie (Tile-Koordinaten): Abtastpunkte des mäandernden Kerns
@@ -252,7 +341,7 @@ export class Outdoor extends TileMap {
         ctx.drawImage(t, x * T + Math.floor(hash2(x, y, 60 + k) * 12), y * T + Math.floor(hash2(x, y, 70 + k) * 12));
       }
     }
-    if (!cliffs) return;
+    if (!cliffs || this.painter) return;
     // Klippen in 3/4-Perspektive (Frostzinnen: organisch, eigener Durchlauf)
     const rockR = this.rockR, cl = this.cl;
     if (!this.organic) {
@@ -303,10 +392,33 @@ export class Outdoor extends TileMap {
     const img = new ImageData(cw, ch), d = img.data;
     // Leuchtpuffer nur, wenn Wasser/Lava in Reichweite des Randrauschens liegt
     const eimg = this.#emitsIn(x0, y0, cw, ch) ? new ImageData(cw, ch) : null, ed = eimg?.data;
+    // Basalt: Boden unter reinem Felsinneren (vier Felskacheln ringsum) übermalen die Klippen ohnehin
+    // (Zellen zwischen vier Kachelmitten, je Chunk einmal vorberechnet)
+    let full = null, FW = 0;
+    const fx0 = Math.floor((x0 - T / 2) / T), fy0 = Math.floor((y0 - T / 2) / T);
+    // Organische Klippen (Frost): unter der Felsmaske übermalt #organicCliffs jedes Pixel – dort keinen
+    // Boden rechnen. Zwischen vier Felskacheln ist die Maske 1, sobald das Randrauschen nicht extrem
+    // negativ ist (v1 > 0,037 reicht, sonst exakt per #maskAt). Im Randstreifen (nur einige der vier
+    // Kacheln Fels, full = 2) entscheidet #maskAt; nicht bei Leuchtebene (Wasser in Reichweite).
+    const skipRock = this.organic && !this.basalt;
+    if (this.basalt || skipRock) {
+      FW = Math.ceil(cw / T) + 2; const FH = Math.ceil(ch / T) + 2; full = new Uint8Array(FW * FH);
+      for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) {
+        const cx = fx0 + i, cy = fy0 + j, a = this.#rock(cx, cy), b = this.#rock(cx + 1, cy), c = this.#rock(cx, cy + 1), e = this.#rock(cx + 1, cy + 1);
+        full[j * FW + i] = a & b & c & e ? 1 : a | b | c | e ? 2 : 0;
+      }
+    }
+    const fcol = full ? Int32Array.from({ length: cw }, (_, lx) => Math.floor((x0 + lx - T / 2) / T) - fx0) : null;
+    // Biom-Maler: Pixel, die er ohnehin mit Fels übermalt (pal.paintMask, 1 = Fels), brauchen keinen Boden
+    const pm = this.painter && this.pal.paintMask ? this.pal.paintMask(x0, y0, cw, ch, this) : null;
     for (let ly = 0; ly < ch; ly++) {
-      const py = y0 + ly;
+      const py = y0 + ly, frow = full ? (Math.floor((py - T / 2) / T) - fy0) * FW : 0;
       for (let lx = 0; lx < cw; lx++) {
         const i = (ly * cw + lx) * 4;
+        const fv = full ? full[frow + fcol[lx]] : 0;
+        if (fv === 1 && (!skipRock || vnc(2, (x0 + lx) / 13, py / 11, 300) > 0.037 || this.#maskAt(x0 + lx, py))) { d[i + 3] = 255; continue; }
+        if (fv === 2 && skipRock && !ed && this.#maskAt(x0 + lx, py)) { d[i + 3] = 255; continue; }
+        if (pm && pm[ly * cw + lx]) { d[i + 3] = 255; continue; }
         const col = this.#groundAt(x0 + lx, py, ed, i);
         d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
       }
@@ -328,7 +440,13 @@ export class Outdoor extends TileMap {
     this.#drawTiles(ctx, x0, y0, rx1, ry1);
     if (this.organic) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      yield* this.#organicCliffs(ctx, this.rockR, x0, y0, cw, ch);
+      if (this.basalt) yield* this.#basaltCliffs(ctx, x0, y0, cw, ch);
+      else yield* this.#organicCliffs(ctx, this.rockR, x0, y0, cw, ch);
+      ctx.translate(-x0, -y0);
+    }
+    if (this.painter) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      yield* this.painter(ctx, x0, y0, cw, ch, this);
       ctx.translate(-x0, -y0);
     }
     this.#drawBuildingShadows(ctx, x0, y0, rx1, ry1);
@@ -519,7 +637,7 @@ export class Outdoor extends TileMap {
 
   // Vereinfachte Frostgipfel fürs Übersichtsbild: Maske je Übersichtspixel, Wand/Hochfläche/Schatten
   #organicOverview(ctx, ow, oh, s) {
-    const R = this.rockR, G = this.pal.grass;
+    const R = this.basalt ? BASALT : this.rockR, G = this.basalt ? [BASALT[2], BASALT[3], this.pal.grass[1], this.pal.grass[2], this.pal.grass[2], this.pal.grass[3]] : this.pal.grass;
     const M = new Uint8Array(ow * oh);
     for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) M[y * ow + x] = this.#maskAt(x * s + s / 2, y * s + s / 2);
     const img = ctx.getImageData(0, 0, ow, oh), d = img.data;
@@ -550,7 +668,11 @@ export class Outdoor extends TileMap {
     const a = this.#rock(tx, ty), b = this.#rock(tx + 1, ty), c = this.#rock(tx, ty + 1), d = this.#rock(tx + 1, ty + 1);
     if (!(a | b | c | d)) return 0;
     const f = (a * (1 - ax) + b * ax) * (1 - ay) + (c * (1 - ax) + d * ax) * ay;
-    const n = (vnoise(px / 13, py / 11, 300) - 0.5) * 0.55 + (vnoise(px / 6, py / 6, 301) - 0.5) * 0.35 + (vnoise(px / 2.5, py / 2.5, 302) - 0.5) * 0.14;
+    // Die zwei feinen Rauschanteile liegen zusammen in ±0,245: oft entscheidet der grobe allein
+    const n1 = (vnc(2, px / 13, py / 11, 300) - 0.5) * 0.55;
+    if (f + n1 - 0.2451 > 0.5) return 1;
+    if (f + n1 + 0.2451 <= 0.5) return 0;
+    const n = n1 + (vnc(3, px / 6, py / 6, 301) - 0.5) * 0.35 + (vnc(4, px / 2.5, py / 2.5, 302) - 0.5) * 0.14;
     return f + n > 0.5 ? 1 : 0;
   }
 
@@ -562,6 +684,7 @@ export class Outdoor extends TileMap {
   // Pixel exakt wie bei der früheren Gesamtberechnung entsteht.
   *#organicCliffs(ctx, R, x0, y0, cw, ch) {
     const W = this.pixelW, H = this.pixelH, G = this.pal.grass, ICE = this.pal.water;
+    const cap = this.pal.capPixel ?? null; // optional: Hochfläche je Pixel umfärben (Grate, Geröll), liefert Hex oder null
     const mx0 = Math.max(0, x0 - 4), mx1 = Math.min(W, x0 + cw + 4);
     const my0 = Math.max(0, y0 - 10), my1 = Math.min(H, y0 + ch + 40);
     const MW = mx1 - mx0, MH = my1 - my0;
@@ -576,9 +699,9 @@ export class Outdoor extends TileMap {
     const inM = (x, y) => x < 0 || y < 0 || x >= W || y >= H || M[(y - my0) * MW + x - mx0] === 1;
     const img = ctx.getImageData(0, 0, cw, ch), d = img.data;
     const idx = (px, py) => ((py - y0) * cw + px - x0) * 4;
-    const put = (i, hex) => { const v = parseInt(hex.slice(1), 16); d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; };
+    const put = (i, hex) => { const v = hexInt(hex); d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; };
     const dark = (i, k) => { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.8; };
-    const dith = (x, y) => [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5][(y & 3) * 4 + (x & 3)] / 16;
+    const dith = (x, y) => DITH[(y & 3) * 4 + (x & 3)] / 16;
     const yIn0 = y0, yIn1 = y0 + ch;
     for (let px = x0; px < x0 + cw; px++) {
       const faceH = 24 + Math.floor(vnoise(px / 11, 0.5, 303) * 9);
@@ -598,10 +721,10 @@ export class Outdoor extends TileMap {
           // Felswand
           const t = faceH - b;
           // Schräg liegende, unregelmäßige Gesteinsbänder; kurze versetzte Risse; große Facetten
-          const s = py + px * 0.18 + vnoise(px / 10, py / 22, 304) * 7;
+          const s = py + px * 0.18 + vnc(7, px / 10, py / 22, 304) * 7;
           const layer = Math.floor(s / 5), q = s - layer * 5;
           let k = 2;
-          const fac = vnoise(px / 7, py / 6, 320);
+          const fac = vnc(8, px / 7, py / 6, 320);
           if (fac > 0.64) k = 3; else if (fac < 0.3) k = 1;
           if (q < 0.9) k = Math.max(0, k - 1); else if (q < 1.8 && hash2(px >> 1, layer, 321) < 0.7) k = Math.min(4, k + 1);
           if (hash2(px, layer, 305) < 0.05 || hash2(px - 1, layer, 305) < 0.02) k = 0;
@@ -618,29 +741,27 @@ export class Outdoor extends TileMap {
           else if (icicle && px > 0 && t < lipLen + icicle - 1 && t >= lipLen) put(i, R[0]);
         } else {
           // Hochfläche: Schnee mit Windrippen, Felsnasen, weicher Rand
-          const n = vnoise(px / 9, py / 9, 313) * 0.55 + vnoise(px / 3, py / 3, 314) * 0.3 + hash2(px, py, 315) * 0.15;
-          let k = Math.floor(2.5 + n * 2.6);
-          const rip = Math.sin(py * 0.85 + vnoise(px / 14, py / 10, 316) * 9);
-          const ripZone = vnoise(px / 22, py / 18, 323);
-          if (ripZone > 0.5 && rip > 0.88 && dith(px, py) < (ripZone - 0.5) * 3) k -= 1; else if (ripZone > 0.55 && rip < -0.92 && dith(px, py) < 0.4) k += 1;
-          let col = G[Math.max(0, Math.min(5, k))];
-          // vereinzelte kleine Felsnasen (je 12-px-Zelle höchstens eine), oben verschneit
-          const cx0 = Math.floor(px / 12), cy0 = Math.floor(py / 12);
-          if (hash2(cx0, cy0, 317) < 0.16) {
-            const rx = cx0 * 12 + 3 + Math.floor(hash2(cx0, cy0, 318) * 6), ry = cy0 * 12 + 3 + Math.floor(hash2(cx0, cy0, 319) * 6);
-            const rr = 1.6 + hash2(cx0, cy0, 322) * 1.6, ex = (px - rx) / (rr * 1.3), ey = (py - ry) / rr;
-            const q = ex * ex + ey * ey;
-            if (q < 1) col = ey < -0.3 ? G[4] : ex < -0.2 ? R[4] : ey > 0.45 ? R[2] : R[3];
-            else if (q < 1.9 && py > ry && Math.abs(ex) < 1) col = G[1];          // kurzer Schatten
-          }
+          let col;
+          // Schneekante und Ränder übermalen die Hochfläche; den Grundton (Rauschen, Rippel, Felsnasen) und
+          // capPixel nur dort rechnen, wo das Ergebnis sichtbar bleibt
           if (b <= faceH + 2) col = b === faceH + 1 ? G[5] : G[4];                       // Schneekante über der Wand
           else {
             const e1 = !inM(px - 1, py) || !inM(px + 1, py) || !inM(px, py - 1);
-            const e2 = !inM(px - 2, py) || !inM(px + 2, py) || !inM(px, py - 2);
-            const e3 = !inM(px - 3, py) || !inM(px + 3, py) || !inM(px, py - 3) || !inM(px, py - 4);
+            const e2 = !e1 && (!inM(px - 2, py) || !inM(px + 2, py) || !inM(px, py - 2));
             if (e1) col = (!inM(px - 1, py) || !inM(px, py - 1)) ? R[4] : R[2];
             else if (e2) col = dith(px, py) < 0.5 ? R[3] : G[1];
-            else if (e3 && dith(px, py) < 0.4) col = G[2];
+            else {
+              const nose = capNose(px, py, G, R);
+              // capPixel(…, null): Vorabfrage ohne Grundton; null heißt „Grundton nötig“
+              const pre = cap && nose === null ? cap(px, py, this.level, null) : null;
+              if (pre != null) col = pre;
+              else {
+                col = nose ?? capBase(px, py, G);
+                if (cap) col = cap(px, py, this.level, col) ?? col;
+              }
+              const e3 = !inM(px - 3, py) || !inM(px + 3, py) || !inM(px, py - 3) || !inM(px, py - 4);
+              if (e3 && dith(px, py) < 0.4) col = G[2];
+            }
           }
           put(i, col);
         }
@@ -665,6 +786,137 @@ export class Outdoor extends TileMap {
       if (M[m - 1] || (px > 2 && M[m - 3] && dith(px, py) < 0.5)) dark(idx(px, py), 0.25);
     }
     ctx.putImageData(img, 0, 0);
+  }
+
+  // Basaltklippen (level.organicCliffs = 'basalt', Glutöde): dieselbe weiche Maske wie die Frostgipfel,
+  // aber Säulenbasalt in der Wand (senkrechte Säulen, versetzte Köpfe, Querfugen), auf der Hochfläche
+  // sechseckige Säulenköpfe unter Ascheverwehungen. Kein Schnee, keine Eiszapfen. Deterministisch, chunkweise.
+  *#basaltCliffs(ctx, x0, y0, cw, ch) {
+    const W = this.pixelW, H = this.pixelH, hx = (c) => parseInt(c.slice(1), 16), G = this.pal.grass.map(hx), B = BASALT.map(hx);
+    // Maskenfenster nicht an der Karte gekappt (außerhalb gilt Fels): Nachbarabfragen ohne Grenzprüfung
+    const mx0 = x0 - 4, mx1 = x0 + cw + 4, my0 = y0 - 10, my1 = y0 + ch + 40;
+    const MW = mx1 - mx0, MH = my1 - my0;
+    const M = new Uint8Array(MW * MH);
+    // Felskacheln im Umkreis? Sonst nichts zu tun (die meisten Chunks)
+    let near = false;
+    for (let ty = Math.floor(my0 / T) - 1; ty <= Math.floor(my1 / T) + 1 && !near; ty++) for (let tx = Math.floor(mx0 / T) - 1; tx <= Math.floor(mx1 / T) + 1; tx++) if (this.#rock(tx, ty)) { near = true; break; }
+    if (!near) return;
+    // Maske blockweise: Zellen zwischen vier Kachelmitten sind ganz frei, ganz Fels oder Rand (nur dort Rauschen)
+    let any = false;
+    const H8 = T / 2;
+    for (let cy = Math.floor((my0 - H8) / T); cy * T + H8 < my1; cy++) {
+      for (let cx = Math.floor((mx0 - H8) / T); cx * T + H8 < mx1; cx++) {
+        const s4 = this.#rock(cx, cy) + this.#rock(cx + 1, cy) + this.#rock(cx, cy + 1) + this.#rock(cx + 1, cy + 1);
+        if (!s4) continue;
+        const ya = Math.max(my0, cy * T + H8), yb = Math.min(my1, cy * T + H8 + T), xa = Math.max(mx0, cx * T + H8), xb = Math.min(mx1, cx * T + H8 + T);
+        for (let py = ya; py < yb; py++) for (let px = xa; px < xb; px++) if (s4 === 4 || this.#basaltMask(px, py)) { M[(py - my0) * MW + px - mx0] = 1; any = true; }
+      }
+      yield;
+    }
+    if (!any) return;
+    const img = ctx.getImageData(0, 0, cw, ch), d = img.data;
+    const idx = (px, py) => ((py - y0) * cw + px - x0) * 4;
+    const put = (i, v) => { d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; };
+    const dark = (i, k) => { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.8; };
+    const dith = (x, y) => [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5][(y & 3) * 4 + (x & 3)] / 16;
+    // Säulenköpfe: kachelbare Voronoi-Textur (einmal berechnet), je Pixel nur ein Nachschlag
+    const HX = basaltHex();
+    // Ascheverwehung: Rauschen auf 4-px-Gitter, bilinear (spart je Pixel einen Rauschaufruf)
+    const AW = (cw >> 2) + 2, AH = (ch >> 2) + 2, AG = new Float32Array(AW * AH);
+    for (let j = 0; j < AH; j++) for (let i = 0; i < AW; i++) AG[j * AW + i] = vnoise((x0 + i * 4) / 12, (y0 + j * 4) / 10, 414);
+    const ashAt = (px, py) => {
+      const fx = (px - x0) / 4, fy = (py - y0) / 4, i = fx | 0, j = fy | 0, ax = fx - i, ay = fy - j, k = j * AW + i;
+      return (AG[k] * (1 - ax) + AG[k + 1] * ax) * (1 - ay) + (AG[k + AW] * (1 - ax) + AG[k + AW + 1] * ax) * ay;
+    };
+    const yIn0 = y0, yIn1 = y0 + ch;
+    for (let px = x0; px < x0 + cw; px++) {
+      const mc = px - mx0;
+      const faceH = 20 + Math.floor(vnoise(px / 13, 0.5, 403) * 11);
+      // Säule dieser Spalte: Breite 4–7 px (verrauschte Grenzen), eigener Ton, eigener Kopf
+      const u = px + vnoise(px / 17, 2.5, 404) * 9, ci = Math.floor(u / 5.5), lx = u - ci * 5.5;
+      const tone = hash2(ci, 2, 406), brk = Math.floor(hash2(ci, 1, 405) * 5);
+      const cross = Math.floor(hash2(ci, 3, 407) * 11);
+      let run = 999, since = 999;
+      for (let py = my1 - 1; py >= my0; py--) {
+        const m = (py - my0) * MW + mc;
+        if (!M[m]) { run = 0; continue; }
+        run++;
+        if (py < yIn0 || py >= yIn1) continue;
+        const i = idx(px, py);
+        const b = run;
+        if (b <= faceH) {
+          const t = faceH - b;
+          let k = 3 + (tone < 0.28 ? -1 : tone > 0.82 ? 1 : 0);
+          if (lx < 0.9) k = 1;                                            // Fuge zwischen Säulen
+          else if (lx < 2) k += 2;                                        // Licht von links
+          else if (lx > 4.4) k -= 1;
+          if ((py + cross) % 11 === 0 && lx >= 0.9) k = 1;                // Querbruch
+          else if ((py + cross) % 11 === 1 && lx >= 0.9) k += 1;
+          if (hash2(px, py, 409) < 0.05) k += hash2(px, py, 410) < 0.5 ? 1 : -1;
+          if (!M[m - 1] || !M[m - 2]) k = Math.max(k, 5);
+          else if (!M[m + 1]) k = Math.min(k, 2);
+          if (t > faceH * 0.7) k -= 1;                                    // Wandfuß im Schatten
+          if (b <= 2) k = Math.min(k, 1);
+          let col = B[Math.max(0, Math.min(7, k))];
+          if (t < brk) col = t === brk - 1 ? B[6] : G[3 + (hash2(px, py, 411) < 0.4 ? 1 : 0)];   // versetzte Säulenköpfe mit Asche
+          else if (t === brk && lx >= 0.9) col = B[Math.min(7, k + 2)];
+          if (b <= 3 && hash2(px, py, 412) < 0.22) col = G[1 + (hash2(px, py, 413) * 2 | 0)];   // Aschegriesel am Fuß
+          put(i, col);
+        } else {
+          const t = (py % HEX_H) * HEX_W + (px % HEX_W), e = HX.edge[t], ox = HX.ox[t], oy = HX.oy[t];
+          const ash = ashAt(px, py) * 0.8 + hash2(px >> 2, py >> 2, 415) * 0.2;
+          const h = hash2(HX.id[t], ((px / HEX_W) | 0) * 31 + ((py / HEX_H) | 0), 416);
+          let col;
+          if (e < 1.2) col = ash > 0.45 ? G[2] : B[2];                    // Fugen (mit Asche gefüllt)
+          else {
+            let k = 4 + (h < 0.3 ? -1 : h > 0.8 ? 1 : 0);
+            if (ox < -1 && oy < -1) k += 1; else if (ox > 1.5 && oy > 1) k -= 1;
+            col = B[k];
+            if (e < 2.2 && oy < 0) col = B[Math.min(7, k + 1)];
+          }
+          // Ascheverwehungen bedecken die Köpfe teilweise
+          if (ash > 0.5 && dith(px, py) < (ash - 0.5) * 4.5) col = G[3 + (ash > 0.68 ? 1 : 0) + (hash2(px, py, 417) < 0.12 ? 1 : 0)];
+          if (b <= faceH + 2) col = b === faceH + 1 ? B[6] : G[3];        // Kante über der Wand
+          else {
+            const e1 = !M[m - 1] || !M[m + 1] || !M[m - MW];
+            const e2 = !M[m - 2] || !M[m + 2] || !M[m - 2 * MW];
+            if (e1) col = (!M[m - 1] || !M[m - MW]) ? B[6] : B[3];
+            else if (e2) col = dith(px, py) < 0.5 ? B[5] : col;
+          }
+          put(i, col);
+        }
+      }
+      // Schlagschatten unter dem Wandfuß
+      since = 999;
+      for (let py = my0; py < yIn1; py++) {
+        if (M[(py - my0) * MW + mc]) { since = 0; continue; }
+        since++;
+        if (since <= 9 && py >= yIn0) {
+          const i = idx(px, py);
+          if (since <= 2 && hash2(px, py, 418) < 0.25) { put(i, B[2]); continue; }
+          if (dith(px, py) < 1 - since / 9) dark(i, 0.45 * (1 - since / 11));
+        }
+      }
+      if ((px & 63) === 63) yield;
+    }
+    for (let py = y0; py < yIn1; py++) for (let px = Math.max(1, x0); px < x0 + cw; px++) {
+      const m = (py - my0) * MW + px - mx0;
+      if (M[m]) continue;
+      if (M[m - 1] || (px > 2 && M[m - 3] && dith(px, py) < 0.5)) dark(idx(px, py), 0.25);
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // Maske der Basaltklippen: wie #maskAt, aber reines Felsinnere ohne Rauschen (spart die Rechnung)
+  #basaltMask(px, py) {
+    const fy = py / T - 0.5, ty = Math.floor(fy), ay = fy - ty;
+    const fx = px / T - 0.5, tx = Math.floor(fx), ax = fx - tx;
+    const a = this.#rock(tx, ty), b = this.#rock(tx + 1, ty), c = this.#rock(tx, ty + 1), d = this.#rock(tx + 1, ty + 1);
+    const s = a + b + c + d;
+    if (s === 0) return 0;
+    if (s === 4) return 1;
+    const f = (a * (1 - ax) + b * ax) * (1 - ay) + (c * (1 - ax) + d * ax) * ay;
+    return f + basaltN(px, py) > 0.5 ? 1 : 0;
   }
 
   #cliffKind(x, y) {

@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
-import { OUT } from './outdoor.js';
+import { OUT, groundPixel, vnoise } from './outdoor.js';
 import { mk, poly, drawTent } from './decor_ashwood.js';
 import { createFlameFrames } from './props.js';
 
@@ -18,7 +18,102 @@ export const GROUND_WASTES = {
   water: ['#340c04', '#742008', '#c4400c', '#f07a1c', '#ffbe48'],
   lava: true,
   tufts: false,
+  pixel: wastesPixel,
 };
+
+// Pflasterränder (Runde 6): Pflaster endet nicht an der Kachelkante, sondern Stein für Stein.
+// Je Pflasterstein (6 × 5 px, wie groundPixel) entscheidet ein weiches Feld (bilinear über die
+// Kachelmitten + Rauschen), ob er liegt: Ränder fransen aus, Einzelsteine liegen davor,
+// Löcher werden rund. Die Kachelraster-Auswertung je Level einmal (WeakMap).
+const PAVE = new WeakMap();
+const PK = { ',': 1, '.': 2, ':': 3 };
+const PTERR = new Set([',', '.', ':', '#', '~', '=']);
+let paveLast = null, paveLastInfo = null;
+function paveInfo(level) {
+  if (level === paveLast) return paveLastInfo;
+  let c = PAVE.get(level);
+  if (c) { paveLast = level; paveLastInfo = c; return c; }
+  const R = level.map, H = R.length, W = R[0].length, n = W * H;
+  const k = new Uint8Array(n);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const ch = R[y][x]; k[y * W + x] = PK[ch] ?? (PTERR.has(ch) ? 0 : 255); }
+  const K = Uint8Array.from(k);
+  // Deko/Mauern: häufigster Boden der Nachbarn (wie TileMap)
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (k[y * W + x] !== 255) continue;
+    const cnt = [0, 0, 0, 0];
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const xx = x + i, yy = y + j; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const v = k[yy * W + xx]; if (v >= 1 && v <= 3) cnt[v]++; }
+    K[y * W + x] = cnt[3] > cnt[1] && cnt[3] > cnt[2] ? 3 : cnt[2] > cnt[1] ? 2 : 1;
+  }
+  const pav = new Uint8Array(n), near = new Uint8Array(n), base = new Uint8Array(n);
+  for (let i = 0; i < n; i++) pav[i] = K[i] === 3 ? 1 : 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let a = 0, c1 = 0, c2 = 0;
+    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+      const xx = x + i, yy = y + j; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+      const v = K[yy * W + xx];
+      if (v === 3 && Math.abs(i) <= 1 && Math.abs(j) <= 1) a = 1;
+      if (v === 1) c1++; else if (v === 2) c2++;
+    }
+    near[y * W + x] = a;
+    base[y * W + x] = K[y * W + x] === 1 || K[y * W + x] === 2 ? K[y * W + x] : c2 > c1 ? 2 : 1;
+  }
+  c = { W, H, pav, near, base, sc: 1e9, sr: 1e9, sv: 0 };
+  PAVE.set(level, c);
+  paveLast = level; paveLastInfo = c;
+  return c;
+}
+// Pflasterstein wie groundPixel(':'), aber ohne das dort ungenutzte Bodenrauschen (spart zwei vnoise je Pixel)
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const P_MORTAR = hexRgb(PAL.mortar), P_STONE = PAL.stone.map(hexRgb);
+function paveStone(px, py) {
+  const row = Math.floor(py / 5);
+  const col = Math.floor((px + (row % 2) * 3) / 6);
+  const lx = (px + (row % 2) * 3) % 6, ly = py % 5;
+  if (lx === 0 || ly === 0) return P_MORTAR;
+  const s = hash2(col, row, 16);
+  let i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
+  if (ly === 1 && lx > 0) i = Math.min(5, i + 1);
+  if (ly === 4 || lx === 5) i = Math.max(1, i - 1);
+  if (hash2(px, py, 13) < 0.04) i = 1;
+  return P_STONE[i];
+}
+function paveField(P, sx, sy) {
+  const fx = sx / 16 - 0.5, fy = sy / 16 - 0.5, tx = Math.floor(fx), ty = Math.floor(fy), ax = fx - tx, ay = fy - ty;
+  const W = P.W, A = P.pav;
+  if (tx < 0 || ty < 0 || tx + 1 >= W || ty + 1 >= P.H) return 0;
+  const k = ty * W + tx;
+  return (A[k] * (1 - ax) + A[k + 1] * ax) * (1 - ay) + (A[k + W] * (1 - ax) + A[k + W + 1] * ax) * ay;
+}
+function wastesPixel(kind, px, py, level) {
+  if (kind !== ',' && kind !== '.' && kind !== ':') return groundPixel(kind, px, py, GROUND_WASTES);
+  const P = paveInfo(level), tx = px >> 4, ty = py >> 4;
+  if (tx < 0 || ty < 0 || tx >= P.W || ty >= P.H || !P.near[ty * P.W + tx]) return kind === ':' ? paveStone(px, py) : groundPixel(kind, px, py, GROUND_WASTES);
+  const row = Math.floor(py / 5), off = (row & 1) * 3, col = Math.floor((px + off) / 6);
+  // Wert je Stein (die Chunks laufen zeilenweise: 6 Pixel nacheinander im selben Stein)
+  let v;
+  if (P.sc === col && P.sr === row) v = P.sv;
+  else {
+    const sx = col * 6 - off + 3, sy = row * 5 + 2.5, f = paveField(P, sx, sy);
+    // Rand wellig (grob) und zerfranst (fein, je Stein)
+    v = f >= 1 ? 9 : f + (vnoise(sx / 19, sy / 19, 431) - 0.5) * 0.75 + (vnoise(sx / 7, sy / 7, 434) - 0.5) * 0.35 + (hash2(col, row, 432) - 0.5) * 0.3;
+    P.sc = col; P.sr = row; P.sv = v;
+  }
+  if (v === 9) return paveStone(px, py);
+  const lx = (px + off) % 6, ly = py % 5;
+  if (v > 0.5) {
+    const c = paveStone(px, py);
+    if (v >= 0.62) return c;
+    // Randsteine: Ecken abgeschlagen, ausgebrochene Pixel, verrußt
+    const corner = (lx === 1 || lx === 5) && (ly === 1 || ly === 4);
+    if (!(corner || (lx !== 0 && ly !== 0 && hash2(px, py, 435) < 0.12))) return [c[0] * 0.8, c[1] * 0.76, c[2] * 0.74];
+  } else if (v > 0.28 && hash2(col, row, 433) < 0.22 && lx >= 1 && lx <= 4 && ly >= 1 && ly <= 3 && !((lx === 1 || lx === 4) && (ly === 1 || ly === 3) && hash2(col, row, 436) < 0.6)) {
+    // Einzelsteine vor dem Rand: kleiner, ohne Fugenraster, Schattenkante unten
+    const c = paveStone(px, py);
+    return ly === 3 ? [c[0] * 0.55, c[1] * 0.52, c[2] * 0.5] : [c[0] * 0.82, c[1] * 0.78, c[2] * 0.76];
+  }
+  const b = kind !== ':' ? kind : P.base[ty * P.W + tx] === 2 ? '.' : ',';
+  return groundPixel(b, px, py, GROUND_WASTES);
+}
 
 const ASHB = ['#16110b', '#221a11', '#2f2518', '#3e3121', '#4f3f2b', '#634f37', '#7b6446'];
 const CHAR = ['#0a0708', '#130e0f', '#1c1516', '#281e1f', '#352929', '#44363a'];
@@ -1725,6 +1820,134 @@ function stele(v) {
   }, { ax: 7, ay: H - 3, box: [-4, -2, 4, 1] });
 }
 
+// ============================================================ Runde 6: verfallene Stadt (Schutt, Säulen, Turm)
+// Schuttkegel: aufgehäufte Quader an eingestürzten Mauern, Asche auf den Oberseiten, v0 mit Balken
+function rubbleHeap(v) {
+  const rng = createRng(1601 + v);
+  const W = 36, H = 24;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 18 + (v ? 2 : -1), hw = 16;
+    ashPatch(p, null, cx, bottom - 1, 16, 2, 1602 + v);
+    const hgt = (x) => Math.max(0, 15 * Math.pow(Math.max(0, 1 - Math.abs(x - cx) / hw), 0.75));
+    const stones = [];
+    for (let i = 0; i < 26; i++) {
+      const x = rng.int(2, W - 7), w = rng.int(3, 7), h = rng.int(2, 4);
+      const top = bottom - 1 - h - Math.floor(rng.range(0, 1) * hgt(x + w / 2));
+      if (bottom - top > hgt(x + w / 2) + 4) continue;
+      stones.push([x, top, w, h]);
+    }
+    stones.sort((a, b) => a[1] + a[3] - (b[1] + b[3]));
+    // Füllmasse (Bruch, Mörtel) unter den Quadern
+    for (let x = 1; x < W - 1; x++) {
+      const t = Math.round(bottom - hgt(x) + 1);
+      for (let y = t; y < bottom; y++) p.px(x, y, hash2(x, y, 1603 + v) < 0.5 ? RST[2] : RST[3]);
+      if (t < bottom) p.px(x, t, hash2(x, 3, 1604 + v) < 0.6 ? ASHT[2] : RST[4]);
+    }
+    if (!v) {
+      // verkohlter Dachbalken schräg aus dem Haufen
+      for (let i = 0; i < 20; i++) { const x = 8 + i, y = bottom - 15 + Math.round(i * 0.45); p.px(x, y, CHAR[4]); p.px(x, y + 1, CHAR[2]); p.px(x, y + 2, CHAR[1]); }
+      p.px(8, bottom - 15, EMB[2]); p.px(9, bottom - 15, CHAR[5]);
+    }
+    for (const [x, y, w, h] of stones) {
+      block(p, x, y, w, h, RST, 3 + (hash2(x, y, 1605) < 0.4 ? 1 : 0) + (hash2(x, y, 1606) < 0.15 ? 1 : 0));
+      for (let i = 0; i < w; i++) if (hash2(x + i, y, 1607 + v) < 0.45) p.px(x + i, y, ASHT[3]);
+    }
+    if (v) { block(p, 25, bottom - 6, 8, 5, RST, 5); p.rect(26, bottom - 4, 6, 1, RST[3]); p.px(28, bottom - 4, RST[7]); }
+  }, { ax: 18, ay: H - 3, box: [-9, -5, 9, 1], extra: { low: true } });
+}
+
+// Umgestürzte Säule: liegende Trommeln mit Kanneluren (Licht von oben links), Bruchfläche links
+function fallenColumn(v) {
+  const W = 56, H = 22;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cy = bottom - 8, r = 6;
+    ashPatch(p, null, 28, bottom - 2, 26, 3, 1611 + v);
+    // Trommeln: [x0, x1, dy]
+    const drums = v ? [[4, 20, 0], [22, 35, 0], [39, 50, 2]] : [[3, 17, 0], [18, 31, 0], [32, 44, 0]];
+    for (const [x0, x1, dy] of drums) {
+      for (let x = x0; x <= x1; x++) {
+        const top = cy - r + dy, bot = cy + Math.round(r * 0.6) + dy;
+        for (let y = top; y <= bot; y++) {
+          const rel = (y - top) / (bot - top);
+          let k = rel < 0.15 ? 7 : rel < 0.35 ? 6 : rel < 0.6 ? 5 : rel < 0.82 ? 4 : 3;
+          if ((y - top) % 3 === 1 && rel > 0.1 && rel < 0.9) k -= 1;                  // Kanneluren längs
+          if (hash2(x, y, 1612 + v) < 0.05) k -= 1;
+          p.px(x, y, RST[Math.max(0, Math.min(8, k))]);
+        }
+        if (hash2(x, 4, 1613 + v) < 0.55) p.px(x, top, ASHT[3]);
+        p.px(x, bot + 1, RST[1]);
+      }
+      // Stirnfläche der Trommel (Ellipse, rechts im Schatten)
+      for (let y = cy - r + dy; y <= cy + Math.round(r * 0.6) + dy; y++) { p.px(x0, y, RST[2]); p.px(x1, y, RST[3]); }
+    }
+    // Bruchfläche links: rauer Querschnitt
+    for (let y = cy - r; y <= cy + 3; y++) { p.px(2, y, RST[6]); if (hash2(1, y, 1614) < 0.5) p.px(1, y, RST[5]); }
+    if (!v) {
+      // Kapitell am Kopfende
+      p.rect(45, cy - r - 2, 7, r * 2 + 1, RST[5]); p.rect(45, cy - r - 2, 7, 1, RST[7]); p.rect(51, cy - r - 1, 1, r * 2, RST[3]);
+      p.rect(47, cy - r - 4, 3, 2, RST[6]); p.rect(44, cy + r - 1, 9, 2, RST[3]);
+    } else {
+      // abgesprungene Trommel schräg daneben, Splitter
+      block(p, 52, bottom - 4, 3, 3, RST, 4); block(p, 37, bottom - 3, 2, 2, RST, 5);
+    }
+  }, { ax: 28, ay: H - 3, box: [-22, -6, 22, 1], extra: { low: true } });
+}
+
+// Geborstener Rundturm: gemauerter Zylinder, Krone nach rechts abgebrochen, Innenwand sichtbar,
+// Schießscharte, Torbogen mit Schutt (Landmarke der Altstadt)
+function towerStump() {
+  const W = 64, H = 84;
+  return mk(W, H, (p, g) => {
+    const bottom = H - 1, cx = 32, r = 24, ry = 7, base = bottom - 8;
+    ashPatch(p, null, cx, bottom - 3, 30, 5, 1621);
+    const front = (x) => { const s = (x - cx) / r; return Math.round(46 - Math.max(0, s + 0.1) * 30 + Math.sin(x * 1.7) * 2 + hash2(x >> 1, 1, 1622) * 3); };
+    const back = (x) => Math.round(62 - Math.max(0, (x - cx) / r + 0.4) * 14 + hash2(x >> 1, 2, 1623) * 3);
+    for (let x = cx - r; x <= cx + r; x++) {
+      const s = (x - cx) / r, e = Math.sqrt(Math.max(0, 1 - s * s)) * ry;
+      const yF = Math.round(base + e), yB = Math.round(base - e);
+      const fTop = yF - front(x), bTop = yB - back(x);
+      // Innenwand (Rückseite, von innen gesehen: rechts beleuchtet)
+      for (let y = bTop; y < fTop; y++) {
+        const yb = yB - y, row = Math.floor(yb / 5), lx = (x + (row % 2) * 4 + 64) % 8;
+        let k = s > 0.3 ? 3 : s > -0.3 ? 2 : 1;
+        if (yb % 5 === 0 || lx === 0) k -= 1;
+        p.px(x, y, RST[Math.max(0, k)]);
+      }
+      if (bTop < fTop) { p.px(x, bTop, ASHT[2]); p.px(x, bTop + 1, RST[4]); }
+      // Außenwand: Lagen folgen der Rundung
+      for (let y = fTop; y <= yF; y++) {
+        const yb = yF - y, row = Math.floor(yb / 5), lx = (x + (row % 2) * 4 + 64) % 8;
+        let k = s < -0.6 ? 6 : s < -0.2 ? 5 : s < 0.3 ? 4 : s < 0.7 ? 3 : 2;
+        if (yb % 5 === 4 || lx === 0) k -= 2;
+        else if (yb % 5 === 3) k += 1;
+        if (hash2(x, y, 1624) < 0.05) k -= 1;
+        if (yb < 8 && hash2(x, y, 1625) < (8 - yb) / 10) k -= 2;              // Ruß am Fuß
+        p.px(x, y, RST[Math.max(0, Math.min(8, k))]);
+      }
+      // Mauerkrone (Bruchkante mit Asche)
+      for (let y = fTop; y < fTop + 3; y++) p.px(x, y, y === fTop ? ASHT[3 + (hash2(x, 5, 1626) < 0.3 ? 1 : 0)] : y === fTop + 1 ? RST[6] : RST[3]);
+    }
+    // Umriss-Kanten: linke Lichtkante, rechte Schattenkante
+    for (let y = base - front(cx - r) + 1; y <= base; y++) p.px(cx - r, y, RST[7]);
+    for (let y = base - front(cx + r) + 1; y <= base; y++) p.px(cx + r, y, RST[1]);
+    // Schießscharten
+    for (const [sx, sy] of [[cx - 12, base - 32], [cx + 4, base - 22]]) { p.rect(sx, sy, 2, 7, DARK); p.px(sx - 1, sy - 1, RST[6]); p.rect(sx - 1, sy + 7, 4, 1, RST[6]); }
+    // Torbogen mit Glut im Inneren, Schutt davor
+    const dx0 = cx - 6, dx1 = cx + 5, dTop = base - 17;
+    for (let y = dTop; y <= base + ry - 1; y++) for (let x = dx0; x <= dx1; x++) {
+      const k = y - dTop;
+      if (k < 4 && Math.abs(x - (cx - 0.5)) > 2 + k * 1.2) continue;
+      p.px(x, y, DARK);
+    }
+    p.rect(dx0 + 1, base + ry - 4, dx1 - dx0 - 1, 2, EMB[1]); g.rect(dx0 + 2, base + ry - 4, dx1 - dx0 - 3, 1, EMB[2]);
+    for (let x = dx0 - 1; x <= dx1 + 1; x++) p.px(x, dTop - 1 + Math.round(Math.abs(x - (cx - 0.5)) * 0.4), RST[7]);
+    block(p, cx - 9, bottom - 6, 6, 4, RST, 4); block(p, cx - 2, bottom - 4, 5, 3, RST, 5); block(p, cx + 5, bottom - 5, 4, 3, RST, 3);
+    block(p, cx + 18, bottom - 7, 7, 5, RST, 4); block(p, cx + 24, bottom - 4, 5, 3, RST, 3); block(p, cx - 26, bottom - 5, 5, 3, RST, 4);
+    // Risse
+    for (let i = 0; i < 14; i++) { const x = cx + 14 + Math.round(Math.sin(i * 0.9)), y = base - 26 + i; p.px(x, y, RST[0]); }
+  }, { ax: 32, ay: H - 5, box: [-23, -12, 23, 3] });
+}
+
 export function createWastesDecor() {
   return {
     charredRuins: [0, 1, 2].map(charredRuin),
@@ -1771,5 +1994,9 @@ export function createWastesDecor() {
     cairns: [0, 1, 2].map(cairn),
     barricades: [0, 1].map(barricade),
     steles: [0, 1, 2].map(stele),
+    // Runde 6: Schuttkegel, umgestürzte Säulen, geborstener Turm
+    rubbleHeaps: [0, 1].map(rubbleHeap),
+    fallenColumns: [0, 1].map(fallenColumn),
+    towerStump: towerStump(),
   };
 }

@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
-import { OUT } from './outdoor.js';
+import { OUT, groundPixel, vnoise } from './outdoor.js';
 import { mk, poly, drawTent } from './decor_ashwood.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { SpriteFrame } from '../gfx/Sprite.js';
@@ -10,13 +10,480 @@ import { SpriteFrame } from '../gfx/Sprite.js';
 // auf allen Oberseiten; Eis leuchtet kalt auf der Glow-Ebene ((W+2)×(H+2)).
 
 // Bodenpalette (Format wie BIOME_GROUND in sprites/outdoor.js):
-// grass = Schneedecke, dirt = festgetretener Schnee/Fels (Wege), water = Eis.
+// grass = Schnee der Hochflächen (Felsplateaus), dirt = festgetretener Schnee (Wege), water = Seeeis.
+// Runde 6: Der Boden ist nicht mehr durchgehend blaugrau. level.soil (Zeilen wie die Karte) färbt Flächen:
+//   n Neuschnee (weiß)  a Altschnee (graublau, verharscht)  e apere Erde (warm, trockenes Gras)
+//   f Nadelwaldboden (dunkel, Schneeflecken)  g Gletschereis (türkis, Schneebänder)  s Geröll (Steine im Schnee)
+//   w Schneewehe am Wegrand  i Eisboden (Grotten)  t Trollhöhlenboden (dunkler Fels, Knochenstaub)
+// Ohne Angabe: Schnee, großflächig zwischen Alt- und Neuschnee wechselnd.
 export const GROUND_FROST = {
-  grass: ['#4c586e', '#5a677e', '#67758e', '#76849e', '#8794ae', '#a2b0c6'],
-  dirt: ['#262b37', '#303644', '#3a4152', '#464e60', '#545d70', '#687286'],
-  water: ['#2a4660', '#3a5e7e', '#4a7496', '#6490b0', '#9cc6de'],
+  grass: ['#56647d', '#6c7a93', '#8593ab', '#9dabc0', '#b6c2d4', '#d0d9e6'],
+  dirt: ['#2e3444', '#3a4152', '#475063', '#556074', '#647086', '#78849a'],
+  water: ['#21495a', '#2c5f72', '#3a788a', '#5596a6', '#9fd6de'],
   tufts: false,
+  pixel: frostPixel,
+  // Hochflächen der Massive (VORSCHLAG_Outdoor.diff: pal.capPixel): Grate aus blankem Fels, Geröll
+  capPixel: frostCap,
+  // Felswände der Gipfel (VORSCHLAG_Outdoor.diff: pal.cliffRock): kühler Granit mit warmem Unterton
+  cliffRock: ['#191719', '#272224', '#37302f', '#4a403b', '#5f544c', '#786b60'],
 };
+
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const G_OLD = ['#46526a', '#535f77', '#616d85', '#707c94', '#808ca3', '#95a0b5'].map(hexRgb);
+const G_NEW = ['#69788f', '#8291a8', '#9cabc0', '#b5c2d4', '#cdd7e4', '#e6edf5'].map(hexRgb);
+const G_TRACK = ['#3b4355', '#475063', '#545e71', '#626d80', '#727d90', '#8590a3'].map(hexRgb);
+const G_EARTH = ['#28211d', '#352c26', '#433830', '#52463c', '#625548', '#746656'].map(hexRgb);
+const G_STRAW = ['#5e5338', '#766a45', '#8d8054', '#a49668'].map(hexRgb);
+const G_NEEDLE = ['#151b18', '#1c2420', '#242e28', '#2e3930', '#3a4538', '#4a5444'].map(hexRgb);
+const G_LITTER = ['#3a2c20', '#4a3828', '#5c4632'].map(hexRgb);
+const G_GICE = ['#1f3f4e', '#2a5566', '#376c7e', '#4b8798', '#68a3b2', '#96c8d2'].map(hexRgb);
+const G_CICE = ['#243346', '#2e4157', '#3a5068', '#48607a', '#5a738c', '#7790a6'].map(hexRgb);
+const G_STONE = ['#24221f', '#33302b', '#44403a', '#575249', '#6c665b', '#847d70'].map(hexRgb);
+const G_CAVE = ['#141619', '#1c1f24', '#252930', '#30353d', '#3d434b', '#4c525a'].map(hexRgb);
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const bayer = (x, y) => BAYER[(y & 3) * 4 + (x & 3)] / 16;
+const ci = (i, n) => (i < 0 ? 0 : i >= n ? n - 1 : i);
+
+// vnoise mit gemerkter Gitterzelle je Aufrufstelle (Platz s): exakt dieselben Werte wie vnoise, die vier
+// Hashes nur beim Zellwechsel – benachbarte Pixel liegen fast immer in derselben Zelle.
+const VC = new Float64Array(160 * 7).fill(NaN);
+// Gemerkt: a, b − a, c − a, a − b − c + d (dieselben Rechenschritte wie vnoise, also bitgleich)
+function vcFill(o, x0, y0, seed) {
+  VC[o] = x0; VC[o + 1] = y0; VC[o + 6] = seed;
+  const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
+  VC[o + 2] = a; VC[o + 3] = b - a; VC[o + 4] = c - a; VC[o + 5] = a - b - c + d;
+}
+function vc(s, x, y, seed) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), o = s * 7;
+  if (VC[o] !== x0 || VC[o + 1] !== y0 || VC[o + 6] !== seed) vcFill(o, x0, y0, seed);
+  const fx = x - x0, fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  return VC[o + 2] + VC[o + 3] * sx + VC[o + 4] * sy + VC[o + 5] * sx * sy;
+}
+
+// Bodenart eines Weltpixels (Kachelraster mit verrauschter Grenze)
+function frostSoil(level, px, py) {
+  const S = level?.soil; if (!S) return ' ';
+  // Vorab je Kachel und Lage im Kachelinneren (3×3 Klassen) bestimmt: welche Kacheln die Verwacklung
+  // (±9 px) erreichen kann und ob sie gleich sind (dann kein Rauschen), nur zeilen- oder spaltenweise
+  // verschieden (ein Rauschwert) oder gemischt (beide)
+  const tx = px >> 4, ty = py >> 4;
+  if (tx >= 0 && ty >= 0 && tx < MW && ty < MH) {
+    const lx = px & 15, ly = py & 15;
+    const k = SOILK[(ty * MW + tx) * 9 + (ly < 8 ? 0 : ly === 8 ? 3 : 6) + (lx < 8 ? 0 : lx === 8 ? 1 : 2)];
+    if (k > 0 && k < 256) return SOILC[k];
+    if (k === 256) return SOILC[SOILB[Math.floor((py + (vc(42, px / 11, py / 11, 402) - 0.5) * 18) / 16) * MW + (lx < 9 ? tx - 1 : tx)]];
+    if (k === 512) return SOILC[SOILB[(ly < 9 ? ty - 1 : ty) * MW + Math.floor((px + (vc(41, px / 11, py / 11, 401) - 0.5) * 18) / 16)]];
+  }
+  const jx = px + (vc(41, px / 11, py / 11, 401) - 0.5) * 18, jy = py + (vc(42, px / 11, py / 11, 402) - 0.5) * 18;
+  return S[Math.floor(jy / 16)]?.[Math.floor(jx / 16)] ?? ' ';
+}
+
+// Windrippel-Zone (vc 43 > 0,62) im 8×6-Block möglich? Ein Block liegt ganz in einer Rauschzelle (40×30 px);
+// dort ist das Rauschen bilinear in den geglätteten Koordinaten, sein Maximum liegt also an den Blockecken.
+function ripMaybe(px, py) {
+  const bx = px >> 3, by = Math.floor(py / 6);
+  if (px < 0 || py < 0 || bx >= RBW || RIPB === null) return true;
+  const bi = by * RBW + bx;
+  if (bi >= RIPB.length) return true;
+  let v = RIPB[bi];
+  if (v === 0) {
+    const x0 = bx * 8, y0 = by * 6;
+    const m = Math.max(vc(44, x0 / 40, y0 / 30, 455), vc(44, (x0 + 7) / 40, y0 / 30, 455), vc(44, x0 / 40, (y0 + 5) / 30, 455), vc(44, (x0 + 7) / 40, (y0 + 5) / 30, 455));
+    v = RIPB[bi] = m < 0.62 - 1e-9 ? 1 : 2;
+  }
+  return v === 2;
+}
+// Schnee: Alt- und Neuschnee (fresh 0..1, gerastert gemischt), vereinzelte Windrippeln, Glitzer
+function snowPx(px, py, n, h, fresh, ripples = true) {
+  let i = 1 + Math.floor(n * 3.6);
+  if (ripples && ripMaybe(px, py) && vc(43, px / 40, py / 30, 455) > 0.62) {
+    const rip = Math.sin(py * 0.62 + px * 0.13 + n * 7);
+    if (rip > 0.95) i += 1;
+  }
+  if (h < 0.005) i = 5;
+  return fresh > bayer(px, py) ? G_NEW[ci(i + 1, 6)] : G_OLD[ci(i - 1, 6)];
+}
+const sstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+
+// Hochfläche (Felsplateau, VORSCHLAG_Outdoor.diff: pal.capPixel), gesteuert über level.soil auf Felszellen:
+//   g Hängegletscher (türkis)  e aper, warmer Fels und Erde über den Südwänden  f Nadelwald von oben
+//   n Neuschnee (hell)  a Altschnee (graublau). Kleine Felsnasen und Kanten des Renderers bleiben.
+const toHex = (c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+const CAP_ICE = ['#2a5a68', '#3a7684', '#5294a0', '#7cb6bc', '#a8d4d6'];
+const CAP_SNOW = GROUND_FROST.grass;
+const CAP_NEW = ['#7e8da5', '#98a7bd', '#b2bfd1', '#c9d3e1', '#dce4ee', '#eef3f8'];
+const CAP_OLD = G_OLD.map(toHex);
+const CAP_WARM = ['#2a2321', '#3c322d', '#51443b', '#685749', '#806c5a', '#9a856f'];
+// Felsblöcke mit Licht von links oben: Blockinneres, dunkle Fuge, Schlagschatten unten rechts
+function blocks(px, py, sx, sy, seed, s) {
+  const v = vc(s, px / sx, py / sy, seed);
+  if (v < 0.47) return -1;
+  if (v < 0.51) return 0;
+  const up = vc(s + 1, (px - 1) / sx, (py - 2) / sy, seed);
+  return up < 0.5 ? 4 : v > 0.66 ? 3 : 2;
+}
+const CAP_STRAW = ['#6b5d3e', '#84744c', '#9b8a5c'];
+const CAN = ['#0f1c18', '#1a2e26', '#22402f', '#2d5238', '#3b6746', '#4f7d55', '#c4d2de'];
+// Kronen der 3×3 Nachbarzellen, gemerkt für die aktuelle Zelle
+const CANG = new Float64Array([NaN, NaN]), CANC = new Float64Array(27);
+function canopy(px, py, col) {
+  const gx = Math.floor(px / 9), gy = Math.floor(py / 8);
+  if (gx !== CANG[0] || gy !== CANG[1]) {
+    CANG[0] = gx; CANG[1] = gy;
+    for (let j = -1, q = 0; j <= 1; j++) for (let i = -1; i <= 1; i++, q += 3) {
+      CANC[q] = (gx + i) * 9 + 1 + hash2(gx + i, gy + j, 471) * 7; CANC[q + 1] = (gy + j) * 8 + 1 + hash2(gx + i, gy + j, 472) * 6;
+      CANC[q + 2] = 3.8 + hash2(gx + i, gy + j, 473) * 2.4;
+    }
+  }
+  let best = 9, bx = 0, by = 0, br = 1;
+  for (let q = 0; q < 27; q += 3) {
+    const cx = CANC[q], cy = CANC[q + 1], r = CANC[q + 2];
+    const d = ((px - cx) ** 2 + (py - cy) ** 2) / (r * r);
+    if (d < best) { best = d; bx = cx; by = cy; br = r; }
+  }
+  if (best > 1) return vc(46, px / 18, py / 16, 475) < 0.42 ? col : CAN[0];   // Lücke: Schnee oder Schatten
+  const lx = (px - bx) / br, ly = (py - by) / br;
+  const lit = -(lx * 0.6 + ly * 0.8) + (hash2(px, py, 476) - 0.5) * 0.5;
+  if (lit > 0.7 && best < 0.7) return CAN[6];                                     // Schnee auf den Kronen
+  return CAN[ci(3 + Math.round(lit * 1.6), 6)];
+}
+// col = null: Vorabfrage des Renderers ohne seinen Grundton – Antwort nur, wo er nicht gebraucht wird
+// (sonst null, dann fragt der Renderer mit Grundton erneut)
+let FCX = NaN, FCY = NaN, FCS = ' ';
+function frostCap(px, py, level, col) {
+  const pre = col === null;
+  const k = pre ? 0 : CAP_SNOW.indexOf(col);
+  if (k < 0) return null;
+  if (level !== LV) prep(level);
+  // Nachfrage mit Grundton folgt direkt auf die Vorabfrage: Bodenart des Pixels gemerkt
+  let s;
+  if (px === FCX && py === FCY) s = FCS; else { s = frostSoil(level, px, py); FCX = px; FCY = py; FCS = s; }
+  switch (s) {
+    case 'g': {
+      const c = vc(47, px / 16, py / 12, 464);
+      if (c < 0.82) {
+        if (Math.abs(vc(48, px / 7, py / 5, 465) - 0.5) < 0.03) return CAP_ICE[0];
+        return CAP_ICE[ci(1 + Math.floor(vc(49, px / 3, py / 3, 466) * 3.4), 5)];
+      }
+      return pre ? null : CAP_NEW[ci(k + 1, 6)];
+    }
+    case 'e': {
+      // aper: Erde mit Halmen, einzelne Blöcke, Schneereste in den Mulden
+      const pat = vc(50, px / 12, py / 9, 477) * 0.8 + vc(51, px / 5, py / 5, 478) * 0.2;
+      if (pat > 0.66) return null;
+      if (pat > 0.63) return CAP_WARM[1];
+      const b = blocks(px, py, 5, 4, 479, 100);
+      if (b >= 0) return CAP_WARM[b + 1];
+      if (hash2(px, py >> 1, 480) < 0.12) return CAP_STRAW[Math.floor(hash2(px, py, 481) * 3)];
+      return CAP_WARM[ci(1 + Math.floor(vc(52, px / 7, py / 7, 482) * 2.2), 6)];
+    }
+    case 'r': {
+      // blanker Grat: Blöcke mit Licht von links oben, Schnee in Fugen und Mulden
+      const cov = vc(53, px / 11, py / 8, 485) * 0.8 + vc(54, px / 5, py / 5, 486) * 0.2;
+      if (cov > 0.64) return null;
+      const b = blocks(px, py, 7, 5, 487, 102);
+      if (b >= 0) return CAP_WARM[b + 1];
+      return cov > 0.5 ? CAP_NEW[2] : CAP_WARM[1];
+    }
+    case 'f': return canopy(px, py, col);
+    case 'n': return pre ? null : CAP_NEW[ci(k, 6)];
+    case 'a': return pre ? null : CAP_OLD[ci(k - 1, 6)];
+    default: {
+      // ruhige Hochfläche ohne Windrippel-Streifen (gleiche Helligkeitsverteilung wie im Renderer)
+      const n = vc(61, px / 9, py / 9, 313) * 0.55 + vc(62, px / 3, py / 3, 314) * 0.3 + hash2(px, py, 315) * 0.15;
+      return CAP_SNOW[ci(Math.floor(2.5 + n * 2.6), 6)];
+    }
+  }
+}
+
+// Gletscherspalten (level.crevasses: Polylinien in Kacheln, w = halbe Breite in px).
+// Je Kachel ein Verzeichnis der nahen Abschnitte; je Pixel der nächste Abschnitt.
+// Je Level einmal vorbereitet (letztes Level gemerkt, keine Suche je Pixel): Spalten-Abschnitte je
+// Kachel, Kacheln neben einer Spur, Felsraster wie Outdoor (#rock inkl. level.rockDecor).
+let SOILK = null;
+// Je Level, erst bei Bedarf gefüllt (0 = noch offen): Windrippel möglich je 8×6-px-Block (1 nein, 2 vielleicht),
+// Spalte in Reichweite je 4×4-px-Block (1 nein, 2 ja)
+let RIPB = null, RBW = 0, CRVB = null, CBW = 0;
+let LV = null, MW = 0, MH = 0, CREVT = null, NEART = null, ROCKT = null, TRK3 = null, SOILB = null, ROCK4 = null, TRKB = null, FRESHT = null;
+const SOILC = [];
+function prep(level) {
+  if (level === LV) return;
+  LV = level;
+  FCX = NaN;
+  const M = level?.map ?? [];
+  MH = M.length; MW = M[0]?.length ?? 0;
+  RBW = MW * 2; RIPB = new Uint8Array(RBW * Math.ceil(MH * 16 / 6));
+  CBW = MW * 4; CRVB = new Uint8Array(CBW * MH * 4);
+  CREVT = new Array(MW * MH).fill(null);
+  for (const line of level?.crevasses ?? []) for (let i = 0; i < line.length - 1; i++) {
+    const a = line[i], b = line[i + 1];
+    const seg = { ax: a.x * 16, ay: a.y * 16, bx: b.x * 16, by: b.y * 16, wa: a.w, wb: b.w, r2: 0 };
+    // Reichweite: jenseits von 3,5 + 1,2·Breite liefert die Spalte sicher nichts
+    const R = 3.5 + 1.2 * Math.max(a.w, b.w) + 0.01; seg.r2 = R * R;
+    const x0 = Math.floor(Math.min(seg.ax, seg.bx) / 16) - 1, x1 = Math.floor(Math.max(seg.ax, seg.bx) / 16) + 1;
+    const y0 = Math.floor(Math.min(seg.ay, seg.by) / 16) - 1, y1 = Math.floor(Math.max(seg.ay, seg.by) / 16) + 1;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (x >= 0 && y >= 0 && x < MW && y < MH && segDist2(seg, x * 16 + 8, y * 16 + 8) < (R + 11.32) ** 2) (CREVT[y * MW + x] ??= []).push(seg);
+  }
+  NEART = new Uint8Array(MW * MH);
+  ROCKT = new Uint8Array(MW * MH);
+  TRK3 = new Uint8Array(MW * MH);
+  TRKB = new Uint8Array(MW * MH);
+  SOILB = new Uint8Array(MW * MH);
+  const S = level?.soil, rd = level?.rockDecor ?? '';
+  // Bodenart (Zeichencode), Fels und Spur je Kachel
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const c = S?.[y]?.[x] ?? ' ', k = c.charCodeAt(0); SOILB[y * MW + x] = k; SOILC[k] = c;
+    const m = M[y][x];
+    if (m === '#' || (rd && rd.includes(m))) ROCKT[y * MW + x] = 1;
+    if (TRACKY.has(m)) TRKB[y * MW + x] = 1;
+  }
+  // Kacheln neben einer Spur; 3×3 ganz Spur (1), ohne Spur (2) oder gemischt (außerhalb zählt als Spur)
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    if (TRKB[y * MW + x]) for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (y + j >= 0 && y + j < MH && x + i >= 0 && x + i < MW) NEART[(y + j) * MW + x + i] = 1;
+    let allT = true, noT = true;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const xx = x + i, yy = y + j;
+      if (xx < 0 || yy < 0 || xx >= MW || yy >= MH || TRKB[yy * MW + xx]) noT = false; else allT = false;
+    }
+    TRK3[y * MW + x] = allT ? 1 : noT ? 2 : 0;
+  }
+  // Klassen je Kachel: x-Lage 0–7 → Spalten tx−1..tx, 8 → tx−1..tx+1, 9–15 → tx..tx+1 (y ebenso).
+  // Kachel im Inneren mit einheitlichen 3×3 Nachbarn: alle neun Klassen sofort.
+  SOILK = new Uint16Array(MW * MH * 9);
+  for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) {
+    const o = (ty * MW + tx) * 9;
+    if (tx > 0 && ty > 0 && tx < MW - 1 && ty < MH - 1) {
+      const c = SOILB[ty * MW + tx];
+      let same = true;
+      for (let j = -1; j <= 1 && same; j++) for (let i = -1; i <= 1; i++) if (SOILB[(ty + j) * MW + tx + i] !== c) { same = false; break; }
+      if (same) { SOILK.fill(c, o, o + 9); continue; }
+    }
+    for (let yc = 0; yc < 3; yc++) for (let xc = 0; xc < 3; xc++) {
+      const ax = xc < 2 ? tx - 1 : tx, bx = xc > 0 ? tx + 1 : tx, ay = yc < 2 ? ty - 1 : ty, by = yc > 0 ? ty + 1 : ty;
+      if (ax < 0 || ay < 0 || bx >= MW || by >= MH) continue;
+      const c = SOILB[ay * MW + ax];
+      let same = true, rows = true, cols = true;
+      for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) {
+        const v = SOILB[y * MW + x];
+        if (v !== c) same = false;
+        if (v !== SOILB[y * MW + ax]) rows = false;
+        if (v !== SOILB[ay * MW + x]) cols = false;
+      }
+      SOILK[o + yc * 3 + xc] = same ? c : rows ? 256 : cols ? 512 : 0;
+    }
+  }
+  // Neuschnee-Anteil (Rauschen 110×80 px): je Kachel sicher 0, sicher 1 oder rechnen. Innerhalb einer
+  // Gitterzelle liegt der Wert zwischen den Eckwerten (Gitterwerte einmal je Level).
+  FRESHT = new Uint8Array(MW * MH);
+  const GW = Math.floor((MW * 16 - 1) / 110) + 2, GH = Math.floor((MH * 16 - 1) / 80) + 2, GV = new Float64Array(GW * GH);
+  for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) GV[gy * GW + gx] = hash2(gx, gy, 454);
+  for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) {
+    const gx0 = Math.floor(tx * 16 / 110), gx1 = Math.floor((tx * 16 + 15) / 110) + 1, gy0 = Math.floor(ty * 16 / 80), gy1 = Math.floor((ty * 16 + 15) / 80) + 1;
+    let lo = 1, hi = 0;
+    for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) { const v = GV[gy * GW + gx]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    FRESHT[ty * MW + tx] = hi * 0.85 < 0.3199 ? 1 : lo * 0.85 > 0.5101 ? 2 : 0;
+  }
+  // Ecke (tx, ty) zwischen vier Kachelmitten: alle vier Fels? Index (ty + 1) * (MW + 1) + tx + 1
+  ROCK4 = new Uint8Array((MW + 1) * (MH + 1));
+  for (let ty = -1; ty < MH; ty++) for (let tx = -1; tx < MW; tx++) ROCK4[(ty + 1) * (MW + 1) + tx + 1] = rockAt(tx, ty) && rockAt(tx + 1, ty) && rockAt(tx, ty + 1) && rockAt(tx + 1, ty + 1) ? 1 : 0;
+}
+const rockAt = (tx, ty) => tx < 0 || ty < 0 || tx >= MW || ty >= MH || ROCKT[ty * MW + tx] === 1;
+// Liegt das Pixel sicher unter der Felsmaske des Klippen-Renderers (gleiche Formel wie Outdoor.#maskAt,
+// mit Sicherheitsabstand)? Dann übermalt der Renderer es vollständig – kein Boden nötig.
+function underRock(px, py) {
+  const tx = Math.floor(px / 16 - 0.5), ty = Math.floor(py / 16 - 0.5);
+  if (tx >= MW || ty >= MH || ROCK4[(ty + 1) * (MW + 1) + tx + 1] !== 1) return tx >= MW || ty >= MH ? rockSlow(tx, ty) && underNoise(px, py) : false;
+  return underNoise(px, py);
+}
+function rockSlow(tx, ty) { return rockAt(tx, ty) && rockAt(tx + 1, ty) && rockAt(tx, ty + 1) && rockAt(tx + 1, ty + 1); }
+function underNoise(px, py) {
+  // n ≥ (v1 − 0,5)·0,55 − 0,245: schon v1 allein entscheidet fast immer
+  const v1 = vc(130, px / 13, py / 11, 300);
+  if (v1 > 0.037) return true;
+  const n = (v1 - 0.5) * 0.55 + (vc(131, px / 6, py / 6, 301) - 0.5) * 0.35 + (vc(132, px / 2.5, py / 2.5, 302) - 0.5) * 0.14;
+  return n > -0.4999;
+}
+function segDist2(g, px, py) {
+  const dx = g.bx - g.ax, dy = g.by - g.ay, L2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((px - g.ax) * dx + (py - g.ay) * dy) / L2));
+  const ex = px - g.ax - dx * t, ey = py - g.ay - dy * t;
+  return ex * ex + ey * ey;
+}
+const C_WALL = ['#9fd2da', '#4f97a6', '#22576a', '#123344', '#0a1c28', '#060f18'].map(hexRgb);
+function crevPixel(level, px, py) {
+  const tx = Math.floor(px / 16), ty = Math.floor(py / 16);
+  const segs = tx >= 0 && ty >= 0 && tx < MW && ty < MH ? CREVT[ty * MW + tx] : null;
+  if (!segs) return null;
+  // je 4×4-Block vorab: liegt überhaupt ein Abschnitt in Reichweite?
+  const bi = (py >> 2) * CBW + (px >> 2);
+  let cb = CRVB[bi];
+  if (cb === 0) {
+    const qx = (px & ~3) + 1.5, qy = (py & ~3) + 1.5;
+    cb = 1;
+    for (const g of segs) { const r = Math.sqrt(g.r2) + 2.13; if (segDist2(g, qx, qy) < r * r) { cb = 2; break; } }
+    CRVB[bi] = cb;
+  }
+  if (cb === 1) return null;
+  let near = false;
+  for (const g of segs) if (segDist2(g, px, py) < g.r2) { near = true; break; }
+  if (!near) return null;
+  let e = 99, sn = 0, w = 0;
+  const wn = 0.8 + 0.4 * vc(57, px / 3, py / 3, 483);
+  for (const g of segs) {
+    const dx = g.bx - g.ax, dy = g.by - g.ay, L2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((px - g.ax) * dx + (py - g.ay) * dy) / L2));
+    const cx = g.ax + dx * t, cy = g.ay + dy * t, ww = g.wa + (g.wb - g.wa) * t;
+    const ex = px - cx, ey = py - cy, d = Math.sqrt(ex * ex + ey * ey);
+    const wj = ww * wn;
+    if (d - wj < e) {
+      e = d - wj; w = wj;
+      // Seite: über (negativ) oder unter (positiv) der Mittellinie, Normale nach unten gedreht
+      const l = Math.sqrt(L2), nx = -dy / l, ny = dx / l, sgn = ny < 0 ? -1 : 1;
+      sn = ((px - cx) * nx + (py - cy) * ny) * sgn;
+    }
+  }
+  if (e >= 3.5 || w < 0.4) return null;
+  // Brückenenden nicht kachelgerade: Prüfstelle leicht verwackelt
+  const qx = px + (vc(58, px / 5, py / 5, 491) - 0.5) * 12, qy = py + (vc(59, px / 5, py / 5, 492) - 0.5) * 6;
+  const solidCell = level.map?.[Math.floor(qy / 16)]?.[Math.floor(qx / 16)] === '"';
+  if (!solidCell) {
+    // Schneebrücke: die Spalte schimmert nur als Schatten durch
+    if (e < -0.8) return G_NEW[4];
+    if (e < 0.6) return G_OLD[2];
+    return null;
+  }
+  if (e < 0) {
+    if (sn > 0 && e > -1.2) return G_NEW[5];                         // Schneelippe am unteren Rand
+    const q = (sn + w) / (2 * w) + (vc(60, px / 2, py / 2, 484) - 0.5) * 0.18;
+    return C_WALL[ci(Math.floor(Math.sqrt(Math.max(0, q)) * 6.2), 6)];  // sichtbare Nordwand: hell oben, rasch dunkel in der Tiefe
+  }
+  if (sn < 0 && e < 1.4) return G_NEW[5];                              // verschneiter Oberrand
+  if (sn > 0 && e < 3.5 && bayer(px, py) < 0.5 - e / 7) return G_OLD[3];
+  return null;
+}
+
+// Kacheln neben einer Spur (einmal je Level berechnet), damit der Wegrand nur dort geprüft wird
+function nearTrack(level, px, py) {
+  const tx = Math.floor(px / 16), ty = Math.floor(py / 16);
+  return tx >= 0 && ty >= 0 && tx < MW && ty < MH && NEART[ty * MW + tx] === 1;
+}
+// Wegrand weich: liegt ein Nachbarpixel (gleiche Verwacklung wie im Renderer) auf anderem Boden?
+const TRACKY = new Set(['.', 'y', ':', '1', '2', '6']);
+function trackish(level, qx, qy, s) {
+  // Verwacklung ±4,5 px: liegen alle erreichbaren Kacheln auf (oder neben) der Spur, entscheidet das Raster
+  const ax = Math.floor((qx - 4.5) / 16), bx = Math.ceil((qx + 4.5) / 16) - 1, ay = Math.floor((qy - 4.5) / 16), by = Math.ceil((qy + 4.5) / 16) - 1;
+  if (ax >= 0 && ay >= 0 && bx < MW && by < MH) {
+    let all = true, none = true;
+    for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) { if (TRKB[y * MW + x]) none = false; else all = false; }
+    if (all) return true;
+    if (none) return false;
+  }
+  const jx = qx + (vc(s, qx / 7, qy / 7, 21) - 0.5) * 9, jy = qy + (vc(s + 1, qx / 7, qy / 7, 22) - 0.5) * 9;
+  const c = level?.map?.[Math.floor(jy / 16)]?.[Math.floor(jx / 16)];
+  return c === undefined ? true : TRACKY.has(c);
+}
+
+const ROCK_SKIP = [40, 40, 48];
+// Grundrauschen (zwei Oktaven) in einem Aufruf: klein genug, dass die Engine vc hier einbettet
+function baseN(px, py) { return vc(63, px / 9, py / 9, 11) * 0.6 + vc(64, px / 3, py / 3, 12) * 0.4; }
+function frostPixel(kind, px, py, level) {
+  if (kind !== ',' && kind !== '.') return groundPixel(kind, px, py, GROUND_FROST);
+  if (level !== LV) prep(level);
+  if (underRock(px, py)) return ROCK_SKIP;
+  const ti = (py >> 4) * MW + (px >> 4);
+  if (CREVT[ti]) { const cv = crevPixel(level, px, py); if (cv) return cv; }
+  const s = frostSoil(level, px, py);
+  const n = baseN(px, py);
+  const h = hash2(px, py, 13);
+  if (kind === '.') return trackPx(level, px, py, s, n, h, ti);
+  // Schulter neben der Spur: leicht eingetretener Schnee
+  if ((s === ' ' || s === 'w' || s === 'a') && NEART[ti] === 1 && TRK3[ti] !== 2 && shoulderAt(level, px, py, ti) && hash2(px, py, 490) < 0.22) return G_TRACK[5];
+  // je Bodenart eine kleine Funktion (die Engine bettet die Rauschaufrufe dort ein)
+  switch (s) {
+    case 'n': return snowPx(px, py, n, h, 0.85 + n * 0.3);
+    case 'a': return snowPx(px, py, n, h, 0.1);
+    case 'w':
+      // Schnee in der Passgasse: ruhig, hell, nur großflächig leicht wechselnd
+      return snowPx(px, py, 0.3 + n * 0.4, h, 1, false);
+    case 'e': return earthPx(px, py, n, h);
+    case 'f': return forestPx(px, py, n, h);
+    case 'g': return glacierPx(px, py, n, h);
+    case 'i': {
+      if (h < 0.015) return G_CICE[5];
+      return G_CICE[ci(1 + Math.floor(n * 3.6), 6)];
+    }
+    case 't': return G_CAVE[ci(1 + Math.floor(n * 3.4), 6)];
+    case 's': return screePx(px, py, n, h);
+    default: return openSnowPx(px, py, n, h, ti);
+  }
+}
+function shoulderAt(level, px, py, ti) {
+  return TRK3[ti] === 1 || trackish(level, px - 3, py, 120) || trackish(level, px + 3, py, 122) || trackish(level, px, py - 3, 124) || trackish(level, px, py + 3, 126);
+}
+function trackPx(level, px, py, s, n, h, ti) {
+  if (s === 'i') { if (h < 0.012) return G_GICE[4]; return G_CICE[ci(1 + Math.floor(n * 3.4) + (vc(65, px / 14, py / 10, 467) > 0.66 ? 1 : 0), 6)]; }
+  if (s === 't') return G_CAVE[ci(1 + Math.floor(n * 3.4) + (h < 0.04 ? 2 : 0), 6)];
+  // Weg: festgetretener Schnee; auf aperen Stellen und im Wald Matsch und Erde
+  if (s === 'e' || s === 'f') {
+    const slush = vc(66, px / 6, py / 5, 440);
+    if (slush > 0.66) return G_TRACK[ci(2 + Math.floor(n * 3), 6)];
+    return G_EARTH[ci(Math.floor(n * 3.6) + (h < 0.05 ? 2 : 0), 6)];
+  }
+  // Eine ruhige, festgetretene Spur: in der Mitte etwas dunkler, zum Rand hin heller und weich
+  // in den Schnee verlaufend (keine Rinnen, keine Flecken)
+  let i = 2 + Math.floor(vc(67, px / 16, py / 14, 15) * 1.8 + (n - 0.5) * 0.7);
+  const t3 = TRK3[ti];
+  const near1 = t3 === 1 ? false : !trackish(level, px - 2, py, 104) || !trackish(level, px + 2, py, 106) || !trackish(level, px, py - 2, 108) || !trackish(level, px, py + 2, 110);
+  const near2 = t3 === 1 ? false : near1 || !trackish(level, px - 4, py, 112) || !trackish(level, px + 4, py, 114) || !trackish(level, px, py - 4, 116) || !trackish(level, px, py + 4, 118);
+  if (near1) { if (hash2(px, py, 488) < 0.3) return G_NEW[3]; i = 4; }
+  else if (near2) i = Math.max(i, 3) + (hash2(px, py, 489) < 0.3 ? 1 : 0);
+  if (h > 0.992) return G_NEW[3];                                       // Schneeklümpchen
+  return G_TRACK[ci(i, 6)];
+}
+function earthPx(px, py, n, h) {
+  const pat = vc(68, px / 13, py / 11, 443) * 0.7 + vc(69, px / 4, py / 4, 444) * 0.3;
+  if (pat > 0.5) return snowPx(px, py, n, h, 0.25);
+  if (pat > 0.46) return G_EARTH[1];                                   // nasser Rand am Schneefleck
+  if (hash2(px, py >> 1, 445) < 0.14) return G_STRAW[ci(Math.floor(n * 4), 4)]; // trockene Halme
+  if (h < 0.025) return G_STONE[h < 0.012 ? 4 : 2];
+  return G_EARTH[ci(1 + Math.floor(n * 4), 6)];
+}
+function forestPx(px, py, n, h) {
+  const pat = vc(70, px / 11, py / 10, 446) * 0.7 + vc(71, px / 4, py / 4, 447) * 0.3;
+  if (pat > 0.62) return snowPx(px, py, n, h, 0.2);
+  if (pat > 0.58) return G_NEEDLE[0];
+  if (hash2(px, py, 448) < 0.06) return G_LITTER[ci(Math.floor(n * 3), 3)];
+  return G_NEEDLE[ci(1 + Math.floor(n * 4.2), 6)];
+}
+function glacierPx(px, py, n, h) {
+  const band = Math.sin(px * 0.09 + py * 0.2 + vc(72, px / 26, py / 18, 449) * 6);
+  const cover = vc(73, px / 16, py / 13, 450) * 0.75 + band * 0.18;
+  if (cover > 0.62) return snowPx(px, py, n, h, 0.95, false);
+  if (cover > 0.58) return G_NEW[2];
+  if (Math.abs(vc(74, px / 8, py / 6, 451) - 0.5) < 0.022) return G_GICE[0];   // Haarrisse
+  if (h < 0.015) return G_GICE[5];
+  return G_GICE[ci(1 + Math.floor(n * 3.6) + (band > 0.7 ? 1 : 0), 6)];
+}
+function screePx(px, py, n, h) {
+  // Geröll: Steine mit Licht von links oben, Schnee in den Fugen
+  const v = vc(75, px / 2.6, py / 2.1, 452), v2 = vc(76, (px - 1) / 2.6, (py - 1) / 2.1, 452);
+  const cover = vc(77, px / 10, py / 9, 453);
+  if (v > 0.52 && cover < 0.7) {
+    let k = 2 + Math.floor(n * 2) + (v - v2 > 0.03 ? 1 : v - v2 < -0.03 ? -1 : 0);
+    if (v < 0.56) k = 1;
+    return G_STONE[ci(k, 6)];
+  }
+  if (v > 0.47 && cover < 0.7) return G_STONE[0];
+  return snowPx(px, py, n, h, 0.4);
+}
+function openSnowPx(px, py, n, h, ti) {
+  // großflächig: helle Neuschneefelder und graublauer Altschnee, schmaler gerasterter Übergang
+  const ft = FRESHT[ti];
+  const f1 = ft ? 0 : vc(78, px / 110, py / 80, 454) * 0.85;
+  const fresh = ft === 1 ? 0 : ft === 2 ? 1 : f1 < 0.3199 ? 0 : f1 > 0.5101 ? 1 : sstep((f1 + vc(79, px / 30, py / 26, 456) * 0.15 - 0.47) / 0.04);
+  return snowPx(px, py, n, h, fresh);
+}
 
 const SNOW = ['#2e384b', '#3e4a61', '#53627b', '#6d7f98', '#8fa2ba', '#b6c6d8', '#e2ebf4'];
 const ICE = ['#0c2234', '#143e58', '#1e6080', '#3a8cae', '#6cbed8', '#b0e8f4', '#effcff'];
@@ -1504,61 +1971,137 @@ function ledgeSnow(v) {
   });
 }
 
-// Bergspitze: verschneiter Felsgipfel mit Graten und Rinnen (auf Schneeterrassen im Massiv)
-function mountainPeak(v) {
-  const W = [76, 58, 92][v], H = [88, 66, 104][v];
-  const rng = createRng(2950 + v);
-  return mk(W, H, (p, g) => {
+// Bergspitze: verschneiter Felsgipfel mit Graten und Rinnen (auf Schneemulden im Massiv)
+// Runde 6: parametrisch statt drei fester Formen – Größe, Zahl und Lage der Gipfel, steile/flache
+// Flanke (gespiegelte Formen bei gleichem Licht von links), Schneegrenze, Fels (kühl/warm) und
+// Gletscherzunge variieren. o = { W, H, tops: [[x-Anteil, y]], sl, sr, snow, warm, ice, seed }
+const ROCKW = ['#151310', '#211d1a', '#2e2925', '#3d3731', '#4f4840', '#645b51', '#7c7266'];
+function peakSprite(o) {
+  const { W, H, tops, sl = 1, sr = 1, snow = 0.42, warm = false, ice = 0, seed = 2950 } = o;
+  const RK = warm ? ROCKW : ROCK;
+  const rng = createRng(seed);
+  let peakMask = null;
+  const e = mk(W, H, (p, g) => {
     const base = H - 6, mask = new Uint8Array(W * H);
-    // Kammlinie: ein bis zwei Gipfel, gezackt
-    const peaks = v === 2 ? [[W * 0.38, 4], [W * 0.7, 18]] : v === 1 ? [[W * 0.46, 6]] : [[W * 0.42, 3], [W * 0.74, 24]];
+    const peaks = tops.map(([fx, y]) => [W * fx, y]);
     const ridge = (x) => {
       let y = base;
-      for (const [px, py] of peaks) { const slope = (base - py) / (W * 0.5); y = Math.min(y, py + Math.abs(x - px) * slope * (x < px ? 1.05 : 0.95)); }
-      return y + (vnoiseLite(x / 3, v, 2951) - 0.5) * 5 + (hash2(x, v, 2952) < 0.12 ? 2 : 0);
+      for (const [px, py] of peaks) {
+        // Flanken erreichen den Fuß spätestens am Bildrand (keine senkrechten Seiten)
+        const slope = x < px ? (base - py) / Math.max(4, px - 3) * Math.max(1, sl) : (base - py) / Math.max(4, W - 4 - px) * Math.max(1, sr);
+        y = Math.min(y, py + Math.abs(x - px) * slope);
+      }
+      // Schultern und Scharten (grob) + Zacken (fein)
+      const sh = (vnoiseLite(x / 13, seed, 2964) - 0.5) * 10 * Math.min(1, (y - 2) / 20);
+      return y + sh + (vnoiseLite(x / 3, seed, 2951) - 0.5) * 5 + (hash2(x, seed, 2952) < 0.12 ? 2 : 0);
     };
-    const tops = [];
+    const tops2 = [];
     for (let x = 0; x < W; x++) {
       const t = Math.max(1, Math.round(ridge(x)));
-      tops.push(t);
-      for (let y = t; y <= base + 3; y++) if (y < H) mask[y * W + x] = 1;
+      tops2.push(t);
+      // Fuß unregelmäßig (keine gerade Unterkante): läuft in Schneezungen aus
+      const foot = base + 3 - Math.floor(vnoiseLite(x / 3.5, seed, 2968) * 4) - (hash2(x, seed, 2969) < 0.2 ? 1 : 0);
+      for (let y = t; y <= foot; y++) if (y < H) mask[y * W + x] = 1;
     }
-    // Grate (helle/dunkle Facetten) – je Gipfel eine Hauptkante nach unten rechts versetzt
+    peakMask = mask;
+    const at = (x, y) => x >= 0 && y >= 0 && x < W && y < H && mask[y * W + x];
+    // Hauptgrat je Gipfel (nach unten versetzt, je nach Flanke), dazu Nebengrate
     const crest = (x, y) => {
       let best = 1e9;
-      for (const [px, py] of peaks) best = Math.min(best, x - (px + (y - py) * 0.32 + (vnoiseLite(y / 6, px, 2953) - 0.5) * 6));
+      for (const [px, py] of peaks) best = Math.min(best, x - (px + (y - py) * (sr > sl ? 0.18 : 0.38) + (vnoiseLite(y / 6, px, 2953) - 0.5) * 6));
       return best;
     };
-    const snowLine = (x) => base - (H * 0.42) + (vnoiseLite(x / 6, v, 2954) - 0.5) * 18;
+    const spur = (x, y) => {
+      // Nebengrate: schräge helle Linien auf der Schattenseite, dunkle Rinnen auf der Lichtseite
+      for (const [px, py] of peaks) {
+        const dy = y - py; if (dy < 8) continue;
+        const a = x - (px + dy * 0.85), b = x - (px - dy * 0.7);
+        if (Math.abs(a + (vnoiseLite(y / 5, px, 2960) - 0.5) * 4) < 0.8 && hash2(x, y >> 2, seed + 7) < 0.8) return 1;
+        if (Math.abs(b + (vnoiseLite(y / 5, px, 2961) - 0.5) * 4) < 0.7 && hash2(x, y >> 2, seed + 8) < 0.7) return -1;
+      }
+      return 0;
+    };
+    const snowLine = (x) => base - H * snow + (vnoiseLite(x / 6, seed, 2954) - 0.5) * 18;
+    // Gletscherzunge: türkises Eis in der Senke zwischen den Gipfeln (bzw. rechts des Hauptgipfels)
+    const tongueX = peaks.length > 1 ? (peaks[0][0] + peaks[1][0]) / 2 : peaks[0][0] + W * 0.14;
+    const ty0 = base - H * 0.62, ty1 = base - H * 0.1;
+    const tongue = (x, y) => {
+      if (!ice || y < ty0 || y > ty1) return 0;
+      const t = (y - ty0) / (ty1 - ty0);
+      const w = ice * (2.5 + 7 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - t * 0.55));
+      const cx = tongueX + t * W * 0.06 + (vnoiseLite(y / 9, seed, 2962) - 0.5) * 6;
+      const d = Math.abs(x - cx) - w - (vnoiseLite(x / 3, y / 3, 2966) - 0.5) * 2.5;
+      return d < 0 ? (x < cx ? 1 : 2) : 0;
+    };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (!mask[y * W + x]) continue;
       const c = crest(x, y);
-      let k = c < 0 ? 5 : 2;                                                 // links Licht, rechts Schatten
-      if (c < 0 && c > -3) k = 6;                                            // Gratkante
-      const band = Math.floor((y + x * 0.3 + vnoiseLite(x / 8, y / 12, 2955) * 6) / 6);
-      if (((y + x * 0.3 + vnoiseLite(x / 8, y / 12, 2955) * 6) % 6) < 1) k -= 1; // Schichtung
-      if (hash2(x, band, 2956) < 0.04) k -= 2;                                // Risse
-      let col = ROCK[clampI(k, 7)];
-      // Schnee: oberhalb der Schneegrenze auf der Lichtseite fast ganz, im Schatten in Rinnen
-      const sl = snowLine(x), gully = vnoiseLite(x / 2.6, y / 14, 2957);
-      if (y < sl) {
-        if (c < 0) col = gully > 0.28 ? (c > -3 ? SNOW[6] : SNOW[5]) : ROCK[4];
-        else col = gully > 0.55 ? SNOW[3] : gully > 0.42 ? SNOW[2] : ROCK[clampI(k, 7)];
+      let k = c < 0 ? 5 : 2;
+      if (c < 0 && c > -3) k = 6;
+      const sp = spur(x, y);
+      if (sp === 1 && c >= 0) k = 4; else if (sp === -1 && c < 0) k = 3;
+      const sv = y + x * (sl > sr ? -0.35 : 0.3) + vnoiseLite(x / 8, y / 12, 2955) * 6;
+      const band = Math.floor(sv / 7);
+      if ((sv % 7) < 1 && vnoiseLite(x / 9, y / 9, 2965 + seed) > 0.45) k -= 1;
+      if (hash2(x, band, 2956 + seed) < 0.04) k -= 2;
+      if (!at(x + 1, y) && c >= 0) k -= 1;
+      let col = RK[clampI(k, 7)];
+      const sl0 = snowLine(x), gully = vnoiseLite(x / 2.6, y / 14, 2957 + seed);
+      if (y < sl0) {
+        if (c < 0) col = gully > 0.28 ? (c > -3 ? SNOW[6] : SNOW[5]) : RK[4];
+        else col = gully > 0.55 ? SNOW[3] : gully > 0.42 ? SNOW[2] : RK[clampI(k, 7)];
+        if (sp === 1 && c >= 0) col = SNOW[4];
       } else if (gully > 0.74 && hash2(x, y >> 1, 2958) < 0.8) col = c < 0 ? SNOW[4] : SNOW[2];
-      if (y - tops[x] < 2) col = c < 0 ? SNOW[6] : SNOW[4];                  // Firn auf dem Kamm
+      const tg = tongue(x, y);
+      if (tg) {
+        const e = hash2(x, y, 2963), cover = vnoiseLite(x / 4, y / 5, 2967 + seed);
+        col = tg === 1 ? ICE[e < 0.12 ? 4 : 3] : ICE[e < 0.12 ? 3 : 2];
+        // Querspalten bogenförmig, Schnee auf dem Eis
+        const arc = y - Math.abs(x - tongueX) * 0.35;
+        if (Math.abs((arc % 6) - 3) < 0.6 && e < 0.75) col = ICE[1];
+        else if (cover > 0.62) col = tg === 1 ? SNOW[5] : SNOW[3];
+      }
+      if (y - tops2[x] < 2) col = c < 0 ? SNOW[6] : SNOW[4];
       p.px(x, y, col);
     }
-    // Eis in einer Rinne
-    for (let i = 0; i < 4; i++) { const x = Math.round(peaks[0][0] + 6 + i * 3), y = Math.round(base - H * 0.3 + i * 4); if (mask[y * W + x]) { p.px(x, y, ICE[4]); p.px(x, y + 1, ICE[3]); g.px(x, y, ICE[3]); } }
+    // Leuchtendes Eis in einer Rinne (wenig, nur auf der Glow-Ebene als Schimmer)
+    if (ice) for (let i = 0; i < 4; i++) { const x = Math.round(tongueX + i - 1), y = Math.round(base - H * 0.25 + i * 3); if (at(x, y)) g.px(x, y, ICE[2]); }
     // Fuß: Geröll und Schneewehe
-    for (let x = 2; x < W - 2; x++) for (let y = base - 2; y <= base + 3; y++) {
+    for (let x = 0; x < W; x++) for (let y = base - 3; y <= base + 3; y++) {
       if (!mask[y * W + x]) continue;
-      const h = hash2(x, y, 2959);
-      if (y >= base + 1 || h < 0.35) p.px(x, y, h < 0.25 ? ROCK[3] : y === base + 3 ? SNOW[3] : SNOW[4]);
+      const hh = hash2(x, y, 2959 + seed), low = !mask[(y + 1) * W + x] || y >= base + 2;
+      if (low) p.px(x, y, SNOW[hh < 0.5 ? 3 : 4]);
+      else if (y >= base || hh < 0.35) p.px(x, y, hh < 0.2 ? RK[3] : hh < 0.6 ? SNOW[4] : SNOW[5]);
     }
-    for (let i = 0; i < 5; i++) { const x = rng.int(4, W - 6), y = base - rng.int(0, 2); p.px(x, y, ROCK[5]); p.px(x + 1, y, ROCK[3]); p.px(x, y - 1, SNOW[6]); }
+    for (let i = 0; i < 4 + Math.floor(W / 20); i++) { const x = rng.int(4, W - 6), y = base - rng.int(0, 2); if (at(x, y) && at(x + 1, y)) { p.px(x, y, RK[5]); p.px(x + 1, y, RK[3]); p.px(x, y - 1, SNOW[6]); } }
   }, { ax: Math.floor(W / 2), ay: H - 4, extra: { occlude: [-W / 2 + 6, -H + 8, W / 2 - 6, -10] } });
+  // Umriss am Fuß entfernen: der Berg wächst aus dem Schnee, statt auf einer Linie zu stehen
+  const cv = e.sprite.canvas, cx = cv.getContext('2d'), img = cx.getImageData(0, 0, cv.width, cv.height), d = img.data;
+  for (let y = H - 12; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+    const sx = x - 1, sy = y - 1;
+    if (sx >= 0 && sy >= 0 && sx < W && sy < H && peakMask[sy * W + sx]) continue;
+    d[(y * cv.width + x) * 4 + 3] = 0;
+  }
+  cx.putImageData(img, 0, 0);
+  return e;
 }
+// Große Gipfel ('N') und kleinere Kuppen/Grate ('G')
+const PEAKS_BIG = [
+  { W: 92, H: 104, tops: [[0.38, 4], [0.7, 18]], snow: 0.45, seed: 2950 },
+  { W: 76, H: 88, tops: [[0.58, 3]], sl: 1, sr: 1.5, snow: 0.5, seed: 2971 },
+  { W: 112, H: 86, tops: [[0.24, 14], [0.5, 4], [0.8, 20]], snow: 0.38, warm: true, ice: 0.8, seed: 2972 },
+  { W: 84, H: 98, tops: [[0.34, 2]], sl: 1.4, sr: 1, snow: 0.3, warm: true, seed: 2973 },
+  { W: 98, H: 112, tops: [[0.46, 2], [0.66, 26]], snow: 0.55, ice: 1, seed: 2974 },
+  { W: 104, H: 80, tops: [[0.3, 8], [0.62, 16]], sl: 1.2, sr: 0.9, snow: 0.34, warm: true, seed: 2975 },
+];
+const PEAKS_SMALL = [
+  { W: 50, H: 42, tops: [[0.5, 6]], sl: 0.9, sr: 0.9, snow: 0.6, seed: 2980 },
+  { W: 58, H: 64, tops: [[0.42, 4]], sl: 1.3, sr: 0.85, snow: 0.3, warm: true, seed: 2981 },
+  { W: 66, H: 50, tops: [[0.3, 6], [0.68, 12]], snow: 0.48, seed: 2982 },
+  { W: 44, H: 56, tops: [[0.55, 2]], sl: 1.1, sr: 1.4, snow: 0.36, warm: true, seed: 2983 },
+  { W: 74, H: 54, tops: [[0.22, 6]], sl: 1.2, sr: 1, snow: 0.4, seed: 2984 },
+];
+function mountainPeak(v) { return peakSprite(PEAKS_BIG[v]); }
 
 // Felsnadel: freistehender, schlanker Zacken auf den Schneefeldern
 function rockSpire(v) {
@@ -1834,6 +2377,9 @@ export function createFrostDecor() {
     // Runde 5/2: Gebirge und Points of Interest
     ledgeSnow: [0, 1, 0, 1, 2].map(ledgeSnow),
     mountainPeak: [0, 1, 2].map(mountainPeak),
+    // Runde 6: mehr Gipfelformen, unregelmäßig gruppiert (N groß, G klein)
+    mountainPeakBig: PEAKS_BIG.map(peakSprite),
+    mountainPeakSmall: PEAKS_SMALL.map(peakSprite),
     rockSpire: [0, 1, 2].map(rockSpire),
     frozenPond: [0, 1].map(frozenPond),
     frozenPondSmall: frozenPond(1),

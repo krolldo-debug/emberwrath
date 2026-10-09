@@ -15,28 +15,107 @@ const BAS = ['#0d0d10', '#17171a', '#222225', '#2e2d30', '#3b3a3c', '#4b4848', '
 // ------------------------------------------------------------ Boden der Schlackenhöhen
 // Grundton: graues Geröll (','), rostige Erzerde auf Wegen ('.'), Rostwasser ('~', keine Lava).
 // level.soil (Zeilen wie die Karte) färbt Flächen um: o Erzader, s Schlacke, y Schwefel, g heller Kies.
-const PK_SCREE = ['#16171a', '#1d1e22', '#25262a', '#2e2f33', '#38383c', '#444346'];
+const PK_SCREE = ['#131519', '#1a1c21', '#22252a', '#2b2e34', '#35383e', '#41444a'];
 const PK_ORE = ['#1c100b', '#2a170f', '#3a1f13', '#4b2817', '#5e331c', '#723f22'];
 const PK_SLAG = ['#0b0b0e', '#111116', '#17181e', '#1f2028', '#282a34', '#343846'];
 const PK_SULF = ['#1d1a0e', '#2a2512', '#3a3216', '#4c411a', '#5f511f', '#776726'];
 const PK_GRAV = ['#1d1d1f', '#262628', '#303032', '#3b3a3b', '#474545', '#555251'];
 const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-const PK_RGB = { o: PK_ORE.map(hexRgb), s: PK_SLAG.map(hexRgb), y: PK_SULF.map(hexRgb), g: PK_GRAV.map(hexRgb) };
+// Runde 6: Höhenstufen mit eigenem Boden – Süden dunkler Basalt (Grundton), Mitte (u) helle Asche,
+// Norden (v) rostige, ockerne Schlacke. So liest sich jede Stufe auch auf der Karte als eigene Ebene.
+const PK_UP1 = ['#24221f', '#2d2b27', '#383530', '#44403a', '#514c45', '#615b52'];
+const PK_UP2 = ['#28190f', '#332014', '#40281a', '#4e3120', '#5d3a25', '#6f462c'];
+const PK_RGB = { o: PK_ORE.map(hexRgb), s: PK_SLAG.map(hexRgb), y: PK_SULF.map(hexRgb), g: PK_GRAV.map(hexRgb), u: PK_UP1.map(hexRgb), v: PK_UP2.map(hexRgb) };
+// Wertrauschen wie vnoise(x, y, seed), merkt sich die vier Gitterwerte der letzten Zelle: Bodenpixel kommen
+// zeilenweise, die meisten Nachbarpixel liegen in derselben Zelle (gleiches Ergebnis, viel weniger Hashes)
+const vm = (seed) => ({ seed, gx: 0.5, gy: 0.5, a: 0.5, b: 0.5, c: 0.5, d: 0.5 });   // Startwerte als Kommazahlen: Felder bleiben Double
+function vn(m, x, y) {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  if (x0 !== m.gx || y0 !== m.gy) { const s = m.seed; m.gx = x0; m.gy = y0; m.a = hash2(x0, y0, s); m.b = hash2(x0 + 1, y0, s); m.c = hash2(x0, y0 + 1, s); m.d = hash2(x0 + 1, y0 + 1, s); }
+  const fx = x - x0, fy = y - y0, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), a = m.a, b = m.b, c = m.c, d = m.d;
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+const V301 = vm(301), V302 = vm(302), V11 = vm(11), V12 = vm(12), V17 = vm(17), V18 = vm(18), V19 = vm(19);
+const V71 = vm(71), V72 = vm(72), V73 = vm(73), V74 = vm(74);
+function soilFast(S, px, py) {
+  const jx = px + (vn(V301, px / 11, py / 11) - 0.5) * 16, jy = py + (vn(V302, px / 11, py / 11) - 0.5) * 16;
+  return S[Math.floor(jy / 16)]?.[Math.floor(jx / 16)] ?? ' ';
+}
 export function soilAt(level, px, py, seed = 301) {
   const S = level?.soil; if (!S) return ' ';
   const jx = px + (vnoise(px / 11, py / 11, seed) - 0.5) * 16, jy = py + (vnoise(px / 11, py / 11, seed + 1) - 0.5) * 16;
   return S[Math.floor(jy / 16)]?.[Math.floor(jx / 16)] ?? ' ';
 }
+// Runde 6: Geröll am Wandfuß ('r' dicht, 'p' locker) und Hangwege ('h', Geröllhang mit Höhenlinien)
+const PK_RUB = ['#141518', '#1b1c1f', '#232427', '#2c2d30', '#36363a', '#434245', '#545150'].map(hexRgb);
+// Kiesel im Raster 6×5 px (Licht von links oben, Schatten darunter); -1 = kein Kiesel
+function pebble(px, py, prob, seed) {
+  const cx = Math.floor(px / 6), cy = Math.floor(py / 5);
+  if (hash2(cx, cy, seed) > prob) return -1;
+  const ox = cx * 6 + 1.6 + hash2(cx, cy, seed + 1) * 2.8, oy = cy * 5 + 1.3 + hash2(cx, cy, seed + 2) * 1.6;
+  const rx = 0.9 + hash2(cx, cy, seed + 3) * 1.5, ry = 0.7 + hash2(cx, cy, seed + 4) * 0.8;
+  const dx = (px + 0.5 - ox) / rx, dy = (py + 0.5 - oy) / ry;
+  if (dx * dx + dy * dy <= 1) return dy < -0.3 ? (dx < 0.2 ? 6 : 5) : dy > 0.45 ? 3 : 4;
+  if (dy > 0.7 && dy < 2 && Math.abs(dx) < 0.9) return 0;
+  return -1;
+}
+function rubblePixel(s, kind, px, py) {
+  const n = vn(V71, px / 7, py / 7) * 0.6 + vn(V72, px / 2.5, py / 2.5) * 0.4;
+  let i = 1 + Math.floor(n * 2.6);
+  const road = kind === '.' ? 0.45 : 1;
+  if (s === 'h') {
+    // Höhenlinien: leicht gewellte, waagrechte Absätze (heller Grat, dunkle Stufe darunter)
+    const c = py + (vn(V73, px / 16, py / 40) - 0.5) * 12 + vn(V74, px / 5, py / 9) * 2;
+    const b = ((c % 7) + 7) % 7;
+    if (b < 1) i = Math.max(0, i - 1); else if (b < 2) i = Math.min(5, i + 1);
+    const q = pebble(px, py, 0.22 * road, 75);
+    return PK_RUB[q >= 0 ? q : i];
+  }
+  const dense = s === 'r';
+  let q = pebble(px, py, (dense ? 0.75 : 0.32) * road, 76);
+  if (q < 0 && dense) q = pebble(px + 3, py + 2, 0.45 * road, 77);
+  if (q < 0 && hash2(px, py, 78) < 0.05) q = 4;
+  return PK_RUB[q >= 0 ? q : i];
+}
+const SLAG_GLINT = [70, 84, 110];
+// groundPixel(',' | '.') der Schlackenhöhen mit gemerkten Rauschzellen und vorab umgerechneten Farben (gleiches Ergebnis)
+const V15 = vm(15);
+let GP_G = null, GP_D = null;
+function gp(kind, px, py) {
+  if (!GP_G) { GP_G = GROUND_PEAKS.grass.map(hexRgb); GP_D = GROUND_PEAKS.dirt.map(hexRgb); }
+  const n = vn(V11, px / 9, py / 9) * 0.6 + vn(V12, px / 3, py / 3) * 0.4;
+  const h = hash2(px, py, 13);
+  if (kind === ',') {
+    let i = 1 + Math.floor(n * 3.2);
+    const blade = hash2(px, py >> 1, 14);
+    if (blade < 0.07) i = Math.min(5, i + 2);
+    else if (blade > 0.95) i = 0;
+    if (h < 0.015) return GP_D[2];
+    return GP_G[Math.max(0, Math.min(5, i))];
+  }
+  let i = 1 + Math.floor(n * 3);
+  if (h < 0.05) i = 4;
+  else if (h > 0.97) i = 0;
+  if (vn(V15, px / 20, py / 20) > 0.72) i = Math.max(0, i - 1);
+  return GP_D[Math.min(5, i)];
+}
 function peaksPixel(kind, px, py, level) {
   if (kind !== ',' && kind !== '.') return groundPixel(kind, px, py, GROUND_PEAKS);
-  const s = soilAt(level, px, py);
+  const S = level?.soil, s = S ? soilFast(S, px, py) : ' ';
+  if (kind === '.' && (s === 'u' || s === 'v' || s === 'r' || s === 'p' || s === 'h')) {
+    // Wege bleiben Wege: Erde, auf Geröll und Hängen mit vereinzelten Kieseln
+    if (s === 'u' || s === 'v') return gp(kind, px, py);
+    const q = pebble(px, py, s === 'r' ? 0.3 : 0.14, 79);
+    return q >= 0 ? PK_RUB[Math.min(6, q + 1)] : gp(kind, px, py);
+  }
+  if (s === 'r' || s === 'p' || s === 'h') return rubblePixel(s, kind, px, py);
   const R = PK_RGB[s];
-  if (!R) return groundPixel(kind, px, py, GROUND_PEAKS);
-  const n = vnoise(px / 9, py / 9, 11) * 0.6 + vnoise(px / 3, py / 3, 12) * 0.4, h = hash2(px, py, 13);
+  if (!R) return gp(kind, px, py);
+  const n = vn(V11, px / 9, py / 9) * 0.6 + vn(V12, px / 3, py / 3) * 0.4, h = hash2(px, py, 13);
   let i = 1 + Math.floor(n * 3.1) + (kind === '.' ? 1 : 0);
-  if (s === 'o') { if (h < 0.06) i = 5; else if (h > 0.94) i = 0; if (vnoise(px / 4, py / 14, 17) > 0.78) i = Math.min(5, i + 1); }
-  else if (s === 's') { if (h < 0.03) return [70, 84, 110]; if (vnoise(px / 5, py / 5, 18) > 0.7) i = Math.max(0, i - 1); }
-  else if (s === 'y') { if (h < 0.05) i = 5; if (Math.abs(vnoise(px / 6, py / 6, 19) - 0.5) < 0.03) i = 1; }
+  if (s === 'o') { if (h < 0.06) i = 5; else if (h > 0.94) i = 0; if (vn(V17, px / 4, py / 14) > 0.78) i = Math.min(5, i + 1); }
+  else if (s === 's') { if (h < 0.03) return SLAG_GLINT; if (vn(V18, px / 5, py / 5) > 0.7) i = Math.max(0, i - 1); }
+  else if (s === 'y') { if (h < 0.05) i = 5; if (Math.abs(vn(V19, px / 6, py / 6) - 0.5) < 0.03) i = 1; }
   else if (s === 'g') { if (h < 0.08) i = 5; else if (h > 0.92) i = 1; }
   return R[Math.max(0, Math.min(5, i))];
 }
@@ -47,6 +126,8 @@ export const GROUND_PEAKS = {
   cliffCap: ['#1b1b1e', '#232326', '#2c2b2e', '#363437', '#413d3e', '#4e4846'],
   tufts: false,
   pixel: peaksPixel,
+  paintCliffs,
+  paintMask,
 };
 const OBS = ['#06040a', '#0e0918', '#181028', '#261a3e', '#3a2a5c', '#6a58a0', '#c8bcf0'];
 const ASHG = ['#1a1819', '#262325', '#343032', '#454042', '#5a5456', '#746d6c'];
@@ -990,56 +1071,615 @@ function hiddenCache(open) {
   }, { ax: 13, box: [-9, -4, 9, 1] });
 }
 
-// ------------------------------------------------------------ Klippenwand aus Basaltsäulen (eine Kachel breit)
-// Deckt die beiden Wandreihen einer Klippe (32 px) und wirft 4 px Schatten auf den Boden davor.
-// Marke auf der unteren Wandkachel; Säulenköpfe sitzen bündig an der Oberkante, damit Nachbarn nahtlos passen.
-function basaltFace(v) {
-  const W = 16, H = 36, FH = 32;
-  const cols = [[5, 6, 5], [4, 6, 6], [6, 5, 5], [5, 5, 6], [3, 7, 6], [6, 6, 4], [4, 5, 7], [7, 5, 4]][v];
-  return mkFlat(W, H, (p, g) => {
-    let x0 = 0;
-    cols.forEach((cw, ci) => {
-      const cap = Math.floor(hash2(v, ci, 1001) * 4);              // Kopfhöhe 0–3 px versetzt
-      const lift = hash2(v, ci, 1009) < 0.3 ? 1 : hash2(v, ci, 1009) > 0.8 ? -1 : 0; // Säule tritt vor/zurück
-      const breaks = [9 + Math.floor(hash2(v, ci, 1002) * 6), 20 + Math.floor(hash2(v, ci, 1003) * 6)];
-      for (let x = x0; x < x0 + cw; x++) {
-        const rel = (x - x0) / Math.max(1, cw - 1);
-        for (let y = 0; y < FH; y++) {
-          let k;
-          if (y < cap) k = 3;                                       // Felskante über dem Kopf
-          else if (y === cap) k = rel < 0.5 ? 6 : 5;                // Kopf, Licht
-          else if (y === cap + 1) k = rel < 0.3 ? 5 : rel < 0.8 ? 4 : 3;
-          else {
-            k = rel < 0.2 ? 5 : rel < 0.45 ? 4 : rel < 0.75 ? 3 : 2;
-            if (x === x0 + cw - 1) k = 1;
-            if (breaks.includes(y)) k = 0; else if (breaks.includes(y - 1)) k = Math.min(6, k + 1);
-            if (y > FH - 5) k = Math.max(1, k - 1 - (y > FH - 3 ? 1 : 0));   // Fuß im Schatten
-            if (hash2(x, y, 1004 + v) < 0.07) k--;
-            k += lift;
-          }
-          p.px(x, y, BAS[clampI(k, 7)]);
-        }
-        if (x === x0) for (let y = cap + 2; y < FH - 3; y++) if (hash2(x, y, 1005) < 0.5) p.px(x, y, BAS[6]);
-        if (hash2(x, v, 1006) < 0.45) p.px(x, cap, ASHG[4]);         // Asche auf den Köpfen
+// ------------------------------------------------------------ Felswand (Runde 6): k Kacheln hoch, w Kacheln breit
+// Säulenbasalt mit unterschiedlich breiten Säulen, versetzten Köpfen, Querfugen, abgebrochenen Säulen,
+// bei hohen Wänden ein zurückgesetzter Absatz mit Asche; am Fuß Kiesel und Schlagschatten.
+// Marke auf der untersten Wandkachel (ganz links); Bild deckt die k Wandreihen und 10 px Boden davor.
+// slant 'L'/'R': Schrägstück für diagonale Kanten – die Oberkante steigt zur linken/rechten Nachbarwand
+// um eine Kachel an (Bild 16 px höher), die Säulenköpfe folgen der Schräge.
+// ------------------------------------------------------------ Gemalte Felsen (Runde 6b, level.paintedCliffs)
+// Statt Kachelklippen und Wand-Sprites malt das Biom seine Felsen chunkweise in den Boden (Outdoor ruft
+// pal.paintCliffs je Chunk): weicher Umriss (B-Spline der Felskacheln + Rauschen), 3/4-Felswand am Fuß jeder
+// Felsfläche mit unregelmäßiger Oberkante (Kuppen, Zacken, Abbrüche), Blöcke verschiedener Größe mit schrägen
+// Klüften, Rost und vereinzelten Glutadern. Felsmassen steigen in Stufen an (Höhenlinien aus dem Abstand zum
+// Boden), jede Stufe mit eigener kleiner Wand – so wirken Bergflanken breit und massig statt wie ein Rahmen.
+// Schlagschatten und Felsbrocken am Wandfuß, an Wandenden mehr und größere. Wandhöhe je Spalte aus dem
+// Höhenfeld (level.elev): Bergflanke hoch, Terrassenkante 1–3 Kacheln, Rückseite einer Stufe nur ein Saum.
+// Alles deterministisch aus Weltkoordinaten (Chunks fügen sich nahtlos).
+const RK = ['#121114', '#1c1a1e', '#27242a', '#332f34', '#403b3f', '#4e484b', '#605858', '#766c68', '#90847b'].map(hexRgb);
+const RKR = ['#160d0a', '#24150e', '#331d14', '#43271a', '#553220', '#683d26', '#7d4a2d', '#945935', '#ab683e'].map(hexRgb);
+const VEIN = [[52, 18, 10], [110, 36, 12], [176, 68, 22], [230, 126, 44]];
+const RELIEF = new WeakMap();
+const smooth = (a) => a * a * (3 - 2 * a);
+
+function reliefOf(map) {
+  let R = RELIEF.get(map);
+  if (R) return R;
+  const w = map.w, h = map.h, rows = map.rows, E = map.level.elev;
+  const rock = new Uint8Array(w * h), el = new Uint8Array(w * h), FH = new Float32Array(w * h), dist = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    rock[y * w + x] = rows[y][x] === '#' ? 1 : 0;
+    el[y * w + x] = E ? Math.max(0, E[y].charCodeAt(x) - 48) : 0;
+  }
+  // Wandhöhe je Felslauf (senkrecht zusammenhängende Felskacheln einer Spalte)
+  for (let x = 0; x < w; x++) {
+    let y = 0;
+    while (y < h) {
+      if (!rock[y * w + x]) { y++; continue; }
+      const ya = y;
+      while (y < h && rock[y * w + x]) y++;
+      const yb = y - 1, runT = yb - ya + 1;
+      let fh = 0;
+      if (yb < h - 1) {
+        const eR = el[yb * w + x], eF = el[(yb + 1) * w + x];
+        if (eR >= 9) fh = Math.min(runT * 16, 22 + Math.round(vnoise(x / 5, 0.5, 551) * 18));
+        else if (eR > eF) fh = Math.min(runT, 3) * 16;
+        else fh = 6;
       }
-      x0 += cw;
-      if (x0 < W) for (let y = cap; y < FH; y++) p.px(x0 - 1, y, BAS[0]); // Fuge
-    });
-    // Geröll am Fuß
-    for (let i = 0; i < 4; i++) {
-      const x = 1 + Math.floor(hash2(v, i, 1007) * 13), y = FH - 2 + Math.floor(hash2(v, i, 1008) * 2);
-      p.px(x, y, BAS[4]); p.px(x + 1, y, BAS[2]); p.px(x, y - 1, BAS[5]);
+      for (let yy = ya; yy <= yb; yy++) FH[yy * w + x] = fh;
     }
-    // Roststreifen aus erzhaltigen Lagen (Runde 2)
-    if (v === 1 || v === 4 || v === 6) {
-      const sx = 2 + ((v * 5) % 11), len = 10 + v * 2;
-      for (let y = 3; y < 3 + len; y++) { const fade = (y - 3) / len; if (hash2(sx, y, 1011) < 0.85 - fade * 0.5) p.px(sx, y, RUST[fade < 0.4 ? 4 : 3]); if (hash2(sx + 1, y, 1012) < 0.5 - fade * 0.4) p.px(sx + 1, y, RUST[2]); }
+  }
+  // Abstand zum begehbaren Boden (Kacheln, Chamfer 3-4), außerhalb der Karte wie Fels
+  for (let i = 0; i < w * h; i++) dist[i] = rock[i] ? 99 : 0;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x; if (!rock[i]) continue;
+      let d = dist[i], t;
+      if (x > 0) { t = dist[i - 1] + 1; if (t < d) d = t; }
+      if (y > 0) {
+        t = dist[i - w] + 1; if (t < d) d = t;
+        if (x > 0) { t = dist[i - w - 1] + 1.4; if (t < d) d = t; }
+        if (x < w - 1) { t = dist[i - w + 1] + 1.4; if (t < d) d = t; }
+      }
+      dist[i] = d;
     }
-    // Glutader (selten)
-    if (v === 7) { let x = 9; for (let y = 13; y < 21; y++) { x += hash2(y, 1, 1010) < 0.3 ? 1 : hash2(y, 1, 1010) > 0.8 ? -1 : 0; p.px(x, y, y % 4 === 0 ? EMB[3] : EMB[2]); g.px(x, y, y % 4 === 0 ? EMB[4] : EMB[3]); } }
-    // Schlagschatten auf dem Boden davor
-    for (let y = FH; y < H; y++) for (let x = 0; x < W; x++) if ((x + y) % 2 === 0 || y < FH + 2) p.px(x, y, `rgba(4,3,10,${0.5 - (y - FH) * 0.11})`);
-  }, { ax: 8, ay: 30 });
+    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+      const i = y * w + x; if (!rock[i]) continue;
+      let d = dist[i], t;
+      if (x < w - 1) { t = dist[i + 1] + 1; if (t < d) d = t; }
+      if (y < h - 1) {
+        t = dist[i + w] + 1; if (t < d) d = t;
+        if (x < w - 1) { t = dist[i + w + 1] + 1.4; if (t < d) d = t; }
+        if (x > 0) { t = dist[i + w - 1] + 1.4; if (t < d) d = t; }
+      }
+      dist[i] = d;
+    }
+  }
+  for (let i = 0; i < w * h; i++) dist[i] = Math.min(14, dist[i]);
+  const RP = new Float32Array((w + 4) * (h + 4)).fill(1);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) RP[(y + 2) * (w + 4) + x + 2] = rock[y * w + x];
+  // Gleichförmige 4×4-Umgebungen (B-Spline-Zelle) vorab: 0/1 = überall gleich, 2 = gemischt (Summen über Präfixsummen)
+  const PS = w + 5, P = new Int32Array(PS * (h + 5));
+  for (let y = 0; y < h + 4; y++) for (let x = 0; x < w + 4; x++) P[(y + 1) * PS + x + 1] = RP[y * (w + 4) + x] + P[y * PS + x + 1] + P[(y + 1) * PS + x] - P[y * PS + x];
+  const U = new Uint8Array((w + 1) * (h + 1));
+  for (let ty = -1; ty < h; ty++) for (let tx = -1; tx < w; tx++) {
+    const x0 = tx + 1, y0 = ty + 1;                       // Fenster tx−1 … tx+2 im gepolsterten Raster ab Spalte tx+1
+    const sum = P[(y0 + 4) * PS + x0 + 4] - P[y0 * PS + x0 + 4] - P[(y0 + 4) * PS + x0] + P[y0 * PS + x0];
+    U[(ty + 1) * (w + 1) + tx + 1] = sum === 0 ? 0 : sum === 16 ? 1 : 2;
+  }
+  const DP = new Float32Array((w + 2) * (h + 2));
+  for (let y = -1; y <= h; y++) for (let x = -1; x <= w; x++) DP[(y + 1) * (w + 2) + x + 1] = dist[Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))];
+  R = { w, h, rock, el, FH, dist, U, RP, DP };
+  RELIEF.set(map, R);
+  return R;
+}
+
+// Oberkante einer Wand: weiche Kuppen, einzelne Zacken verschiedener Höhe, Abbrüche (px nach oben positiv)
+function topBump(px, s) {
+  let b = (vnoise(px / 10, s * 3.7, 511) - 0.5) * 5 + (vnoise(px / 3.5, s * 1.3, 512) - 0.5) * 1.6;
+  const c = Math.floor(px / 15);
+  for (let k = c - 1; k <= c + 1; k++) {
+    const r = hash2(k, s, 513), cx = k * 15 + hash2(k, s, 514) * 15, d = Math.abs(px + 0.5 - cx);
+    if (r < 0.1) { const hh = 3 + hash2(k, s, 515) * 5, ww = 1.5 + hash2(k, s, 516) * 2; if (d < ww) b = Math.max(b, hh * (1 - d / ww)); }
+    else if (r < 0.24) { const dd = 2 + hash2(k, s, 517) * 4, ww = 2 + hash2(k, s, 518) * 4; if (d < ww) b = Math.min(b, -dd * Math.min(1, (ww - d) / 1.5)); }
+    else if (r < 0.55) { const hh = 1.5 + hash2(k, s, 519) * 3, ww = 4 + hash2(k, s, 520) * 6; if (d < ww) b = Math.max(b, hh * Math.sqrt(1 - (d / ww) ** 2) - 0.5); }
+  }
+  return b;
+}
+
+// Kachelbare Zelltexturen (einmal je Sitzung): Wandfacetten (Zellen 7 und 14 px, senkrecht 0,85 gestaucht,
+// Periode 280 × 280 px) und Kuppenbuckel (22 × 15 px, Periode 264 × 270 px). Zellpunkte wiederholen sich mit der
+// Periode, also nahtlos. Je Pixel nur noch ein Nachschlag statt neun Zellabständen.
+//   Wand: FA = Grundton + Facettenneigung, FB = Bit 1 offene Fuge, Bit 2 heller Oberrand
+//   Kuppe: TB = Bit 1 Riss, Bit 2 Mulde
+const FPER = 280, TPX = 264, TPY = 270;
+let FTEX = null, TTEX = null;
+// Zellrauschen auf einem Torus: Zellen cw × chh (dy mit q gestreckt), NX × NY Zellen je Periode. Liefert je Texel
+// Zellnummer, d2 − d1 und den Abstand zum Zellpunkt (x, y); Zeilen in Scheiben (yield).
+function* torusCells(PX, PY, cw, chh, NX, NY, sy, q, seed, out) {
+  const HX = new Float64Array(NX * NY), HY = new Float64Array(NX * NY);
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { HX[j * NX + i] = 0.15 + hash2(i, j, seed) * 0.7; HY[j * NX + i] = 0.15 + hash2(i, j, seed + 1) * 0.7; }
+  out.BK = new Int32Array(PX * PY); out.E = new Float32Array(PX * PY); out.BX = new Float32Array(PX * PY); out.BY = new Float32Array(PX * PY);
+  const WX = new Int32Array(NX + 2);                       // Zellspalte cx (−1 … NX) -> Spalte auf dem Torus
+  for (let cx = -1; cx <= NX; cx++) WX[cx + 1] = (cx + NX) % NX;
+  for (let ty = 0; ty < PY; ty += 8) { torusRows(PX, cw, chh, NX, NY, sy, q, HX, HY, WX, out, ty, Math.min(PY, ty + 8)); yield; }
+}
+function torusRows(PX, cw, chh, NX, NY, sy, q, HX, HY, WX, out, ty0, ty1) {
+  const BK = out.BK, E = out.E, BX = out.BX, BY = out.BY;
+  for (let ty = ty0; ty < ty1; ty++) {
+    const v = ty * sy, gy = Math.floor(v / chh), k0 = ty * PX;
+    for (let tx = 0; tx < PX; tx++) {
+      const gx = Math.floor(tx / cw);
+      let d1 = 1e9, d2 = 1e9, bk = 0, bx = 0, by = 0;
+      for (let cy = gy - 1; cy <= gy + 1; cy++) {
+        const row = ((cy + NY) % NY) * NX;
+        for (let cx = gx - 1; cx <= gx + 1; cx++) {
+          const wk = row + WX[cx + 1];
+          const dx = tx - (cx + HX[wk]) * cw, ey = v - (cy + HY[wk]) * chh, dy = ey * q, d = dx * dx + dy * dy;
+          if (d < d1) { d2 = d1; d1 = d; bk = wk; bx = dx; by = ey; } else if (d < d2) d2 = d;
+        }
+      }
+      const k = k0 + tx;
+      BK[k] = bk; E[k] = Math.sqrt(d2) - Math.sqrt(d1); BX[k] = bx; BY[k] = by;
+    }
+  }
+}
+function facetPass(c, S, BA, CO, SI, J, A, B, k0, k1) {
+  const BK = c.BK, BX = c.BX, BY = c.BY, E = c.E;
+  for (let k = k0; k < k1; k++) {
+    const id = BK[k], rx = BX[k] / S, ry = BY[k] / S, e = E[k];
+    A[k] = BA[id] + Math.round((rx * CO[id] + ry * SI[id]) * 1.2 - ry * 0.8);
+    B[k] = (e < 0.9 && J[id] ? 1 : 0) | (e < 2.2 && ry < -0.2 ? 2 : 0);
+  }
+}
+function bumpPass(c, RI, T, k0, k1) {
+  const BK = c.BK, BY = c.BY, E = c.E;
+  for (let k = k0; k < k1; k++) { const e = E[k]; T[k] = (e < 1 && RI[BK[k]] ? 1 : 0) | (e < 2.5 && BY[k] > 0 ? 2 : 0); }
+}
+function* buildTex() {
+  const F = [], N = FPER * FPER;
+  for (const [S, seed] of [[7, 533], [14, 534]]) {
+    const NX = FPER / S, NY = Math.round(FPER * 0.85 / S), c = { BK: null, E: null, BX: null, BY: null };
+    yield* torusCells(FPER, FPER, S, S, NX, NY, 0.85, 1, seed, c);
+    // Facettenwerte je Zelle: Ton, Neigung, offene Fuge
+    const n = NX * NY, BA = new Int8Array(n), CO = new Float64Array(n), SI = new Float64Array(n), J = new Uint8Array(n);
+    for (let id = 0; id < n; id++) {
+      const hv = hash2(id, 1, 535), ang = hash2(id, 2, 536) * 6.283;
+      BA[id] = 4 + (hv < 0.22 ? -1 : hv < 0.36 ? -2 : hv > 0.82 ? 1 : 0); CO[id] = Math.cos(ang); SI[id] = Math.sin(ang); J[id] = hash2(id, 3, 538) < 0.55 ? 1 : 0;
+    }
+    const A = new Int8Array(N), B = new Uint8Array(N);
+    for (let k = 0; k < N; k += 8192) { facetPass(c, S, BA, CO, SI, J, A, B, k, Math.min(N, k + 8192)); yield; }
+    F.push({ A, B });
+  }
+  const NX = TPX / 22, NY = TPY / 15, c = { BK: null, E: null, BX: null, BY: null }, NT2 = TPX * TPY, T = new Uint8Array(NT2), RI = new Uint8Array(NX * NY);
+  yield* torusCells(TPX, TPY, 22, 15, NX, NY, 1, 22 / 15, 553, c);
+  for (let id = 0; id < NX * NY; id++) RI[id] = hash2(id, 3, 554) < 0.22 ? 1 : 0;
+  for (let k = 0; k < NT2; k += 8192) { bumpPass(c, RI, T, k, Math.min(NT2, k + 8192)); yield; }
+  FTEX = F; TTEX = T;
+}
+// Schräge Klüfte in Zellen 20×16 (je Chunk vorab): Abstand (mit Vorzeichen) zur nächsten Kluft; 99 = keine
+function cleftTable(x0, y0, x1, y1, seed) {
+  const gx0 = Math.floor(x0 / 20) - 1, gy0 = Math.floor(y0 / 16) - 1, nx = Math.floor(x1 / 20) + 3 - gx0, ny = Math.floor(y1 / 16) + 3 - gy0;
+  const P = new Float32Array(nx * ny * 6).fill(NaN);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const cx = gx0 + i, cy = gy0 + j;
+    if (hash2(cx, cy, seed) > 0.32) continue;
+    const a = (hash2(cx, cy, seed + 3) < 0.5 ? -1 : 1) * (0.25 + hash2(cx, cy, seed + 4) * 0.75), o = (j * nx + i) * 6;
+    P[o] = (cx + hash2(cx, cy, seed + 1)) * 20; P[o + 1] = (cy + hash2(cx, cy, seed + 2)) * 16;
+    P[o + 2] = Math.sin(a); P[o + 3] = Math.cos(a); P[o + 4] = 4 + hash2(cx, cy, seed + 5) * 13; P[o + 5] = cx;
+  }
+  return { gx0, gy0, nx, P };
+}
+// Nur |Abstand| < 1,4 wirkt (Kluft oder heller Rand); weiter entfernte Klüfte zählen wie keine (99).
+function cleft(T, px, py) {
+  const gx = Math.floor(px / 20), gy = Math.floor(py / 16), P = T.P;
+  let best = 99, ab = 1.4;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const o = ((gy + j - T.gy0) * T.nx + gx + i - T.gx0) * 6;
+    if (P[o] !== P[o]) continue;
+    const dx = P[o + 2], dy = P[o + 3], rx = px + 0.5 - P[o], ry = py + 0.5 - P[o + 1], t = rx * dx + ry * dy;
+    if (t < 0 || t > P[o + 4]) continue;
+    const pr = rx * dy - ry * dx;
+    if (Math.abs(pr) - 0.5 >= ab) continue;                       // kann nicht näher liegen
+    const n = pr + Math.sin(t * 0.9 + P[o + 5]) * 0.5, an = Math.abs(n);
+    if (an < ab) { best = n; ab = an; }
+  }
+  return best;
+}
+
+// Glutadern in seltenen Zellen 48×36 (je Chunk vorab); vein(): 0 keine, 1 Saum, 2 Ader, 3 hell
+function veinTable(x0, y0, x1, y1) {
+  const gx0 = Math.floor(x0 / 48) - 1, gy0 = Math.floor(y0 / 36) - 1, nx = Math.floor(x1 / 48) + 3 - gx0, ny = Math.floor(y1 / 36) + 3 - gy0;
+  const list = [];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const cx = gx0 + i, cy = gy0 + j;
+    if (hash2(cx, cy, 561) > 0.16) continue;
+    list.push((cx + hash2(cx, cy, 562)) * 48, (cy + hash2(cx, cy, 563)) * 36, 8 + hash2(cx, cy, 564) * 16, (hash2(cx, cy, 565) - 0.5) * 0.9, cx);
+  }
+  return Float64Array.from(list);
+}
+// Adern einer Zeile vorab auswählen (nur |py - vy| <= 16 kann wirken), Ergebnis in act (Länge zurück)
+function veinRow(V, py, act) {
+  let n = 0;
+  for (let o = 0; o < V.length; o += 5) if (!(Math.abs(py - V[o + 1]) > 16)) act[n++] = o;
+  return n;
+}
+function veinAt(V, act, na, px, py) {
+  for (let j = 0; j < na; j++) {
+    const o = act[j], vx = V[o], vy = V[o + 1], len = V[o + 2], sl = V[o + 3], cx = V[o + 4];
+    if (Math.abs(px - vx) > len / 2) continue;
+    const yl = vy + (px - vx) * sl + Math.sin(px / 4.5 + cx) * 1.4;
+    const d = Math.abs(py + 0.5 - yl);
+    if (d < 0.6) return hash2(px, py, 566) < 0.18 ? 3 : 2;
+    if (d < 1.6) return 1;
+  }
+  return 0;
+}
+
+// Wertrauschen wie vnoise(px / fx, py / fy, seed), Gitterwerte je Chunk vorab (4 Hashes je Pixel gespart)
+function noiseTable(x0, y0, x1, y1, fx, fy, seed) {
+  const ix0 = Math.floor(x0 / fx) - 1, iy0 = Math.floor(y0 / fy) - 1, nx = Math.floor(x1 / fx) + 3 - ix0, ny = Math.floor(y1 / fy) + 3 - iy0;
+  const v = new Float64Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) v[j * nx + i] = hash2(ix0 + i, iy0 + j, seed);
+  return { ix0, iy0, nx, fx, fy, v };
+}
+// Spalten-/Zeilentabellen für ein festes Pixelfenster: je Pixel nur noch Nachschlagen (gleiches Ergebnis wie nz)
+function nzPrep(N, X0, X1, Y0, Y1) {
+  const nc = X1 - X0, nr = Y1 - Y0;
+  N.ck = new Int32Array(nc); N.cs = new Float64Array(nc); N.rk = new Int32Array(nr); N.rs = new Float64Array(nr); N.PX0 = X0; N.PY0 = Y0;
+  for (let c = 0; c < nc; c++) { const x = (X0 + c) / N.fx, xi = Math.floor(x), ax = x - xi; N.ck[c] = xi - N.ix0; N.cs[c] = ax * ax * (3 - 2 * ax); }
+  for (let r = 0; r < nr; r++) { const y = (Y0 + r) / N.fy, yi = Math.floor(y), ay = y - yi; N.rk[r] = (yi - N.iy0) * N.nx; N.rs[r] = ay * ay * (3 - 2 * ay); }
+  return N;
+}
+function nzc(N, c, r) {
+  const sx = N.cs[c], sy = N.rs[r], k = N.rk[r] + N.ck[c], V = N.v, n = N.nx;
+  const a = V[k], b = V[k + 1], cc = V[k + n], d = V[k + n + 1];
+  return a + (b - a) * sx + (cc - a) * sy + (a - b - cc + d) * sx * sy;
+}
+
+const TIER = 2.6;   // Kacheln Abstand je Felsstufe
+// Felsmaske/Felsstufe für ein Rechteck sicherstellen (Blöcke 64×64, je Karte einmal)
+function maskEnsure(R, X0, X1, Y0, Y1) {
+  const PW = R.w * 16, PH = R.h * 16, BS = 64, BW = Math.ceil(PW / BS);
+  if (!R.MA) { R.MA = new Uint8Array(PW * PH); R.TA = new Uint8Array(PW * PH); R.BD = new Uint8Array(BW * Math.ceil(PH / BS)); }
+  const BD = R.BD;
+  for (let by = Math.floor(Y0 / BS); by * BS < Y1; by++) for (let bx = Math.floor(X0 / BS); bx * BS < X1; bx++) {
+    if (BD[by * BW + bx]) continue;
+    BD[by * BW + bx] = 1;
+    maskBlock(R, bx * BS, Math.min(PW, bx * BS + BS), by * BS, Math.min(PH, by * BS + BS));
+  }
+}
+// Für Outdoor (pal.paintMask): 1 = Pixel liegt im Fels und wird vom Maler übermalt, Boden muss nicht gerechnet werden
+function paintMask(x0, y0, cw, ch, map) {
+  if (!map.level.elev) return null;
+  const R = reliefOf(map), PW = R.w * 16, w = R.w, h = R.h;
+  let any = false;                                            // keine Felskachel im Chunk: nichts zu sparen
+  for (let ty = Math.max(0, (y0 >> 4) - 1); ty <= Math.min(h - 1, ((y0 + ch - 1) >> 4) + 1) && !any; ty++) for (let tx = Math.max(0, (x0 >> 4) - 1); tx <= Math.min(w - 1, ((x0 + cw - 1) >> 4) + 1); tx++) if (R.rock[ty * w + tx]) { any = true; break; }
+  if (!any) return null;
+  maskEnsure(R, x0, x0 + cw, y0, y0 + ch);
+  const out = new Uint8Array(cw * ch), MA = R.MA;
+  for (let y = 0; y < ch; y++) out.set(MA.subarray((y0 + y) * PW + x0, (y0 + y) * PW + x0 + cw), y * cw);
+  return out;
+}
+// Hilfen des Felsmalers als feste Funktionen: Closures je Aufruf wären bei jedem Chunk neue Aufrufziele, und V8
+// verwirft dann den optimierten Code des Malers ("wrong call target") und muss neu übersetzen
+function ntab(X0, X1, Y0, Y1, fx, fy, seed) { return nzPrep(noiseTable(X0, Y0 - 8, X1, Y1, fx, fy, seed), X0, X1, Y0 - 8, Y1); }
+function inMg(G, px, py) { return (px < G.X0 || px >= G.X1 || py < G.Y0 || py >= G.Y1) ? (px < 0 || py < 0 || px >= G.PW || py >= G.PH ? 1 : 0) : G.M[(py - G.Y0) * G.RW + px - G.X0]; }
+function lowg(G, x, y, tr) { return !inMg(G, x, y) || ((x < G.X0 || x >= G.X1 || y < G.Y0 || y >= G.Y1) ? 0 : G.TI[(y - G.Y0) * G.RW + x - G.X0]) < tr; }
+function clsg(G, px, py) { return (px < G.X0 || px >= G.X1 || py < G.Y0 || py >= G.Y1) ? 0 : G.C[(py - G.Y0) * G.RW + px - G.X0]; }
+function darkd(d, i, k) { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.85; }
+function nearFH(R, x, ty) {
+  const w = R.w, h = R.h, rock = R.rock, FH = R.FH;
+  if (x < 0 || x >= w) return -1;
+  if (ty >= 0 && ty < h && rock[ty * w + x]) return FH[ty * w + x];
+  if (ty - 1 >= 0 && ty - 1 < h && rock[(ty - 1) * w + x]) return FH[(ty - 1) * w + x];
+  if (ty + 1 >= 0 && ty + 1 < h && rock[(ty + 1) * w + x]) return FH[(ty + 1) * w + x];
+  return -1;
+}
+function fhAtR(R, px, foot) {
+  const w = R.w, h = R.h;
+  const ty = Math.max(0, Math.min(h - 1, (foot - 5) >> 4));
+  const fx = px / 16 - 0.5, tx = Math.floor(fx), a = smooth(fx - tx);
+  const v0 = nearFH(R, tx, ty), v1 = nearFH(R, tx + 1, ty);
+  const v = v0 >= 0 && v1 >= 0 ? v0 * (1 - a) + v1 * a : v0 >= 0 ? v0 : v1 >= 0 ? v1 : 16;
+  if (v <= 0) return 0;
+  const s = R.el[ty * w + Math.max(0, Math.min(w - 1, px >> 4))];
+  return Math.max(3, Math.round(v + topBump(px, s) * Math.max(0.3, Math.min(1, v / 24))));
+}
+function hasFootB(byCol, feet, px, y) {
+  const a = byCol.get(px);
+  if (a) for (let j = 0; j < a.length; j++) if (Math.abs(feet[a[j] + 1] - y) < 14) return true;
+  return false;
+}
+// Felsmaske (B-Spline der Felskacheln + Rauschen) und Felsstufe für das Rechteck [X0,X1)×[Y0,Y1) in R.MA/R.TA
+function maskBlock(R, X0, X1, Y0, Y1) {
+  const { w, h, U, RP, DP } = R;
+  const YW = new Float32Array(4), RW = X1 - X0, PW = w * 16, MA = R.MA, TA = R.TA;
+  const N501 = ntab(X0, X1, Y0, Y1, 12, 10, 501), N502 = ntab(X0, X1, Y0, Y1, 4.5, 4.5, 502), N503 = ntab(X0, X1, Y0, Y1, 15, 11, 503);
+  // B-Spline-Gewichte je Spalte (einmal je Chunk statt je Pixel)
+  const CT = new Int32Array(RW), CA = new Float64Array(RW), CW = new Float64Array(RW * 4), CQ = new Int32Array(RW);
+  for (let c = 0; c < RW; c++) {
+    const fx = (X0 + c) / 16 - 0.5, tx = Math.floor(fx), a = fx - tx, a2 = a * a, a3 = a2 * a;
+    CT[c] = tx; CA[c] = a; CQ[c] = Math.max(-1, Math.min(w - 1, tx)) + 1;
+    CW[c * 4] = (1 - a) ** 3 / 6; CW[c * 4 + 1] = (3 * a3 - 6 * a2 + 4) / 6; CW[c * 4 + 2] = (-3 * a3 + 3 * a2 + 3 * a + 1) / 6; CW[c * 4 + 3] = a3 / 6;
+  }
+  const RS = w + 4;
+  // waagrechte Spline-Summen je Kachelzeile und Spalte (einmal je Chunk), je Pixel nur noch 4 Zeilen gewichten
+  const HR0 = Math.floor(Y0 / 16 - 0.5) - 1, HRN = Math.floor((Y1 - 1) / 16 - 0.5) + 3 - HR0, HS = new Float64Array(HRN * RW);
+  for (let j = 0; j < HRN; j++) {
+    const rr = (HR0 + j + 2) * RS + 1;
+    for (let c = 0; c < RW; c++) { const r = rr + CT[c], o = c * 4; HS[j * RW + c] = CW[o] * RP[r] + CW[o + 1] * RP[r + 1] + CW[o + 2] * RP[r + 2] + CW[o + 3] * RP[r + 3]; }
+  }
+  // Felsstufe je Zelle (zwischen vier Kachelmitten): liegt die ganze Zelle sicher in einer Stufe, gilt sie für
+  // jedes Pixel der Zelle (die Bilinearform bleibt zwischen kleinstem und größtem Eckwert); -1 = je Pixel rechnen
+  const TX0 = CT[0], TXN = CT[RW - 1] - TX0 + 1, TY0 = Math.floor(Y0 / 16 - 0.5), TYN = Math.floor((Y1 - 1) / 16 - 0.5) - TY0 + 1;
+  const CTI = new Int16Array(TXN * TYN);
+  for (let j = 0; j < TYN; j++) {
+    const ty = TY0 + j, qr = (Math.max(-1, Math.min(h - 1, ty)) + 1) * (w + 2);
+    for (let i = 0; i < TXN; i++) {
+      const q = qr + Math.max(-1, Math.min(w - 1, TX0 + i)) + 1, a = DP[q], b = DP[q + 1], c = DP[q + w + 2], d = DP[q + w + 3];
+      const mn = Math.min(a, b, c, d) - 1e-9, mx = Math.max(a, b, c, d) + 1e-9;
+      let v = -1;
+      if (mx <= 3) v = 0;
+      else if (mn > 3) { const lo = Math.floor((mn - 2.1) / TIER), hi = Math.floor((mx - 0.3) / TIER); if (lo === hi) v = lo; }
+      CTI[j * TXN + i] = v;
+    }
+  }
+  for (let py = Y0; py < Y1; py++) {
+    const fy = py / 16 - 0.5, ty = Math.floor(fy), ay = fy - ty, urow = (ty + 1) * (w + 1) + 1, r8 = py - Y0 + 8, crow = (ty - TY0) * TXN - TX0;
+    { const b2 = ay * ay, b3 = b2 * ay; YW[0] = (1 - ay) ** 3 / 6; YW[1] = (3 * b3 - 6 * b2 + 4) / 6; YW[2] = (-3 * b3 + 3 * b2 + 3 * ay + 1) / 6; YW[3] = b3 / 6; }
+    const r0 = (ty + 1) * RS + 1, qrow = (Math.max(-1, Math.min(h - 1, ty)) + 1) * (w + 2), ri0 = py * PW + X0;
+    for (let c = 0; c < RW; c++) {
+      const tx = CT[c];
+      let m = U[urow + tx];
+      if (m === 2) {
+        const r1 = r0 + RS + tx;
+        if (RP[r1 + 1] && RP[r1 + 2] && RP[r1 + RS + 1] && RP[r1 + RS + 2]) m = 1;   // zwischen vier Felskacheln: immer Fels
+        else {
+          // kubischer B-Spline der Felskacheln (gepolstertes Raster)
+          const h0 = (ty - 1 - HR0) * RW + c;
+          let f = 0;
+          f += YW[0] * HS[h0]; f += YW[1] * HS[h0 + RW]; f += YW[2] * HS[h0 + 2 * RW]; f += YW[3] * HS[h0 + 3 * RW];
+          const n = (nzc(N501, c, r8) - 0.5) * 0.36 + (nzc(N502, c, r8) - 0.5) * 0.16;
+          m = f + n > 0.46 ? 1 : 0;
+        }
+      }
+      const ri = ri0 + c;
+      MA[ri] = m;
+      if (m) {
+        const ct = CTI[crow + tx];
+        if (ct >= 0) { if (ct) TA[ri] = ct; continue; }
+        const ax = CA[c];
+        const q = qrow + CQ[c];
+        const hb = (DP[q] * (1 - ax) + DP[q + 1] * ax) * (1 - ay) + (DP[q + w + 2] * (1 - ax) + DP[q + w + 3] * ax) * ay;
+        if (hb > 3) {
+          const lo = Math.floor((hb - 2.1) / TIER), hi = Math.floor((hb - 0.3) / TIER);
+          TA[ri] = lo === hi ? lo : Math.max(0, Math.floor((hb + (nzc(N503, c, r8) - 0.5) * 1.8 - 1.2) / TIER));
+        }
+      }
+    }
+  }
+}
+
+function* paintCliffs(ctx, x0, y0, cw, ch, map) {
+  const R = reliefOf(map), { w, h, rock, el, FH, dist, U, RP, DP } = R;
+  const PW = w * 16, PH = h * 16;
+  const X0 = Math.max(0, x0 - 10), X1 = Math.min(PW, x0 + cw + 10), Y0 = Math.max(0, y0 - 16), Y1 = Math.min(PH, y0 + ch + 66);
+  const RW = X1 - X0, RH = Y1 - Y0;
+  // schneller Ausstieg: keine Felskachel in der Umgebung
+  let any = false;
+  for (let ty = Math.max(0, (Y0 >> 4) - 1); ty <= Math.min(h - 1, ((Y1 - 1) >> 4) + 1) && !any; ty++) for (let tx = Math.max(0, (X0 >> 4) - 1); tx <= Math.min(w - 1, ((X1 - 1) >> 4) + 1); tx++) if (rock[ty * w + tx]) { any = true; break; }
+  if (!any) return;
+  // 1) Felsmaske und Felsstufe je Pixel: einmal je Karte in Blöcken 64×64 (Chunkränder und Neubauten kosten nichts)
+  maskEnsure(R, X0, X1, Y0, Y1);
+  yield;
+  const MA = R.MA, TA = R.TA;
+  const M = new Uint8Array(RW * RH), TI = new Uint8Array(RW * RH);
+  for (let py = Y0; py < Y1; py++) { const o = py * PW; M.set(MA.subarray(o + X0, o + X1), (py - Y0) * RW); TI.set(TA.subarray(o + X0, o + X1), (py - Y0) * RW); }
+  // 2) Spalten von unten: Wand (1) bis zur Wandhöhe über dem Fuß, darüber Felskuppe (2). Steigt die Felsstufe,
+  //    beginnt dort eine neue, niedrigere Wand. Wände dürfen als Zacke etwas über die Maske ragen.
+  const C = new Uint8Array(RW * RH), T = new Int16Array(RW * RH), F = new Int16Array(RW * RH);
+  const feet = [];                                   // [px, Fuß-y, Wandhöhe]
+  const G = { X0, X1, Y0, Y1, PW, PH, RW, M, TI, C };
+
+  for (let px = X0; px < X1; px++) {
+    const col = px - X0;
+    let py = Y1 - 1;
+    while (py >= Y0) {
+      if (!M[(py - Y0) * RW + col]) { py--; continue; }
+      const rb = py;
+      let ra = py;
+      while (ra - 1 >= Y0 && M[(ra - 1 - Y0) * RW + col]) ra--;
+      let foot = rb, fh = rb >= PH - 1 || rb === Y1 - 1 ? 0 : fhAtR(R, px, rb), tier = TI[(rb - Y0) * RW + col];
+      if (fh > rb - ra + 1 + 8 && ra > Y0) fh = rb - ra + 1;          // dünner Ausläufer der Maske: keine hohe Zacke
+      if (fh > 0) feet.push(px, rb, fh);
+      for (let q = rb; q >= ra; q--) {
+        const i = (q - Y0) * RW + col, tq = TI[i];
+        if (foot - q >= fh && tq > tier) {                       // höhere Felsstufe: neue Wand
+          foot = q; tier = tq;
+          fh = Math.max(6, Math.round(12 + vnoise(px / 9, tq * 5.3, 521) * 10 + topBump(px, 20 + tq) * 0.8));
+        } else if (tq > tier && foot - q < fh) tier = tq;
+        const t = foot - q;
+        C[i] = t < fh ? 1 : 2; T[i] = t; F[i] = fh;
+      }
+      let q = ra - 1;
+      while (q >= Y0 && foot - q < fh && !M[(q - Y0) * RW + col]) { const i = (q - Y0) * RW + col; C[i] = 1; T[i] = foot - q; F[i] = fh; q--; }
+      py = q;
+    }
+  }
+  yield;
+  // 4a) Felsbrocken am Wandfuß vorab auswählen (mehr unter hohen Wänden und an Wandenden, wo die Wand ausläuft)
+  const byCol = new Map();
+  for (let k = 0; k < feet.length; k += 3) { const a = byCol.get(feet[k]); if (a) a.push(k); else byCol.set(feet[k], [k]); }
+  const BL = [];                                     // [bx, by, rx, ry]
+  for (let cx = Math.floor(X0 / 9); cx <= Math.floor((X1 - 1) / 9); cx++) {
+    const bx = Math.floor(cx * 9 + hash2(cx, 0, 581) * 9);
+    for (const k of byCol.get(bx) ?? []) {
+      const fy = feet[k + 1], fh = feet[k + 2];
+      if (fh < 8) continue;
+      const end = !hasFootB(byCol, feet, bx - 12, fy) || !hasFootB(byCol, feet, bx + 12, fy);
+      const r0 = hash2(cx, fy, 582);
+      if (r0 > (end ? 0.95 : 0.25 + fh / 130)) continue;
+      const big = end ? r0 < 0.6 : r0 < 0.1;
+      const rx = big ? 3.5 + hash2(cx, fy, 583) * 3 : 1.6 + hash2(cx, fy, 584) * 1.8, ry = rx * (0.62 + hash2(cx, fy, 585) * 0.2);
+      BL.push(bx, fy + 1 + (big ? 0 : hash2(cx, fy, 586) * 3), rx, ry);
+    }
+  }
+  // Begrenzungsrechteck der Pixel, die der Maler im Chunk ändert: Fels (C), Schlagschatten bis 9 px darunter,
+  // Seitenschatten bis 3 px rechts, Brocken. Nur dieses Rechteck wird gelesen, gefärbt und zurückgeschrieben.
+  let bx0 = x0 + cw, bx1 = x0 - 1, by0 = y0 + ch, by1 = y0 - 1;
+  for (let py = Y0; py < y0 + ch; py++) {
+    const r = (py - Y0) * RW;
+    for (let px = Math.max(X0, x0 - 3); px < x0 + cw; px++) if (C[r + px - X0]) {
+      if (px < bx0) bx0 = px; if (px + 3 > bx1) bx1 = px + 3; if (py < by0) by0 = py; if (py + 9 > by1) by1 = py + 9;
+    }
+  }
+  for (let k = 0; k < BL.length; k += 4) {
+    const bx = BL[k], by = BL[k + 1], rx = BL[k + 2], ry = BL[k + 3];
+    const ya = Math.floor(by - ry - 1), yb = Math.ceil(by + ry + 2), xa = Math.floor(bx - rx - 1), xb = Math.ceil(bx + rx + 1);
+    if (yb < y0 || ya >= y0 + ch || xb < x0 || xa >= x0 + cw) continue;
+    if (xa < bx0) bx0 = xa; if (xb > bx1) bx1 = xb; if (ya < by0) by0 = ya; if (yb > by1) by1 = yb;
+  }
+  bx0 = Math.max(x0, bx0); by0 = Math.max(y0, by0); bx1 = Math.min(x0 + cw - 1, bx1); by1 = Math.min(y0 + ch - 1, by1);
+  if (bx1 < bx0 || by1 < by0) return;
+  const BW = bx1 - bx0 + 1, BH = by1 - by0 + 1;
+  // 3) Färben
+  if (!FTEX) yield* buildTex();
+  const [F7, F14] = FTEX;
+  const CL = cleftTable(X0, Y0, X1, Y1, 541), VN = veinTable(X0, Y0, X1, Y1);
+  const N532 = ntab(X0, X1, Y0, Y1, 24, 20, 532), N537 = ntab(X0, X1, Y0, Y1, 20, 15, 537), N545 = ntab(X0, X1, Y0, Y1, 5, 4, 545), N545b = ntab(X0, X1, Y0, Y1, 6, 5, 545), N546 = ntab(X0, X1, Y0, Y1, 1.6, 20, 546);
+  const N551 = ntab(X0, X1, Y0, Y1, 14, 10, 551), N552 = ntab(X0, X1, Y0, Y1, 4, 4, 552), N556 = ntab(X0, X1, Y0, Y1, 13, 10, 556);
+  const img = ctx.getImageData(bx0 - x0, by0 - y0, BW, BH), d = img.data;
+  // Abstand (px) zum nächsten Fels darüber je Bodenpixel (für den Schlagschatten), spaltenweise
+  const SH = new Uint8Array(cw * ch), SN = new Uint8Array(cw).fill(99);    // zeilenweise, je Spalte ein Zähler
+  for (let py = Y0, cA = bx0 - x0, cB = bx1 - x0; py <= by1; py++) {
+    const r = (py - Y0) * RW + x0 - X0, o = (py - y0) * cw;
+    for (let c = cA; c <= cB; c++) {
+      let since = SN[c];
+      if (C[r + c]) since = 0; else if (since < 99) since++;
+      SN[c] = since;
+      if (py >= y0) SH[o + c] = since;
+    }
+  }
+  // Rauschwerte inline (je Chunk Tabellen, je Zeile Zeilenanteil): spart je Felspixel bis zu acht Aufrufe
+  const V532 = N532.v, W532 = N532.nx, K532 = N532.ck, X532 = N532.cs;
+  const V537 = N537.v, W537 = N537.nx, K537 = N537.ck, X537 = N537.cs;
+  const V545 = N545.v, W545 = N545.nx, K545 = N545.ck, X545 = N545.cs;
+  const V546 = N546.v, W546 = N546.nx, K546 = N546.ck, X546 = N546.cs;
+  const V545b = N545b.v, W545b = N545b.nx, K545b = N545b.ck, X545b = N545b.cs;
+  const V551 = N551.v, W551 = N551.nx, K551 = N551.ck, X551 = N551.cs;
+  const V552 = N552.v, W552 = N552.nx, K552 = N552.ck, X552 = N552.cs;
+  const V556 = N556.v, W556 = N556.nx, K556 = N556.ck, X556 = N556.cs;
+  // Simse je Spalte und Wandhöhe merken (zwei Rauschwerte je Spalte statt je Pixel)
+  const MF = new Int16Array(cw).fill(-1), MV = new Float64Array(cw), MS = new Int32Array(cw);
+  const VA = new Int32Array(VN.length / 5 + 1);
+  for (let py = by0; py <= by1; py++) {
+    const r8 = py - Y0 + 8, fastY = py - 2 >= Y0, nva = veinRow(VN, py, VA);
+    const R532 = N532.rk[r8], S532 = N532.rs[r8], R537 = N537.rk[r8], S537 = N537.rs[r8], R545 = N545.rk[r8], S545 = N545.rs[r8], R546 = N546.rk[r8], S546 = N546.rs[r8], R545b = N545b.rk[r8 - 7], S545b = N545b.rs[r8 - 7], R551 = N551.rk[r8], S551 = N551.rs[r8], R552 = N552.rk[r8], S552 = N552.rs[r8], R556 = N556.rk[r8], S556 = N556.rs[r8];
+    for (let px = bx0; px <= bx1; px++) {
+      const cc = px - X0, ri = (py - Y0) * RW + cc, c = C[ri], i = ((py - by0) * BW + px - bx0) * 4;
+      if (c === 0) {
+        // Boden: Schlagschatten unter der Wand, Seitenschatten rechts des Felsens
+        const s = SH[(py - y0) * cw + px - x0];
+        if (s <= 9) { const f = 0.6 * (1 - (s - 1) / 9); if (s <= 2 || hash2(px, py, 571) < 0.45 + f) darkd(d, i, f); }
+        else if (px - X0 >= 3) {
+          if (C[ri - 1] || C[ri - 2]) darkd(d, i, 0.3);
+          else if (C[ri - 3] && hash2(px, py, 572) < 0.5) darkd(d, i, 0.18);
+        }
+        continue;
+      }
+      const fastX = cc >= 4 && cc + 4 < RW;
+      if (c === 1) {
+        // Felswand: Facetten (groß und klein gemischt) mit eigener Neigung, helle Oberkanten, Klüfte, Simse
+        const t = T[ri], fh = F[ri], top = fh - 1 - t;      // top: Abstand zur Oberkante (0 = Saum)
+        let z532 = 0, z537 = 0; { const q = R532 + K532[cc], sx = X532[cc], a = V532[q], b = V532[q + 1], c2 = V532[q + W532], d2 = V532[q + W532 + 1]; z532 = a + (b - a) * sx + (c2 - a) * S532 + (a - b - c2 + d2) * sx * S532; } { const q = R537 + K537[cc], sx = X537[cc], a = V537[q], b = V537[q + 1], c2 = V537[q + W537], d2 = V537[q + W537 + 1]; z537 = a + (b - a) * sx + (c2 - a) * S537 + (a - b - c2 + d2) * sx * S537; }
+        const FT = z532 > 0.6 ? F7 : F14, fk = (py % FPER) * FPER + px % FPER, fb = FT.B[fk];
+        let k = FT.A[fk] + Math.round((z537 - 0.5) * 2);                                 // Facette: Ton und Neigung
+        if (fb & 1) k = 1;                                                              // offene Fuge (nicht jede Kante)
+        else if (fb & 2) k += 1;                                                        // Oberkante der Facette im Licht
+        const cl = cleft(CL, px, py);
+        if (Math.abs(cl) < 0.55) k = 0; else if (cl > 0.55 && cl < 1.4) k += 1;
+        // Sims: kurze waagrechte Absätze mit Asche, darunter Schatten
+        if (fh >= 20 && t > 4 && top > 4) {
+          const mc = px - x0;
+          if (MF[mc] !== fh) { MF[mc] = fh; MV[mc] = vnoise(px / 11, fh * 1.7, 540); MS[mc] = Math.round(fh * (0.42 + vnoise(px / 30, fh, 539) * 0.2)); }
+          if (MV[mc] > 0.58) { const sims = MS[mc]; if (t === sims) k = 6; else if (t === sims - 1) k = 1; else if (t === sims - 2) k -= 1; }
+        }
+        if (hash2(px, py, 542) < 0.04) k += hash2(px, py, 543) < 0.5 ? 1 : -1;
+        // Licht von oben links, Fuß im Schatten
+        if (top < 3) k += 1;
+        if (t <= 1) k -= 2; else if (t <= 4) k -= 1;
+        if (fastX) {
+          if (!M[ri - 1] && !M[ri - 2] && top > 0) k += 1;
+          else if (!M[ri + 1] || !M[ri + 2]) k -= 1;
+        } else if (!inMg(G, px - 1, py) && !inMg(G, px - 2, py) && top > 0) k += 1;
+        else if (!inMg(G, px + 1, py) || !inMg(G, px + 2, py)) k -= 1;
+        if (top === 0) k = 7 + (hash2(px, 3, 544) < 0.3 ? 1 : 0);                      // heller Saum der Oberkante
+        else if (top === 1) k = Math.max(k, 5);
+        let z545 = 0, drip = false; { const q = R545 + K545[cc], sx = X545[cc], a = V545[q], b = V545[q + 1], c2 = V545[q + W545], d2 = V545[q + W545 + 1]; z545 = a + (b - a) * sx + (c2 - a) * S545 + (a - b - c2 + d2) * sx * S545; }
+        const spot = z545 > 0.8;
+        if (!spot) { let z546 = 0; { const q = R546 + K546[cc], sx = X546[cc], a = V546[q], b = V546[q + 1], c2 = V546[q + W546], d2 = V546[q + W546 + 1]; z546 = a + (b - a) * sx + (c2 - a) * S546 + (a - b - c2 + d2) * sx * S546; } if (z546 > 0.78) { let z545b = 0; { const q = R545b + K545b[cc], sx = X545b[cc], a = V545b[q], b = V545b[q + 1], c2 = V545b[q + W545b], d2 = V545b[q + W545b + 1]; z545b = a + (b - a) * sx + (c2 - a) * S545b + (a - b - c2 + d2) * sx * S545b; } drip = z545b > 0.66; } }
+        let colr = (spot || drip ? RKR : RK)[Math.max(0, Math.min(8, k))];
+        if (top > 2 && t > 2 && nva) { const vv = veinAt(VN, VA, nva, px, py); if (vv === 1) colr = RK[1]; else if (vv) colr = VEIN[vv]; }
+        d[i] = colr[0]; d[i + 1] = colr[1]; d[i + 2] = colr[2];
+        continue;
+      }
+      // Felskuppe von oben: aschebestäubter Fels, einzelne Risse und Brocken, helle Grate zum Boden hin
+      const tr = TI[ri];
+      let z551 = 0, z552 = 0; { const q = R551 + K551[cc], sx = X551[cc], a = V551[q], b = V551[q + 1], c2 = V551[q + W551], d2 = V551[q + W551 + 1]; z551 = a + (b - a) * sx + (c2 - a) * S551 + (a - b - c2 + d2) * sx * S551; } { const q = R552 + K552[cc], sx = X552[cc], a = V552[q], b = V552[q + 1], c2 = V552[q + W552], d2 = V552[q + W552 + 1]; z552 = a + (b - a) * sx + (c2 - a) * S552 + (a - b - c2 + d2) * sx * S552; }
+      let k = 5 + Math.round((z551 - 0.5) * 2.6 + (z552 - 0.5) * 1.4);
+      const tb = TTEX[(py % TPY) * TPX + px % TPX];
+      if (tb & 1) k = Math.max(2, k - 2);                                                 // vereinzelte Risse
+      else if (tb & 2) k -= 1;                                                            // Mulden zwischen den Buckeln
+      // kleine Brocken
+      const gx = Math.floor(px / 11), gy = Math.floor(py / 9);
+      if (hash2(gx, gy, 555) < 0.2) {
+        const bx = gx * 11 + 3 + hash2(gx, gy, 556) * 5, by = gy * 9 + 3 + hash2(gx, gy, 557) * 3, rr = 1.4 + hash2(gx, gy, 558) * 2;
+        const ex = (px + 0.5 - bx) / (rr * 1.3), ey = (py + 0.5 - by) / rr, q = ex * ex + ey * ey;
+        if (q < 1) k = ey < -0.3 ? 7 : ex > 0.3 || ey > 0.4 ? 3 : 5;
+        else if (q < 2.2 && ey > 0.5 && Math.abs(ex) < 1) k -= 2;
+      }
+      if (hash2(px, py, 559) < 0.07) k += 1;
+      const dd = dist[(py >> 4) * w + (px >> 4)];
+      k -= dd >= 8 ? 2 : dd >= 5 ? 1 : 0;                                              // tief im Gebirge dunkler
+      // Kanten: oben/links heller Grat, rechts dunkle Seitenwand; Stufenkanten ebenso
+      if (fastX && fastY) {
+        if ((!M[ri - RW] || TI[ri - RW] < tr) || (!M[ri - 1] || TI[ri - 1] < tr)) k = Math.max(k, 7);
+        else if ((!M[ri - 2 * RW] || TI[ri - 2 * RW] < tr) || (!M[ri - 2] || TI[ri - 2] < tr)) k = Math.max(k, 6);
+        else {
+          const rt1 = (!M[ri + 1] || TI[ri + 1] < tr);
+          if (rt1 || (!M[ri + 2] || TI[ri + 2] < tr) || (!M[ri + 3] || TI[ri + 3] < tr) || ((!M[ri + 4] || TI[ri + 4] < tr) && hash2(px, py >> 1, 560) < 0.5)) {
+            k = 2 + (vnoise(px / 2, py / 9, 561) > 0.6 ? 1 : 0) - (rt1 ? 1 : 0);
+            if (hash2(px, py >> 2, 562) < 0.2) k = 1;
+          }
+        }
+      } else {
+        if (lowg(G, px, py - 1, tr) || lowg(G, px - 1, py, tr)) k = Math.max(k, 7);
+        else if (lowg(G, px, py - 2, tr) || lowg(G, px - 2, py, tr)) k = Math.max(k, 6);
+        else {
+          const rt1 = lowg(G, px + 1, py, tr);
+          if (rt1 || lowg(G, px + 2, py, tr) || lowg(G, px + 3, py, tr) || (lowg(G, px + 4, py, tr) && hash2(px, py >> 1, 560) < 0.5)) {
+            // Seitenwand nach Osten (im Schatten): senkrecht gerissen
+            k = 2 + (vnoise(px / 2, py / 9, 561) > 0.6 ? 1 : 0) - (rt1 ? 1 : 0);
+            if (hash2(px, py >> 2, 562) < 0.2) k = 1;
+          }
+        }
+      }
+      let z556 = 0; { const q = R556 + K556[cc], sx = X556[cc], a = V556[q], b = V556[q + 1], c2 = V556[q + W556], d2 = V556[q + W556 + 1]; z556 = a + (b - a) * sx + (c2 - a) * S556 + (a - b - c2 + d2) * sx * S556; }
+      const rust = z556 > 0.79;
+      const col = (rust ? RKR : RK)[Math.max(0, Math.min(8, k))];
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
+    }
+    if ((py & 31) === 31) yield;
+  }
+  // 4b) Felsbrocken zeichnen
+  for (let k = 0; k < BL.length; k += 4) {
+    const bx = BL[k], by = BL[k + 1], rx = BL[k + 2], ry = BL[k + 3];
+    for (let y = Math.floor(by - ry - 1); y <= Math.ceil(by + ry + 2); y++) {
+      if (y < y0 || y >= y0 + ch) continue;
+      for (let x = Math.floor(bx - rx - 1); x <= Math.ceil(bx + rx + 1); x++) {
+        if (x < x0 || x >= x0 + cw) continue;
+        const ex = (x + 0.5 - bx) / rx, ey = (y + 0.5 - by) / ry, q = ex * ex + ey * ey, i = ((y - by0) * BW + x - bx0) * 4;
+        if (q <= 1) {
+          let kk = 4 - Math.round(ex * 1.4 + ey * 1.8);
+          if (q > 0.7 && ey > 0) kk = 1;
+          if (hash2(x, y, 587) < 0.08) kk -= 1;
+          { const pc = RK[Math.max(0, Math.min(8, kk))]; d[i] = pc[0]; d[i + 1] = pc[1]; d[i + 2] = pc[2]; }
+        } else if (ey > 0.6 && Math.abs(ex) < 1.1 && (ey - 1) * ry < 1.8 && !clsg(G, x, y)) darkd(d, i, 0.4);
+      }
+    }
+  }
+  ctx.putImageData(img, bx0 - x0, by0 - y0);
 }
 
 // ------------------------------------------------------------ Ritualkreis im Obsidianriss (Startpunkt Verteidigung)
@@ -1332,7 +1972,6 @@ export function createPeaksDecor() {
     brazier: brazier(),
     lookoutSpyglass: lookoutSpyglass(),
     hiddenCache: { off: hiddenCache(false), on: hiddenCache(true) },
-    basaltFace: [0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6, 7].map(basaltFace),
     riftCircle: { off: riftCircle(false), on: riftCircle(true) },
     sluiceGate: { off: sluiceGate(false), on: sluiceGate(true) },
     harpyNest: { off: harpyNest(false), on: harpyNest(true) },

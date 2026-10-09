@@ -95,6 +95,7 @@ function classify(d) {
   const biome = L.biome ?? (outdoor ? 'outdoor' : 'crypt');
   const lava = LAVA_BIOMES.has(biome);
   const extraSolid = new Set(L.solid ?? []);
+  const rockChars = new Set(L.rockChars ?? []);   // Biome, die Fels selbst malen (z. B. Steppe '%'), zeigen ihn als Fels statt Palisade
   const cls = new Array(d.w * d.h);
   for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
     const ch = d.rows[y][x], i = y * d.w + x;
@@ -102,7 +103,7 @@ function classify(d) {
       cls[i] = ch === '#' ? 'dwall' : ch === '~' ? (lava ? 'lava' : 'water') : d.solid[i] && ch !== '~' && /[#]/.test(ch) ? 'dwall' : 'floor';
       continue;
     }
-    if (ch === '#') cls[i] = 'rock';
+    if (ch === '#' || rockChars.has(ch)) cls[i] = 'rock';
     else if (ch === '~') cls[i] = lava ? 'lava' : 'water';
     else if (ch === '=') cls[i] = 'fissure';
     else if (ch === 'H') cls[i] = 'house';

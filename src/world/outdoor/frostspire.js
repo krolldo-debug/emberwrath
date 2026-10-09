@@ -1,11 +1,10 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
 import { rim } from '../levels2.js';
-import { near, box, each, blob, roadNet, foe, strew } from '../mapkit.js';
+import { near, each, blob, roadNet, foe, strew } from '../mapkit.js';
 
-// ---------------------------------------------------------------- Frostzinnen (31–36), Runde 5/2
-// Ein Gebirge, kein Schneefeld: Die Massive sind in Felsstufen gegliedert
-// (Schneeterrassen, Gipfel), alle Wege führen durch Engstellen. Teilgebiete:
+// ---------------------------------------------------------------- Frostzinnen (31–36), Runde 6
+// Ein Gebirge, kein Schneefeld; alle Wege führen durch Engstellen. Teilgebiete:
 //   Marschsteig (S, Ankunft aus der Faulmarsch; erst ein Stück Weg durch die
 //   Klamm) · Frosthold (Langhaus-Weiler im Talkessel unter dem Pass, Thingkreis
 //   in der Mitte, Eisfall an der Nordwand) · Jägerwald mit Sigruns Jagdhütte (W)
@@ -15,18 +14,25 @@ import { near, box, each, blob, roadNet, foe, strew } from '../mapkit.js';
 //   Spalten mit Schneebrücken, verlassenes Expeditionslager) · Trollhöhlen ·
 //   Eisspiegelsee (Karsee) · Wühlerfelder (SO) · Glutabstieg (O, zur Glutöde).
 //
+// Runde 6 („von Hand gestaltet“):
+// - Keine durchlaufenden Felsbänder mehr. Die Massive sind von Karen (Schneemulden, unbetretbar
+//   umschlossen) durchsetzt; der Fels dazwischen bildet Grate in wechselnder Richtung und Dicke.
+//   Die Ränder der Massive sind großräumig ausgebuchtet (Felsnasen, Buchten), einzelne Felsen
+//   stehen frei auf den Schneefeldern.
+// - Die Passstraße ist eine Gasse mit wechselnder Breite (Engstellen 2–3 Kacheln, Rastplätze an
+//   den Kehren, Ausbuchtungen), unregelmäßigen Kanten und einer darin pendelnden Spur; am Rand Wehen.
+// - Gipfel stehen in Gruppen auf den Karen (große und kleine Formen gemischt, nie in Reihen).
+// - level.soil färbt den Boden (siehe GROUND_FROST in sprites/decor_frost.js): Neu-/Altschnee,
+//   apere Erde, Nadelwaldboden, Gletschereis, Geröll, Wegwehen, Eis- und Höhlenboden.
+//
 // Zugefrorener See: begehbare Dekozeichen ohne Sprite ('I') bzw. mit Rissen
 // ('J'); Zellen ohne Boden-Nachbarn bekommen level.baseFloor = '~' (Eis).
 // Der See grenzt im Norden, Westen und Osten an Fels und ist nur nach Süden offen.
-//
-// Felsstufen: Innerhalb der Massive liegen feste Schneeterrassen ('_', kein Fels),
-// über denen der Boden-Renderer eine Felswand zeichnet. So lesen die Massive als
-// gestuftes Gebirge statt als Hochfläche; Gipfel ('N') stehen auf den Terrassen.
 
 // Zeichen
 //   Boden: ',' Schnee  '.' festgetretener Schnee/Weg  ':' Pflaster  '#' Fels
 //   Punkte 1 start 2 respawn 3 from_blighted_marsh 4 from_rime_caverns 5 from_ember_wastes 6 waystone
-//   Gebirge (fest): '_' Schneeterrasse  'N' Gipfel  'S' Felsnadel  ']' großer Eisfall  'm' Eisfall
+//   Gebirge (fest): 'N' großer Gipfel  'G' kleiner Gipfel/Grat  'S' Felsnadel  ']' großer Eisfall  'm' Eisfall
 //   See: 'I' Eis  'J' Eis mit Rissen  'O' Eisloch  'X' Fischerhütte  'Y' eingefrorenes Boot
 //   Begehbare Bodendecals: 'l' Eisteich  'y' Spuren
 //   Gletscher: Spaltenzeichen (siehe CREV)  'n' '$' '%' Schneebrücke (begehbar)
@@ -34,9 +40,56 @@ import { near, box, each, blob, roadNet, foe, strew } from '../mapkit.js';
 //   Weiler: 'L' Langhaus  ')' Sodenhaus  '(' Runenstein  'K' Vorräte  'V' Schlitten  'a' Waffengestell  'U' Wachturm
 //   Ruinen/Lager: 'Q' Zollwarte  '^' Mauerrest  '[' kalte Feuerstelle  'T' Zelt
 //   Wald/Hütte: 'D' Jagdhütte  'r' Fellgestell  'W' Holzstapel  'g' Steinmann  '|' Wegstange  'x' tote Kiefer
+
+// Glattes Wertrauschen 0..1 (Kartenformen)
+function vn(x, y, seed) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+const smooth = (t) => t * t * (3 - 2 * t);
+
+// Catmull-Rom durch Stützpunkte; jede Probe kennt ihr Segment (für Breitenprofile)
+function spline(pts, step = 0.5) {
+  const P = [pts[0], ...pts, pts[pts.length - 1]], out = [];
+  for (let i = 1; i < P.length - 2; i++) {
+    const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
+    const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+    for (let s = 0; s < n; s++) {
+      const t = s / n, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      out.push({ x: f(p0[0], p1[0], p2[0], p3[0]), y: f(p0[1], p1[1], p2[1], p3[1]), seg: i - 1, t });
+    }
+  }
+  const e = pts[pts.length - 1];
+  out.push({ x: e[0], y: e[1], seg: pts.length - 1, t: 0 });
+  return out;
+}
+
+// Schachbrett-Abstand jeder Zelle zur nächsten Quellzelle (zwei Durchläufe)
+function distField(W, H, isSource) {
+  const D = new Int16Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) D[y * W + x] = isSource(x, y) ? 0 : 999;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; let d = D[i];
+    if (x > 0) d = Math.min(d, D[i - 1] + 1);
+    if (y > 0) { d = Math.min(d, D[i - W] + 1); if (x > 0) d = Math.min(d, D[i - W - 1] + 1); if (x < W - 1) d = Math.min(d, D[i - W + 1] + 1); }
+    D[i] = d;
+  }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+    const i = y * W + x; let d = D[i];
+    if (x < W - 1) d = Math.min(d, D[i + 1] + 1);
+    if (y < H - 1) { d = Math.min(d, D[i + W] + 1); if (x < W - 1) d = Math.min(d, D[i + W + 1] + 1); if (x > 0) d = Math.min(d, D[i + W - 1] + 1); }
+    D[i] = d;
+  }
+  return D;
+}
+
 export function buildFrostspire() {
   const W = 152, H = 104;
   const m = new MapBuilder(W, H, ',');
+  const soil = new MapBuilder(W, H, ' ');
   const rng = createRng(3136);
   rim(m, rng, W, H);
   const net = roadNet(m);
@@ -45,20 +98,33 @@ export function buildFrostspire() {
   const rock = (cx, cy, rx, ry, n = 3) => blob(m, rng, cx, cy, rx, ry, '#', [','], n);
   const clear = (cx, cy, rx, ry, n = 3) => blob(m, rng, cx, cy, rx, ry, ',', ['#'], n);
   const carve = (pts, w, ch = '.') => m.path(pts, w, ch, ['#', ',']);
-  // Catmull-Rom: geschwungene Wege durch Stützpunkte
-  const curve = (pts, step = 0.5) => {
-    const P = [pts[0], ...pts, pts[pts.length - 1]], out = [];
-    for (let i = 1; i < P.length - 2; i++) {
-      const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
-      const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
-      for (let s = 0; s < n; s++) {
-        const t = s / n, t2 = t * t, t3 = t2 * t;
-        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-        out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
-      }
+  const curve = (pts, step = 0.5) => spline(pts, step).map((s) => [s.x, s.y]);
+  const disc = (cx, cy, r, fn) => {
+    for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+      if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r && m.in(x, y)) fn(x, y);
     }
-    out.push(pts[pts.length - 1]);
-    return out;
+  };
+  // Gasse mit wechselnder Breite: prof[i] = [Gassenbreite, Spurbreite] am Stützpunkt i (Kacheln).
+  // Die Gasse wird aus dem Fels geschnitten (Schnee, Wehen am Rand), die Spur pendelt darin.
+  const lane = (pts, prof, { seed = 1, track = '.', jag = 1.1 } = {}) => {
+    const S = spline(pts, 0.25);
+    let dist = 0;
+    for (let k = 0; k < S.length; k++) {
+      const s = S[k], a = S[Math.max(0, k - 3)], b = S[Math.min(S.length - 1, k + 3)];
+      if (k) dist += Math.hypot(s.x - S[k - 1].x, s.y - S[k - 1].y);
+      const l = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / l, ny = (b.x - a.x) / l;
+      const p0 = prof[Math.min(prof.length - 1, s.seg)], p1 = prof[Math.min(prof.length - 1, s.seg + 1)], u = smooth(s.t);
+      const cw = p0[0] + (p1[0] - p0[0]) * u, tw = p0[1] + (p1[1] - p0[1]) * u;
+      const r = Math.max(1.05, cw / 2 + (vn(dist / 2.6, 0.5, seed) - 0.5) * jag * Math.min(1, cw / 3.5));
+      disc(s.x, s.y, r, (x, y) => { if (m.get(x, y) === '#') { put(x, y, ','); soil.set(x, y, 'w'); } });
+      if (!track) continue;
+      const swing = (vn(dist / 5, 3.5, seed + 1) - 0.5) * Math.max(0, cw - tw - 0.6) * 0.8;
+      const tx = s.x + nx * swing, ty = s.y + ny * swing;
+      // Spur nur innerhalb der Gasse (bzw. auf offenem Schnee) – sie verbreitert die Engstellen nicht
+      disc(tx, ty, Math.max(0.78, tw / 2), (x, y) => { if (m.get(x, y) === ',') put(x, y, track); });
+      disc(s.x, s.y, 0.6, (x, y) => { if (m.get(x, y) === ',') put(x, y, track); });
+      disc(tx, ty, tw / 2 + 0.9, (x, y) => net.mask.set(x, y, 'R'));
+    }
   };
 
   // ------------------------------------------------ Massive
@@ -75,7 +141,7 @@ export function buildFrostspire() {
   rock(80, 76, 5, 9); rock(60, 98, 20, 4); rock(36, 82, 4, 13); rock(39, 97, 6, 4); rock(97, 98, 4, 4);
   // Nordrand: Felszacken am Sattel und am Gletscher
   rock(147, 8, 4, 6); rock(90, 3, 4, 2); rock(110, 3, 5, 2);
-  // Südrand: Felsnasen in den Wühlerfelder und im Jägerwald
+  // Südrand: Felsnasen in den Wühlerfeldern und im Jägerwald
   rock(126, 101, 7, 2); rock(4, 66, 3, 5); rock(26, 100, 6, 2);
 
   // ------------------------------------------------ Frosthold: Talkessel unter dem Pass
@@ -84,30 +150,36 @@ export function buildFrostspire() {
   m.ellipse(bowl.cx, bowl.cy, bowl.rx - 1, bowl.ry - 1, ',', ['#']);
   // Klamm im Südosten: der einzige Fahrweg in den Kessel
   const gorge = [[90, 103], [89, 98], [86, 93], [81, 90], [76, 87], [70, 85]];
-  m.path(curve(gorge, 0.4), 4.2, ',', ['#']);
+  lane(gorge, [[6, 0], [5, 0], [3.6, 0], [5.2, 0], [4.4, 0], [5, 0]], { seed: 11, track: null });
   // Westpforte zum Jägerwald (schmaler Fußweg)
-  m.path(curve([[41, 85], [36, 84], [31, 82], [24, 80]], 0.4), 3.2, ',', ['#']);
+  lane([[41, 85], [36, 84], [31, 82], [24, 80]], [[4, 0], [2.6, 0], [3.4, 0], [4, 0]], { seed: 12, track: null });
 
   // ------------------------------------------------ Serpentinenpass: Passstraße mit Kehren
-  // Kehren wechseln Seite und Höhe; jeder Schenkel steigt leicht an, die Kehren sind
-  // gerundete Wendeplatten mit Steinmann und Wegstangen.
+  // Eine aus dem Hang geschnittene Gasse. Die Kehren sind verschieden: A (W) ein weiter Rastplatz,
+  // B (O) eng und steil, C (W) der Platz vor der Zollwarte, D (O) mit dem Stichweg zur Kanzel.
+  // Dazwischen Engstellen (2–3 Kacheln) und Ausbuchtungen.
   const passPts = [
-    [60, 72], [59, 67], [55, 63], [48, 61],              // erster Schenkel nach Westen
-    [44, 58], [47, 55], [55, 54], [65, 52], [75, 50],    // Kehre 1 (W), zweiter Schenkel nach Osten
-    [81, 47], [79, 43], [71, 41], [61, 40], [53, 38],    // Kehre 2 (O), dritter Schenkel
-    [49, 35], [52, 31], [59, 29], [67, 28],              // Kehre 3 (W, Zollwarte), vierter Schenkel
-    [74, 25], [73, 21], [67, 18], [63, 15], [64, 11],    // Kehre 4 (O), Schlussstück zum Sattel
+    [60, 72], [59, 67], [56, 63.5], [51, 62], [46, 60.5],                 // 0–4  Kesselhals, erster Schenkel
+    [41.5, 57.5], [42.5, 53.5], [47, 52], [53, 52.5], [59, 51],            // 5–9  Kehre A (Rastplatz)
+    [64, 49], [70, 48.5], [76, 47.5], [80.5, 45.5],                        // 10–13 zweiter Schenkel, Engstelle
+    [81.5, 42.5], [78.5, 40.5], [73, 40.2], [67, 38.4], [61, 38.6], [55, 37],   // 14–19 Kehre B (eng), dritter Schenkel
+    [50.5, 35], [48.5, 31.5], [52, 29.2], [58, 28.8], [64, 27.4], [70, 26.2],    // 20–25 Kehre C (Zollwarte), vierter Schenkel
+    [74.5, 23.6], [74.6, 20.2], [71, 17.8], [66.5, 15.4], [64, 11],        // 26–30 Kehre D, Felstor, Sattel
   ];
-  m.path(curve(passPts, 0.35), 3.4, '.', ['#', ',']);
-  const hairpins = [[45, 57.5], [80.5, 45], [50, 34.5], [74, 23]];
-  for (const [x, y] of hairpins) m.ellipse(x, y, 4, 3, '.', ['#', ',']);
-  // Aussichtskanzel mit Leuchtfeuer (Stichweg von der vierten Kehre)
-  m.path(curve([[74, 25], [78, 27], [81, 27]], 0.4), 2.6, '.', ['#', ',']);
+  const passProf = [
+    [5, 2.6], [3, 2], [2.2, 1.6], [4.6, 2.2], [6, 2.4],
+    [8.5, 2.8], [8, 2.6], [5.4, 2.4], [4, 2.2], [5.6, 2.2],
+    [3, 2], [2.2, 1.6], [4.4, 2.2], [5.2, 2.4],
+    [4.4, 2.4], [3.8, 2.2], [2.6, 1.8], [5, 2.2], [7, 2.4], [4.2, 2.2],
+    [7.5, 3], [7, 2.8], [5, 2.4], [2.6, 1.8], [2.2, 1.6], [4.6, 2.2],
+    [6.4, 2.6], [4.4, 2.2], [3, 1.8], [2, 1.6], [5, 2.4],
+  ];
+  lane(passPts, passProf, { seed: 21 });
+  // Aussichtskanzel mit Leuchtfeuer (Stichweg von Kehre D)
+  lane([[74.5, 23.6], [78, 26.4], [81, 27]], [[3.4, 1.6], [2.4, 1.4], [3, 1.6]], { seed: 22 });
   m.ellipse(82, 27, 3.2, 2.4, ',', ['#']);
-  // Alte Abkürzung: steiler Fußpfad zwischen Kehre 1 und 2 (Ruinenrast)
-  m.path(curve([[66, 52], [68, 47], [69, 43]], 0.4), 2, ',', ['#']);
-  // Felsstufen unter den Schenkeln (unregelmäßig), damit die Hangkanten nicht gerade laufen
-  for (const [x, y] of [[57, 58], [66, 57], [72, 55], [52, 47], [62, 45], [70, 46], [60, 34], [66, 33], [56, 24], [62, 22]]) rock(x, y, rng.range(2.4, 4), 1.6, 1);
+  // Alte Abkürzung: steiler Fußpfad zwischen dem zweiten und dritten Schenkel (Ruinenrast)
+  lane([[66, 49.5], [67.5, 45.5], [69, 41.5], [69, 39]], [[2.4, 0], [2.2, 0], [2.6, 0], [2.4, 0]], { seed: 23, track: null });
 
   // ------------------------------------------------ Zinnensattel (Passhöhe) und Reiftor-Plateau
   m.ellipse(66, 8, 22, 5.4, ',', ['#']);
@@ -146,37 +218,20 @@ export function buildFrostspire() {
   // Felsgelände zwischen Kessel und See: Kiefernhang mit Bachrinne
   clear(88, 86, 9, 5, 3);
 
-  // ------------------------------------------------ Gletscherfeld: Spalten mit Schneebrücken
-  const crev = new Map();
-  const crevasse = (pts, bridges = []) => {
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
-      for (let x = ax; x < bx || (i === pts.length - 2 && x === bx); x++) {
-        const y = Math.round(ay + (by - ay) * (x - ax) / (bx - ax));
-        if (m.get(x, y) === ',') crev.set(y * W + x, bridges.some((b) => Math.abs(b - x) <= 1));
-      }
-    }
+  // ------------------------------------------------ Gletscherfeld: Grate, die das Eis teilen
+  // Drei Felsgrate ragen aus dem Eis (Nunatakker): einer von der Nordkante nach Süden, einer von
+  // der Ostkante schräg nach Südwesten, einer vom Trollmassiv nach Norden. Dazwischen fließt das Eis.
+  const ridge = (pts, w0, w1, seed) => {
+    const S = spline(pts, 0.25), n = S.length;
+    S.forEach((s, k) => {
+      const u = k / Math.max(1, n - 1);
+      const r = Math.max(0.7, w0 + (w1 - w0) * u + (vn(k / 9, 0.5, seed) - 0.5) * 1.1);
+      disc(s.x, s.y, r, (x, y) => { if (m.get(x, y) === ',') put(x, y, '#'); });
+    });
   };
-  crevasse([[93, 20], [100, 18], [112, 20], [124, 16], [136, 18], [150, 15]], [104, 130]);
-  crevasse([[99, 29], [106, 31], [116, 28], [126, 31], [138, 27], [150, 29]], [110, 140]);
-  crevasse([[95, 9], [101, 11], [107, 10]]);
-  crevasse([[118, 7], [126, 9], [131, 8]]);
-  crevasse([[132, 24], [138, 22]]);
-  const CREV = { SS: 'z', SU: '/', SD: '7', SN: '>', US: '8', UU: '9', UD: '0', UN: '!', DS: '?', DU: '&', DD: '*', DN: '+', NS: '<', NU: '-', ND: ';', NN: '@' };
-  {
-    const has = (x, y) => crev.has(y * W + x);
-    const side = (x, y, dx) => has(x + dx, y) ? 'S' : has(x + dx, y - 1) ? 'U' : has(x + dx, y + 1) ? 'D' : 'N';
-    for (const [k, bridge] of crev) {
-      const x = k % W, y = Math.floor(k / W);
-      if (bridge) {
-        const gapL = has(x - 1, y) && !crev.get(y * W + x - 1), gapR = has(x + 1, y) && !crev.get(y * W + x + 1);
-        put(x, y, gapL ? '$' : gapR ? '%' : 'n');
-      } else put(x, y, CREV[side(x, y, -1) + side(x, y, 1)]);
-    }
-  }
-  for (const [bx, by] of [[104, 18], [130, 17], [110, 30], [140, 28]]) {
-    for (const dy of [-3, 3]) for (const dx of [-2, 2, -3, 3]) { const x = bx + dx, y = by + dy; if (m.get(x, y) === ',' && m.get(x, y + 1) === ',' && m.get(x, y - 1) === ',') { put(x, y, 'g'); break; } }
-  }
+  ridge([[107, 0], [108, 5], [111, 10], [112.5, 14.5]], 3, 1.1, 3401);
+  ridge([[152, 12], [147, 15.5], [142.5, 17.5], [139.5, 18.5]], 2.8, 1, 3402);
+  ridge([[124, 38], [124.5, 33], [123, 28.5]], 2.6, 1, 3403);
 
   // ------------------------------------------------ Wege im Süden
   m.rect(86, 98, 8, 6, ',');                 // Süd: Marschsteig (Ankunft)
@@ -232,6 +287,83 @@ export function buildFrostspire() {
   put(26, 5, 'R'); put(26, 9, '4');
   each([[20, 8], [32, 8], [21, 12], [31, 12]], (x, y) => put(x, y, 'p'));
 
+  // ------------------------------------------------ Ränder der Massive: großräumig ausgebuchtet
+  // Wo offener Schnee an Fels grenzt (fern von Wegen, Bauten und Punkten), wächst der Fels in
+  // Nasen vor oder weicht in Buchten zurück – Kanten laufen nicht mehr gerade. Buchten nur in
+  // dickem Fels (keine Durchbrüche).
+  const beacons = [[82, 26], [132, 12], [116, 93]];
+  const tunnels = [[108, 98], [123, 95], [137, 99]];
+  const pois = [...beacons, ...tunnels, defendAt, ...defendSpawns, [lodge.x, lodge.y], [waystone.x, waystone.y], [47, 33], [53, 36], [58, 4], [122, 3], [92, 84], [8, 93],
+    [98, 24], [102, 25], [138, 33], [134, 34], [130, 89], [100, 101], [141, 72], [52, 6], [79, 5], [74, 11], [120, 24], [143, 21], [114, 13], [97, 4], [140, 4]];
+  {
+    const prot = new Uint8Array(W * H);
+    const mark = (cx, cy, r) => { for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) if (m.in(x, y)) prot[y * W + x] = 1; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = m.get(x, y); if (c !== ',' && c !== '#') mark(x, y, 2); }
+    for (const [x, y] of pois) mark(x, y, 3);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (inLake(x, y) || ((x - bowl.cx) / (bowl.rx + 1)) ** 2 + ((y - bowl.cy) / (bowl.ry + 1)) ** 2 <= 1) prot[y * W + x] = 1;
+    const dRock = distField(W, H, (x, y) => m.get(x, y) === '#');
+    const dOpen = distField(W, H, (x, y) => m.get(x, y) !== '#');
+    const runH = new Int16Array(W * H), runV = new Int16Array(W * H);
+    for (let y = 0; y < H; y++) { let x = 0; while (x < W) { if (m.get(x, y) !== '#') { x++; continue; } let e = x; while (e < W && m.get(e, y) === '#') e++; for (let i = x; i < e; i++) runH[y * W + i] = e - x; x = e; } }
+    for (let x = 0; x < W; x++) { let y = 0; while (y < H) { if (m.get(x, y) !== '#') { y++; continue; } let e = y; while (e < H && m.get(x, e) === '#') e++; for (let i = y; i < e; i++) runV[i * W + x] = e - y; y = e; } }
+    const set = [];
+    for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+      const i = y * W + x;
+      if (prot[i]) continue;
+      const c = m.get(x, y);
+      // Kartenrand: im Norden und Süden dicker und welliger
+      const edge = Math.max(0, 7 - Math.min(y, H - 1 - y, x, W - 1 - x)) / 7;
+      const f = vn(x / 12, y / 9, 3171) * 0.8 + vn(x / 5.5, y / 5, 3172) * 0.2 + edge * 0.16;
+      if (c === ',') {
+        const k = Math.floor((f - 0.54) * 10);
+        if (k >= 1 && dRock[i] <= k) set.push([x, y, '#']);
+      } else if (c === '#') {
+        const k = Math.floor((0.44 - f) * 10);
+        if (k >= 1 && dOpen[i] <= k && Math.min(runH[i], runV[i]) >= 2 * k + 5) set.push([x, y, ',']);
+      }
+    }
+    for (const [x, y, ch] of set) put(x, y, ch);
+  }
+  // Glätten: Kerben im Fels füllen, Felszacken und kleine Felsinseln abtragen – große, ruhige
+  // Formen statt vieler kurzer Felsstriche (nur fern von Wegen, Bauten und Punkten).
+  {
+    const prot = new Uint8Array(W * H);
+    const mark = (cx, cy, r) => { for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) if (m.in(x, y)) prot[y * W + x] = 1; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = m.get(x, y);
+      if ((c !== ',' && c !== '#') || soil.get(x, y) === 'w') mark(x, y, 1);
+    }
+    for (const [x, y] of pois) mark(x, y, 3);
+    for (let it = 0; it < 2; it++) {
+      const set = [];
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        if (prot[y * W + x]) continue;
+        let n = 0;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if ((i || j) && m.get(x + i, y + j) === '#') n++;
+        const c = m.get(x, y);
+        if (c === ',' && n >= 6) set.push([x, y, '#']);
+        else if (c === '#' && n <= 2) set.push([x, y, ',']);
+      }
+      for (const [x, y, ch] of set) put(x, y, ch);
+    }
+    // kleine Felsinseln (nicht am Kartenrand) verschwinden
+    const seen = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (seen[y * W + x] || m.get(x, y) !== '#') continue;
+      const comp = [[x, y]]; seen[y * W + x] = 1;
+      let edge = false;
+      for (let k = 0; k < comp.length; k++) {
+        const [cx, cy] = comp[k];
+        if (cx === 0 || cy === 0 || cx === W - 1 || cy === H - 1) edge = true;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          if (m.in(nx, ny) && !seen[ny * W + nx] && m.get(nx, ny) === '#') { seen[ny * W + nx] = 1; comp.push([nx, ny]); }
+        }
+      }
+      if (!edge && comp.length < 24) for (const [cx, cy] of comp) put(cx, cy, ',');
+    }
+  }
+
   // ------------------------------------------------ Höhlendeko
   for (let y = 18; y < 58; y++) for (let x = 3; x < 38; x++) {
     if (m.get(x, y) !== '.' || m.get(x, y - 1) !== '#') continue;
@@ -247,9 +379,11 @@ export function buildFrostspire() {
   each([[100, 52], [109, 53], [96, 44], [92, 46], [135, 53], [141, 49]], (x, y) => put(x, y, 'o'));
 
   // ------------------------------------------------ Points of Interest
-  // Pass: Zollwarte an Kehre 3, Mauerreste, Eisfälle an den Hangwänden
+  // Pass: Zollwarte an Kehre C, Mauerreste, Eisfälle an den Hangwänden
   put(47, 33, 'Q'); put(53, 36, '^');
-  each([[71, 52], [57, 40]], (x, y) => { if (m.get(x, y) === '.' && m.get(x, y - 1) === '#') put(x, y, 'm'); });
+  each([[71, 52], [57, 40], [46, 64]], (x, y) => {
+    for (let dy = 0; dy <= 3; dy++) if (m.get(x, y + dy) !== '#' && m.get(x, y + dy - 1) === '#' && m.get(x, y + dy) !== '.') { put(x, y + dy, 'm'); break; }
+  });
   // Sattel: Felsnadeln, Eisteich, Spuren
   each([[52, 6], [79, 5], [74, 11]], (x, y) => put(x, y, 'S'));
   put(58, 4, 'l');
@@ -268,6 +402,10 @@ export function buildFrostspire() {
   put(130, 89, '^'); put(100, 101, 'S');
   // Jägerwald: Eisteich und Jägerpfad
   put(8, 93, 'l'); put(24, 66, 'y');
+  // Pass: Rastplätze an den Kehren (Steinmann, Feuerstelle, Vorräte), Spuren auf der Straße
+  put(40, 55, 'g'); put(44, 51, '['); put(43, 50, 'K');
+  put(50, 30, 'g'); put(84, 41, 'g');
+  each([[56, 52], [62, 38], [69, 27]], (x, y) => { if (m.get(x, y) === '.') put(x, y, 'y'); });
 
   // ------------------------------------------------ Gegner
   const F = (list, ch) => each(list, (x, y) => foe(m, x, y, ch));
@@ -278,7 +416,7 @@ export function buildFrostspire() {
   // Reiftor
   F([[16, 13], [36, 12], [40, 7]], 'e'); F([[12, 6]], 'h');
   // Serpentinenpass: Wölfe an den Kehren, Pirscher, Trolle
-  F([[45, 57], [80, 45]], 'j'); F([[66, 53], [63, 40]], 's'); F([[50, 34], [74, 23]], 'i'); F([[56, 54]], 'j');
+  F([[44, 56], [80, 44]], 'j'); F([[66, 49], [65, 39]], 's'); F([[51, 33], [74, 22]], 'i'); F([[56, 52]], 'j');
   // Zinnensattel
   F([[62, 8], [82, 10]], 'h'); F([[48, 10]], 'e');
   // Gletscherfeld
@@ -292,11 +430,135 @@ export function buildFrostspire() {
   F([[144, 72], [140, 96]], 's'); F([[146, 78]], 'i');
 
   // ------------------------------------------------ Objekte
-  const beacons = [[82, 26], [132, 12], [116, 93]];
-  const tunnels = [[108, 98], [123, 95], [137, 99]];
   F([[104, 96], [110, 101], [112, 95]], 'b'); F([[120, 99], [127, 93], [126, 99]], 'b'); F([[134, 95], [141, 97], [139, 92]], 'b');
   F([[118, 90], [98, 84]], 'j');
   F([[78, 30], [84, 23]], 'e'); F([[117, 97]], 's');
+
+  // ------------------------------------------------ Gletscherspalten: Fächer quer zur Fließrichtung
+  // Das Eis fließt von der Nordkante talwärts (zwischen den Graten nach Süden und Südwesten). Die
+  // Spalten stehen quer dazu in Fächern, talwärts gewölbt, verschieden lang und breit; längere haben
+  // eine Schneebrücke. Gezeichnet werden sie vom Boden (level.crevasses, siehe frostPixel); die
+  // Zellen darunter sind fest ('"'), Brückenzellen bleiben begehbar.
+  const crevasses = [];
+  {
+    const open = (x, y) => {
+      if (m.get(x, y) !== ',' || net.onRoad(x, y)) return false;
+      for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const c = m.get(x + i, y + j); if (c !== ',' && c !== '#' && c !== '"') return false; }
+      return true;
+    };
+    // Fächer: Mittelpunkt, Fließrichtung (Grad, 90 = Süden), Radien, halbe Spannweiten (rad), Breite
+    const fans = [
+      [97, 1, 104, [5, 7.5, 10.5, 13.5], [0.8, 0.62, 0.7, 0.5], 7.5, 3501],
+      [119, 2, 92, [5.5, 8.5, 12, 15.5, 19.5], [0.75, 0.55, 0.62, 0.45, 0.4], 8, 3502],
+      [140, 20, 118, [3.5, 6.5, 9.5], [0.9, 0.7, 0.6], 6.5, 3503],
+      [134, 4, 72, [3.5, 6], [0.8, 0.8], 5, 3504],
+      [105, 20, 128, [4, 7], [0.8, 0.6], 6, 3505],
+    ];
+    for (const [cx, cy, deg, radii, spans, wmax, seed] of fans) {
+      radii.forEach((R0, ri) => {
+        const span = spans[ri], phi = deg * Math.PI / 180;
+        const pts = [];
+        for (let th = -span; th <= span + 1e-6; th += 0.4 / R0) {
+          const u = (th + span) / (2 * span);
+          const R = R0 + (vn(th * 3 + ri * 7, 0.5, seed) - 0.5) * 1.2;
+          const w = wmax * (0.75 + 0.5 * hash2(ri, seed, 3510)) * Math.pow(Math.sin(Math.PI * u), 0.7) * (0.75 + 0.5 * vn(th * 5, ri, seed + 1));
+          pts.push({ x: cx + Math.cos(phi + th) * R, y: cy + Math.sin(phi + th) * R * 0.8, w: +w.toFixed(2) });
+        }
+        // Länge in Kacheln; ab 9 eine Schneebrücke
+        let len = 0; for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+        const bridge = len >= 9 ? 0.3 + hash2(ri, seed, 3511) * 0.4 : -1;
+        const bridgeCells = new Set(), cells = new Set();
+        let acc = 0;
+        for (let k = 0; k < pts.length; k++) {
+          if (k) acc += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+          const p = pts[k], r = (p.w + 1.5) / 16;
+          const onBridge = bridge >= 0 && Math.abs(acc / len - bridge) * len < 0.9;
+          for (let y = Math.floor(p.y - r); y <= Math.floor(p.y + r); y++) for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
+            const nx = Math.max(x, Math.min(p.x, x + 1)), ny = Math.max(y, Math.min(p.y, y + 1));
+            if ((nx - p.x) ** 2 + (ny - p.y) ** 2 > r * r) continue;
+            (onBridge ? bridgeCells : cells).add(y * W + x);
+          }
+        }
+        for (const k of cells) if (!bridgeCells.has(k) && open(k % W, Math.floor(k / W))) put(k % W, Math.floor(k / W), '"');
+        crevasses.push(pts);
+      });
+    }
+  }
+
+  // ------------------------------------------------ Unerreichbarer Boden wird Fels
+  // (Taschen hinter Felsnasen oder Spalten: dort sollen weder Tiere noch Ausweichpunkte landen)
+  {
+    const SOLIDS = new Set(['#', '~', '=', 'H', 'f', '"', ...'wvUOXYz/7>890!?&*+<-;@pDrWgmxuKVa_NGSQ^|()[]L']);
+    const seen = new Uint8Array(W * H);
+    let sx = 0, sy = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m.get(x, y) === '1') { sx = x; sy = y; }
+    const q = [[sx, sy]]; seen[sy * W + sx] = 1;
+    for (let k = 0; k < q.length; k++) {
+      const [x, y] = q[k];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (!m.in(nx, ny) || seen[ny * W + nx] || SOLIDS.has(m.get(nx, ny))) continue;
+        seen[ny * W + nx] = 1; q.push([nx, ny]);
+      }
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!seen[y * W + x] && ',.:'.includes(m.get(x, y))) put(x, y, '#');
+  }
+
+  // ------------------------------------------------ Bodenarten (level.soil, nur Färbung)
+  const forest = (x, y) => x < 34 && y > 56;
+  const glacier = (x, y) => x > 88 && y < 37;
+  const pineSlope = (x, y) => x >= 78 && x <= 100 && y >= 80 && y <= 97;
+  {
+    const S = (x, y, ch, only = null) => { if (!only || only.includes(soil.get(x, y))) soil.set(x, y, ch); };
+    const paint = (cx, cy, rx, ry, ch, n = 3, only = null) => blob(soil, rng, cx, cy, rx, ry, ch, only, n);
+    // Jägerwald und Kiefernhang: Nadelboden mit Schneeflecken; an der Hütte festgetretene Erde
+    for (let y = 56; y < H; y++) for (let x = 0; x < 35; x++) if (forest(x, y) && vn(x / 6, y / 6, 3190) < 0.8) S(x, y, 'f', [' ']);
+    paint(89, 88, 10, 7, 'f', 4, [' ']);
+    paint(15, 79, 6, 3.4, 'e', 2);
+    // Frosthold: verharschter Altschnee, apere Stellen vor den Häusern und am Thingplatz
+    paint(bowl.cx, bowl.cy, bowl.rx - 2, bowl.ry - 2, 'a', 4, [' ']);
+    for (const [x, y, rx, ry] of [[58, 78, 6, 2.4], [46, 82, 4, 2], [70, 82, 4, 2], [58, 87, 6, 2.2], [47, 89, 3, 2], [68, 89, 3, 2], [64, 85, 3, 1.6], [73, 88, 3, 1.6]]) paint(x, y, rx, ry, 'e', 2);
+    // Klamm: unten warme, aperen Hänge (zur Faulmarsch), Geröll an den Wänden
+    soil.path(curve([[90, 103], [89, 98], [86, 93], [82, 91]], 0.5), 8, 'e');
+    paint(80, 92, 4, 3, 'e', 2);
+    // Glutabstieg: je weiter nach Osten, desto aperer
+    for (const [x, y, rx, ry] of [[146, 92, 5, 4], [141, 97, 4, 2.4], [147, 80, 3, 4], [142, 71, 3, 2.4], [145, 64, 2.4, 2]]) paint(x, y, rx, ry, 'e', 3);
+    // Wühlerfelder: aufgewühlte Erde um die Baue
+    for (const [x, y] of tunnels) paint(x, y, 4.5, 2.6, 'e', 3);
+    for (const [x, y] of [[104, 99], [113, 97], [118, 93], [129, 97], [133, 92], [140, 100]]) paint(x, y, 2.2, 1.4, 'e', 2);
+    // Gletscher: Neuschnee, dazwischen Bänder aus blankem Gletschereis
+    for (let y = 2; y < 37; y++) for (let x = 88; x < W; x++) if (glacier(x, y)) S(x, y, 'n', [' ']);
+    // Eisströme: breite Bänder blanken Gletschereises in Fließrichtung zwischen den Graten
+    for (const [pts, w0, seed] of [
+      [[[93, 2], [97, 9], [96, 17], [93, 26], [90, 34]], 3.4, 3711],
+      [[[117, 2], [119, 9], [118, 18], [120, 27], [118, 35]], 4, 3712],
+      [[[128, 2], [131, 10], [134, 19], [139, 27], [143, 34]], 3, 3713],
+      [[[101, 20], [107, 27], [112, 33]], 2.4, 3714],
+    ]) {
+      const SP = spline(pts, 0.25);
+      SP.forEach((p, k) => disc(p.x, p.y, Math.max(1.2, w0 + (vn(k / 10, 0.5, seed) - 0.5) * 3), (x, y) => {
+        if (glacier(x, y) && ' n'.includes(soil.get(x, y))) soil.set(x, y, 'g');
+      }));
+    }
+    // Sattel und Reiftor: frischer Schnee, Eis vor dem Tor
+    paint(66, 8, 22, 5, 'n', 4, [' ']); paint(26, 9, 12, 5, 'n', 3, [' ']); paint(44, 9, 7, 3, 'n', 2, [' ']);
+    paint(26, 7, 5, 2, 'g', 2); paint(58, 5, 4, 1.6, 'g', 2);
+    // windgefegte, apere Stellen am Sattel und auf dem Reiftor-Plateau (Erde, Halme, Steine)
+    for (const [x, y, rx, ry] of [[48, 7, 3, 1.6], [63, 10.5, 3, 1.4], [76, 6, 3.4, 1.6], [85, 11, 2.2, 1.4], [35, 4, 2.6, 1.4], [8, 8, 3, 2], [17, 11, 2.6, 1.4], [70, 4, 2, 1.2]]) paint(x, y, rx, ry, 'e', 3);
+    // Pass: apere, sonnige Flecken an den Rastplätzen
+    paint(42, 54, 3.4, 2.4, 'e', 2); paint(50, 32, 3, 2, 'e', 2); paint(75, 22, 2, 1.6, 'e', 1); paint(82, 27, 2.6, 1.8, 'e', 2);
+    // Seeufer: Altschnee
+    paint(110, 81, 22, 2.6, 'a', 3, [' ']);
+    // Höhlen: Eisboden in den Grotten, dunkler Fels in den Trollhöhlen
+    for (let y = 15; y < 63; y++) for (let x = 2; x < 38; x++) if (m.get(x, y) !== ',' || y > 18) if (!forest(x, y)) S(x, y, 'i', [' ', 'n']);
+    for (let y = 37; y < 64; y++) for (let x = 88; x < 150; x++) if (m.get(x, y) !== ',' && !inLake(x, y)) S(x, y, 't', [' ']);
+    // Geröll am Fuß der Felswände (unter den Wänden, fleckig)
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      if (m.get(x, y) !== ',' || net.onRoad(x, y)) continue;
+      const wall = m.get(x, y - 1) === '#' || (m.get(x, y - 2) === '#' && vn(x / 4, y / 4, 3191) > 0.45);
+      if (wall && vn(x / 5, y / 5, 3192) > 0.42 && ' anw'.includes(soil.get(x, y))) S(x, y, 's');
+    }
+  }
 
   // ------------------------------------------------ Bewuchs
   const keepPts = [...beacons, ...tunnels, [waystone.x, waystone.y], [waystone.x + 1, waystone.y], defendAt, ...defendSpawns, [lodge.x, lodge.y], [58, 4], [122, 3], [92, 84], [8, 93]];
@@ -306,43 +568,66 @@ export function buildFrostspire() {
     (x, y) => keepPts.some(([sx, sy]) => Math.abs(x - sx) <= 3 && Math.abs(y - sy) <= 2),
     (x, y) => x >= 7 && x <= 23 && y >= 74 && y <= 84, (x, y) => x >= 94 && x <= 104 && y >= 22 && y <= 29];
   const keep = (x, y) => hold2.some((f) => f(x, y));
-  const forest = (x, y) => x < 34 && y > 56;
-  const glacier = (x, y) => x > 88 && y < 37;
-  const pineSlope = (x, y) => x >= 78 && x <= 100 && y >= 80 && y <= 97;
+  // Baumgruppen (Krummholz und Fichteninseln) auch oben und in der Mitte: dunkler Nadelboden, dichte Bäume
+  const grove = (x, y) => !glacier(x, y) && !inLake(x, y) && !forest(x, y) && !pineSlope(x, y) && vn(x / 6.5, y / 5.5, 3305) > 0.75 && soil.get(x, y) !== 'w';
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) if (m.get(x, y) === ',' && grove(x, y) && !keep(x, y) && ' nas'.includes(soil.get(x, y))) soil.set(x, y, 'f');
+  let crystals = 0;
   strew(m, net, rng, keep, (x, y, g, free) => {
     if (g !== ',') return null;
+    const so = soil.get(x, y);
     if (forest(x, y) || pineSlope(x, y)) {
-      if (free && rng.chance(forest(x, y) ? 0.2 : 0.12)) return 't';
-      if (free && rng.chance(0.02)) return 'x';
-      if (rng.chance(0.03)) return 'd';
+      // Baumgruppen und Lichtungen statt Gleichverteilung
+      const dens = vn(x / 5.5, y / 5, 3301);
+      if (free && rng.chance(dens > 0.52 ? 0.55 : dens > 0.36 ? 0.18 : 0.03)) return 't';
+      if (free && rng.chance(0.015)) return 'x';
+      if (rng.chance(0.02)) return 'd';
       return null;
     }
     if (glacier(x, y)) {
-      if (free && rng.chance(0.02)) return 'c';
-      if (rng.chance(0.03)) return 'd';
+      if (free && crystals < 15 && so === 'g' && rng.chance(0.07)) { crystals++; return 'c'; }
+      if (rng.chance(0.025)) return 'd';
       if (free && rng.chance(0.008)) return 'k';
       return null;
     }
     const nearRock = near(m, x, y, '#', 1);
-    if (free && rng.chance(nearRock ? 0.04 : 0.02)) return 't';
-    if (free && rng.chance(0.01)) return 'x';
-    if (rng.chance(nearRock ? 0.06 : 0.025)) return 'd';
-    if (free && rng.chance(0.012)) return 'k';
-    if (free && rng.chance(0.006)) return 'c';
+    if (so === 'f' && grove(x, y)) return free && rng.chance(vn(x / 6.5, y / 5.5, 3305) > 0.8 ? 0.5 : 0.25) ? 't' : null;
+    if (so === 'w') return nearRock && rng.chance(0.12) ? 'd' : null;          // Wehen an der Gassenwand
+    if (so === 's') return free && rng.chance(0.05) ? 'k' : rng.chance(0.03) ? 'd' : null;
+    if (free && rng.chance(nearRock ? 0.012 : 0.003)) return 't';
+    if (free && rng.chance(0.004)) return 'x';
+    if (rng.chance(nearRock ? 0.04 : 0.012)) return 'd';
+    if (free && rng.chance(0.005)) return 'k';
+    if (free && crystals < 15 && rng.chance(0.004)) { crystals++; return 'c'; }
     return null;
   });
   // Steinmänner an den Kehren, Wegstangen entlang der Passstraße und der Klamm
-  each([[42, 56], [84, 45], [47, 36], [77, 22], [21, 14], [45, 11], [88, 95]], (x, y) => { if (m.get(x, y) === ',' || m.get(x, y) === '.') put(x, y, 'g'); });
+  each([[38, 58], [84, 45], [47, 36], [78, 21], [21, 14], [45, 11], [88, 95]], (x, y) => { if (m.get(x, y) === ',' || m.get(x, y) === '.') put(x, y, 'g'); });
+  // Wegstangen am Rand der Passstraße und der Klamm: etwa alle 7 Kacheln, abwechselnd links und
+  // rechts, auf festem Schnee neben der Spur (nie in der Spur, nie auf Engstellen)
   {
-    const marks = [[57, 66], [50, 63], [58, 56], [68, 54], [77, 52], [74, 43], [63, 42], [56, 31], [64, 30], [69, 20], [65, 16], [87, 97], [82, 92], [78, 89], [98, 91], [112, 89], [128, 88], [32, 84], [26, 82]];
-    for (const [x, y] of marks) {
-      // neben dem Weg auf festem Boden, nicht im Weg
-      for (const [dx, dy] of [[0, -2], [0, 2], [0, -1], [0, 1], [-1, -2], [1, 2]]) {
-        const c = m.get(x + dx, y + dy);
-        if ((c === ',' || c === '.') && m.get(x + dx, y + dy + 1) !== '#' && !net.onRoad(x + dx, y + dy)) { put(x + dx, y + dy, '|'); break; }
+    const S = [...spline(passPts, 0.5), ...spline(gorge, 0.5)];
+    let acc = 0, side = 1;
+    for (let k = 1; k < S.length - 1; k++) {
+      acc += Math.hypot(S[k].x - S[k - 1].x, S[k].y - S[k - 1].y);
+      if (acc < 7) continue;
+      const a = S[Math.max(0, k - 2)], b = S[Math.min(S.length - 1, k + 2)];
+      const l = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / l, ny = (b.x - a.x) / l;
+      for (let d = 1.5; d <= 4; d += 0.5) {
+        const x = Math.round(S[k].x + nx * d * side), y = Math.round(S[k].y + ny * d * side);
+        if (m.get(x, y) !== ',' || net.onRoad(x, y) || m.get(x, y + 1) === '#') continue;
+        let open = 0;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (!'#|'.includes(m.get(x + i, y + j))) open++;
+        if (open < 6) continue;
+        put(x, y, '|'); acc = 0; side = -side; break;
       }
     }
   }
+  each([[98, 91], [112, 89], [128, 88], [32, 84], [26, 82]], (x, y) => {
+    for (const [dx, dy] of [[0, -2], [0, 2], [0, -1], [0, 1], [-1, -2], [1, 2]]) {
+      const c = m.get(x + dx, y + dy);
+      if ((c === ',' || c === '.') && m.get(x + dx, y + dy + 1) !== '#' && !net.onRoad(x + dx, y + dy)) { put(x + dx, y + dy, '|'); break; }
+    }
+  });
 
   // See: Löcher, Hütten, Risse, dann alles übrige Seeeis begehbar ohne Sprite
   each([[98, 70], [116, 66], [124, 72], [106, 74], [114, 77]], (x, y) => { if (m.get(x, y) === ',') put(x, y, 'O'); });
@@ -350,32 +635,116 @@ export function buildFrostspire() {
   if (m.get(108, 63) === ',') put(108, 63, 'Y');
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (!inLake(x, y) || m.get(x, y) !== ',') continue;
-    put(x, y, rng.chance(0.07) ? 'J' : 'I');
+    put(x, y, rng.chance(0.1) ? 'J' : 'I');
   }
 
-  // ------------------------------------------------ Felsstufen und Gipfel in den Massiven
-  // Höhenlinien (wellig, ~6 Zeilen Abstand) werden zu Schneeterrassen; über jeder
-  // Terrasse zeichnet der Renderer eine Felswand. Gipfel nur dort, wo darüber kein
-  // begehbarer Boden liegt (sie würden sonst den Weg verdecken).
-  const level = (x, y) => Math.floor((y + Math.sin(x / 9.3) * 2.4 + Math.sin(x / 4.1 + 1.7) * 0.8) / 6.5);
-  const R = (x, y) => m.get(x, y) === '#';
-  const ledges = [];
-  for (let y = 4; y < H - 4; y++) for (let x = 3; x < W - 3; x++) {
-    if (!R(x, y) || level(x, y) === level(x, y - 1)) continue;
-    if (!(R(x, y - 1) && R(x, y - 2) && R(x, y - 3) && R(x, y + 1) && R(x, y + 2))) continue;
-    if (!R(x - 1, y) || !R(x + 1, y)) continue;
-    ledges.push([x, y]);
+  // ------------------------------------------------ Gipfelketten auf den Massiven
+  // Die Gipfel stehen auf dem Fels (level.rockDecor: der Boden darunter bleibt Hochfläche) entlang
+  // von Kammlinien in wechselnder Richtung – Nord-Süd-Grate, schräge Rücken, kurze Querkämme. Große
+  // und kleine Formen wechseln unregelmäßig; nichts davon verdeckt begehbaren Boden.
+  let spines = [];
+  {
+    const walk = (x, y) => { const c = m.get(x, y); return c !== undefined && c !== '#' && !'NGS'.includes(c); };
+    const BIG = [92, 76, 112, 84, 98, 104], SMALL = [50, 58, 66, 44, 74];
+    const fits = (x, y, big) => {
+      if (m.get(x, y) !== '#') return false;
+      const wpx = big ? BIG[Math.floor(hash2(x, y, 11) * 6)] : SMALL[Math.floor(hash2(x, y, 11) * 5)];
+      const r = Math.ceil((wpx / 2 - 6) / 16), up = Math.ceil(((big ? 100 : 58) - 6) / 16);
+      // Fuß: unter dem Gipfel noch eine Felsreihe (sonst steht er auf der Wandkante)
+      for (let dx = -1; dx <= 1; dx++) if (walk(x + dx, y + 1)) return false;
+      for (let dy = -up; dy <= 0; dy++) { const rr = Math.round(r * Math.min(1, 1 + (dy + 1) / up) + 0.2); for (let dx = -rr; dx <= rr; dx++) if (walk(x + dx, y + dy)) return false; }
+      return true;
+    };
+    const placed = [];
+    const free = (x, y, dx, dy) => !placed.some(([px, py]) => Math.abs(px - x) < dx && Math.abs(py - y) < dy);
+    spines = [
+      // Westmassiv: Nord-Süd-Grat am Kartenrand, schräger Rücken über den Grotten
+      [[4, 18], [5, 27], [3.5, 36], [5, 46], [4, 54]],
+      [[22, 17], [28, 23], [33, 29], [35, 36]],
+      [[18, 38], [24, 40], [28, 38]],
+      // Passberg: Zinnenkamm über dem Felstor, Ostgrat (Nord-Süd), Rücken zwischen den Schenkeln
+      [[38, 21], [45, 18], [52, 20], [58, 17.5]],
+      [[77, 19], [83, 15.5], [89, 18]],
+      [[87.5, 23], [88, 31], [86.5, 39], [88, 46]],
+      [[57, 35], [66, 32], [74, 33.5], [80, 31]],
+      [[39, 47], [38.5, 40], [41, 30]],
+      [[47, 67], [53, 69], [44, 64]],
+      // Ostsporn zwischen Kessel und See (schräg), Trollmassiv (Nord- und Südkamm), Ostrand
+      [[80, 55], [84, 61], [88, 68], [87, 75]],
+      [[90, 41], [99, 40.5], [108, 42], [116, 40]],
+      [[91, 58], [100, 59.5], [112, 57], [124, 58.5], [134, 57]],
+      [[148, 38], [149, 46], [147.5, 56]],
+      // Grate im Gletscher
+      [[108, 2], [110, 8], [112, 12.5]],
+      [[150, 13], [145, 16], [141, 18]],
+      [[124, 36], [124, 31]],
+      // Rücken zwischen Jägerwald und Kessel (Nord-Süd), Südrand, Fels an den Wühlerfeldern
+      [[35, 66], [36, 74], [35, 90], [36.5, 98]],
+      [[42, 99], [52, 100], [62, 99], [74, 100], [84, 99]],
+      [[103, 93], [103.5, 100]],
+      [[2, 64], [2, 76], [2.5, 88], [2, 98]],
+      // unterer Passberg: schräger Rücken zum Ostsporn
+      [[61, 64], [69, 59], [77, 53]],
+    ];
+    // Abstände entlang des Kamms unregelmäßig (2,8–6,4 Kacheln), seitlich versetzt; ab und zu ein
+    // kleiner Vorgipfel schräg davor. Große Formen nur, wo der Fels breit genug ist.
+    const tryAt = (cx, cy, big) => {
+      const cand = [];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -2; dx <= 2; dx++) cand.push([Math.round(cx) + dx, Math.round(cy) + dy, Math.abs(dx) + Math.abs(dy) * 1.3]);
+      cand.sort((p, q) => p[2] - q[2]);
+      for (const [x, y] of cand) {
+        if (big ? !(free(x, y, 4, 3) && fits(x, y, true)) : !(free(x, y, 3, 2) && fits(x, y, false))) continue;
+        put(x, y, big ? 'N' : 'G'); placed.push([x, y]); return [x, y];
+      }
+      return null;
+    };
+    // Gruppen statt Reihen: alle 5–10 Kacheln ein Leitgipfel (groß, wenn Platz), dazu ein bis zwei
+    // kleinere Vorgipfel seitlich davor; dazwischen bleibt der Grat frei.
+    spines.forEach((pts, si) => {
+      const S = spline(pts, 0.25);
+      let acc = 99, gap = hash2(si, 1, 3600) * 4, k0 = 0;
+      for (let k = 0; k < S.length; k++) {
+        if (k) acc += Math.hypot(S[k].x - S[k - 1].x, S[k].y - S[k - 1].y);
+        if (acc < gap) continue;
+        const h = (j) => hash2(si * 1000 + k0, j, 3601);
+        k0++;
+        const a = S[Math.max(0, k - 2)], b = S[Math.min(S.length - 1, k + 2)];
+        const l = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / l, ny = (b.x - a.x) / l;
+        const off = (h(1) - 0.5) * 3.4;
+        const at = tryAt(S[k].x + nx * off, S[k].y + ny * off, h(2) < 0.7) ?? tryAt(S[k].x, S[k].y, false);
+        if (!at) continue;
+        const side = h(4) < 0.5 ? -1 : 1;
+        if (h(3) < 0.75) tryAt(at[0] + side * (2 + h(6) * 1.5), at[1] + 1 + h(7), false);
+        if (h(3) < 0.3) tryAt(at[0] - side * (2.5 + h(8) * 1.5), at[1] + h(9) * 1.5, h(10) < 0.3);
+        acc = 0; gap = 5.5 + h(5) * 5;
+      }
+    });
   }
-  for (const [x, y] of ledges) put(x, y, '_');
-  const walkable = (c) => !'#_NS'.includes(c) && c !== undefined;
-  const peaks = [];
-  for (const [x, y] of ledges) {
-    if (hash2(x, y, 3141) > 0.3) continue;
-    if (peaks.some(([px, py]) => Math.abs(px - x) < 5 && Math.abs(py - y) < 5)) continue;
-    let clearAbove = true;
-    for (let dy = -7; dy <= 0 && clearAbove; dy++) for (let dx = -3; dx <= 3; dx++) { const c = m.get(x + dx, y + dy); if (c !== '#' && c !== '_' && c !== 'N' && walkable(c)) { clearAbove = false; break; } }
-    if (!clearAbove) continue;
-    peaks.push([x, y]); put(x, y, 'N');
+
+  // Hochflächen (level.soil auf Felszellen; der Renderer färbt damit die Plateaus, siehe
+  // GROUND_FROST.capPixel): Hängegletscher am Gletscherfeld, apere warme Felsflecken über den
+  // Südwänden, Nadelwald auf den unteren Hängen, sonst großflächig Neu- und Altschnee.
+  {
+    const dOpen = distField(W, H, (x, y) => m.get(x, y) !== '#' && !'NGS'.includes(m.get(x, y)));
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (m.get(x, y) !== '#' && !'NG'.includes(m.get(x, y))) continue;
+      // Abstand zur nächsten Südwand (offener Boden unterhalb)
+      let south = 99;
+      for (let j = 1; j <= 4; j++) { const c = m.get(x, y + j); if (c !== undefined && c !== '#' && !'NGS'.includes(c)) { south = j; break; } }
+      const mid = vn(x / 6, y / 5, 3702);
+      let ch = ' ';
+      const warm = 0.6 - Math.min(0.1, x / W * 0.1) - (y > 50 ? 0.04 : 0);
+      if (south <= 3 && mid > warm) ch = 'e';
+      const forestBelt = (y > 52 && vn(x / 9, y / 7, 3703) > 0.54) || (y > 12 && y <= 52 && vn(x / 8, y / 6, 3704) > 0.68);
+      if (forestBelt && dOpen[y * W + x] >= 1 && !(x > 84 && y < 40)) ch = 'f';
+      if (x >= 84 && y < 42 && vn(x / 7, y / 5, 3252) > 0.47) ch = 'g';
+      soil.set(x, y, ch);
+    }
+    // Grate: blanker, warmgrauer Fels entlang der Kammlinien (macht ihre Richtung auf der Karte lesbar)
+    spines.forEach((pts, si) => spline(pts, 0.25).forEach((p, k) => {
+      const r = 1.3 + vn(k / 7, si, 3720) * 1.6;
+      disc(p.x, p.y, r, (x, y) => { if ((m.get(x, y) === '#' || 'NG'.includes(m.get(x, y))) && soil.get(x, y) !== 'g') soil.set(x, y, 'r'); });
+    }));
   }
 
   const areas = [
@@ -400,16 +769,21 @@ export function buildFrostspire() {
     decorSet: 'decor_frost',
     baseFloor: '~',
     map: m.rows(),
-    solid: 'wvUOXYz/7>890!?&*+<-;@pDrWgmxuKVa_NSQ^|()[]L',
+    soil: soil.rows(),
+    solid: 'wvUOXYz/7>890!?&*+<-;@pDrWgmxuKVa_NGSQ^|()[]L"',
+    // Gipfel stehen auf dem Fels: Boden darunter = Hochfläche (VORSCHLAG_Outdoor.diff)
+    rockDecor: 'NG',
+    // Gletscherspalten als Polylinien (Kacheln; w = halbe Breite in px), gezeichnet von frostPixel
+    crevasses,
     decor: {
       t: 'snowPines', k: 'frozenRocks', c: 'iceCrystals', d: 'snowDrifts', L: 'longhouse',
       U: 'fortTower', T: 'tent', P: 'bannerPole', F: 'campfireBig',
       R: 'rimeGate', o: 'trollBones',
       I: null, J: 'iceCracks', O: 'iceHole', X: 'fishHut', Y: 'frozenBoat',
-      ...Object.fromEntries(Object.entries(CREV).map(([k, ch]) => [ch, `crev${k}`])), n: 'snowBridge', $: 'snowBridgeL', '%': 'snowBridgeR', q: 'icicleCurtain', p: 'icePillar', C: 'trollCave', E: 'grottoMouth', u: 'caveFire',
+      q: 'icicleCurtain', p: 'icePillar', C: 'trollCave', E: 'grottoMouth', u: 'caveFire',
       K: 'supplies', V: 'sled', a: 'weaponRack',
       D: 'huntLodge', r: 'peltRack', W: 'woodPile', g: 'cairn', m: 'iceFall', x: 'deadPine',
-      _: 'ledgeSnow', N: 'mountainPeak', S: 'rockSpire', ']': 'frozenCascade', l: 'frozenPond', y: 'tracks',
+      _: 'ledgeSnow', N: 'mountainPeakBig', G: 'mountainPeakSmall', S: 'rockSpire', ']': 'frozenCascade', l: 'frozenPond', y: 'tracks',
       Q: 'ruinTower', '^': 'ruinWall', '[': 'coldFire', '(': 'runeStone', ')': 'sodHut', '|': 'markerPole',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_blighted_marsh', 4: 'from_rime_caverns', 5: 'from_ember_wastes', 6: 'waystone' },

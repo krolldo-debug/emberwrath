@@ -5,44 +5,211 @@ import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
 import { groundPixel, vnoise } from './outdoor.js';
 
+// ------------------------------------------------------------ Schnelles Gitterrauschen für den Boden
+// Gleiche Werte wie vnoise bei ganzzahligen Maßstäben, aber Gitterwerte zwischengespeichert (Uint16, erst bei Bedarf)
+// und Glättungsgewichte vorberechnet: der Boden fragt je Pixel mehrere Rauschwerte ab.
+const SMW = [];
+function smW(s) { let w = SMW[s]; if (!w) { w = SMW[s] = new Float32Array(s); for (let i = 0; i < s; i++) { const f = i / s; w[i] = f * f * (3 - 2 * f); } } return w; }
+let NZW = 0, NZH = 0;
+const NZT = [];
+function nzt(sx, sy, seed) { const t = { sx, sy, seed, wx: smW(sx), wy: smW(sy), w: 0, a: null, lx: -1, ly: -1, c0: 0, c1: 0, c2: 0, c3: 0 }; NZT.push(t); return t; }
+function nzSize(pw, ph) { if (pw === NZW && ph === NZH) return; NZW = pw; NZH = ph; for (const t of NZT) { t.a = null; t.w = 0; t.lx = -1; t.ly = -1; } }
+function nzFill(t) { t.w = Math.ceil(NZW / t.sx) + 2; t.a = new Uint16Array(t.w * (Math.ceil(NZH / t.sy) + 2)).fill(65535); return t.a; }
+function nz(t, px, py) {
+  if (px < 0 || py < 0 || px >= NZW || py >= NZH || (px | 0) !== px || (py | 0) !== py) return vnoise(px / t.sx, py / t.sy, t.seed);
+  const sx = t.sx, sy = t.sy, x0 = (px / sx) | 0, y0 = (py / sy) | 0;
+  if (x0 !== t.lx || y0 !== t.ly) {
+    // neue Gitterzelle: Eckwerte laden (fehlende erst jetzt berechnen)
+    const a = t.a ?? nzFill(t), w = t.w, i = y0 * w + x0, s = t.seed;
+    let v00 = a[i], v10 = a[i + 1], v01 = a[i + w], v11 = a[i + w + 1];
+    if (v00 === 65535) v00 = a[i] = (hash2(x0, y0, s) * 65535) | 0;
+    if (v10 === 65535) v10 = a[i + 1] = (hash2(x0 + 1, y0, s) * 65535) | 0;
+    if (v01 === 65535) v01 = a[i + w] = (hash2(x0, y0 + 1, s) * 65535) | 0;
+    if (v11 === 65535) v11 = a[i + w + 1] = (hash2(x0 + 1, y0 + 1, s) * 65535) | 0;
+    t.lx = x0; t.ly = y0; t.c0 = v00 / 65535; t.c1 = (v10 - v00) / 65535; t.c2 = (v01 - v00) / 65535; t.c3 = (v00 - v10 - v01 + v11) / 65535;
+  }
+  const fx = t.wx[px - x0 * sx], fy = t.wy[py - y0 * sy];
+  return t.c0 + t.c1 * fx + t.c2 * fy + t.c3 * fx * fy;
+}
+// Grundkörnung des Bodens (Rauschen 9 px + 3 px) als kachelbare Textur 288×288: ein Speicherzugriff je Pixel.
+// Periode 18 Kacheln; Halme, Bodenarten und Goldflächen liegen darüber, daher fällt die Wiederholung nicht auf.
+const TP = 288;
+let TEXN = null;
+function pvn(px, py, s, seed) {
+  const pc = TP / s, x = px / s, y = py / s, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), x1 = (x0 + 1) % pc, y1 = (y0 + 1) % pc;
+  const a = hash2(x0, y0, seed), b = hash2(x1, y0, seed), c = hash2(x0, y1, seed), d = hash2(x1, y1, seed);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+function texN() {
+  TEXN = new Float32Array(TP * TP);
+  for (let y = 0; y < TP; y++) for (let x = 0; x < TP; x++) TEXN[y * TP + x] = pvn(x, y, 9, 11) * 0.6 + pvn(x, y, 3, 12) * 0.4;
+  return TEXN;
+}
+const grain = (px, py) => (px < 0 || py < 0 || (px | 0) !== px || (py | 0) !== py) ? vnoise(px / 9, py / 9, 11) * 0.6 + vnoise(px / 3, py / 3, 12) * 0.4 : (TEXN ?? texN())[(py % TP) * TP + (px % TP)];
+const N20 = nzt(20, 20, 15), NRIP = nzt(13, 13, 403), NCH = nzt(15, 13, 420), NCH2 = nzt(9, 11, 419);
+const NST = nzt(16, 16, 423), NCA_S = nzt(7, 6, 404), NCA_B = nzt(7, 6, 406), NCB_S = nzt(11, 9, 405), NCB_B = nzt(11, 9, 407);
+const NCAP = nzt(8, 7, 430), NCRK = nzt(13, 9, 433), NGRS = nzt(13, 11, 434), NM1 = nzt(13, 11, 1300), NM2 = nzt(6, 6, 1301);
+const NBW = nzt(17, 13, 1386), NBK = nzt(4, 3, 1388), NSB = nzt(23, 9, 1350), NKN = nzt(9, 7, 1361), NSL = nzt(8, 6, 1355), NSL4 = nzt(4, 4, 1363);
+const NRW = nzt(9, 9, 1382), NFORD = nzt(5, 5, 426), NPUD = nzt(6, 5, 418);
+
 // Aschensteppe: trockene Grassteppe unter Aschehimmel. Nomadenlager, Kriegsherren,
 // Grabhügel und die Knochen uralter Bestien. Licht von links oben; alles Leuchtende
 // zusätzlich auf der Glow-Ebene ((W+2)×(H+2), 1 px Versatz wie decor_ashwood.js).
 
 // Bodenpalette (Format wie BIOME_GROUND in sprites/outdoor.js)
-// Runde 2: Grundton trockenes Steppengras; level.soil färbt Flächen um:
-// g sattes Gras (Wasserlöcher), r Rotsand (Tafelberge/Schlucht), s Salzkruste, b trockenes Flussbett, a Ascheflur.
+// Grundton trockenes Steppengras, großflächig mit goldenem Strohgras gemischt; level.soil färbt Flächen um:
+// y Strohgold, g sattes Gras (Wasserlöcher), r Rotsand/rote Erde, s Salzkruste, b trockenes Flussbett, a Ascheflur,
+// c Schluchtgrund (roter Kies), w Bachbett in der Schlucht, m Hochfläche eines Tafelbergs, q Felsstufen (Rampe).
+// Felsen ('%' im Raster, unsichtbar fest) malt dieser Boden selbst – organisch, ohne Kachelkanten (siehe unten).
 const ST_DIRT = ['#211a11', '#2d2316', '#3b2e1c', '#4a3a23', '#5a472b', '#6c5533'];
 const ST_SUB = {
-  g: { grass: ['#131b0d', '#1a2511', '#223016', '#2b3c1a', '#35491f', '#415725'], dirt: ST_DIRT },
+  g: { grass: ['#121c0c', '#192811', '#203416', '#29421b', '#33511f', '#3f6125'], dirt: ST_DIRT },
   a: { grass: ['#191817', '#22201f', '#2c2a28', '#373431', '#423e3a', '#504b46'], dirt: ST_DIRT },
+  y: { grass: ['#2a1f0b', '#3b2c0f', '#503c14', '#67501a', '#7f6321', '#98772a'], dirt: ST_DIRT },
 };
 const hexRgbS = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const ST_RED = ['#24130c', '#341b10', '#452414', '#572d18', '#6a381d', '#7e4423'].map(hexRgbS);
 const ST_SALT = ['#34322d', '#45423b', '#57534a', '#6a655a', '#7e786a', '#948d7c'].map(hexRgbS);
 const ST_BED = ['#2c251b', '#3f3528', '#4e4333', '#5d503e', '#6c5d49', '#7d6c55'].map(hexRgbS);
+const ST_CAN = ['#24120b', '#331a10', '#432215', '#542b1a', '#66351f', '#7a4025'].map(hexRgbS);
+const ST_CAP = ['#33200f', '#452b14', '#58371a', '#6c4320', '#804f27', '#955d2f', '#a96b38'].map(hexRgbS);
+const ST_WET = ['#120c0a', '#1b1310', '#251a15', '#31231b', '#3e2d22'].map(hexRgbS);
+const ST_WASH = ['#2a1b14', '#3a271d', '#4a3326', '#5a3f30', '#6a4c3a', '#7b5a45'].map(hexRgbS);
+// Kacheln, deren 3×3-Nachbarschaft dasselbe Bodenzeichen hat, brauchen kein Verwackeln (Versatz < 1 Kachel)
+const soilUni = new WeakMap();
+function soilUniform(level) {
+  let u = soilUni.get(level);
+  if (!u) {
+    const S = level.soil, h = S.length, w = S[0].length; u = { w, a: new Uint8Array(w * h) };
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const c = S[y][x]; let ok = 1;
+      for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1; dx++) if (S[y + dy][x + dx] !== c) { ok = 0; break; }
+      u.a[y * w + x] = ok;
+    }
+    soilUni.set(level, u);
+  }
+  return u;
+}
 function steppeSoil(level, px, py) {
   const S = level?.soil; if (!S) return ' ';
-  const jx = px + (vnoise(px / 11, py / 11, 401) - 0.5) * 18, jy = py + (vnoise(px / 11, py / 11, 402) - 0.5) * 18;
-  return S[Math.floor(jy / 16)]?.[Math.floor(jx / 16)] ?? ' ';
+  const u = level === curLevel ? curU : soilUniform(level), tx = px >> 4, ty = py >> 4;
+  if (tx < u.w && u.a[ty * u.w + tx]) return S[ty][tx];
+  // Versatz aus einem 4-px-Raster (bilinear), spart zwei Rauschwerte je Pixel
+  if (!u.jx) { u.gw = u.w * 4 + 2; u.jx = new Float32Array(u.gw * (S.length * 4 + 2)).fill(-99); u.jy = new Float32Array(u.jx.length); u.cg = -1; }
+  const gx = px >> 2, gy = py >> 2, fx = (px & 3) * 0.25, fy = (py & 3) * 0.25;
+  // Eckwerte der 4-px-Zelle merken (Zeilen laufen pixelweise durch dieselbe Zelle)
+  const cell = gy * u.gw + gx;
+  if (cell !== u.cg) {
+    u.cg = cell;
+    for (let k = 0; k < 4; k++) {
+      const cx = gx + (k & 1), cy = gy + (k >> 1), i = cy * u.gw + cx;
+      if (u.jx[i] === -99) { u.jx[i] = (vnoise(cx * 4 / 11, cy * 4 / 11, 401) - 0.5) * 18; u.jy[i] = (vnoise(cx * 4 / 11, cy * 4 / 11, 402) - 0.5) * 18; }
+    }
+    const i = cell, w = u.gw;
+    u.x0 = u.jx[i]; u.x1 = u.jx[i + 1]; u.x2 = u.jx[i + w]; u.x3 = u.jx[i + w + 1];
+    u.y0 = u.jy[i]; u.y1 = u.jy[i + 1]; u.y2 = u.jy[i + w]; u.y3 = u.jy[i + w + 1];
+  }
+  const ax = u.x0 + (u.x1 - u.x0) * fx, bx = u.x2 + (u.x3 - u.x2) * fx;
+  const ay = u.y0 + (u.y1 - u.y0) * fx, by = u.y2 + (u.y3 - u.y2) * fx;
+  const jx = px + ax + (bx - ax) * fy, jy = py + ay + (by - ay) * fy;
+  const r = S[Math.floor(jy / 16)];
+  return r === undefined ? ' ' : r[Math.floor(jx / 16)] ?? ' ';
 }
-function steppePixel(kind, px, py, level) {
-  if (kind !== ',' && kind !== '.') return groundPixel(kind, px, py, GROUND_STEPPE);
-  const s = steppeSoil(level, px, py);
-  if (s === 'g' || s === 'a') return groundPixel(kind, px, py, ST_SUB[s]);
-  if (s !== 'r' && s !== 's' && s !== 'b') return groundPixel(kind, px, py, GROUND_STEPPE);
-  const n = vnoise(px / 9, py / 9, 11) * 0.6 + vnoise(px / 3, py / 3, 12) * 0.4, h = hash2(px, py, 13);
+const tileSoil = (level, px, py) => level?.soil?.[py >> 4]?.[px >> 4] ?? ' ';
+// Steppengras: oliv mit großen Strohgold-Flächen (weicher, geditherter Übergang)
+const goldCache = new WeakMap();
+function goldAt(level, px, py) {
+  let g = level === curLevel ? curG : goldCache.get(level);
+  if (!g) { const w = (level.map?.[0]?.length ?? 160) * 2 + 1, h = (level.map?.length ?? 104) * 2 + 1; g = { w, a: new Float32Array(w * h).fill(-1) }; goldCache.set(level, g); }
+  const cx = px >> 3, cy = py >> 3, i = cy * g.w + cx;
+  let v = g.a[i];
+  if (v < 0) { const x = cx * 8 + 4, y = cy * 8 + 4; v = g.a[i] = vnoise(x / 74, y / 58, 451) * 0.7 + vnoise(x / 23, y / 19, 452) * 0.3; }
+  return v;
+}
+function plainGrass(kind, px, py, level) {
+  const gn = level ? goldAt(level, px, py) : 0;
+  return gp(kind, px, py, gn > 0.6 + (bayerG(px, py) - 0.5) * 0.05 ? P_SUB.y : P_BASE);
+}
+// Wie groundPixel (sprites/outdoor.js), aber mit Rauschtabellen und vorab umgerechneten Farben
+const toP = (pal) => ({ g: pal.grass.map(hexRgbS), d: pal.dirt.map(hexRgbS), src: pal });
+const P_SUB = { g: toP(ST_SUB.g), a: toP(ST_SUB.a), y: toP(ST_SUB.y) };
+const P_MORT = hexRgbS(PAL.mortar), P_STONE = PAL.stone.map(hexRgbS);
+function gp(kind, px, py, P) {
+  const h = hash2(px, py, 13);
+  if (kind === ',') {
+    let i = 1 + Math.floor(grain(px, py) * 3.2);
+    const blade = hash2(px, py >> 1, 14);
+    if (blade < 0.07) i = Math.min(5, i + 2); else if (blade > 0.95) i = 0;
+    if (h < 0.015) return P.d[2];
+    return P.g[i < 0 ? 0 : i > 5 ? 5 : i];
+  }
+  if (kind === '.') {
+    let i = 1 + Math.floor(grain(px, py) * 3);
+    if (h < 0.05) i = 4; else if (h > 0.97) i = 0;
+    if (nz(N20, px, py) > 0.72) i = Math.max(0, i - 1);
+    return P.d[Math.min(5, i)];
+  }
+  if (kind === ':') {
+    const row = Math.floor(py / 5), sh = (row % 2) * 3;
+    const lx = (px + sh) % 6, ly = py % 5;
+    if (lx === 0 || ly === 0) return P_MORT;
+    const s = hash2(Math.floor((px + sh) / 6), row, 16);
+    let i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
+    if (ly === 1) i = Math.min(5, i + 1);
+    if (ly === 4 || lx === 5) i = Math.max(1, i - 1);
+    if (h < 0.04) i = 1;
+    return P_STONE[i];
+  }
+  return groundPixel(kind, px, py, P.src);
+}
+const BAYG = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const bayerG = (x, y) => BAYG[((y & 3) << 2) | (x & 3)] / 16;
+function steppeGround(kind, px, py, level) {
+  if (kind !== ',' && kind !== '.') {
+    // Furt: Pflaster/Weg über dem Bachbett der Schlucht -> Trittsteine
+    if (kind === ':' && tileSoil(level, px, py) === 'w') return fordStone(px, py);
+    return gp(kind, px, py, P_BASE);
+  }
+  let s = steppeSoil(level, px, py);
+  if (s === 'k') s = 'r';
+  if (s === 'h') s = ' ';
+  if (s === 'g' || s === 'a' || s === 'y') return gp(kind, px, py, P_SUB[s]);
+  if (s === ' ') return kind === ',' ? plainGrass(kind, px, py, level) : gp(kind, px, py, P_BASE);
+  const n = grain(px, py), h = hash2(px, py, 13);
   let i = 1 + Math.floor(n * 3) + (kind === '.' ? 1 : 0);
+  if (s === 'q') { const c = rampPixel(level, px, py); if (c) return c; s = 'r'; }
   if (s === 'r') {
-    // Rotsand mit Windrippeln
-    const rip = Math.sin(px * 0.42 + py * 0.16 + vnoise(px / 13, py / 13, 403) * 7);
+    // Rotsand mit Windrippeln, dazwischen Grasbüschel
+    const rip = Math.sin(px * 0.42 + py * 0.16 + nz(NRIP, px, py) * 7);
     if (rip > 0.82) i = Math.min(5, i + 1); else if (rip < -0.9) i = Math.max(0, i - 1);
     if (h < 0.02) i = 0;
+    if (kind === ',' && hash2(px, py >> 1, 409) < 0.05 && vnoise(px / 7, py / 7, 410) > 0.55) return rgbS(ST_SUB.y.grass[4]);
     return ST_RED[Math.max(0, Math.min(5, i))];
   }
+  if (s === 'c' || s === 'w') {
+    // Schluchtgrund: roter Kies, Geröll; Bachbett dunkel und feucht mit Pfützenglanz
+    if (s === 'w') {
+      if (kind === '.' && fordBand(px, py)) return fordStone(px, py);
+      // verflochtene Rinne: schmale feuchte Läufe zwischen hellen Kiesbänken
+      const ch = Math.abs(nz(NCH, px, py) - 0.5), ch2 = Math.abs(nz(NCH2, px, py) - 0.5);
+      if (ch < 0.04 || ch2 < 0.018) {
+        if (ch < 0.03 && nz(NPUD, px, py) > 0.72) return h < 0.15 ? [70, 78, 80] : [38, 44, 46];   // Pfützenglanz
+        return ST_WET[ch < 0.018 ? 2 : 3];
+      }
+      if (ch < 0.065 || ch2 < 0.032) return ST_WET[4];
+      if (h < 0.1) { const p = hash2(px >> 1, py >> 1, 421); return p < 0.5 ? [124, 96, 76] : [84, 62, 48]; }
+      return ST_WASH[Math.max(1, Math.min(5, i + 1))];
+    }
+    if (h < 0.05) { const p = hash2(px >> 1, py >> 1, 422); return p < 0.45 ? [128, 84, 56] : p < 0.8 ? [92, 58, 38] : [50, 28, 20]; }
+    const st = nz(NST, px, py);
+    if (st > 0.74) i = Math.max(0, i - 1); else if (st < 0.3) i += 1;
+    return ST_CAN[Math.max(0, Math.min(5, i + 1))];
+  }
+  if (s === 'm') return capPixel(px, py, 0);
   // Salz und Flussbett: Trockenrisse als Netz
-  const crackA = Math.abs(vnoise(px / 7, py / 6, s === 's' ? 404 : 406) - 0.5) < 0.035;
-  const crackB = Math.abs(vnoise(px / 11, py / 9, s === 's' ? 405 : 407) - 0.5) < 0.025;
+  const crackA = Math.abs(nz(s === 's' ? NCA_S : NCA_B, px, py) - 0.5) < 0.035;
+  const crackB = Math.abs(nz(s === 's' ? NCB_S : NCB_B, px, py) - 0.5) < 0.025;
   if (s === 's') {
     if (crackA || crackB) return ST_SALT[1];
     if (h < 0.05) i = 5;
@@ -54,6 +221,449 @@ function steppePixel(kind, px, py, level) {
   if (h < 0.07) { const p = hash2(px >> 1, py >> 1, 408); return p < 0.5 ? [112, 104, 94] : [74, 66, 58]; }  // Kiesel
   return ST_BED[Math.max(1, Math.min(5, i))];
 }
+const rgbS = (() => { const c = new Map(); return (hex) => { let v = c.get(hex); if (!v) { v = hexRgbS(hex); c.set(hex, v); } return v; }; })();
+// Trittsteine der Furten (flache, gerundete Platten)
+const fordBand = (px, py) => nz(NFORD, px, py) > 0.45;
+function fordStone(px, py) {
+  // versetzte, unregelmäßige Platten auf hellem Kies (kein Raster)
+  const cy = Math.floor(py / 7);
+  let best = 9, bx = 0, by = 0;
+  for (let dy = -1; dy <= 1; dy++) {
+    const ry = cy + dy, o2 = (ry & 1) * 4;
+    for (let dx = -1; dx <= 1; dx++) {
+      const rx = Math.floor((px + o2) / 8) + dx;
+      const ox = rx * 8 - o2 + 4 + (hash2(rx, ry, 427) - 0.5) * 3, oy = ry * 7 + 3.5 + (hash2(rx, ry, 428) - 0.5) * 2;
+      const ax = 2.6 + hash2(rx, ry, 429) * 1.0, ay = 2.1 + hash2(rx, ry, 439) * 0.7;
+      const d = ((px - ox) / ax) ** 2 + ((py - oy) / ay) ** 2;
+      if (d < best) { best = d; bx = ox; by = oy; }
+    }
+  }
+  if (best > 1.35) return hash2(px, py, 441) < 0.12 ? ST_WET[4] : ST_WASH[2 + (hash2(px >> 1, py >> 1, 442) < 0.3 ? 1 : 0)];
+  if (best > 1) return ST_WASH[1];
+  return best < 0.35 && px < bx ? [132, 114, 96] : py > by + 1 ? [70, 58, 48] : [102, 86, 72];
+}
+// In den Fels gehauene Stufen (level.ramps: Polylinien in Kachelkoordinaten, bergauf): leicht gebogene
+// Stufenkanten, ausgebrochener, unregelmäßiger Rand; außerhalb der Treppe bleibt roter Sand.
+const rampCache = new WeakMap();
+function rampSegs(level) {
+  let r = rampCache.get(level);
+  if (!r) {
+    r = [];
+    for (const line of level.ramps ?? []) {
+      let acc = 0;
+      for (let i = 0; i + 1 < line.length; i++) {
+        const ax = line[i][0] * 16 + 8, ay = line[i][1] * 16 + 8, dx = line[i + 1][0] * 16 + 8 - ax, dy = line[i + 1][1] * 16 + 8 - ay, l = Math.hypot(dx, dy);
+        r.push({ ax, ay, dx, dy, l, acc }); acc += l;
+      }
+    }
+    rampCache.set(level, r);
+  }
+  return r;
+}
+const STEP = 10;
+function rampPixel(level, px, py) {
+  const R = rampSegs(level);
+  let best = Infinity, s = 0, lat = 0;
+  for (const g of R) {
+    let t = ((px - g.ax) * g.dx + (py - g.ay) * g.dy) / (g.l * g.l);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const qx = px - g.ax - g.dx * t, qy = py - g.ay - g.dy * t, d2 = qx * qx + qy * qy;
+    if (d2 < best) { best = d2; s = g.acc + t * g.l; lat = (g.dx * qy - g.dy * qx) / g.l; }
+  }
+  if (best === Infinity) return null;
+  const al = Math.abs(lat);
+  const halfW = 12 + vnoise(s / 10, lat > 0 ? 3.5 : 9.5, 1401) * 6;
+  if (al > halfW + 1.5) return null;
+  // ausgebrochener Rand: Brocken und Absplitterungen
+  if (al > halfW - 1.5 + hash2(px >> 1, py >> 1, 1405) * 1.5) return hash2(px >> 1, py >> 1, 1404) < 0.45 ? MESR[4] : MESR[2];
+  // Stufenkoordinate: entlang der Treppe, zur Mitte hin vorgewölbt (gebogene Kanten), leicht unregelmäßig
+  const u = s - (lat * lat) / 48 + (vnoise(px / 4, py / 4, 1402) - 0.5) * 1.6;
+  const k = Math.floor(u / STEP), f = u - k * STEP - hash2(k, 0, 1403) * 1.1;
+  const wear = hash2(k, 1, 1406);
+  if (f < 0.7) return MESR[2];                                               // Schattenfuge am Fuß der Setzstufe
+  if (f < 2.3) return MESR[hash2(px, py, 1407) < 0.2 ? 3 : 4];               // Setzstufe (Stirnseite)
+  if (f < 3.2) return al > halfW - 4 && wear < 0.5 ? MESR[5] : MESR[hash2(px, k, 1408) < 0.25 ? 7 : 6];   // Trittkante im Licht
+  // Trittfläche: Sandstein, ausgetreten in der Mitte, Risse und Grasbüschel in den Fugen am Rand
+  if (al > halfW - 4 && hash2(px, py >> 1, 1409) < 0.12) return rgbS(ST_SUB.y.grass[3 + (hash2(px, py, 1410) < 0.5 ? 1 : 0)]);
+  if (wear < 0.35 && Math.abs(lat - (hash2(k, 2, 1411) - 0.5) * 10) < 0.7 && f > 4) return MESR[2];   // Riss
+  let c = 5 + (grain(px, py) > 0.6 ? 1 : 0) - (al > halfW - 3 ? 1 : 0) - (hash2(px >> 1, py >> 1, 1412) < 0.08 ? 1 : 0);
+  return MESR[c];
+}
+// Hochfläche (Kappe) eines Tafelbergs: rötlicher Fels mit dünner Erde, Strohhalmen, Rissen
+function capPixel(px, py, edge) {
+  const n = nz(NCAP, px, py) * 0.55 + grain(px + 1, py + 2) * 0.3 + hash2(px, py, 432) * 0.15;
+  let k = 1 + Math.floor(n * 4.2);
+  const crack = Math.abs(nz(NCRK, px, py) - 0.5) < 0.014 && hash2(px, py, 438) < 0.8;
+  if (crack) k = 0;
+  const grassy = nz(NGRS, px, py);
+  if (!crack && grassy > 0.58 && hash2(px, py >> 1, 435) < 0.32) return rgbS(ST_SUB.y.grass[3 + (hash2(px, py, 436) < 0.4 ? 2 : 0)]);
+  if (!crack && hash2(px >> 1, py >> 1, 437) < 0.025) return MESR[7];
+  return ST_CAP[Math.max(0, Math.min(6, k + edge))];
+}
+
+// ============================================================ Organische Felsen (Tafelberge, Schlucht, Randhügel)
+// Felskacheln stehen als '%' im Raster (fest, ohne Deko); level.soil trägt die Felsart: 'k' Schluchtrand (Oberkante
+// auf Steppenhöhe), 'h' Randhügel (Grasdecke), sonst Tafelberg (Sandstein, Hochfläche +1). Boden hat Höhen:
+// Schluchtgrund c/w = -1, Hochfläche m = +1, sonst 0. Eine Wand (3/4-Sicht) entsteht nur, wo der Fels höher ist als
+// der Boden an seinem Fuß; seitliche Abbrüche zeigen schmale Wandbänder (links beleuchtet, rechts im Schatten).
+// Umriss: bilinear geglättete Felsmaske + Rauschen (wie die Frostgipfel). Die Maske wird je Kachel lazy berechnet
+// und zwischengespeichert; alles deterministisch.
+const ROCK = '%';
+const CAPR = 48;                           // Lauflängen-Deckel (größte Wand 40 px)
+const MESR = ['#140d09', '#21150d', '#311e11', '#452a16', '#5b381c', '#734823', '#8e5b2c', '#ab7339', '#c99250'].map(hexRgbS);
+const mixRamp = (ramp, c, a) => ramp.map(([r, g, b]) => [Math.round(r + (c[0] - r) * a), Math.round(g + (c[1] - g) * a), Math.round(b + (c[2] - b) * a)]);
+const PALER = mixRamp(MESR, [176, 150, 118], 0.32);
+const DEEPR = mixRamp(MESR, [96, 22, 14], 0.22);
+const UPF = ['#17110c', '#21180f', '#2d2114', '#3a2b1a', '#4a3822', '#5c472b', '#705735', '#856841', '#9a7a4d'].map(hexRgbS);
+const KIND_MESA = 1, KIND_RIM = 2, KIND_HILL = 3;
+const topH = (k) => (k === KIND_RIM ? 0 : 1);
+const soilH = (s) => (s === 'c' || s === 'w' ? -1 : s === 'm' ? 1 : 0);
+const fieldCache = new WeakMap();
+
+function rockField(level) {
+  if (!level?.map) return null;
+  let f = fieldCache.get(level);
+  if (f === undefined) { f = buildRockField(level); fieldCache.set(level, f); }
+  return f;
+}
+function buildRockField(level) {
+  const rows = level.map, S = level.soil ?? [];
+  const H = rows.length, W = rows[0].length;
+  const rock = new Uint8Array(W * H);
+  let any = false;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (rows[y][x] === ROCK) { rock[y * W + x] = 1; any = true; }
+  if (!any) return null;
+  const at = (x, y) => rock[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
+  const kindT = new Int8Array(W * H), gT = new Int8Array(W * H), near = new Uint8Array(W * H), near1 = new Uint8Array(W * H);
+  const kindOf = (x, y) => { const s = S[y]?.[x]; return s === 'k' ? KIND_RIM : s === 'h' ? KIND_HILL : KIND_MESA; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (rock[i]) kindT[i] = kindOf(x, y);
+    else gT[i] = soilH(S[y]?.[x] ?? ' ');
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    let n1 = 0, n2 = 0;
+    for (let j = -2; j <= 1; j++) for (let k = -1; k <= 1; k++) if (at(x + k, y + j)) { n2 = 1; if (j >= -1) n1 = 1; }
+    near[i] = n2; near1[i] = n1;
+    if (rock[i]) {
+      // Bodenhöhe unter einer Felsbeule: vom offenen Nachbarn (unten zuerst)
+      let g = topH(kindT[i]);
+      for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1], [0, 2]]) {
+        const xx = x + dx, yy = y + dy;
+        if (xx >= 0 && yy >= 0 && xx < W && yy < H && !rock[yy * W + xx]) { g = gT[yy * W + xx]; break; }
+      }
+      gT[i] = g;
+    } else if (n1) {
+      // Felsart der Nachbarschaft (für Beulen der Maske in offene Kacheln)
+      let best = 0;
+      for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const xx = Math.max(0, Math.min(W - 1, x + dx)), yy = Math.max(0, Math.min(H - 1, y + dy));
+        if (rock[yy * W + xx]) { best = kindT[yy * W + xx]; break; }
+      }
+      kindT[i] = best;
+    }
+  }
+  // Wandhöhen je Pixelspalte (Tafelberg, Schluchtrand, Randhügel)
+  const PW = W * 16, fhM = new Uint8Array(PW), fhK = new Uint8Array(PW), fhH = new Uint8Array(PW);
+  for (let px = 0; px < PW; px++) {
+    fhM[px] = 30 + Math.floor(vnoise(px / 13, 0.5, 1320) * 10);
+    fhK[px] = 20 + Math.floor(vnoise(px / 11, 2.5, 1321) * 8);
+    fhH[px] = 20 + Math.floor(vnoise(px / 15, 4.5, 1322) * 10);
+  }
+  // je Spalte konstante Rauschwerte der Wände (Wellung der Bänder; Rinnen und Klüfte je Felsart)
+  const wav = new Float32Array(PW), gC = new Float32Array(PW * 4), clC = new Float32Array(PW * 4);
+  for (let px = 0; px < PW; px++) {
+    wav[px] = (vnoise(px / 31, 0.5, 1335) - 0.5) * 4 + (vnoise(px / 7, 1.5, 1336) - 0.5) * 0.9;
+    for (let kd = 1; kd <= 3; kd++) { gC[kd * PW + px] = vnoise(px / 2.3, 0.5 + kd, 1338); clC[kd * PW + px] = vnoise(px / 6.5, 7.5 + kd, 1340); }
+  }
+  return { W, H, PW, PH: H * 16, rock, at, kindT, gT, near, near1, fhM, fhK, fhH, wav, gC, clC, mb: new Array(W * H), rd: new Array(W * H), ru: new Array(W * H), ro: new Array(W * H), nm: 0, nr: 0 };
+}
+
+// Maske eines Weltpixels (ungepuffert)
+function maskRaw(F, px, py) {
+  const fy = py / 16 - 0.5, ty = Math.floor(fy), ay = fy - ty;
+  const fx = px / 16 - 0.5, tx = Math.floor(fx), ax = fx - tx;
+  const a = F.at(tx, ty), b = F.at(tx + 1, ty), c = F.at(tx, ty + 1), d = F.at(tx + 1, ty + 1);
+  if (!(a | b | c | d)) return 0;
+  if (a & b & c & d) return 1;
+  const f = (a * (1 - ax) + b * ax) * (1 - ay) + (c * (1 - ax) + d * ax) * ay;
+  const n = (nz(NM1, px, py) - 0.5) * 0.5 + (nz(NM2, px, py) - 0.5) * 0.3 + (vnoise(px / 2.5, py / 2.5, 1302) - 0.5) * 0.12;
+  return f + n > 0.5 ? 1 : 0;
+}
+// Zwischenspeicher je Kachel (flache Arrays); bei Überlauf komplett verworfen (Chunks arbeiten regional)
+const FULL = new Uint8Array(256).fill(1);
+function maskBlock(F, tx, ty) {
+  const key = ty * F.W + tx;
+  let b = F.mb[key];
+  if (b !== undefined) return b;
+  if (F.nm > 4200) { F.mb = new Array(F.W * F.H); F.nm = 0; }
+  if (!F.near1[key]) b = null;
+  else {
+    let all = true;
+    for (let j = -1; j <= 1 && all; j++) for (let i = -1; i <= 1; i++) if (!F.at(tx + i, ty + j)) { all = false; break; }
+    if (all) b = FULL;
+    else {
+      b = new Uint8Array(256); F.nm++;
+      for (let ly = 0; ly < 16; ly++) for (let lx = 0; lx < 16; lx++) b[ly * 16 + lx] = maskRaw(F, tx * 16 + lx, ty * 16 + ly);
+    }
+  }
+  F.mb[key] = b;
+  return b;
+}
+// Maske mit Randbehandlung: außerhalb der Karte wie die nächste Randkachel
+function M(F, px, py) {
+  if (px < 0) px = 0; else if (px >= F.PW) px = F.PW - 1;
+  if (py < 0) py = 0; else if (py >= F.PH) py = F.PH - 1;
+  const tx = px >> 4, ty = py >> 4;
+  let b = F.mb[ty * F.W + tx];
+  if (b === undefined) b = maskBlock(F, tx, ty);
+  return b === null ? 0 : b[((py & 15) << 4) | (px & 15)];
+}
+// Lauflängen nach unten (bis zum Fuß, inkl. selbst) und nach oben je Kachelblock
+// mode 0: Fels nach unten (bis zum Fuß), 1: Fels nach oben, 2: offener Boden nach oben (bis zur Wand darüber)
+function runBlock(F, tx, ty, mode) {
+  const key = ty * F.W + tx, store = mode === 0 ? F.rd : mode === 1 ? F.ru : F.ro;
+  let r = store[key];
+  if (r) return r;
+  if (F.nr > 6000) { F.rd = new Array(F.W * F.H); F.ru = new Array(F.W * F.H); F.ro = new Array(F.W * F.H); F.nr = 0; }
+  F.nr++;
+  r = new Uint8Array(256);
+  const cap = mode === 2 ? 15 : CAPR, cnt = new Uint8Array(16), n = mode === 2 ? 1 : CAPR >> 4, want = mode === 2 ? 0 : 1;
+  for (let s = n; s >= 0; s--) {
+    const tyy = mode === 0 ? ty + s : ty - s;
+    // außerhalb der Karte: Randzeile wiederholen (wie M)
+    const cty = Math.max(0, Math.min(F.H - 1, tyy)), mb = maskBlock(F, tx, cty);
+    const rowFix = tyy < 0 ? 0 : tyy >= F.H ? 15 : -1;
+    for (let k = 0; k < 16; k++) {
+      const ly = mode === 0 ? 15 - k : k;
+      const row = (rowFix < 0 ? ly : rowFix) << 4;
+      for (let lx = 0; lx < 16; lx++) {
+        const m = mb === null ? 0 : mb[row | lx];
+        cnt[lx] = m === want ? Math.min(cap, cnt[lx] + 1) : 0;
+        if (s === 0) r[(ly << 4) | lx] = cnt[lx];
+      }
+    }
+  }
+  (mode === 0 ? F.rd : mode === 1 ? F.ru : F.ro)[key] = r;
+  return r;
+}
+const runAt = (F, px, py, mode) => runBlock(F, px >> 4, py >> 4, mode)[((py & 15) << 4) | (px & 15)];
+const kindAt = (F, px, py) => F.kindT[(Math.max(0, Math.min(F.H - 1, py >> 4))) * F.W + Math.max(0, Math.min(F.W - 1, px >> 4))] || KIND_MESA;
+const groundH = (F, px, py) => F.gT[(Math.max(0, Math.min(F.H - 1, py >> 4))) * F.W + Math.max(0, Math.min(F.W - 1, px >> 4))];
+// Abgedunkelte Farbe ohne Speicheranforderung je Pixel: Ring aus Puffern (der Aufrufer liest sofort aus;
+// das Übersichtsbild mittelt zwei Abfragen – darum mehrere Puffer)
+const SHADE_RING = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+let shadeI = 0;
+const shade = (c, k) => { const o = SHADE_RING[shadeI = (shadeI + 1) & 3]; o[0] = c[0] * k; o[1] = c[1] * k; o[2] = c[2] * k; return o; };
+
+// Wandhöhe je Felskörper (am Fuß bestimmt)
+function faceHeight(F, kind, px, total) {
+  const c = Math.max(0, Math.min(F.PW - 1, px));
+  let fh = kind === KIND_MESA ? F.fhM[c] : kind === KIND_RIM ? F.fhK[c] : F.fhH[c];
+  if (total < fh + 6) fh = Math.max(6, total - 5);   // kleine Felsnadeln behalten eine Kappe
+  return fh;
+}
+
+// Farbe eines Felspixels
+function rockPixel(F, px, py, level, kind) {
+  const kd = kindAt(F, px, py), th = topH(kd);
+  const b = runAt(F, px, py, 0);
+  const total = b <= 46 ? b + runAt(F, px, py, 1) - 1 : 99;
+  const fh = faceHeight(F, kd, px, total);
+  if (b <= fh && b < CAPR && groundH(F, px, py + b) < th) return facePixel(F, px, py, b, fh, kd);
+  return topPixel(F, px, py, level, kind, kd, th);
+}
+
+// Gesteinsbänder liegen in gleicher Höhe über dem Fuß (folgen der Wandbasis), Abfolge für alle Tafelberge gleich
+const STRATA2 = [6, 5, 5, 6, 4, 3, 5, 6, 6, 5, 4, 4, 5, 3, 2, 4, 5, 6, 5, 5, 4, 3, 3, 4, 5, 5, 6, 4, 3, 4, 5, 4];
+function facePixel(F, px, py, b, fh, kd) {
+  const t = b - 1, top = fh - 1 - t;
+  const oL1 = !M(F, px - 1, py), oL2 = !oL1 && !M(F, px - 2, py), oR1 = !M(F, px + 1, py), oR2 = !oR1 && !M(F, px + 2, py);
+  if (kd === KIND_HILL) {
+    // Randhügel: erdige Böschung mit Felsbrocken und überhängender Grasnarbe
+    if (top <= 1 || (top <= 3 && hash2(px, 1, 1330) < 0.45 - top * 0.1)) return rgbS(ST_SUB.y.grass[top === 0 ? 5 : 3 + (hash2(px, py, 1331) < 0.5 ? 1 : 0)]);
+    const n = vnoise(px / 5, py / 4, 1332) * 0.7 + hash2(px, py, 1333) * 0.3;
+    let k = 2 + Math.floor(n * 4);
+    const blk = vnoise(px / 6, (py + t * 0.5) / 5, 1334);
+    if (blk > 0.66) k += 2; else if (blk > 0.6) k -= 1;
+    if (oL1) k = Math.max(k, 7); else if (oL2) k += 1;
+    if (oR1) k = Math.min(k, 1); else if (oR2) k -= 1;
+    if (t < 3) k = Math.min(k, 1 + t);
+    if (t / fh > 0.7) k += 1;
+    return UPF[Math.max(0, Math.min(8, k))];
+  }
+  const cx = px < 0 ? 0 : px >= F.PW ? F.PW - 1 : px;
+  const s = t + F.wav[cx] + (kd === KIND_RIM ? 7 : 0);
+  const si = ((Math.floor(s / 1.4) % 32) + 32) % 32;
+  let k = STRATA2[si];
+  const band = Math.floor((s + 64) / 7);
+  const tint = hash2(band, kd, 1337);
+  let R = tint < 0.22 ? PALER : tint < 0.4 ? DEEPR : MESR;
+  // Kappe (harte Deckschicht) mit Unterschneidung
+  if (top === 0) k = 8; else if (top === 1) k = 7; else if (top === 2) k = 6; else if (top === 3) k = 2; else if (top === 4) k = Math.min(k, 3);
+  if (top <= 2) R = MESR;
+  // Erosionsrinnen: senkrechte Furchen unter der Kappe, unterschiedlich lang
+  const g = F.gC[kd * F.PW + cx];
+  const len = 6 + hash2(px >> 2, kd, 1339) * fh;
+  if (top > 4 && top < len) { if (g < 0.2) k -= 2; else if (g < 0.27) k += 1; }
+  // tiefe Klüfte
+  if (top > 2 && F.clC[kd * F.PW + cx] < 0.1) k -= 3;
+  // Wüstenlack: dunkle Streifen von der Kante herab
+  if (top > 3 && hash2(px, kd, 1341) < 0.12 && top < 6 + hash2(px, 2, 1342) * fh * 0.8) k -= 1;
+  // Licht von links oben
+  if (top > 0) {
+    if (oL1) k = Math.max(k + 2, 7); else if (oL2) k += 1;
+    if (oR1) k = Math.min(k - 1, 2); else if (oR2) k -= 1;
+  }
+  const v = t / fh;
+  if (v > 0.62) k += 1; else if (v < 0.22) k -= 1;
+  if (t < 2) k = Math.min(k, 1 + t);
+  const hs = hash2(px, py, 1343);
+  if (hs < 0.04) k -= 1; else if (hs > 0.975) k += 1;
+  // Geröll am Wandfuß
+  if (t < 4 && hash2(px >> 1, py >> 1, 1344) < 0.22) return MESR[hash2(px, py, 1345) < 0.5 ? 5 : 3];
+  return R[Math.max(0, Math.min(8, k))];
+}
+
+// Hochfläche/Oberkante: Abstand zu offenen Nachbarn bestimmt Abbruchkanten (tiefer) oder weiche Übergänge (gleich hoch)
+function scanOpen(F, px, py, dx, dy, max) { for (let i = 1; i <= max; i++) if (!M(F, px + dx * i, py + dy * i)) return i; return 0; }
+function topPixel(F, px, py, level, kind, kd, th) {
+  const far = kd === KIND_RIM ? 30 : kd === KIND_HILL ? 16 : 10;
+  // Zeilenweise Fortschreibung (Chunks werden zeilenweise gemalt): Abstände des linken Nachbarn weiterverwenden
+  let dl, dr;
+  if (F.my === py && F.mx === px - 1 && F.mf === far) {
+    dl = F.mdl ? (F.mdl + 1 <= far ? F.mdl + 1 : 0) : 0;
+    dr = F.mdr > 1 ? F.mdr - 1 : F.mdr === 1 ? scanOpen(F, px, py, 1, 0, far) : (!M(F, px + far, py) ? far : 0);
+  } else { dl = scanOpen(F, px, py, -1, 0, far); dr = scanOpen(F, px, py, 1, 0, far); }
+  F.mx = px; F.my = py; F.mf = far; F.mdl = dl; F.mdr = dr;
+  const ru = runAt(F, px, py, 1), du = ru <= 4 ? ru : 0;   // = scanOpen nach oben bis 4
+  const lowL = dl && groundH(F, px - dl, py) < th, lowR = dr && groundH(F, px + dr, py) < th, lowU = du && groundH(F, px, py - du) < th;
+  if (kd === KIND_RIM && (lowL || lowR)) {
+    // Schluchtwand von oben gesehen: der ganze Randstreifen ist Wand, Schichten laufen parallel zur Kante
+    const useL = lowL && (!lowR || dl <= dr);
+    const dF = useL ? dl : dr, other = useL ? dr : dl, otherLow = useL ? lowR : lowL;
+    const dP = other && !otherLow ? other : 99;
+    return rimWall(px, py, dF, dP, useL, lowU && du <= 2);
+  }
+  if (kd === KIND_HILL && ((lowL && dl <= 14) || (lowR && dr <= 14))) {
+    // Böschung der Randhügel in Aufsicht: Erde mit Grasbüscheln, oben Grasnarbe
+    const useL = lowL && (!lowR || dl <= dr), dF = useL ? dl : dr;
+    const bw = 9 + Math.floor(nz(NBW, px, py) * 6);
+    if (dF <= bw) {
+      if (dF >= bw - 1) return rgbS(ST_SUB.y.grass[useL ? 5 : 3]);
+      if (hash2(px, py >> 1, 1387) < 0.16) return rgbS(ST_SUB.y.grass[useL ? 4 : 2]);
+      let k = (useL ? 5 : 2) + Math.floor(nz(NBK, px, py) * 2.4) - (dF <= 2 ? 2 : 0);
+      if (vnoise(px / 9, py / 2.5, 1389) < 0.2) k -= 1;
+      return UPF[Math.max(0, Math.min(8, k))];
+    }
+  }
+  const sbw = 4 + Math.floor(nz(NSB, px, py) * 5);
+  // Seitliche Abbrüche der Tafelberge/Hügel: schmale Wandbänder
+  if (lowR && dr <= sbw) {
+    const k = (dr === 1 ? 1 : 2) + (STRATA2[(py >> 1) & 31] > 5 ? 1 : 0) - (hash2(px, py, 1351) < 0.1 ? 1 : 0);
+    return (kd === KIND_HILL ? UPF : MESR)[Math.max(0, k)];
+  }
+  if (lowL && dl <= sbw) {
+    const k = (dl === 1 ? 7 : dl === 2 ? 6 : 5) + (STRATA2[(py >> 1) & 31] < 4 ? -1 : 0) - (hash2(px, py, 1352) < 0.1 ? 1 : 0);
+    return (kd === KIND_HILL ? UPF : MESR)[Math.min(8, k)];
+  }
+  if (lowU && du <= 2) return du === 1 ? (kd === KIND_HILL ? rgbS(ST_SUB.y.grass[5]) : MESR[8]) : (kd === KIND_HILL ? UPF[6] : MESR[6]);
+  const edgeLow = (lowL && dl <= sbw + 3) || (lowR && dr <= sbw + 3) || (lowU && du <= 4);
+  // weicher Rand zu gleich hohem Boden: Geröll
+  const flush = (dl && dl <= 3 && !lowL) || (dr && dr <= 3 && !lowR) || (du && du <= 3 && !lowU);
+  if (kd === KIND_MESA) {
+    if (flush && hash2(px >> 1, py >> 1, 1353) < 0.45) return MESR[hash2(px, py, 1354) < 0.5 ? 6 : 4];
+    return capPixel(px, py, edgeLow ? 1 : 0);
+  }
+  if (kd === KIND_RIM) {
+    // Schluchtrand auf Steppenhöhe: Rotsand mit Sandsteinplatten
+    if (flush && hash2(px >> 1, py >> 1, 1357) < 0.35) return ST_RED[hash2(px, py, 1358) < 0.5 ? 2 : 3];
+    return slabPixel(px, py);
+  }
+  // Randhügel: gerundete Kuppen mit Grasdecke und Felsköpfen (innen heller, linke Flanke im Licht)
+  const knob = nz(NKN, px, py);
+  if (knob > 0.76) { const kk = knob > 0.81 ? (hash2(px, py, 1362) < 0.5 ? 7 : 6) : 3; return UPF[kk]; }
+  const rd = runAt(F, px, py, 0), dd = rd <= 24 ? rd : 24;   // = scanOpen nach unten bis 24
+  const dIn = Math.min(dl || 24, dr || 24, (du || 12) * 2, dd);
+  let lum = 0.92 + 0.36 * Math.min(1, dIn / 22);
+  if (lowL && dl < 18) lum += 0.12 * (1 - dl / 18);
+  if (lowR && dr < 18) lum -= 0.18 * (1 - dr / 18);
+  const c = steppeGround(',', px, py, level);
+  return shade(c, lum + (bayerG(px, py) - 0.5) * 0.06);
+}
+// Sandsteinplatten im Rotsand (Felsköpfe mit dunkler Fuge und heller Oberseite)
+function slabPixel(px, py) {
+  const v = nz(NSL, px, py) * 0.75 + grain(px + 2, py + 1) * 0.25;
+  if (v > 0.6) { const up = nz(NSL, px, py - 2) * 0.75 + grain(px + 2, py - 1) * 0.25; return up <= 0.6 ? MESR[7] : MESR[5 + (hash2(px, py, 1359) < 0.3 ? 1 : 0)]; }
+  if (v > 0.56) return MESR[2];
+  if (hash2(px, py >> 1, 1360) < 0.03) return rgbS(ST_SUB.y.grass[4]);
+  return ST_RED[2 + Math.floor(nz(NSL4, px, py) * 2.6)];
+}
+// Schluchtwand in Aufsicht: dF Abstand zum Grund (1 = Wandfuß), dP Abstand zur Ebene, lit = Wand schaut nach Westen
+function rimWall(px, py, dF, dP, lit, lipN) {
+  if (dP <= 1 || lipN) return lit ? MESR[8] : MESR[6];                                   // Abbruchkante
+  if (dP === 2) return hash2(px, py, 1381) < 0.4 ? rgbS(ST_SUB.y.grass[4]) : lit ? MESR[7] : MESR[5];
+  const s = dF * 1.5 + (nz(NRW, px, py) - 0.5) * 4;
+  const st = STRATA2[((Math.floor(s) % 32) + 32) % 32] - 1;
+  let k = lit ? st + 1 : 2 + Math.round((st - 3.5) * 0.4);
+  // Rinnen laufen die Wand hinab (quer zur Kante)
+  const g = vnoise(px / 10, py / 2.6, 1383);
+  if (g < 0.2) k -= 2; else if (g < 0.27) k += 1;
+  if (hash2(px, py >> 2, 1384) < 0.05) k -= 1;
+  if (dF <= 2) k = Math.min(k, lit ? 3 : 1);
+  if (dF <= 4 && hash2(px >> 1, py >> 1, 1385) < 0.2) return MESR[lit ? 5 : 3];          // Geröll am Fuß
+  return MESR[Math.max(0, Math.min(8, k))];
+}
+
+// Boden in Felsnähe: Schlagschatten unter Wänden, Geröllfächer, Schatten rechts der Felsen
+function nearRock(F, px, py, col) {
+  const g = groundH(F, px, py);
+  const ou = runAt(F, px, py, 2), since = ou <= 12 && py - ou >= 0 ? ou : 0;
+  let k = 1;
+  if (since) {
+    const kd = kindAt(F, px, py - since);
+    if (topH(kd) > g) {
+      if (since <= 8 && bayerG(px, py) < 1 - since / 9) k *= 1 - 0.46 * (1 - since / 11);
+      // Geröll: Brocken und Kies am Fuß der Sandsteinwände
+      if (kd !== KIND_HILL && hash2(px >> 1, py >> 1, 1370) < 0.3 * (1 - since / 13)) {
+        const p = hash2(px, py, 1371);
+        return shade(p < 0.35 ? MESR[6] : p < 0.75 ? MESR[4] : MESR[2], k);
+      }
+    }
+  }
+  // Schatten rechts der Felsen; im Schluchtgrund weiter (tiefer Schatten der Westwand)
+  const reach = g < 0 ? 12 : 3;
+  let left = 0;
+  if (F.ly === py && F.lx === px - 1) left = M(F, px - 1, py) ? 1 : F.ll && F.ll < 12 ? F.ll + 1 : 0;
+  else for (let i = 1; i <= 12 && !left; i++) if (M(F, px - i, py)) left = i;
+  F.lx = px; F.ly = py; F.ll = left;
+  if (left > reach) left = 0;
+  if (left && topH(kindAt(F, px - left, py)) > g) {
+    if (left === 1 || bayerG(px, py) < 0.5) k *= g < 0 ? 0.7 + 0.26 * (left / 13) : 0.75;
+  }
+  return k === 1 ? col : shade(col, k);
+}
+
+// Zuletzt benutzter Level: Felsfeld, Bodentabellen und Rauschgröße ohne WeakMap-Abfrage je Pixel
+let curLevel = null, curF = null, curU = null, curG = null;
+function useLevel(level) {
+  curLevel = level; curF = rockField(level);
+  curU = level?.soil ? soilUniform(level) : null;
+  curG = level ? goldCache.get(level) ?? null : null;
+  if (level && !curG) { goldAt(level, 0, 0); curG = goldCache.get(level); }
+  const W = level?.map?.[0]?.length ?? 160, H = level?.map?.length ?? 104;
+  nzSize(W * 16 + 32, H * 16 + 32);
+}
+function steppePixel(kind, px, py, level) {
+  if (level !== curLevel) useLevel(level);
+  const F = curF;
+  if (F && F.near[(py >> 4) * F.W + (px >> 4)]) {
+    if (M(F, px, py)) return rockPixel(F, px, py, level, kind);
+    return nearRock(F, px, py, steppeGround(kind, px, py, level));
+  }
+  return steppeGround(kind, px, py, level);
+}
 export const GROUND_STEPPE = {
   grass: ['#1d1b10', '#282514', '#35301a', '#433c20', '#524926', '#62572d'],
   dirt: ST_DIRT,
@@ -62,6 +672,7 @@ export const GROUND_STEPPE = {
   tufts: false,
   pixel: steppePixel,
 };
+const P_BASE = toP(GROUND_STEPPE);
 
 const STRAW = ['#1c160c', '#2b2212', '#3f3219', '#554422', '#6d592d', '#88713c', '#a68f55'];
 const DRYG = ['#17180f', '#232415', '#30301b', '#3f3e22', '#504d2a', '#645f34'];
@@ -1118,36 +1729,9 @@ function mkFlat(W, H, draw, { ax, ay, extra } = {}) {
   return e;
 }
 
-// ------------------------------------------------------------ Schichtwand der Tafelberge (eine Kachel breit)
-// Gesteinsbänder hängen nur von y ab -> Nachbarkacheln passen nahtlos; Rinnen, Wüstenlack und Geröll je Variante.
+// ------------------------------------------------------------ Gesteinsbänder (Abfolge von hell nach dunkel)
+// Wird von weiteren Felssprites genutzt; die Tafelberge selbst malt der Steppenboden.
 const STRATA = [8, 7, 6, 4, 5, 6, 6, 5, 3, 2, 4, 5, 5, 6, 5, 4, 4, 3, 5, 6, 6, 5, 4, 3, 2, 4, 4, 3, 3, 2, 2, 1];
-function mesaFace(v) {
-  const W = 16, H = 36, FH = 32;
-  return mkFlat(W, H, (p, g) => {
-    const grooves = [[3, 9], [7, 12], [11, 4], [5, 14], [2, 8, 13], [10], [6, 12], [4, 11]][v];
-    for (let x = 0; x < W; x++) {
-      const drip = hash2(x, v, 1201) < 0.22 ? 6 + Math.floor(hash2(x, v, 1202) * 12) : 0;   // Wüstenlack
-      for (let y = 0; y < FH; y++) {
-        let k = STRATA[y];
-        const wav = Math.round(Math.sin((x + v * 5) * 0.7) * 0.6);
-        if (y > 1 && y < FH - 4) k = STRATA[Math.max(2, Math.min(FH - 5, y + wav))];
-        if (grooves.some((gx) => gx === x)) k -= 2;
-        else if (grooves.some((gx) => gx === x - 1)) k += 1;
-        if (drip && y > 1 && y < drip) k -= 1;
-        if (hash2(x, y, 1203 + v) < 0.06) k -= 1;
-        if (y > FH - 4) k = Math.min(k, 3) - (y > FH - 2 ? 1 : 0);
-        p.px(x, y, MES[clampI(k, MES.length)]);
-      }
-      p.px(x, 0, hash2(x, 3, 1204) < 0.5 ? MES[8] : DRYG[4]);   // Kante mit Grasrand
-    }
-    // Felsbrocken am Fuß
-    for (let i = 0; i < 3; i++) {
-      const x = 1 + Math.floor(hash2(v, i, 1205) * 12), y = FH - 2;
-      p.px(x, y, MES[5]); p.px(x + 1, y, MES[3]); p.px(x, y - 1, MES[6]); p.px(x + 1, y + 1, MES[2]);
-    }
-    for (let y = FH; y < H; y++) for (let x = 0; x < W; x++) if ((x + y) % 2 === 0 || y < FH + 2) p.px(x, y, `rgba(10,6,4,${0.45 - (y - FH) * 0.1})`);
-  }, { ax: 8, ay: 30 });
-}
 
 // ------------------------------------------------------------ Salzkruste (flach, Bodenstück)
 function saltCrust(v) {
@@ -1721,6 +2305,49 @@ function giantSkullBig() {
   }, { ax: 42, box: [-34, -7, 30, 1] });
 }
 
+// ------------------------------------------------------------ Felsnadel (Sandstein-Hoodoo) vor den Tafelbergen
+// Schmaler Turm mit gleichen Gesteinsbändern wie die Tafelbergwände, harte Deckplatte, Geröll am Fuß.
+function rockSpire(v) {
+  const [W, H] = [[28, 74], [42, 62], [34, 54]][v];
+  const by = H - 1, cx = W / 2;
+  const LIT = [8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 1];
+  return mk(W, H, (p) => {
+    dustPatch(p, Math.floor(cx), by - 1, Math.floor(W / 2) - 1, 2, 1390 + v);
+    // [Mitte, Oberkante, halbe Breite oben, halbe Breite unten, Neigung]
+    const towers = [[[cx + 0.5, 11, 3.2, 9, 2]], [[cx - 8.5, 22, 2.8, 7.5, -1.5], [cx + 6, 9, 3.8, 10, 1.2]], [[cx, 18, 4.6, 10, 0.8]]][v];
+    for (const [tx, top, wTop, wBot, lean] of towers) {
+      const rows = [];
+      for (let y = top; y <= by - 1; y++) {
+        const t = (y - top) / (by - 1 - top);
+        const waist = Math.sin(Math.min(1, t * 1.25) * Math.PI) * (v === 2 ? 1.6 : 0.9);
+        const flare = t > 0.72 ? (t - 0.72) * (t - 0.72) * 40 : 0;      // Geröllkegel am Fuß
+        const half = wTop + (wBot - wTop) * t - waist + flare + (vnoise(y / 2.5, tx, 1394) - 0.5) * 1.4;
+        const mid = tx + lean * (1 - t) * (1 - t) + (vnoise(y / 6, tx, 1395) - 0.5) * 1.4;
+        rows.push([y, Math.round(mid - half), Math.round(mid + half), t]);
+      }
+      for (const [y, x0, x1, t] of rows) for (let x = x0; x <= x1; x++) {
+        const rel = (x - x0) / Math.max(1, x1 - x0);
+        let k = LIT[Math.min(12, Math.floor(rel * 13))] - 1;
+        // dezente Gesteinsbänder: dünne dunkle Fugen, ab und zu ein helleres Band
+        const band = (by - y + v * 7 + Math.round(Math.sin(x * 0.5) * 0.7)) % 7;
+        if (band === 0 && hash2(x, y >> 2, 1396) < 0.75) k -= 2; else if (band === 3 && STRATA2[(y >> 2) & 31] > 5) k += 1;
+        if (vnoise(x / 1.6, tx, 1397) < 0.14 && t > 0.05 && t < 0.8) k -= 1;          // Rinnen
+        if (hash2(x, y, 1391 + v) < 0.05) k -= 1;
+        if (t > 0.8) k = Math.min(k, 4) - (hash2(x >> 1, y >> 1, 1398) < 0.3 ? 1 : 0);  // Schutt am Fuß
+        p.px(x, y, MES[clampI(k, 9)]);
+      }
+      // Deckplatte: härter, dunkler gerändert, steht pilzartig über
+      const [, x0, x1] = rows[0], cw = (x1 - x0) / 2 + 2.6, ccx = (x0 + x1) / 2 + 0.5;
+      for (let y = top - 5; y <= top + 1; y++) for (let x = Math.floor(ccx - cw); x <= Math.ceil(ccx + cw); x++) {
+        const dx = (x - ccx) / cw, dy = (y - (top - 1.6)) / 3.2;
+        if (dx * dx + dy * dy * (1 + (hash2(x, 3, 1399) - 0.5) * 0.3) > 1) continue;
+        const k = dy > 0.5 ? 1 : dy > 0.25 ? 3 : dx < -0.4 ? 7 : dx > 0.5 ? 4 : dy < -0.35 ? 8 : 6;
+        p.px(x, y, MES[k]);
+      }
+    }
+  }, { ax: Math.floor(cx), box: [-Math.floor(W / 2) + 6, -6, Math.floor(W / 2) - 6, 1] });
+}
+
 export function createSteppeDecor() {
   return {
     steppeGrass: [0, 1, 2].map(steppeGrass),
@@ -1741,7 +2368,6 @@ export function createSteppeDecor() {
     warBanner: { off: warBanner(false), on: warBanner(true) },
     barrowMound: barrowMound(),
     // Runde 5: Tafelberge, Schlucht, Landmarken, Lager
-    mesaFace: [0, 1, 2, 3, 4, 5, 6, 7].map(mesaFace),
     saltCrust: [0, 1, 2, 3].map(saltCrust),
     reeds: [0, 1, 2].map(reeds),
     totemPole: [0, 1].map(totemPole),
@@ -1767,5 +2393,7 @@ export function createSteppeDecor() {
     giantRibS: giantRib(true),
     giantVertebra: [0, 1].map(giantVertebra),
     giantSkullBig: giantSkullBig(),
+    // Runde 6: Felsnadeln
+    rockSpire: [0, 1, 2].map(rockSpire),
   };
 }
