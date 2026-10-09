@@ -145,4 +145,25 @@ export class TileMap {
     }
     return { x, y };
   }
+
+  // Verbunden? Breitensuche über Kachelmitten, auf denen ein Körper mit Radius r frei steht (Wände und Boxen).
+  // Für gespeicherte Positionen: nach einem Kartenumbau kann eine freie Stelle in einer abgeschlossenen Tasche liegen.
+  reachable(ax, ay, bx, by, r = 5) {
+    const w = this.w, h = this.h, start = Math.floor(ay / T) * w + Math.floor(ax / T), goal = Math.floor(by / T) * w + Math.floor(bx / T);
+    if (start === goal) return true;
+    const free = (i) => { const px = (i % w) * T + T / 2, py = Math.floor(i / w) * T + T / 2 + 4; return !this.collidesRect(px - r, py - r, px + r, py + r * 0.5); };
+    const seen = new Uint8Array(w * h), queue = new Int32Array(w * h);
+    let head = 0, tail = 0;
+    seen[start] = 1; queue[tail++] = start;
+    while (head < tail) {
+      const i = queue[head++], x = i % w;
+      for (const n of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (n < 0 || n >= w * h || seen[n]) continue;
+        seen[n] = 1;
+        if (n === goal) return true;
+        if (free(n)) queue[tail++] = n;
+      }
+    }
+    return false;
+  }
 }
