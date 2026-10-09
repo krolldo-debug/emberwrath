@@ -129,7 +129,7 @@ await p.evaluate((sc) => {
   set(); window.__set = setInterval(set, 8);
   window.__decals = new Map([...w.decals.tiles].map(([key, d]) => { const c = document.createElement('canvas'); c.width = d.c.width; c.height = d.c.height; c.getContext('2d').drawImage(d.c, 0, 0); return [key, c]; }));
   const L = w.lights[0]?.constructor;
-  for (const [dx, dy, r, color, intensity] of sc.light) w.addLight(new L({ x: T.x + dx, y: T.y + dy, radius: r, color, intensity, flicker: 0.05, bloom: 0.5 }));
+  window.__szene = sc.light.map(([dx, dy, r, color, intensity]) => w.addLight(new L({ x: T.x + dx, y: T.y + dy, radius: r, color, intensity, flicker: 0.05, bloom: 0.5 })) ?? w.lights.at(-1));
   window.__T = T;
   window.__camC = { x: T.x + sc.cam[0], y: T.y + sc.cam[1] };
 }, sc);
@@ -225,8 +225,36 @@ const info = await p.evaluate(async ({ sc, ATEM, QUIET }) => {
   const breathFx = () => {
     for (const q of P.active) if (q.__br !== undefined) { const k = weich(q.x); if (k <= 0) { q.alpha = 0; q.life = Math.min(q.life, 1e-4); } else q.alpha = q.__br * k; }
     const tele = t.breathTele;
-    if (tele) { tele.r = Math.max(40, tele.x - (T.x + sc.atemEnde)); if (tele.light) tele.light.radius = tele.r * 1.1; }
+    if (tele) {
+      tele.r = Math.max(40, tele.x - (T.x + sc.atemEnde));
+      if (!tele.__titel) { tele.__titel = true; tele.render = () => {}; tele.renderEmissive = warnZeichnen; }
+      if (tele.light) tele.light.dead = true; else tele.light = { dead: true, x: 0, y: 0 };
+    }
   };
+  // Eigene Atemwarnung statt der Spielwarnfläche: gefüllte rote Bodenmarke auf dem Weltpixelraster, Rand eine Stufe
+  // heller, Pulsieren in 3 Stufen, Innenfläche wächst in 4 Stufen bis zum Atem; kein Licht, keine Verläufe.
+  // Gezeichnet im Leuchtdurchgang, Wurmumriss ausgespart (Helden setzt der zweite Durchgang ohnehin darüber).
+  const WARN = { fill: [0.3, 0.37, 0.44], inner: [0.44, 0.51, 0.58], edge: [0.78, 0.88, 0.98] };
+  const off = document.createElement('canvas'); off.width = g.view.width / 2; off.height = g.view.height / 2;
+  function warnZeichnen(ctx, cx, cy) {
+    if (t.state !== 'breathWindup') return;
+    const o = off.getContext('2d'); o.clearRect(0, 0, off.width, off.height);
+    const ox = Math.round(this.x - cx), oy = Math.round(this.y - cy), r = this.r, half = this.arc / 2, a0 = this.angle;
+    const k = Math.min(1, this.t / this.duration), inner = r * Math.ceil(k * 4) / 4, lv = Math.floor(this.t * 6) % 3;
+    const col = { fill: `rgba(190,34,26,${WARN.fill[lv]})`, inner: `rgba(232,64,40,${WARN.inner[lv]})`, edge: `rgba(255,118,86,${WARN.edge[lv]})` };
+    const ry = Math.ceil(r * 0.6) + 1;
+    for (let py = -ry; py <= ry; py++) for (let px = -Math.ceil(r) - 1; px <= Math.ceil(r) + 1; px++) {
+      const dx = px, dy = py / 0.6, d = Math.hypot(dx, dy);
+      if (d > r) continue;
+      let da = Math.atan2(dy, dx) - a0; da = Math.abs(Math.atan2(Math.sin(da), Math.cos(da)));
+      if (da > half) continue;
+      const edge = d > r - 1.6 || (half - da) * d < 1.2;
+      o.fillStyle = edge ? col.edge : d <= inner ? col.inner : col.fill;
+      o.fillRect(ox + px, oy + py, 1, 1);
+    }
+    o.globalCompositeOperation = 'destination-out'; t.drawSprite(o, cx, cy); o.globalCompositeOperation = 'source-over';
+    ctx.drawImage(off, 0, 0);
+  }
   window.__ctl = { who, inputs, atem, ziel, place, hs, T, bx, breathFx, sc };
   return { hs: hs.map((a) => a.member?.classId ?? a.cls?.id), lights: w.lights.length, bossState: t.state, view: [g.view.width, g.view.height] };
 }, { sc, ATEM, QUIET });
@@ -345,9 +373,19 @@ for (let i = 0; i < Math.min(N, TO); i++) {
     // und Partikel liefert die Helden unverdeckt (gleiche Lichter); deren Sprite-Umriss wird über das Bild gelegt.
     const v = g.view, mk = () => { const q = document.createElement('canvas'); q.width = v.width; q.height = v.height; return q; };
     const cA = mk(), cB = mk(), cM = mk();
+    // Warmes Gruppenlicht: im Bild nur als harte, gestufte Lichtinsel (unten); die Helden selbst bleiben davon beleuchtet
+    const warm = window.__szene[1], wv = warm.value;
     try {
+      warm.value = 0;
       g.render(0);
-      cA.getContext('2d').drawImage(v, 0, 0);
+      warm.value = wv;
+      { const a = cA.getContext('2d'); a.drawImage(v, 0, 0);
+        const ix = Math.round(warm.x - cam.rx), iy = Math.round(C.T.y + 8 - cam.ry);
+        a.save(); a.globalCompositeOperation = 'lighter'; a.fillStyle = 'rgba(255,186,128,0.07)';
+        for (const [rx, ry] of [[46, 15], [33, 11], [20, 7]]) for (let y = -ry; y <= ry; y++) {
+          const hw = Math.floor(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); a.fillRect((ix - hw) * 2, (iy + y) * 2, (hw * 2 + 1) * 2, 2);
+        }
+        a.restore(); }
       const keep = { e: w.effects, n: w.entities, p: w.projectiles, a: w.particles.active };
       w.effects = []; w.entities = keep.n.filter((e) => window.__deko.has(e)); w.projectiles = []; w.particles.active = [];
       // Zauberlichter ohne Überstrahlen (das Bloom der Einschläge überdeckt sonst die Figuren)
