@@ -60,7 +60,7 @@ export class Game {
     });
   }
 
-  #fpsAcc; #fpsFrames; #lastRender; #quality = "";
+  #fpsAcc; #fpsFrames; #lastRender; #quality = ""; #direct = false;
 
   static #buildUiLayer() {
     let root = document.getElementById('ui');
@@ -168,11 +168,13 @@ export class Game {
     this.#fpsAcc += now - this.#lastRender; this.#lastRender = now; this.#fpsFrames++;
     if (this.#fpsAcc > 500) { this.fps = Math.round((this.#fpsFrames * 1000) / this.#fpsAcc); this.#fpsAcc = 0; this.#fpsFrames = 0; }
     const k = CONFIG.renderScale;
-    this.ctx.setTransform(k, 0, 0, k, 0, 0);
-    this.ctx.imageSmoothingEnabled = false;
-    this.ctx.fillStyle = '#05020a';
-    this.ctx.fillRect(0, 0, CONFIG.viewWidth, CONFIG.viewHeight);
-    this.scenes.render(this.ctx);
+    const c = this.#direct ? this.displayCtx : this.ctx;
+    c.setTransform(k, 0, 0, k, 0, 0);
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = '#05020a';
+    c.fillRect(0, 0, CONFIG.viewWidth, CONFIG.viewHeight);
+    this.scenes.render(c);
+    if (this.#direct) return;
     const d = this.displayCtx;
     d.imageSmoothingEnabled = false;
     d.drawImage(this.view, 0, 0, this.canvas.width, this.canvas.height);
@@ -190,18 +192,20 @@ export class Game {
     // Touch-Geräte füllen den Schirm immer ganz; sonst ganzzahlig, solange mindestens 85 % genutzt werden
     const coarse = document.documentElement.classList.contains('ef-touch') || window.matchMedia?.('(pointer: coarse)').matches;
     const scale = !coarse && fit >= 2 && Math.floor(fit) / fit >= 0.85 ? Math.floor(fit) : fit;
-    // Qualität „Niedrig“ (ui/Quality.js, auch automatisch): Zeichenfläche höchstens 2-fach,
-    // der Browser vergrößert pixelgenau per CSS. Spart auf hochauflösenden Handys den teuren Blit.
     this.#quality = document.documentElement.dataset.quality ?? '';
     // „Mittel“ auf Touch-Geräten höchstens 3-fach (hochauflösende Handys hätten sonst 4-fach und mehr).
     const backing = this.#quality === 'low' ? Math.min(scale, 2) : this.#quality === 'medium' && coarse ? Math.min(scale, 3) : scale;
-    this.canvas.width = Math.round(CONFIG.viewWidth * backing);
-    this.canvas.height = Math.round(CONFIG.viewHeight * backing);
     // Überabtastung: nie mehr Bildpunkte je Weltpixel als die Anzeige zeigt, bei „Niedrig“ keine.
     // „Mittel“ (Standard auf Touch-Geräten) höchstens 2-fach; die automatische Qualität senkt bei Ruckeln weiter.
     const cap = this.#quality === 'low' ? 1 : this.#quality === 'medium' ? Math.min(2, CONFIG.spriteRes) : CONFIG.spriteRes;
     const k = Math.max(1, Math.min(cap, Math.floor(backing + 0.01)));
     this.#ensureView(k);
+    // Touch-Geräte und „Niedrig“: Zeichenfläche = internes Bild, der Browser vergrößert pixelgenau per CSS
+    // (image-rendering: pixelated). Das Spiel zeichnet dann direkt hinein, der Blit über den ganzen Schirm entfällt.
+    const out = coarse || this.#quality === 'low' ? k : backing;
+    this.canvas.width = Math.round(CONFIG.viewWidth * out);
+    this.canvas.height = Math.round(CONFIG.viewHeight * out);
+    this.#direct = this.canvas.width === this.view.width && this.canvas.height === this.view.height;
     const cssW = Math.round(CONFIG.viewWidth * scale) / dpr, cssH = Math.round(CONFIG.viewHeight * scale) / dpr;
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;

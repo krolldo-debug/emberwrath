@@ -30,10 +30,14 @@ export class Light {
 
 // Lightmap-Verfahren: Umgebungsdunkel + additive Lichter, dann per
 // "multiply" über die Szene. Danach optional additiver Bloom-Schimmer.
+// Die Lightmap hat halbe Auflösung und wird weich vergrößert: Licht besteht nur aus weichen Verläufen,
+// sichtbar ändert sich nichts, aber Füllen und Mischen kosten ein Viertel (Handy, große Außenkarten).
+const LM = 0.5;
+const lmSize = (v) => Math.max(1, Math.ceil(v * LM));
 export class LightingSystem {
   constructor(w, h, ambient) {
     this.w = w; this.h = h;
-    this.canvas = makeCanvas(w, h);
+    this.canvas = makeCanvas(lmSize(w), lmSize(h));
     this.ctx = this.canvas.getContext('2d');
     this.ambient = ambient;
     this.ambientBoost = 0; // für Blitz-Effekte (z. B. Kills)
@@ -43,7 +47,7 @@ export class LightingSystem {
   resize(w, h) {
     if (w === this.w && h === this.h) return;
     this.w = w; this.h = h;
-    this.canvas = makeCanvas(w, h);
+    this.canvas = makeCanvas(lmSize(w), lmSize(h));
     this.ctx = this.canvas.getContext('2d');
   }
 
@@ -53,6 +57,7 @@ export class LightingSystem {
     const l = this.ctx;
     const [ar, ag, ab] = this.ambient;
     const k = this.ambientBoost;
+    l.setTransform(LM, 0, 0, LM, 0, 0);
     l.globalCompositeOperation = 'source-over';
     l.fillStyle = `rgb(${Math.min(255, ar + k * 60)},${Math.min(255, ag + k * 40)},${Math.min(255, ab + k * 30)})`;
     l.fillRect(0, 0, this.w, this.h);
@@ -67,7 +72,10 @@ export class LightingSystem {
     }
     l.globalAlpha = 1;
     ctx.globalCompositeOperation = 'multiply';
-    ctx.drawImage(this.canvas, 0, 0);
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
+    ctx.imageSmoothingEnabled = smooth;
     ctx.globalCompositeOperation = 'source-over';
   }
 
