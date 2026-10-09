@@ -73,6 +73,7 @@ section { position: relative; }
   text-shadow: 0 2px 0 #3a1004;
 }
 .btn.primary:hover { box-shadow: 0 0 0 2px #1a0604, 0 0 44px rgba(255, 110, 30, 0.55), inset 0 2px 0 rgba(255, 220, 160, 0.4), inset 0 -3px 0 rgba(60, 14, 4, 0.5); transform: translateY(-1px); }
+.hero-cta .btn:not(.primary) { background: #0c0610; }   /* deckend, damit der Titelkampf nicht durchscheint */
 .btn.big { min-height: 58px; padding: 0 36px; font-size: 15px; letter-spacing: 0.18em; }
 .textlink { font: 700 13px/1 var(--font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); text-decoration: none; border-bottom: 2px solid rgba(232, 194, 90, 0.4); padding-bottom: 5px; }
 .textlink:hover { color: #fff0b0; border-bottom-color: var(--gold); }
@@ -95,11 +96,12 @@ section { position: relative; }
 .hero-bg { --ax: 0.73; }   /* Kampf rechts neben den Text */
 @media (min-width: 1921px) { .hero-bg, .strip figure, .lore-bg { --f: 3; } }
 /* Titelbild und großer Streifen enger: Helden und Boss tragen das Bild */
-@media (min-width: 1200px) { .hero-bg { --f: 3; --ax: 0.77; } }
+@media (min-width: 1200px) { .hero-bg { --ax: 0.77; } }
 @media (min-width: 1921px) { .strip .strip-a { --f: 2; } }
-@media (min-width: 1700px) { .hero-bg { --f: 4; --ax: 0.75; } }
-@media (min-width: 2000px) { .hero-bg { --f: 5; } }
-@media (min-width: 2400px) { .hero-bg { --f: 6; } .strip .strip-a { --f: 3; } }
+@media (min-width: 1700px) { .hero-bg { --f: 3; --ax: 0.75; } }
+@media (min-width: 2200px) { .hero-bg { --f: 4; } }
+@media (min-width: 2400px) { .strip .strip-a { --f: 3; } }
+@media (min-width: 2800px) { .hero-bg { --f: 5; } }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -2;
   background: linear-gradient(90deg, rgba(5, 2, 10, 0.95) 0%, rgba(5, 2, 10, 0.86) 32%, rgba(5, 2, 10, 0.4) 50%, rgba(5, 2, 10, 0) 66%),
     linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 18%, rgba(5, 2, 10, 0) 80%, var(--bg) 100%); }
@@ -173,37 +175,25 @@ section { position: relative; }
 .legend img { border: 2px solid var(--legend); background: #1a0c08; box-shadow: 0 0 0 2px #1a0604, 0 0 18px rgba(255, 140, 40, 0.45); }
 
 /* ---------- Bosse: Aufstellung auf einem Arenaboden */
-.bosses { padding: clamp(80px, 9vw, 130px) 0 0; overflow: hidden;
-  background: radial-gradient(ellipse 55% 45% at 72% 78%, rgba(160, 50, 14, 0.35), transparent 70%), linear-gradient(180deg, #07030a, #10070a); }
-/* Alle Bosse im selben Faktor: ×2, auf breiten Bildschirmen ×3 */
-@media (min-width: 1500px) {
-  .bosses .arena, .bosses .wrap { max-width: 1400px; }
-  .bosses .arena { gap: 30px; }
-  .boss-spr { --s: 3; }
-}
-/* Bühne: alle Bosse stehen unten bündig auf derselben Bodenkante (Unterkante des Bildfelds = unterster Pixel),
-   Name und Titel darunter mit Abstand. */
-.arena { --cap: 118px; position: relative; isolation: isolate; display: flex; justify-content: space-between; align-items: flex-end; gap: clamp(20px, 4vw, 70px); max-width: var(--max); margin: 36px auto 0; padding: 0 var(--gutter); }
-.arena::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--cap) + 40px); z-index: -1; pointer-events: none;
-  background: linear-gradient(180deg, transparent 0 38px, rgba(255, 160, 90, 0.28) 38px 40px, #170a09 40px, #0b0507 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14% 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14% 86%, transparent); }
+.bosses { padding: clamp(80px, 9vw, 130px) 0 clamp(50px, 6vw, 90px); overflow: hidden;
+  background: radial-gradient(ellipse 45% 34% at 50% 68%, rgba(160, 50, 14, 0.3), transparent 70%), linear-gradient(180deg, #07030a, #10070a); }
+/* Bühnen: jeder Boss auf dem Boden seines Gebiets (tools/bosse-buehne.mjs), drei Diener nebeneinander, Malgareth groß darunter; Größe setzt site.js ganzzahlig */
+.arena { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(3, auto); justify-content: center; align-items: end; gap: clamp(28px, 3vw, 48px) clamp(24px, 3vw, 56px); max-width: 1400px; margin: 40px auto 0; padding: 0 var(--gutter); }
 .arena > i { display: none; }
-.boss { position: relative; flex: none; margin: 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-/* Lebende Bosse (tools/bosse-anim.mjs): Bildfeld w × h Spielpixel mit Fußpunkt px/py. Im Fluss nimmt jeder Boss nur die Breite
-   seines früheren Standbilds ein (--b), um den Fußpunkt zentriert; Flammen und Schwingen ragen seitlich darüber hinaus. */
-.spr { background: no-repeat 0 0 / calc(var(--n) * 100%) 100%; image-rendering: pixelated; }
-.boss-spr { --s: 2; position: relative; flex: none; width: calc(var(--w) * var(--s) * 1px); height: calc(var(--h) * var(--s) * 1px);
-  margin: 0 calc((var(--b) / 2 - var(--w) + var(--px)) * var(--s) * 1px) 0 calc((var(--b) / 2 - var(--px)) * var(--s) * 1px); }
-/* Kontaktschatten unter dem Fußpunkt */
-.boss-spr::before { content: ""; position: absolute; z-index: -1; left: calc(var(--px) * var(--s) * 1px); bottom: calc(var(--s) * -3px); width: calc(var(--b) * 0.82 * var(--s) * 1px); height: calc(var(--s) * 9px); translate: -50% 0;
-  border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.45) 60%, transparent); }
-:root:not(.no-js) .boss { opacity: 0; transform: translateY(26px); filter: brightness(0); transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1), filter 1.4s ease; transition-delay: calc(var(--i, 0) * 0.22s); }
-:root:not(.no-js) .arena.in .boss { opacity: 1; transform: none; filter: none; }
-/* Wut: Glut steigt hinter dem Boss vom Boden auf */
-.boss::after { content: ""; position: absolute; left: 50%; bottom: calc(var(--cap) - 30px); width: 90%; height: 60%; translate: -50% 0; z-index: -2; pointer-events: none;
-  background: radial-gradient(ellipse 50% 60% at 50% 100%, rgba(var(--glow), 0.32), transparent 72%); opacity: 0; transition: opacity 0.4s; }
-.boss.wut::after { opacity: 1; }
-.boss figcaption { height: var(--cap); padding-top: 26px; text-align: center; }
+.boss.main { grid-column: 1 / -1; justify-self: center; margin-top: clamp(10px, 2vw, 30px); }
+.boss { position: relative; margin: 0; display: flex; flex-direction: column; align-items: center; }
+.stage { position: relative; width: 416px; height: 312px;
+  --fade: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent), linear-gradient(180deg, transparent, #000 22%, #000 80%, transparent);
+  -webkit-mask-image: var(--fade); -webkit-mask-composite: source-in; mask-image: var(--fade); mask-composite: intersect; }
+.stage img, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.stage canvas { opacity: 0; transition: opacity 0.6s ease; }
+.stage.live canvas { opacity: 1; }
+:root:not(.no-js) .boss { opacity: 0; transform: translateY(26px); transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); transition-delay: calc(var(--i, 0) * 0.18s); }
+:root:not(.no-js) .arena.in .boss { opacity: 1; transform: none; }
+/* Glut des Gebiets hinter der Bühne */
+.boss::before { content: ""; position: absolute; left: 50%; top: 38%; width: 92%; height: 70%; translate: -50% -50%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--glow), 0.16), transparent 72%); }
+.boss figcaption { margin-top: 4px; text-align: center; }
 .boss b { display: block; font: 700 clamp(22px, 2.2vw, 30px)/1 var(--font-title); color: #fbe9c6; }
 .boss span { display: block; margin: 6px auto 0; white-space: nowrap; font: 600 14px/1.2 var(--font); letter-spacing: 0.06em; color: color-mix(in srgb, rgb(var(--glow)) 45%, #fff4e0); }
 
@@ -570,23 +560,19 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .cls-side, .hero-fig, .cls-info { grid-column: 1; grid-row: auto; }
   .hero-fig { margin: 30px 0 0; }
   .classes { background: radial-gradient(ellipse 70% 30% at 50% 45%, color-mix(in srgb, var(--res) 22%, transparent), transparent 70%), linear-gradient(180deg, #0a0510, #120818 60%, #0a0510); }
-  .arena { justify-content: flex-start; gap: 0; margin-top: 30px; padding: 0 0 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .arena { display: flex; justify-content: flex-start; gap: 0; margin-top: 26px; padding: 0 0 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .arena::-webkit-scrollbar { display: none; }
-  .boss { flex: none; width: 62vw; justify-content: flex-end; scroll-snap-align: center; }
+  .boss { flex: none; width: 88vw; scroll-snap-align: center; }
   .boss.main { order: -1; }
-  .arena::before { content: ""; flex: none; width: 11vw; order: -2; }
-  .arena { --cap: 104px; }
-  .boss figcaption { padding-top: 24px; }
-  .arena::after { display: none; }
-  .boss figcaption { align-self: stretch; border-top: 2px solid rgba(255, 160, 90, 0.26); background: linear-gradient(180deg, #170a09, transparent 80%); }
-  .arena > i { display: block; flex: none; width: 11vw; order: 9; }
+  .arena::before { content: ""; flex: none; width: 6vw; order: -2; }
+  .arena > i { display: block; flex: none; width: 6vw; order: 9; }
   .scene, .scene.r { grid-template-columns: 1fr; }
   .scene figure, .scene.r figure { grid-column: 1; grid-row: 1; margin: 0; aspect-ratio: 4 / 3; --f: 0.5; }
   .scene-text, .scene.r .scene-text { grid-column: 1; grid-row: 2; margin: -34px 14px 0; padding: 18px 20px 20px; }
 }
 @media (max-width: 600px) {
   .hero { display: block; min-height: 0; }
-  .hero-bg { position: relative; inset: auto; height: 66svh; min-height: 380px; max-height: 620px; z-index: -3; --f: 1.67; --ax: 0.5; }   /* 5 Gerätepixel bei 3×, 3 bei 2× */
+  .hero-bg { position: relative; inset: auto; height: 66svh; min-height: 380px; max-height: 620px; z-index: -3; --f: 1.34; --ax: 0.5; }   /* 4 Gerätepixel bei 3×: Gruppe und Drache ganz im Bild */
   .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 66%, rgba(5, 2, 10, 0.6) 86%, var(--bg) 100%); }
   .hero::before { background: linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 14%); }
   .hero-content { padding-top: 0; margin-top: -60px; padding-bottom: 56px; }

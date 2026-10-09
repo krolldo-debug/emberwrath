@@ -30,7 +30,7 @@
 <main id="inhalt">
 
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img style="--fx:0.49;--fy:0.4;--mx:0.48;--my:0.44" class="px shot" fetchpriority="high" src="img/titel-loop-0.webp" data-live="titel-loop.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
+    <div class="hero-bg"><img style="--fx:0.515;--fy:0.4;--mx:0.5;--my:0.44" class="px shot" fetchpriority="high" src="img/titel-loop-0.webp" data-live="titel-loop.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
     <canvas class="embers" aria-hidden="true"></canvas>
     <div class="hero-content">
       <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="438" height="90">
@@ -126,20 +126,20 @@
       <p class="sec-line">Jeder hütet einen Dungeon. Am Ende sitzt Malgareth auf dem Aschethron.</p>
     </div>
     <div class="arena">
-      <figure class="boss" style="--glow: 120, 200, 170">
-        <div class="spr boss-spr" role="img" aria-label="Ulgrim, der Hügelkönig, reckt sein Schwert" data-boss="ulgrim" data-idle="8 166.667" data-wut="10 133.333" style="--w:121;--h:136;--px:46;--py:132;--b:76;--n:8;background-image:url(img/boss-ulgrim-ruhe.webp)"></div>
+      <figure class="boss" style="--glow: 120, 200, 170" data-boss="ulgrim" data-fx="wisp" data-f="208 156 73 12">
+        <div class="stage"><img class="px" src="img/boss-ulgrim-bild.webp" width="208" height="156" alt="Ulgrim, der Hügelkönig, schwingt sein Schwert und reißt den Boden seines Hügelgrabs auf" loading="lazy"><canvas aria-hidden="true"></canvas></div>
         <figcaption><b>Ulgrim</b><span>Das Heulende Hügelgrab</span><span>Stufe 26</span></figcaption>
       </figure>
-      <figure class="boss" style="--glow: 150, 220, 90">
-        <div class="spr boss-spr" role="img" aria-label="Mutter Fäulnis, ein riesiger Pilzleib voller Sporen" data-boss="rotmother" data-idle="12 142.857" data-wut="12 125" style="--w:119;--h:122;--px:65;--py:108;--b:110;--n:12;background-image:url(img/boss-rotmother-ruhe.webp)"></div>
+      <figure class="boss" style="--glow: 150, 220, 90" data-boss="rotmother" data-fx="spore" data-f="208 156 62 12">
+        <div class="stage"><img class="px" src="img/boss-rotmother-bild.webp" width="208" height="156" alt="Mutter Fäulnis lässt Wurzelstacheln aus dem Boden brechen" loading="lazy"><canvas aria-hidden="true"></canvas></div>
         <figcaption><b>Mutter Fäulnis</b><span>Der Sporenschlund</span><span>Stufe 32</span></figcaption>
       </figure>
-      <figure class="boss" style="--glow: 110, 190, 255">
-        <div class="spr boss-spr" role="img" aria-label="Skalvyr, der Frostwurm, bäumt sich auf" data-boss="skalvyr" data-idle="10 142.857" data-wut="12 125" style="--w:126;--h:108;--px:52;--py:103;--b:116;--n:10;background-image:url(img/boss-skalvyr-ruhe.webp)"></div>
+      <figure class="boss" style="--glow: 110, 190, 255" data-boss="skalvyr" data-fx="snow" data-f="208 156 69 12">
+        <div class="stage"><img class="px" src="img/boss-skalvyr-bild.webp" width="208" height="156" alt="Skalvyr, der Frostwurm, lässt Eiszapfen auf die Reifhöhlen niederregnen" loading="lazy"><canvas aria-hidden="true"></canvas></div>
         <figcaption><b>Skalvyr</b><span>Die Reifhöhlen</span><span>Stufe 37</span></figcaption>
       </figure>
-      <figure class="boss main" style="--glow: 255, 110, 30">
-        <div class="spr boss-spr" role="img" aria-label="Malgareth, der Aschenfürst, mit ausgebreiteten Schwingen und Flammenklinge" data-boss="malgareth" data-idle="8 142.857" data-wut="15 111 111 111 111 111 111 111 77 77 77 77 77 77 77 77" style="--w:199;--h:193;--px:77;--py:190;--b:113;--n:8;background-image:url(img/boss-malgareth-ruhe.webp)"></div>
+      <figure class="boss main" style="--glow: 255, 110, 30" data-boss="malgareth" data-fx="ember" data-f="336 252 48 12">
+        <div class="stage"><img class="px" src="img/boss-malgareth-bild.webp" width="336" height="252" alt="Malgareth, der Aschenfürst, schleudert Aschewellen über den Aschethron" loading="lazy"><canvas aria-hidden="true"></canvas></div>
         <figcaption><b>Malgareth</b><span>Der Aschethron</span><span>Stufe 40</span></figcaption>
       </figure>
       <i aria-hidden="true"></i>

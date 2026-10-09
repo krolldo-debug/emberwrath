@@ -36,15 +36,17 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   `kampf-<klasse>-1…4.webp` (je eine Fähigkeit, Reihenfolge wie auf der Seite). site.js spielt Kampf → Ruhe → reihum eine Fähigkeit
   (oder die angeklickte); die Bildzahlen stehen in `data-n` an `.fight` (Ausgabe des Skripts). Erdspalter bekommt einen
   glühenden Bodenriss (das Spiel brennt ihn nur in die Bodenebene, die hier nicht mitgezeichnet wird).
-- Bosse (`tools/bosse-anim.mjs`, Maße in `tools/bosse-anim.json`): `boss-<name>-ruhe.webp` (Atemschleife) und `boss-<name>-wut.webp`
-  (Brüllen/Angriff, gleicher Fußpunkt), Werte als `--w/--h/--px/--py`, `data-idle`, `data-wut` an `.boss-spr` in index.html.
-  Alle Bosse stehen mit der Unterkante ihres Bildfelds auf derselben Bodenlinie, Namen darunter.
+- Bosse (`tools/bosse-buehne.mjs` holt Sprites und Kacheln aus dem Spiel, `tools/bosse-buehne.py` baut die Bühnen; Maße in
+  `tools/bosse-buehne.json`, Aufbau je Boss in `CFG` im .py): Bühne 4:3 mit Wand oben, Bodenreihen, Schattenoval und Requisiten.
+  `boss-<name>-boden.webp` (hinten), `boss-<name>-kampf.webp` (transparenter Streifen: Ruhe, Warnfläche, Angriff; 12 Bilder/s),
+  `boss-<name>-vorn.webp` (Requisiten vorn), `boss-<name>-bild.webp` (Standbild). `data-f` = Breite Höhe Bilder fps, `data-fx` = Teilchenart.
+  site.js zeichnet alles auf ein Canvas: drei Diener nebeneinander, Malgareth groß darunter, alle ×2; Handy wischbar.
 - Reittier-Parade (`tools/reittiere-gang.mjs`, Maße in `tools/reittiere-gang.json`): `gang-<reittier>.webp` je Gangart (Galopp, Sprung,
   Trab, Flug …), Sprunghöhe je Bild in `data-l`; Boden aus Steppenkacheln in zwei Ebenen `parade-nah.webp` und `parade-fern.webp`
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
   der Namensliste (Breite, Höhe, Fuß x/y, Bilder, fps, Flughöhe, Tempo); site.js zeichnet die Parade in ganzen Bildschirmpunkten,
   die Kamera zieht mit, unter der Bühne steht der Name des Tiers in der Mitte.
-- `titel-loop.webp`: lebende Fassung des Titelbilds (animiertes WebP, `tools/titel-loop.mjs`), wird nach dem Laden gegen das Standbild getauscht.
+- `titel-loop.webp`: Titelbild als echter Kampf gegen Skalvyr (Fähigkeiten der Helden, Eisatem; 8 s, `tools/titel-kampf.mjs`), wird nach dem Laden gegen das Standbild getauscht, nicht bei Datensparmodus.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
   `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
@@ -63,10 +65,10 @@ node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.w
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
-node site/tools/bosse-anim.mjs out                  # Bosse: Ruhe und Wut
+node site/tools/bosse-buehne.mjs site/img ulgrim,rotmother,skalvyr,malgareth http://127.0.0.1:8121   # Bossbühnen (Server im Repo-Ordner)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
-node site/tools/titel-loop.mjs                      # lebendes Titelbild
+(cd site/tools && node titel-kampf.mjs)            # Titelkampf
 node site/tools/welt.mjs wl leben-quest,leben-handel # Szenen auf /welt
 ```
 
