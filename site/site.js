@@ -7,6 +7,8 @@
   doc.classList.remove('no-js');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  // Bilderordner auch für /en/ (dort sind alle Pfade absolut): neben dem Favicon
+  const IMG = new URL('img/', document.querySelector('link[rel="icon"]')?.href ?? location.href).href;
 
   // ---------- Links aus der Konfiguration
   const links = { play: cfg.playUrl, login: cfg.loginUrl, register: cfg.registerUrl };
@@ -88,14 +90,98 @@
     const io = new IntersectionObserver((list) => {
       for (const e of list) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
     }, { rootMargin: '0px 0px -8% 0px' });
-    $$('.reveal, .talk').forEach((el) => io.observe(el));
-  } else $$('.reveal, .talk').forEach((el) => el.classList.add('in'));
+    $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => io.observe(el));
+  } else $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => el.classList.add('in'));
 
-  // ---------- Kampfszene der Klasse einmal abspielen (beim Wechsel und wenn der Bereich ins Bild kommt)
+  // ---------- Bildstreifen abspielen: ein Element zeigt jeweils ein Bild eines waagerechten Streifens (Hintergrundbild).
+  // Ein gemeinsamer Takt (requestAnimationFrame) für alle Figuren; Figuren außerhalb des Bildschirms stehen still.
+  const decoded = new Map();
+  const loadImg = (src) => {
+    let p = decoded.get(src);
+    if (!p) { const im = new Image(); im.src = src; p = (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).catch(() => {}); decoded.set(src, p); }
+    return p;
+  };
+  const players = new Set();
+  let clockOn = false, clockLast = 0;
+  const clock = (t) => {
+    const dt = Math.min(100, t - (clockLast || t)); clockLast = t;
+    let any = false;
+    for (const pl of players) if (pl.visible && pl.seq) { pl.step(dt); any = true; }
+    if (any) requestAnimationFrame(clock); else { clockOn = false; clockLast = 0; }
+  };
+  const kick = () => { if (!clockOn && !reduced) { clockOn = true; requestAnimationFrame(clock); } };
+  const seen = 'IntersectionObserver' in window ? new IntersectionObserver((es) => {
+    for (const e of es) { const pl = e.target.__strip; if (pl) { pl.visible = e.isIntersecting; if (pl.visible) kick(); } }
+  }, { rootMargin: '80px' }) : null;
+  class Strip {
+    constructor(el) { this.el = el; this.seq = null; this.token = 0; this.visible = !seen; el.__strip = this; seen?.observe(el); players.add(this); }
+    // seq: { src, n, ms (Zahl oder Liste je Bild), loop, done }
+    async play(seq) {
+      const tok = ++this.token;
+      await loadImg(seq.src);
+      if (tok !== this.token) return;
+      this.el.style.backgroundImage = `url(${seq.src})`;
+      this.el.style.setProperty('--n', seq.n);
+      this.seq = seq; this.i = 0; this.t = 0; this.show();
+      if (reduced) { this.seq = null; seq.done?.(); return; }
+      kick();
+    }
+    show() { this.el.style.backgroundPosition = `${this.seq.n > 1 ? (this.i / (this.seq.n - 1)) * 100 : 0}% 0`; }
+    step(dt) {
+      const s = this.seq, dur = (i) => (Array.isArray(s.ms) ? s.ms[i] : s.ms);
+      this.t += dt;
+      let moved = false;
+      while (this.t >= dur(this.i)) {
+        this.t -= dur(this.i);
+        if (this.i + 1 >= s.n) {
+          if (!s.loop) { this.seq = null; s.done?.(); return; }
+          this.i = 0;
+        } else this.i++;
+        moved = true;
+      }
+      if (moved) this.show();
+    }
+  }
+
+  // ---------- Titelbild: nach dem Laden der Seite gegen die lebende Fassung tauschen (Schleife, tools/titel-loop.mjs)
+  const heroImg = document.querySelector('.hero-bg img[data-live]');
+  const slow = navigator.connection && (navigator.connection.saveData || /(^|-)2g|3g/.test(navigator.connection.effectiveType ?? ''));
+  if (heroImg && !reduced && !slow) {
+    const swap = () => setTimeout(() => {
+      const im = new Image(); im.src = IMG + heroImg.dataset.live;
+      (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).then(() => { heroImg.src = im.src; }, () => {});
+    }, 600);
+    if (document.readyState === 'complete') swap(); else addEventListener('load', swap, { once: true });
+  }
+
+  // ---------- Klassen: Kampf beim Wechsel, danach lebendige Ruhe und reihum die vier Fähigkeiten (oder die angeklickte)
+  const F12 = 1000 / 12;
+  const classFx = (panel) => {
+    const fig = panel.querySelector('.fight');
+    if (!fig) return null;
+    if (fig.__ctl) return fig.__ctl;
+    const cls = fig.dataset.cls, [nFight, nIdle, ...nSkill] = fig.dataset.n.split(' ').map(Number);
+    const pl = new Strip(fig.querySelector('i')), lis = [...panel.querySelectorAll('.skills li')];
+    let timer = 0, next = 0;
+    const mark = (k) => lis.forEach((li, i) => li.classList.toggle('on', i === k));
+    const idle = () => { mark(-1); pl.play({ src: `${IMG}ruhe-${cls}.webp`, n: nIdle, ms: F12, loop: true }); wait(); };
+    const wait = () => { clearTimeout(timer); timer = setTimeout(() => (pl.visible && !panel.hidden ? skill(next) : wait()), 2600); };
+    const skill = (k) => {
+      clearTimeout(timer); next = (k + 1) % nSkill.length; mark(k);
+      pl.play({ src: `${IMG}kampf-${cls}-${k + 1}.webp`, n: nSkill[k], ms: F12, done: idle });
+    };
+    const fight = () => { clearTimeout(timer); mark(-1); pl.play({ src: `${IMG}kampf-${cls}.webp`, n: nFight, ms: F12, done: idle }); };
+    lis.forEach((li, k) => li.querySelector('button')?.addEventListener('click', () => skill(k)));
+    // Fähigkeiten vorladen, sobald die Klasse gezeigt wird
+    const preload = () => { for (let k = 0; k < nSkill.length; k++) loadImg(`${IMG}kampf-${cls}-${k + 1}.webp`); loadImg(`${IMG}ruhe-${cls}.webp`); };
+    const stop = () => { clearTimeout(timer); mark(-1); };
+    return (fig.__ctl = { fight, preload, stop });
+  };
   const playFight = (panel) => {
-    const f = panel?.querySelector('.fight');
-    if (!f || reduced) return;
-    f.classList.remove('play'); void f.offsetWidth; f.classList.add('play');
+    if (reduced || !panel) return;
+    for (const p of $$('.cls-panel')) if (p !== panel) classFx(p)?.stop();
+    const c = classFx(panel); c?.preload(); c?.fight();
+    const fig = panel.querySelector('.hero-fig'); fig?.classList.remove('swap'); void fig?.offsetWidth; fig?.classList.add('swap');
   };
   const clsSec = document.querySelector('.classes');
   if (clsSec && 'IntersectionObserver' in window) {
@@ -105,6 +191,147 @@
       playFight(clsSec.querySelector('.cls-panel:not([hidden])'));
     }, { threshold: 0.45 });
     io2.observe(clsSec);
+  }
+
+  // ---------- Bosse: atmen ständig, brüllen beim ersten Anblick nacheinander, dann ab und zu einer, und beim Zeigen/Tippen
+  const arena = document.querySelector('.arena');
+  if (arena) {
+    const bosses = $$('.boss', arena).map((fig, i) => {
+      fig.style.setProperty('--i', i);
+      const el = fig.querySelector('.boss-spr'), d = el.dataset, name = d.boss;
+      const [ni, mi] = d.idle.split(' ').map(Number), [nw, ...mw] = d.wut.split(' ').map(Number);
+      const pl = new Strip(el);
+      const idle = () => { fig.classList.remove('wut'); pl.play({ src: `${IMG}boss-${name}-ruhe.webp`, n: ni, ms: mi, loop: true }); };
+      let busy = false;
+      const wut = () => {
+        if (busy || reduced) return; busy = true; fig.classList.add('wut');
+        pl.play({ src: `${IMG}boss-${name}-wut.webp`, n: nw, ms: mw.length > 1 ? mw : mw[0], done: () => { setTimeout(() => { busy = false; idle(); }, 380); } });
+      };
+      fig.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') wut(); });
+      fig.addEventListener('click', wut);
+      loadImg(`${IMG}boss-${name}-wut.webp`);
+      idle();
+      return { wut, pl };
+    });
+    if ('IntersectionObserver' in window && !reduced) {
+      let shown = false, every = 0;
+      new IntersectionObserver(([e]) => {
+        if (e.isIntersecting && !shown) {
+          shown = true; arena.classList.add('in');
+          // Malgareth zuletzt und am lautesten
+          bosses.forEach((b, i) => setTimeout(b.wut, 900 + i * 520));
+          every = setInterval(() => { const b = bosses[Math.floor(Math.random() * bosses.length)]; if (b.pl.visible) b.wut(); }, 6500);
+        }
+      }, { threshold: 0.35 }).observe(arena);
+    } else arena.classList.add('in');
+  }
+
+  // ---------- Reittier-Parade: jedes Reittier in seiner Gangart (tools/reittiere-gang.mjs) über echten Steppenboden.
+  // Gezeichnet in ganzen Bildschirmpunkten je Streifenpixel; Namen laufen als Text darunter mit (übersetzbar, lesbar).
+  const parade = document.querySelector('.parade');
+  if (parade) {
+    const cv = parade.querySelector('canvas'), ctx = cv.getContext('2d');
+    const defs = $$('.parade-names li', parade).map((li) => {
+      const [w, h, fx, fy, n, fps, fly, v] = li.dataset.f.split(' ').map(Number);
+      const glow = li.style.getPropertyValue('--glow').trim();
+      const img = new Image(); img.src = `${IMG}gang-${li.dataset.m}.webp`;
+      return { li, w, h, fx, fy, n, fps, fly, v, img, glow: glow ? `rgb(${glow})` : null };
+    });
+    const ground = new Image(); ground.src = `${IMG}parade-boden.webp`;
+    const TOP = 22, BASE = 84, H = 104;   // Spielpixel: Luft über den Fliegern, Laufhöhe, Gesamthöhe
+    let wp = 4, W = 400, dpr = 1, runners = [], dust = [], nextAt = 0, qi = 0, last = 0, on = false, vis = false;
+    const layout = () => {
+      dpr = devicePixelRatio || 1;
+      const wide = parade.clientWidth > 820;
+      wp = 2 * Math.max(1, Math.round(((wide ? 3 : 2.25) * dpr) / 2));   // Bildschirmpunkte je Spielpixel (gerade: Streifen in 2× Auflösung)
+      parade.style.setProperty('--ph', `${(H * wp) / dpr}px`);
+      cv.width = Math.round(parade.clientWidth * dpr); cv.height = H * wp;
+      W = cv.width / wp;
+      ctx.imageSmoothingEnabled = false;
+      for (const d of defs) d.lw = d.li.offsetWidth;
+    };
+    const spawn = (x0) => {
+      const d = defs[qi++ % defs.length];
+      runners.push({ d, x: x0 ?? -(d.w - d.fx) - 2, t: Math.random() });
+      // Abstand so wählen, dass ein schnelleres Tier das vorige nicht einholt
+      const nx = defs[qi % defs.length], span = W + 80, gap = d.w + 34;
+      return Math.max(gap / d.v, span / d.v - span / nx.v + gap / nx.v, 1.4) * 1000;
+    };
+    const px = (x) => Math.round(x * wp);
+    const shadow = (x, w, a) => {
+      ctx.fillStyle = `rgba(0, 0, 0, ${a})`;
+      for (let r = -1; r <= 1; r++) { const hw = Math.round(w * Math.sqrt(1 - (r / 2) ** 2)); ctx.fillRect(px(x - hw), px(BASE + r), hw * 2 * wp, wp); }
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      // Boden: echte Spielgrafik, oben in den Seitenhintergrund ausgeblendet
+      const gy = BASE - 30;
+      if (ground.complete && ground.naturalWidth) {
+        const gw = ground.naturalWidth / 2, gx = Math.round((W - gw) / 2);
+        ctx.drawImage(ground, 0, 0, ground.naturalWidth, ground.naturalHeight, px(gx), px(gy), gw * wp, (ground.naturalHeight / 2) * wp);
+      } else { ctx.fillStyle = '#1c120f'; ctx.fillRect(0, px(gy), cv.width, cv.height); }
+      const fade = ctx.createLinearGradient(0, px(gy), 0, px(gy + 26));
+      fade.addColorStop(0, 'rgba(10, 5, 16, 1)'); fade.addColorStop(1, 'rgba(10, 5, 16, 0)');
+      ctx.fillStyle = fade; ctx.fillRect(0, px(gy) - 1, cv.width, px(26) + 1);
+      const fb = ctx.createLinearGradient(0, cv.height - px(14), 0, cv.height);
+      fb.addColorStop(0, 'rgba(10, 5, 16, 0)'); fb.addColorStop(1, 'rgba(10, 5, 16, 1)');
+      ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(14), cv.width, px(14));
+      for (const r of runners) shadow(r.x + (r.d.fly ? 2 : 0), r.d.fly ? r.d.w * 0.22 : r.d.w * 0.32, r.d.fly ? 0.22 : 0.4);
+      // Staub und Funken hinter den Tieren
+      for (const q of dust) { ctx.globalAlpha = Math.max(0, 1 - q.life / q.max) * q.a; ctx.fillStyle = q.c; ctx.fillRect(px(q.x), px(q.y), wp, wp); }
+      ctx.globalAlpha = 1;
+      for (const r of [...runners].sort((a, b) => a.d.fly - b.d.fly)) {
+        const d = r.d, f = Math.floor(r.t * d.fps) % d.n;
+        if (!d.img.complete || !d.img.naturalWidth) continue;
+        ctx.drawImage(d.img, f * d.w * 2, 0, d.w * 2, d.h * 2, px(r.x - d.fx), px(BASE - d.fly - d.fy), d.w * wp, d.h * wp);
+      }
+      // Namen: unter dem Tier, an den Rändern ein- und ausgeblendet
+      for (const d of defs) d.on = false;
+      for (const r of runners) {
+        const d = r.d, cx = (r.x - d.fx + d.w / 2) * wp / dpr;
+        d.on = true;
+        d.li.style.transform = `translate(${Math.round(cx - d.lw / 2)}px, ${Math.round(((BASE + 6) * wp) / dpr)}px)`;
+        d.li.style.opacity = String(Math.max(0, Math.min(1, (r.x - 20) / 50, (W - 20 - r.x) / 50)));
+      }
+      for (const d of defs) if (!d.on) d.li.style.opacity = '0';
+    };
+    let clockT = 0;
+    const update = (dt, fx) => {
+      clockT += dt;
+      if (clockT >= nextAt) nextAt = clockT + spawn() / 1000;
+      for (const r of runners) {
+        r.x += r.d.v * dt; r.t += dt;
+        if (!fx) continue;
+        // Staub hinter den Läufern, Funken/Schnee unter den legendären und den Fliegern
+        const d = r.d, back = r.x - d.fx * 0.7;
+        if (!d.fly && Math.random() < dt * 22) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -8 - Math.random() * 14, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', a: 0.7 });
+        if (d.glow && Math.random() < dt * (d.fly ? 16 : 9)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - d.fly - d.fy * (0.2 + Math.random() * 0.5), vx: -14 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: d.glow, a: 0.95 });
+      }
+      for (const q of dust) { q.life += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 18 * dt; }
+      dust = dust.filter((q) => q.life < q.max).slice(-260);
+      runners = runners.filter((r) => r.x - r.d.fx < W + 4);
+    };
+    const tick = (t) => {
+      if (!vis) { on = false; return; }
+      const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t;
+      update(dt, true);
+      draw();
+      requestAnimationFrame(tick);
+    };
+    layout();
+    if (reduced) {
+      // Ohne Bewegung: eine ruhige Aufstellung, Namen als Liste darunter
+      parade.classList.add('still');
+      const still = () => { layout(); runners = []; let x = 10; for (const d of defs) { if (x + d.w > W) break; runners.push({ d, x: x + d.fx, t: 0 }); x += d.w + 8; } draw(); };
+      for (const d of defs) d.img.addEventListener('load', still, { once: true });
+      ground.addEventListener('load', still, { once: true });
+      addEventListener('resize', still); still();
+    } else {
+      // Bühne nicht leer beginnen: die Parade läuft unsichtbar schon eine Weile
+      for (let i = 0; i < 30 * 7; i++) update(1 / 30, false);
+      new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis && !on) { on = true; last = 0; requestAnimationFrame(tick); } }, { rootMargin: '60px' }).observe(parade);
+      addEventListener('resize', () => { layout(); });
+    }
   }
 
   // ---------- Klassen: Reiter wechseln das Porträt (Pfeiltasten wie bei Tabs üblich)
@@ -219,13 +446,14 @@
       const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 272)));
       if (Math.abs(k / dpr - want) > 0.001) f.style.setProperty('--s', String(k / dpr));
     }
-    // Reiter im Lauf: das Fenster zeigt genau einen Frame des Streifens (Breite / Anzahl Frames)
-    for (const box of $$('.rider')) {
-      const img = box.querySelector('img'), n = parseFloat(getComputedStyle(box).getPropertyValue('--n')) || 1;
-      box.style.width = img?.naturalWidth ? `${img.getBoundingClientRect().width / n}px` : '';
+    // Bosse: Bildschirmpunkte je Spielpixel ganzzahlig (CSS-Wert --s gerundet)
+    for (const el of $$('.boss-spr')) {
+      el.style.removeProperty('--s');
+      const want = parseFloat(getComputedStyle(el).getPropertyValue('--s')) || 2, k = Math.max(1, Math.round(want * dpr));
+      if (Math.abs(k / dpr - want) > 0.001) el.style.setProperty('--s', String(k / dpr));
     }
   };
-  if (figs.length) {
+  if (figs.length || document.querySelector('.boss-spr')) {
     for (const img of figs) if (!img.complete) img.addEventListener('load', fitFigs, { once: true });
     fitFigs();
     let raf2 = 0;
@@ -233,6 +461,9 @@
   }
 
   // ---------- Glutfunken über dem Titelbild (wie die Funken im Spiel, pixelig)
+  // Wind aus der Mausbewegung: Funken weichen dem Zeiger aus und treiben mit (klingt schnell ab)
+  let wind = 0, ptr = null;
+  if (!reduced) addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; wind = Math.max(-40, Math.min(40, wind + e.movementX * 0.35)); ptr = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { passive: true });
   for (const cv of reduced ? [] : $$('.embers')) {
     const ctx = cv.getContext('2d');
     const P = 3; // Pixelgröße der Funken
@@ -250,8 +481,11 @@
       if (!running) return;
       const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t;
       ctx.clearRect(0, 0, W, H);
+      wind *= Math.pow(0.12, dt);
+      const r = cv.getBoundingClientRect(), near = ptr && performance.now() - ptr.t < 400 ? { x: (ptr.x - r.left) / P, y: (ptr.y - r.top) / P } : null;
       for (const s of sparks) {
-        s.life += dt; s.y -= s.vy * dt; s.x += (s.drift + Math.sin(s.life * 2 + s.phase) * 4) * dt;
+        s.life += dt; s.y -= s.vy * dt; s.x += (s.drift + wind * (0.6 + (s.phase % 1)) + Math.sin(s.life * 2 + s.phase) * 4) * dt;
+        if (near) { const dx = s.x - near.x, dy = s.y - near.y, d2 = dx * dx + dy * dy; if (d2 < 900) { const k = (1 - d2 / 900) * 60 * dt; s.x += Math.sign(dx) * k; s.y += Math.sign(dy) * k * 0.5; } }
         const k = s.life / s.max;
         if (k >= 1 || s.y < -2) { Object.assign(s, spawn()); continue; }
         ctx.globalAlpha = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85;

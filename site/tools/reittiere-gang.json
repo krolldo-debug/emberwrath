@@ -1,0 +1,156 @@
+{
+ "rime_drake": {
+  "w": 65,
+  "h": 42,
+  "res": 2,
+  "frames": 10,
+  "fps": 10,
+  "gait": "fly",
+  "foot": {
+   "x": 30,
+   "y": 38
+  },
+  "fly": 16,
+  "name": "Reifschwinge"
+ },
+ "hellhound": {
+  "w": 47,
+  "h": 45,
+  "res": 2,
+  "frames": 8,
+  "fps": 15,
+  "gait": "bound",
+  "foot": {
+   "x": 24,
+   "y": 42
+  },
+  "fly": 0,
+  "name": "Höllenhund"
+ },
+ "cinder_drake": {
+  "w": 61,
+  "h": 44,
+  "res": 2,
+  "frames": 10,
+  "fps": 10,
+  "gait": "fly",
+  "foot": {
+   "x": 30,
+   "y": 40
+  },
+  "fly": 16,
+  "name": "Schlackendrache"
+ },
+ "nightmare_steed": {
+  "w": 40,
+  "h": 44,
+  "res": 2,
+  "frames": 8,
+  "fps": 14,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 41
+  },
+  "fly": 0,
+  "name": "Albtraumross"
+ },
+ "ember_charger": {
+  "w": 41,
+  "h": 45,
+  "res": 2,
+  "frames": 8,
+  "fps": 14,
+  "gait": "gallop",
+  "foot": {
+   "x": 20,
+   "y": 42
+  },
+  "fly": 0,
+  "name": "Glutross"
+ },
+ "frost_elk": {
+  "w": 36,
+  "h": 44,
+  "res": 2,
+  "frames": 8,
+  "fps": 10,
+  "gait": "trot",
+  "foot": {
+   "x": 16,
+   "y": 41
+  },
+  "fly": 0,
+  "name": "Frostelch"
+ },
+ "bone_stallion": {
+  "w": 40,
+  "h": 43,
+  "res": 2,
+  "frames": 8,
+  "fps": 14,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 40
+  },
+  "fly": 0,
+  "name": "Knochenhengst"
+ },
+ "spore_beetle": {
+  "w": 36,
+  "h": 42,
+  "res": 2,
+  "frames": 6,
+  "fps": 16,
+  "gait": "scuttle",
+  "foot": {
+   "x": 15,
+   "y": 40
+  },
+  "fly": 0,
+  "name": "Sporenkäfer"
+ },
+ "ash_wolf": {
+  "w": 39,
+  "h": 38,
+  "res": 2,
+  "frames": 8,
+  "fps": 15,
+  "gait": "bound",
+  "foot": {
+   "x": 19,
+   "y": 36
+  },
+  "fly": 0,
+  "name": "Aschenwolf"
+ },
+ "marsh_strider": {
+  "w": 36,
+  "h": 44,
+  "res": 2,
+  "frames": 8,
+  "fps": 9,
+  "gait": "stalk",
+  "foot": {
+   "x": 18,
+   "y": 42
+  },
+  "fly": 0,
+  "name": "Sumpfschreiter"
+ },
+ "steppe_horse": {
+  "w": 40,
+  "h": 43,
+  "res": 2,
+  "frames": 8,
+  "fps": 14,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 40
+  },
+  "fly": 0,
+  "name": "Steppenpferd"
+ }
+}

@@ -20,7 +20,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://www.emberwrath.com/#website", "url": "https://www.emberwrath.com/", "name": "Emberwrath", "inLanguage": "de"}, {"@type": "VideoGame", "@id": "https://www.emberwrath.com/#game", "name": "Emberwrath", "url": "https://www.emberwrath.com/", "description": "Emberwrath ist ein düsteres Pixel-Action-RPG: vier Klassen, Stufe 40, vierzehn Gebiete, Bosse, Reittiere und andere Spieler in derselben Welt. Kostenlos im Browser spielen, auf PC und Handy, ohne Download.", "image": "https://www.emberwrath.com/img/og-emberwrath.png", "inLanguage": "de", "genre": ["Action-Rollenspiel", "Online-Rollenspiel", "Pixel-Art"], "gamePlatform": ["Webbrowser", "PC", "Smartphone"], "applicationCategory": "Game", "operatingSystem": "Windows, macOS, Linux, Android, iOS (im Browser)", "playMode": "MultiPlayer", "isAccessibleForFree": true, "publisher": {"@type": "Person", "name": "Dominic Paul Kroll"}, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/OnlineOnly", "url": "https://www.emberwrath.com/spielen/"}, "potentialAction": {"@type": "PlayAction", "target": "https://www.emberwrath.com/spielen/"}}]}</script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preload" as="image" href="img/kampf-titel.webp" fetchpriority="high">
+  <link rel="preload" as="image" href="img/titel-loop-0.webp" fetchpriority="high">
   <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
 </head>
@@ -30,7 +30,7 @@
 <main id="inhalt">
 
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img style="--fx:0.52;--fy:0.4;--mx:0.52;--my:0.44" class="px shot" fetchpriority="high" src="img/kampf-titel.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
+    <div class="hero-bg"><img style="--fx:0.52;--fy:0.4;--mx:0.52;--my:0.44" class="px shot" fetchpriority="high" src="img/titel-loop-0.webp" data-live="titel-loop.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
     <canvas class="embers" aria-hidden="true"></canvas>
     <div class="hero-content">
       <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="438" height="90">
@@ -63,56 +63,56 @@
       </div>
 
       <article class="cls-panel" id="p-krieger" role="tabpanel" aria-labelledby="t-krieger" style="--res: #e0503a">
-        <div class="hero-fig fight" role="img" aria-label="Krieger in der Rüstung des Aschenfürsten schlägt mit der Klinge Königsfall auf einen Aschegolem ein"><i style="--n:38;background-image:url(img/kampf-warrior.png)"></i></div>
+        <div class="hero-fig fight" data-cls="warrior" data-n="38 24 11 11 11 15" role="img" aria-label="Krieger in der Rüstung des Aschenfürsten schlägt mit der Klinge Königsfall auf einen Aschegolem ein"><i style="--n:24;background-image:url(img/ruhe-warrior.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Hält am meisten aus. Jeder Treffer erzeugt Wut, und Wut wird zu verheerenden Hieben.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-whirlwind.png" alt="" width="48" height="48">Wirbelsturm</li>
-            <li><img class="px" src="img/skill-battle_shout.png" alt="" width="48" height="48">Kriegsschrei</li>
-            <li><img class="px" src="img/skill-charge.png" alt="" width="48" height="48">Sturmangriff</li>
-            <li><img class="px" src="img/skill-earthshatter.png" alt="" width="48" height="48">Erdspalter</li>
+            <li><button type="button"><img class="px" src="img/skill-whirlwind.png" alt="" width="48" height="48">Wirbelsturm</button></li>
+            <li><button type="button"><img class="px" src="img/skill-battle_shout.png" alt="" width="48" height="48">Kriegsschrei</button></li>
+            <li><button type="button"><img class="px" src="img/skill-charge.png" alt="" width="48" height="48">Sturmangriff</button></li>
+            <li><button type="button"><img class="px" src="img/skill-earthshatter.png" alt="" width="48" height="48">Erdspalter</button></li>
           </ul>
           <p class="legend"><img class="px" src="img/item-kingsbane.png" alt="" width="52" height="52">Königsfall</p>
         </div>
       </article>
 
       <article class="cls-panel" id="p-schurke" role="tabpanel" aria-labelledby="t-schurke" style="--res: #e8c25a" hidden>
-        <div class="hero-fig fight" role="img" aria-label="Glutgeborener Schurke sticht mit dem Dolch Schleierstecher auf einen Glutkultisten ein"><i style="--n:36;background-image:url(img/kampf-rogue.png)"></i></div>
+        <div class="hero-fig fight" data-cls="rogue" data-n="36 32 11 11 11 11" role="img" aria-label="Glutgeborener Schurke sticht mit dem Dolch Schleierstecher auf einen Glutkultisten ein"><i style="--n:32;background-image:url(img/ruhe-rogue.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Schnelle Dolchkombos und kritische Treffer. Taucht durch die Reihen, bevor jemand reagiert.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-shadow_step.png" alt="" width="48" height="48">Schattenschritt</li>
-            <li><img class="px" src="img/skill-fan_of_knives.png" alt="" width="48" height="48">Dolchfächer</li>
-            <li><img class="px" src="img/skill-poison_blades.png" alt="" width="48" height="48">Giftklingen</li>
-            <li><img class="px" src="img/skill-assassinate.png" alt="" width="48" height="48">Todesstoß</li>
+            <li><button type="button"><img class="px" src="img/skill-shadow_step.png" alt="" width="48" height="48">Schattenschritt</button></li>
+            <li><button type="button"><img class="px" src="img/skill-fan_of_knives.png" alt="" width="48" height="48">Dolchfächer</button></li>
+            <li><button type="button"><img class="px" src="img/skill-poison_blades.png" alt="" width="48" height="48">Giftklingen</button></li>
+            <li><button type="button"><img class="px" src="img/skill-assassinate.png" alt="" width="48" height="48">Todesstoß</button></li>
           </ul>
           <p class="legend"><img class="px" src="img/item-veilpiercer.png" alt="" width="52" height="52">Schleierstecher</p>
         </div>
       </article>
 
       <article class="cls-panel" id="p-waldlaeufer" role="tabpanel" aria-labelledby="t-waldlaeufer" style="--res: #6ee06a" hidden>
-        <div class="hero-fig fight" role="img" aria-label="Schattenelfische Waldläuferin beschießt mit dem Bogen Morgensehne ein Skelett"><i style="--n:36;background-image:url(img/kampf-ranger.png)"></i></div>
+        <div class="hero-fig fight" data-cls="ranger" data-n="36 24 12 14 13 28" role="img" aria-label="Schattenelfische Waldläuferin beschießt mit dem Bogen Morgensehne ein Skelett"><i style="--n:24;background-image:url(img/ruhe-ranger.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Hält Gegner auf Abstand. Salven, Fallen und Schüsse, die ganze Reihen durchschlagen.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-volley.png" alt="" width="48" height="48">Pfeilsalve</li>
-            <li><img class="px" src="img/skill-piercing_shot.png" alt="" width="48" height="48">Durchschuss</li>
-            <li><img class="px" src="img/skill-fire_trap.png" alt="" width="48" height="48">Sprengfalle</li>
-            <li><img class="px" src="img/skill-arrow_rain.png" alt="" width="48" height="48">Pfeilhagel</li>
+            <li><button type="button"><img class="px" src="img/skill-volley.png" alt="" width="48" height="48">Pfeilsalve</button></li>
+            <li><button type="button"><img class="px" src="img/skill-piercing_shot.png" alt="" width="48" height="48">Durchschuss</button></li>
+            <li><button type="button"><img class="px" src="img/skill-fire_trap.png" alt="" width="48" height="48">Sprengfalle</button></li>
+            <li><button type="button"><img class="px" src="img/skill-arrow_rain.png" alt="" width="48" height="48">Pfeilhagel</button></li>
           </ul>
           <p class="legend"><img class="px" src="img/item-dawnstring.png" alt="" width="52" height="52">Morgensehne</p>
         </div>
       </article>
 
       <article class="cls-panel" id="p-magier" role="tabpanel" aria-labelledby="t-magier" style="--res: #6a9cff" hidden>
-        <div class="hero-fig fight" role="img" aria-label="Glutmagierin lässt Feuerbälle und einen Meteor auf einen Tempelwächter niedergehen"><i style="--n:36;background-image:url(img/kampf-mage.png)"></i></div>
+        <div class="hero-fig fight" data-cls="mage" data-n="36 24 11 11 13 19" role="img" aria-label="Glutmagierin lässt Feuerbälle und einen Meteor auf einen Tempelwächter niedergehen"><i style="--n:24;background-image:url(img/ruhe-mage.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Zerbrechlich, aber tödlich. Glutbolzen aus sicherer Entfernung, am Ende fällt ein Meteor.</p>
           <ul class="skills">
-            <li><img class="px" src="img/skill-flame_nova.png" alt="" width="48" height="48">Flammenring</li>
-            <li><img class="px" src="img/skill-blink.png" alt="" width="48" height="48">Blinzeln</li>
-            <li><img class="px" src="img/skill-fireball.png" alt="" width="48" height="48">Feuerball</li>
-            <li><img class="px" src="img/skill-meteor.png" alt="" width="48" height="48">Meteor</li>
+            <li><button type="button"><img class="px" src="img/skill-flame_nova.png" alt="" width="48" height="48">Flammenring</button></li>
+            <li><button type="button"><img class="px" src="img/skill-blink.png" alt="" width="48" height="48">Blinzeln</button></li>
+            <li><button type="button"><img class="px" src="img/skill-fireball.png" alt="" width="48" height="48">Feuerball</button></li>
+            <li><button type="button"><img class="px" src="img/skill-meteor.png" alt="" width="48" height="48">Meteor</button></li>
           </ul>
           <p class="legend"><img class="px" src="img/item-staff_of_last_ash.png" alt="" width="52" height="52">Stab der letzten Asche</p>
         </div>
@@ -127,40 +127,44 @@
     </div>
     <div class="arena">
       <figure class="boss" style="--glow: 120, 200, 170">
-        <img class="px" src="img/boss-ulgrim.png" alt="Ulgrim, der Hügelkönig, reckt sein Schwert" width="152" height="270">
+        <div class="spr boss-spr" role="img" aria-label="Ulgrim, der Hügelkönig, reckt sein Schwert" data-boss="ulgrim" data-idle="8 166.667" data-wut="10 133.333" style="--w:121;--h:136;--px:46;--py:132;--b:76;--n:8;background-image:url(img/boss-ulgrim-ruhe.webp)"></div>
         <figcaption><b>Ulgrim</b><span>Das Heulende Hügelgrab</span><span>Stufe 26</span></figcaption>
       </figure>
       <figure class="boss" style="--glow: 150, 220, 90">
-        <img class="px" src="img/boss-rotmother.png" alt="Mutter Fäulnis, ein riesiger Pilzleib voller Sporen" width="220" height="244">
+        <div class="spr boss-spr" role="img" aria-label="Mutter Fäulnis, ein riesiger Pilzleib voller Sporen" data-boss="rotmother" data-idle="12 142.857" data-wut="12 125" style="--w:119;--h:122;--px:65;--py:108;--b:110;--n:12;background-image:url(img/boss-rotmother-ruhe.webp)"></div>
         <figcaption><b>Mutter Fäulnis</b><span>Der Sporenschlund</span><span>Stufe 32</span></figcaption>
       </figure>
       <figure class="boss" style="--glow: 110, 190, 255">
-        <img class="px" src="img/boss-skalvyr.png" alt="Skalvyr, der Frostwurm, bäumt sich auf" width="232" height="210">
+        <div class="spr boss-spr" role="img" aria-label="Skalvyr, der Frostwurm, bäumt sich auf" data-boss="skalvyr" data-idle="10 142.857" data-wut="12 125" style="--w:126;--h:108;--px:52;--py:103;--b:116;--n:10;background-image:url(img/boss-skalvyr-ruhe.webp)"></div>
         <figcaption><b>Skalvyr</b><span>Die Reifhöhlen</span><span>Stufe 37</span></figcaption>
       </figure>
       <figure class="boss main" style="--glow: 255, 110, 30">
-        <img class="px" src="img/boss-malgareth.png" alt="Malgareth, der Aschenfürst, mit ausgebreiteten Schwingen und Flammenklinge" width="226" height="320">
+        <div class="spr boss-spr" role="img" aria-label="Malgareth, der Aschenfürst, mit ausgebreiteten Schwingen und Flammenklinge" data-boss="malgareth" data-idle="8 142.857" data-wut="15 111 111 111 111 111 111 111 77 77 77 77 77 77 77 77" style="--w:199;--h:193;--px:77;--py:190;--b:113;--n:8;background-image:url(img/boss-malgareth-ruhe.webp)"></div>
         <figcaption><b>Malgareth</b><span>Der Aschethron</span><span>Stufe 40</span></figcaption>
       </figure>
     </div>
   </section>
 
   <section class="ride" id="reiten" aria-labelledby="h-reiten">
-    <div class="wrap ride-grid">
-      <ul class="riders" aria-label="Reittiere">
-        <li style="--glow: 120, 190, 255"><span class="rider" style="--n:6;--t:0.545s"><img class="px" src="img/ritt-rime_drake-lauf.png" alt="Waldläufer auf der Reifschwinge" width="1098" height="126"></span><span>Reifschwinge</span></li>
-        <li style="--glow: 255, 110, 30"><span class="rider" style="--n:6;--t:0.545s"><img class="px" src="img/ritt-hellhound-lauf.png" alt="Krieger auf dem Höllenhund" width="846" height="129"></span><span>Höllenhund</span></li>
-        <li style="--glow: 255, 90, 30"><span class="rider" style="--n:6;--t:0.545s"><img class="px" src="img/ritt-cinder_drake-lauf.png" alt="Krieger auf dem Schlackendrachen" width="1080" height="126"></span><span>Schlackendrache</span></li>
-        <li><span class="rider" style="--n:6;--t:0.545s"><img class="px" src="img/ritt-nightmare_steed-lauf.png" alt="Schurke auf dem Albtraumross" width="720" height="126"></span><span>Albtraumross</span></li>
-        <li><span class="rider" style="--n:6;--t:0.545s"><img class="px" src="img/ritt-frost_elk-lauf.png" alt="Waldläuferin auf dem Frostelch" width="648" height="129"></span><span>Frostelch</span></li>
-        <li><span class="rider" style="--n:6;--t:0.545s"><img class="px" src="img/ritt-ash_wolf-lauf.png" alt="Magier auf dem Aschenwolf" width="702" height="114"></span><span>Aschenwolf</span></li>
+    <div class="wrap ride-text">
+      <h2 id="h-reiten" class="title">Ab Stufe 20 reitest du</h2>
+      <p class="sec-line">Manche verkauft die Stallmeisterin, die seltensten lassen nur Bosse und Glutprüfungen fallen.</p>
+    </div>
+    <div class="parade">
+      <canvas aria-hidden="true"></canvas>
+      <ul class="parade-names" aria-label="Reittiere">
+        <li data-m="rime_drake" data-f="65 42 30 38 10 10 16 80" style="--glow: 120, 190, 255">Reifschwinge</li>
+        <li data-m="nightmare_steed" data-f="40 44 19 41 8 14 0 86" style="--glow: 170, 110, 255">Albtraumross</li>
+        <li data-m="frost_elk" data-f="36 44 16 41 8 10 0 74" style="--glow: 170, 220, 255">Frostelch</li>
+        <li data-m="hellhound" data-f="47 45 24 42 8 15 0 90" style="--glow: 255, 110, 30">Höllenhund</li>
+        <li data-m="steppe_horse" data-f="40 43 19 40 8 14 0 86">Steppenpferd</li>
+        <li data-m="cinder_drake" data-f="61 44 30 40 10 10 16 80" style="--glow: 255, 90, 30">Schlackendrache</li>
+        <li data-m="ash_wolf" data-f="39 38 19 36 8 15 0 90">Aschenwolf</li>
+        <li data-m="bone_stallion" data-f="40 43 19 40 8 14 0 86" style="--glow: 140, 255, 190">Knochenhengst</li>
+        <li data-m="spore_beetle" data-f="36 42 15 40 6 16 0 78" style="--glow: 150, 220, 90">Sporenkäfer</li>
+        <li data-m="ember_charger" data-f="41 45 20 42 8 14 0 86" style="--glow: 255, 140, 40">Glutross</li>
+        <li data-m="marsh_strider" data-f="36 44 18 42 8 9 0 72">Sumpfschreiter</li>
       </ul>
-      <div class="ride-text">
-        <div>
-          <h2 id="h-reiten" class="title">Ab Stufe 20 reitest du</h2>
-          <p class="sec-line">Manche verkauft die Stallmeisterin, die seltensten lassen nur Bosse und Glutprüfungen fallen.</p>
-        </div>
-      </div>
     </div>
   </section>
 
