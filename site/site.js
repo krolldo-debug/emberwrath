@@ -152,7 +152,7 @@
     }
   }
 
-  // ---------- Titelbild: nach dem Laden der Seite gegen die lebende Fassung tauschen (Schleife, tools/titel-loop.mjs)
+  // ---------- Titelbild: nach dem Laden der Seite gegen die lebende Fassung tauschen (Schleife, tools/titel-kampf.mjs)
   const heroImg = document.querySelector('.hero-bg img[data-live]');
   const slow = navigator.connection && (navigator.connection.saveData || /(^|-)2g|3g/.test(navigator.connection.effectiveType ?? ''));
   if (heroImg && !reduced && !slow) {
@@ -203,36 +203,95 @@
     io2.observe(clsSec);
   }
 
-  // ---------- Bosse: atmen ständig, brüllen beim ersten Anblick nacheinander, dann ab und zu einer, und beim Zeigen/Tippen
+  // ---------- Bosse: jeder kämpft auf dem Boden seines Gebiets (tools/bosse-buehne.mjs): Boden, darüber der Kampfstreifen
+  // (Ruhe → Warnfläche → Angriff), dazu Teilchen in der Farbe seines Gebiets. Gezeichnet in Spielpixeln auf einer kleinen
+  // Zeichenfläche, die CSS ganzzahlig vergrößert. Ohne Bewegung bleibt das Standbild stehen.
   const arena = document.querySelector('.arena');
   if (arena) {
-    const bosses = $$('.boss', arena).map((fig, i) => {
+    const FX = {
+      // Teilchen je Gebiet: Farben, Richtung, Dichte
+      wisp: { c: ['#9fe6c8', '#d8fff0', '#6fbfa0'], n: 16, vy: [-6, -2], vx: [-3, 3], life: [2.5, 4.5], glow: true },
+      spore: { c: ['#a8e05a', '#d4f08a', '#7ab040'], n: 22, vy: [-7, -3], vx: [-4, 4], life: [2.5, 4], glow: true },
+      snow: { c: ['#ffffff', '#d8ecff', '#a8d0ff'], n: 30, vy: [8, 16], vx: [-6, -1], life: [4, 7], glow: false, top: true },
+      ember: { c: ['#ffd27a', '#ff8a30', '#ff5a1a'], n: 28, vy: [-16, -7], vx: [-4, 4], life: [1.5, 3], glow: true },
+    };
+    const rnd = (a) => a[0] + Math.random() * (a[1] - a[0]);
+    const stages = $$('.boss', arena).map((fig, i) => {
       fig.style.setProperty('--i', i);
-      const el = fig.querySelector('.boss-spr'), d = el.dataset, name = d.boss;
-      const [ni, mi] = d.idle.split(' ').map(Number), [nw, ...mw] = d.wut.split(' ').map(Number);
-      const pl = new Strip(el);
-      const idle = () => { fig.classList.remove('wut'); pl.play({ src: `${IMG}boss-${name}-ruhe.webp`, n: ni, ms: mi, loop: true }); };
-      let busy = false;
-      const wut = () => {
-        if (busy || reduced) return; busy = true; fig.classList.add('wut');
-        pl.play({ src: `${IMG}boss-${name}-wut.webp`, n: nw, ms: mw.length > 1 ? mw : mw[0], done: () => { setTimeout(() => { busy = false; idle(); }, 380); } });
-      };
-      fig.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') wut(); });
-      fig.addEventListener('click', wut);
-      loadImg(`${IMG}boss-${name}-wut.webp`);
-      idle();
-      return { wut, pl };
+      const st = fig.querySelector('.stage'), cv = st.querySelector('canvas'), d = fig.dataset;
+      const [w, h, n, fps] = d.f.split(' ').map(Number);
+      const ground = new Image(), strip = new Image();
+      ground.src = `${IMG}boss-${d.boss}-boden.webp`;
+      cv.width = w; cv.height = h;
+      return { fig, st, cv, ctx: cv.getContext('2d'), w, h, n, fps, ground, strip, fx: FX[d.fx], parts: [], t: Math.random() * 0.5, vis: false, ready: false };
     });
-    if ('IntersectionObserver' in window && !reduced) {
-      let shown = false, every = 0;
-      new IntersectionObserver(([e]) => {
-        if (e.isIntersecting && !shown) {
-          shown = true; arena.classList.add('in');
-          // Malgareth zuletzt und am lautesten
-          bosses.forEach((b, i) => setTimeout(b.wut, 900 + i * 520));
-          every = setInterval(() => { const b = bosses[Math.floor(Math.random() * bosses.length)]; if (b.pl.visible) b.wut(); }, 6500);
+    const fit = () => {
+      const dpr = devicePixelRatio || 1, wide = innerWidth >= 1300, phone = innerWidth <= 820;
+      for (const s of stages) {
+        // Handy: je Boss die Bühnenbreite. Sonst drei Diener nebeneinander, Malgareth groß darunter.
+        const main = s.fig.classList.contains('main');
+        const room = phone ? innerWidth * 0.96 : main ? Math.min(arena.clientWidth - 40, 760) : Math.min(arena.clientWidth / 3 - 30, 440);
+        const cap = phone ? 6 : main ? 3 * dpr : Math.round((wide ? 2.5 : 2) * dpr);
+        const k = Math.max(1, Math.min(Math.floor((room * dpr) / s.w), Math.floor(cap)));
+        s.st.style.width = `${(s.w * k) / dpr}px`; s.st.style.height = `${(s.h * k) / dpr}px`;
+      }
+    };
+    fit(); addEventListener('resize', fit);
+    let px = 0, py = 0;   // Zeigerversatz für die Tiefe (−1 … 1)
+    if (!reduced) arena.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; const r = arena.getBoundingClientRect(); px = ((e.clientX - r.left) / r.width) * 2 - 1; py = ((e.clientY - r.top) / r.height) * 2 - 1; });
+    const draw = (s) => {
+      const x = s.ctx, f = Math.floor(s.t * s.fps) % s.n;
+      x.clearRect(0, 0, s.w, s.h);
+      x.drawImage(s.ground, 0, 0);
+      // Tiefe: hintere Teilchen weichen dem Zeiger leicht aus, vordere ziehen mit
+      const ox = Math.round(-px * 2), oy = Math.round(-py);
+      x.save(); x.translate(ox, oy);
+      for (const q of s.parts) if (q.back) dot(x, q);
+      x.restore();
+      x.drawImage(s.strip, f * s.w, 0, s.w, s.h, 0, 0, s.w, s.h);
+      x.save(); x.translate(-ox * 2, -oy * 2);
+      for (const q of s.parts) if (!q.back) dot(x, q);
+      x.restore();
+    };
+    const dot = (x, q) => {
+      const a = Math.min(1, q.life / 0.5, (q.max - q.life) / 0.8) * q.a;
+      if (q.glow) { x.globalAlpha = a * 0.25; x.fillStyle = q.c; x.fillRect(Math.round(q.x) - 1, Math.round(q.y), 3, 1); x.fillRect(Math.round(q.x), Math.round(q.y) - 1, 1, 3); }
+      x.globalAlpha = a; x.fillStyle = q.c; x.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s);
+      x.globalAlpha = 1;
+    };
+    const step = (s, dt) => {
+      s.t += dt;
+      const F = s.fx;
+      if (F) {
+        if (s.parts.length < F.n && Math.random() < dt * F.n * 0.6) {
+          const back = Math.random() < 0.55;
+          s.parts.push({ x: Math.random() * s.w, y: F.top ? -2 : s.h * (0.45 + Math.random() * 0.5), vx: rnd(F.vx), vy: rnd(F.vy) * (back ? 0.7 : 1.2), life: 0, max: rnd(F.life), c: F.c[Math.floor(Math.random() * F.c.length)], a: back ? 0.55 : 0.95, s: back ? 1 : (Math.random() < 0.3 ? 2 : 1), back, glow: F.glow, ph: Math.random() * 6 });
         }
-      }, { threshold: 0.35 }).observe(arena);
+        for (const q of s.parts) { q.life += dt; q.x += (q.vx + Math.sin(q.life * 2 + q.ph) * 3) * dt; q.y += q.vy * dt; }
+        s.parts = s.parts.filter((q) => q.life < q.max && q.y > -4 && q.y < s.h + 4);
+      }
+    };
+    let last = 0, on = false;
+    const tick = (t) => {
+      const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t;
+      let any = false;
+      for (const s of stages) if (s.vis && s.ready) { step(s, dt); draw(s); any = true; }
+      if (any) requestAnimationFrame(tick); else { on = false; last = 0; }
+    };
+    const kick = () => { if (!on && !reduced) { on = true; requestAnimationFrame(tick); } };
+    const load = (s) => {
+      if (s.loading) return; s.loading = true;
+      s.strip.src = `${IMG}boss-${s.fig.dataset.boss}-kampf.webp`;
+      Promise.all([s.ground, s.strip].map((im) => (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })))).then(() => {
+        s.ready = true; s.st.classList.add('live'); draw(s); kick();
+      }, () => {});
+    };
+    if ('IntersectionObserver' in window) {
+      const io3 = new IntersectionObserver((es) => {
+        for (const e of es) { const s = stages.find((q) => q.st === e.target); s.vis = e.isIntersecting; if (s.vis && !reduced) { load(s); kick(); } }
+      }, { rootMargin: '200px 0px' });
+      for (const s of stages) io3.observe(s.st);
+      new IntersectionObserver(([e], o) => { if (e.isIntersecting) { arena.classList.add('in'); o.disconnect(); } }, { threshold: 0.2 }).observe(arena);
     } else arena.classList.add('in');
   }
 
@@ -462,7 +521,6 @@
       img.style.width = `${(img.naturalWidth * n) / dpr}px`;
       img.style.height = `${(img.naturalHeight * n) / dpr}px`;
     }
-    // Kampfszenen: größter ganzzahliger Bildschirmpunkt-Faktor, der in die Spalte passt, höchstens der CSS-Wert
     for (const f of $$('.fight')) {
       f.style.removeProperty('--s');
       const want = parseFloat(getComputedStyle(f).getPropertyValue('--s')) || 4, lay = f.closest('.cls-layout'), cs = lay && getComputedStyle(lay);
@@ -471,14 +529,8 @@
       const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 208)));
       if (Math.abs(k / dpr - want) > 0.001) f.style.setProperty('--s', String(k / dpr));
     }
-    // Bosse: Bildschirmpunkte je Spielpixel ganzzahlig (CSS-Wert --s gerundet)
-    for (const el of $$('.boss-spr')) {
-      el.style.removeProperty('--s');
-      const want = parseFloat(getComputedStyle(el).getPropertyValue('--s')) || 2, k = Math.max(1, Math.round(want * dpr));
-      if (Math.abs(k / dpr - want) > 0.001) el.style.setProperty('--s', String(k / dpr));
-    }
   };
-  if (figs.length || document.querySelector('.boss-spr')) {
+  if (figs.length || document.querySelector('.fight')) {
     for (const img of figs) if (!img.complete) img.addEventListener('load', fitFigs, { once: true });
     fitFigs();
     let raf2 = 0;
