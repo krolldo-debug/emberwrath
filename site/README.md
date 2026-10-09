@@ -31,15 +31,25 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   vor (×2; Titelbild ab 1200 px ×4, ab 2000 px ×5, ab 2400 px ×6; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Titel und Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
   `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
 - `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*` und `item-*` mit `tools/render40.mjs`.
-- `kampf-<klasse>.png`: kurze Kampfszene je Klasse (Klassenbereich der Startseite), Streifen aus 128 × 80 Weltpixeln je Bild in
-  doppelter Detailauflösung, 12 Bilder pro Sekunde (`tools/klassen-kampf.mjs`, echte Spiellogik, Gegner wird nicht verletzt). Läuft beim
-  Wechsel der Klasse und beim ersten Hineinscrollen einmal ab und bleibt auf dem letzten Bild stehen (`.fight`, `playFight` in site.js).
+- Klassen (`tools/klassen-kampf.mjs`, echte Spiellogik, Gegner wird nicht verletzt), Streifen aus 104 × 66 Weltpixeln je Bild in doppelter
+  Detailauflösung, 12 Bilder pro Sekunde: `kampf-<klasse>.webp` (Kampf beim Wechsel), `ruhe-<klasse>.webp` (nahtlose Ruheschleife) und
+  `kampf-<klasse>-1…4.webp` (je eine Fähigkeit, Reihenfolge wie auf der Seite). site.js spielt Kampf → Ruhe → reihum eine Fähigkeit
+  (oder die angeklickte); die Bildzahlen stehen in `data-n` an `.fight` (Ausgabe des Skripts). Erdspalter bekommt einen
+  glühenden Bodenriss (das Spiel brennt ihn nur in die Bodenebene, die hier nicht mitgezeichnet wird).
+- Bosse (`tools/bosse-anim.mjs`, Maße in `tools/bosse-anim.json`): `boss-<name>-ruhe.webp` (Atemschleife) und `boss-<name>-wut.webp`
+  (Brüllen/Angriff, gleicher Fußpunkt), Werte als `--w/--h/--px/--py`, `data-idle`, `data-wut` an `.boss-spr` in index.html.
+  Alle Bosse stehen mit der Unterkante ihres Bildfelds auf derselben Bodenlinie, Namen darunter.
+- Reittier-Parade (`tools/reittiere-gang.mjs`, Maße in `tools/reittiere-gang.json`): `gang-<reittier>.webp` je Gangart (Galopp, Sprung,
+  Trab, Flug …), Sprunghöhe je Bild in `data-l`; Boden aus Steppenkacheln in zwei Ebenen `parade-nah.webp` und `parade-fern.webp`
+  (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
+  der Namensliste (Breite, Höhe, Fuß x/y, Bilder, fps, Flughöhe, Tempo); site.js zeichnet die Parade in ganzen Bildschirmpunkten,
+  die Kamera zieht mit, unter der Bühne steht der Name des Tiers in der Mitte.
+- `titel-loop.webp`: lebende Fassung des Titelbilds (animiertes WebP, `tools/titel-loop.mjs`), wird nach dem Laden gegen das Standbild getauscht.
+- Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
   `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
 - `gewoelbe.webp`, `gewoelbe-breit.webp`: Titelbild des Spiels als Hintergrund für Support und Newsletter (`tools/gewoelbe.mjs`).
-- `ritt-*-lauf.png`: Reiter im Lauf, alle Frames von `rideRun` nebeneinander (`tools/ritte.mjs site/img`). Die Seite zeigt je einen Frame
-  und blättert mit CSS `steps()` im Takt des Spiels (`--n` Frames, `--t` Dauer, `--fw` Fensterbreite in index.html, Werte gibt das Skript aus).
-  Die Seite vergrößert sie ganzzahlig und pixelgenau (Helden ×5, Bosse ×2 bzw. Ulgrim und Malgareth ×3, Reiter ×4, Völker ×3, Symbole ×2).
+  Die Seite vergrößert sie ganzzahlig und pixelgenau (Klassen ×6/×5/×4, Handy gut ×3, Bosse ×2/×3, Parade 4 bzw. 3 Bildschirmpunkte je Weltpixel, Symbole ×2).
 
 Neu erzeugen, aus einer Kopie des Projekts:
 
@@ -52,13 +62,16 @@ python3 site/tools/szenen-auswahl.py                # gewählte Bilder (oben im 
 node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.webp): feste Aufstellung, Warnflächen
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
-node site/tools/ritte.mjs site/img                   # Reiter im Lauf (Bildstreifen, Maße in der Ausgabe)
-node site/tools/klassen-kampf.mjs site/img          # Kampfszenen der Klassen (kampf-<klasse>.png, Bildzahl in kampf.json → --n in index.html)
+node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
+node site/tools/bosse-anim.mjs out                  # Bosse: Ruhe und Wut
+node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
+node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
+node site/tools/titel-loop.mjs                      # lebendes Titelbild
 node site/tools/welt.mjs wl leben-quest,leben-handel # Szenen auf /welt
 ```
 
 Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,
 Trefferblitze und Lebensbalken. Szenen, Ausrüstung und Posen stehen jeweils oben in den Skripten. Nach neuen
-Figuren die `width`/`height` in index.html und die Höhen in site.css (`.hero-fig`, `.boss img`, `.riders img`) anpassen.
+Figuren die Maße in index.html (`data-n`, `--w/--h`, `data-f`) aus der Skriptausgabe übernehmen.
 
 Die Skripte erwarten Playwright global (`/opt/node22/lib/node_modules/playwright`) und Chromium unter `/opt/pw-browsers`.

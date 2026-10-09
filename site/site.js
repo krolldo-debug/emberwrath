@@ -7,6 +7,8 @@
   doc.classList.remove('no-js');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  // Bilderordner auch für /en/ (dort sind alle Pfade absolut): neben dem Favicon
+  const IMG = new URL('img/', document.querySelector('link[rel="icon"]')?.href ?? location.href).href;
 
   // ---------- Links aus der Konfiguration
   const links = { play: cfg.playUrl, login: cfg.loginUrl, register: cfg.registerUrl };
@@ -88,14 +90,108 @@
     const io = new IntersectionObserver((list) => {
       for (const e of list) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
     }, { rootMargin: '0px 0px -8% 0px' });
-    $$('.reveal, .talk').forEach((el) => io.observe(el));
-  } else $$('.reveal, .talk').forEach((el) => el.classList.add('in'));
+    $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => io.observe(el));
+  } else $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => el.classList.add('in'));
 
-  // ---------- Kampfszene der Klasse einmal abspielen (beim Wechsel und wenn der Bereich ins Bild kommt)
+  // ---------- Bildstreifen abspielen: ein Element zeigt jeweils ein Bild eines waagerechten Streifens (Hintergrundbild),
+  // oder eine Zeichenfläche bekommt das Bild per drawImage (große Streifen: kein riesiges skaliertes Hintergrundbild,
+  // das der Browser beim Wechsel erst neu rastern müsste).
+  // Ein gemeinsamer Takt (requestAnimationFrame) für alle Figuren; Figuren außerhalb des Bildschirms stehen still.
+  const decoded = new Map();
+  const loadImg = (src) => {
+    let p = decoded.get(src);
+    if (!p) { const im = new Image(); im.src = src; p = (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).then(() => im, () => im); decoded.set(src, p); }
+    return p;
+  };
+  const players = new Set();
+  let clockOn = false, clockLast = 0;
+  const clock = (t) => {
+    const dt = Math.min(100, t - (clockLast || t)); clockLast = t;
+    let any = false;
+    for (const pl of players) if (pl.visible && pl.seq) { pl.step(dt); any = true; }
+    if (any) requestAnimationFrame(clock); else { clockOn = false; clockLast = 0; }
+  };
+  const kick = () => { if (!clockOn && !reduced) { clockOn = true; requestAnimationFrame(clock); } };
+  const seen = 'IntersectionObserver' in window ? new IntersectionObserver((es) => {
+    for (const e of es) { const pl = e.target.__strip; if (pl) { pl.visible = e.isIntersecting; if (pl.visible) kick(); } }
+  }, { rootMargin: '80px' }) : null;
+  class Strip {
+    constructor(el) { this.el = el; this.cv = el instanceof HTMLCanvasElement ? el : null; this.seq = null; this.token = 0; this.visible = !seen; el.__strip = this; seen?.observe(el); players.add(this); }
+    // seq: { src, n, ms (Zahl oder Liste je Bild), loop, done }
+    async play(seq) {
+      const tok = ++this.token;
+      const img = await loadImg(seq.src);
+      if (tok !== this.token) return;
+      if (this.cv) this.img = img;
+      else { this.el.style.backgroundImage = `url(${seq.src})`; this.el.style.setProperty('--n', seq.n); }
+      this.seq = seq; this.i = 0; this.t = 0; this.show();
+      if (reduced) { this.seq = null; seq.done?.(); return; }
+      kick();
+    }
+    show() {
+      if (!this.cv) { this.el.style.backgroundPosition = `${this.seq.n > 1 ? (this.i / (this.seq.n - 1)) * 100 : 0}% 0`; return; }
+      const im = this.img, w = im.naturalWidth / this.seq.n, h = im.naturalHeight, c = this.cv;
+      if (!w) return;
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const x = c.getContext('2d'); x.clearRect(0, 0, w, h); x.drawImage(im, this.i * w, 0, w, h, 0, 0, w, h);
+      if (!c.__on) { c.__on = true; c.parentElement.classList.add('live'); }
+    }
+    step(dt) {
+      const s = this.seq, dur = (i) => (Array.isArray(s.ms) ? s.ms[i] : s.ms);
+      this.t += dt;
+      let moved = false;
+      while (this.t >= dur(this.i)) {
+        this.t -= dur(this.i);
+        if (this.i + 1 >= s.n) {
+          if (!s.loop) { this.seq = null; s.done?.(); return; }
+          this.i = 0;
+        } else this.i++;
+        moved = true;
+      }
+      if (moved) this.show();
+    }
+  }
+
+  // ---------- Titelbild: nach dem Laden der Seite gegen die lebende Fassung tauschen (Schleife, tools/titel-loop.mjs)
+  const heroImg = document.querySelector('.hero-bg img[data-live]');
+  const slow = navigator.connection && (navigator.connection.saveData || /(^|-)2g|3g/.test(navigator.connection.effectiveType ?? ''));
+  if (heroImg && !reduced && !slow) {
+    const swap = () => setTimeout(() => {
+      const im = new Image(); im.src = IMG + heroImg.dataset.live;
+      (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).then(() => { heroImg.src = im.src; }, () => {});
+    }, 600);
+    if (document.readyState === 'complete') swap(); else addEventListener('load', swap, { once: true });
+  }
+
+  // ---------- Klassen: Kampf beim Wechsel, danach lebendige Ruhe und reihum die vier Fähigkeiten (oder die angeklickte)
+  const F12 = 1000 / 12;
+  const classFx = (panel) => {
+    const fig = panel.querySelector('.fight');
+    if (!fig) return null;
+    if (fig.__ctl) return fig.__ctl;
+    const cls = fig.dataset.cls, [nFight, nIdle, ...nSkill] = fig.dataset.n.split(' ').map(Number);
+    const cv = document.createElement('canvas'); cv.setAttribute('aria-hidden', 'true'); fig.append(cv);
+    const pl = new Strip(cv), lis = [...panel.querySelectorAll('.skills li')];
+    let timer = 0, next = 0;
+    const mark = (k) => lis.forEach((li, i) => li.classList.toggle('on', i === k));
+    const idle = () => { mark(-1); pl.play({ src: `${IMG}ruhe-${cls}.webp`, n: nIdle, ms: F12, loop: true }); wait(); };
+    const wait = () => { clearTimeout(timer); timer = setTimeout(() => (pl.visible && !panel.hidden ? skill(next) : wait()), 1100); };
+    const skill = (k) => {
+      clearTimeout(timer); next = (k + 1) % nSkill.length; mark(k);
+      pl.play({ src: `${IMG}kampf-${cls}-${k + 1}.webp`, n: nSkill[k], ms: F12, done: idle });
+    };
+    const fight = () => { clearTimeout(timer); mark(-1); pl.play({ src: `${IMG}kampf-${cls}.webp`, n: nFight, ms: F12, done: idle }); };
+    lis.forEach((li, k) => li.querySelector('button')?.addEventListener('click', () => skill(k)));
+    // Fähigkeiten vorladen, sobald die Klasse gezeigt wird
+    const preload = () => { for (let k = 0; k < nSkill.length; k++) loadImg(`${IMG}kampf-${cls}-${k + 1}.webp`); loadImg(`${IMG}ruhe-${cls}.webp`); };
+    const stop = () => { clearTimeout(timer); mark(-1); };
+    return (fig.__ctl = { fight, preload, stop });
+  };
   const playFight = (panel) => {
-    const f = panel?.querySelector('.fight');
-    if (!f || reduced) return;
-    f.classList.remove('play'); void f.offsetWidth; f.classList.add('play');
+    if (reduced || !panel) return;
+    for (const p of $$('.cls-panel')) if (p !== panel) classFx(p)?.stop();
+    const c = classFx(panel); c?.preload(); c?.fight();
+    const fig = panel.querySelector('.hero-fig'); fig?.classList.remove('swap'); void fig?.offsetWidth; fig?.classList.add('swap');
   };
   const clsSec = document.querySelector('.classes');
   if (clsSec && 'IntersectionObserver' in window) {
@@ -105,6 +201,162 @@
       playFight(clsSec.querySelector('.cls-panel:not([hidden])'));
     }, { threshold: 0.45 });
     io2.observe(clsSec);
+  }
+
+  // ---------- Bosse: atmen ständig, brüllen beim ersten Anblick nacheinander, dann ab und zu einer, und beim Zeigen/Tippen
+  const arena = document.querySelector('.arena');
+  if (arena) {
+    const bosses = $$('.boss', arena).map((fig, i) => {
+      fig.style.setProperty('--i', i);
+      const el = fig.querySelector('.boss-spr'), d = el.dataset, name = d.boss;
+      const [ni, mi] = d.idle.split(' ').map(Number), [nw, ...mw] = d.wut.split(' ').map(Number);
+      const pl = new Strip(el);
+      const idle = () => { fig.classList.remove('wut'); pl.play({ src: `${IMG}boss-${name}-ruhe.webp`, n: ni, ms: mi, loop: true }); };
+      let busy = false;
+      const wut = () => {
+        if (busy || reduced) return; busy = true; fig.classList.add('wut');
+        pl.play({ src: `${IMG}boss-${name}-wut.webp`, n: nw, ms: mw.length > 1 ? mw : mw[0], done: () => { setTimeout(() => { busy = false; idle(); }, 380); } });
+      };
+      fig.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') wut(); });
+      fig.addEventListener('click', wut);
+      loadImg(`${IMG}boss-${name}-wut.webp`);
+      idle();
+      return { wut, pl };
+    });
+    if ('IntersectionObserver' in window && !reduced) {
+      let shown = false, every = 0;
+      new IntersectionObserver(([e]) => {
+        if (e.isIntersecting && !shown) {
+          shown = true; arena.classList.add('in');
+          // Malgareth zuletzt und am lautesten
+          bosses.forEach((b, i) => setTimeout(b.wut, 900 + i * 520));
+          every = setInterval(() => { const b = bosses[Math.floor(Math.random() * bosses.length)]; if (b.pl.visible) b.wut(); }, 6500);
+        }
+      }, { threshold: 0.35 }).observe(arena);
+    } else arena.classList.add('in');
+  }
+
+  // ---------- Reittier-Parade: jedes Reittier in seiner Gangart (tools/reittiere-gang.mjs) über gekachelten Boden aus
+  // Spielkacheln (tools/parade-boden.mjs) mit zwei Ebenen. Die Kamera zieht langsam mit, der Boden läuft darunter durch.
+  // Gezeichnet in ganzen Bildschirmpunkten je Streifenpixel; unter der Bühne steht der Name des Tiers in der Mitte.
+  const parade = document.querySelector('.parade');
+  if (parade) {
+    const cv = parade.querySelector('canvas'), ctx = cv.getContext('2d');
+    const defs = $$('.parade-names li', parade).map((li) => {
+      const [w, h, fx, fy, n, fps, fly, v] = li.dataset.f.split(' ').map(Number);
+      const lift = (li.dataset.l ?? '').split(' ').filter(Boolean).map(Number);
+      const glow = li.style.getPropertyValue('--glow').trim();
+      const img = new Image(); img.src = `${IMG}gang-${li.dataset.m}.webp`;
+      return { li, w, h, fx, fy, n, fps, fly, v, lift, img, glow: glow ? `rgb(${glow})` : null };
+    });
+    const layer = (src) => { const i = new Image(); i.src = `${IMG}${src}`; return i; };
+    const near = layer('parade-nah.webp'), far = layer('parade-fern.webp');
+    // Spielpixel: Laufhöhe, Gesamthöhe; Lauflinie im nahen Streifen, Versatz der fernen Ebene über der Lauflinie
+    const BASE = +parade.dataset.base, H = +parade.dataset.h, NEAR_Y = +parade.dataset.nearY, FAR_Y = +parade.dataset.farY;
+    const CAM = 22;   // Kamerafahrt (Spielpixel/s): naher Boden voll, ferne Ebene zu 40 %
+    let wp = 4, W = 400, dpr = 1, runners = [], dust = [], nextAt = 0, qi = 0, last = 0, on = false, vis = false, clockT = 0, shown = null;
+    const layout = () => {
+      dpr = devicePixelRatio || 1;
+      const wide = parade.clientWidth > 820;
+      wp = 2 * Math.max(1, Math.round(((wide ? 4 : 3) * dpr) / 2));   // Bildschirmpunkte je Spielpixel (gerade: Streifen in 2× Auflösung)
+      parade.style.setProperty('--ph', `${(H * wp) / dpr}px`);
+      cv.width = Math.round(parade.clientWidth * dpr); cv.height = H * wp;
+      W = cv.width / wp;
+      ctx.imageSmoothingEnabled = false;
+    };
+    const speed = (d) => d.v - CAM;   // Geschwindigkeit auf dem Bildschirm
+    const spawn = () => {
+      const d = defs[qi++ % defs.length];
+      runners.push({ d, x: -(d.w - d.fx) - 2, t: Math.random(), ph: Math.random() * 6 });
+      // Abstand so wählen, dass ein schnelleres Tier das vorige nicht einholt
+      const nx = defs[qi % defs.length], span = W + 80, gap = d.w + 30;
+      return Math.max(gap / speed(d), span / speed(d) - span / speed(nx) + gap / speed(nx), 1.3);
+    };
+    const px = (x) => Math.round(x * wp);
+    const shadow = (x, w, a) => {
+      if (w < 2) return;
+      ctx.fillStyle = `rgba(0, 0, 0, ${a})`;
+      for (let r = -1; r <= 1; r++) { const hw = Math.round(w * Math.sqrt(1 - (r / 2) ** 2)); ctx.fillRect(px(x - hw), px(BASE + r), hw * 2 * wp, wp); }
+    };
+    const tile = (img, y, off) => {
+      if (!img.complete || !img.naturalWidth) return;
+      const tw = img.naturalWidth / 2, th = img.naturalHeight / 2;
+      for (let x = -(((off % tw) + tw) % tw); x < W; x += tw) ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, px(x), px(y), tw * wp, th * wp);
+    };
+    const heightOf = (r) => {
+      const d = r.d, f = Math.floor(r.t * d.fps) % d.n;
+      return { f, lift: (d.lift[f] ?? 0) + (d.fly ? d.fly + 3 * Math.sin(clockT * 1.3 + r.ph) : 0) };
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const cam = clockT * CAM;
+      tile(far, BASE - FAR_Y, cam * 0.4);
+      tile(near, BASE - NEAR_Y, cam);
+      // Unten in den Seitenhintergrund ausblenden
+      const fb = ctx.createLinearGradient(0, cv.height - px(16), 0, cv.height);
+      fb.addColorStop(0, 'rgba(10, 5, 16, 0)'); fb.addColorStop(1, 'rgba(10, 5, 16, 1)');
+      ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(16), cv.width, px(16));
+      // Schatten werden mit der Höhe kleiner und blasser
+      for (const r of runners) {
+        const { lift } = heightOf(r), k = Math.max(0.5, 1 - lift / 60);
+        shadow(r.x + (r.d.fly ? 2 : 0), r.d.w * (r.d.fly ? 0.34 : 0.32) * k, (r.d.fly ? 0.62 : 0.48) * k);
+      }
+      for (const q of dust) { ctx.globalAlpha = Math.max(0, 1 - q.life / q.max) * q.a; ctx.fillStyle = q.c; ctx.fillRect(px(q.x), px(q.y), wp, wp); }
+      ctx.globalAlpha = 1;
+      for (const r of [...runners].sort((a, b) => a.d.fly - b.d.fly)) {
+        const d = r.d, { f, lift } = heightOf(r);
+        if (!d.img.complete || !d.img.naturalWidth) continue;
+        // Höhe aus dem Streifen ist schon eingebacken; nur die Flughöhe kommt dazu
+        const up = d.fly ? Math.round(lift - (d.lift[f] ?? 0)) : 0;
+        ctx.drawImage(d.img, f * d.w * 2, 0, d.w * 2, d.h * 2, px(r.x - d.fx), px(BASE - up - d.fy), d.w * wp, d.h * wp);
+      }
+      // Name: das Tier, das gerade der Mitte am nächsten ist
+      let best = null, bd = W * 0.5;
+      for (const r of runners) { const dd = Math.abs(r.x - r.d.fx + r.d.w / 2 - W / 2); if (dd < bd) { bd = dd; best = r.d; } }
+      if (best !== shown) { shown?.li.classList.remove('on'); best?.li.classList.add('on'); shown = best; }
+    };
+    const update = (dt, fx) => {
+      clockT += dt;
+      if (clockT >= nextAt) nextAt = clockT + spawn();
+      for (const r of runners) {
+        r.x += speed(r.d) * dt; r.t += dt;
+        if (!fx) continue;
+        // Staub hinter den Läufern (bleibt auf dem Boden zurück), Funken/Schnee unter den legendären und den Fliegern
+        const d = r.d, back = r.x - d.fx * 0.7, { lift } = heightOf(r);
+        if (!d.fly && lift < 1 && Math.random() < dt * 26) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -CAM - 6 - Math.random() * 12, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', a: 0.7 });
+        if (d.glow && Math.random() < dt * (d.fly ? 16 : 9)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - lift - d.fy * (0.2 + Math.random() * 0.5), vx: -CAM - 10 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: d.glow, a: 0.95 });
+      }
+      // Sicherheitsabstand am Boden: niemand läuft durch das Tier vor ihm (Flieger haben ihre eigene Bahn)
+      let ahead = null;
+      for (const r of runners) {
+        if (r.d.fly) continue;
+        if (ahead) r.x = Math.min(r.x, ahead.x - ahead.d.fx - (r.d.w - r.d.fx) - 10);
+        ahead = r;
+      }
+      for (const q of dust) { q.life += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 18 * dt; }
+      dust = dust.filter((q) => q.life < q.max).slice(-260);
+      runners = runners.filter((r) => r.x - r.d.fx < W + 4);
+    };
+    const tick = (t) => {
+      if (!vis) { on = false; return; }
+      const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t;
+      update(dt, true);
+      draw();
+      requestAnimationFrame(tick);
+    };
+    layout();
+    if (reduced) {
+      // Ohne Bewegung: eine ruhige Aufstellung, Namen als Liste darunter
+      parade.classList.add('still');
+      const still = () => { layout(); runners = []; let x = 10; for (const d of defs) { if (x + d.w > W) break; runners.push({ d, x: x + d.fx, t: 0, ph: 0 }); x += d.w + 8; } draw(); };
+      for (const im of [near, far, ...defs.map((d) => d.img)]) im.addEventListener('load', still, { once: true });
+      addEventListener('resize', still); still();
+    } else {
+      // Bühne nicht leer beginnen: die Parade läuft unsichtbar schon eine Weile
+      for (let i = 0; i < 30 * 9; i++) update(1 / 30, false);
+      new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis && !on) { on = true; last = 0; requestAnimationFrame(tick); } }, { rootMargin: '60px' }).observe(parade);
+      addEventListener('resize', () => { layout(); });
+    }
   }
 
   // ---------- Klassen: Reiter wechseln das Porträt (Pfeiltasten wie bei Tabs üblich)
@@ -214,18 +466,19 @@
     for (const f of $$('.fight')) {
       f.style.removeProperty('--s');
       const want = parseFloat(getComputedStyle(f).getPropertyValue('--s')) || 4, lay = f.closest('.cls-layout'), cs = lay && getComputedStyle(lay);
-      const room = lay ? lay.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 1e4;
+      const room = lay ? parseFloat(cs.gridTemplateColumns) : 1e4;   // Breite der Figurenspalte
       // Streifen in doppelter Detailauflösung: gerade Anzahl Bildpunkte je Weltpixel, damit jeder Bildpunkt gleich groß bleibt
-      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 272)));
+      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 208)));
       if (Math.abs(k / dpr - want) > 0.001) f.style.setProperty('--s', String(k / dpr));
     }
-    // Reiter im Lauf: das Fenster zeigt genau einen Frame des Streifens (Breite / Anzahl Frames)
-    for (const box of $$('.rider')) {
-      const img = box.querySelector('img'), n = parseFloat(getComputedStyle(box).getPropertyValue('--n')) || 1;
-      box.style.width = img?.naturalWidth ? `${img.getBoundingClientRect().width / n}px` : '';
+    // Bosse: Bildschirmpunkte je Spielpixel ganzzahlig (CSS-Wert --s gerundet)
+    for (const el of $$('.boss-spr')) {
+      el.style.removeProperty('--s');
+      const want = parseFloat(getComputedStyle(el).getPropertyValue('--s')) || 2, k = Math.max(1, Math.round(want * dpr));
+      if (Math.abs(k / dpr - want) > 0.001) el.style.setProperty('--s', String(k / dpr));
     }
   };
-  if (figs.length) {
+  if (figs.length || document.querySelector('.boss-spr')) {
     for (const img of figs) if (!img.complete) img.addEventListener('load', fitFigs, { once: true });
     fitFigs();
     let raf2 = 0;
@@ -233,6 +486,9 @@
   }
 
   // ---------- Glutfunken über dem Titelbild (wie die Funken im Spiel, pixelig)
+  // Wind aus der Mausbewegung: Funken weichen dem Zeiger aus und treiben mit (klingt schnell ab)
+  let wind = 0, ptr = null;
+  if (!reduced) addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; wind = Math.max(-40, Math.min(40, wind + e.movementX * 0.35)); ptr = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { passive: true });
   for (const cv of reduced ? [] : $$('.embers')) {
     const ctx = cv.getContext('2d');
     const P = 3; // Pixelgröße der Funken
@@ -250,8 +506,11 @@
       if (!running) return;
       const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t;
       ctx.clearRect(0, 0, W, H);
+      wind *= Math.pow(0.12, dt);
+      const r = cv.getBoundingClientRect(), near = ptr && performance.now() - ptr.t < 400 ? { x: (ptr.x - r.left) / P, y: (ptr.y - r.top) / P } : null;
       for (const s of sparks) {
-        s.life += dt; s.y -= s.vy * dt; s.x += (s.drift + Math.sin(s.life * 2 + s.phase) * 4) * dt;
+        s.life += dt; s.y -= s.vy * dt; s.x += (s.drift + wind * (0.6 + (s.phase % 1)) + Math.sin(s.life * 2 + s.phase) * 4) * dt;
+        if (near) { const dx = s.x - near.x, dy = s.y - near.y, d2 = dx * dx + dy * dy; if (d2 < 900) { const k = (1 - d2 / 900) * 60 * dt; s.x += Math.sign(dx) * k; s.y += Math.sign(dy) * k * 0.5; } }
         const k = s.life / s.max;
         if (k >= 1 || s.y < -2) { Object.assign(s, spawn()); continue; }
         ctx.globalAlpha = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85;

@@ -1,0 +1,304 @@
+{
+ "rime_drake": {
+  "w": 65,
+  "h": 44,
+  "res": 2,
+  "frames": 12,
+  "fps": 12,
+  "gait": "fly",
+  "foot": {
+   "x": 30,
+   "y": 42
+  },
+  "fly": 16,
+  "name": "Reifschwinge",
+  "lift": [
+   1.5,
+   2.5,
+   4,
+   5,
+   5,
+   5,
+   4,
+   2.5,
+   1,
+   0.5,
+   0,
+   0.5
+  ]
+ },
+ "hellhound": {
+  "w": 47,
+  "h": 50,
+  "res": 2,
+  "frames": 12,
+  "fps": 14,
+  "gait": "bound",
+  "foot": {
+   "x": 24,
+   "y": 47
+  },
+  "fly": 0,
+  "name": "Höllenhund",
+  "lift": [
+   0,
+   0,
+   2,
+   4.5,
+   6,
+   6,
+   4.5,
+   2.5,
+   0.5,
+   0,
+   0,
+   0
+  ]
+ },
+ "cinder_drake": {
+  "w": 61,
+  "h": 44,
+  "res": 2,
+  "frames": 12,
+  "fps": 12,
+  "gait": "fly",
+  "foot": {
+   "x": 30,
+   "y": 42
+  },
+  "fly": 16,
+  "name": "Schlackendrache",
+  "lift": [
+   1.5,
+   2.5,
+   4,
+   5,
+   5,
+   5,
+   4,
+   2.5,
+   1,
+   0.5,
+   0,
+   0.5
+  ]
+ },
+ "nightmare_steed": {
+  "w": 40,
+  "h": 45,
+  "res": 2,
+  "frames": 12,
+  "fps": 15,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 42
+  },
+  "fly": 0,
+  "name": "Albtraumross",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   2.5,
+   2.5
+  ]
+ },
+ "ember_charger": {
+  "w": 41,
+  "h": 47,
+  "res": 2,
+  "frames": 12,
+  "fps": 15,
+  "gait": "gallop",
+  "foot": {
+   "x": 20,
+   "y": 44
+  },
+  "fly": 0,
+  "name": "Glutross",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   2.5,
+   2.5
+  ]
+ },
+ "frost_elk": {
+  "w": 37,
+  "h": 45,
+  "res": 2,
+  "frames": 10,
+  "fps": 10,
+  "gait": "trot",
+  "foot": {
+   "x": 16,
+   "y": 42
+  },
+  "fly": 0,
+  "name": "Frostelch",
+  "lift": [
+   1,
+   0,
+   0,
+   0,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "bone_stallion": {
+  "w": 40,
+  "h": 44,
+  "res": 2,
+  "frames": 12,
+  "fps": 15,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 41
+  },
+  "fly": 0,
+  "name": "Knochenhengst",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   2.5,
+   2.5
+  ]
+ },
+ "spore_beetle": {
+  "w": 37,
+  "h": 42,
+  "res": 2,
+  "frames": 8,
+  "fps": 18,
+  "gait": "scuttle",
+  "foot": {
+   "x": 16,
+   "y": 40
+  },
+  "fly": 0,
+  "name": "Sporenkäfer",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "ash_wolf": {
+  "w": 40,
+  "h": 43,
+  "res": 2,
+  "frames": 12,
+  "fps": 14,
+  "gait": "bound",
+  "foot": {
+   "x": 19,
+   "y": 41
+  },
+  "fly": 0,
+  "name": "Aschenwolf",
+  "lift": [
+   0,
+   0,
+   2,
+   4.5,
+   6,
+   6,
+   4.5,
+   2.5,
+   0.5,
+   0,
+   0,
+   0
+  ]
+ },
+ "marsh_strider": {
+  "w": 36,
+  "h": 44,
+  "res": 2,
+  "frames": 12,
+  "fps": 8,
+  "gait": "stalk",
+  "foot": {
+   "x": 18,
+   "y": 42
+  },
+  "fly": 0,
+  "name": "Sumpfschreiter",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "steppe_horse": {
+  "w": 40,
+  "h": 44,
+  "res": 2,
+  "frames": 12,
+  "fps": 15,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 41
+  },
+  "fly": 0,
+  "name": "Steppenpferd",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   2.5,
+   2.5
+  ]
+ }
+}
