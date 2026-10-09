@@ -11,13 +11,13 @@ const [OUT = 'kampf', only, URL = 'http://localhost:8103/index.html'] = process.
 mkdirSync(OUT, { recursive: true });
 const SOV = ['rimeforged_coif', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'sovereign_signet'];
 // Gleicher Rahmen für alle Klassen (links, oben, rechts, unten ab den Füßen), damit das Feld beim Wechsel nicht springt
-const BOX = [46, 70, 90, 24];
+const BOX = [34, 50, 70, 16];
 const FPS = 12, STEPS = 60 / FPS;
 // Drehbuch: [Bild, Aktion]; Aktion = 'attack' (Linksklick) oder skill1..skill4 (Q, R, T, G)
 const CLASSES = {
   warrior: { foeType: 'ash_golem', foe: true, dist: 36, box: BOX, race: 'human', gear: [...SOV, 'kingsbane'], frames: 32, plan: [[0, 'attack'], [4, 'attack'], [8, 'attack'], [14, 'skill1'], [24, 'skill4']] },
   rogue: { foeType: 'cinder_cultist', foe: true, dist: 28, box: BOX, race: 'emberborn', gear: ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'], frames: 30, plan: [[0, 'attack'], [3, 'attack'], [6, 'attack'], [11, 'skill2'], [20, 'attack'], [23, 'attack']] },
-  ranger: { foeType: 'skeleton', foe: true, dist: 64, box: BOX, race: 'elf', gear: ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], frames: 30, plan: [[0, 'attack'], [4, 'skill2'], [12, 'skill1'], [20, 'skill4']] },
+  ranger: { foeType: 'skeleton', foe: true, dist: 52, box: BOX, race: 'elf', gear: ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], frames: 30, plan: [[0, 'attack'], [4, 'skill2'], [12, 'skill1'], [20, 'skill4']] },
   mage: { foeType: 'temple_guardian', foe: true, dist: 50, box: BOX, race: 'elf', gear: ['staff_of_last_ash', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], frames: 30, plan: [[0, 'attack'], [5, 'attack'], [10, 'skill3'], [18, 'skill4']] },
 };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -62,7 +62,42 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     dummy.maxHp = 1e9;
     Object.defineProperty(dummy, 'isEngaged', { value: false, configurable: true, writable: true });
     const keepDummy = () => { dummy.x = x0 + c.dist; dummy.y = y0; dummy.hp = dummy.maxHp; dummy.dead = false; dummy.removed = false; };
+    // Erdspalter: das Spiel brennt an jedem Erdstoß eine Brandspur in die Bodenebene (decals.scorch), die hier nicht
+    // mitgezeichnet wird. Stattdessen ein glühender Riss von Stoß zu Stoß, der abkühlt und verblasst.
+    let simT = 0;
+    const cracks = [], CRACK_LIFE = 2.2;
+    const scorch = w.decals.scorch?.bind(w.decals);
+    w.decals.scorch = (sx, sy, r) => { if (!cracks.some((ck) => Math.abs(ck.x - sx) < 2 && simT - ck.t < 0.2)) cracks.push({ x: sx, y: sy, t: simT }); return scorch?.(sx, sy, r); };
+    const hash = (a, b2) => { const v = Math.sin(a * 127.1 + b2 * 311.7) * 43758.5453; return v - Math.floor(v); };
+    const drawCracks = (x, ox, oy) => {
+      cracks.forEach((ck, i) => {
+        const age = simT - ck.t;
+        if (age < 0 || age > CRACK_LIFE) return;
+        const prev = cracks[i - 1], from = prev && ck.t - prev.t < 0.5 ? prev : { x: x0 + 5, y: y0 };
+        const heat = Math.max(0, 1 - age / 1.5), fade = Math.min(1, (CRACK_LIFE - age) / 0.6);
+        const core = heat > 0.6 ? '#ffe7a0' : heat > 0.3 ? '#ff9a3a' : heat > 0.05 ? '#c2421a' : '#4a1c12';
+        const glow = heat > 0.3 ? '#ff6a1a' : '#6a2412';
+        const len = Math.max(1, Math.round(ck.x - from.x));
+        let jit = 0;
+        for (let k = 0; k <= len; k++) {
+          const px = Math.round(from.x + k - ox), r = hash(i, k);
+          if (r < 0.28) jit = Math.max(-1, Math.min(1, jit + (r < 0.14 ? -1 : 1)));
+          const yy = Math.round(y0 + 1 + jit - oy);
+          x.globalAlpha = fade * 0.85; x.fillStyle = '#120806'; x.fillRect(px, yy - 2, 1, 5);
+          x.globalAlpha = fade * (0.35 + heat * 0.5); x.fillStyle = glow; x.fillRect(px, yy - 1, 1, 3);
+          x.globalAlpha = fade; x.fillStyle = core; x.fillRect(px, yy, 1, 1);
+          if (heat > 0.5 && hash(k, i + 11) < 0.25) { x.globalAlpha = fade * heat; x.fillRect(px, yy - 2 - Math.floor(hash(k, i + 5) * 3 * heat), 1, 1); }
+          // kurze Seitenrisse
+          if (hash(k, i + 7) < 0.12) { const d = hash(k, i + 3) < 0.5 ? -1 : 1; x.fillStyle = core; x.globalAlpha = fade * 0.8; x.fillRect(px + 1, yy + d, 1, 1); x.fillRect(px + 2, yy + 2 * d, 1, 1); }
+        }
+        // Aufbruch am Stoßpunkt
+        x.globalAlpha = fade; x.fillStyle = '#120806'; x.fillRect(Math.round(ck.x - ox) - 3, Math.round(y0 - oy), 7, 3);
+        x.fillStyle = core; x.fillRect(Math.round(ck.x - ox) - 2, Math.round(y0 + 1 - oy), 5, 1);
+        x.globalAlpha = 1;
+      });
+    };
     const step = () => {
+      simT += 1 / 60;
       keepDummy(); h.hp = h.maxHp; h.resource = h.maxResource;
       for (const a of h.abilities ?? []) a.cdLeft = 0;
       inp.pointer.x = x0 + c.dist - s.camera.x; inp.pointer.y = y0 - 6 - s.camera.y;
@@ -79,11 +114,16 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
       dummy.flash = Math.min(dummy.flash, 0.025); dummy.hpBarTimer = 0; dummy.hp = dummy.maxHp;
       const show = (e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name);
       const ents = w.entities.filter(show), fx = w.effects.filter(show);
+      drawCracks(x, cx0, cy0);
       const ds = [...ents, h, ...(c.foe ? [dummy] : []), ...w.projectiles].sort((a, b2) => a.sortY - b2.sortY);
       for (const d of ds) d.render(x, cx0, cy0);
+      // Schwebende Funken der Ausrüstung, die weit über die Bühne steigen, nicht zeichnen
+      const all = w.particles.active, keep = all.filter((q) => q.y - (q.z ?? 0) > y0 - 44);
+      w.particles.active = keep;
       w.particles.drawLit(x, cx0, cy0);
       for (const d of ds) d.renderEmissive?.(x, cx0, cy0);
       w.particles.drawEmissive(x, cx0, cy0);
+      w.particles.active = all;
       for (const e of fx) e.renderEmissive?.(x, cx0, cy0);
       frames.push(cv);
     };
@@ -99,7 +139,7 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     for (let i = 0; i < 6; i++) { for (let k = 0; k < STEPS; k++) step(); h.x = x0; h.y = y0; h.facing = 1; draw(); }
     const fight = frames.splice(0);
     // Abwarten, bis Held wieder ruht und alle Effekte verklungen sind (höchstens 4 s)
-    const busy = () => h.animator.name !== 'idle' || w.projectiles.length > 0 || w.effects.some((e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name)) || w.entities.some((e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name));
+    const busy = () => h.animator.name !== 'idle' || cracks.some((ck) => simT - ck.t < CRACK_LIFE) || w.projectiles.length > 0 || w.effects.some((e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name)) || w.entities.some((e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name));
     const settle = () => { for (let i = 0; i < 240 && busy(); i++) { step(); h.x = x0; h.y = y0; h.facing = 1; } h.buffs = []; w.particles.active.splice(0); for (let i = 0; i < 90; i++) step(); h.x = x0; h.y = y0; h.facing = 1; };
     // Glanzkreuz auf der Waffe hängt an performance.now: in Ruhe- und Fähigkeitsbildern festhalten, damit nichts aufblitzt
     const pn = performance.now.bind(performance);

@@ -30,7 +30,7 @@
 <main id="inhalt">
 
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img style="--fx:0.52;--fy:0.4;--mx:0.52;--my:0.44" class="px shot" fetchpriority="high" src="img/titel-loop-0.webp" data-live="titel-loop.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
+    <div class="hero-bg"><img style="--fx:0.49;--fy:0.4;--mx:0.52;--my:0.44" class="px shot" fetchpriority="high" src="img/titel-loop-0.webp" data-live="titel-loop.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
     <canvas class="embers" aria-hidden="true"></canvas>
     <div class="hero-content">
       <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="438" height="90">
@@ -63,7 +63,7 @@
       </div>
 
       <article class="cls-panel" id="p-krieger" role="tabpanel" aria-labelledby="t-krieger" style="--res: #e0503a">
-        <div class="hero-fig fight" data-cls="warrior" data-n="38 24 11 11 11 15" role="img" aria-label="Krieger in der Rüstung des Aschenfürsten schlägt mit der Klinge Königsfall auf einen Aschegolem ein"><i style="--n:24;background-image:url(img/ruhe-warrior.webp)"></i></div>
+        <div class="hero-fig fight" data-cls="warrior" data-n="38 24 11 11 11 28" role="img" aria-label="Krieger in der Rüstung des Aschenfürsten schlägt mit der Klinge Königsfall auf einen Aschegolem ein"><i style="--n:24;background-image:url(img/ruhe-warrior.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Hält am meisten aus. Jeder Treffer erzeugt Wut, und Wut wird zu verheerenden Hieben.</p>
           <ul class="skills">
@@ -91,7 +91,7 @@
       </article>
 
       <article class="cls-panel" id="p-waldlaeufer" role="tabpanel" aria-labelledby="t-waldlaeufer" style="--res: #6ee06a" hidden>
-        <div class="hero-fig fight" data-cls="ranger" data-n="36 24 12 14 13 28" role="img" aria-label="Schattenelfische Waldläuferin beschießt mit dem Bogen Morgensehne ein Skelett"><i style="--n:24;background-image:url(img/ruhe-ranger.webp)"></i></div>
+        <div class="hero-fig fight" data-cls="ranger" data-n="36 24 13 14 28 28" role="img" aria-label="Schattenelfische Waldläuferin beschießt mit dem Bogen Morgensehne ein Skelett"><i style="--n:24;background-image:url(img/ruhe-ranger.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Hält Gegner auf Abstand. Salven, Fallen und Schüsse, die ganze Reihen durchschlagen.</p>
           <ul class="skills">
@@ -105,7 +105,7 @@
       </article>
 
       <article class="cls-panel" id="p-magier" role="tabpanel" aria-labelledby="t-magier" style="--res: #6a9cff" hidden>
-        <div class="hero-fig fight" data-cls="mage" data-n="36 24 11 11 13 19" role="img" aria-label="Glutmagierin lässt Feuerbälle und einen Meteor auf einen Tempelwächter niedergehen"><i style="--n:24;background-image:url(img/ruhe-mage.webp)"></i></div>
+        <div class="hero-fig fight" data-cls="mage" data-n="36 24 25 11 28 28" role="img" aria-label="Glutmagierin lässt Feuerbälle und einen Meteor auf einen Tempelwächter niedergehen"><i style="--n:24;background-image:url(img/ruhe-mage.webp)"></i></div>
         <div class="cls-info">
           <p class="cls-desc">Zerbrechlich, aber tödlich. Glutbolzen aus sicherer Entfernung, am Ende fällt ein Meteor.</p>
           <ul class="skills">
@@ -142,6 +142,7 @@
         <div class="spr boss-spr" role="img" aria-label="Malgareth, der Aschenfürst, mit ausgebreiteten Schwingen und Flammenklinge" data-boss="malgareth" data-idle="8 142.857" data-wut="15 111 111 111 111 111 111 111 77 77 77 77 77 77 77 77" style="--w:199;--h:193;--px:77;--py:190;--b:113;--n:8;background-image:url(img/boss-malgareth-ruhe.webp)"></div>
         <figcaption><b>Malgareth</b><span>Der Aschethron</span><span>Stufe 40</span></figcaption>
       </figure>
+      <i aria-hidden="true"></i>
     </div>
   </section>
 
@@ -150,20 +151,20 @@
       <h2 id="h-reiten" class="title">Ab Stufe 20 reitest du</h2>
       <p class="sec-line">Manche verkauft die Stallmeisterin, die seltensten lassen nur Bosse und Glutprüfungen fallen.</p>
     </div>
-    <div class="parade">
+    <div class="parade" data-base="82" data-h="110" data-near-y="10" data-far-y="34">
       <canvas aria-hidden="true"></canvas>
       <ul class="parade-names" aria-label="Reittiere">
-        <li data-m="rime_drake" data-f="65 42 30 38 10 10 16 80" style="--glow: 120, 190, 255">Reifschwinge</li>
-        <li data-m="nightmare_steed" data-f="40 44 19 41 8 14 0 86" style="--glow: 170, 110, 255">Albtraumross</li>
-        <li data-m="frost_elk" data-f="36 44 16 41 8 10 0 74" style="--glow: 170, 220, 255">Frostelch</li>
-        <li data-m="hellhound" data-f="47 45 24 42 8 15 0 90" style="--glow: 255, 110, 30">Höllenhund</li>
-        <li data-m="steppe_horse" data-f="40 43 19 40 8 14 0 86">Steppenpferd</li>
-        <li data-m="cinder_drake" data-f="61 44 30 40 10 10 16 80" style="--glow: 255, 90, 30">Schlackendrache</li>
-        <li data-m="ash_wolf" data-f="39 38 19 36 8 15 0 90">Aschenwolf</li>
-        <li data-m="bone_stallion" data-f="40 43 19 40 8 14 0 86" style="--glow: 140, 255, 190">Knochenhengst</li>
-        <li data-m="spore_beetle" data-f="36 42 15 40 6 16 0 78" style="--glow: 150, 220, 90">Sporenkäfer</li>
-        <li data-m="ember_charger" data-f="41 45 20 42 8 14 0 86" style="--glow: 255, 140, 40">Glutross</li>
-        <li data-m="marsh_strider" data-f="36 44 18 42 8 9 0 72">Sumpfschreiter</li>
+        <li data-m="rime_drake" data-f="65 44 30 42 12 12 26 80" data-l="1.5 2.5 4 5 5 5 4 2.5 1 0.5 0 0.5" style="--glow: 120, 190, 255">Reifschwinge</li>
+        <li data-m="nightmare_steed" data-f="40 45 19 42 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5" style="--glow: 170, 110, 255">Albtraumross</li>
+        <li data-m="frost_elk" data-f="37 45 16 42 10 10 0 74" data-l="1 0 0 0 0 1 0 0 0 0" style="--glow: 170, 220, 255">Frostelch</li>
+        <li data-m="hellhound" data-f="47 50 24 47 12 14 0 90" data-l="0 0 2 4.5 6 6 4.5 2.5 0.5 0 0 0" style="--glow: 255, 110, 30">Höllenhund</li>
+        <li data-m="steppe_horse" data-f="40 44 19 41 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5">Steppenpferd</li>
+        <li data-m="cinder_drake" data-f="61 44 30 42 12 12 26 80" data-l="1.5 2.5 4 5 5 5 4 2.5 1 0.5 0 0.5" style="--glow: 255, 90, 30">Schlackendrache</li>
+        <li data-m="ash_wolf" data-f="40 43 19 41 12 14 0 90" data-l="0 0 2 4.5 6 6 4.5 2.5 0.5 0 0 0">Aschenwolf</li>
+        <li data-m="bone_stallion" data-f="40 44 19 41 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5" style="--glow: 140, 255, 190">Knochenhengst</li>
+        <li data-m="spore_beetle" data-f="37 42 16 40 8 18 0 78" data-l="0 0 0 0 0 0 0 0" style="--glow: 150, 220, 90">Sporenkäfer</li>
+        <li data-m="ember_charger" data-f="41 47 20 44 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5" style="--glow: 255, 140, 40">Glutross</li>
+        <li data-m="marsh_strider" data-f="36 44 18 42 12 8 0 72" data-l="0 0 0 0 0 0 0 0 0 0 0 0">Sumpfschreiter</li>
       </ul>
     </div>
   </section>

@@ -126,12 +126,26 @@ section { position: relative; }
   /* Leuchten und Bodenschatten hinter der Figur (kein Filter auf Pixelgrafik) */
   background: radial-gradient(ellipse 34% 5% at 50% 98%, rgba(0, 0, 0, 0.45), transparent 100%), radial-gradient(ellipse 50% 50% at 50% 55%, color-mix(in srgb, var(--res) 30%, transparent), transparent 72%); }
 .cls-info { grid-column: 2; grid-row: 2; padding-top: 26px; }
-/* Kampfszene je Klasse: Streifen aus 136 × 94 Spielpixeln je Bild in doppelter Detailauflösung (tools/klassen-kampf.mjs).
+/* Kampfszene je Klasse: Streifen aus 104 × 66 Spielpixeln je Bild in doppelter Detailauflösung (tools/klassen-kampf.mjs).
    site.js spielt Kampf, Ruhe und einzelne Fähigkeiten ab (Bild für Bild, --n = Bilder des gerade gezeigten Streifens).
    --s = CSS-Pixel je Spielpixel, site.js rundet auf ganze Bildschirmpunkte. Ohne Skript steht das erste Ruhebild. */
-.fight { --s: 4; width: calc(136px * var(--s)); height: calc(94px * var(--s)); }
+.fight { --s: 5; width: calc(104px * var(--s)); height: calc(66px * var(--s)); }
 .fight i { display: block; width: 100%; height: 100%; background: no-repeat 0 0 / calc(var(--n) * 100%) 100%; image-rendering: pixelated; }
-@media (max-width: 1180px) { .fight { --s: 3; } }
+@media (max-width: 1180px) { .fight { --s: 4; } }
+@media (max-width: 820px) { .fight { --s: 3.4; } }
+/* Breite Bildschirme: Bühne bekommt mehr Raum, Figuren ×6 (site.js nimmt den größten Faktor, der in die Spalte passt) */
+@media (min-width: 1240px) {
+  .cls-layout { grid-template-columns: minmax(0, 624px) minmax(0, 1fr); column-gap: 28px; }
+  .cls-layout .cls-tabs { column-gap: 14px; }
+  .cls-layout .cls-tabs button { font-size: 17px; }
+  .fight { --s: 6; }
+}
+@media (min-width: 1500px) {
+  .classes .wrap { max-width: 1400px; }
+  .cls-layout { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); column-gap: 70px; }
+  .cls-layout .cls-tabs { column-gap: clamp(12px, 1.4vw, 22px); }
+  .cls-layout .cls-tabs button { font-size: clamp(15px, 1.3vw, 20px); }
+}
 /* Klassenwechsel: kurzer Glutstoß in der Klassenfarbe hinter der Figur */
 .hero-fig { position: relative; isolation: isolate; }
 .hero-fig::after { content: ""; position: absolute; left: 50%; top: 58%; width: 70%; aspect-ratio: 1; translate: -50% -50%; z-index: -1; border-radius: 50%; pointer-events: none; opacity: 0;
@@ -139,8 +153,8 @@ section { position: relative; }
 .hero-fig.swap::after { animation: swap 0.9s cubic-bezier(.2, .7, .3, 1); }
 @keyframes swap { 0% { opacity: 0.9; scale: 0.25; } 100% { opacity: 0; scale: 1.25; } }
 @media (prefers-reduced-motion: reduce) { .hero-fig.swap::after { animation: none; } }
-.cls-tabs { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 10px; }
-.cls-tabs button { background: none; border: 0; padding: 8px 0 10px; cursor: pointer; font: 600 clamp(16px, 1.45vw, 20px)/1 var(--font-title); color: var(--muted); border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s; }
+.cls-tabs { display: flex; flex-wrap: nowrap; gap: 8px clamp(12px, 1.4vw, 22px); margin-top: 10px; }
+.cls-tabs button { background: none; border: 0; padding: 8px 0 10px; cursor: pointer; white-space: nowrap; font: 600 clamp(15px, 1.3vw, 20px)/1 var(--font-title); color: var(--muted); border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s; }
 .cls-tabs button:hover { color: var(--text); }
 .cls-tabs button[aria-selected="true"] { color: #fff1d6; border-bottom-color: var(--res); }
 .cls-desc { margin: 0 0 26px; font-size: clamp(17px, 1.45vw, 19px); color: var(--soft); max-width: 30em; }
@@ -164,21 +178,29 @@ section { position: relative; }
   .bosses .arena { gap: 30px; }
   .boss-spr { --s: 3; }
 }
-.arena { position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: clamp(20px, 4vw, 70px); max-width: var(--max); margin: 36px auto 0; padding: 0 var(--gutter); }
-.arena::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; z-index: -1;
-  background: linear-gradient(180deg, rgba(40, 18, 14, 0.0), #1a0c0a 40%, #0c0506), repeating-linear-gradient(90deg, transparent 0 62px, rgba(0, 0, 0, 0.35) 62px 64px); }
+/* Bühne: alle Bosse stehen unten bündig auf derselben Bodenkante (Unterkante des Bildfelds = unterster Pixel),
+   Name und Titel darunter mit Abstand. */
+.arena { --cap: 118px; position: relative; isolation: isolate; display: flex; justify-content: space-between; align-items: flex-end; gap: clamp(20px, 4vw, 70px); max-width: var(--max); margin: 36px auto 0; padding: 0 var(--gutter); }
+.arena::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--cap) + 40px); z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, transparent 0 38px, rgba(255, 160, 90, 0.28) 38px 40px, #170a09 40px, #0b0507 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14% 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14% 86%, transparent); }
+.arena > i { display: none; }
 .boss { position: relative; flex: none; margin: 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
 /* Lebende Bosse (tools/bosse-anim.mjs): Bildfeld w × h Spielpixel mit Fußpunkt px/py. Im Fluss nimmt jeder Boss nur die Breite
-   seines früheren Standbilds ein (--b), um den Fußpunkt zentriert; Flammen und Schwingen ragen darüber hinaus. */
+   seines früheren Standbilds ein (--b), um den Fußpunkt zentriert; Flammen und Schwingen ragen seitlich darüber hinaus. */
 .spr { background: no-repeat 0 0 / calc(var(--n) * 100%) 100%; image-rendering: pixelated; }
-.boss-spr { --s: 2; flex: none; width: calc(var(--w) * var(--s) * 1px); height: calc(var(--h) * var(--s) * 1px);
-  margin: 0 calc((var(--b) / 2 - var(--w) + var(--px)) * var(--s) * 1px) calc((var(--py) - var(--h)) * var(--s) * 1px) calc((var(--b) / 2 - var(--px)) * var(--s) * 1px); }
+.boss-spr { --s: 2; position: relative; flex: none; width: calc(var(--w) * var(--s) * 1px); height: calc(var(--h) * var(--s) * 1px);
+  margin: 0 calc((var(--b) / 2 - var(--w) + var(--px)) * var(--s) * 1px) 0 calc((var(--b) / 2 - var(--px)) * var(--s) * 1px); }
+/* Kontaktschatten unter dem Fußpunkt */
+.boss-spr::before { content: ""; position: absolute; z-index: -1; left: calc(var(--px) * var(--s) * 1px); bottom: calc(var(--s) * -3px); width: calc(var(--b) * 0.82 * var(--s) * 1px); height: calc(var(--s) * 9px); translate: -50% 0;
+  border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.45) 60%, transparent); }
 :root:not(.no-js) .boss { opacity: 0; transform: translateY(26px); filter: brightness(0); transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1), filter 1.4s ease; transition-delay: calc(var(--i, 0) * 0.22s); }
 :root:not(.no-js) .arena.in .boss { opacity: 1; transform: none; filter: none; }
-.boss::after { content: ""; position: absolute; left: 50%; bottom: 112px; width: 70%; height: 30px; translate: -50% 0; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, rgba(var(--glow), 0.5), transparent); opacity: 0; transition: opacity 0.4s; }
+/* Wut: Glut steigt hinter dem Boss vom Boden auf */
+.boss::after { content: ""; position: absolute; left: 50%; bottom: calc(var(--cap) - 30px); width: 90%; height: 60%; translate: -50% 0; z-index: -2; pointer-events: none;
+  background: radial-gradient(ellipse 50% 60% at 50% 100%, rgba(var(--glow), 0.32), transparent 72%); opacity: 0; transition: opacity 0.4s; }
 .boss.wut::after { opacity: 1; }
- content: ""; position: absolute; inset: 0 -20% 100px; z-index: -1; background: radial-gradient(ellipse 50% 45% at 50% 60%, rgba(var(--glow), 0.3), transparent 72%); }
-.boss figcaption { height: 124px; padding-top: 22px; text-align: center; }
+.boss figcaption { height: var(--cap); padding-top: 26px; text-align: center; }
 .boss b { display: block; font: 700 clamp(22px, 2.2vw, 30px)/1 var(--font-title); color: #fbe9c6; }
 .boss span { display: block; margin: 6px auto 0; white-space: nowrap; font: 600 14px/1.2 var(--font); letter-spacing: 0.06em; color: color-mix(in srgb, rgb(var(--glow)) 45%, #fff4e0); }
 
@@ -187,16 +209,20 @@ section { position: relative; }
   background: radial-gradient(ellipse 60% 40% at 50% 45%, rgba(255, 120, 40, 0.10), transparent 70%), linear-gradient(180deg, #10070a, #0a0510 70%); }
 .ride-text { text-align: center; }
 .ride-text .sec-line { margin-left: auto; margin-right: auto; }
-.parade { position: relative; height: var(--ph, 300px); margin-top: clamp(20px, 3vw, 40px); }
-.parade canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+.parade { position: relative; margin-top: clamp(8px, 1.5vw, 20px); }
+.parade canvas { display: block; width: 100%; height: var(--ph, 300px);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); }
-.parade-names { list-style: none; margin: 0; padding: 0; }
-.parade-names li { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; opacity: 0; will-change: transform, opacity;
-  font: 600 15px/1.2 var(--font-title); letter-spacing: 0.05em; color: #f1e2c2; text-shadow: 0 2px 8px #000; }
-.parade-names li[style*="--glow"] { color: color-mix(in srgb, rgb(var(--glow)) 55%, #fff4e0); }
-.no-js .parade-names { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 24px; padding: 0 var(--gutter); }
-.no-js .parade-names li { position: static; opacity: 1; }
-.no-js .parade { height: auto; }
+/* Name des Tiers in der Mitte, fest unter der Bühne; beim Wechsel blenden die Namen ineinander über */
+.parade-names { list-style: none; position: relative; height: 34px; margin: 6px 0 0; padding: 0; }
+.parade-names li { position: absolute; left: 50%; top: 0; translate: -50% 0; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  font: 700 clamp(16px, 1.5vw, 20px)/1.4 var(--font-title); letter-spacing: 0.08em; color: #f6e8cc; }
+.parade-names li.on { opacity: 1; transform: none; transition: opacity 0.5s ease 0.22s, transform 0.6s cubic-bezier(.2, .7, .2, 1) 0.22s; }
+.parade-names li[style*="--glow"] { color: color-mix(in srgb, rgb(var(--glow)) 40%, #fff6e4); }
+@media (max-width: 600px) { .parade-names li { font-size: 15px; } }
+.no-js .parade-names { height: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 24px; padding: 0 var(--gutter); }
+.no-js .parade-names li { position: static; translate: none; opacity: 1; transform: none; }
+.no-js .parade canvas { display: none; }
 
 /* ---------- Schlussaufruf */
 .final { padding: clamp(90px, 11vw, 150px) 0; text-align: center; overflow: hidden;
@@ -546,8 +572,11 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .boss { flex: none; width: 62vw; justify-content: flex-end; scroll-snap-align: center; }
   .boss.main { order: -1; }
   .arena::before { content: ""; flex: none; width: 11vw; order: -2; }
-  .boss figcaption { height: auto; padding: 16px 0 34px; }
-  .arena::after { position: static; flex: none; width: 11vw; height: 1px; background: none; order: 9; }
+  .arena { --cap: 104px; }
+  .boss figcaption { padding-top: 24px; }
+  .arena::after { display: none; }
+  .boss figcaption { align-self: stretch; border-top: 2px solid rgba(255, 160, 90, 0.26); background: linear-gradient(180deg, #170a09, transparent 80%); }
+  .arena > i { display: block; flex: none; width: 11vw; order: 9; }
   .scene, .scene.r { grid-template-columns: 1fr; }
   .scene figure, .scene.r figure { grid-column: 1; grid-row: 1; margin: 0; aspect-ratio: 4 / 3; --f: 0.5; }
   .scene-text, .scene.r .scene-text { grid-column: 1; grid-row: 2; margin: -34px 14px 0; padding: 18px 20px 20px; }

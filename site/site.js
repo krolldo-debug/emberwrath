@@ -165,7 +165,7 @@
     let timer = 0, next = 0;
     const mark = (k) => lis.forEach((li, i) => li.classList.toggle('on', i === k));
     const idle = () => { mark(-1); pl.play({ src: `${IMG}ruhe-${cls}.webp`, n: nIdle, ms: F12, loop: true }); wait(); };
-    const wait = () => { clearTimeout(timer); timer = setTimeout(() => (pl.visible && !panel.hidden ? skill(next) : wait()), 2600); };
+    const wait = () => { clearTimeout(timer); timer = setTimeout(() => (pl.visible && !panel.hidden ? skill(next) : wait()), 1100); };
     const skill = (k) => {
       clearTimeout(timer); next = (k + 1) % nSkill.length; mark(k);
       pl.play({ src: `${IMG}kampf-${cls}-${k + 1}.webp`, n: nSkill[k], ms: F12, done: idle });
@@ -226,86 +226,95 @@
     } else arena.classList.add('in');
   }
 
-  // ---------- Reittier-Parade: jedes Reittier in seiner Gangart (tools/reittiere-gang.mjs) über echten Steppenboden.
-  // Gezeichnet in ganzen Bildschirmpunkten je Streifenpixel; Namen laufen als Text darunter mit (übersetzbar, lesbar).
+  // ---------- Reittier-Parade: jedes Reittier in seiner Gangart (tools/reittiere-gang.mjs) über gekachelten Boden aus
+  // Spielkacheln (tools/parade-boden.mjs) mit zwei Ebenen. Die Kamera zieht langsam mit, der Boden läuft darunter durch.
+  // Gezeichnet in ganzen Bildschirmpunkten je Streifenpixel; unter der Bühne steht der Name des Tiers in der Mitte.
   const parade = document.querySelector('.parade');
   if (parade) {
     const cv = parade.querySelector('canvas'), ctx = cv.getContext('2d');
     const defs = $$('.parade-names li', parade).map((li) => {
       const [w, h, fx, fy, n, fps, fly, v] = li.dataset.f.split(' ').map(Number);
+      const lift = (li.dataset.l ?? '').split(' ').filter(Boolean).map(Number);
       const glow = li.style.getPropertyValue('--glow').trim();
       const img = new Image(); img.src = `${IMG}gang-${li.dataset.m}.webp`;
-      return { li, w, h, fx, fy, n, fps, fly, v, img, glow: glow ? `rgb(${glow})` : null };
+      return { li, w, h, fx, fy, n, fps, fly, v, lift, img, glow: glow ? `rgb(${glow})` : null };
     });
-    const ground = new Image(); ground.src = `${IMG}parade-boden.webp`;
-    const TOP = 22, BASE = 84, H = 104;   // Spielpixel: Luft über den Fliegern, Laufhöhe, Gesamthöhe
-    let wp = 4, W = 400, dpr = 1, runners = [], dust = [], nextAt = 0, qi = 0, last = 0, on = false, vis = false;
+    const layer = (src) => { const i = new Image(); i.src = `${IMG}${src}`; return i; };
+    const near = layer('parade-nah.webp'), far = layer('parade-fern.webp');
+    // Spielpixel: Laufhöhe, Gesamthöhe; Lauflinie im nahen Streifen, Versatz der fernen Ebene über der Lauflinie
+    const BASE = +parade.dataset.base, H = +parade.dataset.h, NEAR_Y = +parade.dataset.nearY, FAR_Y = +parade.dataset.farY;
+    const CAM = 22;   // Kamerafahrt (Spielpixel/s): naher Boden voll, ferne Ebene zu 40 %
+    let wp = 4, W = 400, dpr = 1, runners = [], dust = [], nextAt = 0, qi = 0, last = 0, on = false, vis = false, clockT = 0, shown = null;
     const layout = () => {
       dpr = devicePixelRatio || 1;
       const wide = parade.clientWidth > 820;
-      wp = 2 * Math.max(1, Math.round(((wide ? 3 : 2.25) * dpr) / 2));   // Bildschirmpunkte je Spielpixel (gerade: Streifen in 2× Auflösung)
+      wp = 2 * Math.max(1, Math.round(((wide ? 4 : 3) * dpr) / 2));   // Bildschirmpunkte je Spielpixel (gerade: Streifen in 2× Auflösung)
       parade.style.setProperty('--ph', `${(H * wp) / dpr}px`);
       cv.width = Math.round(parade.clientWidth * dpr); cv.height = H * wp;
       W = cv.width / wp;
       ctx.imageSmoothingEnabled = false;
-      for (const d of defs) d.lw = d.li.offsetWidth;
     };
-    const spawn = (x0) => {
+    const speed = (d) => d.v - CAM;   // Geschwindigkeit auf dem Bildschirm
+    const spawn = () => {
       const d = defs[qi++ % defs.length];
-      runners.push({ d, x: x0 ?? -(d.w - d.fx) - 2, t: Math.random() });
+      runners.push({ d, x: -(d.w - d.fx) - 2, t: Math.random(), ph: Math.random() * 6 });
       // Abstand so wählen, dass ein schnelleres Tier das vorige nicht einholt
-      const nx = defs[qi % defs.length], span = W + 80, gap = d.w + 34;
-      return Math.max(gap / d.v, span / d.v - span / nx.v + gap / nx.v, 1.4) * 1000;
+      const nx = defs[qi % defs.length], span = W + 80, gap = d.w + 30;
+      return Math.max(gap / speed(d), span / speed(d) - span / speed(nx) + gap / speed(nx), 1.3);
     };
     const px = (x) => Math.round(x * wp);
     const shadow = (x, w, a) => {
+      if (w < 2) return;
       ctx.fillStyle = `rgba(0, 0, 0, ${a})`;
       for (let r = -1; r <= 1; r++) { const hw = Math.round(w * Math.sqrt(1 - (r / 2) ** 2)); ctx.fillRect(px(x - hw), px(BASE + r), hw * 2 * wp, wp); }
     };
+    const tile = (img, y, off) => {
+      if (!img.complete || !img.naturalWidth) return;
+      const tw = img.naturalWidth / 2, th = img.naturalHeight / 2;
+      for (let x = -(((off % tw) + tw) % tw); x < W; x += tw) ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, px(x), px(y), tw * wp, th * wp);
+    };
+    const heightOf = (r) => {
+      const d = r.d, f = Math.floor(r.t * d.fps) % d.n;
+      return { f, lift: (d.lift[f] ?? 0) + (d.fly ? d.fly + 3 * Math.sin(clockT * 1.3 + r.ph) : 0) };
+    };
     const draw = () => {
       ctx.clearRect(0, 0, cv.width, cv.height);
-      // Boden: echte Spielgrafik, oben in den Seitenhintergrund ausgeblendet
-      const gy = BASE - 30;
-      if (ground.complete && ground.naturalWidth) {
-        const gw = ground.naturalWidth / 2, gx = Math.round((W - gw) / 2);
-        ctx.drawImage(ground, 0, 0, ground.naturalWidth, ground.naturalHeight, px(gx), px(gy), gw * wp, (ground.naturalHeight / 2) * wp);
-      } else { ctx.fillStyle = '#1c120f'; ctx.fillRect(0, px(gy), cv.width, cv.height); }
-      const fade = ctx.createLinearGradient(0, px(gy), 0, px(gy + 26));
-      fade.addColorStop(0, 'rgba(10, 5, 16, 1)'); fade.addColorStop(1, 'rgba(10, 5, 16, 0)');
-      ctx.fillStyle = fade; ctx.fillRect(0, px(gy) - 1, cv.width, px(26) + 1);
-      const fb = ctx.createLinearGradient(0, cv.height - px(14), 0, cv.height);
+      const cam = clockT * CAM;
+      tile(far, BASE - FAR_Y, cam * 0.4);
+      tile(near, BASE - NEAR_Y, cam);
+      // Unten in den Seitenhintergrund ausblenden
+      const fb = ctx.createLinearGradient(0, cv.height - px(16), 0, cv.height);
       fb.addColorStop(0, 'rgba(10, 5, 16, 0)'); fb.addColorStop(1, 'rgba(10, 5, 16, 1)');
-      ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(14), cv.width, px(14));
-      for (const r of runners) shadow(r.x + (r.d.fly ? 2 : 0), r.d.fly ? r.d.w * 0.22 : r.d.w * 0.32, r.d.fly ? 0.22 : 0.4);
-      // Staub und Funken hinter den Tieren
+      ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(16), cv.width, px(16));
+      // Schatten werden mit der Höhe kleiner und blasser
+      for (const r of runners) {
+        const { lift } = heightOf(r), k = Math.max(0.3, 1 - lift / 46);
+        shadow(r.x + (r.d.fly ? 2 : 0), r.d.w * (r.d.fly ? 0.3 : 0.32) * k, 0.45 * k);
+      }
       for (const q of dust) { ctx.globalAlpha = Math.max(0, 1 - q.life / q.max) * q.a; ctx.fillStyle = q.c; ctx.fillRect(px(q.x), px(q.y), wp, wp); }
       ctx.globalAlpha = 1;
       for (const r of [...runners].sort((a, b) => a.d.fly - b.d.fly)) {
-        const d = r.d, f = Math.floor(r.t * d.fps) % d.n;
+        const d = r.d, { f, lift } = heightOf(r);
         if (!d.img.complete || !d.img.naturalWidth) continue;
-        ctx.drawImage(d.img, f * d.w * 2, 0, d.w * 2, d.h * 2, px(r.x - d.fx), px(BASE - d.fly - d.fy), d.w * wp, d.h * wp);
+        // Höhe aus dem Streifen ist schon eingebacken; nur die Flughöhe kommt dazu
+        const up = d.fly ? Math.round(lift - (d.lift[f] ?? 0)) : 0;
+        ctx.drawImage(d.img, f * d.w * 2, 0, d.w * 2, d.h * 2, px(r.x - d.fx), px(BASE - up - d.fy), d.w * wp, d.h * wp);
       }
-      // Namen: unter dem Tier, an den Rändern ein- und ausgeblendet
-      for (const d of defs) d.on = false;
-      for (const r of runners) {
-        const d = r.d, cx = (r.x - d.fx + d.w / 2) * wp / dpr;
-        d.on = true;
-        d.li.style.transform = `translate(${Math.round(cx - d.lw / 2)}px, ${Math.round(((BASE + 6) * wp) / dpr)}px)`;
-        d.li.style.opacity = String(Math.max(0, Math.min(1, (r.x - 20) / 50, (W - 20 - r.x) / 50)));
-      }
-      for (const d of defs) if (!d.on) d.li.style.opacity = '0';
+      // Name: das Tier, das gerade der Mitte am nächsten ist
+      let best = null, bd = W * 0.5;
+      for (const r of runners) { const dd = Math.abs(r.x - r.d.fx + r.d.w / 2 - W / 2); if (dd < bd) { bd = dd; best = r.d; } }
+      if (best !== shown) { shown?.li.classList.remove('on'); best?.li.classList.add('on'); shown = best; }
     };
-    let clockT = 0;
     const update = (dt, fx) => {
       clockT += dt;
-      if (clockT >= nextAt) nextAt = clockT + spawn() / 1000;
+      if (clockT >= nextAt) nextAt = clockT + spawn();
       for (const r of runners) {
-        r.x += r.d.v * dt; r.t += dt;
+        r.x += speed(r.d) * dt; r.t += dt;
         if (!fx) continue;
-        // Staub hinter den Läufern, Funken/Schnee unter den legendären und den Fliegern
-        const d = r.d, back = r.x - d.fx * 0.7;
-        if (!d.fly && Math.random() < dt * 22) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -8 - Math.random() * 14, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', a: 0.7 });
-        if (d.glow && Math.random() < dt * (d.fly ? 16 : 9)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - d.fly - d.fy * (0.2 + Math.random() * 0.5), vx: -14 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: d.glow, a: 0.95 });
+        // Staub hinter den Läufern (bleibt auf dem Boden zurück), Funken/Schnee unter den legendären und den Fliegern
+        const d = r.d, back = r.x - d.fx * 0.7, { lift } = heightOf(r);
+        if (!d.fly && lift < 1 && Math.random() < dt * 26) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -CAM - 6 - Math.random() * 12, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', a: 0.7 });
+        if (d.glow && Math.random() < dt * (d.fly ? 16 : 9)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - lift - d.fy * (0.2 + Math.random() * 0.5), vx: -CAM - 10 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: d.glow, a: 0.95 });
       }
       for (const q of dust) { q.life += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 18 * dt; }
       dust = dust.filter((q) => q.life < q.max).slice(-260);
@@ -322,13 +331,12 @@
     if (reduced) {
       // Ohne Bewegung: eine ruhige Aufstellung, Namen als Liste darunter
       parade.classList.add('still');
-      const still = () => { layout(); runners = []; let x = 10; for (const d of defs) { if (x + d.w > W) break; runners.push({ d, x: x + d.fx, t: 0 }); x += d.w + 8; } draw(); };
-      for (const d of defs) d.img.addEventListener('load', still, { once: true });
-      ground.addEventListener('load', still, { once: true });
+      const still = () => { layout(); runners = []; let x = 10; for (const d of defs) { if (x + d.w > W) break; runners.push({ d, x: x + d.fx, t: 0, ph: 0 }); x += d.w + 8; } draw(); };
+      for (const im of [near, far, ...defs.map((d) => d.img)]) im.addEventListener('load', still, { once: true });
       addEventListener('resize', still); still();
     } else {
       // Bühne nicht leer beginnen: die Parade läuft unsichtbar schon eine Weile
-      for (let i = 0; i < 30 * 7; i++) update(1 / 30, false);
+      for (let i = 0; i < 30 * 9; i++) update(1 / 30, false);
       new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis && !on) { on = true; last = 0; requestAnimationFrame(tick); } }, { rootMargin: '60px' }).observe(parade);
       addEventListener('resize', () => { layout(); });
     }
@@ -441,9 +449,9 @@
     for (const f of $$('.fight')) {
       f.style.removeProperty('--s');
       const want = parseFloat(getComputedStyle(f).getPropertyValue('--s')) || 4, lay = f.closest('.cls-layout'), cs = lay && getComputedStyle(lay);
-      const room = lay ? lay.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 1e4;
+      const room = lay ? parseFloat(cs.gridTemplateColumns) : 1e4;   // Breite der Figurenspalte
       // Streifen in doppelter Detailauflösung: gerade Anzahl Bildpunkte je Weltpixel, damit jeder Bildpunkt gleich groß bleibt
-      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 272)));
+      const k = Math.max(2, 2 * Math.min(Math.floor((want * dpr) / 2 + 0.01), Math.floor((room * dpr) / 208)));
       if (Math.abs(k / dpr - want) > 0.001) f.style.setProperty('--s', String(k / dpr));
     }
     // Bosse: Bildschirmpunkte je Spielpixel ganzzahlig (CSS-Wert --s gerundet)
