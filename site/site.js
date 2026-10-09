@@ -220,19 +220,18 @@
       fig.style.setProperty('--i', i);
       const st = fig.querySelector('.stage'), cv = st.querySelector('canvas'), d = fig.dataset;
       const [w, h, n, fps] = d.f.split(' ').map(Number);
-      const ground = new Image(), strip = new Image();
+      const ground = new Image(), strip = new Image(), front = new Image();
       ground.src = `${IMG}boss-${d.boss}-boden.webp`;
       cv.width = w; cv.height = h;
-      return { fig, st, cv, ctx: cv.getContext('2d'), w, h, n, fps, ground, strip, fx: FX[d.fx], parts: [], t: Math.random() * 0.5, vis: false, ready: false };
+      return { fig, st, cv, ctx: cv.getContext('2d'), w, h, n, fps, ground, strip, front, fx: FX[d.fx], parts: [], t: Math.random() * 0.5, vis: false, ready: false };
     });
     const fit = () => {
-      const dpr = devicePixelRatio || 1, wide = innerWidth >= 1300, phone = innerWidth <= 820;
+      const dpr = devicePixelRatio || 1, phone = innerWidth <= 820;
       for (const s of stages) {
-        // Handy: je Boss die Bühnenbreite. Sonst drei Diener nebeneinander, Malgareth groß darunter.
+        // Drei Diener nebeneinander, Malgareth groß darunter; alle ×2, nur wenn der Platz fehlt kleiner (Handy: wischbar)
         const main = s.fig.classList.contains('main');
-        const room = phone ? innerWidth * 0.96 : main ? Math.min(arena.clientWidth - 40, 760) : Math.min(arena.clientWidth / 3 - 30, 440);
-        const cap = phone ? 6 : main ? 3 * dpr : Math.round((wide ? 2.5 : 2) * dpr);
-        const k = Math.max(1, Math.min(Math.floor((room * dpr) / s.w), Math.floor(cap)));
+        const room = phone ? innerWidth * 0.96 : main ? arena.clientWidth - 40 : arena.clientWidth / 3 - 16;
+        const k = Math.max(1, Math.min(Math.floor((room * dpr) / s.w), Math.round(2 * dpr)));
         s.st.style.width = `${(s.w * k) / dpr}px`; s.st.style.height = `${(s.h * k) / dpr}px`;
       }
     };
@@ -249,6 +248,7 @@
       for (const q of s.parts) if (q.back) dot(x, q);
       x.restore();
       x.drawImage(s.strip, f * s.w, 0, s.w, s.h, 0, 0, s.w, s.h);
+      x.drawImage(s.front, 0, 0);
       x.save(); x.translate(-ox * 2, -oy * 2);
       for (const q of s.parts) if (!q.back) dot(x, q);
       x.restore();
@@ -282,7 +282,8 @@
     const load = (s) => {
       if (s.loading) return; s.loading = true;
       s.strip.src = `${IMG}boss-${s.fig.dataset.boss}-kampf.webp`;
-      Promise.all([s.ground, s.strip].map((im) => (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })))).then(() => {
+      s.front.src = `${IMG}boss-${s.fig.dataset.boss}-vorn.webp`;
+      Promise.all([s.ground, s.strip, s.front].map((im) => (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })))).then(() => {
         s.ready = true; s.st.classList.add('live'); draw(s); kick();
       }, () => {});
     };

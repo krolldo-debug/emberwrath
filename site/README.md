@@ -36,10 +36,11 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   `kampf-<klasse>-1…4.webp` (je eine Fähigkeit, Reihenfolge wie auf der Seite). site.js spielt Kampf → Ruhe → reihum eine Fähigkeit
   (oder die angeklickte); die Bildzahlen stehen in `data-n` an `.fight` (Ausgabe des Skripts). Erdspalter bekommt einen
   glühenden Bodenriss (das Spiel brennt ihn nur in die Bodenebene, die hier nicht mitgezeichnet wird).
-- Bosse (`tools/bosse-buehne.mjs`, Maße und Abläufe in `tools/bosse-buehne.json`): jeder Boss auf dem Boden seines Gebiets.
-  `boss-<name>-boden.webp` (echte Kacheln), `boss-<name>-kampf.webp` (durchsichtiger Streifen: Ruhe, Warnfläche, Angriff; 12 Bilder/s),
-  `boss-<name>-bild.webp` (Boden mit erstem Bild, Standbild ohne JavaScript). `data-f` = Breite Höhe Bilder fps, `data-fx` = Teilchenart.
-  site.js zeichnet Boden, Teilchen und Streifen auf ein Canvas: drei Diener nebeneinander (×2), Malgareth groß darunter (×3), Handy wischbar.
+- Bosse (`tools/bosse-buehne.mjs` holt Sprites und Kacheln aus dem Spiel, `tools/bosse-buehne.py` baut die Bühnen; Maße in
+  `tools/bosse-buehne.json`, Aufbau je Boss in `CFG` im .py): Bühne 4:3 mit Wand oben, Bodenreihen, Schattenoval und Requisiten.
+  `boss-<name>-boden.webp` (hinten), `boss-<name>-kampf.webp` (transparenter Streifen: Ruhe, Warnfläche, Angriff; 12 Bilder/s),
+  `boss-<name>-vorn.webp` (Requisiten vorn), `boss-<name>-bild.webp` (Standbild). `data-f` = Breite Höhe Bilder fps, `data-fx` = Teilchenart.
+  site.js zeichnet alles auf ein Canvas: drei Diener nebeneinander, Malgareth groß darunter, alle ×2; Handy wischbar.
 - Reittier-Parade (`tools/reittiere-gang.mjs`, Maße in `tools/reittiere-gang.json`): `gang-<reittier>.webp` je Gangart (Galopp, Sprung,
   Trab, Flug …), Sprunghöhe je Bild in `data-l`; Boden aus Steppenkacheln in zwei Ebenen `parade-nah.webp` und `parade-fern.webp`
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
@@ -64,7 +65,7 @@ node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.w
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
-ZW=zw node site/tools/bosse-buehne.mjs site/img ulgrim,rotmother,skalvyr,malgareth http://127.0.0.1:8114/index.html   # Bossbühnen
+node site/tools/bosse-buehne.mjs site/img ulgrim,rotmother,skalvyr,malgareth http://127.0.0.1:8121   # Bossbühnen (Server im Repo-Ordner)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
 (cd site/tools && node titel-kampf.mjs)            # Titelkampf

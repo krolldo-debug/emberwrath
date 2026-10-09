@@ -73,6 +73,7 @@ section { position: relative; }
   text-shadow: 0 2px 0 #3a1004;
 }
 .btn.primary:hover { box-shadow: 0 0 0 2px #1a0604, 0 0 44px rgba(255, 110, 30, 0.55), inset 0 2px 0 rgba(255, 220, 160, 0.4), inset 0 -3px 0 rgba(60, 14, 4, 0.5); transform: translateY(-1px); }
+.hero-cta .btn:not(.primary) { background: #0c0610; }   /* deckend, damit der Titelkampf nicht durchscheint */
 .btn.big { min-height: 58px; padding: 0 36px; font-size: 15px; letter-spacing: 0.18em; }
 .textlink { font: 700 13px/1 var(--font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); text-decoration: none; border-bottom: 2px solid rgba(232, 194, 90, 0.4); padding-bottom: 5px; }
 .textlink:hover { color: #fff0b0; border-bottom-color: var(--gold); }
@@ -95,11 +96,12 @@ section { position: relative; }
 .hero-bg { --ax: 0.73; }   /* Kampf rechts neben den Text */
 @media (min-width: 1921px) { .hero-bg, .strip figure, .lore-bg { --f: 3; } }
 /* Titelbild und großer Streifen enger: Helden und Boss tragen das Bild */
-@media (min-width: 1200px) { .hero-bg { --f: 3; --ax: 0.77; } }
+@media (min-width: 1200px) { .hero-bg { --ax: 0.77; } }
 @media (min-width: 1921px) { .strip .strip-a { --f: 2; } }
-@media (min-width: 1700px) { .hero-bg { --f: 4; --ax: 0.75; } }
-@media (min-width: 2000px) { .hero-bg { --f: 5; } }
-@media (min-width: 2400px) { .hero-bg { --f: 6; } .strip .strip-a { --f: 3; } }
+@media (min-width: 1700px) { .hero-bg { --f: 3; --ax: 0.75; } }
+@media (min-width: 2200px) { .hero-bg { --f: 4; } }
+@media (min-width: 2400px) { .strip .strip-a { --f: 3; } }
+@media (min-width: 2800px) { .hero-bg { --f: 5; } }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -2;
   background: linear-gradient(90deg, rgba(5, 2, 10, 0.95) 0%, rgba(5, 2, 10, 0.86) 32%, rgba(5, 2, 10, 0.4) 50%, rgba(5, 2, 10, 0) 66%),
     linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 18%, rgba(5, 2, 10, 0) 80%, var(--bg) 100%); }
@@ -180,7 +182,7 @@ section { position: relative; }
 .arena > i { display: none; }
 .boss.main { grid-column: 1 / -1; justify-self: center; margin-top: clamp(10px, 2vw, 30px); }
 .boss { position: relative; margin: 0; display: flex; flex-direction: column; align-items: center; }
-.stage { position: relative; width: 384px; height: 256px;
+.stage { position: relative; width: 416px; height: 312px;
   --fade: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent), linear-gradient(180deg, transparent, #000 22%, #000 80%, transparent);
   -webkit-mask-image: var(--fade); -webkit-mask-composite: source-in; mask-image: var(--fade); mask-composite: intersect; }
 .stage img, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
@@ -570,7 +572,7 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 }
 @media (max-width: 600px) {
   .hero { display: block; min-height: 0; }
-  .hero-bg { position: relative; inset: auto; height: 66svh; min-height: 380px; max-height: 620px; z-index: -3; --f: 1.67; --ax: 0.5; }   /* 5 Gerätepixel bei 3×, 3 bei 2× */
+  .hero-bg { position: relative; inset: auto; height: 66svh; min-height: 380px; max-height: 620px; z-index: -3; --f: 1.34; --ax: 0.5; }   /* 4 Gerätepixel bei 3×: Gruppe und Drache ganz im Bild */
   .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 66%, rgba(5, 2, 10, 0.6) 86%, var(--bg) 100%); }
   .hero::before { background: linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 14%); }
   .hero-content { padding-top: 0; margin-top: -60px; padding-bottom: 56px; }

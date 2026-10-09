@@ -5,6 +5,8 @@
 // Pfeilregen, Wirbelsturm …), Skalvyr antwortet mit seinem echten Frostatem (Warnfläche, dann Atem), erzwungen
 // über seine Angriffswahl statt Zufall. Niemand stirbt oder weicht vom Platz: Leben und Positionen werden nach
 // jedem Schritt zurückgesetzt. Schadenszahlen, Lebensbalken, Namen und HUD bleiben unsichtbar.
+// Bildregeln: Skalvyr steht rechts versetzt (Kopf eine Heldenbreite vor dem Krieger), Helden liegen über Wurm und
+// Effekten (zweiter Durchgang ohne Effekte, per Sprite-Umriss eingesetzt), der Atem endet vor der Waldläuferin.
 // Schleife: N Bilder bei 12 fps; Anfang und Ende in Ruhe (alle Effekte verklungen), Ruheanimationen, Lichter,
 // Flammen und Waffenglanz hängen dort nur von der Bildnummer ab – Bild N schließt nahtlos an Bild 0 an.
 // Aufruf: node titel-kampf.mjs [OUT-Ordner für PNG-Einzelbilder] [URL]
@@ -54,6 +56,13 @@ const sc = {
   heroRes: 1,
   // Aufstellung (abgestimmt mit der Seite, nicht ändern): Krieger vorn am Wurm, Magierin dahinter oben, Waldläuferin unten
   hero: [-54, 12], comps: [[-78, -6], [-100, 10]], cam: [-50, -4], shadowW: 18,
+  // Skalvyr steht um boss[0] nach rechts versetzt (Bühne, Helden und Ausschnitt bleiben an T): Sein Kopf (vorderster
+  // Punkt der Ruhepose −73 ab Körpermitte) bleibt so eine Heldenbreite (16) vor der Schwertkante des Kriegers (−47).
+  // Beim Atem senkt er den Kopf 9 weiter vor – dafür weicht er um bossAtem zurück (gleitend, nicht springend).
+  boss: [42, 0], bossAtem: 9,
+  // Atemkegel endet vor dem Rücken der Waldläuferin (Körpermitte −100, Rücken −107): Warnfläche bis atemEnde,
+  // der Atem selbst (Kegel, Nebel, Kristalle) läuft von atemWeich[0] bis atemWeich[1] weich aus
+  atemEnde: -100, atemWeich: [-68, -102],
   light: [[20, -60, 150, [140, 200, 255], 1.1], [-72, 14, 80, [255, 190, 140], 0.85]],
 };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -112,7 +121,7 @@ await p.evaluate((sc) => {
   const party = g.finder?.session?.party;
   if (party) party.draw = () => {};
   const set = () => {
-    t.x = T.x; t.y = T.y; if (t.maxHp) t.hp = t.maxHp;
+    t.x = T.x + sc.boss[0]; t.y = T.y + sc.boss[1]; if (t.maxHp) t.hp = t.maxHp;
     h.x = T.x + sc.hero[0]; h.y = T.y + sc.hero[1];
     comps.forEach((c, i) => { c.x = T.x + sc.comps[i][0]; c.y = T.y + sc.comps[i][1]; });
     t.facing = Math.sign(h.x - t.x) || -1;
@@ -140,9 +149,12 @@ const info = await p.evaluate(async ({ sc, ATEM, QUIET }) => {
   const byCls = (c) => comps.find((a) => (a.member?.classId ?? a.cls?.id) === c);
   const who = { krieger: h, magierin: byCls('mage'), waldl: byCls('ranger') };
   const POS = new Map([[h, sc.hero], [who.magierin, sc.comps[0]], [who.waldl, sc.comps[1]]]);
+  const bx = { v: sc.boss[0] };
   const place = () => {
     for (const [a, [dx, dy]] of POS) { a.x = T.x + dx; a.y = T.y + dy; a.vx = a.vy = 0; a.kbx = a.kby = 0; }
-    t.x = T.x; t.y = T.y; t.vx = t.vy = 0; t.kbx = t.kby = 0; t.facing = -1;
+    t.x = T.x + Math.round(bx.v); t.y = T.y + sc.boss[1]; t.vx = t.vy = 0; t.kbx = t.kby = 0; t.facing = -1;
+    // Helden liegen immer über dem Wurmkörper (er steht eine Spur weiter hinten) – außer beim Biss
+    t.sortOffset = /bite/.test(t.state) ? 0 : -10;
   };
   place();
   for (const a of w.actors) { a.vx = a.vy = 0; a.kbx = a.kby = 0; a.flash = 0; a.hpBarTimer = 0; a.invuln = 0; }
@@ -179,17 +191,20 @@ const info = await p.evaluate(async ({ sc, ATEM, QUIET }) => {
     if (window.__frame >= QUIET) return null;
     const st = new Error().stack;
     if (/ambientParticles|#ambient|Skalvyr\.update/.test(st) && !/breath|Breath|#bite|#release|frameEvents/.test(st)) return null;
-    return sp(o);
+    const q = sp(o);
+    if (q && /breath|Breath/.test(st)) q.__br = q.alpha;
+    else if (q) q.__br = undefined;
+    return q;
   };
   // Eingaben je Held (wie ein Spieler bzw. ein Söldner): eigene Tasten, Ziel auf Skalvyr
-  const aimAt = { x: T.x - 4, y: T.y - 26 };
+  const aimAt = { x: T.x + sc.boss[0] - 4, y: T.y - 26 };
   // Söldner behalten ihre Gruppen-Sicht (Party.js) – nur ihr Gehirn schweigt, Tasten und Ziel setzt das Drehbuch
   const inputs = new Map();
   for (const br of party?.brains ?? []) { br.update = () => {}; br.aim = aimAt; br.input.clear(); br.input.stick = { x: 0, y: 0 }; inputs.set(br.bot, br.input); }
   { const inp = new BotInput(), HU = Object.getPrototypeOf(h).update; inputs.set(h, inp);
     h.update = function (dt, world) { return HU.call(this, dt, makeView(world, { input: inp, aim: aimAt })); }; }
   // Skalvyrs Sicht: sein Ziel ist ein Punkt vor der Gruppe (nah = er steht still, fern = Atem auf die Gruppe)
-  const ziel = { x: T.x - 50, y: T.y + 4, vx: 0, vy: 0, dead: false, hurtRadius: 6, radius: 5, centerY: T.y - 4, team: 'hero', hp: 1, maxHp: 1, takeHit: () => false, buff: () => {} };
+  const ziel = { x: T.x + sc.boss[0] - 50, y: T.y + 4, vx: 0, vy: 0, dead: false, hurtRadius: 6, radius: 5, centerY: T.y - 4, team: 'hero', hp: 1, maxHp: 1, takeHit: () => false, buff: () => {} };
   if (party) party.targetOf = () => ziel;
   const atem = () => {
     ziel.x = T.x - 84; ziel.y = T.y + 6; ziel.centerY = ziel.y - 8;
@@ -198,7 +213,21 @@ const info = await p.evaluate(async ({ sc, ATEM, QUIET }) => {
     t.timers.breath = 0; t.last = '';
     t.__atem = true;
   };
-  window.__ctl = { who, inputs, atem, ziel, place, hs, T };
+  // Atem weich auslaufen lassen (Weltkoordinate x → Deckkraft 0…1)
+  const [W0, W1] = sc.atemWeich, weich = (x) => Math.max(0, Math.min(1, (x - (T.x + W1)) / (W0 - W1)));
+  const RE = Object.getPrototypeOf(t).renderEmissive, CP = CanvasRenderingContext2D.prototype, fr = CP.fillRect;
+  t.renderEmissive = function (ctx, cx, cy) {
+    if (this.state !== 'breath') return RE.call(this, ctx, cx, cy);
+    ctx.fillRect = function (x, y, w, hh) { const k = window.__ohneAtem ? 0 : weich(x + cx); if (k <= 0) return; const a = this.globalAlpha; this.globalAlpha = a * k; fr.call(this, x, y, w, hh); this.globalAlpha = a; };
+    try { RE.call(this, ctx, cx, cy); } finally { delete ctx.fillRect; }
+  };
+  // Atempartikel (Kristalle, Nebel) merken sich ihre Deckkraft und verblassen im selben Verlauf
+  const breathFx = () => {
+    for (const q of P.active) if (q.__br !== undefined) { const k = weich(q.x); if (k <= 0) { q.alpha = 0; q.life = Math.min(q.life, 1e-4); } else q.alpha = q.__br * k; }
+    const tele = t.breathTele;
+    if (tele) { tele.r = Math.max(40, tele.x - (T.x + sc.atemEnde)); if (tele.light) tele.light.radius = tele.r * 1.1; }
+  };
+  window.__ctl = { who, inputs, atem, ziel, place, hs, T, bx, breathFx, sc };
   return { hs: hs.map((a) => a.member?.classId ?? a.cls?.id), lights: w.lights.length, bossState: t.state, view: [g.view.width, g.view.height] };
 }, { sc, ATEM, QUIET });
 console.log(JSON.stringify(info));
@@ -210,6 +239,16 @@ for (let i = 0; i < Math.min(N, TO); i++) {
   const r = await p.evaluate(({ i, N, FPS, STEPS, acts, ATEM, grade, render }) => {
     const g = window.emberfall, s = g.scenes.current, w = s.world, cam = s.camera, t = w.boss, h = w.hero;
     const C = window.__ctl, ev = [];
+    function meteorZeichnen(ctx, cx, cy) {
+      const k = this.t / this.delay; if (k < 0.66) return;
+      const a = Math.min(1, (k - 0.66) / 0.1), x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+      const fx = x - Math.round((1 - k) * 60), fy = y - Math.round((1 - k) * 170);
+      for (let i = 1; i < 5; i++) { ctx.globalAlpha = (0.5 - i * 0.1) * a; ctx.fillStyle = '#f07a1c'; ctx.fillRect(fx - i * 3, fy - i * 8, 2, 2); }
+      ctx.globalAlpha = 0.35 * a; ctx.fillStyle = '#f07a1c'; ctx.fillRect(fx - 4, fy - 3, 9, 7); ctx.fillRect(fx - 3, fy - 4, 7, 9);
+      ctx.globalAlpha = a; ctx.fillStyle = '#c8420c'; ctx.fillRect(fx - 3, fy - 2, 7, 5); ctx.fillRect(fx - 2, fy - 3, 5, 7);
+      ctx.fillStyle = '#ffb640'; ctx.fillRect(fx - 2, fy - 2, 5, 4); ctx.fillStyle = '#fff0b0'; ctx.fillRect(fx - 1, fy - 1, 2, 2);
+      ctx.globalAlpha = 1;
+    }
     window.__frame = i;
     for (const [a, c] of acts) {
       if (a === 'boss') C.atem();
@@ -229,8 +268,14 @@ for (let i = 0; i < Math.min(N, TO); i++) {
       if (!t.__atem) t.cooldown = 99;
       if (t.state === 'breath' && t.breathDur > ATEM) t.breathDur = ATEM;
       g.update(1 / 60);
+      // Zurückweichen für den Atem: in der zweiten Hälfte der Warnzeit hin, nach dem Atem wieder zurück (30 px/s)
+      { const back = (t.state === 'breathWindup' && t.stateTime > t.windup - 0.45) || t.state === 'breath', to = C.sc.boss[0] + (back ? C.sc.bossAtem : 0);
+        C.bx.v += Math.max(-0.5, Math.min(0.5, to - C.bx.v)); }
+      C.breathFx();
+      // Meteor der Magierin: der Brocken erscheint erst kurz vor dem Einschlag (nicht als Block am oberen Bildrand)
+      for (const e of w.entities) if (e.constructor?.name === 'Meteor' && e.hero && !e.__titel) { e.__titel = true; e.renderEmissive = meteorZeichnen; }
       if (t.__atem && t.state !== 'chase') { t.__atem = false; }
-      if (t.state === 'chase' && !t.__atem) { C.ziel.x = C.T.x - 50; C.ziel.y = C.T.y + 4; C.ziel.centerY = C.ziel.y - 8; }
+      if (t.state === 'chase' && !t.__atem) { C.ziel.x = C.T.x + C.sc.boss[0] - 50; C.ziel.y = C.T.y + 4; C.ziel.centerY = C.ziel.y - 8; }
       C.place();
       // Schadenszahlen nie zeigen
       w.effects = w.effects.filter((e) => e.constructor?.name !== 'FloatingText');
@@ -296,10 +341,27 @@ for (let i = 0; i < Math.min(N, TO); i++) {
     const k = 2, worldW = g.view.width / k, worldH = g.view.height / k;
     cam.x = Math.round(window.__camC.x - worldW / 2); cam.y = Math.round(window.__camC.y - worldH / 2);
     cam.shakeX = cam.shakeY = cam.kickX = cam.kickY = 0;
-    try { g.render(0); } finally { for (const f of undo.reverse()) f(); performance.now = pn; }
-    const v = g.view;
-    const c = document.createElement('canvas'); c.width = v.width; c.height = v.height;
-    const cx = c.getContext('2d'); cx.filter = grade; cx.drawImage(v, 0, 0);
+    // Helden immer über Effekten (Feuerstoß, Einschlag, Atem …): Ein zweiter Durchgang ohne Effekte, Geschosse
+    // und Partikel liefert die Helden unverdeckt (gleiche Lichter); deren Sprite-Umriss wird über das Bild gelegt.
+    const v = g.view, mk = () => { const q = document.createElement('canvas'); q.width = v.width; q.height = v.height; return q; };
+    const cA = mk(), cB = mk(), cM = mk();
+    try {
+      g.render(0);
+      cA.getContext('2d').drawImage(v, 0, 0);
+      const keep = { e: w.effects, n: w.entities, p: w.projectiles, a: w.particles.active };
+      w.effects = []; w.entities = keep.n.filter((e) => window.__deko.has(e)); w.projectiles = []; w.particles.active = [];
+      // Zauberlichter ohne Überstrahlen (das Bloom der Einschläge überdeckt sonst die Figuren)
+      const kurz = w.lights.filter((l) => !window.__licht.has(l)).map((l) => [l, l.bloom]);
+      for (const [l] of kurz) l.bloom = 0;
+      window.__ohneAtem = true;
+      try { g.render(0); } finally { Object.assign(w, { effects: keep.e, entities: keep.n, projectiles: keep.p }); w.particles.active = keep.a; window.__ohneAtem = false; for (const [l, b] of kurz) l.bloom = b; }
+      cB.getContext('2d').drawImage(v, 0, 0);
+      const m = cM.getContext('2d'); m.setTransform(2, 0, 0, 2, 0, 0); m.imageSmoothingEnabled = false;
+      for (const a of C.hs) a.drawSprite(m, cam.rx, cam.ry);
+    } finally { for (const f of undo.reverse()) f(); performance.now = pn; }
+    const bx = cB.getContext('2d'); bx.globalCompositeOperation = 'destination-in'; bx.drawImage(cM, 0, 0);
+    const c = mk();
+    const cx = c.getContext('2d'); cx.filter = grade; cx.drawImage(cA, 0, 0); cx.drawImage(cB, 0, 0);
     return { ev, out: c.toDataURL('image/png'), w: v.width, h: v.height };
   }, { i, N, FPS, STEPS, acts, ATEM, grade: sc.grade, render: i >= FROM });
   log.push(`${i}: ${r.ev.join(' ')}`);
