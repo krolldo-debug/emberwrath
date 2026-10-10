@@ -8,6 +8,7 @@ import { xpInfo, trackedQuests, trackedQuestId, questStatus, questsForNpc, npcNa
 import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, rewardsEl, barEl, objectivesEl, attachTip, hideTip, reactive, tapper } from './widgets.js';
 import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
+import { HeroStage, statGlyph } from './heroStage.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
 // neu (EV.STATE_CHANGED) und löst Spielaktionen nur über Commands aus.
@@ -40,9 +41,8 @@ function titleOf(st) {
   return id ? ACHIEVEMENTS[id]?.title ?? null : null;
 }
 
-// Tausenderpunkte für Goldbeträge in Texten; Touch-Geräte bekommen Tipp-Hinweise, Maus-Geräte Klick-Hinweise
+// Tausenderpunkte für Goldbeträge in Texten
 const fmt = (n) => Number(n).toLocaleString('de-DE');
-const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Das Reittier lässt sich gerade nicht erlernen. Versuch es gleich noch einmal.' };
 const EQUIP_FAIL = { class: 'Deine Klasse kann das nicht führen.', level: 'Deine Stufe ist zu niedrig.', notEquippable: '' };
 const SLOT_PH = { weapon: 'sword', head: 'helm', chest: 'armor', hands: 'gloves', feet: 'boots', ring: 'ring', amulet: 'amulet' };
@@ -71,6 +71,7 @@ function inventoryView(s) {
   let multi = null; // Mehrfachauswahl zum Verkaufen: Set von Taschenplätzen
   const dbl = tapper();
   const content = s.content;
+  const stage = new HeroStage();
 
   return (redraw) => {
     const st = s.state, inv = st.slices.inventory;
@@ -148,23 +149,31 @@ function inventoryView(s) {
       // Ziehen aus der Tasche auf einen Ausrüstungsplatz
       el.addEventListener('dragover', (e) => e.preventDefault());
       el.addEventListener('drop', (e) => { e.preventDefault(); if (dragFrom != null) primary(dragFrom); dragFrom = null; });
-      return h(`div.pg-doll-slot.s-${slot}`, el, h('span.pg-eq-label', EQUIP_SLOT_NAMES[slot]));
+      return h(`div.pg-doll-slot.s-${slot}`, el);
     };
     const stats = safeStats(st, content);
     const cls = classId ? content.find('class', classId) : null;
     const gearScore = Math.round(EQUIP_SLOTS.reduce((sum, sl) => sum + itemScore(inv.equipment[sl] ? content.find('item', inv.equipment[sl]) : null), 0));
+    // Figur mit sichtbarer Ausrüstung (inkl. Garderobe) statt einer Werteliste; Werte klein darunter
+    stage.set(st.slices.character, s.game.character?.previewGear?.() ?? null);
+    stage.start();
+    const stat = (glyph, label, value) => h('li', { title: label, 'aria-label': label },
+      h('img', { src: statGlyph(glyph), alt: '', width: 14, height: 14 }), h('span', value));
     const doll = h('section.pg-doll',
-      eqSlot('head'), eqSlot('amulet'), eqSlot('chest'), eqSlot('ring'), eqSlot('hands'), eqSlot('weapon'), eqSlot('feet'),
-      h('div.pg-doll-mid',
-        h('div.pg-doll-name', st.slices.character?.name ?? 'Held'),
+      eqSlot('head'), eqSlot('chest'), eqSlot('hands'), eqSlot('feet'),
+      eqSlot('amulet'), eqSlot('ring'), eqSlot('weapon'),
+      h('div.pg-gs', { title: 'Ausrüstungsstärke', 'aria-label': 'Ausrüstungsstärke' },
+        h('img', { src: statGlyph('gear'), alt: '', width: 14, height: 14 }), h('b', String(gearScore))),
+      h('div.pg-stage', stage.canvas),
+      h('div.pg-doll-info',
+        h('div.pg-doll-name', { translate: 'no' }, st.slices.character?.name ?? 'Held'),
         titleOf(st) ? h('div.pg-doll-title', titleOf(st)) : null,
         h('div.pg-doll-sub', h('span', `Stufe ${level}`), cls ? h('span', cls.name) : null),
-        h('dl.pg-doll-stats',
-          h('dt', 'Leben'), h('dd', String(stats.maxHp ?? 0)),
-          h('dt', STAT_NAMES.power), h('dd', String(Math.round(stats.power ?? 0))),
-          h('dt', STAT_NAMES.armor), h('dd', String(Math.round(stats.armor ?? 0))),
-          h('dt', 'Krit'), h('dd', `${Math.round((stats.critChance ?? 0) * 100)} %`)),
-        h('div.pg-gs', { title: 'Summe der Ausrüstungsstärke' }, h('span', 'Ausrüstung'), h('b', String(gearScore)))),
+        h('ul.pg-doll-stats',
+          stat('hp', 'Leben', String(stats.maxHp ?? 0)),
+          stat('power', STAT_NAMES.power, String(Math.round(stats.power ?? 0))),
+          stat('armor', STAT_NAMES.armor, String(Math.round(stats.armor ?? 0))),
+          stat('crit', 'Kritische Trefferchance', `${Math.round((stats.critChance ?? 0) * 100)} %`))),
     );
 
     // --- Aktionen
@@ -211,10 +220,7 @@ function inventoryView(s) {
         h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', onclick: () => { sel = null; redraw(); } }, '✕'),
         itemDetail(content, selItemId, { ...detailOpts, actions, compare: sel?.bag != null, actionsTop: true }),
         msg ? h('p.pg-msg', msg) : null)
-      : h('div.pg-sheet', h('div.pg-detail.empty',
-        h('p.ef-note', TOUCH ? 'Antippen zeigt Details und Vergleich. Doppeltippen legt an oder benutzt.' : 'Klick zeigt Details und Vergleich. Doppelklick legt an oder benutzt.'),
-        h('p.ef-note', '▲ = besser als deine Ausrüstung. Heiltränke: Taste H oder Trank-Knopf.')),
-      msg ? h('p.pg-msg', msg) : null);
+      : null;
 
     // Schnellverkauf: Weiße verkaufen, Auto-Verkauf, Mehrfachauswahl
     function quickSellBar() {
@@ -233,7 +239,7 @@ function inventoryView(s) {
       return h('div.pg-quicksell',
         junk.length ? actionBtn(`Weiße verkaufen · ${junk.length} (+${sellValue(st, content, junk)})`, () => {
           const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { small: true }) : h('span.pg-qs-info', 'Kein weißer Plunder'),
+        }, { small: true }) : h('span.pg-qs-info'),
         h(`button.pg-chip.pg-auto${auto ? '.on' : ''}`, { type: 'button', title: 'Beim Aufsammeln automatisch verkaufen (Verbesserungen werden behalten)', onclick: () => { act('inventory:autoSell', { mode: next }); } },
           `Auto-Verkauf: ${AUTO.find(([m]) => m === auto)[1]}`));
     }
@@ -242,12 +248,12 @@ function inventoryView(s) {
     function matSection() {
       const list = materialList(st, content);
       return h('section.pg-matbag', { 'aria-label': 'Materialbeutel' },
-        h('div.pg-matbag-head', h('span.pg-questbag-label', 'Materialbeutel'), h('span.pg-qs-info', list.length ? 'Belegt keine Taschenplätze' : 'Noch leer. Materialien landen hier und belegen keine Taschenplätze.')),
-        list.length ? h('div.pg-matbag-grid', list.map((e) => {
+        h('div.pg-matbag-head', { title: 'Materialien belegen keine Taschenplätze.' }, h('span.pg-questbag-label', 'Material')),
+        h('div.pg-matbag-grid', list.map((e) => {
           const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, size: 36, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
           attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
           return el;
-        })) : null);
+        })));
     }
 
     const used = inv.slots.length - freeSlots(st);
@@ -259,11 +265,12 @@ function inventoryView(s) {
             h('div.pg-filters', { role: 'tablist' }, FILTERS.map(([id, label]) => h(`button.pg-chip${filter === id ? '.on' : ''}`, {
               type: 'button', role: 'tab', 'aria-selected': String(filter === id), onclick: () => { filter = id; redraw(); },
             }, label)),
-            h('button.pg-chip.pg-sort', { type: 'button', title: 'Sortieren: Ausrüstung, Verbrauch, Material, Quest', onclick: () => { sel = null; act('inventory:sort', {}); } }, '⇅ Sortieren'),
-            h(`button.pg-chip.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere Teile antippen und zusammen verkaufen', onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, multi ? '✓ Auswahl' : '☐ Auswählen'))),
+            h('div.pg-tools',
+              h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, h('img', { src: statGlyph('sort'), alt: '', width: 14, height: 14 })),
+              h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, h('img', { src: statGlyph('multi'), alt: '', width: 14, height: 14 }))))),
           quickSellBar(),
           h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
-          matSection(),
+          materialList(st, content).length ? matSection() : null,
           inv.questBag?.length ? h('div.pg-questbag', { title: 'Questgegenstände und Questbelohnungen, für die in der Tasche kein Platz war. Sie wandern zurück, sobald Platz frei ist.' },
             h('span.pg-questbag-label', 'Questbeutel'),
             inv.questBag.map((e) => { const d = content.find('item', e.itemId); return h('span.pg-questbag-item', itemIconEl({ ...d, name: null }, 24), h('b', `${e.qty}× ${d?.name ?? e.itemId}`)); })) : null,

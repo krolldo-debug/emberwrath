@@ -81,13 +81,10 @@
 .pg-doll-slot .pg-slot { --pg-slot: 48px; }
 .pg-doll .s-head { grid-area: head; } .pg-doll .s-chest { grid-area: chest; } .pg-doll .s-hands { grid-area: hands; } .pg-doll .s-feet { grid-area: feet; }
 .pg-doll .s-amulet { grid-area: amulet; } .pg-doll .s-ring { grid-area: ring; } .pg-doll .s-weapon { grid-area: weapon; }
-.pg-eq-label { font-size: 10px; color: var(--ef-muted); letter-spacing: 0.04em; }
-.pg-doll-mid { grid-area: mid; align-self: stretch; display: flex; flex-direction: column; justify-content: center; text-align: center; min-width: 0; }
 .pg-doll-name { font: 700 17px var(--ef-font-title); color: var(--ef-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-doll-sub { font-size: 12px; color: var(--ef-gold); margin-bottom: 8px; }
 .pg-doll-sub span { display: block; white-space: nowrap; }
 .pg-doll-stats { display: grid; grid-template-columns: auto auto; gap: 2px 10px; margin: 0 auto; font-size: 13px; }
-.pg-doll-stats dt { color: var(--ef-muted); text-align: left; } .pg-doll-stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-gs { margin: 10px auto 0; display: inline-flex; gap: 6px; align-items: baseline; padding: 3px 10px; border: 1px solid #5a3a1a; border-radius: 12px; background: rgba(60, 30, 10, 0.4); font-size: 12px; color: var(--ef-muted); }
 .pg-gs b { color: var(--ef-gold); font-size: 15px; }
 .pg-bagwrap { grid-area: bag; min-width: 0; }
@@ -345,9 +342,7 @@
     padding: 8px; gap: 6px 4px;
   }
   .pg-doll-slot .pg-slot { --pg-slot: min(46px, 12vw); }
-  .pg-doll-mid { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: space-between; text-align: left; gap: 2px 10px; }
   .pg-doll-sub { margin: 0; }
-  .pg-doll-stats { display: flex; gap: 8px; margin: 0; font-size: 12px; } .pg-doll-stats dt::after { content: ":"; }
   .pg-gs { margin: 0; }
   .pg-bag { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .pg-chip { padding: 2px 8px; font-size: 12px; }
@@ -454,3 +449,92 @@
 .pg-board-main p { margin: 2px 0 4px; }
 .pg-board-act { flex: 0 0 auto; min-width: 120px; }
 .pg-board-week { margin-top: 10px; }
+
+/* ------------------------------------------------------------ Inventar (Runde 10.10.)
+   Figur mit Ausrüstung in der Mitte statt Werteliste, Werte klein darunter; ruhigere Leiste.
+   Pixel-Look: flache Flächen, harte Kanten, keine weichen Verläufe. */
+.pg-inventory .pg-doll {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "head stage amulet" "chest stage ring" "hands stage weapon" "feet stage gs" "info info info";
+  gap: 6px 6px; padding: 10px 10px 12px; border-radius: 0;
+  background: #0d0812; border: 1px solid #3a2530; box-shadow: inset 0 0 0 1px #05030a, inset 0 0 0 2px #1c1222;
+}
+.pg-inventory .pg-doll .s-head { grid-area: head; } .pg-inventory .pg-doll .s-chest { grid-area: chest; }
+.pg-inventory .pg-doll .s-hands { grid-area: hands; } .pg-inventory .pg-doll .s-feet { grid-area: feet; }
+.pg-inventory .pg-doll .s-amulet { grid-area: amulet; } .pg-inventory .pg-doll .s-ring { grid-area: ring; }
+.pg-inventory .pg-doll .s-weapon { grid-area: weapon; }
+.pg-stage { grid-area: stage; align-self: stretch; display: flex; align-items: flex-end; justify-content: center; min-width: 0; overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pg-stage-canvas { display: block; width: 208px; height: 200px; flex: 0 0 auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+.pg-doll-info { grid-area: info; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding-top: 6px; border-top: 1px solid #2a1d30; }
+.pg-inventory .pg-doll-name { font: 700 18px/1.15 var(--ef-font-title); color: var(--ef-text); max-width: 100%; }
+.pg-inventory .pg-doll-sub { display: flex; gap: 6px; margin: 0; font-size: 12.5px; color: var(--ef-gold); }
+.pg-inventory .pg-doll-sub span + span::before { content: "·"; margin-right: 6px; color: var(--ef-muted); }
+.pg-inventory .pg-doll-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; }
+.pg-doll-stats li { display: inline-flex; align-items: center; gap: 5px; color: var(--ef-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-doll-stats img, .pg-gs img, .pg-tool img { image-rendering: pixelated; }
+.pg-inventory .pg-gs {
+  grid-area: gs; justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0;
+  padding: 0; border: 0; border-radius: 0; background: none; font-size: 12px; color: var(--ef-muted);
+}
+.pg-inventory .pg-gs b { color: var(--ef-gold); font-size: 14px; font-variant-numeric: tabular-nums; }
+.pg-inventory .pg-slot { border-radius: 0; }
+.pg-inventory .pg-slot.empty { background: #110a16; box-shadow: inset 0 0 0 1px #2a1d30, inset 2px 2px 0 0 #07040a; }
+.pg-inventory .pg-doll .pg-slot-ph { opacity: 0.22; }
+/* Leiste: Filter als Reiter, Sortieren und Mehrfachauswahl als kleine Symbolknöpfe */
+.pg-inventory .pg-bagbar { flex-wrap: nowrap; gap: 8px; border-bottom: 1px solid #2a1d30; margin-bottom: 8px; }
+.pg-inventory .pg-filters { gap: 0; flex-wrap: nowrap; min-width: 0; }
+.pg-inventory .pg-filters .pg-chip {
+  min-height: 32px; padding: 0 9px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+  color: var(--ef-muted); font: 600 12.5px var(--ef-font); white-space: nowrap; margin-bottom: -1px;
+}
+.pg-inventory .pg-filters .pg-chip:hover { color: var(--ef-text); }
+.pg-inventory .pg-filters .pg-chip.on { color: var(--ef-gold); border-bottom-color: var(--ef-gold); background: none; }
+.pg-tools { display: flex; gap: 4px; margin-left: auto; flex: 0 0 auto; }
+.pg-tool {
+  width: 30px; height: 30px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  background: #1a1022; border: 1px solid #3a2a3a; border-radius: 0;
+}
+.pg-tool:hover { border-color: #6a4526; background: #24142c; }
+.pg-tool.on { border-color: var(--ef-gold); background: #2a1830; }
+.pg-tool:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
+.pg-inventory .pg-quicksell:has(> .pg-qs-info:empty:first-child) .pg-auto { margin-left: auto; }
+.pg-inventory .pg-chip.pg-auto { border-radius: 0; min-height: 28px; }
+.pg-inventory .pg-matbag { margin-top: 10px; }
+.pg-inventory .pg-matbag-head { margin-bottom: 2px; }
+.pg-inventory .pg-questbag-label { color: var(--ef-muted); letter-spacing: 0.12em; }
+.ef-touch .pg-tool { width: 40px; height: 40px; }
+.ef-touch .pg-inventory .pg-filters .pg-chip { min-height: 40px; }
+/* Schmal (Hochformat): Figur oben, Werte darunter, Plätze in einer Reihe */
+@media (max-width: 640px) {
+  .pg-inventory .pg-doll {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-areas: "stage stage stage stage stage stage stage" "info info info info info info info" "head chest hands feet amulet ring weapon";
+  }
+  .pg-inventory .pg-gs { display: none; }
+  .pg-inventory .pg-doll-info { border-top: 0; padding: 0 0 4px; }
+  .pg-inventory .pg-doll-stats { display: flex; }
+}
+/* Ohne gewählten Gegenstand füllt die Figur die ganze linke Spalte; die Plätze verteilen sich an den Seiten */
+@media (min-width: 641px) {
+  .pg-inventory .pg-inv:not(:has(.pg-sheet)) .pg-doll { grid-row: 1 / -1; align-self: stretch; grid-template-rows: repeat(4, minmax(0, 1fr)) auto; }
+  .pg-inventory .pg-inv:not(:has(.pg-sheet)) .pg-stage-canvas { width: 312px; height: 300px; }
+}
+/* Handy quer (wenig Höhe): Figur bleibt stehen, nur die Tasche scrollt; Details legen sich über die Figur */
+@media (min-width: 641px) and (max-height: 520px) {
+  .pg-inventory .pg-scroll.pg-inv {
+    flex: 1 1 auto; min-height: 0; overflow: hidden; padding-bottom: 8px; position: relative;
+    grid-template-rows: minmax(0, 1fr); grid-template-areas: "doll bag";
+  }
+  .pg-inventory .pg-inv .pg-doll { grid-row: 1 / -1; align-self: stretch; overflow: hidden; grid-template-rows: repeat(4, minmax(0, 1fr)) auto; gap: 4px 6px; padding: 8px; }
+  .pg-inventory .pg-inv .pg-stage-canvas { width: 208px; height: 200px; }
+  .pg-inventory .pg-bagwrap { grid-row: 1 / -1; min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+  .pg-inventory .pg-doll-info { flex-direction: row; flex-wrap: wrap; justify-content: center; column-gap: 10px; padding-top: 4px; }
+  .pg-inventory .pg-doll-name { font-size: 15px; }
+  .pg-inventory .pg-doll-stats { flex-basis: 100%; margin-top: 2px; }
+  .pg-inventory .pg-sheet.open {
+    grid-column: 1 / 2; grid-row: 1 / 2; position: absolute; inset: 0; z-index: 5; overflow-y: auto; overscroll-behavior: contain;
+    background: #0c0712; border: 1px solid var(--ef-panel-edge);
+  }
+  .pg-inventory .pg-sheet.open .pg-detail { border: 0; border-radius: 0; min-height: 100%; box-sizing: border-box; padding-right: 48px; }
+  .pg-inventory .pg-sheet-close { display: grid; place-items: center; position: absolute; right: 4px; top: 4px; z-index: 2; width: 44px; height: 44px; background: transparent; border: 0; color: var(--ef-muted); font-size: 18px; }
+}
