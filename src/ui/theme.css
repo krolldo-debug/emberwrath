@@ -45,7 +45,10 @@
   background: var(--ef-panel-edge-hi); box-shadow: 0 0 0 1px #0b0710;
 }
 .ef-panel::before { top: -4px; left: -4px; }
-.ef-panel::after { bottom: -4px; right: -4px; }
+/* Unten rechts nur der sichtbare Teil (4×4 innen): Ein Beschlag über den Rand hinaus vergrößert in rollbaren Tafeln
+   die Bildlauffläche um 4 px. Bei festen Bildlaufleisten (Windows) sprang dann bei jeder Eingabe die Leiste an und aus,
+   die Tafel wackelte (z. B. Registrierung). Oben links ragt nichts in die Bildlauffläche, dort bleibt der volle Beschlag. */
+.ef-panel::after { bottom: 0; right: 0; width: 4px; height: 4px; }
 .ef-screen { touch-action: pan-y; }
 .ef-title { text-shadow: 0 2px 0 #3a0e05, 0 0 22px rgba(255, 120, 30, 0.5); }
 .ef-sub { letter-spacing: 0.04em; }
