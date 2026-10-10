@@ -8,6 +8,7 @@ import { SLASH_STYLES } from '../sprites/effects.js';
 import { rand, angleDiff } from '../core/math.js';
 import { HazardCloud, NetSnare } from './Hazards.js';
 import { levelGapColor, attackerLevel, staggerGuard, knockbackMult } from '../progression/levelGap.js';
+import { mobTuning } from '../progression/difficulty.js';
 
 const CLOUD_TELE = { poison: [120, 220, 90], frost: [140, 200, 255], fire: [255, 140, 60], spore: [190, 130, 240], curse: [190, 90, 230] };
 
@@ -69,6 +70,12 @@ export class Enemy extends Actor {
     this.dmgMul = 1; // Schadensfaktor aus Zonenvariante/Champion (power = lvlPower · dmgMul)
     if (this.level !== base) this.xpOverride = Math.round((def.xp ?? 10) * (1 + (this.level - base) * 0.12));
     this.maxHp = this.hp = Math.round(def.hp * (opts.hpScale ?? 1) * this.power);
+    // Grundhärte (progression/difficulty.js): bleibt bei Zonenvariante, Stufenwechsel und Champion erhalten
+    const tune = mobTuning(this.level, def, typeKey);
+    this.earlyHp = tune.early; // gilt nicht für Zonenvarianten (eigene Werte)
+    this.maxHp = this.hp = Math.round(this.maxHp * tune.hp);
+    this.dmgMul *= tune.damage;
+    this.power = this.lvlPower * this.dmgMul;
     this.specialTimer = def.specialStart ?? rand(2, 4);
     this.special = null;
     this.lastFrame = null;
@@ -850,7 +857,7 @@ export class Enemy extends Actor {
     if (!v) return;
     const lo = v.levels?.[0] ?? this.level, hi = v.levels?.[1] ?? lo;
     const L = lo + Math.floor(Math.random() * (hi - lo + 1));
-    const hpFactor = this.maxHp / (this.def.hp * this.lvlPower); // hpScale, Gruppe, Champion bleiben erhalten
+    const hpFactor = this.maxHp / (this.def.hp * this.lvlPower) / (this.earlyHp ?? 1); // hpScale, Gruppe, Champion, Grundhärte bleiben erhalten
     this.level = L;
     this.lvlPower = 1 + (L - lo) * 0.08;
     this.maxHp = this.hp = Math.round(v.hp * this.lvlPower * hpFactor);
@@ -858,6 +865,7 @@ export class Enemy extends Actor {
     this.power = this.lvlPower * this.dmgMul;
     this.xpOverride = Math.round(v.xp * (1 + (L - lo) * 0.12));
     this.variant = world.zone.id;
+    this.earlyHp = 1;
   }
 
   // Stufe nachträglich setzen (Teilstücke, gerufene Begleiter übernehmen die Stufe des Verursachers)

@@ -182,7 +182,7 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   `levelGapColor()` für die Stufenzahl über Gegnern.
   **Stand 10.10.:** Kurve ab 3 Stufen steiler (3: 70 %, 4: 50 %, 5: 33 %, 6: 22 %, 8: 9 %, ab 10: 4 %), Elite ab Stufe 20 zählen
   zwei Stufen höher (`combatLevel`). Standfestigkeit `staggerGuard`/`knockbackMult` in `Enemy.onHurt`/`takeHit`: drei Stufen höher
-  unterbrechen nur schwere Treffer, ab sechs keine, sonst kurze Ruhe nach dem Taumeln (bis Stufe 4 keine), Rückstoß nach oben gedämpft.
+  unterbrechen nur schwere Treffer, ab sechs keine, sonst kurze Ruhe nach dem Taumeln (Startgebiete kürzer), Rückstoß nach oben gedämpft.
 - **Materialbeutel:** Materialien liegen in `inventory.mats` und belegen keine Taschenplätze (alte Stände werden umgelagert).
   `inventory:sellMat`, Selektor `materialList`. Neue Charaktere haben Auto-Verkauf „Weiße“.
 - **Weniger Plunder:** Weiße Ausrüstung normaler Gegner fällt direkt als Gold (`junk: true`), Grün dafür öfter (29 % statt 14 % der Teile), Blau je Kill unverändert.

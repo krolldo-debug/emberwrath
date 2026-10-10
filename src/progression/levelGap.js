@@ -66,13 +66,13 @@ export function attackerLevel(source, fallback = null) { return levelOf(attacker
 // fest – Messung 10.10.: Held 27 besiegte Gruppen der Stufe 36–38 und Elite der Stufe 35, ohne selbst getroffen zu werden.
 // Rückgabe: Sperrzeit in s nach dem Taumeln (bis wieder ein Treffer unterbricht) oder null = dieser Treffer unterbricht nicht.
 //   ab 6 Stufen höher: nie; ab 3 höher und Elite/Champions: nur schwere Treffer (Kombo-Abschluss, Krit), dann 2,5 bzw. 2 s Ruhe;
-//   sonst jeder Treffer, danach kurze Ruhe (Startgebiete bis Stufe 4 ohne, damit der Einstieg leicht bleibt).
+//   sonst jeder Treffer, danach kurze Ruhe (Startgebiete etwas kürzer; ohne Ruhe ließen sich Gegner dauerhaft festhalten).
 export const STAGGER_HARD = 3, STAGGER_IMMUNE = 6;
 export function staggerGuard(gap, { heavy = false, elite = false, level = 1 } = {}) {
   if (gap >= STAGGER_IMMUNE) return null;
   if (gap >= STAGGER_HARD) return heavy ? 2.5 : null;
   if (elite) return heavy ? 2 : null;
-  const base = level <= 4 ? 0 : level < 10 ? 0.5 : 0.9;
+  const base = level <= 4 ? 0.4 : level < 10 ? 0.6 : 0.9;
   return heavy ? base * 0.5 : base;
 }
 
