@@ -1,6 +1,6 @@
 // Boss-Balance zentral (Thread B): Schadensfaktor je Boss und weicher Wutmodus („Raserei“).
 //
-// - def.dmgMult (enemyTypes*.js / defs_*.js): skaliert jeden Treffer, dessen Urheber der Boss ist – Nahkampf,
+// - def.dmgMult (enemyTypes*.js / defs_*.js), in Gruppen-Dungeons × groupDmgMult (finder/config.js): skaliert jeden Treffer, dessen Urheber der Boss ist – Nahkampf,
 //   Geschosse, Warnflächen, Wellen, Bodenflächen (Urheber über owner/hero/caster/source bis zu drei Stufen).
 //   Beschworene Diener (eigene def ohne boss) bleiben unverändert.
 // - Raserei: Nach FURY_START s Kampf (Boss engaged) +FURY_STEP Schaden je FURY_EVERY s, Toast und roter Schimmer.
@@ -36,7 +36,7 @@ export function furyMult(t) {
 export function applyBossPower(hit, target) {
   if (!hit || hit.bossPower != null || !target || target.team === 'enemy') return hit;
   const b = bossOf(hit.source);
-  const m = b ? (b.trialDmgMult ?? b.def.dmgMult ?? 1) * (b.furyMult ?? 1) : 1;
+  const m = b ? (b.trialDmgMult ?? b.def.dmgMult ?? 1) * (b.groupDmgMult ?? 1) * (b.furyMult ?? 1) : 1;
   hit.bossPower = m;
   if (m !== 1 && hit.damage > 0) hit.damage = Math.max(1, Math.round(hit.damage * m));
   return hit;
