@@ -5,7 +5,7 @@ import { langSwitch } from '../i18n/index.js';
 
 // Geräte-Einstellungen (game.prefs, INTEGRATION.md §11.8) – Thread D.
 // Schlüssel: volume (0..1), musicVolume (0..1), muted, guidePath (Questpfad, B liest), screenShake,
-// minimap, touchScale (0.85 | 1 | 1.2), quality (auto | low | medium | high). Alles pro Gerät, nicht im Spielstand.
+// minimap, touchScale (0.85 | 1 | 1.2), quality (auto | low | medium | high), guideHints (Einstiegshinweise). Alles pro Gerät, nicht im Spielstand.
 export const TOUCH_SIZES = [
   { value: 0.85, label: 'Klein' },
   { value: 1, label: 'Normal' },
@@ -92,6 +92,7 @@ export function createSettingsSection(game) {
     row('Effekte', h('span.set-inline', fx, fxVal), 'Kampf, Zauber, Umgebung'),
     row('Ton aus', mute, 'Taste N'),
     row('Questpfad am Boden', check('guidePath', true), 'Weg zur verfolgten Quest'),
+    row('Einstiegshinweise', check('guideHints', true), 'kurze Tipps für neue Helden'),
     row('Bildschirmwackeln', check('screenShake', true), 'bei Treffern und Explosionen'),
     row('Minimap', check('minimap', true), 'Karte bleibt über M erreichbar'),
     h('div.set-row', h('span.set-label', 'Grafik', qNote), qual),

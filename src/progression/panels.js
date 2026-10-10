@@ -8,6 +8,7 @@ import { xpInfo, trackedQuests, trackedQuestId, questStatus, questsForNpc, npcNa
 import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, rewardsEl, barEl, objectivesEl, attachTip, hideTip, reactive, tapper } from './widgets.js';
 import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
+import { HeroStage, statGlyph } from './heroStage.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
 // neu (EV.STATE_CHANGED) und löst Spielaktionen nur über Commands aus.
@@ -40,9 +41,8 @@ function titleOf(st) {
   return id ? ACHIEVEMENTS[id]?.title ?? null : null;
 }
 
-// Tausenderpunkte für Goldbeträge in Texten; Touch-Geräte bekommen Tipp-Hinweise, Maus-Geräte Klick-Hinweise
+// Tausenderpunkte für Goldbeträge in Texten
 const fmt = (n) => Number(n).toLocaleString('de-DE');
-const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Das Reittier lässt sich gerade nicht erlernen. Versuch es gleich noch einmal.' };
 const EQUIP_FAIL = { class: 'Deine Klasse kann das nicht führen.', level: 'Deine Stufe ist zu niedrig.', notEquippable: '' };
 const SLOT_PH = { weapon: 'sword', head: 'helm', chest: 'armor', hands: 'gloves', feet: 'boots', ring: 'ring', amulet: 'amulet' };
@@ -71,6 +71,8 @@ function inventoryView(s) {
   let multi = null; // Mehrfachauswahl zum Verkaufen: Set von Taschenplätzen
   const dbl = tapper();
   const content = s.content;
+  const stage = new HeroStage();
+  let autoTipAt = 0; // kurz nach dem Umschalten steht die neue Stufe als Schild am Knopf (Touch hat keinen Tooltip)
 
   return (redraw) => {
     const st = s.state, inv = st.slices.inventory;
@@ -148,106 +150,131 @@ function inventoryView(s) {
       // Ziehen aus der Tasche auf einen Ausrüstungsplatz
       el.addEventListener('dragover', (e) => e.preventDefault());
       el.addEventListener('drop', (e) => { e.preventDefault(); if (dragFrom != null) primary(dragFrom); dragFrom = null; });
-      return h(`div.pg-doll-slot.s-${slot}`, el, h('span.pg-eq-label', EQUIP_SLOT_NAMES[slot]));
+      return h(`div.pg-doll-slot.s-${slot}`, el);
     };
     const stats = safeStats(st, content);
     const cls = classId ? content.find('class', classId) : null;
     const gearScore = Math.round(EQUIP_SLOTS.reduce((sum, sl) => sum + itemScore(inv.equipment[sl] ? content.find('item', inv.equipment[sl]) : null), 0));
+    // Figur mit sichtbarer Ausrüstung (inkl. Garderobe) statt einer Werteliste; Werte klein darunter
+    stage.set(st.slices.character, s.game.character?.previewGear?.() ?? null);
+    stage.start();
+    const stat = (glyph, label, value) => h('li', { title: label, 'aria-label': label },
+      h('img', { src: statGlyph(glyph), alt: '', width: 14, height: 14 }), h('span', value));
     const doll = h('section.pg-doll',
-      eqSlot('head'), eqSlot('amulet'), eqSlot('chest'), eqSlot('ring'), eqSlot('hands'), eqSlot('weapon'), eqSlot('feet'),
-      h('div.pg-doll-mid',
-        h('div.pg-doll-name', st.slices.character?.name ?? 'Held'),
+      eqSlot('head'), eqSlot('chest'), eqSlot('hands'), eqSlot('feet'),
+      eqSlot('amulet'), eqSlot('ring'), eqSlot('weapon'),
+      h('div.pg-stage', stage.canvas),
+      h('div.pg-doll-info',
+        h('div.pg-doll-name', { translate: 'no' }, st.slices.character?.name ?? 'Held'),
         titleOf(st) ? h('div.pg-doll-title', titleOf(st)) : null,
         h('div.pg-doll-sub', h('span', `Stufe ${level}`), cls ? h('span', cls.name) : null),
-        h('dl.pg-doll-stats',
-          h('dt', 'Leben'), h('dd', String(stats.maxHp ?? 0)),
-          h('dt', STAT_NAMES.power), h('dd', String(Math.round(stats.power ?? 0))),
-          h('dt', STAT_NAMES.armor), h('dd', String(Math.round(stats.armor ?? 0))),
-          h('dt', 'Krit'), h('dd', `${Math.round((stats.critChance ?? 0) * 100)} %`)),
-        h('div.pg-gs', { title: 'Summe der Ausrüstungsstärke' }, h('span', 'Ausrüstung'), h('b', String(gearScore)))),
+        h('ul.pg-doll-stats',
+          stat('hp', 'Leben', String(stats.maxHp ?? 0)),
+          stat('power', STAT_NAMES.power, String(Math.round(stats.power ?? 0))),
+          stat('armor', STAT_NAMES.armor, String(Math.round(stats.armor ?? 0))),
+          stat('crit', 'Kritische Trefferchance', `${Math.round((stats.critChance ?? 0) * 100)} %`),
+          stat('gear', 'Ausrüstungsstärke', String(gearScore)))),
     );
 
-    // --- Aktionen
+    // --- Aktionen: feste Leiste unter den Details. Hauptknopf groß, Verkaufen daneben, Wegwerfen als Symbol.
+    const glyph = (id, size = 18) => h('img', { src: statGlyph(id), alt: '', width: size, height: size });
+    const priceEl = (g) => h('span.pg-price', iconEl('gold', 16), h('b', fmt(g)));
+    const btn = (label, onclick, { primary: main = false, danger = false, disabled = false, extra = null } = {}) =>
+      h(`button.ef-btn.pg-btn.pg-bar-btn${main ? '.primary' : ''}${danger ? '.danger' : ''}`, { type: 'button', onclick, disabled }, h('span', label), extra);
     const actions = [];
+    let trash = null;
     if (sel?.bag != null) {
       const it = inv.slots[sel.bag], def = content.find('item', it.itemId);
       if (equipSlotFor(def)) {
         const lvlBad = (def.reqLevel ?? 1) > level, clsBad = !canUseClass(def, classId);
         actions.push(lvlBad || clsBad
-          ? actionBtn(clsBad ? 'Nicht für deine Klasse' : `Ab Stufe ${def.reqLevel}`, null, { disabled: true })
-          : actionBtn('Ausrüsten', () => primary(sel.bag), { primary: true }));
+          ? btn(clsBad ? 'Nicht für deine Klasse' : `Ab Stufe ${def.reqLevel}`, null, { primary: true, disabled: true })
+          : btn('Ausrüsten', () => primary(sel.bag), { primary: true }));
       }
-      if (def.type === 'consumable') actions.push(actionBtn('Benutzen', () => primary(sel.bag), { primary: true }));
+      if (def.type === 'consumable') actions.push(btn('Benutzen', () => primary(sel.bag), { primary: true }));
       if (def.type === 'mount') {
         const known = st.slices.character?.mounts?.owned?.includes(def.mountId);
-        actions.push(known ? actionBtn('Schon bekannt', null, { disabled: true }) : actionBtn('Erlernen', () => primary(sel.bag), { primary: true }));
+        actions.push(known ? btn('Schon bekannt', null, { primary: true, disabled: true }) : btn('Erlernen', () => primary(sel.bag), { primary: true }));
       }
       if (def.type !== 'quest' && def.value) {
         const g = def.value * it.qty;
-        actions.push(actionBtn(`Verkaufen +${g}`, () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }));
+        actions.push(btn('Verkaufen', () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }, { extra: priceEl(g) }));
       }
       if (def.type !== 'quest') {
         const valuable = RARITIES[def.rarity].order >= 2;
         if (confirmDrop === sel.bag) {
-          actions.push(actionBtn('Wirklich wegwerfen', () => { confirmDrop = null; act('inventory:discard', { slot: sel.bag }); }, { danger: true }));
-          actions.push(actionBtn('Behalten', () => { confirmDrop = null; redraw(); }));
+          actions.length = 0;
+          actions.push(btn('Wirklich wegwerfen', () => { confirmDrop = null; act('inventory:discard', { slot: sel.bag }); }, { danger: true }));
+          actions.push(btn('Behalten', () => { confirmDrop = null; redraw(); }));
         } else {
-          actions.push(actionBtn(it.qty > 1 ? 'Alle wegwerfen' : 'Wegwerfen', () => {
+          const label = it.qty > 1 ? 'Alle wegwerfen' : 'Wegwerfen';
+          trash = h('button.pg-tool.pg-trash', { type: 'button', title: label, 'aria-label': label, onclick: () => {
             if (valuable || it.qty > 1) { confirmDrop = sel.bag; redraw(); } else act('inventory:discard', { slot: sel.bag });
-          }, { danger: true }));
+          } }, glyph('trash'));
         }
       }
     } else if (sel?.eq) {
-      actions.push(actionBtn('Ablegen', () => unequip(sel.eq), { primary: true }));
+      actions.push(btn('Ablegen', () => unequip(sel.eq), { primary: true }));
     } else if (sel?.mat) {
       const def = content.find('item', sel.mat), n = inv.mats?.[sel.mat] ?? 0;
       if (def?.value && n) {
         const one = sel.mat;
-        actions.push(actionBtn(`Alle verkaufen +${fmt(def.value * n)}`, () => { sel = null; const r = act('inventory:sellMat', { itemId: one }); if (r?.ok) msg = `${r.count}× ${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }));
+        actions.push(btn('Alle verkaufen', () => { sel = null; const r = act('inventory:sellMat', { itemId: one }); if (r?.ok) msg = `${r.count}× ${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }, { extra: priceEl(def.value * n) }));
       }
     }
     const detail = selItemId
       ? h('div.pg-sheet.open',
-        h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', onclick: () => { sel = null; redraw(); } }, '✕'),
-        itemDetail(content, selItemId, { ...detailOpts, actions, compare: sel?.bag != null, actionsTop: true }),
-        msg ? h('p.pg-msg', msg) : null)
-      : h('div.pg-sheet', h('div.pg-detail.empty',
-        h('p.ef-note', TOUCH ? 'Antippen zeigt Details und Vergleich. Doppeltippen legt an oder benutzt.' : 'Klick zeigt Details und Vergleich. Doppelklick legt an oder benutzt.'),
-        h('p.ef-note', '▲ = besser als deine Ausrüstung. Heiltränke: Taste H oder Trank-Knopf.')),
-      msg ? h('p.pg-msg', msg) : null);
+        h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', title: 'Schließen', onclick: () => { sel = null; confirmDrop = null; redraw(); } }, '✕'),
+        h('div.pg-sheet-body',
+          itemDetail(content, selItemId, { ...detailOpts, compare: sel?.bag != null }),
+          msg ? h('p.pg-msg', msg) : null),
+        actions.length || trash ? h('div.pg-sheet-bar', actions, trash) : null)
+      : null;
 
-    // Schnellverkauf: Weiße verkaufen, Auto-Verkauf, Mehrfachauswahl
+    // Schnellverkauf (nur wenn es etwas zu tun gibt) und Mehrfachauswahl
     function quickSellBar() {
       if (multi) {
         const list = [...multi].filter((i) => inv.slots[i]);
         const gold = sellValue(st, content, list);
         return h('div.pg-quicksell.multi',
-          h('span.pg-qs-info', list.length ? `${list.length} gewählt · +${fmt(gold)} Gold` : 'Teile antippen zum Auswählen'),
-          actionBtn('Verkaufen', () => { const r = act('inventory:sell', { slots: list }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; multi = null; redraw(); } }, { small: true, primary: true, disabled: !list.length }),
-          actionBtn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }, { small: true }));
+          h('span.pg-qs-info', list.length ? `${list.length} gewählt` : 'Teile antippen zum Auswählen'),
+          btn('Verkaufen', () => { const r = act('inventory:sell', { slots: list }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; multi = null; redraw(); } }, { primary: true, disabled: !list.length, extra: list.length ? priceEl(gold) : null }),
+          btn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }));
       }
       const junk = sellableSlots(st, content, 'common');
-      const auto = inv.autoSell ?? null;
-      const AUTO = [[null, 'Aus'], ['common', 'Weiße'], ['uncommon', 'Weiße + Grüne']];
-      const next = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
+      if (!junk.length) return null;
       return h('div.pg-quicksell',
-        junk.length ? actionBtn(`Weiße verkaufen · ${junk.length} (+${sellValue(st, content, junk)})`, () => {
+        btn(`Weiße verkaufen · ${junk.length}`, () => {
           const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { small: true }) : h('span.pg-qs-info', 'Kein weißer Plunder'),
-        h(`button.pg-chip.pg-auto${auto ? '.on' : ''}`, { type: 'button', title: 'Beim Aufsammeln automatisch verkaufen (Verbesserungen werden behalten)', onclick: () => { act('inventory:autoSell', { mode: next }); } },
-          `Auto-Verkauf: ${AUTO.find(([m]) => m === auto)[1]}`));
+        }, { extra: priceEl(sellValue(st, content, junk)) }));
+    }
+    // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
+    const auto = inv.autoSell ?? null;
+    const AUTO = [[null, 'Aus'], ['common', 'Weiße'], ['uncommon', 'Weiße + Grüne']];
+    const autoLabel = (m) => `Auto-Verkauf: ${AUTO.find(([x]) => x === m)[1]}`;
+    const autoNext = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
+    const autoBtn = h(`button.pg-tool.pg-auto${auto ? '.on' : ''}`, {
+      type: 'button', title: autoLabel(auto), 'aria-label': autoLabel(auto), 'data-mode': auto ?? 'off',
+      onclick: () => { autoTipAt = performance.now(); act('inventory:autoSell', { mode: autoNext }); },
+    }, glyph('auto'), autoTip());
+    function autoTip() {
+      const left = 1600 - (performance.now() - autoTipAt);
+      if (left <= 0) return null;
+      const tip = h('span.pg-auto-tip', { 'aria-hidden': 'true' }, autoLabel(auto));
+      setTimeout(() => tip.remove(), left);
+      return tip;
     }
 
     // Materialbeutel: belegt keine Taschenplätze, hat keine Größe
     function matSection() {
       const list = materialList(st, content);
       return h('section.pg-matbag', { 'aria-label': 'Materialbeutel' },
-        h('div.pg-matbag-head', h('span.pg-questbag-label', 'Materialbeutel'), h('span.pg-qs-info', list.length ? 'Belegt keine Taschenplätze' : 'Noch leer. Materialien landen hier und belegen keine Taschenplätze.')),
-        list.length ? h('div.pg-matbag-grid', list.map((e) => {
+        h('div.pg-matbag-head', { title: 'Materialien belegen keine Taschenplätze.' }, h('span.pg-questbag-label', 'Material')),
+        h('div.pg-matbag-grid', list.map((e) => {
           const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, size: 36, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
           attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
           return el;
-        })) : null);
+        })));
     }
 
     const used = inv.slots.length - freeSlots(st);
@@ -259,11 +286,13 @@ function inventoryView(s) {
             h('div.pg-filters', { role: 'tablist' }, FILTERS.map(([id, label]) => h(`button.pg-chip${filter === id ? '.on' : ''}`, {
               type: 'button', role: 'tab', 'aria-selected': String(filter === id), onclick: () => { filter = id; redraw(); },
             }, label)),
-            h('button.pg-chip.pg-sort', { type: 'button', title: 'Sortieren: Ausrüstung, Verbrauch, Material, Quest', onclick: () => { sel = null; act('inventory:sort', {}); } }, '⇅ Sortieren'),
-            h(`button.pg-chip.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere Teile antippen und zusammen verkaufen', onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, multi ? '✓ Auswahl' : '☐ Auswählen'))),
+            h('div.pg-tools',
+              autoBtn,
+              h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, glyph('sort', 14)),
+              h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, glyph('multi', 14))))),
           quickSellBar(),
           h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
-          matSection(),
+          materialList(st, content).length ? matSection() : null,
           inv.questBag?.length ? h('div.pg-questbag', { title: 'Questgegenstände und Questbelohnungen, für die in der Tasche kein Platz war. Sie wandern zurück, sobald Platz frei ist.' },
             h('span.pg-questbag-label', 'Questbeutel'),
             inv.questBag.map((e) => { const d = content.find('item', e.itemId); return h('span.pg-questbag-item', itemIconEl({ ...d, name: null }, 24), h('b', `${e.qty}× ${d?.name ?? e.itemId}`)); })) : null,

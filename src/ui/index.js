@@ -9,6 +9,7 @@ import { installWardrobe } from './WardrobePanel.js';
 import { ZoneTransition } from './ZoneTransition.js';
 import { Unlocks } from './Unlocks.js';
 import { Rewards } from './Rewards.js';
+import { Guide } from './Guide.js';
 import { Weather } from '../gfx/Weather.js';
 import { QualityControl } from './Quality.js';
 import { installDialogPortraits } from './DialogPortrait.js';
@@ -52,11 +53,12 @@ export function installUi(game) {
     const unlocks = new Unlocks(session, hud);
     hud.unlocks = unlocks; // Banner haben Vorrang vor Freischalt-Karten (Warteschlange im Hud)
     const rewards = new Rewards(session, hud); // Kill-Serie, fliegende Beute, EP-Glühen, Fähigkeit bereit
+    const guide = new Guide(session, hud); // Einstiegshinweise für neue Helden (einmal je Hinweis)
     listenTravel(session); // Wegstein -> Reisemenü
     return {
-      update: (dt) => { fx.update(dt); hud.update(dt); rewards.update(dt); toasts.update(dt); minimap.update(dt); zt.update(dt); unlocks.update(dt); },
+      update: (dt) => { fx.update(dt); hud.update(dt); rewards.update(dt); toasts.update(dt); minimap.update(dt); zt.update(dt); unlocks.update(dt); guide.update(dt); },
       draw: (ctx) => fx.draw(ctx),
-      dispose: () => { rewards.dispose(); unlocks.dispose(); zt.dispose(); minimap.dispose(); hud.dispose(); toasts.dispose(); },
+      dispose: () => { guide.dispose(); rewards.dispose(); unlocks.dispose(); zt.dispose(); minimap.dispose(); hud.dispose(); toasts.dispose(); },
     };
   }, 100);
   game.panels.register('menu', (session) => createMenuPanel(session), { title: 'Menü' });

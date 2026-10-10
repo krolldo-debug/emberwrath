@@ -1097,12 +1097,6 @@ html.ef-no-minimap:not(.ef-touch) .ef-hud .hud-tracker { top: calc(var(--hud-gap
 /* Der Fenster-Rahmen div.pg-mount (progression/widgets.js) teilt sich den Klassennamen mit den Reittier-Zeilen
    (li.pg-mount): die Zeilen-Regel gab jedem Fenster Rand und Innenabstand, auf dem Handy ragte es 9 px aus dem Bild. */
 div.pg-mount { display: contents; padding: 0; border: 0; background: none; }
-/* Dungeonsuche: Inhalt nicht breiter als das Fenster (.ef-center zentriert sonst auf Inhaltsbreite) */
-.fd-panel .fd-body { align-self: stretch; width: 100%; min-width: 0; }
-.fd-panel .fd-dungeon { grid-template-columns: minmax(42%, 1fr) minmax(0, auto) auto; }
-.fd-panel .fd-dsub { text-align: right; }
-.fd-panel .fd-dungeon > *, .fd-panel .fd-dname { min-width: 0; }
-.fd-panel .fd-dsub { white-space: normal; }
 /* Inventar-Filter auf dem Handy: rechter Rand blendet aus, damit man sieht, dass es weitergeht */
 /* Taschen-Filterleiste auf schmalen Schirmen umbrechen statt seitlich scrollen (Sortier-Chip bleibt sichtbar) */
 @media (max-width: 640px) {
@@ -1115,12 +1109,6 @@ div.pg-mount { display: contents; padding: 0; border: 0; background: none; }
 .pg-tabs .pg-tabbtn { flex: 0 0 auto; }
 /* Talente: auf Handy und kleinen Fenstern eine Talentspalte, sonst bricht jede Zeile nach zwei Wörtern um */
 @media (max-width: 960px) { .tal-panel .tal-grid { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 560px) {
-  .fd-panel .fd-dungeon { grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; }
-  .fd-panel .fd-dungeon .fd-dname { grid-column: 1; grid-row: 1; }
-  .fd-panel .fd-dungeon .fd-dsub { grid-column: 1; grid-row: 2; text-align: left; }
-  .fd-panel .fd-dungeon .fd-dtag { grid-column: 2; grid-row: 1 / span 2; }
-}
 /* Talentfenster: breiter auf dem Computer; Lernen-Knopf unten rechts neben den Rang-Kästchen,
    damit Name und Beschreibung die volle Kartenbreite haben (vorher brach jede Zeile nach zwei Wörtern um) */
 .ef-panel.tal-panel { max-width: min(96vw, 920px); width: min(96vw, 920px); }
