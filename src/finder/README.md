@@ -24,7 +24,8 @@ Warteschlange niemand Passendes sucht, füllen **Söldner** (Bots) die freien Pl
 - Gegner in Gruppendungeons sind auf drei Personen ausgelegt (Stand 10.10. abends): Leben ×1,8 und Schaden ×1,7 (der
   Verteidiger fängt ihn ab), Bosse Leben ×2,7; je Boss anpassbar (`bossHpScaleById`, `bossDmgScaleById`, Schaden über
   `boss.groupDmgMult` in world/bossFury.js). Varkhul (Stufe 5) ist für Gruppen milder, Mutter Fäulnis und der Frostwyrm
-  härter. Nach einer Niederlage füllen die Söldner ihre Tränke auf. Geprüft mit ganzen Dungeon-Läufen (Spieler-Bot +
+  härter. Dieselben Werte gelten, wenn jemand allein durchs Portal in einen Dungeon geht (`groupScale.js`, Nutzerwunsch 10.10.;
+  Glutprüfungen ausgenommen). Nach einer Niederlage füllen die Söldner ihre Tränke auf. Geprüft mit ganzen Dungeon-Läufen (Spieler-Bot +
   zwei Söldner, alle vier Klassen): jeder Dungeon auf seiner Stufe schaffbar, Varkhul mit gelegentlicher Niederlage.
 
 ## Schalter (`config.js`, FINDER_CONFIG)
