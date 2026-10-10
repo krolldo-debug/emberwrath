@@ -1017,7 +1017,7 @@ def build():
             bk = back_img(q, ph)
             bd, cm, fire, blade, tip = body_img(q)
             im = bk
-            if art == 'bogen': im = over(im, smear(prev, p, hot=0.75 if pn in ('h1', 'h2') else 1.0))
+            # beim Hieb über den Kopf keine Sichel: die Klinge ist dort verkürzt, die Bahn läge als flaches Band oben
             if art == 'hit': im = over(im, smear(POSEN['hieb2'], p, hot=0.8))
             im = over(im, bd)
             im = over(im, crown_fl(cm, len(frames) % FLA_N, 4.0 if art in ('gross', 'hit') else 3.0))
@@ -1067,7 +1067,7 @@ def build():
     STAUB = ['#6a5040', '#4e3a30', '#3a2a24']
     meta = {
         'name': 'malgareth', 'glut': ['#fff2c0', '#ffb648', '#c8420c'],
-        'fokus': [300, BX - 34],
+        'fokus': [300, BX - 62],
         'fig': {'x': int(FXs), 'y': int(FYs), 'w': int(fw), 'h': int(fh_)},
         'ruhe': [dict(r='hinten', n=UMH_N, ms=UMH_MS), dict(r='koerper', seq=ATEM, ms=ATEM_MS),
                  dict(r='krone', n=FLA_N, ms=FLA_MS, dy=krone_dy, von='koerper'), dict(r='flamme', n=FLA_N, ms=FLA_MS)],
