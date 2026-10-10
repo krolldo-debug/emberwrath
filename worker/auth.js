@@ -8,6 +8,8 @@
 // Ergebnis: { uid, email } oder null.
 
 const JWKS_TTL_MS = 10 * 60 * 1000;
+// Leere Liste (Netzfehler) nur kurz merken; unbekannte kid (Schlüsselwechsel) höchstens einmal je Minute neu laden.
+const JWKS_EMPTY_TTL_MS = 30_000, JWKS_REFRESH_MS = 60_000;
 const jwksCache = new Map(); // url -> { at, keys: Map(kid -> CryptoKey) }
 const FAIL_TTL_MS = 60_000, FAIL_MAX = 5000;
 const failed = new Map(); // Token-Hash -> Zeitpunkt (Rückfall-Fehlschläge)
@@ -35,10 +37,14 @@ const ALGS = {
   RS256: { import: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, verify: { name: 'RSASSA-PKCS1-v1_5' } },
 };
 
-async function jwksKeys(base, fetchImpl) {
+async function jwksKeys(base, fetchImpl, kid = null) {
   const url = `${base}/auth/v1/.well-known/jwks.json`;
   const hit = jwksCache.get(url);
-  if (hit && Date.now() - hit.at < JWKS_TTL_MS) return hit.keys;
+  if (hit) {
+    const age = Date.now() - hit.at;
+    const fresh = age < (hit.keys.size ? JWKS_TTL_MS : JWKS_EMPTY_TTL_MS);
+    if (fresh && (!kid || hit.keys.has(kid) || age < JWKS_REFRESH_MS)) return hit.keys;
+  }
   const keys = new Map();
   try {
     const res = await fetchImpl(url, { headers: { accept: 'application/json' } });
@@ -78,7 +84,7 @@ export async function verifyToken(token, { supabaseUrl, anonKey, fetchImpl = fet
     payload = b64urlJson(parts[1]);
     const alg = ALGS[header.alg];
     if (alg) {
-      const key = header.kid ? (await jwksKeys(base, fetchImpl)).get(header.kid) : null;
+      const key = typeof header.kid === 'string' ? (await jwksKeys(base, fetchImpl, header.kid)).get(header.kid) : null;
       if (!key) return null;
       const ok = await crypto.subtle.verify(alg.verify, key, b64urlBytes(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
       return ok && claimsOk(payload, base) ? { uid: payload.sub, email: payload.email ?? null } : null;

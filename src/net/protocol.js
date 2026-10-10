@@ -61,8 +61,9 @@ export const ZONE_ID_RE = /^[a-z][a-z0-9_]{0,47}$/;
 const ANIM_RE = /^[a-z][a-z0-9_]{0,23}$/;
 
 // Steuerzeichen, Richtungswechsel und unsichtbare/leere Zeichen (weiches Trennzeichen, Nullbreite, Wortverbinder,
-// Hangul-Füller, Mongolischer Vokaltrenner, BOM). Danach NFC, damit gleiche Buchstaben gleich kodiert sind.
-const CTRL = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0]/g;
+// Hangul-Füller, Mongolischer Vokaltrenner, BOM, Braille-Leerzeichen, Kurzschrift-Steuerzeichen, Tag-Zeichen und
+// Variantenwähler der Ergänzungsebene). Danach NFC, damit gleiche Buchstaben gleich kodiert sind.
+const CTRL = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3164\ufe00-\ufe0f\ufeff\uffa0\u{1bca0}-\u{1bca3}\u{1d173}-\u{1d17a}\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/gu;
 export function cleanText(s, max) {
   return String(s ?? '').normalize('NFC').replace(CTRL, '').replace(/\s+/g, ' ').trim().slice(0, max);
 }

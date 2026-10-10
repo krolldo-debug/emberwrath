@@ -6,6 +6,7 @@ import { handleShop } from './shop.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
 import { ZONES } from '../src/world/zones.js';
+import { pageHeaders } from './headers.js';
 
 // Cloudflare Worker von Emberwrath: liefert die Website (statische Dateien aus dist/site) und betreibt die Welt-Server.
 //   /net/ws?zone=<id>&world=<n|auto>&exclude=<n,n>   WebSocket zu einem Shard (Zone × Welt), siehe src/net/protocol.js
@@ -26,17 +27,21 @@ const json = (body, status = 200, cache = 'no-store') => new Response(JSON.strin
 // Öffentliche Übersichten (/net/status, /net/worlds) wenige Sekunden zwischenspeichern:
 // sonst landet jeder Aufruf (Startseite, Abfragen von außen) beim einzigen Directory-Objekt.
 // Schlüssel nur aus Pfad und den bekannten Parametern: /net/status?x=zufall umgeht den Zwischenspeicher nicht.
-async function cachedJson(request, ctx, make, params = []) {
+// Nur GET/HEAD (POST /net/status ginge sonst an jedem Zwischenspeicher vorbei). Fehlt der Treffer (erste Anfrage,
+// oder *.workers.dev, wo der Zwischenspeicher nicht wirkt), gilt das Ratelimit je Adresse.
+async function cachedJson(request, env, ctx, route, make, params = []) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return json({ error: 'method' }, 405);
   const cache = globalThis.caches?.default;
   const src = new URL(request.url), clean = new URL(src.pathname, src.origin);
   for (const k of params) if (src.searchParams.has(k)) clean.searchParams.set(k, src.searchParams.get(k));
   const key = new Request(clean.toString(), { method: 'GET' });
-  if (cache && request.method === 'GET') {
+  if (cache) {
     const hit = await cache.match(key).catch(() => null);
     if (hit) return hit;
   }
+  if (await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
   const res = json(await make(), 200, 'public, max-age=5');
-  if (cache && request.method === 'GET') ctx?.waitUntil?.(cache.put(key, res.clone()).catch(() => {}));
+  if (cache) ctx?.waitUntil?.(cache.put(key, res.clone()).catch(() => {}));
   return res;
 }
 
@@ -76,8 +81,8 @@ function originOk(request, url, env) {
 async function handleNet(request, env, url, ctx) {
   const route = url.pathname.slice(NET_PATH.length);
   const zone = url.searchParams.get('zone') ?? '';
-  if (route === '/status') return cachedJson(request, ctx, async () => ({ zones: await directory(env).overview() }));
-  if ((route === '/finder' || route === '/ws' || route === '/worlds') && await limited(request, env, route)) {
+  if (route === '/status') return cachedJson(request, env, ctx, route, async () => ({ zones: await directory(env).overview() }));
+  if ((route === '/finder' || route === '/ws') && await limited(request, env, route)) {
     return json({ error: 'rate_limited' }, 429);
   }
   if (route === '/finder') {
@@ -88,7 +93,7 @@ async function handleNet(request, env, url, ctx) {
   }
   if (!ZONE_ID_RE.test(zone) || (!ZONE_IDS.has(zone) && env.NET_ANY_ZONE !== 'true')) return json({ error: 'zone' }, 400);
 
-  if (route === '/worlds') return cachedJson(request, ctx, async () => ({ zone, worlds: await directory(env).list(zone, capacity(env)) }), ['zone']);
+  if (route === '/worlds') return cachedJson(request, env, ctx, route, async () => ({ zone, worlds: await directory(env).list(zone, capacity(env)) }), ['zone']);
 
   if (route === '/ws') {
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);
@@ -118,6 +123,17 @@ function canonicalRedirect(request, url, env) {
   });
 }
 
+// Seiten aus run_worker_first gehen durch env.ASSETS.fetch. Fehlen dort die Header aus dist/site/_headers (C1),
+// setzt der Worker die gleichen Sicherheits-Header (CSP ohne Skript-Hash, also mit 'unsafe-inline' wie bisher).
+// Sind sie schon da, bleibt die Antwort unverändert.
+async function assetWithHeaders(request, env) {
+  const res = await env.ASSETS.fetch(request);
+  if (!/text\/html/i.test(res.headers.get('content-type') ?? '') || res.headers.has('content-security-policy')) return res;
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries(pageHeaders(config(env).SUPABASE_URL))) if (!out.headers.has(k)) out.headers.set(k, v);
+  return out;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -128,14 +144,16 @@ export default {
     if (url.pathname.startsWith(`${NET_PATH}/`)) {
       const route = url.pathname.slice(NET_PATH.length);
       if (route.startsWith('/forms/') || route.startsWith('/newsletter/')) {
-        try { return (await handleForms(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('forms', e?.message); return json({ error: 'server' }, 500); }
+        try { return (await handleForms(request, config(env), url, route, ctx)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('forms', e?.message); return json({ error: 'server' }, 500); }
       }
       if (route.startsWith('/shop/')) {
+        // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)
+        if (route === '/shop/checkout' && await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
         try { return (await handleShop(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('shop', e?.message); return json({ error: 'server' }, 500); }
       }
       if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
       try { return await handleNet(request, config(env), url, ctx); } catch (e) { console.error('net', e?.message); return json({ error: 'server' }, 500); }
     }
-    return env.ASSETS.fetch(request);
+    return assetWithHeaders(request, env);
   },
 };

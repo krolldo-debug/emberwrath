@@ -15,6 +15,8 @@ const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's',
 const LOOKALIKE = {
   а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ѕ: 's', ј: 'j', ԁ: 'd', ɡ: 'g', ı: 'i', г: 'r', к: 'k', м: 'm', н: 'h', т: 't', в: 'b',
   ο: 'o', α: 'a', ε: 'e', ι: 'i', κ: 'k', ν: 'v', ρ: 'p', τ: 't', υ: 'u', χ: 'x',
+  // lateinische Buchstaben ohne Zerlegung in NFKD (sonst gehen „Suppørt“, „Møderatør“, „Ðev“ durch)
+  ø: 'o', ð: 'd', đ: 'd', þ: 'p', æ: 'ae', œ: 'oe', ł: 'l', ħ: 'h', ŧ: 't',
 };
 const LOOKALIKE_RE = new RegExp(`[${Object.keys(LOOKALIKE).join('')}]`, 'g');
 
@@ -40,8 +42,8 @@ const PHRASES = ['sieg heil', 'heil hitler', 'kill yourself', 'bring dich um', '
   .flatMap((s) => both(s));
 
 const TLD = 'com|de|net|org|ru|gg|io|xyz|ly|me|tk|to|cc|tv|app|shop|eu|at|ch|info|biz|link|site|online|store|pro|top';
-// Links, auch verschleiert: „evil . com“, „discord(.)gg“, „gold [punkt] de“, „www . x“
-const LINK_RE = new RegExp(String.raw`\b(?:https?:\/\/|www\s*[.(\[{])\S+|\b[a-z0-9-]{3,}\s*(?:[(\[{]\s*)?(?:\.|dot|punkt)(?:\s*[)\]}])?\s*(?:${TLD})\b(?:\/\S*)?`, 'gi');
+// Links, auch verschleiert: „evil . com“, „discord(.)gg“, „gold [punkt] de“, „www . x“, „evil。com“ (ideografischer Punkt)
+const LINK_RE = new RegExp(String.raw`\b(?:https?:\/\/|www\s*[.(\[{])\S+|\b[a-z0-9-]{3,}\s*(?:[(\[{]\s*)?(?:\.|\u3002|dot|punkt)(?:\s*[)\]}])?\s*(?:${TLD})\b(?:\/\S*)?`, 'gi');
 
 const hit = (w) => both(w).some((n) => n && (WORDS.has(n) || STEMS.some((s) => n.includes(s))));
 const stars = (w) => '*'.repeat(Math.max(3, [...w].length));

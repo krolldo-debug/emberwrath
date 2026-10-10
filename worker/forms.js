@@ -168,7 +168,7 @@ async function support(request, env) {
 // ------------------------------------------------------------------ Newsletter
 const newsletterReady = (env) => Boolean(env.RESEND_API_KEY && env.SUPABASE_SERVICE_ROLE_KEY && env.SUPABASE_URL);
 
-async function subscribe(request, env) {
+async function subscribe(request, env, ctx) {
   if (!newsletterReady(env)) return json({ error: 'unavailable' }, 503);
   const b = await readBody(request);
   if (!b) return json({ error: 'bad_request' }, 400);
@@ -176,13 +176,22 @@ async function subscribe(request, env) {
   const email = oneLine(b.email, 254).toLowerCase();
   if (!EMAIL_RE.test(email)) return json({ error: 'invalid', fields: { email: 'email' } }, 422);
   if (await limited(request, env)) return json({ error: 'rate' }, 429);
+  // Antwortzeit darf nicht verraten, ob die Adresse schon eingetragen ist: Abfrage und Versand nach der Antwort.
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(subscribeWork(env, email, b).catch((e) => console.error('newsletter', e?.message)));
+    return json({ ok: true });
+  }
+  await subscribeWork(env, email, b);
+  return json({ ok: true });
+}
 
+async function subscribeWork(env, email, b) {
   const q = encodeURIComponent(email);
   const [row] = await db(env, `newsletter_subscribers?email=eq.${q}&select=status,unsubscribe_token,requested_at`);
   // Bereits bestätigt: nichts verraten, nichts senden.
-  if (row?.status === 'confirmed') return json({ ok: true });
+  if (row?.status === 'confirmed') return;
   // Gerade erst angefragt: keine weitere Mail an dieselbe Adresse (sonst ließe sich ein Postfach zuschütten).
-  if (row?.status === 'pending' && Date.now() - Date.parse(row.requested_at) < RESEND_GAP_MIN * 60e3) return json({ ok: true });
+  if (row?.status === 'pending' && Date.now() - Date.parse(row.requested_at) < RESEND_GAP_MIN * 60e3) return;
   const confirm = token();
   const unsub = row?.unsubscribe_token ?? token();
   const fields = { status: 'pending', confirm_token: confirm, unsubscribe_token: unsub, requested_at: new Date().toISOString(), source: oneLine(b.source, 40) || 'website' };
@@ -192,7 +201,6 @@ async function subscribe(request, env) {
   const lang = subscriberLang(fields.source);
   const link = `${site(env)}${lang === 'en' ? '/en' : ''}/newsletter?aktion=bestaetigen&token=${confirm}`;
   await sendResend(env, { to: email, ...confirmMail(lang, link, site(env)) });
-  return json({ ok: true });
 }
 
 // Sprache eines Abonnenten: steht in source (Pfad der Seite, auf der angemeldet wurde, z. B. /en/ oder /en/world).
@@ -256,7 +264,7 @@ async function unsubscribe(env, t) {
 }
 
 // Einstieg aus worker/index.js. Liefert null, wenn die Route nicht hierher gehört.
-export async function handleForms(request, env, url, route) {
+export async function handleForms(request, env, url, route, ctx = null) {
   const isPost = request.method === 'POST';
   const t = url.searchParams.get('token') ?? '';
   if (route === '/newsletter/status') return json({ enabled: newsletterReady(env) });
@@ -270,7 +278,7 @@ export async function handleForms(request, env, url, route) {
       if (!isPost) return json({ error: 'method' }, 405);
       if (!originOk(request, url, env)) return json({ error: 'origin' }, 403);
       if (route === '/newsletter/confirm') { const b = await readBody(request); return json({ s: await confirm(env, String(b?.token ?? '')) }); }
-      return route === '/forms/support' ? await support(request, env) : await subscribe(request, env);
+      return route === '/forms/support' ? await support(request, env) : await subscribe(request, env, ctx);
     }
   } catch (e) {
     console.error('forms', route, e?.message);

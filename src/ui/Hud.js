@@ -4,7 +4,7 @@ import { iconUrl, abilityIcon } from '../gfx/Icons.js';
 import { xpToNext } from '../progression/xp.js';
 import { trackedQuestId } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
-import { tr } from '../i18n/index.js';
+import { tr, fmtNum } from '../i18n/index.js';
 
 // HTML-HUD der Spielsitzung (liest nur Zustand, Held und Inhalte; schreibt nie).
 // Aufbau:
@@ -36,6 +36,9 @@ function bar(cls, label) {
 }
 
 const SKILL_INDEX = { skill1: 0, skill2: 1, skill3: 2, skill4: 3 };
+// Rang der Banner in der Warteschlange; Freischalt-Karten (Unlocks) warten immer auf Banner,
+// ab Rang 2 räumt ein Banner eine gerade gezeigte Karte (sie kommt danach wieder)
+const BANNER_PRIO = { level: 3, boss: 2, legendary: 2, trial: 2, quest: 1, info: 1 };
 
 export class Hud {
   constructor(session) {
@@ -233,7 +236,7 @@ export class Hud {
   // ---------------------------------------------------------------- Events
   #listen() {
     const bus = this.s.bus;
-    bus.on(EV.UI_BANNER, (e) => this.#queueBanner(e.title, e.sub ?? '', e.color));
+    bus.on(EV.UI_BANNER, (e) => this.#queueBanner(e.title, e.sub ?? '', e.color, e.kind ?? 'info'));
     bus.on(EV.UI_PROMPT, (e) => { this.prompt = e && e.text ? e : null; });
     bus.on(EV.ZONE_ENTER, () => {
       const z = this.s.zone;
@@ -242,7 +245,7 @@ export class Hud {
       this.boss = null;
       this.prompt = null;
     });
-    bus.on(EV.LEVEL_UP, (e) => { this.#queueBanner(`Stufe ${e.level}`, 'Deine Werte sind gestiegen', '#ffd66a', 'level'); this.#refreshStatic(); });
+    bus.on(EV.LEVEL_UP, (e) => { this.#queueBanner(`Stufe ${e.level}`, 'Deine Werte sind gestiegen', '#ffd66a', 'level'); this.xpLevelFlash = 0.2; this.#refreshStatic(); });
     bus.on('trial:started', (e) => this.#queueBanner(`Glutprüfung ${e?.tier ?? ''}`.trim(), 'Säubere die Instanz, bevor die Zeit abläuft', '#ff9a4a', 'trial'));
     bus.on('trial:boss', () => this.#queueBanner('Der Wächter erscheint', 'Besiege ihn, um die Prüfung abzuschließen', '#ff5a40', 'trial'));
     bus.on('trial:completed', (e) => this.#queueBanner('Prüfung bestanden!', e?.tier ? `Stufe ${e.tier} gemeistert` : 'Belohnung erhalten', '#ffd66a', 'trial'));
@@ -268,7 +271,10 @@ export class Hud {
   #queueBanner(title, sub, color, kind = 'info') {
     // Gleichartige Banner ersetzen sich (z. B. zwei Zonenwechsel kurz nacheinander).
     this.bannerQueue = this.bannerQueue.filter((b) => b.kind !== kind);
-    this.bannerQueue.push({ title, sub, color, kind });
+    // Große Ansagen nacheinander, wichtigste zuerst: Stufe > Boss/Legendär/Prüfung > Rest
+    const prio = BANNER_PRIO[kind] ?? 1;
+    const at = this.bannerQueue.findIndex((b) => (BANNER_PRIO[b.kind] ?? 1) < prio);
+    this.bannerQueue.splice(at < 0 ? this.bannerQueue.length : at, 0, { title, sub, color, kind });
   }
 
   // Werte, die sich selten ändern (Name, Klasse, Zone, Porträt).
@@ -328,9 +334,23 @@ export class Hud {
     const capped = xi.capped || !Number.isFinite(xi.need);
     this.#meter(this.xp, capped ? 1 : xi.into, capped ? 1 : xi.need, dt,
       capped ? `Stufe ${xi.level} · Höchststufe` : `Stufe ${xi.level} · ${num(xi.into)} / ${num(xi.need)} EP`);
+    // Stufenaufstieg: Leiste kurz voll, dann von 0 neu füllen (statt rückwärts zu laufen)
+    if (this.xpLevelFlash > 0) {
+      this.xpLevelFlash -= dt;
+      setVar(this.xp.fill, '--f', '1'); setVar(this.xp.lag, '--f', '1');
+      this.xp.shown = 0; this.xp.lagv = 0;
+      toggle(this.xpWrap, 'lvl-full', this.xpLevelFlash > 0);
+    }
 
-    // Gold
-    setText(this.gold, (s.state.slices.wallet?.gold ?? 0).toLocaleString());
+    // Gold: zählt sichtbar hoch (Rewards lässt Münzen zur Anzeige fliegen und hält das Hochzählen
+    // bis zur Ankunft an: goldHold); Ausgaben springen sofort auf den neuen Wert
+    const gold = s.state.slices.wallet?.gold ?? 0;
+    if (this.goldShown == null || gold < this.goldShown) this.goldShown = gold;
+    else if (gold > this.goldShown && this.t >= (this.goldHold ?? 0)) {
+      this.goldShown = Math.min(gold, this.goldShown + Math.max(1, Math.ceil((gold - this.goldShown) * Math.min(1, dt * 4.5))));
+    }
+    toggle(this.goldEl, 'rolling', this.goldShown < gold && this.t >= (this.goldHold ?? 0));
+    setText(this.gold, fmtNum(this.goldShown));
     toggle(this.goldEl, 'shop', !!this.game.shop?.visible);
 
     // Gespeichert-Anzeige
@@ -470,6 +490,11 @@ export class Hud {
   }
 
   #updateBanner(dt) {
+    if (!this.banner && this.bannerQueue.length && this.unlocks?.fading) return;
+    if (!this.banner && this.bannerQueue.length && this.unlocks?.showing) {
+      if ((BANNER_PRIO[this.bannerQueue[0].kind] ?? 1) >= 2) this.unlocks.yieldTo();
+      else return;
+    }
     if (!this.banner && this.bannerQueue.length) {
       const b = this.bannerQueue.shift();
       this.banner = { ...b, t: 0, dur: b.kind === 'zone' ? 3.2 : 2.6 };
