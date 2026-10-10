@@ -320,9 +320,58 @@ export class Sfx {
         break;
       }
       case 'levelUp':
-        [262, 330, 392, 523, 659].forEach((f, i) => this.#tone(t + i * 0.07, { type: 'triangle', f0: f, dur: 0.8, peak: 0.1, attack: 0.01 }));
-        this.#tone(t, { type: 'sine', f0: 65, dur: 1.2, peak: 0.3, attack: 0.03 });
-        this.#noise(t + 0.1, { dur: 0.8, type: 'highpass', f0: 4000, f1: 8000, peak: 0.05, attack: 0.2 });
+        // Aufschwung (Rauschen steigt), dann Fanfare mit Oktave und tiefem Fundament, Glitzern zum Schluss
+        this.#noise(t, { dur: 0.35, type: 'bandpass', f0: 400, f1: 4000, q: 1.2, peak: 0.12, attack: 0.25 });
+        [262, 330, 392, 523, 659, 784].forEach((f, i) => this.#tone(t + 0.25 + i * 0.06, { type: 'triangle', f0: f, dur: 1.0, peak: 0.1, attack: 0.01, wet: 0.3 }));
+        [523, 659, 784].forEach((f) => this.#tone(t + 0.62, { type: 'sine', f0: f * 2, dur: 1.2, peak: 0.035, attack: 0.02, wet: 0.4 }));
+        this.#tone(t + 0.25, { type: 'sine', f0: 65, dur: 1.4, peak: 0.34, attack: 0.03 });
+        this.#tone(t + 0.25, { type: 'sine', f0: 130, f1: 128, dur: 1.0, peak: 0.12, attack: 0.02 });
+        this.#noise(t + 0.35, { dur: 1.0, type: 'highpass', f0: 5000, f1: 9000, peak: 0.06, attack: 0.15 });
+        break;
+      case 'orb': {
+        // Seelenfunke eingesammelt: heller Glasklang, jede weitere Kugel einen Pentatonik-Schritt höher
+        const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31, 33];
+        const f = 784 * Math.pow(2, PENTA[Math.min(PENTA.length - 1, opts.step ?? 0)] / 12);
+        this.#tone(t, { type: 'sine', f0: f, f1: f * 1.01, dur: 0.14, peak: 0.045, attack: 0.003, wet: 0.25 });
+        this.#tone(t, { type: 'triangle', f0: f * 2, dur: 0.06, peak: 0.015 });
+        break;
+      }
+      case 'lootBeam': {
+        // Strahl schlägt ein: Pfeifen von oben, Aufprall, schimmernder Akkord (Stärke 1–3)
+        const tier = opts.tier ?? 1;
+        this.#noise(t, { dur: 0.16, type: 'bandpass', f0: 7000, f1: 1200, q: 2, peak: 0.08 + tier * 0.03 });
+        this.#tone(t + 0.15, { type: 'sine', f0: 120, f1: 45, dur: 0.3 + tier * 0.1, peak: 0.25 + tier * 0.08, wet: 0.3 });
+        this.#noise(t + 0.15, { dur: 0.12, type: 'lowpass', f0: 2400, f1: 300, peak: 0.18 + tier * 0.05, wet: 0.2 });
+        const chord = tier >= 3 ? [523, 659, 784, 1047, 1319, 1568] : tier === 2 ? [440, 523, 659, 880, 1047] : [587, 740, 880];
+        chord.forEach((f, i) => this.#tone(t + 0.17 + i * 0.045, { type: 'triangle', f0: f, dur: 0.6 + tier * 0.25, peak: 0.06, attack: 0.01, wet: 0.45 }));
+        if (tier >= 3) this.#tone(t + 0.17, { type: 'sawtooth', f0: 131, dur: 1.2, peak: 0.05, attack: 0.08, wet: 0.5 });
+        this.#noise(t + 0.2, { dur: 0.5 + tier * 0.3, type: 'highpass', f0: 6000, f1: 10000, peak: 0.03 + tier * 0.015, attack: 0.08 });
+        break;
+      }
+      case 'multiKill':
+        // Mehrfach-Kill: dumpfer Schlag und ein kurzer, aufsteigender Bläserstoß
+        this.#tone(t, { type: 'sine', f0: 90, f1: 38, dur: 0.45, peak: 0.45, wet: 0.3 });
+        this.#noise(t, { dur: 0.2, type: 'lowpass', f0: 1800, f1: 200, peak: 0.25 });
+        [196, 247, 294, 392].forEach((f, i) => this.#tone(t + 0.04 + i * 0.05, { type: 'sawtooth', f0: f, dur: 0.28, peak: 0.035, attack: 0.01, wet: 0.35 }));
+        break;
+      case 'streak': {
+        // Kill-Serie erreicht eine neue Stufe: Akkord, je Stufe höher und voller
+        const tier = Math.max(1, Math.min(5, opts.tier ?? 1));
+        const root = 220 * Math.pow(2, (tier - 1) * 2 / 12);
+        [1, 1.26, 1.5, 2, tier >= 3 ? 2.52 : 0, tier >= 4 ? 3 : 0].filter(Boolean)
+          .forEach((m, i) => this.#tone(t + i * 0.035, { type: 'triangle', f0: root * m, dur: 0.7 + tier * 0.1, peak: 0.07, attack: 0.008, wet: 0.4 }));
+        this.#tone(t, { type: 'sine', f0: root / 2, dur: 0.9, peak: 0.22, attack: 0.01 });
+        this.#noise(t, { dur: 0.3, type: 'highpass', f0: 4000, f1: 9000, peak: 0.05, attack: 0.02 });
+        break;
+      }
+      case 'ready':
+        // Fähigkeit wieder bereit: leises, helles „Ting“
+        this.#tone(t, { type: 'sine', f0: 1568, dur: 0.22, peak: 0.035, attack: 0.002, wet: 0.3 });
+        this.#tone(t + 0.04, { type: 'sine', f0: 2349, dur: 0.18, peak: 0.02, attack: 0.002, wet: 0.3 });
+        break;
+      case 'coinStack':
+        // mehrere Münzen landen im Beutel (Gold fliegt zur Anzeige)
+        for (let i = 0; i < (opts.count ?? 4); i++) this.#tone(t + i * 0.045, { type: 'square', f0: (1320 + (i % 3) * 220) * p, dur: 0.06, peak: 0.03 });
         break;
       case 'quest':
         [392, 494, 587].forEach((f, i) => this.#tone(t + i * 0.1, { type: 'triangle', f0: f, dur: 0.5, peak: 0.1 }));

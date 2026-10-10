@@ -4,7 +4,7 @@ import { iconUrl, abilityIcon } from '../gfx/Icons.js';
 import { xpToNext } from '../progression/xp.js';
 import { trackedQuestId } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
-import { tr } from '../i18n/index.js';
+import { tr, fmtNum } from '../i18n/index.js';
 
 // HTML-HUD der Spielsitzung (liest nur Zustand, Held und Inhalte; schreibt nie).
 // Aufbau:
@@ -329,8 +329,15 @@ export class Hud {
     this.#meter(this.xp, capped ? 1 : xi.into, capped ? 1 : xi.need, dt,
       capped ? `Stufe ${xi.level} · Höchststufe` : `Stufe ${xi.level} · ${num(xi.into)} / ${num(xi.need)} EP`);
 
-    // Gold
-    setText(this.gold, (s.state.slices.wallet?.gold ?? 0).toLocaleString());
+    // Gold: zählt sichtbar hoch (Rewards lässt Münzen zur Anzeige fliegen und hält das Hochzählen
+    // bis zur Ankunft an: goldHold); Ausgaben springen sofort auf den neuen Wert
+    const gold = s.state.slices.wallet?.gold ?? 0;
+    if (this.goldShown == null || gold < this.goldShown) this.goldShown = gold;
+    else if (gold > this.goldShown && this.t >= (this.goldHold ?? 0)) {
+      this.goldShown = Math.min(gold, this.goldShown + Math.max(1, Math.ceil((gold - this.goldShown) * Math.min(1, dt * 4.5))));
+    }
+    toggle(this.goldEl, 'rolling', this.goldShown < gold && this.t >= (this.goldHold ?? 0));
+    setText(this.gold, fmtNum(this.goldShown));
     toggle(this.goldEl, 'shop', !!this.game.shop?.visible);
 
     // Gespeichert-Anzeige

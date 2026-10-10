@@ -1,10 +1,12 @@
 import { CONFIG } from '../config.js';
 import { PAL } from '../gfx/Palette.js';
 import { Light } from '../gfx/Lighting.js';
-import { FloatingText, Shockwave, LightPillar, ImpactStar, NovaBurst, SpinVortex, RiftFlash, ChargeGlow, SoulWisp } from '../entities/Effects.js';
+import { FloatingText, Shockwave, LightPillar, ImpactStar, NovaBurst, SpinVortex, RiftFlash, ChargeGlow, SoulWisp, DamageNumber, XpOrb, LevelUpBurst, LootBeam, CoinFountain } from '../entities/Effects.js';
+import { rarityRgb } from '../gfx/Icons.js';
 import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
 import { voiceFor } from '../audio/voices.js';
+import { fmtNum } from '../i18n/index.js';
 
 const F = CONFIG.feedback;
 // Eigener Klang je Fähigkeit (zusätzlich zu swing/shoot/cast, die A schon sendet)
@@ -18,6 +20,9 @@ const ICHOR = ['#1a2410', '#2e3a14', '#4a5a1a', '#6a7a2a'];
 const WATER = ['#0e2a34', '#1a4a58', '#3a7a88', '#8ac8d0'];
 const EMBER = ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c'];
 const ASH = ['#6e6450', '#4a4238'];
+// Belohnungsrunde: Beute-Strahl je Seltenheit (Stärke 1–3), Seelenfunken je Gegnerart
+const BEAM_TIER = { rare: 1, epic: 2, legendary: 3 };
+const MULTI_WINDOW = 0.35; // Sekunden, in denen 3+ Kills als Mehrfach-Kill zählen
 
 // "Game Feel": übersetzt Gameplay-Events in Hitstop, Screenshake, Partikel,
 // Licht, Schadenszahlen und Sound. Einziger Ort für Treffer-Feedback.
@@ -29,6 +34,9 @@ const ASH = ['#6e6450', '#4a4238'];
 export class FeedbackSystem {
   constructor(game) {
     this.game = game;
+    this.kills = [];        // Zeitpunkte eigener Kills (Mehrfach-Kill)
+    this.multiDone = 0;     // bis wann der aktuelle Mehrfach-Kill schon gefeiert wurde
+    this.orbChain = 0; this.orbAt = 0; // Tonleiter der eingesammelten Seelenfunken
     const bus = game.bus;
     bus.on('hit', (e) => this.#onHit(e));
     bus.on('swing', (e) => this.#sfx(e.heavy ? 'swingHeavy' : 'swing'));
@@ -116,7 +124,15 @@ export class FeedbackSystem {
     // Fortschritt und Ablauf (bereichsübergreifende Events)
     bus.on(EV.XP_GAINED, (e) => {
       const h = this.game.world.hero;
-      if (e.amount > 0) this.#text(h.x, h.y - 30, `+${e.amount} EP`, '#c6a8ff', 1, 1.1);
+      if (!(e.amount > 0)) return;
+      // Mehrere Kills kurz hintereinander: eine wachsende Zahl statt eines Stapels „+13 EP“
+      const t = this.epText;
+      if (t && !t.removed && t.max - t.life < 0.7) {
+        t.sum += e.amount; t.text = `+${fmtNum(t.sum)} EP`; t.life = t.max; t.y = Math.min(t.y, h.y - 30); t.vy = -38;
+        return;
+      }
+      this.epText = this.game.world.addEffect(new FloatingText(h.x, h.y - 30, `+${fmtNum(e.amount)} EP`, { color: '#c6a8ff', scale: 1, font: this.game.font, life: 1.1 }));
+      this.epText.sum = e.amount;
     });
     bus.on(EV.LEVEL_UP, () => this.#levelUp());
     bus.on(EV.ITEM_ADDED, (e) => { if (!['equip', 'unequip', 'move', 'swap', 'load', 'sort'].includes(e.source)) this.#sfx('pickup'); });
@@ -124,11 +140,14 @@ export class FeedbackSystem {
     bus.on(EV.ITEM_EQUIPPED, () => this.#sfx('ui'));
     bus.on(EV.QUEST_ACCEPTED, () => this.#sfx('quest'));
     bus.on(EV.QUEST_READY, () => this.#sfx('quest'));
-    bus.on(EV.QUEST_COMPLETED, () => { this.#sfx('questDone'); this.#aura({ actor: this.game.world.hero, element: 'holy' }); });
-    bus.on(EV.LOOT_DROPPED, (e) => {
-      const w = this.game.world;
-      w.particles.ring(e.x, e.y - 2, 3, 10, ['#fff0b0', '#ffd66a', '#b8862a'], 30);
+    bus.on(EV.QUEST_COMPLETED, () => {
+      const w = this.game.world, h = w.hero;
+      this.#sfx('questDone');
+      this.#aura({ actor: h, element: 'holy' });
+      w.addEffect(new CoinFountain(h.x, h.y, { count: 16 }));
+      this.#flash([255, 230, 150], 0.18, 0.45);
     });
+    bus.on(EV.LOOT_DROPPED, (e) => this.#lootDropped(e));
     bus.on(EV.BOSS_ENGAGED, () => {
       this.#sfx('bossRoar');
       this.#shake(6);
@@ -140,7 +159,9 @@ export class FeedbackSystem {
       w.lighting.ambientBoost = 1;
       w.addEffect(new Shockwave(e.x, e.y - 8, { radius: 70, color: '#ffd66a', life: 0.9 }));
       w.addEffect(new LightPillar(e.x, e.y, { color: '#ffd66a', life: 1.6 }));
+      w.addEffect(new CoinFountain(e.x, e.y, { count: 26, life: 1.5, spread: 1.6 }));
       w.particles.element(e.x, e.y - 10, 'holy', 60, 40);
+      this.#flash([255, 220, 140], 0.4, 0.9);
       this.#sfx('victory');
     });
     // Atmo und Musik je Zone: audio/Soundscape.js
@@ -169,13 +190,91 @@ export class FeedbackSystem {
     this.game.world.addEffect(new FloatingText(x, y, text, { color, scale, font: this.game.font, life }));
   }
 
+  // Kurzer farbiger Bildschirmschimmer (ui/ScreenFx.js); rgb, Stärke 0..1, Dauer
+  #flash(rgb, a, dur) { this.game.bus.emit('screenFlash', { rgb, a, dur }); }
+
+  #lowQuality() { return document.documentElement.dataset.quality === 'low'; }
+
+  // Beute: ab selten schlägt ein Lichtstrahl ein; episch/legendär halten kurz die Zeit an
+  #lootDropped(e) {
+    const w = this.game.world, c = this.game.content;
+    w.particles.ring(e.x, e.y - 2, 3, 10, ['#fff0b0', '#ffd66a', '#b8862a'], 30);
+    let best = 0, beams = 0;
+    for (const d of e.drops ?? []) {
+      if (!d.dropId || !d.itemId) continue;
+      const rarity = c.find('item', d.itemId)?.rarity;
+      const tier = BEAM_TIER[rarity];
+      if (!tier || beams >= 3) continue;
+      beams++;
+      best = Math.max(best, tier);
+      const rgb = rarityRgb(rarity);
+      w.addEffect(new LootBeam(e.x, e.y, {
+        dropId: d.dropId, rgb, tier,
+        onLand: (b) => {
+          w.addEffect(new Shockwave(b.x, b.y, { radius: 10 + tier * 8, color: `rgb(${rgb.join(',')})`, life: 0.45 }));
+          w.particles.ring(b.x, b.y - 3, 4, 8 + tier * 6, ['#ffffff', `rgb(${rgb.join(',')})`], 40 + tier * 15);
+          w.addLight(new Light({ x: b.x, y: b.y - 6, radius: 40 + tier * 25, color: rgb, intensity: 1.1, ttl: 0.35 + tier * 0.15, bloom: 0.6 }));
+          if (tier >= 2) this.#shake(1.5 + tier);
+        },
+      }));
+    }
+    if (!best) return;
+    this.#sfx('lootBeam', { tier: best });
+    if (best === 3) { this.game.slowmo(0.35, 0.5); this.#flash([255, 170, 60], 0.2, 0.7); }
+    else if (best === 2) { this.game.hitstop(0.06); this.#flash([190, 120, 255], 0.16, 0.45); }
+  }
+
+  // Seelenfunken: fliegen vom besiegten Gegner in den Helden; jeder eingesammelte
+  // Funke klingt einen Ton höher (Tonleiter, setzt nach einer Pause zurück).
+  #orbs(t) {
+    const w = this.game.world, h = w.hero;
+    if (!h || h.dead) return;
+    let n = t.def?.boss || t.boss ? 18 : t.champion || t.elite || t.def?.elite ? 7 : 3;
+    if (this.#lowQuality()) n = Math.ceil(n / 2);
+    const y = t.centerY ?? t.y - 8;
+    for (let i = 0; i < n; i++) {
+      w.addEffect(new XpOrb(t.x, y, h, {
+        delay: 0.28 + i * 0.03,
+        onAbsorb: () => {
+          const now = performance.now() / 1000;
+          this.orbChain = now - this.orbAt < 0.6 ? Math.min(this.orbChain + 1, 14) : 0;
+          this.orbAt = now;
+          w.particles.ring(h.x, h.y - 10, 3, 5, ['#ffffff', '#e0d0ff', '#a080f0'], 26);
+          this.#sfx('orb', { step: this.orbChain });
+        },
+      }));
+    }
+  }
+
+  // Mehrfach-Kill: 3+ eigene Kills kurz hintereinander – kurze Zeitlupe, Druckwelle, Klang
+  #multiKill() {
+    const now = performance.now() / 1000;
+    this.kills = this.kills.filter((k) => now - k < MULTI_WINDOW);
+    this.kills.push(now);
+    if (this.kills.length < 3 || now < this.multiDone) return;
+    this.multiDone = now + 0.6;
+    const g = this.game, w = g.world, h = w.hero;
+    g.slowmo(0.3, 0.32);
+    this.#shake(3);
+    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 46, color: '#ffd66a', life: 0.5 }));
+    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 30, color: '#ffffff', life: 0.35 }));
+    this.#flash([255, 200, 120], 0.14, 0.35);
+    this.#sfx('multiKill', { count: this.kills.length });
+    g.bus.emit('multiKill', { count: this.kills.length });
+  }
+
   #levelUp() {
     const g = this.game, w = g.world, h = w.hero;
     w.addEffect(new LightPillar(h.x, h.y, { color: '#ffd66a', life: 1.4, follow: h }));
     w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 40, color: '#ffe8a0', life: 0.6 }));
     w.addLight(new Light({ follow: h, offsetY: -12, radius: 120, color: [255, 214, 120], intensity: 1.2, ttl: 1.4, bloom: 0.6 }));
-    w.particles.element(h.x, h.y - 8, 'holy', 40, 14);
-    w.lighting.ambientBoost = 0.7;
+    w.addEffect(new LevelUpBurst(h));
+    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 70, color: '#ffd66a', life: 0.9 }));
+    w.particles.element(h.x, h.y - 8, 'holy', 60, 14);
+    w.lighting.ambientBoost = 0.9;
+    g.slowmo(0.45, 0.45);
+    this.#shake(3);
+    this.#flash([255, 220, 140], 0.26, 0.8);
     // Text „Stufe N“ zeigt das HUD-Banner; hier nur Licht und Funken
     this.#sfx('levelUp');
   }
@@ -315,7 +414,8 @@ export class FeedbackSystem {
       if (e.crit) w.addEffect(new Shockwave(e.x, e.y + 4, { radius: 14, color: '#ffe070', life: 0.25 }));
       w.addLight(new Light({ x: e.x, y: e.y, radius: e.heavy ? 60 : 38, color: [255, 200, 130], intensity: 1, ttl: 0.12, bloom: 0.5 }));
       this.#material(t, e, ang, e.killed ? 2.2 : 1);
-      this.#text(e.x, e.y - 10, e.damage, e.crit ? '#ffe070' : '#ffffff', e.crit ? 2 : 1);
+      w.addEffect(new DamageNumber(e.x, e.y - 10, e.damage, { font: g.font, kind: e.crit ? 'crit' : e.killed ? 'kill' : 'normal' }));
+      if (e.crit) { this.#kick(e.dirX * 2, e.dirY * 2); w.particles.sparks(e.x, e.y, ang, 10, ['#ffffff', '#fff0b0', '#ffe070', '#ffb640']); }
       this.#sfx(e.crit ? 'crit' : 'hit');
       if (e.killed) this.#onKill(e, ang);
     } else {
@@ -359,6 +459,8 @@ export class FeedbackSystem {
   #onKill(e, ang) {
     const g = this.game, w = g.world, t = e.target;
     this.#shake(3.5);
+    this.#orbs(t);
+    if (!e.attacker?.companion) this.#multiKill();
     w.lighting.ambientBoost = 0.35;
     w.particles.ring(t.x, t.centerY, 4, 14, ['#fff0b0', '#ffb640', '#c8420c'], 90);
     w.decals.scorch(t.x, t.y + 1, 9);
