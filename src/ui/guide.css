@@ -1,4 +1,4 @@
-/* Einstiegshinweise für neue Helden (src/ui/Guide.js). Pixel-Look: deckende Farben, harte Kanten, Blenden in Stufen. */
+/* Einstiegshinweise für neue Helden (src/ui/Guide.js). Pixel-Look: deckende Farben, harte Kanten, Ein- und Ausblenden als harter Schnitt. */
 #ui > .ef-guide-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .ef-guide {
   position: absolute; left: 0; top: 0; display: none; align-items: center; gap: 8px;
@@ -7,16 +7,9 @@
   background: #0e0814; border: 2px solid #8a6230; border-radius: 0;
   box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px #2a1c18, 0 3px 0 #05020a;
 }
-.ef-guide.show { display: flex; animation: eg-in 0.18s steps(3, end) both; }
+.ef-guide.show { display: flex; }
 .ef-guide.done { border-color: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px #6a4a14, 0 3px 0 #05020a; }
 .ef-guide.done .eg-text { color: #ffe08a; }
-.ef-guide.out { animation: eg-out 0.27s steps(3, end) both; }
-@keyframes eg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes eg-out { from { opacity: 1; } to { opacity: 0; } }
-.ef-guide.p-below.show:not(.out) { animation-name: eg-in-down; }
-@keyframes eg-in-down { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-.ef-guide.p-left.show:not(.out) { animation-name: eg-in-left; }
-@keyframes eg-in-left { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
 
 .eg-body { display: flex; align-items: center; gap: 8px; }
 .eg-text { white-space: nowrap; }
@@ -60,7 +53,6 @@
 .ef-touch .ef-guide { font-size: 12px; padding: 5px 9px 5px 7px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ef-guide.show, .ef-guide.out, .eg-drag .eg-knob, .ef-guide-target { animation: none; }
-  .ef-guide.out { display: none; }
+  .eg-drag .eg-knob, .ef-guide-target { animation: none; }
   .ef-guide-target { outline: 2px solid #ffd66a; outline-offset: 2px; }
 }

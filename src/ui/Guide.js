@@ -33,7 +33,8 @@ const TRAIL = `<svg class="eg-trail" viewBox="0 0 15 9" width="30" height="18" s
 
 // Inhalt: Tastenkappen (k), Pixelbild (i) und genau ein Satz (t). Je Gerät nur eine Belegung.
 // Ziel: slot (Knopf der Aktionsleiste) oder sel (HUD-Element); place: wo der Hinweis zum Ziel steht
-// (left | above | below), bar: fest über der Schnellleiste ohne Zeiger; ohne Ziel unter dem Helden.
+// (left | above | below), row: auf Höhe des Hinweises dieses Knopfs, ohne Zeiger (er würde Knöpfe kreuzen),
+// bar: fest über der Schnellleiste ohne Zeiger; ohne Ziel unter dem Helden.
 const HINTS = {
   move: {
     pc: { k: ['W', 'A', 'S', 'D'], wasd: true, t: 'Laufen' },
@@ -49,7 +50,7 @@ const HINTS = {
   },
   skill: {
     pc: { k: ['Q'], t: 'Fähigkeit einsetzen', slot: 'skill1', place: 'above' },
-    touch: { t: 'Fähigkeit einsetzen', slot: 'skill1', place: 'above' },
+    touch: { t: 'Fähigkeit einsetzen', slot: 'skill1', place: 'above', row: 'attack' },
   },
   dodge: {
     pc: { k: ['Shift'], t: 'Ausweichen', bar: true },
@@ -209,8 +210,8 @@ export class Guide {
     parts.push(h('span.eg-text', d.t));
     this.body.replaceChildren(...parts);
     this.cur = { id, t: 0, done: 0, touch, d, target };
-    this.cur.target?.classList.add('ef-guide-target');
-    this.el.className = `ef-guide show${d.bar ? ' p-bar' : d.place ? ` p-${d.place}` : ' p-hero'}${d.at ? ` at-${d.at}` : ''}`;
+    if (!d.bar) target?.classList.add('ef-guide-target');
+    this.el.className = `ef-guide show${d.bar ? ' p-bar' : d.row ? ' p-row' : d.place ? ` p-${d.place}` : ' p-hero'}${d.at ? ` at-${d.at}` : ''}`;
     this.lastPos = null;
     this.#place();
     this.s.sfx?.play?.('ui');
@@ -223,11 +224,11 @@ export class Guide {
     return null;
   }
 
-  // harter Schnitt; das Ausblenden in Stufen (.out) läuft vorher in update()
+  // harter Schnitt (Pixel-Look: keine Zwischenbilder)
   #hide() {
     if (!this.cur) return;
     this.cur.target?.classList.remove('ef-guide-target');
-    this.el.classList.remove('show', 'done', 'out');
+    this.el.classList.remove('show', 'done');
     this.cur = null;
     this.quiet = 0;
   }
@@ -245,6 +246,11 @@ export class Guide {
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       if (c.d.place === 'left') { x = r.left - w - gap; y = cy - hh / 2; }
       else if (c.d.place === 'below') { x = cx - w / 2; y = r.bottom + gap; }
+      else if (c.d.row) {
+        // über der Knopfgruppe auf Höhe des Nachbar-Hinweises (z. B. „Angreifen“)
+        const q = this.hud.slots?.find((sl) => sl.action === c.d.row)?.el.getBoundingClientRect();
+        x = (q ? q.left + q.width / 2 : cx) - w / 2; y = (q ? q.top : r.top) - hh - gap;
+      }
       else { x = cx - w / 2; y = r.top - hh - gap; }
       x = Math.max(m, Math.min(W - w - m, x));
       y = Math.max(m, Math.min(H - hh - m, y));
@@ -279,17 +285,16 @@ export class Guide {
     if (c) {
       const urgent = HINTS[c.id].urgent;
       // Fenster offen, Held gefallen, Interaktionshinweis: weg; nur kurz gesehen, kommt er später wieder
-      if (!c.done && !c.leave && (busy || (prompt && !urgent))) { if (c.t < 2.5) this.want.add(c.id); this.#hide(); return; }
+      if (!c.done && (busy || (prompt && !urgent))) { if (c.t < 2.5) this.want.add(c.id); this.#hide(); return; }
       // Handy/PC gewechselt: neu aufbauen
-      if (c.touch !== !!this.s.input.usingTouch && !c.done && !c.leave) { const id = c.id; this.#hide(); this.#show(id); return; }
+      if (c.touch !== !!this.s.input.usingTouch && !c.done) { const id = c.id; this.#hide(); this.#show(id); return; }
       // Heiltrank drängt sich vor einen gewöhnlichen Hinweis
-      if (this.want.has('potion') && !urgent && !c.done && !c.leave) { if (c.t < 2.5) this.want.add(c.id); this.#hide(); this.#show('potion'); return; }
+      if (this.want.has('potion') && !urgent && !c.done) { if (c.t < 2.5) this.want.add(c.id); this.#hide(); this.#show('potion'); return; }
       c.t += dt;
       if (c.done) c.done += dt;
       // erledigt: kurz gold, dann in Stufen weg; sonst nach Ablauf in Stufen weg
       const dur = c.id === 'move' ? SHOW + 5 : SHOW;
-      if (c.leave == null && ((c.done && c.done > 0.5) || (!c.done && c.t > dur))) { c.leave = 0; this.el.classList.add('out'); }
-      if (c.leave != null && (c.leave += dt) > 0.3) { this.#hide(); return; }
+      if ((c.done && c.done > 0.5) || (!c.done && c.t > dur)) { this.#hide(); return; }
       this.#place();
       return;
     }
