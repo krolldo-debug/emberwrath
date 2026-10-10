@@ -100,7 +100,7 @@ function floorArt() {
   return c;
 }
 
-// Kleine Pixel-Symbole für die Werte unter der Figur (7×7, '.' = leer)
+// Kleine Pixel-Symbole für Werte und Knöpfe (7×7 bzw. 9×9, '.' = leer)
 const GLYPHS = {
   hp: ['.rr.rr.', 'rRRrRRr', 'rRRRRRr', 'rRRRRRr', '.rRRRr.', '..rRr..', '...r...'],
   power: ['.....sS', '....sS.', '...sS..', 'g.sS...', '.gS....', '.bg....', 'b..g...'],
@@ -108,7 +108,9 @@ const GLYPHS = {
   crit: ['...y...', '.y.Y.y.', '..YYY..', 'yYYwYYy', '..YYY..', '.y.Y.y.', '...y...'],
   sort: ['.S...S.', 'SSS..S.', '.S...S.', '.S...S.', '.S...S.', '.S..SSS', '.S...S.'],
   multi: ['SSS.SSS', 'S.S.S.S', 'SSS.SSS', '.......', 'SSS.SSS', 'S.S.S.S', 'SSS.SSS'],
-  gear: ['...g...', '..gGg..', '.gGHGg.', 'gGHHHGg', '.gGHGg.', '..gGg..', '...g...'],
+  gear: ['ggggggg', 'gGGgGGg', 'gGHgGHg', 'ggggggg', 'gGGgGGg', 'gGHgGHg', 'ggggggg'],
+  trash: ['...sss...', '.sSSSSSs.', '.........', '..sSsSs..', '..sSsSs..', '..sSsSs..', '..sSsSs..', '..sssss..', '.........'],
+  auto: ['...ggg...', '..gGGGg..', '.gGHHGGg.', '.gGHGGGg.', '.gGGGGGg.', '..gGGGg..', '...ggg...', '.........', '.........'],
 };
 const GLYPH_PAL = { r: '#8a1a22', R: '#e0484a', s: '#6a7488', S: '#c8d0e0', g: '#8a5a18', G: '#e8c25a', H: '#fff4c0', b: '#5a3626', y: '#c8922a', Y: '#ffd66a', w: '#ffffff' };
 const glyphCache = new Map();
@@ -116,7 +118,7 @@ export function statGlyph(id) {
   if (glyphCache.has(id)) return glyphCache.get(id);
   const rows = GLYPHS[id];
   const c = document.createElement('canvas');
-  c.width = 7; c.height = 7;
+  c.width = rows?.[0]?.length ?? 7; c.height = rows?.length ?? 7;
   const g = c.getContext('2d');
   rows?.forEach((row, y) => [...row].forEach((ch, x) => { if (GLYPH_PAL[ch]) { g.fillStyle = GLYPH_PAL[ch]; g.fillRect(x, y, 1, 1); } }));
   const url = c.toDataURL();

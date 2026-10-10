@@ -24,7 +24,7 @@ export function createFinderPanel(session) {
   );
 
   const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-  const icon = (id, size = 32) => h('img.fd-ico', { src: finderIcon(id, 2), alt: '', width: size, height: size });
+  const icon = (id, size = 32) => h('img.fd-ico', { src: finderIcon(id, size / 16), alt: '', width: size, height: size });
 
   // Auswahl: links die Dungeons (Name und Stufe), rechts Rolle und Start. Erklärungen nur als Tooltip.
   function renderPick() {
@@ -43,7 +43,7 @@ export function createFinderPanel(session) {
         return h('button', {
           type: 'button', role: 'radio', 'aria-checked': String(role === r), class: `fd-role${role === r ? ' selected' : ''}`, disabled: !ok,
           title: ok ? ROLES[r].desc : 'Nur Krieger können verteidigen.', onclick: () => { role = r; renderPick(); },
-        }, icon(ok ? r : 'lock', 32), h('span.fd-rname', ROLES[r].name));
+        }, icon(ok ? r : 'lock', 48), h('span.fd-rname', ROLES[r].name));
       }));
     body.append(h('div.fd-pick',
       rows,

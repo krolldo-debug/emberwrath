@@ -162,8 +162,6 @@ function inventoryView(s) {
     const doll = h('section.pg-doll',
       eqSlot('head'), eqSlot('chest'), eqSlot('hands'), eqSlot('feet'),
       eqSlot('amulet'), eqSlot('ring'), eqSlot('weapon'),
-      h('div.pg-gs', { title: 'Ausrüstungsstärke', 'aria-label': 'Ausrüstungsstärke' },
-        h('img', { src: statGlyph('gear'), alt: '', width: 14, height: 14 }), h('b', String(gearScore))),
       h('div.pg-stage', stage.canvas),
       h('div.pg-doll-info',
         h('div.pg-doll-name', { translate: 'no' }, st.slices.character?.name ?? 'Held'),
@@ -173,76 +171,91 @@ function inventoryView(s) {
           stat('hp', 'Leben', String(stats.maxHp ?? 0)),
           stat('power', STAT_NAMES.power, String(Math.round(stats.power ?? 0))),
           stat('armor', STAT_NAMES.armor, String(Math.round(stats.armor ?? 0))),
-          stat('crit', 'Kritische Trefferchance', `${Math.round((stats.critChance ?? 0) * 100)} %`))),
+          stat('crit', 'Kritische Trefferchance', `${Math.round((stats.critChance ?? 0) * 100)} %`),
+          stat('gear', 'Ausrüstungsstärke', String(gearScore)))),
     );
 
-    // --- Aktionen
+    // --- Aktionen: feste Leiste unter den Details. Hauptknopf groß, Verkaufen daneben, Wegwerfen als Symbol.
+    const glyph = (id, size = 18) => h('img', { src: statGlyph(id), alt: '', width: size, height: size });
+    const priceEl = (g) => h('span.pg-price', iconEl('gold', 16), h('b', fmt(g)));
+    const btn = (label, onclick, { primary: main = false, danger = false, disabled = false, extra = null } = {}) =>
+      h(`button.ef-btn.pg-btn.pg-bar-btn${main ? '.primary' : ''}${danger ? '.danger' : ''}`, { type: 'button', onclick, disabled }, h('span', label), extra);
     const actions = [];
+    let trash = null;
     if (sel?.bag != null) {
       const it = inv.slots[sel.bag], def = content.find('item', it.itemId);
       if (equipSlotFor(def)) {
         const lvlBad = (def.reqLevel ?? 1) > level, clsBad = !canUseClass(def, classId);
         actions.push(lvlBad || clsBad
-          ? actionBtn(clsBad ? 'Nicht für deine Klasse' : `Ab Stufe ${def.reqLevel}`, null, { disabled: true })
-          : actionBtn('Ausrüsten', () => primary(sel.bag), { primary: true }));
+          ? btn(clsBad ? 'Nicht für deine Klasse' : `Ab Stufe ${def.reqLevel}`, null, { primary: true, disabled: true })
+          : btn('Ausrüsten', () => primary(sel.bag), { primary: true }));
       }
-      if (def.type === 'consumable') actions.push(actionBtn('Benutzen', () => primary(sel.bag), { primary: true }));
+      if (def.type === 'consumable') actions.push(btn('Benutzen', () => primary(sel.bag), { primary: true }));
       if (def.type === 'mount') {
         const known = st.slices.character?.mounts?.owned?.includes(def.mountId);
-        actions.push(known ? actionBtn('Schon bekannt', null, { disabled: true }) : actionBtn('Erlernen', () => primary(sel.bag), { primary: true }));
+        actions.push(known ? btn('Schon bekannt', null, { primary: true, disabled: true }) : btn('Erlernen', () => primary(sel.bag), { primary: true }));
       }
       if (def.type !== 'quest' && def.value) {
         const g = def.value * it.qty;
-        actions.push(actionBtn(`Verkaufen +${g}`, () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }));
+        actions.push(btn('Verkaufen', () => { const i = sel.bag; sel = null; const r = act('inventory:sell', { slots: [i] }); if (r?.ok) msg = `${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }, { extra: priceEl(g) }));
       }
       if (def.type !== 'quest') {
         const valuable = RARITIES[def.rarity].order >= 2;
         if (confirmDrop === sel.bag) {
-          actions.push(actionBtn('Wirklich wegwerfen', () => { confirmDrop = null; act('inventory:discard', { slot: sel.bag }); }, { danger: true }));
-          actions.push(actionBtn('Behalten', () => { confirmDrop = null; redraw(); }));
+          actions.length = 0;
+          actions.push(btn('Wirklich wegwerfen', () => { confirmDrop = null; act('inventory:discard', { slot: sel.bag }); }, { danger: true }));
+          actions.push(btn('Behalten', () => { confirmDrop = null; redraw(); }));
         } else {
-          actions.push(actionBtn(it.qty > 1 ? 'Alle wegwerfen' : 'Wegwerfen', () => {
+          const label = it.qty > 1 ? 'Alle wegwerfen' : 'Wegwerfen';
+          trash = h('button.pg-tool.pg-trash', { type: 'button', title: label, 'aria-label': label, onclick: () => {
             if (valuable || it.qty > 1) { confirmDrop = sel.bag; redraw(); } else act('inventory:discard', { slot: sel.bag });
-          }, { danger: true }));
+          } }, glyph('trash'));
         }
       }
     } else if (sel?.eq) {
-      actions.push(actionBtn('Ablegen', () => unequip(sel.eq), { primary: true }));
+      actions.push(btn('Ablegen', () => unequip(sel.eq), { primary: true }));
     } else if (sel?.mat) {
       const def = content.find('item', sel.mat), n = inv.mats?.[sel.mat] ?? 0;
       if (def?.value && n) {
         const one = sel.mat;
-        actions.push(actionBtn(`Alle verkaufen +${fmt(def.value * n)}`, () => { sel = null; const r = act('inventory:sellMat', { itemId: one }); if (r?.ok) msg = `${r.count}× ${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }));
+        actions.push(btn('Alle verkaufen', () => { sel = null; const r = act('inventory:sellMat', { itemId: one }); if (r?.ok) msg = `${r.count}× ${def.name} für ${fmt(r.gold)} Gold verkauft.`; redraw(); }, { extra: priceEl(def.value * n) }));
       }
     }
     const detail = selItemId
       ? h('div.pg-sheet.open',
-        h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', onclick: () => { sel = null; redraw(); } }, '✕'),
-        itemDetail(content, selItemId, { ...detailOpts, actions, compare: sel?.bag != null, actionsTop: true }),
-        msg ? h('p.pg-msg', msg) : null)
+        h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', title: 'Schließen', onclick: () => { sel = null; confirmDrop = null; redraw(); } }, '✕'),
+        h('div.pg-sheet-body',
+          itemDetail(content, selItemId, { ...detailOpts, compare: sel?.bag != null }),
+          msg ? h('p.pg-msg', msg) : null),
+        actions.length || trash ? h('div.pg-sheet-bar', actions, trash) : null)
       : null;
 
-    // Schnellverkauf: Weiße verkaufen, Auto-Verkauf, Mehrfachauswahl
+    // Schnellverkauf (nur wenn es etwas zu tun gibt) und Mehrfachauswahl
     function quickSellBar() {
       if (multi) {
         const list = [...multi].filter((i) => inv.slots[i]);
         const gold = sellValue(st, content, list);
         return h('div.pg-quicksell.multi',
-          h('span.pg-qs-info', list.length ? `${list.length} gewählt · +${fmt(gold)} Gold` : 'Teile antippen zum Auswählen'),
-          actionBtn('Verkaufen', () => { const r = act('inventory:sell', { slots: list }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; multi = null; redraw(); } }, { small: true, primary: true, disabled: !list.length }),
-          actionBtn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }, { small: true }));
+          h('span.pg-qs-info', list.length ? `${list.length} gewählt` : 'Teile antippen zum Auswählen'),
+          btn('Verkaufen', () => { const r = act('inventory:sell', { slots: list }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; multi = null; redraw(); } }, { primary: true, disabled: !list.length, extra: list.length ? priceEl(gold) : null }),
+          btn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }));
       }
       const junk = sellableSlots(st, content, 'common');
-      const auto = inv.autoSell ?? null;
-      const AUTO = [[null, 'Aus'], ['common', 'Weiße'], ['uncommon', 'Weiße + Grüne']];
-      const next = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
+      if (!junk.length) return null;
       return h('div.pg-quicksell',
-        junk.length ? actionBtn(`Weiße verkaufen · ${junk.length} (+${sellValue(st, content, junk)})`, () => {
+        btn(`Weiße verkaufen · ${junk.length}`, () => {
           const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { small: true }) : h('span.pg-qs-info'),
-        h(`button.pg-chip.pg-auto${auto ? '.on' : ''}`, { type: 'button', title: 'Beim Aufsammeln automatisch verkaufen (Verbesserungen werden behalten)', onclick: () => { act('inventory:autoSell', { mode: next }); } },
-          `Auto-Verkauf: ${AUTO.find(([m]) => m === auto)[1]}`));
+        }, { extra: priceEl(sellValue(st, content, junk)) }));
     }
+    // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
+    const auto = inv.autoSell ?? null;
+    const AUTO = [[null, 'Aus'], ['common', 'Weiße'], ['uncommon', 'Weiße + Grüne']];
+    const autoLabel = (m) => `Auto-Verkauf: ${AUTO.find(([x]) => x === m)[1]}`;
+    const autoNext = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
+    const autoBtn = h(`button.pg-tool.pg-auto${auto ? '.on' : ''}`, {
+      type: 'button', title: autoLabel(auto), 'aria-label': autoLabel(auto), 'data-mode': auto ?? 'off',
+      onclick: () => { const r = act('inventory:autoSell', { mode: autoNext }); if (r?.ok !== false) s.bus.emit(EV.UI_TOAST, { text: autoLabel(autoNext), kind: 'info' }); },
+    }, glyph('auto'));
 
     // Materialbeutel: belegt keine Taschenplätze, hat keine Größe
     function matSection() {
@@ -266,8 +279,9 @@ function inventoryView(s) {
               type: 'button', role: 'tab', 'aria-selected': String(filter === id), onclick: () => { filter = id; redraw(); },
             }, label)),
             h('div.pg-tools',
-              h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, h('img', { src: statGlyph('sort'), alt: '', width: 14, height: 14 })),
-              h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, h('img', { src: statGlyph('multi'), alt: '', width: 14, height: 14 }))))),
+              autoBtn,
+              h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, glyph('sort', 14)),
+              h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, glyph('multi', 14))))),
           quickSellBar(),
           h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
           materialList(st, content).length ? matSection() : null,
