@@ -50,6 +50,7 @@ export function installUi(game) {
     const minimap = new Minimap(session, hud.frame);
     const zt = new ZoneTransition(session);
     const unlocks = new Unlocks(session, hud);
+    hud.unlocks = unlocks; // Banner haben Vorrang vor Freischalt-Karten (Warteschlange im Hud)
     const rewards = new Rewards(session, hud); // Kill-Serie, fliegende Beute, EP-Glühen, Fähigkeit bereit
     listenTravel(session); // Wegstein -> Reisemenü
     return {

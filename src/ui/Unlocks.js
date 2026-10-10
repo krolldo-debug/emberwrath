@@ -56,16 +56,30 @@ export class Unlocks {
 
   push(card) { this.queue.push(card); }
 
+  get showing() { return this.left > 0; }
+
+  // Ein wichtigeres Banner (Hud) braucht den Platz: Karte ausblenden und später erneut zeigen
+  yieldTo() {
+    if (!(this.left > 0) || !this.current) return;
+    this.current.remain = Math.max(1.2, this.left);   // danach nur die Restzeit, nicht erneut die volle Dauer
+    this.queue.unshift(this.current);
+    this.current = null;
+    this.left = -1;
+    this.el.classList.remove('show');
+  }
+
   #show(c) {
     const k = KIND[c.kind] ?? KIND.ability;
+    const again = c === this.lastShown;   // nach yieldTo(): kein zweiter Klang
+    this.current = c; this.lastShown = c;
     this.icon.src = iconUrl(c.icon);
     this.kind.textContent = k.label;
     this.name.textContent = c.name ?? '';
     this.sub.textContent = c.sub ?? '';
     this.el.className = `ef-unlock show k-${k.cls}`;
     const show = this.s?.input?.usingTouch ? SHOW * 0.75 : SHOW; // Handy: kürzer
-    this.left = this.queue.length >= 2 ? show * 0.55 : show; // viele auf einmal (Stufensprung): schneller durch
-    this.s.sfx?.play?.(c.kind === 'achievement' ? 'achievement' : 'unlock');
+    this.left = c.remain ?? (this.queue.length >= 2 ? show * 0.55 : show); // viele auf einmal (Stufensprung): schneller durch
+    if (!again) this.s.sfx?.play?.(c.kind === 'achievement' ? 'achievement' : 'unlock');
   }
 
   update(dt) {
