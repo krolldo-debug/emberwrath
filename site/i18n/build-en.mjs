@@ -48,15 +48,35 @@ export function decorateGerman(html, page) {
   return html.replace('<a class="nav-extra"', `<a class="nav-lang" href="${SLUGS[slug].replace(/^\//, '')}" hreflang="en" lang="en" data-setlang="en">English</a>\n      <a class="nav-extra"`);
 }
 
+// Übersetzungen landen ungeprüft im HTML der englischen Seiten. Darum nur, was die deutschen Seiten selbst verwenden:
+// Textstücke ohne Markup; ganze Absätze ('html') nur mit Inline-Tags und harmlosen Attributen, keine Skript-Links.
+const SAFE_TAGS = new Set(['a', 'b', 'strong', 'i', 'em', 'span', 'br', 'small', 'abbr', 'time', 'code', 'kbd', 'sup', 'sub', 'mark', 'wbr', 'q', 'cite']);
+const SAFE_ATTRS = new Set(['href', 'rel', 'target', 'class', 'lang', 'hreflang', 'title', 'translate', 'datetime']);
+function safeTranslation(key, t, kind) {
+  const bad = (why) => { throw new Error(`site/i18n: unsichere Übersetzung (${why}) für „${key.slice(0, 80)}“`); };
+  if (kind !== 'html') { if (kind === 'text' && /[<>]/.test(t)) bad('Markup in Textstück'); return t; }
+  for (const [, close, tag, attrs] of t.matchAll(/<(\/?)([a-zA-Z][\w-]*)([^>]*)>/g)) {
+    if (!SAFE_TAGS.has(tag.toLowerCase())) bad(`<${tag}>`);
+    if (close) continue;
+    for (const [, name, , v1, v2, v3] of attrs.matchAll(/([^\s=\/>]+)(\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)) {
+      const n = name.toLowerCase();
+      if (!SAFE_ATTRS.has(n) && !n.startsWith('data-')) bad(`Attribut ${name}`);
+      if (n === 'href' && /^\s*(javascript|data|vbscript):/i.test(v1 ?? v2 ?? v3 ?? '')) bad('Skript-Link');
+    }
+  }
+  if (t.replace(/<\/?[a-zA-Z][\w-]*[^>]*>/g, '').includes('<')) bad('offenes „<“');
+  return t;
+}
+
 export function buildEnglish(html, page, outDir, tr, missing) {
   const slug = pageSlug(page);
   const en = SLUGS[slug];
   if (!en) return null;
   const root = parse(html);
-  translateTree(root, (key) => {
+  translateTree(root, (key, kind) => {
     const t = tr.exact.get(key.replace(/\s+/g, ' ').trim()) ?? tr.tr(key);
     if (t === key) { if (!tr.known(key)) missing.add(key); return null; }
-    return t;
+    return safeTranslation(key, t, kind);
   });
   walkElements(root, (el) => {
     if (el.tag === 'html') setAttr(el, 'lang', 'en');
@@ -83,7 +103,8 @@ export function buildEnglish(html, page, outDir, tr, missing) {
         if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === 'name' && x === 'Dominic Paul Kroll' ? x : fix(x)]));
         return v;
       };
-      el.rawBody = JSON.stringify(fix(data));
+      // „<“ maskieren: ein übersetzter Text mit </script> darf den Datenblock nicht beenden
+      el.rawBody = JSON.stringify(fix(data)).replace(/</g, '\\u003c');
     }
   });
   let out = serialize(root);
