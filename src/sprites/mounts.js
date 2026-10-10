@@ -549,14 +549,13 @@ function drawMount(R, G, B, look, pose) {
     for (const [a, b, c2, d] of [[-9, -11.2, -5, -15.4], [8.2, -11.4, 4.4, -15.6], [-8.6, -9, 7.8, -9.2]]) R.line(a, b + bob, c2, d + bob, 0.45, pulse > 0.5 ? '#ffb640' : '#e0661a');
     for (const [x, y] of [[-5.6, -13.6], [-0.6, -16.6], [4.4, -13.8]]) {
       R.ellipse(x, y + bob, 1.3, 0.9, (l) => band(['#7a1e06', '#c8420c', '#f07a1c', '#ffd070', '#fff4c0'], 2.2 + l * 1.4 + pulse * 0.6));
-      G.push({ x: Math.round(x), y: Math.round(y + bob), color: '#ff9a30', r: 1.6 + pulse * 0.6 });
+      G.push({ x: Math.round(x), y: Math.round(y + bob), color: '#ff9a30', r: 1 });
     }
     for (let i = 0; i < 3; i++) {
       const t = ((pose.ph / TAU) * 1.2 + i / 3) % 1, wx = -6 + i * 6 + Math.sin(t * 6 + i) * 0.8, wy = -18 - t * 6 + bob;
       R.dot(wx, wy, t < 0.4 ? '#fff0b0' : t < 0.75 ? '#ffb640' : '#c8420c');
       if (t < 0.6) G.push({ x: Math.round(wx), y: Math.round(wy), color: '#ff9a30', r: 1 });
     }
-    G.push({ x: -1, y: Math.round(-13 + bob), color: '#ff8a30', r: 3 });
   }
   if (look.coat === 'spore') {
     // leuchtende Pilze auf dem Panzer

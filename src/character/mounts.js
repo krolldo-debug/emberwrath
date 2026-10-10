@@ -56,11 +56,11 @@ export const MOUNTS = {
   rime_drake: M('Reifschwinge', 'legendary', 'drake',
     { coat: 'rime', mane: 'snow', tack: 'silver', eyes: 'frost', glow: 'rime' },
     'Äußerst selten von Skalvyr in den Reifhöhlen', 'Das letzte Junge des Frostwurms. Seine Schuppen sind klares Eis, und aus seinen Schwingen rieselt feiner Schnee.'),
-  // Belohnung des Erfolgs „Großwildjäger“ (alle seltenen Weltgegner): nur darüber erhältlich.
+  // Belohnung des Erfolgs „Herr der Jagd“ (jeden seltenen Weltgegner zehnmal): nur darüber erhältlich, Tempo wie seltene Reittiere.
   golden_stag: { ...M('Goldhirsch', 'epic', 'elk',
     { coat: 'stag', mane: 'snow', tack: 'gold', antler: 'gold' },
-    'Erfolg „Großwildjäger“: alle seltenen Weltgegner besiegen', 'Der König der Wälder, den kein Jäger je erlegt hat. Er folgt nur dem, der alle anderen Bestien bezwungen hat.'),
-    achievement: 'rare_all' },
+    'Erfolg „Herr der Jagd“: jeden seltenen Weltgegner zehnmal besiegen', 'Der König der Wälder, den kein Jäger je erlegt hat. Er folgt nur dem, der alle anderen Bestien bezwungen hat.'),
+    speed: MOUNT_SPEED.rare, achievement: 'rare_master' },
   // Belohnung des Erfolgs „Glutfürst“ (Glutprüfung 20, progression/achievements.js): nur darüber erhältlich.
   ember_scarab: { ...M('Glutskarabäus', 'legendary', 'beetle',
     { coat: 'scarab', mane: 'ember', tack: 'gold', eyes: 'fire', glow: 'fire' },

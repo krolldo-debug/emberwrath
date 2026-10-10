@@ -507,7 +507,7 @@ const REWARD_JEWELRY = {
 // Reines Aussehen für die Garderobe (lookOnly): liegt nie in Tasche oder Bank, hat keine Werte.
 // Optik in character/gearLook.js (HEAD_NAMED nach ID).
 export const LOOK_ITEMS = {
-  fallen_crown: { name: 'Krone der Gefallenen', type: 'armor', slot: 'head', family: 'plate', rarity: 'legendary', icon: 'helm_t8',
+  fallen_crown: { name: 'Krone der Gefallenen', type: 'armor', slot: 'head', family: 'plate', rarity: 'legendary', icon: 'crown_fallen',
     desc: 'Geschmiedet aus den Kronen der sieben Herrscher, die du gestürzt hast.' },
 };
 for (const d of Object.values(LOOK_ITEMS)) Object.assign(d, { source: 'achievement', lookOnly: true, ilvl: 1, reqLevel: 1, tier: 1, value: 0, stats: {} });

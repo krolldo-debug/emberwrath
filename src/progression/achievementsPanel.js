@@ -23,35 +23,43 @@ export function achievementsPanel(s) {
   // ---------------------------------------------------------------- Belohnung: Daten und Vorschau
   const info = (id) => {
     const d = ACHIEVEMENTS[id], r = d.reward, c = s.content;
-    if (r.kind === 'dye') return { name: DYES[r.id].name, kind: 'Färbung', note: 'Färbt Umhang, Kapuze und Stoffrüstung.' };
+    if (r.kind === 'dye') return { name: DYES[r.id].name, short: DYES[r.id].name, kind: 'Färbung', note: 'Färbt Umhang, Kapuze und Stoffrüstung.' };
     if (r.kind === 'mount') {
       const m = c.find('mount', r.id);
-      return { name: m.name, kind: `Reittier · +${Math.round(m.speed * 100)} % Tempo`, note: m.desc };
+      return { name: m.name, short: m.name, kind: `Reittier · +${Math.round(m.speed * 100)} % Tempo`, note: m.desc };
     }
     const itemId = r.kind === 'item' ? rewardItemId(r, CLASSES[ch().classId]?.primary) : r.id;
     const it = c.find('item', itemId);
-    if (r.kind === 'look') return { name: it.name, kind: `Aussehen · ${EQUIP_SLOT_NAMES[it.slot]}`, note: it.desc, item: it };
-    return { name: it.name, kind: `${EQUIP_SLOT_NAMES[it.slot]} · ${RARITIES[it.rarity].name}`, note: it.desc, item: it };
+    if (r.kind === 'look') return { name: it.name, short: it.name.split(' ')[0], kind: `Aussehen · ${EQUIP_SLOT_NAMES[it.slot]}`, note: it.desc, item: it };
+    return { name: it.name, short: EQUIP_SLOT_NAMES[it.slot], kind: `${EQUIP_SLOT_NAMES[it.slot]} · ${RARITIES[it.rarity].name}`, note: it.desc, item: it };
   };
   const heroGear = (over = {}) => resolveGear({ ...shownEquipment(st.slices, s.content), ...over }, s.content);
+  // Größen ganzzahlig (Leinwand intern 3-fach): Vitrine 3× bzw. am Handy 2×, Karte 4×; Krone in der Vitrine als Kopfbild 6× / 4×
+  const compact = () => !!window.matchMedia?.('(max-height: 520px)').matches;
   const stage = (id, big = false) => {
-    const key = `${id}|${big ? 1 : 0}`;
+    const small = !big && compact();
+    const key = `${id}|${big ? 'card' : small ? 's' : 'm'}`;
     if (stages.has(key)) return stages.get(key);
     const r = ACHIEVEMENTS[id].reward, c = ch(), ap = c.appearance ?? {};
     let el;
     if (r.kind === 'item') {
-      el = h('div.ach-stage-item', itemIconEl(info(id).item, big ? 72 : 48));
+      el = h('div.ach-stage-item', itemIconEl(info(id).item, big ? 104 : small ? 52 : 78));
     } else {
       // Färbung: ohne Brust und Kopf, damit Umhang und Stoff zu sehen sind; Aussehen: über die getragene Ausrüstung gelegt
-      const look = r.kind === 'look' ? heroGear({ [s.content.find('item', r.id).slot]: r.id }) : r.kind === 'dye' ? heroGear({ chest: null, head: null }) : heroGear();
+      const zoom = r.kind === 'look' && !big;   // Kopfbild ohne Waffe, damit die Krone im Mittelpunkt steht
+      const look = r.kind === 'look' ? heroGear({ [s.content.find('item', r.id).slot]: r.id, ...(zoom ? { weapon: null } : {}) }) : r.kind === 'dye' ? heroGear({ chest: null, head: null }) : heroGear();
       const style = spriteStyle(r.kind === 'dye' ? { ...ap, dye: r.id } : ap);
-      const p = new HeroPortrait({ raceId: c.raceId, classId: c.classId, variant: ap.variant ?? 0, gear: look, style, scale: big ? 4 : 3, backdrop: false });
+      const scale = zoom ? (small ? 4 : 6) : big ? 4 : small ? 2 : 3;
+      const p = new HeroPortrait({ raceId: c.raceId, classId: c.classId, variant: ap.variant ?? 0, gear: look, style, scale, backdrop: false, glow: false });   // ohne weichen Schein: nur harte Pixel
       if (r.kind === 'mount') {
         const anims = s.game.character?.animsForLook?.({ raceId: c.raceId, classId: c.classId, appearance: ap, gear: look, mountId: r.id }, 3);
         if (anims?.ride) { p.anims = { idle: anims.ride }; p.draw(); }
       }
       el = p.canvas;
       el.portrait = p;
+      if (zoom) el.classList.add('ach-zoom');
+      // Färbung: das Tuch in ihren Farben hängt hinter dem Helden
+      if (r.kind === 'dye') el = h('div.ach-stage-dye', iconEl(`dye_${r.id}`, big ? 130 : small ? 52 : 78), el);
     }
     el.classList.add('ach-stage');
     stages.set(key, el);
@@ -90,7 +98,7 @@ export function achievementsPanel(s) {
       onclick: () => { open = open === id ? null : id; redraw(); },
     },
     h('span.ach-pedestal', stage(id), got ? null : h('span.ach-lock', { 'aria-hidden': 'true' })),
-    h('span.ach-trophy-name', inf.name),
+    h('span.ach-trophy-name', h('span.ach-long', inf.name), h('span.ach-short', inf.short)),
     got ? h('span.ach-trophy-got', 'Errungen') : h('span.ach-trophy-prog', bar(v / d.goal)));
   };
 
@@ -113,7 +121,7 @@ export function achievementsPanel(s) {
   const row = (id, d, v) => h(`li.ach-row${d.reward ? '.rw' : ''}`, { title: d.reward ? `Belohnung: ${info(id).name}` : null },
     h('span.ach-medal', iconEl(d.icon, 24)),
     h('span.ach-row-main',
-      h('span.ach-row-name', d.name, d.title ? h('span.ach-tag', `„${d.title}“`) : null),
+      h('span.ach-row-name', d.name, d.title && d.title !== d.name ? h('span.ach-tag', `„${d.title}“`) : null),
       h('small', d.desc)),
     d.goal > 1 ? h('span.ach-count', count(v, d)) : null,
     h('span.ach-pts', fmtNum(d.points)),
@@ -139,18 +147,17 @@ export function achievementsPanel(s) {
       .sort((x, y) => y[2] / (y[1].goal || 1) - x[2] / (x[1].goal || 1));
     const got = shown.filter(([id]) => a.unlocked[id]);
     return panelFrame(s, 'achievements', 'Erfolge',
-      h('div.ach-top',
-        h('section.ach-vitrine', { 'aria-label': 'Belohnungen' },
-          h('header.ach-sec', h('span', 'Belohnungen'), h('b', `${fmtNum(rewardsGot)} / ${fmtNum(rewards.length)}`)),
-          h('div.ach-trophies', rewards.map(trophy))),
-        h('div.ach-sum',
-          h('span.ach-score', h('b', fmtNum(points)), h('span', ' Punkte')),
-          h('span.ach-score.dim', h('b', `${fmtNum(done)} / ${fmtNum(all.length)}`), h('span', ' Erfolge')),
-          titles.length ? h('label.ach-title',
-            h('span', 'Titel'),
-            h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => st.commit('achievement:title', { id: e.target.value || null }) },
-              h('option', { value: '', selected: !a.title }, 'Kein Titel'),
-              titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null)),
+      h('section.ach-top', { 'aria-label': 'Belohnungen' },
+        h('header.ach-sec', h('span', 'Belohnungen'), h('b', `${fmtNum(rewardsGot)} / ${fmtNum(rewards.length)}`)),
+        h('div.ach-trophies', rewards.map(trophy))),
+      h('div.ach-sum',
+        h('span.ach-score', h('b', fmtNum(points)), h('span', ' Punkte')),
+        h('span.ach-score.dim', h('b', `${fmtNum(done)} / ${fmtNum(all.length)}`), h('span', ' Erfolge')),
+        titles.length ? h('label.ach-title',
+          h('span', 'Titel'),
+          h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => st.commit('achievement:title', { id: e.target.value || null }) },
+            h('option', { value: '', selected: !a.title }, 'Kein Titel'),
+            titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null),
       h('div.ach-tabs', { role: 'tablist' }, [['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)].map(([gid, label]) => h(`button.ach-tab${group === gid ? '.on' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': String(group === gid), onclick: () => { group = gid; redraw(); },
       }, label))),
@@ -164,7 +171,7 @@ export function achievementsPanel(s) {
   const view = reactive(s, (redraw) => render(redraw));
   return {
     root: view.root,
-    update: (dt) => { for (const el of stages.values()) if (el.isConnected) el.portrait?.update(dt); },
+    update: (dt) => { for (const el of stages.values()) if (el.isConnected) (el.portrait ?? el.querySelector('canvas')?.portrait)?.update(dt); },
     dispose: view.dispose,
   };
 }

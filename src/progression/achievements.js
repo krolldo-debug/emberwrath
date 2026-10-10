@@ -18,6 +18,8 @@ const rareCount = (s) => Object.keys(s.slices.rares?.kills ?? {}).length;
 const done = (s, ids) => ids.filter((id) => s.slices.quests.completed.includes(id)).length;
 const A = (group, name, desc, icon, points, value, goal = 1, title = null, reward = null) => ({ group, name, desc, icon, points, value, goal, title, reward });
 const kills = (s, type) => byType(s, type);
+const RARE_MASTER = 10;        // Herr der Jagd: jeden seltenen Gegner so oft
+const TRIAL_BOSS_TIER = 15;    // Die Sieben Gefallenen: Herrscher in Glutprüfung ab dieser Stufe
 const BOSSES = ['bonelord', 'drowned_priestess', 'ember_tyrant', 'barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign'];
 
 const Q_EMBERHOLLOW = ['q_ashen_wolves', 'q_glutfang', 'q_into_catacombs', 'q_spider_silk', 'q_bonelord', 'q_road_east'];
@@ -53,12 +55,14 @@ export const ACHIEVEMENTS = {
   rot_mother: A('combat', 'Ausgebrannt', 'Besiege Mutter Fäulnis.', 'essence_shadow', 20, (s) => kills(s, 'rot_mother')),
   skalvyr: A('combat', 'Tauwetter', 'Besiege Skalvyr, den Frostwurm.', 'gem_sapphire', 25, (s) => kills(s, 'frost_wyrm')),
   malgareth: A('combat', 'Thronsturz', 'Stürze Malgareth, den Aschenfürsten.', 'amulet_sun', 40, (s) => kills(s, 'ash_sovereign'), 1, 'Thronbrecher'),
-  all_bosses: A('combat', 'Die Sieben Gefallenen', 'Besiege alle sieben Herrscher von Emberwrath.', 'relic', 50,
-    (s) => BOSSES.filter((t) => kills(s, t) > 0).length, BOSSES.length, null, { kind: 'look', id: 'fallen_crown' }),
+  all_bosses: A('combat', 'Die Sieben Gefallenen', `Besiege alle sieben Herrscher in Glutprüfung ${TRIAL_BOSS_TIER} oder höher.`, 'relic', 50,
+    (s) => BOSSES.filter((t) => (s.slices.trials?.bosses?.[t] ?? 0) >= TRIAL_BOSS_TIER).length, BOSSES.length, null, { kind: 'look', id: 'fallen_crown' }),
   slayer_5000: A('combat', 'Unaufhaltsam', 'Besiege 5.000 Gegner.', 'sword', 40, (s) => st(s).kills, 5000, 'der Unaufhaltsame', { kind: 'dye', id: 'bloodmoon' }),
   champion_50: A('combat', 'Championsbrecher', 'Besiege 50 Champions.', 'charm_skull', 25, (s) => st(s).championKills ?? 0, 50, 'Championsbrecher'),
   rare_first: A('combat', 'Seltener Fang', 'Besiege einen seltenen Weltgegner.', 'fang', 5, (s) => rareCount(s)),
-  rare_all: A('combat', 'Großwildjäger', `Besiege alle ${Object.keys(RARE_ENEMIES).length} seltenen Weltgegner.`, 'charm_skull', 25, (s) => rareCount(s), Object.keys(RARE_ENEMIES).length, 'Großwildjäger', { kind: 'mount', id: 'golden_stag' }),
+  rare_all: A('combat', 'Großwildjäger', `Besiege alle ${Object.keys(RARE_ENEMIES).length} seltenen Weltgegner.`, 'charm_skull', 25, (s) => rareCount(s), Object.keys(RARE_ENEMIES).length, 'Großwildjäger'),
+  rare_master: A('combat', 'Herr der Jagd', `Besiege jeden der ${Object.keys(RARE_ENEMIES).length} seltenen Weltgegner ${RARE_MASTER}-mal.`, 'charm_skull', 50,
+    (s) => Object.keys(RARE_ENEMIES).reduce((n, k) => n + Math.min(RARE_MASTER, s.slices.rares?.kills?.[k] ?? 0), 0), Object.keys(RARE_ENEMIES).length * RARE_MASTER, 'Herr der Jagd', { kind: 'mount', id: 'golden_stag' }),
 
   // --- Beute
   first_epic: A('loot', 'Lila Glanz', 'Finde dein erstes episches Item.', 'gem_amethyst', 15, (s) => st(s).epicFound ?? 0),
@@ -87,7 +91,7 @@ export const ACHIEVEMENTS = {
 };
 
 // Erfolge mit Belohnung, ungefähr in der Reihenfolge, in der man sie erreicht (Vitrine im Fenster)
-const REWARD_ORDER = ['rare_all', 'all_bosses', 'slayer_5000', 'trial_20', 'upgrade_15', 'trial_30'];
+const REWARD_ORDER = ['rare_master', 'all_bosses', 'slayer_5000', 'trial_20', 'upgrade_15', 'trial_30'];
 export const REWARD_ACHIEVEMENTS = [...REWARD_ORDER, ...Object.keys(ACHIEVEMENTS).filter((id) => ACHIEVEMENTS[id].reward && !REWARD_ORDER.includes(id))];
 
 // Gegenstand einer Belohnung für eine Klasse (byClass: Fassung nach Hauptattribut, sonst die ID selbst)

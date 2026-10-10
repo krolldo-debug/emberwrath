@@ -4,6 +4,7 @@ import { EV } from '../core/events.js';
 import { ITEMS, EQUIP_SLOTS, stackSize } from './items.js';
 import { ACHIEVEMENTS, rewardItemId } from './achievements.js';
 import { CLASSES } from '../character/classes.js';
+import { WARDROBE_EVENT } from '../character/wardrobe.js';
 import { UPGRADE_MAX, upgradeCost, ENCHANTS, computeBonus } from './smithing.js';
 import { TRIAL_REQUIRES, TRIAL_MAX_TIER, KILL_VALUE, trialSpec, trialRewards } from './trials.js';
 import { countItem } from './selectors.js';
@@ -56,7 +57,7 @@ export function grantReward(s, ctx, def, h) {
   if (r.kind === 'look') {
     const w = ch?.wardrobe;
     if (!w) return false;
-    if (!w.looks.includes(r.id)) { w.looks.push(r.id); ctx.bus.emit(EV.WARDROBE_UNLOCKED, { itemIds: [r.id], source: 'achievement' }); }
+    if (!w.looks.includes(r.id)) { w.looks.push(r.id); ctx.bus.emit(WARDROBE_EVENT, { itemIds: [r.id], source: 'achievement' }); }
   } else if (r.kind === 'mount') {
     const m = ch?.mounts;
     if (!m || !ctx.content.find('mount', r.id)) return false;
@@ -90,6 +91,7 @@ export function trialKill(s, ctx, { type, elite, isBoss, bossId, trialTime }, h)
     run.time = Math.round(trialTime ?? 0);
     run.rewards = rewards;
     tr.best = Math.max(tr.best, run.tier);
+    (tr.bosses ??= {})[run.bossId] = Math.max(tr.bosses[run.bossId] ?? 0, run.tier);   // höchste Stufe je Herrscher (Erfolg „Die Sieben Gefallenen“)
     tr.runs++;
     const prev = tr.cleared[run.tier];
     tr.cleared[run.tier] = prev ? Math.min(prev, run.time || prev) : run.time || 1;
@@ -102,6 +104,9 @@ export function trialKill(s, ctx, { type, elite, isBoss, bossId, trialTime }, h)
     boardProgress(s, ctx, { kind: 'trial', tier: run.tier });
   }
 }
+
+const cleanBosses = (raw) => Object.fromEntries(Object.entries(raw && typeof raw === 'object' ? raw : {})
+  .filter(([id, t]) => /^[a-z_]{1,32}$/.test(id) && Number.isFinite(t) && t > 0).map(([id, t]) => [id, Math.min(TRIAL_MAX_TIER, t | 0)]));
 
 export function registerEndgameState(state, h) {
   const auth = { authoritative: true };
@@ -228,9 +233,9 @@ export function registerEndgameState(state, h) {
 
   // ---------------------------------------------------------------- Glutprüfungen
   state.defineSlice('trials', {
-    create: () => ({ best: 0, runs: 0, cleared: {}, run: null }),
+    create: () => ({ best: 0, runs: 0, cleared: {}, bosses: {}, run: null }),
     // Ein laufender Versuch überlebt kein Neuladen.
-    deserialize: (raw) => ({ best: Math.max(0, raw.best | 0), runs: Math.max(0, raw.runs | 0), cleared: { ...raw.cleared }, run: null }),
+    deserialize: (raw) => ({ best: Math.max(0, raw.best | 0), runs: Math.max(0, raw.runs | 0), cleared: { ...raw.cleared }, bosses: cleanBosses(raw.bosses), run: null }),
   });
   def('trial:start', (s, { tier }, ctx) => {
     const tr = s.get('trials');

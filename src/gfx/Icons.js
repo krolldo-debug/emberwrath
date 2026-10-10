@@ -2,6 +2,7 @@ import { PAL } from './Palette.js';
 import { PixelCanvas, outlineCanvas, makeCanvas } from './PixelCanvas.js';
 import { decorateItemIcon } from './ItemFx.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
+import { DYES } from '../character/cosmetics.js';
 
 // Item-, Fähigkeits- und UI-Icons als prozedurale 24×24-Pixel-Art (mit Umriss 26×26).
 // Gemeinsam genutzt von HUD (D), Inventar/Beute/Händler (C) und Charaktererstellung (A).
@@ -1083,6 +1084,35 @@ for (const [id, o] of Object.entries(MOUNTS)) DRAW[id] = (p) => mountHead(p, o);
 DRAW.mount_spore_beetle = mountBeetle;
 DRAW.mount_ember_scarab = (p) => mountBeetle(p, { shell: ['#3a1e08', '#6a4012', '#a8701c', '#e0a832', '#fff0a0'], seam: M.ember[3], head: M.bronze, eye: M.ember[4], gems: M.ember });
 DRAW.mount = DRAW.mount_steppe_horse;
+// Krone der Gefallenen (Erfolg „Die Sieben Gefallenen“): offene Goldkrone mit fünf Zacken und Glutsteinen
+DRAW.crown_fallen = (p) => {
+  const G = M.gold, E = M.ember;
+  rect(p, 3, 14, 18, 5, G[2]); rect(p, 3, 14, 18, 1, G[4]); rect(p, 3, 15, 18, 1, G[3]); rect(p, 3, 18, 18, 1, G[1]); rect(p, 3, 19, 18, 1, G[0]);
+  for (const [x, top] of [[3, 9], [7, 7], [11, 4], [16, 7], [20, 9]]) {
+    const w = x === 11 ? 2 : 1;
+    rect(p, x, top + 1, w, 14 - top - 1, G[3]); if (w === 1) p.px(x, 14, G[3]);
+    p.px(x, top + 1, G[4]);
+    rect(p, x - (w === 1 ? 1 : 0), top - 1, w === 1 ? 3 : 2, 2, G[3]); p.px(x, top - 1, G[4]);
+  }
+  for (const [x, w] of [[4, 3], [8, 3], [13, 3], [17, 3]]) rect(p, x, 13 - (x === 8 || x === 13 ? 2 : 1), w, x === 8 || x === 13 ? 3 : 2, G[2]);
+  for (const [x, c] of [[6, E[3]], [11, E[4]], [12, E[3]], [17, E[3]]]) { p.px(x, 16, c); p.px(x, 17, E[2]); }
+  p.px(11, 15, E[4] ?? E[3]);
+};
+// Färbungen aus Erfolgen (character/cosmetics.js): hängendes Tuch in den Farben der Färbung
+function dyeCloth(p, R) {
+  rect(p, 5, 3, 14, 2, M.gold[2]); rect(p, 5, 3, 14, 1, M.gold[4]); p.px(4, 3, M.gold[1]); p.px(19, 3, M.gold[1]);
+  for (let y = 5; y < 21; y++) for (let x = 6; x < 18; x++) {
+    const tail = y >= 17 && Math.abs(x - 11.5) < (y - 16) * 1.4;   // Schwalbenschwanz unten
+    if (tail) continue;
+    const fold = (x - 6) % 4;                                       // senkrechte Falten
+    let k = fold === 0 ? 1 : fold === 1 ? 3 : 2;
+    if (x === 6) k = 0;
+    if (y === 5) k = Math.min(4, k + 1);
+    if (fold === 1 && y < 9) k = 4;                                 // Licht oben links
+    p.px(x, y, R[Math.min(R.length - 1, k)]);
+  }
+}
+for (const [id, d] of Object.entries(DYES)) DRAW[`dye_${id}`] = (p) => dyeCloth(p, d.ramp);
 // Knopf „Reittier“: Hufeisen
 DRAW.ui_mount = (p) => {
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {

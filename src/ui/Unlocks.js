@@ -49,7 +49,7 @@ export class Unlocks {
   #rewardCard(e) {
     const c = this.s.content, r = e.reward;
     let name = '', icon = e.icon ?? 'ui_achievements';
-    if (r.kind === 'dye') name = `Färbung „${DYES[r.id]?.name ?? ''}“`;
+    if (r.kind === 'dye') { name = `Färbung „${DYES[r.id]?.name ?? ''}“`; icon = `dye_${r.id}`; }
     else if (r.kind === 'mount') { name = c.find('mount', r.id)?.name ?? ''; icon = `mount_${r.id}`; }
     else {
       const it = c.find('item', r.kind === 'item' ? rewardItemId(r, CLASSES[this.s.state.slices.character?.classId]?.primary) : r.id);

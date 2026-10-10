@@ -89,6 +89,7 @@ export function installWardrobe(game) {
     for (const id of Array.isArray(itemIds) ? itemIds : []) {
       if (w.looks.length >= WARDROBE_MAX) break;
       if (typeof id !== 'string' || have.has(id) || !isLookItem(id)) continue;
+      if (content.find('item', id)?.source === 'achievement') continue;   // nur über den Erfolg (progression/endgame.js grantReward)
       have.add(id); w.looks.push(id); added.push(id);
     }
     if (added.length) ctx.bus.emit(WARDROBE_EVENT, { itemIds: added });
