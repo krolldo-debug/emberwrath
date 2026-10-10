@@ -121,7 +121,9 @@ export class ProgressionSystem {
     this.dailyT = DAILY_CHECK;
     if (!clockReady()) { syncClock(); this.dailyT = 5; return; }
     const d = session.state.slices.daily, now = serverNow();
-    if (!d || boardDay(now) <= d.day || this.hero?.dead) return;
+    if (!d || boardDay(now) <= d.day) return;
+    // Ruhiger Moment für die Ansage: kein Fenster offen, kein Einstiegshinweis sichtbar, Held am Leben
+    if (this.hero?.dead || session.panels?.openId || globalThis.document?.querySelector('.ef-guide.show')) { this.dailyT = 2; return; }
     session.state.commit('daily:login', { now, isNew: this.dailyNew });
     this.dailyNew = false;
   }

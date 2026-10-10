@@ -563,4 +563,8 @@
 .pg-daily-win-reward { display: inline-flex; align-items: center; gap: 10px; }
 .pg-daily-win.done { opacity: .6; }
 .pg-daily-tip div { white-space: nowrap; }
+.pg-daily-day { cursor: pointer; }
+.pg-daily-day.sel:not(.today) { border-color: #c8a060; }
+.pg-daily-pick { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 6px; padding: 6px 8px; background: #140c12; border: 2px solid #3a2a30; }
+.pg-daily-pick .pg-daily-tip { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .pg-challenge .pg-board-offer { margin-top: 0; }

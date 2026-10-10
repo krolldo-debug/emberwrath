@@ -11,7 +11,8 @@ import { fmtNum } from '../i18n/index.js';
 const commit = (s, type, payload) => s.state.commit(type, payload);
 // Tagesbelohnung: 7 Felder, abgeholte gedimmt, die heutige gerahmt. Tooltip (Maus) nennt den Inhalt.
 function dayIcon(c, r, n) {
-  if (r.icon === 'potion' || r.icon === 'mat') return iconEl(c.find('item', r.items[0]?.itemId)?.icon ?? 'bag', 24);
+  if (r.icon === 'potion') return iconEl(c.find('item', r.items[0]?.itemId)?.icon ?? 'potion', 24);
+  if (r.icon === 'mat') return iconEl('gem', 24);   // Material der Region: ein helles Symbol für alle Regionen, Inhalt im Tooltip
   return iconEl(r.icon === 'chest' ? 'helm_horned' : n >= 3 ? 'gold_pile' : 'gold', 24);
 }
 function dayTip(c, r) {
@@ -21,20 +22,25 @@ function dayTip(c, r) {
   if (r.gear) lines.push(h('div.r-rare', 'Ein blaues Ausrüstungsteil'));
   return h('div.pg-daily-tip', lines);
 }
-function dailyEl(s, today) {
+function dailyEl(s, today, view) {
   const c = s.content, d = s.state.slices.daily, level = s.state.slices.progress.level;
   if (!d) return null;
   const gotToday = d.day === today && d.streak > 0;
   const days = Array.from({ length: STREAK_DAYS }, (_, i) => {
     const n = i + 1, r = loginReward(n, level);
     const today_ = gotToday && n === d.streak;
-    const el = h(`li.pg-daily-day${n <= d.streak && !today_ ? '.got' : ''}${today_ ? '.today' : ''}`, { 'aria-label': `Tag ${n}` }, dayIcon(c, r, n), h('span.pg-daily-n', String(n)));
+    const el = h(`li.pg-daily-day${n <= d.streak && !today_ ? '.got' : ''}${today_ ? '.today' : ''}${view.day === n ? '.sel' : ''}`,
+      { 'aria-label': `Tag ${n}`, role: 'button', tabindex: '0', onclick: () => { view.day = view.day === n ? 0 : n; view.redraw(); } },
+      dayIcon(c, r, n), h('span.pg-daily-n', String(n)));
     return attachTip(el, () => dayTip(c, r));
   });
+  // Antippen (Handy) zeigt den Inhalt eines Tages unter der Leiste; Maus hat den Tooltip
+  const pick = view.day ? h('div.pg-daily-pick', h('b', `Tag ${view.day}`), dayTip(c, loginReward(view.day, level))) : null;
   const win = firstWinReward(level), winDone = d.winDay === today;
   return h('section.pg-daily',
     h('div.pg-daily-head', h('h3', 'Tagesbelohnung'), h('span.pg-daily-count', d.streak ? `Tag ${d.streak} von ${STREAK_DAYS}` : 'Ab morgen')),
     h('ol.pg-daily-days', days),
+    pick,
     h(`div.pg-daily-win${winDone ? '.done' : ''}`,
       h('span.pg-daily-win-label', 'Erster Sieg des Tages'),
       winDone ? h('span.pg-tag', 'Erledigt') : h('span.pg-daily-win-reward', win.xp ? h('span.pg-xp', `${fmtNum(win.xp)} EP`) : null, goldEl(win.gold))));
@@ -50,7 +56,8 @@ function challengeEl(s, redraw, setMsg) {
     : d.cDone ? actionBtn('Belohnung holen', () => { const x = commit(s, 'daily:claimChallenge', { now: serverNow() }); setMsg(x?.ok ? '' : 'Das geht gerade nicht.'); redraw(); }, { primary: true, small: true })
       : null;
   const rewards = rewardsEl(c, { gold: r.gold }, r.items);
-  rewards.append(gear);
+  const list = rewards.querySelector('.pg-rewards-items');
+  if (list) list.append(gear); else rewards.append(h('div.pg-rewards-items', gear));
   return h('section.pg-board-week.pg-challenge',
     h('h3', 'Wochenherausforderung'),
     h(`div.pg-board-offer${d.cClaimed ? '.done' : d.cDone ? '.ready' : ''}`,
@@ -65,7 +72,9 @@ function untilText(ms) {
 
 export function boardView(s) {
   let msg = '';
+  const view = { day: 0, redraw: null };
   return (redraw) => {
+    view.redraw = redraw;
     const st = s.state, c = s.content, b = st.slices.board, level = st.slices.progress.level;
     const now = serverNow(), today = boardDay(now);
     const offers = boardOffers(b.day, b.level);
@@ -86,7 +95,7 @@ export function boardView(s) {
     const weekReady = b.weekDone >= WEEK_GOAL && !b.weekClaimed;
     return panelFrame(s, 'board', 'Auftragsbrett',
       h('div.pg-scroll.pg-keep-scroll.pg-board',
-        dailyEl(s, today),
+        dailyEl(s, today, view),
         h('p.pg-hint', h('span', `${BOARD_OFFERS} Aufträge für die Region ${region.name}.`), ' ', h('span', untilText(msUntilNextDay(now)))),
         h('ul.pg-board-list', rows),
         challengeEl(s, redraw, (m) => { msg = m; }),
