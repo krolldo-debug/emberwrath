@@ -183,6 +183,8 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   **Stand 10.10.:** Kurve ab 3 Stufen steiler (3: 70 %, 4: 50 %, 5: 33 %, 6: 22 %, 8: 9 %, ab 10: 4 %), Elite ab Stufe 20 zählen
   zwei Stufen höher (`combatLevel`). Standfestigkeit `staggerGuard`/`knockbackMult` in `Enemy.onHurt`/`takeHit`: drei Stufen höher
   unterbrechen nur schwere Treffer, ab sechs keine, sonst kurze Ruhe nach dem Taumeln (Startgebiete kürzer), Rückstoß nach oben gedämpft.
+- **Grundhärte** (`difficulty.js`, Stand 10.10. abends): Weltgegner Leben ×2,8 und Schaden ×1,7 (Elite ×2,2/×1,35, Stufe 1 sanfter,
+  Grundtypen der Startgebiete zusätzlich zäher). Bosse und Glutprüfungen unverändert. Gruppen-Dungeons: finder/config.js.
 - **Materialbeutel:** Materialien liegen in `inventory.mats` und belegen keine Taschenplätze (alte Stände werden umgelagert).
   `inventory:sellMat`, Selektor `materialList`. Neue Charaktere haben Auto-Verkauf „Weiße“.
 - **Weniger Plunder:** Weiße Ausrüstung normaler Gegner fällt direkt als Gold (`junk: true`), Grün dafür öfter (29 % statt 14 % der Teile), Blau je Kill unverändert.
