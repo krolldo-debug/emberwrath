@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { RACE_LOOK } from '../sprites/hero.js';
 import { HeroPortrait } from '../account/ui.js';
 import { resolveGear } from './gearLook.js';
-import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle, ownsDesign, sameLook } from './cosmetics.js';
+import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle, ownsDesign, earnedDye, sameLook } from './cosmetics.js';
 
 const fmt = (n) => Number(n).toLocaleString('de-DE');
 
@@ -46,8 +46,9 @@ function appearancePanel(session) {
       choice(!pick.dye, false, 'Klassenfarbe', cur.dye ? '25 Gold' : 'aktuell', swatch(defaultRamp(ch.classId)), () => { pick.dye = null; }),
       ...Object.entries(DYES).map(([id, d]) => {
         const shopOnly = d.exclusive && !ownsDesign(state.slices, `dye:${id}`);
-        const locked = level < (d.level ?? 1) || shopOnly;
-        const sub = cur.dye === id ? 'aktuell' : shopOnly ? 'im Shop' : d.exclusive ? 'Exklusiv' : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
+        const earned = earnedDye(state.slices, id);
+        const locked = level < (d.level ?? 1) || shopOnly || !earned;
+        const sub = cur.dye === id ? 'aktuell' : shopOnly ? 'im Shop' : d.exclusive ? 'Exklusiv' : d.achievement ? (earned ? 'Erfolg' : 'über Erfolg') : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
         return choice(pick.dye === id, locked, d.name, sub, swatch(d.ramp), () => { pick.dye = id; });
       }),
     ];

@@ -22,11 +22,16 @@ export const DYES = {
   phoenix: { name: 'Phönixglut', price: 0, exclusive: true, ramp: ['#3a0804', '#8a1c08', '#d0480e', '#f8941e', '#ffe08a'] },
   starnight: { name: 'Sternennacht', price: 0, exclusive: true, ramp: ['#0a0a26', '#18205a', '#283c96', '#5a7ad8', '#c4d8ff'] },
   soullight: { name: 'Seelenlicht', price: 0, exclusive: true, ramp: ['#04201c', '#0c4a40', '#18806a', '#3cc49a', '#a8ffe0'] },
+  // Belohnung schwerer Erfolge (progression/achievements.js, reward 'dye'): kein Goldpreis, nur mit dem Erfolg.
+  bloodmoon: { name: 'Blutmond', price: 0, achievement: 'slayer_5000', ramp: ['#060104', '#12030a', '#2c0610', '#5c0a18', '#c41e30'] },
+  whiteflame: { name: 'Weißglut', price: 0, achievement: 'trial_30', ramp: ['#4a2a10', '#a0682a', '#e8b450', '#fff0b8', '#ffffff'] },
 };
 
 // Besitzt der Spielstand ein exklusives Shop-Design? (slices.shop.owned, vom Server abgeglichen)
 export const sameLook = (a, b) => ['variant', 'dye', 'hairStyle'].every((k) => (a?.[k] ?? (k === 'variant' ? 0 : null)) === (b?.[k] ?? (k === 'variant' ? 0 : null)));
 export const ownsDesign = (slices, key) => !!slices?.shop?.owned?.includes(key);
+// Färbung aus einem Erfolg: frei, sobald der Erfolg errungen ist
+export const earnedDye = (slices, id) => !DYES[id]?.achievement || !!slices?.achievements?.unlocked?.[DYES[id].achievement];
 
 export const HAIR_STYLES = {
   short: 'Kurz', long: 'Lang', crop: 'Stoppeln', tail: 'Zopf', dwarf: 'Zottelig', mane: 'Mähne', mohawk: 'Kamm',
@@ -58,7 +63,7 @@ export function cleanAppearance(raceId, a) {
 // Preis für den Wechsel von cur nach next (nur geänderte Teile kosten). Zurück zur Klassenfarbe kostet 25 Gold.
 export function restylePrice(cur, next) {
   let gold = 0;
-  if ((next.dye ?? null) !== (cur.dye ?? null)) gold += next.dye ? DYES[next.dye].price : cur.dye && DYES[cur.dye]?.exclusive ? 0 : 25;
+  if ((next.dye ?? null) !== (cur.dye ?? null)) gold += next.dye ? DYES[next.dye].price : cur.dye && (DYES[cur.dye]?.exclusive || DYES[cur.dye]?.achievement) ? 0 : 25;
   if ((next.hairStyle ?? null) !== (cur.hairStyle ?? null)) gold += HAIR_PRICE;
   if ((next.variant | 0) !== (cur.variant | 0)) gold += HAIR_COLOR_PRICE;
   return gold;

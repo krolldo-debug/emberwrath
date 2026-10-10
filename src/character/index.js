@@ -2,7 +2,7 @@ import { RACES, DEFAULT_RACE } from './races.js';
 import { CLASSES, ABILITIES, DEFAULT_CLASS } from './classes.js';
 import { cleanTalents, canLearn, TALENT_LEVEL_MAX } from './talents.js';
 import { registerTalentPanel } from './TalentPanel.js';
-import { cleanAppearance, restylePrice, DYES, ownsDesign, sameLook } from './cosmetics.js';
+import { cleanAppearance, restylePrice, DYES, ownsDesign, earnedDye, sameLook } from './cosmetics.js';
 import { registerAppearancePanel } from './AppearancePanel.js';
 import { installMounts, cleanMounts } from './mounts.js';
 import { installWardrobe, cleanWardrobe, hasLook } from './wardrobe.js';
@@ -87,6 +87,7 @@ export function installCharacter(game) {
     const need = next.dye ? DYES[next.dye].level ?? 1 : 1;
     if (level(s) < need) return { ok: false, error: `Diese Farbe gibt es ab Stufe ${need}.` };
     if (next.dye && DYES[next.dye].exclusive && next.dye !== cur.dye && !ownsDesign(s.slices, `dye:${next.dye}`)) return { ok: false, error: 'Diese Färbung gibt es nur im Shop.' };
+    if (next.dye && next.dye !== cur.dye && !earnedDye(s.slices, next.dye)) return { ok: false, error: 'Diese Färbung gibt es nur über einen Erfolg.' };
     const price = restylePrice(cur, next);
     if (price === 0 && sameLook(next, cleanAppearance(ch.raceId, cur))) return { ok: false, error: 'Nichts geändert.' };
     if ((s.slices.wallet?.gold ?? 0) < price) return { ok: false, error: `Dafür fehlen dir ${price - (s.slices.wallet?.gold ?? 0)} Gold.` };

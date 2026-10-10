@@ -262,32 +262,8 @@
 .pg-bank-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .pg-bank-cols .pg-bag.small { --pg-slot: 38px; }
 
-/* Erfolge */
-.pg-panel.pg-achievements, .pg-panel.pg-trials { width: min(96vw, 620px); }
-.pg-panel.pg-achievements { width: min(96vw, 700px); }
-.pg-ach-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 15px; }
-.pg-ach-head b { color: var(--ef-gold); }
-.pg-titles { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 10px; }
-.pg-achs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; }
-.pg-ach { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #2e2032; border-radius: 4px; background: rgba(8, 5, 12, 0.5); }
-.pg-ach.got { border-color: #6a5418; background: linear-gradient(90deg, rgba(60, 40, 10, 0.5), rgba(8, 5, 12, 0.5)); }
-.pg-ach-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #1e1426; border: 1px solid #4a3a4c; }
-/* Offene Erfolge: gedimmt, aber mit dunklem Umriss gut erkennbar */
-.pg-ach:not(.got) .pg-ach-icon > * { filter: grayscale(0.85) brightness(1.05) opacity(0.6) drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000); }
-.pg-ach.got .pg-ach-icon { filter: none; border-color: var(--ef-gold); box-shadow: 0 0 8px rgba(232, 194, 90, 0.35); }
-.pg-ach-icon img { image-rendering: pixelated; }
-.pg-ach-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pg-ach-name { font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.pg-ach-body small { color: var(--ef-muted); font-size: 12px; }
-.pg-ach-pts { font: 700 14px var(--ef-font); color: var(--ef-muted); min-width: 36px; text-align: right; }
-.pg-ach.got .pg-ach-pts { color: var(--ef-gold); }
-.pg-achbar { height: 12px; margin-top: 2px; } .pg-achbar .pg-bar-text { font-size: 10px; line-height: 12px; }
-.pg-tag.title { color: #c8a0ff; border-color: #6a3c96; text-transform: none; letter-spacing: 0; }
-/* Erfolge, übersichtlich: Kopfzeile mit Gesamtbalken und Titelwahl, offene Erfolge als Liste, erreichte als kompakte Kacheln */
-.pg-ach-head { align-items: center; flex-wrap: wrap; }
-.pg-ach-sum { display: flex; align-items: baseline; gap: 4px; }
-.pg-ach-dot { color: var(--ef-muted); margin: 0 6px; }
-.pg-titlesel { display: flex; align-items: center; gap: 8px; }
+/* Erfolge: eigenes Fenster in achievements.css. Die Pixel-Auswahl (pg-select) nutzen auch andere Fenster. */
+.pg-panel.pg-trials { width: min(96vw, 620px); }
 /* Titel-Auswahl im Pixel-Stil: eckiger Rahmen mit hellem Innenrand, Pfeil aus Pixeln */
 .pg-select-wrap { position: relative; display: inline-flex; max-width: 220px; }
 .pg-select-wrap::after { content: ''; position: absolute; right: 10px; top: 50%; width: 2px; height: 2px; margin-top: -2px; background: transparent; pointer-events: none;
@@ -298,25 +274,6 @@
 .pg-select:hover { box-shadow: inset 0 0 0 1px var(--ef-gold), inset 0 2px 0 rgba(255, 220, 160, 0.12); }
 .pg-select:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
 .pg-select option { color: var(--ef-text); background: #1a0f18; }
-/* Fester Kopf über der scrollenden Liste, unten sauber abgeschlossen */
-.pg-ach-top { flex: none; padding: 12px 18px 10px; border-bottom: 1px solid #3a2530; box-shadow: 0 6px 8px -4px rgba(0, 0, 0, 0.7); position: relative; z-index: 1; }
-.pg-ach-top .pg-ach-head { margin-bottom: 6px; }
-.pg-achp { padding-top: 12px; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px); mask-image: linear-gradient(to bottom, transparent 0, #000 16px); }
-.pg-ach-top .pg-achtotal { margin: 0; }
-.pg-achtotal { height: 6px; margin: 2px 0 12px; } .pg-achtotal .pg-bar-text { display: none; }
-.pg-ach-sec { font: 600 12px var(--ef-font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ef-muted); margin: 12px 0 6px; }
-.pg-ach-sec:first-of-type { margin-top: 0; }
-.pg-achs.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
-.pg-ach.mini { padding: 4px 8px; gap: 8px; }
-.pg-achs:not(.grid) .pg-ach { padding: 5px 8px; }
-.pg-achs:not(.grid) .pg-achbar { max-width: 320px; }
-.pg-ach.mini .pg-ach-icon { width: 28px; height: 28px; }
-.pg-ach.mini .pg-ach-name { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-.pg-ach.mini .pg-ach-pts { font-size: 13px; min-width: 24px; }
-/* Kleines Titel-Wimpel-Symbol auf erreichten Kacheln mit Titel-Belohnung */
-.pg-ach-tmark { flex: none; width: 10px; height: 14px; background: #a070e0; box-shadow: inset 2px 0 0 #d0b0ff, inset -1px 0 0 #5a2c8a;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); image-rendering: pixelated; }
-@media (max-width: 520px) { .pg-achs.grid { grid-template-columns: minmax(0, 1fr); } .pg-titlesel { width: 100%; } .pg-select-wrap { flex: 1; max-width: none; } .pg-ach-top { padding: 8px 12px; } }
 
 /* Schmied */
 .pg-mini.big { width: 40px; height: 40px; }
