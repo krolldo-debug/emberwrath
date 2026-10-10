@@ -11,6 +11,7 @@ import { installOnline } from './online/index.js';
 import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
+import { installStory } from './story/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
 import { IS_CRAZYGAMES } from './platform.js';
 import { installCrazyGames } from './crazygames/index.js';
@@ -31,7 +32,8 @@ game
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
   // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md). Die CrazyGames-Fassung hat keinen Shop (keine
   // eigenen Zahlungen erlaubt), dafür Gast-Start und CrazyGames-Anmeldung (src/crazygames, docs/CRAZYGAMES.md).
-  .use(IS_CRAZYGAMES ? installCrazyGames : installShop);
+  .use(IS_CRAZYGAMES ? installCrazyGames : installShop)
+  .use(installStory);      // Story-Clips in Spielgrafik (src/story)
 game.scenes.register('play', (g) => new PlayScene(g));
 // Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.
 // (Der Server prüft Spielstände zusätzlich, siehe supabase/migrations/20261003130000_spielstand_pruefung.sql.)

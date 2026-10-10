@@ -35,6 +35,7 @@ export class PlayScene {
     this.deadTime = 0;
     this.autosaveTimer = CONFIG.autosaveInterval;
     this.pendingTravel = null;
+    this.cameraFocus = null;
   }
 
   get debug() { return this.game.debug; }
@@ -169,9 +170,11 @@ export class PlayScene {
     if (this.autosaveTimer <= 0) { this.autosaveTimer = CONFIG.autosaveInterval; this.game.saveNow('auto'); }
 
     // Hitstop: Welt friert ein, Eingaben bleiben gepuffert
+    // Story-Clips (src/story) dürfen die Kamera kurz führen: cameraFocus = { x, y } oder null
+    const focus = this.cameraFocus;
     if (this.hitstopTime > 0) {
       this.hitstopTime -= dt;
-      this.camera.update(dt, hero.x, hero.y - 10);
+      this.camera.update(dt, focus?.x ?? hero.x, focus?.y ?? hero.y - 10);
       return;
     }
     let scale = 1;
@@ -193,7 +196,8 @@ export class PlayScene {
     }
 
     // Kamera mit leichtem Vorlauf in Blick-/Bewegungsrichtung
-    this.camera.update(dt, hero.x + hero.vx * 0.12 + hero.facing * 4, this.#cameraY(hero, hero.y - 10 + hero.vy * 0.12));
+    if (focus) this.camera.update(dt, focus.x, focus.y);
+    else this.camera.update(dt, hero.x + hero.vx * 0.12 + hero.facing * 4, this.#cameraY(hero, hero.y - 10 + hero.vy * 0.12));
     this.authority.sendIntent({ type: 'pos', x: hero.x, y: hero.y });
   }
 
