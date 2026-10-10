@@ -104,7 +104,7 @@
   color: var(--ef-text); font: inherit; background: #150d1d; border: 2px solid #3a2a3a; border-radius: 2px;
   transition: border-color 0.12s, background 0.12s;
 }
-.acc-option:hover { border-color: #6a4a5a; }
+@media (hover: hover) { .acc-option:hover { border-color: #6a4a5a; } }
 .acc-option:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
 .acc-option.selected { border-color: var(--ef-gold); background: linear-gradient(180deg, #2a1a2a, #1c1022); box-shadow: 0 0 14px rgba(232, 150, 60, 0.18); }
 .acc-option-art { flex: none; width: 44px; height: 52px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
@@ -188,22 +188,48 @@
   .acc-create-foot .acc-start { min-height: 44px; font-size: 16px; }
   .acc-option { min-height: 46px; }
   .acc-skill-info { min-height: 0; }
-  /* Volk und Klasse beide ohne Scrollen sichtbar (Handy quer, 10.10.): flachere Knöpfe, engere Abstände */
+  /* Handy quer: alles auf einen Blick, nichts scrollt oder wird angeschnitten. Links Volk und Klasse,
+     rechts Bühne, Name und „Abenteuer beginnen“. Die Klassen-Übersicht entfällt hier (Platz). */
+  .ef-panel.acc-panel.acc-create {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "head head" "choose preview" "choose foot"; column-gap: 18px; row-gap: 8px;
+  }
+  .acc-create .acc-head { grid-area: head; }
+  .acc-create-grid { display: contents; }
+  .acc-create .acc-summary { display: none; }
+  .acc-create .acc-preview { min-height: 0; }
+  .acc-create .acc-stage { flex: 1 1 auto; min-height: auto; } /* füllt die Höhe neben Volk und Klasse */
+  .acc-create-foot { grid-area: foot; padding-top: 0; border-top: 0; }
+  .acc-create-foot .acc-start { flex: 1 1 auto; }
+  .acc-create .acc-name-input, .acc-create .acc-dice { min-height: 44px; height: 44px; }
   .acc-choose { gap: 5px; }
   .acc-options { gap: 5px; }
-  .acc-create .acc-option { min-height: 36px; height: 36px; }
-  .acc-create .acc-option-art { height: 36px; width: 34px; }
+  .acc-create .acc-option { min-height: 44px; height: 44px; }
+  .acc-create .acc-option-art { height: 44px; width: 34px; }
+  .acc-create .acc-option-icon { display: none; } /* die Figur zeigt die Klasse schon */
   .acc-create .acc-option-text strong { font-size: 14px; }
   .acc-options + .acc-h, .acc-traits + .acc-h { margin-top: 4px; }
-  .acc-traits li { font-size: 11px; padding: 1px 6px; }
-  .acc-create .acc-traits { order: 1; margin-top: 2px; } /* Stärken des Volks unter die Klassen: beide Wahlen ohne Scrollen sichtbar */
+  /* Stärken des Volks unter den Klassen, genau eine Zeile: was nicht passt, bricht in die unsichtbare zweite Zeile um */
+  .acc-create .acc-traits { order: 1; margin-top: 2px; height: 20px; overflow: hidden; gap: 8px 5px; }
+  .acc-traits li { font-size: 11px; line-height: 16px; padding: 1px 6px; white-space: nowrap; }
 }
-/* Kleine Handys quer: Namen passen ohne das Waffensymbol in die Knöpfe (die Figur zeigt die Klasse schon) */
+/* Kleine Handys quer: schmalere Figur in den Knöpfen, Vorschau-Figur links neben „Frisur“ */
 @media (max-height: 500px) and (max-width: 720px) and (orientation: landscape) {
-  .acc-create .acc-option-icon { display: none; }
-  .acc-create .acc-option { gap: 2px; padding-right: 4px; }
-  .acc-create .acc-option-art { width: 26px; }
+  .acc-create .acc-option { gap: 4px; padding-right: 4px; }
+  .acc-create .acc-option-art { width: 28px; }
+  .acc-create .acc-stage { justify-content: flex-start; padding-left: 14%; }
+}
+@media (max-height: 500px) and (max-width: 600px) and (orientation: landscape) {
+  .ef-panel.acc-panel.acc-create { padding: 8px 10px; column-gap: 10px; }
+  .acc-create .acc-option-art { width: 24px; }
   .acc-create .acc-option-text strong { font-size: 13px; }
+  .acc-create .acc-tier { padding: 4px 2px; font-size: 11px; }
+}
+/* Sehr flache Handys quer (iPhone SE): Stärken-Chips entfallen, damit Volk und Klasse ganz sichtbar bleiben */
+@media (max-height: 340px) and (orientation: landscape) {
+  .acc-create .acc-traits { display: none; }
+  .acc-create .acc-head .acc-back { height: 36px; }
+  .acc-create .acc-preview-canvas { width: 84px !important; }
 }
 
 /* ---- Talent-Panel (Thread A, Panel 'talents') ---- */
