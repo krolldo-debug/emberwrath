@@ -15,7 +15,7 @@ const commit = (s, type, payload) => s.state.commit(type, payload);
 // ---------------------------------------------------------------- Bausteine
 function dayIcon(c, r, n) {
   if (r.icon === 'potion') return iconEl(c.find('item', r.items[0]?.itemId)?.icon ?? 'potion', 24);
-  if (r.icon === 'mat') return iconEl('bag', 24);   // Materialbeutel: gleich groß wie die anderen Symbole, Inhalt per Tooltip/Antippen
+  if (r.icon === 'mat') { const el = iconEl('bag', 24); el.classList.add('pg-bright'); return el; }   // Materialbeutel: gleich groß wie die anderen Symbole, Inhalt per Tooltip/Antippen
   return iconEl(r.icon === 'chest' ? 'helm_horned' : n >= 3 ? 'gold_pile' : 'gold', 24);
 }
 function dayTip(c, r) {
@@ -26,29 +26,38 @@ function dayTip(c, r) {
   return h('div.pg-daily-tip', lines);
 }
 
-// Belohnung als eine Zeile kleiner Symbole: EP, Gold, Gegenstände (Tooltip), Ausrüstungsteil (Rahmen in Seltenheitsfarbe)
-function rewardLine(c, { xp = 0, gold = 0, items = [], gear = null }) {
+// Belohnung als eine Zeile kleiner Symbole: Gegenstände (Seltenheitsrahmen), dann EP und Gold ganz rechts (Gold steht so untereinander).
+// Maus: Tooltip. Antippen (auch Handy): Inhalt als Zeile unter der Auftragszeile (view.info).
+function rewardLine(c, { xp = 0, gold = 0, items = [], gear = null }, view, key) {
+  const pickable = (el, text) => {
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.onclick = () => { view.info = view.info?.key === key && view.info.text === text ? null : { key, text }; view.redraw(); };
+    return el;
+  };
   const icons = items.map((it) => {
     const def = c.find('item', it.itemId);
     if (!def) return null;
-    const el = h(`span.pg-rw-icon.rb-${def.rarity}`, iconEl(def.icon, 24), it.qty > 1 ? h('small', `${it.qty}`) : null);
+    const el = h(`span.pg-rw-icon.rb-${def.rarity}${def.type === 'material' ? '.mat' : ''}`, iconEl(def.icon, 24), it.qty > 1 ? h('small', `${it.qty}`) : null);
     el.title = def.name;
-    return attachTip(el, () => itemDetail(c, it.itemId, { compact: true, compare: false }));
+    return pickable(attachTip(el, () => itemDetail(c, it.itemId, { compact: true, compare: false })), `${it.qty}× ${def.name}`);
   });
   if (gear) {
+    const text = `Ausrüstungsteil (${RARITIES[gear].name})`;
     const el = h(`span.pg-rw-icon.rb-${gear}`, iconEl('helm_horned', 24));
-    el.title = `Ausrüstungsteil (${RARITIES[gear].name})`;
-    icons.push(el);
+    el.title = text;
+    icons.push(pickable(el, text));
   }
-  return h('span.pg-rw', xp ? h('span.pg-xp', `${fmtNum(xp)} EP`) : null, gold ? goldEl(gold) : null, ...icons);
+  return h('span.pg-rw', ...icons, xp ? h('span.pg-xp', `${fmtNum(xp)} EP`) : null, gold ? goldEl(gold) : null);
 }
 
-// Eine Zeile: Titel, kurzer Satz, Belohnung, Knopf/Status
-function row(title, sub, rewards, act, state = '') {
+// Eine Zeile: Titel, kurzer Satz, Belohnung, Knopf/Status; darunter ggf. der angetippte Inhalt
+function row(title, sub, rewards, act, state = '', info = null) {
   return h(`li.pg-brow${state ? `.${state}` : ''}`,
     h('div.pg-brow-main', h('b', title), sub ? h('span', sub) : null),
     rewards,
-    h('div.pg-brow-act', act ?? null));
+    h('div.pg-brow-act', act ?? null),
+    info ? h('div.pg-brow-info', info) : null);
 }
 const doneTag = () => h('span.pg-tag', 'Erledigt');
 const progressEl = (cur, max) => h('span.pg-brow-prog', h('i', { style: { width: `${Math.round(Math.min(1, cur / max) * 100)}%` } }), h('b', `${cur}/${max}`));
@@ -76,7 +85,7 @@ function dailySection(s, today, view) {
   return section('Tagesbelohnung', d.streak ? `Tag ${d.streak} von ${STREAK_DAYS}` : 'Ab morgen',
     h('ol.pg-daily-days', days),
     pick,
-    h('ul.pg-blist.pg-blist-win', row('Erster Sieg des Tages', null, winDone ? null : rewardLine(c, win), winDone ? doneTag() : null, winDone ? 'done' : '')));
+    h('ul.pg-blist.pg-blist-win', row('Erster Sieg des Tages', null, winDone ? null : rewardLine(c, win, view, 'win'), winDone ? doneTag() : null, winDone ? 'done' : '')));
 }
 
 function untilText(ms) {
@@ -86,7 +95,8 @@ function untilText(ms) {
 
 export function boardView(s) {
   let msg = '';
-  const view = { day: 0, redraw: null };
+  const view = { day: 0, info: null, redraw: null };
+  const infoFor = (key) => (view.info?.key === key ? view.info.text : null);
   const tryCommit = (type, payload, redraw) => { const x = commit(s, type, payload); msg = x?.ok ? '' : 'Das geht gerade nicht.'; redraw(); };
   return (redraw) => {
     view.redraw = redraw;
@@ -98,26 +108,26 @@ export function boardView(s) {
       const done = b.done.includes(o.id), taken = b.taken[o.id];
       const ready = taken != null && taken >= o.count;
       const act = done ? doneTag()
-        : ready ? actionBtn('Belohnung holen', () => tryCommit('board:claim', { offerId: o.id, now: serverNow() }, redraw), { primary: true, small: true })
+        : ready ? actionBtn('Abholen', () => tryCommit('board:claim', { offerId: o.id, now: serverNow() }, redraw), { primary: true, small: true })
           : taken != null ? progressEl(taken, o.count)
             : actionBtn('Annehmen', () => { commit(s, 'board:accept', { offerId: o.id, now: serverNow() }); redraw(); }, { small: true });
       // Titel nennt das Ziel schon: bei Elite und Boss steht darunter der Hinweis statt „Ziel: …“
-      return row(t.title, (o.kind === 'elite' || o.kind === 'boss') && t.note ? t.note : t.text, rewardLine(c, r), act, done ? 'done' : ready ? 'ready' : '');
+      return row(t.title, (o.kind === 'elite' || o.kind === 'boss') && t.note ? t.note : t.text, rewardLine(c, r, view, o.id), act, done ? 'done' : ready ? 'ready' : '', infoFor(o.id));
     });
 
     const week = [];
     if (d?.challenge) {
       const t = challengeText(d.challenge, c), r = challengeReward(level);
       const act = d.cClaimed ? doneTag()
-        : d.cDone ? actionBtn('Belohnung holen', () => tryCommit('daily:claimChallenge', { now: serverNow() }, redraw), { primary: true, small: true }) : null;
-      week.push(row(t.title, t.rule, rewardLine(c, { gold: r.gold, items: r.items, gear: 'rare' }), act, d.cClaimed ? 'done' : d.cDone ? 'ready' : ''));
+        : d.cDone ? actionBtn('Abholen', () => tryCommit('daily:claimChallenge', { now: serverNow() }, redraw), { primary: true, small: true }) : null;
+      week.push(row(t.title, t.rule, rewardLine(c, { gold: r.gold, items: r.items, gear: 'rare' }, view, 'challenge'), act, d.cClaimed ? 'done' : d.cDone ? 'ready' : '', infoFor('challenge')));
     }
     const chest = weekChest(level), weekReady = b.weekDone >= WEEK_GOAL && !b.weekClaimed;
     const chestAct = b.weekClaimed ? doneTag()
       : weekReady ? actionBtn('Truhe öffnen', () => tryCommit('board:claimWeek', { now: serverNow() }, redraw), { primary: true, small: true })
         : progressEl(Math.min(b.weekDone, WEEK_GOAL), WEEK_GOAL);
     week.push(row('Wochentruhe', `${WEEK_GOAL} Aufträge in einer Woche.`,
-      rewardLine(c, { gold: chest.gold, items: chest.mats, gear: 'uncommon' }), chestAct, b.weekClaimed ? 'done' : weekReady ? 'ready' : ''));
+      rewardLine(c, { gold: chest.gold, items: chest.mats, gear: 'uncommon' }, view, 'chest'), chestAct, b.weekClaimed ? 'done' : weekReady ? 'ready' : '', infoFor('chest')));
 
     return panelFrame(s, 'board', 'Auftragsbrett',
       h('div.pg-scroll.pg-keep-scroll.pg-board',
