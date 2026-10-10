@@ -83,6 +83,7 @@
     width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; box-shadow: none;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
+  .ef-touch .fd-panel::before, .ef-touch .fd-panel::after { display: none; }
   .ef-touch .fd-pick { grid-template-columns: minmax(0, 1fr) 240px; }
   .ef-touch .fd-searching { flex: 1 1 auto; justify-content: center; }
 }

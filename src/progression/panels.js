@@ -72,6 +72,7 @@ function inventoryView(s) {
   const dbl = tapper();
   const content = s.content;
   const stage = new HeroStage();
+  let autoTipAt = 0; // kurz nach dem Umschalten steht die neue Stufe als Schild am Knopf (Touch hat keinen Tooltip)
 
   return (redraw) => {
     const st = s.state, inv = st.slices.inventory;
@@ -254,8 +255,15 @@ function inventoryView(s) {
     const autoNext = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
     const autoBtn = h(`button.pg-tool.pg-auto${auto ? '.on' : ''}`, {
       type: 'button', title: autoLabel(auto), 'aria-label': autoLabel(auto), 'data-mode': auto ?? 'off',
-      onclick: () => { const r = act('inventory:autoSell', { mode: autoNext }); if (r?.ok !== false) s.bus.emit(EV.UI_TOAST, { text: autoLabel(autoNext), kind: 'info' }); },
-    }, glyph('auto'));
+      onclick: () => { autoTipAt = performance.now(); act('inventory:autoSell', { mode: autoNext }); },
+    }, glyph('auto'), autoTip());
+    function autoTip() {
+      const left = 1600 - (performance.now() - autoTipAt);
+      if (left <= 0) return null;
+      const tip = h('span.pg-auto-tip', { 'aria-hidden': 'true' }, autoLabel(auto));
+      setTimeout(() => tip.remove(), left);
+      return tip;
+    }
 
     // Materialbeutel: belegt keine Taschenplätze, hat keine Größe
     function matSection() {
