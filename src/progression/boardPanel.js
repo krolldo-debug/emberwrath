@@ -12,7 +12,8 @@ const commit = (s, type, payload) => s.state.commit(type, payload);
 // Tagesbelohnung: 7 Felder, abgeholte gedimmt, die heutige gerahmt. Tooltip (Maus) nennt den Inhalt.
 function dayIcon(c, r, n) {
   if (r.icon === 'potion') return iconEl(c.find('item', r.items[0]?.itemId)?.icon ?? 'potion', 24);
-  if (r.icon === 'mat') return iconEl('gem', 24);   // Material der Region: ein helles Symbol für alle Regionen, Inhalt im Tooltip
+  // Material der Region: Symbol des ersten Materials, doppelt groß (ganzzahlig) und aufgehellt, damit es so groß wirkt wie die anderen
+  if (r.icon === 'mat') { const el = iconEl(c.find('item', r.items[0]?.itemId)?.icon ?? 'ore', 48); el.classList.add('pg-daily-mat'); return el; }
   return iconEl(r.icon === 'chest' ? 'helm_horned' : n >= 3 ? 'gold_pile' : 'gold', 24);
 }
 function dayTip(c, r) {

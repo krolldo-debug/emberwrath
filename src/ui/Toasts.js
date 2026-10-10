@@ -44,7 +44,8 @@ export class Toasts {
       this.#loot(d, e.qty ?? 1);
     });
     bus.on(EV.GOLD_CHANGED, (e) => {
-      if (!(e.delta > 0)) return;
+      // Tagesbelohnung: Banner und hochzählender Goldwert reichen (progression/daily.js)
+      if (!(e.delta > 0) || e.source === 'daily:login') return;
       // Kurz aufeinanderfolgende Goldfunde zu einer Meldung zusammenfassen
       if (this.gold && this.gold.age < 1.5 && this.items.includes(this.gold)) {
         this.gold.sum += e.delta; this.gold.age = 0; this.gold.el.classList.remove('out');
