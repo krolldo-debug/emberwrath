@@ -66,9 +66,11 @@ export class CharacterCreateScene extends MenuScene {
     this.skill = 0; // angetippte Fähigkeit (0 = Grundangriff)
     this.#build();
     this.#refresh();
+    g.warmup?.character(null); // Startzone schon jetzt im Hintergrund vorbereiten (world/warmup.js)
   }
 
-  back() { this.game.scenes.go('characters'); }
+  // Ohne Helden geht es von der Titelseite direkt hierher (CharacterListScene) – zurück dann zum Titel
+  back() { this.game.scenes.go(this.from === 'title' ? 'title' : 'characters'); }
 
   update(dt) {
     super.update(dt);
@@ -249,8 +251,12 @@ export class CharacterCreateScene extends MenuScene {
     if (!this.#validate()) { this.nameInput.focus(); return; }
     const g = this.game;
     const character = { name: cleanName(this.sel.name), raceId: this.sel.raceId, classId: this.sel.classId, appearance: { variant: this.sel.variant, hairStyle: this.sel.hair ? hairStylesFor(this.sel.raceId)[this.sel.hair] : null } };
+    if (this.startBtn.disabled) return;
     this.startBtn.disabled = true;
-    const characterId = g.newGame({ character });
-    g.bus.emit(EV.CHARACTER_CREATED, { characterId, ...character });
+    // Erst den gedrückten Knopf zeigen, dann die Welt aufbauen (sonst wirkt er am Handy kurz wie tot)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const characterId = g.newGame({ character });
+      g.bus.emit(EV.CHARACTER_CREATED, { characterId, ...character });
+    }));
   }
 }
