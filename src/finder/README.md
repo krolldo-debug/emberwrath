@@ -21,7 +21,11 @@ Warteschlange niemand Passendes sucht, füllen **Söldner** (Bots) die freien Pl
 - Chat wie Spieler (`chatter.js`): Begrüßung, Ansagen, gg, Antworten auf den Gruppenchat.
 - Tod: nach 3 s außer Kampf mit 40 % Leben wieder da. Stirbt der Spieler, solange ein Söldner lebt, steht er ebenfalls
   wieder auf; fallen alle, gilt die normale Wiederbelebung.
-- Gegner in Gruppendungeons haben mehr Leben (×1,8, Boss ×2,3), damit es für drei nicht zu leicht ist.
+- Gegner in Gruppendungeons sind auf drei Personen ausgelegt (Stand 10.10. abends): Leben ×1,8 und Schaden ×1,7 (der
+  Verteidiger fängt ihn ab), Bosse Leben ×2,7; je Boss anpassbar (`bossHpScaleById`, `bossDmgScaleById`, Schaden über
+  `boss.groupDmgMult` in world/bossFury.js). Varkhul (Stufe 5) ist für Gruppen milder, Mutter Fäulnis und der Frostwyrm
+  härter. Nach einer Niederlage füllen die Söldner ihre Tränke auf. Geprüft mit ganzen Dungeon-Läufen (Spieler-Bot +
+  zwei Söldner, alle vier Klassen): jeder Dungeon auf seiner Stufe schaffbar, Varkhul mit gelegentlicher Niederlage.
 
 ## Schalter (`config.js`, FINDER_CONFIG)
 - `labelMercs: true` – Söldner tragen dezent das Söldner-Zeichen und „Söldner“ im Tooltip. **Auf `false` setzen,
@@ -29,7 +33,7 @@ Warteschlange niemand Passendes sucht, füllen **Söldner** (Bots) die freien Pl
 - `humanGroups` / Server-Variable `FINDER_HUMAN_GROUPS=true` – mehrere echte Spieler in eine Gruppe. Standard **aus**:
   Das braucht geteilte Gegner in der Instanz (Mehrspieler Stufe 2, src/net/README.md). Bis dahin bekommt jeder echte
   Spieler seine eigene Gruppe mit Söldnern; die Warteschlange und ihre Zahlen sind trotzdem echt.
-- `hpScale`, `bossHpScale`, `reviveAfter`, `reviveHp` – Balance.
+- `hpScale`, `dmgScale`, `bossHpScale`, `bossHpScaleById`, `bossDmgScaleById`, `reviveAfter`, `reviveHp` – Balance.
 
 ## Protokoll
 Siehe Kopf von `protocol.js` (hello/queue/cancel/accept ↔ welcome/queued/stats/proposal{group,you}/ready/start/

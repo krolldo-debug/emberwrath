@@ -114,8 +114,10 @@ export class Party {
       this.wrapped.add(e);
       const boss = e === w.boss || !!e.def?.boss;
       if (!e.summoned && e.hp === e.maxHp) {
-        const k = boss ? FINDER_CONFIG.bossHpScale : FINDER_CONFIG.hpScale;
+        const k = boss ? FINDER_CONFIG.bossHpScaleById?.[e.def?.bossId ?? e.bossId] ?? FINDER_CONFIG.bossHpScale : FINDER_CONFIG.hpScale;
         e.maxHp = Math.round(e.maxHp * k); e.hp = e.maxHp;
+        if (!boss && e.lvlPower) { e.dmgMul *= FINDER_CONFIG.dmgScale ?? 1; e.power = e.lvlPower * e.dmgMul; }
+        if (boss) e.groupDmgMult = FINDER_CONFIG.bossDmgScaleById?.[e.def?.bossId ?? e.bossId] ?? 1;
       }
       const view = makeView(w, { get hero() { return party.targetOf(e) ?? party.player; } });
       this.views.set(e, view);
@@ -168,6 +170,7 @@ export class Party {
       b.facing = h.facing;
       w.bus.emit('aura', { actor: b, element: 'holy' });
     });
+    for (const br of this.brains) br.potions = 3; // Söldner füllen ihre Tränke auf wie Spieler am Eingang
     this.threat.clear();
     this.wiped = false;
     this.ooc = 10;

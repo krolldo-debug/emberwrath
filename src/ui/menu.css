@@ -11,7 +11,8 @@
   overflow-y: auto; overscroll-behavior: contain;
   background: #0e0816; box-shadow: 0 0 0 2px #0b0710, inset 0 0 0 1px rgba(232, 194, 90, 0.12), 0 4px 0 2px #050208;
 }
-.menu-panel[data-page="main"] { overflow: visible; } /* passt immer; sonst zeigte der Eckbeschlag (.ef-panel::after) einen Rollbalken */
+.menu-panel[data-page="main"] { overflow: visible; } /* passt immer; volle Eckbeschläge wie oben links */
+.menu-panel[data-page="main"]::after { bottom: -4px; right: -4px; width: 8px; height: 8px; }
 .menu-panel[data-page="settings"], .menu-panel[data-page="help"] { width: 360px; }
 .menu-panel[data-page="report"] { width: 300px; }
 .menu-head { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; margin-bottom: 2px; }

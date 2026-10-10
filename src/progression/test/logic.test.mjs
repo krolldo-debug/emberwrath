@@ -16,6 +16,7 @@ import { runCampaign, expansionReport } from './pacing.mjs';
 import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
 import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier, combatLevel, staggerGuard, knockbackMult } from '../levelGap.js';
+import { mobTuning } from '../difficulty.js';
 import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers, BOARD_REGIONS, ELITE_LEVEL, ELITE_REACH } from '../board.js';
 import { ENEMY_TYPES } from '../../entities/enemyTypes.js';
 import { STREAK_DAYS, loginReward, firstWinReward, weeklyChallenge, challengeReward, dailyHasReward } from '../daily.js';
@@ -597,14 +598,23 @@ test('Stufenabstand: weit über der eigenen Stufe kaum Schaden, viel erlittener 
   assert.equal(applyLevelGap({ damage: 100, source: { team: 'hero', level: 27 } }, elite).damage, 33);
   assert.equal(applyLevelGap({ damage: 100, source: elite }, { team: 'hero', level: 27 }).damage, 240);
   assert.equal(combatLevel({ level: 3, def: { elite: true } }), 3);
-  // Standfestigkeit: höhere Gegner taumeln selten, Startgebiete unverändert, Rückstoß nach oben gedämpft
-  assert.equal(staggerGuard(0, { level: 3 }), 0, 'Startgebiet: jeder Treffer unterbricht');
+  // Standfestigkeit: höhere Gegner taumeln selten, Startgebiete mit kürzerer Ruhe, Rückstoß nach oben gedämpft
+  assert.ok(staggerGuard(0, { level: 3 }) > 0 && staggerGuard(0, { level: 3 }) < staggerGuard(0, { level: 27 }), 'Startgebiet: kürzere Ruhe, aber kein Dauertaumeln');
   assert.ok(staggerGuard(0, { level: 27 }) > 0.5, 'eigene Stufe: kurze Ruhe nach dem Taumeln');
   assert.equal(staggerGuard(3, { level: 30 }), null, 'drei Stufen höher: leichte Treffer unterbrechen nicht');
   assert.ok(staggerGuard(3, { level: 30, heavy: true }) >= 2);
   assert.equal(staggerGuard(6, { level: 33, heavy: true }), null, 'sechs Stufen höher: nie');
   assert.equal(staggerGuard(0, { level: 30, elite: true }), null);
   assert.ok(knockbackMult(0) === 1 && knockbackMult(3) < 1 && knockbackMult(6) < knockbackMult(3));
+});
+
+test('Grundhärte: Weltgegner halten mehr aus, Bosse unverändert, Stufe 1 sanfter', () => {
+  const n = mobTuning(10, {}), el = mobTuning(10, { elite: true }), b = mobTuning(10, { boss: true });
+  assert.ok(n.hp > 2 && n.damage > 1.3, 'normale Gegner deutlich zäher und gefährlicher');
+  assert.ok(el.hp > 1 && el.hp < n.hp, 'Elite war schon höher angesetzt');
+  assert.deepEqual([b.hp, b.damage], [1, 1], 'Bosse bleiben');
+  assert.ok(mobTuning(1, {}).hp < n.hp && mobTuning(1, {}).damage < n.damage, 'Stufe 1 sanfter');
+  assert.ok(mobTuning(3, {}, 'skeleton').hp > mobTuning(3, {}, 'barrow_wight').hp, 'Startgebiete waren schwächer angesetzt');
 });
 
 test('Questvielfalt: Reihenfolge, Benutzen, Erkunden, Eskorte und Entscheidungen', () => {

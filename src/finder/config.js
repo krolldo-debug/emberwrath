@@ -5,9 +5,13 @@ export const FINDER_CONFIG = {
   labelMercs: true,
   mercLabel: 'Söldner',
 
-  // Gegner in Gruppen-Dungeons halten mehr aus (drei statt einer Person teilen Schaden aus).
+  // Gegner in Gruppen-Dungeons sind auf drei Personen ausgelegt: mehr Leben (drei teilen Schaden aus) und mehr
+  // Schaden (der Verteidiger fängt ihn ab). Bosse je nach Kampf (Varkhul ruft Diener und ist für Stufe 5 sehr hart).
   hpScale: 1.8,
+  dmgScale: 1.7,
   bossHpScale: 2.7,
+  bossHpScaleById: { bonelord: 1.6 },
+  bossDmgScaleById: { bonelord: 0.7, rot_mother: 1.2, frost_wyrm: 1.25 },
 
   // Gefallene Gruppenmitglieder stehen so viele Sekunden nach Kampfende wieder auf (mit 40 % Leben).
   reviveAfter: 3,
