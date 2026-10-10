@@ -1,5 +1,4 @@
 import { FINDER_VERSION, FINDER_PATH } from './protocol.js';
-import { wsBase } from '../platform.js';
 
 // Verbindung zur Gruppensuche auf dem Server (Durable Object DungeonFinder, worker/finder/queue.js).
 // Nur offen, solange gesucht wird. Ereignisse: on(type, fn) für 'status' und alle Servertypen aus protocol.js.
@@ -93,5 +92,8 @@ export class FinderClient {
   }
 }
 
-// Eigene Seite, in der CrazyGames-Fassung www.emberwrath.com (src/platform.js)
-function defaultBase() { return wsBase(); }
+function defaultBase() {
+  const loc = globalThis.location;
+  if (!loc || !/^https?:$/.test(loc.protocol) || !loc.host) return null;
+  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}`;
+}

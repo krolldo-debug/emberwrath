@@ -6,6 +6,6 @@
   "type": "module",
   "scripts": {
     "dev": "npx --yes http-server -c-1 -p 8080 .",
-    "build": "node tools/build.mjs && node tools/build-crazygames.mjs"
+    "build": "node tools/build.mjs"
   }
 }

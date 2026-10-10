@@ -12,8 +12,6 @@ import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
-import { IS_CRAZYGAMES } from './platform.js';
-import { installCrazyGames } from './crazygames/index.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
@@ -29,9 +27,7 @@ game
   .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
-  // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md). Die CrazyGames-Fassung hat keinen Shop (keine
-  // eigenen Zahlungen erlaubt), dafür Gast-Start und CrazyGames-Anmeldung (src/crazygames, docs/CRAZYGAMES.md).
-  .use(IS_CRAZYGAMES ? installCrazyGames : installShop);
+  .use(installShop);       // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
 game.scenes.register('play', (g) => new PlayScene(g));
 // Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.
 // (Der Server prüft Spielstände zusätzlich, siehe supabase/migrations/20261003130000_spielstand_pruefung.sql.)

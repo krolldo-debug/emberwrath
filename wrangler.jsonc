@@ -43,9 +43,7 @@
   // Höchstens 5 Formular-Absendungen pro Minute und IP (worker/forms.js).
   "ratelimits": [
     { "name": "FORM_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
-    { "name": "NET_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } },
-    // Konten der CrazyGames-Fassung (worker/crazygames.js): Anmelden legt bei Bedarf ein Konto an, deshalb enger
-    { "name": "CG_LIMITER", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } }
+    { "name": "NET_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }
   ],
   "observability": { "enabled": true }
 }

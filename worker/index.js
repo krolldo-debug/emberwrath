@@ -3,7 +3,6 @@ import { Directory } from './directory.js';
 import { DungeonFinder } from './finder/queue.js';
 import { handleForms } from './forms.js';
 import { handleShop } from './shop.js';
-import { handleCrazyGames, corsOrigin, withCors, preflight } from './crazygames.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
 import { ZONES } from '../src/world/zones.js';
@@ -16,8 +15,6 @@ import { pageHeaders } from './headers.js';
 //   /net/finder                                      WebSocket zur Dungeonsuche (worker/finder/, src/finder/README.md)
 //   /net/forms/support, /net/newsletter/*            Support-Formular und Newsletter der Website (worker/forms.js)
 //   /net/shop/status|checkout|webhook                Gold-Shop mit Stripe (worker/shop.js, docs/SHOP.md)
-//   /net/cg/session                                  Konten der CrazyGames-Fassung (worker/crazygames.js, docs/CRAZYGAMES.md)
-// /net/* beantwortet auch Anfragen von CrazyGames (*.crazygames.com, CORS und WebSocket-Origin, worker/crazygames.js).
 // Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
 // außer den Seitenaufrufen aus assets.run_worker_first (wrangler.jsonc): Die kommen hier vorbei, damit alte Adressen
 // (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
@@ -73,12 +70,12 @@ async function limited(request, env, route) {
 }
 const directory = (env) => env.DIRECTORY.get(env.DIRECTORY.idFromName('main'));
 
-// Nur die eigene Seite (und die CrazyGames-Fassung, ALLOWED_ORIGINS) darf Welt-Verbindungen öffnen (Browser schicken Origin immer mit).
+// Nur die eigene Seite darf Welt-Verbindungen öffnen (Browser schicken Origin immer mit).
 function originOk(request, url, env) {
   const origin = request.headers.get('Origin');
   if (!origin) return true; // Nicht-Browser (Tests); ohne gültiges Token kommt ohnehin niemand hinein
   if (origin === url.origin) return true;
-  return !!corsOrigin(request, env);
+  return String(env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean).includes(origin);
 }
 
 async function handleNet(request, env, url, ctx) {
@@ -145,31 +142,18 @@ export default {
       if (moved) return moved;
     }
     if (url.pathname.startsWith(`${NET_PATH}/`)) {
-      // Spiel auf CrazyGames (fremde Adresse): Vorabfrage beantworten, Antworten freigeben. Shop und Formulare nicht.
       const route = url.pathname.slice(NET_PATH.length);
-      const cors = route.startsWith('/shop/') || route.startsWith('/forms/') || route.startsWith('/newsletter/') ? null : corsOrigin(request, env);
-      if (request.method === 'OPTIONS' && cors) return preflight(cors);
-      return withCors(await net(request, env, url, route, ctx), cors);
+      if (route.startsWith('/forms/') || route.startsWith('/newsletter/')) {
+        try { return (await handleForms(request, config(env), url, route, ctx)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('forms', e?.message); return json({ error: 'server' }, 500); }
+      }
+      if (route.startsWith('/shop/')) {
+        // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)
+        if (route === '/shop/checkout' && await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
+        try { return (await handleShop(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('shop', e?.message); return json({ error: 'server' }, 500); }
+      }
+      if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
+      try { return await handleNet(request, config(env), url, ctx); } catch (e) { console.error('net', e?.message); return json({ error: 'server' }, 500); }
     }
     return assetWithHeaders(request, env);
   },
 };
-
-// Alle /net/*-Routen (ohne CORS, das setzt fetch() oben).
-async function net(request, env, url, route, ctx) {
-  if (route.startsWith('/forms/') || route.startsWith('/newsletter/')) {
-    try { return (await handleForms(request, config(env), url, route, ctx)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('forms', e?.message); return json({ error: 'server' }, 500); }
-  }
-  if (route.startsWith('/shop/')) {
-    // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)
-    if (route === '/shop/checkout' && await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
-    try { return (await handleShop(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('shop', e?.message); return json({ error: 'server' }, 500); }
-  }
-  if (route.startsWith('/cg/')) {
-    // Legt Konten an: vor allem anderen begrenzen, zusätzlich enger je Adresse (CG_LIMITER, 20 je Minute)
-    if (await limited(request, env, '/cg') || await limited(request, { NET_LIMITER: env.CG_LIMITER }, '/cg')) return json({ error: 'rate_limited' }, 429);
-    try { return (await handleCrazyGames(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('cg', e?.message); return json({ error: 'server' }, 500); }
-  }
-  if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
-  try { return await handleNet(request, config(env), url, ctx); } catch (e) { console.error('net', e?.message); return json({ error: 'server' }, 500); }
-}
