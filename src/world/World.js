@@ -30,6 +30,7 @@ const BOSS_CLASSES = { bonelord: Boss, drowned_priestess: Nerith, ember_tyrant: 
 import { Chest, ExitPortal } from '../entities/Interactive.js';
 import { FlowField } from './FlowField.js';
 import { QuestGuide } from './QuestGuide.js';
+import { takePrebuilt } from './warmup.js';
 import { updateBossFury } from './bossFury.js';
 import { rand, pick } from '../core/math.js';
 
@@ -64,7 +65,7 @@ export class World {
 
     const level = LEVELS[zone.level] ?? LEVELS2[zone.level] ?? LEVELS3[zone.level];
     if (!level) throw new Error(`Level ${zone.level} unbekannt`);
-    this.dungeon = level.kind === 'outdoor' ? new Outdoor(level) : new Dungeon(level);
+    this.dungeon = level.kind === 'outdoor' ? (takePrebuilt(level) ?? new Outdoor(level)) : new Dungeon(level);
     this.decals = new Decals(this.dungeon.pixelW, this.dungeon.pixelH);
     this.particles = new ParticleSystem(this.decals);
     this.lighting = new LightingSystem(CONFIG.viewWidth, CONFIG.viewHeight, zone.ambient ?? CONFIG.lighting.ambient);

@@ -35,8 +35,11 @@ export class TitleScene extends MenuScene {
     }
 
     let menu;
+    // Zone des zuletzt gespielten Helden (sonst die Startzone) schon im Hintergrund vorbereiten (world/warmup.js)
+    const lastSnap = lastChar ? g.save.loadCharacter(last.accountId, lastChar.id) : null;
+    g.warmup?.character(lastSnap);
     if (signedIn) {
-      const info = lastChar ? snapInfo(g.save.loadCharacter(last.accountId, lastChar.id), g.content) : null;
+      const info = lastChar ? snapInfo(lastSnap, g.content) : null;
       menu = [
         h('button.ef-btn.primary.acc-big.acc-play', { type: 'button', onclick: () => o.play() },
           h('span.acc-btn-title', 'Spielen'),

@@ -628,6 +628,14 @@
     }).catch(() => {});
   }
 
+  // ---------- Spiel vorab laden (Startseite): build.mjs setzt <link rel="prefetch"> auf spielen/spiel.<hash>.js.
+  // Safari kennt rel=prefetch nicht; dort holt ein leiser Abruf die Datei nach dem Laden in den Browser-Speicher.
+  // Nicht bei Datensparmodus.
+  const pre = document.querySelector('link[rel="prefetch"][as="script"]');
+  if (pre && !navigator.connection?.saveData && !pre.relList?.supports?.('prefetch')) {
+    addEventListener('load', () => setTimeout(() => fetch(pre.href, { priority: 'low' }).catch(() => {}), 1500), { once: true });
+  }
+
   // ---------- Jahr in der Fußzeile
   for (const el of $$('[data-year]')) el.textContent = new Date().getFullYear();
 })();

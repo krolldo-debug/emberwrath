@@ -1,5 +1,5 @@
 // Sicherheits-Header der Seiten: eine Quelle für dist/site/_headers (tools/build.mjs) und den Worker (worker/index.js).
-// scriptHashes: 'sha256-…' der eingebetteten Skripte (das Spiel unter /spielen/ ist ein einziges Inline-Skript).
+// scriptHashes: 'sha256-…' der eingebetteten Skripte (die Website hat keine mehr; das Spiel liegt in spielen/spiel.<hash>.js).
 // Ohne Hashes (Rückfall im Worker, der den Hash nicht kennt) bleibt 'unsafe-inline' für Skripte wie bisher.
 export function pageCsp(supabaseUrl, scriptHashes = null) {
   const connect = supabaseUrl ? `'self' ${supabaseUrl}` : "'self'";

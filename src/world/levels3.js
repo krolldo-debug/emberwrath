@@ -1,5 +1,5 @@
 import { createRng } from '../core/math.js';
-import { MapBuilder } from './levels.js';
+import { MapBuilder, lazyLevels } from './levels.js';
 import { rim, scatter, ring, dungeonBase, inRect, inEll } from './levels2.js';
 import { buildAshenSteppe as buildAshenSteppeNew } from './outdoor/ashen_steppe.js';
 import { road4, near, box, each, GROUND, blob, roadNet, MISPLACED, foe, strew, circle } from './mapkit.js';
@@ -1094,15 +1094,16 @@ export function calmArrivals(id, level, r = 12) {
 }
 
 const RAW3 = {
-  ashen_steppe: buildAshenSteppeNew(),
-  howling_barrow: shiftLevelDown(buildHowlingBarrow(), 8),
-  blighted_marsh: buildBlightedMarshR5(),
-  spore_hollow: buildSporeHollow(),
-  frostspire: buildFrostspireR5(),
-  rime_caverns: buildRimeCaverns(),
-  ember_wastes: buildEmberWastesR5(),
-  emberhollow: buildEmberhollowR5(),
-  ashwood: buildAshwoodR5(),
-  ashen_throne: shiftLevelDown(buildAshenThrone(), 3),
+  ashen_steppe: buildAshenSteppeNew,
+  howling_barrow: () => shiftLevelDown(buildHowlingBarrow(), 8),
+  blighted_marsh: buildBlightedMarshR5,
+  spore_hollow: buildSporeHollow,
+  frostspire: buildFrostspireR5,
+  rime_caverns: buildRimeCaverns,
+  ember_wastes: buildEmberWastesR5,
+  emberhollow: buildEmberhollowR5,
+  ashwood: buildAshwoodR5,
+  ashen_throne: () => shiftLevelDown(buildAshenThrone(), 3),
 };
-export const LEVELS3 = Object.fromEntries(Object.entries(RAW3).map(([id, L]) => [id, calmArrivals(id, L, 12)]));
+// Gebaut wird erst beim ersten Zugriff (lazyLevels in levels.js); CALMED/MISPLACED füllen sich entsprechend später.
+export const LEVELS3 = lazyLevels(Object.fromEntries(Object.entries(RAW3).map(([id, build]) => [id, () => calmArrivals(id, build(), 12)])));

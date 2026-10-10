@@ -188,6 +188,22 @@
   .acc-create-foot .acc-start { min-height: 44px; font-size: 16px; }
   .acc-option { min-height: 46px; }
   .acc-skill-info { min-height: 0; }
+  /* Volk und Klasse beide ohne Scrollen sichtbar (Handy quer, 10.10.): flachere Knöpfe, engere Abstände */
+  .acc-choose { gap: 5px; }
+  .acc-options { gap: 5px; }
+  .acc-create .acc-option { min-height: 36px; height: 36px; }
+  .acc-create .acc-option-art { height: 36px; width: 34px; }
+  .acc-create .acc-option-text strong { font-size: 14px; }
+  .acc-options + .acc-h, .acc-traits + .acc-h { margin-top: 4px; }
+  .acc-traits li { font-size: 11px; padding: 1px 6px; }
+  .acc-create .acc-traits { order: 1; margin-top: 2px; } /* Stärken des Volks unter die Klassen: beide Wahlen ohne Scrollen sichtbar */
+}
+/* Kleine Handys quer: Namen passen ohne das Waffensymbol in die Knöpfe (die Figur zeigt die Klasse schon) */
+@media (max-height: 500px) and (max-width: 720px) and (orientation: landscape) {
+  .acc-create .acc-option-icon { display: none; }
+  .acc-create .acc-option { gap: 2px; padding-right: 4px; }
+  .acc-create .acc-option-art { width: 26px; }
+  .acc-create .acc-option-text strong { font-size: 13px; }
 }
 
 /* ---- Talent-Panel (Thread A, Panel 'talents') ---- */

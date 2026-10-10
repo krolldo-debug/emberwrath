@@ -16,6 +16,8 @@ export class CharacterListScene extends MenuScene {
     this.root = h('div.ef-screen.lb-screen');
     if (!requireOnlineAccount(this.game)) return;
     const g = this.game, last = g.save.getLast();
+    // Noch kein Held und der Cloud-Abgleich ist durch: direkt zur Erstellung (die leere Auswahl wäre nur ein Zwischenschritt)
+    if (!this.#chars().length && g.online?.syncStatus === 'ok') { g.scenes.go('characterCreate', { from: 'title' }); return; }
     this.sel = last?.accountId === g.account.id ? last.characterId : null;
     this.#render();
   }
@@ -76,7 +78,9 @@ export class CharacterListScene extends MenuScene {
 
     let stage, info;
     if (cur) {
-      const i = snapInfo(g.save.loadCharacter(acc.id, cur.id), g.content);
+      const snap = g.save.loadCharacter(acc.id, cur.id);
+      g.warmup?.character(snap); // Zone des gewählten Helden im Hintergrund vorbereiten
+      const i = snapInfo(snap, g.content);
       this.portrait = new HeroPortrait({ raceId: cur.raceId ?? 'human', classId: cur.classId ?? 'warrior', ...savedLook(g.save, g.content, acc.id, cur.id), mode: 'showcase', scale: 6, backdrop: false });
       stage = h('div.lb-stage', h('div.lb-hero', this.portrait.canvas));
       info = h('section.lb-info',
