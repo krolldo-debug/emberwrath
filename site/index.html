@@ -20,7 +20,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://www.emberwrath.com/#website", "url": "https://www.emberwrath.com/", "name": "Emberwrath", "inLanguage": "de"}, {"@type": "VideoGame", "@id": "https://www.emberwrath.com/#game", "name": "Emberwrath", "url": "https://www.emberwrath.com/", "description": "Emberwrath ist ein düsteres Pixel-Action-RPG: vier Klassen, Stufe 40, vierzehn Gebiete, Bosse, Reittiere und andere Spieler in derselben Welt. Kostenlos im Browser spielen, auf PC und Handy, ohne Download.", "image": "https://www.emberwrath.com/img/og-emberwrath.png", "inLanguage": "de", "genre": ["Action-Rollenspiel", "Online-Rollenspiel", "Pixel-Art"], "gamePlatform": ["Webbrowser", "PC", "Smartphone"], "applicationCategory": "Game", "operatingSystem": "Windows, macOS, Linux, Android, iOS (im Browser)", "playMode": "MultiPlayer", "isAccessibleForFree": true, "publisher": {"@type": "Person", "name": "Dominic Paul Kroll"}, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/OnlineOnly", "url": "https://www.emberwrath.com/spielen/"}, "potentialAction": {"@type": "PlayAction", "target": "https://www.emberwrath.com/spielen/"}}]}</script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preload" as="image" href="img/titel-loop-0.webp" fetchpriority="high">
+  <link rel="preload" as="image" href="img/titel.webp" fetchpriority="high">
   <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
 </head>
@@ -30,8 +30,7 @@
 <main id="inhalt">
 
   <section class="hero" aria-labelledby="titel">
-    <div class="hero-bg"><img style="--fx:0.515;--fy:0.4;--mx:0.5;--my:0.44" class="px shot" fetchpriority="high" src="img/titel-loop-0.webp" data-live="titel-loop.webp" alt="Skalvyr, der Frostwurm, reißt das Maul auf. Vor ihm stehen ein Krieger mit flammender Klinge, ein Magier und eine Waldläuferin mit gespanntem Bogen." width="960" height="540"></div>
-    <canvas class="embers" aria-hidden="true"></canvas>
+    <div class="hero-bg" data-titel><img class="titel-bild" fetchpriority="high" src="img/titel.webp" alt="Ein Krieger in goldener Rüstung mit flammender Klinge blickt von glühender Lavakruste über die Glutöde zum Aschethron." width="1280" height="544"></div>
     <div class="hero-content">
       <img class="hero-logo px" src="img/logo.png" alt="Emberwrath" width="438" height="90">
       <h1 id="titel">Vierzig Stufen bis zum Aschethron.</h1>
@@ -190,5 +189,6 @@
 </main>
 
 <!--#include footer-->
+<script src="titel.js"></script>
 </body>
 </html>

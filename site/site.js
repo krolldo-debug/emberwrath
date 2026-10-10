@@ -152,17 +152,6 @@
     }
   }
 
-  // ---------- Titelbild: nach dem Laden der Seite gegen die lebende Fassung tauschen (Schleife, tools/titel-kampf.mjs)
-  const heroImg = document.querySelector('.hero-bg img[data-live]');
-  const slow = navigator.connection && (navigator.connection.saveData || /(^|-)2g|3g/.test(navigator.connection.effectiveType ?? ''));
-  if (heroImg && !reduced && !slow) {
-    const swap = () => setTimeout(() => {
-      const im = new Image(); im.src = IMG + heroImg.dataset.live;
-      (im.decode ? im.decode() : new Promise((r) => { im.onload = r; })).then(() => { heroImg.src = im.src; }, () => {});
-    }, 600);
-    if (document.readyState === 'complete') swap(); else addEventListener('load', swap, { once: true });
-  }
-
   // ---------- Klassen: Kampf beim Wechsel, danach lebendige Ruhe und reihum die vier Fähigkeiten (oder die angeklickte)
   const F12 = 1000 / 12;
   const classFx = (panel) => {
