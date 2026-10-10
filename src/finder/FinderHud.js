@@ -7,7 +7,7 @@ import { tr } from '../i18n/index.js';
 // HUD der Gruppensuche (HTML-Ebene):
 //   Menüknopf „Dungeonsuche“ (in der Knopfreihe des HUD, Taste O), Suchanzeige mit Zeit,
 //   Bereitschaftsfenster „Gruppe gefunden“, Gruppenanzeige (Leben/Ressource der Mitspieler),
-//   Gruppenchat (Enter), Hinweis bei eigenem Tod, Abschlussleiste nach dem Endboss.
+//   Gruppenchat (Enter), Abschlussleiste nach dem Endboss.
 const LOG_MAX = 40;
 const FADE_MS = 25_000;
 
@@ -43,14 +43,11 @@ export class FinderHud {
     this.chatBtn.hidden = true;
     this.open = false;
 
-    this.deadEl = h('div.fd-dead', h('p.fd-dead-title', 'Du bist gefallen'), h('p.fd-dead-sub', 'Deine Gruppe kämpft weiter. Nach dem Kampf stehst du wieder auf.'));
-    this.deadEl.hidden = true;
-
     this.doneEl = h('div.fd-done.ef-panel');
     this.doneEl.hidden = true;
 
     this.frames = new Map();
-    this.root.append(this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.deadEl, this.doneEl);
+    this.root.append(this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.doneEl);
 
     this.input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); this.close(); } });
     this.input.addEventListener('keyup', (e) => e.stopPropagation());
@@ -142,7 +139,7 @@ export class FinderHud {
       const pause = list?.querySelector('[data-action="pause"]');
       if (list) list.insertBefore(this.menuBtn, pause ?? null);
     }
-    for (const el of [this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.deadEl, this.doneEl]) if (!el.isConnected) this.root.append(el);
+    for (const el of [this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.doneEl]) if (!el.isConnected) this.root.append(el);
     const f = this.finder;
     if (!this.queueEl.hidden) {
       const s = Math.floor((Date.now() - (f.req?.since ?? Date.now())) / 1000);
@@ -168,7 +165,6 @@ export class FinderHud {
     this.chatBtn.hidden = !show;
     if (!show) {
       if (this.open) this.close();
-      this.deadEl.hidden = true;
       this.doneEl.hidden = true;
       if (this.frames.size) { clear(this.partyEl); this.frames.clear(); }
       return;
@@ -197,8 +193,19 @@ export class FinderHud {
       f.el.classList.toggle('dead', !!b.dead);
       f.el.classList.toggle('low', !b.dead && b.hp / b.maxHp < 0.3);
     }
-    this.deadEl.hidden = !(party.player.dead && party.bots.some((b) => !b.dead));
+    this.#placeChatBtn();
     this.#done(party);
+  }
+
+  // Handy: Chat-Knopf unter die Gruppenrahmen, damit er nichts davon verdeckt (Lage selten neu messen)
+  #placeChatBtn() {
+    const now = performance.now();
+    if (now - (this.chatPlacedAt ?? 0) < 500) return;
+    this.chatPlacedAt = now;
+    const r = this.partyEl.getBoundingClientRect();
+    const top = r.height ? Math.round(Math.max(r.bottom + 8, innerHeight / 2)) : null;
+    const v = top == null || top + 48 > innerHeight ? '' : `${top}px`;
+    if (this.chatBtn.style.top !== v) this.chatBtn.style.top = v;
   }
 
   // Nach dem Endboss: Rückweg anbieten
@@ -252,6 +259,6 @@ export class FinderHud {
   dispose() {
     window.removeEventListener('keydown', this.onKey);
     for (const off of this.offs) off();
-    for (const el of [this.menuBtn, this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.deadEl, this.doneEl]) el.remove();
+    for (const el of [this.menuBtn, this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.doneEl]) el.remove();
   }
 }

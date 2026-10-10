@@ -4,6 +4,7 @@ export class Sfx {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.quiet = false;  // vorübergehend stumm (Spiel rechnet im Hintergrund, core/GameLoop.js), nicht gespeichert
     this.volume = 1;     // 0..1, Geräte-Einstellung 'volume' (gesamt, auch Musik)
     this.fxVolume = 1;   // 0..1, Geräte-Einstellung 'fxVolume' (nur Effekte und Umgebung)
     this.prefs = null;   // game.prefs (bindPrefs), speichert 'muted'/'volume'
@@ -210,7 +211,7 @@ export class Sfx {
   get output() { return this.master; }
 
   play(name, opts = {}) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx || this.muted || this.quiet) return;
     const t = this.ctx.currentTime + 0.001;
     const p = opts.pitch ?? (0.92 + Math.random() * 0.16);
     switch (name) {

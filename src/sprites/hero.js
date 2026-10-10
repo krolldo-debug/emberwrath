@@ -996,6 +996,8 @@ function drawSheath(R, w, sk) {
 // Ab 3 Feinpixeln je Weltpixel werden Kopf, Haar, Helme, Rüstung und Waffen mit echten
 // Details gezeichnet; darunter gelten die alten Pixelvorlagen (…Low).
 const hi = (R) => R.s >= FINE_MIN;
+// Offene Kopfteile: Haar und Ohren bleiben sichtbar (Kappe; Krone, gearLook.js HEAD_NAMED)
+const openHelm = (helm) => helm?.style === 'cap' || helm?.style === 'crown';
 function drawHead(R, G, L, P, sk) { return hi(R) ? drawHeadHi(R, G, L, P, sk) : drawHeadLow(R, G, L, P, sk); }
 function drawHairBack(R, L, P, sk) { return hi(R) ? drawHairBackHi(R, L, P, sk) : drawHairBackLow(R, L, P, sk); }
 
@@ -1023,7 +1025,7 @@ function drawHeadHi(R, G, L, P, sk) {
   const g = headGeo(sk, L), { x0, y0, cx, cy } = g;
   const Sk = L.skin, Hh = L.hair, acc = L.accent, rl = L.rl;
   const hurt = P.hurt > 0.5;
-  const helm = L.head, closed = helm && helm.style !== 'cap';
+  const helm = L.head, closed = helm && !openHelm(helm);
   // Hals
   R.capsule(sk.neck.x + 0.2, sk.neck.y - 2, sk.neck.x + 0.6, sk.neck.y + 0.8, 1.35, 1.45, (l) => band(Sk, 1 + l * 0.8));
   // Schädel + Kiefer, gemeinsam wie eine Kugel beleuchtet
@@ -1081,7 +1083,7 @@ function drawHeadHi(R, G, L, P, sk) {
   else if (closed) drawHelmHi(R, G, L, helm, g, P);
   else {
     drawHairHi(R, G, L, g, P);
-    if (helm?.style === 'cap') drawHelmHi(R, G, L, helm, g, P);
+    if (openHelm(helm)) drawHelmHi(R, G, L, helm, g, P);
   }
   // Ohren
   if (!L.hood && !closed) drawEarHi(R, L, g);
@@ -1247,7 +1249,7 @@ function drawHairHi(R, G, L, g, P) {
 }
 
 function drawHairBackHi(R, L, P, sk) {
-  const helmClosed = L.head && L.head.style !== 'cap';
+  const helmClosed = L.head && !openHelm(L.head);
   if (L.hood || helmClosed) return;
   const g = headGeo(sk, L), { x0, y0 } = g, Hh = L.hair;
   if (L.hairStyle === 'tail') {
@@ -1629,7 +1631,7 @@ const HAIR = {
 };
 
 function drawHairBackLow(R, L, P, sk) {
-  if (L.hairStyle === 'tail' && !L.hood && !(L.head && L.head.style !== 'cap')) {
+  if (L.hairStyle === 'tail' && !L.hood && !(L.head && !openHelm(L.head))) {
     // Zopf: vom Hinterkopf, schwingt mit dem Umhang
     const h = L.hair, x = sk.neck.x - 4, y = sk.neck.y - 7;
     const sw = P.cape * 2.5;
@@ -1640,7 +1642,7 @@ function drawHairBackLow(R, L, P, sk) {
     }
     return;
   }
-  if (L.hairStyle !== 'long' || L.hood || (L.head && L.head.style !== 'cap')) return;
+  if (L.hairStyle !== 'long' || L.hood || (L.head && !openHelm(L.head))) return;
   const h = L.hair, x = sk.neck.x - 4, y = sk.neck.y - 6;
   const sw = Math.round(P.cape * 2);
   for (let j = 0; j < 9; j++) {
@@ -1683,7 +1685,7 @@ function drawHeadLow(R, G, L, P, sk) {
 
   const helm = L.head;
   if (L.hood) drawHood(R, L, x0, y0, P);
-  else if (helm && helm.style !== 'cap') drawHelm(R, G, L, helm, x0, y0);
+  else if (helm && !openHelm(helm)) drawHelm(R, G, L, helm, x0, y0);
   else {
     const hs = HAIR[L.hairStyle] ?? HAIR.short;
     const swing = Math.round(P.cape);
@@ -1692,10 +1694,10 @@ function drawHeadLow(R, G, L, P, sk) {
     if (L.hairStyle === 'mane' || (L.hairStyle === 'mohawk' && L.rl.cracks)) {
       G.push({ x: x0 + 3, y: y0 - 3, color: acc[3], r: 1 });
     }
-    if (helm?.style === 'cap') drawHelm(R, G, L, helm, x0, y0);
+    if (openHelm(helm)) drawHelm(R, G, L, helm, x0, y0);
   }
   // Ohren (über dem Haar)
-  if (!L.hood && !(helm && helm.style !== 'cap')) {
+  if (!L.hood && !(helm && !openHelm(helm))) {
     if (L.rl.ears) {
       R.set(x0 + 3, y0 + 5, S[2]); R.set(x0 + 2, y0 + 4, S[2]); R.set(x0 + 1, y0 + 3, S[2]); R.set(x0, y0 + 2, S[3]); R.set(x0 - 1, y0 + 1, S[3]); R.set(x0 - 2, y0, S[3]); R.set(x0 + 2, y0 + 5, S[1]); R.set(x0 + 1, y0 + 4, S[1]); R.set(x0, y0 + 3, S[1]);
     } else {
@@ -1748,6 +1750,20 @@ function drawHood(R, L, x0, y0, P) {
 
 function drawHelm(R, G, L, helm, x0, y0) {
   const A = helm.ramp;
+  if (helm.style === 'crown') {
+    // Krone auf dem Haar: Reif mit fünf Zacken und Steinen
+    const A2 = helm.ramp, J = helm.crown ?? A2;
+    R.stamp(x0, y0 - 4, [
+      '..g.G.g..',
+      '.gG.G.Gg.',
+      'gGGgGgGGg',
+      'HHHHHHHHH',
+      'hhhhhhhhh',
+    ], { h: A2[1], H: A2[3], G: A2[3], g: A2[4] ?? A2[3] });
+    R.set(x0 + 4, y0 - 1, J[4] ?? J[3]); R.set(x0 + 1, y0 - 1, J[3]); R.set(x0 + 7, y0 - 1, J[3]);
+    if (helm.glow) G.push({ x: x0 + 4, y: y0 - 2, color: helm.glow[3], r: 1.4 });
+    return;
+  }
   if (helm.style === 'cap') {
     const rows = [
       '..HHGG...',
@@ -2621,6 +2637,7 @@ function drawHelmHi(R, G, L, helm, g, P) {
     return;
   }
   if (helm.style === 'hood') return drawHoodHi(R, G, { ...L, cloth: A }, g, P);
+  if (helm.style === 'crown') return drawCrownHi(R, G, helm, g);
   const closed = helm.style === 'great';
   const brim = closed ? y0 + 9 : y0 + 3.8;
   const T = helm.trim ?? A, tt = T.length - 1;
@@ -2701,6 +2718,20 @@ function drawHelmHi(R, G, L, helm, g, P) {
     if (closed) { R.fline(x0 + 6.4, y0 + 4.7, x0 + 8.4, y0 + 4.85, 0.45, gc[3]); G.push({ x: Math.round(x0 + 7), y: Math.round(y0 + 5), color: gc[3], r: 1.5 }); }
     else { R.ellipse(x0 + 5.2, y0 + 1.4, 0.55, 0.55, gc[3]); G.push({ x: Math.round(x0 + 5), y: Math.round(y0 + 1), color: gc[3], r: 1.2 }); }
   }
+}
+
+// Krone (offen, über dem Haar): breiter Reif, fünf hohe Zacken mit Kugeln, Steine im Reif
+function drawCrownHi(R, G, helm, g) {
+  const { x0, y0 } = g, A = helm.ramp, J = helm.crown ?? A, top = A.length - 1;
+  const base = y0 + 1.4;
+  R.fline(x0 - 0.2, base + 0.9, x0 + 9.2, base + 0.6, 1.5, (t) => A[t < 0.15 ? 1 : t < 0.6 ? 3 : 2]);
+  R.fline(x0 - 0.1, base + 1.6, x0 + 9.1, base + 1.3, 0.5, A[1]);
+  for (const [dx, h] of [[0.4, 2.2], [2.5, 3.0], [4.6, 4.0], [6.7, 3.0], [8.7, 2.2]]) {
+    R.fline(x0 + dx, base + 0.2, x0 + dx + 0.1, base - h, 1.05, (t) => A[t > 0.75 ? top : t > 0.3 ? 3 : 2]);
+    R.ellipse(x0 + dx + 0.1, base - h - 0.5, 0.6, 0.6, A[top]);
+  }
+  for (const [dx, k] of [[2.4, 3], [4.6, 4], [6.8, 3]]) R.ellipse(x0 + dx, base + 0.8, 0.55, 0.5, J[k] ?? J[3]);
+  if (helm.glow) G.push({ x: Math.round(x0 + 4.6), y: Math.round(base - 1), color: helm.glow[3], r: 1.6 });
 }
 
 function drawHoodHi(R, G, L, g, P) {

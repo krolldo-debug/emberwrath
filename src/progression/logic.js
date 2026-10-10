@@ -385,7 +385,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
   const def = (type, fn, opts) => state.defineCommand(type, (s, p, ctx) => {
     const r = fn(s, p, ctx);
     settleQuestBag(s, ctx.content);
-    checkAchievements(s, ctx);
+    checkAchievements(s, ctx, helpers);
     return r;
   }, opts);
   // Hilfen für endgame.js (Bank, Schmiede, Glutprüfungen)

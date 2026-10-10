@@ -235,14 +235,6 @@
 .ef-hud .hud-prompt kbd.hud-key { display: inline-block; font-size: 11px; background: var(--ef-gold); }
 @keyframes hud-bob { 50% { margin-top: -3px; } }
 
-/* Tod */
-.hud-dead { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; pointer-events: none; }
-.hud-dead.show { display: flex; animation: ef-fade 0.8s; }
-.hud-dead-title { font-family: var(--ef-font-title); font-size: clamp(26px, calc(var(--view-scale) * 14px), 56px); color: #e0484a; letter-spacing: 0.08em; text-shadow: 0 2px 0 #2a0508, 0 0 30px rgba(200, 20, 20, 0.6); }
-.hud-dead-sub { color: #d8cdb0; font-weight: 400; max-width: 40ch; }
-.hud-respawn { visibility: hidden; pointer-events: auto; }
-.hud-dead.ready .hud-respawn { visibility: visible; }
-
 /* ------------------------------------------------------------ Aktionsleiste (Desktop) */
 .hud-actions {
   position: absolute; left: 50%; transform: translateX(-50%);
@@ -1135,10 +1127,6 @@ div.pg-mount { display: contents; padding: 0; border: 0; background: none; }
 /* Meldungen brechen auf zwei Zeilen um statt mit „…“ abzuschneiden */
 .ef-toast { white-space: normal; align-items: center; }
 .ef-toast-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; text-overflow: clip; overflow-wrap: anywhere; }
-/* Wiederbeleben: Tastenhinweis nur am Computer */
-.hud-respawn { display: inline-flex; align-items: center; gap: 8px; }
-.hud-respawn kbd.hud-key { position: static; font-size: 11px; }
-.ef-touch .hud-respawn kbd.hud-key { display: none; }
 /* Touch-Ziele mindestens 44 px */
 .ef-touch .hud-menu-toggle { width: 44px; height: 44px; }
 html.ef-touch.ef-portrait .net-chat-btn { width: 44px; height: 44px; }

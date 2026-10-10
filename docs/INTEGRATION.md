@@ -63,24 +63,31 @@ Das `session`-Objekt, das Systeme, Panels, Welt und Held bekommen:
 | `world, camera, zone` | aktuelle Welt, Kamera, `{ zoneId, instanceId, capacity, population, def }` |
 | `panels` | `PanelHost`: `open(id, params)`, `close()`, `toggle(id)`, `openId` |
 | `hitstop(t)`, `slowmo(scale, dur)` | Game-Feel (Thread D nutzt sie im Feedback) |
-| `setPaused(reason, on)`, `paused` | Pause aus beliebigen Gründen (`'panel'`, `'menu'`, `'hidden'`, …) |
+| `setPaused(reason, on)`, `paused` | Nur für Sonderfälle. Online-Welt: Menüs, Fenster, Fokusverlust und verborgener Tab halten nichts an (GameLoop rechnet im Hintergrund weiter) |
 | `travel(zoneId, spawnId)` | Zonenwechsel (oder `bus.emit(EV.ZONE_TRAVEL, …)`) |
+| `respawn({ leave })` | Wiederbeleben bzw. Dungeon verlassen (oder `bus.emit(EV.RESPAWN_REQUEST, { leave })`) |
 | `time, hurtFlash, deadTime, debug, fps` | Laufzeitwerte |
 
 Tick: Panels (Esc/Aktionstasten) → alle `system.update(dt, session)` (auch während Pause – selbst `session.paused` prüfen) →
 bei Pause Ende → Hitstop/Zeitlupe → `world.update` → Tod/Respawn → Kamera.
 Zeichnen: `world.render` → `system.draw(ctx, session)` in Reihenfolge `order`.
 Autosave: alle 20 s, bei Zonenwechsel, `LEVEL_UP`, `QUEST_ACCEPTED`, `QUEST_COMPLETED`, `BOSS_DEFEATED`, Tab verstecken, Verlassen.
-Tod: `PLAYER_DIED`; nach 2 s Angriff/Interagieren → Respawn in `zone.respawnZone ?? zone` am Spawn `zone.respawnSpawn ?? 'respawn'`.
+Tod: `PLAYER_DIED`; nach 2 s Angriff/Interagieren (oder `EV.RESPAWN_REQUEST`) → Wiederbeleben:
+- Dungeon (`instanced`, keine Glutprüfung): am Eingang derselben Instanz (`world/instanceRevive.js`), besiegte Gegner bleiben besiegt.
+  Lief ein Bosskampf, steht der Boss unversehrt wieder an seinem Platz (`world/bossReset.js`, `EV.BOSS_RESET`), das Tor öffnet sich.
+  `PLAYER_RESPAWNED { inInstance: true }`: die Gruppe (`finder/Party.js`) holt ihre Söldner an den Eingang.
+- sonst: in `zone.respawnZone ?? zone` am Spawn `zone.respawnSpawn ?? 'respawn'`.
+- `RESPAWN_REQUEST { leave: true }`: Dungeon verlassen, draußen am Spawn `from_<dungeon>` (tot oder lebendig).
+Kämpft die Gruppe noch (`hero.partyWaiting`), gibt es kein Wiederbeleben; die Gruppe hebt den Helden nach dem Kampf auf.
 
 ### Sitzungssysteme
 `game.addSessionSystem(id, (session) => ({ update?(dt, session), draw?(ctx, session), dispose?() }), order)`
 Werden bei jedem Betreten der PlayScene neu erzeugt. Kleines `order` zuerst (Feedback 0, Fortschritt 10, HUD 100).
 
 ### Panels (`core/PanelHost.js`)
-`game.panels.register(id, (session, params) => ({ root, update?(dt), dispose?() }), { action, pauses = true, title })`.
+`game.panels.register(id, (session, params) => ({ root, update?(dt), dispose?() }), { action, title })`.
 `action` = Eingabeaktion, die das Panel umschaltet. Esc schließt ein offenes Panel, sonst öffnet es `'menu'` (falls registriert).
-Es ist immer höchstens ein Panel offen; `pauses` hält die Welt an.
+Es ist immer höchstens ein Panel offen. Kein Panel hält die Welt an (Online-Spiel); `pauses` wird nicht mehr ausgewertet.
 
 ### Welt-Vertrag (`world/World.js`, Thread B)
 `new World(session, zoneDef, { spawnId, pos })` mit mindestens:

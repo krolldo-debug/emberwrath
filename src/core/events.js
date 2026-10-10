@@ -29,12 +29,14 @@ export const EV = Object.freeze({
   ENEMY_KILLED: 'enemy:killed',          // { enemyId, type, level, x, y, zoneId, isBoss, xp }
   BOSS_ENGAGED: 'boss:engaged',          // { bossId }
   BOSS_DEFEATED: 'boss:defeated',        // { bossId, x, y }
+  BOSS_RESET: 'boss:reset',              // { bossId }  (Gruppe besiegt: Boss steht unversehrt wieder an seinem Platz)
   TRAVEL_OPEN: 'travel:open',            // Teleporter-Fenster öffnen (erkundete Städte, Welt B)
   TRAVEL_GO: 'travel:go',                // Teleport zu einer erkundeten Stadt (Welt B)
   BOARD_OPEN: 'board:open',              // Auftragsbrett öffnen (Welt B)
   OBJECT_INTERACT: 'object:interact',    // { objectId, kind, x, y }  (Truhen, Hebel …)
   PLAYER_DIED: 'player:died',            // { zoneId }
-  PLAYER_RESPAWNED: 'player:respawned',  // { zoneId, spawnId }
+  PLAYER_RESPAWNED: 'player:respawned',  // { zoneId, spawnId, inInstance? (am Dungeon-Eingang, Instanz bleibt), inPlace? (Gruppe) }
+  RESPAWN_REQUEST: 'player:respawnRequest', // Anfrage: { leave? }  -> PlayScene belebt wieder (Dungeon: am Eingang) bzw. verlässt die Instanz
 
   // Fortschritt (C)
   XP_GAINED: 'xp:gained',                // { amount, total, source }

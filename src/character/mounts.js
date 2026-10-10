@@ -56,6 +56,16 @@ export const MOUNTS = {
   rime_drake: M('Reifschwinge', 'legendary', 'drake',
     { coat: 'rime', mane: 'snow', tack: 'silver', eyes: 'frost', glow: 'rime' },
     'Äußerst selten von Skalvyr in den Reifhöhlen', 'Das letzte Junge des Frostwurms. Seine Schuppen sind klares Eis, und aus seinen Schwingen rieselt feiner Schnee.'),
+  // Belohnung des Erfolgs „Herr der Jagd“ (jeden seltenen Weltgegner zehnmal): nur darüber erhältlich, Tempo wie seltene Reittiere.
+  golden_stag: { ...M('Goldhirsch', 'epic', 'elk',
+    { coat: 'stag', mane: 'snow', tack: 'gold', antler: 'gold' },
+    'Erfolg „Herr der Jagd“: jeden seltenen Weltgegner zehnmal besiegen', 'Der König der Wälder, den kein Jäger je erlegt hat. Er folgt nur dem, der alle anderen Bestien bezwungen hat.'),
+    speed: MOUNT_SPEED.rare, achievement: 'rare_master' },
+  // Belohnung des Erfolgs „Glutfürst“ (Glutprüfung 20, progression/achievements.js): nur darüber erhältlich.
+  ember_scarab: { ...M('Glutskarabäus', 'legendary', 'beetle',
+    { coat: 'scarab', mane: 'ember', tack: 'gold', eyes: 'fire', glow: 'fire' },
+    'Erfolg „Glutfürst“: Glutprüfung 20 bestehen', 'Ein Skarabäus aus der ersten Esse. Sein Panzer ist poliertes Gold, und in den Fugen glüht Feuer, das nie erlischt.'),
+    speed: MOUNT_SPEED.epic, achievement: 'trial_20' },
   // Exklusive Designs aus dem Shop (src/shop/catalog.js): nicht erspielbar, Besitz führt der Server (shop_entitlements).
   // Tempo wie epische Reittiere (kein Vorteil durch Echtgeld), Aussehen über allem, was es im Spiel gibt.
   phoenix_wing: { ...M('Phönixschwinge', 'legendary', 'drake',
@@ -127,6 +137,8 @@ export function installMounts(game) {
     if (!has(mountId)) return { ok: false, error: 'Unbekanntes Reittier.' };
     // Exklusive Designs nur über den Shop (shop:sync); der Server prüft den Besitz beim Speichern.
     if (content.find('mount', mountId).exclusive && !shop) return { ok: false, error: 'Dieses Reittier gibt es nur im Shop.' };
+    const ach = content.find('mount', mountId).achievement;
+    if (ach && !s.slices.achievements?.unlocked?.[ach]) return { ok: false, error: 'Dieses Reittier gibt es nur über einen Erfolg.' };
     const m = s.get('character').mounts;
     if (m.owned.includes(mountId)) return { ok: false, error: 'Dieses Reittier kennst du schon.', known: true };
     m.owned.push(mountId);

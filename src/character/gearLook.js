@@ -159,6 +159,8 @@ const HEAD_NAMED = {
   hillking_helm: { crown: M.iron, crownDim: true, crest: null },        // eiserne Krone
   gorm_helm: { style: 'horned', crest: null },
   sovereign_helm: { crown: M.ember, crest: null },
+  // Erfolgsbelohnung „Die Sieben Gefallenen“ (Garderobe): heller Königshelm mit weißgoldener Krone
+  fallen_crown: { style: 'crown', ramp: M.gold, crown: M.ember, glow: M.ember, trim: null, crest: null, coif: false },   // offene Goldkrone (sprites/hero.js drawCrownHi)
 };
 const HANDS = {
   gloves_cloth: { style: 'cloth', ramp: M.cloth },

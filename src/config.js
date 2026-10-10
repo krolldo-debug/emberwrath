@@ -18,6 +18,7 @@ export const CONFIG = {
   tileSize: 16,
   fixedStep: 1 / 60,
   maxFrameTime: 0.25,
+  backgroundCatchUp: 1,  // s: so viel rechnet der Hintergrund-Takt je Aufruf höchstens (Tab verborgen, 60 Schritte); der Rest verfällt
   maxStepsPerFrame: 4,  // schwache Geräte: lieber kurz langsamer als ein Nachhol-Stau (unter 15 fps läuft das Spiel verlangsamt)
   autosaveInterval: 20, // Sekunden
 

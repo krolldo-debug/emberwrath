@@ -92,6 +92,10 @@ const COAT = {
   // Exklusiv (Shop-Designs)
   astral: ['#0a0c2a', '#161e56', '#22348a', '#3452ba', '#6c8eea'],
   spirit: ['#0a2224', '#124044', '#1c6464', '#2c9488', '#5ccab4'],
+  // Erfolgsbelohnung (Glutskarabäus): poliertes Gold
+  scarab: ['#2a1606', '#5a3410', '#9a6418', '#d8a030', '#ffe080'],
+  // Erfolgsbelohnung (Goldhirsch): warmes Rotbraun
+  stag: ['#24120a', '#462412', '#6e3c1e', '#9a5e30', '#c8884a'],
 };
 const MANE = {
   dark: ['#120a08', '#24140e', '#3a2418', '#50341e'],
@@ -429,7 +433,7 @@ function drawMount(R, G, B, look, pose) {
         G.push({ x: Math.round(k.ex + 1), y: Math.round(k.ey), color: '#ff7a20', r: L.near ? 2 : 1.4 });
       }
     } else {
-      const cl = look.coat === 'spore' ? '#e0c8ff' : '#1a1410';
+      const cl = look.coat === 'spore' ? '#e0c8ff' : look.coat === 'scarab' ? '#5a3410' : '#1a1410';
       for (const o of [-0.9, 0.3, 1.5]) R.line(k.ex, k.ey, k.ex + o + 0.7, k.ey + 0.8, 0.45, cl);
     }
   };
@@ -486,7 +490,8 @@ function drawMount(R, G, B, look, pose) {
   if (B.shell) {
     R.ellipse(-0.5, -10.5 + bob, 11, 5.6, (l, d, x, y, nx, ny) => band(C, 1.6 + l * 1.6));
     // Panzer mit Naht und Glanz
-    R.ellipse(-0.5, -12.8 + bob, 10.6, 6.4, (l, d, x, y, nx, ny) => (ny > 0.7 ? null : Math.abs(nx + 0.05) < 0.03 ? C[0] : band(C, 2.2 + l * 1.6 + (d < 0.35 && nx < 0 ? 1 : 0))));
+    const seam = look.coat === 'scarab' ? '#ff8a30' : C[0];
+    R.ellipse(-0.5, -12.8 + bob, 10.6, 6.4, (l, d, x, y, nx, ny) => (ny > 0.7 ? null : Math.abs(nx + 0.05) < 0.03 ? seam : band(C, 2.2 + l * 1.6 + (d < 0.35 && nx < 0 ? 1 : 0))));
   } else {
     R.capsule(rump[0], rump[1], chest[0], chest[1], B.rB, B.rC, (l, t, e, x, y) => bodyShade(l + (y > chest[1] + B.rC * 0.5 ? -0.5 : 0), t, e));
   }
@@ -537,6 +542,20 @@ function drawMount(R, G, B, look, pose) {
       if (t < 0.6) G.push({ x: Math.round(wx), y: Math.round(wy), color: '#ff9a30', r: 1 });
     }
     G.push({ x: -2, y: Math.round(-11 * k + bob), color: '#ff5a18', r: 3 + pulse });
+  }
+  if (look.coat === 'scarab') {
+    // Glutskarabäus: Glutadern in den Panzerfugen, drei Glutsteine, Funken steigen auf
+    const pulse = (Math.sin(pose.ph * 1.5) + 1) / 2;
+    for (const [a, b, c2, d] of [[-9, -11.2, -5, -15.4], [8.2, -11.4, 4.4, -15.6], [-8.6, -9, 7.8, -9.2]]) R.line(a, b + bob, c2, d + bob, 0.45, pulse > 0.5 ? '#ffb640' : '#e0661a');
+    for (const [x, y] of [[-5.6, -13.6], [-0.6, -16.6], [4.4, -13.8]]) {
+      R.ellipse(x, y + bob, 1.3, 0.9, (l) => band(['#7a1e06', '#c8420c', '#f07a1c', '#ffd070', '#fff4c0'], 2.2 + l * 1.4 + pulse * 0.6));
+      G.push({ x: Math.round(x), y: Math.round(y + bob), color: '#ff9a30', r: 1 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const t = ((pose.ph / TAU) * 1.2 + i / 3) % 1, wx = -6 + i * 6 + Math.sin(t * 6 + i) * 0.8, wy = -18 - t * 6 + bob;
+      R.dot(wx, wy, t < 0.4 ? '#fff0b0' : t < 0.75 ? '#ffb640' : '#c8420c');
+      if (t < 0.6) G.push({ x: Math.round(wx), y: Math.round(wy), color: '#ff9a30', r: 1 });
+    }
   }
   if (look.coat === 'spore') {
     // leuchtende Pilze auf dem Panzer
@@ -616,8 +635,8 @@ function drawMount(R, G, B, look, pose) {
     for (const [ox, oy, ax, ay] of [[-1.6, -3, -2.6, -4.4], [-1.4, -0.6, -3, -0.6], [-0.4, 2, -1.6, 3.4]]) R.line(cx + ox, cy + oy, cx + ax, cy + ay, 0.5, (t) => (t > 0.6 ? T.metal[2] : T.metal[1]));
   }
   if (B.horns === 'antler') {
-    const ice = look.coat === 'frost';
-    const A = ice ? ['#3a78c0', '#7ac0f0', '#c0e8ff', '#ffffff'] : ['#3a2a1a', '#6a5030', '#9a7a50', '#c8a878'];
+    const ice = look.coat === 'frost', gold = look.antler === 'gold';
+    const A = ice ? ['#3a78c0', '#7ac0f0', '#c0e8ff', '#ffffff'] : gold ? ['#6a4210', '#c8922a', '#f0c85a', '#fff4c0'] : ['#3a2a1a', '#6a5030', '#9a7a50', '#c8a878'];
     const base = [h0[0] - 0.4, h0[1] - 2];
     for (const s of [0, 1]) {
       const bx = base[0] + s * 1.2, far = s === 0;
@@ -627,6 +646,7 @@ function drawMount(R, G, B, look, pose) {
       R.line(mid[0], mid[1], mid[0] + 2.2, mid[1] - 3, 0.6, A[far ? 1 : 3]);
       R.line(mid[0] - 1, mid[1] - 1.6, mid[0] - 3.4, mid[1] - 2.2, 0.6, A[far ? 1 : 2]);
       if (ice && !far) G.push({ x: Math.round(tip[0]), y: Math.round(tip[1]), color: '#c0f0ff', r: 2 });
+      if (gold && !far) G.push({ x: Math.round(tip[0]), y: Math.round(tip[1]), color: '#ffe08a', r: 1.5 }, { x: Math.round(mid[0] + 2), y: Math.round(mid[1] - 3), color: '#ffe08a', r: 1 });
     }
   }
   if (B.horns === 'drake') {
@@ -636,7 +656,8 @@ function drawMount(R, G, B, look, pose) {
     if (B.neck) for (let i = 0; i < 4; i++) { const t = i / 4, x = B.neck[0][0] + (B.neck[1][0] - B.neck[0][0]) * t - 1.8, y = B.neck[0][1] + (B.neck[1][1] - B.neck[0][1]) * t - 2.6 + bob; R.line(x, y, x - 1.2, y - 1.4, 0.7, C[3]); }
   }
   if (B.horns === 'mandible') {
-    for (const s of [-1, 1]) R.line(h1[0] - 0.5, h1[1] + s * 0.5, h1[0] + 2.8, h1[1] + s * 1.3 - 0.4, 0.8, (t) => band(['#1a1026', '#48306a', '#9072b8', '#e0c8ff'], 1 + t * 2));
+    const MD = look.coat === 'scarab' ? ['#5a3410', '#c8822a', '#ffd070', '#fff4c0'] : ['#1a1026', '#48306a', '#9072b8', '#e0c8ff'];
+    for (const s of [-1, 1]) R.line(h1[0] - 0.5, h1[1] + s * 0.5, h1[0] + 2.8, h1[1] + s * 1.3 - 0.4, 0.8, (t) => band(MD, 1 + t * 2));
     R.line(h0[0] + 0.5, h0[1] - 2.4, h0[0] + 2.8, h0[1] - 5.5, 0.9, (t) => band(C, 2 + t * 2));
   }
   // Auge

@@ -209,16 +209,7 @@
 }
 .ef-touch #ui .fd-chat-btn::before { content: ""; position: absolute; left: 9px; top: 10px; width: 18px; height: 12px; border: 2px solid var(--ef-text); border-radius: 2px; }
 
-/* ------------------------------------------------------------ Tod und Abschluss */
-#ui .fd-dead {
-  position: fixed; inset: auto; z-index: 2; pointer-events: none; left: 50%; transform: translateX(-50%);
-  top: calc(50% - var(--view-h) / 2 + var(--view-h) * 0.28); text-align: center; width: min(440px, 90vw);
-  text-shadow: 0 2px 0 #000, 0 0 10px #000;
-}
-.fd-dead[hidden] { display: none !important; }
-.fd-dead-title { margin: 0; font: 700 26px/1.1 var(--ef-font-title); color: #ff7a6a; }
-.fd-dead-sub { margin: 6px 0 0; font: 400 14px/1.35 var(--ef-font); color: var(--ef-text); }
-
+/* ------------------------------------------------------------ Abschluss (Tod: ui/Hud.js, gemeinsamer Todesbildschirm) */
 #ui .fd-done {
   position: fixed; inset: auto; z-index: 3; pointer-events: auto; left: 50%; transform: translateX(-50%);
   bottom: max(88px, calc(50% - var(--view-h) / 2 + 96px)); padding: 10px 14px; display: flex; align-items: center; gap: 14px;

@@ -56,6 +56,7 @@ export class Game {
     this.resize();
     this.loop = new GameLoop({
       update: (dt) => this.update(dt), render: () => this.render(),
+      onBackground: (on) => { this.sfx.quiet = on; }, // Hintergrundschritte ohne Klänge
       onFatal: () => showErrorNotice('Im Spiel ist ein Fehler aufgetreten. Der Spielstand wird regelmäßig gespeichert – bitte lade die Seite neu.'),
     });
   }
@@ -158,8 +159,9 @@ export class Game {
     if (inp.pressed('mute')) this.sfx.toggleMute();
     if (inp.pressed('debug')) this.debug = !this.debug;
     // endStep auch nach einem Fehler, sonst löst dieselbe Eingabe (Trank, Angriff …) im nächsten Tick erneut aus.
-    // Handy/Tablet hochkant (ui/RotateGate.js): Spiel steht still, bis das Gerät gedreht ist
-    try { if (!this.paused) this.scenes.update(dt); } finally { inp.endStep(dt); }
+    // Handy/Tablet hochkant (ui/RotateGate.js): die Online-Welt läuft weiter, nur die Eingaben ruhen, bis das Gerät gedreht ist
+    if (this.inputBlocked) inp.releaseAll();
+    try { this.scenes.update(dt); } finally { inp.endStep(dt); }
   }
 
   render() {

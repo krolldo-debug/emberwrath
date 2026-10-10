@@ -2,7 +2,9 @@
 // Slices und Commands wie in logic.js (ohne DOM, serverfähig). Die Inventar-Hilfen reicht logic.js herein.
 import { EV } from '../core/events.js';
 import { ITEMS, EQUIP_SLOTS, stackSize } from './items.js';
-import { ACHIEVEMENTS } from './achievements.js';
+import { ACHIEVEMENTS, rewardItemId } from './achievements.js';
+import { CLASSES } from '../character/classes.js';
+import { WARDROBE_EVENT } from '../character/wardrobe.js';
 import { UPGRADE_MAX, upgradeCost, ENCHANTS, computeBonus } from './smithing.js';
 import { TRIAL_REQUIRES, TRIAL_MAX_TIER, KILL_VALUE, trialSpec, trialRewards } from './trials.js';
 import { countItem } from './selectors.js';
@@ -24,22 +26,54 @@ export const ACHIEVEMENT_UNLOCKED = EV.ACHIEVEMENT_UNLOCKED ?? 'achievement:unlo
 export function recomputeBonus(inv) { inv.bonus = computeBonus(inv); return inv.bonus; }
 
 // Erfolge prüfen; neu freigeschaltete melden. Läuft nach jedem Command von Thread C.
-export function checkAchievements(s, ctx) {
+// h = Inventar-Hilfen aus logic.js (addItem) für Belohnungen mit Gegenstand.
+export function checkAchievements(s, ctx, h = null) {
   const a = s.slices.achievements;
   if (!a) return [];
   const fresh = [];
   for (const def of ctx.content.all('achievement')) {
-    if (a.unlocked[def.id]) continue;
+    if (a.unlocked[def.id]) {
+      // errungen, Belohnung fehlt noch (Erfolg vor Runde 10.10. errungen, oder Speicherstand ohne Vermerk)
+      if (def.reward && !a.rewarded?.[def.id]) grantReward(s, ctx, def, h);
+      continue;
+    }
     let v = 0;
     try { v = def.value(s); } catch { v = 0; }
     if (v >= def.goal) {
       a.unlocked[def.id] = Date.now();
       fresh.push(def.id);
-      ctx.bus.emit(ACHIEVEMENT_UNLOCKED, { id: def.id, name: def.name, desc: def.desc, icon: def.icon, points: def.points, title: def.title });
+      if (def.reward) grantReward(s, ctx, def, h);
+      ctx.bus.emit(ACHIEVEMENT_UNLOCKED, { id: def.id, name: def.name, desc: def.desc, icon: def.icon, points: def.points, title: def.title, reward: def.reward ?? null });
       // Anzeige übernimmt D (ui/Unlocks.js) über 'achievement:unlocked' – kein eigener Toast mehr.
     }
   }
   return fresh;
+}
+
+// Belohnung eines Erfolgs vergeben (achievements.js, reward). Einmalig: Vermerk in achievements.rewarded.
+// Färbungen brauchen nichts im Spielstand (character/cosmetics.js earnedDye prüft den Erfolg).
+export function grantReward(s, ctx, def, h) {
+  const a = s.slices.achievements, r = def.reward, ch = s.slices.character;
+  if (r.kind === 'look') {
+    const w = ch?.wardrobe;
+    if (!w) return false;
+    if (!w.looks.includes(r.id)) { w.looks.push(r.id); ctx.bus.emit(WARDROBE_EVENT, { itemIds: [r.id], source: 'achievement' }); }
+  } else if (r.kind === 'mount') {
+    const m = ch?.mounts;
+    if (!m || !ctx.content.find('mount', r.id)) return false;
+    if (!m.owned.includes(r.id)) {
+      m.owned.push(r.id);
+      if (!m.active) m.active = r.id;
+      ctx.bus.emit(EV.MOUNT_LEARNED, { mountId: r.id, source: 'achievement' });
+    }
+  } else if (r.kind === 'item') {
+    const itemId = rewardItemId(r, CLASSES[ch?.classId]?.primary);
+    if (!h?.addItem || !ctx.content.find('item', itemId)) return false;
+    // Tasche voll: Questbeutel (wandert in die Tasche, sobald Platz frei wird)
+    h.addItem(s, ctx, itemId, 1, 'achievement', { overflow: true });
+  }
+  (a.rewarded ??= {})[def.id] = Date.now();
+  return true;
 }
 
 // Glutprüfung: Kill zählen (aus progress:kill). trialTime = Sekunden seit Start (vom Sitzungssystem).
@@ -57,6 +91,7 @@ export function trialKill(s, ctx, { type, elite, isBoss, bossId, trialTime }, h)
     run.time = Math.round(trialTime ?? 0);
     run.rewards = rewards;
     tr.best = Math.max(tr.best, run.tier);
+    (tr.bosses ??= {})[run.bossId] = Math.max(tr.bosses[run.bossId] ?? 0, run.tier);   // höchste Stufe je Herrscher (Erfolg „Die Sieben Gefallenen“)
     tr.runs++;
     const prev = tr.cleared[run.tier];
     tr.cleared[run.tier] = prev ? Math.min(prev, run.time || prev) : run.time || 1;
@@ -69,6 +104,9 @@ export function trialKill(s, ctx, { type, elite, isBoss, bossId, trialTime }, h)
     boardProgress(s, ctx, { kind: 'trial', tier: run.tier });
   }
 }
+
+const cleanBosses = (raw) => Object.fromEntries(Object.entries(raw && typeof raw === 'object' ? raw : {})
+  .filter(([id, t]) => /^[a-z_]{1,32}$/.test(id) && Number.isFinite(t) && t > 0).map(([id, t]) => [id, Math.min(TRIAL_MAX_TIER, t | 0)]));
 
 export function registerEndgameState(state, h) {
   const auth = { authoritative: true };
@@ -146,12 +184,14 @@ export function registerEndgameState(state, h) {
 
   // ---------------------------------------------------------------- Erfolge
   state.defineSlice('achievements', {
-    create: () => ({ unlocked: {}, title: null }),
+    // rewarded: Erfolge, deren Belohnung vergeben ist (fehlt in alten Spielständen -> wird nachgeholt)
+    create: () => ({ unlocked: {}, title: null, rewarded: {} }),
     deserialize: (raw) => {
-      const unlocked = {};
+      const unlocked = {}, rewarded = {};
       for (const [id, t] of Object.entries(raw.unlocked ?? {})) if (Object.hasOwn(ACHIEVEMENTS, id)) unlocked[id] = t;
+      for (const [id, t] of Object.entries(raw.rewarded ?? {})) if (unlocked[id] && ACHIEVEMENTS[id].reward) rewarded[id] = t;
       const title = raw.title && unlocked[raw.title] && ACHIEVEMENTS[raw.title].title ? raw.title : null;
-      return { unlocked, title };
+      return { unlocked, title, rewarded };
     },
   });
   def('achievement:title', (s, { id }, ctx) => {
@@ -193,9 +233,9 @@ export function registerEndgameState(state, h) {
 
   // ---------------------------------------------------------------- Glutprüfungen
   state.defineSlice('trials', {
-    create: () => ({ best: 0, runs: 0, cleared: {}, run: null }),
+    create: () => ({ best: 0, runs: 0, cleared: {}, bosses: {}, run: null }),
     // Ein laufender Versuch überlebt kein Neuladen.
-    deserialize: (raw) => ({ best: Math.max(0, raw.best | 0), runs: Math.max(0, raw.runs | 0), cleared: { ...raw.cleared }, run: null }),
+    deserialize: (raw) => ({ best: Math.max(0, raw.best | 0), runs: Math.max(0, raw.runs | 0), cleared: { ...raw.cleared }, bosses: cleanBosses(raw.bosses), run: null }),
   });
   def('trial:start', (s, { tier }, ctx) => {
     const tr = s.get('trials');
