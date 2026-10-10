@@ -126,13 +126,22 @@ function canonicalRedirect(request, url, env) {
 }
 
 // Seiten aus run_worker_first gehen durch env.ASSETS.fetch. Fehlen dort die Header aus dist/site/_headers (C1),
-// setzt der Worker die gleichen Sicherheits-Header (CSP ohne Skript-Hash, also mit 'unsafe-inline' wie bisher).
-// Sind sie schon da, bleibt die Antwort unverändert.
+// setzt der Worker die gleichen Sicherheits-Header. Die Website hat keine Inline-Skripte mehr (tools/build.mjs prüft
+// das), also script-src nur 'self' wie in _headers. Sind sie schon da, bleibt die Antwort unverändert.
+// Das Spiel (/spielen/spiel.<hash>.js, Name ändert sich mit dem Inhalt) darf ein Jahr im Browser bleiben, auch
+// falls die _headers-Regel auf diesem Weg nicht greift.
+const GAME_FILE_RE = /^\/spielen\/spiel\.[0-9a-f]+\.js$/;
 async function assetWithHeaders(request, env) {
   const res = await env.ASSETS.fetch(request);
+  if (GAME_FILE_RE.test(new URL(request.url).pathname)) {
+    // Fehlt die Datei (alter Verweis), darf das 404 nicht ein Jahr hängen bleiben
+    const out = new Response(res.body, res);
+    out.headers.set('Cache-Control', res.ok ? 'public, max-age=31536000, immutable' : 'no-store');
+    return out;
+  }
   if (!/text\/html/i.test(res.headers.get('content-type') ?? '') || res.headers.has('content-security-policy')) return res;
   const out = new Response(res.body, res);
-  for (const [k, v] of Object.entries(pageHeaders(config(env).SUPABASE_URL))) if (!out.headers.has(k)) out.headers.set(k, v);
+  for (const [k, v] of Object.entries(pageHeaders(config(env).SUPABASE_URL, []))) if (!out.headers.has(k)) out.headers.set(k, v);
   return out;
 }
 
