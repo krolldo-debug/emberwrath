@@ -1,85 +1,84 @@
 /* Todesbildschirm (ui/DeathScreen.js). Liegt in .hud-view über dem laufenden Spielbild.
    Stil wie Titelbild/Reittier-Parade: gezeichneter Pixelrahmen (9-Slice aus ui/pixelFrame.js), deckende Flächen,
    harte Kanten, Bewegung nur in ganzen Bildpunkten (steps). Kein weicher Schatten, kein Verlauf.
+   Eine Pixelstufe je Gerät (--p) für Rahmen, Schädel, Titel, Knopfkanten und Funken: Computer 4 px, Handy 3 px.
    Modi über data-mode: solo (nur Wiederbeleben), instance (Dungeon: + Verlassen), group (nur schmale Leiste unten). */
 .dz {
   --dz-k: #14060a; --dz-r: #7a1e1c; --dz-R: #c8382e; --dz-f: #150b10; --dz-e: #a8301a; --dz-E: #ff6a2a; --dz-w: #ffd890;
+  --p: 4px; --dz-bw: 168px;
   position: absolute; inset: 0; display: none; pointer-events: none;
 }
 .dz.show { display: block; }
 
 /* ---- Tafel */
 .dz-card {
-  position: absolute; left: 50%; top: 57%; translate: -50% 0; box-sizing: border-box;
-  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 12px 8px;
-  border: 15px solid transparent; border-image: var(--dz-frame3) 15 fill / 15px stretch;
+  position: absolute; left: 50%; top: 56%; translate: -50% 0; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--p) * 3); padding: calc(var(--p) * 5) calc(var(--p) * 2) calc(var(--p) * 2);
+  border: 20px solid transparent; border-image: var(--dz-frame4) 20 fill / 20px stretch;
   animation: dz-in 0.24s steps(4, end) both;
 }
 .dz[data-mode="group"] .dz-card { display: none; }
 .dz-sigil {
-  position: absolute; left: 50%; top: -33px; translate: -50% 0; line-height: 0;
-  padding: 3px 6px; background: var(--dz-f); box-shadow: 0 0 0 3px var(--dz-r), 0 0 0 6px var(--dz-k);
+  position: absolute; left: 50%; top: calc(var(--p) * -11); translate: -50% 0; line-height: 0;
+  padding: var(--p) calc(var(--p) * 2); background: var(--dz-f); box-shadow: 0 0 0 var(--p) var(--dz-r), 0 0 0 calc(var(--p) * 2) var(--dz-k);
 }
-.dz-skull { display: block; width: 33px; height: 27px; }
+.dz-skull { display: block; width: calc(var(--p) * 11); height: calc(var(--p) * 9); }
 .dz-skull .eye { animation: dz-eyes 1.6s steps(1, end) infinite; }
 .dz-title {
-  display: block; width: calc(var(--tw, 72) * 4px); height: calc(var(--th, 7) * 4px);
+  display: block; width: calc(var(--tw, 72) * var(--p)); height: calc(var(--th, 7) * var(--p));
   image-rendering: pixelated; image-rendering: crisp-edges;
 }
-.dz-actions { display: flex; gap: 9px; }
+.dz-actions { display: flex; gap: calc(var(--p) * 2); }
 
-/* ---- Knöpfe: eckig, deckend, Rand aus harten Innenlinien */
+/* ---- Knöpfe: eckig, deckend, Rand aus harten Innenlinien; feste Breite (auch bei „Wirklich verlassen?“) */
 .dz-btn {
   position: relative; isolation: isolate; overflow: hidden; pointer-events: auto; cursor: pointer;
-  min-width: 132px; min-height: 39px; padding: 0 15px; margin: 0; border: 0; border-radius: 0;
-  font: 700 15px/1 var(--ef-font); color: #e8d8c8; letter-spacing: 0.02em;
-  background: #241018; box-shadow: inset 0 0 0 3px var(--dz-k), inset 0 0 0 6px #4a1c22, inset 0 9px 0 #2e141c;
+  width: var(--dz-bw); min-height: calc(var(--p) * 10); padding: 0 calc(var(--p) * 2); margin: 0; border: 0; border-radius: 0;
+  font: 700 15px/1.1 var(--ef-font); color: #e8d8c8; letter-spacing: 0.02em; white-space: nowrap;
+  background: #241018; box-shadow: inset 0 0 0 var(--p) var(--dz-k), inset 0 0 0 calc(var(--p) * 2) #4a1c22, inset 0 calc(var(--p) * 3) 0 #2e141c;
   -webkit-tap-highlight-color: transparent;
 }
-.dz-btn:hover:not(:disabled) { color: #fff4e0; box-shadow: inset 0 0 0 3px var(--dz-k), inset 0 0 0 6px var(--dz-r), inset 0 9px 0 #34161e; }
-.dz-btn:active:not(:disabled) { translate: 0 3px; }
-.dz-btn:focus-visible { outline: 3px solid var(--dz-w); outline-offset: 0; }
-.dz-btn.primary { color: #8a6a5a; background: #2a0c10; box-shadow: inset 0 0 0 3px var(--dz-k), inset 0 0 0 6px var(--dz-r); }
+.dz-btn:hover:not(:disabled) { color: #fff4e0; box-shadow: inset 0 0 0 var(--p) var(--dz-k), inset 0 0 0 calc(var(--p) * 2) var(--dz-r), inset 0 calc(var(--p) * 3) 0 #34161e; }
+.dz-btn:active:not(:disabled) { translate: 0 var(--p); }
+.dz-btn:focus-visible { outline: var(--p) solid var(--dz-w); outline-offset: 0; }
+.dz-btn.primary { color: #8a6a5a; background: #2a0c10; box-shadow: inset 0 0 0 var(--p) var(--dz-k), inset 0 0 0 calc(var(--p) * 2) var(--dz-r); }
 .dz-btn:disabled { cursor: default; }
 .dz-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; z-index: -1; background: #5a1a12; }
 .dz-lbl { position: relative; }
-.dz.ready .dz-revive { color: #fff4e0; background: var(--dz-e); box-shadow: inset 0 0 0 3px var(--dz-k), inset 0 0 0 6px var(--dz-E), inset 0 9px 0 #c8442a; }
+.dz.ready .dz-revive { color: #fff4e0; background: var(--dz-e); box-shadow: inset 0 0 0 var(--p) var(--dz-k), inset 0 0 0 calc(var(--p) * 2) var(--dz-E), inset 0 calc(var(--p) * 3) 0 #c8442a; }
 .dz.ready .dz-revive:hover { background: #c03a1e; }
 .dz.ready .dz-fill { display: none; }
-.dz-btn.arm { color: var(--dz-w); background: #4a1410; box-shadow: inset 0 0 0 3px var(--dz-k), inset 0 0 0 6px var(--dz-E); }
+.dz-btn.arm { color: var(--dz-w); background: #4a1410; box-shadow: inset 0 0 0 var(--p) var(--dz-k), inset 0 0 0 calc(var(--p) * 2) var(--dz-E); }
 .dz[data-mode="solo"] .dz-card .dz-leave { display: none; }
 
-/* ---- Glutfunken: einzelne Bildpunkte, steigen in 3-px-Schritten */
-.dz-spark { position: absolute; width: 3px; height: 3px; background: var(--dz-E); box-shadow: 3px 0 0 var(--dz-e); pointer-events: none; animation: dz-spark 1.8s steps(6, end) infinite; }
-.dz-spark.s0 { left: -9px; top: 6px; }
-.dz-spark.s1 { right: -6px; top: 18px; animation-delay: -0.6s; }
-.dz-spark.s2 { left: 24%; top: -15px; animation-delay: -1.1s; background: var(--dz-w); }
-.dz-spark.s3 { right: 22%; top: -12px; animation-delay: -0.3s; }
+/* ---- Glutfunken: einzelne Bildpunkte, steigen in Stufen von --p */
+.dz-spark { position: absolute; width: var(--p); height: var(--p); background: var(--dz-E); box-shadow: var(--p) 0 0 var(--dz-e); pointer-events: none; animation: dz-spark 1.8s steps(6, end) infinite; }
+.dz-spark.s0 { left: calc(var(--p) * -8); top: calc(var(--p) * 2); }
+.dz-spark.s1 { right: calc(var(--p) * -7); top: calc(var(--p) * 6); animation-delay: -0.6s; }
+.dz-spark.s2 { left: 24%; top: calc(var(--p) * -9); animation-delay: -1.1s; background: var(--dz-w); }
+.dz-spark.s3 { right: 22%; top: calc(var(--p) * -8); animation-delay: -0.3s; }
 
 /* ---- Gruppe kämpft noch: schmale Leiste über der Aktionsleiste, das Kampfgeschehen bleibt frei */
 .dz-bar {
-  position: absolute; left: 50%; bottom: 78px; translate: -50% 0; display: none; align-items: center; gap: 9px;
-  padding: 0 0 0 3px; border: 10px solid transparent; border-image: var(--dz-frame2) 10 fill / 10px stretch;
+  position: absolute; left: 50%; bottom: 78px; translate: -50% 0; display: none; align-items: center; gap: calc(var(--p) * 2);
+  padding: 0; border: 20px solid transparent; border-image: var(--dz-frame4) 20 fill / 20px stretch;
   font: 700 14px/1 var(--ef-font); color: #e8d8c8; white-space: nowrap; animation: dz-in 0.24s steps(4, end) both;
 }
 .dz[data-mode="group"] .dz-bar { display: flex; }
 .dz-bar-skull { line-height: 0; }
-.dz-bar-skull .dz-skull { width: 22px; height: 18px; }
-.dz-bar .dz-btn { min-width: 0; min-height: 33px; padding: 0 12px; font-size: 13px; }
+.dz-bar .dz-btn { width: 156px; min-height: calc(var(--p) * 9); font-size: 13px; }
 
-/* ---- Handy (Touch, quer): kleinere Stufen, große Tippflächen */
-.ef-touch .dz-card { top: 55%; gap: 10px; padding: 16px 8px 4px; border-width: 10px; border-image: var(--dz-frame2) 10 fill / 10px stretch; }
-.ef-touch .dz-sigil { top: -28px; padding: 2px 4px; box-shadow: 0 0 0 2px var(--dz-r), 0 0 0 4px var(--dz-k); }
-.ef-touch .dz-sigil .dz-skull { width: 22px; height: 18px; }
-.ef-touch .dz-title { width: calc(var(--tw, 72) * 3px); height: calc(var(--th, 7) * 3px); }
-.ef-touch .dz-btn { min-height: 44px; min-width: 120px; }
-.ef-touch .dz-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); }
-.ef-touch .dz-bar .dz-btn { min-height: 40px; }
+/* ---- Handy (Touch): Pixelstufe 3 px, große Tippflächen */
+.ef-touch .dz { --p: 3px; --dz-bw: 176px; }
+.ef-touch .dz-card { top: 54%; border-width: 15px; border-image: var(--dz-frame3) 15 fill / 15px stretch; }
+.ef-touch .dz-btn { min-height: 44px; font-size: 14px; }
+.ef-touch .dz-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); border-width: 15px; border-image: var(--dz-frame3) 15 fill / 15px stretch; }
+.ef-touch .dz-bar .dz-btn { min-height: 40px; width: 148px; }
 .ef-portrait .dz-card { top: 58%; }
 
-@keyframes dz-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes dz-in { from { opacity: 0; transform: translateY(calc(var(--p) * 3)); } }
 @keyframes dz-eyes { 50% { fill: var(--dz-w); } }
-@keyframes dz-spark { 0% { transform: translate(0, 0); opacity: 1; } 66% { opacity: 1; } 100% { transform: translate(0, -18px); opacity: 0; } }
+@keyframes dz-spark { 0% { transform: translate(0, 0); opacity: 1; } 66% { opacity: 1; } 100% { transform: translate(0, calc(var(--p) * -6)); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .dz-card, .dz-bar, .dz-skull .eye, .dz-spark { animation: none !important; }
 }

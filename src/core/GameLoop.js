@@ -6,10 +6,13 @@ import { CONFIG } from '../config.js';
 // statt dass jedes Bild noch mehr nachholen muss (sonst bleibt es dauerhaft bei wenigen Bildern pro Sekunde).
 // onFatal(err) wird gerufen, wenn die Schleife über viele Bilder hinweg nur noch Fehler liefert.
 // Online-Welt: Zeichnet der Browser nicht (Tab im Hintergrund, App gewechselt, Fenster minimiert), rechnet ein
-// Zeitgeber in denselben festen Schritten weiter (höchstens CONFIG.backgroundCatchUp Sekunden je Aufruf nachholen).
+// Zeitgeber in denselben festen Schritten weiter. Je Aufruf höchstens CONFIG.backgroundCatchUp Sekunden, der Rest verfällt:
+// friert das Handy die App ein oder löst der Browser Zeitgeber nur noch selten aus, soll beim Aufwachen kein langer
+// Nachhol-Stau entstehen. onBackground(true/false) rahmt die Hintergrundschritte ein (Game schaltet dort die Klänge stumm).
 export class GameLoop {
-  constructor({ update, render, onFatal = () => {} }) {
+  constructor({ update, render, onFatal = () => {}, onBackground = () => {} }) {
     this.update = update;
+    this.onBackground = onBackground;
     this.render = render;
     this.onFatal = onFatal;
     this.acc = 0;
@@ -62,13 +65,14 @@ export class GameLoop {
     const now = performance.now();
     if (now - this.drawnAt < 300) return;
     if (this.bgLast == null) this.bgLast = this.drawnAt;
-    const dt = Math.min((now - this.bgLast) / 1000, CONFIG.backgroundCatchUp);
+    const max = CONFIG.backgroundCatchUp;
+    this.bgAcc = Math.min(this.bgAcc + (now - this.bgLast) / 1000, max);
     this.bgLast = now;
-    this.bgAcc += dt;
     const step = CONFIG.fixedStep;
+    this.onBackground(true);
     try {
       while (this.bgAcc >= step) { this.bgAcc -= step; this.update(step); }
-    } catch (err) { this.bgAcc = 0; this.#report(err); }
+    } catch (err) { this.bgAcc = 0; this.#report(err); } finally { this.onBackground(false); }
   }
   #report(err) {
     this.errors++;

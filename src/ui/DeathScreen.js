@@ -48,8 +48,9 @@ export class DeathScreen {
     this.bar = h('div.dz-bar', barSkull, h('span.dz-bar-text', 'Deine Gruppe kämpft weiter.'), barLeave);
 
     this.el = h('div.dz', { role: 'alertdialog', 'aria-label': 'Du bist gefallen' }, this.card, this.bar);
-    this.el.style.setProperty('--dz-frame2', `url(${frameUrl(2)})`);
+    // Rahmen in der Pixelstufe des Geräts (death.css: Computer 4, Handy 3)
     this.el.style.setProperty('--dz-frame3', `url(${frameUrl(3)})`);
+    this.el.style.setProperty('--dz-frame4', `url(${frameUrl(4)})`);
     this.shown = false;
     this.mode = '';
     this.rdy = -1;

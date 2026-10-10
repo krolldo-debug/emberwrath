@@ -56,6 +56,7 @@ export class Game {
     this.resize();
     this.loop = new GameLoop({
       update: (dt) => this.update(dt), render: () => this.render(),
+      onBackground: (on) => { this.sfx.quiet = on; }, // Hintergrundschritte ohne Klänge
       onFatal: () => showErrorNotice('Im Spiel ist ein Fehler aufgetreten. Der Spielstand wird regelmäßig gespeichert – bitte lade die Seite neu.'),
     });
   }
