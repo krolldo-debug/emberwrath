@@ -34,6 +34,13 @@ export const BOARD_REGIONS = [
   { id: 'wastes', min: 36, max: 39, name: 'Glutöde', enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'cinder_bombardier', 'phase_wraith'], elites: ['waste_colossus'], mats: ['pilgrim_relic', 'magma_scale'], bosses: ['frost_wyrm', 'ash_sovereign'] },
   { id: 'endgame', min: 40, max: 40, name: 'Ganz Emberwrath', enemies: ['ash_wraith', 'cinder_knight', 'phase_wraith', 'frost_revenant', 'marsh_hag', 'cinder_bombardier'], elites: ['waste_colossus', 'ice_troll_chief', 'bog_horror', 'steppe_warlord'], mats: ['magma_scale', 'rime_crystal', 'bog_iron'], bosses: ['barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign'], trials: true },
 ];
+// Stufen der Brett-Eliten (wie entities/enemyTypes*.js, der Test prüft das). Kopfgeld gibt es erst, wenn der Held
+// höchstens ELITE_REACH Stufen darunter liegt: Eliten ab 20 kämpfen 2 Stufen höher (levelGap.js), am unteren Rand
+// einer Region wären sie sonst kaum zu schaffen.
+export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 40 };
+export const ELITE_REACH = 3;
+export function boardElites(region, level) { return region.elites.filter((id) => (ELITE_LEVEL[id] ?? 0) <= level + ELITE_REACH); }
+
 export function boardRegion(level) { return BOARD_REGIONS.find((r) => level >= r.min && level <= r.max) ?? BOARD_REGIONS[BOARD_REGIONS.length - 1]; }
 
 export function mulberry(seed) {
@@ -46,7 +53,7 @@ const pick = (rng, list) => list[Math.floor(rng() * list.length)];
 const KINDS = [
   { kind: 'kill', w: 3, make: (r, rng) => { const t = pick(rng, r.enemies); return { target: [t], count: 12 + Math.floor(rng() * 7) }; } },
   { kind: 'gather', w: 2, make: (r, rng) => ({ target: [pick(rng, r.mats)], count: 6 + Math.floor(rng() * 5) }) },
-  { kind: 'elite', w: 1, make: (r, rng) => ({ target: [pick(rng, r.elites)], count: 1 }) },
+  { kind: 'elite', w: 1, only: (r, lvl) => boardElites(r, lvl).length > 0, make: (r, rng, lvl) => ({ target: [pick(rng, boardElites(r, lvl))], count: 1 }) },
   { kind: 'champion', w: 1, make: () => ({ target: ['*'], count: 1 }) },
   { kind: 'boss', w: 1, make: (r, rng) => ({ target: [pick(rng, r.bosses)], count: 1 }) },
   { kind: 'trial', w: 1, only: (r) => r.trials, make: (_r, rng) => ({ target: ['*'], count: 1, tier: 3 + Math.floor(rng() * 6) }) },
@@ -56,14 +63,14 @@ const KINDS = [
 export function boardOffers(day, level) {
   const region = boardRegion(level);
   const rng = mulberry(day * 7919 + BOARD_REGIONS.indexOf(region) * 104729 + 17);
-  const pool = KINDS.filter((k) => !k.only || k.only(region));
+  const pool = KINDS.filter((k) => !k.only || k.only(region, level));
   const out = [];
   while (out.length < BOARD_OFFERS && pool.length) {
     const total = pool.reduce((n, k) => n + k.w, 0);
     let x = rng() * total, i = 0;
     for (; i < pool.length - 1; i++) { x -= pool[i].w; if (x < 0) break; }
     const k = pool.splice(i, 1)[0];
-    out.push({ id: `${day}_${out.length}`, kind: k.kind, region: region.id, ...k.make(region, rng) });
+    out.push({ id: `${day}_${out.length}`, kind: k.kind, region: region.id, ...k.make(region, rng, level) });
   }
   return out;
 }

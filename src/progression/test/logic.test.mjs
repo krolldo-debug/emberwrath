@@ -16,7 +16,8 @@ import { runCampaign, expansionReport } from './pacing.mjs';
 import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
 import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier, combatLevel, staggerGuard, knockbackMult } from '../levelGap.js';
-import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers } from '../board.js';
+import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers, BOARD_REGIONS, ELITE_LEVEL, ELITE_REACH } from '../board.js';
+import { ENEMY_TYPES } from '../../entities/enemyTypes.js';
 import { STREAK_DAYS, loginReward, firstWinReward, weeklyChallenge, challengeReward, dailyHasReward } from '../daily.js';
 import { setWorldFeatures, openObjectives } from '../selectors.js';
 import { trialSpec, trialChances, trialRewards, trialThemesFor } from '../trials.js';
@@ -695,6 +696,16 @@ test('Auftragsbrett: Tagesrotation fest, Fortschritt, Belohnung, Wochentruhe', (
     assert.equal(new Set(o.map((x) => x.kind)).size, 3, 'nie zweimal dieselbe Art');
     if (lvl < 40) assert.ok(!o.some((x) => x.kind === 'trial'));
   }
+  // Kopfgeld nur, wenn die Elite höchstens 3 Stufen über dem Helden liegt
+  for (const r of BOARD_REGIONS) for (const id of r.elites) assert.equal(ELITE_LEVEL[id], ENEMY_TYPES[id]?.level, `Stufe von ${id}`);
+  let elites = 0;
+  for (let d = day; d < day + 60; d++) for (let lvl = 1; lvl <= 40; lvl++) for (const o of boardOffers(d, lvl)) {
+    if (o.kind !== 'elite') continue;
+    elites++;
+    assert.ok(ELITE_LEVEL[o.target[0]] <= lvl + ELITE_REACH, `${o.target[0]} für Stufe ${lvl}`);
+  }
+  assert.ok(elites > 100, 'Kopfgeld bleibt häufig');
+  assert.ok(!boardOffers(day, 25).concat(...Array.from({ length: 60 }, (_, i) => boardOffers(day + i, 25))).some((o) => o.target[0] === 'bog_horror'), 'Held 25: kein Moorgrauen');
   assert.ok(offerRewards(boardOffers(day, 40)[0], 40).xp === 0, 'auf 40 Gold statt Erfahrung');
   assert.equal(boardWeek(Date.UTC(2026, 9, 5)), boardWeek(Date.UTC(2026, 9, 11, 23)), 'Montag bis Sonntag');
   assert.notEqual(boardWeek(Date.UTC(2026, 9, 11, 23)), boardWeek(Date.UTC(2026, 9, 12, 1)));

@@ -198,6 +198,7 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
 - **Auftragsbrett** (`board.js`, Panel `board`): 3 Tagesaufträge (UTC-Tag, Würfel aus Tag + Region, für alle gleich), Wochentruhe nach 10 Aufträgen
   (Montag–Sonntag). Region nach Spielerstufe am Tagesbeginn. Auf 40 mit Prüfungen/Bossen aller Gebiete, Gold + Material statt Erfahrung.
   B: `board:open` { zoneId } öffnet das Panel, `game.progression.boardHasOffers(zoneId)` für den Leucht-Hinweis.
+  Kopfgeld (Elite) nur, wenn die Elite höchstens 3 Stufen über dem Helden liegt (`ELITE_LEVEL`, `boardElites`, Stand 10.10.).
 - **Tempo** (pacing.mjs): 1–20 ≈ 40 min (vorher 31, mehr Quests), 20–40 ≈ 4,9 h Sim; echte Zeit steigt durch größere Karten und den Stufenabstand.
 
 ### Nachtrag 08.10. (Balance-Messung B)
