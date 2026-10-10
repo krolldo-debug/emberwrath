@@ -4315,10 +4315,11 @@ export const EN = {
   "Einstiegshinweise": "Starter tips",
   "kurze Tipps für neue Helden": "short tips for new heroes",
   "Shift": "Shift",
-  "Mit „Spielen“ stimmst du den Nutzungsbedingungen und der Datenschutzerklärung zu.": "By clicking “Play” you agree to the Terms of Use and the Privacy Policy.",
+  "Mit „Spielen“ stimmst du den Nutzungsbedingungen und der Datenschutzerklärung zu.": "By pressing “Play”, you agree to the Terms of Use and the Privacy Policy.",
   "Der Server ist gerade nicht erreichbar. Bitte versuche es gleich noch einmal.": "The server can't be reached right now. Please try again in a moment.",
   "Gast": "Guest",
   "Bei CrazyGames anmelden": "Sign in with CrazyGames",
-  "Dein Fortschritt ist mit diesem Browser verknüpft. Mit einem CrazyGames-Konto spielst du auf jedem Gerät weiter.": "Your progress is tied to this browser. With a CrazyGames account you can continue on any device.",
-  "Wirklich alles löschen?": "Really delete everything?"
+  "Dein Fortschritt ist mit diesem Browser verknüpft. Mit einem CrazyGames-Konto spielst du auf jedem Gerät weiter.": "Your progress is saved in this browser only. Sign in with CrazyGames to keep playing on any device.",
+  "Wirklich alles löschen?": "Delete everything for good?",
+  "Gespeicherte Position ({0}, {1}) in {2} nicht erreichbar, Held an {3} gesetzt": "Saved position ({0}, {1}) in {2} unreachable, hero moved to {3}"
 };
