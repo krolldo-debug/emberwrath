@@ -166,8 +166,8 @@ async function net(request, env, url, route, ctx) {
     try { return (await handleShop(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('shop', e?.message); return json({ error: 'server' }, 500); }
   }
   if (route.startsWith('/cg/')) {
-    // Legt Konten an: vor allem anderen begrenzen
-    if (await limited(request, env, '/cg')) return json({ error: 'rate_limited' }, 429);
+    // Legt Konten an: vor allem anderen begrenzen, zusätzlich enger je Adresse (CG_LIMITER, 20 je Minute)
+    if (await limited(request, env, '/cg') || await limited(request, { NET_LIMITER: env.CG_LIMITER }, '/cg')) return json({ error: 'rate_limited' }, 429);
     try { return (await handleCrazyGames(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('cg', e?.message); return json({ error: 'server' }, 500); }
   }
   if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
