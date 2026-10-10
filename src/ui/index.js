@@ -8,6 +8,7 @@ import { installTravel, listenTravel } from './TravelPanel.js';
 import { installWardrobe } from './WardrobePanel.js';
 import { ZoneTransition } from './ZoneTransition.js';
 import { Unlocks } from './Unlocks.js';
+import { Rewards } from './Rewards.js';
 import { Weather } from '../gfx/Weather.js';
 import { QualityControl } from './Quality.js';
 import { installDialogPortraits } from './DialogPortrait.js';
@@ -49,11 +50,12 @@ export function installUi(game) {
     const minimap = new Minimap(session, hud.frame);
     const zt = new ZoneTransition(session);
     const unlocks = new Unlocks(session, hud);
+    const rewards = new Rewards(session, hud); // Kill-Serie, fliegende Beute, EP-Glühen, Fähigkeit bereit
     listenTravel(session); // Wegstein -> Reisemenü
     return {
-      update: (dt) => { fx.update(dt); hud.update(dt); toasts.update(dt); minimap.update(dt); zt.update(dt); unlocks.update(dt); },
+      update: (dt) => { fx.update(dt); hud.update(dt); rewards.update(dt); toasts.update(dt); minimap.update(dt); zt.update(dt); unlocks.update(dt); },
       draw: (ctx) => fx.draw(ctx),
-      dispose: () => { unlocks.dispose(); zt.dispose(); minimap.dispose(); hud.dispose(); toasts.dispose(); },
+      dispose: () => { rewards.dispose(); unlocks.dispose(); zt.dispose(); minimap.dispose(); hud.dispose(); toasts.dispose(); },
     };
   }, 100);
   game.panels.register('menu', (session) => createMenuPanel(session), { pauses: true, title: 'Menü' });

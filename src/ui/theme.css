@@ -1219,3 +1219,109 @@ html.ef-touch:not(.ef-portrait) .ef-hud .hud-obj.done { display: none; }
 /* Hochformat: Bogen über der EP-Leiste halten */
 html.ef-touch.ef-portrait .ef-hud .hud-actions { bottom: calc(env(safe-area-inset-bottom, 0px) + 28px); }
 html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 226px); left: calc(env(safe-area-inset-left, 0px) + 8px); }
+
+/* ===================================================================
+   Belohnungsrunde 10.10. (ui/Rewards.js): Kill-Serie, fliegende Beute,
+   EP-Glühen, Stufenabzeichen, Fähigkeit bereit, Aufstiegs-Banner
+   =================================================================== */
+/* Kill-Serie: oben mittig im Bild; Boss-, Champion- und Prüfungsleiste schieben sie nach unten (--rw-top aus Rewards.js) */
+.rw-streak {
+  --rw: #ffd66a; --rw-glow: rgba(255, 190, 80, 0.55);
+  position: absolute; left: 50%; top: calc(var(--hud-gap) + var(--rw-top, 0px)); translate: -50% 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  opacity: 0; transform: translateY(-8px); pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s, top 0.25s;
+}
+.rw-streak.show { opacity: 1; transform: none; }
+.rw-streak.show.yield { opacity: 0; }
+.rw-streak.end { animation: rw-streak-end 0.7s ease-in forwards; }
+.rw-streak[data-tier="1"] { --rw: #ffd66a; --rw-glow: rgba(255, 200, 80, 0.7); }
+.rw-streak[data-tier="2"] { --rw: #ffa040; --rw-glow: rgba(255, 140, 40, 0.75); }
+.rw-streak[data-tier="3"] { --rw: #ff6a3a; --rw-glow: rgba(255, 80, 30, 0.8); }
+.rw-streak[data-tier="4"] { --rw: #e889ff; --rw-glow: rgba(200, 90, 255, 0.8); }
+.rw-streak[data-tier="5"] { --rw: #fff0b0; --rw-glow: rgba(255, 90, 20, 0.95); }
+.rw-streak-row { display: flex; align-items: baseline; gap: 6px; order: 1; }
+.rw-streak-track { order: 2; }
+.rw-streak-title { order: 3; }
+.rw-streak-n {
+  display: inline-block; min-width: 1em; text-align: right; transform-origin: 50% 70%;
+  font: 700 clamp(26px, calc(var(--view-scale) * 14px), 46px)/1 var(--ef-font-title); color: var(--rw);
+  text-shadow: 0 2px 0 #1a0604, 0 0 2px #000, 0 0 14px var(--rw-glow);
+  font-variant-numeric: tabular-nums;
+}
+.rw-streak-n.bump { animation: rw-num-bump 0.22s cubic-bezier(.2, 1.6, .4, 1); }
+.rw-streak-label { font: 700 0.78em var(--ef-font); letter-spacing: 0.2em; text-transform: uppercase; color: #e8dcc0; text-shadow: 0 1px 0 #000, 0 0 6px #000; }
+.rw-streak-track { width: 78px; height: 3px; background: rgba(10, 4, 14, 0.75); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); overflow: hidden; }
+.rw-streak-bar { display: block; height: 100%; background: var(--rw); box-shadow: 0 0 6px var(--rw-glow); transform-origin: left center; }
+.rw-streak-title {
+  position: relative; min-height: 1.2em; white-space: nowrap;
+  font: 700 clamp(15px, calc(var(--view-scale) * 8px), 26px)/1.1 var(--ef-font-title); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--rw); text-shadow: 0 2px 0 #1a0604, 0 0 12px var(--rw-glow);
+}
+.rw-streak-title.pop { animation: rw-title-pop 0.5s cubic-bezier(.15, 1.4, .35, 1) both; }
+/* Lichtkranz hinter dem Zähler beim Erreichen einer Stufe */
+.rw-streak::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 220px; height: 130px; margin: -65px 0 0 -110px; pointer-events: none; opacity: 0;
+  background: radial-gradient(closest-side, var(--rw-glow), transparent 70%);
+}
+.rw-streak.surge::before { animation: rw-surge 0.9s ease-out; }
+@keyframes rw-num-bump { from { transform: scale(1.45); filter: brightness(1.8); } }
+@keyframes rw-title-pop { 0% { transform: scale(2.2); opacity: 0; letter-spacing: 0.5em; filter: brightness(2); } 60% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes rw-surge { 0% { opacity: 0; transform: scale(0.4); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes rw-streak-end { 0% { opacity: 1; } 35% { opacity: 1; transform: scale(1.08); } 100% { opacity: 0; transform: translateY(-10px) scale(0.9); } }
+
+/* Fliegende Münzen und Gegenstände */
+.ef-hud .rw-fly { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 30; }
+.rw-fly-item { position: absolute; image-rendering: pixelated; will-change: transform, opacity; }
+
+/* Ziel federt beim Ankommen */
+.rw-bump { animation: rw-bump 0.32s cubic-bezier(.2, 1.8, .4, 1); }
+@keyframes rw-bump { 0% { transform: scale(1); } 35% { transform: scale(1.28); filter: brightness(1.6) drop-shadow(0 0 6px rgba(255, 214, 106, 0.9)); } 100% { transform: scale(1); } }
+.hud-gold { transform-origin: right center; transition: text-shadow 0.2s; }
+.hud-gold.rolling { text-shadow: 0 1px 0 #000, 0 0 10px rgba(255, 200, 80, 0.95); color: #fff4c0; }
+
+/* EP-Leiste: Glühen und Glanz bei jedem Gewinn, goldener Blitz beim Aufstieg */
+.hud-meter.xp::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-110%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.75) 50%, transparent 70%);
+}
+.hud-xp-wrap.rw-gain .hud-meter.xp::after { animation: rw-shine 0.6s ease-out; }
+.hud-xp-wrap.rw-gain .hud-meter.xp { animation: rw-xp-glow 0.6s ease-out; }
+.hud-xp-wrap.rw-full .hud-meter.xp { animation: rw-xp-full 1.2s ease-out; }
+@keyframes rw-shine { to { transform: translateX(110%); } }
+@keyframes rw-xp-glow { 20% { box-shadow: 0 0 0 1px #d8c0ff, 0 0 12px rgba(170, 120, 255, 0.9); } }
+@keyframes rw-xp-full { 0%, 30% { box-shadow: 0 0 0 1px #fff0b0, 0 0 18px rgba(255, 210, 100, 1); filter: brightness(1.8) saturate(0.6); } }
+
+/* Stufenabzeichen */
+.hud-level.rw-lvl { animation: rw-lvl 0.9s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes rw-lvl { 0% { transform: scale(1); } 20% { transform: scale(1.9); box-shadow: 0 0 0 2px #fff0b0, 0 0 22px rgba(255, 214, 106, 1); } 100% { transform: scale(1); } }
+
+/* Fähigkeit wieder bereit: Glanz quer über den Knopf und kurzer Lichtring */
+.hud-slot::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; border-radius: inherit;
+  background: linear-gradient(120deg, transparent 35%, rgba(255, 245, 210, 0.85) 50%, transparent 65%) no-repeat;
+  background-size: 250% 100%; background-position: 120% 0;
+}
+.hud-slot.rw-ready::after { animation: rw-ready-shine 0.55s ease-out; }
+.hud-slot.rw-ready { animation: rw-ready 0.55s ease-out; }
+@keyframes rw-ready-shine { 0% { opacity: 1; background-position: 120% 0; } 100% { opacity: 1; background-position: -30% 0; } }
+@keyframes rw-ready { 30% { box-shadow: 0 0 0 1px #0b0710, 0 0 0 3px rgba(255, 214, 106, 0.9), 0 0 16px rgba(255, 190, 80, 0.8); border-color: #fff0b0; } }
+
+/* Aufstiegs- und Sieg-Banner: Lichtstrahlen hinter dem Titel, Glanz über die Schrift */
+.hud-banner[data-kind="level"], .hud-banner[data-kind="boss"] { overflow: visible; isolation: isolate; }
+.hud-banner[data-kind="level"]::before, .hud-banner[data-kind="boss"]::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 420px; height: 420px; margin: -210px 0 0 -210px; pointer-events: none; z-index: -1;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 106, 0.22) 0deg 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(closest-side, #000 20%, transparent 75%); mask: radial-gradient(closest-side, #000 20%, transparent 75%);
+  opacity: 0;
+}
+.hud-banner[data-kind="level"].show::before, .hud-banner[data-kind="boss"].show::before { animation: rw-rays 2.6s ease-out forwards; }
+.hud-banner[data-kind="level"].show .hud-banner-title { animation: rw-title-in 0.7s cubic-bezier(.15, 1.5, .35, 1) both; }
+@keyframes rw-rays { 0% { opacity: 0; transform: scale(0.3) rotate(0deg); } 15% { opacity: 1; } 75% { opacity: 0.8; } 100% { opacity: 0; transform: scale(1.1) rotate(40deg); } }
+@keyframes rw-title-in { 0% { transform: scale(2.4); opacity: 0; filter: brightness(3); } 100% { transform: none; opacity: 1; filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-streak-n.bump, .rw-streak-title.pop, .rw-streak.surge::before, .rw-bump, .hud-level.rw-lvl,
+  .hud-slot.rw-ready, .hud-slot.rw-ready::after, .hud-xp-wrap .hud-meter.xp, .hud-xp-wrap .hud-meter.xp::after,
+  .hud-banner.show::before, .hud-banner.show .hud-banner-title { animation: none !important; }
+}

@@ -4291,5 +4291,11 @@ export const EN = {
   "Angelegter Gegenstand": "Equipped item",
   "Aussehen angelegt": "Appearance applied",
   "{0} Aussehen gesammelt": "{0} appearances collected",
-  "Zu gefährlich – erst ab Stufe {0}.": "Too dangerous – requires level {0}."
+  "Zu gefährlich – erst ab Stufe {0}.": "Too dangerous – requires level {0}.",
+  "Serie": "Streak",
+  "Blutrausch": "Bloodlust",
+  "Gemetzel": "Carnage",
+  "Entfesselt": "Unleashed",
+  "Unaufhaltsam": "Unstoppable",
+  "Glutzorn": "Ember Wrath"
 };
