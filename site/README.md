@@ -28,7 +28,7 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   (WebP lossless), Helligkeit beim Aufnehmen eingerechnet. Aufgenommen mit `tools/szenen.mjs`, ausgewählt mit
   `tools/szenen-auswahl.py` (Pillow). Die Malgareth-Szene ist mit `tools/keyart.mjs` inszeniert.
   Anzeige: `img.shot` mit `--fx/--fy` (Bildpunkt, der in die Mitte soll), auf dem Handy (≤ 820 px) `--mx/--my`, falls gesetzt. CSS gibt je Breite einen Faktor `--f`
-  vor (×2; Titelbild ab 1200 px ×4, ab 2000 px ×5, ab 2400 px ×6; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Titel und Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
+  vor (×2; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
   `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
 - `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*` und `item-*` mit `tools/render40.mjs`.
 - Klassen (`tools/klassen-kampf.mjs`, echte Spiellogik, Gegner wird nicht verletzt), Streifen aus 104 × 66 Weltpixeln je Bild in doppelter
@@ -46,14 +46,16 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
   der Namensliste (Breite, Höhe, Fuß x/y, Bilder, fps, Flughöhe, Tempo); site.js zeichnet die Parade in ganzen Bildschirmpunkten,
   die Kamera zieht mit, unter der Bühne steht der Name des Tiers in der Mitte.
-- Titelbild „Aufbruch zum Aschethron“ (`tools/titel-held.mjs`, gezeichnet von `titel.js`): ein Krieger in Herrscherrüstung mit
-  Königsbann (Spiel-Sprites, Detailstufe 3, 12 Bilder/s) auf glühender Kruste, dahinter Glutöde, Lavastrom aus dem Thronsaal und
-  die Silhouette des Aschethrons aus Bauteilen der Glutöde. Ebenen `titel-fern/-strom/-mitte/-nah` (je mit `-glut`, pulsierend;
-  hintere Ebenen in halben Heldenpixeln), `titel-nah-welle` (alle Glutfugen für die Welle), Streifen `titel-held-ruhe/-schrei/-schlag`.
-  Maße, Klingenachse je Bild und Treffer-Bild schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
+- Titelbild „Aufbruch zum Aschethron“ (`tools/titel-held.mjs` mit `tools/titel-held.py`, gezeichnet von `titel.js`): eine
+  Pixelgröße für alles – Szene 640 × 272 Szenenpixel, jede Ebene und der Held 1:1, ganzzahlig vergrößert, keine Ebene skaliert
+  oder verzerrt. Held als eigene Pixel-Art (Rüstung des Aschenfürsten und Zweihänder Königsfall, Farben aus `character/gearLook.js`),
+  Kruste und Lavastrom aus den Lava-Generatoren des Spiels, Aschethron als gezeichneter Schattenriss. Ebenen
+  `titel-fern/-strom/-mitte/-nah` (je mit `-glut`), Held in Ruhe aus `titel-held-umhang` (8 Bilder), `-koerper` (Atem, 6),
+  `-flamme` (6) und `-klinge`, Momente als ganze Bilder in `titel-held-momente`, Riss des Erdspalters `titel-riss` (frisch, warm,
+  kühl). Bildfolgen, Dauern, Treffer und Maße schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
   `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter Bewegung). titel.js legt es pixelgenau
-  aus (ganzzahlige Gerätepixel je Heldenpixel), zeichnet die Ebenen mit leichter Parallaxe, Klingenflammen und Ascheregen
-  live und alle 6–8 s abwechselnd Schlachtruf und Erdspalter (Glutwelle über die Fugen, kurzer Lichtblitz in Stufen);
+  aus, verschiebt Ebenen nur in ganzen Szenenpixeln (Schweben, Maus) und zeigt alle 6–8 s abwechselnd Erdspalter (Ausholen,
+  Halten, Einschlag mit Erschütterung, Glutriss, Staub, Funken) und Schlachtruf (Klinge hoch, Feuerschalen lodern);
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
@@ -76,7 +78,7 @@ node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähi
 node site/tools/bosse-buehne.mjs site/img ulgrim,rotmother,skalvyr,malgareth http://127.0.0.1:8121   # Bossbühnen (Server im Repo-Ordner)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
-node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123, Zwischenbilder in $ZWISCHEN)
+node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)
 node site/tools/welt.mjs wl leben-quest,leben-handel # Szenen auf /welt
 ```
 
