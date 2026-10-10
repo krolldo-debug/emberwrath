@@ -1300,10 +1300,10 @@ html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-
 .hud-level.rw-lvl { animation: rw-lvl 0.6s steps(6, end); }
 @keyframes rw-lvl { 0% { transform: scale(1); } 25% { transform: scale(1.6); box-shadow: 0 0 0 2px #0b0710, 0 0 0 4px #ffd66a; } 100% { transform: scale(1); } }
 
-/* Fähigkeit wieder bereit: Knopf federt, Goldrahmen blitzt, Glanzstreifen läuft quer drüber */
+/* Fähigkeit wieder bereit: Knopf federt, Goldrahmen blitzt, schmaler Glanzstreifen (3 + 1 px) läuft quer drüber */
 .hud-slot::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; border-radius: inherit;
-  background: linear-gradient(120deg, transparent 0 40%, rgba(255, 245, 210, 0.9) 40% 52%, transparent 52%) no-repeat;
+  background: linear-gradient(120deg, transparent 0 50%, rgba(255, 226, 140, 0.9) 50% calc(50% + 3px), transparent calc(50% + 3px) calc(50% + 5px), rgba(255, 226, 140, 0.5) calc(50% + 5px) calc(50% + 6px), transparent calc(50% + 6px)) no-repeat;
   background-size: 250% 100%; background-position: 120% 0;
 }
 .hud-slot.rw-ready::after { animation: rw-ready-shine 0.5s steps(8, end); }
@@ -1354,6 +1354,16 @@ html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-
 .ef-touch:not(.ef-portrait) .hud-banner[data-kind="level"] .hud-banner-sub { display: none; }
 .ef-touch:not(.ef-portrait) .hud-banner[data-kind="level"], .ef-touch:not(.ef-portrait) .hud-banner[data-kind="boss"],
 .ef-touch:not(.ef-portrait) .hud-banner[data-kind="legendary"] { padding: 4px 18px 5px; }
+
+/* Handy: Strahlen kürzer, damit sie nicht über den Helden fallen */
+.ef-touch .hud-banner[data-kind]::before { width: 200px; height: 200px; margin: -100px 0 0 -100px; }
+
+/* Wertvolle Beute (episch, legendär): Meldung einzeilig, notfalls breiter als die Spalte */
+.ef-toasts > .ef-toast.k-loot.r-epic, .ef-toasts > .ef-toast.k-loot.r-legendary { width: max-content; max-width: min(92vw, 420px); white-space: nowrap; }
+.ef-toast.k-loot.r-epic .ef-toast-text, .ef-toast.k-loot.r-legendary .ef-toast-text { display: block; overflow: visible; }
+
+/* Erfolgs-Karte weicht einem Banner sofort, ohne Überblenden */
+.ef-unlock.cut { transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .rw-streak-n.bump, .rw-streak-title.pop, .rw-streak.surge::before, .rw-bump, .hud-level.rw-lvl,

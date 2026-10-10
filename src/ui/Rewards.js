@@ -217,7 +217,7 @@ export class Rewards {
       for (const el of [hud.bossEl, hud.champEl, hud.trialEl]) if (el.classList.contains('show')) top = Math.max(top, el.offsetTop + el.offsetHeight + 6);
       // Freischalt-Karte (ui/Unlocks.js) und große Ansagen (Stufe, Sieg, legendär) haben oben mittig Vorrang:
       // so lange tritt die Serie zurück (zählt weiter)
-      const hide = !!this.hud.unlocks?.showing || BIG_BANNERS.has(this.hud.banner?.kind);
+      const hide = !!(this.hud.unlocks?.showing || this.hud.unlocks?.fading) || BIG_BANNERS.has(this.hud.banner?.kind);
       this.streakEl.classList.toggle('yield', hide);
       if (top !== this.top) { this.top = top; this.streakEl.style.setProperty('--rw-top', `${Math.max(0, top - el0(hud))}px`); }
     }

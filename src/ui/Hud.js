@@ -490,6 +490,7 @@ export class Hud {
   }
 
   #updateBanner(dt) {
+    if (!this.banner && this.bannerQueue.length && this.unlocks?.fading) return;
     if (!this.banner && this.bannerQueue.length && this.unlocks?.showing) {
       if ((BANNER_PRIO[this.bannerQueue[0].kind] ?? 1) >= 2) this.unlocks.yieldTo();
       else return;

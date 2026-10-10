@@ -344,27 +344,36 @@ export class DamageNumber extends Entity {
     this.value = value; this.text = String(value); this.font = font; this.kind = kind;
     this.crit = kind === 'crit';
     this.color = color ?? (this.crit ? '#ffd23a' : kind === 'kill' ? '#ffc890' : '#ffffff');
-    this.life = this.max = this.crit ? 0.95 : 0.75;
+    this.max = this.crit ? 0.95 : 0.8;
     this.vx = side * (20 + lane * 16 + Math.random() * 10);
     this.vy = -72 + lane * 8;
-    this.age = 0;
+    this.age = 0;   // seit dem Erscheinen (Lebensdauer)
+    this.pop = 0;   // seit dem letzten Treffer (Aufploppen)
   }
-  add(n) { this.value += n; this.text = String(this.value); this.age = 0; this.life = this.max; }
-  update(dt) {
-    this.age += dt; this.life -= dt;
+  get life() { return this.max - this.age; }
+  // weiterer Treffer am selben Ziel: Zahl wächst, ploppt kurz auf, lebt etwas länger (gedeckelt)
+  add(n, crit = false) {
+    this.value += n; this.text = String(this.value); this.pop = 0.02;
+    if (crit && !this.crit) { this.crit = true; this.color = '#ffd23a'; }
+    this.max = Math.min(this.crit ? 1.2 : 1, Math.max(this.max, this.age + 0.5));
+  }
+  // läuft in Echtzeit: Hitstop und Zeitlupe würden die Zahlen sonst sekundenlang stehen lassen
+  update() {
+    const now = performance.now(), dt = Math.min(0.25, (now - (this.last ?? now)) / 1000);
+    this.last = now;
+    this.age += dt; this.pop += dt;
     this.x += this.vx * dt; this.y += this.vy * dt;
     this.vy += 150 * dt;                 // Bogen: steigt, wird langsamer, sinkt leicht
     this.vx *= Math.exp(-dt * 2.5);
-    if (this.life <= 0) this.removed = true;
+    if (this.age >= this.max) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
-    const age = this.age;
     let scale = this.crit ? 2 : 1, color = this.color, jx = 0, jy = 0;
     if (this.crit) {
-      if (age < 0.05) color = '#ffffff';
-      else if (age < 0.16) { jx = Math.round((Math.random() - 0.5) * 2); jy = Math.round((Math.random() - 0.5) * 2); }
-    } else if (age < 0.05) scale = 2;
-    ctx.globalAlpha = Math.min(1, this.life / (this.max * 0.35));
+      if (this.age < 0.05) color = '#ffffff';
+      else if (this.pop < 0.14) { jx = Math.round((Math.random() - 0.5) * 2); jy = Math.round((Math.random() - 0.5) * 2); }
+    } else if (this.pop < 0.05) scale = 2;
+    ctx.globalAlpha = Math.max(0, Math.min(1, this.life / 0.3));
     const x = Math.round(this.x - cx) + jx, y = Math.round(this.y - cy) + jy;
     // Kontur 1 px (unabhängig von der Schriftgröße), dann die Ziffern
     for (const [ox, oy] of EDGE8) this.font.draw(ctx, this.text, x + ox, y + oy, { color: NUM_EDGE, scale, align: 'center' });

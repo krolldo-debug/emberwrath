@@ -2,6 +2,7 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, abilityIcon } from '../gfx/Icons.js';
 import { ACHIEVEMENTS } from '../progression/achievements.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Freischalt-Karten (Thread D): kurze, auffällige Karte oben in der Mitte für
 // neue Fähigkeiten, Passive und Talentreihen (Thread A, 'character:unlock')
@@ -13,6 +14,7 @@ const KIND = {
   passive: { label: 'Neue Passive', cls: 'passive' },
   talents: { label: 'Neue Talentreihe', cls: 'talents' },
   achievement: { label: 'Erfolg errungen', cls: 'achievement' },
+  achievements: { label: 'Erfolge errungen', cls: 'achievement' },
   mount: { label: 'Neues Reittier', cls: 'mount' },
   riding: { label: 'Reiten gelernt', cls: 'mount' },
 };
@@ -35,8 +37,8 @@ export class Unlocks {
     bus.on(EV.MOUNT_LEARNED, (e) => this.#onMount(e));
     bus.on(EV.QUEST_COMPLETED, (e) => { if (e.questId === 'q_first_ride') this.push({ kind: 'riding', name: 'Reiten', icon: 'ui_mount', sub: 'Reittiere gibt es bei Stallmeisterin Orla' }); });
     bus.on(EV.ACHIEVEMENT_UNLOCKED, (e) => this.push({
-      kind: 'achievement', name: e.name, icon: e.icon ?? ACHIEVEMENTS[e.id]?.icon ?? 'ui_achievements',
-      sub: [e.points ? `${e.points} Punkte` : '', e.title ? `Titel „${e.title}“` : ''].filter(Boolean).join(' · '),
+      kind: 'achievement', name: e.name, points: e.points ?? 0, icon: e.icon ?? ACHIEVEMENTS[e.id]?.icon ?? 'ui_achievements',
+      sub: [e.points ? `${fmtNum(e.points)} Punkte` : '', e.title ? `Titel „${e.title}“` : ''].filter(Boolean).join(' · '),
     }));
   }
 
@@ -57,21 +59,38 @@ export class Unlocks {
   push(card) { this.queue.push(card); }
 
   get showing() { return this.left > 0; }
+  // Karte blendet gerade aus (nach normalem Ablauf): ein Banner wartet so lange
+  get fading() { return this.left <= 0 && this.left > -0.35 && !this.el.classList.contains('cut'); }
 
-  // Ein wichtigeres Banner (Hud) braucht den Platz: Karte ausblenden und später erneut zeigen
+  // Ein wichtigeres Banner (Hud) braucht den Platz: Karte sofort ausblenden (kein Überblenden).
+  // War sie schon gut zu sehen (ab 1 s), ist sie erledigt; sonst kommt sie danach mit der Restzeit wieder.
   yieldTo() {
     if (!(this.left > 0) || !this.current) return;
-    this.current.remain = Math.max(1.2, this.left);   // danach nur die Restzeit, nicht erneut die volle Dauer
-    this.queue.unshift(this.current);
+    const c = this.current;
+    c.seen += (performance.now() - c.shownAt) / 1000;   // Echtzeit: Hitstop/Zeitlupe zählen mit
+    if (c.seen < 1) { c.remain = Math.max(0.8, this.left); this.queue.unshift(c); }
     this.current = null;
     this.left = -1;
+    this.el.classList.add('cut');
     this.el.classList.remove('show');
+  }
+
+  // mehrere wartende Erfolge (z. B. nach einem Banner) werden zu einer Karte
+  #merge(c) {
+    if (c.kind !== 'achievement' || c.remain) return c;
+    const more = this.queue.filter((q) => q.kind === 'achievement' && !q.remain);
+    if (!more.length) return c;
+    this.queue = this.queue.filter((q) => !more.includes(q));
+    const all = [c, ...more];
+    const pts = all.reduce((n, q) => n + (q.points ?? 0), 0);
+    return { kind: 'achievements', name: all.map((q) => q.name).join(' · '), icon: c.icon, sub: pts ? `${fmtNum(pts)} Punkte` : '' };
   }
 
   #show(c) {
     const k = KIND[c.kind] ?? KIND.ability;
     const again = c === this.lastShown;   // nach yieldTo(): kein zweiter Klang
     this.current = c; this.lastShown = c;
+    c.seen ??= 0; c.shownAt = performance.now();
     this.icon.src = iconUrl(c.icon);
     this.kind.textContent = k.label;
     this.name.textContent = c.name ?? '';
@@ -79,10 +98,12 @@ export class Unlocks {
     this.el.className = `ef-unlock show k-${k.cls}`;
     const show = this.s?.input?.usingTouch ? SHOW * 0.75 : SHOW; // Handy: kürzer
     this.left = c.remain ?? (this.queue.length >= 2 ? show * 0.55 : show); // viele auf einmal (Stufensprung): schneller durch
-    if (!again) this.s.sfx?.play?.(c.kind === 'achievement' ? 'achievement' : 'unlock');
+    if (!again) this.s.sfx?.play?.(c.kind.startsWith('achievement') ? 'achievement' : 'unlock');
   }
 
   update(dt) {
+    // erst wenn kein Banner mehr läuft (inkl. Ausblenden), damit nie zwei Ansagen übereinander stehen
+    this.calm = this.hud?.bannerBusy ? 0 : (this.calm ?? 1) + dt;
     if (this.left > 0) {
       this.left -= dt;
       if (this.left <= 0) this.el.classList.remove('show');
@@ -91,9 +112,9 @@ export class Unlocks {
     // kurze Pause zwischen zwei Karten, dann die nächste
     if (this.left > -0.35) { this.left -= dt; return; }
     // nicht gleichzeitig mit einem Banner (Stufe, Quest) und nicht unter einem offenen Fenster
-    if (!this.queue.length || this.hud?.bannerBusy || this.s.panels?.openId) return;
+    if (!this.queue.length || this.calm < 0.4 || this.s.panels?.openId) return;
     const next = this.queue.shift();
-    if (next) this.#show(next);
+    if (next) this.#show(this.#merge(next));
   }
 
   dispose() { this.el.remove(); }

@@ -24,7 +24,8 @@ const ASH = ['#6e6450', '#4a4238'];
 const BEAM_TIER = { rare: 1, epic: 2, legendary: 3 };
 const MULTI_WINDOW = 0.35; // Sekunden, in denen 3+ Kills als Mehrfach-Kill zählen
 const ORB_CAP = 30;        // höchstens so viele Seelenfunken gleichzeitig
-const NUM_MAX = 2;         // höchstens so viele gleichartige Schadenszahlen je Ziel gleichzeitig
+const NUM_MAX = 2;         // höchstens so viele Schadenszahlen je Ziel gleichzeitig
+const NUM_MERGE = 0.3;     // Treffer am selben Ziel innerhalb dieser Zeit ergeben eine Zahl
 
 // "Game Feel": übersetzt Gameplay-Events in Hitstop, Screenshake, Partikel,
 // Licht, Schadenszahlen und Sound. Einziger Ort für Treffer-Feedback.
@@ -40,6 +41,7 @@ export class FeedbackSystem {
     this.multiDone = 0;     // bis wann der aktuelle Mehrfach-Kill schon gefeiert wurde
     this.orbChain = 0; this.orbAt = 0; // Tonleiter der eingesammelten Seelenfunken
     this.nums = new WeakMap();          // Ziel -> sichtbare Schadenszahlen
+    this.hitAt = new WeakMap();         // Ziel -> Zeitpunkt des letzten Treffers (Umriss bei Mehrfachtreffern aus)
     this.burstAt = 0; this.burstN = 0;  // Treffer im selben Moment (Flächenangriffe)
     const bus = game.bus;
     bus.on('hit', (e) => this.#onHit(e));
@@ -194,14 +196,16 @@ export class FeedbackSystem {
   }
 
   // Schadenszahlen je Ziel: abwechselnd links/rechts, jede weitere etwas weiter außen;
-  // ab NUM_MAX gleichzeitig sichtbaren Zahlen am selben Ziel wird die jüngste hochgezählt.
+  // Treffer innerhalb NUM_MERGE oder ab NUM_MAX sichtbaren Zahlen am selben Ziel zählen die jüngste hoch.
   #number(t, e) {
     const list = (this.nums.get(t) ?? []).filter((n) => !n.removed);
     const kind = e.crit ? 'crit' : e.killed ? 'kill' : 'normal';
-    const same = list.filter((n) => n.crit === (kind === 'crit'));
-    if (same.length >= NUM_MAX) { same[same.length - 1].add(e.damage); this.nums.set(t, list); return; }
-    const side = list.length % 2 ? -(list[list.length - 1]?.side ?? 1) : (Math.random() < 0.5 ? -1 : 1);
-    const n = this.game.world.addEffect(new DamageNumber(e.x, e.y - 10, e.damage, { font: this.game.font, kind, side, lane: Math.floor(list.length / 2) }));
+    const last = list[list.length - 1];
+    // Treffer kurz hintereinander (0,3 s) oder schon NUM_MAX Zahlen: in die jüngste Zahl addieren
+    if (last && (last.age < NUM_MERGE || list.length >= NUM_MAX)) { last.add(e.damage, e.crit); this.nums.set(t, list); return; }
+    const side = last ? -(last.side ?? 1) : (Math.random() < 0.5 ? -1 : 1);
+    // mindestens eine Ziffernbreite seitlich versetzt, damit Zahlen nicht zu einer verkleben
+    const n = this.game.world.addEffect(new DamageNumber(e.x + (last ? side * 8 : 0), e.y - 10, e.damage, { font: this.game.font, kind, side, lane: list.length }));
     n.side = side;
     list.push(n);
     this.nums.set(t, list);
@@ -439,7 +443,14 @@ export class FeedbackSystem {
       if (e.crit && full) w.addEffect(new Shockwave(e.x, e.y + 4, { radius: 14, color: '#ffe070', life: 0.25 }));
       this.#material(t, e, ang, e.killed ? 2.2 : 1);
       // Weißer Treffer-Umriss nur kurz: bei Kills mit Zeitlupe/Hitstop würde er sonst als weiße Fläche stehen bleiben
-      if (t.flash > 0) { t.flash = e.killed ? 0 : Math.min(t.flash, 0.06); t.flashMax = Math.min(t.flashMax ?? 1, full ? 0.7 : 0.4); }
+      // Weißer Treffer-Umriss nur noch bei Bossen (gedämpft, nicht bei schnellen Mehrfachtreffern).
+      // Bei normalen Gegnern stand er durch Hitstop/Zeitlupe als weiße Silhouette über Held und Gegner;
+      // Treffer lesen sich dort über Zahl, Funken und Rückstoß.
+      const prev = this.hitAt.get(t) ?? -1e9; this.hitAt.set(t, now);
+      if (t.flash > 0) {
+        if (!(t.def?.boss || t.boss) || e.killed || now - prev < 150 || !full) t.flash = 0;
+        else { t.flash = Math.min(t.flash, 0.05); t.flashMax = Math.min(t.flashMax ?? 1, 0.55); }
+      }
       this.#number(t, e);
       if (e.crit) { this.#kick(e.dirX * 2, e.dirY * 2); w.particles.sparks(e.x, e.y, ang, full ? 8 : 2, ['#ffe070', '#ffb640', '#ff8a2a']); }
       this.#sfx(e.crit ? 'crit' : 'hit');
