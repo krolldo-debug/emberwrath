@@ -4,15 +4,15 @@
 // Ebene und der Held 1:1, Verschiebungen (Schweben, Maus, Erschütterung) nur in ganzen Szenenpixeln.
 // Leben: Atem (Brust und Schultern), Umhang, Klingenflammen und Krone in eigenen Zyklen; Lava, Fugen und Feuerschalen
 // pulsieren in festen Stufen; Funken und Ascheregen als einzelne Pixel. Alle 6–8 s ein Heldenmoment, abwechselnd
-// Schlachtruf (Klinge hoch, Feuerschalen lodern) und Erdspalter (Ausholen, Halten, Einschlag mit Erschütterung, ein
-// Glutriss läuft die Bodenkante entlang, Staub und Funken).
+// Schlachtruf (Klinge hoch, Kopf in den Nacken, Funkenring, Feuerschalen lodern) und Erdspalter (Ausholen, Halten,
+// Einschlag mit Erschütterung, eine Glutwelle läuft über die Fugen der Kruste, Staub und Funken).
 // Ohne JavaScript oder bei reduzierter Bewegung bleibt das Standbild (hier pixelgenau ausgerichtet).
 (() => {
   const box = document.querySelector('.hero-bg[data-titel]');
   const poster = box?.querySelector('img');
   if (!box || !poster) return;
   // <titel-held.mjs> – von tools/titel-held.mjs geschrieben, nicht von Hand ändern
-  const META = {"szene":{"W":640,"H":272,"FY":212,"HX":330,"HOR":146,"FX":384,"LH":4,"LT":144,"LH2":76,"NT":206},"held":{"w":127,"h":130,"fx":54,"fy":125},"ruhe":{"atem":6,"atemMs":180,"umhang":8,"umhangMs":170,"flamme":6,"flammeMs":100,"klinge":[67,92,74,126]},"momente":{"schrei":{"f":[[0,110],[1,80],[2,80],[3,100],[4,100],[5,100],[6,100],[7,100],[8,100],[9,100],[10,100],[11,100],[12,100],[13,100],[14,100],[15,100],[16,100],[17,90],[18,90],[19,120]],"hit":3},"schlag":{"f":[[0,100],[1,70],[20,70],[21,80],[22,100],[23,100],[24,100],[25,100],[26,60],[27,104],[28,104],[29,104],[30,104],[31,104],[32,260],[33,150]],"hit":9}},"klingen":[[67,76,70,121],[79,64,114,93],[109,44,77,56],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[109,44,77,56],[79,64,114,93],[67,76,70,121],[102,17,72,51],[20,15,50,49],[6,20,42,45],[6,20,42,45],[6,20,42,45],[6,20,42,45],[114,40,80,55],[82,92,112,126],[82,92,112,126],[82,92,112,126],[82,92,112,126],[82,92,112,126],[82,91,112,125],[67,76,70,121]],"riss":{"x":148,"y":208,"w":361,"h":18,"x0":388}};
+  const META = {"szene":{"W":640,"H":272,"FY":212,"HX":330,"HOR":146,"FX":384,"LH":4,"LT":143,"LH2":77,"NT":206},"held":{"w":127,"h":130,"fx":54,"fy":125},"ruhe":{"atem":6,"atemMs":180,"umhang":8,"umhangMs":170,"flamme":6,"flammeMs":100,"klinge":[67,92,74,126]},"momente":{"schrei":{"f":[[0,110],[1,80],[2,80],[3,100],[4,100],[5,100],[6,100],[7,100],[8,100],[9,100],[10,100],[11,100],[12,100],[13,100],[14,100],[15,100],[16,100],[17,90],[18,90],[19,120]],"hit":3},"schlag":{"f":[[0,100],[1,70],[20,70],[21,80],[22,100],[23,100],[24,100],[25,100],[26,60],[27,104],[28,104],[29,104],[30,104],[31,104],[32,260],[33,150]],"hit":9}},"klingen":[[67,76,70,121],[79,64,114,93],[109,44,77,56],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[105,15,75,46],[109,44,77,56],[79,64,114,93],[67,76,70,121],[102,17,72,51],[20,15,50,49],[6,20,42,45],[6,20,42,45],[6,20,42,45],[6,20,42,45],[114,40,80,55],[82,94,106,125],[82,94,106,125],[82,94,106,125],[82,94,106,125],[82,94,106,125],[82,93,107,125],[67,76,70,121]],"welle":{"x":195,"y":213,"w":381,"h":59,"n":27,"ms":60,"v":300,"x0":385}};
   // </titel-held.mjs>
   if (!META) return;
   const S = META.szene, HD = META.held, RU = META.ruhe;
@@ -21,7 +21,7 @@
   const IMG = new URL('img/', document.querySelector('link[rel="icon"]')?.href ?? location.href).href;
 
   // ---------- Ausschnitt: Held bei ax der Breite, Fußlinie bei fy der Höhe; Größe nach Zeilen (rows) oder Spalten (cols)
-  const frame = () => (phone.matches ? { ax: 0.42, fy: 0.86, cols: 160 } : narrow.matches ? { ax: 0.6, fy: 0.66, rows: 215 } : { ax: 0.725, fy: 0.88, rows: 170 });
+  const frame = () => (phone.matches ? { ax: 0.42, fy: 0.78, cols: 160 } : narrow.matches ? { ax: 0.6, fy: 0.66, rows: 215 } : { ax: 0.725, fy: 0.88, rows: 170 });
   let dpr = 1, cw = 0, ch = 0, d = 1, vw = 0, vh = 0, camX = 0, camY = 0;
   const layout = () => {
     dpr = devicePixelRatio || 1;
@@ -43,7 +43,7 @@
 
   // ---------- Bilder
   const load = (n) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = `${IMG}${n}.webp`; });
-  const NAMES = ['titel-fern', 'titel-fern-glut', 'titel-strom', 'titel-strom-glut', 'titel-mitte', 'titel-mitte-glut', 'titel-nah', 'titel-nah-glut', 'titel-riss',
+  const NAMES = ['titel-fern', 'titel-fern-glut', 'titel-strom', 'titel-strom-glut', 'titel-mitte', 'titel-mitte-glut', 'titel-nah', 'titel-nah-glut', 'titel-welle',
     'titel-held-umhang', 'titel-held-koerper', 'titel-held-flamme', 'titel-held-klinge', 'titel-held-momente'];
   const start = () => Promise.all(NAMES.map(load)).then((im) => run(Object.fromEntries(NAMES.map((n, i) => [n.slice(6), im[i]]))), () => {});
   if (document.readyState === 'complete') setTimeout(start, 200); else addEventListener('load', () => setTimeout(start, 200), { once: true });
@@ -91,7 +91,7 @@
     // ---------- Teilchen (Szenenpixel, harte Farbstufen ohne Überblendung)
     const FIRE = ['#fff2c0', '#ffb648', '#e8641a', '#a8300a'];
     const DUST = ['#6a5040', '#4e3a30', '#3a2a24'];
-    let parts = [], sparkAcc = 0, beacon = 0, riss = null, shakeT = -1, blitz = null;
+    let parts = [], sparkAcc = 0, beacon = 0, welle = null, shakeT = -1, blitz = null;
     const rnd = (a, b) => a + Math.random() * (b - a);
     const spark = (x, y, o = {}) => parts.push({ x, y, vx: o.vx ?? rnd(-6, 6), vy: o.vy ?? -rnd(18, 40), g: o.g ?? 0, wob: o.wob ?? 10, life: 0, max: o.max ?? rnd(0.35, 0.8), c: o.c ?? FIRE, f: 1, seed: Math.random() * 9 });
     const ash = () => {
@@ -108,8 +108,8 @@
     const hit = (name, mf) => {
       const k = blade(mf);
       if (name === 'schlag') {
-        const R = META.riss;
-        riss = { t: 0 }; shakeT = 0; blitz = { x: R.x0, y: S.FY, t: 0 };
+        const R = META.welle;
+        welle = { t: 0 }; shakeT = 0; blitz = { x: R.x0, y: S.FY, t: 0 };
         for (let i = 0; i < 22; i++) spark(R.x0 + rnd(-3, 3), S.FY + 1, { vx: rnd(-40, 40), vy: -rnd(40, 110), g: 260, wob: 0, max: rnd(0.4, 0.9) });
         for (let i = 0; i < 16; i++) spark(R.x0 + rnd(-6, 6), S.FY, { vx: rnd(-30, 30), vy: -rnd(15, 45), g: 70, wob: 0, max: rnd(0.6, 1.2), c: DUST });
       } else {
@@ -141,17 +141,17 @@
       const k = blade(mf);
       while (sparkAcc >= 1) { sparkAcc -= 1; if (k) { const u = Math.random(); spark(k[0] + (k[2] - k[0]) * u + rnd(-2, 2), k[1] + (k[3] - k[1]) * u); } }
       if (Math.random() < dt * 2) parts.push(ash());
-      // Riss: Front läuft nach beiden Seiten, an der Front Staub und Funken
-      if (riss) {
-        riss.t += dt;
-        const R = META.riss, r = riss.t * 420;
+      // Glutwelle: Bilder aus tools/titel-held.py; an der Front (Oberfläche der Platte) Staub und Funken
+      if (welle) {
+        welle.t += dt;
+        const R = META.welle, r = welle.t * R.v;
         for (const dir of [-1, 1]) {
           const x = R.x0 + dir * r;
           if (x < R.x || x > R.x + R.w) continue;
-          if (Math.random() < 0.7) spark(x, S.FY + 1, { vx: dir * rnd(5, 25), vy: -rnd(15, 40), g: 70, wob: 0, max: rnd(0.4, 0.9), c: DUST });
-          if (Math.random() < 0.5) spark(x, S.FY + 1, { vx: dir * rnd(10, 30), vy: -rnd(30, 70), g: 200, wob: 0, max: rnd(0.3, 0.6) });
+          if (Math.random() < 0.6) spark(x, S.FY + 1, { vx: dir * rnd(5, 25), vy: -rnd(15, 40), g: 70, wob: 0, max: rnd(0.4, 0.9), c: DUST });
+          if (Math.random() < 0.35) spark(x, S.FY + 1, { vx: dir * rnd(10, 30), vy: -rnd(30, 70), g: 200, wob: 0, max: rnd(0.3, 0.6) });
         }
-        if (r > Math.max(R.x0 - R.x, R.x + R.w - R.x0) + 420 * 1.1) riss = null;
+        if (welle.t * 1000 >= R.n * R.ms) welle = null;
       }
       beacon = Math.max(0, beacon - dt);
       if (blitz && (blitz.t += dt) > 0.16) blitz = null;
@@ -186,17 +186,8 @@
       // Vordergrund (Tiefe 1): Kruste, Fugen pulsieren; beim Treffer kurz heller (harte Pixel, addiert)
       whole(I['nah'], 0, S.NT, 1);
       ctx.globalAlpha = pl; whole(I['nah-glut'], 0, S.NT, 1); ctx.globalAlpha = 1;
-      // Riss: je Spalte nach Alter frisch (weißgelb), warm (orange), kühl (rot)
-      if (riss) {
-        const R = META.riss, r = riss.t * 420;
-        let run = -1, rv = -1;
-        const flush = (x) => { if (rv >= 0) blit(I['riss'], run - R.x, rv * R.h, x - run, R.h, run, R.y, 1); };
-        for (let x = R.x; x <= R.x + R.w; x++) {
-          const s = Math.abs(x - R.x0), age = (r - s) / 420;
-          const v = x === R.x + R.w || s > r ? -1 : age < 0.08 ? 0 : age < 0.4 ? 1 : age < 1.0 ? 2 : -1;
-          if (v !== rv) { flush(x); run = x; rv = v; }
-        }
-      }
+      // Glutwelle über die Fugen (weißgelb -> orange -> rot), ein Bild je R.ms
+      if (welle) { const R = META.welle, k = Math.floor((welle.t * 1000) / R.ms); if (k < R.n) blit(I['welle'], 0, k * R.h, R.w, R.h, R.x, R.y, 1); }
       // Held
       if (mode === 'ruhe') {
         const ms = t * 1000;

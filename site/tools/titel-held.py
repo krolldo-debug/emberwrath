@@ -1,4 +1,4 @@
-# Titelbild der Startseite, Teil 2 (aufgerufen von titel-held.mjs): eigene Heldenfigur in Szenenpixeln, Riss des
+# Titelbild der Startseite, Teil 2 (aufgerufen von titel-held.mjs): eigene Heldenfigur in Szenenpixeln, Glutwelle des
 # Erdspalters, Ebenen als WebP, Standbild, Maße (JSON auf stdout).
 # Der Held: Krieger in der Rüstung des Aschenfürsten – Harnisch, Schulterpanzer, Beintaschen und Kniekacheln in Gold,
 # Helm, Arme, Beinschienen, Stulpen und Sabatons dunkel (Obsidian), Umhang und Wappenrock rot, Flammenkrone auf dem
@@ -213,18 +213,18 @@ def sword(fig, grip, ang):
 
 
 # ------------------------------------------------------------------------------------------- Umhang
-def cape(fig, phase, lift=0):
-    """Umhang hinter dem Körper, weht nach hinten (links). phase 0..1: eigener Zyklus."""
+def cape(fig, phase, lift=0, billow=0):
+    """Umhang hinter dem Körper, weht nach hinten (links). phase 0..1: eigener Zyklus; billow: weht auf (Pixel)."""
     t = phase * 2 * math.pi
     back = []
     for hh in range(76, 3, -4):
         k = (76 - hh) / 72
-        back.append((-9 - k * 19 - 1.8 * math.sin(t - k * 5) * k * k, hh + (lift if hh > 60 else 0)))
+        back.append((-9 - k * (19 + billow) - 1.8 * math.sin(t - k * 5) * k * k, hh + (lift if hh > 60 else 0) + billow * 0.45 * k * k))
     hem = []
     for i in range(9):
         k = i / 8
         x = back[-1][0] + k * (back[-1][0] * -1 - 4)
-        hem.append((x, 3 + 1.5 * math.sin(t * 1 + k * 9) * (1 - k * 0.6)))
+        hem.append((x, 3 + 1.5 * math.sin(t * 1 + k * 9) * (1 - k * 0.6) + billow * 0.45 * (1 - k) ** 2))
     pts = [(-2, 77 + lift)] + back + hem + [(-2, 6)]
     m = poly(pts)
     fig.put(m, 'red', fixed=2)
@@ -244,7 +244,8 @@ def cape(fig, phase, lift=0):
 
 
 # ------------------------------------------------------------------------------------------- Körper
-def body(fig, breath=0, crouch=0, lean=0, hands=((16, 52), (16, 47)), after_far=None, crown=0):
+def body(fig, breath=0, crouch=0, lean=0, hands=((16, 52), (16, 47)), after_far=None, crown=0, knee=0, head=0):
+    """knee: Knie nach vorn gebeugt (Pixel), head: Kopf in den Nacken (1 = Helm 1 Pixel zurück, Blick nach oben)."""
     b = breath; c = crouch
     def up(x, h):
         if h >= 46: return (x + lean * (h - 46) / 30, h + b - c)
@@ -261,14 +262,15 @@ def body(fig, breath=0, crouch=0, lean=0, hands=((16, 52), (16, 47)), after_far=
     fig.put(poly(U([(-11, 67), (-10, 76), (-5, 78), (-4, 67)])), 'gold')
     if after_far: after_far()
     # Beine (Beinschienen dunkel, Kniekacheln gold), Sabatons
-    kz = 24 - c * 0.5
-    fig.put(seg(up(-3, 42), (-6, kz), 8, 7), 'obs')
-    fig.put(seg((-6, kz), (-8, 7), 7, 6), 'obs')
-    fig.put(poly([(-9, kz + 3), (-4, kz + 3), (-3, kz - 1), (-5, kz - 3), (-9, kz - 2)]), 'gold')
+    kz = 24 - c * 0.5 - knee * 0.5
+    kb = knee
+    fig.put(seg(up(-3, 42), (-6 + kb, kz), 8, 7), 'obs')
+    fig.put(seg((-6 + kb, kz), (-8, 7), 7, 6), 'obs')
+    fig.put(poly([(-9 + kb, kz + 3), (-4 + kb, kz + 3), (-3 + kb, kz - 1), (-5 + kb, kz - 3), (-9 + kb, kz - 2)]), 'gold')
     fig.put(poly([(-14, 0), (-3, 0), (-4, 3), (-6, 7), (-12, 7)]), 'obs')
-    fig.put(seg(up(3, 42), (5, kz), 9, 8), 'obs')
-    fig.put(seg((5, kz), (6, 7), 8, 7), 'obs')
-    fig.put(poly([(1, kz + 3), (8, kz + 3), (9, kz - 1), (7, kz - 4), (2, kz - 3)]), 'gold')
+    fig.put(seg(up(3, 42), (5 + kb, kz), 9, 8), 'obs')
+    fig.put(seg((5 + kb, kz), (6, 7), 8, 7), 'obs')
+    fig.put(poly([(1 + kb, kz + 3), (8 + kb, kz + 3), (9 + kb, kz - 1), (7 + kb, kz - 4), (2 + kb, kz - 3)]), 'gold')
     fig.put(poly([(1, 0), (15, 0), (14, 3), (10, 6), (9, 8), (2, 8)]), 'obs')
     fig.put(poly([(2, 8), (10, 8), (10, 10), (2, 10)]), 'gold', fixed=2)
     # Wappenrock vorn (schmal), Beintaschen in zwei Reifen
@@ -287,20 +289,23 @@ def body(fig, breath=0, crouch=0, lean=0, hands=((16, 52), (16, 47)), after_far=
         dot(x, h, 'emb', t)
     # Halsberge, Helm (Topfhelm: Sehschlitz, Atemlöcher, Mittelgrat), Flammenkrone
     fig.put(poly(U([(-4, 75), (5, 75), (5, 79), (-4, 79)])), 'obs', fixed=2)
-    helm = poly(U([(-5, 78), (-6, 83), (-6, 88), (-4, 90), (3, 90), (6, 89), (8, 86), (8, 80), (6, 78)]))
+    hx, hs = -head, head            # Helm zurück, Sehschlitz höher (Blick nach oben)
+    HU = lambda pts: U([(x + hx, h) for x, h in pts])
+    hdot = lambda x, h, m, t: dot(x + hx, h, m, t)
+    helm = poly(HU([(-5, 78), (-6, 83), (-6, 88), (-4, 90), (3, 90), (6, 89), (8, 86), (8, 80), (6, 78)]))
     fig.put(helm, 'obs', cut=(0.3, 0.7))
-    for x in range(1, 9): dot(x, 85, 'void', 0)
-    for x in range(2, 9): dot(x, 84, 'obs', 4 if x > 3 else 3)
-    for hh in list(range(79, 84)) + [86, 87, 88]: dot(6, hh, 'gold', 3 if hh > 82 else 2)
-    for x, h in ((4, 81), (4, 80), (8, 81)): dot(x, h, 'void', 0)
-    fig.put(poly(U([(-6, 89), (7, 89), (7, 92), (-6, 92)])), 'gold')
-    dot(0, 90, 'emb', 4); dot(4, 90, 'emb', 4); dot(-4, 90, 'emb', 3)
+    for x in range(1, 9): hdot(x, 85 + hs, 'void', 0)
+    for x in range(2, 9): hdot(x, 84 + hs, 'obs', 4 if x > 3 else 3)
+    for hh in list(range(79, 84 + hs)) + [86 + hs, 87, 88]: hdot(6, hh, 'gold', 3 if hh > 82 else 2)
+    for x, h in ((4, 81), (4, 80), (8, 81)): hdot(x, h, 'void', 0)
+    fig.put(poly(HU([(-6, 89), (7, 89), (7, 92), (-6, 92)])), 'gold')
+    hdot(0, 90, 'emb', 4); hdot(4, 90, 'emb', 4); hdot(-4, 90, 'emb', 3)
     CR = ((0, 0, 0, 0), (1, -1, 0, 1), (0, 1, -1, 0), (-1, 0, 1, -1))[crown % 4]
     for (x0, hgt), dh in zip(((-5, 3), (-1, 5), (3, 4), (6, 2)), CR):
         hgt += dh
         for k in range(hgt):
             for dx in range(2 if k < hgt - 2 else 1):
-                dot(x0 + dx, 92 + k, 'emb', 4 if k == hgt - 1 else 3 if k >= 1 else 2)
+                hdot(x0 + dx, 92 + k, 'emb', 4 if k == hgt - 1 else 3 if k >= 1 else 2)
     # vordere Schulter: großer Panzer in zwei Lagen
     fig.put(poly(U([(-10, 66), (-11, 72), (-8, 78), (-2, 80), (4, 78), (6, 72), (4, 66)])), 'gold', shade='lame', bh=8)
     fig.put(poly(U([(-9, 60), (-10, 66), (-4, 67.5), (3, 66.5), (4, 61)])), 'gold', shade='lame', bh=3)
@@ -308,14 +313,34 @@ def body(fig, breath=0, crouch=0, lean=0, hands=((16, 52), (16, 47)), after_far=
     hn = hands[0]
     shN = up(-3, 64)
     en = ik(shN, hn, 13, 14, bend=-1)
-    fig.put(seg(shN, en, 7, 7), 'obs', cut=(0.2, 0.45))
-    fig.put(seg(en, hn, 7, 6), 'obs', cut=(0.2, 0.45))
-    fig.put(ellipse(en[0], en[1], 3.2, 3.2), 'gold')
+    ua, fa = seg(shN, en, 7, 7), seg(en, hn, 7, 6)
+    fig.put(ua, 'obs', cut=(0.2, 0.45)); edge(fig, ua)
+    fig.put(fa, 'obs', cut=(0.2, 0.45)); edge(fig, fa)
+    # Stulpe: goldgesäumter Rand vor dem Handschuh
+    lerp = lambda a, z, k: (a[0] + (z[0] - a[0]) * k, a[1] + (z[1] - a[1]) * k)
+    fig.put(seg(lerp(en, hn, 0.6), lerp(en, hn, 0.74), 8, 8), 'obs', cut=(0.2, 0.5))
+    rim = seg(lerp(en, hn, 0.6), lerp(en, hn, 0.66), 8.4, 8.4)
+    for y, x in zip(*np.nonzero(rim)):
+        if fig.mat[y, x] == 'obs': fig.mat[y, x] = 'gold'; fig.tone[y, x] = 3
+    # Ellbogenkachel: gewölbte Goldplatte mit Flügel nach außen
+    ex, eh = en
+    fig.put(poly([(ex - 1, eh + 4), (ex - 5, eh + 1), (ex - 4, eh - 3), (ex, eh - 1)]), 'gold', light=(1, -1), hi=1, mid=2, flat=3)
+    fig.put(ellipse(ex, eh, 3.8, 3.6), 'gold', shade='dome', r=2.2, dcuts=(0.25, 0.55, 0.82))
     return hn, hf
 
 
-def hand(fig, p):
-    fig.put(ellipse(p[0], p[1], 3.3, 2.9), 'obs', shade='dome', r=1.6, dcuts=(0.25, 0.55, 0.8))
+def edge(fig, mask):
+    """Helle Kante oben am Glied (1 Pixel, Kontrast gegen die dunkle Brust/Kontur)."""
+    for y, x in zip(*np.nonzero(mask)):
+        if y > 0 and not mask[y - 1, x] and fig.mat[y, x] == 'obs': fig.tone[y, x] = 4
+
+
+def hand(fig, p, trim=False):
+    m = ellipse(p[0], p[1], 3.3, 2.9)
+    fig.put(m, 'obs', shade='dome', r=1.6, dcuts=(0.25, 0.55, 0.8))
+    if trim:   # Panzerhandschuh: Knöchelreif in Gold oben
+        for y, x in zip(*np.nonzero(m)):
+            if not m[y - 1, x] or (not m[y - 2, x] and x % 2 == 0): fig.mat[y, x] = 'gold'; fig.tone[y, x] = 4 if not m[y - 1, x] else 2
 
 
 # ------------------------------------------------------------------------------------------- Flammen der Klinge
@@ -373,14 +398,16 @@ def layers(p, cape_phase=None, crown=0):
     """Pose -> (Körper [mit Umhang, falls cape_phase], Schwert mit vorderer Hand, Flammenmaske, Klingenmaske)."""
     near_hand, far_hand = hands_of(p)
     fb = Fig()
-    if cape_phase is not None: cape(fb, cape_phase, lift=p.get('breath', 0) - p.get('crouch', 0))
-    body(fb, p.get('breath', 0), p.get('crouch', 0), p.get('lean', 0), hands=(near_hand, far_hand), after_far=lambda: hand(fb, far_hand), crown=crown)
+    if cape_phase is not None: cape(fb, cape_phase, lift=p.get('breath', 0) - p.get('crouch', 0), billow=p.get('wehen', 0))
+    body(fb, p.get('breath', 0), p.get('crouch', 0), p.get('lean', 0), hands=(near_hand, far_hand), after_far=lambda: hand(fb, far_hand), crown=crown,
+         knee=p.get('knee', 0), head=p.get('kopf', 0))
     fs = Fig()
     blade, fire = sword(fs, p['grip'], p['ang'])
-    hand(fs, near_hand)
+    hand(fs, near_hand, trim=True)
     ib, isw = fb.render(), fs.render()
-    for im in (ib, isw): im[GROUND:] = 0          # was unter der Bodenkante liegt, steckt im Boden
-    fire[GROUND:] = False; blade[GROUND:] = False
+    g = p.get('boden', GROUND)                     # was unter dieser Zeile liegt, steckt im Boden
+    ib[GROUND:] = 0; isw[g:] = 0
+    fire[g:] = False; blade[g:] = False
     return ib, isw, fire, blade
 
 
@@ -409,6 +436,28 @@ def smear(p0, p1):
     return out
 
 
+def ring(p, k):
+    """Schlachtruf: harter Funkenring um den Helm, Bild k (0..2) wächst und kühlt ab; dazu kurze Strahlen."""
+    out = np.zeros((H, W, 4), np.uint8)
+    cx, ch = 1 - p.get('kopf', 0), 86
+    def put(x, y, lv):
+        x, y = int(round(FX + cx + x)), int(round(FY - ch - y))
+        if 0 <= x < W and 0 <= y < H: out[y, x] = (*hexc(FLAME[lv]), 255)
+    r = (10, 14, 18)[k]
+    lv_out, lv_in = ((4, 3), (3, 2), (2, 1))[k]
+    n = int(2 * math.pi * r * 1.2)
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        if k == 2 and (i // 3) % 2: continue                 # zuletzt zerfällt der Kranz
+        put(r * math.cos(a), r * math.sin(a), lv_out)
+        if k < 2: put((r - 1) * math.cos(a), (r - 1) * math.sin(a), lv_in)
+    for j in range(8):                                         # Strahlen, versetzt je Bild
+        a = 2 * math.pi * (j + 0.5 * k) / 8
+        for q in range(2 + (k == 1)):
+            put((r + 2 + q) * math.cos(a), (r + 2 + q) * math.sin(a), max(0, lv_in - q))
+    return out
+
+
 def over(a, b):
     """b über a (beide RGBA, deckend oder leer)."""
     r = a.copy(); m = b[:, :, 3] > 0; r[m] = b[m]; return r
@@ -419,13 +468,14 @@ POSEN = {
     'zug': dict(grip=(17, 56), ang=-90),
     'h1': dict(grip=(18, 62), ang=-35, near='B'),
     'h2': dict(grip=(16, 70), ang=10, near='B'),
-    'schrei': dict(grip=(14, 76), ang=40, near='B'),
+    'schrei': dict(grip=(14, 76), ang=40, near='B', kopf=1, wehen=12),
     'h3': dict(grip=(12, 70), ang=45, near='B'),
     'auf': dict(grip=(4, 72), ang=135, near='B', lean=-1),
     'aus': dict(grip=(-2, 78), ang=150, near='B', lean=-2),
     'hieb': dict(grip=(19, 70), ang=15, near='B', lean=1),
-    'ein': dict(grip=(22, 36), ang=-45, near='B', crouch=3, lean=2),
-    'ein2': dict(grip=(22, 37), ang=-45, near='B', crouch=2, lean=1),
+    # Einschlag: Knie gebeugt, Oberkörper vor, Spitze 3 Pixel hinter der Bodenkante (FY + 1)
+    'ein': dict(grip=(22, 34), ang=-45, near='B', crouch=4, lean=4, knee=3, boden=FY + 1),
+    'ein2': dict(grip=(22, 35), ang=-45, near='B', crouch=2, lean=2, knee=2, boden=FY + 1),
 }
 # Momente: (Pose, Dauer ms, Flammen größer?, Besonderes). Flammen laufen im Halten weiter (je 100 ms ein Bild).
 MOMENTE = {
@@ -436,6 +486,7 @@ FLAMME_N, FLAMME_MS = 6, 100     # Flammenschleife
 ATEM = [0, 0, 1, 1, 1, 0]        # Brust und Schultern, je 180 ms
 ATEM_MS = 180
 UMHANG_N, UMHANG_MS = 8, 170
+WELLE_MS, WELLE_V = 60, 300      # Glutwelle: Bilddauer, Geschwindigkeit (Szenenpixel/s)
 
 
 def main():
@@ -486,10 +537,12 @@ def main():
             n = max(1, round(ms / FLAMME_MS)) if big else 1
             for k in range(n):
                 cph = int(tms // UMHANG_MS) % UMHANG_N
-                ib, isw, fire, blade = layers(p, cape_phase=cph / UMHANG_N)
+                q = dict(p, wehen=max(4, p['wehen'] - k)) if 'wehen' in p else p    # Umhang fällt im Halten langsam zurück
+                ib, isw, fire, blade = layers(q, cape_phase=cph / UMHANG_N)
                 fl = flame(fire, (len(out) + k) % FLAMME_N, FLAMME_N, R=5.6 if big else 4.4)
                 im = over(over(ib, fl), isw)
                 if tag == 'bogen': im = over(over(ib, smear(15, 120)), isw)
+                if tag == 'hit' and name == 'schrei' and k < 3: im = over(ring(p, k), im)
                 if tag == 'hit' and k == 0: hits[name] = len(out)
                 out.append([frame_of(im, blade), round(ms / n)])
                 tms += round(ms / n)
@@ -534,41 +587,52 @@ def main():
     webp(L('szene-mitte.png').crop((0, 0, SZ['W'], cut)), 'titel-mitte.webp'); webp(L('szene-mitteGlut.png').crop((0, 0, SZ['W'], cut)), 'titel-mitte-glut.webp')
     webp(L('szene-lava.png'), 'titel-strom.webp'); webp(L('szene-lavaGlut.png'), 'titel-strom-glut.webp')
 
-    # ---- Riss des Erdspalters: läuft vom Einschlag die Bodenkante entlang, drei Glutstufen (frisch, warm, kühl)
+    # ---- Glutwelle des Erdspalters: läuft vom Einschlag über die Fugen der Kruste (nicht entlang der Kante).
+    # Jede Fuge glüht, wenn die Welle sie erreicht, weißgelb -> orange -> rot auf und erlischt; weiter weg schwächer.
+    # Bilder zu WELLE_MS, gestapelt; nur die Pixel, die gerade glühen.
+    X0, Y0 = HX + impact, FYs + 1
+    fuge = np.asarray(L('szene-nahFuge.png'))[:, :, 3] > 0
     rng = np.random.default_rng(11)
-    X0 = HX + impact
-    xa, xb = max(0, X0 - 240), min(SZ['W'] - 1, X0 + 120)
-    core = {}
-    jit = 0
-    for x in range(X0, xb + 1):
-        if rng.random() < 0.3: jit = max(-1, min(1, jit + (1 if rng.random() < 0.5 else -1)))
-        core[x] = tops[x] + 4 + jit
-    jit = 0
-    for x in range(X0 - 1, xa - 1, -1):
-        if rng.random() < 0.3: jit = max(-1, min(1, jit + (1 if rng.random() < 0.5 else -1)))
-        core[x] = tops[x] + 4 + jit
-    pix = {}
-    def put(x, y, lv):
-        if pix.get((x, y), -1) < lv: pix[(x, y)] = lv
-    for x, y in core.items():
-        put(x, y, 2); put(x, y + 1, 2 if (x % 5) else 1); put(x, y - 1, 1); put(x, y + 2, 1)
-        if (x + y) % 2 == 0: put(x, y - 2, 0)
-        if (x + y) % 2 == 1: put(x, y + 3, 0)
-    # Äste in die Kante hinunter
-    for bx in sorted(rng.choice(np.arange(xa + 8, xb - 8), 14, replace=False)):
-        x, y, dx = int(bx), core[int(bx)] + 2, 1 if rng.random() < 0.5 else -1
-        for k in range(int(rng.integers(4, 10))):
+    pts = {}
+    ys, xs = np.nonzero(fuge)
+    for y, x in zip(ys, xs):
+        if y < Y0 + 1 or abs(x - X0) > 190: continue
+        pts[(x, y)] = math.hypot(x - X0, (y - Y0) * 2.4)
+    # frischer Spalt vom Einschlag hinunter in die nächsten Fugen
+    for dx0 in (-1, 1):
+        x, y = X0, Y0
+        for k in range(9):
             y += 1
-            if rng.random() < 0.55: x += dx
-            put(x, y, 2 if k < 3 else 1); put(x - dx, y, 0 if k > 1 else 1)
-    ry0, ry1 = min(y for _, y in pix), max(y for _, y in pix) + 1
-    rw, rh = xb - xa + 1, ry1 - ry0
-    RISS = [['#5a1206', '#ffb648', '#fff2c0'], ['#a8300a', '#e8641a', '#ffb648'], ['#5a1206', '#a8300a', '#e8641a']]
-    riss = Image.new('RGBA', (rw, rh * 3))
-    for j, cols in enumerate(RISS):
-        for (x, y), lv in pix.items():
-            if xa <= x <= xb: riss.putpixel((x - xa, y - ry0 + j * rh), (*hexc(cols[lv]), 255))
-    webp(riss, 'titel-riss.webp')
+            if rng.random() < 0.6: x += dx0
+            pts[(x, y)] = min(pts.get((x, y), 99), k * 0.8)
+    for x in range(X0 - 2, X0 + 3): pts[(x, Y0)] = 0
+    # Verzögerung leicht verrauscht je Fugenzelle (keine perfekte Ellipse)
+    jit = {}
+    def delay(x, y, dd):
+        c = (x // 6, y // 4)
+        if c not in jit: jit[c] = rng.random() * 0.05
+        return dd / WELLE_V + jit[c]
+    PEAK = lambda dd: 4 if dd < 45 else 3 if dd < 110 else 2
+    tmax = max(delay(x, y, dd) for (x, y), dd in pts.items()) + 0.75
+    nfr = int(math.ceil(tmax * 1000 / WELLE_MS))
+    frames = []
+    for f in range(nfr):
+        t = f * WELLE_MS / 1000
+        fr = {}
+        for (x, y), dd in pts.items():
+            age = t - delay(x, y, dd)
+            if age < 0: continue
+            lv = PEAK(dd) - (0 if age < 0.07 else 1 if age < 0.2 else 2 if age < 0.4 else 3 if age < 0.62 else 9)
+            if lv >= 0: fr[(x, y)] = lv
+        frames.append(fr)
+    allp = [q for fr in frames for q in fr]
+    wx0, wx1 = min(x for x, _ in allp), max(x for x, _ in allp) + 1
+    wy0, wy1 = min(y for _, y in allp), max(y for _, y in allp) + 1
+    ww, wh = wx1 - wx0, wy1 - wy0
+    welle = Image.new('RGBA', (ww, wh * nfr))
+    for i, fr in enumerate(frames):
+        for (x, y), lv in fr.items(): welle.putpixel((x - wx0, y - wy0 + i * wh), (*hexc(FLAME[lv]), 255))
+    webp(welle, 'titel-welle.webp')
 
     # ---- Standbild: alle Ebenen in Ruhe, Held Bild 0
     po = L('szene-fern.png').crop((0, 0, SZ['W'], SZ['H'])); po.alpha_composite(L('szene-fernGlut.png'))
@@ -587,7 +651,7 @@ def main():
         'ruhe': {'atem': len(ATEM), 'atemMs': ATEM_MS, 'umhang': UMHANG_N, 'umhangMs': UMHANG_MS, 'flamme': FLAMME_N, 'flammeMs': FLAMME_MS, 'klinge': kl_ruhe},
         'momente': {k: {'f': v, 'hit': hits.get(k, 0)} for k, v in seqs.items()},
         'klingen': kl,
-        'riss': {'x': xa, 'y': ry0, 'w': rw, 'h': rh, 'x0': X0},
+        'welle': {'x': wx0, 'y': wy0, 'w': ww, 'h': wh, 'n': nfr, 'ms': WELLE_MS, 'v': WELLE_V, 'x0': X0},
     }
     print(json.dumps({'meta': meta, 'sizes': sizes}, default=int))
 

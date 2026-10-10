@@ -117,13 +117,13 @@ const res = await p.evaluate(async (SZ) => {
   const rect = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) fort.set(FX + x, yb - y, SIL[0]); };
   const crenel = (x0, x1, top) => { for (let x = x0; x <= x1; x++) if (((x - x0) % 3) !== 2) { fort.set(FX + x, yb - top - 1, SIL[0]); fort.set(FX + x, yb - top - 2, SIL[0]); } };
   const spike = (cx, w, h0, h1) => { for (let y = h0; y <= h1; y++) { const k = (h1 - y) / (h1 - h0), hw = Math.round(w * k); for (let x = -hw; x <= hw; x++) fort.set(FX + cx + x, yb - y, SIL[0]); } };
-  rect(-36, 0, 36, 12); crenel(-36, 36, 12);              // Ringmauer
-  rect(-32, 0, -24, 28); crenel(-32, -24, 28);            // Seitentürme
-  rect(24, 0, 32, 25); crenel(24, 32, 25);
-  rect(-15, 0, 15, 34); crenel(-15, 15, 34);              // Halle
-  rect(-7, 0, 7, 46);                                      // Thronturm, oben die Lehne mit zwei Hörnern
-  spike(0, 4, 46, 58); spike(-7, 2, 46, 53); spike(7, 2, 46, 53);
-  spike(-44, 3, 0, 34); spike(-49, 1, 0, 20); spike(45, 3, 0, 28); spike(50, 1, 0, 16);   // Obsidiannadeln
+  rect(-36, 0, 36, 10); crenel(-36, 36, 10);              // Ringmauer
+  rect(-32, 0, -24, 23); crenel(-32, -24, 23);            // Seitentürme
+  rect(24, 0, 32, 20); crenel(24, 32, 20);
+  rect(-15, 0, 15, 28); crenel(-15, 15, 28);              // Halle
+  rect(-7, 0, 7, 38);                                      // Thronturm, oben die Lehne mit zwei Hörnern
+  spike(0, 4, 38, 48); spike(-7, 2, 38, 44); spike(7, 2, 38, 44);
+  spike(-44, 3, 0, 28); spike(-49, 1, 0, 16); spike(45, 3, 0, 23); spike(50, 1, 0, 13);   // Obsidiannadeln
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (!fort.get(x, y)[3]) continue;
     const edge = !fort.get(x + 1, y)[3];
@@ -131,8 +131,8 @@ const res = await p.evaluate(async (SZ) => {
     F.set(x, y, warm ? SIL[3] : edge ? SIL[2] : SIL[0]);
   }
   // Fenster und Feuerschalen (Glut-Ebene, flackert in titel.js)
-  for (const [x, y] of [[-28, 20], [-28, 19], [28, 17], [28, 16], [-9, 24], [-9, 23], [9, 24], [9, 23], [0, 38], [0, 37], [-3, 30], [3, 30], [-20, 7], [20, 7]]) FG.set(FX + x, yb - y, EMB[3]);
-  for (const [cx, top] of [[-28, 30], [28, 27], [0, 59]]) {
+  for (const [x, y] of [[-28, 16], [-28, 15], [28, 14], [28, 13], [-9, 20], [-9, 19], [9, 20], [9, 19], [0, 31], [0, 30], [-3, 25], [3, 25], [-20, 6], [20, 6]]) FG.set(FX + x, yb - y, EMB[3]);
+  for (const [cx, top] of [[-28, 25], [28, 22], [0, 49]]) {
     for (let x = -1; x <= 1; x++) F.set(FX + cx + x, yb - top, '#2a1412');
     FG.set(FX + cx, yb - top - 1, EMB[4]); FG.set(FX + cx - 1, yb - top - 1, EMB[3]); FG.set(FX + cx + 1, yb - top - 1, EMB[3]);
     FG.set(FX + cx, yb - top - 2, EMB[3]); FG.set(FX + cx, yb - top - 3, EMB[2]);
@@ -152,6 +152,10 @@ const res = await p.evaluate(async (SZ) => {
   const lava = createBiomeTiles3('throne').liquid;
   // Mittellinie je Spalte: alle `run` Pixel eine Zeile tiefer; Dicke wächst in Stufen
   const river = new Map();   // x -> [yTop, yBot]
+  // Quelle am Fuß des Aschethrons: 1 Pixel dünn, davor nur noch einzelne Glutpunkte (keine harte Kante)
+  for (let x = FX - 7; x <= FX + 1; x++) river.set(x, [HOR - 2, HOR - 2]);
+  const embers = [];
+  for (let x = FX + 3, k = 0; x <= FX + 21; x += 2 + (k % 2), k++) embers.push([x, HOR - 2 - (k % 3 === 2 ? 1 : 0), k < 3 ? 3 : k < 5 ? 2 : 1]);
   {
     let x = FX - 8, y = HOR - 1, n = 0;
     const steps = [[7, 2], [7, 2], [6, 3], [6, 3], [6, 4], [5, 4], [5, 5], [5, 5], [4, 6], [4, 6], [5, 7], [4, 7], [4, 8], [3, 8], [4, 9], [3, 9], [4, 10], [3, 10], [3, 11]];
@@ -161,7 +165,10 @@ const res = await p.evaluate(async (SZ) => {
       y++; n++;
     }
   }
-  const LT = HOR - 2, LB = FY + 8;
+  const LT = HOR - 3, LB = FY + 8;
+  // links vom Helden kühlt der Strom zu dunkler Kruste ab (dort steht die Überschrift); Übergang gerastert
+  const cool = (x) => Math.max(0, Math.min(1, (x - 288) / 26));
+  const COOL = ['#24100d', '#3a120c', '#5a1a0c'];
   const LAV = [], LAVG = [];
   for (let f = 0; f < LH; f++) {
     const L = buf(W, LB - LT), LG = buf(W, LB - LT), tiles = new Map();
@@ -174,9 +181,17 @@ const res = await p.evaluate(async (SZ) => {
     };
     for (const [x, [y0, y1]] of river) {
       if (x < 0 || x >= W) continue;
-      L.set(x, y0 - 1 - LT, '#3a1410'); L.set(x, y1 + 1 - LT, '#2a100e');   // Krustensaum
-      for (let y = y0; y <= y1; y++) { const [c, g] = at(x + 512, y + 300); L.set(x, y - LT, c); if (g) LG.set(x, y - LT, g); }
+      if (y1 > y0) { L.set(x, y0 - 1 - LT, '#3a1410'); L.set(x, y1 + 1 - LT, '#2a100e'); }   // Krustensaum
+      const cl = cool(x);
+      for (let y = y0; y <= y1; y++) {
+        let [c, g] = at(x + 512, y + 300), l = lum(c);
+        if (x >= FX - 16 && l < 0.5) { c = EMB[(x > FX - 4 ? 1 : 2) + chk(x, y)]; g = EMB[2]; l = 0.6; }   // Quelle: keine dunklen Schollen, läuft glühend aus
+        if (l >= (1 - cl) * 1.01) { L.set(x, y - LT, c); if (g) LG.set(x, y - LT, g); continue; }   // das Heißeste glüht am längsten
+        L.set(x, y - LT, COOL[l > 0.55 ? 2 : l > 0.35 ? 1 : 0]);
+        if (l > 0.7 && chk(x, y)) LG.set(x, y - LT, EMB[1]);
+      }
     }
+    for (const [x, y, lv] of embers) { L.set(x, y - LT, EMB[lv - 1]); LG.set(x, y - LT, EMB[lv]); }
     LAV.push(L); LAVG.push(LG);
   }
 
@@ -184,7 +199,14 @@ const res = await p.evaluate(async (SZ) => {
   const M = buf(W, H), MG = buf(W, H);
   const mcrust = crustAt({ seed: 977, crust: BLACK5, emb: PAL.ember, wall: BLACK5, grout: '#000000', cell: 9, open: 0, crack: 0.5 });
   const ASH = ['#120b0c', '#181010', '#201512', '#2a1a15', '#362017', '#452818', '#583218'];
-  const dist = (x, y) => { const r = river.get(x); if (!r) return 99; return y < r[0] ? r[0] - y : y > r[1] ? y - r[1] : 0; };
+  const dcol = (x, y) => { const r = river.get(x); if (!r) return 99; return y < r[0] ? r[0] - y : y > r[1] ? y - r[1] : 0; };
+  // Abstand zum Strom auch über das Ende hinaus (läuft aus statt abzubrechen); abgekühlter Strom leuchtet schwächer
+  const dist = (x, y) => {
+    let m = dcol(x, y);
+    if (m === 0) return 0;
+    for (let dx = 1; dx <= 14; dx++) m = Math.min(m, dcol(x - dx, y) + dx * 0.7, dcol(x + dx, y) + dx * 0.7);
+    return Math.round(m + (1 - cool(x)) * 5);
+  };
   for (let y = HOR - 1; y < H; y++) for (let x = 0; x < W; x++) {
     if (y < hf(x) + 1 && y < HOR) continue;
     const dl = dist(x, y);
@@ -221,7 +243,7 @@ const res = await p.evaluate(async (SZ) => {
   }
 
   // ================= Nah: Felsplateau, Kante warm angestrahlt, Kruste 1:1 mit Glutfugen
-  const N = buf(W, H), NG = buf(W, H);
+  const N = buf(W, H), NG = buf(W, H), NF = buf(W, H);   // NF: Fugen (für die Glutwelle des Erdspalters)
   const ROCK = ['#0a0608', '#100a0c', '#170f10', '#201413', '#2c1b17', '#3d2419', '#55301a'];
   const top = (x) => {
     const flat = Math.max(0, Math.min(1, (Math.abs(x - HX - 20) - 70) / 40));
@@ -242,6 +264,7 @@ const res = await p.evaluate(async (SZ) => {
       const [c, seam] = crust(x + 64, y + 64);
       const deep = dy > 22 || (dy > 16 && chk(x, y));
       if (seam) {
+        NF.set(x, y, '#ffffff');
         const far = Math.abs(x - HX) / 60 + dy / 26;
         const lv = far < 0.6 ? 0 : far < 1.3 ? 1 : 2;
         N.set(x, y, lv === 2 || deep ? '#3a1410' : EMB[1]);
@@ -252,7 +275,7 @@ const res = await p.evaluate(async (SZ) => {
 
   const toUrl = (B) => { const c = document.createElement('canvas'); c.width = B.w; c.height = B.h; c.getContext('2d').putImageData(new ImageData(B.d, B.w, B.h), 0, 0); return c.toDataURL('image/png'); };
   const stack = (arr) => { const h = arr[0].h, c = document.createElement('canvas'); c.width = arr[0].w; c.height = h * arr.length; const x = c.getContext('2d'); arr.forEach((B, i) => x.putImageData(new ImageData(B.d, B.w, B.h), 0, i * h)); return c.toDataURL('image/png'); };
-  return { fern: toUrl(F), fernGlut: toUrl(FG), lava: stack(LAV), lavaGlut: stack(LAVG), mitte: toUrl(M), mitteGlut: toUrl(MG), nah: toUrl(N), nahGlut: toUrl(NG), LT, LH2: LB - LT, tops, beacons: [] };
+  return { fern: toUrl(F), fernGlut: toUrl(FG), lava: stack(LAV), lavaGlut: stack(LAVG), mitte: toUrl(M), mitteGlut: toUrl(MG), nah: toUrl(N), nahGlut: toUrl(NG), nahFuge: toUrl(NF), LT, LH2: LB - LT, tops, beacons: [] };
 }, SZ);
 for (const [k, v] of Object.entries(res)) if (typeof v === 'string') save(`szene-${k}.png`, v);
 Object.assign(SZ, { LT: res.LT, LH2: res.LH2 });
@@ -260,7 +283,7 @@ writeFileSync(join(TMP, 'szene.json'), JSON.stringify({ SZ, tops: res.tops }));
 await b.close();
 if (process.env.NURSZENE) process.exit(0);
 
-// ---------------------------------------------------------------------------------------------- 2. Held, Riss, Standbild (Python)
+// ---------------------------------------------------------------------------------------------- 2. Held, Glutwelle, Standbild (Python)
 const out = JSON.parse(execFileSync('python3', [join(HERE, 'titel-held.py'), TMP, IMG], { maxBuffer: 1 << 26 }).toString());
 let total = 0;
 for (const [f, n] of Object.entries(out.sizes)) { total += n; console.log(`${f.padEnd(26)} ${(n / 1024).toFixed(1).padStart(7)} KB`); }

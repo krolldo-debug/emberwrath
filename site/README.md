@@ -51,11 +51,12 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   oder verzerrt. Held als eigene Pixel-Art (Rüstung des Aschenfürsten und Zweihänder Königsfall, Farben aus `character/gearLook.js`),
   Kruste und Lavastrom aus den Lava-Generatoren des Spiels, Aschethron als gezeichneter Schattenriss. Ebenen
   `titel-fern/-strom/-mitte/-nah` (je mit `-glut`), Held in Ruhe aus `titel-held-umhang` (8 Bilder), `-koerper` (Atem, 6),
-  `-flamme` (6) und `-klinge`, Momente als ganze Bilder in `titel-held-momente`, Riss des Erdspalters `titel-riss` (frisch, warm,
-  kühl). Bildfolgen, Dauern, Treffer und Maße schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
+  `-flamme` (6) und `-klinge`, Momente als ganze Bilder in `titel-held-momente`, Glutwelle des Erdspalters `titel-welle` (Bildfolge über
+  die Fugen der Kruste). Bildfolgen, Dauern, Treffer und Maße schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
   `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter Bewegung). titel.js legt es pixelgenau
   aus, verschiebt Ebenen nur in ganzen Szenenpixeln (Schweben, Maus) und zeigt alle 6–8 s abwechselnd Erdspalter (Ausholen,
-  Halten, Einschlag mit Erschütterung, Glutriss, Staub, Funken) und Schlachtruf (Klinge hoch, Feuerschalen lodern);
+  Halten, Einschlag mit Erschütterung, Glutwelle über die Fugen, Staub, Funken) und Schlachtruf (Klinge hoch, Kopf in den
+  Nacken, Umhang weht auf, Funkenring, Feuerschalen lodern);
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
