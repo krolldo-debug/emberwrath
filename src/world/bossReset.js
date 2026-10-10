@@ -7,6 +7,10 @@
 // Ursprungsplatz. Gruppen-Dungeons (finder/Party.js) skalieren den neuen Boss automatisch, sobald er in
 // world.enemies auftaucht (volles Leben, nicht beschworen).
 //
+// Wird nur aufgerufen, wenn die ganze Gruppe gefallen ist (instanceRevive.groupAlive). Die Instanz gehört heute
+// genau einem Spieler plus Söldnern (echte Gruppen sind aus, finder/README humanGroups); teilen sich später mehrere echte Spieler eine
+// Instanz (Mehrspieler Stufe 2), muss der Welt-Server das Zurücksetzen entscheiden und an alle schicken.
+//
 // Vertrag: resetBoss(world) -> true, wenn ein laufender Bosskampf zurückgesetzt wurde.
 //   world.fightBaseline (Set, von World beim Kampfbeginn gesetzt): Objekte, die schon vor dem Kampf da waren.
 import { EV } from '../core/events.js';

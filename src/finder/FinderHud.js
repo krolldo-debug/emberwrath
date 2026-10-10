@@ -193,7 +193,19 @@ export class FinderHud {
       f.el.classList.toggle('dead', !!b.dead);
       f.el.classList.toggle('low', !b.dead && b.hp / b.maxHp < 0.3);
     }
+    this.#placeChatBtn();
     this.#done(party);
+  }
+
+  // Handy: Chat-Knopf unter die Gruppenrahmen, damit er nichts davon verdeckt (Lage selten neu messen)
+  #placeChatBtn() {
+    const now = performance.now();
+    if (now - (this.chatPlacedAt ?? 0) < 500) return;
+    this.chatPlacedAt = now;
+    const r = this.partyEl.getBoundingClientRect();
+    const top = r.height ? Math.round(Math.max(r.bottom + 8, innerHeight / 2)) : null;
+    const v = top == null || top + 48 > innerHeight ? '' : `${top}px`;
+    if (this.chatBtn.style.top !== v) this.chatBtn.style.top = v;
   }
 
   // Nach dem Endboss: Rückweg anbieten

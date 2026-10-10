@@ -10,7 +10,8 @@ import { h } from './dom.js';
 // Öffnen: session.panels.open(id, params) oder bus.emit(EV.UI_OPEN_PANEL, { id, params }).
 // Es ist immer höchstens ein Panel offen. 'pause'-Taste (Esc) schließt es.
 // Online-Welt: Kein Panel hält das Spiel an, Gegner und Mitspieler laufen weiter. Die frühere Option
-// pauses wird noch angenommen, aber nicht mehr ausgewertet.
+// pauses wird noch angenommen, aber nicht mehr ausgewertet. Der Rahmen um das Fenster ist durchlässig: Klicks daneben
+// gehen ins Spiel (styles.css), geschlossen wird mit Esc oder dem Schließen-Knopf.
 export class PanelRegistry {
   constructor() { this.defs = new Map(); }
   register(id, factory, opts = {}) {
@@ -27,6 +28,8 @@ export class PanelHost {
     this.open_ = null; // { def, panel, el }
     session.bus.on(EV.UI_OPEN_PANEL, (e) => this.open(e.id, e.params));
     session.bus.on(EV.UI_CLOSE_PANEL, (e) => { if (!e?.id || this.open_?.def.id === e.id) this.close(); });
+    // Tod: offene Fenster schließen, damit der Todesbildschirm frei liegt
+    session.bus.on(EV.PLAYER_DIED, () => this.close());
   }
 
   get openId() { return this.open_?.def.id ?? null; }
@@ -41,7 +44,6 @@ export class PanelHost {
       return;
     }
     const el = h('div.ef-panel-host', { 'data-panel': id, tabindex: '-1' }, panel.root);
-    el.addEventListener('pointerdown', (ev) => { if (ev.target === el) this.close(); });
     // Tastatur: Fokus ins Panel (der Rahmen selbst, damit kein Knopf versehentlich auslöst), Tab bleibt im Panel.
     el.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Tab') return;

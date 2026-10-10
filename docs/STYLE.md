@@ -43,6 +43,13 @@ Alles über den Bus der Sitzung (`session.bus.emit(...)`), das Feedback-System e
 Fortschritt (XP, Stufe, Beute, Gold, Quests, Boss) zeigt D automatisch aus den C-/B-Events an –
 dafür keine eigenen Toasts oder Banner senden. `ui:toast`/`ui:banner` nur für Sonderfälle.
 
+## Gezeichnete Rahmen und Pixeltitel (HTML)
+
+`ui/pixelFrame.js`: `frameUrl(scale)` liefert einen 9-Slice-Glutrahmen (13×13-Vorlage, Ecke = 5 Bildpunkte) für
+`border-image: url(...) <5*scale> fill / <5*scale>px stretch`; `pixelTitle(font, text)` zeichnet einen Titel in der Bitmap-Schrift
+(Anzeige ganzzahlig per CSS, `image-rendering: pixelated`). Genutzt vom Todesbildschirm (`ui/DeathScreen.js`, `ui/death.css`):
+deckende Flächen, harte Kanten, Animation nur mit `steps()` in ganzen Bildpunkten. `ui/confirmTap.js`: zweiter Tipp bestätigt.
+
 ## Icons (v2, Runde 2)
 
 `gfx/Icons.js`: 24×24-Icons (26×26 mit Umriss), prozedural, Licht von oben links.

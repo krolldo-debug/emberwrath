@@ -325,7 +325,7 @@ export const EN = {
   "anhänger": "Pendant",
   "Anmelden": "Sign In",
   "Anmeldung abgebrochen.": "Sign-in canceled.",
-  "Anmeldung abgelaufen – Cloud-Speichern pausiert. Bitte im Menü neu anmelden.": "Session expired – cloud saving paused. Please sign in again from the menu.",
+  "Anmeldung abgelaufen – Cloud-Speichern ruht. Bitte im Menü neu anmelden.": "Session expired – cloud saving is on hold. Please sign in again from the menu.",
   "Anmeldung abgelaufen · bitte neu anmelden": "Session expired · please sign in again",
   "Anmeldung bestätigen": "Confirm Subscription",
   "Anmeldung über": "Sign-in via",
@@ -3019,7 +3019,6 @@ export const EN = {
   "Passwort verbergen": "Hide password",
   "Passwort vergessen": "Forgot Password",
   "Passwort vergessen?": "Forgot password?",
-  "Pause": "Pause",
   "Pelze, Klingen, heißer Met. Nur das Nötigste.": "Furs, blades, hot mead. Only the essentials.",
   "Perlenring der Gezeiten": "Tide Pearl Ring",
   "Pestkröte": "Plague Toad",
@@ -4302,6 +4301,7 @@ export const EN = {
   "Erfolge errungen": "Achievements Earned",
   "Deine Gruppe kämpft weiter.": "Your party fights on.",
   "Verlassen": "Leave",
+  "Wirklich verlassen?": "Really leave?",
   "Dungeon verlassen": "Leave dungeon",
   "nochmal rein": "run it back"
 };

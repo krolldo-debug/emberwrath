@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { Camera } from '../core/Camera.js';
 import { PanelHost } from '../core/PanelHost.js';
 import { World } from '../world/World.js';
-import { reviveInInstance } from '../world/instanceRevive.js';
+import { reviveInInstance, groupAlive } from '../world/instanceRevive.js';
 
 // Die Spielsitzung: eine Zone ist geladen, der Held läuft.
 // Dieses Objekt ist der "session"-Kontext, den alle Sitzungssysteme,
@@ -12,8 +12,8 @@ import { reviveInInstance } from '../world/instanceRevive.js';
 //   sfx, font, authority, world, camera, zone, panels, time
 //   hitstop(t), slowmo(scale, dur), setPaused(reason, on), paused,
 //   travel(zoneId, spawnId), respawn({ leave }), deadTime, hurtFlash, debug, fps
-// Online-Welt: Menüs und Fenster halten nichts an. Angehalten wird nur, solange der Tab verborgen ist
-// (der Browser zeichnet dann ohnehin nicht).
+// Online-Welt: Nichts hält die Welt an, weder Menüs und Fenster noch Fokusverlust oder ein verborgener Tab
+// (core/GameLoop.js rechnet dann im Hintergrund weiter). setPaused bleibt für Sonderfälle erhalten.
 // Ablauf pro Tick: Panels -> Welt -> Sitzungssysteme -> Kamera.
 // Zeichnen: Welt -> system.draw(ctx) (Pixel-Overlays) ; HTML-HUD liest selbst.
 export class PlayScene {
@@ -62,12 +62,8 @@ export class PlayScene {
     this.bus.on(EV.PREFS_CHANGED, (e) => {
       if (e.key === 'screenShake' && this.camera) this.camera.enabled = e.value !== false;
     });
-    // Verborgener Tab: speichern; die Welt läuft beim Zurückkommen einfach weiter (kein Pausemenü).
-    // Fokusverlust (Alt-Tab, zweiter Bildschirm) hält nichts an, wie in jedem Online-Spiel.
-    this.onHide = () => {
-      if (document.hidden) { this.setPaused('hidden', true); g.saveNow('hidden'); return; }
-      this.setPaused('hidden', false);
-    };
+    // Verborgener Tab: nur speichern. Die Welt läuft weiter (GameLoop rechnet im Hintergrund), wie in jedem Online-Spiel.
+    this.onHide = () => { if (document.hidden) g.saveNow('hidden'); };
     this.onPageHide = () => g.saveNow('pagehide');
     document.addEventListener('visibilitychange', this.onHide);
     window.addEventListener('pagehide', this.onPageHide);
@@ -124,7 +120,8 @@ export class PlayScene {
       if (hero.dead) this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId });
       return;
     }
-    if (!hero.dead || this.deadTime <= 2) return;
+    // Erst wenn alle Gruppenmitglieder gefallen sind (sonst hebt die Gruppe den Helden nach dem Kampf auf)
+    if (!hero.dead || this.deadTime <= 2 || hero.partyWaiting || groupAlive(this.world)) return;
     if (reviveInInstance(this)) return;
     this.travel(d.respawnZone ?? d.id, d.respawnSpawn ?? 'respawn');
     this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId: d.respawnSpawn ?? 'respawn' });

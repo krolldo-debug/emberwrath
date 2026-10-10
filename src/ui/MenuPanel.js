@@ -4,6 +4,7 @@ import { canFullscreen, isStandalone, isFullscreen, toggleFullscreen } from './F
 import { iconUrl } from '../gfx/Icons.js';
 import { EV } from '../core/events.js';
 import { canReviveInInstance } from '../world/instanceRevive.js';
+import { confirmTap } from './confirmTap.js';
 
 // Spielmenü (Panel 'menu', öffnet mit Esc/P oder dem Menü-Knopf). Die Welt läuft dabei weiter.
 export function createMenuPanel(session) {
@@ -31,7 +32,7 @@ export function createMenuPanel(session) {
     h('p.ef-note.menu-touch-help', 'Touch: linke Seite ziehen zum Laufen, rechts die Aktionsknöpfe. Minimap antippen öffnet die Karte.'),
   );
 
-  // Online-Welt: das Menü hält nichts an und dunkelt die Welt nicht ab (kleine Tafel, theme.css „Spielmenü“).
+  // Online-Welt: das Menü hält nichts an und dunkelt die Welt nicht ab (deckende Tafel am Rand, ui/menu.css).
   // Einstellungen und Steuerung öffnen als eigene Seite in derselben Tafel, damit sie schmal bleibt.
   const title = h('h2.menu-title', 'Menü');
   const back = h('button.menu-back', { type: 'button', 'aria-label': 'Zurück', title: 'Zurück', onclick: () => page('main') });
@@ -39,6 +40,13 @@ export function createMenuPanel(session) {
   const def = session.zone?.def;
   const btn = (label, onclick, cls = '', icon = null) => h(`button.ef-btn.menu-btn${cls}`, { type: 'button', onclick },
     icon ? h('img.ef-icon', { src: iconUrl(icon), alt: '', width: 20, height: 20 }) : null, h('span', label));
+
+  // Dungeon verlassen löst die Gruppe auf: zweiter Tipp bestätigt
+  const leaveBtn = () => {
+    const b = btn('Dungeon verlassen', null, '.menu-leave');
+    confirmTap(b, b.lastChild, { onConfirm: () => { session.panels.close(); session.bus.emit(EV.RESPAWN_REQUEST, { leave: true }); } });
+    return b;
+  };
 
   const main = h('div.menu-main',
     g.panels.defs?.has('achievements') ? btn('Erfolge', () => session.panels.open('achievements'), '.menu-ach', 'ui_achievements') : null,
@@ -49,8 +57,10 @@ export function createMenuPanel(session) {
     canFullscreen() && !isStandalone()
       ? btn(isFullscreen() ? 'Vollbild beenden' : 'Vollbild', (e) => { const b = e.currentTarget; toggleFullscreen().then(() => { b.lastChild.textContent = isFullscreen() ? 'Vollbild beenden' : 'Vollbild'; }); })
       : null,
-    canReviveInInstance(def)
-      ? btn('Dungeon verlassen', () => { session.panels.close(); session.bus.emit(EV.RESPAWN_REQUEST, { leave: true }); }, '.menu-leave')
+    canReviveInInstance(def) ? leaveBtn() : null,
+    // Sitzung abgelaufen (Hinweis „Bitte im Menü neu anmelden“): Spiel sichern, dann zur Anmeldung
+    g.online?.configured && !g.online.user
+      ? btn('Anmelden', () => { g.saveNow('login'); g.online.open('login'); }, '.menu-login')
       : null,
     h('hr.menu-sep'),
     h('button.ef-btn.danger.menu-btn', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); }, title: 'Speichert und kehrt zum Titelbildschirm zurück' }, h('span', 'Zum Titel')),

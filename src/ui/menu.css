@@ -1,0 +1,54 @@
+/* Spielmenü (ui/MenuPanel.js, Esc). Online-Welt: hält nichts an, dunkelt nichts ab.
+   Deckende Tafel am Rand statt mittig über dem Helden: am Computer über dem Menü-Knopf rechts unten,
+   am Handy rechts unter den Menüknöpfen. Die XP-Leiste bleibt frei. Unterseiten (Einstellungen, Steuerung)
+   öffnen in derselben Tafel. */
+.ui-panels .ef-panel-host[data-panel="menu"] { display: block; }
+.menu-panel {
+  position: absolute; box-sizing: border-box; min-width: 0; width: 252px; max-width: calc(100vw - 16px);
+  right: calc(50% - var(--view-w) / 2 + var(--hud-gap)); bottom: calc(50% - var(--view-h) / 2 + 78px);
+  max-height: calc(var(--view-h) - 78px - var(--mm, 112px) - var(--hud-gap) * 3);
+  padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; text-align: left;
+  overflow-y: auto; overscroll-behavior: contain;
+  background: #0e0816; box-shadow: 0 0 0 2px #0b0710, inset 0 0 0 1px rgba(232, 194, 90, 0.12), 0 4px 0 2px rgba(0, 0, 0, 0.45);
+}
+.menu-panel[data-page="main"] { overflow: visible; } /* passt immer; sonst zeigte der Eckbeschlag (.ef-panel::after) einen Rollbalken */
+.menu-panel[data-page="settings"], .menu-panel[data-page="help"] { width: 360px; }
+.menu-head { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; margin-bottom: 2px; }
+.menu-title { margin: 0; text-align: center; font: 700 17px var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.05em; }
+.menu-back, .menu-close {
+  position: relative; width: 28px; height: 28px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--ef-muted);
+}
+.menu-back:hover, .menu-close:hover { color: var(--ef-text); }
+.menu-close::before, .menu-close::after { content: ""; position: absolute; left: calc(50% - 7px); top: calc(50% - 1px); width: 14px; height: 2px; background: currentColor; transform: rotate(45deg); }
+.menu-close::after { transform: rotate(-45deg); }
+.menu-back { visibility: hidden; }
+.menu-back::before { content: ""; position: absolute; left: calc(50% - 3px); top: calc(50% - 5px); width: 8px; height: 8px; border: solid currentColor; border-width: 0 0 2px 2px; transform: rotate(45deg); }
+.menu-panel:not([data-page="main"]) .menu-back { visibility: visible; }
+.menu-panel:not([data-page="main"]) .menu-main { display: none; }
+.menu-main { display: flex; flex-direction: column; gap: 4px; }
+.menu-main .menu-btn {
+  width: 100%; min-width: 0; min-height: 34px; padding: 5px 12px; display: flex; align-items: center; gap: 8px; justify-content: flex-start;
+  font: 600 14px var(--ef-font); text-align: left;
+}
+.menu-main .menu-btn .ef-icon { margin-left: -2px; }
+.menu-main .menu-leave { border-color: #8a5a2a; }
+.menu-main .menu-btn.arm { border-color: var(--ef-ember); color: #ffd890; background: #4a1410; }
+.menu-sep { border: 0; height: 2px; margin: 4px 0; background: repeating-linear-gradient(90deg, var(--ef-panel-edge) 0 4px, transparent 4px 6px); }
+.menu-panel .menu-settings, .menu-panel .menu-help { margin: 0; }
+.menu-panel .menu-settings > h3:first-child { display: none; } /* Überschrift steht schon im Kopf der Tafel */
+.menu-panel .menu-help dl { font-size: 13px; }
+
+/* Handy: rechts unter den Menüknöpfen, zwei Spalten, große Tippflächen */
+.ef-touch .menu-panel {
+  top: calc(env(safe-area-inset-top, 0px) + 66px); right: calc(env(safe-area-inset-right, 0px) + 8px); bottom: auto;
+  width: 340px; padding: 8px 10px 10px; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 66px - 30px);
+}
+.ef-touch .menu-panel[data-page="settings"], .ef-touch .menu-panel[data-page="help"] { width: 360px; }
+.ef-touch .menu-main { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ef-touch .menu-panel:not([data-page="main"]) .menu-main { display: none; }
+.ef-touch .menu-main .menu-sep { display: none; } /* „Zum Titel“ ist dann eine normale Zelle, die Tafel bleibt ohne Scrollen */
+.ef-touch .menu-main .menu-btn { padding: 5px 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ef-touch .menu-main .menu-btn, .ef-touch .menu-back, .ef-touch .menu-close { min-height: 44px; }
+.ef-touch .menu-back, .ef-touch .menu-close { width: 44px; }
+.ef-touch .menu-head { grid-template-columns: 44px 1fr 44px; }
+.ef-portrait .menu-panel { top: calc(env(safe-area-inset-top, 0px) + 60px); }

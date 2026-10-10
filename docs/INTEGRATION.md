@@ -63,7 +63,7 @@ Das `session`-Objekt, das Systeme, Panels, Welt und Held bekommen:
 | `world, camera, zone` | aktuelle Welt, Kamera, `{ zoneId, instanceId, capacity, population, def }` |
 | `panels` | `PanelHost`: `open(id, params)`, `close()`, `toggle(id)`, `openId` |
 | `hitstop(t)`, `slowmo(scale, dur)` | Game-Feel (Thread D nutzt sie im Feedback) |
-| `setPaused(reason, on)`, `paused` | Anhalten nur, solange der Tab verborgen ist (`'hidden'`). Online-Welt: Menüs, Fenster und Fokusverlust halten nichts an |
+| `setPaused(reason, on)`, `paused` | Nur für Sonderfälle. Online-Welt: Menüs, Fenster, Fokusverlust und verborgener Tab halten nichts an (GameLoop rechnet im Hintergrund weiter) |
 | `travel(zoneId, spawnId)` | Zonenwechsel (oder `bus.emit(EV.ZONE_TRAVEL, …)`) |
 | `respawn({ leave })` | Wiederbeleben bzw. Dungeon verlassen (oder `bus.emit(EV.RESPAWN_REQUEST, { leave })`) |
 | `time, hurtFlash, deadTime, debug, fps` | Laufzeitwerte |
