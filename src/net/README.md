@@ -62,9 +62,13 @@ Neue Zonen brauchen keine Codeänderung: der Shard heißt `<zoneId>~<welt>`; ob 
 Durable Objects mit SQLite-Speicher sind im Gratis-Tarif enthalten: 100 000 Anfragen/Tag, 13 000 GB-s Laufzeit/Tag.
 Eingehende WebSocket-Nachrichten zählen 20:1 als Anfrage; ausgehende sind frei.
 
-- Ein laufender Spieler sendet höchstens 8 Zustände/s, ein stehender alle 5 s einen → grob 750 Anfragen je Spielerstunde.
-  Das reicht für etwa **130 Spielerstunden am Tag**.
-- Ein Shard kostet Laufzeit, solange sich dort etwas bewegt (schläft sonst): etwa **28 aktive Zonen-Stunden am Tag**.
+- Ein laufender Spieler sendet höchstens 8 Zustände/s, ein stehender alle 5 s einen → grob 750 Anfragen je Spielerstunde
+  (Lasttest 10.10. mit 70 % laufenden Bots: 1 080). Dazu je belegtem Shard etwa 120 je Stunde (Alarm + Meldung ans
+  Verzeichnis). Das reicht für etwa **90 bis 130 Spielerstunden am Tag**.
+- Laufzeit zählt nur, solange ein Shard arbeitet oder ein Zeitgeber wartet. Bis 5 Spieler je Shard geht jeder Zustand
+  sofort weiter (`IMMEDIATE_MAX` in worker/shard.js), ohne Zeitgeber: der Shard ruht zwischen den Nachrichten und
+  kostet kaum Laufzeit. Ab 6 Spielern wird alle 50 ms gebündelt; dann läuft der Shard durch, solange sich jemand
+  bewegt: etwa **28 volle Welt-Stunden am Tag**.
 - Darüber hinaus: Workers Paid (5 $/Monat, 1 Mio. Anfragen + 400 000 GB-s inklusive). Ist das Gratis-Kontingent eines
   Tages aufgebraucht, läuft das Spiel weiter, nur ohne andere Spieler (Anzeige „neuer Versuch …“) bis zum nächsten Tag.
 
@@ -111,6 +115,14 @@ Eingehende WebSocket-Nachrichten zählen 20:1 als Anfrage; ausgehende sind frei.
 - Chat- und Meldegrenzen je Konto (bleiben nach Neuverbinden), Chatsperren jede Minute neu gelesen, bei Störung gilt
   die bekannte Sperre weiter. Obergrenzen für Meldewarteschlange und Speicher.
 - Ignorier-Schlüssel per HMAC mit `NET_KEY_SECRET` (sonst dem Service-Secret).
+
+## Lasttest
+
+`node worker/test/lasttest.mjs --bots 60 --seconds 60` gegen `wrangler dev` + mockauth.mjs (Befehle im Dateikopf).
+Bots verhalten sich wie Spieler (8 Zustände/s beim Laufen, Kampf, Chat, Aussehen) und messen Verzögerung, Nachrichten
+je Sekunde, Lücken, Ratelimit-Treffer und CPU. Ergebnis vom 10.10.: 40 Spieler in einer Welt p95 62 ms, 100 Spieler in
+einer Welt p95 93 ms, 200 Spieler in 5 Welten ohne Abbrüche; 60 gleichzeitige Anmeldungen von einer Adresse sind über die
+Wiederholung des Clients nach 3,5 s alle drin.
 
 ## Test
 

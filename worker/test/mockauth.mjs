@@ -21,7 +21,7 @@ export function mint(sub, email, { alg = 'ES256', ttl = 3600, extra = {} } = {})
 }
 const log = [];
 // Nachgebautes PostgREST für die Chat-Moderation (worker/moderation.js): Meldungen sammeln, Sperren ausliefern
-const rest = { reports: [], mutes: [], chars: [], fail: false };
+const rest = { reports: [], mutes: [], chars: [], bugs: [], fail: false };
 const body = (req) => new Promise((r) => { let d = ''; req.on('data', (c) => { d += c; }); req.on('end', () => r(d ? JSON.parse(d) : null)); });
 http.createServer((req, res) => {
   const u = new URL(req.url, BASE);
@@ -52,9 +52,18 @@ http.createServer((req, res) => {
     const uid = (u.searchParams.get('user_id') || '').replace('eq.', ''), id = (u.searchParams.get('id') || '').replace('eq.', '');
     return send(200, rest.chars.filter((c) => c.user_id === uid && c.id === id).map(({ name, level }) => ({ name, level })));
   }
+  // Fehlermeldungen aus dem Spiel (worker/bugreport.js): ablegen und je Konto/insgesamt seit created_at zählen
+  if (u.pathname === '/rest/v1/bug_reports') {
+    if (rest.fail || !req.headers.apikey) { res.writeHead(503); return res.end(); }
+    if (req.method === 'POST') return body(req).then((b) => { rest.bugs.push({ ...b, created_at: new Date().toISOString() }); res.writeHead(201); res.end(); });
+    const uid = (u.searchParams.get('user_id') || '').replace('eq.', ''), since = Date.parse((u.searchParams.get('created_at') || '').replace('gte.', '')) || 0;
+    return send(200, rest.bugs.filter((x) => (!uid || x.user_id === uid) && Date.parse(x.created_at) >= since).map((_, id) => ({ id })));
+  }
+  if (u.pathname === '/test/bugs') return send(200, rest.bugs);
+  if (u.pathname === '/test/seedbugs') { for (let i = 0; i < Number(u.searchParams.get('n')); i++) rest.bugs.push({ user_id: u.searchParams.get('uid'), message: 'alt', created_at: new Date().toISOString() }); return send(200, {}); }
   if (u.pathname === '/test/char') { rest.chars.push({ user_id: u.searchParams.get('uid'), id: u.searchParams.get('id'), name: u.searchParams.get('name'), level: Number(u.searchParams.get('level')) }); return send(200, {}); }
   if (u.pathname === '/test/reports') return send(200, rest.reports);
-  if (u.pathname === '/test/reset') { Object.assign(rest, { reports: [], mutes: [], chars: [], fail: false }); return send(200, {}); }
+  if (u.pathname === '/test/reset') { Object.assign(rest, { reports: [], mutes: [], chars: [], bugs: [], fail: false }); return send(200, {}); }
   if (u.pathname === '/test/fail') { rest.fail = u.searchParams.get('on') === '1'; return send(200, { fail: rest.fail }); }
   if (u.pathname === '/test/unmute') { rest.mutes = rest.mutes.filter((m) => m.user_id !== u.searchParams.get('uid')); return send(200, {}); }
   if (u.pathname === '/test/mute') { rest.mutes.push({ user_id: u.searchParams.get('uid'), until: new Date(Date.now() + 3600e3).toISOString(), reason: u.searchParams.get('reason') || '' }); return send(200, {}); }

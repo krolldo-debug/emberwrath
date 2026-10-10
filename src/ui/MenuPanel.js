@@ -5,6 +5,8 @@ import { iconUrl } from '../gfx/Icons.js';
 import { EV } from '../core/events.js';
 import { canReviveInInstance } from '../world/instanceRevive.js';
 import { confirmTap } from './confirmTap.js';
+import { collectContext, captureShot, sendBugReport } from './bugReport.js';
+import { tr } from '../i18n/index.js';
 
 // Spielmenü (Panel 'menu', öffnet mit Esc/P oder dem Menü-Knopf). Die Welt läuft dabei weiter.
 export function createMenuPanel(session) {
@@ -64,20 +66,76 @@ export function createMenuPanel(session) {
       : null,
     h('hr.menu-sep'),
     h('button.ef-btn.danger.menu-btn', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); }, title: 'Speichert und kehrt zum Titelbildschirm zurück' }, h('span', 'Zum Titel')),
+    // Bewusst unauffällig (kein eigenes HUD-Element): kleiner Textknopf am Ende des Menüs
+    g.online?.configured ? h('button.menu-btn.menu-report-link', { type: 'button', onclick: () => openReport() }, h('span', 'Fehler melden')) : null,
   );
+
+  // Fehler melden: Beschreibung, optional Bild vom Spiel; Version, Gebiet, Gerät und letzte Fehler gehen automatisch mit.
+  let shot = null, context = null, busy = false, cooldown = 0;
+  const text = h('textarea.menu-report-text', {
+    rows: 4, maxlength: 2000, 'aria-label': 'Beschreibung',
+    oninput: () => update(),
+  });
+  // Platzhalter selbst übersetzen: der Übersetzer lässt Textfelder aus (SKIP_TAGS in i18n/index.js)
+  const HINT = 'Was ist passiert? Was hast du kurz davor gemacht?';
+  const shotBox = h('input', { type: 'checkbox', checked: true });
+  const status = h('p.menu-report-status', { role: 'status' });
+  const send = h('button.ef-btn.menu-btn.menu-report-send', { type: 'button', onclick: () => submit() }, h('span', 'Senden'));
+  const report = h('div.menu-report',
+    text,
+    h('label.menu-report-shot', shotBox, h('span', 'Bild vom Spiel anhängen')),
+    h('p.menu-report-note', 'Version, Gebiet und Gerät werden mitgeschickt.'),
+    send,
+    status,
+  );
+  const update = () => { send.disabled = busy || Date.now() < cooldown || text.value.trim().length < 3; };
+  function openReport() {
+    // Bild sofort aufnehmen: so zeigt es den Moment, in dem das Menü geöffnet wurde, nicht die Zeit danach
+    shot = captureShot(g.canvas);
+    context = collectContext(g, session);
+    shotBox.checked = !!shot; shotBox.disabled = !shot;
+    text.placeholder = tr(HINT);
+    status.textContent = '';
+    page('report');
+    update();
+    if (!document.documentElement.classList.contains('ef-touch')) text.focus();
+  }
+  async function submit() {
+    if (send.disabled) return;
+    busy = true; update();
+    status.textContent = 'Wird gesendet …';
+    const res = await sendBugReport(g, { message: text.value.trim(), context, shot: shotBox.checked ? shot : null });
+    busy = false;
+    const MSG = {
+      ok: 'Danke! Wir sehen uns das an.',
+      auth: 'Bitte zuerst anmelden, dann noch einmal senden.',
+      rate: 'Gerade schon gesendet. Bitte kurz warten.',
+      day: 'Für heute sind genug Meldungen von dir da. Danke!',
+      fail: 'Senden hat nicht geklappt. Bitte später noch einmal versuchen.',
+    };
+    status.textContent = MSG[res];
+    if (res === 'ok') {
+      text.value = ''; cooldown = Date.now() + 30_000;
+      setTimeout(() => { if (root.dataset.page === 'report') page('main'); update(); }, 1800);
+      setTimeout(update, 30_100);
+    }
+    update();
+  }
 
   const root = h('div.ef-panel.menu-panel', { role: 'dialog', 'aria-label': 'Menü', dataset: { page: 'main' } },
     h('div.menu-head', back, title, close),
     main,
     settings,
     help,
+    report,
   );
-  const TITLES = { main: 'Menü', settings: 'Einstellungen', help: 'Steuerung' };
+  const TITLES = { main: 'Menü', settings: 'Einstellungen', help: 'Steuerung', report: 'Fehler melden' };
   function page(id) {
     root.dataset.page = id;
     title.textContent = TITLES[id];
     settings.classList.toggle('open', id === 'settings');
     help.classList.toggle('open', id === 'help');
+    report.classList.toggle('open', id === 'report');
     root.scrollTop = 0;
   }
   return { root };
