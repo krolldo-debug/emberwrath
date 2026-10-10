@@ -4,15 +4,23 @@ import { getHeroSprites, heroRes } from '../sprites/hero.js';
 import { resolveGear, shownEquipment } from '../character/gearLook.js';
 import { spriteStyle } from '../character/cosmetics.js';
 import { RemotePlayer } from './RemotePlayer.js';
+import { RemoteCombat } from './RemoteCombat.js';
 import { NetHud } from './NetHud.js';
-import { SEND_HZ, IDLE_RESEND_S, FLAG_DEAD, FLAG_RIDING, FLAG_COMBAT, LOOK_SLOTS, LOOK_MIN_MS, cleanLook } from './protocol.js';
+import {
+  SEND_HZ, IDLE_RESEND_S, FLAG_DEAD, FLAG_RIDING, FLAG_COMBAT, LOOK_SLOTS, LOOK_MIN_MS, FX_MAX,
+  FX_UPGRADED, FX_MULTISHOT, FX_INFERNO, FX_INFERNO_BIG, FX_PIERCE, cleanLook, cleanFx,
+} from './protocol.js';
 
 // Sitzungssystem 'net' (eine Spielsitzung = PlayScene): verbindet NetClient und Welt.
 //  - andere Spieler als RemotePlayer in world.entities (auch nach Zonenwechsel), Figuren aus ihrem Abbild
 //  - eigener Zustand (Position, Richtung, Animation, Flags) höchstens SEND_HZ pro Sekunde, nur bei Änderung
 //  - Aussehen/Ausrüstung/Stufe bei Änderung
+//  - Kampfereignisse (Grundangriff, Fähigkeit) mit dem Zustand, der die neue Animation meldet; bei anderen spielt
+//    RemoteCombat sie zur Anzeige ab (Geschosse, Hiebbögen, Zauber)
 //  - Namensschilder über anderen Spielern, HUD (Welt, Spielerzahl, Weltwechsel, Zonen-Chat)
 const MAX_FINE = 12; // höchstens so viele fremde Figuren in voller Feinheit, der Rest einfacher (Speicher auf Handys)
+// Fähigkeiten, deren Geschosse geradeaus fliegen: Ziel ist der Gegner auf der Schusslinie, sonst der im Blickkegel
+const STRAIGHT = new Set(['volley', 'piercing_shot', 'fan_of_knives', 'fireball']);
 
 // Abbild des eigenen Helden für andere (INTEGRATION §12.9), Ausrüstung nur als Gegenstands-IDs (siehe protocol.js).
 export function lookOf(session) {
@@ -66,12 +74,18 @@ export class NetSession {
     this.lookJson = '';
     this.lookCheck = 0;
     this.hud = new NetHud(session, net);
+    this.combat = new RemoteCombat(session);
+    this.fx = [];       // eigene Kampfereignisse bis zum nächsten Zustand
     const c = this.client;
     this.offs = [
       c.on('welcome', (m) => { this.#clear(); for (const p of m.players ?? []) this.#add(p); this.lookJson = ''; this.lastSent = null; this.hud.onWelcome(m, this.remotes.size); }),
       c.on('join', (m) => { this.#add(m.p); this.hud.population(this.remotes.size); }),
       c.on('leave', (m) => { this.#remove(m.id); this.hud.population(this.remotes.size); }),
-      c.on('u', (m) => { const now = performance.now(); for (const s of m.s ?? []) this.remotes.get(s[0])?.push(s.slice(1), now); }),
+      c.on('u', (m) => {
+        const now = performance.now();
+        for (const s of m.s ?? []) this.remotes.get(s[0])?.push(s.slice(1), now);
+        if (Array.isArray(m.fx)) for (const f of m.fx) { const r = Array.isArray(f) && this.remotes.get(f[0]); if (r) r.pushFx(cleanFx(f.slice(1))); }
+      }),
       c.on('look', (m) => this.#setLook(m.id, m.look, m.level)),
       c.on('chat', (m) => { const r = this.remotes.get(m.id); this.hud.chat(m, m.id === c.selfId, r ? { id: r.netId, k: r.k, name: r.name } : { id: m.id, name: m.name }); }),
       c.on('resync', () => { this.lookJson = ''; this.lastSent = null; }),
@@ -81,6 +95,8 @@ export class NetSession {
     this.hud.status({ status: c.status, zone: c.zone, world: c.world, cap: c.cap }, 0);
     // Aussehen bei Ausrüstungs-/Stufenwechsel sofort prüfen
     session.bus.on(EV.STATE_CHANGED, () => { this.lookCheck = 0; });
+    // Eigene Fähigkeiten für andere (abilities.js meldet 'ability' nach dem Start)
+    this.offs.push(session.bus.on('ability', (e) => { if (e.actor === this.s.world?.hero) this.#queueFx('k', e.abilityId, e.actor); }));
   }
 
   // Daten für die erste Nachricht an einen Shard
@@ -103,6 +119,7 @@ export class NetSession {
     if (next && this.remotes.get(next.netId) === next) this.#build(next);
     const now = performance.now();
     for (const r of this.remotes.values()) r.tick(dt, now);
+    this.combat.update(dt, this.remotes.values());
     if (this.client.online && world?.hero) this.#sendOwn(dt, now);
     this.hud.update(dt);
   }
@@ -137,6 +154,7 @@ export class NetSession {
     if (!p || p.id === this.client.selfId) return;
     this.#remove(p.id);
     const r = new RemotePlayer(p);
+    r.onFx = (who, e) => this.combat.play(who, e);
     this.remotes.set(p.id, r);
     this.#attach(r);
     this.buildQueue.push(r);
@@ -183,8 +201,16 @@ export class NetSession {
     if (!h) return [0, 0, 1, 'idle', 0, 0, Math.round(now)];
     const a = h.animator;
     const name = a?.name || 'idle';
-    if (name !== this.animName || (a && a.time + 1e-6 < this.animTime)) this.animSeq++;
+    // Neustart derselben Animation: Zeit springt zurück. Gehaltene Phasen-Frames (setPhaseFrame) schwanken nur um
+    // Bruchteile eines Frames und zählen nicht als Neustart.
+    if (name !== this.animName || (a && a.time + 0.03 < this.animTime)) {
+      this.animSeq++;
+      // Neuer Grundangriff (Fähigkeiten kommen über das Ereignis 'ability')
+      if (h.state === 'attack' && /^atk/.test(name)) this.#queueFx('a', h.combo ?? 0, h, now);
+    }
     this.animName = name; this.animTime = a?.time ?? 0;
+    // Fähigkeiten aus diesem Frame bekommen die Zeit dieses Zustands: der Empfänger spielt sie mit seiner Animation ab
+    for (const e of this.fx) if (e[1] == null) e[1] = Math.round(now);
     const ch = this.s.state.slices.character ?? {};
     let fl = 0;
     if (h.dead) fl |= FLAG_DEAD;
@@ -209,8 +235,46 @@ export class NetSession {
     const animChanged = !prev || prev[3] !== s[3] || prev[4] !== s[4] || prev[5] !== s[5];
     const moved = !prev || prev[0] !== s[0] || prev[1] !== s[1] || prev[2] !== s[2];
     const since = now - this.lastSentAt;
-    const due = (moved && since >= 1000 / SEND_HZ) || (animChanged && since >= 50) || since >= IDLE_RESEND_S * 1000;
+    const fx = this.fx.length > 0;
+    const due = (moved && since >= 1000 / SEND_HZ) || ((animChanged || fx) && since >= 50) || since >= IDLE_RESEND_S * 1000;
     if (!due) return;
-    if (this.client.send({ t: 's', s })) { this.lastSent = s; this.lastSentAt = now; }
+    const msg = fx ? { t: 's', s, fx: cleanFx(this.fx) } : { t: 's', s };
+    if (this.client.send(msg)) { this.lastSent = s; this.lastSentAt = now; this.fx = []; }
+  }
+
+  // Kampfereignis [k, t, id, ang, fl, tx, ty, th, tr] (protocol.js)
+  #queueFx(kind, id, h, now = null) {
+    if (!this.client.online) return;
+    const ang = h.aimAngle ?? (h.facing < 0 ? Math.PI : 0);
+    const st = h.stats ?? {}, P = st.passives ?? {};
+    let fl = 0;
+    if (kind === 'k' && st.upgrades?.[id]) fl |= FX_UPGRADED;
+    if (kind === 'a') {
+      if (P.multishot) fl |= FX_MULTISHOT;
+      if (P.piercing_arrows) fl |= FX_PIERCE;
+      if (P.inferno) fl |= FX_INFERNO | ((st.mastery?.infernoPct ?? 0.5) > 0.5 ? FX_INFERNO_BIG : 0);
+    }
+    const basic = h.cls?.basic;
+    const ranged = kind === 'a' ? basic?.kind === 'ranged' : STRAIGHT.has(id);
+    const t = kind === 'a' && !ranged ? null : this.#fxTarget(h, ang, ranged, kind === 'a' ? basic.shot.range : ranged ? 260 : 170);
+    this.fx.push([kind, now == null ? null : Math.round(now), id, Math.round(ang * 1000), fl,
+      t ? Math.round(t.x) : 0, t ? Math.round(t.y) : 0, t ? Math.round(t.y - t.centerY) : 0, t ? Math.max(1, Math.round(t.hurtRadius ?? 7)) : 0]);
+    if (this.fx.length > FX_MAX) this.fx.shift();
+  }
+
+  // Anvisierter Gegner: auf der Schusslinie (Geschosse) bzw. im Blickkegel (Flächenzauber, Sprünge)
+  #fxTarget(h, ang, straight, range) {
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    let best = null, bestD = Infinity;
+    for (const e of this.s.world?.enemies ?? []) {
+      if (e.dead || e.rise < 1) continue;
+      const ex = e.x - h.x, ey = e.centerY - (h.y - 8);
+      const along = ex * dx + ey * dy;
+      if (along <= 0 || along > range) continue;
+      const side = Math.abs(ex * dy - ey * dx);
+      if (straight ? side > (e.hurtRadius ?? 7) + 4 : side > along * 0.8) continue;
+      if (along < bestD) { bestD = along; best = e; }
+    }
+    return best;
   }
 }

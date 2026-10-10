@@ -9,6 +9,7 @@ import { INTERP_DELAY_MS, EXTRAPOLATE_MS, FLAG_DEAD, FLAG_RIDING } from './proto
 // Die Uhr des Senders (s[6]) wird über den kleinsten beobachteten Versatz auf die eigene Uhr abgebildet;
 // so bleibt die Bewegung gleichmäßig, auch wenn Pakete gebündelt oder unregelmäßig ankommen.
 const MAX_SAMPLES = 40;
+const FX_STALE_MS = 1500; // Kampfereignisse, die so weit hinter der Darstellung liegen, verfallen (z. B. nach Tab-Pause)
 const SNAP_DIST = 96; // größere Sprünge (Wiederbeleben, Portal) nicht interpolieren
 
 export class RemotePlayer extends Entity {
@@ -30,7 +31,39 @@ export class RemotePlayer extends Entity {
     this.shadowW = 14;
     this.alpha = 0;         // sanftes Einblenden
     this.team = 'remote';
+    // Kampf zur Anzeige (RemoteCombat): wartende Ereignisse und Felder, die abilities.js an einem Helden erwartet
+    this.fx = [];
+    this.onFx = null;
+    this.action = null;
+    this.stats = { upgrades: {}, passives: {}, mastery: {}, critChance: 0 };
+    this.skillState = {};
+    this.aimAngle = 0;
+    this.vx = 0; this.vy = 0; this.kbx = 0; this.kby = 0; this.invuln = 0;
+    this.abilities = [];
     if (info.s) this.push(info.s);
+  }
+
+  // abilities.js ruft diese am Helden auf; bei Mitspielern ohne Wirkung (Schaden und Werte rechnet ihr eigenes Spiel)
+  damageFor() { return 0; }
+  buff() {}
+  gainResource() {}
+  currentFrame() { return this.animator?.frame; }
+
+  // Wie Hero.setPhaseFrame: Frame innerhalb der Angriffsphase, damit Angriffe genauso aussehen wie beim Sender
+  setPhaseFrame(phase, k) {
+    const anim = this.animator?.current;
+    if (!anim?.frames?.length) return;
+    const n = anim.frames.length;
+    const r = anim.phases?.[phase] ?? (phase === 'windup' ? [0, 0] : phase === 'active' ? [1, Math.max(1, n - 2)] : [n - 1, n - 1]);
+    const span = r[1] - r[0] + 1;
+    const fi = r[0] + Math.min(span - 1, Math.floor(Math.max(0, Math.min(1, k)) * span));
+    this.animator.time = (fi + 0.5) / anim.fps;
+  }
+
+  // Kampfereignisse [k, t, …] (protocol.js); abgespielt, sobald die Darstellung ihren Zeitpunkt erreicht
+  pushFx(list) {
+    for (const e of list) this.fx.push(e);
+    if (this.fx.length > 12) this.fx.splice(0, this.fx.length - 12);
   }
 
   get dead() { return (this.flags & FLAG_DEAD) !== 0; }
@@ -85,6 +118,10 @@ export class RemotePlayer extends Entity {
     this.facing = a.f;
     this.flags = a.fl;
     this.#playAnim(a.a, a.n);
+    while (this.fx.length && this.fx[0][1] <= T) {
+      const e = this.fx.shift();
+      if (T - e[1] < FX_STALE_MS) this.onFx?.(this, e);
+    }
   }
 
   #playAnim(name, n) {

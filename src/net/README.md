@@ -7,6 +7,12 @@ Stand 30.09.2026, Stufe 1.
 - In offenen Gebieten sieht man alle anderen Spieler derselben Welt: Name, Stufe, Volk, Klasse, Aussehen, sichtbare
   Ausrüstung, Lauf-, Angriffs-, Fähigkeits-, Ausweich- und Todesanimation. Die Bewegung wird flüssig interpoliert
   (200 ms Verzögerung, Senderuhr-Abgleich, kurzes Weiterschieben bei verspäteten Paketen).
+- **Kampf der Mitspieler** (nur Anzeige): Grundangriffe, Geschosse, Hiebbögen und alle Klassenfähigkeiten samt Effekten
+  und Klang. Die Ereignisse reisen mit dem Zustand, der die neue Animation meldet (Feld `fx`, keine zusätzlichen
+  Nachrichten). `RemoteCombat.js` spielt sie mit demselben Code wie beim eigenen Helden (`character/abilities.js`) ab,
+  aber in einer Sicht ohne Gegner, Trefferzonen, Bildschirmwackeln und Spielstand: eigene Gegner, Beute, EP bleiben
+  unberührt. Der anvisierte Gegner des Senders reist mit, damit Pfeile dort enden und Flächenzauber dort landen.
+  Nur für Mitspieler in Bildnähe.
 - **Welten:** Jede offene Zone hat je Welt höchstens 40 Spieler (ein Durable Object je Zone × Welt). Ist Welt 1 voll,
   landet man automatisch in Welt 2 usw. Beim Zonenwechsel bleibt man, wenn möglich, in derselben Welt-Nummer.
   Klick auf „Welt 1 · 12 Spieler“ unter dem Zonennamen öffnet die Weltwahl.
@@ -17,8 +23,8 @@ Stand 30.09.2026, Stufe 1.
 
 ## Was noch nicht (Stufe 2)
 
-- Gegner, Beute, Truhen, Quests und Kampf rechnet weiter jeder Client selbst. Zwei Spieler sehen einander, aber nicht
-  dieselben Gegner; Treffer zwischen Spielern gibt es nicht. Stufe 2 macht den Shard zur Autorität (Gegner-Zustände `e`,
+- Gegner, Beute, Truhen, Quests und Kampf rechnet weiter jeder Client selbst. Zwei Spieler sehen einander und ihre
+  Angriffe, aber nicht dieselben Gegner; Treffer zwischen Spielern gibt es nicht. Stufe 2 macht den Shard zur Autorität (Gegner-Zustände `e`,
   Treffer, Beute pro Spieler gewürfelt) – das braucht den darstellungsfreien Simulationskern aus docs/MULTIPLAYER.md §6.1.
 - Dungeon-Instanzen und Glutprüfungen sind ohne Verbindung (man ist dort allein). Gruppen für bis zu 5 kommen mit Stufe 2.
 - Reittiere: Abbild und Flag `riding` werden schon übertragen. Die Reiterfigur zeichnet RemotePlayer, sobald Bereich A
@@ -33,6 +39,7 @@ Stand 30.09.2026, Stufe 1.
 | `src/net/NetAuthority.js` | ersetzt `LocalAuthority` (gleiche Form); `joinZone` verbindet in offenen Gebieten |
 | `src/net/NetSession.js` | Sitzungssystem `net`: RemotePlayer in `world.entities`, eigener Zustand senden, Namensschilder |
 | `src/net/RemotePlayer.js` | anderer Spieler: Interpolation, Animation |
+| `src/net/RemoteCombat.js` | Kampf anderer Spieler zur Anzeige (Geschosse, Hiebe, Fähigkeiten) |
 | `src/net/NetHud.js`, `net.css` | Welt-Anzeige, Weltwahl, Chat |
 | `worker/index.js` | Worker: `/net/ws`, `/net/worlds`, `/net/status`, sonst statische Dateien |
 | `worker/shard.js` | Durable Object `ZoneShard` (WebSocket-Hibernation, Bündelung alle 50 ms, Rate-Limit) |

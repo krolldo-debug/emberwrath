@@ -6,12 +6,13 @@ import { REPORT_REASONS, saveReport, activeMutes, loadCharacter } from './modera
 import { nameProblem } from '../src/net/names.js';
 import { ITEMS } from '../src/progression/items.js';
 import {
-  NET_VERSION, BROADCAST_MS, LOOK_MIN_MS, cleanState, cleanLook, cleanChat, cleanLevel, cleanText, shardName,
+  NET_VERSION, BROADCAST_MS, LOOK_MIN_MS, FX_MAX, cleanState, cleanFx, cleanLook, cleanChat, cleanLevel, cleanText, shardName,
   REPORT_NOTE_MAX, LEVEL_MAX, NAME_MAX,
 } from '../src/net/protocol.js';
 
 // Ein Shard = eine offene Zone in einer Welt ('<zoneId>~<welt>'), ein Durable Object.
-// Stufe 1: Der Shard verteilt Position, Animation, Aussehen und Chat der Spieler an alle anderen im selben Shard.
+// Stufe 1: Der Shard verteilt Position, Animation, Kampfereignisse (nur Anzeige), Aussehen und Chat der Spieler an alle
+// anderen im selben Shard.
 // Gegner, Beute und Kampf rechnet noch jeder Client selbst (Stufe 2: serverseitig, siehe src/net/README.md).
 //
 // Kosten: WebSocket-Hibernation. Solange niemand etwas sendet (alle stehen), schläft das Objekt und kostet keine
@@ -105,7 +106,12 @@ export class ZoneShard extends DurableObject {
     switch (m.t) {
       case 's': {
         const s = cleanState(m.s);
-        if (s) { p.s = s; this.#markDirty(ws); }
+        if (!s) break;
+        p.s = s;
+        // Kampfereignisse (nur Anzeige) bis zum nächsten Paket sammeln; der Zustand allein ersetzt nur den vorigen
+        const fx = m.fx ? cleanFx(m.fx) : null;
+        if (fx?.length) p.fx = (p.fx ?? []).concat(fx).slice(-FX_MAX);
+        this.#markDirty(ws);
         break;
       }
       case 'look': {
@@ -324,15 +330,16 @@ export class ZoneShard extends DurableObject {
   #flush() {
     this.flushTimer = null;
     if (!this.dirty.size) return;
-    const s = [];
+    const s = [], fx = [];
     for (const ws of this.dirty) {
       const p = this.players.get(ws);
       if (!p || p.pending) continue;
       s.push([p.id, ...p.s]);
+      if (p.fx) { fx.push([p.id, ...p.fx]); p.fx = null; }
       this.#attach(ws, p);
     }
     this.dirty.clear();
-    if (s.length) this.#broadcast({ t: 'u', s });
+    if (s.length) this.#broadcast(fx.length ? { t: 'u', s, fx } : { t: 'u', s });
   }
 
   // Anhang überlebt den Ruhezustand (max. 2 KB): alles außer dem Aussehen.
