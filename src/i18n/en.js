@@ -4402,5 +4402,11 @@ export const EN = {
   "Wochentruhe": "Weekly Chest",
   "Jagd: {0}": "Hunt: {0}",
   "Lieferung: {0}": "Delivery: {0}",
-  "Ziel: {0}.": "Target: {0}."
+  "Ziel: {0}.": "Target: {0}.",
+  "Ausrüstungsteil ({0})": "Gear piece ({0})",
+  "{0} Aufträge in einer Woche.": "{0} bounties in one week.",
+  "Aufträge": "Bounties",
+  "Diese Woche": "This week",
+  "Neu in {0} h {1} min": "New in {0} h {1} min",
+  "Neu in {0} min": "New in {0} min"
 };
