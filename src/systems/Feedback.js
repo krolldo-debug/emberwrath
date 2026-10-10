@@ -1,7 +1,7 @@
 import { CONFIG } from '../config.js';
 import { PAL } from '../gfx/Palette.js';
 import { Light } from '../gfx/Lighting.js';
-import { FloatingText, Shockwave, LightPillar, ImpactStar, NovaBurst, SpinVortex, RiftFlash, ChargeGlow, SoulWisp, DamageNumber, XpOrb, LevelUpBurst, LootBeam, CoinFountain } from '../entities/Effects.js';
+import { FloatingText, Shockwave, LightPillar, ImpactStar, NovaBurst, SpinVortex, RiftFlash, ChargeGlow, SoulWisp, DamageNumber, XpOrb, LevelUpBurst, LootBeam, CoinFountain, PixelFlash } from '../entities/Effects.js';
 import { rarityRgb } from '../gfx/Icons.js';
 import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
@@ -23,6 +23,9 @@ const ASH = ['#6e6450', '#4a4238'];
 // Belohnungsrunde: Beute-Strahl je Seltenheit (Stärke 1–3), Seelenfunken je Gegnerart
 const BEAM_TIER = { rare: 1, epic: 2, legendary: 3 };
 const MULTI_WINDOW = 0.35; // Sekunden, in denen 3+ Kills als Mehrfach-Kill zählen
+const ORB_CAP = 30;        // höchstens so viele Seelenfunken gleichzeitig
+const NUM_MAX = 2;         // höchstens so viele Schadenszahlen je Ziel gleichzeitig
+const NUM_MERGE = 0.3;     // Treffer am selben Ziel innerhalb dieser Zeit ergeben eine Zahl
 
 // "Game Feel": übersetzt Gameplay-Events in Hitstop, Screenshake, Partikel,
 // Licht, Schadenszahlen und Sound. Einziger Ort für Treffer-Feedback.
@@ -37,6 +40,9 @@ export class FeedbackSystem {
     this.kills = [];        // Zeitpunkte eigener Kills (Mehrfach-Kill)
     this.multiDone = 0;     // bis wann der aktuelle Mehrfach-Kill schon gefeiert wurde
     this.orbChain = 0; this.orbAt = 0; // Tonleiter der eingesammelten Seelenfunken
+    this.nums = new WeakMap();          // Ziel -> sichtbare Schadenszahlen
+    this.hitAt = new WeakMap();         // Ziel -> Zeitpunkt des letzten Treffers (Umriss bei Mehrfachtreffern aus)
+    this.burstAt = 0; this.burstN = 0;  // Treffer im selben Moment (Flächenangriffe)
     const bus = game.bus;
     bus.on('hit', (e) => this.#onHit(e));
     bus.on('swing', (e) => this.#sfx(e.heavy ? 'swingHeavy' : 'swing'));
@@ -145,7 +151,6 @@ export class FeedbackSystem {
       this.#sfx('questDone');
       this.#aura({ actor: h, element: 'holy' });
       w.addEffect(new CoinFountain(h.x, h.y, { count: 16 }));
-      this.#flash([255, 230, 150], 0.18, 0.45);
     });
     bus.on(EV.LOOT_DROPPED, (e) => this.#lootDropped(e));
     bus.on(EV.BOSS_ENGAGED, () => {
@@ -161,7 +166,7 @@ export class FeedbackSystem {
       w.addEffect(new LightPillar(e.x, e.y, { color: '#ffd66a', life: 1.6 }));
       w.addEffect(new CoinFountain(e.x, e.y, { count: 26, life: 1.5, spread: 1.6 }));
       w.particles.element(e.x, e.y - 10, 'holy', 60, 40);
-      this.#flash([255, 220, 140], 0.4, 0.9);
+      w.addEffect(new PixelFlash(e.x, e.y, { size: 34, life: 0.3, offY: -16 }));
       this.#sfx('victory');
     });
     // Atmo und Musik je Zone: audio/Soundscape.js
@@ -190,8 +195,21 @@ export class FeedbackSystem {
     this.game.world.addEffect(new FloatingText(x, y, text, { color, scale, font: this.game.font, life }));
   }
 
-  // Kurzer farbiger Bildschirmschimmer (ui/ScreenFx.js); rgb, Stärke 0..1, Dauer
-  #flash(rgb, a, dur) { this.game.bus.emit('screenFlash', { rgb, a, dur }); }
+  // Schadenszahlen je Ziel: abwechselnd links/rechts, jede weitere etwas weiter außen;
+  // Treffer innerhalb NUM_MERGE oder ab NUM_MAX sichtbaren Zahlen am selben Ziel zählen die jüngste hoch.
+  #number(t, e) {
+    const list = (this.nums.get(t) ?? []).filter((n) => !n.removed);
+    const kind = e.crit ? 'crit' : e.killed ? 'kill' : 'normal';
+    const last = list[list.length - 1];
+    // Treffer kurz hintereinander (0,3 s) oder schon NUM_MAX Zahlen: in die jüngste Zahl addieren
+    if (last && (last.age < NUM_MERGE || list.length >= NUM_MAX)) { last.add(e.damage, e.crit); this.nums.set(t, list); return; }
+    const side = last ? -(last.side ?? 1) : (Math.random() < 0.5 ? -1 : 1);
+    // mindestens eine Ziffernbreite seitlich versetzt, damit Zahlen nicht zu einer verkleben
+    const n = this.game.world.addEffect(new DamageNumber(e.x + (last ? side * 8 : 0), e.y - 10, e.damage, { font: this.game.font, kind, side, lane: list.length }));
+    n.side = side;
+    list.push(n);
+    this.nums.set(t, list);
+  }
 
   #lowQuality() { return document.documentElement.dataset.quality === 'low'; }
 
@@ -215,13 +233,14 @@ export class FeedbackSystem {
           w.particles.ring(b.x, b.y - 3, 4, 8 + tier * 6, ['#ffffff', `rgb(${rgb.join(',')})`], 40 + tier * 15);
           w.addLight(new Light({ x: b.x, y: b.y - 6, radius: 40 + tier * 25, color: rgb, intensity: 1.1, ttl: 0.35 + tier * 0.15, bloom: 0.6 }));
           if (tier >= 2) this.#shake(1.5 + tier);
+          if (tier === 3) w.addEffect(new PixelFlash(b.x, b.y, { color: `#${rgb.map((v) => v.toString(16).padStart(2, '0')).join('')}`, size: 26, life: 0.28, offY: -6 }));
         },
       }));
     }
     if (!best) return;
     this.#sfx('lootBeam', { tier: best });
-    if (best === 3) { this.game.slowmo(0.35, 0.5); this.#flash([255, 170, 60], 0.2, 0.7); }
-    else if (best === 2) { this.game.hitstop(0.06); this.#flash([190, 120, 255], 0.16, 0.45); }
+    if (best === 3) this.game.slowmo(0.35, 0.55);
+    else if (best === 2) this.game.hitstop(0.06);
   }
 
   // Seelenfunken: fliegen vom besiegten Gegner in den Helden; jeder eingesammelte
@@ -229,17 +248,20 @@ export class FeedbackSystem {
   #orbs(t) {
     const w = this.game.world, h = w.hero;
     if (!h || h.dead) return;
-    let n = t.def?.boss || t.boss ? 18 : t.champion || t.elite || t.def?.elite ? 7 : 3;
+    let n = t.def?.boss || t.boss ? 14 : t.champion || t.elite || t.def?.elite ? 5 : 3;
+    const now = performance.now() / 1000;
+    if (this.kills.filter((k) => now - k < MULTI_WINDOW).length >= 2) n = 1;   // Mehrfach-Kills: ein Funke je Gegner
     if (this.#lowQuality()) n = Math.ceil(n / 2);
+    n = Math.min(n, ORB_CAP - XpOrb.live);             // Deckel für alle gleichzeitig fliegenden Funken
     const y = t.centerY ?? t.y - 8;
     for (let i = 0; i < n; i++) {
       w.addEffect(new XpOrb(t.x, y, h, {
-        delay: 0.28 + i * 0.03,
+        delay: 0.08 + i * 0.025,
         onAbsorb: () => {
           const now = performance.now() / 1000;
           this.orbChain = now - this.orbAt < 0.6 ? Math.min(this.orbChain + 1, 14) : 0;
           this.orbAt = now;
-          w.particles.ring(h.x, h.y - 10, 3, 5, ['#ffffff', '#e0d0ff', '#a080f0'], 26);
+          w.particles.ring(h.x, h.y - 10, 3, 4, ['#fff0b0', '#ffb640', '#f07a1c'], 24);
           this.#sfx('orb', { step: this.orbChain });
         },
       }));
@@ -257,8 +279,7 @@ export class FeedbackSystem {
     g.slowmo(0.3, 0.32);
     this.#shake(3);
     w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 46, color: '#ffd66a', life: 0.5 }));
-    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 30, color: '#ffffff', life: 0.35 }));
-    this.#flash([255, 200, 120], 0.14, 0.35);
+    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 30, color: '#fff0b0', life: 0.35 }));
     this.#sfx('multiKill', { count: this.kills.length });
     g.bus.emit('multiKill', { count: this.kills.length });
   }
@@ -269,12 +290,12 @@ export class FeedbackSystem {
     w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 40, color: '#ffe8a0', life: 0.6 }));
     w.addLight(new Light({ follow: h, offsetY: -12, radius: 120, color: [255, 214, 120], intensity: 1.2, ttl: 1.4, bloom: 0.6 }));
     w.addEffect(new LevelUpBurst(h));
-    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 70, color: '#ffd66a', life: 0.9 }));
-    w.particles.element(h.x, h.y - 8, 'holy', 60, 14);
-    w.lighting.ambientBoost = 0.9;
+    w.addEffect(new Shockwave(h.x, h.y - 2, { radius: 64, color: '#ffd66a', life: 0.9 }));
+    w.addEffect(new PixelFlash(h.x, h.y, { follow: h, size: 30, life: 0.3, offY: -12 }));
+    w.particles.element(h.x, h.y - 8, 'holy', 36, 14);
+    w.lighting.ambientBoost = 0.3;   // nur leicht: kein Schleier über dem ganzen Bild
     g.slowmo(0.45, 0.45);
     this.#shake(3);
-    this.#flash([255, 220, 140], 0.26, 0.8);
     // Text „Stufe N“ zeigt das HUD-Banner; hier nur Licht und Funken
     this.#sfx('levelUp');
   }
@@ -409,13 +430,29 @@ export class FeedbackSystem {
       g.hitstop(e.killed ? F.hitstopKill : e.heavy ? F.hitstopHeavy : F.hitstopLight);
       this.#shake(e.heavy ? F.shakeHeavy : F.shakeLight);
       this.#kick(e.dirX * (e.heavy ? 3 : 1.5), e.dirY * (e.heavy ? 3 : 1.5));
-      w.particles.sparks(e.x, e.y, ang, e.heavy ? 14 : 8);
-      w.addEffect(new ImpactStar(e.x, e.y, { size: e.crit ? 11 : e.heavy ? 8 : 6, color: e.crit ? '#ffe070' : '#ffc890', rays: e.crit ? 8 : 4, angle: ang, life: e.crit ? 0.2 : 0.13 }));
-      if (e.crit) w.addEffect(new Shockwave(e.x, e.y + 4, { radius: 14, color: '#ffe070', life: 0.25 }));
-      w.addLight(new Light({ x: e.x, y: e.y, radius: e.heavy ? 60 : 38, color: [255, 200, 130], intensity: 1, ttl: 0.12, bloom: 0.5 }));
+      // Flächentreffer (Wirbelsturm, Fächer …) treffen viele Ziele im selben Moment: Lichter, Sterne und Funken
+      // nur für die ersten zwei, sonst addieren sie sich zu einer weißen Fläche
+      const now = performance.now();
+      if (now - this.burstAt > 70) { this.burstAt = now; this.burstN = 0; }
+      const full = this.burstN++ < 2;
+      w.particles.sparks(e.x, e.y, ang, full ? (e.heavy ? 14 : 8) : 3);
+      if (full) {
+        w.addEffect(new ImpactStar(e.x, e.y, { size: e.crit ? 10 : e.heavy ? 8 : 6, color: e.crit ? '#ffe070' : '#ffc890', rays: e.crit ? 8 : 4, angle: ang, life: e.crit ? 0.16 : 0.13 }));
+        w.addLight(new Light({ x: e.x, y: e.y, radius: e.heavy ? 60 : 38, color: [255, 200, 130], intensity: 1, ttl: 0.12, bloom: 0.5 }));
+      }
+      if (e.crit && full) w.addEffect(new Shockwave(e.x, e.y + 4, { radius: 14, color: '#ffe070', life: 0.25 }));
       this.#material(t, e, ang, e.killed ? 2.2 : 1);
-      w.addEffect(new DamageNumber(e.x, e.y - 10, e.damage, { font: g.font, kind: e.crit ? 'crit' : e.killed ? 'kill' : 'normal' }));
-      if (e.crit) { this.#kick(e.dirX * 2, e.dirY * 2); w.particles.sparks(e.x, e.y, ang, 10, ['#ffffff', '#fff0b0', '#ffe070', '#ffb640']); }
+      // Weißer Treffer-Umriss nur kurz: bei Kills mit Zeitlupe/Hitstop würde er sonst als weiße Fläche stehen bleiben
+      // Weißer Treffer-Umriss nur noch bei Bossen (gedämpft, nicht bei schnellen Mehrfachtreffern).
+      // Bei normalen Gegnern stand er durch Hitstop/Zeitlupe als weiße Silhouette über Held und Gegner;
+      // Treffer lesen sich dort über Zahl, Funken und Rückstoß.
+      const prev = this.hitAt.get(t) ?? -1e9; this.hitAt.set(t, now);
+      if (t.flash > 0) {
+        if (!(t.def?.boss || t.boss) || e.killed || now - prev < 150 || !full) t.flash = 0;
+        else { t.flash = Math.min(t.flash, 0.05); t.flashMax = Math.min(t.flashMax ?? 1, 0.55); }
+      }
+      this.#number(t, e);
+      if (e.crit) { this.#kick(e.dirX * 2, e.dirY * 2); w.particles.sparks(e.x, e.y, ang, full ? 8 : 2, ['#ffe070', '#ffb640', '#ff8a2a']); }
       this.#sfx(e.crit ? 'crit' : 'hit');
       if (e.killed) this.#onKill(e, ang);
     } else {
@@ -462,7 +499,7 @@ export class FeedbackSystem {
     this.#orbs(t);
     if (!e.attacker?.companion) this.#multiKill();
     w.lighting.ambientBoost = 0.35;
-    w.particles.ring(t.x, t.centerY, 4, 14, ['#fff0b0', '#ffb640', '#c8420c'], 90);
+    w.particles.ring(t.x, t.centerY, 4, this.burstN > 2 ? 5 : 14, ['#ffd66a', '#ffb640', '#c8420c'], 90);
     w.decals.scorch(t.x, t.y + 1, 9);
     w.addEffect(new SoulWisp(t.x, t.centerY ?? t.y - 8, { color: t.material === 'bone' ? '#c6a8ff' : '#ffd9a0' }));
     const v = voiceFor(t);

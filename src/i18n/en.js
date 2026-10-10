@@ -4297,5 +4297,7 @@ export const EN = {
   "Gemetzel": "Carnage",
   "Entfesselt": "Unleashed",
   "Unaufhaltsam": "Unstoppable",
-  "Glutzorn": "Ember Wrath"
+  "Glutzorn": "Ember Wrath",
+  "Legendäre Beute": "Legendary loot",
+  "Erfolge errungen": "Achievements Earned"
 };

@@ -18,12 +18,6 @@ export class ScreenFx {
     this.s = session;
     this.t = 0;
     this.size = '';
-    // Belohnungs-Schimmer (Feedback: Stufenaufstieg, legendäre Beute, Boss): { rgb, a, dur }
-    this.flash = null;
-    session.bus.on('screenFlash', (e) => {
-      if (this.flash && this.flash.a * (1 - this.flash.t / this.flash.dur) > e.a) return;
-      this.flash = { rgb: e.rgb ?? [255, 220, 140], a: e.a ?? 0.3, dur: e.dur ?? 0.5, t: 0 };
-    });
   }
   #build(W, H) {
     this.size = `${W}x${H}`;
@@ -38,10 +32,7 @@ export class ScreenFx {
     gctx.fillStyle = lg; gctx.fillRect(0, 0, W, H);
     this.hurt = radial(W, H, 0.3, 0.6, 'rgba(160,10,20,0)', 'rgba(170,12,24,0.8)');
   }
-  update(dt) {
-    this.t += dt;
-    if (this.flash && (this.flash.t += dt) >= this.flash.dur) this.flash = null;
-  }
+  update(dt) { this.t += dt; }
   draw(ctx) {
     const W = CONFIG.viewWidth, H = CONFIG.viewHeight;
     if (this.size !== `${W}x${H}`) this.#build(W, H);
@@ -50,14 +41,6 @@ export class ScreenFx {
     ctx.drawImage(this.grade, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.vignette, 0, 0);
-    if (this.flash) {
-      // schnell an, weich aus; 'screen' hellt auf, ohne Farben auszuwaschen
-      const f = this.flash, k = f.t / f.dur, a = f.a * (k < 0.08 ? k / 0.08 : Math.pow(1 - (k - 0.08) / 0.92, 2));
-      ctx.globalCompositeOperation = 'screen';
-      ctx.fillStyle = `rgba(${f.rgb[0]},${f.rgb[1]},${f.rgb[2]},${a.toFixed(3)})`;
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = 'source-over';
-    }
     const low = !hero.dead && hero.hp / hero.maxHp < 0.3;
     const a = Math.max(s.hurtFlash, low ? 0.22 + 0.18 * Math.sin(this.t * 6) : 0);
     if (a > 0) { ctx.globalAlpha = a; ctx.drawImage(this.hurt, 0, 0); ctx.globalAlpha = 1; }

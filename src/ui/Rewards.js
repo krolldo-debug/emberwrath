@@ -13,7 +13,8 @@ import { fmtNum } from '../i18n/index.js';
 //  - Fähigkeit wieder bereit: Glanz über den Knopf und ein leises „Ting“.
 // Liest nur Ereignisse und Zustand, schreibt nie.
 
-const STREAK_WINDOW = 4.5;  // Sekunden bis zum nächsten Kill, sonst endet die Serie
+const STREAK_WINDOW = 4;    // Sekunden bis zum nächsten Kill, sonst endet die Serie (Ablaufbalken)
+const STREAK_LOUD = 1.4;    // so lange steht die Serie nach dem Auftritt/einer neuen Stufe groß da, dann dezent
 const STREAK_SHOW = 3;      // ab so vielen Kills ist der Zähler sichtbar
 const STREAK_TIERS = [
   { at: 5, name: 'Blutrausch' },
@@ -26,6 +27,7 @@ const STREAK_TIERS = [
 const FLY_GOLD = /^(loot|quest:|board:|trial:|sell:auto)/;
 const FLY_ITEM = new Set(['loot', 'quest', 'trial', 'board', 'boss']);
 const MAX_FLYING = 18;
+const BIG_BANNERS = new Set(['level', 'boss', 'legendary']);
 // Abstand, den .rw-streak ohnehin oben hat (--hud-gap), damit --rw-top nur den Zusatz enthält
 const el0 = (hud) => parseFloat(getComputedStyle(hud.viewEl).getPropertyValue('--hud-gap')) || 0;
 
@@ -51,6 +53,7 @@ export class Rewards {
     hud.root.append(this.layer);
 
     this.cds = [0, 0, 0, 0];
+    this.loud = 0;
     this.layoutT = 0; this.top = -1;
     this.#listen();
   }
@@ -72,7 +75,10 @@ export class Rewards {
     bus.on(EV.ITEM_ADDED, (e) => {
       if (!FLY_ITEM.has(String(e.source ?? '').split(':')[0])) return;
       const d = c.find('item', e.itemId);
-      if (d) this.#flyItem(d);
+      if (!d) return;
+      this.#flyItem(d);
+      // Legendäre Beute bekommt einen eigenen Moment (Banner-Warteschlange im Hud, nach dem Stufenaufstieg)
+      if (d.rarity === 'legendary') bus.emit(EV.UI_BANNER, { title: d.name, sub: 'Legendäre Beute', color: '#ff9a2a', kind: 'legendary' });
     });
   }
 
@@ -84,7 +90,7 @@ export class Rewards {
     if (st.n < STREAK_SHOW) return;
     this.sNum.textContent = fmtNum(st.n);
     this.streakEl.classList.remove('end');
-    this.streakEl.classList.add('show');
+    if (!this.streakEl.classList.contains('show')) { this.streakEl.classList.add('show'); this.loud = STREAK_LOUD; }
     this.#restart(this.sNum, 'bump');
     // Neue Stufe erreicht (oder nach Glutzorn alle 25 Kills erneut)
     const next = STREAK_TIERS[st.tier];
@@ -96,6 +102,7 @@ export class Rewards {
       this.sTitle.textContent = STREAK_TIERS[tier - 1].name;
       this.#restart(this.sTitle, 'pop');
       this.#restart(this.streakEl, 'surge');
+      this.loud = STREAK_LOUD + 0.4;
       this.s.sfx.play?.('streak', { tier });
     }
   }
@@ -104,7 +111,7 @@ export class Rewards {
     const st = this.streak;
     if (st.n >= STREAK_SHOW && !silent) this.streakEl.classList.add('end');
     else this.streakEl.classList.remove('show', 'end');
-    st.n = 0; st.left = 0; st.tier = 0;
+    st.n = 0; st.left = 0; st.tier = 0; this.loud = 0;
     delete this.streakEl.dataset.tier;
     this.sTitle.textContent = '';
   }
@@ -198,15 +205,19 @@ export class Rewards {
       if (st.left <= 0) this.#endStreak();
       else if (st.n >= STREAK_SHOW) this.sBar.style.transform = `scaleX(${(st.left / STREAK_WINDOW).toFixed(3)})`;
     }
+    // nach dem großen Auftritt kleiner und ruhiger; der Titel blendet aus
+    if (this.loud > 0 && !paused) this.loud -= dt;
+    this.streakEl.classList.toggle('calm', st.n >= STREAK_SHOW && !(this.loud > 0));
 
     // Platz unter Boss-, Champion- und Prüfungsleiste (oben mittig) – nur selten messen
     if ((this.layoutT -= dt) <= 0) {
-      this.layoutT = 0.25;
+      this.layoutT = 0.1;
       const hud = this.hud;
       let top = 0;
       for (const el of [hud.bossEl, hud.champEl, hud.trialEl]) if (el.classList.contains('show')) top = Math.max(top, el.offsetTop + el.offsetHeight + 6);
-      // Freischalt-Karte (ui/Unlocks.js) steht am selben Platz: so lange tritt die Serie zurück (zählt weiter)
-      const hide = !!document.querySelector('.ef-unlock.show');
+      // Freischalt-Karte (ui/Unlocks.js) und große Ansagen (Stufe, Sieg, legendär) haben oben mittig Vorrang:
+      // so lange tritt die Serie zurück (zählt weiter)
+      const hide = !!(this.hud.unlocks?.showing || this.hud.unlocks?.fading) || BIG_BANNERS.has(this.hud.banner?.kind);
       this.streakEl.classList.toggle('yield', hide);
       if (top !== this.top) { this.top = top; this.streakEl.style.setProperty('--rw-top', `${Math.max(0, top - el0(hud))}px`); }
     }
