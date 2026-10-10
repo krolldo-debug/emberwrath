@@ -5,6 +5,7 @@ import { xpToNext } from '../progression/xp.js';
 import { trackedQuestId } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
 import { tr, fmtNum } from '../i18n/index.js';
+import { DeathScreen } from './DeathScreen.js';
 
 // HTML-HUD der Spielsitzung (liest nur Zustand, Held und Inhalte; schreibt nie).
 // Aufbau:
@@ -106,11 +107,9 @@ export class Hud {
     this.bSub = el('div.hud-banner-sub');
     this.bannerEl = el('div.hud-banner', this.bTitle, this.bSub);
     this.promptEl = el('div.hud-prompt', el('kbd.hud-key', 'E'), el('span'));
-    this.deadEl = el('div.hud-dead',
-      el('div.hud-dead-title', 'Du bist gefallen'),
-      el('div.hud-dead-sub', 'Du erwachst am letzten Lagerfeuer. Deine Beute bleibt erhalten.'),
-      el('button.ef-btn.primary.hud-respawn', { type: 'button', onclick: () => this.#tap('attack') }, 'Wiederbeleben', el('kbd.hud-key', 'Leertaste')),
-    );
+    // Tod: eigene Tafel bzw. Leiste (ui/DeathScreen.js), die Welt läuft dahinter weiter
+    this.death = new DeathScreen(this.s);
+    this.deadEl = this.death.el;
     this.xpWrap = el('div.hud-xp-wrap', this.xp.el);
 
     // .hud-frame: Info-Elemente (im Hochformat am Bildschirmrand statt über dem Bild)
@@ -252,6 +251,7 @@ export class Hud {
     bus.on('trial:failed', () => this.#queueBanner('Prüfung gescheitert', 'Die Zeit ist abgelaufen – versuch es erneut', '#c04040', 'trial'));
     bus.on(EV.QUEST_COMPLETED, (e) => this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest'));
     bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
+    bus.on(EV.BOSS_RESET, () => { this.boss = null; });
     bus.on(EV.BOSS_DEFEATED, () => { this.#queueBanner('Sieg!', `${this.boss?.actor?.def?.name ?? 'Der Boss'} ist besiegt`, '#ffd66a', 'boss'); this.boss = null; });
     bus.on(EV.GAME_SAVED, () => { this.savedFlash = 1.6; });
     bus.on(EV.ITEM_EQUIPPED, () => this.#refreshStatic());
@@ -369,9 +369,7 @@ export class Hud {
     this.#updateStick();
     this.#updateMenu(dt);
 
-    const dead = hero.dead && s.deadTime > 1.2;
-    toggle(this.deadEl, 'show', dead);
-    toggle(this.deadEl, 'ready', s.deadTime > 2);
+    this.death.update(hero);
   }
 
   #meter(m, v, max, dt, text) {

@@ -34,9 +34,9 @@ export class Online {
     this.signedInAt = 0; // letzte echte Anmeldung in dieser Sitzung (nicht: Token-Erneuerung)
     this.client.onChange((event) => {
       if (event === 'SIGNED_OUT') {
-        // Abmeldung durch abgelaufene Sitzung mitten im Spiel: deutlich sagen, dass nur noch lokal gespeichert wird.
+        // Abmeldung durch abgelaufene Sitzung mitten im Spiel: deutlich sagen, dass die Cloud nicht mehr speichert.
         if (this.sync.userId && this.game.account?.id === this.sync.accountId && this.game.scenes.currentId === 'play') {
-          this.game.bus.emit(EV.UI_TOAST, { text: 'Anmeldung abgelaufen – Cloud-Speichern pausiert. Bitte im Menü neu anmelden.', kind: 'warn' });
+          this.game.bus.emit(EV.UI_TOAST, { text: 'Anmeldung abgelaufen – Cloud-Speichern ruht. Bitte im Menü neu anmelden.', kind: 'warn' });
         }
         this.#admin = null; this.sync.stop();
       }

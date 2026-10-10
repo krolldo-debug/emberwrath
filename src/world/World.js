@@ -283,6 +283,8 @@ export class World {
     if (!b.engaged && !b.dead && !h.dead && h.x > a.x0 && h.x < a.x1 && h.y > a.y0 + 8 && h.y < a.y1) {
       b.engage(this);
       this.gate?.setClosed(true, this);
+      // Was schon vor dem Kampf da war, bleibt bei einem Zurücksetzen des Bosses stehen (bossReset.js)
+      this.fightBaseline = new Set([...this.entities, ...this.effects]);
     }
     if (b.dead && !this.bossHandled) {
       this.bossHandled = true;

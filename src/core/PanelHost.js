@@ -6,14 +6,17 @@ import { h } from './dom.js';
 //
 // Registrieren (in install() eines Bereichs):
 //   game.panels.register('inventory', (session, params) => ({ root, update?(dt), dispose?() }),
-//                        { action: 'inventory', pauses: true, title: 'Inventar' })
+//                        { action: 'inventory', title: 'Inventar' })
 // Öffnen: session.panels.open(id, params) oder bus.emit(EV.UI_OPEN_PANEL, { id, params }).
 // Es ist immer höchstens ein Panel offen. 'pause'-Taste (Esc) schließt es.
+// Online-Welt: Kein Panel hält das Spiel an, Gegner und Mitspieler laufen weiter. Die frühere Option
+// pauses wird noch angenommen, aber nicht mehr ausgewertet. Der Rahmen um das Fenster ist durchlässig: Klicks daneben
+// gehen ins Spiel (styles.css), geschlossen wird mit Esc oder dem Schließen-Knopf.
 export class PanelRegistry {
   constructor() { this.defs = new Map(); }
   register(id, factory, opts = {}) {
     if (this.defs.has(id)) throw new Error(`Panel ${id} doppelt registriert`);
-    this.defs.set(id, { id, factory, pauses: opts.pauses ?? true, action: opts.action ?? null, title: opts.title ?? id });
+    this.defs.set(id, { id, factory, action: opts.action ?? null, title: opts.title ?? id });
   }
 }
 
@@ -25,6 +28,8 @@ export class PanelHost {
     this.open_ = null; // { def, panel, el }
     session.bus.on(EV.UI_OPEN_PANEL, (e) => this.open(e.id, e.params));
     session.bus.on(EV.UI_CLOSE_PANEL, (e) => { if (!e?.id || this.open_?.def.id === e.id) this.close(); });
+    // Tod: offene Fenster schließen, damit der Todesbildschirm frei liegt
+    session.bus.on(EV.PLAYER_DIED, () => this.close());
   }
 
   get openId() { return this.open_?.def.id ?? null; }
@@ -39,7 +44,6 @@ export class PanelHost {
       return;
     }
     const el = h('div.ef-panel-host', { 'data-panel': id, tabindex: '-1' }, panel.root);
-    el.addEventListener('pointerdown', (ev) => { if (ev.target === el) this.close(); });
     // Tastatur: Fokus ins Panel (der Rahmen selbst, damit kein Knopf versehentlich auslöst), Tab bleibt im Panel.
     el.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Tab') return;
@@ -54,7 +58,6 @@ export class PanelHost {
     this.container.append(el);
     this.open_ = { def, panel, el, before };
     if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
-    if (def.pauses) this.session.setPaused('panel', true);
   }
 
   close() {
@@ -66,7 +69,6 @@ export class PanelHost {
     this.open_ = null;
     // Fokus zurückgeben (z. B. an den HUD-Knopf, der das Panel geöffnet hat)
     if (hadFocus && before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
-    this.session.setPaused('panel', false);
   }
 
   toggle(id, params) { if (this.openId === id) this.close(); else this.open(id, params); }

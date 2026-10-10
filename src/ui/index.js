@@ -21,7 +21,7 @@ import { Music } from '../audio/Music.js';
 import { Soundscape } from '../audio/Soundscape.js';
 
 // Thread D – Darstellung: Feedback/Effekte, Bildschirm-Effekte, HTML-HUD,
-// Meldungen, Touch-Steuerung (im HUD) und das Pausemenü.
+// Meldungen, Touch-Steuerung (im HUD) und das Spielmenü (Esc).
 export function installUi(game) {
   installLogoCss(); // Schriftzug als CSS-Variable --ef-logo (Titelbildschirm)
   installPrefs(game); // Lautstärke, Touch-Größe, Minimap aus game.prefs
@@ -61,8 +61,8 @@ export function installUi(game) {
       dispose: () => { guide.dispose(); rewards.dispose(); unlocks.dispose(); zt.dispose(); minimap.dispose(); hud.dispose(); toasts.dispose(); },
     };
   }, 100);
-  game.panels.register('menu', (session) => createMenuPanel(session), { pauses: true, title: 'Menü' });
-  game.panels.register('map', (session) => createMapPanel(session), { pauses: false, title: 'Karte' });
+  game.panels.register('menu', (session) => createMenuPanel(session), { title: 'Menü' });
+  game.panels.register('map', (session) => createMapPanel(session), { title: 'Karte' });
   installTravel(game);
   installWardrobe(game);
 }

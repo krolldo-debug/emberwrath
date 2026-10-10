@@ -44,10 +44,13 @@ body { display: flex; align-items: center; justify-content: center; }
 #ui { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #ui > div { position: absolute; inset: 0; }
 #ui button, #ui input, #ui select, #ui a, #ui .ef-panel, #ui .ef-interactive, #ui .ef-screen { pointer-events: auto; }
+/* Fenster liegen über der laufenden Welt: kein Abdunkeln, Klicks und Touches neben dem Fenster gehen ins Spiel
+   (Stick, Fähigkeiten, Angriff). Nur das Fenster selbst nimmt Eingaben an. */
 .ui-panels .ef-panel-host {
   position: absolute; inset: 0; display: grid; place-items: center;
-  background: rgba(5, 2, 10, 0.45); pointer-events: auto;
+  background: none; pointer-events: none;
 }
+.ui-panels .ef-panel-host > * { pointer-events: auto; }
 
 .ef-screen { position: absolute; inset: 0; display: grid; place-items: center; overflow: auto; padding: 16px; box-sizing: border-box; }
 .ef-panel {

@@ -2,15 +2,17 @@ import { h } from '../core/dom.js';
 import { createSettingsSection } from './Settings.js';
 import { canFullscreen, isStandalone, isFullscreen, toggleFullscreen } from './Fullscreen.js';
 import { iconUrl } from '../gfx/Icons.js';
+import { EV } from '../core/events.js';
+import { canReviveInInstance } from '../world/instanceRevive.js';
+import { confirmTap } from './confirmTap.js';
 
-// Pausemenü (Panel 'menu', öffnet mit Esc/P oder dem Menü-Knopf).
+// Spielmenü (Panel 'menu', öffnet mit Esc/P oder dem Menü-Knopf). Die Welt läuft dabei weiter.
 export function createMenuPanel(session) {
   const g = session.game;
   const settings = createSettingsSection(g);
   settings.classList.add('menu-settings');
 
   const help = h('div.menu-help',
-    h('h3', 'Steuerung'),
     h('dl.menu-keys',
       h('dt', 'WASD / Pfeile'), h('dd', 'Laufen'),
       h('dt', 'J / Leertaste / Klick'), h('dd', 'Angreifen'),
@@ -30,26 +32,53 @@ export function createMenuPanel(session) {
     h('p.ef-note.menu-touch-help', 'Touch: linke Seite ziehen zum Laufen, rechts die Aktionsknöpfe. Minimap antippen öffnet die Karte.'),
   );
 
-  const root = h('div.ef-panel.ef-center.menu-panel', { role: 'dialog', 'aria-label': 'Menü' },
-    h('h2.ef-sub', 'Pause'),
-    h('div.ef-list.menu-buttons',
-      h('button.ef-btn.primary', { type: 'button', onclick: () => session.panels.close() }, 'Weiterspielen'),
-      g.panels.defs?.has('achievements')
-        ? h('button.ef-btn.menu-ach', { type: 'button', onclick: () => session.panels.open('achievements') }, h('img.ef-icon', { src: iconUrl('ui_achievements'), alt: '', width: 20, height: 20 }), 'Erfolge')
-        : null,
-      g.character?.wardrobe
-        ? h('button.ef-btn.menu-wardrobe', { type: 'button', onclick: () => session.panels.open('wardrobe') }, 'Garderobe')
-        : null,
-      g.shop?.visible
-        ? h('button.ef-btn.menu-shop', { type: 'button', onclick: () => session.panels.open('goldshop') }, h('img.ef-icon', { src: iconUrl('gold'), alt: '', width: 20, height: 20 }), 'Shop')
-        : null,
-      canFullscreen() && !isStandalone() ? h('button.ef-btn', { type: 'button', onclick: (e) => { toggleFullscreen().then(() => { e.target.textContent = isFullscreen() ? 'Vollbild beenden' : 'Vollbild'; }); } }, isFullscreen() ? 'Vollbild beenden' : 'Vollbild') : null,
-      h('button.ef-btn', { type: 'button', onclick: () => { settings.classList.toggle('open'); help.classList.remove('open'); if (settings.classList.contains('open')) settings.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }, 'Einstellungen'),
-      h('button.ef-btn', { type: 'button', onclick: () => { help.classList.toggle('open'); settings.classList.remove('open'); } }, 'Steuerung'),
-      h('button.ef-btn.danger', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); }, title: 'Speichert und kehrt zum Titelbildschirm zurück' }, 'Zum Titel'),
-    ),
+  // Online-Welt: das Menü hält nichts an und dunkelt die Welt nicht ab (deckende Tafel am Rand, ui/menu.css).
+  // Einstellungen und Steuerung öffnen als eigene Seite in derselben Tafel, damit sie schmal bleibt.
+  const title = h('h2.menu-title', 'Menü');
+  const back = h('button.menu-back', { type: 'button', 'aria-label': 'Zurück', title: 'Zurück', onclick: () => page('main') });
+  const close = h('button.menu-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: () => session.panels.close() });
+  const def = session.zone?.def;
+  const btn = (label, onclick, cls = '', icon = null) => h(`button.ef-btn.menu-btn${cls}`, { type: 'button', onclick },
+    icon ? h('img.ef-icon', { src: iconUrl(icon), alt: '', width: 20, height: 20 }) : null, h('span', label));
+
+  // Dungeon verlassen löst die Gruppe auf: zweiter Tipp bestätigt
+  const leaveBtn = () => {
+    const b = btn('Dungeon verlassen', null, '.menu-leave');
+    confirmTap(b, b.lastChild, { onConfirm: () => { session.panels.close(); session.bus.emit(EV.RESPAWN_REQUEST, { leave: true }); } });
+    return b;
+  };
+
+  const main = h('div.menu-main',
+    g.panels.defs?.has('achievements') ? btn('Erfolge', () => session.panels.open('achievements'), '.menu-ach', 'ui_achievements') : null,
+    g.character?.wardrobe ? btn('Garderobe', () => session.panels.open('wardrobe'), '.menu-wardrobe') : null,
+    g.shop?.visible ? btn('Shop', () => session.panels.open('goldshop'), '.menu-shop', 'gold') : null,
+    btn('Einstellungen', () => page('settings')),
+    btn('Steuerung', () => page('help'), '.menu-help-btn'),
+    canFullscreen() && !isStandalone()
+      ? btn(isFullscreen() ? 'Vollbild beenden' : 'Vollbild', (e) => { const b = e.currentTarget; toggleFullscreen().then(() => { b.lastChild.textContent = isFullscreen() ? 'Vollbild beenden' : 'Vollbild'; }); })
+      : null,
+    canReviveInInstance(def) ? leaveBtn() : null,
+    // Sitzung abgelaufen (Hinweis „Bitte im Menü neu anmelden“): Spiel sichern, dann zur Anmeldung
+    g.online?.configured && !g.online.user
+      ? btn('Anmelden', () => { g.saveNow('login'); g.online.open('login'); }, '.menu-login')
+      : null,
+    h('hr.menu-sep'),
+    h('button.ef-btn.danger.menu-btn', { type: 'button', onclick: () => { g.saveNow('exit'); g.scenes.go('title'); }, title: 'Speichert und kehrt zum Titelbildschirm zurück' }, h('span', 'Zum Titel')),
+  );
+
+  const root = h('div.ef-panel.menu-panel', { role: 'dialog', 'aria-label': 'Menü', dataset: { page: 'main' } },
+    h('div.menu-head', back, title, close),
+    main,
     settings,
     help,
   );
+  const TITLES = { main: 'Menü', settings: 'Einstellungen', help: 'Steuerung' };
+  function page(id) {
+    root.dataset.page = id;
+    title.textContent = TITLES[id];
+    settings.classList.toggle('open', id === 'settings');
+    help.classList.toggle('open', id === 'help');
+    root.scrollTop = 0;
+  }
   return { root };
 }

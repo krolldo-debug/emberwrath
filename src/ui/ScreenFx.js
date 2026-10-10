@@ -44,11 +44,11 @@ export class ScreenFx {
     const low = !hero.dead && hero.hp / hero.maxHp < 0.3;
     const a = Math.max(s.hurtFlash, low ? 0.22 + 0.18 * Math.sin(this.t * 6) : 0);
     if (a > 0) { ctx.globalAlpha = a; ctx.drawImage(this.hurt, 0, 0); ctx.globalAlpha = 1; }
+    // Tod: die Welt bleibt sichtbar (sie läuft weiter), nur gedämpft
     if (hero.dead && s.deadTime > 0.6) {
-      ctx.globalAlpha = Math.min(0.72, (s.deadTime - 0.6) * 0.6);
-      ctx.fillStyle = '#07020c'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+      ctx.globalAlpha = Math.min(0.5, (s.deadTime - 0.6) * 0.5);
+      ctx.fillStyle = '#0a0308'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
     }
-    if (s.paused) { ctx.fillStyle = 'rgba(5,2,10,0.45)'; ctx.fillRect(0, 0, W, H); }
     if (s.debug) {
       const w = s.world;
       s.font.draw(ctx, `FPS ${s.fps}  ENT ${w.actors.length}  PRT ${w.particles.active.length}  LGT ${w.lights.length}`, 8, H - 10, { color: '#9cff8a', shadow: true });
