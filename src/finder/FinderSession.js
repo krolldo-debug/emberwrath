@@ -113,6 +113,10 @@ export class FinderSession {
       case 'botDied': this.#plan(data, 'selfDied', 1 + Math.random() * 1.5); break;
       case 'playerDied': if (alive.length) this.#plan(some(), 'playerDied', 1.2 + Math.random()); break;
       case 'playerRevived': break;
+      case 'regroup':
+        this.flags.wipe = false; this.flags.bossHalf = false;
+        if (alive.length) this.#plan(some(), 'revived', 1.5 + Math.random());
+        break;
       case 'botRevived': this.#plan(data, 'revived', 0.8 + Math.random()); break;
       case 'levelUp': p.bots.forEach((b, i) => this.#plan(b, 'levelUp', 0.8 + i * 0.9 + Math.random())); break;
       default: break;

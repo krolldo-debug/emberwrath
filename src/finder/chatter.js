@@ -15,7 +15,7 @@ const LINES = {
   selfDied: { p: 0.55, plain: ['Mist', 'Sorry', 'Das tat weh', 'Hab die Fläche nicht gesehen'], slang: ['sry', 'rip', 'argh', 'upsi', 'lag'] },
   playerDied: { p: 0.45, plain: ['Halt durch, wir machen das', 'Ich hol dich gleich hoch', 'Kein Ding, wir schaffen das'], slang: ['np', 'wir machen das', 'hang on'] },
   revived: { p: 0.35, plain: ['Weiter gehts', 'Wieder da'], slang: ['back', 'ty', 're'] },
-  wipe: { p: 0.8, plain: ['Das war nix', 'Nochmal?', 'Puh, der hat es in sich'], slang: ['wipe :(', 'rip', 'nochmal?', 'gg nächstes mal'] },
+  wipe: { p: 0.8, plain: ['Das war nix', 'Nochmal?', 'Puh, der hat es in sich'], slang: ['wipe :(', 'rip', 'nochmal?', 'nochmal rein'] },
   levelUp: { p: 0.8, plain: ['Glückwunsch!', 'Gratuliere zum Aufstieg'], slang: ['gz', 'grats', 'gz!', 'gw'] },
   lowMana: { p: 0.35, plain: ['Wenig Mana', 'Kurz Mana auffüllen'], slang: ['oom', 'mana'] },
   afk: { p: 0.5, plain: ['Weiter?', 'Noch da?', 'Alles gut?'], slang: ['?', 'weiter?', 'afk?'] },

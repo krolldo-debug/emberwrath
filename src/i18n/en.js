@@ -4299,5 +4299,9 @@ export const EN = {
   "Unaufhaltsam": "Unstoppable",
   "Glutzorn": "Ember Wrath",
   "Legendäre Beute": "Legendary loot",
-  "Erfolge errungen": "Achievements Earned"
+  "Erfolge errungen": "Achievements Earned",
+  "Deine Gruppe kämpft weiter.": "Your party fights on.",
+  "Verlassen": "Leave",
+  "Dungeon verlassen": "Leave dungeon",
+  "nochmal rein": "run it back"
 };

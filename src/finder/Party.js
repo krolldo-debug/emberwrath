@@ -152,6 +152,26 @@ export class Party {
     on(EV.BOSS_ENGAGED, () => this.#gatherInArena());
     on(EV.BOSS_DEFEATED, () => this.hooks.event?.('bossDown'));
     on(EV.LEVEL_UP, () => this.hooks.event?.('levelUp'));
+    on(EV.PLAYER_RESPAWNED, (e) => { if (e?.inInstance) this.#regroup(); });
+  }
+
+  // Wiederbelebt am Dungeon-Eingang (world/instanceRevive.js): die Söldner stehen mit auf, der Lauf geht weiter
+  #regroup() {
+    const w = this.world, h = this.player;
+    this.bots.forEach((b, i) => {
+      const p = w.dungeon.nearestFree(h.x + (i ? 14 : -14), h.y + 10, 6);
+      b.x = p.x; b.y = p.y; b.vx = b.vy = 0;
+      b.partyDown = 0;
+      if (b.dead) b.revive(1);
+      else b.hp = b.maxHp;
+      if (b.resourceType === 'mana') b.resource = b.maxResource;
+      b.facing = h.facing;
+      w.bus.emit('aura', { actor: b, element: 'holy' });
+    });
+    this.threat.clear();
+    this.wiped = false;
+    this.ooc = 10;
+    this.hooks.event?.('regroup');
   }
 
   #onHit(e) {
@@ -314,6 +334,7 @@ export class Party {
       }
     }
     if (!h.dead) h.partyDown = 0;
+    h.partyWaiting = h.dead && botsAlive; // Todesbildschirm (ui/Hud.js): nur Hinweis, kein Wiederbeleben
     this.wiped = h.dead && !botsAlive;
     for (const b of this.bots) {
       if (b.dead) {
@@ -430,6 +451,7 @@ export class Party {
     const w = this.world;
     for (const e of w.enemies) e.partyRestore?.();
     for (const b of this.bots) b.removed = true;
+    this.player.partyWaiting = false;
     w.actors = w.actors.filter((a) => !this.bots.includes(a));
   }
 }

@@ -5,6 +5,7 @@ import { xpToNext } from '../progression/xp.js';
 import { trackedQuestId } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
 import { tr, fmtNum } from '../i18n/index.js';
+import { canReviveInInstance } from '../world/instanceRevive.js';
 
 // HTML-HUD der Spielsitzung (liest nur Zustand, Held und Inhalte; schreibt nie).
 // Aufbau:
@@ -20,6 +21,18 @@ import { tr, fmtNum } from '../i18n/index.js';
 // Werte werden nur bei Änderung ins DOM geschrieben (kein Layout-Flattern).
 
 const RES_NAMES = { mana: 'Mana', rage: 'Wut', energy: 'Energie' };
+
+// Todesbildschirm: kleiner Pixel-Schädel auf dem Rahmen (11×9, ganzzahlig skaliert)
+const SKULL = ['...#####...', '..#######..', '.#########.', '.##oo#oo##.', '.##oo#oo##.', '.#########.', '..###.###..', '...#####...', '...#.#.#...'];
+function skullSvg() {
+  let r = '';
+  SKULL.forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === '.') return;
+    const f = c === 'o' ? '#ff6a3a' : y > 5 || x > 7 ? '#a8987a' : '#e6dcc2';
+    r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${f}"/>`;
+  }));
+  return `<svg viewBox="0 0 11 9" width="44" height="36" aria-hidden="true" shape-rendering="crispEdges">${r}</svg>`;
+}
 
 // Kleiner Helfer: Text/Stil nur setzen, wenn sich etwas ändert.
 // tr() schon hier: sonst unterscheidet sich der übersetzte Text jedes Bild vom deutschen und wird neu gesetzt.
@@ -106,10 +119,19 @@ export class Hud {
     this.bSub = el('div.hud-banner-sub');
     this.bannerEl = el('div.hud-banner', this.bTitle, this.bSub);
     this.promptEl = el('div.hud-prompt', el('kbd.hud-key', 'E'), el('span'));
-    this.deadEl = el('div.hud-dead',
-      el('div.hud-dead-title', 'Du bist gefallen'),
-      el('div.hud-dead-sub', 'Du erwachst am letzten Lagerfeuer. Deine Beute bleibt erhalten.'),
-      el('button.ef-btn.primary.hud-respawn', { type: 'button', onclick: () => this.#tap('attack') }, 'Wiederbeleben', el('kbd.hud-key', 'Leertaste')),
+    // Tod: kompakte Tafel im Pixelrahmen unter dem Helden; die Welt läuft dahinter weiter.
+    // Dungeon: Wiederbeleben am Eingang der Instanz oder Verlassen. Kämpft die Gruppe noch: nur der Hinweis.
+    const sigil = el('div.hud-dead-sigil');
+    sigil.innerHTML = skullSvg();
+    this.deadSub = el('div.hud-dead-sub', 'Deine Gruppe kämpft weiter.');
+    this.deadRespawn = el('button.ef-btn.primary.hud-respawn', { type: 'button', onclick: () => this.s.bus.emit(EV.RESPAWN_REQUEST, {}) },
+      el('span.hud-respawn-fill'), el('span.hud-respawn-label', 'Wiederbeleben'), el('kbd.hud-key', 'Leertaste'));
+    this.deadLeave = el('button.ef-btn.hud-leave', { type: 'button', onclick: () => this.s.bus.emit(EV.RESPAWN_REQUEST, { leave: true }) }, 'Verlassen');
+    this.deadEl = el('div.hud-dead', { role: 'alertdialog', 'aria-label': 'Du bist gefallen' },
+      el('div.hud-dead-card', sigil,
+        el('div.hud-dead-title', 'Du bist gefallen'),
+        this.deadSub,
+        el('div.hud-dead-actions', this.deadRespawn, this.deadLeave)),
     );
     this.xpWrap = el('div.hud-xp-wrap', this.xp.el);
 
@@ -252,6 +274,7 @@ export class Hud {
     bus.on('trial:failed', () => this.#queueBanner('Prüfung gescheitert', 'Die Zeit ist abgelaufen – versuch es erneut', '#c04040', 'trial'));
     bus.on(EV.QUEST_COMPLETED, (e) => this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest'));
     bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
+    bus.on(EV.BOSS_RESET, () => { this.boss = null; });
     bus.on(EV.BOSS_DEFEATED, () => { this.#queueBanner('Sieg!', `${this.boss?.actor?.def?.name ?? 'Der Boss'} ist besiegt`, '#ffd66a', 'boss'); this.boss = null; });
     bus.on(EV.GAME_SAVED, () => { this.savedFlash = 1.6; });
     bus.on(EV.ITEM_EQUIPPED, () => this.#refreshStatic());
@@ -369,9 +392,20 @@ export class Hud {
     this.#updateStick();
     this.#updateMenu(dt);
 
-    const dead = hero.dead && s.deadTime > 1.2;
+    this.#updateDead(hero);
+  }
+
+  #updateDead(hero) {
+    const s = this.s;
+    // Gruppe kämpft noch (finder/Party.js): deadTime bleibt dort niedrig, die Gruppe belebt nach dem Kampf wieder
+    const waiting = !!hero.partyWaiting;
+    const dead = hero.dead && (waiting ? (hero.partyDown ?? 0) > 1.2 : s.deadTime > 1.2);
     toggle(this.deadEl, 'show', dead);
-    toggle(this.deadEl, 'ready', s.deadTime > 2);
+    if (!dead) return;
+    toggle(this.deadEl, 'group', waiting);
+    toggle(this.deadEl, 'ready', !waiting && s.deadTime > 2);
+    toggle(this.deadEl, 'instance', canReviveInInstance(s.zone?.def));
+    setVar(this.deadRespawn, '--rdy', Math.max(0, Math.min(1, (s.deadTime - 1.2) / 0.8)).toFixed(2));
   }
 
   #meter(m, v, max, dt, text) {

@@ -3,6 +3,7 @@ import { EV } from '../core/events.js';
 import { Camera } from '../core/Camera.js';
 import { PanelHost } from '../core/PanelHost.js';
 import { World } from '../world/World.js';
+import { reviveInInstance } from '../world/instanceRevive.js';
 
 // Die Spielsitzung: eine Zone ist geladen, der Held läuft.
 // Dieses Objekt ist der "session"-Kontext, den alle Sitzungssysteme,
@@ -10,8 +11,10 @@ import { World } from '../world/World.js';
 //   game, bus (Abo-Bereich dieser Sitzung), input, state, content, assets,
 //   sfx, font, authority, world, camera, zone, panels, time
 //   hitstop(t), slowmo(scale, dur), setPaused(reason, on), paused,
-//   travel(zoneId, spawnId), hurtFlash, debug, fps
-// Ablauf pro Tick: Panels/Pause -> Welt -> Sitzungssysteme -> Kamera.
+//   travel(zoneId, spawnId), respawn({ leave }), deadTime, hurtFlash, debug, fps
+// Online-Welt: Menüs und Fenster halten nichts an. Angehalten wird nur, solange der Tab verborgen ist
+// (der Browser zeichnet dann ohnehin nicht).
+// Ablauf pro Tick: Panels -> Welt -> Sitzungssysteme -> Kamera.
 // Zeichnen: Welt -> system.draw(ctx) (Pixel-Overlays) ; HTML-HUD liest selbst.
 export class PlayScene {
   constructor(game) {
@@ -53,23 +56,21 @@ export class PlayScene {
     const saveOn = (ev) => this.bus.on(ev, () => g.saveNow(ev));
     [EV.LEVEL_UP, EV.QUEST_ACCEPTED, EV.QUEST_COMPLETED, EV.BOSS_DEFEATED].forEach(saveOn);
     this.bus.on(EV.ZONE_TRAVEL, (e) => this.travel(e.zoneId, e.spawnId));
+    this.bus.on(EV.RESPAWN_REQUEST, (e) => this.respawn(e ?? {}));
     this.bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
+    this.bus.on(EV.BOSS_RESET, () => { this.boss = null; });
     this.bus.on(EV.PREFS_CHANGED, (e) => {
       if (e.key === 'screenShake' && this.camera) this.camera.enabled = e.value !== false;
     });
+    // Verborgener Tab: speichern; die Welt läuft beim Zurückkommen einfach weiter (kein Pausemenü).
+    // Fokusverlust (Alt-Tab, zweiter Bildschirm) hält nichts an, wie in jedem Online-Spiel.
     this.onHide = () => {
       if (document.hidden) { this.setPaused('hidden', true); g.saveNow('hidden'); return; }
       this.setPaused('hidden', false);
-      if (g.panels.defs.has('menu') && !this.panels.openId) this.panels.open('menu');
     };
     this.onPageHide = () => g.saveNow('pagehide');
-    // Fenster verliert den Fokus (Alt-Tab, Klick auf zweiten Bildschirm), bleibt aber sichtbar: ebenfalls anhalten.
-    this.onBlur = () => this.setPaused('blur', true);
-    this.onFocus = () => this.setPaused('blur', false);
     document.addEventListener('visibilitychange', this.onHide);
     window.addEventListener('pagehide', this.onPageHide);
-    window.addEventListener('blur', this.onBlur);
-    window.addEventListener('focus', this.onFocus);
     this.entered = true;
 
     this.bus.emit(EV.GAME_STARTED, { accountId: this.state.meta.accountId, characterId: this.state.meta.characterId, isNew: !!params.isNew });
@@ -84,8 +85,6 @@ export class PlayScene {
     if (this.entered) step('speichern', () => this.game.saveNow('exit'));
     document.removeEventListener('visibilitychange', this.onHide);
     window.removeEventListener('pagehide', this.onPageHide);
-    window.removeEventListener('blur', this.onBlur);
-    window.removeEventListener('focus', this.onFocus);
     for (const s of this.systems) step('System', () => s.dispose?.());
     this.systems = [];
     step('Panels', () => this.panels?.dispose());
@@ -110,6 +109,25 @@ export class PlayScene {
     this.deadTime = 0;
     this.boss = null;
     if (this.state.commands.has('world:enterZone')) this.state.commit('world:enterZone', { zoneId: def.id, spawnId });
+  }
+
+  // Wiederbeleben bzw. Instanz verlassen (Todesbildschirm, Leertaste, Menü).
+  //   Tot, Dungeon: am Eingang derselben Instanz (world/instanceRevive.js), sonst am Respawn-Punkt der Zone.
+  //   leave: Dungeon verlassen, draußen vor dem Eingang (tot oder lebendig).
+  respawn({ leave = false } = {}) {
+    const hero = this.world.hero, d = this.zone.def;
+    if (this.pendingTravel) return;
+    if (leave) {
+      if (!d.instanced || d.trial) return;
+      const spawnId = `from_${d.id}`;
+      this.travel(d.respawnZone ?? d.id, spawnId);
+      if (hero.dead) this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId });
+      return;
+    }
+    if (!hero.dead || this.deadTime <= 2) return;
+    if (reviveInInstance(this)) return;
+    this.travel(d.respawnZone ?? d.id, d.respawnSpawn ?? 'respawn');
+    this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId: d.respawnSpawn ?? 'respawn' });
   }
 
   // Zonenwechsel (Tür, Dungeon-Eingang, Respawn). Wird am Tick-Anfang ausgeführt.
@@ -181,15 +199,12 @@ export class PlayScene {
     this.world.aim = inp.aimWithPointer ? { x: inp.pointer.x + this.camera.x, y: inp.pointer.y + this.camera.y } : null;
     this.world.update(sdt);
 
-    // Tod -> Wiederbelebung am Respawn-Punkt der Zone (oder deren respawnZone)
+    // Tod -> Wiederbelebung (Dungeon: am Eingang der Instanz, sonst am Respawn-Punkt der Zone oder deren respawnZone).
+    // Kämpft die Gruppe noch, hält finder/Party.js deadTime niedrig und belebt nach dem Kampf selbst wieder.
     if (hero.dead) {
       if (this.deadTime === 0) this.bus.emit(EV.PLAYER_DIED, { zoneId: this.zone.zoneId });
       this.deadTime += dt;
-      if (this.deadTime > 2 && (inp.pressed('attack') || inp.pressed('interact'))) {
-        const d = this.zone.def;
-        this.travel(d.respawnZone ?? d.id, d.respawnSpawn ?? 'respawn');
-        this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId: d.respawnSpawn ?? 'respawn' });
-      }
+      if (this.deadTime > 2 && (inp.pressed('attack') || inp.pressed('interact'))) this.respawn();
     }
 
     // Kamera mit leichtem Vorlauf in Blick-/Bewegungsrichtung

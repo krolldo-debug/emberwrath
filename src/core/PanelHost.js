@@ -6,14 +6,16 @@ import { h } from './dom.js';
 //
 // Registrieren (in install() eines Bereichs):
 //   game.panels.register('inventory', (session, params) => ({ root, update?(dt), dispose?() }),
-//                        { action: 'inventory', pauses: true, title: 'Inventar' })
+//                        { action: 'inventory', title: 'Inventar' })
 // Öffnen: session.panels.open(id, params) oder bus.emit(EV.UI_OPEN_PANEL, { id, params }).
 // Es ist immer höchstens ein Panel offen. 'pause'-Taste (Esc) schließt es.
+// Online-Welt: Kein Panel hält das Spiel an, Gegner und Mitspieler laufen weiter. Die frühere Option
+// pauses wird noch angenommen, aber nicht mehr ausgewertet.
 export class PanelRegistry {
   constructor() { this.defs = new Map(); }
   register(id, factory, opts = {}) {
     if (this.defs.has(id)) throw new Error(`Panel ${id} doppelt registriert`);
-    this.defs.set(id, { id, factory, pauses: opts.pauses ?? true, action: opts.action ?? null, title: opts.title ?? id });
+    this.defs.set(id, { id, factory, action: opts.action ?? null, title: opts.title ?? id });
   }
 }
 
@@ -54,7 +56,6 @@ export class PanelHost {
     this.container.append(el);
     this.open_ = { def, panel, el, before };
     if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
-    if (def.pauses) this.session.setPaused('panel', true);
   }
 
   close() {
@@ -66,7 +67,6 @@ export class PanelHost {
     this.open_ = null;
     // Fokus zurückgeben (z. B. an den HUD-Knopf, der das Panel geöffnet hat)
     if (hadFocus && before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
-    this.session.setPaused('panel', false);
   }
 
   toggle(id, params) { if (this.openId === id) this.close(); else this.open(id, params); }

@@ -100,7 +100,7 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - **Branding:** `gfx/Logo.js` – Pixel-Schriftzug (eigene Glyphen, Glutverlauf, Tropfen, Zierlinie). `installLogoCss()` setzt
   `--ef-logo`/`--ef-logo-ratio`; `.acc-logo .ef-title` und `.ef-logo` zeigen ihn (Text bleibt für Screenreader).
 - **Zonenübergang:** `ui/ZoneTransition.js` – Karte mit Zonenname, Untertitel, Stufe, Tipp; Glut (Oberwelt) bzw. violett (Dungeon).
-- **Einstellungen:** `ui/Settings.js` im Pausemenü. `game.prefs`: `volume` (0..1), `muted`, `guidePath`, `screenShake`, `minimap`,
+- **Einstellungen:** `ui/Settings.js` im Spielmenü (Esc). `game.prefs`: `volume` (0..1), `muted`, `guidePath`, `screenShake`, `minimap`,
   `touchScale` (0.85/1/1.2 → CSS `--touch-scale`). `sfx.setVolume/setMuted/bindPrefs`. Tastatur: M = Karte, N = Ton.
 - **Questpfad-Sprite:** `assets.effects.guide = { frames[4] (11×6), arrow(angle) (11×11), end (15×8) }`, emissiv zeichnen.
 

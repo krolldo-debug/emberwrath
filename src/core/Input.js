@@ -55,6 +55,12 @@ export class Input {
   // Aktionen können auch von HTML-Knöpfen (Touch-UI, Menüs) ausgelöst werden.
   press(action) { this.#press(action); }
   release(action) { this.#release(action); }
+  // Alles loslassen (Gerät hochkant: Held bleibt stehen, die Welt läuft weiter)
+  releaseAll() {
+    this.down.clear();
+    this.pressedQueue.clear();
+    this.touch.stickId = null; this.touch.active = false;
+  }
 
   #press(action) {
     if (!this.down.has(action)) this.pressedQueue.add(action);

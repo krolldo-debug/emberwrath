@@ -1,5 +1,6 @@
 // Handy und Tablet: gespielt wird nur im Querformat.
-// Hochkant liegt ein Hinweis zum Drehen über allem (auch Menüs und Anmeldung), das Spiel ist so lange angehalten.
+// Hochkant liegt ein Hinweis zum Drehen über allem (auch Menüs und Anmeldung). Die Welt läuft weiter (Online-Spiel),
+// nur die Eingaben ruhen so lange (Game.inputBlocked).
 // Wo der Browser es erlaubt, wird das Querformat zusätzlich festgehalten (Vollbild, als App gestartet; siehe Fullscreen.js
 // und pwa/manifest.webmanifest). Desktop-Fenster bleiben frei, auch wenn sie schmal sind (Game#chooseView).
 
@@ -39,7 +40,7 @@ export function installRotateGate(game) {
     on = blocked;
     root.classList.toggle('ef-rotate-on', blocked);
     gate.setAttribute('aria-hidden', blocked ? 'false' : 'true');
-    if (game) game.paused = blocked;
+    if (game) game.inputBlocked = blocked;
     // Offenes Eingabefeld schließen, damit die Tastatur den Hinweis nicht verdeckt
     if (blocked && document.activeElement?.blur && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) document.activeElement.blur();
   };
