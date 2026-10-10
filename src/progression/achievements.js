@@ -57,6 +57,8 @@ export const ACHIEVEMENTS = {
   malgareth: A('combat', 'Thronsturz', 'Stürze Malgareth, den Aschenfürsten.', 'amulet_sun', 40, (s) => kills(s, 'ash_sovereign'), 1, 'Thronbrecher'),
   all_bosses: A('combat', 'Die Sieben Gefallenen', `Besiege alle sieben Herrscher in Glutprüfung ${TRIAL_BOSS_TIER} oder höher.`, 'relic', 50,
     (s) => BOSSES.filter((t) => (s.slices.trials?.bosses?.[t] ?? 0) >= TRIAL_BOSS_TIER).length, BOSSES.length, null, { kind: 'look', id: 'fallen_crown' }),
+  // Schaltet die Färbung Wachfeuer frei (character/cosmetics.js, DYES.watchfire.achievement); bewusst ohne reward, die Vitrine bleibt bei sechs
+  weekly_4: A('combat', 'Wachfeuer', 'Meistere vier Wochenherausforderungen.', 'amulet_sun', 30, (s) => s.slices.daily?.cTotal ?? 0, 4),
   slayer_5000: A('combat', 'Unaufhaltsam', 'Besiege 5.000 Gegner.', 'sword', 40, (s) => st(s).kills, 5000, 'der Unaufhaltsame', { kind: 'dye', id: 'bloodmoon' }),
   champion_50: A('combat', 'Championsbrecher', 'Besiege 50 Champions.', 'charm_skull', 25, (s) => st(s).championKills ?? 0, 50, 'Championsbrecher'),
   rare_first: A('combat', 'Seltener Fang', 'Besiege einen seltenen Weltgegner.', 'fang', 5, (s) => rareCount(s)),

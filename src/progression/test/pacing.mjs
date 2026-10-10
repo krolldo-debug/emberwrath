@@ -15,6 +15,7 @@ import { questStatus, setWorldFeatures } from '../selectors.js';
 import { rollLoot } from '../loot.js';
 import { ITEMS } from '../items.js';
 import { PACE } from '../xp.js';
+import { loginReward, firstWinReward, challengeReward, STREAK_DAYS } from '../daily.js';
 
 export const SEC_PER_KILL = 60 / PACE.killsPerMinute;
 export const SEC_PER_QUEST = 30;
@@ -155,6 +156,13 @@ export function expansionReport(opts = {}) {
   };
 }
 
+// Tagesbelohnung + erster Sieg (7×) + Wochenherausforderung: Gold je Woche auf einer Stufe (ohne Ausrüstungsteile)
+export function dailyGoldPerWeek(level) {
+  let gold = challengeReward(level).gold + 7 * firstWinReward(level).gold;
+  for (let n = 1; n <= STREAK_DAYS; n++) gold += loginReward(n, level).gold;
+  return gold;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const r = runCampaign({ log: console.log });
   const x = expansionReport();
@@ -162,4 +170,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`Stufe 20–40: ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, ${r.bounties} Kopfgelder, ${r.kills - x.base.kills} Kills`);
   console.log('Minuten je Stufe: ' + Object.entries(r.minutesPerLevel).map(([l, m]) => `${l}:${m.toFixed(0)}`).join(' '));
   console.log(`Gold 20→40: ${Math.round(x.gold20to40)} (Beute komplett verkauft), 25–35: ${Math.round(x.goldPerHour25to35)} Gold/h, bis 30: ${Math.round(x.goldAt(30))}, bis 38: ${Math.round(x.goldAt(38))}`);
+  const w = dailyGoldPerWeek(30);
+  console.log(`Tagesbelohnung, erster Sieg, Wochenherausforderung auf Stufe 30: ${w} Gold/Woche ≈ ${Math.round(w / x.goldPerHour25to35 * 60)} min Spiel (Gold-Shop: 5.000 Gold = 1,99 €)`);
 }

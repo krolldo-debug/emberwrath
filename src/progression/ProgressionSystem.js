@@ -4,6 +4,13 @@ import { findPotionSlot, npcMarker } from './selectors.js';
 import { LootDrop } from './LootDrop.js';
 import { TRIAL_EV } from './endgame.js';
 import { TRIAL_ZONE } from './trials.js';
+import { serverNow, clockReady, syncClock } from './clock.js';
+import { boardDay } from './board.js';
+import { fmtNum } from '../i18n/index.js';
+
+// Tagesbelohnung: Abstand der Ansage nach dem Spielstart (s) und Prüfintervall für den Tageswechsel (s)
+const DAILY_DELAY = 4;
+const DAILY_CHECK = 30;
 
 export const POTION_COOLDOWN = 1.5;
 // Im Kampf (Treffer gegeben oder erhalten in den letzten COMBAT_LINGER s) wirkt der nächste Trank
@@ -39,7 +46,7 @@ export class ProgressionSystem {
 
     bus.on(EV.ENEMY_KILLED, (e) => {
       const bossId = e.bossId ?? (e.isBoss ? e.type : undefined);
-      commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, champion: e.champion ?? null, now: Date.now() });
+      commit('progress:kill', { type: e.type, level: e.level, isBoss: e.isBoss, bossId, elite: e.elite, summoned: e.summoned, trialTime: this.trialTime, rareId: e.rareId, champion: e.champion ?? null, now: serverNow() });
       if (!e.summoned) this.#rollLoot({ source: 'kill', id: e.type, level: e.level, elite: e.elite, isBoss: e.isBoss, bossId, family: e.family, rareId: e.rareId, champion: !!e.champion }, e.x, e.y);
     });
     bus.on(EV.BOSS_DEFEATED, (e) => { commit('quest:event', { kind: 'boss', target: e.bossId }); commit('quest:bossReward', { bossId: e.bossId }); });
@@ -47,7 +54,7 @@ export class ProgressionSystem {
     bus.on(EV.ZONE_ENTER, (e) => commit('quest:event', { kind: 'reach', target: `zone:${e.zoneId}` }));
     bus.on(EV.ZONE_LEAVE, () => commit('loot:reset'));
     // Auftragsbrett (B: Objekt quest_board)
-    bus.on(EV.BOARD_OPEN ?? 'board:open', (e) => { commit('board:sync', { now: Date.now() }); session.panels.open('board', { zoneId: e.zoneId }); });
+    bus.on(EV.BOARD_OPEN ?? 'board:open', (e) => { commit('board:sync', { now: serverNow() }); commit('daily:sync', { now: serverNow() }); session.panels.open('board', { zoneId: e.zoneId }); });
     // Eskorte/Verteidigen (B): { kind: 'escort'|'defend'|'escortFailed'|'defendFailed', target }
     bus.on(EV.QUEST_OBJECTIVE ?? 'quest:objective', (e) => commit('quest:event', { kind: e.kind, target: e.target }));
     bus.on(EV.OBJECT_INTERACT, (e) => {
@@ -92,11 +99,32 @@ export class ProgressionSystem {
       commit('quest:event', { kind: 'talk', target: e.npcId });
       session.panels.open('questDialog', { npcId: e.npcId });
     });
-    bus.on(EV.ITEM_USED, (e) => this.#applyEffect(e.effect));
+    bus.on(EV.ITEM_USED, (e) => { this.#applyEffect(e.effect); if (e.effect?.heal) commit('daily:mark', { potion: true }); });
+    // Tagesbelohnung, erster Sieg, Wochenherausforderung (daily.js). Höchstens eine Ansage am Tag.
+    this.dailyT = DAILY_DELAY;
+    this.dailyNew = false;
+    syncClock();
+    bus.on(EV.GAME_STARTED, (e) => { this.dailyNew = !!e?.isNew; this.dailyT = DAILY_DELAY; });
+    bus.on(EV.BOSS_ENGAGED, (e) => commit('daily:engage', { now: serverNow(), bossId: e.bossId }));
+    bus.on(TRIAL_EV.STARTED, () => commit('daily:engage', { now: serverNow() }));
+    bus.on(EV.PLAYER_DIED, () => commit('daily:mark', { died: true }));
+    bus.on('daily:reward', (e) => bus.emit(EV.UI_BANNER, { title: 'Tagesbelohnung', sub: e.gold ? `Tag ${e.streak} von 7 · ${fmtNum(e.gold)} Gold` : `Tag ${e.streak} von 7`, color: '#ffb040', kind: 'daily' }));
+    bus.on('daily:firstWin', (r) => bus.emit(EV.UI_TOAST, { text: r.xp ? `Erster Sieg des Tages: ${fmtNum(r.xp)} EP und ${fmtNum(r.gold)} Gold extra` : `Erster Sieg des Tages: ${fmtNum(r.gold)} Gold und 2 Glutsplitter extra`, kind: 'loot', icon: 'gold' }));
     bus.on(EV.LEVEL_UP, () => { this.pendingLevelHeal = true; });
   }
 
   get hero() { return this.s.world?.hero; }
+
+  // Neuer Spieltag (Serverzeit): Tagesbelohnung vergeben. Wartet, bis die Serverzeit bekannt ist.
+  #daily(dt, session) {
+    if ((this.dailyT -= dt) > 0) return;
+    this.dailyT = DAILY_CHECK;
+    if (!clockReady()) { syncClock(); this.dailyT = 5; return; }
+    const d = session.state.slices.daily, now = serverNow();
+    if (!d || boardDay(now) <= d.day || this.hero?.dead) return;
+    session.state.commit('daily:login', { now, isNew: this.dailyNew });
+    this.dailyNew = false;
+  }
 
   #trialActive() {
     const run = this.s.state.slices.trials?.run;
@@ -146,6 +174,7 @@ export class ProgressionSystem {
       this.autoSold = null;
       this.s.bus.emit(EV.UI_TOAST, { text: `Automatisch verkauft: ${n} ${n === 1 ? 'Teil' : 'Teile'} (+${gold.toLocaleString('de-DE')} Gold)`, kind: 'loot', icon: 'gold' });
     }
+    this.#daily(dt, session);
     const hero = this.hero;
     if (this.pendingLevelHeal && hero && !hero.dead) { hero.hp = hero.maxHp; this.pendingLevelHeal = false; }
     if (session.paused) return;

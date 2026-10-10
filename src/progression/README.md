@@ -201,3 +201,18 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
 - `applyLevelGap` nimmt bei Geschossen/Trefferzonen ohne Stufe die Stufe von `source.hero ?? owner ?? caster`.
 - Kurve steiler: 3/4 Stufen ×0,79/×0,66 Schaden, ×1,37/×1,62 erlitten; ab 5 `max(0,05, 0,40−0,08·(g−5))` bzw. `min(4, 2,4+0,3·(g−5))`.
 - Tränke: im Kampf (Treffer in den letzten 5 s) 10 s Abklingzeit, sonst 1,5 s (`POTION_COOLDOWN_COMBAT`, `hero.potionCooldown` für die HUD-Anzeige).
+
+## Runde 10.10.: Gründe, täglich wiederzukommen (`daily.js`, `clock.js`)
+
+Alles sichtbar im Auftragsbrett, kein neues Fenster und kein neuer Knopf.
+- **Tagesbelohnung:** Serie über 7 Tage, eine Belohnung je UTC-Tag, automatisch beim ersten Spielen des Tages (eine Ansage
+  über die Banner-Warteschlange, `kind: 'daily'`). Ausgelassene Tage setzen nichts zurück. Tag 7: Gold und ein blaues Teil.
+  Neue Helden: erste Belohnung am Tag nach der Erschaffung.
+- **Erster Sieg des Tages:** erster Boss/Elite/Champion/Seltener am Tag → Erfahrung + Gold (auf 40 Gold + 2 Glutsplitter), nur Toast.
+- **Wochenherausforderung:** einer der zwei stärksten Story-Bosse, die man schon schaffen kann (ab Glutprüfungen: Prüfung
+  Bestwert − 1), mit Regel ohne Heiltrank / ohne zu fallen / unter 150 s (Prüfung: unter 5 min). Abholen am Brett; Brett leuchtet.
+  Vier geschaffte → Erfolg „Wachfeuer“, schaltet die Färbung Wachfeuer im Spiegel frei.
+- **Zeit:** `clock.js` liest den Date-Kopf von `/version.json` (HEAD, no-store); Tage und Wochen gehen nie rückwärts.
+  Ohne Serverzeit keine Tagesbelohnung. Auch Auftragsbrett und Wochentruhe rechnen jetzt mit `serverNow()`.
+- Slice `daily { day, streak, rounds, winDay, week, challenge, cDone, cClaimed, cTotal }`, Commands `daily:login`, `daily:sync`,
+  `daily:engage` (Boss/Prüfung beginnt), `daily:mark` (Trank/Tod), `daily:claimChallenge`. Gold je Woche auf Stufe 30 ≈ 13 Spielminuten (pacing.mjs).
