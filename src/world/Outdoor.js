@@ -225,6 +225,9 @@ export class Outdoor extends TileMap {
   // Liefert das Übersichtsbild (OV px je Kachel) und setzt den Chunk-Cache zurück
   // (auch nach openSecret: Raster geändert).
   renderBackground(assets) {
+    // Vorbereitete Karte (prewarm): fertige Bodenstücke behalten, solange Raster und Grafiken dieselben sind
+    if (this.warm && this.warm === assets) { this.warm = null; return makeCanvas(1, 1); }
+    this.warm = null;
     this.assets = assets;
     this.chunks.clear();
     this.job = null;
@@ -234,6 +237,26 @@ export class Outdoor extends TileMap {
     // Die Karten (ui/MapArt) zeichnen aus dem Raster und lesen world.background nicht mehr; das
     // Übersichtsbild entsteht deshalb erst auf Anfrage (overviewImage()). Rückgabe: 1×1-Platzhalter.
     return makeCanvas(1, 1);
+  }
+
+  // Boden rund um (x, y) vorab berechnen, bevor die Karte betreten wird (world/warmup.js). Generator: jedes yield
+  // ist eine mögliche Pause. Die World übernimmt die Karte danach mit allen fertigen Stücken.
+  *prewarm(assets, x, y, rx = 400, ry = 300) {
+    this.renderBackground(assets);
+    this.warm = assets;
+    yield;
+    const [a0, b0, a1, b1] = this.#range(x - rx, y - ry, x + rx, y + ry);
+    const list = [];
+    for (let iy = b0; iy <= b1; iy++) for (let ix = a0; ix <= a1; ix++) list.push(this.#chunk(ix, iy));
+    const dist = (k) => Math.hypot(k.x0 + k.w / 2 - x, k.y0 + k.h / 2 - y);
+    list.sort((p, q) => dist(p) - dist(q));
+    for (const k of list) {
+      if (k.c) continue;
+      k.gen ??= this.#chunkJob(k);
+      while (!k.gen.next().done) yield;
+      k.gen = null;
+      yield;
+    }
   }
 
   // Verkleinertes Kartenbild (OV px je Kachel), erst beim ersten Aufruf gebaut; fertige Chunks verfeinern es.

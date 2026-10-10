@@ -23,7 +23,8 @@ export const EV = Object.freeze({
   // Welt (B)
   ZONE_ENTER: 'zone:enter',              // { zoneId, instanceId, spawnId }
   ZONE_LEAVE: 'zone:leave',              // { zoneId }
-  ZONE_TRAVEL: 'zone:travel',            // Anfrage: { zoneId, spawnId }  -> PlayScene wechselt die Zone
+  ZONE_TRAVEL: 'zone:travel',            // Anfrage: { zoneId, spawnId, pos? }  -> PlayScene wechselt die Zone (pos = Weltpixel, Vorrang vor spawnId)
+  ZONE_TRAVEL_PLAN: 'zone:travelPlan',   // { zoneId, spawnId, pos, fromZoneId } – vor jedem Zonenwechsel, Hörer dürfen das Ziel ändern (Dungeonsuche: zurück zur Beitrittsstelle)
   AREA_REACHED: 'area:reached',          // { areaId, zoneId }  (Trigger-Flächen, z. B. Dungeon-Eingang entdeckt)
   NPC_INTERACT: 'npc:interact',          // { npcId, x, y }
   ENEMY_KILLED: 'enemy:killed',          // { enemyId, type, level, x, y, zoneId, isBoss, xp }

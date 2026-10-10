@@ -28,6 +28,15 @@ const REPORTS_PER_WINDOW = 6, REPORT_WINDOW_MS = 10 * 60_000;
 const QUEUE_PREFIX = 'report:', QUEUE_MAX = 2000;
 // Obergrenzen für Speicher im Objekt (Schutz vor Aufblähen durch viele kurze Besuche)
 const GONE_MAX = 200, LIMITS_MAX = 2000;
+// Position im WebSocket-Anhang (für das Aufwachen aus dem Ruhezustand) höchstens alle ATTACH_MS je Spieler schreiben:
+// bei 40 laufenden Spielern sonst bis zu 800 Schreibvorgänge pro Sekunde (Lasttest 10.10.). Nach dem Aufwachen ist die
+// Position dadurch höchstens 2 s alt; der nächste Zustand des Spielers ersetzt sie ohnehin.
+const ATTACH_MS = 2000;
+// Laufzeitkosten: Cloudflare berechnet ein Durable Object nur, solange es arbeitet oder ein Zeitgeber wartet. Gebündelt
+// (BROADCAST_MS) wartet bei laufenden Spielern fast immer ein Zeitgeber, das Objekt läuft also durch. In kleinen Runden
+// (höchstens IMMEDIATE_MAX andere Spieler, allein ohnehin) geht jeder Zustand sofort an die anderen: kein Zeitgeber,
+// das Objekt ruht zwischen den Nachrichten. Ab 6 Spielern wird gebündelt, sonst stiege die Zahl der Sendungen stark.
+const IMMEDIATE_MAX = 4;
 
 // Ausrüstung im Aussehen nur mit echten Gegenständen am richtigen Platz (Katalog src/progression/items.js)
 const isItem = (slot, id) => Object.hasOwn(ITEMS, id) && ITEMS[id].slot === slot;
@@ -324,11 +333,15 @@ export class ZoneShard extends DurableObject {
 
   #markDirty(ws) {
     this.dirty.add(ws);
-    this.flushTimer ??= setTimeout(() => this.#flush(), BROADCAST_MS);
+    if (this.flushTimer) return;
+    // Kleine Runde: sofort weitergeben statt bündeln (siehe IMMEDIATE_MAX), ohne Echo an den Absender.
+    if (this.#count() <= IMMEDIATE_MAX + 1) { this.#flush(ws); return; }
+    this.flushTimer = setTimeout(() => this.#flush(), BROADCAST_MS);
   }
 
-  #flush() {
+  #flush(except = null) {
     this.flushTimer = null;
+    const now = Date.now();
     if (!this.dirty.size) return;
     const s = [], fx = [];
     for (const ws of this.dirty) {
@@ -336,14 +349,15 @@ export class ZoneShard extends DurableObject {
       if (!p || p.pending) continue;
       s.push([p.id, ...p.s]);
       if (p.fx) { fx.push([p.id, ...p.fx]); p.fx = null; }
-      this.#attach(ws, p);
+      if (now - (p.attachedAt ?? 0) >= ATTACH_MS) this.#attach(ws, p);
     }
     this.dirty.clear();
-    if (s.length) this.#broadcast(fx.length ? { t: 'u', s, fx } : { t: 'u', s });
+    if (s.length) this.#broadcast(fx.length ? { t: 'u', s, fx } : { t: 'u', s }, except);
   }
 
   // Anhang überlebt den Ruhezustand (max. 2 KB): alles außer dem Aussehen.
   #attach(ws, p) {
+    p.attachedAt = Date.now();
     try { ws.serializeAttachment({ id: p.id, uid: p.uid, k: p.k, mute: this.mutes.get(p.uid) ?? p.mute ?? null, name: p.name, level: p.level, levelMax: p.levelMax, s: p.s, zone: this.zone, world: this.world }); } catch { /* egal */ }
   }
 

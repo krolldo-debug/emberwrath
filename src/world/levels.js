@@ -298,6 +298,19 @@ function buildCatacombs() {
   };
 }
 
+// Karten erst beim ersten Zugriff bauen: alle zusammen kosten am Handy rund 2,5 s Startzeit (Messung 10.10.),
+// gebraucht wird anfangs nur die Startzone. Object.keys() baut nichts, der Zugriff auf eine Karte baut genau diese.
+export function lazyLevels(builders) {
+  const out = {};
+  for (const [id, build] of Object.entries(builders)) {
+    Object.defineProperty(out, id, {
+      enumerable: true, configurable: true,
+      get() { const v = build(); Object.defineProperty(out, id, { value: v, enumerable: true }); return v; },
+    });
+  }
+  return out;
+}
+
 export const LEVELS = {
   catacombs: buildCatacombs(),
 };

@@ -3,6 +3,7 @@ import { ZONES, NPCS } from './zones.js';
 import { LEVELS } from './levels.js';
 import { LEVELS2 } from './levels2.js';
 import { LEVELS3 } from './levels3.js';
+import { warmCharacter } from './warmup.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
 import { createWolfSprites } from '../sprites/wolf.js';
 import { createBonelordSprites } from '../sprites/bonelord.js';
@@ -91,8 +92,8 @@ export function installWorld(game) {
 
   for (const [id, def] of Object.entries(ZONES)) content.define('zone', id, def);
   for (const [id, def] of Object.entries(NPCS)) content.define('npc', id, def);
-  // Karten als Inhalt (Minimap, Wegführung über Zonengrenzen)
-  for (const [id, def] of Object.entries({ ...LEVELS, ...LEVELS2, ...LEVELS3 })) content.define('level', id, def);
+  // Karten als Inhalt (Minimap, Wegführung über Zonengrenzen); gebaut erst beim ersten Lesen
+  for (const src of [LEVELS, LEVELS2, LEVELS3]) for (const id of Object.keys(src)) content.defineLazy('level', id, () => src[id]);
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     content.define('enemy', id, { name: def.name, level: def.level ?? def.levels?.[0] ?? 1, levels: def.levels ?? null, xp: def.xp, family: def.family, boss: !!def.boss, bossId: def.bossId ?? null, elite: !!def.elite });
   }
@@ -138,6 +139,8 @@ export function installWorld(game) {
   lazyAsset(assets, 'biome_throne', () => createBiomesRimeThrone('throne'));
 
   const startZone = Object.keys(ZONES).find((k) => ZONES[k].start);
+  // Zone vorab vorbereiten, solange der Spieler noch Helden erstellt/auswählt (world/warmup.js)
+  game.warmup = { character: (snap) => warmCharacter(game, snap) };
   const live = { session: null };
 
   state.defineSlice('world', {

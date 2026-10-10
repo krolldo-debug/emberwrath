@@ -13,6 +13,7 @@
 }
 .menu-panel[data-page="main"] { overflow: visible; } /* passt immer; sonst zeigte der Eckbeschlag (.ef-panel::after) einen Rollbalken */
 .menu-panel[data-page="settings"], .menu-panel[data-page="help"] { width: 360px; }
+.menu-panel[data-page="report"] { width: 300px; }
 .menu-head { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; margin-bottom: 2px; }
 .menu-title { margin: 0; text-align: center; font: 700 17px var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.05em; }
 .menu-back, .menu-close {
@@ -38,13 +39,45 @@
 .menu-panel .menu-settings > h3:first-child { display: none; } /* Überschrift steht schon im Kopf der Tafel */
 .menu-panel .menu-help dl { font-size: 13px; }
 
+/* Fehler melden: bewusst leise. Im Hauptmenü nur ein kleiner Textknopf unter „Zum Titel“, keine Rahmen, kein Symbol. */
+.menu-main .menu-report-link {
+  align-self: center; width: auto; min-height: 28px; margin-top: 2px; padding: 4px 8px; justify-content: center;
+  border: 0; background: none; box-shadow: none; color: var(--ef-muted); font: 400 12px var(--ef-font); cursor: pointer;
+}
+.menu-main .menu-report-link:hover, .menu-main .menu-report-link:focus-visible { color: var(--ef-text); text-decoration: underline; text-underline-offset: 3px; }
+.menu-report { display: none; flex-direction: column; gap: 8px; }
+.menu-report.open { display: flex; }
+.menu-report-text {
+  width: 100%; box-sizing: border-box; min-height: 92px; padding: 7px 9px; resize: vertical;
+  font: 400 14px/1.35 var(--ef-font); color: var(--ef-text); background: #08040e; border: 2px solid var(--ef-panel-edge); border-radius: 0;
+  resize: none;
+}
+.menu-report-text:focus { border-color: var(--ef-gold); outline: none; }
+.menu-report-text::placeholder { color: #7a6e58; }
+.menu-report-shot { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; color: var(--ef-text); cursor: pointer; }
+.menu-report-shot input {
+  appearance: none; -webkit-appearance: none; flex: none; box-sizing: border-box; width: 18px; height: 18px; margin: 0;
+  border: 2px solid var(--ef-panel-edge); border-radius: 0; background: #08040e; cursor: pointer;
+}
+/* Gezeichnetes Häkchen: Treppe aus 2-px-Stufen, harte Kanten */
+.menu-report-shot input:checked {
+  border-color: #f0c870; background: #e8a030 no-repeat center / 12px 10px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 2h1v2H0zM1 3h2v2H1zM3 2h1v2H3zM4 1h1v2H4zM5 0h1v2H5z' fill='%231a0c04'/%3E%3C/svg%3E");
+}
+.menu-report-shot input:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 2px; }
+.menu-report-shot:has(input:disabled) { display: none; }
+.menu-report .menu-report-send { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; padding: 5px 12px; display: flex; align-items: center; justify-content: center; font: 600 14px var(--ef-font); }
+.menu-report .menu-report-send:disabled { cursor: default; color: #6a5e4a; background: #140c1c; border-color: #3a2618; box-shadow: none; filter: none; transform: none; }
+.menu-report-status { margin: 0; min-height: 1.2em; font-size: 13px; color: var(--ef-gold); }
+.menu-report-status:empty { display: none; }
+
 /* Handy: unter der Minimap, rechts endet die Tafel vor der Aktionsgruppe (Fähigkeiten, Trank, Angriff bleiben frei);
    drei Spalten, damit sie flach bleibt. Zweizeilige Beschriftung ist erlaubt (feste Zellbreite). */
 .ef-touch .menu-panel {
   top: calc(env(safe-area-inset-top, 0px) + 94px); right: calc(env(safe-area-inset-right, 0px) + 236px); bottom: auto;
   width: 348px; padding: 8px 10px 10px; gap: 4px; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 94px - 22px); /* Minimap endet bei 86 px, XP-Leiste unten */
 }
-.ef-touch .menu-panel[data-page="settings"], .ef-touch .menu-panel[data-page="help"] { width: 360px; }
+.ef-touch .menu-panel[data-page="settings"], .ef-touch .menu-panel[data-page="help"], .ef-touch .menu-panel[data-page="report"] { width: 360px; }
 .ef-touch .menu-main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .ef-touch .menu-panel:not([data-page="main"]) .menu-main { display: none; }
 .ef-touch .menu-main .menu-sep { display: none; } /* „Zum Titel“ ist dann eine normale Zelle, die Tafel bleibt ohne Scrollen */
@@ -54,3 +87,19 @@
 .ef-touch .menu-back, .ef-touch .menu-close { width: 44px; }
 .ef-touch .menu-head { grid-template-columns: 44px 1fr 44px; margin: -6px 0 -2px; }
 .ef-portrait .menu-panel { top: calc(env(safe-area-inset-top, 0px) + 200px); right: 8px; width: min(348px, calc(100vw - 16px)); }
+/* Handy: in der Raster-Tafel eine eigene, aber leise Zelle (ohne Rahmen), Touch-Ziel 44 px */
+.ef-touch .menu-main .menu-report-link { align-self: stretch; width: 100%; margin: 0; padding: 4px 6px; font-size: 12px; }
+.ef-touch .menu-report-shot { min-height: 44px; }
+.ef-touch .menu-report .menu-report-send { min-height: 44px; }
+/* Handy quer ist niedrig: Häkchen und Senden nebeneinander, Textfeld flacher, damit nichts gescrollt werden muss */
+.ef-touch .menu-report.open { display: grid; grid-template-columns: 1fr 120px; grid-template-areas: "text text" "shot send" "status status"; column-gap: 10px; row-gap: 6px; }
+.ef-touch .menu-report-text { grid-area: text; height: 62px; min-height: 0; font-size: 16px; } /* 16 px: iOS zoomt sonst beim Tippen hinein */
+.ef-touch .menu-report-shot { grid-area: shot; }
+.ef-touch .menu-report .menu-report-send { grid-area: send; }
+.ef-touch .menu-report-status { grid-area: status; }
+/* Bildschirmtastatur offen (MenuPanel fitKeyboard): Tafel im sichtbaren Bereich, ohne Kopf, flaches Textfeld */
+.ef-touch .menu-panel.kb { overflow-y: auto; }
+.ef-touch .menu-panel.kb .menu-head { display: none; }
+.ef-touch .menu-panel.kb .menu-report-text { height: 52px; }
+/* Handy: die letzte Chatzeile unten links („Du bist in Welt …“) würde unter der Tafel halb hervorschauen */
+html.ef-touch:has(.menu-panel) .net-chat:not(.open) .net-chat-log { visibility: hidden; }

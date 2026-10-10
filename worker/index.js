@@ -3,6 +3,7 @@ import { Directory } from './directory.js';
 import { DungeonFinder } from './finder/queue.js';
 import { handleForms } from './forms.js';
 import { handleShop } from './shop.js';
+import { handleBugReport } from './bugreport.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
 import { ZONES } from '../src/world/zones.js';
@@ -15,6 +16,7 @@ import { pageHeaders } from './headers.js';
 //   /net/finder                                      WebSocket zur Dungeonsuche (worker/finder/, src/finder/README.md)
 //   /net/forms/support, /net/newsletter/*            Support-Formular und Newsletter der Website (worker/forms.js)
 //   /net/shop/status|checkout|webhook                Gold-Shop mit Stripe (worker/shop.js, docs/SHOP.md)
+//   /net/bug                                         Fehlermeldung aus dem Spiel (worker/bugreport.js)
 // Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
 // außer den Seitenaufrufen aus assets.run_worker_first (wrangler.jsonc): Die kommen hier vorbei, damit alte Adressen
 // (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
@@ -124,13 +126,22 @@ function canonicalRedirect(request, url, env) {
 }
 
 // Seiten aus run_worker_first gehen durch env.ASSETS.fetch. Fehlen dort die Header aus dist/site/_headers (C1),
-// setzt der Worker die gleichen Sicherheits-Header (CSP ohne Skript-Hash, also mit 'unsafe-inline' wie bisher).
-// Sind sie schon da, bleibt die Antwort unverändert.
+// setzt der Worker die gleichen Sicherheits-Header. Die Website hat keine Inline-Skripte mehr (tools/build.mjs prüft
+// das), also script-src nur 'self' wie in _headers. Sind sie schon da, bleibt die Antwort unverändert.
+// Das Spiel (/spielen/spiel.<hash>.js, Name ändert sich mit dem Inhalt) darf ein Jahr im Browser bleiben, auch
+// falls die _headers-Regel auf diesem Weg nicht greift.
+const GAME_FILE_RE = /^\/spielen\/spiel\.[0-9a-f]+\.js$/;
 async function assetWithHeaders(request, env) {
   const res = await env.ASSETS.fetch(request);
+  if (GAME_FILE_RE.test(new URL(request.url).pathname)) {
+    // Fehlt die Datei (alter Verweis), darf das 404 nicht ein Jahr hängen bleiben
+    const out = new Response(res.body, res);
+    out.headers.set('Cache-Control', res.ok ? 'public, max-age=31536000, immutable' : 'no-store');
+    return out;
+  }
   if (!/text\/html/i.test(res.headers.get('content-type') ?? '') || res.headers.has('content-security-policy')) return res;
   const out = new Response(res.body, res);
-  for (const [k, v] of Object.entries(pageHeaders(config(env).SUPABASE_URL))) if (!out.headers.has(k)) out.headers.set(k, v);
+  for (const [k, v] of Object.entries(pageHeaders(config(env).SUPABASE_URL, []))) if (!out.headers.has(k)) out.headers.set(k, v);
   return out;
 }
 
@@ -145,6 +156,9 @@ export default {
       const route = url.pathname.slice(NET_PATH.length);
       if (route.startsWith('/forms/') || route.startsWith('/newsletter/')) {
         try { return (await handleForms(request, config(env), url, route, ctx)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('forms', e?.message); return json({ error: 'server' }, 500); }
+      }
+      if (route === '/bug') {
+        try { return await handleBugReport(request, config(env), url); } catch (e) { console.error('bug', e?.message); return json({ error: 'server' }, 500); }
       }
       if (route.startsWith('/shop/')) {
         // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)

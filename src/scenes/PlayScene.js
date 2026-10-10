@@ -11,7 +11,7 @@ import { reviveInInstance, groupAlive } from '../world/instanceRevive.js';
 //   game, bus (Abo-Bereich dieser Sitzung), input, state, content, assets,
 //   sfx, font, authority, world, camera, zone, panels, time
 //   hitstop(t), slowmo(scale, dur), setPaused(reason, on), paused,
-//   travel(zoneId, spawnId), respawn({ leave }), deadTime, hurtFlash, debug, fps
+//   travel(zoneId, spawnId, pos?), respawn({ leave }), deadTime, hurtFlash, debug, fps
 // Online-Welt: Nichts hält die Welt an, weder Menüs und Fenster noch Fokusverlust oder ein verborgener Tab
 // (core/GameLoop.js rechnet dann im Hintergrund weiter). setPaused bleibt für Sonderfälle erhalten.
 // Ablauf pro Tick: Panels -> Welt -> Sitzungssysteme -> Kamera.
@@ -55,7 +55,7 @@ export class PlayScene {
     // Automatisch speichern an sinnvollen Punkten
     const saveOn = (ev) => this.bus.on(ev, () => g.saveNow(ev));
     [EV.LEVEL_UP, EV.QUEST_ACCEPTED, EV.QUEST_COMPLETED, EV.BOSS_DEFEATED].forEach(saveOn);
-    this.bus.on(EV.ZONE_TRAVEL, (e) => this.travel(e.zoneId, e.spawnId));
+    this.bus.on(EV.ZONE_TRAVEL, (e) => this.travel(e.zoneId, e.spawnId, e.pos));
     this.bus.on(EV.RESPAWN_REQUEST, (e) => this.respawn(e ?? {}));
     this.bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
     this.bus.on(EV.BOSS_RESET, () => { this.boss = null; });
@@ -115,9 +115,8 @@ export class PlayScene {
     if (this.pendingTravel) return;
     if (leave) {
       if (!d.instanced || d.trial) return;
-      const spawnId = `from_${d.id}`;
-      this.travel(d.respawnZone ?? d.id, spawnId);
-      if (hero.dead) this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId });
+      const plan = this.travel(d.respawnZone ?? d.id, `from_${d.id}`);
+      if (hero.dead) this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: plan.zoneId, spawnId: plan.spawnId });
       return;
     }
     // Erst wenn alle Gruppenmitglieder gefallen sind (sonst hebt die Gruppe den Helden nach dem Kampf auf)
@@ -127,11 +126,18 @@ export class PlayScene {
     this.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: d.respawnZone ?? d.id, spawnId: d.respawnSpawn ?? 'respawn' });
   }
 
-  // Zonenwechsel (Tür, Dungeon-Eingang, Respawn). Wird am Tick-Anfang ausgeführt.
-  travel(zoneId, spawnId = 'start') { this.pendingTravel = { zoneId, spawnId }; }
+  // Zonenwechsel (Tür, Dungeon-Eingang, Respawn). Wird am Tick-Anfang ausgeführt. pos (Weltpixel) hat Vorrang vor spawnId.
+  // Vorher dürfen Bereiche das Ziel anpassen (EV.ZONE_TRAVEL_PLAN), z. B. führt die Dungeonsuche beim Verlassen
+  // des Gruppen-Dungeons an die Stelle zurück, an der man beigetreten ist.
+  travel(zoneId, spawnId = 'start', pos = null) {
+    const plan = { zoneId, spawnId, pos, fromZoneId: this.zone?.zoneId ?? null };
+    this.bus.emit(EV.ZONE_TRAVEL_PLAN, plan);
+    this.pendingTravel = plan;
+    return plan;
+  }
 
   #doTravel() {
-    const { zoneId, spawnId } = this.pendingTravel;
+    const { zoneId, spawnId, pos } = this.pendingTravel;
     this.pendingTravel = null;
     // Unbekanntes Ziel (z. B. Gebiet eines noch nicht eingespielten Bereichs): stehen bleiben statt neu zu laden.
     if (!this.content.find('zone', zoneId)) {
@@ -141,7 +147,7 @@ export class PlayScene {
     this.bus.emit(EV.ZONE_LEAVE, { zoneId: this.zone.zoneId });
     this.authority.leaveZone();
     this.world.dispose?.();
-    this.#loadZone(zoneId, spawnId, null);
+    this.#loadZone(zoneId, spawnId, pos ?? null);
     this.bus.emit(EV.ZONE_ENTER, { zoneId: this.zone.zoneId, instanceId: this.zone.instanceId, spawnId });
     this.game.saveNow('zone');
   }

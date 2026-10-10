@@ -11,7 +11,8 @@ Warteschlange niemand Passendes sucht, füllen **Söldner** (Bots) die freien Pl
 3. Matchmaker (`matchmaker.js`): echte Spieler zuerst; sucht sonst niemand, Söldner nach 7–13 s. Suchen andere
    Passendes, wird bis 45 s auf eine echte Gruppe gewartet (Teilgruppe nach 20 s). Bereitschaftsprüfung 30 s.
 4. Alle bereit → Reise in die Dungeon-Instanz, Söldner erscheinen am Eingang (`Party.js`).
-5. Dungeon verlassen oder Gruppe komplett besiegt → Gruppe löst sich auf.
+5. Dungeon verlassen (Ausgangsportal, Menü, „Zurück“) → zurück an die Stelle, an der man beigetreten ist; die Gruppe löst sich auf.
+   Ebenso, wenn die Gruppe komplett besiegt wurde.
 
 ## Söldner
 - Echte `Hero`-Instanzen (gleiche Klassen, Fähigkeiten, Figuren, echte Ausrüstung passend zur Stufe).

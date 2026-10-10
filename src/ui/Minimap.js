@@ -82,8 +82,9 @@ function otherZone(session, here, ids, kind) {
   const content = session.content;
   for (const z of content.all('zone')) {
     if (z.id === here) continue;
-    const L = content.find('level', z.level);
-    const has = L && Object.values(L.enemies ?? {}).some((e) => ids.includes(e.type));
+    // zone.enemies reicht und baut keine fremde Karte (Karten entstehen erst beim Betreten)
+    const types = z.enemies ?? Object.values(content.find('level', z.level)?.enemies ?? {}).map((e) => e.type);
+    const has = types.some((t) => ids.includes(t));
     if (has) { const p = portalToward(session, here, z.id); if (p) return { x: p.x, y: p.y, via: 'portal', label: p.label }; }
   }
   return null;

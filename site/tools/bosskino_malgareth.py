@@ -711,10 +711,29 @@ POSEN = {
     'auf': dict(grip=(38, 80), ang=-420, crouch=3, lean=6, wo=0.05, fN=19, hipx=2),
 }
 
+def mischpose(a, b, k):
+    """Zwischenpose: Zahlenwerte von a nach b (Anteil k), Tupel je Achse, Rest von b."""
+    q = dict(b)
+    for key in set(a) | set(b):
+        va, vb = a.get(key, DEF.get(key, 0)), b.get(key, DEF.get(key, 0))
+        if isinstance(vb, tuple): q[key] = tuple(round(x + (y - x) * k, 1) for x, y in zip(va, vb))
+        elif isinstance(vb, (int, float)) and isinstance(va, (int, float)):
+            q[key] = va + (vb - va) * k
+            if isinstance(va, int) and isinstance(vb, int): q[key] = int(round(q[key]))
+    return q
+
+
+# Zwischenbilder beim Aufrichten nach dem Einschlag (aus der Hocke über halbe Stufen in den Stand)
+POSEN['zieh0'] = mischpose(POSEN['nach3'], POSEN['zieh'], 0.5)
+POSEN['auf0'] = mischpose(POSEN['zieh'], POSEN['auf'], 0.5)
+POSEN['auf1'] = mischpose(POSEN['auf'], POSEN['ruhe'], 0.5)
+
+
 # (Pose, ms, Art): 'gross' = Klingenflammen groß, 'bogen' = Schwungsichel von der vorigen Pose, 'hit' = Einschlag
 MOMENT = [('zug', 130, None), ('h1', 110, None), ('h2', 110, None), ('aus', 560, 'gross'), ('hieb1', 60, 'bogen'),
           ('hieb2', 50, 'bogen'), ('ein', 60, 'hit'), ('ein', 70, 'halt'), ('nach1', 90, 'nach'), ('nach2', 110, 'nach'), ('nach3', 420, 'nach'),
-          ('zieh', 150, None), ('auf', 200, None)]
+          ('zieh0', 110, None), ('zieh', 130, None), ('auf0', 110, None),
+          ('auf', 130, None), ('auf1', 120, None)]
 
 
 # ------------------------------------------------------------------------------------------- Saal des Aschethrons
@@ -897,10 +916,9 @@ def scene():
             BG[y, x] = 0
     L['boden'] = dict(img=Bd, f=1.0)
     L['boden-glut'] = dict(img=BG, f=1.0, glow=dict(per=3.4, lo=0.6, steps=3))
-    # ---- Vordergrund (Tiefe 1,35): Säulentrümmer links, Kette rechts oben, Schattenrisse mit Glutkante
+    # ---- Vordergrund (Tiefe 1,35): Säulentrümmer links, Kette rechts oben, Schattenriss mit Glutkante
     V = Buf()
     vm = V.poly([(-10, SH), (-10, 176), (4, 172), (10, 178), (18, 174), (26, 184), (34, 192), (44, 200), (50, SH)])
-    vm |= V.poly([(500, SH), (512, 196), (530, 190), (548, 194), (566, SH)])
     V.a[vm] = (*hexc('#07040a'), 255)
     e = outline_mask(~vm) & vm
     top_e = e & ~np.roll(vm, 1, axis=0)

@@ -1,7 +1,7 @@
 // Zero-Dependency-Build: bündelt alle ES-Module in eine einzelne HTML-Datei
 // (dist/emberfall.html), die ohne Server per Doppelklick läuft.
 // Aufruf: node tools/build.mjs
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -55,9 +55,8 @@ for (const m of modules.values()) bundle += `__defs[${JSON.stringify(m.id)}] = f
 bundle += `__require(${JSON.stringify(relative(root, entry))});\n`;
 
 const html = readFileSync(resolve(root, 'index.html'), 'utf8');
-// Das Spiel ist ein einziges Inline-Skript; die CSP erlaubt genau dieses über seinen Hash statt 'unsafe-inline'.
+// Das Spiel als ein Skript: in dist/emberfall.html eingebettet, auf der Website als eigene Datei (unten).
 const gameScript = `\n(() => {\n${bundle}})();\n`;
-const gameScriptHash = `sha256-${createHash('sha256').update(gameScript, 'utf8').digest('base64')}`;
 // Alle in index.html verlinkten Stylesheets werden in Reihenfolge eingebettet.
 const cssFiles = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
 const css = cssFiles.map((f) => `/* ${f} */\n${readFileSync(resolve(root, f), 'utf8')}`).join('\n');
@@ -79,7 +78,16 @@ const supabaseUrl = /supabaseUrl:\s*'([^']*)'/.exec(readFileSync(resolve(root, '
 if (supabaseUrl && !/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(supabaseUrl)) { console.error(`Ungültige supabaseUrl in src/online/config.js: ${supabaseUrl}`); process.exit(1); }
 const site = resolve(root, 'dist/site');
 mkdirSync(resolve(site, 'spielen'), { recursive: true });
-writeFileSync(resolve(site, 'spielen/index.html'), out);
+// Auf der Website liegt das Spiel als eigene Datei mit Inhalts-Kennung im Namen (spiel.<hash>.js, ein Jahr im
+// Browser-Speicher): Der Browser bereitet sie schon beim Herunterladen vor, Wiederkehrer laden sie nur nach einem
+// neuen Stand, und die Startseite kann sie vorab laden. Messung 10.10.: Titel am Handy 0,6–0,9 s früher.
+for (const f of readdirSync(resolve(site, 'spielen'))) if (/^spiel\.[0-9a-f]+\.js$/.test(f)) rmSync(resolve(site, 'spielen', f));
+const gameFile = `spiel.${createHash('sha256').update(gameScript, 'utf8').digest('hex').slice(0, 12)}.js`;
+writeFileSync(resolve(site, 'spielen', gameFile), gameScript);
+const siteGame = html
+  .replace(/(\s*<link rel="stylesheet" href="[^"]+">)+/, () => `\n  <style>\n${css}</style>`)
+  .replace(/<script type="module" src="src\/main.js"><\/script>/, () => `<script src="${gameFile}"></script>`);
+writeFileSync(resolve(site, 'spielen/index.html'), siteGame);
 // Web-App vom Home-Bildschirm (src/ui/Fullscreen.js): Manifest und App-Symbole liegen neben dem Spiel.
 for (const f of ['manifest.webmanifest', 'app-icon-180.png', 'app-icon-192.png', 'app-icon-512.png']) copyFileSync(resolve(root, 'src/ui/pwa', f), resolve(site, 'spielen', f));
 // Browser und iOS fragen diese Adressen ohne Verweis im HTML ab: /apple-touch-icon.png und /favicon.ico (ICO mit eingebettetem PNG).
@@ -93,6 +101,14 @@ copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-
   writeFileSync(resolve(site, 'favicon.ico'), Buffer.concat([head, png]));
 }
 const landing = buildSite(root, site);
+// Startseite (de/en): Spiel unauffällig vorab laden, damit „Kostenlos spielen“ nicht mehr aufs Herunterladen wartet.
+// site.js holt es dort nach, wo der Browser rel=prefetch nicht kennt (Safari).
+for (const f of ['index.html', 'en/index.html']) {
+  const p = resolve(site, f);
+  let page;
+  try { page = readFileSync(p, 'utf8'); } catch { continue; }
+  writeFileSync(p, page.replace('</head>', `  <link rel="prefetch" href="/spielen/${gameFile}" as="script">\n</head>`));
+}
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
 // dazu übliche Sicherheits-Header (worker/headers.js). Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
 // Website-Seiten haben keine Inline-Skripte (JSON-LD ist kein ausführbares Skript), das Spiel nur das eine mit Hash.
@@ -108,7 +124,8 @@ for (const f of readdirSync(site, { recursive: true })) {
 }
 writeFileSync(resolve(site, '_headers'), [
   '/*',
-  ...Object.entries(pageHeaders(supabaseUrl, [gameScriptHash])).map(([k, v]) => `  ${k}: ${v}`),
+  // Keine Inline-Skripte mehr auf der Website (das Spiel liegt in spielen/spiel.<hash>.js): script-src nur 'self'
+  ...Object.entries(pageHeaders(supabaseUrl, [])).map(([k, v]) => `  ${k}: ${v}`),
   '/index.html',
   '  Cache-Control: no-cache',
   '/',
@@ -123,6 +140,8 @@ writeFileSync(resolve(site, '_headers'), [
   '  Cache-Control: no-cache',
   '/img/*',
   '  Cache-Control: public, max-age=86400',
+  '/spielen/spiel.*',
+  '  Cache-Control: public, max-age=31536000, immutable',
   '',
 ].join('\n'));
 writeFileSync(resolve(site, 'version.json'), JSON.stringify(build) + '\n');

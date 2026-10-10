@@ -1,5 +1,4 @@
 import { Actor } from './Actor.js';
-import { angleDiff } from '../core/math.js';
 import { SlashEffect, Afterimage } from './Effects.js';
 import { SLASH_STYLES } from '../sprites/effects.js';
 import { EV } from '../core/events.js';
@@ -10,6 +9,7 @@ import { getMountSprites } from '../sprites/mounts.js';
 import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
+import { pickTarget, aimAngle, targetable } from '../character/aim.js';
 import { applyLevelGap } from '../progression/levelGap.js';
 import { applyBossPower } from '../world/bossFury.js';
 
@@ -20,6 +20,9 @@ const H = {
   invulnAfterHit: 0.6,
   combatLinger: 3, // s nach dem letzten Treffer, bis Wut verfällt
 };
+// Zielhilfe (character/aim.js): Bezugshöhe über den Füßen (Hiebbogen bzw. Flughöhe der Geschosse),
+// Reichweite der Nahkampf-Zielhilfe bis zum Rand des Gegners, längster Nachsetzschritt beim Hieb
+const AIM_Y_MELEE = 8, AIM_Y_RANGED = 4, MELEE_ASSIST = 44, STEP_IN = 12;
 
 // Der Spielerheld (Thread A). Klasse und Werte kommen aus createHero():
 //   cls   = content 'class' (Grundangriff, Ressource, Fähigkeiten)
@@ -357,7 +360,7 @@ export class Hero extends Actor {
       this.skillBuffer[i] = 0;
       this.resource -= a.cost;
       a.cdLeft = a.cooldown;
-      this.aimAngle = this.#computeAim(world, axis, this.cls.basic.kind === 'ranged' ? 180 : 70);
+      this.aimAngle = this.#computeAim(world, axis, this.cls.basic.kind === 'ranged' ? 190 : 70, this.cls.basic.kind === 'ranged');
       const c = Math.cos(this.aimAngle);
       if (Math.abs(c) > 0.15) this.facing = Math.sign(c);
       this.skill = { impl, def: a.def, dur: impl.duration };
@@ -399,26 +402,32 @@ export class Hero extends Actor {
     if (this.attackBuffer > 0) this.#startAttack(world, 0, axis);
   }
 
-  // Zielrichtung: Maus > Bewegungsrichtung > Blickrichtung, dann Zielhilfe
-  // auf den besten Gegner im Sichtkegel (wichtig für Touch).
-  #computeAim(world, axis, range = 52) {
-    let ang;
-    if (world.aim) ang = Math.atan2(world.aim.y - (this.y - 8), world.aim.x - this.x);
-    else if (axis.x || axis.y) ang = Math.atan2(axis.y, axis.x);
-    else ang = this.facing > 0 ? 0 : Math.PI;
-    const cone = world.aim ? 0.5 : 0.95;
-    let best = null, bestScore = Infinity;
-    for (const e of world.enemies) {
-      if (e.dead || e.rise < 1) continue;
-      const dx = e.x - this.x, dy = e.centerY - (this.y - 8);
-      const d = Math.hypot(dx, dy);
-      if (d > range) continue;
-      const da = Math.abs(angleDiff(ang, Math.atan2(dy, dx)));
-      if (da > cone) continue;
-      const score = d + da * 30;
-      if (score < bestScore) { bestScore = score; best = Math.atan2(dy, dx); }
-    }
-    return best ?? ang;
+  // Zielrichtung mit Zielhilfe (character/aim.js): Maus > Stick/Tasten > ohne Eingabe der nächste Gegner ringsum.
+  // Das gewählte Ziel (aimTarget) wird beim Hieb/Schuss erneut angepeilt (#reaim).
+  #computeAim(world, axis, range = 52, ranged = false) {
+    const oy = this.y - (ranged ? AIM_Y_RANGED : AIM_Y_MELEE);
+    const pointer = world.aim ?? null;
+    const moving = !!(axis.x || axis.y);
+    const t = pickTarget(world.enemies, { ox: this.x, oy, range, pointer, dir: !pointer && moving ? axis : null, facing: this.facing, last: this.aimTarget });
+    this.aimTarget = t;
+    if (t) return aimAngle(t, this.x, oy);
+    if (pointer) return Math.atan2(pointer.y - (this.y - 8), pointer.x - this.x);
+    if (moving) return Math.atan2(axis.y, axis.x);
+    return this.facing > 0 ? 0 : Math.PI;
+  }
+
+  // Im Moment des Hiebs/Schusses: auf die aktuelle Stelle des Ziels (Geschosse mit Vorhalt).
+  // Liefert den Abstand zum Rand des Trefferkreises (oder null ohne Ziel).
+  #reaim(range, speed = 0) {
+    const t = this.aimTarget;
+    if (!targetable(t)) { this.aimTarget = null; return null; }
+    const oy = this.y - (speed ? AIM_Y_RANGED : AIM_Y_MELEE);
+    const gap = Math.hypot(t.x - this.x, t.centerY - oy) - (t.hurtRadius ?? 7);
+    if (gap > range) return null;
+    this.aimAngle = aimAngle(t, this.x, oy, speed);
+    const c = Math.cos(this.aimAngle);
+    if (Math.abs(c) > 0.15) this.facing = Math.sign(c);
+    return gap;
   }
 
   #startAttack(world, comboIndex, axis) {
@@ -426,7 +435,7 @@ export class Hero extends Actor {
     this.attackBuffer = 0;
     this.combo = comboIndex;
     this.atk = basic.kind === 'melee' ? basic.combo[comboIndex] : { ...basic.shot, active: 0.04 };
-    this.aimAngle = this.#computeAim(world, axis, basic.kind === 'melee' ? 52 : basic.shot.range * 0.8);
+    this.aimAngle = basic.kind === 'melee' ? this.#computeAim(world, axis, MELEE_ASSIST) : this.#computeAim(world, axis, basic.shot.range, true);
     const c = Math.cos(this.aimAngle);
     if (Math.abs(c) > 0.15) this.facing = Math.sign(c);
     this.setState('attack');
@@ -487,8 +496,12 @@ export class Hero extends Actor {
   }
 
   #meleeStrike(world, a) {
+    // Steht das Ziel knapp außer Reichweite, setzt der Hieb ein Stück nach (höchstens STEP_IN Pixel)
+    const gap = this.#reaim(MELEE_ASSIST);
+    const short = gap == null ? 0 : Math.min(STEP_IN, gap - a.reach + 2);
+    const lunge = short > 0 ? Math.max(a.lunge, short * 20) : a.lunge;
     const dx = Math.cos(this.aimAngle), dy = Math.sin(this.aimAngle);
-    this.vx = dx * a.lunge; this.vy = dy * a.lunge;
+    this.vx = dx * lunge; this.vy = dy * lunge;
     heroHitbox(this, world, {
       shape: 'arc', x: this.x + dx * 4, y: this.y - 8 + dy * 4, follow: true, offX: dx * 4, offY: -8 + dy * 4,
       r: a.reach, angle: this.aimAngle, arc: a.arc,
@@ -503,6 +516,7 @@ export class Hero extends Actor {
   }
 
   #shoot(world, a) {
+    this.#reaim(a.range, a.speed);
     const dx = Math.cos(this.aimAngle), dy = Math.sin(this.aimAngle);
     this.vx = -dx * 20; this.vy = -dy * 20;
     const P = this.stats.passives ?? {};

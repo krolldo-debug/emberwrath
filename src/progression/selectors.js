@@ -176,11 +176,23 @@ export function trackedQuests(state, content) {
   return out.sort((a, b) => b.tracked - a.tracked || b.main - a.main || a.level - b.level);
 }
 
+// Im Dungeon (jede Instanz, auch Glutprüfung) zeigen Tracker und Questpfad nur Quests, die dort etwas zu
+// erledigen haben oder dort erledigt wurden: ein Ziel liegt in dieser Zone bzw. ist das Betreten der Zone.
+// Liefert null außerhalb von Instanzen (dann gilt alles), sonst eine Prüffunktion questId -> boolean.
+export function questFilterHere(state, content) {
+  const zoneId = state.slices.world?.zoneId;
+  if (!zoneId || !content.find('zone', zoneId)?.instanced) return null;
+  const enter = `zone:${zoneId}`;
+  return (questId) => (content.find('quest', questId)?.objectives ?? []).some((o) => o.zone === zoneId || (Array.isArray(o.target) ? o.target.includes(enter) : o.target === enter));
+}
+
 // Verfolgte Quest: gewählte, sonst die erste aktive Hauptquest, sonst irgendeine aktive.
-export function trackedQuestId(state, content) {
+// here: nur Quests, die in der aktuellen Instanz zählen (questFilterHere); die gewählte bleibt gespeichert.
+export function trackedQuestId(state, content, { here = false } = {}) {
   const q = state.slices.quests;
-  if (q.tracked && q.active[q.tracked]) return q.tracked;
-  const ids = Object.keys(q.active);
+  const ok = (here && questFilterHere(state, content)) || (() => true);
+  if (q.tracked && q.active[q.tracked] && ok(q.tracked)) return q.tracked;
+  const ids = Object.keys(q.active).filter(ok);
   if (!ids.length) return null;
   const main = ids.filter((id) => content.find('quest', id)?.main);
   const pick = (main.length ? main : ids).sort((a, b) => (content.find('quest', a)?.level ?? 0) - (content.find('quest', b)?.level ?? 0));
@@ -194,7 +206,7 @@ export function trackedQuestId(state, content) {
 // Ohne verfolgte Quest: nächster NPC mit neuer Quest (Einstieg), sonst null.
 export function questTarget(state, content) {
   const q = state.slices.quests;
-  const questId = trackedQuestId(state, content);
+  const questId = trackedQuestId(state, content, { here: true });
   const npcZone = (npcId) => content.find('npc', npcId)?.zoneId ?? null;
   const mk = (o) => ({ ...o, type: o.kind });
   // Gewünschter Weg zu einem Questgeber (quest:guide) hat Vorrang
@@ -203,6 +215,8 @@ export function questTarget(state, content) {
     return mk({ questId: g.id, objectiveId: null, title: g.title, text: `Neue Quest bei ${npcShortName(content, g.giver)}`, zoneId: npcZone(g.giver), kind: 'npc', id: g.giver, ready: false, offer: true });
   }
   if (!questId) {
+    // Im Dungeon ohne passende Quest: kein Weg nach draußen zu Questgebern
+    if (questFilterHere(state, content)) return null;
     const zoneId = state.slices.world?.zoneId;
     let best = null;
     for (const def of content.all('quest')) {
