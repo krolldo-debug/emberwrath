@@ -196,7 +196,7 @@ ok(await until(async () => (await scene(a.frame)) === 'login'), 'Konto-Seite öf
 const accText = await a.f.locator('#ui').innerText();
 ok(/Guest/.test(accText) && /CrazyGames/.test(accText) && !/password|Google/i.test(accText), 'Konto-Seite: Gast, Anmelden bei CrazyGames, kein Passwort/Google');
 await a.page.screenshot({ path: `${shots}/5-konto-gast.png` });
-await a.f.getByText('Sign in with CrazyGames').click();
+await a.f.getByRole('button', { name: 'Sign in with CrazyGames' }).click();
 ok(await until(async () => sessionCalls.some((c) => c.cg && c.link)), 'Anmeldung bei CrazyGames schickt Gast-Token zum Übernehmen');
 ok(await until(async () => (await a.f.locator('#ui').innerText()).includes('Bob')), 'Konto heißt jetzt wie das CrazyGames-Konto');
 ok(accounts.get('cg-id-Bob@players.emberwrath.com')?.id === guest.id, 'gleiches Konto (Helden bleiben)');
