@@ -114,7 +114,6 @@ export const EN = {
   "Thronbrecher": "Throne Breaker",
   "Thronsturz": "Fall of the Throne",
   "Unverlöschlich": "Undying Flame",
-  "Version, Gebiet und Gerät werden mitgeschickt.": "Version, area and device are sent along.",
   "Verstärke einen Platz auf +15.": "Upgrade a slot to +15.",
   "Veteran": "Veteran",
   "Was ist passiert? Was hast du kurz davor gemacht?": "What happened? What were you doing right before?",

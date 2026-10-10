@@ -109,7 +109,31 @@ ok(fit, 'Handy: Formular passt ohne Scrollen auf den Bildschirm, Senden sichtbar
 const sizes = await L.page.evaluate(() => ['.menu-report-send', '.menu-report-shot', '.menu-back', '.menu-close'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().height)));
 ok(sizes.every((h) => h >= 44), `Handy: Knöpfe mindestens 44 px (${sizes.join(', ')})`);
 await L.page.fill('.menu-report-text', 'Auf dem Handy ruckelt die Karte beim Zoomen.');
+ok(await L.page.evaluate(() => [...document.querySelectorAll('.net-chat-log')].every((e) => getComputedStyle(e).visibility === 'hidden')), 'Handy: Chatzeile unten links verdeckt, solange das Menü offen ist');
+const box = await L.page.$eval('.menu-report-shot input', (e) => { const cs = getComputedStyle(e); return { app: cs.appearance, radius: cs.borderTopLeftRadius, bg: cs.backgroundImage.slice(0, 20) }; });
+ok(box.app === 'none' && box.radius === '0px' && /svg/.test(box.bg), `gezeichnetes eckiges Häkchen (${JSON.stringify(box)})`);
+ok(await L.page.$eval('.menu-report-text', (e) => getComputedStyle(e).resize) === 'none', 'Textfeld ohne Ziehgriff');
+await L.page.evaluate(() => document.activeElement?.blur());
 await shot(L, 'handy-2-formular');
+// Bildschirmtastatur nachstellen: sichtbarer Bereich nur noch 140 px hoch (iPhone quer mit Tastatur)
+await L.page.evaluate(() => {
+  const vv = window.visualViewport;
+  Object.defineProperty(vv, 'height', { configurable: true, get: () => 140 });
+  const kb = document.createElement('div');
+  kb.id = 'fake-kb';
+  kb.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:' + (innerHeight - 140) + 'px;background:#2b2b2f;z-index:99999;color:#888;font:14px sans-serif;display:grid;place-items:center';
+  kb.textContent = 'Bildschirmtastatur (nachgestellt)';
+  document.body.append(kb);
+});
+await L.page.focus('.menu-report-text');
+await L.page.evaluate(() => window.visualViewport.dispatchEvent(new Event('resize')));
+await L.page.waitForTimeout(100);
+const kb = await L.page.evaluate(() => { const p = document.querySelector('.menu-panel'), r = p.getBoundingClientRect(), s = document.querySelector('.menu-report-send').getBoundingClientRect(), t = document.querySelector('.menu-report-text').getBoundingClientRect(); return { kb: p.classList.contains('kb'), top: Math.round(r.top), bottom: Math.round(r.bottom), send: Math.round(s.bottom), text: Math.round(t.bottom), head: getComputedStyle(document.querySelector('.menu-head')).display }; });
+ok(kb.kb && kb.top >= 0 && kb.bottom <= 140 && kb.send <= 140 && kb.text <= 140 && kb.head === 'none', `Handy mit Tastatur: Textfeld und Senden sichtbar (${JSON.stringify(kb)})`);
+await shot(L, 'handy-3-tastatur');
+await L.page.evaluate(() => { document.activeElement.blur(); delete window.visualViewport.height; document.getElementById('fake-kb').remove(); });
+await L.page.waitForTimeout(50);
+ok(await L.page.evaluate(() => !document.querySelector('.menu-panel').classList.contains('kb') && document.querySelector('.menu-panel').style.top === ''), 'Tastatur zu: Tafel wieder an ihrem Platz');
 
 const E = await player(uid(3), 'Ena', 'rogue', { locale: 'en-US', viewport: { width: 1280, height: 720 } }, 'en');
 await openMenu(E);
@@ -121,6 +145,16 @@ await E.page.waitForTimeout(300);
 const en = await E.page.evaluate(() => [document.querySelector('.menu-title').textContent, document.querySelector('.menu-report-text').placeholder, document.querySelector('.menu-report-shot').textContent]);
 ok(en[0] === 'Report a bug' && /What happened/.test(en[1]) && en[2] === 'Attach a screenshot', `Englisch: ${JSON.stringify(en)}`);
 await shot(E, 'pc-en-formular');
+// Während des Sendens: Antwort des Servers 1,5 s zurückhalten und den Zwischenstand lesen
+await E.page.route('**/net/bug', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); });
+await E.page.fill('.menu-report-text', 'The map does not open on the second try.');
+await E.page.click('.menu-report-send');
+await E.page.waitForTimeout(400);
+const sending = await E.page.$eval('.menu-report-status', (e) => e.textContent);
+ok(sending === 'Sending …', `Englisch beim Senden: „${sending}“`);
+await shot(E, 'pc-en-senden');
+// Ergebnis egal (nach den Sperrtests oben greift evtl. die Minutengrenze), nur der Zwischenstand zählt
+await E.page.waitForFunction(() => !/Sending/.test(document.querySelector('.menu-report-status')?.textContent ?? ''), null, { timeout: 8000 });
 
 ok(pageErrors.every((e) => /Testausnahme/.test(e)), `keine weiteren Fehler: ${pageErrors.join(' | ')}`);
 await browser.close();

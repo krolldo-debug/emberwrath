@@ -50,15 +50,24 @@
 .menu-report-text {
   width: 100%; box-sizing: border-box; min-height: 92px; padding: 7px 9px; resize: vertical;
   font: 400 14px/1.35 var(--ef-font); color: var(--ef-text); background: #08040e; border: 2px solid var(--ef-panel-edge); border-radius: 0;
+  resize: none;
 }
 .menu-report-text:focus { border-color: var(--ef-gold); outline: none; }
 .menu-report-text::placeholder { color: #7a6e58; }
 .menu-report-shot { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; color: var(--ef-text); cursor: pointer; }
-.menu-report-shot input { width: 18px; height: 18px; margin: 0; accent-color: #e8a030; flex: none; }
+.menu-report-shot input {
+  appearance: none; -webkit-appearance: none; flex: none; box-sizing: border-box; width: 18px; height: 18px; margin: 0;
+  border: 2px solid var(--ef-panel-edge); border-radius: 0; background: #08040e; cursor: pointer;
+}
+/* Gezeichnetes Häkchen: Treppe aus 2-px-Stufen, harte Kanten */
+.menu-report-shot input:checked {
+  border-color: #f0c870; background: #e8a030 no-repeat center / 12px 10px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 5' shape-rendering='crispEdges'%3E%3Cpath d='M0 2h1v2H0zM1 3h2v2H1zM3 2h1v2H3zM4 1h1v2H4zM5 0h1v2H5z' fill='%231a0c04'/%3E%3C/svg%3E");
+}
+.menu-report-shot input:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 2px; }
 .menu-report-shot:has(input:disabled) { display: none; }
-.menu-report-note { margin: -4px 0 0; font-size: 12px; color: var(--ef-muted); }
 .menu-report .menu-report-send { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; padding: 5px 12px; display: flex; align-items: center; justify-content: center; font: 600 14px var(--ef-font); }
-.menu-report-send:disabled { opacity: 0.5; cursor: default; }
+.menu-report .menu-report-send:disabled { cursor: default; color: #6a5e4a; background: #140c1c; border-color: #3a2618; box-shadow: none; filter: none; transform: none; }
 .menu-report-status { margin: 0; min-height: 1.2em; font-size: 13px; color: var(--ef-gold); }
 .menu-report-status:empty { display: none; }
 
@@ -83,9 +92,14 @@
 .ef-touch .menu-report-shot { min-height: 44px; }
 .ef-touch .menu-report .menu-report-send { min-height: 44px; }
 /* Handy quer ist niedrig: Häkchen und Senden nebeneinander, Textfeld flacher, damit nichts gescrollt werden muss */
-.ef-touch .menu-report.open { display: grid; grid-template-columns: 1fr 120px; grid-template-areas: "text text" "shot send" "note note" "status status"; column-gap: 10px; row-gap: 6px; }
+.ef-touch .menu-report.open { display: grid; grid-template-columns: 1fr 120px; grid-template-areas: "text text" "shot send" "status status"; column-gap: 10px; row-gap: 6px; }
 .ef-touch .menu-report-text { grid-area: text; height: 62px; min-height: 0; font-size: 16px; } /* 16 px: iOS zoomt sonst beim Tippen hinein */
 .ef-touch .menu-report-shot { grid-area: shot; }
 .ef-touch .menu-report .menu-report-send { grid-area: send; }
-.ef-touch .menu-report-note { grid-area: note; margin: 0; }
 .ef-touch .menu-report-status { grid-area: status; }
+/* Bildschirmtastatur offen (MenuPanel fitKeyboard): Tafel im sichtbaren Bereich, ohne Kopf, flaches Textfeld */
+.ef-touch .menu-panel.kb { overflow-y: auto; }
+.ef-touch .menu-panel.kb .menu-head { display: none; }
+.ef-touch .menu-panel.kb .menu-report-text { height: 52px; }
+/* Handy: die letzte Chatzeile unten links („Du bist in Welt …“) würde unter der Tafel halb hervorschauen */
+html.ef-touch:has(.menu-panel) .net-chat:not(.open) .net-chat-log { visibility: hidden; }

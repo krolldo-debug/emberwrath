@@ -74,7 +74,7 @@ export function createMenuPanel(session) {
   let shot = null, context = null, busy = false, cooldown = 0;
   const text = h('textarea.menu-report-text', {
     rows: 4, maxlength: 2000, 'aria-label': 'Beschreibung',
-    oninput: () => update(),
+    oninput: () => update(), onfocus: () => watchKeyboard(true), onblur: () => watchKeyboard(false),
   });
   // Platzhalter selbst übersetzen: der Übersetzer lässt Textfelder aus (SKIP_TAGS in i18n/index.js)
   const HINT = 'Was ist passiert? Was hast du kurz davor gemacht?';
@@ -84,10 +84,28 @@ export function createMenuPanel(session) {
   const report = h('div.menu-report',
     text,
     h('label.menu-report-shot', shotBox, h('span', 'Bild vom Spiel anhängen')),
-    h('p.menu-report-note', 'Version, Gebiet und Gerät werden mitgeschickt.'),
     send,
     status,
   );
+  // Handy: Die Bildschirmtastatur verdeckt die untere Hälfte (quer bleiben ~140 px). Solange das Textfeld den Fokus hat
+  // und der sichtbare Bereich (visualViewport) deutlich kleiner ist, rückt die Tafel hinein: oben im sichtbaren Bereich,
+  // ohne Kopfzeile, flacheres Textfeld (ui/menu.css .menu-panel.kb).
+  const vv = window.visualViewport;
+  function fitKeyboard() {
+    const kb = !!vv && document.activeElement === text && vv.height < window.innerHeight - 80;
+    root.classList.toggle('kb', kb);
+    if (!kb) { root.style.top = root.style.bottom = root.style.maxHeight = ''; return; }
+    const top = root.offsetParent?.getBoundingClientRect().top ?? 0;
+    root.style.top = `${Math.round(vv.offsetTop - top + 4)}px`;
+    root.style.bottom = 'auto';
+    root.style.maxHeight = `${Math.floor(vv.height - 8)}px`;
+  }
+  function watchKeyboard(on) {
+    if (!vv) return;
+    for (const ev of ['resize', 'scroll']) vv[on ? 'addEventListener' : 'removeEventListener'](ev, fitKeyboard);
+    // Nach dem Verlassen des Feldes erst prüfen, wenn die Tastatur weg ist (activeElement ist dann schon ein anderes)
+    if (on) fitKeyboard(); else setTimeout(fitKeyboard, 0);
+  }
   const update = () => { send.disabled = busy || Date.now() < cooldown || text.value.trim().length < 3; };
   function openReport() {
     // Bild sofort aufnehmen: so zeigt es den Moment, in dem das Menü geöffnet wurde, nicht die Zeit danach
