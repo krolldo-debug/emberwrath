@@ -83,7 +83,7 @@ node site/tools/keyart.mjs ka [ids]              # Streifen (kampf-*.webp): fest
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
-node site/tools/bosskino.mjs [malgareth,ulgrim,faeulnis,skalvyr]  # Bosskino: Atlanten, Standbild, Block in bosskino.js (Pillow, numpy)
+node site/tools/bosskino.mjs [malgareth,faeulnis,skalvyr]  # Bosskino: Atlanten, Standbild, Block in bosskino.js (Pillow, numpy)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
 node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)

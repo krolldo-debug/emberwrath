@@ -1,4 +1,4 @@
-# Bosskino der Startseite, Teil 2 (aufgerufen von bosskino.mjs): vier Bosse als eigene Pixel-Art in Seitenansicht, je in
+# Bosskino der Startseite, Teil 2 (aufgerufen von bosskino.mjs): die Bosse als eigene Pixel-Art in Seitenansicht, je in
 # seinem Gebiet mit Parallaxebenen, Ruhe in Ebenen mit eigenen Zyklen und einer Signatur-Attacke als ganze Bilder.
 # Gleiches Prinzip wie das Titelbild (titel-held.py): ein Szenenraster je Bühne (SW × SH Szenenpixel), alles 1:1 darin,
 # Teile aus Vielecken in ganzen Pixeln, gerichtetes Licht in 4 Tönen je Material, dunkle Innenkanten, Außenkontur,
@@ -15,7 +15,7 @@ def hexc(h): h = h.lstrip('#'); return (int(h[0:2], 16), int(h[2:4], 16), int(h[
 
 # Szenenraster (für alle Bühnen gleich): Breite, Höhe, Bodenlinie (Füße), Rand für Parallaxe
 SW, SH, FY = 560, 216, 190
-BOSSE = ['malgareth', 'ulgrim', 'faeulnis', 'skalvyr']
+BOSSE = ['malgareth', 'faeulnis', 'skalvyr']   # Ulgrim (bosskino_ulgrim.py) vorerst nicht gezeigt
 
 # Materialien: Ton 0 = Innenkante, 1..4 Schatten -> Licht
 MAT = {}

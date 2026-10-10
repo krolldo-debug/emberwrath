@@ -344,7 +344,9 @@ def head(f, base, ang=0.0, jaw=0.0, eye=4, roar=0.0):
         ar = math.radians(aa)
         shard(f, [P(u - 2, v - 0.5), P(u - 2 + L * math.cos(ar), v + L * math.sin(ar))], 3.2, 0.8, 'crys', n=8)
     mouth = P(62, -2 - jaw * 6)
-    return {'mund': mouth, 'nase': P(60, 4), 'kehle': J(20, -12)}
+    up_, lo_ = P(40, -1), J(40, -2.5)
+    return {'mund': mouth, 'nase': P(60, 4), 'kehle': J(20, -12), 'schlund': ((up_[0] + lo_[0]) / 2, (up_[1] + lo_[1]) / 2),
+            'gape': ang - 17 * jaw}
 
 
 def heart(f, at, lv):
@@ -360,23 +362,69 @@ def heart(f, at, lv):
                     f.mat[Y + dy, X + dx] = 'fg'; f.tone[Y + dy, X + dx] = t
 
 
+JET = ['#0a1e34', '#1c4468', '#3a7aa6', '#8ac8e4', '#dcf6ff', '#ffffff']
+# Atemstoß je Stufe: (Reichweite, abgelöstes Ende hinten, Tonversatz)
+JETS = [(18, 0, 1), (48, 0, 1), (82, 0, 0), (104, 6, 0), (112, 34, -1)]
+
+
+def breath(im, f, mouth, ang, st):
+    """Eisiger Atemstoß aus dem Rachen: flacher Kegel nach vorn unten, aus Fasern (Bahnen längs des Strahls) mit
+    unterschiedlich weit reichenden, zerfaserten Enden; harte Tonstufen von der weißen Achse zum dunklen Rand;
+    eingestreute Eissplitter, die mit dem Strahl fliegen. In der letzten Stufe löst sich der Strahl vom Maul."""
+    R, B, sh = JETS[st]
+    a = math.radians(ang); dx, dh = math.cos(a), math.sin(a); nx, nh = -dh, dx
+    mx, mh = mouth
+    Hh, Ww = im.shape[:2]
+    X0, Y0 = f.at(mx, mh)
+    span = int(R * f.S) + 4
+    for y in range(max(0, Y0 - span), min(Hh, Y0 + span)):
+        for x in range(max(0, X0 - 6), min(Ww, X0 + span)):
+            px = (x + 0.5 - f.FX) / f.S - mx; ph = (f.FY - (y + 0.5)) / f.S - mh
+            d = px * dx + ph * dh; o = px * nx + ph * nh
+            if d > R: continue
+            w = 2 + d * 0.36                                    # halbe Kegelbreite (flach)
+            o2 = o * (1.2 if o > 0 else 1.0)                    # Oberseite etwas flacher
+            lane = math.floor(o / 1.6)
+            if B and d < B * (0.6 + 0.8 * hash2(lane, st, 63)): continue
+            reach = R * (0.55 + 0.45 * hash2(lane, st, 61))
+            side = w * (0.7 + 0.3 * hash2(lane, math.floor(d / 5), 62))
+            if abs(o2) > side or d > reach: continue
+            r = abs(o2) / w; q = (d - B) / max(1, reach - B)
+            t = 5 if (r < 0.2 and q < 0.55) else 4 if (r < 0.42 and q < 0.78) else 3 if (r < 0.66 and q < 0.92) else 2
+            if r > 0.86 or q > 0.97: t = 1
+            if B > 0 and q < 0.15: t = min(t, 2)
+            t = max(1, min(5, t + sh))
+            im[y, x] = (*hexc(JET[t]), 255)
+    # Eissplitter im und vor dem Strahl: kurze Striche längs der Flugrichtung, Kopf weiß, Schweif cyan
+    rng = np.random.default_rng(70 + st)
+    for i in range(4 + st * 5):
+        d = rng.uniform(0.35, 1.15) * R
+        if d < B: continue
+        o = rng.uniform(-1.3, 1.3) * (2 + d * 0.36)
+        hx, hh = mx + dx * d + nx * o, mh + dh * d + nh * o
+        Ls = 2 + int(rng.integers(0, 3))
+        for k in range(Ls + 1):
+            X, Y = f.at(hx - dx * k, hh - dh * k)
+            if 0 <= X < Ww and 0 <= Y < Hh: im[Y, X] = (*hexc('#ffffff' if k == 0 else JET[3] if k < 2 else JET[2]), 255)
+
+
 # ------------------------------------------------------------------------------------------- Posen
 BODY = [(-198, 44), (-190, 26), (-174, 12), (-152, 11), (-132, 34), (-108, 66), (-82, 58), (-62, 32), (-38, 24), (-18, 32)]
 RAD = [2.0, 3.5, 6, 9.5, 13, 17, 19, 21, 22.5, 24, 26, 21.5, 18, 16, 14.5]
 rad = lambda k: float(np.interp(k, range(len(RAD)), RAD))
 
 POSEN = {
-    'ruhe': dict(C=(0, 46), N=[(10, 70), (12, 94), (22, 114), (36, 124)], kw=-7, ff=(20, 0), fn=(32, 0)),
-    'zug': dict(C=(-3, 40), N=[(4, 60), (-2, 80), (6, 96), (20, 102)], kw=-26, jaw=0.15, ff=(18, 0), fn=(30, 0), b9=-3),
-    'zug2': dict(C=(-4, 38), N=[(2, 58), (-6, 76), (0, 92), (14, 98)], kw=-30, jaw=0.2, ff=(18, 0), fn=(30, 0), b9=-4),
-    'h1': dict(C=(-4, 58), N=[(4, 86), (2, 106), (10, 120), (24, 126)], kw=2, b8=4, jaw=0.5, ff=(18, 16), fn=(30, 22), lift=0.4, b9=6),
-    'aus': dict(C=(-6, 68), N=[(0, 96), (-2, 116), (8, 128), (24, 130)], kw=14, b8=8, jaw=1.0, ff=(16, 34), fn=(30, 42), lift=1.0, b9=14, roar=1.0, herz=5),
-    'ab': dict(C=(-2, 54), N=[(8, 80), (12, 102), (24, 118), (38, 124)], kw=-4, jaw=0.45, ff=(20, 4), fn=(32, 6), lift=0.2, b9=3),
-    'ab2': dict(C=(0, 44), N=[(10, 68), (12, 92), (22, 112), (36, 120)], kw=-16, jaw=0.2, ff=(20, 0), fn=(32, 0)),
+    'ruhe': dict(C=(0, 44), N=[(10, 64), (12, 86), (22, 105), (36, 115)], kw=-7, ff=(20, 0), fn=(32, 0)),
+    'zug': dict(C=(-3, 40), N=[(4, 60), (-2, 80), (6, 96), (20, 102)], kw=-26, jaw=0.15, ff=(18, 0), fn=(30, 0), b9=-3, atem=2),
+    'zug2': dict(C=(-4, 38), N=[(2, 58), (-6, 76), (0, 92), (14, 98)], kw=-30, jaw=0.1, ff=(18, 0), fn=(30, 0), b9=-4, atem=3),
+    'h1': dict(C=(-4, 56), N=[(2, 80), (2, 98), (10, 110), (22, 116)], kw=12, b8=4, jaw=0.6, ff=(18, 14), fn=(30, 20), lift=0.4, b9=6, atem=2),
+    'aus': dict(C=(-6, 64), N=[(-2, 86), (2, 104), (10, 116), (20, 122)], kw=34, b8=8, jaw=1.0, ff=(16, 30), fn=(30, 38), lift=1.0, b9=14, roar=1.0, herz=5, cdir=-30),
+    'ab': dict(C=(-2, 50), N=[(8, 74), (12, 94), (24, 108), (38, 112)], kw=-6, jaw=0.5, ff=(20, 4), fn=(32, 6), lift=0.2, b9=3),
+    'ab2': dict(C=(0, 44), N=[(10, 64), (12, 86), (22, 104), (36, 112)], kw=-14, jaw=0.2, ff=(20, 0), fn=(32, 0)),
 }
 
 
-def figure(p, ph=0.0, ring=-1, puff=-1):
+def figure(p, ph=0.0, puff=-1, cloud=-1):
     f = new()
     t = ph * 2 * math.pi
     wv = p.get('wave', 1.0)
@@ -432,23 +480,8 @@ def figure(p, ph=0.0, ring=-1, puff=-1):
         sel = (f.mat == m_) & ue & (f.tone >= 2)
         f.tone[sel] = t_
     im = f.render(outline=OUT, rim=RIM_F, rim_back=RIM_B)
-    # Schallringe des Brüllens: gestufte Bögen vor dem Maul (Teil des Bildes, bleiben im Rahmen)
-    if ring >= 0:
-        mx, mh = hd['mund']
-        X0, Y0 = f.at(mx, mh)
-        dirr = math.radians(p['kw'] + 8)
-        for q in range(3):
-            rr = 10 + ((ring * 6 + q * 14) % 42)
-            lv = 4 if rr < 20 else 3 if rr < 34 else 2
-            span = math.radians(52)
-            n_ = int(rr * 2.4) + 1
-            for i in range(n_ + 1):
-                aa = dirr - span + 2 * span * i / n_
-                if lv < 3 and i % 3 == 2: continue
-                for w in range(3 if lv == 4 else 2 if lv == 3 else 1):
-                    X = int(round(X0 + (rr - w) * math.cos(aa))); Y = int(round(Y0 - (rr - w) * math.sin(aa)))
-                    if 0 <= X < W and 0 <= Y < GROUND - 2 and im[Y, X, 3] == 0:
-                        im[Y, X] = (*hexc(FROST[lv - w] if w < 2 else OUT), 255)
+    if cloud >= 0:
+        breath(im, f, hd['schlund'], hd['gape'] + p.get('cdir', 0), cloud)
     im[GROUND:] = 0
     return im
 
@@ -629,166 +662,460 @@ def scene():
 
 
 # ------------------------------------------------------------------------------------------- Effekte
-ZW, ZH = 15, 50
+from PIL import Image as _Img, ImageDraw as _Draw
+
+ICE = MAT['crys']                      # dunkel -> hell
+WHITE = '#ffffff'
+MIST = ['#0a1e34', '#1c4468', '#3a7aa6', '#8ac8e4', '#dcf6ff', '#ffffff']
 
 
-def icicle(h=ZH, w=ZW):
-    """Fallender Eiszapfen: oben abgebrochen, drei Facetten, Riss, weiße Spitze, dunkle Kontur."""
-    im = np.zeros((h, w, 4), np.uint8)
-    C = MAT['crys']
-    for y in range(h - 1):
-        k = 1 - y / (h - 1)
-        hw = (w / 2 - 1) * k ** 0.65
-        for x in range(w):
-            u = (x + 0.5 - w / 2) / max(0.5, hw)
-            if abs(u) > 1: continue
-            t = 1 if u < -0.45 else 3 if u < 0.05 else 2 if u < 0.6 else 1
-            if -0.15 < u < 0.05 and y > 3: t = 4
-            if y < 2: t = 3 if abs(u) < 0.7 else 2
-            im[y, x] = (*hexc(C[t]), 255)
-    for y in range(8, 20):
-        x = int(w / 2 + 2 - (y - 8) * 0.3)
-        if im[y, x, 3]: im[y, x] = (*hexc(C[1]), 255)
-    im[h - 3:h - 1, w // 2] = (*hexc('#ffffff'), 255)
+def pmask(w, h, pts):
+    m = _Img.new('L', (w, h), 0)
+    _Draw.Draw(m).polygon([(float(x), float(y)) for x, y in pts], fill=1)
+    return np.array(m, bool)
+
+
+def put(im, x, y, c):
+    x, y = int(round(x)), int(round(y))
+    if 0 <= x < im.shape[1] and 0 <= y < im.shape[0]: im[y, x] = (*hexc(c), 255)
+
+
+def outline(im, col=OUT, only_empty=True):
     a = im[:, :, 3] > 0
-    im[outline_mask(a)] = (*hexc(OUT), 255)
+    im[outline_mask(a)] = (*hexc(col), 255)
+
+
+# Salve: (x, Boden-y, Größe, Einschlag-Zeit relativ zum Treffer). Tiefe über y (kleineres y = weiter hinten).
+ZAP = {'l': (30, 104), 'm': (24, 82), 's': (18, 62)}
+SALVE = [(252, 194, 's', -130), (160, 190, 'm', -110), (208, 197, 's', -90), (226, 188, 'm', -70),
+         (138, 196, 's', -40), (174, 187, 's', -20), (190, 195, 'l', 0)]
+SAL_X = 192                              # Mitte des Feldes (Szene)
+
+
+def icicle_big(w, h, seed=0, cracks=0):
+    """Großer fallender Eiszapfen (Szenenausrichtung, Licht links oben): oben abgebrochen mit heller Bruchfläche und
+    Reifkruste, drei Facetten (linke Lichtseite, Grat, Vorderseite, dunkle rechte Seite), Wachstumsringe, Innenriss,
+    weiße Spitze, dunkle Kontur. cracks > 0: glühende Sprünge (kurz vor dem Bersten)."""
+    im = np.zeros((h, w, 4), np.uint8)
+    cx = w / 2
+    rings = [0.22 + 0.05 * hash2(seed, 1), 0.47 + 0.05 * hash2(seed, 2)]
+    # schräge Bruchkante (links höher) mit einem stehengebliebenen Splitter und kleinen Kerben
+    sp = int(w * (0.55 + 0.2 * hash2(seed, 6)))
+    ytop = []
+    for x in range(w):
+        yb = 1 + (x / w) * h * 0.09
+        if abs(x - sp) <= 1: yb -= 1 if x != sp else 2
+        if hash2(x, seed, 5) > 0.75: yb += 1
+        ytop.append(int(max(0, round(yb))))
+    tone = np.full((h, w), -1, int)
+    for y in range(h - 1):
+        t = y / (h - 2)
+        hw = (w / 2 - 1.5) * (1 - t) ** 0.78
+        band = -1
+        for i, rt in enumerate(rings):
+            if 0 <= t - rt < 1.1 / h: band = 0
+        for x in range(w):
+            u = (x + 0.5 - cx) / max(0.6, hw)
+            if abs(u) > 1 or y < ytop[x]: continue
+            tt = 3 if u < -0.38 else 4 if u < -0.2 else 2 if u < 0.42 else 1
+            if band == 0 and -0.75 < u < 0.6: tt = min(4, tt + 1)
+            if band == 1 and abs(u) < 0.95: tt = max(1, tt - 1)
+            if y < ytop[x] + 2: tt = 4 if u < 0.2 else 3                 # Bruchfläche oben
+            tone[y, x] = tt
+    # Innenriss: dunkle Linie mit heller Kante links
+    x0, y0 = cx + w * 0.16, h * 0.14; x1, y1 = cx - w * 0.12, h * 0.5
+    for k in np.linspace(0, 1, int(h * 0.5)):
+        x = int(x0 + (x1 - x0) * k + 1.2 * math.sin(k * 9 + seed)); y = int(y0 + (y1 - y0) * k)
+        if 0 <= y < h and 0 <= x < w and tone[y, x] >= 2:
+            tone[y, x] = 1
+            if x - 1 >= 0 and tone[y, x - 1] >= 1: tone[y, x - 1] = 4
+    # Lichtfleck oben in der Lichtseite, Luftblasen in der dunklen Seite
+    for y in range(int(h * 0.08), int(h * 0.3)):
+        x = int(cx - w * 0.3 + (y - h * 0.08) * 0.08)
+        if 0 <= x < w and tone[y, x] >= 2 and y % 7 < 4: tone[y, x] = 5
+    for i in range(4):
+        y = int(h * (0.2 + 0.12 * i + 0.04 * hash2(i, seed, 9))); x = int(cx + w * (0.12 + 0.1 * hash2(i, seed, 8)))
+        if 0 <= y < h and 0 <= x < w and tone[y, x] == 1: tone[y, x] = 3
+    # Spitze weiß
+    for y in range(h - 6, h - 1):
+        for x in range(w):
+            if tone[y, x] >= 2: tone[y, x] = 5 if y > h - 4 else 4
+    cols = [ICE[0], ICE[1], ICE[2], ICE[3], ICE[4], WHITE]
+    for y, x in zip(*np.nonzero(tone >= 0)): im[y, x] = (*hexc(cols[tone[y, x]]), 255)
+    # Reifkruste auf der Bruchfläche
+    for x in range(w):
+        if tone[ytop[x], x] >= 0 and hash2(x, seed, 13) > 0.55: put(im, x, ytop[x], WHITE)
+    if cracks:
+        rng = np.random.default_rng(seed + 50)
+        for c in range(1 + cracks):
+            y = h * (0.15 + 0.6 * rng.random()); x = cx + (rng.random() - 0.5) * w * 0.4
+            for k in range(int(4 + cracks * 3)):
+                x += rng.choice([-1, 0, 1]); y += 1
+                if 0 <= int(y) < h and 0 <= int(x) < w and im[int(y), int(x), 3]: put(im, x, y, FROST[3] if k % 3 else WHITE)
+    outline(im)
     return im
 
 
-SPW, SPH, SPN = 72, 46, 8
-
-
-def shatter():
-    """Aufschlag: Lichtstern, Eiskrone aus dem Boden, Splitter in Parabeln (bleiben im Rahmen, landen und liegen),
-    gestufter Bodenring. Boden in Bildzeile SPH-3."""
+def stuck_frames(size, n=5, seed=0):
+    """Zapfen steckt im Eisboden: Spitze eingesunken, Krater mit Bruchkante, Risse laufen über den Boden, im Zapfen
+    leuchten Sprünge auf (Bild 0: Aufprallblitz am Fuß). Boden in Bildzeile sh-2."""
+    w, h = ZAP[size]
+    sw, sh = w + 36, h + 6
+    g = sh - 2
     out = []
-    rng = np.random.default_rng(9)
-    cx, gy = SPW // 2, SPH - 3
-    sh = []
-    for i in range(30):
-        vx = rng.uniform(-68, 68); vy = rng.uniform(50, 165) * (1 - abs(vx) / 140)
-        sh.append((vx, vy, int(rng.integers(1, 4)), rng.uniform(-3, 3)))
-    crown = [(-12, 8), (-8, 13), (-4, 19), (0, 24), (4, 17), (8, 12), (12, 7), (-1, 10), (6, 21)]
-    for k in range(SPN):
-        im = np.zeros((SPH, SPW, 4), np.uint8)
-        def put(x, y, c):
-            x, y = int(round(x)), int(round(y))
-            if 0 <= x < SPW and 0 <= y < SPH: im[y, x] = (*hexc(c), 255)
-        # Bodenring
-        if k >= 1:
-            r = 5 + k * 3.6
-            n = int(r * 3)
-            for i in range(n + 1):
-                a = math.pi * 2 * i / n
-                if k > 4 and i % 2: continue
-                put(cx + r * math.cos(a), gy + r * 0.24 * math.sin(a), FROST[max(1, 4 - k // 2)])
-        # Eiskrone: Spitzen schießen hoch (Bild 1-2), brechen in Stufen ab
-        if 1 <= k <= 5:
-            for ox, hh in crown:
-                Lh = hh if k <= 2 else max(0, hh - (k - 2) * 7)
-                if k == 1: Lh = int(hh * 0.7)
-                lean = ox * 0.035
-                for yy in range(int(Lh)):
-                    y = gy - yy
-                    wd = 3 if yy < Lh * 0.45 else 2 if yy < Lh * 0.8 else 1
-                    xc = cx + ox + lean * yy - wd // 2
-                    for dx in range(wd):
-                        c = '#ffffff' if yy > Lh - 3 else ['#3a94c8', '#88d4f0', '#dcf8ff'][dx if wd == 3 else dx + 1]
-                        put(xc + dx, y, c)
-                    put(xc - 1, y, OUT); put(xc + wd, y, OUT)
-                put(cx + ox + lean * Lh, gy - Lh, OUT)
-        # Lichtstern im ersten Bild
+    for k in range(n):
+        im = np.zeros((sh, sw, 4), np.uint8)
+        ic = icicle_big(w, h, seed, cracks=max(0, k - 1))
+        sink = 5 + min(k, 2)
+        ox = (sw - w) // 2; oy = g - h + sink + 1
+        for y in range(h):
+            Y = oy + y
+            if Y > g or Y < 0: continue
+            sel = ic[y, :, 3] > 0
+            im[Y, ox:ox + w][sel] = ic[y][sel]
+        # Krater: dunkle Mulde, helle Bruchkante vorne, Splitter
+        cxx = sw / 2; rx = w * 0.62 + k; ry = 2.2
+        for y in range(g - 3, sh):
+            for x in range(sw):
+                q = ((x + 0.5 - cxx) / rx) ** 2 + ((y + 0.5 - g - 0.5) / ry) ** 2
+                if q > 1: continue
+                if im[y, x, 3] and y <= g - 1: continue
+                im[y, x] = (*hexc('#02050c' if q < 0.55 else ICE[1] if y < g else ICE[3]), 255)
+        # Risse über den Boden (flach, perspektivisch)
+        for a, L in ((-0.25, 14), (0.18, 16), (3.0, 13), (3.4, 15), (2.7, 9), (0.5, 9)):
+            Lk = L * min(1, 0.4 + k * 0.25)
+            for s in range(int(rx), int(rx + Lk)):
+                x = cxx + math.cos(a) * s; y = g + 0.5 + math.sin(a) * s * 0.22 + (1 if s % 5 == 0 else 0)
+                put(im, x, y, FROST[3] if s < rx + 4 else FROST[2] if s < rx + 9 else FROST[1])
         if k == 0:
-            for i in range(-20, 21): put(cx + i, gy, '#ffffff' if abs(i) < 6 else '#9aeefc' if abs(i) < 11 else '#34b8e4')
-            for j in range(1, 26): put(cx, gy - j, '#ffffff' if j < 10 else '#9aeefc' if j < 14 else '#34b8e4')
+            for i in range(-int(rx + 8), int(rx + 9)):
+                put(im, cxx + i, g, WHITE if abs(i) < rx else FROST[3])
             for j in range(1, 8):
-                c = '#ffffff' if j < 3 else '#9aeefc' if j < 5 else '#34b8e4'
-                put(cx + j, gy - j, c); put(cx - j, gy - j, c)
-            for dx in (-1, 0, 1):
-                for dy in (0, 1, 2): put(cx + dx, gy - dy, '#ffffff')
-            # Bruchstücke des Zapfens
-            for x, y in ((-4, -3), (4, -2), (-2, -6), (3, -7)):
-                put(cx + x, gy + y, '#88d4f0'); put(cx + x + 1, gy + y, '#3a94c8')
-        # Splitter
+                c = WHITE if j < 4 else FROST[3]
+                put(im, cxx - w / 2 - j * 0.8, g - j, c); put(im, cxx + w / 2 + j * 0.8, g - j, c)
+        out.append(im)
+    return out, sw, sh
+
+
+def spike(im, bx, by, ang, L, wb, br=0.0):
+    """Eisdorn aus dem Boden (Frostkranz): zwei Facetten, Grat, weiße Spitze, Kontur. ang in Grad von der Senkrechten
+    (negativ = nach links). br > 0: oben abgebrochen (nur Stumpf bis Länge (1-br)·L, mit heller Bruchkante)."""
+    a = math.radians(ang); dx, dy = math.sin(a), -math.cos(a); nx, ny = -dy, dx
+    Lr = L * (1 - br)
+    wt = wb * 0.5 * br * 0.9 if br else 0
+    p0l = (bx - nx * wb / 2, by - ny * wb / 2); p0r = (bx + nx * wb / 2, by + ny * wb / 2)
+    tip = (bx + dx * Lr, by + dy * Lr)
+    tl = (tip[0] - nx * wt, tip[1] - ny * wt); tr = (tip[0] + nx * wt, tip[1] + ny * wt)
+    H, W = im.shape[:2]
+    m = pmask(W, H, [p0l, tl, tr, p0r] if br else [p0l, tip, p0r])
+    ys, xs = np.nonzero(m)
+    if not len(xs): return
+    # Seite: links vom Grat (Licht von links oben) hell
+    s = (xs + 0.5 - bx) * nx + (ys + 0.5 - by) * ny
+    along = ((xs + 0.5 - bx) * dx + (ys + 0.5 - by) * dy) / max(1, Lr)
+    lit_left = nx < 0.2
+    left = s < 0
+    hi = left if lit_left else ~left
+    tone = np.where(hi, 3, 1)
+    tone = np.where(np.abs(s) < 0.8, 4, tone)
+    tone = np.where(along > 0.9, 4, tone) if br else np.where(along > 0.82, 5, tone)
+    cols = [ICE[0], ICE[1], ICE[2], ICE[3], ICE[4], WHITE]
+    for y, x, t in zip(ys, xs, tone): im[y, x] = (*hexc(cols[t]), 255)
+    e = outline_mask(m) & ~m
+    ey, ex = np.nonzero(e)
+    for y, x in zip(ey, ex):
+        if y <= by + 1: im[y, x] = (*hexc(OUT), 255)
+
+
+def billows(im, balls, sh=0, ar=1.0, lo=0):
+    """Frostnebel aus Ballen: Ton nach Höhe in der Wolke, helle Kappe nach links oben, Falten über hinteren Ballen."""
+    if not balls: return
+    H, W = im.shape[:2]
+    own = np.full((H, W), -1, int); tone = np.zeros((H, W), int)
+    top = min(y - r for _, y, r, _ in balls); bot = max(y + r for _, y, r, _ in balls)
+    for i, (bx, by, r, s2) in enumerate(balls):
+        for y in range(int(by - r * ar - 1), int(by + r * ar + 2)):
+            for x in range(int(bx - r - 1), int(bx + r + 2)):
+                if not (0 <= x < W and 0 <= y < H): continue
+                ux = (x + 0.5 - bx) / r; uy = (y + 0.5 - by) / (r * ar)
+                q = ux * ux + uy * uy
+                if q > 1: continue
+                gg = (bot - (y + 0.5)) / max(1, bot - top)
+                t = 3 if gg > 0.6 else 2 if gg > 0.28 else 1
+                rim = -ux * 0.55 - uy * 0.83
+                if q > 0.5 and rim > 0.5: t += 1
+                elif q > 0.55 and rim < -0.5: t -= 1
+                if q > 0.8 and own[y, x] >= 0: t -= 1
+                own[y, x] = i; tone[y, x] = max(lo, min(5, t + sh + s2))
+    for y, x in zip(*np.nonzero(own >= 0)): im[y, x] = (*hexc(MIST[tone[y, x]]), 255)
+
+
+def frost_bank(im, cx, gy, spread, hgt, sh, seed):
+    """Flacher Reifschleier: Linse über dem Boden aus waagrechten Fasern (2 Zeilen hoch) mit unterschiedlich weit
+    auslaufenden, zerfaserten Enden und Rissen; Töne in harten Stufen vom hellen Kern zum dunklen Rand, Oberkante hell."""
+    H, W = im.shape[:2]
+    tone = np.full((H, W), -1, int)
+    for y in range(int(gy - hgt), int(gy + 3)):
+        e = (gy - y) / max(1, hgt)                           # 0 am Boden, 1 oben
+        if e < -0.3: continue
+        half = spread * math.sqrt(max(0, 1 - max(0, e))) * (1 - 0.25 * max(0, -e))
+        row = y // 2
+        for side in (-1, 1):
+            hl = half * (0.62 + 0.38 * hash2(row, side, seed * 7 + 1))
+            for i in range(int(hl) + 1):
+                x = int(round(cx + side * i))
+                if not (0 <= x < W and 0 <= y < H): continue
+                if e > 0.3 and hash2(x // 5, row, seed * 7 + 2) > 0.8: continue          # Risse
+                r = i / max(1, hl)
+                t = 4 if (r < 0.32 and e < 0.75) else 3 if r < 0.62 else 2 if r < 0.88 else 1
+                tone[y, x] = max(1, min(5, t + sh))
+        # auslaufende Fasern am Rand
+        for side in (-1, 1):
+            if hash2(row, side, seed * 7 + 3) > 0.55 and e < 0.6:
+                L0 = half * (0.6 + 0.38 * hash2(row, side, seed * 7 + 1)); Lf = 6 + 12 * hash2(row, side, seed * 7 + 4)
+                for i in range(int(Lf)):
+                    x = int(round(cx + side * (L0 + i)))
+                    if 0 <= x < W and 0 <= y < H and (i % 4 != 3): tone[y, x] = max(1, 2 + sh - (1 if i > Lf / 2 else 0))
+    m = tone >= 0
+    up = m & ~np.roll(m, 1, axis=0)
+    tone[up & (tone >= 2)] = np.minimum(5, tone[up & (tone >= 2)] + 1)                  # Oberkante hell
+    for y, x in zip(*np.nonzero(m)): im[y, x] = (*hexc(MIST[tone[y, x]]), 255)
+
+
+def chunk_shape(r, seed, rot):
+    """Eisbrocken als Polygon (4-5 Ecken) um 0,0, gedreht."""
+    n = 4 + int(hash2(seed, 3) * 2)
+    pts = []
+    for i in range(n):
+        a = rot + i * 2 * math.pi / n + 0.5 * hash2(seed, i)
+        rr = r * (0.65 + 0.45 * hash2(seed, i + 10))
+        pts.append((math.cos(a) * rr, math.sin(a) * rr * 0.85))
+    return pts
+
+
+def chunk(im, x, y, r, seed, rot):
+    pts = [(x + px, y + py) for px, py in chunk_shape(r, seed, rot)]
+    H, W = im.shape[:2]
+    m = pmask(W, H, pts)
+    ys, xs = np.nonzero(m)
+    if not len(xs):
+        put(im, x, y, ICE[3]); return
+    s = (xs + 0.5 - x) * -0.6 + (ys + 0.5 - y) * -0.8
+    for yy, xx, v in zip(ys, xs, s):
+        im[yy, xx] = (*hexc(ICE[4] if v > r * 0.45 else ICE[3] if v > -r * 0.05 else ICE[2] if v > -r * 0.5 else ICE[1]), 255)
+    e = outline_mask(m) & ~m & (im[:, :, 3] == 0)
+    im[e] = (*hexc(OUT), 255)
+
+
+EXW, EXH, EXN, EXMS = 260, 150, 12, 60
+EX0, EY0 = SAL_X - EXW // 2, FY + 12 - EXH         # Bildursprung in der Szene
+
+
+def chunks_plan():
+    """Brocken je Zapfen: Start im Zapfenleib, Flug in Parabeln (Szenenkoordinaten), Landung auf dem Boden."""
+    rng = np.random.default_rng(21)
+    out = []
+    for i, (x, y, sz, at) in enumerate(SALVE):
+        w, h = ZAP[sz]
+        n = {'l': 7, 'm': 5, 's': 4}[sz]
+        for j in range(n):
+            hy = y - h * (0.12 + 0.7 * j / n)
+            side = 1 if x + rng.uniform(-8, 8) > SAL_X else -1
+            vx = side * rng.uniform(30, 95); vy = -rng.uniform(40, 150)
+            r = {'l': 4.5, 'm': 3.6, 's': 2.8}[sz] * rng.uniform(0.7, 1.25)
+            gy = y + rng.uniform(-3, 4)
+            out.append(dict(x0=x + rng.uniform(-w * 0.25, w * 0.25), y0=hy, vx=vx, vy=vy, r=r, gy=gy, seed=i * 10 + j,
+                            spin=rng.uniform(-9, 9)))
+    return out
+
+
+def chunk_at(c, t):
+    """Lage eines Brockens zur Zeit t (s nach dem Bersten): Flug, Landung, kleiner Rutsch."""
+    G = 420
+    y = c['y0'] + c['vy'] * t + 0.5 * G * t * t
+    if y < c['gy']:
+        return c['x0'] + c['vx'] * t, y, c['spin'] * t, False
+    # Landezeit
+    A, B, C = 0.5 * G, c['vy'], c['y0'] - c['gy']
+    tl = (-B + math.sqrt(B * B - 4 * A * C)) / (2 * A)
+    xl = c['x0'] + c['vx'] * tl
+    slide = min(t - tl, 0.12) * c['vx'] * 0.35
+    return xl + slide, c['gy'], c['spin'] * tl, True
+
+
+def crown_plan():
+    """Dornen des Frostkranzes: je Einschlag 2-3 Dornen, nach außen geneigt, groß in der Mitte."""
+    out = []
+    for i, (x, y, sz, at) in enumerate(SALVE):
+        big = {'l': 1.0, 'm': 0.8, 's': 0.62}[sz]
+        side = -1 if x < SAL_X else 1
+        for j, (da, dl) in enumerate(((-34, 0.75), (8, 1.0), (40, 0.7), (-62, 0.42), (66, 0.4))):
+            ang = da + side * 12 + 6 * hash2(i, j, 3)
+            ox = [-6, 0, 6, -11, 11][j]
+            out.append((x + ox, y + (1 if j == 1 else 0), ang, 60 * big * dl, (12 * big + 3) * (0.7 if j > 2 else 1)))
+    return out
+
+
+def kranz():
+    """Haupteinschlag als Bildfolge (Szene ab EX0, EY0): Lichtblitz -> Frostkranz aus Eisdornen, Frostnebel quillt auf,
+    Zapfen zerbersten in Brocken, Bodenring läuft aus; Dornen brechen, Nebel zerfällt, Brocken landen."""
+    frames = []
+    CH = chunks_plan(); CR = crown_plan()
+    gc = FY + 2 - EY0                      # Feldmitte am Boden im Bild
+    cxl = SAL_X - EX0
+    L = lambda x: x - EX0
+    T = lambda y: y - EY0
+    for k in range(EXN):
+        im = np.zeros((EXH, EXW, 4), np.uint8)
+        # Bodenring (Ellipse in Bodenperspektive), läuft aus und dunkelt in Stufen
+        if 1 <= k <= 6:
+            rx = 40 + k * 17; ry = rx * 0.13
+            for th in np.linspace(0, 2 * math.pi, int(rx * 7)):
+                for dr, c in ((0, FROST[4 - min(3, (k + 1) // 2)]), (-1.5, FROST[max(0, 3 - (k + 1) // 2)])):
+                    put(im, cxl + (rx + dr) * math.cos(th), gc + (ry + dr * 0.13) * math.sin(th), c)
+        # Splitterregen: kurze Eisstriche fliegen aus jedem Einschlag
+        if 1 <= k <= 6:
+            rng = np.random.default_rng(500)
+            t = (k - 0.5) * EXMS / 1000
+            for (x, y, sz, at) in SALVE:
+                for j in range({'l': 12, 'm': 8, 's': 6}[sz]):
+                    vx = rng.uniform(-150, 150); vy = -rng.uniform(60, 220); y0 = T(y) - rng.uniform(2, 30)
+                    px, py = L(x) + vx * t, y0 + vy * t + 300 * t * t
+                    if py > T(y) + 2: continue
+                    sp = math.hypot(vx, vy + 600 * t) + 1e-6
+                    ux, uy = vx / sp, (vy + 600 * t) / sp
+                    for q in range(3):
+                        put(im, px - ux * q, py - uy * q, WHITE if q == 0 else ICE[3] if q == 1 else ICE[2])
+        # Frostkranz: Eisdornen schießen aus dem Boden, brechen dann
+        if 1 <= k <= 6:
+            grow = [0, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0][k]; br = [0, 0, 0, 0, 0.35, 0.6, 0.8][k]
+            for (x, y, ang, Ln, wb) in sorted(CR, key=lambda q: q[1]):
+                spike(im, L(x), T(y), ang, Ln * grow, wb, br)
+            # abgebrochene Spitzen fallen
+            if k >= 4:
+                for i, (x, y, ang, Ln, wb) in enumerate(CR):
+                    a = math.radians(ang)
+                    tx = L(x) + math.sin(a) * Ln * 0.8 + math.sin(a) * (k - 3) * 4
+                    ty = T(y) - math.cos(a) * Ln * 0.8 + (k - 4) ** 2 * 5 + 2
+                    if ty < T(y): chunk(im, tx, ty, wb * 0.32, 300 + i, (k - 4) * 1.3 + i)
+        # Frostbank: flacher, zerrissener Reifschleier am Boden, Fasern laufen nach außen aus
+        if 1 <= k <= 8:
+            spread, hgt, sh = [None, (50, 11, 1), (78, 13, 1), (94, 12, 0), (104, 10, 0), (110, 8, 0), (114, 6, -1),
+                               (116, 4, -1), (118, 3, -1)][k]
+            frost_bank(im, cxl, gc, spread, hgt, sh, k)
+        # Brocken der Zapfen
         if k >= 1:
-            t = k * 0.06
-            for vx, vy, s, sp in sh:
-                x = cx + vx * t; y = gy - (vy * t - 230 * t * t)
-                if y > gy: y = gy
-                col = '#ffffff' if k < 3 and s == 1 else '#88d4f0' if s < 3 else '#3a94c8'
-                if k >= 6: col = '#3a94c8' if s < 3 else '#1d5488'
-                put(x, y, col)
-                if s >= 2: put(x + (1 if vx > 0 else -1), y, '#3a94c8' if k > 4 else '#88d4f0')
-                if s >= 2 and y < gy: put(x, y - 1, '#dcf8ff' if k < 4 else '#3a94c8')
-                if s >= 3: put(x + (1 if vx > 0 else -1), y - 1, '#1d5488')
-        out.append(im)
-    return out
+            t = (k - 0.6) * EXMS / 1000
+            for c in CH:
+                x, y, rot, landed = chunk_at(c, t)
+                chunk(im, L(x), T(y) - c['r'] * 0.5, c['r'], c['seed'], rot)
+        # Lichtblitz (Bild 0): flacher Lichtstern am Boden (drei Stufen), Blitzrauten an jedem Einschlag
+        if k == 0:
+            for sc, c in ((1.0, FROST[2]), (0.78, FROST[3]), (0.52, WHITE)):
+                pts = []
+                for i in range(16):
+                    a_ = math.pi * i / 8
+                    sy = math.sin(a_)
+                    R = (40 + 50 * max(0, sy) ** 3 + 70 * abs(math.cos(a_)) ** 6) if i % 2 == 0 else 12 + 6 * max(0, sy)
+                    R *= sc
+                    pts.append((cxl + math.cos(a_) * R, gc - sy * R * (1 if sy > 0 else 0.12)))
+                m_ = pmask(EXW, EXH, pts)
+                im[m_] = (*hexc(c), 255)
+            for (x, y, sz, at) in SALVE:
+                for d in range(7):
+                    for (ex, ey) in ((d, 0), (-d, 0), (0, -d * 2), (0, d * 0.5)):
+                        put(im, L(x) + ex, T(y) + ey, WHITE if d < 4 else FROST[3])
+        # Glitzer
+        if 1 <= k <= 4:
+            for j in range(10 + 4 * k):
+                x = cxl + (hash2(j, k, 41) - 0.5) * 200; y = gc - hash2(j, k, 42) * (40 + 12 * k)
+                put(im, x, y, WHITE if j % 2 else FROST[3])
+        frames.append(im)
+    return frames
 
 
-MKW, MKH = 46, 15
+RFW, RFH = 260, 26
+RF0 = (SAL_X - RFW // 2, FY + 12 - RFH)
+RFN, RFMS, RFAT = 11, 150, 270
 
 
-def marks(n=10):
-    """Schattenmarke unter einem Zapfen: wächst in vier Stufen, dunkler Kern, Ring in Frostfarbe, Ecken als Zielmarke;
-    in den letzten Bildern blinkt der Ring weiß/türkis. Deckt die kleine Laufzeitmarke in der Mitte ab."""
+def reste():
+    """Eisreste am Boden: Reifkruste je Einschlag, Dornstümpfe, gelandete Brocken; zerfällt in Stufen (Brocken
+    werden kleiner und verschwinden, Kruste schrumpft)."""
+    CH = chunks_plan(); CR = crown_plan()
     out = []
-    cx, cy = MKW // 2, MKH // 2
-    for k in range(n):
-        im = np.zeros((MKH, MKW, 4), np.uint8)
-        st = min(3, k * 4 // n)
-        rx = [8, 12, 16, 20][st]; ry = max(2.5, rx / 3.2)
-        blink = k >= n - 4
-        ring = ('#ffffff' if k % 2 == 0 else '#9aeefc') if blink else ['#0a3050', '#1670a0', '#34b8e4', '#9aeefc'][st]
-        for y in range(MKH):
-            for x in range(MKW):
-                q = ((x + 0.5 - cx - 0.5) / rx) ** 2 + ((y + 0.5 - cy - 0.5) / ry) ** 2
-                if q > 1: continue
-                if q > 0.72: c = ring if (q > 0.84 or (x + y) % 2 == 0) else '#08142a'
-                elif q > 0.4: c = '#050c1a' if (x + y) % 2 else '#02050c'
-                else: c = '#02050c'
-                im[y, x] = (*hexc(c), 255)
-        # Zielecken links und rechts (ab Stufe 2)
-        if st >= 1:
-            for sgn in (-1, 1):
-                x0 = cx + sgn * (rx + 2)
-                for d in range(3 if st >= 2 else 2):
-                    X = x0 + sgn * d
-                    if 0 <= X < MKW: im[cy, X] = (*hexc(ring), 255)
-        out.append(im)
-    return out
-
-
-RFW, RFH = 40, 9
-
-
-def rime(n=8):
-    """Reif am Aufschlag: Kruste aus hellen Eiskörnern und kleinen Spitzen, verblasst in Stufen."""
-    out = []
-    cx, cy = RFW // 2, RFH - 3
-    for k in range(n):
+    for k in range(RFN):
         im = np.zeros((RFH, RFW, 4), np.uint8)
-        keep = 1.0 if k < 3 else 0.7 if k < 5 else 0.4 if k < 7 else 0.18
-        for y in range(RFH):
-            for x in range(RFW):
-                q = ((x - cx) / 17) ** 2 + ((y - cy) / 2.6) ** 2
-                if q > 1: continue
-                h_ = hash2(x, y, 31)
-                if h_ > keep * (1.15 - q * 0.6): continue
-                c = '#dcf8ff' if h_ < 0.15 and k < 5 else '#88d4f0' if h_ < 0.5 else '#3a94c8' if k < 6 else '#1d5488'
-                im[y, x] = (*hexc(c), 255)
-        if k < 5:
-            for ox, hh in ((-9, 3), (-4, 4), (3, 5), (8, 3), (12, 2), (-13, 2)):
-                for yy in range(hh - (k // 2)):
-                    if 0 <= cy - 1 - yy < RFH: im[cy - 1 - yy, cx + ox] = (*hexc('#ffffff' if yy == hh - 1 - k // 2 else '#88d4f0'), 255)
+        L = lambda x: x - RF0[0]; T = lambda y: y - RF0[1]
+        keep = [1, 1, 1, 1, 0.9, 0.8, 0.66, 0.52, 0.38, 0.24, 0.12][k]
+        for i, (x, y, sz, at) in enumerate(SALVE):
+            w, _ = ZAP[sz]
+            rx = (w * 1.3 + 8) * keep; ry = max(1.0, 3.2 * keep)
+            for yy in range(RFH):
+                for xx in range(RFW):
+                    q = ((xx + 0.5 - L(x)) / max(0.5, rx)) ** 2 + ((yy + 0.5 - T(y)) / ry) ** 2
+                    if q > 1: continue
+                    c = ICE[2] if q > 0.6 else ICE[3] if q > 0.25 else '#c6eaf6'
+                    if yy < T(y) - ry * 0.3 and q > 0.5: c = ICE[3]
+                    im[yy, xx] = (*hexc(c), 255)
+            # Krater in der Mitte
+            if keep > 0.5:
+                for xx in range(int(L(x) - w * 0.35 * keep), int(L(x) + w * 0.35 * keep) + 1): put(im, xx, T(y), '#02050c')
+        # Stümpfe der Kranzdornen
+        if k < 7:
+            for (x, y, ang, Ln, wb) in sorted(CR, key=lambda q: q[1]):
+                spike(im, L(x), T(y), ang, Ln * (0.35 if k < 3 else 0.25 if k < 5 else 0.15), wb * (0.9 if k < 5 else 0.7), 0.3)
+        # Brocken (erst sichtbar, wenn die Explosionsfolge endet)
+        if RFAT + k * RFMS >= EXN * EXMS:
+            for c in CH:
+                x, y, rot, _ = chunk_at(c, 5.0)
+                r = c['r'] * (1 if k < 6 else 0.8 if k < 8 else 0.6)
+                if k >= 7 and hash2(c['seed'], 7) > keep * 2.2: continue
+                chunk(im, L(x), T(y) - c['r'] * 0.5, r, c['seed'], rot)
         out.append(im)
     return out
+
+
+SHMS = 40
+VOR = 640
+
+
+def schatten():
+    """Schattenfeld: unter jedem Zapfen wächst ein Schatten, je näher der Zapfen, desto größer und dunkler; kurz vor
+    dem Einschlag blinkt ein Frostrand. Rückgabe (Bilder, Startzeit relativ zum Treffer)."""
+    t0 = min(at for *_, at in SALVE) - VOR
+    t1 = max(at for *_, at in SALVE)
+    n = int(math.ceil((t1 - t0) / SHMS))
+    out = []
+    for k in range(n):
+        t = t0 + k * SHMS
+        im = np.zeros((RFH, RFW, 4), np.uint8)
+        for (x, y, sz, at) in sorted(SALVE, key=lambda q: q[1]):
+            p = (t - (at - VOR)) / VOR
+            if not (0 <= p < 1): continue
+            w, _ = ZAP[sz]
+            rx = 3 + (w * 0.8 - 3) * p ** 0.7; ry = max(1.2, rx * 0.26)
+            cx, cy = x - RF0[0], y - RF0[1]
+            blink = p > 0.72 and k % 2 == 0
+            for yy in range(RFH):
+                for xx in range(RFW):
+                    q = ((xx + 0.5 - cx) / rx) ** 2 + ((yy + 0.5 - cy) / ry) ** 2
+                    if q > 1: continue
+                    if q > 0.7 and p > 0.72: c = FROST[3] if blink else FROST[1]
+                    elif q > 0.5: c = '#08142a'
+                    else: c = '#02050c'
+                    im[yy, xx] = (*hexc(c), 255)
+        out.append(im)
+    return out, t0
 
 
 # ------------------------------------------------------------------------------------------- Bauen
 N_RUHE, MS_RUHE = 12, 150
-MOMENT = [('zug', 150), ('zug2', 170), ('h1', 90), ('aus', 100, 'hit', 0), ('aus', 100, None, 1), ('aus', 100, None, 2),
-          ('aus', 100, None, 3), ('aus', 100, None, 4), ('aus', 100, None, 5), ('aus2', 120, None, 0), ('aus2', 120, None, 2),
-          ('aus2', 120, None, 4), ('aus', 140), ('ab', 160), ('ab2', 180), ('ruhe', 160)]
+# (Pose, ms, Atemwolke, Kopfzittern)
+MOMENT = [('zug', 150, -1, 0), ('zug2', 170, -1, 0), ('h1', 100, -1, 0), ('aus', 110, 0, 0), ('aus', 110, 1, 1),
+          ('aus', 110, 2, -1), ('aus', 110, 3, 1), ('aus', 110, 4, 0),
+          ('ab', 150, -1, 0), ('ab', 170, -1, 0), ('ab2', 190, -1, 0), ('ruhe', 170, -1, 0)]
+HIT = 8
 
 
 def build():
@@ -803,37 +1130,47 @@ def build():
         p['atem'] = 1 if i in (3, 4, 5, 6) else 0
         p['herz'] = 3 + (1 if i in (4, 5, 6) else 0)
         idle.append(figure(p, ph, puff=i))
-    POSEN['aus2'] = dict(POSEN['aus'], jaw=0.85, kw=12, N=[(0, 96), (-2, 116), (8, 128), (25, 129)])
-    frames, hit_idx = [], 0
-    for k, st in enumerate(MOMENT):
-        pn, ms = st[0], st[1]
-        if len(st) > 2 and st[2] == 'hit': hit_idx = len(frames)
-        ring = st[3] if len(st) > 3 else -1
-        p = POSEN[pn]
-        frames.append((figure(p, (k % N_RUHE) / N_RUHE, ring=ring), ms))
+    frames = []
+    for k, (pn, ms, cl, jit) in enumerate(MOMENT):
+        p = dict(POSEN[pn])
+        if jit:      # Brüllen: Kopf und Hals zittern
+            p['N'] = [(x + jit * (j // 2), h - (j % 2)) for j, (x, h) in enumerate(p['N'])]
+            p['kw'] = p['kw'] + jit * 0.5
+        frames.append((figure(p, (k % N_RUHE) / N_RUHE, cloud=cl), ms))
     Ld, seam = scene()
-    fx = {'zapfen': icicle(), 'splitter': strip(shatter()), 'marke': strip(marks()), 'reif': strip(rime())}
-    B, imp = finish('skalvyr', FX, FY0, BX, [('koerper', idle, dict(n=N_RUHE, ms=MS_RUHE))], frames, hit_idx, FX + 60, Ld,
-                    ['fern', 'fern-glut', 'mitte', 'mitte-glut', 'boden', 'boden-glut', 'vorn'], fx,
-                    {'glut': ['#ffffff', '#9aeefc', '#34b8e4'], 'fokus': [292, BX - 30], 'teilchen': 'schnee', 'dichte': 5,
-                     'dauer': 9.5, 'start': 2.2})
-    # Eiszapfenregen: Marke (eigene Bildfolge, deckt die Laufzeitmarke) -> Fall -> Splitter, Reif bleibt liegen
-    VOR, MKN = 720, 10
-    xs = [292, 236, 178, 122, 66, 264, 206, 148, 94, 38]
-    T0, DT = 860, 150
-    ev, mk, rf = [], [], []
-    for i, x in enumerate(xs):
-        at = T0 + i * DT
-        ev.append(dict(k='zapfen', r='zapfen', r2='splitter', at=at, x=int(x), y=FY, vor=VOR, w=ZW, h=ZH, n=SPN, ms=60, sw=SPW, sh=SPH, mr=1, z='vorn'))
-        mk.append(dict(k='bild', r='marke', at=at - VOR, x=int(x) - MKW // 2, y=FY - 1 - MKH // 2, w=MKW, h=MKH, n=MKN, ms=VOR // MKN, quer=True, z='boden'))
-        rf.append(dict(k='bild', r='reif', at=at + 40, x=int(x) - RFW // 2, y=FY + 1 - (RFH - 3), w=RFW, h=RFH, n=8, ms=230, quer=True, z='boden'))
-    wave, wm = seam_wave(seam, xs[0], FY - 3, v=230, ms=70, pal=FROST, direction=0, maxd=330, peak=lambda d: 3 if d < 100 else 2,
-                         ages=(0.12, 0.35, 0.7, 1.1))
+    fx = {}
+    ev = []
+    # Salve: großer Zapfen fällt (Laufzeit 'zapfen': fällt beschleunigt vom oberen Rand), steckt dann im Boden
+    for sz in ZAP:
+        w, h = ZAP[sz]
+        fx['zapfen-' + sz] = icicle_big(w, h, seed={'l': 1, 'm': 2, 's': 3}[sz])
+        st, sw, sh = stuck_frames(sz, 5, seed={'l': 1, 'm': 2, 's': 3}[sz])
+        fx['steckt-' + sz] = strip(st)
+    END = EXMS          # die steckenden Zapfen bersten mit Bild 1 der Hauptexplosion
+    for (x, y, sz, at) in sorted(SALVE, key=lambda q: q[1]):
+        w, h = ZAP[sz]
+        ms = max(12, int(round((END - at) / 5)))
+        ev.append(dict(k='zapfen', r='zapfen-' + sz, r2='steckt-' + sz, at=at, x=int(x), y=int(y), vor=VOR, w=w, h=h,
+                       n=5, ms=ms, sw=w + 36, sh=h + 6, mr=1, z='vorn'))
+    fx['kranz'] = strip(kranz())
+    ev.append(dict(k='bild', r='kranz', at=0, x=EX0, y=EY0, w=EXW, h=EXH, n=EXN, ms=EXMS, quer=True, z='vorn'))
+    sh_, t0 = schatten()
+    fx['schatten'] = strip(sh_)
+    fx['reste'] = strip(reste())
+    bd = [dict(k='bild', r='schatten', at=t0, x=RF0[0], y=RF0[1], w=RFW, h=RFH, n=len(sh_), ms=SHMS, quer=True, z='boden'),
+          dict(k='bild', r='reste', at=RFAT, x=RF0[0], y=RF0[1], w=RFW, h=RFH, n=RFN, ms=RFMS, quer=True, z='boden')]
+    wave, wm = seam_wave(seam, SAL_X, FY - 3, v=260, ms=60, pal=FROST, direction=0, maxd=330,
+                         peak=lambda d: 4 if d < 60 else 3 if d < 150 else 2, ages=(0.1, 0.3, 0.6, 1.0))
     fx['welle'] = wave
-    ev_w = [dict(k='bild', r='welle', at=T0, x=wm['x'], y=wm['y'], w=wm['w'], h=wm['h'], n=wm['n'], ms=wm['ms'], z='boden')]
-    # Brüllen: Reif rieselt von der Decke (Beben kommt mit dem Einschlagbild)
-    dust = [dict(k='funken', at=60 + 70 * i, x=int(x), y=10, n=9, r=14, vx=6, vy=-30, g=140, c=['#ffffff', '#9aeefc', '#34b8e4', '#1670a0'])
-            for i, x in enumerate((300, 200, 110, 250, 40, 160))]
-    B['meta']['ereignisse'] = ev_w + rf + ev + mk + dust
+    bd.append(dict(k='bild', r='welle', at=0, x=wm['x'], y=wm['y'], w=wm['w'], h=wm['h'], n=wm['n'], ms=wm['ms'], z='boden'))
+    # Brüllen: Reif rieselt von der Decke über dem Feld
+    dust = [dict(k='funken', at=-520 + 60 * i, x=int(x), y=10, n=10, r=16, vx=6, vy=-30, g=140,
+                 c=['#ffffff', '#9aeefc', '#34b8e4', '#1670a0']) for i, x in enumerate((200, 150, 250, 120, 228, 176))]
+    B, imp = finish('skalvyr', FX, FY0, BX, [('koerper', idle, dict(n=N_RUHE, ms=MS_RUHE))], frames, HIT, FX + 60, Ld,
+                    ['fern', 'fern-glut', 'mitte', 'mitte-glut', 'boden', 'boden-glut', 'vorn'], fx,
+                    {'glut': ['#ffffff', '#9aeefc', '#34b8e4'], 'fokus': [292, 298], 'teilchen': 'schnee', 'dichte': 5,
+                     'dauer': 9.5, 'start': 2.2,
+                     'beben': [[0, 4], [3, -3], [-3, 2], [2, -2], [-2, 1], [1, -1], [0, 1], [1, 0]], 'stopp': 80})
+    B['meta']['ereignisse'] = bd + ev + dust
     B['meta']['warn'] = None
     return B

@@ -1,5 +1,5 @@
 // Bosskino der Startseite (site/bosskino.js zeichnet es live auf ein Canvas, Abschnitt #bosse):
-// Die vier Bosse als eigene Pixel-Art in Seitenansicht, riesig in ihrem Gebiet, je mit einer Signatur-Attacke.
+// Die Bosse als eigene Pixel-Art in Seitenansicht, riesig in ihrem Gebiet, je mit einer Signatur-Attacke.
 // Gleiches Prinzip wie das Titelbild (tools/titel-held.mjs): ein Szenenraster für alle Ebenen (560 × 216 Szenenpixel),
 // jede Ebene und jede Figur 1:1 darin, ganzzahlig vergrößert, keine Ebene skaliert oder verzerrt.
 // Gezeichnet in Python (tools/bosskino.py mit je einem Modul bosskino_<boss>.py): Ebenen (Ferne, Mitte, Boden mit
@@ -7,7 +7,7 @@
 // Effekte als Bildfolgen. Je Boss ein Atlas img/bosskino-<boss>.webp (verlustfrei), Standbild img/bosskino.webp
 // (Malgareth; ohne JS und bei reduzierter Bewegung). Maße, Bildfolgen und Ereignisse schreibt dieses Skript in den Block
 // <bosskino.mjs> in site/bosskino.js.
-// Aufruf: node site/tools/bosskino.mjs [bosse,kommagetrennt]   (ohne Angabe alle vier; braucht Python 3 mit numpy, Pillow)
+// Aufruf: node site/tools/bosskino.mjs [bosse,kommagetrennt]   (ohne Angabe alle; braucht Python 3 mit numpy, Pillow)
 // Zwischenbilder (Atlanten als PNG, Standbilder, Momentblätter) nach $ZWISCHEN/bosskino (Standard /tmp).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
