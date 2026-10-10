@@ -101,7 +101,8 @@ async function loadTerms(env, site, lang) {
   };
   const de = await get(TERMS_PATH);
   if (lang !== 'en') return { de };
-  const en = await get(`/en${TERMS_PATH}`).catch(() => null);
+  // Englische Seite heißt anders (site/i18n/build-en.mjs: /kaufbedingungen → /en/purchase-terms).
+  const en = await get('/en/purchase-terms').catch(() => null);
   return { de, en };
 }
 

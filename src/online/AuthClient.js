@@ -265,7 +265,8 @@ export class AuthClient {
       this.#store(session, intent === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN');
       return { intent, session };
     } catch (e) {
-      this.#clearPkce();
+      // Gespeicherte Anfrage behalten: ein fremder Link mit erfundenem ?code= soll einen noch offenen
+      // Bestätigungs- oder Rücksetz-Link nicht unbrauchbar machen (der Code ist ohnehin aus der Adresse entfernt).
       return { intent, error: e };
     }
   }

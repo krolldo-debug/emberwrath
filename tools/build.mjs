@@ -1,11 +1,13 @@
 // Zero-Dependency-Build: bündelt alle ES-Module in eine einzelne HTML-Datei
 // (dist/emberfall.html), die ohne Server per Doppelklick läuft.
 // Aufruf: node tools/build.mjs
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { buildSite } from '../site/build-site.mjs';
+import { pageHeaders } from '../worker/headers.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modules = new Map();
@@ -53,12 +55,15 @@ for (const m of modules.values()) bundle += `__defs[${JSON.stringify(m.id)}] = f
 bundle += `__require(${JSON.stringify(relative(root, entry))});\n`;
 
 const html = readFileSync(resolve(root, 'index.html'), 'utf8');
+// Das Spiel ist ein einziges Inline-Skript; die CSP erlaubt genau dieses über seinen Hash statt 'unsafe-inline'.
+const gameScript = `\n(() => {\n${bundle}})();\n`;
+const gameScriptHash = `sha256-${createHash('sha256').update(gameScript, 'utf8').digest('base64')}`;
 // Alle in index.html verlinkten Stylesheets werden in Reihenfolge eingebettet.
 const cssFiles = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
 const css = cssFiles.map((f) => `/* ${f} */\n${readFileSync(resolve(root, f), 'utf8')}`).join('\n');
 const out = html
   .replace(/(\s*<link rel="stylesheet" href="[^"]+">)+/, () => `\n  <style>\n${css}</style>`)
-  .replace(/<script type="module" src="src\/main.js"><\/script>/, () => `<script>\n(() => {\n${bundle}})();\n</script>`);
+  .replace(/<script type="module" src="src\/main.js"><\/script>/, () => `<script>${gameScript}</script>`);
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/emberfall.html'), out);
 // Variante ohne Dokument-Gerüst (für Einbettung, z. B. als claude.ai-Artifact)
@@ -72,7 +77,6 @@ writeFileSync(resolve(root, 'dist/emberfall.fragment.html'), fragment);
 // connect-src: nur die eigene Seite und – falls eingetragen – genau das Supabase-Projekt aus src/online/config.js.
 const supabaseUrl = /supabaseUrl:\s*'([^']*)'/.exec(readFileSync(resolve(root, 'src/online/config.js'), 'utf8'))?.[1] ?? '';
 if (supabaseUrl && !/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(supabaseUrl)) { console.error(`Ungültige supabaseUrl in src/online/config.js: ${supabaseUrl}`); process.exit(1); }
-const connectSrc = supabaseUrl ? `'self' ${supabaseUrl}` : "'self'";
 const site = resolve(root, 'dist/site');
 mkdirSync(resolve(site, 'spielen'), { recursive: true });
 writeFileSync(resolve(site, 'spielen/index.html'), out);
@@ -90,15 +94,21 @@ copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-
 }
 const landing = buildSite(root, site);
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
-// dazu übliche Sicherheits-Header. Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
+// dazu übliche Sicherheits-Header (worker/headers.js). Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
+// Website-Seiten haben keine Inline-Skripte (JSON-LD ist kein ausführbares Skript), das Spiel nur das eine mit Hash.
+const inlineScript = (page) => [...page.matchAll(/<script\b([^>]*)>/g)].some((m) => !/\bsrc=/.test(m[1]) && !/type="application\/ld\+json"/.test(m[1]));
+if (inlineScript(html)) { console.error('index.html: Inline-Skripte blockiert die CSP – nur das gebündelte Spiel ist per Hash erlaubt.'); process.exit(1); }
+for (const f of readdirSync(site, { recursive: true })) {
+  if (!/\.html$/.test(f) || f.startsWith('spielen')) continue;
+  const page = readFileSync(resolve(site, f), 'utf8');
+  if (inlineScript(page)) { console.error(`dist/site/${f}: Inline-Skript wird von der CSP blockiert (in eine .js-Datei auslagern)`); process.exit(1); }
+  // Doppelt eingebundene Skripte (z. B. site.js im Fuß und noch einmal in der Seite) laufen zweimal: doppelte Formular-Absendungen.
+  const srcs = [...page.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1].replace(/^\//, ''));
+  if (new Set(srcs).size !== srcs.length) { console.error(`dist/site/${f}: Skript doppelt eingebunden (${srcs.join(', ')})`); process.exit(1); }
+}
 writeFileSync(resolve(site, '_headers'), [
   '/*',
-  '  X-Content-Type-Options: nosniff',
-  '  Referrer-Policy: strict-origin-when-cross-origin',
-  '  X-Frame-Options: SAMEORIGIN',
-  `  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src ${connectSrc}; frame-ancestors 'self'`,
-  '  Permissions-Policy: camera=(), microphone=(), geolocation=()',
-  '  Strict-Transport-Security: max-age=31536000; includeSubDomains',
+  ...Object.entries(pageHeaders(supabaseUrl, [gameScriptHash])).map(([k, v]) => `  ${k}: ${v}`),
   '/index.html',
   '  Cache-Control: no-cache',
   '/',
