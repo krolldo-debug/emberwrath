@@ -616,7 +616,6 @@
  "Stufe 20–25": "Level 20–25",
  "Stufe 20–40": "Level 20–40",
  "Stufe 25–31": "Level 25–31",
- "Stufe 26": "Level 26",
  "Stufe 31–36": "Level 31–36",
  "Stufe 32": "Level 32",
  "Stufe 36–40": "Level 36–40",
@@ -799,5 +798,9 @@
  "Mutter Fäulnis lässt Wurzelstacheln aus dem Boden brechen": "Mother Rot makes root spikes burst from the ground",
  "Skalvyr, der Frostwurm, lässt Eiszapfen auf die Reifhöhlen niederregnen": "Skalvyr, the Frost Wyrm, rains icicles down on the Rime Caverns",
  "Malgareth, der Aschenfürst, schleudert Aschewellen über den Aschethron": "Malgareth, the Ash Sovereign, hurls waves of ash across the Ashen Throne",
- "<span data-price-note>Alle Preise sind Endpreise inklusive Umsatzsteuer.</span> Bezahlung sicher über Stripe. <a href=\"support\">Fragen zu einem Kauf beantwortet der Support.</a>": "<span data-price-note>All prices are final prices including VAT.</span> Secure payment via Stripe. <a href=\"support\">Questions about a purchase? Our support team can help.</a>"
+ "<span data-price-note>Alle Preise sind Endpreise inklusive Umsatzsteuer.</span> Bezahlung sicher über Stripe. <a href=\"support\">Fragen zu einem Kauf beantwortet der Support.</a>": "<span data-price-note>All prices are final prices including VAT.</span> Secure payment via Stripe. <a href=\"support\">Questions about a purchase? Our support team can help.</a>",
+ "Mutter Fäulnis lässt Wurzelstacheln aus dem Boden des Sporenschlunds brechen und hüllt alles in eine Sporenwolke.": "Mother Rot makes root spikes burst from the floor of the Spore Hollow and shrouds everything in a cloud of spores.",
+ "Skalvyr, der Frostwurm, bäumt sich in den Reifhöhlen auf und lässt Eiszapfen von der Decke regnen.": "Skalvyr, the Frost Wyrm, rears up in the Rime Caverns and brings icicles raining down from the ceiling.",
+ "Malgareth, der Aschenfürst, schlägt vor seinem Thron die Flammenklinge in den Boden, eine Wand aus Feuer läuft über den Saal.": "Malgareth, the Ash Sovereign, drives his flame blade into the floor before his throne, and a wall of fire sweeps across the hall.",
+ "Bosse": "Bosses"
 }

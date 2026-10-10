@@ -18,6 +18,7 @@ import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
 import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } from './endgame.js';
 import { TRIAL_ZONE } from './trials.js';
 import { registerBoardState, boardProgress } from './board.js';
+import { registerDailyState, dailyWin } from './daily.js';
 import { START_ITEMS, STARTER_GEAR } from '../character/startKit.js';
 
 const inTrial = (s) => s.slices.world?.zoneId === TRIAL_ZONE;
@@ -420,9 +421,13 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     const base = rare ? mobXp(lvl) * RARE_XP_MULT : mobXp(lvl, { elite: isElite, boss }) * (summoned ? 0.2 : 1) * (champ ? CHAMPION_XP_MULT : 1);
     const gained = grantXp(s, ctx, killXp(base, lvl, p.level), `kill:${type}`);
     recordQuestEvent(s, ctx, 'kill', type);
+    const phaseBefore = s.slices.trials?.run?.phase;
     trialKill(s, ctx, { type, elite: isElite, isBoss: boss, bossId: bossId ?? enemy?.bossId ?? (boss ? type : undefined), trialTime }, helpers);
     if (boss && !inTrial(s)) recordQuestEvent(s, ctx, 'boss', bossId ?? enemy?.bossId ?? type);
     if (!inTrial(s) && !summoned) boardProgress(s, ctx, { kind: 'kill', type, champion: champ, boss, bossId: bossId ?? enemy?.bossId ?? type });
+    // Tagesbonus und Wochenherausforderung (daily.js); now = Serverzeit
+    const run = s.slices.trials?.run, trialDone = !!run && phaseBefore !== 'done' && run.phase === 'done';
+    if (!summoned) dailyWin(s, ctx, helpers, { now, boss, bossId: bossId ?? enemy?.bossId ?? type, elite: isElite, champion: champ, rare: !!rare, inTrial: inTrial(s), trial: trialDone ? { tier: run.tier, time: run.time } : null });
     return { xp: gained };
   }, auth);
 
@@ -789,5 +794,6 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
 
   registerEndgameState(state, helpers);
   registerBoardState(state, helpers);
+  registerDailyState(state, helpers);
   return { ledger };
 }

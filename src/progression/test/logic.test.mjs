@@ -17,6 +17,7 @@ import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
 import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier } from '../levelGap.js';
 import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers } from '../board.js';
+import { STREAK_DAYS, loginReward, firstWinReward, weeklyChallenge, challengeReward, dailyHasReward } from '../daily.js';
 import { setWorldFeatures, openObjectives } from '../selectors.js';
 import { trialSpec, trialChances, trialRewards, trialThemesFor } from '../trials.js';
 import { MOUNT_DROPS } from '../loot.js';
@@ -38,7 +39,7 @@ function setup(classId = 'warrior') {
   registerProgressionContent(content);
   const api = registerProgressionState(state, { rng });
   const events = [];
-  for (const ev of new Set([...Object.values(EV), 'achievement:unlocked', 'trial:started', 'trial:progress', 'trial:boss', 'trial:completed', 'trial:failed', 'rare:killed'])) bus.on(ev, (p) => events.push([ev, p]));
+  for (const ev of new Set([...Object.values(EV), 'achievement:unlocked', 'trial:started', 'trial:progress', 'trial:boss', 'trial:completed', 'trial:failed', 'rare:killed', 'daily:reward', 'daily:firstWin'])) bus.on(ev, (p) => events.push([ev, p]));
   return { bus, content, state, api, events, c: (t, p) => state.commit(t, p) };
 }
 const slotOf = (state, itemId) => state.slices.inventory.slots.findIndex((s) => s?.itemId === itemId);
@@ -1071,6 +1072,81 @@ test('Release-Runde: Schmiede 20–40, neue Questgegenstände, Händler mit Schm
     for (let k = 0; k < 400; k++) if (attrFit(ITEMS[pickEquipment({ level: 5 + (k % 36), rarity: 'rare', classId: cls, rng })], cls)) fit++;
     assert.ok(fit / 400 >= 0.7, `${cls}: ${fit}/400 Beuteteile passen`);
   }
+});
+
+test('Tagesbelohnung, erster Sieg, Wochenherausforderung', () => {
+  const DAY = 86400000, day = boardDay(Date.now()) + 2, now = day * DAY + 3600e3;
+  // Neuer Held: heute nichts, morgen Tag 1
+  let { c, state, events } = setup();
+  assert.equal(c('daily:login', { now, isNew: true }).ok, false);
+  assert.equal(state.slices.daily.streak, 0);
+  const g0 = state.slices.wallet.gold;
+  const r1 = c('daily:login', { now: now + DAY });
+  assert.equal(r1.ok, true);
+  assert.equal(r1.streak, 1);
+  assert.equal(state.slices.wallet.gold - g0, loginReward(1, 1).gold);
+  assert.equal(c('daily:login', { now: now + DAY + 3600e3 }).ok, false, 'einmal am Tag');
+  assert.equal(c('daily:login', { now }).ok, false, 'Uhr zurückdrehen bringt nichts');
+  // Ausgelassene Tage strafen nicht: Serie geht weiter
+  assert.equal(c('daily:login', { now: now + 5 * DAY }).streak, 2);
+  for (let i = 3; i <= STREAK_DAYS; i++) assert.equal(c('daily:login', { now: now + (3 + i) * DAY }).streak, i);
+  assert.equal(state.slices.daily.rounds, 1);
+  assert.ok(state.slices.inventory.slots.some((sl) => sl && ITEMS[sl.itemId]?.rarity === 'rare') || state.slices.inventory.questBag?.length, 'Tag 7: blaues Teil');
+  assert.equal(c('daily:login', { now: now + 11 * DAY }).streak, 1, 'nach Tag 7 von vorn');
+  assert.equal(events.filter(([ev]) => ev === 'daily:reward').length, STREAK_DAYS + 1);
+
+  // Erster Sieg: einmal am Tag, nur Boss/Elite/Champion/Seltener
+  ({ c, state, events } = setup());
+  state.slices.progress.level = 10;
+  c('progress:kill', { type: 'wolf', level: 10, now });
+  assert.equal(events.filter(([ev]) => ev === 'daily:firstWin').length, 0);
+  c('progress:kill', { type: 'bandit_chief', level: 10, elite: true, now });
+  c('progress:kill', { type: 'bandit_chief', level: 10, elite: true, now });
+  assert.equal(events.filter(([ev]) => ev === 'daily:firstWin').length, 1);
+  c('progress:kill', { type: 'bandit_chief', level: 10, elite: true, now: now + DAY });
+  assert.equal(events.filter(([ev]) => ev === 'daily:firstWin').length, 2);
+  assert.ok(firstWinReward(40).items.length && !firstWinReward(40).xp, 'auf 40 Gold und Splitter');
+
+  // Wochenherausforderung: für alle gleich, erreichbarer Boss, Regel zählt
+  assert.deepEqual(weeklyChallenge(100, 15), weeklyChallenge(100, 15));
+  for (let w = 0; w < 40; w++) for (const lvl of [1, 8, 15, 24, 33, 40]) {
+    const ch = weeklyChallenge(w, lvl);
+    assert.equal(ch.kind, 'boss');
+    assert.ok(lvl < 6 ? ch.target === 'bonelord' : true);
+  }
+  assert.equal(weeklyChallenge(3, 30, { open: true, best: 7 }).tier, 6);
+  ({ c, state, events } = setup());
+  state.slices.progress.level = 13;
+  c('daily:sync', { now });
+  const ch = state.slices.daily.challenge;
+  assert.ok(['bonelord', 'drowned_priestess'].includes(ch.target));
+  const fight = (t, opts = {}) => {
+    c('daily:engage', { now: t, bossId: ch.target });
+    if (opts.potion) c('daily:mark', { potion: true });
+    if (opts.died) c('daily:mark', { died: true });
+    c('progress:kill', { type: ch.target, level: 13, isBoss: true, bossId: ch.target, now: t + (opts.secs ?? 60) * 1000 });
+  };
+  fight(now, ch.rule === 'nopotion' ? { potion: true } : ch.rule === 'nodeath' ? { died: true } : { secs: 200 });
+  assert.equal(state.slices.daily.cDone, false, 'Regel gebrochen');
+  assert.equal(c('daily:claimChallenge', { now }).ok, false);
+  fight(now + 600e3);
+  assert.equal(state.slices.daily.cDone, true);
+  assert.ok(dailyHasReward(state));
+  const g1 = state.slices.wallet.gold;
+  assert.equal(c('daily:claimChallenge', { now }).ok, true);
+  assert.equal(state.slices.wallet.gold - g1, challengeReward(13).gold);
+  assert.equal(c('daily:claimChallenge', { now }).ok, false, 'nur einmal');
+  assert.equal(state.slices.daily.cTotal, 1);
+  // Neue Woche: neue Herausforderung, Fortschritt zum Erfolg bleibt
+  c('daily:sync', { now: now + 7 * DAY });
+  assert.equal(state.slices.daily.cDone, false);
+  assert.equal(state.slices.daily.cTotal, 1);
+  // Speichern und Laden
+  const raw = JSON.parse(JSON.stringify(state.slices.daily));
+  const { state: s2 } = setup();
+  s2.load({ v: 1, slices: { daily: raw } });
+  assert.equal(s2.slices.daily.cTotal, 1);
+  assert.equal(s2.slices.daily.challenge.kind, 'boss');
 });
 
 for (const [name, fn] of tests) {

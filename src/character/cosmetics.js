@@ -25,6 +25,8 @@ export const DYES = {
   // Belohnung schwerer Erfolge (progression/achievements.js, reward 'dye'): kein Goldpreis, nur mit dem Erfolg.
   bloodmoon: { name: 'Blutmond', price: 0, achievement: 'slayer_5000', ramp: ['#060104', '#12030a', '#2c0610', '#5c0a18', '#c41e30'] },
   whiteflame: { name: 'Weißglut', price: 0, achievement: 'trial_30', ramp: ['#4a2a10', '#a0682a', '#e8b450', '#fff0b8', '#ffffff'] },
+  // Erfolg „Wachfeuer“: vier Wochenherausforderungen am Auftragsbrett (progression/daily.js)
+  watchfire: { name: 'Wachfeuer', price: 0, achievement: 'weekly_4', ramp: ['#100806', '#24100a', '#3c160c', '#7a2a10', '#e06a1c'] },
 };
 
 // Besitzt der Spielstand ein exklusives Shop-Design? (slices.shop.owned, vom Server abgeglichen)
