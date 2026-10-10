@@ -140,3 +140,12 @@ Tasche, Ausrüstung und Bank nach). Das Aussehen bleibt, auch wenn das Teil verk
 - Panel (D): `game.character.wardrobe.entries(slot)` → `{ current, equipped, list: [{ itemId, name, rarity, icon, usable, shown }] }`
   (gleiches Aussehen einmal), `show(slot, value)`, `count()`; Vorschau `game.character.previewGear(overrides)`.
 - Test: `node src/character/test/wardrobe.test.mjs`.
+
+## Zielhilfe (Runde 10.10.)
+`aim.js` (reine Rechnung, Test `node src/character/test/aim.test.mjs`), genutzt von `Hero.js` für Grundangriff und Fähigkeiten:
+- Ziel wählen beim Drücken: Maus → Gegner unter/nahe dem Zeiger, sonst enger Kegel; Stick/Tasten → Kegel um die Laufrichtung,
+  sonst der nächste in Reichweite; ohne Eingabe → nächster Gegner ringsum. Das bisherige Ziel bleibt bevorzugt (`hero.aimTarget`).
+- Im Moment des Hiebs/Schusses wird neu angepeilt: Geschosse mit Vorhalt (Laufen, abklingender Rückstoß, getroffene Gegner
+  bremsen), Nahkampf setzt bis 12 px nach, wenn das Ziel knapp außer Reichweite steht.
+- Messung im echten Spiel (Stufe 27, je 60 s gegen Gruppen der eigenen Stufe): ohne Maus vorher 15–99 %, nachher 95–100 %
+  der Grundangriffe treffen; mit Maus 77–100 % → 100 %.

@@ -16,6 +16,7 @@ import { FINDER_CONFIG } from './config.js';
 // Ereignisse auf game.bus: 'finder:changed' { state } (Anzeige), 'finder:chat' { from, text, kind }.
 const STORE_KEY = 'emberwrath:finder:';
 const MERC_READY = [700, 3400];
+const posOf = (o) => (Number.isFinite(o?.x) && Number.isFinite(o?.y) ? { x: o.x, y: o.y } : null);
 
 export class FinderService {
   constructor(game) {
@@ -25,7 +26,7 @@ export class FinderService {
     this.searching = null;    // echte Suchende laut Server (null = unbekannt)
     this.group = null;        // aktuelle/angebotene Gruppe
     this.ready = new Set();   // bereite Mitglieder (ticketId/merc-id)
-    this.origin = null;       // Zone, aus der gesucht wurde (Rückweg)
+    this.origin = null;       // Rückweg: { zoneId, x, y } – Stelle, an der man der Gruppe beigetreten ist
     this.mode = 'server';
     this.client = new FinderClient({ getToken: async () => (game.online?.user ? game.online.client.getAccessToken() : null) });
     this.client.on('queued', (m) => { this.searching = m.searching; this.#changed(); });
@@ -39,6 +40,8 @@ export class FinderService {
     this.timer = setInterval(() => this.#tick(), 250);
     game.bus.on('online:changed', ({ user }) => { if (!user && this.state !== 'idle') this.cancel(); });
     game.bus.on(EV.SCENE_CHANGE, (e) => { if (e?.to !== 'play' && this.state !== 'idle') this.cancel(true); });
+    // Wer den Gruppen-Dungeon verlässt (Ausgangsportal, Menü, „Zurück“), landet wieder dort, wo er beigetreten ist
+    game.bus.on(EV.ZONE_TRAVEL_PLAN, (p) => this.#redirect(p));
   }
 
   // ------------------------------------------------------------------ Auswahl
@@ -78,8 +81,7 @@ export class FinderService {
     if (!d.open) return { ok: false, error: `${d.name} ist ab Stufe ${Math.max(1, d.min - 2)} erreichbar.` };
     if (!roleAllowed(role, c.classId)) return { ok: false, error: `${ROLES[role]?.name ?? 'Diese Rolle'} können nur Krieger übernehmen.` };
     if (this.state === 'active') this.leave(true);
-    const cur = this.game.scenes?.current?.zone;
-    this.origin = cur && !cur.def?.instanced ? { zoneId: cur.zoneId } : this.origin;
+    this.origin = this.#here() ?? this.origin;
     this.req = { dungeonId, role, since: Date.now() };
     this.state = 'queued';
     this.searching = null;
@@ -126,11 +128,29 @@ export class FinderService {
     this.#changed();
   }
 
-  // Zurück zu dem Gebiet, aus dem gesucht wurde
+  // Zurück an die Stelle, an der man beigetreten ist
   returnHome() {
-    const to = this.origin?.zoneId ?? this.game.scenes?.current?.zone?.def?.respawnZone;
+    const o = this.origin;
+    const to = o?.zoneId ?? this.game.scenes?.current?.zone?.def?.respawnZone;
     this.leave(true);
-    if (to) this.game.bus.emit(EV.ZONE_TRAVEL, { zoneId: to, spawnId: 'respawn' });
+    if (to) this.game.bus.emit(EV.ZONE_TRAVEL, { zoneId: to, spawnId: 'respawn', pos: o?.zoneId === to ? posOf(o) : null });
+  }
+
+  // Aktuelle Stelle des Helden außerhalb von Instanzen (sonst null)
+  #here() {
+    const s = this.game.scenes?.current, z = s?.zone, h = s?.world?.hero;
+    if (!z || z.def?.instanced) return null;
+    return h && Number.isFinite(h.x) && Number.isFinite(h.y) ? { zoneId: z.zoneId, x: Math.round(h.x), y: Math.round(h.y) } : { zoneId: z.zoneId };
+  }
+
+  // Zonenwechsel aus dem Gruppen-Dungeon in ein offenes Gebiet: stattdessen zur Beitrittsstelle
+  #redirect(p) {
+    const o = this.origin;
+    if (this.state !== 'active' || !o?.zoneId || !this.group || p.fromZoneId !== this.group.dungeonId) return;
+    if (this.game.content.find('zone', p.zoneId)?.instanced || !this.game.content.find('zone', o.zoneId)) return;
+    p.zoneId = o.zoneId;
+    p.spawnId = 'respawn';
+    p.pos = posOf(o);
   }
 
   // ------------------------------------------------------------------ intern
@@ -200,6 +220,7 @@ export class FinderService {
   }
 
   #begin(group) {
+    this.origin = this.#here() ?? this.origin;
     this.client.stop();
     this.local = null;
     this.state = 'active';

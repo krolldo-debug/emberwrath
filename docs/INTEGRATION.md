@@ -64,7 +64,7 @@ Das `session`-Objekt, das Systeme, Panels, Welt und Held bekommen:
 | `panels` | `PanelHost`: `open(id, params)`, `close()`, `toggle(id)`, `openId` |
 | `hitstop(t)`, `slowmo(scale, dur)` | Game-Feel (Thread D nutzt sie im Feedback) |
 | `setPaused(reason, on)`, `paused` | Nur für Sonderfälle. Online-Welt: Menüs, Fenster, Fokusverlust und verborgener Tab halten nichts an (GameLoop rechnet im Hintergrund weiter) |
-| `travel(zoneId, spawnId)` | Zonenwechsel (oder `bus.emit(EV.ZONE_TRAVEL, …)`) |
+| `travel(zoneId, spawnId, pos?)` | Zonenwechsel (oder `bus.emit(EV.ZONE_TRAVEL, …)`); `pos` (Weltpixel) hat Vorrang vor `spawnId`. Vorher geht `zone:travelPlan` { zoneId, spawnId, pos, fromZoneId } über den Bus, Hörer dürfen das Ziel ändern (Dungeonsuche: zurück zur Beitrittsstelle) |
 | `respawn({ leave })` | Wiederbeleben bzw. Dungeon verlassen (oder `bus.emit(EV.RESPAWN_REQUEST, { leave })`) |
 | `time, hurtFlash, deadTime, debug, fps` | Laufzeitwerte |
 
@@ -145,7 +145,7 @@ Nutzlasten stehen als Kommentar in `events.js`. Wer sendet, wer hört typischerw
 |---|---|---|
 | `scene:change`, `game:started`, `game:saved`, `state:changed` | Architektur | D (Anzeige „Gespeichert“) |
 | `account:login/logout`, `character:created` | A | – |
-| `zone:enter`, `zone:leave`, `zone:travel` (Anfrage) | Architektur / B | C (Ziel „Zone erreichen“), D (Zonenbanner) |
+| `zone:enter`, `zone:leave`, `zone:travel` (Anfrage), `zone:travelPlan` | Architektur / B | C (Ziel „Zone erreichen“), D (Zonenbanner) |
 | `area:reached`, `npc:interact`, `object:interact` | B | C (Quests, Truhen-Beute) |
 | `enemy:killed`, `boss:engaged`, `boss:defeated` | B | C (XP, Beute, Quests), D (Boss-Leiste, Banner) |
 | `player:died`, `player:respawned` | Architektur | D |

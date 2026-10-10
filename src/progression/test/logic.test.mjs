@@ -15,7 +15,7 @@ import { RECIPES } from '../crafting.js';
 import { runCampaign, expansionReport } from './pacing.mjs';
 import { SETS } from '../sets.js';
 import { computeBonus, upgradeCost, ENCHANTS } from '../smithing.js';
-import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier } from '../levelGap.js';
+import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier, combatLevel, staggerGuard, knockbackMult } from '../levelGap.js';
 import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers } from '../board.js';
 import { STREAK_DAYS, loginReward, firstWinReward, weeklyChallenge, challengeReward, dailyHasReward } from '../daily.js';
 import { setWorldFeatures, openObjectives } from '../selectors.js';
@@ -571,18 +571,18 @@ test('Stufenabstand: weit über der eigenen Stufe kaum Schaden, viel erlittener 
   assert.equal(levelGapMult(30, 30), 1);
   assert.ok(levelGapMult(38, 40) >= 0.9 && levelGapTakenMult(40, 38) <= 1.15, 'zwei Stufen bleiben fair');
   assert.ok(levelGapMult(24, 40) <= 0.05 && levelGapTakenMult(40, 24) >= 3.9, 'Stufe 24 gegen Malgareth chancenlos');
-  assert.ok(Math.abs(levelGapMult(37, 40) - 0.79) < 1e-9 && Math.abs(levelGapMult(36, 40) - 0.66) < 1e-9);
-  assert.ok(Math.abs(levelGapMult(35, 40) - 0.40) < 1e-9 && Math.abs(levelGapTakenMult(40, 35) - 2.4) < 1e-9, 'fünf Stufen darunter: ×0,40 / ×2,4');
+  assert.ok(Math.abs(levelGapMult(37, 40) - 0.7) < 1e-9 && Math.abs(levelGapMult(36, 40) - 0.5) < 1e-9);
+  assert.ok(Math.abs(levelGapMult(35, 40) - 0.33) < 1e-9 && Math.abs(levelGapTakenMult(40, 35) - 2.4) < 1e-9, 'fünf Stufen darunter: ×0,33 / ×2,4');
   for (let g = 0; g < 15; g++) assert.ok(levelGapMult(20, 20 + g + 1) <= levelGapMult(20, 20 + g) && levelGapTakenMult(20 + g + 1, 20) >= levelGapTakenMult(20 + g, 20), `monoton ${g}`);
   assert.ok(levelGapMult(40, 10) <= 1.25 && levelGapTakenMult(10, 40) >= 0.6);
   // Treffer: nur zwischen Teams, nur einmal, mindestens 1
   const hero = { team: 'hero', level: 24 }, boss = { team: 'enemy', level: 40 };
   const hit = applyLevelGap({ damage: 100, source: hero }, boss);
-  assert.equal(hit.damage, 5);
-  assert.equal(applyLevelGap(hit, boss).damage, 5, 'kein zweites Mal');
+  assert.equal(hit.damage, 4);
+  assert.equal(applyLevelGap(hit, boss).damage, 4, 'kein zweites Mal');
   // Geschoss und Trefferzone: Stufe des Schützen zählt
-  assert.equal(applyLevelGap({ damage: 100, source: { team: 'hero', hero } }, boss).damage, 5, 'Geschoss des Helden');
-  assert.equal(applyLevelGap({ damage: 100, source: { team: 'hero', owner: hero } }, boss).damage, 5, 'Explosion des Helden');
+  assert.equal(applyLevelGap({ damage: 100, source: { team: 'hero', hero } }, boss).damage, 4, 'Geschoss des Helden');
+  assert.equal(applyLevelGap({ damage: 100, source: { team: 'hero', owner: hero } }, boss).damage, 4, 'Explosion des Helden');
   assert.equal(applyLevelGap({ damage: 100, source: { owner: boss } }, hero).damage, 400, 'Geschoss des Bosses');
   assert.equal(applyLevelGap({ damage: 100, source: boss }, hero).damage, 400);
   assert.equal(applyLevelGap({ damage: 100, source: boss }, { team: 'enemy', level: 1 }).damage, 100, 'eigenes Team');
@@ -591,6 +591,19 @@ test('Stufenabstand: weit über der eigenen Stufe kaum Schaden, viel erlittener 
   assert.equal(levelGapTier(24, 40), 'skull');
   assert.equal(levelGapTier(30, 30), 'even');
   assert.equal(levelGapTier(30, 20), 'trivial');
+  // Elite ab Stufe 20 zählen zwei Stufen höher, in beide Richtungen; frühe Elite (Glutfang) nicht
+  const elite = { team: 'enemy', level: 30, def: { elite: true } };
+  assert.equal(applyLevelGap({ damage: 100, source: { team: 'hero', level: 27 } }, elite).damage, 33);
+  assert.equal(applyLevelGap({ damage: 100, source: elite }, { team: 'hero', level: 27 }).damage, 240);
+  assert.equal(combatLevel({ level: 3, def: { elite: true } }), 3);
+  // Standfestigkeit: höhere Gegner taumeln selten, Startgebiete unverändert, Rückstoß nach oben gedämpft
+  assert.equal(staggerGuard(0, { level: 3 }), 0, 'Startgebiet: jeder Treffer unterbricht');
+  assert.ok(staggerGuard(0, { level: 27 }) > 0.5, 'eigene Stufe: kurze Ruhe nach dem Taumeln');
+  assert.equal(staggerGuard(3, { level: 30 }), null, 'drei Stufen höher: leichte Treffer unterbrechen nicht');
+  assert.ok(staggerGuard(3, { level: 30, heavy: true }) >= 2);
+  assert.equal(staggerGuard(6, { level: 33, heavy: true }), null, 'sechs Stufen höher: nie');
+  assert.equal(staggerGuard(0, { level: 30, elite: true }), null);
+  assert.ok(knockbackMult(0) === 1 && knockbackMult(3) < 1 && knockbackMult(6) < knockbackMult(3));
 });
 
 test('Questvielfalt: Reihenfolge, Benutzen, Erkunden, Eskorte und Entscheidungen', () => {

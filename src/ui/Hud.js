@@ -2,7 +2,7 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, abilityIcon } from '../gfx/Icons.js';
 import { xpToNext } from '../progression/xp.js';
-import { trackedQuestId } from '../progression/selectors.js';
+import { trackedQuestId, questFilterHere } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
 import { tr, fmtNum } from '../i18n/index.js';
 import { DeathScreen } from './DeathScreen.js';
@@ -385,17 +385,19 @@ export class Hud {
   // Tracker: verfolgte Quest (quests.tracked, Thread C) steht oben und ist hervorgehoben.
   // Antippen/Klicken verfolgt eine Quest, erneutes Antippen hebt das Verfolgen auf
   // (Command 'quest:track'; der Pfad am Boden kommt von Thread B).
+  // Im Dungeon nur Quests, die dort etwas zu erledigen haben (selectors.questFilterHere).
   #updateTracker() {
     const st = this.s.state.slices.quests, c = this.s.content;
     const active = st?.active ?? {};
     const chosen = st?.tracked ?? null;
     // Effektiv verfolgt = gewählte Quest, sonst C's Standard (erste Hauptquest) – derselbe Wert wie der Bodenpfad
-    const tracked = st ? (trackedQuestId(this.s.state, c) ?? null) : null;
-    const key = JSON.stringify(active) + '|' + chosen + '|' + tracked;
+    const tracked = st ? (trackedQuestId(this.s.state, c, { here: true }) ?? null) : null;
+    const here = st ? questFilterHere(this.s.state, c) : null;
+    const key = JSON.stringify(active) + '|' + chosen + '|' + tracked + '|' + (here ? this.s.state.slices.world?.zoneId : '');
     if (key === this.trackerKey) return;
     this.trackerKey = key;
     const canTrack = this.s.state.commands.has('quest:track');
-    const ids = Object.keys(active).sort((a, b) => (b === tracked) - (a === tracked));
+    const ids = Object.keys(active).filter((id) => !here || here(id)).sort((a, b) => (b === tracked) - (a === tracked));
     const rows = [];
     for (const qid of ids) {
       const q = active[qid], def = c.find('quest', qid);

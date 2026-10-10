@@ -7,7 +7,7 @@ import { Telegraph, DamageWave } from './Telegraph.js';
 import { SLASH_STYLES } from '../sprites/effects.js';
 import { rand, angleDiff } from '../core/math.js';
 import { HazardCloud, NetSnare } from './Hazards.js';
-import { levelGapColor } from '../progression/levelGap.js';
+import { levelGapColor, attackerLevel, staggerGuard, knockbackMult } from '../progression/levelGap.js';
 
 const CLOUD_TELE = { poison: [120, 220, 90], frost: [140, 200, 255], fire: [255, 140, 60], spore: [190, 130, 240], curse: [190, 90, 230] };
 
@@ -790,6 +790,8 @@ export class Enemy extends Actor {
       w?.particles.sparks(this.x, this.y - this.bodyHeight * 0.5, Math.atan2(-hit.dirY, -hit.dirX), 4, ['#ffffff', '#d8f4ff', '#78c0f0']);
       if (this.armor <= 0) this.#shatter(w);
     }
+    // Höhere Gegner lassen sich kaum wegschieben (progression/levelGap.js)
+    if (!hit.dot && hit.knockback) hit.knockback *= knockbackMult(this.level - attackerLevel(hit.source, this.level));
     const dmg = hit.damage;
     const ok = super.takeHit(hit);
     // Champion „Dornen“: wirft 15 % des Nahkampfschadens zurück (nur Hiebe aus nächster Nähe)
@@ -809,7 +811,12 @@ export class Enemy extends Actor {
     if (this.state === 'idle' || this.state === 'howl') { this.setState('hurt'); this.#play('hurt', true); return; }
     // Schwere Treffer unterbrechen immer, leichte nur außerhalb des Zuschlags
     if (this.state === 'strike' && !hit.heavy) return;
-    if (this.state === 'charging' || this.state === 'special' || ((this.def.elite || this.champion) && !hit.heavy) || this.def.stagger === false) return;
+    if (this.state === 'charging' || this.state === 'special' || this.def.stagger === false) return;
+    // Standfestigkeit (progression/levelGap.js): höhere Gegner und Elite taumeln selten, keiner lässt sich dauerhaft festhalten
+    const now = this.world?.time ?? 0;
+    const guard = staggerGuard(this.level - attackerLevel(hit.source, this.level), { heavy: !!hit.heavy, elite: !!(this.def.elite || this.champion), level: this.level });
+    if (guard == null || now < (this.staggerUntil ?? 0)) return;
+    this.staggerUntil = now + (this.hurtOverride ?? this.def.hurtTime ?? 0.2) + guard;
     this.setState('hurt');
     this.#play('hurt', true);
   }
