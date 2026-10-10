@@ -1,4 +1,5 @@
 import { NET_VERSION, NET_PATH, PING_MS, PONG_TIMEOUT_MS, MAX_WORLDS } from './protocol.js';
+import { wsBase } from '../platform.js';
 
 // Eine WebSocket-Verbindung zu genau einem Shard (Zone × Welt), mit Wiederverbinden.
 //
@@ -188,8 +189,5 @@ export class NetClient {
 }
 
 // ws(s)://<eigene Seite>; ohne http(s) (Datei, eingebettete Vorschau) gibt es keinen Welt-Server.
-function defaultBase() {
-  const loc = globalThis.location;
-  if (!loc || !/^https?:$/.test(loc.protocol) || !loc.host) return null;
-  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}`;
-}
+// Eigene Seite, in der CrazyGames-Fassung www.emberwrath.com (src/platform.js)
+function defaultBase() { return wsBase(); }

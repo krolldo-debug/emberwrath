@@ -1,5 +1,6 @@
 import { h } from '../core/dom.js';
 import { NET_PATH, CHAT_MAX } from './protocol.js';
+import { httpBase } from '../platform.js';
 import { IgnoreList, ModerationUi } from './Moderation.js';
 import { tr } from '../i18n/index.js';
 
@@ -154,7 +155,7 @@ export class NetHud {
     this.popup.hidden = false;
     let worlds = [];
     try {
-      const res = await fetch(`${location.origin}${NET_PATH}/worlds?zone=${encodeURIComponent(c.zone)}`, { cache: 'no-store' });
+      const res = await fetch(`${httpBase()}${NET_PATH}/worlds?zone=${encodeURIComponent(c.zone)}`, { cache: 'no-store' });
       worlds = (await res.json()).worlds ?? [];
     } catch { worlds = []; }
     if (this.popup.hidden) return;
