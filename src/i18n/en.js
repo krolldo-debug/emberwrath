@@ -4307,5 +4307,6 @@ export const EN = {
   "Neue Ausrüstung im Inventar": "New gear in your inventory",
   "Karte öffnen": "Open map",
   "Einstiegshinweise": "Starter tips",
-  "kurze Tipps für neue Helden": "short tips for new heroes"
+  "kurze Tipps für neue Helden": "short tips for new heroes",
+  "Shift": "Shift"
 };
