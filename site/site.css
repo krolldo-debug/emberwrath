@@ -83,7 +83,7 @@ section { position: relative; }
 .sec-line { margin: 0; max-width: 34em; color: var(--soft); font-size: clamp(16px, 1.4vw, 18px); }
 
 /* ---------- Titelbild „Aufbruch zum Aschethron“: randlos, Text links im Dunkel, der Held rechts (titel.js) */
-.hero { min-height: clamp(560px, 56.25vw, 100svh); display: grid; align-items: center; overflow: hidden; isolation: isolate; }
+.hero { min-height: max(560px, 100svh);   /* erster Bildschirm ganz Titel, auch bei 16:10 */ display: grid; align-items: center; overflow: hidden; isolation: isolate; }
 .hero-bg { position: absolute; inset: 0; z-index: -3; background: #060309; overflow: hidden; }
 /* Standbild in Szenenpixeln (640 × 272, Held bei 330/212), ganzzahlig vergrößert (--p); titel.js richtet es
    pixelgenau aus und zeichnet die lebende Szene auf ein Canvas darüber. Ohne JavaScript gelten diese Näherungen. */

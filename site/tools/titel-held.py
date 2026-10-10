@@ -319,13 +319,14 @@ def body(fig, breath=0, crouch=0, lean=0, hands=((16, 52), (16, 47)), after_far=
     # Stulpe: goldgesäumter Rand vor dem Handschuh
     lerp = lambda a, z, k: (a[0] + (z[0] - a[0]) * k, a[1] + (z[1] - a[1]) * k)
     fig.put(seg(lerp(en, hn, 0.6), lerp(en, hn, 0.74), 8, 8), 'obs', cut=(0.2, 0.5))
-    rim = seg(lerp(en, hn, 0.6), lerp(en, hn, 0.66), 8.4, 8.4)
+    rim = seg(lerp(en, hn, 0.58), lerp(en, hn, 0.76), 8.6, 8.6)
+    fig.put(rim, 'gold', cut=(0.2, 0.5))
     for y, x in zip(*np.nonzero(rim)):
-        if fig.mat[y, x] == 'obs': fig.mat[y, x] = 'gold'; fig.tone[y, x] = 3
+        if y > 0 and not rim[y - 1, x]: fig.tone[y, x] = 4
     # Ellbogenkachel: gewölbte Goldplatte mit Flügel nach außen
     ex, eh = en
-    fig.put(poly([(ex - 1, eh + 4), (ex - 5, eh + 1), (ex - 4, eh - 3), (ex, eh - 1)]), 'gold', light=(1, -1), hi=1, mid=2, flat=3)
-    fig.put(ellipse(ex, eh, 3.8, 3.6), 'gold', shade='dome', r=2.2, dcuts=(0.25, 0.55, 0.82))
+    fig.put(poly([(ex - 1, eh + 5), (ex - 6.5, eh + 1), (ex - 5, eh - 4), (ex, eh - 1)]), 'gold', light=(1, -1), hi=1, mid=3, flat=4)
+    fig.put(ellipse(ex, eh, 4.6, 4.3), 'gold', shade='dome', r=2.6, dcuts=(0.12, 0.4, 0.7))
     return hn, hf
 
 
@@ -338,9 +339,12 @@ def edge(fig, mask):
 def hand(fig, p, trim=False):
     m = ellipse(p[0], p[1], 3.3, 2.9)
     fig.put(m, 'obs', shade='dome', r=1.6, dcuts=(0.25, 0.55, 0.8))
-    if trim:   # Panzerhandschuh: Knöchelreif in Gold oben
+    if trim:   # Panzerhandschuh: Handrücken als Goldplatte, darunter die dunklen Finger
+        ys = np.nonzero(m)[0]; top, bot = ys.min(), ys.max()
         for y, x in zip(*np.nonzero(m)):
-            if not m[y - 1, x] or (not m[y - 2, x] and x % 2 == 0): fig.mat[y, x] = 'gold'; fig.tone[y, x] = 4 if not m[y - 1, x] else 2
+            if y - top <= (bot - top) * 0.6:
+                fig.mat[y, x] = 'gold'
+                fig.tone[y, x] = 4 if not m[y - 1, x] else 3 if not m[y, x - 1] or (y - top) < 2 else 2
 
 
 # ------------------------------------------------------------------------------------------- Flammen der Klinge
