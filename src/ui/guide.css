@@ -1,0 +1,58 @@
+/* Einstiegshinweise für neue Helden (src/ui/Guide.js). Pixel-Look: deckende Farben, harte Kanten, Ein- und Ausblenden als harter Schnitt. */
+#ui > .ef-guide-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.ef-guide {
+  position: absolute; left: 0; top: 0; display: none; align-items: center; gap: 8px;
+  padding: 5px 10px 5px 7px; max-width: calc(100vw - 16px); box-sizing: border-box;
+  font: 600 13px/1.25 var(--ef-font); color: var(--ef-text); text-shadow: 0 1px 0 #000;
+  background: #0e0814; border: 2px solid #8a6230; border-radius: 0;
+  box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px #2a1c18, 0 3px 0 #05020a;
+}
+.ef-guide.show { display: flex; }
+.ef-guide.done { border-color: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px #6a4a14, 0 3px 0 #05020a; }
+.ef-guide.done .eg-text { color: #ffe08a; }
+
+.eg-body { display: flex; align-items: center; gap: 8px; }
+.eg-text { white-space: nowrap; }
+.eg-keys { display: flex; align-items: center; gap: 4px; }
+.eg-keys.wasd { display: grid; grid-template-columns: repeat(3, auto); gap: 2px; }
+.eg-keys.wasd .eg-key:nth-child(1) { grid-area: 1 / 2; }
+.eg-keys.wasd .eg-key:nth-child(2) { grid-area: 2 / 1; }
+.eg-keys.wasd .eg-key:nth-child(3) { grid-area: 2 / 2; }
+.eg-keys.wasd .eg-key:nth-child(4) { grid-area: 2 / 3; }
+.eg-key {
+  display: inline-block; min-width: 10px; padding: 2px 5px 1px; text-align: center;
+  font: 700 12px/1.15 var(--ef-font); color: #1a0e06; text-shadow: none;
+  background: var(--ef-gold); border-radius: 0; box-shadow: inset 0 -2px 0 #b8862a, 0 2px 0 #0b0710;
+}
+.eg-keys.wasd .eg-key { min-width: 12px; padding: 1px 3px 0; font-size: 11px; }
+.eg-ico { display: grid; place-items: center; }
+.eg-ico svg { display: block; }
+.eg-btn { image-rendering: pixelated; }
+.eg-drag .eg-knob { animation: eg-drag 1.6s steps(1, end) infinite; }
+/* Knopf springt in ganzen Quellpixeln (1 Einheit = 2 px) */
+@keyframes eg-drag { 0% { transform: translate(-1px, 1px); } 33% { transform: translate(0, 0); } 66% { transform: translate(1px, -1px); } 100% { transform: translate(-1px, 1px); } }
+
+/* Zeiger zum Knopf: Pixeltreppe in Rahmenfarbe */
+.eg-arrow { display: none; position: absolute; width: 10px; height: 5px; background: #8a6230; }
+.ef-guide.done .eg-arrow { background: var(--ef-gold); }
+.ef-guide.p-above .eg-arrow, .ef-guide.p-below .eg-arrow, .ef-guide.p-left .eg-arrow { display: block; }
+.ef-guide.p-above .eg-arrow { left: calc(var(--ax, 50%) - 7px); top: 100%; margin-top: 2px;
+  clip-path: polygon(0 0, 100% 0, 100% 20%, 90% 20%, 90% 40%, 80% 40%, 80% 60%, 70% 60%, 70% 80%, 60% 80%, 60% 100%, 40% 100%, 40% 80%, 30% 80%, 30% 60%, 20% 60%, 20% 40%, 10% 40%, 10% 20%, 0 20%); }
+.ef-guide.p-below .eg-arrow { left: calc(var(--ax, 50%) - 7px); bottom: 100%; margin-bottom: 2px;
+  clip-path: polygon(0 100%, 100% 100%, 100% 80%, 90% 80%, 90% 60%, 80% 60%, 80% 40%, 70% 40%, 70% 20%, 60% 20%, 60% 0, 40% 0, 40% 20%, 30% 20%, 30% 40%, 20% 40%, 20% 60%, 10% 60%, 10% 80%, 0 80%); }
+.ef-guide.p-left .eg-arrow { width: 5px; height: 10px; left: 100%; margin-left: 2px; top: calc(var(--ax, 50%) - 7px);
+  clip-path: polygon(0 0, 20% 0, 20% 10%, 40% 10%, 40% 20%, 60% 20%, 60% 30%, 80% 30%, 80% 40%, 100% 40%, 100% 60%, 80% 60%, 80% 70%, 60% 70%, 60% 80%, 40% 80%, 40% 90%, 20% 90%, 20% 100%, 0 100%); }
+
+/* Knopf, auf den der Hinweis zeigt: Goldrahmen blinkt in harten Stufen */
+.ef-guide-target { animation: eg-pulse 1.2s steps(1, end) infinite; }
+@keyframes eg-pulse {
+  0% { outline: 2px solid transparent; outline-offset: 2px; }
+  50% { outline: 2px solid #ffd66a; outline-offset: 2px; }
+}
+
+.ef-touch .ef-guide { font-size: 12px; padding: 5px 9px 5px 7px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eg-drag .eg-knob, .ef-guide-target { animation: none; }
+  .ef-guide-target { outline: 2px solid #ffd66a; outline-offset: 2px; }
+}
