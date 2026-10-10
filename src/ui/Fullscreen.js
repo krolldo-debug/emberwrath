@@ -5,6 +5,8 @@
 //   wie man es dort ablegt.
 // Die Dateien in src/ui/pwa/ (Manifest, App-Symbole) legt der Build neben die Spielseite.
 // <html> bekommt .ef-standalone (als App gestartet) und .ef-fullscreen (Vollbild aktiv).
+// CrazyGames-Fassung: Vollbild stellt die Plattform selbst, eigene Vollbild-Knöpfe sind dort nicht erlaubt.
+import { IS_CRAZYGAMES } from '../platform.js';
 
 const HINT_KEY = 'ef.fullscreenHint';
 
@@ -26,6 +28,7 @@ export function isStandalone() {
   return window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
 }
 export function canFullscreen() {
+  if (IS_CRAZYGAMES) return false;
   const el = document.documentElement;
   return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !!(el.requestFullscreen || el.webkitRequestFullscreen);
 }
@@ -70,6 +73,7 @@ function showIPhoneHint() {
 }
 
 export function installFullscreen(game) {
+  if (IS_CRAZYGAMES) return;
   const root = document.documentElement;
   // Web-App-Angaben (wirken beim Ablegen auf dem Home-Bildschirm)
   meta('apple-mobile-web-app-capable', 'yes');
