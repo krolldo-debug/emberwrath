@@ -26,9 +26,9 @@ Anmeldestatus liest `site.js` aus `localStorage['emberwrath:online:session']` (F
 Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
 - `kampf-*.webp`, `welt-*.webp`: Spielszenen in nativer Auflösung des Spiels (960 × 540, spriteRes 2 wie live), verlustfrei
   (WebP lossless), Helligkeit beim Aufnehmen eingerechnet. Aufgenommen mit `tools/szenen.mjs`, ausgewählt mit
-  `tools/szenen-auswahl.py` (Pillow). Titelbild (Skalvyr) und die Malgareth-Szene sind mit `tools/keyart.mjs` inszeniert.
+  `tools/szenen-auswahl.py` (Pillow). Die Malgareth-Szene ist mit `tools/keyart.mjs` inszeniert.
   Anzeige: `img.shot` mit `--fx/--fy` (Bildpunkt, der in die Mitte soll), auf dem Handy (≤ 820 px) `--mx/--my`, falls gesetzt. CSS gibt je Breite einen Faktor `--f`
-  vor (×2; Titelbild ab 1200 px ×4, ab 2000 px ×5, ab 2400 px ×6; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Titel und Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
+  vor (×2; großer Streifen ab 1200 px ×3; ab 1921 px sonst ×3; Handy Streifen ×1,67 (5 Gerätepixel bei 3×), sonst ×1); site.js rundet ihn auf ganze Bildschirmpunkte und füllt den Rahmen. Nie
   `object-fit: cover` oder CSS-Filter auf diese Bilder legen.
 - `held-*`, `volk-*`, `skill-*`, `npc-*`, `logo.png`: direkt aus dem Spielcode gerendert (`tools/render-assets.mjs`); `boss-*` und `item-*` mit `tools/render40.mjs`.
 - Klassen (`tools/klassen-kampf.mjs`, echte Spiellogik, Gegner wird nicht verletzt), Streifen aus 104 × 66 Weltpixeln je Bild in doppelter
@@ -46,7 +46,18 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
   der Namensliste (Breite, Höhe, Fuß x/y, Bilder, fps, Flughöhe, Tempo); site.js zeichnet die Parade in ganzen Bildschirmpunkten,
   die Kamera zieht mit, unter der Bühne steht der Name des Tiers in der Mitte.
-- `titel-loop.webp`: Titelbild als echter Kampf gegen Skalvyr (Fähigkeiten der Helden, Eisatem; 8 s, `tools/titel-kampf.mjs`), wird nach dem Laden gegen das Standbild getauscht, nicht bei Datensparmodus.
+- Titelbild „Aufbruch zum Aschethron“ (`tools/titel-held.mjs` mit `tools/titel-held.py`, gezeichnet von `titel.js`): eine
+  Pixelgröße für alles – Szene 640 × 272 Szenenpixel, jede Ebene und der Held 1:1, ganzzahlig vergrößert, keine Ebene skaliert
+  oder verzerrt. Held als eigene Pixel-Art (Rüstung des Aschenfürsten und Zweihänder Königsfall, Farben aus `character/gearLook.js`),
+  Kruste und Lavastrom aus den Lava-Generatoren des Spiels, Aschethron als gezeichneter Schattenriss. Ebenen
+  `titel-fern/-strom/-mitte/-nah` (je mit `-glut`), Held in Ruhe aus `titel-held-umhang` (8 Bilder), `-koerper` (Atem, 6),
+  `-flamme` (6) und `-klinge`, Momente als ganze Bilder in `titel-held-momente`, Glutwelle des Erdspalters `titel-welle` (Bildfolge über
+  die Fugen der Kruste). Bildfolgen, Dauern, Treffer und Maße schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
+  `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter Bewegung). titel.js legt es pixelgenau
+  aus, verschiebt Ebenen nur in ganzen Szenenpixeln (Schweben, Maus) und zeigt alle 6–8 s abwechselnd Erdspalter (Ausholen,
+  Halten, Einschlag mit Erschütterung, Glutwelle über die Fugen, Staub, Funken) und Schlachtruf (Klinge hoch, Kopf in den
+  Nacken, Umhang weht auf, Funkenring, Feuerschalen lodern);
+  läuft nur, solange sichtbar, nicht bei Datensparmodus.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
   `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
@@ -61,14 +72,14 @@ npx http-server dist -p 8101 -s &     # gebündeltes Spiel für szenen.mjs
 npx http-server .    -p 8102 -s &     # Module direkt für render-assets.mjs
 node site/tools/szenen.mjs cn [ids,kommagetrennt]   # je Szene eine Bildserie in cn/, Bosszustand im Dateinamen
 python3 site/tools/szenen-auswahl.py                # gewählte Bilder (oben im Skript) -> native/*.webp + focus.json
-node site/tools/keyart.mjs ka [ids]              # Titel und Streifen (kampf-*.webp): feste Aufstellung, Warnflächen
+node site/tools/keyart.mjs ka [ids]              # Streifen (kampf-*.webp): feste Aufstellung, Warnflächen
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
 node site/tools/bosse-buehne.mjs site/img ulgrim,rotmother,skalvyr,malgareth http://127.0.0.1:8121   # Bossbühnen (Server im Repo-Ordner)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
-(cd site/tools && node titel-kampf.mjs)            # Titelkampf
+node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)
 node site/tools/welt.mjs wl leben-quest,leben-handel # Szenen auf /welt
 ```
 

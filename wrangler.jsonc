@@ -1,6 +1,6 @@
 // Cloudflare-Konfiguration: Website (statische Dateien aus dist/site) + Welt-Server (worker/, Durable Objects).
 // Cloudflare baut mit `npm run build` und veröffentlicht dann mit `npx wrangler deploy`.
-// Vorhandene Dateien liefert Cloudflare direkt aus (dist/site/_headers gilt weiter), nur /net/* erreicht den Worker.
+// Vorhandene Dateien liefert Cloudflare direkt aus (dist/site/_headers gilt dort). Seiten aus run_worker_first und /net/* laufen durch den Worker; er setzt fehlende Sicherheits-Header selbst (worker/headers.js).
 // Durable Objects mit SQLite-Speicher sind im Gratis-Tarif enthalten (src/net/README.md: Kosten und Grenzen).
 {
   "name": "emberwrath",

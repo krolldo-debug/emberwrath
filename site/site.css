@@ -73,7 +73,7 @@ section { position: relative; }
   text-shadow: 0 2px 0 #3a1004;
 }
 .btn.primary:hover { box-shadow: 0 0 0 2px #1a0604, 0 0 44px rgba(255, 110, 30, 0.55), inset 0 2px 0 rgba(255, 220, 160, 0.4), inset 0 -3px 0 rgba(60, 14, 4, 0.5); transform: translateY(-1px); }
-.hero-cta .btn:not(.primary) { background: #0c0610; }   /* deckend, damit der Titelkampf nicht durchscheint */
+.hero-cta .btn:not(.primary) { background: #0c0610; }   /* deckend, damit das Titelbild nicht durchscheint */
 .btn.big { min-height: 58px; padding: 0 36px; font-size: 15px; letter-spacing: 0.18em; }
 .textlink { font: 700 13px/1 var(--font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); text-decoration: none; border-bottom: 2px solid rgba(232, 194, 90, 0.4); padding-bottom: 5px; }
 .textlink:hover { color: #fff0b0; border-bottom-color: var(--gold); }
@@ -82,29 +82,33 @@ section { position: relative; }
 .title { font: 700 clamp(32px, 4.4vw, 58px)/1.05 var(--font-title); margin: 0 0 14px; color: #fbe9c6; letter-spacing: 0.01em; text-wrap: balance; text-shadow: 0 0 30px rgba(255, 120, 40, 0.18); }
 .sec-line { margin: 0; max-width: 34em; color: var(--soft); font-size: clamp(16px, 1.4vw, 18px); }
 
-/* ---------- Titelbild: randlos, Text links im Dunkel, Kampf rechts */
-.hero { min-height: clamp(560px, 56.25vw, 100svh); display: grid; align-items: center; overflow: hidden; isolation: isolate; }
-.hero-bg { position: absolute; inset: 0; z-index: -3; background: #000; }
+/* ---------- Titelbild „Aufbruch zum Aschethron“: randlos, Text links im Dunkel, der Held rechts (titel.js) */
+.hero { min-height: max(560px, 100svh);   /* erster Bildschirm ganz Titel, auch bei 16:10 */ display: grid; align-items: center; overflow: hidden; isolation: isolate; }
+.hero-bg { position: absolute; inset: 0; z-index: -3; background: #060309; overflow: hidden; }
+/* Standbild in Szenenpixeln (640 × 272, Held bei 330/212), ganzzahlig vergrößert (--p); titel.js richtet es
+   pixelgenau aus und zeichnet die lebende Szene auf ein Canvas darüber. Ohne JavaScript gelten diese Näherungen. */
+.titel-bild { position: absolute; max-width: none; image-rendering: pixelated; --p: 5; width: calc(640px * var(--p)); height: calc(272px * var(--p));
+  left: calc(72.5% - 330px * var(--p)); top: calc(88% - 212px * var(--p)); }
+@media (min-width: 1700px) { .titel-bild { --p: 6; } }
+@media (min-width: 2200px) { .titel-bild { --p: 7; } }
+@media (min-width: 2500px) { .titel-bild { --p: 8; } }
+.titel-live { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.titel-live.on { opacity: 1; }
 
 /* ---------- Spielszenen: native Auflösung (960 × 540), nur ganzzahlig vergrößert (--f), Ausschnitt um --fx/--fy.
    site.js rundet den Faktor auf ganze Bildschirmpunkte und stellt sicher, dass der Rahmen gefüllt ist. */
-.hero-bg, .strip figure, .lore-bg { --f: 2; overflow: hidden; }
+.strip figure, .lore-bg { --f: 2; overflow: hidden; }
 .shot { position: absolute; max-width: none; image-rendering: pixelated;
   width: calc(960px * var(--f)); height: calc(540px * var(--f));
   left: clamp(calc(100% - 960px * var(--f)), calc(var(--ax, 0.5) * 100% - var(--fx, 0.5) * 960px * var(--f)), 0px);
   top: clamp(calc(100% - 540px * var(--f)), calc(var(--ay, 0.5) * 100% - var(--fy, 0.5) * 540px * var(--f)), 0px); }
-.hero-bg { --ax: 0.73; }   /* Kampf rechts neben den Text */
-@media (min-width: 1921px) { .hero-bg, .strip figure, .lore-bg { --f: 3; } }
-/* Titelbild und großer Streifen enger: Helden und Boss tragen das Bild */
-@media (min-width: 1200px) { .hero-bg { --ax: 0.77; } }
+@media (min-width: 1921px) { .strip figure, .lore-bg { --f: 3; } }
+/* Großer Streifen enger: Helden und Boss tragen das Bild */
 @media (min-width: 1921px) { .strip .strip-a { --f: 2; } }
-@media (min-width: 1700px) { .hero-bg { --f: 3; --ax: 0.75; } }
-@media (min-width: 2200px) { .hero-bg { --f: 4; } }
 @media (min-width: 2400px) { .strip .strip-a { --f: 3; } }
-@media (min-width: 2800px) { .hero-bg { --f: 5; } }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -2;
-  background: linear-gradient(90deg, rgba(5, 2, 10, 0.95) 0%, rgba(5, 2, 10, 0.86) 32%, rgba(5, 2, 10, 0.4) 50%, rgba(5, 2, 10, 0) 66%),
-    linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 18%, rgba(5, 2, 10, 0) 80%, var(--bg) 100%); }
+  background: linear-gradient(90deg, rgba(5, 2, 10, 0.92) 0%, rgba(5, 2, 10, 0.8) 30%, rgba(5, 2, 10, 0.35) 46%, rgba(5, 2, 10, 0) 58%),
+    linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 18%); }
 .embers { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
 .hero-content { width: 100%; max-width: var(--max); margin: 0 auto; padding: 110px var(--gutter) 90px; }
 .hero-logo { background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255, 110, 30, 0.22), transparent 75%); margin-left: -18px; }
@@ -521,7 +525,6 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 .hero-content > :nth-child(3) { animation-delay: 0.36s; }
 .hero-content > :nth-child(4) { animation-delay: 0.5s; }
 @keyframes rise { from { opacity: 0; transform: translateY(22px); } }
-.hero-bg img { transition: opacity 1.2s ease; }
 @media (prefers-reduced-motion: reduce) {
   :root:not(.no-js) h2.title, :root:not(.no-js) .lore h1.title, :root:not(.no-js) .title:not(.in) + .sec-line { opacity: 1; transform: none; animation: none; }
   :root:not(.no-js) .hero-content > * { animation: none; }
@@ -547,7 +550,8 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .nav .nav-extra { display: block; }
   .nav .nav-extra.btn { display: flex; margin-top: auto; border-bottom: 2px solid #ffb050; padding: 0 20px; font-size: 15px; opacity: 1; color: #fff6e6; }
   .top-actions .btn { min-height: 38px; padding: 0 12px; font-size: 12px; letter-spacing: 0.1em; }
-  .hero { align-items: end; }
+  .hero { align-items: end; min-height: 100svh; }
+  .titel-bild { --p: 5; left: calc(60% - 330px * var(--p)); top: calc(66% - 212px * var(--p)); }
   .hero-logo { width: 292px; height: 60px; margin-left: -12px; }   /* ×2 */
   .hero::before { background: linear-gradient(180deg, rgba(5, 2, 10, 0.5) 0%, rgba(5, 2, 10, 0) 16%, rgba(5, 2, 10, 0.15) 42%, rgba(5, 2, 10, 0.9) 66%, var(--bg) 100%); }
   .hero-logo { display: none; }   /* Kopfleiste zeigt den Namen schon */
@@ -571,9 +575,10 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .scene-text, .scene.r .scene-text { grid-column: 1; grid-row: 2; margin: -34px 14px 0; padding: 18px 20px 20px; }
 }
 @media (max-width: 600px) {
-  .hero { display: block; min-height: 0; }
-  .hero-bg { position: relative; inset: auto; height: 66svh; min-height: 380px; max-height: 620px; z-index: -3; --f: 1.34; --ax: 0.5; }   /* 4 Gerätepixel bei 3×: Gruppe und Drache ganz im Bild */
-  .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 66%, rgba(5, 2, 10, 0.6) 86%, var(--bg) 100%); }
+  .hero { display: block; min-height: 100svh; }
+  .hero-bg { position: relative; inset: auto; height: 58svh; min-height: 360px; max-height: 560px; z-index: -3; }
+  .titel-bild { --p: 2.3334; left: calc(42% - 330px * var(--p)); top: calc(78% - 212px * var(--p)); }   /* wie titel.js: 7 Gerätepixel je Szenenpixel bei 3× */
+  .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 87%, rgba(5, 2, 10, 0.7) 94%, var(--bg) 100%); }
   .hero::before { background: linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 14%); }
   .hero-content { padding-top: 0; margin-top: -60px; padding-bottom: 56px; }
   .hero-cta .btn { width: 100%; }
