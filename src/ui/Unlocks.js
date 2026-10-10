@@ -1,7 +1,9 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, abilityIcon } from '../gfx/Icons.js';
-import { ACHIEVEMENTS } from '../progression/achievements.js';
+import { ACHIEVEMENTS, rewardItemId } from '../progression/achievements.js';
+import { DYES } from '../character/cosmetics.js';
+import { CLASSES } from '../character/classes.js';
 import { fmtNum } from '../i18n/index.js';
 
 // Freischalt-Karten (Thread D): kurze, auffällige Karte oben in der Mitte für
@@ -15,6 +17,7 @@ const KIND = {
   talents: { label: 'Neue Talentreihe', cls: 'talents' },
   achievement: { label: 'Erfolg errungen', cls: 'achievement' },
   achievements: { label: 'Erfolge errungen', cls: 'achievement' },
+  reward: { label: 'Belohnung errungen', cls: 'reward' },
   mount: { label: 'Neues Reittier', cls: 'mount' },
   riding: { label: 'Reiten gelernt', cls: 'mount' },
 };
@@ -36,14 +39,28 @@ export class Unlocks {
     bus.on('character:unlock', (e) => this.#onCharacter(e));
     bus.on(EV.MOUNT_LEARNED, (e) => this.#onMount(e));
     bus.on(EV.QUEST_COMPLETED, (e) => { if (e.questId === 'q_first_ride') this.push({ kind: 'riding', name: 'Reiten', icon: 'ui_mount', sub: 'Reittiere gibt es bei Stallmeisterin Orla' }); });
-    bus.on(EV.ACHIEVEMENT_UNLOCKED, (e) => this.push({
+    bus.on(EV.ACHIEVEMENT_UNLOCKED, (e) => this.push(e.reward ? this.#rewardCard(e) : {
       kind: 'achievement', name: e.name, points: e.points ?? 0, icon: e.icon ?? ACHIEVEMENTS[e.id]?.icon ?? 'ui_achievements',
       sub: [e.points ? `${fmtNum(e.points)} Punkte` : '', e.title ? `Titel „${e.title}“` : ''].filter(Boolean).join(' · '),
     }));
   }
 
+  // Erfolg mit Belohnung (progression/achievements.js reward): eigene Karte mit dem Bild der Belohnung
+  #rewardCard(e) {
+    const c = this.s.content, r = e.reward;
+    let name = '', icon = e.icon ?? 'ui_achievements';
+    if (r.kind === 'dye') name = `Färbung „${DYES[r.id]?.name ?? ''}“`;
+    else if (r.kind === 'mount') { name = c.find('mount', r.id)?.name ?? ''; icon = `mount_${r.id}`; }
+    else {
+      const it = c.find('item', r.kind === 'item' ? rewardItemId(r, CLASSES[this.s.state.slices.character?.classId]?.primary) : r.id);
+      name = it?.name ?? ''; icon = it?.icon ?? icon;
+    }
+    return { kind: 'reward', name: e.name, icon, sub: `Belohnung: ${name}` };
+  }
+
   // Reittiere (§12.6): neues Reittier und freigeschaltetes Reiten (Reitstunde bei Orla)
   #onMount(e) {
+    if (e.source === 'achievement') return; // kommt mit der Belohnungskarte
     const def = this.s.content.find('mount', e.mountId);
     const pct = def?.speed ? ` · +${Math.round(def.speed * 100)} % Tempo` : '';
     this.push({ kind: 'mount', name: def?.name ?? 'Reittier', icon: `mount_${e.mountId}`, sub: `Aufsitzen: Taste V${pct}` });
@@ -98,7 +115,7 @@ export class Unlocks {
     this.el.className = `ef-unlock show k-${k.cls}`;
     const show = this.s?.input?.usingTouch ? SHOW * 0.75 : SHOW; // Handy: kürzer
     this.left = c.remain ?? (this.queue.length >= 2 ? show * 0.55 : show); // viele auf einmal (Stufensprung): schneller durch
-    if (!again) this.s.sfx?.play?.(c.kind.startsWith('achievement') ? 'achievement' : 'unlock');
+    if (!again) this.s.sfx?.play?.(c.kind.startsWith('achievement') || c.kind === 'reward' ? 'achievement' : 'unlock');
   }
 
   update(dt) {

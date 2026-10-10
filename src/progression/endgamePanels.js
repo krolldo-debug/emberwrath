@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { EQUIP_SLOTS, EQUIP_SLOT_NAMES, formatStat } from './items.js';
-import { ACHIEVEMENTS, ACHIEVEMENT_GROUPS } from './achievements.js';
+import { achievementsPanel } from './achievementsPanel.js';
 import { UPGRADE_MAX, upgradeCost, ENCHANTS, slotBonus, activeSets } from './smithing.js';
 import { TRIAL_REQUIRES, TRIAL_MAX_TIER, TRIAL_AFFIXES, trialSpec, trialChances, trialRewards } from './trials.js';
 import { BANK_SIZES, BANK_COSTS } from './endgame.js';
@@ -17,7 +17,7 @@ import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, barEl, attachTip, 
 export function registerEndgamePanels(game) {
   const P = game.panels;
   P.register('bank', (s) => reactive(s, bankView(s)), { title: 'Lagerkiste' });
-  P.register('achievements', (s) => reactive(s, achievementsView(s)), { title: 'Erfolge' });
+  P.register('achievements', (s) => achievementsPanel(s), { title: 'Erfolge' });
   P.register('smith', (s, p) => reactive(s, smithView(s, p)), { title: 'Verstärken' });
   P.register('trials', (s) => reactive(s, trialsView(s)), { title: 'Glutprüfungen' });
   P.register('board', (s) => reactive(s, boardView(s)), { title: 'Auftragsbrett' });
@@ -73,57 +73,6 @@ function bankView(s) {
             ? actionBtn('Einlagern', () => act('bank:deposit', { slot: sel.i }), { primary: true })
             : actionBtn('Entnehmen', () => act('bank:withdraw', { slot: sel.i }), { primary: true })] })) : null),
       h('footer.pg-dialog-foot', goldEl(st.slices.wallet.gold), msg ? h('span.pg-msg', msg) : null, actionBtn('Schließen', () => s.panels.close())));
-  };
-}
-
-// ---------------------------------------------------------------- Erfolge
-function achievementsView(s) {
-  let group = 'all';
-  return (redraw) => {
-    const st = s.state, a = st.slices.achievements;
-    const all = Object.entries(ACHIEVEMENTS);
-    const done = Object.keys(a.unlocked).length;
-    const points = all.reduce((n, [id, d]) => n + (a.unlocked[id] ? d.points : 0), 0);
-    const maxPoints = all.reduce((n, [, d]) => n + d.points, 0);
-    const titles = all.filter(([id, d]) => d.title && a.unlocked[id]);
-    const shown = all.filter(([, d]) => group === 'all' || d.group === group);
-    const progress = (id, d) => { let v = 0; try { v = d.value(st); } catch { v = 0; } return v; };
-    // Offen: nach Fortschritt sortiert (was bald fällig ist, steht oben)
-    const open = shown.filter(([id]) => !a.unlocked[id])
-      .map(([id, d]) => [id, d, progress(id, d)])
-      .sort((x, y) => y[2] / (y[1].goal || 1) - x[2] / (x[1].goal || 1));
-    const got = shown.filter(([id]) => a.unlocked[id]);
-    const openRows = open.map(([id, d, v]) => h('li.pg-ach',
-      h('span.pg-ach-icon', iconEl(d.icon, 24)),
-      h('div.pg-ach-body',
-        h('div.pg-ach-name', d.name, d.title ? h('span.pg-tag.title', 'Titel') : null),
-        h('small', d.desc),
-        d.goal > 1 && v > 0 ? barEl(v / d.goal, `${Math.min(v, d.goal).toLocaleString()} / ${d.goal.toLocaleString()}`, '.pg-achbar') : null),
-      h('span.pg-ach-pts', String(d.points))));
-    // Erreicht: kompakte Kacheln, Beschreibung als Hinweis beim Darüberfahren
-    const gotRows = got.map(([id, d]) => h('li.pg-ach.got.mini', { title: d.desc },
-      h('span.pg-ach-icon', iconEl(d.icon, 20)),
-      h('span.pg-ach-name', d.name),
-      d.title ? h('span.pg-ach-tmark', { title: d.title, 'aria-label': d.title, translate: 'no' }) : null,
-      h('span.pg-ach-pts', String(d.points))));
-    const titleSel = titles.length ? h('label.pg-titlesel', h('span.ef-note', 'Titel'),
-      h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => commit(s, 'achievement:title', { id: e.target.value || null }) },
-        h('option', { value: '', selected: !a.title }, 'Kein Titel'),
-        titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null;
-    return panelFrame(s, 'achievements', 'Erfolge',
-      tabs([['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)], group, (g) => { group = g; redraw(); }),
-      // Kopf bleibt stehen, nur die Liste darunter scrollt
-      h('div.pg-ach-top',
-        h('div.pg-ach-head',
-          h('div.pg-ach-sum', h('b', `${done} / ${all.length}`), h('span.ef-note', ' Erfolge'), h('span.pg-ach-dot', '·'), h('b', `${points} / ${maxPoints}`), h('span.ef-note', ' Punkte')),
-          titleSel),
-        barEl(done / all.length, '', '.pg-achtotal')),
-      h('div.pg-scroll.pg-keep-scroll.pg-achp',
-        open.length ? h('h3.pg-ach-sec', `Offen (${open.length})`) : null,
-        open.length ? h('ul.pg-achs', openRows) : null,
-        got.length ? h('h3.pg-ach-sec', `Erreicht (${got.length})`) : null,
-        got.length ? h('ul.pg-achs.grid', gotRows) : null,
-        !open.length && !got.length ? h('p.ef-note', 'Hier gibt es noch keine Erfolge.') : null));
   };
 }
 

@@ -771,6 +771,55 @@ test('Erfolge: schalten automatisch frei, Titel wählbar, Event', () => {
   assert.equal(content.all('achievement').length, Object.keys(ACHIEVEMENTS).length);
 });
 
+test('Erfolge mit Belohnung: einmalig vergeben, nachgeholt, Gegenstand nach Klasse', () => {
+  const { c, state, content, events } = setup('mage');
+  content.defineAll('mount', { golden_stag: { name: 'Goldhirsch', achievement: 'rare_all' }, ember_scarab: { name: 'Glutskarabäus', achievement: 'trial_20' } });
+  Object.assign(state.slices.character, { wardrobe: { looks: [], shown: {} }, mounts: { owned: [], active: null, riding: false } });
+  const rewards = Object.entries(ACHIEVEMENTS).filter(([, a]) => a.reward);
+  assert.ok(rewards.length >= 6 && rewards.length <= 8, 'nur einige schwere Erfolge');
+  for (const [id, a] of rewards) {
+    assert.ok(a.goal > 1 || a.points >= 40, `${id}: schwer`);
+    if (a.reward.kind === 'look') assert.ok(ITEMS[a.reward.id]?.lookOnly && ITEMS[a.reward.id].source, id);
+    if (a.reward.kind === 'item') for (const k of ['str', 'agi', 'int']) assert.equal(ITEMS[`${a.reward.id}_${k}`]?.source, 'achievement', id);
+  }
+  // Belohnungs-Items fallen nie zufällig
+  for (let i = 0; i < 300; i++) c('loot:roll', { source: 'kill', id: 'skeleton', level: 40, elite: true });
+  assert.ok(!state.slices.inventory.slots.some((x) => ITEMS[x?.itemId]?.source === 'achievement'));
+  state.slices.inventory.slots.fill(null);
+  // Großwildjäger -> Reittier, Die Sieben Gefallenen -> Garderobe, Unaufhaltsam -> Färbung (nur Erfolg)
+  for (const k of Object.keys(RARE_ENEMIES)) state.slices.rares.kills[k] = 1;
+  for (const t of ['bonelord', 'drowned_priestess', 'ember_tyrant', 'barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign']) state.slices.progress.stats.byType[t] = 1;
+  state.slices.progress.stats.kills = 4999;
+  c('progress:kill', { type: 'wolf', level: 1 });
+  const a = state.slices.achievements, ch = state.slices.character;
+  assert.ok(a.unlocked.rare_all && a.unlocked.all_bosses && a.unlocked.slayer_5000);
+  assert.deepEqual(ch.mounts.owned, ['golden_stag']);
+  assert.equal(ch.mounts.active, 'golden_stag');
+  assert.deepEqual(ch.wardrobe.looks, ['fallen_crown']);
+  assert.ok(a.rewarded.rare_all && a.rewarded.all_bosses && a.rewarded.slayer_5000);
+  const ev = events.find(([e, p]) => e === 'achievement:unlocked' && p.id === 'rare_all');
+  assert.deepEqual(ev[1].reward, { kind: 'mount', id: 'golden_stag' });
+  assert.ok(events.some(([e, p]) => e === EV.MOUNT_LEARNED && p.mountId === 'golden_stag' && p.source === 'achievement'));
+  // kein zweites Mal
+  c('progress:kill', { type: 'wolf', level: 1 });
+  assert.equal(ch.mounts.owned.length, 1);
+  assert.equal(ch.wardrobe.looks.length, 1);
+  // Meisterhand: Amulett in der Fassung der Klasse; volle Tasche -> Questbeutel
+  state.slices.inventory.slots.fill({ itemId: 'minor_potion', qty: 20 });
+  state.slices.inventory.upgrades.weapon = 15;
+  c('progress:kill', { type: 'wolf', level: 1 });
+  assert.ok(a.rewarded.upgrade_15);
+  assert.ok(state.slices.inventory.questBag.some((x) => x.itemId === 'forge_heart_int'));
+  // alter Spielstand: Erfolg schon errungen, Belohnung fehlt -> wird nachgeholt; Speichern/Laden behält den Vermerk
+  const raw = JSON.parse(JSON.stringify(a));
+  delete raw.rewarded.rare_all;
+  ch.mounts.owned = []; ch.mounts.active = null;
+  Object.assign(a, { rewarded: raw.rewarded });
+  c('progress:kill', { type: 'wolf', level: 1 });
+  assert.deepEqual(ch.mounts.owned, ['golden_stag'], 'nachgeholt');
+  assert.equal(events.filter(([e, p]) => e === 'achievement:unlocked' && p.id === 'rare_all').length, 1, 'keine zweite Ansage');
+});
+
 test('Glutprüfung: Freischaltung, Fortschritt, Boss, Belohnung, Scheitern', () => {
   const { c, state, events } = setup('mage');
   assert.equal(c('trial:start', { tier: 1 }).reason, 'locked');

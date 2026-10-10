@@ -387,10 +387,10 @@ export function attrFit(def, classId) {
   return best === 0 || (st[primary] ?? 0) === best;
 }
 
-function withLists(base, extra) {
+function withLists(base, ...extras) {
   const out = {};
   for (const [k, list] of Object.entries(base)) out[k] = [...list];
-  for (const [k, list] of Object.entries(extra)) out[k] = [...(out[k] ?? []), ...list];
+  for (const extra of extras) for (const [k, list] of Object.entries(extra)) out[k] = [...(out[k] ?? []), ...list];
   return out;
 }
 
@@ -426,7 +426,7 @@ function addVariants(out) {
 
 function buildEquipment() {
   const out = {};
-  const weapons = withLists(WEAPONS, WEAPONS_40), armor = withLists(ARMOR, ARMOR_40), jewelry = withLists(JEWELRY, JEWELRY_40);
+  const weapons = withLists(WEAPONS, WEAPONS_40), armor = withLists(ARMOR, ARMOR_40), jewelry = withLists(JEWELRY, JEWELRY_40, REWARD_JEWELRY);
   for (const [family, list] of Object.entries(weapons)) {
     for (const e of list) {
       out[e.id] = {
@@ -496,9 +496,26 @@ const OTHER = {
   varkhul_sigil: { name: 'Varkhuls Siegel', type: 'quest', rarity: 'epic', icon: 'seal', stack: 1, value: 0, desc: 'Das Siegel des Knochenfürsten. Maren wird es sehen wollen.' },
 };
 
+// ------------------------------------------------------------------ Erfolgsbelohnungen (achievements.js, reward)
+// Meisterstück der Esse (Meisterhand, +15): legendäres Amulett der Stufe 40 in drei Fassungen nach Hauptattribut,
+// Werte wie jede legendäre Beute dieser Stufe. Nur als Belohnung, nie Zufallsbeute (source).
+const REWARD_JEWELRY = {
+  amulet: [['str'], ['agi'], ['int']].map(([a]) => E(`forge_heart_${a}`, 'Meisterstück der Esse', 40, 'legendary', 'amulet_t8',
+    'Brom schmiedet es nur für jene, die ihre Ausrüstung bis an die Grenze getrieben haben. In ihm schlägt die Glut der ersten Esse.',
+    { source: 'achievement', attrs: [a, 'vit', a === 'agi' ? 'str' : 'agi'], stats: { critChance: 0.03 } })),
+};
+// Reines Aussehen für die Garderobe (lookOnly): liegt nie in Tasche oder Bank, hat keine Werte.
+// Optik in character/gearLook.js (HEAD_NAMED nach ID).
+export const LOOK_ITEMS = {
+  fallen_crown: { name: 'Krone der Gefallenen', type: 'armor', slot: 'head', family: 'plate', rarity: 'legendary', icon: 'helm_t8',
+    desc: 'Geschmiedet aus den Kronen der sieben Herrscher, die du gestürzt hast.' },
+};
+for (const d of Object.values(LOOK_ITEMS)) Object.assign(d, { source: 'achievement', lookOnly: true, ilvl: 1, reqLevel: 1, tier: 1, value: 0, stats: {} });
+
 const EQUIPMENT = buildEquipment();
 for (const id of Object.keys(OTHER_40)) if (EQUIPMENT[id] || OTHER[id]) throw new Error(`Item-ID ${id} doppelt`);
-export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40 };
+for (const id of Object.keys(LOOK_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id]) throw new Error(`Item-ID ${id} doppelt`);
+export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40, ...LOOK_ITEMS };
 for (const d of [...Object.values(OTHER), ...Object.values(OTHER_40)]) { d.ilvl = d.ilvl ?? 1; d.reqLevel = d.reqLevel ?? 1; d.tier = tierOf(d.ilvl); }
 
 export function stackSize(def) { return Math.max(1, def?.stack ?? 1); }

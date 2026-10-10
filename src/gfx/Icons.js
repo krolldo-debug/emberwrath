@@ -1035,17 +1035,24 @@ function mountHead(p, o) {
   if (o.bridle) { p.line(12, 11, 18, 13, o.bridle[2]); p.line(14, 6, 13, 11, o.bridle[2]); p.px(13, 11, M.gold[4]); }
 }
 // Sporenkäfer: runder Panzer mit Pilzhüten, Blick nach rechts
-function mountBeetle(p) {
-  const S1 = ['#10200e', '#20401a', '#3a6a28', '#62a040', '#a8e070'];
+function mountBeetle(p, o = {}) {
+  const S1 = o.shell ?? ['#10200e', '#20401a', '#3a6a28', '#62a040', '#a8e070'];
   for (let y = 6; y < 22; y++) for (let x = 2; x < 20; x++) {
     const dx = (x + 0.5 - 10.5) / 8.5, dy = (y + 0.5 - 14) / 7;
     if (dx * dx + dy * dy > 1) continue;
     let c = pick(S1, 3 - (dx + dy) * 1.2);
-    if (Math.abs(x + 0.5 - 10.5 - (y - 14) * 0.2) < 0.6 && y < 20) c = S1[0];
+    if (Math.abs(x + 0.5 - 10.5 - (y - 14) * 0.2) < 0.6 && y < 20) c = o.seam ?? S1[0];
     p.px(x, y, c);
   }
-  ball(p, 19.5, 15, 3, M.darkleather); p.px(21, 14, M.green[4]); p.px(20, 13, M.green[4]);
-  p.line(21, 12, 23, 9, M.darkleather[3]); p.line(20, 12, 21, 8, M.darkleather[2]);
+  const head = o.head ?? M.darkleather, eye = o.eye ?? M.green[4];
+  ball(p, 19.5, 15, 3, head); p.px(21, 14, eye); p.px(20, 13, eye);
+  p.line(21, 12, 23, 9, head[3]); p.line(20, 12, 21, 8, head[2]);
+  if (o.gems) {
+    // Glutsteine statt Pilze
+    for (const [x, y] of [[7, 12], [11, 9], [14, 13]]) { ball(p, x, y, 1.6, o.gems); p.px(x - 1, y - 1, o.gems[4]); }
+    for (const x of [5, 9, 13, 16]) { p.px(x, 21, head[1]); p.px(x - 1, 22, head[1]); }
+    return;
+  }
   for (const [x, y, r] of [[6, 7, 3], [11, 5, 3.6], [15, 8, 2.4]]) {
     for (let yy = -r; yy <= 0; yy++) for (let xx = -r; xx <= r; xx++) if (xx * xx + yy * yy * 1.8 <= r * r) p.px(Math.round(x + xx), Math.round(y + yy), pick(M.red, 3.2 + yy / r - xx / (r * 2)));
     p.px(Math.round(x - 1), Math.round(y - r + 1), '#fff0e0'); p.px(Math.round(x + 1), Math.round(y - 1), '#fff0e0');
@@ -1060,6 +1067,7 @@ const MOUNTS = {
   mount_marsh_strider: { kind: 'bird', hide: M.moss, mane: M.green, maneStyle: 'ruff', beak: M.yellow, eye: ['#140c10', '#f0dc50'], spikes: M.green },
   mount_bone_stallion: { kind: 'horse', hide: M.bone, mane: M.green, maneStyle: 'fire', ears: true, bone: true, eye: EYE_GLOW(M.green) },
   mount_frost_elk: { kind: 'horse', hide: M.frost, mane: M.silver, maneStyle: 'ruff', ears: true, antlers: M.silver, eye: ['#0a1838', '#ffffff'] },
+  mount_golden_stag: { kind: 'horse', hide: ['#24120a', '#462412', '#6e3c1e', '#9a5e30', '#c8884a'], mane: M.paper, maneStyle: 'ruff', ears: true, antlers: M.gold, bridle: M.gold, eye: ['#140c10', '#ffe08a'] },
   mount_ember_charger: { kind: 'horse', hide: M.darkwood, mane: M.ember, maneStyle: 'fire', ears: true, bridle: M.gold, eye: EYE_GLOW(M.ember) },
   mount_cinder_drake: { kind: 'drake', hide: M.obsidian, horns: M.bone, spikes: M.ember, eye: EYE_GLOW(M.ember), mouthGlow: M.ember, belly: M.ember },
   mount_nightmare_steed: { kind: 'horse', hide: M.darkleather, mane: M.purple, maneStyle: 'fire', ears: true, eye: EYE_GLOW(M.purple), mouthGlow: M.purple },
@@ -1073,6 +1081,7 @@ const MOUNTS = {
 };
 for (const [id, o] of Object.entries(MOUNTS)) DRAW[id] = (p) => mountHead(p, o);
 DRAW.mount_spore_beetle = mountBeetle;
+DRAW.mount_ember_scarab = (p) => mountBeetle(p, { shell: ['#3a1e08', '#6a4012', '#a8701c', '#e0a832', '#fff0a0'], seam: M.ember[3], head: M.bronze, eye: M.ember[4], gems: M.ember });
 DRAW.mount = DRAW.mount_steppe_horse;
 // Knopf „Reittier“: Hufeisen
 DRAW.ui_mount = (p) => {
