@@ -42,13 +42,6 @@
     </div>
   </section>
 
-  <section class="strip" aria-label="Szenen aus dem Spiel">
-    <figure class="strip-a" data-zoom="Malgareth, der Aschenfürst">
-      <img style="--fx:0.52;--fy:0.41;--mx:0.5;--my:0.42" class="px shot" src="img/kampf-aschenfuerst.webp" alt="Malgareth, der Aschenfürst, hebt seine Flammenklinge gegen Krieger, Magier und Waldläuferin." width="960" height="540" loading="lazy">
-      <figcaption>Malgareth, der Aschenfürst</figcaption>
-    </figure>
-  </section>
-
   <section class="classes" id="klassen" aria-labelledby="h-klassen">
     <div class="wrap cls-layout">
       <div class="cls-side">
@@ -124,24 +117,18 @@
       <h2 id="h-bosse" class="title">Die Flammenkrone und ihre Diener</h2>
       <p class="sec-line">Jeder hütet einen Dungeon. Am Ende sitzt Malgareth auf dem Aschethron.</p>
     </div>
-    <div class="arena">
-      <figure class="boss" style="--glow: 120, 200, 170" data-boss="ulgrim" data-fx="wisp" data-f="208 156 73 12">
-        <div class="stage"><img class="px" src="img/boss-ulgrim-bild.webp" width="208" height="156" alt="Ulgrim, der Hügelkönig, schwingt sein Schwert und reißt den Boden seines Hügelgrabs auf" loading="lazy"><canvas aria-hidden="true"></canvas></div>
-        <figcaption><b>Ulgrim</b><span>Das Heulende Hügelgrab</span><span>Stufe 26</span></figcaption>
-      </figure>
-      <figure class="boss" style="--glow: 150, 220, 90" data-boss="rotmother" data-fx="spore" data-f="208 156 62 12">
-        <div class="stage"><img class="px" src="img/boss-rotmother-bild.webp" width="208" height="156" alt="Mutter Fäulnis lässt Wurzelstacheln aus dem Boden brechen" loading="lazy"><canvas aria-hidden="true"></canvas></div>
-        <figcaption><b>Mutter Fäulnis</b><span>Der Sporenschlund</span><span>Stufe 32</span></figcaption>
-      </figure>
-      <figure class="boss" style="--glow: 110, 190, 255" data-boss="skalvyr" data-fx="snow" data-f="208 156 69 12">
-        <div class="stage"><img class="px" src="img/boss-skalvyr-bild.webp" width="208" height="156" alt="Skalvyr, der Frostwurm, lässt Eiszapfen auf die Reifhöhlen niederregnen" loading="lazy"><canvas aria-hidden="true"></canvas></div>
-        <figcaption><b>Skalvyr</b><span>Die Reifhöhlen</span><span>Stufe 37</span></figcaption>
-      </figure>
-      <figure class="boss main" style="--glow: 255, 110, 30" data-boss="malgareth" data-fx="ember" data-f="336 252 48 12">
-        <div class="stage"><img class="px" src="img/boss-malgareth-bild.webp" width="336" height="252" alt="Malgareth, der Aschenfürst, schleudert Aschewellen über den Aschethron" loading="lazy"><canvas aria-hidden="true"></canvas></div>
-        <figcaption><b>Malgareth</b><span>Der Aschethron</span><span>Stufe 40</span></figcaption>
-      </figure>
-      <i aria-hidden="true"></i>
+    <div class="kino" data-kino>
+      <div class="kino-buehne" id="kino-buehne" role="tabpanel" aria-labelledby="k-malgareth">
+        <img class="kino-bild" src="img/bosskino.webp" width="560" height="216" alt="" loading="lazy">
+        <p class="sr-only" data-text="faeulnis" hidden>Mutter Fäulnis lässt Wurzelstacheln aus dem Boden des Sporenschlunds brechen und hüllt alles in eine Sporenwolke.</p>
+        <p class="sr-only" data-text="skalvyr" hidden>Skalvyr, der Frostwurm, bäumt sich in den Reifhöhlen auf und lässt Eiszapfen von der Decke regnen.</p>
+        <p class="sr-only" data-text="malgareth">Malgareth, der Aschenfürst, schlägt vor seinem Thron die Flammenklinge in den Boden, eine Wand aus Feuer läuft über den Saal.</p>
+      </div>
+      <div class="kino-wahl" role="tablist" aria-label="Bosse">
+        <button type="button" role="tab" id="k-faeulnis" data-boss="faeulnis" aria-controls="kino-buehne" aria-selected="false" tabindex="-1"><b>Mutter Fäulnis</b><span>Der Sporenschlund</span><span>Stufe 32</span><i class="kino-lauf" aria-hidden="true"></i></button>
+        <button type="button" role="tab" id="k-skalvyr" data-boss="skalvyr" aria-controls="kino-buehne" aria-selected="false" tabindex="-1"><b>Skalvyr</b><span>Die Reifhöhlen</span><span>Stufe 37</span><i class="kino-lauf" aria-hidden="true"></i></button>
+        <button type="button" role="tab" id="k-malgareth" data-boss="malgareth" aria-controls="kino-buehne" aria-selected="true" class="on"><b>Malgareth</b><span>Der Aschethron</span><span>Stufe 40</span><i class="kino-lauf" aria-hidden="true"></i></button>
+      </div>
     </div>
   </section>
 
@@ -190,5 +177,6 @@
 
 <!--#include footer-->
 <script src="titel.js"></script>
+<script src="bosskino.js"></script>
 </body>
 </html>

@@ -36,11 +36,18 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   `kampf-<klasse>-1…4.webp` (je eine Fähigkeit, Reihenfolge wie auf der Seite). site.js spielt Kampf → Ruhe → reihum eine Fähigkeit
   (oder die angeklickte); die Bildzahlen stehen in `data-n` an `.fight` (Ausgabe des Skripts). Erdspalter bekommt einen
   glühenden Bodenriss (das Spiel brennt ihn nur in die Bodenebene, die hier nicht mitgezeichnet wird).
-- Bosse (`tools/bosse-buehne.mjs` holt Sprites und Kacheln aus dem Spiel, `tools/bosse-buehne.py` baut die Bühnen; Maße in
-  `tools/bosse-buehne.json`, Aufbau je Boss in `CFG` im .py): Bühne 4:3 mit Wand oben, Bodenreihen, Schattenoval und Requisiten.
-  `boss-<name>-boden.webp` (hinten), `boss-<name>-kampf.webp` (transparenter Streifen: Ruhe, Warnfläche, Angriff; 12 Bilder/s),
-  `boss-<name>-vorn.webp` (Requisiten vorn), `boss-<name>-bild.webp` (Standbild). `data-f` = Breite Höhe Bilder fps, `data-fx` = Teilchenart.
-  site.js zeichnet alles auf ein Canvas: drei Diener nebeneinander, Malgareth groß darunter, alle ×2; Handy wischbar.
+- Bosskino (`tools/bosskino.mjs` ruft `tools/bosskino.py`, je Boss ein Modul `tools/bosskino_<boss>.py`; gezeichnet von
+  `bosskino.js`): eine breite Bühne im Stil des Titelbilds, Szene 560 × 216 Szenenpixel, Figur und Ebenen 1:1, ganzzahlig in
+  Gerätepixeln vergrößert, Ebenen (fern, mitte, boden, vorn, je mit Leuchtebene in harten Stufen) verschieben sich nur in ganzen
+  Szenenpixeln. Jeder Boss ist eigene Pixel-Art (Farben nach den Boss-Sprites des Spiels in `src/sprites/`), gezeichnet aus Teilen
+  mit 4-Ton-Rampen, Umriss und Randlicht, Blick nach links. Ruhe als Teile mit eigenen Zyklen (Atem, Flammen, Umhang …), die Attacke
+  als ganze Bilder (Ausholen, Halten, Einschlag mit 1-px-Erschütterung, Nachklang); Warnfläche, Fugenwelle, Feuerwand, Geisterflammen,
+  Wurzeldornen, Sporenwolken und Eiszapfen als Bildfolgen und Ereignisse relativ zum Einschlag. Je Boss ein verlustfreier Atlas
+  `bosskino-<boss>.webp`; Rechtecke, Bildfolgen und Zeiten schreibt das Werkzeug in den Block `<bosskino.mjs>` in `bosskino.js`
+  (ein Teillauf ersetzt nur die genannten Bosse). `bosskino.webp` ist das Standbild (Malgareth, ohne JS und bei reduzierter
+  Bewegung; dort wechselt ein Klick das Standbild). bosskino.js wechselt alle 9–10 s den Boss (Blöcke zerfallen von unten mit
+  glühender Kante), Auswahl als ARIA-Tabs (Klick, Pfeiltasten, Pos1/Ende), Fortschrittslinie unter dem aktiven Boss; lädt die
+  Atlanten erst kurz vor Sichtbarkeit, läuft nur, solange sichtbar, nicht bei Datensparmodus.
 - Reittier-Parade (`tools/reittiere-gang.mjs`, Maße in `tools/reittiere-gang.json`): `gang-<reittier>.webp` je Gangart (Galopp, Sprung,
   Trab, Flug …), Sprunghöhe je Bild in `data-l`; Boden aus Steppenkacheln in zwei Ebenen `parade-nah.webp` und `parade-fern.webp`
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
@@ -62,7 +69,7 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
   `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
 - `gewoelbe.webp`, `gewoelbe-breit.webp`: Titelbild des Spiels als Hintergrund für Support und Newsletter (`tools/gewoelbe.mjs`).
-  Die Seite vergrößert sie ganzzahlig und pixelgenau (Klassen ×6/×5/×4, Handy gut ×3, Bosse ×2/×3, Parade 4 bzw. 3 Bildschirmpunkte je Weltpixel, Symbole ×2).
+  Die Seite vergrößert sie ganzzahlig und pixelgenau (Klassen ×6/×5/×4, Handy gut ×3, Bosskino ganzzahlig in Gerätepixeln, Parade 4 bzw. 3 Bildschirmpunkte je Weltpixel, Symbole ×2).
 
 Neu erzeugen, aus einer Kopie des Projekts:
 
@@ -76,7 +83,7 @@ node site/tools/keyart.mjs ka [ids]              # Streifen (kampf-*.webp): fest
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
-node site/tools/bosse-buehne.mjs site/img ulgrim,rotmother,skalvyr,malgareth http://127.0.0.1:8121   # Bossbühnen (Server im Repo-Ordner)
+node site/tools/bosskino.mjs [malgareth,faeulnis,skalvyr]  # Bosskino: Atlanten, Standbild, Block in bosskino.js (Pillow, numpy)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
 node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)

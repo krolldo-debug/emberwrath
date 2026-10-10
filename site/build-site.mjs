@@ -10,7 +10,7 @@ import { loadDict, newTranslator, decorateGerman, buildEnglish, buildRuntime, si
 // 404.html liefert Cloudflare bei unbekannten Pfaden aus (not_found_handling); <base href="/"> hält die Links heil.
 const PAGES = ['index.html', 'welt.html', 'support.html', 'impressum.html', 'datenschutz.html', 'nutzungsbedingungen.html', 'newsletter.html', '404.html', 'shop.html', 'kaufbedingungen.html'];
 // robots.txt und sitemap.xml nennen https://www.emberwrath.com (canonical in den Seitenköpfen ebenso).
-const STATIC = ['site.css', 'site.js', 'titel.js', 'shop.css', 'shop.js', 'config.js', 'lang.js', 'favicon.svg', 'robots.txt'];
+const STATIC = ['site.css', 'site.js', 'titel.js', 'bosskino.js', 'shop.css', 'shop.js', 'config.js', 'lang.js', 'favicon.svg', 'robots.txt'];
 
 export function buildSite(root, outDir) {
   const src = resolve(root, 'site');
