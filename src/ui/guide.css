@@ -1,0 +1,65 @@
+/* Einstiegshinweise für neue Helden (src/ui/Guide.js) */
+#ui > .ef-guide-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.ef-guide {
+  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px 5px 7px; max-width: min(320px, calc(100vw - 16px)); box-sizing: border-box;
+  font: 600 13px/1.25 var(--ef-font); color: var(--ef-text); text-shadow: 0 1px 0 #000;
+  background: rgba(12, 6, 18, 0.9); border: 1px solid #8a6230; border-radius: 2px;
+  box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px rgba(255, 214, 106, 0.1), 0 4px 12px rgba(0, 0, 0, 0.45);
+  opacity: 0; visibility: hidden; transition: opacity 0.35s, visibility 0s 0.35s;
+}
+.ef-guide.show { opacity: 1; visibility: visible; transition: opacity 0.2s; animation: eg-in 0.24s steps(3) both; }
+.ef-guide.cut { transition: none; }
+.ef-guide.done { border-color: var(--ef-gold); opacity: 0; visibility: visible; transition: opacity 0.4s 0.5s, border-color 0.1s; }
+.ef-guide.done .eg-text { color: #ffe08a; }
+@keyframes eg-in { from { transform: translateY(4px); } to { transform: none; } }
+.ef-guide.p-below.show { animation-name: eg-in-down; }
+@keyframes eg-in-down { from { transform: translateY(-4px); } to { transform: none; } }
+.ef-guide.p-left.show { animation-name: eg-in-left; }
+@keyframes eg-in-left { from { transform: translateX(-4px); } to { transform: none; } }
+
+.eg-body { display: flex; align-items: center; gap: 8px; }
+.eg-text { white-space: nowrap; }
+.eg-keys { display: flex; align-items: center; gap: 4px; }
+.eg-keys.wasd { display: grid; grid-template-columns: repeat(3, auto); gap: 2px; }
+.eg-keys.wasd .eg-key:nth-child(1) { grid-area: 1 / 2; }
+.eg-keys.wasd .eg-key:nth-child(2) { grid-area: 2 / 1; }
+.eg-keys.wasd .eg-key:nth-child(3) { grid-area: 2 / 2; }
+.eg-keys.wasd .eg-key:nth-child(4) { grid-area: 2 / 3; }
+.eg-key {
+  display: inline-block; min-width: 9px; padding: 2px 4px 1px; text-align: center;
+  font: 700 10px/1.1 var(--ef-font); color: #0b0710; text-shadow: none;
+  background: var(--ef-gold); border-radius: 2px; box-shadow: 0 1px 0 #7d5418, 0 2px 0 #0b0710;
+}
+.eg-or { color: var(--ef-muted); font-weight: 400; }
+.eg-ico { display: grid; place-items: center; }
+.eg-btn { width: 20px; height: 20px; image-rendering: pixelated; filter: drop-shadow(0 1px 0 #000); }
+.ef-guide.far.p-left .eg-arrow { display: none; }
+.eg-ico svg { display: block; image-rendering: pixelated; }
+.eg-drag .eg-knob { animation: eg-drag 1.6s steps(6) infinite; }
+@keyframes eg-drag { 0%, 15% { transform: translate(-3px, 2px); } 50%, 65% { transform: translate(2px, -2px); } 100% { transform: translate(-3px, 2px); } }
+
+/* Zeiger zum Knopf: Pixeltreppe */
+.eg-arrow { display: none; position: absolute; width: 10px; height: 5px; background: #b8862a; }
+.ef-guide.p-above .eg-arrow, .ef-guide.p-below .eg-arrow, .ef-guide.p-left .eg-arrow { display: block; }
+.ef-guide.p-above .eg-arrow { left: calc(var(--ax, 50%) - 5px); top: 100%; margin-top: 1px;
+  clip-path: polygon(0 0, 100% 0, 100% 20%, 90% 20%, 90% 40%, 80% 40%, 80% 60%, 70% 60%, 70% 80%, 60% 80%, 60% 100%, 40% 100%, 40% 80%, 30% 80%, 30% 60%, 20% 60%, 20% 40%, 10% 40%, 10% 20%, 0 20%); }
+.ef-guide.p-below .eg-arrow { left: calc(var(--ax, 50%) - 5px); bottom: 100%; margin-bottom: 1px;
+  clip-path: polygon(0 100%, 100% 100%, 100% 80%, 90% 80%, 90% 60%, 80% 60%, 80% 40%, 70% 40%, 70% 20%, 60% 20%, 60% 0, 40% 0, 40% 20%, 30% 20%, 30% 40%, 20% 40%, 20% 60%, 10% 60%, 10% 80%, 0 80%); }
+.ef-guide.p-left .eg-arrow { width: 5px; height: 10px; left: 100%; margin-left: 1px; top: calc(var(--ax, 50%) - 5px);
+  clip-path: polygon(0 0, 20% 0, 20% 10%, 40% 10%, 40% 20%, 60% 20%, 60% 30%, 80% 30%, 80% 40%, 100% 40%, 100% 60%, 80% 60%, 80% 70%, 60% 70%, 60% 80%, 40% 80%, 40% 90%, 20% 90%, 20% 100%, 0 100%); }
+
+/* Knopf, auf den der Hinweis zeigt: glimmt in drei Stufen */
+.ef-guide-target { animation: eg-pulse 1.2s steps(3) infinite; }
+@keyframes eg-pulse {
+  0%, 100% { outline: 2px solid rgba(255, 214, 106, 0); outline-offset: 2px; }
+  50% { outline: 2px solid rgba(255, 214, 106, 0.75); outline-offset: 3px; }
+}
+
+.ef-touch .ef-guide { font-size: 12px; padding: 5px 9px 5px 7px; }
+.ef-guide.at-stick { gap: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ef-guide.show, .eg-drag .eg-knob, .ef-guide-target { animation: none; }
+  .ef-guide-target { outline: 2px solid rgba(255, 214, 106, 0.6); outline-offset: 2px; }
+}

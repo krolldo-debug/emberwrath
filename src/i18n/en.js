@@ -4299,5 +4299,13 @@ export const EN = {
   "Unaufhaltsam": "Unstoppable",
   "Glutzorn": "Ember Wrath",
   "Legendäre Beute": "Legendary loot",
-  "Erfolge errungen": "Achievements Earned"
+  "Erfolge errungen": "Achievements Earned",
+  "Links ziehen, um zu laufen": "Drag on the left to move",
+  "Folge der Glutspur zu deiner ersten Aufgabe.": "Follow the ember trail to your first task.",
+  "Fähigkeit einsetzen": "Use ability",
+  "Heiltrank trinken": "Drink a healing potion",
+  "Neue Ausrüstung im Inventar": "New gear in your inventory",
+  "Karte öffnen": "Open map",
+  "Einstiegshinweise": "Starter tips",
+  "kurze Tipps für neue Helden": "short tips for new heroes"
 };
