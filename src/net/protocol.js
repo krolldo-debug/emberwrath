@@ -5,7 +5,8 @@
 //
 // Client -> Server
 //   hello { v, token, zone, world, char: { id, name, level }, look, s }   erste Nachricht, sonst nichts
-//   s     { s: [x, y, f, a, n, fl, t] }                                    eigener Zustand (höchstens SEND_HZ, nur bei Änderung)
+//   s     { s: [x, y, f, a, n, fl, t], fx?: [Kampf, …] }                   eigener Zustand (höchstens SEND_HZ, nur bei Änderung),
+//                                                                          fx: Angriffe/Fähigkeiten seit dem letzten Zustand
 //   look  { level, look }                                                   Stufe/Aussehen/Ausrüstung/Reittier geändert
 //   chat  { text }                                                          Zonen-Chat (Server filtert, chatFilter.js)
 //   report { id, reason, note, goodFaith }                                  Spieler melden (DSA Art. 16), reason: REPORT_REASONS
@@ -14,7 +15,7 @@
 //   welcome { v, id, k, zone, world, cap, players: [Spieler] }              Spieler = { id, k, name, level, look, s }
 //                                                                          k = dauerhafter Schlüssel des Kontos (Ignorieren)
 //   join    { p: Spieler }      leave { id }
-//   u       { s: [[id, x, y, f, a, n, fl, t], …] }                           geänderte Zustände seit dem letzten Paket
+//   u       { s: [[id, x, y, f, a, n, fl, t], …], fx?: [[id, Kampf, …], …] }  geänderte Zustände seit dem letzten Paket
 //   look    { id, level, look } chat { id, name, text, at }
 //   full    { zone, world }     Shard voll -> Client fragt die nächste Welt an
 //   reported { id, ok, error }  Eingangsbestätigung einer Meldung ('rate' | 'reason' | 'target')
@@ -26,6 +27,14 @@
 //   x, y  Fußpunkt in Weltpixeln        f  Blickrichtung (1 | -1)
 //   a     Animationsname ('idle', 'run', 'atk1', 'roll', …)   n  Zähler, erhöht bei jedem Neustart einer Animation
 //   fl    Bitfeld FLAG_*                 t  Uhr des Senders in ms (für gleichmäßige Interpolation beim Empfänger)
+//
+// Kampf = [k, t, id, ang, fl, tx, ty, th, tr]  (nur zur Anzeige: jeder kämpft gegen seine eigenen Gegner)
+//   k     'a' Grundangriff (id = Kombo-Schlag 0..7) | 'k' Fähigkeit (id = Fähigkeits-ID)
+//   t     Uhr des Senders in ms (wie s[6]; der Empfänger spielt es zeitgleich mit der Animation ab)
+//   ang   Zielrichtung in Milliradiant     fl  Bitfeld FX_*
+//   tx, ty, th, tr  anvisierter Gegner beim Sender (Fußpunkt, Höhe der Körpermitte, Trefferradius), tr = 0: keiner.
+//         Geschosse enden beim Empfänger dort, Flächenzauber landen dort.
+// Kampf reist mit dem Zustand, der die neue Animation meldet: keine zusätzlichen Nachrichten.
 //
 // Stufe 2 (serverseitige Gegner/Beute) ergänzt nur neue Typen (e = Gegner-Zustände, hit, loot, …) und neue Flag-Bits;
 // bestehende Felder bleiben. Unbekannte Typen ignorieren beide Seiten.
@@ -46,6 +55,13 @@ export const MAX_WORLDS = 99;
 export const FLAG_DEAD = 1;
 export const FLAG_RIDING = 2;
 export const FLAG_COMBAT = 4;
+
+export const FX_UPGRADED = 1;   // Fähigkeit auf Rang 2 (Talent)
+export const FX_MULTISHOT = 2;  // Waldläufer: Mehrfachschuss
+export const FX_INFERNO = 4;    // Glutmagier: Glutbolzen explodiert
+export const FX_INFERNO_BIG = 8;
+export const FX_PIERCE = 16;    // Pfeil durchschlägt einen Gegner
+export const FX_MAX = 6;        // höchstens so viele Kampfereignisse je Zustand (Client) bzw. je Spieler und Paket (Server)
 
 export const CHAT_MAX = 160;
 export const REPORT_NOTE_MAX = 500;
@@ -80,6 +96,22 @@ export function cleanState(s) {
   if (!Array.isArray(s) || s.length < 6) return null;
   const a = typeof s[3] === 'string' && ANIM_RE.test(s[3]) ? s[3] : 'idle';
   return [int(s[0], -1000, 100_000), int(s[1], -1000, 100_000), s[2] < 0 ? -1 : 1, a, int(s[4], 0, 1e9), int(s[5], 0, 0xffff), int(s[6], 0, 2 ** 52)];
+}
+
+// Kampfereignisse prüfen und normalisieren (Server bei Empfang, Client beim Senden). -> Array (evtl. leer)
+const FX_ID_RE = /^[a-z][a-z0-9_]{0,31}$/;
+export function cleanFx(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const e of list.slice(0, FX_MAX)) {
+    if (!Array.isArray(e) || (e[0] !== 'a' && e[0] !== 'k')) continue;
+    const id = e[0] === 'a' ? int(e[2], 0, 7) : typeof e[2] === 'string' && FX_ID_RE.test(e[2]) ? e[2] : null;
+    if (id == null) continue;
+    const tr = int(e[8], 0, 64);
+    out.push([e[0], int(e[1], 0, 2 ** 52), id, int(e[3], -3142, 3142), int(e[4], 0, 0xff),
+      tr ? int(e[5], -1000, 100_000) : 0, tr ? int(e[6], -1000, 100_000) : 0, tr ? int(e[7], 0, 96) : 0, tr]);
+  }
+  return out;
 }
 
 // Helden-Abbild als reine Daten. Ausrüstung reist nur als Gegenstands-IDs der sichtbaren Plätze; die Optik daraus

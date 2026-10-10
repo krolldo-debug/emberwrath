@@ -22,6 +22,14 @@ b.ws.send(JSON.stringify({ t: 's', s: [140, 210, -1, 'run', 3, 0, 5000] }));
 await wait(250);
 const u = a.msgs.find((m) => m.t === 'u');
 ok(u && u.s[0][1] === 140 && u.s[0][4] === 'run', 'A bekommt Zustand von B gebündelt');
+// Kampfereignisse (nur Anzeige) reisen mit dem Zustand; Unsinn fällt weg, Werte werden begrenzt
+b.ws.send(JSON.stringify({ t: 's', s: [140, 210, 1, 'atk1', 4, 4, 5100], fx: [['a', 5100, 0, 785, 2, 300, 210, 8, 7], ['k', 5100, 'arrow_rain', 9999, 0, 0, 0, 0, 0], ['x', 1], ['k', 5100, 'Böse<script>', 0, 0], 'kaputt'] }));
+b.ws.send(JSON.stringify({ t: 's', s: [140, 210, 1, 'atk1', 5, 4, 5130], fx: [['k', 5130, 'volley', 0, 1, 0, 0, 0, 0]] }));
+await wait(250);
+const fx = a.msgs.filter((m) => m.t === 'u' && m.fx).flatMap((m) => m.fx);
+const evs = fx.filter((f) => f[0] === b.msgs[0].id).flatMap((f) => f.slice(1));
+ok(evs.length === 3 && evs[0][2] === 0 && evs[0][3] === 785 && evs[0][8] === 7 && evs[1][2] === 'arrow_rain' && evs[1][3] === 3142 && evs[2][2] === 'volley',
+  'Kampfereignisse kommen bereinigt und vollständig an: ' + JSON.stringify(evs));
 b.ws.send(JSON.stringify({ t: 'chat', text: 'Hallo\u0000 <b>Welt</b>   ' }));
 await wait(150);
 const ch = a.msgs.find((m) => m.t === 'chat');
