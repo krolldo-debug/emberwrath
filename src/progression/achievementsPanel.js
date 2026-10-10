@@ -34,32 +34,70 @@ export function achievementsPanel(s) {
     return { name: it.name, short: EQUIP_SLOT_NAMES[it.slot], kind: `${EQUIP_SLOT_NAMES[it.slot]} · ${RARITIES[it.rarity].name}`, note: it.desc, item: it };
   };
   const heroGear = (over = {}) => resolveGear({ ...shownEquipment(st.slices, s.content), ...over }, s.content);
-  // Größen ganzzahlig (Leinwand intern 3-fach): Vitrine 3× bzw. am Handy 2×, Karte 4×; Krone in der Vitrine als Kopfbild 6× / 4×
+  // Größen ganzzahlig (Leinwand intern 3-fach): Vitrine 3× bzw. am Handy 2×, Karte 5× bzw. 4×; Krone als Kopfbild doppelt so groß
   const compact = () => !!window.matchMedia?.('(max-height: 520px)').matches;
+  // Umriss der Figur über alle Bilder der Animation (Weltpixel); head: nur Kopf und Krone
+  const bounds = (p, head = false) => {
+    const cv = p.canvas, g = cv.getContext('2d'), W = cv.width, H = cv.height, R = W / 72;
+    const n = Math.max(1, p.anims.idle?.frames?.length ?? 1);
+    const on = new Uint8Array(W * H);
+    for (let i = 0; i < n; i++) {
+      p.t = (i + 0.5) / 6; p.draw();
+      const d = g.getImageData(0, 0, W, H).data;
+      for (let k = 0; k < W * H; k++) if (d[k * 4 + 3]) on[k] = 1;
+    }
+    p.t = 0; p.draw();
+    let y0 = H, y1 = -1;
+    for (let k = 0; k < W * H; k++) if (on[k]) { const y = (k / W) | 0; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (y1 < 0) return { x: 0, y: 0, w: 72, h: 56 };
+    if (head) y1 = Math.min(y1, y0 + 13 * R);
+    // Breite: beim Kopfbild nur aus Krone und Kopf (oberste Reihen), damit die Waffe draußen bleibt
+    const xRows = head ? Math.min(y1, y0 + 6 * R) : y1;
+    let x0 = W, x1 = -1;
+    for (let y = y0; y <= xRows; y++) for (let x = 0; x < W; x++) if (on[y * W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+    const m = head ? 2 : 1;
+    const bx = Math.max(0, Math.floor(x0 / R) - m), by = Math.max(0, Math.floor(y0 / R) - 1);
+    return { x: bx, y: by, w: Math.min(72, Math.ceil((x1 + 1) / R) + (head ? 0 : 1)) - bx, h: Math.min(56, Math.ceil((y1 + 1) / R) + (head ? 1 : 0)) - by };
+  };
+  // Held/Reittier als zugeschnittenes Bild: nur die Figur, ganzzahlig skaliert
+  const figure = ({ gear, style, mountId = null, scale, head = false }) => {
+    const c = ch(), ap = c.appearance ?? {};
+    const p = new HeroPortrait({ raceId: c.raceId, classId: c.classId, variant: ap.variant ?? 0, gear, style, scale, backdrop: false, glow: false });   // ohne weichen Schein: nur harte Pixel
+    if (mountId) {
+      const anims = s.game.character?.animsForLook?.({ raceId: c.raceId, classId: c.classId, appearance: ap, gear, mountId }, 3);
+      if (anims?.ride) { p.anims = { idle: anims.ride }; p.draw(); }
+    }
+    const b = bounds(p, head);
+    p.canvas.style.left = `${-b.x * scale}px`; p.canvas.style.top = `${-b.y * scale}px`;
+    const el = h(`span.ach-fit${head ? '.ach-head' : ''}`, { style: { width: `${b.w * scale}px`, height: `${b.h * scale}px` } }, p.canvas);
+    el.portraits = [p];
+    return el;
+  };
   const stage = (id, big = false) => {
-    const small = !big && compact();
-    const key = `${id}|${big ? 'card' : small ? 's' : 'm'}`;
+    const small = compact();
+    const key = `${id}|${big ? 'card' : 'tile'}|${small ? 's' : 'm'}`;
     if (stages.has(key)) return stages.get(key);
-    const r = ACHIEVEMENTS[id].reward, c = ch(), ap = c.appearance ?? {};
+    const r = ACHIEVEMENTS[id].reward, ap = ch().appearance ?? {};
+    const scale = big ? (small ? 4 : 5) : small ? 2 : 3;
     let el;
     if (r.kind === 'item') {
-      el = h('div.ach-stage-item', itemIconEl(info(id).item, big ? 104 : small ? 52 : 78));
-    } else {
-      // Färbung: ohne Brust und Kopf, damit Umhang und Stoff zu sehen sind; Aussehen: über die getragene Ausrüstung gelegt
-      const zoom = r.kind === 'look' && !big;   // Kopfbild ohne Waffe, damit die Krone im Mittelpunkt steht
-      const look = r.kind === 'look' ? heroGear({ [s.content.find('item', r.id).slot]: r.id, ...(zoom ? { weapon: null } : {}) }) : r.kind === 'dye' ? heroGear({ chest: null, head: null }) : heroGear();
-      const style = spriteStyle(r.kind === 'dye' ? { ...ap, dye: r.id } : ap);
-      const scale = zoom ? (small ? 4 : 6) : big ? 4 : small ? 2 : 3;
-      const p = new HeroPortrait({ raceId: c.raceId, classId: c.classId, variant: ap.variant ?? 0, gear: look, style, scale, backdrop: false, glow: false });   // ohne weichen Schein: nur harte Pixel
-      if (r.kind === 'mount') {
-        const anims = s.game.character?.animsForLook?.({ raceId: c.raceId, classId: c.classId, appearance: ap, gear: look, mountId: r.id }, 3);
-        if (anims?.ride) { p.anims = { idle: anims.ride }; p.draw(); }
+      el = h('div.ach-stage-item', itemIconEl(info(id).item, big ? (small ? 104 : 130) : small ? 52 : 78));
+    } else if (r.kind === 'look') {
+      // Krone: Kopfbild ohne Waffe; auf der Karte zusätzlich der ganze Held
+      const slot = s.content.find('item', r.id).slot, style = spriteStyle(ap);
+      const headEl = figure({ gear: heroGear({ [slot]: r.id, weapon: null }), style, scale: scale * 2, head: true });
+      el = headEl;
+      if (big) {
+        const full = figure({ gear: heroGear({ [slot]: r.id }), style, scale: scale - 1 });
+        el = h('div.ach-pair', full, headEl);
+        el.portraits = [...full.portraits, ...headEl.portraits];
       }
-      el = p.canvas;
-      el.portrait = p;
-      if (zoom) el.classList.add('ach-zoom');
-      // Färbung: das Tuch in ihren Farben hängt hinter dem Helden
-      if (r.kind === 'dye') el = h('div.ach-stage-dye', iconEl(`dye_${r.id}`, big ? 130 : small ? 52 : 78), el);
+    } else {
+      // Färbung: ohne Brust und Kopf, damit Umhang und Stoff zu sehen sind; das Tuch in ihren Farben hängt direkt dahinter
+      const dye = r.kind === 'dye';
+      const fig = figure({ gear: dye ? heroGear({ chest: null, head: null }) : heroGear(), style: spriteStyle(dye ? { ...ap, dye: r.id } : ap), mountId: r.kind === 'mount' ? r.id : null, scale });
+      el = dye ? h('div.ach-stage-dye', iconEl(`dye_${r.id}`, 26 * (scale + (big ? 2 : 1))), fig) : fig;
+      el.portraits = fig.portraits;
     }
     el.classList.add('ach-stage');
     stages.set(key, el);
@@ -105,7 +143,7 @@ export function achievementsPanel(s) {
   const card = (id) => {
     const d = ACHIEVEMENTS[id], got = !!st.slices.achievements.unlocked[id], v = value(d), inf = info(id);
     return h('div.ach-card', { role: 'region', 'aria-label': inf.name },
-      h('button.ach-card-x', { type: 'button', 'aria-label': 'Schließen', onclick: () => { open = null; redraw(); } }, '✕'),
+      h('button.ach-card-x', { type: 'button', onclick: () => { open = null; redraw(); } }, 'Zurück'),
       h('div.ach-card-stage', stage(id, true)),
       h('div.ach-card-body',
         h('span.ach-kind', inf.kind),
@@ -158,7 +196,7 @@ export function achievementsPanel(s) {
           h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => st.commit('achievement:title', { id: e.target.value || null }) },
             h('option', { value: '', selected: !a.title }, 'Kein Titel'),
             titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null),
-      h('div.ach-tabs', { role: 'tablist' }, [['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)].map(([gid, label]) => h(`button.ach-tab${group === gid ? '.on' : ''}`, {
+      h('div.ach-tabs', { role: 'tablist' }, [['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)].map(([gid, label]) => [gid, gid === 'trial' && compact() ? 'Prüfungen' : label]).map(([gid, label]) => h(`button.ach-tab${group === gid ? '.on' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': String(group === gid), onclick: () => { group = gid; redraw(); },
       }, label))),
       h('div.pg-scroll.pg-keep-scroll.ach-list',
@@ -171,7 +209,7 @@ export function achievementsPanel(s) {
   const view = reactive(s, (redraw) => render(redraw));
   return {
     root: view.root,
-    update: (dt) => { for (const el of stages.values()) if (el.isConnected) (el.portrait ?? el.querySelector('canvas')?.portrait)?.update(dt); },
+    update: (dt) => { for (const el of stages.values()) if (el.isConnected) for (const p of el.portraits ?? []) p.update(dt); },
     dispose: view.dispose,
   };
 }

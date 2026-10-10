@@ -37,14 +37,17 @@
     linear-gradient(#3a2210 0 0) bottom 0 center / 100% 4px no-repeat,
     #140a0a;
   box-shadow: inset 0 0 0 1px #4a2c14; }
-.ach-stage { display: block; image-rendering: pixelated; }
-/* Held/Reittier (72×56 Weltpixel, 3×): unten mittig verankert, Füße knapp über dem Boden, oben frei */
-.ach-pedestal canvas.ach-stage, .ach-card-stage canvas.ach-stage, .ach-stage-dye > canvas { position: absolute; left: 50%; bottom: -20px; transform: translateX(-50%); }
-/* Krone: Kopfbild (6×), Kopf mittig im Sockel */
-.ach-pedestal canvas.ach-stage.ach-zoom { bottom: -138px; margin-left: 10px; }
-/* Färbung: Tuch hinter dem Helden */
-.ach-stage-dye { position: absolute; inset: 0; }
-.ach-stage-dye > img { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); image-rendering: pixelated; }
+.ach-stage { image-rendering: pixelated; }
+/* Figur zugeschnitten (achievementsPanel.js figure): Rahmen so groß wie die Figur, Leinwand darin verschoben */
+.ach-fit { position: relative; display: block; flex: none; overflow: hidden; }
+.ach-fit > canvas { position: absolute; display: block; image-rendering: pixelated; }
+.ach-pedestal > .ach-fit, .ach-pedestal > .ach-stage-dye { margin-bottom: 8px; }
+/* Kopfbild der Krone: mittig im Sockel */
+.ach-pedestal > .ach-head { align-self: center; margin-bottom: 0; }
+/* Färbung: Tuch direkt hinter dem Helden, oben am Kopf */
+.ach-stage-dye { position: relative; display: grid; place-items: end center; }
+.ach-stage-dye > img { position: absolute; left: 34%; top: -6px; transform: translateX(-50%); image-rendering: pixelated; }   /* zur Rückseite (Umhang) versetzt */
+.ach-stage-dye > .ach-fit { position: relative; }
 .ach-pedestal .ach-stage-item { margin-bottom: 26px; }
 /* noch nicht errungen: kaum gedämpft, Schloss in der Ecke */
 .ach-trophy:not(.got) .ach-stage { filter: saturate(0.85); }
@@ -107,25 +110,30 @@
 .ach-tile.rw .ach-medal::after { transform: translate(10px, -10px); }
 
 /* ---------------------------------------------------------------- Karte einer Belohnung: deckend über Vitrine und Punkten */
-.ach-card { grid-row: 2 / 4; grid-column: 1 / -1; z-index: 5; margin: 10px 16px 0; min-height: 0;
-  display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 0;
+.ach-card { grid-row: 2 / 4; grid-column: 1 / -1; z-index: 5; margin: 10px 16px 0; min-height: 0; position: relative;
+  display: grid; grid-template-columns: minmax(300px, auto) minmax(0, 1fr); gap: 0;
   background: #1c1018; border: 2px solid #0a050c;
   box-shadow: inset 0 0 0 1px #8a6420, inset 0 0 0 3px #2a160e; }
-.ach-card-x { position: absolute; right: 2px; top: 2px; min-width: var(--ef-touch); min-height: var(--ef-touch); background: transparent; border: 0; color: var(--ef-muted); font-size: 18px; cursor: pointer; }
-.ach-card { position: relative; }
-.ach-card-x:hover, .ach-card-x:focus-visible { color: var(--ef-text); outline: none; }
-.ach-card-stage { position: relative; display: grid; place-items: end center; min-height: 236px; margin: 6px; overflow: hidden;
+/* Zurück: oben rechts in der Karte (ersetzt ein zweites ✕) */
+.ach-card-x { position: absolute; right: 8px; top: 8px; min-width: 0; min-height: var(--ef-touch); padding: 0 14px; font: 600 13px var(--ef-font); letter-spacing: 0.04em;
+  color: var(--ef-muted); background: #140b12; border: 0; box-shadow: inset 0 0 0 1px #3a2530; cursor: pointer; }
+.ach-card-x:hover, .ach-card-x:focus-visible { color: var(--ef-text); box-shadow: inset 0 0 0 1px var(--ef-gold); outline: none; }
+.ach-card-x::before { content: '‹ '; }
+/* Bühne: Figur groß und mittig, steht auf dem Boden */
+.ach-card-stage { position: relative; display: grid; place-items: end center; align-content: end; margin: 6px; padding: 14px 18px 16px; overflow: hidden;
   background:
     linear-gradient(#060308 0 0) bottom 11px center / 46% 4px no-repeat,
     linear-gradient(#4a2a14 0 0) bottom 5px center / 70% 7px no-repeat,
     linear-gradient(#2a1810 0 0) bottom 0 center / 100% 5px no-repeat,
     #0c070c;
   box-shadow: inset 0 0 0 1px #2e1c18; }
-.ach-card-stage canvas.ach-stage, .ach-card-stage .ach-stage-dye > canvas { bottom: -26px; }
-.ach-card-stage .ach-stage-dye > img { top: auto; bottom: 96px; }
-.ach-card-stage .ach-stage-item { margin-bottom: 44px; }
-.ach-card-body { display: flex; flex-direction: column; gap: 6px; padding: 14px 48px 14px 12px; min-width: 0; }
-.ach-kind { font: 600 11px var(--ef-font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ef-muted); }
+.ach-card-stage > .ach-stage { align-self: end; }
+.ach-card-stage .ach-stage-item { align-self: center; margin-bottom: 30px; }
+/* Krone: ganzer Held und Kopfbild nebeneinander */
+.ach-pair { display: flex; align-items: flex-end; gap: 18px; }
+.ach-pair > .ach-head { align-self: center; box-shadow: 0 0 0 2px #2a1810, 0 0 0 4px #0c070c; }
+.ach-card-body { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 14px 18px 14px 14px; min-width: 0; }
+.ach-kind { padding-right: 96px; font: 600 11px var(--ef-font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ef-muted); }
 .ach-card-name { margin: 0 !important; font: 700 22px var(--ef-font-title) !important; letter-spacing: 0.02em !important; text-transform: none !important; color: var(--ef-gold) !important; }
 .ach-card-note { margin: 0; font-size: 13px; line-height: 1.4; color: #d8ccb8; }
 .ach-card-req { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 4px; padding-top: 10px; border-top: 1px solid #3a2530; }
@@ -134,7 +142,7 @@
 .ach-req-text { display: flex; flex-direction: column; min-width: 0; }
 .ach-req-text b { font-size: 14px; }
 .ach-req-text small { color: var(--ef-muted); font-size: 12.5px; }
-.ach-card-foot { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 6px; min-height: var(--ef-touch); }
+.ach-card-foot { display: flex; align-items: center; gap: 10px; padding-top: 6px; min-height: var(--ef-touch); }
 .ach-card-foot > .ach-bar { flex: 1; height: 8px; }
 .ach-done { font: 700 12px var(--ef-font); letter-spacing: 0.12em; text-transform: uppercase; color: #f0c860; }
 .ach-act { margin-left: auto; min-width: 0; min-height: var(--ef-touch); padding: 6px 18px; }
@@ -167,10 +175,9 @@
   .ach-trophies { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .ach-trophy { padding: 3px 3px 5px; gap: 3px; }
   .ach-pedestal { height: 98px; }
-  .ach-pedestal canvas.ach-stage, .ach-pedestal .ach-stage-dye > canvas { bottom: -14px; }
-  .ach-pedestal canvas.ach-stage.ach-zoom { bottom: -88px; margin-left: 6px; }
-  .ach-pedestal .ach-stage-dye > img { top: 6px; }
   .ach-pedestal .ach-stage-item { margin-bottom: 18px; }
+  .ach-pedestal > .ach-fit, .ach-pedestal > .ach-stage-dye { margin-bottom: 6px; }
+  .ach-pedestal > .ach-head { margin-bottom: 0; }
   .ach-trophy-name { min-height: 0; font-size: 12px; }
   .ach-trophy-name .ach-long { display: none; }
   .ach-trophy-name .ach-short { display: block; }
@@ -190,9 +197,9 @@
   /* Beschreibung darf umbrechen statt abgeschnitten zu werden */
   .ach-row-main small { white-space: normal; line-height: 1.25; }
   .ach-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ach-card { grid-row: 2 / -1; grid-column: 1 / -1; margin: 0; border: 0; grid-template-columns: 300px minmax(0, 1fr); box-shadow: inset 0 1px 0 #3a2530; background: #140b18; }
-  .ach-card-stage { min-height: 0; margin: 10px; }
-  .ach-card-body { padding: 14px 52px 12px 6px; gap: 6px; overflow: auto; }
+  .ach-card { grid-row: 2 / -1; grid-column: 1 / -1; margin: 0; border: 0; grid-template-columns: minmax(280px, auto) minmax(0, 1fr); box-shadow: inset 0 1px 0 #3a2530; background: #140b18; }
+  .ach-card-stage { margin: 10px; }
+  .ach-card-body { padding: 12px 16px 12px 6px; gap: 6px; overflow: auto; }
   .ach-card-name { font-size: 20px !important; }
 }
 @media (max-width: 560px) and (min-height: 521px) {

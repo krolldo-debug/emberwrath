@@ -3126,6 +3126,7 @@ export const EN = {
   "Prüfung bestanden!": "Trial Complete!",
   "Prüfung der Spielstände": "Save Verification",
   "Prüfung gescheitert": "Trial Failed",
+  "Prüfungen": "Trials",
   "Puh, der hat es in sich": "Phew, that one packs a punch",
   "PUT": "PUT",
   "Pyromanie": "Pyromania",
