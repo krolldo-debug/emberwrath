@@ -1,5 +1,6 @@
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Skalvyr, der Frostwurm – Boss der Reifhöhlen (Stufe 37).
@@ -71,44 +72,118 @@ function frozenOf(c) {
   return FROZENc[Math.max(0, Math.min(4, Math.round(l * 5.2 - 0.2)))];
 }
 
+// ---------------------------------------------------------------- Feinraster
+// docs/STYLE.md „Feinraster“, Stufe B: alle Puffer haben RS Texel je Weltpixel (RS = fineRes() beim Bau, bei
+// „Niedrig“ 1 = alles wie früher). Gezeichnet wird weiter in Weltkoordinaten; eine Weltkoordinate x liegt in Texel
+// TX(x) = floor((x + 0,5)·RS) (RS 1: Math.round), ein Texel X tastet die Weltkoordinate WX(X) = (X + 0,5)/RS − 0,5 ab.
+// Formen (Leib, Polygone, Ellipsen, Glieder) rastern jedes Texel neu; px setzt einen ganzen Weltpixel (RS×RS),
+// dot/fline einzelne Texel (Feindetails, nur bei RS > 1 sichtbar fein). Größe, Anker und meta bleiben Weltpixel.
+let RS = 1, TW = W, TH = H;
+function setRes(r) { RS = r; TW = W * r; TH = H * r; }
+const TX = (x) => Math.floor((x + 0.5) * RS);
+const WX = (X) => (X + 0.5) / RS - 0.5;
+
 // ---------------------------------------------------------------- Ebenen und Stifte
 
 class Layers {
+  // Ein Satz Puffer für alle Frames (spart Speicher und Müllabfuhr); get() leert den zuletzt belegten Bereich.
+  static #pool = null;
+  static get() {
+    const L = Layers.#pool;
+    if (!L || L.base.length !== TW * TH) return (Layers.#pool = new Layers());
+    L.clear();
+    return L;
+  }
   constructor() {
-    this.base = new Uint32Array(W * H);
-    this.ga = new Uint32Array(W * H);
-    this.gb = new Uint32Array(W * H);
-    this.mat = new Uint8Array(W * H);
+    this.base = new Uint32Array(TW * TH);
+    this.ga = new Uint32Array(TW * TH);
+    this.gb = new Uint32Array(TW * TH);
+    this.mat = new Uint8Array(TW * TH);
+    this.x0 = TW; this.y0 = TH; this.x1 = -1; this.y1 = -1;   // belegter Bereich in Texeln (großzügig)
+  }
+  mark(x, y) { if (x < this.x0) this.x0 = x; if (x > this.x1) this.x1 = x; if (y < this.y0) this.y0 = y; if (y > this.y1) this.y1 = y; }
+  markBox(x0, y0, x1, y1) { this.mark(Math.max(0, x0), Math.max(0, y0)); this.mark(Math.min(TW - 1, x1), Math.min(TH - 1, y1)); }
+  clear() {
+    if (this.x1 >= 0) for (let y = Math.max(0, this.y0); y <= Math.min(TH - 1, this.y1); y++) {
+      const a = y * TW + Math.max(0, this.x0), b = y * TW + Math.min(TW - 1, this.x1) + 1;
+      this.base.fill(0, a, b); this.ga.fill(0, a, b); this.gb.fill(0, a, b); this.mat.fill(0, a, b);
+    }
+    this.x0 = TW; this.y0 = TH; this.x1 = -1; this.y1 = -1;
   }
 }
 
 class Pen {
-  constructor(L) { this.L = L; this.m = M_SCALE; }
+  // mk/id: Malmaske für den feinen Leib (rückwärts gemalt: was ein späteres Stück schon belegt hat, bleibt)
+  constructor(L) { this.L = L; this.m = M_SCALE; this.mk = null; this.id = 0; }
+  // ein Texel
+  setv(X, Y, v, m) {
+    if (X < 0 || Y < 0 || X >= TW || Y >= TH) return;
+    const i = Y * TW + X, L = this.L, mk = this.mk;
+    if (mk) { if (mk[i] && mk[i] !== this.id) return; mk[i] = this.id; }
+    L.base[i] = v; L.ga[i] = 0; L.gb[i] = 0; L.mat[i] = m;
+    L.mark(X, Y);
+  }
+  // ein Weltpixel (RS×RS Texel)
   px(x, y, c, m = this.m) {
-    x = Math.round(x); y = Math.round(y);
-    if (x < 0 || y < 0 || x >= W || y >= H) return;
-    const i = y * W + x;
-    this.L.base[i] = col(c); this.L.ga[i] = 0; this.L.gb[i] = 0; this.L.mat[i] = m;
+    if (RS === 1) {
+      x = Math.round(x); y = Math.round(y);
+      if (x < 0 || y < 0 || x >= W || y >= H) return;
+      const i = y * W + x;
+      this.L.base[i] = col(c); this.L.ga[i] = 0; this.L.gb[i] = 0; this.L.mat[i] = m;
+      this.L.mark(x, y);
+      return;
+    }
+    const X = Math.round(x * RS), Y = Math.round(y * RS), v = col(c);
+    for (let j = 0; j < RS; j++) for (let i = 0; i < RS; i++) this.setv(X + i, Y + j, v, m);
+  }
+  // ein Texel an der Weltkoordinate (Formen, Feindetails); RS 1 = px
+  dot(x, y, c, m = this.m) {
+    if (RS === 1) { this.px(x, y, c, m); return; }
+    if (c !== this.lc) { this.lc = c; this.lv = col(c); }
+    this.setv(TX(x), TX(y), this.lv, m);
   }
   rect(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, c); }
-  ellipse(cx, cy, rx, ry, c) { fillEllipse(cx, cy, rx, ry, (x, y) => this.px(x, y, c)); }
-  line(x0, y0, x1, y1, c) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, c)); }
+  ellipse(cx, cy, rx, ry, c) {
+    if (RS === 1) { fillEllipse(cx, cy, rx, ry, (x, y) => this.px(x, y, c)); return; }
+    fineEllipse(cx, cy, rx, ry, (X, Y) => this.setv(X, Y, col(c), this.m));
+  }
+  // Linie 1 Weltpixel stark (fein: Bresenham in Texeln mit RS×RS-Pinsel, glatte Diagonalen)
+  line(x0, y0, x1, y1, c) {
+    if (RS === 1) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, c)); return; }
+    const v = col(c), m = this.m;
+    bres(x0 * RS, y0 * RS, x1 * RS, y1 * RS, (X, Y) => { for (let j = 0; j < RS; j++) for (let i = 0; i < RS; i++) this.setv(X + i, Y + j, v, m); });
+  }
+  // feine Linie (1 Texel); RS 1 = line
+  fline(x0, y0, x1, y1, c, m = this.m) {
+    if (RS === 1) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, c, m)); return; }
+    const v = col(c);
+    bres(TX(x0), TX(y0), TX(x1), TX(y1), (X, Y) => this.setv(X, Y, v, m));
+  }
 }
 
 // Leuchtstift: i = Index in die Rampe (0 dunkel … 4 weiß). px beide Ebenen,
-// a* nur Phase 1–2, e* nur Phase 3.
+// a* nur Phase 1–2, e* nur Phase 3. dot/adot/edot: ein Texel.
 class GlowPen {
-  constructor(L) { this.L = L; }
+  constructor(L) { this.L = L; this.mk = null; this.id = 0; }
+  tset(buf, ramp, X, Y, i) {
+    if (X < 0 || Y < 0 || X >= TW || Y >= TH || i < 0) return;
+    if (this.mk) { const k = this.mk[Y * TW + X]; if (k && k !== this.id) return; }
+    buf[Y * TW + X] = ramp[Math.min(4, Math.round(i))];
+    this.L.mark(X, Y);
+  }
   set(buf, ramp, x, y, i) {
-    x = Math.round(x); y = Math.round(y);
-    if (x < 0 || y < 0 || x >= W || y >= H || i < 0) return;
-    buf[y * W + x] = ramp[Math.min(4, Math.round(i))];
+    if (RS === 1) { this.tset(buf, ramp, Math.round(x), Math.round(y), i); return; }
+    const X = Math.round(x * RS), Y = Math.round(y * RS);
+    for (let j = 0; j < RS; j++) for (let k = 0; k < RS; k++) this.tset(buf, ramp, X + k, Y + j, i);
   }
   px(x, y, i) { this.set(this.L.ga, FROSTc, x, y, i); this.set(this.L.gb, FURYc, x, y, i); }
   apx(x, y, i) { this.set(this.L.ga, FROSTc, x, y, i); }
   epx(x, y, i) { this.set(this.L.gb, FURYc, x, y, i); }
-  line(x0, y0, x1, y1, i) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, i)); }
-  eline(x0, y0, x1, y1, i) { bres(x0, y0, x1, y1, (x, y) => this.epx(x, y, i)); }
+  dot(x, y, i) { if (RS === 1) { this.px(x, y, i); return; } const X = TX(x), Y = TX(y); this.tset(this.L.ga, FROSTc, X, Y, i); this.tset(this.L.gb, FURYc, X, Y, i); }
+  adot(x, y, i) { if (RS === 1) { this.apx(x, y, i); return; } this.tset(this.L.ga, FROSTc, TX(x), TX(y), i); }
+  edot(x, y, i) { if (RS === 1) { this.epx(x, y, i); return; } this.tset(this.L.gb, FURYc, TX(x), TX(y), i); }
+  fline(x0, y0, x1, y1, i) { if (RS === 1) { bres(x0, y0, x1, y1, (x, y) => this.px(x, y, i)); return; } bres(TX(x0), TX(y0), TX(x1), TX(y1), (X, Y) => { this.tset(this.L.ga, FROSTc, X, Y, i); this.tset(this.L.gb, FURYc, X, Y, i); }); }
+  efline(x0, y0, x1, y1, i) { if (RS === 1) { bres(x0, y0, x1, y1, (x, y) => this.epx(x, y, i)); return; } bres(TX(x0), TX(y0), TX(x1), TX(y1), (X, Y) => this.tset(this.L.gb, FURYc, X, Y, i)); }
 }
 
 function bres(x0, y0, x1, y1, f) {
@@ -116,7 +191,7 @@ function bres(x0, y0, x1, y1, f) {
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
   const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   let err = dx + dy;
-  for (let n = 0; n < 500; n++) {
+  for (let n = 0; n < 500 * RS; n++) {
     f(x0, y0);
     if (x0 === x1 && y0 === y1) break;
     const e2 = 2 * err;
@@ -133,12 +208,37 @@ function fillEllipse(cx, cy, rx, ry, f) {
     for (let x = -hw; x <= hw; x++) f(Math.round(cx) + x, Math.round(cy) + y);
   }
 }
-// Gefülltes Polygon (Bildschirmkoordinaten), f(x, y) je Pixel
-function fillPoly(pts, f) {
+// fein: Texel abtasten, Ausdehnung wie das grobe Raster (Rand +0,4); f(X, Y) in Texeln
+function fineEllipse(cx, cy, rx, ry, f) {
+  if (rx <= 0 || ry <= 0) return;
+  const ex = rx + 0.4, ey = ry + 0.4;
+  for (let Y = TX(cy - ey) - 1; Y <= TX(cy + ey) + 1; Y++) {
+    const v = (WX(Y) - cy) / ey;
+    if (v * v > 1) continue;
+    for (let X = TX(cx - ex) - 1; X <= TX(cx + ex) + 1; X++) { const u = (WX(X) - cx) / ex; if (u * u + v * v <= 1) f(X, Y); }
+  }
+}
+// Gefülltes Polygon (Bildschirmkoordinaten), f(x, y) je Pixel (fein: je Texel, x/y = WX/WY des Texels)
+function fillPoly(pts, f, coarse = false) {
   let y0 = Infinity, y1 = -Infinity;
   for (const [, y] of pts) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const xs = [];
+  if (RS > 1 && !coarse) {
+    for (let Y = Math.floor(y0 * RS); Y <= Math.ceil(y1 * RS); Y++) {
+      const yc = (Y + 0.5) / RS, wy = WX(Y);
+      xs.length = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
+        if ((ay <= yc && by > yc) || (by <= yc && ay > yc)) xs.push(ax + ((yc - ay) / (by - ay)) * (bx - ax));
+      }
+      xs.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xs.length; k += 2) for (let X = Math.round(xs[k] * RS), e = Math.round(xs[k + 1] * RS); X < e; X++) f(WX(X), wy);
+    }
+    return;
+  }
   for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) {
-    const yc = y + 0.5, xs = [];
+    const yc = y + 0.5;
+    xs.length = 0;
     for (let i = 0; i < pts.length; i++) {
       const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
       if ((ay <= yc && by > yc) || (by <= yc && ay > yc)) xs.push(ax + ((yc - ay) / (by - ay)) * (bx - ax));
@@ -148,15 +248,20 @@ function fillPoly(pts, f) {
   }
 }
 
-// Leucht-Frame (kein Treffer-Blitz nötig); Spiegelbild erst bei Bedarf
+// Leucht-Frame (kein Treffer-Blitz nötig); Spiegelbild erst bei Bedarf.
+// res = Texel je Weltpixel (wie SpriteFrame); canvas/ax/ay in Texeln.
+// Fein: canvas entsteht erst beim ersten Gebrauch aus dem Pixelpuffer (src = [Uint32Array, w, h]), wie die
+// Spiegel-/Blitzbilder von SpriteFrame – Phase-3-Leuchten wird so nur gebaut, wenn es gebraucht wird.
 class GlowFrame {
-  constructor(canvas, ax, ay) { this.canvas = canvas; this.ax = ax; this.ay = ay; this.flipCache = null; }
+  constructor(canvas, ax, ay, res = 1, src = null) { this._c = canvas; this.src = src; this.ax = ax; this.ay = ay; this.res = res; this.flipCache = null; }
+  get canvas() { if (!this._c) { const [d, w, h] = this.src; this._c = pixelsToCanvas(d, w, h); this.src = null; } return this._c; }
   get flipped() { return (this.flipCache ??= flipCanvas(this.canvas)); }
   draw(ctx, x, y, { flip = false, alpha = 1 } = {}) {
     const img = flip ? this.flipped : this.canvas;
-    const ax = flip ? this.canvas.width - this.ax : this.ax;
+    const ax = flip ? this.canvas.width - this.ax : this.ax, r = this.res;
     if (alpha !== 1) ctx.globalAlpha = alpha;
-    ctx.drawImage(img, Math.round(x - ax), Math.round(y - this.ay));
+    if (r === 1) ctx.drawImage(img, Math.round(x - ax), Math.round(y - this.ay));
+    else ctx.drawImage(img, Math.round(x * r - ax) / r, Math.round(y * r - this.ay) / r, img.width / r, img.height / r);
     if (alpha !== 1) ctx.globalAlpha = 1;
   }
 }
@@ -283,6 +388,7 @@ const radAt = (k, bulk) => {
 const LX = -0.5, LY = -0.72, LZ = 0.48; // Lichtrichtung (links oben, zum Betrachter)
 
 function drawBody(p, g, S, P, o) {
+  if (RS > 1) { drawBodyFine(p, g, S, P, o); return; }
   const L = p.L;
   const heart = o.heartPt;
   let nextSpike = 5;
@@ -292,59 +398,19 @@ function drawBody(p, g, S, P, o) {
     const gy = AY + Math.round(q.d); // Bodenlinie dieses Stücks (darunter wird abgeschnitten)
     const R = Math.ceil(r + 0.5);
     const slice = si > 2 && si < S.length - 3;
-    for (let yy = Math.floor(q.sy) - R; yy <= Math.ceil(q.sy) + R; yy++) {
-      if (yy > gy + 1 || yy < 0 || yy >= H) continue;
-      for (let xx = Math.floor(q.sx) - R; xx <= Math.ceil(q.sx) + R; xx++) {
-        if (xx < 0 || xx >= W) continue;
-        const dx = xx - q.sx, dy = yy - q.sy;
-        const d2 = dx * dx + dy * dy;
-        if (d2 > r * r + 0.6) continue;
-        const a = dx * q.tx + dy * q.ty;
-        if (slice && (a > 1.3 || a < -1.3)) continue;
-        let v = (dx * q.nx + dy * q.ny) / r;
-        v = Math.max(-1, Math.min(1, v));
-        const U = q.u + a;
-        const z = Math.sqrt(Math.max(0, 1 - v * v));
-        const lum = (q.nx * v) * LX + (q.ny * v) * LY + z * LZ;
-        const dith = (BAYER[(yy & 3) * 4 + (xx & 3)] - 7.5) / 16;
-        const i = yy * W + xx;
-        let c, m;
-        const bellyEdge = q.k > 6.3 ? 0.18 : 0.42; // am Hals ist die Kehle breit sichtbar
-        if (v > bellyEdge && r > 2.2) {
-          // Bauchplatten: quer gerippt
-          let idx = (lum + 0.5) * 3 + dith * 0.5;
-          const fr = ((U / 3.1) % 1 + 1) % 1;
-          if (fr < 0.26) idx -= 0.9;
-          if (v > 0.93) idx -= 1;
-          if (yy >= gy - 1 && q.h < r + 2) idx -= 1.5;
-          c = BELLYc[Math.max(0, Math.min(4, Math.round(idx)))]; m = M_BELLY;
-        } else {
-          let idx = (lum + 0.42) * 3.7 + dith * 0.45;
-          // Schuppen: versetzte Reihen, dunkle Hinterkante, heller Glanz an der Spitze
-          const rows = (v + 1) * r / 2.7;
-          const row = Math.floor(rows);
-          const cellF = (U + (row & 1) * 1.9) / 3.8;
-          const fr = cellF - Math.floor(cellF);
-          if (fr < 0.22) idx -= 0.75;
-          else if (fr > 0.7 && v < -0.2 && hash2(Math.floor(cellF), row, 7) < 0.5) idx += 0.7;
-          if (v < -0.86) idx -= 0.8; // Rückengrat
-          if (yy >= gy - 1 && q.h < r + 2) idx -= 1.5; // Bodenschatten
-          c = SCALEc[Math.max(0, Math.min(6, Math.round(idx)))]; m = M_SCALE;
-        }
-        L.base[i] = c; L.mat[i] = m; L.ga[i] = 0; L.gb[i] = 0;
-        // Frostherz schimmert durch die Brust (nur Bauchseite)
-        if (heart && P.heart > 0.05) {
-          const hd = Math.hypot(xx - heart.x, (yy - heart.y) * 1.2);
-          const hr = 2.5 + P.heart * 2.2;
-          if (hd < hr && v > -0.2) {
-            const gi = hd < hr * 0.35 ? 3 : hd < hr * 0.7 ? 2 : 1;
-            g.px(xx, yy, Math.min(4, gi + (P.heart > 2 ? 1 : 0)));
-          }
-        }
-        // Phase 3: glühende Adern in den Schuppen
-        if (m === M_SCALE && r > 2.5) {
-          const vein = ((U * 0.16 + v * 2.3 + 40) % 2.2) - 1.1;
-          if (Math.abs(vein) < 0.1 && hash2(Math.floor(U / 5), Math.floor(v * 3 + 5), 31) < 0.55) g.epx(xx, yy, v < 0 ? 2 : 1);
+    if (RS === 1) {
+      L.markBox(Math.floor(q.sx) - R, Math.floor(q.sy) - R, Math.ceil(q.sx) + R, Math.min(gy + 1, Math.ceil(q.sy) + R));
+      for (let yy = Math.floor(q.sy) - R; yy <= Math.ceil(q.sy) + R; yy++) {
+        if (yy > gy + 1 || yy < 0 || yy >= H) continue;
+        for (let xx = Math.floor(q.sx) - R; xx <= Math.ceil(q.sx) + R; xx++) {
+          if (xx < 0 || xx >= W) continue;
+          const dx = xx - q.sx, dy = yy - q.sy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > r * r + 0.6) continue;
+          const a = dx * q.tx + dy * q.ty;
+          if (slice && (a > 1.3 || a < -1.3)) continue;
+          const dith = (BAYER[(yy & 3) * 4 + (xx & 3)] - 7.5) / 16;
+          bodyTexel(L, q, r, P, heart, gy, xx, yy, dx, dy, a, yy * W + xx, yy, dith);
         }
       }
     }
@@ -353,6 +419,135 @@ function drawBody(p, g, S, P, o) {
       const sz = q.k > 6.6 ? 0.55 : 1;
       nextSpike = q.u + (q.k > 6.6 ? 5 : 6.3);
       spike(p, g, q, r, P, sz, o);
+    }
+  }
+}
+
+// Fein: dieselbe Malreihenfolge (Scheiben vom Schwanz zum Hals, Stachel nach seiner Scheibe), aber rückwärts mit
+// Malmaske: jedes Texel wird nur einmal schattiert (das zuletzt gemalte Stück gewinnt wie vorwärts).
+let MASK = null;
+function drawBodyFine(p, g, S, P, o) {
+  const L = p.L, heart = o.heartPt;
+  if (!MASK || MASK.length !== TW * TH) MASK = new Uint16Array(TW * TH);
+  const mk = MASK;
+  // Stachel-Stellen wie beim Vorwärtsmalen
+  const spikeSz = new Float32Array(S.length);
+  let nextSpike = 5;
+  for (let si = 0; si < S.length; si++) {
+    const q = S[si];
+    if (q.u >= nextSpike && q.k > 0.45 && q.k < 8.6) { spikeSz[si] = q.k > 6.6 ? 0.55 : 1; nextSpike = q.u + (q.k > 6.6 ? 5 : 6.3); }
+  }
+  let id = 1, mx0 = TW, my0 = TH, mx1 = -1, my1 = -1;
+  const step = 1 / RS;
+  for (let si = S.length - 1; si >= 0; si--) {
+    const q = S[si];
+    const r = radAt(q.k, P.bulk);
+    if (spikeSz[si]) {
+      p.mk = mk; g.mk = mk; p.id = g.id = id;
+      const x0 = L.x0, y0 = L.y0, x1 = L.x1, y1 = L.y1;
+      L.x0 = TW; L.y0 = TH; L.x1 = -1; L.y1 = -1;
+      spike(p, g, q, r, P, spikeSz[si], o);
+      if (L.x1 >= 0) { mx0 = Math.min(mx0, L.x0); my0 = Math.min(my0, L.y0); mx1 = Math.max(mx1, L.x1); my1 = Math.max(my1, L.y1); }
+      if (x1 >= 0) { L.mark(x0, y0); L.mark(x1, y1); }
+      p.mk = g.mk = null; id++;
+    }
+    const gy = AY + Math.round(q.d);
+    const R = Math.ceil(r + 0.5);
+    const slice = si > 2 && si < S.length - 3;
+    const band = slice ? 1.3 : 1e9, rr = r * r + 0.6;
+    let ex = R, ey = R;
+    if (slice) { ex = Math.min(R, Math.abs(q.tx) * band + Math.abs(q.nx) * (r + 0.1) + 0.6); ey = Math.min(R, Math.abs(q.ty) * band + Math.abs(q.ny) * (r + 0.1) + 0.6); }
+    const X0 = Math.max(0, TX(q.sx - ex) - 1), X1 = Math.min(TW - 1, TX(q.sx + ex) + 1);
+    const Y0 = Math.max(0, TX(q.sy - ey) - 1), Y1 = Math.min(TH - 1, TX(q.sy + ey) + 1, (gy + 2) * RS - 1);
+    if (X1 < X0 || Y1 < Y0) { id++; continue; }
+    L.markBox(X0, Y0, X1, Y1);
+    if (X0 < mx0) mx0 = X0; if (Y0 < my0) my0 = Y0; if (X1 > mx1) mx1 = X1; if (Y1 > my1) my1 = Y1;
+    for (let Y = Y0; Y <= Y1; Y++) {
+      const ys = WX(Y), dy = ys - q.sy, row = Math.floor(Y / RS), dy2 = dy * dy, by = (Y & 3) * 4;
+      if (dy2 > rr) continue;
+      // Spanne dieser Zeile: Kreis ∩ Band (±0,1 Sicherheitsrand, geprüft wird unten genau)
+      const cw = Math.sqrt(rr - dy2);
+      let lo = -cw, hi = cw;
+      if (slice && Math.abs(q.tx) > 1e-4) {
+        let b0 = (-band - dy * q.ty) / q.tx, b1 = (band - dy * q.ty) / q.tx;
+        if (b0 > b1) { const t = b0; b0 = b1; b1 = t; }
+        if (b0 > lo) lo = b0; if (b1 < hi) hi = b1;
+      }
+      const XA = Math.max(X0, Math.ceil((q.sx + lo - 0.1 + 0.5) * RS - 0.5)), XB = Math.min(X1, Math.floor((q.sx + hi + 0.1 + 0.5) * RS - 0.5));
+      let xs = WX(XA);
+      for (let X = XA, i = Y * TW + XA; X <= XB; X++, i++, xs += step) {
+        if (mk[i]) continue;
+        const dx = xs - q.sx;
+        if (dx * dx + dy2 > rr) continue;
+        const a = dx * q.tx + dy * q.ty;
+        if (a > band || a < -band) continue;
+        mk[i] = id;
+        bodyTexel(L, q, r, P, heart, gy, xs, ys, dx, dy, a, i, row, (BAYER[by + (X & 3)] - 7.5) / 16);
+      }
+    }
+    id++;
+  }
+  if (mx1 >= 0) for (let y = Math.max(0, my0); y <= Math.min(TH - 1, my1); y++) mk.fill(0, y * TW + Math.max(0, mx0), y * TW + Math.min(TW - 1, mx1) + 1);
+}
+
+// Ein Leib-Pixel (fein: Texel) schattieren. xs/ys Weltkoordinate der Abtastung, dx/dy relativ zur Scheibe,
+// a längs, i Pufferindex, row Weltzeile (Boden), dith Bayer-Wert.
+function bodyTexel(L, q, r, P, heart, gy, xs, ys, dx, dy, a, i, row, dith) {
+  let v = (dx * q.nx + dy * q.ny) / r;
+  v = Math.max(-1, Math.min(1, v));
+  const U = q.u + a;
+  const z = Math.sqrt(Math.max(0, 1 - v * v));
+  const lum = (q.nx * v) * LX + (q.ny * v) * LY + z * LZ;
+  let c, m;
+  const bellyEdge = q.k > 6.3 ? 0.18 : 0.42; // am Hals ist die Kehle breit sichtbar
+  if (v > bellyEdge && r > 2.2) {
+    // Bauchplatten: quer gerippt (fein: 1 Texel Fuge, darunter 1 Texel Lichtkante der nächsten Platte)
+    let idx = (lum + 0.5) * 3 + dith * (RS > 1 ? 0.3 : 0.5);
+    const fr = ((U / 3.1) % 1 + 1) % 1;
+    if (RS > 1) { if (fr < 0.14) idx -= 1.2; else if (fr < 0.29) idx += 0.45; }
+    else if (fr < 0.26) idx -= 0.9;
+    if (v > 0.93) idx -= 1;
+    if (row >= gy - 1 && q.h < r + 2) idx -= 1.5;
+    c = BELLYc[Math.max(0, Math.min(4, Math.round(idx)))]; m = M_BELLY;
+  } else {
+    let idx = (lum + 0.42) * 3.7 + dith * (RS > 1 ? 0.22 : 0.45);
+    // Schuppen: versetzte Reihen, dunkle Hinterkante, heller Glanz an der Spitze
+    const rows = (v + 1) * r / 2.7;
+    const row2 = Math.floor(rows);
+    const cellF = (U + (row2 & 1) * 1.9) / 3.8;
+    const fr = cellF - Math.floor(cellF);
+    if (RS > 1) {
+      // fein: runde Schuppen (Bogenkante quer zur Reihe), 1 Texel dunkle Kante, 1 Texel Lichtkante dahinter,
+      // Glanz an der Spitze. Die Bogenkante verschiebt die Zellgrenze zur Reihenmitte hin.
+      const rr = rows - row2, e = 2 * rr - 1, g2 = fr - 0.34 * (1 - e * e), gf = g2 - Math.floor(g2);
+      const cid = Math.floor(cellF - 0.34 * (1 - e * e));
+      if (gf < 0.11) idx -= 1.15;
+      else if (gf < 0.22 && v < 0.3) idx += 0.6;
+      else if (gf > 0.72 && v < -0.2 && hash2(cid, row2, 7) < 0.5) idx += gf > 0.86 ? 1.1 : 0.7;
+    } else if (fr < 0.22) idx -= 0.75;
+    else if (fr > 0.7 && v < -0.2 && hash2(Math.floor(cellF), row2, 7) < 0.5) idx += 0.7;
+    if (v < -0.86) idx -= 0.8; // Rückengrat
+    if (row >= gy - 1 && q.h < r + 2) idx -= 1.5; // Bodenschatten
+    c = SCALEc[Math.max(0, Math.min(6, Math.round(idx)))]; m = M_SCALE;
+  }
+  L.base[i] = c; L.mat[i] = m; L.ga[i] = 0; L.gb[i] = 0;
+  // Frostherz schimmert durch die Brust (nur Bauchseite)
+  if (heart && P.heart > 0.05) {
+    const hx = xs - heart.x, hy = (ys - heart.y) * 1.2;
+    const hd = RS === 1 ? Math.hypot(hx, hy) : hx > 9.5 || hx < -9.5 || hy > 9.5 || hy < -9.5 ? 99 : Math.sqrt(hx * hx + hy * hy);
+    const hr = 2.5 + P.heart * 2.2;
+    if (hd < hr && v > -0.2) {
+      let gi = hd < hr * 0.35 ? 3 : hd < hr * 0.7 ? 2 : 1;
+      if (RS > 1 && hd < hr * 0.16) gi = 4;   // fein: weißer Kern
+      const k = Math.min(4, gi + (P.heart > 2 ? 1 : 0));
+      L.ga[i] = FROSTc[k]; L.gb[i] = FURYc[k];
+    }
+  }
+  // Phase 3: glühende Adern in den Schuppen (fein: heller Kern im farbigen Saum)
+  if (m === M_SCALE && r > 2.5) {
+    const vein = ((U * 0.16 + v * 2.3 + 40) % 2.2) - 1.1, av = Math.abs(vein);
+    if (av < 0.1 && hash2(Math.floor(U / 5), Math.floor(v * 3 + 5), 31) < 0.55) {
+      L.gb[i] = FURYc[RS > 1 && av < 0.042 ? (v < 0 ? 4 : 3) : v < 0 ? 2 : 1];
     }
   }
 }
@@ -380,17 +575,24 @@ function spike(p, g, q, r, P, sz, o) {
     const along = (rx * dx + ry * dy) / len;
     const side = rx * px + ry * py;
     let c;
-    if (Math.abs(side) < 0.55) c = CRYS[along > 0.55 ? 4 : 3];
+    if (RS > 1) {
+      // fein: Glanzlinie auf dem Grat (1 Texel), je Flanke zwei Facetten, dunkle Facettenkante
+      const hwA = Math.max(0.3, bw * (1 - along)), s = side / hwA, sl = s * litSide;
+      if (Math.abs(side) < 0.27) c = CRYS[along > 0.3 ? 4 : 3];
+      else if (sl > 0) c = along < 0.2 ? CRYS[1] : sl < 0.5 ? CRYS[3] : CRYS[2];
+      else c = along < 0.2 ? CRYS[0] : sl > -0.42 ? CRYS[1] : sl > -0.62 && along > 0.25 ? CRYS[2] : CRYS[0];
+    } else if (Math.abs(side) < 0.55) c = CRYS[along > 0.55 ? 4 : 3];
     else if (side * litSide > 0) c = along < 0.22 ? CRYS[1] : CRYS[3];
     else c = along < 0.22 ? CRYS[0] : CRYS[1];
-    p.px(x, y, c, M_CRYS);
+    p.dot(x, y, c, M_CRYS);
     if (!frozen) {
-      if (Math.abs(side) < 0.8 && along > 0.35) g.px(x, y, along > 0.8 ? 3 : P.crest > 0.5 ? 2 : 1);
-      else if (along > 0.25) g.epx(x, y, side * litSide > 0 ? 2 : 1);
+      if (Math.abs(side) < 0.8 && along > 0.35) g.dot(x, y, along > 0.8 ? 3 : P.crest > 0.5 ? 2 : 1);
+      else if (along > 0.25) g.edot(x, y, side * litSide > 0 ? 2 : 1);
+      if (RS > 1 && Math.abs(side) < 0.27 && along > 0.55) g.dot(x, y, along > 0.85 ? 4 : 3);   // fein: heller Kern im Grat
     }
   });
-  p.px(tipx, tipy, CRYS[4], M_CRYS);
-  if (!frozen) { g.px(tipx, tipy, P.crest > 0.3 || P.glint > 0 ? 4 : 3); if (P.crest > 0.8) g.px(tipx + dx, tipy + dy, 2); }
+  if (RS > 1) p.dot(tipx, tipy, '#f4fdff', M_CRYS); else p.px(tipx, tipy, CRYS[4], M_CRYS);
+  if (!frozen) { (RS > 1 ? g.dot : g.px).call(g, tipx, tipy, P.crest > 0.3 || P.glint > 0 ? 4 : 3); if (P.crest > 0.8) g.px(tipx + dx, tipy + dy, 2); }
 }
 
 // ---------------------------------------------------------------- Klauen
@@ -405,11 +607,23 @@ function ik(ax, ay, tx, ty, l1, l2, bend) {
   const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
   return { jx: ax + ux * a - uy * h * bend, jy: ay + uy * a + ux * h * bend, ex: ax + dx, ey: ay + dy };
 }
-// Dickes Glied, Licht von links oben
+// Dickes Glied, Licht von links oben (fein: Texel abgetastet, Lichtkante 1 Texel)
 function limb(p, x0, y0, x1, y1, w0, w1, ramp, m = M_SCALE) {
   const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }
+  if (RS > 1) {
+    const steps = Math.ceil(len * 2 * RS), st = 0.5 / RS;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
+      const hw = (w0 + (w1 - w0) * t) / 2 + 0.25;
+      for (let k = -hw; k <= hw + 0.01; k += st) {
+        const c = k > hw - 0.55 ? (ramp[4] ?? ramp[3]) : k > hw - 1.25 ? ramp[3] : k < -hw + 1.25 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
+        p.dot(x + nx * k, y + ny * k, c, m);
+      }
+    }
+    return;
+  }
   const steps = Math.ceil(len * 2);
   for (let i = 0; i <= steps; i++) {
     const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
@@ -428,18 +642,31 @@ function foreleg(p, sx, sy, fx, fy, near, lift) {
   // Ellbogen-Stachel
   const cr = near ? CRYS : [CRYS[0], CRYS[0], CRYS[1], CRYS[2], CRYS[3]];
   p.line(j.jx - 1, j.jy, j.jx - 4, j.jy - 2, cr[2]); p.px(j.jx - 4, j.jy - 2, cr[3]);
+  if (RS > 1) { p.fline(j.jx - 1, j.jy - 0.5, j.jx - 4, j.jy - 2.5, cr[3]); p.dot(j.jx - 4.5, j.jy - 2.5, cr[4], M_CRYS); }
   // Fuß mit drei Krallen
   const fxr = Math.round(j.ex), fyr = Math.round(j.ey);
   p.rect(fxr - 2, fyr, 5, 2, ramp[1]); p.rect(fxr - 2, fyr, 4, 1, ramp[2]);
   const cl = near ? HORN : [HORN[0], HORN[0], HORN[1], HORN[2], HORN[3]];
   const claws = lift > 2 ? [[3, 0], [4, 2], [2, 3]] : [[3, 1], [4, 2], [1, 2]];
   for (const [cx, cy] of claws) { p.px(fxr + cx - 1, fyr + cy, cl[2], M_CLAW); p.px(fxr + cx, fyr + cy, cl[3], M_CLAW); p.px(fxr + cx + 1, fyr + cy + (lift > 2 ? 1 : 0), cl[4], M_CLAW); }
+  if (RS > 1) {
+    // fein (Texel): Zehenfugen, Krallen oben mit Glanzkante, unten Schatten, Spitze spitz
+    const t = (X, Y, c, m) => p.setv(X, Y, c ? col(c) : 0, c ? m : 0);
+    for (const X of [2 * fxr - 1, 2 * fxr + 2]) for (let k = 2; k <= 3; k++) t(X, 2 * fyr + k, ramp[0], M_SCALE);
+    for (const [cx, cy] of claws) {
+      const X = 2 * (fxr + cx - 1), Y = 2 * (fyr + cy);
+      for (let k = 1; k <= 3; k++) { t(X + k, Y, cl[4], M_CLAW); t(X + k, Y + 1, cl[1], M_CLAW); }
+      const TXp = 2 * (fxr + cx + 1), TYp = 2 * (fyr + cy + (lift > 2 ? 1 : 0));
+      t(TXp, TYp, cl[4], M_CLAW); t(TXp + 1, TYp, cl[3], M_CLAW); t(TXp, TYp + 1, cl[2], M_CLAW); t(TXp + 1, TYp + 1, null);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- Kopf
 
 // Kopf in lokalen Koordinaten (u nach vorn, v nach unten), gedreht um ha.
 const SKULL_TOP = [[-6, -3], [-4, -7.4], [1, -9.6], [6, -10.3], [10, -9], [13, -6.6], [17, -5.6], [21.5, -4.8], [25, -3.9], [27.5, -2.4], [28, 0.2]];
+const SKULL_N = SKULL_TOP.length, SKULL_U = SKULL_TOP.map((p) => p[0]), SKULL_V = SKULL_TOP.map((p) => p[1]);
 
 // Aufbau von hinten nach vorn: ferne Hörner, Unterkiefer, Rachen (Gaumen,
 // Schlund mit Frostleuchten, Zunge), untere Zahnreihe, Schädel/Oberkiefer,
@@ -449,7 +676,7 @@ function drawHead(p, g, bx, by, P, o) {
   const HS = 1.36; // Kopf größer als der Leib-Maßstab: lesbares Gesicht
   const T = (u, v) => [bx + (ca * u - sa * v) * HS, by + (sa * u + ca * v) * HS];
   const inv = (x, y) => { const dx = (x + 0.5 - bx) / HS, dy = (y + 0.5 - by) / HS; return [ca * dx + sa * dy, -sa * dx + ca * dy]; };
-  const poly = (pts, shade, m) => fillPoly(pts.map(([u, v]) => T(u, v)), (x, y) => { const [u, v] = inv(x, y); const c = shade(u, v, x, y); if (c) p.px(x, y, c, m); });
+  const poly = (pts, shade, m) => fillPoly(pts.map(([u, v]) => T(u, v)), (x, y) => { const [u, v] = inv(x, y); const c = shade(u, v, x, y); if (c) p.dot(x, y, c, m); });
   const frozen = o.frozen;
   const open = P.jaw > 0.16;
   const jawA = open ? (P.jaw - 0.1) * 0.74 : 0;
@@ -475,8 +702,15 @@ function drawHead(p, g, bx, by, P, o) {
   for (const [u, len] of [[5, 3.2], [10, 4.2], [15, 2.6]]) {
     const [a0, b0] = J(u, 6.2 - u * 0.03), [a1, b1] = J(u - 1.3, 6.6 + len);
     const [x0, y0] = T(a0, b0), [x1, y1] = T(a1, b1);
-    p.line(x0, y0, x1, y1, CRYS[1], M_CRYS); p.line(x0 + 1, y0, x1, y1, CRYS[0], M_CRYS);
-    if (!frozen && len > 4) g.px(x1, y1, 1);
+    if (RS > 1) {
+      // fein: spitz zulaufend, Glanzlinie links, Schattenseite rechts, heller Tropfen an der Spitze
+      p.fline(x0 + 1.5, y0, x1, y1, CRYS[0], M_CRYS); p.fline(x0 + 1, y0, x1, y1, CRYS[0], M_CRYS); p.fline(x0 + 0.5, y0, x1, y1, CRYS[1], M_CRYS); p.fline(x0, y0, x1, y1, CRYS[1], M_CRYS); p.fline(x0 - 0.5, y0, x1, y1, CRYS[3], M_CRYS);
+      p.dot(x1, y1, CRYS[4], M_CRYS);
+      if (!frozen && len > 4) { g.dot(x1, y1, 2); g.dot(x1, y1 - 0.5, 1); }
+    } else {
+      p.line(x0, y0, x1, y1, CRYS[1], M_CRYS); p.line(x0 + 1, y0, x1, y1, CRYS[0], M_CRYS);
+      if (!frozen && len > 4) g.px(x1, y1, 1);
+    }
   }
 
   // Rachen
@@ -517,7 +751,7 @@ function drawHead(p, g, bx, by, P, o) {
         if (s < 0.3 && r > 0.15) idx -= 0.4;                                                // Gaumen im Schatten
         if (r > 0.2 && fromTop < 0.85) idx = 4.3 + dd * 0.5;                                // Zahnfleisch oben
         else if (r > 0.25 && fromBot < 0.85) idx = 3.9 + dd * 0.5;                         // Zahnfleisch unten
-        if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
+        if (!frozen && breath > 0.05 && hash2(Math.round(x), Math.round(y), 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
         return MAW[Math.max(0, Math.min(5, Math.round(idx)))];
       }, M_MOUTH);
     } else poly([...top, ...bot], (u, v, x, y) => {
@@ -538,7 +772,7 @@ function drawHead(p, g, bx, by, P, o) {
       if (fromTop < 1.3) idx = 2;                                          // Gaumen
       else if (fromBot < 0.9) idx = 3.3;                                   // Zahnfleisch unten
       else if (fromTop < 2) idx -= 0.8;                                    // Schatten unter dem Gaumen
-      if (!frozen && breath > 0.05 && hash2(x, y, 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
+      if (!frozen && breath > 0.05 && hash2(Math.round(x), Math.round(y), 13) < 0.15 + breath * 0.4) mouthGlow.push(x, y, Math.max(0, Math.min(3, Math.round(breath * 2.6 - d * 0.5 + 0.2))));
       return MOUTH[Math.max(0, Math.min(4, Math.round(idx)))];
     }, M_MOUTH);
     // Zunge: liegt auf dem Unterkiefer, Spitze gespalten und leicht gehoben
@@ -553,7 +787,7 @@ function drawHead(p, g, bx, by, P, o) {
       if (P.maw > 0.05 && !frozen && ju < tl * 0.45) idx -= 0.8 * P.maw;    // Zungengrund im Schlundschatten
       return TONGUE[Math.max(0, Math.min(3, Math.round(idx)))];
     }, M_MOUTH);
-    for (let i = 0; i < mouthGlow.length; i += 3) g.px(mouthGlow[i], mouthGlow[i + 1], mouthGlow[i + 2]);
+    for (let i = 0; i < mouthGlow.length; i += 3) g.dot(mouthGlow[i], mouthGlow[i + 1], mouthGlow[i + 2]);
   }
   // Untere Zahnreihe (zeigt nach oben); hinten kurz, vorn ein Fangzahn
   const lowTeeth = open ? [[7, 1], [10.5, 1.6], [14, 1.3], [17.2, 1.9], [20.6, 3.2], [23.2, 1.5]] : [[20.6, 2.2]];
@@ -564,11 +798,11 @@ function drawHead(p, g, bx, by, P, o) {
   // Flache Ebenen statt Verlauf: Oberseite hell, Seite mittel, Oberlippe dunkel.
   // Darüber ein klarer Brauenwulst, darunter die tiefe Augenhöhle, vorn die Nüster.
   const topV = (u) => {
-    for (let i = 0; i < SKULL_TOP.length - 1; i++) {
-      const [u0, v0] = SKULL_TOP[i], [u1, v1] = SKULL_TOP[i + 1];
-      if (u <= u1) return v0 + (v1 - v0) * Math.max(0, (u - u0) / (u1 - u0));
+    for (let i = 0; i < SKULL_N - 1; i++) {
+      const u1 = SKULL_U[i + 1];
+      if (u <= u1) { const u0 = SKULL_U[i], v0 = SKULL_V[i]; return v0 + (SKULL_V[i + 1] - v0) * Math.max(0, (u - u0) / (u1 - u0)); }
     }
-    return SKULL_TOP[SKULL_TOP.length - 1][1];
+    return SKULL_V[SKULL_N - 1];
   };
   poly(skull, (u, v) => {
     const h = (LIP - v) / Math.max(1, LIP - topV(u));                   // 0 Lippe … 1 Oberkante
@@ -588,6 +822,12 @@ function drawHead(p, g, bx, by, P, o) {
   for (const [du, dv, c] of [[22.4, -2.5, 5], [23.4, -2.7, 5], [24.4, -2.8, 5], [22.6, -1.7, 0], [23.6, -1.85, 0], [24.6, -2, 0], [21.6, -1.6, 0]]) {
     const [x, y] = T(du, dv); p.px(x, y, SCALE[c], M_HEAD);
   }
+  if (RS > 1) {
+    // fein: Nüsterrand mit Glanzkante, Schlitz innen tiefer, Lippenwulst mit Glanzlinie
+    for (const [du, dv] of [[22.2, -3.05], [23.3, -3.25], [24.4, -3.35]]) { const [x, y] = T(du, dv); p.dot(x, y, SCALE[6], M_HEAD); }
+    for (const [du, dv] of [[23.1, -1.95], [24.1, -2.1]]) { const [x, y] = T(du, dv); p.dot(x, y, '#04080e', M_HEAD); }
+    { const [x0, y0] = T(2, LIP - 1.5), [x1, y1] = T(21, LIP - 1.5); p.fline(x0, y0, x1, y1, SCALE[5], M_HEAD); }
+  }
   // Brauenkristall über dem Auge
   hornCurve(p, g, T, [[9, -9], [5, -12.5], [0, -14]], 2.4, 0.8, false, P, frozen);
   // Obere Zahnreihe (zeigt nach unten), großer Eisfang vorn
@@ -595,6 +835,11 @@ function drawHead(p, g, bx, by, P, o) {
   for (const [u, len] of upTeeth) { const l = open ? len : Math.max(1.6, Math.min(len, 2.8)); tooth(p, T, [u, LIP + 1], [u - 0.2, LIP + 0.6 + l], l); }
   // Mundwinkel
   { const [x0, y0] = T(-3.5, LIP + 0.1), [x1, y1] = T(1.5, LIP + 0.2); p.line(x0, y0, x1, y1, SCALE[0], M_HEAD); }
+  if (RS > 1) {
+    // fein: Mundwinkel kräuselt sich nach unten, Kieferwulst darunter im Licht
+    const [x0, y0] = T(-3.9, LIP + 0.75), [x1, y1] = T(-2.6, LIP + 1.2); p.fline(x0, y0, x1, y1, SCALE[0], M_HEAD);
+    const [x2, y2] = T(-2.4, LIP + 1.55), [x3, y3] = T(3, LIP + 1.55); p.fline(x2, y2, x3, y3, SCALE[5], M_HEAD);
+  }
 
   // Auge: große leuchtende Iris mit senkrechter Schlitzpupille in dunkler Höhle,
   // schräger Oberrand unter dem Brauenwulst (finsterer Blick)
@@ -605,7 +850,30 @@ function drawHead(p, g, bx, by, P, o) {
     if (dy === -2 && dx < -1) continue;
     p.px(exr + dx, eyr + dy, SCALE[0], M_HEAD);
   }
-  if (P.eye > 0.4 && !frozen) {
+  if (P.eye > 0.4 && !frozen && RS > 1) {
+    // fein (Texelkarte 16×6 über der Iris): Eisring außen, heller Kern, Schlitzpupille 1–2 Texel, Glanzpunkt
+    // oben links, darüber die Lidkante. a/b/c = Iris außen→innen, w = Glanz, p = Pupille
+    const EYE_F = [
+      '....aabbpbaa....',
+      '..abbwwcpcbbaa..',
+      '.abbcwccppcccbba',
+      'aabbcccppcccbbaa',
+      '.aabbccpccbbaa..',
+      '...aabbpbbaa....',
+    ];
+    const EF = { a: '#2f8cc0', b: '#7fdcff', c: '#d8faff', w: '#ffffff', p: '#060c18' }, EG = { a: 1, b: 2, c: 3, w: 4 };
+    const X0 = exr * RS - 6, Y0 = eyr * RS - 2, up = P.eye > 0.8 ? 1 : 0;
+    for (let r = 0; r < EYE_F.length; r++) for (let k = 0; k < EYE_F[r].length; k++) {
+      const ch = EYE_F[r][k];
+      if (ch === '.') continue;
+      p.setv(X0 + k, Y0 + r, col(EF[ch]), M_EYE);
+      if (EG[ch]) { g.tset(p.L.ga, FROSTc, X0 + k, Y0 + r, Math.min(4, EG[ch] + up)); g.tset(p.L.gb, FURYc, X0 + k, Y0 + r, Math.min(4, EG[ch] + up)); }
+    }
+    // Lidkante oben (Schatten) und Unterlid im Licht
+    for (let k = 3; k <= 12; k++) p.setv(X0 + k, Y0 - 1, col(SCALE[0]), M_HEAD);
+    for (let k = 4; k <= 10; k++) p.setv(X0 + k, Y0 + 6, col(SCALE[2]), M_HEAD);
+    if (P.eye > 0.8) { g.epx(exr - 4, eyr, 1); g.epx(exr + 5, eyr, 1); }
+  } else if (P.eye > 0.4 && !frozen) {
     // Iris: 6×3, außen kräftiges Eisblau, innen hell, Glanzpunkt oben links
     const IR = [[-2, -1, 1], [-1, -1, 2], [0, -1, 2], [2, -1, 2], [3, -1, 1],
       [-3, 0, 1], [-2, 0, 2], [-1, 0, 3], [0, 0, 3], [2, 0, 3], [3, 0, 2], [4, 0, 1],
@@ -617,6 +885,7 @@ function drawHead(p, g, bx, by, P, o) {
     if (P.eye > 0.8) { g.epx(exr - 4, eyr, 1); g.epx(exr + 5, eyr, 1); }
   } else {
     for (let dx = -2; dx <= 3; dx++) p.px(exr + dx, eyr, dx === 1 ? SCALE[1] : SCALE[2], M_HEAD);
+    if (RS > 1) for (let X = (exr - 2) * RS; X < (exr + 4) * RS; X++) { p.setv(X, eyr * RS, col(SCALE[3]), M_HEAD); p.setv(X, eyr * RS + 1, col(SCALE[0]), M_HEAD); }
     if (!frozen && P.eye > 0.05) g.px(exr + 1, eyr, 1);
   }
   // Nüsterfrost
@@ -628,6 +897,12 @@ function drawHead(p, g, bx, by, P, o) {
   tl(4, -9.5, 15, -7.9, SCALE[6]);
   tl(4.5, -8.7, 15.5, -7.1, SCALE[5]);
   tl(5.5, -7.9, 15.2, -6.4, SCALE[0]);
+  if (RS > 1) {
+    // fein: Brauenkante – Glanzlinie oben auf dem Wulst, harte Schattenkante darunter
+    const fl = (u0, v0, u1, v1, c) => { const [x0, y0] = T(u0, v0), [x1, y1] = T(u1, v1); p.fline(x0, y0, x1, y1, c, M_HEAD); };
+    fl(4.2, -9.85, 14.8, -8.25, '#c4eef6');
+    fl(5.6, -7.45, 15.1, -5.95, '#04080e');
+  }
   // Wangendorn nach hinten unten
   hornCurve(p, g, T, [[-1, 2], [-5, 5], [-8, 9]], 2.6, 1, false, P, frozen, true);
 
@@ -640,8 +915,24 @@ function drawHead(p, g, bx, by, P, o) {
 
 // Zahn als spitzes Dreieck von der Wurzel (a) zur Spitze (b), lokale Kopfkoordinaten
 function tooth(p, T, [ua, va], [ub, vb], len) {
-  // sauberer Strich von der Wurzel zur Spitze; große Fänge doppelt breit mit Schattenseite
   const [x0, y0] = T(ua, va), [x1, y1] = T(ub, vb);
+  if (RS > 1) {
+    // fein: spitz zulaufend (Wurzel 2 bzw. 4 Texel, Spitze 1 Texel), Glanzkante zum Licht, Schattenseite bei Fängen
+    const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1;
+    let nx = -dy / l, ny = dx / l;
+    if (nx + ny > 0) { nx = -nx; ny = -ny; }
+    const w = len > 2.5 ? 1.9 : 1.05, n = Math.ceil(l * RS * 2);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = x0 + dx * t, y = y0 + dy * t, hw = Math.max(0, w * (1 - t) * 0.5);
+      for (let k = -hw; k <= hw + 0.01; k += 0.25) {
+        const c = k > hw - 0.45 && t < 0.75 ? TEETH[2] : len > 2.5 && k < -hw + 0.5 ? TEETH[0] : TEETH[1];
+        p.dot(x + nx * k, y + ny * k, c, M_HORN);
+      }
+    }
+    p.dot(x1, y1, TEETH[2], M_HORN);
+    return;
+  }
+  // sauberer Strich von der Wurzel zur Spitze; große Fänge doppelt breit mit Schattenseite
   if (len > 2.5) { const [xs, ys] = T(ua + 0.8, va), [xt, yt] = T(ub + 0.5, vb - Math.sign(vb - va) * 0.6); p.line(xs, ys, xt, yt, TEETH[0], M_HORN); }
   p.line(x0, y0, x1, y1, TEETH[1], M_HORN);
   p.px(x1, y1, TEETH[2], M_HORN);
@@ -652,7 +943,7 @@ function hornCurve(p, g, T, [[u0, v0], [u1, v1], [u2, v2]], w0, w1, far, P, froz
   const n = 16;
   const ramp = far || dim ? [CRYS[0], CRYS[0], CRYS[1], CRYS[2]] : [CRYS[0], CRYS[1], CRYS[2], CRYS[3]];
   let [px0, py0] = T(u0, v0);
-  const gl = [];
+  const gl = [], rings = [];
   for (let i = 1; i <= n; i++) {
     const t = i / n, s = 1 - t;
     const u = s * s * u0 + 2 * s * t * u1 + t * t * u2, v = s * s * v0 + 2 * s * t * v1 + t * t * v2;
@@ -660,7 +951,25 @@ function hornCurve(p, g, T, [[u0, v0], [u1, v1], [u2, v2]], w0, w1, far, P, froz
     const w = w0 + (w1 - w0) * t;
     limb(p, px0, py0, x, y, w, Math.max(1, w - (w0 - w1) / n), t > 0.8 && !far ? [CRYS[1], CRYS[3], CRYS[4], CRYS[4]] : ramp, M_CRYS);
     if (!frozen) gl.push(x, y, t);
+    if (RS > 1) rings.push(px0, py0, x, y, w, t);
     px0 = x; py0 = y;
+  }
+  if (RS > 1) {
+    // fein: Wachstumsringe quer übers Horn, Glanzlinie auf der Lichtseite, weiße Spitze
+    for (let i = 0; i < rings.length; i += 6) {
+      const ax = rings[i], ay = rings[i + 1], x = rings[i + 2], y = rings[i + 3], w = rings[i + 4], t = rings[i + 5];
+      const l = Math.hypot(x - ax, y - ay) || 1;
+      let nx = -(y - ay) / l, ny = (x - ax) / l;
+      if (nx + ny > 0) { nx = -nx; ny = -ny; }
+      const hw = Math.max(0.3, w / 2 - 0.2), k = i / 6;
+      if (k % 3 === 1 && t < 0.8 && w > 1.6) p.fline(x + nx * hw, y + ny * hw, x - nx * hw, y - ny * hw, CRYS[0], M_CRYS);
+      if (w > 1.4 && i > 0) {
+        const bx = rings[i - 4], by = rings[i - 3], bw = rings[i - 2] / 2 - 0.2;
+        p.fline(bx + nx * bw * 0.5, by + ny * bw * 0.5, x + nx * hw * 0.5, y + ny * hw * 0.5, far || dim ? CRYS[2] : t > 0.55 ? '#f4fdff' : CRYS[4], M_CRYS);
+      }
+    }
+    const [tx, ty] = T(u2, v2);
+    p.dot(tx, ty, far || dim ? CRYS[2] : '#f4fdff', M_CRYS);
   }
   // Leuchten erst nach allen Segmenten (sonst decken spätere Segmente es ab)
   for (let i = 0; i < gl.length; i += 3) {
@@ -704,25 +1013,28 @@ function drawWyrm(L, P, pts, o = {}) {
 
 // Alles unterhalb der Bodenlinie im Bereich eines Lochs wegschneiden
 function clipBelow(L, { x0, x1, y }) {
-  for (let yy = Math.max(0, Math.round(y) + 1); yy < H; yy++) for (let xx = Math.max(0, Math.round(x0)); xx <= Math.min(W - 1, Math.round(x1)); xx++) {
-    const i = yy * W + xx; L.base[i] = 0; L.ga[i] = 0; L.gb[i] = 0; L.mat[i] = 0;
+  const X0 = Math.max(0, Math.round(x0) * RS), X1 = Math.min(TW - 1, (Math.round(x1) + 1) * RS - 1);
+  for (let yy = Math.max(0, (Math.round(y) + 1) * RS); yy <= Math.min(TH - 1, L.y1); yy++) for (let xx = X0; xx <= X1; xx++) {
+    const i = yy * TW + xx; L.base[i] = 0; L.ga[i] = 0; L.gb[i] = 0; L.mat[i] = 0;
   }
 }
 
-// Helle Kante oben/links, damit sich der Wurm vom dunklen Boden abhebt
+// Helle Kante oben/links (1 Weltpixel, fein 1 Texel), damit sich der Wurm vom dunklen Boden abhebt
 function rimLight(L) {
-  const rim = col(RIM), rim2 = col(RIM2);
+  const rim = col(RIM), rim2 = col(RIM2), K = 3 * RS;
   const top = [];
-  for (let y = 1; y < H; y++) for (let x = 1; x < W; x++) {
-    const i = y * W + x, m = L.mat[i];
+  const X0 = Math.max(1, L.x0), X1 = Math.min(TW - 1, L.x1), Y0 = Math.max(1, L.y0), Y1 = Math.min(TH - 1, L.y1);
+  for (let y = Y0; y <= Y1; y++) for (let x = X0, i = y * TW + X0; x <= X1; x++, i++) {
+    const m = L.mat[i];
     if (m !== M_SCALE && m !== M_CLAW && m !== M_BELLY && m !== M_HEAD) continue;
-    if (!L.base[i - W]) {
+    if (!L.base[i - TW]) {
       // keine Lichtkante in schmalen Spalten direkt unter Kiefer und Zähnen
-      const up2 = y > 2 ? L.mat[i - 2 * W] : 0, up3 = y > 3 ? L.mat[i - 3 * W] : 0;
-      if (up2 !== M_HEAD && up2 !== M_HORN && up3 !== M_HEAD && up3 !== M_HORN) top.push(i, 1);
+      let ok = true;
+      for (let k = 2; k <= K && y > k; k++) { const u = L.mat[i - k * TW]; if (u === M_HEAD || u === M_HORN) { ok = false; break; } }
+      if (ok) top.push(i, 1);
     }
     // Seitenkante nicht am Kopf und nicht direkt unter Kiefer/Zähnen (dort entstünden Streupixel)
-    else if (!L.base[i - 1] && m !== M_HEAD && L.mat[i - W] !== M_HEAD && L.mat[i - W] !== M_HORN) top.push(i, 2);
+    else if (!L.base[i - 1] && m !== M_HEAD && L.mat[i - TW] !== M_HEAD && L.mat[i - TW] !== M_HORN) top.push(i, 2);
   }
   for (let k = 0; k < top.length; k += 2) { const i = top[k]; if (!L.ga[i]) L.base[i] = top[k + 1] === 1 ? rim : rim2; }
 }
@@ -756,7 +1068,7 @@ function slab(p, g, x, y, w, h, s) {
   fillPoly([[x - w, y + 0.5], [x - w + tilt, y - h], [x + w * 0.4 + tilt, y - h - 1 + s * 2], [x + w, y + 0.5]], (xx, yy) => {
     const t = (y - yy) / Math.max(1, h);
     const left = xx < x - w * 0.2 + tilt * t;
-    p.px(xx, yy, left ? (t > 0.7 ? CRYS[4] : CRYS[2]) : t > 0.7 ? CRYS[2] : CRYS[1], M_CRYS);
+    p.dot(xx, yy, left ? (t > 0.7 ? CRYS[4] : CRYS[2]) : t > 0.7 ? CRYS[2] : CRYS[1], M_CRYS);
   });
   if (s > 0.5) g.px(x + tilt - w * 0.5, y - h + 0.5, 1);
 }
@@ -764,25 +1076,54 @@ function slab(p, g, x, y, w, h, s) {
 // ---------------------------------------------------------------- Rahmen
 
 function finish(L, fx, meta) {
-  let x0 = W, y0 = H, x1 = -1, y1 = -1;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
-    if (L.base[i] || L.ga[i] || L.gb[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  let x0 = TW, y0 = TH, x1 = -1, y1 = -1;
+  if (RS === 1) {
+    for (let y = Math.max(0, L.y0); y <= Math.min(TH - 1, L.y1); y++) for (let x = Math.max(0, L.x0), i = y * TW + x; x <= Math.min(TW - 1, L.x1); x++, i++) {
+      if (L.base[i] || L.ga[i] || L.gb[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+  } else {
+    // fein: von den Rändern her suchen (nur die leeren Ränder werden gelesen)
+    const { base, ga, gb } = L, X0 = Math.max(0, L.x0), X1 = Math.min(TW - 1, L.x1);
+    const any = (i) => base[i] || ga[i] || gb[i];
+    for (let y = Math.max(0, L.y0); y <= Math.min(TH - 1, L.y1) && y1 < 0; y++) for (let i = y * TW + X0, e = y * TW + X1; i <= e; i++) if (any(i)) { y0 = y; y1 = y; break; }
+    if (y1 >= 0) {
+      for (let y = Math.min(TH - 1, L.y1); y > y0 && y1 === y0; y--) for (let i = y * TW + X0, e = y * TW + X1; i <= e; i++) if (any(i)) { y1 = y; break; }
+      x0 = X1 + 1; x1 = X0 - 1;
+      for (let y = y0; y <= y1; y++) {
+        const r = y * TW;
+        for (let x = X0; x < x0; x++) if (any(r + x)) { x0 = x; break; }
+        for (let x = X1; x > x1; x--) if (any(r + x)) { x1 = x; break; }
+      }
+    }
   }
   if (x1 < 0) { x0 = y0 = 0; x1 = y1 = 1; }
   const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
   const toCanvas = (buf) => {
     const c = makeCanvas(cw, ch), ctx = c.getContext('2d');
     const img = ctx.createImageData(cw, ch), d = new Uint32Array(img.data.buffer);
-    for (let y = 0; y < ch; y++) d.set(buf.subarray((y + y0) * W + x0, (y + y0) * W + x0 + cw), y * cw);
+    for (let y = 0; y < ch; y++) d.set(buf.subarray((y + y0) * TW + x0, (y + y0) * TW + x0 + cw), y * cw);
     ctx.putImageData(img, 0, 0);
     return c;
   };
-  const baseC = toCanvas(L.base);
   const ox = AX + ANCHOR_DX;
-  const f = buildFrame(cw, ch, ox - x0, AY - y0, (pc) => pc.ctx.drawImage(baseC, 0, 0));
-  f.glow = new GlowFrame(toCanvas(L.ga), ox - x0, AY - y0);
-  f.glowEnraged = new GlowFrame(toCanvas(L.gb), ox - x0, AY - y0);
+  let f;
+  if (RS === 1) {
+    const baseC = toCanvas(L.base);
+    f = buildFrame(cw, ch, ox - x0, AY - y0, (pc) => pc.ctx.drawImage(baseC, 0, 0), { res: 1 });
+  } else {
+    // fein: Umriss 1 Texel (Oberkante im Materialton) wie buildFrame, ohne Hochskalieren
+    const d = new Uint32Array(cw * ch);
+    for (let y = 0; y < ch; y++) d.set(L.base.subarray((y + y0) * TW + x0, (y + y0) * TW + x0 + cw), y * cw);
+    f = new SpriteFrame(pixelsToCanvas(outlinePixels(d, cw, ch), cw + 2, ch + 2), ox * RS - x0 + 1, AY * RS - y0 + 1, RS);
+  }
+  if (RS === 1) {
+    f.glow = new GlowFrame(toCanvas(L.ga), ox - x0, AY - y0);
+    f.glowEnraged = new GlowFrame(toCanvas(L.gb), ox - x0, AY - y0);
+  } else {
+    const crop = (buf) => { const d = new Uint32Array(cw * ch); for (let y = 0; y < ch; y++) d.set(buf.subarray((y + y0) * TW + x0, (y + y0) * TW + x0 + cw), y * cw); return [d, cw, ch]; };
+    f.glow = new GlowFrame(null, ox * RS - x0, AY * RS - y0, RS, crop(L.ga));
+    f.glowEnraged = new GlowFrame(null, ox * RS - x0, AY * RS - y0, RS, crop(L.gb));
+  }
   f.meta = {};
   for (const k in meta) if (meta[k]) f.meta[k] = { dx: Math.round(meta[k].x - ox), dy: Math.round(meta[k].y - AY) };
   f.fx = fx ?? null;
@@ -790,7 +1131,7 @@ function finish(L, fx, meta) {
 }
 
 function frame(P, extra = {}) {
-  const L = new Layers();
+  const L = Layers.get();
   const meta = drawWyrm(L, P, extra.pts ?? spinePoints(P), extra);
   if (extra.smear) tailSmear(L, extra.smear);
   if (extra.post) extra.post(L, meta);
@@ -819,13 +1160,14 @@ function tailSmear(L, { P0, P1, n = 6 }) {
   for (let i = 0; i < n; i++) {
     const [ax, ay, bx, by] = pts[i], [cx, cy, dx, dy] = pts[i + 1];
     const fresh = (i + 1) / n;
+    // Schleier im Weltraster (Dichte je Weltpixel, flimmert nicht; fein als RS×RS-Zellen, wie vorher)
     fillPoly([[ax, ay], [cx, cy], [dx, dy], [bx, by]], (x, y) => {
-      const i2 = y * W + x;
+      const i2 = y * RS * TW + x * RS;
       if (x < 0 || y < 0 || x >= W || y >= H || L.base[i2]) return;
       if (hash2(x, y, 5) > 0.3 + fresh * 0.55) return;
       p.px(x, y, fresh > 0.7 ? '#e8faff' : fresh > 0.4 ? '#a8dcee' : '#5a9ab8', M_CRYS);
       if (fresh > 0.45) g.px(x, y, fresh > 0.8 ? 3 : 2);
-    });
+    }, true);
   }
 }
 
@@ -834,9 +1176,9 @@ function snapFx(L, meta) {
   const p = new Pen(L), g = new GlowPen(L);
   const m = meta.mouth;
   for (const [r, a0, a1] of [[7, -1.1, 0.2], [10, -0.9, 0.5], [7, 0.5, 1.5]]) {
-    for (let a = a0; a <= a1; a += 0.12) {
+    for (let a = a0; a <= a1; a += 0.12 / RS) {
       const x = m.x + 2 + Math.cos(a) * r, y = m.y + Math.sin(a) * r * 0.8;
-      const i = Math.round(y) * W + Math.round(x);
+      const i = Math.round(y * RS) * TW + Math.round(x * RS);
       if (L.base[i]) continue;
       p.px(x, y, r > 8 ? '#9ae4f8' : '#ffffff', M_CRYS);
       g.px(x, y, r > 8 ? 2 : 3);
@@ -885,7 +1227,7 @@ function burrowFrames(P0, n) {
     const q = emerge ? 1 - k : t;
     const P = { ...P0, ha: Math.max(-1.6, Math.min(1.65, ha - 0.1)), jaw: emerge ? 0.3 + 0.7 * Math.min(1, (1 - q) * 1.4) * (q > 0.05 ? 1 : 0.4) : 0.35 * (1 - t), fNy: q > 0.3 ? 6 : 0, heart: 1 + q, crest: emerge ? 0.6 : P0.crest };
     const headBelow = pts[pts.length - 1].h < -6;
-    const L = new Layers();
+    const L = Layers.get();
     const crack = emerge ? 1.6 - t * 0.6 : 0.6 + t;
     const meta = drawWyrm(L, P, pts, { hole: { ...hole, crack }, headBelow, noLegs: q > 0.35, clipHead: { x0: hole.x - 14, x1: hole.x + 14, y: hole.y } });
     if (emerge) { if (t < 0.6) burst(L, hole.x, hole.y, t / 0.6); }
@@ -906,7 +1248,7 @@ function emergeFrames(Pb, Pend, n) {
     const sink = 78 * Math.pow(1 - snap(k), 1.2);
     const P = t < 0.42 ? { ...Pb } : mix(Pb, Pend, ease((t - 0.42) / 0.58));
     const pts = spinePoints(P).map((q) => ({ ...q, h: q.h - sink }));
-    const L = new Layers();
+    const L = Layers.get();
     const rift = { x: AX - 20, y: AY + 1, r: 50, ry: 0.2, crack: 1.5 - t * 0.7 };
     const meta = drawWyrm(L, P, pts, { noLegs: sink > 5, hole: t < 0.95 ? { ...rift, r: t < 0.55 ? rift.r : rift.r * (1 - (t - 0.55) * 1.9) } : null, clipHead: sink > 0.5 ? { x0: 0, x1: W - 1, y: AY + 1 } : null });
     if (t < 0.62) burst(L, AX + 6, AY + 1, t / 0.62);
@@ -923,6 +1265,7 @@ function spray(L, x, y, t, seed) {
     const px = x + Math.cos(a) * s, py = y + Math.sin(a) * s * 0.8;
     p.px(px, py, i % 3 ? CRYS[3] : CRYS[4], M_CRYS);
     if (i % 2) p.px(px + 1, py, CRYS[2], M_CRYS);
+    if (RS > 1) { p.dot(px - 0.5, py - 0.5, '#ffffff', M_CRYS); p.dot(px, py, CRYS[2], M_CRYS); }
     if (i % 3 === 0) g.px(px, py, 2);
   }
 }
@@ -935,6 +1278,7 @@ function burst(L, x, y, t) {
     if (py > y + 4 || tt > 1) continue;
     const s = 1 + (hash2(i, 3, 43) * 2.5 | 0);
     for (let k = 0; k < s; k++) { p.px(px + k, py, k ? CRYS[2] : CRYS[4], M_CRYS); p.px(px + k, py + 1, CRYS[1], M_CRYS); }
+    if (RS > 1) { p.dot(px - 0.5, py - 0.5, '#ffffff', M_CRYS); p.fline(px, py + 1, px + s - 0.5, py + 1, CRYS[0], M_CRYS); }
     if (i % 3 === 0) g.px(px, py, 3);
   }
 }
@@ -955,48 +1299,57 @@ function cellOf(x, y) {
   return { id, cx, cy };
 }
 
-// Erstarren: Eis breitet sich vom Herz aus (f 0..1), dann Risse (crack 0..1)
-function freezeFrame(P, f, crack, fx) {
-  const L = new Layers();
+// Erstarren: Eis breitet sich vom Herz aus (f 0..1), dann Risse (crack 0..1).
+// own = eigene Puffer (das letzte Bild wird von shatterFrames weiterverarbeitet).
+// Fein: Risse folgen den Zellgrenzen auf Texel genau (1 Texel hell), darunter 1 Texel Schattenkante.
+function freezeFrame(P, f, crack, fx, own = false) {
+  const L = own ? new Layers() : Layers.get();
   const meta = drawWyrm(L, P, spinePoints(P), {});
   const hx = meta.chest.x, hy = meta.chest.y;
   const reach = f * 150;
-  const cells = new Int32Array(W * H);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
+  const cells = crack > 0 ? new Int32Array(TW * TH) : null;
+  const X0 = Math.max(0, L.x0), X1 = Math.min(TW - 1, L.x1), Y0 = Math.max(0, L.y0), Y1 = Math.min(TH - 1, L.y1);
+  for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
+    const i = y * TW + x;
     if (!L.base[i]) continue;
-    const d = Math.hypot(x - hx, (y - hy) * 1.1) + hash2(x >> 2, y >> 2, 63) * 10;
+    const wx = RS === 1 ? x : WX(x), wy = RS === 1 ? y : WX(y);
+    const d = Math.hypot(wx - hx, (wy - hy) * 1.1) + hash2(Math.floor(x / RS) >> 2, Math.floor(y / RS) >> 2, 63) * 10;
     if (d < reach) {
       L.base[i] = frozenOf(L.base[i]);
       L.ga[i] = 0; L.gb[i] = 0;
       if (d > reach - 5) { L.ga[i] = FROSTc[3]; L.gb[i] = FURYc[3]; } // Frostfront
     }
-    if (crack > 0) cells[i] = cellOf(x, y).id;
+    if (crack > 0) cells[i] = cellOf(wx, wy).id;
   }
   if (crack > 0) {
-    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-      const i = y * W + x;
+    const hit = [];
+    for (let y = Math.max(1, Y0); y <= Math.min(TH - 2, Y1); y++) for (let x = Math.max(1, X0); x <= Math.min(TW - 2, X1); x++) {
+      const i = y * TW + x;
       if (!L.base[i]) continue;
-      if (cells[i] !== cells[i + 1] || cells[i] !== cells[i + W]) {
+      if (cells[i] !== cells[i + 1] || cells[i] !== cells[i + TW]) {
         if (hash2(cells[i] % 997, 1, 64) < crack * 1.1) {
           L.base[i] = FROZENc[4];
           const gi = crack > 0.7 ? 4 : crack > 0.35 ? 3 : 2;
           L.ga[i] = FROSTc[gi]; L.gb[i] = FURYc[gi];
+          if (RS > 1) hit.push(i);
         }
       }
     }
+    // fein: Schattenkante unter dem Riss (Bruchtiefe), nur auf ungerissenem Eis
+    const sh = FROZENc[0];
+    for (const i of hit) { const j = i + TW; if (L.base[j] && L.base[j] !== FROZENc[4]) { L.base[j] = sh; L.ga[j] = 0; L.gb[j] = 0; } }
   }
   return { L, meta, frame: finish(L, fx, meta) };
 }
 
-// Zerspringen: Zellen des gefrorenen Bildes fliegen auseinander und fallen
+// Zerspringen: Zellen des gefrorenen Bildes fliegen auseinander und fallen (Bewegung in Weltpixeln, fein in Texeln)
 function shatterFrames(src, meta, n) {
   const hx = meta.chest.x;
   const cells = new Map();
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
+  for (let y = Math.max(0, src.y0); y <= Math.min(TH - 1, src.y1); y++) for (let x = Math.max(0, src.x0); x <= Math.min(TW - 1, src.x1); x++) {
+    const i = y * TW + x;
     if (!src.base[i]) continue;
-    const c = cellOf(x, y);
+    const c = RS === 1 ? cellOf(x, y) : cellOf(WX(x), WX(y));
     let e = cells.get(c.id);
     if (!e) { e = { id: c.id, px: [], maxY: 0, cx: c.cx, cy: c.cy }; cells.set(c.id, e); }
     e.px.push(i);
@@ -1005,29 +1358,29 @@ function shatterFrames(src, meta, n) {
   const out = [];
   for (let f = 0; f < n; f++) {
     const t = (f + 1) / n;
-    const L = new Layers();
+    const L = Layers.get();
     for (const e of cells.values()) {
       const h1 = hash2(e.id % 1009, 1, 65), h2 = hash2(e.id % 1013, 2, 65), h3 = hash2(e.id % 1019, 3, 65);
       const vx = (e.cx - hx) * (0.25 + h1 * 0.35) + (h2 - 0.5) * 20;
       const vy = -(8 + h3 * 22);
       const tt = t * 1.25;
-      let dx = vx * tt, dy = vy * tt + 150 * tt * tt;
+      let dx = vx * tt * RS, dy = (vy * tt + 150 * tt * tt) * RS;
       // Boden: jede Scherbe landet etwas vor/hinter der Grundlinie
       const ground = AY + 1 + Math.round((h2 - 0.5) * 12);
-      const fall = ground - e.maxY;
+      const fall = (ground + 1) * RS - 1 - e.maxY;
       let landed = false;
-      if (dy > fall) { dy = fall; landed = true; dx = vx * Math.min(tt, 0.9); }
+      if (dy > fall) { dy = fall; landed = true; dx = vx * Math.min(tt, 0.9) * RS; }
       const flat = landed ? 0.5 : 1;
       for (const i of e.px) {
-        const x = i % W, y = (i / W) | 0;
+        const x = i % TW, y = (i / TW) | 0;
         const ny = landed ? Math.round(e.maxY + dy - (e.maxY - y) * flat) : Math.round(y + dy);
         const nx = Math.round(x + dx);
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        const j = ny * W + nx;
-        L.base[j] = src.base[i]; L.mat[j] = M_CRYS;
+        if (nx < 0 || ny < 0 || nx >= TW || ny >= TH) continue;
+        const j = ny * TW + nx;
+        L.base[j] = src.base[i]; L.mat[j] = M_CRYS; L.mark(nx, ny);
         const fade = t < 0.4 ? 1 : 0;
         if (src.ga[i] && fade) { L.ga[j] = src.ga[i]; L.gb[j] = src.gb[i]; }
-        else if (!landed && ((x + y) & 7) === 0) { L.ga[j] = FROSTc[1]; L.gb[j] = FURYc[1]; }
+        else if (!landed && ((Math.floor(x / RS) + Math.floor(y / RS)) & 7) === 0) { L.ga[j] = FROSTc[1]; L.gb[j] = FURYc[1]; }
       }
     }
     out.push(finish(L, f === 0 ? 'shatter' : f === n - 1 ? 'impact' : null, { chest: { x: hx, y: AY - 6 }, head: { x: hx + 10, y: AY - 10 } }));
@@ -1037,54 +1390,101 @@ function shatterFrames(src, meta, n) {
 
 // ---------------------------------------------------------------- Zusatzgrafik (Säulen, Eiszapfen, Riss)
 
+// Zusatzframe aus Texelpuffern (PW×PH Weltpixel, RS Texel je Weltpixel); RS 1 wie früher über buildFrame
+function fxFrame(base, glow, PW, PH, ax, ay) {
+  const w = PW * RS, h = PH * RS;
+  const toC = (buf) => { const c = makeCanvas(w, h), ctx = c.getContext('2d'); const img = ctx.createImageData(w, h); new Uint32Array(img.data.buffer).set(buf); ctx.putImageData(img, 0, 0); return c; };
+  let f;
+  if (RS === 1) { const baseC = toC(base); f = buildFrame(PW, PH, ax, ay, (pc) => pc.ctx.drawImage(baseC, 0, 0), { res: 1 }); }
+  else f = new SpriteFrame(pixelsToCanvas(outlinePixels(base, w, h), w + 2, h + 2), ax * RS + 1, ay * RS + 1, RS);
+  f.glow = new GlowFrame(toC(glow), ax * RS, ay * RS, RS);
+  return f;
+}
+
 function pillarFrame(h, broken = 0) {
   const PW = 22, PH = 48, ax = 11, ay = 44;
-  const L = { base: new Uint32Array(PW * PH), glow: new Uint32Array(PW * PH) };
-  const put = (buf, x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < PW && y < PH) buf[y * PW + x] = c; };
+  const w2 = PW * RS, h2 = PH * RS;
+  const L = { base: new Uint32Array(w2 * h2), glow: new Uint32Array(w2 * h2) };
+  const tput = (buf, X, Y, c) => { if (X >= 0 && Y >= 0 && X < w2 && Y < h2) buf[Y * w2 + X] = c; };
+  const put = (buf, x, y, c) => { x = Math.round(x); y = Math.round(y); for (let j = 0; j < RS; j++) for (let i = 0; i < RS; i++) tput(buf, x * RS + i, y * RS + j, c); };
   // Säule aus 3 Kristallen (Mitte hoch, Seiten niedriger), h = 0..1 Wachstum
   const shards = [[0, 7, 38], [-6, 4.5, 24], [6, 4, 20], [-2, 3, 30]];
   for (const [ox, w, hh] of shards) {
     const top = ay - hh * h;
-    for (let y = Math.floor(top); y <= ay; y++) {
-      const t = (ay - y) / Math.max(1, hh * h);
+    if (RS === 1) {
+      for (let y = Math.floor(top); y <= ay; y++) {
+        const t = (ay - y) / Math.max(1, hh * h);
+        const hw = w * (t > 0.78 ? (1 - t) / 0.22 : 1) * 0.5 + 0.5;
+        for (let x = -hw; x <= hw; x += 1) {
+          const xx = ax + ox + x + (t > 0.78 ? ox * 0.1 : 0);
+          if (broken && hash2(Math.round(xx), y, 81) < broken * 0.9 * (t + 0.2)) continue;
+          const e = x / hw;
+          const c = e < -0.45 ? CRYS[3] : e < 0.05 ? CRYS[2] : e < 0.55 ? CRYS[1] : CRYS[0];
+          put(L.base, xx, y, col(t > 0.85 && e < 0 ? CRYS[4] : c));
+          if (Math.abs(e) < 0.2 && t > 0.2) put(L.glow, xx, y, FROSTc[t > 0.8 ? 3 : 1]);
+        }
+      }
+      continue;
+    }
+    // fein: Texel abtasten; Glanzlinie an der Lichtfacette, Facettengrat, spitze Kuppe, heller Kern im Leuchten
+    for (let Y = Math.floor(top) * RS; Y < (ay + 1) * RS; Y++) {
+      const y = WX(Y), t = Math.max(0, (ay - y) / Math.max(1, hh * h));
       const hw = w * (t > 0.78 ? (1 - t) / 0.22 : 1) * 0.5 + 0.5;
-      for (let x = -hw; x <= hw; x += 1) {
-        const xx = ax + ox + x + (t > 0.78 ? ox * 0.1 : 0);
-        if (broken && hash2(Math.round(xx), y, 81) < broken * 0.9 * (t + 0.2)) continue;
-        const e = x / hw;
-        const c = e < -0.45 ? CRYS[3] : e < 0.05 ? CRYS[2] : e < 0.55 ? CRYS[1] : CRYS[0];
-        put(L.base, xx, y, col(t > 0.85 && e < 0 ? CRYS[4] : c));
-        if (Math.abs(e) < 0.2 && t > 0.2) put(L.glow, xx, y, FROSTc[t > 0.8 ? 3 : 1]);
+      if (hw <= 0) continue;
+      const xc = ax + ox + (t > 0.78 ? ox * 0.1 : 0), wy = Math.floor(Y / RS);
+      for (let X = TX(xc - hw) - 1; X <= TX(xc + hw) + 1; X++) {
+        const xr = WX(X) - xc;
+        if (Math.abs(xr) > hw - 0.25 + (t > 0.78 ? 0 : 0.5)) continue;
+        if (broken && hash2(Math.round(WX(X)), wy, 81) < broken * 0.9 * (t + 0.2)) continue;
+        const e = xr / hw;
+        let c = e < -0.45 ? CRYS[3] : e < 0.05 ? CRYS[2] : e < 0.55 ? CRYS[1] : CRYS[0];
+        if (Math.abs(e + 0.45) < 0.5 / RS / hw && t > 0.12 && t < 0.9) c = '#f4fdff';
+        else if (Math.abs(e - 0.05) < 0.5 / RS / hw && t > 0.1) c = CRYS[3];
+        if (t > 0.85 && e < 0) c = CRYS[4];
+        tput(L.base, X, Y, col(c));
+        if (Math.abs(e) < 0.2 && t > 0.2) tput(L.glow, X, Y, FROSTc[Math.abs(e) < 0.07 ? (t > 0.8 ? 4 : 2) : t > 0.8 ? 3 : 1]);
       }
     }
   }
   // Frostsockel
   for (let x = -9; x <= 9; x++) { put(L.base, ax + x, ay + 1, col(CRYS[1])); if (Math.abs(x) < 7) put(L.base, ax + x, ay, col(CRYS[3])); }
-  const toC = (buf) => { const c = makeCanvas(PW, PH), ctx = c.getContext('2d'); const img = ctx.createImageData(PW, PH); new Uint32Array(img.data.buffer).set(buf); ctx.putImageData(img, 0, 0); return c; };
-  const baseC = toC(L.base);
-  const f = buildFrame(PW, PH, ax, ay, (pc) => pc.ctx.drawImage(baseC, 0, 0));
-  f.glow = new GlowFrame(toC(L.glow), ax, ay);
-  return f;
+  if (RS > 1) for (let X = (ax - 6) * RS; X < (ax + 7) * RS; X++) { tput(L.base, X, ay * RS, col(X < ax * RS ? CRYS[4] : CRYS[3])); tput(L.base, X, (ay + 1) * RS + 1, col(CRYS[0])); }
+  return fxFrame(L.base, L.glow, PW, PH, ax, ay);
 }
 
 function icicleFrame() {
   const PW = 9, PH = 22, ax = 4, ay = 21;
-  const base = new Uint32Array(PW * PH), glow = new Uint32Array(PW * PH);
-  for (let y = 0; y < PH; y++) {
-    const t = y / (PH - 1);
-    const hw = Math.max(0, 3.4 * (1 - t) + 0.3);
-    for (let x = -hw; x <= hw; x += 1) {
-      const xx = Math.round(ax + x); if (xx < 0 || xx >= PW) continue;
-      const e = x / (hw || 1);
-      base[y * PW + xx] = col(e < -0.4 ? CRYS[4] : e < 0.2 ? CRYS[3] : CRYS[1]);
-      if (Math.abs(e) < 0.3) glow[y * PW + xx] = FROSTc[t > 0.7 ? 4 : 2];
+  const w2 = PW * RS, h2 = PH * RS;
+  const base = new Uint32Array(w2 * h2), glow = new Uint32Array(w2 * h2);
+  if (RS === 1) {
+    for (let y = 0; y < PH; y++) {
+      const t = y / (PH - 1);
+      const hw = Math.max(0, 3.4 * (1 - t) + 0.3);
+      for (let x = -hw; x <= hw; x += 1) {
+        const xx = Math.round(ax + x); if (xx < 0 || xx >= PW) continue;
+        const e = x / (hw || 1);
+        base[y * PW + xx] = col(e < -0.4 ? CRYS[4] : e < 0.2 ? CRYS[3] : CRYS[1]);
+        if (Math.abs(e) < 0.3) glow[y * PW + xx] = FROSTc[t > 0.7 ? 4 : 2];
+      }
+    }
+  } else {
+    // fein: spitz (1 Texel), Glanzlinie an der Lichtkante, Facettengrat, Leuchtkern
+    for (let Y = 0; Y < h2; Y++) {
+      const t = Math.max(0, Math.min(1, WX(Y) / (PH - 1)));
+      const hw = Math.max(0, 3.4 * (1 - t) + 0.3);
+      for (let X = 0; X < w2; X++) {
+        const xr = WX(X) - ax;
+        if (Math.abs(xr) > hw + 0.25) continue;
+        const e = xr / (hw || 1);
+        let c = e < -0.4 ? CRYS[4] : e < 0.2 ? CRYS[3] : CRYS[1];
+        if (e < -0.4 && e > -0.4 - 0.5 / RS / hw && t < 0.9) c = '#ffffff';
+        else if (e >= 0.2 && e < 0.2 + 0.5 / RS / hw) c = CRYS[2];
+        base[Y * w2 + X] = col(c);
+        if (Math.abs(e) < 0.3) glow[Y * w2 + X] = FROSTc[t > 0.7 ? 4 : Math.abs(e) < 0.12 ? 3 : 2];
+      }
     }
   }
-  const toC = (buf) => { const c = makeCanvas(PW, PH), ctx = c.getContext('2d'); const img = ctx.createImageData(PW, PH); new Uint32Array(img.data.buffer).set(buf); ctx.putImageData(img, 0, 0); return c; };
-  const baseC = toC(base);
-  const f = buildFrame(PW, PH, ax, ay, (pc) => pc.ctx.drawImage(baseC, 0, 0));
-  f.glow = new GlowFrame(toC(glow), ax, ay);
-  return f;
+  return fxFrame(base, glow, PW, PH, ax, ay);
 }
 
 // Gefrorener Riss im Boden (Dekal nach Einschlägen/Auftauchen)
@@ -1116,6 +1516,7 @@ export function createFrostCrack(size = 56) {
 // ---------------------------------------------------------------- Animationen
 
 export function createSkalvyrSprites() {
+  setRes(fineRes());
   // --- Grundposen
   // Lauerhaltung: Hals hoch aufgerichtet in S-Kurve, Kopf leicht gesenkt
   const LURK = { hx: 17, hh: 58, nb: 1.25, ha: 0.42, chestH: 2.5, tailCurl: 0.5, jaw: 0.08 };
@@ -1237,7 +1638,7 @@ export function createSkalvyrSprites() {
   const ice = [];
   for (let i = 0; i < 6; i++) ice.push(freezeFrame({ ...d2, heart: 3.2 - i * 0.4 }, (i + 1) / 6, 0, i === 0 ? 'freeze' : null).frame);
   ice.push(freezeFrame({ ...d2, heart: 0 }, 1, 0.35, null).frame);
-  const last = freezeFrame({ ...d2, heart: 0 }, 1, 1, 'crack');
+  const last = freezeFrame({ ...d2, heart: 0 }, 1, 1, 'crack', true);
   ice.push(last.frame, last.frame);
   const shards = shatterFrames(last.L, last.meta, 10);
   anims.death = new Animation([...deathPose, ...ice, ...shards], 9, false);
