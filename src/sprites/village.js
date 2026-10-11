@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame } from '../gfx/Sprite.js';
+import { buildFrame, blitFrame, glowCanvasSize } from '../gfx/Sprite.js';
 import { hash2, createRng } from '../core/math.js';
 import { OUT, createPine, createDeadTree, createRock, createBush, createFence, createGrave, createLamp, createCampfire, createWell, createCrate, createSign } from './outdoor.js';
 import { mk, poly } from './decor_ashwood.js';
@@ -269,9 +269,8 @@ function forestClump(seed) {
   }
   const sprite = buildFrame(W, H, cx, bottom - 2, (p) => {
     for (const q of parts) {
-      const c = q.s.canvas;
       if (q.back) { p.ctx.filter = 'brightness(0.62)'; }
-      p.ctx.drawImage(c, Math.round(q.x - q.s.ax), Math.round(q.y - q.s.ay));
+      blitFrame(p.ctx, q.s, q.x, q.y);
       p.ctx.filter = 'none';
     }
     // Unterholz-Saum am Fuß (dunkel, damit der Waldrand geschlossen wirkt)
@@ -872,7 +871,7 @@ function campfireV() {
 
 function lampV() {
   const s = createLamp();
-  const gl = new PixelCanvas(s.canvas.width, s.canvas.height);
+  const gl = new PixelCanvas(...glowCanvasSize(s));
   gl.rect(4, 3, 3, 3, PAL.ember[4]); gl.px(5, 4, PAL.ember[5]);
   return { sprite: s, glow: gl.canvas, box: [-2, -2, 2, 1], shadow: 8, light: { dx: 0, dy: -26, radius: 78, color: [255, 170, 90], intensity: 0.9, flicker: 0.12, bloom: 0.35 } };
 }
@@ -945,7 +944,7 @@ function saltWell(on) {
   const s = createWell();
   const e = { sprite: s, box: [-11, -9, 11, 1] };
   if (on) {
-    const gl = new PixelCanvas(s.canvas.width, s.canvas.height);
+    const gl = new PixelCanvas(...glowCanvasSize(s));
     for (let i = 0; i < 14; i++) { const x = 5 + Math.floor(hash2(i, 1, 1511) * 16), y = 21 + Math.floor(hash2(i, 2, 1511) * 3); gl.px(x, y, i % 3 ? '#cfe8ff' : '#ffffff'); }
     for (let i = 0; i < 6; i++) gl.px(6 + i * 2, 12 - (i % 2), '#e8f4ff');
     e.glow = gl.canvas;

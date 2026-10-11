@@ -1,6 +1,7 @@
 import { Entity, getShadow } from './Entity.js';
 import { Light } from '../gfx/Lighting.js';
 import { rand } from '../core/math.js';
+import { drawGlowLayer } from '../gfx/Sprite.js';
 
 // Statisches Weltobjekt aus Daten: Sprite (SpriteFrame), optional
 // Kollisionsbox, Flammen, Licht, Leuchtebene, Rauch und Verdeckung
@@ -59,9 +60,8 @@ export class Decor extends Entity {
   renderEmissive(ctx, cx, cy) {
     const o = this.o;
     if (o.glow) {
-      const g = o.glow, s = this.sprite;
       ctx.globalAlpha = (0.8 + 0.2 * Math.sin(this.t * 2.3)) * this.alpha;
-      ctx.drawImage(g, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+      drawGlowLayer(ctx, this.sprite, o.glow, this.x - cx, this.y - cy);
       ctx.globalAlpha = 1;
     }
     if (o.flames) for (const f of o.flames) {

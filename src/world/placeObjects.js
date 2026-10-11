@@ -27,9 +27,9 @@ export function placeObjects(world) {
     let e = decoSet?.[pl.name];
     if (Array.isArray(e)) e = pickH(e, pl, 11);
     if (!e?.sprite) return null;
-    const s = e.sprite, h = s.canvas.height;
+    const s = e.sprite, r = s.res ?? 1, h = s.canvas.height / r, w = s.canvas.width / r;   // Weltpixel (Feinraster)
     const opts = { sprite: s, glow: e.glow ?? null, box: e.box ?? null, low: e.low ?? (e.box ? e.box[1] > -8 : false), light: e.light ?? null, shadow: e.shadow ?? null };
-    if (h > 36) opts.occlude = [-s.canvas.width / 2 + 2, -h + 4, s.canvas.width / 2 - 2, -8];
+    if (h > 36) opts.occlude = [-w / 2 + 2, -h + 4, w / 2 - 2, -8];
     if (e.smoke) opts.smoke = e.smoke;
     if (e.embers) opts.embers = e.embers;
     if (e.flames && e.flameAt) {
@@ -137,10 +137,10 @@ export function placeObjects(world) {
   for (const b of L.buildings ?? []) {
     const spr = O.buildings[b.kind];
     const x = b.x * T + (b.w * T) / 2, y = (b.y + b.h) * T;
-    const s = spr.sprite;
+    const s = spr.sprite, r = s.res ?? 1;
     add(x, y, {
       sprite: s, glow: spr.glow,
-      occlude: [-s.canvas.width / 2, -s.canvas.height + 2, s.canvas.width / 2, -b.h * T + 4],
+      occlude: [-s.canvas.width / r / 2, -s.canvas.height / r + 2, s.canvas.width / r / 2, -b.h * T + 4],
       smoke: { dx: spr.chimney.x, dy: spr.chimney.y, rate: 3 },
       light: spr.forge ? { dx: spr.forge.x, dy: -12, radius: 110, color: [255, 120, 50], intensity: 1, flicker: 0.35, bloom: 0.45 } : { dx: 0, dy: 6, radius: 90, color: [255, 170, 90], intensity: 0.75, flicker: 0.1, bloom: 0.25 },
       embers: spr.forge ? { dx: spr.forge.x, dy: -20, rate: 4 } : null,

@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { Actor } from '../entities/Actor.js';
 import { getShadow } from '../entities/Entity.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
-import { Animation, SpriteFrame } from '../gfx/Sprite.js';
+import { Animation, SpriteFrame, drawGlowLayer } from '../gfx/Sprite.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { Light } from '../gfx/Lighting.js';
 import { createCaravanSprites } from '../sprites/caravan.js';
@@ -238,10 +238,9 @@ export class QuestAlly extends Actor {
     const f = this.currentFrame();
     if (f.glow) f.glow.draw(ctx, this.x - cx, this.y - cy, { flip: this.facing < 0 });
     else if (f.glowCanvas) {
-      const flip = this.facing < 0;
-      const x = Math.round(this.x - cx - (flip ? f.canvas.width - f.ax : f.ax)), y = Math.round(this.y - cy - f.ay);
-      if (flip) { ctx.save(); ctx.translate(x + f.canvas.width, y); ctx.scale(-1, 1); ctx.drawImage(f.glowCanvas, 0, 0); ctx.restore(); }
-      else ctx.drawImage(f.glowCanvas, x, y);
+      if (this.facing < 0) {
+        ctx.save(); ctx.translate(Math.round(this.x - cx), 0); ctx.scale(-1, 1); drawGlowLayer(ctx, f, f.glowCanvas, 0, this.y - cy); ctx.restore();
+      } else drawGlowLayer(ctx, f, f.glowCanvas, this.x - cx, this.y - cy);
     }
   }
 }
@@ -256,7 +255,7 @@ class GroundCircle {
     const s = this.look.sprite, g = this.look.glow;
     if (!g) return;
     ctx.globalAlpha = 0.7 + 0.3 * Math.sin(this.t * 3);
-    ctx.drawImage(g, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+    drawGlowLayer(ctx, s, g, this.x - cx, this.y - cy);
     ctx.globalAlpha = 1;
   }
 }

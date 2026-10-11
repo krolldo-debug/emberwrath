@@ -251,8 +251,9 @@ export class PhantomKing extends Entity {
     // leichtes Flimmern: waagrecht versetzte Zeilenbänder
     const jitter = Math.sin(this.t * 40) > 0.6 ? 1 : 0;
     ctx.globalAlpha = 0.55 * a;
-    if (flip) { ctx.translate(x + jitter, 0); ctx.scale(-1, 1); ctx.drawImage(img, -f.ax, y - f.ay); }
-    else ctx.drawImage(img, x - f.ax + jitter, y - f.ay);
+    const r = f.res ?? 1, w = img.width / r, h = img.height / r;   // Feinraster: Texel → Weltpixel
+    if (flip) { ctx.translate(x + jitter, 0); ctx.scale(-1, 1); ctx.drawImage(img, -f.ax / r, y - f.ay / r, w, h); }
+    else ctx.drawImage(img, x - f.ax / r + jitter, y - f.ay / r, w, h);
     ctx.restore();
     const g = f.glowEnraged;
     g?.draw(ctx, this.x - cx, this.y - cy, { flip, alpha: 0.8 * a });

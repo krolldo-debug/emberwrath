@@ -55,6 +55,26 @@ export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true, fin
   return new SpriteFrame(pixelsToCanvas(d, W, H), anchorX * res + pad, anchorY * res + pad, res);
 }
 
+// Leuchtebene (Canvas) passend zu einem Sprite zeichnen. Alte Leuchtebenen haben Weltauflösung und 1 Weltpixel
+// Rand (wie der Umriss von buildFrame); feine haben dieselbe Größe wie sprite.canvas. Liefert nichts zurück.
+export function drawGlowLayer(ctx, sprite, g, x, y) {
+  const r = sprite.res ?? 1;
+  if (r === 1 || g.width === sprite.canvas.width) ctx.drawImage(g, Math.round((x - sprite.ax / r) * r) / r, Math.round((y - sprite.ay / r) * r) / r, g.width / r, g.height / r);
+  else ctx.drawImage(g, Math.round(x - (sprite.ax - 1) / r - 1), Math.round(y - (sprite.ay - 1) / r - 1));
+}
+
+// Fertigen Frame in Weltgröße in eine andere Zeichnung blitten (Zusammensetzen, z. B. Baumgruppen):
+// rechnet frame.res heraus. ctx zeichnet in Weltpixeln (PixelCanvas.ctx oder FineCanvas.ctx).
+export function blitFrame(ctx, f, x, y) {
+  const r = f.res ?? 1, c = f.canvas;
+  ctx.drawImage(c, Math.round(x - f.ax / r), Math.round(y - f.ay / r), c.width / r, c.height / r);
+}
+// Leinwand für eine Leuchtebene in Weltpixeln passend zu einem fertigen Sprite (1 Weltpixel Rand wie der Umriss).
+export function glowCanvasSize(f) {
+  const r = f.res ?? 1;
+  return [Math.round((f.canvas.width - 2) / r) + 2, Math.round((f.canvas.height - 2) / r) + 2];
+}
+
 // Animation = Frameliste + Timing. Zustand liegt im Animator der Entity.
 export class Animation {
   constructor(frames, fps = 10, loop = true) {

@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame } from '../gfx/Sprite.js';
+import { buildFrame, blitFrame } from '../gfx/Sprite.js';
 import { createRng, hash2 } from '../core/math.js';
 import { OUT } from './outdoor.js';
 
@@ -894,7 +894,7 @@ function deepWood(seed, dy = 0, dx = 0) {
   const sprite = buildFrame(W, H, cx + dx, bottom - 2 + dy, (p) => {
     for (const q of parts) {
       if (q.back) p.ctx.filter = 'brightness(0.6)';
-      p.ctx.drawImage(q.s.canvas, Math.round(q.x - q.s.ax), Math.round(q.y - q.s.ay));
+      blitFrame(p.ctx, q.s, q.x, q.y);
       p.ctx.filter = 'none';
     }
     for (let x = 3; x < W - 3; x++) {
@@ -1374,7 +1374,7 @@ function clump(seed, makers, W = 54, H = 68, dy = 0, dx = 0) {
   const sprite = buildFrame(W, H, cx + dx, bottom - 2 + dy, (p) => {
     for (const q of parts) {
       if (q.back) p.ctx.filter = 'brightness(0.62)';
-      p.ctx.drawImage(q.s.canvas, Math.round(q.x - q.s.ax), Math.round(q.y - q.s.ay));
+      blitFrame(p.ctx, q.s, q.x, q.y);
       p.ctx.filter = 'none';
     }
     for (let x = 8; x < W - 8; x++) if (hash2(x, 1, seed) < 0.55) p.px(x, bottom - 1 - (hash2(x, 2, seed) < 0.4 ? 1 : 0), LEAFY[2]);
