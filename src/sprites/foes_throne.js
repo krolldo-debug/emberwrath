@@ -418,9 +418,10 @@ function rim(p, key, keyK = 0.42, back = null, backK = 0.3) {
     else if (ul) { t = keyK * 0.45; c = k; }
     else if (b && (!A[m + 1] || !A[m - MW + 1])) { t = backK; c = b; }
     else if (deep) {
-      // zweites Feinpixel: schwächer
-      const up2 = !A[m - 2 * MW], lf2 = !A[m - 2];
-      if (up2 || lf2) { t = keyK * 0.4 * (up2 ? 1 : 0.75); c = k; }
+      // zweites Feinpixel: Lichtseite gleich kräftig (Randbreite wie Stufe A = 1 Weltpixel), Gegenlicht schwächer
+      const up2 = !A[m - 2 * MW], lf2 = !A[m - 2], ul2 = !A[m - 2 * MW - 2];
+      if (up2 || lf2) { t = keyK * (up2 && lf2 ? 1.15 : up2 ? 1 : 0.75); c = k; }
+      else if (ul2) { t = keyK * 0.45; c = k; }
       else if (b && !A[m + 2]) { t = backK * 0.5; c = b; }
     }
     if (c) {
@@ -530,7 +531,7 @@ function halberd(p, g, hx, hy, a, grip, heat) {
   // Blattseite = die Seite, deren Normale nach vorn (rechts) zeigt
   const side = nx > 0 ? 1 : -1;
   // fein: Blatt in Feinpixeln (schmale Schneide, Fase, Glanz), sonst Weltpixel wie bisher
-  const fq = p.fine ? 0.25 : 0.5, fe = p.fine ? 0.4 : 0.6, fb = p.fine ? 1.3 : 1.6;
+  const fq = p.fine ? 0.25 : 0.5, fe = p.fine ? 0.9 : 0.6, fb = p.fine ? 1.5 : 1.6;
   for (let t = -4; t <= 3; t += fq) {
     const f = (t + 4) / 7;
     const reach = 2 + Math.sin(f * Math.PI) * 4.5 + (f > 0.85 ? (f - 0.85) * 10 : 0);
@@ -1465,13 +1466,14 @@ function obsidianBlade(p, g, hx, hy, a, ls, heat) {
     for (let k = -hw; k <= hw; k += fq) {
       const x = hx + c * t + nx * k, y = hy + s * t + ny * k;
       const lk = k * lightSide;
-      const edge = Math.abs(k) > hw - eW;
+      // fein: Lichtseite 2 Feinpixel Glutschneide (außen weißheiß, innen hell), Schattenseite 1 Feinpixel
+      const edge = Math.abs(k) > hw - (fine && lk > 0 ? 1 : eW), outer = fine && Math.abs(k) > hw - (lk > 0 ? 0.5 : 0.25);
       let col = lk > 0 ? (lk < rW ? OBS[6] : OBS[4]) : lk > -1 ? OBS[3] : OBS[2];
       if (fine && !edge && lk > 0 && lk >= rW && lk < rW + 0.3) col = OBS[5];
       if (edge) col = lk > 0 ? (heat > 0.4 ? LAVA[4] : OBS[6]) : (heat > 0.4 ? LAVA[2] : OBS[1]);
-      if (fine && edge && Math.abs(k) > hw - 0.25) col = lk > 0 ? (heat > 0.4 ? LAVA[5] : '#b4a2cc') : (heat > 0.4 ? LAVA[3] : OBS[2]);
+      if (edge && outer) col = lk > 0 ? (heat > 0.4 ? LAVA[5] : '#b4a2cc') : (heat > 0.4 ? LAVA[3] : OBS[2]);
       dot(p, x, y, col);
-      if (edge && heat > 0.4) dot(g, x, y, GLOW[lk > 0 ? (fine && Math.abs(k) > hw - 0.25 ? 4 : 3) : 1]);
+      if (edge && heat > 0.4) dot(g, x, y, GLOW[lk > 0 ? (outer ? 4 : 3) : 1]);
     }
   }
   if (fine) { const gp = b0 + 4; p.dot(hx + c * gp + nx * lightSide * 0.5, hy + s * gp + ny * lightSide * 0.5, '#e4dcf4'); }
