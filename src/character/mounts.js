@@ -84,6 +84,18 @@ export const MOUNTS = {
 
 export const RARITY_NAME = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
 
+// Sammlung für die Garderobe (Reiter „Reittiere“): alle Reittiere in fester Reihenfolge (Seltenheit, dann Inhalt),
+// damit gesammelte Plätze aufleuchten statt zu springen. Exklusive Shop-Designs nur, wenn man sie besitzt.
+const RARITY_RANK = { rare: 0, epic: 1, legendary: 2 };
+export function mountCollection(slices, content) {
+  const m = slices.character?.mounts ?? { owned: [], active: null };
+  const owned = new Set(m.owned ?? []);
+  return content.all('mount')
+    .filter((d) => !d.exclusive || owned.has(d.id))
+    .map((d, i) => ({ id: d.id, name: d.name, rarity: d.rarity, speed: d.speed ?? 0, source: d.source ?? '', owned: owned.has(d.id), active: m.active === d.id, i }))
+    .sort((a, b) => (RARITY_RANK[a.rarity] ?? 9) - (RARITY_RANK[b.rarity] ?? 9) || a.i - b.i);
+}
+
 // Slice-Teil prüfen (Migration: fehlt -> leer; unbekannte Reittiere fallen weg)
 export function cleanMounts(raw, has = (id) => !!MOUNTS[id]) {
   const owned = [...new Set(Array.isArray(raw?.owned) ? raw.owned.filter((id) => typeof id === 'string' && has(id)) : [])];
@@ -178,6 +190,9 @@ export function installMounts(game) {
     mountReasonText: (reason) => MOUNT_REASON_TEXT[reason] ?? '',
     mounts: () => state.slices.character?.mounts ?? { owned: [], active: null, riding: false },
     mountDef: (id) => content.find('mount', id),
+    // Garderobe: [{ id, name, rarity, speed, source, owned, active }] und Auswahl fürs nächste Aufsitzen
+    mountCollection: () => mountCollection(state.slices, content),
+    selectMount: (mountId) => state.commit('mount:select', { mountId }),
     // Figur eines Mitspielers aus hero.snapshotLook() (§12.9). 'ride'/'rideRun' zeichnen Reiter + Reittier zusammen.
     animsForLook: (look, res) => animsForLook(content, look, res),
   };
