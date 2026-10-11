@@ -1,10 +1,18 @@
 import { drawLoot, rarityRgb } from '../gfx/Icons.js';
+import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { Light } from '../gfx/Lighting.js';
 import { getShadow } from '../entities/Entity.js';
 import { RARITIES } from './items.js';
 import { EV } from '../core/events.js';
 
 const MAGNET_RANGE = 34;
+
+// Eine gemeinsame Hilfsleinwand für die Verdeckung der Lichtsäulen (renderEmissive)
+let mask = null;
+function maskCanvas(w, h) {
+  if (!mask || mask.width !== w || mask.height !== h) mask = makeCanvas(w, h);
+  return mask;
+}
 const PICKUP_RANGE = 9;
 
 // Beute in der Welt: springt aus dem Gegner, bleibt liegen und wird eingesammelt,
@@ -81,12 +89,26 @@ export class LootDrop {
     drawLoot(ctx, this.look, x, y + 1, this.t + this.seed, { bob: this.#bob() });
   }
 
-  // Seltenheitsleuchten und Lichtsäule (D, gfx/Icons.js) + Glitzern
+  // Seltenheitsleuchten und Lichtsäule (D, gfx/Icons.js) + Glitzern.
+  // Die Säule leuchtet nach der Beleuchtung, bleibt aber hinter Figuren, die vor der Beute stehen:
+  // sie wird dann auf einer Hilfsleinwand gezeichnet und deren Umriss dort ausgestanzt.
   renderEmissive(ctx, cx, cy) {
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
-    ctx.save();
-    drawLoot(ctx, this.look, x, y + 1, this.t + this.seed, { bob: this.#bob(), emissive: true });
-    ctx.restore();
+    const opts = { bob: this.#bob(), emissive: true };
+    const front = this.rarity === 'common' ? [] : (this.session.world?.actors ?? []).filter((a) =>
+      !a.removed && a.y > this.y && a.y - this.y < 40 && Math.abs(a.x - this.x) < 24);
+    if (!front.length) {
+      drawLoot(ctx, this.look, x, y + 1, this.t + this.seed, opts);
+    } else {
+      const m = maskCanvas(ctx.canvas.width, ctx.canvas.height), mx = m.getContext('2d');
+      const bx = x - 16, by = y - 72, bw = 32, bh = 84;
+      mx.clearRect(bx, by, bw, bh);
+      drawLoot(mx, this.look, x, y + 1, this.t + this.seed, opts);
+      mx.globalCompositeOperation = 'destination-out';
+      for (const a of front) a.render(mx, cx, cy);
+      mx.globalCompositeOperation = 'source-over'; mx.globalAlpha = 1;
+      ctx.drawImage(m, bx, by, bw, bh, bx, by, bw, bh);
+    }
     if (this.rarity !== 'common' && (this.t * 2 + this.seed) % 2 < 0.12) {
       ctx.fillStyle = '#fffbe0';
       ctx.fillRect(x + 4, Math.round(y - 12 - this.#bob()), 1, 1);

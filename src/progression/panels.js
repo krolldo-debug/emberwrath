@@ -127,7 +127,7 @@ function inventoryView(s) {
         },
       });
       if (multi?.has(i)) el.classList.add('marked');
-      if (def) attachTip(el, () => itemDetail(content, it.itemId, { ...detailOpts, compact: true }));
+      if (def) attachTip(el, () => (sel ? null : itemDetail(content, it.itemId, { ...detailOpts, compact: true })));
       // Umsortieren per Ziehen (Maus)
       el.draggable = !!it;
       el.addEventListener('dragstart', () => { dragFrom = i; hideTip(); });
@@ -151,7 +151,7 @@ function inventoryView(s) {
           sel = { eq: slot }; msg = ''; redraw();
         },
       });
-      if (id) attachTip(el, () => itemDetail(content, id, { ...detailOpts, compare: false, compact: true }));
+      if (id) attachTip(el, () => (sel ? null : itemDetail(content, id, { ...detailOpts, compare: false, compact: true })));
       // Ziehen aus der Tasche auf einen Ausrüstungsplatz
       el.addEventListener('dragover', (e) => e.preventDefault());
       el.addEventListener('drop', (e) => { e.preventDefault(); if (dragFrom != null) primary(dragFrom); dragFrom = null; });
@@ -248,11 +248,13 @@ function inventoryView(s) {
       }
       const junk = sellableSlots(st, content, 'common');
       const used = inv.slots.length - freeSlots(st);
+      // Verkaufen gehört zusammen: Auto-Verkauf-Schalter und „Weiße verkaufen“ stehen nebeneinander
       return h('div.pg-inv-foot', goldEl(st.slices.wallet.gold),
-        junk.length ? btn(`Weiße verkaufen · ${junk.length}`, () => {
+        h('div.pg-foot-sell', autoBtn, junk.length ? btn(`Weiße verkaufen · ${junk.length}`, () => {
           const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { extra: priceEl(sellValue(st, content, junk)) }) : null,
-        h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}`, `${used}/${inv.slots.length} Plätze`));
+        }, { extra: priceEl(sellValue(st, content, junk)) }) : null),
+        // Im Materialreiter keine Platzzahl: Materialien belegen keine Plätze
+        filter === 'mat' ? h('span.pg-cap') : h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}`, `${used}/${inv.slots.length} Plätze`));
     }
     // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
     const auto = inv.autoSell ?? null;
@@ -272,9 +274,12 @@ function inventoryView(s) {
     }
 
     // Materialbeutel: eigener Reiter im selben Raster, belegt keine Taschenplätze, hat keine Größe
-    const matSlots = () => mats.map((e) => {
+    // Gleich viele Felder wie die Tasche, damit Raster und Fenster beim Reiterwechsel nicht springen
+    const matSlots = () => Array.from({ length: Math.max(inv.slots.length, mats.length) }, (_, i) => {
+      const e = mats[i];
+      if (!e) return itemSlot(content, null, { onclick: () => { sel = null; redraw(); } });
       const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
-      attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
+      attachTip(el, () => (sel ? null : itemDetail(content, e.itemId, { ...detailOpts, compact: true })));
       return el;
     });
 
@@ -287,7 +292,6 @@ function inventoryView(s) {
               type: 'button', role: 'tab', 'aria-selected': String(filter === id), onclick: () => { filter = id; redraw(); },
             }, label)),
             h('div.pg-tools',
-              autoBtn,
               h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, glyph('sort', 14)),
               h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, glyph('multi', 14))))),
           filter === 'mat'

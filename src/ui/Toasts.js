@@ -83,7 +83,7 @@ export class Toasts {
     const el = this.push('', `loot.r-${r}`);
     const it = this.items[this.items.length - 1];
     it.life = high ? r : 'loot';
-    const icons = h('span.ef-toast-icons', itemIconEl({ ...d, name: null }, high && r !== 'rare' ? 22 : 16));
+    const icons = h('span.ef-toast-icons', itemIconEl({ ...d, name: null }, high ? 24 : 16));
     el.prepend(icons);
     el.querySelector('.ef-toast-text').replaceChildren(
       RARITY_LABEL[r] ? h('span.ef-toast-rarity', RARITY_LABEL[r]) : '',

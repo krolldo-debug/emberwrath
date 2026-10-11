@@ -2,54 +2,58 @@ import { PixelCanvas } from './PixelCanvas.js';
 
 // Gezeichnete Seltenheitsrahmen für Item-Icons (11.10.): je seltener, desto prächtiger.
 //   ungewöhnlich  schlichte grüne Kante mit Licht oben links
-//   selten        blaue Doppelkante, Winkel und Niete in jeder Ecke
-//   episch        violette Kante mit abgeschrägten Ecken und Edelstein
-//   legendär      goldene Kante, große Glutsteine mit Fassung und Zacken
+//   selten        blaue Doppelkante, Eckbeschlag mit Niete
+//   episch        violette Kante mit Kerbe und gefasstem Edelstein
+//   legendär      breite Goldkante, gestufte Ecke, großer Glutstein in Fassung
 // Ein Rahmen ist ein 16×16-Pixelbild, das per CSS border-image (9-Slice, 7 px Ecken) ganzzahlig
-// vergrößert wird (--fpx: 1 oder 2 CSS-px je Bildpunkt). Harte Kanten, kein Alpha-Schein.
-// installRarityFrames() legt die Bilder einmal als CSS-Variablen --ef-frame-<seltenheit> an (ui/theme.css).
+// vergrößert wird: --fpx = CSS-px je Bildpunkt, derselbe Faktor wie Icon und Effekte (gfx/Icons.js itemIconEl).
+// Nur Palettenfarben, keine Transparenzstufen. Episch und legendär haben ein zweites, aufgehelltes Bild
+// (--ef-frame-<seltenheit>-lit), das in festen Stufen ein- und ausgeblendet wird (ui/theme.css).
+// installRarityFrames() legt die Bilder einmal als CSS-Variablen --ef-frame-<seltenheit> an.
 
-const N = 16, SLICE = 7, CUT = '#05030a';
+const N = 16, CUT = '#05030a';
 
-// d = dunkel (innere Schattenlinie), b = Grundfarbe, l = hell, h = Glanz, g/G = Edelstein dunkel/hell
+// d = dunkel (innere Schattenlinie), b = Grundfarbe, l = hell, h = Glanz, g/G = Edelstein dunkel/hell, w = Edelstein-Funke
 const PAL = {
   uncommon: { d: '#0a1a0a', b: '#3e9a3a', l: '#7ad870', h: '#c8ffb8' },
   rare: { d: '#081430', b: '#3a7ad8', l: '#7ab0ff', h: '#d0e8ff', g: '#2a5ad0', G: '#f0faff' },
-  epic: { d: '#16062a', b: '#8a3ae0', l: '#c888ff', h: '#f6e6ff', g: '#c0207a', G: '#ff8ad0' },
-  legendary: { d: '#2a0e02', b: '#c8641a', l: '#ffb040', h: '#ffe08a', g: '#c82a08', G: '#ff8a3a' },
+  epic: { d: '#16062a', b: '#8a3ae0', l: '#c888ff', h: '#f6e6ff', g: '#a0186a', G: '#ff7ad0', w: '#ffe0f4' },
+  legendary: { d: '#2a0a02', b: '#c85a0c', l: '#ff9a1a', h: '#ffd860', g: '#a81404', G: '#ff5a10', w: '#fff2b0' },
 };
+// Aufgehellt: jede Farbe eine Stufe heller (gleiche Palette)
+const LIT = { d: 'b', b: 'l', l: 'h', h: 'h', g: 'G', G: 'w', w: 'w' };
 
 // Kante von außen nach innen: oben/links (Licht) und unten/rechts (Schatten)
 const EDGE = {
   uncommon: { tl: ['l', 'd'], br: ['b', 'd'] },
   rare: { tl: ['l', 'b', 'd'], br: ['b', 'b', 'd'] },
   epic: { tl: ['l', 'b', 'd'], br: ['b', 'b', 'd'] },
-  legendary: { tl: ['h', 'l', 'd'], br: ['l', 'b', 'd'] },
+  legendary: { tl: ['h', 'l', 'b', 'd'], br: ['l', 'b', 'b', 'd'] },
 };
 
-// Verzierung der Ecke oben links [x, y, Farbe]; '.' = ausgeschnitten (Fensterschwarz, liest sich als Kerbe). Wird in alle Ecken gespiegelt.
+// Verzierung der Ecke oben links [x, y, Farbe]; '.' = ausgeschnitten (Fensterschwarz, liest sich als Kerbe).
+// Wird in alle vier Ecken gespiegelt. Nur Spalten/Zeilen 0–6 (die Mitte des 9-Slice wird gedehnt).
 const ORNAMENT = {
   uncommon: [],
   // Eckbeschlag mit Niete
   rare: [[0, 0, 'h'], [1, 1, 'h'], [2, 1, 'l'], [3, 1, 'l'], [1, 2, 'l'], [1, 3, 'l'], [2, 2, 'G'], [3, 2, 'b'], [2, 3, 'b'], [3, 3, 'd'], [4, 2, 'd'], [2, 4, 'd']],
-  // Abgeschrägte Ecke, Edelstein mit Fassung
+  // Kerbe, Edelstein 2×2 in heller Fassung
   epic: [
     [0, 0, '.'], [1, 0, 'd'], [0, 1, 'd'], [1, 1, 'l'],
-    [3, 3, 'G'], [4, 3, 'g'], [3, 4, 'g'], [4, 4, 'g'], [5, 3, 'l'], [3, 5, 'l'], [5, 4, 'd'], [4, 5, 'd'], [5, 5, 'd'],
+    [3, 3, 'w'], [4, 3, 'G'], [3, 4, 'G'], [4, 4, 'g'], [5, 3, 'l'], [3, 5, 'l'], [5, 4, 'd'], [4, 5, 'd'], [5, 5, 'd'], [2, 2, 'h'],
   ],
-  // Gestufte Ecke, großer Glutstein in goldener Fassung
+  // Gestufte Ecke, Glutstein 3×3 in goldener Fassung
   legendary: [
-    [0, 0, '.'], [1, 0, '.'], [0, 1, '.'], [2, 0, 'd'], [0, 2, 'd'], [1, 1, 'd'], [2, 1, 'h'], [1, 2, 'h'],
-    [3, 3, 'h'], [4, 3, 'l'], [5, 3, 'l'], [3, 4, 'l'], [3, 5, 'l'],
-    [4, 4, 'G'], [5, 4, 'g'], [4, 5, 'g'], [5, 5, 'g'],
-    [6, 4, 'b'], [4, 6, 'b'], [6, 5, 'd'], [5, 6, 'd'], [6, 6, 'd'],
+    [0, 0, '.'], [1, 0, '.'], [0, 1, '.'], [2, 0, 'd'], [0, 2, 'd'], [1, 1, 'd'], [2, 1, 'h'], [1, 2, 'h'], [3, 0, 'd'], [0, 3, 'd'],
+    [3, 3, 'h'], [4, 3, 'h'], [5, 3, 'l'], [6, 3, 'l'], [3, 4, 'h'], [3, 5, 'l'], [3, 6, 'l'],
+    [4, 4, 'w'], [5, 4, 'G'], [6, 4, 'g'], [4, 5, 'G'], [5, 5, 'g'], [6, 5, 'd'], [4, 6, 'g'], [5, 6, 'd'], [6, 6, 'd'],
   ],
 };
 
-function drawFrame(rarity) {
+function drawFrame(rarity, lit) {
   const pal = PAL[rarity], edge = EDGE[rarity];
   const p = new PixelCanvas(N, N);
-  const col = (k) => pal[k] ?? pal.b;
+  const col = (k) => pal[lit ? LIT[k] ?? k : k] ?? pal[k] ?? pal.b;
   // Kanten: oben/links mit Licht, unten/rechts mit Schatten; Ecken gehören der jeweils äußeren Linie
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
@@ -59,11 +63,9 @@ function drawFrame(rarity) {
       if (m < list.length) p.px(x, y, col(list[m]));
     }
   }
-  // Ecken verzieren (gespiegelt)
   for (const [x, y, k] of ORNAMENT[rarity]) {
     for (const [fx, fy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
-      const px = fx ? N - 1 - x : x, py = fy ? N - 1 - y : y;
-      p.px(px, py, k === '.' ? CUT : col(k));
+      p.px(fx ? N - 1 - x : x, fy ? N - 1 - y : y, k === '.' ? CUT : col(k));
     }
   }
   return p.canvas.toDataURL();
@@ -74,7 +76,8 @@ export function installRarityFrames() {
   if (installed || typeof document === 'undefined') return;
   installed = true;
   const root = document.documentElement.style;
-  for (const r of Object.keys(PAL)) root.setProperty(`--ef-frame-${r}`, `url(${drawFrame(r)})`);
+  for (const r of Object.keys(PAL)) {
+    root.setProperty(`--ef-frame-${r}`, `url(${drawFrame(r, false)})`);
+    if (r === 'epic' || r === 'legendary') root.setProperty(`--ef-frame-${r}-lit`, `url(${drawFrame(r, true)})`);
+  }
 }
-
-export const FRAME_SLICE = SLICE;
