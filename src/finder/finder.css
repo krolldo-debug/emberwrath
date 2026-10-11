@@ -1,9 +1,10 @@
 /* Dungeonsuche (src/finder): Panel, Suchanzeige, Bereitschaftsfenster, Gruppenanzeige, Gruppenchat. */
 
 /* ------------------------------------------------------------ Panel
-   Aufgeräumt (10.10.): Liste links, Rolle und Start rechts; flache Flächen, harte Pixelkanten. */
+   Aufgeräumt (10.10.): Liste links, Rolle und Start rechts; flache Flächen, harte Pixelkanten.
+   11.10.: Wappen je Dungeon und Eingangsbild (art.js, 112×64 in doppelter Größe) über der Rollenwahl. */
 .fd-panel {
-  width: min(600px, calc(100vw - 24px)); max-height: min(560px, calc(100dvh - 16px)); overflow: hidden;
+  width: min(660px, calc(100vw - 24px)); max-height: min(560px, calc(100dvh - 16px)); overflow: hidden;
   display: flex; flex-direction: column; padding: 12px 16px 14px; box-sizing: border-box;
   color: var(--ef-text); font: 400 14px/1.35 var(--ef-font); background: #120a18;
 }
@@ -19,10 +20,10 @@
 .fd-ico { image-rendering: pixelated; flex: 0 0 auto; }
 .fd-h { margin: 0 0 6px; font: 600 11.5px/1 var(--ef-font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ef-muted); }
 
-.fd-pick { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) 176px; grid-template-rows: minmax(0, 1fr); gap: 14px; min-height: 0; }
+.fd-pick { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) 226px; grid-template-rows: minmax(0, 1fr); gap: 14px; min-height: 0; }
 .fd-dungeons { display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
 .fd-dungeon {
-  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px;
   width: 100%; min-height: 40px; padding: 2px 10px 2px 4px; box-sizing: border-box; text-align: left; cursor: pointer;
   font: inherit; color: var(--ef-text); background: #170e20; border: 1px solid #2e2036; border-radius: 0;
 }
@@ -30,17 +31,27 @@
 .fd-dungeon.selected { background: #2a1830; border-color: var(--ef-gold); box-shadow: inset 2px 0 0 var(--ef-gold); }
 .fd-dungeon.locked { cursor: default; background: #110a16; }
 .fd-dungeon.locked .fd-dname { color: #6e6274; }
-.fd-dungeon.locked .fd-ico { opacity: 0.55; }
+.fd-dungeon.locked .fd-ico { opacity: 0.45; filter: grayscale(1); }
 .fd-dname { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fd-dlv { color: var(--ef-muted); font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .fd-dungeon.selected .fd-dlv { color: var(--ef-gold); }
 
 .fd-side { display: flex; flex-direction: column; min-height: 0; }
-.fd-roles { display: flex; flex-direction: column; gap: 6px; }
-.fd-role {
-  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 8px 12px; box-sizing: border-box; cursor: pointer;
-  font: 700 14px var(--ef-font); color: var(--ef-text); text-align: left; background: #170e20; border: 1px solid #2e2036; border-radius: 0;
+/* Vorschau: Eingangsbild mit Pixelrahmen, darunter Name und Endgegner */
+.fd-preview { margin: 0 0 12px; }
+.fd-scene {
+  display: block; width: 224px; height: 128px; object-fit: cover; object-position: center 70%; image-rendering: pixelated;
+  border: 1px solid #6a4526; box-shadow: 0 0 0 1px #0b0710;
 }
+.fd-preview figcaption { display: flex; flex-direction: column; gap: 1px; margin-top: 7px; }
+.fd-pname { font: 700 15px/1.2 var(--ef-font-title); color: var(--ef-gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-pboss { font-size: 12.5px; color: var(--ef-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-roles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.fd-role {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; min-height: 64px; padding: 6px 4px; box-sizing: border-box; cursor: pointer;
+  font: 700 13px var(--ef-font); color: var(--ef-text); text-align: center; background: #170e20; border: 1px solid #2e2036; border-radius: 0;
+}
+.fd-rname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .fd-role:hover:not(:disabled) { background: #20142a; border-color: #4a3450; }
 .fd-role.selected { background: #2a1830; border-color: var(--ef-gold); }
 .fd-role:disabled { cursor: default; color: #6e6274; background: #110a16; }
@@ -56,6 +67,7 @@
 
 /* Suche läuft: Name, drei Gruppenplätze, Zeit */
 .fd-searching { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 0 2px; text-align: center; }
+.fd-searching .fd-scene { margin-bottom: -2px; }
 .fd-sname { margin: 0; font: 700 19px/1.2 var(--ef-font-title); color: var(--ef-text); }
 .fd-slots { display: flex; gap: 10px; }
 .fd-slot {
@@ -76,7 +88,7 @@
 
 /* Handy quer: Liste darf die Höhe nutzen, Ziele groß genug für Finger */
 .ef-touch .fd-dungeon { min-height: 44px; }
-.ef-touch .fd-role { min-height: 52px; }
+.ef-touch .fd-role { min-height: 56px; }
 /* Handy quer: Fenster füllt den Bildschirm, damit nichts vom HUD durchscheint oder angeschnitten wirkt */
 @media (min-width: 641px) and (max-height: 520px) {
   .ef-touch .fd-panel {
@@ -84,11 +96,16 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
   .ef-touch .fd-panel::before, .ef-touch .fd-panel::after { display: none; }
-  .ef-touch .fd-pick { grid-template-columns: minmax(0, 1fr) 240px; }
+  .ef-touch .fd-pick { grid-template-columns: minmax(0, 1fr) 226px; }
   .ef-touch .fd-searching { flex: 1 1 auto; justify-content: center; }
 }
 @media (max-height: 460px) {
   .fd-panel { padding: 8px 12px 10px; max-height: calc(100dvh - 12px); }
+  /* Niedrige Schirme: Bild oben und unten beschnitten statt kleiner skaliert (Pixel bleiben ganzzahlig) */
+  .fd-scene { height: 88px; object-position: center 45%; }
+  .fd-preview { margin-bottom: 8px; }
+  .fd-preview figcaption { flex-direction: row; align-items: baseline; gap: 8px; margin-top: 5px; }
+  .fd-pboss { display: none; }
   .fd-role { min-height: 56px; }
   .fd-head { margin-bottom: 8px; padding-bottom: 6px; }
   .fd-searching { gap: 8px; padding-top: 2px; }
@@ -97,7 +114,7 @@
 @media (max-width: 520px) {
   .fd-pick { grid-template-columns: minmax(0, 1fr); }
   .fd-dungeons { max-height: 46dvh; }
-  .fd-roles { flex-direction: row; }
+  .fd-preview { display: none; }
   .fd-go { margin-top: 10px; }
 }
 

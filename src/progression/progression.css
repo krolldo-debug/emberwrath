@@ -177,19 +177,22 @@
 }
 .pg-tabbtn.on { color: var(--ef-gold); background: rgba(40, 22, 30, 0.8); border-color: #3a2530; }
 
-/* Charakter */
-.pg-char-name { font: 700 clamp(22px, 3vw, 28px) var(--ef-font-title); color: var(--ef-text); }
-.pg-char-sub { color: var(--ef-gold); margin-bottom: 10px; }
-.pg-char-gold { margin-top: 8px; }
+/* Charakter (11.10.: ohne Ausrüstung und Knöpfe; Werte und Chronik nebeneinander, kein Bildlauf) */
+.pg-char-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pg-char-name { font: 700 clamp(22px, 3vw, 28px)/1.1 var(--ef-font-title); color: var(--ef-text); }
+.pg-char-top .pg-char-title { margin: 0; }
+.pg-char-gold { margin-left: auto; }
+.pg-char-sub { color: var(--ef-gold); margin: 2px 0 10px; }
+.pg-char-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 22px; }
+.pg-char-cols .pg-kvs { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.pg-char-cols .pg-kv dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-char-cols .pg-kv dd { white-space: nowrap; padding-left: 8px; }
+.pg-panel .pg-char-cols section > h3, .pg-panel .pg-char-cols + section > h3 { margin-top: 16px; }
 .pg-kvs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; margin: 0; }
 .pg-kv { display: flex; justify-content: space-between; border-bottom: 1px dotted #33243a; padding: 3px 0; }
 .pg-kv dt { color: var(--ef-muted); } .pg-kv dd { margin: 0; font-variant-numeric: tabular-nums; }
 .pg-attrs { margin-top: 8px; }
-.pg-char-eq { display: flex; flex-direction: column; gap: 6px; }
-.pg-char-eqrow { display: flex; align-items: center; gap: 10px; }
 .pg-mini { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #34263a; border-radius: 3px; background: #0e0914; flex: none; }
-.pg-eq-slotname { width: 70px; color: var(--ef-muted); font-size: 13px; }
-.pg-local { margin-top: 16px; text-align: center; }
 
 /* Balken */
 .pg-bar { position: relative; height: 18px; background: #140c1c; border: 1px solid #3a2a3a; border-radius: 9px; overflow: hidden; }
@@ -357,6 +360,19 @@
   .pg-panel { max-height: 100dvh; }
   .pg-scroll { padding-top: 8px; }
   .pg-head { padding-top: 4px; padding-bottom: 4px; }
+  /* Handy quer: Charakter kompakt, damit nichts gerollt werden muss */
+  .pg-char { padding-bottom: 8px; }
+  .pg-char .pg-char-name { font-size: 20px; }
+  .pg-char .pg-char-sub { margin: 0 0 6px; font-size: 13px; }
+  .pg-char .pg-xpbar { height: 16px; } .pg-char .pg-xpbar .pg-bar-text { line-height: 16px; font-size: 11px; }
+  .pg-panel .pg-char-cols section > h3 { margin: 6px 0 2px; font-size: 11px; }
+  .pg-char .pg-char-cols .pg-kvs { gap: 0; }
+  .pg-char .pg-char-cols .pg-kv { padding: 1px 0; font-size: 13px; line-height: 18px; }
+  .pg-char .pg-char-cols .pg-attrs { margin-top: 4px; }
+}
+@media (max-height: 380px) {
+  .pg-char .pg-char-cols .pg-kv { line-height: 16px; font-size: 12.5px; }
+  .pg-char .pg-char-sub { margin-bottom: 4px; }
 }
 /* Touch: größere Ziele */
 .ef-touch .pg-panel { --pg-slot: 52px; }

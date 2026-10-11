@@ -1,9 +1,11 @@
 import { h, clear } from '../core/dom.js';
 import { ROLES, roleAllowed } from './protocol.js';
 import { finderIcon } from './icons.js';
+import { dungeonEmblem, dungeonScene } from './art.js';
 
 // Panel 'finder': Dungeon und Rolle wählen, Suche starten/beenden, Suchstand. Wenig Text: Name, Stufe,
-// Symbole; Erklärungen der Rollen stehen im Tooltip.
+// Symbole; Erklärungen der Rollen stehen im Tooltip. Jeder Dungeon hat ein eigenes Wappen und ein kleines
+// Eingangsbild (art.js), das rechts über der Rollenwahl und während der Suche erscheint.
 export function createFinderPanel(session) {
   const g = session.game, finder = g.finder;
   const c = finder.char();
@@ -26,7 +28,13 @@ export function createFinderPanel(session) {
   const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   const icon = (id, size = 32) => h('img.fd-ico', { src: finderIcon(id, size / 16), alt: '', width: size, height: size });
 
-  // Auswahl: links die Dungeons (Name und Stufe), rechts Rolle und Start. Erklärungen nur als Tooltip.
+  const scene = (id) => h('img.fd-scene', { src: dungeonScene(id), alt: '', width: 224, height: 128 });
+  const bossName = (zoneId) => {
+    const z = session.content.find('zone', zoneId);
+    return z?.bossId ? session.content.find('enemy', z.bossId)?.name ?? null : null;
+  };
+
+  // Auswahl: links die Dungeons (Wappen, Name, Stufe), rechts Vorschau, Rolle und Start. Erklärungen nur als Tooltip.
   function renderPick() {
     clear(body);
     const rows = h('div.fd-dungeons', { role: 'radiogroup', 'aria-label': 'Dungeon' });
@@ -34,20 +42,26 @@ export function createFinderPanel(session) {
     const row = (id, ico, name, lv, open) => h('button', {
       type: 'button', role: 'radio', 'aria-checked': String(pick === id), class: `fd-dungeon${pick === id ? ' selected' : ''}${open ? '' : ' locked'}`,
       disabled: !open, onclick: () => { pick = id; renderPick(); },
-    }, icon(ico, 32), h('span.fd-dname', name), lv ? h('span.fd-dlv', lv) : null);
-    rows.append(row('random', 'random', 'Zufälliger Dungeon', null, !!rnd));
-    for (const d of list) rows.append(row(d.id, d.open ? 'skull' : 'lock', d.name, d.open ? `Stufe ${d.min}–${d.max}` : `ab Stufe ${Math.max(1, d.min - 2)}`, d.open));
+    }, h('img.fd-ico', { src: ico, alt: '', width: 32, height: 32 }), h('span.fd-dname', name), lv ? h('span.fd-dlv', lv) : null);
+    rows.append(row('random', finderIcon('random', 2), 'Zufälliger Dungeon', null, !!rnd));
+    for (const d of list) rows.append(row(d.id, dungeonEmblem(d.id, 2) ?? finderIcon('skull', 2), d.name, d.open ? `Stufe ${d.min}–${d.max}` : `ab Stufe ${Math.max(1, d.min - 2)}`, d.open));
+    const sel = pick === 'random' ? null : list.find((d) => d.id === pick);
+    const boss = sel ? bossName(sel.id) : null;
     const roles = h('div.fd-roles', { role: 'radiogroup', 'aria-label': 'Rolle' },
       ...['tank', 'dps'].map((r) => {
         const ok = roleAllowed(r, c.classId);
         return h('button', {
           type: 'button', role: 'radio', 'aria-checked': String(role === r), class: `fd-role${role === r ? ' selected' : ''}`, disabled: !ok,
           title: ok ? ROLES[r].desc : 'Nur Krieger können verteidigen.', onclick: () => { role = r; renderPick(); },
-        }, icon(ok ? r : 'lock', 48), h('span.fd-rname', ROLES[r].name));
+        }, icon(ok ? r : 'lock', 32), h('span.fd-rname', ROLES[r].name));
       }));
     body.append(h('div.fd-pick',
       rows,
       h('div.fd-side',
+        h('figure.fd-preview', scene(sel?.id ?? 'random'),
+          h('figcaption',
+            h('b.fd-pname', sel?.name ?? 'Zufälliger Dungeon'),
+            boss ? h('span.fd-pboss', boss) : null)),
         h('h3.fd-h', 'Deine Rolle'), roles,
         h('button.ef-btn.primary.fd-go', { type: 'button', onclick: go, disabled: pick === 'random' && !rnd }, 'Gruppe suchen'))));
   }
@@ -77,6 +91,7 @@ export function createFinderPanel(session) {
     countEl = h('p.fd-count');
     body.append(
       h('div.fd-searching',
+        d ? scene(d.id) : null,
         h('p.fd-sname', d?.name ?? 'Dungeon'),
         slotsEl(finder.req?.role ?? 'dps'),
         timeEl, countEl),
@@ -93,6 +108,7 @@ export function createFinderPanel(session) {
     const inside = session.zone?.zoneId === finder.group?.dungeonId;
     body.append(
       h('div.fd-searching.done',
+        d ? scene(d.id) : null,
         h('p.fd-sname', d?.name ?? 'Dungeon'),
         slotsEl(finder.group?.members?.find((m) => m.self)?.role ?? finder.req?.role ?? 'dps', true),
         h('p.fd-count', inside ? 'Deine Gruppe ist bei dir im Dungeon.' : 'Deine Gruppe wartet im Dungeon.')),
