@@ -6,6 +6,7 @@ import { HazardCloud } from '../entities/Hazards.js';
 import { createCompanion } from './companion.js';
 import { BotBrain } from './BotBrain.js';
 import { FINDER_CONFIG } from './config.js';
+import { scaleForGroup } from './groupScale.js';
 
 // Eine Gruppe in einer Dungeon-Instanz: der eigene Held + Söldner (Hero-Instanzen mit BotBrain).
 // Lebt genau so lange wie eine World (Zonenwechsel = neue Party oder Ende).
@@ -112,13 +113,7 @@ export class Party {
     for (const e of w.enemies) {
       if (this.wrapped.has(e)) continue;
       this.wrapped.add(e);
-      const boss = e === w.boss || !!e.def?.boss;
-      if (!e.summoned && e.hp === e.maxHp) {
-        const k = boss ? FINDER_CONFIG.bossHpScaleById?.[e.def?.bossId ?? e.bossId] ?? FINDER_CONFIG.bossHpScale : FINDER_CONFIG.hpScale;
-        e.maxHp = Math.round(e.maxHp * k); e.hp = e.maxHp;
-        if (!boss && e.lvlPower) { e.dmgMul *= FINDER_CONFIG.dmgScale ?? 1; e.power = e.lvlPower * e.dmgMul; }
-        if (boss) e.groupDmgMult = FINDER_CONFIG.bossDmgScaleById?.[e.def?.bossId ?? e.bossId] ?? 1;
-      }
+      scaleForGroup(e, w);
       const view = makeView(w, { get hero() { return party.targetOf(e) ?? party.player; } });
       this.views.set(e, view);
       const own = Object.prototype.hasOwnProperty.call(e, 'update') ? e.update : null;

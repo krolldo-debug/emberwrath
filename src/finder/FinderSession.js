@@ -1,6 +1,7 @@
 import { Party } from './Party.js';
 import { FinderHud } from './FinderHud.js';
 import { lineFor, replyEvent } from './chatter.js';
+import { isGroupDungeon, scaleForGroup } from './groupScale.js';
 
 // Sitzungssystem 'finder': verbindet die Gruppensuche (game.finder) mit der laufenden Spielsitzung.
 // Betritt der Spieler den Dungeon seiner Gruppe, entsteht eine Party (Söldner erscheinen), bei jedem
@@ -24,6 +25,9 @@ export class FinderSession {
     if (this.party && !this.s.paused) {
       this.party.update(dt);
       this.#situations(dt);
+    } else if (w && isGroupDungeon(w.zone)) {
+      // Allein durchs Portal: dieselben Gegnerwerte wie für eine Dreiergruppe
+      for (const e of w.enemies) scaleForGroup(e, w);
     }
     this.#flushChat();
     this.hud.update(dt);
