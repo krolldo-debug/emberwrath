@@ -2,7 +2,8 @@ import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { hash2 } from '../core/math.js';
 import { TileMap } from './TileMap.js';
-import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, createCliffTiles } from '../sprites/outdoor.js';
+import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, createCliffTiles, FK } from '../sprites/outdoor.js';
+import { fineRes } from '../gfx/Fine.js';
 import { GROUND_STEPPE } from '../sprites/decor_steppe.js';
 import { GROUND_MARSH } from '../sprites/decor_marsh.js';
 import { GROUND_FROST } from '../sprites/decor_frost.js';
@@ -125,13 +126,25 @@ const DECOR = { t: 'pine', d: 'deadtree', r: 'rock', u: 'bush', f: 'fence', g: '
 // vorgerendert (160×104 Kacheln = 2560×1664 px je Ebene – zu viel für Handys), sondern in
 // CHUNK×CHUNK-Stücken, die beim ersten Sichtkontakt entstehen. Um den Sichtbereich herum wird
 // in kleinen Zeitscheiben vorgeladen (PRELOAD px Rand, BUDGET ms je Bild), ein LRU-Cache hält
-// höchstens MAX_CHUNKS Stücke. Alles wird in Weltkoordinaten berechnet – jedes Stück ist
+// höchstens maxChunks Stücke (Texelbudget). Alles wird in Weltkoordinaten berechnet – jedes Stück ist
 // pixelgleich mit dem entsprechenden Ausschnitt der früheren Gesamtleinwand (keine Nähte).
+//
+// Feinraster (Biome mit pal.finePixel, z. B. Aschenwald): bei fineRes() 2 hat jede Chunk-Leinwand 2×2 Texel je
+// Weltpixel und wird in halber Größe (= Weltgröße) gezeichnet. Damit der Speicher nicht mit ×4 wächst, sind feine
+// Chunks nur 128 Weltpixel groß (Leinwand 256×256 Texel wie früher), der Vorladerand ist schmaler und das Budget
+// zählt Texel (fein ≈ 3,1 Mpx statt 2,1 Mpx). Andere Biome bleiben bei 1 Texel je Weltpixel (ihr Shader rechnet in
+// Weltpixeln, eine feinere Leinwand sähe genauso aus und kostete nur Speicher).
 const CHUNK = 256;
+const CHUNK_FINE = 128;
 const PRELOAD = 256;                           // Rand rundum (px, wie bisher); in Laufrichtung zusätzlich LOOKAHEAD
+const PRELOAD_FINE = 128;                      // feiner Boden: schmalerer Rand (Speicher), Laufrichtung wie gehabt
 const LOOKAHEAD = 2;                           // Sekunden Vorlauf in Bewegungsrichtung (Reiten ~130 px/s → ~260 px extra)
 const BUDGET = 5;
-const MAX_CHUNKS = Math.round((32 * 256 * 256) / (CHUNK * CHUNK)); // ≈ 2,1 Mpx Boden im Cache
+const BUDGET_TX = 32 * 256 * 256;              // ≈ 2,1 Mpx Boden im Cache (1 Texel je Weltpixel)
+const BUDGET_TX_FINE = 48 * 256 * 256;         // ≈ 3,1 Mpx Texel (feiner Boden, ≈ 0,8 Mpx Weltfläche; Sicht + Rand passt hinein)
+// Terrainzeichen -> Code im Feinraster (FK in sprites/outdoor.js); Fels zählt als Waldboden (wie #groundAt)
+const KCODE = { ',': FK.GRASS, '#': FK.GRASS, '.': FK.DIRT, ':': FK.PAVE, '~': FK.WATER, '=': FK.FISS };
+const KCHAR = [',', '.', ':', '~', '='];
 const OV = 4; // Übersichtsbild: Pixel je Kachel (Minimap/Zonenkarte)
 
 // Außenkarte: Gras, Wege, Pflaster, Wasser, Glutspalten, Klippen.
@@ -151,8 +164,9 @@ export class Outdoor extends TileMap {
     this.chunked = true;
     this.overview = null;
     this.chunks = new Map();
-    this.cols = Math.ceil(this.pixelW / CHUNK);
-    this.rowsN = Math.ceil(this.pixelH / CHUNK);
+    // Feiner Boden nur mit Fein-Shader und ohne pixelweise Felsmaler (die arbeiten auf der Weltpixel-Leinwand)
+    this.fineOk = typeof this.pal.finePixel === 'function' && !ORGANIC_CLIFFS.has(level.biome) && !level.organicCliffs && !level.paintedCliffs;
+    this.#setRes(1);
     this.vel = [0, 0];
     this.stats = { sync: 0, miss: 0, async: 0, evicted: 0, maxSyncMs: 0, ms: 0, frames: 0 };
     this.fissureCells = [];
@@ -188,9 +202,22 @@ export class Outdoor extends TileMap {
     return this.terrainAt(Math.floor(jx / T), Math.floor(jy / T));
   }
 
-  // Bodenfarbe eines Weltpixels; ed/i: optional Leuchtebene (RGBA-Puffer) und Index.
-  #groundAt(px, py, ed, i) {
-    let kind = this.#jitterTerrain(px, py);
+  // Texel je Weltpixel der Chunks (1 oder fineRes()); Wechsel (Qualität) verwirft den Cache
+  #wantRes() { return this.fineOk ? fineRes() : 1; }
+  #setRes(r) {
+    this.res = r;
+    this.ck = r > 1 ? CHUNK_FINE : CHUNK;
+    this.pre = r > 1 ? PRELOAD_FINE : PRELOAD;
+    this.maxChunks = Math.round((r > 1 ? BUDGET_TX_FINE : BUDGET_TX) / (this.ck * r) ** 2);
+    this.cols = Math.ceil(this.pixelW / this.ck);
+    this.rowsN = Math.ceil(this.pixelH / this.ck);
+    this.chunks.clear();
+    this.job = null;
+  }
+
+  // Bodenfarbe eines Weltpixels; ed/i: optional Leuchtebene (RGBA-Puffer) und Index; kind: Terrain vorgegeben (Feinraster).
+  #groundAt(px, py, ed, i, kind = null) {
+    kind ??= this.#jitterTerrain(px, py);
     if (kind === '#') kind = ',';
     const pal = this.pal;
     let col;
@@ -229,9 +256,9 @@ export class Outdoor extends TileMap {
     if (this.warm && this.warm === assets) { this.warm = null; return makeCanvas(1, 1); }
     this.warm = null;
     this.assets = assets;
-    this.chunks.clear();
-    this.job = null;
+    this.#setRes(this.#wantRes());
     this.#prepare();
+    this.kgrid = null;
     this.overview = null;
     this.ready = true;
     // Die Karten (ui/MapArt) zeichnen aus dem Raster und lesen world.background nicht mehr; das
@@ -245,6 +272,13 @@ export class Outdoor extends TileMap {
     this.renderBackground(assets);
     this.warm = assets;
     yield;
+    // Feiner Boden kostet je Fläche etwa das Dreifache: nur die Sicht (Kamera an der Karte begrenzt) plus Rand vorab,
+    // den Rest lädt das Spiel in Zeitscheiben nach
+    if (this.res > 1) {
+      const hw = CONFIG.viewWidth / 2, hh = CONFIG.viewHeight / 2;
+      x = Math.max(hw, Math.min(this.pixelW - hw, x)); y = Math.max(hh, Math.min(this.pixelH - hh, y));
+      rx = Math.min(rx, hw + 64); ry = Math.min(ry, hh + 64);
+    }
     const [a0, b0, a1, b1] = this.#range(x - rx, y - ry, x + rx, y + ry);
     const list = [];
     for (let iy = b0; iy <= b1; iy++) for (let ix = a0; ix <= a1; ix++) list.push(this.#chunk(ix, iy));
@@ -411,10 +445,56 @@ export class Outdoor extends TileMap {
   // ------------------------------------------------------------------ Chunks
   // Ein Chunk entsteht als Generator in Zeitscheiben (yield = Pause möglich); #finish rechnet ihn zu Ende.
   *#chunkJob(k) {
-    const x0 = k.x0, y0 = k.y0, cw = k.w, ch = k.h;
-    const img = new ImageData(cw, ch), d = img.data;
+    const x0 = k.x0, y0 = k.y0, cw = k.w, ch = k.h, r = k.r, CW = cw * r, CH = ch * r;
+    const img = new ImageData(CW, CH), d = img.data;
     // Leuchtpuffer nur, wenn Wasser/Lava in Reichweite des Randrauschens liegt
-    const eimg = this.#emitsIn(x0, y0, cw, ch) ? new ImageData(cw, ch) : null, ed = eimg?.data;
+    const eimg = this.#emitsIn(x0, y0, cw, ch) ? new ImageData(CW, CH) : null, ed = eimg?.data;
+    if (r > 1) yield* this.#fineGround(x0, y0, cw, ch, d, ed);
+    else yield* this.#coarseGround(x0, y0, cw, ch, d, ed);
+    const c = makeCanvas(CW, CH), ctx = c.getContext('2d');
+    ctx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    let e = null, ectx = null;
+    const needE = () => { if (!e) { e = makeCanvas(CW, CH); ectx = e.getContext('2d'); if (eimg) ectx.putImageData(eimg, 0, 0); } return ectx; };
+    if (eimg) needE();
+    const rx1 = x0 + cw, ry1 = y0 + ch;
+    // Kacheln, Klippen, Spalten und Schatten in Weltkoordinaten; bei r = 2 einfach ×2 (Stufe A, nächster Nachbar)
+    ctx.setTransform(r, 0, 0, r, -x0 * r, -y0 * r);
+    for (const f of this.fiss) {
+      if (f.x1 < x0 || f.x0 > rx1 || f.y1 < y0 || f.y0 > ry1) continue;
+      const ex = needE(); ex.setTransform(r, 0, 0, r, -x0 * r, -y0 * r);
+      this.#drawFissure(ctx, ex, f, x0, y0, rx1, ry1);
+    }
+    yield;
+    this.#drawTiles(ctx, x0, y0, rx1, ry1);
+    // organische Felsen und Biom-Maler nur bei r = 1 (fineOk)
+    if (this.organic) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (this.basalt) yield* this.#basaltCliffs(ctx, x0, y0, cw, ch);
+      else yield* this.#organicCliffs(ctx, this.rockR, x0, y0, cw, ch);
+      ctx.translate(-x0, -y0);
+    }
+    if (this.painter) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      yield* this.painter(ctx, x0, y0, cw, ch, this);
+      ctx.translate(-x0, -y0);
+    }
+    this.#drawBuildingShadows(ctx, x0, y0, rx1, ry1);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (ectx) ectx.setTransform(1, 0, 0, 1, 0, 0);
+    k.c = c; k.e = e;
+    // Übersichtsbild mit dem exakten Chunk verfeinern
+    if (this.overview) {
+      const o = this.overview.getContext('2d');
+      o.imageSmoothingEnabled = true; o.imageSmoothingQuality = 'high';
+      o.drawImage(c, x0 / T * OV, y0 / T * OV, cw / T * OV, ch / T * OV);
+      o.imageSmoothingEnabled = false;
+      this.overview.version = (this.overview.version ?? 0) + 1;
+    }
+  }
+
+  // Boden in Weltpixeln (1 Texel je Weltpixel), wie bisher
+  *#coarseGround(x0, y0, cw, ch, d, ed) {
     // Basalt: Boden unter reinem Felsinneren (vier Felskacheln ringsum) übermalen die Klippen ohnehin
     // (Zellen zwischen vier Kachelmitten, je Chunk einmal vorberechnet)
     let full = null, FW = 0;
@@ -447,42 +527,71 @@ export class Outdoor extends TileMap {
       }
       if ((ly & 15) === 15) yield;
     }
-    const c = makeCanvas(cw, ch), ctx = c.getContext('2d');
-    ctx.putImageData(img, 0, 0);
-    let e = null, ectx = null;
-    const needE = () => { if (!e) { e = makeCanvas(cw, ch); ectx = e.getContext('2d'); if (eimg) ectx.putImageData(eimg, 0, 0); } return ectx; };
-    if (eimg) needE();
-    const rx1 = x0 + cw, ry1 = y0 + ch;
-    ctx.translate(-x0, -y0);
-    for (const f of this.fiss) {
-      if (f.x1 < x0 || f.x0 > rx1 || f.y1 < y0 || f.y0 > ry1) continue;
-      const ex = needE(); ex.setTransform(1, 0, 0, 1, -x0, -y0);
-      this.#drawFissure(ctx, ex, f, x0, y0, rx1, ry1);
+  }
+
+  // Feiner Boden (r = 2): erst das Terrain je Feinpixel (Randrauschen wie #jitterTerrain, Versatz je Weltpixel),
+  // mit 16 Feinpixeln Rand für Nachbarabfragen (Graskanten, Wegmitte, Stempel am Chunkrand); pal.fineSetup bereitet
+  // den Chunk vor (Rauschfelder, Kleinteile), dann die Farbe je Feinpixel aus pal.finePixel.
+  // Wasser und Glutspalten rechnen weiter in Weltpixeln (#groundAt mit vorgegebenem Terrain).
+  // (Die Schleifen stehen in eigenen, gewöhnlichen Methoden: im Generator optimiert V8 sie schlecht.)
+  *#fineGround(x0, y0, cw, ch, d, ed) {
+    const M = 16, KW = cw * 2 + 2 * M, K = new Uint8Array(KW * (ch * 2 + 2 * M));
+    // Terrain als Codes je Kachel (einmal je Karte; außerhalb der Karte Fels = Waldboden)
+    if (!this.kgrid) {
+      const w = this.w;
+      this.kgrid = new Uint8Array(w * this.h);
+      for (let y = 0; y < this.h; y++) for (let x = 0; x < w; x++) this.kgrid[y * w + x] = KCODE[this.terrain[y][x]] ?? FK.GRASS;
     }
-    yield;
-    this.#drawTiles(ctx, x0, y0, rx1, ry1);
-    if (this.organic) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      if (this.basalt) yield* this.#basaltCliffs(ctx, x0, y0, cw, ch);
-      else yield* this.#organicCliffs(ctx, this.rockR, x0, y0, cw, ch);
-      ctx.translate(-x0, -y0);
+    for (let py = y0 - M / 2; py < y0 + ch + M / 2; py += 32) {
+      this.#fineKinds(K, KW, M, x0, y0, cw, py, Math.min(py + 32, y0 + ch + M / 2));
+      yield;
     }
-    if (this.painter) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      yield* this.painter(ctx, x0, y0, cw, ch, this);
-      ctx.translate(-x0, -y0);
+    const pal = this.pal;
+    // pal.fineSetup: Generator (Vorarbeit in Scheiben), liefert die Chunk-Daten für pal.finePixel
+    const S = pal.fineSetup ? yield* pal.fineSetup(x0, y0, cw, ch, K, KW, M) : null;
+    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, fp: pal.finePixel, tmp: ed ? new Uint8ClampedArray(4) : null, lastKey: -1, lastCol: null };
+    for (let G = 0; G < ch * 2; G += 16) {
+      this.#fineRows(c, G, Math.min(G + 16, ch * 2));
+      yield;
     }
-    this.#drawBuildingShadows(ctx, x0, y0, rx1, ry1);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (ectx) ectx.setTransform(1, 0, 0, 1, 0, 0);
-    k.c = c; k.e = e;
-    // Übersichtsbild mit dem exakten Chunk verfeinern
-    if (this.overview) {
-      const o = this.overview.getContext('2d');
-      o.imageSmoothingEnabled = true; o.imageSmoothingQuality = 'high';
-      o.drawImage(c, x0 / T * OV, y0 / T * OV, cw / T * OV, ch / T * OV);
-      o.imageSmoothingEnabled = false;
-      this.overview.version = (this.overview.version ?? 0) + 1;
+  }
+
+  // Terraincodes je Feinpixel für die Weltzeilen [pa, pb) (mit Rand M/2 Weltpixel)
+  #fineKinds(K, KW, M, x0, y0, cw, pa, pb) {
+    const w = this.w, h = this.h, kg = this.kgrid, m = M >> 1, G = FK.GRASS;
+    for (let py = pa; py < pb; py++) {
+      const kr = (py - y0 + m) * 2 * KW;
+      for (let px = x0 - m; px < x0 + cw + m; px++) {
+        const ox = (vnc(0, px / 7, py / 7, 21) - 0.5) * 9, oy = (vnc(1, px / 7, py / 7, 22) - 0.5) * 9;
+        const b = kr + (px - x0 + m) * 2, tx0 = Math.floor((px + ox) / T), tx1 = Math.floor((px + 0.5 + ox) / T);
+        const ty0 = Math.floor((py + oy) / T), ty1 = Math.floor((py + 0.5 + oy) / T);
+        const r0 = ty0 < 0 || ty0 >= h ? -1 : ty0 * w, r1 = ty1 < 0 || ty1 >= h ? -1 : ty1 * w;
+        const in0 = tx0 >= 0 && tx0 < w, in1 = tx1 >= 0 && tx1 < w;
+        K[b] = r0 >= 0 && in0 ? kg[r0 + tx0] : G; K[b + 1] = r0 >= 0 && in1 ? kg[r0 + tx1] : G;
+        K[b + KW] = r1 >= 0 && in0 ? kg[r1 + tx0] : G; K[b + KW + 1] = r1 >= 0 && in1 ? kg[r1 + tx1] : G;
+      }
+    }
+  }
+
+  // Farben der Feinzeilen [Ga, Gb); Wasser/Spalten über den Weltpixel-Shader (zwei Feinpixel nebeneinander teilen ihn)
+  #fineRows(c, Ga, Gb) {
+    const { x0, y0, cw, K, KW, M, d32, ed, S, fp, tmp } = c, W2 = cw * 2, F0 = x0 * 2, G0 = y0 * 2;
+    for (let G = Ga; G < Gb; G++) {
+      const row = (G + M) * KW + M;
+      for (let F = 0; F < W2; F++) {
+        const ki = row + F, kind = K[ki], o = G * W2 + F;
+        const v = kind <= FK.PAVE ? fp(kind, F0 + F, G0 + G, K, ki, KW, S) : -1;
+        if (v >= 0) { d32[o] = (0xff000000 | ((v & 255) << 16) | (v & 0xff00) | (v >> 16)) >>> 0; continue; }
+        const key = ((G >> 1) * cw + (F >> 1)) * 8 + kind;
+        if (key !== c.lastKey) {
+          if (tmp) tmp.fill(0);
+          c.lastCol = this.#groundAt(x0 + (F >> 1), y0 + (G >> 1), tmp, 0, KCHAR[kind]);
+          c.lastKey = key;
+        }
+        const col = c.lastCol;
+        d32[o] = (0xff000000 | (col[2] << 16) | (col[1] << 8) | col[0]) >>> 0;
+        if (tmp && tmp[3]) { const i = o * 4; ed[i] = tmp[0]; ed[i + 1] = tmp[1]; ed[i + 2] = tmp[2]; ed[i + 3] = tmp[3]; }
+      }
     }
   }
 
@@ -497,8 +606,8 @@ export class Outdoor extends TileMap {
     const key = iy * this.cols + ix;
     let k = this.chunks.get(key);
     if (!k) {
-      const x0 = ix * CHUNK, y0 = iy * CHUNK;
-      k = { key, ix, iy, x0, y0, w: Math.min(CHUNK, this.pixelW - x0), h: Math.min(CHUNK, this.pixelH - y0), c: null, e: null, used: 0, gen: null };
+      const C = this.ck, x0 = ix * C, y0 = iy * C;
+      k = { key, ix, iy, x0, y0, w: Math.min(C, this.pixelW - x0), h: Math.min(C, this.pixelH - y0), r: this.res, c: null, e: null, used: 0, gen: null };
       this.chunks.set(key, k);
     }
     return k;
@@ -518,12 +627,15 @@ export class Outdoor extends TileMap {
   }
 
   #range(x0, y0, x1, y1) {
-    return [Math.max(0, Math.floor(x0 / CHUNK)), Math.max(0, Math.floor(y0 / CHUNK)), Math.min(this.cols - 1, Math.floor((x1 - 1) / CHUNK)), Math.min(this.rowsN - 1, Math.floor((y1 - 1) / CHUNK))];
+    const C = this.ck;
+    return [Math.max(0, Math.floor(x0 / C)), Math.max(0, Math.floor(y0 / C)), Math.min(this.cols - 1, Math.floor((x1 - 1) / C)), Math.min(this.rowsN - 1, Math.floor((y1 - 1) / C))];
   }
 
   // Boden aus den Chunks zeichnen (World ruft das direkt nach dem Hintergrund).
   renderLiquid(ctx, cx, cy) {
     if (!this.ready) return;
+    // Qualität gewechselt (Feinraster an/aus): Chunks neu in der passenden Auflösung
+    if (this.#wantRes() !== this.res) this.#setRes(this.#wantRes());
     const Wv = CONFIG.viewWidth, Hv = CONFIG.viewHeight;
     const x = Math.round(cx), y = Math.round(cy), now = performance.now();
     const frame = ++this.stats.frames;
@@ -543,7 +655,7 @@ export class Outdoor extends TileMap {
       if (!k0.c && !jump) this.stats.miss++;
       const k = this.#finish(k0, true);
       k.used = frame;
-      ctx.drawImage(k.c, k.x0 - x, k.y0 - y);
+      ctx.drawImage(k.c, k.x0 - x, k.y0 - y, k.w, k.h);
     }
     this.#preload(x, y, Wv, Hv, frame);
   }
@@ -553,7 +665,8 @@ export class Outdoor extends TileMap {
   #preload(x, y, Wv, Hv, frame) {
     const [vx, vy] = this.vel;
     const lx = Math.max(-512, Math.min(512, vx * LOOKAHEAD)), ly = Math.max(-512, Math.min(512, vy * LOOKAHEAD));
-    const [a0, b0, a1, b1] = this.#range(x - PRELOAD + Math.min(0, lx), y - PRELOAD + Math.min(0, ly), x + Wv + PRELOAD + Math.max(0, lx), y + Hv + PRELOAD + Math.max(0, ly));
+    const P = this.pre;
+    const [a0, b0, a1, b1] = this.#range(x - P + Math.min(0, lx), y - P + Math.min(0, ly), x + Wv + P + Math.max(0, lx), y + Hv + P + Math.max(0, ly));
     // vorausgesagte Sicht
     const px0 = x + vx * 0.6, py0 = y + vy * 0.6, px1 = px0 + Wv, py1 = py0 + Hv;
     const score = (k) => Math.hypot(Math.max(0, px0 - (k.x0 + k.w), k.x0 - px1), Math.max(0, py0 - (k.y0 + k.h), k.y0 - py1));
@@ -567,7 +680,7 @@ export class Outdoor extends TileMap {
     }
     // laufende Arbeit fortsetzen, außer ein deutlich dringenderer Chunk ist aufgetaucht (Richtungswechsel)
     const job = this.job && !this.job.c && this.chunks.get(this.job.key) === this.job ? this.job : null;
-    if (job && (!best || score(job) <= bd + CHUNK / 2)) best = job;
+    if (job && (!best || score(job) <= bd + this.ck / 2)) best = job;
     if (!best) this.lastFrameAt = performance.now();
     if (best) {
       this.job = best;
@@ -585,13 +698,13 @@ export class Outdoor extends TileMap {
       this.stats.ms += performance.now() - t;
       if (done) { best.gen = null; this.job = null; this.stats.async++; }
     }
-    // Räumen: leere Einträge (nie gerendert, nicht in Arbeit) und älteste fertige Chunks über MAX_CHUNKS
+    // Räumen: leere Einträge (nie gerendert, nicht in Arbeit) und älteste fertige Chunks über maxChunks
     let n = 0;
     for (const k of this.chunks.values()) if (k.c) n++;
     for (const [key, k] of this.chunks) if (!k.c && k !== this.job && k.used < frame - 1) this.chunks.delete(key);
-    if (n <= MAX_CHUNKS) return;
+    if (n <= this.maxChunks) return;
     const done = [...this.chunks.values()].filter((k) => k.c && k.used < frame - 1).sort((p, q) => p.used - q.used);
-    for (const k of done.slice(0, n - MAX_CHUNKS)) { this.chunks.delete(k.key); this.stats.evicted++; }
+    for (const k of done.slice(0, n - this.maxChunks)) { this.chunks.delete(k.key); this.stats.evicted++; }
   }
 
   // Emissive-Ebene: glühende Spaltenkerne, Lava, Wasserglanz – pulsierend
@@ -603,7 +716,7 @@ export class Outdoor extends TileMap {
     ctx.globalAlpha = 0.75 + 0.25 * Math.sin(time * 1.6);
     for (let iy = b0; iy <= b1; iy++) for (let ix = a0; ix <= a1; ix++) {
       const k = this.chunks.get(iy * this.cols + ix);
-      if (k?.e) ctx.drawImage(k.e, k.x0 - x, k.y0 - y);
+      if (k?.e) ctx.drawImage(k.e, k.x0 - x, k.y0 - y, k.w, k.h);
     }
     ctx.globalAlpha = 1;
   }
@@ -611,19 +724,21 @@ export class Outdoor extends TileMap {
   // Prüf-/Messhilfe: Cache-Zustand
   chunkStats() {
     let n = 0, ne = 0, px = 0;
-    for (const k of this.chunks.values()) if (k.c) { n++; px += k.w * k.h; if (k.e) { ne++; px += k.w * k.h; } }
+    for (const k of this.chunks.values()) if (k.c) { const t = k.w * k.h * k.r * k.r; n++; px += t; if (k.e) { ne++; px += t; } }
     const ov = this.overview ? this.overview.width * this.overview.height : 0;
-    return { chunk: CHUNK, chunks: n, withEmissive: ne, mpx: +((px + ov) / 1e6).toFixed(3), overviewPx: ov, total: this.cols * this.rowsN, ...this.stats, ms: Math.round(this.stats.ms), maxSyncMs: +this.stats.maxSyncMs.toFixed(1) };
+    return { chunk: this.ck, res: this.res, maxChunks: this.maxChunks, chunks: n, withEmissive: ne, mpx: +((px + ov) / 1e6).toFixed(3), overviewPx: ov, total: this.cols * this.rowsN, ...this.stats, ms: Math.round(this.stats.ms), maxSyncMs: +this.stats.maxSyncMs.toFixed(1) };
   }
 
-  // Prüfhilfe: Ausschnitt (Weltpixel) als Leinwand zusammensetzen (Boden bzw. Leuchtebene)
+  // Prüfhilfe: Ausschnitt (Weltpixel) als Leinwand zusammensetzen (Boden bzw. Leuchtebene), in Chunk-Auflösung (c.res)
   composeRegion(x0, y0, w, h, layer = 'ground') {
-    const c = makeCanvas(w, h), ctx = c.getContext('2d');
+    const r = this.res, c = makeCanvas(w * r, h * r), ctx = c.getContext('2d');
+    c.res = r;
+    ctx.setTransform(r, 0, 0, r, 0, 0);
     const [a0, b0, a1, b1] = this.#range(x0, y0, x0 + w, y0 + h);
     for (let iy = b0; iy <= b1; iy++) for (let ix = a0; ix <= a1; ix++) {
       const k = this.#finish(this.#chunk(ix, iy), false);
       const src = layer === 'ground' ? k.c : k.e;
-      if (src) ctx.drawImage(src, k.x0 - x0, k.y0 - y0);
+      if (src) ctx.drawImage(src, k.x0 - x0, k.y0 - y0, k.w, k.h);
     }
     return c;
   }

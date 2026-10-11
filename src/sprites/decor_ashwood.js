@@ -584,7 +584,7 @@ function campfireBig() {
       if (Math.sin(a) < -0.2) continue;
       p.ellipse(x, y, 2, 1.4, S[2]); p.px(x - 1, y - 1, S[4]); p.px(x, y - 1, S[3]);
     }
-  }, { ax: 17, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 110, color: [255, 150, 70], intensity: 1 } });
+  }, { ax: 17, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 150, color: [255, 150, 70], intensity: 1, bloom: 0.45 } }); // Lichtinsel: weiter und mit mehr Glut
 }
 
 // ------------------------------------------------------------ Holzstapel
@@ -1479,7 +1479,7 @@ function lanternPost() {
     p.rect(5, 6, 2, 27, WOOD[2]); p.rect(5, 6, 1, 27, WOOD[4]); p.rect(5, 6, 7, 1, WOOD[3]);
     p.rect(9, 8, 4, 6, IRON[1]); p.rect(10, 9, 2, 4, GOLD[4]); g.rect(10, 9, 2, 4, GOLD[3]); g.px(10, 10, '#fff2c0');
     p.rect(4, 32, 4, 1, WOOD[1]);
-  }, { ax: 6, box: [-2, -2, 2, 1], light: { dx: 5, dy: -22, radius: 70, color: [255, 180, 100], intensity: 0.8 } });
+  }, { ax: 6, box: [-2, -2, 2, 1], light: { dx: 5, dy: -22, radius: 86, color: [255, 180, 100], intensity: 1, bloom: 0.4 } });
 }
 
 // Mühlenruine auf der Bachinsel: Mauerreste und gebrochenes Rad

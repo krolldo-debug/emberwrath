@@ -23,11 +23,15 @@ export const OUT = {
 
 // Bodenpaletten der Außengebiete (gleicher Aufbau wie OUT: grass, dirt, water)
 export const BIOME_GROUND = {
+  // Aschenwald: kühler Waldboden (Moos/Asche), wärmere und hellere Wege – damit Lichtinseln und Wege vor dem
+  // Wald stehen (Umgebungslicht der Zone dafür etwas dunkler/kühler, world/zones.js). finePixel: Feinraster-Boden.
   ashwood: {
-    grass: ['#11130f', '#171a15', '#1e211b', '#262821', '#2f3029', '#3a3a32'],
-    dirt: ['#140f0d', '#1c1512', '#261c17', '#30241d', '#3c2e25', '#4a3a2e'],
+    grass: ['#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'],
+    dirt: ['#231c16', '#2e251d', '#3a3026', '#473b2f', '#554739', '#655645'],
     water: ['#050a0c', '#081114', '#0c1a1f', '#12272e', '#1c3a44'],
     tufts: false,
+    finePixel: ashwoodFine,
+    fineSetup: ashwoodSetup,
   },
   cinder: {
     grass: ['#0f0d12', '#151219', '#1c1821', '#231e29', '#2c2533', '#372e3f'],
@@ -99,6 +103,234 @@ export function groundPixel(kind, px, py, pal = OUT) {
     return rgb(Wt[i]);
   }
   return rgb(pal.grass[1]);
+}
+
+// ------------------------------------------------------------ Feinboden (Feinraster: 2×2 Texel je Weltpixel)
+// Terrain-Codes des Feinrasters (world/Outdoor.js #fineGround legt je Chunk ein Raster mit Rand an)
+export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4 };
+const hxi = (c) => parseInt(c.slice(1), 16);
+const D4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// Aschenwald: kühler Waldboden mit Moos- und Aschefeldern, Laubreste in Rost, warme Wege, Kiesel mit Licht oben links
+const AW = {
+  floor: ['#0c100f', '#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'].map(hxi),
+  moss: ['#151f15', '#1c291b', '#253421', '#2e4029', '#3b4f33', '#4d6240'].map(hxi),
+  ash: ['#202325', '#292c2e', '#323638', '#3e4244', '#4c4f51'].map(hxi),
+  leaf: ['#2a1812', '#3f2217', '#57301e', '#6f3f25', '#88512d'].map(hxi),
+  dirt: ['#19140f', '#231c16', '#2e251d', '#3a3026', '#473b2f', '#554739', '#655645', '#766552'].map(hxi),
+  stone: ['#120f0e', '#2a2523', '#3b3532', '#4e4843', '#645c56', '#80776f', '#a0968b'].map(hxi),
+  twig: ['#1a110c', '#2e1f15', '#4a3220', '#644630'].map(hxi),
+  pave: PAL.stone.map(hxi),
+  mortar: hxi(PAL.mortar),
+};
+const clampI = (v, a, b) => (v < a ? a : v > b ? b : v);
+// Band eines 0..1-Werts mit schmaler, geordneter Rasterung am Übergang (Pixel-Art-Kante statt Rauschen)
+function band(t, n, dt) {
+  const v = t * n, k = Math.floor(v), f = v - k;
+  return k + (f > 0.6 ? 1 : f > 0.4 && dt < (f - 0.4) / 0.2 ? 1 : 0);
+}
+function darken(c, k) { return (((c >> 16) & 255) * k) << 16 | (((c >> 8) & 255) * k) << 8 | ((c & 255) * k); }
+
+// Rauschfelder je Chunk (mit Rand): Werte auf grobem, global ausgerichtetem Gitter, bilinear auf jedes Weltpixel
+// verteilt (je Chunk einmal; Nachbarchunks rechnen am Rand dieselben Werte)
+function field(x0, y0, w, h, step, fn, out, add, k) {
+  const W = Math.ceil(w / step) + 2, H = Math.ceil(h / step) + 2, a = new Float32Array(W * H);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) a[j * W + i] = fn(x0 + i * step, y0 + j * step);
+  const inv = 1 / step;
+  for (let y = 0; y < h; y++) {
+    const fy = y * inv, j = fy | 0, ay = fy - j, o = y * w;
+    for (let x = 0; x < w; x++) {
+      const fx = x * inv, i = fx | 0, ax = fx - i, q = j * W + i;
+      const t = a[q] + (a[q + 1] - a[q]) * ax, u = a[q + W] + (a[q + W + 1] - a[q + W]) * ax;
+      const v = (t + (u - t) * ay) * k;
+      out[o + x] = add ? out[o + x] + v : v;
+    }
+  }
+  return out;
+}
+
+// Vorarbeit je Chunk: Rauschfelder und alle Kleinteile als Stempel (Halme, Kiesel, Laub, Zweige, Risse, Krumen,
+// Trittspuren). Je Zelle entscheidet der Hash und der Ort des Ankers (Terrain, Moos, Wegmitte) – so wird ein Halm
+// oder Kiesel nie von einer Fleckgrenze zerschnitten und Nachbarchunks stempeln am Rand dasselbe.
+//   abs: fertige Farbe (-1 = keine), rel: Relief auf dem Untergrund (Weg: Stufen der Erdrampe, Waldboden: < 0 Schatten)
+// K/KW/M: Terrainraster des Chunks (Feinpixel, Rand M) aus world/Outdoor.js. Generator (yield = Pause möglich), Ergebnis per return.
+function* ashwoodSetup(x0, y0, cw, ch, K, KW, M) {
+  const m = M >> 1, fw = cw + 2 * m, fh = ch + 2 * m, n = fw * fh, fx0 = x0 - m, fy0 = y0 - m;
+  const tone = field(fx0, fy0, fw, fh, 4, (x, y) => vnoise(x / 11, y / 11, 701), new Float32Array(n), false, 0.65);
+  field(fx0, fy0, fw, fh, 2, (x, y) => vnoise(x / 4, y / 4, 702), tone, true, 0.35);
+  const patch = field(fx0, fy0, fw, fh, 4, (x, y) => vnoise(x / 19, y / 15, 703), new Float32Array(n), false, 0.8);
+  field(fx0, fy0, fw, fh, 2, (x, y) => vnoise(x / 6, y / 6, 704), patch, true, 0.2);
+  const leafF = field(fx0, fy0, fw, fh, 4, (x, y) => vnoise(x / 13, y / 13, 705), new Float32Array(n), false, 1);
+  yield;
+  const W2 = cw * 2, H2 = ch * 2, F0 = x0 * 2, G0 = y0 * 2;
+  const abs = new Int32Array(W2 * H2).fill(-1), rel = new Int8Array(W2 * H2);
+  const S = { F0, G0, W2, fw, m, tone, patch, leaf: leafF, abs, rel };
+  // Stempelwerkzeuge (Feinpixel, global); außerhalb des Chunks wird nichts geschrieben
+  const put = (F, G, c) => { const f = F - F0, g = G - G0; if (f >= 0 && g >= 0 && f < W2 && g < H2) abs[g * W2 + f] = c; };
+  const mark = (F, G, r) => { const f = F - F0, g = G - G0; if (f >= 0 && g >= 0 && f < W2 && g < H2) rel[g * W2 + f] = r; };
+  // Kontext am Anker (innerhalb des Rands; weiter draußen liegende Anker werden auf den Rand gezogen)
+  const kAt = (F, G) => K[(clampI(G - G0, -M, H2 + M - 1) + M) * KW + clampI(F - F0, -M, W2 + M - 1) + M];
+  const wAt = (F, G) => ((clampI(G - G0, -M, H2 + M - 1) >> 1) + m) * fw + (clampI(F - F0, -M, W2 + M - 1) >> 1) + m;
+  const isMoss = (F, G) => S.patch[wAt(F, G)] > 0.6;
+  const GR = FK.GRASS, DI = FK.DIRT;
+  const midAt = (F, G) => {
+    for (const [dx, dy] of MID_PROBE) if (kAt(F + dx, G + dy) === GR) return false;
+    return true;
+  };
+  const cells = (cwid, chei, pad, fn) => {
+    for (let cy = Math.floor((G0 - pad) / chei); cy <= Math.floor((G0 + H2 + pad) / chei); cy++)
+      for (let cx = Math.floor((F0 - pad) / cwid); cx <= Math.floor((F0 + W2 + pad) / cwid); cx++) fn(cx, cy);
+  };
+  // Erdkrumen (Weg): Oberseite hell, darunter dunkel
+  cells(6, 5, 2, (cx, cy) => {
+    const h = hash2(cx, cy, 770);
+    if (h >= 0.4) return;
+    const F = cx * 6 + Math.floor(hash2(cx, cy, 771) * 3), G = cy * 5 + 1 + Math.floor(hash2(cx, cy, 772) * 2);
+    if (kAt(F, G) !== DI || h >= (midAt(F, G) ? 0.22 : 0.4)) return;
+    const w = 2 + (hash2(cx, cy, 773) < 0.4 ? 1 : 0);
+    for (let i = 0; i < w; i++) { mark(F + i, G, 1); mark(F + i, G + 1, -1); }
+  });
+  yield;
+  // Trittspuren (Wegmitte): Mulde dunkel, Unterkante hell
+  cells(8, 6, 2, (cx, cy) => {
+    if (hash2(cx, cy, 762) >= 0.2) return;
+    const F = cx * 8 + 1 + Math.floor(hash2(cx, cy, 763) * 4), G = cy * 6 + 1 + Math.floor(hash2(cx, cy, 764) * 3);
+    if (kAt(F, G) !== DI || !midAt(F, G)) return;
+    mark(F, G, -2); mark(F + 1, G, -2); mark(F, G + 1, 1); mark(F + 1, G + 1, 1);
+  });
+  // Striche: Risse im Weg (n = 1) und Zweige auf dem Waldboden (n = 0)
+  for (let n = 0; n < 2; n++) {
+    const sd = 740 + n * 10;
+    cells(16, 12, 8, (cx, cy) => {
+      const h = hash2(cx, cy, sd);
+      if (h >= (n ? 0.22 : 0.13)) return;
+      const ax = cx * 16 + 2 + Math.floor(hash2(cx, cy, sd + 1) * 6), ay = cy * 12 + 3 + Math.floor(hash2(cx, cy, sd + 2) * 6);
+      const k = kAt(ax, ay);
+      if (n ? k !== DI || !midAt(ax, ay) : k !== GR || isMoss(ax, ay)) return;
+      const len = 4 + Math.floor(hash2(cx, cy, sd + 3) * 4), s = [-0.5, 0, 0.34, 0.5][Math.floor(hash2(cx, cy, sd + 4) * 4)];
+      for (let i = 0; i < len; i++) {
+        const F = ax + i, G = ay + Math.round(i * s);
+        if (n) { mark(F, G, -2); if (i < len - 1) mark(F, G + 1, 1); } else {
+          put(F, G, AW.twig[i === 0 ? 3 : 2]);
+          if (i < len - 1) mark(F, G + 1, -1);
+        }
+      }
+    });
+  }
+  yield;
+  // Laubreste (Waldboden ohne Moos): Blatt 3 × 2, obere Zeile heller, Schatten darunter
+  cells(5, 4, 3, (cx, cy) => {
+    const h = hash2(cx, cy, 730);
+    if (h >= 0.6) return;
+    const F = cx * 5 + Math.floor(hash2(cx, cy, 731) * 2), G = cy * 4 + Math.floor(hash2(cx, cy, 732) * 2);
+    if (kAt(F + 1, G) !== GR || isMoss(F + 1, G)) return;
+    const l = S.leaf[wAt(F + 1, G)];
+    if (h >= (l > 0.5 ? (l - 0.5) * 0.9 : 0)) return;
+    const A = hash2(cx, cy, 734) < 0.5, sh = hash2(cx, cy, 733) < 0.4 ? -1 : 0, L = AW.leaf;
+    const top = A ? [1, 2] : [0, 1], bot = A ? [0, 1] : [1, 2];
+    put(F + top[0], G, L[3 + sh]); put(F + top[1], G, L[2 + sh]);   // Licht oben links
+    put(F + bot[0], G + 1, L[1 + sh]); put(F + bot[1], G + 1, L[1 + sh]);
+    mark(F + bot[0], G + 2, -1); mark(F + bot[1], G + 2, -1);
+  });
+  yield;
+  // Kiesel: Ellipse mit Glanzpunkt oben links, Kante unten rechts dunkel, Schlagschatten darunter
+  cells(10, 8, 6, (cx, cy) => {
+    const h = hash2(cx, cy, 720);
+    if (h >= 0.37) return;
+    const rx = 1.1 + hash2(cx, cy, 721) * 2.2, ry = rx * (0.62 + hash2(cx, cy, 722) * 0.2);
+    const px = cx * 10 + rx + 1 + hash2(cx, cy, 723) * (8 - 2 * rx), py = cy * 8 + ry + 1 + hash2(cx, cy, 724) * (6 - 2 * ry);
+    const AF = Math.floor(px), AG = Math.floor(py), k = kAt(AF, AG);
+    const dens = k === DI ? (midAt(AF, AG) ? 0.06 : 0.14) * (S.leaf[wAt(AF, AG)] > 0.56 ? 2.6 : 0.6) : k === GR ? 0.045 : 0;
+    if (h >= dens) return;
+    const St = AW.stone, tint = hash2(cx, cy, 725) < 0.3 ? -1 : 0;
+    for (let G = Math.floor(py - ry - 1); G <= Math.ceil(py + ry + 2); G++) for (let F = Math.floor(px - rx - 1); F <= Math.ceil(px + rx + 1); F++) {
+      const dx = (F + 0.5 - px) / rx, dy = (G + 0.5 - py) / ry, q = dx * dx + dy * dy;
+      if (q <= 1) {
+        const lit = -dx * 0.55 - dy * 0.85;
+        put(F, G, lit > 0.5 && q < 0.75 ? St[(rx < 1.7 ? 5 : 6) + tint] : St[clampI((lit > 0.05 ? 4 : lit > -0.5 ? 3 : 2) + tint, 1, 6)]);
+        continue;
+      }
+      const sx = dx - 0.35, sy = (G + 0.5 - py - 0.9) / ry;
+      if (dy > 0 && sx * sx + sy * sy <= 1) mark(F, G, -2);
+    }
+  });
+  yield;
+  // Halme: Zellen 3 × 7 (Spalten versetzt), 2–5 Feinpixel, Spitze hell (Mondlicht), Schatten rechts am Fuß.
+  // Dicht im Moos und als Saum über dem Weg; Halme dürfen über den Weg ragen.
+  for (let cx = Math.floor((F0 - 3) / 3); cx <= Math.floor((F0 + W2 + 3) / 3); cx++) {
+    const oy = Math.floor(hash2(cx, 3, 710) * 7);
+    for (let cy = Math.floor((G0 - 7 + oy) / 7); cy <= Math.floor((G0 + H2 + 7 + oy) / 7); cy++) {
+      const h = hash2(cx, cy, 711);
+      if (h >= 0.6) continue;
+      const bx = Math.floor(hash2(cx, cy, 712) * 3), F = cx * 3 + bx, G = cy * 7 - oy + 6;
+      if (kAt(F, G) !== GR) continue;
+      const p = S.patch[wAt(F, G)];
+      const pathBelow = kAt(F, G + 2) === DI || kAt(F, G + 3) === DI;
+      if (h >= (p > 0.6 ? 0.6 : pathBelow ? 0.55 : p > 0.5 ? 0.16 : 0.05)) continue;
+      const hh = 2 + Math.floor(hash2(cx, cy, 713) * 4), l = hash2(cx, cy, 714);
+      let lean = l < 0.17 ? -1 : l < 0.35 ? 1 : 0;
+      if (bx + lean < 0 || bx + lean > 2) lean = 0;
+      const R = AW.moss;
+      for (let r = 0; r < hh; r++) {
+        const top = r === hh - 1;
+        put(F + (top && hh > 2 ? lean : 0), G - r, R[top ? 5 : r === hh - 2 ? 4 : r === 0 ? 1 : 3]);
+      }
+      mark(F + 1, G, -1);
+    }
+  }
+  return S;
+}
+// Wegmitte: kein Waldboden in diesen Abständen (Feinpixel)
+const MID_PROBE = [[0, -1], [0, -2], [0, 1], [0, 2], [-1, 0], [1, 0], [-2, 0], [2, 0], [-4, 0], [4, 0], [-6, 0], [6, 0], [0, -5], [0, 5]];
+
+// Pflaster fein: Steine 12 × 10 Feinpixel, 1 Feinpixel Fuge, Licht oben links, Kante unten rechts dunkel
+function paveFine(F, G) {
+  const row = Math.floor(G / 10), sh = (row & 1) * 6, col = Math.floor((F + sh) / 12);
+  const lx = F + sh - col * 12, ly = G - row * 10;
+  if (lx === 0 || ly === 0) return AW.mortar;
+  const s = hash2(col, row, 16);
+  let i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
+  if (ly === 1 || lx === 1) i += 1;
+  else if (ly === 9 || lx === 11) i -= 1;
+  if (hash2(F, G, 750) < 0.025) i -= 1;
+  return AW.pave[clampI(i, 1, 5)];
+}
+
+// Aschenwald-Boden je Feinpixel. F/G: Feinpixel (Welt × 2), K: Terrainraster (FK), ki: Index von (F, G) darin, KW: Zeilenbreite.
+
+// Aschenwald-Boden je Feinpixel. F/G: Feinpixel (Welt × 2), K: Terrainraster (FK), ki: Index von (F, G) darin, KW: Zeilenbreite,
+// S: Vorarbeit des Chunks (ashwoodSetup). Kleinteile kommen fertig aus den Stempeln, hier nur Untergrund und Kanten.
+function ashwoodFine(kind, F, G, K, ki, KW, S) {
+  if (kind === FK.PAVE) return paveFine(F, G);
+  const o = (G - S.G0) * S.W2 + (F - S.F0), a = S.abs[o];
+  const GR = FK.GRASS;
+  if (kind === FK.DIRT) {
+    const D = AW.dirt;
+    // Grasnarbe darüber wirft eine Kante (vor allem anderen)
+    if (K[ki - KW] === GR) return D[0];
+    if (a >= 0) return a;
+    const dt = D4[(G & 3) * 4 + (F & 3)] / 16, wi = (((G - S.G0) >> 1) + S.m) * S.fw + ((F - S.F0) >> 1) + S.m;
+    // Weg: Rand zur Grasnarbe dunkler
+    const up2 = K[ki - 2 * KW] === GR, dn1 = K[ki + KW] === GR, dn2 = K[ki + 2 * KW] === GR, dn3 = K[ki + 3 * KW] === GR;
+    const near = up2 || dn1 || dn2 || K[ki - 1] === GR || K[ki + 1] === GR || K[ki - 2] === GR || K[ki + 2] === GR;
+    let i = 2 + clampI(band(S.tone[wi], 2.8, dt), 0, 3) + (near ? -1 : 0);
+    if (up2) i = Math.min(i, 2);
+    // Halme der Grasnarbe darunter wachsen in den Weg
+    if (dn1 || dn2 || dn3) {
+      const e = dn1 ? 1 : dn2 ? 2 : 3, hb = hash2(F, G + e, 760);
+      const hh = hb < 0.5 ? 1 + Math.floor(hb * 6) : 0;
+      if (e <= hh) return AW.moss[e === hh ? 4 : 3];
+    }
+    return D[clampI(i + S.rel[o], 0, 7)];
+  }
+  if (a >= 0) return a;
+  // Waldboden: Flecken Asche / Erde / Moos (Grenzen geordnet gerastert); Oberkante der Grasnarbe am Weg hell
+  const dt = D4[(G & 3) * 4 + (F & 3)] / 16, wi = (((G - S.G0) >> 1) + S.m) * S.fw + ((F - S.F0) >> 1) + S.m;
+  const p = S.patch[wi], t = S.tone[wi];
+  const ash = p < 0.3 || (p < 0.36 && dt < (0.36 - p) / 0.06);
+  const moss = !ash && (p > 0.63 || (p > 0.57 && dt < (p - 0.57) / 0.06));
+  if (K[ki - KW] === FK.DIRT) return moss ? AW.moss[4] : AW.floor[6];
+  const base = ash ? AW.ash[clampI(band(t, 2.4, dt), 0, 3)] : moss ? AW.moss[clampI(band(t, 3, dt), 0, 3)] : AW.floor[1 + clampI(band(t, 4, dt), 0, 4)];
+  return S.rel[o] < 0 ? darken(base, 0.62) : base;
 }
 
 // ------------------------------------------------------------ Klippen-Tiles
