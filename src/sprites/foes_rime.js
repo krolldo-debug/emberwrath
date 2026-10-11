@@ -577,23 +577,39 @@ function drawIceElemental(p, g, P, ex) {
   // --- Schulterzacken (klare Silhouette)
   const shB = { x: cx - 5 + L * 3, y: cy - 6 }, shF = { x: cx + 5 + L * 4, y: cy - 5 };
   shard(p, g, shB.x, shB.y, -2.45 - P.sh * 0.2, 10 + P.sh * 2, 3, ICE_D.concat(ICE[5], ICE[6]), { base: 0.3 });
-  // Hals
-  ell(p, cx + 1 + L * 5, cy - 9, 3, 2.5, ICE_D);
-
   // --- Kopf: Kristallkrone mit Augenschlitz
   const hh = p.fine ? { x: p.snap(hx), y: p.snap(hy) } : { x: hx, y: hy };
+  // Hals (fein: heller Kristallhals mit Facetten, schließt die Silhouette zwischen Rumpf und Kopf)
+  if (!p.fine) ell(p, cx + 1 + L * 5, cy - 9, 3, 2.5, ICE_D);
+  else {
+    const nx0 = cx + 1 + L * 5, by = cy - 5.5, ty = hh.y + 3.5;
+    const B0 = [nx0 - 3.5, by], B1 = [nx0 + 3.5, by], T0 = [hh.x - 2.5, ty], T1 = [hh.x + 3, ty];
+    const M0 = [(B0[0] + T0[0]) / 2 - 0.75, (by + ty) / 2], M1 = [(B1[0] + T1[0]) / 2 + 0.5, (by + ty) / 2];
+    const Bm = [nx0 + 0.25, by], Tm = [hh.x + 0.5, ty];
+    poly(p, [B0, M0, T0, Tm, Bm], ICE[5]);                    // Lichtfacette (links oben)
+    poly(p, [Bm, Tm, T1, M1, B1], ICE[3]);                    // Schattenfacette
+    poly(p, [M0, [(Bm[0] + Tm[0]) / 2, M0[1] - 0.5], Tm, T0], ICE[6]);   // obere Lichtfacette
+    p.fline(Bm[0], Bm[1], Tm[0], Tm[1], ICE[7]);              // Grat
+    p.fline(B0[0], B0[1], M0[0], M0[1], ICE[6]); p.fline(M0[0], M0[1], T0[0], T0[1], ICE[7]);   // Lichtkante
+    p.fline(B1[0], B1[1], M1[0], M1[1], ICE[1]); p.fline(M1[0], M1[1], T1[0], T1[1], ICE[2]);   // Schattenkante
+    p.fline(M0[0] + 0.5, M0[1], M1[0] - 0.5, M1[1], ICE[4]);  // Facettenbruch quer
+    p.dot(M0[0] + 0.5, M0[1] - 1, '#ffffff');
+    // innere Glut steigt vom Kern auf (Leucht-Ebene, dünn)
+    g.fline(Bm[0] + 0.5, Bm[1] + 1, Tm[0] + 0.5, Tm[1] - 0.5, IGL[1]);
+  }
   shard(p, g, hh.x - 1, hh.y + 1, -1.9, 9, 2.4, ICE, { base: 0.4 });           // hinterer Kronenzacken
   shard(p, g, hh.x + 1, hh.y + 1, -1.45, 11, 2.6, ICE, { base: 0.4 });         // Mittelzacken
   // Gesichtsplatte (keilförmig nach vorn)
-  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 6, hh.y], [hh.x + 3, hh.y + 4], [hh.x - 3, hh.y + 3]], ICE[2]);
-  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 1, hh.y - 1], [hh.x - 3, hh.y]], ICE[4]);
+  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 6, hh.y], [hh.x + 3, hh.y + 4], [hh.x - 3, hh.y + 3]], p.fine ? ICE[3] : ICE[2]);
+  poly(p, [[hh.x - 4, hh.y - 2], [hh.x + 2, hh.y - 4], [hh.x + 1, hh.y - 1], [hh.x - 3, hh.y]], p.fine ? ICE[5] : ICE[4]);
   ln(p, hh.x - 3, hh.y - 2, hh.x + 2, hh.y - 4, ICE[7]);
   ln(p, hh.x + 6, hh.y, hh.x + 3, hh.y + 4, ICE[1]);
   if (p.fine) {
     // Gesichtsplatte: zweite Lichtstufe unter der Kante, Facettengrat, hellere Wangenfacette, Glanzpunkt
     p.fline(hh.x - 3, hh.y - 1.5, hh.x + 1.5, hh.y - 3.5, ICE[5]);
     p.fline(hh.x + 2, hh.y - 3.5, hh.x + 1, hh.y - 1, ICE[6]);
-    poly(p, [[hh.x + 1.5, hh.y + 1.5], [hh.x + 5.5, hh.y + 0.5], [hh.x + 3.5, hh.y + 3.5]], ICE[3]);
+    poly(p, [[hh.x + 1.5, hh.y + 1.5], [hh.x + 5.5, hh.y + 0.5], [hh.x + 3.5, hh.y + 3.5]], ICE[4]);
+    poly(p, [[hh.x - 3, hh.y + 0.5], [hh.x + 1, hh.y + 1], [hh.x - 2.5, hh.y + 3]], ICE[4]);   // helle Kieferfacette links
     p.fline(hh.x + 5.5, hh.y + 0.5, hh.x + 3.5, hh.y + 3.5, ICE[1]);
     p.dot(hh.x - 2, hh.y - 2, '#ffffff'); p.dot(hh.x - 1.5, hh.y - 2.5, ICE[7]);
   }
@@ -619,12 +635,14 @@ function drawIceElemental(p, g, P, ex) {
     // Augenhöhle und Glutschlitz: mandelförmig, heißer weißer Kern im farbigen Saum, innerer Winkel tiefer (zornig)
     p.rect(X + 1, Y, 4, 1, VOIDB); p.dot(X + 1, Y + 1, VOIDB); p.dot(X + 4, Y + 1, VOIDB); p.dot(X + 4.5, Y + 1, VOIDB);
     if (P.eye > 0.3) {
+      // weißer Kern = ein voller Weltpixel (2×2 Feinpixel), klar abgesetzt gegen den blauen Saum
       const E = [
-        [1.5, 0.5, FROST[1], IGL[2]], [2, 0, FROST[1], IGL[2]], [2, 0.5, FROST[3], IGL[3]], [2.5, 0, FROST[2], IGL[3]], [2.5, 0.5, ec, IGL[4]],
-        [3, 0, FROST[2], IGL[3]], [3, 0.5, ec, IGL[4]], [3.5, 0.5, FROST[3], IGL[4]], [3.5, 1, FROST[1], IGL[2]], [4, 0.5, FROST[2], IGL[3]], [4, 1, FROST[2], IGL[3]], [4.5, 1, FROST[1], IGL[2]],
+        [2.5, 0, ec, '#ffffff'], [3, 0, ec, '#ffffff'], [2.5, 0.5, ec, '#ffffff'], [3, 0.5, ec, IGL[4]],
+        [2, 0, FROST[1], IGL[2]], [2, 0.5, FROST[2], IGL[3]], [1.5, 0.5, FROST[0], IGL[1]],
+        [3.5, 0, FROST[1], IGL[2]], [3.5, 0.5, FROST[2], IGL[3]], [3.5, 1, FROST[1], IGL[2]], [4, 1, FROST[0], IGL[1]],
       ];
       for (const [dx, dy, c, gc] of E) { p.dot(X + dx, Y + dy, c); g.dot(X + dx, Y + dy, gc); }
-      g.dot(X + 5, Y + 1, IGL[1]); g.dot(X + 1, Y + 0.5, IGL[1]);
+      g.dot(X + 4.5, Y + 1, IGL[1]);
     }
     // Kieferspalt mit zwei Eiszähnen, Kinnkante im Licht
     p.fline(X + 2, Y + 2, X + 4.5, Y + 2, VOIDB);
