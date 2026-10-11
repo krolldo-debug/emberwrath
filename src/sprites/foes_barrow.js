@@ -1267,13 +1267,12 @@ function drawBoneArcher(p, g, P, X) {
   const heart = pt(6.2, 0.8);
   if (soul > 0.2) {
     p.px(heart.x, heart.y, GH[3]); p.px(heart.x + 1, heart.y, GH[2]);
-    ell(g, heart.x + 0.5, heart.y, 1.5 + soul * 0.5, 1.5 + soul * 0.5, GH[1]); g.px(heart.x, heart.y, GH[4]); g.px(heart.x + 1, heart.y, GH[3]);
     if (p.fine) {
-      // Geisterherz: weißer Kern, türkiser Saum (Bild und Leucht-Ebene)
+      // Geisterherz: weißer Kern im Bild; Lichthof hart in genau 2 Stufen (außen GH1, innen GH3), kein Verlauf
       fd(p, heart.x + 0.25, heart.y - 0.25, GH[5]); fd(p, heart.x + 0.75, heart.y - 0.25, GH[4]); fd(p, heart.x + 0.25, heart.y + 0.25, GH[4]);
-      fd(g, heart.x + 0.25, heart.y - 0.25, GH[5]); fd(g, heart.x + 0.75, heart.y + 0.25, GH[5]);
-      ell(g, heart.x + 0.5, heart.y, 0.9, 0.8, GH[3]); fd(g, heart.x + 0.25, heart.y - 0.25, GH[5]);
-    }
+      ell(g, heart.x + 0.5, heart.y, 1.5 + soul * 0.5, 1.5 + soul * 0.5, GH[1]);
+      ell(g, heart.x + 0.5, heart.y, 0.9, 0.8, GH[3]);
+    } else { ell(g, heart.x + 0.5, heart.y, 1.5 + soul * 0.5, 1.5 + soul * 0.5, GH[1]); g.px(heart.x, heart.y, GH[4]); g.px(heart.x + 1, heart.y, GH[3]); }
   }
   if (p.fine) {
     // Rippen fein: Knochenspangen mit Lichtkante oben, Schattenkante unten, Kerbe am Brustbein
@@ -1348,6 +1347,7 @@ function drawBoneArcher(p, g, P, X) {
     '.dmwkwk',
   ], SK);
   if (P.eye <= 0.3) p.px(hx + 2, hy - 1, '#07080a');
+  else if (p.fine) wisp(p, g, hx - 4, hy - 2, 5, P.wph, -1, 0.3, P.eye, false);   // Fahne nur hinter dem Kopf
   else {
     g.px(hx + 2, hy - 1, GH[5]); g.px(hx + 1, hy - 1, GH[3]); g.px(hx + 3, hy - 1, GH[2]); g.px(hx + 2, hy, GH[2]);
     wisp(p, g, hx + 1, hy - 1.5, 6, P.wph, -1, 0.35, P.eye, false);
@@ -1358,9 +1358,14 @@ function drawBoneArcher(p, g, P, X) {
     const S0x = hx - 3, S0y = hy - 4, sd = (x, y, c) => p.dot(S0x + x / 2 + 0.1, S0y + y / 2 + 0.1, c);
     for (let x = 8; x <= 12; x++) sd(x, 5, BN[5]);
     sd(13, 5, BN[2]); sd(8, 9, BN[1]); sd(13, 9, BN[1]);
+    // Augenhöhle ganz dunkel, darin zwei harte Glutpunkte (weißer Kern, 1 Feinpixel Saum), kein Schleier
+    for (let x = 8; x <= 13; x++) for (let y = 6; y <= 7; y++) sd(x, y, '#07080a');
+    for (let x = 8; x <= 11; x++) for (let y = 8; y <= 9; y++) sd(x, y, '#07080a');
     if (P.eye > 0.3) {
-      sd(10, 6, GH[4]); sd(11, 6, GH[5]); sd(10, 7, GH[3]); sd(11, 7, GH[4]); sd(12, 7, GH[2]);
-      g.dot(S0x + 5.6, S0y + 3.1, GH[5]); g.dot(S0x + 5.1, S0y + 3.6, GH[4]);
+      sd(9, 7, GH[5]); sd(8, 7, GH[3]); sd(9, 8, GH[3]);          // fernes Auge
+      sd(12, 6, GH[5]); sd(13, 6, GH[3]); sd(12, 7, GH[3]);       // nahes Auge
+      g.dot(S0x + 4.6, S0y + 3.6, GH[5]); g.dot(S0x + 6.1, S0y + 3.1, GH[5]);
+      g.dot(S0x + 4.1, S0y + 3.6, GH[2]); g.dot(S0x + 4.6, S0y + 4.1, GH[2]); g.dot(S0x + 6.6, S0y + 3.1, GH[2]); g.dot(S0x + 6.1, S0y + 3.6, GH[2]);
     }
     sd(12, 10, BN[3]); sd(8, 10, BN[4]); sd(9, 10, BN[4]); sd(10, 11, BN[3]);
     // Zähne: je 2 Feinpixel breit (oben hell, unten Schatten), 1 Feinpixel Fuge
@@ -1737,6 +1742,7 @@ function drawCaller(p, g, P, X) {
   ], { s: BRZ[6], h: BRZ[5], l: BRZ[4], m: BRZ[3], d: BRZ[2], V: VERD[3], k: '#040506', e: GH[4] });
   p.px(hx + 4, hy + 2, ROBE_B[1]);
   if (P.eye <= 0.3) p.px(hx + 3, hy - 1, '#040506');
+  else if (p.fine) wisp(p, g, hx - 5, hy - 1.5, 4, P.wph, -1, 0.25, P.eye, false);   // Fahne nur hinter der Kapuze
   else {
     g.px(hx + 3, hy - 1, GH[5]); g.px(hx + 2, hy - 1, GH[3]); g.px(hx + 4, hy - 1, GH[2]); g.px(hx + 3, hy, GH[1]);
     wisp(p, g, hx + 2, hy - 1.5, 5, P.wph, -1, 0.25, P.eye, false);
@@ -1748,7 +1754,15 @@ function drawCaller(p, g, P, X) {
     const M0x = hx + 1, M0y = hy - 2, md = (x, y, c) => p.dot(M0x + x / 2 + 0.1, M0y + y / 2 + 0.1, c);
     md(0, 0, '#fffbe8'); for (let x = 1; x <= 4; x++) md(x, 0, '#e4cc90');
     md(4, 1, BRZ[2]); md(5, 1, BRZ[2]); md(3, 1, BRZ[3]);
-    if (P.eye > 0.3) { md(4, 2, GH[5]); md(5, 2, GH[4]); md(4, 3, GH[4]); md(5, 3, GH[3]); g.dot(M0x + 2.1, M0y + 1.1, GH[5]); }
+    // Augenschlitz ganz dunkel, darin zwei harte Glutpunkte (weißer Kern, 1 Feinpixel Saum), kein Schleier
+    for (let x = 2; x <= 5; x++) for (let y = 2; y <= 3; y++) md(x, y, '#040506');
+    if (P.eye > 0.3) {
+      md(2, 2, GH[5]); md(2, 3, GH[3]);                          // fernes Auge
+      md(5, 2, GH[5]); md(4, 2, GH[3]); md(5, 3, GH[3]);         // nahes Auge
+      g.dot(M0x + 1.1, M0y + 1.1, GH[5]); g.dot(M0x + 2.6, M0y + 1.1, GH[5]);
+      g.dot(M0x + 1.1, M0y + 1.6, GH[2]); g.dot(M0x + 2.1, M0y + 1.1, GH[2]); g.dot(M0x + 2.6, M0y + 1.6, GH[2]);
+    }
+
     md(6, 3, '#e4cc90'); md(6, 4, BRZ[6]); md(7, 4, BRZ[4]); md(6, 5, BRZ[5]); md(7, 6, BRZ[2]); md(7, 7, BRZ[1]);
     md(4, 7, BRZ[4]); md(5, 7, BRZ[4]); md(1, 8, BRZ[1]); md(6, 8, BRZ[1]);
     md(2, 6, VERD[4]); md(3, 7, VERD[2]);
