@@ -31,6 +31,7 @@ export class Translator {
     this.same = new Set(); // bewusst gleich (Namen wie „Meteor“) oder kein Anzeigetext: nicht als fehlend melden
     this.missing = null; // Set, wenn fehlende Texte gesammelt werden sollen (Entwicklung)
     this.rev = new Map(); // Übersetzung → deutscher Text (feste Einträge), für den Sprachwechsel bei schon übersetztem DOM
+    this.revPat = []; // dasselbe für Muster („Monde {0} · {1} joueurs“ → „Welt {0} · {1} Spieler“), siehe back()
     this.add(dict);
   }
 
@@ -44,6 +45,7 @@ export class Translator {
       this.outputs.add(norm(en).toUpperCase());
     }
     for (const list of this.byHead.values()) list.sort((a, b) => b.lit - a.lit);
+    this.revPat.sort((a, b) => b.lit - a.lit);
     this.cache.clear();
   }
 
@@ -52,6 +54,7 @@ export class Translator {
     const lit = parts.filter((_, i) => i % 2 === 0).join('');
     // Nur Muster mit genug festem Text, sonst passt „{0} {1}“ auf alles.
     if ((lit.match(/[A-Za-zÄÖÜäöüß]/g) ?? []).length < 2) return;
+    this.#addRevPattern(k, en);
     let re = '^';
     const order = [];
     parts.forEach((p, i) => {
@@ -61,6 +64,32 @@ export class Translator {
     const head = headOf(parts[0]);
     if (!this.byHead.has(head)) this.byHead.set(head, []);
     this.byHead.get(head).push(pat);
+  }
+
+  #addRevPattern(k, en) {
+    const parts = en.split(/(\{\d+\})/);
+    const lit = parts.filter((_, i) => i % 2 === 0).join('');
+    if ((lit.match(/\p{L}/gu) ?? []).length < 2) return;
+    const nums = [];
+    const re = parts.map((p, i) => (i % 2 ? (nums.push(p), '(.+?)') : esc(p))).join('');
+    this.revPat.push({ re: new RegExp(`^${re}$`, 's'), nums, de: k, lit: lit.length });
+  }
+
+  // Übersetzten Text auf den deutschen zurückführen (Sprachwechsel bei schon übersetztem DOM); null = unbekannt.
+  // Eingesetzte Werte werden ebenfalls zurückgeführt (z. B. Gegenstandsnamen), Zahlen bleiben.
+  back(text, depth = 0) {
+    const k = norm(text);
+    const ex = this.rev.get(k);
+    if (ex !== undefined) return ex;
+    if (depth > 2) return null;
+    for (const p of this.revPat) {
+      const m = k.match(p.re);
+      if (!m) continue;
+      let out = p.de;
+      p.nums.forEach((n, i) => { const v = m[i + 1]; out = out.split(n).join(this.back(v, depth + 1) ?? v); });
+      return out;
+    }
+    return null;
   }
 
   // true, wenn es für den Text einen Eintrag gibt (auch einen absichtlich gleichen)

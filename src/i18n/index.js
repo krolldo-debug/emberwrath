@@ -241,14 +241,16 @@ function startObserver() {
 // Nach einem Sprachwechsel: alles Sichtbare aus dem gemerkten Original neu übersetzen. Texte, die der Code schon
 // übersetzt hineingeschrieben hat (z. B. Hud über tr()), führt prev (Übersetzer der alten Sprache) aufs Deutsche zurück.
 function retranslateAll(prev) {
-  const back = (s) => { const m = prev && s.match(/^(\s*)([\s\S]*?)(\s*)$/); const de = m && prev.rev.get(m[2].replace(/\s+/g, ' ')); return de ? m[1] + de + m[3] : s; };
+  const back = (s) => { const m = prev && s.match(/^(\s*)([\s\S]*?)(\s*)$/); const de = m && m[2] && prev.back(m[2]); return de ? m[1] + de + m[3] : s; };
   observer?.disconnect();
   observer = null;
   const it = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
   for (let n = it.nextNode(); n; n = it.nextNode()) {
     if (n.nodeType === 3) {
       const rec = textSrc.get(n);
-      const src = back(rec && n.data === rec.out ? rec.src : n.data);
+      // Namen und Chat (translate="no") nie „zurückübersetzen“: ein Spieler namens „Rage“ bleibt „Rage“
+      const cur = rec && n.data === rec.out ? rec.src : n.data;
+      const src = skipped(n.parentElement) ? cur : back(cur);
       if (src !== n.data) n.data = src;
       textSrc.delete(n);
     } else {
