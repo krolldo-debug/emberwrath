@@ -5,6 +5,7 @@ import { mountItemId, MAX_ACTIVE, TRADE_MIN_LEVEL } from './rules.js';
 import { PLACES } from './places.js';
 import { createAuctioneerSprites } from './sprite.js';
 import { marketPanel } from './panel.js';
+import { checkVersion } from '../core/Version.js';
 
 // Auktionshaus: in jeder Stadt ein Auktionator der Gilde der Glutwaage. Spieler stellen Gegenstände, Materialien und
 // gelernte Reittiere ein (Startgebot und/oder Sofortkauf, 12/24/48 Stunden, 5 % Gebühr beim Verkauf).
@@ -56,6 +57,7 @@ const ERRORS = {
   level: 'Diese Beute liegt zu weit über deiner Stufe.',
   budget: 'Du hast gerade viel eigene Beute eingestellt. Mit mehr Spielzeit geht wieder mehr.',
   frame: 'So viel Gold kannst du im Auktionshaus erst nach längerer Spielzeit ausgeben.',
+  outdated: 'Eine neue Version ist da. Bitte lade die Seite neu.',
   unknown: 'Das hat nicht geklappt. Bitte versuch es gleich noch einmal.',
 };
 
@@ -158,6 +160,8 @@ export function installMarket(game) {
     busy = true;
     const sync = online().sync, charId = state.meta.characterId;
     try {
+      // Alter Code lädt nichts mehr hoch (src/core/Version.js): Buchungen erst nach dem Neuladen
+      if (await checkVersion({ maxAge: 0 })) throw new MarketError('outdated');
       game.saveNow('market');
       return await sync.exclusive(async () => {
         if (state.meta.characterId !== charId) throw new MarketError('character');

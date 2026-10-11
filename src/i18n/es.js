@@ -4547,5 +4547,6 @@ export const ES = {
   "Zwölf. Ich werde ihre Namen nicht aussprechen. Aber ich werde sie nie vergessen. Danke.": "Doce. No diré sus nombres en voz alta. Pero nunca los olvidaré. Gracias.",
   "Zyklon": "Ciclón",
   "Eine neue Version ist da. Bitte lade die Seite neu, damit dein Fortschritt gespeichert wird.": "Hay una nueva versión. Recarga la página para que se guarde tu progreso.",
-  "Eine neue Version ist da. Sie wird beim nächsten Gebietswechsel geladen.": "Hay una nueva versión. Se cargará en tu próximo cambio de zona."
+  "Eine neue Version ist da. Sie wird beim nächsten Gebietswechsel geladen.": "Hay una nueva versión. Se cargará en tu próximo cambio de zona.",
+  "Eine neue Version ist da. Bitte lade die Seite neu.": "Hay una nueva versión. Recarga la página, por favor."
 };
