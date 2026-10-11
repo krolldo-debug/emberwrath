@@ -58,7 +58,8 @@ function tone(ramp, nx, ny, nz, bias, noise) {
 }
 
 // Wie FineCanvas.each, aber schneller: Farbe zwischengespeichert, direkt in den Puffer (nur deckende Farben).
-function fill(p, x0, y0, x1, y1, fn) {
+// span(y) -> [xa, xb] engt die Spalten je Zeile ein (Weltkoordinaten, darf großzügig sein).
+function fill(p, x0, y0, x1, y1, fn, span = null) {
   const r = p.res, W = p.W, H = p.H, buf = p.buf;
   const F0 = Math.floor(x0 * r), F1 = Math.ceil(x1 * r), G0 = Math.floor(y0 * r), G1 = Math.ceil(y1 * r);
   const fo = Math.round(p.ox * r), go = Math.round(p.oy * r);
@@ -67,7 +68,9 @@ function fill(p, x0, y0, x1, y1, fn) {
     const ty = G + go;
     if (ty < 0 || ty >= H) continue;
     const y = (G + 0.5) / r, row = ty * W;
-    for (let F = F0; F <= F1; F++) {
+    let Fa = F0, Fb = F1;
+    if (span) { const s = span(y); Fa = Math.max(F0, Math.floor(s[0] * r)); Fb = Math.min(F1, Math.ceil(s[1] * r)); }
+    for (let F = Fa; F <= Fb; F++) {
       const tx = F + fo;
       if (tx < 0 || tx >= W) continue;
       const c = fn((F + 0.5) / r, y);
@@ -116,7 +119,14 @@ function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
     const nx = ex / (r || 1), ny = ey / (r || 1), nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
     const n = noise ? (hash2(Math.round(px - x0) + 64, Math.round(py - y0) + 64, seed) - 0.5) * noise : 0;
     return tone(ramp, nx, ny, nz, bias, n);
+  }, Math.abs(dy) < 1e-6 ? null : (y) => {
+    // Zeile y berührt nur Segmentpunkte mit |qy - y| <= R: Spaltenbereich daraus (+R)
+    const Rm = Math.max(r0, r1);
+    let ta = clamp((y - Rm - y0) / dy, 0, 1), tb = clamp((y + Rm - y0) / dy, 0, 1);
+    const xa = x0 + dx * ta, xb = x0 + dx * tb;
+    return [Math.min(xa, xb) - Rm - 1, Math.max(xa, xb) + Rm + 1];
   });
+
 }
 
 // Flache Ellipse: bei res 1 der alte Zeilen-Algorithmus (PixelCanvas.ellipse, pixelgleich), fein abgetastet sonst.
@@ -197,7 +207,18 @@ function dust(p, x, y, r, seed, cols, n = 16) {
 // Dreht einen Pixelpuffer (W×H Texel) texelgenau (nächster Nachbar) um einen Drehpunkt (Texelkoordinaten).
 function rotBlit(s, d, W, H, px, py, ang) {
   const c = Math.cos(-ang), sn = Math.sin(-ang);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  // nur der Zielbereich, in den der Inhalt der Quelle gedreht wird (Ecken des Quell-Rahmens)
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (s[y * W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y; }
+  if (x1 < 0) return;
+  let X0 = W, Y0 = H, X1 = 0, Y1 = 0;
+  for (const [u, v] of [[x0, y0], [x1 + 1, y0], [x0, y1 + 1], [x1 + 1, y1 + 1]]) {
+    const rx = u - px, ry = v - py, X = px + rx * c + ry * sn, Y = py - rx * sn + ry * c;
+    X0 = Math.min(X0, X); X1 = Math.max(X1, X); Y0 = Math.min(Y0, Y); Y1 = Math.max(Y1, Y);
+  }
+  const ya = Math.max(0, Math.floor(Y0) - 2), yb = Math.min(H - 1, Math.ceil(Y1) + 2);
+  const xa = Math.max(0, Math.floor(X0) - 2), xb = Math.min(W - 1, Math.ceil(X1) + 2);
+  for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) {
     const rx = x + 0.5 - px, ry = y + 0.5 - py;
     const sx = Math.floor(px + rx * c - ry * sn), sy = Math.floor(py + rx * sn + ry * c);
     if (sx < 0 || sy < 0 || sx >= W || sy >= H) continue;
@@ -224,23 +245,37 @@ function rimLight(p, k1 = 0.42, k2 = 0.24) {
   let img = null, d;
   if (p._canvas) { img = p.ctx.getImageData(0, 0, w, h); d = img.data; }
   else d = new Uint8ClampedArray(p.buf.buffer);
-  const op = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) op[i] = d[i * 4 + 3] > 40 ? 1 : 0;
+  const a = new Uint32Array(d.buffer, d.byteOffset, w * h);   // Deckung aus dem Alphabyte (bleibt beim Aufhellen gleich)
   const sh = 0.74;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x;
-    if (!op[i]) continue;
-    const up = y > 0 ? op[i - w] : 0, lf = x > 0 ? op[i - 1] : 0, ul = x > 0 && y > 0 ? op[i - w - 1] : 0;
-    const k = !up ? k1 : !lf ? k2 : !ul ? k2 * 0.5 : 0;
+  for (let y = 0; y < h; y++) for (let x = 0, i = y * w; x < w; x++, i++) {
+    if ((a[i] >>> 24) <= 40) continue;
+    const up = y > 0 && (a[i - w] >>> 24) > 40, lf = x > 0 && (a[i - 1] >>> 24) > 40;
+    const k = !up ? k1 : !lf ? k2 : (x > 0 && (a[i - w - 1] >>> 24) <= 40) ? k2 * 0.5 : 0;
     const j = i * 4;
     if (!k) {
-      if (fine && (y === h - 1 || !op[i + w])) { d[j] *= sh; d[j + 1] *= sh; d[j + 2] *= sh; }
+      if (fine && (y === h - 1 || (a[i + w] >>> 24) <= 40)) { d[j] *= sh; d[j + 1] *= sh; d[j + 2] *= sh; }
       continue;
     }
+
     d[j] += (RIM[0] - d[j]) * k; d[j + 1] += (RIM[1] - d[j + 1]) * k; d[j + 2] += (RIM[2] - d[j + 2]) * k;
   }
   if (img) p.ctx.putImageData(img, 0, 0);
   else p.dirty = true;
+}
+
+// Leuchtebene auf ihren Inhalt zuschneiden (Anker entsprechend verschoben): spart Bauzeit und Speicher,
+// gezeichnet wird ankerbezogen (SpriteFrame.draw), auch gespiegelt richtig.
+function cropGlow(g, ax, ay, res) {
+  const W = g.W, H = g.H, b = g.buf;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    const row = y * W;
+    for (let x = 0; x < W; x++) if (b[row + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y; }
+  }
+  if (x1 < 0) return new SpriteFrame(pixelsToCanvas(new Uint32Array(1), 1, 1), ax, ay, res);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, d = new Uint32Array(w * h);
+  for (let y = 0; y < h; y++) d.set(b.subarray((y + y0) * W + x0, (y + y0) * W + x0 + w), y * w);
+  return new SpriteFrame(pixelsToCanvas(d, w, h), ax - x0, ay - y0, res);
 }
 
 // Baut einen Frame: draw(p, g, P, X) -> meta (Koordinaten im Grundmaß S.W×S.H).
@@ -287,7 +322,7 @@ function makeFrame(S, draw, P, X = {}) {
     }
     rimLight(p);
   }, { fine: true, res, finish: false });
-  f.glow = new SpriteFrame(g._canvas ? g.canvas : pixelsToCanvas(g.buf, g.W, g.H), AX * res, AY * res, res);
+  f.glow = g._canvas ? new SpriteFrame(g.canvas, AX * res, AY * res, res) : cropGlow(g, AX * res, AY * res, res);
   f.meta = {};
   for (const k in meta) f.meta[k] = { dx: Math.round(meta[k].x - AX), dy: Math.round(meta[k].y - AY) };
   f.fx = X.fx ?? null;
@@ -1265,8 +1300,11 @@ function vultureWing(p, g, rx, ry, w, fold, near, spread, lean) {
       const s = lx * dx + ly * dy, c = lx * bx + ly * by;
       const wc = W(clamp(s, 0, L)) || 1;
       const f = c / wc;
+      if (c < 0.5) return near ? '#b4a89e' : '#7c706a';     // helle Federkante an der Vorderkante (Licht oben links)
+      if (c < 1) return near ? '#857872' : RP[4];
       if (f < 0.1) return RP[near ? 5 : 3];
       if (f < 0.14) return RP[near ? 4 : 3];
+
       if (f < 0.42) {
         const fc = c - 0.14 * wc, row = Math.floor(fc / 1.3), t = fc - row * 1.3;
         const sp = ((s + row * 0.75) % 1.5 + 1.5) % 1.5;
