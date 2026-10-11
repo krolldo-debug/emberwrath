@@ -106,7 +106,7 @@ export const CLASS_LOOK = {
 };
 // Welche Waffenfamilie die Klasse in der Waffenhand führt
 const CLASS_WEAPONS = {
-  warrior: ['sword', 'axe', 'mace'], rogue: ['sword', 'dagger'], ranger: ['bow', 'dagger'], mage: ['staff', 'wand'],
+  warrior: ['sword', 'axe', 'mace'], rogue: ['sword', 'dagger'], ranger: ['bow'], mage: ['staff', 'wand'],
 };
 
 // --- Raster ------------------------------------------------------------------------
@@ -129,9 +129,9 @@ let S = 1;
 // Ab dieser Feinheit zeichnen die …Hi-Funktionen (Stufe 2 = Spiel, Stufe 3 = nur Vergleich/Tests).
 const FINE_MIN = 2;
 class Raster {
-  constructor() {
+  constructor(alloc = true) {
     this.s = S; this.fw = W * S; this.fh = H * S;
-    this.buf = new Uint32Array(this.fw * this.fh);
+    if (alloc) this.buf = new Uint32Array(this.fw * this.fh);
   }
   // Feinpixel-Index -> Weltkoordinate der Pixelmitte
   wx(F) { return (F + 0.5) / this.s - 0.5 - AX; }
@@ -267,6 +267,83 @@ class Raster {
   }
 }
 
+// Raster für Item-Bilder (gfx/Icons.js): dieselben Zeichenfunktionen wie am Helden, k Bildpunkte je Weltpixel,
+// Weltursprung bei Bildpunkt (ox, oy); Formen entlang einer Achse quer um lat gestreckt (sonst wären Klingen im
+// 24er-Bild nur zwei Punkte breit). put(F, G, farbe) bekommt Bildpunkte.
+class IconRaster extends Raster {
+  constructor(put, k, ox, oy, lat, w, h) {
+    super(false);
+    Object.assign(this, { s: k, ox, oy, lat, fw: w, fh: h, putFn: put });
+  }
+  wx(F) { return (F + 0.5 - this.ox) / this.s; }
+  wy(G) { return (G + 0.5 - this.oy) / this.s; }
+  fx(x) { return Math.floor(x * this.s + this.ox); }
+  fy(y) { return Math.floor(y * this.s + this.oy); }
+  put(F, G, c) { if (c && F >= 0 && G >= 0 && F < this.fw && G < this.fh) this.putFn(F, G, c); }
+  has() { return false; }
+  // Rundformen und Linien quer ebenso gestreckt: Köpfe, Kugeln und Bogenarme bleiben im kleinen Bild lesbar
+  ellipse(cx, cy, rx, ry, fn) { super.ellipse(cx, cy, rx * this.lat, ry * this.lat, fn); }
+  capsule(x0, y0, x1, y1, r0, r1, shade) { super.capsule(x0, y0, x1, y1, r0 * this.lat, r1 * this.lat, shade); }
+  fline(x0, y0, x1, y1, w, c) { super.fline(x0, y0, x1, y1, w * this.lat, c); }
+  // Breite eines Bildpunkts quer zur Achse in Weltpixeln (feine Streifen werden mindestens so breit)
+  get pxLat() { return 1 / (this.s * this.lat); }
+  set(x, y, c) {
+    if (!c) return;
+    const rx = Math.round(x), ry = Math.round(y);
+    this.each(rx - 0.5, ry - 0.5, rx + 0.5, ry + 0.5, (wx, wy, F, G) => { if (Math.abs(wx - rx) <= 0.5 && Math.abs(wy - ry) <= 0.5) this.put(F, G, c); });
+  }
+  axis(ox, oy, ang, u0, u1, vmax, fn) {
+    const dx = Math.cos(ang), dy = Math.sin(ang), lat = this.lat;
+    const s = (-dy * LX + dx * LY) > 0 ? -1 : 1;
+    const xs = [], ys = [];
+    for (const u of [u0, u1]) for (const v of [-vmax * lat, vmax * lat]) { xs.push(ox + u * dx - v * dy); ys.push(oy + u * dy + v * dx); }
+    this.each(Math.min(...xs) - 1, Math.min(...ys) - 1, Math.max(...xs) + 1, Math.max(...ys) + 1, (x, y, F, G) => {
+      const rx = x - ox, ry = y - oy;
+      const u = rx * dx + ry * dy, v = (-rx * dy + ry * dx) / lat;
+      if (u < u0 || u > u1 || Math.abs(v) > vmax || (this.uMin != null && ox === 0 && oy === 0 && u < this.uMin)) return;
+      const c = fn(u, v * s, v);
+      if (c) this.put(F, G, c);
+    });
+  }
+}
+const ICON_WEAPON_ANG = -Math.PI / 4;   // Spitze nach oben rechts (wie alle Item-Bilder)
+const ICON_BOW_TILT = -Math.PI * 3 / 4; // Bogen von unten links nach oben rechts, Bauch nach oben links
+// Waffe als Item-Bild: Form, Farben und Zier genau wie in der Hand des Helden (Feinstufe 2), auf size×size eingepasst.
+const ICON_FIT = { dagger: { kmax: 2.2 }, wand: { kmax: 2.6 }, staff: { uMin: -1 } };
+export function drawWeaponIcon(put, w, size = 24, { lat = 1.35 } = {}) {
+  const { kmax = 2, uMin = null } = ICON_FIT[w.family] ?? {};
+  const keep = S;
+  S = 2;
+  try {
+    const shape = (R) => {
+      const G = [];
+      if (w.family === 'bow') drawBow(R, G, w, 0, 0, 0, false, ICON_BOW_TILT);
+      else drawWeapon(R, G, w, 0, 0, ICON_WEAPON_ANG, { glow: 0 }, false, 1);
+    };
+    // 1. Durchgang: Ausdehnung in Weltpixeln messen
+    const Q = 8, O = 400;
+    const measure = (draw) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      const rec = new IconRaster((F, G) => { x0 = Math.min(x0, F); x1 = Math.max(x1, F); y0 = Math.min(y0, G); y1 = Math.max(y1, G); }, Q, O, O, lat, 2 * O, 2 * O);
+      rec.uMin = uMin;
+      draw(rec);
+      return { x0, y0, x1, y1, bw: (x1 - x0 + 1) / Q, bh: (y1 - y0 + 1) / Q };
+    };
+    const b = measure(shape);
+    if (b.x0 > b.x1) return;
+    // Bögen im gemeinsamen Maßstab des Langbogens: ein kurzer Bogen ist auch im Bild kürzer
+    const ref = w.family === 'bow' && !w.long ? measure((R) => drawBow(R, [], { ...w, long: true }, 0, 0, 0, false, ICON_BOW_TILT)) : b;
+    const k = Math.min(kmax, (size - 1) / ref.bw, (size - 1) / ref.bh);
+    const cx = ((b.x0 + b.x1 + 1) / 2 - O) / Q, cy = ((b.y0 + b.y1 + 1) / 2 - O) / Q;
+    // 2. Durchgang: eingepasst und mittig
+    const R = new IconRaster(put, k, Math.round(size / 2 - cx * k), Math.round(size / 2 - cy * k), lat, size, size);
+    R.uMin = uMin;
+    shape(R);
+  } finally {
+    S = keep;
+  }
+}
+
 // Schattierung für Glieder/Rundformen aus einer Farbrampe. Im feinen Raster (S ≥ 3)
 // mit Materialstruktur (kind: plate, chain, scale, padded, leather, robe, cloth, skin).
 const tone = (ramp, metal = false, kind = null) => (l, t, e, x, y, F, G) => {
@@ -352,7 +429,9 @@ function resolveLook(raceId, classId, variant, gear, style) {
   if (classId === 'ranger' && weapon?.family === 'dagger') { sideArm = weapon; weapon = null; }
   weapon ??= cl.weapon;
   const off = classId === 'rogue' ? (weapon.family === 'dagger' ? weapon : cl.weapon) : null;
-  const head = g.head ?? null;
+  // Stirnreif (Kopfteil mit style 'circlet'): kein Helm, sondern der Reif um die Stirn in eigenen Farben
+  const circletPart = g.head?.style === 'circlet' ? g.head : null;
+  const head = circletPart ? null : g.head ?? null;
   // Kosmetik: Färbung für Stoff (Umhang, Kapuze, Robe, Wams), Frisur je Volk
   const dye = style?.dye ? DYES[style.dye]?.ramp : null;
   if (dye && (chest.style === 'robe' || chest.style === 'padded')) chest.ramp = chest.style === 'robe' ? [dye[0], dye[0], dye[1], dye[2], dye[3]] : dye;
@@ -362,12 +441,13 @@ function resolveLook(raceId, classId, variant, gear, style) {
     raceId, classId, rl, cl, body: rl.body,
     skin: rl.skin, hair: V.hair, accent: V.accent ?? PAL.ember,
     cloth: dye ?? cl.cloth, trim: chest.trim ?? cl.trim,
-    chest, weapon, off, sideArm, head,
+    chest, chestWorn: !!g.chest, weapon, off, sideArm, head,
     gloves: g.hands?.ramp ?? cl.gloves, glovesMetal: g.hands ? (g.hands.style === 'plate' || g.hands.style === 'mail') : false,
-    glovesGlow: g.hands?.glow ?? null,
+    glovesGlow: g.hands?.glow ?? null, glovesTrim: g.hands?.trim ?? null,
     boots: g.feet?.ramp ?? cl.boots, bootsMetal: g.feet ? g.feet.style === 'plate' : false,
-    bootsGlow: g.feet?.glow ?? null,
-    hood: cl.hood && !head, cowl: cl.cowl, circlet: cl.circlet && !head,
+    bootsGlow: g.feet?.glow ?? null, bootsTrim: g.feet?.trim ?? null,
+    hood: cl.hood && !head && !circletPart, cowl: cl.cowl, circlet: (cl.circlet || !!circletPart) && !head,
+    circletRamp: circletPart?.ramp ?? null, circletGem: circletPart?.gem ?? null,
     back: cl.back, quiver: cl.quiver, offKind: cl.off,
   };
 }
@@ -596,7 +676,7 @@ function drawBoot(R, L, ax, ay, lift, near, leg) {
 function drawArm(R, L, sh, arm, far) {
   const B = L.body, lw = B.limb;
   const st = L.chest.style;
-  const sleeveBase = st === 'plate' ? L.chest.ramp : st === 'robe' ? L.chest.ramp : st === 'chain' ? L.chest.ramp : st === 'scale' ? L.chest.ramp : st === 'padded' ? L.chest.ramp : L.cloth;
+  const sleeveBase = st === 'plate' ? L.chest.ramp : st === 'robe' ? L.chest.ramp : st === 'chain' ? L.chest.ramp : st === 'scale' ? L.chest.ramp : st === 'padded' ? L.chest.ramp : L.chestWorn ? L.chest.ramp : L.cloth;   // Wams/Leder: Ärmel in Wamsfarbe wie im Item-Bild, ohne Brustteil Klassenstoff
   const sleeve = far ? dimRamp(sleeveBase) : sleeveBase;
   const metal = st === 'plate' || st === 'chain' || st === 'scale';
   const sk2 = ['plate', 'chain', 'scale', 'padded', 'robe'].includes(st) ? st : 'cloth';
@@ -1097,10 +1177,10 @@ function drawHeadHi(R, G, L, P, sk) {
   if (!L.hood && !closed) drawEarHi(R, L, g);
   if (rl.horns) drawHornsHi(R, L, g, !!L.hood || !!closed);
   if (L.circlet && !helm) {
-    const T = L.trim;
+    const T = L.circletRamp ?? L.trim, Gm = L.circletGem ?? L.cloth;
     R.fline(x0 + 3.2, y0 + 3.0, x0 + 8.6, y0 + 3.3, 0.5, (t) => T[t < 0.4 ? 1 : 2]);
     R.fline(x0 + 3.2, y0 + 2.8, x0 + 8.6, y0 + 3.1, 0.2, T[3]);
-    R.ellipse(x0 + 8.0, y0 + 3.2, 0.55, 0.55, (a, b) => (a + b < -0.3 ? T[4] ?? T[3] : L.cloth[3] ?? T[3]));
+    R.ellipse(x0 + 8.0, y0 + 3.1, 0.85, 0.85, (a, b) => (a + b < -0.6 ? Gm[4] ?? Gm[3] : a + b > 0.6 ? Gm[2] : Gm[3]));   // Stein gut sichtbar
     G.push({ x: x0 + 8, y: y0 + 3, color: T[4] ?? T[3], r: 1.5 });
   }
   if (L.cowl && !helm) drawCowlHi(R, L, x0, y0);
@@ -1443,6 +1523,7 @@ function drawHandHi(R, L, x, y, far) {
   R.fline(x + 0.5, y - 0.8, x + 0.9, y + 0.7, 0.34, h[1]);       // Fingerlinie
   R.dot(x - 0.6, y - 0.8, h[3] ?? h[2]);
   if (L.glovesMetal && !far) { R.dot(x + 0.1, y - 0.5, h[4] ?? h[3]); R.dot(x + 0.4, y + 0.2, h[4] ?? h[3]); }
+  if (L.glovesTrim && !far) { R.dot(x - 0.6, y - 0.8, L.glovesTrim[4] ?? L.glovesTrim[3]); R.dot(x - 0.9, y - 0.2, L.glovesTrim[3]); R.dot(x - 0.9, y + 0.4, L.glovesTrim[2]); }
   if (L.glovesGlow && !far) R.dot(x, y - 0.4, L.glovesGlow[3]);
 }
 
@@ -1452,7 +1533,7 @@ function drawBootHi(R, L, ax, ay, lift, near, leg) {
   // Schaft über dem Knöchel mit Stulpe
   const mx = leg.jx + (leg.ex - leg.jx) * 0.5, my = leg.jy + (leg.ey - leg.jy) * 0.5;
   R.capsule(mx, my, leg.ex, leg.ey, 1.4 * L.body.limb, 1.35 * L.body.limb, tone(b, metal, metal ? 'plate' : 'leather'));
-  R.fline(mx - 1.3 * L.body.limb, my, mx + 1.3 * L.body.limb, my - 0.1, 0.5, b[metal ? 4 : 3] ?? b[3]);   // Stulpe
+  R.fline(mx - 1.3 * L.body.limb, my, mx + 1.3 * L.body.limb, my - 0.1, L.bootsTrim ? 0.7 : 0.5, L.bootsTrim && near ? L.bootsTrim[3] : b[metal ? 4 : 3] ?? b[3]);   // Stulpe (Zierband ab selten)
   const tilt = lift > 1.2 && ax < leg.jx - 0.5 ? 0.5 : 0;
   // Fuß: Ferse hinten, Spitze vorne, Sohle dunkel
   R.each(ax - 2, ay - 1, ax + 3.5, ay + 2, (x, y, F, G) => {
@@ -1726,10 +1807,10 @@ function drawHeadLow(R, G, L, P, sk) {
     R.set(x0 + 3, y0 - 2, M.bone[3]); R.set(x0 + 2, y0 - 3, M.bone[2]);
   }
   if (L.circlet) {
-    const T = L.trim;
+    const T = L.circletRamp ?? L.trim;
     for (let i = 4; i <= 7; i++) R.set(x0 + i, y0 + 3, T[i < 6 ? 1 : 2]);
-    R.set(x0 + 7, y0 + 3, T[4] ?? T[3]);
-    G.push({ x: x0 + 7, y: y0 + 3, color: T[4] ?? T[3], r: 1.5 });
+    R.set(x0 + 7, y0 + 3, L.circletGem ? L.circletGem[3] : T[4] ?? T[3]);
+    G.push({ x: x0 + 7, y: y0 + 3, color: (L.circletGem ?? T)[4] ?? T[3], r: 1.5 });
   }
   if (L.cowl && !helm) {
     const C = L.cloth;
@@ -1916,8 +1997,9 @@ function drawGreatBlade(R, G, w, hx, hy, ang, len, far) {
   const Bl = far ? dimRamp(w.blade ?? M.steel) : w.blade ?? M.steel;
   const Gd = far ? dimRamp(w.guard ?? M.iron) : w.guard ?? M.iron, Gr = w.grip ?? M.darkleather;
   const gem = w.gem, Ru = far ? null : w.runes, E = far ? null : w.edge;
-  const fine = S >= FINE_MIN, q = fine ? 2 : 1;
+  const fine = S >= FINE_MIN, pw = R.pxLat ?? 0, q = pw ? Math.min(2, 0.8 / pw) : fine ? 2 : 1;
   const half = 1.75, gw = w.guardW ?? 4.4, bend = w.wings ? 0.075 : 0.05;
+  const EDGE = Math.max(0.5, pw * 0.9), FUL = Math.max(0.42, pw * 0.6);   // im Item-Bild mindestens einen Bildpunkt breit
   const B0 = 2.7, RIC = 4.3;                                     // Klingenansatz, Ende der Fehlschärfe
   R.axis(hx, hy, ang, -5.8, len + 0.3, gw + 1, (u, lv) => {
     const a = Math.abs(lv);
@@ -1931,7 +2013,7 @@ function drawGreatBlade(R, G, w, hx, hy, ang, len, far) {
     // Griff: gewickelt
     if (u < 0.95) {
       if (a > 0.8) return null;
-      const wrap = (Math.floor((u + 10) * 1.6) + (lv < 0 ? 0 : 1)) % 2;
+      const wrap = (Math.floor((u + 10) * (pw ? q * 0.8 : 1.6)) + (lv < 0 ? 0 : 1)) % 2;
       return a > 0.62 ? Gr[0] : lv < 0 ? Gr[wrap ? 3 : 2] : Gr[wrap ? 2 : 1];
     }
     // Parierstange: zur Klinge hin geschwungen, Enden verdickt, Stein in der Mitte
@@ -1961,19 +2043,19 @@ function drawGreatBlade(R, G, w, hx, hy, ang, len, far) {
     const e = hw - a;
     if (u < RIC) return e < 0.35 ? Bl[1] : lv < 0 ? Bl[3] : Bl[2];       // Fehlschärfe: stumpf, matt
     if (w.jag && lv > 0 && e < 0.6 && Math.floor(u * q) % 3 === 0) return null;
-    if (e < 0.5) {                                                          // Schneiden
+    if (e < EDGE) {                                                         // Schneiden
       if (lv < 0) return Bl[4];
       if (E && t > 0.06) return E[3];
       return Bl[3];
     }
-    if (e < hw * 0.42) return lv < 0 ? Bl[3] : Bl[1];                       // Fase
+    if (!pw && e < hw * 0.42) return lv < 0 ? Bl[3] : Bl[1];                // Fase
     if (t < 0.68) {                                                         // Hohlkehle
-      if (a < 0.42) {
+      if (a < FUL) {
         if (Ru && t > 0.04) return GREAT_RUNE[Math.floor((u - RIC) * q) % GREAT_RUNE.length] ? Ru[3] : Ru[2];
         return Bl[0];
       }
-      if (a < 0.7) return lv < 0 ? Bl[1] : Bl[3];
-    } else if (a < 0.3) return Bl[3];                                       // Mittelgrat zur Spitze
+      if (!pw && a < 0.7) return lv < 0 ? Bl[1] : Bl[3];
+    } else if (a < Math.max(0.3, pw * 0.5)) return Bl[3];                   // Mittelgrat zur Spitze
     return lv < 0 ? Bl[2] : Bl[1];
   });
   weaponAxis(G, w, hx, hy, ang, RIC, len, far);
@@ -2033,9 +2115,16 @@ function drawMace(R, G, w, hx, hy, ang, reach, far) {
   if (w.kind === 'club') {
     R.capsule(hx + dx * (L - 4), hy + dy * (L - 4), cx, cy, 1.7, 3, tone(Hd));
   } else {
-    if (w.kind === 'flanged') for (let i = 0; i < 4; i++) { const a = ang + i * Math.PI / 2 + 0.4; R.line(cx + Math.cos(a) * 2.5, cy + Math.sin(a) * 2.5, cx + Math.cos(a) * 4.1, cy + Math.sin(a) * 4.1, Hd[2]); }
-    if (w.kind === 'spiked') for (let i = 0; i < 8; i++) { const a = i * TAU / 8; R.line(cx + Math.cos(a) * 2.5, cy + Math.sin(a) * 2.5, cx + Math.cos(a) * 4.3, cy + Math.sin(a) * 4.3, Hd[i % 2 ? 2 : 3]); }
+    const lr = R.lat ?? 1;   // Item-Bild: Kopf ist quer gestreckt, Flansche und Dornen wachsen mit
+    if (w.kind === 'flanged') for (let i = 0; i < 4; i++) { const a = ang + i * Math.PI / 2 + 0.4; R.line(cx + Math.cos(a) * 2.5 * lr, cy + Math.sin(a) * 2.5 * lr, cx + Math.cos(a) * 4.1 * lr, cy + Math.sin(a) * 4.1 * lr, Hd[2]); }
+    const Gl = w.glow && !far ? w.glow : null;   // leuchtender Kolben: Dornen in der Glutfarbe
+    if (w.kind === 'spiked') for (let i = 0; i < 8; i++) { const a = i * TAU / 8; R.line(cx + Math.cos(a) * 2.5 * lr, cy + Math.sin(a) * 2.5 * lr, cx + Math.cos(a) * 4.3 * lr, cy + Math.sin(a) * 4.3 * lr, (Gl ?? Hd)[i % 2 ? 2 : 3]); }
     R.ellipse(cx, cy, r, r, (nx, ny) => { const l = -(nx * LX + ny * LY) * -1; return l > 0.4 ? Hd[4] ?? Hd[3] : l > -0.2 ? Hd[3] : Hd[2]; });
+    if (w.glow && !far) {
+      // Leuchtender Kolben (episch/legendär): glühender Kern und Glutspitzen, auch im Item-Bild sichtbar
+      R.ellipse(cx, cy, r * 0.55, r * 0.55, (nx, ny) => (nx + ny < -0.4 ? w.glow[4] ?? w.glow[3] : w.glow[3]));
+      if (w.kind === 'spiked' || w.kind === 'flanged') for (let i = 0; i < 8; i += w.kind === 'spiked' ? 1 : 2) { const a = w.kind === 'spiked' ? i * TAU / 8 : ang + i * Math.PI / 4 + 0.4; R.set(cx + Math.cos(a) * 4 * lr, cy + Math.sin(a) * 4 * lr, w.glow[4] ?? w.glow[3]); }
+    }
   }
   if (w.glow && !far) G.push({ x: Math.round(cx), y: Math.round(cy), color: w.glow[3], r: 3 });
   weaponAxis(G, w, hx, hy, ang, L - 1, L + 5, far);
@@ -2118,7 +2207,7 @@ function drawBow(R, G, w, bx, by, pull, arrow, tiltA) {
       const wdt = grip ? 1.3 : 1.15 - at * 0.55;
       R.fline(p.x, p.y, q.x, q.y, wdt, grip ? (w.grip ?? M.leather)[(i & 1) ? 2 : 3] : Wd[at > 0.85 ? 3 : 2]);
       if (!grip) { const a = T(p.lx + 0.45, p.ly), b = T(q.lx + 0.45, q.ly); R.fline(a.x, a.y, b.x, b.y, 0.34, Wd[1]); }
-      if (!grip && at < 0.8) { const a = T(p.lx - 0.35, p.ly), b = T(q.lx - 0.35, q.ly); R.fline(a.x, a.y, b.x, b.y, 0.3, Wd[4] ?? Wd[3]); }
+      if (!grip && at < 0.8) { const a = T(p.lx - 0.35, p.ly), b = T(q.lx - 0.35, q.ly); R.fline(a.x, a.y, b.x, b.y, 0.3, w.glow ? w.glow[3] : Wd[4] ?? Wd[3]); }
     }
   } else {
     for (const p of pts) {

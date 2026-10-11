@@ -1,6 +1,6 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
-import { iconEl, iconCanvas, RARITY_COLORS } from '../gfx/Icons.js';
+import { iconEl, iconCanvas, itemIconId, RARITY_COLORS } from '../gfx/Icons.js';
 import { spriteStyle } from '../character/cosmetics.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { StableStage, mountCard, emptyCard, mountStand, snapToDevice, cardFit, cardScale, TEX } from './Stable.js';
@@ -158,8 +158,9 @@ function createWardrobePanel(session, params = {}) {
     if (!wr) { root.replaceChildren(head(), h('p.ef-note', 'Die Garderobe ist gerade nicht verfügbar.')); return; }
     const e = wr.entries(slot);
     const cur = e.current ?? null;
+    // Das Aussehen der angelegten Ausrüstung zeigt schon die erste Kachel: keine zweite, gleich aussehende
+    e.list = (e.list ?? []).filter((it) => it.itemId !== e.equipped || it.itemId === cur);
     const sel = slot in preview ? preview[slot] : cur;
-    const total = slots.reduce((n, k) => n + (wr.entries(k).list?.length ?? 0), 0);
     const css = compact() ? ICON_PX * 2 : ICON_PX * 3;
     const wornDef = content.find('item', itemId(e.equipped));
     const tile = (value, label, visual, { rarity = null, usable = true, cap = null } = {}) => h(`button.wd-tile${sel === value ? '.sel' : ''}${cur === value ? '.cur' : ''}${usable ? '' : '.off'}`, {
@@ -168,9 +169,9 @@ function createWardrobePanel(session, params = {}) {
       onclick: () => { if (sel === value) return; preview = { ...preview, [slot]: value }; msg = ''; refreshStage(); render(); },
     }, visual, cap ? h('span.wd-tile-cap', cap) : null, cur === value ? h('span.wd-check', { 'aria-hidden': 'true' }) : null, usable ? null : h('span.wd-lock', { 'aria-hidden': 'true' }));
     const tiles = [
-      tile(null, 'Angelegter Gegenstand', tileIcon(wornDef?.icon ?? SLOT_PH[slot], { dim: !wornDef, css }), { rarity: wornDef?.rarity ?? null, cap: 'Ausrüstung' }),
-      slot === 'head' ? tile('none', 'Helm ausgeblendet', tileIcon(wornDef?.icon ?? SLOT_PH.head, { slash: true, css }), { cap: 'Aus' }) : null,
-      ...(e.list ?? []).map((it) => tile(it.itemId, it.name, tileIcon(it.icon, { css }), { rarity: it.rarity, usable: it.usable })),
+      tile(null, 'Angelegter Gegenstand', tileIcon(wornDef ? itemIconId(wornDef) : SLOT_PH[slot], { dim: !wornDef, css }), { rarity: wornDef?.rarity ?? null, cap: 'Ausrüstung' }),
+      slot === 'head' ? tile('none', 'Helm ausgeblendet', tileIcon(wornDef ? itemIconId(wornDef) : SLOT_PH.head, { slash: true, css }), { cap: 'Aus' }) : null,
+      ...(e.list ?? []).map((it) => tile(it.itemId, it.name, tileIcon(itemIconId(content.find('item', it.itemId)), { css }), { rarity: it.rarity, usable: it.usable })),
     ];
     const pick = (e.list ?? []).find((it) => it.itemId === sel);
     const state = sel === cur ? 'on' : pick && !pick.usable ? 'off' : 'can';
@@ -183,7 +184,7 @@ function createWardrobePanel(session, params = {}) {
     const name = pick ? pick.name : sel === 'none' ? 'Helm ausgeblendet' : 'Angelegter Gegenstand';
     const info = pick ? (pick.usable ? '' : 'Andere Klasse') : sel === 'none' ? '' : wornDef?.name ?? '';
     root.replaceChildren(head(), tabs(), h('div.wd-body',
-      stageCol({ count: `${fmtNum(total)} Aussehen`, name, nameColor: pick ? RARITY_COLORS[pick.rarity] ?? RARITY_COLORS.common : null, info, button, note: msg }),
+      stageCol({ count: `${fmtNum((e.list?.length ?? 0) + (wornDef ? 1 : 0))} Aussehen`, name, nameColor: pick ? RARITY_COLORS[pick.rarity] ?? RARITY_COLORS.common : null, info, button, note: msg }),
       h('div.wd-grid', tiles)));
   };
 

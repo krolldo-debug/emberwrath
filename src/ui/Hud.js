@@ -1,6 +1,6 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
-import { iconUrl, abilityIcon } from '../gfx/Icons.js';
+import { iconUrl, itemIconId, abilityIcon } from '../gfx/Icons.js';
 import { xpToNext } from '../progression/xp.js';
 import { trackedQuestId, questFilterHere } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
@@ -535,7 +535,8 @@ export class Hud {
           // Symbol der ausgerüsteten Waffe, sonst Klassensymbol, sonst Schwert
           const eq = inv?.equipment?.weapon;
           const wid = typeof eq === 'string' ? eq : eq?.itemId;
-          const icon = c.find('item', wid)?.icon ?? c.find('class', this.s.state.slices.character?.classId)?.icon ?? 'sword';
+          const wdef = c.find('item', wid);
+          const icon = wdef ? itemIconId(wdef) : c.find('class', this.s.state.slices.character?.classId)?.icon ?? 'sword';
           if (sl.icon !== icon) { sl.icon = icon; sl.img.src = iconUrl(icon); }
           break;
         }

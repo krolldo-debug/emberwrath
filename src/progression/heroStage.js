@@ -66,7 +66,7 @@ export class HeroStage {
     ctx.setTransform(RES, 0, 0, RES, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, W, H);
-    ctx.drawImage(this.floor, 0, 0);
+    ctx.drawImage(this.floor, 0, 0, W, H);
     if (!this.anims) return;
     const f = this.#frame();
     f?.draw(ctx, W / 2, FLOOR);
@@ -79,15 +79,16 @@ function pick(anim, time, fps) {
   return anim.frames[Math.max(0, i)];
 }
 
-// Sockel: Steinscheibe mit Glutrand, gerastert statt weich verlaufen (einmal gezeichnet)
+// Sockel: Steinscheibe mit Glutrand, gerastert statt weich verlaufen (einmal gezeichnet). In der feinen
+// Auflösung der Heldenframes (RES), damit das Raster nicht doppelt so grob wirkt wie die Figur.
 function floorArt() {
   const c = document.createElement('canvas');
-  c.width = W; c.height = H;
+  c.width = W * RES; c.height = H * RES;
   const g = c.getContext('2d');
-  const cx = W / 2 - 0.5, cy = FLOOR + 1, rx = 17, ry = 4.5;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const dx = (x - cx) / rx, dy = (y - cy) / ry, d = Math.sqrt(dx * dx + dy * dy);
+  const cx = W / 2, cy = FLOOR + 1.5, rx = 17, ry = 4.5;
+  for (let y = 0; y < H * RES; y++) {
+    for (let x = 0; x < W * RES; x++) {
+      const dx = ((x + 0.5) / RES - cx) / rx, dy = ((y + 0.5) / RES - cy) / ry, d = Math.sqrt(dx * dx + dy * dy);
       const chk = (x + y) & 1;
       let col = null;
       if (d < 0.42) col = '#08050c';                                // Schatten unter der Figur

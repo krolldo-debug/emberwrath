@@ -14,6 +14,7 @@
 - `src/character/TalentPanel.js`, `src/character/talents.js` – Panel `talents`, Talentbaum und Passive
 - `src/account/backups.js` – 3 Speicherplätze + automatische Sicherung je Charakter (Schlüssel `emberfall:v1:slots:<acc>:<chr>`), `snapInfo()` für Stufe/Titel/Spielzeit
 - `src/character/gearLook.js` – `resolveGear(equipment, content)` / `gearKey()`: Ausrüstung → Aussehen (Waffenform nach `family`/`icon`, Material und Leuchten nach Seltenheit, Rüstungsstil, Helm, Handschuhe, Stiefel)
+  - `itemLook(def)` (11.10.): Aussehen eines einzelnen Teils. Item-Bilder (`gfx/Icons.js itemIconId`) werden daraus gezeichnet, Platz und Figur passen immer zusammen. Stufen-Teile (`*_t5…_t8`) tragen die Gebietsfarben (`TIER_LOOK`), die Bauart kommt aus dem Namen (Säbel, Langbogen, Morgenstern, Stilett, Kappe …, `CUTS`).
 - `src/account/*` – Szenen `title`, `account`, `characters`, `characterCreate`, Menü-Hintergrund, `account.css`
 
 ## Held (für HUD, Touch, Fortschritt)
