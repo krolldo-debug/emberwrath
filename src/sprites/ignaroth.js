@@ -1,6 +1,7 @@
 import { PAL } from '../gfx/Palette.js';
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Ignaroth, der Glut-Tyrann – Endboss der Glutschmiede.
@@ -28,13 +29,25 @@ const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Axt steckt im 
 const SC = 1.25;
 const W = 260, H = 176, BAX = 114, BAY = 168; // Zielpuffer und Anker darin
 const BCLIP = BAY + 1;
-const tx = (x) => BAX + (x - AX) * SC, ty = (y) => BAY + (y - AY) * SC;
+// Feinraster (docs/STYLE.md „Feinraster“, Stufe B): der Zielpuffer hat RS Texel je Zielpixel (RS = fineRes() beim
+// Bau, bei „Niedrig“ 1 = alles wie früher). Die Stifte rastern jede Form im Feinraster neu (keine Hochskalierung);
+// Pixelkarten (Visier) setzen RS×RS-Zellen, Feindetails (dot/fline) einzelne Texel.
+let RS = 1, TW = W, TH = H, KS = SC;
+const tx = (x) => (BAX + (x - AX) * SC) * RS, ty = (y) => (BAY + (y - AY) * SC) * RS;
+const cx0 = (x) => BAX + (x - AX) * SC, cy0 = (y) => BAY + (y - AY) * SC;   // Zielpixel (grob) für Pixelkarten
+function setRes(r) { RS = r; TW = W * r; TH = H * r; KS = SC * r; }
 // Fußabdruck eines Rig-Punkts im Zielpuffer (lückenlos auch bei Ganzzahl-Schleifen)
 function foot(x, y, f) {
   const X = tx(x), Y = ty(y);
   const x0 = Math.round(X), y0 = Math.round(Y);
-  const x1 = Math.max(x0, Math.round(X + SC) - 1), y1 = Math.max(y0, Math.round(Y + SC) - 1);
+  const x1 = Math.max(x0, Math.round(X + KS) - 1), y1 = Math.max(y0, Math.round(Y + KS) - 1);
   for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) f(xx, yy);
+}
+// Strecke in Rig-Koordinaten: grob Bresenham (wie früher), fein in Texelschritten (glatte Diagonalen, gleiche Stärke)
+function seg(x0, y0, x1, y1, f) {
+  if (RS === 1) { bres(x0, y0, x1, y1, f); return; }
+  const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * KS));
+  for (let i = 0; i <= n; i++) f(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n);
 }
 
 // Erkaltete Schlacke: fast schwarz mit warmem Braunstich, Kanten rötlich angeglüht
@@ -78,28 +91,58 @@ const EMBc = EMB.map(col), INFc = INF.map(col);
 
 // Drei Ebenen: Grundbild, Glut (Phase 1–2), Inferno (Phase 3)
 class Layers {
-  constructor() {
-    this.base = new Uint32Array(W * H);
-    this.ga = new Uint32Array(W * H);
-    this.gb = new Uint32Array(W * H);
-    this.nr = new Uint8Array(W * H); // 1 = kein Umriss/Randlicht (Schwung-Schleier, Funken)
+  // Ein Satz Puffer wird für alle Frames wiederverwendet (spart Speicher und Müllabfuhr); get() leert den zuletzt
+  // belegten Bereich.
+  static #pool = null;
+  static get() {
+    const L = Layers.#pool;
+    if (!L || L.base.length !== TW * TH) return (Layers.#pool = new Layers());
+    if (L.x1 >= 0) for (let y = Math.max(0, L.y0 - 1); y <= Math.min(TH - 1, L.y1 + 1); y++) {
+      const a = y * TW + Math.max(0, L.x0 - 1), b = y * TW + Math.min(TW - 1, L.x1 + 1) + 1;
+      L.base.fill(0, a, b); L.ga.fill(0, a, b); L.gb.fill(0, a, b); L.nr.fill(0, a, b);
+    }
+    L.x0 = TW; L.y0 = TH; L.x1 = -1; L.y1 = -1;
+    return L;
   }
+  constructor() {
+    this.base = new Uint32Array(TW * TH);
+    this.ga = new Uint32Array(TW * TH);
+    this.gb = new Uint32Array(TW * TH);
+    this.nr = new Uint8Array(TW * TH); // 1 = kein Umriss/Randlicht (Schwung-Schleier, Funken)
+    this.x0 = TW; this.y0 = TH; this.x1 = -1; this.y1 = -1;   // belegter Bereich (Randlicht/Zuschnitt nur dort)
+  }
+  mark(x, y) { if (x < this.x0) this.x0 = x; if (x > this.x1) this.x1 = x; if (y < this.y0) this.y0 = y; if (y > this.y1) this.y1 = y; }
 }
 
 // Stift für das Grundbild: deckt darunter liegendes Glühen ab.
-// px/rect/line/ellipse nehmen Rig-Koordinaten; set schreibt direkt in den Zielpuffer.
+// px/rect/line/ellipse nehmen Rig-Koordinaten; set schreibt direkt in den Zielpuffer (Texel), cell eine
+// Zielpixel-Zelle (RS×RS Texel), dot/fline Feindetails (ein Texel, nur im Feinraster sichtbar fein).
 class Pen {
-  constructor(L) { this.L = L; this.soft = 0; this.fine = 0; }
-  set(x, y, c) {
-    if (x < 0 || y < 0 || x >= W || y >= H || y > BCLIP) return;
-    const i = y * W + x;
-    this.L.base[i] = col(c); this.L.ga[i] = 0; this.L.gb[i] = 0; this.L.nr[i] = this.soft;
+  constructor(L) { this.L = L; this.soft = 0; this.fine = 0; this.res = RS; }
+  set(x, y, c) { this.setv(x, y, col(c)); }
+  setv(x, y, v) {
+    if (x < 0 || y < 0 || x >= TW || y >= TH || y >= (BCLIP + 1) * RS) return;
+    const i = y * TW + x, L = this.L;
+    L.base[i] = v; L.ga[i] = 0; L.gb[i] = 0; L.nr[i] = this.soft;
+    L.mark(x, y);
   }
-  // fine = 1: Detailpixel (Gesicht) bleiben einzelne Pixel statt Fußabdruck
+  cell(X, Y, c) { for (let j = 0; j < RS; j++) for (let i = 0; i < RS; i++) this.set(X * RS + i, Y * RS + j, c); }
+  // fine = 1: Detailpixel (Gesicht) bleiben einzelne Zielpixel statt Fußabdruck
   px(x, y, c) {
-    if (this.fine) this.set(Math.round(tx(x)), Math.round(ty(y)), c);
-    else foot(x, y, (X, Y) => this.set(X, Y, c));
+    if (this.fine) { this.cell(Math.round(cx0(x)), Math.round(cy0(y)), c); return; }
+    // Fußabdruck (wie foot), ohne Hilfsfunktion je Texel
+    const X = tx(x), Y = ty(y), v = col(c);
+    let x0 = Math.round(X), y0 = Math.round(Y);
+    let x1 = Math.max(x0, Math.round(X + KS) - 1), y1 = Math.max(y0, Math.round(Y + KS) - 1);
+    if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 >= TW) x1 = TW - 1; if (y1 >= TH) y1 = TH - 1;
+    if (y1 >= (BCLIP + 1) * RS) y1 = (BCLIP + 1) * RS - 1;
+    if (x1 < x0 || y1 < y0) return;
+    const L = this.L, sf = this.soft;
+    L.mark(x0, y0); L.mark(x1, y1);
+    for (let yy = y0; yy <= y1; yy++) for (let i = yy * TW + x0, e = yy * TW + x1; i <= e; i++) { L.base[i] = v; L.ga[i] = 0; L.gb[i] = 0; L.nr[i] = sf; }
   }
+  dot(x, y, c) { this.set(Math.floor(tx(x) + 0.5 * KS), Math.floor(ty(y) + 0.5 * KS), c); }
+  fline(x0, y0, x1, y1, c) { bres(tx(x0) + 0.5 * KS, ty(y0) + 0.5 * KS, tx(x1) + 0.5 * KS, ty(y1) + 0.5 * KS, (x, y) => this.set(x, y, c)); }
   rect(x, y, w, h, c) {
     x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
     if (w <= 0 || h <= 0) return;
@@ -107,28 +150,43 @@ class Pen {
     const x1 = Math.max(x0 + 1, Math.round(tx(x + w))), y1 = Math.max(y0 + 1, Math.round(ty(y + h)));
     for (let j = y0; j < y1; j++) for (let i = x0; i < x1; i++) this.set(i, j, c);
   }
-  line(x0, y0, x1, y1, c) { bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.set(x, y, c)); }
-  ellipse(cx, cy, rx, ry, c) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.set(x, y, c)); }
+  line(x0, y0, x1, y1, c) {
+    if (RS === 1) bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.set(x, y, c));
+    else bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => { for (let j = 0; j < RS; j++) for (let i = 0; i < RS; i++) this.set(x + i, y + j, c); });
+  }
+  ellipse(cx, cy, rx, ry, c) { fillEllipse(tx(cx), ty(cy), rx * KS, ry * KS, (x, y) => this.set(x, y, c)); }
 }
 
 // Stift für die Leucht-Ebenen: Index in die Rampe (0 dunkel … 4 weiß).
-// px zeichnet in beide Ebenen, e* nur in die Phase-3-Ebene, a* nur Phase 1–2.
+// px zeichnet in beide Ebenen, e* nur in die Phase-3-Ebene, a* nur Phase 1–2. t* setzt Texel, c* Zielpixel-Zellen.
 class GlowPen {
   constructor(L) { this.L = L; this.fine = 0; }
   put(buf, ramp, x, y, i) {
-    if (x < 0 || y < 0 || x >= W || y >= H || y > BCLIP) return;
-    buf[y * W + x] = ramp[Math.max(0, Math.min(4, i))];
+    if (x < 0 || y < 0 || x >= TW || y >= TH || y >= (BCLIP + 1) * RS) return;
+    buf[y * TW + x] = ramp[Math.max(0, Math.min(4, i))];
+    this.L.mark(x, y);
   }
   set(buf, ramp, x, y, i) {
-    if (this.fine) this.put(buf, ramp, Math.round(tx(x)), Math.round(ty(y)), i);
-    else foot(x, y, (X, Y) => this.put(buf, ramp, X, Y, i));
+    if (this.fine) { const X = Math.round(cx0(x)) * RS, Y = Math.round(cy0(y)) * RS; for (let j = 0; j < RS; j++) for (let k = 0; k < RS; k++) this.put(buf, ramp, X + k, Y + j, i); }
+    else {
+      const X = tx(x), Y = ty(y);
+      const x0 = Math.round(X), y0 = Math.round(Y);
+      const x1 = Math.max(x0, Math.round(X + KS) - 1), y1 = Math.max(y0, Math.round(Y + KS) - 1);
+      for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) this.put(buf, ramp, xx, yy, i);
+    }
   }
   tpx(X, Y, i) { this.put(this.L.ga, EMBc, X, Y, i); this.put(this.L.gb, INFc, X, Y, i); }
   tepx(X, Y, i) { this.put(this.L.gb, INFc, X, Y, i); }
   tapx(X, Y, i) { this.put(this.L.ga, EMBc, X, Y, i); }
+  cpx(X, Y, i) { for (let j = 0; j < RS; j++) for (let k = 0; k < RS; k++) this.tpx(X * RS + k, Y * RS + j, i); }
+  cepx(X, Y, i) { for (let j = 0; j < RS; j++) for (let k = 0; k < RS; k++) this.tepx(X * RS + k, Y * RS + j, i); }
   px(x, y, i) { this.set(this.L.ga, EMBc, x, y, i); this.set(this.L.gb, INFc, x, y, i); }
   epx(x, y, i) { this.set(this.L.gb, INFc, x, y, i); }
   apx(x, y, i) { this.set(this.L.ga, EMBc, x, y, i); }
+  // ein Texel (Feindetail): beide Ebenen / nur Phase 3
+  dot(x, y, i) { this.tpx(Math.floor(tx(x) + 0.5 * KS), Math.floor(ty(y) + 0.5 * KS), i); }
+  edot(x, y, i) { this.tepx(Math.floor(tx(x) + 0.5 * KS), Math.floor(ty(y) + 0.5 * KS), i); }
+  fline(x0, y0, x1, y1, i) { bres(tx(x0) + 0.5 * KS, ty(y0) + 0.5 * KS, tx(x1) + 0.5 * KS, ty(y1) + 0.5 * KS, (x, y) => this.tpx(x, y, i)); }
   rect(x, y, w, h, i) {
     x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
     if (w <= 0 || h <= 0) return;
@@ -136,11 +194,12 @@ class GlowPen {
     const x1 = Math.max(x0 + 1, Math.round(tx(x + w))), y1 = Math.max(y0 + 1, Math.round(ty(y + h)));
     for (let j = y0; j < y1; j++) for (let k = x0; k < x1; k++) this.tpx(k, j, i);
   }
-  line(x0, y0, x1, y1, i) { bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.tpx(x, y, i)); }
-  eline(x0, y0, x1, y1, i) { bres(tx(x0), ty(y0), tx(x1), ty(y1), (x, y) => this.tepx(x, y, i)); }
-  ellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.tpx(x, y, i)); }
-  eellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.tepx(x, y, i)); }
-  aellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * SC, ry * SC, (x, y) => this.tapx(x, y, i)); }
+  #brush(f) { return RS === 1 ? f : (x, y) => { for (let j = 0; j < RS; j++) for (let k = 0; k < RS; k++) f(x + k, y + j); }; }
+  line(x0, y0, x1, y1, i) { bres(tx(x0), ty(y0), tx(x1), ty(y1), this.#brush((x, y) => this.tpx(x, y, i))); }
+  eline(x0, y0, x1, y1, i) { bres(tx(x0), ty(y0), tx(x1), ty(y1), this.#brush((x, y) => this.tepx(x, y, i))); }
+  ellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * KS, ry * KS, (x, y) => this.tpx(x, y, i)); }
+  eellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * KS, ry * KS, (x, y) => this.tepx(x, y, i)); }
+  aellipse(cx, cy, rx, ry, i) { fillEllipse(tx(cx), ty(cy), rx * KS, ry * KS, (x, y) => this.tapx(x, y, i)); }
 }
 
 function bres(x0, y0, x1, y1, f) {
@@ -158,6 +217,15 @@ function bres(x0, y0, x1, y1, f) {
 }
 function fillEllipse(cx, cy, rx, ry, f) {
   if (rx <= 0 || ry <= 0) return;
+  if (RS > 1) {
+    // fein: Texelmitten abtasten; Mitte und Ausdehnung wie das grobe Raster (Mitte des Zielpixels, Rand +0,4)
+    const X = cx + RS / 2, Y = cy + RS / 2, ex = rx + 0.4 * RS, ey = ry + 0.4 * RS;
+    for (let y = Math.floor(Y - ey); y <= Math.ceil(Y + ey); y++) for (let x = Math.floor(X - ex); x <= Math.ceil(X + ex); x++) {
+      const u = (x + 0.5 - X) / ex, v = (y + 0.5 - Y) / ey;
+      if (u * u + v * v <= 1) f(x, y);
+    }
+    return;
+  }
   for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
     const t = 1 - (y * y) / (ry * ry);
     if (t < 0) continue;
@@ -167,14 +235,16 @@ function fillEllipse(cx, cy, rx, ry, f) {
 }
 
 // Leucht-Frame ohne Treffer-Blitz-Varianten; Spiegelbild erst bei Bedarf.
+// res = Texel je Weltpixel (wie SpriteFrame); canvas/ax/ay in Texeln.
 class GlowFrame {
-  constructor(canvas, ax, ay) { this.canvas = canvas; this.ax = ax; this.ay = ay; this.flipCache = null; }
+  constructor(canvas, ax, ay, res = 1) { this.canvas = canvas; this.ax = ax; this.ay = ay; this.res = res; this.flipCache = null; }
   get flipped() { return (this.flipCache ??= flipCanvas(this.canvas)); }
   draw(ctx, x, y, { flip = false, alpha = 1 } = {}) {
     const img = flip ? this.flipped : this.canvas;
-    const ax = flip ? this.canvas.width - this.ax : this.ax;
+    const ax = flip ? this.canvas.width - this.ax : this.ax, r = this.res;
     if (alpha !== 1) ctx.globalAlpha = alpha;
-    ctx.drawImage(img, Math.round(x - ax), Math.round(y - this.ay));
+    if (r === 1) ctx.drawImage(img, Math.round(x - ax), Math.round(y - this.ay));
+    else ctx.drawImage(img, Math.round(x * r - ax) / r, Math.round(y * r - this.ay) / r, img.width / r, img.height / r);
     if (alpha !== 1) ctx.globalAlpha = 1;
   }
 }
@@ -244,6 +314,13 @@ function horn(p, g, x0, y0, x1, y1, x2, y2, w0, w1, ramp, tipGlow) {
     const w = w0 + (w1 - w0) * t;
     limb(p, px0, py0, x, y, w, Math.max(1, w - (w0 - w1) / n), i % 3 === 0 ? [ramp[0], ramp[1], ramp[2], ramp[3]] : [ramp[0], ramp[2], ramp[3], ramp[4]]);
     if (t > 0.72 && tipGlow) g.epx(x, y, t > 0.9 ? 3 : 2);
+    if (RS > 1 && i < n - 1) {
+      // Handfein: Wachstumsringe quer übers Horn, Glanz auf der Lichtseite
+      const dl = Math.hypot(x - px0, y - py0) || 1, nx = -(y - py0) / dl, ny = (x - px0) / dl, hw = w / 2 - 0.3;
+      if (i % 2 === 0) p.fline(x - nx * hw, y - ny * hw, x + nx * hw, y + ny * hw, ramp[1]);
+      const sgn = nx + ny < 0 ? 1 : -1; p.dot(x + nx * hw * 0.6 * sgn, y + ny * hw * 0.6 * sgn, i > n * 0.6 ? '#f4ead0' : ramp[4]);
+    }
+    if (RS > 1 && i === n) p.dot(x, y, '#fff4dc');
     px0 = x; py0 = y;
   }
 }
@@ -324,6 +401,20 @@ function greataxe(p, g, hx, hy, a, heat = 0) {
   }
   for (const u of runes) {
     const [x, y] = at(u, 6 + (Math.round(u) % 2)); p.px(x, y, MAG[1]); g.px(x, y, 2); g.epx(x, y, 3);
+    if (RS > 1) { p.dot(x, y, MAG[3]); g.dot(x, y, 3); }
+  }
+  if (RS > 1) {
+    // Handfein: geschliffene Schneide als Glanzlinie, Facettengrat, Scharten; Glanz auf den Goldbändern
+    for (let u = 20.5; u <= 51.5; u += 0.2) {
+      const vo = vOut(u), vi = vIn(u);
+      if (vo - vi < 1.5) continue;
+      const [x, y] = at(u, vo - 0.15); p.dot(x, y, upSide * (u - 36) < 0 ? '#ffffff' : EDGE[3]);
+      const [x2, y2] = at(u, vo - 2.35); p.dot(x2, y2, EDGE[1]);
+      if (vo - vi > 4) { const [x3, y3] = at(u, vi + 0.9); p.dot(x3, y3, OBS[3]); }
+    }
+    for (const u of [27, 41.5, 46]) { const [x, y] = at(u, vOut(u) - 0.2); p.dot(x, y, OBS[1]); }
+    for (const u of [0, 14, 27.5]) { const [x, y] = at(u, 1.3 * upSide); p.dot(x, y, GOLD[4]); p.dot(x + dx * 0.4, y + dy * 0.4, '#fff4c8'); }
+    const [kx, ky] = at(53, 0); p.dot(kx, ky, OBS[4]);
   }
   // Riss durch das Blatt (Phase 3)
   { let [x0, y0] = at(33, 3); for (const [u, v] of [[35, 6], [34, 9], [37, 12]]) { const [x1, y1] = at(u, v); g.eline(x0, y0, x1, y1, 2); x0 = x1; y0 = y1; } }
@@ -337,7 +428,7 @@ function smear(p, g, cx, cy, a0, a1, r0, r1) {
   p.soft = 1;
   // im Zielpuffer rastern (feines Rauschen statt Doppelpixel)
   const CX = Math.round(tx(cx)), CY = Math.round(ty(cy));
-  r0 *= SC; r1 *= SC;
+  r0 *= KS; r1 *= KS;
   // nur das letzte Stück des Schwungs zeigen, sonst verdeckt der Schleier die Figur
   if (Math.abs(a1 - a0) > 1.5) a0 = a1 - Math.sign(a1 - a0) * 1.5;
   const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
@@ -353,7 +444,7 @@ function smear(p, g, cx, cy, a0, a1, r0, r1) {
     const radial = (d - r0) / (r1 - r0);
     const band = Math.max(0, 1 - (1 - radial) * 2.4);
     const dens = (fresh * fresh * 0.25 + band * (0.15 + 0.8 * fresh)) * (radial > 0.55 ? 1 : 0.5);
-    if (hash2(x + 99, y + 99, 17) > dens) continue;
+    if (hash2(Math.floor(x / RS) + 99, Math.floor(y / RS) + 99, 17) > dens + (RS > 1 && radial > 0.72 ? 0.2 : 0)) continue;   // Dichte je Zielpixel, fein nur an der Kante dichter
     const c = radial > 0.88 ? '#ffe0a0' : radial > 0.72 ? '#f0a050' : fresh > 0.7 ? '#c8420c' : '#6a1a0c';
     p.set(CX + x, CY + y, c);
     if (fresh > 0.35 && radial > 0.5) {
@@ -527,13 +618,28 @@ function torso(p, g, along, P, meta) {
   for (const c of cracks) {
     for (let i = 0; i < c.length - 1; i++) {
       const [x0, y0] = along(c[i][0] * SPINE, c[i][1] * 1.16), [x1, y1] = along(c[i + 1][0] * SPINE, c[i + 1][1] * 1.16);
-      bres(x0, y0, x1, y1, (x, y) => { p.px(x, y, i === 0 ? MAG[3] : MAG[2]); g.apx(x, y, i === 0 ? 2 : 1); g.epx(x, y, i === 0 ? 4 : 3); });
+      seg(x0, y0, x1, y1, (x, y) => { p.px(x, y, i === 0 ? MAG[3] : MAG[2]); g.apx(x, y, i === 0 ? 2 : 1); g.epx(x, y, i === 0 ? 4 : 3); });
+      if (RS > 1) { p.fline(x0, y0, x1, y1, i === 0 ? HOT : MAG[3]); g.fline(x0, y0, x1, y1, i === 0 ? 3 : 2); }
+    }
+  }
+  if (RS > 1) {
+    // Handfein: Glanzlinie auf dem Mittelgrat, Nieten mit Glanzpunkt an den Bauchschienen, Kratzer im Harnisch
+    for (let s = SPINE * 0.56; s <= SPINE * 0.97; s += 0.25) {
+      const t = s / SPINE, sm = t * t * (3 - 2 * t);
+      const hwF = (7 + 4.5 * sm + (t > 0.48 && t < 0.98 ? 2 * Math.sin((t - 0.48) / 0.5 * Math.PI) : 0)) * 1.16;
+      const [x, y] = along(s, hwF * 0.18 - 0.25); p.dot(x, y, t > 0.8 ? '#d8b898' : SPEC);
+    }
+    for (let s = LAME * 0.85; s < SPINE * 0.48; s += LAME) for (const k of [-6, 3.5]) {
+      const [x, y] = along(s, k * 1.16); p.dot(x, y, GOLD[3]); p.dot(x - 0.4, y - 0.4, GOLD[4]); p.dot(x + 0.4, y + 0.4, OBS[0]);
+    }
+    for (const [s0, k0, s1, k1] of [[SPINE * 0.9, 2, SPINE * 0.82, 4.5], [SPINE * 0.75, 7, SPINE * 0.7, 9], [SPINE * 0.62, 8.5, SPINE * 0.58, 10]]) {
+      const [a, b] = along(s0, k0), [c, d] = along(s1, k1); p.fline(a, b, c, d, OBS[4]);
     }
   }
   // Rückenseitiger Glutriss am Harnisch
   for (const [a, b] of [[[0.72, -9], [0.82, -7]], [[0.82, -7], [0.95, -9]]]) {
     const [x0, y0] = along(a[0] * SPINE, a[1]), [x1, y1] = along(b[0] * SPINE, b[1]);
-    bres(x0, y0, x1, y1, (x, y) => { p.px(x, y, MAG[2]); g.px(x, y, 2); });
+    seg(x0, y0, x1, y1, (x, y) => { p.px(x, y, MAG[2]); g.px(x, y, 2); });
   }
   // Glutkern in Messingfassung
   const [cx, cy] = along(SPINE * 0.66, -1.5);
@@ -544,6 +650,7 @@ function torso(p, g, along, P, meta) {
   p.ellipse(cx, cy, r, r, MAG[2]);
   p.ellipse(cx - 0.3, cy - 0.3, Math.max(0.6, r - 1.3), Math.max(0.6, r - 1.3), MAG[3]);
   p.px(cx - 1, cy - 1, '#ffd890');
+  if (RS > 1) { p.dot(cx - 1, cy - 1.2, '#fffbea'); p.dot(cx - 0.6, cy - 1.2, '#fffbea'); g.dot(cx - 1, cy - 1.2, 4); for (let a = 3.6; a < 5.4; a += 0.18) p.dot(cx + Math.cos(a) * (r + 1.9), cy + Math.sin(a) * (r + 1.7), GOLD[4]); }
   // Krallen der Fassung
   for (const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) p.px(cx + ox * (r + 2.5), cy + oy * (r + 2), GOLD[ox < 0 && oy < 0 ? 4 : 3]);
   g.ellipse(cx, cy, r + 0.5, r + 0.5, 1);
@@ -600,7 +707,8 @@ function leg(p, g, hx, hy, L, ramp, back, P) {
   // Glutnaht quer über die Schiene
   const mx = L.jx + dx * 0.6, my = L.jy + dy * 0.6;
   p.line(mx - 3, my, mx + 3, my + 0.5, back ? MAG[1] : MAG[3]); g.line(mx - 2, my, mx + 2, my + 0.5, back ? 1 : 2);
-  bres(L.jx + 0.5, L.jy + 3, mx, my, (x, y) => { p.px(x, y, back ? MAG[1] : MAG[2]); g.apx(x, y, back ? 0 : 1); g.epx(x, y, back ? 1 : 3); });
+  seg(L.jx + 0.5, L.jy + 3, mx, my, (x, y) => { p.px(x, y, back ? MAG[1] : MAG[2]); g.apx(x, y, back ? 0 : 1); g.epx(x, y, back ? 1 : 3); });
+  if (RS > 1 && !back) { p.fline(L.jx + 0.5, L.jy + 3, mx, my, MAG[3]); p.fline(mx - 3, my, mx + 3, my + 0.5, HOT); g.fline(mx - 2, my, mx + 2, my + 0.5, 3); }
   // Sabaton: breit, gestaffelt, Messingkappe, Krallen
   const ex = Math.round(L.ex), ey = Math.round(L.ey);
   p.rect(ex - 5, ey - 5, 12, 5, ramp[1]);
@@ -616,6 +724,7 @@ function leg(p, g, hx, hy, L, ramp, back, P) {
   p.ellipse(L.jx, L.jy, 4, 3.6, ramp[0]);
   p.ellipse(L.jx - 0.3, L.jy - 0.3, 3.2, 2.8, ramp[1]);
   p.ellipse(L.jx - 0.8, L.jy - 0.8, 2, 1.6, ramp[2]); p.px(L.jx - 1.5, L.jy - 1.5, ramp[3]);
+  if (RS > 1) { p.dot(L.jx - 1.5, L.jy - 1.6, back ? ramp[3] : '#d8b898'); for (const [ox, oy] of [[-3, 1], [2.5, 1.5]]) { p.dot(L.jx + ox, L.jy + oy, back ? GOLD[1] : GOLD[3]); } p.dot(ex - 3.5, ey - 6.8, back ? ramp[3] : SPEC); p.dot(ex + 5, ey - 4.8, back ? GOLD[2] : GOLD[4]); }
   limb(p, L.jx + 2, L.jy - 0.5, L.jx + 6.5, L.jy - 2.5, 3, 1, back ? [VOID, OBS[0], OBS[1], OBS[2]] : [OBS[1], OBS[2], OBS[4], SPEC]);
 }
 
@@ -625,6 +734,7 @@ function fist(p, g, x, y, ramp, open) {
   p.rect(x - 3, y - 3, 6, 5, ramp[1]); p.rect(x - 3, y - 3, 6, 1, ramp[3]); p.rect(x + 2, y - 2, 1, 4, ramp[0]);
   p.px(x - 2, y - 4, ramp[2]); p.px(x, y - 4, ramp[2]); p.px(x + 2, y - 4, ramp[2]);
   p.px(x - 2, y - 1, GOLD[3]); p.px(x + 1, y - 1, GOLD[2]);
+  if (RS > 1) { p.dot(x - 2, y - 1, GOLD[4]); p.dot(x + 1, y - 1, GOLD[3]); p.fline(x - 3, y - 3, x + 1, y - 3, ramp[3] === OBS[4] ? SPEC : ramp[3]); }
   if (open) for (let k = -2; k <= 2; k += 2) { p.line(x + k * 0.7, y - 3, x + k * 1.3, y - 7, ramp[2]); p.px(x + k * 1.3, y - 7, HORN[4]); }
 }
 
@@ -650,9 +760,10 @@ function pauldron(p, g, x, y, rx, ry, ramp, spikes, front) {
   }
   if (front) {
     p.px(x - 3, y - ry + 2, SPEC); p.px(x - 2, y - ry + 2, ramp[3]);
-    for (const [a, b, c, d] of [[x - 2, y - 2, x + 2, y + 1], [x + 2, y + 1, x + 1, y + 4], [x + 2, y + 1, x + 5, y]]) bres(a, b, c, d, (px, py) => { p.px(px, py, MAG[3]); g.apx(px, py, 3); g.epx(px, py, 4); });
+    if (RS > 1) { for (let a = 3.5; a < 4.75; a += 0.1) p.dot(x - 0.5 + Math.cos(a) * (rx - 1.6), y - 0.5 + Math.sin(a) * (ry - 1.4), a > 4.2 ? '#d8b898' : SPEC); p.dot(x - 3, y - ry + 2, '#fff0d8'); }
+    for (const [a, b, c, d] of [[x - 2, y - 2, x + 2, y + 1], [x + 2, y + 1, x + 1, y + 4], [x + 2, y + 1, x + 5, y]]) seg(a, b, c, d, (px, py) => { p.px(px, py, MAG[3]); g.apx(px, py, 3); g.epx(px, py, 4); });
   } else {
-    bres(x - 1, y - 1, x + 2, y + 2, (px, py) => { p.px(px, py, MAG[1]); g.px(px, py, 1); });
+    seg(x - 1, y - 1, x + 2, y + 2, (px, py) => { p.px(px, py, MAG[1]); g.px(px, py, 1); });
   }
   for (const [sx, h, lx] of spikes) {
     limb(p, x + sx, y - ry + 2, x + sx + lx, y - ry + 2 - h, 4, 1, front ? [OBS[1], OBS[2], OBS[4], SPEC] : [VOID, OBS[0], OBS[1], OBS[3]]);
@@ -730,7 +841,7 @@ function head(p, g, hx, hy, P, meta, gy) {
   // Visier: Schädelgesicht als Pixelkarte im Zielpuffer (pixelgenau, nicht skaliert):
   // heller Brauenwulst, tiefe Höhlen mit glühenden Augen, Nasengrat und Wangenplatte im
   // Licht, Maul mit Reißzähnen, Unterkiefer mit Hauer. Kontur trennt es vom Helm.
-  const VX = Math.round(tx(hx + 8)), VY = Math.round(ty(hy + 2));
+  const VX = Math.round(cx0(hx + 8)), VY = Math.round(cy0(hy + 2));
   const jt = Math.round(j * SC);
   const lit = P.eye > 0.15, hot = P.eye > 0.6;
   const VC = {
@@ -741,26 +852,54 @@ function head(p, g, hx, hy, P, meta, gy) {
   const stamp = (rows, y0) => {
     for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[r].length; c++) {
       const ch = rows[r][c];
-      if (ch !== '.') p.set(VX + c, y0 + r, VC[ch]);
+      if (ch !== '.') p.cell(VX + c, y0 + r, VC[ch]);
     }
   };
   stamp(IG_VISOR, VY);
   // Maul offen: Schlund (Glut/Feueratem) zwischen den Zahnreihen
   if (jt) {
-    for (let k = 0; k < jt; k++) for (let c = 1; c <= 11; c++) p.set(VX + c, VY + 12 + k, c === 1 ? OBS[1] : c === 11 ? OUTLINE : VOID);
+    for (let k = 0; k < jt; k++) for (let c = 1; c <= 11; c++) p.cell(VX + c, VY + 12 + k, c === 1 ? OBS[1] : c === 11 ? OUTLINE : VOID);
     const i = P.breath > 0.3 ? 3 : 1;
-    for (let k = 0; k < jt; k++) for (let c = 3; c <= 11; c++) g.tpx(VX + c, VY + 12 + k, c > 6 && P.breath > 0.3 ? 4 : i + (c > 7 && P.jaw > 0.6 ? 1 : 0));
+    for (let k = 0; k < jt; k++) for (let c = 3; c <= 11; c++) g.cpx(VX + c, VY + 12 + k, c > 6 && P.breath > 0.3 ? 4 : i + (c > 7 && P.jaw > 0.6 ? 1 : 0));
   }
   stamp(IG_JAW, VY + 12 + jt);
+  if (RS > 1) {
+    // Handfein (Feinraster): Glanzlinie auf der Helmstirn, harte Brauenkante, Augen mit weißem Kern und
+    // Schlitzpupille, Nasengrat im Licht, spitze Reißzähne mit Glanz, Lichtkante am Kiefer.
+    const fp = (c, r, sx, sy, cl) => p.set((VX + c) * RS + sx, (VY + r) * RS + sy, cl);
+    for (let c = 3; c <= 7; c++) fp(c, 1, 0, 0, c < 6 ? '#e2c4a0' : SPEC);
+    fp(2, 2, 0, 0, HORN[4]); for (let c = 3; c <= 6; c++) { fp(c, 2, 0, 0, HORN[4]); fp(c, 2, 1, 0, c === 6 ? HORN[3] : HORN[4]); }
+    for (let c = 2; c <= 10; c++) { fp(c, 2, 0, 1, HORN[2]); fp(c, 2, 1, 1, c === 8 ? HORN[3] : HORN[1]); }
+    for (let c = 3; c <= 7; c++) { fp(c, 3, 0, 1, VOID); fp(c, 3, 1, 1, VOID); }
+    if (lit) {
+      // nahes Auge (Spalten 3–5), fernes Auge (Spalte 10)
+      fp(3, 4, 0, 0, EYE[0]); fp(3, 4, 1, 0, EYE[1]); fp(3, 4, 1, 1, EYE[1]);
+      fp(4, 4, 0, 0, '#fffbea'); fp(4, 4, 1, 0, HOT); fp(4, 4, 0, 1, hot ? HOT : EYE[2]); fp(4, 4, 1, 1, EYE[1]);
+      fp(5, 4, 0, 0, '#3a0a04'); fp(5, 4, 0, 1, '#3a0a04'); fp(5, 4, 1, 0, EYE[2]); fp(5, 4, 1, 1, EYE[0]);
+      fp(4, 5, 0, 0, EYE[1]); fp(4, 5, 1, 0, EYE[0]);
+      fp(10, 4, 0, 0, '#fffbea'); fp(10, 4, 1, 0, EYE[2]); fp(10, 4, 0, 1, EYE[1]); fp(10, 4, 1, 1, '#3a0a04');
+      g.tpx((VX + 4) * RS, (VY + 4) * RS, 4); g.tpx((VX + 10) * RS, (VY + 4) * RS, 4);
+    }
+    for (let r = 4; r <= 8; r++) { fp(8, r, 0, 0, HORN[3]); fp(8, r, 1, 1, OBS[2]); }
+    fp(8, 4, 0, 0, '#e2c4a0');
+    for (let c = 4; c <= 6; c++) { fp(c, 7, 0, 0, '#d8b898'); fp(c, 7, 1, 0, SPEC); fp(c, 8, 0, 1, OBS[2]); fp(c, 8, 1, 1, OBS[2]); }
+    // Reißzähne oben: nach unten spitz, Glanz oben links
+    for (const c of [3, 6, 9, 10]) { fp(c, 11, 0, 0, '#fff6e2'); fp(c, 11, 1, 1, VOID); fp(c, 11, 0, 1, FANG[1]); }
+    // Unterkiefer: Zähne nach oben spitz, Lichtkante auf dem Kinn
+    const jr = 12 + jt;
+    for (const c of [2, 5, 8, 10]) { fp(c, jr, 1, 0, VOID); fp(c, jr, 0, 0, FANG[0]); fp(c, jr, 0, 1, FANG[2]); }
+    for (let c = 2; c <= 8; c++) fp(c, jr + 1, 0, 0, c < 5 ? OBS[4] : '#6a5048');
+    fp(9, jr + 1, 0, 0, '#e2c4a0'); fp(10, jr + 1, 0, 0, HORN[3]);
+  }
   if (lit) {
-    for (const [c, r, i] of [[3, 5, 4], [4, 5, 3], [2, 5, 2], [9, 5, 4], [10, 5, 3], [3, 6, 2]]) g.tpx(VX + c, VY + r, i);
-    if (P.eye > 0.7) for (const [c, r] of [[1, 5], [5, 5], [8, 5], [9, 6]]) g.tpx(VX + c, VY + r, 1);
-    g.tepx(VX, VY + 4, 2); g.tepx(VX - 1, VY + 4, 1);
+    for (const [c, r, i] of [[3, 5, 4], [4, 5, 3], [2, 5, 2], [9, 5, 4], [10, 5, 3], [3, 6, 2]]) g.cpx(VX + c, VY + r, i);
+    if (P.eye > 0.7) for (const [c, r] of [[1, 5], [5, 5], [8, 5], [9, 6]]) g.cpx(VX + c, VY + r, 1);
+    g.cepx(VX, VY + 4, 2); g.cepx(VX - 1, VY + 4, 1);
   }
   meta.eye = { x: hx + 10.5, y: hy + 5 };
   // Wangennaht (Glut) hinter der Wangenplatte, Glutriss im Helm
   p.line(hx + 6, hy + 7, hx + 7.5, hy + 10, MAG[3]); g.line(hx + 6, hy + 7, hx + 7.5, hy + 10, 2);
-  bres(hx + 5, hy + 3, hx + 7, hy + 0, (x, y) => { p.px(x, y, MAG[2]); g.apx(x, y, 2); g.epx(x, y, 3); });
+  seg(hx + 5, hy + 3, hx + 7, hy + 0, (x, y) => { p.px(x, y, MAG[2]); g.apx(x, y, 2); g.epx(x, y, 3); });
   const ly = hy + 11 + j;
   for (const [dx, h] of [[9, 2], [11, 3], [13, 3], [15, 2]]) p.line(hx + dx, ly + 3.5, hx + dx - 1, ly + 2.5 + h, dx === 13 ? OBS[2] : OBS[1]);
   meta.mouth = { x: hx + 16, y: hy + 11 + Math.floor(j / 2) };
@@ -788,7 +927,9 @@ function crownAt(p, g, x, y, fall) {
     // glühende Zackenspitzen
     if (fall < 0.9) { const tx = x + dx + (dx > 6 ? 1 : 0); g.px(tx, yy - h, 3); g.px(tx, yy - h + 1, 1); g.epx(tx, yy - h - 1, 3); }
   }
+  if (RS > 1) for (let i = 0; i < 12; i += 1) p.dot(x + i + 0.2, y - 1 + Math.round(i * tilt), i < 6 ? '#fff4c8' : GOLD[4]);
   p.px(x + 7, y - 1 + Math.round(7 * tilt), MAG[2]);
+  if (RS > 1) p.dot(x + 7, y - 1 + Math.round(7 * tilt), '#ffe8a0');
   g.px(x + 7, y - 1 + Math.round(7 * tilt), fall > 0.9 ? 1 : 3);
   g.epx(x + 7, y - 2 + Math.round(7 * tilt), 2);
 }
@@ -924,31 +1065,34 @@ function lighten(c, k, tr, tg, tb) {
   return ((255 << 24) | (Math.round(b + (tb - b) * k) << 16) | (Math.round(gg + (tg - gg) * k) << 8) | Math.round(r + (tr - r) * k)) >>> 0;
 }
 function rimAndOutline(L) {
-  const { base, ga, gb, nr } = L;
-  const solid = (x, y) => x >= 0 && y >= 0 && x < W && y < H && base[y * W + x] !== 0 && !nr[y * W + x];
-  const out = base.slice();
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
+  const { base, ga, gb, nr } = L, W = TW;
+  const out = base;   // an Ort und Stelle: Randlicht liest nur M und das eigene Pixel
+  // nur im belegten Bereich (+1 für den Umriss); außerhalb ist alles leer. M = deckend, mit 2 Pixel Rand
+  const X0 = Math.max(0, L.x0 - 1), X1 = Math.min(W - 1, L.x1 + 1), Y0 = Math.max(0, L.y0 - 1), Y1 = Math.min(TH - 1, L.y1 + 1);
+  if (X1 < X0 || Y1 < Y0) return;
+  const mw = X1 - X0 + 5, M = new Uint8Array(mw * (Y1 - Y0 + 5));
+  for (let y = Y0; y <= Y1; y++) for (let x = X0, i = y * W + X0, m = (y - Y0 + 2) * mw + 2; x <= X1; x++, i++, m++) M[m] = base[i] !== 0 && !nr[i] ? 1 : 0;
+  for (let y = Y0; y <= Y1; y++) for (let x = X0, i = y * W + X0, m = (y - Y0 + 2) * mw + 2; x <= X1; x++, i++, m++) {
     if (!base[i] || nr[i]) continue;
-    const up = !solid(x, y - 1), up2 = !solid(x, y - 2);
-    const lf = !solid(x - 1, y), rt = !solid(x + 1, y);
+    const up = !M[m - mw], up2 = !M[m - 2 * mw];
+    const lf = !M[m - 1], rt = !M[m + 1];
     if (up) out[i] = lighten(base[i], 0.45, 240, 190, 140);
     else if (up2 && (lf || rt)) out[i] = lighten(base[i], 0.3, 240, 190, 140);
     else if (rt) out[i] = lighten(base[i], 0.3, 255, 150, 80);   // Gegenlicht der Glut
     else if (lf) out[i] = lighten(base[i], 0.2, 200, 200, 214);
   }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
-    if (base[i] || ga[i] || gb[i] || y > BCLIP) continue;
-    if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) out[i] = col(OUTLINE);
+  const O = col(OUTLINE), YC = (BCLIP + 1) * RS;
+  for (let y = Y0; y <= Math.min(Y1, YC - 1); y++) for (let x = X0, i = y * W + X0, m = (y - Y0 + 2) * mw + 2; x <= X1; x++, i++, m++) {
+    if (base[i] || ga[i] || gb[i]) continue;
+    if (M[m - 1] || M[m + 1] || M[m - mw] || M[m + mw]) out[i] = O;
   }
-  L.base = out;
 }
 
 function finish(L, fx, meta) {
   rimAndOutline(L);
+  const W = TW, H = TH;
   let x0 = W, y0 = H, x1 = -1, y1 = -1;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  for (let y = Math.max(0, L.y0 - 1); y <= Math.min(H - 1, L.y1 + 1); y++) for (let x = Math.max(0, L.x0 - 1); x <= Math.min(W - 1, L.x1 + 1); x++) {
     const i = y * W + x;
     if (L.base[i] || L.ga[i] || L.gb[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   }
@@ -961,10 +1105,18 @@ function finish(L, fx, meta) {
     ctx.putImageData(img, 0, 0);
     return c;
   };
-  const baseC = toCanvas(L.base);
-  const f = buildFrame(cw, ch, BAX - x0, BAY - y0, (pc) => pc.ctx.drawImage(baseC, 0, 0));
-  f.glow = new GlowFrame(toCanvas(L.ga), BAX - x0, BAY - y0);
-  f.glowEnraged = new GlowFrame(toCanvas(L.gb), BAX - x0, BAY - y0);
+  let f;
+  if (RS === 1) {
+    const baseC = toCanvas(L.base);
+    f = buildFrame(cw, ch, BAX - x0, BAY - y0, (pc) => pc.ctx.drawImage(baseC, 0, 0), { res: 1 });
+  } else {
+    // fein: zweiter Umriss (1 Texel, Oberkante im Materialton) wie buildFrame, ohne Hochskalieren
+    const d = new Uint32Array(cw * ch);
+    for (let y = 0; y < ch; y++) d.set(L.base.subarray((y + y0) * W + x0, (y + y0) * W + x0 + cw), y * cw);
+    f = new SpriteFrame(pixelsToCanvas(outlinePixels(d, cw, ch), cw + 2, ch + 2), BAX * RS - x0 + 1, BAY * RS - y0 + 1, RS);
+  }
+  f.glow = new GlowFrame(toCanvas(L.ga), BAX * RS - x0, BAY * RS - y0, RS);
+  f.glowEnraged = new GlowFrame(toCanvas(L.gb), BAX * RS - x0, BAY * RS - y0, RS);
   f.meta = {};
   for (const k in meta) f.meta[k] = { dx: Math.round((meta[k].x - AX) * SC), dy: Math.round((meta[k].y - AY) * SC) };
   f.fx = fx ?? null;
@@ -972,13 +1124,13 @@ function finish(L, fx, meta) {
 }
 
 function frame(P, extra = {}) {
-  const L = new Layers();
+  const L = Layers.get();
   const meta = drawIgnaroth(new Pen(L), new GlowPen(L), P, extra);
   return finish(L, extra.fx, meta);
 }
 
 function collapseFrame(k) {
-  const L = new Layers();
+  const L = Layers.get();
   drawCollapse(new Pen(L), new GlowPen(L), k);
   return finish(L, null, {
     head: { x: AX + 14, y: AY - 14 }, chest: { x: AX + 2, y: AY - 6 }, hand: { x: AX - 20, y: AY - 4 },
@@ -997,6 +1149,7 @@ function track(keys, n, { loop = false, extras = {} } = {}) {
 }
 
 export function createIgnarothSprites() {
+  setRes(fineRes());
   // --- Grundposen
   const idleA = pose({ capeT: 0 });
   const idleB = pose({ hipY: 1, lean: 0.09, hFy: 19, hBy: 20, axe: -1.27, capeT: Math.PI, jaw: 0.25, core: 1.4, headY: 1 });
