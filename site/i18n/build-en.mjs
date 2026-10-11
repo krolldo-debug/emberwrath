@@ -74,9 +74,9 @@ function hreflang(slug) {
   return `${alt.join('\n  ')}\n  <link rel="alternate" hreflang="x-default" href="${ORIGIN}${SLUGS.en[slug]}">\n  <script src="/lang.js"></script>`;
 }
 
-// Sprachauswahl in der Kopfleiste: Pixel-Globus mit Kürzel, darunter die Sprachen in eigener Schreibweise (lang.js öffnet sie).
+// Sprachauswahl in der Kopfleiste: Pixel-Erdkugel (Breiten- und Längengrade, 13 × 13) mit Kürzel, darunter die Sprachen in eigener Schreibweise (lang.js öffnet sie).
 // Auf dem Handy steht die Liste offen im Menü. Links führen auf dieselbe Seite in der anderen Sprache.
-const GLOBE = '<svg viewBox="0 0 9 9" width="18" height="18" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><path d="M3 0h3v1H3zM1 1h2v1H1zM6 1h2v1H6zM0 2h1v5H0zM8 2h1v5H8zM4 1h1v7H4zM1 4h7v1H1zM2 2h1v1H2zM6 2h1v1H6zM2 6h1v1H2zM6 6h1v1H6zM1 7h2v1H1zM6 7h2v1H6zM3 8h3v1H3z"/></svg>';
+const GLOBE = '<svg viewBox="0 0 13 13" width="13" height="13" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><path d="M4 0h5v1H4zM2 1h2v1H2zM6 1h1v1H6zM9 1h2v1H9zM1 2h1v1H1zM5 2h1v1H5zM7 2h1v1H7zM11 2h1v1H11zM1 3h11v1H1zM0 4h1v1H0zM4 4h1v1H4zM8 4h1v1H8zM12 4h1v1H12zM0 5h1v1H0zM4 5h1v1H4zM8 5h1v1H8zM12 5h1v1H12zM0 6h13v1H0zM0 7h1v1H0zM4 7h1v1H4zM8 7h1v1H8zM12 7h1v1H12zM0 8h1v1H0zM4 8h1v1H4zM8 8h1v1H8zM12 8h1v1H12zM1 9h11v1H1zM1 10h1v1H1zM5 10h1v1H5zM7 10h1v1H7zM11 10h1v1H11zM2 11h2v1H2zM6 11h1v1H6zM9 11h2v1H9zM4 12h5v1H4z"/></svg>';
 export function langMenu(cur, slug) {
   const items = SITE_LANGS.map((l) => {
     const href = slugFor(l.id, slug);
