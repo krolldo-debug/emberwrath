@@ -2,7 +2,7 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { MenuScene } from './TitleScene.js';
 import { focusIfDesktop, requireOnlineAccount, backButton } from './ui.js';
-import { CreateStage, TilePortrait } from './CreateStage.js';
+import { CreateStage, TilePortrait, stageHero } from './CreateStage.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
 import { nameProblem } from '../net/names.js';
@@ -16,7 +16,7 @@ import { hairStylesFor, HAIR_STYLES } from '../character/cosmetics.js';
 // links Volk und Klasse als Bildkacheln, unter dem Helden Farbe, Frisur und Name, rechts Klasse, Rolle und Fähigkeiten
 // (antippen zeigt die Beschreibung). Jede Auswahl spielt eine kurze Vorführung. Kosten der Fähigkeiten aus deriveStats().
 
-const HERO_RES = 2;   // Feinpixel je Weltpixel, wie im Spiel (sprites/hero.js HERO_MAX_RES)
+const TILE_RES = 2;   // Feinpixel je Weltpixel der Kachelbilder, wie im Spiel (sprites/hero.js HERO_MAX_RES)
 
 // Überschrift einer Fähigkeit: Name, bei Fähigkeiten mit Taste (ganzer Text für die Übersetzung)
 const skillTitle = (sk) => (sk.key ? `${sk.name} (Taste ${sk.key})` : sk.name);
@@ -61,7 +61,7 @@ export class CharacterCreateScene extends MenuScene {
   #build() {
     this.tiles = [];
     const tile = (kind, def) => {
-      const art = new TilePortrait({ crop: kind === 'race' ? 'bust' : 'full', scale: 1 });
+      const art = new TilePortrait();
       const btn = h('button.cc-tile', { type: 'button', 'aria-pressed': 'false', dataset: { kind, id: def.id }, onclick: () => this.#choose(kind, def.id) },
         h('span.cc-tile-art-box', art.canvas),
         h('span.cc-tile-name', def.name));
@@ -76,7 +76,7 @@ export class CharacterCreateScene extends MenuScene {
     // Aussehen: Farbvarianten des Volkes und Frisur (kostenlos bei der Erstellung, später am Spiegel gegen Gold)
     this.swatches = h('div.cc-swatches', { role: 'radiogroup', 'aria-label': 'Aussehen' });
     const hairStep = (dir) => { const n = hairStylesFor(this.sel.raceId).length; this.sel.hair = (this.sel.hair + dir + n) % n; this.#refresh('look'); };
-    this.hairName = h('span.cc-hair-name');
+    this.hairName = h('button.cc-hair-name', { type: 'button', tabindex: '-1', 'aria-hidden': 'true', onclick: () => hairStep(1) });
     this.hair = h('div.cc-hair', { role: 'group' },
       h('button.cc-arrow', { type: 'button', 'aria-label': 'Vorherige Frisur', onclick: () => hairStep(-1) }, '‹'),
       this.hairName,
@@ -99,7 +99,7 @@ export class CharacterCreateScene extends MenuScene {
       h('h3.cc-h', 'Volk'), h('div.cc-tiles', this.raceBtns), this.traits,
       h('h3.cc-h', 'Klasse'), h('div.cc-tiles', this.classBtns));
     this.right = h('section.cc-right', this.summary, h('div.cc-foot', this.startBtn));
-    this.stage = new CreateStage({ slot: this.slot, shade: [this.left, this.right] });
+    this.stage = new CreateStage({ slot: this.slot });
 
     this.root.replaceChildren(
       this.stage.canvas,
@@ -163,7 +163,7 @@ export class CharacterCreateScene extends MenuScene {
       const on = b.dataset.id === (race ? raceId : classId);
       b.classList.toggle('selected', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
-      b.art.set(race ? getHeroSprites(b.dataset.id, classId, 0, null, null, HERO_RES) : getHeroSprites(raceId, b.dataset.id, this.sel.variant, null, this.#style(), HERO_RES));
+      b.art.set(race ? getHeroSprites(b.dataset.id, classId, 0, null, null, TILE_RES) : getHeroSprites(raceId, b.dataset.id, this.sel.variant, null, this.#style(), TILE_RES));
     }
     // Farbvarianten des Volkes
     const look = RACE_LOOK[raceId];
@@ -178,7 +178,7 @@ export class CharacterCreateScene extends MenuScene {
     this.sel.hair = Math.min(this.sel.hair, styles.length - 1);
     this.hairName.textContent = HAIR_STYLES[styles[this.sel.hair]];
     this.hair.setAttribute('aria-label', `Frisur wechseln, aktuell ${HAIR_STYLES[styles[this.sel.hair]]}`);
-    this.stage.setHero(getHeroSprites(raceId, classId, this.sel.variant, null, this.#style(), HERO_RES));
+    this.stage.setHero(stageHero(raceId, classId, this.sel.variant, this.#style()));
     if (moment) this.stage.moment(moment);
 
     const race = g.content.get('race', raceId), cls = g.content.get('class', classId);
@@ -186,16 +186,16 @@ export class CharacterCreateScene extends MenuScene {
     const keys = ['Q', 'R', 'T', 'G'];
     // Grundangriff + vier Fähigkeiten als Symbolleiste; die angetippte wird darunter beschrieben.
     const skills = [
-      { name: 'Angriff', key: null, desc: cls.attackDesc, meta: null, icon: iconEl(cls.icon, 28) },
+      { name: 'Angriff', key: null, desc: cls.attackDesc, meta: null, icon: iconEl(cls.icon, 32) },
       ...cls.abilities.map((id, i) => {
         const a = g.content.get('ability', id);
         const meta = [a.level > 1 ? `ab Stufe ${a.level}` : null, a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s Abklingzeit`].filter(Boolean).join(' · ');
-        return { name: a.name, key: keys[i], desc: a.desc, meta, icon: iconEl(abilityIcon(a.id, a), 28) };
+        return { name: a.name, key: keys[i], desc: a.desc, meta, icon: iconEl(abilityIcon(a.id, a), 32) };
       }),
     ];
     this.skill = Math.min(this.skill, skills.length - 1);
     const cur = skills[this.skill];
-    this.summary.replaceChildren(
+    this.summary.replaceChildren(h('div.cc-card',
       h('p.cc-race', race.name),
       h('h3.cc-class', cls.name),
       h('p.cc-role', cls.role),
@@ -209,7 +209,7 @@ export class CharacterCreateScene extends MenuScene {
         h('h4', skillTitle(cur)),
         h('p', cur.desc),
         cur.meta ? h('p.cc-cost', cur.meta) : null),
-    );
+    ));
     // Stärken des Volks direkt unter der Volkswahl
     this.traits.setAttribute('aria-label', `Stärken: ${race.name}`);
     this.traits.replaceChildren(...race.traits.map((t) => h('li', t)));
