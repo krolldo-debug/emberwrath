@@ -81,7 +81,7 @@
 .cc-hair-name:hover { color: #fff4e0; }
 .cc-hair-name:focus-visible { outline: none; }
 .cc-plate {
-  display: flex; align-items: stretch; width: min(400px, 100%); height: 60px; margin-top: 14px;
+  display: flex; align-items: stretch; box-sizing: border-box; width: min(400px, 100%); height: 60px; margin-top: 14px;
   background: #0d070c; border: 2px solid var(--cc-edge-hi); box-shadow: 0 0 0 2px var(--cc-ink), inset 0 0 0 2px #2a1810;
 }
 .cc-plate:focus-within { border-color: var(--cc-gold); }
@@ -116,7 +116,7 @@
 @media (hover: hover) { .cc-skill:hover { box-shadow: 0 0 0 2px var(--cc-edge-hi); } }
 .cc-skill:focus-visible { outline: 2px solid #fff4e0; outline-offset: 4px; }
 .cc-skill.selected { box-shadow: 0 0 0 2px var(--cc-gold), 0 0 0 4px #000; }
-.cc-skill-key { position: absolute; right: 4px; bottom: 4px; min-width: 14px; padding: 0 2px; font: 700 10px/14px var(--ef-font); text-align: center; color: #1a0e08; background: var(--cc-gold); box-shadow: 0 0 0 2px var(--cc-ink); text-shadow: none; }
+.cc-skill-key { position: absolute; right: -2px; bottom: -2px; min-width: 11px; padding: 0 1px; font: 700 9px/11px var(--ef-font); text-align: center; color: #1a0e08; background: var(--cc-gold); box-shadow: 0 0 0 2px var(--cc-ink); text-shadow: none; }
 .cc-skill-info { min-height: 92px; margin-top: 10px; }
 .cc-skill-info h4 { margin: 0 0 4px; font: 600 17px var(--ef-font); color: #ffd090; }
 .cc-skill-info p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--cc-text); }

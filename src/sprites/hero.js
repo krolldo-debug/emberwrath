@@ -561,7 +561,8 @@ function drawLeg(R, L, P, sk, near) {
   const ax = foot[0], ay = -B.ankle - foot[1];
   const leg = ik(hx, hy, ax, ay, B.thigh, B.shin, 1);
   const st = L.chest.style;
-  const pants = st === 'plate' ? L.chest.ramp : st === 'robe' ? L.cloth : st === 'leather' ? dimRamp(L.chest.ramp) : ['#1a1414', '#2a2020', '#3e302c', '#56443c', '#6e5a4e'];
+  // Robe: Beine in der Stoff-Farbe; in der Vorführstufe im Robenton (lila Reste am Gürtel wirkten wie Fehlpixel)
+  const pants = st === 'plate' ? L.chest.ramp : st === 'robe' ? (S >= 3 ? dimRamp(L.chest.ramp) : L.cloth) : st === 'leather' ? dimRamp(L.chest.ramp) : ['#1a1414', '#2a2020', '#3e302c', '#56443c', '#6e5a4e'];
   const ramp = near ? pants : dimRamp(pants);
   const metal = st === 'plate';
   const pk = metal ? 'plate' : st === 'robe' ? 'robe' : st === 'leather' ? 'leather' : 'cloth';
@@ -627,6 +628,7 @@ function drawHand(R, L, x, y, far) {
 }
 
 function handGlow(R, G, L, x, y, k) {
+  if (S >= 3 && k < 0.5) return;   // Vorführstufe: das leise Ruheglühen wirkte dort wie verirrte Pixel an Hals und Schulter
   const T = L.trim;
   R.set(x + 1, y - 2, T[4] ?? T[3]); R.set(x, y - 3, T[3]); R.set(x + 2, y - 3, T[2]);
   G.push({ x: Math.round(x + 1), y: Math.round(y - 2), color: T[4] ?? T[3], r: 1.5 + k * 2.5 });
@@ -1330,7 +1332,9 @@ function drawLowerHi(R, L, P, sk) {
     const bot = -1 - Math.min(P.footN[1], P.footF[1]) * 0.5;
     const top = hy - 1;
     const front0 = cx + B.front - 0.5, back0 = cx - B.back + 0.5;
-    const frontB = Math.max(fN, fF) + 2.2, backB = Math.min(fN, fF) - 2.2 - P.cape * 2;
+    // Vorführstufe: Saum weiter ausgestellt (sonst eine gerade Röhre)
+    const flare = S >= 3 ? 1.6 : 0;
+    const frontB = Math.max(fN, fF) + 2.2 + flare, backB = Math.min(fN, fF) - 2.2 - P.cape * 2 - flare;
     const n = Math.max(1, bot - top);
     const mid = (k) => lerp(cx + B.front * 0.35 + 1, (fN + frontB) / 2, k);
     R.each(Math.min(back0, backB) - 1, top - 0.5, Math.max(front0, frontB) + 1, bot + 0.5, (x, y, F, G) => {
@@ -1343,7 +1347,7 @@ function drawLowerHi(R, L, P, sk) {
       let c = S >= 3
         ? band(A, Math.min(2.2 + (0.35 - u) * 2.4 + fold * 0.9 - k * 0.3 - (u > 0.86 ? 0.8 : 0), A.length - 1))
         : band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
-      if (y > bot - 0.7) c = T[y > bot - 0.35 ? 1 : 2];             // Saumborte
+      if (y > bot - (S >= 3 ? 0.45 : 0.7)) c = T[y > bot - 0.35 ? 1 : 2];   // Saumborte (Vorführstufe schmaler)
       if (Math.abs(x - mid(k)) < 0.3) c = T[2];                      // Vorderkante
       R.put(F, G, c);
     });
@@ -2040,6 +2044,7 @@ function drawMace(R, G, w, hx, hy, ang, reach, far) {
 function drawStaff(R, G, w, hx, hy, ang, glow, far) {
   const Wd = w.wood ?? M.wood, K = w.ramp ?? PAL.ember;
   const dx = Math.cos(ang), dy = Math.sin(ang);
+  if (S >= 3) R.axis(hx, hy, ang, -11.3, 13, 1.15, () => '#1a0e0a');   // Vorführstufe: dunkle Kontur trennt den Schaft von Haut und Robe
   R.axis(hx, hy, ang, -11, 13, 0.8, (u, lv) => {
     if (w.bands && (Math.abs(u - 9) < 0.6 || Math.abs(u + 2) < 0.6)) return w.bands[3];
     if (w.gnarled && Math.round(u) % 5 === 0) return Wd[1];
@@ -2207,7 +2212,8 @@ function stanceFor(L) {
   if (k === 'mage') {
     return f === 'wand'
       ? { handM: [2.5, 5], wM: 0.5, handO: [0.5, 6], footN: [1.5, 0], footF: [-2, 0] }
-      : { handM: [3, 4.5], wM: -1.45, handO: [0.5, 6.5], footN: [1.5, 0], footF: [-2, 0] };
+      // Vorführstufe: Stab weiter vorne, damit er nicht über Nase und Mund läuft
+      : { handM: (L.res ?? 1) >= 3 ? [5, 4.5] : [3, 4.5], wM: -1.45, handO: [0.5, 6.5], footN: [1.5, 0], footF: [-2, 0] };
   }
   if (k === 'rogue') return { hipY: 1, lean: 1, handM: [3.5, 4], wM: f === 'dagger' ? 0.35 : -0.55, handO: [2.5, 4.5], wO: 0.4, footN: [2.5, 0], footF: [-2.5, 0] };
   // Krieger: Schild vor dem Körper. Schwert kampfbereit schräg nach vorne oben,
