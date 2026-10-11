@@ -3,12 +3,13 @@ import { EV } from '../core/events.js';
 import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { fmtNum, tr } from '../i18n/index.js';
 import { ITEMS } from '../progression/items.js';
-import { panelFrame, goldEl, itemDetail, actionBtn, attachTip, hideTip } from '../progression/widgets.js';
+import { panelFrame, itemDetail, actionBtn, attachTip, hideTip } from '../progression/widgets.js';
 import { frameUrl, pixelTitle } from '../ui/pixelFrame.js';
 import { CATEGORIES, DURATIONS, MAX_ACTIVE, PRICE_MAX, FEE_RATE, TRADE_MIN_LEVEL, tradeable, minBid, proceedsOf, listStack } from './rules.js';
 
 // Fenster des Auktionators: Kaufen · Verkaufen · Abholen. Daten und Buchungen über game.market (index.js).
 // Warengruppen als Bildleiste (Symbol aus dem Item-Atlas), Seltenheit als drei Edelsteine, Sortierung als Umschalter.
+// Ein Pixelraster im ganzen Fenster: Rahmen, Titel, Edelsteine, Münzen und Item-Symbole alle 2-fach (market.css).
 const CAT_ICONS = { weapon: 'sword_steel', armor: 'mail_chain', jewelry: 'ring_ruby', consumable: 'potion_hp_m', material: 'ore_ember', mount: 'mount_ash_wolf' };
 const RARITY_GEMS = [[2, 'rare', 'Ab Selten'], [3, 'epic', 'Ab Episch'], [4, 'legendary', 'Nur Legendär']];
 const SORTS = [['new', 'Neueste'], ['price', 'Günstigste'], ['ending', 'Endet bald']];
@@ -35,6 +36,21 @@ function gemUrl(kind) {
   gems.set(kind, c.toDataURL());
   return gems.get(kind);
 }
+
+// Münze 7×7 für Goldbeträge im Fenster (2-fach = 14 px, passt zur Schrift statt des verkleinerten Item-Symbols)
+let coin = null;
+function coinUrl() {
+  if (coin) return coin;
+  const rows = ['..kkk..', '.kyyyk.', 'kyywyok', 'kywyyok', 'kyyyook', '.koodk.', '..kkk..'];
+  const col = { k: '#14060a', y: '#f0b030', w: '#fff0b0', o: '#c87818', d: '#7a4410' };
+  const c = document.createElement('canvas'); c.width = c.height = 7;
+  const ctx = c.getContext('2d');
+  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (col[ch]) { ctx.fillStyle = col[ch]; ctx.fillRect(x, y, 1, 1); } }));
+  coin = c.toDataURL();
+  return coin;
+}
+const coinEl = () => h('img.mk-coin', { src: coinUrl(), width: 14, height: 14, alt: '' });
+const goldEl = (amount, cls = '') => h(`span.pg-gold.mk-gold${cls}`, coinEl(), h('b', fmtNum(Number(amount))));
 
 let names = null;
 // Handelbare Gegenstände, deren Name (deutsch oder in der Anzeigesprache) den Suchtext enthält; leer → null (alle)
@@ -117,15 +133,18 @@ export function marketPanel(session, game, market) {
     const def = content.find('item', l.itemId);
     return def ? h(`span.r-${def.rarity}`, def.name) : h('span', l.itemId);
   };
-  const priceLine = (l) => (l.bid != null ? `Gebot ${fmtNum(l.bid)}` : l.startBid != null ? `Startgebot ${fmtNum(l.startBid)}` : 'Nur Sofortkauf');
+  // Links Zustand und Restzeit, rechts immer ein Preis: Sofortkauf, sonst Höchst- oder Startgebot
+  const priceLine = (l) => (l.buyout == null ? 'Nur Gebote' : l.bid != null ? `Gebot ${fmtNum(l.bid)}` : l.startBid != null ? `Startgebot ${fmtNum(l.startBid)}` : 'Nur Sofortkauf');
+  const priceEl = (l) => (l.buyout != null ? h('span.mk-price', h('small', 'Sofortkauf'), goldEl(l.buyout))
+    : h('span.mk-price.bid', h('small', l.bid != null ? 'Gebot' : 'Startgebot'), goldEl(l.bid ?? l.startBid ?? 0)));
 
   function listingRow(l, now, onclick, right = null) {
     const def = content.find('item', l.itemId);
     const row = h(`li.pg-stock-row.mk-row${sel === l.id ? '.selected' : ''}${l.mine ? '.mine' : ''}`, { onclick },
-      h('span.mk-icon', def ? itemIconEl({ ...def, name: null }, 36) : null, l.qty > 1 ? h('span.pg-qty', fmtNum(l.qty)) : null),
+      h('span.mk-icon', def ? itemIconEl({ ...def, name: null }, 52) : null, l.qty > 1 ? h('span.pg-qty', fmtNum(l.qty)) : null),
       h('div.pg-stock-name', listingName(l),
         h('small', l.top ? `${priceLine(l)} · du führst · ${timeLeft(l.endsAt, now)}` : `${priceLine(l)} · ${timeLeft(l.endsAt, now)}`)),
-      right ?? (l.buyout != null ? goldEl(l.buyout, '.mk-buyout') : h('span.mk-nobuy', '–')));
+      right ?? priceEl(l));
     if (def && sel !== l.id) attachTip(row, () => itemDetail(content, l.itemId, detailOpts(true)));
     return row;
   }
@@ -136,7 +155,7 @@ export function marketPanel(session, game, market) {
     const catBtn = (id, label, icon) => h(`button.mk-cat${filter.category === id ? '.on' : ''}`, {
       type: 'button', title: label, 'aria-label': label, 'aria-pressed': String(filter.category === id),
       onclick: () => { filter.category = filter.category === id && id ? '' : id; load(); },
-    }, iconEl(icon, 24));
+    }, iconEl(icon, 52));
     const cats = h('div.mk-cats', { role: 'group', 'aria-label': 'Warengruppe' },
       catBtn('', 'Alle Waren', 'bag'), CATEGORIES.map(([id, label]) => catBtn(id, label, CAT_ICONS[id])));
     const rar = h('div.mk-gems', { role: 'group', 'aria-label': 'Seltenheit' }, RARITY_GEMS.map(([v, r, label]) => h(`button.mk-gem.g-${r}`, {
@@ -164,16 +183,28 @@ export function marketPanel(session, game, market) {
     else list = h('ul.pg-stock.mk-list', rows.map((l) => listingRow(l, now, () => { sel = sel === l.id ? null : l.id; bidText = ''; say(''); draw(); })));
 
     const l = sel != null ? rows.find((x) => x.id === sel) : null;
-    return h('div.mk-buy',
+    return h('div.mk-view.mk-buy',
       filters,
-      split(h('div.mk-main', list, more && !loading ? h('div.mk-more', actionBtn('Weitere Angebote', () => load(true), { small: true })) : null),
-        l ? side(() => { sel = null; draw(); }, itemDetail(content, l.itemId, { ...detailOpts(true), actions: [offerBox(l, now, gold)], actionsTop: true })) : null));
+      split(h('div.mk-main.mk-scroll.pg-keep-scroll', list, more && !loading ? h('div.mk-more', actionBtn('Weitere Angebote', () => load(true), { small: true })) : null),
+        l ? side(() => { sel = null; draw(); }, l.itemId, offerBox(l, now, gold)) : null));
   }
 
-  // Liste links, Details rechts (Handy: Blatt am unteren Rand)
+  // Liste links, Details rechts. Kopf und Knöpfe stehen fest, nur die Werte darunter scrollen.
+  // Handy quer: die Details legen sich über die ganze Ansicht, Werte links, Knöpfe rechts (wie im Inventar).
   const split = (main, aside) => h(`div.mk-split${aside ? '.has-side' : ''}`, aside ? main : [errEl(), main], aside);
-  const side = (close, body) => h('div.pg-sheet.open.mk-side',
-    h('button.pg-sheet-close', { type: 'button', 'aria-label': 'Details schließen', onclick: close }, '✕'), errEl(), body);
+  const side = (close, itemId, acts, opts = {}) => {
+    const def = content.find('item', itemId);
+    const det = itemDetail(content, itemId, { ...detailOpts(true), ...opts });
+    const head = det.querySelector('.pg-detail-head');
+    head?.remove();
+    det.querySelectorAll('.pg-gold > img.ef-icon').forEach((img) => img.replaceWith(coinEl()));
+    head?.firstChild?.replaceWith(itemIconEl({ ...def, name: null }, 52));
+    return h(`div.mk-side.rb-${def?.rarity ?? 'common'}`,
+      h('div.mk-side-head', head,
+        h('button.mk-side-close', { type: 'button', 'aria-label': 'Details schließen', onclick: close }, '✕')),
+      h('div.mk-acts', errEl(), acts),
+      h('div.mk-side-body.mk-scroll.pg-keep-scroll', det));
+  };
 
   function offerBox(l, now, gold) {
     const need = minBid(l);
@@ -222,18 +253,18 @@ export function marketPanel(session, game, market) {
       const btn = h(`button.pg-stock-row.mk-row.mk-good${on ? '.selected' : ''}`, {
         type: 'button', 'data-k': `good-${kind}-${id}`, 'aria-pressed': String(on), onclick: pickSlot(kind, id, n),
       },
-        h('span.mk-icon', itemIconEl({ ...def, name: null }, 36), n > 1 ? h('span.pg-qty', fmtNum(n)) : null),
+        h('span.mk-icon', itemIconEl({ ...def, name: null }, 52), n > 1 ? h('span.pg-qty', fmtNum(n)) : null),
         h('span.pg-stock-name', h(`span.r-${def.rarity}`, def.name), h('small', WHERE[kind](n))));
       if (!on) attachTip(btn, () => itemDetail(content, id, detailOpts(true)));
       return h('li', btn);
     });
     const young = (s.progress?.level ?? 1) < TRADE_MIN_LEVEL;
 
-    return h('div.mk-sell', split(h('div.mk-main',
+    return h('div.mk-view.mk-sell', split(h('div.mk-main.mk-scroll.pg-keep-scroll',
       mine.length ? h('section',
         h('h3', `Deine Angebote · ${fmtNum(mine.length)}/${fmtNum(MAX_ACTIVE)}`),
         h('ul.pg-stock.mk-list', mine.map((l) => listingRow({ ...l, mine: true }, now, null,
-          l.bid != null ? goldEl(l.bid, '.mk-buyout')
+          l.bid != null ? priceEl(l)
             : actionBtn('Zurückziehen', () => run(() => market.cancel(l.id), (r) => (r.mailed ? 'Zurückgezogen. Deine Tasche ist voll, es liegt im Abholfach.' : 'Zurückgezogen.')),
               { small: true, disabled: working }))))) : null,
       h('section',
@@ -264,9 +295,7 @@ export function marketPanel(session, game, market) {
         return 'Eingestellt. Die Gilde ruft es aus.';
       });
     };
-    return side(() => { pick = null; draw(); }, itemDetail(content, pick.itemId, {
-        ...detailOpts(true), compare: false, actionsTop: true,
-        actions: [h('div.mk-form',
+    return side(() => { pick = null; draw(); }, pick.itemId, h('div.mk-form',
           h(`div.mk-prices${stack > 1 ? '.three' : ''}`,
             stack > 1 ? field('Menge', 'qty', stack) : null, field('Startgebot', 'start'), field('Sofortkauf', 'buyout')),
           h('div.mk-hours', { role: 'radiogroup', 'aria-label': 'Laufzeit' },
@@ -275,9 +304,7 @@ export function marketPanel(session, game, market) {
             }, `${fmtNum(hrs)} Std.`))),
           h('p.mk-note', price ? `Du erhältst ab ${fmtNum(proceedsOf(start ?? buyout))} Gold (${fmtNum(FEE_RATE * 100)} % Gebühr).`
             : `Beim Verkauf behält die Gilde ${fmtNum(FEE_RATE * 100)} % ein.`),
-          actionBtn('Einstellen', submit, { primary: true, disabled: working || !valid || !market.ready }),
-        )],
-      }));
+          actionBtn('Einstellen', submit, { primary: true, disabled: working || !valid || !market.ready })), { compare: false });
   }
 
   // ------------------------------------------------------------------ Abholen
@@ -296,12 +323,12 @@ export function marketPanel(session, game, market) {
       const def = id ? content.find('item', id) : null;
       const label = (MAIL_TEXT[m.kind] ?? MAIL_TEXT.sold)(def?.name ?? '');
       return h(`li.pg-stock-row.mk-row.mk-mail${m.itemId ? '' : '.gold'}`,
-        h('span.mk-icon', def ? itemIconEl({ ...def, name: null }, 36) : iconEl('gold', 32), def && qty > 1 ? h('span.pg-qty', fmtNum(qty)) : null),
+        h('span.mk-icon', def ? itemIconEl({ ...def, name: null }, 52) : h('span.mk-coinbig', iconEl('gold', 52)), def && qty > 1 ? h('span.pg-qty', fmtNum(qty)) : null),
         h('div.pg-stock-name', h(def ? `span.r-${def.rarity}` : 'span', label),
           m.kind === 'outbid' ? h('small', 'Dein Gebot kommt zurück.') : null),
-        m.gold ? goldEl(m.gold, '.mk-buyout') : null);
+        m.gold ? goldEl(m.gold, '.mk-amount') : null);
     });
-    return h('div.mk-mailbox', errEl(),
+    return h('div.mk-view.mk-mailbox.mk-scroll.pg-keep-scroll', errEl(),
       mail.length ? h('div.mk-collect', actionBtn(`Alles abholen · ${fmtNum(mail.length)}`, () => run(() => market.collect(), (r) => {
         refreshSoon();
         if (r.capped) return 'Weitere Erlöse kannst du abholen, sobald du länger gespielt hast.';
@@ -323,7 +350,7 @@ export function marketPanel(session, game, market) {
         type: 'button', role: 'tab', 'aria-selected': String(tab === id),
         onclick: () => { tab = id; sel = null; pick = null; say(''); draw(); if (id === 'buy') load(); else market.refresh().catch(() => {}); },
       }, label, id === 'mail' && n ? h('span.mk-badge', fmtNum(n)) : null)), goldEl(gold, '.mk-purse')),
-      h('div.pg-scroll.pg-keep-scroll.mk-body', tab === 'buy' ? buyView(now) : tab === 'sell' ? sellView(now) : mailView(now)));
+      h('div.mk-body', tab === 'buy' ? buyView(now) : tab === 'sell' ? sellView(now) : mailView(now)));
     // Gezeichneter Rahmen und Titel in Pixelschrift (wie der Todesbildschirm), Stufe je Gerät in market.css
     panel.style.setProperty('--mk-frame2', `url(${frameUrl(2)})`);
     panel.style.setProperty('--mk-frame3', `url(${frameUrl(3)})`);
@@ -353,6 +380,12 @@ export function marketPanel(session, game, market) {
       const tops = [...root.querySelectorAll('.pg-keep-scroll')].map((el) => el.scrollTop);
       root.replaceChildren(render());
       root.querySelectorAll('.pg-keep-scroll').forEach((el, i) => { el.scrollTop = tops[i] ?? 0; });
+      // Abgeschnittener Inhalt: unterer Rand blendet aus, solange es weiter unten noch etwas gibt
+      root.querySelectorAll('.mk-scroll').forEach((el) => {
+        const more = () => el.classList.toggle('more', el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+        more();
+        el.addEventListener('scroll', more, { passive: true });
+      });
       if (k) {
         const el = root.querySelector(`[data-k="${k}"]`);
         if (el) { el.focus({ preventScroll: true }); if (caret) try { el.setSelectionRange(caret[0], caret[1]); } catch { /* egal */ } }

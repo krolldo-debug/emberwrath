@@ -74,6 +74,18 @@ const AUCTIONEER = { name: 'Auktionator', title: 'Gilde der Glutwaage', facing: 
 
 class Auctioneer extends Npc {
   prompt() { return 'Auktionshaus'; }
+  // Name und Gilde über der Hutspitze (der hohe Hut reicht bis 37 px über die Füße, Npc setzt die Zeilen tiefer)
+  renderEmissive(ctx, cx, cy) {
+    const near = this.nearHero;
+    this.nearHero = false;
+    super.renderEmissive(ctx, cx, cy);
+    this.nearHero = near;
+    const font = this.world.session.font;
+    if (!near || !font) return;
+    const x = Math.round(this.x - cx), top = Math.round(this.y - cy - 46);
+    font.draw(ctx, this.def.name.toUpperCase(), x, top - 8, { color: '#e8c25a', align: 'center', shadow: true });
+    font.draw(ctx, this.def.title.toUpperCase(), x, top - 1, { color: '#a89ab8', align: 'center', shadow: true });
+  }
   interact(world) {
     this.talkTime = 2.5;
     this.animator.play('talk', true);
@@ -249,7 +261,7 @@ function placeAuctioneer(world) {
   }, world);
   world.props.push(lectern);
   const npc = world.spawn(new Auctioneer('auctioneer', p.x, p.y, { ...AUCTIONEER, facing: side }, sp, world));
-  npc.markerY = 50;
+  npc.markerY = 62;
   npc.lectern = lectern;
   world.interactables.push(npc);
   world.npcs.push(npc);
