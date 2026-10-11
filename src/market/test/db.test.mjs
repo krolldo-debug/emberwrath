@@ -2,9 +2,10 @@
 //   PGHOST=/var/tmp/pgm PGPORT=5544 PGDATABASE=sbtest node src/market/test/db.test.mjs   (braucht das npm-Paket pg)
 // Prüft: Einstellen nimmt den Gegenstand aus dem Spielstand, nichts lässt sich doppelt verkaufen oder doppelt bezahlen
 // (auch gleichzeitig), alter oder erfundener Buchungszähler wird abgelehnt, Gebote/Überbieten/Ablauf/Abholen, Reittiere,
-// Rechte, Gold-Obergrenze, Handelsfreigabe (Stufe, Spielzeit), Bestand und Kontingent, Goldrahmen.
+// Rechte, Gold-Obergrenze, Handelsfreigabe (Stufe, Spielzeit), Bestand und Kontingent je Stück, Goldrahmen je Konto,
+// Spielzeit bleibt bei Buchungen erhalten, Handelsvermerk verdrängt keinen Gold-Vermerk, keine Shop-/legendären Reittiere.
 import pg from 'pg';
-import { tradeableCatalog } from '../rules.js';
+import { tradeableCatalog, freshCost } from '../rules.js';
 
 const pool = new pg.Pool({ host: process.env.PGHOST ?? '/var/tmp/pgm', port: +(process.env.PGPORT ?? 5544), user: 'postgres', database: process.env.PGDATABASE ?? 'sbtest' });
 let fails = 0;
@@ -51,12 +52,12 @@ function snapshot({ level = 30, gold = 0, slots = [], mats = {}, mounts = [], pl
 await pool.query('delete from public.market_mail; delete from public.market_listings; delete from public.market_rate; delete from public.character_flags');
 await pool.query("delete from auth.users where email like '%@markt.test'");
 const users = {};
-for (const n of ['a', 'b', 'c', 'd']) users[n] = (await pool.query(`insert into auth.users (email) values ($1) returning id`, [`${n}@markt.test`])).rows[0].id;
-const { a: A, b: B, c: C, d: D } = users;
+for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) users[n] = (await pool.query(`insert into auth.users (email) values ($1) returning id`, [`${n}@markt.test`])).rows[0].id;
+const { a: A, b: B, c: C, d: D, e: E, f: F } = users;
 const put = (uid, id, snap, verified = 36000) => pool.query(`insert into public.characters (user_id, id, name, level, snapshot, play_verified) values ($1, $2, 'Held', 30, $3, $4)
   on conflict (user_id, id) do update set snapshot = excluded.snapshot, play_verified = excluded.play_verified`, [uid, id, snap, verified]);
 const owned = async (uid, id, item) => (await pool.query('select qty from public.market_owned where user_id = $1 and character_id = $2 and item_id = $3', [uid, id, item])).rows[0]?.qty ?? 0;
-const freshUsed = async (uid, id) => (await pool.query('select fresh from public.market_chars where user_id = $1 and character_id = $2', [uid, id])).rows[0]?.fresh ?? 0;
+const freshUsed = async (uid) => (await pool.query('select fresh from public.market_accounts where user_id = $1', [uid])).rows[0]?.fresh ?? 0;
 await put(A, 'ca', snapshot({ gold: 1000, slots: [{ itemId: EPIC, qty: 1 }, { itemId: RARE, qty: 1 }, { itemId: QUEST_ITEM, qty: 1 }], mats: { [MAT]: 30 }, mounts: ['marsh_strider', 'steppe_horse'] }));
 await put(B, 'cb', snapshot({ gold: 100000 }));
 await put(C, 'cc', snapshot({ gold: 50000 }));
@@ -68,7 +69,7 @@ const L1 = r.listing;
 let sa = await snapOf(A, 'ca');
 ok(count(sa.snapshot, EPIC) === 0 && sa.snapshot.slices.market.seq === 1 && sa.snapshot.meta.savedAt === r.savedAt, 'Gegenstand ist aus dem gespeicherten Spielstand entfernt');
 ok(Date.parse(sa.saved_at.toISOString()) === r.savedAt, 'saved_at entspricht savedAt (Cloud-Abgleich erkennt die Buchung)');
-ok(await freshUsed(A, 'ca') === 10, 'Eigene epische Beute kostet 10 Punkte Handelskontingent');
+ok(await freshUsed(A) === 10, 'Eigene epische Beute kostet 10 Punkte Handelskontingent');
 r = await rpc(A, 'market_list', { p_character: 'ca', p_item: EPIC, p_qty: 1, p_start_bid: null, p_buyout: 1000, p_hours: 24 });
 ok(!r.ok && r.error === 'missing', 'Derselbe Gegenstand lässt sich kein zweites Mal einstellen');
 r = await rpc(A, 'market_list', { p_character: 'ca', p_item: QUEST_ITEM, p_qty: 1, p_start_bid: null, p_buyout: 10, p_hours: 24 });
@@ -103,7 +104,7 @@ const ws = await snapOf(winner[0], winner[1]);
 ok(ws.snapshot.slices.wallet.gold === winner[2] - 1000 && count(ws.snapshot, EPIC) === 1, 'Käufer: Gold abgezogen, Gegenstand in der Tasche');
 ok(await owned(winner[0], winner[1], EPIC) === 1, 'Gekaufter Gegenstand steht im Bestand des Käufers');
 r = await rpc(winner[0], 'market_list', { p_character: winner[1], p_item: EPIC, p_qty: 1, p_start_bid: null, p_buyout: 1500, p_hours: 12 });
-ok(r.ok && await owned(winner[0], winner[1], EPIC) === 0 && await freshUsed(winner[0], winner[1]) === 0, 'Wiederverkauf aus dem Bestand kostet kein Kontingent');
+ok(r.ok && await owned(winner[0], winner[1], EPIC) === 0 && await freshUsed(winner[0]) === 0, 'Wiederverkauf aus dem Bestand kostet kein Kontingent');
 await rpc(winner[0], 'market_cancel', { p_character: winner[1], p_listing: r.listing });
 ok(await owned(winner[0], winner[1], EPIC) === 1, 'Zurückgezogen: wieder im Bestand');
 let mail = (await pool.query('select * from public.market_mail where user_id = $1', [A])).rows;
@@ -111,7 +112,8 @@ ok(mail.length === 1 && mail[0].kind === 'sold' && +mail[0].gold === 950, `Verk�
 
 // ---------------------------------------------------------------- Gebote
 r = await rpc(A, 'market_list', { p_character: 'ca', p_item: MAT, p_qty: 20, p_start_bid: 200, p_buyout: 5000, p_hours: 12 });
-ok(r.ok, 'Materialien einstellen');
+const matCost = freshCost(cat.find((x) => x[0] === MAT)[2], 20);
+ok(r.ok && matCost > freshCost(cat.find((x) => x[0] === MAT)[2], 1) && await freshUsed(A) === 10 + matCost, `Materialien einstellen: Kontingent zählt je Stück (${await freshUsed(A)})`);
 const L2 = r.listing;
 sa = await snapOf(A, 'ca');
 ok(sa.snapshot.slices.inventory.mats[MAT] === 10, 'Materialbeutel: 30 → 10');
@@ -176,6 +178,9 @@ await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [up(
 ok((await snapOf(A, 'ca')).snapshot.slices.wallet.gold === 50000, 'Gold bis zur Obergrenze wird angenommen');
 await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [up(50000 + earned), 'ca']);
 ok((await snapOf(A, 'ca')).snapshot.slices.wallet.gold === 50000, 'Auktionserlös hebt die Gold-Obergrenze nicht an');
+const flagsA = (await pool.query('select reason from public.character_flags where user_id = $1', [A])).rows.map((x) => x.reason);
+ok(flagsA.includes('handel') && flagsA.includes('gold'), `Handelsvermerk verdrängt den Gold-Vermerk nicht (${flagsA.join(', ')})`);
+await pool.query('delete from public.character_flags where user_id = $1', [A]);
 await pool.query('update public.characters set play_verified = 36000 where user_id = $1', [A]);
 
 // ---------------------------------------------------------------- Handelsfreigabe, Kontingent, Goldrahmen
@@ -210,8 +215,28 @@ await pool.query("update public.characters set play_verified = 36000 where user_
 r = await rpc(D, 'market_collect', { p_character: 'cd' });
 ok(r.ok && r.collected === 1 && r.capped === 0, 'Mit mehr Spielzeit lässt er sich abholen');
 
+// Goldrahmen gilt für das Konto und alle Käufe zusammen; Rückzahlungen nur bis zur Gold-Obergrenze.
+const R2 = cat.filter((x) => x[1] === 'armor' && x[2] === 'rare' && x[3] <= 30).slice(0, 2).map((x) => x[0]);
+await put(F, 'cf', snapshot({ slots: R2.map((itemId) => ({ itemId, qty: 1 })) }));
+const fl = [];
+for (const it of R2) fl.push(await rpc(F, 'market_list', { p_character: 'cf', p_item: it, p_qty: 1, p_start_bid: null, p_buyout: 600000, p_hours: 12 }));
+await put(E, 'ce', snapshot({ gold: 600000 }), 3600);
+await put(E, 'ce2', snapshot({ gold: 600000 }), 3600);
+r = await rpc(E, 'market_buyout', { p_character: 'ce', p_listing: fl[0].listing });
+ok(fl[0].ok && fl[1].ok && r.ok, 'Erster Kauf im Goldrahmen');
+r = await rpc(E, 'market_buyout', { p_character: 'ce2', p_listing: fl[1].listing });
+ok(!r.ok && r.error === 'frame', 'Zweiter Kauf (anderer Charakter, gleiches Konto) sprengt den Goldrahmen');
+await pool.query("insert into public.market_mail (user_id, character_id, kind, gold) values ($1, 'ce', 'outbid', 700000)", [E]);
+r = await rpc(E, 'market_collect', { p_character: 'ce' });
+ok(r.ok && r.capped === 1 && r.collected === 0, 'Rückzahlung über der Gold-Obergrenze bleibt im Abholfach');
+await pool.query("update public.characters set updated_at = now() - interval '1 hour' where user_id = $1 and id = 'ce'", [E]);
+const ua0 = (await pool.query("select updated_at from public.characters where user_id = $1 and id = 'ce'", [E])).rows[0].updated_at;
+r = await rpc(E, 'market_list', { p_character: 'ce', p_item: R2[0], p_qty: 1, p_start_bid: null, p_buyout: 1000, p_hours: 12 });
+const ua1 = (await pool.query("select updated_at from public.characters where user_id = $1 and id = 'ce'", [E])).rows[0].updated_at;
+ok(r.ok && +ua0 === +ua1, 'Buchung lässt den Zeitpunkt der Spielzeitprüfung unverändert');
+
 // ---------------------------------------------------------------- Rechte
-for (const t of ['market_listings', 'market_mail', 'market_chars', 'market_items', 'market_owned']) {
+for (const t of ['market_listings', 'market_mail', 'market_chars', 'market_items', 'market_owned', 'market_accounts']) {
   let denied = false;
   try { await asUser(B, `select * from public.${t} limit 1`); } catch { denied = true; }
   ok(denied, `Spieler können ${t} nicht direkt lesen`);
@@ -233,7 +258,7 @@ ok(anonDenied, 'Ohne Anmeldung kein Zugriff');
 // ---------------------------------------------------------------- Suche
 await rpc(A, 'market_list', { p_character: 'ca', p_item: RARE, p_qty: 1, p_start_bid: 50, p_buyout: null, p_hours: 12 });
 r = await rpc(B, 'market_browse', { p_character: 'cb', p_category: 'armor' });
-ok(r.ok && r.rows.length === 1 && r.rows[0].itemId === RARE && r.rows[0].mine === false, 'Suche nach Kategorie');
+ok(r.ok && r.rows.some((x) => x.itemId === RARE && x.mine === false) && r.rows.every((x) => cat.find((y) => y[0] === x.itemId)?.[1] === 'armor'), 'Suche nach Kategorie');
 r = await rpc(B, 'market_browse', { p_character: 'cb', p_items: [EPIC] });
 ok(r.ok && r.rows.length === 0, 'Suche nach Namen (Gegenstandsliste)');
 r = await rpc(A, 'market_browse', { p_character: 'ca', p_min_rarity: 3 });
@@ -243,6 +268,11 @@ ok(r.ok && r.rows.length > 0 && r.rows.every((x) => x.itemId !== RARE && x.itemI
 await pool.query("insert into public.character_flags (user_id, character_id, reason) values ($1, 'cc', 'gold')", [C]);
 r = await rpc(C, 'market_bid', { p_character: 'cc', p_listing: (await pool.query("select id from public.market_listings where item_id = $1 and status = 'active'", [RARE])).rows[0].id, p_amount: 60 });
 ok(!r.ok && r.error === 'blocked', 'Konto mit Schummel-Vermerk darf nicht handeln');
+
+// ---------------------------------------------------------------- Katalog
+const banned = (await pool.query(`select id from public.market_items where id in ('mount_hellhound', 'mount_rimewing', 'mount_golden_stag', 'mount_ember_scarab')
+  or id in (select 'mount_' || substr(key, 7) from public.shop_exclusive_items where key like 'mount:%')`)).rows;
+ok(banned.length === 0, `Keine legendären, Erfolgs- oder Shop-Reittiere im Katalog (${banned.map((x) => x.id).join(', ')})`);
 
 // ---------------------------------------------------------------- Neuer Charakter mit Slice market
 const fresh0 = JSON.parse(`{"meta":{"accountId":"sb_u1","characterId":"chr_n","createdAt":1,"savedAt":1,"playTime":1,"version":1},"slices":{"character":{"name":"Neu","raceId":"human","classId":"warrior","appearance":{"variant":1,"dye":null,"hairStyle":null},"talents":{},"mounts":{"owned":[],"active":null,"riding":false},"wardrobe":{"looks":["notched_blade","recruit_mail"],"shown":{}}},"world":{"zoneId":"emberhollow","spawnId":"start","pos":null,"flags":{},"bossesDefeated":[]},"progress":{"level":1,"xp":0,"xpNext":100,"stats":{}},"inventory":{"slots":[{"itemId":"minor_potion","qty":5},{"itemId":"hearth_bread","qty":3}],"equipment":{"weapon":"notched_blade","chest":"recruit_mail"},"upgrades":{},"enchants":{},"questBag":[],"mats":{},"autoSell":"common","bonus":{}},"wallet":{"gold":0},"quests":{"active":{},"completed":[],"repeats":{},"choices":{},"tracked":null,"guide":null},"rares":{"killedAt":{},"kills":{}},"bank":{"size":16,"slots":[]},"achievements":{"unlocked":{},"title":null,"rewarded":{}},"trials":{"best":0,"runs":0,"cleared":{},"bosses":{},"run":null},"board":{"day":1,"level":1,"week":1,"taken":{},"done":[],"weekDone":0,"weekClaimed":false},"daily":{"day":0},"shop":{"credited":[],"revoked":[],"owned":[]},"market":{"seq":0}}}`);

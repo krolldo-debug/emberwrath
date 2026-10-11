@@ -1,6 +1,7 @@
 // Auktionshaus: Regeln, die Spiel und Datenbank teilen (ohne DOM).
 // Die Datenbank bekommt dieselben Werte über src/market/marketSql.mjs (erzeugt die Migration).
 import { ITEMS, stackSize } from '../progression/items.js';
+import { DESIGN_ITEMS } from '../shop/catalog.js';
 
 export const FEE_RATE = 0.05;                 // Verkaufsgebühr (Goldsenke), nur bei Verkauf
 export const DURATIONS = [12, 24, 48];        // Laufzeit in Stunden
@@ -14,11 +15,20 @@ export const TRADE_MIN_LEVEL = 10;            // Handeln ab Stufe …
 export const TRADE_MIN_PLAY = 3600;           // … und nach so vielen Sekunden geprüfter Spielzeit
 export const GOLD_PER_SECOND = 150;           // Goldrahmen je Sekunde geprüfter Spielzeit (wie die Spielstandprüfung)
 export const LEVEL_SLACK = 5;                 // eigene Beute: höchstens so viele Stufen über der eigenen
-// Eigene Beute (nicht aus dem Auktionshaus) kostet Handelskontingent je Angebot, nach Seltenheit;
-// das Kontingent wächst mit geprüfter Spielzeit. Ware aus dem Auktionshaus lässt sich frei wieder einstellen.
+// Handelszeit eines Kontos: Summe der geprüften Spielzeit aller Charaktere, aber höchstens DAY_CAP je Tag seit dem
+// ersten Handel (+ START_DAYS Vorschuss). Daraus Goldrahmen und Kontingent – je Konto, nicht je Charakter.
+export const DAY_CAP = 4 * 3600;
+export const START_DAYS = 2;
+// Eigene Beute (nicht aus dem Auktionshaus) kostet Handelskontingent nach Seltenheit und Menge
+// (Stapel ab selten je angefangene 5 Stück, darunter je angefangene 10). Ware aus dem Auktionshaus ist frei.
 export const FRESH_COST = { common: 1, uncommon: 1, rare: 3, epic: 10, legendary: 25 };
 export const FRESH_BASE = 20;
 export const FRESH_PER_HOUR = 40;
+export function freshCost(rarity, qty) {
+  const base = FRESH_COST[rarity] ?? 1;
+  const rare = ['rare', 'epic', 'legendary'].includes(rarity);
+  return base * Math.max(1, Math.ceil(qty / (rare ? 5 : 10)));
+}
 
 // Kategorien in der Reihenfolge der Auswahl
 export const CATEGORIES = [
@@ -31,11 +41,14 @@ export const CATEGORIES = [
 ];
 
 // Handelbar: keine Questgegenstände, keine Erfolgsbelohnungen, kein reines Aussehen, keine weiße Ausrüstung
-// (die gehört zum Händler). Exklusive Reittiere (Erfolge, Shop) haben keinen Gegenstand und sind deshalb nie handelbar.
+// (die gehört zum Händler), nichts aus dem Shop. Legendäre Reittiere erst, wenn Beute auf dem Server entsteht (D3):
+// ihre Herkunft ließe sich sonst nicht prüfen.
+const SHOP_MOUNTS = new Set(DESIGN_ITEMS.filter((k) => k.startsWith('mount:')).map((k) => `mount_${k.slice(6)}`));
 export function tradeable(def) {
-  if (!def || def.lookOnly || def.source === 'achievement') return false;
+  if (!def || def.lookOnly || def.source === 'achievement' || def.source === 'shop') return false;
   if (!CATEGORIES.some(([id]) => id === def.type)) return false;
   if (def.slot && def.rarity === 'common') return false;
+  if (def.type === 'mount' && (def.rarity === 'legendary' || SHOP_MOUNTS.has(def.id) || SHOP_MOUNTS.has(`mount_${def.mountId}`))) return false;
   return true;
 }
 
