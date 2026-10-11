@@ -6,7 +6,7 @@ import { GameState } from '../../core/GameState.js';
 import { LocalAuthority } from '../../core/Authority.js';
 import { EV } from '../../core/events.js';
 import { registerProgressionContent, registerProgressionState } from '../../progression/logic.js';
-import { installWardrobe, cleanWardrobe, hasLook, WARDROBE_EVENT } from '../wardrobe.js';
+import { installWardrobe, cleanWardrobe, hasLook, WARDROBE_EVENT, transmogCost, wardrobeCatalog } from '../wardrobe.js';
 import { shownEquipment, resolveGear } from '../gearLook.js';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -147,6 +147,67 @@ test('Skinsets: nur gekauft, nur eigene Klasse, ganzes Set anlegen', async () =>
   assert.deepEqual(clean.looks, ['iron_sword']);
   assert.equal(clean.shown.weapon, sword, 'gewählt bleibt, gilt aber nur mit Kauf');
   assert.equal(clean.shown.chest, null, 'falscher Platz verworfen');
+});
+
+test('Gewandmeisterin: kostet Gold je Platz, alles oder nichts, zurück und ausblenden frei', async () => {
+  const { c, state, content, game } = setup();
+  c('inventory:add', { itemId: 'iron_sword', qty: 1 });
+  c('inventory:add', { itemId: 'varkhul_helm', qty: 1 });
+  await tick();
+  const wr = game.character.wardrobe, wallet = state.slices.wallet;
+  const price = transmogCost(content.get('item', 'notched_blade').ilvl);
+  assert.equal(wr.price('weapon'), price, 'Preis nach Stufe des getragenen Teils');
+  assert.ok(transmogCost(40) > transmogCost(20) && transmogCost(20) > transmogCost(1), 'steigt mit der Stufe');
+  wallet.gold = price - 1;
+  assert.deepEqual(c('wardrobe:transmog', { changes: { weapon: 'iron_sword' } }), { ok: false, reason: 'gold', cost: price });
+  assert.equal(state.slices.character.wardrobe.shown.weapon, null, 'nichts angelegt');
+  wallet.gold = 1000;
+  // leerer Kopfplatz: gesammelter Helm geht nicht, dann bleibt auch die Waffe unverändert
+  assert.equal(state.slices.inventory.equipment.head ?? null, null);
+  assert.equal(c('wardrobe:transmog', { changes: { weapon: 'iron_sword', head: 'varkhul_helm' } }).reason, 'empty');
+  assert.equal(state.slices.character.wardrobe.shown.weapon, null);
+  assert.equal(wallet.gold, 1000);
+  const r = c('wardrobe:transmog', { changes: { weapon: 'iron_sword', head: 'none' } });
+  assert.deepEqual(r, { ok: true, cost: price, slots: ['weapon', 'head'] }, 'Helm ausblenden kostet nichts');
+  assert.equal(wallet.gold, 1000 - price);
+  assert.equal(shownEquipment(state.slices, content).weapon, 'iron_sword');
+  assert.equal(c('wardrobe:transmog', { changes: { weapon: 'iron_sword' } }).cost, 0, 'schon angelegt: keine Änderung');
+  assert.equal(c('wardrobe:transmog', { changes: { weapon: null, head: null } }).cost, 0, 'zurück zum echten Aussehen frei');
+  assert.equal(wallet.gold, 1000 - price);
+  assert.equal(shownEquipment(state.slices, content).weapon, 'notched_blade');
+  assert.equal(c('wardrobe:transmog', { changes: { weapon: 'starfall' } }).reason, 'locked', 'nicht gesammelt');
+});
+
+test('Gewandmeisterin: Skinset auch über leeren Plätzen, nur gekauft', async () => {
+  const { c, state, game } = setup();
+  state.slices.shop = { owned: [] };
+  state.slices.wallet.gold = 100000;
+  const set = { weapon: 'set_glutthron_weapon', head: 'set_glutthron_head', feet: 'set_glutthron_feet' };
+  assert.equal(c('wardrobe:transmog', { changes: set }).reason, 'locked');
+  state.slices.shop.owned = ['look:set_glutthron'];
+  const cost = game.character.wardrobe.cost(set);
+  const r = c('wardrobe:transmog', { changes: set });
+  assert.equal(r.ok, true);
+  assert.equal(r.cost, cost);
+  assert.equal(state.slices.wallet.gold, 100000 - cost);
+  assert.equal(state.slices.character.wardrobe.shown.head, 'set_glutthron_head');
+});
+
+test('Sammlung: Gesammeltes zuerst, Fehlendes mit Herkunft, nur eigene Klasse', async () => {
+  const { c, state, content, bus } = setup('ranger');
+  bus.emit(EV.GAME_STARTED, {});
+  await tick();
+  const all = wardrobeCatalog(state.slices, content, 'weapon');
+  const owned = all.filter((e) => e.owned);
+  assert.ok(owned.length >= 1 && all.length > owned.length);
+  assert.ok(all.slice(0, owned.length).every((e) => e.owned), 'Gesammeltes vorn');
+  assert.ok(all.every((e) => content.get('item', e.itemId).family === 'bow' || content.get('item', e.itemId).skinSet), 'Waldläufer: nur Bögen');
+  const star = all.find((e) => e.itemId === 'starfall');
+  assert.equal(star.owned, false);
+  assert.equal(star.source, 'Bossbeute');
+  c('wardrobe:unlock', { itemIds: ['starfall'] });
+  assert.equal(wardrobeCatalog(state.slices, content, 'weapon').find((e) => e.itemId === 'starfall').owned, true);
+  assert.equal(new Set(all.map((e) => e.itemId)).size, all.length, 'jedes Aussehen einmal');
 });
 
 let fail = 0;
