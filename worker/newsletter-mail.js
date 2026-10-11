@@ -1,6 +1,6 @@
 // Bestätigungsmail des Newsletters (Double-Opt-in) im Look der Website: dunkel, Titelbild mit Logo, ein Glut-Knopf.
 // HTML für Gmail, Apple Mail und Outlook (Tabellen, Inline-Styles), dazu dieselbe Nachricht als reiner Text.
-// Das Kopfbild liegt auf der Website (site/img/mail-kopf.png, 340×210 Spielpixel ×4) und wird per https geladen.
+// Das Kopfbild liegt auf der Website (site/img/mail-kopf.png, 300×190 Spielpixel ×4, in der Mail 600 px breit = genau 2×) und wird per https geladen.
 // Dunkelmodus: Die Mail ist selbst dunkel. color-scheme verhindert, dass Apple Mail sie umfärbt; Gmail auf dem Handy
 // kehrt Farben trotzdem um, deshalb liegen die Flächen zusätzlich als background-image (das Gmail nicht anfasst) und
 // helle Schrift steckt in den gm-Hüllen (Mischmodus-Trick, wirkt nur in Gmail: „u + .body“).
@@ -13,14 +13,15 @@ const SOFT = '#d6c9ae';    // --soft
 const MUTED = '#a89a7c';   // --muted
 const TITLE = '#fbe9c6';   // .title
 const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const SERIF = "Cinzel,Georgia,'Times New Roman',serif";
+// Überschrift: Georgia in Kapitälchen (Cinzel lädt in Mailprogrammen nicht zuverlässig).
+const SERIF = "Georgia,'Times New Roman',serif";
 
 const T = {
   de: {
     subject: 'Ein Klick noch: Bestätige deinen Emberwrath-Newsletter',
     preheader: 'Bestätige deine Anmeldung, dann bist du dabei.',
     title: 'Ein Klick noch',
-    lead: 'Bestätige deine Anmeldung, dann erfährst du als Erstes von neuen Gebieten, Bossen und Ereignissen in Emberwrath.',
+    lead: 'Bestätige deine Anmeldung, dann erfährst du als Erstes von neuen Gebieten, Bossen und Ereignissen.',
     button: 'Anmeldung bestätigen',
     valid: (h) => `Der Link gilt ${h} Stunden. Du hast dich nicht angemeldet? Dann ignoriere diese E-Mail einfach, du hörst nichts mehr von uns.`,
     fallback: 'Der Knopf geht nicht? Dann öffne diesen Link:',
@@ -33,7 +34,7 @@ const T = {
     subject: 'One click left: confirm your Emberwrath newsletter',
     preheader: 'Confirm your sign-up and you are in.',
     title: 'One click left',
-    lead: 'Confirm your sign-up and be the first to hear about new regions, bosses and events in Emberwrath.',
+    lead: 'Confirm your sign-up and be the first to hear about new regions, bosses and events.',
     button: 'Confirm sign-up',
     valid: (h) => `The link is valid for ${h} hours. Didn't sign up? Just ignore this email and you won't hear from us again.`,
     fallback: 'Button not working? Open this link:',
@@ -70,7 +71,6 @@ export function confirmMail(lang, link, home, ttlHours) {
 <title>${esc(t.subject)}</title>
 <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
 <style>
-@font-face{font-family:Cinzel;font-weight:700;src:url(${home}/fonts/cinzel-latin-700-normal.woff2) format('woff2')}
 :root{color-scheme:dark light;supported-color-schemes:dark light}
 body{margin:0!important;padding:0!important;width:100%!important;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
 a{text-decoration:none}
@@ -79,7 +79,7 @@ u + .body .gm-s{display:block;background:#000;mix-blend-mode:screen}
 u + .body .gm-d{display:block;background:#000;mix-blend-mode:difference}
 @media (max-width:620px){
   .ew-pad{padding-left:22px!important;padding-right:22px!important}
-  .ew-title{font-size:26px!important}
+  .ew-title{font-size:28px!important}
   .ew-btn{width:100%!important}
   .ew-btn a{display:block!important;padding:17px 10px!important;letter-spacing:0.12em!important}
 }
@@ -92,12 +92,12 @@ u + .body .gm-d{display:block;background:#000;mix-blend-mode:difference}
   <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto">
     <tr><td style="padding:0;line-height:0;font-size:0">
-      <a href="${esc(home)}${t.homePath === '/' ? '' : t.homePath}" style="display:block"><img src="${home}/img/mail-kopf.png" width="600" height="371" alt="Emberwrath" style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;image-rendering:pixelated;${fill(BG)}color:${TITLE};font:700 28px ${SERIF};line-height:371px;text-align:center"></a>
+      <a href="${esc(home)}${t.homePath === '/' ? '' : t.homePath}" style="display:block"><img src="${home}/img/mail-kopf.png" width="600" height="380" alt="Emberwrath" style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;image-rendering:pixelated;${fill(BG)}color:${TITLE};font:700 28px ${SERIF};line-height:380px;text-align:center"></a>
     </td></tr>
-    <tr><td style="padding:0 16px">
+    <tr><td style="padding:0">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PANEL}" style="${fill(PANEL)}border:2px solid ${EDGE};border-top-color:#b8862a">
         <tr><td class="ew-pad" align="center" style="padding:34px 40px 36px;text-align:center">
-          <h1 class="ew-title" style="margin:0 0 14px;font:700 30px/1.15 ${SERIF};color:${TITLE};letter-spacing:0.02em">${gm(esc(t.title))}</h1>
+          <h1 class="ew-title" style="margin:0 0 14px;font:normal 32px/1.15 ${SERIF};font-variant:small-caps;color:${TITLE};letter-spacing:0.08em">${gm(esc(t.title))}</h1>
           <p style="margin:0 auto 28px;max-width:430px;font:16px/1.6 ${SANS};color:${SOFT}">${gm(esc(t.lead))}</p>
           <table role="presentation" class="ew-btn" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto">
             <tr><td align="center" bgcolor="#a8481a" style="background-color:#a8481a;background-image:linear-gradient(180deg,#a8481a 0,#a8481a 50%,#86320f 50%,#86320f 100%);border:2px solid #ffb050;box-shadow:0 0 0 2px #1a0604,0 0 28px rgba(255,110,30,0.35)">
@@ -114,9 +114,9 @@ u + .body .gm-d{display:block;background:#000;mix-blend-mode:difference}
       ${esc(t.fallback)}<br><a href="${esc(link)}" style="color:#7d7058;text-decoration:underline;word-break:break-all">${esc(link)}</a>
     </td></tr>
     <tr><td align="center" style="padding:18px 16px 36px;font:12px/1.6 ${SANS};color:${MUTED};text-align:center">
-      <a href="${esc(home)}${t.homePath === '/' ? '' : t.homePath}" style="color:${MUTED};text-decoration:none">${esc(host)}</a>
-      &nbsp;·&nbsp; <a href="${esc(home + t.imprintPath)}" style="color:${MUTED};text-decoration:none">${esc(t.imprint)}</a>
-      &nbsp;·&nbsp; <a href="${esc(home + t.privacyPath)}" style="color:${MUTED};text-decoration:none">${esc(t.privacy)}</a>
+      <a href="${esc(home)}${t.homePath === '/' ? '' : t.homePath}" style="color:${MUTED};text-decoration:none;white-space:nowrap">${esc(host)}</a>
+      &nbsp;·&nbsp; <a href="${esc(home + t.imprintPath)}" style="color:${MUTED};text-decoration:none;white-space:nowrap">${esc(t.imprint)}</a>
+      &nbsp;·&nbsp; <a href="${esc(home + t.privacyPath)}" style="color:${MUTED};text-decoration:none;white-space:nowrap">${esc(t.privacy)}</a>
     </td></tr>
   </table>
   <!--[if mso]></td></tr></table><![endif]-->
