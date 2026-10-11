@@ -52,7 +52,7 @@ export function createMenuPanel(session) {
 
   const main = h('div.menu-main',
     g.panels.defs?.has('achievements') ? btn('Erfolge', () => session.panels.open('achievements'), '.menu-ach', 'ui_achievements') : null,
-    g.character?.wardrobe ? btn('Garderobe', () => session.panels.open('wardrobe'), '.menu-wardrobe') : null,
+    g.character?.wardrobe ? btn('Sammlung', () => session.panels.open('wardrobe'), '.menu-wardrobe') : null,
     g.shop?.visible ? btn('Shop', () => session.panels.open('goldshop'), '.menu-shop', 'gold') : null,
     btn('Einstellungen', () => page('settings')),
     btn('Steuerung', () => page('help'), '.menu-help-btn'),

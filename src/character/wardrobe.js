@@ -2,24 +2,36 @@ import { EV } from '../core/events.js';
 import { resolveGear, shownEquipment, lookAllowed, lookShapeKey, LOOK_SLOTS, HIDE_LOOK } from './gearLook.js';
 import { SET_ITEMS, ownedSetLooks, setOfItem } from './skinSets.js';
 
-// Garderobe (Thread A, Runde 08.10.): jedes gefundene Aussehen bleibt gesammelt und lässt sich über die
+// Sammlung (früher Garderobe, Thread A, Runde 08.10.): jedes gefundene Aussehen bleibt gesammelt und lässt sich über die
 // getragene Ausrüstung legen. Alte Teile dürfen danach verkauft werden, das Aussehen bleibt.
+// Seit 11.10. wie Transmog in WoW: die Sammlung (ui/WardrobePanel.js) zeigt nur, anlegen kostet Gold bei der
+// Gewandmeisterin in jeder Wegstein-Stadt (src/transmog, Command wardrobe:transmog). Zurück zum echten Aussehen und
+// Helm ausblenden kosten nichts.
 //
 // Speicher:  character.wardrobe = { looks: [itemId, …], shown: { weapon, chest, head, hands, feet } }
 //            shown[slot] = itemId | null (eigene Ausrüstung) | 'none' (nur head: Helm ausblenden)
 // Commands:  wardrobe:unlock { itemIds }               -> { ok, added }
 //            wardrobe:show { slot, itemId|null|'none' } -> { ok } | { ok: false, reason: 'slot'|'locked'|'class' }
 //            wardrobe:showSet { setId }               -> { ok, slots } (alle Teile eines gekauften Skinsets anlegen)
+//            wardrobe:transmog { changes: { slot: itemId|null|'none' } }
+//                                                      -> { ok, cost, slots } | { ok: false, reason: 'slot'|'locked'|'class'|'empty'|'gold' }
+//              (Gewandmeisterin: alle Änderungen auf einmal, Preis je Platz transmogPrice, Gold wird abgezogen)
 // Ereignis:  EV.WARDROBE_UNLOCKED ('wardrobe:unlocked') { itemIds }
 // Skinsets (character/skinSets.js): Teile stehen nie in looks, sie gelten, solange slices.shop.owned 'look:<setId>' führt.
 // Freischalten: nach jedem Command und beim Spielstart alles aus Tasche, Ausrüstung und Bank.
 // Optik:     gearLook.shownEquipment(slices, content) (eigener Held, snapshotLook, Mehrspieler-Look)
-// Panel (D): game.character.wardrobe = { SLOTS, entries(slot), show(slot, value), count() },
-//            game.character.previewGear(overrides) -> gear für getHeroSprites
+// Panel (D): game.character.wardrobe = { SLOTS, entries(slot), catalog(slot), sameLook(slot, a, b), price(slot), cost(changes), transmog(changes), count() },
+//            game.character.previewGear(overrides) -> gear für getHeroSprites (Vorschau: auch nicht Gesammeltes, auch über leeren Plätzen)
 export const WARDROBE_MAX = 2000;
 export const WARDROBE_EVENT = EV.WARDROBE_UNLOCKED ?? 'wardrobe:unlocked';
 const RARITY_ORDER = { legendary: 0, epic: 1, rare: 2, uncommon: 3, common: 4 };
 const ID_RE = /^[a-z0-9_]{1,48}$/;
+
+// Gewandmeisterin: Preis je Platz steigt mit der Stufe des getragenen Teils (leerer Platz: Heldenstufe), maßvoll.
+// Stufe 1: 10 Gold, 10: 160, 20: 610, 40: 2410.
+export const transmogCost = (ilvl) => Math.max(10, Math.round((10 + 1.5 * Math.max(1, ilvl | 0) ** 2) / 10) * 10);
+const SOURCES = { boss: 'Bossbeute', rare: 'Seltener Gegner', trial: 'Glutprüfungen', vendor: 'Händler', quest: 'Quest', achievement: 'Erfolg', shop: 'Shop' };
+export const lookSourceText = (def) => SOURCES[def?.source] ?? 'Beute';
 
 const slotOf = (def) => (def?.slot === 'armor' ? 'chest' : def?.slot);
 // Hat das Teil ein sichtbares Aussehen (Waffe, Brust, Kopf, Hände, Füße)?
@@ -84,6 +96,46 @@ export function wardrobeEntries(slices, content, slot) {
   return { current, equipped: worn, list };
 }
 
+// Sammlung mit Fehlendem: jedes Aussehen, das die eigene Klasse tragen kann, einmal (gleich aussehende Teile zusammen).
+// owned = gesammelt (oder Skinset gekauft). Gesammelte zuerst, dann nach Seltenheit; fehlende nennen ihre Herkunft.
+const allLooks = new WeakMap();
+export function wardrobeCatalog(slices, content, slot) {
+  const ch = slices.character ?? {};
+  const have = wardrobeEntries(slices, content, slot).list;
+  const groups = new Map(have.map((e) => [lookKeyOf(content, slot, e.itemId), { ...e, owned: true }]));
+  let list = allLooks.get(content);
+  if (!list) allLooks.set(content, (list = content.all('item').filter((d) => d && hasLook(d))));
+  for (const def of list) {
+    if (slotOf(def) !== slot || !lookAllowed(def, slot, ch.classId)) continue;
+    const key = lookKeyOf(content, slot, def.id);
+    const prev = groups.get(key);
+    if (prev && (prev.owned || (RARITY_ORDER[prev.rarity] ?? 9) <= (RARITY_ORDER[def.rarity] ?? 9))) continue;
+    groups.set(key, { itemId: def.id, name: def.name, rarity: def.rarity ?? 'common', icon: def.icon, usable: true, shown: false, setId: def.skinSet ?? null, owned: false, source: lookSourceText(def) });
+  }
+  return [...groups.values()].sort((a, b) => b.owned - a.owned || !!b.setId - !!a.setId || (RARITY_ORDER[a.rarity] ?? 9) - (RARITY_ORDER[b.rarity] ?? 9) || a.name.localeCompare(b.name, 'de'));
+}
+
+// Preis an der Gewandmeisterin für einen Platz (getragenes Teil, sonst Heldenstufe)
+export function transmogPrice(slices, content, slot) {
+  const eq = slices.inventory?.equipment ?? {};
+  const e = eq[slot] ?? (slot === 'chest' ? eq.armor : null);
+  const id = typeof e === 'string' ? e : e?.itemId;
+  return transmogCost(content.find('item', id)?.ilvl ?? slices.progress?.level ?? 1);
+}
+
+// Was eine Änderung kostet: nur Plätze, die sich wirklich ändern und ein Aussehen bekommen (zurück/ausblenden frei)
+export function transmogQuote(slices, content, changes = {}) {
+  const shown = slices.character?.wardrobe?.shown ?? {};
+  let cost = 0;
+  const slots = [];
+  for (const [slot, v] of Object.entries(changes ?? {})) {
+    if (!LOOK_SLOTS.includes(slot) || (shown[slot] ?? null) === (v ?? null)) continue;
+    slots.push(slot);
+    if (v != null && v !== HIDE_LOOK) cost += transmogPrice(slices, content, slot);
+  }
+  return { cost, slots };
+}
+
 export function installWardrobe(game) {
   const { content, state } = game;
   const bus = state.bus;
@@ -130,6 +182,34 @@ export function installWardrobe(game) {
     return { ok: true, slots: Object.keys(set.pieces) };
   });
 
+  // Gewandmeisterin: mehrere Plätze auf einmal, alles oder nichts
+  state.defineCommand('wardrobe:transmog', (s, { changes } = {}, ctx) => {
+    const ch = s.get('character');
+    const owned = ownedSetLooks({ shop: s.slices.shop });
+    const eq = s.slices.inventory?.equipment ?? {};
+    const { cost, slots } = transmogQuote(s.slices, ctx.content, changes);
+    for (const slot of slots) {
+      const v = changes[slot] ?? null;
+      if (v === null) continue;
+      if (v === HIDE_LOOK) { if (slot !== 'head') return { ok: false, reason: 'slot' }; continue; }
+      const def = ctx.content.find('item', v);
+      if (slotOf(def) !== slot) return { ok: false, reason: 'slot' };
+      if (SET_ITEMS[v] ? !owned.has(v) : !ch.wardrobe.looks.includes(v)) return { ok: false, reason: 'locked' };
+      if (!lookAllowed(def, slot, ch.classId)) return { ok: false, reason: 'class' };
+      // Gesammeltes nur über einem getragenen Teil (gearLook.shownEquipment), Skinsets auch über leeren Plätzen
+      if (!SET_ITEMS[v] && !(eq[slot] ?? (slot === 'chest' ? eq.armor : null))) return { ok: false, reason: 'empty' };
+    }
+    if (!slots.length) return { ok: true, cost: 0, slots };
+    const w = s.get('wallet');
+    if (cost > 0 && !(w.gold >= cost)) return { ok: false, reason: 'gold', cost };
+    ch.wardrobe.shown = { ...ch.wardrobe.shown, ...Object.fromEntries(slots.map((k) => [k, changes[k] ?? null])) };
+    if (cost > 0) {
+      w.gold -= cost;
+      ctx.bus.emit(EV.GOLD_CHANGED, { delta: -cost, total: w.gold, source: 'transmog' });
+    }
+    return { ok: true, cost, slots };
+  });
+
   // Freischalten nach jedem Command (Beute, Kauf, Belohnung, Bank) und beim Spielstart (alte Spielstände).
   // Gesammelt und einen Tick später committet, damit kein Command innerhalb eines anderen läuft.
   let queued = false;
@@ -151,16 +231,27 @@ export function installWardrobe(game) {
       SLOTS: LOOK_SLOTS,
       HIDE: HIDE_LOOK,
       entries: (slot) => wardrobeEntries(state.slices, content, slot),
-      show: (slot, value = null) => state.commit('wardrobe:show', { slot, itemId: value }),
-      showSet: (setId) => state.commit('wardrobe:showSet', { setId }),
+      catalog: (slot) => wardrobeCatalog(state.slices, content, slot),
+      sameLook: (slot, a, b) => lookKeyOf(content, slot, a) === lookKeyOf(content, slot, b),
+      price: (slot) => transmogPrice(state.slices, content, slot),
+      cost: (changes) => transmogQuote(state.slices, content, changes).cost,
+      transmog: (changes) => state.commit('wardrobe:transmog', { changes }),
       count: () => state.slices.character?.wardrobe?.looks?.length ?? 0,
     },
-    // Vorschau im Panel: { slot: itemId|null|'none' } über die aktuelle Auswahl legen
+    // Vorschau im Panel: { slot: itemId|null|'none' } über das jetzige Aussehen legen. Anders als im Spiel auch
+    // nicht Gesammeltes und über leeren Plätzen (Sammlung zeigt, wie ein fehlendes Teil aussähe).
     previewGear: (overrides = {}) => {
-      const ch = state.slices.character ?? {};
-      const w = ch.wardrobe ?? { looks: [], shown: {} };
-      const shown = { ...w.shown, ...overrides };
-      return resolveGear(shownEquipment({ inventory: state.slices.inventory, shop: state.slices.shop, character: { ...ch, wardrobe: { ...w, shown } } }, content), content);
+      const sl = state.slices, ch = sl.character ?? {};
+      const eq = sl.inventory?.equipment ?? {};
+      const out = shownEquipment({ inventory: sl.inventory, shop: sl.shop, character: ch }, content);
+      for (const [slot, v] of Object.entries(overrides)) {
+        if (!LOOK_SLOTS.includes(slot)) continue;
+        const worn = eq[slot] ?? (slot === 'chest' ? eq.armor : null);
+        if (v == null) out[slot] = typeof worn === 'string' ? worn : worn?.itemId ?? null;
+        else if (v === HIDE_LOOK) { if (slot === 'head') out[slot] = null; }
+        else if (lookAllowed(content.find('item', v), slot, ch.classId)) out[slot] = v;
+      }
+      return resolveGear(out, content);
     },
   };
   return { isLookItem };

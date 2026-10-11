@@ -547,11 +547,22 @@
 .map-legend-icon { width: 22px; height: 22px; image-rendering: pixelated; }
 .map-close { flex: none; }
 
-/* Garderobe: große Vorschau links, Aussehen als Icon-Kacheln rechts (Name unter der Vorschau) */
-/* Garderobe (ui/WardrobePanel.js): feste Größe, deckend, alle Reiter gleich aufgebaut. Bühne und Karten zeichnet
+/* Sammlung und Gewandmeisterin (ui/WardrobePanel.js): feste Größe, deckend, alle Reiter gleich aufgebaut. Bühne und Karten zeichnet
    ui/Stable.js ganzzahlig; Icons 26 px werden 3-fach (Desktop) bzw. 2-fach (kleine Bildschirme) gezeigt. Nur harte Kanten. */
 .wd-panel { width: min(96vw, 1020px); max-width: min(96vw, 1020px); height: min(94vh, 520px); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; background: #0e0816; }
-.wd-head { display: flex; align-items: center; justify-content: space-between; }
+.wd-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+/* Haken „Nicht gesammelt“: eigener Pixelkasten (2 px Rand, goldene Füllung mit Haken wie an den Kacheln) */
+.wd-filter { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px; font-size: 13px; font-weight: 600; color: #c8b8b0; cursor: pointer; user-select: none; white-space: nowrap; }
+.wd-filter input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.wd-filter-box { position: relative; flex: none; width: 16px; height: 16px; box-sizing: border-box; background: #0b0710; border: 2px solid #6a5a60; }
+.wd-filter:hover .wd-filter-box { border-color: #a89080; }
+.wd-filter input:checked + .wd-filter-box { background: var(--ef-gold); border-color: #0b0710; box-shadow: 0 0 0 1px var(--ef-gold); }
+.wd-filter input:checked + .wd-filter-box::after { content: ''; position: absolute; left: 2px; top: 1px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
+.wd-filter input:focus-visible + .wd-filter-box { outline: 2px solid var(--ef-gold); outline-offset: 2px; }
+/* Sammlung: statt Knopf der Ort, an dem man anlegt; Gewandmeisterin: Reiter mit vorgemerkter Änderung tragen einen Goldpunkt */
+.wd-where { margin: 0; width: 100%; min-height: 40px; display: grid; place-items: center; box-sizing: border-box; padding: 0 8px; font-size: 12px; line-height: 16px; color: #a89aa8; text-align: center; border: 1px solid #2e2434; background: #120c18; }
+.wd-tabs .pg-tabbtn.chg::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-left: 6px; vertical-align: 3px; background: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710; }
+.wd-apply > .ef-icon { flex: none; image-rendering: pixelated; }
 .wd-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
 .wd-tabs { padding: 0; }
 .wd-body { display: flex; gap: 16px; min-height: 0; flex: 1 1 auto; padding-top: 8px; }
@@ -580,6 +591,7 @@
 .wd-tile:hover { border-color: #6a4a70; }
 .wd-tile.sel { border-color: var(--ef-gold); box-shadow: inset 0 0 0 1px var(--ef-gold); }
 .wd-tile.off > .ef-icon { filter: grayscale(1) brightness(0.45); }
+.wd-tile.miss { background: #0e0914; box-shadow: inset 0 0 0 1px #261c2c; }
 .wd-tile-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 0; font-size: 10px; line-height: 12px; font-weight: 700; color: #e8d8b8; background: #0b0710; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; }
 /* Häkchen (getragen) und Schloss (andere Klasse) als kleine Pixel-Plaketten in der Ecke */
 .wd-check { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710; }
@@ -600,12 +612,15 @@
 @media (max-height: 500px) {
   /* Titel, Reiter und Schließen in einer Zeile: mehr Höhe für Bühne und Raster */
   .wd-panel { width: calc(100vw - 8px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); max-width: none; height: calc(100vh - 8px); height: calc(100dvh - 8px); max-height: none; padding: 4px 6px 6px; gap: 2px;
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); column-gap: 10px; }
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-rows: auto minmax(0, 1fr); column-gap: 10px; }
   .wd-head { display: contents; }
+  .wd-filter { grid-column: 3; grid-row: 1; align-self: center; min-height: 44px; padding: 0; font-size: 12px; }
+  .wd-shop .wd-head .pg-close { grid-column: 3 / 5; justify-self: end; }
+  .wd-where { min-height: 44px; }
   .wd-title { grid-column: 1; grid-row: 1; align-self: center; font-size: 1.1em; }
   .wd-tabs { grid-column: 2; grid-row: 1; align-self: center; border-bottom: 0; }
   .wd-tabs .pg-tabbtn { min-height: 44px; }
-  .wd-head .pg-close { grid-column: 3; grid-row: 1; align-self: center; min-width: 44px; min-height: 44px; }
+  .wd-head .pg-close { grid-column: 4; grid-row: 1; align-self: center; min-width: 44px; min-height: 44px; }
   .wd-body { grid-column: 1 / -1; grid-row: 2; padding-top: 4px; gap: 6px; }
   .wd-panel > .ef-note { grid-column: 1 / -1; }
   .wd-stage { gap: 4px; }
@@ -616,6 +631,13 @@
   .wd-tile { width: 64px; height: 64px; }
   .wd-tile-cap { font-size: 8px; line-height: 11px; letter-spacing: 0; }
   .wd-cards { gap: 2px; padding: 0; }
+}
+/* Schmale Handys quer (640 px): Reiter enger, damit Titel, alle Reiter, Haken und Schließen in eine Zeile passen */
+@media (max-height: 500px) and (max-width: 760px) {
+  .wd-panel { column-gap: 6px; }
+  .wd-tabs .pg-tabbtn { padding-left: 5px; padding-right: 5px; font-size: 13px; }
+  .wd-title { font-size: 1em; }
+  .wd-filter { gap: 6px; }
 }
 
 /* Reisemenü am Wegstein */
