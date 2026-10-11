@@ -144,13 +144,14 @@ copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-
   writeFileSync(resolve(site, 'favicon.ico'), Buffer.concat([head, png]));
 }
 const landing = buildSite(root, site);
-// Startseite (de/en): Spiel unauffällig vorab laden, damit „Kostenlos spielen“ nicht mehr aufs Herunterladen wartet.
-// site.js holt es dort nach, wo der Browser rel=prefetch nicht kennt (Safari).
-for (const f of ['index.html', 'en/index.html']) {
+// Startseiten (de/en/es/fr): Spiel unauffällig vorab laden, damit „Kostenlos spielen“ nicht mehr aufs Herunterladen wartet,
+// dazu das Wörterbuch der Sprache. site.js holt es dort nach, wo der Browser rel=prefetch nicht kennt (Safari).
+for (const f of ['index.html', ...Object.keys(dictFiles).map((id) => `${id}/index.html`)]) {
   const p = resolve(site, f);
   let page;
   try { page = readFileSync(p, 'utf8'); } catch { continue; }
-  const dict = f.startsWith('en/') ? `  <link rel="prefetch" href="/spielen/${dictFiles.en}" as="script">\n` : '';
+  const id = f.slice(0, 2);
+  const dict = dictFiles[id] && f !== 'index.html' ? `  <link rel="prefetch" href="/spielen/${dictFiles[id]}" as="script">\n` : '';
   writeFileSync(p, page.replace('</head>', `  <link rel="prefetch" href="/spielen/${gameFile}" as="script">\n${dict}</head>`));
 }
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),

@@ -1,6 +1,6 @@
 # Sprachen (Deutsch, Englisch, Spanisch, Französisch)
 
-Das Spiel gibt es auf Deutsch, Englisch, Spanisch und Französisch, die Website auf Deutsch und Englisch. Der Code bleibt
+Das Spiel gibt es auf Deutsch, Englisch, Spanisch und Französisch, die Website ebenso (Sprachauswahl mit Globus in der Kopfleiste). Der Code bleibt
 deutsch: **jeder deutsche Anzeigetext ist sein eigener Schlüssel**, die Fassungen stehen in `en.js`, `es.js` und `fr.js`. Übersetzt wird erst beim Anzeigen, Spiellogik und IDs
 bleiben unberührt.
 
@@ -11,7 +11,7 @@ bleiben unberührt.
 | `en.js` | Wörterbuch Englisch (Schlüssel = deutscher Text), zugleich die Liste aller Texte |
 | `es.js`, `fr.js` | Spanisch, Französisch, gleiche Schlüssel wie `en.js`. Fehlt dort ein Text, erscheint er englisch |
 | `i18n.css` | Sprachauswahl (Titelbild, Einstellungen) |
-| `../../site/i18n/` | Website: `/en/…` wird beim Build aus den deutschen Seiten erzeugt (`build-en.mjs`, Texte `en.json`) |
+| `../../site/i18n/` | Website: `/en/…`, `/es/…`, `/fr/…` entstehen beim Build aus den deutschen Seiten (`build-en.mjs`, Texte `en.json`, `es.json`, `fr.json`; Adressen je Sprache in `SLUGS`). Neue Website-Texte in alle drei Dateien |
 | `../../tools/i18n-check.mjs` | listet deutsche Texte im Code ohne englische Fassung |
 
 ## Wo übersetzt wird
