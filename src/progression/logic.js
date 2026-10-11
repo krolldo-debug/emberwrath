@@ -798,10 +798,12 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       : { type: id, level: lvl, family: family ?? e?.family, elite: elite ?? e?.elite, boss: isBoss ?? e?.boss, bossId: bossId ?? e?.bossId ?? (isBoss ? id : undefined), rareId, champion: !!champion };
     if (inTrial(s)) enemy.trial = true;
     const drops = rollLoot(enemy, { rng, classId: s.slices.character?.classId ?? null, questNeed: questNeed(s, ctx) });
+    // Bossbeute (Boss oder Bosstruhe): bleibt sie liegen, kommt sie beim Verlassen der Zone ins Postfach (src/mail)
+    const boss = source === 'chest' ? (String(enemy.chest).startsWith('boss') ? true : null) : enemy.boss ? enemy.bossId ?? enemy.type : null;
     const out = [];
     for (const d of drops) {
       if (d.quest && addItem(s, ctx, d.itemId, d.qty, 'loot') === d.qty) { out.push({ ...d, auto: true }); continue; }
-      const drop = { dropId: `d${nextDrop++}`, ...d };
+      const drop = { dropId: `d${nextDrop++}`, ...d, ...(boss ? { boss } : {}) };
       ledger.set(drop.dropId, drop);
       out.push(drop);
     }
@@ -829,7 +831,15 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     return { ok: true, itemId: d.itemId, qty: d.qty };
   }, auth);
 
-  def('loot:reset', () => { ledger.clear(); });
+  // Zone verlassen: liegengebliebene Beute verfällt, Bossbeute meldet 'loot:left' (das Postfach bewahrt sie auf).
+  def('loot:reset', (s, _p, ctx) => {
+    const left = [...ledger.values()].filter((d) => d.boss);
+    ledger.clear();
+    if (left.length) {
+      ctx.bus.emit('loot:left', { zoneId: s.slices.world?.zoneId ?? null, drops: left.map(({ itemId, qty, gold, boss }) => ({ itemId, qty, gold, boss })) });
+    }
+    return { left: left.length };
+  });
 
   registerEndgameState(state, helpers);
   registerBoardState(state, helpers);

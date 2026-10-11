@@ -215,6 +215,25 @@ test('Questgegenstände fallen nur während der Quest, Bosse lassen ihr Siegel f
   assert.equal(countItem(state, 'varkhul_sigil'), 1);
 });
 
+test('Liegengebliebene Bossbeute meldet loot:left beim Zonenwechsel, andere Beute verfällt', () => {
+  const { c, bus } = setup();
+  const left = [];
+  bus.on('loot:left', (p) => left.push(p));
+  c('loot:roll', { source: 'kill', id: 'spider', level: 3 });
+  const boss = c('loot:roll', { source: 'kill', id: 'bonelord', level: 6, isBoss: true, bossId: 'bonelord' }).drops.filter((d) => !d.auto);
+  assert.ok(boss.length > 0 && boss.every((d) => d.boss === 'bonelord'));
+  const taken = boss[0];
+  c('loot:claim', { dropId: taken.dropId });
+  assert.equal(c('loot:reset', {}).left, boss.length - 1);
+  assert.equal(left.length, boss.length > 1 ? 1 : 0);
+  if (left.length) {
+    assert.equal(left[0].zoneId, 'emberhollow');
+    assert.equal(left[0].drops.length, boss.length - 1);
+    assert.ok(left[0].drops.every((d) => d.boss === 'bonelord'), 'nur Bossbeute, nichts Aufgehobenes');
+  }
+  assert.equal(c('loot:reset', {}).left, 0, 'zweiter Wechsel meldet nichts doppelt');
+});
+
 test('Ausrüsten prüft Klasse und Stufe; Verbesserungspfeil', () => {
   const { c, state, content } = setup('mage');
   c('inventory:add', { itemId: 'ashguard_sabre' });

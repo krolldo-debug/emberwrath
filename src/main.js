@@ -12,6 +12,7 @@ import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
 import { installMarket } from './market/index.js';
+import { installMail } from './mail/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
 import { installVersionCheck } from './core/Version.js';
 
@@ -30,7 +31,8 @@ game
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
   .use(installShop)        // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
-  .use(installMarket);     // Auktionshaus in jeder Stadt (src/market, Buchungen nur in der Datenbank)
+  .use(installMarket)      // Auktionshaus in jeder Stadt (src/market, Buchungen nur in der Datenbank)
+  .use(installMail);       // Postfach in jeder Stadt (src/mail): Auktionshaus, Briefe von Spielern, Bossbeute
 game.scenes.register('play', (g) => new PlayScene(g));
 // Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.
 // (Der Server prüft Spielstände zusätzlich, siehe supabase/migrations/20261003130000_spielstand_pruefung.sql.)

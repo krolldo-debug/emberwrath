@@ -17,11 +17,12 @@ import { checkVersion } from '../core/Version.js';
 //
 // game.market
 //   ready              true mit einem Charakter im Online-Konto
-//   mail, mine, bids   Abholfach, eigene Angebote, eigene Höchstgebote (nach refresh())
+//   mine, bids         eigene Angebote, eigene Höchstgebote (nach refresh()); Erlöse und Ware liegen im Postfach (src/mail)
 //   refresh()          diese drei neu laden → Promise
 //   browse(filter)     Angebote suchen → Promise<{ rows, more, now }>
-//   list({ itemId, qty, startBid, buyout, hours, mount }), bid(id, amount), buyout(id), cancel(id), collect()
+//   list({ itemId, qty, startBid, buyout, hours, mount }), bid(id, amount), buyout(id), cancel(id)
 //                      → Promise<Antwort>, Fehler als MarketError (message = Text für den Spieler)
+//   rpc(fn, args), book(fn, args, deltaOf)   Abfrage bzw. Buchung (für das Postfach)
 //   serverNow()        Uhrzeit des Servers (Restlaufzeiten)
 //   onChange(fn)
 // Panel 'market' (Gespräch mit dem Auktionator).
@@ -142,7 +143,6 @@ export function installMarket(game) {
   const listeners = new Set();
   const changed = () => listeners.forEach((fn) => fn());
   let busy = false;
-  let session = null;
 
   const rpc = async (fn, args) => {
     if (!isOnlineChar()) throw new MarketError('offline');
@@ -220,7 +220,9 @@ export function installMarket(game) {
       return book('market_buyout', { p_listing: listingId }, (r) => ({ gold: r.gold, add: listOf(r.add), learn: listOf(r.learn) }));
     },
     cancel(listingId) { return book('market_cancel', { p_listing: listingId }, (r) => ({ add: listOf(r.add), learn: listOf(r.learn) })); },
-    collect() { return book('market_collect', {}, (r) => ({ gold: r.gold, add: listOf(r.add), learn: listOf(r.learn) })); },
+    // Für das Postfach (src/mail): dieselben Buchungen und Abfragen, Fehler als MarketError mit code
+    rpc: (fn, args) => rpc(fn, args),
+    book,
 
     // Gelernte Reittiere, die man einstellen kann (Erfolge und Shop-Designs nie)
     sellableMounts() {
@@ -232,22 +234,12 @@ export function installMarket(game) {
 
   game.panels.register('market', (s) => marketPanel(s, game, market), { title: 'Auktionshaus' });
 
-  // Pro Sitzung: Auktionator in die Stadt stellen; einmal nachsehen, ob im Abholfach etwas liegt.
+  // Pro Sitzung: Auktionator in die Stadt stellen. Erlöse und Ware meldet das Postfach (src/mail).
   game.addSessionSystem('market', (sess) => {
-    session = sess;
-    let told = false;
     const offs = [
       sess.bus.on(EV.ZONE_ENTER, () => { try { placeAuctioneer(sess.world); } catch (err) { console.error('Auktionator', err); } }),
     ];
-    const check = setTimeout(() => {
-      if (!isOnlineChar()) return;
-      market.refresh().then(() => {
-        if (told || session !== sess || !market.mail.length) return;
-        told = true;
-        sess.bus.emit(EV.UI_TOAST, { text: 'Im Auktionshaus liegt etwas für dich bereit.', kind: 'info', icon: 'gold' });
-      }, () => {});
-    }, 6000);
-    return { dispose: () => { clearTimeout(check); offs.forEach((off) => off?.()); if (session === sess) session = null; } };
+    return { dispose: () => offs.forEach((off) => off?.()) };
   }, 25);
 }
 

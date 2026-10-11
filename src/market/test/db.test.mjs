@@ -1,5 +1,6 @@
 // Datenbanktest des Auktionshauses gegen eine echte Postgres 16 (Supabase-Nachbau, alle Migrationen ausgeführt).
 //   PGHOST=/var/tmp/pgm PGPORT=5544 PGDATABASE=sbtest node src/market/test/db.test.mjs   (braucht das npm-Paket pg)
+//   Vorher auch 20261011150000_postfach.sql ausführen (Abholen = mail_take).
 // Prüft: Einstellen nimmt den Gegenstand aus dem Spielstand, nichts lässt sich doppelt verkaufen oder doppelt bezahlen
 // (auch gleichzeitig), alter oder erfundener Buchungszähler wird abgelehnt, Gebote/Überbieten/Ablauf/Abholen, Reittiere,
 // Rechte, Gold-Obergrenze, Handelsfreigabe (Stufe, Spielzeit), Bestand und Kontingent je Stück, Goldrahmen je Konto,
@@ -103,7 +104,10 @@ const both = await Promise.all([rpc(B, 'market_buyout', { p_character: 'cb', p_l
 ok(both.filter((x) => x.ok).length === 1 && both.some((x) => x.error === 'gone'), `Zwei gleichzeitige Käufe: genau einer gewinnt (${both.map((x) => x.ok || x.error).join(', ')})`);
 const winner = both[0].ok ? [B, 'cb', 100000] : [C, 'cc', 50000];
 const ws = await snapOf(winner[0], winner[1]);
-ok(ws.snapshot.slices.wallet.gold === winner[2] - 1000 && count(ws.snapshot, EPIC) === 1, 'Käufer: Gold abgezogen, Gegenstand in der Tasche');
+ok(ws.snapshot.slices.wallet.gold === winner[2] - 1000 && count(ws.snapshot, EPIC) === 0, 'Käufer: Gold abgezogen, Gegenstand noch nicht in der Tasche');
+ok(both.find((x) => x.ok).mailed === true, 'Gekaufter Gegenstand liegt im Postfach');
+r = await rpc(winner[0], 'market_collect', { p_character: winner[1] });
+ok(r.ok && count((await snapOf(winner[0], winner[1])).snapshot, EPIC) === 1, 'Abgeholt: Gegenstand in der Tasche');
 ok(await owned(winner[0], winner[1], EPIC) === 1, 'Gekaufter Gegenstand steht im Bestand des Käufers');
 r = await rpc(winner[0], 'market_list', { p_character: winner[1], p_item: EPIC, p_qty: 1, p_start_bid: null, p_buyout: 1500, p_hours: 12 });
 ok(r.ok && await owned(winner[0], winner[1], EPIC) === 0 && await freshUsed(winner[0]) === 0, 'Wiederverkauf aus dem Bestand kostet kein Kontingent');
@@ -230,7 +234,7 @@ r = await rpc(E, 'market_buyout', { p_character: 'ce2', p_listing: fl[1].listing
 ok(!r.ok && r.error === 'frame', 'Zweiter Kauf (anderer Charakter, gleiches Konto) sprengt den Goldrahmen');
 await pool.query("insert into public.market_mail (user_id, character_id, kind, gold) values ($1, 'ce', 'outbid', 700000)", [E]);
 r = await rpc(E, 'market_collect', { p_character: 'ce' });
-ok(r.ok && r.capped === 1 && r.collected === 0, 'Rückzahlung über der Gold-Obergrenze bleibt im Abholfach');
+ok(r.ok && r.capped === 1 && r.collected === 1, 'Rückzahlung über der Gold-Obergrenze bleibt im Postfach (gekaufte Ware kommt)');
 await pool.query("update public.characters set updated_at = now() - interval '1 hour' where user_id = $1 and id = 'ce'", [E]);
 const ua0 = (await pool.query("select updated_at from public.characters where user_id = $1 and id = 'ce'", [E])).rows[0].updated_at;
 r = await rpc(E, 'market_list', { p_character: 'ce', p_item: R2[0], p_qty: 1, p_start_bid: null, p_buyout: 1000, p_hours: 12 });
