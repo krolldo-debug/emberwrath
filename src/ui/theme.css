@@ -1154,16 +1154,6 @@ div.pg-mount { display: contents; padding: 0; border: 0; background: none; }
 .pg-tabs { overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap; flex-shrink: 0; scrollbar-width: none; }
 .pg-tabs::-webkit-scrollbar { display: none; }
 .pg-tabs .pg-tabbtn { flex: 0 0 auto; }
-/* Talente: auf Handy und kleinen Fenstern eine Talentspalte, sonst bricht jede Zeile nach zwei Wörtern um */
-@media (max-width: 960px) { .tal-panel .tal-grid { grid-template-columns: minmax(0, 1fr); } }
-/* Talentfenster: breiter auf dem Computer; Lernen-Knopf unten rechts neben den Rang-Kästchen,
-   damit Name und Beschreibung die volle Kartenbreite haben (vorher brach jede Zeile nach zwei Wörtern um) */
-.ef-panel.tal-panel { max-width: min(96vw, 920px); width: min(96vw, 920px); }
-.tal-panel .tal-talent { position: relative; }
-.tal-panel .tal-talent .tal-pips { min-height: 34px; margin-top: 2px; padding-right: 42px; }
-.tal-panel .tal-talent .tal-learn { position: absolute; right: 8px; bottom: 8px; }
-.ef-touch .tal-panel .tal-talent .tal-pips { min-height: 44px; padding-right: 52px; }
-
 /* Release-Feinschliff: HUD-Bedienung */
 /* Menüschilder nur bei echtem Mauszeiger; Tastaturfokus zeigt den Rahmen, kein schwebendes Schild,
    das nach Klick + Esc stehen bliebe. */

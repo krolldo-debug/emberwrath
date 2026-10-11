@@ -237,52 +237,111 @@
   .acc-create .acc-preview-canvas { width: 84px !important; }
 }
 
-/* ---- Talent-Panel (Thread A, Panel 'talents') ---- */
-.tal-panel { width: min(96vw, 860px); max-height: min(92vh, 720px); display: flex; flex-direction: column; padding: 14px 16px; gap: 10px; text-align: left; }
-.tal-head { display: flex; align-items: center; gap: 14px; }
+/* ---- Talent-Panel (Thread A, Panel 'talents') ----
+   Aufgeräumt (11.10.): links schlanke Fähigkeitszeilen, rechts eine Zeile je Talentstufe (Stufe | Talent | Talent).
+   Flache Flächen, harte Kanten, kein Schein. */
+.ef-panel.tal-panel {
+  width: min(96vw, 1000px); max-width: min(96vw, 1000px); max-height: min(94vh, 780px); display: flex; flex-direction: column;
+  padding: 12px 16px 14px; gap: 10px; text-align: left; background: #120a18; box-sizing: border-box;
+}
+.tal-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #3a2530; }
 .tal-head > div:first-child { flex: 1; min-width: 0; }
-.tal-title { margin: 0; font: 600 20px var(--ef-font-title); color: var(--ef-gold); }
-.tal-step { margin: 2px 0 0; font-size: 13px; color: var(--ef-muted); }
-.tal-points { display: flex; align-items: baseline; gap: 6px; padding: 6px 10px; border: 1px solid #3a2a3a; background: rgba(12, 6, 18, 0.7); color: var(--ef-muted); font-size: 13px; }
-.tal-points strong { font: 700 20px var(--ef-font-title); color: #d8d0c0; }
-.tal-points.free { border-color: var(--ef-gold); color: #ffe7a8; box-shadow: 0 0 12px rgba(232, 194, 90, 0.25); }
+.tal-title { margin: 0; font: 700 20px/1.1 var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.04em; }
+.tal-step { margin: 3px 0 0; font-size: 13px; color: var(--ef-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tal-points { display: flex; align-items: center; gap: 6px; height: 36px; box-sizing: border-box; padding: 6px 10px; border: 1px solid #3a2a3a; background: #0e0814; color: var(--ef-muted); font-size: 13px; white-space: nowrap; }
+.tal-points strong { font: 700 18px/1 var(--ef-font-title); color: #d8d0c0; }
+.tal-points.free { border-color: var(--ef-gold); color: #ffe7a8; }
 .tal-points.free strong { color: var(--ef-gold); }
-.tal-close { width: 40px; height: 40px; font-size: 24px; line-height: 1; color: #e8dcc4; background: transparent; border: 1px solid #3a2a3a; cursor: pointer; }
-.ef-touch .tal-close { width: var(--ef-touch); height: var(--ef-touch); }
-.tal-scroll { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; padding-right: 4px; -webkit-overflow-scrolling: touch; }
-.tal-h { margin: 0 0 6px; font: 600 15px var(--ef-font-title); color: var(--ef-gold); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.tal-sub { font: 400 12px var(--ef-font); color: var(--ef-muted); }
-.tal-list { display: flex; flex-direction: column; gap: 6px; }
-.tal-ability, .tal-talent { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid #3a2a3a; background: rgba(20, 12, 24, 0.75); }
-.tal-ability.passive { border-style: dashed; }
-.tal-ability.locked, .tal-talent.locked { opacity: 0.5; filter: saturate(0.4); }
+.tal-reset {
+  height: 36px; padding: 0 12px; font: 600 12.5px var(--ef-font); color: var(--ef-muted); white-space: nowrap; cursor: pointer;
+  background: transparent; border: 1px solid #3a2a3a; border-radius: 0;
+}
+.tal-reset:hover:not(:disabled) { color: var(--ef-text); border-color: #6a4a5a; }
+.tal-reset:disabled { opacity: 0.4; cursor: default; }
+.tal-close { width: 36px; height: 36px; font: 400 24px/1 var(--ef-font); color: var(--ef-muted); background: transparent; border: 1px solid transparent; cursor: pointer; }
+.tal-close:hover { color: var(--ef-text); border-color: var(--ef-panel-edge); }
+.ef-touch .tal-close, .ef-touch .tal-reset, .ef-touch .tal-points { height: var(--ef-touch); }
+.ef-touch .tal-close { width: var(--ef-touch); }
+
+.tal-scroll {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 18px; align-items: start; padding-right: 2px;
+}
+.tal-h { margin: 0 0 6px; font: 600 11.5px/1.3 var(--ef-font); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ef-muted); }
+.tal-list { display: flex; flex-direction: column; gap: 4px; }
 .tal-icon { flex: none; display: inline-flex; }
 .tal-icon img { display: block; }
 .tal-body { flex: 1; min-width: 0; }
-.tal-name { font-weight: 700; color: #fff4e0; font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.tal-key { font: 600 11px var(--ef-font); padding: 0 5px; border: 1px solid #6a4a5a; border-radius: 2px; color: #ffcf8a; }
-.tal-lock { font-size: 11px; font-weight: 600; color: #ff9a6a; border: 1px solid rgba(255, 154, 106, 0.5); padding: 0 5px; }
-.tal-tag { font-size: 11px; font-weight: 600; color: #c8b8e8; border: 1px solid rgba(200, 184, 232, 0.4); padding: 0 5px; }
-.tal-desc { margin: 2px 0 0; font-size: 13px; line-height: 1.35; color: #e8dcc4; }
-.tal-meta { margin: 3px 0 0; font-size: 12px; color: var(--ef-muted); }
-.tal-hint { margin: 0 0 8px; font-size: 12px; color: var(--ef-muted); }
-.tal-tier { margin-bottom: 10px; }
-.tal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.tal-talent.has { border-color: #7a5a2a; background: rgba(40, 24, 14, 0.8); }
-.tal-pips { display: flex; align-items: center; gap: 3px; margin-top: 5px; }
-.tal-pip { width: 8px; height: 8px; border: 1px solid #6a4a5a; background: #140c16; }
-.tal-pip.on { background: var(--ef-gold); border-color: #fff0a8; box-shadow: 0 0 4px rgba(232, 194, 90, 0.6); }
-.tal-rank { margin-left: 4px; font-size: 11px; color: var(--ef-muted); }
-.tal-learn { flex: none; align-self: center; width: 34px; min-width: 0 !important; height: 34px; min-height: 0 !important; padding: 0 !important; font-size: 20px; line-height: 1; }
+.tal-name { font-weight: 700; color: #fff4e0; font-size: 14px; line-height: 1.25; display: flex; align-items: center; gap: 6px; }
+.tal-key { font: 600 11px/1.3 var(--ef-font); padding: 0 5px; border: 1px solid #6a4a5a; color: #ffcf8a; }
+.tal-meta { margin: 2px 0 0; font-size: 12px; color: var(--ef-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tal-desc { margin: 2px 0 0; font-size: 12.5px; line-height: 1.35; color: #d8ccb8; }
+
+.tal-ability {
+  display: flex; gap: 10px; align-items: center; min-height: 46px; padding: 5px 8px; box-sizing: border-box;
+  border: 1px solid #2e2036; background: #170e20;
+}
+.tal-ability:hover { border-color: #4a3450; }
+.ef-touch .tal-ability { cursor: pointer; }
+.tal-ability.open { align-items: flex-start; background: #20142a; border-color: #4a3450; }
+.tal-ability.locked .tal-icon, .tal-ability.locked .tal-name { opacity: 0.5; filter: saturate(0.4); }
+.tal-tip { padding: 8px 10px; border: 1px solid var(--ef-panel-edge); }
+.tal-tip b { color: var(--ef-gold); font-size: 13px; }
+.tal-tip p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ef-text); }
+
+.tal-tier { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; margin-bottom: 4px; }
+.tal-tierlabel { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding-left: 8px; border-left: 2px solid #6a4526; }
+.tal-tierlabel b { font: 600 13px/1.15 var(--ef-font-title); color: var(--ef-gold); }
+.tal-tierlabel span { font-size: 11.5px; color: var(--ef-muted); }
+.tal-tier.locked .tal-tierlabel { border-left-color: #2e2036; }
+.tal-tier.locked .tal-tierlabel b { color: #8a7a6a; }
+.tal-tier.locked .tal-talent { opacity: 0.45; filter: saturate(0.3); }
+.tal-talent {
+  display: flex; gap: 8px; align-items: center; min-height: 58px; padding: 6px 8px; box-sizing: border-box;
+  border: 1px solid #2e2036; background: #170e20;
+}
+.tal-talent.has { border-color: #5a3c24; background: #1d1120; }
+.tal-talent.max { border-color: #8a6a2a; }
+.tal-talent.can { border-color: #6a4a5a; }
+.tal-talent .tal-name { font-size: 13.5px; }
+.tal-side { flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 4px; padding-top: 3px; }
+.tal-tname { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tal-talent .tal-desc { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+html:not(.ef-touch) .tal-talent .tal-desc { -webkit-line-clamp: 3; }
+.tal-talent.open { background: #20142a; }
+.tal-talent.open .tal-desc { display: block; }
+.ef-touch .tal-talent { cursor: pointer; }
+.tal-pips { flex: none; display: flex; align-items: center; gap: 2px; }
+.tal-pip { width: 7px; height: 7px; border: 1px solid #5a4460; background: #0e0814; }
+.tal-pip.on { background: var(--ef-gold); border-color: #fff0a8; }
+.tal-learn { flex: none; width: 30px; min-width: 0 !important; height: 30px; min-height: 0 !important; padding: 0 !important; font-size: 18px; line-height: 1; }
 .ef-touch .tal-learn { width: 44px; height: 44px; }
-.tal-talent .tal-desc { font-size: 12px; }
-.tal-foot { display: flex; justify-content: flex-end; }
-.tal-reset { font-size: 13px; padding: 6px 12px; min-width: 0; }
+
+/* Handy quer: volles Fenster, schmalere Spalten */
+@media (max-height: 520px) {
+  .ef-panel.tal-panel {
+    width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; gap: 6px;
+    padding: 6px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+  }
+  .ef-panel.tal-panel::before, .ef-panel.tal-panel::after { display: none; }
+  .tal-head { padding-bottom: 6px; }
+  .tal-title { font-size: 17px; }
+  .tal-step { font-size: 12px; margin-top: 1px; }
+  /* Beide Spalten rollen einzeln: die Fähigkeiten bleiben stehen, wenn man im Talentbaum rollt */
+  .tal-scroll { grid-template-columns: 176px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 10px; overflow: hidden; align-items: stretch; padding-right: 0; }
+  .tal-scroll > section { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-right: 6px; }
+  .tal-ability .tal-name { font-size: 13px; }
+  .tal-bonus, .tal-sep:has(+ .tal-bonus) { display: none; }
+  .tal-tier { grid-template-columns: 78px minmax(0, 1fr) minmax(0, 1fr); }
+  .tal-tierlabel { padding-left: 5px; }
+  .tal-tierlabel b { font-size: 11px; }
+  .tal-ability { min-height: 44px; padding: 4px 6px; gap: 8px; }
+  .tal-talent { padding: 4px 6px; gap: 6px; min-height: 54px; }
+  .tal-talent .tal-name { font-size: 13px; }
+}
 @media (max-width: 720px) {
   .tal-scroll { grid-template-columns: 1fr; }
   .tal-tree { order: -1; }
-  .tal-grid { grid-template-columns: 1fr; }
-  .tal-panel { padding: 10px; max-height: 94vh; }
   .tal-points span { display: none; }
 }
 

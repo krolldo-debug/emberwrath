@@ -319,7 +319,8 @@ function fmtTime(sec) {
 const RES = { rage: 'Wut', mana: 'Mana', energy: 'Energie' };
 const ATTR = { str: 'Stärke', agi: 'Geschick', int: 'Intellekt', vit: 'Ausdauer' };
 
-// Reittiere sammeln und wählen: Garderobe, Reiter „Reittiere“ (ui/WardrobePanel.js)
+// Aufgeräumt (11.10.): keine Ausrüstung (steht im Inventar), keine Knöpfe zu Talenten/Erfolgen/Reittieren
+// (eigene Tasten und Menü), damit das Fenster ohne Bildlauf auskommt. Werte und Chronik nebeneinander.
 function characterView(s) {
   return () => {
     const st = s.state, c = s.content, ch = st.slices.character ?? {};
@@ -338,31 +339,22 @@ function characterView(s) {
       stats.moveSpeed ? row(STAT_NAMES.moveSpeed, typeof stats.moveSpeed === 'number' && stats.moveSpeed < 1 ? `+${Math.round(stats.moveSpeed * 100)} %` : stats.moveSpeed) : null,
     ];
     const attrs = stats.attributes ? Object.entries(stats.attributes).map(([k, v]) => row(ATTR[k] ?? k, Math.round(v))) : [];
-    const inv = st.slices.inventory;
     return panelFrame(s, 'character', 'Charakter',
       h('div.pg-scroll.pg-keep-scroll.pg-char',
         h('section.pg-char-id',
-          h('div.pg-char-name', ch.name ?? 'Unbekannt'),
-          titleOf(st) ? h('div.pg-char-title', titleOf(st)) : null,
+          h('div.pg-char-top',
+            h('div.pg-char-name', { translate: 'no' }, ch.name ?? 'Unbekannt'),
+            titleOf(st) ? h('div.pg-char-title', titleOf(st)) : null,
+            h('div.pg-char-gold', goldEl(st.slices.wallet.gold))),
           h('div.pg-char-sub', `Stufe ${xp.level}${race ? ` · ${race.name}` : ''}${cls ? ` · ${cls.name}` : ''}`),
-          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${fmt(xp.into)} / ${fmt(xp.need)} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar'),
-          h('div.pg-char-gold', goldEl(st.slices.wallet.gold))),
-        h('section', h('h3', 'Werte'), h('dl.pg-kvs', statRows), attrs.length ? h('dl.pg-kvs.pg-attrs', attrs) : null),
-        h('section', h('h3', 'Ausrüstung'), h('div.pg-char-eq', EQUIP_SLOTS.map((slot) => {
-          const def = inv.equipment[slot] ? c.find('item', inv.equipment[slot]) : null;
-          const el = h('div.pg-char-eqrow', def ? itemIconEl({ ...def, name: null }, 30) : h('span.pg-mini', iconEl(SLOT_PH[slot], 20)),
-            h('span.pg-eq-slotname', EQUIP_SLOT_NAMES[slot]), h(`span${def ? `.r-${def.rarity}` : '.ef-note'}`, def?.name ?? 'nichts'));
-          if (def) attachTip(el, () => itemDetail(c, def.id, { compare: false, compact: true }));
-          return el;
-        }))),
-        bonusSectionEl(st),
-        h('section', h('h3', 'Chronik'), h('dl.pg-kvs',
-          row('Besiegte Gegner', pst.kills), row('Elite', pst.eliteKills ?? 0), row('Bosse', pst.bossKills),
-          row('Quests erfüllt', pst.questsCompleted), row('Gegenstände gefunden', pst.itemsLooted ?? 0),
-          row('Geschmiedet', pst.crafted ?? 0), row('Gold verdient', pst.goldEarned), row('Spielzeit', fmtTime(st.meta.playTime ?? 0)))),
-        h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements')),
-          s.game.character?.mountCollection ? actionBtn('Reittiere', () => s.panels.open('wardrobe', { tab: 'mounts' })) : null),
-        h('p.ef-note.pg-local', 'Gespeichert in deinem Konto · in der Cloud gesichert.')));
+          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${fmt(xp.into)} / ${fmt(xp.need)} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar')),
+        h('div.pg-char-cols',
+          h('section', h('h3', 'Werte'), h('dl.pg-kvs', statRows), attrs.length ? h('dl.pg-kvs.pg-attrs', attrs) : null),
+          h('section', h('h3', 'Chronik'), h('dl.pg-kvs',
+            row('Besiegte Gegner', fmt(pst.kills)), row('Elite', fmt(pst.eliteKills ?? 0)), row('Bosse', fmt(pst.bossKills)),
+            row('Quests erfüllt', fmt(pst.questsCompleted)), row('Gegenstände gefunden', fmt(pst.itemsLooted ?? 0)),
+            row('Geschmiedet', fmt(pst.crafted ?? 0)), row('Gold verdient', fmt(pst.goldEarned)), row('Spielzeit', fmtTime(st.meta.playTime ?? 0))))),
+        bonusSectionEl(st)));
   };
 }
 
