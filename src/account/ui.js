@@ -54,7 +54,7 @@ export function zoneName(content, zoneId) {
 }
 
 // Startseite der Website in der gewählten Sprache (das Spiel liegt unter /spielen/ auf derselben Domain).
-export const websiteUrl = () => (lang() === 'de' ? '/' : '/en/');
+export const websiteUrl = () => ({ de: '/', es: '/es/', fr: '/fr/' })[lang()] ?? '/en/';
 
 // Gut sichtbarer Zurück-Pfeil oben links in den Menüs.
 export function backButton(onclick, label = 'Zurück') {

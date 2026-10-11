@@ -208,8 +208,9 @@ async function subscribeWork(env, email, b, acceptLanguage) {
 }
 
 // Sprache eines Abonnenten: steht in source (Pfad der Seite, auf der angemeldet wurde, z. B. /en/ oder /en/world).
-// Englische Seiten liegen unter /en/ (site/i18n/build-en.mjs). Gilt auch für spätere Newsletter-Versände.
-export const subscriberLang = (source) => (/^\/en(\/|$)/.test(String(source ?? '')) ? 'en' : 'de');
+// Fremdsprachige Seiten liegen unter /en/, /es/, /fr/ (site/i18n/build-en.mjs); Mails gibt es deutsch und englisch,
+// wer auf /es/ oder /fr/ angemeldet hat, bekommt die englischen. Gilt auch für spätere Newsletter-Versände.
+export const subscriberLang = (source) => (/^\/(en|es|fr)(\/|$)/.test(String(source ?? '')) ? 'en' : 'de');
 
 // Wer im Browser Deutsch als erste Sprache hat, bekommt deutsche Mails, auch wenn er auf /en/ angemeldet hat
 // (z. B. weil er die englische Seite einmal ausprobiert hat und lang.js sich das merkt). source bekommt dann „de:“ davor,
