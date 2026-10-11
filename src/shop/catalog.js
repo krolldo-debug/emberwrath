@@ -41,7 +41,7 @@ export const RETURN_PARAM = 'kauf';
 // items: Schlüssel 'mount:<id>' (src/character/mounts.js, exclusive), 'dye:<id>' (src/character/cosmetics.js, exclusive)
 // und 'look:<setId>' (Skinset einer Klasse, src/character/skinSets.js; Teile in der Garderobe über die Ausrüstung legen).
 // Der Server prüft beim Speichern, dass exklusive Reittiere, Färbungen und Skinsets im Spielstand bezahlt sind
-// (Migrationen 20261005120000 und 20261011150000).
+// (Migrationen 20261005120000 und 20261011160000).
 export const DESIGNS = [
   { id: 'design_phoenix', name: 'Phönixschwinge', priceCents: 1499, tag: 'Legendär',
     items: ['mount:phoenix_wing', 'dye:phoenix'],
