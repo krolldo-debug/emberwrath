@@ -1163,7 +1163,7 @@ const canvasCache = new Map();
 const urlCache = new Map();
 
 export function iconCanvas(id) {
-  const key = resolve(id);
+  const key = SKILL_ART[id] ? id : resolve(id);   // Embleme ohne Eintrag im Register (z. B. attack_<klasse>) direkt
   let c = canvasCache.get(key);
   if (!c) {
     if (SKILL_ART[key]) {
@@ -1182,7 +1182,7 @@ export function iconCanvas(id) {
 }
 
 export function iconUrl(id) {
-  const key = resolve(id);
+  const key = SKILL_ART[id] ? id : resolve(id);
   let u = urlCache.get(key);
   if (!u) { u = iconCanvas(key).toDataURL(); urlCache.set(key, u); }
   return u;
