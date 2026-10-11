@@ -1,13 +1,13 @@
-// Wo die Gewandmeisterin in den Städten steht: Abstand zum Wegstein in Spielpixeln (eine Kachel = 16), in Sichtweite
-// von Auktionator und Rabenpost (market/places.js, mail/places.js), aber so weit weg, dass sich Namen und der Hinweis
-// am Briefkasten nicht überdecken (mindestens ~80 px seitlich oder deutlich höher/tiefer). mirror: Seite des Standspiegels (1 = rechts von ihr, -1 = links); sie schaut zur anderen Seite.
-// Platz wie beim Auktionator: nichts Hohes über dem Namen, freier Boden davor, nicht auf dem Questpfad.
+// Wo die Gewandmeisterin in den Städten steht: Abstand zum Wegstein in Spielpixeln (eine Kachel = 16).
+// mirror: Seite des Standspiegels (1 = rechts von ihr, -1 = links); sie schaut zur anderen Seite.
+// Gemeinsam mit Auktionator und Briefkasten gewählt (siehe market/places.js): im Ort, in Sichtweite, aber nicht
+// auf einem Fleck; kein Schild über Häusern, anderen Schildern oder Questpfaden.
 export const PLACES = {
-  emberhollow: { dx: -18, dy: 100, mirror: 1 },
-  ashwood: { dx: -176, dy: 8, mirror: -1 },
-  cinder_peaks: { dx: 136, dy: 44, mirror: 1 },
-  ashen_steppe: { dx: -128, dy: 44, mirror: -1 },
-  blighted_marsh: { dx: 264, dy: -12, mirror: 1 },
-  frostspire: { dx: -300, dy: 112, mirror: -1 },
-  ember_wastes: { dx: -96, dy: 96, mirror: -1 },
+  emberhollow: { dx: -16, dy: 110, mirror: 1 },    // südliche Dorfgasse
+  ashwood: { dx: 96, dy: -114, mirror: -1 },       // beim Baumhaus des Händlers
+  cinder_peaks: { dx: 16, dy: -130, mirror: 1 },   // Zeltreihe nördlich des Wegsteins
+  ashen_steppe: { dx: 80, dy: -82, mirror: 1 },    // zwischen den Jurten der Nordreihe
+  blighted_marsh: { dx: -48, dy: 94, mirror: -1 }, // Südhang des Lehmhügels
+  frostspire: { dx: -48, dy: -66, mirror: 1 },     // vor dem Langhaus, links des Wegsteins
+  ember_wastes: { dx: 64, dy: 206, mirror: 1 },    // Südseite des Bastionshofs
 };
