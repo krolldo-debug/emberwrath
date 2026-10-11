@@ -65,6 +65,8 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   Halten, Einschlag mit Erschütterung, Glutwelle über die Fugen, Staub, Funken) und Schlachtruf (Klinge hoch, Kopf in den
   Nacken, Umhang weht auf, Funkenring, Feuerschalen lodern);
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
+- Vorschaubild beim Teilen (`og-teilen.png`, 1200 × 630, auf allen Seiten und Sprachfassungen als og:image und twitter:image): `tools/og.py`
+  aus den Paradestreifen. Neues Motiv = neuer Dateiname, sonst zeigen Messenger das alte Bild aus ihrem Zwischenspeicher.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
   `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
