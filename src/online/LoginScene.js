@@ -379,8 +379,7 @@ export class LoginScene extends MenuScene {
       });
     };
     return h('div.on-body',
-      h('form.on-form', { onsubmit: submit, novalidate: true }, name.el, hint, this.#messageBox(), submitBtn),
-      h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('account') }, 'Abbrechen')));
+      h('form.on-form', { onsubmit: submit, novalidate: true }, name.el, hint, this.#messageBox(), submitBtn));
   }
 
   // Konto löschen: erst erneut anmelden (Schutz, falls jemand ein offenes Gerät benutzt), dann endgültig löschen.
