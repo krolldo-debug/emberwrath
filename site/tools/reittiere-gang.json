@@ -300,5 +300,89 @@
    2.5,
    2.5
   ]
+ },
+ "phoenix_wing": {
+  "w": 62,
+  "h": 44,
+  "res": 2,
+  "frames": 12,
+  "fps": 12,
+  "gait": "fly",
+  "foot": {
+   "x": 30,
+   "y": 42
+  },
+  "fly": 16,
+  "name": "Phönixschwinge",
+  "lift": [
+   1.5,
+   2.5,
+   4,
+   5,
+   5,
+   5,
+   4,
+   2.5,
+   1,
+   0.5,
+   0,
+   0.5
+  ]
+ },
+ "astral_stallion": {
+  "w": 41,
+  "h": 45,
+  "res": 2,
+  "frames": 12,
+  "fps": 15,
+  "gait": "gallop",
+  "foot": {
+   "x": 19,
+   "y": 41
+  },
+  "fly": 0,
+  "name": "Sternenhengst",
+  "lift": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   2.5,
+   2.5
+  ]
+ },
+ "soul_wolf": {
+  "w": 42,
+  "h": 46,
+  "res": 2,
+  "frames": 12,
+  "fps": 14,
+  "gait": "bound",
+  "foot": {
+   "x": 21,
+   "y": 43
+  },
+  "fly": 0,
+  "name": "Seelenwolf",
+  "lift": [
+   0,
+   0,
+   2,
+   4.5,
+   6,
+   6,
+   4.5,
+   2.5,
+   0.5,
+   0,
+   0,
+   0
+  ]
  }
 }
