@@ -4373,6 +4373,8 @@ export const EN = {
   "Aussehen angelegt": "Appearance applied",
   "Reittier gewählt": "Mount selected",
   "Noch keine Reittiere": "No mounts yet",
+  "Ausgewählt": "Selected",
+  "Noch nicht gesammelt": "Not collected yet",
   "{0} Aussehen gesammelt": "{0} appearances collected",
   "Zu gefährlich – erst ab Stufe {0}.": "Too dangerous – requires level {0}.",
   "Serie": "Streak",
