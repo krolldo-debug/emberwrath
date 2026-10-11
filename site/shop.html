@@ -29,20 +29,6 @@
 <!--#include header-->
 
 <main id="inhalt">
-  <!-- Bereiche des Shops; bleibt unter der Kopfleiste stehen. Rechts: Anmeldung bzw. Zustand des Shops (shop.js). -->
-  <nav class="shop-nav" aria-label="Shop">
-    <div class="wrap shop-nav-inner">
-      <div class="shop-tabs">
-        <a href="#sets">Klassen-Sets</a>
-        <a href="#reittiere">Reittiere</a>
-        <a href="#gold">Gold</a>
-        <a href="#services">Services</a>
-      </div>
-      <p class="shop-state" data-shop-state role="status"></p>
-      <a class="btn shop-login" data-shop-login href="spielen/#anmelden" hidden>Anmelden</a>
-    </div>
-  </nav>
-
   <p class="shop-notice" data-shop-thanks hidden>Danke für deinen Kauf! Die Zahlung ist eingegangen. Alles Gekaufte erscheint beim nächsten Spielstart automatisch.</p>
   <p class="shop-notice" data-shop-cancel hidden>Der Kauf wurde abgebrochen. Es wurde nichts abgebucht.</p>
 
@@ -159,7 +145,7 @@
         <li class="pack"><img class="px" src="img/gold-2.webp" alt="" width="72" height="46" loading="lazy"><b>15.000</b><span>Gold</span><em>inkl. 2.000 Bonus</em><strong class="price" data-price>4,99&nbsp;€</strong><button class="btn" type="button" data-buy="gold_15k" data-title="15.000 Gold" data-char="1" disabled>Bald erhältlich</button></li>
         <li class="pack"><img class="px" src="img/gold-3.webp" alt="" width="72" height="46" loading="lazy"><b>35.000</b><span>Gold</span><em>inkl. 9.000 Bonus</em><strong class="price" data-price>9,99&nbsp;€</strong><button class="btn" type="button" data-buy="gold_35k" data-title="35.000 Gold" data-char="1" disabled>Bald erhältlich</button></li>
         <li class="pack"><img class="px" src="img/gold-4.webp" alt="" width="72" height="46" loading="lazy"><b>80.000</b><span>Gold</span><em>inkl. 28.000 Bonus</em><strong class="price" data-price>19,99&nbsp;€</strong><button class="btn" type="button" data-buy="gold_80k" data-title="80.000 Gold" data-char="1" disabled>Bald erhältlich</button></li>
-        <li class="pack top"><i class="pack-tag">Bester Wert</i><img class="px" src="img/gold-5.webp" alt="" width="72" height="46" loading="lazy"><b>220.000</b><span>Gold</span><em>inkl. 90.000 Bonus</em><strong class="price" data-price>49,99&nbsp;€</strong><button class="btn primary" type="button" data-buy="gold_220k" data-title="220.000 Gold" data-char="1" disabled>Bald erhältlich</button></li>
+        <li class="pack best"><i class="pack-tag">Bester Wert</i><img class="px" src="img/gold-5.webp" alt="" width="72" height="46" loading="lazy"><b>220.000</b><span>Gold</span><em>inkl. 90.000 Bonus</em><strong class="price" data-price>49,99&nbsp;€</strong><button class="btn primary" type="button" data-buy="gold_220k" data-title="220.000 Gold" data-char="1" disabled>Bald erhältlich</button></li>
       </ul>
     </div>
   </section>
@@ -186,6 +172,7 @@
           <div class="svc-buy"><strong class="price">2,99&nbsp;€</strong><button class="btn" type="button" data-buy="service_slot" data-title="Zusätzlicher Heldenplatz" disabled>Bald erhältlich</button></div>
         </li>
       </ul>
+      <p class="shop-state" data-shop-state role="status"></p>
       <p class="shop-fine shop-legal"><span data-price-note>Alle Preise sind Endpreise inklusive Umsatzsteuer.</span> Bezahlung sicher über Stripe. Du kaufst Aussehen und Komfort, keinen Vorteil im Kampf. <a href="kaufbedingungen">Kaufbedingungen</a> · <a href="support">Fragen zu einem Kauf</a></p>
     </div>
   </section>

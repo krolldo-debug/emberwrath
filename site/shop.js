@@ -16,19 +16,6 @@
   const nums = (s) => (s ?? '').split(' ').filter(Boolean).map(Number);
   const cfg = window.EW_SITE ?? {};
 
-  // ---------- Bereiche: der sichtbare Abschnitt ist in der Leiste markiert
-  const navLinks = $$('.shop-tabs a');
-  if ('IntersectionObserver' in window) {
-    const seen = new Map();
-    const io = new IntersectionObserver((list) => {
-      for (const e of list) seen.set(e.target.id, e.intersectionRatio);
-      let best = null, br = 0;
-      for (const [id, r] of seen) if (r > br) { br = r; best = id; }
-      for (const a of navLinks) a.classList.toggle('on', a.hash === `#${best}`);
-    }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1], rootMargin: '-120px 0px -30% 0px' });
-    for (const a of navLinks) { const s = document.getElementById(a.hash.slice(1)); if (s) io.observe(s); }
-  }
-
   // ---------- Pixelbühne: Canvas in ganzen Bildschirmpunkten je Spielpixel (gerade, weil die Bilder in 2× Auflösung sind)
   function stage(cv, H, cssK, fit = false) {
     const ctx = cv.getContext('2d');
@@ -65,7 +52,7 @@
   if (setSec && setStage) {
     const cv = $('canvas', setStage); cv.dataset.var = '--sh';
     // Breite bestimmt den Maßstab; auf niedrigen Bildschirmen (Handy quer) passt die Bühne in die Höhe
-    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 10 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, (innerHeight - 130) / 50)), true);
+    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 10 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, (innerHeight - 95) / 50)), true);
     const BASE = 43;   // Fußlinie in Spielpixeln; die Figur füllt gut drei Viertel der Bühne
     const tabs = $$('.set-tabs [role="tab"]'), switches = $$('.set-switch button');
     const imgs = {}, scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');
@@ -295,15 +282,14 @@
 
   // ---------- Kaufen
   const state = $('[data-shop-state]');
-  const navLogin = $('[data-shop-login]');
   const dlg = $('[data-buy-dlg]');
   const errorBox = $('[data-shop-error]');
   const waiver = $('[data-waiver]');
   const charField = $('[data-char-field]');
   const charSelect = $('[data-char-select]');
   const goBtn = $('[data-dlg-go]');
-  const loginLinks = [navLogin, $('[data-shop-login-dlg]')];
-  if (cfg.loginUrl) for (const a of loginLinks) a.href = cfg.loginUrl;
+  const dlgLogin = $('[data-shop-login-dlg]');
+  if (cfg.loginUrl) dlgLogin.href = cfg.loginUrl;
 
   const ERRORS = {
     auth: 'Deine Anmeldung ist abgelaufen. Bitte melde dich neu an.',
@@ -372,7 +358,6 @@
       ? 'Admin-Vorschau: Käufe gehen nur mit deinem Admin-Konto.'
       : 'Admin-Vorschau: Zahlungen sind noch nicht eingerichtet.';
     else state.textContent = '';
-    navLogin.hidden = !!user || !status?.enabled;
 
     const all = offers();
     for (const btn of $$('[data-buy]')) {

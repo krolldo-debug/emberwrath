@@ -5,20 +5,12 @@
 /* Kopfleiste deckend: beim Scrollen scheint nichts durch (Handy) */
 .shop-page .top { background: #06030a; backdrop-filter: none; }
 .shop-page .title { margin-bottom: 10px; }
-.shop-page main section[id] { scroll-margin-top: 90px; }
+.shop-page main section[id] { scroll-margin-top: 66px; }
 
-/* ---------- Bereiche des Shops (bleibt unter der Kopfleiste stehen) */
-.shop-nav { position: sticky; top: 66px; z-index: 40; background: #06030a; border-bottom: 1px solid rgba(184, 134, 42, 0.22); }
-.shop-nav-inner { display: flex; align-items: center; gap: 18px; min-height: 54px; }
-.shop-tabs { display: flex; gap: clamp(18px, 2.6vw, 34px); overflow-x: auto; scrollbar-width: none; }
-.shop-tabs::-webkit-scrollbar { display: none; }
-.shop-tabs a { position: relative; flex: none; padding: 19px 0 17px; color: var(--muted); text-decoration: none; font: 600 13px/1 var(--font); letter-spacing: 0.14em; text-transform: uppercase; transition: color 0.15s; }
-.shop-tabs a:hover { color: var(--text); }
-.shop-tabs a.on { color: #fff1d6; }
-.shop-tabs a.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--ember); }
-.shop-state { margin: 0 0 0 auto; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.shop-state b { color: var(--soft); font-weight: 600; }
-.shop-login { flex: none; min-height: 36px; padding: 0 14px; font-size: 12px; }
+/* Zustand des Shops (öffnet in Kürze, Admin-Vorschau): leise unter den Services */
+.shop-state { margin: clamp(40px, 5vw, 60px) 0 0; font-size: 14px; color: var(--soft); }
+.shop-state:empty { display: none; }
+.shop-state + .shop-legal { margin-top: 8px; }
 .shop-notice { margin: 0; padding: 14px var(--gutter); text-align: center; color: #e7f6dc; background: rgba(40, 90, 50, 0.32); border-bottom: 1px solid rgba(120, 200, 120, 0.3); }
 .shop-notice + .shop-notice { display: none; }
 [data-shop-cancel].shop-notice { color: #e7d8bc; background: rgba(60, 40, 14, 0.4); border-color: rgba(184, 134, 42, 0.35); }
@@ -42,6 +34,8 @@
     linear-gradient(180deg, #07030b 0%, #0c0612 55%, var(--bg) 100%);
   transition: background 0.6s; }
 .sets .embers { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; image-rendering: pixelated; opacity: 0.8; }
+/* Funken nur über der Bühne, damit sie im Text nicht wie Satzzeichen wirken */
+@media (min-width: 701px) { .sets .embers { left: auto; right: 0; width: 52%; } }
 .sets-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(20px, 4vw, 60px); align-items: center; }
 .set-tabs { display: flex; flex-wrap: wrap; gap: 6px clamp(14px, 1.6vw, 24px); margin: clamp(22px, 3vw, 34px) 0 clamp(18px, 2.4vw, 28px); border-bottom: 1px solid rgba(106, 69, 38, 0.45); }
 .set-tabs button { background: none; border: 0; padding: 8px 0 11px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; font: 600 clamp(15px, 1.3vw, 19px)/1 var(--font-title); color: var(--muted); border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s; }
@@ -92,7 +86,7 @@
 .pack em { min-height: 22px; margin-top: 6px; font-style: normal; font-size: 13px; color: #9be38a; }
 .pack .price { margin: 14px 0 14px; font-size: 22px; }
 .pack .btn { width: 100%; padding: 0 8px; }
-.pack.top { border-color: var(--edge-hi); background: radial-gradient(70% 50% at 50% 30%, rgba(255, 170, 50, 0.16), transparent 70%), #0e0812; box-shadow: 0 0 40px rgba(255, 140, 30, 0.12); }
+.pack.best { border-color: var(--edge-hi); background: radial-gradient(70% 50% at 50% 30%, rgba(255, 170, 50, 0.16), transparent 70%), #0e0812; box-shadow: 0 0 40px rgba(255, 140, 30, 0.12); }
 .pack-tag { position: absolute; top: -11px; padding: 5px 10px; font: 700 11px/1 var(--font); font-style: normal; letter-spacing: 0.14em; text-transform: uppercase; color: #1a0a02; background: var(--gold); }
 
 /* ---------- Services */
@@ -171,28 +165,18 @@
   .mount[aria-selected="true"]::before { display: none; }
 }
 @media (max-width: 820px) {
-  .shop-nav { top: 58px; }
   .shop-page main { padding-top: 58px; }
 }
 @media (max-width: 760px) {
-  .shop-state, .shop-login { display: none; }
   .mounts > .wrap:first-child .sec-line { display: none; }
-  .shop-tabs { gap: 0; justify-content: space-between; flex: 1; }
-  .shop-tabs a { font-size: 12px; letter-spacing: 0.08em; }
   .packs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .packs .pack:nth-child(4) { grid-column: auto; }
-  .packs .pack.top { grid-column: 1 / -1; order: -1; }
+  .packs .pack.best { grid-column: 1 / -1; order: -1; }
   .pack { padding: 22px 10px 14px; }
   .svc { grid-template-columns: 52px minmax(0, 1fr); gap: 0 16px; padding: 18px; }
   .svc img { width: 52px; height: 52px; align-self: start; }
   .svc-buy { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; margin-top: 16px; }
   .svc p { margin: 0; }
-}
-/* Handy quer: Shop-Leiste scrollt mit, damit Held und Reittier nicht unter zwei festen Leisten verschwinden */
-@media (max-height: 500px) {
-  .shop-nav { position: static; }
-  .shop-nav-inner { min-height: 44px; }
-  .shop-tabs a { padding: 15px 0 13px; }
 }
 @media (max-height: 500px) and (min-width: 701px) {
   .sets { padding: 14px 0 24px; }
