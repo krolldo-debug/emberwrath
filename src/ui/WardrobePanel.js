@@ -49,7 +49,7 @@ const SIL = ['#1a1323', '#241a2f', '#2e2339'], SIL_RIM = '#4a3a58';
 function tileIcon(icon, { slash = false, dim = false, sil = false, css }) {
   if (sil) return silIcon(icon, css);
   if (!slash && !dim) return iconEl(icon, css);
-  const src = iconCanvas(icon), c = document.createElement('canvas');
+  const src = iconCanvas(icon, 1), c = document.createElement('canvas');
   c.width = ICON_PX; c.height = ICON_PX;
   const x = c.getContext('2d');
   x.imageSmoothingEnabled = false;
@@ -67,7 +67,7 @@ function tileIcon(icon, { slash = false, dim = false, sil = false, css }) {
 }
 
 function silIcon(icon, css) {
-  const src = iconCanvas(icon), c = document.createElement('canvas');
+  const src = iconCanvas(icon, 1), c = document.createElement('canvas');
   c.width = ICON_PX; c.height = ICON_PX;
   const x = c.getContext('2d', { willReadFrequently: true });
   x.drawImage(src, 0, 0);

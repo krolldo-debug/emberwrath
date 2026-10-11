@@ -311,8 +311,10 @@ const ICON_WEAPON_ANG = -Math.PI / 4;   // Spitze nach oben rechts (wie alle Ite
 const ICON_BOW_TILT = -Math.PI * 3 / 4; // Bogen von unten links nach oben rechts, Bauch nach oben links
 // Waffe als Item-Bild: Form, Farben und Zier genau wie in der Hand des Helden (Feinstufe 2), auf size×size eingepasst.
 const ICON_FIT = { dagger: { kmax: 2.2 }, wand: { kmax: 2.6 }, staff: { uMin: -1 } };
+// Feinraster (docs/STYLE.md): size 48 = Item-Bild mit 2 Bildpunkten je Bildpunkt der 24er-Fassung, gleicher Ausschnitt.
 export function drawWeaponIcon(put, w, size = 24, { lat = 1.35 } = {}) {
-  const { kmax = 2, uMin = null } = ICON_FIT[w.family] ?? {};
+  const z = size / 24;
+  const { kmax: km = 2, uMin = null } = ICON_FIT[w.family] ?? {}, kmax = km * z;
   const keep = S;
   S = 2;
   try {
@@ -2336,7 +2338,7 @@ function makeFrame(L, pose, post) {
   let G = [];
   drawHero(R, G, L, pose);
   if (post) ({ R, G } = post(R, G));
-  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx));
+  const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx), { res: 1 });   // Raster ist schon fein
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)

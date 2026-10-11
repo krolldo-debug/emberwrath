@@ -1,4 +1,5 @@
 import { PixelCanvas, outlineCanvas, silhouette, flipCanvas } from './PixelCanvas.js';
+import { FineCanvas, fineRes, upscale2x, finishFine } from './Fine.js';
 
 // Ein fertiger Animations-Frame inkl. vorberechneter Varianten
 // (gespiegelt, Treffer-Blitz). Anker = Fußpunkt der Figur.
@@ -26,13 +27,26 @@ export class SpriteFrame {
   }
 }
 
-// Baut einen Frame über eine Zeichenfunktion und versieht ihn mit Outline.
-export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true } = {}) {
-  const pc = new PixelCanvas(w, h);
-  drawFn(pc);
-  const canvas = outline ? outlineCanvas(pc.canvas) : pc.canvas;
+// Baut einen Frame über eine Zeichenfunktion und versieht ihn mit Outline (1 Feinpixel).
+// Feinraster (gfx/Fine.js): fine = true → drawFn bekommt eine FineCanvas (Stufe B, handfein); sonst zeichnet drawFn
+// in Weltpixeln und das Ergebnis wird automatisch ×2 hochskaliert (Stufe A). res = fineRes(), bei „Niedrig“ 1.
+// Größe und Anker bleiben in Weltpixeln; frame.res sagt, wie viele Texel ein Weltpixel hat.
+export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true, fine = false, res = fineRes(), finish = null } = {}) {
+  let canvas;
+  if (fine) {
+    const fc = new FineCanvas(w, h, res);
+    drawFn(fc);
+    canvas = fc.canvas;
+  } else {
+    const pc = new PixelCanvas(w, h);
+    drawFn(pc);
+    canvas = res > 1 ? upscale2x(pc.canvas) : pc.canvas;
+  }
+  if (res > 1 && canvas.width !== w * res) res = canvas.width / w;
+  if (finish ?? res > 1) finishFine(canvas);
+  if (outline) canvas = outlineCanvas(canvas);
   const pad = outline ? 1 : 0;
-  return new SpriteFrame(canvas, anchorX + pad, anchorY + pad);
+  return new SpriteFrame(canvas, anchorX * res + pad, anchorY * res + pad, res);
 }
 
 // Animation = Frameliste + Timing. Zustand liegt im Animator der Entity.

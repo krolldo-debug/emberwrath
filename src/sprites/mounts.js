@@ -684,7 +684,7 @@ function drawMount(R, G, B, look, pose) {
 function makeFrame(B, look, pose, res) {
   const R = new Raster(res), G = [];
   drawMount(R, G, B, look, pose);
-  const f = buildFrame(W * res, H * res, AX * res, AY * res, (p) => R.blit(p.ctx));
+  const f = buildFrame(W * res, H * res, AX * res, AY * res, (p) => R.blit(p.ctx), { res: 1 });   // Raster ist schon fein
   if (res > 1) f.res = res;
   f.seat = { x: B.seat[0], y: B.seat[1] + pose.bob };
   f.glows = G;

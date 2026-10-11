@@ -1,5 +1,6 @@
 import { PAL } from './Palette.js';
 import { PixelCanvas, outlineCanvas, makeCanvas } from './PixelCanvas.js';
+import { upscale2x, finishFine } from './Fine.js';
 import { decorateItemIcon } from './ItemFx.js';
 import { installRarityFrames } from './RarityFrame.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
@@ -1291,7 +1292,10 @@ const LOOK_ICON = {
   hands: (L) => ['gloves', { ...shapeOf(GLOVES, L, `gloves_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
   feet: (L) => ['boots', { ...shapeOf(BOOTS, L, `boots_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
 };
-const DRAW_FN = { heroWeapon: (p, L) => drawWeaponIcon((x, y, c) => p.px(x, y, c), L, S), armor, helm, gloves, boots };
+const DRAW_FN = { heroWeapon: (p, L) => drawWeaponIcon((x, y, c) => p.px(x, y, c), L, p.w), armor, helm, gloves, boots };
+// Feinraster: Familien, die ihre 48er-Fassung selbst zeichnen (sonst 24er-Bild ×2 hochskaliert, gfx/Fine.js)
+const FINE_FN = new Set(['heroWeapon']);
+const REG_FINE = {};
 const lookIds = new Map();   // JSON der Zeichenoptionen -> 'look:<n>'
 const defIds = new Map();    // id|icon|rarity -> Icon-ID
 export function itemIconId(def) {
@@ -1310,6 +1314,7 @@ export function itemIconId(def) {
       lookIds.set(key, id);
       const [f, o] = spec;
       REG[id] = (p) => DRAW_FN[f](p, o);
+      if (FINE_FN.has(f)) REG_FINE[id] = (p) => DRAW_FN[f](p, o);
     }
   }
   defIds.set(k, id);
@@ -1319,29 +1324,45 @@ export function itemIconId(def) {
 const canvasCache = new Map();
 const urlCache = new Map();
 
-export function iconCanvas(id) {
+// Feinraster (docs/STYLE.md „Feinraster“): Item-Bilder gibt es in zwei Feinheiten. res 2 = 48×48 (+ Umriss 50×50) für
+// Bildschirme, die je Bildpunkt der 24er-Fassung mindestens 2 Gerätepixel zeigen (Retina, Handy, große Plätze).
+// Form und Ausschnitt sind gleich, nur feiner: Waffen zeichnen sich selbst in 48 (gleiche Quelle wie am Helden),
+// die übrigen Familien werden bis zu ihrer Überarbeitung ×2 hochskaliert und bekommen Lichtkante + feinen Umriss.
+export function iconRes() { return (window.devicePixelRatio || 1) >= 1.5 ? 2 : 1; }
+
+export function iconCanvas(id, res = iconRes()) {
   const key = SKILL_ART[id] ? id : resolve(id);   // Embleme ohne Eintrag im Register (z. B. attack_<klasse>) direkt
-  let c = canvasCache.get(key);
+  const ck = res > 1 ? `${key}@2` : key;
+  let c = canvasCache.get(ck);
   if (!c) {
     if (SKILL_ART[key]) {
       // Fähigkeiten (Runde 6): 48×48-Embleme mit eigenem Rahmen, ohne Umriss
       const p = new PixelCanvas(SKILL_ART_SIZE, SKILL_ART_SIZE);
       SKILL_ART[key](p);
       c = p.canvas;
+    } else if (res > 1 && REG_FINE[key]) {
+      const p = new PixelCanvas(S * 2, S * 2);
+      REG_FINE[key](p);
+      c = outlineCanvas(finishFine(p.canvas, { rim: 0.22, shade: 0.2 }));
+    } else if (res > 1) {
+      const p = new PixelCanvas(S, S);
+      REG[key](p);
+      c = outlineCanvas(finishFine(upscale2x(p.canvas), { rim: 0.22, shade: 0.2 }));
     } else {
       const p = new PixelCanvas(S, S);
       REG[key](p);
       c = outlineCanvas(p.canvas);
     }
-    canvasCache.set(key, c);
+    canvasCache.set(ck, c);
   }
   return c;
 }
 
-export function iconUrl(id) {
+export function iconUrl(id, res = iconRes()) {
   const key = SKILL_ART[id] ? id : resolve(id);
-  let u = urlCache.get(key);
-  if (!u) { u = iconCanvas(key).toDataURL(); urlCache.set(key, u); }
+  const ck = res > 1 ? `${key}@2` : key;
+  let u = urlCache.get(ck);
+  if (!u) { u = iconCanvas(key, res).toDataURL(); urlCache.set(ck, u); }
   return u;
 }
 

@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
-import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { FineCanvas, fineRes } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Gegner des Aschenwalds: Aschekeiler, Wegelagerer, Bogenschützin,
@@ -12,6 +12,9 @@ import { hash2 } from '../core/math.js';
 // (frame.glow), Metadaten (frame.meta: eye/hand/mouth/head … relativ zum
 // Anker) und optional eine Ereignismarke (frame.fx: 'step' | 'impact' | 'roar').
 // Blickrichtung rechts, Anker = Bodenkontakt.
+//
+// Feinraster (docs/STYLE.md „Feinraster“, Stufe B): gezeichnet wird auf FineCanvas in Weltpixeln; die Formen
+// (limb, poly, vol, capsule, smearArc) tasten Feinpixel ab, p.px/p.rect setzen ganze Weltpixel.
 
 // ================================================================ Werkzeuge
 
@@ -51,13 +54,13 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
   const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }
-  const steps = Math.ceil(len * 2);
+  const q = p.step ?? 1, steps = Math.ceil(len * 2 / q), e = Math.max(q, 0.5);
   for (let i = 0; i <= steps; i++) {
     const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
     const hw = (w0 + (w1 - w0) * t) / 2;
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      const c = k > hw - 1 ? ramp[3] : k < -hw + 1 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
-      p.px(x + nx * k, y + ny * k, c);
+    for (let k = -hw; k <= hw + 0.01; k += 0.5 * q) {
+      const c = k > hw - e ? ramp[3] : k < -hw + e ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
+      p.dot(x + nx * k, y + ny * k, c);
     }
   }
 }
@@ -66,16 +69,17 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
 function poly(p, pts, c) {
   let y0 = Infinity, y1 = -Infinity;
   for (const q of pts) { y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
-  for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) {
-    const yc = y + 0.5, xs = [];
+  const q = p.step ?? 1;
+  for (let y = Math.floor(y0); y <= Math.ceil(y1); y += q) {
+    const yc = y + q / 2, xs = [];
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length];
       if ((a[1] <= yc && b[1] > yc) || (b[1] <= yc && a[1] > yc)) xs.push(a[0] + (yc - a[1]) / (b[1] - a[1]) * (b[0] - a[0]));
     }
     xs.sort((m, n) => m - n);
     for (let k = 0; k + 1 < xs.length; k += 2) {
-      const a = Math.round(xs[k]), b = Math.round(xs[k + 1]);
-      if (b > a) p.rect(a, y, b - a, 1, c);
+      const a = Math.round(xs[k] / q) * q, b = Math.round(xs[k + 1] / q) * q;
+      if (b > a) { p.ctx.fillStyle = c; p.ctx.fillRect(a, y, b - a, q); }
     }
   }
 }
@@ -84,54 +88,51 @@ function poly(p, pts, c) {
 const LX = -0.55, LY = -0.68, LZ = 0.48;
 function vol(p, cx, cy, rx, ry, ramp, bias = 0) {
   const R = Math.ceil(Math.max(rx, ry)) + 1;
-  for (let y = Math.floor(cy - R); y <= cy + R; y++) {
-    for (let x = Math.floor(cx - R); x <= cx + R; x++) {
-      const u = (x + 0.5 - cx) / rx, v = (y + 0.5 - cy) / ry, d = u * u + v * v;
-      if (d > 1) continue;
-      const t = 0.3 + 0.62 * (u * LX + v * LY + Math.sqrt(1 - d) * LZ) + bias;
-      p.px(x, y, ramp[Math.max(0, Math.min(ramp.length - 1, Math.floor(t * ramp.length)))]);
-    }
-  }
+  p.each(cx - R, cy - R, cx + R, cy + R, (x, y) => {
+    const u = (x - cx) / rx, v = (y - cy) / ry, d = u * u + v * v;
+    if (d > 1) return null;
+    const t = 0.3 + 0.62 * (u * LX + v * LY + Math.sqrt(1 - d) * LZ) + bias;
+    return ramp[Math.max(0, Math.min(ramp.length - 1, Math.floor(t * ramp.length)))];
+  });
 }
 // Schattierte Kapsel (Glieder, Hals, Schnauze): Radius r0 → r1.
 function capsule(p, x0, y0, x1, y1, r0, r1, ramp, bias = 0) {
   const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 0.001;
   const R = Math.ceil(Math.max(r0, r1)) + 1;
-  for (let y = Math.floor(Math.min(y0, y1) - R); y <= Math.max(y0, y1) + R; y++) {
-    for (let x = Math.floor(Math.min(x0, x1) - R); x <= Math.max(x0, x1) + R; x++) {
-      const px = x + 0.5, py = y + 0.5;
-      const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / l2));
-      const ex = px - (x0 + dx * t), ey = py - (y0 + dy * t), r = r0 + (r1 - r0) * t, d = Math.hypot(ex, ey);
-      if (d > r) continue;
-      const nx = ex / r, ny = ey / r, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
-      const k = 0.3 + 0.62 * (nx * LX + ny * LY + nz * LZ) + bias;
-      p.px(x, y, ramp[Math.max(0, Math.min(ramp.length - 1, Math.floor(k * ramp.length)))]);
-    }
-  }
+  p.each(Math.min(x0, x1) - R, Math.min(y0, y1) - R, Math.max(x0, x1) + R, Math.max(y0, y1) + R, (px, py) => {
+    const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / l2));
+    const ex = px - (x0 + dx * t), ey = py - (y0 + dy * t), r = r0 + (r1 - r0) * t, d = Math.hypot(ex, ey);
+    if (d > r) return null;
+    const nx = ex / r, ny = ey / r, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+    const k = 0.3 + 0.62 * (nx * LX + ny * LY + nz * LZ) + bias;
+    return ramp[Math.max(0, Math.min(ramp.length - 1, Math.floor(k * ramp.length)))];
+  });
 }
 
 // Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy),
 // frisch (am Ende) dicht und hell, am Anfang ausgedünnt. sy staucht die
 // Bahn senkrecht (waagerechte Hiebe in 3/4-Sicht).
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.4) + 2;
+  const q = p.step ?? 1, R = 1 / q;
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.4 * R) + 2;
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
-    for (let r = r0; r <= r1; r += 0.5) {
+    for (let r = r0; r <= r1; r += 0.5 * q) {
       const radial = (r - r0) / (r1 - r0 || 1);
-      const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
+      const x = Math.round((cx + Math.cos(a) * r) * R) * q, y = Math.round((cy + Math.sin(a) * r * sy) * R) * q;
       const dens = f * f * 0.55 + radial * (0.2 + 0.8 * f) - 0.12;
-      if (hash2(x + 50, y + 50, 31) > dens) continue;
+      if (hash2(x * R + 50, y * R + 50, 31) > dens) continue;
       const c = radial > 0.82 ? cols[2] : radial > 0.5 ? cols[1] : cols[0];
-      p.px(x, y, c);
-      if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.82 ? gcols[1] : gcols[0]);
+      p.dot(x, y, c);
+      if (g && gcols && f > 0.35 && radial > 0.45) g.dot(x, y, radial > 0.82 ? gcols[1] : gcols[0]);
     }
   }
 }
 
 // Dreht den Inhalt einer PixelCanvas pixelgenau (nächster Nachbar) um einen Drehpunkt.
 function rotBlit(src, dst, px, py, ang) {
-  const W = src.w, H = src.h;
+  const r = src.res ?? 1, W = src.w * r, H = src.h * r;
+  px *= r; py *= r;
   const s = src.ctx.getImageData(0, 0, W, H).data;
   const img = dst.ctx.getImageData(0, 0, W, H), d = img.data;
   const c = Math.cos(-ang), sn = Math.sin(-ang);
@@ -150,25 +151,25 @@ function rotBlit(src, dst, px, py, ang) {
 // Baut einen Frame: draw(p, g, P, extra) -> meta (absolute Koordinaten).
 // extra.rot = [winkel, drehpunktX, drehpunktY] kippt die ganze Figur (Sturz).
 function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
-  const g = new PixelCanvas(W, H);
+  const res = fineRes(), g = new FineCanvas(W, H, res);
   let meta = {};
   const f = buildFrame(W, H, AX, AY, (p) => {
     if (extra.rot && Math.abs(extra.rot[0]) > 0.001) {
       // Auf eine gepolsterte Leinwand zeichnen, drehen und die Figur wieder
       // auf den Boden setzen (unterstes Pixel = Bodenlinie).
       const PAD = 24, HH = H + PAD * 2;
-      const tp = new PixelCanvas(W, HH), tg = new PixelCanvas(W, HH);
+      const tp = new FineCanvas(W, HH, res), tg = new FineCanvas(W, HH, res);
       tp.ctx.translate(0, PAD); tg.ctx.translate(0, PAD);
       meta = draw(tp, tg, P, extra) || {};
-      tp.ctx.setTransform(1, 0, 0, 1, 0, 0); tg.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      tp.ctx.setTransform(res, 0, 0, res, 0, 0); tg.ctx.setTransform(res, 0, 0, res, 0, 0);
       const [a, rx, ry0] = extra.rot, ry = ry0 + PAD;
-      const rp = new PixelCanvas(W, HH), rg = new PixelCanvas(W, HH);
+      const rp = new FineCanvas(W, HH, res), rg = new FineCanvas(W, HH, res);
       rotBlit(tp, rp, rx, ry, a); rotBlit(tg, rg, rx, ry, a);
-      const d = rp.ctx.getImageData(0, 0, W, HH).data;
+      const d = rp.ctx.getImageData(0, 0, W * res, HH * res).data, WR = W * res;
       let bottom = -1;
-      for (let y = HH - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 40) { bottom = y; break; }
-      const shift = bottom >= 0 ? (AY - 1) - (bottom - PAD) : 0;
-      p.ctx.drawImage(rp.canvas, 0, shift - PAD); g.ctx.drawImage(rg.canvas, 0, shift - PAD);
+      for (let y = HH * res - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < WR; x++) if (d[(y * WR + x) * 4 + 3] > 40) { bottom = y; break; }
+      const shift = bottom >= 0 ? Math.round(((AY - 1 / res) - (bottom / res - PAD)) * res) / res : 0;
+      p.ctx.drawImage(rp.canvas, 0, shift - PAD, W, HH); g.ctx.drawImage(rg.canvas, 0, shift - PAD, W, HH);
       const c = Math.cos(a), s = Math.sin(a);
       for (const k in meta) {
         const m = meta[k], dx = m.x - rx, dy = m.y - ry0;
@@ -176,8 +177,8 @@ function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
       }
     } else meta = draw(p, g, P, extra) || {};
     if (extra.post) Object.assign(meta, extra.post(p, g) || {});
-  });
-  f.glow = new SpriteFrame(g.canvas, AX, AY);
+  }, { fine: true, res });
+  f.glow = new SpriteFrame(g.canvas, AX * res, AY * res, res);
   f.meta = {};
   for (const k in meta) f.meta[k] = { dx: Math.round(meta[k].x - AX), dy: Math.round(meta[k].y - AY) };
   f.fx = extra.fx ?? null;
@@ -243,15 +244,20 @@ function drawCleaver(p, hx, hy, a) {
   // Parier-Stummel
   p.px(hx + dx * 1.5 + nx, hy + dy * 1.5 + ny, St[3]); p.px(hx + dx * 1.5 - nx, hy + dy * 1.5 - ny, St[1]);
   // breite, leicht bauchige Klinge (Rücken oben/links, Schneide unten)
-  for (let s = 2; s <= 9; s += 0.5) {
+  // fein: Klinge in Feinpixeln, schmale Schneide, Kerben und Rostflecken
+  const q = p.fine ? 0.25 : 0.5, e = p.fine ? 0.35 : 0.6, put = p.fine ? p.dot.bind(p) : p.px.bind(p);
+  for (let s = 2; s <= 9; s += q) {
     const f = (s - 2) / 7;
     const hw = 1.1 + Math.sin(f * Math.PI * 0.9) * 0.9 - (f > 0.9 ? (f - 0.9) * 8 : 0);
-    for (let k = -hw; k <= hw; k += 0.5) {
-      const c = k > hw - 0.6 ? St[5] : k < -hw + 0.6 ? St[2] : k > 0 ? St[4] : St[3];
-      p.px(hx + dx * s - nx * k, hy + dy * s - ny * k, c);
+    for (let k = -hw; k <= hw; k += q) {
+      const c = k > hw - e ? St[5] : k < -hw + e ? St[2] : k > 0 ? St[4] : St[3];
+      put(hx + dx * s - nx * k, hy + dy * s - ny * k, c);
     }
   }
   p.px(hx + dx * 5 + nx * 0.5, hy + dy * 5 + ny * 0.5, PAL.rust[2]);
+  if (p.fine) {
+    for (const [s, k, c] of [[3.5, 0.2, PAL.rust[1]], [6.5, -0.5, PAL.rust[2]], [7.5, 1.3, St[1]], [4.5, 1.6, St[1]]]) p.dot(hx + dx * s - nx * k, hy + dy * s - ny * k, c);
+  }
   return { x: hx + dx * 9, y: hy + dy * 9 };
 }
 
@@ -561,25 +567,47 @@ function drawBoar(p, g, P) {
   // Bauch im Schatten, Rippenkerbe
   p.line(ox + 6, Y(6, by + 4.6), ox + 22, Y(22, by + 4.6), FUR[1]);
   p.line(ox + 8, Y(8, by + 4), ox + 20, Y(20, by + 4), FUR[2]);
-  // Fellsträhnen: nach hinten unten gekämmt
-  for (const [x, y] of [[5, -2], [9, 0.5], [12, -2.5], [14, 1.5], [17, -0.5], [20, 2], [23, 0], [10, 3]]) {
-    p.line(ox + x, Y(x, by + y), ox + x - 2, Y(x - 2, by + y + 1.5), FUR[2]);
-    p.px(ox + x + 1, Y(x + 1, by + y), FUR[5]);
+  if (p.fine) {
+    // Handfein: gekämmtes Borstenfell aus Feinpixel-Strichen (Licht oben links: oben hell, unten dunkel)
+    for (let i = 0; i < 46; i++) {
+      const x = 3 + hash2(i, 1, 71) * 22, y = -4.5 + hash2(i, 2, 71) * 9;
+      const top = y < -1.5, c = top ? (i % 3 ? FUR[5] : FUR[6]) : y > 2 ? FUR[1] : (i % 2 ? FUR[2] : FUR[4]);
+      p.fline(ox + x, Y(x, by + y), ox + x - 1.5, Y(x - 1.5, by + y + 1), c);
+    }
+  } else {
+    // Fellsträhnen: nach hinten unten gekämmt
+    for (const [x, y] of [[5, -2], [9, 0.5], [12, -2.5], [14, 1.5], [17, -0.5], [20, 2], [23, 0], [10, 3]]) {
+      p.line(ox + x, Y(x, by + y), ox + x - 2, Y(x - 2, by + y + 1.5), FUR[2]);
+      p.px(ox + x + 1, Y(x + 1, by + y), FUR[5]);
+    }
   }
-  // Glutrisse im Fell
+  // Glutrisse im Fell (fein: dünne Risse mit hellem Kern)
   const cracks = [[11, -1, 13, 1], [13, 1, 12, 3], [18, -2, 20, 0], [20, 0, 21, 2], [6, 0, 7, 2]];
   for (const [x0, y0, x1, y1] of cracks) {
+    if (p.fine) {
+      p.fline(ox + x0, Y(x0, by + y0), ox + x1, Y(x1, by + y1), P.ember > 0.3 ? E[2] : FUR[1], 0.5);
+      if (P.ember > 0.3) { p.fline(ox + x0, Y(x0, by + y0), ox + x1, Y(x1, by + y1), E[4]); g.fline(ox + x0, Y(x0, by + y0), ox + x1, Y(x1, by + y1), P.ember > 0.8 ? E[3] : E[1], 0.5); }
+      continue;
+    }
     p.line(ox + x0, Y(x0, by + y0), ox + x1, Y(x1, by + y1), P.ember > 0.3 ? E[1] : FUR[1]);
     if (P.ember > 0.3) g.line(ox + x0, Y(x0, by + y0), ox + x1, Y(x1, by + y1), P.ember > 0.8 ? E[2] : E[0]);
   }
-  // Borstenkamm: dichte schwarze Mähne vom Nacken bis zur Kruppe, Spitzen hell
-  for (let x = 6; x <= 25; x += 1) {
+  // Borstenkamm: dichte schwarze Mähne vom Nacken bis zur Kruppe, Spitzen hell (fein: doppelt so viele, dünne Borsten)
+  const cs = p.fine ? 0.5 : 1;
+  for (let x = 6; x <= 25; x += cs) {
+    const xi = Math.round(x * 2);
     const top = x < 13 ? -5 - (x - 3) * 0.1 : -6.2 - Math.sin((x - 13) / 12 * Math.PI) * 4.4;
-    const h = 1 + (x > 13 && x < 23 ? 2 : 1) + (x % 3 === 0 ? 1 : 0);
+    const h = 1 + (x > 13 && x < 23 ? 2 : 1) + (xi % 6 === 0 ? 1 : 0) + (p.fine ? hash2(xi, 3, 72) * 0.8 : 0);
     const lean = -0.6 - P.amp * 0.3 * P.gallop;
     const y0 = Y(x, by + top * flat + 1.5);
+    const tip = xi % 8 === 2 ? E[2] : xi % 4 ? CREST[4] : CREST[3];
+    if (p.fine) {
+      p.fline(ox + x, y0 + 0.5, ox + x + lean * h, y0 - h, xi % 4 ? CREST[1] : CREST[2], 0.5);
+      p.dot(ox + x + lean * h, y0 - h, tip);
+      if (xi % 8 === 2 && P.ember > 0.3) g.dot(ox + x + lean * h, y0 - h, E[3]);
+      continue;
+    }
     p.line(ox + x, y0, ox + x + lean * h, y0 - h, x % 2 ? CREST[1] : CREST[2]);
-    const tip = x % 4 === 1 ? E[2] : x % 2 ? CREST[4] : CREST[3];
     p.px(ox + x + lean * h, y0 - h, tip);
     if (x % 4 === 1 && P.ember > 0.3) g.px(ox + x + lean * h, y0 - h, E[3]);
   }
@@ -621,6 +649,12 @@ function drawBoar(p, g, P) {
   p.line(ex - 2, ey - 2, ex + 2, ey - 1, FUR[1]); p.px(ex - 2, ey - 3, FUR[6]); p.px(ex - 1, ey - 3, FUR[5]);
   if (P.eye > 0.2) { p.px(ex, ey, E[4]); p.px(ex + 1, ey, E[2]); g.px(ex, ey, E[4]); g.px(ex + 1, ey, E[2]); g.px(ex - 1, ey, E[0]); }
   else p.px(ex, ey, FUR[0]);
+  if (p.fine) {
+    // Handfein: Glanzpunkt im Auge, Lichtkante auf den Hauern, Nüstern
+    if (P.eye > 0.2) { p.dot(ex, ey, '#fff4c0'); g.dot(ex, ey, '#fff4c0'); }
+    p.dot(tx + 1.5, ty - 2.5, B_[4]); p.dot(tx + 0.5, ty - 0.5, B_[4]); p.dot(tx - 0.5, ty + 0.5, B_[0]);
+    p.dot(sx + 5.5, sy - 0.5, SNOUT[0]); p.dot(sx + 5.5, sy + 0.5, SNOUT[1]); p.dot(sx + 4, sy - 1.5, '#e8b0a0');
+  }
   meta.eye = { x: ex, y: ey };
   meta.head = { x: hx, y: hy - 5 };
   return meta;
