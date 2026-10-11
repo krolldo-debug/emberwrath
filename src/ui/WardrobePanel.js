@@ -111,10 +111,11 @@ function createWardrobePanel(session, params = {}) {
   const fitGrid = (grid, n) => requestAnimationFrame(() => {
     if (!grid.isConnected || !grid.firstElementChild) return;
     const cs = getComputedStyle(grid), gap = parseFloat(cs.columnGap) || 0;
-    const k = cardFit(n, grid.clientWidth - 4, grid.clientHeight - 4, gap, 2, cardScale());
+    const width = grid.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const k = cardFit(n, width, grid.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom), gap, 2, cardScale());
     if (k !== (cardK ?? cardScale())) { cardK = k; render(); return; }
     const w = grid.firstElementChild.getBoundingClientRect().width;
-    const cols = Math.max(1, Math.floor((grid.clientWidth - 4 + gap + 0.5) / (w + gap)));
+    const cols = Math.max(1, Math.floor((width + gap + 0.5) / (w + gap)));
     for (let i = 0, rest = (cols - (n % cols)) % cols; i < rest; i++) grid.append(h('span.wd-card.empty', { 'aria-hidden': 'true' }, emptyCard(cardK ?? cardScale())));
     snapAll();
   });
