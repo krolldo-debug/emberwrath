@@ -1183,6 +1183,28 @@ test('Tagesbelohnung, erster Sieg, Wochenherausforderung', () => {
   assert.equal(s2.slices.daily.challenge.kind, 'boss');
 });
 
+test('Aufgeräumte Tasche: Tränke stapeln bis 100, alte Stapel werden zusammengelegt, keine fremden Klassenteile', () => {
+  const { state } = setup('ranger');
+  const snap = JSON.parse(JSON.stringify(state.snapshot()));
+  const slots = Array(BAG_SIZE).fill(null);
+  slots[2] = { itemId: 'greater_potion', qty: 20 }; slots[4] = { itemId: 'greater_potion', qty: 14 }; slots[7] = { itemId: 'greater_potion', qty: 20 };
+  slots[9] = { itemId: 'minor_mana', qty: 3 }; slots[11] = { itemId: 'minor_mana', qty: 20 };
+  snap.slices.inventory.slots = slots;
+  const b = setup('ranger');
+  b.state.load(snap);
+  const inv = b.state.slices.inventory;
+  // Erster Stapel nimmt alles auf, danach rückt die Tasche lückenlos auf
+  assert.deepEqual(inv.slots[0], { itemId: 'greater_potion', qty: 54 });
+  assert.deepEqual(inv.slots[1], { itemId: 'minor_mana', qty: 23 });
+  assert.equal(inv.slots.filter(Boolean).length, 2);
+  for (const cls of CLASSES) {
+    for (let k = 0; k < 300; k++) {
+      const id = pickEquipment({ level: 2 + (k % 39), rarity: RARITY_ORDER[k % 4], classId: cls, rng });
+      if (id) assert.ok(!ITEMS[id].classes || ITEMS[id].classes.includes(cls), `${cls}: ${id}`);
+    }
+  }
+});
+
 for (const [name, fn] of tests) {
   try { fn(); console.log(`ok  ${name}`); } catch (e) { fail++; console.log(`FAIL ${name}\n    ${e.stack.split('\n').slice(0, 3).join('\n    ')}`); }
 }

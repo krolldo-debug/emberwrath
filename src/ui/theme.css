@@ -403,44 +403,48 @@
   .hud-banner.show { opacity: 1; }
 }
 
-/* ------------------------------------------------------------ Item-Icons mit Seltenheit (gfx/Icons.js: itemIconEl) */
+/* ------------------------------------------------------------ Item-Icons mit Seltenheit (gfx/Icons.js: itemIconEl)
+   11.10.: flache, deckende Flächen und gezeichnete Pixelrahmen (gfx/RarityFrame.js, border-image ganzzahlig).
+   Harte Kanten statt weichem Schein; je seltener, desto prächtiger der Rahmen. */
 .r-legendary { color: #ff9a2a; }
 .ef-item-icon {
-  --size: 40px; --rc: #6a5a4a; --rg: rgba(0, 0, 0, 0);
+  --size: 40px; --rc: #6a5a4a; --rb: #16121a; --fpx: 2px;
   position: relative; display: inline-grid; place-items: center; flex: none;
   width: var(--size); height: var(--size); box-sizing: border-box; overflow: hidden;
-  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--rc) 22%, #1c1426), #0a0610 78%);
-  border: 2px solid var(--rc); border-radius: 3px;
-  box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 0 calc(var(--size) * 0.3) var(--rg);
+  background: var(--rb); border: 2px solid var(--rc); border-radius: 0;
+  box-shadow: 0 0 0 1px #0b0710, inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 .ef-item-icon > img { position: relative; z-index: 1; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6)); }
 .ef-item-icon.r-common { --rc: #5e554c; }
-.ef-item-icon.r-uncommon { --rc: #3e9a3a; --rg: rgba(110, 224, 106, 0.18); }
-.ef-item-icon.r-rare { --rc: #3a7ad8; --rg: rgba(90, 168, 255, 0.28); }
-.ef-item-icon.r-epic { --rc: #9a4ae8; --rg: rgba(192, 122, 255, 0.36); }
-.ef-item-icon.r-legendary { --rc: #ff8a1a; --rg: rgba(255, 154, 42, 0.42); border-color: #ffb040; }
-/* Eckbeschläge ab "rare" */
-.ef-item-icon.r-rare::before, .ef-item-icon.r-epic::before, .ef-item-icon.r-legendary::before {
-  content: ""; position: absolute; inset: 1px; z-index: 2; pointer-events: none;
-  background:
-    linear-gradient(var(--rc), var(--rc)) left top / 4px 1px no-repeat,
-    linear-gradient(var(--rc), var(--rc)) left top / 1px 4px no-repeat,
-    linear-gradient(var(--rc), var(--rc)) right bottom / 4px 1px no-repeat,
-    linear-gradient(var(--rc), var(--rc)) right bottom / 1px 4px no-repeat;
-  filter: brightness(1.6);
+.ef-item-icon.r-uncommon { --rc: #3e9a3a; --rb: #0e1a12; }
+.ef-item-icon.r-rare { --rc: #3a7ad8; --rb: #0a1530; }
+.ef-item-icon.r-epic { --rc: #9a4ae8; --rb: #1a0a2e; }
+.ef-item-icon.r-legendary { --rc: #ff8a1a; --rb: #2c1004; }
+/* Ab ungewöhnlich zeichnet der Pixelrahmen die Kante (kleine Icons unter 24 px behalten die schlichte Kante) */
+.ef-item-icon.framed { border: 0; box-shadow: 0 0 0 1px #05030a; }
+.ef-item-icon > .ef-frame {
+  position: absolute; inset: 0; z-index: 2; display: block; pointer-events: none; box-sizing: border-box;
+  border: calc(7 * var(--fpx)) solid transparent;
+  border-image-slice: 7; border-image-width: calc(7 * var(--fpx)); border-image-repeat: stretch;
+  image-rendering: pixelated; image-rendering: crisp-edges;
 }
-/* Glanzstreif ab "rare", Puls ab "epic" */
+.ef-item-icon.r-uncommon > .ef-frame { border-image-source: var(--ef-frame-uncommon); }
+.ef-item-icon.r-rare > .ef-frame { border-image-source: var(--ef-frame-rare); }
+.ef-item-icon.r-epic > .ef-frame { border-image-source: var(--ef-frame-epic); animation: ef-frame-glint 2.6s steps(1, end) infinite; }
+.ef-item-icon.r-legendary > .ef-frame { border-image-source: var(--ef-frame-legendary); animation: ef-frame-glint 1.8s steps(1, end) infinite; }
+/* Edelsteine und Kante blitzen kurz in Stufen auf */
+@keyframes ef-frame-glint { 0%, 70% { filter: none; } 76%, 88% { filter: brightness(1.45); } 94% { filter: brightness(1.2); } }
+/* Ab selten: harter Glanzstreifen, der in Stufen schräg über das Icon wandert */
 .ef-item-icon.r-rare::after, .ef-item-icon.r-epic::after, .ef-item-icon.r-legendary::after {
-  content: ""; position: absolute; inset: -40%; z-index: 2; pointer-events: none;
-  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.28) 50%, transparent 58%);
-  transform: translateX(-60%); animation: ef-shine 3.6s ease-in-out infinite;
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(135deg, transparent 0 43%, rgba(255, 255, 255, 0.2) 43% 46%, rgba(255, 255, 255, 0.34) 46% 49%, transparent 49%) no-repeat;
+  background-size: 300% 300%; background-position: 100% 100%;
+  animation: ef-glint 3.6s steps(14, end) infinite;
 }
-.ef-item-icon.r-epic::after { animation-duration: 2.8s; }
-.ef-item-icon.r-legendary::after { animation-duration: 2.2s; background: linear-gradient(115deg, transparent 40%, rgba(255, 230, 160, 0.4) 50%, transparent 60%); }
-.ef-item-icon.r-epic, .ef-item-icon.r-legendary { animation: ef-rarity-pulse 2.4s ease-in-out infinite; }
-@keyframes ef-shine { 0%, 55% { transform: translateX(-60%); } 85%, 100% { transform: translateX(60%); } }
-@keyframes ef-rarity-pulse { 50% { box-shadow: 0 0 0 1px #0b0710, 0 0 10px var(--rg), inset 0 0 calc(var(--size) * 0.4) var(--rg); } }
-@media (prefers-reduced-motion: reduce) { .ef-item-icon, .ef-item-icon::after { animation: none !important; } }
+.ef-item-icon.r-epic::after { animation-duration: 2.9s; }
+.ef-item-icon.r-legendary::after { animation-duration: 2.2s; background-image: linear-gradient(135deg, transparent 0 43%, rgba(255, 236, 170, 0.3) 43% 46%, rgba(255, 246, 210, 0.5) 46% 49%, transparent 49%); }
+@keyframes ef-glint { 0%, 62% { background-position: 100% 100%; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ef-item-icon, .ef-item-icon::after, .ef-item-icon > .ef-frame { animation: none !important; } }
 
 /* Questtracker: antippen zum Verfolgen */
 .hud-tracker .hud-quest { pointer-events: auto; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
@@ -455,14 +459,15 @@
 /* Beute-Toasts mit Seltenheitsrahmen */
 .ef-toast .ef-item-icon { flex: none; }
 .ef-toast.k-loot.r-uncommon { border-color: #3a8a3a; }
-.ef-toast.k-loot.r-rare { border-color: #3a6ad0; box-shadow: 0 0 10px rgba(80, 140, 255, 0.35); }
-.ef-toast.k-loot.r-epic { border-color: #a24ae8; box-shadow: 0 0 14px rgba(180, 90, 255, 0.55); background: linear-gradient(90deg, rgba(70, 20, 110, 0.92), rgba(20, 12, 30, 0.9)); }
-.ef-toast.k-loot.r-legendary { border-color: #ff9a2a; box-shadow: 0 0 18px rgba(255, 150, 40, 0.65); background: linear-gradient(90deg, rgba(110, 50, 8, 0.92), rgba(24, 14, 8, 0.9)); animation: ef-toast-legend 1.2s ease-in-out 2; }
+/* 11.10.: harte Doppelkante in Seltenheitsfarbe statt weichem Schein, flache Fläche */
+.ef-toast.k-loot.r-rare { border-color: #3a6ad0; box-shadow: 0 0 0 1px #05030a, 0 0 0 2px #1a3a80; }
+.ef-toast.k-loot.r-epic { border-color: #a24ae8; box-shadow: 0 0 0 1px #05030a, 0 0 0 3px #5a2096; background: rgba(40, 14, 66, 0.95); }
+.ef-toast.k-loot.r-legendary { border-color: #ff9a2a; box-shadow: 0 0 0 1px #05030a, 0 0 0 3px #a04a0a; background: rgba(60, 24, 4, 0.95); animation: ef-toast-legend 0.5s steps(1, end) 4; }
 .ef-toast-rarity { display: block; font-size: 0.72em; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
 .r-rare > .ef-toast-text > .ef-toast-rarity, .ef-toast.r-rare .ef-toast-rarity { color: #7aa8ff; }
 .ef-toast.r-epic .ef-toast-rarity { color: #d09aff; }
 .ef-toast.r-legendary .ef-toast-rarity { color: #ffc070; }
-@keyframes ef-toast-legend { 50% { box-shadow: 0 0 28px rgba(255, 180, 60, 0.95); } }
+@keyframes ef-toast-legend { 50% { box-shadow: 0 0 0 1px #05030a, 0 0 0 3px #ffd060; } }
 
 /* Bossleiste: Zierrahmen mit Schädel, Phasenmarke bei 50 % */
 .hud-boss { padding: 4px 30px 6px; }
@@ -970,7 +975,7 @@ html:not(.ef-touch) .hud-slot[data-action="interact"] { margin-left: 8px; }
 .ef-toast .ef-item-icon > img { width: 80%; height: 80%; }
 .ef-toast-icons { display: inline-flex; gap: 2px; flex: none; }
 .ef-toast-rarity { display: inline; margin-right: 5px; font-size: 0.78em; }
-.ef-toast.k-loot.r-rare { box-shadow: 0 0 6px rgba(80, 140, 255, 0.35); }
+
 .ef-toast.k-loot.r-epic, .ef-toast.k-loot.r-legendary { font-size: 13px; padding: 3px 10px 3px 3px; }
 .ef-toast.out { transform: translateX(-8px); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(-10px); } }
@@ -1010,13 +1015,16 @@ html:not(.ef-touch) .hud-slot[data-action="interact"] { margin-left: 8px; }
 .ef-item-icon > .fx-rays {
   inset: -35%; z-index: 0; opacity: 0.55;
   background: repeating-conic-gradient(color-mix(in srgb, var(--fx-glow) 55%, transparent) 0 9deg, transparent 9deg 30deg);
-  -webkit-mask: radial-gradient(circle, #000 18%, transparent 62%); mask: radial-gradient(circle, #000 18%, transparent 62%);
+  -webkit-mask: radial-gradient(circle, #000 38%, transparent 38.5%); mask: radial-gradient(circle, #000 38%, transparent 38.5%);
   animation: ef-fx-spin 8s linear infinite;
 }
 @keyframes ef-fx-spin { to { transform: rotate(360deg); } }
-.ef-item-icon.fx-t2 > img { filter: drop-shadow(0 0 1px var(--fx-core)) drop-shadow(0 0 3px var(--fx-glow)); }
-.ef-item-icon.fx-t3 > img { filter: drop-shadow(0 0 1px var(--fx-core)) drop-shadow(0 0 4px var(--fx-glow)); animation: ef-fx-float 2.2s ease-in-out infinite; }
-@keyframes ef-fx-float { 50% { transform: translateY(-1px) scale(1.04); } }
+/* Episch/legendär: harte Glutkante um den Gegenstand (Pixelumriss in der Themenfarbe) statt weichem Schein */
+.ef-item-icon.fx-t2 > img, .ef-item-icon.fx-t3 > img {
+  filter: drop-shadow(1px 0 0 var(--fx-glow)) drop-shadow(-1px 0 0 var(--fx-glow)) drop-shadow(0 1px 0 var(--fx-glow)) drop-shadow(0 -1px 0 var(--fx-glow));
+}
+.ef-item-icon.fx-t3 > img { animation: ef-fx-float 2.2s steps(2, jump-none) infinite; }
+@keyframes ef-fx-float { 50% { transform: translateY(-2px); } }
 .ef-item-icon.fx-t3 { border-color: color-mix(in srgb, #ffb040 60%, var(--fx-glow)); }
 html[data-quality="low"] .fx-back, html[data-quality="low"] .fx-front, html[data-quality="low"] .fx-rays, html[data-quality="low"] .ef-item-icon.fx-t3 > img { animation: none; }
 @media (prefers-reduced-motion: reduce) { .fx-back, .fx-front, .fx-rays, .ef-item-icon.fx-t3 > img, .ef-touch .hud-menu.open .hud-menu-list { animation: none !important; } }

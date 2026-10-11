@@ -464,13 +464,13 @@ function buildEquipment() {
 
 // ------------------------------------------------------------------ Verbrauch, Material, Quest
 const OTHER = {
-  minor_potion: { name: 'Kleiner Heiltrank', type: 'consumable', rarity: 'common', ilvl: 1, icon: 'potion_hp_s', use: { heal: 40 }, stack: 20, value: 2, desc: 'Stellt 40 Leben wieder her.' },
-  healing_potion: { name: 'Heiltrank', type: 'consumable', rarity: 'common', ilvl: 6, icon: 'potion_hp_m', use: { heal: 100 }, stack: 20, value: 6, desc: 'Stellt 100 Leben wieder her.' },
-  greater_potion: { name: 'Großer Heiltrank', type: 'consumable', rarity: 'uncommon', ilvl: 12, icon: 'potion_hp_l', use: { heal: 220 }, stack: 20, value: 14, desc: 'Stellt 220 Leben wieder her.' },
-  minor_mana: { name: 'Kleiner Manatrank', type: 'consumable', rarity: 'common', ilvl: 1, icon: 'potion_mana_s', use: { resource: 35 }, stack: 20, value: 2, desc: 'Stellt 35 Ressource (Mana, Energie oder Wut) wieder her.' },
-  mana_potion: { name: 'Manatrank', type: 'consumable', rarity: 'common', ilvl: 8, icon: 'potion_mana_m', use: { resource: 70 }, stack: 20, value: 7, desc: 'Stellt 70 Ressource wieder her.' },
-  ember_elixir: { name: 'Glutelixier', type: 'consumable', rarity: 'rare', ilvl: 10, icon: 'elixir', use: { heal: 9999, resource: 9999 }, stack: 5, value: 30, desc: 'Füllt Leben und Ressource vollständig auf.' },
-  hearth_bread: { name: 'Herdbrot', type: 'consumable', rarity: 'common', ilvl: 1, icon: 'food_bread', use: { heal: 25 }, stack: 20, value: 1, desc: 'Frisch aus Marens Ofen. Stellt 25 Leben wieder her.' },
+  minor_potion: { name: 'Kleiner Heiltrank', type: 'consumable', rarity: 'common', ilvl: 1, icon: 'potion_hp_s', use: { heal: 40 }, stack: 100, value: 2, desc: 'Stellt 40 Leben wieder her.' },
+  healing_potion: { name: 'Heiltrank', type: 'consumable', rarity: 'common', ilvl: 6, icon: 'potion_hp_m', use: { heal: 100 }, stack: 100, value: 6, desc: 'Stellt 100 Leben wieder her.' },
+  greater_potion: { name: 'Großer Heiltrank', type: 'consumable', rarity: 'uncommon', ilvl: 12, icon: 'potion_hp_l', use: { heal: 220 }, stack: 100, value: 14, desc: 'Stellt 220 Leben wieder her.' },
+  minor_mana: { name: 'Kleiner Manatrank', type: 'consumable', rarity: 'common', ilvl: 1, icon: 'potion_mana_s', use: { resource: 35 }, stack: 100, value: 2, desc: 'Stellt 35 Ressource (Mana, Energie oder Wut) wieder her.' },
+  mana_potion: { name: 'Manatrank', type: 'consumable', rarity: 'common', ilvl: 8, icon: 'potion_mana_m', use: { resource: 70 }, stack: 100, value: 7, desc: 'Stellt 70 Ressource wieder her.' },
+  ember_elixir: { name: 'Glutelixier', type: 'consumable', rarity: 'rare', ilvl: 10, icon: 'elixir', use: { heal: 9999, resource: 9999 }, stack: 20, value: 30, desc: 'Füllt Leben und Ressource vollständig auf.' },
+  hearth_bread: { name: 'Herdbrot', type: 'consumable', rarity: 'common', ilvl: 1, icon: 'food_bread', use: { heal: 25 }, stack: 100, value: 1, desc: 'Frisch aus Marens Ofen. Stellt 25 Leben wieder her.' },
 
   wolf_pelt: { name: 'Aschewolfsfell', type: 'material', rarity: 'common', icon: 'pelt', stack: 50, value: 2, desc: 'Grau vom Ascheregen. Brom verarbeitet es.' },
   wolf_fang: { name: 'Wolfszahn', type: 'material', rarity: 'common', icon: 'fang', stack: 50, value: 2, desc: 'Scharf und fest. Gut für Talismane.' },

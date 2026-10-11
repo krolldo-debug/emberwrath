@@ -145,7 +145,7 @@ export function rarityWeights(kind, level, bossId) {
 const EQUIP = Object.entries(ITEMS).filter(([, d]) => d.slot && !d.source).map(([id, d]) => ({ id, ...d }));
 
 // Ein zufälliges Ausrüstungsteil passender Stufe und Seltenheit.
-// Bevorzugt (75 %) Teile, die die Klasse des Spielers tragen kann und deren Hauptattribut passt.
+// Nur Teile, die die Klasse des Spielers tragen kann; bevorzugt (75 %) solche, deren Hauptattribut passt.
 export function pickEquipment({ level, rarity, classId, rng = Math.random }) {
   let r = RARITY_ORDER.indexOf(rarity);
   for (; r >= 0; r--) {
@@ -153,9 +153,12 @@ export function pickEquipment({ level, rarity, classId, rng = Math.random }) {
     for (const spread of [[3, 1], [5, 2], [8, 4], [20, 20]]) {
       let pool = EQUIP.filter((d) => d.rarity === rar && d.ilvl >= level - spread[0] && d.ilvl <= level + spread[1]);
       if (!pool.length) continue;
+      // 11.10. (Nutzer: Inventar zu voll): Teile, die die eigene Klasse nicht tragen kann, fallen gar nicht mehr.
+      if (classId) {
+        pool = pool.filter((d) => !d.classes || d.classes.includes(classId));
+        if (!pool.length) continue;
+      }
       if (classId && rng() < 0.75) {
-        const fit = pool.filter((d) => !d.classes || d.classes.includes(classId));
-        if (fit.length) pool = fit;
         const own = pool.filter((d) => attrFit(d, classId));
         if (own.length) pool = own;
       }

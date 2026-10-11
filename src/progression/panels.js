@@ -52,6 +52,7 @@ const FILTERS = [
   ['gear', 'Ausrüstung', (d) => !!d.slot],
   ['use', 'Verbrauch', (d) => d.type === 'consumable' || d.type === 'mount'],
   ['quest', 'Quest', (d) => d.type === 'quest'],
+  ['mat', 'Material', () => false], // Materialbeutel statt Tasche (belegt keine Plätze)
 ];
 
 // Werte liefert Thread A (computeStats). Fehlt dort etwas, zeigen die Panels Grundwerte statt abzustürzen.
@@ -103,7 +104,10 @@ function inventoryView(s) {
     const unequip = (slot) => act('inventory:unequip', { slot }, () => 'Kein Platz im Inventar.');
     const detailOpts = { equipment: inv.equipment, level, classId };
 
-    // --- Tasche
+    // --- Tasche. Reiter Quest und Material erscheinen nur, wenn es dort etwas gibt.
+    const mats = materialList(st, content);
+    const tabs = FILTERS.filter(([id]) => id === 'quest' ? inv.slots.some((it) => it && content.find('item', it.itemId)?.type === 'quest') : id === 'mat' ? mats.length > 0 : true);
+    if (!tabs.some(([id]) => id === filter)) filter = 'all';
     const pass = FILTERS.find((f) => f[0] === filter)[2];
     const bagSlots = inv.slots.map((it, i) => {
       const def = it && content.find('item', it.itemId);
@@ -232,8 +236,8 @@ function inventoryView(s) {
         actions.length || trash ? h('div.pg-sheet-bar', actions, trash) : null)
       : null;
 
-    // Schnellverkauf (nur wenn es etwas zu tun gibt) und Mehrfachauswahl
-    function quickSellBar() {
+    // Fußzeile: Gold, Schnellverkauf (nur wenn es etwas zu tun gibt), Plätze. Mehrfachauswahl ersetzt sie.
+    function footBar() {
       if (multi) {
         const list = [...multi].filter((i) => inv.slots[i]);
         const gold = sellValue(st, content, list);
@@ -243,11 +247,12 @@ function inventoryView(s) {
           btn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }));
       }
       const junk = sellableSlots(st, content, 'common');
-      if (!junk.length) return null;
-      return h('div.pg-quicksell',
-        btn(`Weiße verkaufen · ${junk.length}`, () => {
+      const used = inv.slots.length - freeSlots(st);
+      return h('div.pg-inv-foot', goldEl(st.slices.wallet.gold),
+        junk.length ? btn(`Weiße verkaufen · ${junk.length}`, () => {
           const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { extra: priceEl(sellValue(st, content, junk)) }));
+        }, { extra: priceEl(sellValue(st, content, junk)) }) : null,
+        h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}`, `${used}/${inv.slots.length} Plätze`));
     }
     // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
     const auto = inv.autoSell ?? null;
@@ -266,40 +271,33 @@ function inventoryView(s) {
       return tip;
     }
 
-    // Materialbeutel: belegt keine Taschenplätze, hat keine Größe
-    function matSection() {
-      const list = materialList(st, content);
-      return h('section.pg-matbag', { 'aria-label': 'Materialbeutel' },
-        h('div.pg-matbag-head', { title: 'Materialien belegen keine Taschenplätze.' }, h('span.pg-questbag-label', 'Material')),
-        h('div.pg-matbag-grid', list.map((e) => {
-          const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, size: 36, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
-          attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
-          return el;
-        })));
-    }
+    // Materialbeutel: eigener Reiter im selben Raster, belegt keine Taschenplätze, hat keine Größe
+    const matSlots = () => mats.map((e) => {
+      const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
+      attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
+      return el;
+    });
 
-    const used = inv.slots.length - freeSlots(st);
     return panelFrame(s, 'inventory', 'Inventar',
       h('div.pg-scroll.pg-keep-scroll.pg-inv',
         doll,
         h('section.pg-bagwrap',
           h('div.pg-bagbar',
-            h('div.pg-filters', { role: 'tablist' }, FILTERS.map(([id, label]) => h(`button.pg-chip${filter === id ? '.on' : ''}`, {
+            h('div.pg-filters', { role: 'tablist' }, tabs.map(([id, label]) => h(`button.pg-chip${filter === id ? '.on' : ''}`, {
               type: 'button', role: 'tab', 'aria-selected': String(filter === id), onclick: () => { filter = id; redraw(); },
             }, label)),
             h('div.pg-tools',
               autoBtn,
               h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, glyph('sort', 14)),
               h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, glyph('multi', 14))))),
-          quickSellBar(),
-          h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
-          materialList(st, content).length ? matSection() : null,
+          filter === 'mat'
+            ? h('div.pg-bag.pg-matbag', { role: 'grid', 'aria-label': 'Materialbeutel', title: 'Materialien belegen keine Taschenplätze.' }, matSlots())
+            : h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
           inv.questBag?.length ? h('div.pg-questbag', { title: 'Questgegenstände und Questbelohnungen, für die in der Tasche kein Platz war. Sie wandern zurück, sobald Platz frei ist.' },
             h('span.pg-questbag-label', 'Questbeutel'),
             inv.questBag.map((e) => { const d = content.find('item', e.itemId); return h('span.pg-questbag-item', itemIconEl({ ...d, name: null }, 24), h('b', `${e.qty}× ${d?.name ?? e.itemId}`)); })) : null,
           !selItemId && msg ? h('p.pg-msg', msg) : null,
-          h('div.pg-inv-foot', goldEl(st.slices.wallet.gold),
-            h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}`, `${used}/${inv.slots.length} Plätze`))),
+          footBar()),
         detail));
   };
 }

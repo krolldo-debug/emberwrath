@@ -214,11 +214,11 @@ const MOUNT_ITEM = (mountId, name, rarity, value, extra = {}) => ({
   desc: 'Benutzen, um das Reittier zu erlernen. Aufsitzen mit V oder dem Reittier-Knopf.', ...extra,
 });
 export const OTHER_40 = {
-  superior_potion: { name: 'Vorzüglicher Heiltrank', type: 'consumable', rarity: 'uncommon', ilvl: 21, icon: 'potion_hp_l', use: { heal: 450 }, stack: 20, value: 25, desc: 'Stellt 450 Leben wieder her.' },
-  supreme_potion: { name: 'Erhabener Heiltrank', type: 'consumable', rarity: 'uncommon', ilvl: 31, icon: 'potion_hp_l', use: { heal: 800 }, stack: 20, value: 40, desc: 'Stellt 800 Leben wieder her.' },
-  greater_mana: { name: 'Großer Manatrank', type: 'consumable', rarity: 'uncommon', ilvl: 21, icon: 'potion_mana_l', use: { resource: 120 }, stack: 20, value: 22, desc: 'Stellt 120 Ressource wieder her.' },
-  supreme_mana: { name: 'Erhabener Manatrank', type: 'consumable', rarity: 'uncommon', ilvl: 31, icon: 'potion_mana_l', use: { resource: 180 }, stack: 20, value: 35, desc: 'Stellt 180 Ressource wieder her.' },
-  steppe_jerky: { name: 'Steppendörrfleisch', type: 'consumable', rarity: 'common', ilvl: 20, icon: 'food_meat', use: { heal: 180 }, stack: 20, value: 6, desc: 'Zäh, salzig und sättigend. Stellt 180 Leben wieder her.' },
+  superior_potion: { name: 'Vorzüglicher Heiltrank', type: 'consumable', rarity: 'uncommon', ilvl: 21, icon: 'potion_hp_l', use: { heal: 450 }, stack: 100, value: 25, desc: 'Stellt 450 Leben wieder her.' },
+  supreme_potion: { name: 'Erhabener Heiltrank', type: 'consumable', rarity: 'uncommon', ilvl: 31, icon: 'potion_hp_l', use: { heal: 800 }, stack: 100, value: 40, desc: 'Stellt 800 Leben wieder her.' },
+  greater_mana: { name: 'Großer Manatrank', type: 'consumable', rarity: 'uncommon', ilvl: 21, icon: 'potion_mana_l', use: { resource: 120 }, stack: 100, value: 22, desc: 'Stellt 120 Ressource wieder her.' },
+  supreme_mana: { name: 'Erhabener Manatrank', type: 'consumable', rarity: 'uncommon', ilvl: 31, icon: 'potion_mana_l', use: { resource: 180 }, stack: 100, value: 35, desc: 'Stellt 180 Ressource wieder her.' },
+  steppe_jerky: { name: 'Steppendörrfleisch', type: 'consumable', rarity: 'common', ilvl: 20, icon: 'food_meat', use: { heal: 180 }, stack: 100, value: 6, desc: 'Zäh, salzig und sättigend. Stellt 180 Leben wieder her.' },
 
   // Materialien je Zone
   hyena_hide: { name: 'Hyänenfell', type: 'material', rarity: 'common', icon: 'pelt', stack: 50, value: 8, desc: 'Gefleckt und zäh. Orla macht daraus Sattelzeug.' },
