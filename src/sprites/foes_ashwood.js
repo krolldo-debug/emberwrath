@@ -121,7 +121,7 @@ function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
       const radial = (r - r0) / (r1 - r0 || 1);
       const x = Math.round((cx + Math.cos(a) * r) * R) * q, y = Math.round((cy + Math.sin(a) * r * sy) * R) * q;
       const dens = f * f * 0.55 + radial * (0.2 + 0.8 * f) - 0.12;
-      if (hash2(x * R + 50, y * R + 50, 31) > dens) continue;
+      if (hash2(Math.floor(x) + 50, Math.floor(y) + 50, 31) > dens + (radial > 0.82 ? 0.25 : 0)) continue;   // Dichte je Weltpixel: fein, aber nicht verrauscht
       const c = radial > 0.82 ? cols[2] : radial > 0.5 ? cols[1] : cols[0];
       p.dot(x, y, c);
       if (g && gcols && f > 0.35 && radial > 0.45) g.dot(x, y, radial > 0.82 ? gcols[1] : gcols[0]);
@@ -400,6 +400,30 @@ function drawBandit(p, g, P, X, archer) {
   p.px(hx + 3, hy - 1, SKIN[2]); p.px(hx + 4, hy - 1, SKIN[3]); p.px(hx + 4, hy, SKIN[3]); p.px(hx + 3, hy, SKIN[1]);
   p.px(hx + 2, hy + 1, eyeOpen ? '#3a1410' : '#5a1a14'); p.px(hx + 3, hy + 1, '#3a1410');      // Mund (verzogen)
   if (!eyeOpen) p.px(hx + 3, hy + 2, '#5a1a14');
+  if (p.fine) {
+    // Handfein: Gesicht in Feinpixeln – Augenweiß mit Pupille und Glanz, harte Braue, Nasenrücken, Kerbe am Mund
+    const ey = hy - 1;
+    if (eyeOpen) {
+      p.dot(hx + 1, ey, '#e6dccb'); p.dot(hx + 1.5, ey, '#e6dccb'); p.dot(hx + 2, ey, '#140a08'); p.dot(hx + 2.5, ey, '#3a2014');
+      p.dot(hx + 2, ey + 0.5, '#2a1410'); p.dot(hx + 1.5, ey + 0.5, '#c8b8a4'); p.dot(hx + 2, ey, '#fff8ea');
+      p.dot(hx + 2.5, ey, '#140a08'); p.dot(hx + 2.5, ey + 0.5, '#140a08');
+    }
+    p.fline(hx + 0.5, hy - 2, hx + 3, hy - 1.5, '#1e1008');                  // Braue
+    p.dot(hx + 4, hy - 1, SKIN[3]); p.dot(hx + 4.5, hy - 0.5, SKIN[3]); p.dot(hx + 4.5, hy, SKIN[2]); p.dot(hx + 4, hy + 0.5, SKIN[0]);   // Nase
+    p.dot(hx + 3.5, hy + 1, '#2a0c08'); p.dot(hx + 1.5, hy + 1.5, '#5a2a1c');   // Mundwinkel
+    p.dot(hx - 0.5, hy + 0.5, SKIN[3]); p.dot(hx - 1, hy - 0.5, SKIN[0]);      // Ohrmuschel
+    if (!archer) {
+      // Kopftuch: Faltenlinien und Saum in Feinpixeln, helle Kante zum Licht
+      p.fline(hx - 3, hy - 2.5, hx + 1, hy - 4, CR[4]); p.fline(hx - 2, hy - 1.5, hx + 2, hy - 2.5, CR[0]);
+      p.dot(hx - 3.5, hy - 1, CR[4]); p.dot(hx + 2.5, hy - 2, CR[3]);
+      for (let k = 0; k < 6; k++) p.dot(hx + k * 0.5, hy + 2.5 + (k & 1) * 0.5, '#3a2418');   // Stoppeln
+    } else {
+      p.fline(hx - 2.5, hy - 3.5, hx + 1.5, hy - 4, A_HOOD[4]); p.fline(hx - 3.5, hy - 1, hx - 3.5, hy + 2, A_HOOD[2]);
+    }
+    // Lederwams: Naht als Punktlinie, Glanz auf der Schnalle
+    for (let u = 1.5; u <= 6.5; u += 1) { const o = pt(u, -0.6); p.dot(o.x, o.y, LEA[4]); }
+    const bk = pt(1.2, 2.5); p.dot(bk.x - 0.5, bk.y - 0.5, '#fff4c0');
+  }
   meta.eye = { x: hx + 2, y: hy - 1 };
   meta.head = { x: hx, y: hy - 4 };
   if (archer) {
