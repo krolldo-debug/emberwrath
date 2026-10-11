@@ -37,8 +37,20 @@ export const MAT = {
   fur: ['#241e26', '#3e3640', '#5e5462', '#867a88', '#b0a6b2'],
   holy: ['#4a3208', '#9a7018', '#e0b030', '#fff080', '#fffbe0'],
   ashsteel: ['#1c1a24', '#3c3848', '#666076', '#aaa4ba', '#f4f0fa'],
+  copper: ['#3a1a10', '#6e3420', '#a85a34', '#d88a58', '#f8c49a'],
 };
 const M = MAT;
+
+// Ausrüstung Stufe 21–40 (Icons <familie>_t5 … _t8): jede Stufe trägt die Farben ihres Gebiets.
+// 5 Aschensteppe (Bronze, Kriegsrot), 6 Faulmarsch (Eisen, Knochen, Gift), 7 Frostzinnen (Frost, Silber),
+// 8 Glutöde (Obsidian, Gold, Glut). Eine Quelle für Held und Item-Bild (gfx/Icons.js).
+export const TIER_LOOK = {
+  5: { metal: M.bronze, trim: M.copper, gem: M.red, wood: M.ash, cloth: M.red, leather: M.leather, fur: M.fur, top: 'orb', grip: M.red },
+  6: { metal: M.iron, trim: M.bone, gem: M.green, wood: M.darkwood, cloth: M.moss, leather: M.darkleather, fur: M.moss, top: 'skull', grip: M.darkleather, jag: true },
+  7: { metal: M.frost, trim: M.silver, gem: M.blue, wood: M.silver, cloth: M.blue, leather: M.fur, fur: M.silver, top: 'crystal', grip: M.blue },
+  8: { metal: M.obsidian, trim: M.gold, gem: M.ember, wood: M.darkwood, cloth: M.red, leather: M.darkleather, fur: M.obsidian, top: 'flame', grip: M.darkleather, glow: M.ember },
+};
+export const LOOK_TIERS = [5, 6, 7, 8];
 
 // Seltenheit -> Ersatzmaterial und Leuchten, wenn ein Icon unbekannt ist.
 const RARITY_LOOK = {
@@ -179,6 +191,29 @@ const FEET = {
   boots_ember: { style: 'plate', ramp: M.obsidian, glow: M.ember },
 };
 
+// Stufe 21–40 in den Gebietsfarben (TIER_LOOK). accent = Steinfarbe, die ab „selten“ eingesetzt wird.
+for (const n of LOOK_TIERS) {
+  const T = TIER_LOOK[n], t = `_t${n}`;
+  const blade = { blade: T.metal, guard: T.trim, grip: T.grip, accent: T.gem, fuller: !T.jag, jag: !!T.jag, glow: T.glow };
+  WEAPONS[`sword${t}`] = blade;
+  WEAPONS[`greatsword${t}`] ??= blade;
+  WEAPONS[`dagger${t}`] = { ...blade, curve: n === 5 ? 2 : 0, fuller: false };
+  WEAPONS[`axe${t}`] = { head: T.metal, haft: T.wood, double: n >= 7, bearded: n === 5, spike: n >= 6, glow: T.glow };
+  WEAPONS[`mace${t}`] = { head: T.metal, haft: T.wood, kind: n === 5 || n === 7 ? 'flanged' : 'spiked' };
+  WEAPONS[`staff${t}`] = { wood: T.wood, top: T.top, ramp: n === 6 ? M.green : n === 7 ? M.frost : T.gem, bands: n >= 7 ? T.trim : null, gnarled: n === 6 };
+  WEAPONS[`wand${t}`] = { wood: T.wood, top: n === 7 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
+  WEAPONS[`bow${t}`] = { wood: T.wood, recurve: n >= 6, long: n === 7, tips: T.trim, grip: T.gem, string: n === 7 ? '#e8f0ff' : undefined };
+  CHESTS[`cloth${t}`] = { style: 'robe', ramp: T.cloth, trim: T.trim, emblem: T.gem, glow: T.glow };
+  CHESTS[`leather${t}`] = { style: 'leather', ramp: T.leather, fur: T.fur, emblem: n >= 7 ? T.gem : undefined };
+  CHESTS[`mail${t}`] = { style: n === 6 ? 'scale' : 'chain', ramp: T.metal, shoulder: T.trim };
+  CHESTS[`plate${t}`] = { style: 'plate', ramp: T.metal, shoulder: T.trim, tabard: n === 5 ? M.red : undefined, emblem: n >= 7 ? T.gem : undefined, glow: T.glow };
+  HEADS[`hood${t}`] = { style: 'hood', ramp: n === 7 ? M.fur : T.leather };
+  const styleRamp = { cloth: T.cloth, leather: T.leather, mail: T.metal, plate: T.metal };
+  for (const st of ['cloth', 'leather', 'mail', 'plate']) {
+    HANDS[`gloves_${st}${t}`] = { style: st, ramp: styleRamp[st], glow: st === 'plate' ? T.glow : undefined };
+    FEET[`boots_${st}${t}`] = { style: st, ramp: styleRamp[st], glow: st === 'plate' ? T.glow : undefined };
+  }
+}
 const FAMILY_MAT = { plate: 'metal', mail: 'metal', leather: 'cloth', cloth: 'cloth' };
 
 function itemOf(entry, content) {
@@ -218,6 +253,27 @@ const WEAPON_NAMED = {
   kingsbane: { blade: M.ashsteel, guard: M.gold, grip: M.red, gem: M.ember, glow: M.ember, runes: M.ember, edge: M.ember, wings: true },
 };
 
+// Stufen-Teile (Icon *_t5 … _t8) teilen sich ein Icon je Familie; die Bauart steht im Namen. Damit „Säbel“ krumm,
+// „Langbogen“ lang und „Morgenstern“ stachelig aussieht – am Helden und im Item-Bild gleich.
+const CUTS = {
+  blade: { width: 2 }, sabre: { curve: 1.6 }, scimitar: { curve: 2.4, width: 2 },
+  claymore: { guardW: 5.4, fuller: false },
+  hatchet: { double: false, bearded: false, spike: false },
+  mace: { kind: 'flanged' }, morningstar: { kind: 'spiked' }, hammer: { kind: 'round' },
+  stiletto: { width: 1, curve: 0 }, kris: { flame: true, curve: 0 },
+  bow: { long: false }, longbow: { long: true },
+  quarterstaff: { top: 'curl' }, lantern: { top: 'flame' },
+  rod: (b) => ({ top: b.top === 'orb' ? 'gem' : 'orb' }),
+  cap: { style: 'cap' },
+};
+const TIER_ICON = /_t\d+$/;
+function cutOf(def, base = {}) {
+  if (!TIER_ICON.test(def.icon ?? '')) return null;
+  const id = def.base ?? def.id ?? '';
+  const k = /_([a-z]+)$/.exec(id)?.[1], c = CUTS[k];
+  return c ? { cut: k, ...(typeof c === 'function' ? c(base) : c) } : null;
+}
+
 function weaponLook(def) {
   // Zweihänder (family 'greatsword') ist fürs Aussehen ein großes Schwert
   const great = def.family === 'greatsword';
@@ -226,7 +282,7 @@ function weaponLook(def) {
   const R = RARITY_LOOK[rarity] ?? RARITY_LOOK.common;
   const base = WEAPONS[def.icon] ?? WEAPONS[family] ?? {};
   const known = !!WEAPONS[def.icon] || !!WEAPON_NAMED[def.id];
-  const look = { family, icon: def.icon, rarity, ...base, ...WEAPON_NAMED[def.id] };
+  const look = { family, icon: def.icon, rarity, ...base, ...cutOf(def, base), ...WEAPON_NAMED[def.id] };
   // Unbekanntes Icon: Material nach Seltenheit, damit „lila“ auch lila aussieht.
   if (!known) {
     if (family === 'sword' || family === 'dagger') { look.blade = R.metal; look.guard = rarity === 'legendary' ? M.gold : R.metal; }
@@ -241,7 +297,8 @@ function weaponLook(def) {
   if (great) Object.assign(look, { great: true, len: Math.max(look.len ?? 15, 22), width: 3, guardW: 4.4, fuller: true });
   // Effektstufe am Helden (entities/Hero.js): 1 = selten (Glanzlicht), 2 = episch (Flammen/Glühen), 3 = legendär (stark)
   look.tier = rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : 0;
-  if (look.tier >= 1 && !look.gem) look.gem = rarity === 'rare' ? M.blue : R.gem;
+  if (look.tier >= 1 && !look.gem) look.gem = look.accent ?? (rarity === 'rare' ? M.blue : R.gem);
+  delete look.accent;
   if (look.tier >= 1) look.fx = lookElement(look, def);
   return look;
 }
@@ -256,48 +313,62 @@ function armorLook(table, def, fallbackStyle) {
   return { style, ramp: kind === 'metal' ? R.metal : def.family === 'cloth' ? M.cloth : M.leather, glow: R.glow, rarity };
 }
 
+// Aussehen eines einzelnen Teils: { slot, look } | null. Gleiche Regeln wie am Helden – die Item-Bilder
+// (gfx/Icons.js itemIconId) werden daraus gezeichnet, damit Platz und Figur immer zusammenpassen.
+export function itemLook(def) {
+  const slot = def?.slot === 'armor' ? 'chest' : def?.slot;
+  if (!def || !SLOT_LOOK[slot]) return null;
+  return { slot, look: SLOT_LOOK[slot](def) };
+}
+
+function chestLook(c) {
+  const look = armorLook(CHESTS, c, (d) => CHEST_BY_FAMILY[d.family] ?? 'leather');
+  const R = RARITY_LOOK[look.rarity] ?? RARITY_LOOK.common;
+  if (!look.trim && (look.rarity === 'rare' || look.rarity === 'epic' || look.rarity === 'legendary')) look.trim = look.rarity === 'rare' ? M.silver : M.gold;
+  if (!look.glow && R.glow && look.rarity === 'legendary') look.glow = R.glow;
+  // Schwere Rüstung ab episch: Dornen auf den Schulterstücken
+  if ((look.style === 'plate' || look.style === 'scale') && (look.rarity === 'epic' || look.rarity === 'legendary')) look.spikes = true;
+  return look;
+}
+function headLook(h) {
+  const tier = TIER_HEAD[h.icon];
+  const hd = tier && (h.family === 'mail' || h.family === 'plate') ? tierHead(tier, h) : armorLook(HEADS, h, (d) => (d.family === 'plate' || d.family === 'mail' ? 'nasal' : d.family === 'cloth' ? 'hood' : 'cap'));
+  if (hd.style === 'hood' && cutOf(h)?.style) hd.style = cutOf(h).style;   // „Kappe“ statt Kapuze
+  if (hd.style === 'nasal' && h.family === 'plate' && !tier) hd.style = 'great';
+  if (hd.style === 'nasal' && h.family === 'mail') hd.coif = true;
+  if (hd.style !== 'hood' && hd.style !== 'cap') {
+    // Selten: Zierrand; episch: schmaler Kamm in Violett; legendär: Glutkrone. Keine Federbüsche (sahen wie Zipfelmützen aus).
+    if (hd.rarity === 'rare' && !hd.trim) hd.trim = M.gold;
+    if (hd.rarity === 'epic' && !hd.crest && !hd.crown) hd.crest = M.purple;
+    if (hd.rarity === 'legendary') hd.crown = M.ember;
+  }
+  return Object.assign(hd, HEAD_NAMED[h.id]);
+}
+const SLOT_LOOK = {
+  weapon: weaponLook,
+  chest: chestLook,
+  head: headLook,
+  hands: (g) => armorLook(HANDS, g, (d) => d.family ?? 'leather'),
+  feet: (f) => armorLook(FEET, f, (d) => d.family ?? 'leather'),
+};
+
 export function resolveGear(equipment, content) {
   if (!equipment || !content) return null;
   const get = (slot) => itemOf(equipment[slot] ?? (slot === 'chest' ? equipment.armor : null), content);
   const gear = { weapon: null, chest: null, head: null, hands: null, feet: null };
-  const w = get('weapon');
-  if (w) gear.weapon = weaponLook(w);
-  const c = get('chest');
-  if (c) {
-    gear.chest = armorLook(CHESTS, c, (d) => CHEST_BY_FAMILY[d.family] ?? 'leather');
-    const R = RARITY_LOOK[gear.chest.rarity];
-    if (!gear.chest.trim && (gear.chest.rarity === 'rare' || gear.chest.rarity === 'epic' || gear.chest.rarity === 'legendary')) gear.chest.trim = gear.chest.rarity === 'rare' ? M.silver : M.gold;
-    if (!gear.chest.glow && R.glow && gear.chest.rarity === 'legendary') gear.chest.glow = R.glow;
-    // Schwere Rüstung ab episch: Dornen auf den Schulterstücken
-    if ((gear.chest.style === 'plate' || gear.chest.style === 'scale') && (gear.chest.rarity === 'epic' || gear.chest.rarity === 'legendary')) gear.chest.spikes = true;
+  for (const slot of Object.keys(gear)) {
+    const def = get(slot);
+    if (def) gear[slot] = SLOT_LOOK[slot](def);
   }
-  const h = get('head');
-  if (h) {
-    const tier = TIER_HEAD[h.icon];
-    gear.head = tier && (h.family === 'mail' || h.family === 'plate') ? tierHead(tier, h) : armorLook(HEADS, h, (d) => (d.family === 'plate' || d.family === 'mail' ? 'nasal' : d.family === 'cloth' ? 'hood' : 'cap'));
-    const hd = gear.head;
-    if (hd.style === 'nasal' && h.family === 'plate' && !tier) hd.style = 'great';
-    if (hd.style === 'nasal' && h.family === 'mail') hd.coif = true;
-    if (hd.style !== 'hood' && hd.style !== 'cap') {
-      // Selten: Zierrand; episch: schmaler Kamm in Violett; legendär: Glutkrone. Keine Federbüsche (sahen wie Zipfelmützen aus).
-      if (hd.rarity === 'rare' && !hd.trim) hd.trim = M.gold;
-      if (hd.rarity === 'epic' && !hd.crest && !hd.crown) hd.crest = M.purple;
-      if (hd.rarity === 'legendary') hd.crown = M.ember;
-    }
-    Object.assign(hd, HEAD_NAMED[h.id]);
-  }
-  const g = get('hands');
-  if (g) gear.hands = armorLook(HANDS, g, (d) => d.family ?? 'leather');
-  const f = get('feet');
-  if (f) gear.feet = armorLook(FEET, f, (d) => d.family ?? 'leather');
   return gear;
 }
 
+// Jede sichtbare Eigenschaft geht in den Schlüssel ein (Farbrampen über ihren Mittelton), damit zwei Teile mit
+// gleichem Icon, aber anderer Form oder Zierde nie dasselbe Sprite aus dem Cache bekommen.
+const partKey = (x) => (x ? Object.keys(x).sort().map((k) => { const v = x[k]; return v == null || v === false ? '' : Array.isArray(v) ? v[2] : v === true ? k : `${v}`; }).join(':') : '');
 export function gearKey(gear) {
   if (!gear) return '-';
-  const k = (x) => (x ? `${x.icon ?? x.style}:${x.rarity}${x.great ? ':g' : ''}` : '');
-  return [k(gear.weapon), gear.chest ? `${gear.chest.style}:${gear.chest.ramp?.[2]}:${gear.chest.rarity}` : '',
-    gear.head ? `${gear.head.style}:${gear.head.ramp?.[2]}:${gear.head.rarity}:${gear.head.trim?.[2] ?? ''}:${gear.head.crest?.[2] ?? ''}:${gear.head.crown?.[2] ?? ''}:${gear.head.coif ? 1 : 0}${gear.head.tail ? 't' : ''}` : '', gear.hands ? gear.hands.ramp?.[2] : '', gear.feet ? gear.feet.ramp?.[2] : ''].join('|');
+  return [partKey(gear.weapon), partKey(gear.chest), partKey(gear.head), partKey(gear.hands), partKey(gear.feet)].join('|');
 }
 
 // ---------------------------------------------------------------- Garderobe (character/wardrobe.js)

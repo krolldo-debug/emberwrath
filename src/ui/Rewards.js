@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { CONFIG } from '../config.js';
-import { iconUrl, rarityRgb } from '../gfx/Icons.js';
+import { iconUrl, itemIconId, rarityRgb } from '../gfx/Icons.js';
 import { installRarityFrames } from '../gfx/RarityFrame.js';
 import { fmtNum } from '../i18n/index.js';
 
@@ -155,7 +155,7 @@ export class Rewards {
     const target = this.#bagEl();
     const r = def.rarity ?? 'common';
     const glow = r === 'common' ? null : rarityRgb(r);
-    const arrive = this.#fly({ src: iconUrl(def.icon), target, count: 1, size: r === 'epic' || r === 'legendary' ? 30 : 24, glow, spread: 34 });
+    const arrive = this.#fly({ src: iconUrl(itemIconId(def)), target, count: 1, size: r === 'epic' || r === 'legendary' ? 30 : 24, glow, spread: 34 });
     if (arrive == null) return;
     setTimeout(() => this.#restart(target, 'rw-bump'), arrive * 1000);
   }

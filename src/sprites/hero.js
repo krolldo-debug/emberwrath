@@ -106,7 +106,7 @@ export const CLASS_LOOK = {
 };
 // Welche Waffenfamilie die Klasse in der Waffenhand führt
 const CLASS_WEAPONS = {
-  warrior: ['sword', 'axe', 'mace'], rogue: ['sword', 'dagger'], ranger: ['bow', 'dagger'], mage: ['staff', 'wand'],
+  warrior: ['sword', 'axe', 'mace'], rogue: ['sword', 'dagger'], ranger: ['bow'], mage: ['staff', 'wand'],
 };
 
 // --- Raster ------------------------------------------------------------------------

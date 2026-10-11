@@ -67,13 +67,15 @@ export function wardrobeEntries(slices, content, slot) {
   for (const id of w.looks ?? []) {
     const def = content.find('item', id);
     if (slotOf(def) !== slot) continue;
+    // Nur, was die eigene Klasse tragen kann (Waldläufer: keine Nahkampfwaffen)
+    if (!lookAllowed(def, slot, ch.classId)) continue;
     const key = lookKeyOf(content, slot, id);
     const prev = groups.get(key);
     // Pro Aussehen ein Eintrag; das gewählte bzw. getragene Teil gewinnt
     if (prev && !(id === current || id === worn)) continue;
-    groups.set(key, { itemId: id, name: def.name, rarity: def.rarity ?? 'common', icon: def.icon, usable: lookAllowed(def, slot, ch.classId), shown: id === current });
+    groups.set(key, { itemId: id, name: def.name, rarity: def.rarity ?? 'common', icon: def.icon, usable: true, shown: id === current });
   }
-  const list = [...groups.values()].sort((a, b) => (b.usable - a.usable) || (RARITY_ORDER[a.rarity] ?? 9) - (RARITY_ORDER[b.rarity] ?? 9) || a.name.localeCompare(b.name, 'de'));
+  const list = [...groups.values()].sort((a, b) => (RARITY_ORDER[a.rarity] ?? 9) - (RARITY_ORDER[b.rarity] ?? 9) || a.name.localeCompare(b.name, 'de'));
   return { current, equipped: worn, list };
 }
 

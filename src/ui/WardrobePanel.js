@@ -1,6 +1,6 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
-import { iconEl, iconCanvas, RARITY_COLORS } from '../gfx/Icons.js';
+import { iconEl, iconCanvas, itemIconId, RARITY_COLORS } from '../gfx/Icons.js';
 import { spriteStyle } from '../character/cosmetics.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { StableStage, mountCard, emptyCard, mountStand, snapToDevice, cardFit, cardScale, TEX } from './Stable.js';
@@ -168,9 +168,9 @@ function createWardrobePanel(session, params = {}) {
       onclick: () => { if (sel === value) return; preview = { ...preview, [slot]: value }; msg = ''; refreshStage(); render(); },
     }, visual, cap ? h('span.wd-tile-cap', cap) : null, cur === value ? h('span.wd-check', { 'aria-hidden': 'true' }) : null, usable ? null : h('span.wd-lock', { 'aria-hidden': 'true' }));
     const tiles = [
-      tile(null, 'Angelegter Gegenstand', tileIcon(wornDef?.icon ?? SLOT_PH[slot], { dim: !wornDef, css }), { rarity: wornDef?.rarity ?? null, cap: 'Ausrüstung' }),
-      slot === 'head' ? tile('none', 'Helm ausgeblendet', tileIcon(wornDef?.icon ?? SLOT_PH.head, { slash: true, css }), { cap: 'Aus' }) : null,
-      ...(e.list ?? []).map((it) => tile(it.itemId, it.name, tileIcon(it.icon, { css }), { rarity: it.rarity, usable: it.usable })),
+      tile(null, 'Angelegter Gegenstand', tileIcon(wornDef ? itemIconId(wornDef) : SLOT_PH[slot], { dim: !wornDef, css }), { rarity: wornDef?.rarity ?? null, cap: 'Ausrüstung' }),
+      slot === 'head' ? tile('none', 'Helm ausgeblendet', tileIcon(wornDef ? itemIconId(wornDef) : SLOT_PH.head, { slash: true, css }), { cap: 'Aus' }) : null,
+      ...(e.list ?? []).map((it) => tile(it.itemId, it.name, tileIcon(itemIconId(content.find('item', it.itemId)), { css }), { rarity: it.rarity, usable: it.usable })),
     ];
     const pick = (e.list ?? []).find((it) => it.itemId === sel);
     const state = sel === cur ? 'on' : pick && !pick.usable ? 'off' : 'can';
