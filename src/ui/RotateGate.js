@@ -4,6 +4,9 @@
 // Wo der Browser es erlaubt, wird das Querformat zusätzlich festgehalten (Vollbild, als App gestartet; siehe Fullscreen.js
 // und pwa/manifest.webmanifest). Desktop-Fenster bleiben frei, auch wenn sie schmal sind (Game#chooseView).
 
+import { EV } from '../core/events.js';
+import { backButton, websiteUrl } from '../account/ui.js';
+
 const DEVICE_MQ = '(hover: none) and (pointer: coarse)';
 
 export const isMobileDevice = () =>
@@ -31,6 +34,13 @@ export function installRotateGate(game) {
       <h2>Dreh dein Gerät</h2>
       <p>Emberwrath wird im Querformat gespielt.</p>
     </div>`;
+  // Vor dem Spiel (Titel, Anmeldung, Heldenwahl) führt ein Zurück-Pfeil auch hier zur Website.
+  const back = backButton(() => location.assign(websiteUrl()), 'Zurück zur Website');
+  back.classList.add('ef-rotate-back');
+  gate.prepend(back);
+  const pregame = () => { back.hidden = game?.scenes?.currentId === 'play'; };
+  game?.bus?.on(EV.SCENE_CHANGE, pregame);
+  pregame();
   document.body.append(gate);
 
   let on = null;

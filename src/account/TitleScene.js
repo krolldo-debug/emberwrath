@@ -1,6 +1,6 @@
 import { h } from '../core/dom.js';
 import { sharedBackdrop } from './Backdrop.js';
-import { savedLook } from './ui.js';
+import { savedLook, backButton, websiteUrl } from './ui.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { snapInfo } from './backups.js';
 import { langSwitch } from '../i18n/index.js';
@@ -34,6 +34,9 @@ export class TitleScene extends MenuScene {
       this.backdrop.figure = { anims: getHeroSprites(lastChar.raceId ?? 'human', lastChar.classId ?? 'warrior', look.variant, look.gear, look.style), x: 480 * 0.74 };
     }
 
+    // Einmalige Meldung nach der Anmeldung (z. B. „E-Mail bestätigt“), sonst zeigt sie die Anmeldeseite
+    const note = signedIn && o.notice?.kind === 'ok' ? o.notice : null;
+    if (note) o.notice = null;
     let menu;
     // Zone des zuletzt gespielten Helden (sonst die Startzone) schon im Hintergrund vorbereiten (world/warmup.js)
     const lastSnap = lastChar ? g.save.loadCharacter(last.accountId, lastChar.id) : null;
@@ -45,6 +48,7 @@ export class TitleScene extends MenuScene {
           h('span.acc-btn-title', 'Spielen'),
           h('span.acc-btn-sub', lastChar ? `${lastChar.name} · Stufe ${info?.level ?? lastChar.level ?? 1}` : 'Deinen ersten Helden erschaffen')),
         h('button.acc-textlink', { type: 'button', onclick: () => o.open('account') }, `Konto · ${o.displayName}`),
+        note ? h('p.on-msg.ok.acc-title-note', { role: 'status' }, note.text) : null,
       ];
     } else {
       menu = [
@@ -56,7 +60,9 @@ export class TitleScene extends MenuScene {
       ];
     }
 
+    // Unterste Ebene: Der Zurück-Pfeil führt auf die Website. Bewusst nicht auf Esc gelegt (kein versehentliches Verlassen).
     this.root = h('div.ef-screen.acc-screen.acc-title',
+      h('div.acc-title-back', backButton(() => location.assign(websiteUrl()), 'Zurück zur Website')),
       h('div.acc-title-inner',
         h('div.acc-logo',
           h('h1.ef-title', 'EMBERWRATH'),
