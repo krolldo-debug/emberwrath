@@ -1,5 +1,5 @@
 import { EV } from '../core/events.js';
-import { resolveGear, shownEquipment, lookAllowed, LOOK_SLOTS, HIDE_LOOK } from './gearLook.js';
+import { resolveGear, shownEquipment, lookAllowed, lookShapeKey, LOOK_SLOTS, HIDE_LOOK } from './gearLook.js';
 
 // Garderobe (Thread A, Runde 08.10.): jedes gefundene Aussehen bleibt gesammelt und lässt sich über die
 // getragene Ausrüstung legen. Alte Teile dürfen danach verkauft werden, das Aussehen bleibt.
@@ -50,11 +50,11 @@ function heldLookIds(slices, content) {
   return ids;
 }
 
-// Gleiches Aussehen verschiedener Teile (gleiches Icon, gleiche Seltenheit) wird zu einem Eintrag.
+// Gleiches Aussehen verschiedener Teile wird zu einem Eintrag (gearLook.lookShapeKey: was der Held zeichnet).
 const keyCache = new Map();
 function lookKeyOf(content, slot, id) {
   const k = `${slot}|${id}`;
-  if (!keyCache.has(k)) keyCache.set(k, JSON.stringify(resolveGear({ [slot]: id }, content)?.[slot] ?? null));
+  if (!keyCache.has(k)) keyCache.set(k, lookShapeKey(slot, resolveGear({ [slot]: id }, content)?.[slot] ?? null));
   return keyCache.get(k);
 }
 
@@ -67,13 +67,16 @@ export function wardrobeEntries(slices, content, slot) {
   for (const id of w.looks ?? []) {
     const def = content.find('item', id);
     if (slotOf(def) !== slot) continue;
+    // Nur, was die eigene Klasse tragen kann (Waldläufer: keine Nahkampfwaffen)
+    if (!lookAllowed(def, slot, ch.classId)) continue;
     const key = lookKeyOf(content, slot, id);
     const prev = groups.get(key);
-    // Pro Aussehen ein Eintrag; das gewählte bzw. getragene Teil gewinnt
-    if (prev && !(id === current || id === worn)) continue;
-    groups.set(key, { itemId: id, name: def.name, rarity: def.rarity ?? 'common', icon: def.icon, usable: lookAllowed(def, slot, ch.classId), shown: id === current });
+    // Pro Aussehen ein Eintrag: das gewählte bzw. getragene Teil gewinnt, sonst das seltenste
+    const rank = (e) => (e.itemId === current ? -2 : e.itemId === worn ? -1 : RARITY_ORDER[e.rarity] ?? 9);
+    if (prev && rank(prev) <= rank({ itemId: id, rarity: def.rarity ?? 'common' })) continue;
+    groups.set(key, { itemId: id, name: def.name, rarity: def.rarity ?? 'common', icon: def.icon, usable: true, shown: id === current });
   }
-  const list = [...groups.values()].sort((a, b) => (b.usable - a.usable) || (RARITY_ORDER[a.rarity] ?? 9) - (RARITY_ORDER[b.rarity] ?? 9) || a.name.localeCompare(b.name, 'de'));
+  const list = [...groups.values()].sort((a, b) => (RARITY_ORDER[a.rarity] ?? 9) - (RARITY_ORDER[b.rarity] ?? 9) || a.name.localeCompare(b.name, 'de'));
   return { current, equipped: worn, list };
 }
 

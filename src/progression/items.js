@@ -47,7 +47,7 @@ export const FAMILY_NAMES = {
 // Welche Klassen welche Waffenfamilie führen (Klassen-IDs von Thread A).
 export const WEAPON_CLASSES = {
   sword: ['warrior', 'rogue'], greatsword: ['warrior'], axe: ['warrior'], mace: ['warrior'],
-  dagger: ['rogue', 'ranger'], bow: ['ranger'], staff: ['mage'], wand: ['mage'],
+  dagger: ['rogue'], bow: ['ranger'], staff: ['mage'], wand: ['mage'],   // Waldläufer nur Fernkampf (11.10.)
 };
 
 export const STAT_NAMES = {

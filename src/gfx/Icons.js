@@ -4,6 +4,8 @@ import { decorateItemIcon } from './ItemFx.js';
 import { installRarityFrames } from './RarityFrame.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
 import { DYES } from '../character/cosmetics.js';
+import { TIER_LOOK, itemLook } from '../character/gearLook.js';
+import { drawWeaponIcon } from '../sprites/hero.js';
 
 // Item-, Fähigkeits- und UI-Icons als prozedurale 24×24-Pixel-Art (mit Umriss 26×26).
 // Gemeinsam genutzt von HUD (D), Inventar/Beute/Händler (C) und Charaktererstellung (A).
@@ -12,6 +14,7 @@ import { DYES } from '../character/cosmetics.js';
 //   iconUrl(id)               -> Data-URL
 //   iconEl(id, cssSize=32)    -> <img> (pixelgenau skaliert)
 //   itemIconEl(def, css=40)   -> <span class="ef-item-icon r-<rarity>"> mit Seltenheitsrahmen/Glanz
+//   itemIconId(def)           -> Icon-ID eines Items; Ausrüstung zeigt ihr getragenes Aussehen (character/gearLook.js)
 //   lootSprite(defOrId)       -> kleines Welt-Sprite (≈12 px, mit Umriss) für Beute am Boden
 //   drawLoot(ctx, def, x, y, t, opts) -> Beute-Sprite + Seltenheitsstrahl (Fußpunkt x,y)
 //   ICON_IDS                  -> alle bekannten IDs
@@ -198,6 +201,7 @@ function mace(p, o) {
   if (o.flanged) for (const [x, y] of [[cx, cy - 6], [cx + 5, cy - 3], [cx + 5, cy + 3], [cx - 5, cy - 3]]) { p.px(x, y, H[3]); p.px(x, y + 1, H[2]); p.px(x + (x > cx ? -1 : 1), y + 1, H[2]); }
   if (o.spikes) for (const [x, y] of [[cx, cy - 6], [cx + 6, cy], [cx, cy + 5], [cx - 6, cy], [cx + 4, cy - 4], [cx - 4, cy - 4], [cx + 4, cy + 4]]) { p.px(x, y, H[4]); }
   if (o.holy) { gem(p, cx, cy, 1, M.yellow); for (const [x, y] of [[cx, cy - 7], [cx + 7, cy], [cx - 7, cy]]) p.px(x, y, M.yellow[4]); }
+  else if (o.glow) { for (const [x, y] of [[cx - 1, cy - 1], [cx + 1, cy + 1], [cx + 2, cy - 2]]) p.px(x, y, o.glow[3]); p.px(cx, cy, o.glow[4]); }
 }
 const MACES = {
   mace: { head: M.iron, flanged: true },
@@ -215,7 +219,7 @@ function staff(p, o) {
     if (u < 0 || u > L) return null;
     const bend = o.gnarled ? Math.sin(u * 0.9) * 0.6 : 0;
     if (Math.abs(v - bend) > 0.9) return null;
-    if (o.bands && ((u | 0) === 5 || (u | 0) === 12)) return M.gold[3];
+    if (o.bands && ((u | 0) === 5 || (u | 0) === 12)) return (o.bands === true ? M.gold : o.bands)[3];
     return v - bend < 0 ? W[3] : W[1];
   });
   const hx = 18, hy = 5;
@@ -237,6 +241,11 @@ function staff(p, o) {
       for (const [x, y] of [[-3, 0], [3, 0], [0, -4]]) { p.px(hx + 1 + x, hy - 1 + y, M.gold[3]); p.px(hx + 1 + x, hy + y, M.gold[1]); }
       ball(p, hx + 1, hy - 2, 2.4, o.ramp); p.px(hx + 4, hy - 5, o.ramp[4]); p.px(hx - 2, hy - 4, o.ramp[3]); break;
   }
+  if (o.glow) sparks(p, hx + 1, hy - 1, o.glow);
+}
+// Funken um eine leuchtende Spitze (Stab, Zauberstab): harte Einzelpixel, kein Schein
+function sparks(p, x, y, G) {
+  for (const [dx, dy, k] of [[4, -4, 4], [-3, -4, 3], [4, 2, 3], [-4, 1, 4]]) p.px(x + dx, y + dy, G[k]);
 }
 const STAFFS = {
   staff: { top: 'orb', ramp: M.purple },
@@ -254,6 +263,7 @@ function wand(p, o) {
   if (o.top === 'gem') { gem(p, 17, 8, 2, o.ramp); p.px(20, 5, o.ramp[4]); p.px(14, 5, o.ramp[3]); }
   else if (o.top === 'flame') { ball(p, 17, 8, 2.2, o.ramp); p.px(18, 5, o.ramp[3]); p.px(19, 4, o.ramp[4]); }
   else { ball(p, 17, 8, 1.8, o.ramp); }
+  if (o.glow) sparks(p, 17, 7, o.glow);
 }
 const WANDS = {
   wand: { wood: M.wood, top: 'flame', ramp: M.ember },
@@ -281,6 +291,7 @@ function bow(p, o) {
   rect(p, 10, 12, 3, 3, o.grip ?? M.leather[3]); p.px(10, 12, M.leather[4]);
   if (o.tips) { p.px(Math.round(a[0]), Math.round(a[1]), o.tips); p.px(Math.round(b[0]), Math.round(b[1]), o.tips); }
   if (o.leaf) for (const [x, y] of [[6, 9], [15, 17], [8, 7]]) { p.px(x, y, M.green[3]); p.px(x + 1, y, M.green[2]); }
+  if (o.glow) for (const q of [pts[12], pts[pts.length - 13]]) { p.px(Math.round(q[0]) - 1, Math.round(q[1]) - 1, o.glow[4]); p.px(Math.round(q[0]) - 2, Math.round(q[1]), o.glow[3]); }
   void bend;
 }
 const BOWS = {
@@ -303,30 +314,51 @@ function torsoMask(x, y, o) {
   if (y < 15) return dx < 7 - (y - 10) * 0.2 ? (dx > 5.6 && y < 13 ? 4 : 1) : dx > 7 && dx < 9.4 && y < 14 ? 4 : 0;
   return dx < 6 + (o.long ? (y - 15) * 0.55 : 0) ? 1 : 0;
 }
+// Brustteil von vorn aus denselben Teilen wie am Helden (sprites/hero.js drawTorsoHi/drawPauldronHi/drawLowerHi):
+// Ärmel in der Wamsfarbe, kleine Schulterkappen bzw. Schulterplatten, Fellkragen, Schulterriemen (Leder),
+// Wappenrock schmal über Kette/Platte, als Latz unter dem Gürtel, Glutstein statt Streupixeln.
 function armor(p, o) {
   const R = o.ramp, T = o.trim ?? M.gold;
+  const plate = o.style === 'plate' || o.style === 'scale', robe = o.style === 'robe';
+  const strap = (x, y) => o.style === 'leather' && y >= 5 && y <= 13 && Math.abs((x + 0.5) - (6 + (y - 5) * 1.3)) < 1.1;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const m = torsoMask(x, y, o);
     if (!m) continue;
-    const dx = x + 0.5 - 12;
+    const dx = x + 0.5 - 12, ax = Math.abs(dx);
     let c = pick(R, 2.4 - dx / 9 - (y - 10) / 18);
     if (m === 3) c = '#0e0a12';
     if (m === 2) c = T[2];
-    if (m === 4) c = o.shoulder ? pick(o.shoulder, 2.8 - dx / 7) : pick(R, 1.8 - dx / 8);
+    if (m === 4) c = pick(R, 1.9 - dx / 8 - (ax > 8 ? 0.4 : 0));                 // Ärmel in der Wamsfarbe
     switch (o.style) {
-      case 'robe': if (Math.abs(dx) < 1 && y > 4) c = T[3]; if (y === 14) c = T[1]; if (y === (o.long ? 22 : 20)) c = T[2]; break;
-      case 'leather': if (y === 14 || y === 15) c = M.leather[0]; if (y === 14 && Math.abs(dx) < 1) c = M.gold[3]; if (Math.abs(dx) < 0.6 && y > 5 && y < 13 && y % 2) c = R[0]; break;
+      case 'robe': if (ax < 1 && y > 4) c = T[3]; if (y === 14) c = T[1]; if (y === (o.long ? 22 : 20)) c = T[2]; break;
+      case 'leather': if (m === 1 && ax > 4.6 && ax < 5.4 && y > 5 && y < 14 && y % 2) c = R[4]; break;   // Schnürung
       case 'chain': if (m === 1 && (x + y * 2) % 3 === 0) c = R[0]; if (m === 1 && (x + y * 2) % 3 === 1) c = R[3]; break;
       case 'scale': if (m === 1 && y > 5) { const k = (x + (y % 2) * 1.5) % 3; c = k < 1 ? R[3] : k < 2 ? R[2] : R[0]; } break;
-      case 'plate': if (m === 1 && (y === 9 || y === 13 || y === 17)) c = R[0]; if (m === 1 && (y === 8 || y === 12 || y === 16)) c = R[4]; if (m === 1 && Math.abs(dx) < 0.6 && y < 14) c = R[3]; break;
+      case 'plate': if (m === 1 && (y === 10 || y === 12)) c = y === 10 ? R[0] : R[4]; if (m === 1 && ax < 0.6 && y < 10) c = R[3]; break;
     }
-    if (o.tabard && m === 1 && Math.abs(dx) < 2.5 && y > 6) c = pick(o.tabard, 2.5 - dx / 3 - (y > 16 ? 0.7 : 0));
-    if (o.glow && m === 1 && hash(x, y, 2) < 0.12 && y > 6) c = o.glow[4];
-    if (o.glow && m === 1 && (y === 9 || y === 13) && Math.abs(dx) < 4) c = o.glow[3];
+    if (o.tabard && o.style !== 'leather' && m === 1 && ax < 1.6 && y > 5 && y < (robe ? 20 : 14)) c = ax > 1 ? T[2] : o.tabard[2];
+    if (strap(x, y) && m === 1) c = Math.abs((x + 0.5) - (6 + (y - 5) * 1.3)) < 0.5 ? M.leather[2] : M.leather[1];
+    if (!robe && (y === 14 || y === 15) && m === 1) c = M.leather[y === 14 ? 2 : 0];   // Gürtel
+    // Schulterkappen (Leder) bzw. Schulterplatten (Platte, Kette mit eigener Farbe)
+    const sh = o.shoulder && (plate ? y >= 4 && y <= 7 && ax > 5 && ax < 10.4 - (y - 4) * 0.3 : y >= 5 && y <= 6 && ax > 6 && ax < 9.6);
+    if (sh && m) c = y === (plate ? 7 : 6) ? o.shoulder[0] : pick(o.shoulder, 3.2 - (y - 4) * 0.5 - dx / 10);
     p.px(x, y, c);
   }
-  if (o.emblem) gem(p, 11, 10, 1, o.emblem);
+  if (!robe) { rect(p, 14, 14, 2, 2, T[3]); p.px(14, 14, T[4] ?? T[3]); }            // Schnalle
+  if (o.style === 'leather') p.px(10, 9, T[3]);                                       // Riemenschnalle
+  if (o.tabard && !robe) {
+    // Latz unter dem Gürtel mit Zierkante wie am Helden
+    for (let y = 16; y < 21; y++) { const w = y < 19 ? 2 : 1; for (let x = 12 - w; x < 12 + w; x++) p.px(x, y, x === 12 - w || x === 11 + w || y === 20 ? T[2] : o.tabard[x < 12 ? 3 : 2]); }
+  }
+  if (o.fur) for (let x = 6; x < 18; x++) { if (x > 9 && x < 14) continue; p.px(x, 3 + (x & 1), o.fur[(x & 1) + 2]); p.px(x, 4, o.fur[2]); }
+  if (o.emblem) gem(p, 11, 8, 1, o.emblem);
+  if (o.glow) gem(p, 12, 11, 1, o.glow);
   if (o.rivets) for (const [x, y] of [[7, 8], [16, 8], [7, 12], [16, 12]]) p.px(x, y, M.iron[4]);
+  if (o.spikes) {
+    const P = o.shoulder ?? o.ramp, G = o.glow ?? P;
+    for (const [x, y, k] of [[3, 3, 3], [5, 3, 3], [20, 3, 2], [18, 3, 2]]) p.px(x, y, P[k]);
+    for (const [x, y] of [[3, 2], [5, 2], [20, 2], [18, 2]]) p.px(x, y, G[3]);
+  }
 }
 const ARMORS = {
   armor_cloth: { ramp: M.cloth, style: 'robe', trim: M.gold },
@@ -346,23 +378,105 @@ const ARMORS = {
 };
 function helm(p, o) {
   const R = o.ramp;
+  if (o.style === 'crown') return crownIcon(p, o);
+  if (o.style === 'cap') return capIcon(p, o);
+  if (o.style === 'circlet') return circletIcon(p, o);
+  const great = o.style === 'great';
+  const rim = (x) => { let y = 0; for (let k = 4; k <= 19; k++) if (helmMask(x, k, great)) y = k; return y; };
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const dx = x + 0.5 - 12, dy = y + 0.5 - 12;
-    const inDome = dx * dx / 64 + dy * dy / 70 <= 1 && y <= 17 && y >= 4;
-    if (!inDome) continue;
+    if (!helmMask(x, y, great)) continue;
     let c = pick(R, 3 - (dx + dy) / 8);
     if (o.style === 'nasal' && y >= 10 && Math.abs(dx) < 5 && !(Math.abs(dx) < 1)) c = y < 14 ? '#0c0810' : c;
     if (o.style === 'nasal' && Math.abs(dx) < 1 && y > 8) c = R[4];
-    if (o.style === 'nasal' && y === 9) c = R[1];
-    if (o.style === 'cap' && y > 12) continue;
-    if (o.style === 'cap' && y === 12) c = R[1];
+    if (o.style === 'nasal' && y === 9) c = (o.trim ?? R)[o.trim ? 3 : 1];
+    if (great && (y === 10 || y === 11) && Math.abs(dx) < 6) c = y === 10 ? '#0c0810' : '#1a1220';            // Sehschlitz
+    if (great && y === 9 && Math.abs(dx) < 7) c = (o.trim ?? R)[o.trim ? 3 : 1];
+    if (great && y > 12 && Math.abs(dx) < 0.6) c = (o.trim ?? R)[o.trim ? 2 : 4];                             // Mittelgrat
+    if (great && y > 13 && y < 18 && (y % 2) && Math.abs(dx) > 2 && Math.abs(dx) < 4.5) c = '#0c0810';      // Atemlöcher
     if (o.style === 'hood' && y > 9 && Math.abs(dx) < 4.2) c = y < 16 ? '#0a0610' : c;
+    if (o.trim && o.style !== 'hood' && o.style !== 'cap' && y === rim(x)) c = o.trim[2];
     p.px(x, y, c);
   }
+  if (o.glow && (great || o.style === 'nasal')) { const ey = great ? 10 : 11; p.px(9, ey, o.glow[4]); p.px(14, ey, o.glow[4]); p.px(10, ey, o.glow[3]); p.px(15, ey, o.glow[3]); }
+  if (o.coif) for (let y = 15; y < 22; y++) for (let x = 3; x < 21; x++) {
+    const dx = Math.abs(x + 0.5 - 12);
+    if (helmMask(x, y, great) && !(y >= 18)) { if (dx < 6) continue; }
+    if (dx > 8.6 - (y - 15) * 0.15 || (y < 18 && dx < 6)) continue;
+    p.px(x, y, (x + y) % 2 ? R[1] : R[3]);
+  }
   if (o.style === 'hood') { for (let y = 17; y < 21; y++) rect(p, 4 + (y - 17), y, 16 - (y - 17) * 2, 1, R[1]); p.px(10, 13, M.yellow[4]); p.px(13, 13, M.yellow[4]); }
-  if (o.horns) for (let i = 0; i < 6; i++) { p.px(4 - (i > 3 ? 1 : 0), 9 - i, M.bone[3 - (i > 3 ? 1 : 0)]); p.px(3 - (i > 3 ? 1 : 0), 9 - i, M.bone[2]); p.px(19 + (i > 3 ? 1 : 0), 9 - i, M.bone[2]); p.px(20 + (i > 3 ? 1 : 0), 9 - i, M.bone[1]); }
+  if (o.horns) helmHorns(p);
   if (o.crest) for (let y = 1; y < 6; y++) rect(p, 11, y, 2, 1, o.crest[y < 3 ? 4 : 3]);
-  if (o.style === 'cap') { rect(p, 3, 12, 18, 2, R[1]); rect(p, 3, 12, 18, 1, R[3]); for (let x = 6; x < 19; x += 3) p.px(x, 8, R[1]); p.px(12, 4, R[4]); }
+  if (o.tail) for (let i = 0; i < 9; i++) { const x = 13 + Math.round(i * 0.8), y = 3 + i; p.px(x, y, (o.crest ?? M.darkleather)[i < 3 ? 3 : 2]); p.px(x + 1, y, (o.crest ?? M.darkleather)[1]); }
+  if (o.crown) {
+    const C = o.crown, B = o.crownDim ? R : C;
+    rect(p, 6, 4, 12, 1, B[3]); rect(p, 6, 5, 12, 1, B[1]);
+    for (const x of [6, 11, 16]) { rect(p, x, 1, 2, 3, B[x === 11 ? 4 : 3]); p.px(x + 1, 1, B[1]); }
+    if (!o.crownDim) p.px(12, 4, C[4]);
+  }
+}
+// Hörner wie am Helden: dicke Wurzel seitlich am Helm, nach außen und oben gebogen, spitz zulaufend
+function helmHorns(p) {
+  const B = M.bone;
+  for (const dir of [-1, 1]) {
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24;
+      const x = 12 + dir * (6.6 + t * 4.4 + Math.sin(t * 2.2) * 0.8), y = 10.5 - t * 9.6 + t * t * 2.2;
+      const w = 1.9 * (1 - t) + 0.35;
+      for (let yy = Math.floor(y - w); yy <= Math.ceil(y + w); yy++) for (let xx = Math.floor(x - w); xx <= Math.ceil(x + w); xx++) {
+        if (Math.hypot(xx + 0.5 - x, yy + 0.5 - y) > w) continue;
+        const lit = dir < 0 ? (xx + 0.5 - x) > 0 : (xx + 0.5 - x) < 0;
+        p.px(xx, yy, B[t > 0.78 ? 4 : t < 0.3 ? (lit ? 2 : 1) : lit ? 3 : 2]);
+      }
+    }
+  }
+}
+// Lederkappe: glatte Kuppel mit Mittelnaht und Knopf, darunter die vorstehende Krempe (von oben gesehen) mit Steppstichen
+function capIcon(p, o) {
+  const R = o.ramp;
+  for (let y = 4; y < 15; y++) for (let x = 3; x < 21; x++) {
+    const dx = x + 0.5 - 12, dy = y + 0.5 - 14.5;
+    if (dx * dx / 82 + dy * dy / 66 > 1) continue;
+    let c = R[dx < -4 ? 3 : dx < 3 ? 2 : 1];
+    if (dy < -4.5 && dx > -5.5 && dx < -1.5) c = R[4];
+    if (Math.abs(dx) < 0.6) c = R[0];
+    p.px(x, y, c);
+  }
+  rect(p, 11, 5, 2, 1, R[4]); rect(p, 10, 6, 4, 1, R[1]);
+  for (let y = 15; y < 19; y++) {
+    const half = [10, 10, 9, 7][y - 15];
+    rect(p, 12 - half, y, half * 2, 1, y === 15 ? R[0] : y === 16 ? R[3] : R[2]);
+  }
+  for (let x = 4; x < 20; x += 2) p.px(x, 17, (o.trim ?? R)[o.trim ? 3 : 1]);
+  rect(p, 5, 19, 14, 1, '#0c0810');
+}
+// Stirnreif wie am Helden: schmales Metallband als vorderer Bogen (Diadem), Stein mittig in eigener Farbe, keine Haube
+function circletIcon(p, o) {
+  const T = o.ramp, G = o.gem ?? M.blue;
+  for (let x = 2; x < 22; x++) {
+    const dx = (x + 0.5 - 12) / 10, y = Math.round(10 + 5 * Math.sqrt(Math.max(0, 1 - dx * dx)) - 1.5 * (1 - Math.abs(dx)));
+    p.px(x, y - 1, T[dx < -0.3 ? 4 : 3]); p.px(x, y, T[dx < 0.2 ? 2 : 1]); p.px(x, y + 1, T[0]);
+  }
+  for (const sx of [6, 17]) { p.px(sx, 11, T[4]); p.px(sx, 12, T[2]); }
+  for (let y = 9; y < 17; y++) for (let x = 9; x < 15; x++) if (Math.abs(x + 0.5 - 12) + Math.abs(y + 0.5 - 13) < 3.6) p.px(x, y, T[y < 13 ? 3 : 1]);
+  gem(p, 12, 13, 2, G);
+}
+// Kuppel (offener Helm, Kappe, Kapuze) bzw. geschlossener Topfhelm bis zum Kinn
+function helmMask(x, y, great) {
+  const dx = x + 0.5 - 12, dy = y + 0.5 - 12;
+  if (great) return y >= 4 && y <= 19 && (y >= 12 ? Math.abs(dx) <= 7.2 - Math.max(0, y - 17) * 0.8 : dx * dx / 64 + dy * dy / 70 <= 1);
+  return dx * dx / 64 + dy * dy / 70 <= 1 && y <= 17 && y >= 4;
+}
+// Offene Krone (Erfolgsbelohnung „Die Sieben Gefallenen“): Reif mit fünf Zacken und Glutsteinen
+function crownIcon(p, o) {
+  const R = o.ramp, C = o.crown ?? M.ember;
+  for (let y = 12; y < 18; y++) for (let x = 3; x < 21; x++) p.px(x, y, pick(R, (y === 12 ? 4 : y === 17 ? 1 : 3 - (x - 3) / 12)));
+  for (const [x, h] of [[3, 4], [7, 6], [11, 9], [15, 6], [19, 4]]) {
+    for (let k = 1; k <= h; k++) { p.px(x, 12 - k, R[k > h - 2 ? 4 : 3]); if (k < h - 1) p.px(x + 1, 12 - k, R[2]); }
+    p.px(x, 11 - h, C[3]);
+  }
+  for (const x of [7, 12, 17]) { p.px(x, 14, C[4]); p.px(x + 1, 14, C[2]); p.px(x, 15, C[2]); p.px(x + 1, 15, C[1]); }
 }
 const HELMS = {
   helm: { ramp: M.iron, style: 'nasal', crest: M.red },
@@ -390,10 +504,10 @@ function gloves(p, o) {
       if (o.style === 'plate' && y < 10 && y % 3 === 0) c = R[1];
       if (o.style === 'mail' && y >= 10 && y < 17 && (x + y) % 2 === 0) c = R[1];
       if (o.style === 'cloth' && y === 19) c = (o.trim ?? M.gold)[2];
-      if (o.glow && y >= 10 && y < 17 && hash(x, y, 4) < 0.15) c = o.glow[4];
       p.px(ox + x, y, c);
     }
     if (o.style === 'plate' || o.style === 'mail') p.px(ox + (flip ? 4 : 6), 13, M.gold[3]);
+    if (o.glow) gem(p, ox + 5, 13, 1, o.glow);                              // Glutstein auf dem Handrücken wie am Helden
   };
   glove(1, false); glove(12, true);
 }
@@ -420,10 +534,10 @@ function boots(p, o) {
     if (o.style === 'mail' && y > 3 && y < 15 && (x + y) % 2 === 0) c = R[1];
     if (o.style === 'leather' && x === 9 && y > 4 && y < 15 && y % 2) c = M.leather[0];
     if (o.style === 'cloth' && y === 4) c = (o.trim ?? M.gold)[2];
-    if (o.glow && y > 3 && hash(x, y, 7) < 0.14) c = o.glow[4];
     p.px(x, y, c);
   }
   if (o.buckle) { p.rect(5, 12, 9, 1, M.darkleather[1]); p.px(12, 12, M.gold[3]); }
+  if (o.glow) gem(p, 13, 16, 1, o.glow);                                   // Glutstein am Knöchel wie am Helden
 }
 const BOOTS = {
   boots: { ramp: M.leather, style: 'leather', buckle: true },
@@ -921,12 +1035,7 @@ export function abilityIcon(abilityId, def) {
 // 7 Frostzinnen (Frost, Silber), 8 Glutöde (Obsidian, Gold, Glut). IDs: <visual>_t5 … _t8; Rüstung zusätzlich
 // helm_tN / hood_tN, gloves_<stil>_tN, boots_<stil>_tN (stil: cloth, leather, mail, plate), ring_tN, amulet_tN.
 // Fehlt eine Stufe (z. B. _t9), nimmt resolve() die nächstniedrigere (§12.7).
-const TIER_LOOK = {
-  5: { metal: M.bronze, trim: M.copper, gem: M.red, wood: M.ash, cloth: M.red, leather: M.leather, fur: M.fur, top: 'orb', grip: M.red },
-  6: { metal: M.iron, trim: M.bone, gem: M.green, wood: M.darkwood, cloth: M.moss, leather: M.darkleather, fur: M.moss, top: 'skull', grip: M.darkleather, jag: true },
-  7: { metal: M.frost, trim: M.silver, gem: M.blue, wood: M.silver, cloth: M.blue, leather: M.fur, fur: M.silver, top: 'crystal', grip: M.blue },
-  8: { metal: M.obsidian, trim: M.gold, gem: M.ember, wood: M.darkwood, cloth: M.red, leather: M.darkleather, fur: M.obsidian, top: 'flame', grip: M.darkleather, glow: M.ember },
-};
+// Farben je Stufe: character/gearLook.js TIER_LOOK (dieselbe Quelle wie am Helden).
 export const ICON_TIERS = Object.freeze([5, 6, 7, 8]);
 for (const n of ICON_TIERS) {
   const T = TIER_LOOK[n], t = `_t${n}`;
@@ -952,8 +1061,8 @@ for (const n of ICON_TIERS) {
   }
   GLOVES[`gloves${t}`] = GLOVES[`gloves_plate${t}`];
   BOOTS[`boots${t}`] = BOOTS[`boots_plate${t}`];
-  JEWELRY[`ring${t}`] = () => ({ f: ring, o: { band: T.trim === M.bone ? M.silver : T.trim, gem: T.gem } });
-  JEWELRY[`amulet${t}`] = () => ({ f: amulet, o: { chain: T.trim === M.bone ? M.silver : T.trim, gem: T.gem } });
+  JEWELRY[`ring${t}`] = () => ({ f: ring, o: { band: n === 6 ? M.silver : T.trim, gem: T.gem } });
+  JEWELRY[`amulet${t}`] = () => ({ f: amulet, o: { chain: n === 6 ? M.silver : T.trim, gem: T.gem } });
 }
 
 // Zweihänder Stufe 8 (Königsfall, Aschefall): wie die Klinge am Helden – Aschestahl, Goldparier, Glutstein,
@@ -1159,6 +1268,54 @@ function resolve(id) {
   return REG[fam] ? fam : 'bag';
 }
 
+// ---------------------------------------------------------------- Item-Bild = getragenes Aussehen
+// Ausrüstung (Waffe, Brust, Kopf, Hände, Füße) wird aus character/gearLook.js itemLook(def) gezeichnet: Form aus der
+// Icon-Tabelle oben, Materialien, Steine, Leuchten, Zierrand, Kamm und Krone wie am Helden. Gleiches Aussehen am
+// Helden ergibt dasselbe Bild, unterschiedliches Aussehen ein unterschiedliches. Seltenheit zeigt zusätzlich der Rahmen.
+//   itemIconId(def) -> Icon-ID für iconEl/iconUrl/iconCanvas (Ausrüstung: 'look:<n>', sonst def.icon)
+const tone = (R, k = 3) => (R ? R[k] : undefined);
+function shapeOf(table, look, family) {
+  const id = resolve(look.icon);
+  return table[id] ?? table[family] ?? Object.values(table)[0];
+}
+// Waffen: dieselbe Zeichenfunktion wie in der Hand des Helden (sprites/hero.js drawWeaponIcon)
+function weaponIcon(L) {
+  return ['heroWeapon', L];
+}
+const LOOK_ICON = {
+  weapon: weaponIcon,
+  chest: (L) => ['armor', { long: shapeOf(ARMORS, L, L.style === 'robe' ? 'robe_mage' : `armor_${L.style}`).long, style: L.style, ramp: L.ramp, trim: L.trim ?? M.gold,
+    shoulder: L.shoulder ?? null, fur: L.fur ?? null, tabard: L.tabard ?? null, emblem: L.emblem ?? null, glow: L.glow ?? null, spikes: !!L.spikes }],
+  head: (L) => ['helm', { ramp: L.ramp, style: L.style === 'horned' ? 'nasal' : L.style, horns: L.style === 'horned', trim: L.trim ?? null, crest: L.crest ?? null,
+    crown: L.crown ?? null, crownDim: !!L.crownDim, coif: !!L.coif, tail: !!L.tail, glow: L.glow ?? null, gem: L.gem ?? null }],
+  hands: (L) => ['gloves', { ...shapeOf(GLOVES, L, `gloves_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
+  feet: (L) => ['boots', { ...shapeOf(BOOTS, L, `boots_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
+};
+const DRAW_FN = { heroWeapon: (p, L) => drawWeaponIcon((x, y, c) => p.px(x, y, c), L, S), armor, helm, gloves, boots };
+const lookIds = new Map();   // JSON der Zeichenoptionen -> 'look:<n>'
+const defIds = new Map();    // id|icon|rarity -> Icon-ID
+export function itemIconId(def) {
+  if (!def) return 'bag';
+  const k = `${def.id ?? ''}|${def.icon ?? ''}|${def.rarity ?? ''}|${def.slot ?? ''}|${def.family ?? ''}`;
+  let id = defIds.get(k);
+  if (id) return id;
+  id = def.icon;
+  const r = def.type === 'weapon' || def.type === 'armor' ? itemLook(def) : null;
+  const spec = r && LOOK_ICON[r.slot]?.(r.look);
+  if (spec) {
+    const key = JSON.stringify(spec);
+    id = lookIds.get(key);
+    if (!id) {
+      id = `look:${lookIds.size}`;
+      lookIds.set(key, id);
+      const [f, o] = spec;
+      REG[id] = (p) => DRAW_FN[f](p, o);
+    }
+  }
+  defIds.set(k, id);
+  return id;
+}
+
 const canvasCache = new Map();
 const urlCache = new Map();
 
@@ -1209,7 +1366,7 @@ export function itemIconEl(def, cssSize = 40) {
   span.dataset.rarity = rarity;
   span.style.setProperty('--size', `${cssSize}px`);
   const u = cssSize >= 24 ? Math.max(1, Math.floor(cssSize / 24)) : 0;
-  span.append(iconEl(def?.icon, u ? 26 * u : Math.round(cssSize * 0.8)));
+  span.append(iconEl(itemIconId(def), u ? 26 * u : Math.round(cssSize * 0.8)));
   if (u) { span.classList.add('px'); span.style.setProperty('--fpx', `${u}px`); }
   if (def?.name) span.title = def.name;
   // Ab ungewöhnlich: gezeichneter Seltenheitsrahmen, ab episch mit Aufleuchten in Stufen (zweites Bild)
@@ -1273,10 +1430,11 @@ export function lootSprite(defOrId) {
   const def = typeof defOrId === 'object' ? defOrId : null;
   const id = def ? (def.gold != null ? 'gold' : def.icon) : defOrId;
   const kind = lootKind(def, id);
-  const key = `${kind}|${resolve(id)}`;
+  const toneId = def && def.gold == null ? itemIconId(def) : id;   // Farbton wie das Item-Bild (getragenes Aussehen)
+  const key = `${kind}|${resolve(toneId)}`;
   let c = lootCache.get(key);
   if (c) return c;
-  const t = iconTone(id);
+  const t = iconTone(toneId);
   const p = new PixelCanvas(14, 10);
   const c0 = shade(t, 0.45), c1 = shade(t, 0.75), c2 = shade(t, 1), c3 = shade(t, 1.35);
   switch (kind) {

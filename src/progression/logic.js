@@ -303,6 +303,22 @@ function migrateEquipment(raw, slots) {
   return eq;
 }
 
+// Waffe, die die Klasse nicht mehr führen darf (Waldläufer seit 11.10. ohne Dolche): beste passende Waffe aus der
+// Tasche anlegen, die alte kommt an deren Platz. Ohne passende Waffe bleibt alles, wie es ist.
+function swapUnfitWeapon(inv, classId, level) {
+  const worn = inv.equipment.weapon;
+  if (!worn || !classId || canUseClass(ITEMS[worn], classId)) return;
+  let best = -1;
+  inv.slots.forEach((sl, i) => {
+    const d = sl && ITEMS[sl.itemId];
+    if (d?.slot !== 'weapon' || !canUseClass(d, classId) || (d.reqLevel ?? 1) > level) return;
+    if (best < 0 || itemScore(d) > itemScore(ITEMS[inv.slots[best].itemId])) best = i;
+  });
+  if (best < 0) return;
+  inv.equipment.weapon = inv.slots[best].itemId;
+  inv.slots[best] = { itemId: worn, qty: 1 };
+}
+
 // Angebrochene Stapel derselben Sache zusammenlegen (Tränke stapeln seit 11.10. bis 100 statt 20).
 // Der Rest bleibt am Platz des ersten Stapels; wurde etwas frei, rückt die Tasche einmal lückenlos auf.
 function mergeStacks(slots) {
@@ -371,6 +387,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       slots.forEach((sl, j) => { if (sl && ITEMS[sl.itemId].type === 'material') { addMat(sl.itemId, sl.qty); slots[j] = null; } });
       const questBag = (raw.questBag ?? []).filter((e) => known(e?.itemId) && e.qty > 0).map((e) => ({ itemId: e.itemId, qty: e.qty | 0 }));
       const inv = { slots, equipment: migrateEquipment(raw.equipment, slots), upgrades, enchants, questBag, mats: matBag, autoSell: Object.hasOwn(SELL_TIERS, raw.autoSell ?? '') ? raw.autoSell : null };
+      swapUnfitWeapon(inv, state.slices.character?.classId, state.slices.progress?.level ?? 1);
       for (const k of Object.keys(enchants)) if (!ENCHANTS[enchants[k]]?.slots.includes(k)) delete enchants[k];
       recomputeBonus(inv);
       return inv;

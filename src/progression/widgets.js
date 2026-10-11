@@ -40,7 +40,7 @@ export function itemSlot(content, item, { selected = false, label = null, placeh
   def && item.qty > 1 ? h('span.pg-qty', String(item.qty)) : null,
   def && item.n ? h('span.pg-new', { title: 'Neu' }) : null,
   def && upgrade ? h('span.pg-up', { title: 'Verbesserung' }, '▲') : null,
-  def && blocked ? h('span.pg-lock', { title: blocked === 'Klasse' ? 'Deine Klasse kann das nicht führen' : `Benötigt ${blocked}` }, blocked === 'Klasse' ? '✕' : blocked.replace('Stufe ', '')) : null);
+  def && blocked ? (blocked === 'Klasse' ? h('span.pg-lock.cls', { title: 'Deine Klasse kann das nicht führen' }) : h('span.pg-lock', { title: `Benötigt ${blocked}` }, blocked.replace('Stufe ', ''))) : null);
 }
 
 // Herkunft besonderer Stücke (Tooltip)

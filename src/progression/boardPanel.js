@@ -5,7 +5,7 @@ import { h } from '../core/dom.js';
 import { WEEK_GOAL, boardOffers, offerRewards, offerText, weekChest, msUntilNextDay, boardDay } from './board.js';
 import { STREAK_DAYS, loginReward, firstWinReward, challengeReward, challengeText } from './daily.js';
 import { panelFrame, actionBtn, goldEl, attachTip, itemDetail } from './widgets.js';
-import { iconEl } from '../gfx/Icons.js';
+import { iconEl, itemIconId } from '../gfx/Icons.js';
 import { RARITIES } from './items.js';
 import { serverNow } from './clock.js';
 import { fmtNum } from '../i18n/index.js';
@@ -38,7 +38,7 @@ function rewardLine(c, { xp = 0, gold = 0, items = [], gear = null }, view, key)
   const icons = items.map((it) => {
     const def = c.find('item', it.itemId);
     if (!def) return null;
-    const el = h(`span.pg-rw-icon.rb-${def.rarity}${def.type === 'material' ? '.mat' : ''}`, iconEl(def.icon, 24), it.qty > 1 ? h('small', `${it.qty}`) : null);
+    const el = h(`span.pg-rw-icon.rb-${def.rarity}${def.type === 'material' ? '.mat' : ''}`, iconEl(itemIconId(def), 24), it.qty > 1 ? h('small', `${it.qty}`) : null);
     el.title = def.name;
     return pickable(attachTip(el, () => itemDetail(c, it.itemId, { compact: true, compare: false })), `${it.qty}× ${def.name}`);
   });
