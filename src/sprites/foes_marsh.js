@@ -124,11 +124,17 @@ function ell(p, cx, cy, rx, ry, ramp, o = {}) {
   const { rot = 0, noise = 0, seed = 1, bias = 0, clip = null } = o;
   if (rx <= 0 || ry <= 0) return;
   const c = Math.cos(rot), s = Math.sin(rot), h = p.step / 2;
-  const R = Math.ceil(Math.max(rx, ry)) + 1, nk = p.fine ? noise * NOISE_FINE : noise;
+  // fein: knolliger Umriss (o.lump = Ausschlag in Weltpixeln), an die Form gebunden
+  const lump = p.fine && o.lump ? o.lump / Math.max(rx, ry) : 0;
+  const R = Math.ceil(Math.max(rx, ry) + (lump ? o.lump : 0)) + 1, nk = p.fine ? noise * NOISE_FINE * (lump ? 0.35 : 1) : noise;
   scan(p, cx - R, cy - R, cx + R, cy + R, (x, y) => {
     const dx = x - cx, dy = y - cy;
-    const u = (dx * c + dy * s) / rx, v = (-dx * s + dy * c) / ry;
-    const d2 = u * u + v * v;
+    let u = (dx * c + dy * s) / rx, v = (-dx * s + dy * c) / ry;
+    let d2 = u * u + v * v;
+    if (lump) {
+      const a = Math.atan2(v, u), k = 1 + lump * (0.6 * Math.sin(a * 5 + seed) + 0.4 * Math.sin(a * 11 + seed * 2.3));
+      u /= k; v /= k; d2 /= k * k;
+    }
     if (d2 > 1) return null;
     if (clip && !clip(x - h, y - h)) return null;
     const nz = Math.sqrt(1 - d2);
@@ -143,8 +149,10 @@ function ell(p, cx, cy, rx, ry, ramp, o = {}) {
 function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
   const { noise = 0, seed = 1, bias = 0 } = o;
   const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 0.0001;
-  const Rm = Math.max(r0, r1) + 1e-6, nk = p.fine ? noise * NOISE_FINE : noise;
-  const R = Math.ceil(Math.max(r0, r1)) + 1;
+  // fein: knolliger Umriss (o.lump = Ausschlag in Weltpixeln), Buckel längs der Achse und je Seite verschieden
+  const lump = p.fine && o.lump ? o.lump : 0, len = Math.sqrt(l2);
+  const Rm = Math.max(r0, r1) + lump + 1e-6, nk = p.fine ? noise * NOISE_FINE * (lump ? 0.35 : 1) : noise;
+  const R = Math.ceil(Math.max(r0, r1) + lump) + 1;
   const r = p.res, q = 1 / r, W = p.W, H = p.H, b = p.buf;
   const fo = Math.round(p.ox * r), go = Math.round(p.oy * r);
   const G0 = Math.max(Math.floor((Math.min(y0, y1) - R) * r), -go), G1 = Math.min(Math.ceil((Math.max(y0, y1) + R) * r), H - 1 - go);
@@ -166,8 +174,12 @@ function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
       const px = (F + 0.5) * q;
       const t = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
       const qx = x0 + dx * t, qy = y0 + dy * t;
-      const rr = r0 + (r1 - r0) * t;
+      let rr = r0 + (r1 - r0) * t;
       const ex = px - qx, ey = py - qy;
+      if (lump) {
+        const side = ex * dy - ey * dx > 0 ? 1 : -1, u = t * len;
+        rr += lump * (0.6 * Math.sin(u * 0.9 + seed + side * 2) + 0.4 * Math.sin(u * 2.1 + seed * 1.7 + side));
+      }
       if (ex * ex + ey * ey > rr * rr * 1.000001 + 1e-9) continue;
       const d = Math.hypot(ex, ey);
       if (d > rr) continue;
@@ -1462,11 +1474,8 @@ function drawLeech(p, g, P) {
   meta.head = { x: h.x, y: h.y - h.r - 2 };
   // Schleimspur
   if (P.amp > 0 && P.curl === 0) {
-    if (p.fine) { // glänzende Schleimspur: dünner Film, einzelne Glanzpunkte
-      const x0 = pts[0].x - 1;
-      p.fline(x0 - 5, AY - 0.5, x0, AY - 0.5, SLIME[1]); p.fline(x0 - 3.5, AY - 1, x0 + 0.5, AY - 1, SLIME[2]);
-      p.dot(x0 - 1, AY - 1, '#9ab070'); p.dot(x0 - 3.5, AY - 0.5, '#7a9050');
-    } else for (let i = 0; i < 4; i++) p.px(pts[0].x - 1 - i * 1.5, AY - 1, i % 2 ? SLIME[1] : SLIME[2]);
+    // fein: keine lose Schleimspur hinter dem Schwanz (las sich als abgerissener Strich)
+    if (!p.fine) for (let i = 0; i < 4; i++) p.px(pts[0].x - 1 - i * 1.5, AY - 1, i % 2 ? SLIME[1] : SLIME[2]);
   }
   return meta;
 }
@@ -1779,6 +1788,42 @@ const BH = { W: 132, H: 112, AX: 58, AY: 100, pad: 18, rim: '#c8dcb0', back: '#8
 const BD = { legH: 23, thigh: 12, shin: 12.5, spine: 24, upper: 16, fore: 17, sh: 9, hipW: 5 };
 const H_MUD = ['#0a0907', '#15130d', '#211e14', '#2f2a1c', '#3f3926', '#534b31', '#6a6040'];
 const H_GLOSS = '#9a9268';
+// Feinraster: harte Stufen (dunkel, mittel, hell, Kante oben links) statt sanfter Rampe
+const HF_NEAR = ['#211e14', '#2f2a1c', '#2f2a1c', '#3f3926', '#3f3926', '#6a6040'];
+const HF_FAR = ['#0f0d09', '#18150f', '#18150f', '#221e15', '#221e15', '#3a3424'];
+const HF_ARM = ['#211e14', '#2f2a1c', '#3f3926', '#3f3926', '#534b31', '#857a52'];
+const HF_CLUMP = ['#2f2a1c', '#3f3926', '#534b31', '#7a6e48'];
+const HF_CLUMP_D = ['#15130d', '#211e14', '#2f2a1c', '#3f3926'];
+
+// Feine Schlammbrocken und Moosbüschel an einem Glied (an Achse und Radius gebunden): Klumpen stehen über den
+// Umriss hinaus (Lichtseite hell, Schattenseite dunkel), Moos sitzt in Büscheln auf der Lichtseite.
+function limbDeco(p, x0, y0, x1, y1, r0, r1, seed, far) {
+  const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, tx = dx / L, ty = dy / L;
+  let nx = -ty, ny = tx;
+  if (nx * LX + ny * LY < 0) { nx = -nx; ny = -ny; }
+  for (let i = 0; i < 3; i++) {
+    const t = 0.2 + 0.3 * i + (hash2(i, seed, 77) - 0.5) * 0.16, r = r0 + (r1 - r0) * t, side = i === 1 ? -1 : 1;
+    const cr = 1 + hash2(i, seed, 78) * 0.9, cx = x0 + dx * t + nx * side * (r - 0.1), cy = y0 + dy * t + ny * side * (r - 0.1);
+    ell(p, cx, cy, cr, cr * 0.85, far ? HF_CLUMP_D : side > 0 ? HF_CLUMP : HF_CLUMP_D);
+    if (side > 0) p.dot(cx - cr * 0.45, cy - cr * 0.5, far ? HF_CLUMP[1] : '#8a7e54');
+    else p.dot(cx + cr * 0.3, cy + cr * 0.6, '#0a0907');
+  }
+  for (let i = 0; i < 2; i++) {
+    const t = 0.32 + 0.38 * i + (hash2(i, seed, 79) - 0.5) * 0.12, r = r0 + (r1 - r0) * t;
+    mossClump(p, x0 + dx * t + nx * r * 0.62, y0 + dy * t + ny * r * 0.62, seed * 3 + i, far);
+  }
+}
+// Moosbüschel aus Feinpixeln: dunkler Fuß, mittlere Mitte, heller Kamm oben links
+function mossClump(p, x, y, seed, far) {
+  x = p.snap(x); y = p.snap(y);
+  const C = far ? [MOSS[1], MOSS[2], MOSS[3]] : [MOSS[2], MOSS[4], MOSS[6]];
+  const pts = [[-0.5, 0.5, 0], [0, 0.5, 0], [0.5, 0.5, 0], [1, 0.5, 0], [-0.5, 0, 1], [0, 0, 1], [0.5, 0, 1], [0, -0.5, 2], [0.5, -0.5, 1], [-0.5, -0.5, 2]];
+  for (let k = 0; k < pts.length; k++) {
+    const [ox, oy, c] = pts[k];
+    if (k > 3 && hash2(k, seed, 76) > 0.8) continue;
+    p.dot(x + ox, y + oy, C[c]);
+  }
+}
 const H_MUD_D = ['#070605', '#0f0d09', '#18150f', '#221e15', '#2e291d'];
 const B_REST = {
   hipX: 0, hipY: 0, lean: 0.55, head: 0, headY: 0, headA: 0.15, jaw: 0.1,
@@ -1884,16 +1929,20 @@ function drawHorror(p, g, P, X) {
   const { hip, chest, pt, legF, legB, shF, shB, armF, armB } = R;
   const { AY } = BH;
   const meta = {};
-  const far = H_MUD_D, near = H_MUD;
+  // fein: harte 4-Stufen-Rampen mit heller Kante oben links, knollige Umrisse (lump)
+  const FN = p.fine, LMP = FN ? 0.9 : 0;
+  const far = FN ? HF_FAR : H_MUD_D, near = FN ? HF_NEAR : H_MUD;
   const E = WISP;
 
   // --- hinterer Arm
-  cap(p, shB.x, shB.y, armB.jx, armB.jy, 5.2, 4.4, far, { noise: 0.2, seed: 53 });
-  cap(p, armB.jx, armB.jy, armB.ex, armB.ey, 4.4, 3.4, far, { noise: 0.2, seed: 54 });
+  cap(p, shB.x, shB.y, armB.jx, armB.jy, 5.2, 4.4, far, { noise: 0.2, seed: 53, lump: LMP });
+  cap(p, armB.jx, armB.jy, armB.ex, armB.ey, 4.4, 3.4, far, { noise: 0.2, seed: 54, lump: LMP });
+  if (FN) { limbDeco(p, shB.x, shB.y, armB.jx, armB.jy, 5.2, 4.4, 53, true); limbDeco(p, armB.jx, armB.jy, armB.ex, armB.ey, 4.4, 3.4, 54, true); }
   rootHand(p, armB.ex, armB.ey, Math.atan2(armB.ey - armB.jy, armB.ex - armB.jx) * 0.6 + 0.3, P.splash, far, false);
   // --- hinteres Bein
-  cap(p, hip.x - 3, hip.y, legB.jx, legB.jy, 7, 6, far, { noise: 0.2, seed: 55 });
-  cap(p, legB.jx, legB.jy, legB.ex, legB.ey - 1, 6, 6.5, far, { noise: 0.2, seed: 56 });
+  cap(p, hip.x - 3, hip.y, legB.jx, legB.jy, 7, 6, far, { noise: 0.2, seed: 55, lump: LMP });
+  cap(p, legB.jx, legB.jy, legB.ex, legB.ey - 1, 6, 6.5, far, { noise: 0.2, seed: 56, lump: LMP });
+  if (FN) { limbDeco(p, hip.x - 3, hip.y, legB.jx, legB.jy, 7, 6, 55, true); limbDeco(p, legB.jx, legB.jy, legB.ex, legB.ey - 1, 6, 6.5, 56, true); }
   for (let k = -1; k <= 2; k++) {
     if (p.fine) { p.fline(legB.ex + k * 1.5, legB.ey - 2, legB.ex + k * 3 - 1, AY - 1, ROOT[1], 1); p.fline(legB.ex + k * 1.5 - 0.5, legB.ey - 2, legB.ex + k * 3 - 1.5, AY - 1, ROOT[2]); continue; }
     p.line(legB.ex + k * 1.5, legB.ey - 2, legB.ex + k * 3 - 1, AY - 1, ROOT[1]);
@@ -1934,10 +1983,11 @@ function drawHorror(p, g, P, X) {
   }
 
   // --- Leib: Hüftmasse, Rumpf, Buckel
-  ell(p, hip.x, hip.y, 13, 11, near, { noise: 0.22, seed: 58 });
-  cap(p, hip.x, hip.y, chest.x, chest.y, 13, 15.5, near, { noise: 0.22, seed: 59 });
+  ell(p, hip.x, hip.y, 13, 11, near, { noise: 0.22, seed: 58, lump: LMP });
+  cap(p, hip.x, hip.y, chest.x, chest.y, 13, 15.5, near, { noise: 0.22, seed: 59, lump: LMP });
   const hump = pt(BD.spine - 1, -6);
-  ell(p, hump.x, hump.y, 17, 12.5, near, { noise: 0.25, seed: 60, rot: P.lean * 0.6 });
+  ell(p, hump.x, hump.y, 17, 12.5, near, { noise: 0.25, seed: 60, rot: P.lean * 0.6, lump: LMP });
+  if (FN) limbDeco(p, hip.x, hip.y, chest.x, chest.y, 13, 15.5, 59, false);
   // Wurzeln quer über den Leib
   for (let i = 0; i < 4; i++) {
     const a = pt(2 + i * 4.5, -9 + (i & 1) * 2), b = pt(5 + i * 4, 8 - (i & 1) * 3);
@@ -1975,7 +2025,7 @@ function drawHorror(p, g, P, X) {
       for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + P.ph, x = rc.x + Math.cos(a) * (3.5 + hb), y = rc.y + Math.sin(a) * (3 + hb); p.dot(x, y, E[4]); g.dot(x, y, E[3]); }
     }
   }
-  occlude(g);
+  occlude(p.fine ? null : g);   // fein: Rippen verdecken das Herzlicht nicht (deckende Brustrune statt Strichen)
   for (let i = 0; i < 5; i++) { // Rippen: Bögen vom Rückgrat nach vorn, verdecken das Licht
     const yy = rc.y - rr * 0.85 + i * rr * 0.4;
     const pts = [];
@@ -2028,8 +2078,10 @@ function drawHorror(p, g, P, X) {
   drip(p, g, belly.x - 5, belly.y + 1, 3, P.dr + 0.5, MUDDRIP);
 
   // --- vorderes Bein
-  cap(p, hip.x + 3, hip.y, legF.jx, legF.jy, 7.5, 6.5, near, { noise: 0.2, seed: 66 });
-  cap(p, legF.jx, legF.jy, legF.ex, legF.ey - 1, 6.5, 7, near, { noise: 0.2, seed: 67 });
+  if (FN) occlude(g);
+  cap(p, hip.x + 3, hip.y, legF.jx, legF.jy, 7.5, 6.5, near, { noise: 0.2, seed: 66, lump: LMP });
+  cap(p, legF.jx, legF.jy, legF.ex, legF.ey - 1, 6.5, 7, near, { noise: 0.2, seed: 67, lump: LMP });
+  if (FN) { limbDeco(p, hip.x + 3, hip.y, legF.jx, legF.jy, 7.5, 6.5, 66, false); limbDeco(p, legF.jx, legF.jy, legF.ex, legF.ey - 1, 6.5, 7, 67, false); occlude(null); }
   for (let k = -1; k <= 2; k++) {
     if (p.fine) { // Wurzelzehen: 2 Feinpixel mit Lichtkante, Spitze dünn
       p.fline(legF.ex + k * 2, legF.ey - 2, legF.ex + k * 3.5 + 1, AY - 1, ROOT[k === 1 ? 4 : 2], 1);
@@ -2047,17 +2099,19 @@ function drawHorror(p, g, P, X) {
   // --- vorderer Arm (erhoben: hinter dem Kopf, sonst davor)
   const armUp = P.hFy < -8;
   const drawFrontArm = () => {
-  const armR = [H_MUD[1], H_MUD[2], H_MUD[3], H_MUD[4], H_MUD[5], H_MUD[6], '#857a52'];
+  const armR = FN ? HF_ARM : [H_MUD[1], H_MUD[2], H_MUD[3], H_MUD[4], H_MUD[5], H_MUD[6], '#857a52'];
   // dunkle Kontur trennt den Arm vom Leib
-  cap(p, shF.x, shF.y, armF.jx, armF.jy, 7, 6, [BLACK]); cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 6, 4.8, [BLACK]);
-  cap(p, shF.x, shF.y, armF.jx, armF.jy, 6, 5, armR, { noise: 0.2, seed: 70 });
-  ell(p, shF.x - 1, shF.y - 1, 6.5, 5.5, armR, { noise: 0.25, seed: 71 }); // Schulterballen
+  if (FN) occlude(g);   // fein: der Arm verdeckt das Leuchten dahinter (kein gestricheltes Durchscheinen)
+  cap(p, shF.x, shF.y, armF.jx, armF.jy, 7, 6, [BLACK], { seed: 70, lump: LMP }); cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 6, 4.8, [BLACK], { seed: 72, lump: LMP });
+  cap(p, shF.x, shF.y, armF.jx, armF.jy, 6, 5, armR, { noise: 0.2, seed: 70, lump: LMP });
+  ell(p, shF.x - 1, shF.y - 1, 6.5, 5.5, armR, { noise: 0.25, seed: 71, lump: LMP }); // Schulterballen
   p.line(shF.x - 4, shF.y - 3, shF.x + 3, shF.y - 5, BONE[3]); p.px(shF.x + 3, shF.y - 5, BONE[5]); // Knochenzacke
   if (p.fine) { // Knochenzacke: Lichtkante, Risse; nasser Glanz auf dem Schulterballen
     p.fline(shF.x - 4, shF.y - 3.5, shF.x + 3, shF.y - 5.5, BONE[5]); p.dot(shF.x - 1, shF.y - 3.5, BONE[1]); p.dot(shF.x + 1, shF.y - 4.5, BONE[1]);
     shine(p, shF.x - 4.5, shF.y - 3.5, armR[5], H_GLOSS, 2);
   }
-  cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 5, 3.8, armR, { noise: 0.2, seed: 72 });
+  cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 5, 3.8, armR, { noise: 0.2, seed: 72, lump: LMP });
+  if (FN) { limbDeco(p, shF.x, shF.y, armF.jx, armF.jy, 6, 5, 70, false); limbDeco(p, armF.jx, armF.jy, armF.ex, armF.ey, 5, 3.8, 72, false); }
   for (let s4 = 0.2; s4 < 0.9; s4 += 0.3) { // Wurzelbänder
     const x = armF.jx + (armF.ex - armF.jx) * s4, y = armF.jy + (armF.ey - armF.jy) * s4;
     p.line(x - 3, y - 1, x + 3, y + 2, ROOT[3]); p.px(x + 3, y + 2, ROOT[5]);
@@ -2067,6 +2121,7 @@ function drawHorror(p, g, P, X) {
   const fa = Math.atan2(armF.ey - armF.jy, armF.ex - armF.jx);
   rootHand(p, armF.ex, armF.ey, fa * 0.6 + 0.2, P.splash, armR, true);
   meta.hand = { x: armF.ex + Math.cos(fa) * 4, y: armF.ey + Math.sin(fa) * 4 };
+  if (FN) occlude(null);
 
   };
   if (armUp) drawFrontArm();
@@ -2074,7 +2129,9 @@ function drawHorror(p, g, P, X) {
   // --- Kopf: Elchschädel am Schlammhals, Wurzelgeweih
   const neck = pt(BD.spine + 1, 8);
   const hx = neck.x + 6 + P.head, hy = neck.y + 3 + P.headY;
-  cap(p, neck.x - 3, neck.y - 1, hx - 1, hy, 6, 4, near, { noise: 0.2, seed: 68 });
+  if (FN) occlude(g);
+  cap(p, neck.x - 3, neck.y - 1, hx - 1, hy, 6, 4, near, { noise: 0.2, seed: 68, lump: LMP });
+  if (FN) occlude(null);
   const ha = P.headA;
   const ca = Math.cos(ha), sa = Math.sin(ha);
   const Hh = (u, v) => ({ x: hx + u * ca - v * sa, y: hy + u * sa + v * ca });
