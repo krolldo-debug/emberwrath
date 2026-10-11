@@ -54,6 +54,10 @@ const DESIGN_DETAILS_EN = {
   design_phoenix: 'Mount Phoenix Wing and dye Phoenix Ember',
   design_astral: 'Mount Star Stallion and dye Starry Night',
   design_soul: 'Mount Soul Wolf and dye Soullight',
+  design_set_glutthron: 'Skin set Ward of the Ember Throne for Warriors: looks for weapon, chest, head, hands and feet',
+  design_set_mondsichel: 'Skin set Veil of the Crescent Moon for Rogues: looks for weapon, chest, head, hands and feet',
+  design_set_hirschkoenig: 'Skin set Mantle of the Stag King for Rangers: looks for weapon, chest, head, hands and feet',
+  design_set_sternenfeuer: 'Skin set Raiment of Starfire for Ember Mages: looks for weapon, chest, head, hands and feet',
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

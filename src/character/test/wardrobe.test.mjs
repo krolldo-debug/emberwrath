@@ -103,6 +103,35 @@ test('Laden bereinigt, Paneldaten fassen gleiches Aussehen zusammen', async () =
   }
 });
 
+test('Skinsets: nur gekauft, nur eigene Klasse, ganzes Set anlegen', async () => {
+  const { c, state, content, game } = setup('warrior');
+  state.slices.shop = { owned: [] };
+  const sword = 'set_glutthron_weapon';
+  assert.ok(content.find('item', sword)?.lookOnly, 'Set-Teile sind Inhalte');
+  // nie über Beute/Tasche freischaltbar
+  c('wardrobe:unlock', { itemIds: [sword] });
+  assert.ok(!state.slices.character.wardrobe.looks.includes(sword));
+  assert.equal(c('wardrobe:show', { slot: 'weapon', itemId: sword }).reason, 'locked');
+  assert.equal(c('wardrobe:showSet', { setId: 'set_glutthron' }).reason, 'locked');
+  assert.ok(!game.character.wardrobe.entries('weapon').list.some((x) => x.itemId === sword));
+  // gekauft: kontoweit über den Shop-Slice
+  state.slices.shop.owned = ['look:set_glutthron'];
+  const e = game.character.wardrobe.entries('weapon');
+  assert.equal(e.list[0].itemId, sword, 'Set steht vorn');
+  assert.equal(e.list[0].setId, 'set_glutthron');
+  assert.equal(c('wardrobe:showSet', { setId: 'set_glutthron' }).ok, true);
+  assert.equal(shownEquipment(state.slices, content).weapon, sword);
+  assert.equal(shownEquipment(state.slices, content).chest, 'set_glutthron_chest');
+  assert.equal(c('wardrobe:showSet', { setId: 'set_mondsichel' }).reason, 'class');
+  // nicht mehr bezahlt: nicht mehr sichtbar, Laden behält es nicht in looks
+  state.slices.shop.owned = [];
+  assert.notEqual(shownEquipment(state.slices, content).weapon, sword);
+  const clean = cleanWardrobe({ looks: [sword, 'iron_sword'], shown: { weapon: sword, chest: 'set_glutthron_head' } }, (id) => hasLook(content.find('item', id)));
+  assert.deepEqual(clean.looks, ['iron_sword']);
+  assert.equal(clean.shown.weapon, sword, 'gewählt bleibt, gilt aber nur mit Kauf');
+  assert.equal(clean.shown.chest, null, 'falscher Platz verworfen');
+});
+
 let fail = 0;
 for (const [n, f] of tests) {
   try { await f(); console.log('ok ', n); } catch (e) { fail++; console.log('FAIL', n, '\n', e); }

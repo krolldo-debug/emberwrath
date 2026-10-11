@@ -143,7 +143,7 @@ function status(env) {
     enabled: shopEnabled(env),
     configured: shopConfigured(env),
     products: GOLD_PACKS.map((p) => ({ id: p.id, gold: p.gold, bonus: p.bonus, total: packTotal(p), priceCents: p.priceCents, tag: p.tag ?? null })),
-    designs: DESIGNS.map((d) => ({ id: d.id, name: d.name, items: d.items, priceCents: d.priceCents, tag: d.tag ?? null })),
+    designs: DESIGNS.map((d) => ({ id: d.id, name: d.name, items: d.items, priceCents: d.priceCents, tag: d.tag ?? null, classId: d.classId ?? null })),
     currency: SHOP_CURRENCY,
     priceNote: PRICE_NOTE,
     terms: TERMS_PATH,

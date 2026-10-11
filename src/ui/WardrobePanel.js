@@ -5,6 +5,7 @@ import { spriteStyle } from '../character/cosmetics.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { StableStage, mountCard, emptyCard, mountStand, snapToDevice, cardFit, cardScale, TEX } from './Stable.js';
 import { fmtNum } from '../i18n/index.js';
+import { findSkinSet, SET_ITEMS } from '../character/skinSets.js';
 
 // Garderobe (Panel 'wardrobe') – Thread D, Daten von Thread A:
 //   game.character.wardrobe = { SLOTS, entries(slot), show(slot, value) }
@@ -17,6 +18,7 @@ import { fmtNum } from '../i18n/index.js';
 // Alle Reiter haben denselben Aufbau: links die Bühne (ui/Stable.js, Steppe wie die Reittier-Parade, ganzzahliges
 // Raster), darunter Name, eine Zeile Info und ein Knopf an fester Stelle; rechts das Raster.
 // Ausrüstung: erste Kachel = Aussehen der angelegten Ausrüstung (null), beim Kopf zweite = Helm ausblenden ('none').
+// Skinset-Teile (gekauft, character/skinSets.js) stehen vorn; angetippt zeigt die Bühne das ganze Set, der Knopf legt alle Teile an.
 // Reittiere: gleich große Karten in festen Spalten, fehlende als Silhouette mit Fundort. Öffnen dort: { tab: 'mounts' }.
 const MOUNTS_TAB = 'mounts';
 const MOUNT_RARITY = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
@@ -163,19 +165,36 @@ function createWardrobePanel(session, params = {}) {
     const sel = slot in preview ? preview[slot] : cur;
     const css = compact() ? ICON_PX * 2 : ICON_PX * 3;
     const wornDef = content.find('item', itemId(e.equipped));
-    const tile = (value, label, visual, { rarity = null, usable = true, cap = null } = {}) => h(`button.wd-tile${sel === value ? '.sel' : ''}${cur === value ? '.cur' : ''}${usable ? '' : '.off'}`, {
+    const tile = (value, label, visual, { rarity = null, usable = true, cap = null, setId = null } = {}) => h(`button.wd-tile${sel === value ? '.sel' : ''}${cur === value ? '.cur' : ''}${usable ? '' : '.off'}`, {
       type: 'button', title: label, 'aria-label': label, 'aria-pressed': sel === value ? 'true' : 'false',
       style: rarity ? `--wd-r: ${RARITY_COLORS[rarity] ?? RARITY_COLORS.common}` : null,
-      onclick: () => { if (sel === value) return; preview = { ...preview, [slot]: value }; msg = ''; refreshStage(); render(); },
+      onclick: () => {
+        if (sel === value) return;
+        // Set-Teil: ganzes Set zeigen; anderes Teil: Set-Vorschau der übrigen Plätze verwerfen
+        const rest = setId ? preview : Object.fromEntries(Object.entries(preview).filter(([k, v]) => k === slot || !SET_ITEMS[v]));
+        preview = { ...rest, ...(setId ? findSkinSet(setId)?.pieces : null), [slot]: value };
+        msg = ''; refreshStage(); render();
+      },
     }, visual, cap ? h('span.wd-tile-cap', cap) : null, cur === value ? h('span.wd-check', { 'aria-hidden': 'true' }) : null, usable ? null : h('span.wd-lock', { 'aria-hidden': 'true' }));
     const tiles = [
       tile(null, 'Angelegter Gegenstand', tileIcon(wornDef ? itemIconId(wornDef) : SLOT_PH[slot], { dim: !wornDef, css }), { rarity: wornDef?.rarity ?? null, cap: 'Ausrüstung' }),
       slot === 'head' ? tile('none', 'Helm ausgeblendet', tileIcon(wornDef ? itemIconId(wornDef) : SLOT_PH.head, { slash: true, css }), { cap: 'Aus' }) : null,
-      ...(e.list ?? []).map((it) => tile(it.itemId, it.name, tileIcon(itemIconId(content.find('item', it.itemId)), { css }), { rarity: it.rarity, usable: it.usable })),
+      ...(e.list ?? []).map((it) => tile(it.itemId, it.name, tileIcon(itemIconId(content.find('item', it.itemId)), { css }), { rarity: it.rarity, usable: it.usable, setId: it.setId })),
     ];
     const pick = (e.list ?? []).find((it) => it.itemId === sel);
-    const state = sel === cur ? 'on' : pick && !pick.usable ? 'off' : 'can';
-    const button = stateBtn(state, state === 'on' ? 'Angelegt' : state === 'off' ? 'Andere Klasse' : 'Anlegen', () => {
+    // Skinset: angelegt erst, wenn alle Teile gezeigt werden
+    const setPieces = pick?.setId ? findSkinSet(pick.setId)?.pieces ?? null : null;
+    const shownNow = st.slices.character?.wardrobe?.shown ?? {};
+    const setOn = !!setPieces && Object.entries(setPieces).every(([k, id]) => shownNow[k] === id);
+    const state = setPieces ? (setOn ? 'on' : 'can') : sel === cur ? 'on' : pick && !pick.usable ? 'off' : 'can';
+    const button = stateBtn(state, state === 'on' ? 'Angelegt' : state === 'off' ? 'Andere Klasse' : setPieces ? 'Set anlegen' : 'Anlegen', () => {
+      if (setPieces) {
+        const r = wr.showSet(pick.setId);
+        if (r?.ok) { preview = {}; msg = ''; session.bus.emit(EV.UI_TOAST, { text: 'Set angelegt', kind: 'info' }); refreshStage(); }
+        else msg = REASONS[r?.reason] ?? '';
+        render();
+        return;
+      }
       const r = wr.show(slot, sel);
       if (r?.ok) { const p = { ...preview }; delete p[slot]; preview = p; msg = ''; session.bus.emit(EV.UI_TOAST, { text: 'Aussehen angelegt', kind: 'info' }); refreshStage(); }
       else msg = REASONS[r?.reason] ?? '';

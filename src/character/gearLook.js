@@ -1,4 +1,4 @@
-import { SET_LOOKS } from './skinSets.js';
+import { SET_LOOKS, ownedSetLooks } from './skinSets.js';
 
 // VERTRAG (Thread A): übersetzt angelegte Ausrüstung in das Aussehen der Spielfigur.
 //   resolveGear(equipment, content) -> gear | null
@@ -444,13 +444,15 @@ export function shownEquipment(slices, content) {
   const eq = slices?.inventory?.equipment ?? {};
   const ch = slices?.character ?? {}, w = ch.wardrobe;
   const out = {};
+  let sets = null;
   for (const slot of LOOK_SLOTS) {
     const worn = idOf(eq[slot] ?? (slot === 'chest' ? eq.armor : null));
     out[slot] = worn;
     const want = w?.shown?.[slot];
     if (!worn || !want) continue;
     if (want === HIDE_LOOK) { if (slot === 'head') out[slot] = null; continue; }
-    if (!w.looks?.includes(want)) continue;
+    // Gesammelt, oder Teil eines gekauften Skinsets (kontoweit über slices.shop, character/skinSets.js)
+    if (SET_LOOKS[want] ? !(sets ??= ownedSetLooks(slices)).has(want) : !w.looks?.includes(want)) continue;
     if (lookAllowed(content?.find('item', want), slot, ch.classId)) out[slot] = want;
   }
   return out;
