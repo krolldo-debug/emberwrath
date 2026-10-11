@@ -4447,5 +4447,7 @@ export const EN = {
   "Diesen Namen trägt schon ein anderes Konto.": "Another account already uses this name.",
   "Du kannst deinen Namen nur alle 30 Tage ändern.": "You can only change your name once every 30 days.",
   "Namen ändern klappt gerade nicht. Bitte versuche es später erneut.": "Your name can't be changed right now. Please try again later.",
-  "Dein Name wurde geändert.": "Your name has been changed."
+  "Dein Name wurde geändert.": "Your name has been changed.",
+  "Eine neue Version ist da. Bitte lade die Seite neu, damit dein Fortschritt gespeichert wird.": "A new version is available. Please reload the page so your progress is saved.",
+  "Eine neue Version ist da. Sie wird beim nächsten Gebietswechsel geladen.": "A new version is available. It will load at your next zone change."
 };

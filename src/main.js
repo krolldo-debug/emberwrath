@@ -12,6 +12,7 @@ import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
+import { installVersionCheck } from './core/Version.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
@@ -37,5 +38,6 @@ else game.bus.on(EV.ONLINE_CHANGED, ({ user }) => {
   if (user && !window.emberfall) game.online?.isAdmin().then((ok) => { if (ok) window.emberfall = game; });
 });
 installRotateGate(game); // Handy/Tablet: nur Querformat
+installVersionCheck(game); // Alter Tab nach einem Release: nicht mehr hochladen, einmal neu laden (src/core/Version.js)
 game.start('title');
 document.getElementById('boot')?.remove();

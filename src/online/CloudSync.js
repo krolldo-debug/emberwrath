@@ -9,6 +9,7 @@
 //  - entfernt lokal, was auf einem anderen Gerät gelöscht wurde.
 // Warteschlange und Stand je Konto: localStorage 'emberwrath:online:sync:<Nutzer-ID>' (nicht in Sicherungsdateien).
 import { stashSnapshot } from '../account/backups.js';
+import { checkVersion } from '../core/Version.js';
 
 export const ONLINE_ACCOUNT_PREFIX = 'sb_';
 export const accountIdFor = (userId) => `${ONLINE_ACCOUNT_PREFIX}${userId}`;
@@ -101,6 +102,8 @@ export class CloudSync {
   async #flush() {
     const todo = this.#state();
     if (!todo.dirty.length && !todo.deleted.length) return;
+    // Veralteter Code lädt nichts hoch (kennt neue Teile des Spielstands nicht); nach dem Neuladen geht es weiter
+    if (await checkVersion()) return;
     const acc = this.accountId;
     const doneDeletes = new Set(), uploaded = new Map(), adopted = new Set(), rejected = new Set();
     this.#set('syncing');

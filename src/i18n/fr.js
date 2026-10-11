@@ -4447,5 +4447,7 @@ export const FR = {
   "Zwischen uns und dem Thron steht der Glutkoloss. Er bewacht das Tor, seit ich hier bin. Keiner von uns ist ihm nahe gekommen und hat es überlebt. Du wirst der Erste sein. Bring mir seinen Kern, dann marschieren wir.": "Entre nous et le Trône se dresse le Colosse de Braise. Il garde la porte depuis que je suis ici. Aucun de nous ne l'a approché en survivant. Tu seras le premier. Rapporte-moi son noyau, et nous marcherons.",
   "Zwölf Feinde im Aschenwald. Egal welche.": "Douze ennemis dans le Bois de Cendre. Peu importe lesquels.",
   "Zwölf. Ich werde ihre Namen nicht aussprechen. Aber ich werde sie nie vergessen. Danke.": "Douze. Je ne prononcerai pas leurs noms. Mais je ne les oublierai jamais. Merci.",
-  "Zyklon": "Cyclone"
+  "Zyklon": "Cyclone",
+  "Eine neue Version ist da. Bitte lade die Seite neu, damit dein Fortschritt gespeichert wird.": "Une nouvelle version est disponible. Recharge la page pour que ta progression soit sauvegardée.",
+  "Eine neue Version ist da. Sie wird beim nächsten Gebietswechsel geladen.": "Une nouvelle version est disponible. Elle se chargera au prochain changement de zone."
 };

@@ -4447,5 +4447,7 @@ export const ES = {
   "Zwischen uns und dem Thron steht der Glutkoloss. Er bewacht das Tor, seit ich hier bin. Keiner von uns ist ihm nahe gekommen und hat es überlebt. Du wirst der Erste sein. Bring mir seinen Kern, dann marschieren wir.": "Entre nosotros y el Trono se alza el Coloso de Ascuas. Guarda la puerta desde que llegué. Ninguno de nosotros se le ha acercado y ha vivido para contarlo. Tú serás el primero. Tráeme su núcleo y marcharemos.",
   "Zwölf Feinde im Aschenwald. Egal welche.": "Doce enemigos en el Bosque de Ceniza. Da igual cuáles.",
   "Zwölf. Ich werde ihre Namen nicht aussprechen. Aber ich werde sie nie vergessen. Danke.": "Doce. No diré sus nombres en voz alta. Pero nunca los olvidaré. Gracias.",
-  "Zyklon": "Ciclón"
+  "Zyklon": "Ciclón",
+  "Eine neue Version ist da. Bitte lade die Seite neu, damit dein Fortschritt gespeichert wird.": "Hay una nueva versión. Recarga la página para que se guarde tu progreso.",
+  "Eine neue Version ist da. Sie wird beim nächsten Gebietswechsel geladen.": "Hay una nueva versión. Se cargará en tu próximo cambio de zona."
 };
