@@ -110,6 +110,10 @@ const RIDERS = {
   ash_wolf: ['dwarf', 'mage', ['staff_of_last_ash', 'colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], 'bound'],
   marsh_strider: ['elf', 'rogue', ['veilpiercer', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], 'stalk'],
   steppe_horse: ['human', 'ranger', ['dawnstring', 'jarl_cap', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], 'gallop'],
+  // Exklusive Shop-Reittiere (site/shop.html), Reiter mit der Färbung des Designs (5. Wert)
+  phoenix_wing: ['human', 'warrior', [...SOV, 'kingsbane'], 'fly', 'phoenix'],
+  astral_stallion: ['elf', 'mage', ['staff_of_last_ash', 'colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], 'gallop', 'starnight'],
+  soul_wolf: ['emberborn', 'rogue', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'], 'bound', 'soullight'],
 };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
@@ -139,12 +143,12 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE }) => {
   const out = {}, meta = {}, log = [];
   const GAITS = new Function(GAITCODE)();
   const S = 600, AX = 300, AY = 420, RES = 2;
-  for (const [mountId, [raceId, classId, gear, gaitId]] of Object.entries(RIDERS)) {
+  for (const [mountId, [raceId, classId, gear, gaitId, dye]] of Object.entries(RIDERS)) {
     if (ONLY && !ONLY.includes(mountId)) continue;
     const G = GAITS[gaitId];
     const equipment = {};
     for (const id of gear) { const d = g.content.get('item', id); if (d) equipment[d.slot] = id; else log.push('fehlt ' + id); }
-    const rider = getHeroSprites(raceId, classId, 0, resolveGear(equipment, g.content), null, RES).ride;
+    const rider = getHeroSprites(raceId, classId, 0, resolveGear(equipment, g.content), dye ? { dye, hairStyle: null } : null, RES).ride;
     const def = g.content.find('mount', mountId);
     const B = BODY[def.sprite];
     const cs = [], lifts = [], h2 = (v) => Math.round(v * 2) / 2;
