@@ -13,7 +13,7 @@ import { getHeroSprites, setHeroRes } from '../sprites/hero.js';
 // Der Held steht etwas weiter hinten als der Held des Titelbilds (STAND statt FY): so läuft der Lavastrom hinter ihm
 // auf Hüfthöhe und nicht durch den Kopf.
 
-const S = { W: 640, H: 272, FY: 212, STAND: 197, HX: 270, LT: 143, LH: 4, LH2: 77, NT: 206 };
+const S = { W: 640, H: 272, FY: 212, STAND: 176, HX: 255, LT: 143, LH: 4, LH2: 77, NT: 206 };
 const FOOT_ROWS = 128;             // Szenenpixel vom oberen Bildrand bis zum Fußpunkt (Aschethron samt Spitze im Bild)
 export const STAGE_RES = 3;        // Feinpixel je Weltpixel des Helden auf der Bühne (im Spiel 2)
 const FIRE = ['#fff2c0', '#ffb648', '#e8641a', '#a8300a'];
@@ -205,10 +205,7 @@ export class CreateStage {
     }
     if (this.ring) { this.ring.t += dt; if (this.ring.t > 0.5) this.ring = null; }
     this.flash = Math.max(0, this.flash - dt);
-    if (!this.reduced) {
-      if (Math.random() < dt * 2.4) this.#ash();
-      if (Math.random() < dt * 4) this.#spark(v.hx + rnd(-30, 30), v.hy + rnd(-1, 1), { vy: -rnd(12, 30), vx: rnd(-3, 3), max: rnd(0.6, 1.4), wob: 6 });
-    }
+    if (!this.reduced && Math.random() < dt * 2.4) this.#ash();
     for (const q of this.parts) {
       q.life += dt;
       if (q.wob) q.vx += Math.sin(q.life * 6 + q.seed) * q.wob * dt;

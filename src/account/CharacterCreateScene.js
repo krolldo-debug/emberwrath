@@ -19,8 +19,10 @@ import { hairStylesFor, HAIR_STYLES } from '../character/cosmetics.js';
 
 const TILE_RES = 2;   // Feinpixel je Weltpixel der Kachelbilder, wie im Spiel (sprites/hero.js HERO_MAX_RES)
 
-// Überschrift einer Fähigkeit: Name, bei Fähigkeiten mit Taste (ganzer Text für die Übersetzung)
-const skillTitle = (sk) => (sk.key ? `${sk.name} (Taste ${sk.key})` : sk.name);
+// Überschrift einer Fähigkeit: Name, bei Fähigkeiten mit Taste (ganzer Text für die Übersetzung); auf Touch ohne Taste
+const keyHints = () => !window.matchMedia?.('(hover: none)').matches;
+const skillTitle = (sk) => (sk.key && keyHints() ? `${sk.name} (Taste ${sk.key})` : sk.name);
+const SKILL_PX = 48;   // Embleme 48 × 48 (gfx/SkillArt.js), 1:1 in CSS-Pixeln
 
 const NAME_PROBLEM = {
   reserviert: 'Dieser Name ist für das Team reserviert. Bitte wähle einen anderen.',
@@ -196,11 +198,11 @@ export class CharacterCreateScene extends MenuScene {
     const keys = ['Q', 'R', 'T', 'G'];
     // Grundangriff + vier Fähigkeiten als Symbolleiste; die angetippte wird darunter beschrieben.
     const skills = [
-      { name: 'Angriff', key: null, desc: cls.attackDesc, meta: null, icon: iconEl(cls.icon, 32) },
+      { name: 'Angriff', key: null, desc: cls.attackDesc, meta: null, icon: iconEl(`attack_${classId}`, SKILL_PX) },
       ...cls.abilities.map((id, i) => {
         const a = g.content.get('ability', id);
         const meta = [a.level > 1 ? `ab Stufe ${a.level}` : null, a.cost ? `${a.cost} ${stats.resourceName}` : null, `${a.cooldown} s Abklingzeit`].filter(Boolean).join(' · ');
-        return { name: a.name, key: keys[i], desc: a.desc, meta, icon: iconEl(abilityIcon(a.id, a), 32) };
+        return { name: a.name, key: keys[i], desc: a.desc, meta, icon: iconEl(abilityIcon(a.id, a), SKILL_PX) };
       }),
     ];
     this.skill = Math.min(this.skill, skills.length - 1);
@@ -214,7 +216,7 @@ export class CharacterCreateScene extends MenuScene {
         skills.map((sk, i) => h(`button.cc-skill${i === this.skill ? '.selected' : ''}`, {
           type: 'button', title: sk.name, 'aria-label': sk.name, 'aria-pressed': i === this.skill ? 'true' : 'false',
           onclick: () => { this.skill = i; this.skillPicked = true; this.#refresh(); },
-        }, sk.icon, sk.key ? h('span.cc-skill-key', sk.key) : null))),
+        }, sk.icon, sk.key && keyHints() ? h('span.cc-skill-key', { 'aria-hidden': 'true' }, sk.key) : null))),
       h('div.cc-skill-info',
         h('h4', skillTitle(cur)),
         h('p', cur.desc),

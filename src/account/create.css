@@ -75,13 +75,13 @@
 .cc-hair-pips i { width: 4px; height: 4px; background: #4a3020; }
 .cc-hair-pips i.on { background: var(--cc-ember); box-shadow: 0 0 0 1px #5a1a08; }
 .cc-arrow { flex: none; width: 44px; display: grid; place-items: center; padding: 0; color: var(--cc-gold); background: #160b0e; border: 2px solid #3a2618; cursor: pointer; }
-.cc-arrow svg { display: block; filter: drop-shadow(0 2px 0 #000); }
+.cc-arrow svg { display: block; width: 15px; height: 27px; filter: drop-shadow(0 3px 0 #000); }   /* 5 × 9 Pixel, je 3 CSS-Pixel */
 .cc-arrow-prev svg { transform: scaleX(-1); }
 .cc-arrow:hover, .cc-arrow:focus-visible { color: #fff4e0; border-color: var(--cc-edge-hi); outline: none; }
 .cc-hair-name:hover { color: #fff4e0; }
 .cc-hair-name:focus-visible { outline: none; }
 .cc-plate {
-  display: flex; align-items: stretch; width: min(400px, 100%); height: 56px; margin-top: 14px;
+  display: flex; align-items: stretch; width: min(400px, 100%); height: 60px; margin-top: 14px;
   background: #0d070c; border: 2px solid var(--cc-edge-hi); box-shadow: 0 0 0 2px var(--cc-ink), inset 0 0 0 2px #2a1810;
 }
 .cc-plate:focus-within { border-color: var(--cc-gold); }
@@ -91,7 +91,7 @@
 }
 .cc-name::placeholder { color: #7a6a58; font-size: 16px; }
 .cc-dice { flex: none; width: 52px; display: grid; place-items: center; padding: 0; background: transparent; border: 0; border-left: 2px solid #2a1810; cursor: pointer; }
-.cc-dice svg { display: block; width: 28px; height: 28px; }
+.cc-dice svg { display: block; width: 36px; height: 36px; }   /* 12 × 12 Pixel, je 3 CSS-Pixel wie die Farbsteine */
 .cc-dice:hover, .cc-dice:focus-visible { background: #2a1810; outline: none; }
 .cc-error { margin: 8px 0 0; max-width: 400px; text-align: center; font-size: 14px; color: #ff9a8a; }
 .cc-error:empty { display: none; }
@@ -100,28 +100,30 @@
 .cc-right { grid-area: right; display: flex; flex-direction: column; min-height: 0; }
 .cc-summary { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; }
 /* Dunkle Tafel hinter dem Text, harte Kanten: ruhig lesbar über Lava und Kruste */
-.cc-card { padding: 14px 16px 16px; background: rgba(8, 4, 10, 0.84); border: 2px solid #2a1810; box-shadow: 0 0 0 2px #000; display: flex; flex-direction: column; gap: 8px; }
+/* Feste Höhe für den längsten Inhalt (Klasse + Fähigkeit): die Oberkante springt beim Wechseln nicht */
+.cc-card { min-height: 432px; box-sizing: border-box; padding: 14px 16px 16px; background: rgba(8, 4, 10, 0.84); border: 2px solid #2a1810; box-shadow: 0 0 0 2px #000; display: flex; flex-direction: column; gap: 8px; }
 .cc-race { margin: 0; font: 700 15px var(--cc-title); color: var(--cc-gold); letter-spacing: 0.22em; text-transform: uppercase; }
-.cc-class { margin: -2px 0 0; font: 700 clamp(40px, 4vw, 58px)/1.02 var(--cc-title); color: #fff4e0; letter-spacing: 0.03em; text-shadow: 0 3px 0 #3a0e05; }
+.cc-class { margin: -2px 0 0; font: 700 clamp(40px, 4vw, 58px)/1.02 var(--cc-title); color: #fff4e0; letter-spacing: 0.03em; text-shadow: 0 2px 0 #000; }
 .cc-role { margin: 0; font: 600 15px var(--ef-font); color: var(--cc-ember); letter-spacing: 0.06em; }
 .cc-desc { margin: 4px 0 2px; font-size: 16px; line-height: 1.5; color: var(--cc-soft); }
-.cc-skills { display: flex; gap: 8px; margin-top: 8px; }
+.cc-skills { display: flex; gap: 10px; margin-top: 8px; }
+/* Embleme (48 × 48, eigener Bronzerahmen) 1:1 in CSS-Pixeln; die Auswahl zeigt ein Goldrand außen statt eines zweiten Rahmens */
 .cc-skill {
-  position: relative; width: 54px; height: 54px; padding: 0; display: grid; place-items: center; cursor: pointer;
-  background: var(--cc-tile); border: 2px solid var(--cc-edge); border-radius: 0; box-shadow: 0 0 0 2px var(--cc-ink);
+  position: relative; width: 48px; height: 48px; padding: 0; display: block; cursor: pointer; flex: none;
+  background: #000; border: 0; border-radius: 0; box-shadow: 0 0 0 2px #000;
 }
-.cc-skill img { display: block; image-rendering: pixelated; }
-@media (hover: hover) { .cc-skill:hover { border-color: var(--cc-edge-hi); } }
-.cc-skill:focus-visible { outline: 2px solid var(--cc-gold); outline-offset: 3px; }
-.cc-skill.selected { border-color: var(--cc-gold); background: #3a1408; }
-.cc-skill-key { position: absolute; right: -5px; bottom: -5px; min-width: 16px; padding: 0 3px; font: 700 11px/16px var(--ef-font); color: #1a0e08; background: var(--cc-gold); box-shadow: 0 0 0 2px var(--cc-ink); text-shadow: none; }
+.cc-skill img { display: block; width: 48px; height: 48px; image-rendering: pixelated; }
+@media (hover: hover) { .cc-skill:hover { box-shadow: 0 0 0 2px var(--cc-edge-hi); } }
+.cc-skill:focus-visible { outline: 2px solid #fff4e0; outline-offset: 4px; }
+.cc-skill.selected { box-shadow: 0 0 0 2px var(--cc-gold), 0 0 0 4px #000; }
+.cc-skill-key { position: absolute; right: 4px; bottom: 4px; min-width: 14px; padding: 0 2px; font: 700 10px/14px var(--ef-font); text-align: center; color: #1a0e08; background: var(--cc-gold); box-shadow: 0 0 0 2px var(--cc-ink); text-shadow: none; }
 .cc-skill-info { min-height: 92px; margin-top: 10px; }
 .cc-skill-info h4 { margin: 0 0 4px; font: 600 17px var(--ef-font); color: #ffd090; }
 .cc-skill-info p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--cc-text); }
 .cc-skill-info .cc-cost { margin-top: 4px; font-size: 14px; color: var(--cc-muted); }
 .cc-foot { flex: none; display: flex; padding-top: 18px; }
 .cc-start {
-  flex: 1 1 auto; height: 64px; padding: 0 18px; cursor: pointer;
+  flex: 1 1 auto; height: 60px; padding: 0 18px; cursor: pointer;
   font: 700 21px var(--cc-title); letter-spacing: 0.06em; color: #fff4e0; text-shadow: 2px 2px 0 #3a0e05;
   background: #8a3410; border: 2px solid #ffb648; border-radius: 0;
   box-shadow: 0 0 0 2px var(--cc-ink), inset 0 -4px 0 #5a1a08, inset 0 2px 0 #c85a1c;
@@ -129,6 +131,8 @@
 .cc-start:hover:not(:disabled), .cc-start:focus-visible { background: #a8420c; outline: none; }
 .cc-start:active:not(:disabled) { box-shadow: 0 0 0 2px var(--cc-ink), inset 0 4px 0 #5a1a08; }
 .cc-start:disabled { filter: saturate(0.4) brightness(0.75); cursor: default; }
+
+@media (max-height: 660px) { .cc-card { min-height: 0; } }
 
 /* Mittlere Desktop-Höhen: etwas dichter */
 @media (max-height: 820px) and (min-height: 521px) {
@@ -141,12 +145,12 @@
 /* ---------------------------------------------------------------- Handy quer (Querformat ist Pflicht) und flache Fenster
    Drei Spalten: links Volk und Klasse, Mitte der Held mit der Aussehen-Tafel (zwei Reihen), rechts die Karte, darunter
    Name und Startknopf. Mitte und rechte Spalte lösen sich dafür ins Raster auf (display: contents). Rechte Spalte fest
-   252 px: fünf Fähigkeiten zu je 44 px. */
+   264 px: fünf Embleme zu je 48 px (1:1, auf jedem Handy ganzzahlige Gerätepixel). */
 @media (max-height: 520px) and (orientation: landscape) {
   .cc-screen { --cc-art: 1; }
   .cc-screen .acc-back { height: 44px; }
   .cc-layout {
-    grid-template-columns: minmax(200px, 268px) minmax(152px, 1fr) 252px;
+    grid-template-columns: minmax(200px, 268px) minmax(148px, 1fr) 264px;
     grid-template-rows: minmax(0, 1fr) auto auto auto;
     grid-template-areas: "left slot summary" "left slot err" "left look plate" "left look foot";
     column-gap: 8px; row-gap: 0;
@@ -160,8 +164,8 @@
   .cc-tiles { gap: 6px; }
   .cc-tile { height: 48px; gap: 4px; font-size: 12.5px; letter-spacing: -0.01em; padding-right: 3px; }
   .cc-tile-art-box { width: 28px; align-items: center; }
-  .cc-slot { grid-area: slot; min-height: 0; }
-  .cc-look { grid-area: look; align-self: end; justify-self: center; flex-direction: column; align-items: stretch; gap: 6px; width: 160px; margin: 0; padding: 4px; }
+  .cc-slot { grid-area: slot; min-height: 0; margin-bottom: 18px; }   /* Luft für den Bodenring unter den Füßen */
+  .cc-look { grid-area: look; align-self: end; justify-self: center; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; max-width: 168px; margin: 0; padding: 4px; }
   .cc-swatches { justify-content: space-between; gap: 4px; }
   .cc-hair { border-left: 0; padding-left: 0; }
   .cc-hair-name { font-size: 13px; min-width: 0; }
@@ -170,22 +174,19 @@
   .cc-dice { width: 46px; }
   .cc-error { grid-area: err; margin: 6px 0 0; font-size: 12px; text-align: left; }
   .cc-summary { grid-area: summary; gap: 3px; }
-  .cc-card { padding: 8px 8px 10px; gap: 3px; }
+  .cc-card { flex: 1 1 auto; padding: 8px 8px 10px; gap: 3px; }   /* füllt die Spalte: Oberkante fest, egal wie lang der Text ist */
   .cc-race { font-size: 11px; }
   .cc-class { font-size: 27px; }
   .cc-role { font-size: 12px; }
   .cc-desc { margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; }
-  .cc-skills { gap: 3px; margin-top: 6px; }
-  .cc-skill { width: 44px; height: 44px; }
-  .cc-skill img { width: 28px; height: 28px; }
-  .cc-skill-key { right: -4px; font-size: 10px; line-height: 14px; min-width: 14px; }
+  .cc-skills { gap: 4px; margin: 6px -6px 2px; }
   .cc-skill-info { min-height: 0; margin-top: 4px; }
   .cc-skill-info h4 { font-size: 13px; margin-bottom: 2px; }
   .cc-skill-info p { font-size: 12.5px; line-height: 1.4; }
   .cc-skill-info .cc-cost { display: none; }
   /* Ein Textfeld: erst die Klassenbeschreibung, nach dem Antippen einer Fähigkeit deren Beschreibung */
   .cc-card:not(.cc-picked) .cc-skill-info { display: none; }
-  .cc-card:not(.cc-picked) .cc-skill.selected { border-color: var(--cc-edge); background: var(--cc-tile); }
+  .cc-card:not(.cc-picked) .cc-skill.selected { box-shadow: 0 0 0 2px #000; }
   .cc-card.cc-picked .cc-desc { display: none; }
   .cc-foot { grid-area: foot; padding-top: 6px; }
   .cc-start { height: 52px; font-size: 16px; padding: 0 8px; }

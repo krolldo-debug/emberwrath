@@ -817,10 +817,11 @@ function drawTorsoHi(R, L, P, sk) {
   }
   // Gürtel mit Schnalle und Tasche
   const by = hipY - 1;
-  const belt = st === 'robe' ? L.cloth : M.leather;
+  // Robe: Schärpe in der Stoff-Farbe; in der Vorführstufe dunkle Kordel im Robenton (einzelne lila Reste wirkten wie Fehlpixel)
+  const belt = st === 'robe' ? (S >= 3 ? dimRamp(C.ramp) : L.cloth) : M.leather;
   R.each(lo, by - 0.5, hiX, by + 0.5, (x, y, F, G) => {
     const [xa, xb] = torsoSpan(sk, y);
-    if (x < xa - 0.1 || x > xb + 0.1) return;
+    if (x < xa + (st === 'robe' ? 0.5 : -0.1) || x > xb + 0.1) return;   // Robe: Schärpe ragt nicht über den Rücken
     const k = (y - (by - 0.5));
     R.put(F, G, belt[st === 'robe' ? (k < 0.34 ? 4 : 3) : (k < 0.34 ? 2 : k > 0.67 ? 0 : 1)]);
   });
@@ -1032,7 +1033,8 @@ function drawHeadHi(R, G, L, P, sk) {
   // (kleinster Randabstand über alle drei Formen), sonst zeichnet der Rand von Kiefer und Kinn Flecken ins Gesicht.
   // Vorführstufe (Charaktererstellung, frame.res 3): flacheres Licht, sonst wirkt die Schattenseite des Gesichts fleckig
   const soft = (L.res ?? 1) >= 3 ? 0.6 : 1;
-  const forms = [[cx, cy, g.rx, g.ry], [x0 + 5.8, y0 + 6.3, g.dwarf ? 3.3 : 3.0, 2.3], [x0 + 6.4, y0 + 7.4, 1.9, 1.2]];
+  // Kinn in der Vorführstufe etwas zurückgenommen (ragte dort sichtbar vor)
+  const forms = [[cx, cy, g.rx, g.ry], [x0 + 5.8, y0 + 6.3, g.dwarf ? 3.3 : 3.0, 2.3], soft < 1 ? [x0 + 6.1, y0 + 7.3, 1.7, 1.1] : [x0 + 6.4, y0 + 7.4, 1.9, 1.2]];
   const shade = (nx, ny, d, x, y) => {
     const l = lit(x, y, cx - 0.4, cy - 0.3, 4.6, 4.8);
     const e = Math.min(...forms.map(([ex, ey, rx, ry]) => ((x - ex) / rx) ** 2 + ((y - ey) / ry) ** 2));
@@ -1040,7 +1042,7 @@ function drawHeadHi(R, G, L, P, sk) {
   };
   for (const [ex, ey, rx, ry] of forms) R.ellipse(ex, ey, rx, ry, shade);   // Schädel, Wange/Kiefer nach vorne, Kinn
   // Unterkante des Kiefers dunkel absetzen
-  R.fline(x0 + 4.2, y0 + 8.1, x0 + 7.2, y0 + 8.5, 0.34, Sk[0]);
+  R.fline(x0 + 4.2, y0 + 8.1, x0 + 7.2, y0 + 8.5, 0.34, soft < 1 ? Sk[1] : Sk[0]);
   // Nase (ragt leicht über die Gesichtskante)
   const nx = x0 + 8.35, ny = y0 + 5.9;
   const big = g.dwarf ? 1.3 : rl.face === 'elf' ? 0.7 : 0.8;
@@ -1069,10 +1071,11 @@ function drawHeadHi(R, G, L, P, sk) {
   // Mund
   if (!rl.beard) {
     if (hurt) R.fline(x0 + 6.9, y0 + 7.35, x0 + 8.0, y0 + 7.2, 0.5, Sk[0]);
+    else if (soft < 1) R.fline(x0 + 6.9, y0 + 7.25, x0 + 7.7, y0 + 7.2, 0.34, Sk[1]);
     else { R.fline(x0 + 6.9, y0 + 7.25, x0 + 7.9, y0 + 7.15, 0.34, Sk[0]); R.dot(x0 + 7.3, y0 + 7.55, Sk[3]); }
   }
-  // Wangenschatten unter dem Jochbein
-  R.fline(x0 + 5.3, y0 + 6.4, x0 + 6.3, y0 + 6.9, 0.34, Sk[1]);
+  // Wangenschatten unter dem Jochbein (in der Vorführstufe wirkte er als brauner Fleck)
+  if (soft === 1) R.fline(x0 + 5.3, y0 + 6.4, x0 + 6.3, y0 + 6.9, 0.34, Sk[1]);
   // Glutadern der Glutgeborenen
   if (rl.cracks) {
     const a = acc[3], b = acc[2];
@@ -1336,7 +1339,10 @@ function drawLowerHi(R, L, P, sk) {
       if (x < xa || x > xb) return;
       const u = (x - xa) / Math.max(0.5, xb - xa);
       const fold = Math.sin((x - lerp(cx, (fN + fF) / 2, k)) * 2.1) * Math.min(1, k * 2);
-      let c = band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
+      // Vorführstufe: runder Rock (Licht hinten, Schatten vorne), tiefere Falten, damit er nicht wie ein flacher Schlauch wirkt
+      let c = S >= 3
+        ? band(A, Math.min(2.2 + (0.35 - u) * 2.4 + fold * 0.9 - k * 0.3 - (u > 0.86 ? 0.8 : 0), A.length - 1))
+        : band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
       if (y > bot - 0.7) c = T[y > bot - 0.35 ? 1 : 2];             // Saumborte
       if (Math.abs(x - mid(k)) < 0.3) c = T[2];                      // Vorderkante
       R.put(F, G, c);
@@ -2049,12 +2055,17 @@ function drawStaff(R, G, w, hx, hy, ang, glow, far) {
     R.set(tx + 0.5, ty, '#0c0810'); R.set(tx - 0.8, ty, '#0c0810');
   } else {
     // Klauen + Kristall/Kugel/Flamme
-    R.axis(hx, hy, ang, 12.5, 16.5, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - 1.8) < 0.6 && u > 13.2 ? Wd[lv < 0 ? 3 : 2] : null));
+    if (S >= 3 && top === 'orb') R.axis(hx, hy, ang, 12.2, 14.6, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - (u - 11.6) * 0.75) < 0.5 ? Wd[lv < 0 ? 3 : 2] : null));
+    else R.axis(hx, hy, ang, 12.5, 16.5, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - 1.8) < 0.6 && u > 13.2 ? Wd[lv < 0 ? 3 : 2] : null));
     if (top === 'crystal' || top === 'arcane') {
       R.axis(tx - dx * 1.5, ty - dy * 1.5, ang, 0, 4.2, 1.3, (u, lv) => (Math.abs(lv) < 1.3 - u * 0.25 ? K[lv < 0 ? 4 : u > 2.5 ? 2 : 3] : null));
     } else if (top === 'flame') {
       R.ellipse(tx, ty, 1.5, 1.8, (nx, ny) => (ny < -0.3 ? K[4] ?? K[3] : K[3]));
       R.set(tx + dx * 2, ty + dy * 2, K[2]);
+    } else if (S >= 3) {
+      // Vorführstufe: größere Kugel mit Kern und Schattenseite, sitzt in den Klauen (sonst wirkte der Kopf wie eine Axt)
+      R.ellipse(tx + dx * 0.4, ty + dy * 0.4, 2.1, 2.1, (nx, ny) => (nx + ny < -0.7 ? K[4] ?? K[3] : nx + ny > 0.8 ? K[2] : K[3]));
+      R.dot(tx + dx * 0.4 - 0.7, ty + dy * 0.4 - 0.7, '#fff6d8');
     } else {
       R.ellipse(tx, ty, 1.6, 1.6, (nx, ny) => (nx + ny < -0.6 ? K[4] ?? K[3] : K[3]));
     }
