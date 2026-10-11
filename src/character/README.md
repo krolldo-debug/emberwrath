@@ -142,6 +142,16 @@ Tasche, Ausrüstung und Bank nach). Das Aussehen bleibt, auch wenn das Teil verk
   (gleiches Aussehen einmal), `show(slot, value)`, `count()`; Vorschau `game.character.previewGear(overrides)`.
 - Test: `node src/character/test/wardrobe.test.mjs`.
 
+## Skinsets (Runde 11.10.)
+`skinSets.js`: je Klasse ein Set aus dem Shop (7,99 €, Design `design_set_*` in `shop/catalog.js`), reines Aussehen ohne Werte.
+- Besitz: `slices.shop.owned` enthält `'look:set_<name>'` (für alle Charaktere des Kontos), `ownedSetLooks(slices)`.
+  Set-Teile (`set_<name>_<slot>`) liegen nie in Tasche, Bank oder `wardrobe.looks`, nur in `wardrobe.shown`.
+- Command `wardrobe:showSet { setId }` legt alle fünf Teile an (Gründe: class, locked); Panel-Knopf „Set anlegen“.
+- Server: `supabase/migrations/20261011160000_skinsets.sql` prüft angelegte Set-Teile beim Speichern und nimmt sie bei Rückbuchung ab.
+- Zeichnung: `sprites/heroSets.js` (Hooks aus `hero.js`), harte Leuchtebene `frame.emit` (`collectEmit`/`drawSetEmit`, Farben in
+  `SET_GLOW`, auch nachts voll hell), kreisende Runen `drawSetGlow`, Partikel `spawnSetParticles`, eigene Klingen
+  (`glutBlade`, `crescentBlade`), Mondsichel-Hieb `SLASH_STYLES.mondsichel` (`sprites/effects.js`). Kein Alpha-Schein.
+
 ## Zielhilfe (Runde 10.10.)
 `aim.js` (reine Rechnung, Test `node src/character/test/aim.test.mjs`), genutzt von `Hero.js` für Grundangriff und Fähigkeiten:
 - Ziel wählen beim Drücken: Maus → Gegner unter/nahe dem Zeiger, sonst enger Kegel; Stick/Tasten → Kegel um die Laufrichtung,
