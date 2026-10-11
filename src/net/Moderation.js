@@ -1,5 +1,6 @@
 import { h } from '../core/dom.js';
 import { REPORT_REASON_LABELS, REPORT_NOTE_MAX } from './protocol.js';
+import { locale } from '../i18n/index.js';
 
 // Spieler melden (DSA Art. 16) und ignorieren. Erreichbar über den Namen im Chat und die Spielerliste im Weltfenster.
 //
@@ -60,7 +61,7 @@ export class ModerationUi {
         }
         if (m.kind !== 'muted') return;
         const until = new Date(m.until);
-        const when = Number.isFinite(until.getTime()) ? until.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : 'auf Weiteres';
+        const when = Number.isFinite(until.getTime()) ? until.toLocaleString(locale(), { dateStyle: 'short', timeStyle: 'short' }) : 'auf Weiteres';
         this.onSystem(`Du bist bis ${when} im Chat gesperrt.${m.reason ? ` Grund: ${m.reason}` : ''} Einspruch über den Support.`);
       }),
     ];

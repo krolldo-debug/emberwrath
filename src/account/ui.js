@@ -2,7 +2,7 @@ import { h } from '../core/dom.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { resolveGear } from '../character/gearLook.js';
 import { spriteStyle } from '../character/cosmetics.js';
-import { lang } from '../i18n/index.js';
+import { lang, fmtDate } from '../i18n/index.js';
 
 // Gemeinsame Bausteine der Menü-Bildschirme (Thread A).
 
@@ -27,7 +27,7 @@ export function formatAgo(ts) {
 }
 
 export function formatDate(ts) {
-  try { return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; }
+  try { return fmtDate(ts, { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; }
 }
 
 // "Schattenelf · Waldläufer · Stufe 3"

@@ -3,6 +3,7 @@ import { EV } from '../core/events.js';
 import { iconEl, RARITY_COLORS } from '../gfx/Icons.js';
 import { HeroPortrait } from '../account/ui.js';
 import { spriteStyle } from '../character/cosmetics.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Garderobe (Panel 'wardrobe') – Thread D, Daten von Thread A:
 //   game.character.wardrobe = { SLOTS, entries(slot), show(slot, value) }
@@ -75,7 +76,7 @@ function createWardrobePanel(session) {
           apply,
           msg ? h('p.wd-msg', msg) : null),
         h('div.wd-grid', list)),
-      h('footer.wd-foot', h('span.ef-note', `${total.toLocaleString()} Aussehen gesammelt`)));
+      h('footer.wd-foot', h('span.ef-note', `${fmtNum(total)} Aussehen gesammelt`)));
   };
   const head = () => h('header.wd-head',
     h('h2.wd-title', 'Garderobe'),

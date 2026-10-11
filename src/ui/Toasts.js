@@ -1,6 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, itemIconEl } from '../gfx/Icons.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Meldungen am Bildschirmrand: Beute, Gold, Quest-Fortschritt, Hinweise.
 // Quellen: EV.UI_TOAST ({ text, kind, icon? }) von allen Bereichen sowie
@@ -49,10 +50,10 @@ export class Toasts {
       // Kurz aufeinanderfolgende Goldfunde zu einer Meldung zusammenfassen
       if (this.gold && this.gold.age < 1.5 && this.items.includes(this.gold)) {
         this.gold.sum += e.delta; this.gold.age = 0; this.gold.el.classList.remove('out');
-        this.gold.el.querySelector('.ef-toast-text').textContent = `+${this.gold.sum.toLocaleString()} Gold`;
+        this.gold.el.querySelector('.ef-toast-text').textContent = `+${fmtNum(this.gold.sum)} Gold`;
         return;
       }
-      this.push(`+${e.delta.toLocaleString()} Gold`, 'gold', 'gold');
+      this.push(`+${fmtNum(e.delta)} Gold`, 'gold', 'gold');
       this.gold = this.items[this.items.length - 1]; this.gold.sum = e.delta;
     });
     bus.on(EV.QUEST_ACCEPTED, (e) => this.push(`Neue Quest: ${qTitle(e.questId)}`, 'quest', 'scroll'));

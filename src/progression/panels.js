@@ -9,6 +9,7 @@ import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, rewardsEl, barEl, 
 import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { HeroStage, statGlyph } from './heroStage.js';
+import { fmtNum } from '../i18n/index.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
 // neu (EV.STATE_CHANGED) und löst Spielaktionen nur über Commands aus.
@@ -42,7 +43,7 @@ function titleOf(st) {
 }
 
 // Tausenderpunkte für Goldbeträge in Texten
-const fmt = (n) => Number(n).toLocaleString('de-DE');
+const fmt = (n) => fmtNum(Number(n));
 const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Das Reittier lässt sich gerade nicht erlernen. Versuch es gleich noch einmal.' };
 const EQUIP_FAIL = { class: 'Deine Klasse kann das nicht führen.', level: 'Deine Stufe ist zu niedrig.', notEquippable: '' };
 const SLOT_PH = { weapon: 'sword', head: 'helm', chest: 'armor', hands: 'gloves', feet: 'boots', ring: 'ring', amulet: 'amulet' };
@@ -342,7 +343,7 @@ function characterView(s) {
           h('div.pg-char-name', ch.name ?? 'Unbekannt'),
           titleOf(st) ? h('div.pg-char-title', titleOf(st)) : null,
           h('div.pg-char-sub', `Stufe ${xp.level}${race ? ` · ${race.name}` : ''}${cls ? ` · ${cls.name}` : ''}`),
-          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${xp.into} / ${xp.need} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar'),
+          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${fmt(xp.into)} / ${fmt(xp.need)} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar'),
           h('div.pg-char-gold', goldEl(st.slices.wallet.gold))),
         h('section', h('h3', 'Werte'), h('dl.pg-kvs', statRows), attrs.length ? h('dl.pg-kvs.pg-attrs', attrs) : null),
         h('section', h('h3', 'Ausrüstung'), h('div.pg-char-eq', EQUIP_SLOTS.map((slot) => {

@@ -4,8 +4,9 @@ import { RACE_LOOK } from '../sprites/hero.js';
 import { HeroPortrait } from '../account/ui.js';
 import { resolveGear } from './gearLook.js';
 import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle, ownsDesign, earnedDye, sameLook } from './cosmetics.js';
+import { fmtNum } from '../i18n/index.js';
 
-const fmt = (n) => Number(n).toLocaleString('de-DE');
+const fmt = (n) => fmtNum(Number(n));
 
 // Panel 'appearance' (Thread A): Färben und Aussehen ändern gegen Gold.
 // Geöffnet vom Spiegel im Dorf: bus.emit(EV.UI_OPEN_PANEL, { id: 'appearance' }).

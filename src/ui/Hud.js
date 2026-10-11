@@ -27,7 +27,7 @@ const RES_NAMES = { mana: 'Mana', rage: 'Wut', energy: 'Energie' };
 function setText(el, v) { v = tr(String(v)); if (el.textContent !== v) el.textContent = v; }
 function setVar(el, name, v) { const s = String(v); if (el._v?.[name] !== s) { (el._v ??= {})[name] = s; el.style.setProperty(name, s); } }
 function toggle(el, cls, on) { if (el.classList.contains(cls) !== !!on) el.classList.toggle(cls, !!on); }
-const num = (v) => Math.round(v ?? 0).toLocaleString();
+const num = (v) => fmtNum(Math.round(v ?? 0));
 function frac(a, b) { return b > 0 ? Math.max(0, Math.min(1, a / b)) : 0; }
 
 function bar(cls, label) {

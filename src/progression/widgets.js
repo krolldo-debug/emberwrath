@@ -4,6 +4,7 @@ import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { SETS } from './sets.js';
 import { RARITIES, ITEMS, EQUIP_SLOTS, EQUIP_SLOT_NAMES, STAT_ORDER, STAT_NAMES, formatStat, formatStatDelta, equipSlotFor, canUseClass, typeLabel, itemScore } from './items.js';
 import { RARE_ENEMIES } from './rares.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Bausteine für die HTML-Panels von Thread C (Inventar, Charakter, Quests, Händler, Schmiede).
 // Nur Darstellung: Aktionen laufen als Commands über den Aufrufer.
@@ -18,7 +19,7 @@ export function panelFrame(session, id, title, ...body) {
 }
 
 export function goldEl(amount, cls = '') {
-  return h(`span.pg-gold${cls}`, iconEl('gold', 18), h('b', Number(amount).toLocaleString('de-DE')));
+  return h(`span.pg-gold${cls}`, iconEl('gold', 18), h('b', fmtNum(Number(amount))));
 }
 
 // Ein Slot-Knopf mit Icon (Seltenheitsrahmen von D), Stapelzahl und Markierungen.
