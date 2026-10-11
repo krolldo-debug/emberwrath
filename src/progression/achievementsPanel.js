@@ -104,7 +104,8 @@ export function achievementsPanel(s) {
     return el;
   };
 
-  // Anlegen/Auswählen, wenn errungen (Garderobe, Reittier, Färbung ohne Goldpreis)
+  // Anlegen/Auswählen, wenn errungen (Reittier, Färbung ohne Goldpreis). Aussehen landet in der Sammlung,
+  // anlegen wie jedes andere bei der Gewandmeisterin (src/transmog).
   const action = (id) => {
     const r = ACHIEVEMENTS[id].reward, c = ch();
     if (!st.slices.achievements.unlocked[id]) return null;
@@ -114,9 +115,8 @@ export function achievementsPanel(s) {
       return btn(on ? 'Ablegen' : 'Anlegen', () => st.commit('character:restyle', { dye: on ? null : r.id }), on);
     }
     if (r.kind === 'look') {
-      const slot = s.content.find('item', r.id).slot, on = c.wardrobe?.shown?.[slot] === r.id;
-      if (!st.slices.inventory?.equipment?.[slot] && !on) return h('span.ach-hint', 'Lege zuerst ein Teil an diesem Platz an.');
-      return btn(on ? 'Ablegen' : 'Anlegen', () => st.commit('wardrobe:show', { slot, itemId: on ? null : r.id }), on);
+      const slot = s.content.find('item', r.id).slot;
+      return h('span.ach-hint', c.wardrobe?.shown?.[slot] === r.id ? 'Angelegt' : 'In deiner Sammlung');
     }
     if (r.kind === 'mount') {
       const on = c.mounts?.active === r.id;

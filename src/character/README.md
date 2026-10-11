@@ -127,26 +127,33 @@ Aufbau eines kompletten Satzes ~120 ms statt ~270 ms, Speicher je Satz 4× statt
   Wirbelsturm, Messerfächer, Pfeilsalve, Feuerball), 34 „Legende“ (Meisterschaft: Blutbad, Todesmal, Sperrfeuer, Kataklysmus).
   Kapazität je Klasse ≥ 39 Punkte. `stats.upgrades`, `stats.mastery`.
 
-## Garderobe (Runde 08.10.)
+## Sammlung und Gewandmeisterin (Runde 08.10., Transmog seit 11.10.)
 `wardrobe.js`: Jedes Teil mit sichtbarem Aussehen (Waffe, Brust, Kopf, Hände, Füße) wird beim Aufheben, Kaufen,
 Ausrüsten oder Einlagern gesammelt (nach jedem Command und beim Spielstart; alte Spielstände holen alles aus
 Tasche, Ausrüstung und Bank nach). Das Aussehen bleibt, auch wenn das Teil verkauft wird.
 - Speicher: `character.wardrobe = { looks: [itemId], shown: { weapon, chest, head, hands, feet } }`,
   `shown[slot]` = itemId | null (eigene Ausrüstung) | `'none'` (nur Kopf: Helm ausblenden).
 - Commands: `wardrobe:unlock { itemIds }`, `wardrobe:show { slot, itemId }` (Gründe: slot, locked, class).
+- Anlegen nur noch bei der Gewandmeisterin (wie Transmog in WoW, `src/transmog`: in jeder Wegstein-Stadt):
+  `wardrobe:transmog { changes: { slot: wert } }` legt alles auf einmal an oder nichts (Gründe zusätzlich `empty`, `gold`).
+  Preis je geändertem Platz `transmogCost(ilvl)` nach dem getragenen Teil (leerer Platz: Heldenstufe), 10 bis 2.410 Gold;
+  zurück zur eigenen Ausrüstung und Helm ausblenden kosten nichts. Die Sammlung im Menü zeigt nur an.
 - Ereignis: `EV.WARDROBE_UNLOCKED ?? 'wardrobe:unlocked'` `{ itemIds }`.
 - Optik: `gearLook.shownEquipment(slices, content)` statt `inventory.equipment` für alles Sichtbare
   (eigener Held, snapshotLook, `net/NetSession.lookOf`). Werte rechnen weiter mit der echten Ausrüstung.
 - Regeln: Aussehen nur, wenn im Platz etwas getragen wird; Waffen nur, wenn die Klasse sie führen darf.
-- Panel (D): `game.character.wardrobe.entries(slot)` → `{ current, equipped, list: [{ itemId, name, rarity, icon, usable, shown }] }`
-  (gleiches Aussehen einmal), `show(slot, value)`, `count()`; Vorschau `game.character.previewGear(overrides)`.
+- Panel (D, `ui/WardrobePanel.js`, Fenster `wardrobe` = Sammlung, `transmog` = Gewandmeisterin):
+  `game.character.wardrobe.entries(slot)` → `{ current, equipped, list: [{ itemId, name, rarity, icon, usable, shown }] }`
+  (gleiches Aussehen einmal), `catalog(slot)` (auch Fehlendes: `owned`, `source`), `price(slot)`, `cost(changes)`,
+  `transmog(changes)`, `count()`; Vorschau `game.character.previewGear(overrides)` (auch Fehlendes).
 - Test: `node src/character/test/wardrobe.test.mjs`.
 
 ## Skinsets (Runde 11.10.)
 `skinSets.js`: je Klasse ein Set aus dem Shop (7,99 €, Design `design_set_*` in `shop/catalog.js`), reines Aussehen ohne Werte.
 - Besitz: `slices.shop.owned` enthält `'look:set_<name>'` (für alle Charaktere des Kontos), `ownedSetLooks(slices)`.
   Set-Teile (`set_<name>_<slot>`) liegen nie in Tasche, Bank oder `wardrobe.looks`, nur in `wardrobe.shown`.
-- Command `wardrobe:showSet { setId }` legt alle fünf Teile an (Gründe: class, locked); Panel-Knopf „Set anlegen“.
+- Command `wardrobe:showSet { setId }` legt alle fünf Teile an (Gründe: class, locked). Im Spiel bei der Gewandmeisterin:
+  ein Set-Teil antippen merkt alle Teile vor, Preis wie bei jedem Aussehen.
   Ein angelegtes Set ist immer komplett sichtbar, auch über leeren Plätzen (`shownEquipment`); Kopf über „Helm ausblenden“ ab.
 - Server: `supabase/migrations/20261011160000_skinsets.sql` prüft angelegte Set-Teile beim Speichern und nimmt sie bei Rückbuchung ab.
 - Zeichnung: `sprites/heroSets.js` (Hooks aus `hero.js`), harte Leuchtebene `frame.emit` (`collectEmit`/`drawSetEmit`, Farben in

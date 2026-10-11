@@ -54,7 +54,7 @@ export const TALENTS = {
   },
   ranger: {
     g_aim: T(0, 'Ruhige Hand', 'bow', 5, { powerPct: 0.04 }, '+4 % Angriffskraft je Rang.'),
-    g_focus: T(0, 'Sammlung', 'skill_pierce', 3, { maxResource: 10 }, '+10 maximaler Fokus je Rang.'),
+    g_focus: T(0, 'Gelassenheit', 'skill_pierce', 3, { maxResource: 10 }, '+10 maximaler Fokus je Rang.'),
     g_eagle: T(1, 'Adlerauge', 'charm_feather', 5, { critChance: 0.02 }, '+2 % kritische Trefferchance je Rang.'),
     g_volley: T(1, 'Pfeilregen', 'skill_arrows', 3, { ability: { volley: 0.12, arrow_rain: 0.12 } }, 'Pfeilsalve und Pfeilhagel: +12 % Schaden je Rang.'),
     g_survival: T(2, 'Überlebenskunst', 'armor_leather', 3, { maxHpPct: 0.05, armor: 2 }, '+5 % Leben und +2 Rüstung je Rang.'),
