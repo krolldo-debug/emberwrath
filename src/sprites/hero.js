@@ -268,6 +268,33 @@ class Raster {
   }
 }
 
+// Kühle Lichtkante (Feinraster, docs/STYLE.md „Feinraster“ 2): 1 Feinpixel an der Ober- und Rückenkante der Silhouette,
+// hart und deckend (Mondlicht wie der Feinschliff der übrigen Figuren). Dunkle Stoffe/Rüstungen bekommen mehr Licht als
+// helle, damit auch eine schwarze Kapuze auf dunklem Waldboden ihren Umriss behält. Nur Kanten mit mindestens zwei Feinpixeln
+// Materialtiefe: dünne Linien (Sehne, Fransen, Funken) bleiben in ihrer Farbe. Ein Durchgang je Frame (beim Bauen).
+const RIM = [206, 218, 255];
+const GLINT = '#fdfcff';   // Glanzpunkt auf Metall (keine Set-Leuchtfarbe)
+export function rimLight(buf, fw, fh) {
+  const out = buf;   // vor Ort: geprüft wird nur leer/belegt, das ändert sich nicht
+  for (let G = 1; G < fh - 1; G++) {
+    const row = G * fw;
+    for (let F = 1; F < fw - 1; F++) {
+      const i = row + F, v = buf[i];
+      if (!v) continue;
+      const up = !buf[i - fw] && buf[i + fw];
+      const back = !up && !buf[i - 1] && buf[i + 1] && buf[i - fw];
+      if (!up && !back) continue;
+      const r = v & 255, g = (v >>> 8) & 255, b = (v >>> 16) & 255;
+      const lum = (r * 77 + g * 151 + b * 28) >> 8;
+      if (lum > 205) continue;
+      let a = clamp(0.56 - lum / 340, 0.18, 0.56);
+      if (back) a *= 0.55;
+      out[i] = (0xff000000 | (Math.round(b + (RIM[2] - b) * a) << 16) | (Math.round(g + (RIM[1] - g) * a) << 8) | Math.round(r + (RIM[0] - r) * a)) >>> 0;
+    }
+  }
+  return out;
+}
+
 // Raster für Item-Bilder (gfx/Icons.js): dieselben Zeichenfunktionen wie am Helden, k Bildpunkte je Weltpixel,
 // Weltursprung bei Bildpunkt (ox, oy); Formen entlang einer Achse quer um lat gestreckt (sonst wären Klingen im
 // 24er-Bild nur zwei Punkte breit). put(F, G, farbe) bekommt Bildpunkte.
@@ -391,6 +418,8 @@ function matShade(kind, A, l, F, G, x, y, e = 0) {
     }
     case 'leather': {
       const grain = hash(F, G) < 0.12 * k ? -0.5 : 0;
+      // Speckglanz auf der Lichtseite (geöltes Leder): eine kleine helle Fläche, keine Einzelpixel
+      if (l > 0.78 && e > 0.2 && e < 0.7 && S >= FINE_MIN) return A[top];
       return band(A, Math.min(1.8 + l * 1.4 + grain, top - 1));
     }
     case 'robe': case 'cloth': {
@@ -875,6 +904,11 @@ function drawTorsoHi(R, L, P, sk) {
     }
   }
   if (st === 'leather') {
+    // Naht am Rücken: Punktlinie (je zweiter Feinpixel), hell auf dem Leder
+    for (let y = topY + 1.2; y < hipY - 1.6; y += 1) {
+      const [xa] = torsoSpan(sk, y);
+      R.dot(xa + 0.9, y, A[3]);
+    }
     // Schnürung vorne, Brustgurt diagonal
     const lx = (y) => torsoSpan(sk, y)[1] - 1.1;
     for (let y = topY + 1.2; y < hipY - 1.5; y += 1) {
@@ -1165,15 +1199,20 @@ function drawHeadHi(R, G, L, P, sk) {
   // Augen: nah (größer) und fern (angeschnitten, am Gesichtsrand)
   const eyeY = y0 + 4.95;
   const glowEye = rl.cracks;
-  const iris = glowEye ? acc[4] ?? acc[3] : rl.face === 'elf' ? '#6ac0d8' : rl.face === 'dwarf' ? '#4a6a38' : '#4a3424';
+  const iris = glowEye ? acc[4] ?? acc[3] : rl.face === 'elf' ? '#6ac0d8' : rl.face === 'dwarf' ? '#4a7a3c' : '#6a4630';
   const lid = Sk[0], white = glowEye ? acc[3] : '#e8e0d4';
   if (hurt) {
     R.fline(x0 + 5.2, eyeY, x0 + 6.6, eyeY + 0.25, 0.34, lid);
     R.fline(x0 + 7.6, eyeY, x0 + 8.3, eyeY + 0.2, 0.34, lid);
   } else {
-    R.fstamp(x0 + 5.0, eyeY - 0.6, ['.kkkk.', 'kwwipk', '.wwpp.'], { k: lid, w: white, i: iris, p: glowEye ? acc[5] ?? '#ffffff' : '#140c10' });
-    R.fstamp(x0 + 7.7, eyeY - 0.6, ['kkk', 'wip', '.p.'], { k: lid, w: white, i: iris, p: glowEye ? acc[5] ?? '#ffffff' : '#140c10' });
-    if (!glowEye) { R.dot(x0 + 6.33, eyeY - 0.26, '#fffaf0'); }
+    if (glowEye) {
+      R.fstamp(x0 + 5.0, eyeY - 0.6, ['.kkkk.', 'kwwipk', '.wwpp.'], { k: lid, w: white, i: iris, p: acc[5] ?? '#ffffff' });
+      R.fstamp(x0 + 7.7, eyeY - 0.6, ['kkk', 'wip', '.p.'], { k: lid, w: white, i: iris, p: acc[5] ?? '#ffffff' });
+    } else {
+      // Nahes Auge (Stufe B): Wimpernlinie, Augenweiß, Iris 2×2 mit Glanzpunkt oben links und Pupille, Unterlid hell
+      R.fstamp(x0 + 5.0, eyeY - 0.6, ['.kkkk.', 'kwgipk', '.wiiu.'], { k: lid, w: white, g: '#fffaf0', i: iris, p: '#140c10', u: Sk[2] });
+      R.fstamp(x0 + 7.7, eyeY - 0.6, ['kkk', 'wip', '.i.'], { k: lid, w: white, i: iris, p: '#140c10' });
+    }
   }
   if (glowEye) { G.push({ x: Math.round(x0 + 6), y: Math.round(eyeY), color: acc[4] ?? acc[3], r: 1.5 }); G.push({ x: Math.round(x0 + 8), y: Math.round(eyeY), color: acc[4] ?? acc[3], r: 1 }); }
   // Brauen
@@ -1426,7 +1465,9 @@ function drawCapeHi(R, L, P, sk) {
     if (y > hem) return;
     const u = (x - xa) / Math.max(0.5, xb - xa);
     const fold = Math.sin((x - xa) * 1.9 + k * 2 + P.wave * 0.6);
-    let v = 2.1 + (0.35 - u) * 1.6 + fold * 0.55 * Math.min(1, k * 2.5) - k * 0.3;
+    // zweifarbige Falten: Grat hell, Knick dunkel (harte Stufen), dazwischen ruhige Fläche
+    const fk = Math.min(1, k * 2.5), crisp = fold > 0.78 ? 0.7 : fold < -0.7 ? -0.8 : fold * 0.15;
+    let v = 2.1 + (0.35 - u) * 1.6 + crisp * fk - k * 0.3;
     if (y > hem - 0.7) v = 0.6 + (fold > 0 ? 0.6 : 0);           // Saumschatten
     if (u < 0.08) v -= 0.6;
     const sc = setCape && SETS.setCapeColor(L, x, y, k, hem - y, u, P, F, G, K);
@@ -1467,10 +1508,13 @@ function drawLowerHi(R, L, P, sk) {
       if (x < xa || x > xb) return;
       const u = (x - xa) / Math.max(0.5, xb - xa);
       const fold = Math.sin((x - lerp(cx, (fN + fF) / 2, k)) * 2.1) * Math.min(1, k * 2);
+      // Stufe 2: zweifarbige Falten, die zum Saum auseinanderlaufen – harter Knick (dunkel) und Grat (hell) statt Wellenband
+      const ph = Math.sin((x - lerp(cx, (fN + fF) / 2, k)) * 1.35 / (0.75 + k * 0.45) + 0.6), fk = Math.min(1, k * 2.2);
+      const crisp = ph > 0.8 ? 0.75 * fk : ph < -0.72 ? -0.9 * fk : 0;
       // Vorführstufe: runder Rock (Licht hinten, Schatten vorne), tiefere Falten, damit er nicht wie ein flacher Schlauch wirkt
       let c = S >= 3
         ? band(A, Math.min(2.2 + (0.35 - u) * 2.4 + fold * 0.9 - k * 0.3 - (u > 0.86 ? 0.8 : 0), A.length - 1))
-        : band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
+        : band(A, Math.min(2.1 + (0.3 - u) * 1.4 + crisp - k * 0.2 - (u > 0.9 ? 0.6 : 0), A.length - 2));
       if (y > bot - (S >= 3 ? 0.45 : 0.7)) c = T[y > bot - 0.35 ? 1 : 2];   // Saumborte (Vorführstufe schmaler)
       if (Math.abs(x - mid(k)) < 0.3) c = T[2];                      // Vorderkante
       else if (L.chest.set) c = SETS.setRobeColor(L, x, y, k, u, y > bot - 0.7, F, G, K) ?? c;
@@ -1491,6 +1535,8 @@ function drawLowerHi(R, L, P, sk) {
     if (j > len - 1 && flap > 1.55) return;
     if (st === 'plate' && j > len - 0.6 && flap > 1.2) return;
     let c = matShade(kind, A, (0.4 - u) * 1.3 - j * 0.15, F, G, x, y, Math.abs(u - 0.45) * 2);
+    if (kind === 'leather' && j > 0.55 && j < 0.85 && (F & 1) === 0 && u > 0.08 && u < 0.92) c = A[3];   // Steppnaht
+    else if (kind === 'leather' && j > len - 0.45) c = A[1];                                              // Saumkante
     if (st === 'plate' && Math.abs(j - 1.2) < 0.18) c = A[0];
     if (st === 'plate' && Math.abs(j - 1.5) < 0.18) c = A[4] ?? A[3];
     R.put(F, G, c);
@@ -1535,6 +1581,7 @@ function drawPauldronHi(R, L, sk) {
     const T = L.trim;
     if (T && st === 'plate') R.fline(x - 2.6 - big * 0.4, y + 1.5, x + 2.6 + big * 0.6, y + 1.5, 0.34, T[2]);
     R.dot(x - 1.4, y + 1.0, A[4] ?? A[3]); R.dot(x + 1.6, y + 1.0, A[4] ?? A[3]);          // Nieten
+    R.dot(x - 0.9, y - 0.3, GLINT); R.dot(x - 0.4, y - 0.6, A[4] ?? A[3]);                // Glanzpunkt
     if (L.chest.spikes) {
       const Sp = L.chest.glow ?? A;
       for (const [dx, h] of [[-1.6, 1.6], [-0.2, 2.1]]) {
@@ -1593,6 +1640,14 @@ function drawBootHi(R, L, ax, ay, lift, near, leg) {
     if (metal && fy < 0.3 && ((F >> 1) & 1)) c = b[3];           // Plattenschuh: Lamellen
     R.put(F, G, c);
   });
+  if (near) {
+    if (metal) { R.dot(ax + 1.6, ay - 0.1, b[4] ?? b[3]); R.dot(ax + 2.1, ay + 0.3, b[3]); }   // Glanzpunkt auf der Kappe
+    else {
+      // Ledernaht: Punktlinie vorne am Schaft, Glanz auf der Spitze
+      for (let t = 0.2; t < 0.95; t += 0.3) R.dot(lerp(mx, leg.ex, t) + 0.8 * L.body.limb, lerp(my, leg.ey, t) + 0.3, b[3]);
+      R.dot(ax + 1.9, ay - 0.1, b[4] ?? b[3]);
+    }
+  }
   if (L.bootsGlow && near) R.dot(ax + 1.2, ay - 0.3, L.bootsGlow[3]);
   if (L.setFeet) SETS.setBoot(R, L, ax, ay, near);
 }
@@ -2338,12 +2393,15 @@ function makeFrame(L, pose, post) {
   let G = [];
   drawHero(R, G, L, pose);
   if (post) ({ R, G } = post(R, G));
+  // Leuchtebene vor der Lichtkante sammeln (die Kante ändert Randfarben), danach Kante ins Raster
+  const emit = L.anySet ? SETS.collectEmit(R.buf, R.fw, R.fh, AX * S, AY * S, S, K) : null;
+  if (S >= FINE_MIN) rimLight(R.buf, R.fw, R.fh);
   const f = buildFrame(W * S, H * S, AX * S, AY * S, (p) => R.blit(p.ctx), { res: 1 });   // Raster ist schon fein
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)
   // Skinsets: glühende Feinpixel als eigene, harte Leuchtebene (sprites/heroSets.js drawSetEmit)
-  if (L.anySet) f.emit = SETS.collectEmit(R.buf, R.fw, R.fh, AX * S, AY * S, S, K);
+  if (emit) f.emit = emit;
   if (pose.ride) f.hip = lastHip;
   return f;
 }
@@ -2835,6 +2893,8 @@ function drawHelmHi(R, G, L, helm, g, P) {
     if (d > 0.9 && ny > 0) return A[1];
     return metalSh(x, y);
   });
+  // Glanzpunkt oben links auf der Kuppel (Metall: 5 Stufen + Glanzpunkt)
+  R.dot(cx - 1.1, cy - 3.05, A[top]); R.dot(cx - 1.6, cy - 2.65, GLINT); R.dot(cx - 2.0, cy - 2.2, A[top]);
   if (closed) {
     R.ellipse(x0 + 5.9, y0 + 6.4, 3.3, 2.7, (nx, ny, d, x, y) => (d > 0.85 && ny > 0.2 ? A[0] : metalSh(x, y, -0.3)));
     // Grat, Sehschlitz, Atemlöcher
@@ -2912,22 +2972,46 @@ function drawCrownHi(R, G, helm, g) {
 }
 
 function drawHoodHi(R, G, L, g, P) {
-  const { x0, y0, cx, cy } = g, C = L.cloth;
+  const { x0, y0, cx, cy } = g, C = L.cloth, top = C.length - 1;
   // Kapuze: weiter Stoff um den Kopf, Gesicht im Schatten, Zipfel hinten
   R.capsule(x0 + 1.2, y0 + 3.2, x0 - 1.8 - P.cape * 0.8, y0 + 5.2 + P.cape, 2.2, 0.5, (l, t, e, x, y, F, Gi) => matShade('cloth', C, l - 0.2, F, Gi, x, y));
-  R.ellipse(cx - 0.2, cy + 0.3, g.rx + 1.1, g.ry + 1.1, (nx, ny, d, x, y) => {
+  // Zwei Faltenzüge vom Scheitel in den Nacken: Knick dunkel, darüber ein Feinpixel Licht (zweifarbige Falte)
+  const hx = cx - 0.2, hy = cy + 0.3, hrx = g.rx + 1.1, hry = g.ry + 1.1;
+  const fold = (nx, ny, d) => {
+    if (d < 0.3 || d > 0.8 || nx > 0.15) return 0;
+    const a = Math.atan2(ny, nx);
+    for (const [a0, k] of [[-2.55, 0.9], [-3.05, 1.1]]) {
+      const da = (a - (a0 + (d - 0.3) * k)) * Math.sqrt(d) * 5.2;
+      if (da > -0.42 && da < 0) return -1;
+      if (da >= 0 && da < 0.42) return 1;
+    }
+    return 0;
+  };
+  R.ellipse(hx, hy, hrx, hry, (nx, ny, d, x, y) => {
     const F = R.fx(x), Gi = R.fy(y);
     if (d > 0.88 && ny > 0.3) return C[0];
-    return matShade('cloth', C, lit(x, y, cx - 1, cy - 1, 5.5, 5.5) * 1.2, F, Gi, x, y);
+    const c = matShade('cloth', C, lit(x, y, cx - 1, cy - 1, 5.5, 5.5) * 1.2, F, Gi, x, y);
+    const f = fold(nx, ny, d);
+    if (!f) return c;
+    const i = Math.max(0, C.indexOf(c));
+    return f < 0 ? C[Math.max(0, i - 1)] : C[Math.min(top - 1, i + 1)];
   });
-  // Gesichtsöffnung
-  R.ellipse(x0 + 6.9, y0 + 5.4, 2.4, 2.9, (nx, ny, d) => (d > 0.72 && nx < 0 ? C[1] : '#0c0810'));
+  // Gesichtsöffnung: die Stirnkante fängt das Licht, unten und hinten Schatten
+  R.ellipse(x0 + 6.9, y0 + 5.4, 2.4, 2.9, (nx, ny, d) => (d > 0.66 && ny < -0.25 && nx < 0.55 ? C[Math.min(top, 3)] : d > 0.72 && nx < 0 ? C[1] : '#0c0810'));
   const Sk = L.skin;
-  R.ellipse(x0 + 7.5, y0 + 5.7, 1.5, 2.1, (nx, ny) => (ny < -0.3 ? null : band(Sk, 0.8 + nx * 0.8)));
-  const eye = L.rl.cracks ? L.accent[4] : '#d8d0c0';
-  R.fstamp(x0 + 6.8, y0 + 4.6, ['kk.kk', 'ew.ew'], { k: Sk[0], e: eye, w: L.rl.cracks ? L.accent[3] : '#9a9088' });
-  if (L.rl.cracks) G.push({ x: Math.round(x0 + 7), y: Math.round(y0 + 5), color: L.accent[4], r: 1.2 });
-  // Halstuch über Mund und Nase
+  R.ellipse(x0 + 7.5, y0 + 5.7, 1.5, 2.1, (nx, ny) => (ny < -0.3 ? null : band(Sk, 0.8 + nx * 0.8 + (ny > 0.1 ? 0.3 : 0))));
+  // Augen im Schatten: Lid, Weiß, Iris, Pupille, Glanzpunkt (nah); fern nur Weiß und Iris
+  const cracks = L.rl.cracks;
+  if (cracks) R.fstamp(x0 + 6.8, y0 + 4.6, ['kk.kk', 'ew.ew'], { k: Sk[0], e: L.accent[4], w: L.accent[3] });
+  else {
+    const iris = L.rl.face === 'elf' ? '#6ac0d8' : L.rl.face === 'dwarf' ? '#5a7a44' : '#6a4a30';
+    R.fstamp(x0 + 6.6, y0 + 4.6, ['kk.kkk', 'wi.gip'], { k: Sk[0], w: '#b8b0a4', g: '#fff6e8', i: iris, p: '#0a0608' });
+    R.dot(x0 + 8.35, y0 + 5.6, Sk[1]);   // Nasenschatten unter dem nahen Auge
+  }
+  if (cracks) G.push({ x: Math.round(x0 + 7), y: Math.round(y0 + 5), color: L.accent[4], r: 1.2 });
+  // Halstuch über Mund und Nase: Oberkante im Licht, eine Falte, Saum im Schatten
   R.capsule(x0 + 5.6, y0 + 7.4, x0 + 9.2, y0 + 7.0, 1.3, 1.1, (l, t, e, x, y, F, Gi) => matShade('cloth', C, l, F, Gi, x, y));
+  R.fline(x0 + 6.0, y0 + 6.25, x0 + 9.0, y0 + 5.95, 0.3, C[Math.min(top - 1, 3)]);
+  R.fline(x0 + 6.6, y0 + 7.0, x0 + 8.2, y0 + 7.6, 0.3, C[1]);
   R.fline(x0 + 5.3, y0 + 8.2, x0 + 9.0, y0 + 7.9, 0.34, C[1]);
 }
