@@ -88,6 +88,8 @@ body { display: flex; align-items: center; justify-content: center; }
   color: var(--ef-text); text-align: center; touch-action: none; user-select: none; -webkit-user-select: none;
 }
 .ef-rotate-on #ef-rotate { display: grid; }
+#ef-rotate .ef-rotate-back { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); z-index: 1; }
+#ef-rotate .ef-rotate-back[hidden] { display: none; }
 .ef-rotate-on #ui, .ef-rotate-on #game { visibility: hidden; }
 .ef-rotate-glow {
   position: absolute; left: 50%; bottom: -30vh; width: 140vw; height: 60vh; transform: translateX(-50%);

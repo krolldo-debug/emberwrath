@@ -193,7 +193,7 @@ export class Online {
       if (result.intent === 'reauth') { this.game.scenes.go('login', { mode: 'deleteAccount' }); this.afterSignIn(); return; }
       if (result.intent === 'recovery') { this.game.scenes.go('login', { mode: 'newPassword' }); this.afterSignIn(); return; }
       if (result.intent === 'signup') this.notice = { kind: 'ok', text: 'E-Mail bestätigt. Willkommen in Emberwrath!' };
-      this.game.scenes.go('login', { mode: 'account' });
+      this.game.scenes.go('title'); // dort liegt „Spielen“ (die Kontoseite ist nur noch für Einstellungen)
       this.afterSignIn();
       return;
     }

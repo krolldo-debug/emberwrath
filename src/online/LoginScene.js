@@ -3,6 +3,7 @@ import { EV } from '../core/events.js';
 import { MenuScene } from '../account/TitleScene.js';
 import { focusIfDesktop, characterLine, backButton } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
+import { fmtDate } from '../i18n/index.js';
 
 // Anmeldeseite (Szene 'login'). params.mode:
 //   'login'        E-Mail + Passwort, Google
@@ -11,7 +12,8 @@ import { describeError } from './AuthClient.js';
 //   'newPassword'  neues Passwort setzen (nach Link aus der E-Mail oder im Konto)
 //   'consent'      angemeldet, aber Nutzungsbedingungen (aktuelle Fassung) noch nicht bestätigt, z. B. nach erster Google-Anmeldung
 //   'deleteAccount' Konto löschen nach erneuter Anmeldung (Passwort bzw. Google; der Server verlangt eine frische Anmeldung)
-//   'account'      angemeldet: Spielen, Verwaltung, lokale Charaktere übernehmen, Abmelden, Konto löschen
+//   'account'      angemeldet: Verwaltung, lokale Charaktere übernehmen, Kontoeinstellungen (Spielen liegt auf dem Titel)
+//   'rename'       Kontonamen ändern, höchstens alle 30 Tage (Sperre im Server: change_display_name)
 // Offizielles „G“ aus Googles Sign-in-Branding-Richtlinien (developers.google.com/identity/branding-guidelines).
 const GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 // Rechtstexte der Website (site/). Das Spiel liegt unter /spielen/, die Seiten im Wurzelverzeichnis.
@@ -36,7 +38,21 @@ const TITLES = {
   account: ['Dein Konto', ''],
   consent: ['Nutzungsbedingungen', 'Einmal bestätigen, dann geht es los'],
   deleteAccount: ['Konto löschen', 'Bitte bestätige mit deiner Anmeldung'],
+  rename: ['Namen ändern', ''],
 };
+
+// Kontoname: dieselben Regeln prüft der Server (supabase/migrations/20261011023000_namen_aendern.sql).
+const NAME_CHARS = /^[0-9A-Za-zÀ-ÖØ-öø-ɏ]+([ ._-][0-9A-Za-zÀ-ÖØ-öø-ɏ]+)*$/;
+const cleanName = (s) => s.trim().replace(/\s+/g, ' ');
+const NAME_ERRORS = {
+  name_length: 'Der Name braucht 2 bis 24 Zeichen.',
+  name_chars: 'Erlaubt sind Buchstaben und Zahlen, dazwischen einzelne Leerzeichen, Punkte, Binde- oder Unterstriche.',
+  name_unchanged: 'So heißt du schon.',
+  name_taken: 'Diesen Namen trägt schon ein anderes Konto.',
+  name_cooldown: 'Du kannst deinen Namen nur alle 30 Tage ändern.',
+};
+const nameProblem = (n) => (n.length < 2 || n.length > 24 ? NAME_ERRORS.name_length : NAME_CHARS.test(n) ? null : NAME_ERRORS.name_chars);
+const nextChangeText = (iso) => `Nächste Änderung ab ${fmtDate(iso, { day: 'numeric', month: 'long', year: 'numeric' })}.`;
 
 const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
 const passwordProblem = (pw) => (pw.length < 8 ? 'Das Passwort braucht mindestens 8 Zeichen.'
@@ -46,7 +62,7 @@ export class LoginScene extends MenuScene {
   enter(params = {}) {
     this.online = this.game.online;
     this.mode = params.mode ?? (this.online.user ? 'account' : 'login');
-    if (['account', 'consent', 'deleteAccount'].includes(this.mode) && !this.online.user) this.mode = 'login';
+    if (['account', 'consent', 'deleteAccount', 'rename'].includes(this.mode) && !this.online.user) this.mode = 'login';
     this.message = this.online.notice; this.online.notice = null;
     this.busy = false;
     this.root = h('div.ef-screen.acc-screen.on-screen');
@@ -58,7 +74,7 @@ export class LoginScene extends MenuScene {
 
   back() {
     if (this.mode === 'forgot' || this.mode === 'register') { this.#go('login'); return; }
-    if ((this.mode === 'newPassword' || this.mode === 'deleteAccount') && this.online.user) { this.#go('account'); return; }
+    if (['newPassword', 'deleteAccount', 'rename'].includes(this.mode) && this.online.user) { this.#go('account'); return; }
     this.game.scenes.go('title');
   }
 
@@ -130,6 +146,7 @@ export class LoginScene extends MenuScene {
     else if (this.mode === 'account' && this.online.user) body = this.#account();
     else if (this.mode === 'consent' && this.online.user) body = this.#consent();
     else if (this.mode === 'deleteAccount' && this.online.user) body = this.#deleteAccount();
+    else if (this.mode === 'rename' && this.online.user) body = this.#rename();
     else body = this.#login();
     // Eingaben bleiben erhalten, wenn dieselbe Seite neu gezeichnet wird (z. B. nach einer Fehlermeldung)
     const keep = this.#shownMode === this.mode ? [...this.root.querySelectorAll('.on-form input')].map((el) => (el.type === 'checkbox' ? el.checked : el.value)) : null;
@@ -164,7 +181,7 @@ export class LoginScene extends MenuScene {
       if (!pw.input.value) { this.message = { kind: 'error', text: 'Bitte gib dein Passwort ein.' }; this.#render(); return; }
       this.#run(async () => {
         await this.online.client.signIn(mail, pw.input.value);
-        this.#go('account');
+        this.game.scenes.go('title');
         this.online.afterSignIn();
       });
     };
@@ -225,7 +242,8 @@ export class LoginScene extends MenuScene {
         if (r.needsConfirmation) {
           this.#go('login', { kind: 'ok', text: `Fast geschafft: Wir haben eine E-Mail an ${mail} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.` });
         } else {
-          this.#go('account', { kind: 'ok', text: `Willkommen, ${this.online.displayName}!` });
+          this.online.notice = { kind: 'ok', text: `Willkommen, ${this.online.displayName}!` };
+          this.game.scenes.go('title');
           this.online.afterSignIn();
         }
       });
@@ -286,7 +304,6 @@ export class LoginScene extends MenuScene {
   #account() {
     const o = this.online, g = this.game, u = o.user;
     const providers = (u.app_metadata?.providers ?? [u.app_metadata?.provider]).filter(Boolean);
-    const count = g.save.listCharacters(o.accountId).length;
     const adminSlot = h('div.on-admin-slot');
     o.isAdmin().then((yes) => {
       if (yes && this.mode === 'account') adminSlot.replaceChildren(h('button.ef-btn.on-admin-btn', { type: 'button', onclick: () => g.scenes.go('admin') }, 'Verwaltung öffnen'));
@@ -298,15 +315,12 @@ export class LoginScene extends MenuScene {
         h('strong', { translate: 'no' }, o.displayName)),
       this.#syncLine(),
       this.#messageBox(),
-      h('div.acc-actions',
-        h('button.ef-btn.primary.acc-big', { type: 'button', onclick: () => o.play() },
-          h('span.acc-btn-title', 'Spielen'),
-          h('span.acc-btn-sub', count ? `${count === 1 ? '1 Charakter' : `${count} Charaktere`} in deinem Konto` : 'Ersten Charakter erschaffen'))),
       adminSlot,
       this.#importBox(),
       h('details.on-more',
         h('summary', 'Kontoeinstellungen'),
         h('div.on-more-body',
+          h('button.ef-btn', { type: 'button', onclick: () => this.#go('rename') }, 'Namen ändern'),
           providers.includes('email') ? h('button.ef-btn', { type: 'button', onclick: () => this.#go('newPassword') }, 'Passwort ändern') : null,
           h('button.ef-btn', { type: 'button', onclick: () => this.#run(async () => {
             const r = await o.signOut();
@@ -338,6 +352,35 @@ export class LoginScene extends MenuScene {
             if (id) setTimeout(() => { if (this.mode === 'account') this.#render(); }, 900);
           },
         }, 'In mein Konto übernehmen'))))));
+  }
+
+  // Kontonamen ändern. Ob gerade gesperrt ist, sagt der Server (display_name_status); gesperrt wird dort.
+  #rename() {
+    const o = this.online;
+    const name = this.#field('Neuer Name', { type: 'text', autocomplete: 'nickname', required: true, minlength: 2, maxlength: 24, spellcheck: 'false', value: o.displayName });
+    const hint = h('p.acc-meta', 'Du kannst deinen Namen alle 30 Tage ändern.');
+    const submitBtn = h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Namen speichern');
+    const locked = (iso) => { hint.textContent = nextChangeText(iso); name.input.disabled = true; submitBtn.disabled = true; };
+    o.client.rpc('display_name_status').then((st) => { if (st?.next_change_at && this.mode === 'rename') locked(st.next_change_at); }).catch(() => {});
+    const submit = (e) => {
+      e.preventDefault();
+      const n = cleanName(name.input.value);
+      const problem = nameProblem(n) ?? (n === o.displayName ? NAME_ERRORS.name_unchanged : null);
+      if (problem) { this.message = { kind: 'error', text: problem }; this.#render(); return; }
+      this.#run(async () => {
+        try { await o.client.rpc('change_display_name', { p_name: n }); } catch (err) {
+          if (err?.code === 'network' || err?.status === 401) throw err;
+          this.message = { kind: 'error', text: NAME_ERRORS[err?.message] ?? 'Namen ändern klappt gerade nicht. Bitte versuche es später erneut.' };
+          this.#render();
+          return;
+        }
+        await o.client.fetchUser().catch(() => {});
+        this.#go('account', { kind: 'ok', text: 'Dein Name wurde geändert.' });
+      });
+    };
+    return h('div.on-body',
+      h('form.on-form', { onsubmit: submit, novalidate: true }, name.el, hint, this.#messageBox(), submitBtn),
+      h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('account') }, 'Abbrechen')));
   }
 
   // Konto löschen: erst erneut anmelden (Schutz, falls jemand ein offenes Gerät benutzt), dann endgültig löschen.

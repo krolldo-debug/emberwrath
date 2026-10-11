@@ -4418,5 +4418,18 @@ export const EN = {
   "Aufträge": "Bounties",
   "Diese Woche": "This week",
   "Neu in {0} h {1} min": "New in {0} h {1} min",
-  "Neu in {0} min": "New in {0} min"
+  "Neu in {0} min": "New in {0} min",
+  "Zurück zur Website": "Back to Website",
+  "Namen ändern": "Change Name",
+  "Neuer Name": "New Name",
+  "Namen speichern": "Save Name",
+  "Du kannst deinen Namen alle 30 Tage ändern.": "You can change your name once every 30 days.",
+  "Nächste Änderung ab {0}.": "Next change possible from {0}.",
+  "Der Name braucht 2 bis 24 Zeichen.": "Your name needs 2 to 24 characters.",
+  "Erlaubt sind Buchstaben und Zahlen, dazwischen einzelne Leerzeichen, Punkte, Binde- oder Unterstriche.": "Use letters and numbers, with single spaces, dots, hyphens or underscores in between.",
+  "So heißt du schon.": "That is already your name.",
+  "Diesen Namen trägt schon ein anderes Konto.": "Another account already uses this name.",
+  "Du kannst deinen Namen nur alle 30 Tage ändern.": "You can only change your name once every 30 days.",
+  "Namen ändern klappt gerade nicht. Bitte versuche es später erneut.": "Your name can't be changed right now. Please try again later.",
+  "Dein Name wurde geändert.": "Your name has been changed."
 };

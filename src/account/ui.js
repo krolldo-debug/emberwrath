@@ -2,6 +2,7 @@ import { h } from '../core/dom.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { resolveGear } from '../character/gearLook.js';
 import { spriteStyle } from '../character/cosmetics.js';
+import { lang } from '../i18n/index.js';
 
 // Gemeinsame Bausteine der Menü-Bildschirme (Thread A).
 
@@ -51,6 +52,9 @@ export function savedLook(save, content, accountId, characterId) {
 export function zoneName(content, zoneId) {
   return zoneId ? content.find('zone', zoneId)?.name ?? null : null;
 }
+
+// Startseite der Website in der gewählten Sprache (das Spiel liegt unter /spielen/ auf derselben Domain).
+export const websiteUrl = () => (lang() === 'de' ? '/' : '/en/');
 
 // Gut sichtbarer Zurück-Pfeil oben links in den Menüs.
 export function backButton(onclick, label = 'Zurück') {
