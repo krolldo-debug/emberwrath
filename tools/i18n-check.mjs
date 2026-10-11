@@ -1,11 +1,14 @@
-// Listet deutsche Texte im Code, für die src/i18n/en.js (Spiel) noch keine englische Fassung hat.
-// Aufruf: node tools/i18n-check.mjs [--json]   (ohne Abhängigkeiten, grobe Suche nach String-Literalen)
+// Listet deutsche Texte im Code, für die src/i18n/en.js (Spiel) noch keine englische Fassung hat, und prüft die
+// weiteren Sprachen (es.js, fr.js …): jeder Eintrag aus en.js braucht dort eine Fassung mit denselben Platzhaltern.
+// Aufruf: node tools/i18n-check.mjs [--json] [--lang es]   (ohne Abhängigkeiten, grobe Suche nach String-Literalen)
+// --lang xx listet die in xx fehlenden oder fehlerhaften Einträge einzeln.
 // Die Website prüft site/build-site.mjs beim Build selbst („Website /en/: N Texte ohne Übersetzung“).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Translator } from '../src/i18n/translate.js';
 import { EN } from '../src/i18n/en.js';
+import { LANGS } from '../src/i18n/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tr = new Translator(EN);
@@ -43,4 +46,16 @@ if (process.argv.includes('--json')) console.log(JSON.stringify(Object.fromEntri
 else {
   for (const [s, where] of found) console.log(`${where}\t${JSON.stringify(s)}`);
   console.log(`\n${found.size} Texte ohne englische Fassung (Einträge in src/i18n/en.js ergänzen; Schlüssel = deutscher Text, \${…} als {0}, {1} …).`);
+}
+
+// Weitere Sprachen: fehlt dort ein Eintrag, erscheint der Text englisch.
+const ph = (s) => (s.match(/\{\d+\}/g) ?? []).sort().join();
+const only = process.argv.includes('--lang') ? process.argv[process.argv.indexOf('--lang') + 1] : null;
+for (const { id, dict } of LANGS) {
+  if (!dict || id === 'en') continue;
+  const missing = Object.keys(EN).filter((k) => typeof dict[k] !== 'string' || !dict[k]);
+  const broken = Object.keys(dict).filter((k) => typeof dict[k] === 'string' && k in EN && ph(k) !== ph(dict[k]));
+  const extra = Object.keys(dict).filter((k) => !(k in EN));
+  if (!process.argv.includes('--json')) console.log(`${id}.js: ${missing.length} fehlen, ${broken.length} mit falschen Platzhaltern, ${extra.length} ohne Gegenstück in en.js`);
+  if (only === id) for (const k of [...missing, ...broken, ...extra]) console.log(`  ${JSON.stringify(k)}`);
 }

@@ -135,7 +135,7 @@ export function installShop(game) {
       const r = await fetch('/net/shop/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game', lang: document.documentElement.lang?.startsWith('en') ? 'en' : 'de' }),
+        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game', lang: document.documentElement.lang === 'de' ? 'de' : 'en' }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) throw new Error(CHECKOUT_ERRORS[d.error] ?? 'Die Bezahlseite ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.');

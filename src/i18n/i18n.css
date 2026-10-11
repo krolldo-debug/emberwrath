@@ -1,5 +1,31 @@
-/* Sprachumschalter (src/i18n/index.js langSwitch), z. B. auf dem Titelbild */
-.ef-lang { display: inline-flex; align-self: flex-start; gap: 2px; margin-top: 14px; border: 1px solid #5a3a1a; background: #0d0814cc; }
-.ef-lang button { font: inherit; font-size: 0.8em; color: var(--ef-muted, #a89ab8); background: transparent; border: 0; padding: 5px 10px; cursor: pointer; min-height: 30px; }
-.ef-lang button[aria-pressed="true"] { color: #1a0c04; background: linear-gradient(#f0c870, #c88a30); font-weight: 700; }
-.ef-lang button:focus-visible { outline: 2px solid #f0c870; outline-offset: 1px; }
+/* Sprachauswahl (src/i18n/index.js langSwitch): Knopf „Languages / Sprachen“, darunter bzw. darüber die Liste */
+.ef-lang { align-self: flex-start; margin-top: 14px; }
+.ef-lang-inline { margin-top: 0; flex: none; }
+.ef-lang-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 5px 10px;
+  font: 600 0.82em/1 var(--ef-font, sans-serif); color: var(--ef-text, #efe6d2); cursor: pointer;
+  background: #0d0814d9; border: 2px solid #5a3a1a; border-radius: 0;
+  box-shadow: inset 0 0 0 1px #00000080, 0 2px 0 #00000066;
+}
+.ef-lang-btn svg { color: var(--ef-gold, #e8c25a); width: 13px; height: 13px; flex: none; image-rendering: pixelated; }
+.ef-lang-title { color: var(--ef-muted, #a89a7c); letter-spacing: 0.02em; }
+.ef-lang-cur { color: var(--ef-gold, #e8c25a); }
+.ef-lang-title + .ef-lang-cur::before { content: "·"; color: #6a4526; margin-right: 8px; }
+.ef-lang-caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--ef-muted, #a89a7c); }
+.ef-lang-btn[aria-expanded="true"] { border-color: #b8862a; }
+.ef-lang-btn[aria-expanded="true"] .ef-lang-caret { transform: rotate(180deg); }
+.ef-lang-btn:hover { border-color: #8a6230; }
+.ef-lang-btn:focus-visible, .ef-lang-opt:focus-visible { outline: 2px solid var(--ef-gold, #e8c25a); outline-offset: 1px; }
+.ef-lang-list {
+  position: fixed; z-index: 1000; display: flex; flex-direction: column; padding: 3px;
+  background: #120a1a; border: 2px solid #8a6230; box-shadow: 0 0 0 1px #000, 0 6px 18px #000a;
+}
+.ef-lang-list[hidden] { display: none; }
+.ef-lang-opt {
+  font: 600 0.85em/1 var(--ef-font, sans-serif); color: var(--ef-text, #efe6d2); text-align: left; cursor: pointer;
+  background: transparent; border: 0; padding: 9px 12px 9px 22px; min-height: 34px; position: relative;
+}
+.ef-lang-opt:hover, .ef-lang-opt:focus-visible { background: #2a1830; }
+.ef-lang-opt[aria-selected="true"] { color: #1a0c04; background: linear-gradient(#f0c870, #c88a30); }
+.ef-lang-opt[aria-selected="true"]::before { content: ""; position: absolute; left: 9px; top: 50%; width: 5px; height: 5px; margin-top: -2px; background: #1a0c04; transform: rotate(45deg); }
+@media (pointer: coarse) { .ef-lang-btn, .ef-lang-opt { min-height: 40px; } }

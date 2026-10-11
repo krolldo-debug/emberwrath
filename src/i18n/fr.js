@@ -1,0 +1,2 @@
+// Platzhalter
+export const FR = {};

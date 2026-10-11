@@ -19,23 +19,28 @@ const G = {
   ':': '.|#|.|#|.', '-': '...|...|###|...|...', '+': '...|.#.|###|.#.|...', '/': '..#|..#|.#.|#..|#..',
   "'": '#|#|.|.|.', '%': '#.#|..#|.#.|#..|#.#', '(': '.#|#.|#.|#.|.#', ')': '#.|.#|.#|.#|#.', 'x': '...|#.#|.#.|#.#|...',
   '·': '.|.|#|.|.', '>': '#..|.#.|..#|.#.|#..', '<': '..#|.#.|#..|.#.|..#',
+  '¡': '#|.|#|#|#', '¿': '.#.|...|.#.|#..|.##', '«': '....|.#.#|#.#.|.#.#|....', '»': '....|#.#.|.#.#|#.#.|....',
 };
+// Andere Sprachen: Buchstaben mit Akzent (É, Ñ, Ç …) als Grundbuchstabe zeichnen, ehe es ein Fragezeichen wird.
+const base = (ch) => ch.normalize('NFD')[0];
 
 export class PixelFont {
   constructor() {
     this.glyphs = {};
     for (const [ch, rows] of Object.entries(G)) {
       const r = rows.split('|');
-      this.glyphs[ch] = { w: r[0].length, rows: r };
+      this.glyphs[ch] = { ch, w: r[0].length, rows: r };
     }
     this.cache = new Map();
   }
+
+  #glyph(ch) { return this.glyphs[ch] ?? this.glyphs[base(ch)] ?? this.glyphs['?']; }
 
   #glyphCanvas(ch, color) {
     const key = ch + color;
     let c = this.cache.get(key);
     if (c) return c;
-    const g = this.glyphs[ch] ?? this.glyphs['?'];
+    const g = this.glyphs[ch];
     c = makeCanvas(g.w, 5);
     const ctx = c.getContext('2d');
     ctx.fillStyle = color;
@@ -48,7 +53,7 @@ export class PixelFont {
   measure(text, scale = 1, raw = false) {
     if (!raw) text = tr(String(text));
     let w = 0;
-    for (const ch of text.toUpperCase()) w += ((this.glyphs[ch] ?? this.glyphs['?']).w + 1) * scale;
+    for (const ch of text.toUpperCase()) w += (this.#glyph(ch).w + 1) * scale;
     return Math.max(0, w - scale);
   }
 
@@ -67,8 +72,8 @@ export class PixelFont {
       this.draw(ctx, text, cx + scale, y + scale, { color: shadowColor, scale });
     }
     for (const ch of text) {
-      const g = this.glyphs[ch] ?? this.glyphs['?'];
-      const img = this.#glyphCanvas(this.glyphs[ch] ? ch : '?', color);
+      const g = this.#glyph(ch);
+      const img = this.#glyphCanvas(g.ch, color);
       ctx.drawImage(img, cx, y, g.w * scale, 5 * scale);
       cx += (g.w + 1) * scale;
     }

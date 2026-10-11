@@ -12,11 +12,17 @@ const headOf = (s) => (s.trimStart().match(/^[^\s{]+/)?.[0] ?? '').toLowerCase()
 const NUM = /(\s*[+\-]?\d[\d.,]*\s*%?\s*)/;
 const SPLIT = /(\s+[·–—|/]\s+|\s*\n\s*|:\s+|\s+\(|\)\s*|,\s+)/;
 
-// Deutsche Anführungszeichen „…“ werden im Englischen zu “…”, ‚…‘ zu ‘…’.
-const englishQuotes = (s) => s.replace(/„([^“”]*)[“”]/g, '“$1”').replace(/‚([^‘’]*)[‘’]/g, '‘$1’');
+// Deutsche Anführungszeichen „…“ in der Zielsprache: Englisch “…”, Spanisch «…», Französisch « … ».
+const QUOTES = {
+  en: (s) => s.replace(/„([^“”]*)[“”]/g, '“$1”').replace(/‚([^‘’]*)[‘’]/g, '‘$1’'),
+  es: (s) => s.replace(/„([^“”]*)[“”]/g, '«$1»').replace(/‚([^‘’]*)[‘’]/g, '“$1”'),
+  fr: (s) => s.replace(/„([^“”]*)[“”]/g, '« $1 »').replace(/‚([^‘’]*)[‘’]/g, '“$1”'),
+};
 
 export class Translator {
-  constructor(dict = {}) {
+  // quotes: Zielsprache für Anführungszeichen (en, es, fr)
+  constructor(dict = {}, { quotes = 'en' } = {}) {
+    this.quotes = QUOTES[quotes] ?? QUOTES.en;
     this.exact = new Map();
     this.upper = new Map(); // für Code, der vor dem Zeichnen toUpperCase() aufruft (PixelFont)
     this.byHead = new Map(); // erstes Wort des festen Anfangs → Muster
@@ -67,7 +73,7 @@ export class Translator {
     const m = text.match(/^(\s*)([\s\S]*?)(\s*)$/);
     const core = norm(m[2]);
     let out = this.#core(core, 0);
-    if (out != null) out = englishQuotes(out);
+    if (out != null) out = this.quotes(out);
     if (out == null) {
       out = text;
       if (this.missing && core.length > 1 && !this.outputs.has(core) && !this.same.has(core)) this.missing.add(core);
