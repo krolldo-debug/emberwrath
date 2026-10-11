@@ -24,7 +24,8 @@
 --    zählen beim Empfänger als Bestand.
 --  - Senden und Empfangen ab Stufe/Spielzeit wie im Auktionshaus, Senden nicht mit Schummel-Vermerk. Höchstens
 --    30 Briefe je Stunde und Konto, 3 offene Briefe eines Kontos an denselben Empfänger und
---    60 offene Spielerbriefe je Empfänger (gezählt unter Sperre auf den Empfänger).
+--    60 offene Spielerbriefe je Empfänger (gezählt unter Sperre auf den Empfänger; Briefe, die wegen des
+--    Goldrahmens beim Empfänger festliegen, zählen nicht).
 --  - Empfänger per Charaktername (Groß-/Kleinschreibung egal). Charakternamen ändern sich per Upload nicht mehr
 --    (characters_post_check). Heißen mehrere so, gilt der älteste Charakter, der Post empfangen darf: ein später
 --    angelegter Doppelgänger fängt keine Briefe ab. mail_lookup liefert eine Empfängerkennung (mail_keys), mail_send
@@ -35,6 +36,14 @@
 --    entsteht im Browser wie jede Beute (offener Punkt D3) und bekommt deshalb keinen Bestand. characters_post_check
 --    begrenzt sie (20 Briefe, 8 Teile je Brief, Mengen 1–999, Gold bis 20000), neue
 --    Charaktere haben keine, und Gold darin zählt zur Gold-Obergrenze der Spielstandprüfung.
+
+-- Reihenfolge: das Postfach baut auf dem Auktionshaus auf.
+do $$
+begin
+  if to_regclass('public.market_mail') is null then
+    raise exception 'Zuerst 20261011090000_auktionshaus.sql ausführen, danach diese Datei (20261011150000_postfach.sql).';
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------ Tabellen
 alter table public.market_mail drop constraint if exists market_mail_kind_check;
@@ -155,8 +164,10 @@ begin
       or jsonb_array_length(coalesce(l -> 'items', '[]'::jsonb)) > 8
       or jsonb_typeof(coalesce(l -> 'gold', '0'::jsonb)) <> 'number'
       or (l ->> 'gold')::numeric < 0 or (l ->> 'gold')::numeric > 20000
+      or (l ->> 'gold')::numeric <> floor((l ->> 'gold')::numeric)
       or exists (select 1 from jsonb_array_elements(coalesce(l -> 'items', '[]'::jsonb)) i where jsonb_typeof(i) <> 'object'
         or jsonb_typeof(i -> 'qty') is distinct from 'number' or (i ->> 'qty')::numeric < 1 or (i ->> 'qty')::numeric > 999
+        or (i ->> 'qty')::numeric <> floor((i ->> 'qty')::numeric)
         or jsonb_typeof(i -> 'itemId') is distinct from 'string' or char_length(i ->> 'itemId') > 64));
   end if;
   if bad then why := 'postfach';
@@ -318,9 +329,6 @@ declare uid uuid := (select auth.uid()); e text; c public.characters; r public.c
 begin
   e := public.market_guard(uid, 'send');
   if e is not null then return public.market_err(e); end if;
-  update public.market_rate set sent = case when sent_hour = hr then sent + 1 else 1 end, sent_hour = hr
-    where user_id = uid returning sent into n;
-  if n > 30 then return public.market_err('rate'); end if;
   if gold < 0 or gold > 10000000 then return public.market_err('price'); end if;
   if p_item is null and gold = 0 then return public.market_err('empty'); end if;
   select * into c from public.characters where user_id = uid and id = p_character for update;
@@ -338,10 +346,11 @@ begin
   if public.market_eligible(r) is not null then return public.market_err('unready'); end if;
   -- Zählen unter Sperre auf den Empfänger (gleichzeitige Briefe an ihn laufen nacheinander)
   perform pg_advisory_xact_lock(hashtextextended('mail:' || r.user_id::text || ':' || r.id, 0));
+  -- Briefe ohne Ablauf (Gold über dem Rahmen des Empfängers, Absender weg) liegen beim Empfänger fest und zählen nicht.
   if (select count(*) from public.market_mail m where m.user_id = r.user_id and m.character_id = r.id and m.kind = 'letter'
-      and m.collected_at is null and m.created_at >= r.created_at) >= 60
+      and m.collected_at is null and m.expires_at is not null and m.created_at >= r.created_at) >= 60
      or (select count(*) from public.market_mail m where m.from_user = uid and m.user_id = r.user_id and m.character_id = r.id
-      and m.kind = 'letter' and m.collected_at is null) >= 3 then
+      and m.kind = 'letter' and m.collected_at is null and m.expires_at is not null) >= 3 then
     return public.market_err('nodeliver');
   end if;
   snap := c.snapshot;
@@ -375,7 +384,10 @@ begin
     if not public.market_can_spend(uid, gold) then return public.market_err('frame'); end if;
     snap := public.market_snap_set_gold(snap, g - gold);
   end if;
-  -- Alles geprüft: buchen
+  -- Alles geprüft: Briefe je Stunde zählen (abgelehnte Briefe zählen nicht), dann buchen
+  update public.market_rate set sent = case when sent_hour = hr then sent + 1 else 1 end, sent_hour = hr
+    where user_id = uid and (sent_hour is distinct from hr or sent < 30);
+  if not found then return public.market_err('rate'); end if;
   if cost > 0 then update public.market_accounts set fresh = fresh + cost where user_id = uid; end if;
   if use_ > 0 then
     update public.market_owned set qty = qty - use_ where user_id = uid and character_id = p_character and item_id = p_item;

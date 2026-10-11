@@ -6,7 +6,7 @@
 - `src/character/stats.js` – `computeStats(state, content)`, `deriveStats({ raceId, classId, level, equipment }, content)`, `equipmentBonus()`
 - `src/character/abilities.js` – Verhalten der Fähigkeiten, `HeroProjectile` (Pfeil, Glutbolzen, Wurfdolch)
 - `src/character/createHero.js` – `createHero(session, x, y)`
-- `src/character/index.js` – `installCharacter`, Slice `character`, Command `character:rename`, `validateName()`
+- `src/character/index.js` – `installCharacter`, Slice `character`, `validateName()` (Charakternamen ändern sich nach der Erstellung nicht, die Datenbank hält sie fest: src/mail)
 - `src/entities/Hero.js` – klassengesteuerter Held (Nahkampf-Kombo oder Schuss, 2 Fähigkeiten, Ressource, Buffs)
 - `src/sprites/hero.js` – `getHeroSprites(raceId, classId, variant, gear?, style?)` (Skelettfigur mit IK, Frames werden je Animation erst bei Bedarf gerastert; eigene Posen `slam`, `lunge`, `coat`, `rainshot`, `plant`, `summon`, `hurl` für die Stufe-4/12-Fähigkeiten, Waffen-Wischspuren über Pose-Feld `smear: [altWinkel, neuWinkel]`); `createHeroSprites()` bleibt für `Assets.js`
 - `src/character/cosmetics.js` – Färbungen (`DYES`), Frisuren je Volk, Preise; `character:restyle { variant?, dye?, hairStyle? }` kostet Gold (prüft das Guthaben vorher)

@@ -12,7 +12,6 @@ import { installWardrobe, cleanWardrobe, hasLook } from './wardrobe.js';
 // Slice:    character = { name, raceId, classId, appearance: { variant, dye, hairStyle }, talents: { talentId: rang },
 //                        mounts: { owned, active, riding },  (Reittiere: mounts.js, §12.6)
 //                        wardrobe: { looks, shown } }        (Garderobe: wardrobe.js)
-// Commands: character:rename { name }  (Name prüfen wie in der Erstellung)
 //           character:learnTalent { id }, character:resetTalents (kostenlos)
 //           character:restyle { variant?, dye?, hairStyle? } (kostet Gold über wallet:addGold)
 // Panels:   'talents' (Aktion 'talents'), 'appearance' (Spiegel im Dorf, siehe cosmetics.js)
@@ -97,10 +96,4 @@ export function installCharacter(game) {
   }, { authoritative: true });
   registerAppearancePanel(game);
 
-  state.defineCommand('character:rename', (s, { name }) => {
-    const err = validateName(name);
-    if (err) return { ok: false, error: err };
-    s.get('character').name = cleanName(name);
-    return { ok: true };
-  });
 }

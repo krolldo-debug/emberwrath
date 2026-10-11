@@ -262,12 +262,19 @@ const eKey = (await lookup(A, 'ca', 'Eskil')).key;
 const pair = [];
 for (let i = 0; i <= PAIR_MAX; i++) pair.push(await send(A, 'ca', 'Eskil', { gold: 1, key: eKey }));
 ok(pair.slice(0, PAIR_MAX).every((x) => x.ok) && pair[PAIR_MAX].error === 'nodeliver', `Höchstens ${PAIR_MAX} offene Briefe eines Absenders an denselben Empfänger`);
+// Briefe, die wegen des Goldrahmens beim Empfänger festliegen (ohne Ablauf), zählen für keine der Grenzen
+await pool.query("update public.market_mail set expires_at = null where from_user = $1 and user_id = $2 and kind = 'letter' and collected_at is null", [A, E]);
+r = await send(A, 'ca', 'Eskil', { gold: 1, key: eKey });
+ok(r.ok, 'Festliegende Briefe blockieren den Absender nicht');
 await pool.query(`insert into public.market_mail (user_id, character_id, kind, gold, from_name, expires_at) select $1, 'ce', 'letter', 1, 'X', now() + interval '1 day' from generate_series(1, ${BOX_MAX})`, [E]);
 r = await send(F, 'cf', 'Eskil', { gold: 1 });
 ok(!r.ok && r.error === 'nodeliver', `Volles Postfach (${BOX_MAX} Briefe) nimmt nichts mehr an, mit demselben Fehler wie die Absendergrenze`);
 await pool.query("update public.market_rate set sent = $2, sent_hour = date_trunc('hour', now()) where user_id = $1", [A, SEND_PER_HOUR]);
 r = await send(A, 'ca', 'Cora', { gold: 1 });
 ok(!r.ok && r.error === 'rate', `Höchstens ${SEND_PER_HOUR} Briefe je Stunde`);
+await pool.query("update public.market_rate set sent = 5, sent_hour = date_trunc('hour', now()) where user_id = $1", [A]);
+r = await send(A, 'ca', 'Niemandda', { gold: 1 });
+ok(!r.ok && (await pool.query('select sent from public.market_rate where user_id = $1', [A])).rows[0].sent === 5, 'Abgelehnte Briefe zählen nicht fürs Stundenlimit');
 await pool.query('update public.market_rate set sent = 0, lookups = 0 where user_id = $1', [A]);
 let lk = null;
 for (let i = 0; i <= LOOKUP_PER_MINUTE; i++) lk = await lookup(A, 'ca', 'Cora');
@@ -295,6 +302,8 @@ for (const [bad, why] of [
   [Array.from({ length: LOOT_MAX + 1 }, () => lootLetter(1)), 'zu viele Briefe'],
   [[lootLetter(1, Array.from({ length: 9 }, () => ({ itemId: RARE, qty: 1 })))], 'zu viele Teile'],
   [[lootLetter(1, [{ itemId: RARE, qty: 5000 }])], 'Menge über 999'],
+  [[lootLetter(1, [{ itemId: RARE, qty: 1.5 }])], 'Menge keine ganze Zahl'],
+  [[lootLetter(2.5)], 'Gold keine ganze Zahl'],
   [[lootLetter(999999)], 'Gold über der Grenze je Brief'],
   [{ x: 1 }, 'kein Array'],
 ]) {
