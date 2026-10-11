@@ -1,3 +1,5 @@
+import { SET_LOOKS } from './skinSets.js';
+
 // VERTRAG (Thread A): übersetzt angelegte Ausrüstung in das Aussehen der Spielfigur.
 //   resolveGear(equipment, content) -> gear | null
 //   gearKey(gear)                   -> kurzer Schlüssel (Sprite-Cache, Änderungserkennung)
@@ -215,6 +217,10 @@ for (const n of LOOK_TIERS) {
     FEET[`boots_${st}${t}`] = { style: st, ramp: styleRamp[st], glow: st === 'plate' ? T.glow : undefined };
   }
 }
+// Klassen-Skinsets (character/skinSets.js): Aussehen je Icon, ohne Seltenheits-Zier (das Set bringt seine eigene mit)
+const SET_TABLE = { weapon: WEAPONS, chest: CHESTS, head: HEADS, hands: HANDS, feet: FEET };
+for (const [icon, { slot, ...look }] of Object.entries(SET_LOOKS)) SET_TABLE[slot][icon] = look;
+const SET_FX = { glutthron: 'fire', mondsichel: 'frost', hirschkoenig: 'nature', sternenfeuer: 'holy' };
 const FAMILY_MAT = { plate: 'metal', mail: 'metal', leather: 'cloth', cloth: 'cloth' };
 
 function itemOf(entry, content) {
@@ -282,6 +288,7 @@ function weaponLook(def) {
   const rarity = def.rarity ?? 'common';
   const R = RARITY_LOOK[rarity] ?? RARITY_LOOK.common;
   const base = WEAPONS[def.icon] ?? WEAPONS[family] ?? {};
+  if (base.set) return { family: base.family ?? family, icon: def.icon, rarity, ...base, shine: 2, tier: 3, fx: SET_FX[base.set] ?? 'fire' };
   const known = !!WEAPONS[def.icon] || !!WEAPON_NAMED[def.id];
   const look = { family, icon: def.icon, rarity, ...base, ...cutOf(def, base), ...WEAPON_NAMED[def.id] };
   // Unbekanntes Icon: Material nach Seltenheit, damit „lila“ auch lila aussieht.
@@ -340,6 +347,7 @@ export function itemLook(def) {
 
 function chestLook(c) {
   const look = armorLook(CHESTS, c, (d) => CHEST_BY_FAMILY[d.family] ?? 'leather');
+  if (look.set) return look;
   const R = RARITY_LOOK[look.rarity] ?? RARITY_LOOK.common;
   if (!look.trim && (look.rarity === 'rare' || look.rarity === 'epic' || look.rarity === 'legendary')) look.trim = look.rarity === 'rare' ? M.silver : M.gold;
   if (!look.glow && R.glow && look.rarity === 'legendary') look.glow = R.glow;
@@ -355,6 +363,7 @@ function chestLook(c) {
   return look;
 }
 function headLook(h) {
+  if (HEADS[h.icon]?.set) return { ...HEADS[h.icon], rarity: h.rarity ?? 'legendary' };
   const tier = TIER_HEAD[h.icon];
   const hd = tier && (h.family === 'mail' || h.family === 'plate') ? tierHead(tier, h) : armorLook(HEADS, h, (d) => (d.family === 'plate' || d.family === 'mail' ? 'nasal' : d.family === 'cloth' ? 'hood' : 'cap'));
   if (hd.style === 'hood' && cutOf(h)?.style) hd.style = cutOf(h).style;   // „Kappe“ statt Kapuze
@@ -372,6 +381,7 @@ function headLook(h) {
 const LIMB_TRIM = { rare: M.silver, epic: M.gold, legendary: M.gold };
 function limbLook(table, def) {
   const look = armorLook(table, def, (d) => d.family ?? 'leather');
+  if (look.set) return look;
   look.trim ??= LIMB_TRIM[look.rarity] ?? null;
   if (look.rarity === 'epic' || look.rarity === 'legendary') look.glow ??= RARITY_LOOK[look.rarity].glow;
   return look;

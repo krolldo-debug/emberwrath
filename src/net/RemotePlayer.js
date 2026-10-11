@@ -1,6 +1,7 @@
 import { Entity, getShadow } from '../entities/Entity.js';
 import { Animator } from '../gfx/Sprite.js';
 import { INTERP_DELAY_MS, EXTRAPOLATE_MS, FLAG_DEAD, FLAG_RIDING } from './protocol.js';
+import { drawSetGlow } from '../sprites/heroSets.js';
 
 // Ein anderer Spieler in derselben Zone und Welt. Liegt in world.entities (wird y-sortiert gezeichnet und beleuchtet,
 // nimmt aber nicht am Kampf teil). Position und Animation kommen als Zustände vom Server und werden mit
@@ -150,9 +151,12 @@ export class RemotePlayer extends Entity {
   renderEmissive(ctx, cx, cy) {
     const f = this.animator?.frame;
     if (!f?.glows?.length || (this.dead && this.animator.finished)) return;
+    const t = performance.now() / 1000;
     for (const g of f.glows) {
       const x = Math.round(this.x - cx + g.x * this.facing - (this.facing < 0 ? 1 / (f.res ?? 1) : 0));
       const y = Math.round(this.y - cy + g.y);
+      // Klassen-Skinsets: pulsierende Punkte und kreisende Runen wie beim eigenen Helden
+      if (g.pulse || g.orbit) { drawSetGlow(ctx, g, x, y, t, 1, this.alpha); continue; }
       ctx.globalAlpha = 0.9 * this.alpha;
       ctx.fillStyle = g.color;
       ctx.fillRect(x, y, 1, 1);

@@ -6,6 +6,7 @@ import { ELEMENTS } from '../gfx/Particles.js';
 import { Light } from '../gfx/Lighting.js';
 import { heroRes } from '../sprites/hero.js';
 import { getMountSprites } from '../sprites/mounts.js';
+import { drawSetGlow, spawnSetParticles } from '../sprites/heroSets.js';
 import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
@@ -196,6 +197,8 @@ export class Hero extends Actor {
     this.integrate(dt, world);
     this.#updateRideFrame(dt);
     this.#weaponFx(dt, world);
+    // Klassen-Skinsets: Funken, Geisterlicht, Blätter, Sterne an Umhangsaum und Schal (sprites/heroSets.js)
+    if (!this.dead && this.state !== 'roll') spawnSetParticles(world.particles, this.currentFrame()?.glows, this.x + this.rideOff.x, this.y + this.rideOff.y, this.facing < 0 ? -1 : 1, this.currentFrame()?.res, dt, this.setFxState ??= {});
     // Bildfeinheit geändert (Qualitätsstufe/Fenstergröße): Sprites in passender Auflösung neu holen
     const lr = heroRes();
     if (lr !== this.lookRes) { if (this.lookRes !== undefined) this.refreshLook?.(); this.lookRes = lr; }
@@ -655,9 +658,11 @@ export class Hero extends Actor {
     for (const g of f.glows ?? []) glows.push([g, this.rideOff.x, this.rideOff.y, f]);
     if (this.riding && this.mountFrame) for (const g of this.mountFrame.glows ?? []) glows.push([g, 0, 0, this.mountFrame]);
     if (glows.length) {
+      const t = performance.now() / 1000;
       for (const [g, ox, oy, gf] of glows) {
         const x = Math.round(this.x - cx + ox + g.x * this.facing - (this.facing < 0 ? 1 / (gf.res ?? 1) : 0));
         const y = Math.round(this.y - cy + oy + g.y);
+        if (g.pulse || g.orbit) { drawSetGlow(ctx, g, x, y, t, Math.max(1, Math.min(3, CONFIG.renderScale ?? 1))); continue; }
         const r = Math.max(1, Math.min(4, Math.round(g.r)));
         ctx.globalAlpha = 0.2;
         ctx.fillStyle = g.color;

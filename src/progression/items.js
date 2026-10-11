@@ -17,6 +17,7 @@
 // Stufe 21–40: items40.js (Tier 5–8, Sets, Reittier-Gegenstände).
 import { WEAPONS_40, ARMOR_40, JEWELRY_40, OTHER_40 } from './items40.js';
 import { CLASSES } from '../character/classes.js';
+import { SET_ITEMS } from '../character/skinSets.js';
 
 export const RARITIES = {
   common: { name: 'Gewöhnlich', color: '#d8d0c0', order: 0, mult: 1.0, attrs: 0 },
@@ -515,7 +516,9 @@ for (const d of Object.values(LOOK_ITEMS)) Object.assign(d, { source: 'achieveme
 const EQUIPMENT = buildEquipment();
 for (const id of Object.keys(OTHER_40)) if (EQUIPMENT[id] || OTHER[id]) throw new Error(`Item-ID ${id} doppelt`);
 for (const id of Object.keys(LOOK_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id]) throw new Error(`Item-ID ${id} doppelt`);
-export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40, ...LOOK_ITEMS };
+// Klassen-Skinsets aus dem Shop (character/skinSets.js): reines Aussehen, source 'shop'
+for (const id of Object.keys(SET_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || LOOK_ITEMS[id]) throw new Error(`Item-ID ${id} doppelt`);
+export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40, ...LOOK_ITEMS, ...SET_ITEMS };
 for (const d of [...Object.values(OTHER), ...Object.values(OTHER_40)]) { d.ilvl = d.ilvl ?? 1; d.reqLevel = d.reqLevel ?? 1; d.tier = tierOf(d.ilvl); }
 
 export function stackSize(def) { return Math.max(1, def?.stack ?? 1); }
