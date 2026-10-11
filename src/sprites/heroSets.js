@@ -37,6 +37,9 @@ export function setTorso(R, G, L, P, sk, K) {
     // Geisterschärpe um die Hüfte
     const sy = hipY - 0.6, [sa, sb] = span(sy);
     R.fline(sa + 0.3, sy, sb - 0.2, sy - 0.3, 0.55, (t) => C.spirit[t > 0.6 ? 3 : 2]);
+    // Mondsichel-Schließe vorn an der Schärpe
+    const bx = sb - 1.3, by = sy - 0.2;
+    R.ellipse(bx, by, 1.15, 1.15, (nx, ny) => ((nx - 0.6) ** 2 + (ny + 0.1) ** 2 < 0.55 ? null : ny < -0.1 ? MOON_EDGE : C.moon[3]));
   } else if (s === 'hirschkoenig') {
     // Goldranken über der Brust, Blattwappen mit Seelenblatt
     const cx = midX(topY + 3.4), cy = topY + 3.6;
@@ -58,8 +61,8 @@ export function setTorso(R, G, L, P, sk, K) {
     for (let y = topY + 4.6; y <= hipY - 1.6; y += 1.2) R.dot(midX(y) + 0.75, y, C.ember[3]);
     star4(R, cx - 0.2, topY + 2.9, 1.5, C.star);
     sk.G.push({ x: Math.round(cx), y: Math.round(topY + 3), color: C.star[3], r: 1.6, pulse: 1 });
-    // Glutrunen kreisen um die Hüfte (Emissive-Pass, drawSetGlow)
-    sk.G.push({ x: Math.round(sk.cxAt(hipY)), y: Math.round(hipY + 0.5), color: C.ember[3], r: 1, set: s, orbit: { rx: 7, ry: 1.6, n: 3, hide: 4 } });
+    // Glutrunen kreisen dicht am Saum (Emissive-Pass, drawSetGlow): liegen an der Silhouette, nicht frei im Raum
+    sk.G.push({ x: Math.round(sk.cxAt(hipY)), y: -1, color: C.ember[3], r: 1, set: s, orbit: { rx: 5.5, ry: 1.3, n: 3, hide: 3 } });
   }
 }
 
@@ -310,11 +313,25 @@ export function setHand(R, L, x, y, far) {
   else if (s === 'mondsichel') { R.fline(x + 0.7, y - 0.6, x + 1.5, y - 1.5, 0.3, C.moon[3]); R.fline(x + 0.8, y + 0.0, x + 1.7, y - 0.7, 0.3, C.moon[3]); }
   else if (s === 'sternenfeuer') R.dot(x - 0.2, y - 0.5, C.star[4]);
 }
+// Beine: eigene Farbe der Set-Hose (null = wie das Wams) und Kanten, die die Beine vom Boden lösen
+export function setPants(L) {
+  return L.chest.set === 'mondsichel' ? C.dusk : null;
+}
+export function setLeg(R, L, hx, hy, leg, near, lw) {
+  if (L.chest.set !== 'mondsichel') return;
+  const o = lw * 1.05, c = near ? C.moon[3] : C.moon[1];
+  R.fline(hx + o, hy + 0.4, leg.jx + o * 0.9, leg.jy, 0.32, near ? C.moon[2] : C.moon[1]);
+  R.fline(leg.jx + o * 0.9, leg.jy, leg.ex + o * 0.8, leg.ey - 0.6, 0.32, c);
+}
 export function setBoot(R, L, ax, ay, near) {
   const s = L.setFeet;
   if (!s || !near) return;
   if (s === 'glutthron') { R.fline(ax + 0.4, ay - 0.5, ax + 2.6, ay + 0.2, 0.4, C.gold[3]); }
-  else if (s === 'mondsichel') R.dot(ax + 0.8, ay - 0.2, C.moon[4]);
+  else if (s === 'mondsichel') {
+    // Sichel an der Stulpe, Mondsilber-Kappe
+    for (let i = 0; i < 5; i++) { const a = -1.1 + i * 0.55; R.dot(ax - 0.1 + Math.cos(a) * 1.1, ay - 2.3 + Math.sin(a) * 1.1, i === 1 || i === 2 ? MOON_EDGE : C.moon[3]); }
+    R.dot(ax + 1.8, ay - 0.2, C.moon[4]);
+  }
   else if (s === 'hirschkoenig') { for (let i = 0; i < 4; i++) R.fline(ax - 1.2 + i * 0.6, ay - 1.6, ax - 1.4 + i * 0.6, ay - 2.6, 0.45, C.feather[i & 1 ? 2 : 3]); }
   else if (s === 'sternenfeuer') R.dot(ax + 1.6, ay - 0.1, C.gold[3]);
 }
@@ -324,16 +341,19 @@ export function setWeapon(R, G, w, hx, hy, ang, far, K) {
   const dx = Math.cos(ang), dy = Math.sin(ang);
   const at = (u, v = 0) => ({ x: hx + dx * u - dy * v, y: hy + dy * u + dx * v });
   if (w.set === 'glutthron') {
-    // Flügel-Parierstange (gold), nach vorne geschwungen, Glutstein
+    // Parierstange aus zwei goldenen Widderhörnern (Motiv des Helms): nach außen, dann zur Klinge eingerollt
+    const G4 = far ? K.dimRamp(C.gold) : C.gold;
     for (const sgn of [-1, 1]) {
-      let p = at(1.2, 0);
-      for (let i = 1; i <= 7; i++) {
-        const t = i / 7, q = at(1.2 + t * t * 2.0, sgn * t * 4.6);
-        R.fline(p.x, p.y, q.x, q.y, 0.9 * (1 - t * 0.6), (far ? K.dimRamp(C.gold) : C.gold)[t > 0.7 ? 4 : 3]);
+      const B = [[1.3, 0.5], [0.9, 3.2], [3.3, 3.9], [4.1, 2.3]];
+      const bz = (t) => { const m = 1 - t; return B.reduce((a, [u, v], i) => { const k = [m * m * m, 3 * m * m * t, 3 * m * t * t, t * t * t][i]; return [a[0] + u * k, a[1] + v * k]; }, [0, 0]); };
+      let [pu, pv] = bz(0), p = at(pu, sgn * pv);
+      for (let i = 1; i <= 10; i++) {
+        const t = i / 10, [u, v] = bz(t), q = at(u, sgn * v);
+        R.fline(p.x, p.y, q.x, q.y, 1.15 - t * 0.75, G4[t > 0.8 ? 4 : sgn < 0 ? 3 : 2]);
         p = q;
       }
     }
-  } else if (w.set === 'sternenfeuer') {
+    } else if (w.set === 'sternenfeuer') {
     // Gefangener Stern: goldene Sichelklaue (zwei Hörner nach oben) hält einen achtstrahligen Stern
     const c = at(17.4);
     if (!far) {
@@ -371,6 +391,31 @@ export function crescentBlade(R, G, w, hx, hy, ang, len, far, K) {
     if (out < 0.32) return far ? Mo[3] : MOON_EDGE;          // Schneide außen
     if (inn < 0.3) return far ? Mo[1] : C.spirit[2];         // Innenkante
     return Mo[out < 0.75 ? 3 : 2];
+  });
+}
+
+// Glutthron-Klinge (Krieger): breite Klinge aus Schwarzstahl, Rücken mit Glutzacken (Sägezähne, Spitzen glühen),
+// in der Mitte ein gezackter Glutriss (Leuchtebene), helle Schneide; Griff blutrot gewickelt, Knauf mit Glutstein.
+export function glutBlade(R, G, w, hx, hy, ang, len, far, K) {
+  const Bl = far ? K.dimRamp(C.nightsteel) : C.nightsteel, Gd = far ? K.dimRamp(C.gold) : C.gold, E = C.ember;
+  const B0 = 1.9, tri = (x) => 1 - 4 * Math.abs(((x % 1) + 1) % 1 - 0.5);   // Dreieckswelle -1..1
+  R.axis(hx, hy, ang, -3.3, len + 0.4, 3, (u, lv) => {
+    const a = Math.abs(lv);
+    if (u < -2.3) return a < 1.05 ? (a < 0.45 && !far ? E[3] : Gd[lv < 0 ? 3 : 2]) : null;              // Knauf, Glutstein
+    if (u < 0.7) return a < 0.62 ? C.blood[(Math.round(u * 2) & 1) ? (lv < 0 ? 3 : 2) : 1] : null;      // Griff, gewickelt
+    if (u < B0) return a < 1.25 ? Bl[lv < 0 ? 2 : 0] : null;                                           // Zwinge (Hörner: setWeapon)
+    if (u > len) return null;
+    const t = (u - B0) / Math.max(1, len - B0);
+    const hw = 1.55 * (t > 0.74 ? Math.max(0.12, (1 - t) / 0.26) : 1 + t * 0.25);
+    const saw = t > 0.06 && t < 0.72 ? ((u - B0) * 0.8) % 1 : 0;                                         // Zahn wächst zur Spitze hin
+    const back = hw + saw * 0.95;
+    if (lv < -back || lv > hw + 0.15) return null;
+    if (lv < -hw) return !far && lv < -back + 0.42 && saw > 0.55 ? E[3] : Bl[3];                       // Glutzacken
+    const vc = tri((u - B0) / 1.9) * 0.42 - 0.1;                                                        // Glutriss, gezackt
+    if (!far && Math.abs(lv - vc) < 0.27 && t > 0.05 && t < 0.86) return E[t < 0.45 ? (Math.abs(tri((u - B0) / 1.9)) > 0.8 ? 4 : 3) : t < 0.7 ? 3 : 2];
+    if (lv > hw - 0.38) return Bl[4];                                                                    // Schneide
+    if (lv < -hw + 0.35) return Bl[2];                                                                   // Rückenkante
+    return Bl[lv < vc ? 1 : 0];
   });
 }
 

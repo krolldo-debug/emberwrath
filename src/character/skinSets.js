@@ -58,7 +58,7 @@ export const SKIN_SETS = [
 export const SET_LOOKS = {
   // --- Krieger: Wehr des Glutthrons --------------------------------------------------------------------------
   set_glutthron_weapon: { slot: 'weapon', family: 'sword', blade: C.nightsteel, guard: C.gold, grip: C.blood, gem: C.ember,
-    core: C.ember, width: 3, guardW: 3, len: 17, set: 'glutthron' },
+    width: 3, len: 17, set: 'glutthron' },
   set_glutthron_chest: { slot: 'chest', style: 'plate', ramp: C.nightsteel, shoulder: C.nightsteel, trim: C.gold, tabard: C.blood,
     emblem: C.ember, glow: C.ember, cape: C.blood, set: 'glutthron' },
   set_glutthron_head: { slot: 'head', style: 'great', ramp: C.nightsteel, trim: C.gold, glow: C.ember, set: 'glutthron' },
@@ -74,7 +74,7 @@ export const SET_LOOKS = {
   set_mondsichel_feet: { slot: 'feet', style: 'leather', ramp: C.midnight, trim: C.moon, set: 'mondsichel' },
   // --- Waldläufer: Mantel des Hirschkönigs ----------------------------------------------------------------------
   set_hirschkoenig_weapon: { slot: 'weapon', family: 'bow', wood: C.bark, long: true, recurve: true, tips: C.leaf, grip: C.forest,
-    string: '#c8ffd0', set: 'hirschkoenig' },
+    string: C.bark[3], set: 'hirschkoenig' },
   set_hirschkoenig_chest: { slot: 'chest', style: 'leather', ramp: C.bark, shoulder: C.feather, trim: C.gold, emblem: C.leaf,
     cape: C.forest, set: 'hirschkoenig' },
   set_hirschkoenig_head: { slot: 'head', style: 'antlers', ramp: C.forest, trim: C.gold, glow: C.leaf, set: 'hirschkoenig' },

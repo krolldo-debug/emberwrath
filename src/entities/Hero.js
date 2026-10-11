@@ -511,7 +511,8 @@ export class Hero extends Actor {
       damage: this.damageFor(a.mult), knockback: a.knockback, heavy: !!a.heavy, ttl: a.active,
     });
     const great = !!this.animator.anims?.greatWeapon;
-    const style = great ? (a.heavy ? SLASH_STYLES.greatHeavy : SLASH_STYLES.great) : a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
+    const own = this.animator.anims?.setSlash;
+    const style = great ? (a.heavy ? SLASH_STYLES.greatHeavy : SLASH_STYLES.great) : own ? SLASH_STYLES[a.heavy ? own + 'Heavy' : own] : a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
     // Zweihänder: nur ein Bogen gleichzeitig – der vorige Hieb der Kombo verschwindet, sobald der nächste beginnt
     if (great) for (const e of world.effects ?? []) if (e instanceof SlashEffect && e.owner === this) e.removed = true;
     world.addEffect(new SlashEffect(this, this.aimAngle, style, this.combo === 1, a.active + 0.08));

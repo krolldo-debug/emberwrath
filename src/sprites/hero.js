@@ -657,11 +657,13 @@ function drawLeg(R, L, P, sk, near) {
   const st = L.chest.style;
   // Robe: Beine in der Stoff-Farbe; in der Vorführstufe im Robenton (lila Reste am Gürtel wirkten wie Fehlpixel)
   const pants = st === 'plate' ? L.chest.ramp : st === 'robe' ? (S >= 3 ? dimRamp(L.chest.ramp) : L.cloth) : st === 'leather' ? dimRamp(L.chest.ramp) : ['#1a1414', '#2a2020', '#3e302c', '#56443c', '#6e5a4e'];
-  const ramp = near ? pants : dimRamp(pants);
+  const setP = L.chest.set ? SETS.setPants(L) : null;
+  const ramp = near ? setP ?? pants : dimRamp(setP ?? pants);
   const metal = st === 'plate';
   const pk = metal ? 'plate' : st === 'robe' ? 'robe' : st === 'leather' ? 'leather' : 'cloth';
   R.capsule(hx, hy, leg.jx, leg.jy, 1.55 * lw, 1.3 * lw, tone(ramp, metal, pk));
   R.capsule(leg.jx, leg.jy, leg.ex, leg.ey, 1.25 * lw, 1.05 * lw, tone(ramp, metal, pk));
+  if (L.chest.set) SETS.setLeg(R, L, hx, hy, leg, near, lw);
   if (metal || st === 'chain' || st === 'padded') {
     // Kniekachel
     const kr = st === 'plate' ? L.chest.ramp : L.chest.shoulder ?? M.iron;
@@ -1980,7 +1982,8 @@ function drawHelm(R, G, L, helm, x0, y0) {
 // --- Waffen ------------------------------------------------------------------------------
 function drawWeapon(R, G, w, hx, hy, ang, P, far, reach = 1) {
   const f = w.family;
-  if (f === 'sword') drawBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far);
+  if (f === 'sword' && w.set === 'glutthron') SETS.glutBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far, K);
+  else if (f === 'sword') drawBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far);
   else if (f === 'dagger' && w.set === 'mondsichel') SETS.crescentBlade(R, G, w, hx, hy, ang, (w.len ?? 7) * reach, far, K);
   else if (f === 'dagger') drawBlade(R, G, { ...w, short: true }, hx, hy, ang, (w.len ?? 7) * reach, far);
   else if (f === 'axe') drawAxe(R, G, w, hx, hy, ang, reach, far);
@@ -2026,7 +2029,6 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
     if (half > 1 && Math.abs(vv) < 0.35) c = Bl[2];
     if (w.fuller && Math.abs(vv) < 0.3 && t < 0.7 && half > 1) c = Bl[1];
     if (w.runes && Math.abs(vv) < 0.5 && t > 0.15 && t < 0.7 && Math.round(u) % 2 === 0) c = w.runes[3];
-    if (w.core && !far && Math.abs(vv) < 0.3 && t > 0.04 && t < 0.88) c = w.core[t < 0.3 ? 4 : t < 0.68 ? 3 : 2];   // glühender Kern (Skinset), zur Spitze erkaltend
     if (w.glow && !far && t > 0.3 && vv > 0.1) c = w.glow[3];
     return c;
   });
@@ -2778,6 +2780,8 @@ export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 
     set = buildSet(L);
     // Zweihänder in der Hand: der Held wählt damit den durchscheinenden Hiebbogen (entities/Hero.js)
     Object.defineProperty(set, 'greatWeapon', { value: !!L.weapon?.great });
+    // Skinset mit eigenem Hiebbogen (sprites/effects.js SLASH_STYLES, z. B. Mondsichel)
+    Object.defineProperty(set, 'setSlash', { value: L.weapon?.set === 'mondsichel' ? 'mondsichel' : null });
     cache.set(key, set);
     if (cache.size > (res >= 3 ? 10 : res >= 2 ? 20 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 4–9× so groß
   }
