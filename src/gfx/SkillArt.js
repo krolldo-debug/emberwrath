@@ -204,6 +204,56 @@ function hood(p, cx, ramp, flat) {
 
 // ---------------------------------------------------------------- Embleme
 export const SKILL_ART = {
+  // ===== Grundangriff je Klasse (Charaktererstellung: Fähigkeitenleiste im selben Stil) ======
+  attack_warrior(p) {
+    const bg = BG.warrior;
+    back(p, bg);
+    sym(p, bg, (L) => {
+      blade(L, 16, 32, 37, 11, 2.6, R.steel, { tip: 6 });
+      rod(L, 11.5, 36.5, 16, 32, 1.6, R.leather, 2);
+      rod(L, 11.5, 27.5, 20.5, 36.5, 1.6, R.gold);
+      ball(L, 10, 38, 2.3, R.gold);
+    });
+    spark(p, 37, 10, WHITE, R.steel[3]); spark(p, 10, 12, R.red[4]); spark(p, 38, 36, R.red[4]);
+    frame(p);
+  },
+  attack_rogue(p) {
+    const bg = BG.rogue;
+    back(p, bg);
+    sym(p, bg, (L) => {
+      blade(L, 19, 29, 35, 13, 2.3, R.steel, { tip: 8 });
+      rod(L, 13, 35, 19, 29, 1.5, R.leather, 2);
+      rod(L, 14.5, 25.5, 22.5, 33.5, 1.3, R.purple);
+      ball(L, 12, 36, 2, R.purple);
+    });
+    spark(p, 36, 12, WHITE, R.steel[3]); spark(p, 9, 14, R.purple[4]); spark(p, 37, 35, R.purple[3]);
+    frame(p);
+  },
+  attack_ranger(p) {
+    const bg = BG.ranger;
+    back(p, bg);
+    sym(p, bg, (L) => {
+      rod(L, 10, 38, 33, 15, 1, R.wood);
+      blade(L, 31, 17, 38.5, 9.5, 2.6, R.iron, { tip: 6 });
+      blade(L, 9, 33, 15, 39, 1.6, R.green, { tip: 3 });
+      blade(L, 13, 29, 19, 35, 1.6, R.green, { tip: 3 });
+    });
+    spark(p, 39, 9, WHITE, R.iron[3]); spark(p, 10, 12, R.green[4]); spark(p, 37, 35, R.green[3]);
+    frame(p);
+  },
+  attack_mage(p) {
+    const bg = BG.mage;
+    back(p, bg, 26, 22, 0.9);
+    // drei Glutbolzen schräg nach oben rechts, der vorderste am größten
+    sym(p, bg, (L) => {
+      ball(L, 13, 35, 3.2, R.ember);
+      ball(L, 21, 27, 4.6, ['#7a2208', '#c8420c', '#f07a1c', '#ffb640', '#fff0b0']);
+      ball(L, 31, 17, 7, ['#c8420c', '#f07a1c', '#ffb640', '#fff0b0', '#ffffff']);
+      ball(L, 29.5, 15.5, 3, ['#ffb640', '#fff0b0', '#fff0b0', '#ffffff', '#ffffff'], false);
+    });
+    spark(p, 41, 9, R.fire[3], R.fire[1]); spark(p, 9, 13, R.fire[2]); spark(p, 39, 37, R.fire[2]);
+    frame(p);
+  },
   // ===== Krieger: Blutrot, Stahl ===========================================
   skill_whirlwind(p) {
     const bg = BG.warrior;
