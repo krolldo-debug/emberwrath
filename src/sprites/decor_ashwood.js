@@ -1,13 +1,14 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, blitFrame } from '../gfx/Sprite.js';
+import { buildFrame, blitFrame, SpriteFrame } from '../gfx/Sprite.js';
+import { FineCanvas, fineRes, scale2x, finishPixels, outlinePixels, pixelsToCanvas, canvasPixels, col32 } from '../gfx/Fine.js';
 import { createRng, hash2 } from '../core/math.js';
 import { OUT } from './outdoor.js';
 
 // Aschenwald: verbrannter Wald, Asche, Glutreste; Lager der Wächter,
 // Banditenlager und das Ufer des versunkenen Tempels.
 // Licht von links oben. Alles Leuchtende liegt zusätzlich auf einer Glow-Ebene
-// der Größe (W+2)×(H+2) (1 px Versatz wegen des Umriss-Rands).
+// (im Feinraster so groß wie sprite.canvas, sonst (W+2)×(H+2) mit 1 px Versatz wegen des Umriss-Rands).
 
 const ASH = ['#141216', '#1f1c21', '#2c282d', '#3b363a', '#4f494b', '#67605f', '#857d78'];
 const CHAR = ['#0a0708', '#130e0f', '#1c1516', '#281e1f', '#352929', '#44363a'];
@@ -22,26 +23,294 @@ const ALGAE = ['#142019', '#1d3022', '#2a432b'];
 const REED = ['#1a1e12', '#2a3018', '#3e4420', '#56592a', '#72703a'];
 const WATER = OUT.water;
 
-// ------------------------------------------------------------ Helfer
+// ====================================================================== Feinraster-Baukasten (docs/STYLE.md „Feinraster“)
+// Deko-Einträge entstehen über mk(). Drei Wege, frei kombinierbar:
+//   draw(p, g)     alte Zeichnung in Weltpixeln (PixelCanvas) → Stufe A: ×2 mit Scale2x, Feinschliff, Umriss.
+//   { b: true }    Stufe B: draw bekommt eine DecoCanvas (Koordinaten in Weltpixeln, Details in Feinpixeln).
+//   { under }      Stufe B unter der alten Zeichnung (z. B. Baumkrone hinter einer Hütte aus alten Weltpixeln).
+//   { fine }       feine Zusätze über der hochskalierten alten Zeichnung (Glanz, Nähte, Glutkerne).
+// g (Leuchtebene) hat px/rect/line/ellipse/ctx in Weltpixeln (wie früher) und dot/fline/oval/each fein.
+// Bei Qualität „Niedrig“ (fineRes 1) bleibt alles wie vor dem Update; fine-Zusätze entfallen dann.
+
+// Wie FineCanvas, aber px/rect/ellipse treffen genau die Weltpixel der alten PixelCanvas (alter Code bleibt
+// deckungsgleich, auch mit krummen Koordinaten). oval() = fein abgetastete Ellipse in stetigen Koordinaten.
+export class DecoCanvas extends FineCanvas {
+  px(x, y, c) { super.px(Math.round(x), Math.round(y), c); }
+  rect(x, y, w, h, c) { super.rect(Math.round(x), Math.round(y), Math.round(w), Math.round(h), c); }
+  ellipse(cx, cy, rx, ry, c) {
+    for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
+      const t = 1 - (y * y) / (ry * ry);
+      if (t < 0) continue;
+      const hw = Math.round(rx * Math.sqrt(t) - 0.15);
+      this.rect(Math.round(cx - hw), Math.round(cy + y), hw * 2 + 1, 1, c);
+    }
+  }
+  oval(cx, cy, rx, ry, c) { super.ellipse(cx, cy, rx, ry, c); }
+  // Wie each(), aber fn liefert fertige Farbwerte (col32/pal32) oder 0 – schnell für große Flächen
+  scan(x0, y0, x1, y1, fn) {
+    const r = this.res, W = this.W, H = this.H, b = this.buf;
+    const fo = Math.round(this.ox * r), go = Math.round(this.oy * r);
+    const F0 = Math.max(Math.floor(x0 * r), -fo), F1 = Math.min(Math.ceil(x1 * r), W - 1 - fo);
+    const G0 = Math.max(Math.floor(y0 * r), -go), G1 = Math.min(Math.ceil(y1 * r), H - 1 - go);
+    for (let G = G0; G <= G1; G++) {
+      const y = (G + 0.5) / r, row = (G + go) * W + fo;
+      for (let F = F0; F <= F1; F++) { const v = fn((F + 0.5) / r, y); if (v) b[row + F] = v; }
+    }
+    this.dirty = true;
+  }
+}
+export const pal32 = (pal) => pal.map(col32);
+
+// Pixelpuffer um 1 Texel Rand erweitern (Leuchtebene passend zum umrissenen Sprite)
+function padPixels(d, w, h) {
+  const o = new Uint32Array((w + 2) * (h + 2));
+  for (let y = 0; y < h; y++) o.set(d.subarray(y * w, y * w + w), (y + 1) * (w + 2) + 1);
+  return o;
+}
+
+// Fasen für Stufe A: an jeder deutlichen Farbkante der alten Zeichnung (Bretter, Quader, Schindeln, Falten) bekommt die
+// helle Seite oben/links 1 Feinpixel Licht und die dunkle Seite 1 Feinpixel Schatten. Kleine Helligkeitssprünge (Rauschen,
+// Rampen-Nachbarn) bleiben unberührt, so entsteht kein Sprenkel. src = Weltpixel (w×h), d = ×2 hochskaliert.
+const luma = (v) => (v & 255) * 0.3 + ((v >>> 8) & 255) * 0.59 + ((v >>> 16) & 255) * 0.11;
+const tint = (v, k) => {
+  const r = v & 255, gg = (v >>> 8) & 255, b = (v >>> 16) & 255;
+  const f = (c, t) => Math.max(0, Math.min(255, Math.round(k > 0 ? c + (t - c) * k : c * (1 + k))));
+  return ((v & 0xff000000) | (f(b, 236) << 16) | (f(gg, 226) << 8) | f(r, 212)) >>> 0;
+};
+export function bevelPixels(src, d, w, h, { T = 15, lit = 0.2, dark = -0.3 } = {}) {
+  const W2 = w * 2, out = d.slice();
+  const op = (i) => (src[i] >>> 24) > 40;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (!op(i)) continue;
+    const L = luma(src[i]);
+    for (const [nx, ny, horiz] of [[x + 1, y, true], [x, y + 1, false]]) {
+      if (nx >= w || ny >= h) continue;
+      const j = ny * w + nx;
+      if (!op(j)) continue;
+      const M = luma(src[j]);
+      if (Math.abs(L - M) < T) continue;
+      // Fasenpixel: auf der eigenen und der Nachbarseite der Kante je 1 Feinpixel breit
+      const a = horiz ? [[x * 2 + 1, y * 2], [x * 2 + 1, y * 2 + 1]] : [[x * 2, y * 2 + 1], [x * 2 + 1, y * 2 + 1]];
+      const bb = horiz ? [[nx * 2, ny * 2], [nx * 2, ny * 2 + 1]] : [[nx * 2, ny * 2], [nx * 2 + 1, ny * 2]];
+      // Kante: helle Seite oben/links (i) → Licht auf i? Nein: der helle Teil steht vorn, die Kante zum dunklen Teil wirft Schatten.
+      if (L > M) { for (const [fx, fy] of bb) out[fy * W2 + fx] = tint(d[fy * W2 + fx], dark); }
+      else { for (const [fx, fy] of bb) out[fy * W2 + fx] = tint(d[fy * W2 + fx], lit); for (const [fx, fy] of a) out[fy * W2 + fx] = tint(d[fy * W2 + fx], dark); }
+    }
+  }
+  return out;
+}
+
+let BEVEL = true;
+export function setBevel(v) { BEVEL = v; }
 // Baut einen Deko-Eintrag. draw(p, g): p = Sprite-Ebene, g = Glow-Ebene (gleiche Koordinaten).
-export function mk(W, H, draw, { ax = Math.floor(W / 2), ay = H - 1, box, light, extra } = {}) {
-  const gl = new PixelCanvas(W + 2, H + 2);
-  gl.ctx.translate(1, 1);
-  let used = false;
+export function mk(W, H, draw, { ax = Math.floor(W / 2), ay = H - 1, box, light, extra, b = false, under = null, fine = null, bevel = BEVEL } = {}) {
+  const res = fineRes();
+  let gw = null, gf = null;                 // Leuchtebenen erst bei Bedarf: Weltpixel (alter Code) und fein
+  const W0 = () => (gw ??= new PixelCanvas(W, H)), F0 = () => (gf ??= new DecoCanvas(W, H, res));
   const g = {
-    px: (x, y, c) => { used = true; gl.px(x, y, c); },
-    rect: (x, y, w, h, c) => { used = true; gl.rect(x, y, w, h, c); },
-    line: (a, b, c2, d, c) => { used = true; gl.line(a, b, c2, d, c); },
-    ellipse: (x, y, rx, ry, c) => { used = true; gl.ellipse(x, y, rx, ry, c); },
-    ctx: gl.ctx,
+    fine: res > 1, res,
+    px: (x, y, c) => W0().px(x, y, c),
+    rect: (x, y, w, h, c) => W0().rect(x, y, w, h, c),
+    line: (a, b2, c2, d, c) => W0().line(a, b2, c2, d, c),
+    ellipse: (x, y, rx, ry, c) => W0().ellipse(x, y, rx, ry, c),
+    get ctx() { return W0().ctx; },
+    dot: (x, y, c) => F0().dot(x, y, c),
+    fline: (x0, y0, x1, y1, c, w) => F0().fline(x0, y0, x1, y1, c, w),
+    oval: (x, y, rx, ry, c) => F0().oval(x, y, rx, ry, c),
+    each: (x0, y0, x1, y1, fn) => F0().each(x0, y0, x1, y1, fn),
   };
-  const sprite = buildFrame(W, H, ax, ay, (p) => draw(p, g));
+  let sprite;
+  if (!b && !under && res === 1) sprite = buildFrame(W, H, ax, ay, (p) => draw(p, g));
+  else {
+    let d;
+    if (b) { const fc = new DecoCanvas(W, H, res); draw(fc, g); d = fc.pixels(); }
+    else {
+      const pc = new PixelCanvas(W, H);
+      draw(pc, g);
+      d = canvasPixels(pc.canvas);
+      if (res > 1) { const src = d; d = scale2x(d, W, H); if (bevel) d = bevelPixels(src, d, W, H, bevel === true ? undefined : bevel); }
+      if (under) {
+        const fc = new DecoCanvas(W, H, res);
+        under(fc, g);
+        const u = fc.pixels();
+        for (let i = 0; i < d.length; i++) if (d[i] >>> 24) u[i] = d[i];
+        d = u;
+      }
+    }
+    if (fine && res > 1) { const fc = new DecoCanvas(W, H, res); fc.buf = d; fine(fc, g); d = fc.pixels(); }
+    const Wt = W * res, Ht = H * res;
+    if (res > 1) finishPixels(d, Wt, Ht);
+    d = outlinePixels(d, Wt, Ht);
+    sprite = new SpriteFrame(pixelsToCanvas(d, Wt + 2, Ht + 2), ax * res + 1, ay * res + 1, res);
+  }
   const e = { sprite };
-  if (used) e.glow = gl.canvas;
+  if (gw || gf) {
+    const gc = new PixelCanvas(W * res + 2, H * res + 2);
+    gc.ctx.imageSmoothingEnabled = false;
+    if (gw) gc.ctx.drawImage(gw.canvas, 1, 1, W * res, H * res);
+    if (gf) {
+      const img = gc.ctx.getImageData(0, 0, W * res + 2, H * res + 2), o = new Uint32Array(img.data.buffer);
+      const f = padPixels(gf.pixels(), W * res, H * res);
+      for (let i = 0; i < f.length; i++) if (f[i] >>> 24) o[i] = f[i];
+      gc.ctx.putImageData(img, 0, 0);
+    }
+    e.glow = gc.canvas;
+  }
   if (box) e.box = box;
   if (light) e.light = light;
   if (extra) Object.assign(e, extra);
   return e;
+}
+
+// Fertige Frames zu einer Gruppe zusammensetzen (Waldmassen): im Feinraster ohne Verlust, ohne Umriss.
+export function compose(W, H, ax, ay, draw) {
+  const res = fineRes(), fc = new DecoCanvas(W, H, res);
+  draw(fc);
+  return new SpriteFrame(pixelsToCanvas(fc.pixels(), W * res, H * res), ax * res, ay * res, res);
+}
+
+// ---------------------------------------------------------------- Formen und Licht (fein)
+const clamp1 = (v) => (v < -1 ? -1 : v > 1 ? 1 : v);
+const fract = (v) => v - Math.floor(v);
+// Licht von oben links (Mond): Normale (nx, ny) einer Wölbung → Helligkeit 0..1. Gestuft wird beim Aufrufer.
+export function shade(nx, ny) {
+  nx = clamp1(nx); ny = clamp1(ny);
+  const q = 1 - nx * nx - ny * ny, nz = q > 0 ? Math.sqrt(q) : 0;
+  const l = 0.5 + 0.5 * (-0.55 * nx - 0.62 * ny + 0.56 * nz);
+  return l < 0 ? 0 : l > 1 ? 1 : l;
+}
+// Helligkeit → Rampenindex in harten Stufen (lo..hi)
+export const stepOf = (l, lo, hi) => Math.max(lo, Math.min(hi, lo + Math.floor(l * (hi - lo + 1))));
+
+// Polygon fein füllen (stetige Koordinaten); col(x, y) liefert Farbe oder null
+export function fpoly(f, pts, col) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  f.each(x0, y0, x1, y1, (cx, cy) => {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i], [xj, yj] = pts[j];
+      if ((yi > cy) !== (yj > cy) && cx < ((xj - xi) * (cy - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside ? (typeof col === 'function' ? col(cx, cy) : col) : null;
+  });
+}
+
+// Gewölbter Klumpen (Fels, Ballen, Kuppel) mit hartem Licht: Rampenstufen lo..hi, unten rechts dunkle Kante.
+export function lump(f, cx, cy, rx, ry, pal, { lo = 1, hi = pal.length - 1, bias = 0, rim = true, cut = null } = {}) {
+  const P = pal32(pal);
+  f.scan(cx - rx, cy - ry, cx + rx, cy + ry, (x, y) => {
+    const nx = (x - cx) / rx, ny = (y - cy) / ry, d = nx * nx + ny * ny;
+    if (d > 1 || (cut && cut(x, y))) return null;
+    let i = stepOf(shade(nx, ny) + bias, lo, hi);
+    if (rim && d > 0.74 && nx + ny > 0.45) i = Math.max(0, i - 1);
+    return P[i];
+  });
+}
+
+// Laubkrone aus Blattballen: jeder Ballen [x, y, r, k] wird aus kleinen Blattbüscheln gebaut (je eigenes
+// Licht oben links, dunkle Sichel unten rechts) – so entsteht Laub statt Rauschen. k hellt/dunkelt den Ballen.
+export function canopy(f, blobs, pal, seed, { lo = 1, hi = pal.length - 2, tuft = 1, bias = -0.2 } = {}) {
+  const rng = createRng(seed), P = pal32(pal);
+  const list = blobs.map((b) => b.slice()).sort((a, c) => a[1] - c[1]);
+  for (const [bx, by, r, k = 0] of list) {
+    const ry = r * 0.85, kb = k * 0.14 + bias;
+    // Kern füllt Lücken, eine Stufe dunkler
+    f.scan(bx - r, by - ry, bx + r, by + ry, (x, y) => {
+      const nx = (x - bx) / r, ny = (y - by) / ry;
+      if (nx * nx + ny * ny > 0.7) return null;
+      return P[Math.max(0, stepOf(shade(nx, ny) + kb, lo, hi) - 1)];
+    });
+    const n = Math.round(5 + (r * r) / 5);
+    const tufts = [];
+    for (let i = 0; i < n; i++) {
+      const a = rng.range(0, Math.PI * 2), rho = r * Math.sqrt(rng.next()) * 0.8;
+      tufts.push([bx + Math.cos(a) * rho, by + Math.sin(a) * rho * 0.85, rng.range(1.7, 2.8) * tuft * (r > 7 ? 1.15 : 1)]);
+    }
+    tufts.sort((a, c) => a[1] - c[1]);
+    for (const [sx, sy, sr] of tufts) {
+      f.scan(sx - sr, sy - sr, sx + sr, sy + sr, (x, y) => {
+        const lx = (x - sx) / sr, ly = (y - sy) / (sr * 0.9), d = lx * lx + ly * ly;
+        if (d > 1) return null;
+        const l = 0.6 * shade((x - bx) / r, (y - by) / ry) + 0.4 * shade(lx, ly) + kb;
+        let i = stepOf(l, lo, hi);
+        if (d > 0.6 && lx + ly > 0.4) i -= 1;                      // Sichel unten rechts trennt die Büschel
+        else if (d < 0.28 && lx + ly < -0.3 && l > 0.6) i += 1;    // Glanz oben links
+        return P[Math.max(0, Math.min(P.length - 1, i))];
+      });
+    }
+  }
+}
+
+// Nadelbaum-Krone in Etagen: gezähnte, hängende Unterkanten, Lichtseite links, Schattenband unter jeder Etage,
+// Nadelstriche schräg nach außen. cap = Rampe für Asche/Schnee auf den Etagenkanten (capW = Anteil der Breite).
+export function conifer(f, { cx, top, bottom, half, tiers = 6, pal, seed, lo = 1, hi = pal.length - 1, cap = null, capW = 0.35, capTop = false, sway = 0, bias = -0.06 }) {
+  const rng = createRng(seed), P = pal32(pal), C = cap ? pal32(cap) : null;
+  const T = [];
+  for (let t = 0; t < tiers; t++) {
+    const e = top + (bottom - top) * Math.pow((t + 1) / tiers, 0.92);
+    const w = half * (0.3 + 0.7 * ((t + 1) / tiers)) * rng.range(0.9, 1.08);
+    T.push({ e, w, ph: rng.range(0, 1), dx: sway * (1 - (t + 1) / tiers) + rng.range(-0.6, 0.6) });
+  }
+  const tri = (u) => 1 - Math.abs(2 * fract(u) - 1);
+  const edge = (t, x) => { const q = T[t], a = Math.min(1, Math.abs(x - cx - q.dx) / q.w); return q.e + 1.4 * a * a; };
+  for (let t = tiers - 1; t >= 0; t--) {
+    const q = T[t], y0 = t === 0 ? top : T[t - 1].e - (q.e - T[t - 1].e) * 0.95, h = q.e - y0, mx = cx + q.dx;
+    f.scan(mx - q.w - 1.5, y0, mx + q.w + 1.5, q.e + 3, (x, y) => {
+      const dx = x - mx, ad = Math.abs(dx), v = (y - y0) / h;
+      const hw = q.w * Math.max(0, Math.min(1, v)) ** 0.85 + 0.9 * tri((y - y0) / 1.3 + q.ph) - 0.3;
+      if (ad > hw) return null;
+      const ey = edge(t, x), tooth = 1.5 * tri((x - mx) / 1.6 + q.ph);
+      if (y > ey && y - ey > tooth) return null;
+      const rel = dx / Math.max(0.6, hw);
+      let i = stepOf(shade(rel * 0.85, -0.35 + 0.55 * Math.min(1, v)) + bias, lo, hi);
+      const up = t > 0 ? edge(t - 1, x) : -99;
+      if (y < up + 1.6) i -= 2;                                                   // Schatten der Etage darüber
+      else if (fract((y - y0 - ad * 0.6) / 1.7 + q.ph) < 0.27 && y < ey) i -= 1; // Nadelstriche
+      if (y > ey && rel < -0.15 && y - ey > tooth - 0.6) i += 1;                  // helle Nadelspitzen links
+      if (cap && y >= up + 0.2 && y < up + 1.3 && rel < capW * 2 - 1 && t > 0) return C[rel < -0.45 ? C.length - 1 : C.length - 2];
+      return P[Math.max(0, Math.min(P.length - 1, i))];
+    });
+  }
+  if (cap && capTop) f.scan(cx - 1.2, top - 0.5, cx + 1, top + 1.6, (x, y) => (x - cx < (y - top) * 0.6 ? C[C.length - 1] : null));
+  return T;
+}
+
+// Stamm mit Rindenrillen: xAt(y) Mitte, wAt(y) Breite (Weltpixel). Lichtseite links, Rillen senkrecht mit Brüchen.
+export function trunk(f, y0, y1, xAt, wAt, pal, seed, { lo = 1, hi = pal.length - 2, groove = 1.25 } = {}) {
+  const P = pal32(pal);
+  let x0 = Infinity, x1 = -Infinity;
+  for (let y = y0; y <= y1; y += 0.5) { const h = wAt(y) / 2 + 1; x0 = Math.min(x0, xAt(y) - h); x1 = Math.max(x1, xAt(y) + h); }
+  f.scan(x0, y0, x1, y1, (x, y) => {
+    const hw = wAt(y) / 2, dx = x - xAt(y);
+    if (dx < -hw || dx >= hw) return null;
+    const rel = dx / hw;
+    let i = rel < -0.55 ? hi : rel < -0.05 ? hi - 1 : rel < 0.5 ? lo + 1 : lo;
+    if (i > lo && fract((dx + hw) / groove) < 0.3 && hash2(Math.floor((dx + hw) / groove), Math.floor(y / 2.5), seed) < 0.75) i -= 1;
+    return P[i];
+  });
+}
+
+// Glutriss: Zickzack, 1 Weltpixel breiter Glutsaum mit heißem Feinpixel-Kern, auf Sprite und Leuchtebene
+export function emberCrack(f, g, x, y, len, seed) {
+  const rng = createRng(seed);
+  let cx = x, cy = y;
+  for (let i = 0; i < len * 2; i++) {
+    const hot = i > 0 && i < len * 2 - 1;
+    f.dot(cx - 0.5, cy, EMB[2]); f.dot(cx, cy, hot ? EMB[4] : EMB[3]); f.dot(cx + 0.5, cy, EMB[1]);
+    g.dot(cx - 0.5, cy, EMB[3]); g.dot(cx, cy, hot ? '#fff0b0' : EMB[4]); g.dot(cx + 0.5, cy, EMB[2]);
+    if (hot && i % 3 === 1) { f.dot(cx, cy, '#ffe7a0'); }
+    cy += 0.5; cx += rng.chance(0.35) ? (rng.chance(0.5) ? 0.5 : -0.5) : 0;
+  }
+}
+// Glimmpunkt: 1 Weltpixel Glut mit heißem Feinpixel oben links und Schein auf der Leuchtebene
+export function emberDot(f, g, x, y, big = false) {
+  x = Math.floor(x * 2) / 2; y = Math.floor(y * 2) / 2;
+  f.rect(x, y, 1, 1, EMB[3]); f.dot(x, y, EMB[5]); f.dot(x + 0.5, y + 0.5, EMB[2]);
+  g.rect(x, y, 1, 1, EMB[4]); g.dot(x, y, '#fff0b0');
+  for (const [dx, dy] of [[-0.5, 0], [-0.5, 0.5], [1, 0], [1, 0.5], [0, -0.5], [0.5, -0.5], [0, 1], [0.5, 1]]) g.dot(x + dx, y + dy, EMB[2]);
+  if (big) for (const [dx, dy] of [[-1, 0.5], [1.5, 0], [0.5, -1], [0, 1.5]]) g.dot(x + dx, y + dy, EMB[1]);
 }
 
 // Polygon füllen (Pixelmitte-Test); col(x, y) liefert Farbe oder null.
@@ -63,18 +332,32 @@ export function poly(p, pts, col) {
 
 const clampI = (i, n) => Math.max(0, Math.min(n - 1, i));
 
-// Aschefleck am Fuß (weich, dunkel)
-export function ashPatch(p, cx, cy, rx, ry, seed) {
+// Aschefleck am Fuß (weich, dunkel). Im Feinraster (p.fine) als flache Kuppe mit hartem Licht und gezacktem Rand.
+export function ashPatch(p, cx, cy, rx, ry, seed, pal = ASH) {
+  if (p.fine) { groundPatch(p, cx + 0.5, cy + 0.5, rx + 0.5, ry + 0.5, seed, [pal[1], pal[2], pal[3]]); return; }
   for (let y = -ry; y <= ry; y++) for (let x = -rx; x <= rx; x++) {
     const d = (x * x) / (rx * rx) + (y * y) / (ry * ry);
     if (d > 1) continue;
     const h = hash2(cx + x, cy + y, seed);
     if (d > 0.6 && h < 0.45) continue;
-    p.px(cx + x, cy + y, h < 0.2 ? ASH[3] : h < 0.7 ? ASH[2] : ASH[1]);
+    p.px(cx + x, cy + y, h < 0.2 ? pal[3] : h < 0.7 ? pal[2] : pal[1]);
   }
+}
+// Bodenfleck fein: drei Töne (dunkler Rand, Fläche, helle Kante oben links), Rand in Lappen statt Rauschen
+export function groundPatch(f, cx, cy, rx, ry, seed, cols) {
+  const [c0, c1, c2] = pal32(cols);
+  const ph = hash2(seed, 3, 7) * 6, ph2 = hash2(seed, 4, 7) * 6;
+  f.scan(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1, (x, y) => {
+    const nx = (x - cx) / rx, ny = (y - cy) / ry, a = Math.atan2(ny, nx);
+    const d = nx * nx + ny * ny, edge = 0.95 - 0.22 * Math.abs(Math.sin(a * 3 + ph)) - 0.14 * Math.abs(Math.sin(a * 7 + ph2));
+    if (d > edge) return null;
+    if (d > edge * 0.62 || ny > 0.35) return c0;
+    return ny < -0.15 && nx < 0.2 && d > edge * 0.25 ? c2 : c1;
+  });
 }
 
 // ------------------------------------------------------------ Verkohlte Kiefer
+// Stufe B: Äste als feine, sich verjüngende Linien mit Asche auf der Oberseite, Borke mit Rillen, Glutrisse mit heißem Kern.
 function charredPine(seed, H, broken) {
   const rng = createRng(seed);
   const W = 34, cx = 16, bottom = H - 1;
@@ -82,6 +365,7 @@ function charredPine(seed, H, broken) {
   return mk(W, H, (p, g) => {
     ashPatch(p, cx, bottom - 1, 9, 2, seed);
     const tw = (y) => { const k = (y - topY) / (bottom - topY); return 1 + k * 3.2 + (y > bottom - 3 ? (y - (bottom - 3)) * 1.2 : 0); };
+    const fine = p.fine;
     // Äste (hinter dem Stamm beginnen, hängen leicht)
     const branches = [];
     let side = rng.chance(0.5) ? 1 : -1;
@@ -95,44 +379,69 @@ function charredPine(seed, H, broken) {
       if (rng.chance(0.3)) { branches.push({ y: y + 1, side, len: Math.round(len * 0.6), a: droop }); }
     }
     for (const b of branches) {
-      const x0 = cx + b.side * 1, y0 = b.y;
-      const x1 = x0 + b.side * b.len, y1 = y0 + Math.round(Math.sin(b.a) * b.len * 0.6);
-      p.line(x0, y0, x1, y1, CHAR[2]);
-      if (b.len > 6) p.line(x0, y0 + 1, x0 + b.side * Math.round(b.len * 0.5), y0 + 1 + Math.round(Math.sin(b.a) * b.len * 0.3), CHAR[1]);
-      // Asche auf der Oberseite
-      for (let i = 1; i < b.len; i += 2) { const t = i / b.len; if (rng.chance(0.55)) p.px(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t) - 1, b.side < 0 ? ASH[4] : ASH[3]); }
+      const x0 = cx + 0.5 + b.side * 1, y0 = b.y + 0.5;
+      const x1 = x0 + b.side * b.len, y1 = y0 + Math.sin(b.a) * b.len * 0.6;
+      const mx = x0 + (x1 - x0) * 0.45, my = y0 + (y1 - y0) * 0.45;
+      if (fine) {
+        // dick am Stamm, fein zur Spitze; Unterseite dunkler
+        p.fline(x0, y0, mx, my, CHAR[2], 1); p.fline(x0, y0 + 0.5, mx, my + 0.5, CHAR[1]);
+        p.fline(mx, my, x1, y1, CHAR[3]);
+        for (let i = 1; i < b.len * 2; i++) {
+          const t = i / (b.len * 2);
+          if ((i + b.y) % 3 === 0) continue;
+          p.dot(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - (t < 0.45 ? 1 : 0.5), b.side < 0 ? ASH[5] : ASH[4]);
+        }
+      } else {
+        p.line(x0, y0, x1, y1, CHAR[2]);
+        if (b.len > 6) p.line(x0, y0 + 1, x0 + b.side * Math.round(b.len * 0.5), y0 + 1 + Math.round(Math.sin(b.a) * b.len * 0.3), CHAR[1]);
+        for (let i = 1; i < b.len; i += 2) { const t = i / b.len; if (rng.chance(0.55)) p.px(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t) - 1, b.side < 0 ? ASH[4] : ASH[3]); }
+      }
       // Zweiggabel
       if (b.len > 5 && rng.chance(0.7)) {
-        const t = rng.range(0.5, 0.8), fx = Math.round(x0 + (x1 - x0) * t), fy = Math.round(y0 + (y1 - y0) * t);
-        p.line(fx, fy, fx + b.side * 2, fy - 2, CHAR[3]);
+        const t = rng.range(0.5, 0.8), fx = x0 + (x1 - x0) * t, fy = y0 + (y1 - y0) * t;
+        if (fine) { p.fline(fx, fy, fx + b.side * 2.5, fy - 2.5, CHAR[3]); p.dot(fx + b.side * 2.5, fy - 3, ASH[4]); } else p.line(fx, fy, fx + b.side * 2, fy - 2, CHAR[3]);
       }
       // verbrannte Nadelreste
-      if (rng.chance(0.15)) { p.ellipse(x1, y1, 2, 1, "#231512"); p.px(x1 - 1, y1 - 1, '#3a2016'); }
-      // glimmende Spitze
+      if (rng.chance(0.15)) {
+        if (fine) { p.oval(x1, y1 + 0.3, 2, 1.1, '#231512'); p.oval(x1 - 0.5, y1, 1, 0.5, '#3a2016'); } else { p.ellipse(x1, y1, 2, 1, '#231512'); p.px(x1 - 1, y1 - 1, '#3a2016'); }
+      }
+      // glimmende Spitze: heißer Kern, farbiger Saum
       if (rng.chance(0.4)) {
-        p.px(x1, y1, EMB[3]); g.px(x1, y1, EMB[4]);
-        if (rng.chance(0.5)) { p.px(x1 - b.side, y1, EMB[2]); g.px(x1 - b.side, y1, EMB[2]); }
+        const two = rng.chance(0.5);
+        if (fine) {
+          emberDot(p, g, x1 - 0.5, y1 - 0.5, two);
+          if (two) { p.dot(x1 - b.side, y1, EMB[2]); p.dot(x1 - b.side * 0.5, y1 + 0.5, EMB[2]); }
+        } else {
+          p.px(x1, y1, EMB[3]); g.px(x1, y1, EMB[4]);
+          if (two) { p.px(x1 - b.side, y1, EMB[2]); g.px(x1 - b.side, y1, EMB[2]); }
+        }
       }
     }
     // Stamm
-    for (let y = topY; y <= bottom; y++) {
-      const hw = tw(y);
-      const xl = Math.round(cx - hw / 2), xr = Math.round(cx + hw / 2);
-      for (let x = xl; x <= xr; x++) {
-        const rel = xr === xl ? 0 : (x - xl) / (xr - xl);
-        let i = rel < 0.25 ? 4 : rel < 0.6 ? 3 : rel < 0.85 ? 2 : 1;
-        const h = hash2(x, y, seed + 5);
-        if (h < 0.12) i -= 2; else if (h > 0.93) i += 1;
-        if (((y + (x * 3)) % 5) === 0 && rel > 0.2) i -= 1; // Borkenschuppen
-        p.px(x, y, CHAR[clampI(i, CHAR.length)]);
+    if (fine) {
+      trunk(p, topY, bottom + 1, () => cx + 0.5, (y) => tw(y) + 1, CHAR, seed + 5, { lo: 1, hi: 4, groove: 1.1 });
+      for (let y = topY + 2; y < bottom; y += 1.5) if (hash2(0, Math.floor(y * 2), seed + 7) < 0.45) p.dot(cx + 0.5 - (tw(y) + 1) / 2, y, ASH[4]); // Asche auf der Lichtseite
+    } else {
+      for (let y = topY; y <= bottom; y++) {
+        const hw = tw(y);
+        const xl = Math.round(cx - hw / 2), xr = Math.round(cx + hw / 2);
+        for (let x = xl; x <= xr; x++) {
+          const rel = xr === xl ? 0 : (x - xl) / (xr - xl);
+          let i = rel < 0.25 ? 4 : rel < 0.6 ? 3 : rel < 0.85 ? 2 : 1;
+          const h = hash2(x, y, seed + 5);
+          if (h < 0.12) i -= 2; else if (h > 0.93) i += 1;
+          if (((y + (x * 3)) % 5) === 0 && rel > 0.2) i -= 1; // Borkenschuppen
+          p.px(x, y, CHAR[clampI(i, CHAR.length)]);
+        }
+        if (hash2(0, y, seed + 7) < 0.3 && y > topY + 2) p.px(xl, y, ASH[4]); // Asche auf der Lichtseite
       }
-      if (hash2(0, y, seed + 7) < 0.3 && y > topY + 2) p.px(xl, y, ASH[4]); // Asche auf der Lichtseite
     }
     // Glutrisse im Stamm
     const cracks = rng.int(1, 3);
     for (let c = 0; c < cracks; c++) {
       const y = rng.int(Math.round(bottom - (bottom - topY) * 0.55), bottom - 3);
       const x = cx + rng.int(-1, 1), len = rng.int(2, 4);
+      if (fine) { emberCrack(p, g, x + 0.5, y, len, seed + c); continue; }
       for (let i = 0; i < len; i++) {
         const xx = x + (i % 2 && rng.chance(0.5) ? 1 : 0);
         p.px(xx, y + i, i === 1 ? EMB[3] : EMB[2]);
@@ -140,17 +449,28 @@ function charredPine(seed, H, broken) {
       }
     }
     // Wurzeln
-    p.line(cx - 2, bottom - 1, cx - 5, bottom, CHAR[3]); p.line(cx + 2, bottom - 1, cx + 5, bottom, CHAR[1]);
-    p.px(cx - 4, bottom - 1, ASH[4]);
+    if (fine) {
+      p.fline(cx - 1, bottom - 0.5, cx - 5.5, bottom + 0.5, CHAR[3], 1); p.fline(cx - 3, bottom, cx - 6, bottom + 0.5, CHAR[4]);
+      p.fline(cx + 2, bottom - 0.5, cx + 6, bottom + 0.5, CHAR[1], 1); p.dot(cx - 4, bottom - 0.5, ASH[5]);
+    } else {
+      p.line(cx - 2, bottom - 1, cx - 5, bottom, CHAR[3]); p.line(cx + 2, bottom - 1, cx + 5, bottom, CHAR[1]);
+      p.px(cx - 4, bottom - 1, ASH[4]);
+    }
     if (broken) {
       // gesplitterte Bruchkante mit Glut
       const hw = Math.round(tw(topY) / 2) + 1;
-      p.px(cx - hw, topY - 1, CHAR[4]); p.px(cx - hw, topY - 2, CHAR[3]); p.px(cx + 1, topY - 3, CHAR[3]); p.px(cx + 1, topY - 2, CHAR[2]); p.px(cx, topY - 1, CHAR[2]);
-      p.px(cx, topY, EMB[3]); p.px(cx - 1, topY, EMB[2]); g.px(cx, topY, EMB[5]); g.px(cx - 1, topY, EMB[3]);
-    } else {
-      p.px(cx, topY - 1, CHAR[3]);
-    }
-  }, { ax: cx, box: [-3, -3, 3, 1] });
+      if (fine) {
+        fpoly(p, [[cx - hw + 0.5, topY + 0.5], [cx - hw + 0.5, topY - 2], [cx - 0.5, topY - 0.5], [cx + 0.5, topY - 3], [cx + 1.5, topY - 1], [cx + hw + 1, topY + 0.5]], (x) => (x < cx ? CHAR[4] : CHAR[2]));
+        p.dot(cx - hw + 0.5, topY - 2, ASH[5]); p.dot(cx + 0.5, topY - 3, CHAR[5]);
+        p.dot(cx, topY, EMB[4]); p.dot(cx + 0.5, topY, EMB[3]); p.dot(cx - 0.5, topY + 0.5, EMB[2]);
+        g.dot(cx, topY, '#fff0b0'); g.dot(cx + 0.5, topY, EMB[4]); g.dot(cx - 0.5, topY + 0.5, EMB[3]);
+      } else {
+        p.px(cx - hw, topY - 1, CHAR[4]); p.px(cx - hw, topY - 2, CHAR[3]); p.px(cx + 1, topY - 3, CHAR[3]); p.px(cx + 1, topY - 2, CHAR[2]); p.px(cx, topY - 1, CHAR[2]);
+        p.px(cx, topY, EMB[3]); p.px(cx - 1, topY, EMB[2]); g.px(cx, topY, EMB[5]); g.px(cx - 1, topY, EMB[3]);
+      }
+    } else if (fine) { p.dot(cx + 0.5, topY - 0.5, CHAR[3]); p.dot(cx + 0.5, topY - 1, CHAR[4]); }
+    else p.px(cx, topY - 1, CHAR[3]);
+  }, { ax: cx, box: [-3, -3, 3, 1], b: true });
 }
 
 // ------------------------------------------------------------ Tote Birke
@@ -160,14 +480,48 @@ function deadBirch(seed, H) {
   return mk(W, H, (p, g) => {
     ashPatch(p, cx, bottom - 1, 7, 2, seed);
     const bx = (y) => cx + Math.round(Math.sin(y * 0.09 + seed) * 1.2);
+    const fine = p.fine;
     // Äste (dünn, schräg nach oben)
     for (let i = 0; i < 6; i++) {
       const y = rng.int(top + 2, bottom - 16), s = i % 2 ? 1 : -1, len = rng.int(4, 9);
       const x0 = bx(y) + s, x1 = x0 + s * len, y1 = y - rng.int(3, 7);
-      p.line(x0, y, x1, y1, BIRCH[2]);
-      p.px(x0, y - 1, BIRCH[3]);
-      if (rng.chance(0.6)) p.line(x1, y1, x1 + s * 2, y1 - 3, BIRCH[1]);
-      if (rng.chance(0.4)) p.line(Math.round((x0 + x1) / 2), Math.round((y + y1) / 2), Math.round((x0 + x1) / 2) - s, Math.round((y + y1) / 2) - 3, BIRCH[1]);
+      const twig = rng.chance(0.6), mid = rng.chance(0.4);
+      if (fine) {
+        p.fline(x0 + 0.5, y + 0.5, x1 + 0.5, y1 + 0.5, BIRCH[2], 0.5); p.fline(x0 + 0.5, y, x1 + 0.5, y1, s < 0 ? BIRCH[4] : BIRCH[3]);
+        if (twig) p.fline(x1 + 0.5, y1 + 0.5, x1 + s * 2.5 + 0.5, y1 - 3, BIRCH[1]);
+        if (mid) { const mx = (x0 + x1) / 2 + 0.5, my = (y + y1) / 2 + 0.5; p.fline(mx, my, mx - s * 1.5, my - 3.5, BIRCH[2]); }
+      } else {
+        p.line(x0, y, x1, y1, BIRCH[2]);
+        p.px(x0, y - 1, BIRCH[3]);
+        if (twig) p.line(x1, y1, x1 + s * 2, y1 - 3, BIRCH[1]);
+        if (mid) p.line(Math.round((x0 + x1) / 2), Math.round((y + y1) / 2), Math.round((x0 + x1) / 2) - s, Math.round((y + y1) / 2) - 3, BIRCH[1]);
+      }
+    }
+    if (fine) {
+      const w = (y) => (y > bottom - 2 ? 4.5 : y < top + 6 ? 2.5 : 3.2);
+      const xm = (y) => bx(Math.floor(y)) + 0.5;
+      trunk(p, top, bottom + 1, xm, w, BIRCH, seed, { lo: 1, hi: 4, groove: 9 });
+      // Rindenmarken: schwarze Querstriche (teils doppelt), Astnarben; Lichtkante gebrochen; Fuß verkohlt, Flammenzungen
+      for (let y = top + 1; y < bottom - 3; y += 0.5) {
+        const h = hash2(0, Math.floor(y * 2), seed + 3), xl = xm(y) - w(y) / 2;
+        if (h < 0.13) { const l = 0.8 + h * 10; p.fline(xl + 0.5 + (h * 30 % 1), y, xl + 0.5 + l, y, '#161214'); if (h < 0.04) p.fline(xl + 1, y + 0.5, xl + l, y + 0.5, BIRCH[1]); }
+        else if (h > 0.96) { p.dot(xm(y), y, '#161214'); p.dot(xm(y) + 0.5, y, BIRCH[1]); p.dot(xm(y), y - 0.5, BIRCH[2]); }
+        else if (h > 0.55 && h < 0.75) p.dot(xl, y, BIRCH[5]);
+      }
+      p.each(cx - 4, bottom - 14, cx + 4, bottom + 1, (x, y) => {
+        const hw = w(y) / 2, dx = x - xm(y);
+        if (dx < -hw || dx >= hw) return null;
+        const u = (x - xm(y) + hw) / 1.5, tongue = 3.5 * (1 - Math.abs(2 * fract(u + seed * 0.37) - 1));
+        const line = bottom - 6 - tongue + (dx > 0 ? -1 : 0);
+        if (y < line) return null;
+        if (y < line + 0.6) return EMB[1];
+        return dx < -hw + 0.6 ? CHAR[4] : dx > hw - 0.8 ? CHAR[1] : CHAR[2];
+      });
+      p.dot(bx(top) - 0.5, top - 0.5, BIRCH[3]); p.dot(bx(top), top - 1.5, BIRCH[2]); p.dot(bx(top) + 0.5, top - 1, BIRCH[1]);
+      const gy = bottom - rng.int(3, 6);
+      p.dot(bx(gy) + 0.5, gy, EMB[4]); p.dot(bx(gy) + 0.5, gy + 0.5, EMB[2]); g.dot(bx(gy) + 0.5, gy, '#fff0b0'); g.dot(bx(gy) + 0.5, gy + 0.5, EMB[3]);
+      p.fline(cx - 1, bottom + 0.5, cx - 4.5, bottom + 0.5, CHAR[3]);
+      return;
     }
     for (let y = top; y <= bottom; y++) {
       const x = bx(y), w = y > bottom - 2 ? 4 : y < top + 6 ? 2 : 3;
@@ -192,7 +546,7 @@ function deadBirch(seed, H) {
     const gy = bottom - rng.int(3, 6);
     p.px(bx(gy), gy, EMB[2]); g.px(bx(gy), gy, EMB[3]);
     p.line(cx - 1, bottom, cx - 4, bottom, CHAR[3]);
-  }, { ax: cx, box: [-2, -3, 2, 1] });
+  }, { ax: cx, box: [-2, -3, 2, 1], b: true });
 }
 
 // ------------------------------------------------------------ Stümpfe
@@ -317,7 +671,9 @@ function ashRock(v) {
 
 // ------------------------------------------------------------ Zelte
 // 3/4-Satteldach-Zelt: Giebeldreieck vorn, Dachflächen reichen nach hinten.
+// Im Feinraster (p.fine): Stoffbahnen mit zweifarbigen Falten, Naht als Punktlinie, Firstglanz, Seile und Heringe fein.
 export function drawTent(p, g, o) {
+  if (p.fine) { drawTentFine(p, g, o); return; }
   const { W, H, pal, band, ragged, seed } = o;
   const rng = createRng(seed);
   const cx = Math.floor(W / 2), bottom = H - 2, depth = 7;
@@ -376,6 +732,86 @@ export function drawTent(p, g, o) {
   }
 }
 
+// Zelt im Feinraster. Gleiche Maße wie oben (Kollision, Anker und Schmuck der Biome passen weiter).
+function drawTentFine(p, g, o) {
+  const { W, H, pal, band, ragged, seed } = o;
+  const rng = createRng(seed);
+  const cx = Math.floor(W / 2), bottom = H - 2, depth = 7;
+  const apexY = 4, x0 = 3, x1 = W - 4;
+  const R = cx + 1, Bt = bottom + 1;                       // Firstlinie liegt zwischen cx und cx+1
+  const hemF = (x) => (ragged ? 0.9 * Math.abs(Math.sin(x * 2.3 + seed)) + (hash2(Math.floor(x), 1, seed) < 0.15 ? 0.6 : 0) : 0);
+  const dark = '#0b080a';
+  // Heringe + Seile (fein, mit Lichtkante), Spannseil-Knoten
+  for (const [ax0, ay0, bx, by, c] of [[x0 + 0.5, bottom - depth + 1.5, 0.5, bottom - depth + 4.5, CANVAS[3]], [x1 + 1, bottom - depth + 1.5, W - 0.5, bottom - depth + 4.5, CANVAS[2]]]) {
+    p.fline(ax0, ay0, bx, by, c); p.dot(bx, by + 0.5, WOOD[3]); p.dot(bx, by + 1, WOOD[1]); p.dot(bx - 0.5, by - 0.5, WOOD[4]);
+  }
+  // Dachflächen: Parameter s (entlang der Tiefe, 0 = vorn oben) und t (First → Traufe)
+  const plane = (left) => {
+    const xe = left ? x0 : x1 + 1, sg = left ? -1 : 1;
+    const span = Math.abs(xe - (left ? cx + 0.5 : R - 0.5));
+    p.each(Math.min(xe, R) - 1, apexY - 1, Math.max(xe, R) + 1, Bt + 1, (x, y) => {
+      const t = ((x - (left ? cx + 0.5 : R - 0.5)) * sg) / span;
+      if (t < 0 || t > 1) return null;
+      const yTop = apexY + t * (bottom - depth + 1 - apexY);
+      const s = (y - yTop) / depth;
+      if (s < 0 || s > 1) return null;
+      if (y > Bt - hemF(x)) return null;
+      // Falten: Stoff hängt zwischen den Stangen durch, Bahnen laufen vom First zur Traufe
+      const f = fract(s * 2.6 + t * 0.35 + 0.15);
+      let i = left ? 4 : 1;
+      if (f < 0.18) i -= 1; else if (f < 0.26) i += left ? 1 : 0;          // Faltental, Faltengrat (hell, nur Lichtseite)
+      if (t > 0.9) i -= 1;                                                  // Traufe
+      if (t < 0.06) i = left ? 5 : 2;                                       // First fängt Licht
+      if (left && Math.abs(t - 0.5) < 0.04 && Math.round(y * 2) % 2) i = 2; // Naht als Punktlinie
+      return pal[Math.max(0, Math.min(pal.length - 1, i))];
+    });
+  };
+  plane(true); plane(false);
+  // Firststange
+  p.fline(cx + 0.5, apexY - 1, cx + 0.5, apexY + depth, WOOD[3], 0.5); p.fline(cx, apexY - 1, cx, apexY + depth, WOOD[4]);
+  // vordere Giebelwand: Bahnen senkrecht, Mitte im Halbschatten, Naht punktiert
+  const gy = apexY + depth;
+  fpoly(p, [[cx + 0.5, gy - 0.5], [x0 + 3, Bt], [x1 - 2, Bt]], (x, y) => {
+    if (y > Bt - hemF(x + 3)) return null;
+    let i = x < cx - 4 ? 3 : x > cx + 3.5 ? 1 : 2;
+    const k = fract((x - cx) / 4);
+    if (k < 0.13) i -= 1; else if (k < 0.25 && i < 3) i += 1;
+    if ((Math.abs(x - (cx - 6)) < 0.25 || Math.abs(x - (cx + 7)) < 0.25) && Math.round(y * 2) % 2) i = 0;
+    return pal[Math.max(0, i)];
+  });
+  // Saumkante unter dem Dachüberstand (Schattenlinie)
+  p.fline(x0 + 3, gy + 2.5, cx + 0.5, gy - 0.5, pal[0]); p.fline(cx + 0.5, gy - 0.5, x1 - 2, gy + 2.5, pal[0]);
+  // Eingang: dunkles Dreieck mit Innenschimmer, linke Klappe zurückgeschlagen und gerafft
+  fpoly(p, [[cx + 0.5, gy + 3], [cx - 3, Bt], [cx + 5, Bt]], (x, y) => (y > Bt - 1.2 && x > cx - 1 && x < cx + 3 ? '#1a1210' : dark));
+  fpoly(p, [[cx, gy + 4], [cx - 4, Bt], [cx - 1, Bt]], (x, y) => (x > cx - 1.6 + (y - gy) * 0.05 ? pal[3] : pal[4]));
+  p.fline(cx, gy + 4, cx - 2, bottom + 0.5, pal[5]);
+  p.fline(cx - 3.5, bottom - 4, cx - 1, bottom - 4.5, band ? band[2] : CANVAS[1]);
+  if (band) { p.dot(cx - 3, bottom - 4, band[4] ?? band[3]); p.dot(cx - 3.5, bottom - 3.5, band[3]); }
+  // Saumband: zwei Feinzeilen, Lichtseite heller, mit Stichen
+  if (band) {
+    for (let x = x0; x <= x1 + 0.5; x += 0.5) {
+      if (x > cx - 4 && x < cx + 6) continue;
+      const y = bottom - hemF(x) - 0.5, lit = x < cx;
+      p.dot(x, y, band[lit ? 3 : 1]);
+      if (!ragged) { p.dot(x, y - 0.5, band[lit ? 2 : 0]); p.dot(x, y - 1, band[lit ? 3 : 1]); if (Math.round(x * 2) % 3 === 0) p.dot(x, y - 0.5, band[lit ? 4 : 2] ?? band[3]); }
+    }
+  }
+  // Flicken (zerlumpt) mit Stichrand, Riss, gemaltes Klauenzeichen
+  if (ragged) {
+    for (let i = 0; i < 4; i++) {
+      const px = rng.int(x0 + 3, x1 - 5), py = rng.int(gy + 2, bottom - 5);
+      const pc = rng.pick([CANVAS[2], LEA[2], CANVAS[3]]);
+      if (px > cx - 4 && px < cx + 5) continue;
+      p.rect(px, py, 3, 3, pc);
+      for (let k = 0; k < 6; k++) { p.dot(px + k * 0.5, py, CANVAS[5]); p.dot(px + 3 - 0.5, py + k * 0.5, dark); }
+      p.dot(px + 1, py + 1, CANVAS[4]);
+    }
+    p.fline(x1 - 4, gy + 6, x1 - 5, gy + 7.5, dark, 0.5); p.fline(x1 - 5, gy + 7.5, x1 - 6, gy + 9.5, dark);
+    p.fline(x1 - 3.5, gy + 6, x1 - 4.5, gy + 7.5, pal[3]);
+    p.fline(cx - 8, gy + 4, cx - 10, gy + 9, '#120808', 0.5); p.fline(cx - 6, gy + 5, cx - 8, gy + 10, '#120808', 0.5); p.fline(cx - 4.5, gy + 6, cx - 6, gy + 9.5, '#120808');
+  }
+}
+
 function tentGuard() {
   const W = 38, H = 30;
   return mk(W, H, (p, g) => {
@@ -383,11 +819,21 @@ function tentGuard() {
     drawTent(p, g, { W, H, pal: CANVAS, band: GREEN, ragged: false, seed: 5 });
     // Firstwimpel
     const cx = 19;
+    if (p.fine) {
+      p.fline(cx + 0.5, 0, cx + 0.5, 4.5, WOOD[3]); p.dot(cx + 0.5, 0, GOLD[4]); p.dot(cx, 0.5, GOLD[3]);
+      fpoly(p, [[cx + 1, 1], [cx + 6.5, 1.3], [cx + 5, 2.2], [cx + 6.5, 3.2], [cx + 1, 3]], (x, y) => (y < 1.6 ? GREEN[4] : x > cx + 3.5 && y > 2.3 ? GREEN[2] : GREEN[3]));
+      p.dot(cx + 1, 1, GREEN[5]);
+      // Schild am Eingang: Holz, Eisenrand, Goldbuckel mit Glanz
+      p.oval(cx + 12.5, H - 6.5, 3.2, 3.7, IRON[1]); p.oval(cx + 12.3, H - 6.8, 2.6, 3.1, GREEN[2]);
+      p.oval(cx + 11.6, H - 7.6, 1.6, 1.9, GREEN[3]); p.fline(cx + 10, H - 9.5, cx + 11, H - 10, IRON[3]);
+      p.oval(cx + 12.5, H - 6.5, 0.8, 0.8, GOLD[2]); p.dot(cx + 12, H - 7, GOLD[4]); p.dot(cx + 12.5, H - 6.5, GOLD[3]);
+      return;
+    }
     p.line(cx, 0, cx, 4, WOOD[3]); p.px(cx, 0, GOLD[3]);
     p.rect(cx + 1, 1, 4, 2, GREEN[3]); p.px(cx + 5, 1, GREEN[3]); p.rect(cx + 1, 2, 4, 1, GREEN[2]); p.px(cx + 1, 1, GREEN[5]);
     // Schild und Speer am Eingang
     p.ellipse(cx + 12, H - 7, 3, 3.5, GREEN[2]); p.ellipse(cx + 11, H - 8, 2, 2.5, GREEN[3]); p.px(cx + 12, H - 7, GOLD[3]); p.px(cx + 11, H - 9, GOLD[4]);
-  }, { ax: 19, box: [-14, -7, 14, 1] });
+  }, { ax: 19, box: [-14, -7, 14, 1], b: true });
 }
 
 function tentBandit() {
@@ -397,10 +843,16 @@ function tentBandit() {
     ashPatch(p, 19, H - 2, 17, 2, 4);
     drawTent(p, null, { W, H, pal: RAG, band: CANVAS, ragged: true, seed: 11 });
     // schief eingeschlagene Stange mit Fetzen und Schädel
+    if (p.fine) {
+      p.fline(20.5, 0, 19.5, 5.5, WOOD[2], 0.5); p.fline(20, 0.5, 19, 5, WOOD[3]);
+      fpoly(p, [[21, 1], [24.5, 1.2], [24, 2.6], [23, 2], [22, 2.8], [21, 2]], (x, y) => (y < 1.6 ? RAG[4] : RAG[2]));
+      p.oval(19, 0.9, 1.5, 1.2, PAL.bone[3]); p.dot(18.5, 0.5, PAL.bone[4]); p.dot(18.5, 1, '#140808'); p.dot(19.5, 1, '#140808'); p.dot(19, 1.5, PAL.bone[1]);
+      return;
+    }
     p.line(20, 0, 19, 5, WOOD[2]);
     p.rect(21, 1, 3, 1, RAG[3]); p.px(24, 2, RAG[2]); p.px(22, 2, RAG[2]);
     p.rect(18, -0, 3, 2, PAL.bone[3]); p.px(18, 1, '#140808');
-  }, { ax: 19, box: [-14, -7, 14, 1] });
+  }, { ax: 19, box: [-14, -7, 14, 1], b: true });
 }
 
 // ------------------------------------------------------------ Palisade
@@ -845,12 +1297,20 @@ const SHROOM = ['#1a1030', '#3a2066', '#6a3cb0', '#a070f0', '#e0c8ff'];
 const DARK = '#040406';
 const flatE = (W, H, ax, ay, draw) => ({ sprite: buildFrame(W, H, ax, ay, draw, { outline: false }) });
 
-// Aschtanne: dunkle, staubige Nadeln, Asche auf den Zweigen, kaum Licht
+// Aschtanne: dunkle, staubige Nadeln, Asche auf den Zweigen, kaum Licht.
+// Stufe B: Etagen mit gezähnten Unterkanten, Nadelstrichen und Ascherand (conifer), Stamm mit Rillen.
+const FIRB = [...FIR, '#47553f'];   // + Nadelspitzen im Mondlicht
 function ashFir(seed, H = 50, W = 32) {
   const rng = createRng(seed);
   const cx = Math.floor(W / 2), bottom = H - 1, top = 2;
   return mk(W, H, (p, g) => {
     ashPatch(p, cx, bottom - 1, 9, 2, seed);
+    if (p.fine) {
+      trunk(p, bottom - 9, bottom + 1, () => cx + 0.5, (y) => 3.5 + Math.max(0, y - bottom + 2) * 1.2, CHAR, seed, { lo: 1, hi: 4 });
+      conifer(p, { cx: cx + 0.5, top, bottom: bottom - 6, half: W / 2 - 1.5, tiers: 6, pal: FIRB, lo: 1, hi: 5, seed, cap: [ASH[3], ASH[4], ASH[5]], capW: 0.32 });
+      if (rng.chance(0.5)) { const y = rng.int(bottom - 30, bottom - 12), x = cx + rng.int(-5, 5); emberDot(p, g, x, y); }
+      return;
+    }
     p.rect(cx - 2, bottom - 8, 4, 8, CHAR[2]); p.rect(cx - 2, bottom - 8, 1, 8, CHAR[4]); p.rect(cx + 1, bottom - 8, 1, 8, CHAR[0]);
     const tiers = 6;
     for (let t = 0; t < tiers; t++) {
@@ -877,7 +1337,16 @@ function ashFir(seed, H = 50, W = 32) {
     // vereinzelte Glutreste in den Nadeln
     if (rng.chance(0.5)) { const y = rng.int(bottom - 30, bottom - 12), x = cx + rng.int(-5, 5); p.px(x, y, EMB[2]); g.px(x, y, EMB[3]); }
     p.px(cx, top - 1, FIR[3]);
-  }, { ax: cx, box: [-3, -3, 3, 1] });
+  }, { ax: cx, box: [-3, -3, 3, 1], b: true });
+}
+
+// Unterholzsaum einer Waldmasse: kleine Büsche in harten Lichtstufen statt Pixelrauschen
+function undergrowth(p, x0, x1, bottom, pal, seed) {
+  const rng = createRng(seed);
+  for (let x = x0; x < x1; x += rng.range(2, 3.2)) {
+    const r = rng.range(1.5, 3), up = rng.range(0, 1.6);
+    lump(p, x, bottom - r * 0.6 - up, r, r * 0.75, pal, { lo: 0, hi: Math.min(3, pal.length - 2), bias: -0.15 });
+  }
 }
 
 // Waldmasse: drei Bäume (Aschtanne/verkohlte Kiefer/Birke), hinten dunkler, Unterholzsaum
@@ -891,17 +1360,18 @@ function deepWood(seed, dy = 0, dx = 0) {
     const s = back || r < 0.6 ? ashFir(seed * 11 + i, back ? 56 : rng.int(44, 52)).sprite : r < 0.85 ? charredPine(seed * 5 + i, rng.int(44, 52), false).sprite : deadBirch(seed * 3 + i, 44).sprite;
     parts.push({ s, x: back ? cx + rng.int(-6, 6) : cx + (i === 1 ? -10 : 10) + rng.int(-2, 2), y: back ? bottom - 9 : bottom - (i === 1 ? 1 : 4), back });
   }
-  const sprite = buildFrame(W, H, cx + dx, bottom - 2 + dy, (p) => {
+  const sprite = compose(W, H, cx + dx, bottom - 2 + dy, (p) => {
     for (const q of parts) {
       if (q.back) p.ctx.filter = 'brightness(0.6)';
       blitFrame(p.ctx, q.s, q.x, q.y);
       p.ctx.filter = 'none';
     }
+    if (p.fine) { undergrowth(p, 4, W - 4, bottom + 0.5, [CHAR[0], CHAR[1], CHAR[2], CHAR[4], ASH[3]], seed); return; }
     for (let x = 3; x < W - 3; x++) {
       const h = 2 + Math.round(hash2(x, 1, seed) * 4);
       for (let y = bottom - h; y <= bottom - 1; y++) p.px(x, y, y === bottom - h ? (hash2(x, y, seed) < 0.3 ? ASH[3] : CHAR[3]) : hash2(x, y, seed + 4) < 0.5 ? CHAR[1] : CHAR[0]);
     }
-  }, { outline: false });
+  });
   return { sprite };
 }
 
@@ -1265,45 +1735,77 @@ function ancientOak() {
   const rng = createRng(1141);
   return mk(W, H, (p, g) => {
     ashPatch(p, cx, b - 2, 30, 4, 1142);
+    const fine = p.fine;
     // Wurzeln
-    for (const [dx, len] of [[-1, 18], [1, 20], [-1, 11], [1, 12]]) {
-      for (let i = 0; i < len; i++) { const x = cx + dx * (6 + i), y = b - 3 + Math.round(i * 0.18); p.rect(x, y - 2 + Math.floor(i / 8), 1, 3 - Math.floor(i / 8), WOOD[i % 3 === 0 ? 1 : 2]); }
-    }
-    // Stamm (breit, knorrig)
-    for (let y = 44; y < b - 1; y++) {
-      const hw = 7 + Math.round(Math.max(0, (y - (b - 14)) * 0.5)) + Math.round(Math.sin(y * 0.4) * 0.8);
-      for (let x = cx - hw; x <= cx + hw; x++) {
-        const t = (x - (cx - hw)) / (2 * hw);
-        let i = t < 0.18 ? 4 : t < 0.5 ? 3 : t < 0.8 ? 2 : 1;
-        if ((x * 3 + Math.floor(y / 3)) % 7 === 0) i -= 1;
-        p.px(x, y, WOOD[clampI(i, 6)]);
+    if (fine) {
+      for (const [dx, len] of [[-1, 18], [1, 20], [-1, 11], [1, 12]]) {
+        const x0 = cx + dx * 6, y0 = b - 4, x1 = cx + dx * (6 + len), y1 = b - 1 + len * 0.18;
+        p.fline(x0, y0, x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5 + 1, WOOD[2], 1.5);
+        p.fline(x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5 + 1, x1, y1, WOOD[2], 0.5);
+        p.fline(x0, y0 - 0.5, x1 - dx * 2, y1 - 0.5, dx < 0 ? WOOD[4] : WOOD[3]);
+      }
+    } else {
+      for (const [dx, len] of [[-1, 18], [1, 20], [-1, 11], [1, 12]]) {
+        for (let i = 0; i < len; i++) { const x = cx + dx * (6 + i), y = b - 3 + Math.round(i * 0.18); p.rect(x, y - 2 + Math.floor(i / 8), 1, 3 - Math.floor(i / 8), WOOD[i % 3 === 0 ? 1 : 2]); }
       }
     }
-    // Astloch, Kerben
-    p.ellipse(cx + 2, 66, 2.5, 3.5, '#070506'); p.px(cx + 1, 64, WOOD[4]);
-    // Äste
-    p.line(cx - 3, 50, cx - 20, 36, WOOD[2]); p.line(cx - 3, 51, cx - 20, 37, WOOD[1]); p.line(cx - 4, 49, cx - 21, 35, WOOD[3]);
-    p.line(cx + 3, 48, cx + 22, 34, WOOD[2]); p.line(cx + 3, 49, cx + 22, 35, WOOD[1]);
+    // Stamm (breit, knorrig)
+    const hwAt = (y) => 7 + Math.max(0, (y - (b - 14)) * 0.5) + Math.sin(y * 0.4) * 0.8;
+    if (fine) {
+      trunk(p, 44, b - 0.5, () => cx + 0.5, (y) => hwAt(y) * 2 + 1, WOOD, 1141, { lo: 1, hi: 4, groove: 1.6 });
+      // Borkenplatten: waagrechte Risse zwischen den Rillen
+      for (let y = 47; y < b - 3; y += 2.5) for (let x = cx - 6; x < cx + 6; x += 2.4) if (hash2(Math.floor(x), Math.floor(y), 1145) < 0.35) p.fline(x + 0.5, y, x + 1.5, y, WOOD[1]);
+      // Astloch mit Rand und Kerbe
+      p.oval(cx + 2.5, 66.5, 2.8, 3.8, WOOD[1]); p.oval(cx + 2.5, 66.8, 2.1, 3.1, '#070506'); p.fline(cx + 0.5, 63.5, cx + 2.5, 63, WOOD[4]);
+      // Äste
+      p.fline(cx - 3, 50.5, cx - 20, 36.5, WOOD[2], 1.5); p.fline(cx - 4, 49.5, cx - 21, 35.5, WOOD[3]); p.fline(cx - 3, 52, cx - 19, 38.5, WOOD[1]);
+      p.fline(cx + 3, 48.5, cx + 22, 34.5, WOOD[2], 1.5); p.fline(cx + 3, 50, cx + 22, 36, WOOD[1]);
+      p.fline(cx - 12, 43, cx - 15, 33, WOOD[2], 0.5); p.fline(cx + 13, 41.5, cx + 15, 31, WOOD[1], 0.5);
+    } else {
+      for (let y = 44; y < b - 1; y++) {
+        const hw = Math.round(hwAt(y));
+        for (let x = cx - hw; x <= cx + hw; x++) {
+          const t = (x - (cx - hw)) / (2 * hw);
+          let i = t < 0.18 ? 4 : t < 0.5 ? 3 : t < 0.8 ? 2 : 1;
+          if ((x * 3 + Math.floor(y / 3)) % 7 === 0) i -= 1;
+          p.px(x, y, WOOD[clampI(i, 6)]);
+        }
+      }
+      p.ellipse(cx + 2, 66, 2.5, 3.5, '#070506'); p.px(cx + 1, 64, WOOD[4]);
+      p.line(cx - 3, 50, cx - 20, 36, WOOD[2]); p.line(cx - 3, 51, cx - 20, 37, WOOD[1]); p.line(cx - 4, 49, cx - 21, 35, WOOD[3]);
+      p.line(cx + 3, 48, cx + 22, 34, WOOD[2]); p.line(cx + 3, 49, cx + 22, 35, WOOD[1]);
+    }
     // Krone: viele Blattballen, hinten dunkler
     const blobs = [];
     for (let i = 0; i < 26; i++) blobs.push([cx + rng.range(-32, 32), rng.range(10, 46), rng.range(7, 12)]);
-    blobs.sort((a, c) => a[1] - c[1]);
-    for (const [bx, by, r] of blobs) {
-      for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
-        const d = (x * x + y * y) / (r * r); if (d > 1) continue;
-        const px = Math.round(bx + x), py = Math.round(by + y * 0.85);
-        if (px < 1 || px >= W - 1 || py < 1) continue;
-        const light = (-x - y) / r;
-        let i = 2 + Math.round(light * 1.6) + (by < 26 ? 1 : 0);
-        if (hash2(px, py, 1143) < 0.12) i -= 1;
-        if (d > 0.82 && hash2(px, py, 1144) < 0.5) continue;
-        p.px(px, py, OAKL[clampI(i, 7)]);
+    if (fine) canopy(p, blobs.map(([x, y, r]) => [x + 0.5, y + 0.5, r, y < 26 ? 0.4 : -0.2]), OAKL, 1143, { lo: 1, hi: 5 });
+    else {
+      blobs.sort((a, c) => a[1] - c[1]);
+      for (const [bx, by, r] of blobs) {
+        for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+          const d = (x * x + y * y) / (r * r); if (d > 1) continue;
+          const px = Math.round(bx + x), py = Math.round(by + y * 0.85);
+          if (px < 1 || px >= W - 1 || py < 1) continue;
+          const light = (-x - y) / r;
+          let i = 2 + Math.round(light * 1.6) + (by < 26 ? 1 : 0);
+          if (hash2(px, py, 1143) < 0.12) i -= 1;
+          if (d > 0.82 && hash2(px, py, 1144) < 0.5) continue;
+          p.px(px, py, OAKL[clampI(i, 7)]);
+        }
       }
     }
     // Bänder und Kerzen der Wächter am Stamm (Aussichtspunkt)
+    if (fine) {
+      p.rect(cx - 7, 58, 15, 2, GREEN[3]); p.rect(cx - 7, 58, 4, 2, GREEN[4]); p.fline(cx - 7, 58, cx + 8, 58, GREEN[5]); p.fline(cx - 7, 59.5, cx + 8, 59.5, GREEN[1]);
+      p.fline(cx + 6.5, 60, cx + 6, 63, GREEN[2]); p.fline(cx + 7.5, 60, cx + 7.5, 62.5, GREEN[1]);
+      p.rect(cx - 9, b - 4, 1, 1.5, PAL.bone[3]); p.dot(cx - 9, b - 4, PAL.bone[4]);
+      p.dot(cx - 9, b - 5, EMB[5]); p.dot(cx - 8.5, b - 5, EMB[3]); p.dot(cx - 9, b - 5.5, EMB[4]);
+      g.dot(cx - 9, b - 5, '#fff0b0'); g.dot(cx - 8.5, b - 5, EMB[4]); g.dot(cx - 9, b - 5.5, EMB[4]); g.dot(cx - 9, b - 6, EMB[2]);
+      return;
+    }
     p.rect(cx - 7, 58, 15, 2, GREEN[3]); p.rect(cx - 7, 58, 4, 2, GREEN[4]);
     p.px(cx - 9, b - 4, PAL.bone[3]); p.px(cx - 9, b - 5, EMB[4]); g.px(cx - 9, b - 5, EMB[5]);
-  }, { ax: cx, ay: b - 1, box: [-9, -6, 9, 1], light: { dx: -9, dy: -6, radius: 40, color: [255, 160, 80], intensity: 0.5 } });
+  }, { ax: cx, ay: b - 1, box: [-9, -6, 9, 1], light: { dx: -9, dy: -6, radius: 40, color: [255, 160, 80], intensity: 0.5 }, b: true });
 }
 
 // ------------------------------------------------------------ Runde 5b: Waldvielfalt, Baumlager, Köhlerei
@@ -1311,8 +1813,9 @@ const AUT = ['#130b09', '#22120d', '#371d12', '#512a16', '#6e3d1c', '#8c5525', '
 const OLIVE = ['#0f130b', '#192011', '#262f17', '#36411e', '#4a5627', '#626c33'];
 const LEAFY = ['#0d140f', '#152017', '#1f2e1f', '#2b3e28', '#3b5233', '#506a40'];
 
-// Laubballen (sortiert nach y), Licht von links oben
+// Laubballen (sortiert nach y), Licht von links oben. Im Feinraster aus Blattbüscheln (canopy).
 function leafBlobs(p, blobs, pal, seed, W) {
+  if (p.fine) { canopy(p, blobs.map(([x, y, r, k]) => [x + 0.5, y + 0.5, r, k]), pal, seed, { lo: 1, hi: pal.length - 2 }); return; }
   blobs.sort((a, c) => a[1] - c[1]);
   for (const [bx, by, r, k] of blobs) {
     for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
@@ -1333,16 +1836,24 @@ function broadleaf(seed, H = 56, pal = AUT) {
   const W = 46, cx = 23, b = H - 1;
   return mk(W, H, (p) => {
     ashPatch(p, cx, b - 1, 10, 2, seed);
-    for (let y = Math.round(H * 0.45); y < b; y++) {
-      const hw = 2 + (y > b - 4 ? 1 : 0);
-      for (let x = cx - hw; x <= cx + hw; x++) p.px(x, y, WOOD[x === cx - hw ? 4 : x === cx + hw ? 1 : (x + y) % 5 ? 2 : 3]);
+    if (p.fine) {
+      trunk(p, Math.round(H * 0.45), b + 0.5, () => cx + 0.5, (y) => (y > b - 4 ? 7 : 5) - (b - y) * 0.03, WOOD, seed, { lo: 1, hi: 4, groove: 1.3 });
+      const by0 = Math.round(H * 0.55), by1 = Math.round(H * 0.5);
+      p.fline(cx, by0, cx - 9, Math.round(H * 0.38), WOOD[2], 1); p.fline(cx - 1, by0 - 0.5, cx - 9, Math.round(H * 0.38) - 0.5, WOOD[3]);
+      p.fline(cx + 1, by1, cx + 10, Math.round(H * 0.34), WOOD[1], 1);
+      p.fline(cx - 4, by0 - 2, cx - 6, by0 - 7, WOOD[2]); p.fline(cx + 5, by1 - 2, cx + 7, by1 - 7, WOOD[1]);
+    } else {
+      for (let y = Math.round(H * 0.45); y < b; y++) {
+        const hw = 2 + (y > b - 4 ? 1 : 0);
+        for (let x = cx - hw; x <= cx + hw; x++) p.px(x, y, WOOD[x === cx - hw ? 4 : x === cx + hw ? 1 : (x + y) % 5 ? 2 : 3]);
+      }
+      p.line(cx, Math.round(H * 0.55), cx - 9, Math.round(H * 0.38), WOOD[2]); p.line(cx, Math.round(H * 0.5), cx + 10, Math.round(H * 0.34), WOOD[1]);
     }
-    p.line(cx, Math.round(H * 0.55), cx - 9, Math.round(H * 0.38), WOOD[2]); p.line(cx, Math.round(H * 0.5), cx + 10, Math.round(H * 0.34), WOOD[1]);
     const blobs = [];
     const top = 4, mid = Math.round(H * 0.33);
     for (let i = 0; i < 9; i++) blobs.push([cx + rng.range(-14, 14), rng.range(top + 6, mid + 8), rng.range(6, 9)]);
     leafBlobs(p, blobs, pal, seed, W);
-  }, { ax: cx, box: [-3, -3, 3, 1], shadow: 16 });
+  }, { ax: cx, box: [-3, -3, 3, 1], shadow: 16, b: true });
 }
 
 // Lebende Birke (helle Rinde, lichte Krone)
@@ -1353,6 +1864,19 @@ function liveBirch(seed, H = 50) {
     ashPatch(p, cx, b - 1, 6, 2, seed);
     const blobs = [];
     for (let i = 0; i < 7; i++) blobs.push([cx + rng.range(-8, 8), rng.range(8, H * 0.55), rng.range(4, 6)]);
+    if (p.fine) {
+      // Stamm zuerst (die Krone liegt davor), dann Krone, dann der sichtbare Stamm darunter erneut
+      const xm = (y) => cx + 0.5 + Math.sin(y * 0.1 + seed) * 1.1;
+      const bark = (y0) => {
+        trunk(p, y0, b + 0.5, xm, () => 3, BIRCH, seed, { lo: 1, hi: 4, groove: 9 });
+        for (let y = y0; y < b - 1; y += 0.5) { const h = hash2(0, Math.floor(y * 2), seed); if (h < 0.12) p.fline(xm(y) - 1 + h * 4, y, xm(y) + 0.5 + h * 4, y, '#161214'); else if (h > 0.6 && h < 0.8) p.dot(xm(y) - 1.5, y, BIRCH[5]); }
+      };
+      bark(6);
+      leafBlobs(p, blobs, OLIVE, seed, W);
+      bark(Math.round(H * 0.6));
+      for (let i = 0; i < 10; i++) { const x = cx + rng.int(-9, 9), y = rng.int(8, Math.round(H * 0.6)); p.dot(x + 0.5, y, '#9a9a44'); p.dot(x + 0.5, y + 0.5, '#6a6a2a'); }
+      return;
+    }
     leafBlobs(p, blobs, OLIVE, seed, W);
     for (let y = 6; y < b; y++) {
       const x = cx + Math.round(Math.sin(y * 0.1 + seed) * 1.1);
@@ -1360,7 +1884,7 @@ function liveBirch(seed, H = 50) {
       if (hash2(0, y, seed) < 0.18) { p.px(x, y, '#161214'); p.px(x + 1, y, '#161214'); }
     }
     for (let i = 0; i < 10; i++) { const x = cx + rng.int(-9, 9), y = rng.int(8, Math.round(H * 0.6)); p.px(x, y, '#8a8a3a'); }
-  }, { ax: cx, box: [-2, -2, 2, 1], shadow: 12 });
+  }, { ax: cx, box: [-2, -2, 2, 1], shadow: 12, b: true });
 }
 
 // Baumgruppe aus fertigen Sprites (fest, ohne Kasten – Kachel ist fest)
@@ -1371,14 +1895,15 @@ function clump(seed, makers, W = 54, H = 68, dy = 0, dx = 0) {
     const back = i === 0, s = mkr(seed * 7 + i, back).sprite;
     return { s, x: back ? cx + rng.int(-5, 5) : cx + (i === 1 ? -11 : 11) + rng.int(-2, 2), y: back ? bottom - 9 : bottom - (i === 1 ? 1 : 4), back };
   });
-  const sprite = buildFrame(W, H, cx + dx, bottom - 2 + dy, (p) => {
+  const sprite = compose(W, H, cx + dx, bottom - 2 + dy, (p) => {
     for (const q of parts) {
       if (q.back) p.ctx.filter = 'brightness(0.62)';
       blitFrame(p.ctx, q.s, q.x, q.y);
       p.ctx.filter = 'none';
     }
+    if (p.fine) { undergrowth(p, 9, W - 9, bottom + 0.5, LEAFY, seed); return; }
     for (let x = 8; x < W - 8; x++) if (hash2(x, 1, seed) < 0.55) p.px(x, bottom - 1 - (hash2(x, 2, seed) < 0.4 ? 1 : 0), LEAFY[2]);
-  }, { outline: false });
+  });
   return { sprite };
 }
 const broadClump = (seed, dy = 0, dx = 0) => clump(seed, [
@@ -1394,13 +1919,13 @@ function treePlatform(v) {
     ashPatch(p, cx, b - 2, 18, 3, 1602 + v);
     // Wurzeln und Stamm
     for (const s of [-1, 1]) for (let i = 0; i < 10; i++) p.rect(cx + s * (6 + i), b - 3 + (i >> 2), 1, 3 - (i >> 2), WOOD[i % 3 ? 2 : 1]);
-    for (let y = 18; y < b - 1; y++) {
+    if (!g.fine) for (let y = 18; y < b - 1; y++) {
       const hw = 5 + (y > b - 8 ? 2 : 0);
       for (let x = cx - hw; x <= cx + hw; x++) { const t = (x - cx + hw) / (2 * hw); p.px(x, y, WOOD[t < 0.2 ? 4 : t < 0.55 ? 3 : t < 0.85 ? 2 : 1]); }
       if (hash2(0, y, 1603) < 0.12) p.px(cx - 1, y, WOOD[0]);
     }
-    // Krone (Tanne, über und hinter der Hütte)
-    for (let t = 0; t < 6; t++) {
+    // Krone (Tanne, über und hinter der Hütte); im Feinraster als under (unten)
+    if (!g.fine) for (let t = 0; t < 6; t++) {
       const y0 = 2 + t * 8, half = 7 + t * 4;
       for (let y = y0; y < y0 + 11; y++) {
         const w = Math.round(half * ((y - y0) / 11) + 3);
@@ -1439,7 +1964,14 @@ function treePlatform(v) {
     // Wimpel
     p.line(cx + 1, py - 31, cx + 1, py - 40, WOOD[3]); p.rect(cx + 2, py - 40, 6, 3, GREEN[4]);
     void rng;
-  }, { ax: cx, ay: b - 1, box: [-7, -4, 7, 1], light: { dx: v % 2 ? -27 : 27, dy: -50, radius: 90, color: [255, 190, 110], intensity: 0.8 } });
+  }, {
+    ax: cx, ay: b - 1, box: [-7, -4, 7, 1], light: { dx: v % 2 ? -27 : 27, dy: -50, radius: 90, color: [255, 190, 110], intensity: 0.8 },
+    under: (f) => {
+      if (!f.fine) return;
+      trunk(f, 18, b - 0.5, () => cx + 0.5, (y) => (y > b - 8 ? 15 : 11), WOOD, 1603 + v, { lo: 1, hi: 4, groove: 1.5 });
+      conifer(f, { cx: cx + 0.5, top: 1, bottom: 54, half: 27, tiers: 7, pal: FIRB, lo: 1, hi: 5, seed: 1605 + v, cap: [ASH[3], ASH[4], ASH[5]], capW: 0.3 });
+    },
+  });
 }
 
 // Kohlenmeiler: Erdkuppel mit Rauch, glimmenden Luftlöchern
