@@ -1,6 +1,6 @@
 // Sprache der Website: deutsche Seiten unter /, die anderen unter /en/, /es/, /fr/ (site/i18n/build-en.mjs).
-// Steht im <head> hinter den hreflang-Verweisen und leitet sofort weiter, wenn die gewünschte Sprache eine andere ist:
-// gespeicherte Wahl ('emberwrath:lang', geteilt mit dem Spiel), sonst Browsersprache (sonst Englisch).
+// Steht im <head> hinter den hreflang-Verweisen. Auf deutschen Seiten leitet es sofort weiter, wenn die gewünschte Sprache
+// eine andere ist: gespeicherte Wahl ('emberwrath:lang', geteilt mit dem Spiel), sonst Browsersprache (sonst Englisch).
 // Suchmaschinen werden nie umgeleitet, damit alle Fassungen im Index bleiben.
 // Außerdem: Sprachauswahl in der Kopfleiste (Globus öffnet die Liste, Klick merkt die Wahl).
 (() => {
@@ -18,7 +18,9 @@
       document.documentElement.lang = id;
       document.write(`<script src="/${id}/i18n.js"><\/script>`); // synchron, bevor der Seiteninhalt entsteht
     }
-  } else if (!bot && want !== document.documentElement.lang) {
+  } else if (!bot && document.documentElement.lang === 'de' && want !== 'de') {
+    // Nur deutsche Adressen leiten um (gespeicherte Wahl, sonst Browsersprache). Eine Sprachadresse (/en/, /es/, /fr/ …)
+    // bleibt, wie sie ist, damit geteilte Links in ihrer Sprache ankommen; gewechselt wird über die Auswahl.
     const alt = document.querySelector(`link[rel="alternate"][hreflang="${want}"]`)?.getAttribute('href');
     if (alt) {
       const to = new URL(alt, location.href);
