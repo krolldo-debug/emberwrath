@@ -52,7 +52,7 @@
   if (setSec && setStage) {
     const cv = $('canvas', setStage); cv.dataset.var = '--sh';
     // Breite bestimmt den Maßstab; auf niedrigen Bildschirmen (Handy quer) passt die Bühne in die Höhe
-    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 10 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, (innerHeight - 95) / 50)), true);
+    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 10 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, (innerHeight - 135) / 50)), true);
     const BASE = 43;   // Fußlinie in Spielpixeln; die Figur füllt gut drei Viertel der Bühne
     const tabs = $$('.set-tabs [role="tab"]'), switches = $$('.set-switch button');
     const imgs = {}, scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');

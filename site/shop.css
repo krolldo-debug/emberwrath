@@ -29,13 +29,11 @@
 
 /* ---------- Klassen-Sets: Bühne mit dem Helden (shop.js), Text links */
 .sets { --glow: 255, 150, 40; position: relative; overflow: hidden; isolation: isolate; padding: clamp(40px, 6vw, 80px) 0 clamp(40px, 5vw, 64px);
-  background:
-    radial-gradient(38% 46% at 72% 52%, rgba(var(--glow), 0.16), transparent 70%),
-    linear-gradient(180deg, #07030b 0%, #0c0612 55%, var(--bg) 100%);
-  transition: background 0.6s; }
+  background: linear-gradient(180deg, #07030b 0%, #0c0612 55%, var(--bg) 100%); }
 .sets .embers { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; image-rendering: pixelated; opacity: 0.8; }
-/* Funken nur über der Bühne, damit sie im Text nicht wie Satzzeichen wirken */
+/* Funken nur über der Bühne, damit sie im Text nicht wie Satzzeichen wirken (am Handy liegt der Text unter der Bühne: dort keine) */
 @media (min-width: 701px) { .sets .embers { left: auto; right: 0; width: 52%; } }
+@media (max-width: 700px) { .sets .embers { display: none; } }
 .sets-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(20px, 4vw, 60px); align-items: center; }
 .set-tabs { display: flex; flex-wrap: wrap; gap: 6px clamp(14px, 1.6vw, 24px); margin: clamp(22px, 3vw, 34px) 0 clamp(18px, 2.4vw, 28px); border-bottom: 1px solid rgba(106, 69, 38, 0.45); }
 .set-tabs button { background: none; border: 0; padding: 8px 0 11px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; font: 600 clamp(15px, 1.3vw, 19px)/1 var(--font-title); color: var(--muted); border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s; }
@@ -45,7 +43,7 @@
 .set-panel p { margin: 0; max-width: 30em; color: var(--soft); font-size: clamp(16px, 1.3vw, 17px); }
 .set-buy { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 26px; margin-top: clamp(22px, 3vw, 32px); }
 .set-buy .price { font-size: clamp(30px, 3vw, 38px); }
-.set-panel .set-hint { margin-top: 14px; font-size: 14px; color: var(--muted); }
+.set-panel .set-kind { margin: 0 0 8px; font: 700 12px/1 var(--font); letter-spacing: 0.16em; text-transform: uppercase; color: rgb(var(--glow)); }
 
 .set-stage { position: relative; display: flex; flex-direction: column; align-items: center; }
 .set-stage canvas { display: block; width: 100%; height: var(--sh, 420px); }
@@ -57,17 +55,15 @@
 
 /* ---------- Exklusive Reittiere: Schaulauf über Steppenboden (shop.js), darunter die Auswahl */
 .mounts { padding: clamp(40px, 5vw, 64px) 0 0; }
-.mounts > .wrap:first-child { text-align: center; }
-.mounts > .wrap:first-child .sec-line { margin: 0 auto; }
 .show { --glow: 255, 130, 30; position: relative; margin-top: 0; }
 .show canvas { display: block; width: 100%; height: var(--ph, 360px); }
 .no-js .show { display: none; }
 .mount-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 8px; }
 .mount { position: relative; display: flex; flex-direction: column; padding: 22px 24px 22px; cursor: pointer; outline-offset: 4px;
-  background: linear-gradient(180deg, rgba(var(--glow), 0.07), transparent 60%), #0b0610;
+  background: #0b0610;
   border: 1px solid rgba(var(--glow), 0.28); transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
 .mount:hover { border-color: rgba(var(--glow), 0.6); }
-.mount[aria-selected="true"] { border-color: rgb(var(--glow)); box-shadow: 0 0 0 1px rgba(var(--glow), 0.5), 0 0 40px rgba(var(--glow), 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.mount[aria-selected="true"] { border-color: rgb(var(--glow)); background: color-mix(in srgb, rgb(var(--glow)) 6%, #0b0610); box-shadow: 0 0 0 1px rgb(var(--glow)); }
 /* Kerbe zur Bühne über der gewählten Karte */
 .mount[aria-selected="true"]::before { content: ""; position: absolute; left: 50%; top: -7px; width: 12px; height: 12px; translate: -50% 0; rotate: 45deg; background: #0b0610;
   border-left: 1px solid rgb(var(--glow)); border-top: 1px solid rgb(var(--glow)); }
@@ -79,14 +75,14 @@
 .gold { padding: clamp(70px, 8vw, 104px) 0 0; }
 .packs { list-style: none; margin: clamp(26px, 3vw, 40px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .pack { position: relative; display: flex; flex-direction: column; align-items: center; padding: 26px 14px 18px; text-align: center;
-  background: radial-gradient(70% 46% at 50% 30%, rgba(232, 194, 90, 0.08), transparent 70%), #0b0610; border: 1px solid rgba(106, 69, 38, 0.7); }
+  background: #0b0610; border: 1px solid rgba(106, 69, 38, 0.7); }
 .pack img { width: 144px; height: 92px; margin: 0 0 14px; }
 .pack b { font: 700 clamp(24px, 2.2vw, 30px)/1.05 var(--font-title); color: #fff1d6; font-variant-numeric: tabular-nums; }
 .pack > span { margin-top: 4px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
 .pack em { min-height: 22px; margin-top: 6px; font-style: normal; font-size: 13px; color: #9be38a; }
 .pack .price { margin: 14px 0 14px; font-size: 22px; }
 .pack .btn { width: 100%; padding: 0 8px; }
-.pack.best { border-color: var(--edge-hi); background: radial-gradient(70% 50% at 50% 30%, rgba(255, 170, 50, 0.16), transparent 70%), #0e0812; box-shadow: 0 0 40px rgba(255, 140, 30, 0.12); }
+.pack.best { border-color: var(--edge-hi); background: #120a0c; box-shadow: 0 0 0 1px var(--edge-hi); }
 .pack-tag { position: absolute; top: -11px; padding: 5px 10px; font: 700 11px/1 var(--font); font-style: normal; letter-spacing: 0.14em; text-transform: uppercase; color: #1a0a02; background: var(--gold); }
 
 /* ---------- Services */
@@ -146,9 +142,9 @@
   .set-tabs { order: 1; } .set-stage { order: 2; } .set-panel { order: 3; }
   .sets { padding-top: 18px; }
   .set-panel { margin-top: 14px; }
-  .set-panel > p:not(.set-hint) { order: 2; }
+  .set-panel > p:not(.set-kind) { order: 2; }
   .set-panel:not([hidden]) { display: flex; flex-direction: column; }
-  .set-panel h2 { order: 0; margin-bottom: 4px; } .set-buy { order: 1; margin: 6px 0 14px; } .set-hint { order: 3; }
+  .set-panel h2 { order: 0; margin-bottom: 4px; } .set-buy { order: 1; margin: 6px 0 14px; } .set-panel .set-kind { order: -1; }
   .set-tabs { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; margin-bottom: 0; }
 }
 @media (max-width: 900px) {
@@ -186,11 +182,9 @@
   .set-buy { margin-top: 12px; }
   .set-buy .price { font-size: 28px; }
   .set-buy .btn.big { min-height: 46px; padding: 0 24px; font-size: 13px; }
-  .set-panel .set-hint { display: none; }
-  /* Umschalter liegt auf der Bühne, damit die Figur ganz auf den ersten Bildschirm passt */
-  .sets-layout { align-items: start; }
-  .set-switch { position: absolute; right: 0; bottom: 8px; flex-direction: column; margin: 0; }
-  .set-switch button { min-width: 0; min-height: 34px; padding: 0 12px; font-size: 11px; }
+
+    .sets-layout { align-items: start; }
+  .set-switch button { min-width: 96px; min-height: 32px; padding: 0 12px; font-size: 11px; }
 }
 @media (max-width: 420px) {
   .set-tabs button { font-size: 14px; }
