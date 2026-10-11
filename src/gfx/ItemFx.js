@@ -77,10 +77,13 @@ function closeLoop(c) {
   return c.toDataURL();
 }
 
+// Legendär: tiefe Glut am Boden der dunklen Innenfläche statt Flammen bis oben – der Gegenstand steht frei davor
+const LEGEND_EMBERS = ['#3a0c04', '#8a2008', '#d04a0c', '#ff8a1a'];
+
 // Flammenzungen hinter dem Gegenstand, von unten aufsteigend
 function flames(pal, tier, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
-  const reach = tier >= 3 ? 0.98 : 0.62;
+  const reach = tier >= 3 ? 0.46 : 0.62;
   const ph = Array.from({ length: W }, () => r() * TAU);
   const ph2 = Array.from({ length: W }, () => r() * TAU);
   for (let f = 0; f < F; f++) {
@@ -211,9 +214,9 @@ export function itemFxStrips(theme, tier) {
   if (s) return s;
   const pal = FX_PALETTES[theme] ?? FX_PALETTES.rare;
   const seed = hash(key);
-  // Legendär: immer eigene Glut-Innenfläche (goldene Flammen), unabhängig vom Thema des Gegenstands
+  // Legendär: immer eigene Glut am Boden (unabhängig vom Thema des Gegenstands), Innenfläche bleibt dunkel
   s = {
-    back: tier >= 3 ? flames(FX_PALETTES.legendary, tier, seed) : tier >= 2 ? (FLAME_THEMES.has(theme) ? flames(pal, tier, seed) : halo(pal, tier, seed)) : null,
+    back: tier >= 3 ? flames(LEGEND_EMBERS, tier, seed) : tier >= 2 ? (FLAME_THEMES.has(theme) ? flames(pal, tier, seed) : halo(pal, tier, seed)) : null,
     front: motes(pal, tier, theme, seed ^ 0x9e3779b9),
   };
   stripCache.set(key, s);

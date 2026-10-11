@@ -97,10 +97,10 @@ export function itemDetail(content, itemId, { equipment = {}, level = 99, classI
   );
 }
 
-// Gesamturteil des Vergleichs (grobe Stärke, itemScore)
+// Gesamturteil des Vergleichs (grobe Stärke, itemScore), eigene Zeile unter „Verglichen mit …“
 function verdictEl(d) {
-  if (Math.abs(d) < 0.5) return h('span.pg-verdict', ' · gleichwertig');
-  return h(`span.pg-verdict${d > 0 ? '.up' : '.down'}`, d > 0 ? ' · ▲ insgesamt stärker' : ' · ▼ insgesamt schwächer');
+  if (Math.abs(d) < 0.5) return h('span.pg-verdict', 'gleichwertig');
+  return h(`span.pg-verdict${d > 0 ? '.up' : '.down'}`, d > 0 ? '▲ insgesamt stärker' : '▼ insgesamt schwächer');
 }
 
 // Set-Anzeige: Name, Teile (angelegt hell) und Boni (aktive grün)

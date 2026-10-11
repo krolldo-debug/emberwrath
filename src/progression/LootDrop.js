@@ -90,13 +90,14 @@ export class LootDrop {
   }
 
   // Seltenheitsleuchten und Lichtsäule (D, gfx/Icons.js) + Glitzern.
-  // Die Säule leuchtet nach der Beleuchtung, bleibt aber hinter Figuren, die vor der Beute stehen:
+  // Die Säule leuchtet nach der Beleuchtung, bleibt aber hinter Figuren und Aufbauten, die vor der Beute stehen:
   // sie wird dann auf einer Hilfsleinwand gezeichnet und deren Umriss dort ausgestanzt.
   renderEmissive(ctx, cx, cy) {
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     const opts = { bob: this.#bob(), emissive: true };
-    const front = this.rarity === 'common' ? [] : (this.session.world?.actors ?? []).filter((a) =>
-      !a.removed && a.y > this.y && a.y - this.y < 40 && Math.abs(a.x - this.x) < 24);
+    const w = this.session.world;
+    const front = this.rarity === 'common' || !w ? [] : [...w.actors, ...w.props].filter((a) =>
+      !a.removed && a.sortY > this.sortY && a.sortY - this.sortY < 90 && Math.abs(a.x - this.x) < 56);
     if (!front.length) {
       drawLoot(ctx, this.look, x, y + 1, this.t + this.seed, opts);
     } else {

@@ -420,7 +420,7 @@
 .ef-item-icon.r-uncommon { --rc: #3e9a3a; --rb: #0e1a12; }
 .ef-item-icon.r-rare { --rc: #3a7ad8; --rb: #0a1530; }
 .ef-item-icon.r-epic { --rc: #9a4ae8; --rb: #1a0a2e; }
-.ef-item-icon.r-legendary { --rc: #ff8a1a; --rb: #2c0e04; }
+.ef-item-icon.r-legendary { --rc: #ff8a1a; --rb: #100504; }
 /* Ab ungewöhnlich zeichnet der Pixelrahmen die Kante; er liegt über Icon und Funken */
 .ef-item-icon.framed { border: 0; box-shadow: 0 0 0 1px #05030a; }
 .ef-item-icon > .ef-frame {
@@ -1401,18 +1401,22 @@ html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-
 .ef-toast.r-legendary .ef-toast-rarity { color: #ffd860; }
 @media (prefers-reduced-motion: reduce) { .ef-toasts > .ef-toast.k-loot.r-legendary { animation: none; } }
 
-/* Legendäre Beute als Ansage: derselbe gezeichnete Rahmen wie legendäre Items (Glutsteine in den Ecken, --ef-frame-legendary,
-   2 CSS-px je Bildpunkt), Glutfläche, Strahlen als deckende Keile mit harter Kante. Bei offenem Fenster ohne Strahlen. */
-.hud-banner[data-kind="legendary"] {
-  border: 14px solid transparent; border-image: var(--ef-frame-legendary) 7 / 14px stretch; image-rendering: pixelated;
-  background: linear-gradient(#3a1406 0 50%, #2c0e04 50% 100%);
-  box-shadow: 0 0 0 2px #05030a; padding: 2px 22px 3px;
+/* Legendäre Beute als Ansage: derselbe gezeichnete Rahmen wie legendäre Items (Rubine in den Ecken, --ef-frame-legendary,
+   2 CSS-px je Bildpunkt) auf dunkler Fläche mit Glutrand. Keine Strahlen: stattdessen blitzt der Rahmen in festen Stufen
+   auf (aufgehelltes Rahmenbild). Tafel (::after) und Aufleuchten (::before) liegen beide hinter dem Text. */
+.hud-banner[data-kind="legendary"] { background: none; box-shadow: none; padding: 16px 36px 17px; }
+.hud-banner[data-kind="legendary"]::after, .hud-banner[data-kind="legendary"]::before {
+  content: ""; display: block; position: absolute; inset: 0; margin: 0; width: auto; height: auto; pointer-events: none; box-sizing: border-box;
+  border: 14px solid transparent; border-image-slice: 7; border-image-width: 14px; border-image-repeat: stretch;
+  image-rendering: pixelated; -webkit-mask: none; mask: none; transform: none;
 }
-.hud-banner[data-kind="legendary"]::after { display: none; }
-.hud-banner[data-kind="legendary"]::before {
-  background: repeating-conic-gradient(from 0deg, #8a3a0a 0deg 5deg, transparent 5deg 20deg);
-  -webkit-mask: radial-gradient(closest-side, #000 50%, transparent 50%); mask: radial-gradient(closest-side, #000 50%, transparent 50%);
+.hud-banner[data-kind="legendary"]::after {
+  z-index: -2; border-image-source: var(--ef-frame-legendary); background: #100504; box-shadow: 0 0 0 2px #05030a;
 }
+.hud-banner[data-kind="legendary"]::before { z-index: -1; border-image-source: var(--ef-frame-legendary-lit); background: none; opacity: 0; }
+.hud-banner.show[data-kind="legendary"]::before { animation: ef-banner-lit 0.36s steps(1, end) 6; }
+@keyframes ef-banner-lit { 0% { opacity: 1; } 50% { opacity: 0; } }
 .hud-banner[data-kind="legendary"] .hud-banner-sub { color: #ffd860; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.8em; }
 body:has(.ef-panel-host) .hud-banner[data-kind]::before { display: none; }
-.ef-touch:not(.ef-portrait) .hud-banner[data-kind="legendary"] { padding: 0 14px 1px; }
+.ef-touch:not(.ef-portrait) .hud-banner[data-kind="legendary"] { padding: 14px 26px 15px; }
+.ef-touch .hud-banner[data-kind="legendary"]::before { width: auto; height: auto; margin: 0; }

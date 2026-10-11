@@ -4,7 +4,7 @@ import { PixelCanvas } from './PixelCanvas.js';
 //   ungewöhnlich  schlichte grüne Kante mit Licht oben links
 //   selten        blaue Doppelkante, Eckbeschlag mit Niete
 //   episch        violette Kante mit Kerbe und gefasstem Edelstein
-//   legendär      breite Goldkante, gestufte Ecke, großer Glutstein in Fassung
+//   legendär      breite Goldkante mit Glutrand innen, gestufte Ecke, großer Rubin (4×4) in goldener Fassung
 // Ein Rahmen ist ein 16×16-Pixelbild, das per CSS border-image (9-Slice, 7 px Ecken) ganzzahlig
 // vergrößert wird: --fpx = CSS-px je Bildpunkt, derselbe Faktor wie Icon und Effekte (gfx/Icons.js itemIconEl).
 // Nur Palettenfarben, keine Transparenzstufen. Episch und legendär haben ein zweites, aufgehelltes Bild
@@ -18,17 +18,18 @@ const PAL = {
   uncommon: { d: '#0a1a0a', b: '#3e9a3a', l: '#7ad870', h: '#c8ffb8' },
   rare: { d: '#081430', b: '#3a7ad8', l: '#7ab0ff', h: '#d0e8ff', g: '#2a5ad0', G: '#f0faff' },
   epic: { d: '#16062a', b: '#8a3ae0', l: '#c888ff', h: '#f6e6ff', g: '#a0186a', G: '#ff7ad0', w: '#ffe0f4' },
-  legendary: { d: '#2a0a02', b: '#c85a0c', l: '#ff9a1a', h: '#ffd860', g: '#a81404', G: '#ff5a10', w: '#fff2b0' },
+  // e = Glutrand innen, D = tiefster Steinschatten
+  legendary: { d: '#2a0a02', b: '#c85a0c', l: '#ff9a1a', h: '#ffd860', e: '#e0400c', g: '#a0081c', G: '#ff2a3a', w: '#ffe6e6', D: '#3a0210' },
 };
 // Aufgehellt: jede Farbe eine Stufe heller (gleiche Palette)
-const LIT = { d: 'b', b: 'l', l: 'h', h: 'h', g: 'G', G: 'w', w: 'w' };
+const LIT = { d: 'b', b: 'l', l: 'h', h: 'h', e: 'l', g: 'G', G: 'w', w: 'w', D: 'g' };
 
 // Kante von außen nach innen: oben/links (Licht) und unten/rechts (Schatten)
 const EDGE = {
   uncommon: { tl: ['l', 'd'], br: ['b', 'd'] },
   rare: { tl: ['l', 'b', 'd'], br: ['b', 'b', 'd'] },
   epic: { tl: ['l', 'b', 'd'], br: ['b', 'b', 'd'] },
-  legendary: { tl: ['h', 'l', 'b', 'd'], br: ['l', 'b', 'b', 'd'] },
+  legendary: { tl: ['h', 'l', 'b', 'd', 'e'], br: ['l', 'b', 'b', 'd', 'e'] },
 };
 
 // Verzierung der Ecke oben links [x, y, Farbe]; '.' = ausgeschnitten (Fensterschwarz, liest sich als Kerbe).
@@ -42,11 +43,19 @@ const ORNAMENT = {
     [0, 0, '.'], [1, 0, 'd'], [0, 1, 'd'], [1, 1, 'l'],
     [3, 3, 'w'], [4, 3, 'G'], [3, 4, 'G'], [4, 4, 'g'], [5, 3, 'l'], [3, 5, 'l'], [5, 4, 'd'], [4, 5, 'd'], [5, 5, 'd'], [2, 2, 'h'],
   ],
-  // Gestufte Ecke, Glutstein 3×3 in goldener Fassung
+  // Legendär: ganze Ecke als Bild (unten), weil der Stein über mehrere Kantenlinien reicht
+  legendary: [],
+};
+// Ecke oben links als 7×7-Bild (Zeilen von oben): gestufte Kerbe, Goldfassung, Rubin 4×4 mit Glanz oben links
+const CORNER = {
   legendary: [
-    [0, 0, '.'], [1, 0, '.'], [0, 1, '.'], [2, 0, 'd'], [0, 2, 'd'], [1, 1, 'd'], [2, 1, 'h'], [1, 2, 'h'], [3, 0, 'd'], [0, 3, 'd'],
-    [3, 3, 'h'], [4, 3, 'h'], [5, 3, 'l'], [6, 3, 'l'], [3, 4, 'h'], [3, 5, 'l'], [3, 6, 'l'],
-    [4, 4, 'w'], [5, 4, 'G'], [6, 4, 'g'], [4, 5, 'G'], [5, 5, 'g'], [6, 5, 'd'], [4, 6, 'g'], [5, 6, 'd'], [6, 6, 'd'],
+    '...dhhh',
+    '..dhlll',
+    '.dhhhhh',
+    'dlhwwGG',
+    'hlhwGGg',
+    'hlhGGgg',
+    'hlhGggD',
   ],
 };
 
@@ -63,7 +72,9 @@ function drawFrame(rarity, lit) {
       if (m < list.length) p.px(x, y, col(list[m]));
     }
   }
-  for (const [x, y, k] of ORNAMENT[rarity]) {
+  const orn = [...ORNAMENT[rarity]];
+  CORNER[rarity]?.forEach((line, y) => [...line].forEach((k, x) => orn.push([x, y, k])));
+  for (const [x, y, k] of orn) {
     for (const [fx, fy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
       p.px(fx ? N - 1 - x : x, fy ? N - 1 - y : y, k === '.' ? CUT : col(k));
     }

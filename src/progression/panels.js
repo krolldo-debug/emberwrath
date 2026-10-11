@@ -250,21 +250,26 @@ function inventoryView(s) {
       const used = inv.slots.length - freeSlots(st);
       // Verkaufen gehört zusammen: Auto-Verkauf-Schalter und „Weiße verkaufen“ stehen nebeneinander
       return h('div.pg-inv-foot', goldEl(st.slices.wallet.gold),
-        h('div.pg-foot-sell', autoBtn, junk.length ? btn(`Weiße verkaufen · ${junk.length}`, () => {
-          const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { extra: priceEl(sellValue(st, content, junk)) }) : null),
-        // Im Materialreiter keine Platzzahl: Materialien belegen keine Plätze
-        filter === 'mat' ? h('span.pg-cap') : h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}`, `${used}/${inv.slots.length} Plätze`));
+        h('div.pg-foot-sell', autoBtn, junk.length ? (() => {
+          const b = btn(`Weiße verkaufen · ${junk.length}`, () => {
+            const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
+          });
+          b.title = `Weiße verkaufen · ${junk.length} (+${fmt(sellValue(st, content, junk))})`;
+          return b;
+        })() : null),
+        // Im Materialreiter ohne Platzzahl (Materialien belegen keine Plätze); unsichtbar statt entfernt, damit nichts springt
+        h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}${filter === 'mat' ? '.off' : ''}`, `${used}/${inv.slots.length} Plätze`));
     }
     // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
     const auto = inv.autoSell ?? null;
     const AUTO = [[null, 'Aus'], ['common', 'Weiße'], ['uncommon', 'Weiße + Grüne']];
     const autoLabel = (m) => `Auto-Verkauf: ${AUTO.find(([x]) => x === m)[1]}`;
     const autoNext = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
-    const autoBtn = h(`button.pg-tool.pg-auto${auto ? '.on' : ''}`, {
+    // Auto-Verkauf als beschrifteter Umschalter: oben klein „Auto-Verkauf“, darunter die Stufe
+    const autoBtn = h(`button.ef-btn.pg-btn.pg-auto${auto ? '.on' : ''}`, {
       type: 'button', title: autoLabel(auto), 'aria-label': autoLabel(auto), 'data-mode': auto ?? 'off',
       onclick: () => { autoTipAt = performance.now(); act('inventory:autoSell', { mode: autoNext }); },
-    }, glyph('auto'), autoTip());
+    }, h('small', 'Auto-Verkauf'), h('b', AUTO.find(([x]) => x === auto)[1]), autoTip());
     function autoTip() {
       const left = 1600 - (performance.now() - autoTipAt);
       if (left <= 0) return null;

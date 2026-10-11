@@ -41,7 +41,7 @@
 }
 .pg-slot > .ef-item-icon { --size: var(--pg-slot) !important; width: 100%; height: 100%; }
 /* Pixelfaktor nach Platzgröße (gfx/Icons.js): ab 48 px doppelt, kleine Plätze (Bank, Händler) einfach */
-.pg-slot > .ef-item-icon.px { --fpx: 2px !important; }
+.pg-slot > .ef-item-icon.px { --fpx: var(--pg-fpx, 2px) !important; }
 .pg-bag.small .pg-slot > .ef-item-icon.px { --fpx: 1px !important; }
 .pg-slot > .ef-item-icon img { pointer-events: none; }
 .pg-slot.empty {
@@ -64,14 +64,16 @@
 /* Marken sind deckende Schildchen mit harter Kante. Die Ecken gehören den Rahmen-Edelsteinen: Neu-Punkt und
    Verbesserungspfeil sitzen mittig auf der Kante; die Stapelzahl ist ein Schild, das die Ecke ganz abdeckt. */
 .pg-qty {
-  position: absolute; right: 2px; bottom: 2px; z-index: 6; padding: 2px 3px 1px; font: 700 11px/1 var(--ef-font); color: #fff;
-  background: #05030a; font-variant-numeric: tabular-nums;
+  position: absolute; right: 4px; bottom: 3px; z-index: 6; font: 700 11px/1 var(--ef-font); color: #fff; font-variant-numeric: tabular-nums;
+  text-shadow: 1px 0 0 #05030a, -1px 0 0 #05030a, 0 1px 0 #05030a, 0 -1px 0 #05030a, 1px 1px 0 #05030a, -1px -1px 0 #05030a, 1px -1px 0 #05030a, -1px 1px 0 #05030a;
 }
 .pg-new { position: absolute; left: calc(50% - 4px); top: 1px; z-index: 6; width: 8px; height: 6px; background: #ffd66a; box-shadow: 0 0 0 2px #05030a; }
 .pg-slot > .pg-up { position: absolute; left: calc(50% - 7px); bottom: 1px; z-index: 6; width: 14px; height: 12px; font-size: 0; color: transparent; background: #05030a; }
+/* Pfeil aus 2-px-Bildpunkten (5 × 5), kein geglätteter Umriss */
 .pg-slot > .pg-up::after {
-  content: ""; position: absolute; inset: 2px; background: #7cf07a;
-  clip-path: polygon(50% 0, 100% 50%, 75% 50%, 75% 100%, 25% 100%, 25% 50%, 0 50%);
+  content: ""; position: absolute; left: 2px; top: 1px; width: 2px; height: 2px; background: transparent;
+  box-shadow: 4px 0 #7cf07a, 2px 2px #7cf07a, 4px 2px #b8ffb0, 6px 2px #7cf07a, 0 4px #7cf07a, 2px 4px #7cf07a, 4px 4px #7cf07a,
+    6px 4px #7cf07a, 8px 4px #7cf07a, 2px 6px #3a9a38, 4px 6px #7cf07a, 6px 6px #3a9a38, 2px 8px #3a9a38, 4px 8px #7cf07a, 6px 8px #3a9a38;
 }
 .pg-up.inline { position: static; font-size: 12px; }
 
@@ -151,7 +153,7 @@
 .pg-req { margin: 3px 0; font-size: 13px; color: var(--ef-muted); } .pg-req.bad { color: #ff6a5a; }
 .pg-desc { font-style: italic; color: #b8aa92; margin: 6px 0; }
 .pg-source { margin: 4px 0; font-size: 12px; color: #c8a0ff; letter-spacing: .02em; }
-.pg-verdict { font-weight: 700; white-space: nowrap; } .pg-verdict.up { color: #6ee06a; } .pg-verdict.down { color: #ff6a5a; }
+.pg-verdict { display: block; font-weight: 700; white-space: nowrap; } .pg-verdict.up { color: #6ee06a; } .pg-verdict.down { color: #ff6a5a; }
 .pg-value { margin: 6px 0 0; color: var(--ef-muted); font-size: 13px; display: flex; gap: 6px; align-items: center; }
 .pg-tip { position: fixed; left: 0; top: 0; z-index: 9999; pointer-events: none; width: 260px; }
 .pg-tip .pg-detail { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7); background: rgba(10, 6, 16, 0.97); }
@@ -456,7 +458,7 @@
 .pg-inventory .pg-doll .pg-slot-ph { opacity: 0.22; }
 
 /* Tasche: feste, ganzzahlige Platzgröße (--pg-cell), damit Rahmen und Icons auf dem Pixelraster bleiben */
-.pg-inventory { --pg-cell: 60px; --pg-gap: 6px; }
+.pg-inventory { --pg-cell: 64px; --pg-gap: 6px; }
 .pg-inventory .pg-bag { grid-template-columns: repeat(6, var(--pg-cell)); gap: var(--pg-gap); justify-content: start; }
 .pg-inventory .pg-bag .pg-slot { --pg-slot: var(--pg-cell); }
 /* Reiterzeile mit fester Höhe: Reiter und Werkzeuge immer 44 px, egal welcher Reiter offen ist */
@@ -477,18 +479,21 @@
 .pg-tool:hover { border-color: #6a4526; background: #24142c; }
 .pg-tool.on { border-color: var(--ef-gold); background: #2a1830; }
 .pg-tool:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
-/* Auto-Verkauf: Farbquadrat = was verkauft wird (weiß / weiß + grün), aus = blasse Münze */
-.pg-auto[data-mode="off"] img { opacity: 0.4; filter: grayscale(1); }
-.pg-auto::after { content: ""; position: absolute; right: 3px; bottom: 3px; width: 8px; height: 8px; box-shadow: 0 0 0 1px #05030a; }
-.pg-auto[data-mode="off"]::after { display: none; }
+/* Auto-Verkauf: beschrifteter Umschalter, Farbquadrat = was verkauft wird (weiß / weiß + grün) */
+.pg-inventory .pg-inv-foot .pg-auto { position: relative; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 0 10px; }
+.pg-auto small { font: 600 10px/1 var(--ef-font); color: var(--ef-muted); letter-spacing: 0.04em; }
+.pg-auto b { display: inline-flex; align-items: center; gap: 5px; font: 700 12.5px/1.1 var(--ef-font); color: var(--ef-muted); }
+.pg-auto.on { border-color: #6a4526; }
+.pg-auto.on b { color: var(--ef-gold); }
+.pg-auto b::before { content: ""; width: 6px; height: 6px; box-shadow: 0 0 0 1px #05030a; background: #3a2a3a; }
 .pg-auto-tip {
   position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 6; padding: 5px 9px; white-space: nowrap;
   font: 600 12.5px var(--ef-font); color: var(--ef-gold); background: #0c0712; border: 1px solid var(--ef-panel-edge); box-shadow: 0 0 0 1px #05030a;
   pointer-events: none; animation: pg-auto-tip 1.6s steps(1, end) forwards;
 }
 @keyframes pg-auto-tip { 0%, 90% { opacity: 1; } 100% { opacity: 0; } }
-.pg-auto[data-mode="common"]::after { background: #d8d0c0; }
-.pg-auto[data-mode="uncommon"]::after { background: #6ee06a; }
+.pg-auto[data-mode="common"] b::before { background: #d8d0c0; }
+.pg-auto[data-mode="uncommon"] b::before { background: #6ee06a; }
 /* Ein Knopfstil im ganzen Fenster: eckig, Text + Goldbetrag mit Münze */
 .pg-inventory .pg-btn {
   min-width: 0; min-height: 36px; padding: 6px 12px; border-radius: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -498,8 +503,9 @@
 .pg-inventory .pg-quicksell.multi { margin: 8px 0 0; gap: 6px; border-radius: 0; }
 .pg-inventory .pg-questbag-label { color: var(--ef-muted); letter-spacing: 0.12em; }
 /* Fußzeile: Gold links, Verkaufen (Auto-Schalter + „Weiße verkaufen“) in der Mitte, Plätze rechts. Feste Höhe 44 px. */
-.pg-inventory .pg-inv-foot { margin-top: 8px; height: 44px; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
-.pg-inventory .pg-foot-sell { display: flex; align-items: center; gap: 6px; margin: 0 auto; min-width: 0; }
+.pg-inventory .pg-inv-foot { margin-top: 8px; height: 44px; flex: 0 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.pg-inventory .pg-foot-sell { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.pg-inventory .pg-cap.off { visibility: hidden; }
 .pg-inventory .pg-inv-foot .pg-btn { height: 44px; min-height: 44px; padding: 0 10px; font-size: 12.5px; gap: 6px; white-space: nowrap; }
 .pg-inventory .pg-inv-foot .pg-cap { white-space: nowrap; min-width: 64px; text-align: right; }
 .pg-inventory .pg-quicksell.multi { height: 44px; flex: 0 0 auto; box-sizing: border-box; flex-wrap: nowrap; }
@@ -563,8 +569,10 @@
   .pg-panel.pg-inventory::before, .pg-panel.pg-inventory::after { display: none; }
   .pg-inventory .pg-head { padding: 0 4px 0 14px; min-height: 0; }
   .pg-inventory .pg-title { font-size: 17px; }
-  /* Tasche 9 × 4 mit festen 42-px-Plätzen (ab 800 × 385: 48 px) */
-  .pg-inventory { --pg-cell: 42px; --pg-gap: 4px; }
+  /* Tasche 9 × 4 mit festen Plätzen. Icons sind 26 Bildpunkte: 52-px-Plätze zeigen sie doppelt und ganz.
+     Unter 372 px Höhe reicht der Platz nur für 42 px – dann einfacher Faktor (26-px-Icon, nichts abgeschnitten). */
+  .pg-inventory { --pg-cell: 52px; --pg-gap: 4px; --pg-fpx: 2px; }
+  .pg-inventory .pg-head { min-height: 36px; height: 36px; }
   .pg-inventory .pg-scroll.pg-inv {
     flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 6px 10px 6px; gap: 10px;
     grid-template-columns: minmax(0, 1fr) calc(9 * var(--pg-cell) + 8 * var(--pg-gap));
@@ -592,9 +600,27 @@
   .pg-inventory .pg-filters .pg-chip { padding: 0 6px; font-size: 12px; }
   .pg-inventory .pg-qty { font-size: 11px; }
 }
+@media (min-width: 641px) and (max-height: 371px) {
+  .pg-inventory { --pg-cell: 42px; --pg-fpx: 1px; }
+}
 @media (min-width: 800px) and (min-height: 385px) and (max-height: 520px) {
-  .pg-inventory { --pg-cell: 48px; }
   .pg-inventory .pg-inv .pg-stage-canvas { width: 208px; height: 200px; }
+}
+/* Schmales Querformat mit großen Plätzen: Figur weicht, Ausrüstung in zwei Spalten, Name und Werte darunter */
+@media (min-width: 641px) and (max-width: 759px) and (min-height: 372px) and (max-height: 520px) {
+  .pg-inventory .pg-scroll.pg-inv { padding: 4px 8px; gap: 8px; }
+  .pg-inventory .pg-inv .pg-doll {
+    grid-template-columns: repeat(2, var(--pg-cell)); grid-template-rows: repeat(4, var(--pg-cell)) auto; justify-content: center;
+    grid-template-areas: "head amulet" "chest ring" "hands weapon" "feet ." "info info"; gap: 4px; padding: 6px 4px;
+  }
+  .pg-inventory .pg-inv .pg-stage { display: none; }
+  .pg-inventory .pg-doll-info { flex-direction: column; padding-top: 4px; }
+  .pg-inventory .pg-doll-name { font-size: 14px; }
+  .pg-inventory .pg-doll-sub { flex-direction: column; align-items: center; gap: 0; font-size: 11.5px; }
+  .pg-inventory .pg-doll-sub span + span::before { display: none; }
+  .pg-inventory .pg-doll-stats { gap: 1px 6px; font-size: 11px; }
+  .pg-inventory .pg-doll-stats li { gap: 3px; }
+  .pg-inventory .pg-doll-stats img { width: 12px; height: 12px; }
 }
 @media (min-width: 641px) and (max-width: 799px) and (max-height: 520px) {
   .pg-inventory .pg-doll-stats { gap: 2px 6px; font-size: 11px; }
