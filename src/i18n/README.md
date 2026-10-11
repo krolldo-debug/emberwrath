@@ -30,7 +30,10 @@ bleiben unberührt.
 5. Nach neuen Texten: `node tools/i18n-check.mjs` und fehlende Einträge in `en.js` ergänzen (fehlt einer, erscheint der Text
    im Englischen deutsch), danach dieselben Schlüssel in `es.js` und `fr.js` (`--lang es` listet, was dort fehlt).
 6. In keiner Sprache: demo, prototype, local, single-player (und deren Übersetzungen).
-7. PixelFont kennt A–Z, Ä Ö Ü ß, Ziffern und Satzzeichen; andere Akzente (É, Ñ …) zeichnet sie als Grundbuchstaben.
+7. PixelFont kennt A–Z, Ä Ö Ü ß, die spanischen und französischen Akzente (Á É Í Ó Ú Ñ À Â Ç È Ê Ë Î Ï Ô Ù Û Œ, ¿ ¡ « »),
+   Ziffern und Satzzeichen; Akzente stehen bis 3 Pixel über der Schrift (`font.ascent(text)` sagt, wie viel Platz nötig ist).
+8. Wörterbücher (en/es/fr) liegen nicht im Spiel-Skript: der Build schreibt `spielen/sprache-xx.<hash>.js`, das Spiel lädt
+   nur die gewählte Sprache (vor dem Start bzw. beim Umschalten). Deutsch lädt nichts nach.
 
 Neue Sprache: `xx.js` mit `export const XX = {…}` anlegen, in `LANGS` (index.js) eintragen, Anführungszeichen in translate.js (`QUOTES`).
 

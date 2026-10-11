@@ -37,6 +37,9 @@ for (const [ch, [b, a]] of Object.entries(ACCENTS)) {
 }
 G.Ç = { rows: [...G.C.split('|'), '.#.'], up: 0 };
 G.Œ = '.####|#.#..|#.##.|#.#..|.####';
+// Geschützte Leerzeichen aus Zahlenformaten (fr: „50 000“, „16 %“)
+G['\u00a0'] = G[' '];
+G['\u202f'] = '.|.|.|.|.';
 // Unbekannte Buchstaben mit Akzent: Grundbuchstabe statt Fragezeichen
 const base = (ch) => ch.normalize('NFD')[0];
 
