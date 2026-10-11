@@ -38,8 +38,10 @@ export const formatPrice = (cents) => (cents / 100).toLocaleString('de-DE', { st
 export const RETURN_PARAM = 'kauf';
 
 // Exklusive Designs: nur hier erhältlich, nicht erspielbar. Gelten für alle Charaktere des Kontos.
-// items: Schlüssel 'mount:<id>' (src/character/mounts.js, exclusive) und 'dye:<id>' (src/character/cosmetics.js, exclusive).
-// Der Server prüft beim Speichern, dass exklusive Reittiere und Färbungen im Spielstand bezahlt sind (Migration 20261005120000).
+// items: Schlüssel 'mount:<id>' (src/character/mounts.js, exclusive), 'dye:<id>' (src/character/cosmetics.js, exclusive)
+// und 'look:<setId>' (Skinset einer Klasse, src/character/skinSets.js; Teile in der Garderobe über die Ausrüstung legen).
+// Der Server prüft beim Speichern, dass exklusive Reittiere, Färbungen und Skinsets im Spielstand bezahlt sind
+// (Migrationen 20261005120000 und 20261011160000).
 export const DESIGNS = [
   { id: 'design_phoenix', name: 'Phönixschwinge', priceCents: 1499, tag: 'Legendär',
     items: ['mount:phoenix_wing', 'dye:phoenix'],
@@ -50,19 +52,35 @@ export const DESIGNS = [
   { id: 'design_soul', name: 'Seelenwolf', priceCents: 999,
     items: ['mount:soul_wolf', 'dye:soullight'],
     desc: 'Ein Geisterwolf mit lodernder Seelenmähne, der Funken hinter sich herzieht. Dazu die Färbung „Seelenlicht“.' },
+  // Skinsets: je Klasse eines, classId = Klasse, die es tragen kann
+  { id: 'design_set_glutthron', name: 'Wehr des Glutthrons', priceCents: 799, classId: 'warrior', items: ['look:set_glutthron'],
+    desc: 'Schwarzstahl, in der Glut des Aschethrons gehärtet. Goldene Hörner, ein brennender Mantel und eine Klinge mit flüssigem Kern.' },
+  { id: 'design_set_mondsichel', name: 'Schleier der Mondsichel', priceCents: 799, classId: 'rogue', items: ['look:set_mondsichel'],
+    desc: 'Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.' },
+  { id: 'design_set_hirschkoenig', name: 'Mantel des Hirschkönigs', priceCents: 799, classId: 'ranger', items: ['look:set_hirschkoenig'],
+    desc: 'Eine Geweihkrone aus altem Elfenbein, ein Waldmantel und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.' },
+  { id: 'design_set_sternenfeuer', name: 'Gewand des Sternenfeuers', priceCents: 799, classId: 'mage', items: ['look:set_sternenfeuer'],
+    desc: 'Eine Robe aus Nachthimmel, in der Sterne funkeln. Ein Sternenhut, Glutrunen kreisen um den Träger, der Stab hält einen gefangenen Stern.' },
 ];
+export const isSetDesign = (d) => !!d?.items?.some((k) => k.startsWith('look:'));
+export const SET_CLASS_NAMES = { warrior: 'Krieger', rogue: 'Schurke', ranger: 'Waldläufer', mage: 'Glutmagier' };
 export const findDesign = (id) => DESIGNS.find((d) => d.id === id) ?? null;
 // Wesentliche Merkmale für die Bezahlseite und die Bestellbestätigung (§ 312j Abs. 2 BGB).
 export const DESIGN_DETAILS = {
   design_phoenix: 'Reittier Phönixschwinge und Färbung Phönixglut',
   design_astral: 'Reittier Sternenhengst und Färbung Sternennacht',
   design_soul: 'Reittier Seelenwolf und Färbung Seelenlicht',
+  design_set_glutthron: 'Skinset Wehr des Glutthrons für Krieger: Aussehen für Waffe, Brust, Kopf, Hände und Füße',
+  design_set_mondsichel: 'Skinset Schleier der Mondsichel für Schurken: Aussehen für Waffe, Brust, Kopf, Hände und Füße',
+  design_set_hirschkoenig: 'Skinset Mantel des Hirschkönigs für Waldläufer: Aussehen für Waffe, Brust, Kopf, Hände und Füße',
+  design_set_sternenfeuer: 'Skinset Gewand des Sternenfeuers für Glutmagier: Aussehen für Waffe, Brust, Kopf, Hände und Füße',
 };
 export function productDescription(product, characterName) {
   if (product.gold != null) {
     const amount = packTotal(product).toLocaleString('de-DE');
     return characterName ? `${amount} Gold für ${characterName} in Emberwrath, sofort gutgeschrieben` : `${amount} Gold in Emberwrath, sofort gutgeschrieben`;
   }
+  if (isSetDesign(product)) return `${DESIGN_DETAILS[product.id] ?? product.name}, für alle passenden Charaktere deines Emberwrath-Kontos, reines Aussehen ohne Werte`;
   return `${DESIGN_DETAILS[product.id] ?? product.name} für alle Charaktere deines Emberwrath-Kontos, Reiten ab Stufe 20`;
 }
 // Alle Schlüssel, die nur über den Shop zu haben sind.

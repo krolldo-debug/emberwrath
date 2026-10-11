@@ -1,6 +1,7 @@
 import { GROUND_STEPPE, bayer, shadeLump } from '../sprites/decor_steppe.js';
 import { getMountSprites } from '../sprites/mounts.js';
 import { createRng, hash2 } from '../core/math.js';
+import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
 
 // Bühne und Karten der Garderobe (ui/WardrobePanel.js) im Stil der Reittier-Parade der Startseite
 // (site/tools/parade-boden.mjs): Weg, Wiese, ferne Hügel und Nachthimmel der Aschensteppe, zur Laufzeit gebaut.
@@ -280,7 +281,7 @@ export class StableStage {
     for (const d of this.dust) { const q = d.life / 0.55, sz = q < 0.5 ? 2 : 1; bx.fillStyle = DUST[Math.min(2, Math.floor(q * 3))]; bx.fillRect(Math.round(cx + d.x), Math.round(fy - 1 + d.y), sz, sz); }
     if (this.anim) {
       const fr = this.anim.frames, f = fr[Math.floor(this.t * (this.anim.fps || 8)) % fr.length];
-      if (f.mount) { blit(bx, f.mount, cx, fy); blit(bx, f.rider, cx + f.ox * TEX, fy + f.oy * TEX); } else blit(bx, f, cx, fy);
+      if (f.mount) { blit(bx, f.mount, cx, fy); blit(bx, f.rider, cx + f.ox * TEX, fy + f.oy * TEX); } else { blit(bx, f, cx, fy); setGlows(bx, f, cx, fy, this.t); }
     } else if (this.sil) {
       blit(bx, frameSilhouette(this.sil), cx, fy);
     }
@@ -288,6 +289,15 @@ export class StableStage {
     if (pal) for (const sp of this.sparks) { if (sp.life < 0.6 || Math.floor(sp.life * 20) % 2) { bx.fillStyle = sp.life < 0.3 ? pal[0] : pal[1]; bx.fillRect(Math.round(cx + sp.x), Math.round(fy + sp.y), 2, 2); } }
     present(this.el, this.buf, texScale(this.cssPerWorld));
   }
+}
+
+// Harte Leuchtebene und kreisende Runen der Skinsets (sprites/heroSets.js) im Feinraster der Bühne
+function setGlows(bx, f, cx, fy, t) {
+  if (!f.emit) return;
+  bx.save(); bx.scale(TEX, TEX);
+  drawSetEmit(bx, f.emit, cx / TEX, fy / TEX, false, t);
+  for (const g of f.glows ?? []) if (g.orbit) drawSetGlow(bx, g, cx / TEX + g.x, fy / TEX + g.y, t, TEX);
+  bx.restore();
 }
 
 // ---------------------------------------------------------------- Karten (alle gleich groß, gleicher Maßstab)

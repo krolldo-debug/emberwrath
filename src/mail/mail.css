@@ -1,0 +1,91 @@
+/* Postfach (src/mail): dasselbe Fenster wie das Auktionshaus (market.css, Klassen mk-*; das Panel trägt pg-market),
+   hier nur die eigenen Teile ml-*. Pixelraster 2-fach, harte Innenkanten, alles Antippbare mindestens 44 px hoch. */
+
+/* ---- Post: Zeile mit Farbstreifen je Art (Auktionshaus, Brief, Zurück, Bossbeute), Symbol, Gold, „Nehmen“ */
+.pg-market .ml-row { --ml-s: #8a6a2a; padding-left: 10px; padding-right: 6px; box-shadow: inset 0 0 0 2px var(--mk-k), inset 0 0 0 4px #2a1620, inset 8px 0 0 var(--ml-s); }
+.pg-market .ml-row:hover { box-shadow: inset 0 0 0 2px var(--mk-k), inset 0 0 0 4px #5a2a26, inset 8px 0 0 var(--ml-s); }
+.ml-row.letter { --ml-s: #a8283a; }
+.ml-row.back { --ml-s: #5c5a7a; }
+.ml-row.loot { --ml-s: #c8640c; }
+.ml-row > .mk-gold { margin-left: auto; }
+.ml-row > .ef-btn { flex: none; margin-left: 4px; }
+/* Zurückschicken: leise, erst beim zweiten Tippen gilt es */
+.ml-back {
+  flex: none; min-width: 36px; height: 44px; margin-left: 4px; padding: 0 6px; border: 0; background: transparent; cursor: pointer;
+  font: 700 18px/1 var(--ef-font); color: #a8949c;
+}
+.pg-market .ml-back:hover:not(:disabled), .pg-market .ml-back:focus-visible { color: #d8c8a8; box-shadow: inset 0 0 0 2px #3a2028; outline: none; }
+.pg-market .ml-back.armed, .pg-market .ml-back.armed:hover:not(:disabled) { font: 700 13.5px/1.1 var(--ef-font); color: #1a0a06; background: #e0a030; box-shadow: inset 0 0 0 2px var(--mk-k), inset 0 0 0 4px #ffd070; }
+/* „Alles nehmen“ in der Kopfzeile neben dem Gold */
+.pg-market .mk-tabs .ml-takeall { flex: none; margin: 0 0 6px auto; }
+.pg-market .mk-tabs .ml-takeall + .mk-purse { margin-left: 14px; }
+/* Liste endet hart am Rand (kein Ausblenden wie im Auktionshaus) */
+.ml-panel .mk-scroll.more { -webkit-mask-image: none; mask-image: none; }
+.ml-seal-big { display: block; width: 52px; height: 36px; margin: 8px 0; image-rendering: pixelated; }
+.ml-empty { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 160px; }
+.ml-empty .ml-seal-big { opacity: 0.55; filter: grayscale(0.4); }
+.ml-empty p { margin: 0; font-size: 14px; color: #a8949c; }
+
+/* ---- Schreiben: Beilagen links, Brief rechts */
+.ml-write { display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr); gap: 8px; }
+.ml-letter {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 4px;
+  background: #110810; box-shadow: inset 0 0 0 2px var(--mk-k), inset 0 0 0 4px #4a1c22;
+}
+.ml-letter-head {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px;
+  background: #1c0a10; box-shadow: inset 0 -2px 0 var(--mk-line);
+  font: 700 15px var(--ef-font-title); color: var(--mk-gold); letter-spacing: 0.04em;
+}
+.ml-seal { display: block; width: 26px; height: 18px; image-rendering: pixelated; }
+.ml-letter-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 6px; scrollbar-width: thin; }
+.ml-to { display: flex; flex-direction: column; gap: 4px; }
+.ml-who { min-height: 16px; font-size: 12px; line-height: 1.35; color: #8ee08a; }
+.ml-who.bad { color: #ffb4a0; }
+.ml-who span { color: #a8949c; }
+.mk-prices.one { grid-template-columns: 1fr; }
+.mk-numwrap:has(.mk-max .mk-coin) .mk-num { padding-right: 34px; }
+.mk-max .mk-coin { display: block; }
+.ml-attach {
+  --rb: #2e1a22; display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 4px 4px 4px 4px;
+  background: #0b0509; box-shadow: inset 0 0 0 2px var(--mk-k), inset 0 0 0 4px var(--rb);
+}
+.ml-attach.rb-uncommon { --rb: #2f6a30; } .ml-attach.rb-rare { --rb: #2b5390; }
+.ml-attach.rb-epic { --rb: #6a3c96; } .ml-attach.rb-legendary { --rb: #b86a1a; }
+.ml-attach .pg-stock-name { flex: 1 1 auto; min-width: 0; }
+.ml-attach .pg-stock-name > span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 700 14px/1.3 var(--ef-font-title); }
+.ml-attach .pg-stock-name small { font-size: 12px; color: #a8949c; }
+/* leerer Beilagenplatz: Pixelecken wie ein Inventarplatz */
+.ml-slot {
+  flex: none; width: 52px; height: 52px; background:
+    linear-gradient(#3a2028, #3a2028) 0 0 / 8px 2px no-repeat, linear-gradient(#3a2028, #3a2028) 0 0 / 2px 8px no-repeat,
+    linear-gradient(#3a2028, #3a2028) 100% 0 / 8px 2px no-repeat, linear-gradient(#3a2028, #3a2028) 100% 0 / 2px 8px no-repeat,
+    linear-gradient(#3a2028, #3a2028) 0 100% / 8px 2px no-repeat, linear-gradient(#3a2028, #3a2028) 0 100% / 2px 8px no-repeat,
+    linear-gradient(#3a2028, #3a2028) 100% 100% / 8px 2px no-repeat, linear-gradient(#3a2028, #3a2028) 100% 100% / 2px 8px no-repeat, #140a10;
+}
+.ml-none small { color: #6e5a60; }
+.ml-acts { border-bottom: 0; border-top: 2px solid var(--mk-line); padding: 8px 6px 6px; }
+.ml-acts > .ef-btn { width: 100%; }
+/* Senden bestätigen: deutlich anders als der Normalzustand (Gold statt Glut) */
+.pg-market .ml-acts > .ef-btn.ml-armed, .pg-market .ml-acts > .ef-btn.ml-armed:hover:not(:disabled) {
+  color: #1a0a06; background: #e0a030; box-shadow: inset 0 0 0 2px var(--mk-k), inset 0 0 0 4px #ffd070, inset 0 -6px 0 #a87018;
+}
+.ml-acts .mk-err { margin-bottom: 8px; }
+
+/* ---- Wenig Platz (Handy quer): Brief schmaler, Liste daneben */
+@media (max-height: 460px), (max-width: 700px) {
+  .ml-write { grid-template-columns: minmax(0, 1fr) 280px; }
+  .ml-letter-body { padding: 6px 6px 4px; gap: 4px; }
+  .ml-acts { padding: 6px 6px 4px; }
+  .ml-letter-head { display: none; }
+  .ml-who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ml-attach { min-height: 48px; padding: 2px 4px; }
+  .ml-attach .mk-icon, .ml-slot { width: 44px; height: 44px; }
+  .ml-attach .mk-icon .ef-icon, .ml-attach .mk-icon canvas, .ml-attach .mk-icon img { width: 44px; height: 44px; }
+}
+@media (max-width: 560px) {
+  .ml-write { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .ml-write > .ml-letter { order: -1; }
+}
+
+body:has(.ef-panel-host[data-panel="mail"]) .ef-toast:is(.k-loot, .k-gold) { display: none; }

@@ -9,9 +9,11 @@ const FRAMES = 6;
 const cache = new Map();
 
 const HOT = ['#fff8e0', '#ffe8a0', '#ffc050', '#f07a1c', '#c8420c', '#7a2208'].map(hexToRgb);
+// Skinset Mondsichel: kaltes Mondsilber zu Geisterlicht (harte Stufen, keine Transparenz)
+const MOON = ['#ffffff', '#e9f7ff', '#a8f0ec', '#4ad8cc', '#1a8a8a'].map(hexToRgb);
 const COLD = ['#ffffff', '#e0ecff', '#a8c0f0', '#7088c8', '#48527a', '#2d3548'].map(hexToRgb);
 
-function buildSlashFrame({ radius, width, span, heavy, soft }, dirIndex, frame, reverse) {
+function buildSlashFrame({ radius, width, span, heavy, soft, hard }, dirIndex, frame, reverse) {
   const R = radius + 3;
   const size = R * 2 + 1;
   const c = makeCanvas(size, size);
@@ -38,6 +40,15 @@ function buildSlashFrame({ radius, width, span, heavy, soft }, dirIndex, frame, 
       if (behind > 1) continue;
       const thick = width * (1 - behind) * (0.4 + 0.6 * fade);
       const inner = radius - thick;
+      if (hard) {
+        // Skinset: schmale Sichel aus deckenden Pixeln, Schneide außen weiß, zum Schweif hin Geisterlicht
+        if (r > radius || r < inner) continue;
+        const idx = Math.floor(((radius - r) / Math.max(thick, 0.001)) * 1.8 + behind * 2.6 + (1 - fade) * 2);
+        if (idx >= MOON.length) continue;
+        const col = MOON[idx], ih = (y * size + x) * 4;
+        d[ih] = col[0]; d[ih + 1] = col[1]; d[ih + 2] = col[2]; d[ih + 3] = 255;
+        continue;
+      }
       if (soft) {
         // Zweihänder: wie der Bogen am Helden – heller Rand auf der Spitzenbahn, darunter ein dünner, durchscheinender Glutschleier
         if (r > radius || r < inner) continue;
@@ -92,6 +103,9 @@ export const SLASH_STYLES = {
   // Zweihänder: Bogen an der Klingenspitze, schmaler und durchscheinend statt voller Sichel
   great: { key: 'great', radius: 25, width: 5.5, span: 2.6, heavy: false, soft: true },
   greatHeavy: { key: 'greatHeavy', radius: 28, width: 6.5, span: 3.7, heavy: true, soft: true },
+  // Skinset Mondsichel (Schurke): kleine harte Sichel vor der Figur statt des großen Glutbogens; push = Abstand nach vorn
+  mondsichel: { key: 'mondsichel', radius: 12, width: 3.2, span: 2.0, heavy: false, hard: true, push: 8 },
+  mondsichelHeavy: { key: 'mondsichelHeavy', radius: 15, width: 4, span: 2.4, heavy: true, hard: true, push: 9 },
 };
 
 // Enemy-Hiebe in kalter, fahler Farbe – visuell klar vom Helden getrennt.

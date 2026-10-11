@@ -7,7 +7,7 @@ import { panelFrame, itemDetail, actionBtn, attachTip, hideTip } from '../progre
 import { frameUrl, pixelTitle } from '../ui/pixelFrame.js';
 import { CATEGORIES, DURATIONS, MAX_ACTIVE, PRICE_MAX, FEE_RATE, TRADE_MIN_LEVEL, tradeable, minBid, proceedsOf, listStack } from './rules.js';
 
-// Fenster des Auktionators: Kaufen · Verkaufen · Abholen. Daten und Buchungen über game.market (index.js).
+// Fenster des Auktionators: Kaufen · Verkaufen · Gebote (Erlöse und gekaufte Ware kommen ins Postfach, src/mail). Daten und Buchungen über game.market (index.js).
 // Warengruppen als Bildleiste (Symbol aus dem Item-Atlas), Seltenheit als drei Edelsteine, Sortierung als Umschalter.
 // Ein Pixelraster im ganzen Fenster: Rahmen, Titel, Edelsteine, Münzen und Item-Symbole alle 2-fach (market.css).
 const CAT_ICONS = { weapon: 'sword_steel', armor: 'mail_chain', jewelry: 'ring_ruby', consumable: 'potion_hp_m', material: 'ore_ember', mount: 'mount_ash_wolf' };
@@ -49,8 +49,8 @@ function coinUrl() {
   coin = c.toDataURL();
   return coin;
 }
-const coinEl = () => h('img.mk-coin', { src: coinUrl(), width: 14, height: 14, alt: '' });
-const goldEl = (amount, cls = '') => h(`span.pg-gold.mk-gold${cls}`, coinEl(), h('b', fmtNum(Number(amount))));
+export const coinEl = () => h('img.mk-coin', { src: coinUrl(), width: 14, height: 14, alt: '' });
+export const goldEl = (amount, cls = '') => h(`span.pg-gold.mk-gold${cls}`, coinEl(), h('b', fmtNum(Number(amount))));
 
 let names = null;
 // Handelbare Gegenstände, deren Name (deutsch oder in der Anzeigesprache) den Suchtext enthält; leer → null (alle)
@@ -221,9 +221,9 @@ export function marketPanel(session, game, market) {
         }),
         actionBtn('Bieten', () => run(() => market.bid(l.id, num(bidText) ?? need), () => { bidText = ''; refreshSoon(); return 'Gebot abgegeben.'; }),
           { disabled: working || gold < amount - (l.top ? l.bid : 0) })) : null,
-      l.buyout != null && !l.mine ? actionBtn(`Sofort kaufen · ${fmtNum(l.buyout)}`, () => run(() => market.buyout(l.id), (r) => {
+      l.buyout != null && !l.mine ? actionBtn(`Sofort kaufen · ${fmtNum(l.buyout)}`, () => run(() => market.buyout(l.id), () => {
         sel = null; refreshSoon();
-        return r.mailed ? 'Gekauft. Deine Tasche ist voll, es liegt im Abholfach.' : 'Gekauft.';
+        return 'Gekauft. Es liegt in deinem Postfach.';
       }), { primary: true, disabled: working || gold < l.buyout - (l.top ? l.bid : 0) }) : null);
   }
 
@@ -265,7 +265,7 @@ export function marketPanel(session, game, market) {
         h('h3', `Deine Angebote · ${fmtNum(mine.length)}/${fmtNum(MAX_ACTIVE)}`),
         h('ul.pg-stock.mk-list', mine.map((l) => listingRow({ ...l, mine: true }, now, null,
           l.bid != null ? priceEl(l)
-            : actionBtn('Zurückziehen', () => run(() => market.cancel(l.id), (r) => (r.mailed ? 'Zurückgezogen. Deine Tasche ist voll, es liegt im Abholfach.' : 'Zurückgezogen.')),
+            : actionBtn('Zurückziehen', () => run(() => market.cancel(l.id), (r) => (r.mailed ? 'Zurückgezogen. Deine Tasche ist voll, es liegt im Postfach.' : 'Zurückgezogen.')),
               { small: true, disabled: working }))))) : null,
       h('section',
         h('h3', 'Einstellen'),
@@ -307,50 +307,26 @@ export function marketPanel(session, game, market) {
           actionBtn('Einstellen', submit, { primary: true, disabled: working || !valid || !market.ready })), { compare: false });
   }
 
-  // ------------------------------------------------------------------ Abholen
-  const MAIL_TEXT = {
-    sold: (n) => `Verkauft: ${n}`,
-    outbid: (n) => `Überboten: ${n}`,
-    won: (n) => `Ersteigert: ${n}`,
-    bought: (n) => `Gekauft: ${n}`,
-    expired: (n) => `Nicht verkauft: ${n}`,
-    cancelled: (n) => `Zurückgezogen: ${n}`,
-  };
-  function mailView(now) {
-    const mail = market.mail ?? [], bids = market.bids ?? [];
-    const rowsEl = mail.map((m) => {
-      const id = m.itemId ?? m.about, qty = m.itemId ? m.qty : m.aboutQty;
-      const def = id ? content.find('item', id) : null;
-      const label = (MAIL_TEXT[m.kind] ?? MAIL_TEXT.sold)(def?.name ?? '');
-      return h(`li.pg-stock-row.mk-row.mk-mail${m.itemId ? '' : '.gold'}`,
-        h('span.mk-icon', def ? itemIconEl({ ...def, name: null }, 52) : h('span.mk-coinbig', iconEl('gold', 52)), def && qty > 1 ? h('span.pg-qty', fmtNum(qty)) : null),
-        h('div.pg-stock-name', h(def ? `span.r-${def.rarity}` : 'span', label),
-          m.kind === 'outbid' ? h('small', 'Dein Gebot kommt zurück.') : null),
-        m.gold ? goldEl(m.gold, '.mk-amount') : null);
-    });
+  // ------------------------------------------------------------------ Gebote (Erlöse und Ware liegen im Postfach, src/mail)
+  function bidsView(now) {
+    const bids = market.bids ?? [];
     return h('div.mk-view.mk-mailbox.mk-scroll.pg-keep-scroll', errEl(),
-      mail.length ? h('div.mk-collect', actionBtn(`Alles abholen · ${fmtNum(mail.length)}`, () => run(() => market.collect(), (r) => {
-        refreshSoon();
-        if (r.capped) return 'Weitere Erlöse kannst du abholen, sobald du länger gespielt hast.';
-        return r.left ? `Abgeholt. ${fmtNum(r.left)} Teile passen nicht mehr in deine Tasche und bleiben hier.` : 'Alles abgeholt.';
-      }), { primary: true, disabled: working })) : null,
-      mail.length ? h('ul.pg-stock.mk-list', rowsEl) : h('p.ef-note.mk-empty', market.loaded ? 'Hier liegt nichts für dich.' : 'Die Gilde sieht nach …'),
-      bids.length ? h('section', h('h3', 'Deine Gebote'),
-        h('ul.pg-stock.mk-list', bids.map((l) => listingRow(l, now, () => { tab = 'buy'; rows = [l, ...rows.filter((x) => x.id !== l.id)]; sel = l.id; draw(); })))) : null);
+      bids.length ? h('ul.pg-stock.mk-list', bids.map((l) => listingRow(l, now, () => { tab = 'buy'; rows = [l, ...rows.filter((x) => x.id !== l.id)]; sel = l.id; draw(); })))
+        : h('p.ef-note.mk-empty', market.loaded ? 'Du bietest gerade auf nichts.' : 'Die Gilde sieht nach …'));
   }
 
   // ------------------------------------------------------------------ Rahmen
   const render = () => {
     const now = market.serverNow();
     const gold = st().wallet?.gold ?? 0;
-    const n = market.mail?.length ?? 0;
-    const tabs = [['buy', 'Kaufen'], ['sell', 'Verkaufen'], ['mail', 'Abholen']];
+    const n = market.bids?.length ?? 0;
+    const tabs = [['buy', 'Kaufen'], ['sell', 'Verkaufen'], ['bids', 'Gebote']];
     const panel = panelFrame(session, 'market', 'Auktionshaus',
       h('div.pg-tabs.mk-tabs', { role: 'tablist' }, tabs.map(([id, label]) => h(`button.pg-tabbtn${tab === id ? '.on' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': String(tab === id),
         onclick: () => { tab = id; sel = null; pick = null; say(''); draw(); if (id === 'buy') load(); else market.refresh().catch(() => {}); },
-      }, label, id === 'mail' && n ? h('span.mk-badge', fmtNum(n)) : null)), goldEl(gold, '.mk-purse')),
-      h('div.mk-body', tab === 'buy' ? buyView(now) : tab === 'sell' ? sellView(now) : mailView(now)));
+      }, label, id === 'bids' && n ? h('span.mk-badge', fmtNum(n)) : null)), goldEl(gold, '.mk-purse')),
+      h('div.mk-body', tab === 'buy' ? buyView(now) : tab === 'sell' ? sellView(now) : bidsView(now)));
     // Gezeichneter Rahmen und Titel in Pixelschrift (wie der Todesbildschirm), Stufe je Gerät in market.css
     panel.style.setProperty('--mk-frame2', `url(${frameUrl(2)})`);
     panel.style.setProperty('--mk-frame3', `url(${frameUrl(3)})`);

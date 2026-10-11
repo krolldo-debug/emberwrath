@@ -1,15 +1,16 @@
 -- Emberwrath: Auktionshaus (Handel zwischen Spielern). Einmal im Supabase-SQL-Editor ausführen,
 -- NACH allen bisherigen Migrationen (zuletzt 20261011023000_namen_aendern.sql). Mehrfach ausführbar.
+-- Danach 20261011150000_postfach.sql (Postfach, src/mail). Ältere Fassungen dieser Datei nicht mehr ausführen.
 -- Erzeugt mit: node src/market/marketSql.mjs (Regeln: src/market/rules.js).
 --
 -- Sicherheitsmodell
---  - Angebote, Gebote, Kauf und Abholung laufen nur über die Funktionen market_* (security definer). Sie lesen und ändern
+--  - Angebote, Gebote und Kauf laufen nur über die Funktionen market_* (security definer). Sie lesen und ändern
 --    den gespeicherten Spielstand (public.characters.snapshot) in derselben Transaktion wie das Angebot; Zeilen werden
 --    gesperrt (FOR UPDATE). Ein Gegenstand kann deshalb nur einmal eingestellt, ein Angebot nur einmal verkauft und
 --    Gold nur einmal bezahlt werden.
 --  - Verkaufen nimmt den Gegenstand aus dem Spielstand, Bieten und Kaufen ziehen das Gold sofort ab (Gebote liegen beim
---    Auktionshaus, Überbotene bekommen ihr Gold zurück). Erlöse, gewonnene und zurückgegebene Gegenstände liegen im
---    Abholfach (market_mail) und kommen erst beim Abholen in den Spielstand.
+--    Auktionshaus, Überbotene bekommen ihr Gold zurück). Erlöse, gekaufte, gewonnene und zurückgegebene Gegenstände
+--    liegen im Postfach (market_mail, src/mail/mailSql.mjs) und kommen erst beim Abholen in den Spielstand.
 --  - Der Buchungszähler steht nur in der Datenbank (market_chars.seq) und wird in den gespeicherten Spielstand
 --    geschrieben (slices.market.seq). Ein Upload muss genau diesen Zähler tragen, sonst wird er abgelehnt und als
 --    'handel' vermerkt (zweites Fenster, alter Speicherplatz, erfundener Zähler).
@@ -22,7 +23,7 @@
 --      * Bieten und Kaufen nur, solange alle Ausgaben des Kontos minus alle Einnahmen den Goldrahmen
 --        (150 je Sekunde Handelszeit + Shop-Gold) nicht übersteigen; der Freibetrag neuer Charaktere zählt nicht.
 --      * Abholen: Erlöse bis 150 × geprüfte Spielzeit des Charakters + Shop-Gold, zurückgegebene Gebote bis zur
---        Gold-Obergrenze der Spielstandprüfung; der Rest bleibt im Abholfach. characters_plausible bleibt unverändert.
+--        Gold-Obergrenze der Spielstandprüfung; der Rest bleibt im Postfach. characters_plausible bleibt unverändert.
 --      * Was das Auktionshaus geliefert hat, führt der Server als Bestand (market_owned) und lässt es frei wieder
 --        einstellen. Eigene Beute kostet Handelskontingent des Kontos nach Seltenheit und Menge (wächst mit der
 --        Handelszeit) und darf höchstens 5 Stufen über dem Charakter liegen. Legendäre Reittiere sind nicht
@@ -1842,7 +1843,7 @@ language sql set search_path = '' as $$
 $$;
 
 -- Abgelaufene Angebote abschließen: Höchstbietende gewinnen, Verkäufer bekommen den Erlös (minus Gebühr),
--- ohne Gebot geht der Gegenstand zurück. Alles landet im Abholfach. p_user: zuerst die Angebote dieses Kontos.
+-- ohne Gebot geht der Gegenstand zurück. Alles landet im Postfach. p_user: zuerst die Angebote dieses Kontos.
 create or replace function public.market_settle(p_limit int default 50, p_user uuid default null) returns int
 language plpgsql set search_path = '' as $$
 declare l public.market_listings; n int := 0;
@@ -1880,7 +1881,7 @@ end $$;
 create or replace function public.market_err(p_code text) returns jsonb
 language sql immutable set search_path = '' as $$ select jsonb_build_object('ok', false, 'error', p_code); $$;
 
--- Gegenstand in den Spielstand oder, wenn kein Platz ist, ins Abholfach. -> { snap, add|learn|mailed }
+-- Gegenstand in den Spielstand oder, wenn kein Platz ist, ins Postfach. -> { snap, add|learn|mailed }
 create or replace function public.market_deliver(p_user uuid, p_char text, p_snap jsonb, p_item text, p_qty int, p_learned boolean,
   p_kind text, p_listing bigint) returns jsonb
 language plpgsql set search_path = '' as $$
@@ -1964,7 +1965,7 @@ begin
     'forgetMount', case when p_mount then to_jsonb(substr(p_item, 7)) else 'null'::jsonb end);
 end $$;
 
--- Bieten: Gold wird sofort abgezogen (bei eigenem Höchstgebot nur die Differenz). Überbotene bekommen ihr Gold ins Abholfach.
+-- Bieten: Gold wird sofort abgezogen (bei eigenem Höchstgebot nur die Differenz). Überbotene bekommen ihr Gold ins Postfach.
 -- Gebote kurz vor Schluss verlängern auf 2 Minuten Restzeit.
 create or replace function public.market_bid(p_character text, p_listing bigint, p_amount bigint) returns jsonb
 language plpgsql security definer set search_path = '' as $$
@@ -1997,10 +1998,10 @@ begin
   return public.market_commit(uid, p_character, snap, -need) || jsonb_build_object('listing', l.id);
 end $$;
 
--- Sofort kaufen: Gold ab, Gegenstand direkt in die Tasche (ohne Platz ins Abholfach), Erlös ins Abholfach des Verkäufers.
+-- Sofort kaufen: Gold ab, Gegenstand ins Postfach des Käufers, Erlös ins Postfach des Verkäufers.
 create or replace function public.market_buyout(p_character text, p_listing bigint) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare uid uuid := (select auth.uid()); e text; c public.characters; l public.market_listings; need bigint; snap jsonb; g bigint; d jsonb; mine boolean;
+declare uid uuid := (select auth.uid()); e text; c public.characters; l public.market_listings; need bigint; snap jsonb; g bigint; mine boolean;
 begin
   e := public.market_guard(uid, 'buy');
   if e is not null then return public.market_err(e); end if;
@@ -2027,11 +2028,12 @@ begin
     insert into public.market_mail (user_id, character_id, kind, gold, listing_id)
       values (l.seller_user, l.seller_char, 'sold', l.buyout - public.market_fee(l.buyout), l.id);
   end if;
-  d := public.market_deliver(uid, p_character, snap, l.item_id, l.qty, false, 'bought', l.id);
-  return public.market_commit(uid, p_character, d -> 'snap', -need) || (d - 'snap') || jsonb_build_object('listing', l.id);
+  insert into public.market_mail (user_id, character_id, kind, item_id, qty, listing_id)
+    values (uid, p_character, 'bought', l.item_id, l.qty, l.id);
+  return public.market_commit(uid, p_character, snap, -need) || jsonb_build_object('listing', l.id, 'mailed', true);
 end $$;
 
--- Zurückziehen (nur ohne Gebot): Gegenstand zurück in die Tasche bzw. als gelerntes Reittier, sonst ins Abholfach.
+-- Zurückziehen (nur ohne Gebot): Gegenstand zurück in die Tasche bzw. als gelerntes Reittier, sonst ins Postfach.
 create or replace function public.market_cancel(p_character text, p_listing bigint) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare uid uuid := (select auth.uid()); e text; c public.characters; l public.market_listings; d jsonb;
@@ -2049,51 +2051,9 @@ begin
   return public.market_commit(uid, p_character, d -> 'snap', 0) || (d - 'snap') || jsonb_build_object('listing', l.id);
 end $$;
 
--- Abholfach leeren: Gold immer, Gegenstände solange Platz ist (der Rest bleibt liegen).
-create or replace function public.market_collect(p_character text) returns jsonb
-language plpgsql security definer set search_path = '' as $$
-declare uid uuid := (select auth.uid()); e text; c public.characters; m public.market_mail; snap jsonb; d jsonb;
-  gold bigint := 0; adds jsonb := '[]'; learns jsonb := '[]'; got int := 0; left_ int := 0; capped int := 0; g0 bigint; frame bigint;
-  bound bigint;
-begin
-  e := public.market_guard(uid, 'collect');
-  if e is not null then return public.market_err(e); end if;
-  select * into c from public.characters where user_id = uid and id = p_character for update;
-  if not found then return public.market_err('character'); end if;
-  perform public.market_settle(50, uid);
-  snap := c.snapshot;
-  g0 := public.market_snap_gold(snap);
-  frame := public.market_gold_frame(c);
-  bound := 50000 + frame; -- Gold-Obergrenze der Spielstandprüfung (characters_plausible)
-  for m in select * from public.market_mail where user_id = uid and character_id = p_character and collected_at is null
-      order by id for update loop
-    if m.item_id is null then
-      -- Erlöse bis zum Goldrahmen des Charakters, zurückgegebene Gebote bis zur Gold-Obergrenze; der Rest bleibt liegen.
-      if g0 + gold + m.gold > (case when m.kind = 'sold' then frame else bound end) then capped := capped + 1; continue; end if;
-      gold := gold + m.gold;
-    else
-      d := null;
-      if m.learned and m.item_id like 'mount\_%' and public.market_snap_learn_mount(snap, substr(m.item_id, 7)) is not null then
-        snap := public.market_snap_learn_mount(snap, substr(m.item_id, 7));
-        learns := learns || to_jsonb(substr(m.item_id, 7));
-        perform public.market_own_add(uid, p_character, m.item_id, 1);
-      else
-        d := public.market_snap_give(snap, m.item_id, m.qty, coalesce((select stack from public.market_items where id = m.item_id), 1),
-          coalesce((select category = 'material' from public.market_items where id = m.item_id), false));
-        if d is null then left_ := left_ + 1; continue; end if;
-        snap := d;
-        adds := adds || jsonb_build_object('itemId', m.item_id, 'qty', m.qty);
-        perform public.market_own_add(uid, p_character, m.item_id, m.qty);
-      end if;
-    end if;
-    update public.market_mail set collected_at = now() where id = m.id;
-    got := got + 1;
-  end loop;
-  if got = 0 then return jsonb_build_object('ok', true, 'collected', 0, 'left', left_, 'capped', capped); end if;
-  snap := public.market_snap_set_gold(snap, public.market_snap_gold(snap) + gold);
-  return public.market_commit(uid, p_character, snap, gold)
-    || jsonb_build_object('collected', got, 'left', left_, 'capped', capped, 'add', adds, 'learn', learns);
-end $$;
+-- Abholen gibt es nur noch am Briefkasten (mail_take, src/mail/mailSql.mjs). Die alte Abholfunktion kannte keine Briefe
+-- von Spielern: weg damit, auch falls eine ältere Fassung dieser Datei sie wieder angelegt hat.
+drop function if exists public.market_collect(text);
 
 -- Angebote durchsuchen. p_items: nur diese Gegenstände (Namenssuche macht das Spiel), p_class: nur für diese Klasse nutzbar.
 -- p_sort: 'new' | 'price' | 'ending'. Liefert höchstens 40 + 1 Zeilen (eine mehr = es gibt eine weitere Seite).
@@ -2125,10 +2085,10 @@ begin
   return jsonb_build_object('ok', true, 'rows', out_, 'now', now());
 end $$;
 
--- Eigene Angebote, eigene Höchstgebote und das Abholfach dieses Charakters.
+-- Eigene Angebote und eigene Höchstgebote dieses Charakters (die Post zeigt mail_box).
 create or replace function public.market_overview(p_character text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare uid uuid := (select auth.uid()); mine jsonb; bids jsonb; mail jsonb; e text;
+declare uid uuid := (select auth.uid()); mine jsonb; bids jsonb; e text;
 begin
   e := public.market_guard(uid, 'look');
   if e is not null then return public.market_err(e); end if;
@@ -2139,10 +2099,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'startBid', l.start_bid,
       'buyout', l.buyout, 'bid', l.bid, 'bids', l.bids, 'endsAt', l.ends_at, 'top', true) order by l.ends_at), '[]'::jsonb)
     into bids from public.market_listings l where l.bidder_user = uid and l.bidder_char = p_character and l.status = 'active';
-  select coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'kind', m.kind, 'itemId', m.item_id, 'qty', m.qty, 'gold', m.gold,
-      'learned', m.learned, 'at', m.created_at, 'about', l.item_id, 'aboutQty', l.qty) order by m.id), '[]'::jsonb)
-    into mail from public.market_mail m left join public.market_listings l on l.id = m.listing_id where m.user_id = uid and m.character_id = p_character and m.collected_at is null;
-  return jsonb_build_object('ok', true, 'mine', mine, 'bids', bids, 'mail', mail, 'now', now());
+  return jsonb_build_object('ok', true, 'mine', mine, 'bids', bids, 'now', now());
 end $$;
 
 -- ------------------------------------------------------------------ Spielstand-Prüfung beim Hochladen
@@ -2231,14 +2188,12 @@ revoke execute on function public.market_list(text, text, int, bigint, bigint, i
 revoke execute on function public.market_bid(text, bigint, bigint) from public, anon;
 revoke execute on function public.market_buyout(text, bigint) from public, anon;
 revoke execute on function public.market_cancel(text, bigint) from public, anon;
-revoke execute on function public.market_collect(text) from public, anon;
 revoke execute on function public.market_browse(text, text, int, int, text, text[], text, int) from public, anon;
 revoke execute on function public.market_overview(text) from public, anon;
 grant execute on function public.market_list(text, text, int, bigint, bigint, int, boolean) to authenticated;
 grant execute on function public.market_bid(text, bigint, bigint) to authenticated;
 grant execute on function public.market_buyout(text, bigint) to authenticated;
 grant execute on function public.market_cancel(text, bigint) to authenticated;
-grant execute on function public.market_collect(text) to authenticated;
 grant execute on function public.market_browse(text, text, int, int, text, text[], text, int) to authenticated;
 grant execute on function public.market_overview(text) to authenticated;
 

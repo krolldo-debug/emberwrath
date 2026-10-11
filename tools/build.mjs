@@ -26,6 +26,11 @@ function load(abs) {
     const binds = names.split(',').map((s) => s.trim()).filter(Boolean).map((s) => s.replace(/\s+as\s+/, ': ')).join(', ');
     return `const { ${binds} } = __require(${JSON.stringify(depId)});`;
   });
+  src = src.replace(/^import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s+from\s*['"](.+?)['"];?\s*$/gm, (_, name, spec) => {
+    const dep = resolve(dirname(abs), spec);
+    load(dep);
+    return `const ${name} = __require(${JSON.stringify(relative(root, dep).replace(/\\/g, '/'))});`;
+  });
   src = src.replace(/^export\s+(class|function|async function|const|let)\s+([A-Za-z_$][\w$]*)/gm, (_, kind, name) => {
     exported.push(name);
     return `${kind} ${name}`;

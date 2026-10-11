@@ -7,7 +7,7 @@ import { PAL } from '../gfx/Palette.js';
 import { EV } from '../core/events.js';
 
 // Zweihänder in der Hand: schmaler, durchscheinender Hiebbogen wie beim Grundangriff (sprites/effects.js SLASH_STYLES.greatHeavy)
-function heavySlash(h) { return h.animator?.anims?.greatWeapon ? SLASH_STYLES.greatHeavy : SLASH_STYLES.heroHeavy; }
+function heavySlash(h) { const own = h.animator?.anims?.setSlash; return h.animator?.anims?.greatWeapon ? SLASH_STYLES.greatHeavy : own ? SLASH_STYLES[own + 'Heavy'] : SLASH_STYLES.heroHeavy; }
 
 // Verhalten der Klassenfähigkeiten und Helden-Geschosse (Thread A).
 // Daten (Name, Kosten, Abklingzeit, Schadensfaktor) stehen in classes.js.

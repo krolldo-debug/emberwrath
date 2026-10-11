@@ -9,7 +9,8 @@ export class SlashEffect extends Entity {
     super(owner.x, owner.y);
     this.owner = owner; this.angle = angle; this.style = style;
     this.reverse = reverse; this.duration = duration; this.t = 0; this.enemy = enemy;
-    this.offX = Math.cos(angle) * 3; this.offY = -8 + Math.sin(angle) * 3;
+    const push = 3 + (style?.push ?? 0);
+    this.offX = Math.cos(angle) * push; this.offY = -8 + Math.sin(angle) * push;
   }
   update(dt) {
     this.t += dt;

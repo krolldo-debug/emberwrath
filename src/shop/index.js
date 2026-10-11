@@ -3,7 +3,9 @@ import { EV } from '../core/events.js';
 import { iconEl } from '../gfx/Icons.js';
 import { panelFrame, goldEl } from '../progression/widgets.js';
 import { resolveGear } from '../character/gearLook.js';
-import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE } from './catalog.js';
+import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE, isSetDesign, SET_CLASS_NAMES } from './catalog.js';
+import { SET_ITEMS, ownedSetLooks, findSkinSet } from '../character/skinSets.js';
+import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
 import { fmtNum } from '../i18n/index.js';
 
 // Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
@@ -17,9 +19,10 @@ import { fmtNum } from '../i18n/index.js';
 //                 abziehen, gekaufte Designs übernehmen → Promise<Gold> (Saldo der Gutschriften)
 //   owns(designId) true, wenn das Design zum Konto gehört (laut Spielstand, vom Server abgeglichen)
 // Panel 'goldshop' (Menü-Knopf „Shop“, Klick auf den Goldbetrag im HUD).
-// Slice 'shop' { credited: [orderId], revoked: [orderId], owned: ['mount:<id>'|'dye:<id>'] }: credited/revoked verhindern
+// Slice 'shop' { credited: [orderId], revoked: [orderId], owned: ['mount:<id>'|'dye:<id>'|'look:<setId>'] }: credited/revoked verhindern
 // doppelte Gutschrift und doppelten Abzug; owned sind die bezahlten Designs des Kontos (Server: shop_designs()).
-// Command 'shop:designs' { items } gleicht Designs ab: exklusive Reittiere lernen bzw. entfernen, Färbung zurücksetzen.
+// Command 'shop:designs' { items } gleicht Designs ab: exklusive Reittiere lernen bzw. entfernen, Färbung zurücksetzen,
+// angelegte Teile eines nicht mehr bezahlten Skinsets aus der Garderobe nehmen.
 // Commands 'shop:credit' { orderId, gold } und 'shop:revoke' { orderId, gold } (Rückbuchung, Gold darf ins Minus).
 // Gold kommt nur über bezahlte Bestellungen in der Datenbank ins Spiel (Webhook von Stripe → 'paid').
 const CREDITED_KEEP = 200;
@@ -55,6 +58,10 @@ export function installShop(game) {
     }
     const dye = ch.appearance?.dye;
     if (dye && DESIGN_ITEMS.includes(`dye:${dye}`) && !owned.includes(`dye:${dye}`)) ch.appearance.dye = null;
+    const shown = ch.wardrobe?.shown, keep = ownedSetLooks({ shop: sl });
+    if (shown && Object.values(shown).some((id) => SET_ITEMS[id] && !keep.has(id))) {
+      ch.wardrobe.shown = Object.fromEntries(Object.entries(shown).map(([k, id]) => [k, SET_ITEMS[id] && !keep.has(id) ? null : id]));
+    }
     return { ok: true, added, removed: lost.length > 0 };
   }, { authoritative: true });
   state.defineCommand('shop:credit', (s, { orderId, gold }) => {
@@ -293,12 +300,15 @@ function shopPanel(session, game, shop) {
       : 'Admin-Vorschau: Stripe ist noch nicht eingerichtet.');
     else if (!st.enabled) notice = h('p.sh-notice', 'Der Shop öffnet in Kürze.');
 
-    const designs = DESIGNS.map((d) => {
+    // Skinset nur der eigenen Klasse (die anderen zeigt die Website)
+    const myClass = session.state.slices.character?.classId;
+    const designs = DESIGNS.filter((d) => !isSetDesign(d) || d.classId === myClass).map((d) => {
       const owned = shop.owns(d.id);
       return h(`div.sh-design${d.tag ? '.tagged' : ''}${owned ? '.owned' : ''}`,
         d.tag ? h('span.sh-tag', d.tag) : null,
         h('div.sh-stage', preview(d)),
         h('div.sh-dname', d.name),
+        isSetDesign(d) ? h('div.sh-dkind', `Skinset · ${SET_CLASS_NAMES[d.classId] ?? ''}`) : null,
         owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, `Kaufen · ${formatPrice(d.priceCents)}`));
     });
 
@@ -315,7 +325,7 @@ function shopPanel(session, game, shop) {
       h('div.sh-balance', h('span', 'Dein Gold'), goldEl(gold)),
       notice,
       h('h3.sh-head', 'Exklusive Designs'),
-      h('p.sh-sub', 'Reittier mit Färbung, für alle deine Charaktere.'),
+      h('p.sh-sub', 'Für alle deine Charaktere.'),
       h('div.sh-designs', designs),
       h('h3.sh-head', 'Gold'),
       h('p.sh-sub', `Für ${charName}.`),
@@ -349,6 +359,7 @@ function shopPanel(session, game, shop) {
 // Der eigene Held mit Ausrüstung und Design-Färbung auf dem exklusiven Reittier, laufend, mit Leuchten.
 const PREVIEW_W = 136, PREVIEW_H = 100; // Spielpixel × 2 (Feinpixel)
 function designPreview(game, session, design) {
+  if (isSetDesign(design)) return setPreview(game, session, design);
   const canvas = h('canvas.sh-preview', { width: PREVIEW_W, height: PREVIEW_H, 'aria-hidden': 'true' });
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
@@ -380,6 +391,37 @@ function designPreview(game, session, design) {
       ctx.fillStyle = grad; ctx.fillRect(x - r, y - r, r * 2, r * 2);
     }
     ctx.globalCompositeOperation = 'source-over';
+  };
+  paint();
+  return { canvas, update: (dt) => { t += dt; paint(); } };
+}
+
+// Skinset am eigenen Helden (Rasse, Aussehen), stehend, mit pulsierenden Set-Leuchtpunkten (sprites/heroSets.js)
+function setPreview(game, session, design) {
+  const canvas = h('canvas.sh-preview', { width: PREVIEW_W, height: PREVIEW_H, 'aria-hidden': 'true' });
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const sl = session.state.slices;
+  const set = findSkinSet(design.items[0].slice(5));
+  let anim = null;
+  try {
+    anim = game.character?.animsForLook?.({
+      raceId: sl.character?.raceId, classId: set?.classId, appearance: sl.character?.appearance ?? {},
+      gear: resolveGear(set?.pieces ?? {}, session.content),
+    }, 2)?.idle ?? null;
+  } catch { anim = null; }
+  let t = 0;
+  const X = PREVIEW_W / 4, Y = PREVIEW_H / 2 - 4;   // Fußpunkt in Spielpixeln
+  const paint = () => {
+    const fr = anim?.frames?.[Math.floor(t * (anim.fps || 6)) % anim.frames.length];
+    if (!fr) return;
+    ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+    const r = fr.res ?? 1;
+    ctx.drawImage(fr.canvas, Math.round(X * 2 - fr.ax * (2 / r)), Math.round(Y * 2 - fr.ay * (2 / r)), fr.canvas.width * (2 / r), fr.canvas.height * (2 / r));
+    ctx.save(); ctx.scale(2, 2);
+    drawSetEmit(ctx, fr.emit, X, Y, false, t);
+    for (const g of fr.glows ?? []) if (g.orbit) drawSetGlow(ctx, g, X + g.x, Y + g.y, t, 2);
+    ctx.restore();
   };
   paint();
   return { canvas, update: (dt) => { t += dt; paint(); } };

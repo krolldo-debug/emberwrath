@@ -3,6 +3,7 @@ import { buildFrame, Animation } from '../gfx/Sprite.js';
 import { MAT, gearKey } from '../character/gearLook.js';
 import { DYES, hairStylesFor } from '../character/cosmetics.js';
 import { CONFIG } from '../config.js';
+import * as SETS from './heroSets.js';
 
 // Spielerfiguren (Thread A). Eine Skelettfigur mit Hüfte, Rumpf, Kopf und
 // zweigliedrigen Armen/Beinen (IK), die für jedes Volk (Körperbau, Gesicht,
@@ -431,24 +432,30 @@ function resolveLook(raceId, classId, variant, gear, style) {
   const off = classId === 'rogue' ? (weapon.family === 'dagger' ? weapon : cl.weapon) : null;
   // Stirnreif (Kopfteil mit style 'circlet'): kein Helm, sondern der Reif um die Stirn in eigenen Farben
   const circletPart = g.head?.style === 'circlet' ? g.head : null;
-  const head = circletPart ? null : g.head ?? null;
+  // Runenreif des Sternenfeuer-Sets (style 'halo'): offenes Kopfteil wie der Stirnreif, eigene Zeichnung (sprites/heroSets.js)
+  // Ebenso das Geweih des Hirschkönig-Sets (style 'antlers'): Haar und Gesicht bleiben frei
+  const haloPart = g.head?.style === 'halo' || g.head?.style === 'antlers' || g.head?.style === 'hat' ? g.head : null;
+  const head = circletPart || haloPart ? null : g.head ?? null;
   // Kosmetik: Färbung für Stoff (Umhang, Kapuze, Robe, Wams), Frisur je Volk
   const dye = style?.dye ? DYES[style.dye]?.ramp : null;
-  if (dye && (chest.style === 'robe' || chest.style === 'padded')) chest.ramp = chest.style === 'robe' ? [dye[0], dye[0], dye[1], dye[2], dye[3]] : dye;
+  if (dye && !chest.set && (chest.style === 'robe' || chest.style === 'padded')) chest.ramp = chest.style === 'robe' ? [dye[0], dye[0], dye[1], dye[2], dye[3]] : dye;
   const hairStyle = style?.hairStyle && hairStylesFor(raceId).includes(style.hairStyle) ? style.hairStyle : rl.hairStyle;
   return {
     hairStyle,
     raceId, classId, rl, cl, body: rl.body,
     skin: rl.skin, hair: V.hair, accent: V.accent ?? PAL.ember,
-    cloth: dye ?? cl.cloth, trim: chest.trim ?? cl.trim,
+    // Skinset-Brustteil bringt Umhangfarbe (cape) und ggf. einen Umhang (back) mit; die Färbung gilt dann nicht
+    cloth: chest.cape ?? dye ?? cl.cloth, trim: chest.trim ?? cl.trim,
+    setHead: g.head?.set ? g.head : null, setHands: g.hands?.set ?? null, setFeet: g.feet?.set ?? null,
+    anySet: !!(chest.set || weapon.set || g.head?.set || g.hands?.set || g.feet?.set),
     chest, chestWorn: !!g.chest, weapon, off, sideArm, head,
     gloves: g.hands?.ramp ?? cl.gloves, glovesMetal: g.hands ? (g.hands.style === 'plate' || g.hands.style === 'mail') : false,
     glovesGlow: g.hands?.glow ?? null, glovesTrim: g.hands?.trim ?? null,
     boots: g.feet?.ramp ?? cl.boots, bootsMetal: g.feet ? g.feet.style === 'plate' : false,
     bootsGlow: g.feet?.glow ?? null, bootsTrim: g.feet?.trim ?? null,
-    hood: cl.hood && !head && !circletPart, cowl: cl.cowl, circlet: (cl.circlet || !!circletPart) && !head,
+    hood: cl.hood && !head && !circletPart && !haloPart, cowl: cl.cowl && g.head?.style !== 'halo', circlet: (cl.circlet || !!circletPart) && !head && !haloPart,
     circletRamp: circletPart?.ramp ?? null, circletGem: circletPart?.gem ?? null,
-    back: cl.back, quiver: cl.quiver, offKind: cl.off,
+    back: chest.back ?? cl.back, quiver: cl.quiver, offKind: cl.off,
     portrait: !!style?.portrait,   // Kachelbild der Charaktererstellung: Kopf und Schultern ohne Klinge, Dolche, Bogen
   };
 }
@@ -500,11 +507,13 @@ function drawHero(R, G, L, pose) {
     neck: { x: Math.round(shX + 0.5 + P.head[0]), y: Math.round(topY - B.neck + P.head[1]) },
   };
 
+  sk.G = G;
   lastHip = { x: hipX, y: hipY };
   if (P.ride) return drawRider(R, G, L, P, sk);
 
   // 1) Hinten: Umhang, Mantel, Köcher, langes Haar
   if (L.back === 'cape' || L.back === 'cloak') drawCape(R, L, P, sk);
+  if (L.chest.set) SETS.setBack(R, L, P, sk, K);
   // Zweihänder im Ausholen (wBack): Klinge hinter Kopf und Körper, damit der Helm sichtbar bleibt
   if (P.wBack && L.weapon.great) {
     const armB = ik(sk.shN.x, sk.shN.y, sk.shN.x + P.handM[0], sk.shN.y + P.handM[1], B.arm[0], B.arm[1], -1);
@@ -515,6 +524,7 @@ function drawHero(R, G, L, pose) {
     for (const g of added) if (g.axis) G.push({ ...g, back: true });
   }
   if (L.quiver) drawQuiver(R, L, sk);
+  if (L.setHead) SETS.setHeadBack(R, G, L, P, sk, headGeo(sk, L), K);
   drawHairBack(R, L, P, sk);
 
   // 2) Ferner Arm (hinter dem Körper) + Nebenhanddolch
@@ -574,6 +584,7 @@ function drawHero(R, G, L, pose) {
     drawArm(R, L, sk.shN, armN, false);
     if (L.weapon.family === 'wand' || L.weapon.family === 'staff') drawGrip(R, L, L.weapon, armN.ex, armN.ey, P.wM);
   }
+  if (L.chest.set) SETS.setPauldron(R, L, sk, K);
 }
 
 // Sitz-Pose (§12.6): Waffe und Schild auf dem Rücken, beide Hände vorne am Zügel, nur das nahe Bein
@@ -581,6 +592,7 @@ function drawHero(R, G, L, pose) {
 function drawRider(R, G, L, P, sk) {
   const B = sk.B;
   if (L.back === 'cape' || L.back === 'cloak') drawCape(R, L, P, sk);
+  if (L.chest.set) SETS.setBack(R, L, P, sk, K);
   // Waffe schräg über dem Rücken: Griff hinter der Schulter, Klinge nach hinten unten
   const bx = sk.shF.x - 0.5, by = sk.topY + 1;
   const w = L.weapon, f = w.family;
@@ -591,6 +603,7 @@ function drawRider(R, G, L, P, sk) {
   else if (f !== 'dagger') drawWeapon(R, G, w, bx + 3, by - 3.5, Math.PI * 0.5 + 0.98, P, false, 0.8);
   if (L.off && f === 'dagger') drawWeapon(R, G, L.off, sk.hipX - 1.5, sk.hipY - 1.5, Math.PI * 0.5 + 0.9, P, true, 1);
   if (L.quiver) drawQuiver(R, L, sk);
+  if (L.setHead) SETS.setHeadBack(R, G, L, P, sk, headGeo(sk, L), K);
   drawHairBack(R, L, P, sk);
   const handF = { x: sk.shF.x + P.handO[0], y: sk.shF.y + P.handO[1] };
   const armF = ik(sk.shF.x, sk.shF.y, handF.x, handF.y, B.arm[0], B.arm[1], -1);
@@ -606,6 +619,7 @@ function drawRider(R, G, L, P, sk) {
   const hand = { x: sk.shN.x + P.handM[0], y: sk.shN.y + P.handM[1] };
   const armN = ik(sk.shN.x, sk.shN.y, hand.x, hand.y, B.arm[0], B.arm[1], -1);
   drawArm(R, L, sk.shN, armN, false);
+  if (L.chest.set) SETS.setPauldron(R, L, sk, K);
 }
 
 // Wischspur der Waffe von Winkel a0 (alt) nach a1 (aktuell), um die Hand: eine Sichel, die zur
@@ -644,11 +658,13 @@ function drawLeg(R, L, P, sk, near) {
   const st = L.chest.style;
   // Robe: Beine in der Stoff-Farbe; in der Vorführstufe im Robenton (lila Reste am Gürtel wirkten wie Fehlpixel)
   const pants = st === 'plate' ? L.chest.ramp : st === 'robe' ? (S >= 3 ? dimRamp(L.chest.ramp) : L.cloth) : st === 'leather' ? dimRamp(L.chest.ramp) : ['#1a1414', '#2a2020', '#3e302c', '#56443c', '#6e5a4e'];
-  const ramp = near ? pants : dimRamp(pants);
+  const setP = L.chest.set ? SETS.setPants(L) : null;
+  const ramp = near ? setP ?? pants : dimRamp(setP ?? pants);
   const metal = st === 'plate';
   const pk = metal ? 'plate' : st === 'robe' ? 'robe' : st === 'leather' ? 'leather' : 'cloth';
   R.capsule(hx, hy, leg.jx, leg.jy, 1.55 * lw, 1.3 * lw, tone(ramp, metal, pk));
   R.capsule(leg.jx, leg.jy, leg.ex, leg.ey, 1.25 * lw, 1.05 * lw, tone(ramp, metal, pk));
+  if (L.chest.set) SETS.setLeg(R, L, hx, hy, leg, near, lw);
   if (metal || st === 'chain' || st === 'padded') {
     // Kniekachel
     const kr = st === 'plate' ? L.chest.ramp : L.chest.shoulder ?? M.iron;
@@ -672,6 +688,7 @@ function drawBoot(R, L, ax, ay, lift, near, leg) {
   R.rect(x - 1, y + 1, 4, 1, b[1]);
   if (L.bootsMetal) R.set(x + 1, y, b[4] ?? b[3]);
   if (L.bootsGlow && near) R.set(x + 1, y - 1, L.bootsGlow[3]);
+  if (L.setFeet) SETS.setBoot(R, L, ax, ay, near);
 }
 
 function drawArm(R, L, sh, arm, far) {
@@ -706,6 +723,7 @@ function drawHand(R, L, x, y, far) {
   R.set(X - 1, Y - 1, h[3]);
   R.set(X, Y, h[1]);
   if (L.glovesGlow && !far) R.set(X, Y - 1, L.glovesGlow[3]);
+  if (L.setHands) SETS.setHand(R, L, x, y, far);
 }
 
 function handGlow(R, G, L, x, y, k) {
@@ -797,6 +815,7 @@ function drawTorso(R, L, P, sk) {
     R.set(bx, by, buckle[3]);
     if (st !== 'robe') R.set(bx - 3, by + 1, M.leather[2]), R.set(bx - 3, by + 2, M.leather[1]); // Tasche
   }
+  if (C.set && sk.G) SETS.setTorso(R, sk.G, L, P, sk, K);
 }
 
 // Rumpfbreite je Weltzeile: [hinten, vorne, v (0 oben .. 1 Hüfte)]
@@ -917,6 +936,7 @@ function drawTorsoHi(R, L, P, sk) {
     R.capsule(bxa + 2, by + 0.4, bxa + 2.1, by + 1.9, 0.9, 1.0, (l) => band(M.leather, 2 + l * 1.2));
     R.fline(bxa + 1.3, by + 0.9, bxa + 2.9, by + 0.9, 0.34, M.leather[1]);
   }
+  if (C.set) SETS.setTorso(R, sk.G, L, P, sk, K);
 }
 
 function torsoColor(L, st, A, u, v, x, y, r, rows, x0, x1) {
@@ -995,6 +1015,7 @@ function drawLower(R, L, P, sk) {
 }
 
 function drawPauldron(R, L, sk) {
+  if (L.chest.set) return;   // Skinset: über dem Waffenarm (drawHero, setPauldron)
   if (hi(R)) return drawPauldronHi(R, L, sk);
   const st = L.chest.style;
   const S = L.chest.shoulder;
@@ -1027,9 +1048,10 @@ function drawCape(R, L, P, sk) {
   const cloak = L.back === 'cloak';
   const top = sk.topY - (cloak ? 1 : 0);
   const sx = sk.cxAt(top) - B.back + 1;
-  const hemY = cloak ? -2 : -4;
+  const shape = L.chest.set ? SETS.capeShape(L) : null;
+  const hemY = shape ? Math.round(shape.hemY) : cloak ? -2 : -4;
   const flare = P.cape;
-  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0);
+  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0) - (shape ? Math.round(shape.widen) : 0);
   const hemFront = sk.hipX - 1 - flare * 2;
   const rows = Math.max(1, hemY - top);
   for (let j = 0; j <= rows; j++) {
@@ -1041,10 +1063,13 @@ function drawCape(R, L, P, sk) {
       let c = C[u < 0.2 ? 3 : u > 0.7 ? 1 : 2];
       if (k > 0.25 && Math.round((x - xa) + k * 2 + P.wave * 0.6) % 3 === 0) c = C[1]; // Falten
       if (j === rows) c = ((x + Math.round(P.wave)) & 1) ? C[1] : C[0];
-      R.set(x, y, c);
+      const sc = L.chest.set && SETS.setCapeColor(L, x, y, k, rows - j, u, P, x, y, K);
+      R.set(x, y, sc || c);
     }
   }
   if (!cloak) { R.set(Math.round(sx), top, L.trim[3]); } // Schließe
+  if (L.chest.set && sk.G) SETS.setCapeGlows(L, sk.G, [0.3, 0.62, 0.92].map((k) => [lerp(hemBack, hemFront, k), hemY - 0.3]));
+  if (L.chest.set) SETS.setCapeAfter(R, L, P, hemBack, hemFront, hemY);
 }
 
 function drawQuiver(R, L, sk) {
@@ -1069,6 +1094,7 @@ function drawScarf(R, L, P, sk) {
     R.set(x, y, C[i < 3 ? 3 : 2]); R.set(x, y + 1, C[1]);
   }
   R.rect(sk.neck.x - 2, y0 - 1, 4, 2, C[3]); R.set(sk.neck.x + 1, y0, C[2]);
+  if (L.chest.set && sk.G) SETS.setScarfTips(R, sk.G, L, { x: x0 - 6, y: y0 + 3 });
 }
 
 function drawSheath(R, w, sk) {
@@ -1091,6 +1117,9 @@ const lit = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) * LX + ((y - cy) / ry) * L
 const band = (ramp, v) => ramp[clamp(Math.round(v), 0, ramp.length - 1)];
 // kleines Hash-Rauschen für Materialstruktur (deterministisch je Feinpixel)
 const hash = (x, y) => { const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return n - Math.floor(n); };
+const K4 = (A) => A[4] ?? A[3];
+// Werkzeug für die Skinset-Zeichnungen (sprites/heroSets.js)
+const K = { band, lit, hash, col, matShade: (...a) => matShade(...a), dimRamp, LX, LY, lerp, clamp, torsoSpan: (sk, y) => torsoSpan(sk, y) };
 
 // Kopfmaße (Weltpixel) relativ zu x0/y0 (linke obere Ecke der alten 9×9-Vorlage)
 function headGeo(sk, L) {
@@ -1185,6 +1214,7 @@ function drawHeadHi(R, G, L, P, sk) {
     G.push({ x: x0 + 8, y: y0 + 3, color: T[4] ?? T[3], r: 1.5 });
   }
   if (L.cowl && !helm) drawCowlHi(R, L, x0, y0);
+  if (L.setHead) SETS.setHeadFront(R, G, L, P, sk, g, K);
 }
 
 function drawEarHi(R, L, g) {
@@ -1373,12 +1403,15 @@ function drawHairBackHi(R, L, P, sk) {
 // --- Feines Raster: Umhang, Unterteil, Schulter, Hände, Stiefel, Schild -------------------
 function drawCapeHi(R, L, P, sk) {
   const C = L.cloth, B = sk.B, T = L.trim;
+  const setCape = !!L.chest.set;
   const cloak = L.back === 'cloak';
   const top = sk.topY - (cloak ? 1 : 0);
   const sx = sk.cxAt(top) - B.back + 1;
-  const hemY = cloak ? -2 : -4;
+  // Skinset: Länge und Weite je Set (sprites/heroSets.js capeShape)
+  const shape = setCape ? SETS.capeShape(L) : null;
+  const hemY = shape ? shape.hemY : cloak ? -2 : -4;
   const flare = P.cape;
-  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0);
+  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0) - (shape ? shape.widen : 0);
   const hemFront = sk.hipX - 1 - flare * 2;
   const rows = Math.max(1, hemY - top);
   R.each(hemBack - 3, top - 0.5, sk.cxAt(top) + 2, hemY + 1, (x, y, F, G) => {
@@ -1394,8 +1427,16 @@ function drawCapeHi(R, L, P, sk) {
     let v = 2.1 + (0.35 - u) * 1.6 + fold * 0.55 * Math.min(1, k * 2.5) - k * 0.3;
     if (y > hem - 0.7) v = 0.6 + (fold > 0 ? 0.6 : 0);           // Saumschatten
     if (u < 0.08) v -= 0.6;
-    R.put(F, G, band(C, Math.min(v, C.length - 2)));
+    const sc = setCape && SETS.setCapeColor(L, x, y, k, hem - y, u, P, F, G, K);
+    R.put(F, G, sc || band(C, Math.min(v, C.length - 2)));
   });
+  if (setCape && sk.G) {
+    // Leuchtpunkte entlang des Saums (Glutfransen, Seelenblätter, Sterne)
+    const pts = [];
+    for (const k of [0.3, 0.62, 0.92]) pts.push([lerp(hemBack, hemFront, k), hemY - 0.3]);
+    SETS.setCapeGlows(L, sk.G, pts);
+  }
+  if (setCape) SETS.setCapeAfter(R, L, P, hemBack, hemFront, hemY);
   if (!cloak) {
     R.ellipse(sx + 0.3, top + 0.3, 0.75, 0.75, (a, b) => (a + b < -0.3 ? T[4] ?? T[3] : T[2]));
   } else {
@@ -1430,6 +1471,7 @@ function drawLowerHi(R, L, P, sk) {
         : band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
       if (y > bot - (S >= 3 ? 0.45 : 0.7)) c = T[y > bot - 0.35 ? 1 : 2];   // Saumborte (Vorführstufe schmaler)
       if (Math.abs(x - mid(k)) < 0.3) c = T[2];                      // Vorderkante
+      else if (L.chest.set) c = SETS.setRobeColor(L, x, y, k, u, y > bot - 0.7, F, G, K) ?? c;
       R.put(F, G, c);
     });
     return;
@@ -1465,6 +1507,7 @@ function drawLowerHi(R, L, P, sk) {
 }
 
 function drawPauldronHi(R, L, sk) {
+  if (L.chest.set) return;   // Skinset: Schulterstück liegt über dem Waffenarm (drawHero, setPauldron)
   const st = L.chest.style, Sh = L.chest.shoulder;
   const x = sk.shN.x, y = sk.topY + 0.4;
   if (st === 'plate' || (Sh && st !== 'leather')) {
@@ -1526,6 +1569,7 @@ function drawHandHi(R, L, x, y, far) {
   if (L.glovesMetal && !far) { R.dot(x + 0.1, y - 0.5, h[4] ?? h[3]); R.dot(x + 0.4, y + 0.2, h[4] ?? h[3]); }
   if (L.glovesTrim && !far) { R.dot(x - 0.6, y - 0.8, L.glovesTrim[4] ?? L.glovesTrim[3]); R.dot(x - 0.9, y - 0.2, L.glovesTrim[3]); R.dot(x - 0.9, y + 0.4, L.glovesTrim[2]); }
   if (L.glovesGlow && !far) R.dot(x, y - 0.4, L.glovesGlow[3]);
+  if (L.setHands) SETS.setHand(R, L, x, y, far);
 }
 
 function drawBootHi(R, L, ax, ay, lift, near, leg) {
@@ -1548,11 +1592,13 @@ function drawBootHi(R, L, ax, ay, lift, near, leg) {
     R.put(F, G, c);
   });
   if (L.bootsGlow && near) R.dot(ax + 1.2, ay - 0.3, L.bootsGlow[3]);
+  if (L.setFeet) SETS.setBoot(R, L, ax, ay, near);
 }
 
 function drawShieldHi(R, L, x, y, P) {
-  // Heraldischer Schild (Dreiviertelansicht) mit Metallrand, Buckel und Wappen
-  const C = L.cloth, Rim = M.iron, T = L.trim;
+  // Heraldischer Schild (Dreiviertelansicht) mit Metallrand, Buckel und Wappen. Glutthron-Set: Schwarzstahl mit Goldrand.
+  const glut = L.chest.set === 'glutthron';
+  const C = glut ? L.chest.ramp : L.cloth, Rim = glut ? M.gold : M.iron, T = glut ? M.ember : L.trim;
   const cx = x + 1.3, cy = y + 0.3;
   const shape = (px, py) => {
     const u = (px - cx) / 3.2, v = (py - cy + 3.6) / 8.6;           // v: 0 oben .. 1 Spitze
@@ -1582,12 +1628,19 @@ function drawShieldHi(R, L, x, y, P) {
 function drawScarfHi(R, L, P, sk) {
   const C = L.cloth;
   const x0 = sk.neck.x - 2, y0 = sk.neck.y + 1;
-  let px = x0, py = y0;
-  for (let i = 1; i <= 14; i++) {
-    const t = i / 14;
-    const x = x0 - t * 7, y = y0 + Math.sin(P.wave * 1.3 + t * 6) * (0.6 + P.cape) * t + t * 3;
-    R.fline(px, py, x, y, 1.6 - t * 0.5, (s) => band(C, 2.6 - t * 1 + Math.sin((i + s) * 1.3) * 0.4));
-    px = x; py = y;
+  // Skinset: zwei lange Enden, das zweite kürzer und tiefer
+  const tails = L.chest.set ? [[10, 0, 3], [7.5, 1.4, 4.4]] : [[7, 0, 3]];
+  for (const [len, dy0, drop] of tails) {
+    let px = x0, py = y0 + dy0;
+    for (let i = 1; i <= 14; i++) {
+      const t = i / 14;
+      const x = x0 - t * len, y = y0 + dy0 + Math.sin(P.wave * 1.3 + t * 6 + dy0) * (0.6 + P.cape) * t + t * drop;
+      // Mondsichel-Set: die Enden gehen in Geisterlicht über
+      const fade = L.chest.set === 'mondsichel' && t > 0.72 ? SETS.SPIRIT : null;
+      R.fline(px, py, x, y, 1.6 - t * 0.5, (s) => (fade ? fade[t > 0.88 ? 3 : 2] : band(C, 2.6 - t * 1 + Math.sin((i + s) * 1.3) * 0.4 - dy0 * 0.4)));
+      px = x; py = y;
+    }
+    if (L.chest.set && sk.G) SETS.setScarfTips(R, sk.G, L, { x: px, y: py });
   }
   R.capsule(sk.neck.x - 2, y0 - 0.4, sk.neck.x + 1.6, y0 - 0.2, 1.1, 1.0, (l, t, e, x, y, F, G) => matShade('cloth', C, l + 0.3, F, G, x, y));
 }
@@ -1817,6 +1870,7 @@ function drawHeadLow(R, G, L, P, sk) {
     const C = L.cloth;
     R.rect(x0 + 1, y0 + 8, 6, 2, C[2]); R.rect(x0 + 1, y0 + 8, 5, 1, C[3]); R.set(x0, y0 + 7, C[2]); R.set(x0, y0 + 8, C[1]); R.set(x0 + 1, y0 + 7, C[3]);
   }
+  if (L.setHead) SETS.setHeadFront(R, G, L, P, sk, headGeo(sk, L), K);
 }
 
 function drawHood(R, L, x0, y0, P) {
@@ -1929,12 +1983,15 @@ function drawHelm(R, G, L, helm, x0, y0) {
 // --- Waffen ------------------------------------------------------------------------------
 function drawWeapon(R, G, w, hx, hy, ang, P, far, reach = 1) {
   const f = w.family;
-  if (f === 'sword') drawBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far);
+  if (f === 'sword' && w.set === 'glutthron') SETS.glutBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far, K);
+  else if (f === 'sword') drawBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far);
+  else if (f === 'dagger' && w.set === 'mondsichel') SETS.crescentBlade(R, G, w, hx, hy, ang, (w.len ?? 7) * reach, far, K);
   else if (f === 'dagger') drawBlade(R, G, { ...w, short: true }, hx, hy, ang, (w.len ?? 7) * reach, far);
   else if (f === 'axe') drawAxe(R, G, w, hx, hy, ang, reach, far);
   else if (f === 'mace') drawMace(R, G, w, hx, hy, ang, reach, far);
   else if (f === 'staff') drawStaff(R, G, w, hx, hy, ang, P.glow, far);
   else if (f === 'wand') drawWand(R, G, w, hx, hy, ang, P.glow);
+  if (w.set) SETS.setWeapon(R, G, w, hx, hy, ang, far, K);
 }
 
 // Waffenachse für die animierten Seltenheits-Effekte (entities/Hero.js): Hand, Winkel, Bereich u0..u1 entlang der Achse.
@@ -1985,7 +2042,7 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
       G.push({ x: Math.round(hx + dx * u), y: Math.round(hy + dy * u), color: w.glow[3], r: w.shine >= 2 ? 3 : 2 });
     }
   }
-  if (w.gem && !far && (w.rarity === 'epic' || w.rarity === 'legendary')) {
+  if (w.gem && !far && !w.set && (w.rarity === 'epic' || w.rarity === 'legendary')) {
     G.push({ x: Math.round(hx + Math.cos(ang) * 1.2), y: Math.round(hy + Math.sin(ang) * 1.2), color: w.gem[3], r: 1 });
   }
 }
@@ -2151,9 +2208,12 @@ function drawStaff(R, G, w, hx, hy, ang, glow, far) {
   } else {
     // Klauen + Kristall/Kugel/Flamme
     if (S >= 3 && top === 'orb') R.axis(hx, hy, ang, 12.2, 14.6, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - (u - 11.6) * 0.75) < 0.5 ? Wd[lv < 0 ? 3 : 2] : null));
-    else R.axis(hx, hy, ang, 12.5, 16.5, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - 1.8) < 0.6 && u > 13.2 ? Wd[lv < 0 ? 3 : 2] : null));
+    else if (top !== 'star' || S < FINE_MIN) R.axis(hx, hy, ang, 12.5, 16.5, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - 1.8) < 0.6 && u > 13.2 ? Wd[lv < 0 ? 3 : 2] : null));
     if (top === 'crystal' || top === 'arcane') {
       R.axis(tx - dx * 1.5, ty - dy * 1.5, ang, 0, 4.2, 1.3, (u, lv) => (Math.abs(lv) < 1.3 - u * 0.25 ? K[lv < 0 ? 4 : u > 2.5 ? 2 : 3] : null));
+    } else if (top === 'star') {
+      // Stern sitzt über den Klauen (sprites/heroSets.js setWeapon); grob nur ein heller Kern
+      if (S < FINE_MIN) R.ellipse(tx, ty, 1.4, 1.4, (nx, ny) => (nx + ny < -0.4 ? K4(K) : K[3]));
     } else if (top === 'flame') {
       R.ellipse(tx, ty, 1.5, 1.8, (nx, ny) => (ny < -0.3 ? K[4] ?? K[3] : K[3]));
       R.set(tx + dx * 2, ty + dy * 2, K[2]);
@@ -2165,7 +2225,7 @@ function drawStaff(R, G, w, hx, hy, ang, glow, far) {
       R.ellipse(tx, ty, 1.6, 1.6, (nx, ny) => (nx + ny < -0.6 ? K[4] ?? K[3] : K[3]));
     }
   }
-  if (!far) G.push({ x: Math.round(tx), y: Math.round(ty), color: K[3], r: 1.5 + glow * 2.5 + (w.shine ?? 0) * 0.5 });
+  if (!far && !w.set) G.push({ x: Math.round(tx), y: Math.round(ty), color: K[3], r: 1.5 + glow * 2.5 + (w.shine ?? 0) * 0.5 });
   weaponAxis(G, w, hx, hy, ang, 13, 18, far);
 }
 
@@ -2218,6 +2278,7 @@ function drawBow(R, G, w, bx, by, pull, arrow, tiltA) {
     }
   }
   const top = pts[0], bot = pts[pts.length - 1];
+  if (w.set) SETS.setBowLeaves(R, G, w, pts);
   if (w.tips) {
     if (fine) { R.ellipse(top.x, top.y, 0.6, 0.6, w.tips[3]); R.ellipse(bot.x, bot.y, 0.6, 0.6, w.tips[3]); }
     else { R.set(top.x, top.y, w.tips[3]); R.set(bot.x, bot.y, w.tips[3]); }
@@ -2279,6 +2340,8 @@ function makeFrame(L, pose, post) {
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)
+  // Skinsets: glühende Feinpixel als eigene, harte Leuchtebene (sprites/heroSets.js drawSetEmit)
+  if (L.anySet) f.emit = SETS.collectEmit(R.buf, R.fw, R.fh, AX * S, AY * S, S, K);
   if (pose.ride) f.hip = lastHip;
   return f;
 }
@@ -2718,6 +2781,8 @@ export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 
     set = buildSet(L);
     // Zweihänder in der Hand: der Held wählt damit den durchscheinenden Hiebbogen (entities/Hero.js)
     Object.defineProperty(set, 'greatWeapon', { value: !!L.weapon?.great });
+    // Skinset mit eigenem Hiebbogen (sprites/effects.js SLASH_STYLES, z. B. Mondsichel)
+    Object.defineProperty(set, 'setSlash', { value: L.weapon?.set === 'mondsichel' ? 'mondsichel' : null });
     cache.set(key, set);
     if (cache.size > (res >= 3 ? 10 : res >= 2 ? 20 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 4–9× so groß
   }

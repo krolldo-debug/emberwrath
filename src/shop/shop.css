@@ -11,6 +11,7 @@
 .sh-stage { display: flex; justify-content: center; align-items: flex-end; width: 100%; min-height: 100px; }
 .sh-preview { image-rendering: pixelated; width: 136px; height: 100px; }
 .sh-dname { font: 700 17px var(--ef-font-title); color: #ffe2a8; text-shadow: 0 0 8px rgba(255, 170, 60, 0.35); }
+.sh-dkind { margin-top: -2px; font-size: 11px; color: var(--ef-muted); letter-spacing: 0.1em; text-transform: uppercase; }
 .sh-owned { margin-top: 6px; padding: 8px 6px; width: 100%; box-sizing: border-box; border: 1px solid #3c8a6a; border-radius: 3px; color: #9be3c4; font-size: 13px; }
 .sh-balance { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px;
   border: 1px solid #4a3020; border-radius: 4px; background: rgba(40, 22, 10, 0.55); color: var(--ef-muted); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }

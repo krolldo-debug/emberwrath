@@ -6,7 +6,7 @@
 - `src/character/stats.js` – `computeStats(state, content)`, `deriveStats({ raceId, classId, level, equipment }, content)`, `equipmentBonus()`
 - `src/character/abilities.js` – Verhalten der Fähigkeiten, `HeroProjectile` (Pfeil, Glutbolzen, Wurfdolch)
 - `src/character/createHero.js` – `createHero(session, x, y)`
-- `src/character/index.js` – `installCharacter`, Slice `character`, Command `character:rename`, `validateName()`
+- `src/character/index.js` – `installCharacter`, Slice `character`, `validateName()` (Charakternamen ändern sich nach der Erstellung nicht, die Datenbank hält sie fest: src/mail)
 - `src/entities/Hero.js` – klassengesteuerter Held (Nahkampf-Kombo oder Schuss, 2 Fähigkeiten, Ressource, Buffs)
 - `src/sprites/hero.js` – `getHeroSprites(raceId, classId, variant, gear?, style?)` (Skelettfigur mit IK, Frames werden je Animation erst bei Bedarf gerastert; eigene Posen `slam`, `lunge`, `coat`, `rainshot`, `plant`, `summon`, `hurl` für die Stufe-4/12-Fähigkeiten, Waffen-Wischspuren über Pose-Feld `smear: [altWinkel, neuWinkel]`); `createHeroSprites()` bleibt für `Assets.js`
 - `src/character/cosmetics.js` – Färbungen (`DYES`), Frisuren je Volk, Preise; `character:restyle { variant?, dye?, hairStyle? }` kostet Gold (prüft das Guthaben vorher)
@@ -141,6 +141,17 @@ Tasche, Ausrüstung und Bank nach). Das Aussehen bleibt, auch wenn das Teil verk
 - Panel (D): `game.character.wardrobe.entries(slot)` → `{ current, equipped, list: [{ itemId, name, rarity, icon, usable, shown }] }`
   (gleiches Aussehen einmal), `show(slot, value)`, `count()`; Vorschau `game.character.previewGear(overrides)`.
 - Test: `node src/character/test/wardrobe.test.mjs`.
+
+## Skinsets (Runde 11.10.)
+`skinSets.js`: je Klasse ein Set aus dem Shop (7,99 €, Design `design_set_*` in `shop/catalog.js`), reines Aussehen ohne Werte.
+- Besitz: `slices.shop.owned` enthält `'look:set_<name>'` (für alle Charaktere des Kontos), `ownedSetLooks(slices)`.
+  Set-Teile (`set_<name>_<slot>`) liegen nie in Tasche, Bank oder `wardrobe.looks`, nur in `wardrobe.shown`.
+- Command `wardrobe:showSet { setId }` legt alle fünf Teile an (Gründe: class, locked); Panel-Knopf „Set anlegen“.
+  Ein angelegtes Set ist immer komplett sichtbar, auch über leeren Plätzen (`shownEquipment`); Kopf über „Helm ausblenden“ ab.
+- Server: `supabase/migrations/20261011160000_skinsets.sql` prüft angelegte Set-Teile beim Speichern und nimmt sie bei Rückbuchung ab.
+- Zeichnung: `sprites/heroSets.js` (Hooks aus `hero.js`), harte Leuchtebene `frame.emit` (`collectEmit`/`drawSetEmit`, Farben in
+  `SET_GLOW`, auch nachts voll hell), kreisende Runen `drawSetGlow`, Partikel `spawnSetParticles`, eigene Klingen
+  (`glutBlade`, `crescentBlade`), Mondsichel-Hieb `SLASH_STYLES.mondsichel` (`sprites/effects.js`). Kein Alpha-Schein.
 
 ## Zielhilfe (Runde 10.10.)
 `aim.js` (reine Rechnung, Test `node src/character/test/aim.test.mjs`), genutzt von `Hero.js` für Grundangriff und Fähigkeiten:
