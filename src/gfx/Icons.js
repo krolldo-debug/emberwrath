@@ -1,6 +1,6 @@
 import { PAL } from './Palette.js';
 import { PixelCanvas, outlineCanvas, makeCanvas } from './PixelCanvas.js';
-import { upscale2x, finishFine } from './Fine.js';
+import { upscale2x, finishFine, FineCanvas, col32 } from './Fine.js';
 import { decorateItemIcon } from './ItemFx.js';
 import { installRarityFrames } from './RarityFrame.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
@@ -631,6 +631,692 @@ const CONSUMABLES = {
   elixir: { f: potion, o: { fill: M.yellow, size: 3 } },
 };
 
+// ---------------------------------------------------------------- Feinfassung 48×48 (Stufe B, Grafikupdate)
+// Brust, Kopf, Hände, Füße, Ringe, Amulette und Tränke zeichnen ihre 48er-Fassung selbst (iconCanvas res 2).
+// Gleiche Formen, Farben und Ausschnitte wie die 24er-Zeichnungen oben (dieselben Spec-Parameter), aber im Feinraster:
+// Kettenringe statt Schachbrett, Plattenkanten mit Glanzlinie, Leder mit Naht, Stoff mit Falten, Steine mit Facetten,
+// Glas mit Spiegelung und Flüssigkeitsspiegel. Licht von oben links, nur deckende Palettenfarben.
+// Koordinaten: x/y im 24er-Maß (Mitte des Feinpixels), F/G = Feinpixel 0..47. Die 24er-Fassung bleibt unverändert.
+const FS = S * 2;
+const VOID = '#0c0810';
+// Feinpixel-Raster über einen Bereich (24er-Maß): fn(x, y, F, G) -> Farbe|null
+function fgrid(p, x0, y0, x1, y1, fn) {
+  const F0 = Math.max(0, Math.floor(x0 * 2)), F1 = Math.min(FS, Math.ceil(x1 * 2));
+  const G0 = Math.max(0, Math.floor(y0 * 2)), G1 = Math.min(FS, Math.ceil(y1 * 2));
+  for (let G = G0; G < G1; G++) for (let F = F0; F < F1; F++) {
+    const c = fn((F + 0.5) / 2, (G + 0.5) / 2, F, G);
+    if (c) p.put(F, G, col32(c));
+  }
+}
+const fdot = (p, F, G, c) => { if (c) p.put(Math.round(F), Math.round(G), col32(c)); };
+// Form aus dem 24er-Raster ins Feinraster mit EPX-Kantenglättung (wie Stufe A, nur für die Silhouette):
+// fn(x, y) -> Bereichsnummer (0 = leer); Rückgabe (F, G) -> Bereichsnummer im Feinraster
+function epxMask(fn) {
+  const m = new Int16Array(S * S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) m[y * S + x] = fn(x, y) || 0;
+  const at = (x, y) => (x < 0 || y < 0 || x >= S || y >= S ? 0 : m[y * S + x]);
+  return (F, G) => {
+    if (F < 0 || G < 0 || F >= FS || G >= FS) return 0;
+    const x = F >> 1, y = G >> 1, E = at(x, y), B = at(x, y - 1), D = at(x - 1, y), R = at(x + 1, y), H = at(x, y + 1);
+    if (B === H || D === R) return E;
+    if (!(F & 1) && !(G & 1)) return D === B ? D : E;
+    if (F & 1 && !(G & 1)) return B === R ? R : E;
+    if (!(F & 1)) return D === H ? D : E;
+    return H === R ? R : E;
+  };
+}
+// Facettierter Stein (Raute wie gem()): Fassungskante, vier geteilte Facetten, Tafel, Glanzpunkt oben links
+function gemFine(p, cx, cy, r, R) {
+  const X = cx + 0.5, Y = cy + 0.5, rr = r + 0.5, W = R[4] ?? '#ffffff';
+  fgrid(p, X - rr, Y - rr, X + rr, Y + rr, (x, y) => {
+    const u = x - X, v = y - Y, d = (Math.abs(u) + Math.abs(v)) / rr;
+    if (d > 1) return null;
+    if (d > 1 - 0.55 / rr) return u + v < 0 ? (u < 0 && v < 0 ? R[3] : R[2]) : R[0];
+    if (d < 0.4) return u < 0 && v < 0 ? W : R[2];
+    const side = Math.abs(u) > Math.abs(v);
+    if (u < 0 && v < 0) return side ? R[3] : W;
+    if (u >= 0 && v >= 0) return side ? R[1] : R[0];
+    return u < 0 ? (side ? R[2] : R[1]) : (side ? R[2] : R[3]);
+  });
+  if (r >= 2) fdot(p, X * 2 - rr * 0.9, Y * 2 - rr * 0.9, '#ffffff');
+}
+// Glutstein: heißer heller Kern im farbigen Saum (statt Facetten)
+function emberFine(p, cx, cy, r, R) {
+  const X = cx + 0.5, Y = cy + 0.5, rr = r + 0.5;
+  fgrid(p, X - rr, Y - rr, X + rr, Y + rr, (x, y) => {
+    const u = x - X, v = y - Y, d = (Math.abs(u) + Math.abs(v)) / rr;
+    if (d > 1) return null;
+    if (d > 0.68) return u + v > 0.2 ? R[1] : R[2];
+    return d > 0.36 ? R[3] : R[4];
+  });
+}
+// Niete: kleine Kuppel aus 2×2 Feinpixeln
+function rivetFine(p, x, y, R) { fdot(p, x * 2, y * 2, R[4]); fdot(p, x * 2 + 1, y * 2, R[3]); fdot(p, x * 2, y * 2 + 1, R[2]); fdot(p, x * 2 + 1, y * 2 + 1, R[1]); }
+// Kettenringe: versetzte Reihen kleiner Ringe (4×3 Feinpixel), Rückgabe = Helligkeitsversatz zur Grundstufe
+function mailK(F, G) {
+  const row = (G / 3) | 0, j = G % 3, i = (F + (row & 1) * 2) & 3;
+  if (j === 0) return i === 0 ? -1.1 : i === 3 ? 0.2 : 1;
+  if (j === 1) return i === 0 ? 0.5 : i === 3 ? -0.6 : -1.6;
+  return i === 0 ? -0.2 : i === 3 ? -1.2 : -0.5;
+}
+// Schuppen: überlappende, unten gerundete Plättchen (6×4 Feinpixel, versetzt), oben im Licht, unten Schattenbogen
+const SCALE_K = [
+  [-0.3, 0.6, 1.2, 1.2, 0.6, -0.3],
+  [-0.7, 0.3, 0.8, 0.6, 0.1, -0.9],
+  [-1.3, 0, 0.3, 0.1, -0.4, -1.5],
+  [-0.2, -1.4, -0.7, -0.9, -1.6, -0.2],
+];
+function scaleK(F, G) {
+  const row = G >> 2;
+  return SCALE_K[G & 3][(F + (row & 1) * 3) % 6];
+}
+
+// Brustteil fein (Spec wie armor())
+function armorFine(p, o) {
+  const R = o.ramp, T = o.trim ?? M.gold, st = o.style, L = M.leather;
+  const plate = st === 'plate' || st === 'scale', robe = st === 'robe', yEnd = o.long ? 22 : 20;
+  // Bereiche: 1 Rumpf, 2 Kragen, 3 Halsausschnitt, 4 Ärmel, 5 Schulterteil
+  const mk = epxMask((x, y) => {
+    const m = torsoMask(x, y, o);
+    if (!m || !o.shoulder) return m;
+    const ax = Math.abs(x + 0.5 - 12);
+    return (plate ? y >= 4 && y <= 7 && ax > 5 && ax < 10.4 - (y - 4) * 0.3 : y >= 5 && y <= 6 && ax > 6 && ax < 9.6) ? 5 : m;
+  });
+  const tabTo = robe ? 20 : 14;
+  fgrid(p, 0, 0, S, S, (x, y, F, G) => {
+    const m = mk(F, G);
+    if (!m) return null;
+    const dx = x - 12, ax = Math.abs(dx), r = y | 0;
+    const eL = !mk(F - 1, G), eR = !mk(F + 1, G), eT = !mk(F, G - 1), eB = !mk(F, G + 1);
+    if (m === 3) return '#0e0a12';
+    if (m === 2) return eT ? T[4] ?? T[3] : mk(F, G + 1) === 3 || G === 9 ? T[1] : dx < 0 ? T[3] : T[2];
+    if (m === 5) {
+      // Schulterteil: Lichtkante oben, Folgeplatte mit Fuge (Platte), Schattenkante unten, Glanzlinie links
+      const Sh = o.shoulder, last = mk(F, G + 1) !== 5, top = mk(F, G - 1) !== 5;
+      if (last) return Sh[0];
+      if (top) return dx < 0 ? Sh[4] : Sh[3];
+      let k = 3.2 - (y - 4.5) * 0.5 - dx / 10;
+      if (plate && G === 12) return Sh[1];
+      if (plate && G === 13) k += 0.9;
+      if (plate && dx < 0 && G <= 11 && ax > 7.4 && ax < 8.6) return Sh[4];
+      if (eR) k -= 0.8; else if (eL) k += 0.5;
+      if (!plate && G === 11 && F % 2 === 0) return Sh[4];
+      return pick(Sh, k);
+    }
+    let k = m === 4 ? 1.9 - dx / 8 - (ax > 8 ? 0.4 : 0) : 2.4 - dx / 9 - (y - 10.5) / 18;
+    // Volumen: Kanten oben/links im Licht, unten/rechts im Schatten; Naht zwischen Ärmel und Rumpf
+    if (eR || eB) k -= 0.7; else if (eL || eT) k += 0.5;
+    if (m === 1 && (mk(F - 1, G) === 4 || mk(F + 1, G) === 4)) k -= 0.9;
+    if (m === 4 && (mk(F - 1, G) === 1 || mk(F + 1, G) === 1)) k += 0.4;
+    // Gürtel, Schulterriemen und Wappenrock liegen über dem Material
+    // Wappenrock schmal (nicht Leder)
+    if (o.tabard && st !== 'leather' && m === 1 && ax < 2 && r > 5 && r < tabTo && !(robe && ax < 1)) {
+      if (ax >= 1) return ax >= 1.5 ? T[dx < 0 ? 3 : 1] : T[dx < 0 ? 4 : 2] ?? T[3];
+      return o.tabard[dx < -0.5 ? 3 : dx < 0.5 ? 2 : 1];
+    }
+    // Schulterriemen (Leder) mit Steppstich
+    if (st === 'leather' && m === 1 && r >= 5 && r <= 13) {
+      const d = x - (6 + (y - 5.5) * 1.3);
+      if (Math.abs(d) < 1.1) return Math.abs(d) < 0.3 && G % 3 === 0 ? L[3] : d < -0.6 ? L[2] : d > 0.6 ? L[0] : L[1];
+    }
+    // Gürtel
+    if (!robe && (r === 14 || r === 15) && m === 1) return G === 29 && F % 3 === 0 ? L[3] : L[[3, 2, 1, 0][G - 28]];
+    switch (st) {
+      case 'robe': {
+        if (ax < 1 && r > 4) return T[dx < -0.5 ? 4 : dx < 0 ? 3 : dx < 0.5 ? 2 : 1] ?? T[3];   // Zierborte mittig
+        if (r === 14) return G === 28 ? T[2] : T[1];                                             // Schärpe
+        if (r === yEnd && m === 1) return G % 2 ? T[2] : T[3];                                  // Saum
+        if (m === 4 && eB) return T[2];                                                          // Ärmelsaum
+        if (r >= 15 && m === 1) {                                                                // Rockfalten, nach unten gespreizt: Schattenkante + Lichtkante
+          const fx = dx / (1 + (y - 15) * 0.09);
+          for (const c of [-4.6, -2.5, 2.5, 4.6]) {
+            if (Math.abs(fx - c) < 0.3 && y > 15.5) k -= 0.9;
+            else if (Math.abs(fx - c + 0.55) < 0.27 && y > 16) k += 0.6;
+          }
+          if (G === 30) k -= 0.5;                                                                 // Schatten unter der Schärpe
+        }
+        if (m === 1 && r > 4 && dx >= 1 && dx < 1.5) k -= 0.6;                                     // Borte wirft Schatten
+        break;
+      }
+      case 'leather': {
+        // Vorderteile mit Naht (Rille + Steppstich), Kratzer
+        if (m === 1 && ax > 3.5 && ax < 4 && ((r >= 5 && r < 14) || r >= 16)) return G % 3 === 0 ? R[4] : pick(R, k - 1);
+        if (m === 1 && !o.emblem && r >= 5 && r < 9 && ax < 1) {
+          if (ax < 0.5) return R[0];                                                             // Schnürung am Kragen
+          if (G % 2 === 0) return R[4];
+        }
+        if ((Math.abs(x - 8.4 - (y - 16.5)) < 0.3 && y > 16 && y < 17.6) || (Math.abs(x - 15.2 + (y - 10) * 0.6) < 0.3 && y > 9.6 && y < 11)) k += 0.9;
+        break;
+      }
+      case 'chain': if (m === 1 || m === 4) k += mailK(F, G); break;
+      case 'scale': if (m === 1 && r > 5) k += scaleK(F, G); break;
+      case 'plate': {
+        if (m !== 1) break;
+        if (G === 20 || G === 24 || G === 35) return R[0];                                       // Plattenfugen
+        if (G === 21 || G === 25 || G === 36) return pick(R, k + 1.3);                         // Lichtkante der Folgeplatte
+        if (r < 10 && r > 4 && ax < 0.5) return dx < 0 ? R[4] : R[1];                           // Grat
+        if (r < 10 && r > 4 && Math.abs(dx + 4 + (y - 7) * 0.3) < 0.26) return R[4];            // Glanzlinie links
+        if (r < 10 && r > 5 && Math.abs(dx - 3.2 + (y - 7) * 0.3) < 0.26) k += 0.8;             // schwächerer Reflex rechts
+        if (r < 10 && dx < 0) k += 0.25;
+        break;
+      }
+    }
+    return pick(R, k);
+  });
+  if (!robe) {
+    // Schnalle: Rahmen mit Dorn
+    const Tb = [T[4] ?? T[3], T[3], T[2], T[1]];
+    [[0, 1, 1, 2], [1, -1, 0, 3], [1, -1, 1, 3], [2, 3, 3, 3]].forEach((row, j) => row.forEach((k, i) => fdot(p, 28 + i, 28 + j, k < 0 ? L[0] : Tb[k])));
+  }
+  if (st === 'leather') { fdot(p, 20, 18, T[4] ?? T[3]); fdot(p, 21, 18, T[3]); fdot(p, 20, 19, T[2]); fdot(p, 21, 19, T[1]); }
+  if (o.tabard && !robe) {
+    // Latz unter dem Gürtel, spitz zulaufend, mit Zierkante und Mittelfalte
+    fgrid(p, 9, 16, 15, 21, (x, y) => {
+      const dx = x - 12, hw = y < 19 ? 2 : 2 - (y - 19) * 0.9;
+      if (Math.abs(dx) > hw) return null;
+      if (Math.abs(dx) > hw - 0.5 || y > 20.5) return T[dx < 0 ? 3 : 1];
+      return o.tabard[dx < -0.5 ? 3 : dx < 0 ? 2 : dx < 0.5 ? 1 : 2];
+    });
+  }
+  if (o.fur) {
+    // Fellkragen: Strähnen mit hellen Spitzen und dunklen Zwischenräumen
+    for (let F = 12; F < 36; F++) {
+      if (F >= 20 && F < 28) continue;
+      const top = 6 + [1, 0, 0, 1, 2, 1][F % 6];
+      for (let G = top; G < 10; G++) fdot(p, F, G, F % 3 === 2 && G > top ? o.fur[1] : G === top ? o.fur[4] : o.fur[G - top > 1 ? 2 : 3]);
+    }
+  }
+  if (o.emblem) gemFine(p, 11, 8, 1, o.emblem);
+  if (o.glow) emberFine(p, 12, 11, 1, o.glow);
+  if (o.rivets) for (const [x, y] of [[7, 8], [16, 8], [7, 12], [16, 12]]) rivetFine(p, x, y, M.iron);
+  if (o.spikes) {
+    const P = o.shoulder ?? o.ramp, Gl = o.glow ?? P;
+    for (const x of [3, 5, 18, 20]) {
+      const F = x * 2;
+      fdot(p, F, 4, Gl[4]); fdot(p, F, 5, Gl[3]); fdot(p, F + 1, 5, Gl[2]);
+      fdot(p, F, 6, P[3]); fdot(p, F + 1, 6, P[1]); fdot(p, F, 7, P[3]); fdot(p, F + 1, 7, P[2]);
+    }
+  }
+}
+
+// Kopfteile fein (Spec wie helm())
+function helmFine(p, o) {
+  if (o.style === 'crown') return crownFine(p, o);
+  if (o.style === 'cap') return capFine(p, o);
+  if (o.style === 'circlet') return circletFine(p, o);
+  const R = o.ramp, Bt = o.trim, great = o.style === 'great', hood = o.style === 'hood', nasal = o.style === 'nasal';
+  const mk = epxMask((x, y) => (helmMask(x, y, great) ? 1 : 0));
+  const faceN = (x, y) => nasal && y >= 10 && y < 14 && Math.abs(x - 12) < 5 && Math.abs(x - 12) >= 1 && !(y > 13.5 && Math.abs(x - 12) > 4.5);
+  const faceH = (x, y) => hood && y >= 10 && y < 16 && Math.abs(x - 12) < 4 - (y < 10.5 ? 1 : y > 15.5 ? 0.5 : 0);
+  fgrid(p, 0, 0, S, S, (x, y, F, G) => {
+    if (!mk(F, G)) return null;
+    const dx = x - 12, dy = y - 12, ax = Math.abs(dx), r = y | 0;
+    const eL = !mk(F - 1, G), eR = !mk(F + 1, G), eT = !mk(F, G - 1), eB = !mk(F, G + 1);
+    if (faceN(x, y)) return VOID;
+    if (faceH(x, y)) return '#0a0610';
+    let k = hood ? 2.9 - (dx + dy) / 9 : 2.9 - (dx + dy) / 8.5;
+    if (!hood) {
+      // Kuppel aus Metall: Glanzbogen oben links, Glanzpunkt, Schattenkante unten rechts
+      const nx = dx / 8, ny = dy / 8.4, d = Math.hypot(nx, ny), a = Math.atan2(ny, nx);
+      if (r < 10 && d > 0.58 && d < 0.7 && a > -2.8 && a < -1.65) return R[4];
+      if (Math.abs(x - 9.75) < 0.5 && Math.abs(y - 7.25) < 0.3) return '#ffffff';
+      if (d > 0.82 && nx + ny > 0.3) k -= 0.5;
+      if (eR || eB) k -= 0.8; else if (eL || eT) k += 0.4;
+    } else {
+      // Kapuze aus Stoff: Falten vom Scheitel, gesäumter Rand um das Gesicht
+      if (eR || eB) k -= 0.6;
+      const s = dx / Math.max(0.5, y - 3);
+      if (y < 10.5 || ax > 4.5) {
+        if (Math.abs(s + 0.85) < 0.07 || Math.abs(s - 0.8) < 0.07) k -= 0.8;
+        else if (Math.abs(s + 0.97) < 0.06 || Math.abs(s - 0.68) < 0.06) k += 0.5;
+      }
+      if (faceH(x + 0.5, y) || faceH(x - 0.5, y) || faceH(x, y + 0.5) || faceH(x, y + 1)) k += 0.9;
+    }
+    if (nasal) {
+      if (faceN(x - 0.5, y)) k += 0.9; else if (faceN(x + 0.5, y)) k -= 0.6;          // Innenkanten der Wangen
+      if (ax < 1 && r > 8) return R[dx < -0.5 ? 4 : dx < 0 ? 3 : dx < 0.5 ? 2 : 1];     // Nasenschutz
+    }
+    if ((nasal && r === 9) || (great && r === 9 && ax < 7)) {                            // Stirnband
+      if (Bt) return G === 18 ? Bt[dx < 0 ? 4 : 3] : (ax > 3 && ax < 3.5) || (ax > 6 && ax < 6.5) ? Bt[4] : Bt[2];
+      return G === 18 ? pick(R, k + 0.6) : (ax > 3 && ax < 3.5) || (ax > 6 && ax < 6.5) ? R[4] : R[0];
+    }
+    if (great) {
+      if ((r === 10 || r === 11) && ax < 6) {                                             // Sehschlitz
+        if (G < 22 || (G === 22 && ax < 5.5)) return VOID;
+        if (G === 22) return '#1a1220';
+        return pick(R, k + 1.2);
+      }
+      if (r > 12 && ax < 0.5 && !(eB)) return dx < 0 ? (Bt ? Bt[3] : R[4]) : (Bt ? Bt[1] : R[2]);   // Mittelgrat
+      if ((r === 15 || r === 17) && ((ax >= 2 && ax < 3) || (ax >= 3.5 && ax < 4.5))) return VOID;   // Atemlöcher
+      if ((r === 16 || r === 18) && G % 2 === 0 && ((ax >= 2 && ax < 3) || (ax >= 3.5 && ax < 4.5))) k += 0.9;
+    }
+    // Zierrand an der Unterkante
+    if (Bt && !hood && (eB || !mk(F, G + 2))) return eB ? Bt[1] : Bt[3];
+    return pick(R, k);
+  });
+  if (o.glow && (great || nasal)) {
+    const G0 = (great ? 10 : 11) * 2, Gl = o.glow;
+    for (const F0 of [18, 28]) { fdot(p, F0, G0, Gl[4]); fdot(p, F0 + 1, G0, Gl[4]); fdot(p, F0 + 2, G0, Gl[3]); fdot(p, F0 + 3, G0, Gl[2]); fdot(p, F0, G0 + 1, Gl[3]); fdot(p, F0 + 1, G0 + 1, Gl[3]); fdot(p, F0 + 2, G0 + 1, Gl[2]); }
+  }
+  if (o.coif) {
+    // Kettenkragen aus Ringen, seitlich unter der Kuppel, unten über die Schultern
+    const cm = epxMask((x, y) => {
+      if (y < 15 || y > 21 || x < 3 || x > 20) return 0;
+      const dx = Math.abs(x + 0.5 - 12);
+      if (dx > 8.6 - (y - 15) * 0.15 || (y < 18 && dx < 6)) return 0;
+      return 1;
+    });
+    fgrid(p, 2, 14, 22, 23, (x, y, F, G) => {
+      if (!cm(F, G)) return null;
+      let k = 2.3 - (x - 12) / 10 - (y - 15) / 14 + mailK(F, G);
+      if (!cm(F + 1, G) || !cm(F, G + 1)) k -= 0.7;
+      return pick(R, k);
+    });
+  }
+  if (hood) {
+    // Umhang über den Schultern mit senkrechten Falten
+    fgrid(p, 4, 17, 20, 21, (x, y, F, G) => {
+      const r = y | 0, x0 = 4 + (r - 17), x1 = 20 - (r - 17);
+      if (x < x0 || x >= x1) return null;
+      if (G === 34) return R[2];
+      if (G === 41 || x >= x1 - 0.5) return R[0];
+      const f = (x - 12) / (1 + (y - 17) * 0.1);
+      if (Math.abs(Math.abs(f) - 4.2) < 0.25 || Math.abs(f) < 0.25) return R[0];
+      if (Math.abs(Math.abs(f) - 4.7) < 0.25 || Math.abs(f + 0.5) < 0.25) return R[2];
+      return R[1];
+    });
+    for (const F of [20, 26]) { fdot(p, F, 26, M.yellow[4]); fdot(p, F + 1, 26, M.yellow[4]); fdot(p, F, 27, M.yellow[3]); fdot(p, F + 1, 27, M.yellow[2]); }
+  }
+  if (o.horns) hornsFine(p);
+  if (o.crest) {
+    // Helmbusch: Strähnen mit hellen Spitzen, in der Halterung gefasst
+    const C = o.crest;
+    fgrid(p, 11, 1, 13, 6, (x, y, F, G) => {
+      if (G === 2 && (F === 22 || F === 25)) return null;
+      const s = [4, 3, 4, 2][F - 22];
+      return C[clamp(s - (G > 6 ? 1 : 0) + (G === 2 ? 1 : 0), 1, 4)];
+    });
+    fdot(p, 22, 10, R[4]); fdot(p, 23, 10, R[3]); fdot(p, 24, 10, R[2]); fdot(p, 25, 10, R[1]);
+  }
+  if (o.tail) {
+    // Rossschweif: drei Strähnen vom Scheitel nach hinten
+    const C = o.crest ?? M.darkleather;
+    for (let i = 0; i < 4; i++) p.fline(13 + i * 0.5, 3, 20.5 + i * 0.5, 11.5 - i * 0.3, C[[3, 2, 2, 1][i]]);
+    p.fline(13, 3, 16, 5.6, C[4] ?? C[3]);
+  }
+  if (o.crown) {
+    const C = o.crown, B = o.crownDim ? R : C;
+    fgrid(p, 6, 4, 18, 6, (x, y, F, G) => B[[4, 3, 2, 1][G - 8]] ?? B[3]);
+    for (const x of [6, 11, 16]) {
+      const F = x * 2, hi = x === 11 ? 4 : 3;
+      fdot(p, F + 1, 2, B[4]); fdot(p, F + 2, 2, B[2]);
+      fdot(p, F + 1, 3, B[hi]); fdot(p, F + 2, 3, B[2]);
+      for (let G = 4; G < 8; G++) { fdot(p, F, G, B[hi]); fdot(p, F + 1, G, B[3]); fdot(p, F + 2, G, B[2]); fdot(p, F + 3, G, B[1]); }
+    }
+    if (!o.crownDim) { fdot(p, 24, 8, C[4]); fdot(p, 25, 8, C[3]); fdot(p, 24, 9, C[2]); fdot(p, 25, 9, C[1]); }
+  }
+}
+// Hörner fein: dicke Wurzel, nach außen und oben gebogen, Rillen quer zur Wuchsrichtung, helle Spitze
+function hornsFine(p) {
+  const B = M.bone, pts = [];
+  for (let i = 0; i <= 80; i++) {
+    const t = i / 80;
+    pts.push([t, 6.6 + t * 4.4 + Math.sin(t * 2.2) * 0.8, 10.5 - t * 9.6 + t * t * 2.2, 1.9 * (1 - t) + 0.35]);
+  }
+  for (const dir of [-1, 1]) {
+    fgrid(p, dir < 0 ? 0 : 12, 0, dir < 0 ? 12 : 24, 13, (x, y) => {
+      // nächster Punkt der Mittellinie, in dessen Breite das Feinpixel liegt
+      const ax = (x - 12) * dir;
+      let best = null, bd = 1e9;
+      for (const q of pts) { const d = Math.hypot(ax - q[1], y - q[2]); if (d <= q[3] && d < bd) { bd = d; best = q; } }
+      if (!best) return null;
+      const [t, cx, cy, w] = best, ox = ax - cx, oy = y - cy;
+      const side = (ox * -0.7 + oy * -0.7) / w;                 // >0: zur Helmmitte/oben (Licht), <0: außen/unten
+      if (t > 0.82) return side > -0.2 ? B[4] : B[3];
+      if (t < 0.72 && (t * 7) % 1 < 0.13) return side > 0.3 ? B[2] : B[1];   // Rillen
+      if (side > 0.45 && t > 0.12) return B[4];
+      if (side < -0.5) return B[t < 0.3 ? 0 : 1];
+      return B[t < 0.3 ? 2 : 3];
+    });
+  }
+}
+// Lederkappe fein: Bahnen mit Nähten, Knopf, Krempe mit Steppstich
+function capFine(p, o) {
+  const R = o.ramp, Tt = o.trim;
+  const mk = epxMask((x, y) => {
+    if (y >= 4 && y < 15) { const dx = x + 0.5 - 12, dy = y + 0.5 - 14.5; return dx * dx / 82 + dy * dy / 66 <= 1 ? 1 : 0; }
+    if (y >= 15 && y < 19) return Math.abs(x + 0.5 - 12) < [10, 10, 9, 7][y - 15] ? 2 : 0;
+    return 0;
+  });
+  fgrid(p, 0, 0, S, S, (x, y, F, G) => {
+    const m = mk(F, G);
+    if (!m) return null;
+    const dx = x - 12, dy = y - 14.5;
+    const eR = !mk(F + 1, G), eT = !mk(F, G - 1), eL = !mk(F - 1, G);
+    if (m === 1) {
+      let k = dx < -4 ? 3 : dx < 3 ? 2 : 1;
+      k += -dy / 30;
+      if (dy < -4.5 && dx > -5.5 && dx < -1.5) k = 4;                                   // Glanz
+      const u = dx / (9.06 * Math.sqrt(Math.max(0.05, 1 - dy * dy / 66)));            // Meridian der Bahn
+      if (Math.abs(dx) < 0.5) return dx < 0 ? R[0] : R[1];                               // Mittelnaht
+      if (Math.abs(Math.abs(u) - 0.55) < 0.05) return R[0];                              // Seitennähte
+      if (Math.abs(Math.abs(u) - 0.55) < 0.12 && G % 3 === 0) return R[4];              // Steppstich
+      if (Math.abs(dx) < 1 && G % 3 === 1) return R[3];
+      if (eR) k -= 0.7; else if (eT || eL) k += 0.5;
+      if (mk(F, G + 1) === 2) k -= 1;
+      return pick(R, k);
+    }
+    // Krempe: Schattenfuge unter der Kuppel, Oberseite im Licht, Steppstich, dunkle Unterkante
+    if (mk(F, G - 1) === 1 || G === 30) return R[0];
+    if (G === 31) return R[dx < 0 ? 4 : 3];
+    if (G === 34 && F % 3 !== 2) return Tt ? Tt[3] : R[1];
+    if (!mk(F, G + 1) || G === 37) return R[1];
+    return R[dx < -6 ? 3 : 2];
+  });
+  fgrid(p, 5, 19, 19, 20, (x, y) => (Math.abs(x - 12) < 7 - (y - 19) * 2 ? VOID : null));
+  fgrid(p, 11, 5, 13, 7, (x, y, F, G) => (G === 10 ? R[4] : G === 11 ? R[3] : null));
+  fdot(p, 21, 12, R[1]); fdot(p, 22, 12, R[1]); fdot(p, 25, 12, R[1]); fdot(p, 26, 12, R[1]);
+}
+// Stirnreif fein: Metallband als Bogen mit Gravurlinie, Seitenknöpfe, gefasster Stein mittig
+function circletFine(p, o) {
+  const T = o.ramp, Gm = o.gem ?? M.blue;
+  const yc = (x) => { const dx = (x - 12) / 10; return 10.5 + 5 * Math.sqrt(Math.max(0, 1 - dx * dx)) - 1.5 * (1 - Math.abs(dx)); };
+  fgrid(p, 2, 6, 22, 18, (x, y) => {
+    const o2 = y - yc(x), dx = (x - 12) / 10;
+    if (o2 < -1.5 || o2 >= 1.5) return null;
+    if (o2 < -1) return T[4];
+    if (o2 < -0.5) return T[dx < -0.3 ? 4 : 3];
+    if (o2 < 0) return T[dx < 0.2 ? 2 : 1];
+    if (o2 < 0.5) return T[0];
+    if (o2 < 1) return T[dx < 0.2 ? 2 : 1];
+    return T[0];
+  });
+  for (const sx of [6, 17]) { const F = sx * 2, G = Math.floor(yc(sx + 0.5) * 2) - 1; fdot(p, F, G, T[4]); fdot(p, F + 1, G, T[3]); fdot(p, F, G + 1, T[3]); fdot(p, F + 1, G + 1, T[1]); }
+  // Fassung: Raute mit abgeschrägter Kante
+  fgrid(p, 8, 9, 16, 17, (x, y) => {
+    const d = Math.abs(x - 12) + Math.abs(y - 13);
+    if (d >= 3.9) return null;
+    if (d > 3.3) return x - 12 + y - 13 < 0 ? T[4] : T[0];
+    return y < 13 ? T[3] : T[1];
+  });
+  gemFine(p, 12, 13 - 0.5, 2, Gm);
+}
+// Offene Krone fein: Reif mit Gravur, fünf spitze Zacken mit Glutstein, drei Steine im Reif
+function crownFine(p, o) {
+  const R = o.ramp, C = o.crown ?? M.ember;
+  fgrid(p, 3, 12, 21, 18, (x, y, F, G) => {
+    if (G === 24) return R[4];
+    if (G === 25) return R[3];
+    if (G === 35) return R[0];
+    if (G === 34) return R[1];
+    if (G === 29 && F % 4 !== 3) return R[1];
+    if (F === 6 || F === 41) return R[1];
+    return pick(R, 3.2 - (x - 3) / 12 - (y - 12) / 10);
+  });
+  for (const [x, h] of [[3, 4], [7, 6], [11, 9], [15, 6], [19, 4]]) {
+    const F = x * 2;
+    for (let G = 24 - h * 2; G < 24; G++) {
+      const t = (24 - G) / (h * 2), w = t > 0.75 ? 2 : t > 0.4 ? 3 : 4;
+      for (let i = 0; i < w; i++) fdot(p, F + i + (w === 2 ? 1 : 0), G, i === 0 ? R[4] : i === w - 1 ? (w === 4 ? R[1] : R[2]) : R[3]);
+    }
+    const tG = 24 - h * 2 - 2;
+    fdot(p, F + 1, tG - 1, C[3]); fdot(p, F, tG, C[3]); fdot(p, F + 1, tG, C[4]); fdot(p, F + 2, tG, C[2]); fdot(p, F + 1, tG + 1, C[2]);
+  }
+  for (const x of [7, 12, 17]) emberFine(p, x, 14.5, 1, C);
+}
+
+// Handschuhe fein (Spec wie gloves()): Handrücken mit Fingern, Daumen, Stulpe; beide Hände mit Licht von oben links
+function glovesFine(p, o) {
+  const R = o.ramp, Cf = o.cuff ?? R, Tt = o.trim ?? M.gold;
+  const tops = [3.5, 3, 3.5, 4.5];   // Kuppen: Mittelfinger am längsten, kleiner Finger am kürzesten
+  // lx = Abstand zur Daumenseite (0..11), Rückgabe Bereich: 1 Finger (+10*i), 2 Daumen, 3 Hand, 4 Stulpe, 5 Fingerfuge
+  const part = (lx, y) => {
+    if (y >= 17 && y < 22 && lx >= 0 && lx < 11) return 4;
+    if (y >= 10 && y < 17 && lx >= 1 && lx < 10) return 3;
+    if (y >= 7.5 && y < 12 && lx >= 0.25 && lx < 1.5 && !(y < 8 && lx < 0.75)) return 2;
+    for (let i = 0; i < 4; i++) {
+      // Finger 4 Feinpixel breit, Kuppe abgerundet; zwischen den Fingern oben ein Spalt, unten eine Falte
+      const a = 2 * i + 1.75, b = a + (i < 3 ? 1.5 : 2);
+      if (lx >= a && lx < b && y >= tops[i] && y < 10) return 1 + 10 * i;
+      if (lx >= b && lx < b + 0.5 && i < 3 && y >= Math.max(tops[i], tops[i + 1]) + 1.5 && y < 10) return 5;
+    }
+    return 0;
+  };
+  const glove = (ox, flip) => {
+    const at = (x, y) => { const X = x - ox; return X < 0 || X >= 11 ? 0 : part(flip ? 11 - X : X, y); };
+    fgrid(p, ox, 2, ox + 11, 22, (x, y, F, G) => {
+      const m = at(x, y);
+      if (!m) return null;
+      const X = x - ox, lx = flip ? 11 - X : X, r = y | 0, fin = m % 10 === 1;
+      const eL = !at(x - 0.5, y), eR = !at(x + 0.5, y), eT = !at(x, y - 0.5), eB = !at(x, y + 0.5);
+      if (m === 4) {
+        // Stulpe: Lichtkante oben, Saum, Schattenkante unten
+        let k = 2.6 - X / 7;
+        if (G === 34) k += 0.8; else if (G === 35) k -= 0.6;
+        if (eB) k -= 0.8; if (eR) k -= 0.6; else if (eL) k += 0.4;
+        if (o.style === 'cloth' && r === 19) return G === 38 ? Tt[3] : Tt[1];
+        if (o.style === 'cloth' && G > 35 && F % 3 === 0) k -= 0.5;                                   // Strickrippen
+        if ((o.style === 'leather' || o.style === 'mail') && G === 37 && F % 2 === 0) return Cf[4];   // Steppstich
+        if (o.style === 'plate' && G === 39) return Cf[0];
+        if (o.style === 'plate' && G === 40) k += 1;
+        return pick(Cf, k);
+      }
+      let k = 2.8 - X / 6 - (y - 10) / 16;
+      if (eR || eB) k -= 0.7; else if (eL || eT) k += 0.5;
+      if (m === 5) k -= 1.1;                                                                         // Fingerfuge
+      if (fin && y < tops[(m / 10) | 0] + 0.6) k += 0.5;                                            // Fingerkuppe
+      if (m === 2 && G === 21) k -= 0.8;                                                             // Daumenfalte
+      if (m === 3 && r === 10 && G === 20 && Math.round(lx * 2) % 4 === 1) k += 1;                   // Knöchel
+      switch (o.style) {
+        case 'plate':
+          if (m === 3 && (G === 24 || G === 30)) return R[0];
+          if (m === 3 && (G === 25 || G === 31)) return pick(R, k + 1.3);
+          if (fin && (G === 12 || G === 17)) return R[1];
+          if (fin && (G === 13 || G === 18)) k += 1;
+          if (m === 3 && Math.abs(X - 3) < 0.3) return R[4];                                         // Glanzlinie
+          break;
+        case 'mail': if (m === 3) k += mailK(F, G); else if (fin && G % 4 === 0) k -= 0.8; break;
+        case 'leather':
+          if (m === 3 && r >= 11 && r < 16 && [3.75, 5.75, 7.75].some((s) => Math.abs(lx - s) < 0.2)) return G % 3 === 0 ? R[4] : pick(R, k - 0.9);
+          break;
+        case 'cloth': if (m === 3 && r > 10 && Math.abs(Math.sin(X * 1.1 + y * 0.9)) > 0.97) k -= 0.6; break;
+      }
+      return pick(R, k);
+    });
+    if (o.style === 'plate' || o.style === 'mail') rivetFine(p, ox + (flip ? 4 : 6), 13, M.gold);
+    if (o.glow) emberFine(p, ox + 5, 13, 1, o.glow);
+  };
+  glove(1, false); glove(12, true);
+}
+
+// Stiefel fein (Spec wie boots()): Schaft, gerundete Kappe, Sohle mit Absatz und Rahmennaht
+function bootsFine(p, o) {
+  const R = o.ramp, Cf = o.cuff ?? R, Tt = o.trim ?? M.gold, D = M.darkleather;
+  const toe = (x, y) => ((x - 17) / 4) ** 2 + ((y - 21.5) / 6.5) ** 2 <= 1;
+  const inside = (x, y) => (y >= 2 && y < 15 && x >= 5 && x < 14) || (y >= 15 && y < 21 && x >= 5 && (x < 17 || toe(x, y)));
+  const fur = o.style === 'leather' && o.cuff && o.cuff !== o.ramp;
+  fgrid(p, 4, 1, 22, 22, (x, y, F, G) => {
+    if (!inside(x, y)) return null;
+    const r = y | 0;
+    const eL = !inside(x - 0.5, y), eR = !inside(x + 0.5, y), eT = !inside(x, y - 0.5), eB = !inside(x, y + 0.5);
+    // Sohle mit Absatz
+    if (r === 20) return G === 40 ? (x < 8.5 ? D[1] : D[2]) : D[0];
+    if (x < 8.5 && y >= 19.5) return x > 8 ? D[0] : D[1];
+    if (r < 4) {
+      // Stulpe: umgeschlagen, Lichtkante oben, Schattenfuge darunter
+      let k = 3.2 - (x - 5) / 5;
+      if (G === 4) k += 0.6;
+      if (eR) k -= 0.8;
+      if (G === 7) k -= 1;
+      return pick(Cf, k);
+    }
+    if (fur && G < 10 && F % 3 !== 2 && G - 8 < (F % 2)) return pick(Cf, 2.6 - (x - 5) / 5);   // Fellsträhnen
+    // Fuß: flacherer Verlauf als der Schaft, oben im Licht (sonst wird die Kappe zu dunkel)
+    let k = r >= 15 ? 2.75 - (x - 5) / 13 - (y - 15) / 7 : 2.8 - (x - 5) / 9 - (y - 10) / 20;
+    if (eR || eB) k -= 0.7; else if (eL || eT) k += 0.5;
+    if (G === 8) k -= 0.8;                                                                        // Schatten unter der Stulpe
+    if (G === 39 && x >= 8.5 && o.style !== 'plate') return F % 2 ? R[4] : pick(R, k - 0.6);    // Rahmennaht
+    switch (o.style) {
+      case 'plate':
+        if (G === 14 || G === 22 || G === 32) return R[0];
+        if (G === 15 || G === 23 || G === 33) return pick(R, k + 1.3);
+        if (r > 15 && x > 15) {                                                                    // Zehenkappe mit Glanz
+          return !toe(x - 0.6, y - 0.6) ? R[4] : R[3];
+        }
+        if (r >= 4 && r < 15 && x >= 6 && x < 6.5) return R[4];                                   // Glanzlinie am Schienbein
+        break;
+      case 'mail': if (r > 3 && r < 15) k += mailK(F, G); break;
+      case 'leather': {
+        if (r >= 5 && r < 14 && x >= 8.5 && x < 10.5) {                                           // Schnürung: Ösen und Querbänder
+          const ph = G % 3, edge = x < 9 || x >= 10;
+          if (ph === 0) return edge ? R[1] : R[4];
+          if (ph === 1 && edge) return R[0];
+          k -= 0.4;
+        }
+        if (Math.abs(y - 13.9 - (x - 12) * 0.45) < 0.25 && x > 11.5 && x < 14) k -= 0.9;          // Knöchelfalten
+        if (Math.abs(y - 15 - (x - 13) * 0.45) < 0.25 && x > 13 && x < 16) k -= 0.9;
+        break;
+      }
+      case 'cloth': {
+        if (r === 4) return G === 8 ? Tt[3] : Tt[1];
+        const w = 8 + Math.sin(x * 1.3) * 0.4, w2 = 11.5 + Math.sin(x * 1.1 + 1) * 0.4;
+        if (Math.abs(y - w) < 0.25 || Math.abs(y - w2) < 0.25) k -= 0.8;
+        else if (Math.abs(y - w + 0.5) < 0.25 || Math.abs(y - w2 + 0.5) < 0.25) k += 0.5;
+        break;
+      }
+    }
+    return pick(R, k);
+  });
+  if (o.buckle) {
+    fgrid(p, 5, 12, 14, 13, (x, y, F, G) => (G === 24 ? D[3] : D[0]));
+    const g = M.gold;
+    [[4, 4, 3], [3, -1, 2], [2, 2, 1]].forEach((row, j) => row.forEach((k, i) => fdot(p, 23 + i, 23 + j, k < 0 ? D[0] : g[k])));
+  }
+  if (o.glow) emberFine(p, 13, 16, 1, o.glow);
+}
+
+// Ring fein: Reif mit Querschnitt (Vorderseite hell, Innenseite dunkel), Glanzbogen, Stein mit Krappen
+function ringFine(p, o) {
+  const B = o.band;
+  fgrid(p, 4, 8, 20, 20, (x, y) => {
+    const dx = (x - 12) / 7, dy = (y - 14) / 5.2, d = Math.hypot(dx, dy);
+    if (d > 1 || d < 0.62) return null;
+    const t = (d - 0.62) / 0.38, a = Math.atan2(dy, dx);
+    let k = 2.5 - dx * 1.4 - (dy < 0 ? 0.6 : -0.3);
+    if (dy >= 0) { k += t > 0.25 && t < 0.6 ? 0.5 : 0; if (t > 0.86) k -= 0.8; }               // Vorderseite gewölbt
+    else if (t < 0.18) k -= 0.6;                                                               // Innenkante hinten
+    if (t > 0.3 && t < 0.62 && a > 2.15 && a < 2.75) return B[4];                              // Glanzbogen links vorn
+    if (t > 0.55 && t < 0.85 && a > -2.6 && a < -2.15) return B[4];                            // Lichtkante hinten
+    return pick(B, k);
+  });
+  if (o.gem) {
+    // Fassung mit Krappen, darauf der facettierte Stein
+    fgrid(p, 9.5, 10.5, 14.5, 12, (x, y, F, G) => (G === 21 ? B[3] : B[1]));
+    gemFine(p, 12, 8, 3, o.gem);
+    for (const [F, G] of [[17, 15], [30, 15], [23, 8]]) { fdot(p, F, G, B[4]); fdot(p, F + 1, G, B[2]); fdot(p, F, G + 1, B[2]); }
+  } else { fdot(p, 17, 22, '#ffffff'); }
+}
+// Amulett fein: Gliederkette, Öse, Anhänger mit abgeschrägter Fassung und Filigranpunkten
+function amuletFine(p, o) {
+  const C = o.chain ?? M.gold;
+  for (const side of [-1, 1]) {
+    let s = 0;
+    for (let i = 0; i <= 80; i++) {
+      const t = i / 80, x = 4.5 + t * 7, y = 2.5 + Math.sin(t * Math.PI * 0.5) * 9;
+      const X = side < 0 ? x : 24 - x, F = Math.floor(X * 2), G = Math.floor(y * 2);
+      const link = Math.floor(s / 1.1) % 2;
+      if (link) { fdot(p, F, G, C[side < 0 ? 4 : 3]); fdot(p, F + side, G + 1, C[1]); }
+      else fdot(p, F, G, C[side < 0 ? 2 : 1]);
+      s += Math.hypot(7, Math.cos(t * Math.PI * 0.5) * 9 * Math.PI * 0.5) / 80;
+    }
+  }
+  switch (o.style) {
+    case 'bone': {
+      const Bn = M.bone;
+      fgrid(p, 8, 12, 16, 21, (x, y) => {
+        const dx = x - 12, dy = y - 16, d = Math.hypot(dx, dy);
+        const jaw = y > 18 && y < 19.5 && Math.abs(dx) < 1.6;
+        if (d > 3.6 && !jaw) return null;
+        if (Math.abs(Math.abs(dx) - 1) < 0.75 && dy > -1.4 && dy < 0.4) return dy < -0.8 ? '#2a1414' : '#140808';   // Augenhöhlen
+        if (Math.abs(dx) < 0.3 && dy > 0.8 && dy < 1.6) return '#140808';                                         // Nase
+        if (jaw) return Math.round(x * 2) % 2 ? Bn[1] : Bn[3];                                                    // Zähne
+        return pick(Bn, 3 - (dx + dy) / 3.6 - (d > 3.1 ? 0.8 : 0) + (dx + dy < -3 ? 0.6 : 0));
+      });
+      break;
+    }
+    case 'sun': {
+      const G = M.gold, Y = M.yellow;
+      for (let a = 0; a < 8; a++) {
+        const ca = Math.cos(a * 0.785), sa = Math.sin(a * 0.785);
+        for (let rr = 3.8; rr < 6.2; rr += 0.25) fdot(p, (12 + ca * rr) * 2, (16.5 + sa * rr) * 2, Y[rr > 5.2 ? 4 : a % 2 ? 3 : 4]);
+      }
+      fgrid(p, 8, 12, 17, 21, (x, y) => {
+        const dx = x - 12, dy = y - 16.5, d = Math.hypot(dx, dy);
+        if (d > 3.6) return null;
+        if (d > 3.1) return dx + dy < 0 ? G[4] : G[1];
+        if (Math.abs(d - 2.2) < 0.25) return G[1];                                                               // Gravurring
+        return pick(G, 3 - (dx + dy) / 4);
+      });
+      gemFine(p, 12, 16, 1, M.red);
+      break;
+    }
+    default: {
+      fgrid(p, 6, 11, 18, 22, (x, y) => {
+        const dx = x - 12, dy = y - 16.5, d = Math.abs(dx) + Math.abs(dy) * 0.9;
+        if (d >= 4.8) return null;
+        if (d > 4.1) return dx + dy < 0 ? C[4] : dx - dy > 0 && dy < 0 ? C[3] : C[0];                           // Schräge Kante
+        if (d > 3.6) return dx + dy < 0 ? C[2] : C[1];
+        return pick(C, 3 - (dx + dy) / 3);
+      });
+      for (const [F, G] of [[24, 25], [24, 41], [16, 33], [32, 33]]) fdot(p, F, G, C[4]);                      // Filigran
+      gemFine(p, 12, 16, 2, o.gem ?? M.red);
+    }
+  }
+  // Öse am Kettenende
+  fdot(p, 23, 22, C[3]); fdot(p, 24, 22, C[3]); fdot(p, 22, 23, C[4]); fdot(p, 25, 23, C[1]);
+}
+// Trank fein: Glas mit Randlicht, Flüssigkeit mit Spiegel und Lichtbündelung unten rechts, Spiegelung, Bläschen, Korken mit Maserung
+function potionFine(p, o) {
+  const F0 = o.fill, size = o.size ?? 2;
+  const r = [4.2, 5.2, 6.4][size - 1] ?? 5.2, cy = 23 - r - 1;
+  const neckH = [3, 4, 4][size - 1] ?? 4, nt = Math.round(cy - r - neckH + 1);
+  const level = cy - r * 0.35, wd = M.wood;
+  // Hals: Glas mit Lichtkante links, Schatten rechts, Lippe oben
+  fgrid(p, 10, nt, 14, nt + neckH + 1, (x, y, F) => ['#e8f0f8', '#c8d4e4', '#9aaac0', '#8a9ab0', '#8a9ab0', '#8a9ab0', '#6a7a94', '#4a5a74'][F - 20]);
+  fgrid(p, 9.5, nt, 14.5, nt + 0.5, (x) => (x < 11 ? '#e8f0f8' : x > 13.5 ? '#6a7a94' : '#c8d4e4'));
+  // Korken: abgerundet, Maserung, Schattenseite
+  fgrid(p, 9, nt - 3, 15, nt, (x, y, F, G) => {
+    const top = G === (nt - 3) * 2, bot = G === nt * 2 - 1;
+    if ((top || bot) && (F === 18 || F === 29)) return null;
+    if (top) return wd[4];
+    if (F >= 27) return wd[1];
+    if (bot) return wd[2];
+    if ((F * 3 + G * 5) % 7 === 0) return wd[2];
+    return F < 20 ? wd[4] : wd[3];
+  });
+  if (size === 3) fgrid(p, 9, nt + 1, 15, nt + 2, (x, y, F, G) => (G === (nt + 1) * 2 ? (F > 25 ? M.gold[2] : M.gold[4]) : F > 25 ? M.gold[1] : M.gold[2]));
+  // Bauch
+  fgrid(p, 12 - r - 0.5, cy - r - 0.5, 12 + r + 0.5, cy + r + 0.5, (x, y) => {
+    const dx = x - 12, dy = y - cy, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+    if (d > r) return null;
+    if (d > r - 0.5) return dy < 0 ? (dx < 0 ? '#c8d4e4' : '#9aaac0') : dx < -r * 0.5 ? '#6a7a94' : '#4a5a74';   // Glaskante
+    if (d > r * 0.66 && d < r * 0.66 + 0.5 && a > -2.6 && a < -1.75) return '#ffffff';                       // Spiegelung
+    if (y < level) return d > r - 1 ? '#2a3248' : '#1e2436';                                                  // leerer Teil
+    if (y < level + 0.5) return F0[4];                                                                        // Flüssigkeitsspiegel
+    if (d > r - 1) return F0[1];
+    let k = 3 - (dx + dy) / r * 1.2;
+    if (d > r * 0.45 && d < r * 0.8 && a > 0.3 && a < 1.3) k += 1;                                           // Lichtbündelung
+    return pick(F0, k);
+  });
+  // Glanzpunkt und Bläschen
+  fdot(p, (12 - r * 0.5) * 2, (cy - r * 0.15) * 2, '#ffffff');
+  fdot(p, (12 - r * 0.5) * 2, (cy - r * 0.15) * 2 + 1, '#dfe7f2');
+  for (let i = 0; i < size + 1; i++) {
+    const bx = (12.6 + i * 0.9) * 2, by = (cy + 0.5 + (i % 2) * 1.2 - i * 0.4) * 2;
+    if (by / 2 > level + 0.6) { fdot(p, bx, by, F0[4]); if (i % 2 === 0) fdot(p, bx + 1, by + 1, F0[2]); }
+  }
+}
+
 // ---------------------------------------------------------------- Einzelne Motive
 const DRAW = {
   food(p) { DRAW.food_bread(p); },
@@ -1251,8 +1937,20 @@ for (const [id, o] of Object.entries(BOOTS)) REG[id] = (p) => boots(p, o);
 for (const [id, mk] of Object.entries(JEWELRY)) { const { f, o } = mk(); REG[id] = (p) => f(p, o); }
 for (const [id, { f, o }] of Object.entries(CONSUMABLES)) REG[id] = (p) => f(p, o);
 Object.assign(REG, DRAW, SKILLS);
+// Feinfassung (res 2): Familien mit eigener 48er-Zeichnung; REG_FINE[id]() liefert die 48×48-Leinwand
+const REG_FINE = {};
+const fineIcon = (fn, o) => () => { const p = new FineCanvas(S, S, 2); fn(p, o); return p.canvas; };
+for (const [id, o] of Object.entries(ARMORS)) REG_FINE[id] = fineIcon(armorFine, o);
+for (const [id, o] of Object.entries(HELMS)) REG_FINE[id] = fineIcon(helmFine, o);
+for (const [id, o] of Object.entries(GLOVES)) REG_FINE[id] = fineIcon(glovesFine, o);
+for (const [id, o] of Object.entries(BOOTS)) REG_FINE[id] = fineIcon(bootsFine, o);
+for (const [id, mk] of Object.entries(JEWELRY)) { const { f, o } = mk(); const fn = f === ring ? ringFine : f === amulet ? amuletFine : null; if (fn) REG_FINE[id] = fineIcon(fn, o); }
+for (const [id, { f, o }] of Object.entries(CONSUMABLES)) if (f === potion) REG_FINE[id] = fineIcon(potionFine, o);
 // Familien-Aliase für die Rückfallsuche
-for (const [alias, target] of Object.entries({ robe: 'robe_mage', leather: 'leather_jerkin', plate: 'plate_iron', essence: 'essence_shadow', potion: 'potion_hp', armor: 'armor_mail', hood: 'hood', greatsword: 'sword_long', cloth: 'armor_cloth', mail: 'mail_chain' })) REG[alias] ??= REG[target];
+for (const [alias, target] of Object.entries({ robe: 'robe_mage', leather: 'leather_jerkin', plate: 'plate_iron', essence: 'essence_shadow', potion: 'potion_hp', armor: 'armor_mail', hood: 'hood', greatsword: 'sword_long', cloth: 'armor_cloth', mail: 'mail_chain' })) {
+  REG[alias] ??= REG[target];
+  if (REG[alias] === REG[target] && REG_FINE[target]) REG_FINE[alias] ??= REG_FINE[target];
+}
 
 export const ICON_IDS = Object.freeze(Object.keys(REG).filter((k) => !k.startsWith('ui_') && !k.startsWith('skill_') && !k.startsWith('passive_')));
 export const SKILL_ICON_IDS = Object.freeze(Object.keys(SKILLS));
@@ -1293,9 +1991,12 @@ const LOOK_ICON = {
   feet: (L) => ['boots', { ...shapeOf(BOOTS, L, `boots_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
 };
 const DRAW_FN = { heroWeapon: (p, L) => drawWeaponIcon((x, y, c) => p.px(x, y, c), L, p.w), armor, helm, gloves, boots };
-// Feinraster: Familien, die ihre 48er-Fassung selbst zeichnen (sonst 24er-Bild ×2 hochskaliert, gfx/Fine.js)
-const FINE_FN = new Set(['heroWeapon']);
-const REG_FINE = {};
+// Feinraster: Familien, die ihre 48er-Fassung selbst zeichnen (sonst 24er-Bild ×2 hochskaliert, gfx/Fine.js).
+// Waffen über dieselbe Quelle wie am Helden (48er-PixelCanvas), Brust/Kopf/Hände/Füße über die Feinfassung oben.
+const FINE_LOOK = {
+  heroWeapon: (o) => () => { const p = new PixelCanvas(S * 2, S * 2); DRAW_FN.heroWeapon(p, o); return p.canvas; },
+  armor: (o) => fineIcon(armorFine, o), helm: (o) => fineIcon(helmFine, o), gloves: (o) => fineIcon(glovesFine, o), boots: (o) => fineIcon(bootsFine, o),
+};
 const lookIds = new Map();   // JSON der Zeichenoptionen -> 'look:<n>'
 const defIds = new Map();    // id|icon|rarity -> Icon-ID
 export function itemIconId(def) {
@@ -1314,7 +2015,7 @@ export function itemIconId(def) {
       lookIds.set(key, id);
       const [f, o] = spec;
       REG[id] = (p) => DRAW_FN[f](p, o);
-      if (FINE_FN.has(f)) REG_FINE[id] = (p) => DRAW_FN[f](p, o);
+      if (FINE_LOOK[f]) REG_FINE[id] = FINE_LOOK[f](o);
     }
   }
   defIds.set(k, id);
@@ -1330,6 +2031,14 @@ const urlCache = new Map();
 // die übrigen Familien werden bis zu ihrer Überarbeitung ×2 hochskaliert und bekommen Lichtkante + feinen Umriss.
 export function iconRes() { return (window.devicePixelRatio || 1) >= 1.5 ? 2 : 1; }
 
+// 48er-Bild mit Umriss (50×50) mittig auf 52×52: genau 2 Feinpixel je Bildpunkt der 26er-Fassung, damit es im Platz
+// (26 × --fpx CSS-px) ganzzahlig skaliert wird wie Rahmen und Effektstreifen (sonst ungleich breite Feinpixel).
+function padFine(c) {
+  const o = makeCanvas(c.width + 2, c.height + 2);
+  o.getContext('2d').drawImage(c, 1, 1);
+  return o;
+}
+
 export function iconCanvas(id, res = iconRes()) {
   const key = SKILL_ART[id] ? id : resolve(id);   // Embleme ohne Eintrag im Register (z. B. attack_<klasse>) direkt
   const ck = res > 1 ? `${key}@2` : key;
@@ -1341,13 +2050,11 @@ export function iconCanvas(id, res = iconRes()) {
       SKILL_ART[key](p);
       c = p.canvas;
     } else if (res > 1 && REG_FINE[key]) {
-      const p = new PixelCanvas(S * 2, S * 2);
-      REG_FINE[key](p);
-      c = outlineCanvas(finishFine(p.canvas, { rim: 0.22, shade: 0.2 }));
+      c = padFine(outlineCanvas(finishFine(REG_FINE[key](), { rim: 0.22, shade: 0.2 })));
     } else if (res > 1) {
       const p = new PixelCanvas(S, S);
       REG[key](p);
-      c = outlineCanvas(finishFine(upscale2x(p.canvas), { rim: 0.22, shade: 0.2 }));
+      c = padFine(outlineCanvas(finishFine(upscale2x(p.canvas), { rim: 0.22, shade: 0.2 })));
     } else {
       const p = new PixelCanvas(S, S);
       REG[key](p);
