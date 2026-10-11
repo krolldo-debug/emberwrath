@@ -30,12 +30,13 @@
   }
 
   // ---------- Pixelbühne: Canvas in ganzen Bildschirmpunkten je Spielpixel (gerade, weil die Bilder in 2× Auflösung sind)
-  function stage(cv, H, cssK) {
+  function stage(cv, H, cssK, fit = false) {
     const ctx = cv.getContext('2d');
     const st = { ctx, wp: 4, W: 100, H };
     st.layout = () => {
       const dpr = devicePixelRatio || 1, k = cssK(cv.parentElement.clientWidth);
-      st.wp = 2 * Math.max(1, Math.round((k * dpr) / 2));
+      // fit: k ist eine Höchstgrenze (Bühne muss in die Höhe passen), also abrunden statt runden
+      st.wp = 2 * Math.max(1, (fit ? Math.floor : Math.round)((k * dpr) / 2 + (fit ? 0.01 : 0)));
       cv.parentElement.style.setProperty(cv.dataset.var ?? '--ph', `${(H * st.wp) / dpr}px`);
       cv.width = Math.round(cv.parentElement.clientWidth * dpr); cv.height = H * st.wp;
       st.W = cv.width / st.wp;
@@ -64,7 +65,7 @@
   if (setSec && setStage) {
     const cv = $('canvas', setStage); cv.dataset.var = '--sh';
     // Breite bestimmt den Maßstab; auf niedrigen Bildschirmen (Handy quer) passt die Bühne in die Höhe
-    const st = stage(cv, 50, (w) => Math.min(w > 560 ? 11 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, Math.floor((innerHeight - 130) / 50))));
+    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 10 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, (innerHeight - 130) / 50)), true);
     const BASE = 43;   // Fußlinie in Spielpixeln; die Figur füllt gut drei Viertel der Bühne
     const tabs = $$('.set-tabs [role="tab"]'), switches = $$('.set-switch button');
     const imgs = {}, scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');
@@ -428,12 +429,13 @@
   // Produktbild im Dialog: erstes Bild des Angebots, ganzzahlig vergrößert (Sets und Reittiere im Set bzw. mit Reiter)
   const thumbCv = $('[data-dlg-thumb]');
   function thumb(btn) {
-    const card = btn.closest('.set-panel, .mount, .pack, .svc'), dpr = devicePixelRatio || 1, box = 84 * dpr;
-    let img, crop;
+    const card = btn.closest('.set-panel, .mount, .pack, .svc'), dpr = devicePixelRatio || 1;
+    let img, crop, step = 1;
     if (card?.matches('.set-panel, .mount')) {
       const [w, h] = nums(card.dataset.f), set = card.matches('.set-panel');
       img = loadImg(set ? `${IMG}set-${card.dataset.cls}.webp` : `${IMG}gang-${card.dataset.m}.webp`);
       crop = [0, set ? h * 2 : 0, w * 2, h * 2];
+      step = 0.5;   // Bild in 2× Auflösung: halbe Schritte bleiben ganze Spielpixel
     } else {
       img = card?.querySelector('img');
       crop = img && [0, 0, img.naturalWidth, img.naturalHeight];
@@ -441,8 +443,9 @@
     const draw = () => {
       if (!img?.naturalWidth) return;
       if (!crop[2]) crop = [0, 0, img.naturalWidth, img.naturalHeight];
-      const k = Math.max(1, Math.floor(box / Math.max(crop[2], crop[3])));
-      thumbCv.width = crop[2] * k; thumbCv.height = crop[3] * k;
+      const fit = Math.min((150 * dpr) / crop[2], (124 * dpr) / crop[3]);
+      const k = Math.max(step, Math.floor(fit / step) * step);
+      thumbCv.width = Math.round(crop[2] * k); thumbCv.height = Math.round(crop[3] * k);
       thumbCv.style.width = `${thumbCv.width / dpr}px`; thumbCv.style.height = `${thumbCv.height / dpr}px`;
       const x = thumbCv.getContext('2d'); x.imageSmoothingEnabled = false;
       x.drawImage(img, ...crop, 0, 0, thumbCv.width, thumbCv.height);
