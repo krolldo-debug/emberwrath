@@ -83,7 +83,7 @@ const LEGEND_EMBERS = ['#3a0c04', '#8a2008', '#d04a0c', '#ff8a1a'];
 // Flammenzungen hinter dem Gegenstand, von unten aufsteigend
 function flames(pal, tier, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
-  const reach = tier >= 3 ? 0.46 : 0.62;
+  const reach = tier >= 3 ? 0.34 : 0.62;
   const ph = Array.from({ length: W }, () => r() * TAU);
   const ph2 = Array.from({ length: W }, () => r() * TAU);
   for (let f = 0; f < F; f++) {
@@ -151,8 +151,9 @@ const MOTE = {
 function motes(pal, tier, theme, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
   const kind = MOTE[theme] ?? 'star';
-  const n = tier >= 3 ? 11 : tier === 2 ? 7 : 4;
-  const ps = Array.from({ length: n }, () => ({ x: 2 + r() * (W - 4), p: r(), k: 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
+  const n = tier >= 3 ? 11 : tier === 2 ? 7 : 2;
+  // Selten: nur zwei Sterne, an den Seiten aufsteigend (nicht über den Details des Gegenstands)
+  const ps = Array.from({ length: n }, (_, i) => ({ x: tier === 1 ? (i % 2 ? W - 5 + r() * 3 : 2 + r() * 3) : 2 + r() * (W - 4), p: r(), k: 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
   // Ausblenden in Palettenstufen statt Transparenz: halb sichtbar = eine Farbe dunkler, darunter weg
   const darker = new Map([[pal[3], pal[2]], [pal[2], pal[1]], [pal[1], pal[0]], [pal[0], pal[0]]]);
   const px = (x, y, col, a = 1) => {
@@ -207,9 +208,9 @@ function motes(pal, tier, theme, seed) {
 
 const FLAME_THEMES = new Set(['fire', 'holy', 'shadow', 'poison', 'legendary', 'epic']);
 
-// URLs der Filmstreifen für Thema und Stufe: { back, front } (back fehlt unter episch)
-export function itemFxStrips(theme, tier) {
-  const key = `${theme}|${tier}`;
+// URLs der Filmstreifen für Thema, Stufe und Variante (0–3, je Gegenstand fest): { back, front } (back fehlt unter episch)
+export function itemFxStrips(theme, tier, variant = 0) {
+  const key = `${theme}|${tier}|${variant}`;
   let s = stripCache.get(key);
   if (s) return s;
   const pal = FX_PALETTES[theme] ?? FX_PALETTES.rare;
@@ -228,7 +229,9 @@ export function decorateItemIcon(span, def) {
   const tier = itemFxTier(def);
   if (!tier || typeof document === 'undefined') return span;
   const theme = itemFxTheme(def);
-  const strips = itemFxStrips(theme, tier);
+  // Je Gegenstand eigene Variante und eigener Takt: nicht alle seltenen Teile funkeln an denselben Stellen gleichzeitig
+  const h = hash(String(def?.id ?? def?.icon ?? def?.name ?? ''));
+  const strips = itemFxStrips(theme, tier, h % 4);
   const pal = FX_PALETTES[tier >= 3 ? 'legendary' : theme] ?? FX_PALETTES.rare;
   span.classList.add('fx', `fx-t${tier}`, `fx-${theme}`);
   span.style.setProperty('--fx-glow', pal[2]);
@@ -242,6 +245,7 @@ export function decorateItemIcon(span, def) {
   const front = document.createElement('i');
   front.className = 'fx-front';
   front.style.backgroundImage = `url(${strips.front})`;
+  front.style.animationDelay = `${-((h >>> 4) % 997) / 997 * 2}s`;
   span.append(front);
   return span;
 }
