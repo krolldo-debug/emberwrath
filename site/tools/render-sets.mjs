@@ -28,21 +28,29 @@ const res = await p.evaluate(async ({ LOOKS, ONLY }) => {
   const g = window.emberfall;
   const { resolveGear } = await import('/src/character/gearLook.js');
   const { getHeroSprites } = await import('/src/sprites/hero.js');
+  // Leuchtebene der Shop-Sets (frame.emit, kreisende Runen in glows.orbit), gibt es erst mit den Skinsets
+  const sets = await import('/src/sprites/heroSets.js').catch(() => ({}));
   const out = {}, meta = {}, log = [];
+  const N = 16, FPS = 8;   // 16 Bilder bei 8 fps: Ruhe-Animation und wandernde Glutpixel laufen gemeinsam im Kreis
   const S = 400, AX = 200, AY = 320, RES = 2;
   const frames = (raceId, classId, gear, dye) => {
     const equipment = {};
     for (const id of gear) { const d = g.content.get('item', id); if (d) equipment[d.slot] = id; else log.push(`fehlt ${id}`); }
     const anim = getHeroSprites(raceId, classId, 0, resolveGear(equipment, g.content), dye ? { dye, hairStyle: null } : null, RES).idle;
-    return { fps: anim.fps ?? 6, list: anim.frames.map((fr) => {
+    return { fps: FPS, list: Array.from({ length: N }, (_, i) => {
+      const t = i / FPS, fr = anim.frames[Math.floor(t * (anim.fps ?? 6)) % anim.frames.length];
       const c = document.createElement('canvas'); c.width = S; c.height = S;
       const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
       x.setTransform(RES, 0, 0, RES, 0, 0);
       fr.draw(x, AX / RES, AY / RES, {});
+      if (fr.emit) sets.drawSetEmit?.(x, fr.emit, AX / RES, AY / RES, false, t);
+      for (const gl of fr.glows ?? []) if (gl.orbit) sets.drawSetGlow?.(x, gl, AX / RES + gl.x, AY / RES + gl.y, t, RES);
+      x.setTransform(1, 0, 0, 1, 0, 0);
       // Leuchtpunkte hart: Schein (Kreuz mit Radius r) mischt die Glutfarbe in deckende Bildpunkte, Mittelpunkt voll
       const id = x.getImageData(0, 0, S, S), D = id.data;
       const hex = (c) => { const m = /^#?([0-9a-f]{6})$/i.exec(c); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
       for (const gl of fr.glows ?? []) {
+        if (gl.orbit || gl.emit || fr.emit) continue;   // Set-Leuchten ist schon gezeichnet, emit-Punkte sind nur Partikelquellen
         const col = hex(gl.color); if (!col) continue;
         const gx = Math.round(AX / RES + gl.x) * RES, gy = Math.round(AY / RES + gl.y) * RES, r = Math.max(1, Math.min(2, Math.round(gl.r)));
         for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {

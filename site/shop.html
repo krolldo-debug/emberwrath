@@ -46,7 +46,7 @@
   <p class="shop-notice" data-shop-thanks hidden>Danke für deinen Kauf! Die Zahlung ist eingegangen. Alles Gekaufte erscheint beim nächsten Spielstart automatisch.</p>
   <p class="shop-notice" data-shop-cancel hidden>Der Kauf wurde abgebrochen. Es wurde nichts abgebucht.</p>
 
-  <!-- Klassen-Sets: je Klasse ein Set nur aus dem Shop (src/character/skinSets.js, Schlüssel look:<setId>). Bühne zeichnet
+  <!-- Klassen-Sets: je Klasse ein Set nur aus dem Shop (src/character/skinSets.js, Produkt design_<setId> in src/shop/catalog.js, Schlüssel look:<setId>). Bühne zeichnet
        shop.js aus img/set-<klasse>.webp (site/tools/render-sets.mjs; oben Vorher, unten im Set), data-f = Breite Höhe FußX FußY Bilder fps. -->
   <section class="sets" id="sets" aria-labelledby="h-sets">
     <canvas class="embers" data-n="40" aria-hidden="true"></canvas>
@@ -60,39 +60,39 @@
           <button role="tab" id="st-mage" aria-controls="sp-mage" aria-selected="false" tabindex="-1">Glutmagier</button>
         </div>
 
-        <article class="set-panel" id="sp-warrior" role="tabpanel" aria-labelledby="st-warrior" data-cls="warrior" data-f="23 39 9 37 4 6" style="--glow: 255, 150, 40">
+        <article class="set-panel" id="sp-warrior" role="tabpanel" aria-labelledby="st-warrior" data-cls="warrior" data-f="26 39 11 37 16 8" style="--glow: 240, 122, 28">
           <h2>Wehr des Glutthrons</h2>
           <p>Schwarzstahl, in der Glut des Aschethrons gehärtet. Goldene Hörner, ein brennender Mantel und eine Klinge mit flüssigem Kern.</p>
           <div class="set-buy">
             <strong class="price" data-price>7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="set_glutthron" data-title="Wehr des Glutthrons" disabled>Bald erhältlich</button>
+            <button class="btn primary big" type="button" data-buy="design_set_glutthron" data-title="Wehr des Glutthrons" disabled>Bald erhältlich</button>
           </div>
           <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
-        <article class="set-panel" id="sp-rogue" role="tabpanel" aria-labelledby="st-rogue" data-cls="rogue" data-f="26 32 12 30 4 6" style="--glow: 80, 230, 220" hidden>
+        <article class="set-panel" id="sp-rogue" role="tabpanel" aria-labelledby="st-rogue" data-cls="rogue" data-f="28 32 12 30 16 8" style="--glow: 74, 216, 204" hidden>
           <h2>Schleier der Mondsichel</h2>
           <p>Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.</p>
           <div class="set-buy">
             <strong class="price" data-price>7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="set_mondsichel" data-title="Schleier der Mondsichel" disabled>Bald erhältlich</button>
+            <button class="btn primary big" type="button" data-buy="design_set_mondsichel" data-title="Schleier der Mondsichel" disabled>Bald erhältlich</button>
           </div>
           <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
-        <article class="set-panel" id="sp-ranger" role="tabpanel" aria-labelledby="st-ranger" data-cls="ranger" data-f="21 39 10 37 4 6" style="--glow: 120, 240, 120" hidden>
+        <article class="set-panel" id="sp-ranger" role="tabpanel" aria-labelledby="st-ranger" data-cls="ranger" data-f="20 41 9 39 16 8" style="--glow: 126, 240, 138" hidden>
           <h2>Mantel des Hirschkönigs</h2>
-          <p>Ein Geweih aus altem Elfenbein, ein Federkragen und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.</p>
+          <p>Eine Geweihkrone aus altem Elfenbein, ein Waldmantel und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.</p>
           <div class="set-buy">
             <strong class="price" data-price>7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="set_hirschkoenig" data-title="Mantel des Hirschkönigs" disabled>Bald erhältlich</button>
+            <button class="btn primary big" type="button" data-buy="design_set_hirschkoenig" data-title="Mantel des Hirschkönigs" disabled>Bald erhältlich</button>
           </div>
           <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
-        <article class="set-panel" id="sp-mage" role="tabpanel" aria-labelledby="st-mage" data-cls="mage" data-f="20 36 9 34 4 6" style="--glow: 255, 210, 110" hidden>
+        <article class="set-panel" id="sp-mage" role="tabpanel" aria-labelledby="st-mage" data-cls="mage" data-f="20 41 9 39 16 8" style="--glow: 255, 240, 168" hidden>
           <h2>Gewand des Sternenfeuers</h2>
-          <p>Eine Robe aus Nachthimmel, in der Sterne funkeln. Über dem Haupt schwebt ein Reif aus Glutrunen, der Stab trägt einen gefangenen Stern.</p>
+          <p>Eine Robe aus Nachthimmel, in der Sterne funkeln. Ein Sternenhut, Glutrunen kreisen um den Träger, der Stab hält einen gefangenen Stern.</p>
           <div class="set-buy">
             <strong class="price" data-price>7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="set_sternenfeuer" data-title="Gewand des Sternenfeuers" disabled>Bald erhältlich</button>
+            <button class="btn primary big" type="button" data-buy="design_set_sternenfeuer" data-title="Gewand des Sternenfeuers" disabled>Bald erhältlich</button>
           </div>
           <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
