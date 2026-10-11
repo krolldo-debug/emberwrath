@@ -79,12 +79,12 @@ function scan(p, x0, y0, x1, y1, fn) {
   const fo = Math.round(p.ox * r), go = Math.round(p.oy * r);
   const F0 = Math.max(Math.floor(x0 * r), -fo), F1 = Math.min(Math.ceil(x1 * r), W - 1 - fo);
   const G0 = Math.max(Math.floor(y0 * r), -go), G1 = Math.min(Math.ceil(y1 * r), H - 1 - go);
-  const occ = OCC ? OCC.buf : null;
+  const occ = OCC ? OCC.buf : null, own = OWN ? OWN.buf : null, ownKey = OWN ? OWN.key : 0;
   for (let G = G0; G <= G1; G++) {
     const y = (G + 0.5) / r, row = (G + go) * W + fo;
     for (let F = F0; F <= F1; F++) {
       const v = fn((F + 0.5) / r, y);
-      if (v) { buf[row + F] = v; if (occ) occ[row + F] = 0; }
+      if (v) { buf[row + F] = v; if (occ) occ[row + F] = 0; if (own) own[row + F] = ownKey; }
     }
   }
   p.dirty = true;
@@ -436,9 +436,9 @@ function rimLight(p, g, rim) {
   const src = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) src[i] = d[i * 4 + 3] > 40 ? 1 : 0;
   const A = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : src[y * W + x]);
-  const [hr, hg, hb] = hex(rim.hi);
+  const [hr, hg, hb] = hex(r > 1 && rim.hiFine ? rim.hiFine : rim.hi);
   const back = rim.back ? hex(rim.back) : null;
-  const k = rim.k ?? 0.4;
+  const k = (r > 1 && rim.kFine) || (rim.k ?? 0.4);
   const minY = (rim.backFrom ?? 0) * r;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (!src[y * W + x]) continue;
@@ -557,7 +557,8 @@ const SKIN = ['#2a1612', '#4a2a20', '#6e4030', '#925a40'];
 const ROCK = ['#0f0c0e', '#1b1619', '#2a2226', '#3b3034', '#524448', '#6e5c5c'];
 const ROCK_D = ['#0b090b', '#141013', '#1e181b', '#2a2125', '#372c30'];
 
-const RIM_ASH = { hi: '#d9cec6', k: 0.42, back: '#3a0e06' };
+// fein: kühlere, etwas kräftigere Lichtkante – der Aschegeist liegt farblich nah am dunklen Boden
+const RIM_ASH = { hi: '#d9cec6', k: 0.42, back: '#3a0e06', hiFine: '#d4dcf0', kFine: 0.52 };
 const RIM_WARM = { hi: '#e8c8a8', k: 0.38, back: '#3a0e06' };
 
 // Klaue: drei gebogene Krallen ab (x,y) in Richtung a, spread 0..1
@@ -620,6 +621,8 @@ const awp = (o) => ({ ...AW_REST, ...o });
 function drawWraith(p, g, P, ex) {
   const { AX, AY } = AW;
   const meta = {};
+  // fein: Körper eine halbe Stufe heller, Mantel/Kapuze im Licht eine Stufe – hebt ihn vom dunklen Boden ab
+  const lift = p.fine ? 0.08 : 0, up = p.fine ? 1 : 0;
   const gy = AY;
   const heat = P.heat;
   const waist = { x: AX + P.x, y: gy - P.hover - P.bob };
@@ -671,7 +674,7 @@ function drawWraith(p, g, P, ex) {
     tail.push([tx, ty, nx, ny, u]);
     tx = nx; ty = ny;
   }
-  for (const [x0, y0, x1, y1, u] of tail) cap(p, x0, y0, x1, y1, 5.8 * (1 - u) ** 1.1 + 0.5, 5.8 * (1 - u + 1 / N) ** 1.1 * 0.9 + 0.4, ASHW, { noise: 0.11, seed: 11 });
+  for (const [x0, y0, x1, y1, u] of tail) cap(p, x0, y0, x1, y1, 5.8 * (1 - u) ** 1.1 + 0.5, 5.8 * (1 - u + 1 / N) ** 1.1 * 0.9 + 0.4, ASHW, { noise: 0.11, seed: 11, bias: lift });
   // Fransen am Ende
   for (let s = 0; s < 3; s++) {
     let fx = tx + 1, fy = ty - 1 + s;
@@ -700,8 +703,8 @@ function drawWraith(p, g, P, ex) {
   }
 
   // --- Rumpf: gebeugter Brustkorb aus gebackener Asche, Mantelfetzen
-  cap(p, waist.x, waist.y, ch.x, ch.y, 4.6, 6.2, ASHW, { noise: 0.1, seed: 13 });
-  ell(p, ch.x - 0.5, ch.y, 6.8, 6.4, ASHW, { noise: 0.09, seed: 14, rot: lean });
+  cap(p, waist.x, waist.y, ch.x, ch.y, 4.6, 6.2, ASHW, { noise: 0.1, seed: 13, bias: lift });
+  ell(p, ch.x - 0.5, ch.y, 6.8, 6.4, ASHW, { noise: 0.09, seed: 14, rot: lean, bias: lift });
   // Rippen: kurze helle Bögen, dazwischen Glut
   for (let r = 0; r < 3; r++) {
     const ry = ch.y - 1 + r * 2.4;
@@ -730,7 +733,7 @@ function drawWraith(p, g, P, ex) {
 
   // Mantelfetzen über Schultern und Rücken (hängen nach hinten)
   poly(p, [[shB.x - 2, shB.y - 1], [shF.x + 2, shF.y - 1], [ch.x - 1, ch.y + 5], [ch.x - 7 - P.drift * 3, ch.y + 7 + Math.sin(P.tail) * 1.5], [ch.x - 6, ch.y]],
-    (x, y) => ASHW[(y - ch.y < 0 ? 3 : 2) - (p.fine ? ashStrand(x, y, ch.x, 19) : (hash2(x, y, 19) < 0.2 ? 1 : 0))]);
+    (x, y) => ASHW[(y - ch.y < 0 ? 3 + up : 2) - (p.fine ? ashStrand(x, y, ch.x, 19) : (hash2(x, y, 19) < 0.2 ? 1 : 0))]);
   for (let i = 0; i < 3; i++) {
     const bx = ch.x - 5 - i * 1.5 - P.drift * 2, by = ch.y + 5 + i;
     if (p.fine) { ln(p, bx, by, bx - 1 - P.drift * 2, by + 3 + Math.sin(P.tail + i) * 1, ASHW[2], 1); ln(p, bx + 0.5, by + 1, bx - 0.5 - P.drift * 2, by + 4 + Math.sin(P.tail + i * 2), ASHW[1]); continue; }
@@ -740,8 +743,8 @@ function drawWraith(p, g, P, ex) {
   // --- Kopf: Kapuze aus Asche, Schädelmaske, glühende Augen
   const hx = ch.x + 3.5 + lean * 3 + P.head, hy = ch.y - 9.5 + P.headY;
   // Kapuzenzipfel sackt nach hinten
-  poly(p, [[hx - 2, hy - 5.5], [hx - 7 - P.drift * 2, hy - 3.5], [hx - 9 - P.drift * 3, hy + 1 + Math.sin(P.tail) * 0.8], [hx - 7 - P.drift * 2, hy + 5], [hx - 3, hy + 4]], (x, y) => ASHW[(y < hy - 2 ? 3 : 2) - (p.fine ? ashStrand(x, y, hx, 27) : (hash2(x, y, 27) < 0.15 ? 1 : 0))]);
-  ell(p, hx - 0.5, hy, 5.2, 5.4, ASHW, { noise: 0.08, seed: 21, bias: 0.04 });
+  poly(p, [[hx - 2, hy - 5.5], [hx - 7 - P.drift * 2, hy - 3.5], [hx - 9 - P.drift * 3, hy + 1 + Math.sin(P.tail) * 0.8], [hx - 7 - P.drift * 2, hy + 5], [hx - 3, hy + 4]], (x, y) => ASHW[(y < hy - 2 ? 3 + up : 2) - (p.fine ? ashStrand(x, y, hx, 27) : (hash2(x, y, 27) < 0.15 ? 1 : 0))]);
+  ell(p, hx - 0.5, hy, 5.2, 5.4, ASHW, { noise: 0.08, seed: 21, bias: 0.04 + lift });
   // Gesichtsöffnung
   ell(p, hx + 2, hy + 0.8, 3, 3.6, [VOID, '#1a1014']);
   // Schädelmaske (fahles Knochengrau) im Schatten
@@ -1290,7 +1293,6 @@ function serpentSeg(p, g, a, b, i, crust, heat, thr) {
   let nx = -dy / d, ny = dx / d; if (ny < 0) { nx = -nx; ny = -ny; }
   const hh = heat * (b.neck != null ? 0.8 + thr * 0.45 : 0.85);
   const c = hh > 1.2 ? 4 : hh > 0.8 ? 3 : hh > 0.4 ? 2 : 1;
-  if (p.fine) { serpentSegFine(p, g, a, b, i, crust, heat, c, dx, dy, d, nx, ny); return; }
   for (let t = 0; t < 1; t += 0.5) {
     const r = a.r + (b.r - a.r) * t;
     if (r < 1.5) continue;
@@ -1312,50 +1314,73 @@ function serpentSeg(p, g, a, b, i, crust, heat, thr) {
   }
 }
 
-// Fein: Bauchnaht mit heißem Kern, Krustenplatten mit dunkler Fuge und Lichtkante (glühende Fugen jede zweite),
-// Krustenrisse als zusammenhängende Glutlinien.
-function serpentSegFine(p, g, a, b, i, crust, heat, c, dx, dy, d, nx, ny) {
+// Fein: Details der Leibsegmente werden nach allen Windungen gezeichnet (sonst übermalt das nächste, stark
+// überlappende Segment sie) – aber nur auf Texeln, die nicht von einer weiter vorn liegenden Windung stammen
+// (Besitzer-Tiefe je Texel aus scan(), OWN). So bleiben Nähte zusammenhängend und scheinen nicht durch.
+let OWN = null;
+const OWN_EPS = 0.35;
+// Feine Linie im Texelraster mit Tiefenprüfung; w >= 1 → 2×2-Pinsel (wie fline mit Stärke 1)
+function oline(p, g, x0, y0, x1, y1, c, gc, w, key, own) {
+  const r = p.res, W = p.W, H = p.H, pb = p.buf, gb = g.buf;
+  const v = c ? col32(c) : 0, gv = gc ? col32(gc) : 0, k = w >= 1 ? 2 : 1, lim = key + OWN_EPS;
+  let a = Math.floor((x0 + p.ox) * r + 1e-6), b = Math.floor((y0 + p.oy) * r + 1e-6);
+  const a1 = Math.floor((x1 + p.ox) * r + 1e-6), b1 = Math.floor((y1 + p.oy) * r + 1e-6);
+  const dx = Math.abs(a1 - a), dy = -Math.abs(b1 - b), sx = a < a1 ? 1 : -1, sy = b < b1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
+      const X = a + i, Y = b + j;
+      if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      const idx = Y * W + X;
+      if (own[idx] > lim) continue;
+      if (v) pb[idx] = v;
+      if (gv) gb[idx] = gv;
+    }
+    if (a === a1 && b === b1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; a += sx; }
+    if (e2 <= dx) { err += dx; b += sy; }
+  }
+  p.dirty = true; g.dirty = true;
+}
+// Glutlinie (Saum 2 Feinpixel + Kern 1 Feinpixel) mit Tiefenprüfung – wie hotLine
+function ohot(p, g, x0, y0, x1, y1, saum, core, gc, gcore, key, own) {
+  oline(p, g, x0 + 0.25, y0 + 0.25, x1 + 0.25, y1 + 0.25, saum, gc, 1, key, own);
+  oline(p, g, x0 + 0.25, y0 + 0.25, x1 + 0.25, y1 + 0.25, core, gcore, 0, key, own);
+}
+
+// Bauchnaht mit heißem Kern, Krustenplatten mit dunkler Fuge und Lichtkante (jede sechste Lage; volle Glut nur
+// auf der Oberseite), seltene gerade Krustenrisse.
+function serpentSegFine(p, g, a, b, i, crust, heat, thr, key, own) {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+  let nx = -dy / d, ny = dx / d; if (ny < 0) { nx = -nx; ny = -ny; }
+  const hh = heat * (b.neck != null ? 0.8 + thr * 0.45 : 0.85);
+  const c = hh > 1.2 ? 4 : hh > 0.8 ? 3 : hh > 0.4 ? 2 : 1;
   const ux = dx / d, uy = dy / d;
   if (Math.max(a.r, b.r) >= 1.5) {
-    const E = (k, gc) => {
-      const ra = Math.max(a.r, 1.5), rb = Math.max(b.r, 1.5);
-      const x0 = a.x + nx * (ra - k), y0 = a.y + ny * (ra - k), x1 = b.x + nx * (rb - k), y1 = b.y + ny * (rb - k);
-      return [x0, y0, x1, y1];
-    };
-    const lines = [[0.3, BELLY[c], heat > 0.25 ? GLOW[Math.min(4, c - 1)] : null], [0.8, BELLY[Math.min(5, c + 1)], heat > 0.25 ? GLOW[Math.min(4, c)] : null],
-      [1.3, BELLY[c - 1], heat > 0.25 && c > 2 ? GLOW[c - 3] : null]];
-    if (a.r > 3) lines.push([1.8, BELLY[Math.max(0, c - 2)], null]);
-    const nearHead = b.neck != null && b.neck > 0.8;   // Kopf deckt das ab – keine Glut durchscheinen lassen
-    for (const [k, col, gc] of lines) {
-      const [x0, y0, x1, y1] = E(k);
-      p.fline(x0, y0, x1, y1, col);
-      if (gc && !nearHead) g.fline(x0, y0, x1, y1, gc);
-    }
+    const ra = Math.max(a.r, 1.5), rb = Math.max(b.r, 1.5);
+    const lines = [[0.25, BELLY[c], heat > 0.25 ? GLOW[Math.min(4, c - 1)] : null], [0.75, BELLY[Math.min(5, c + 1)], heat > 0.25 ? GLOW[Math.min(4, c)] : null]];
+    if (a.r > 3) lines.push([1.25, BELLY[c - 1], null]);
+    const nearHead = b.neck != null && b.neck > 0.8;   // der Kopf deckt das ab – dort keine Glut durchscheinen lassen
+    for (const [k, col, gc] of lines) oline(p, g, a.x + nx * (ra - k), a.y + ny * (ra - k), b.x + nx * (rb - k), b.y + ny * (rb - k), col, nearHead ? null : gc, 0, key, own);
   }
-  // Plattenfuge quer über den Rücken (jede Lage), Lichtkante auf der folgenden Platte
-  if (a.r > 2 && i % 2 === 0) {
+  if (a.r > 2 && i % 6 === 3) {
     const r = a.r, x0 = a.x - nx * (r - 0.4), y0 = a.y - ny * (r - 0.4), x1 = a.x + nx * (r - 1.7), y1 = a.y + ny * (r - 1.7);
-    const hot = heat > 0.6 && i % 4 === 0;
-    if (hot) {
+    const xm = a.x + nx * r * 0.1, ym = a.y + ny * r * 0.1;
+    if (heat > 0.6) {
       const cc = heat > 1.15 ? 3 : 2;
-      hotLine(p, g, x0 - 0.25 + nx * r * 0.3, y0 - 0.25 + ny * r * 0.3, x1 - 0.25, y1 - 0.25, LAVA[cc - 1], LAVA[cc + 1], GLOW[cc - 2], GLOW[cc]);
-    } else p.fline(x0, y0, x1, y1, crust[0]);
-    p.fline(x0 + ux * 0.5, y0 + uy * 0.5, (x0 + x1) / 2 + ux * 0.5, (y0 + y1) / 2 + uy * 0.5, crust[5] ?? crust[4]);
-    p.dot(x0 + ux * 0.5 + nx * 0.5, y0 + uy * 0.5 + ny * 0.5, crust[crust.length - 1]);
+      ohot(p, g, x0 - 0.25 + nx * 0.5, y0 - 0.25 + ny * 0.5, xm - 0.25, ym - 0.25, LAVA[cc - 1], LAVA[cc + 1], GLOW[cc - 2], GLOW[cc], key, own);
+      oline(p, g, xm, ym, x1, y1, LAVA[1], null, 0, key, own);
+      oline(p, g, xm + ux * 0.5, ym + uy * 0.5, x1 + ux * 0.5, y1 + uy * 0.5, LAVA[0], null, 0, key, own);
+    } else oline(p, g, x0, y0, x1, y1, crust[0], null, 0, key, own);
+    oline(p, g, x0 + ux * 0.5, y0 + uy * 0.5, (x0 + xm) / 2 + ux * 0.5, (y0 + ym) / 2 + uy * 0.5, crust[5] ?? crust[4], null, 0, key, own);
   }
-  // Krustenrisse (unregelmäßig, Schuppenfugen)
-  if (a.r > 2.4 && hash2(i, 5, 62) < 0.5) {
-    const cc = heat > 1.15 ? 3 : heat > 0.5 ? 2 : 0;
+  if (a.r > 2.4 && hash2(i, 5, 62) < 0.12) {
     const k0 = (hash2(i, 6, 62) - 0.7) * a.r;
-    const x = a.x + nx * k0, y = a.y + ny * k0;
-    const L = 2 + Math.floor(hash2(i, 7, 62) * 2);
-    let lx = x, ly = y;
-    for (let s = 1; s < L; s++) {
-      const qx = x + ux * s * 0.8 + nx * (s % 2) * 0.6, qy = y + uy * s * 0.8 + ny * (s % 2) * 0.6;
-      if (cc) hotLine(p, g, lx - 0.25, ly - 0.25, qx - 0.25, qy - 0.25, LAVA[cc - 1], LAVA[cc + 1], GLOW[Math.max(0, cc - 2)], GLOW[cc]);
-      else p.fline(lx, ly, qx, qy, CRUST[0]);
-      lx = qx; ly = qy;
-    }
+    const top = k0 < 0, cc = heat > 1.15 ? 3 : heat > 0.5 ? 2 : 0;
+    const x = a.x + nx * k0, y = a.y + ny * k0, L = 1.5 + hash2(i, 7, 62) * 1.2;
+    if (cc && top) ohot(p, g, x - 0.25, y - 0.25, x + ux * L - 0.25, y + uy * L - 0.25, LAVA[cc - 1], LAVA[cc + 1], GLOW[Math.max(0, cc - 2)], GLOW[cc], key, own);
+    else oline(p, g, x, y, x + ux * L, y + uy * L, cc ? LAVA[0] : CRUST[0], null, 0, key, own);
   }
 }
 
@@ -1372,7 +1397,14 @@ function drawSerpent(p, g, P, ex) {
   for (let i = 0; i < pts.length - 1; i++) order.push(i);
   const key = (i) => (pts[i + 1].neck != null ? 99 : (pts[i].d + pts[i + 1].d) / 2);
   order.sort((x, y) => key(x) - key(y));
-  for (const i of order) serpentSeg(p, g, pts[i], pts[i + 1], i, crust, heat, thr);
+  if (p.fine) {
+    // fein: erst alle Windungen (Tiefe je Texel merken), dann die Details mit Tiefenprüfung
+    const own = new Float32Array(p.W * p.H).fill(-Infinity);
+    OWN = { buf: own, key: 0 };
+    for (const i of order) { const a = pts[i], b = pts[i + 1]; OWN.key = key(i); cap(p, a.x, a.y, b.x, b.y, a.r, b.r, crust, { noise: 0.09, seed: 60 + (i % 5) }); }
+    OWN = null;
+    for (const i of order) serpentSegFine(p, g, pts[i], pts[i + 1], i, crust, heat, thr, key(i), own);
+  } else for (const i of order) serpentSeg(p, g, pts[i], pts[i + 1], i, crust, heat, thr);
   // Rückenplatten aus Obsidian entlang des Rückens
   for (let i = 0; i < pts.length - 2; i += 3) {
     const a = pts[i], b = pts[i + 1];
