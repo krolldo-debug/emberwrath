@@ -15,7 +15,7 @@ import { findSkinSet, SET_ITEMS } from '../character/skinSets.js';
 //   game.character.previewGear(overrides) -> gear für die Heldenvorschau
 // Sammlung: nur ansehen. Standard nur Gesammeltes, der Haken „Nicht gesammelt“ zeigt auch Fehlendes (Silhouette, Herkunft).
 // Anlegen geht nur bei der Gewandmeisterin in jeder Wegstein-Stadt, wie Transmog in WoW: Änderungen an mehreren
-// Plätzen sammeln, Vorschau auf der Bühne, ein Knopf mit dem Gesamtpreis. Zurück zur eigenen Ausrüstung ist frei.
+// Plätzen sammeln, Vorschau auf der Bühne, der Gesamtpreis nur auf dem Knopf. Zurück zur eigenen Ausrüstung ist frei.
 // Reiter „Reittiere“ (character/mounts.js):
 //   game.character.mountCollection() -> [{ id, name, rarity, speed, source, owned, active }]
 //   game.character.selectMount(id)   -> Reittier für die Reitfähigkeit (character.mounts.active, Mitspieler sehen es)
@@ -134,7 +134,7 @@ function createWardrobePanel(session, params = {}) {
     h('h2.wd-title', title),
     shop ? null : filter(),
     h('button.pg-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: () => session.panels.close() }, '✕'));
-  const tabs = () => h('div.pg-tabs.wd-tabs', { role: 'tablist' }, [...slots, ...(hasMounts ? [MOUNTS_TAB] : [])].map((k) => h(`button.pg-tabbtn${k === slot ? '.on' : ''}${shop && k in pending ? '.chg' : ''}`, {
+  const tabs = () => h('div.pg-tabs.wd-tabs', { role: 'tablist' }, [...slots, ...(hasMounts ? [MOUNTS_TAB] : [])].map((k) => h(`button.pg-tabbtn${k === slot ? '.on' : ''}`, {
     type: 'button', role: 'tab', 'aria-selected': String(k === slot), onclick: () => { if (k === slot) return; slot = k; msg = ''; mountSel = null; refreshStage(); render(); },
   }, k === MOUNTS_TAB ? 'Reittiere' : SLOT_NAMES[k])));
   // Gemeinsamer Aufbau: Bühne mit Zähler, Name, Info (höchstens zwei Zeilen), Knopf an fester Stelle
@@ -273,11 +273,10 @@ function createWardrobePanel(session, params = {}) {
       render();
     }, !!changes && cost > 0);
     const name = it ? it.name : sel === 'none' ? 'Helm ausgeblendet' : 'Angelegter Gegenstand';
-    // Info: Preis dieses Platzes, solange er vorgemerkt ist; sonst das echte Teil darunter
-    const price = slot in pending && sel !== null && sel !== 'none' ? wr.price(slot) : 0;
-    const info = price ? `${fmtNum(price)} Gold` : it || sel === 'none' ? '' : wornDef?.name ?? '';
+    // Preis steht nur auf dem Knopf (Summe aller vorgemerkten Plätze); Gold zeigt die Leiste oben rechts
+    const info = it ? (it.setId ? 'Skinset' : RARITY_NAMES[it.rarity] ?? '') : sel === 'none' ? '' : wornDef?.name ?? '';
     root.replaceChildren(head(), tabs(), h('div.wd-body',
-      stageCol({ count: `${fmtNum(gold)} Gold`, name, nameColor: it ? RARITY_COLORS[it.rarity] ?? RARITY_COLORS.common : null, info, button, note: msg }),
+      stageCol({ name, nameColor: it ? RARITY_COLORS[it.rarity] ?? RARITY_COLORS.common : null, info, button, note: msg }),
       h('div.wd-grid', tiles)));
   };
 

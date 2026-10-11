@@ -549,7 +549,7 @@
 
 /* Sammlung und Gewandmeisterin (ui/WardrobePanel.js): feste Größe, deckend, alle Reiter gleich aufgebaut. Bühne und Karten zeichnet
    ui/Stable.js ganzzahlig; Icons 26 px werden 3-fach (Desktop) bzw. 2-fach (kleine Bildschirme) gezeigt. Nur harte Kanten. */
-.wd-panel { width: min(96vw, 1020px); max-width: min(96vw, 1020px); height: min(94vh, 520px); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; background: #0e0816; }
+.wd-panel { width: min(96vw, 900px); max-width: min(96vw, 900px); height: min(94vh, 520px); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; background: #0e0816; }
 .wd-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 /* Haken „Nicht gesammelt“: eigener Pixelkasten (2 px Rand, goldene Füllung mit Haken wie an den Kacheln) */
 .wd-filter { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px; font-size: 13px; font-weight: 600; color: #c8b8b0; cursor: pointer; user-select: none; white-space: nowrap; }
@@ -559,9 +559,8 @@
 .wd-filter input:checked + .wd-filter-box { background: var(--ef-gold); border-color: #0b0710; box-shadow: 0 0 0 1px var(--ef-gold); }
 .wd-filter input:checked + .wd-filter-box::after { content: ''; position: absolute; left: 2px; top: 1px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
 .wd-filter input:focus-visible + .wd-filter-box { outline: 2px solid var(--ef-gold); outline-offset: 2px; }
-/* Sammlung: statt Knopf der Ort, an dem man anlegt; Gewandmeisterin: Reiter mit vorgemerkter Änderung tragen einen Goldpunkt */
-.wd-where { margin: 0; width: 100%; min-height: 40px; display: grid; place-items: center; box-sizing: border-box; padding: 0 8px; font-size: 12px; line-height: 16px; color: #a89aa8; text-align: center; border: 1px solid #2e2434; background: #120c18; }
-.wd-tabs .pg-tabbtn.chg::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-left: 6px; vertical-align: 3px; background: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710; }
+/* Sammlung: statt Knopf eine schlichte Zeile, wo man anlegt (gleiche Höhe wie der Knopf, damit nichts springt) */
+.wd-where { margin: 0; width: 100%; min-height: 40px; display: grid; place-items: center; font-size: 12px; line-height: 16px; color: #8a7c8a; text-align: center; }
 .wd-apply > .ef-icon { flex: none; image-rendering: pixelated; }
 .wd-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
 .wd-tabs { padding: 0; }
@@ -616,7 +615,10 @@
   .wd-head { display: contents; }
   .wd-filter { grid-column: 3; grid-row: 1; align-self: center; min-height: 44px; padding: 0; font-size: 12px; }
   .wd-shop .wd-head .pg-close { grid-column: 3 / 5; justify-self: end; }
-  .wd-where { min-height: 44px; }
+  .wd-where { min-height: 44px; font-size: 11px; line-height: 14px; }
+  .wd-panel { padding-bottom: 8px; }
+  .wd-grid { padding-bottom: 6px; }
+  .wd-tile-cap { display: none; }
   .wd-title { grid-column: 1; grid-row: 1; align-self: center; font-size: 1.1em; }
   .wd-tabs { grid-column: 2; grid-row: 1; align-self: center; border-bottom: 0; }
   .wd-tabs .pg-tabbtn { min-height: 44px; }
@@ -629,7 +631,6 @@
   .wd-msg { min-height: 0; }
   .wd-grid { grid-template-columns: repeat(auto-fill, 64px); gap: 4px; }
   .wd-tile { width: 64px; height: 64px; }
-  .wd-tile-cap { font-size: 8px; line-height: 11px; letter-spacing: 0; }
   .wd-cards { gap: 2px; padding: 0; }
 }
 /* Schmale Handys quer (640 px): Reiter enger, damit Titel, alle Reiter, Haken und Schließen in eine Zeile passen */
