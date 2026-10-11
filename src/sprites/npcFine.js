@@ -8,9 +8,13 @@ import { FineCanvas, fineRes, scale2x, finishPixels, outlinePixels, pixelsToCanv
 // geglätteten Fassung; alles Handfeine bleibt. So müssen die Zeichenfunktionen nur ihre Details in `if (p.fine)` ergänzen.
 // Bei Qualität „Niedrig“ (fineRes() 1) läuft nur der alte Weg.
 
-// p.line im feinen Durchgang: 1 Weltpixel stark, aber im Feinraster gerastert (Diagonalen ohne 2×2-Treppen).
+// Im feinen Durchgang: p.line 1 Weltpixel stark, aber im Feinraster gerastert (Diagonalen ohne 2×2-Treppen); p.ellipse liegt
+// wie PixelCanvas.ellipse auf der Zellmitte (cx + 0,5) und ist gleich groß. Fein zentriert (Weltkoordinate = Mitte): p.ellipseFine.
 function fineLines(p) {
   p.line = (x0, y0, x1, y1, c) => p.fline(Math.round(x0 * 2) / 2, Math.round(y0 * 2) / 2, Math.round(x1 * 2) / 2, Math.round(y1 * 2) / 2, c, 1);
+  const ell = p.ellipse.bind(p);
+  p.ellipseFine = ell;
+  p.ellipse = (cx, cy, rx, ry, c) => ell(cx + 0.5, cy + 0.5, rx + 0.35, ry + 0.4, c);
   return p;
 }
 
