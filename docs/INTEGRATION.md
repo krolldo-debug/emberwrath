@@ -551,8 +551,9 @@ Reittiere kämpfen nicht, haben keine Werte außer Tempo.
   beritten erlaubte Zone und beim Tod. Interagieren (NPC, Händler, Portal) geht beritten.
   `riding` wird gespeichert; beim Laden in eine erlaubte Zone sitzt man wieder auf.
 - **Eingabe (D, `Input.js`):** neue Aktion `mount`, Tasten `KeyV` und `Digit6`; Touch-Knopf „Reittier“ neben der Hotbar,
-  nur sichtbar, wenn `canMount().reason !== 'level'`. Auswahl des aktiven Reittiers im Charakter-Panel (Reiter „Reittiere“, C baut
-  das Panel mit A’s Daten) mit Tempo und Seltenheitsrahmen.
+  nur sichtbar, wenn `canMount().reason !== 'level'`. Auswahl des aktiven Reittiers in der Garderobe (Reiter „Reittiere“,
+  `ui/WardrobePanel.js`, Daten `game.character.mountCollection()`/`selectMount(id)`): gesammelte mit Seltenheitsrahmen,
+  fehlende als Silhouette mit Fundort, exklusive Shop-Designs nur im Besitz. Öffnen direkt dort: `panels.open('wardrobe', { tab: 'mounts' })`.
 - **Figur (A):** neue Datei `src/sprites/mounts.js`: je Reittier **nur Seitenansicht** (4 Steh- und 6 Lauf-Frames, nach links gespiegelt; Stand der Lieferung 30.09.), `res` wie Helden (§11.12);
   Heldenfigur bekommt eine Sitz-Pose, Waffe bleibt auf dem Rücken sichtbar. Hoher Wiedererkennungswert je Seltenheit
   (legendär mit Glut-/Leuchteffekt über `glows`).

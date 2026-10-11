@@ -4361,6 +4361,8 @@ export const EN = {
   "Helm ausgeblendet": "Helmet hidden",
   "Angelegter Gegenstand": "Equipped item",
   "Aussehen angelegt": "Appearance applied",
+  "Reittier gewählt": "Mount selected",
+  "Noch keine Reittiere": "No mounts yet",
   "{0} Aussehen gesammelt": "{0} appearances collected",
   "Zu gefährlich – erst ab Stufe {0}.": "Too dangerous – requires level {0}.",
   "Serie": "Streak",

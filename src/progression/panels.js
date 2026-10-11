@@ -312,15 +312,10 @@ function fmtTime(sec) {
 const RES = { rage: 'Wut', mana: 'Mana', energy: 'Energie' };
 const ATTR = { str: 'Stärke', agi: 'Geschick', int: 'Intellekt', vit: 'Ausdauer' };
 
+// Reittiere sammeln und wählen: Garderobe, Reiter „Reittiere“ (ui/WardrobePanel.js)
 function characterView(s) {
-  let tab = 'overview';
-  return (redraw) => {
+  return () => {
     const st = s.state, c = s.content, ch = st.slices.character ?? {};
-    const tabs = h('div.pg-tabs', { role: 'tablist' },
-      [['overview', 'Übersicht'], ['mounts', 'Reittiere']].map(([id, label]) => h(`button.pg-tabbtn${tab === id ? '.on' : ''}`, {
-        type: 'button', role: 'tab', 'aria-selected': String(tab === id), onclick: () => { tab = id; redraw(); },
-      }, label)));
-    if (tab === 'mounts') return panelFrame(s, 'character', 'Charakter', tabs, h('div.pg-scroll.pg-keep-scroll.pg-char', mountsSection(s)));
     const stats = safeStats(st, c);
     const xp = xpInfo(st);
     const race = ch.raceId ? c.find('race', ch.raceId) : null;
@@ -337,7 +332,7 @@ function characterView(s) {
     ];
     const attrs = stats.attributes ? Object.entries(stats.attributes).map(([k, v]) => row(ATTR[k] ?? k, Math.round(v))) : [];
     const inv = st.slices.inventory;
-    return panelFrame(s, 'character', 'Charakter', tabs,
+    return panelFrame(s, 'character', 'Charakter',
       h('div.pg-scroll.pg-keep-scroll.pg-char',
         h('section.pg-char-id',
           h('div.pg-char-name', ch.name ?? 'Unbekannt'),
@@ -358,13 +353,13 @@ function characterView(s) {
           row('Besiegte Gegner', pst.kills), row('Elite', pst.eliteKills ?? 0), row('Bosse', pst.bossKills),
           row('Quests erfüllt', pst.questsCompleted), row('Gegenstände gefunden', pst.itemsLooted ?? 0),
           row('Geschmiedet', pst.crafted ?? 0), row('Gold verdient', pst.goldEarned), row('Spielzeit', fmtTime(st.meta.playTime ?? 0)))),
-        h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements'))),
+        h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements')),
+          s.game.character?.mountCollection ? actionBtn('Reittiere', () => s.panels.open('wardrobe', { tab: 'mounts' })) : null),
         h('p.ef-note.pg-local', 'Gespeichert in deinem Konto · in der Cloud gesichert.')));
   };
 }
 
-// Reiter „Reittiere“ (§12.6): Daten und Commands von Thread A (content 'mount', character.mounts, mount:select)
-const MOUNT_RARITY = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
+// Reittier-Zeile beim Händler (§12.6)
 function mountLine(c, def, level, st) {
   const m = c.find('mount', def.mountId);
   const q = def.reqQuest && !st?.slices.quests?.completed.includes(def.reqQuest) ? c.find('quest', def.reqQuest) : null;
@@ -373,28 +368,6 @@ function mountLine(c, def, level, st) {
   return `${lock ? `${lock} · ` : 'Reittier · '}+${Math.round((m?.speed ?? 0) * 100)} % Tempo`;
 }
 const questLocked = (st, def) => !!def.reqQuest && !st.slices.quests?.completed.includes(def.reqQuest);
-function mountsSection(s) {
-  const st = s.state, c = s.content;
-  const defs = c.all('mount');
-  if (!defs.length) return h('p.ef-note', 'Reittiere kommen mit dem nächsten Update.');
-  const m = st.slices.character?.mounts ?? { owned: [], active: null };
-  const check = s.character?.canMount?.() ?? { ok: false, reason: null };
-  const status = check.reason === 'level' || check.reason === 'lesson'
-    ? (s.character?.mountReasonText?.(check.reason) ?? 'Ab Stufe 20 bei Stallmeisterin Orla in der Aschensteppe')
-    : m.owned.length ? 'Aufsitzen mit V oder dem Reittier-Knopf. Im Kampf und in Dungeons geht es nicht.' : 'Kaufe ein Reittier bei Stallmeisterin Orla oder erbeute eines von Bossen.';
-  const order = { legendary: 0, epic: 1, rare: 2 };
-  const rows = [...defs].sort((a, b) => m.owned.includes(b.id) - m.owned.includes(a.id) || order[a.rarity] - order[b.rarity]).map((d) => {
-    const own = m.owned.includes(d.id), active = m.active === d.id;
-    return h(`li.pg-mount-row${own ? '' : '.locked'}${active ? '.active' : ''}`,
-      itemIconEl({ icon: `mount_${d.id}`, rarity: d.rarity }, 40),
-      h('div.pg-mount-body',
-        h(`b.r-${d.rarity}`, d.name),
-        h('small', `${MOUNT_RARITY[d.rarity] ?? ''} · +${Math.round((d.speed ?? 0) * 100)} % Tempo`),
-        own ? null : h('small.ef-note', d.source ?? '')),
-      own ? (active ? h('span.pg-mount-on', 'Aktiv') : actionBtn('Wählen', () => commit(s, 'mount:select', { mountId: d.id }), { small: true })) : null);
-  });
-  return h('section', h('p.ef-note', status), h('p.pg-mount-count', `${m.owned.length} von ${defs.length} Reittieren`), h('ul.pg-mounts', rows));
-}
 
 // ---------------------------------------------------------------- Questlog
 function questlogView(s) {

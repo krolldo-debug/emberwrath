@@ -582,6 +582,13 @@
 .wd-lock { position: absolute; inset: 0; margin: auto; width: 16px; height: 13px; top: 8px; background: #b8a888; border: 2px solid #0b0710; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1); }
 .wd-lock::before { content: ''; position: absolute; left: 1px; top: -10px; width: 10px; height: 9px; border: 2px solid #b8a888; border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 0 0 1px #0b0710; }
 .wd-foot { display: flex; justify-content: flex-end; }
+.wd-panel.wd-m .wd-pick { min-height: 54px; }
+.wd-pick-sub.wd-pick-hint { max-width: 280px; color: #a898a8; line-height: 1.3; }
+.wd-pick-sub.wd-pick-on { color: var(--ef-gold); }
+.wd-pick-sub.wd-pick-info { color: #b8a8b0; }
+.wd-msg.wd-gate { color: #b8a8b0; text-align: center; max-width: 280px; }
+.wd-tile.miss { background: #100a16; box-shadow: inset 0 0 0 1px #2a2032, inset 0 0 12px rgba(0, 0, 0, 0.7); }
+.wd-tile.miss.sel { border-color: #8a7a90; box-shadow: inset 0 0 0 1px #8a7a90; }
 @media (max-height: 500px) {
   .wd-panel { max-height: 96vh; padding: 6px 10px; gap: 4px; }
   .wd-body { padding-top: 4px; gap: 10px; }
