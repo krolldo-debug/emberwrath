@@ -114,7 +114,9 @@ async function db(env, path, { method = 'GET', body, prefer } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!r.ok) throw new Error(`db ${r.status}`);
-  return r.status === 204 ? null : r.json();
+  // return=minimal: PostgREST antwortet 201/204 ohne Inhalt
+  const t = r.status === 204 ? '' : await r.text();
+  return t ? JSON.parse(t) : null;
 }
 
 // ------------------------------------------------------------------ Support
