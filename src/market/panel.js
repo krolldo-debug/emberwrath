@@ -262,6 +262,7 @@ export function marketPanel(session, game, market) {
     return h('div.mk-mailbox', errEl(),
       mail.length ? h('div.mk-collect', actionBtn(`Alles abholen · ${fmtNum(mail.length)}`, () => run(() => market.collect(), (r) => {
         refreshSoon();
+        if (r.capped) return 'Weitere Erlöse kannst du abholen, sobald du länger gespielt hast.';
         return r.left ? `Abgeholt. ${fmtNum(r.left)} Teile passen nicht mehr in deine Tasche und bleiben hier.` : 'Alles abgeholt.';
       }), { primary: true, disabled: working })) : null,
       mail.length ? h('ul.pg-stock.mk-list', rowsEl) : h('p.ef-note.mk-empty', market.loaded ? 'Hier liegt nichts für dich.' : 'Die Gilde sieht nach …'),

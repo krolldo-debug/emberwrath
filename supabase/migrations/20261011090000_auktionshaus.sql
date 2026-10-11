@@ -10,10 +10,19 @@
 --  - Verkaufen nimmt den Gegenstand aus dem Spielstand, Bieten und Kaufen ziehen das Gold sofort ab (Gebote liegen beim
 --    Auktionshaus, Überbotene bekommen ihr Gold zurück). Erlöse, gewonnene und zurückgegebene Gegenstände liegen im
 --    Abholfach (market_mail) und kommen erst beim Abholen in den Spielstand.
---  - Jede Buchung zählt slices.market.seq hoch (Server: market_chars.seq). Ein älterer Spielstand ohne diese Buchung
---    (zweites Fenster, alter Speicherplatz) wird beim Hochladen abgelehnt, sonst ließe sich Verkauftes zurückholen.
---  - Gold aus dem Auktionshaus zählt zur Gold-Obergrenze der Plausibilitätsprüfung (market_chars.net), ausgegebenes
---    Gold senkt sie. Konten mit Schummel-Vermerk (Stufe/Gold/Grenze, letzte 7 Tage) dürfen nicht handeln.
+--  - Der Buchungszähler steht nur in der Datenbank (market_chars.seq) und wird in den gespeicherten Spielstand
+--    geschrieben (slices.market.seq). Ein Upload muss genau diesen Zähler tragen, sonst wird er abgelehnt und als
+--    'handel' vermerkt (zweites Fenster, alter Speicherplatz, erfundener Zähler).
+--  - Gegenstände und Gold entstehen weiter im Browser (offener Punkt D3). Deshalb bringt das Auktionshaus niemandem mehr,
+--    als er ohnehin hochladen könnte:
+--      * Handeln erst ab Stufe 10 und 1 Stunde geprüfter Spielzeit (play_verified).
+--      * Bieten und Kaufen nur mit Gold im Rahmen von 150 je Sekunde geprüfter Spielzeit + Shop-Gold +
+--        Handelsgewinn; der Freibetrag neuer Charaktere zählt nicht. Erlöse werden nur bis zu diesem Rahmen abgeholt,
+--        der Rest bleibt im Abholfach. Die Gold-Obergrenze der Spielstandprüfung bleibt unverändert.
+--      * Was das Auktionshaus geliefert hat, führt der Server als Bestand (market_owned) und lässt es frei wieder
+--        einstellen. Eigene Beute kostet Handelskontingent nach Seltenheit (wächst mit geprüfter Spielzeit) und darf
+--        höchstens 5 Stufen über dem Charakter liegen.
+--  - Konten mit Schummel-Vermerk (Stufe/Gold/Grenze, letzte 7 Tage) dürfen nicht handeln.
 --  - Handelbar sind nur Gegenstände aus public.market_items (aus dem Spiel erzeugt): keine Questgegenstände, keine
 --    Erfolgsbelohnungen, keine Shop-Designs. Tabellen sind für Spieler nicht direkt les- oder schreibbar (RLS ohne Policies).
 
@@ -30,9 +39,21 @@ create table if not exists public.market_items (
 create table if not exists public.market_chars (
   user_id      uuid not null,
   character_id text not null,
-  seq          bigint not null default 0,  -- letzte Buchung des Auktionshauses im Spielstand
+  seq          bigint not null default 0,  -- letzte Buchung des Auktionshauses (nur der Server zählt)
   net          bigint not null default 0,  -- Gold durch das Auktionshaus: Einnahmen minus Ausgaben
+  fresh        int not null default 0,     -- verbrauchtes Handelskontingent (eigene Beute)
   primary key (user_id, character_id),
+  foreign key (user_id, character_id) references public.characters (user_id, id) on delete cascade
+);
+alter table public.market_chars add column if not exists fresh int not null default 0;
+
+-- Bestand aus dem Auktionshaus: Gegenstände, die der Server diesem Charakter geliefert hat.
+create table if not exists public.market_owned (
+  user_id      uuid not null,
+  character_id text not null,
+  item_id      text not null,
+  qty          int not null default 0 check (qty >= 0),
+  primary key (user_id, character_id, item_id),
   foreign key (user_id, character_id) references public.characters (user_id, id) on delete cascade
 );
 
@@ -96,9 +117,12 @@ alter table public.market_chars enable row level security;
 alter table public.market_listings enable row level security;
 alter table public.market_mail enable row level security;
 alter table public.market_rate enable row level security;
+alter table public.market_owned enable row level security;
 -- Neue Tabellen bekommen in diesem Projekt keine automatischen Rechte; Spieler gehen nur über die Funktionen.
-revoke all on public.market_items, public.market_chars, public.market_listings, public.market_mail, public.market_rate from anon, authenticated;
-grant select, insert, update, delete on public.market_items, public.market_chars, public.market_listings, public.market_mail, public.market_rate to service_role;
+revoke all on public.market_items, public.market_chars, public.market_listings, public.market_mail, public.market_rate,
+  public.market_owned from anon, authenticated;
+grant select, insert, update, delete on public.market_items, public.market_chars, public.market_listings, public.market_mail,
+  public.market_rate, public.market_owned to service_role;
 revoke all on all sequences in schema public from anon, authenticated;
 grant usage, select on all sequences in schema public to service_role;
 
@@ -1582,18 +1606,15 @@ begin
   return jsonb_set(p_snap, '{slices,character,mounts}', m);
 end $$;
 
--- Buchung abschließen: Zähler hoch, Spielstand mit Serverzeit schreiben, Goldbilanz führen.
+-- Buchung abschließen: Zähler (nur hier) hoch, Spielstand mit Serverzeit schreiben, Goldbilanz führen.
 create or replace function public.market_commit(p_user uuid, p_char text, p_snap jsonb, p_gold bigint) returns jsonb
 language plpgsql set search_path = '' as $$
 declare
-  s0  bigint;
   s   bigint;
   ms  bigint := floor(extract(epoch from clock_timestamp()) * 1000)::bigint;
 begin
-  begin s0 := greatest(0, coalesce(floor((p_snap #>> '{slices,market,seq}')::numeric), 0))::bigint;
-  exception when others then s0 := 0; end;
-  insert into public.market_chars as m (user_id, character_id, seq, net) values (p_user, p_char, s0 + 1, p_gold)
-    on conflict (user_id, character_id) do update set seq = greatest(m.seq, s0) + 1, net = m.net + p_gold
+  insert into public.market_chars as m (user_id, character_id, seq, net) values (p_user, p_char, 1, p_gold)
+    on conflict (user_id, character_id) do update set seq = m.seq + 1, net = m.net + p_gold
     returning m.seq into s;
   p_snap := jsonb_set(p_snap, '{slices,market}', jsonb_build_object('seq', s));
   p_snap := jsonb_set(p_snap, '{meta,savedAt}', to_jsonb(ms));
@@ -1624,6 +1645,50 @@ end $$;
 
 create or replace function public.market_fee(p_price bigint) returns bigint
 language sql immutable set search_path = '' as $$ select floor(p_price * 0.05)::bigint; $$;
+
+-- Shop-Gold dieses Charakters wie characters_shop_gold (20261010090000_sicherheit_2.sql), für die market_*-Funktionen.
+create or replace function public.market_shop_gold(p_user uuid, p_character text) returns bigint
+language plpgsql stable set search_path = '' as $$
+declare g numeric := 0;
+begin
+  if to_regclass('public.gold_orders') is null then return 0; end if;
+  execute 'select coalesce(sum(case when status in (''paid'', ''credited'') then gold else -gold end), 0)
+             from public.gold_orders where user_id = $1 and character_id = $2
+              and (status in (''paid'', ''credited'')
+                   or (status in (''refunded'', ''disputed'') and (delivered_at is not null or credited_at is not null)))'
+    into g using p_user, p_character;
+  return greatest(0, floor(g))::bigint;
+end $$;
+
+-- Goldrahmen für den Handel: geprüfte Spielzeit + Shop-Gold (ohne Freibetrag neuer Charaktere).
+create or replace function public.market_gold_frame(c public.characters) returns bigint
+language sql stable set search_path = '' as $$
+  select floor(150 * greatest(0, coalesce(c.play_verified, 0)))::bigint + public.market_shop_gold(c.user_id, c.id);
+$$;
+
+-- Darf dieser Charakter handeln? null = ja, sonst Fehlercode.
+create or replace function public.market_eligible(c public.characters) returns text
+language plpgsql stable set search_path = '' as $$
+declare lvl int;
+begin
+  begin lvl := coalesce(floor((c.snapshot #>> '{slices,progress,level}')::numeric), 1)::int;
+  exception when others then lvl := 0; end;
+  if lvl < 10 or coalesce(c.play_verified, 0) < 3600 then return 'young'; end if;
+  return null;
+end $$;
+
+-- Gold, mit dem dieser Charakter handeln darf: höchstens Goldrahmen + bisheriger Handelsgewinn.
+create or replace function public.market_spendable(c public.characters, p_gold bigint) returns bigint
+language sql stable set search_path = '' as $$
+  select least(p_gold, public.market_gold_frame(c) + greatest(0, coalesce((select m.net from public.market_chars m
+    where m.user_id = c.user_id and m.character_id = c.id), 0)));
+$$;
+
+create or replace function public.market_own_add(p_user uuid, p_char text, p_item text, p_qty int) returns void
+language sql set search_path = '' as $$
+  insert into public.market_owned as o (user_id, character_id, item_id, qty) values (p_user, p_char, p_item, greatest(0, p_qty))
+    on conflict (user_id, character_id, item_id) do update set qty = least(1000000, o.qty + greatest(0, p_qty));
+$$;
 
 -- Abgelaufene Angebote abschließen: Höchstbietende gewinnen, Verkäufer bekommen den Erlös (minus Gebühr),
 -- ohne Gebot geht der Gegenstand zurück. Alles landet im Abholfach. p_user: zuerst die Angebote dieses Kontos.
@@ -1673,11 +1738,17 @@ begin
   select * into it from public.market_items where id = p_item;
   if p_learned and p_item like 'mount\_%' then
     s := public.market_snap_learn_mount(p_snap, substr(p_item, 7));
-    if s is not null then return jsonb_build_object('snap', s, 'learn', substr(p_item, 7)); end if;
+    if s is not null then
+      perform public.market_own_add(p_user, p_char, p_item, 1);
+      return jsonb_build_object('snap', s, 'learn', substr(p_item, 7));
+    end if;
   end if;
   if it.id is not null then
     s := public.market_snap_give(p_snap, p_item, p_qty, it.stack, it.category = 'material');
-    if s is not null then return jsonb_build_object('snap', s, 'add', jsonb_build_object('itemId', p_item, 'qty', p_qty)); end if;
+    if s is not null then
+      perform public.market_own_add(p_user, p_char, p_item, p_qty);
+      return jsonb_build_object('snap', s, 'add', jsonb_build_object('itemId', p_item, 'qty', p_qty));
+    end if;
   end if;
   insert into public.market_mail (user_id, character_id, kind, item_id, qty, learned, listing_id)
     values (p_user, p_char, p_kind, p_item, p_qty, p_learned, p_listing);
@@ -1690,11 +1761,14 @@ create or replace function public.market_list(p_character text, p_item text, p_q
   p_hours int, p_mount boolean default false) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare uid uuid := (select auth.uid()); e text; c public.characters; it public.market_items; snap jsonb; lid bigint; r jsonb;
+  mc public.market_chars; own int; use_ int; cost int; lvl int;
 begin
   e := public.market_guard(uid, 'list');
   if e is not null then return public.market_err(e); end if;
   select * into c from public.characters where user_id = uid and id = p_character for update;
   if not found then return public.market_err('character'); end if;
+  e := public.market_eligible(c);
+  if e is not null then return public.market_err(e); end if;
   select * into it from public.market_items where id = p_item;
   if not found then return public.market_err('item'); end if;
   if p_hours is null or not (p_hours = any (array[12, 24, 48])) then return public.market_err('hours'); end if;
@@ -1710,6 +1784,24 @@ begin
   if p_mount then snap := public.market_snap_forget_mount(c.snapshot, substr(p_item, 7));
   else snap := public.market_snap_take(c.snapshot, p_item, p_qty, it.category = 'material'); end if;
   if snap is null then return public.market_err('missing'); end if;
+  -- Herkunft: zuerst Bestand aus dem Auktionshaus, sonst eigene Beute (Stufe passt, Kontingent reicht).
+  insert into public.market_chars (user_id, character_id) values (uid, p_character) on conflict do nothing;
+  select * into mc from public.market_chars where user_id = uid and character_id = p_character for update;
+  own := coalesce((select o.qty from public.market_owned o where o.user_id = uid and o.character_id = p_character
+    and o.item_id = p_item for update), 0);
+  use_ := least(own, p_qty);
+  if use_ < p_qty then
+    lvl := coalesce(floor((c.snapshot #>> '{slices,progress,level}')::numeric), 1)::int;
+    if it.req_level > lvl + 5 then return public.market_err('level'); end if;
+    cost := (array[1, 1, 3, 10, 25])[it.rarity + 1];
+    if mc.fresh + cost > 20 + 40 * floor(coalesce(c.play_verified, 0) / 3600) then
+      return public.market_err('budget');
+    end if;
+    update public.market_chars set fresh = fresh + cost where user_id = uid and character_id = p_character;
+  end if;
+  if use_ > 0 then
+    update public.market_owned set qty = qty - use_ where user_id = uid and character_id = p_character and item_id = p_item;
+  end if;
   insert into public.market_listings (seller_user, seller_char, item_id, qty, learned, category, rarity, req_level, classes,
       start_bid, buyout, ends_at)
     values (uid, p_character, p_item, p_qty, p_mount, it.category, it.rarity, it.req_level, it.classes,
@@ -1731,6 +1823,8 @@ begin
   if e is not null then return public.market_err(e); end if;
   select * into c from public.characters where user_id = uid and id = p_character for update;
   if not found then return public.market_err('character'); end if;
+  e := public.market_eligible(c);
+  if e is not null then return public.market_err(e); end if;
   select * into l from public.market_listings where id = p_listing for update;
   if not found or l.status <> 'active' or l.ends_at <= now() then return public.market_err('gone'); end if;
   if l.start_bid is null then return public.market_err('nobid'); end if;
@@ -1742,6 +1836,7 @@ begin
   need := case when l.bidder_user = uid and l.bidder_char = p_character then p_amount - l.bid else p_amount end;
   g := public.market_snap_gold(c.snapshot);
   if g < need then return public.market_err('gold'); end if;
+  if public.market_spendable(c, g) < need then return public.market_err('frame'); end if;
   snap := public.market_snap_set_gold(c.snapshot, g - need);
   if l.bid is not null and l.bidder_user is not null and not (l.bidder_user = uid and l.bidder_char = p_character) then
     insert into public.market_mail (user_id, character_id, kind, gold, listing_id) values (l.bidder_user, l.bidder_char, 'outbid', l.bid, l.id);
@@ -1760,6 +1855,8 @@ begin
   if e is not null then return public.market_err(e); end if;
   select * into c from public.characters where user_id = uid and id = p_character for update;
   if not found then return public.market_err('character'); end if;
+  e := public.market_eligible(c);
+  if e is not null then return public.market_err(e); end if;
   select * into l from public.market_listings where id = p_listing for update;
   if not found or l.status <> 'active' or l.ends_at <= now() then return public.market_err('gone'); end if;
   if l.buyout is null then return public.market_err('nobuyout'); end if;
@@ -1768,6 +1865,7 @@ begin
   need := l.buyout - case when mine then l.bid else 0 end;
   g := public.market_snap_gold(c.snapshot);
   if g < need then return public.market_err('gold'); end if;
+  if public.market_spendable(c, g) < need then return public.market_err('frame'); end if;
   snap := public.market_snap_set_gold(c.snapshot, g - need);
   if l.bid is not null and l.bidder_user is not null and not mine then
     insert into public.market_mail (user_id, character_id, kind, gold, listing_id) values (l.bidder_user, l.bidder_char, 'outbid', l.bid, l.id);
@@ -1804,7 +1902,7 @@ end $$;
 create or replace function public.market_collect(p_character text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare uid uuid := (select auth.uid()); e text; c public.characters; m public.market_mail; snap jsonb; d jsonb;
-  gold bigint := 0; adds jsonb := '[]'; learns jsonb := '[]'; got int := 0; left_ int := 0;
+  gold bigint := 0; adds jsonb := '[]'; learns jsonb := '[]'; got int := 0; left_ int := 0; capped int := 0; g0 bigint; frame bigint;
 begin
   e := public.market_guard(uid, 'collect');
   if e is not null then return public.market_err(e); end if;
@@ -1812,30 +1910,36 @@ begin
   if not found then return public.market_err('character'); end if;
   perform public.market_settle(50, uid);
   snap := c.snapshot;
+  g0 := public.market_snap_gold(snap);
+  frame := public.market_gold_frame(c);
   for m in select * from public.market_mail where user_id = uid and character_id = p_character and collected_at is null
       order by id for update loop
     if m.item_id is null then
+      -- Erlöse nur bis zum Goldrahmen (zurückgegebene Gebote sind eigenes Gold und kommen immer).
+      if m.kind = 'sold' and g0 + gold + m.gold > frame then capped := capped + 1; continue; end if;
       gold := gold + m.gold;
     else
       d := null;
       if m.learned and m.item_id like 'mount\_%' and public.market_snap_learn_mount(snap, substr(m.item_id, 7)) is not null then
         snap := public.market_snap_learn_mount(snap, substr(m.item_id, 7));
         learns := learns || to_jsonb(substr(m.item_id, 7));
+        perform public.market_own_add(uid, p_character, m.item_id, 1);
       else
         d := public.market_snap_give(snap, m.item_id, m.qty, coalesce((select stack from public.market_items where id = m.item_id), 1),
           coalesce((select category = 'material' from public.market_items where id = m.item_id), false));
         if d is null then left_ := left_ + 1; continue; end if;
         snap := d;
         adds := adds || jsonb_build_object('itemId', m.item_id, 'qty', m.qty);
+        perform public.market_own_add(uid, p_character, m.item_id, m.qty);
       end if;
     end if;
     update public.market_mail set collected_at = now() where id = m.id;
     got := got + 1;
   end loop;
-  if got = 0 then return jsonb_build_object('ok', true, 'collected', 0, 'left', left_); end if;
+  if got = 0 then return jsonb_build_object('ok', true, 'collected', 0, 'left', left_, 'capped', capped); end if;
   snap := public.market_snap_set_gold(snap, public.market_snap_gold(snap) + gold);
   return public.market_commit(uid, p_character, snap, gold)
-    || jsonb_build_object('collected', got, 'left', left_, 'add', adds, 'learn', learns);
+    || jsonb_build_object('collected', got, 'left', left_, 'capped', capped, 'add', adds, 'learn', learns);
 end $$;
 
 -- Angebote durchsuchen. p_items: nur diese Gegenstände (Namenssuche macht das Spiel), p_class: nur für diese Klasse nutzbar.
@@ -1887,7 +1991,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------ Spielstand-Prüfung beim Hochladen
--- Für die Trigger (laufen mit der Rolle des Spielers): Buchungszähler und Goldbilanz. Direkter Aufruf wird abgewiesen.
+-- Für den Trigger (läuft mit der Rolle des Spielers): Buchungszähler. Direkter Aufruf wird abgewiesen.
 create or replace function public.characters_market_seq(p_user uuid, p_character text) returns bigint
 language plpgsql stable security definer set search_path = '' as $$
 begin
@@ -1895,14 +1999,8 @@ begin
   return (select m.seq from public.market_chars m where m.user_id = p_user and m.character_id = p_character);
 end $$;
 
-create or replace function public.characters_market_gold(p_user uuid, p_character text) returns numeric
-language plpgsql stable security definer set search_path = '' as $$
-begin
-  if pg_trigger_depth() < 1 then raise exception 'nicht erlaubt' using errcode = '42501'; end if;
-  return coalesce((select m.net from public.market_chars m where m.user_id = p_user and m.character_id = p_character), 0);
-end $$;
-
--- Älterer Spielstand ohne die letzte Buchung des Auktionshauses: nicht schreiben (das Spiel lädt den Cloud-Stand).
+-- Spielstand mit anderem Buchungszähler als der Server: nicht schreiben (das Spiel lädt den Cloud-Stand).
+-- Gleichheit statt »mindestens«: ein erfundener hoher Zähler hilft nicht.
 create or replace function public.characters_market_check() returns trigger
 language plpgsql set search_path = '' as $$
 declare want bigint; have bigint;
@@ -1912,97 +2010,15 @@ begin
   if want is null then return new; end if;
   begin have := coalesce(floor((new.snapshot #>> '{slices,market,seq}')::numeric), 0)::bigint;
   exception when others then have := -1; end;
-  if have >= want then return new; end if;
+  if have = want then return new; end if;
   perform public.characters_flag(old.user_id, old.id, 'handel', jsonb_build_object('seq', jsonb_build_array(want, have)));
   return null;
 end $$;
 drop trigger if exists characters_market_check on public.characters;
 -- Name nach characters_before_write und vor characters_plausible (gleichartige Trigger laufen alphabetisch).
+-- characters_plausible bleibt unverändert: Gold aus dem Auktionshaus hebt die Gold-Obergrenze nicht an.
 create trigger characters_market_check before update on public.characters
   for each row execute function public.characters_market_check();
-
--- characters_plausible wie in 20261005100200_startpaket_pruefung.sql, die Gold-Obergrenze zählt jetzt das Auktionshaus mit.
-create or replace function public.characters_plausible() returns trigger
-language plpgsql set search_path = '' as $$
-declare
-  lvl    int;
-  gold   numeric;
-  pt     numeric;
-  o_lvl  int;
-  o_gold numeric;
-  o_pt   numeric;
-  real_s numeric;
-  play   numeric;
-  ver    numeric;
-  why    text := null;
-  info   jsonb;
-begin
-  begin
-    lvl  := coalesce((new.snapshot #>> '{slices,progress,level}')::int, 1);
-    gold := coalesce((new.snapshot #>> '{slices,wallet,gold}')::numeric, 0);
-    pt   := coalesce((new.snapshot #>> '{meta,playTime}')::numeric, 0);
-  exception when others then
-    lvl := -1; gold := -1; pt := 0;
-  end;
-  new.level := greatest(1, least(100, lvl));
-
-  -- Nur Uploads von Spielern prüfen; SQL-Editor, Server und Admin-Funktionen nicht.
-  if current_user <> 'authenticated' then
-    if tg_op = 'UPDATE' then new.play_verified := coalesce(new.play_verified, old.play_verified); end if;
-    return new;
-  end if;
-
-  if tg_op = 'INSERT' then
-    new.play_verified := 0;
-    -- Upsert eines bestehenden Charakters: Postgres ruft erst den INSERT-Trigger, dann den UPDATE-Trigger, der vergleicht.
-    perform 1 from public.characters c where c.user_id = new.user_id and c.id = new.id for update;
-    if found then return new; end if;
-  else
-    new.play_verified := old.play_verified;
-  end if;
-
-  if lvl < 1 or lvl > 40 or gold < -1000000 or gold > 50000000 then
-    why := 'grenze';
-    info := jsonb_build_object('level', lvl, 'gold', gold);
-  elsif tg_op = 'INSERT' then
-    if lvl > 3 or gold > 5000 then
-      why := 'neu';
-      info := jsonb_build_object('level', lvl, 'gold', gold, 'playTime', pt);
-    else
-      -- Nur das Startpaket der Klasse (20261005100100_startpaket.sql, Quelle src/character/startKit.js).
-      why := public.character_start_kit_problem(new.snapshot, new.class_id);
-      if why is not null then
-        info := jsonb_build_object('startpaket', why, 'level', lvl, 'gold', gold);
-        why := 'startpaket';
-      end if;
-    end if;
-  else
-    begin
-      o_lvl  := coalesce((old.snapshot #>> '{slices,progress,level}')::int, 1);
-      o_gold := coalesce((old.snapshot #>> '{slices,wallet,gold}')::numeric, 0);
-      o_pt   := coalesce((old.snapshot #>> '{meta,playTime}')::numeric, 0);
-    exception when others then
-      return new; -- alter Stand nicht lesbar: nichts zu vergleichen
-    end;
-    -- Spielzeit nur so weit anrechnen, wie seit dem letzten Speichern echte Zeit vergangen ist.
-    real_s := greatest(0, extract(epoch from (now() - old.updated_at)));
-    play := greatest(0, least(pt - o_pt, real_s));
-    ver := coalesce(old.play_verified, 0) + play;
-    if lvl > o_lvl and (lvl > o_lvl + 2 + floor(play / 120) or lvl > 3 + floor(ver / 45)) then
-      why := 'stufe';
-    elsif gold > o_gold and gold > 50000 + ver * 150 + public.characters_shop_gold(old.user_id, old.id)
-                                   + public.characters_market_gold(old.user_id, old.id) then
-      why := 'gold';
-    end if;
-    info := jsonb_build_object('level', jsonb_build_array(o_lvl, lvl), 'gold', jsonb_build_array(o_gold, gold),
-      'playTime', jsonb_build_array(o_pt, pt), 'realSeconds', round(real_s), 'verified', round(ver));
-    if why is null then new.play_verified := ver; end if;
-  end if;
-
-  if why is null then return new; end if;
-  perform public.characters_flag(coalesce(new.user_id, old.user_id), new.id, why, info);
-  return null; -- Zeile nicht schreiben
-end $$;
 
 -- ------------------------------------------------------------------ Rechte
 -- Interne Bausteine: niemand von außen.
@@ -2016,16 +2032,18 @@ revoke execute on function public.market_snap_learn_mount(jsonb, text) from publ
 revoke execute on function public.market_commit(uuid, text, jsonb, bigint) from public, anon, authenticated;
 revoke execute on function public.market_guard(uuid, text) from public, anon, authenticated;
 revoke execute on function public.market_fee(bigint) from public, anon, authenticated;
+revoke execute on function public.market_shop_gold(uuid, text) from public, anon, authenticated;
+revoke execute on function public.market_gold_frame(public.characters) from public, anon, authenticated;
+revoke execute on function public.market_eligible(public.characters) from public, anon, authenticated;
+revoke execute on function public.market_spendable(public.characters, bigint) from public, anon, authenticated;
+revoke execute on function public.market_own_add(uuid, text, text, int) from public, anon, authenticated;
 revoke execute on function public.market_settle(int, uuid) from public, anon, authenticated;
 revoke execute on function public.market_err(text) from public, anon, authenticated;
 revoke execute on function public.market_deliver(uuid, text, jsonb, text, int, boolean, text, bigint) from public, anon, authenticated;
 revoke execute on function public.characters_market_check() from public, anon, authenticated;
-revoke execute on function public.characters_plausible() from public, anon, authenticated;
--- Für die Trigger (prüfen pg_trigger_depth selbst):
+-- Für den Trigger (prüft pg_trigger_depth selbst):
 revoke execute on function public.characters_market_seq(uuid, text) from public, anon;
-revoke execute on function public.characters_market_gold(uuid, text) from public, anon;
 grant execute on function public.characters_market_seq(uuid, text) to authenticated;
-grant execute on function public.characters_market_gold(uuid, text) to authenticated;
 -- Für das Spiel (angemeldete Spieler):
 revoke execute on function public.market_list(text, text, int, bigint, bigint, int, boolean) from public, anon;
 revoke execute on function public.market_bid(text, bigint, bigint) from public, anon;

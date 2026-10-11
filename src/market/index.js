@@ -1,7 +1,7 @@
 import { EV } from '../core/events.js';
 import { Npc } from '../entities/Npc.js';
 import { Decor } from '../entities/Decor.js';
-import { mountItemId, MAX_ACTIVE } from './rules.js';
+import { mountItemId, MAX_ACTIVE, TRADE_MIN_LEVEL } from './rules.js';
 import { PLACES } from './places.js';
 import { createAuctioneerSprites } from './sprite.js';
 import { marketPanel } from './panel.js';
@@ -52,6 +52,10 @@ const ERRORS = {
   gold: 'Nicht genug Gold.',
   nobuyout: 'Hier gibt es keinen Sofortkauf.',
   bids: 'Auf dieses Angebot wurde schon geboten. Es läuft bis zum Ende.',
+  young: `Handeln geht ab Stufe ${TRADE_MIN_LEVEL} und nach einer Stunde Spielzeit.`,
+  level: 'Diese Beute liegt zu weit über deiner Stufe.',
+  budget: 'Du hast gerade viel eigene Beute eingestellt. Mit mehr Spielzeit geht wieder mehr.',
+  frame: 'So viel Gold kannst du im Auktionshaus erst nach längerer Spielzeit ausgeben.',
   unknown: 'Das hat nicht geklappt. Bitte versuch es gleich noch einmal.',
 };
 

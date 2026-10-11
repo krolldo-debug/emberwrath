@@ -9,6 +9,17 @@ export const MAX_ACTIVE = 30;                 // aktive Angebote je Konto
 export const BID_STEP = 0.05;                 // Mindesterhöhung eines Gebots (mindestens 1 Gold)
 export const PAGE = 40;                       // Angebote je Seite
 
+// Schutz, solange Beute und Gold im Browser entstehen (offener Punkt D3); die Datenbank prüft dieselben Werte.
+export const TRADE_MIN_LEVEL = 10;            // Handeln ab Stufe …
+export const TRADE_MIN_PLAY = 3600;           // … und nach so vielen Sekunden geprüfter Spielzeit
+export const GOLD_PER_SECOND = 150;           // Goldrahmen je Sekunde geprüfter Spielzeit (wie die Spielstandprüfung)
+export const LEVEL_SLACK = 5;                 // eigene Beute: höchstens so viele Stufen über der eigenen
+// Eigene Beute (nicht aus dem Auktionshaus) kostet Handelskontingent je Angebot, nach Seltenheit;
+// das Kontingent wächst mit geprüfter Spielzeit. Ware aus dem Auktionshaus lässt sich frei wieder einstellen.
+export const FRESH_COST = { common: 1, uncommon: 1, rare: 3, epic: 10, legendary: 25 };
+export const FRESH_BASE = 20;
+export const FRESH_PER_HOUR = 40;
+
 // Kategorien in der Reihenfolge der Auswahl
 export const CATEGORIES = [
   ['weapon', 'Waffen'],

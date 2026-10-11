@@ -1,7 +1,8 @@
 // Datenbanktest des Auktionshauses gegen eine echte Postgres 16 (Supabase-Nachbau, alle Migrationen ausgeführt).
 //   PGHOST=/var/tmp/pgm PGPORT=5544 PGDATABASE=sbtest node src/market/test/db.test.mjs   (braucht das npm-Paket pg)
 // Prüft: Einstellen nimmt den Gegenstand aus dem Spielstand, nichts lässt sich doppelt verkaufen oder doppelt bezahlen
-// (auch gleichzeitig), alter Spielstand wird abgelehnt, Gebote/Überbieten/Ablauf/Abholen, Reittiere, Rechte, Gold-Obergrenze.
+// (auch gleichzeitig), alter oder erfundener Buchungszähler wird abgelehnt, Gebote/Überbieten/Ablauf/Abholen, Reittiere,
+// Rechte, Gold-Obergrenze, Handelsfreigabe (Stufe, Spielzeit), Bestand und Kontingent, Goldrahmen.
 import pg from 'pg';
 import { tradeableCatalog } from '../rules.js';
 
@@ -50,10 +51,12 @@ function snapshot({ level = 30, gold = 0, slots = [], mats = {}, mounts = [], pl
 await pool.query('delete from public.market_mail; delete from public.market_listings; delete from public.market_rate; delete from public.character_flags');
 await pool.query("delete from auth.users where email like '%@markt.test'");
 const users = {};
-for (const n of ['a', 'b', 'c']) users[n] = (await pool.query(`insert into auth.users (email) values ($1) returning id`, [`${n}@markt.test`])).rows[0].id;
-const { a: A, b: B, c: C } = users;
-const put = (uid, id, snap) => pool.query(`insert into public.characters (user_id, id, name, level, snapshot, play_verified) values ($1, $2, 'Held', 30, $3, 36000)
-  on conflict (user_id, id) do update set snapshot = excluded.snapshot`, [uid, id, snap]);
+for (const n of ['a', 'b', 'c', 'd']) users[n] = (await pool.query(`insert into auth.users (email) values ($1) returning id`, [`${n}@markt.test`])).rows[0].id;
+const { a: A, b: B, c: C, d: D } = users;
+const put = (uid, id, snap, verified = 36000) => pool.query(`insert into public.characters (user_id, id, name, level, snapshot, play_verified) values ($1, $2, 'Held', 30, $3, $4)
+  on conflict (user_id, id) do update set snapshot = excluded.snapshot, play_verified = excluded.play_verified`, [uid, id, snap, verified]);
+const owned = async (uid, id, item) => (await pool.query('select qty from public.market_owned where user_id = $1 and character_id = $2 and item_id = $3', [uid, id, item])).rows[0]?.qty ?? 0;
+const freshUsed = async (uid, id) => (await pool.query('select fresh from public.market_chars where user_id = $1 and character_id = $2', [uid, id])).rows[0]?.fresh ?? 0;
 await put(A, 'ca', snapshot({ gold: 1000, slots: [{ itemId: EPIC, qty: 1 }, { itemId: RARE, qty: 1 }, { itemId: QUEST_ITEM, qty: 1 }], mats: { [MAT]: 30 }, mounts: ['marsh_strider', 'steppe_horse'] }));
 await put(B, 'cb', snapshot({ gold: 100000 }));
 await put(C, 'cc', snapshot({ gold: 50000 }));
@@ -65,6 +68,7 @@ const L1 = r.listing;
 let sa = await snapOf(A, 'ca');
 ok(count(sa.snapshot, EPIC) === 0 && sa.snapshot.slices.market.seq === 1 && sa.snapshot.meta.savedAt === r.savedAt, 'Gegenstand ist aus dem gespeicherten Spielstand entfernt');
 ok(Date.parse(sa.saved_at.toISOString()) === r.savedAt, 'saved_at entspricht savedAt (Cloud-Abgleich erkennt die Buchung)');
+ok(await freshUsed(A, 'ca') === 10, 'Eigene epische Beute kostet 10 Punkte Handelskontingent');
 r = await rpc(A, 'market_list', { p_character: 'ca', p_item: EPIC, p_qty: 1, p_start_bid: null, p_buyout: 1000, p_hours: 24 });
 ok(!r.ok && r.error === 'missing', 'Derselbe Gegenstand lässt sich kein zweites Mal einstellen');
 r = await rpc(A, 'market_list', { p_character: 'ca', p_item: QUEST_ITEM, p_qty: 1, p_start_bid: null, p_buyout: 10, p_hours: 24 });
@@ -82,6 +86,9 @@ await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [sta
 sa = await snapOf(A, 'ca');
 ok(count(sa.snapshot, EPIC) === 0, 'Älterer Spielstand (ohne Buchung) wird beim Hochladen abgelehnt');
 ok((await pool.query("select count(*)::int n from public.character_flags where user_id = $1 and reason = 'handel'", [A])).rows[0].n === 1, 'Ablehnung ist vermerkt (handel)');
+const forged = snapshot({ gold: 1000, slots: [{ itemId: EPIC, qty: 1 }], mounts: ['marsh_strider'] }); forged.slices.market = { seq: 999999 };
+await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [forged, 'ca']);
+ok(count((await snapOf(A, 'ca')).snapshot, EPIC) === 0, 'Alter Spielstand mit erfundenem hohem Zähler wird abgelehnt');
 const fresh = structuredClone(sa.snapshot); fresh.meta.playTime += 5;
 await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [fresh, 'ca']);
 ok((await snapOf(A, 'ca')).snapshot.meta.playTime === fresh.meta.playTime, 'Spielstand mit aktueller Buchung wird angenommen');
@@ -94,6 +101,11 @@ ok(both.filter((x) => x.ok).length === 1 && both.some((x) => x.error === 'gone')
 const winner = both[0].ok ? [B, 'cb', 100000] : [C, 'cc', 50000];
 const ws = await snapOf(winner[0], winner[1]);
 ok(ws.snapshot.slices.wallet.gold === winner[2] - 1000 && count(ws.snapshot, EPIC) === 1, 'Käufer: Gold abgezogen, Gegenstand in der Tasche');
+ok(await owned(winner[0], winner[1], EPIC) === 1, 'Gekaufter Gegenstand steht im Bestand des Käufers');
+r = await rpc(winner[0], 'market_list', { p_character: winner[1], p_item: EPIC, p_qty: 1, p_start_bid: null, p_buyout: 1500, p_hours: 12 });
+ok(r.ok && await owned(winner[0], winner[1], EPIC) === 0 && await freshUsed(winner[0], winner[1]) === 0, 'Wiederverkauf aus dem Bestand kostet kein Kontingent');
+await rpc(winner[0], 'market_cancel', { p_character: winner[1], p_listing: r.listing });
+ok(await owned(winner[0], winner[1], EPIC) === 1, 'Zurückgezogen: wieder im Bestand');
 let mail = (await pool.query('select * from public.market_mail where user_id = $1', [A])).rows;
 ok(mail.length === 1 && mail[0].kind === 'sold' && +mail[0].gold === 950, `Verkäufer: 950 Gold (5 % Gebühr) im Abholfach: ${JSON.stringify(mail.map((m) => [m.kind, m.gold]))}`);
 
@@ -151,6 +163,7 @@ ok(!r.ok && r.error === 'item', 'Erfolgs-Reittier ist nicht handelbar');
 r = await rpc(A, 'market_cancel', { p_character: 'ca', p_listing: (await pool.query("select id from public.market_listings where item_id = 'mount_marsh_strider' and status = 'active'")).rows[0].id });
 sa = await snapOf(A, 'ca');
 ok(r.ok && r.learn === 'marsh_strider' && sa.snapshot.slices.character.mounts.owned.includes('marsh_strider'), 'Zurückziehen: Reittier wieder gelernt');
+ok(await owned(A, 'ca', 'mount_marsh_strider') === 1, 'Zurückgegebenes Reittier steht im Bestand');
 
 // ---------------------------------------------------------------- Gold-Obergrenze der Plausibilitätsprüfung
 r = await rpc(A, 'market_collect', { p_character: 'ca' });
@@ -159,20 +172,54 @@ ok(r.ok && r.gold === earned, `A holt beide Erlöse ab (${r.gold} = ${earned})`)
 await pool.query('update public.characters set play_verified = 0, updated_at = now() where user_id = $1', [A]);
 sa = await snapOf(A, 'ca');
 const up = (gold) => { const s = structuredClone(sa.snapshot); s.slices.wallet.gold = gold; return s; };
+await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [up(50000), 'ca']);
+ok((await snapOf(A, 'ca')).snapshot.slices.wallet.gold === 50000, 'Gold bis zur Obergrenze wird angenommen');
 await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [up(50000 + earned), 'ca']);
-ok((await snapOf(A, 'ca')).snapshot.slices.wallet.gold === 50000 + earned, 'Gold bis Obergrenze + Auktionserlös wird angenommen');
-await asUser(A, 'update public.characters set snapshot = $1 where id = $2', [up(50000 + earned + 1000), 'ca']);
-ok((await snapOf(A, 'ca')).snapshot.slices.wallet.gold === 50000 + earned, 'Gold darüber wird abgelehnt');
+ok((await snapOf(A, 'ca')).snapshot.slices.wallet.gold === 50000, 'Auktionserlös hebt die Gold-Obergrenze nicht an');
+await pool.query('update public.characters set play_verified = 36000 where user_id = $1', [A]);
+
+// ---------------------------------------------------------------- Handelsfreigabe, Kontingent, Goldrahmen
+const LEG = cat.filter((x) => x[1] === 'weapon' && x[2] === 'legendary' && x[3] <= 30).map((x) => x[0]);
+const HIGH = cat.find((x) => x[1] === 'armor' && x[2] === 'rare' && x[3] >= 30)[0];
+await put(D, 'cd', snapshot({ level: 9, gold: 600000, slots: [{ itemId: RARE, qty: 1 }] }));
+r = await rpc(D, 'market_list', { p_character: 'cd', p_item: RARE, p_qty: 1, p_start_bid: 10, p_buyout: null, p_hours: 12 });
+ok(!r.ok && r.error === 'young', 'Unter Stufe 10 kein Handel');
+await put(D, 'cd', snapshot({ level: 30, gold: 600000, slots: [{ itemId: RARE, qty: 1 }] }), 1800);
+r = await rpc(D, 'market_list', { p_character: 'cd', p_item: RARE, p_qty: 1, p_start_bid: 10, p_buyout: null, p_hours: 12 });
+ok(!r.ok && r.error === 'young', 'Unter einer Stunde geprüfter Spielzeit kein Handel');
+await put(D, 'cd', snapshot({ level: 12, gold: 600000, slots: [{ itemId: HIGH, qty: 1 }, ...LEG.slice(0, 3).map((itemId) => ({ itemId, qty: 1 }))] }), 3600);
+r = await rpc(D, 'market_list', { p_character: 'cd', p_item: HIGH, p_qty: 1, p_start_bid: 10, p_buyout: null, p_hours: 12 });
+ok(!r.ok && r.error === 'level', 'Eigene Beute weit über der eigenen Stufe ist nicht einstellbar');
+await put(D, 'cd', snapshot({ level: 30, gold: 600000, slots: LEG.slice(0, 3).map((itemId) => ({ itemId, qty: 1 })) }), 3600);
+const legs = [];
+for (const it of LEG.slice(0, 3)) legs.push(await rpc(D, 'market_list', { p_character: 'cd', p_item: it, p_qty: 1, p_start_bid: null, p_buyout: 560000, p_hours: 12 }));
+ok(legs[0].ok && legs[1].ok && !legs[2].ok && legs[2].error === 'budget', `Kontingent nach 1 Stunde: zwei legendäre, das dritte nicht (${legs.map((x) => x.ok || x.error).join(', ')})`);
+r = await rpc(D, 'market_buyout', { p_character: 'cd', p_listing: L1 });
+ok(!r.ok && r.error === 'gone', 'Verkauftes Angebot ist weg');
+await put(C, 'cc', snapshot({ gold: 600000 }), 3600);
+await pool.query('delete from public.character_flags where user_id = $1', [C]);
+r = await rpc(C, 'market_buyout', { p_character: 'cc', p_listing: legs[0].listing });
+ok(!r.ok && r.error === 'frame', 'Kaufen nur im Goldrahmen der Spielzeit (Freibetrag zählt nicht)');
+await put(C, 'cc', snapshot({ gold: 600000 }), 36000);
+r = await rpc(C, 'market_buyout', { p_character: 'cc', p_listing: legs[0].listing });
+ok(r.ok, 'Mit genug geprüfter Spielzeit klappt der Kauf');
+const gd0 = (await snapOf(D, 'cd')).snapshot.slices.wallet.gold;
+r = await rpc(D, 'market_collect', { p_character: 'cd' });
+ok(r.ok && r.collected === 0 && r.capped === 1 && (await snapOf(D, 'cd')).snapshot.slices.wallet.gold === gd0, 'Erlös über dem Goldrahmen bleibt im Abholfach');
+await pool.query("update public.characters set play_verified = 36000 where user_id = $1", [D]);
+r = await rpc(D, 'market_collect', { p_character: 'cd' });
+ok(r.ok && r.collected === 1 && r.capped === 0, 'Mit mehr Spielzeit lässt er sich abholen');
 
 // ---------------------------------------------------------------- Rechte
-for (const t of ['market_listings', 'market_mail', 'market_chars', 'market_items']) {
+for (const t of ['market_listings', 'market_mail', 'market_chars', 'market_items', 'market_owned']) {
   let denied = false;
   try { await asUser(B, `select * from public.${t} limit 1`); } catch { denied = true; }
   ok(denied, `Spieler können ${t} nicht direkt lesen`);
 }
 for (const [sql, what] of [
   ["select public.market_commit($1, 'cb', '{}'::jsonb, 1000000)", 'market_commit'],
-  ["select public.characters_market_gold($1, 'cb')", 'characters_market_gold'],
+  ["select public.characters_market_seq($1, 'cb')", 'characters_market_seq'],
+  ["select public.market_own_add($1, 'cb', 'ember_core', 99)", 'market_own_add'],
   ["select public.market_settle(10, $1)", 'market_settle'],
 ]) {
   let denied = false;
@@ -190,7 +237,7 @@ ok(r.ok && r.rows.length === 1 && r.rows[0].itemId === RARE && r.rows[0].mine ==
 r = await rpc(B, 'market_browse', { p_character: 'cb', p_items: [EPIC] });
 ok(r.ok && r.rows.length === 0, 'Suche nach Namen (Gegenstandsliste)');
 r = await rpc(A, 'market_browse', { p_character: 'ca', p_min_rarity: 3 });
-ok(r.ok && r.rows.length === 0, 'Seltenheitsfilter');
+ok(r.ok && r.rows.length > 0 && r.rows.every((x) => x.itemId !== RARE && x.itemId !== MAT), 'Seltenheitsfilter');
 
 // ---------------------------------------------------------------- Sperre bei Schummel-Vermerk
 await pool.query("insert into public.character_flags (user_id, character_id, reason) values ($1, 'cc', 'gold')", [C]);
