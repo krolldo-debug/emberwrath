@@ -51,19 +51,20 @@ export function frameUrl(scale = 2, palette = 'ember') {
 // Titel in der Bitmap-Schrift (ui/PixelFont.js) als Canvas in Originalgröße; Anzeige ganzzahlig per CSS.
 // Kontur ringsum, obere zwei Zeilen heller (Glutglanz).
 export function pixelTitle(font, text, { color = '#ff5a3c', light = '#ffb27a', outline = '#14060a' } = {}) {
-  const w = font.measure(text, 1) + 2, h = 7;
+  // up: Platz für Akzente über der Schrift (É, Ñ …)
+  const up = font.ascent(text), w = font.measure(text, 1) + 2, h = 7 + up;
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const ctx = c.getContext('2d');
-  font.draw(ctx, text, 1, 1, { color, outline: true, shadowColor: outline });
-  font.draw(ctx, text, 1, 1, { color });
+  font.draw(ctx, text, 1, 1 + up, { color, outline: true, shadowColor: outline });
+  font.draw(ctx, text, 1, 1 + up, { color });
   // Glanz: nur die Schriftpixel der oberen beiden Zeilen umfärben
-  const img = ctx.getImageData(1, 1, w - 2, 2);
+  const img = ctx.getImageData(1, 1 + up, w - 2, 2);
   ctx.fillStyle = light;
   for (let y = 0; y < 2; y++) {
     for (let x = 0; x < w - 2; x++) {
       const o = (y * (w - 2) + x) * 4;
-      if (img.data[o + 3] && img.data[o] > 200) ctx.fillRect(x + 1, y + 1, 1, 1);
+      if (img.data[o + 3] && img.data[o] > 200) ctx.fillRect(x + 1, y + 1 + up, 1, 1);
     }
   }
   return c;

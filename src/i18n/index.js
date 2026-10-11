@@ -1,65 +1,86 @@
 import { Translator } from './translate.js';
-import { EN } from './en.js';
-import { ES } from './es.js';
-import { FR } from './fr.js';
+import { detectLang } from './detect.js';
 
 // Sprache des Spiels. Texte im Code bleiben deutsch und dienen als Schlüssel; übersetzt wird beim Anzeigen:
 // DOM-Texte und -Attribute (MutationObserver), PixelFont, Dialoge und Zahlen-/Datumsformate.
 // Regeln für neue Texte: src/i18n/README.md. Neue Sprache: Wörterbuch xx.js anlegen und hier in LANGS eintragen.
 // Die Wahl liegt unter 'emberwrath:lang' im localStorage, geteilt mit der Website (gleiche Domain; die Website
 // selbst gibt es auf Deutsch und Englisch, andere Sprachen sehen dort Englisch).
+//
+// Wörterbücher werden erst geladen, wenn ihre Sprache gebraucht wird (Deutsch braucht keins). Sie landen in
+// globalThis.EMBERWRATH_DICTS[id]. Auf der Website baut tools/build.mjs je Sprache eine Datei sprache-xx.<hash>.js
+// (Namen in EMBERWRATH_I18N_FILES) und lädt die gewählte noch vor dem Spielstart; in der Entwicklung lädt
+// loadDict() die Quelldatei xx.js. Fehlt ein Text in es/fr, nimmt der Build die englische Fassung in die Datei auf.
 
 export const LANG_KEY = 'emberwrath:lang';
-// label = Name in der eigenen Sprache. dict fehlt bei Deutsch (Quelltext). Fehlt ein Text im Wörterbuch einer
-// weiteren Sprache, erscheint er englisch statt deutsch.
+// label = Name in der eigenen Sprache
 export const LANGS = [
   { id: 'de', label: 'Deutsch', locale: 'de-DE' },
-  { id: 'en', label: 'English', locale: 'en-US', dict: EN },
-  { id: 'es', label: 'Español', locale: 'es-ES', dict: ES },
-  { id: 'fr', label: 'Français', locale: 'fr-FR', dict: FR },
+  { id: 'en', label: 'English', locale: 'en-US' },
+  { id: 'es', label: 'Español', locale: 'es-ES' },
+  { id: 'fr', label: 'Français', locale: 'fr-FR' },
 ];
 const byId = new Map(LANGS.map((l) => [l.id, l]));
 const translators = new Map();
 let translator = null;
-let current = detect();
+let current = detectLang(LANGS.map((l) => l.id), LANG_KEY);
 const listeners = new Set();
+const loading = new Map();
+
+const dictOf = (id) => globalThis.EMBERWRATH_DICTS?.[id];
+
+// Lädt das Wörterbuch einer Sprache (einmal). Ergebnis: true, wenn es danach da ist.
+export function loadDict(id) {
+  if (id === 'de' || dictOf(id)) return Promise.resolve(true);
+  if (!loading.has(id)) {
+    const file = globalThis.EMBERWRATH_I18N_FILES?.[id];
+    loading.set(id, (file
+      ? new Promise((done) => {
+        const s = document.createElement('script');
+        s.src = new URL(file, globalThis.EMBERWRATH_I18N_BASE ?? location.href).href;
+        s.onload = () => done(); s.onerror = () => done();
+        document.head.append(s);
+      })
+      : import(`./${id}.js`).then((m) => { (globalThis.EMBERWRATH_DICTS ??= {})[id] = Object.values(m)[0]; }, () => {})
+    ).then(() => { loading.delete(id); return !!dictOf(id); }));
+  }
+  return loading.get(id);
+}
 
 function translatorFor(id) {
   if (!translators.has(id)) {
-    const def = byId.get(id);
-    translators.set(id, new Translator(id === 'en' ? EN : { ...EN, ...def.dict }, { quotes: id }));
+    if (!dictOf(id)) return null;
+    // Englisch als Rückfall für Texte, die in es/fr (noch) fehlen, falls es geladen ist
+    const dict = id === 'en' ? dictOf('en') : { ...(dictOf('en') ?? {}), ...dictOf(id) };
+    translators.set(id, new Translator(dict, { quotes: id }));
   }
   return translators.get(id);
 }
 
-function detect() {
-  try {
-    const q = new URLSearchParams(location.search).get('lang');
-    if (byId.has(q)) { localStorage.setItem(LANG_KEY, q); return q; }
-    const saved = localStorage.getItem(LANG_KEY);
-    if (byId.has(saved)) return saved;
-  } catch { /* privater Modus: Browsersprache */ }
-  // Erste unterstützte Sprache aus den Browser-Einstellungen, sonst Englisch
-  for (const l of navigator.languages ?? [navigator.language ?? 'en']) {
-    const id = String(l).toLowerCase().slice(0, 2);
-    if (byId.has(id)) return id;
-  }
-  return 'en';
-}
-
 export const lang = () => current;
 export const locale = () => byId.get(current).locale;
-// Übersetzt einen Anzeigetext in die aktuelle Sprache (Deutsch: unverändert).
-export const tr = (text) => (current === 'de' ? text : (translator ??= translatorFor(current)).tr(text));
+// Übersetzt einen Anzeigetext in die aktuelle Sprache (Deutsch oder Wörterbuch noch nicht da: unverändert).
+export const tr = (text) => {
+  if (current === 'de') return text;
+  translator ??= translatorFor(current);
+  return translator ? translator.tr(text) : text;
+};
 export const fmtNum = (n, opts) => Number(n).toLocaleString(locale(), opts);
 export const fmtDate = (d, opts) => new Date(d).toLocaleDateString(locale(), opts);
 export function onLangChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
+let wanted = current;
 export function setLang(id) {
   if (!byId.has(id)) return;
   try { localStorage.setItem(LANG_KEY, id); } catch { /* egal */ }
-  if (id === current) return;
-  const prev = current === 'de' ? null : (translator ??= translatorFor(current));
+  wanted = id;
+  // Erst umschalten, wenn das Wörterbuch da ist; bis dahin bleibt die alte Sprache sichtbar
+  loadDict(id).then(() => { if (wanted === id) apply(id); });
+}
+
+function apply(id, force = false) {
+  if (id === current && !force) return;
+  const prev = current === 'de' ? null : (translator ?? translatorFor(current));
   current = id;
   translator = null;
   document.documentElement.lang = id;
@@ -237,6 +258,8 @@ function retranslateAll(prev) {
     }
   }
   if (current !== 'de') { walk(document.documentElement); startObserver(); }
+  // Wörterbuch noch nicht da (Entwicklung, oder die Datei kam nicht rechtzeitig): nachladen und dann übersetzen
+  if (current !== 'de' && !dictOf(current)) loadDict(current).then((ok) => { if (ok) apply(current, true); });
 }
 
 // Fest eingebaute Browser-Funktionen: Dialoge und Zahlen-/Datumsformate.
@@ -266,8 +289,12 @@ export function installI18n() {
   try {
     if (new URLSearchParams(location.search).has('i18n')) {
       window.__i18nMissing = new Set();
-      for (const l of LANGS) if (l.dict) translatorFor(l.id).missing = window.__i18nMissing;
+      const mark = () => { for (const t of translators.values()) t.missing = window.__i18nMissing; };
+      mark();
+      onLangChange(mark);
     }
   } catch { /* egal */ }
   if (current !== 'de') { walk(document.documentElement); startObserver(); }
+  // Wörterbuch noch nicht da (Entwicklung, oder die Datei kam nicht rechtzeitig): nachladen und dann übersetzen
+  if (current !== 'de' && !dictOf(current)) loadDict(current).then((ok) => { if (ok) apply(current, true); });
 }

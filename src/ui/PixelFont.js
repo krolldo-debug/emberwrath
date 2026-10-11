@@ -21,15 +21,31 @@ const G = {
   '·': '.|.|#|.|.', '>': '#..|.#.|..#|.#.|#..', '<': '..#|.#.|#..|.#.|..#',
   '¡': '#|.|#|#|#', '¿': '.#.|...|.#.|#..|.##', '«': '....|.#.#|#.#.|.#.#|....', '»': '....|#.#.|.#.#|#.#.|....',
 };
-// Andere Sprachen: Buchstaben mit Akzent (É, Ñ, Ç …) als Grundbuchstabe zeichnen, ehe es ein Fragezeichen wird.
+// Buchstaben mit Akzent (Spanisch, Französisch): der Buchstabe bleibt 5 Pixel hoch, der Akzent sitzt mit einer
+// Pixelzeile Abstand darüber (Ç: Cedille darunter). Großbuchstaben genügen, die Schrift zeichnet alles groß.
+const ABOVE = { acute: ['..#', '.#.'], grave: ['#..', '.#.'], circ: ['.#.', '#.#'], uml: ['#.#'], tilde: ['.#.#', '#.#.'] };
+const ACCENTS = {
+  Á: ['A', 'acute'], À: ['A', 'grave'], Â: ['A', 'circ'], É: ['E', 'acute'], È: ['E', 'grave'], Ê: ['E', 'circ'], Ë: ['E', 'uml'],
+  Í: ['I', 'acute'], Ì: ['I', 'grave'], Î: ['I', 'circ'], Ï: ['I', 'uml'], Ó: ['O', 'acute'], Ò: ['O', 'grave'], Ô: ['O', 'circ'],
+  Ú: ['U', 'acute'], Ù: ['U', 'grave'], Û: ['U', 'circ'], Ñ: ['N', 'tilde'], Ÿ: ['Y', 'uml'],
+};
+// Ä Ö Ü bleiben in der vertrauten gestauchten Form oben (wie bisher), alle anderen nach diesem Schema
+for (const [ch, [b, a]] of Object.entries(ACCENTS)) {
+  const w = G[b].split('|')[0].length;
+  const acc = [...ABOVE[a], '.'.repeat(w)].map((r) => (r.length === w ? r : r.padStart(Math.floor((w + r.length) / 2), '.').padEnd(w, '.')));
+  G[ch] = { rows: [...acc, ...G[b].split('|')], up: acc.length };
+}
+G.Ç = { rows: [...G.C.split('|'), '.#.'], up: 0 };
+G.Œ = '.####|#.#..|#.##.|#.#..|.####';
+// Unbekannte Buchstaben mit Akzent: Grundbuchstabe statt Fragezeichen
 const base = (ch) => ch.normalize('NFD')[0];
 
 export class PixelFont {
   constructor() {
     this.glyphs = {};
-    for (const [ch, rows] of Object.entries(G)) {
-      const r = rows.split('|');
-      this.glyphs[ch] = { ch, w: r[0].length, rows: r };
+    for (const [ch, def] of Object.entries(G)) {
+      const r = typeof def === 'string' ? def.split('|') : def.rows;
+      this.glyphs[ch] = { ch, w: r[0].length, rows: r, up: def.up ?? 0 };
     }
     this.cache = new Map();
   }
@@ -41,7 +57,7 @@ export class PixelFont {
     let c = this.cache.get(key);
     if (c) return c;
     const g = this.glyphs[ch];
-    c = makeCanvas(g.w, 5);
+    c = makeCanvas(g.w, g.rows.length);
     const ctx = c.getContext('2d');
     ctx.fillStyle = color;
     g.rows.forEach((row, y) => [...row].forEach((p, x) => { if (p === '#') ctx.fillRect(x, y, 1, 1); }));
@@ -55,6 +71,13 @@ export class PixelFont {
     let w = 0;
     for (const ch of text.toUpperCase()) w += (this.#glyph(ch).w + 1) * scale;
     return Math.max(0, w - scale);
+  }
+
+  // Pixel über der Grundhöhe (Akzente wie É), damit Aufrufer Platz lassen können
+  ascent(text, raw = false) {
+    let up = 0;
+    for (const ch of (raw ? String(text) : tr(String(text))).toUpperCase()) up = Math.max(up, this.#glyph(ch).up);
+    return up;
   }
 
   // outline: 1px-Rand ringsum (in Skalierungsstufen) – beste Lesbarkeit über
@@ -74,7 +97,7 @@ export class PixelFont {
     for (const ch of text) {
       const g = this.#glyph(ch);
       const img = this.#glyphCanvas(g.ch, color);
-      ctx.drawImage(img, cx, y, g.w * scale, 5 * scale);
+      ctx.drawImage(img, cx, y - g.up * scale, g.w * scale, g.rows.length * scale);
       cx += (g.w + 1) * scale;
     }
   }

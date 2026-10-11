@@ -51,8 +51,9 @@ else {
 // Weitere Sprachen: fehlt dort ein Eintrag, erscheint der Text englisch.
 const ph = (s) => (s.match(/\{\d+\}/g) ?? []).sort().join();
 const only = process.argv.includes('--lang') ? process.argv[process.argv.indexOf('--lang') + 1] : null;
-for (const { id, dict } of LANGS) {
-  if (!dict || id === 'en') continue;
+for (const { id } of LANGS) {
+  if (id === 'de' || id === 'en') continue;
+  const dict = (await import(`../src/i18n/${id}.js`))[id.toUpperCase()];
   const missing = Object.keys(EN).filter((k) => typeof dict[k] !== 'string' || !dict[k]);
   const broken = Object.keys(dict).filter((k) => typeof dict[k] === 'string' && k in EN && ph(k) !== ph(dict[k]));
   const extra = Object.keys(dict).filter((k) => !(k in EN));
