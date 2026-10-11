@@ -5,7 +5,8 @@ import { getHeroSprites, setHeroRes } from '../sprites/hero.js';
 // Bühne der Charaktererstellung: der eigene Held steht groß auf der Lavakruste der Glutöde, hinten der Aschethron –
 // dieselbe Szene wie das Titelbild der Website („Aufbruch zum Aschethron“, site/titel.js), nur mit dem neuen Helden.
 // Eine Pixelgröße für alles: Szenenpixel = Feinpixel des Helden (Vorführstufe frame.res = 3), d Gerätepixel je
-// Szenenpixel (ganzzahlig). Die Leinwand hat ein Pixel je Szenenpixel und wird per CSS vergrößert (pixelated).
+// Szenenpixel (ganzzahlig, gerade). Die Leinwand hat zwei Pixel je Szenenpixel (FINE, nur die Glutwolke nutzt sie
+// fein) und wird per CSS vergrößert (pixelated).
 // Licht nur in harten Stufen: unregelmäßige Glutwolke hinter dem Helden, Lichtfleck am Boden als geordnetes Raster
 // (Bayer), Glutkante an der Figur, Runenring unter den Füßen.
 // Wo der Held steht, bestimmt das Platzhalter-Element (slot) aus dem CSS: Fußpunkt unten in der Mitte. Die Vergrößerung
@@ -85,25 +86,31 @@ function noise(x, y) {
   const a = hh(xi, yi), b = hh(xi + 1, yi), c = hh(xi, yi + 1), d = hh(xi + 1, yi + 1);
   return a + (b - a) * su + (c - a) * sv + (a - b - c + d) * su * sv;
 }
-// Glutwolke hinter dem Helden: unregelmäßiger Rand, harte Farbstufen ohne Raster. Bild k von n wandert auf einem
-// kleinen Kreis durch das Rauschen, die Wolke wogt dadurch nahtlos in einer Schleife.
-const CLOUD = { w: 176, h: 176, n: 8, fps: 3, cols: ['#2e0a04', '#4e1206', '#782008', '#a2340c'] };
+// Glutwolke hinter dem Helden: unregelmäßiger Rand, harte Farbstufen ohne Raster, in halben Szenenpixeln (FINE) feiner
+// als die Szene. Bild k von n wandert auf einem kleinen Kreis durch das Rauschen: die Wolke atmet langsam in einer
+// nahtlosen Schleife (n / fps Sekunden), von Bild zu Bild verschieben sich die Stufen nur um wenige Feinpixel.
+const FINE = 2;
+const CLOUD = { w: 176, h: 176, n: 24, fps: 3, r: 0.25, cols: ['#220703', '#300a04', '#3e0e05', '#501406', '#621a08', '#76240a'], at: [0.1, 0.24, 0.38, 0.52, 0.66, 0.8] };
 function cloudFrame(k) {
-  const { w, h: hh, n, cols } = CLOUD, a = (k / n) * Math.PI * 2, ox = Math.cos(a) * 1.3, oy = Math.sin(a) * 1.3;
-  const c = document.createElement('canvas');
-  c.width = w; c.height = hh;
-  const g = c.getContext('2d');
-  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+  const { w, h: hh, n, r, cols, at } = CLOUD, a = (k / n) * Math.PI * 2, ox = Math.cos(a) * r, oy = Math.sin(a) * r;
+  const W = w * FINE, H = hh * FINE, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d'), img = g.createImageData(W, H), px = img.data;
+  const rgb = cols.map((col) => [1, 3, 5].map((i) => parseInt(col.slice(i, i + 2), 16)));
+  for (let Y = 0; Y < H; Y++) for (let X = 0; X < W; X++) {
+    const x = (X + 0.5) / FINE, y = (Y + 0.5) / FINE;
     const dx = (x - w / 2) / 80, dy = (y - hh * 0.54) / 82;
     const base = 1 - Math.hypot(dx * (1 - dy * 0.18), dy);
     if (base < -0.3) continue;
-    const f = noise(x / 15 + ox, y / 15 + oy - k * 0.04) * 0.65 + noise(x / 6 - oy * 1.6, y / 6 + ox * 1.6) * 0.35;
-    const v = base * 1.25 + (f - 0.5) * 0.95;
-    const b = v > 0.78 ? 4 : v > 0.55 ? 3 : v > 0.32 ? 2 : v > 0.1 ? 1 : 0;
+    const f = noise(x / 16 + ox, y / 16 + oy) * 0.75 + noise(x / 7 - oy * 1.6, y / 7 + ox * 1.6) * 0.25;
+    const v = base * 1.25 + (f - 0.5) * 0.8;
+    let b = 0;
+    while (b < at.length && v > at[b]) b++;
     if (!b) continue;
-    g.fillStyle = cols[b - 1];
-    g.fillRect(x, y, 1, 1);
+    const o = (Y * W + X) * 4, [R, G, B] = rgb[b - 1];
+    px[o] = R; px[o + 1] = G; px[o + 2] = B; px[o + 3] = 255;
   }
+  g.putImageData(img, 0, 0);
   return c;
 }
 let glows = null;
@@ -167,15 +174,19 @@ export class CreateStage {
     const key = `${W}x${H}|${dpr}|${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}|${box.left},${box.top}`;
     if (this.view?.key === key) return this.view;
     const footDev = (r.top - box.top + r.height) * dpr;
-    const d = Math.max(1, Math.round(footDev / FOOT_ROWS), Math.ceil(W / S.W));
+    // d gerade, damit die Glutwolke ganzzahlig in halben Szenenpixeln liegt (Leinwand FINE-fach, Szene per setTransform)
+    const wide = Math.ceil(W / S.W);
+    let d = Math.max(1, Math.round(footDev / FOOT_ROWS), wide);
+    if (d > 1 && d % 2) d += d - 1 >= wide ? -1 : 1;
+    const m = d % FINE ? 1 : FINE;
     const vw = Math.ceil(W / d), vh = Math.ceil(H / d);
-    if (cv.width !== vw || cv.height !== vh) { cv.width = vw; cv.height = vh; }
+    if (cv.width !== vw * m || cv.height !== vh * m) { cv.width = vw * m; cv.height = vh * m; }
     cv.style.width = `${(vw * d) / dpr}px`; cv.style.height = `${(vh * d) / dpr}px`;
     // Fußpunkt des Helden in Szenenpixeln der Leinwand; unterhalb der Szene geht der Boden dunkel weiter
     const fx = Math.round(((r.left - box.left + r.width / 2) * dpr) / d), fy = Math.round(footDev / d) - 2;
     const camX = Math.max(0, Math.min(S.W - vw, S.HX - fx));
     const camY = Math.max(0, S.STAND - fy);
-    this.view = { key, W: vw, H: vh, vw, vh, camX, camY, hx: camX + fx, hy: camY + fy };
+    this.view = { key, m, W: vw, H: vh, vw, vh, camX, camY, hx: camX + fx, hy: camY + fy };
     return this.view;
   }
 
@@ -236,7 +247,8 @@ export class CreateStage {
   }
 
   #draw(v) {
-    const { ctx, I } = this, { camX, camY, W, H } = v;
+    const { ctx, I } = this, { camX, camY, W, H, m } = v;
+    ctx.setTransform(m, 0, 0, m, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#060309'; ctx.fillRect(0, 0, W, H);
@@ -278,9 +290,9 @@ export class CreateStage {
     ctx.globalCompositeOperation = 'lighter';
     const cloud = G.cloud[Math.floor(t * CLOUD.fps) % G.cloud.length];
     if (cloud) {
-      const cx = Math.round(hx - CLOUD.w / 2), cy = Math.round(hy - 44 * K - CLOUD.h / 2);
-      draw(cloud, cx, cy, 1);
-      if (this.flash > 0) { ctx.globalAlpha = 0.5; draw(cloud, cx, cy, 1); ctx.globalAlpha = 1; }
+      const [ox, oy] = off(1), cx = Math.round(hx - CLOUD.w / 2) - camX - ox, cy = Math.round(hy - 44 * K - CLOUD.h / 2) - camY - oy;
+      ctx.drawImage(cloud, cx, cy, CLOUD.w, CLOUD.h);   // Feinpixel 1:1 auf die Leinwand (FINE-fach)
+      if (this.flash > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(cloud, cx, cy, CLOUD.w, CLOUD.h); ctx.globalAlpha = 1; }
     }
     draw(G.pool, Math.round(hx - G.pool.width / 2), Math.round(hy - G.pool.height / 2 + 2), 1);
     ctx.globalCompositeOperation = 'source-over';
@@ -358,9 +370,12 @@ function rimOf(cv) {
 
 // Kleines Heldenbild für die Auswahlkacheln: Kopf und Schultern, 1:1 in Feinpixeln (frame.res 2).
 // Die Anzeigegröße setzt das CSS ganzzahlig über --w/--h (Feinpixel).
+// Breite 30 Feinpixel: vom Hinterkopf (Glutgeborenen-Mähne, TILE_BACK links vom Fußpunkt) bis zur Hutkrempe des
+// Glutmagiers – jedes Gesicht ganz im Bild, der Kasten im CSS ist genau so breit (.cc-tile-art-box).
+const TILE_W = 30, TILE_BACK = 11;
 export class TilePortrait {
   constructor() {
-    const [w, hh] = [36, 30];
+    const [w, hh] = [TILE_W, 30];
     this.canvas = h('canvas.cc-tile-art', { 'aria-hidden': 'true' });
     this.canvas.width = w; this.canvas.height = hh;
     this.canvas.style.setProperty('--w', w); this.canvas.style.setProperty('--h', hh);
@@ -370,8 +385,8 @@ export class TilePortrait {
   set(anims) {
     const f = anims.idle.frames[0], { ctx, canvas } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Oberkante der Figur suchen, Kopf oben bündig mit 2 Pixeln Luft
-    ctx.drawImage(f.canvas, Math.round(canvas.width / 2 - f.ax + 2), 2 - topOf(f.canvas));
+    // Fester Ausschnitt um den Kopf (Hinterkopf, Mähne, Gesicht, Hutkrempe), oben bündig mit 2 Pixeln Luft
+    ctx.drawImage(f.canvas, TILE_BACK - f.ax, 2 - topOf(f.canvas));
   }
 }
 

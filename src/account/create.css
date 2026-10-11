@@ -37,7 +37,7 @@
   background: var(--cc-tile); border: 2px solid var(--cc-edge); border-radius: 0;
   box-shadow: 0 0 0 2px var(--cc-ink), inset 0 2px 0 rgba(255, 220, 160, 0.05);
 }
-.cc-tile-art-box { flex: none; align-self: stretch; width: 56px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; background: #0a050b; border-right: 2px solid var(--cc-ink); }
+.cc-tile-art-box { flex: none; align-self: stretch; width: calc(30px * var(--cc-art)); display: flex; align-items: flex-end; justify-content: center; overflow: hidden; background: #0a050b; border-right: 2px solid var(--cc-ink); }
 .cc-tile-art { display: block; flex: none; image-rendering: pixelated; width: calc(var(--w) * var(--cc-art) * 1px); height: calc(var(--h) * var(--cc-art) * 1px); }
 .cc-tile-name { min-width: 0; overflow: hidden; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 @media (hover: hover) { .cc-tile:hover { border-color: var(--cc-edge-hi); color: var(--cc-text); } }
@@ -163,7 +163,7 @@
   .cc-tiles + .cc-h { margin-top: 8px; }
   .cc-tiles { gap: 6px; }
   .cc-tile { height: 48px; gap: 4px; font-size: 12.5px; letter-spacing: -0.01em; padding-right: 3px; }
-  .cc-tile-art-box { width: 28px; align-items: center; }
+  .cc-tile-art-box { align-items: center; }
   .cc-slot { grid-area: slot; min-height: 0; margin-bottom: 18px; }   /* Luft für den Bodenring unter den Füßen */
   .cc-look { grid-area: look; align-self: end; justify-self: center; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; max-width: 168px; margin: 0; padding: 4px; }
   .cc-swatches { justify-content: space-between; gap: 4px; }
@@ -192,9 +192,9 @@
   .cc-start { height: 52px; font-size: 16px; padding: 0 8px; }
 }
 @media (max-height: 520px) and (max-width: 740px) and (orientation: landscape) {
-  .cc-tile { font-size: 12px; }
+  .cc-tile { font-size: 12px; gap: 2px; padding-right: 2px; }
   .cc-tile-long { font-size: 11px; letter-spacing: -0.02em; }
-  .cc-tile-art-box { width: 24px; }
+  .cc-tile-art-box { width: 26px; }   /* je 2 Feinpixel Rand weg (Mähne hinten, Hutkrempe), Gesicht bleibt ganz */
   .cc-start { font-size: 14.5px; letter-spacing: 0.03em; }
 }
 @media (max-height: 340px) and (orientation: landscape) {
