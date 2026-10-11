@@ -3,12 +3,38 @@ import { EV } from '../core/events.js';
 import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { fmtNum, tr } from '../i18n/index.js';
 import { ITEMS } from '../progression/items.js';
-import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, attachTip, hideTip } from '../progression/widgets.js';
-import { CATEGORIES, DURATIONS, MAX_ACTIVE, PRICE_MAX, FEE_RATE, tradeable, minBid, proceedsOf, listStack } from './rules.js';
+import { panelFrame, goldEl, itemDetail, actionBtn, attachTip, hideTip } from '../progression/widgets.js';
+import { frameUrl, pixelTitle } from '../ui/pixelFrame.js';
+import { CATEGORIES, DURATIONS, MAX_ACTIVE, PRICE_MAX, FEE_RATE, TRADE_MIN_LEVEL, tradeable, minBid, proceedsOf, listStack } from './rules.js';
 
 // Fenster des Auktionators: Kaufen · Verkaufen · Abholen. Daten und Buchungen über game.market (index.js).
-const RARITY_FILTER = [[0, 'Jede Seltenheit'], [2, 'Ab Selten'], [3, 'Ab Episch'], [4, 'Nur Legendär']];
-const SORTS = [['new', 'Neueste zuerst'], ['price', 'Günstigste zuerst'], ['ending', 'Endet bald']];
+// Warengruppen als Bildleiste (Symbol aus dem Item-Atlas), Seltenheit als drei Edelsteine, Sortierung als Umschalter.
+const CAT_ICONS = { weapon: 'sword_steel', armor: 'mail_chain', jewelry: 'ring_ruby', consumable: 'potion_hp_m', material: 'ore_ember', mount: 'mount_ash_wolf' };
+const RARITY_GEMS = [[2, 'rare', 'Ab Selten'], [3, 'epic', 'Ab Episch'], [4, 'legendary', 'Nur Legendär']];
+const SORTS = [['new', 'Neueste'], ['price', 'Günstigste'], ['ending', 'Endet bald']];
+const GEM_COLORS = {
+  rare: ['#14060a', '#163070', '#2a58b8', '#5a98f0', '#c0e0ff'],
+  epic: ['#14060a', '#3a1466', '#6a2cb0', '#a060f0', '#e8c8ff'],
+  legendary: ['#14060a', '#7a2208', '#c8640c', '#f0a01c', '#ffe8a0'],
+  off: ['#14060a', '#241820', '#34262e', '#4a3a42', '#6a5a60'],
+};
+// Edelstein 9×9 als Pixelbild (Umriss, Schatten unten rechts, Glanz oben links), Anzeige 2-fach
+const gems = new Map();
+function gemUrl(kind) {
+  if (gems.has(kind)) return gems.get(kind);
+  const [k, d, m, l, w] = GEM_COLORS[kind];
+  const c = document.createElement('canvas'); c.width = c.height = 9;
+  const ctx = c.getContext('2d');
+  for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
+    const r = Math.abs(x - 4) + Math.abs(y - 4);
+    if (r > 4) continue;
+    ctx.fillStyle = r === 4 ? k : (x + y <= 5 && r >= 2) ? l : (x + y >= 10) ? d : m;
+    if (r < 4 && x === 3 && y === 2) ctx.fillStyle = w;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  gems.set(kind, c.toDataURL());
+  return gems.get(kind);
+}
 
 let names = null;
 // Handelbare Gegenstände, deren Name (deutsch oder in der Anzeigesprache) den Suchtext enthält; leer → null (alle)
@@ -100,28 +126,36 @@ export function marketPanel(session, game, market) {
       h('div.pg-stock-name', listingName(l),
         h('small', l.top ? `${priceLine(l)} · du führst · ${timeLeft(l.endsAt, now)}` : `${priceLine(l)} · ${timeLeft(l.endsAt, now)}`)),
       right ?? (l.buyout != null ? goldEl(l.buyout, '.mk-buyout') : h('span.mk-nobuy', '–')));
-    if (def) attachTip(row, () => itemDetail(content, l.itemId, detailOpts(true)));
+    if (def && sel !== l.id) attachTip(row, () => itemDetail(content, l.itemId, detailOpts(true)));
     return row;
   }
   const detailOpts = (compact) => ({ equipment: st().inventory?.equipment ?? {}, level: st().progress?.level ?? 1, classId: st().character?.classId, compact });
 
   function buyView(now) {
     const gold = st().wallet?.gold ?? 0;
-    const cats = h('select.pg-select', { 'aria-label': 'Warengruppe', onchange: (e) => { filter.category = e.target.value; load(); } },
-      h('option', { value: '' }, 'Alle Waren'),
-      CATEGORIES.map(([id, label]) => h('option', { value: id, selected: filter.category === id }, label)));
-    const rar = h('select.pg-select', { 'aria-label': 'Seltenheit', onchange: (e) => { filter.rarity = Number(e.target.value) || 0; load(); } },
-      RARITY_FILTER.map(([v, label]) => h('option', { value: String(v), selected: filter.rarity === v }, label)));
-    const sort = h('select.pg-select', { 'aria-label': 'Sortierung', onchange: (e) => { filter.sort = e.target.value; load(); } },
-      SORTS.map(([v, label]) => h('option', { value: v, selected: filter.sort === v }, label)));
+    const catBtn = (id, label, icon) => h(`button.mk-cat${filter.category === id ? '.on' : ''}`, {
+      type: 'button', title: label, 'aria-label': label, 'aria-pressed': String(filter.category === id),
+      onclick: () => { filter.category = filter.category === id && id ? '' : id; load(); },
+    }, iconEl(icon, 24));
+    const cats = h('div.mk-cats', { role: 'group', 'aria-label': 'Warengruppe' },
+      catBtn('', 'Alle Waren', 'bag'), CATEGORIES.map(([id, label]) => catBtn(id, label, CAT_ICONS[id])));
+    const rar = h('div.mk-gems', { role: 'group', 'aria-label': 'Seltenheit' }, RARITY_GEMS.map(([v, r, label]) => h(`button.mk-gem.g-${r}`, {
+      type: 'button', title: label, 'aria-label': label, 'aria-pressed': String(filter.rarity === v),
+      onclick: () => { filter.rarity = filter.rarity === v ? 0 : v; load(); },
+    }, h('img.mk-gem-img', { src: gemUrl(!filter.rarity || v >= filter.rarity ? r : 'off'), width: 18, height: 18, alt: '' }))));
+    const si = Math.max(0, SORTS.findIndex(([v]) => v === filter.sort));
+    const sort = h('button.mk-chip.mk-sort', {
+      type: 'button', 'aria-label': 'Sortierung', title: 'Sortierung',
+      onclick: () => { filter.sort = SORTS[(si + 1) % SORTS.length][0]; load(); },
+    }, h('i.mk-sort-ico'), SORTS[si][1]);
     const search = h('input.ef-input.mk-search', {
       type: 'search', value: filter.q, placeholder: 'Suchen …', 'aria-label': 'Suchen', 'data-k': 'search', enterkeyhint: 'search', maxlength: '40',
       oninput: (e) => { filter.q = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(() => load(), 350); },
     });
     const filters = h('div.mk-filters',
-      search,
-      h('span.pg-select-wrap', cats), h('span.pg-select-wrap', rar), h('span.pg-select-wrap', sort),
-      h(`button.mk-chip${filter.mine ? '.on' : ''}`, { type: 'button', 'aria-pressed': String(filter.mine), onclick: () => { filter.mine = !filter.mine; load(); } }, 'Für mich'));
+      h('div.mk-frow', search, sort,
+        h(`button.mk-chip${filter.mine ? '.on' : ''}`, { type: 'button', 'aria-pressed': String(filter.mine), onclick: () => { filter.mine = !filter.mine; load(); } }, 'Für mich')),
+      h('div.mk-frow', cats, rar));
 
     let list;
     if (!market.ready) list = h('p.ef-note', 'Melde dich mit deinem Konto an, um zu handeln.');
@@ -181,12 +215,19 @@ export function marketPanel(session, game, market) {
     for (const [id, n] of bagQty) goods.push(['slot', id, n]);
     for (const [id, n] of Object.entries(inv.mats ?? {})) if (n > 0 && tradeable(content.find('item', id))) goods.push(['mat', id, n]);
     for (const { itemId } of market.sellableMounts()) goods.push(['mount', itemId, 1]);
+    const WHERE = { slot: (n) => `Tasche · ${fmtNum(n)}`, mat: (n) => `Materialbeutel · ${fmtNum(n)}`, mount: () => 'Gelerntes Reittier' };
     const slots = goods.map(([kind, id, n]) => {
-      const el = itemSlot(content, { itemId: id, qty: n }, { selected: pick?.kind === kind && pick.itemId === id, onclick: pickSlot(kind, id, n) });
-      el.dataset.k = `good-${id}`;
-      attachTip(el, () => itemDetail(content, id, detailOpts(true)));
-      return el;
+      const def = content.find('item', id);
+      const on = pick?.kind === kind && pick.itemId === id;
+      const btn = h(`button.pg-stock-row.mk-row.mk-good${on ? '.selected' : ''}`, {
+        type: 'button', 'data-k': `good-${kind}-${id}`, 'aria-pressed': String(on), onclick: pickSlot(kind, id, n),
+      },
+        h('span.mk-icon', itemIconEl({ ...def, name: null }, 36), n > 1 ? h('span.pg-qty', fmtNum(n)) : null),
+        h('span.pg-stock-name', h(`span.r-${def.rarity}`, def.name), h('small', WHERE[kind](n))));
+      if (!on) attachTip(btn, () => itemDetail(content, id, detailOpts(true)));
+      return h('li', btn);
     });
+    const young = (s.progress?.level ?? 1) < TRADE_MIN_LEVEL;
 
     return h('div.mk-sell', split(h('div.mk-main',
       mine.length ? h('section',
@@ -198,7 +239,8 @@ export function marketPanel(session, game, market) {
       h('section',
         h('h3', 'Einstellen'),
         !market.ready ? h('p.ef-note', 'Melde dich mit deinem Konto an, um zu handeln.')
-          : slots.length ? h('div.pg-bag.small.mk-bag', slots) : h('p.ef-note.mk-empty', 'Du hast gerade nichts, was sich handeln lässt.'))),
+          : young ? h('p.ef-note.mk-empty', `Handeln geht ab Stufe ${TRADE_MIN_LEVEL} und nach einer Stunde Spielzeit.`)
+            : slots.length ? h('ul.pg-stock.mk-list.mk-goods', slots) : h('p.ef-note.mk-empty', 'Du hast gerade nichts, was sich handeln lässt.'))),
     pick ? sellSheet() : null));
   }
 
@@ -209,11 +251,11 @@ export function marketPanel(session, game, market) {
     const valid = (start != null || buyout != null) && (start == null || start <= PRICE_MAX) && (buyout == null || buyout <= PRICE_MAX)
       && !(start != null && buyout != null && buyout < start);
     const price = buyout ?? start;
-    const field = (label, key, extra = {}) => h('label.mk-field', h('span', label), h('input.ef-input.mk-num', {
-      type: 'text', inputmode: 'numeric', value: String(form[key] ?? ''), 'data-k': `sell-${key}`, ...extra,
+    const field = (label, key, max = null) => h('label.mk-field', h('span', label), h('span.mk-numwrap', h('input.ef-input.mk-num', {
+      type: 'text', inputmode: 'numeric', value: String(form[key] ?? ''), 'data-k': `sell-${key}`,
       oninput: (e) => { form[key] = e.target.value; },
       onchange: () => draw(),
-    }));
+    }), max ? h('small.mk-max', `/${fmtNum(max)}`) : null));
     const submit = () => {
       const qty = pick.kind === 'mount' ? 1 : Math.max(1, Math.min(stack, num(form.qty) ?? 1));
       const item = pick.itemId, mount = pick.kind === 'mount';
@@ -226,7 +268,7 @@ export function marketPanel(session, game, market) {
         ...detailOpts(true), compare: false, actionsTop: true,
         actions: [h('div.mk-form',
           h(`div.mk-prices${stack > 1 ? '.three' : ''}`,
-            stack > 1 ? field('Menge', 'qty', { title: `höchstens ${fmtNum(stack)}` }) : null, field('Startgebot', 'start'), field('Sofortkauf', 'buyout')),
+            stack > 1 ? field('Menge', 'qty', stack) : null, field('Startgebot', 'start'), field('Sofortkauf', 'buyout')),
           h('div.mk-hours', { role: 'radiogroup', 'aria-label': 'Laufzeit' },
             DURATIONS.map((hrs) => h(`button.mk-chip${form.hours === hrs ? '.on' : ''}`, {
               type: 'button', role: 'radio', 'aria-checked': String(form.hours === hrs), onclick: () => { form.hours = hrs; draw(); },
@@ -276,13 +318,27 @@ export function marketPanel(session, game, market) {
     const gold = st().wallet?.gold ?? 0;
     const n = market.mail?.length ?? 0;
     const tabs = [['buy', 'Kaufen'], ['sell', 'Verkaufen'], ['mail', 'Abholen']];
-    return panelFrame(session, 'market', 'Auktionshaus',
+    const panel = panelFrame(session, 'market', 'Auktionshaus',
       h('div.pg-tabs.mk-tabs', { role: 'tablist' }, tabs.map(([id, label]) => h(`button.pg-tabbtn${tab === id ? '.on' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': String(tab === id),
         onclick: () => { tab = id; sel = null; pick = null; say(''); draw(); if (id === 'buy') load(); else market.refresh().catch(() => {}); },
       }, label, id === 'mail' && n ? h('span.mk-badge', fmtNum(n)) : null)), goldEl(gold, '.mk-purse')),
       h('div.pg-scroll.pg-keep-scroll.mk-body', tab === 'buy' ? buyView(now) : tab === 'sell' ? sellView(now) : mailView(now)));
+    // Gezeichneter Rahmen und Titel in Pixelschrift (wie der Todesbildschirm), Stufe je Gerät in market.css
+    panel.style.setProperty('--mk-frame2', `url(${frameUrl(2)})`);
+    panel.style.setProperty('--mk-frame3', `url(${frameUrl(3)})`);
+    const t = panel.querySelector('.pg-title');
+    if (t && session.font) {
+      if (title?.lang !== tr('Auktionshaus')) title = { c: pixelTitle(session.font, 'Auktionshaus'), lang: tr('Auktionshaus') };
+      const tc = title.c;
+      const c = h('canvas.mk-ptitle', { width: tc.width, height: tc.height, 'aria-hidden': 'true' });
+      c.getContext('2d').drawImage(tc, 0, 0);
+      c.style.setProperty('--tw', String(tc.width)); c.style.setProperty('--th', String(tc.height));
+      t.replaceChildren(c, h('span.mk-sr', 'Auktionshaus'));
+    }
+    return panel;
   };
+  let title = null;
 
   // Neu zeichnen ohne Fokus, Cursor und Scrollstand zu verlieren (Eingabefelder, Liste)
   let queued = false;

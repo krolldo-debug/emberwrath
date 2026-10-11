@@ -250,6 +250,7 @@ function placeAuctioneer(world) {
   world.props.push(lectern);
   const npc = world.spawn(new Auctioneer('auctioneer', p.x, p.y, { ...AUCTIONEER, facing: side }, sp, world));
   npc.markerY = 50;
+  npc.lectern = lectern;
   world.interactables.push(npc);
   world.npcs.push(npc);
   world.flow?.rebuildBlocked?.();

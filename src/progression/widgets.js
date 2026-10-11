@@ -65,7 +65,7 @@ export function itemDetail(content, itemId, { equipment = {}, level = 99, classI
   const stats = keys.map((k) => {
     const v = def.stats?.[k] ?? 0, d = v - (worn?.stats?.[k] ?? 0);
     const diff = worn && Math.abs(d) > 1e-6 ? h(`span.pg-diff${d > 0 ? '.up' : '.down'}`, formatStatDelta(k, d)) : null;
-    return h(`li${v ? '' : '.pg-lost'}`, h('span', v ? formatStat(k, v) : `±0 ${STAT_NAMES[k]}`), diff);
+    return h(`li${v ? '' : '.pg-lost'}`, h('span', v ? formatStat(k, v) : STAT_NAMES[k]), diff);
   });
   const lvlBad = (def.reqLevel ?? 1) > level;
   const clsBad = !canUseClass(def, classId);
