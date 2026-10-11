@@ -176,3 +176,6 @@ export function createWallTopTile(seed = 5) {
   }
   return p.canvas;
 }
+
+// Feinraster-Bodenkacheln (32×32 Weltpixel, 64×64 Texel, canvas.res = 2), einmal je Sitzung. Platzhalter: null = grob.
+export function createFloorTilesFine() { return null; }

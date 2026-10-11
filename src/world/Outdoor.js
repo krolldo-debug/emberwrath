@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { hash2 } from '../core/math.js';
 import { TileMap } from './TileMap.js';
-import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, createCliffTiles, FK } from '../sprites/outdoor.js';
+import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, FINE_GROUND, createCliffTiles, FK } from '../sprites/outdoor.js';
 import { fineRes } from '../gfx/Fine.js';
 import { GROUND_STEPPE } from '../sprites/decor_steppe.js';
 import { GROUND_MARSH } from '../sprites/decor_marsh.js';
@@ -57,6 +57,9 @@ function capNose(px, py, G, R) {
 
 // Bodenpaletten der Runde-3-Zonen liegen bei ihren Deko-Sätzen (Import hier, sonst Kreis über decor_ashwood -> outdoor.js)
 const GROUNDS = { ...BIOME_GROUND, steppe: GROUND_STEPPE, marsh: GROUND_MARSH, frost: GROUND_FROST, wastes: GROUND_WASTES, peaks: GROUND_PEAKS };
+// Feinraster-Böden (sprites/ground/, Schlüssel = level.biome, 'outdoor' = ohne Biom) ergänzen die Paletten um
+// finePixel/fineSetup – auch die der Deko-Sätze, ohne deren Dateien anzufassen
+for (const [k, f] of Object.entries(FINE_GROUND)) GROUNDS[k] = { ...(GROUNDS[k] ?? OUT), ...f };
 // Felsrampen je Biom (dunkel→hell). Das Plateau nimmt den Boden der Zone (bzw. Schnee), damit Felsen
 // als erhöhtes Gelände lesen und nicht als schwarze Löcher.
 const CLIFF_ROCK = {
@@ -147,6 +150,20 @@ const KCODE = { ',': FK.GRASS, '#': FK.GRASS, '.': FK.DIRT, ':': FK.PAVE, '~': F
 const KCHAR = [',', '.', ':', '~', '='];
 const OV = 4; // Übersichtsbild: Pixel je Kachel (Minimap/Zonenkarte)
 
+// Felsmaler-Ebene (Outdoor #cliffOverlay) auf einen feinen Chunk legen: je Weltpixel out = in·a + c für seine r×r Texel
+function applyOverlay(d, { A, B }, cw, ch, r) {
+  const CW = cw * r;
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const i = (y * cw + x) * 4;
+    const c0 = A[i], c1 = A[i + 1], c2 = A[i + 2], a0 = B[i] - c0, a1 = B[i + 1] - c1, a2 = B[i + 2] - c2;
+    if (a0 === 255 && a1 === 255 && a2 === 255) continue;   // unverändert
+    for (let v = 0; v < r; v++) for (let u = 0; u < r; u++) {
+      const t = ((y * r + v) * CW + x * r + u) * 4;
+      d[t] = c0 + (d[t] * a0) / 255; d[t + 1] = c1 + (d[t + 1] * a1) / 255; d[t + 2] = c2 + (d[t + 2] * a2) / 255;
+    }
+  }
+}
+
 // Außenkarte: Gras, Wege, Pflaster, Wasser, Glutspalten, Klippen.
 // Der Boden wird pixelweise mit verrauschten Übergängen erzeugt (keine
 // sichtbaren Kachelkanten). Glühende Spalten liegen auf einer eigenen
@@ -159,13 +176,14 @@ export class Outdoor extends TileMap {
     // level.solid: zusätzliche feste Deko-Zeichen (Palisaden, Mauern); Boden darunter wie Nachbarn
     super(level, { solidChars: level.solid ? new Set([...SOLID, ...level.solid]) : SOLID, floorChars: FLOOR, terrainChars: TERRAIN });
     this.biome = 'outdoor';
-    this.pal = GROUNDS[level.biome] ?? OUT;
+    this.pal = GROUNDS[level.biome ?? 'outdoor'] ?? OUT;
     this.groundBiome = level.biome;
     this.chunked = true;
     this.overview = null;
     this.chunks = new Map();
-    // Feiner Boden nur mit Fein-Shader und ohne pixelweise Felsmaler (die arbeiten auf der Weltpixel-Leinwand)
-    this.fineOk = typeof this.pal.finePixel === 'function' && !ORGANIC_CLIFFS.has(level.biome) && !level.organicCliffs && !level.paintedCliffs;
+    // Feiner Boden mit Fein-Shader des Bioms; pixelweise Felsmaler (organisch, Basalt, Biom-Maler) laufen dabei in
+    // Weltpixeln und werden als Ebene darübergelegt (#cliffOverlay)
+    this.fineOk = typeof this.pal.finePixel === 'function';
     this.#setRes(1);
     this.vel = [0, 0];
     this.stats = { sync: 0, miss: 0, async: 0, evicted: 0, maxSyncMs: 0, ms: 0, frames: 0 };
@@ -388,7 +406,8 @@ export class Outdoor extends TileMap {
     const tx1 = Math.min(this.w - 1, Math.floor((rx1 - 1) / T) + 1), ty1 = Math.min(this.h - 1, Math.floor((ry1 - 1) / T) + 1);
     // Deko im Gras
     const tf = this.tufts;
-    if (tufts && this.pal.tufts !== false)
+    // Feinraster-Böden stempeln ihre Halme selbst (pal.fineTufts === false: Büschel nur bei Qualität „Niedrig“)
+    if (tufts && this.pal.tufts !== false && !(this.res > 1 && this.pal.fineTufts === false))
     for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
       if (this.rows[y][x] !== ',' && !(this.terrainAt(x, y) === ',' && !SOLID.has(this.rows[y][x]))) continue;
       for (let k = 0; k < 3; k++) {
@@ -449,7 +468,9 @@ export class Outdoor extends TileMap {
     const img = new ImageData(CW, CH), d = img.data;
     // Leuchtpuffer nur, wenn Wasser/Lava in Reichweite des Randrauschens liegt
     const eimg = this.#emitsIn(x0, y0, cw, ch) ? new ImageData(CW, CH) : null, ed = eimg?.data;
-    if (r > 1) yield* this.#fineGround(x0, y0, cw, ch, d, ed);
+    // Feinraster: Felsmaler zuerst (in Weltpixeln, als Ebene); wo sie deckend malen, braucht es keinen Boden
+    const ov = r > 1 && (this.organic || this.painter) ? yield* this.#cliffOverlay(x0, y0, cw, ch) : null;
+    if (r > 1) yield* this.#fineGround(x0, y0, cw, ch, d, ed, ov?.cover);
     else yield* this.#coarseGround(x0, y0, cw, ch, d, ed);
     const c = makeCanvas(CW, CH), ctx = c.getContext('2d');
     ctx.putImageData(img, 0, 0);
@@ -467,14 +488,21 @@ export class Outdoor extends TileMap {
     }
     yield;
     this.#drawTiles(ctx, x0, y0, rx1, ry1);
-    // organische Felsen und Biom-Maler nur bei r = 1 (fineOk)
-    if (this.organic) {
+    if (ov) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const im = ctx.getImageData(0, 0, CW, CH);
+      applyOverlay(im.data, ov, cw, ch, r);
+      ctx.putImageData(im, 0, 0);
+      ctx.setTransform(r, 0, 0, r, -x0 * r, -y0 * r);
+    }
+    // organische Felsen und Biom-Maler direkt nur bei r = 1 (bei r = 2 oben als Ebene)
+    if (this.organic && r === 1) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       if (this.basalt) yield* this.#basaltCliffs(ctx, x0, y0, cw, ch);
       else yield* this.#organicCliffs(ctx, this.rockR, x0, y0, cw, ch);
       ctx.translate(-x0, -y0);
     }
-    if (this.painter) {
+    if (this.painter && r === 1) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       yield* this.painter(ctx, x0, y0, cw, ch, this);
       ctx.translate(-x0, -y0);
@@ -491,6 +519,30 @@ export class Outdoor extends TileMap {
       o.imageSmoothingEnabled = false;
       this.overview.version = (this.overview.version ?? 0) + 1;
     }
+  }
+
+  // Felsmaler (organisch, Basalt, pal.paintCliffs) im Feinraster: Sie rechnen in Weltpixeln auf einer Leinwand und
+  // ändern jedes Pixel affin (Fels deckend setzen, Schatten abdunkeln). Zwei Läufe auf schwarzem und weißem Grund
+  // liefern je Weltpixel und Kanal out = in·a + c (c = Lauf schwarz, a = (weiß − schwarz)/255); applyOverlay legt das
+  // auf die 2×2 Texel des feinen Bodens (Schatten behalten die Feinheit darunter). cover: 1 = deckend, kein Boden nötig.
+  *#cliffOverlay(x0, y0, cw, ch) {
+    const run = function* (self, fill) {
+      const c = makeCanvas(cw, ch), x = c.getContext('2d', { willReadFrequently: true });
+      x.fillStyle = fill; x.fillRect(0, 0, cw, ch);
+      if (self.organic) yield* (self.basalt ? self.#basaltCliffs(x, x0, y0, cw, ch) : self.#organicCliffs(x, self.rockR, x0, y0, cw, ch));
+      if (self.painter) yield* self.painter(x, x0, y0, cw, ch, self);
+      return x.getImageData(0, 0, cw, ch).data;
+    };
+    const A = yield* run(this, '#000');
+    let any = false;
+    for (let i = 0; i < A.length; i += 4) if (A[i] | A[i + 1] | A[i + 2]) { any = true; break; }
+    const B = yield* run(this, '#fff');
+    const cover = new Uint8Array(cw * ch);
+    for (let j = 0, i = 0; j < cover.length; j++, i += 4) {
+      if (B[i] === A[i] && B[i + 1] === A[i + 1] && B[i + 2] === A[i + 2]) { cover[j] = 1; any = true; }
+      else if (!any && (B[i] & B[i + 1] & B[i + 2]) !== 255) any = true;
+    }
+    return any ? { A, B, cover } : null;
   }
 
   // Boden in Weltpixeln (1 Texel je Weltpixel), wie bisher
@@ -534,7 +586,7 @@ export class Outdoor extends TileMap {
   // den Chunk vor (Rauschfelder, Kleinteile), dann die Farbe je Feinpixel aus pal.finePixel.
   // Wasser und Glutspalten rechnen weiter in Weltpixeln (#groundAt mit vorgegebenem Terrain).
   // (Die Schleifen stehen in eigenen, gewöhnlichen Methoden: im Generator optimiert V8 sie schlecht.)
-  *#fineGround(x0, y0, cw, ch, d, ed) {
+  *#fineGround(x0, y0, cw, ch, d, ed, cover = null) {
     const M = 16, KW = cw * 2 + 2 * M, K = new Uint8Array(KW * (ch * 2 + 2 * M));
     // Terrain als Codes je Kachel (einmal je Karte; außerhalb der Karte Fels = Waldboden)
     if (!this.kgrid) {
@@ -548,8 +600,8 @@ export class Outdoor extends TileMap {
     }
     const pal = this.pal;
     // pal.fineSetup: Generator (Vorarbeit in Scheiben), liefert die Chunk-Daten für pal.finePixel
-    const S = pal.fineSetup ? yield* pal.fineSetup(x0, y0, cw, ch, K, KW, M) : null;
-    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, fp: pal.finePixel, tmp: ed ? new Uint8ClampedArray(4) : null, lastKey: -1, lastCol: null };
+    const S = pal.fineSetup ? yield* pal.fineSetup(x0, y0, cw, ch, K, KW, M, this) : null;
+    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, cover, fp: pal.finePixel, tmp: ed ? new Uint8ClampedArray(4) : null, ckey: new Int32Array(cw), ccol: new Uint32Array(cw), cem: new Uint32Array(cw) };
     for (let G = 0; G < ch * 2; G += 16) {
       this.#fineRows(c, G, Math.min(G + 16, ch * 2));
       yield;
@@ -575,22 +627,26 @@ export class Outdoor extends TileMap {
 
   // Farben der Feinzeilen [Ga, Gb); Wasser/Spalten über den Weltpixel-Shader (zwei Feinpixel nebeneinander teilen ihn)
   #fineRows(c, Ga, Gb) {
-    const { x0, y0, cw, K, KW, M, d32, ed, S, fp, tmp } = c, W2 = cw * 2, F0 = x0 * 2, G0 = y0 * 2;
+    const { x0, y0, cw, K, KW, M, d32, ed, S, fp, tmp, cover } = c, W2 = cw * 2, F0 = x0 * 2, G0 = y0 * 2;
     for (let G = Ga; G < Gb; G++) {
-      const row = (G + M) * KW + M;
+      const row = (G + M) * KW + M, crow = (G >> 1) * cw;
       for (let F = 0; F < W2; F++) {
         const ki = row + F, kind = K[ki], o = G * W2 + F;
-        const v = kind <= FK.PAVE ? fp(kind, F0 + F, G0 + G, K, ki, KW, S) : -1;
+        if (cover && cover[crow + (F >> 1)]) { d32[o] = 0xff000000; continue; }   // Felsmaler deckt (Ebene folgt)
+        const v = fp(kind, F0 + F, G0 + G, K, ki, KW, S);
         if (v >= 0) { d32[o] = (0xff000000 | ((v & 255) << 16) | (v & 0xff00) | (v >> 16)) >>> 0; continue; }
-        const key = ((G >> 1) * cw + (F >> 1)) * 8 + kind;
-        if (key !== c.lastKey) {
+        // Weltpixel-Shader: je Weltpixel und Terrain einmal (Merker je Spalte, gilt für beide Feinzeilen)
+        const wx = F >> 1, key = ((G >> 1) * 8 + kind) + 1;
+        if (c.ckey[wx] !== key) {
           if (tmp) tmp.fill(0);
-          c.lastCol = this.#groundAt(x0 + (F >> 1), y0 + (G >> 1), tmp, 0, KCHAR[kind]);
-          c.lastKey = key;
+          const col = this.#groundAt(x0 + wx, y0 + (G >> 1), tmp, 0, KCHAR[kind]);
+          c.ckey[wx] = key;
+          c.ccol[wx] = (0xff000000 | (col[2] << 16) | (col[1] << 8) | col[0]) >>> 0;
+          c.cem[wx] = tmp && tmp[3] ? ((tmp[3] << 24) | (tmp[2] << 16) | (tmp[1] << 8) | tmp[0]) >>> 0 : 0;
         }
-        const col = c.lastCol;
-        d32[o] = (0xff000000 | (col[2] << 16) | (col[1] << 8) | col[0]) >>> 0;
-        if (tmp && tmp[3]) { const i = o * 4; ed[i] = tmp[0]; ed[i + 1] = tmp[1]; ed[i + 2] = tmp[2]; ed[i + 3] = tmp[3]; }
+        d32[o] = c.ccol[wx];
+        const em = c.cem[wx];
+        if (em) { const i = o * 4; ed[i] = em & 255; ed[i + 1] = (em >> 8) & 255; ed[i + 2] = (em >> 16) & 255; ed[i + 3] = em >>> 24; }
       }
     }
   }

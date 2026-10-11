@@ -3,6 +3,10 @@ import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
 import { createRng, hash2 } from '../core/math.js';
+import { FK, hxi, D4, clampI, band, darken, field, vnoise } from './ground/kit.js';
+export { FINE_GROUND } from './ground/index.js';
+
+export { FK, vnoise };  // Terraincodes/Rauschen liegen im Boden-Werkzeugkasten (ground/kit.js)
 
 // Außenbereich "Glutsenke": nächtliches Tal mit Glutspalten.
 // Licht kommt von oben links (Mond), warme Akzente von Laternen und Fenstern.
@@ -47,15 +51,6 @@ function rgb(hex) {
   let v = hexCache.get(hex);
   if (!v) { const n = parseInt(hex.slice(1), 16); v = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; hexCache.set(hex, v); }
   return v;
-}
-
-// Glatter Wertrauschen-Wert 0..1
-export function vnoise(x, y, seed = 0) {
-  const x0 = Math.floor(x), y0 = Math.floor(y);
-  const fx = x - x0, fy = y - y0;
-  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
-  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
 // Pixel-"Shader" für den Boden. Liefert [r,g,b].
@@ -106,10 +101,6 @@ export function groundPixel(kind, px, py, pal = OUT) {
 }
 
 // ------------------------------------------------------------ Feinboden (Feinraster: 2×2 Texel je Weltpixel)
-// Terrain-Codes des Feinrasters (world/Outdoor.js #fineGround legt je Chunk ein Raster mit Rand an)
-export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4 };
-const hxi = (c) => parseInt(c.slice(1), 16);
-const D4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 // Aschenwald: kühler Waldboden mit Moos- und Aschefeldern, Laubreste in Rost, warme Wege, Kiesel mit Licht oben links
 const AW = {
   floor: ['#0c100f', '#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'].map(hxi),
@@ -122,32 +113,6 @@ const AW = {
   pave: PAL.stone.map(hxi),
   mortar: hxi(PAL.mortar),
 };
-const clampI = (v, a, b) => (v < a ? a : v > b ? b : v);
-// Band eines 0..1-Werts mit schmaler, geordneter Rasterung am Übergang (Pixel-Art-Kante statt Rauschen)
-function band(t, n, dt) {
-  const v = t * n, k = Math.floor(v), f = v - k;
-  return k + (f > 0.6 ? 1 : f > 0.4 && dt < (f - 0.4) / 0.2 ? 1 : 0);
-}
-function darken(c, k) { return (((c >> 16) & 255) * k) << 16 | (((c >> 8) & 255) * k) << 8 | ((c & 255) * k); }
-
-// Rauschfelder je Chunk (mit Rand): Werte auf grobem, global ausgerichtetem Gitter, bilinear auf jedes Weltpixel
-// verteilt (je Chunk einmal; Nachbarchunks rechnen am Rand dieselben Werte)
-function field(x0, y0, w, h, step, fn, out, add, k) {
-  const W = Math.ceil(w / step) + 2, H = Math.ceil(h / step) + 2, a = new Float32Array(W * H);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) a[j * W + i] = fn(x0 + i * step, y0 + j * step);
-  const inv = 1 / step;
-  for (let y = 0; y < h; y++) {
-    const fy = y * inv, j = fy | 0, ay = fy - j, o = y * w;
-    for (let x = 0; x < w; x++) {
-      const fx = x * inv, i = fx | 0, ax = fx - i, q = j * W + i;
-      const t = a[q] + (a[q + 1] - a[q]) * ax, u = a[q + W] + (a[q + W + 1] - a[q + W]) * ax;
-      const v = (t + (u - t) * ay) * k;
-      out[o + x] = add ? out[o + x] + v : v;
-    }
-  }
-  return out;
-}
-
 // Vorarbeit je Chunk: Rauschfelder und alle Kleinteile als Stempel (Halme, Kiesel, Laub, Zweige, Risse, Krumen,
 // Trittspuren). Je Zelle entscheidet der Hash und der Ort des Ankers (Terrain, Moos, Wegmitte) – so wird ein Halm
 // oder Kiesel nie von einer Fleckgrenze zerschnitten und Nachbarchunks stempeln am Rand dasselbe.
@@ -300,6 +265,7 @@ function paveFine(F, G) {
 // Aschenwald-Boden je Feinpixel. F/G: Feinpixel (Welt × 2), K: Terrainraster (FK), ki: Index von (F, G) darin, KW: Zeilenbreite,
 // S: Vorarbeit des Chunks (ashwoodSetup). Kleinteile kommen fertig aus den Stempeln, hier nur Untergrund und Kanten.
 function ashwoodFine(kind, F, G, K, ki, KW, S) {
+  if (kind > FK.PAVE) return -1;   // Wasser/Spalten: Weltpixel-Shader
   if (kind === FK.PAVE) return paveFine(F, G);
   const o = (G - S.G0) * S.W2 + (F - S.F0), a = S.abs[o];
   const GR = FK.GRASS;
