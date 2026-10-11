@@ -2,9 +2,9 @@ import { ELEMENTS } from './Particles.js';
 import { fxElement } from '../character/gearLook.js';
 
 // Animierte Item-Effekte (Thread D): je seltener, desto spektakulärer.
-//   selten    – funkelnde Teilchen im Thema des Gegenstands
-//   episch    – dazu Flammen/Lichtkranz hinter dem Gegenstand
-//   legendär  – hohe goldene Glut als eigene Innenfläche, dichte Funken
+//   selten    – nur der blaue Rahmen (keine Funkelpixel, 11.10.: wirkten wie Streupixel)
+//   episch    – zwei Sternfunken an den Seiten in der Themenfarbe, sonst leuchtet nur der Rahmen (kein Kranz, keine Kante)
+//   legendär  – hohe goldene Glut als eigene Innenfläche, dichte Funken, harte Goldkante um den Gegenstand
 // Alles in Palettenfarben ohne Transparenzstufen (11.10.); Größe ganzzahlig über --fpx (ui/theme.css).
 // Das Thema (Feuer, Frost, Schatten, Licht, Arkan, Gift, Natur, Gezeiten) ergibt sich aus
 // ID, Symbol und Name des Items (z. B. „Glutklinge“ → Feuer). Die Animation ist ein
@@ -80,7 +80,7 @@ function closeLoop(c) {
 // Legendär: tiefe Glut am Boden der dunklen Innenfläche statt Flammen bis oben – der Gegenstand steht frei davor
 const LEGEND_EMBERS = ['#3a0c04', '#8a2008', '#d04a0c', '#ff8a1a'];
 
-// Flammenzungen hinter dem Gegenstand, von unten aufsteigend
+// Flammenzungen hinter dem Gegenstand, von unten aufsteigend (legendär)
 function flames(pal, tier, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
   const reach = tier >= 3 ? 0.34 : 0.62;
@@ -112,37 +112,6 @@ function flames(pal, tier, seed) {
   return closeLoop(c);
 }
 
-// Lichtkranz in festen Ringen (für Themen ohne Flammen: Frost, Arkan, Natur, Gezeiten): Kern, Ring, gerasterter
-// Außenring, nur Palettenfarben. Der Kranz atmet in zwei Stufen, die Strahlen drehen sich.
-function halo(pal, tier, seed) {
-  const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
-  const n = tier >= 3 ? 16 : 10;
-  const rays = Array.from({ length: n }, () => ({ a: r() * TAU, len: 0.6 + r() * 0.4 }));
-  for (let f = 0; f < F; f++) {
-    const ox = f * W, cx = W / 2 - 0.5, cy = H / 2 - 0.5;
-    const big = f % 4 < 2 ? 1 : 0;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const d = Math.hypot(x - cx, y - cy) / (W / 2);
-        let col = null;
-        if (d < 0.22 + big * 0.06) col = pal[2];
-        else if (d < 0.42 + big * 0.06) col = pal[1];
-        else if (d < 0.62 + big * 0.06 && (x + y) % 2 === 0) col = pal[0];
-        if (col) { ctx.fillStyle = col; ctx.fillRect(ox + x, y, 1, 1); }
-      }
-    }
-    for (const ray of rays) {
-      const a = ray.a + (f / F) * (TAU / n);
-      const l = (W / 2) * ray.len;
-      for (let d = 5; d < l; d++) {
-        ctx.fillStyle = d > l * 0.7 ? pal[1] : pal[2];
-        ctx.fillRect(ox + Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d), 1, 1);
-      }
-    }
-  }
-  return closeLoop(c);
-}
-
 // Teilchen vor dem Gegenstand: Funken, Flocken, Blasen, Sterne, Irrlichter
 const MOTE = {
   fire: 'ember', legendary: 'ember', poison: 'bubble', nature: 'twinkle', epic: 'star', rare: 'star',
@@ -151,9 +120,10 @@ const MOTE = {
 function motes(pal, tier, theme, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
   const kind = MOTE[theme] ?? 'star';
-  const n = tier >= 3 ? 11 : tier === 2 ? 7 : 2;
-  // Selten: nur zwei Sterne, an den Seiten aufsteigend (nicht über den Details des Gegenstands)
-  const ps = Array.from({ length: n }, (_, i) => ({ x: tier === 1 ? (i % 2 ? W - 5 + r() * 3 : 2 + r() * 3) : 2 + r() * (W - 4), p: r(), k: 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
+  const n = tier >= 3 ? 11 : 2;
+  // Episch: nur zwei Funken, an den Seiten aufsteigend (nicht über den Details des Gegenstands), immer als ganzer Stern
+  const side = tier < 3;
+  const ps = Array.from({ length: n }, (_, i) => ({ x: side ? (i % 2 ? W - 4 + r() * 2 : 2 + r() * 2) : 2 + r() * (W - 4), p: side ? i * 0.5 + r() * 0.2 : r(), k: side ? 1 : 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
   // Ausblenden in Palettenstufen statt Transparenz: halb sichtbar = eine Farbe dunkler, darunter weg
   const darker = new Map([[pal[3], pal[2]], [pal[2], pal[1]], [pal[1], pal[0]], [pal[0], pal[0]]]);
   const px = (x, y, col, a = 1) => {
@@ -192,7 +162,7 @@ function motes(pal, tier, theme, seed) {
         }
         case 'star': {
           y = H - u * (H + 2);
-          const big = ((f + Math.round(q.p * 8)) % 4) === 0;
+          const big = side || ((f + Math.round(q.p * 8)) % 4) === 0;
           px(x, y, pal[3], fade);
           if (big) { px(x - 1, y, pal[2], fade * 0.8); px(x + 1, y, pal[2], fade * 0.8); px(x, y - 1, pal[2], fade * 0.8); px(x, y + 1, pal[2], fade * 0.8); }
           break;
@@ -206,9 +176,7 @@ function motes(pal, tier, theme, seed) {
   return closeLoop(c);
 }
 
-const FLAME_THEMES = new Set(['fire', 'holy', 'shadow', 'poison', 'legendary', 'epic']);
-
-// URLs der Filmstreifen für Thema, Stufe und Variante (0–3, je Gegenstand fest): { back, front } (back fehlt unter episch)
+// URLs der Filmstreifen für Thema, Stufe und Variante (0–3, je Gegenstand fest): { back, front } (back nur legendär, front ab episch)
 export function itemFxStrips(theme, tier, variant = 0) {
   const key = `${theme}|${tier}|${variant}`;
   let s = stripCache.get(key);
@@ -217,8 +185,8 @@ export function itemFxStrips(theme, tier, variant = 0) {
   const seed = hash(key);
   // Legendär: immer eigene Glut am Boden (unabhängig vom Thema des Gegenstands), Innenfläche bleibt dunkel
   s = {
-    back: tier >= 3 ? flames(LEGEND_EMBERS, tier, seed) : tier >= 2 ? (FLAME_THEMES.has(theme) ? flames(pal, tier, seed) : halo(pal, tier, seed)) : null,
-    front: motes(pal, tier, theme, seed ^ 0x9e3779b9),
+    back: tier >= 3 ? flames(LEGEND_EMBERS, tier, seed) : null,
+    front: tier >= 2 ? motes(tier >= 3 ? pal : FX_PALETTES[theme] ?? pal, tier, tier >= 3 ? theme : 'epic', seed ^ 0x9e3779b9) : null,
   };
   stripCache.set(key, s);
   return s;
@@ -242,10 +210,12 @@ export function decorateItemIcon(span, def) {
     back.style.backgroundImage = `url(${strips.back})`;
     span.prepend(back);
   }
-  const front = document.createElement('i');
-  front.className = 'fx-front';
-  front.style.backgroundImage = `url(${strips.front})`;
-  front.style.animationDelay = `${-((h >>> 4) % 997) / 997 * 2}s`;
-  span.append(front);
+  if (strips.front) {
+    const front = document.createElement('i');
+    front.className = 'fx-front';
+    front.style.backgroundImage = `url(${strips.front})`;
+    front.style.animationDelay = `${-((h >>> 4) % 997) / 997 * 2}s`;
+    span.append(front);
+  }
   return span;
 }

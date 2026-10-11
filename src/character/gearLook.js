@@ -172,6 +172,7 @@ const HEAD_NAMED = {
   gorm_helm: { style: 'horned', crest: null },
   sovereign_helm: { crown: M.ember, crest: null },
   // Erfolgsbelohnung „Die Sieben Gefallenen“ (Garderobe): heller Königshelm mit weißgoldener Krone
+  tide_circlet: { style: 'circlet', ramp: M.silver, gem: M.blue, trim: null, crest: null, crown: null, coif: false },   // Stirnreif statt Kapuze
   fallen_crown: { style: 'crown', ramp: M.gold, crown: M.ember, glow: M.ember, trim: null, crest: null, coif: false },   // offene Goldkrone (sprites/hero.js drawCrownHi)
 };
 const HANDS = {
@@ -256,7 +257,7 @@ const WEAPON_NAMED = {
 // Stufen-Teile (Icon *_t5 … _t8) teilen sich ein Icon je Familie; die Bauart steht im Namen. Damit „Säbel“ krumm,
 // „Langbogen“ lang und „Morgenstern“ stachelig aussieht – am Helden und im Item-Bild gleich.
 const CUTS = {
-  blade: { width: 2 }, sabre: { curve: 1.6 }, scimitar: { curve: 2.4, width: 2 },
+  blade: { width: 2 }, sabre: { curve: 2.6 }, scimitar: { curve: 3.4, width: 2 },
   claymore: { guardW: 5.4, fuller: false },
   hatchet: { double: false, bearded: false, spike: false },
   mace: { kind: 'flanged' }, morningstar: { kind: 'spiked' }, hammer: { kind: 'round' },
@@ -295,6 +296,20 @@ function weaponLook(def) {
   if (!look.glow && (rarity === 'epic' || rarity === 'legendary')) look.glow = look.ramp ?? look.gem ?? R.glow;
   look.shine = rarity === 'legendary' ? 2 : rarity === 'epic' ? 1 : 0;
   if (great) Object.assign(look, { great: true, len: Math.max(look.len ?? 15, 22), width: 3, guardW: 4.4, fuller: true });
+  // Episch und legendär mit eigener Zier (am Helden und im Item-Bild): Runen und breitere Parierstange, Bogen mit
+  // geschwungenen Enden, Axt mit Dorn, Kolben mit Stacheln, Stab mit Bändern; legendär zusätzlich Gold und Doppelblatt.
+  if (rarity === 'epic' || rarity === 'legendary') {
+    const leg = rarity === 'legendary';
+    if (family === 'sword' || family === 'dagger') {
+      look.runes ??= look.glow ?? R.glow;
+      look.guardW = (look.guardW ?? 2.8) + (leg ? 1.4 : 0.8);
+      if (leg) look.guard = M.gold;
+    }
+    if (family === 'bow') { look.recurve = true; look.tips ??= leg ? M.gold : R.gem; if (leg) look.long = true; }
+    if (family === 'axe') { look.spike = true; if (leg) look.double = true; }
+    if (family === 'mace' && look.kind !== 'club') look.kind = 'spiked';
+    if (family === 'staff') look.bands ??= leg ? M.gold : M.silver;
+  }
   // Effektstufe am Helden (entities/Hero.js): 1 = selten (Glanzlicht), 2 = episch (Flammen/Glühen), 3 = legendär (stark)
   look.tier = rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : 0;
   if (look.tier >= 1 && !look.gem) look.gem = look.accent ?? (rarity === 'rare' ? M.blue : R.gem);
@@ -328,6 +343,13 @@ function chestLook(c) {
   if (!look.glow && R.glow && look.rarity === 'legendary') look.glow = R.glow;
   // Schwere Rüstung ab episch: Dornen auf den Schulterstücken
   if ((look.style === 'plate' || look.style === 'scale') && (look.rarity === 'epic' || look.rarity === 'legendary')) look.spikes = true;
+  // Episch: violetter Wappenrock mit Stein; legendär: roter Wappenrock mit Glutstein, goldene Schultern und Kante
+  if (look.rarity === 'epic' || look.rarity === 'legendary') {
+    const leg = look.rarity === 'legendary';
+    look.tabard ??= leg ? M.red : M.arcaneCloth;
+    look.emblem ??= leg ? M.ember : M.purple;
+    if (leg) { look.shoulder = M.gold; look.trim = M.gold; }
+  }
   return look;
 }
 function headLook(h) {
@@ -344,12 +366,20 @@ function headLook(h) {
   }
   return Object.assign(hd, HEAD_NAMED[h.id]);
 }
+// Hände und Füße: ab selten ein Zierband an Stulpe und Knöcheln (Silber, ab episch Gold), ab episch ein Leuchtstein
+const LIMB_TRIM = { rare: M.silver, epic: M.gold, legendary: M.gold };
+function limbLook(table, def) {
+  const look = armorLook(table, def, (d) => d.family ?? 'leather');
+  look.trim ??= LIMB_TRIM[look.rarity] ?? null;
+  if (look.rarity === 'epic' || look.rarity === 'legendary') look.glow ??= RARITY_LOOK[look.rarity].glow;
+  return look;
+}
 const SLOT_LOOK = {
   weapon: weaponLook,
   chest: chestLook,
   head: headLook,
-  hands: (g) => armorLook(HANDS, g, (d) => d.family ?? 'leather'),
-  feet: (f) => armorLook(FEET, f, (d) => d.family ?? 'leather'),
+  hands: (g) => limbLook(HANDS, g),
+  feet: (f) => limbLook(FEET, f),
 };
 
 export function resolveGear(equipment, content) {
@@ -385,6 +415,19 @@ export function lookAllowed(def, slot, classId) {
   if (s !== slot) return false;
   return !def.classes || !classId || def.classes.includes(classId);
 }
+// Schlüssel für „sieht gleich aus“ (Garderobe fasst danach zusammen): nur Felder, die der Held wirklich zeichnet.
+// Seltenheit und Schimmer zählen nicht (epische/legendäre Zier steht in eigenen Feldern), Steine nur an Klingen,
+// Stäbe zeichnen weder Stein noch Leuchten in Pixeln; leere Werte (undefined/null/false) gelten als gleich.
+const UNDRAWN = new Set(['rarity', 'tier', 'shine', 'fx', 'cut', 'icon']);
+const BLADES = new Set(['sword', 'dagger', 'greatsword']);
+export function lookShapeKey(slot, look) {
+  if (!look) return 'null';
+  const fam = look.family;
+  const skip = (f) => UNDRAWN.has(f) || (slot === 'weapon' && ((f === 'gem' && !BLADES.has(fam)) || ((f === 'glow' || f === 'gem') && (fam === 'staff' || fam === 'wand'))));
+  const dflt = (f) => look[f] == null || look[f] === false || (f === 'width' && look[f] === 1) || (f === 'top' && fam === 'wand');
+  return JSON.stringify(Object.keys(look).sort().filter((f) => !skip(f) && !dflt(f)).map((f) => [f, look[f]]));
+}
+
 export function shownEquipment(slices, content) {
   const eq = slices?.inventory?.equipment ?? {};
   const ch = slices?.character ?? {}, w = ch.wardrobe;

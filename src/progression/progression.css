@@ -59,6 +59,12 @@
   position: absolute; left: 2px; bottom: 2px; z-index: 6; min-width: 14px; padding: 0 3px; border-radius: 0;
   background: #8a1a1a; color: #fff; font: 700 10px/14px var(--ef-font); text-align: center; box-shadow: 0 0 0 1px #000;
 }
+/* Fremde Klasse: kleines Pixel-X (2-px-Punkte) auf dunkelrotem Schildchen oben rechts, das Bild bleibt frei */
+.pg-lock.cls { left: auto; bottom: auto; right: 3px; top: 3px; min-width: 0; width: 10px; height: 10px; padding: 0; font-size: 0; background: #6a1212; }
+.pg-lock.cls::after {
+  content: ""; position: absolute; left: 2px; top: 2px; width: 2px; height: 2px; background: #ffd0c8;
+  box-shadow: 4px 0 #ffd0c8, 2px 2px #ffd0c8, 0 4px #ffd0c8, 4px 4px #ffd0c8;
+}
 .pg-doll .pg-slot-label { display: none; }
 .pg-slot.dim { opacity: 0.25; }
 /* Marken sind deckende Schildchen mit harter Kante. Die Ecken gehören den Rahmen-Edelsteinen: Neu-Punkt und
