@@ -17,6 +17,7 @@ window.EW_SITE = {
     youtube: '',
     tiktok: 'https://www.tiktok.com/@emberwrathgame',
     instagram: 'https://www.instagram.com/emberwrathgame/',
+    reddit: 'https://www.reddit.com/user/Emberwrath/',
     x: '',
   },
 

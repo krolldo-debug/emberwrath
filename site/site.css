@@ -536,7 +536,8 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .nav { display: none; position: fixed; inset: 58px 0 0; z-index: 60; margin: 0; flex-direction: column; gap: 0; padding: 8px var(--gutter) calc(24px + env(safe-area-inset-bottom)); overflow-y: auto; background: #06030a; }
   .menu-open { overflow: hidden; }
   .menu-open .top-actions { visibility: hidden; }   /* „Jetzt spielen“ steht unten im Menü */
-  .menu-open .top { background: #06030a; box-shadow: 0 1px 0 rgba(184, 134, 42, 0.22); }
+  /* ohne Unschärfe: backdrop-filter macht die Kopfleiste zum Bezugsrahmen des festen Menüs, das dann nur 1 Eintrag hoch wäre */
+  .menu-open .top { background: #06030a; box-shadow: 0 1px 0 rgba(184, 134, 42, 0.22); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .menu-open .nav { display: flex; }
   .nav a { padding: 16px 0; font-size: 15px; opacity: 0.9; border-bottom: 1px solid rgba(106, 69, 38, 0.35); }
   .nav .nav-extra { display: block; }
