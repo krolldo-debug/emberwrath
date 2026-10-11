@@ -30,6 +30,7 @@ export class Translator {
     this.outputs = new Set(); // englische Werte: schon übersetzt, nicht noch einmal anfassen
     this.same = new Set(); // bewusst gleich (Namen wie „Meteor“) oder kein Anzeigetext: nicht als fehlend melden
     this.missing = null; // Set, wenn fehlende Texte gesammelt werden sollen (Entwicklung)
+    this.rev = new Map(); // Übersetzung → deutscher Text (feste Einträge), für den Sprachwechsel bei schon übersetztem DOM
     this.add(dict);
   }
 
@@ -38,7 +39,7 @@ export class Translator {
       if (typeof en !== 'string' || !en || en === de) { this.same.add(norm(de)); continue; }
       const k = norm(de);
       en = en.trim(); // Leerzeichen am Rand kommen aus dem Originaltext (tr), nicht aus dem Wörterbuch
-      if (/\{\d+\}/.test(k)) this.#addPattern(k, en); else { this.exact.set(k, en); this.upper.set(k.toUpperCase(), en.toUpperCase()); }
+      if (/\{\d+\}/.test(k)) this.#addPattern(k, en); else { this.exact.set(k, en); this.upper.set(k.toUpperCase(), en.toUpperCase()); if (!this.rev.has(norm(en))) this.rev.set(norm(en), k); }
       this.outputs.add(norm(en));
       this.outputs.add(norm(en).toUpperCase());
     }

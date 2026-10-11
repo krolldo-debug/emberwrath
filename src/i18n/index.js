@@ -59,10 +59,11 @@ export function setLang(id) {
   if (!byId.has(id)) return;
   try { localStorage.setItem(LANG_KEY, id); } catch { /* egal */ }
   if (id === current) return;
+  const prev = current === 'de' ? null : (translator ??= translatorFor(current));
   current = id;
   translator = null;
   document.documentElement.lang = id;
-  retranslateAll();
+  retranslateAll(prev);
   for (const fn of listeners) { try { fn(id); } catch (e) { console.error(e); } }
 }
 
@@ -216,15 +217,18 @@ function startObserver() {
   observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
 }
 
-// Nach einem Sprachwechsel: alles Sichtbare aus dem gemerkten Original neu übersetzen.
-function retranslateAll() {
+// Nach einem Sprachwechsel: alles Sichtbare aus dem gemerkten Original neu übersetzen. Texte, die der Code schon
+// übersetzt hineingeschrieben hat (z. B. Hud über tr()), führt prev (Übersetzer der alten Sprache) aufs Deutsche zurück.
+function retranslateAll(prev) {
+  const back = (s) => { const m = prev && s.match(/^(\s*)([\s\S]*?)(\s*)$/); const de = m && prev.rev.get(m[2].replace(/\s+/g, ' ')); return de ? m[1] + de + m[3] : s; };
   observer?.disconnect();
   observer = null;
   const it = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
   for (let n = it.nextNode(); n; n = it.nextNode()) {
     if (n.nodeType === 3) {
       const rec = textSrc.get(n);
-      if (rec && n.data === rec.out) n.data = rec.src;
+      const src = back(rec && n.data === rec.out ? rec.src : n.data);
+      if (src !== n.data) n.data = src;
       textSrc.delete(n);
     } else {
       const recs = attrSrc.get(n);
