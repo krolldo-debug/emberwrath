@@ -5,9 +5,9 @@
 export const PLACES = {
   emberhollow: { dx: -144, dy: 102, lectern: 1 },
   ashwood: { dx: -64, dy: 6, lectern: 1 },
-  cinder_peaks: { dx: 40, dy: 48, lectern: 1 },
-  ashen_steppe: { dx: -60, dy: 60, lectern: 1 },
+  cinder_peaks: { dx: 40, dy: 64, lectern: 1 },
+  ashen_steppe: { dx: -128, dy: -24, lectern: 1 },
   blighted_marsh: { dx: 160, dy: 8, lectern: 1 },
   frostspire: { dx: -176, dy: 72, lectern: 1 },
-  ember_wastes: { dx: 104, dy: 16, lectern: 1 },
+  ember_wastes: { dx: 104, dy: 28, lectern: 1 },
 };

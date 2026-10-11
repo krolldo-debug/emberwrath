@@ -52,8 +52,10 @@ function snapshot({ level = 30, gold = 0, slots = [], mats = {}, mounts = [], pl
 await pool.query('delete from public.market_mail; delete from public.market_listings; delete from public.market_rate; delete from public.character_flags');
 await pool.query("delete from auth.users where email like '%@markt.test'");
 const users = {};
-for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) users[n] = (await pool.query(`insert into auth.users (email) values ($1) returning id`, [`${n}@markt.test`])).rows[0].id;
-const { a: A, b: B, c: C, d: D, e: E, f: F } = users;
+for (const n of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) users[n] = (await pool.query(`insert into auth.users (email) values ($1) returning id`, [`${n}@markt.test`])).rows[0].id;
+const { a: A, b: B, c: C, d: D, e: E, f: F, g: G } = users;
+// Konten, die schon seit gestern handeln (Kontingent wächst erst ab dem ersten vollen Tag); G ist neu
+await pool.query('insert into public.market_accounts (user_id, started) select unnest($1::uuid[]), current_date - 1', [[A, B, C, D, E, F]]);
 const put = (uid, id, snap, verified = 36000) => pool.query(`insert into public.characters (user_id, id, name, level, snapshot, play_verified) values ($1, $2, 'Held', 30, $3, $4)
   on conflict (user_id, id) do update set snapshot = excluded.snapshot, play_verified = excluded.play_verified`, [uid, id, snap, verified]);
 const owned = async (uid, id, item) => (await pool.query('select qty from public.market_owned where user_id = $1 and character_id = $2 and item_id = $3', [uid, id, item])).rows[0]?.qty ?? 0;
@@ -234,6 +236,22 @@ const ua0 = (await pool.query("select updated_at from public.characters where us
 r = await rpc(E, 'market_list', { p_character: 'ce', p_item: R2[0], p_qty: 1, p_start_bid: null, p_buyout: 1000, p_hours: 12 });
 const ua1 = (await pool.query("select updated_at from public.characters where user_id = $1 and id = 'ce'", [E])).rows[0].updated_at;
 ok(r.ok && +ua0 === +ua1, 'Buchung lässt den Zeitpunkt der Spielzeitprüfung unverändert');
+
+// Neues Konto: am ersten Tag nur das Grundkontingent, egal wie viel Spielzeit seine Charaktere haben
+const EP3 = cat.filter((x) => x[1] === 'weapon' && x[2] === 'epic' && x[3] <= 30 && x[0] !== EPIC).slice(0, 3).map((x) => x[0]);
+await put(G, 'cg', snapshot({ slots: EP3.map((itemId) => ({ itemId, qty: 1 })) }));
+await put(G, 'cg2', snapshot({}));
+const g3 = [];
+for (const it of EP3) g3.push(await rpc(G, 'market_list', { p_character: 'cg', p_item: it, p_qty: 1, p_start_bid: 100, p_buyout: null, p_hours: 12 }));
+ok(g3[0].ok && g3[1].ok && g3[2].error === 'budget', `Neues Konto: Vorschuss zählt nicht fürs Kontingent (${g3.map((x) => x.ok || x.error).join(', ')})`);
+
+// ---------------------------------------------------------------- Tempo beim Ansehen
+let look = null;
+for (let i = 0; i < 121; i++) look = await rpc(G, 'market_browse', { p_character: 'cg' });
+ok(!look.ok && look.error === 'rate', 'Suche: höchstens 120 Aufrufe je Minute');
+r = await rpc(G, 'market_overview', { p_character: 'cg' });
+ok(!r.ok && r.error === 'rate', 'Übersicht zählt mit');
+await pool.query('update public.market_rate set look_minute = null where user_id = $1', [G]);
 
 // ---------------------------------------------------------------- Rechte
 for (const t of ['market_listings', 'market_mail', 'market_chars', 'market_items', 'market_owned', 'market_accounts']) {

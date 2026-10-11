@@ -203,3 +203,7 @@
   .mk-acts { box-shadow: inset 0 -2px 0 var(--mk-line); }
   .pg-market .mk-tabs { overflow-x: auto; scrollbar-width: none; }
 }
+
+/* Beute- und Goldmeldungen am linken Rand schweben sonst neben dem Fenster; die Rückmeldungen des Auktionshauses
+   (Eingestellt, Gekauft, Abgeholt) kommen als eigene Meldung und bleiben sichtbar. */
+body:has(.ef-panel-host[data-panel="market"]) .ef-toast:is(.k-loot, .k-gold) { display: none; }

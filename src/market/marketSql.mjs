@@ -57,7 +57,7 @@ export function marketSql() {
 --    als er ohnehin hochladen könnte:
 --      * Handeln erst ab Stufe ${TRADE_MIN_LEVEL} und ${TRADE_MIN_PLAY / 3600} Stunde geprüfter Spielzeit (play_verified).
 --      * Handelszeit je KONTO: Summe der geprüften Spielzeit aller Charaktere, höchstens ${DAY_CAP / 3600} Stunden je Tag seit
---        dem ersten Handel (+ ${START_DAYS} Tage Vorschuss). Spielzeit ist nur so gut wie die Uhr des Browsers; der Tagesdeckel
+--        dem ersten Handel (+ ${START_DAYS} Tage Vorschuss für den Goldrahmen, nicht fürs Kontingent). Spielzeit ist nur so gut wie die Uhr des Browsers; der Tagesdeckel
 --        begrenzt, was ein offenes Fenster ohne Spielen ansammelt.
 --      * Bieten und Kaufen nur, solange alle Ausgaben des Kontos minus alle Einnahmen den Goldrahmen
 --        (${GOLD_PER_SECOND} je Sekunde Handelszeit + Shop-Gold) nicht übersteigen; der Freibetrag neuer Charaktere zählt nicht.
@@ -164,6 +164,9 @@ create table if not exists public.market_rate (
   hour    timestamptz not null,
   listed  int not null
 );
+-- Ansehen (Suche, Übersicht) zählt getrennt mit höherem Limit
+alter table public.market_rate add column if not exists looks int not null default 0;
+alter table public.market_rate add column if not exists look_minute timestamptz;
 
 alter table public.market_items enable row level security;
 alter table public.market_chars enable row level security;
@@ -189,6 +192,7 @@ begin
 end $restore$;
 drop function if exists public.characters_market_gold(uuid, text);
 drop function if exists public.market_spendable(public.characters, bigint);
+drop function if exists public.market_trade_time(public.market_accounts);
 revoke all on all sequences in schema public from anon, authenticated;
 grant usage, select on all sequences in schema public to service_role;
 
@@ -348,12 +352,19 @@ begin
   return jsonb_build_object('ok', true, 'seq', s, 'savedAt', ms, 'gold', p_gold);
 end $$;
 
--- Anmeldung, Schummel-Vermerk, Tempo (40 Aktionen je Minute, 60 neue Angebote je Stunde). Liefert Fehlercode oder null.
+-- Anmeldung, Schummel-Vermerk, Tempo (40 Aktionen je Minute, 60 neue Angebote je Stunde; Ansehen 'look' 120 je Minute,
+-- auch mit Vermerk erlaubt). Liefert Fehlercode oder null.
 create or replace function public.market_guard(p_user uuid, p_kind text) returns text
 language plpgsql set search_path = '' as $$
 declare r public.market_rate; mi timestamptz := date_trunc('minute', now()); hr timestamptz := date_trunc('hour', now());
 begin
   if p_user is null then return 'auth'; end if;
+  if p_kind = 'look' then
+    insert into public.market_rate as m (user_id, minute, n, hour, listed, looks, look_minute) values (p_user, mi, 0, hr, 0, 1, mi)
+    on conflict (user_id) do update set looks = case when m.look_minute = mi then m.looks + 1 else 1 end, look_minute = mi
+    returning * into r;
+    return case when r.looks > 120 then 'rate' end;
+  end if;
   if to_regclass('public.character_flags') is not null and exists (select 1 from public.character_flags f
        where f.user_id = p_user and f.reason in ('stufe', 'gold', 'grenze') and f.created_at > now() - interval '7 days') then
     return 'blocked';
@@ -413,10 +424,12 @@ begin
 end $$;
 
 -- Handelszeit des Kontos in Sekunden: geprüfte Spielzeit aller Charaktere, höchstens ${DAY_CAP} je Tag seit Beginn.
-create or replace function public.market_trade_time(a public.market_accounts) returns bigint
+-- p_advance: mit ${START_DAYS} Tagen Vorschuss (Goldrahmen); das Kontingent für eigene Beute wächst erst ab dem ersten
+-- vollen Handelstag (Wegwerfkonten mit vielen Charakteren bekommen am ersten Tag nur den Grundbetrag).
+create or replace function public.market_trade_time(a public.market_accounts, p_advance boolean default true) returns bigint
 language sql stable set search_path = '' as $$
   select least(coalesce((select sum(greatest(0, coalesce(c.play_verified, 0))) from public.characters c where c.user_id = a.user_id), 0),
-               ${DAY_CAP}::numeric * (greatest(0, current_date - a.started) + ${START_DAYS}))::bigint;
+               ${DAY_CAP}::numeric * (greatest(0, current_date - a.started) + case when p_advance then ${START_DAYS} else 0 end))::bigint;
 $$;
 
 -- Goldrahmen des Kontos: Handelszeit + Shop-Gold aller Charaktere (ohne Freibetrag neuer Charaktere).
@@ -544,7 +557,7 @@ begin
     if it.req_level > lvl + ${LEVEL_SLACK} then return public.market_err('level'); end if;
     -- Kontingent nach Seltenheit und Menge (Stapel ab selten je angefangene 5 Stück, darunter je angefangene 10)
     cost := (array[${freshCost.join(', ')}])[it.rarity + 1] * greatest(1, ceil((p_qty - use_)::numeric / case when it.rarity >= 2 then 5 else 10 end))::int;
-    if acc.fresh + cost > ${FRESH_BASE} + ${FRESH_PER_HOUR} * floor(public.market_trade_time(acc) / 3600) then
+    if acc.fresh + cost > ${FRESH_BASE} + ${FRESH_PER_HOUR} * floor(public.market_trade_time(acc, false) / 3600) then
       return public.market_err('budget');
     end if;
     update public.market_accounts set fresh = fresh + cost where user_id = uid;
@@ -700,9 +713,10 @@ create or replace function public.market_browse(p_character text, p_category tex
   p_max_level int default null, p_class text default null, p_items text[] default null, p_sort text default 'new', p_offset int default 0)
 returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare uid uuid := (select auth.uid()); out_ jsonb;
+declare uid uuid := (select auth.uid()); out_ jsonb; e text;
 begin
-  if uid is null then return public.market_err('auth'); end if;
+  e := public.market_guard(uid, 'look');
+  if e is not null then return public.market_err(e); end if;
   perform public.market_settle(50);
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'itemId', x.item_id, 'qty', x.qty, 'startBid', x.start_bid,
       'buyout', x.buyout, 'bid', x.bid, 'bids', x.bids, 'endsAt', x.ends_at, 'mine', x.seller_user = uid,
@@ -726,9 +740,10 @@ end $$;
 -- Eigene Angebote, eigene Höchstgebote und das Abholfach dieses Charakters.
 create or replace function public.market_overview(p_character text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare uid uuid := (select auth.uid()); mine jsonb; bids jsonb; mail jsonb;
+declare uid uuid := (select auth.uid()); mine jsonb; bids jsonb; mail jsonb; e text;
 begin
-  if uid is null then return public.market_err('auth'); end if;
+  e := public.market_guard(uid, 'look');
+  if e is not null then return public.market_err(e); end if;
   perform public.market_settle(50, uid);
   select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'startBid', l.start_bid,
       'buyout', l.buyout, 'bid', l.bid, 'bids', l.bids, 'endsAt', l.ends_at, 'learned', l.learned) order by l.ends_at), '[]'::jsonb)
@@ -812,7 +827,7 @@ revoke execute on function public.market_shop_gold(uuid, text) from public, anon
 revoke execute on function public.market_gold_frame(public.characters) from public, anon, authenticated;
 revoke execute on function public.market_eligible(public.characters) from public, anon, authenticated;
 revoke execute on function public.market_account(uuid) from public, anon, authenticated;
-revoke execute on function public.market_trade_time(public.market_accounts) from public, anon, authenticated;
+revoke execute on function public.market_trade_time(public.market_accounts, boolean) from public, anon, authenticated;
 revoke execute on function public.market_account_frame(public.market_accounts) from public, anon, authenticated;
 revoke execute on function public.market_can_spend(uuid, bigint) from public, anon, authenticated;
 revoke execute on function public.market_own_add(uuid, text, text, int) from public, anon, authenticated;

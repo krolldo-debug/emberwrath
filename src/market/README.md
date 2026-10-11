@@ -31,14 +31,15 @@ zusätzliches Gold machen kann, bucht **nur der Server**: `supabase/migrations/2
 - Buchungen ändern `updated_at` nicht (`emberwrath.market`), die geprüfte Spielzeit läuft ehrlich weiter.
 - **Herkunft:** Was das Auktionshaus geliefert hat (Kauf, Gewinn, Rückgabe), führt der Server als Bestand
   (`market_owned`) und lässt es frei wieder einstellen. Eigene Beute kostet Handelskontingent des Kontos nach Seltenheit
-  und Stückzahl (`freshCost`, je angefangene 10 bzw. 5 Stück; wächst mit der Handelszeit) und darf höchstens
+  und Stückzahl (`freshCost`, je angefangene 10 bzw. 5 Stück; wächst mit der Handelszeit ohne den Vorschuss, am ersten
+  Handelstag also nur der Grundbetrag) und darf höchstens
   `LEVEL_SLACK` Stufen über dem Charakter liegen. Legendäre Reittiere, Shop- und Erfolgs-Reittiere sind nicht handelbar
   (der Generator bricht ab, falls doch eines im Katalog landet).
   Ganz beweisen lässt sich die Herkunft eigener Beute erst, wenn Beute auf dem Server entsteht (D3); bis dahin begrenzt
   das Kontingent, wie viel ein manipulierter Browser in Umlauf bringen kann.
 - Handeln ab Stufe 10 und 1 Stunde geprüfter Spielzeit (`TRADE_MIN_LEVEL`, `TRADE_MIN_PLAY`). Konten mit Vermerk
   `stufe`/`gold`/`grenze` der letzten 7 Tage dürfen nicht handeln (ein Vermerk `handel` verdrängt diese Vermerke nicht).
-  Höchstens 40 Aktionen je Minute.
+  Höchstens 40 Aktionen je Minute; Suche und Übersicht höchstens 120 je Minute.
 - Vorgänger der Migration: `20261011023000_namen_aendern.sql`. Die Migration lässt sich mehrfach ausführen.
 - Tabellen ohne direkten Zugriff für Spieler (RLS ohne Policies), nur die RPCs.
 
