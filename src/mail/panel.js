@@ -48,6 +48,7 @@ const num = (v) => {
 };
 
 function daysLeft(until, now) {
+  if (!Number.isFinite(until)) return null; // Auktionshaus-Post, Zurückgekommenes, Gold über dem Rahmen: verfällt nicht
   const d = Math.ceil((until - now) / DAY_MS);
   return d <= 1 ? 'noch 1 Tag' : `noch ${fmtNum(d)} Tage`;
 }
@@ -60,7 +61,7 @@ export function mailPanel(session, game, mail) {
   // Schreiben
   const form = { to: '', gold: '', qty: 1 };
   let pick = null; // { itemId, max }
-  let who = null, whoErr = '', whoTimer = 0, whoGen = 0, armed = false, armTimer = 0;
+  let who = null, whoErr = '', whoTimer = 0, whoGen = 0, armed = false, armTimer = 0, backArmed = null;
 
   const say = (text, isBad = false) => {
     err = isBad ? text : '';
@@ -84,11 +85,13 @@ export function mailPanel(session, game, mail) {
     for (const m of mail.letters) {
       const id = m.itemId ?? m.about, def = id ? content.find('item', id) : null;
       const qty = m.itemId ? m.qty : m.aboutQty;
-      const title = m.kind === 'letter' ? `Von ${m.from ?? '?'}` : (AH[m.kind] ?? AH.sold)(def?.name ?? '');
-      const sub = m.kind === 'letter' ? (m.itemId && def ? def.name : null) : m.kind === 'outbid' ? 'Dein Gebot kommt zurück.' : null;
+      const player = m.kind === 'letter' || m.kind === 'returned';
+      const title = m.kind === 'letter' ? `Von ${m.from ?? '?'}` : m.kind === 'returned' ? `Zurück von ${m.from ?? '?'}` : (AH[m.kind] ?? AH.sold)(def?.name ?? '');
+      const sub = player ? (m.itemId && def ? def.name : null) : m.kind === 'outbid' ? 'Dein Gebot kommt zurück.' : null;
       out.push({
-        key: `s${m.id}`, itemId: def ? id : null, def: m.itemId || m.kind !== 'letter' ? def : null, qty, gold: m.gold, title, sub, rarity: m.kind !== 'letter' ? def?.rarity : null,
-        until: Date.parse(m.expiresAt), letter: m.kind === 'letter', take: () => mail.take([m.id]),
+        key: `s${m.id}`, itemId: def ? id : null, def: m.itemId || !player ? def : null, qty, gold: m.gold, title, sub, rarity: !player ? def?.rarity : null,
+        until: m.expiresAt ? Date.parse(m.expiresAt) : Infinity, at: Date.parse(m.at) || 0, kind: player ? (m.kind === 'returned' ? 'back' : 'letter') : 'ah',
+        take: () => mail.take([m.id]), giveBack: m.kind === 'letter' ? () => mail.giveBack(m.id) : null,
       });
     }
     for (const l of mail.loot) {
@@ -100,10 +103,10 @@ export function mailPanel(session, game, mail) {
         key: l.id, itemId: def ? l.items[0].itemId : null, def, qty: l.items[0]?.qty ?? 0, gold: l.gold, rarity: def?.rarity,
         title: boss ? `Beute: ${boss}` : zone ? `Bossbeute aus ${zone}` : 'Bossbeute',
         sub: def ? (more > 0 ? `${def.name} und ${fmtNum(more)} weitere` : def.name) : null,
-        until: l.at + KEEP_DAYS * DAY_MS, loot: true, take: async () => mail.takeLoot(l.id),
+        until: l.at + KEEP_DAYS * DAY_MS, at: l.at, kind: 'loot', take: async () => mail.takeLoot(l.id),
       });
     }
-    return out.sort((a, b) => a.until - b.until).reverse();
+    return out.sort((a, b) => b.at - a.at); // Neueste oben
   }
 
   const takeMsg = (r) => {
@@ -129,29 +132,49 @@ export function mailPanel(session, game, mail) {
   function postView(now) {
     const list = entries();
     const rows = list.map((e) => {
-      const icon = e.def ? itemIconEl({ ...e.def, name: null }, 52) : e.letter ? h('img.ml-seal-big', { src: sealUrl(), width: 52, height: 36, alt: '' }) : h('span.mk-coinbig', iconEl('gold', 52));
-      const row = h(`li.pg-stock-row.mk-row.ml-row${e.loot ? '.loot' : ''}${e.letter ? '.letter' : ''}`,
+      const icon = e.def ? itemIconEl({ ...e.def, name: null }, 52) : e.kind === 'letter' || e.kind === 'back' ? h('img.ml-seal-big', { src: sealUrl(), width: 52, height: 36, alt: '' }) : h('span.mk-coinbig', iconEl('gold', 52));
+      const left = daysLeft(e.until, now);
+      const line = [e.sub, left].filter(Boolean).join(' · ');
+      const back = backArmed === e.key;
+      const row = h(`li.pg-stock-row.mk-row.ml-row.${e.kind}`,
         h('span.mk-icon', icon, e.def && e.qty > 1 ? h('span.pg-qty', fmtNum(e.qty)) : null),
         h('div.pg-stock-name',
           h(e.rarity ? `span.r-${e.rarity}` : 'span', e.title),
-          h('small', e.sub ? `${e.sub} · ${daysLeft(e.until, now)}` : daysLeft(e.until, now))),
+          line ? h('small', line) : null),
         e.gold ? goldEl(e.gold, '.mk-amount') : null,
+        // Zurückschicken (nur Briefe von Spielern): leise, mit zweitem Tippen
+        e.giveBack ? h(`button.ml-back${back ? '.armed' : ''}`, {
+          type: 'button', disabled: working, title: back ? null : 'Zurückschicken', 'aria-label': back ? 'Wirklich zurückschicken?' : 'Zurückschicken',
+          onclick: () => {
+            if (!back) { backArmed = e.key; draw(); clearTimeout(armTimer); armTimer = setTimeout(() => { backArmed = null; draw(); }, 3500); return; }
+            backArmed = null; clearTimeout(armTimer);
+            run(e.giveBack, () => 'Der Rabe bringt den Brief zurück.');
+          },
+        }, back ? 'Zurück?' : '↩') : null,
         actionBtn('Nehmen', () => takeOne(e), { small: true, disabled: working }));
       if (e.def) attachTip(row, () => itemDetail(content, e.itemId, detailOpts));
       return row;
     });
     const loading = !mail.loaded && mail.ready && !list.length;
     return h('div.mk-view.mk-mailbox.mk-scroll.pg-keep-scroll', errEl(),
-      list.length > 1 ? h('div.mk-collect', actionBtn(`Alles nehmen · ${fmtNum(list.length)}`, () => run(takeAll, (r) => {
-        const msg = takeMsg(r);
-        if (msg) throw new Error(msg);
-        return '';
-      }), { primary: true, disabled: working })) : null,
       list.length ? h('ul.pg-stock.mk-list', rows)
         : h('div.ml-empty', h('img.ml-seal-big', { src: sealUrl(), width: 52, height: 36, alt: '' }), h('p', loading ? 'Der Rabe sieht nach …' : 'Keine Post für dich.')));
   }
 
   // ------------------------------------------------------------------ Schreiben
+  // „Alles nehmen“ sitzt in der Kopfzeile neben dem Gold (nur im Reiter Post, ab zwei Einträgen)
+  function takeAllBtn() {
+    const n = entries().length;
+    if (tab !== 'post' || n < 2) return null;
+    const b = actionBtn(`Alles nehmen · ${fmtNum(n)}`, () => run(takeAll, (r) => {
+      const msg = takeMsg(r);
+      if (msg) throw new Error(msg);
+      return '';
+    }), { small: true, primary: true, disabled: working });
+    b.classList.add('ml-takeall');
+    return b;
+  }
+
   function lookup() {
     clearTimeout(whoTimer);
     who = null; whoErr = '';
@@ -190,10 +213,10 @@ export function mailPanel(session, game, mail) {
     const stack = def ? Math.min(pick.max, listStack(def)) : 1;
     const qty = def ? Math.max(1, Math.min(stack, num(form.qty) ?? 1)) : null;
     const name = form.to.trim();
-    const valid = name.length >= 2 && (g > 0 || def) && g <= Math.min(gold, GOLD_MAX) && !whoErr;
+    const valid = name.length >= 2 && !!who?.key && (g > 0 || def) && g <= Math.min(gold, GOLD_MAX) && !whoErr;
     const cls = who?.classId ? content.find('class', who.classId)?.name : null;
     const whoLine = whoErr ? h('small.ml-who.bad', whoErr)
-      : who ? h('small.ml-who', cls ? `Stufe ${fmtNum(who.level)} · ${cls}` : `Stufe ${fmtNum(who.level)}`, who.many ? h('span', ' · mehrere Helden heißen so, es geht an den zuletzt aktiven') : null)
+      : who ? h('small.ml-who', cls ? `Stufe ${fmtNum(who.level)} · ${cls}` : `Stufe ${fmtNum(who.level)}`, who.many ? h('span', ' · Name mehrfach vergeben') : null)
         : null;
     const field = (label, key, attrs = {}, extra = null) => h('label.mk-field', h('span', label), h('span.mk-numwrap', h('input.ef-input.mk-num', {
       type: 'text', value: String(form[key] ?? ''), 'data-k': `ml-${key}`, ...attrs,
@@ -208,7 +231,10 @@ export function mailPanel(session, game, mail) {
       }
       armed = false; clearTimeout(armTimer);
       const itemId = def ? pick.itemId : null;
-      run(() => mail.send({ to: name, itemId, qty, gold: g }), (r) => {
+      run(() => mail.send({ to: name, key: who?.key, itemId, qty, gold: g }).catch((e) => {
+        if (e?.code === 'changed') lookup(); // Empfänger neu nachschlagen, der Spieler sieht ihn und schickt bewusst
+        throw e;
+      }), (r) => {
         pick = null; form.gold = ''; form.qty = 1;
         return `Der Rabe bringt deinen Brief zu ${r.to ?? name}.`;
       });
@@ -225,8 +251,11 @@ export function mailPanel(session, game, mail) {
           def ? h('span.pg-stock-name', h(`span.r-${def.rarity}`, def.name), h('small', qty > 1 ? `${fmtNum(qty)} Stück` : 'Beilage'))
             : h('span.pg-stock-name.ml-none', h('small', 'Keine Beilage')),
           def ? h('button.mk-side-close', { type: 'button', 'aria-label': 'Beilage entfernen', onclick: () => { pick = null; armed = false; draw(); } }, '✕') : null)),
-      h('div.mk-acts.ml-acts', errEl(),
-        actionBtn(armed ? `Wirklich an ${who?.name ?? name} senden?` : 'Senden', send, { primary: true, disabled: working || !valid || !mail.ready })));
+      h('div.mk-acts.ml-acts', errEl(), (() => {
+        const b = actionBtn(armed ? `Wirklich an ${who?.name ?? name} senden?` : 'Senden', send, { primary: true, disabled: working || !valid || !mail.ready });
+        if (armed) b.classList.add('ml-armed');
+        return b;
+      })()));
   }
 
   function writeView() {
@@ -251,10 +280,10 @@ export function mailPanel(session, game, mail) {
     const panel = panelFrame(session, 'mail', 'Postfach',
       h('div.pg-tabs.mk-tabs', { role: 'tablist' }, tabs.map(([id, label]) => h(`button.pg-tabbtn${tab === id ? '.on' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': String(tab === id),
-        onclick: () => { tab = id; armed = false; say(''); draw(); if (id === 'post') mail.refresh().catch(() => {}); },
-      }, label, id === 'post' && n ? h('span.mk-badge', fmtNum(n)) : null)), goldEl(gold, '.mk-purse')),
+        onclick: () => { tab = id; armed = false; backArmed = null; say(''); draw(); if (id === 'post') mail.refresh().catch(() => {}); },
+      }, label, id === 'post' && n ? h('span.mk-badge', fmtNum(n)) : null)), takeAllBtn(), goldEl(gold, '.mk-purse')),
       h('div.mk-body', tab === 'post' ? postView(now) : writeView()));
-    panel.classList.add('pg-market');
+    panel.classList.add('pg-market', 'ml-panel');
     panel.style.setProperty('--mk-frame2', `url(${frameUrl(2)})`);
     panel.style.setProperty('--mk-frame3', `url(${frameUrl(3)})`);
     const t = panel.querySelector('.pg-title');

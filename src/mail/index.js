@@ -4,11 +4,11 @@ import { TRADE_MIN_LEVEL } from '../market/rules.js';
 import { PLACES } from './places.js';
 import { createMailboxSprites } from './sprite.js';
 import { mailPanel } from './panel.js';
-import { KEEP_DAYS, LOOT_MAX, DAY_MS } from './rules.js';
+import { KEEP_DAYS, LOOT_MAX, LOOT_ITEMS_MAX, LOOT_GOLD_MAX, DAY_MS } from './rules.js';
 
 // Postfach: in jeder Stadt mit Wegstein ein bis zwei Briefkästen der Rabenpost (places.js). Dort liegt, was das
-// Auktionshaus liefert (Erlöse, gekaufte und ersteigerte Ware, Rückgaben), was andere Spieler schicken (Gold und/oder ein
-// Gegenstand, ohne Absicherung) und Bossbeute, die liegen blieb. Post verfällt nach 30 Tagen.
+// Auktionshaus liefert (Erlöse, gekaufte und ersteigerte Ware, Rückgaben; verfällt nie), was andere Spieler schicken
+// (Gold und/oder ein Gegenstand, ohne Absicherung; nach 30 Tagen zurück an den Absender) und Bossbeute, die liegen blieb.
 //
 // Post vom Server (Auktionshaus, Spieler) bucht die Datenbank wie das Auktionshaus im gespeicherten Spielstand
 // (supabase/migrations/20261011150000_postfach.sql, erzeugt von src/mail/mailSql.mjs; Ablauf über game.market.book).
@@ -18,7 +18,8 @@ import { KEEP_DAYS, LOOT_MAX, DAY_MS } from './rules.js';
 //   letters             Post vom Server (nach refresh())
 //   loot                Bossbeute im Spielstand [{ id, at, boss, zoneId, items: [{ itemId, qty }], gold }]
 //   count               alles zusammen (Laterne am Briefkasten, Hinweis)
-//   refresh(), take(ids|null), send({ to, itemId, qty, gold }), lookup(name), takeLoot(id) → Promise
+//   refresh(), take(ids|null), send({ to, key, itemId, qty, gold }), lookup(name) → { name, level, classId, many, key },
+//   giveBack(id) (Brief an den Absender zurück), takeLoot(id) → Promise
 //   onChange(fn)
 // Panel 'mail' (am Briefkasten).
 export class MailError extends Error {
@@ -31,12 +32,17 @@ const ERRORS = {
   nobody: 'Einen Helden mit diesem Namen gibt es nicht.',
   self: 'An dich selbst kannst du nichts schicken.',
   empty: 'Leg Gold oder einen Gegenstand bei.',
-  full: 'Dieses Postfach ist voll.',
+  nodeliver: 'Der Rabe kann diesen Brief gerade nicht zustellen.',
+  unready: 'Dieser Held kann noch keine Post empfangen.',
+  changed: 'Der Name gehört inzwischen einem anderen Helden. Prüf den Empfänger noch einmal.',
+  sender: 'Den Absender gibt es nicht mehr.',
+  gone: 'Diesen Brief gibt es nicht mehr.',
   item: 'Das lässt sich nicht verschicken.',
   young: `Post verschicken geht ab Stufe ${TRADE_MIN_LEVEL} und nach einer Stunde Spielzeit.`,
   frame: 'So viel Gold kannst du erst nach längerer Spielzeit verschicken.',
   budget: 'Du hast gerade viel eigene Beute weitergegeben. Mit mehr Spielzeit geht wieder mehr.',
   rate: 'Du hast gerade viele Briefe geschickt. Bitte warte etwas.',
+  slow: 'Nicht so schnell. Bitte warte einen Moment.',
   blocked: 'Die Post ist für dein Konto gerade gesperrt. Bitte wende dich an den Support.',
   bag: 'Deine Tasche ist voll.',
   unknown: 'Das hat nicht geklappt. Bitte versuch es gleich noch einmal.',
@@ -53,10 +59,11 @@ function cleanLoot(raw, content) {
   const out = [];
   for (const l of raw) {
     if (!l || typeof l.id !== 'string' || !(Number(l.at) > now() - KEEP_DAYS * DAY_MS)) continue;
+    // Grenzen wie die Spielstandprüfung (characters_post_check): sonst lehnt der Server den ganzen Spielstand ab
     const items = (Array.isArray(l.items) ? l.items : [])
-      .map((it) => ({ itemId: String(it?.itemId ?? ''), qty: Math.floor(Number(it?.qty) || 0) }))
-      .filter((it) => it.qty > 0 && content?.find('item', it.itemId));
-    const gold = Math.max(0, Math.floor(Number(l.gold) || 0));
+      .map((it) => ({ itemId: String(it?.itemId ?? ''), qty: Math.min(999, Math.floor(Number(it?.qty) || 0)) }))
+      .filter((it) => it.qty > 0 && content?.find('item', it.itemId)).slice(0, LOOT_ITEMS_MAX);
+    const gold = Math.min(LOOT_GOLD_MAX, Math.max(0, Math.floor(Number(l.gold) || 0)));
     if (!items.length && !gold) continue;
     out.push({ id: l.id, at: Number(l.at), boss: typeof l.boss === 'string' ? l.boss : null, zoneId: typeof l.zoneId === 'string' ? l.zoneId : null, items, gold });
   }
@@ -116,7 +123,13 @@ export function installMail(game) {
       if (e) e.qty += Math.max(1, d.qty | 0); else items.push({ itemId: d.itemId, qty: Math.max(1, d.qty | 0) });
     }
     if (!items.length && !gold) return { ok: false };
-    m.loot.push({ id: `b${m.next++}`, at: now(), boss, zoneId, items, gold });
+    // Ein Brief fasst höchstens LOOT_ITEMS_MAX Teile (je bis 999) und LOOT_GOLD_MAX Gold; mehr geht in weitere Briefe
+    const parts = items.flatMap((it) => Array.from({ length: Math.ceil(it.qty / 999) }, (_, i) => ({ itemId: it.itemId, qty: Math.min(999, it.qty - i * 999) })));
+    while (parts.length || gold > 0) {
+      const g = Math.min(gold, LOOT_GOLD_MAX);
+      gold -= g;
+      m.loot.push({ id: `b${m.next++}`, at: now(), boss, zoneId, items: parts.splice(0, LOOT_ITEMS_MAX), gold: g });
+    }
     while (m.loot.length > LOOT_MAX) m.loot.shift();
     return { ok: true };
   }, { authoritative: true });
@@ -168,12 +181,17 @@ export function installMail(game) {
     take(ids = null) {
       return book('mail_take', { p_ids: ids }, (r) => ({ gold: r.gold, add: listOf(r.add), learn: listOf(r.learn) }));
     },
-    send({ to, itemId = null, qty = null, gold = 0 }) {
-      return book('mail_send', { p_to: to, p_item: itemId, p_qty: itemId ? qty : null, p_gold: gold || 0 },
+    send({ to, key, itemId = null, qty = null, gold = 0 }) {
+      return book('mail_send', { p_to: to, p_key: key ?? null, p_item: itemId, p_qty: itemId ? qty : null, p_gold: gold || 0 },
         (r) => ({ gold: r.gold, remove: listOf(r.remove) }));
     },
     async lookup(name) {
-      try { return await market().rpc('mail_lookup', { p_to: name }); } catch (e) { throw toMailError(e); }
+      try { return await market().rpc('mail_lookup', { p_to: name }); } catch (e) {
+        throw e?.code === 'rate' ? new MailError('slow') : toMailError(e);
+      }
+    },
+    async giveBack(id) {
+      try { await market().rpc('mail_return', { p_id: id }); } catch (e) { throw toMailError(e); } finally { mail.refresh().catch(() => {}); }
     },
     takeLoot(id) {
       const r = state.commit('mail:takeLoot', { id });
@@ -188,6 +206,9 @@ export function installMail(game) {
 
   game.panels.register('mail', (s) => mailPanel(s, game, mail), { title: 'Postfach' });
 
+  // Höchstens ein Hinweis auf Post je Sitzung beim Start; danach reicht die Laterne am Briefkasten.
+  let hinted = false;
+
   // Bossbeute, die liegen blieb (Zone verlassen, Tasche voll): als Brief aufbewahren. Beim Beenden der Sitzung fällt
   // das Verlassen der Zone hinter das letzte Speichern, deshalb hier selbst speichern.
   game.bus.on('loot:left', ({ drops, zoneId }) => {
@@ -196,6 +217,7 @@ export function installMail(game) {
     if (!r?.ok) return;
     game.saveNow('mail');
     changed();
+    hinted = true;
     game.bus.emit(EV.UI_TOAST, { text: 'Liegengebliebene Bossbeute wartet im Postfach.', kind: 'info', icon: 'bag' });
   });
 
@@ -208,15 +230,16 @@ export function installMail(game) {
 
   // Pro Sitzung: Briefkästen in die Stadt stellen; einmal nachsehen, ob Post wartet.
   game.addSessionSystem('mail', (sess) => {
-    let told = false, alive = true;
+    let alive = true;
+    hinted = false;
     const offs = [
       sess.bus.on(EV.ZONE_ENTER, () => { try { placeMailboxes(sess.world, mail); } catch (err) { console.error('Briefkasten', err); } }),
       market()?.onChange?.(() => { if (alive && mail.loaded) soon(); }),
     ];
     const check = setTimeout(() => {
       const tell = () => {
-        if (told || !alive || !mail.count) return;
-        told = true;
+        if (hinted || !alive || !mail.count) return;
+        hinted = true;
         sess.bus.emit(EV.UI_TOAST, { text: 'Im Postfach liegt etwas für dich.', kind: 'info', icon: 'gold' });
       };
       if (!mail.ready) { tell(); return; }

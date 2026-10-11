@@ -19,7 +19,7 @@ zusätzliches Gold machen kann, bucht **nur der Server**: `supabase/migrations/2
 `node src/market/marketSql.mjs > supabase/migrations/20261011090000_auktionshaus.sql`, Katalog und Grenzwerte aus `rules.js`).
 - RPCs `market_list/bid/buyout/cancel` sperren Charakter und Angebot (`for update`) und ändern den gespeicherten
   Spielstand selbst (Gegenstand raus, Gold ab/zu). Zwei gleichzeitige Käufe: genau einer gewinnt. Gekauftes geht immer
-  ins Postfach (`market_mail`), abgeholt wird mit `mail_take` (`market_collect` ruft nur noch das auf).
+  ins Postfach (`market_mail`), abgeholt wird mit `mail_take` (`market_collect` gibt es nicht mehr).
 - **Buchungszähler nur auf dem Server** (`market_chars.seq`). Jede Buchung schreibt ihn in den Spielstand; ein Upload muss
   genau diesen Wert tragen, sonst wird er abgelehnt und als `handel` vermerkt (zweites Fenster, alter Speicherstand,
   erfundener hoher Zähler). Das Spiel lädt dann den gültigen Stand.

@@ -188,18 +188,18 @@ export function installMarket(game) {
   const listOf = (x) => (Array.isArray(x) ? x : x ? [x] : []);
 
   const market = {
-    mail: [], mine: [], bids: [], skew: 0, loaded: false,
+    mine: [], bids: [], skew: 0, loaded: false,
     get ready() { return isOnlineChar(); },
     get busy() { return busy; },
     serverNow() { return Date.now() + market.skew; },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
     async refresh() {
-      if (!isOnlineChar()) { market.mail = []; market.mine = []; market.bids = []; changed(); return; }
+      if (!isOnlineChar()) { market.mine = []; market.bids = []; changed(); return; }
       const charId = state.meta.characterId;
       const r = await rpc('market_overview', {});
       if (state.meta.characterId !== charId) return;
-      market.mail = r.mail ?? []; market.mine = r.mine ?? []; market.bids = r.bids ?? []; market.loaded = true;
+      market.mine = r.mine ?? []; market.bids = r.bids ?? []; market.loaded = true;
       changed();
     },
 

@@ -40,10 +40,11 @@ export function marketSql() {
   if (plaus.includes('$plaus$') || plaus.includes('$restore$')) throw new Error('Trennzeichen kollidiert');
   return `-- Emberwrath: Auktionshaus (Handel zwischen Spielern). Einmal im Supabase-SQL-Editor ausführen,
 -- NACH allen bisherigen Migrationen (zuletzt 20261011023000_namen_aendern.sql). Mehrfach ausführbar.
+-- Danach 20261011150000_postfach.sql (Postfach, src/mail). Ältere Fassungen dieser Datei nicht mehr ausführen.
 -- Erzeugt mit: node src/market/marketSql.mjs (Regeln: src/market/rules.js).
 --
 -- Sicherheitsmodell
---  - Angebote, Gebote, Kauf und Abholung laufen nur über die Funktionen market_* (security definer). Sie lesen und ändern
+--  - Angebote, Gebote und Kauf laufen nur über die Funktionen market_* (security definer). Sie lesen und ändern
 --    den gespeicherten Spielstand (public.characters.snapshot) in derselben Transaktion wie das Angebot; Zeilen werden
 --    gesperrt (FOR UPDATE). Ein Gegenstand kann deshalb nur einmal eingestellt, ein Angebot nur einmal verkauft und
 --    Gold nur einmal bezahlt werden.
@@ -662,12 +663,9 @@ begin
   return public.market_commit(uid, p_character, d -> 'snap', 0) || (d - 'snap') || jsonb_build_object('listing', l.id);
 end $$;
 
--- Abholen: alles aus dem Postfach (src/mail/mailSql.mjs, 20261011150000_postfach.sql legt mail_take an).
-create or replace function public.market_collect(p_character text) returns jsonb
-language plpgsql security definer set search_path = '' as $$
-begin
-  return public.mail_take(p_character, null);
-end $$;
+-- Abholen gibt es nur noch am Briefkasten (mail_take, src/mail/mailSql.mjs). Die alte Abholfunktion kannte keine Briefe
+-- von Spielern: weg damit, auch falls eine ältere Fassung dieser Datei sie wieder angelegt hat.
+drop function if exists public.market_collect(text);
 
 -- Angebote durchsuchen. p_items: nur diese Gegenstände (Namenssuche macht das Spiel), p_class: nur für diese Klasse nutzbar.
 -- p_sort: 'new' | 'price' | 'ending'. Liefert höchstens ${PAGE} + 1 Zeilen (eine mehr = es gibt eine weitere Seite).
@@ -699,10 +697,10 @@ begin
   return jsonb_build_object('ok', true, 'rows', out_, 'now', now());
 end $$;
 
--- Eigene Angebote, eigene Höchstgebote und das Postfach dieses Charakters.
+-- Eigene Angebote und eigene Höchstgebote dieses Charakters (die Post zeigt mail_box).
 create or replace function public.market_overview(p_character text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare uid uuid := (select auth.uid()); mine jsonb; bids jsonb; mail jsonb; e text;
+declare uid uuid := (select auth.uid()); mine jsonb; bids jsonb; e text;
 begin
   e := public.market_guard(uid, 'look');
   if e is not null then return public.market_err(e); end if;
@@ -713,10 +711,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'qty', l.qty, 'startBid', l.start_bid,
       'buyout', l.buyout, 'bid', l.bid, 'bids', l.bids, 'endsAt', l.ends_at, 'top', true) order by l.ends_at), '[]'::jsonb)
     into bids from public.market_listings l where l.bidder_user = uid and l.bidder_char = p_character and l.status = 'active';
-  select coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'kind', m.kind, 'itemId', m.item_id, 'qty', m.qty, 'gold', m.gold,
-      'learned', m.learned, 'at', m.created_at, 'about', l.item_id, 'aboutQty', l.qty) order by m.id), '[]'::jsonb)
-    into mail from public.market_mail m left join public.market_listings l on l.id = m.listing_id where m.user_id = uid and m.character_id = p_character and m.collected_at is null;
-  return jsonb_build_object('ok', true, 'mine', mine, 'bids', bids, 'mail', mail, 'now', now());
+  return jsonb_build_object('ok', true, 'mine', mine, 'bids', bids, 'now', now());
 end $$;
 
 -- ------------------------------------------------------------------ Spielstand-Prüfung beim Hochladen
@@ -805,14 +800,12 @@ revoke execute on function public.market_list(text, text, int, bigint, bigint, i
 revoke execute on function public.market_bid(text, bigint, bigint) from public, anon;
 revoke execute on function public.market_buyout(text, bigint) from public, anon;
 revoke execute on function public.market_cancel(text, bigint) from public, anon;
-revoke execute on function public.market_collect(text) from public, anon;
 revoke execute on function public.market_browse(text, text, int, int, text, text[], text, int) from public, anon;
 revoke execute on function public.market_overview(text) from public, anon;
 grant execute on function public.market_list(text, text, int, bigint, bigint, int, boolean) to authenticated;
 grant execute on function public.market_bid(text, bigint, bigint) to authenticated;
 grant execute on function public.market_buyout(text, bigint) to authenticated;
 grant execute on function public.market_cancel(text, bigint) to authenticated;
-grant execute on function public.market_collect(text) to authenticated;
 grant execute on function public.market_browse(text, text, int, int, text, text[], text, int) to authenticated;
 grant execute on function public.market_overview(text) to authenticated;
 
