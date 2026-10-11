@@ -17,6 +17,7 @@ import { hairStylesFor, HAIR_STYLES } from '../character/cosmetics.js';
 // Klasse, Rolle und Fähigkeiten (antippen zeigt die Beschreibung; am Handy ersetzt sie dort die Klassenbeschreibung).
 // Jede Auswahl spielt eine kurze Vorführung. Kosten der Fähigkeiten aus deriveStats().
 
+const PORTRAIT = { portrait: true };   // Kachelbilder ohne Klinge, Dolche und Bogen vor dem Gesicht (sprites/hero.js)
 const TILE_RES = 2;   // Feinpixel je Weltpixel der Kachelbilder, wie im Spiel (sprites/hero.js HERO_MAX_RES)
 
 // Überschrift einer Fähigkeit: Name, bei Fähigkeiten mit Taste (ganzer Text für die Übersetzung); auf Touch ohne Taste
@@ -104,6 +105,8 @@ export class CharacterCreateScene extends MenuScene {
     dice.innerHTML = DICE_SVG;
 
     this.summary = h('div.cc-summary');
+    this.fit = new ResizeObserver(() => this.#fitCard());   // erst eingehängt hat die Karte ihre Höhe, Schriften laden nach
+    this.fit.observe(this.summary);
     this.startBtn = h('button.cc-start', { type: 'button', onclick: () => this.#start() }, 'Abenteuer beginnen');
 
     this.slot = h('div.cc-slot');
@@ -164,7 +167,7 @@ export class CharacterCreateScene extends MenuScene {
     return !err;
   }
 
-  exit() { super.exit(); this.stage?.destroy(); this.stage = null; }
+  exit() { super.exit(); this.stage?.destroy(); this.stage = null; this.fit?.disconnect(); this.fit = null; }
 
   #style() { const styles = hairStylesFor(this.sel.raceId); return { hairStyle: this.sel.hair ? styles[this.sel.hair] : null }; }
 
@@ -175,7 +178,7 @@ export class CharacterCreateScene extends MenuScene {
       const on = b.dataset.id === (race ? raceId : classId);
       b.classList.toggle('selected', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
-      b.art.set(race ? getHeroSprites(b.dataset.id, classId, 0, null, null, TILE_RES) : getHeroSprites(raceId, b.dataset.id, this.sel.variant, null, this.#style(), TILE_RES));
+      b.art.set(race ? getHeroSprites(b.dataset.id, classId, 0, null, PORTRAIT, TILE_RES) : getHeroSprites(raceId, b.dataset.id, this.sel.variant, null, { ...this.#style(), portrait: true }, TILE_RES));
     }
     // Farbvarianten des Volkes
     const look = RACE_LOOK[raceId];
@@ -222,8 +225,18 @@ export class CharacterCreateScene extends MenuScene {
         h('p', cur.desc),
         cur.meta ? h('p.cc-cost', cur.meta) : null),
     ));
+    this.#fitCard();
     if (!this.sel.name) this.#randomName(false);
     this.#validate();
+  }
+
+  // Handy: Klassenbeschreibung und Fähigkeit zusammen, wenn beide in die Karte passen; sonst eins von beiden (CSS)
+  #fitCard() {
+    const card = this.summary.firstElementChild;
+    if (!card) return;
+    if (!this.summary.clientHeight) return;
+    card.classList.add('cc-both');
+    if (card.scrollHeight > card.clientHeight + 1 || this.summary.scrollHeight > this.summary.clientHeight + 1) card.classList.remove('cc-both');
   }
 
   #start() {
