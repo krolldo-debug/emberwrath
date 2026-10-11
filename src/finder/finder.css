@@ -40,7 +40,7 @@
 /* Vorschau: Eingangsbild mit Pixelrahmen, darunter Name und Endgegner */
 .fd-preview { margin: 0 0 12px; }
 .fd-scene {
-  display: block; width: 224px; height: 128px; object-fit: cover; object-position: center 70%; image-rendering: pixelated;
+  display: block; width: 224px; height: 128px; image-rendering: pixelated;
   border: 1px solid #6a4526; box-shadow: 0 0 0 1px #0b0710;
 }
 .fd-preview figcaption { display: flex; flex-direction: column; gap: 1px; margin-top: 7px; }
@@ -101,16 +101,20 @@
 }
 @media (max-height: 460px) {
   .fd-panel { padding: 8px 12px 10px; max-height: calc(100dvh - 12px); }
-  /* Niedrige Schirme: Bild oben und unten beschnitten statt kleiner skaliert (Pixel bleiben ganzzahlig) */
-  .fd-scene { height: 88px; object-position: center 45%; }
-  .fd-preview { margin-bottom: 8px; }
-  .fd-preview figcaption { flex-direction: row; align-items: baseline; gap: 8px; margin-top: 5px; }
-  .fd-pboss { display: none; }
-  .fd-role { min-height: 56px; }
+  /* Niedrige Schirme: Bild in voller, ganzzahliger Größe; während der Suche ohne Bild, damit das Fenster flach bleibt */
+  .fd-preview { margin-bottom: 6px; }
+  .fd-preview figcaption { margin-top: 4px; }
+  .fd-pname { font-size: 14px; }
+  .fd-pboss { font-size: 12px; }
+  .fd-searching .fd-scene { display: none; }
+  .fd-role { min-height: 52px; padding: 4px; }
+  .fd-go { min-height: 44px; }
   .fd-head { margin-bottom: 8px; padding-bottom: 6px; }
   .fd-searching { gap: 8px; padding-top: 2px; }
   .fd-foot { margin-top: 10px; }
 }
+/* Sehr niedrige Handys (360 px): Rollenüberschrift weg, damit Bild, Endgegner, Rollen und Start passen */
+@media (max-height: 380px) { .fd-side .fd-h { display: none; } }
 @media (max-width: 520px) {
   .fd-pick { grid-template-columns: minmax(0, 1fr); }
   .fd-dungeons { max-height: 46dvh; }

@@ -328,15 +328,16 @@ html:not(.ef-touch) .tal-talent .tal-desc { -webkit-line-clamp: 3; }
   .tal-title { font-size: 17px; }
   .tal-step { font-size: 12px; margin-top: 1px; }
   /* Beide Spalten rollen einzeln: die Fähigkeiten bleiben stehen, wenn man im Talentbaum rollt */
-  .tal-scroll { grid-template-columns: 196px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; overflow: hidden; align-items: stretch; }
-  .tal-scroll > section { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .tal-scroll { grid-template-columns: 176px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 10px; overflow: hidden; align-items: stretch; padding-right: 0; }
+  .tal-scroll > section { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-right: 6px; }
+  .tal-ability .tal-name { font-size: 13px; }
   .tal-bonus, .tal-sep:has(+ .tal-bonus) { display: none; }
-  .tal-tier { grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); }
-  .tal-tierlabel { padding-left: 6px; }
-  .tal-tierlabel b { font-size: 11.5px; }
+  .tal-tier { grid-template-columns: 78px minmax(0, 1fr) minmax(0, 1fr); }
+  .tal-tierlabel { padding-left: 5px; }
+  .tal-tierlabel b { font-size: 11px; }
   .tal-ability { min-height: 44px; padding: 4px 6px; gap: 8px; }
   .tal-talent { padding: 4px 6px; gap: 6px; min-height: 54px; }
-  .tal-talent .tal-icon { display: none; }
+  .tal-talent .tal-name { font-size: 13px; }
 }
 @media (max-width: 720px) {
   .tal-scroll { grid-template-columns: 1fr; }

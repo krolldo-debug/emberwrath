@@ -47,13 +47,15 @@ export function createFinderPanel(session) {
     for (const d of list) rows.append(row(d.id, dungeonEmblem(d.id, 2) ?? finderIcon('skull', 2), d.name, d.open ? `Stufe ${d.min}–${d.max}` : `ab Stufe ${Math.max(1, d.min - 2)}`, d.open));
     const sel = pick === 'random' ? null : list.find((d) => d.id === pick);
     const boss = sel ? bossName(sel.id) : null;
+    // Niedrige Handy-Schirme: kleinere Rollensymbole (ganzzahlig 2× statt 3×), damit Bild, Rollen und Start passen
+    const roleIco = matchMedia('(max-height: 460px)').matches ? 32 : 48;
     const roles = h('div.fd-roles', { role: 'radiogroup', 'aria-label': 'Rolle' },
       ...['tank', 'dps'].map((r) => {
         const ok = roleAllowed(r, c.classId);
         return h('button', {
           type: 'button', role: 'radio', 'aria-checked': String(role === r), class: `fd-role${role === r ? ' selected' : ''}`, disabled: !ok,
           title: ok ? ROLES[r].desc : 'Nur Krieger können verteidigen.', onclick: () => { role = r; renderPick(); },
-        }, icon(ok ? r : 'lock', 32), h('span.fd-rname', ROLES[r].name));
+        }, icon(ok ? r : 'lock', roleIco), h('span.fd-rname', ROLES[r].name));
       }));
     body.append(h('div.fd-pick',
       rows,
