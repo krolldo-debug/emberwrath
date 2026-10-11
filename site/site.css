@@ -528,6 +528,18 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 @media (max-width: 1020px) {
   .cards { grid-template-columns: 1fr; }
 }
+/* Langer Kontoname (z. B. E-Mail-Adresse) wird mit „…“ gekürzt, damit „Spielen“ im Bild bleibt */
+@media (min-width: 821px) {
+  .top-actions [data-link="login"] { display: block; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 38px; }
+}
+/* Schmale Desktop-Breiten (z. B. Handy quer 844 px): Kopfleiste enger, langer Kontoname gekürzt, damit „Spielen“ ganz sichtbar bleibt */
+@media (min-width: 821px) and (max-width: 1100px) {
+  .top-inner { gap: 14px; }
+  .nav { gap: 16px; margin-left: 0; }
+  .nav a { letter-spacing: 0.1em; }
+  .top-actions .btn { padding: 0 14px; letter-spacing: 0.1em; }
+  .top-actions [data-link="login"] { display: block; max-width: 9.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 38px; }
+}
 @media (max-width: 820px) {
   .top-inner { height: 58px; gap: 12px; }
   .menu-btn { display: grid; place-items: center; order: 3; }

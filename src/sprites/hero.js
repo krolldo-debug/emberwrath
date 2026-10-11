@@ -456,6 +456,7 @@ function resolveLook(raceId, classId, variant, gear, style) {
     hood: cl.hood && !head && !circletPart && !haloPart, cowl: cl.cowl && g.head?.style !== 'halo', circlet: (cl.circlet || !!circletPart) && !head && !haloPart,
     circletRamp: circletPart?.ramp ?? null, circletGem: circletPart?.gem ?? null,
     back: chest.back ?? cl.back, quiver: cl.quiver, offKind: cl.off,
+    portrait: !!style?.portrait,   // Kachelbild der Charaktererstellung: Kopf und Schultern ohne Klinge, Dolche, Bogen
   };
 }
 
@@ -531,7 +532,7 @@ function drawHero(R, G, L, pose) {
   const armF = ik(sk.shF.x, sk.shF.y, handF.x, handF.y, B.arm[0], B.arm[1], -1);
   const frontOff = L.offKind === 'shield' || L.offKind === 'bow';
   if (!frontOff) {
-    if (L.off) drawWeapon(R, G, L.off, armF.ex, armF.ey, P.wO, P, true, P.reachO);
+    if (L.off && !L.portrait) drawWeapon(R, G, L.off, armF.ex, armF.ey, P.wO, P, true, P.reachO);
     drawArm(R, L, sk.shF, armF, true);
     if (L.offKind === 'hand' && P.handGlow > 0) handGlow(R, G, L, armF.ex, armF.ey, P.handGlow);
   }
@@ -570,14 +571,14 @@ function drawHero(R, G, L, pose) {
     const ca = Math.cos(P.wO), sa = Math.sin(P.wO), sd = -1 - pull * 7;
     if (pull > 0.05 || P.arrow > 0.5) hand = { x: bow.x + sd * ca, y: bow.y + sd * sa };
     const armN = ik(sk.shN.x, sk.shN.y, hand.x, hand.y, B.arm[0], B.arm[1], -1);
-    drawBow(R, G, L.weapon, bow.x, bow.y, pull, P.arrow > 0.5, P.wO);
+    if (!L.portrait) drawBow(R, G, L.weapon, bow.x, bow.y, pull, P.arrow > 0.5, P.wO);
     drawHand(R, L, bow.x, bow.y, true);
     drawArm(R, L, sk.shN, armN, false);
   } else {
     const armN = ik(sk.shN.x, sk.shN.y, hand.x, hand.y, B.arm[0], B.arm[1], -1);
     const behind = L.weapon.family === 'staff';
     if (P.smear) drawSmear(R, L, armN.ex, armN.ey, P.smear[0], P.smear[1]);
-    const back = P.wBack && L.weapon.great;
+    const back = (P.wBack && L.weapon.great) || (L.portrait && !behind && L.weapon.family !== 'wand');
     if (behind && !back) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
     if (!behind && !back) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
     drawArm(R, L, sk.shN, armN, false);
@@ -2773,7 +2774,7 @@ export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 
   const rl = RACE_LOOK[raceId] ?? RACE_LOOK.human;
   const v = Math.max(0, Math.min(rl.variants.length - 1, variant | 0));
   const res = resOverride ?? Math.min(resWanted ?? heroRes(), HERO_MAX_RES);
-  const key = `${res}|${raceId}|${classId}|${v}|${gearKey(gear)}|${style?.dye ?? ''}|${style?.hairStyle ?? ''}`;
+  const key = `${res}|${raceId}|${classId}|${v}|${gearKey(gear)}|${style?.dye ?? ''}|${style?.hairStyle ?? ''}|${style?.portrait ? 'p' : ''}`;
   let set = cache.get(key);
   if (!set) {
     const L = { ...resolveLook(raceId, classId, v, gear, style), res };
