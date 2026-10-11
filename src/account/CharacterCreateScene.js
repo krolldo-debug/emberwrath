@@ -2,7 +2,7 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { MenuScene } from './TitleScene.js';
 import { focusIfDesktop, requireOnlineAccount, backButton } from './ui.js';
-import { CreateStage, TilePortrait, stageHero } from './CreateStage.js';
+import { CreateStage, TilePortrait, stageHero, swatchArt } from './CreateStage.js';
 import { deriveStats } from '../character/stats.js';
 import { validateName, cleanName, NAME_MAX } from '../character/index.js';
 import { nameProblem } from '../net/names.js';
@@ -13,8 +13,9 @@ import { hairStylesFor, HAIR_STYLES } from '../character/cosmetics.js';
 
 // Charaktererstellung: Volk, Klasse, Aussehen, Name -> neues Spiel auf Stufe 1.
 // Der neue Held steht groß in der Szene des Website-Titelbilds (CreateStage), davor nur das Nötigste:
-// links Volk und Klasse als Bildkacheln, unter dem Helden Farbe, Frisur und Name, rechts Klasse, Rolle und Fähigkeiten
-// (antippen zeigt die Beschreibung). Jede Auswahl spielt eine kurze Vorführung. Kosten der Fähigkeiten aus deriveStats().
+// links Volk und Klasse als Bildkacheln, unter dem Helden die Aussehen-Tafel (Farbsteine, Frisur) und der Name, rechts
+// Klasse, Rolle und Fähigkeiten (antippen zeigt die Beschreibung; am Handy ersetzt sie dort die Klassenbeschreibung).
+// Jede Auswahl spielt eine kurze Vorführung. Kosten der Fähigkeiten aus deriveStats().
 
 const TILE_RES = 2;   // Feinpixel je Weltpixel der Kachelbilder, wie im Spiel (sprites/hero.js HERO_MAX_RES)
 
@@ -25,6 +26,10 @@ const NAME_PROBLEM = {
   reserviert: 'Dieser Name ist für das Team reserviert. Bitte wähle einen anderen.',
   anstoessig: 'Dieser Name ist nicht erlaubt. Bitte wähle einen anderen.',
 };
+
+// Pfeil der Frisurwahl als Pixelbild (5 × 9), nach links gespiegelt per CSS
+const CHEVRON_SVG = '<svg viewBox="0 0 5 9" width="10" height="18" shape-rendering="crispEdges" aria-hidden="true">'
+  + '<path d="M0 0h2v1h1v1h1v1h1v3H4v1H3v1H2v1H0V7h1V6h1V5h1V4H2V3H1V2H0z" fill="currentColor"/></svg>';
 
 // Würfel als Pixelbild (Zufallsname)
 const DICE_SVG = '<svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" aria-hidden="true">'
@@ -42,6 +47,7 @@ export class CharacterCreateScene extends MenuScene {
     this.sel = { raceId: this.races[0].id, classId: this.classes[0].id, variant: 0, hair: 0, name: '' };
     this.nameTouched = false;
     this.skill = 0; // angetippte Fähigkeit (0 = Grundangriff)
+    this.skillPicked = false; // erst nach dem Antippen ersetzt am Handy die Fähigkeit die Klassenbeschreibung
     this.#build();
     this.#refresh();
     g.warmup?.character(null); // Startzone schon jetzt im Hintergrund vorbereiten (world/warmup.js)
@@ -62,7 +68,8 @@ export class CharacterCreateScene extends MenuScene {
     this.tiles = [];
     const tile = (kind, def) => {
       const art = new TilePortrait();
-      const btn = h('button.cc-tile', { type: 'button', 'aria-pressed': 'false', dataset: { kind, id: def.id }, onclick: () => this.#choose(kind, def.id) },
+      // Lange Namen (z. B. „Glutgeborene“) bekommen auf kleinen Handys eine Spur kleinere Schrift
+      const btn = h(`button.cc-tile${def.name.length > 11 ? '.cc-tile-long' : ''}`, { type: 'button', 'aria-pressed': 'false', dataset: { kind, id: def.id }, onclick: () => this.#choose(kind, def.id) },
         h('span.cc-tile-art-box', art.canvas),
         h('span.cc-tile-name', def.name));
       btn.art = art;
@@ -71,16 +78,19 @@ export class CharacterCreateScene extends MenuScene {
     };
     this.raceBtns = this.races.map((r) => tile('race', r));
     this.classBtns = this.classes.map((c) => tile('class', c));
-    this.traits = h('ul.cc-traits');
 
     // Aussehen: Farbvarianten des Volkes und Frisur (kostenlos bei der Erstellung, später am Spiegel gegen Gold)
     this.swatches = h('div.cc-swatches', { role: 'radiogroup', 'aria-label': 'Aussehen' });
     const hairStep = (dir) => { const n = hairStylesFor(this.sel.raceId).length; this.sel.hair = (this.sel.hair + dir + n) % n; this.#refresh('look'); };
-    this.hairName = h('button.cc-hair-name', { type: 'button', tabindex: '-1', 'aria-hidden': 'true', onclick: () => hairStep(1) });
-    this.hair = h('div.cc-hair', { role: 'group' },
-      h('button.cc-arrow', { type: 'button', 'aria-label': 'Vorherige Frisur', onclick: () => hairStep(-1) }, '‹'),
-      this.hairName,
-      h('button.cc-arrow', { type: 'button', 'aria-label': 'Nächste Frisur', onclick: () => hairStep(1) }, '›'));
+    const arrow = (dir, label) => {
+      const b = h(`button.cc-arrow${dir < 0 ? '.cc-arrow-prev' : ''}`, { type: 'button', 'aria-label': label, onclick: () => hairStep(dir) });
+      b.innerHTML = CHEVRON_SVG;
+      return b;
+    };
+    this.hairLabel = h('span.cc-hair-label');
+    this.hairPips = h('span.cc-hair-pips');
+    this.hairName = h('button.cc-hair-name', { type: 'button', tabindex: '-1', 'aria-hidden': 'true', onclick: () => hairStep(1) }, this.hairLabel, this.hairPips);
+    this.hair = h('div.cc-hair', { role: 'group' }, arrow(-1, 'Vorherige Frisur'), this.hairName, arrow(1, 'Nächste Frisur'));
 
     this.nameInput = h('input.cc-name', {
       type: 'text', maxlength: NAME_MAX, placeholder: 'Name deines Charakters', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Name des Charakters', translate: 'no',
@@ -96,7 +106,7 @@ export class CharacterCreateScene extends MenuScene {
 
     this.slot = h('div.cc-slot');
     this.left = h('section.cc-left',
-      h('h3.cc-h', 'Volk'), h('div.cc-tiles', this.raceBtns), this.traits,
+      h('h3.cc-h', 'Volk'), h('div.cc-tiles', this.raceBtns),
       h('h3.cc-h', 'Klasse'), h('div.cc-tiles', this.classBtns));
     this.right = h('section.cc-right', this.summary, h('div.cc-foot', this.startBtn));
     this.stage = new CreateStage({ slot: this.slot });
@@ -123,7 +133,7 @@ export class CharacterCreateScene extends MenuScene {
       // Zufallsnamen passend zum Volk nachziehen, solange der Spieler nichts getippt hat
       if (!this.nameTouched || this.#isSuggested(prevRace)) this.#randomName(false);
     } else {
-      if (this.sel.classId !== id) this.skill = 0;
+      if (this.sel.classId !== id) { this.skill = 0; this.skillPicked = false; }
       this.sel.classId = id;
     }
     this.#refresh(kind);
@@ -171,12 +181,12 @@ export class CharacterCreateScene extends MenuScene {
     this.swatches.replaceChildren(...look.variants.map((v, i) => h('button.cc-swatch', {
       type: 'button', role: 'radio', title: v.label, 'aria-label': v.label, 'aria-checked': i === this.sel.variant ? 'true' : 'false',
       class: `cc-swatch${i === this.sel.variant ? ' selected' : ''}`,
-      style: { background: `linear-gradient(135deg, ${v.hair[3]} 0 34%, ${v.hair[1]} 34% 67%, ${(v.accent ?? v.hair)[2]} 67%)` },
       onclick: () => { if (this.sel.variant === i) return; this.sel.variant = i; this.#refresh('look'); },
-    })));
+    }, swatchArt(v))));
     const styles = hairStylesFor(raceId);
     this.sel.hair = Math.min(this.sel.hair, styles.length - 1);
-    this.hairName.textContent = HAIR_STYLES[styles[this.sel.hair]];
+    this.hairLabel.textContent = HAIR_STYLES[styles[this.sel.hair]];
+    this.hairPips.replaceChildren(...styles.map((_, i) => h(`i${i === this.sel.hair ? '.on' : ''}`)));
     this.hair.setAttribute('aria-label', `Frisur wechseln, aktuell ${HAIR_STYLES[styles[this.sel.hair]]}`);
     this.stage.setHero(stageHero(raceId, classId, this.sel.variant, this.#style()));
     if (moment) this.stage.moment(moment);
@@ -195,7 +205,7 @@ export class CharacterCreateScene extends MenuScene {
     ];
     this.skill = Math.min(this.skill, skills.length - 1);
     const cur = skills[this.skill];
-    this.summary.replaceChildren(h('div.cc-card',
+    this.summary.replaceChildren(h(`div.cc-card${this.skillPicked ? '.cc-picked' : ''}`,
       h('p.cc-race', race.name),
       h('h3.cc-class', cls.name),
       h('p.cc-role', cls.role),
@@ -203,16 +213,13 @@ export class CharacterCreateScene extends MenuScene {
       h('div.cc-skills', { role: 'group', 'aria-label': 'Fähigkeiten' },
         skills.map((sk, i) => h(`button.cc-skill${i === this.skill ? '.selected' : ''}`, {
           type: 'button', title: sk.name, 'aria-label': sk.name, 'aria-pressed': i === this.skill ? 'true' : 'false',
-          onclick: () => { this.skill = i; this.#refresh(); },
+          onclick: () => { this.skill = i; this.skillPicked = true; this.#refresh(); },
         }, sk.icon, sk.key ? h('span.cc-skill-key', sk.key) : null))),
       h('div.cc-skill-info',
         h('h4', skillTitle(cur)),
         h('p', cur.desc),
         cur.meta ? h('p.cc-cost', cur.meta) : null),
     ));
-    // Stärken des Volks direkt unter der Volkswahl
-    this.traits.setAttribute('aria-label', `Stärken: ${race.name}`);
-    this.traits.replaceChildren(...race.traits.map((t) => h('li', t)));
     if (!this.sel.name) this.#randomName(false);
     this.#validate();
   }

@@ -29,7 +29,7 @@
 .cc-left { grid-area: left; display: flex; flex-direction: column; justify-content: flex-start; gap: 8px; min-height: 0; padding-top: 18px; }
 .cc-h { margin: 0; display: flex; align-items: center; gap: 10px; font: 700 14px var(--cc-title); color: var(--cc-gold); letter-spacing: 0.22em; text-transform: uppercase; }
 .cc-h::after { content: ""; flex: 1; height: 2px; background: #6a4424; box-shadow: 0 2px 0 #000; }
-.cc-tiles + .cc-h, .cc-traits + .cc-h { margin-top: 18px; }
+.cc-tiles + .cc-h { margin-top: 22px; }
 .cc-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .cc-tile {
   position: relative; display: flex; align-items: center; gap: 8px; height: 76px; padding: 0 4px 0 0; overflow: hidden;
@@ -46,22 +46,40 @@
 .cc-tile.selected .cc-tile-art-box { background: #3a1408; }
 /* Glutstein in der Ecke der gewählten Kachel */
 .cc-tile.selected::after { content: ""; position: absolute; top: 4px; right: 4px; width: 4px; height: 4px; background: var(--cc-ember); box-shadow: 0 0 0 2px #5a1a08; }
-.cc-traits { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 15px; color: var(--cc-soft); }
-.cc-traits li { padding-left: 14px; position: relative; }
-.cc-traits li::before { content: ""; position: absolute; left: 1px; top: 0.5em; width: 6px; height: 6px; background: var(--cc-ember); box-shadow: 0 2px 0 #000; }
 
 /* ---------------------------------------------------------------- Mitte: Held, Aussehen, Name */
 .cc-center { grid-area: center; display: flex; flex-direction: column; align-items: center; min-height: 0; }
 .cc-slot { flex: 1 1 auto; align-self: stretch; min-height: 120px; }
-.cc-look { display: flex; align-items: center; gap: 16px; margin-top: 52px; }
-.cc-swatches { display: flex; gap: 8px; }
-.cc-swatch { width: 44px; height: 44px; padding: 0; cursor: pointer; border: 3px solid var(--cc-ink); border-radius: 0; box-shadow: 0 0 0 2px var(--cc-edge); }
-.cc-swatch.selected { box-shadow: 0 0 0 2px var(--cc-gold), 0 0 0 4px var(--cc-ink); }
-.cc-swatch:focus-visible { outline: 2px solid #fff4e0; outline-offset: 4px; }
-.cc-hair { display: flex; align-items: stretch; height: 44px; background: #0d070c; border: 2px solid var(--cc-edge); box-shadow: 0 0 0 2px var(--cc-ink); }
-.cc-hair-name { min-width: 84px; padding: 0 6px; text-align: center; font: 600 15px var(--ef-font); color: var(--cc-text); background: transparent; border: 0; cursor: pointer; text-shadow: none; }
-.cc-arrow { width: 44px; padding: 0; font: 700 24px/1 var(--ef-font); color: var(--cc-gold); background: transparent; border: 0; cursor: pointer; }
-.cc-arrow:hover, .cc-arrow:focus-visible, .cc-hair-name:hover { color: #fff4e0; background: #2a1810; outline: none; }
+/* Aussehen-Tafel: Farbsteine und Frisur in einem gezeichneten Rahmen, so breit wie das Namensschild darunter */
+.cc-look {
+  display: flex; align-items: center; gap: 10px; width: min(400px, 100%); box-sizing: border-box; margin-top: 48px; padding: 6px;
+  background: #0d070c; border: 2px solid var(--cc-edge); box-shadow: 0 0 0 2px var(--cc-ink), inset 0 0 0 2px #1c0f0c;
+}
+.cc-swatches { display: flex; gap: 6px; }
+.cc-swatch {
+  position: relative; width: 44px; height: 44px; padding: 2px; display: grid; place-items: center; cursor: pointer;
+  background: #160b0e; border: 2px solid #3a2618; border-radius: 0; box-shadow: none;
+}
+.cc-swatch-art { display: block; width: 36px; height: 36px; image-rendering: pixelated; }
+@media (hover: hover) { .cc-swatch:hover { border-color: var(--cc-edge-hi); } }
+.cc-swatch.selected { border-color: var(--cc-gold); background: #3a1408; }
+.cc-swatch.selected::after { content: ""; position: absolute; top: 2px; right: 2px; width: 4px; height: 4px; background: var(--cc-ember); box-shadow: 0 0 0 2px #5a1a08; }
+.cc-swatch:focus-visible { outline: 2px solid #fff4e0; outline-offset: 2px; }
+.cc-hair { flex: 1 1 auto; display: flex; align-items: stretch; height: 44px; min-width: 0; border-left: 2px solid #2a1810; padding-left: 8px; }
+.cc-hair-name {
+  flex: 1 1 auto; min-width: 60px; padding: 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  font: 700 16px var(--cc-title); letter-spacing: 0.05em; color: var(--cc-text); background: transparent; border: 0; cursor: pointer; text-shadow: 0 2px 0 #000;
+}
+.cc-hair-label { white-space: nowrap; line-height: 1; }
+.cc-hair-pips { display: flex; gap: 4px; }
+.cc-hair-pips i { width: 4px; height: 4px; background: #4a3020; }
+.cc-hair-pips i.on { background: var(--cc-ember); box-shadow: 0 0 0 1px #5a1a08; }
+.cc-arrow { flex: none; width: 44px; display: grid; place-items: center; padding: 0; color: var(--cc-gold); background: #160b0e; border: 2px solid #3a2618; cursor: pointer; }
+.cc-arrow svg { display: block; filter: drop-shadow(0 2px 0 #000); }
+.cc-arrow-prev svg { transform: scaleX(-1); }
+.cc-arrow:hover, .cc-arrow:focus-visible { color: #fff4e0; border-color: var(--cc-edge-hi); outline: none; }
+.cc-hair-name:hover { color: #fff4e0; }
+.cc-hair-name:focus-visible { outline: none; }
 .cc-plate {
   display: flex; align-items: stretch; width: min(400px, 100%); height: 56px; margin-top: 14px;
   background: #0d070c; border: 2px solid var(--cc-edge-hi); box-shadow: 0 0 0 2px var(--cc-ink), inset 0 0 0 2px #2a1810;
@@ -115,108 +133,72 @@
 /* Mittlere Desktop-Höhen: etwas dichter */
 @media (max-height: 820px) and (min-height: 521px) {
   .cc-tile { height: 68px; }
-  .cc-tiles + .cc-h, .cc-traits + .cc-h { margin-top: 14px; }
-  .cc-traits { font-size: 14px; }
+  .cc-tiles + .cc-h { margin-top: 16px; }
   .cc-desc { font-size: 15px; }
-  .cc-look { margin-top: 44px; }
+  .cc-look { margin-top: 40px; }
 }
 
-/* ---------------------------------------------------------------- Hochformat (schmale Fenster, Tablets) */
-@media (max-width: 860px) and (orientation: portrait) {
-  .cc-layout {
-    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto;
-    grid-template-areas: "center" "left" "right"; row-gap: 14px;
-    padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
-  }
-  .cc-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); z-index: 1; }
-  .cc-screen { --cc-art: 1; }
-  .cc-look { margin-top: 30px; }
-  .cc-plate { height: 50px; }
-  .cc-left { padding-top: 0; gap: 6px; }
-  .cc-h, .cc-traits { display: none; }
-  .cc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-  .cc-tile { flex-direction: column; justify-content: flex-end; height: 64px; padding: 0 2px 4px; gap: 2px; font-size: 12px; text-align: center; }
-  .cc-tile-art-box { align-self: center; width: 100%; flex: 1; border-right: 0; background: transparent; }
-  .cc-tile.selected .cc-tile-art-box { background: transparent; }
-  .cc-tile-name { -webkit-line-clamp: 1; }
-  .cc-summary { justify-content: flex-start; gap: 4px; }
-  .cc-card { padding: 10px 12px 12px; gap: 4px; }
-  .cc-race { font-size: 12px; }
-  .cc-class { font-size: 30px; }
-  .cc-role { font-size: 13px; }
-  .cc-desc { display: none; }
-  .cc-skills { gap: 6px; margin-top: 4px; }
-  .cc-skill { width: 46px; height: 46px; }
-  .cc-skill-info { min-height: 0; margin-top: 6px; }
-  .cc-skill-info h4 { font-size: 14px; }
-  .cc-skill-info p { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .cc-skill-info .cc-cost { display: none; }
-  .cc-foot { padding-top: 8px; }
-  .cc-start { height: 56px; font-size: 18px; }
-}
-
-/* ---------------------------------------------------------------- Handy quer und flache Fenster */
+/* ---------------------------------------------------------------- Handy quer (Querformat ist Pflicht) und flache Fenster
+   Drei Spalten: links Volk und Klasse, Mitte der Held mit der Aussehen-Tafel (zwei Reihen), rechts die Karte, darunter
+   Name und Startknopf. Mitte und rechte Spalte lösen sich dafür ins Raster auf (display: contents). Rechte Spalte fest
+   252 px: fünf Fähigkeiten zu je 44 px. */
 @media (max-height: 520px) and (orientation: landscape) {
   .cc-screen { --cc-art: 1; }
+  .cc-screen .acc-back { height: 44px; }
   .cc-layout {
-    grid-template-columns: minmax(220px, 268px) minmax(0, 1fr) minmax(220px, 250px);
-    grid-template-rows: minmax(0, 1fr); grid-template-areas: "left center right";
-    column-gap: 12px; padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    grid-template-columns: minmax(200px, 268px) minmax(152px, 1fr) 252px;
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "left slot summary" "left slot err" "left look plate" "left look foot";
+    column-gap: 8px; row-gap: 0;
+    padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   }
+  .cc-center, .cc-right { display: contents; }
   .cc-top { position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); min-height: 0; z-index: 1; }
-  .cc-left { justify-content: flex-end; gap: 5px; padding-top: 56px; }
+  .cc-left { justify-content: flex-end; gap: 5px; padding-top: 58px; }
   .cc-h { font-size: 11px; gap: 6px; }
-  .cc-tiles + .cc-h { margin-top: 6px; }
+  .cc-tiles + .cc-h { margin-top: 8px; }
   .cc-tiles { gap: 6px; }
-  .cc-tile { height: 48px; gap: 5px; font-size: 13px; padding-right: 2px; }
-  .cc-tile-art-box { width: 32px; align-items: center; }
-  .cc-traits { display: none; }
-  .cc-look { margin-top: 30px; gap: 10px; }
-  .cc-swatches { gap: 6px; }
-  .cc-hair .cc-arrow:first-child { display: none; }
-  .cc-hair-name { min-width: 60px; font-size: 14px; }
-  .cc-plate { height: 46px; margin-top: 8px; width: min(320px, 100%); }
+  .cc-tile { height: 48px; gap: 4px; font-size: 12.5px; letter-spacing: -0.01em; padding-right: 3px; }
+  .cc-tile-art-box { width: 28px; align-items: center; }
+  .cc-slot { grid-area: slot; min-height: 0; }
+  .cc-look { grid-area: look; align-self: end; justify-self: center; flex-direction: column; align-items: stretch; gap: 6px; width: 160px; margin: 0; padding: 4px; }
+  .cc-swatches { justify-content: space-between; gap: 4px; }
+  .cc-hair { border-left: 0; padding-left: 0; }
+  .cc-hair-name { font-size: 13px; min-width: 0; }
+  .cc-plate { grid-area: plate; width: auto; height: 46px; margin-top: 6px; }
   .cc-name { font-size: 19px; padding-left: 46px; }
   .cc-dice { width: 46px; }
-  .cc-summary { gap: 3px; justify-content: flex-start; padding-top: 4px; }
-  .cc-card { padding: 8px 10px 10px; gap: 3px; }
+  .cc-error { grid-area: err; margin: 6px 0 0; font-size: 12px; text-align: left; }
+  .cc-summary { grid-area: summary; gap: 3px; }
+  .cc-card { padding: 8px 8px 10px; gap: 3px; }
   .cc-race { font-size: 11px; }
-  .cc-class { font-size: 29px; }
+  .cc-class { font-size: 27px; }
   .cc-role { font-size: 12px; }
-  .cc-desc { margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-  .cc-skills { gap: 4px; margin-top: 6px; }
+  .cc-desc { margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; }
+  .cc-skills { gap: 3px; margin-top: 6px; }
   .cc-skill { width: 44px; height: 44px; }
   .cc-skill img { width: 28px; height: 28px; }
-  .cc-skill-key { font-size: 10px; line-height: 14px; min-width: 14px; }
-  .cc-skill-info { flex: 1 1 auto; min-height: 0; margin-top: 6px; overflow: hidden; }
+  .cc-skill-key { right: -4px; font-size: 10px; line-height: 14px; min-width: 14px; }
+  .cc-skill-info { min-height: 0; margin-top: 4px; }
   .cc-skill-info h4 { font-size: 13px; margin-bottom: 2px; }
-  .cc-skill-info p { font-size: 12.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .cc-skill-info p { font-size: 12.5px; line-height: 1.4; }
   .cc-skill-info .cc-cost { display: none; }
-  .cc-foot { padding-top: 6px; }
+  /* Ein Textfeld: erst die Klassenbeschreibung, nach dem Antippen einer Fähigkeit deren Beschreibung */
+  .cc-card:not(.cc-picked) .cc-skill-info { display: none; }
+  .cc-card:not(.cc-picked) .cc-skill.selected { border-color: var(--cc-edge); background: var(--cc-tile); }
+  .cc-card.cc-picked .cc-desc { display: none; }
+  .cc-foot { grid-area: foot; padding-top: 6px; }
   .cc-start { height: 52px; font-size: 16px; padding: 0 8px; }
 }
 @media (max-height: 520px) and (max-width: 740px) and (orientation: landscape) {
-  .cc-layout { grid-template-columns: minmax(196px, 214px) minmax(0, 1fr) minmax(196px, 212px); column-gap: 8px; }
-  /* Kleine Handys: Kacheln nur als Bild, vier nebeneinander (Volk und Klasse stehen rechts ausgeschrieben) */
-  .cc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
-  .cc-tile { justify-content: center; padding: 0; height: 48px; }
-  .cc-tile-art-box { width: 100%; border-right: 0; background: transparent; }
-  .cc-tile.selected .cc-tile-art-box { background: transparent; }
-  .cc-tile-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .cc-class { font-size: 24px; }
-  .cc-desc { -webkit-line-clamp: 3; }
-  .cc-swatch { width: 38px; height: 38px; }
-  .cc-swatches { gap: 4px; }
-  .cc-look { gap: 8px; }
-  .cc-hair .cc-arrow { display: none; }
-  .cc-hair-name { min-width: 64px; font-size: 13px; }
-  .cc-skill { width: 40px; height: 40px; }
-  .cc-skills { gap: 3px; }
-  .cc-start { font-size: 14px; letter-spacing: 0.02em; }
+  .cc-tile { font-size: 12px; }
+  .cc-tile-long { font-size: 11px; letter-spacing: -0.02em; }
+  .cc-tile-art-box { width: 24px; }
+  .cc-start { font-size: 14.5px; letter-spacing: 0.03em; }
 }
 @media (max-height: 340px) and (orientation: landscape) {
   .cc-left { padding-top: 52px; gap: 4px; }
-  .cc-tile { height: 42px; }
+  .cc-tile { height: 44px; }
   .cc-h { display: none; }
-  .cc-desc { display: none; }
+  .cc-class { font-size: 22px; }
 }

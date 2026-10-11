@@ -1028,14 +1028,17 @@ function drawHeadHi(R, G, L, P, sk) {
   const helm = L.head, closed = helm && !openHelm(helm);
   // Hals
   R.capsule(sk.neck.x + 0.2, sk.neck.y - 2, sk.neck.x + 0.6, sk.neck.y + 0.8, 1.35, 1.45, (l) => band(Sk, 1 + l * 0.8));
-  // Schädel + Kiefer, gemeinsam wie eine Kugel beleuchtet
+  // Schädel + Kiefer, gemeinsam wie eine Kugel beleuchtet. Abgedunkelt wird nur an der Außenkontur des ganzen Kopfes
+  // (kleinster Randabstand über alle drei Formen), sonst zeichnet der Rand von Kiefer und Kinn Flecken ins Gesicht.
+  // Vorführstufe (Charaktererstellung, frame.res 3): flacheres Licht, sonst wirkt die Schattenseite des Gesichts fleckig
+  const soft = (L.res ?? 1) >= 3 ? 0.6 : 1;
+  const forms = [[cx, cy, g.rx, g.ry], [x0 + 5.8, y0 + 6.3, g.dwarf ? 3.3 : 3.0, 2.3], [x0 + 6.4, y0 + 7.4, 1.9, 1.2]];
   const shade = (nx, ny, d, x, y) => {
     const l = lit(x, y, cx - 0.4, cy - 0.3, 4.6, 4.8);
-    return skinAt(Sk, l, Math.sqrt(d));
+    const e = Math.min(...forms.map(([ex, ey, rx, ry]) => ((x - ex) / rx) ** 2 + ((y - ey) / ry) ** 2));
+    return skinAt(Sk, l * soft, Math.sqrt(e));
   };
-  R.ellipse(cx, cy, g.rx, g.ry, shade);
-  R.ellipse(x0 + 5.8, y0 + 6.3, g.dwarf ? 3.3 : 3.0, 2.3, shade);           // Wange/Kiefer nach vorne
-  R.ellipse(x0 + 6.4, y0 + 7.4, 1.9, 1.2, shade);                          // Kinn
+  for (const [ex, ey, rx, ry] of forms) R.ellipse(ex, ey, rx, ry, shade);   // Schädel, Wange/Kiefer nach vorne, Kinn
   // Unterkante des Kiefers dunkel absetzen
   R.fline(x0 + 4.2, y0 + 8.1, x0 + 7.2, y0 + 8.5, 0.34, Sk[0]);
   // Nase (ragt leicht über die Gesichtskante)

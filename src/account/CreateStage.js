@@ -6,13 +6,15 @@ import { getHeroSprites, setHeroRes } from '../sprites/hero.js';
 // dieselbe Szene wie das Titelbild der Website („Aufbruch zum Aschethron“, site/titel.js), nur mit dem neuen Helden.
 // Eine Pixelgröße für alles: Szenenpixel = Feinpixel des Helden (Vorführstufe frame.res = 3), d Gerätepixel je
 // Szenenpixel (ganzzahlig). Die Leinwand hat ein Pixel je Szenenpixel und wird per CSS vergrößert (pixelated).
-// Licht nur in harten Stufen: Glutschein hinter dem Helden und Lichtfleck am Boden als geordnetes Raster (Bayer),
-// Glutkante an der Figur, Runenring unter den Füßen.
+// Licht nur in harten Stufen: unregelmäßige Glutwolke hinter dem Helden, Lichtfleck am Boden als geordnetes Raster
+// (Bayer), Glutkante an der Figur, Runenring unter den Füßen.
 // Wo der Held steht, bestimmt das Platzhalter-Element (slot) aus dem CSS: Fußpunkt unten in der Mitte. Die Vergrößerung
 // richtet sich nach der Höhe bis zum Fußpunkt, damit der Aschethron neben dem Kopf im Bild bleibt.
+// Der Held steht etwas weiter hinten als der Held des Titelbilds (STAND statt FY): so läuft der Lavastrom hinter ihm
+// auf Hüfthöhe und nicht durch den Kopf.
 
-const S = { W: 640, H: 272, FY: 212, HX: 285, LT: 143, LH: 4, LH2: 77, NT: 206 };
-const FOOT_ROWS = 134;             // Szenenpixel vom oberen Bildrand bis zum Fußpunkt (Aschethron samt Spitze im Bild)
+const S = { W: 640, H: 272, FY: 212, STAND: 197, HX: 270, LT: 143, LH: 4, LH2: 77, NT: 206 };
+const FOOT_ROWS = 128;             // Szenenpixel vom oberen Bildrand bis zum Fußpunkt (Aschethron samt Spitze im Bild)
 export const STAGE_RES = 3;        // Feinpixel je Weltpixel des Helden auf der Bühne (im Spiel 2)
 const FIRE = ['#fff2c0', '#ffb648', '#e8641a', '#a8300a'];
 const RUNE = ['#3a0e05', '#7a2208', '#c8420c', '#f07a1c', '#ffb640', '#fff0b0'];
@@ -35,14 +37,25 @@ export function stageHero(raceId, classId, variant, style) {
   try { return getHeroSprites(raceId, classId, variant, null, style, STAGE_RES); } finally { setHeroRes(null); }
 }
 
+// Leuchtaugen im Vordergrund des Titelbilds: auf der Bühne wirken sie wie verirrte Pixel, daher übermalt (Farbe daneben)
+const RETOUCH = { nah: [[168, 7], [170, 7], [500, 11], [502, 11]] };
+
 let images = null;   // einmal geladen, für jeden Besuch der Erstellung wiederverwendet
 function loadImages() {
   images ??= Promise.all(Object.entries(CREATE_ART).map(([k, src]) => new Promise((ok) => {
     const i = new Image();
-    i.onload = () => ok([k, i]); i.onerror = () => ok([k, null]);
+    i.onload = () => ok([k, RETOUCH[k] ? retouch(i, RETOUCH[k]) : i]); i.onerror = () => ok([k, null]);
     i.src = src;
   }))).then((list) => Object.fromEntries(list));
   return images;
+}
+function retouch(img, spots) {
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  for (const [x, y] of spots) g.drawImage(c, x + 1, y, 1, 1, x, y, 1, 1);
+  return c;
 }
 
 // Glut in harten Farbbändern (Pixel-Art-Licht): shape(x, y) liefert die Stärke 0..1 relativ zur Mitte, jedes Band hat
@@ -64,11 +77,39 @@ function ditherGlow(w, hh, shape, cols) {
   }
   return c;
 }
+// Glatte Rauschfunktion (Wertrauschen) für die Glutwolke
+function noise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y), u = x - xi, v = y - yi;
+  const hh = (a, b) => { let n = Math.imul(a, 374761393) + Math.imul(b, 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  const su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v);
+  const a = hh(xi, yi), b = hh(xi + 1, yi), c = hh(xi, yi + 1), d = hh(xi + 1, yi + 1);
+  return a + (b - a) * su + (c - a) * sv + (a - b - c + d) * su * sv;
+}
+// Glutwolke hinter dem Helden: unregelmäßiger Rand, harte Farbstufen ohne Raster. Bild k von n wandert auf einem
+// kleinen Kreis durch das Rauschen, die Wolke wogt dadurch nahtlos in einer Schleife.
+const CLOUD = { w: 176, h: 176, n: 8, fps: 3, cols: ['#2e0a04', '#4e1206', '#782008', '#a2340c'] };
+function cloudFrame(k) {
+  const { w, h: hh, n, cols } = CLOUD, a = (k / n) * Math.PI * 2, ox = Math.cos(a) * 1.3, oy = Math.sin(a) * 1.3;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = hh;
+  const g = c.getContext('2d');
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+    const dx = (x - w / 2) / 80, dy = (y - hh * 0.54) / 82;
+    const base = 1 - Math.hypot(dx * (1 - dy * 0.18), dy);
+    if (base < -0.3) continue;
+    const f = noise(x / 15 + ox, y / 15 + oy - k * 0.04) * 0.65 + noise(x / 6 - oy * 1.6, y / 6 + ox * 1.6) * 0.35;
+    const v = base * 1.25 + (f - 0.5) * 0.95;
+    const b = v > 0.78 ? 4 : v > 0.55 ? 3 : v > 0.32 ? 2 : v > 0.1 ? 1 : 0;
+    if (!b) continue;
+    g.fillStyle = cols[b - 1];
+    g.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
 let glows = null;
 function glowArt() {
   return (glows ??= {
-    // Schein hinter dem Helden: hohe Ellipse, innen heller; zwei Stufen für das Pulsieren
-    halo: [0.85, 1].map((p) => ditherGlow(150, 170, (x, y) => p * (1 - Math.hypot(x / 75, y / 85)) * 1.15, ['#3a0c04', '#5a1406', '#8a2408', '#b8400c'])),
+    cloud: [],   // entsteht Bild für Bild während der ersten Bilder der Bühne (update), damit der Einstieg nicht stockt
     // Lichtfleck am Boden
     pool: ditherGlow(140, 30, (x, y) => 1 - Math.hypot(x / 70, y / 15), ['#2a0a04', '#4a1206', '#7a2008']),
   });
@@ -133,7 +174,7 @@ export class CreateStage {
     // Fußpunkt des Helden in Szenenpixeln der Leinwand; unterhalb der Szene geht der Boden dunkel weiter
     const fx = Math.round(((r.left - box.left + r.width / 2) * dpr) / d), fy = Math.round(footDev / d) - 2;
     const camX = Math.max(0, Math.min(S.W - vw, S.HX - fx));
-    const camY = Math.max(0, S.FY - fy);
+    const camY = Math.max(0, S.STAND - fy);
     this.view = { key, W: vw, H: vh, vw, vh, camX, camY, hx: camX + fx, hy: camY + fy };
     return this.view;
   }
@@ -143,6 +184,8 @@ export class CreateStage {
     const v = this.#layout();
     if (!v) return;
     this.mx += (this.tmx - this.mx) * Math.min(1, dt * 2.5); this.my += (this.tmy - this.my) * Math.min(1, dt * 2.5);
+    const G = glowArt();
+    if (G.cloud.length < (this.reduced ? 1 : CLOUD.n)) G.cloud.push(cloudFrame(G.cloud.length));
     const A = this.anims;
     if (this.pending && A) {
       const todo = this.pending.find(([name]) => Object.getOwnPropertyDescriptor(A, name)?.get);
@@ -233,11 +276,15 @@ export class CreateStage {
       for (let y = 0; y < 2; y++) for (let x = y & 1; x < W; x += 2 - y) ctx.fillRect(x, bottom + y, 1, 1);
     }
 
-    // Glutschein hinter dem Helden und Lichtfleck am Boden (additiv, harte Pixel); bei einer Auswahl kurz stärker
+    // Glutwolke hinter dem Helden und Lichtfleck am Boden (additiv, harte Pixel); bei einer Auswahl kurz stärker
     const G = glowArt();
     ctx.globalCompositeOperation = 'lighter';
-    const halo = G.halo[this.flash > 0 || pulse >= 1 ? 1 : 0];
-    draw(halo, Math.round(hx - halo.width / 2), Math.round(hy - 46 * K - halo.height / 2), 1);
+    const cloud = G.cloud[Math.floor(t * CLOUD.fps) % G.cloud.length];
+    if (cloud) {
+      const cx = Math.round(hx - CLOUD.w / 2), cy = Math.round(hy - 44 * K - CLOUD.h / 2);
+      draw(cloud, cx, cy, 1);
+      if (this.flash > 0) { ctx.globalAlpha = 0.5; draw(cloud, cx, cy, 1); ctx.globalAlpha = 1; }
+    }
     draw(G.pool, Math.round(hx - G.pool.width / 2), Math.round(hy - G.pool.height / 2 + 2), 1);
     ctx.globalCompositeOperation = 'source-over';
 
@@ -339,4 +386,35 @@ function topOf(cv) {
   search: for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) if (d[(y * cv.width + x) * 4 + 3] > 0) { top = y; break search; }
   tops.set(cv, top);
   return top;
+}
+
+// Farbstein für die Aussehen-Wahl: 12 × 12 Feinpixel, achteckig geschliffen, oben links Licht, unten rechts Schatten,
+// gefärbt mit den vier Haartönen der Variante; bei Glutgeborenen läuft eine Glutader in der Akzentfarbe hindurch.
+const GEM = [
+  '...oooooo...',
+  '..oLLLLHHo..',
+  '.oLLLHHHHMo.',
+  'oLLHHHHHMMMo',
+  'oLHHHHHMMMMo',
+  'oLHHHHMMMMDo',
+  'oHHHHMMMMMDo',
+  'oHHHMMMMMDDo',
+  'oHHMMMMMDDDo',
+  '.oMMMMMDDDo.',
+  '..oMMDDDDo..',
+  '...oooooo...',
+];
+export function swatchArt(v) {
+  const c = h('canvas.cc-swatch-art', { 'aria-hidden': 'true' });
+  c.width = 12; c.height = 12;
+  const g = c.getContext('2d'), [d, m, hi, li] = v.hair;
+  const col = { o: '#0b0508', D: d, M: m, H: hi, L: li };
+  GEM.forEach((row, y) => [...row].forEach((ch, x) => { if (col[ch]) { g.fillStyle = col[ch]; g.fillRect(x, y, 1, 1); } }));
+  g.fillStyle = '#fff4e0'; g.fillRect(3, 3, 1, 1); g.fillRect(4, 2, 1, 1);   // Glanzlicht
+  if (v.accent) {
+    const a = v.accent;
+    g.fillStyle = a[2]; for (const [x, y] of [[8, 3], [7, 4], [7, 5], [6, 6], [5, 7], [5, 8], [4, 9]]) g.fillRect(x, y, 1, 1);
+    g.fillStyle = a[4] ?? a[3]; g.fillRect(7, 5, 1, 1); g.fillRect(6, 6, 1, 1);
+  }
+  return c;
 }
