@@ -554,85 +554,71 @@
 .map-close { flex: none; }
 
 /* Garderobe: große Vorschau links, Aussehen als Icon-Kacheln rechts (Name unter der Vorschau) */
-.wd-panel { width: min(96vw, 860px); max-width: min(96vw, 860px); max-height: 94vh; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; }
+/* Garderobe (ui/WardrobePanel.js): feste Größe, deckend, alle Reiter gleich aufgebaut. Bühne und Karten zeichnet
+   ui/Stable.js ganzzahlig; Icons 26 px werden 3-fach (Desktop) bzw. 2-fach (kleine Bildschirme) gezeigt. Nur harte Kanten. */
+.wd-panel { width: min(96vw, 1020px); max-width: min(96vw, 1020px); height: min(94vh, 520px); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; box-sizing: border-box; overflow: hidden; background: #0e0816; }
 .wd-head { display: flex; align-items: center; justify-content: space-between; }
 .wd-title { margin: 0; font-family: var(--ef-font-title); color: var(--ef-ember); font-size: 1.4em; letter-spacing: 0.04em; }
 .wd-tabs { padding: 0; }
-.wd-body { display: flex; gap: 14px; min-height: 0; flex: 1 1 auto; padding-top: 8px; }
-.wd-stage { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 296px; }
-.wd-stage > canvas { image-rendering: pixelated; border: 1px solid #3a2530; background: #0e0912; }
-.wd-pick { display: flex; flex-direction: column; align-items: center; min-height: 36px; text-align: center; }
-.wd-pick-name { font: 700 15px var(--ef-font-title); color: var(--ef-text); }
-.wd-pick-sub { font-size: 12px; color: #ff8a7a; }
-.wd-alt { display: flex; gap: 6px; }
-.wd-altbtn { width: auto; min-width: 0; flex: none; min-height: 30px; padding: 2px 12px; font-size: 13px; }
-.wd-altbtn.on { border-color: var(--ef-gold); color: var(--ef-gold); }
-.wd-apply { width: auto; min-width: 160px; }
-.wd-msg { margin: 0; font-size: 12px; color: #ff8a7a; }
-.wd-grid { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, 76px); gap: 6px; align-content: start; justify-content: start; padding: 2px; }
-.wd-tile { --wd-r: #6a5a70; position: relative; width: 76px; height: 76px; padding: 0; display: grid; place-items: center; background: #140c1c; border: 2px solid #0b0710; box-shadow: inset 0 0 0 1px var(--wd-r), inset 0 0 12px rgba(0, 0, 0, 0.7); cursor: pointer; }
-.wd-tile > img, .wd-tile > canvas { width: 64px; height: 64px; image-rendering: pixelated; }
-.wd-tile:hover { border-color: #6a4a70; }
-.wd-tile.sel { border-color: var(--ef-gold); box-shadow: inset 0 0 0 1px var(--ef-gold), 0 0 10px rgba(232, 194, 90, 0.35); }
-.wd-tile.off > img, .wd-tile.off > canvas { filter: grayscale(1) brightness(0.45); }
-/* Häkchen (getragen) und Schloss (andere Klasse) als kleine Pixel-Plaketten in der Ecke */
-.wd-check { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
-.wd-check::after { content: ''; position: absolute; left: 3px; top: 2px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
-.wd-lock { position: absolute; inset: 0; margin: auto; width: 16px; height: 13px; top: 8px; background: #b8a888; border: 2px solid #0b0710; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1); }
-.wd-lock::before { content: ''; position: absolute; left: 1px; top: -10px; width: 10px; height: 9px; border: 2px solid #b8a888; border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 0 0 1px #0b0710; }
-.wd-foot { display: flex; justify-content: flex-end; }
-/* Garderobe: feste Höhe in allen Reitern, deckend (nichts vom HUD scheint durch), Auswahl nur mit harten Kanten */
-.wd-panel { height: min(94vh, 520px); background: #0e0816; }
-.wd-tile.sel { box-shadow: inset 0 0 0 1px var(--ef-gold); }
-/* Reiter „Reittiere“ (ui/Stable.js zeichnet Bühne und Karten ganzzahlig, hier nur Rahmen) */
-.wd-stall .wd-stage { width: min-content; }
+.wd-body { display: flex; gap: 16px; min-height: 0; flex: 1 1 auto; padding-top: 8px; }
+.wd-stage { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: min-content; }
 .wd-scene-wrap { position: relative; line-height: 0; border: 2px solid #0b0710; box-shadow: 0 0 0 1px #4a3026; }
-.wd-scene-wrap canvas.wd-scene { display: block; border: 0; background: #0a0510; image-rendering: pixelated; }
+.wd-scene-wrap canvas.wd-scene { display: block; background: #0a0510; image-rendering: pixelated; }
 .wd-count { position: absolute; left: 4px; top: 4px; display: block; padding: 2px 6px; font-size: 12px; font-weight: 700; line-height: 16px; color: #e8d8b8; background: #0b0710; border: 1px solid #4a3026; }
-.wd-stall .wd-pick { min-height: 52px; max-width: 300px; gap: 2px; }
+/* Name + Info: feste Höhe (Info höchstens zwei Zeilen), damit der Knopf nie springt */
+.wd-pick { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; width: 100%; height: 54px; text-align: center; overflow: hidden; }
+.wd-pick-name { font: 700 15px/20px var(--ef-font-title); color: var(--ef-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wd-pick-name.miss { color: #b8a8b8; }
-.wd-pick-sub.wd-pick-hint { color: #a898a8; line-height: 1.3; }
-.wd-pick-sub.wd-pick-info { color: #c8b8b0; }
-.wd-mapply { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; }
-.wd-mapply.is-on:disabled { opacity: 1; cursor: default; color: var(--ef-gold); border-color: var(--ef-gold); background: #1a1208; box-shadow: inset 0 0 0 1px #0b0710; }
-.wd-mapply.is-miss:disabled { opacity: 1; cursor: default; color: #6e5e70; border-color: #2e2434; background: #120c18; box-shadow: none; }
-.wd-mapply-check { position: relative; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710; }
-.wd-mapply-check::after { content: ''; position: absolute; left: 3px; top: 2px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
-.wd-msg.wd-gate { color: #b8a8b0; text-align: center; max-width: 280px; }
-.wd-cards { flex: 1; min-width: 0; overflow: auto; display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; gap: 6px; padding: 2px; }
-.wd-card { --wd-r: #3a2a30; position: relative; padding: 0; line-height: 0; background: #0a0510; border: 2px solid #0b0710; box-shadow: 0 0 0 1px #3a2a30; cursor: pointer; }
+.wd-pick-sub { font-size: 12px; line-height: 16px; color: #b8a8b0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.wd-apply { width: auto; min-width: 190px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; }
+.wd-apply.is-on:disabled { opacity: 1; cursor: default; color: var(--ef-gold); border-color: var(--ef-gold); background: #1a1208; box-shadow: inset 0 0 0 1px #0b0710; }
+.wd-apply.is-off:disabled { opacity: 1; cursor: default; color: #6e5e70; border-color: #2e2434; background: #120c18; box-shadow: none; }
+.wd-apply-check { position: relative; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710; }
+.wd-apply-check::after { content: ''; position: absolute; left: 3px; top: 2px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
+.wd-msg { margin: 0; min-height: 16px; font-size: 12px; line-height: 16px; color: #b8a8b0; text-align: center; max-width: 100%; }
+/* Ausrüstung: Kacheln 90 px, Icon 78 px (3 × 26) */
+.wd-grid { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, 90px); gap: 6px; align-content: start; justify-content: center; padding: 2px; }
+.wd-tile { --wd-r: #3a2a30; position: relative; width: 90px; height: 90px; padding: 0; display: grid; place-items: center; background: #140c1c; border: 2px solid #0b0710; box-shadow: inset 0 0 0 1px var(--wd-r); cursor: pointer; }
+.wd-tile > .ef-icon { display: block; image-rendering: pixelated; }
+.wd-tile:hover { border-color: #6a4a70; }
+.wd-tile.sel { border-color: var(--ef-gold); box-shadow: inset 0 0 0 1px var(--ef-gold); }
+.wd-tile.off > .ef-icon { filter: grayscale(1) brightness(0.45); }
+.wd-tile-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 0; font-size: 10px; line-height: 12px; font-weight: 700; color: #e8d8b8; background: #0b0710; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; }
+/* Häkchen (getragen) und Schloss (andere Klasse) als kleine Pixel-Plaketten in der Ecke */
+.wd-check { position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; background: var(--ef-gold); border: 1px solid #0b0710; }
+.wd-check::after { content: ''; position: absolute; left: 3px; top: 2px; width: 6px; height: 3px; border-left: 2px solid #1a1020; border-bottom: 2px solid #1a1020; transform: rotate(-45deg); }
+.wd-lock { position: absolute; inset: 0; margin: auto; width: 16px; height: 13px; top: 8px; background: #b8a888; border: 2px solid #0b0710; }
+.wd-lock::before { content: ''; position: absolute; left: 1px; top: -10px; width: 10px; height: 9px; border: 2px solid #b8a888; border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 0 0 1px #0b0710; }
+/* Reittiere: gleich große Karten (120 × 92 CSS-px bei Maßstab 1) in festen Spalten, Reihen bündig (leere Boxen füllen auf) */
+.wd-cards { flex: 1; min-width: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, 122px); gap: 6px; align-content: start; justify-content: center; padding: 2px; }
+.wd-card { --wd-r: #3a2a30; position: relative; padding: 0; line-height: 0; background: #0a0510; border: 1px solid #3a2a30; cursor: pointer; }
 .wd-card canvas { display: block; image-rendering: pixelated; }
-.wd-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--wd-r); }
-.wd-card.miss::before { display: none; }
-.wd-card:hover { box-shadow: 0 0 0 1px #8a6a50; }
-.wd-card.sel { border-color: var(--ef-gold); box-shadow: 0 0 0 1px #0b0710; }
-.wd-card .wd-check { right: 3px; top: 5px; }
+.wd-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--wd-r); z-index: 1; }
+.wd-card.miss::before, .wd-card.empty::before { display: none; }
+.wd-card.empty { cursor: default; background: #0a0610; border-color: #1e1626; }
+.wd-card.empty canvas { visibility: hidden; }
+.wd-card:not(.empty):hover { border-color: #8a6a50; }
+.wd-card.sel { border-color: var(--ef-gold); outline: 1px solid var(--ef-gold); outline-offset: -2px; }
+.wd-card .wd-check { right: 4px; top: 5px; z-index: 1; }
 @media (max-height: 500px) {
-  .wd-panel { max-height: 96vh; padding: 6px 10px; gap: 4px; }
-  .wd-body { padding-top: 4px; gap: 10px; }
-  .wd-stage { width: 210px; gap: 4px; }
-  .wd-stage > canvas { width: 180px !important; height: 140px !important; }
-  .wd-pick { min-height: 0; } .wd-pick-name { font-size: 13px; }
-  .wd-alt .wd-altbtn, .wd-apply { min-height: 28px; padding: 2px 10px; font-size: 13px; } .wd-apply { min-width: 120px; }
-  .wd-grid { grid-template-columns: repeat(auto-fill, 60px); }
-  .wd-tile { width: 60px; height: 60px; } .wd-tile > img, .wd-tile > canvas { width: 48px; height: 48px; }
-  .wd-foot { display: none; }
-  .wd-panel { height: calc(100vh - 8px); height: calc(100dvh - 8px); max-height: none; }
-  .wd-tabs .pg-tabbtn { min-height: 44px; }
-  .wd-head .pg-close { min-width: 44px; min-height: 44px; }
-  .wd-stall .wd-pick { min-height: 44px; max-width: 240px; }
-  .wd-alt .wd-altbtn, .wd-apply, .wd-mapply { min-height: 44px; }
-  .wd-apply { margin-bottom: 4px; }
-  .wd-cards { gap: 4px; }
-  /* Titel, Reiter und Schließen in einer Zeile: mehr Höhe für Bühne und Karten */
-  .wd-panel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); column-gap: 10px; }
+  /* Titel, Reiter und Schließen in einer Zeile: mehr Höhe für Bühne und Raster */
+  .wd-panel { width: calc(100vw - 8px); max-width: none; height: calc(100vh - 8px); height: calc(100dvh - 8px); max-height: none; padding: 4px 10px 6px; gap: 2px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); column-gap: 10px; }
   .wd-head { display: contents; }
   .wd-title { grid-column: 1; grid-row: 1; align-self: center; font-size: 1.1em; }
   .wd-tabs { grid-column: 2; grid-row: 1; align-self: center; border-bottom: 0; }
-  .wd-head .pg-close { grid-column: 3; grid-row: 1; align-self: center; }
-  .wd-body { grid-column: 1 / -1; grid-row: 2; }
+  .wd-tabs .pg-tabbtn { min-height: 44px; }
+  .wd-head .pg-close { grid-column: 3; grid-row: 1; align-self: center; min-width: 44px; min-height: 44px; }
+  .wd-body { grid-column: 1 / -1; grid-row: 2; padding-top: 4px; gap: 10px; }
   .wd-panel > .ef-note { grid-column: 1 / -1; }
+  .wd-stage { gap: 4px; }
+  .wd-pick { height: 50px; } .wd-pick-name { font-size: 14px; line-height: 18px; }
+  .wd-apply { min-height: 44px; min-width: 170px; font-size: 14px; }
+  .wd-msg { min-height: 0; }
+  .wd-grid { grid-template-columns: repeat(auto-fill, 64px); gap: 4px; }
+  .wd-tile { width: 64px; height: 64px; }
+  .wd-tile-cap { font-size: 8px; line-height: 11px; letter-spacing: 0; }
+  .wd-cards { gap: 3px; }
 }
 
 /* Reisemenü am Wegstein */

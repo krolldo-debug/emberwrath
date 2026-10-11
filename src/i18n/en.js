@@ -4376,6 +4376,7 @@ export const EN = {
   "Ausgewählt": "Selected",
   "Noch nicht gesammelt": "Not collected yet",
   "{0} Aussehen gesammelt": "{0} appearances collected",
+  "{0} Aussehen": "{0} looks",
   "Zu gefährlich – erst ab Stufe {0}.": "Too dangerous – requires level {0}.",
   "Serie": "Streak",
   "Blutrausch": "Bloodlust",
