@@ -1,6 +1,7 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { FineCanvas, fineRes } from '../gfx/Fine.js';
 import { TAU } from '../core/math.js';
 
 // Weitere NPCs für Aschenwald und Schlackenhöhen. Blickrichtung rechts,
@@ -69,13 +70,19 @@ function arm(p, x0, y0, x1, y1, c0, c1, hand) {
   if (hand) { p.px(x1, y1 + 1, hand); p.px(x1 + 1, y1 + 1, hand); }
 }
 
-function mkFrame(draw) {
-  const gc = new PixelCanvas(W, H);
+// fine = true: Stufe B (handfein) – draw bekommt FineCanvas (p.fine), die Leuchtebene ebenfalls. Bei fineRes() 1
+// (Qualität „Niedrig“) bleibt alles beim alten Weg in Weltpixeln.
+function mkFrame(draw, fine = false) {
+  const res = fine ? fineRes() : 1;
+  const gc = res > 1 ? new FineCanvas(W, H, res) : new PixelCanvas(W, H);
   let used = false;
-  const g = new Proxy(gc, { get(t, k) { if (k === 'px' || k === 'rect' || k === 'line' || k === 'ellipse') used = true; const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; } });
+  const DRAW = new Set(['px', 'rect', 'line', 'ellipse', 'dot', 'fline', 'each']);
+  const g = new Proxy(gc, { get(t, k) { if (DRAW.has(k)) used = true; const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; } });
   let meta = null;
-  const f = buildFrame(W, H, AX, AY, (p) => { meta = draw(p, g); });
-  if (used) f.glow = new SpriteFrame(gc.canvas, AX, AY);
+  const f = res > 1
+    ? buildFrame(W, H, AX, AY, (p) => { meta = draw(p, g); }, { fine: true, res })
+    : buildFrame(W, H, AX, AY, (p) => { meta = draw(p, g); });
+  if (used) f.glow = res > 1 ? new SpriteFrame(gc.canvas, AX * res, AY * res, res) : new SpriteFrame(gc.canvas, AX, AY);
   if (meta) f.meta = meta;
   return f;
 }
@@ -84,7 +91,9 @@ const phases = (n) => [...Array(n)].map((_, i) => i / n);
 const breath = (t) => (Math.sin(t * TAU) > 0.2 ? 1 : 0);
 
 // ------------------------------------------------------------ Wächterin Ilsa
-function drawIlsa(p, g, { t = 0, talk = 0, gest = 0 }) {
+function drawIlsa(p, g, o) {
+  if (p.fine) return drawIlsaFine(p, g, o);
+  const { t = 0, talk = 0, gest = 0 } = o;
   const fy = AY, cx = 18, b = breath(t), sw = Math.sin(t * TAU);
   const ty = 19 - b, hy = 11 - b;
   // Umhang hinten (weht)
@@ -127,6 +136,187 @@ function drawIlsa(p, g, { t = 0, talk = 0, gest = 0 }) {
   p.rect(sx - 1, 4 - b, 4, 1, CR[2]); p.px(sx - 1, 5 - b, CR[3]); p.px(sx + 2, 6 - b, CR[2]); // Band
   arm(p, cx + 3, ty + 1, sx - 1, ty + 5, CLOAK_G[3], L[2], null);
   p.rect(sx - 1, ty + 5, 3, 2, SKIN[2]);
+  return { head: { dx: 0, dy: hy - AY } };
+}
+
+// ------------------------------------------------------------ Feinraster (Stufe B, handfein)
+// Bildmuster in Feinpixeln: rows = Zeichenketten (ein Zeichen = ein Feinpixel), pal = Zeichen → Farbe, '.' = frei.
+// x/y = Weltkoordinate der linken oberen Ecke.
+function fmap(p, x, y, rows, pal) {
+  const q = p.step;
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    for (let c = 0; c < row.length; c++) { const col = pal[row[c]]; if (col) p.dot(x + c * q, y + r * q, col); }
+  }
+}
+// Gerades Band (Arm, Stab) fein abgetastet: Breite w Weltpixel, ramp von der Lichtseite (oben links) zur Schattenseite.
+function band(p, x0, y0, x1, y1, w, ramp) {
+  const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 1e-3, len = Math.sqrt(l2);
+  let nx = -dy / len, ny = dx / len;
+  if (nx + ny > 0) { nx = -nx; ny = -ny; }
+  const R = w / 2 + 1, h = w / 2;
+  p.each(Math.min(x0, x1) - R, Math.min(y0, y1) - R, Math.max(x0, x1) + R, Math.max(y0, y1) + R, (x, y) => {
+    const t = ((x - x0) * dx + (y - y0) * dy) / l2;
+    if (t < 0 || t > 1) return null;
+    const s = (x - x0 - dx * t) * nx + (y - y0 - dy * t) * ny;
+    if (s > h || s < -h) return null;
+    return ramp[Math.min(ramp.length - 1, Math.floor((h - s) / w * ramp.length))];
+  });
+}
+
+const IL_HAIR = [AUBURN[0], AUBURN[1], AUBURN[2], '#ac5a2c'];
+const IL_BOOT = ['#0e0907', '#1a110d', '#2c1f16', '#46342a', '#6a5040'];
+const IL_HL = '#8a6446'; // Lederglanz
+// Kopf mit Kapuze, 20×20 Feinpixel ab (12, hy-2). Kapuze a–e (dunkel → hell), Haut 0–3/h, Haar x/y/z/Z,
+// Auge k (Lid/Pupille), w (Weiß), i (Iris), g (Glanz), Mund l (Lippenlinie) / m (offen).
+const IL_HEAD = [
+  '.......eeeee........',
+  '.....eeedddddd......',
+  '....eedddcdddddd....',
+  '...eddddcdddddddcc..',
+  '...edddcddddddcccc..',
+  '..edddcdddddcccbbbc.',
+  '..eddcdddbayzzzyabc.',
+  '..edcdddbyzZZzzybc..',
+  '..edcddbyy111y2233..',
+  '..edcddby122223333..',
+  '..ddcddb1222yy2233..',
+  '..ddcddb122221yy32..',
+  '..dcdddb11211kkk222.',
+  '..dcdddb11312wgk2332',
+  '..dcdddb113131ik3321',
+  '..dcddbb11223312h31.',
+  '..dccdbb0122222ll2..',
+  '..dccdbb0112222221..',
+  '..dccbbb.01111111...',
+  '..dccbba............',
+];
+const IL_TALK = { 16: '..dccdbb0122222mm1..', 17: '..dccdbb0112222ml1..' };
+const IL_HEAD_PAL = {
+  a: CLOAK_G[0], b: CLOAK_G[1], c: CLOAK_G[2], d: CLOAK_G[3], e: CLOAK_G[4],
+  0: SKIN[0], 1: SKIN[1], 2: SKIN[2], 3: SKIN[3], h: '#dcb092',
+  x: IL_HAIR[0], y: IL_HAIR[1], z: IL_HAIR[2], Z: IL_HAIR[3],
+  k: EYE, w: '#d0c4b8', i: '#3a6a3a', g: '#ffffff', l: '#6a3028', m: '#2a0e10',
+};
+
+function drawIlsaFine(p, g, { t = 0, talk = 0, gest = 0 }) {
+  const fy = AY, cx = 18, b = breath(t), sw = Math.sin(t * TAU), q = p.step;
+  const ty = 19 - b, hy = 11 - b;
+  // --- Umhang hinten (weht): Kante fein, zwei Falten laufen von der Schulter nach unten auseinander
+  const left = (y) => { const k = (y - ty) / (fy - ty); return cx - 3 - (3 + k * 4 + sw * k * 1.5); };
+  p.each(0, ty - 1, cx + 1.9, fy - 1.1, (x, y) => {
+    const xl = left(y);
+    if (x < xl - 0.25 || x > cx + 2) return null;
+    const d = x - xl;
+    if (y > fy - 1.5) return CLOAK_G[1];                                   // Saum unten
+    let i = d < 0.5 && y < ty + 9 ? 4 : d < 2 ? 3 : x > cx - 1 ? 1 : 2;
+    for (const [f, y0] of [[0.42, ty + 3], [0.74, ty + 7]]) {
+      if (y < y0) continue;
+      const xf = xl + (cx - 3 - xl) * f - (y - y0) * 0.06;
+      if (Math.abs(x - xf) < 0.26) i = y < y0 + 2 ? 2 : 1;                 // Falte: oben weich, unten tief
+      else if (x < xf && x > xf - 0.76 && y > y0 + 1) i = Math.max(i, 3);   // Lichtgrat links daneben
+    }
+    return CLOAK_G[i];
+  });
+  { // Fransen am Saum
+    const xl = Math.round(left(fy - 2) * 2) / 2;
+    for (let x = xl; x < cx; x += 2) { p.rect(x, fy - 1, 1, 0.5, CLOAK_G[1]); p.dot(x + 0.25, fy - 0.5, CLOAK_G[0]); }
+  }
+  // --- Langbogen auf dem Rücken: Holz dreistufig mit Glanzlinie, Hornspitzen, Griffwicklung; Sehne als Feinlinie
+  for (let y = hy - 1; y < hy + 20; y += q) {
+    const k = (y - (hy - 1)) / 20, x = Math.round((10 + k * 8 + Math.sin(k * Math.PI) * -3) * 2) / 2;
+    if (k < 0.06 || k > 0.95) { p.dot(x + 0.5, y, '#c8b898'); p.dot(x + 1, y, '#8a7c66'); continue; }
+    const grip = Math.abs(k - 0.5) < 0.07;
+    const wr = grip && Math.round(y * 2) % 2;   // Griffwicklung
+    p.dot(x, y, L[3]); p.dot(x + 0.5, y, grip ? (wr ? L[3] : L[0]) : IL_HL); p.dot(x + 1, y, grip ? (wr ? L[2] : L[0]) : L[2]); p.dot(x + 1.5, y, L[1]);
+  }
+  p.fline(12, hy, 19, hy + 20, '#c8c0ae');
+  // --- Beine: Hose, Stiefel mit umgeschlagenem Schaft und Lichtkante
+  p.rect(cx - 3, 29, 3, 5, L[0]); p.rect(cx - 3, 29, 0.5, 5, L[1]);
+  p.rect(cx + 1, 29, 3, 5, L[1]); p.rect(cx + 1, 29, 0.5, 5, L[2]); p.rect(cx + 3.5, 29, 0.5, 5, L[0]);
+  p.dot(cx + 1.5, 31.5, L[2]); p.dot(cx + 2, 31.5, L[3]);                  // Knie
+  const boot = (x, B) => fmap(p, x, fy - 3, [
+    '4433322.',
+    '2111110.',
+    '310000..',
+    '310000..',
+    '3100000.',
+    '31111100',
+    '....1123',
+    '....0000',
+  ], { 0: B[0], 1: B[1], 2: B[2], 3: B[3], 4: B[4] });
+  boot(cx - 3, [IL_BOOT[0], IL_BOOT[0], IL_BOOT[1], IL_BOOT[2], IL_BOOT[3]]);
+  boot(cx + 1, [IL_BOOT[0], IL_BOOT[1], IL_BOOT[2], IL_BOOT[3], IL_BOOT[4]]);
+  // --- Rumpf: Lederwams mit Ziernaht, Köcherriemen mit Nieten, Gürtel und Schnalle
+  p.rect(cx - 3, ty, 7, 10, L[2]); p.rect(cx - 3, ty, 2, 10, L[3]); p.rect(cx - 3, ty + 0.5, 0.5, 6, IL_HL);
+  p.rect(cx + 3, ty, 1, 10, L[1]); p.rect(cx + 2.5, ty + 2, 0.5, 4, L[1]);
+  for (let y = ty + 2; y < ty + 6; y += 1) p.dot(cx + 2, y, L[3]);          // Naht als Punktlinie
+  p.fline(cx - 2, ty + 1, cx + 2, ty + 5, L[0], 1);                          // Köcherriemen
+  p.fline(cx - 2, ty + 0.5, cx + 2, ty + 4.5, IL_HL);                       // Glanzkante am Riemen
+  p.dot(cx - 1, ty + 2, St[3]); p.dot(cx + 1, ty + 4, St[3]); p.dot(cx + 1.5, ty + 4, St[1]);
+  p.rect(cx - 3, ty + 6, 7, 1, L[0]); p.rect(cx - 3, ty + 6, 7, 0.5, '#2c1c14');
+  fmap(p, cx + 0.5, ty + 6, ['432', '3.1'], { 4: G[4], 3: G[3], 2: G[2], 1: G[1] });
+  p.dot(cx + 1, ty + 6.5, L[0]);
+  // Rockschoß mit Falten
+  p.rect(cx - 3, ty + 7, 7, 3, CLOAK_G[2]); p.rect(cx - 3, ty + 7, 2, 3, CLOAK_G[3]); p.rect(cx - 3, ty + 7, 7, 0.5, CLOAK_G[1]);
+  for (const fx of [cx - 0.5, cx + 2]) { p.rect(fx, ty + 7.5, 0.5, 2.5, CLOAK_G[1]); p.rect(fx - 0.5, ty + 8, 0.5, 2, CLOAK_G[3]); }
+  p.rect(cx - 3, ty + 9.5, 7, 0.5, CLOAK_G[1]); p.rect(cx - 3, ty + 9.5, 2, 0.5, CLOAK_G[2]);
+  // Umhangkragen mit Falten und Schatten auf dem Wams, Fibel mit Glanz
+  p.rect(cx - 4, ty - 1, 8, 3, CLOAK_G[3]); p.rect(cx - 4, ty - 1, 8, 0.5, CLOAK_G[4]); p.rect(cx - 4, ty - 0.5, 3, 0.5, CLOAK_G[4]);
+  p.rect(cx - 4, ty + 1.5, 8, 0.5, CLOAK_G[2]); p.rect(cx - 1, ty + 2, 4, 0.5, L[1]);
+  p.dot(cx - 2, ty, CLOAK_G[2]); p.dot(cx - 1.5, ty + 0.5, CLOAK_G[2]); p.dot(cx + 0.5, ty + 0.5, CLOAK_G[2]); p.dot(cx + 1, ty + 1, CLOAK_G[1]);
+  fmap(p, cx + 1.5, ty + 0.5, ['342', '2g1', '.1.'], { 4: G[4], 3: G[3], 2: G[2], 1: G[1], g: CR[3] });
+  // --- Kopf mit Kapuze
+  fmap(p, 12, hy - 2, talk ? IL_HEAD.map((r, i) => IL_TALK[i] ?? r) : IL_HEAD, IL_HEAD_PAL);
+  // Zopf (schwingt): verflochtene Glieder mit Strähnenlicht, Lederband, Quaste
+  const bx = (k) => 13 - k * 0.5 - sw * Math.min(k, 2) * 0.5;
+  for (let k = 0; k < 3; k++) {
+    const x = Math.round(bx(k) * 2) / 2, y = hy + 8 + k;
+    fmap(p, x, y, k % 2 ? ['.yz', 'xyy'] : ['zZ.', 'yyx'], { x: IL_HAIR[0], y: IL_HAIR[1], z: IL_HAIR[2], Z: IL_HAIR[3] });
+  }
+  { const x = Math.round(bx(3) * 2) / 2, y = hy + 11; p.dot(x + 0.5, y, L[3]); p.dot(x, y + 0.5, IL_HAIR[2]); p.dot(x + 0.5, y + 0.5, IL_HAIR[1]); }
+  // --- hinterer Arm
+  if (gest) {
+    band(p, cx - 0.5, ty + 2.5, cx + 5.5, ty + 2.5 - gest, 2, [IL_HL, L[3], L[2], L[0]]);
+    band(p, cx + 3, ty + 2.5 - gest * 0.6, cx + 4.5, ty + 2.5 - gest * 0.85, 2, [L[1], L[1], L[0], L[0]]); // Armschiene
+    p.dot(cx + 3.5, ty + 1.5 - gest * 0.7, L[3]);
+    fmap(p, cx + 5, ty + 1.5 - gest, ['.32', '3221', '2211', '.11.'], { 3: SKIN[3], 2: SKIN[2], 1: SKIN[1] });
+  } else {
+    p.rect(cx - 3, ty + 1, 1, 7, CLOAK_G[1]); p.rect(cx - 3, ty + 1, 0.5, 7, CLOAK_G[2]);
+    p.rect(cx - 2, ty + 1, 1, 7, L[1]); p.rect(cx - 1.5, ty + 1, 0.5, 7, L[0]); p.rect(cx - 2, ty + 5, 1, 0.5, L[2]);
+    fmap(p, cx - 3, ty + 8, ['2211', '1100'], { 2: SKIN[2], 1: SKIN[1], 0: SKIN[0] });
+  }
+  // --- Speer: Schaft dreistufig, Blatt mit Mittelgrat (Glanzlinie) und Glanzpunkt, rotes Band mit Falte
+  const sx = cx + 6;
+  p.rect(sx, 4 - b, 0.5, fy - 3 + b, L[3]); p.rect(sx + 0.5, 4 - b, 0.5, fy - 3 + b, IL_HL);
+  p.rect(sx + 1, 4 - b, 0.5, fy - 3 + b, L[2]); p.rect(sx + 1.5, 4 - b, 0.5, fy - 3 + b, L[1]);
+  fmap(p, sx, fy - 0.5, ['3421'], { 4: St[4], 3: St[3], 2: St[2], 1: St[1] });
+  fmap(p, sx, -b, [
+    '.w..',
+    '.54.',
+    '4553',
+    '4543',
+    '3542',
+    '3532',
+    '2521',
+    '1221',
+  ], { w: '#ffffff', 5: St[5], 4: St[4], 3: St[3], 2: St[2], 1: St[1] });
+  const fl = Math.round(sw * 0.8) * q;
+  fmap(p, sx - 1, 4 - b, [
+    '23443422',
+    '12231211',
+    '32.....3',
+    '21......',
+  ], { 4: CR[4], 3: CR[3], 2: CR[2], 1: CR[1] });
+  p.dot(sx + 2 + fl, 5.5 - b, CR[2]); p.dot(sx + 2 + fl, 6 - b, CR[3]); p.dot(sx + 2.5 + fl, 6 - b, CR[1]); p.dot(sx + 2 + fl, 6.5 - b, CR[1]);
+  // --- vorderer Arm: Umhang über der Schulter, Lederärmel, Hand umfasst den Schaft
+  band(p, cx + 3.5, ty + 1.5, cx + 5.5, ty + 5.5, 2, [CLOAK_G[4], CLOAK_G[3], L[3], L[2], L[2], L[1]]);
+  fmap(p, sx - 1, ty + 5, [
+    '.3332.',
+    '232221',
+    '121111',
+    '.2221.',
+  ], { 3: SKIN[3], 2: SKIN[2], 1: SKIN[1] });
   return { head: { dx: 0, dy: hy - AY } };
 }
 
@@ -392,20 +582,20 @@ function drawDunn(p, g, { t = 0, talk = 0, gest = 0 }) {
 }
 
 // ------------------------------------------------------------ Animationen (idle 6 Frames, talk 4 Frames)
-function makeSet(draw) {
-  const idle = new Animation(phases(6).map((t) => mkFrame((p, g) => draw(p, g, { t }))), 6);
+function makeSet(draw, fine = false) {
+  const idle = new Animation(phases(6).map((t) => mkFrame((p, g) => draw(p, g, { t }), fine)), 6);
   const talk = new Animation([
-    mkFrame((p, g) => draw(p, g, { t: 0.1, talk: 1, gest: 1 })),
-    mkFrame((p, g) => draw(p, g, { t: 0.25, talk: 0, gest: 2 })),
-    mkFrame((p, g) => draw(p, g, { t: 0.4, talk: 1, gest: 2 })),
-    mkFrame((p, g) => draw(p, g, { t: 0.55, talk: 0, gest: 1 })),
+    mkFrame((p, g) => draw(p, g, { t: 0.1, talk: 1, gest: 1 }), fine),
+    mkFrame((p, g) => draw(p, g, { t: 0.25, talk: 0, gest: 2 }), fine),
+    mkFrame((p, g) => draw(p, g, { t: 0.4, talk: 1, gest: 2 }), fine),
+    mkFrame((p, g) => draw(p, g, { t: 0.55, talk: 0, gest: 1 }), fine),
   ], 6);
   return { idle, talk };
 }
 
 export function createNpcSprites2() {
   return {
-    warden_ilsa: makeSet(drawIlsa),
+    warden_ilsa: makeSet(drawIlsa, true),
     herbalist_oona: makeSet(drawOona),
     trader_vesk: makeSet(drawVesk),
     commander_hale: makeSet(drawHale),
