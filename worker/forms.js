@@ -20,6 +20,8 @@
 // Spam-Schutz: verstecktes Feld „website“, Mindestzeit zwischen Anzeigen und Absenden, Rate-Limit je IP,
 // dieselbe Adresse bekommt höchstens alle RESEND_GAP_MIN Minuten eine Bestätigungsmail.
 
+import { confirmMail } from './newsletter-mail.js';
+
 const KINDS = { kontakt: 'Kontakt', fehler: 'Fehler', melden: 'Meldung', loeschen: 'Löschung' };
 const EMAIL_RE = /^[^\s@<>"',;]{1,64}@[^\s@<>"',;]{1,190}\.[a-z]{2,}$/i;
 const MIN_FILL_MS = 2500;
@@ -88,11 +90,11 @@ async function sendSupportMail(env, msg) {
   await env.SUPPORT_MAIL.send(new EmailMessage(from(env), env.SUPPORT_TO, raw));
 }
 
-async function sendResend(env, { to, subject, text, headers }) {
+async function sendResend(env, { to, subject, text, html, headers }) {
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: `Emberwrath <${from(env)}>`, to: [to], subject, text, headers }),
+    body: JSON.stringify({ from: `Emberwrath <${from(env)}>`, to: [to], subject, text, html, headers }),
   });
   if (!r.ok) throw new Error(`resend ${r.status}`);
 }
@@ -178,14 +180,14 @@ async function subscribe(request, env, ctx) {
   if (await limited(request, env)) return json({ error: 'rate' }, 429);
   // Antwortzeit darf nicht verraten, ob die Adresse schon eingetragen ist: Abfrage und Versand nach der Antwort.
   if (ctx?.waitUntil) {
-    ctx.waitUntil(subscribeWork(env, email, b).catch((e) => console.error('newsletter', e?.message)));
+    ctx.waitUntil(subscribeWork(env, email, b, request.headers.get('Accept-Language')).catch((e) => console.error('newsletter', e?.message)));
     return json({ ok: true });
   }
-  await subscribeWork(env, email, b);
+  await subscribeWork(env, email, b, request.headers.get('Accept-Language'));
   return json({ ok: true });
 }
 
-async function subscribeWork(env, email, b) {
+async function subscribeWork(env, email, b, acceptLanguage) {
   const q = encodeURIComponent(email);
   const [row] = await db(env, `newsletter_subscribers?email=eq.${q}&select=status,unsubscribe_token,requested_at`);
   // Bereits bestätigt: nichts verraten, nichts senden.
@@ -194,54 +196,26 @@ async function subscribeWork(env, email, b) {
   if (row?.status === 'pending' && Date.now() - Date.parse(row.requested_at) < RESEND_GAP_MIN * 60e3) return;
   const confirm = token();
   const unsub = row?.unsubscribe_token ?? token();
-  const fields = { status: 'pending', confirm_token: confirm, unsubscribe_token: unsub, requested_at: new Date().toISOString(), source: oneLine(b.source, 40) || 'website' };
+  const fields = { status: 'pending', confirm_token: confirm, unsubscribe_token: unsub, requested_at: new Date().toISOString(), source: subscriberSource(b.source, acceptLanguage) };
   if (row) await db(env, `newsletter_subscribers?email=eq.${q}`, { method: 'PATCH', body: fields, prefer: 'return=minimal' });
   else await db(env, 'newsletter_subscribers', { method: 'POST', body: { email, ...fields }, prefer: 'return=minimal' });
 
   const lang = subscriberLang(fields.source);
   const link = `${site(env)}${lang === 'en' ? '/en' : ''}/newsletter?aktion=bestaetigen&token=${confirm}`;
-  await sendResend(env, { to: email, ...confirmMail(lang, link, site(env)) });
+  await sendResend(env, { to: email, ...confirmMail(lang, link, site(env), CONFIRM_TTL_H) });
 }
 
 // Sprache eines Abonnenten: steht in source (Pfad der Seite, auf der angemeldet wurde, z. B. /en/ oder /en/world).
 // Englische Seiten liegen unter /en/ (site/i18n/build-en.mjs). Gilt auch für spätere Newsletter-Versände.
 export const subscriberLang = (source) => (/^\/en(\/|$)/.test(String(source ?? '')) ? 'en' : 'de');
 
-function confirmMail(lang, link, home) {
-  if (lang === 'en') {
-    return {
-      subject: 'Please confirm your Emberwrath newsletter',
-      text: [
-        'Hello,',
-        '',
-        'you (or someone using your address) signed up for the Emberwrath newsletter.',
-        'Please open this link and confirm your subscription there with one click:',
-        '',
-        link,
-        '',
-        `The link is valid for ${CONFIRM_TTL_H} hours. If you did not sign up, simply ignore this email and you will not hear from us.`,
-        '',
-        'Emberwrath',
-        `${home}/en/`,
-      ].join('\n'),
-    };
-  }
-  return {
-    subject: 'Bitte bestätige deinen Emberwrath-Newsletter',
-    text: [
-      'Hallo,',
-      '',
-      'du hast dich (oder jemand mit deiner Adresse) für den Newsletter von Emberwrath angemeldet.',
-      'Bitte öffne diesen Link und bestätige die Anmeldung dort mit einem Klick:',
-      '',
-      link,
-      '',
-      `Der Link gilt ${CONFIRM_TTL_H} Stunden. Wenn du dich nicht angemeldet hast, ignoriere diese E-Mail einfach, dann bekommst du nichts von uns.`,
-      '',
-      'Emberwrath',
-      home,
-    ].join('\n'),
-  };
+// Wer im Browser Deutsch als erste Sprache hat, bekommt deutsche Mails, auch wenn er auf /en/ angemeldet hat
+// (z. B. weil er die englische Seite einmal ausprobiert hat und lang.js sich das merkt). source bekommt dann „de:“ davor,
+// damit subscriberLang auch für spätere Versände Deutsch liefert.
+export function subscriberSource(path, acceptLanguage) {
+  const src = oneLine(path, 40) || 'website';
+  const first = String(acceptLanguage ?? '').split(',')[0].trim().toLowerCase();
+  return subscriberLang(src) === 'en' && /^de\b/.test(first) ? `de:${src}`.slice(0, 43) : src;
 }
 
 async function confirm(env, t) {
