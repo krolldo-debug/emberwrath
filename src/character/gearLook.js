@@ -449,10 +449,11 @@ export function shownEquipment(slices, content) {
     const worn = idOf(eq[slot] ?? (slot === 'chest' ? eq.armor : null));
     out[slot] = worn;
     const want = w?.shown?.[slot];
-    if (!worn || !want) continue;
+    if (!want) continue;
     if (want === HIDE_LOOK) { if (slot === 'head') out[slot] = null; continue; }
-    // Gesammelt, oder Teil eines gekauften Skinsets (kontoweit über slices.shop, character/skinSets.js)
-    if (SET_LOOKS[want] ? !(sets ??= ownedSetLooks(slices)).has(want) : !w.looks?.includes(want)) continue;
+    // Gekauftes Skinset: immer komplett sichtbar, auch über leeren Plätzen (kontoweit über slices.shop, character/skinSets.js).
+    // Gesammeltes Aussehen nur über einem getragenen Teil.
+    if (SET_LOOKS[want] ? !(sets ??= ownedSetLooks(slices)).has(want) : !worn || !w.looks?.includes(want)) continue;
     if (lookAllowed(content?.find('item', want), slot, ch.classId)) out[slot] = want;
   }
   return out;

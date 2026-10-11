@@ -147,6 +147,7 @@ Tasche, Ausrüstung und Bank nach). Das Aussehen bleibt, auch wenn das Teil verk
 - Besitz: `slices.shop.owned` enthält `'look:set_<name>'` (für alle Charaktere des Kontos), `ownedSetLooks(slices)`.
   Set-Teile (`set_<name>_<slot>`) liegen nie in Tasche, Bank oder `wardrobe.looks`, nur in `wardrobe.shown`.
 - Command `wardrobe:showSet { setId }` legt alle fünf Teile an (Gründe: class, locked); Panel-Knopf „Set anlegen“.
+  Ein angelegtes Set ist immer komplett sichtbar, auch über leeren Plätzen (`shownEquipment`); Kopf über „Helm ausblenden“ ab.
 - Server: `supabase/migrations/20261011160000_skinsets.sql` prüft angelegte Set-Teile beim Speichern und nimmt sie bei Rückbuchung ab.
 - Zeichnung: `sprites/heroSets.js` (Hooks aus `hero.js`), harte Leuchtebene `frame.emit` (`collectEmit`/`drawSetEmit`, Farben in
   `SET_GLOW`, auch nachts voll hell), kreisende Runen `drawSetGlow`, Partikel `spawnSetParticles`, eigene Klingen

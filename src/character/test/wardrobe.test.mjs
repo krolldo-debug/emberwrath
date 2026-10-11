@@ -122,6 +122,23 @@ test('Skinsets: nur gekauft, nur eigene Klasse, ganzes Set anlegen', async () =>
   assert.equal(c('wardrobe:showSet', { setId: 'set_glutthron' }).ok, true);
   assert.equal(shownEquipment(state.slices, content).weapon, sword);
   assert.equal(shownEquipment(state.slices, content).chest, 'set_glutthron_chest');
+  // Set immer komplett, auch ohne Helm, Handschuhe, Stiefel; Kopf über „Helm ausblenden“ abschaltbar
+  const eq = state.slices.inventory.equipment;
+  for (const k of ['head', 'hands', 'feet']) eq[k] = null;
+  const bare = shownEquipment(state.slices, content);
+  assert.deepEqual([bare.head, bare.hands, bare.feet], ['set_glutthron_head', 'set_glutthron_hands', 'set_glutthron_feet']);
+  state.slices.character.wardrobe.shown.head = 'none';
+  assert.equal(shownEquipment(state.slices, content).head, null, 'Helm ausgeblendet');
+  state.slices.character.wardrobe.shown.head = 'set_glutthron_head';
+  // gesammeltes Aussehen bleibt an ein getragenes Teil gebunden
+  const keep = eq.weapon;
+  eq.weapon = null;
+  state.slices.character.wardrobe.looks.push('iron_sword');
+  state.slices.character.wardrobe.shown.weapon = 'iron_sword';
+  assert.equal(shownEquipment(state.slices, content).weapon, null);
+  state.slices.character.wardrobe.shown.weapon = sword;
+  assert.equal(shownEquipment(state.slices, content).weapon, sword, 'Set-Waffe auch ohne getragene Waffe');
+  eq.weapon = keep;
   assert.equal(c('wardrobe:showSet', { setId: 'set_mondsichel' }).reason, 'class');
   // nicht mehr bezahlt: nicht mehr sichtbar, Laden behält es nicht in looks
   state.slices.shop.owned = [];
