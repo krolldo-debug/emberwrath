@@ -308,22 +308,20 @@ const IRON = ['#12141c', '#222734', '#363d4e', '#525c72', '#7e8ba4', '#b8c4d8'];
 
 // Kalter Atemhauch: kleine Nebelwölkchen vor dem Maul (Phase ph 0..1).
 // Nur ein zarter Kern auf der Grundebene, der Rest leuchtet (lesbar auf Schnee).
-function breath(p, g, x, y, ph, dir = 1, n = 3, size = 1) {
-  if (p.fine) { // fein: runde Wölkchen, Leuchtsaum in harten Ringen, junger Hauch mit festem Nebelkern (kein Streuen)
+function breath(p, g, x, y, ph, dir = 1, n = 3, size = 1, calm = false) {
+  if (p.fine) { // fein: kleine, unregelmäßige Reifwölkchen aus Pixelflocken (fest verteilt je Wölkchen, treiben
+    // mit der Phase auseinander und werden weniger); Leuchten nur auf den Flocken. calm (Ruhebild): höchstens 2 Flocken.
     for (let i = 0; i < n; i++) {
       const f = (ph + i / n) % 1;
-      if (f > 0.8) continue;
-      const bx = x + dir * (1 + f * 5 * size) + 0.5, by = y - f * 2.5 * size + (i - 1) * 0.5 + 0.5;
-      const r = (0.5 + f * 1.6) * size + 0.5;
-      g.each(bx - r, by - r, bx + r, by + r, (xx, yy) => {
-        const d = Math.hypot(xx - bx, yy - by);
-        if (d > r) return null;
-        if (d > r - 0.5) return f < 0.3 ? ICE_G[1] : null;
-        return f < 0.35 ? (d < r * 0.45 ? ICE_G[3] : ICE_G[2]) : ICE_G[1];
-      });
-      if (f > 0.12 && f < 0.42) { // kleiner fester Nebelkern (2×2 Feinpixel), damit der Hauch auf Schnee lesbar bleibt
-        const X = p.snap(bx - 0.5), Y = p.snap(by - 0.5);
-        fd(p, X - 0.5, Y - 0.5, MIST[2]); fd(p, X, Y - 0.5, MIST[1]); fd(p, X - 0.5, Y, MIST[1]); fd(p, X, Y, MIST[0]);
+      if (f > 0.7 || (calm && (i > 0 || f > 0.5))) continue;
+      const bx = x + dir * (1 + f * 5 * size), by = y - f * 2.5 * size + (i - 1) * 0.5;
+      const spread = (0.6 + f * 1.8) * size, m = calm ? 2 : Math.max(1, (size > 1.2 ? 4 : 3) - Math.floor(f * 3));
+      for (let j = 0; j < m; j++) {
+        const a = hash2(i, j, 71) * TAU, rr = spread * (0.3 + 0.7 * hash2(i, j, 72));
+        const X = p.snap(bx + Math.cos(a) * rr * 1.3 + 0.25), Y = p.snap(by + Math.sin(a) * rr * 0.7 + 0.25);
+        fd(p, X, Y, f < 0.35 ? MIST[2] : MIST[1]);
+        if (j === 0 && f < 0.4 && !calm) fd(p, X + 0.5 * dir, Y - 0.5, MIST[1]);       // Flocke mit Schweif
+        fd(g, X, Y, f < 0.35 ? ICE_G[3] : ICE_G[2]);
       }
     }
     return;
@@ -893,7 +891,8 @@ function drawTroll(p, g, P, X, T) {
   // Nackenschatten trennt Kopf und Schulterbuckel
   ell(p, hx - 4 * k, hy + 0.5 * k, 3.5 * k, 4 * k, S[1]);
   // Unterkiefer (breit, vorstehend – Unterbiss)
-  ell(p, hx + 1.5 * k, hy + 2.8 * k + jaw, 4.6 * k, 2.4 * k, S[2]);
+  const hg = p.fine ? 0.5 : 0;   // fein: Kopf ~1 Weltpixel größer, damit das Gesicht lesbar wird
+  ell(p, hx + 1.5 * k, hy + 2.8 * k + jaw, 4.6 * k + hg, 2.4 * k + hg, S[2]);
   ell(p, hx + 2 * k, hy + 2.2 * k + jaw, 3.2 * k, 1.3 * k, S[3]);
   p.line(hx - 1 * k, hy + 4.6 * k + jaw, hx + 4 * k, hy + 4.6 * k + jaw, S[1]);
   if (jaw > 0) { // Maulhöhle
@@ -901,7 +900,7 @@ function drawTroll(p, g, P, X, T) {
     p.rect(hx, hy + 1.2 * k + jaw, 4 * k, 1, '#4a2434');
   }
   // Schädel (flach, breit), Licht von oben links
-  ell(p, hx, hy - 1 * k, 5 * k, 3.8 * k, S[3]);
+  ell(p, hx, hy - 1 * k, 5 * k + hg, 3.8 * k + hg, S[3]);
   ell(p, hx - 1 * k, hy - 2.2 * k, 3.6 * k, 2.2 * k, S[4]);
   p.px(hx - 2.5 * k, hy - 3.8 * k, S[6]); p.px(hx - 1.5 * k, hy - 4.2 * k, S[5]);
   // Haarschopf, der in die Mähne übergeht
@@ -940,25 +939,31 @@ function drawTroll(p, g, P, X, T) {
   const EC = chief ? [ICE[2], ICE[3], ICE[4], ICE[5]] : [T_EYE[1], T_EYE[2], T_EYE[3], T_EYE[4]];
   const EG = chief ? [ICE_G[1], ICE_G[2], ICE_G[3], ICE_G[4], ICE_G[5]] : T_EYE_G;
   if (p.fine) {
-    // Handfein: harte Brauenkante (heller Grat über schwarzer Höhle), Stirnfurche, glühende Augen mit
-    // hellem Kern – oben vom Brauenschatten angeschnitten –, Wangenknochen im Licht
-    const bw = chief ? 2 : 1;
-    for (let x = bx2 - 1; x <= ex + 1; x += 0.5) { fd(p, x, ey - 1, x < ex - 0.5 ? S[5] : S[4]); fd(p, x, ey - 1.5, S[3]); }
-    fd(p, bx2 - 1, ey - 1, S[6]); fd(p, bx2 - 0.5, ey - 1, S[6]); fd(p, bx2 - 1, ey - 0.5, S[2]); fd(p, ex + 1.5, ey - 0.5, S[2]);
-    fd(p, bx2 + bw - 0.5, ey - 2, S[1]); fd(p, bx2 + bw, ey - 2.5, S[2]);     // Furche über der Nasenwurzel
-    for (let x = bx2 + bw; x < ex - 1; x += 0.5) { fd(p, x, ey, S[1]); fd(p, x, ey + 0.5, S[2]); }   // Nasenwurzel trennt die Augen
-    for (let x = bx2 - 0.5; x <= ex + 0.5; x += 0.5) fd(p, x, ey + 1.5, x < ex ? S[4] : S[3]);
-    const eye = (x, w, big) => {
-      if (!eyeOn) { for (let i = 0; i < w; i += 0.5) fd(p, x + i, ey + 0.5, S[2]); return; }
-      // obere Reihe im Schatten der Braue, untere mit Kern
-      fd(p, x, ey, S[0]); for (let i = 0.5; i < w; i += 0.5) fd(p, x + i, ey, i === w - 0.5 ? S[0] : EC[0]);
-      fd(p, x, ey + 0.5, EC[0]); for (let i = 0.5; i < w; i += 0.5) fd(p, x + i, ey + 0.5, EC[1]);
-      fd(p, x + w - (big ? 1 : 0.5), ey + 0.5, EC[3]); if (big) { fd(p, x + w - 0.5, ey + 0.5, EC[2]); fd(p, x + w - 1, ey, EC[2]); }
-      // Leuchten fein: Kern hell, harter Hof in zwei Stufen
-      const cx = x + w - (big ? 1 : 0.5);
-      for (const [ox, oy, c] of [[0, 0.5, EG[4]], [-0.5, 0.5, EG[3]], [0.5, 0.5, EG[3]], [0, 0, EG[2]], [-0.5, 0, EG[1]], [0.5, 0, EG[1]], [0, 1, EG[1]], [-1, 0.5, EG[0]], [1, 0.5, EG[0]]]) fd(g, cx + ox, ey + oy, c);
-    };
-    eye(ex - 1, 2, true); eye(bx2, bw, false);
+    // Handfein: Brauenwulst mit klarer heller Kante direkt über einer tiefschwarzen Höhle, darin ein heller
+    // Augenpunkt (weißer Kern) im glühenden Iris-Saum; Nasenwurzel trennt die Augen, Unterlid und Wangenknochen
+    const bw = chief ? 2 : 1, core = chief ? '#ffffff' : '#fffbe8';
+    for (let x = bx2 - 1.5; x <= ex + 1.5; x += 0.5) {
+      fd(p, x, ey - 2, x < ex ? S[4] : S[3]);
+      fd(p, x, ey - 1.5, x < ex + 0.5 ? S[5] : S[4]);
+      fd(p, x, ey - 1, x < ex + 1 ? S[6] : S[5]);                                   // Brauenkante
+    }
+    for (let x = bx2 - 1; x <= ex + 1; x += 0.5) for (const y of [ey - 0.5, ey, ey + 0.5]) fd(p, x, y, S[0]);
+    fd(p, bx2 - 1.5, ey - 0.5, S[1]); fd(p, ex + 1.5, ey - 0.5, S[1]);
+    fd(p, bx2 + bw - 0.5, ey - 2.5, S[1]); fd(p, bx2 + bw, ey - 2.5, S[2]);         // Stirnfurche
+    for (let x = bx2 + bw; x < ex - 1; x += 0.5) { fd(p, x, ey, S[1]); fd(p, x, ey + 0.5, S[2]); }   // Nasenwurzel
+    for (let x = bx2 - 0.5; x <= ex + 0.5; x += 0.5) { fd(p, x, ey + 1, S[1]); fd(p, x, ey + 1.5, x < ex ? S[4] : S[3]); }
+    if (eyeOn) {
+      // vorderes Auge: Kern oben Mitte, Iris rundum
+      for (const [x, y, c] of [[-1, 0, EC[1]], [-0.5, 0, core], [0, 0, EC[2]], [-1, 0.5, EC[0]], [-0.5, 0.5, EC[1]], [0, 0.5, EC[0]]]) fd(p, ex + x, ey + y, c);
+      for (const [x, y, c] of [[-0.5, 0, EG[4]], [-1, 0, EG[2]], [0, 0, EG[2]], [-0.5, 0.5, EG[1]], [-1.5, 0, EG[0]], [0.5, 0, EG[0]]]) fd(g, ex + x, ey + y, c);
+      // hinteres Auge: kleiner, Kern gedämpft
+      const bc = bx2 + bw - 0.5;
+      fd(p, bc, ey, EC[3]); fd(p, bc - 0.5, ey, EC[1]); fd(p, bc, ey + 0.5, EC[0]); if (chief) fd(p, bc + 0.5, ey, EC[1]);
+      fd(g, bc, ey, EG[3]); fd(g, bc - 0.5, ey, EG[1]); fd(g, bc + 0.5, ey, EG[0]);
+    } else {
+      for (let x = ex - 1; x <= ex; x += 0.5) fd(p, x, ey + 0.5, S[2]);
+      fd(p, bx2 + bw - 0.5, ey + 0.5, S[2]);
+    }
   } else {
     p.px(ex, ey, eyeOn ? EC[3] : S[1]); p.px(ex - 1, ey, eyeOn ? EC[1] : S[0]);
     p.px(bx2, ey, eyeOn ? EC[2] : S[1]);
@@ -1008,16 +1013,17 @@ function drawTroll(p, g, P, X, T) {
   const tusk = (tx, big) => {
     const ty = hy + 2.2 * k + jaw;
     const h = big ? (chief ? 5 : 3) : 2;
-    if (p.fine) { // Hauer fein: Wurzel dunkel, Glanzkante links, Schatten rechts, Spitze schmal und hell
-      const X = p.snap(tx), Y = p.snap(ty);
-      for (let j = 0; j <= h - 1; j += 0.5) {
-        const x = X + (j > 1 ? p.snap(0.6 * Math.min(1, (j - 1) / Math.max(1, h - 2)) + 0.25) : 0), y = Y - j;
-        const tip = j >= h - 1, w = j > h - 2;
-        if (j < 0.5) { fd(p, x, y, BONE[1]); fd(p, x + 0.5, y, BONE[1]); fd(p, x + 1, y, S[1]); continue; }
-        fd(p, x, y, tip ? '#fffbef' : BONE[4]);
-        if (!w) fd(p, x + 0.5, y, j < h * 0.5 ? BONE[2] : BONE[3]);
+    if (p.fine) { // Hauer fein, etwas größer: Wurzel dunkel, Glanzkante links, Mitte, Schattenkante rechts, Spitze hell
+      const X = p.snap(tx) - (big ? 0.5 : 0), Y = p.snap(ty) + (big ? 0.5 : 0), H = h + (big ? 1 : 0.5);
+      for (let j = 0; j <= H - 1; j += 0.5) {
+        const f = j / Math.max(1, H - 1), x = X + p.snap(Math.max(0, f - 0.35) * 1.2), y = Y - j;
+        const w = !big ? (f < 0.6 ? 2 : 1) : f < 0.45 ? 3 : f < 0.85 ? 2 : 1;
+        if (j < 0.5) { for (let i = 0; i < w; i++) fd(p, x + i * 0.5, y, BONE[1]); fd(p, x + w * 0.5, y, S[1]); continue; }
+        fd(p, x, y, w === 1 ? '#fffbef' : f > 0.5 ? '#fffbef' : BONE[4]);
+        if (w > 1) fd(p, x + 0.5, y, w === 3 ? BONE[3] : BONE[2]);
+        if (w > 2) fd(p, x + 1, y, BONE[2]);
       }
-      if (chief && big) { fd(p, X + 0.5, Y - 2, BONE[1]); fd(p, X, Y - 1.5, BONE[2]); }   // Kerbe/Riss
+      if (chief && big) { fd(p, X + 1, Y - 2, BONE[1]); fd(p, X + 0.5, Y - 1.5, BONE[2]); }   // Kerbe/Riss
       return;
     }
     for (let j = 0; j < h; j++) p.px(tx + (j > 1 ? 0.6 : 0), ty - j, j === h - 1 ? '#fffbef' : j === 0 ? BONE[2] : BONE[4]);
@@ -1075,7 +1081,7 @@ function drawTroll(p, g, P, X, T) {
   }
 
   // Frostatem vor dem Maul
-  if (P.br >= 0) breath(p, g, meta.mouth.x + 1, meta.mouth.y, P.br, 1, X.bigBreath ? 6 : 3, (X.bigBreath ? 1.8 : 1) * (chief ? 1.3 : 1));
+  if (P.br >= 0) breath(p, g, meta.mouth.x + 1, meta.mouth.y, P.br, 1, X.bigBreath ? 6 : 3, (X.bigBreath ? 1.8 : 1) * (chief ? 1.3 : 1), X.calm);
 
   // --- 8. vorderer Arm (+ Keule bzw. Eisfaust)
   if (!chief && clubFront && !X.noClub) {
@@ -1162,7 +1168,7 @@ function iceTrollAnims() {
   const idle = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 6, kk = (1 - Math.cos(t * TAU)) / 2;
-    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t, frost: i % 3 === 0 ? 1.2 : 1 }));
+    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t, frost: i % 3 === 0 ? 1.2 : 1 }, { calm: true }));
   }
   const walk = [];
   for (let i = 0; i < 8; i++) {
@@ -1232,7 +1238,7 @@ function chiefAnims() {
   const idle = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 6, kk = (1 - Math.cos(t * TAU)) / 2;
-    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t }));
+    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t }, { calm: true }));
   }
   const walk = [];
   for (let i = 0; i < 8; i++) {
@@ -1601,7 +1607,7 @@ function drawFrostWolf(p, g, P, X) {
   meta.mouth = { x: tipX, y: tipY + 1 };
   meta.head = { x: hx, y: hy - 6 };
   // eisiger Atemhauch
-  if (P.br >= 0) breath(p, g, tipX, tipY + 1, P.br, d.x >= 0 ? 1 : -1, X.bigBreath ? 5 : 3, X.bigBreath ? 1.4 : 0.9);
+  if (P.br >= 0) breath(p, g, tipX, tipY + 1, P.br, d.x >= 0 ? 1 : -1, X.bigBreath ? 5 : 3, X.bigBreath ? 1.4 : 0.9, X.calm);
   return meta;
 }
 
@@ -1610,7 +1616,7 @@ function frostWolfAnims() {
   const idle = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 6, k = (1 - Math.cos(t * TAU)) / 2;
-    idle.push(mk(wpose({ bob: k > 0.5 ? 1 : 0, ha: 0.12 + k * 0.08, br: t, tail: k * 0.2, frost: i % 3 === 0 ? 1.2 : 1 })));
+    idle.push(mk(wpose({ bob: k > 0.5 ? 1 : 0, ha: 0.12 + k * 0.08, br: t, tail: k * 0.2, frost: i % 3 === 0 ? 1.2 : 1 }), { calm: true }));
   }
   const walk = [];
   for (let i = 0; i < 6; i++) walk.push(mk(wpose({ t: i / 6, amp: 1, bob: i % 3 === 1 ? 1 : 0, ha: 0.2, br: i / 6, tail: 0.3 }), { fx: i % 3 === 0 ? 'step' : null }));
