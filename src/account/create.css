@@ -39,7 +39,7 @@
 .cc-tile-art { display: block; image-rendering: pixelated; flex: none; }
 .cc-tile[data-kind="race"] .cc-tile-art-box { align-items: center; }
 .cc-tile[data-kind="race"] .cc-tile-art { transform: scale(1); }
-.cc-tile-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-tile-name { min-width: 0; overflow: hidden; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 @media (hover: hover) { .cc-tile:hover { border-color: var(--cc-edge-hi); color: var(--cc-text); } }
 .cc-tile:focus-visible { outline: 2px solid var(--cc-gold); outline-offset: 2px; }
 .cc-tile.selected { border-color: var(--cc-gold); color: #fff4e0; background: var(--cc-tile-hi); box-shadow: 0 0 0 2px var(--cc-ink), inset 0 0 0 2px #5a2a10; }
