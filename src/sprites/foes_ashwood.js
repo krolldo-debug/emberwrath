@@ -79,7 +79,7 @@ function poly(p, pts, c) {
     xs.sort((m, n) => m - n);
     for (let k = 0; k + 1 < xs.length; k += 2) {
       const a = Math.round(xs[k] / q) * q, b = Math.round(xs[k + 1] / q) * q;
-      if (b > a) { p.ctx.fillStyle = c; p.ctx.fillRect(a, y, b - a, q); }
+      if (b > a) p.rect(a, y, b - a, q, c);
     }
   }
 }
@@ -159,9 +159,9 @@ function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
       // auf den Boden setzen (unterstes Pixel = Bodenlinie).
       const PAD = 24, HH = H + PAD * 2;
       const tp = new FineCanvas(W, HH, res), tg = new FineCanvas(W, HH, res);
-      tp.ctx.translate(0, PAD); tg.ctx.translate(0, PAD);
+      tp.translate(0, PAD); tg.translate(0, PAD);
       meta = draw(tp, tg, P, extra) || {};
-      tp.ctx.setTransform(res, 0, 0, res, 0, 0); tg.ctx.setTransform(res, 0, 0, res, 0, 0);
+      tp.resetTranslate(); tg.resetTranslate();
       const [a, rx, ry0] = extra.rot, ry = ry0 + PAD;
       const rp = new FineCanvas(W, HH, res), rg = new FineCanvas(W, HH, res);
       rotBlit(tp, rp, rx, ry, a); rotBlit(tg, rg, rx, ry, a);

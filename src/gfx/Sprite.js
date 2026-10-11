@@ -1,5 +1,5 @@
 import { PixelCanvas, outlineCanvas, silhouette, flipCanvas } from './PixelCanvas.js';
-import { FineCanvas, fineRes, upscale2x, finishFine } from './Fine.js';
+import { FineCanvas, fineRes, scale2x, finishPixels, outlinePixels, pixelsToCanvas, canvasPixels } from './Fine.js';
 
 // Ein fertiger Animations-Frame inkl. vorberechneter Varianten
 // (gespiegelt, Treffer-Blitz). Anker = Fußpunkt der Figur.
@@ -30,23 +30,29 @@ export class SpriteFrame {
 // Baut einen Frame über eine Zeichenfunktion und versieht ihn mit Outline (1 Feinpixel).
 // Feinraster (gfx/Fine.js): fine = true → drawFn bekommt eine FineCanvas (Stufe B, handfein); sonst zeichnet drawFn
 // in Weltpixeln und das Ergebnis wird automatisch ×2 hochskaliert (Stufe A). res = fineRes(), bei „Niedrig“ 1.
-// Größe und Anker bleiben in Weltpixeln; frame.res sagt, wie viele Texel ein Weltpixel hat.
+// Größe und Anker bleiben in Weltpixeln; frame.res sagt, wie viele Texel ein Weltpixel hat. finish = Lichtkante und
+// Kontaktschatten (Standard: an, sobald fein). Wer schon fein rastert (Held, Reittiere), übergibt res: 1.
 export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true, fine = false, res = fineRes(), finish = null } = {}) {
-  let canvas;
+  let d, W, H;
   if (fine) {
     const fc = new FineCanvas(w, h, res);
     drawFn(fc);
-    canvas = fc.canvas;
+    d = fc.pixels(); W = fc.W; H = fc.H;
   } else {
     const pc = new PixelCanvas(w, h);
     drawFn(pc);
-    canvas = res > 1 ? upscale2x(pc.canvas) : pc.canvas;
+    if (res === 1 && !finish) {
+      const canvas = outline ? outlineCanvas(pc.canvas) : pc.canvas;
+      const pad = outline ? 1 : 0;
+      return new SpriteFrame(canvas, anchorX + pad, anchorY + pad);
+    }
+    d = canvasPixels(pc.canvas); W = w; H = h;
+    if (res > 1) { d = scale2x(d, w, h); W = w * 2; H = h * 2; res = 2; }
   }
-  if (res > 1 && canvas.width !== w * res) res = canvas.width / w;
-  if (finish ?? res > 1) finishFine(canvas);
-  if (outline) canvas = outlineCanvas(canvas);
+  if (finish ?? res > 1) finishPixels(d, W, H);
+  if (outline) { d = outlinePixels(d, W, H); W += 2; H += 2; }
   const pad = outline ? 1 : 0;
-  return new SpriteFrame(canvas, anchorX * res + pad, anchorY * res + pad, res);
+  return new SpriteFrame(pixelsToCanvas(d, W, H), anchorX * res + pad, anchorY * res + pad, res);
 }
 
 // Animation = Frameliste + Timing. Zustand liegt im Animator der Entity.
