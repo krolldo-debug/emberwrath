@@ -102,7 +102,7 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
     const hw = Math.max(0.62, (w0 + dw * t) / 2);
     if (ox * ox + oy * oy > hw * hw + 0.15) return 0;
     const k = ox * nx + oy * ny;
-    return k > hw - e ? C[3] : k < -hw + e ? C[0] : k > 0 ? C[2] : C[1];
+    return k > hw - e ? C[3] : k < -hw + 1 ? C[0] : k > 0 ? C[2] : C[1];   // Schattenseite volle Weltpixelbreite (wie früher)
   }, [x0, y0, x1, y1, R]);
 }
 
@@ -429,7 +429,7 @@ function drawDrowned(p, g, P, X) {
       if (torn) continue;
       if (u < 4 && hash2(Math.round(k * 2), 5, 61) < 0.3 + (4 - u) * 0.3) continue; // ausgefranster Saum (Fransen je Weltpixel)
       const w = (((u * 2 + k) % 5) + 5) % 5;
-      const c = k < -2.6 ? RAG[3] : k > 1.8 ? RAG[1] : u > 7.75 ? RAG[3] : w < 0.5 ? RAG[1] : w < 1 ? RAG[3] : RAG[2];
+      const c = k < -2.6 ? RAG[3] : k > 2.3 ? RAG[0] : k > 1.6 ? RAG[1] : u > 7.75 ? RAG[3] : w < 0.75 ? RAG[1] : w < 1 ? RAG[3] : RAG[2];
       d(u, k, c);
     }
     for (let u = 4.5; u <= 8; u += 0.25) { d(u, -1.5 + (u - 4.5) * 0.2, RAG[1]); d(u, -1.75 + (u - 4.5) * 0.2, RAG[3]); } // Falte mit Grat
@@ -542,6 +542,7 @@ function drawDrowned(p, g, P, X) {
   meta.mouth = { x: hx + 3, y: hy + 2 };
   meta.head = { x: hx, y: hy - 4 };
 
+  if (p.fine) shadeEdge(p);
   // --- Wassertropfen (fallen je nach Phase)
   const drops = [[armF.ex + 1, armF.ey + 3], [armB.ex + 1, armB.ey + 3], [hx - 3, hy + 4], [back.x - 1, back.y + 9]];
   drops.forEach(([x, y], i) => {
@@ -559,6 +560,26 @@ function drawDrowned(p, g, P, X) {
     g.px(x, yy, WATER[1]);
   });
   return meta;
+}
+
+// Schattenkante (nur fein): deckende Texel mit freier Nachbarschaft rechts oder unten werden abgedunkelt –
+// gibt die kräftige Schattenseite unten rechts zurück, die die ×2-Fassung durch den doppelt breiten Umriss hatte.
+const COLD32 = new Set(COLD.map(col32));   // Hiebbogen bleibt unberührt
+function shadeEdge(p, k1 = 0.55, k2 = 0.78) {
+  // Stufe 1: Texel direkt an der freien Seite rechts/unten; Stufe 2: ein Texel weiter innen
+  const b = p.buf, W = p.W, H = p.H, m = new Uint8Array(W * H);
+  const free = (x, y) => x >= W || y >= H || !b[y * W + x];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (!b[i] || COLD32.has(b[i])) continue;
+    if (free(x + 1, y) || free(x, y + 1)) m[i] = 1;
+    else if (free(x + 2, y) || free(x, y + 2) || free(x + 1, y + 1)) m[i] = 2;
+  }
+  for (let i = 0; i < m.length; i++) {
+    if (!m[i]) continue;
+    const v = b[i], k = m[i] === 1 ? k1 : k2;
+    b[i] = ((v & 0xff000000) | (Math.round(((v >>> 16) & 255) * k) << 16) | (Math.round(((v >>> 8) & 255) * k) << 8) | Math.round((v & 255) * k)) >>> 0;
+  }
 }
 
 // Zerfließen: Körperhaufen sackt zur Pfütze mit Tang, Stofffetzen und Seepocken.
@@ -653,6 +674,8 @@ const TD = { legH: 10, thigh: 5, shin: 6, spine: 8, upper: 4.5, fore: 4.5, sh: 1
 const ROBE = ['#06161a', '#0b2528', '#123a3a', '#1a5250', '#246c66', '#358a80'];
 const TRIM = ['#3a2e14', '#6a5424', '#9a7c38', '#c8a652'];
 const MASK = ['#5e6a66', '#94a29c', '#c6d2cc', '#eaf2ec'];
+// Feinraster-Maske: gedämpfte Rampe (dunkle Kante … Licht oben links, Glanzpunkt), deutlich unter dem Perlen-Orb
+const MASK_F = ['#252d2b', '#3c4643', '#55615c', '#6f7b76', '#8b9893', '#a9b6b0'];
 const CORAL = ['#4a1420', '#842a34', '#c04a44', '#e87a5c', '#ffb08a'];
 const PEARL = ['#1a5a6a', '#3aa0b4', '#7ae0e8', '#c8fcfc', '#ffffff'];
 const T_REST = {
@@ -844,30 +867,34 @@ function drawCultist(p, g, P, X) {
   p.rect(hx, hy - 2, 1, 5, ROBE[0]); p.rect(hx + 1, hy - 3, 3, 1, ROBE[1]);
   // Maske: bleiches Profil – Stirn im Licht, dunkle Augenhöhle, aufgemalte
   // Tränenlinie in Gezeitenfarbe, vorspringende Nase, schmaler Mund
-  pmap(p, hx + 1, hy - 2, [
-    '332.',
-    '21k2',
-    '2t22',
-    '2t21',
-    '1100',
-  ], { 3: MASK[3], 2: MASK[2], 1: MASK[1], 0: MASK[0], k: '#061012', t: ROBE[4] });
-  p.px(hx + 4, hy, MASK[3]); p.px(hx + 4, hy + 1, MASK[1]);
   if (p.fine) {
-    // Handfein: Maske im Feinraster – harte Kanten, Stirnglanz, Brauengrat über der Augenhöhle, Nasenrücken
-    // mit Spitze, schmaler Mundschlitz, Tränenlinie 1 Feinpixel mit Tropfen, dunkle Kinnkante; kaltes Auge
+    // Handfein: Maske im Feinraster, gedämpft (etwa 2 Stufen dunkler als früher, bleibt unter dem Perlen-Orb):
+    // Licht oben links, dunkle Kante rechts/unten, zwei klar dunkle Augenschlitze, Nasenrücken, Mundschlitz,
+    // schmale Tränenlinie mit Tropfen
     fmap(p, hx + 1, hy - 2, [
-      '3w33322..',
-      '23333333.',
-      '2211ke12.',
-      '221t0k11.',
-      '222t22332',
-      '221t21021',
-      '22T21122.',
-      '22111mm1.',
-      '1111110..',
+      '4g44332..',
+      '44433221.',
+      '33kk3kk1.',
+      '332t22110',
+      '322t21110',
+      '222t21100',
+      '22T21110.',
+      '2211mm10.',
+      '1111100..',
       '.00000...',
-    ], { 3: MASK[3], 2: MASK[2], 1: MASK[1], 0: MASK[0], w: '#ffffff', k: '#061012', e: P.eye > 0.3 ? PEARL[3] : '#061012', t: ROBE[4], T: ROBE[5], m: MASK[0] });
-    if (P.eye > 0.3) { g.dot(hx + 3.5, hy - 1, PEARL[4]); g.dot(hx + 3, hy - 1, PEARL[3]); g.dot(hx + 4, hy - 1, PEARL[2]); g.dot(hx + 3.5, hy - 0.5, PEARL[1]); g.dot(hx + 2.5, hy - 1, PEARL[1]); g.dot(hx + 4.5, hy - 1, PEARL[1]); g.dot(hx + 5, hy - 1, PEARL[0]); }
+    ], { 4: MASK_F[4], 3: MASK_F[3], 2: MASK_F[2], 1: MASK_F[1], 0: MASK_F[0], g: MASK_F[5], k: '#040a0c', t: ROBE[4], T: ROBE[5], m: MASK_F[0] });
+    // Augenschlitze bleiben klar dunkel (kein Glimmen auf der Leuchtebene)
+  } else {
+    pmap(p, hx + 1, hy - 2, [
+      '332.',
+      '21k2',
+      '2t22',
+      '2t21',
+      '1100',
+    ], { 3: MASK[3], 2: MASK[2], 1: MASK[1], 0: MASK[0], k: '#061012', t: ROBE[4] });
+    p.px(hx + 4, hy, MASK[3]); p.px(hx + 4, hy + 1, MASK[1]);
+  }
+  if (p.fine) {
     // Kapuzenrand wirft Schatten über die Stirn (fein: Saumkante hell, Schatten darunter)
     p.fline(hx + 0.5, hy - 3.5, hx + 3.5, hy - 3.5, ROBE[4]); p.fline(hx + 1, hy - 3, hx + 3.5, hy - 3, ROBE[1]);
     p.dot(hx + 4, hy - 2.5, ROBE[3]); p.dot(hx + 4, hy - 2, ROBE[1]); p.dot(hx + 4.5, hy - 2, ROBE[0]);
