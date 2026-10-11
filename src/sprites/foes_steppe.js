@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
-import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { FineCanvas, fineRes, pixelsToCanvas, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Gegner der Aschensteppe: Steppenräuber, Räuberschützin, Staubhyäne,
@@ -57,93 +57,131 @@ function tone(ramp, nx, ny, nz, bias, noise) {
   return ramp[clamp(Math.floor(t * ramp.length), 0, ramp.length - 1)];
 }
 
-// Schattierte Ellipse (optional gedreht, mit Materialrauschen)
-function ell(p, cx, cy, rx, ry, ramp, o = {}) {
-  const { rot = 0, noise = 0, seed = 1, bias = 0, clip = null } = o;
-  const c = Math.cos(rot), s = Math.sin(rot);
-  const R = Math.ceil(Math.max(rx, ry)) + 1;
-  const ctx = p.ctx; let last = null;
-  for (let y = Math.floor(cy - R); y <= cy + R; y++) {
-    for (let x = Math.floor(cx - R); x <= cx + R; x++) {
-      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
-      const u = (dx * c + dy * s) / rx, v = (-dx * s + dy * c) / ry;
-      const d2 = u * u + v * v;
-      if (d2 > 1) continue;
-      if (clip && !clip(x, y)) continue;
-      const nz = Math.sqrt(1 - d2);
-      const nx = u * c - v * s, ny = u * s + v * c;
-      const n = noise ? (hash2(Math.round(dx) + 64, Math.round(dy) + 64, seed) - 0.5) * noise : 0;
-      const col = tone(ramp, nx, ny, nz, bias, n);
-      if (col !== last) { ctx.fillStyle = col; last = col; }
-      ctx.fillRect(x, y, 1, 1);
+// Wie FineCanvas.each, aber schneller: Farbe zwischengespeichert, direkt in den Puffer (nur deckende Farben).
+function fill(p, x0, y0, x1, y1, fn) {
+  const r = p.res, W = p.W, H = p.H, buf = p.buf;
+  const F0 = Math.floor(x0 * r), F1 = Math.ceil(x1 * r), G0 = Math.floor(y0 * r), G1 = Math.ceil(y1 * r);
+  const fo = Math.round(p.ox * r), go = Math.round(p.oy * r);
+  let lc = null, lv = 0;
+  for (let G = G0; G <= G1; G++) {
+    const ty = G + go;
+    if (ty < 0 || ty >= H) continue;
+    const y = (G + 0.5) / r, row = ty * W;
+    for (let F = F0; F <= F1; F++) {
+      const tx = F + fo;
+      if (tx < 0 || tx >= W) continue;
+      const c = fn((F + 0.5) / r, y);
+      if (!c) continue;
+      if (c !== lc) { lc = c; lv = col32(c); }
+      buf[row + tx] = lv;
     }
   }
+  p.dirty = true;
+}
+
+// Schattierte Ellipse (optional gedreht). Tastet Feinpixel ab (p.each); Materialrauschen nur im groben Raster
+// („Niedrig“, wie früher) – im Feinraster ersetzen gezielte Strähnen/Federn/Kanten das Rauschen.
+function ell(p, cx, cy, rx, ry, ramp, o = {}) {
+  const { rot = 0, noise: nz0 = 0, seed = 1, bias = 0, clip = null } = o;
+  const noise = p.fine ? 0 : nz0, h = (p.step ?? 1) / 2;
+  const c = Math.cos(rot), s = Math.sin(rot);
+  const R = Math.ceil(Math.max(rx, ry)) + 1;
+  fill(p, Math.floor(cx - R), Math.floor(cy - R), cx + R, cy + R, (x, y) => {
+    const dx = x - cx, dy = y - cy;
+    const u = (dx * c + dy * s) / rx, v = (-dx * s + dy * c) / ry;
+    const d2 = u * u + v * v;
+    if (d2 > 1) return null;
+    if (clip && !clip(x - h, y - h)) return null;
+    const nz = Math.sqrt(1 - d2);
+    const nx = u * c - v * s, ny = u * s + v * c;
+    const n = noise ? (hash2(Math.round(dx) + 64, Math.round(dy) + 64, seed) - 0.5) * noise : 0;
+    return tone(ramp, nx, ny, nz, bias, n);
+  });
 }
 
 // Schattierte Kapsel (Gliedmaßen): Radius r0 -> r1
 function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
-  const { noise = 0, seed = 1, bias = 0 } = o;
+  const { noise: nz0 = 0, seed = 1, bias = 0 } = o;
+  const noise = p.fine ? 0 : nz0;
   const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 0.0001;
   const R = Math.ceil(Math.max(r0, r1)) + 1;
-  const ctx = p.ctx; let last = null;
   const minX = Math.floor(Math.min(x0, x1) - R), maxX = Math.ceil(Math.max(x0, x1) + R);
   const minY = Math.floor(Math.min(y0, y1) - R), maxY = Math.ceil(Math.max(y0, y1) + R);
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const px = x + 0.5, py = y + 0.5;
-      const t = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
-      const qx = x0 + dx * t, qy = y0 + dy * t;
-      const r = r0 + (r1 - r0) * t;
-      const ex = px - qx, ey = py - qy, d = Math.hypot(ex, ey);
-      if (d > r) continue;
-      const nx = ex / (r || 1), ny = ey / (r || 1), nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
-      const n = noise ? (hash2(Math.round(px - x0) + 64, Math.round(py - y0) + 64, seed) - 0.5) * noise : 0;
-      const col = tone(ramp, nx, ny, nz, bias, n);
-      if (col !== last) { ctx.fillStyle = col; last = col; }
-      ctx.fillRect(x, y, 1, 1);
-    }
+  fill(p, minX, minY, maxX, maxY, (px, py) => {
+    const t = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
+    const qx = x0 + dx * t, qy = y0 + dy * t;
+    const r = r0 + (r1 - r0) * t;
+    const ex = px - qx, ey = py - qy, d = Math.hypot(ex, ey);
+    if (d > r) return null;
+    const nx = ex / (r || 1), ny = ey / (r || 1), nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+    const n = noise ? (hash2(Math.round(px - x0) + 64, Math.round(py - y0) + 64, seed) - 0.5) * noise : 0;
+    return tone(ramp, nx, ny, nz, bias, n);
+  });
+}
+
+// Flache Ellipse: bei res 1 der alte Zeilen-Algorithmus (PixelCanvas.ellipse, pixelgleich), fein abgetastet sonst.
+function oval(p, cx, cy, rx, ry, c) {
+  if (p.fine) { p.ellipse(cx, cy, rx, ry, c); return; }
+  for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
+    const t = 1 - (y * y) / (ry * ry);
+    if (t < 0) continue;
+    const hw = Math.round(rx * Math.sqrt(t) - 0.15);
+    p.rect(Math.round(cx - hw), Math.round(cy + y), hw * 2 + 1, 1, c);
   }
 }
 
-// Gefülltes Polygon (Scanline). col: Farbe oder (x, y) => Farbe|null
+// Gefülltes Polygon (Scanline, je Feinpixelzeile). col: Farbe oder (x, y) => Farbe|null
+// (x/y = linke obere Ecke des (Fein-)Pixels in Weltkoordinaten).
 function poly(p, pts, col) {
   let minY = Infinity, maxY = -Infinity;
   for (const q of pts) { minY = Math.min(minY, q[1]); maxY = Math.max(maxY, q[1]); }
-  for (let y = Math.floor(minY); y <= Math.ceil(maxY); y++) {
-    const yc = y + 0.5, xs = [];
+  const q = p.step ?? 1, fn = typeof col === 'function';
+  for (let y = Math.floor(minY); y <= Math.ceil(maxY); y += q) {
+    const yc = y + q / 2, xs = [];
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length];
       if ((a[1] <= yc && b[1] > yc) || (b[1] <= yc && a[1] > yc)) xs.push(a[0] + (yc - a[1]) / (b[1] - a[1]) * (b[0] - a[0]));
     }
     xs.sort((m, n) => m - n);
     for (let k = 0; k + 1 < xs.length; k += 2) {
-      const x0 = Math.round(xs[k]), x1 = Math.round(xs[k + 1]);
-      if (typeof col === 'function') for (let x = x0; x < x1; x++) { const c = col(x, y); if (c) p.px(x, y, c); }
-      else if (x1 > x0) p.rect(x0, y, x1 - x0, 1, col);
+      const x0 = Math.round(xs[k] / q) * q, x1 = Math.round(xs[k + 1] / q) * q;
+      if (fn) {
+        for (let x = x0; x < x1 - 1e-6; x += q) {
+          const c = col(x, y);
+          if (c) { if (q < 1) p.dot(x, y, c); else p.px(x, y, c); }
+        }
+      } else if (x1 > x0) p.rect(x0, y, x1 - x0, q, col);
     }
   }
 }
 
 // Schwung-Schleier: überstreicht die Klinge von a0 nach a1 (Drehpunkt cx/cy),
 // am Ende breit und hell, am Anfang schmal; sy staucht die Bahn senkrecht.
+// Fein: geschlossene Sichel in Feinpixeln (dicht, ohne Streuung – flimmert nicht).
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
   // geschlossene Sichel ohne Raster: dünn am Anfang, zur Klinge hin breit,
   // Außenkante hell (Klingenbahn), innen dunkler auslaufend
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.6) + 2;
+  const q = p.step ?? 1, R = 1 / q, fine = q < 1;
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 1.6 * R) + 2;
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
     const w = (r1 - r0) * (0.12 + 0.88 * f * f);
-    for (let r = r1 - w; r <= r1; r += 0.5) {
+    for (let r = r1 - w; r <= r1; r += 0.5 * q) {
       const radial = (r - (r1 - w)) / (w || 1);
-      const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
+      const x = Math.round((cx + Math.cos(a) * r) * R) * q, y = Math.round((cy + Math.sin(a) * r * sy) * R) * q;
       const c = radial > 0.8 ? cols[2] : radial > 0.4 ? cols[1] : cols[0];
-      p.px(x, y, c);
-      if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.8 ? gcols[1] : gcols[0]);
+      if (fine) {
+        p.dot(x, y, r > r1 - 0.3 && f > 0.5 ? '#ffffff' : c);   // heiße Schneidenbahn außen
+        if (g && gcols && f > 0.35 && radial > 0.45) g.dot(x, y, radial > 0.8 ? gcols[1] : gcols[0]);
+      } else {
+        p.px(x, y, c);
+        if (g && gcols && f > 0.35 && radial > 0.45) g.px(x, y, radial > 0.8 ? gcols[1] : gcols[0]);
+      }
     }
   }
 }
 
-// Staubkranz am Boden (Aufprall, Stampfen)
+// Staubkranz am Boden (Aufprall, Stampfen); fein: jede Wolke bekommt eine helle Kuppe (Licht oben links)
 function dust(p, x, y, r, seed, cols, n = 16) {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * TAU + hash2(i, 1, seed) * 0.4;
@@ -152,91 +190,104 @@ function dust(p, x, y, r, seed, cols, n = 16) {
     p.px(px, py, cols[i % cols.length]);
     if (hash2(i, 4, seed) < 0.55) p.px(px + 1, py, cols[(i + 1) % cols.length]);
     if (hash2(i, 5, seed) < 0.3) p.px(px, py - 1, cols[(i + 2) % cols.length]);
+    if (p.fine) { const s = p.snap(px), t = p.snap(py); p.dot(s, t, '#c4b69a'); p.dot(s + 0.5, t + 0.5, cols[3]); }
   }
 }
 
-// Dreht den Inhalt einer PixelCanvas pixelgenau (nächster Nachbar) um einen Drehpunkt.
-function rotBlit(src, dst, px, py, ang) {
-  const W = src.w, H = src.h;
-  const s = src.ctx.getImageData(0, 0, W, H).data;
-  const img = dst.ctx.getImageData(0, 0, W, H), d = img.data;
+// Dreht einen Pixelpuffer (W×H Texel) texelgenau (nächster Nachbar) um einen Drehpunkt (Texelkoordinaten).
+function rotBlit(s, d, W, H, px, py, ang) {
   const c = Math.cos(-ang), sn = Math.sin(-ang);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const rx = x + 0.5 - px, ry = y + 0.5 - py;
     const sx = Math.floor(px + rx * c - ry * sn), sy = Math.floor(py + rx * sn + ry * c);
     if (sx < 0 || sy < 0 || sx >= W || sy >= H) continue;
-    const si = (sy * W + sx) * 4;
-    if (s[si + 3] === 0) continue;
-    const di = (y * W + x) * 4;
-    d[di] = s[si]; d[di + 1] = s[si + 1]; d[di + 2] = s[si + 2]; d[di + 3] = s[si + 3];
+    const v = s[sy * W + sx];
+    if (v) d[y * W + x] = v;
   }
-  dst.ctx.putImageData(img, 0, 0);
+}
+// Setzt einen Pixelpuffer (gleiche Breite) um dy Texelzeilen verschoben in eine FineCanvas (ohne Verschiebung).
+function blitRows(src, W, H, dst, dy) {
+  for (let y = 0; y < H; y++) {
+    const ty = y + dy;
+    if (ty < 0 || ty >= dst.H) continue;
+    for (let x = 0; x < W; x++) { const v = src[y * W + x]; if (v) dst.put(x, ty, v); }
+  }
 }
 
 // Randlicht: Oberkanten (oben frei) kräftig, linke Kanten schwächer zum
-// Himmelslicht hin aufhellen. Läuft vor dem Umriss aus buildFrame.
+// Himmelslicht hin aufhellen. Läuft vor dem Umriss aus buildFrame, in Texeln.
+// Fein ersetzt es den Feinschliff von buildFrame (warmer Aschehimmel statt Mondlicht): Kante 1 Feinpixel,
+// dazu der Kontaktschatten unten (1 Feinpixel dunkler).
 const RIM = [238, 224, 196];
 function rimLight(p, k1 = 0.42, k2 = 0.24) {
-  const { w, h } = p;
-  const img = p.ctx.getImageData(0, 0, w, h), d = img.data;
+  const w = p.W, h = p.H, fine = p.fine;
+  let img = null, d;
+  if (p._canvas) { img = p.ctx.getImageData(0, 0, w, h); d = img.data; }
+  else d = new Uint8ClampedArray(p.buf.buffer);
   const op = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) op[i] = d[i * 4 + 3] > 40 ? 1 : 0;
+  const sh = 0.74;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     if (!op[i]) continue;
     const up = y > 0 ? op[i - w] : 0, lf = x > 0 ? op[i - 1] : 0, ul = x > 0 && y > 0 ? op[i - w - 1] : 0;
     const k = !up ? k1 : !lf ? k2 : !ul ? k2 * 0.5 : 0;
-    if (!k) continue;
     const j = i * 4;
+    if (!k) {
+      if (fine && (y === h - 1 || !op[i + w])) { d[j] *= sh; d[j + 1] *= sh; d[j + 2] *= sh; }
+      continue;
+    }
     d[j] += (RIM[0] - d[j]) * k; d[j + 1] += (RIM[1] - d[j + 1]) * k; d[j + 2] += (RIM[2] - d[j + 2]) * k;
   }
-  p.ctx.putImageData(img, 0, 0);
+  if (img) p.ctx.putImageData(img, 0, 0);
+  else p.dirty = true;
 }
 
 // Baut einen Frame: draw(p, g, P, X) -> meta (Koordinaten im Grundmaß S.W×S.H).
 // S.pad = Rand für Schleier/Staub. X.rot = [winkel, drehpunktX, drehpunktY] kippt die
 // ganze Figur (Sturz) und setzt sie wieder auf den Boden. X.post zeichnet danach
 // ungedreht (liegende Waffe). X.fx = Frame-Marke.
+// Feinraster: p und g sind FineCanvas (res = fineRes()); Verschiebung über translate, Drehung in Texeln.
 function makeFrame(S, draw, P, X = {}) {
-  const pad = S.pad ?? 10;
+  const pad = S.pad ?? 10, res = fineRes();
   const W = S.W + pad * 2, H = S.H + pad * 2, AX = S.AX + pad, AY = S.AY + pad;
-  const g = new PixelCanvas(W, H);
+  const g = new FineCanvas(W, H, res);
   const meta = {};
   const f = buildFrame(W, H, AX, AY, (p) => {
     if (X.rot && Math.abs(X.rot[0]) > 0.001) {
       const R = 32, HH = H + R * 2;
-      const tp = new PixelCanvas(W, HH), tg = new PixelCanvas(W, HH);
-      tp.ctx.translate(pad, pad + R); tg.ctx.translate(pad, pad + R);
+      const tp = new FineCanvas(W, HH, res), tg = new FineCanvas(W, HH, res);
+      tp.translate(pad, pad + R); tg.translate(pad, pad + R);
       const m0 = draw(tp, tg, P, X) || {};
-      tp.ctx.setTransform(1, 0, 0, 1, 0, 0); tg.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      tp.resetTranslate(); tg.resetTranslate();
       const [a, rx0, ry0] = X.rot, rx = rx0 + pad, ry = ry0 + pad + R;
-      const rp = new PixelCanvas(W, HH), rg = new PixelCanvas(W, HH);
-      rotBlit(tp, rp, rx, ry, a); rotBlit(tg, rg, rx, ry, a);
-      const dd = rp.ctx.getImageData(0, 0, W, HH).data;
+      const WR = W * res, HR = HH * res, sp = tp.pixels(), sg = tg.pixels();
+      const rp = new Uint32Array(WR * HR), rg = new Uint32Array(WR * HR);
+      rotBlit(sp, rp, WR, HR, rx * res, ry * res, a); rotBlit(sg, rg, WR, HR, rx * res, ry * res, a);
       let bottom = -1;
-      for (let y = HH - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < W; x++) if (dd[(y * W + x) * 4 + 3] > 40) { bottom = y; break; }
-      const shift = bottom >= 0 ? (AY - 1) - bottom : -R;
-      p.ctx.drawImage(rp.canvas, 0, shift); g.ctx.drawImage(rg.canvas, 0, shift);
+      for (let y = HR - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < WR; x++) if ((rp[y * WR + x] >>> 24) > 40) { bottom = y; break; }
+      const shift = bottom >= 0 ? Math.round(((AY - 1 / res) - bottom / res) * res) / res : -R;
+      blitRows(rp, WR, HR, p, Math.round(shift * res)); blitRows(rg, WR, HR, g, Math.round(shift * res));
       const c = Math.cos(a), s = Math.sin(a);
       for (const k in m0) {
         const dx = m0[k].x + pad - rx, dy = m0[k].y + pad + R - ry;
         meta[k] = { x: rx + dx * c - dy * s, y: ry + dx * s + dy * c + shift };
       }
     } else {
-      p.ctx.translate(pad, pad); g.ctx.translate(pad, pad);
+      p.translate(pad, pad); g.translate(pad, pad);
       const m0 = draw(p, g, P, X) || {};
-      p.ctx.setTransform(1, 0, 0, 1, 0, 0); g.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      p.resetTranslate(); g.resetTranslate();
       for (const k in m0) meta[k] = { x: m0[k].x + pad, y: m0[k].y + pad };
     }
     if (X.post) {
-      p.ctx.translate(pad, pad); g.ctx.translate(pad, pad);
+      p.translate(pad, pad); g.translate(pad, pad);
       const m1 = X.post(p, g) || {};
-      p.ctx.setTransform(1, 0, 0, 1, 0, 0); g.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      p.resetTranslate(); g.resetTranslate();
       for (const k in m1) meta[k] = { x: m1[k].x + pad, y: m1[k].y + pad };
     }
     rimLight(p);
-  });
-  f.glow = new SpriteFrame(g.canvas, AX, AY);
+  }, { fine: true, res, finish: false });
+  f.glow = new SpriteFrame(g._canvas ? g.canvas : pixelsToCanvas(g.buf, g.W, g.H), AX * res, AY * res, res);
   f.meta = {};
   for (const k in meta) f.meta[k] = { dx: Math.round(meta[k].x - AX), dy: Math.round(meta[k].y - AY) };
   f.fx = X.fx ?? null;
@@ -300,17 +351,48 @@ const R_REST = {
 };
 const rpose = (o = {}) => ({ ...R_REST, ...o });
 
+// Fein: kurze Fell-/Federstriche in einer (gedrehten) Ellipse, oben links hell, unten rechts dunkel.
+// cols dunkel → hell; Strichrichtung (sx, sy) in Weltpixeln.
+function strokes(p, cx, cy, rx, ry, cols, n, seed, sx = -0.6, sy = 1.1, rot = 0) {
+  // Lagen in versetzten Reihen (leicht verschoben), damit es als Fell liest und nicht als Rauschen
+  const c = Math.cos(rot), s = Math.sin(rot), L = cols.length;
+  const rows = Math.max(1, Math.round(Math.sqrt(n * ry / rx))), per = Math.max(1, Math.round(n / rows));
+  for (let i = 0; i < rows * per; i++) {
+    const r = Math.floor(i / per), q = i % per;
+    const u = -1 + (q + 0.5 + (r % 2) * 0.5 + (hash2(i, 1, seed) - 0.5) * 0.4) / per * 2;
+    const v = -1 + (r + 0.5 + (hash2(i, 2, seed) - 0.5) * 0.4) / rows * 2;
+    if (u * u + v * v > 0.7) continue;
+    const lx = u * rx, ly = v * ry, x = cx + lx * c - ly * s, y = cy + lx * s + ly * c;
+    const t = clamp((v * 0.8 + u * 0.35 + 1) / 2, 0, 0.999), k = clamp(Math.floor((1 - t) * L), 0, L - 1);
+    // Strähne: dunkle Kerbe, die helle Spitze oben (Licht oben links)
+    p.fline(x, y, x + sx, y + sy, cols[Math.max(0, k - 1)]);
+    p.dot(x - sx * 0.3, y - sy * 0.3, cols[Math.min(L - 1, k + 1)]);
+  }
+}
+// Fein: Punktlinie (Naht) von a nach b, Abstand gap Weltpixel
+function stitch(p, x0, y0, x1, y1, c, gap = 0.75) {
+  const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / gap));
+  for (let i = 0; i <= n; i++) p.dot(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, c);
+}
+
 // Fellmantel / Umhang hinten: zottelige Strähnen, die im Wind wehen
+// Fein: jede Strähne 2 Feinpixel breit, links im Licht, rechts eine Stufe dunkler (Strähnen trennen sich),
+// Spitzen hell.
 function mantle(p, top, n, len0, P, ramp, seed, spread = 0.75) {
+  const fine = p.fine, q = fine ? 0.5 : 1;
   for (let i = 0; i < n; i++) {
     const len = len0 + (hash2(i, 3, seed) * 3 | 0) - i * 0.35;
-    for (let j = 0; j < len; j++) {
+    for (let j = 0; j < len; j += q) {
       const v = j / len;
       const x = top.x - 1 - i * spread - P.cape * 7 * v * v + Math.sin(P.capeT + v * 3 + i * 0.7) * 0.9 * v;
       const y = top.y + j + i * 0.25 - P.cape * 2.2 * v * v;
-      let c = i === 0 ? ramp[4] : i === 1 ? ramp[3] : (i + j) % 4 === 0 ? ramp[1] : ramp[2];
-      if (j >= len - 1.5) c = ramp[i < 2 ? 5 : 3];
-      p.px(x, y, c);
+      let ci = i === 0 ? 4 : i === 1 ? 3 : (i + Math.floor(j)) % 4 === 0 ? 1 : 2;
+      if (j >= len - 1.5) ci = i < 2 ? 5 : 3;
+      if (fine) {
+        p.dot(x + 0.25, y + 0.25, ramp[ci]);
+        p.dot(x + 0.75, y + 0.25, ramp[Math.max(0, ci - 1)]);
+
+      } else p.px(x, y, ramp[ci]);
     }
   }
 }
@@ -321,38 +403,71 @@ function drawSabre(p, hx, hy, a) {
   p.line(hx - dx * 2, hy - dy * 2, hx + dx, hy + dy, LEA[1]);
   p.px(hx - dx * 3, hy - dy * 3, BRZ[4]); p.px(hx - dx * 2.6 + nx * 0.6, hy - dy * 2.6 + ny * 0.6, BRZ[2]);
   for (let k = -1.5; k <= 1.5; k += 0.5) p.px(hx + dx * 1.6 + nx * k, hy + dy * 1.6 + ny * k, k < 0 ? BRZ[4] : BRZ[2]);
+  // fein: Klinge in Feinpixeln mit schmaler Schneide; Glanzlinie, Hohlkehle, Glanzpunkt, Griffwicklung
+  const fine = p.fine, ss = fine ? 0.2 : 0.4, q = fine ? 0.25 : 0.5, e = fine ? 0.3 : 0.5;
+  const put = fine ? p.dot.bind(p) : p.px.bind(p);
   let tip = null;
-  for (let s = 2; s <= 12; s += 0.4) {
+  const at = (s, k) => {
+    const f = (s - 2) / 10, curv = f * f * 2.4;
+    return [hx + dx * s - nx * curv + nx * k, hy + dy * s - ny * curv + ny * k];
+  };
+  for (let s = 2; s <= 12; s += ss) {
     const f = (s - 2) / 10;
     const curv = f * f * 2.4;
     const hw = 1.0 - f * 0.45 + (f > 0.55 && f < 0.85 ? 0.2 : 0);
     const cx = hx + dx * s - nx * curv, cy = hy + dy * s - ny * curv;
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      const c = k > hw - 0.5 ? St[5] : k < -hw + 0.5 ? St[2] : k > 0 ? St[4] : St[3];
-      p.px(cx + nx * k, cy + ny * k, c);
+    for (let k = -hw; k <= hw + 0.01; k += q) {
+      const c = k > hw - e ? St[5] : k < -hw + e ? St[2] : k > 0 ? St[4] : St[3];
+      put(cx + nx * k, cy + ny * k, c);
     }
     tip = { x: cx, y: cy };
   }
   // Hohlkehle
   p.px(hx + dx * 5 - nx * 0.3, hy + dy * 5 - ny * 0.3, St[2]);
+  if (fine) {
+    for (let s = 2.4; s <= 8.5; s += 0.25) { const [x, y] = at(s, -0.3); p.dot(x, y, St[1]); }          // Hohlkehle (dunkel)
+    for (let s = 2.4; s <= 11; s += 0.25) { const [x, y] = at(s, 0.15); p.dot(x, y, s > 9.5 ? St[5] : St[4]); }   // Glanzlinie
+    let [x, y] = at(4.2, 0.2); p.dot(x, y, '#ffffff'); [x, y] = at(4.4, 0.2); p.dot(x, y, '#ffffff');   // Glanzpunkt
+    [x, y] = at(7.3, 0.85); p.dot(x, y, St[2]); [x, y] = at(6.1, 0.9); p.dot(x, y, St[3]);              // Scharten
+    for (let s = -1.8; s <= 0.8; s += 0.6) p.dot(hx + dx * s + nx * 0.25, hy + dy * s + ny * 0.25, LEA[3]);   // Wicklung
+    p.dot(hx - dx * 3 - 0.25, hy - dy * 3 - 0.25, BRZ[6]);                                               // Knauf-Glanz
+    p.dot(hx + dx * 1.6 - nx * 1.25, hy + dy * 1.6 - ny * 1.25, BRZ[6]);
+  }
   return tip;
 }
 
 // Rundschild aus Rohhaut mit Bronzerand, Ockersonne und Buckel
 function drawTarge(p, x, y, tilt) {
   const rx = 2.6 + tilt, ry = 4.2;
-  p.ellipse(x, y, rx + 0.8, ry + 0.8, BRZ[1]);
+  oval(p, x, y, rx + 0.8, ry + 0.8, BRZ[1]);
   ell(p, x, y, rx, ry, ['#2a1c12', '#3e2a1c', '#553a26', '#6e4e32', '#886440']);
   // Sonnenstrahlen
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * TAU + 0.3;
     p.px(x + Math.cos(a) * rx * 0.6, y + Math.sin(a) * ry * 0.6, i % 2 ? OCHRE[1] : OCHRE[2]);
   }
-  p.ellipse(x, y, Math.max(0.6, rx * 0.25), 1, OCHRE[2]);
+  oval(p, x, y, Math.max(0.6, rx * 0.25), 1, OCHRE[2]);
   p.px(x - 0.5, y - 0.5, BRZ[5]); p.px(x, y, BRZ[3]);
   p.px(x - rx - 0.5, y - 2, BRZ[5]); p.px(x - rx * 0.4, y - ry - 0.5, BRZ[5]);
   // Fellquaste am Rand
   p.px(x + rx * 0.4, y + ry + 1, FUR[4]); p.px(x + rx * 0.4, y + ry + 2, FUR[3]); p.px(x + rx * 0.4 + 1, y + ry + 3, FUR[2]);
+  if (p.fine) {
+    // Bronzerand: Glanzlinie oben links, Nieten rundum; feine Sonnenstrahlen, Kratzer in der Rohhaut
+    for (let a = 2.4; a <= 4.5; a += 0.08) p.dot(x + Math.cos(a) * (rx + 0.55), y + Math.sin(a) * (ry + 0.55), BRZ[4]);
+    for (let a = 3.0; a <= 4.0; a += 0.1) p.dot(x + Math.cos(a) * (rx + 0.55), y + Math.sin(a) * (ry + 0.55), BRZ[6]);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + 0.2, ux = x + Math.cos(a) * (rx + 0.4), uy = y + Math.sin(a) * (ry + 0.4);
+      p.dot(ux, uy, BRZ[i > 2 && i < 6 ? 5 : 3]);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU + 0.3;
+      p.fline(x + Math.cos(a) * rx * 0.3, y + Math.sin(a) * ry * 0.3, x + Math.cos(a) * rx * 0.75, y + Math.sin(a) * ry * 0.75, i % 2 ? OCHRE[2] : OCHRE[3]);
+    }
+    p.fline(x - rx * 0.6, y + ry * 0.4, x - rx * 0.2, y + ry * 0.65, '#2a1c12');
+    p.fline(x + rx * 0.2, y - ry * 0.7, x + rx * 0.55, y - ry * 0.45, '#2a1c12');
+    p.dot(x - 0.5, y - 0.5, BRZ[6]); p.dot(x + 0.5, y + 0.5, BRZ[2]);
+    p.dot(x + rx * 0.4 + 0.5, y + ry + 1.5, FUR[6]); p.dot(x + rx * 0.4 + 1, y + ry + 3, FUR[4]);
+  }
 }
 
 // Reiterbogen (Kompositbogen, stark zurückgebogene Spitzen)
@@ -360,30 +475,50 @@ function drawRecurve(p, g, hx, hy, a, draw, nock, arrow) {
   const ax = Math.sin(a), ay = -Math.cos(a), fx = Math.cos(a), fy = Math.sin(a);
   const bend = 0.07 + draw * 0.05;
   const pts = [];
-  for (let s = -7; s <= 7; s += 0.5) {
+  const fine = p.fine;
+  for (let s = -7; s <= 7; s += fine ? 0.25 : 0.5) {
     const as = Math.abs(s);
     let b = -(s * s) * bend * 0.55;
     if (as > 5) b += (as - 5) * (1.5 - draw * 0.4);               // Spitzen (Siyahs) kippen nach vorn
     const x = hx + ax * s + fx * b, y = hy + ay * s + fy * b;
-    pts.push([x, y, s]);
+    if (!fine || (s * 2) % 1 === 0) pts.push([x, y, s]);
     const tip = as > 5.5;
-    p.px(x, y, tip ? BONE[3] : as < 1.2 ? BRZ[3] : HORNB[2 + ((s * 2) & 1)]);
-    if (!tip && as > 1) p.px(x + fx, y + fy, HORNB[0]);
+    if (fine) {
+      // fein: Horn mit heller Bauchkante, dunklem Rücken, Sehnenbelag; Griff in Bronze, Knochenspitzen
+      const c = tip ? BONE[3] : as < 1.2 ? BRZ[4] : HORNB[3];
+      p.dot(x, y, c); p.dot(x + fx * 0.5, y + fy * 0.5, tip ? BONE[2] : as < 1.2 ? BRZ[2] : HORNB[2]);
+      if (!tip && as > 1) { p.dot(x + fx, y + fy, HORNB[1]); p.dot(x + fx * 1.4, y + fy * 1.4, HORNB[0]); }
+      if (!tip && as > 1.2 && Math.abs(as - 3) < 0.13) p.dot(x + fx * 0.5, y + fy * 0.5, BRZ[4]);   // Wicklung
+    } else {
+      p.px(x, y, tip ? BONE[3] : as < 1.2 ? BRZ[3] : HORNB[2 + ((s * 2) & 1)]);
+      if (!tip && as > 1) p.px(x + fx, y + fy, HORNB[0]);
+    }
   }
-  // Sehne an den Knicken der Siyahs
+  // Sehne an den Knicken der Siyahs (fein: Sehne 1 Feinpixel)
   const top = pts[4], bot = pts[pts.length - 5];
   const sx = nock ? nock.x : (top[0] + bot[0]) / 2 - fx * 1.5, sy = nock ? nock.y : (top[1] + bot[1]) / 2 - fy * 1.5;
-  p.line(top[0], top[1], sx, sy, '#b8ae96');
-  p.line(sx, sy, bot[0], bot[1], '#b8ae96');
+  const ln = fine ? (x0, y0, x1, y1, c) => p.fline(x0 + 0.25, y0 + 0.25, x1 + 0.25, y1 + 0.25, c) : p.line.bind(p);
+  ln(top[0], top[1], sx, sy, fine ? '#d8ceb4' : '#b8ae96');
+  ln(sx, sy, bot[0], bot[1], fine ? '#d8ceb4' : '#b8ae96');
   let tipPt = { x: hx + fx * 2, y: hy + fy * 2 };
   if (arrow && nock) {
     const tx = hx + fx * 3.5, ty = hy + fy * 3.5;
-    p.line(nock.x, nock.y, tx, ty, WOOD[3]);
-    // Brandpfeil: glimmende Pechspitze
+    if (fine) {
+      ln(nock.x, nock.y, tx, ty, WOOD[4]); ln(nock.x + 0.5 * ax, nock.y + 0.5 * ay, tx + 0.5 * ax, ty + 0.5 * ay, WOOD[2]);
+    } else p.line(nock.x, nock.y, tx, ty, WOOD[3]);
+    // Brandpfeil: glimmende Pechspitze (fein: weißgelber Kern im roten Saum)
     p.px(tx, ty, GLOW_EMBER[3]); p.px(tx + fx, ty + fy, GLOW_EMBER[4]);
     g.px(tx, ty, GLOW_EMBER[2]); g.px(tx + fx, ty + fy, GLOW_EMBER[4]); g.px(tx + fx * 2, ty + fy * 2 - 1, GLOW_EMBER[1]);
     g.px(tx, ty - 1, GLOW_EMBER[1]);
     p.px(nock.x - 1, nock.y - 1, OCHRE[3]); p.px(nock.x - 1, nock.y + 1, OCHRE[2]);
+    if (fine) {
+      const ex = p.snap(tx + fx), ey = p.snap(ty + fy);
+      p.dot(ex + 0.5, ey, '#ffffff'); g.dot(ex + 0.5, ey, '#ffffff'); p.dot(ex, ey + 0.5, GLOW_EMBER[4]);
+      p.dot(p.snap(tx), p.snap(ty) + 0.5, GLOW_EMBER[1]); g.dot(p.snap(tx) + 0.5, p.snap(ty) - 0.5, GLOW_EMBER[3]);
+      // Befiederung: zwei Fahnen mit hellem Kiel
+      p.dot(nock.x - 0.5, nock.y - 1, OCHRE[4]); p.dot(nock.x - 0.5, nock.y + 1, OCHRE[1]);
+      p.dot(nock.x - 1.5, nock.y - 0.5, PAINT_W); p.dot(nock.x - 1.5, nock.y + 0.5, OCHRE[3]);
+    }
     tipPt = { x: tx + fx, y: ty + fy };
   }
   return tipPt;
@@ -405,8 +540,16 @@ function drawRaider(p, g, P, X, archer) {
       const v = j / n;
       const x = bx - j * 0.55 - P.cape * j * 0.35 + Math.sin(P.capeT * 1.2 + j * 0.7 + seed) * 0.6 * v * sway;
       const y = by + j * 0.95;
-      p.px(x, y, HAIR[j % 2 ? 1 : 3]); p.px(x - 0.6, y, HAIR[0]);
-      if (j === 2) p.px(x, y, BRZ[4]);
+      if (p.fine) {
+        // fein: Flechtglieder abwechselnd links/rechts im Licht, Bronzeperle mit Glanzpunkt
+        const o = j % 2, X0 = p.snap(x - 0.25), Y0 = p.snap(y - 0.25);
+        p.dot(X0 - 0.5, Y0, HAIR[0]); p.dot(X0, Y0, HAIR[o ? 2 : 3]); p.dot(X0 + 0.5, Y0, HAIR[o ? 3 : 1]);
+        p.dot(X0 - 0.5, Y0 + 0.5, HAIR[0]); p.dot(X0, Y0 + 0.5, HAIR[1]); p.dot(X0 + 0.5, Y0 + 0.5, HAIR[0]);
+        if (j === 2) { p.dot(X0, Y0, BRZ[6]); p.dot(X0 + 0.5, Y0, BRZ[4]); p.dot(X0, Y0 + 0.5, BRZ[3]); p.dot(X0 + 0.5, Y0 + 0.5, BRZ[2]); }
+      } else {
+        p.px(x, y, HAIR[j % 2 ? 1 : 3]); p.px(x - 0.6, y, HAIR[0]);
+        if (j === 2) p.px(x, y, BRZ[4]);
+      }
     }
     return { x: bx - n * 0.55, y: by + n };
   };
@@ -421,6 +564,13 @@ function drawRaider(p, g, P, X, archer) {
     for (let k = 0; k < 3; k++) {
       p.px(q1.x - 1 + k, q1.y - 1 - (k % 2), k === 1 ? PAINT_W : OCHRE[3]);
       p.px(q1.x - 1 + k, q1.y - 2 - (k % 2), k === 1 ? '#fffbef' : OCHRE[4]);
+    }
+    if (p.fine) {
+      // Köcher: Naht als Punktlinie auf der Lichtseite, Glanz auf den Bronzebändern, Federkiele
+      const ux = q1.x - q0.x, uy = q1.y - q0.y, L = Math.hypot(ux, uy) || 1, nx = uy / L, ny = -ux / L;
+      stitch(p, q0.x + ux * 0.08 + nx * 0.8, q0.y + uy * 0.08 + ny * 0.8, q0.x + ux * 0.9 + nx * 0.8, q0.y + uy * 0.9 + ny * 0.8, LEA[5], 0.8);
+      for (let s = 0.25; s < 1; s += 0.3) p.dot(q0.x + ux * s - 0.25, q0.y + uy * s - 0.25, BRZ[6]);
+      for (let k = 0; k < 3; k++) p.dot(q1.x - 1 + k + 0.25, q1.y - 1.5 - (k % 2), k === 1 ? '#a89a80' : OCHRE[1]);
     }
   }
 
@@ -440,18 +590,41 @@ function drawRaider(p, g, P, X, archer) {
   for (let i = 0; i < 4; i++) {
     const a = pt(0.2, -2.5 + i * 1.7);
     const sw = Math.sin(P.capeT + i) * 0.5 + P.lean * 2;
-    for (let j = 0; j < 4 - (i === 0 ? 1 : 0); j++) p.px(a.x + sw * j * 0.3, a.y + j, archer ? TEAL[j < 1 ? 3 : 2] : LEA[j < 1 ? 4 : i % 2 ? 2 : 3]);
+    for (let j = 0; j < 4 - (i === 0 ? 1 : 0); j++) {
+      p.px(a.x + sw * j * 0.3, a.y + j, archer ? TEAL[j < 1 ? 3 : 2] : LEA[j < 1 ? 4 : i % 2 ? 2 : 3]);
+      if (p.fine) {   // fein: Kante rechts dunkel (Streifen trennen sich), Saumnaht unten
+        const sx = p.snap(a.x + sw * j * 0.3), sy = p.snap(a.y + j);
+        p.dot(sx + 0.5, sy, archer ? TEAL[1] : LEA[1]); p.dot(sx + 0.5, sy + 0.5, archer ? TEAL[1] : LEA[1]);
+        if (j === 2) p.dot(sx, sy + 0.5, archer ? TEAL[4] : LEA[5]);
+      }
+    }
   }
   if (archer) {
     // gesteppter Kaftan
     cap(p, hp.x, hp.y, cp.x, cp.y, 2.7, 3.0, TEAL, { noise: 0.1, seed: 5 });
-    for (let u = 2; u <= 6.5; u += 1.5) for (let k = -2; k <= 2; k += 2) q(u, k, TEAL[1]);
+    if (p.fine) {
+      // Steppnähte als Punktlinien, gepolsterte Kissen dazwischen mit Licht oben links
+      for (let k = -2; k <= 2; k += 2) for (let u = 1.6; u <= 7; u += 0.5) { const o = pt(u, k); if (Math.round(u * 2) % 2 === 0) p.dot(o.x, o.y, TEAL[1]); }
+      for (let u = 2.4; u <= 6.6; u += 1.5) for (let k = -1.5; k <= 1; k += 2) { const o = pt(u, k); p.dot(o.x, o.y, TEAL[5]); const o2 = pt(u - 0.5, k + 0.5); p.dot(o2.x, o2.y, TEAL[2]); }
+    } else for (let u = 2; u <= 6.5; u += 1.5) for (let k = -2; k <= 2; k += 2) q(u, k, TEAL[1]);
     // Fellbesatz am Kragen und Brustschnur aus Bronzeplättchen
     for (let u = 3; u <= 7; u += 1) q(u, 1.6, u % 2 ? BRZ[4] : BRZ[2]);
+    if (p.fine) for (let u = 3; u <= 7; u += 1) { const o = pt(u, 1.6); p.dot(p.snap(o.x), p.snap(o.y), u % 2 ? BRZ[6] : BRZ[4]); }
   } else {
     cap(p, hp.x, hp.y, cp.x, cp.y, 2.9, 3.2, LEA, { noise: 0.12, seed: 3 });
     // Lamellenpanzer: Reihen aus Leder mit Bronzenieten
-    for (let u = 2.2; u <= 6.8; u += 1.5) {
+    // fein: Platten 1,5 Weltpixel breit, Oberkante im Licht, Schattenfuge darunter, Nieten mit Glanz
+    if (p.fine) for (let u = 2.2; u <= 6.8; u += 1.5) {
+      for (let k = -2.75; k <= 2.8; k += 0.5) {
+        const kk = Math.round((k + 2.75) * 2), seam = kk % 3 === 0;
+        const a = pt(u + 0.25, k), b = pt(u - 0.25, k), c = pt(u - 0.75, k);
+        p.dot(a.x, a.y, seam ? LEA[2] : k < 0 ? LEA[5] : LEA[4]);
+        p.dot(b.x, b.y, seam ? LEA[1] : k < 0 ? LEA[4] : LEA[3]);
+        p.dot(c.x, c.y, LEA[1]);
+        if (kk % 6 === 4) { p.dot(b.x, b.y, BRZ[5]); p.dot(c.x, c.y, BRZ[2]); }
+      }
+    }
+    else for (let u = 2.2; u <= 6.8; u += 1.5) {
       for (let k = -2.5; k <= 2.6; k += 1) {
         const seam = Math.round(k + 2.5) % 3 === 0;
         q(u, k, seam ? LEA[2] : k < 0 ? LEA[5] : LEA[4]);   // Plattenkante, links im Licht
@@ -462,6 +635,10 @@ function drawRaider(p, g, P, X, archer) {
     // Bronzescheibe (Brustspiegel)
     const m = pt(5.2, 1.4);
     p.px(m.x, m.y, BRZ[5]); p.px(m.x + 1, m.y, BRZ[3]); p.px(m.x, m.y + 1, BRZ[2]); p.px(m.x + 1, m.y + 1, BRZ[3]);
+    if (p.fine) {
+      const X0 = p.snap(m.x), Y0 = p.snap(m.y);
+      p.dot(X0, Y0, BRZ[6]); p.dot(X0 + 0.5, Y0, BRZ[5]); p.dot(X0 + 1.5, Y0 + 1.5, BRZ[1]); p.dot(X0 + 1, Y0 + 1.5, BRZ[2]); p.dot(X0 + 1.5, Y0 + 1, BRZ[2]);
+    }
   }
   // Schärpe mit wehenden Enden
   for (let k = -3; k <= 3; k += 0.5) { q(1.2, k, TEAL[3]); q(1.9, k, TEAL[4]); }
@@ -470,6 +647,12 @@ function drawRaider(p, g, P, X, archer) {
   for (let j = 0; j < 5; j++) {
     const x = se.x - j * 0.9 - P.cape * j * 0.5, y = se.y + j * 0.6 + Math.sin(P.capeT * 1.3 + j) * 0.6;
     p.px(x, y, TEAL[j < 2 ? 4 : 3]); p.px(x, y + 1, TEAL[2]);
+    if (p.fine) p.dot(p.snap(x), p.snap(y), TEAL[5]);
+  }
+  if (p.fine) {
+    // Schärpe: zweifarbige Falten (dunkle Kerbe, helle Wulst)
+    for (let k = -3; k <= 3; k += 1.5) { const a = pt(1.45, k), b = pt(1.95, k + 0.5); p.dot(a.x, a.y, TEAL[1]); p.dot(b.x, b.y, TEAL[5]); }
+    const kn = pt(1.5, 2.5); p.dot(p.snap(kn.x), p.snap(kn.y), BRZ[6]);
   }
 
   // --- 5. Vorderes Bein
@@ -477,14 +660,31 @@ function drawRaider(p, g, P, X, archer) {
   cap(p, legF.jx, legF.jy, legF.ex, legF.ey - 1.5, 1.45, 1.35, LEA);
   p.rect(legF.ex - 1, legF.ey - 1, 4, 1, LEA[1]); p.px(legF.ex + 3, legF.ey - 2, LEA[3]); // Spitzstiefel
   p.px(legF.jx - 0.5, legF.jy + 1, BRZ[3]);   // Stiefelschnalle
+  if (p.fine) {
+    // Filzhose: zweifarbige Querfalten; Stiefel: Stulpe im Licht, Naht als Punktlinie, Glanz auf Schnalle und Spitze
+    for (let s = 0.3; s <= 0.85; s += 0.27) {
+      const x = hip.x + 1 + (legF.jx - hip.x - 1) * s, y = hip.y + (legF.jy - hip.y) * s;
+      p.fline(x - 1.25, y - 0.5, x + 0.25, y, FELT[4]); p.fline(x - 0.75, y, x + 0.75, y + 0.5, FELT[1]);
+    }
+    const kx = legF.jx, ky = legF.jy, fx = legF.ex, fy = legF.ey - 1.5;
+    p.fline(kx - 1.25, ky - 0.25, kx + 1, ky - 0.25, LEA[5]);
+    stitch(p, kx + 0.4 + (fx - kx) * 0.15, ky + (fy - ky) * 0.15, fx + 0.6, fy, LEA[4], 0.7);
+    p.dot(legF.jx - 0.5, legF.jy + 1, BRZ[6]); p.dot(legF.ex + 3, legF.ey - 2, LEA[5]);
+    p.fline(legF.ex - 1, legF.ey - 0.5, legF.ex + 3, legF.ey - 0.5, LEA[0]);
+  }
 
   // --- 6. Fellkragen
   const col = pt(RD.spine - 0.2, -0.3);
   if (archer) {
     ell(p, col.x, col.y, 3.4, 1.6, FUR.slice(1, 7), { noise: 0.3, seed: 7 });
+    if (p.fine) strokes(p, col.x, col.y, 3.2, 1.4, FUR.slice(1, 7), 34, 7, -0.6, 0.9);
   } else {
     ell(p, col.x - 0.5, col.y, 4.4, 2.2, FUR.slice(1, 7), { noise: 0.35, seed: 5 });
-    for (let i = -4; i <= 3; i += 1.3) p.px(col.x + i, col.y + 2 + (hash2(i * 3 | 0, 1, 5) * 1.6 | 0), FUR[2]);
+    if (p.fine) strokes(p, col.x - 0.5, col.y, 4.2, 2.0, FUR.slice(1, 7), 50, 5, -0.6, 1.1);
+    for (let i = -4; i <= 3; i += 1.3) {
+      const x = col.x + i, y = col.y + 2 + (hash2(i * 3 | 0, 1, 5) * 1.6 | 0);
+      if (p.fine) { p.fline(x, y - 0.5, x - 0.5, y + 0.75, FUR[2]); p.dot(x + 0.5, y - 0.5, FUR[4]); } else p.px(x, y, FUR[2]);
+    }
   }
 
   // --- 7. Schild (hintere Hand, vor dem Körper)
@@ -517,6 +717,38 @@ function drawRaider(p, g, P, X, archer) {
     p.rect(hx + 1, hy + 3 + jw, 3, 1, HAIR[1]); p.px(hx + 4, hy + 3 + jw, HAIR[2]);
     p.px(hx + 1, hy + 4 + jw, HAIR[1]); p.px(hx + 2, hy + 4 + jw, HAIR[0]);
   }
+  if (p.fine) {
+    // Handfein: Gesicht in Feinpixeln – Augenweiß mit Pupille und Glanz, Braue, Nasenrücken-Licht, Mund, Ohrmuschel
+    const eyeOn = P.eye > 0.5;
+    p.dot(hx - 1, hy + 0.5, SK[3]); p.dot(hx - 0.5, hy + 1.5, SK[0]); p.dot(hx - 1, hy + 1.5, SK[2]);
+    p.dot(hx + 3.5, hy, SK[4]); p.dot(hx + 4, hy + 0.5, SK[5]); p.dot(hx + 4.5, hy + 1, SK[4]); p.dot(hx + 4, hy + 1.5, SK[1]); p.dot(hx + 4.5, hy + 1.5, SK[2]);
+    if (eyeOn) {
+      p.dot(hx + 2, hy, '#f2e6c8'); p.dot(hx + 2.5, hy, '#f2e6c8'); p.dot(hx + 3, hy, '#fff8ea'); p.dot(hx + 3.5, hy, '#140806');
+      p.dot(hx + 2, hy + 0.5, SK[2]); p.dot(hx + 2.5, hy + 0.5, '#c8b8a4'); p.dot(hx + 3, hy + 0.5, '#140806'); p.dot(hx + 3.5, hy + 0.5, '#3a2014');
+    } else p.fline(hx + 2, hy + 0.5, hx + 3.5, hy + 0.5, archer ? '#1a0e0a' : '#2a1810');
+    if (archer) {
+      p.fline(hx + 1.5, hy - 0.5, hx + 3.5, hy - 0.5, HAIR[1]);                   // schmale Braue (unter dem Fellrand)
+      p.fline(hx + 1, hy + 2, hx + 2.5, hy + 2, OCHRE[4]);                        // Wangenstrich, Lichtkante
+      p.dot(hx + 2.5, hy + 1, SK[5]); p.dot(hx + 2, hy + 1.5, SK[4]);
+      p.dot(hx + 3, hy + 2, '#7a3228'); p.dot(hx + 3.5, hy + 2, '#5a2018'); p.dot(hx + 3, hy + 2.5, '#9a4a3a'); p.dot(hx + 2.5, hy + 2, '#4a1c14');
+      p.dot(hx + 3, hy + 3, SK[4]);                                                // Kinnlicht
+      p.dot(hx - 1, hy + 2, BRZ[6]); p.dot(hx - 0.5, hy + 2.5, BRZ[2]);
+
+    } else {
+      p.fline(hx + 1, hy - 0.5, hx + 3.5, hy - 0.5, HAIR[0]); p.dot(hx + 3.5, hy, '#2a1810');   // zornige Braue
+      p.fline(hx + 0.5, hy + 1, hx + 1, hy + 2, OCHRE[3]); p.fline(hx + 1.5, hy + 1, hx + 2, hy + 2, OCHRE[2]);  // Ockerkrallen
+      p.dot(hx + 2.5, hy + 1, SK[5]);
+      // Hängeschnurrbart und Kinnbart in Strähnen
+      const jw = Math.round(P.jaw * 1.5);
+      p.fline(hx + 2, hy + 2, hx + 4.5, hy + 2, HAIR[3]); p.fline(hx + 2, hy + 2.5, hx + 1.5, hy + 4 + jw, HAIR[2]);
+      p.dot(hx + 4.5, hy + 2.5, HAIR[1]); p.dot(hx + 4, hy + 2.5, '#2a0806');
+      for (let x = 1; x <= 4; x += 0.5) {
+        const lit = Math.round(x * 2) % 2 === 0;
+        p.dot(hx + x, hy + 3 + jw, lit ? HAIR[3] : HAIR[0]); p.dot(hx + x, hy + 3.5 + jw, lit ? HAIR[2] : HAIR[0]);
+      }
+      p.dot(hx + 1.5, hy + 4 + jw, HAIR[2]); p.dot(hx + 2, hy + 4.5 + jw, HAIR[1]);
+    }
+  }
   meta.eye = { x: hx + 2, y: hy };
   meta.mouth = { x: hx + 4, y: hy + 2 };
   // Kopfbedeckung
@@ -529,6 +761,18 @@ function drawRaider(p, g, P, X, archer) {
     p.px(hx + 3, hy - 1, FUR[3]);
     p.px(hx - 3, hy, FUR[3]);
     p.line(hx - 2, hy - 3, hx - 5 - P.cape, hy - 6, PAINT_W); p.px(hx - 5 - P.cape, hy - 6, HAIR[1]);
+    if (p.fine) {
+      // Filz: Falten zweifarbig; Fellrand in Strähnen; Adlerfeder mit Kiel, Fahne und dunklen Bändern
+      p.fline(hx - 3 - P.cape, hy - 7.5, hx - 1, hy - 4, FELT[1]); p.fline(hx + 2, hy - 4, hx, hy - 3, FELT[4]);
+      for (let x = -3; x <= 3.5; x += 0.5) {
+        const lit = Math.round(x * 2) % 2 === 0, L = x < 0;
+        p.dot(hx + x, hy - 1, lit ? FUR[L ? 6 : 5] : FUR[L ? 4 : 3]); if (x < 1) p.dot(hx + x, hy - 0.5, lit ? FUR[L ? 4 : 3] : FUR[2]);
+      }
+      const fx0 = hx - 2, fy0 = hy - 3, fx1 = hx - 5 - P.cape, fy1 = hy - 6;
+      p.fline(fx0, fy0 - 0.5, fx1, fy1 - 0.5, PAINT_W); p.fline(fx0, fy0 + 0.5, fx1 + 0.5, fy1 + 0.5, '#8a7c64');
+      p.fline(fx0, fy0, fx1, fy1, '#fffbef');
+      for (const t of [0.55, 0.75]) { const x = fx0 + (fx1 - fx0) * t, y = fy0 + (fy1 - fy0) * t; p.dot(x, y - 0.5, HAIR[2]); p.dot(x, y + 0.5, HAIR[1]); }
+    }
     meta.head = { x: hx, y: hy - 8 };
   } else {
     // Filzkappe mit Fellkrempe, Bronzeband und Dorn
@@ -539,6 +783,19 @@ function drawRaider(p, g, P, X, archer) {
     p.rect(hx - 3, hy, 1, 3, FUR[3]); p.px(hx - 2, hy, FUR[2]); p.px(hx - 3, hy + 3, FUR[2]); // Ohrenklappe
     p.line(hx + 0.5, hy - 5, hx + 0.5, hy - 7, BRZ[3]); p.px(hx + 0.5, hy - 7, BRZ[6]);
     g.px(hx + 0.5, hy - 7, BRZ[2]);
+    if (p.fine) {
+      // Kappe: Lederfalten; Bronzeband mit Glanzlinie und Nieten; Fellkrempe in Strähnen; Dorn mit Glanzlinie
+      p.fline(hx - 2, hy - 4, hx - 0.5, hy - 4.5, LEA[5]); p.fline(hx + 1.5, hy - 4.5, hx + 2.5, hy - 3.5, LEA[2]);
+      for (let x = -1; x <= 2.5; x += 0.5) { p.dot(hx + x, hy - 3, x < 0.5 ? BRZ[6] : BRZ[5]); p.dot(hx + x, hy - 2.5, x < 1 ? BRZ[3] : BRZ[2]); }
+      p.dot(hx - 0.5, hy - 2.5, BRZ[5]); p.dot(hx + 1.5, hy - 2.5, BRZ[5]);
+      for (let x = -3; x <= 3.5; x += 0.5) {
+        const lit = Math.round(x * 2) % 2 === 0, L = x < 0;
+        p.dot(hx + x, hy - 1, lit ? FUR[L ? 6 : 5] : FUR[L ? 4 : 3]); if (x < 1) p.dot(hx + x, hy - 0.5, lit ? FUR[L ? 4 : 3] : FUR[2]);
+      }
+      for (let y = 0; y <= 3; y += 0.5) p.dot(hx - 3, hy + y, Math.round(y * 2) % 2 ? FUR[2] : FUR[4]);
+      for (let y = -7; y <= -5; y += 0.5) { p.dot(hx + 0.5, hy + y, BRZ[5]); p.dot(hx + 1, hy + y, BRZ[2]); }
+      p.dot(hx + 0.5, hy - 7, BRZ[6]); g.dot(hx + 0.5, hy - 7, BRZ[6]);
+    }
     meta.head = { x: hx, y: hy - 7 };
   }
 
@@ -549,13 +806,33 @@ function drawRaider(p, g, P, X, archer) {
     const bx = armF.jx + (armF.ex - armF.jx) * 0.35, by = armF.jy + (armF.ey - armF.jy) * 0.35;
     cap(p, bx, by, armF.ex, armF.ey, 1.35, 1.3, LEA);                 // Armschiene
     p.px(bx + (armF.ex - bx) * 0.5, by + (armF.ey - by) * 0.5 - 1, BRZ[4]);
+    if (p.fine) {
+      // Ärmelfalte zweifarbig, Armschiene mit Naht (Punktlinie) und Kante, Niete mit Glanz
+      const mx = (shF.x + armF.jx) / 2, my = (shF.y + armF.jy) / 2, R = archer ? TEAL : LEA;
+      p.fline(mx - 1, my - 0.25, mx + 0.5, my + 0.25, R[R.length - 1]); p.fline(mx - 0.5, my + 0.5, mx + 1, my + 0.75, R[1]);
+      const ux = armF.ex - bx, uy = armF.ey - by, L = Math.hypot(ux, uy) || 1, nx = -uy / L, ny = ux / L;
+      p.fline(bx - nx * 1.2, by - ny * 1.2, bx + nx * 1.2, by + ny * 1.2, LEA[5]);
+      stitch(p, bx + ux * 0.15, by + uy * 0.15, bx + ux * 0.85, by + uy * 0.85, LEA[5], 0.6);
+      const sx = p.snap(bx + ux * 0.5), sy = p.snap(by + uy * 0.5 - 1); p.dot(sx, sy, BRZ[6]); p.dot(sx + 0.5, sy + 0.5, BRZ[2]);
+    }
   };
   const shoulder = () => {
-    if (archer) { ell(p, shF.x, shF.y, 1.8, 1.4, FUR.slice(2, 7)); return; }
+    if (archer) { ell(p, shF.x, shF.y, 1.8, 1.4, FUR.slice(2, 7)); if (p.fine) strokes(p, shF.x, shF.y, 1.6, 1.2, FUR.slice(2, 7), 12, 17, -0.4, 0.8); return; }
     ell(p, shF.x, shF.y, 2.2, 1.7, BRZ.slice(1, 6));
     p.px(shF.x - 1, shF.y - 1, BRZ[6]);
+    if (p.fine) {
+      // Bronze-Schulterschale: Glanzlinie oben links, Glanzpunkt, Randnieten, dunkle Kante unten
+      for (let a = 3.4; a <= 4.7; a += 0.15) p.dot(shF.x + Math.cos(a) * 1.75, shF.y + Math.sin(a) * 1.25, BRZ[6]);
+      for (let a = 0.3; a <= 2.6; a += 0.2) p.dot(shF.x + Math.cos(a) * 2, shF.y + Math.sin(a) * 1.5, BRZ[1]);
+      p.dot(shF.x - 0.75, shF.y - 0.75, '#ffffff');
+      p.dot(shF.x - 1.5, shF.y + 0.75, BRZ[5]); p.dot(shF.x + 1.25, shF.y + 0.75, BRZ[3]);
+    }
   };
-  const hand = (x, y) => { ell(p, x, y, 1.2, 1.2, SK); p.px(x - 0.5, y - 0.5, SK[4]); };
+  const hand = (x, y) => {
+    ell(p, x, y, 1.2, 1.2, SK); p.px(x - 0.5, y - 0.5, SK[4]);
+    if (p.fine) { p.dot(x - 0.5, y - 0.5, SK[5]); p.dot(x + 0.5, y + 0.5, SK[1]); p.dot(x, y + 0.25, SK[2]); }
+  };
+
   if (archer) {
     drawArm(); shoulder();
     const nock = P.draw > 0.02 || P.arrow > 0.5 ? { x: armB.ex, y: armB.ey } : null;
@@ -677,6 +954,7 @@ function drawHyena(p, g, P, X) {
       const ly = gy - 2 - (near ? 0 : 2);
       cap(p, ox + xh, hipY, ox + xh + (front ? 7 : 3), ly, 1.7, 1.0, ramp);
       p.px(ox + xh + (front ? 8 : 4), ly, MANE[0]);
+      if (p.fine) { p.fline(ox + xh + 1, hipY - 0.5, ox + xh + (front ? 5 : 2.5), ly - 0.75, near ? HY[5] : HY_D[4]); p.dot(ox + xh + 2, hipY + 0.5, SPOT[0]); }
       return;
     }
     const a = P.t * TAU + ph;
@@ -701,6 +979,17 @@ function drawHyena(p, g, P, X) {
     }
     p.rect(footX - 1, footY - 1, 3, 1, near ? MANE[1] : MANE[0]);
     p.px(footX + 1.5, footY - 1, near ? MANE[3] : MANE[1]);
+    if (p.fine) {
+      // Pfote: Zehen getrennt, Krallen hell; Lauf mit Lichtkante und Fleckenreihe
+      const fxs = p.snap(footX), fys = p.snap(footY);
+      p.dot(fxs, fys - 1, near ? MANE[3] : MANE[2]); p.dot(fxs + 0.5, fys - 0.5, MANE[0]); p.dot(fxs + 1.5, fys - 0.5, MANE[0]);
+      p.dot(fxs + 2.5, fys - 0.5, near ? BONE[2] : BONE[0]); p.dot(fxs + 2, fys - 0.5, near ? BONE[1] : MANE[1]);
+      if (near) {
+        const kx = front ? ox + xh + fx * 0.35 + 0.5 : ox + xh + 2 + fx * 0.3, ky = front ? (hipY + footY) / 2 + 0.5 : hipY + 3;
+        p.fline(ox + xh - 0.75, hipY - 0.5, kx - 0.75, ky, HY[5]);
+        p.dot(kx - 0.25, ky + 2, SPOT[0]); p.dot(kx + 0.25, ky + 2.5, SPOT[1]); p.dot(kx - 0.5, ky + 4, SPOT[0]);
+      }
+    }
   };
   leg(4.5, Math.PI * 0.1, false, false);
   leg(18, Math.PI * 1.1, false, true);
@@ -711,6 +1000,10 @@ function drawHyena(p, g, P, X) {
   const t1x = ox - 3 - P.reach * 1.5, t1y = Y(0, by - 0.5 + tw * 0.8 - P.reach * 3);
   cap(p, t0x, t0y, t1x, t1y, 1.1, 0.9, HY.slice(1, 6));
   ell(p, t1x - 1, t1y + 0.8, 1.7, 1.4, MANE, { rot: 0.5 + tw * 0.2, noise: 0.3, seed: 8 });
+  if (p.fine) {
+    strokes(p, t1x - 1, t1y + 0.8, 1.6, 1.2, MANE, 14, 8, -0.9, 0.6, 0.5 + tw * 0.2);
+    p.fline(t0x, t0y - 0.5, t1x + 0.5, t1y - 0.5, HY[5]);
+  }
 
   // --- Rumpf: tiefes Becken, hoher Widerrist
   ell(p, ox + 5, Y(5, by + 1), 4.6, 3.9 * flat, HY, { noise: 0.1, seed: 3 });
@@ -718,8 +1011,25 @@ function drawHyena(p, g, P, X) {
   ell(p, ox + 17.5, Y(17.5, by - 2.6), 5, 5.8 * flat, HY, { noise: 0.1, seed: 5 });
   // Bauch dunkel
   ell(p, ox + 11, Y(11, by + 3.4), 6, 1.2, HY_D.slice(1));
-  // Flecken
-  for (let i = 0; i < 11; i++) {
+  if (p.fine) {
+    // Handfein: Fell in Strähnen, nach hinten unten gekämmt (Licht oben links: oben hell, unten dunkel)
+    const C = HY.slice(1, 7);
+    strokes(p, ox + 5, Y(5, by + 1), 4.2, 3.5 * flat, C, 12, 3, -1.5, 0.8);
+    strokes(p, ox + 11, Y(11, by - 0.5), 6.2, 3.9 * flat, C, 22, 4, -1.6, 0.8);
+    strokes(p, ox + 17.5, Y(17.5, by - 2.6), 4.6, 5.3 * flat, C, 18, 5, -1.2, 1.1);
+
+    // Flecken: unregelmäßige Tupfen aus Feinpixeln, auf Flanke und Schulter dichter
+    for (let i = 0; i < 22; i++) {
+      const x = 3 + hash2(i, 1, 62) * 19, y = -2.5 + hash2(i, 2, 62) * 5.5;
+      const topY = -3.2 - Math.max(0, x - 8) * 0.12;
+      if (y < topY + 0.5) continue;
+      const X0 = p.snap(ox + x), Y0 = p.snap(Y(x, by + y)), c = SPOT[i % 2], k = i % 3;
+      p.dot(X0, Y0, c); p.dot(X0 + 0.5, Y0, c);
+      if (k !== 1) p.dot(X0 + 0.5, Y0 + 0.5, c);
+      if (k === 0) p.dot(X0 + 1, Y0 + 0.5, SPOT[1]);
+      if (k === 2) p.dot(X0, Y0 + 0.5, SPOT[1]);
+    }
+  } else for (let i = 0; i < 11; i++) {
     const x = 3 + hash2(i, 1, 61) * 17, y = -2.5 + hash2(i, 2, 61) * 5;
     const topY = -3.2 - Math.max(0, x - 8) * 0.12;
     if (y < topY + 0.5) continue;
@@ -729,11 +1039,21 @@ function drawHyena(p, g, P, X) {
     if (hash2(i, 3, 61) < 0.4) p.px(ox + x, Y(x, by + y) + 1, SPOT[1]);
   }
   // Mähne: dunkle Borsten vom Nacken bis zur Rückenmitte
-  for (let x = 7; x <= 23; x += 1) {
+  // fein: doppelt so viele, dünne Borsten (2 Feinpixel), Spitzen eine Stufe heller
+  for (let x = 7; x <= 23; x += p.fine ? 0.5 : 1) {
+    const xi = Math.floor(x);
     const top = x < 17 ? -4 - (x - 7) * 0.2 : -6 - (x - 17) * 0.1;
-    const h = 1.5 + (hash2(x, 5, 63) * 2 | 0) + (x > 13 && x < 21 ? 1 : 0) + (X.bristle ? 1 : 0);
-    const lean = -0.6 - hash2(x, 6, 63) * 0.4 - P.amp * 0.3;
+    const h = 1.5 + (hash2(xi, 5, 63) * 2 | 0) + (x > 13 && x < 21 ? 1 : 0) + (X.bristle ? 1 : 0) - (x !== xi ? 0.5 : 0);
+    const lean = -0.6 - hash2(xi, 6, 63) * 0.4 - P.amp * 0.3;
     const y0 = Y(x, by + top * flat + 1);
+    if (p.fine) {
+      if (x !== xi) continue;
+      p.fline(ox + x, y0 + 0.5, ox + x + lean * h, y0 - h, MANE[xi % 4 === 0 ? 1 : 2], 1);
+      p.fline(ox + x + 0.5, y0 + 0.5, ox + x + 0.5 + lean * h, y0 - h + 0.5, MANE[1]);
+      p.dot(ox + x + lean * h, y0 - h, MANE[3]);
+      continue;
+
+    }
     p.line(ox + x, y0, ox + x + lean * h, y0 - h, MANE[x % 4 === 0 ? 1 : 2]);
     p.px(ox + x + lean * h, y0 - h, MANE[3]);                      // Spitzen einheitlich: Kamm statt Rauschen
   }
@@ -749,9 +1069,14 @@ function drawHyena(p, g, P, X) {
   // Mähnenkamm über dem Hals
   for (let k = 0; k < 5; k++) {
     const x = ox + 20 + k * (hx - 2 - ox - 20) / 5, y = Y(20, by - 6.5) + k * (hy - 3 - Y(20, by - 6.5)) / 5;
-    p.line(x, y + 1, x - 1, y - 1 - (k % 2), MANE[2]); p.px(x - 1, y - 1 - (k % 2), MANE[4]);
+    if (p.fine) {
+      p.fline(x, y + 1, x - 1, y - 1 - (k % 2), MANE[2], 0.5); p.fline(x + 0.5, y + 1, x - 0.5, y - 0.5 - (k % 2), MANE[1]);
+      p.dot(x - 1, y - 1 - (k % 2), MANE[4]);
+    } else { p.line(x, y + 1, x - 1, y - 1 - (k % 2), MANE[2]); p.px(x - 1, y - 1 - (k % 2), MANE[4]); }
   }
+  if (p.fine) strokes(p, (ox + 19 + hx) / 2 - 0.5, (Y(19, by - 4) + hy) / 2 + 0.5, 2.6, 1.8, HY.slice(1, 7), 14, 19, -0.9, 0.6, Math.atan2(hy - Y(19, by - 4), hx - ox - 19));
   ell(p, hx, hy, 3.3, 3.0, HY, { bias: 0.08 });
+  if (p.fine) strokes(p, hx - 0.5, hy + 0.3, 2.4, 2, HY.slice(2, 7), 12, 21, -0.7, 0.5);
   // Schnauze: Richtung mu (+ = nach unten)
   const mu = -up * 0.9 + hd * 0.25;
   const mx = Math.cos(mu), my = Math.sin(mu);
@@ -766,6 +1091,12 @@ function drawHyena(p, g, P, X) {
     poly(p, [[hx + 1.2, hy + 1.6], [sx + mx * 0.4, sy + 0.8], [jx + mx * 0.6, jy]], '#4a1210');
     p.px(sx - mx * 0.5, sy + 1, BONE[3]); p.px(sx - mx * 1.5, sy + 1, BONE[2]);
     p.px(jx, jy - 1, BONE[3]);
+    if (p.fine) {
+      // Rachen mit Zunge, Zahnreihe oben fein, Fänge mit Licht
+      p.fline(hx + 1.8, hy + 2.2, (sx + jx) / 2, (sy + jy) / 2 + 0.3, '#8a2a24', 0.5); p.dot((sx + jx) / 2 - 0.5, (sy + jy) / 2, '#b04a3a');
+      for (let t = 0.15; t <= 0.85; t += 0.23) p.dot(hx + 1.2 + (sx - hx - 1.2) * t, hy + 1.6 + (sy + 0.8 - hy - 1.6) * t + 0.25, BONE[3]);
+      p.dot(sx - mx * 0.5, sy + 1, BONE[4]); p.dot(jx, jy - 1, BONE[4]); p.dot(jx + 0.5, jy - 1, BONE[2]);
+    }
   }
   cap(p, hx + 0.5, hy + 2, jx, jy, 1.3, 0.9, HY_D);
   // Ohren (rund, dunkel gerändert)
@@ -773,6 +1104,12 @@ function drawHyena(p, g, P, X) {
     ell(p, ex, ey - P.ear * 0.5, 1.7, 2.3, near ? HY.slice(2, 7) : HY_D, { rot: -0.35 - P.ear * 0.3 });
     p.px(ex + 0.3, ey + 0.3 - P.ear * 0.5, near ? '#5a3a30' : MANE[1]); p.px(ex + 0.3, ey - 0.7 - P.ear * 0.5, MANE[2]);
     p.px(ex - 0.7, ey - 1.8 - P.ear * 0.5, MANE[1]);                       // dunkler Ohrrand
+    if (p.fine) {   // Ohrmuschel mit Haarbüschel, heller Rand vorn
+      const e2 = ey - P.ear * 0.5;
+      p.dot(ex + 0.25, e2 - 0.25, near ? '#7a5048' : MANE[2]); p.dot(ex + 0.75, e2 + 0.75, near ? '#3a2420' : MANE[0]);
+      p.fline(ex - 0.25, e2 + 0.5, ex + 0.25, e2 - 1, near ? HY[5] : HY_D[3]);
+      p.dot(ex + 1, e2 - 1, near ? HY[6] : HY_D[4]);
+    }
   };
   ear(hx - 3, hy - 3.2, false);
   ear(hx - 1, hy - 3.6, true);
@@ -783,6 +1120,20 @@ function drawHyena(p, g, P, X) {
   p.rect(ex - 1, ey, 3, 1, MANE[1]); p.px(ex - 1, ey + 1, MANE[2]);
   p.px(ex - 1, ey - 1, HY[6]); p.px(ex, ey - 1, HY[5]); p.px(ex + 1, ey - 1, HY[3]);
   if (P.eye > 0.3) { p.px(ex, ey, '#f0b43c'); p.px(ex + 1, ey, '#1a0e06'); g.px(ex, ey, '#e0a030'); g.px(ex - 1, ey, '#5a3008'); }
+  if (p.fine) {
+    // Handfein: Bernsteinauge mit Schlitzpupille und Glanzpunkt, Brauenwulst als Lichtkante, Nasenspiegel, Lefze
+    const E0 = p.snap(ex), F0 = p.snap(ey);
+    if (P.eye > 0.3) {
+      p.dot(E0, F0, '#f8c850'); p.dot(E0 + 0.5, F0, '#fff4c0'); p.dot(E0, F0 + 0.5, '#c88a28'); p.dot(E0 + 0.5, F0 + 0.5, '#a06818');
+      p.dot(E0 + 1, F0, '#1a0e06'); p.dot(E0 + 1, F0 + 0.5, '#1a0e06'); p.dot(E0 + 1.5, F0 + 0.5, MANE[0]);
+      g.dot(E0 + 0.5, F0, '#fff0b0');
+    } else p.fline(E0 - 0.5, F0 + 0.5, E0 + 1.5, F0 + 0.5, MANE[0]);
+    p.fline(E0 - 1, F0 - 0.5, E0 + 1.5, F0 - 1, HY[6]); p.dot(E0 + 1.5, F0 - 0.5, HY[2]);
+    p.dot(sx + mx * 0.8 - 0.5, sy - 1.25, '#6a5a50'); p.dot(sx + mx * 0.8, sy - 0.75, MANE[0]);
+    p.fline(sx - mx * 2.6, sy + 1, sx - mx * 0.2, sy + 0.8, MANE[0]);
+    p.dot(sx - mx * 1.4, sy - 0.25, MANE[3]); p.dot(sx - mx * 0.8, sy, MANE[3]);     // Schnurrhaar-Punkte
+  }
+
   // Fangzahn ragt auch bei geschlossenem Maul über die Lefze
   if (jw < 0.5) { p.px(sx - mx * 1.3, sy + 1.4, BONE[4]); p.px(sx - mx * 1.3, sy + 2.2, BONE[2]); }
   p.px(sx - mx * 2.4, sy + 1.4, MANE[0]);                                   // Lefzenfalte
@@ -891,6 +1242,11 @@ function vultureWing(p, g, rx, ry, w, fold, near, spread, lean) {
     const x1 = x0 + Math.cos(fa) * len, y1 = y0 + Math.sin(fa) * len;
     cap(p, x0, y0, x1, y1, 1.0, 0.55, RP.slice(0, 5));
     p.px(x1, y1, near ? RP[4] : RP[2]);
+    if (p.fine) {   // Federkiel hell, Hinterkante der Schwinge dunkel
+      const ux = x1 - x0, uy = y1 - y0, l = Math.hypot(ux, uy) || 1, qx = -uy / l * 0.5, qy = ux / l * 0.5;
+      p.fline(x0 + ux * 0.1, y0 + uy * 0.1, x0 + ux * 0.8, y0 + uy * 0.8, near ? RP[4] : RP[3]);
+      p.fline(x0 + ux * 0.2 + qx, y0 + uy * 0.2 + qy, x0 + ux * 0.85 + qx, y0 + uy * 0.85 + qy, RP[0]);
+    }
   }
   // Fläche: Vorderkante leicht gewölbt, Hinterkante gezackt
   const pts = [];
@@ -900,6 +1256,32 @@ function vultureWing(p, g, rx, ry, w, fold, near, spread, lean) {
     pts.push(P(s, W(s) + jag));
   }
   const cx0 = rx, cy0 = ry;
+  if (p.fine) {
+    // Handfein: Deckfedern als Schuppenreihen mit dunkler Unterkante, Schwingen als einzelne Federn
+    // (Fuge dunkel, Kiel hell, Spitzen aufgehellt) – kein Rauschen
+    const h = p.step / 2;
+    poly(p, pts, (x, y) => {
+      const lx = x + h - cx0, ly = y + h - cy0;
+      const s = lx * dx + ly * dy, c = lx * bx + ly * by;
+      const wc = W(clamp(s, 0, L)) || 1;
+      const f = c / wc;
+      if (f < 0.1) return RP[near ? 5 : 3];
+      if (f < 0.14) return RP[near ? 4 : 3];
+      if (f < 0.42) {
+        const fc = c - 0.14 * wc, row = Math.floor(fc / 1.3), t = fc - row * 1.3;
+        const sp = ((s + row * 0.75) % 1.5 + 1.5) % 1.5;
+        if (t > 0.85 + Math.abs(sp - 0.75) * 0.5) return RP[1];
+        if (t < 0.45 && sp < 0.6) return RP[near ? 4 : 3];
+        return RP[near ? 3 : 2];
+      }
+      const sec = s < La + 1, R = sec ? RA : RP, ss = ((s % 1.5) + 1.5) % 1.5, idx = Math.floor(s / 1.5);
+      if (ss < 0.45) return sec ? RA[f > 0.82 ? 1 : 0] : RP[0];                     // Fuge zwischen den Federn
+      if (f > 0.84) return sec ? RA[near ? 3 : 2] : RP[near ? 3 : 2];               // helle Federspitze
+      return sec ? RA[idx % 2 ? 2 : 1] : RP[idx % 2 ? 2 : 1];
+
+    });
+    return P(L, 0);
+  }
   poly(p, pts, (x, y) => {
     // lokale Koordinaten
     const lx = x + 0.5 - cx0, ly = y + 0.5 - cy0;
@@ -928,7 +1310,13 @@ function drawVulture(p, g, P, X) {
   // --- Schwanzfächer
   const t0 = L(-6, 0.5);
   const tw = Math.sin(P.tail) * 0.8;
-  poly(p, [[t0.x, t0.y - 1.5], [L(-13, -0.5 + tw).x, L(-13, -0.5 + tw).y], [L(-13.5, 2 + tw).x, L(-13.5, 2 + tw).y], [t0.x, t0.y + 2]], (x, y) => ((x + y) % 2 ? PLUM[2] : PLUM[1]));
+  // fein: Schwanzfedern als Bänder längs (helle Kante oben, dunkle Fuge) statt Schachbrett
+  poly(p, [[t0.x, t0.y - 1.5], [L(-13, -0.5 + tw).x, L(-13, -0.5 + tw).y], [L(-13.5, 2 + tw).x, L(-13.5, 2 + tw).y], [t0.x, t0.y + 2]],
+    p.fine ? (x, y) => {
+      const lx = x + 0.25 - cx, ly = y + 0.25 - cy, v = -lx * s + ly * c, u = lx * c + ly * s;
+      const b = ((v + 3 + u * 0.12) % 1.25 + 1.25) % 1.25;
+      return b < 0.4 ? PLUM[3] : b > 0.9 ? PLUM[0] : u < -11 ? PLUM[2] : PLUM[1];
+    } : (x, y) => ((x + y) % 2 ? PLUM[2] : PLUM[1]));
   const te = L(-13.5, 1 + tw); p.px(te.x, te.y, PLUM[4]);
 
   // --- Beine / Fänge
@@ -943,9 +1331,16 @@ function drawVulture(p, g, P, X) {
     for (let k = -1; k <= 1; k++) {
       const a = fa + k * (0.45 + o * 0.5);
       const cx2 = foot.x + Math.cos(a) * 2.2, cy2 = foot.y + Math.sin(a) * 2.2;
-      p.line(foot.x, foot.y, cx2, cy2, LEG[side ? 2 : 1]);
-      p.px(cx2 + Math.cos(a + 1) * 0.8, cy2 + Math.sin(a + 1) * 0.8, BONE[side ? 3 : 1]);
+      if (p.fine) {   // fein: dünne Zehen mit Schuppenglanz, gebogene Kralle mit hellem Rücken
+        p.fline(foot.x, foot.y, cx2, cy2, LEG[side ? 2 : 1], 1); p.fline(foot.x, foot.y - 0.5, cx2, cy2 - 0.5, LEG[side ? 3 : 2]);
+        const kx = cx2 + Math.cos(a + 1) * 0.8, ky = cy2 + Math.sin(a + 1) * 0.8;
+        p.fline(cx2, cy2, kx, ky, BONE[side ? 2 : 1]); p.dot(cx2, cy2 - 0.5, BONE[side ? 4 : 2]);
+      } else {
+        p.line(foot.x, foot.y, cx2, cy2, LEG[side ? 2 : 1]);
+        p.px(cx2 + Math.cos(a + 1) * 0.8, cy2 + Math.sin(a + 1) * 0.8, BONE[side ? 3 : 1]);
+      }
     }
+    if (p.fine) for (let t = 0.2; t < 0.9; t += 0.2) p.dot(hip.x + (foot.x - hip.x) * t - 0.25, hip.y + (foot.y - hip.y) * t, LEG[side ? 3 : 2]);
     return foot;
   };
   legPt(0);
@@ -955,7 +1350,16 @@ function drawVulture(p, g, P, X) {
   // Bauch mit braunem Unterton
   const bl = L(0.5, 2.2); ell(p, bl.x, bl.y, 5, 1.8, ['#1a1210', '#2a1e18', '#3a2a20', '#4c3828'], { rot: P.lean });
   // Federschuppen auf dem Rücken
-  for (let i = 0; i < 14; i++) {
+  if (p.fine) {
+    // Handfein: Rückenfedern als versetzte Schuppen (helle Kante, dunkle Unterkante), Bauch mit Strähnen
+    for (let r = 0; r < 3; r++) for (let i = 0; i < 8 - r; i++) {
+      const q = L(-6 + i * 1.6 + (r % 2) * 0.8, -3.4 + r * 1.3);
+      const X0 = p.snap(q.x), Y0 = p.snap(q.y);
+      p.dot(X0, Y0, PLUM[r ? 4 : 5]); p.dot(X0 + 0.5, Y0, PLUM[r ? 3 : 4]);
+      p.dot(X0 - 0.5, Y0 + 0.5, PLUM[1]); p.dot(X0 + 1, Y0 + 0.5, PLUM[1]); p.dot(X0, Y0 + 1, PLUM[0]); p.dot(X0 + 0.5, Y0 + 1, PLUM[0]);
+    }
+    strokes(p, bl.x, bl.y, 4.6, 1.5, ['#1a1210', '#2a1e18', '#3a2a20', '#4c3828', '#5e4632'], 12, 57, -1.2, 0.4, P.lean);
+  } else for (let i = 0; i < 14; i++) {
     const q = L(-5 + (i % 7) * 1.6, -2.6 + (i > 6 ? 1.6 : 0));
     p.px(q.x, q.y, i % 2 ? PLUM[4] : PLUM[3]); p.px(q.x + 0.5, q.y + 1, PLUM[1]);
   }
@@ -968,12 +1372,29 @@ function drawVulture(p, g, P, X) {
   const nm = { x: (n0.x + hx) / 2 - 0.5 - nk * 0.5, y: Math.min(n0.y, hy) - 1.5 + nk * 1.5 };
   cap(p, n0.x, n0.y, nm.x, nm.y, 1.8, 1.4, NECK);
   cap(p, nm.x, nm.y, hx - 1, hy + 0.5, 1.4, 1.3, NECK);
+  if (p.fine) {   // nackte Haut: Querfalten (dunkle Kerbe, helle Wulst)
+    for (let t = 0.25; t < 1; t += 0.25) {
+      const x = n0.x + (nm.x - n0.x) * t, y = n0.y + (nm.y - n0.y) * t;
+      p.fline(x - 0.75, y - 0.5, x + 0.5, y - 0.25, NECK[1]); p.dot(x - 0.5, y - 1, NECK[4]);
+    }
+    for (let t = 0.3; t < 0.9; t += 0.3) {
+      const x = nm.x + (hx - 1 - nm.x) * t, y = nm.y + (hy + 0.5 - nm.y) * t;
+      p.fline(x - 0.5, y - 0.75, x, y + 0.75, NECK[1]); p.dot(x - 0.5, y - 1, NECK[5]);
+    }
+  }
   // Halskrause
   const rf = L(4.5, -3.2);
   ell(p, rf.x, rf.y, 3.4 + P.ruff * 0.6, 2.6 + P.ruff * 0.6, RUFF, { noise: 0.35, seed: 13 });
   for (let i = 0; i < 7; i++) {
     const a = -Math.PI * 0.95 + i * 0.45;
     p.px(rf.x + Math.cos(a) * (3.6 + P.ruff), rf.y + Math.sin(a) * (2.8 + P.ruff), RUFF[3 + (i % 2)]);
+  }
+  if (p.fine) {   // Halskrause: flauschige Strähnen, Spitzen außen hell
+    strokes(p, rf.x, rf.y, 3.2 + P.ruff * 0.6, 2.4 + P.ruff * 0.6, RUFF, 22, 13, -0.6, 0.9);
+    for (let i = 0; i < 7; i++) {
+      const a = -Math.PI * 0.95 + i * 0.45, x = rf.x + Math.cos(a) * (3.6 + P.ruff), y = rf.y + Math.sin(a) * (2.8 + P.ruff);
+      p.fline(x, y, x - Math.cos(a) * 1.2, y - Math.sin(a) * 1.2, RUFF[2]); p.dot(x + 0.25, y + 0.25, RUFF[4]);
+    }
   }
   // Kopf mit Hautfalten
   ell(p, hx, hy, 2.5, 2.1, NECK.slice(1));
@@ -996,6 +1417,16 @@ function drawVulture(p, g, P, X) {
   p.px(bx0 - 0.2, by0 - 0.6, BONE[4]); p.px(bx0 + 0.6, by0 - 0.4, BONE[3]);
   p.px(ex, ey, P.eye > 0.3 ? '#ff5a30' : NECK[0]);
   if (P.eye > 0.3) { g.px(ex, ey, '#ff8040'); g.px(ex + 1, ey, '#8a1a08'); g.px(ex, ey - 1, '#5a1004'); }
+  if (p.fine) {
+    // Handfein: Glutauge mit hellem Kern, Hautfalten am Kopf, Schnabel mit Glanzlinie und Nasenloch, dunkler Haken
+    const E0 = p.snap(ex), F0 = p.snap(ey);
+    if (P.eye > 0.3) { p.dot(E0, F0, '#fff0b0'); p.dot(E0 + 0.5, F0 + 0.5, '#c8300c'); g.dot(E0, F0, '#fff0b0'); g.dot(E0 + 0.5, F0, '#ffb640'); }
+    p.fline(E0 - 1, F0 - 0.5, E0 + 1, F0 - 1, NECK[5]); p.dot(E0 + 1.5, F0 - 0.5, NECK[0]);
+    p.fline(hx - 2, hy + 0.5, hx - 0.5, hy + 1.5, NECK[1]); p.fline(hx - 1.5, hy - 1, hx - 0.5, hy - 1.75, NECK[5]);
+    p.fline(bx0 + 0.25, by0 - 0.75, bx0 + mx * 2.8 + 0.25, by0 + my * 2.8 - 0.75, BEAK[3]);
+    p.dot(bx0 + mx * 1.2 + 0.5, by0 + my * 1.2 - 0.25, BEAK[0]);
+    p.dot(bx0 + mx * 3.4, by0 + my * 3.4 + 0.25, HAIR[2]);
+  }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: bx0 + mx * 3.5, y: by0 + my * 3.5 };
   meta.head = { x: hx, y: hy - 4 };
@@ -1009,6 +1440,7 @@ function drawVulture(p, g, P, X) {
     for (let i = 0; i < 5; i++) {
       const fx = cx + (hash2(i, 1, X.feathers) - 0.5) * 22, fy = cy + (hash2(i, 2, X.feathers) - 0.5) * 16;
       p.px(fx, fy, PLUM[3]); p.px(fx + 1, fy + (i % 2), PLUM[2]);
+      if (p.fine) p.fline(fx, fy + 0.5, fx + 1.5, fy + (i % 2) + 0.5, PLUM[5]);   // Federkiel
     }
   }
   return meta;
@@ -1020,12 +1452,23 @@ function drawVultureCorpse(p, g, P, X) {
   const gy = VS.AY, cx = VS.AX + 2;
   // weit ausgebreiteter, flach am Boden liegender Flügel (Draufsicht gestaucht)
   const wpts = [[cx - 2, gy - 4], [cx - 16, gy - 9 + k], [cx - 24, gy - 7 + k], [cx - 22, gy - 4], [cx - 12, gy - 1]];
-  poly(p, wpts, (x, y) => ((x + y) % 3 === 0 ? PLUM[1] : y < gy - 6 ? PLUM[3] : ASHF[1 + ((x & 1))]));
-  for (let i = 0; i < 5; i++) p.line(cx - 20 - i * 0.6, gy - 7 + i * 0.6 + k, cx - 26 - i, gy - 7 + i * 1.1 + k, PLUM[2]);
+  // fein: Federn als Streifen mit dunkler Fuge und hellem Kiel statt Schachbrett
+  const fineWing = (x, y, top, A, B) => {
+    const b = ((x + y * 0.5) % 1.5 + 1.5) % 1.5;
+    return b < 0.5 ? PLUM[0] : y < top ? (b < 1 ? PLUM[4] : PLUM[3]) : (b < 1 ? A : B);
+  };
+  poly(p, wpts, p.fine ? (x, y) => fineWing(x, y, gy - 6, ASHF[2], ASHF[1]) : (x, y) => ((x + y) % 3 === 0 ? PLUM[1] : y < gy - 6 ? PLUM[3] : ASHF[1 + ((x & 1))]));
+  for (let i = 0; i < 5; i++) {
+    if (p.fine) { p.fline(cx - 20 - i * 0.6, gy - 7 + i * 0.6 + k, cx - 26 - i, gy - 7 + i * 1.1 + k, PLUM[2], 1); p.fline(cx - 20 - i * 0.6, gy - 7.5 + i * 0.6 + k, cx - 26 - i, gy - 7.5 + i * 1.1 + k, PLUM[4]); }
+    else p.line(cx - 20 - i * 0.6, gy - 7 + i * 0.6 + k, cx - 26 - i, gy - 7 + i * 1.1 + k, PLUM[2]);
+  }
   ell(p, cx, gy - 3.5, 7, 3.2, PLUM, { noise: 0.2, seed: 5 });
+  if (p.fine) strokes(p, cx, gy - 3.5, 6.5, 2.8, PLUM, 20, 5, -1.2, 0.5);
   // anderer Flügel halb angelegt
-  poly(p, [[cx - 3, gy - 6], [cx + 6, gy - 11 + k * 2], [cx + 9, gy - 8 + k * 2], [cx + 3, gy - 4]], (x, y) => ((x + y) % 2 ? PLUM[3] : PLUM[2]));
+  poly(p, [[cx - 3, gy - 6], [cx + 6, gy - 11 + k * 2], [cx + 9, gy - 8 + k * 2], [cx + 3, gy - 4]], p.fine ? (x, y) => fineWing(x, y, -1e9, PLUM[3], PLUM[2]) : (x, y) => ((x + y) % 2 ? PLUM[3] : PLUM[2]));
   ell(p, cx + 6, gy - 4, 2.8, 2, RUFF, { noise: 0.3, seed: 13 });
+  if (p.fine) strokes(p, cx + 6, gy - 4, 2.6, 1.8, RUFF, 12, 13, -0.6, 0.8);
+
   // Hals abgeknickt, Kopf am Boden
   cap(p, cx + 7, gy - 3, cx + 11, gy - 2, 1.3, 1.1, NECK);
   ell(p, cx + 12, gy - 2, 2, 1.6, NECK.slice(1));
@@ -1117,36 +1560,73 @@ function drawDoubleAxe(p, g, hx, hy, a, ls, fire) {
   for (let s = -4; s <= 4; s += 2) p.px(hx + dx * s, hy + dy * s, K_LEA[4]);
   for (const s of [-9, 8, 14]) { p.px(hx + dx * s + nx * 0.5, hy + dy * s + ny * 0.5, BRZ[4]); p.px(hx + dx * s - nx * 0.5, hy + dy * s - ny * 0.5, BRZ[2]); }
   ell(p, hx - dx * 11, hy - dy * 11, 1.4, 1.4, BRZ.slice(1, 6));
+  if (p.fine) {
+    // Schaft: Maserung, Lederwicklung schräg mit dunkler Fuge, Bronzeringe mit Glanzpunkt, Knauf mit Glanz
+    p.fline(hx - dx * 9 - nx * 0.5, hy - dy * 9 - ny * 0.5, hx + dx * 22 - nx * 0.5, hy + dy * 22 - ny * 0.5, WOOD[3]);
+    for (let s = -4.5; s <= 4; s += 1) {
+      p.fline(hx + dx * s + nx * 1, hy + dy * s + ny * 1, hx + dx * (s + 0.7) - nx * 1, hy + dy * (s + 0.7) - ny * 1, K_LEA[4]);
+      p.fline(hx + dx * (s + 0.5) + nx * 1, hy + dy * (s + 0.5) + ny * 1, hx + dx * (s + 1.2) - nx * 1, hy + dy * (s + 1.2) - ny * 1, K_LEA[1]);
+    }
+    for (const s of [-9, 8, 14]) p.dot(hx + dx * s - nx * 0.75, hy + dy * s - ny * 0.75, BRZ[6]);
+    p.dot(hx - dx * 11 - 0.5, hy - dy * 11 - 0.5, BRZ[6]);
+  }
   // Kopf
   const cx = hx + dx * 19, cy = hy + dy * 19;
   const blade = (side) => {
-    for (let s = -6.5; s <= 6.5; s += 0.5) {
+    // fein: Blatt in Feinpixeln, schmale Schneide mit Glanzlinie, gravierte Linie parallel zur Schneide,
+    // Glanzpunkt; Rune als Zickzack mit heißem Kern statt Einzelpixeln
+    const fine = p.fine, st = fine ? 0.25 : 0.5;
+    for (let s = -6.5; s <= 6.5; s += st) {
       const f = s / 6.5;
       const reach = 8.2 - f * f * 2.2;
-      for (let k = 1; k <= reach; k += 0.5) {
+      for (let k = 1; k <= reach; k += st) {
         const neck = 1.6 + (k - 1) * 0.75;
         if (Math.abs(s) > neck) continue;
-        const edge = k > reach - 1.1;
+        const edge = k > reach - (fine ? 0.8 : 1.1);
         const x = cx + dx * s + nx * k * side, y = cy + dy * s + ny * k * side;
         let c = edge ? BRZ[5] : k > reach - 2 ? BRZ[4] : (s * side < 0 ? BRZ[3] : BRZ[2]);
         if (!edge && k < 2.5) c = BRZ[1];
-        if (!edge && k > 2.5 && hash2(Math.round(s * 2), Math.round(k * 2), 91 + side) < 0.1) c = BRZ[1];
-        p.px(x, y, c);
+        if (fine) {
+          if (edge && k > reach - 0.3) c = BRZ[6];
+          else if (!edge && k > 2.6 && Math.abs(k - (reach - 2.6)) < 0.13 && Math.abs(s) < neck - 0.6) c = BRZ[1];
+          p.dot(x, y, c);
+        } else {
+          if (!edge && k > 2.5 && hash2(Math.round(s * 2), Math.round(k * 2), 91 + side) < 0.1) c = BRZ[1];
+          p.px(x, y, c);
+        }
       }
     }
+    if (fine) { const k = 6.2, s = -2.2; p.dot(cx + dx * s + nx * k * side, cy + dy * s + ny * k * side, '#fff8d8'); }
     // Glutrune (Zickzack) im Blatt
+    const rp = [];
     for (let i = 0; i < 4; i++) {
       const s = -1.5 + i, k = 4 + (i % 2);
       const x = cx + dx * s + nx * k * side, y = cy + dy * s + ny * k * side;
+      rp.push([x, y]);
+      if (fine) continue;
       p.px(x, y, fire > 0.3 ? E[2] : BRZ[1]);
       if (fire > 0.3) g.px(x, y, fire > 1.1 ? E[4] : E[3]);
+    }
+    if (fine) {
+      for (let i = 0; i < 3; i++) {
+        p.fline(rp[i][0], rp[i][1], rp[i + 1][0], rp[i + 1][1], fire > 0.3 ? E[1] : BRZ[1], 1);
+        if (fire > 0.3) { p.fline(rp[i][0], rp[i][1], rp[i + 1][0], rp[i + 1][1], fire > 1.1 ? E[4] : E[3]); g.fline(rp[i][0], rp[i][1], rp[i + 1][0], rp[i + 1][1], fire > 1.1 ? E[4] : E[3], 1); }
+      }
+      if (fire > 1.1) for (const [x, y] of rp) { p.dot(x, y, '#fff8e0'); g.dot(x, y, '#fff8e0'); }
     }
     if (fire > 1.1) { const x = cx + nx * 7.5 * side, y = cy + ny * 7.5 * side; g.px(x, y, E[2]); }
   };
   blade(1); blade(-1);
   // Tülle + Dorn
   cap(p, cx - dx * 3, cy - dy * 3, cx + dx * 3, cy + dy * 3, 1.8, 1.8, BRZ.slice(0, 5));
-  p.line(cx + dx * 3, cy + dy * 3, cx + dx * 7, cy + dy * 7, BRZ[4]); p.px(cx + dx * 7, cy + dy * 7, BRZ[6]);
+  if (p.fine) {
+    // Tülle mit Nieten und Glanzlinie, Dorn zweistufig mit Glanzpunkt an der Spitze
+    p.fline(cx - dx * 2.5 - nx * 1, cy - dy * 2.5 - ny * 1, cx + dx * 2.5 - nx * 1, cy + dy * 2.5 - ny * 1, BRZ[5]);
+    for (const s of [-1.8, 1.8]) { p.dot(cx + dx * s, cy + dy * s, BRZ[6]); p.dot(cx + dx * s + 0.5, cy + dy * s + 0.5, BRZ[1]); }
+    p.fline(cx + dx * 3, cy + dy * 3, cx + dx * 7, cy + dy * 7, BRZ[3], 1);
+    p.fline(cx + dx * 3 - nx * 0.25, cy + dy * 3 - ny * 0.25, cx + dx * 6.5 - nx * 0.25, cy + dy * 6.5 - ny * 0.25, BRZ[5]);
+    p.dot(cx + dx * 7, cy + dy * 7, BRZ[6]);
+  } else { p.line(cx + dx * 3, cy + dy * 3, cx + dx * 7, cy + dy * 7, BRZ[4]); p.px(cx + dx * 7, cy + dy * 7, BRZ[6]); }
   return { head: { x: cx, y: cy }, edge: { x: cx + nx * 8, y: cy + ny * 8 }, edge2: { x: cx - nx * 8, y: cy - ny * 8 } };
 }
 
@@ -1191,8 +1671,11 @@ function drawKhar(p, g, P, X) {
       const wind = 0.35 + P.plume * 0.55;
       x -= 0.45 + wind * 0.55 + (i - 4) * 0.05;
       y += -0.45 + v * (1.9 - wind * 1.1) + i * 0.04 + Math.sin(P.capeT * 1.1 + v * 4 + i * 0.8) * 0.45 * v;
-      const c = i < 2 ? K_RED[5] : j % 5 === 0 ? K_RED[1] : i % 3 === 0 ? K_RED[2] : K_RED[3];
-      p.px(x, y, v > 0.85 ? K_RED[2] : c);
+      const ci = v > 0.85 ? 2 : i < 2 ? 5 : j % 5 === 0 ? 1 : i % 3 === 0 ? 2 : 3;
+      if (p.fine) {   // fein: jede Strähne mit Licht links, dunkler rechts – Rossschweif in Strähnen
+        p.dot(x + 0.25, y + 0.25, K_RED[ci]); p.dot(x + 0.75, y + 0.25, K_RED[Math.max(0, ci - 2)]);
+        p.dot(x + 0.25, y + 0.75, K_RED[Math.max(0, ci - 1)]); p.dot(x + 0.75, y + 0.75, K_RED[Math.max(0, ci - 2)]);
+      } else p.px(x, y, K_RED[ci]);
     }
   }
   // --- 2. Wolfsfellmantel hinten
@@ -1203,9 +1686,13 @@ function drawKhar(p, g, P, X) {
       const v = j / len;
       const x = mt.x - 4 - i * 0.6 - P.cape * 12 * v * v + Math.sin(P.capeT + v * 3 + i * 0.6) * 1.1 * v;
       const y = mt.y - 1 + j + i * 0.2 - P.cape * 3 * v * v;
-      let c = i < 2 ? K_FUR[4] : (i + j) % 5 === 0 ? K_FUR[1] : i % 3 === 0 ? K_FUR[2] : K_FUR[3];
-      if (j >= len - 2) c = K_FUR[i < 3 ? 6 : 5];
-      p.px(x, y, c);
+      let ci = i < 2 ? 4 : (i + j) % 5 === 0 ? 1 : i % 3 === 0 ? 2 : 3;
+      if (j >= len - 2) ci = i < 3 ? 6 : 5;
+      if (p.fine) {   // fein: Wolfsfell in Strähnen (Licht links, Fuge rechts), helle Spitzen
+        const tipS = j >= len - 2;
+        p.dot(x + 0.25, y + 0.25, K_FUR[ci]); p.dot(x + 0.75, y + 0.25, K_FUR[Math.max(0, ci - 1)]);
+        p.dot(x + 0.25, y + 0.75, K_FUR[tipS ? ci : Math.min(6, ci + 1)]); p.dot(x + 0.75, y + 0.75, K_FUR[Math.max(0, ci - 1)]);
+      } else p.px(x, y, K_FUR[ci]);
     }
   }
   // --- Axt hinter dem Körper
@@ -1225,6 +1712,7 @@ function drawKhar(p, g, P, X) {
   // --- 4. hinterer Arm (Bronze-Armschiene)
   cap(p, shB.x, shB.y, armB.jx, armB.jy, 2.1, 1.8, K_SKIN.slice(0, 4));
   cap(p, armB.jx, armB.jy, armB.ex, armB.ey, 2, 1.8, BRZ.slice(0, 4));
+  if (p.fine) p.fline(armB.jx - 1, armB.jy - 1, armB.ex - 1, armB.ey - 1, BRZ[4]);
   ell(p, armB.ex, armB.ey, 1.7, 1.7, K_SKIN.slice(0, 4));
 
   // --- 5. Rumpf: Lamellenpanzer aus Bronze, Lederschurz, Gürtel
@@ -1238,11 +1726,31 @@ function drawKhar(p, g, P, X) {
       const x = a.x + sw * j * 0.15, y = a.y + j;
       p.px(x, y, j % 2 ? K_LEA[3] : BRZ[i % 2 ? 3 : 2]);
       p.px(x + 1, y, j % 2 ? K_LEA[2] : BRZ[i % 2 ? 2 : 1]);
+      if (p.fine) {   // fein: Plattenkante oben im Licht, Fuge unten, Schnürung als Punkt
+        const X0 = p.snap(x), Y0 = p.snap(y);
+        if (j % 2) { p.dot(X0 + 0.5, Y0, K_LEA[5]); p.dot(X0, Y0 + 0.5, K_LEA[1]); p.dot(X0 + 1.5, Y0 + 0.5, K_LEA[0]); }
+        else { p.dot(X0, Y0, BRZ[i % 2 ? 5 : 4]); p.dot(X0 + 0.5, Y0, BRZ[i % 2 ? 4 : 3]); p.dot(X0 + 1.5, Y0 + 0.5, BRZ[0]); }
+      }
     }
   }
   cap(p, hp.x, hp.y, cp.x, cp.y, 5.6, 6.6, K_LEA, { noise: 0.1, seed: 4 });
   // Plattenreihen
-  for (let u = 2.5; u <= KD.spine - 0.5; u += 1.7) {
+  // fein: Bronzeplatten 1,5 Weltpixel breit, je Reihe Glanzlinie oben, zwei Mitteltöne, dunkle Fuge;
+  // Nieten mit Glanz, ein Glanzpunkt je Reihe auf der Lichtseite
+  if (p.fine) for (let u = 2.5; u <= KD.spine - 0.5; u += 1.7) {
+    for (let k = -5.25; k <= 6.3; k += 0.5) {
+      const kk = Math.round((k + 5.25) * 2), seam = kk % 3 === 0;
+      const sh = (Math.abs(k) > 4.6 ? -1 : 0) - (k > 2 ? 1 : 0) + (u > 8 ? 1 : 0);
+      const a = pt(u + 0.25, k), b = pt(u - 0.25, k), c = pt(u - 0.75, k), d = pt(u - 1.25, k);
+      p.dot(a.x, a.y, seam ? BRZ[clamp(3 + sh, 1, 6)] : BRZ[clamp(5 + sh, 1, 6)]);
+      p.dot(b.x, b.y, seam ? BRZ[clamp(2 + sh, 0, 6)] : BRZ[clamp(4 + sh, 1, 6)]);
+      p.dot(c.x, c.y, seam ? BRZ[clamp(1 + sh, 0, 6)] : BRZ[clamp(3 + sh, 0, 6)]);
+      p.dot(d.x, d.y, K_LEA[1]);
+      if (kk % 6 === 4) { p.dot(b.x, b.y, BRZ[6]); p.dot(c.x, c.y, BRZ[1]); }
+    }
+    const gp = pt(u + 0.25, -3.25); p.dot(gp.x, gp.y, '#fff8d8');
+  }
+  else for (let u = 2.5; u <= KD.spine - 0.5; u += 1.7) {
     const row = Math.round(u);
     for (let k = -5; k <= 6; k += 1.2) {
       const edge = Math.abs(k) > 4.6 ? -1 : 0;
@@ -1257,9 +1765,22 @@ function drawKhar(p, g, P, X) {
   ell(p, bc.x, bc.y, 2.2, 2.2, BRZ.slice(2, 7));
   p.px(bc.x, bc.y, P.fire > 0.3 ? E[2] : BRZ[1]); p.px(bc.x - 1, bc.y - 1, P.fire > 0.3 ? E[1] : BRZ[1]); p.px(bc.x + 1, bc.y - 1, P.fire > 0.3 ? E[1] : BRZ[1]);
   if (P.fire > 0.3) { g.px(bc.x, bc.y, E[3]); g.px(bc.x - 1, bc.y - 1, E[2]); g.px(bc.x + 1, bc.y - 1, E[2]); }
+  if (p.fine) {
+    // Brustscheibe: Rand mit Glanzlinie oben links, Wolfskopf aus Glutlinien mit hellem Kern
+    for (let a = 3.3; a <= 4.8; a += 0.2) p.dot(bc.x + Math.cos(a) * 1.9, bc.y + Math.sin(a) * 1.9, BRZ[6]);
+    for (let a = 0.2; a <= 2.6; a += 0.25) p.dot(bc.x + Math.cos(a) * 2, bc.y + Math.sin(a) * 2, BRZ[1]);
+    const on = P.fire > 0.3, c1 = on ? E[3] : BRZ[1];
+    p.fline(bc.x - 1, bc.y - 1, bc.x, bc.y + 0.5, c1); p.fline(bc.x + 1, bc.y - 1, bc.x, bc.y + 0.5, c1);
+    if (on) { p.dot(bc.x, bc.y, E[4]); g.fline(bc.x - 1, bc.y - 1, bc.x, bc.y + 0.5, E[3]); g.fline(bc.x + 1, bc.y - 1, bc.x, bc.y + 0.5, E[3]); g.dot(bc.x, bc.y, '#fff0b0'); }
+  }
   // breiter Gürtel mit Bronzeplaketten
   for (let k = -6; k <= 6; k += 0.5) { q(1, k, K_LEA[1]); q(1.8, k, K_LEA[2]); }
   for (let k = -4.5; k <= 5; k += 2.4) { q(1.4, k, BRZ[4]); q(1.4, k + 0.6, BRZ[2]); }
+  if (p.fine) {
+    // Gürtel: Naht als Punktlinie oben und unten, Plaketten mit Glanzpunkt
+    for (let k = -6; k <= 6; k += 0.75) { const a = pt(2.05, k), b = pt(0.75, k + 0.35); p.dot(a.x, a.y, K_LEA[4]); p.dot(b.x, b.y, K_LEA[3]); }
+    for (let k = -4.5; k <= 5; k += 2.4) { const o = pt(1.4, k); p.dot(p.snap(o.x), p.snap(o.y), BRZ[6]); }
+  }
 
   // --- 6. vorderes Bein
   cap(p, hip.x + 2, hip.y, legF.jx, legF.jy, 2.8, 2.4, K_RED);
@@ -1267,19 +1788,40 @@ function drawKhar(p, g, P, X) {
   p.rect(legF.ex - 2, legF.ey - 2, 7, 2, K_LEA[2]); p.rect(legF.ex - 2, legF.ey - 2, 7, 1, K_LEA[3]);
   p.px(legF.ex + 5, legF.ey - 3, K_LEA[4]);
   p.line(legF.jx - 2, legF.jy + 2, legF.jx + 2, legF.jy + 2, BRZ[3]);
+  if (p.fine) {
+    // Filzhose: zweifarbige Falten; Fellstiefel in Strähnen; Sohle mit Naht; Knieband mit Glanzlinie
+    for (let s = 0.25; s <= 0.85; s += 0.2) {
+      const x = hip.x + 2 + (legF.jx - hip.x - 2) * s, y = hip.y + (legF.jy - hip.y) * s;
+      p.fline(x - 2, y - 0.75, x + 0.5, y, K_RED[5]); p.fline(x - 1.5, y, x + 1.5, y + 0.75, K_RED[1]);
+    }
+    strokes(p, (legF.jx + legF.ex) / 2, (legF.jy + legF.ey - 2) / 2, 2.2, Math.max(1.5, Math.abs(legF.ey - 2 - legF.jy) / 2), K_FUR.slice(1, 7), 14, 61, -0.4, 1.2);
+    stitch(p, legF.ex - 1.5, legF.ey - 1.5, legF.ex + 4.5, legF.ey - 1.5, K_LEA[5], 0.75);
+    p.fline(legF.jx - 2, legF.jy + 1.5, legF.jx + 1.5, legF.jy + 1.5, BRZ[5]); p.dot(legF.jx - 1.5, legF.jy + 1.5, BRZ[6]);
+  }
 
   // --- 7. Fellkragen + Schulterpanzer
   const col = pt(KD.spine - 0.5, -0.5);
   ell(p, col.x - 0.5, col.y, 7.5, 3.6, K_FUR.slice(1, 7), { noise: 0.35, seed: 15 });
+  if (p.fine) strokes(p, col.x - 0.5, col.y, 7.2, 3.4, K_FUR.slice(1, 7), 60, 15, -0.8, 1.3);
   for (let i = -7; i <= 6; i += 1.4) {
     const x = col.x + i, y = col.y + 3 + (hash2(i * 2 | 0, 3, 23) * 2 | 0);
-    p.px(x, y, K_FUR[2]); p.px(x, y + 1, K_FUR[1]);
+    if (p.fine) { p.fline(x, y - 0.5, x - 0.5, y + 1.5, K_FUR[2], 1); p.fline(x + 0.5, y, x, y + 1.5, K_FUR[1]); p.dot(x, y - 0.5, K_FUR[4]); }
+    else { p.px(x, y, K_FUR[2]); p.px(x, y + 1, K_FUR[1]); }
   }
   const pauldron = () => {
     // drei Bronzeschienen übereinander
-    for (let i = 2; i >= 0; i--) ell(p, shF.x + i * 0.3, shF.y + i * 1.6, 4.2 - i * 0.4, 2.4, BRZ.slice(1, 7), { rot: 0.15 });
+    for (let i = 2; i >= 0; i--) {
+      ell(p, shF.x + i * 0.3, shF.y + i * 1.6, 4.2 - i * 0.4, 2.4, BRZ.slice(1, 7), { rot: 0.15 });
+      if (p.fine) {   // fein: Glanzlinie an der Oberkante jeder Schiene, dunkle Unterkante, Nieten
+        const ex = shF.x + i * 0.3, ey = shF.y + i * 1.6, rx = 4.2 - i * 0.4 - 0.3, ry = 2.1;
+        for (let a = 3.5; a <= 5.3; a += 0.1) p.dot(ex + Math.cos(a) * rx, ey + Math.sin(a + 0.15) * ry, a < 4.5 ? BRZ[6] : BRZ[5]);
+        for (let a = 0.4; a <= 2.7; a += 0.12) p.dot(ex + Math.cos(a) * (rx + 0.2), ey + Math.sin(a + 0.15) * (ry + 0.2), BRZ[1]);
+        p.dot(ex - rx * 0.6, ey + 0.5, BRZ[6]); p.dot(ex - rx * 0.6 + 0.5, ey + 1, BRZ[1]);
+      }
+    }
     p.px(shF.x - 2, shF.y - 1.5, BRZ[6]);
     for (let i = 0; i < 3; i++) p.px(shF.x + 2.5, shF.y + i * 1.6 + 0.5, K_LEA[1]);
+    if (p.fine) p.dot(shF.x - 2.5, shF.y - 1.5, '#fff8d8');
   };
   pauldron();
 
@@ -1293,6 +1835,19 @@ function drawKhar(p, g, P, X) {
     p.px(hx + 4 + sw - P.lean * j, hy + 5 + jaw + j * 0.8, j % 2 ? K_BEARD[2] : K_BEARD[5]);
   }
   p.px(hx + 1 - P.lean * 6, hy + 11 + jaw, BRZ[5]); p.px(hx + 4 - P.lean * 5, hy + 10 + jaw, BRZ[5]);
+  if (p.fine) {
+    // Bart in Strähnen (senkrecht gekämmt), Zöpfe als Flechtglieder, Perlen mit Glanzpunkt
+    strokes(p, hx + 2, hy + 3.5 + jaw, 3.4, 2.8, K_BEARD, 22, 37, 0.15, 1.4);
+    for (const [bx, sl, k] of [[1, 1, 0], [4, 0.8, 1]]) {
+      for (let j = 0; j < 6; j++) {
+        const sw = Math.sin(P.capeT + j * 0.5) * 0.4, x = p.snap(hx + bx + sw - P.lean * j), y = p.snap(hy + 5 + jaw + j * sl);
+        const o = j % 2;
+        p.dot(x, y, K_BEARD[o ? 3 : 5]); p.dot(x + 0.5, y, K_BEARD[o ? 5 : 2]); p.dot(x, y + 0.5, K_BEARD[1]); p.dot(x + 0.5, y + 0.5, K_BEARD[0]);
+      }
+      const x = p.snap(hx + bx - P.lean * (6 - k)), y = p.snap(hy + 11 - k + jaw);
+      p.dot(x, y, BRZ[6]); p.dot(x + 0.5, y + 0.5, BRZ[2]);
+    }
+  }
   // Gesicht
   p.rect(hx, hy - 1, 5, 4, K_SKIN[3]);
   p.px(hx + 4, hy + 1, K_SKIN[4]); p.px(hx + 5, hy, K_SKIN[3]); // Nase
@@ -1304,6 +1859,25 @@ function drawKhar(p, g, P, X) {
   const eyeOn = P.eye > 0.3;
   p.px(hx + 3, hy, eyeOn ? E[3] : K_SKIN[0]); p.px(hx + 1, hy, eyeOn ? E[2] : K_SKIN[0]);
   if (eyeOn) { g.px(hx + 3, hy, E[4]); g.px(hx + 4, hy, E[1]); g.px(hx + 1, hy, E[2]); g.px(hx + 3, hy - 1, E[0]); }
+  if (p.fine) {
+    // Handfein: schmale Glutaugen (heißer Kern, roter Saum) unter der Brauenkante, Farbband mit
+    // ausgefranster Unterkante, Ockerstreifen mit Lichtkante, Nasenrücken-Licht, Schnurrbart in Strähnen, Mundwinkel
+    for (const [x, c] of [[hx + 3, E[3]], [hx + 1, E[2]]]) {
+      p.dot(x, hy, '#140c0a'); p.dot(x + 0.5, hy, '#140c0a');                         // Brauenschatten (Lid)
+      if (eyeOn) {
+        p.dot(x, hy + 0.5, x > hx + 2 ? '#fff0b0' : E[4]); p.dot(x + 0.5, hy + 0.5, c);
+        g.dot(x, hy + 0.5, '#fff0b0'); g.dot(x + 0.5, hy + 0.5, E[3]);
+      } else { p.dot(x, hy + 0.5, K_SKIN[0]); p.dot(x + 0.5, hy + 0.5, K_SKIN[0]); }
+    }
+    p.fline(hx, hy - 1, hx + 4.5, hy - 0.5, '#2a1612');                                   // Brauenwulst
+    p.dot(hx + 0.5, hy + 1, '#140c0a'); p.dot(hx + 2.5, hy + 1, '#140c0a'); p.dot(hx + 4, hy + 1, '#140c0a');
+    p.fline(hx, hy + 1.5, hx + 4.5, hy + 1.5, OCHRE[3]);
+    p.dot(hx + 5, hy, K_SKIN[5]); p.dot(hx + 5.5, hy + 0.5, K_SKIN[1]); p.dot(hx + 5, hy + 0.5, K_SKIN[4]);
+    const my = hy + 2 + jaw * 0.5;
+    p.fline(hx + 1, my, hx + 4.5, my, K_BEARD[5]); p.fline(hx + 1, my + 0.5, hx + 4.5, my + 0.5, K_BEARD[2]);
+    p.dot(hx + 0.5, my + 0.5, K_BEARD[4]); p.dot(hx + 0.5, my + 1, K_BEARD[3]);
+    if (jaw) { p.fline(hx + 2.5, hy + 2 + jaw * 0.5 + 0.5, hx + 4, hy + 2 + jaw * 0.5 + 0.5, BONE[3]); p.dot(hx + 4.5, hy + 2 + jaw, '#2a0808'); }
+  }
   meta.eye = { x: hx + 3, y: hy };
   // Helm: Bronze-Spangenhelm (konisch) mit Nasal, Wangenklappe, Nackenschutz (Leder-Lamellen)
   poly(p, [[hx - 4, hy - 2], [hx + 5.5, hy - 2], [hx + 3, hy - 6], [hx + 0.5, hy - 10], [hx - 2, hy - 6]], (x, y) => {
@@ -1321,6 +1895,23 @@ function drawKhar(p, g, P, X) {
   // Dorn mit Ring
   p.line(hx + 0.5, hy - 10, hx + 0.5, hy - 12, BRZ[4]); p.px(hx + 0.5, hy - 12, BRZ[6]);
   p.px(hx - 0.5, hy - 11, BRZ[2]); p.px(hx + 1.5, hy - 11, BRZ[3]);
+  if (p.fine) {
+    // Spangenhelm: Spangen mit Glanzlinie, Nietenreihe am Stirnreif, Glanzpunkt auf der Kuppel, Gravur;
+    // Nasal und Wangenklappe mit Lichtkante und Nieten, Nackenschutz mit Schnürung, Dorn zweistufig
+    p.fline(hx + 0.5, hy - 9.5, hx - 2.5, hy - 3, BRZ[5]); p.fline(hx + 1, hy - 9.5, hx - 2, hy - 3, BRZ[3]);
+    p.fline(hx + 1, hy - 9.5, hx + 3.5, hy - 3, BRZ[4]); p.fline(hx + 1.5, hy - 9.5, hx + 4, hy - 3, BRZ[1]);
+    p.dot(hx - 0.5, hy - 7, '#fff8d8'); p.dot(hx, hy - 7.5, BRZ[6]);
+    p.fline(hx - 4, hy - 3, hx + 1, hy - 3, BRZ[6]);
+    for (let k = -3; k <= 5; k += 2) { p.dot(hx + k, hy - 2, BRZ[6]); p.dot(hx + k + 0.5, hy - 2, BRZ[4]); p.dot(hx + k, hy - 1.5, BRZ[3]); p.dot(hx + k + 0.5, hy - 1.5, BRZ[1]); }
+
+
+    p.fline(hx + 4, hy - 1, hx + 4, hy + 1.5, BRZ[5]); p.fline(hx + 4.5, hy - 0.5, hx + 4.5, hy + 1.5, BRZ[2]);
+    p.fline(hx - 1, hy - 1, hx - 1, hy + 3.5, BRZ[5]); p.fline(hx + 0.5, hy - 0.5, hx + 0.5, hy + 3.5, BRZ[1]);
+    p.dot(hx - 0.5, hy, BRZ[6]); p.dot(hx - 0.5, hy + 2.5, BRZ[6]); p.dot(hx, hy + 3, BRZ[1]);
+    for (let j = 0; j < 5; j++) p.dot(hx - 2.5, hy - 0.5 + j, K_LEA[0]);
+    for (let y = -12; y <= -10; y += 0.5) { p.dot(hx + 0.5, hy + y, BRZ[5]); p.dot(hx + 1, hy + y, BRZ[2]); }
+    p.dot(hx + 0.5, hy - 12, BRZ[6]); p.dot(hx - 0.5, hy - 11, BRZ[4]); p.dot(hx + 2, hy - 10.5, BRZ[1]);
+  }
   meta.head = { x: hx + 1, y: hy - 12 };
   meta.mouth = { x: hx + 4, y: hy + 2 };
 
@@ -1334,8 +1925,21 @@ function drawKhar(p, g, P, X) {
     // Ockerstreifen am Oberarm
     const mx = (shF.x + armF.jx) / 2, my = (shF.y + armF.jy) / 2;
     p.px(mx, my, OCHRE[3]); p.px(mx + 1, my + 1, OCHRE[2]);
+    if (p.fine) {
+      // Armschiene: Glanzlinie längs, Kante und Glanzpunkt; Ockerbänder als feine Striche; Muskelkante
+      const ux = armF.ex - bx, uy = armF.ey - by, L = Math.hypot(ux, uy) || 1, nx = -uy / L, ny = ux / L, sg = nx + ny > 0 ? -1 : 1;
+      p.fline(bx + nx * 1.4 * sg, by + ny * 1.4 * sg, armF.ex + nx * 1.4 * sg, armF.ey + ny * 1.4 * sg, BRZ[6]);
+      p.fline(bx - nx * 1.6 * sg, by - ny * 1.6 * sg, armF.ex - nx * 1.6 * sg, armF.ey - ny * 1.6 * sg, BRZ[1]);
+      p.fline(bx - nx * 2.2, by - ny * 2.2, bx + nx * 2.2, by + ny * 2.2, BRZ[5]);
+      p.fline(mx - 1, my - 0.5, mx + 1, my + 0.5, OCHRE[4]); p.fline(mx - 0.5, my + 1, mx + 1.5, my + 2, OCHRE[3]);
+      p.fline(shF.x - 1.5, shF.y + 2, armF.jx - 1.5, armF.jy, K_SKIN[5]);
+    }
   };
-  const fist = (x, y) => { ell(p, x, y, 1.9, 1.9, K_SKIN); p.px(x - 1, y - 1, K_SKIN[5]); };
+  const fist = (x, y) => {
+    ell(p, x, y, 1.9, 1.9, K_SKIN); p.px(x - 1, y - 1, K_SKIN[5]);
+    if (p.fine) { for (let k = -1; k <= 1; k += 1) p.dot(x + 1, y + k * 0.75, K_SKIN[1]); p.dot(x - 1, y - 1, '#e8b088'); }
+  };
+
   if (!axeBehind && P.held > 0.5) { smearAxe(); drawArm(); axeInfo = drawDoubleAxe(p, g, hF.x, hF.y, axeA, axeLS, P.fire); fist(hF.x, hF.y); if (P.grip > 0.5) fist(hB.x, hB.y); }
   else { drawArm(); fist(hF.x, hF.y); }
   meta.hand = hF;
