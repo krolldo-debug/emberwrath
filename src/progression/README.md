@@ -222,3 +222,14 @@ Alles sichtbar im Auftragsbrett, kein neues Fenster und kein neuer Knopf.
   Ohne Serverzeit keine Tagesbelohnung. Auch Auftragsbrett und Wochentruhe rechnen jetzt mit `serverNow()`.
 - Slice `daily { day, streak, rounds, winDay, week, challenge, cDone, cClaimed, cTotal }`, Commands `daily:login`, `daily:sync`,
   `daily:engage` (Boss/Prüfung beginnt), `daily:mark` (Trank/Tod), `daily:claimChallenge`. Gold je Woche auf Stufe 30 ≈ 13 Spielminuten (pacing.mjs).
+
+## Runde 11.10.: Aufgeräumtes Inventar
+
+- **Weniger Ballast:** Tränke und Essen stapeln bis 100 (Glutelixier 20). Beim Laden werden angebrochene Stapel einmal
+  zusammengelegt und die Tasche rückt lückenlos auf (`mergeStacks` in logic.js). Zufallsbeute (`pickEquipment`) enthält nur
+  noch Teile, die die eigene Klasse tragen kann; das Hauptattribut bleibt zu 75 % bevorzugt.
+- **Inventar:** Material ist ein eigener Reiter im selben Raster statt eines Bereichs unter der Tasche; Quest und Material
+  erscheinen nur, wenn es dort etwas gibt. „Weiße verkaufen“ sitzt in der Fußzeile zwischen Gold und Plätzen.
+  Handy quer: Tasche 9 × 4 ohne Scrollen, Größe aus Bildschirmhöhe und -breite, Figur 3× bzw. 4×.
+- **Seltenheit:** gezeichnete Pixelrahmen je Seltenheit (gfx/RarityFrame.js, border-image ganzzahlig) im ganzen Spiel,
+  Detailkarte mit Kopfband in Seltenheitsfarbe, Beute am Boden mit farbiger Kante und gestufter Lichtsäule (gfx/Icons.js drawLoot).

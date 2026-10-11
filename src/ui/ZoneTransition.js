@@ -59,7 +59,14 @@ export class ZoneTransition {
 
   update(dt) {
     this.t += dt;
-    if (this.t >= this.hideAt) { this.el.classList.remove('show'); this.hideAt = Infinity; }
+    if (this.t >= this.hideAt) { this.el.classList.remove('show'); this.hideAt = Infinity; this.fading = this.t + 0.8; }
+    // Öffnet der Spieler ein Fenster, während die Ansage noch steht oder ausblendet: sofort weg, sonst scheint sie
+    // halbdurchsichtig über dem Fenster durch. (Die Abdeckung beim Zonenwechsel selbst bleibt.)
+    if (this.s.panels?.openId && (Number.isFinite(this.hideAt) || this.t < (this.fading ?? 0))) {
+      this.el.classList.add('instant');
+      this.el.classList.remove('show');
+      this.hideAt = Infinity; this.fading = 0;
+    }
   }
 
   dispose() { this.el.remove(); }

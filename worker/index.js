@@ -128,9 +128,10 @@ function canonicalRedirect(request, url, env) {
 // Seiten aus run_worker_first gehen durch env.ASSETS.fetch. Fehlen dort die Header aus dist/site/_headers (C1),
 // setzt der Worker die gleichen Sicherheits-Header. Die Website hat keine Inline-Skripte mehr (tools/build.mjs prüft
 // das), also script-src nur 'self' wie in _headers. Sind sie schon da, bleibt die Antwort unverändert.
-// Das Spiel (/spielen/spiel.<hash>.js, Name ändert sich mit dem Inhalt) darf ein Jahr im Browser bleiben, auch
+// Das Spiel (/spielen/spiel.<hash>.js) und seine Wörterbücher (sprache-xx.<hash>.js), Name ändert sich mit dem
+// Inhalt, dürfen ein Jahr im Browser bleiben, auch
 // falls die _headers-Regel auf diesem Weg nicht greift.
-const GAME_FILE_RE = /^\/spielen\/spiel\.[0-9a-f]+\.js$/;
+const GAME_FILE_RE = /^\/spielen\/(spiel|sprache-[a-z]{2})\.[0-9a-f]+\.js$/;
 async function assetWithHeaders(request, env) {
   const res = await env.ASSETS.fetch(request);
   if (GAME_FILE_RE.test(new URL(request.url).pathname)) {

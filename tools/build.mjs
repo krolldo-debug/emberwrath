@@ -8,6 +8,7 @@ import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { buildSite } from '../site/build-site.mjs';
 import { pageHeaders } from '../worker/headers.js';
+import { LANGS, LANG_KEY } from '../src/i18n/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modules = new Map();
@@ -48,11 +49,25 @@ if (!commit) { try { commit = execSync('git rev-parse HEAD', { cwd: root, stdio:
 const pkgVersion = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
 const build = { version: pkgVersion, commit: commit ? commit.slice(0, 7) : 'dev', builtAt: new Date().toISOString() };
 
-let bundle = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
-bundle += 'const __defs = {}, __cache = {};\n';
-bundle += 'function __require(id) { if (!(id in __cache)) __cache[id] = __defs[id](); return __cache[id]; }\n';
-for (const m of modules.values()) bundle += `__defs[${JSON.stringify(m.id)}] = function () {\n${m.code}\n};\n`;
-bundle += `__require(${JSON.stringify(relative(root, entry))});\n`;
+let defs = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
+defs += 'const __defs = {}, __cache = {};\n';
+defs += 'function __require(id) { if (!(id in __cache)) __cache[id] = __defs[id](); return __cache[id]; }\n';
+for (const m of modules.values()) defs += `__defs[${JSON.stringify(m.id)}] = function () {\n${m.code}\n};\n`;
+const start = `__require(${JSON.stringify(relative(root, entry))});\n`;
+
+// Wörterbücher (src/i18n/xx.js, Schlüssel = deutscher Text) gehören nicht ins Spiel-Skript: Deutsch braucht keins,
+// jede andere Sprache lädt nur ihres (src/i18n/index.js). Fehlt in es/fr ein Text, kommt die englische Fassung
+// mit in deren Datei. Die einzelne HTML-Datei (dist/emberfall.html) enthält alle, sie läuft ohne Server.
+const readDict = (id) => {
+  const src = readFileSync(resolve(root, `src/i18n/${id}.js`), 'utf8');
+  return JSON.parse(src.slice(src.indexOf('{', src.indexOf('export const ')), src.lastIndexOf('}') + 1));
+};
+const dicts = {};
+for (const { id } of LANGS) if (id !== 'de') dicts[id] = readDict(id);
+for (const id of Object.keys(dicts)) if (id !== 'en') dicts[id] = { ...Object.fromEntries(Object.entries(dicts.en).filter(([k]) => !dicts[id][k])), ...dicts[id] };
+const dictScript = (id) => `(globalThis.EMBERWRATH_DICTS ??= {})[${JSON.stringify(id)}] = ${JSON.stringify(dicts[id])};\n`;
+
+const bundle = `${defs}globalThis.EMBERWRATH_DICTS = ${JSON.stringify(dicts)};\n${start}`;
 
 const html = readFileSync(resolve(root, 'index.html'), 'utf8');
 // Das Spiel als ein Skript: in dist/emberfall.html eingebettet, auf der Website als eigene Datei (unten).
@@ -82,8 +97,31 @@ mkdirSync(resolve(site, 'spielen'), { recursive: true });
 // Browser-Speicher): Der Browser bereitet sie schon beim Herunterladen vor, Wiederkehrer laden sie nur nach einem
 // neuen Stand, und die Startseite kann sie vorab laden. Messung 10.10.: Titel am Handy 0,6–0,9 s früher.
 for (const f of readdirSync(resolve(site, 'spielen'))) if (/^spiel\.[0-9a-f]+\.js$/.test(f)) rmSync(resolve(site, 'spielen', f));
-const gameFile = `spiel.${createHash('sha256').update(gameScript, 'utf8').digest('hex').slice(0, 12)}.js`;
-writeFileSync(resolve(site, 'spielen', gameFile), gameScript);
+// Wörterbücher als eigene Dateien (sprache-xx.<hash>.js). Das Spiel-Skript bestimmt die Sprache wie
+// src/i18n/detect.js, lädt bei Bedarf zuerst das Wörterbuch und startet danach, damit nichts deutsch aufblitzt.
+for (const f of readdirSync(resolve(site, 'spielen'))) if (/^sprache-[a-z]{2}\.[0-9a-f]+\.js$/.test(f)) rmSync(resolve(site, 'spielen', f));
+const hash = (text) => createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 12);
+const dictFiles = {};
+for (const id of Object.keys(dicts)) {
+  const text = dictScript(id);
+  dictFiles[id] = `sprache-${id}.${hash(text)}.js`;
+  writeFileSync(resolve(site, 'spielen', dictFiles[id]), text);
+}
+const detect = readFileSync(resolve(root, 'src/i18n/detect.js'), 'utf8').replace(/^export\s+/m, '');
+const siteScript = `\n(() => {\n${defs}${detect}
+const __files = globalThis.EMBERWRATH_I18N_FILES = ${JSON.stringify(dictFiles)};
+const __base = globalThis.EMBERWRATH_I18N_BASE = document.currentScript?.src ?? location.href;
+const __lang = detectLang(${JSON.stringify(LANGS.map((l) => l.id))}, ${JSON.stringify(LANG_KEY)});
+const __start = () => { ${start.trim()} };
+if (__files[__lang] && !globalThis.EMBERWRATH_DICTS?.[__lang]) {
+  const s = document.createElement('script');
+  s.src = new URL(__files[__lang], __base).href;
+  s.onload = s.onerror = __start;
+  document.head.append(s);
+} else __start();
+})();\n`;
+const gameFile = `spiel.${hash(siteScript)}.js`;
+writeFileSync(resolve(site, 'spielen', gameFile), siteScript);
 const siteGame = html
   .replace(/(\s*<link rel="stylesheet" href="[^"]+">)+/, () => `\n  <style>\n${css}</style>`)
   .replace(/<script type="module" src="src\/main.js"><\/script>/, () => `<script src="${gameFile}"></script>`);
@@ -107,7 +145,8 @@ for (const f of ['index.html', 'en/index.html']) {
   const p = resolve(site, f);
   let page;
   try { page = readFileSync(p, 'utf8'); } catch { continue; }
-  writeFileSync(p, page.replace('</head>', `  <link rel="prefetch" href="/spielen/${gameFile}" as="script">\n</head>`));
+  const dict = f.startsWith('en/') ? `  <link rel="prefetch" href="/spielen/${dictFiles.en}" as="script">\n` : '';
+  writeFileSync(p, page.replace('</head>', `  <link rel="prefetch" href="/spielen/${gameFile}" as="script">\n${dict}</head>`));
 }
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
 // dazu übliche Sicherheits-Header (worker/headers.js). Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
@@ -142,8 +181,11 @@ writeFileSync(resolve(site, '_headers'), [
   '  Cache-Control: public, max-age=86400',
   '/spielen/spiel.*',
   '  Cache-Control: public, max-age=31536000, immutable',
+  '/spielen/sprache-*',
+  '  Cache-Control: public, max-age=31536000, immutable',
   '',
 ].join('\n'));
 writeFileSync(resolve(site, 'version.json'), JSON.stringify(build) + '\n');
 console.log(`dist/emberfall.html geschrieben (${modules.size} Module, ${(out.length / 1024).toFixed(1)} KB)`);
+console.log(`dist/site/spielen: ${gameFile} ${(siteScript.length / 1024).toFixed(1)} KB, Wörterbücher ${Object.entries(dictFiles).map(([id, f]) => `${id} ${(dictScript(id).length / 1024).toFixed(0)} KB`).join(', ')}`);
 console.log(`dist/site: Startseite (${landing.pages} Seiten, Bilder ${landing.imagesKB} KB), Spiel unter /spielen/`);

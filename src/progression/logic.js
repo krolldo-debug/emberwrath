@@ -303,6 +303,27 @@ function migrateEquipment(raw, slots) {
   return eq;
 }
 
+// Angebrochene Stapel derselben Sache zusammenlegen (Tränke stapeln seit 11.10. bis 100 statt 20).
+// Der Rest bleibt am Platz des ersten Stapels; wurde etwas frei, rückt die Tasche einmal lückenlos auf.
+function mergeStacks(slots) {
+  const first = new Map();
+  let freed = false;
+  slots.forEach((sl, i) => {
+    if (!sl) return;
+    const max = stackSize(ITEMS[sl.itemId]);
+    if (max <= 1) return;
+    const j = first.get(sl.itemId);
+    if (j == null || slots[j].qty >= max) { first.set(sl.itemId, i); return; }
+    const k = Math.min(sl.qty, max - slots[j].qty);
+    slots[j].qty += k; sl.qty -= k;
+    if (sl.qty <= 0) { slots[i] = null; freed = true; } else first.set(sl.itemId, i);
+  });
+  if (!freed) return;
+  const kept = slots.filter(Boolean);
+  slots.fill(null);
+  kept.forEach((sl, i) => { slots[i] = sl; });
+}
+
 // --- Registrierung
 export function registerProgressionState(state, { rng = Math.random } = {}) {
   const emptyStats = () => ({ kills: 0, bossKills: 0, eliteKills: 0, questsCompleted: 0, goldEarned: 0, itemsLooted: 0, crafted: 0, epicFound: 0, legendaryFound: 0, byType: {} });
@@ -336,6 +357,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
         if (sl && known(sl.itemId) && sl.qty > 0) slots[i] = { itemId: sl.itemId, qty: Math.min(sl.qty | 0, stackSize(ITEMS[sl.itemId])), ...(sl.n ? { n: true } : {}) };
         i++;
       }
+      mergeStacks(slots);
       const upgrades = {}, enchants = {};
       for (const k of EQUIP_SLOTS) {
         const u = raw.upgrades?.[k] | 0;

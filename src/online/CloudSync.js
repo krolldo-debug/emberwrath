@@ -9,6 +9,7 @@
 //  - entfernt lokal, was auf einem anderen Gerät gelöscht wurde.
 // Warteschlange und Stand je Konto: localStorage 'emberwrath:online:sync:<Nutzer-ID>' (nicht in Sicherungsdateien).
 import { stashSnapshot } from '../account/backups.js';
+import { checkVersion } from '../core/Version.js';
 
 export const ONLINE_ACCOUNT_PREFIX = 'sb_';
 export const accountIdFor = (userId) => `${ONLINE_ACCOUNT_PREFIX}${userId}`;
@@ -34,9 +35,11 @@ export class CloudSync {
     this.lastSyncAt = 0;
     this.#timer = 0;
     this.#running = null;
+    this.#lock = null;
+    this.#full = null;
   }
 
-  #timer; #running;
+  #timer; #running; #lock; #full;
 
   get accountId() { return this.userId ? accountIdFor(this.userId) : null; }
 
@@ -93,6 +96,7 @@ export class CloudSync {
   // Ausstehende Uploads und Löschungen senden.
   async flush() {
     if (!this.userId) return;
+    if (this.#lock) return this.#lock.then(() => this.flush());
     if (this.#running) return this.#running.then(() => this.flush());
     this.#running = this.#flush().finally(() => { this.#running = null; });
     return this.#running;
@@ -101,6 +105,8 @@ export class CloudSync {
   async #flush() {
     const todo = this.#state();
     if (!todo.dirty.length && !todo.deleted.length) return;
+    // Veralteter Code lädt nichts hoch (kennt neue Teile des Spielstands nicht); nach dem Neuladen geht es weiter
+    if (await checkVersion()) return;
     const acc = this.accountId;
     const doneDeletes = new Set(), uploaded = new Map(), adopted = new Set(), rejected = new Set();
     this.#set('syncing');
@@ -158,6 +164,31 @@ export class CloudSync {
     }
   }
 
+  // Für Buchungen, die der Server selbst im Cloud-Stand vornimmt (Auktionshaus, src/market): erst alles Ausstehende
+  // hochladen, dann fn ausführen; solange lädt CloudSync nichts hoch und gleicht nichts ab. Danach meldet der Aufrufer
+  // mit acknowledge() den neuen Cloud-Zeitstempel, sonst hielte der nächste Upload die Buchung für ein anderes Gerät.
+  async exclusive(fn) {
+    while (this.#lock || this.#full) await (this.#lock ?? this.#full.catch(() => {}));
+    let release;
+    this.#lock = new Promise((r) => { release = r; });
+    try {
+      if (this.#running) await this.#running.catch(() => {});
+      if (this.userId) await this.#flush();
+      return await fn();
+    } finally {
+      this.#lock = null;
+      release();
+    }
+  }
+  acknowledge(characterId, savedAtMs) {
+    if (!this.userId || !Number.isFinite(savedAtMs)) return;
+    const s = this.#state();
+    s.synced[characterId] = savedAtMs;
+    delete s.sent[characterId];
+    this.#setState(s);
+  }
+  isPending(characterId) { const s = this.#state(); return s.dirty.includes(characterId); }
+
   // Wurde der Cloud-Stand seit unserem letzten Abgleich von jemand anderem geschrieben?
   // Vergleich nur mit Zeitstempeln, die selbst aus der Cloud stammen bzw. von uns gesendet wurden (keine Geräteuhren).
   #changedElsewhere(s, id, cloudAt) {
@@ -210,6 +241,15 @@ export class CloudSync {
   // Vollständiger Abgleich in beide Richtungen.
   async syncAll() {
     if (!this.userId) return;
+    while (this.#lock) await this.#lock;
+    const run = this.#syncAll();
+    this.#full = run;
+    const done = () => { if (this.#full === run) this.#full = null; };
+    run.then(done, done);
+    return run;
+  }
+
+  async #syncAll() {
     const acc = this.accountId;
     this.#set('syncing');
     try {

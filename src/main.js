@@ -11,7 +11,9 @@ import { installOnline } from './online/index.js';
 import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installShop } from './shop/index.js';
+import { installMarket } from './market/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
+import { installVersionCheck } from './core/Version.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
@@ -27,7 +29,8 @@ game
   .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
-  .use(installShop);       // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
+  .use(installShop)        // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
+  .use(installMarket);     // Auktionshaus in jeder Stadt (src/market, Buchungen nur in der Datenbank)
 game.scenes.register('play', (g) => new PlayScene(g));
 // Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.
 // (Der Server prüft Spielstände zusätzlich, siehe supabase/migrations/20261003130000_spielstand_pruefung.sql.)
@@ -37,5 +40,6 @@ else game.bus.on(EV.ONLINE_CHANGED, ({ user }) => {
   if (user && !window.emberfall) game.online?.isAdmin().then((ok) => { if (ok) window.emberfall = game; });
 });
 installRotateGate(game); // Handy/Tablet: nur Querformat
+installVersionCheck(game); // Alter Tab nach einem Release: nicht mehr hochladen, einmal neu laden (src/core/Version.js)
 game.start('title');
 document.getElementById('boot')?.remove();

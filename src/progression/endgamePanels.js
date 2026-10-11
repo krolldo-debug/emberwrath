@@ -8,6 +8,7 @@ import { BANK_SIZES, BANK_COSTS } from './endgame.js';
 import { countItem } from './selectors.js';
 import { boardView } from './boardPanel.js';
 import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, barEl, attachTip, reactive, tapper, setInfoEl } from './widgets.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Endgame-Panels von Thread C:
 //   bank          Lagerkiste (object:interact kind 'bank', Rückfall: Knopf bei Maren/Dunn)
@@ -64,7 +65,7 @@ function bankView(s) {
           h('section', h('h3', `Kiste (${bank.slots.filter(Boolean).length}/${bank.size})`), h('div.pg-bag.small', grid('bank', bank.slots)),
             h('div.pg-actions',
               actionBtn('Sortieren', () => act('bank:sort', {}), { small: true }),
-              cost != null ? actionBtn(`Erweitern (+8) – ${cost.toLocaleString('de-DE')} Gold`, () => act('bank:expand', {}), { small: true, disabled: st.slices.wallet.gold < cost }) : h('span.ef-note', 'Größte Kiste'))),
+              cost != null ? actionBtn(`Erweitern (+8) – ${fmtNum(cost)} Gold`, () => act('bank:expand', {}), { small: true, disabled: st.slices.wallet.gold < cost }) : h('span.ef-note', 'Größte Kiste'))),
           // Materialien liegen im Materialbeutel (ohne Größe); alte Materialien in der Kiste lassen sich weiter entnehmen.
           h('section', h('h3', 'Tasche'), h('div.pg-bag.small', grid('bag', inv.slots)))),
         selIt ? h('div.pg-sheet.open',
@@ -94,7 +95,7 @@ function smithView(s, { vendorId } = {}) {
           h('div.pg-recipe-body',
             h('b', `${EQUIP_SLOT_NAMES[k]} +${lvl}`, def ? h(`span.ef-note.r-${def.rarity}`, ` · ${def.name}`) : h('span.ef-note', ' · leer')),
             h('small.ef-note', bonus ? `Bonus: ${bonus}` : 'Noch kein Bonus'),
-            cost ? h('div.pg-mats', matChips(s, cost.mats), h(`span.pg-mat${gold >= cost.gold ? '.ok' : ''}`, iconEl('gold', 16), cost.gold.toLocaleString('de-DE')),
+            cost ? h('div.pg-mats', matChips(s, cost.mats), h(`span.pg-mat${gold >= cost.gold ? '.ok' : ''}`, iconEl('gold', 16), fmtNum(cost.gold)),
               level < cost.reqLevel ? h('span.pg-mat', `ab Stufe ${cost.reqLevel}`) : null) : h('small', 'Höchststufe')),
           cost ? actionBtn(`+${lvl + 1}`, () => act('smith:upgrade', { slot: k }, `${EQUIP_SLOT_NAMES[k]} auf +${lvl + 1} verstärkt.`), { small: true, primary: can, disabled: !can }) : null);
       }));
@@ -110,7 +111,7 @@ function smithView(s, { vendorId } = {}) {
           return h(`li.pg-recipe${can ? '.can' : ''}${cur === id ? '.selected' : ''}${level < e.level ? '.locked' : ''}`,
             h('span.pg-mini.big', iconEl('essence_shadow', 24)),
             h('div.pg-recipe-body', h('b', e.name, cur === id ? h('span.pg-tag.main', 'aktiv') : null), h('small', statsText(e.stats)),
-              h('div.pg-mats', matChips(s, e.mats), h(`span.pg-mat${gold >= e.gold ? '.ok' : ''}`, iconEl('gold', 16), e.gold.toLocaleString('de-DE')),
+              h('div.pg-mats', matChips(s, e.mats), h(`span.pg-mat${gold >= e.gold ? '.ok' : ''}`, iconEl('gold', 16), fmtNum(e.gold)),
                 level < e.level ? h('span.pg-mat', `ab Stufe ${e.level}`) : null)),
             actionBtn('Verzaubern', () => act('smith:enchant', { slot, enchantId: id }, `${EQUIP_SLOT_NAMES[slot]}: ${e.name}.`), { small: true, primary: can, disabled: !can }));
         })));
@@ -137,7 +138,7 @@ function trialsView(s) {
     const spec = trialSpec(tier, 1, lvl, st.slices.quests.completed), ch = trialChances(tier), rw = trialRewards(tier, { rng: () => 0.99, firstClear: !tr.cleared[tier], level: lvl });
     const run = tr.run;
     const last = run && (run.phase === 'done' || run.phase === 'failed') ? run : tr.last ?? null;
-    const pct = (v) => `${(Math.round(v * 1000) / 10).toLocaleString('de-DE')}\u00a0%`;  // Zahl und % nie getrennt
+    const pct = (v) => `${fmtNum(Math.round(v * 1000) / 10)}\u00a0%`;  // Zahl und % nie getrennt
     return panelFrame(s, 'trials', 'Glutprüfungen',
       h('div.pg-scroll.pg-keep-scroll.pg-trials',
         h('p.pg-dialog-text', '„In der Esse unter dem Berg glimmt noch Ignaroths Wille. Wer ihn bezwingt, wird stärker – und die Glut antwortet mit jeder Stufe härter.“'),
@@ -155,7 +156,7 @@ function trialsView(s) {
           h('div.pg-kv', h('dt', 'Gegner'), h('dd', `Stufe ${spec.level ?? lvl} · Leben ×${spec.hpMult} · Schaden ×${spec.dmgMult}`)),
           h('div.pg-kv', h('dt', 'Ablauf'), h('dd', `${spec.target} Punkte (Elite 4), dann ein Boss · ${spec.timeLimit / 60}\u00a0min`)),
           h('div.pg-kv', h('dt', 'Affixe'), h('dd', tier >= 8 ? '2 zufällige' : tier >= 3 ? '1 zufälliges' : 'keine')),
-          h('div.pg-kv', h('dt', 'Belohnung'), h('dd', `${rw.gold.toLocaleString('de-DE')} Gold · ${rw.shards} Glutsplitter · ${tier >= 5 ? "2 Teile" : "1 Teil"} Stufe ${rw.level ?? lvl}`)),
+          h('div.pg-kv', h('dt', 'Belohnung'), h('dd', `${fmtNum(rw.gold)} Gold · ${rw.shards} Glutsplitter · ${tier >= 5 ? "2 Teile" : "1 Teil"} Stufe ${rw.level ?? lvl}`)),
           h('div.pg-kv', h('dt', 'Chancen je Teil'), h('dd', h('span.r-epic.pg-nowrap', `Episch ${pct(ch.epic)}`), ' · ', h('span.r-legendary.pg-nowrap', `Legendär ${pct(ch.legendary)}`)))),
         h('p.ef-note', `Mögliche Affixe: ${Object.values(TRIAL_AFFIXES).join(' · ')}.`),
         h('p.ef-note', `Beste Stufe: ${tr.best} · Versuche bestanden: ${tr.runs}. Glutsplitter tauschst du in der Schmiede gegen Wächter-Ausrüstung.`)),

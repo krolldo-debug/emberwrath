@@ -4,6 +4,7 @@ import { iconEl } from '../gfx/Icons.js';
 import { panelFrame, goldEl } from '../progression/widgets.js';
 import { resolveGear } from '../character/gearLook.js';
 import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE } from './catalog.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
 //
@@ -134,7 +135,7 @@ export function installShop(game) {
       const r = await fetch('/net/shop/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game', lang: document.documentElement.lang?.startsWith('en') ? 'en' : 'de' }),
+        body: JSON.stringify({ productId, characterId: state.meta.characterId, waiver: true, from: 'game', lang: document.documentElement.lang === 'de' ? 'de' : 'en' }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) throw new Error(CHECKOUT_ERRORS[d.error] ?? 'Die Bezahlseite ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.');
@@ -205,11 +206,11 @@ export function installShop(game) {
           if (back.length) await rpc('shop_confirm_revokes', { p_ids: back.map((o) => o.id) }).catch(() => {});
         }
         if (gold) {
-          game.bus.emit(EV.UI_TOAST, { text: `${gold.toLocaleString('de-DE')} Gold gutgeschrieben. Danke für deine Unterstützung!`, kind: 'loot', icon: 'gold' });
+          game.bus.emit(EV.UI_TOAST, { text: `${fmtNum(gold)} Gold gutgeschrieben. Danke für deine Unterstützung!`, kind: 'loot', icon: 'gold' });
           shop.returned = null;
         }
         if (taken) {
-          game.bus.emit(EV.UI_TOAST, { text: `Eine Zahlung wurde erstattet oder zurückgebucht. ${taken.toLocaleString('de-DE')} Gold wurden wieder abgezogen.`, kind: 'warn', icon: 'gold' });
+          game.bus.emit(EV.UI_TOAST, { text: `Eine Zahlung wurde erstattet oder zurückgebucht. ${fmtNum(taken)} Gold wurden wieder abgezogen.`, kind: 'warn', icon: 'gold' });
         }
         return gold - taken;
       })().catch(() => 0).finally(() => { claiming = null; });
@@ -304,9 +305,9 @@ function shopPanel(session, game, shop) {
     const cards = products.map((p) => h(`div.sh-pack${p.tag ? '.tagged' : ''}`,
       p.tag ? h('span.sh-tag', p.tag) : null,
       h('div.sh-coins', iconEl('gold', 40)),
-      h('div.sh-amount', p.total.toLocaleString()),
+      h('div.sh-amount', fmtNum(p.total)),
       h('div.sh-unit', 'Gold'),
-      p.bonus ? h('div.sh-bonus', `inkl. ${p.bonus.toLocaleString()} Bonus`) : h('div.sh-bonus.none', ' '),
+      p.bonus ? h('div.sh-bonus', `inkl. ${fmtNum(p.bonus)} Bonus`) : h('div.sh-bonus.none', ' '),
       buyButton(p.id, `Kaufen · ${formatPrice(p.priceCents)}`),
     ));
 

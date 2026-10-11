@@ -2,6 +2,7 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { CONFIG } from '../config.js';
 import { iconUrl, rarityRgb } from '../gfx/Icons.js';
+import { installRarityFrames } from '../gfx/RarityFrame.js';
 import { fmtNum } from '../i18n/index.js';
 
 // Belohnungs-Ebene im HUD (Belohnungsrunde 10.10., Thread D):
@@ -78,6 +79,7 @@ export class Rewards {
       if (!d) return;
       this.#flyItem(d);
       // Legendäre Beute bekommt einen eigenen Moment (Banner-Warteschlange im Hud, nach dem Stufenaufstieg)
+      if (d.rarity === 'legendary') installRarityFrames();
       if (d.rarity === 'legendary') bus.emit(EV.UI_BANNER, { title: d.name, sub: 'Legendäre Beute', color: '#ff9a2a', kind: 'legendary' });
     });
   }
@@ -169,7 +171,8 @@ export class Rewards {
       const delay = i * stagger;
       last = delay + dur;
       const img = h('img.rw-fly-item', { src, alt: '', width: size, height: size, draggable: 'false' });
-      if (glow) img.style.filter = `drop-shadow(0 0 4px rgb(${glow.join(',')})) drop-shadow(0 0 1px #000)`;
+      // Seltenes fliegt mit harter 1-px-Kante in Seltenheitsfarbe (kein weicher Schein)
+      if (glow) { const c = `rgb(${glow.join(',')})`; img.style.filter = `drop-shadow(1px 0 0 ${c}) drop-shadow(-1px 0 0 ${c}) drop-shadow(0 1px 0 ${c}) drop-shadow(0 -1px 0 ${c})`; }
       img.style.left = `${from.x - size / 2}px`;
       img.style.top = `${from.y - size / 2}px`;
       this.layer.append(img);

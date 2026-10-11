@@ -171,7 +171,7 @@ section { position: relative; }
 
 /* ---------- Bosse: Bosskino */
 .bosses { padding: clamp(80px, 9vw, 130px) 0 clamp(50px, 6vw, 90px); overflow: hidden;
-  background: radial-gradient(ellipse 45% 34% at 50% 68%, rgba(160, 50, 14, 0.3), transparent 70%), linear-gradient(180deg, #07030a, #10070a); }
+  background: radial-gradient(ellipse 45% 34% at 50% 68%, rgba(160, 50, 14, 0.3), transparent 70%), linear-gradient(180deg, #10070a, #07030a 60%, #0a0510); }
 /* Bosskino: eine breite Bühne (site/bosskino.js zeichnet ganzzahlig in Gerätepixeln), darunter die Auswahl */
 .kino { position: relative; max-width: 2240px; margin: clamp(26px, 3vw, 44px) auto 0; }
 .kino-buehne { position: relative; overflow: hidden; height: clamp(300px, 38.6vw, 864px); background: #05020a;
@@ -197,7 +197,7 @@ section { position: relative; }
 
 /* ---------- Reiten: Parade über echten Steppenboden (tools/reittiere-gang.mjs, tools/parade-boden.mjs), gezeichnet von site.js */
 .ride { padding: clamp(80px, 9vw, 130px) 0 clamp(40px, 5vw, 70px); overflow: hidden;
-  background: radial-gradient(ellipse 60% 40% at 50% 45%, rgba(255, 120, 40, 0.10), transparent 70%), linear-gradient(180deg, #10070a, #0a0510 70%); }
+  background: radial-gradient(ellipse 60% 40% at 50% 45%, rgba(255, 120, 40, 0.10), transparent 70%), linear-gradient(180deg, #0a0510, #10070a 70%); }
 .ride-text { text-align: center; }
 .ride-text .sec-line { margin-left: auto; margin-right: auto; }
 .parade { position: relative; margin-top: clamp(8px, 1.5vw, 20px); }

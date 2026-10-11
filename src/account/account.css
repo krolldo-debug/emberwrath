@@ -7,6 +7,7 @@
 /* ---------------------------------------------------------------- Titel */
 .acc-title { place-items: center start; padding-left: clamp(16px, 7vw, 120px); }
 .acc-title-inner { display: flex; flex-direction: column; gap: 14px; width: min(420px, 100%); }
+.acc-title-back { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); z-index: 1; }
 .acc-logo { text-align: left; }
 .acc-logo .ef-title { margin: 0; font-size: clamp(38px, 7vw, 76px); letter-spacing: 0.14em; }
 .acc-tagline { margin: 2px 0 0; color: var(--ef-gold); font-family: var(--ef-font-title); font-style: italic; opacity: 0.85; letter-spacing: 0.05em; }
@@ -174,6 +175,10 @@
 /* Handy quer: wenig Höhe -> kompakter Kopf, kleinere Bühne */
 @media (max-height: 500px) and (orientation: landscape) {
   .acc-title-inner { gap: 8px; }
+  /* Zurück-Pfeil nur als Symbol links neben dem Menü, damit der Titel nicht höher wird */
+  .acc-screen.acc-title { padding-left: 64px; }
+  .acc-title-back .acc-back.acc-back-text { width: 40px; padding: 0; justify-content: center; }
+  .acc-title-back .acc-back-label { display: none; }
   .acc-logo .ef-title { font-size: 34px; }
   .acc-footer, .acc-tagline { display: none; }
   .acc-big { padding: 6px 14px; }

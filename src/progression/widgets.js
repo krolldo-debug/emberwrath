@@ -4,6 +4,7 @@ import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { SETS } from './sets.js';
 import { RARITIES, ITEMS, EQUIP_SLOTS, EQUIP_SLOT_NAMES, STAT_ORDER, STAT_NAMES, formatStat, formatStatDelta, equipSlotFor, canUseClass, typeLabel, itemScore } from './items.js';
 import { RARE_ENEMIES } from './rares.js';
+import { fmtNum } from '../i18n/index.js';
 
 // Bausteine für die HTML-Panels von Thread C (Inventar, Charakter, Quests, Händler, Schmiede).
 // Nur Darstellung: Aktionen laufen als Commands über den Aufrufer.
@@ -18,7 +19,7 @@ export function panelFrame(session, id, title, ...body) {
 }
 
 export function goldEl(amount, cls = '') {
-  return h(`span.pg-gold${cls}`, iconEl('gold', 18), h('b', Number(amount).toLocaleString('de-DE')));
+  return h(`span.pg-gold${cls}`, iconEl('gold', 18), h('b', fmtNum(Number(amount))));
 }
 
 // Ein Slot-Knopf mit Icon (Seltenheitsrahmen von D), Stapelzahl und Markierungen.
@@ -64,7 +65,7 @@ export function itemDetail(content, itemId, { equipment = {}, level = 99, classI
   const stats = keys.map((k) => {
     const v = def.stats?.[k] ?? 0, d = v - (worn?.stats?.[k] ?? 0);
     const diff = worn && Math.abs(d) > 1e-6 ? h(`span.pg-diff${d > 0 ? '.up' : '.down'}`, formatStatDelta(k, d)) : null;
-    return h(`li${v ? '' : '.pg-lost'}`, h('span', v ? formatStat(k, v) : `±0 ${STAT_NAMES[k]}`), diff);
+    return h(`li${v ? '' : '.pg-lost'}`, h('span', v ? formatStat(k, v) : STAT_NAMES[k]), diff);
   });
   const lvlBad = (def.reqLevel ?? 1) > level;
   const clsBad = !canUseClass(def, classId);
@@ -96,10 +97,10 @@ export function itemDetail(content, itemId, { equipment = {}, level = 99, classI
   );
 }
 
-// Gesamturteil des Vergleichs (grobe Stärke, itemScore)
+// Gesamturteil des Vergleichs (grobe Stärke, itemScore), eigene Zeile unter „Verglichen mit …“
 function verdictEl(d) {
-  if (Math.abs(d) < 0.5) return h('span.pg-verdict', ' · gleichwertig');
-  return h(`span.pg-verdict${d > 0 ? '.up' : '.down'}`, d > 0 ? ' · ▲ insgesamt stärker' : ' · ▼ insgesamt schwächer');
+  if (Math.abs(d) < 0.5) return h('span.pg-verdict', 'gleichwertig');
+  return h(`span.pg-verdict${d > 0 ? '.up' : '.down'}`, d > 0 ? '▲ insgesamt stärker' : '▼ insgesamt schwächer');
 }
 
 // Set-Anzeige: Name, Teile (angelegt hell) und Boni (aktive grün)

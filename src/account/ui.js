@@ -2,6 +2,7 @@ import { h } from '../core/dom.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { resolveGear } from '../character/gearLook.js';
 import { spriteStyle } from '../character/cosmetics.js';
+import { lang, fmtDate } from '../i18n/index.js';
 
 // Gemeinsame Bausteine der Menü-Bildschirme (Thread A).
 
@@ -26,7 +27,7 @@ export function formatAgo(ts) {
 }
 
 export function formatDate(ts) {
-  try { return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; }
+  try { return fmtDate(ts, { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return ''; }
 }
 
 // "Schattenelf · Waldläufer · Stufe 3"
@@ -51,6 +52,9 @@ export function savedLook(save, content, accountId, characterId) {
 export function zoneName(content, zoneId) {
   return zoneId ? content.find('zone', zoneId)?.name ?? null : null;
 }
+
+// Startseite der Website in der gewählten Sprache (das Spiel liegt unter /spielen/ auf derselben Domain).
+export const websiteUrl = () => (lang() === 'de' ? '/' : '/en/');
 
 // Gut sichtbarer Zurück-Pfeil oben links in den Menüs.
 export function backButton(onclick, label = 'Zurück') {

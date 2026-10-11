@@ -9,6 +9,7 @@ import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, rewardsEl, barEl, 
 import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { HeroStage, statGlyph } from './heroStage.js';
+import { fmtNum } from '../i18n/index.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
 // neu (EV.STATE_CHANGED) und löst Spielaktionen nur über Commands aus.
@@ -42,7 +43,7 @@ function titleOf(st) {
 }
 
 // Tausenderpunkte für Goldbeträge in Texten
-const fmt = (n) => Number(n).toLocaleString('de-DE');
+const fmt = (n) => fmtNum(Number(n));
 const MOUNT_FAIL = { known: 'Dieses Reittier kennst du schon. Du kannst den Gegenstand verkaufen.', unavailable: 'Das Reittier lässt sich gerade nicht erlernen. Versuch es gleich noch einmal.' };
 const EQUIP_FAIL = { class: 'Deine Klasse kann das nicht führen.', level: 'Deine Stufe ist zu niedrig.', notEquippable: '' };
 const SLOT_PH = { weapon: 'sword', head: 'helm', chest: 'armor', hands: 'gloves', feet: 'boots', ring: 'ring', amulet: 'amulet' };
@@ -51,6 +52,7 @@ const FILTERS = [
   ['gear', 'Ausrüstung', (d) => !!d.slot],
   ['use', 'Verbrauch', (d) => d.type === 'consumable' || d.type === 'mount'],
   ['quest', 'Quest', (d) => d.type === 'quest'],
+  ['mat', 'Material', () => false], // Materialbeutel statt Tasche (belegt keine Plätze)
 ];
 
 // Werte liefert Thread A (computeStats). Fehlt dort etwas, zeigen die Panels Grundwerte statt abzustürzen.
@@ -102,7 +104,10 @@ function inventoryView(s) {
     const unequip = (slot) => act('inventory:unequip', { slot }, () => 'Kein Platz im Inventar.');
     const detailOpts = { equipment: inv.equipment, level, classId };
 
-    // --- Tasche
+    // --- Tasche. Reiter Quest und Material erscheinen nur, wenn es dort etwas gibt.
+    const mats = materialList(st, content);
+    const tabs = FILTERS.filter(([id]) => id === 'quest' ? inv.slots.some((it) => it && content.find('item', it.itemId)?.type === 'quest') : id === 'mat' ? mats.length > 0 : true);
+    if (!tabs.some(([id]) => id === filter)) filter = 'all';
     const pass = FILTERS.find((f) => f[0] === filter)[2];
     const bagSlots = inv.slots.map((it, i) => {
       const def = it && content.find('item', it.itemId);
@@ -122,7 +127,7 @@ function inventoryView(s) {
         },
       });
       if (multi?.has(i)) el.classList.add('marked');
-      if (def) attachTip(el, () => itemDetail(content, it.itemId, { ...detailOpts, compact: true }));
+      if (def) attachTip(el, () => (sel ? null : itemDetail(content, it.itemId, { ...detailOpts, compact: true })));
       // Umsortieren per Ziehen (Maus)
       el.draggable = !!it;
       el.addEventListener('dragstart', () => { dragFrom = i; hideTip(); });
@@ -146,7 +151,7 @@ function inventoryView(s) {
           sel = { eq: slot }; msg = ''; redraw();
         },
       });
-      if (id) attachTip(el, () => itemDetail(content, id, { ...detailOpts, compare: false, compact: true }));
+      if (id) attachTip(el, () => (sel ? null : itemDetail(content, id, { ...detailOpts, compare: false, compact: true })));
       // Ziehen aus der Tasche auf einen Ausrüstungsplatz
       el.addEventListener('dragover', (e) => e.preventDefault());
       el.addEventListener('drop', (e) => { e.preventDefault(); if (dragFrom != null) primary(dragFrom); dragFrom = null; });
@@ -231,8 +236,8 @@ function inventoryView(s) {
         actions.length || trash ? h('div.pg-sheet-bar', actions, trash) : null)
       : null;
 
-    // Schnellverkauf (nur wenn es etwas zu tun gibt) und Mehrfachauswahl
-    function quickSellBar() {
+    // Fußzeile: Gold, Schnellverkauf (nur wenn es etwas zu tun gibt), Plätze. Mehrfachauswahl ersetzt sie.
+    function footBar() {
       if (multi) {
         const list = [...multi].filter((i) => inv.slots[i]);
         const gold = sellValue(st, content, list);
@@ -242,21 +247,29 @@ function inventoryView(s) {
           btn('+ Alle Weißen', () => { for (const i of sellableSlots(st, content, 'common')) multi.add(i); redraw(); }));
       }
       const junk = sellableSlots(st, content, 'common');
-      if (!junk.length) return null;
-      return h('div.pg-quicksell',
-        btn(`Weiße verkaufen · ${junk.length}`, () => {
-          const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
-        }, { extra: priceEl(sellValue(st, content, junk)) }));
+      const used = inv.slots.length - freeSlots(st);
+      // Verkaufen gehört zusammen: Auto-Verkauf-Schalter und „Weiße verkaufen“ stehen nebeneinander
+      return h('div.pg-inv-foot', goldEl(st.slices.wallet.gold),
+        h('div.pg-foot-sell', autoBtn, junk.length ? (() => {
+          const b = btn(`Weiße verkaufen · ${junk.length}`, () => {
+            const r = act('inventory:sellJunk', { upTo: 'common' }); if (r?.ok) { msg = `${r.count} Teile für ${fmt(r.gold)} Gold verkauft.`; sel = null; redraw(); }
+          });
+          b.title = `Weiße verkaufen · ${junk.length} (+${fmt(sellValue(st, content, junk))})`;
+          return b;
+        })() : null),
+        // Im Materialreiter ohne Platzzahl (Materialien belegen keine Plätze); unsichtbar statt entfernt, damit nichts springt
+        h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}${filter === 'mat' ? '.off' : ''}`, `${used}/${inv.slots.length} Plätze`));
     }
     // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
     const auto = inv.autoSell ?? null;
     const AUTO = [[null, 'Aus'], ['common', 'Weiße'], ['uncommon', 'Weiße + Grüne']];
     const autoLabel = (m) => `Auto-Verkauf: ${AUTO.find(([x]) => x === m)[1]}`;
     const autoNext = AUTO[(AUTO.findIndex(([m]) => m === auto) + 1) % AUTO.length][0];
-    const autoBtn = h(`button.pg-tool.pg-auto${auto ? '.on' : ''}`, {
+    // Auto-Verkauf als beschrifteter Umschalter: oben klein „Auto-Verkauf“, darunter die Stufe
+    const autoBtn = h(`button.ef-btn.pg-btn.pg-auto${auto ? '.on' : ''}`, {
       type: 'button', title: autoLabel(auto), 'aria-label': autoLabel(auto), 'data-mode': auto ?? 'off',
       onclick: () => { autoTipAt = performance.now(); act('inventory:autoSell', { mode: autoNext }); },
-    }, glyph('auto'), autoTip());
+    }, h('small', 'Auto-Verkauf'), h('b', AUTO.find(([x]) => x === auto)[1]), autoTip());
     function autoTip() {
       const left = 1600 - (performance.now() - autoTipAt);
       if (left <= 0) return null;
@@ -265,40 +278,35 @@ function inventoryView(s) {
       return tip;
     }
 
-    // Materialbeutel: belegt keine Taschenplätze, hat keine Größe
-    function matSection() {
-      const list = materialList(st, content);
-      return h('section.pg-matbag', { 'aria-label': 'Materialbeutel' },
-        h('div.pg-matbag-head', { title: 'Materialien belegen keine Taschenplätze.' }, h('span.pg-questbag-label', 'Material')),
-        h('div.pg-matbag-grid', list.map((e) => {
-          const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, size: 36, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
-          attachTip(el, () => itemDetail(content, e.itemId, { ...detailOpts, compact: true }));
-          return el;
-        })));
-    }
+    // Materialbeutel: eigener Reiter im selben Raster, belegt keine Taschenplätze, hat keine Größe
+    // Gleich viele Felder wie die Tasche, damit Raster und Fenster beim Reiterwechsel nicht springen
+    const matSlots = () => Array.from({ length: Math.max(inv.slots.length, mats.length) }, (_, i) => {
+      const e = mats[i];
+      if (!e) return itemSlot(content, null, { onclick: () => { sel = null; redraw(); } });
+      const el = itemSlot(content, { itemId: e.itemId, qty: e.qty }, { selected: sel?.mat === e.itemId, onclick: () => { sel = { mat: e.itemId }; msg = ''; redraw(); } });
+      attachTip(el, () => (sel ? null : itemDetail(content, e.itemId, { ...detailOpts, compact: true })));
+      return el;
+    });
 
-    const used = inv.slots.length - freeSlots(st);
     return panelFrame(s, 'inventory', 'Inventar',
       h('div.pg-scroll.pg-keep-scroll.pg-inv',
         doll,
         h('section.pg-bagwrap',
           h('div.pg-bagbar',
-            h('div.pg-filters', { role: 'tablist' }, FILTERS.map(([id, label]) => h(`button.pg-chip${filter === id ? '.on' : ''}`, {
+            h('div.pg-filters', { role: 'tablist' }, tabs.map(([id, label]) => h(`button.pg-chip${filter === id ? '.on' : ''}`, {
               type: 'button', role: 'tab', 'aria-selected': String(filter === id), onclick: () => { filter = id; redraw(); },
             }, label)),
             h('div.pg-tools',
-              autoBtn,
               h('button.pg-tool.pg-sort', { type: 'button', title: 'Sortieren', 'aria-label': 'Sortieren', onclick: () => { sel = null; act('inventory:sort', {}); } }, glyph('sort', 14)),
               h(`button.pg-tool.pg-multi${multi ? '.on' : ''}`, { type: 'button', title: 'Mehrere verkaufen', 'aria-label': 'Mehrere verkaufen', 'aria-pressed': String(!!multi), onclick: () => { multi = multi ? null : new Set(); sel = null; msg = ''; redraw(); } }, glyph('multi', 14))))),
-          quickSellBar(),
-          h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
-          materialList(st, content).length ? matSection() : null,
+          filter === 'mat'
+            ? h('div.pg-bag.pg-matbag', { role: 'grid', 'aria-label': 'Materialbeutel', title: 'Materialien belegen keine Taschenplätze.' }, matSlots())
+            : h('div.pg-bag', { role: 'grid', 'aria-label': 'Tasche' }, bagSlots),
           inv.questBag?.length ? h('div.pg-questbag', { title: 'Questgegenstände und Questbelohnungen, für die in der Tasche kein Platz war. Sie wandern zurück, sobald Platz frei ist.' },
             h('span.pg-questbag-label', 'Questbeutel'),
             inv.questBag.map((e) => { const d = content.find('item', e.itemId); return h('span.pg-questbag-item', itemIconEl({ ...d, name: null }, 24), h('b', `${e.qty}× ${d?.name ?? e.itemId}`)); })) : null,
           !selItemId && msg ? h('p.pg-msg', msg) : null,
-          h('div.pg-inv-foot', goldEl(st.slices.wallet.gold),
-            h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}`, `${used}/${inv.slots.length} Plätze`))),
+          footBar()),
         detail));
   };
 }
@@ -311,15 +319,10 @@ function fmtTime(sec) {
 const RES = { rage: 'Wut', mana: 'Mana', energy: 'Energie' };
 const ATTR = { str: 'Stärke', agi: 'Geschick', int: 'Intellekt', vit: 'Ausdauer' };
 
+// Reittiere sammeln und wählen: Garderobe, Reiter „Reittiere“ (ui/WardrobePanel.js)
 function characterView(s) {
-  let tab = 'overview';
-  return (redraw) => {
+  return () => {
     const st = s.state, c = s.content, ch = st.slices.character ?? {};
-    const tabs = h('div.pg-tabs', { role: 'tablist' },
-      [['overview', 'Übersicht'], ['mounts', 'Reittiere']].map(([id, label]) => h(`button.pg-tabbtn${tab === id ? '.on' : ''}`, {
-        type: 'button', role: 'tab', 'aria-selected': String(tab === id), onclick: () => { tab = id; redraw(); },
-      }, label)));
-    if (tab === 'mounts') return panelFrame(s, 'character', 'Charakter', tabs, h('div.pg-scroll.pg-keep-scroll.pg-char', mountsSection(s)));
     const stats = safeStats(st, c);
     const xp = xpInfo(st);
     const race = ch.raceId ? c.find('race', ch.raceId) : null;
@@ -336,13 +339,13 @@ function characterView(s) {
     ];
     const attrs = stats.attributes ? Object.entries(stats.attributes).map(([k, v]) => row(ATTR[k] ?? k, Math.round(v))) : [];
     const inv = st.slices.inventory;
-    return panelFrame(s, 'character', 'Charakter', tabs,
+    return panelFrame(s, 'character', 'Charakter',
       h('div.pg-scroll.pg-keep-scroll.pg-char',
         h('section.pg-char-id',
           h('div.pg-char-name', ch.name ?? 'Unbekannt'),
           titleOf(st) ? h('div.pg-char-title', titleOf(st)) : null,
           h('div.pg-char-sub', `Stufe ${xp.level}${race ? ` · ${race.name}` : ''}${cls ? ` · ${cls.name}` : ''}`),
-          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${xp.into} / ${xp.need} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar'),
+          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${fmt(xp.into)} / ${fmt(xp.need)} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar'),
           h('div.pg-char-gold', goldEl(st.slices.wallet.gold))),
         h('section', h('h3', 'Werte'), h('dl.pg-kvs', statRows), attrs.length ? h('dl.pg-kvs.pg-attrs', attrs) : null),
         h('section', h('h3', 'Ausrüstung'), h('div.pg-char-eq', EQUIP_SLOTS.map((slot) => {
@@ -357,13 +360,13 @@ function characterView(s) {
           row('Besiegte Gegner', pst.kills), row('Elite', pst.eliteKills ?? 0), row('Bosse', pst.bossKills),
           row('Quests erfüllt', pst.questsCompleted), row('Gegenstände gefunden', pst.itemsLooted ?? 0),
           row('Geschmiedet', pst.crafted ?? 0), row('Gold verdient', pst.goldEarned), row('Spielzeit', fmtTime(st.meta.playTime ?? 0)))),
-        h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements'))),
+        h('div.pg-actions', actionBtn('Talente', () => s.panels.open('talents'), { primary: true }), actionBtn(`Erfolge (${Object.keys(st.slices.achievements?.unlocked ?? {}).length}/${Object.keys(ACHIEVEMENTS).length})`, () => s.panels.open('achievements')),
+          s.game.character?.mountCollection ? actionBtn('Reittiere', () => s.panels.open('wardrobe', { tab: 'mounts' })) : null),
         h('p.ef-note.pg-local', 'Gespeichert in deinem Konto · in der Cloud gesichert.')));
   };
 }
 
-// Reiter „Reittiere“ (§12.6): Daten und Commands von Thread A (content 'mount', character.mounts, mount:select)
-const MOUNT_RARITY = { rare: 'Selten', epic: 'Episch', legendary: 'Legendär' };
+// Reittier-Zeile beim Händler (§12.6)
 function mountLine(c, def, level, st) {
   const m = c.find('mount', def.mountId);
   const q = def.reqQuest && !st?.slices.quests?.completed.includes(def.reqQuest) ? c.find('quest', def.reqQuest) : null;
@@ -372,28 +375,6 @@ function mountLine(c, def, level, st) {
   return `${lock ? `${lock} · ` : 'Reittier · '}+${Math.round((m?.speed ?? 0) * 100)} % Tempo`;
 }
 const questLocked = (st, def) => !!def.reqQuest && !st.slices.quests?.completed.includes(def.reqQuest);
-function mountsSection(s) {
-  const st = s.state, c = s.content;
-  const defs = c.all('mount');
-  if (!defs.length) return h('p.ef-note', 'Reittiere kommen mit dem nächsten Update.');
-  const m = st.slices.character?.mounts ?? { owned: [], active: null };
-  const check = s.character?.canMount?.() ?? { ok: false, reason: null };
-  const status = check.reason === 'level' || check.reason === 'lesson'
-    ? (s.character?.mountReasonText?.(check.reason) ?? 'Ab Stufe 20 bei Stallmeisterin Orla in der Aschensteppe')
-    : m.owned.length ? 'Aufsitzen mit V oder dem Reittier-Knopf. Im Kampf und in Dungeons geht es nicht.' : 'Kaufe ein Reittier bei Stallmeisterin Orla oder erbeute eines von Bossen.';
-  const order = { legendary: 0, epic: 1, rare: 2 };
-  const rows = [...defs].sort((a, b) => m.owned.includes(b.id) - m.owned.includes(a.id) || order[a.rarity] - order[b.rarity]).map((d) => {
-    const own = m.owned.includes(d.id), active = m.active === d.id;
-    return h(`li.pg-mount-row${own ? '' : '.locked'}${active ? '.active' : ''}`,
-      itemIconEl({ icon: `mount_${d.id}`, rarity: d.rarity }, 40),
-      h('div.pg-mount-body',
-        h(`b.r-${d.rarity}`, d.name),
-        h('small', `${MOUNT_RARITY[d.rarity] ?? ''} · +${Math.round((d.speed ?? 0) * 100)} % Tempo`),
-        own ? null : h('small.ef-note', d.source ?? '')),
-      own ? (active ? h('span.pg-mount-on', 'Aktiv') : actionBtn('Wählen', () => commit(s, 'mount:select', { mountId: d.id }), { small: true })) : null);
-  });
-  return h('section', h('p.ef-note', status), h('p.pg-mount-count', `${m.owned.length} von ${defs.length} Reittieren`), h('ul.pg-mounts', rows));
-}
 
 // ---------------------------------------------------------------- Questlog
 function questlogView(s) {

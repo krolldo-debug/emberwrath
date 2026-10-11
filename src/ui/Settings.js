@@ -96,7 +96,7 @@ export function createSettingsSection(game) {
     row('Bildschirmwackeln', check('screenShake', true), 'bei Treffern und Explosionen'),
     row('Minimap', check('minimap', true), 'Karte bleibt über M erreichbar'),
     h('div.set-row', h('span.set-label', 'Grafik', qNote), qual),
-    h('div.set-row', h('span.set-label', 'Sprache'), langSwitch({ cls: 'set-seg', btnCls: 'set-seg-btn', role: 'radio' })),
+    h('div.set-row', h('span.set-label', 'Sprache'), langSwitch({ inline: true })),
     h('div.set-row', h('span.set-label', 'Touch-Knöpfe', h('small.set-note', 'Größe der Bedienelemente')), sizes),
     h('p.ef-note.set-local', 'Einstellungen gelten für dieses Gerät.'),
   );

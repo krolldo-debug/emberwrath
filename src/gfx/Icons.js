@@ -1,6 +1,7 @@
 import { PAL } from './Palette.js';
 import { PixelCanvas, outlineCanvas, makeCanvas } from './PixelCanvas.js';
 import { decorateItemIcon } from './ItemFx.js';
+import { installRarityFrames } from './RarityFrame.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
 import { DYES } from '../character/cosmetics.js';
 
@@ -1198,14 +1199,26 @@ export function iconEl(id, cssSize = 32) {
 }
 
 // Item-Icon mit Seltenheitsrahmen (Aussehen in ui/theme.css: .ef-item-icon).
+// Ab 24 px pixelgenau: ein gemeinsamer ganzzahliger Faktor --fpx (CSS-px je Bildpunkt) für Icon (26 Bildpunkte),
+// Rahmen (gfx/RarityFrame.js) und Effektstreifen (gfx/ItemFx.js). Das Icon steht mittig und darf am Rand
+// unter den Rahmen laufen. Panels mit festen Platzgrößen setzen --fpx per CSS selbst.
 export function itemIconEl(def, cssSize = 40) {
   const span = document.createElement('span');
   const rarity = def?.rarity ?? 'common';
   span.className = `ef-item-icon r-${rarity}`;
   span.dataset.rarity = rarity;
   span.style.setProperty('--size', `${cssSize}px`);
-  span.append(iconEl(def?.icon, Math.round(cssSize * 0.8)));
+  const u = cssSize >= 24 ? Math.max(1, Math.floor(cssSize / 24)) : 0;
+  span.append(iconEl(def?.icon, u ? 26 * u : Math.round(cssSize * 0.8)));
+  if (u) { span.classList.add('px'); span.style.setProperty('--fpx', `${u}px`); }
   if (def?.name) span.title = def.name;
+  // Ab ungewöhnlich: gezeichneter Seltenheitsrahmen, ab episch mit Aufleuchten in Stufen (zweites Bild)
+  if (rarity !== 'common' && u) {
+    installRarityFrames();
+    span.classList.add('framed');
+    span.append(Object.assign(document.createElement('i'), { className: 'ef-frame' }));
+    if (rarity === 'epic' || rarity === 'legendary') span.append(Object.assign(document.createElement('i'), { className: 'ef-frame lit' }));
+  }
   // Ab selten: animierte Effektebenen im Thema des Items (gfx/ItemFx.js)
   return decorateItemIcon(span, def);
 }
@@ -1297,37 +1310,84 @@ export function lootSprite(defOrId) {
   return c;
 }
 
+// Seltene Beute am Boden: Sprite mit 1-px-Kante in Seltenheitsfarbe statt schwarzem Umriss (11.10.)
+const rimCache = new Map();
+function rimSprite(spr, rarity) {
+  let byRar = rimCache.get(spr);
+  if (!byRar) { byRar = new Map(); rimCache.set(spr, byRar); }
+  let c = byRar.get(rarity);
+  if (c) return c;
+  const [r, g, b] = rarityRgb(rarity);
+  const sil = makeCanvas(spr.width, spr.height), sx = sil.getContext('2d');
+  sx.drawImage(spr, 0, 0);
+  sx.globalCompositeOperation = 'source-in';
+  sx.fillStyle = `rgb(${r},${g},${b})`; sx.fillRect(0, 0, sil.width, sil.height);
+  c = makeCanvas(spr.width + 2, spr.height + 2);
+  const cx = c.getContext('2d');
+  for (const [dx, dy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) cx.drawImage(sil, dx, dy);
+  cx.drawImage(spr, 1, 1);
+  byRar.set(rarity, c);
+  return c;
+}
+
+// Lichtsäule über liegender Beute: Höhe, halbe Kernbreite, halbe Breite (Pixel). Deckende Palettenpixel, nach oben
+// per geordnetem Raster (Bayer 4×4) ausgedünnt statt halbtransparent; das Raster wandert nach oben (Säule steigt).
+const LOOT_PILLAR = { uncommon: [14, -1, 0], rare: [28, 0, 1], epic: [44, 0, 2], legendary: [62, 1, 3] };
+// Säulenfarben je Seltenheit: Rand, innen, Kern, Funke (dieselben Töne wie die Rahmen, gfx/RarityFrame.js)
+const LOOT_PAL = {
+  uncommon: ['#3e9a3a', '#7ad870', '#c8ffb8', '#ffffff'],
+  rare: ['#3a7ad8', '#7ab0ff', '#d0e8ff', '#ffffff'],
+  epic: ['#8a3ae0', '#c888ff', '#f6e6ff', '#ffe0f4'],
+  legendary: ['#c85a0c', '#ff9a1a', '#ffd860', '#fff2b0'],
+};
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const lit = (x, y, d) => BAYER[(y & 3) * 4 + (x & 3)] < d * 16;
+
 // Beute zeichnen: Fußpunkt (x, y) in Bildschirm-Pixeln, bob = Höhe über dem Boden.
-// Ab "uncommon" steigt ein schmaler Strahl in Seltenheitsfarbe auf, "epic"/"legendary" funkeln.
-// opts.emissive: im Emissive-Pass nur Strahl/Funkeln zeichnen (nach der Beleuchtung).
+// Ab "uncommon" steigt eine Pixelsäule in Seltenheitsfarbe auf, ab "rare" mit farbiger Kante am Gegenstand;
+// "epic"/"legendary" mit breiterer Säule, zweitem Bodenring und aufsteigenden Funken.
+// opts.emissive: im Emissive-Pass nur Säule/Funken zeichnen (nach der Beleuchtung; Verdeckung: LootDrop.renderEmissive).
 export function drawLoot(ctx, def, x, y, t = 0, { bob = 0, emissive = false } = {}) {
   const rarity = def?.gold != null ? 'common' : def?.rarity ?? 'common';
-  const spr = lootSprite(def);
+  const order = { rare: 1, epic: 2, legendary: 3 }[rarity] ?? 0;
   x = Math.round(x); y = Math.round(y);
   if (!emissive) {
-    ctx.drawImage(spr, x - (spr.width >> 1), Math.round(y - spr.height - bob + 2));
+    const spr = order ? rimSprite(lootSprite(def), rarity) : lootSprite(def);
+    ctx.drawImage(spr, x - (spr.width >> 1), Math.round(y - spr.height - bob + 2 + (order ? 1 : 0)));
     return;
   }
   if (rarity === 'common') return;
-  const [r, g, b] = rarityRgb(rarity);
-  const tall = rarity === 'uncommon' ? 18 : rarity === 'rare' ? 28 : 40;
-  const pulse = 0.75 + 0.25 * Math.sin(t * 3);
-  ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < tall; i++) {
-    const k = 1 - i / tall;
-    ctx.fillStyle = `rgba(${r},${g},${b},${(0.55 * k * k * pulse).toFixed(3)})`;
-    ctx.fillRect(x - 1, y - 3 - i, 3, 1);
-    if (i < tall * 0.6) { ctx.fillStyle = `rgba(255,255,255,${(0.35 * k * pulse).toFixed(3)})`; ctx.fillRect(x, y - 3 - i, 1, 1); }
-  }
-  // Bodenring
-  ctx.fillStyle = `rgba(${r},${g},${b},${(0.35 * pulse).toFixed(3)})`;
-  for (let a = 0; a < 16; a++) ctx.fillRect(Math.round(x + Math.cos(a / 16 * 6.283 + t) * 7), Math.round(y + Math.sin(a / 16 * 6.283 + t) * 2.5), 1, 1);
-  if (rarity === 'epic' || rarity === 'legendary') {
-    for (let k = 0; k < 3; k++) {
-      const ph = (t * 0.8 + k / 3) % 1;
-      ctx.fillStyle = `rgba(255,255,255,${(1 - ph).toFixed(3)})`;
-      ctx.fillRect(Math.round(x + Math.sin(k * 2.1 + t) * 5), Math.round(y - 4 - ph * tall * 0.8), 1, 1);
+  const pal = LOOT_PAL[rarity];
+  const [tall, core, mid] = LOOT_PILLAR[rarity];
+  const strong = Math.sin(t * 3) > -0.2; // zwei feste Helligkeitsstufen statt weichem Pulsieren
+  const rise = Math.floor(t * 10);
+  for (let j = 0; j < tall; j++) {
+    const row = y - 3 - j, f = 1 - j / tall;
+    // Dichte in festen Stufen: unten fast voll, oben vereinzelt
+    const d = Math.ceil(f * 6) / 6 * (strong ? 0.8 : 0.66);
+    for (let i = -mid - (order ? 1 : 0); i <= mid + (order ? 1 : 0); i++) {
+      const a = Math.abs(i), edge = a > mid;
+      const k = a <= core ? 2 : a <= mid - 1 || mid === 0 ? 1 : 0;
+      if (!lit(x + i, row + rise, edge ? d * 0.35 : a <= core ? Math.min(1, d + 0.2) : d)) continue;
+      ctx.fillStyle = pal[edge ? 0 : k];
+      ctx.fillRect(x + i, row, 1, 1);
     }
   }
-  ctx.globalCompositeOperation = 'source-over';
+  // Bodenring aus kreisenden Pixelfunken; ab episch ein zweiter, gegenläufiger Ring
+  const rings = order >= 2 ? [[7, 2.5, 1], [11, 4, -0.7]] : [[7, 2.5, 1]];
+  for (const [rx, ry, dir] of rings) {
+    const n = Math.round(rx * 2.4);
+    for (let a = 0; a < n; a++) {
+      if ((a + Math.floor(t * 10)) % 3 === 0) continue;
+      ctx.fillStyle = a % 2 && order ? pal[strong ? 2 : 1] : pal[strong ? 1 : 0];
+      ctx.fillRect(Math.round(x + Math.cos(a / n * 6.283 + t * dir) * rx), Math.round(y + Math.sin(a / n * 6.283 + t * dir) * ry), 1, 1);
+    }
+  }
+  if (order >= 2) {
+    for (let k = 0; k < 2 + order; k++) {
+      const ph = (t * 0.8 + k / (2 + order)) % 1;
+      ctx.fillStyle = pal[ph < 0.6 ? 3 : 1];
+      ctx.fillRect(Math.round(x + Math.sin(k * 2.1 + t) * (mid + 3)), Math.round(y - 4 - ph * tall * 0.8), 1, 1);
+    }
+  }
 }

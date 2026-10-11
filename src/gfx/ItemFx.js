@@ -3,8 +3,9 @@ import { fxElement } from '../character/gearLook.js';
 
 // Animierte Item-Effekte (Thread D): je seltener, desto spektakulärer.
 //   selten    – funkelnde Teilchen im Thema des Gegenstands
-//   episch    – dazu Flammen/Aura hinter dem Gegenstand, Leuchtpuls
-//   legendär  – hohe Flammen, drehender Strahlenkranz, dichte Funken
+//   episch    – dazu Flammen/Lichtkranz hinter dem Gegenstand
+//   legendär  – hohe goldene Glut als eigene Innenfläche, dichte Funken
+// Alles in Palettenfarben ohne Transparenzstufen (11.10.); Größe ganzzahlig über --fpx (ui/theme.css).
 // Das Thema (Feuer, Frost, Schatten, Licht, Arkan, Gift, Natur, Gezeiten) ergibt sich aus
 // ID, Symbol und Name des Items (z. B. „Glutklinge“ → Feuer). Die Animation ist ein
 // kleiner Pixel-Filmstreifen (9 Bilder à 24 × 24), der per CSS steps() abgespielt
@@ -76,10 +77,13 @@ function closeLoop(c) {
   return c.toDataURL();
 }
 
+// Legendär: tiefe Glut am Boden der dunklen Innenfläche statt Flammen bis oben – der Gegenstand steht frei davor
+const LEGEND_EMBERS = ['#3a0c04', '#8a2008', '#d04a0c', '#ff8a1a'];
+
 // Flammenzungen hinter dem Gegenstand, von unten aufsteigend
 function flames(pal, tier, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
-  const reach = tier >= 3 ? 0.98 : 0.62;
+  const reach = tier >= 3 ? 0.34 : 0.62;
   const ph = Array.from({ length: W }, () => r() * TAU);
   const ph2 = Array.from({ length: W }, () => r() * TAU);
   for (let f = 0; f < F; f++) {
@@ -93,13 +97,11 @@ function flames(pal, tier, seed) {
         const col = t < 0.28 && edge < 0.55 ? pal[3] : t < 0.55 ? pal[2] : t < 0.82 ? pal[1] : pal[0];
         // Lücken an den Zungenspitzen: flackernder Rand
         if (t > 0.8 && ((x + y + f) % 3 === 0)) continue;
-        ctx.globalAlpha = t > 0.82 ? 0.7 : 0.92;
         ctx.fillStyle = col;
         ctx.fillRect(ox + x, H - 1 - y, 1, 1);
       }
     }
     // Abgelöste Flammenfetzen über den Spitzen
-    ctx.globalAlpha = 0.85;
     for (let k = 0; k < (tier >= 3 ? 4 : 2); k++) {
       const x = Math.round(4 + ((k * 7 + f * 3) % (W - 8)));
       const y = Math.round(H * (1 - reach) + ((f * 2 + k * 5) % 6));
@@ -107,34 +109,37 @@ function flames(pal, tier, seed) {
       ctx.fillStyle = pal[2]; ctx.fillRect(ox + x, y + 1, 1, 1);
     }
   }
-  ctx.globalAlpha = 1;
   return closeLoop(c);
 }
 
-// Weicher Lichtkranz (für Themen ohne Flammen: Frost, Arkan, Natur, Gezeiten)
+// Lichtkranz in festen Ringen (für Themen ohne Flammen: Frost, Arkan, Natur, Gezeiten): Kern, Ring, gerasterter
+// Außenring, nur Palettenfarben. Der Kranz atmet in zwei Stufen, die Strahlen drehen sich.
 function halo(pal, tier, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
   const n = tier >= 3 ? 16 : 10;
   const rays = Array.from({ length: n }, () => ({ a: r() * TAU, len: 0.6 + r() * 0.4 }));
   for (let f = 0; f < F; f++) {
-    const ox = f * W, cx = ox + W / 2, cy = H / 2;
-    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, W * 0.52);
-    const pulse = 0.5 + 0.5 * Math.sin((f / F) * TAU);
-    g.addColorStop(0, pal[3]); g.addColorStop(0.35, pal[2]); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = 0.45 + 0.25 * pulse;
-    ctx.fillStyle = g; ctx.fillRect(ox, 0, W, H);
-    // Strahlen, drehen sich pro Bild weiter
-    ctx.globalAlpha = 0.8;
+    const ox = f * W, cx = W / 2 - 0.5, cy = H / 2 - 0.5;
+    const big = f % 4 < 2 ? 1 : 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const d = Math.hypot(x - cx, y - cy) / (W / 2);
+        let col = null;
+        if (d < 0.22 + big * 0.06) col = pal[2];
+        else if (d < 0.42 + big * 0.06) col = pal[1];
+        else if (d < 0.62 + big * 0.06 && (x + y) % 2 === 0) col = pal[0];
+        if (col) { ctx.fillStyle = col; ctx.fillRect(ox + x, y, 1, 1); }
+      }
+    }
     for (const ray of rays) {
       const a = ray.a + (f / F) * (TAU / n);
       const l = (W / 2) * ray.len;
       for (let d = 5; d < l; d++) {
         ctx.fillStyle = d > l * 0.7 ? pal[1] : pal[2];
-        ctx.fillRect(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d), 1, 1);
+        ctx.fillRect(ox + Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d), 1, 1);
       }
     }
   }
-  ctx.globalAlpha = 1;
   return closeLoop(c);
 }
 
@@ -146,9 +151,16 @@ const MOTE = {
 function motes(pal, tier, theme, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
   const kind = MOTE[theme] ?? 'star';
-  const n = tier >= 3 ? 11 : tier === 2 ? 7 : 4;
-  const ps = Array.from({ length: n }, () => ({ x: 2 + r() * (W - 4), p: r(), k: 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
-  const px = (x, y, col, a = 1) => { ctx.globalAlpha = a; ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  const n = tier >= 3 ? 11 : tier === 2 ? 7 : 2;
+  // Selten: nur zwei Sterne, an den Seiten aufsteigend (nicht über den Details des Gegenstands)
+  const ps = Array.from({ length: n }, (_, i) => ({ x: tier === 1 ? (i % 2 ? W - 5 + r() * 3 : 2 + r() * 3) : 2 + r() * (W - 4), p: r(), k: 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
+  // Ausblenden in Palettenstufen statt Transparenz: halb sichtbar = eine Farbe dunkler, darunter weg
+  const darker = new Map([[pal[3], pal[2]], [pal[2], pal[1]], [pal[1], pal[0]], [pal[0], pal[0]]]);
+  const px = (x, y, col, a = 1) => {
+    if (a < 0.4) return;
+    ctx.fillStyle = a < 0.75 ? darker.get(col) ?? col : col;
+    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  };
   for (let f = 0; f < F; f++) {
     const ox = f * W, t = f / F;
     for (const q of ps) {
@@ -191,21 +203,21 @@ function motes(pal, tier, theme, seed) {
       }
     }
   }
-  ctx.globalAlpha = 1;
   return closeLoop(c);
 }
 
 const FLAME_THEMES = new Set(['fire', 'holy', 'shadow', 'poison', 'legendary', 'epic']);
 
-// URLs der Filmstreifen für Thema und Stufe: { back, front } (back fehlt unter episch)
-export function itemFxStrips(theme, tier) {
-  const key = `${theme}|${tier}`;
+// URLs der Filmstreifen für Thema, Stufe und Variante (0–3, je Gegenstand fest): { back, front } (back fehlt unter episch)
+export function itemFxStrips(theme, tier, variant = 0) {
+  const key = `${theme}|${tier}|${variant}`;
   let s = stripCache.get(key);
   if (s) return s;
   const pal = FX_PALETTES[theme] ?? FX_PALETTES.rare;
   const seed = hash(key);
+  // Legendär: immer eigene Glut am Boden (unabhängig vom Thema des Gegenstands), Innenfläche bleibt dunkel
   s = {
-    back: tier >= 2 ? (FLAME_THEMES.has(theme) ? flames(pal, tier, seed) : halo(pal, tier, seed)) : null,
+    back: tier >= 3 ? flames(LEGEND_EMBERS, tier, seed) : tier >= 2 ? (FLAME_THEMES.has(theme) ? flames(pal, tier, seed) : halo(pal, tier, seed)) : null,
     front: motes(pal, tier, theme, seed ^ 0x9e3779b9),
   };
   stripCache.set(key, s);
@@ -217,12 +229,13 @@ export function decorateItemIcon(span, def) {
   const tier = itemFxTier(def);
   if (!tier || typeof document === 'undefined') return span;
   const theme = itemFxTheme(def);
-  const strips = itemFxStrips(theme, tier);
-  const pal = FX_PALETTES[theme] ?? FX_PALETTES.rare;
+  // Je Gegenstand eigene Variante und eigener Takt: nicht alle seltenen Teile funkeln an denselben Stellen gleichzeitig
+  const h = hash(String(def?.id ?? def?.icon ?? def?.name ?? ''));
+  const strips = itemFxStrips(theme, tier, h % 4);
+  const pal = FX_PALETTES[tier >= 3 ? 'legendary' : theme] ?? FX_PALETTES.rare;
   span.classList.add('fx', `fx-t${tier}`, `fx-${theme}`);
   span.style.setProperty('--fx-glow', pal[2]);
   span.style.setProperty('--fx-core', pal[3]);
-  if (tier >= 3) span.prepend(Object.assign(document.createElement('i'), { className: 'fx-rays' }));
   if (strips.back) {
     const back = document.createElement('i');
     back.className = 'fx-back';
@@ -232,6 +245,7 @@ export function decorateItemIcon(span, def) {
   const front = document.createElement('i');
   front.className = 'fx-front';
   front.style.backgroundImage = `url(${strips.front})`;
+  front.style.animationDelay = `${-((h >>> 4) % 997) / 997 * 2}s`;
   span.append(front);
   return span;
 }
