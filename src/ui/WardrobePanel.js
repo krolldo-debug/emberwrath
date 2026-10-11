@@ -124,7 +124,7 @@ function createWardrobePanel(session, params = {}) {
     const owned = list.filter((x) => x.owned).length;
     const card = (it) => h(`button.wd-card${m?.id === it.id ? '.sel' : ''}${it.active ? '.cur' : ''}${it.owned ? '' : '.miss'}`, {
       type: 'button', title: it.name, 'aria-label': it.name, 'aria-pressed': m?.id === it.id ? 'true' : 'false',
-      style: it.owned ? { '--wd-r': RARITY_COLORS[it.rarity] ?? RARITY_COLORS.rare } : null,
+      style: it.owned ? `--wd-r: ${RARITY_COLORS[it.rarity] ?? RARITY_COLORS.rare}` : null, // als Text: Object.assign setzt keine CSS-Variablen
       onclick: () => { if (mountSel === it.id) return; mountSel = it.id; msg = ''; refreshStage(); render(); },
     }, mountCard(g.character.mountDef(it.id), it.owned, deko(), cardK ?? cardScale()), it.active ? h('span.wd-check', { 'aria-hidden': 'true' }) : null);
     const check = g.character?.canMount?.() ?? { reason: null };
@@ -164,7 +164,7 @@ function createWardrobePanel(session, params = {}) {
     const wornDef = content.find('item', itemId(e.equipped));
     const tile = (value, label, visual, { rarity = null, usable = true, cap = null } = {}) => h(`button.wd-tile${sel === value ? '.sel' : ''}${cur === value ? '.cur' : ''}${usable ? '' : '.off'}`, {
       type: 'button', title: label, 'aria-label': label, 'aria-pressed': sel === value ? 'true' : 'false',
-      style: rarity ? { '--wd-r': RARITY_COLORS[rarity] ?? RARITY_COLORS.common } : null,
+      style: rarity ? `--wd-r: ${RARITY_COLORS[rarity] ?? RARITY_COLORS.common}` : null,
       onclick: () => { if (sel === value) return; preview = { ...preview, [slot]: value }; msg = ''; refreshStage(); render(); },
     }, visual, cap ? h('span.wd-tile-cap', cap) : null, cur === value ? h('span.wd-check', { 'aria-hidden': 'true' }) : null, usable ? null : h('span.wd-lock', { 'aria-hidden': 'true' }));
     const tiles = [
