@@ -434,7 +434,7 @@ function resolveLook(raceId, classId, variant, gear, style) {
   const circletPart = g.head?.style === 'circlet' ? g.head : null;
   // Runenreif des Sternenfeuer-Sets (style 'halo'): offenes Kopfteil wie der Stirnreif, eigene Zeichnung (sprites/heroSets.js)
   // Ebenso das Geweih des Hirschkönig-Sets (style 'antlers'): Haar und Gesicht bleiben frei
-  const haloPart = g.head?.style === 'halo' || g.head?.style === 'antlers' ? g.head : null;
+  const haloPart = g.head?.style === 'halo' || g.head?.style === 'antlers' || g.head?.style === 'hat' ? g.head : null;
   const head = circletPart || haloPart ? null : g.head ?? null;
   // Kosmetik: Färbung für Stoff (Umhang, Kapuze, Robe, Wams), Frisur je Volk
   const dye = style?.dye ? DYES[style.dye]?.ramp : null;
@@ -447,6 +447,7 @@ function resolveLook(raceId, classId, variant, gear, style) {
     // Skinset-Brustteil bringt Umhangfarbe (cape) und ggf. einen Umhang (back) mit; die Färbung gilt dann nicht
     cloth: chest.cape ?? dye ?? cl.cloth, trim: chest.trim ?? cl.trim,
     setHead: g.head?.set ? g.head : null, setHands: g.hands?.set ?? null, setFeet: g.feet?.set ?? null,
+    anySet: !!(chest.set || weapon.set || g.head?.set || g.hands?.set || g.feet?.set),
     chest, chestWorn: !!g.chest, weapon, off, sideArm, head,
     gloves: g.hands?.ramp ?? cl.gloves, glovesMetal: g.hands ? (g.hands.style === 'plate' || g.hands.style === 'mail') : false,
     glovesGlow: g.hands?.glow ?? null, glovesTrim: g.hands?.trim ?? null,
@@ -1044,9 +1045,10 @@ function drawCape(R, L, P, sk) {
   const cloak = L.back === 'cloak';
   const top = sk.topY - (cloak ? 1 : 0);
   const sx = sk.cxAt(top) - B.back + 1;
-  const hemY = L.chest.set ? -2 : cloak ? -2 : -4;
+  const shape = L.chest.set ? SETS.capeShape(L) : null;
+  const hemY = shape ? Math.round(shape.hemY) : cloak ? -2 : -4;
   const flare = P.cape;
-  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0) - (L.chest.set ? 1 : 0);
+  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0) - (shape ? Math.round(shape.widen) : 0);
   const hemFront = sk.hipX - 1 - flare * 2;
   const rows = Math.max(1, hemY - top);
   for (let j = 0; j <= rows; j++) {
@@ -1064,6 +1066,7 @@ function drawCape(R, L, P, sk) {
   }
   if (!cloak) { R.set(Math.round(sx), top, L.trim[3]); } // Schließe
   if (L.chest.set && sk.G) SETS.setCapeGlows(L, sk.G, [0.3, 0.62, 0.92].map((k) => [lerp(hemBack, hemFront, k), hemY - 0.3]));
+  if (L.chest.set) SETS.setCapeAfter(R, L, P, hemBack, hemFront, hemY);
 }
 
 function drawQuiver(R, L, sk) {
@@ -1113,7 +1116,7 @@ const band = (ramp, v) => ramp[clamp(Math.round(v), 0, ramp.length - 1)];
 const hash = (x, y) => { const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return n - Math.floor(n); };
 const K4 = (A) => A[4] ?? A[3];
 // Werkzeug für die Skinset-Zeichnungen (sprites/heroSets.js)
-const K = { band, lit, hash, matShade: (...a) => matShade(...a), dimRamp, LX, LY, lerp, clamp, torsoSpan: (sk, y) => torsoSpan(sk, y) };
+const K = { band, lit, hash, col, matShade: (...a) => matShade(...a), dimRamp, LX, LY, lerp, clamp, torsoSpan: (sk, y) => torsoSpan(sk, y) };
 
 // Kopfmaße (Weltpixel) relativ zu x0/y0 (linke obere Ecke der alten 9×9-Vorlage)
 function headGeo(sk, L) {
@@ -1401,10 +1404,11 @@ function drawCapeHi(R, L, P, sk) {
   const cloak = L.back === 'cloak';
   const top = sk.topY - (cloak ? 1 : 0);
   const sx = sk.cxAt(top) - B.back + 1;
-  // Skinset: langer, weiter Umhang bis kurz über den Boden
-  const hemY = setCape ? -1.5 : cloak ? -2 : -4;
+  // Skinset: Länge und Weite je Set (sprites/heroSets.js capeShape)
+  const shape = setCape ? SETS.capeShape(L) : null;
+  const hemY = shape ? shape.hemY : cloak ? -2 : -4;
   const flare = P.cape;
-  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0) - (setCape ? 1.5 : 0);
+  const hemBack = sx - 2 - flare * 7 - (cloak ? 1 : 0) - (shape ? shape.widen : 0);
   const hemFront = sk.hipX - 1 - flare * 2;
   const rows = Math.max(1, hemY - top);
   R.each(hemBack - 3, top - 0.5, sk.cxAt(top) + 2, hemY + 1, (x, y, F, G) => {
@@ -1429,6 +1433,7 @@ function drawCapeHi(R, L, P, sk) {
     for (const k of [0.3, 0.62, 0.92]) pts.push([lerp(hemBack, hemFront, k), hemY - 0.3]);
     SETS.setCapeGlows(L, sk.G, pts);
   }
+  if (setCape) SETS.setCapeAfter(R, L, P, hemBack, hemFront, hemY);
   if (!cloak) {
     R.ellipse(sx + 0.3, top + 0.3, 0.75, 0.75, (a, b) => (a + b < -0.3 ? T[4] ?? T[3] : T[2]));
   } else {
@@ -1463,6 +1468,7 @@ function drawLowerHi(R, L, P, sk) {
         : band(A, Math.min(2.1 + (0.3 - u) * 1.5 + fold * 0.6 - k * 0.2, A.length - 2));
       if (y > bot - (S >= 3 ? 0.45 : 0.7)) c = T[y > bot - 0.35 ? 1 : 2];   // Saumborte (Vorführstufe schmaler)
       if (Math.abs(x - mid(k)) < 0.3) c = T[2];                      // Vorderkante
+      else if (L.chest.set) c = SETS.setRobeColor(L, x, y, k, u, y > bot - 0.7, F, G, K) ?? c;
       R.put(F, G, c);
     });
     return;
@@ -1975,6 +1981,7 @@ function drawHelm(R, G, L, helm, x0, y0) {
 function drawWeapon(R, G, w, hx, hy, ang, P, far, reach = 1) {
   const f = w.family;
   if (f === 'sword') drawBlade(R, G, w, hx, hy, ang, (w.len ?? 15) * reach, far);
+  else if (f === 'dagger' && w.set === 'mondsichel') SETS.crescentBlade(R, G, w, hx, hy, ang, (w.len ?? 7) * reach, far, K);
   else if (f === 'dagger') drawBlade(R, G, { ...w, short: true }, hx, hy, ang, (w.len ?? 7) * reach, far);
   else if (f === 'axe') drawAxe(R, G, w, hx, hy, ang, reach, far);
   else if (f === 'mace') drawMace(R, G, w, hx, hy, ang, reach, far);
@@ -2019,7 +2026,7 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
     if (half > 1 && Math.abs(vv) < 0.35) c = Bl[2];
     if (w.fuller && Math.abs(vv) < 0.3 && t < 0.7 && half > 1) c = Bl[1];
     if (w.runes && Math.abs(vv) < 0.5 && t > 0.15 && t < 0.7 && Math.round(u) % 2 === 0) c = w.runes[3];
-    if (w.core && !far && Math.abs(vv) < 0.36 && t > 0.05 && t < 0.86) c = w.core[Math.abs(vv) < 0.15 ? 4 : 3];   // glühender Kern (Skinset)
+    if (w.core && !far && Math.abs(vv) < 0.3 && t > 0.04 && t < 0.88) c = w.core[t < 0.3 ? 4 : t < 0.68 ? 3 : 2];   // glühender Kern (Skinset), zur Spitze erkaltend
     if (w.glow && !far && t > 0.3 && vv > 0.1) c = w.glow[3];
     return c;
   });
@@ -2032,7 +2039,7 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
       G.push({ x: Math.round(hx + dx * u), y: Math.round(hy + dy * u), color: w.glow[3], r: w.shine >= 2 ? 3 : 2 });
     }
   }
-  if (w.gem && !far && (w.rarity === 'epic' || w.rarity === 'legendary')) {
+  if (w.gem && !far && !w.set && (w.rarity === 'epic' || w.rarity === 'legendary')) {
     G.push({ x: Math.round(hx + Math.cos(ang) * 1.2), y: Math.round(hy + Math.sin(ang) * 1.2), color: w.gem[3], r: 1 });
   }
 }
@@ -2198,7 +2205,7 @@ function drawStaff(R, G, w, hx, hy, ang, glow, far) {
   } else {
     // Klauen + Kristall/Kugel/Flamme
     if (S >= 3 && top === 'orb') R.axis(hx, hy, ang, 12.2, 14.6, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - (u - 11.6) * 0.75) < 0.5 ? Wd[lv < 0 ? 3 : 2] : null));
-    else R.axis(hx, hy, ang, 12.5, 16.5, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - 1.8) < 0.6 && u > 13.2 ? Wd[lv < 0 ? 3 : 2] : null));
+    else if (top !== 'star' || S < FINE_MIN) R.axis(hx, hy, ang, 12.5, 16.5, 2.4, (u, lv, v) => (Math.abs(Math.abs(v) - 1.8) < 0.6 && u > 13.2 ? Wd[lv < 0 ? 3 : 2] : null));
     if (top === 'crystal' || top === 'arcane') {
       R.axis(tx - dx * 1.5, ty - dy * 1.5, ang, 0, 4.2, 1.3, (u, lv) => (Math.abs(lv) < 1.3 - u * 0.25 ? K[lv < 0 ? 4 : u > 2.5 ? 2 : 3] : null));
     } else if (top === 'star') {
@@ -2215,7 +2222,7 @@ function drawStaff(R, G, w, hx, hy, ang, glow, far) {
       R.ellipse(tx, ty, 1.6, 1.6, (nx, ny) => (nx + ny < -0.6 ? K[4] ?? K[3] : K[3]));
     }
   }
-  if (!far) G.push({ x: Math.round(tx), y: Math.round(ty), color: K[3], r: 1.5 + glow * 2.5 + (w.shine ?? 0) * 0.5 });
+  if (!far && !w.set) G.push({ x: Math.round(tx), y: Math.round(ty), color: K[3], r: 1.5 + glow * 2.5 + (w.shine ?? 0) * 0.5 });
   weaponAxis(G, w, hx, hy, ang, 13, 18, far);
 }
 
@@ -2330,6 +2337,8 @@ function makeFrame(L, pose, post) {
   if (S > 1) f.res = S;
   f.glows = G.filter((g) => !g.axis);
   f.weapon = G.find((g) => g.axis) ?? null;  // Waffenachse für Seltenheits-Effekte (Hero.renderEmissive)
+  // Skinsets: glühende Feinpixel als eigene, harte Leuchtebene (sprites/heroSets.js drawSetEmit)
+  if (L.anySet) f.emit = SETS.collectEmit(R.buf, R.fw, R.fh, AX * S, AY * S, S, K);
   if (pose.ride) f.hip = lastHip;
   return f;
 }

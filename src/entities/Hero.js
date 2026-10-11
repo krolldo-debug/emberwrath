@@ -6,7 +6,7 @@ import { ELEMENTS } from '../gfx/Particles.js';
 import { Light } from '../gfx/Lighting.js';
 import { heroRes } from '../sprites/hero.js';
 import { getMountSprites } from '../sprites/mounts.js';
-import { drawSetGlow, spawnSetParticles } from '../sprites/heroSets.js';
+import { drawSetGlow, drawSetEmit, spawnSetParticles } from '../sprites/heroSets.js';
 import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
@@ -654,6 +654,8 @@ export class Hero extends Actor {
     if (this.dead && this.animator.finished) return;
     // Leuchtpunkte des Frames (Augen der Glutgeborenen, Stabkristall, Zauberhand)
     const f = this.currentFrame();
+    // Skinsets: harte Leuchtebene (glühende Feinpixel), auch nachts voll hell
+    if (f.emit) drawSetEmit(ctx, f.emit, this.x - cx + this.rideOff.x, this.y - cy + this.rideOff.y, this.facing < 0, performance.now() / 1000);
     const glows = [];
     for (const g of f.glows ?? []) glows.push([g, this.rideOff.x, this.rideOff.y, f]);
     if (this.riding && this.mountFrame) for (const g of this.mountFrame.glows ?? []) glows.push([g, 0, 0, this.mountFrame]);
@@ -663,6 +665,8 @@ export class Hero extends Actor {
         const x = Math.round(this.x - cx + ox + g.x * this.facing - (this.facing < 0 ? 1 / (gf.res ?? 1) : 0));
         const y = Math.round(this.y - cy + oy + g.y);
         if (g.pulse || g.orbit) { drawSetGlow(ctx, g, x, y, t, Math.max(1, Math.min(3, CONFIG.renderScale ?? 1))); continue; }
+        // Skinset getragen: keine weichen Scheine, nur der harte Kernpunkt (Stil der Sets)
+        if (gf.emit) { ctx.globalAlpha = 1; ctx.fillStyle = g.color; ctx.fillRect(x, y, 1, 1); continue; }
         const r = Math.max(1, Math.min(4, Math.round(g.r)));
         ctx.globalAlpha = 0.2;
         ctx.fillStyle = g.color;

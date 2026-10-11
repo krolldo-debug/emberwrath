@@ -2,7 +2,7 @@
 // sprites/hero.js ruft die Haken im feinen Raster (Stufe ≥ 2) auf und reicht sein Werkzeug als K herein
 // (band, lit, matShade, dimRamp, LX, LY, lerp, clamp, torsoSpan, hash). Glühende Stellen kommen als Leuchtpunkte in G
 // (frame.glows, mit pulse = sanftes Pulsieren im Emissive-Pass) – die Sprites selbst bleiben deckend, harte Kanten.
-import { SET_RAMPS as C } from '../character/skinSets.js';
+import { SET_RAMPS as C, SET_GLOW, MOON_EDGE } from '../character/skinSets.js';
 
 const TAU = Math.PI * 2;
 export const SPIRIT = C.spirit;
@@ -58,6 +58,8 @@ export function setTorso(R, G, L, P, sk, K) {
     for (let y = topY + 4.6; y <= hipY - 1.6; y += 1.2) R.dot(midX(y) + 0.75, y, C.ember[3]);
     star4(R, cx - 0.2, topY + 2.9, 1.5, C.star);
     sk.G.push({ x: Math.round(cx), y: Math.round(topY + 3), color: C.star[3], r: 1.6, pulse: 1 });
+    // Glutrunen kreisen um die Hüfte (Emissive-Pass, drawSetGlow)
+    sk.G.push({ x: Math.round(sk.cxAt(hipY)), y: Math.round(hipY + 0.5), color: C.ember[3], r: 1, set: s, orbit: { rx: 7, ry: 1.6, n: 3, hide: 4 } });
   }
 }
 
@@ -96,18 +98,17 @@ export function setPauldron(R, L, sk, K) {
     sk.G?.push({ x: Math.round(x + 0.5), y: Math.round(y + 1), color: C.ember[3], r: 1.3, pulse: 1, set: s });
   } else if (s === 'mondsichel') {
     const A = C.midnight, Mo = C.moon;
-    // Lederkappe mit Mondsilberkante, darauf eine geschwungene Silberfinne nach hinten
+    // Lederkappe, darüber eine große Mondsilber-Sichel als Schulterplatte (Spitzen nach oben)
     R.ellipse(x + 0.2, y + 1.2, 2.6, 1.6, (nx, ny, d) => {
       if (ny > 0.6) return null;
-      if (d > 0.84) return ny > 0.1 ? Mo[1] : Mo[2];
       return K.band(A, 2.4 + (nx * K.LX + ny * K.LY) * 1.8);
     });
-    let px = x + 0.6, py = y + 0.2;
-    for (let i = 1; i <= 7; i++) {
-      const t = i / 7, nx = x + 0.6 - t * 3.0, ny = y + 0.2 - Math.sin(t * 2.4) * 1.6 + t * 0.4;
-      R.fline(px, py, nx, ny, 0.8 * (1 - t) + 0.3, Mo[t < 0.5 ? 2 : t < 0.85 ? 3 : 4]);
-      px = nx; py = ny;
-    }
+    R.each(x - 3.4, y - 2.4, x + 3.4, y + 2.6, (px, py, F, Gi) => {
+      const d1 = Math.hypot(px - x, py - (y + 0.2)), d2 = Math.hypot(px - x, py - (y - 1.0));
+      if (d1 > 2.9 || d2 < 2.5 || py < y - 1.6) return;
+      const l = (px - x) / 3 * K.LX + (py - y) / 3 * K.LY;
+      R.put(F, Gi, d1 > 2.5 ? (py > y + 1.5 ? Mo[2] : Mo[4]) : l < -0.1 ? Mo[3] : Mo[2]);
+    });
   } else if (s === 'hirschkoenig') {
     // Lederkappe mit Goldkante und Blattspange (der Federkragen liegt hinten, setBack)
     R.ellipse(x + 0.2, y + 1.1, 2.4, 1.5, (nx, ny, d) => {
@@ -148,6 +149,20 @@ export function setBack(R, L, P, sk, K) {
 }
 
 // ------------------------------------------------------------------------------------------------ Umhang
+// Länge (Saum, Weltpixel über dem Boden) und zusätzliche Weite nach hinten je Set
+const CAPE_SHAPE = { glutthron: { hemY: -1.5, widen: 3 }, hirschkoenig: { hemY: -5, widen: 0.5 }, sternenfeuer: { hemY: -1.5, widen: 1.5 } };
+export const capeShape = (L) => CAPE_SHAPE[L.chest.set] ?? { hemY: -2, widen: 1 };
+// Nach dem Umhang: Glutfunken über dem Saum (Krieger), auch im Standbild sichtbar; wandern mit der Wellenphase
+export function setCapeAfter(R, L, P, hemBack, hemFront, hemY) {
+  if (L.chest.set !== 'glutthron') return;
+  for (let i = 0; i < 5; i++) {
+    const k = (i * 0.23 + 0.08) % 1, rise = ((P.wave * 0.9 + i * 1.7) % 4 + 4) % 4;
+    const x = K_lerp(hemBack, hemFront, k) - rise * 0.35 + (i & 1) * 0.5, y = hemY - 1.2 - rise * 1.1 - (i % 3) * 0.6;
+    R.dot(x, y, rise < 1.6 ? C.ember[4] : C.ember[3]);
+    if (R.s >= 2 && rise < 1) R.dot(x, y + 0.5, C.ember[3]);
+  }
+}
+const K_lerp = (a, b, t) => a + (b - a) * t;
 // Zusatzfarbe je Feinpixel des Umhangs: k = 0 oben .. 1 Saum, hemD = Abstand zum Saum (Weltpixel), u = 0 Außen .. 1 Körper
 export function setCapeColor(L, x, y, k, hemD, u, P, F, Gi, K) {
   const s = L.chest.set;
@@ -170,6 +185,16 @@ export function setCapeColor(L, x, y, k, hemD, u, P, F, Gi, K) {
     if (hemD > 1.0 && hemD < 1.35 && (Math.floor(x * 3) % 4 === 0)) return C.ember[3];
     return null;
   }
+  return null;
+}
+// Robenrock (Glutmagier): Nachthimmel mit Sternen und einem violetten Nebelband, Glutrunen über der Goldborte
+export function setRobeColor(L, x, y, k, u, hem, F, Gi, K) {
+  if (L.chest.set !== 'sternenfeuer' || hem) return null;
+  const h = K.hash(F, Gi);
+  if (h > 0.972) return C.star[h > 0.99 ? 4 : 3];
+  const neb = Math.sin(x * 0.9 - k * 5.5);
+  if (neb > 0.72 && k > 0.25 && k < 0.85) return h > 0.5 ? '#3a2470' : '#2c1c5c';
+  if (k > 0.86 && k < 0.92 && (Math.floor(x * 2) % 5 === 0)) return C.ember[3];
   return null;
 }
 // Leuchtpunkte am Saum (Glutfransen, Seelenblätter, Sterne)
@@ -197,9 +222,7 @@ export function setHeadBack(R, G, L, P, sk, g, K) {
   const { x0, y0 } = g;
   if (h.set === 'hirschkoenig') {
     // Geweih: zwei Stangen mit Enden, fernes dunkler; hinten am Kopf, nach oben und hinten geschwungen
-    antler(R, x0 + 2.6, y0 + 1.2, K.dimRamp(C.antler), 0.85, -1);
-  } else if (h.set === 'sternenfeuer') {
-    haloRing(R, G, g, false);
+    antler(R, x0 + 2.8, y0 + 1.6, K.dimRamp(C.antler), 0.95, -1);
   }
 }
 
@@ -235,7 +258,7 @@ export function setHeadFront(R, G, L, P, sk, g, K) {
     // Saum der Gesichtsöffnung in Mondsilber
     for (let a = -1.4; a < 1.3; a += 0.12) R.dot(x0 + 6.9 + Math.cos(a + Math.PI) * 2.45 + 0.2, y0 + 5.4 + Math.sin(a) * 2.9, C.moon[1]);
   } else if (h.set === 'hirschkoenig') {
-    antler(R, x0 + 5.0, y0 + 0.8, C.antler, 1, 1);
+    antler(R, x0 + 6.0, y0 + 1.2, C.antler, 1.0, 1);
     // Blätterkranz um die Stirn
     for (let i = 0; i < 6; i++) {
       const lx = K.lerp(x0 + 1.4, x0 + 8.4, i / 5), ly = y0 + 2.6 + Math.sin(i * 1.7) * 0.25;
@@ -244,14 +267,41 @@ export function setHeadFront(R, G, L, P, sk, g, K) {
     R.ellipse(x0 + 7.6, y0 + 2.6, 0.6, 0.6, (nx, ny) => (nx + ny < -0.3 ? C.leaf[4] : C.leaf[3]));   // Seelenblatt an der Stirn
     G.push({ x: Math.round(x0 + 7.6), y: Math.round(y0 + 2.6), color: C.leaf[3], r: 1.2, pulse: 1, set: 'hirschkoenig' });
   } else if (h.set === 'sternenfeuer') {
-    haloRing(R, G, g, true);
-    // Stirnreif mit Stern
-    R.fline(x0 + 3.0, y0 + 2.9, x0 + 8.7, y0 + 3.3, 0.55, (t) => C.gold[t < 0.4 ? 2 : 3]);
-    star4(R, x0 + 8.0, y0 + 2.9, 1.3, C.star);
-    G.push({ x: Math.round(x0 + 8), y: Math.round(y0 + 3), color: C.star[3], r: 1.4, pulse: 1, set: 'sternenfeuer' });
+    starHat(R, g, P, K);
   }
 }
 
+// Sternenhut (Glutmagier): breite Krempe, hohe Spitze, die nach hinten abknickt, Goldband mit Stern, Sterne im Stoff,
+// an der Spitze ein glühender Stern. Liegt über Haar und Kopf (offenes Kopfteil wie der Stirnreif).
+function starHat(R, g, P, K) {
+  const { x0, y0 } = g, A = C.indigo, fine = R.s >= 2;
+  const by = y0 + 2.4, bx = x0 + 4.6, tipH = 10.2;
+  const sway = Math.sin(P.wave ?? 0) * 0.4;
+  const cxAt = (k) => bx + 0.2 - k * k * 4.6 - k * sway;
+  // Spitze
+  R.each(x0 - 5, by - tipH - 1, x0 + 10, by + 0.4, (x, y, F, Gi) => {
+    const k = (by - y) / tipH;
+    if (k < 0 || k > 1) return;
+    const hw = 3.4 * Math.pow(1 - k, 0.85) + 0.25;
+    const cx = cxAt(k);
+    if (Math.abs(x - cx) > hw) return;
+    const u = (x - cx) / hw;                       // -1 hinten .. +1 vorne
+    let c = K.band(A, Math.min(3.6, 2.3 - u * 0.9 + (k > 0.55 ? 0.3 : 0)));
+    if (u > 0.78) c = A[1];                        // Schattenkante vorne
+    if (k < 0.16 && k > 0.03) c = C.gold[u < -0.2 ? 3 : 2];   // Goldband
+    else if (fine && K.hash(F, Gi) > 0.955 && Math.abs(u) < 0.7) c = C.star[K.hash(Gi, F) > 0.5 ? 4 : 3];
+    R.put(F, Gi, c);
+  });
+  // Stern am Band, Stern an der Spitze
+  star4(R, bx + 2.0, by - 0.9, 1.25, C.star);
+  const tk = 0.97;
+  star4(R, cxAt(tk) - 0.2, by - tipH * tk, 1.3, C.star);
+  // Krempe: flache Scheibe, vorne heller, Goldsaum unten
+  R.ellipse(bx + 0.6, by + 0.2, 6.4, 1.25, (nx, ny, d) => {
+    if (d > 0.8 && ny > 0) return C.gold[nx > 0.3 ? 2 : 1];
+    return K.band(A, 2.0 + (ny < 0 ? 0.9 : 0) + nx * 0.4);
+  });
+}
 // ------------------------------------------------------------------------------------------------ Hände, Füße
 export function setHand(R, L, x, y, far) {
   const s = L.setHands;
@@ -284,15 +334,18 @@ export function setWeapon(R, G, w, hx, hy, ang, far, K) {
       }
     }
   } else if (w.set === 'sternenfeuer') {
-    // Gefangener Stern: vierstrahliger Stern im Goldring über dem Stabkopf
-    const c = at(16.6);
+    // Gefangener Stern: goldene Sichelklaue (zwei Hörner nach oben) hält einen achtstrahligen Stern
+    const c = at(17.4);
     if (!far) {
-      for (let i = 0; i < 40; i++) {
-        const a = (i / 40) * TAU;
-        R.dot(c.x + Math.cos(a) * 2.6, c.y + Math.sin(a) * 2.6, C.gold[(i % 10) < 5 ? 3 : 2]);
+      for (const sgn of [-1, 1]) {
+        let p = at(13.6, sgn * 0.5);
+        for (let i = 1; i <= 8; i++) {
+          const t = i / 8, q = at(13.6 + t * 4.2 - t * t * 0.8, sgn * (0.5 + Math.sin(t * 2.6) * 2.6));
+          R.fline(p.x, p.y, q.x, q.y, 0.75 - t * 0.35, C.gold[t > 0.75 ? 4 : sgn < 0 ? 3 : 2]);
+          p = q;
+        }
       }
-      star4(R, c.x, c.y, 2.3, C.star);
-      G.push({ x: Math.round(c.x), y: Math.round(c.y), color: C.star[3], r: 3, pulse: 1, set: 'sternenfeuer' });
+      starBurst(R, c.x, c.y, 3.2, C.star);
     }
   } else if (w.set === 'hirschkoenig') {
     // Blätter an den Wurfarmen (am Bogen selbst, siehe setBowLeaves)
@@ -300,35 +353,60 @@ export function setWeapon(R, G, w, hx, hy, ang, far, K) {
     if (!far) G.push({ ...at(5), color: C.spirit[3], r: 1.2, pulse: 1, set: 'mondsichel' });
   }
 }
-// Seelenblätter an den Bogenenden
+// Mondsichelklinge (Schurke): Sichel zwischen zwei Kreisbögen, Schneide außen in kaltem Licht (Leuchtebene),
+// innen ein Geisterlicht-Faden; kurzer Griff mit Mondsilber-Knauf.
+export function crescentBlade(R, G, w, hx, hy, ang, len, far, K) {
+  const Mo = far ? K.dimRamp(C.moon) : C.moon, Gr = C.midnight;
+  const b0 = 0.9, L = Math.max(4, len - b0);
+  // äußerer Kreis durch Klingenwurzel (b0, 0) und Spitze (len, -0.6), Mittelpunkt auf der Innenseite
+  const um = (b0 + len) / 2, vc = L * 0.62, r1 = Math.hypot(L / 2, vc);
+  const r2 = r1 - 0.1, vc2 = vc + Math.min(2.1, L * 0.26);
+  R.axis(hx, hy, ang, -2.2, len + 0.6, vc + r1, (u, lv, v) => {
+    if (u < -1.6) return Math.abs(v) < 0.8 ? Mo[v < 0 ? 4 : 2] : null;                     // Knauf
+    if (u < 0.2) return Math.abs(v) < 0.55 ? Gr[(Math.round(u * 2) & 1) ? 3 : 1] : null;   // Griff, gewickelt
+    if (u < b0) return Math.abs(v) < 1.2 ? Mo[v < 0 ? 3 : 1] : null;                     // Zwinge
+    const d1 = Math.hypot(u - um, v - vc), d2 = Math.hypot(u - um, v - vc2);
+    if (d1 > r1 || d2 < r2 || v > 0.9) return null;
+    const out = r1 - d1, inn = d2 - r2;
+    if (out < 0.32) return far ? Mo[3] : MOON_EDGE;          // Schneide außen
+    if (inn < 0.3) return far ? Mo[1] : C.spirit[2];         // Innenkante
+    return Mo[out < 0.75 ? 3 : 2];
+  });
+}
+
+// Lebendes Holz: Blattzweige entlang der Bogenarme, Seelenblätter an den Enden (Leuchtebene, fallen als Partikel)
+function leaf(R, x, y, ang, len, A, hot) {
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  R.axis(x, y, ang, 0, len, 0.8, (u, lv) => {
+    const w = Math.sin(Math.PI * Math.min(1, u / len)) * 0.62;
+    if (Math.abs(lv) > w) return null;
+    if (Math.abs(lv) < 0.14 && u < len * 0.75) return A[1];   // Blattader
+    return hot && u > len * 0.45 ? A[3] : A[lv < 0 ? 3 : 2] === A[3] && !hot ? A[2] : A[lv < 0 ? 2 : 1];
+  });
+  return { x: x + dx * len, y: y + dy * len };
+}
 export function setBowLeaves(R, G, w, pts) {
   if (w.set !== 'hirschkoenig') return;
-  for (const p of [pts[2], pts[pts.length - 3]]) {
-    R.ellipse(p.x - 0.3, p.y, 0.9, 0.55, (nx, ny) => (ny < 0 ? C.leaf[3] : C.leaf[2]));
-    R.dot(p.x - 0.6, p.y - 0.2, C.leaf[4]);
-    G.push({ x: Math.round(p.x), y: Math.round(p.y), color: C.leaf[3], r: 1.2, pulse: 1, set: 'hirschkoenig' });
+  const n = pts.length, fine = R.s >= 2;
+  for (const [k, side, hot] of [[0.2, -1, true], [0.36, 1, false], [0.62, -1, false], [0.8, 1, true]]) {
+    for (const end of [0, 1]) {
+      const i = Math.round(end ? (n - 1) * (1 - k) : (n - 1) * k), p = pts[i], q = pts[Math.min(n - 1, i + 1)];
+      const ang = Math.atan2(q.y - p.y, q.x - p.x) + side * (end ? -1 : 1) * 0.9 + (end ? Math.PI : 0);
+      if (fine) leaf(R, p.x, p.y, ang, hot ? 2.4 : 1.9, C.leaf, hot);
+      else R.dot(p.x + Math.cos(ang), p.y + Math.sin(ang), C.leaf[hot ? 3 : 2]);
+    }
   }
+  for (const p of [pts[1], pts[n - 2]]) G.push({ x: Math.round(p.x), y: Math.round(p.y), color: C.leaf[3], r: 1, pulse: 1, set: 'hirschkoenig', fx: 'hirschkoenig' });
 }
 
 // ------------------------------------------------------------------------------------------------ Hilfsformen
-// Schwebender Runenreif über dem Kopf (Sternenfeuer): flache Ellipse, hintere Hälfte vor dem Kopf gezeichnet (front = false),
-// vordere danach; vier Glutrunen darauf. Im Spiel kreisen die Runen (Hero.js, glows mit orbit).
-function haloRing(R, G, g, front) {
-  const cx = g.x0 + 4.4, cy = g.y0 - 2.0, rx = 4.6, ry = 1.1;
-  const n = R.s >= 2 ? 96 : 28;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * TAU, sy = Math.sin(a);
-    if ((sy > 0) !== front) continue;
-    const px = cx + Math.cos(a) * rx, py = cy + sy * ry;
-    R.dot(px, py, front ? C.gold[3] : C.gold[1]);
+// Achtstrahliger Stern: lange Strahlen senkrecht/waagrecht, kurze schräg, heller Kern (Leuchtebene: star[3], star[4])
+function starBurst(R, cx, cy, r, A) {
+  const fine = R.s >= 2;
+  for (const [ux, uy, l] of [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [0.7, 0.7, 0.55], [-0.7, 0.7, 0.55], [0.7, -0.7, 0.55], [-0.7, -0.7, 0.55]]) {
+    R.fline(cx, cy, cx + ux * r * l, cy + uy * r * l, fine ? 0.5 : 0.9, (t) => A[t < 0.45 ? 4 : t < 0.8 ? 3 : 2]);
   }
-  if (!front) return;
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * TAU + 0.4, px = cx + Math.cos(a) * rx, py = cy + Math.sin(a) * ry;
-    if (R.s >= 2) R.ellipse(px, py, 0.6, 0.6, (nx, ny) => (nx + ny < -0.3 ? C.ember[4] : C.ember[3]));
-    else R.dot(px, py, C.ember[3]);
-  }
-  G.push({ x: Math.round(cx), y: Math.round(cy), color: C.ember[3], r: 1, set: 'sternenfeuer', orbit: { rx, ry, n: 4 } });
+  R.ellipse(cx, cy, fine ? 1.05 : 0.9, fine ? 1.05 : 0.9, (nx, ny, d) => (d < 0.5 ? A[4] : A[3]));
 }
 function star4(R, cx, cy, r, A) {
   R.each(cx - r - 0.5, cy - r - 0.5, cx + r + 0.5, cy + r + 0.5, (x, y, F, G) => {
@@ -368,71 +446,94 @@ function sweptHorn(R, bx, by, A, k) {
     px = x; py = y;
   }
 }
-// Geweih: Stange steigt schräg nach außen oben (nah = nach vorne, fern = nach hinten), Enden zeigen nach oben
+// Geweih (Hirschkönig): zwei Stangen spreizen sich zur Krone (V), biegen oben zur Mitte zurück; je drei Sprossen
+// nach oben, leicht zur Mitte. dir = +1 nach vorne, -1 nach hinten.
+const BEAM = [[0, 0], [1.3, -1.5], [2.5, -3.1], [3.2, -4.9], [3.3, -6.7], [2.8, -8.1], [2.0, -9.0]];
 function antler(R, bx, by, A, k, dir) {
-  const beam = [[0, 0], [1.0, -2.0], [2.2, -3.8], [3.0, -5.8], [3.3, -7.4]];
   const at = (t) => {
-    const f = t * (beam.length - 1), i = Math.min(beam.length - 2, Math.floor(f)), u = f - i;
-    return [bx + (beam[i][0] + (beam[i + 1][0] - beam[i][0]) * u) * k * dir, by + (beam[i][1] + (beam[i + 1][1] - beam[i][1]) * u) * k];
+    const f = t * (BEAM.length - 1), i = Math.min(BEAM.length - 2, Math.floor(f)), u = f - i;
+    return [bx + (BEAM[i][0] + (BEAM[i + 1][0] - BEAM[i][0]) * u) * k * dir, by + (BEAM[i][1] + (BEAM[i + 1][1] - BEAM[i][1]) * u) * k];
   };
-  let [px, py] = at(0);
-  for (let i = 1; i <= 20; i++) {
-    const t = i / 20, [x, y] = at(t);
-    R.fline(px, py, x, y, (1.35 - t * 0.65) * k, A[t > 0.85 ? 4 : t > 0.3 ? 3 : 2]);
-    px = x; py = y;
-  }
-  // Enden: nach oben, leicht zur Mitte geneigt
-  for (const [t0, len, lean] of [[0.28, 2.8, -0.6], [0.6, 2.4, -0.3]]) {
+  const fine = R.s >= 2;
+  // Sprossen zuerst (die Stange liegt darüber)
+  for (const [t0, len, ux, uy] of [[0.16, 2.4, 0.15, -1], [0.45, 2.6, -0.35, -1], [0.7, 2.2, -0.45, -1]]) {
     const [sx, sy] = at(t0);
+    const n = Math.hypot(ux, uy);
     let qx = sx, qy = sy;
     for (let j = 1; j <= 6; j++) {
-      const t = j / 6;
-      const nx = sx + (lean * t + t * t * 0.4) * k * dir, ny = sy - len * k * t;
-      R.fline(qx, qy, nx, ny, (1.05 - t * 0.5) * k, A[t > 0.7 ? 4 : 3]);
+      const t = j / 6, bend = t * t * 0.5;
+      const nx = sx + (ux / n * len * t - bend * 0.3) * k * dir, ny = sy + (uy / n * len * t - bend) * k;
+      R.fline(qx, qy, nx, ny, (fine ? 0.95 - t * 0.5 : 0.8) * k, A[t > 0.65 ? 4 : 3]);
       qx = nx; qy = ny;
     }
   }
+  let [px, py] = at(0);
+  for (let i = 1; i <= 24; i++) {
+    const t = i / 24, [x, y] = at(t);
+    R.fline(px, py, x, y, (fine ? 1.3 - t * 0.7 : 1.0) * k, A[t > 0.88 ? 4 : t > 0.25 ? 3 : 2]);
+    if (fine && t < 0.8) R.fline(px + 0.35 * dir, py, x + 0.35 * dir, y, 0.3, A[1]);   // Schattenseite
+    px = x; py = y;
+  }
+  // Rosenstock am Ansatz
+  R.ellipse(bx, by + 0.2, 0.8 * k, 0.5 * k, A[2]);
 }
 
 // ------------------------------------------------------------------------------------------------ Im Spiel (Emissive-Pass)
-// Leuchtpunkte der Sets: pulse = sanftes Pulsieren (jeder Punkt mit eigener Phase), orbit = Runen kreisen auf einer Ellipse
-// (hintere Hälfte schwächer). Genutzt von entities/Hero.js und net/RemotePlayer.js. q = Feinraster des Spielbilds.
-export function drawSetGlow(ctx, g, x, y, t, q = 1, alpha = 1) {
-  const P = 1 / q;
-  if (g.orbit) {
-    const { rx, ry, n } = g.orbit;
-    for (let i = 0; i < n; i++) {
-      const a = t * 1.6 + (i / n) * TAU;
-      const px = Math.round((x + Math.cos(a) * rx) * q) / q, py = Math.round((y + Math.sin(a) * ry) * q) / q;
-      const front = Math.sin(a) > 0;
-      ctx.globalAlpha = (front ? 0.95 : 0.4) * alpha;
-      ctx.fillStyle = front ? '#ffd890' : g.color;
-      ctx.fillRect(px, py, P, P);
-      if (front) {
-        ctx.globalAlpha = 0.45 * alpha;
-        ctx.fillStyle = g.color;
-        ctx.fillRect(px - P, py, 3 * P, P); ctx.fillRect(px, py - P, P, 3 * P);
-      }
-    }
-    return;
+// Harte Leuchtebene: alle Feinpixel in Glutfarben (SET_GLOW) des fertigen Frames, relativ zum Fußpunkt (Feinpixel).
+// Der Emissive-Pass zeichnet sie deckend nach (nachts voll hell); einzelne Pixel springen wandernd in die heißere
+// Stufe (Glut fließt), nie halbtransparent.
+let glowCols = null;
+export function collectEmit(buf, fw, fh, ax, ay, res, K) {
+  glowCols ??= new Map([...SET_GLOW].map(([c, hot]) => [K.col(c), [c, hot]]));
+  const dx = [], dy = [], c = [], hot = [];
+  for (let G = 0; G < fh; G++) for (let F = 0; F < fw; F++) {
+    const v = buf[G * fw + F];
+    if (!v) continue;
+    const e = glowCols.get(v);
+    if (!e) continue;
+    dx.push(F - ax); dy.push(G - ay); c.push(e[0]); hot.push(e[1]);
   }
-  const k = 0.5 + 0.5 * Math.sin(t * 3.1 + x * 0.7 + y * 1.3);
-  const r = Math.max(1, Math.min(4, Math.round(g.r + k)));
-  ctx.globalAlpha = (0.1 + k * 0.16) * alpha;
-  ctx.fillStyle = g.color;
-  ctx.fillRect(x - r, y - r + 1, r * 2 + 1, r * 2 - 1);
-  ctx.fillRect(x - r + 1, y - r, r * 2 - 1, r * 2 + 1);
-  ctx.globalAlpha = (0.6 + k * 0.4) * alpha;
-  ctx.fillRect(x, y, 1, 1);
+  return c.length ? { dx: Int16Array.from(dx), dy: Int16Array.from(dy), c, hot, res } : null;
+}
+// frame.emit am Fußpunkt (x, y) in Weltpixeln, flip = nach links blickend
+export function drawSetEmit(ctx, e, x, y, flip, t) {
+  if (!e) return;
+  const r = e.res ?? 1, P = 1 / r, X = Math.round(x * r), Y = Math.round(y * r);
+  const ph = Math.floor(t * 8);
+  let last = null;
+  for (let i = 0; i < e.c.length; i++) {
+    const a = e.dx[i], b = e.dy[i];
+    // wandernde heiße Pixel: Welle von unten nach oben, in festen Schritten (8 je Sekunde)
+    const h = ((a * 3 + b * 5 + ph * 7) & 15) === 0 || ((b + ph) & 7) === 0 && ((a + b) & 1) === 0;
+    const col = h ? e.hot[i] : e.c[i];
+    if (col !== last) { ctx.fillStyle = col; last = col; }
+    ctx.fillRect((X + (flip ? -a - 1 : a)) * P, (Y + b) * P, P, P);
+  }
+}
+// Leuchtpunkte der Sets in frame.glows: emit = nur Partikelquelle (gezeichnet wird die Leuchtebene), orbit = kreisende
+// Glutrunen (gezeichnete Rune aus harten Feinpixeln, hintere Hälfte dunkler). q = Feinraster des Spielbilds.
+const RUNES = [[[0, -1], [0, 0], [0, 1], [1, -1], [-1, 1]], [[-1, -1], [0, 0], [1, 1], [1, -1], [-1, 1]], [[0, -1], [-1, 0], [1, 0], [0, 1], [0, 0]]];
+export function drawSetGlow(ctx, g, x, y, t, q = 1) {
+  if (!g.orbit) return;
+  const P = 1 / q, { rx, ry, n } = g.orbit;
+  for (let i = 0; i < n; i++) {
+    const a = t * 1.4 + (i / n) * TAU;
+    const front = Math.sin(a) > -0.15;
+    if (!front && Math.abs(Math.cos(a) * rx) < (g.orbit.hide ?? 0)) continue;   // hinter dem Körper
+    const px = Math.round((x + Math.cos(a) * rx) * q), py = Math.round((y + Math.sin(a) * ry) * q);
+    const hot = front && ((Math.floor(t * 6) + i) % 4 === 0);
+    ctx.fillStyle = front ? (hot ? C.ember[4] : C.ember[3]) : C.ember[1];
+    for (const [u, v] of RUNES[i % RUNES.length]) ctx.fillRect((px + u) * P, (py + v) * P, P, P);
+  }
 }
 
 // Partikel an Leuchtpunkten mit fx (Umhangsaum, Schalenden): Glutfunken steigen, Geisterlicht verweht,
 // Seelenblätter sinken, Sterne funkeln. rate = Partikel je Sekunde und Punkt.
 const SET_PARTICLE = {
-  glutthron: { rate: 2.2, make: (x, y, r) => ({ x, y, vx: r(-3, 3), rise: r(14, 26), wobble: 14, life: r(0.5, 0.9), colors: ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c', '#7a2208'], emissive: true }) },
-  mondsichel: { rate: 1.6, make: (x, y, r) => ({ x, y, vx: r(-6, -2), vy: r(-1, 1), rise: r(2, 6), life: r(0.4, 0.8), colors: ['#d0fff6', '#4ad8cc', '#1a8a8a'], emissive: true }) },
-  hirschkoenig: { rate: 1.0, make: (x, y, r) => ({ x, y: y - r(0, 6), vx: r(-4, 4), rise: r(-8, -3), wobble: 18, life: r(0.8, 1.4), colors: ['#e6ffe0', '#7ef08a', '#2ea84a'], emissive: true }) },
-  sternenfeuer: { rate: 1.2, make: (x, y, r) => ({ x: x + r(-2, 2), y: y - r(0, 10), vx: r(-1, 1), rise: r(2, 6), life: r(0.3, 0.6), colors: ['#ffffff', '#fff0a8', '#e0b444'], emissive: true }) },
+  glutthron: { rate: 3.0, make: (x, y, r) => ({ x, y, vx: r(-3, 3), rise: r(14, 26), wobble: 14, life: r(0.5, 0.9), colors: ['#fff6d8', '#f07a1c', '#c8420c', '#7a2208'], emissive: true, fade: false }) },
+  mondsichel: { rate: 1.4, make: (x, y, r) => ({ x, y, vx: r(-6, -2), vy: r(-1, 1), rise: r(2, 6), life: r(0.4, 0.7), colors: ['#f4fffc', '#4ad8cc', '#1a8a8a'], emissive: true, fade: false }) },
+  hirschkoenig: { rate: 1.6, make: (x, y, r) => ({ x, y: y - r(0, 4), vx: r(-5, 5), rise: r(-9, -4), wobble: 22, life: r(1.0, 1.6), colors: ['#7ef08a', '#2ea84a', '#16582a'], emissive: false, fade: false }) },
+  sternenfeuer: { rate: 1.4, make: (x, y, r) => ({ x: x + r(-2, 2), y: y - r(0, 6), vx: r(-1, 1), rise: r(3, 7), life: r(0.3, 0.6), colors: ['#ffffff', '#fff0a8', '#e0b444'], emissive: true, fade: false }) },
 };
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
 // glows des aktuellen Frames, Weltposition des Fußpunkts (x, y), Blickrichtung f; state.acc hält die Restzeit je Punkt

@@ -5,7 +5,7 @@ import { panelFrame, goldEl } from '../progression/widgets.js';
 import { resolveGear } from '../character/gearLook.js';
 import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE, isSetDesign, SET_CLASS_NAMES } from './catalog.js';
 import { SET_ITEMS, ownedSetLooks, findSkinSet } from '../character/skinSets.js';
-import { drawSetGlow } from '../sprites/heroSets.js';
+import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
 import { fmtNum } from '../i18n/index.js';
 
 // Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
@@ -418,8 +418,9 @@ function setPreview(game, session, design) {
     ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
     const r = fr.res ?? 1;
     ctx.drawImage(fr.canvas, Math.round(X * 2 - fr.ax * (2 / r)), Math.round(Y * 2 - fr.ay * (2 / r)), fr.canvas.width * (2 / r), fr.canvas.height * (2 / r));
-    ctx.save(); ctx.scale(2, 2); ctx.globalCompositeOperation = 'lighter';
-    for (const g of fr.glows ?? []) if (g.pulse || g.orbit) drawSetGlow(ctx, g, X + g.x, Y + g.y, t, 2);
+    ctx.save(); ctx.scale(2, 2);
+    drawSetEmit(ctx, fr.emit, X, Y, false, t);
+    for (const g of fr.glows ?? []) if (g.orbit) drawSetGlow(ctx, g, X + g.x, Y + g.y, t, 2);
     ctx.restore();
   };
   paint();

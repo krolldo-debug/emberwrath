@@ -220,7 +220,6 @@ for (const n of LOOK_TIERS) {
 // Klassen-Skinsets (character/skinSets.js): Aussehen je Icon, ohne Seltenheits-Zier (das Set bringt seine eigene mit)
 const SET_TABLE = { weapon: WEAPONS, chest: CHESTS, head: HEADS, hands: HANDS, feet: FEET };
 for (const [icon, { slot, ...look }] of Object.entries(SET_LOOKS)) SET_TABLE[slot][icon] = look;
-const SET_FX = { glutthron: 'fire', mondsichel: 'frost', hirschkoenig: 'nature', sternenfeuer: 'holy' };
 const FAMILY_MAT = { plate: 'metal', mail: 'metal', leather: 'cloth', cloth: 'cloth' };
 
 function itemOf(entry, content) {
@@ -288,7 +287,8 @@ function weaponLook(def) {
   const rarity = def.rarity ?? 'common';
   const R = RARITY_LOOK[rarity] ?? RARITY_LOOK.common;
   const base = WEAPONS[def.icon] ?? WEAPONS[family] ?? {};
-  if (base.set) return { family: base.family ?? family, icon: def.icon, rarity, ...base, shine: 2, tier: 3, fx: SET_FX[base.set] ?? 'fire' };
+  // Skinset: eigene harte Leuchtebene (sprites/heroSets.js), kein weicher Seltenheits-Schein
+  if (base.set) return { family: base.family ?? family, icon: def.icon, rarity, ...base, shine: 0, tier: 0 };
   const known = !!WEAPONS[def.icon] || !!WEAPON_NAMED[def.id];
   const look = { family, icon: def.icon, rarity, ...base, ...cutOf(def, base), ...WEAPON_NAMED[def.id] };
   // Unbekanntes Icon: Material nach Seltenheit, damit „lila“ auch lila aussieht.

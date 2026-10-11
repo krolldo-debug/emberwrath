@@ -4557,9 +4557,7 @@ export const EN = {
   "Schleier der Mondsichel": "Veil of the Crescent Moon",
   "Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.": "Midnight leather with moonsilver crescents. Spirit eyes glow beneath the hood, and the blades cut like cold light.",
   "Mantel des Hirschkönigs": "Mantle of the Stag King",
-  "Ein Geweih aus altem Elfenbein, ein Federkragen und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.": "Antlers of ancient ivory, a feathered collar and a bow of living wood on which soul leaves glimmer.",
   "Gewand des Sternenfeuers": "Raiment of Starfire",
-  "Eine Robe aus Nachthimmel, in der Sterne funkeln. Über dem Haupt schwebt ein Reif aus Glutrunen, der Stab trägt einen gefangenen Stern.": "A robe of night sky in which stars sparkle. A ring of ember runes floats above the head, and the staff holds a captured star.",
   "Glutthronklinge": "Ember Throne Blade",
   "Brustpanzer des Glutthrons": "Breastplate of the Ember Throne",
   "Gehörnter Helm des Glutthrons": "Horned Helm of the Ember Throne",
@@ -4577,7 +4575,6 @@ export const EN = {
   "Stiefel des Hirschkönigs": "Boots of the Stag King",
   "Stab des gefangenen Sterns": "Staff of the Captured Star",
   "Robe des Sternenfeuers": "Robe of Starfire",
-  "Runenreif des Sternenfeuers": "Runic Halo of Starfire",
   "Handschuhe des Sternenfeuers": "Gloves of Starfire",
   "Schuhe des Sternenfeuers": "Slippers of Starfire",
   "Skinset Wehr des Glutthrons für Krieger: Aussehen für Waffe, Brust, Kopf, Hände und Füße": "Skin set Ward of the Ember Throne for Warriors: looks for weapon, chest, head, hands and feet",
@@ -4587,5 +4584,8 @@ export const EN = {
   "{0}, für alle passenden Charaktere deines Emberwrath-Kontos, reines Aussehen ohne Werte": "{0}, for all matching characters on your Emberwrath account, cosmetic only with no stats",
   "Set anlegen": "Apply set",
   "Set angelegt": "Set applied",
-  "Skinset · {0}": "Skin set · {0}"
+  "Skinset · {0}": "Skin set · {0}",
+  "Eine Robe aus Nachthimmel, in der Sterne funkeln. Ein Sternenhut, Glutrunen kreisen um den Träger, der Stab hält einen gefangenen Stern.": "A robe of night sky in which stars sparkle. A star hat, ember runes circling the wearer, and a staff holding a captured star.",
+  "Eine Geweihkrone aus altem Elfenbein, ein Waldmantel und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.": "A crown of antlers of ancient ivory, a forest cloak and a bow of living wood on which soul leaves glimmer.",
+  "Sternenhut des Sternenfeuers": "Star Hat of Starfire"
 };

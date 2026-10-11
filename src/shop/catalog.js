@@ -58,9 +58,9 @@ export const DESIGNS = [
   { id: 'design_set_mondsichel', name: 'Schleier der Mondsichel', priceCents: 799, classId: 'rogue', items: ['look:set_mondsichel'],
     desc: 'Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.' },
   { id: 'design_set_hirschkoenig', name: 'Mantel des Hirschkönigs', priceCents: 799, classId: 'ranger', items: ['look:set_hirschkoenig'],
-    desc: 'Ein Geweih aus altem Elfenbein, ein Federkragen und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.' },
+    desc: 'Eine Geweihkrone aus altem Elfenbein, ein Waldmantel und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.' },
   { id: 'design_set_sternenfeuer', name: 'Gewand des Sternenfeuers', priceCents: 799, classId: 'mage', items: ['look:set_sternenfeuer'],
-    desc: 'Eine Robe aus Nachthimmel, in der Sterne funkeln. Über dem Haupt schwebt ein Reif aus Glutrunen, der Stab trägt einen gefangenen Stern.' },
+    desc: 'Eine Robe aus Nachthimmel, in der Sterne funkeln. Ein Sternenhut, Glutrunen kreisen um den Träger, der Stab hält einen gefangenen Stern.' },
 ];
 export const isSetDesign = (d) => !!d?.items?.some((k) => k.startsWith('look:'));
 export const SET_CLASS_NAMES = { warrior: 'Krieger', rogue: 'Schurke', ranger: 'Waldläufer', mage: 'Glutmagier' };

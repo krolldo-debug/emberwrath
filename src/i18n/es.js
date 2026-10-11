@@ -4557,9 +4557,7 @@ export const ES = {
   "Schleier der Mondsichel": "Velo de la Media Luna",
   "Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.": "Cuero de medianoche con medias lunas de plata lunar. Bajo la capucha brillan ojos espectrales y las hojas cortan como luz fría.",
   "Mantel des Hirschkönigs": "Manto del Rey Ciervo",
-  "Ein Geweih aus altem Elfenbein, ein Federkragen und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.": "Una cornamenta de marfil antiguo, un cuello de plumas y un arco de madera viva en el que brillan hojas de alma.",
   "Gewand des Sternenfeuers": "Vestidura del Fuego Estelar",
-  "Eine Robe aus Nachthimmel, in der Sterne funkeln. Über dem Haupt schwebt ein Reif aus Glutrunen, der Stab trägt einen gefangenen Stern.": "Una túnica de cielo nocturno en la que centellean estrellas. Sobre la cabeza flota un aro de runas de ascuas y el bastón porta una estrella cautiva.",
   "Glutthronklinge": "Hoja del Trono de Ascuas",
   "Brustpanzer des Glutthrons": "Coraza del Trono de Ascuas",
   "Gehörnter Helm des Glutthrons": "Yelmo astado del Trono de Ascuas",
@@ -4577,7 +4575,6 @@ export const ES = {
   "Stiefel des Hirschkönigs": "Botas del Rey Ciervo",
   "Stab des gefangenen Sterns": "Bastón de la Estrella Cautiva",
   "Robe des Sternenfeuers": "Túnica del Fuego Estelar",
-  "Runenreif des Sternenfeuers": "Aro rúnico del Fuego Estelar",
   "Handschuhe des Sternenfeuers": "Guantes del Fuego Estelar",
   "Schuhe des Sternenfeuers": "Zapatos del Fuego Estelar",
   "Skinset Wehr des Glutthrons für Krieger: Aussehen für Waffe, Brust, Kopf, Hände und Füße": "Conjunto de aspecto Égida del Trono de Ascuas para guerreros: aspecto de arma, torso, cabeza, manos y pies",
@@ -4587,5 +4584,8 @@ export const ES = {
   "{0}, für alle passenden Charaktere deines Emberwrath-Kontos, reines Aussehen ohne Werte": "{0}, para todos los personajes compatibles de tu cuenta de Emberwrath, solo estético y sin atributos",
   "Set anlegen": "Aplicar conjunto",
   "Set angelegt": "Conjunto aplicado",
-  "Skinset · {0}": "Conjunto de aspecto · {0}"
+  "Skinset · {0}": "Conjunto de aspecto · {0}",
+  "Eine Robe aus Nachthimmel, in der Sterne funkeln. Ein Sternenhut, Glutrunen kreisen um den Träger, der Stab hält einen gefangenen Stern.": "Una túnica de cielo nocturno en la que centellean estrellas. Un sombrero estelar, runas de ascuas que giran alrededor de quien lo lleva y un bastón que sostiene una estrella cautiva.",
+  "Eine Geweihkrone aus altem Elfenbein, ein Waldmantel und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.": "Una corona de astas de marfil antiguo, un manto del bosque y un arco de madera viva en el que brillan hojas de alma.",
+  "Sternenhut des Sternenfeuers": "Sombrero estelar del Fuego Estelar"
 };

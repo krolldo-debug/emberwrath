@@ -4557,9 +4557,7 @@ export const FR = {
   "Schleier der Mondsichel": "Voile du Croissant de lune",
   "Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.": "Cuir de minuit orné de croissants d’argent lunaire. Sous la capuche brillent des yeux spectraux, les lames tranchent comme une lumière froide.",
   "Mantel des Hirschkönigs": "Manteau du Roi cerf",
-  "Ein Geweih aus altem Elfenbein, ein Federkragen und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.": "Des bois d’ivoire ancien, un col de plumes et un arc de bois vivant où luisent des feuilles d’âme.",
   "Gewand des Sternenfeuers": "Parure du Feu stellaire",
-  "Eine Robe aus Nachthimmel, in der Sterne funkeln. Über dem Haupt schwebt ein Reif aus Glutrunen, der Stab trägt einen gefangenen Stern.": "Une robe de ciel nocturne où scintillent des étoiles. Un anneau de runes de braise flotte au-dessus de la tête, le bâton porte une étoile captive.",
   "Glutthronklinge": "Lame du Trône de braise",
   "Brustpanzer des Glutthrons": "Cuirasse du Trône de braise",
   "Gehörnter Helm des Glutthrons": "Heaume cornu du Trône de braise",
@@ -4577,7 +4575,6 @@ export const FR = {
   "Stiefel des Hirschkönigs": "Bottes du Roi cerf",
   "Stab des gefangenen Sterns": "Bâton de l’Étoile captive",
   "Robe des Sternenfeuers": "Robe du Feu stellaire",
-  "Runenreif des Sternenfeuers": "Cercle runique du Feu stellaire",
   "Handschuhe des Sternenfeuers": "Gants du Feu stellaire",
   "Schuhe des Sternenfeuers": "Souliers du Feu stellaire",
   "Skinset Wehr des Glutthrons für Krieger: Aussehen für Waffe, Brust, Kopf, Hände und Füße": "Ensemble d’apparence Égide du Trône de braise pour guerriers : apparence d’arme, torse, tête, mains et pieds",
@@ -4587,5 +4584,8 @@ export const FR = {
   "{0}, für alle passenden Charaktere deines Emberwrath-Kontos, reines Aussehen ohne Werte": "{0}, pour tous les personnages compatibles de ton compte Emberwrath, purement cosmétique, sans statistiques",
   "Set anlegen": "Appliquer l’ensemble",
   "Set angelegt": "Ensemble appliqué",
-  "Skinset · {0}": "Ensemble d’apparence · {0}"
+  "Skinset · {0}": "Ensemble d’apparence · {0}",
+  "Eine Robe aus Nachthimmel, in der Sterne funkeln. Ein Sternenhut, Glutrunen kreisen um den Träger, der Stab hält einen gefangenen Stern.": "Une robe de ciel nocturne où scintillent des étoiles. Un chapeau étoilé, des runes de braise qui tournoient autour du porteur et un bâton qui retient une étoile captive.",
+  "Eine Geweihkrone aus altem Elfenbein, ein Waldmantel und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.": "Une couronne de bois d’ivoire ancien, un manteau sylvestre et un arc de bois vivant où luisent des feuilles d’âme.",
+  "Sternenhut des Sternenfeuers": "Chapeau étoilé du Feu stellaire"
 };

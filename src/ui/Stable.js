@@ -1,7 +1,7 @@
 import { GROUND_STEPPE, bayer, shadeLump } from '../sprites/decor_steppe.js';
 import { getMountSprites } from '../sprites/mounts.js';
 import { createRng, hash2 } from '../core/math.js';
-import { drawSetGlow } from '../sprites/heroSets.js';
+import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
 
 // Bühne und Karten der Garderobe (ui/WardrobePanel.js) im Stil der Reittier-Parade der Startseite
 // (site/tools/parade-boden.mjs): Weg, Wiese, ferne Hügel und Nachthimmel der Aschensteppe, zur Laufzeit gebaut.
@@ -291,11 +291,12 @@ export class StableStage {
   }
 }
 
-// Pulsierende Leuchtpunkte der Skinsets (sprites/heroSets.js) im Feinraster der Bühne
+// Harte Leuchtebene und kreisende Runen der Skinsets (sprites/heroSets.js) im Feinraster der Bühne
 function setGlows(bx, f, cx, fy, t) {
-  if (!f.glows?.some((g) => g.pulse || g.orbit)) return;
-  bx.save(); bx.translate(cx, fy); bx.scale(TEX, TEX); bx.globalCompositeOperation = 'lighter';
-  for (const g of f.glows) if (g.pulse || g.orbit) drawSetGlow(bx, g, g.x, g.y, t, TEX);
+  if (!f.emit) return;
+  bx.save(); bx.scale(TEX, TEX);
+  drawSetEmit(bx, f.emit, cx / TEX, fy / TEX, false, t);
+  for (const g of f.glows ?? []) if (g.orbit) drawSetGlow(bx, g, cx / TEX + g.x, fy / TEX + g.y, t, TEX);
   bx.restore();
 }
 
