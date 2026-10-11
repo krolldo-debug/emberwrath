@@ -64,8 +64,8 @@
   if (setSec && setStage) {
     const cv = $('canvas', setStage); cv.dataset.var = '--sh';
     // Breite bestimmt den Maßstab; auf niedrigen Bildschirmen (Handy quer) passt die Bühne in die Höhe
-    const st = stage(cv, 58, (w) => Math.min(w > 520 ? 9 : w > 380 ? 7 : 6, Math.max(4, Math.floor((innerHeight - 150) / 58))));
-    const BASE = 49;   // Fußlinie in Spielpixeln
+    const st = stage(cv, 50, (w) => Math.min(w > 560 ? 11 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, Math.floor((innerHeight - 130) / 50))));
+    const BASE = 43;   // Fußlinie in Spielpixeln; die Figur füllt gut drei Viertel der Bühne
     const tabs = $$('.set-tabs [role="tab"]'), switches = $$('.set-switch button');
     const imgs = {}, scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');
     let cur = null, look = 1, from = 1, prog = 1, clock = 0, motes = [], pending = 0;
@@ -126,18 +126,20 @@
       sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = `rgb(${d.glow})`; sctx.fillRect(0, 0, scratch.width, 2);
       sctx.globalCompositeOperation = 'source-over';
       st.ctx.drawImage(scratch, 0, 0, d.w * 2, 2, st.px(x), st.px(y + row), d.w * st.wp, st.wp);
-      st.ctx.globalAlpha = 0.5; st.ctx.drawImage(scratch, 0, 0, d.w * 2, 2, st.px(x - 1), st.px(y + row - 1), (d.w + 2) * st.wp, st.wp); st.ctx.globalAlpha = 1;
       if (Math.random() < 0.9) motes.push({ x: x + Math.random() * d.w, y: y + row, vx: (Math.random() - 0.5) * 10, vy: -8 - Math.random() * 14, life: 0, max: 0.5 + Math.random() * 0.5, hot: true });
+    };
+    // Funke deckend, verglüht in harten Stufen: weiß → Farbe des Sets → dunkle Glut
+    const mote = (m) => {
+      const t = m.life / m.max;
+      st.rect(m.x, m.y, 0.5, 0.5, m.hot && t < 0.3 ? '#fff4d0' : t < 0.65 ? `rgb(${cur.glow})` : `rgb(${cur.glow.split(',').map((v) => Math.round(v * 0.45)).join(',')})`);
     };
     const draw = () => {
       st.ctx.clearRect(0, 0, cv.width, cv.height);
       if (!cur) return;
       drawDais();
-      for (const m of motes) { if (m.y > BASE - 2) continue; st.ctx.globalAlpha = Math.max(0, 1 - m.life / m.max); st.rect(m.x, m.y, 0.5, 0.5, m.hot && m.life < m.max * 0.3 ? '#fff4d0' : `rgb(${cur.glow})`); }
-      st.ctx.globalAlpha = 1;
+      for (const m of motes) if (m.y <= BASE - 2) mote(m);
       drawHero();
-      for (const m of motes) { if (m.y <= BASE - 2) continue; st.ctx.globalAlpha = Math.max(0, 1 - m.life / m.max); st.rect(m.x, m.y, 0.5, 0.5, `rgb(${cur.glow})`); }
-      st.ctx.globalAlpha = 1;
+      for (const m of motes) if (m.y > BASE - 2) mote(m);
     };
     const step = (dt) => {
       clock += dt;
@@ -193,7 +195,7 @@
   if (show && cards.length) {
     const cv = $('canvas', show);
     const BASE = +show.dataset.base, H = +show.dataset.h, NEAR_Y = +show.dataset.nearY, FAR_Y = +show.dataset.farY;
-    const st = stage(cv, H, (w) => (w > 1100 ? 6 : w > 820 ? 5 : w > 360 ? 4 : 3));
+    const st = stage(cv, H, (w) => (w > 1100 ? 5 : w > 700 ? 4 : 3));
     const defs = cards.map((c) => {
       const [w, h, fx, fy, n, fps, fly, v] = nums(c.dataset.f);
       return { card: c, w, h, fx, fy, n, fps, fly, v, lift: nums(c.dataset.l), img: loadImg(`${IMG}gang-${c.dataset.m}.webp`), glow: rgb(c) };
@@ -206,9 +208,14 @@
       const tw = img.naturalWidth / 2, th = img.naturalHeight / 2;
       for (let x = -(((off % tw) + tw) % tw); x < st.W; x += tw) st.ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, st.px(x), st.px(y), tw * st.wp, th * st.wp);
     };
-    const shadow = (x, w, a) => {
+    // Schatten als Pixelraster: Kern deckend, Rand im Schachbrett (keine Halbtransparenz)
+    const shadow = (x, w, airy) => {
       if (w < 2) return;
-      for (let r = -1; r <= 1; r++) { const hw = Math.round(w * Math.sqrt(1 - (r / 2) ** 2)); st.rect(x - hw, BASE + r, hw * 2, 1, `rgba(0, 0, 0, ${a})`); }
+      const x0 = Math.round(x);
+      for (let r = -1; r <= 1; r++) {
+        const hw = Math.round(w * Math.sqrt(1 - (r / 2) ** 2)), core = airy ? 0 : r ? hw - 3 : hw - 2;
+        for (let i = -hw; i < hw; i++) if (Math.abs(i + 0.5) < core || (i + r) % 2 === 0) st.rect(x0 + i, BASE + r, 1, 1, '#1a110c');
+      }
     };
     const lift = (r) => {
       const d = r.d, f = Math.floor(r.t * d.fps) % d.n;
@@ -218,19 +225,12 @@
       st.ctx.clearRect(0, 0, cv.width, cv.height);
       tile(far, BASE - FAR_Y, cam * 0.4);
       tile(near, BASE - NEAR_Y, cam);
-      const fb = st.ctx.createLinearGradient(0, cv.height - st.px(16), 0, cv.height);
-      fb.addColorStop(0, 'rgba(5, 2, 10, 0)'); fb.addColorStop(1, 'rgba(5, 2, 10, 1)');
-      st.ctx.fillStyle = fb; st.ctx.fillRect(0, cv.height - st.px(16), cv.width, st.px(16));
-      // Seitenränder in den Hintergrund ausblenden
-      for (const [x0, x1] of [[0, 1], [1, 0]]) {
-        const g = st.ctx.createLinearGradient(x0 ? cv.width : 0, 0, x0 ? cv.width - st.px(40) : st.px(40), 0);
-        g.addColorStop(0, 'rgba(5, 2, 10, 1)'); g.addColorStop(1, 'rgba(5, 2, 10, 0)');
-        st.ctx.fillStyle = g; st.ctx.fillRect(x0 ? cv.width - st.px(40) : 0, 0, st.px(40), cv.height);
-        void x1;
-      }
-      for (const r of runners) { const { lift: l } = lift(r), k = Math.max(0.5, 1 - l / 60); shadow(r.x + (r.d.fly ? 2 : 0), r.d.w * (r.d.fly ? 0.34 : 0.32) * k, (r.d.fly ? 0.62 : 0.48) * k); }
-      for (const q of dust) { st.ctx.globalAlpha = Math.max(0, 1 - q.life / q.max) * q.a; st.rect(q.x, q.y, 1, 1, q.c); }
-      st.ctx.globalAlpha = 1;
+      // Unterkante hart: zwei Reihen Schachbrett, dann Seitengrund
+      const W = Math.ceil(st.W);
+      st.rect(0, H - 2, W, 2, '#05020a');
+      for (let r = 3; r <= 4; r++) for (let i = (r % 2); i < W; i += 2) st.rect(i, H - r, 1, 1, '#05020a');
+      for (const r of runners) { const { lift: l } = lift(r), k = Math.max(0.5, 1 - l / 60); shadow(r.x + (r.d.fly ? 2 : 0), r.d.w * (r.d.fly ? 0.26 : 0.32) * k, !!r.d.fly); }
+      for (const q of dust) st.rect(Math.round(q.x), Math.round(q.y), 1, 1, q.life > q.max * 0.6 && q.dim ? q.dim : q.c);
       for (const r of runners) {
         const d = r.d, { f, lift: l } = lift(r);
         if (!d.img.complete || !d.img.naturalWidth) continue;
@@ -251,8 +251,8 @@
         r.x += r.vx * dt;
         if (!fx) continue;
         const d = r.d, back = r.x - d.fx * 0.7, { lift: l } = lift(r);
-        if (!d.fly && l < 1 && Math.random() < dt * 26) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -v - 6 - Math.random() * 12, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', a: 0.7 });
-        if (Math.random() < dt * (d.fly ? 22 : 14)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - l - d.fy * (0.2 + Math.random() * 0.5), vx: -v * 0.6 - 10 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: `rgb(${d.glow})`, a: 0.95 });
+        if (!d.fly && l < 1 && Math.random() < dt * 26) dust.push({ x: back + Math.random() * 6, y: BASE - Math.random() * 2, vx: -v - 6 - Math.random() * 12, vy: -6 - Math.random() * 8, life: 0, max: 0.5 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#6e5a48' : '#8f7a62', dim: '#4a3c30' });
+        if (Math.random() < dt * (d.fly ? 22 : 14)) dust.push({ x: r.x - d.fx * 0.4 + Math.random() * d.w * 0.6, y: BASE - l - d.fy * (0.2 + Math.random() * 0.5), vx: -v * 0.6 - 10 - Math.random() * 10, vy: d.fly ? 10 + Math.random() * 10 : -10 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.8, c: `rgb(${d.glow})`, dim: `rgb(${d.glow.split(',').map((v) => Math.round(v * 0.5)).join(',')})` });
       }
       for (const q of dust) { q.life += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 18 * dt; }
       dust = dust.filter((q) => q.life < q.max).slice(-260);
@@ -370,7 +370,7 @@
     else if (!status.enabled) state.textContent = status.configured
       ? 'Admin-Vorschau: Käufe gehen nur mit deinem Admin-Konto.'
       : 'Admin-Vorschau: Zahlungen sind noch nicht eingerichtet.';
-    else state.textContent = `Angemeldet als ${user.user_metadata?.display_name || user.email}.`;
+    else state.textContent = '';
     navLogin.hidden = !!user || !status?.enabled;
 
     const all = offers();
@@ -425,11 +425,40 @@
     render();
   }
 
+  // Produktbild im Dialog: erstes Bild des Angebots, ganzzahlig vergrößert (Sets und Reittiere im Set bzw. mit Reiter)
+  const thumbCv = $('[data-dlg-thumb]');
+  function thumb(btn) {
+    const card = btn.closest('.set-panel, .mount, .pack, .svc'), dpr = devicePixelRatio || 1, box = 84 * dpr;
+    let img, crop;
+    if (card?.matches('.set-panel, .mount')) {
+      const [w, h] = nums(card.dataset.f), set = card.matches('.set-panel');
+      img = loadImg(set ? `${IMG}set-${card.dataset.cls}.webp` : `${IMG}gang-${card.dataset.m}.webp`);
+      crop = [0, set ? h * 2 : 0, w * 2, h * 2];
+    } else {
+      img = card?.querySelector('img');
+      crop = img && [0, 0, img.naturalWidth, img.naturalHeight];
+    }
+    const draw = () => {
+      if (!img?.naturalWidth) return;
+      if (!crop[2]) crop = [0, 0, img.naturalWidth, img.naturalHeight];
+      const k = Math.max(1, Math.floor(box / Math.max(crop[2], crop[3])));
+      thumbCv.width = crop[2] * k; thumbCv.height = crop[3] * k;
+      thumbCv.style.width = `${thumbCv.width / dpr}px`; thumbCv.style.height = `${thumbCv.height / dpr}px`;
+      const x = thumbCv.getContext('2d'); x.imageSmoothingEnabled = false;
+      x.drawImage(img, ...crop, 0, 0, thumbCv.width, thumbCv.height);
+    };
+    thumbCv.width = thumbCv.height = 0;
+    if (img?.complete) draw(); else img?.addEventListener('load', draw, { once: true });
+  }
+
   function openDialog(btn) {
     const o = offers().get(btn.dataset.buy);
     product = { btn, id: btn.dataset.buy };
     $('[data-dlg-title]').textContent = btn.dataset.title ?? '';
     $('[data-dlg-price]').textContent = o?.priceCents ? price(o.priceCents) : (btn.closest('.set-panel, .mount, .pack, .svc')?.querySelector('.price')?.textContent ?? '');
+    const note = $('[data-price-note]')?.textContent ?? '';
+    $('[data-dlg-vat]').hidden = !/Umsatzsteuer|VAT/i.test(note) || /UStG|keine|no VAT/i.test(note);
+    thumb(btn);
     waiver.checked = false; errorBox.hidden = true;
     renderDialog();
     dlg.showModal();

@@ -302,7 +302,7 @@
   ]
  },
  "phoenix_wing": {
-  "w": 61,
+  "w": 62,
   "h": 44,
   "res": 2,
   "frames": 12,
@@ -331,13 +331,13 @@
  },
  "astral_stallion": {
   "w": 41,
-  "h": 44,
+  "h": 45,
   "res": 2,
   "frames": 12,
   "fps": 15,
   "gait": "gallop",
   "foot": {
-   "x": 20,
+   "x": 19,
    "y": 41
   },
   "fly": 0,
@@ -359,7 +359,7 @@
  },
  "soul_wolf": {
   "w": 42,
-  "h": 45,
+  "h": 46,
   "res": 2,
   "frames": 12,
   "fps": 14,

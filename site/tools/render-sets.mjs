@@ -1,10 +1,10 @@
 // Klassen-Sets im Shop (site/shop.html): jede Klasse einmal in gewöhnlicher Ausrüstung („Vorher“) und einmal im Set
-// („Nachher“), Ruhe-Animation aus dem Spielcode (getHeroSprites, RES 2), Leuchtpunkte hart wie in reittiere-gang.mjs.
+// („Nachher“), Ruhe-Animation aus dem Spielcode (getHeroSprites, RES 2). Leuchtpunkte hart: Mittelpunkt in voller Farbe,
+// der Schein färbt nur die deckenden Bildpunkte darunter ein (keine halbtransparenten Ränder).
 // Ergebnis je Klasse: set-<klasse>.png = zwei Reihen (oben Vorher, unten Nachher), alle Bilder gleich groß, gleicher Fußpunkt.
 // Maße stehen in der Ausgabe und gehören an .set-fig in site/shop.html (data-f = Breite Höhe FußX FußY Bilder fps).
-// Bis der Thread „Klassen-Skinsets“ die echten Sets liefert, stehen hier legendäre Sets aus dem Spiel als Platzhalter;
-// danach nur AFTER (und ggf. dye) ersetzen und neu rendern.
-//   npx http-server . -p 8102 -s &     (Module direkt aus dem Projektordner)
+// Nachher = die Shop-Sets aus src/character/skinSets.js (Teile <setId>_<slot>).
+//   npx http-server . -p 8102 -s &     (Module direkt aus dem Projektordner; EW_URL für einen anderen Stand)
 //   node site/tools/render-sets.mjs site/img [klassen]
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -12,15 +12,12 @@ const OUT = process.argv[2] ?? 'sets'; mkdirSync(OUT, { recursive: true });
 const ONLY = process.argv[3]?.split(',');
 const BASE = process.env.EW_URL ?? 'http://localhost:8102';
 // Klasse: [Volk, Vorher-Ausrüstung, Nachher-Ausrüstung, Färbung Nachher]
+const SET = (id) => ['weapon', 'chest', 'head', 'hands', 'feet'].map((s) => `${id}_${s}`);
 const LOOKS = {
-  warrior: ['human', ['iron_helm', 'iron_cuirass', 'borderwatch_gauntlets', 'ironshod_boots', 'steel_blade'],
-    ['sovereign_helm', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'kingsbane'], null],
-  rogue: ['emberborn', ['leather_cap', 'nightstalker_vest', 'leather_gloves', 'traveler_boots', 'desert_kris'],
-    ['wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots', 'veilpiercer'], null],
-  ranger: ['elf', ['trackers_hood', 'hunter_leather', 'suede_grips', 'hunters_boots', 'longbow'],
-    ['bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots', 'dawnstring'], null],
-  mage: ['elf', ['wanderer_hood', 'mage_robe', 'linen_gloves', 'linen_shoes', 'crystal_staff'],
-    ['colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers', 'staff_of_last_ash'], null],
+  warrior: ['human', ['iron_helm', 'iron_cuirass', 'borderwatch_gauntlets', 'ironshod_boots', 'steel_blade'], SET('set_glutthron'), null],
+  rogue: ['human', ['leather_cap', 'nightstalker_vest', 'leather_gloves', 'traveler_boots', 'desert_kris'], SET('set_mondsichel'), null],
+  ranger: ['human', ['trackers_hood', 'hunter_leather', 'suede_grips', 'hunters_boots', 'longbow'], SET('set_hirschkoenig'), null],
+  mage: ['human', ['wanderer_hood', 'mage_robe', 'linen_gloves', 'linen_shoes', 'crystal_staff'], SET('set_sternenfeuer'), null],
 };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
@@ -42,12 +39,25 @@ const res = await p.evaluate(async ({ LOOKS, ONLY }) => {
       const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
       x.setTransform(RES, 0, 0, RES, 0, 0);
       fr.draw(x, AX / RES, AY / RES, {});
+      // Leuchtpunkte hart: Schein (Kreuz mit Radius r) mischt die Glutfarbe in deckende Bildpunkte, Mittelpunkt voll
+      const id = x.getImageData(0, 0, S, S), D = id.data;
+      const hex = (c) => { const m = /^#?([0-9a-f]{6})$/i.exec(c); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
       for (const gl of fr.glows ?? []) {
-        const gx = Math.round(AX / RES + gl.x), gy = Math.round(AY / RES + gl.y), r = Math.max(1, Math.min(4, Math.round(gl.r)));
-        x.globalAlpha = 0.2; x.fillStyle = gl.color;
-        x.fillRect(gx - r, gy - r + 1, r * 2 + 1, r * 2 - 1); x.fillRect(gx - r + 1, gy - r, r * 2 - 1, r * 2 + 1);
-        x.globalAlpha = 0.9; x.fillRect(gx, gy, 1, 1); x.globalAlpha = 1;
+        const col = hex(gl.color); if (!col) continue;
+        const gx = Math.round(AX / RES + gl.x) * RES, gy = Math.round(AY / RES + gl.y) * RES, r = Math.max(1, Math.min(2, Math.round(gl.r)));
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          const dd = Math.abs(dx) + Math.abs(dy); if (dd > r) continue;
+          const k = dd === 0 ? 1 : 0.4 / dd;
+          for (let py = 0; py < RES; py++) for (let px = 0; px < RES; px++) {
+            const i = ((gy + dy * RES + py) * S + gx + dx * RES + px) * 4;
+            if (dd > 0 && D[i + 3] < 128) continue;
+            for (let c = 0; c < 3; c++) D[i + c] = Math.round(D[i + c] * (1 - k) + col[c] * k);
+            D[i + 3] = 255;
+          }
+        }
       }
+      for (let i = 3; i < D.length; i += 4) D[i] = D[i] < 128 ? 0 : 255;
+      x.putImageData(id, 0, 0);
       return c;
     }) };
   };

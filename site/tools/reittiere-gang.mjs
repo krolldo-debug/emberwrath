@@ -110,11 +110,13 @@ const RIDERS = {
   ash_wolf: ['dwarf', 'mage', ['staff_of_last_ash', 'colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], 'bound'],
   marsh_strider: ['elf', 'rogue', ['veilpiercer', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], 'stalk'],
   steppe_horse: ['human', 'ranger', ['dawnstring', 'jarl_cap', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], 'gallop'],
-  // Exklusive Shop-Reittiere (site/shop.html), Reiter mit der Färbung des Designs (5. Wert)
+  // Exklusive Shop-Reittiere (site/shop.html), Reiter mit der Färbung des Designs (5. Wert). Für die große Shop-Bühne
+  // im Raster des Reiters (Reittier in Weltpixeln, je 2 × 2 Bildpunkte) und mit harten Leuchtpunkten ohne Halbtransparenz.
   phoenix_wing: ['human', 'warrior', [...SOV, 'kingsbane'], 'fly', 'phoenix'],
   astral_stallion: ['elf', 'mage', ['staff_of_last_ash', 'colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], 'gallop', 'starnight'],
   soul_wolf: ['emberborn', 'rogue', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'], 'bound', 'soullight'],
 };
+const HARD = ['phoenix_wing', 'astral_stallion', 'soul_wolf'];
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
@@ -135,7 +137,7 @@ await p.route('**/src/sprites/mounts.js', async (route) => {
 });
 await p.goto(`${BASE}/index.html`);
 await p.waitForFunction(() => window.emberfall?.scenes?.currentId, null, { timeout: 30000 });
-const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE }) => {
+const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE, HARD }) => {
   const g = window.emberfall;
   const { resolveGear } = await import('/src/character/gearLook.js');
   const { getHeroSprites } = await import('/src/sprites/hero.js');
@@ -157,7 +159,8 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE }) => {
       const pose = P.fly
         ? { walk: false, ph, bob: 0, nod: P.nod, flap: P.flap, tuck: P.tuck }
         : { walk: true, ph, bob: h2(P.bob), nod: P.nod, pitch: P.pitch, feet: P.feet };
-      const m = makeFrame(B, def.look, pose, RES);
+      const hard = HARD.includes(mountId);
+      const m = makeFrame(B, def.look, pose, hard ? 1 : RES);
       const fr = new RideFrame(m, rider.frames[Math.floor(u * 2) % rider.frames.length]);
       const c = document.createElement('canvas'); c.width = S; c.height = S;
       const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
@@ -168,6 +171,7 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE }) => {
       // Leuchtpunkte (Augen, Glut, Schatten) genau wie Hero.renderEmissive im Spiel
       for (const gl of fr.glows ?? []) {
         const gx = Math.round(AX / RES + gl.x), gy = Math.round(AY / RES + dy + gl.y), r = Math.max(1, Math.min(4, Math.round(gl.r)));
+        if (hard) { x.fillStyle = gl.color; x.fillRect(gx, gy, 1, 1); continue; }
         x.globalAlpha = 0.2; x.fillStyle = gl.color;
         x.fillRect(gx - r, gy - r + 1, r * 2 + 1, r * 2 - 1); x.fillRect(gx - r + 1, gy - r, r * 2 - 1, r * 2 + 1);
         x.globalAlpha = 0.9; x.fillRect(gx, gy, 1, 1); x.globalAlpha = 1;
@@ -188,11 +192,17 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE }) => {
     const sheet = document.createElement('canvas'); sheet.width = w * cs.length; sheet.height = h;
     const sx = sheet.getContext('2d'); sx.imageSmoothingEnabled = false;
     cs.forEach((c, i) => sx.drawImage(c, x0, y0, w, h, i * w, 0, w, h));
+    if (HARD.includes(mountId)) {
+      // Harte Kanten: halbtransparente Bildpunkte weg (Schatten/Schein zeichnet die Seite selbst in harten Stufen)
+      const id = sx.getImageData(0, 0, sheet.width, h);
+      for (let i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] < 128 ? 0 : 255;
+      sx.putImageData(id, 0, 0);
+    }
     out[`gang-${mountId}.png`] = sheet.toDataURL('image/png');
     meta[mountId] = { w: w / RES, h: h / RES, res: RES, frames: cs.length, fps: G.fps, gait: gaitId, foot: { x: (AX - x0) / RES, y: (AY - y0) / RES }, fly: G.fly ?? 0, name: def.name, lift: lifts };
   }
   return { out, meta, log };
-}, { RIDERS, ONLY, GAITCODE });
+}, { RIDERS, ONLY, GAITCODE, HARD });
 for (const [f, url] of Object.entries(res.out)) writeFileSync(`${OUT}/${f}`, Buffer.from(url.split(',')[1], 'base64'));
 if (res.log.length) console.log(res.log.join('\n'));
 writeFileSync(`${OUT}/gang.json`, JSON.stringify(res.meta, null, 1));

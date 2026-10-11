@@ -46,52 +46,55 @@
   <p class="shop-notice" data-shop-thanks hidden>Danke für deinen Kauf! Die Zahlung ist eingegangen. Alles Gekaufte erscheint beim nächsten Spielstart automatisch.</p>
   <p class="shop-notice" data-shop-cancel hidden>Der Kauf wurde abgebrochen. Es wurde nichts abgebucht.</p>
 
-  <!-- Klassen-Sets: je Klasse ein Set nur aus dem Shop (Thread „Klassen-Skinsets“). Bühne zeichnet shop.js aus
-       img/set-<klasse>.webp (site/tools/render-sets.mjs; oben Vorher, unten im Set), data-f = Breite Höhe FußX FußY Bilder fps. -->
+  <!-- Klassen-Sets: je Klasse ein Set nur aus dem Shop (src/character/skinSets.js, Schlüssel look:<setId>). Bühne zeichnet
+       shop.js aus img/set-<klasse>.webp (site/tools/render-sets.mjs; oben Vorher, unten im Set), data-f = Breite Höhe FußX FußY Bilder fps. -->
   <section class="sets" id="sets" aria-labelledby="h-sets">
     <canvas class="embers" data-n="40" aria-hidden="true"></canvas>
     <div class="wrap sets-layout">
       <div class="sets-side">
-        <h1 id="h-sets" class="title in">Klassen-Sets</h1>
-        <p class="sec-line">Nur im Shop. Deine Ausrüstung behält ihre Werte und trägt das Aussehen des Sets.</p>
+        <h1 id="h-sets" class="sr-only">Klassen-Sets</h1>
         <div class="set-tabs" role="tablist" aria-label="Klasse">
-          <button role="tab" id="st-warrior" aria-controls="sp-warrior" aria-selected="true" style="--res: #e0503a">Krieger</button>
-          <button role="tab" id="st-rogue" aria-controls="sp-rogue" aria-selected="false" tabindex="-1" style="--res: #e8c25a">Schurke</button>
-          <button role="tab" id="st-ranger" aria-controls="sp-ranger" aria-selected="false" tabindex="-1" style="--res: #6ee06a">Waldläufer</button>
-          <button role="tab" id="st-mage" aria-controls="sp-mage" aria-selected="false" tabindex="-1" style="--res: #6a9cff">Glutmagier</button>
+          <button role="tab" id="st-warrior" aria-controls="sp-warrior" aria-selected="true">Krieger</button>
+          <button role="tab" id="st-rogue" aria-controls="sp-rogue" aria-selected="false" tabindex="-1">Schurke</button>
+          <button role="tab" id="st-ranger" aria-controls="sp-ranger" aria-selected="false" tabindex="-1">Waldläufer</button>
+          <button role="tab" id="st-mage" aria-controls="sp-mage" aria-selected="false" tabindex="-1">Glutmagier</button>
         </div>
 
-        <article class="set-panel" id="sp-warrior" role="tabpanel" aria-labelledby="st-warrior" data-cls="warrior" data-f="27 36 13 34 4 6" style="--glow: 255, 150, 40">
-          <h2>Rüstung des Glutkönigs</h2>
-          <p>Schwarzgold, geschmiedet in der Glut des Aschethrons. Die Krone brennt, solange ihr Träger steht.</p>
+        <article class="set-panel" id="sp-warrior" role="tabpanel" aria-labelledby="st-warrior" data-cls="warrior" data-f="23 39 9 37 4 6" style="--glow: 255, 150, 40">
+          <h2>Wehr des Glutthrons</h2>
+          <p>Schwarzstahl, in der Glut des Aschethrons gehärtet. Goldene Hörner, ein brennender Mantel und eine Klinge mit flüssigem Kern.</p>
           <div class="set-buy">
-            <strong class="price">7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="skinset_warrior" data-title="Klassen-Set „Rüstung des Glutkönigs“" disabled>Bald erhältlich</button>
+            <strong class="price" data-price>7,99&nbsp;€</strong>
+            <button class="btn primary big" type="button" data-buy="set_glutthron" data-title="Wehr des Glutthrons" disabled>Bald erhältlich</button>
           </div>
+          <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
-        <article class="set-panel" id="sp-rogue" role="tabpanel" aria-labelledby="st-rogue" data-cls="rogue" data-f="26 33 9 31 4 6" style="--glow: 232, 194, 90" hidden>
-          <h2>Gewand der Aschenklinge</h2>
-          <p>Wyrmleder, das kein Licht zurückwirft. Nur die Klingen glühen, kurz bevor sie treffen.</p>
+        <article class="set-panel" id="sp-rogue" role="tabpanel" aria-labelledby="st-rogue" data-cls="rogue" data-f="26 32 12 30 4 6" style="--glow: 80, 230, 220" hidden>
+          <h2>Schleier der Mondsichel</h2>
+          <p>Mitternachtsleder mit mondsilbernen Sicheln. Unter der Kapuze leuchten Geisteraugen, die Klingen schneiden wie kaltes Licht.</p>
           <div class="set-buy">
-            <strong class="price">7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="skinset_rogue" data-title="Klassen-Set „Gewand der Aschenklinge“" disabled>Bald erhältlich</button>
+            <strong class="price" data-price>7,99&nbsp;€</strong>
+            <button class="btn primary big" type="button" data-buy="set_mondsichel" data-title="Schleier der Mondsichel" disabled>Bald erhältlich</button>
           </div>
+          <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
-        <article class="set-panel" id="sp-ranger" role="tabpanel" aria-labelledby="st-ranger" data-cls="ranger" data-f="21 34 8 32 4 6" style="--glow: 120, 230, 120" hidden>
-          <h2>Mantel des Sternenjägers</h2>
-          <p>Gewebt aus Moos und Mondlicht. Wer ihn trägt, verschwindet zwischen den Bäumen.</p>
+        <article class="set-panel" id="sp-ranger" role="tabpanel" aria-labelledby="st-ranger" data-cls="ranger" data-f="21 39 10 37 4 6" style="--glow: 120, 240, 120" hidden>
+          <h2>Mantel des Hirschkönigs</h2>
+          <p>Ein Geweih aus altem Elfenbein, ein Federkragen und ein Bogen aus lebendem Holz, an dem Seelenblätter glimmen.</p>
           <div class="set-buy">
-            <strong class="price">7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="skinset_ranger" data-title="Klassen-Set „Mantel des Sternenjägers“" disabled>Bald erhältlich</button>
+            <strong class="price" data-price>7,99&nbsp;€</strong>
+            <button class="btn primary big" type="button" data-buy="set_hirschkoenig" data-title="Mantel des Hirschkönigs" disabled>Bald erhältlich</button>
           </div>
+          <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
-        <article class="set-panel" id="sp-mage" role="tabpanel" aria-labelledby="st-mage" data-cls="mage" data-f="19 35 7 33 4 6" style="--glow: 255, 120, 60" hidden>
-          <h2>Ornat der Weißen Flamme</h2>
-          <p>Seide, die nicht verbrennt. In den Säumen glimmt das Feuer, das sie gesponnen hat.</p>
+        <article class="set-panel" id="sp-mage" role="tabpanel" aria-labelledby="st-mage" data-cls="mage" data-f="20 36 9 34 4 6" style="--glow: 255, 210, 110" hidden>
+          <h2>Gewand des Sternenfeuers</h2>
+          <p>Eine Robe aus Nachthimmel, in der Sterne funkeln. Über dem Haupt schwebt ein Reif aus Glutrunen, der Stab trägt einen gefangenen Stern.</p>
           <div class="set-buy">
-            <strong class="price">7,99&nbsp;€</strong>
-            <button class="btn primary big" type="button" data-buy="skinset_mage" data-title="Klassen-Set „Ornat der Weißen Flamme“" disabled>Bald erhältlich</button>
+            <strong class="price" data-price>7,99&nbsp;€</strong>
+            <button class="btn primary big" type="button" data-buy="set_sternenfeuer" data-title="Gewand des Sternenfeuers" disabled>Bald erhältlich</button>
           </div>
+          <p class="set-hint">Fünf Teile zum Transmogrifizieren. Deine Ausrüstung behält ihre Werte.</p>
         </article>
       </div>
 
@@ -112,12 +115,12 @@
       <h2 id="h-mounts" class="title">Exklusive Reittiere</h2>
       <p class="sec-line">Für alle Helden deines Kontos, mit eigener Färbung für Umhang und Stoffrüstung.</p>
     </div>
-    <div class="show" data-show data-base="70" data-h="88" data-near-y="10" data-far-y="34">
+    <div class="show" data-show data-base="59" data-h="72" data-near-y="10" data-far-y="34">
       <canvas aria-hidden="true"></canvas>
     </div>
     <div class="wrap">
       <div class="mount-list" role="tablist" aria-label="Reittier">
-        <article class="mount" role="tab" tabindex="0" aria-selected="true" data-design="design_phoenix" data-m="phoenix_wing" data-f="61 44 30 42 12 12 26 80" data-l="1.5 2.5 4 5 5 5 4 2.5 1 0.5 0 0.5" style="--glow: 255, 130, 30">
+        <article class="mount" role="tab" tabindex="0" aria-selected="true" data-design="design_phoenix" data-m="phoenix_wing" data-f="62 44 30 42 12 12 12 80" data-l="1.5 2.5 4 5 5 5 4 2.5 1 0.5 0 0.5" style="--glow: 255, 130, 30">
           <h3>Phönixschwinge</h3>
           <p>Ein Drache aus lebender Glut, aus der eigenen Asche wiedergeboren. Dazu die Färbung „Phönixglut“.</p>
           <div class="mount-buy">
@@ -125,7 +128,7 @@
             <button class="btn primary" type="button" data-buy="design_phoenix" data-title="Phönixschwinge" disabled>Bald erhältlich</button>
           </div>
         </article>
-        <article class="mount" role="tab" tabindex="-1" aria-selected="false" data-design="design_astral" data-m="astral_stallion" data-f="41 44 20 41 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5" style="--glow: 130, 160, 255">
+        <article class="mount" role="tab" tabindex="-1" aria-selected="false" data-design="design_astral" data-m="astral_stallion" data-f="41 45 19 41 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5" style="--glow: 130, 160, 255">
           <h3>Sternenhengst</h3>
           <p>Ein Hengst aus dem Nachthimmel, in dessen Fell die alten Sternbilder leuchten. Dazu die Färbung „Sternennacht“.</p>
           <div class="mount-buy">
@@ -133,7 +136,7 @@
             <button class="btn primary" type="button" data-buy="design_astral" data-title="Sternenhengst" disabled>Bald erhältlich</button>
           </div>
         </article>
-        <article class="mount" role="tab" tabindex="-1" aria-selected="false" data-design="design_soul" data-m="soul_wolf" data-f="42 45 21 43 12 14 0 90" data-l="0 0 2 4.5 6 6 4.5 2.5 0.5 0 0 0" style="--glow: 80, 235, 180">
+        <article class="mount" role="tab" tabindex="-1" aria-selected="false" data-design="design_soul" data-m="soul_wolf" data-f="42 46 21 43 12 14 0 90" data-l="0 0 2 4.5 6 6 4.5 2.5 0.5 0 0 0" style="--glow: 80, 235, 180">
           <h3>Seelenwolf</h3>
           <p>Der Geist des ersten Wolfs, der dem Glutfeuer folgte. Er läuft lautlos und hinterlässt Seelenlicht. Dazu die Färbung „Seelenlicht“.</p>
           <div class="mount-buy">
@@ -192,8 +195,13 @@
 <dialog class="buy-dlg" data-buy-dlg aria-labelledby="dlg-title">
   <form method="dialog" class="buy-dlg-inner">
     <button class="buy-x" value="cancel" aria-label="Schließen">×</button>
-    <h2 id="dlg-title" data-dlg-title></h2>
-    <p class="buy-price" data-dlg-price></p>
+    <div class="buy-head">
+      <div class="buy-thumb"><canvas data-dlg-thumb aria-hidden="true"></canvas></div>
+      <div>
+        <h2 id="dlg-title" data-dlg-title></h2>
+        <p class="buy-price"><span data-dlg-price></span> <small data-dlg-vat>inkl. MwSt.</small></p>
+      </div>
+    </div>
     <div data-dlg-login hidden>
       <p class="buy-msg">Melde dich mit deinem Emberwrath-Konto an, um zu kaufen.</p>
       <a class="btn primary big" data-shop-login-dlg href="spielen/#anmelden">Anmelden</a>

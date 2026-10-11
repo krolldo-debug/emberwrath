@@ -2,6 +2,8 @@
    Bühnen (Klassen-Sets, Reittiere) zeichnet shop.js in ganzen Bildschirmpunkten je Spielpixel; Bilder hier
    (Goldhaufen, Symbole) nur ganzzahlig vergrößert. Glanz in der Farbe des Angebots über --glow (r, g, b). */
 .shop-page main { padding: 66px 0 0; min-height: 0; }
+/* Kopfleiste deckend: beim Scrollen scheint nichts durch (Handy) */
+.shop-page .top { background: #06030a; backdrop-filter: none; }
 .shop-page .title { margin-bottom: 10px; }
 .shop-page main section[id] { scroll-margin-top: 30px; }
 
@@ -12,7 +14,7 @@
 .shop-tabs::-webkit-scrollbar { display: none; }
 .shop-tabs a { position: relative; flex: none; padding: 19px 0 17px; color: var(--muted); text-decoration: none; font: 600 13px/1 var(--font); letter-spacing: 0.14em; text-transform: uppercase; transition: color 0.15s; }
 .shop-tabs a:hover { color: var(--text); }
-.shop-tabs a.on { color: var(--gold); }
+.shop-tabs a.on { color: #fff1d6; }
 .shop-tabs a.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--ember); }
 .shop-state { margin: 0 0 0 auto; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-state b { color: var(--soft); font-weight: 600; }
@@ -24,8 +26,12 @@
 /* ---------- Preise und Knöpfe */
 .shop-page .btn { white-space: nowrap; }
 .price { font: 700 clamp(24px, 2.2vw, 30px)/1 var(--font-title); color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* Noch nicht kaufbar (Shop geschlossen, Angebot ohne Serverseite): ruhige Beschriftung statt kaputt wirkendem Knopf */
-.shop-page .btn:disabled { background: rgba(12, 6, 16, 0.6); border-color: rgba(106, 69, 38, 0.55); color: var(--muted); box-shadow: none; text-shadow: none; cursor: default; transform: none; opacity: 1; }
+/* Noch nicht kaufbar (Shop geschlossen, Angebot ohne Serverseite): Hauptknöpfe bleiben in Glut, nur ohne Hover;
+   Nebenknöpfe ruhig statt kaputt wirkend. Kaufbare Nebenknöpfe glühen beim Überfahren wie die Hauptknöpfe. */
+.shop-page .btn:disabled { cursor: default; transform: none; opacity: 1; }
+.shop-page .btn.primary:disabled { box-shadow: 0 0 0 2px #1a0604, 0 0 24px rgba(255, 110, 30, 0.2), inset 0 2px 0 rgba(255, 220, 160, 0.3), inset 0 -3px 0 rgba(60, 14, 4, 0.5); }
+.shop-page .btn:not(.primary):disabled { background: rgba(12, 6, 16, 0.6); border-color: rgba(106, 69, 38, 0.55); color: var(--muted); box-shadow: none; text-shadow: none; }
+.shop-page .btn[data-buy]:not(.primary):not(:disabled):hover { background: linear-gradient(180deg, #a8481a 0 50%, #86320f 50% 100%); border-color: #ffb050; color: #fff6e6; text-shadow: 0 2px 0 #3a1004; }
 .shop-page .btn.owned:disabled { border-color: #3c8a6a; color: #9be3c4; }
 .shop-fine { margin: 22px 0 0; max-width: 52em; font-size: 14px; color: var(--muted); }
 .shop-fine a { color: var(--soft); }
@@ -39,15 +45,15 @@
   transition: background 0.6s; }
 .sets .embers { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; image-rendering: pixelated; opacity: 0.8; }
 .sets-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(20px, 4vw, 60px); align-items: center; }
-.sets-side .sec-line { max-width: 28em; }
 .set-tabs { display: flex; flex-wrap: wrap; gap: 6px clamp(14px, 1.6vw, 24px); margin: clamp(22px, 3vw, 34px) 0 clamp(18px, 2.4vw, 28px); border-bottom: 1px solid rgba(106, 69, 38, 0.45); }
 .set-tabs button { background: none; border: 0; padding: 8px 0 11px; margin-bottom: -1px; cursor: pointer; white-space: nowrap; font: 600 clamp(15px, 1.3vw, 19px)/1 var(--font-title); color: var(--muted); border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s; }
 .set-tabs button:hover { color: var(--text); }
-.set-tabs button[aria-selected="true"] { color: #fff1d6; border-bottom-color: var(--res); }
+.set-tabs button[aria-selected="true"] { color: #fff1d6; border-bottom-color: var(--ember); }
 .set-panel h2 { margin: 0 0 10px; font: 700 clamp(28px, 3vw, 40px)/1.08 var(--font-title); color: #fbe9c6; text-wrap: balance; text-shadow: 0 0 26px rgba(var(--glow), 0.28); }
 .set-panel p { margin: 0; max-width: 30em; color: var(--soft); font-size: clamp(16px, 1.3vw, 17px); }
 .set-buy { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 26px; margin-top: clamp(22px, 3vw, 32px); }
 .set-buy .price { font-size: clamp(30px, 3vw, 38px); }
+.set-panel .set-hint { margin-top: 14px; font-size: 14px; color: var(--muted); }
 
 .set-stage { position: relative; display: flex; flex-direction: column; align-items: center; }
 .set-stage canvas { display: block; width: 100%; height: var(--sh, 420px); }
@@ -58,11 +64,10 @@
 .no-js .set-stage { display: none; }
 
 /* ---------- Exklusive Reittiere: Schaulauf über Steppenboden (shop.js), darunter die Auswahl */
-.mounts { padding: clamp(60px, 7vw, 96px) 0 0; }
+.mounts { padding: clamp(40px, 5vw, 64px) 0 0; }
 .mounts > .wrap:first-child { text-align: center; }
 .mounts > .wrap:first-child .sec-line { margin: 0 auto; }
-.show { --glow: 255, 130, 30; position: relative; margin-top: clamp(10px, 2vw, 24px);
-  background: radial-gradient(40% 70% at 50% 62%, rgba(var(--glow), 0.14), transparent 70%); transition: background 0.6s; }
+.show { --glow: 255, 130, 30; position: relative; margin-top: 0; }
 .show canvas { display: block; width: 100%; height: var(--ph, 360px); }
 .no-js .show { display: none; }
 .mount-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 8px; }
@@ -110,8 +115,12 @@
 .buy-dlg-inner { position: relative; padding: 30px clamp(20px, 4vw, 34px) 30px; }
 .buy-x { position: absolute; top: 8px; right: 10px; width: 40px; height: 40px; border: 0; background: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; }
 .buy-x:hover { color: var(--text); }
-.buy-dlg h2 { margin: 0 34px 6px 0; font: 700 clamp(22px, 2.4vw, 28px)/1.15 var(--font-title); color: #fbe9c6; }
-.buy-price { margin: 0 0 22px; font: 700 24px/1 var(--font-title); color: var(--gold); }
+.buy-dlg h2 { margin: 0 0 8px 0; font: 700 clamp(22px, 2.4vw, 28px)/1.15 var(--font-title); color: #fbe9c6; }
+.buy-head { display: flex; align-items: center; gap: 18px; margin: 0 34px 22px 0; }
+.buy-thumb { flex: none; display: grid; place-items: center; width: 96px; height: 96px; background: #08040c; border: 1px solid rgba(106, 69, 38, 0.7); }
+.buy-thumb canvas { display: block; image-rendering: pixelated; }
+.buy-price { margin: 0; font: 700 24px/1 var(--font-title); color: var(--gold); }
+.buy-price small { margin-left: 6px; font: 400 13px/1 var(--font); color: var(--muted); }
 .buy-msg { margin: 0 0 18px; color: var(--soft); }
 .shop-char { margin: 0 0 18px; }
 .shop-char select { min-height: 46px; padding: 0 12px; background: #0a050f; color: var(--text); border: 1px solid var(--edge); font: 400 16px var(--font); }
@@ -121,6 +130,7 @@
 .shop-minor { margin: 4px 0 0 34px; font-size: 13px; color: var(--muted); }
 .shop-error { margin: 14px 0 0; color: #ff8f72; }
 .buy-go { width: 100%; margin-top: 22px; }
+.shop-page .buy-go:disabled { background: rgba(12, 6, 16, 0.6); border-color: rgba(106, 69, 38, 0.55); color: var(--muted); box-shadow: none; text-shadow: none; }
 
 /* ---------- Schmalere Bildschirme */
 @media (max-width: 1080px) {
@@ -139,12 +149,15 @@
   .packs .pack:nth-child(4) { grid-column: 2 / span 2; }
 }
 @media (max-width: 700px) {
-  /* Reihenfolge: Titel, Klassenwahl, Bühne, Set */
+  /* Reihenfolge: Klassenwahl, Bühne, Set mit Preis und Knopf */
   .sets-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .sets-side { display: contents; }
-  .sets-side h1 { order: 1; } .sets-side .sec-line { order: 2; } .set-tabs { order: 3; } .set-stage { order: 4; } .set-panel { order: 5; }
-  .sets { padding-top: 34px; }
-  .set-panel { margin-top: 26px; }
+  .set-tabs { order: 1; } .set-stage { order: 2; } .set-panel { order: 3; }
+  .sets { padding-top: 18px; }
+  .set-panel { margin-top: 14px; }
+  .set-panel > p:not(.set-hint) { order: 2; }
+  .set-panel:not([hidden]) { display: flex; flex-direction: column; }
+  .set-panel h2 { order: 0; margin-bottom: 4px; } .set-buy { order: 1; margin: 6px 0 14px; } .set-hint { order: 3; }
   .set-tabs { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; margin-bottom: 0; }
 }
 @media (max-width: 900px) {
@@ -173,12 +186,24 @@
   .svc-buy { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; margin-top: 16px; }
   .svc p { margin: 0; }
 }
+/* Handy quer: Shop-Leiste scrollt mit, damit Held und Reittier nicht unter zwei festen Leisten verschwinden */
+@media (max-height: 500px) {
+  .shop-nav { position: static; }
+  .shop-nav-inner { min-height: 44px; }
+  .shop-tabs a { padding: 15px 0 13px; }
+}
 @media (max-height: 500px) and (min-width: 701px) {
-  .sets { padding: 22px 0 28px; }
-  .sets .title { font-size: 32px; }
-  .set-tabs { margin: 16px 0 14px; }
-  .set-panel h2 { font-size: 24px; }
-  .set-buy { margin-top: 14px; }
+  .sets { padding: 14px 0 24px; }
+  .set-tabs { margin: 0 0 12px; }
+  .set-panel h2 { font-size: 24px; margin-bottom: 6px; }
+  .set-panel p { font-size: 14px; }
+  .set-buy { margin-top: 12px; }
+  .set-buy .price { font-size: 28px; }
+  .set-buy .btn.big { min-height: 46px; padding: 0 24px; font-size: 13px; }
+  .set-panel .set-hint { display: none; }
+  /* Umschalter liegt auf der Bühne, damit die Figur ganz auf den ersten Bildschirm passt */
+  .set-switch { position: absolute; top: 0; right: 0; margin: 0; }
+  .set-switch button { min-width: 0; min-height: 34px; padding: 0 12px; font-size: 11px; }
 }
 @media (max-width: 420px) {
   .set-tabs button { font-size: 14px; }
