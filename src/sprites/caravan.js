@@ -129,7 +129,7 @@ function beast(p, x, y, { body, big = false, horns = false, step = 0 }) {
     p.line(x + lx, top, x + lx + off, top + len, i < 2 ? C[1] : C[2]);
     p.px(x + lx + off, top + len, C[0]);
   });
-  if (p.fine) vol(p, x, y, bw, bh, [C[1], C[2], C[3], C[3], C[4], C[5]], 0.05);
+  if (p.fine) vol(p, x, y, bw, bh, [C[1], C[1], C[3], C[3], C[4]], 0.05);   // drei klare Tonflächen: Schatten, Mittel, Licht
   else {
     ell(p, x, y, bw, bh, C[2]);
     ell(p, x - 1, y - 1, bw - 1, bh - 2, C[3]);
@@ -154,24 +154,17 @@ function beast(p, x, y, { body, big = false, horns = false, step = 0 }) {
   if (p.fine) beastFine(p, x, y, C, bw, bh, hx, hy, big, horns, legs, step);
 }
 
-// Handfein: Fell in Strähnen (oben hell, unten dunkel), Beine mit Lichtkante und Hufen, Schweifquaste, Gesicht mit
-// Auge, Glanzpunkt, Nüstern und Maul, Hörner/Ohren mit Kante, Geschirr mit Naht und Nieten.
+// Handfein: Rumpf in drei klaren Tonflächen mit Schulter und Schattenfuge, Hals/Kopf abgesetzt, Beine mit Licht- und
+// dunkler Außenkante und Hufen, Schweifquaste, Gesicht mit Auge, Glanzpunkt, Nüstern und Maul, Spitzlicht auf
+// Hörnern/Ohren, Geschirr mit Naht und Nieten.
 function beastFine(p, x, y, C, bw, bh, hx, hy, big, horns, legs, step) {
-  // Schulter (vorn, höher) und Keule (hinten) als eigene Rundungen, damit der Rumpf Bau statt Eiform zeigt
-  vol(p, x + bw - 3, y - 0.5, big ? 4.5 : 3.5, bh - 0.5, [C[1], C[2], C[3], C[4], C[4], C[5]], 0.08);
-  vol(p, x - bw + 3, y, big ? 4 : 3, bh - 1, [C[1], C[2], C[3], C[3], C[4], C[5]], 0.04);
-  for (let i = 0; i < (big ? 26 : 18); i++) {
-    const u = hash2(i, 1, 57) * 1.6 - 0.8, v = hash2(i, 2, 57) * 1.5 - 0.75;
-    if (u * u + v * v > 0.62) continue;
-    const sx = x + u * bw, sy = y + v * bh;
-    const c = v < -0.35 ? (i % 3 ? C[5] : C[4]) : v > 0.3 ? C[1] : i % 2 ? C[2] : C[4];
-    p.fline(sx, sy, sx - 1, sy + 0.5, c);
-  }
-  p.fline(x + bw - 5.5, y - bh + 1.5, x + bw - 5, y + bh - 1.5, C[2]);                // Falte hinter der Schulter
-  p.fline(x - bw + 2, y + bh - 0.5, x + bw - 3, y + bh - 0.5, C[1]);                 // Bauchschatten
+  vol(p, x + bw - 3, y - 0.5, big ? 4.5 : 3.5, bh - 0.5, [C[1], C[1], C[3], C[3], C[4]], 0.1);   // Schulter
+  p.fline(x + bw - 6, y - bh + 2, x + bw - 6.5, y + bh - 1.5, C[1]);                 // Schattenfuge hinter der Schulter
+  p.fline(x - bw + 2, y + bh - 0.5, x + bw - 3, y + bh - 0.5, C[0]);                 // Bauchkante
   legs.forEach(([lx, pair]) => {
     const swing = (step + pair * 2) % 4, off = swing === 1 ? 1 : swing === 3 ? -1 : 0, top = y + bh - 1;
     p.fline(x + lx, top + 1.5, x + lx + off, top + 5, C[3]);                            // Lichtkante
+    p.fline(x + lx + 0.5, top + 1.5, x + lx + off + 0.5, top + 5, C[0]);                // dunkle Außenkante
     p.dot(x + lx + off + 0.5, top + 5.5, C[0]); p.dot(x + lx + off, top + 6, '#0b0710'); p.dot(x + lx + off + 0.5, top + 6, C[2]);   // Huf
   });
   for (let k = 0; k < 3; k++) p.fline(x - bw - 2, y + 3.5, x - bw - 2.5 + k * 0.5, y + 5, k === 1 ? C[0] : C[1]);   // Quaste
@@ -181,10 +174,12 @@ function beastFine(p, x, y, C, bw, bh, hx, hy, big, horns, legs, step) {
     p.fline(hx + 3.5, hy + 0.5, hx + 5, hy + 0.5, C[1]);                               // Brauenwulst
     p.dot(hx + 6.5, hy + 3.5, '#0b0710'); p.dot(hx + 6, hy + 3, C[4]);                 // Nüster, Maullicht
     p.fline(hx + 5, hy + 4.5, hx + 6.5, hy + 4.5, C[0]);
-    p.fline(hx - 1, hy + 2.5, hx + 1, hy + 3.5, C[2]); p.fline(hx + 2, hy + 0.5, hx + 2, hy + 4, C[2]);   // Halsfalte, Wange
+    p.fline(hx + 1.5, hy + 0.5, hx + 1.5, hy + 4.5, C[0]);                             // Schattenfuge Hals/Kopf
+    p.fline(hx - 1.5, hy + 0.5, hx - 1.5, hy + 4, C[1]);                               // Hals/Rumpf
+    p.fline(hx + 2, hy, hx + 6.5, hy, C[5]);                                            // Licht auf der Stirn
     if (horns) {
-      p.fline(hx + 1.5, hy - 1, hx - 0.5, hy - 2.5, HORN[4]); p.dot(hx - 1, hy - 3, '#fffbef');
-      p.fline(hx + 5.5, hy - 1, hx + 6, hy - 2.5, HORN[3]); p.dot(hx + 6, hy - 3, HORN[1]);
+      p.fline(hx + 1.5, hy - 1, hx - 0.5, hy - 2.5, HORN[4]); p.dot(hx - 1, hy - 3, '#fffbef'); p.dot(hx - 0.5, hy - 3, '#fffbef');
+      p.fline(hx + 5.5, hy - 1, hx + 6, hy - 2.5, HORN[3]); p.dot(hx + 6, hy - 3, '#fffbef');
       p.dot(hx + 1.5, hy - 0.5, HORN[1]); p.dot(hx + 5, hy - 0.5, HORN[1]);             // Hornansatz
     }
   } else {
@@ -192,7 +187,10 @@ function beastFine(p, x, y, C, bw, bh, hx, hy, big, horns, legs, step) {
     p.dot(hx + 4, hy - 1, '#f0e6d4');
     p.fline(hx + 3.5, hy - 1.5, hx + 5, hy - 1.5, C[2]);
     p.dot(hx + 6.5, hy + 0.5, '#0b0710'); p.dot(hx + 6, hy, C[4]); p.fline(hx + 5, hy + 1.5, hx + 6.5, hy + 1.5, C[0]);
-    p.fline(hx + 1.5, hy - 3.5, hx + 1, hy - 5.5, '#2a1a16'); p.dot(hx + 3, hy - 6, C[5]); p.dot(hx + 1, hy - 6, C[4]);   // Ohren
+    p.fline(hx + 1.5, hy - 3.5, hx + 1, hy - 5.5, '#2a1a16');                          // Ohren: Innenseite, Spitzlicht
+    p.dot(hx + 3, hy - 6, '#c8ac90'); p.dot(hx + 3, hy - 5.5, C[5]); p.dot(hx + 1, hy - 6, C[5]);
+    p.fline(hx + 1.5, hy - 2, hx + 1.5, hy + 1.5, C[0]);                               // Schattenfuge Hals/Kopf
+    p.fline(hx + 2, hy - 2, hx + 5.5, hy - 2, C[5]);
     for (let k = 0; k < 6; k++) p.fline(hx - 1 + k * 0.5, hy - 0.5 + (k & 1) * 0.5, hx - 1.5 + k * 0.5, hy + 1, k % 2 ? C[0] : C[1]);   // Mähne
   }
   // Geschirr: Riemen um die Brust mit Naht, Nieten am Kummet
@@ -284,9 +282,10 @@ function caravanFrame(step) {
       }
       p.fline(3, 21.5, 40.5, 21.5, CANVAS[1]);
       for (let x = 3.5; x < 40; x += 1.5) p.dot(x, 21, CANVAS[2]);                             // Saumnaht
-      for (let k = 0; k < 10; k++) p.dot(14 + k * 0.5, 11.5, '#2a241c');                    // Flickennaht
-      p.dot(13.5, 13, '#2a241c'); p.dot(13.5, 14.5, '#2a241c'); p.dot(19, 13, '#2a241c'); p.dot(19, 14.5, '#2a241c');
-      p.fline(27, 15, 30.5, 15, CLOTH[3]); p.fline(28, 16, 28, 17.5, CLOTH[1]); p.dot(27, 17.5, '#1a060c'); p.dot(30.5, 17.5, '#1a060c');
+      // Flicken ruhig: gleichmäßige Fläche, Naht nur als helle Kante oben links, Schattenkante unten
+      p.rect(14, 12.5, 5, 3.5, CANVAS[2]); p.fline(14, 12, 18.5, 12, CANVAS[4]); p.fline(14, 12, 14, 15.5, CANVAS[3]);
+      p.fline(14.5, 15.5, 18.5, 15.5, CANVAS[1]);
+      p.fline(27, 15, 30.5, 15, CLOTH[3]); p.fline(27.5, 17.5, 30.5, 17.5, CLOTH[1]);
     }
     // Öffnung vorn mit dunklem Inneren
     p.rect(38, 9, 3, 13, '#120c0a'); p.rect(37, 8, 1, 14, CANVAS[1]);
