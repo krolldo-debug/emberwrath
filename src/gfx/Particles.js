@@ -1,4 +1,5 @@
 import { rand, pick } from '../core/math.js';
+import { fineRes } from './Fine.js';
 
 // Partikelsystem mit Pool und Pseudo-Höhe (z): Splitter fliegen hoch,
 // fallen zurück, prallen ab und können als Dekal liegen bleiben.
@@ -36,6 +37,9 @@ class Particle {
     this.wobble = o.wobble ?? 0;
     this.alpha = o.alpha ?? 1;
     this.fade = o.fade ?? true;
+    // Feinraster (gfx/Fine.js): fine = true → Größe in Feinpixeln, Lage auf das Feinraster gerundet (0,5 Weltpixel);
+    // ohne fade verlischt das Teilchen hart: Farbstufen über colors, im letzten Viertel blinkend statt durchscheinend
+    this.fine = o.fine ?? false;
     this.seed = Math.random() * 10;
     this.landed = false;
     this.alive = true;
@@ -87,10 +91,19 @@ export class ParticleSystem {
     }
   }
   #draw(ctx, camX, camY, emissive) {
+    const q = fineRes(), P = 1 / q;
     for (const p of this.active) {
       if (p.emissive !== emissive) continue;
       const t = 1 - p.life / p.maxLife;
       const color = p.colors[Math.min(p.colors.length - 1, Math.floor(t * p.colors.length))];
+      if (p.fine) {
+        if (!p.fade && t > 0.75 && Math.floor(p.life * 24 + p.seed) % 2) continue;
+        const s = Math.max(1, Math.round(p.shrink ? p.size * (1 - t) : p.size)) * P;
+        ctx.globalAlpha = p.fade ? p.alpha * Math.min(1, (p.life / p.maxLife) * 2.5) : p.alpha;
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.round((p.x - camX) * q) * P, Math.round((p.y - p.z - camY) * q) * P, s, s);
+        continue;
+      }
       const s = p.shrink ? Math.max(1, Math.round(p.size * (1 - t))) : p.size;
       const x = Math.round(p.x - camX - s / 2), y = Math.round(p.y - p.z - camY - s / 2);
       ctx.globalAlpha = p.fade ? p.alpha * Math.min(1, (p.life / p.maxLife) * 2.5) : p.alpha;

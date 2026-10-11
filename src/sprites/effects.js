@@ -217,3 +217,52 @@ export function createGuideSprites() {
   }
   return { frames, arrow, end };
 }
+
+// Lichtkreis am Boden für legendäre Waffen (entities/Hero.js): Pixelring statt weichem Schein. Zwei Ellipsen aus
+// einzelnen Feinpixeln – außen umlaufende Striche (Kopf heller), innen gedithert –, dazu vier pulsierende Knoten.
+// Hinter den Beinen bleibt der Ring offen (wird im Leuchtpass über die Figur gelegt). Gezeichnet mit 'lighter':
+// harte Pixel, die den Boden in der Elementfarbe aufhellen. colors = Elementrampe hell → dunkel (gfx/Particles.js).
+// Liefert { canvas, w, h } in Weltpixeln; RING_FRAMES Bilder, nahtlos umlaufend.
+export const RING_FRAMES = 12;
+const ringCache = new Map();
+export function getRarityRing(colors, res, frame, rx = 11, ry = 4.5) {
+  const key = `${colors.join()}|${res}|${frame}|${rx}|${ry}`;
+  let c = ringCache.get(key);
+  if (c) return c;
+  const W = Math.round((2 * rx + 2) * res), H = Math.round((2 * ry + 2) * res);
+  const canvas = makeCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H), d = img.data;
+  const cx = W / 2, cy = H / 2;
+  const inside = (x, y, a, b) => (((x + 0.5 - cx) / (a * res)) ** 2 + ((y + 0.5 - cy) / (b * res)) ** 2) <= 1;
+  const edge = (x, y, a, b) => inside(x, y, a, b) && (!inside(x - 1, y, a, b) || !inside(x + 1, y, a, b) || !inside(x, y - 1, a, b) || !inside(x, y + 1, a, b));
+  const rgb = colors.map(hexToRgb);
+  const put = (x, y, col) => { const i = (y * W + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; };
+  const DASH = 12, phase = frame / RING_FRAMES;
+  const pulse = 0.5 + 0.5 * Math.cos((frame / RING_FRAMES) * TAU * 2);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const wx = (x + 0.5 - cx) / res, wy = (y + 0.5 - cy) / res;
+      if (wy < 0 && Math.abs(wx) < 6) continue;   // hinter den Beinen offen
+      const a = (Math.atan2(wy / ry, wx / rx) / TAU + 1) % 1;
+      if (edge(x, y, rx, ry)) {
+        const u = (a * DASH + phase) % 1;
+        if (u < 0.62) put(x, y, rgb[u > 0.45 ? 3 : 4]);
+        continue;
+      }
+      if (edge(x, y, rx - 2, ry - 1) && (x + y) % 2 === 0) put(x, y, rgb[4]);
+    }
+  }
+  // Knoten auf den Diagonalen: heller Kern, Kreuz in der Mittelfarbe (atmet in zwei Stufen)
+  for (let k = 0; k < 4; k++) {
+    const ang = ((k + 0.5) / 4) * TAU;
+    const nx = Math.round(cx + Math.cos(ang) * rx * res - 0.5), ny = Math.round(cy + Math.sin(ang) * ry * res - 0.5);
+    if (Math.sin(ang) < 0 && Math.abs(Math.cos(ang) * rx) < 6) continue;
+    put(nx, ny, rgb[pulse > 0.5 ? 2 : 3]);
+    if (pulse > 0.25) for (const [ex, ey] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (nx + ex >= 0 && nx + ex < W && ny + ey >= 0 && ny + ey < H) put(nx + ex, ny + ey, rgb[3]);
+  }
+  ctx.putImageData(img, 0, 0);
+  c = { canvas, w: W / res, h: H / res };
+  ringCache.set(key, c);
+  return c;
+}
