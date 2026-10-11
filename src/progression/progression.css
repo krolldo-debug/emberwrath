@@ -54,28 +54,30 @@
 .pg-slot:hover:not(.empty) { box-shadow: 0 0 0 1px #8a6a3a; }
 .pg-slot:focus-visible { outline: 2px solid var(--ef-gold); outline-offset: 1px; }
 .pg-slot.selected, .pg-slot.selected:hover { box-shadow: 0 0 0 2px var(--ef-gold), 0 0 0 3px #05030a; }
-.pg-slot.blocked > .ef-item-icon > img { filter: grayscale(0.6) brightness(0.7); }
+.pg-slot.blocked > .ef-item-icon > img { filter: grayscale(0.5) brightness(0.92); }
 .pg-lock {
   position: absolute; left: 2px; bottom: 2px; z-index: 6; min-width: 14px; padding: 0 3px; border-radius: 0;
   background: #8a1a1a; color: #fff; font: 700 10px/14px var(--ef-font); text-align: center; box-shadow: 0 0 0 1px #000;
 }
-/* Fremde Klasse: kleines Pixel-X (2-px-Punkte) auf dunkelrotem Schildchen oben rechts, das Bild bleibt frei */
-.pg-lock.cls { left: auto; bottom: auto; right: 3px; top: 3px; min-width: 0; width: 10px; height: 10px; padding: 0; font-size: 0; background: #6a1212; }
+/* Fremde Klasse: kleines Pixel-X mit echten Diagonalen (7 × 7, je 2 Bildpunkte breit) oben rechts, das Bild bleibt frei */
+.pg-lock.cls { left: auto; bottom: auto; right: 2px; top: 2px; min-width: 0; width: 11px; height: 11px; padding: 0; font-size: 0; background: #6a1212; }
 .pg-lock.cls::after {
-  content: ""; position: absolute; left: 2px; top: 2px; width: 2px; height: 2px; background: #ffd0c8;
-  box-shadow: 4px 0 #ffd0c8, 2px 2px #ffd0c8, 0 4px #ffd0c8, 4px 4px #ffd0c8;
+  content: ""; position: absolute; left: 2px; top: 2px; width: 1px; height: 1px; background: #ffd0c8;
+  box-shadow: 1px 0 #ffd0c8, 5px 0 #ffd0c8, 6px 0 #ffd0c8, 1px 1px #ffd0c8, 2px 1px #ffd0c8, 4px 1px #ffd0c8, 5px 1px #ffd0c8,
+    2px 2px #ffd0c8, 3px 2px #ffd0c8, 4px 2px #ffd0c8, 3px 3px #ffd0c8, 2px 4px #ffd0c8, 3px 4px #ffd0c8, 4px 4px #ffd0c8,
+    1px 5px #ffd0c8, 2px 5px #ffd0c8, 4px 5px #ffd0c8, 5px 5px #ffd0c8, 0 6px #ffd0c8, 1px 6px #ffd0c8, 5px 6px #ffd0c8, 6px 6px #ffd0c8;
 }
 .pg-doll .pg-slot-label { display: none; }
 .pg-slot.dim { opacity: 0.25; }
 /* Marken sind deckende Schildchen mit harter Kante. Die Ecken gehören den Rahmen-Edelsteinen: Neu-Punkt und
-   Verbesserungspfeil sitzen mittig auf der Kante (oben bzw. links, abseits von Griff und Glut am Boden);
+   Verbesserungspfeil sitzen mittig auf der Kante (oben bzw. links außen, abseits von Griff und Glut am Boden);
    die Stapelzahl hat eine harte Kontur. */
 .pg-qty {
   position: absolute; right: 4px; bottom: 3px; z-index: 6; font: 700 11px/1 var(--ef-font); color: #fff; font-variant-numeric: tabular-nums;
   text-shadow: 1px 0 0 #05030a, -1px 0 0 #05030a, 0 1px 0 #05030a, 0 -1px 0 #05030a, 1px 1px 0 #05030a, -1px -1px 0 #05030a, 1px -1px 0 #05030a, -1px 1px 0 #05030a;
 }
 .pg-new { position: absolute; left: calc(50% - 4px); top: 1px; z-index: 6; width: 8px; height: 6px; background: #ffd66a; box-shadow: 0 0 0 2px #05030a; }
-.pg-slot > .pg-up { position: absolute; left: 1px; top: calc(50% - 6px); z-index: 6; width: 14px; height: 12px; font-size: 0; color: transparent; background: #05030a; }
+.pg-slot > .pg-up { position: absolute; left: -6px; top: calc(50% - 6px); z-index: 6; width: 14px; height: 12px; font-size: 0; color: transparent; background: #05030a; }
 /* Pfeil aus 2-px-Bildpunkten (5 × 5), kein geglätteter Umriss */
 .pg-slot > .pg-up::after {
   content: ""; position: absolute; left: 2px; top: 1px; width: 2px; height: 2px; background: transparent;

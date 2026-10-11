@@ -298,6 +298,8 @@ function weaponLook(def) {
   if (great) Object.assign(look, { great: true, len: Math.max(look.len ?? 15, 22), width: 3, guardW: 4.4, fuller: true });
   // Episch und legendär mit eigener Zier (am Helden und im Item-Bild): Runen und breitere Parierstange, Bogen mit
   // geschwungenen Enden, Axt mit Dorn, Kolben mit Stacheln, Stab mit Bändern; legendär zusätzlich Gold und Doppelblatt.
+  // Selten: Bögen mit blauen Wurfarmspitzen (der Stein sitzt sonst nur an Klingen sichtbar)
+  if (rarity === 'rare' && family === 'bow') look.tips = M.blue;
   if (rarity === 'epic' || rarity === 'legendary') {
     const leg = rarity === 'legendary';
     if (family === 'sword' || family === 'dagger') {

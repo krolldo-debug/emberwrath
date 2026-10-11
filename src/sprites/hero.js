@@ -1180,7 +1180,7 @@ function drawHeadHi(R, G, L, P, sk) {
     const T = L.circletRamp ?? L.trim, Gm = L.circletGem ?? L.cloth;
     R.fline(x0 + 3.2, y0 + 3.0, x0 + 8.6, y0 + 3.3, 0.5, (t) => T[t < 0.4 ? 1 : 2]);
     R.fline(x0 + 3.2, y0 + 2.8, x0 + 8.6, y0 + 3.1, 0.2, T[3]);
-    R.ellipse(x0 + 8.0, y0 + 3.2, 0.55, 0.55, (a, b) => (a + b < -0.3 ? T[4] ?? T[3] : Gm[3] ?? T[3]));
+    R.ellipse(x0 + 8.0, y0 + 3.1, 0.85, 0.85, (a, b) => (a + b < -0.6 ? Gm[4] ?? Gm[3] : a + b > 0.6 ? Gm[2] : Gm[3]));   // Stein gut sichtbar
     G.push({ x: x0 + 8, y: y0 + 3, color: T[4] ?? T[3], r: 1.5 });
   }
   if (L.cowl && !helm) drawCowlHi(R, L, x0, y0);
@@ -1809,8 +1809,8 @@ function drawHeadLow(R, G, L, P, sk) {
   if (L.circlet) {
     const T = L.circletRamp ?? L.trim;
     for (let i = 4; i <= 7; i++) R.set(x0 + i, y0 + 3, T[i < 6 ? 1 : 2]);
-    R.set(x0 + 7, y0 + 3, T[4] ?? T[3]);
-    G.push({ x: x0 + 7, y: y0 + 3, color: T[4] ?? T[3], r: 1.5 });
+    R.set(x0 + 7, y0 + 3, L.circletGem ? L.circletGem[3] : T[4] ?? T[3]);
+    G.push({ x: x0 + 7, y: y0 + 3, color: (L.circletGem ?? T)[4] ?? T[3], r: 1.5 });
   }
   if (L.cowl && !helm) {
     const C = L.cloth;
@@ -2117,11 +2117,12 @@ function drawMace(R, G, w, hx, hy, ang, reach, far) {
   } else {
     const lr = R.lat ?? 1;   // Item-Bild: Kopf ist quer gestreckt, Flansche und Dornen wachsen mit
     if (w.kind === 'flanged') for (let i = 0; i < 4; i++) { const a = ang + i * Math.PI / 2 + 0.4; R.line(cx + Math.cos(a) * 2.5 * lr, cy + Math.sin(a) * 2.5 * lr, cx + Math.cos(a) * 4.1 * lr, cy + Math.sin(a) * 4.1 * lr, Hd[2]); }
-    if (w.kind === 'spiked') for (let i = 0; i < 8; i++) { const a = i * TAU / 8; R.line(cx + Math.cos(a) * 2.5 * lr, cy + Math.sin(a) * 2.5 * lr, cx + Math.cos(a) * 4.3 * lr, cy + Math.sin(a) * 4.3 * lr, Hd[i % 2 ? 2 : 3]); }
+    const Gl = w.glow && !far ? w.glow : null;   // leuchtender Kolben: Dornen in der Glutfarbe
+    if (w.kind === 'spiked') for (let i = 0; i < 8; i++) { const a = i * TAU / 8; R.line(cx + Math.cos(a) * 2.5 * lr, cy + Math.sin(a) * 2.5 * lr, cx + Math.cos(a) * 4.3 * lr, cy + Math.sin(a) * 4.3 * lr, (Gl ?? Hd)[i % 2 ? 2 : 3]); }
     R.ellipse(cx, cy, r, r, (nx, ny) => { const l = -(nx * LX + ny * LY) * -1; return l > 0.4 ? Hd[4] ?? Hd[3] : l > -0.2 ? Hd[3] : Hd[2]; });
     if (w.glow && !far) {
       // Leuchtender Kolben (episch/legendär): glühender Kern und Glutspitzen, auch im Item-Bild sichtbar
-      R.ellipse(cx, cy, r * 0.42, r * 0.42, () => w.glow[3]);
+      R.ellipse(cx, cy, r * 0.55, r * 0.55, (nx, ny) => (nx + ny < -0.4 ? w.glow[4] ?? w.glow[3] : w.glow[3]));
       if (w.kind === 'spiked' || w.kind === 'flanged') for (let i = 0; i < 8; i += w.kind === 'spiked' ? 1 : 2) { const a = w.kind === 'spiked' ? i * TAU / 8 : ang + i * Math.PI / 4 + 0.4; R.set(cx + Math.cos(a) * 4 * lr, cy + Math.sin(a) * 4 * lr, w.glow[4] ?? w.glow[3]); }
     }
   }

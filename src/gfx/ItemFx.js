@@ -3,8 +3,8 @@ import { fxElement } from '../character/gearLook.js';
 
 // Animierte Item-Effekte (Thread D): je seltener, desto spektakulärer.
 //   selten    – nur der blaue Rahmen (keine Funkelpixel, 11.10.: wirkten wie Streupixel)
-//   episch    – zwei Sternfunken an den Seiten in der Themenfarbe, sonst leuchtet nur der Rahmen (kein Kranz, keine Kante)
-//   legendär  – hohe goldene Glut als eigene Innenfläche, dichte Funken, harte Goldkante um den Gegenstand
+//   episch    – nur der leuchtende Rahmen (kein Kranz, keine Kante, keine Funken über dem Bild)
+//   legendär  – hohe goldene Glut als eigene Innenfläche, dichte Funken
 // Alles in Palettenfarben ohne Transparenzstufen (11.10.); Größe ganzzahlig über --fpx (ui/theme.css).
 // Das Thema (Feuer, Frost, Schatten, Licht, Arkan, Gift, Natur, Gezeiten) ergibt sich aus
 // ID, Symbol und Name des Items (z. B. „Glutklinge“ → Feuer). Die Animation ist ein
@@ -120,10 +120,8 @@ const MOTE = {
 function motes(pal, tier, theme, seed) {
   const c = newStrip(), ctx = c.getContext('2d'), r = rng(seed);
   const kind = MOTE[theme] ?? 'star';
-  const n = tier >= 3 ? 11 : 2;
-  // Episch: nur zwei Funken, an den Seiten aufsteigend (nicht über den Details des Gegenstands), immer als ganzer Stern
-  const side = tier < 3;
-  const ps = Array.from({ length: n }, (_, i) => ({ x: side ? (i % 2 ? W - 4 + r() * 2 : 2 + r() * 2) : 2 + r() * (W - 4), p: side ? i * 0.5 + r() * 0.2 : r(), k: side ? 1 : 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
+  const n = 11;
+  const ps = Array.from({ length: n }, () => ({ x: 2 + r() * (W - 4), p: r(), k: 1 + (r() < 0.35 ? 1 : 0), w: r() * TAU }));
   // Ausblenden in Palettenstufen statt Transparenz: halb sichtbar = eine Farbe dunkler, darunter weg
   const darker = new Map([[pal[3], pal[2]], [pal[2], pal[1]], [pal[1], pal[0]], [pal[0], pal[0]]]);
   const px = (x, y, col, a = 1) => {
@@ -162,7 +160,7 @@ function motes(pal, tier, theme, seed) {
         }
         case 'star': {
           y = H - u * (H + 2);
-          const big = side || ((f + Math.round(q.p * 8)) % 4) === 0;
+          const big = ((f + Math.round(q.p * 8)) % 4) === 0;
           px(x, y, pal[3], fade);
           if (big) { px(x - 1, y, pal[2], fade * 0.8); px(x + 1, y, pal[2], fade * 0.8); px(x, y - 1, pal[2], fade * 0.8); px(x, y + 1, pal[2], fade * 0.8); }
           break;
@@ -176,7 +174,7 @@ function motes(pal, tier, theme, seed) {
   return closeLoop(c);
 }
 
-// URLs der Filmstreifen für Thema, Stufe und Variante (0–3, je Gegenstand fest): { back, front } (back nur legendär, front ab episch)
+// URLs der Filmstreifen für Thema, Stufe und Variante (0–3, je Gegenstand fest): { back, front } (nur legendär)
 export function itemFxStrips(theme, tier, variant = 0) {
   const key = `${theme}|${tier}|${variant}`;
   let s = stripCache.get(key);
@@ -186,7 +184,7 @@ export function itemFxStrips(theme, tier, variant = 0) {
   // Legendär: immer eigene Glut am Boden (unabhängig vom Thema des Gegenstands), Innenfläche bleibt dunkel
   s = {
     back: tier >= 3 ? flames(LEGEND_EMBERS, tier, seed) : null,
-    front: tier >= 2 ? motes(tier >= 3 ? pal : FX_PALETTES[theme] ?? pal, tier, tier >= 3 ? theme : 'epic', seed ^ 0x9e3779b9) : null,
+    front: tier >= 3 ? motes(pal, tier, theme, seed ^ 0x9e3779b9) : null,
   };
   stripCache.set(key, s);
   return s;
@@ -200,10 +198,7 @@ export function decorateItemIcon(span, def) {
   // Je Gegenstand eigene Variante und eigener Takt: nicht alle seltenen Teile funkeln an denselben Stellen gleichzeitig
   const h = hash(String(def?.id ?? def?.icon ?? def?.name ?? ''));
   const strips = itemFxStrips(theme, tier, h % 4);
-  const pal = FX_PALETTES[tier >= 3 ? 'legendary' : theme] ?? FX_PALETTES.rare;
   span.classList.add('fx', `fx-t${tier}`, `fx-${theme}`);
-  span.style.setProperty('--fx-glow', pal[2]);
-  span.style.setProperty('--fx-core', pal[3]);
   if (strips.back) {
     const back = document.createElement('i');
     back.className = 'fx-back';

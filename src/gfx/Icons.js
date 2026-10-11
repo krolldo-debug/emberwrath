@@ -314,33 +314,50 @@ function torsoMask(x, y, o) {
   if (y < 15) return dx < 7 - (y - 10) * 0.2 ? (dx > 5.6 && y < 13 ? 4 : 1) : dx > 7 && dx < 9.4 && y < 14 ? 4 : 0;
   return dx < 6 + (o.long ? (y - 15) * 0.55 : 0) ? 1 : 0;
 }
+// Brustteil von vorn aus denselben Teilen wie am Helden (sprites/hero.js drawTorsoHi/drawPauldronHi/drawLowerHi):
+// Ärmel in der Wamsfarbe, kleine Schulterkappen bzw. Schulterplatten, Fellkragen, Schulterriemen (Leder),
+// Wappenrock schmal über Kette/Platte, als Latz unter dem Gürtel, Glutstein statt Streupixeln.
 function armor(p, o) {
   const R = o.ramp, T = o.trim ?? M.gold;
+  const plate = o.style === 'plate' || o.style === 'scale', robe = o.style === 'robe';
+  const strap = (x, y) => o.style === 'leather' && y >= 5 && y <= 13 && Math.abs((x + 0.5) - (6 + (y - 5) * 1.3)) < 1.1;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const m = torsoMask(x, y, o);
     if (!m) continue;
-    const dx = x + 0.5 - 12;
+    const dx = x + 0.5 - 12, ax = Math.abs(dx);
     let c = pick(R, 2.4 - dx / 9 - (y - 10) / 18);
     if (m === 3) c = '#0e0a12';
     if (m === 2) c = T[2];
-    if (m === 4) c = o.shoulder ? pick(o.shoulder, 2.8 - dx / 7) : pick(R, 1.8 - dx / 8);
+    if (m === 4) c = pick(R, 1.9 - dx / 8 - (ax > 8 ? 0.4 : 0));                 // Ärmel in der Wamsfarbe
     switch (o.style) {
-      case 'robe': if (Math.abs(dx) < 1 && y > 4) c = T[3]; if (y === 14) c = T[1]; if (y === (o.long ? 22 : 20)) c = T[2]; break;
-      case 'leather': if (y === 14 || y === 15) c = M.leather[0]; if (y === 14 && Math.abs(dx) < 1) c = M.gold[3]; if (Math.abs(dx) < 0.6 && y > 5 && y < 13 && y % 2) c = R[0]; break;
+      case 'robe': if (ax < 1 && y > 4) c = T[3]; if (y === 14) c = T[1]; if (y === (o.long ? 22 : 20)) c = T[2]; break;
+      case 'leather': if (m === 1 && ax > 4.6 && ax < 5.4 && y > 5 && y < 14 && y % 2) c = R[4]; break;   // Schnürung
       case 'chain': if (m === 1 && (x + y * 2) % 3 === 0) c = R[0]; if (m === 1 && (x + y * 2) % 3 === 1) c = R[3]; break;
       case 'scale': if (m === 1 && y > 5) { const k = (x + (y % 2) * 1.5) % 3; c = k < 1 ? R[3] : k < 2 ? R[2] : R[0]; } break;
-      case 'plate': if (m === 1 && (y === 9 || y === 13 || y === 17)) c = R[0]; if (m === 1 && (y === 8 || y === 12 || y === 16)) c = R[4]; if (m === 1 && Math.abs(dx) < 0.6 && y < 14) c = R[3]; break;
+      case 'plate': if (m === 1 && (y === 10 || y === 12)) c = y === 10 ? R[0] : R[4]; if (m === 1 && ax < 0.6 && y < 10) c = R[3]; break;
     }
-    if (o.tabard && m === 1 && Math.abs(dx) < 2.5 && y > 6) c = pick(o.tabard, 2.5 - dx / 3 - (y > 16 ? 0.7 : 0));
-    if (o.glow && m === 1 && hash(x, y, 2) < 0.12 && y > 6) c = o.glow[4];
-    if (o.glow && m === 1 && (y === 9 || y === 13) && Math.abs(dx) < 4) c = o.glow[3];
+    if (o.tabard && o.style !== 'leather' && m === 1 && ax < 1.6 && y > 5 && y < (robe ? 20 : 14)) c = ax > 1 ? T[2] : o.tabard[2];
+    if (strap(x, y) && m === 1) c = Math.abs((x + 0.5) - (6 + (y - 5) * 1.3)) < 0.5 ? M.leather[2] : M.leather[1];
+    if (!robe && (y === 14 || y === 15) && m === 1) c = M.leather[y === 14 ? 2 : 0];   // Gürtel
+    // Schulterkappen (Leder) bzw. Schulterplatten (Platte, Kette mit eigener Farbe)
+    const sh = o.shoulder && (plate ? y >= 4 && y <= 7 && ax > 5 && ax < 10.4 - (y - 4) * 0.3 : y >= 5 && y <= 6 && ax > 6 && ax < 9.6);
+    if (sh && m) c = y === (plate ? 7 : 6) ? o.shoulder[0] : pick(o.shoulder, 3.2 - (y - 4) * 0.5 - dx / 10);
     p.px(x, y, c);
   }
-  if (o.emblem) gem(p, 11, 10, 1, o.emblem);
+  if (!robe) { rect(p, 14, 14, 2, 2, T[3]); p.px(14, 14, T[4] ?? T[3]); }            // Schnalle
+  if (o.style === 'leather') p.px(10, 9, T[3]);                                       // Riemenschnalle
+  if (o.tabard && !robe) {
+    // Latz unter dem Gürtel mit Zierkante wie am Helden
+    for (let y = 16; y < 21; y++) { const w = y < 19 ? 2 : 1; for (let x = 12 - w; x < 12 + w; x++) p.px(x, y, x === 12 - w || x === 11 + w || y === 20 ? T[2] : o.tabard[x < 12 ? 3 : 2]); }
+  }
+  if (o.fur) for (let x = 6; x < 18; x++) { if (x > 9 && x < 14) continue; p.px(x, 3 + (x & 1), o.fur[(x & 1) + 2]); p.px(x, 4, o.fur[2]); }
+  if (o.emblem) gem(p, 11, 8, 1, o.emblem);
+  if (o.glow) gem(p, 12, 11, 1, o.glow);
   if (o.rivets) for (const [x, y] of [[7, 8], [16, 8], [7, 12], [16, 12]]) p.px(x, y, M.iron[4]);
   if (o.spikes) {
-    const P = o.shoulder ?? o.ramp;
-    for (const [x, y, k] of [[3, 4, 3], [2, 3, 4], [5, 4, 3], [5, 3, 4], [20, 4, 2], [21, 3, 3], [18, 4, 2], [18, 3, 3]]) p.px(x, y, P[k]);
+    const P = o.shoulder ?? o.ramp, G = o.glow ?? P;
+    for (const [x, y, k] of [[3, 3, 3], [5, 3, 3], [20, 3, 2], [18, 3, 2]]) p.px(x, y, P[k]);
+    for (const [x, y] of [[3, 2], [5, 2], [20, 2], [18, 2]]) p.px(x, y, G[3]);
   }
 }
 const ARMORS = {
@@ -434,18 +451,16 @@ function capIcon(p, o) {
   for (let x = 4; x < 20; x += 2) p.px(x, 17, (o.trim ?? R)[o.trim ? 3 : 1]);
   rect(p, 5, 19, 14, 1, '#0c0810');
 }
-// Stirnreif wie am Helden: Metallring von vorn, Stein mittig in eigener Farbe, keine Haube
+// Stirnreif wie am Helden: schmales Metallband als vorderer Bogen (Diadem), Stein mittig in eigener Farbe, keine Haube
 function circletIcon(p, o) {
   const T = o.ramp, G = o.gem ?? M.blue;
-  for (let y = 6; y < 20; y++) for (let x = 1; x < 23; x++) {
-    const dx = (x + 0.5 - 12) / 10.4, dy = (y + 0.5 - 12.5) / 5, d = Math.hypot(dx, dy);
-    const back = dy < 0;
-    if (d > 1 || d < (back ? 0.7 : 0.56)) continue;
-    p.px(x, y, back ? T[d > 0.92 ? 0 : 1] : T[d > 0.94 ? 1 : dx < -0.3 ? 4 : dx < 0.35 ? 3 : 2]);
+  for (let x = 2; x < 22; x++) {
+    const dx = (x + 0.5 - 12) / 10, y = Math.round(10 + 5 * Math.sqrt(Math.max(0, 1 - dx * dx)) - 1.5 * (1 - Math.abs(dx)));
+    p.px(x, y - 1, T[dx < -0.3 ? 4 : 3]); p.px(x, y, T[dx < 0.2 ? 2 : 1]); p.px(x, y + 1, T[0]);
   }
-  for (const sx of [5, 18]) { p.px(sx, 15, T[4]); p.px(sx, 16, T[1]); }
-  rect(p, 10, 14, 4, 4, T[1]);
-  gem(p, 12, 16, 2, G);
+  for (const sx of [6, 17]) { p.px(sx, 11, T[4]); p.px(sx, 12, T[2]); }
+  for (let y = 9; y < 17; y++) for (let x = 9; x < 15; x++) if (Math.abs(x + 0.5 - 12) + Math.abs(y + 0.5 - 13) < 3.6) p.px(x, y, T[y < 13 ? 3 : 1]);
+  gem(p, 12, 13, 2, G);
 }
 // Kuppel (offener Helm, Kappe, Kapuze) bzw. geschlossener Topfhelm bis zum Kinn
 function helmMask(x, y, great) {
@@ -1269,8 +1284,8 @@ function weaponIcon(L) {
 }
 const LOOK_ICON = {
   weapon: weaponIcon,
-  chest: (L) => ['armor', { ...shapeOf(ARMORS, L, L.style === 'robe' ? 'robe_mage' : `armor_${L.style}`), style: L.style, ramp: L.ramp, trim: L.trim ?? M.gold,
-    shoulder: L.shoulder ?? L.fur ?? null, tabard: L.tabard ?? null, emblem: L.emblem ?? null, glow: L.glow ?? null, spikes: !!L.spikes }],
+  chest: (L) => ['armor', { long: shapeOf(ARMORS, L, L.style === 'robe' ? 'robe_mage' : `armor_${L.style}`).long, style: L.style, ramp: L.ramp, trim: L.trim ?? M.gold,
+    shoulder: L.shoulder ?? null, fur: L.fur ?? null, tabard: L.tabard ?? null, emblem: L.emblem ?? null, glow: L.glow ?? null, spikes: !!L.spikes }],
   head: (L) => ['helm', { ramp: L.ramp, style: L.style === 'horned' ? 'nasal' : L.style, horns: L.style === 'horned', trim: L.trim ?? null, crest: L.crest ?? null,
     crown: L.crown ?? null, crownDim: !!L.crownDim, coif: !!L.coif, tail: !!L.tail, glow: L.glow ?? null, gem: L.gem ?? null }],
   hands: (L) => ['gloves', { ...shapeOf(GLOVES, L, `gloves_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
