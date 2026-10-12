@@ -1,6 +1,6 @@
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { SpriteFrame, buildFrame } from '../gfx/Sprite.js';
-import { FineCanvas, fineRes, scale2x, finishPixels, outlinePixels, pixelsToCanvas, canvasPixels, col32 } from '../gfx/Fine.js';
+import { FineCanvas, fineRes, finishPixels, outlinePixels, pixelsToCanvas, canvasPixels, col32 } from '../gfx/Fine.js';
 
 // Feinraster Stufe B für NPCs und Objekte (docs/STYLE.md „Feinraster“). buildFine() zeichnet die alte Weltpixel-Zeichnung
 // zweimal: grob (PixelCanvas, ×2 mit Scale2x → glatte Silhouetten wie Stufe A) und fein (FineCanvas, p.fine = true: Gesichter,
@@ -18,6 +18,23 @@ function fineLines(p) {
   return p;
 }
 
+// Grober Durchgang in einen Pixelpuffer statt fillRect je Weltpixel (Ladezeit). Ergebnis gleich wie PixelCanvas:
+// px/rect/line/vgrad sind bei res 1 identisch, ellipse rastert hier wie PixelCanvas.ellipse (gerundete Zeilen).
+function coarseCanvas(w, h) {
+  const p = new FineCanvas(w, h, 1);
+  p.fine = false;
+  p.ellipse = (cx, cy, rx, ry, c) => {
+    if (typeof c !== 'string') return;
+    for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
+      const t = 1 - (y * y) / (ry * ry);
+      if (t < 0) continue;
+      const hw = Math.round(rx * Math.sqrt(t) - 0.15);
+      p.rect(Math.round(cx - hw), Math.round(cy + y), hw * 2 + 1, 1, c);
+    }
+  };
+  return p;
+}
+
 // draw(p, pass): pass 0 = grob (PixelCanvas), 1 = fein (FineCanvas). Liefert SpriteFrame; frame.meta = Rückgabe des feinen Durchgangs.
 export function buildFine(w, h, ax, ay, draw, { outline = true, finish = true } = {}) {
   const res = fineRes();
@@ -27,17 +44,28 @@ export function buildFine(w, h, ax, ay, draw, { outline = true, finish = true } 
     if (meta) f.meta = meta;
     return f;
   }
-  const pc = new PixelCanvas(w, h);
+  const pc = coarseCanvas(w, h);
   draw(pc, 0);
-  const N = canvasPixels(pc.canvas), B = scale2x(N, w, h);
+  const N = pc.pixels();
   const fc = fineLines(new FineCanvas(w, h, 2));
   meta = draw(fc, 1);
-  let d = fc.pixels();
-  if (d === fc.buf) d = d.slice();
+  let d = fc.pixels();   // darf direkt überschrieben werden, fc wird danach nicht mehr gebraucht
+  // Wo der feine Durchgang nichts anders gezeichnet hat: Scale2x der groben Fassung (nur dort berechnet)
   const W = w * 2, H = h * 2;
+  const at = (x, y) => { if (x < 0 || y < 0 || x >= w || y >= h) return 0; const v = N[y * w + x]; return (v >>> 24) > 40 ? v : 0; };
   for (let y = 0, i = 0; y < H; y++) {
-    const row = (y >> 1) * w;
-    for (let x = 0; x < W; x++, i++) if (d[i] === N[row + (x >> 1)]) d[i] = B[i];
+    const sy = y >> 1, row = sy * w, by = y & 1;
+    for (let x = 0; x < W; x++, i++) {
+      const sx = x >> 1, n = N[row + sx];
+      if (d[i] !== n) continue;
+      const Bt = at(sx, sy - 1), Hb = at(sx, sy + 1), D = at(sx - 1, sy), F = at(sx + 1, sy);
+      let e = n;
+      if (Bt !== Hb && D !== F) {
+        if (by === 0) { if ((x & 1) === 0) { if (D === Bt) e = D; } else if (Bt === F) e = F; }
+        else if ((x & 1) === 0) { if (D === Hb) e = D; } else if (Hb === F) e = F;
+      }
+      d[i] = e;
+    }
   }
   if (finish) finishPixels(d, W, H);
   let OW = W, OH = H;
@@ -46,6 +74,19 @@ export function buildFine(w, h, ax, ay, draw, { outline = true, finish = true } 
   const f = new SpriteFrame(pixelsToCanvas(d, OW, OH), ax * 2 + pad, ay * 2 + pad, 2);
   if (meta) f.meta = meta;
   return f;
+}
+
+// Satz aus vielen Figuren: jede wird erst beim ersten Zugriff gebaut (eine Zone braucht nur wenige davon).
+// defs = { id: () => anims }; Zugriff wie auf ein normales Objekt (sets[id], Object.keys, ?.).
+export function lazySets(defs) {
+  const out = {};
+  for (const [k, make] of Object.entries(defs)) {
+    Object.defineProperty(out, k, {
+      configurable: true, enumerable: true,
+      get() { const v = make(); Object.defineProperty(out, k, { value: v, writable: true, configurable: true, enumerable: true }); return v; },
+    });
+  }
+  return out;
 }
 
 // Leuchtebene passend zu buildFine: fein (FineCanvas, gleiche Texelgröße wie der Frame ohne Umriss) oder alt in Weltpixeln.

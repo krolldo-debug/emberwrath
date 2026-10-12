@@ -2,7 +2,7 @@ import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes } from '../gfx/Fine.js';
-import { buildFine, glowCanvas, headFine, legsFine, armFine, skirtFine, band as bandF, stitch, fold, grain, tone } from './npcFine.js';
+import { buildFine, glowCanvas, lazySets, headFine, legsFine, armFine, skirtFine, band as bandF, stitch, fold, grain, tone } from './npcFine.js';
 import { TAU } from '../core/math.js';
 
 // Weitere NPCs für Aschenwald und Schlackenhöhen. Blickrichtung rechts,
@@ -1077,12 +1077,12 @@ function makeSet(draw, fine = false) {
 }
 
 export function createNpcSprites2() {
-  return {
-    warden_ilsa: makeSet(drawIlsa, true),
-    herbalist_oona: makeSet(drawOona, 'b'),
-    trader_vesk: makeSet(drawVesk, 'b'),
-    commander_hale: makeSet(drawHale, 'b'),
-    seer_ysolde: makeSet(drawYsolde, 'b'),
-    quartermaster_dunn: makeSet(drawDunn, 'b'),
-  };
+  return lazySets({  // jede Figur erst bei Bedarf bauen
+    warden_ilsa: () => makeSet(drawIlsa, true),
+    herbalist_oona: () => makeSet(drawOona, 'b'),
+    trader_vesk: () => makeSet(drawVesk, 'b'),
+    commander_hale: () => makeSet(drawHale, 'b'),
+    seer_ysolde: () => makeSet(drawYsolde, 'b'),
+    quartermaster_dunn: () => makeSet(drawDunn, 'b'),
+  });
 }

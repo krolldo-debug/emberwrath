@@ -2,7 +2,7 @@ import { PAL } from '../gfx/Palette.js';
 import { SpriteFrame, Animation } from '../gfx/Sprite.js';
 import { fineRes, pixelsToCanvas } from '../gfx/Fine.js';
 import { TAU } from '../core/math.js';
-import { buildFine, glowCanvas, fmap, band, stitch, fold, grain, tone as toneRaw, headFine, legsFine, armFine, torsoFine, skirtFine } from './npcFine.js';
+import { buildFine, glowCanvas, lazySets, fmap, band, stitch, fold, grain, tone as toneRaw, headFine, legsFine, armFine, torsoFine, skirtFine } from './npcFine.js';
 
 // Feinlichter/-schatten (tone) werden in Schleifen oft gebraucht: zwischengespeichert
 const TONES = new Map();
@@ -1959,19 +1959,19 @@ function makeSet(draw) {
 }
 
 export function createNpcSprites3() {
-  return {
-    captain_varra: makeSet(drawVarra),
-    stablemaster_orla: makeSet(drawOrla),
-    nomad_kesh: makeSet(drawKesh),
-    trader_imra: makeSet(drawImra),
-    warden_thane: makeSet(drawThane),
-    alchemist_brisa: makeSet(drawBrisa),
-    trader_moll: makeSet(drawMoll),
-    jarl_eskil: makeSet(drawEskil),
-    hunter_sigrun: makeSet(drawSigrun),
-    trader_fenn: makeSet(drawFenn),
-    marshal_corvane: makeSet(drawCorvane),
-    pilgrim_aldo: makeSet(drawAldo),
-    quartermaster_ryn: makeSet(drawRyn),
-  };
+  return lazySets({  // jede Figur erst bei Bedarf bauen
+    captain_varra: () => makeSet(drawVarra),
+    stablemaster_orla: () => makeSet(drawOrla),
+    nomad_kesh: () => makeSet(drawKesh),
+    trader_imra: () => makeSet(drawImra),
+    warden_thane: () => makeSet(drawThane),
+    alchemist_brisa: () => makeSet(drawBrisa),
+    trader_moll: () => makeSet(drawMoll),
+    jarl_eskil: () => makeSet(drawEskil),
+    hunter_sigrun: () => makeSet(drawSigrun),
+    trader_fenn: () => makeSet(drawFenn),
+    marshal_corvane: () => makeSet(drawCorvane),
+    pilgrim_aldo: () => makeSet(drawAldo),
+    quartermaster_ryn: () => makeSet(drawRyn),
+  });
 }
