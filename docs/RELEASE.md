@@ -42,6 +42,7 @@ Ausführliche Befunde der Release-Bewertung: /mnt/project-files/uebergabe/releas
 ## 2a. Vor dem Start prüfen (nach dem Merge)
 
 - [ ] Cloudflare-Build grün, /version.json zeigt den neuen Commit.
+  Startet nach dem Merge kein Build (Deployments bleiben beim alten Commit): Cloudflare › Worker › Settings › Builds das Repo neu verbinden. Neu verbinden baut den letzten Commit nicht nach, erst der nächste Push auf main löst wieder einen Build aus.
 - [ ] `curl -I https://www.emberwrath.com/spielen/` zeigt Content-Security-Policy, Strict-Transport-Security, Cache-Control: no-cache.
 - [ ] Unbekannte Adresse (z. B. /gibtsnicht) zeigt die eigene 404-Seite mit Status 404.
 - [ ] Zwei Geräte, ein Konto: auf A spielen, auf B weiterspielen, zurück zu A: A lädt den Stand von B und zeigt den Hinweis.
