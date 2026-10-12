@@ -1,5 +1,5 @@
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame, lazyFrames } from '../gfx/Sprite.js';
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -1154,7 +1154,11 @@ function finish(L, fx, meta) {
   return f;
 }
 
-function frame(P, extra = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut den Wyrm nicht mehr am Stück. atRes(fn) hält die Bildfeinheit (RS) vom Anlegen für den späteren Bau fest.
+function atRes(fn) { const rs = RS; return () => { if (RS !== rs) setRes(rs); return fn(); }; }
+function frame(P, extra) { return lazyFrame(atRes(() => frameNow(P, extra))); }
+function frameNow(P, extra = {}) {
   const L = Layers.get();
   const meta = drawWyrm(L, P, extra.pts ?? spinePoints(P), extra);
   if (extra.smear) tailSmear(L, extra.smear);
@@ -1651,25 +1655,36 @@ export function createSkalvyrSprites() {
     nova: new Animation(track([[0, nw2], [0.25, nr1, snap], [0.6, { ...nr1, hh: 68, crest: 1.4 }], [1, idleA]], 8, { extras: { 1: { fx: 'nova' } } }), 12, false),
     burrow: new Animation([
       ...track([[0, idleA], [1, pose({ hx: 16, hh: 50, ha: -0.15, nb: 0.4, jaw: 0.4, chestH: 3, crest: 0.4 })]], 3),
-      ...burrowFrames(pose({ hx: 16, hh: 50, ha: -0.15, nb: 0.4, jaw: 0.4, chestH: 3, crest: 0.4 }), 12),
+      ...lazyFrames(12, atRes(() => burrowFrames(pose({ hx: 16, hh: 50, ha: -0.15, nb: 0.4, jaw: 0.4, chestH: 3, crest: 0.4 }), 12))),
     ], 14, false),
-    emerge: new Animation(emergeFrames(pose({ ...roarP, hh: 66, ha: -0.8, jaw: 1 }), idleA, 13), 13, false),
+    emerge: new Animation(lazyFrames(13, atRes(() => emergeFrames(pose({ ...roarP, hh: 66, ha: -0.8, jaw: 1 }), idleA, 13))), 13, false),
     hurt: new Animation(track([[0, idleA], [0.35, hurtP, snap], [1, idleA]], 4), 14, false),
   };
 
   // Tod: Posen, dann Erstarren (Eis breitet sich vom Herz aus), Risse, Zersplittern
   const deathPose = track([[0, hurtP], [0.35, d1], [1, d2]], 5, { extras: { 0: {}, 4: { fx: 'roar' } } });
-  const ice = [];
-  for (let i = 0; i < 6; i++) ice.push(freezeFrame({ ...d2, heart: 3.2 - i * 0.4 }, (i + 1) / 6, 0, i === 0 ? 'freeze' : null).frame);
-  ice.push(freezeFrame({ ...d2, heart: 0 }, 1, 0.35, null).frame);
-  const last = freezeFrame({ ...d2, heart: 0 }, 1, 1, 'crack', true);
-  ice.push(last.frame, last.frame);
-  const shards = shatterFrames(last.L, last.meta, 10);
-  anims.death = new Animation([...deathPose, ...ice, ...shards], 9, false);
+  // Erstarren und Splitter entstehen gemeinsam (Splitter aus dem Puffer des letzten Eisbilds), aufgeschoben als Gruppe
+  const iceShards = lazyFrames(19, atRes(() => {
+    const ice = [];
+    for (let i = 0; i < 6; i++) ice.push(freezeFrame({ ...d2, heart: 3.2 - i * 0.4 }, (i + 1) / 6, 0, i === 0 ? 'freeze' : null).frame);
+    ice.push(freezeFrame({ ...d2, heart: 0 }, 1, 0.35, null).frame);
+    const last = freezeFrame({ ...d2, heart: 0 }, 1, 1, 'crack', true);
+    ice.push(last.frame, last.frame);
+    const shards = shatterFrames(last.L, last.meta, 10);
+    return [...ice, ...shards];
+  }));
+  anims.death = new Animation([...deathPose, ...iceShards], 9, false);
 
   // Zusatzgrafik für die Logik (nicht aufzählbar, damit Werkzeuge nur Animationen sehen)
-  const pillar = [0.15, 0.35, 0.6, 0.85, 1].map((h) => pillarFrame(h));
-  const pillarBreak = [0.25, 0.5, 0.75, 0.95].map((b) => pillarFrame(1 - b * 0.35, b));
-  Object.defineProperty(anims, 'fx', { value: { pillar, pillarBreak, icicle: icicleFrame(), crack: createFrostCrack(56), crackSmall: createFrostCrack(34) }, enumerable: false });
+  // (erst beim ersten Gebrauch gebaut, in der Bildfeinheit vom Anlegen)
+  const fx = atRes(() => {
+    const pillar = [0.15, 0.35, 0.6, 0.85, 1].map((h) => pillarFrame(h));
+    const pillarBreak = [0.25, 0.5, 0.75, 0.95].map((b) => pillarFrame(1 - b * 0.35, b));
+    return { pillar, pillarBreak, icicle: icicleFrame(), crack: createFrostCrack(56), crackSmall: createFrostCrack(34) };
+  });
+  Object.defineProperty(anims, 'fx', {
+    get() { const v = fx(); Object.defineProperty(anims, 'fx', { value: v, enumerable: false }); return v; },
+    enumerable: false, configurable: true,
+  });
   return anims;
 }

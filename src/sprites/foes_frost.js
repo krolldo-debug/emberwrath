@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -236,7 +236,9 @@ function shadePass(p, keyK = 0.3, shadeK = 0.28) {
 // extra.rot = [winkel, drehpunktX, drehpunktY] kippt die ganze Figur (Sturz),
 // extra.post(p, g) zeichnet danach ungedreht (z. B. liegende Waffe, Bodeneis).
 // Figur und Leucht-Ebene liegen auf FineCanvas (res = fineRes()); Anker, Maße und meta bleiben Weltpixel.
-function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (W, H, AX, AY, draw, P, extra) => lazyFrame(() => makeFrameNow(W, H, AX, AY, draw, P, extra));
+function makeFrameNow(W, H, AX, AY, draw, P, extra = {}) {
   const res = fineRes(), g = new FineCanvas(W, H, res);
   let meta = {};
   const f = buildFrame(W, H, AX, AY, (p) => {

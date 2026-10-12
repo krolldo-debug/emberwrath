@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, pixelsToCanvas, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -283,7 +283,9 @@ function cropGlow(g, ax, ay, res) {
 // ganze Figur (Sturz) und setzt sie wieder auf den Boden. X.post zeichnet danach
 // ungedreht (liegende Waffe). X.fx = Frame-Marke.
 // Feinraster: p und g sind FineCanvas (res = fineRes()); Verschiebung über translate, Drehung in Texeln.
-function makeFrame(S, draw, P, X = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (S, draw, P, X) => lazyFrame(() => makeFrameNow(S, draw, P, X));
+function makeFrameNow(S, draw, P, X = {}) {
   const pad = S.pad ?? 10, res = fineRes();
   const W = S.W + pad * 2, H = S.H + pad * 2, AX = S.AX + pad, AY = S.AY + pad;
   const g = new FineCanvas(W, H, res);

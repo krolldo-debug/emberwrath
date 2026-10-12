@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes } from '../gfx/Fine.js';
 import { buildFine, glowCanvas, lazySets, headFine, legsFine, armFine, skirtFine, band as bandF, stitch, fold, grain, tone } from './npcFine.js';
 import { TAU } from '../core/math.js';
@@ -1065,7 +1065,8 @@ const SP_D = { 5: St[5], 4: St[4], 3: St[3], 2: St[2], 1: St[1] };
 // ------------------------------------------------------------ Animationen (idle 6 Frames, talk 4 Frames)
 // fine: true = eigener Feinweg (Ilsa, mkFrame), 'b' = buildFine (alter Weg + feine Ergänzungen)
 function makeSet(draw, fine = false) {
-  const mk = fine === 'b' ? (fn) => mkFineFrame(fn) : (fn) => mkFrame(fn, fine);
+  // Frames aufgeschoben (gfx/Sprite.js LazyFrame): gebaut, wenn sie gezeigt werden oder die Vorbereitung dran ist
+  const mk = fine === 'b' ? (fn) => lazyFrame(() => mkFineFrame(fn)) : (fn) => lazyFrame(() => mkFrame(fn, fine));
   const idle = new Animation(phases(6).map((t) => mk((p, g) => draw(p, g, { t }))), 6);
   const talk = new Animation([
     mk((p, g) => draw(p, g, { t: 0.1, talk: 1, gest: 1 })),

@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, finishPixels, outlinePixels, pixelsToCanvas, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -487,7 +487,16 @@ function grain(p, x, y, c0, c1) { p.dot(x, y, c0); if (c1) p.dot(x + 0.5, y + 0.
 // (Auflösen). X.fx = Frame-Marke.
 // Feinraster (docs/STYLE.md „Feinraster“, Stufe B): p und g sind FineCanvas (res = fineRes()). Abschluss wie
 // buildFrame (fein) über finishOutline; Leuchtebene auf ihren Inhalt beschnitten (glowFrame).
-function makeFrame(S, draw, P, X = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht. Der Randlicht-
+// Saum (RIM_GLOW) gilt beim Anlegen und wird für den späteren Bau festgehalten.
+function makeFrame(S, draw, P, X) {
+  const rg = RIM_GLOW;
+  return lazyFrame(() => {
+    const prev = RIM_GLOW; RIM_GLOW = rg;
+    try { return makeFrameNow(S, draw, P, X); } finally { RIM_GLOW = prev; }
+  });
+}
+function makeFrameNow(S, draw, P, X = {}) {
   const pad = S.pad ?? 10;
   const W = S.W + pad * 2, H = S.H + pad * 2, AX = S.AX + pad, AY = S.AY + pad;
   const res = fineRes(), g = takeFine(W, H, res);
@@ -3617,9 +3626,10 @@ function rimGlow(anims, o) {
     const prev = RIM_GLOW; RIM_GLOW = o;
     try { anims = anims(); } finally { RIM_GLOW = prev; }
   }
-  const done = new Set();
-  for (const a of Object.values(anims)) for (const f of a.frames) {
-    if (done.has(f) || f.rimGlow) continue; done.add(f);
+  // je Frame einmal, aufgeschobene Frames gleich nach ihrem Bau (Animation.eachFrame)
+  const memo = new Map();
+  for (const a of Object.values(anims)) a.eachFrame((f) => {
+    if (f.rimGlow) return;
     const r = f.res ?? 1;
     const c = f.canvas, W = c.width, H = c.height, x2 = c.getContext('2d');
     const im = x2.getImageData(0, 0, W, H);
@@ -3628,7 +3638,7 @@ function rimGlow(anims, o) {
     rimGlowPixels(new Uint32Array(im.data.buffer), W, H, r, o, new Uint32Array(gim.data.buffer), gc.width, gc.height, g.ax - f.ax, g.ay - f.ay);
     x2.putImageData(im, 0, 0); gx.putImageData(gim, 0, 0);
     f.rimGlow = true;
-  }
+  }, memo);
   return anims;
 }
 let RIM_GLOW = null;

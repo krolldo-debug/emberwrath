@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { Animation } from '../gfx/Sprite.js';
+import { Animation, lazyFrame } from '../gfx/Sprite.js';
 import { buildFine, fmap, band, fold, stitch, tone } from './npcFine.js';
 
 // Dorfbewohner der Glutsenke. Blickrichtung rechts, Anker = Fußpunkt.
@@ -195,13 +195,14 @@ function drawAnvil(p, x, y) {
 }
 
 export function createNpcSprites() {
-  const fm = (o) => buildFine(W, H, AX, AY, (p) => drawMaren(p, o));
+  // Frames aufgeschoben (gfx/Sprite.js LazyFrame): gebaut, wenn sie gezeigt werden oder die Vorbereitung dran ist
+  const fm = (o) => lazyFrame(() => buildFine(W, H, AX, AY, (p) => drawMaren(p, o)));
   const maren = {
     idle: new Animation([0, 1, 2, 3].map((i) => fm({ bob: i === 2 ? 1 : 0, sway: [0, 0.5, 1, 0.5][i] })), 3),
     talk: new Animation([fm({ talk: 1 }), fm({ talk: 0, sway: 0.5 })], 5),
   };
   const BW = 48, BAX = 17;
-  const fb = (o) => buildFine(BW, H, BAX, AY, (p) => { drawBrom(p, o); drawAnvil(p, 28, AY + 1); });
+  const fb = (o) => lazyFrame(() => buildFine(BW, H, BAX, AY, (p) => { drawBrom(p, o); drawAnvil(p, 28, AY + 1); }));
   const brom = {
     // Hämmern: ausholen – zuschlagen (Frame 3 = Aufprall)
     idle: new Animation([fb({ arm: -1.2 }), fb({ arm: -1.6, bob: 0 }), fb({ arm: -0.4 }), fb({ arm: 0.55, bob: 1 }), fb({ arm: 0.5, bob: 1 }), fb({ arm: 0 })], 6),

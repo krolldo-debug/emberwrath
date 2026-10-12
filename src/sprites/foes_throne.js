@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -438,7 +438,9 @@ function rim(p, key, keyK = 0.42, back = null, backK = 0.3) {
 const FINISH = false;
 
 // Rahmen-Bau: draw(p, g) -> meta mit absoluten Koordinaten. pad = Rand um die Zeichenfläche.
-function makeFrame(W, H, AX, AY, draw, fx = null, pad = 0) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (W, H, AX, AY, draw, fx, pad) => lazyFrame(() => makeFrameNow(W, H, AX, AY, draw, fx, pad));
+function makeFrameNow(W, H, AX, AY, draw, fx = null, pad = 0) {
   const W2 = W + pad * 2, H2 = H + pad * 2, res = fineRes();
   const g = new FineCanvas(W2, H2, res);
   g.translate(pad, pad);

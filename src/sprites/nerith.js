@@ -1,4 +1,4 @@
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -945,7 +945,10 @@ function drawRemains(p, g, k, glow) {
 // Leuchtebenen in Feinauflösung wie das Sprite (kein Umriss, Anker in Feinpixeln)
 const glowFrame = (g, res) => new SpriteFrame(g.canvas, AX * res, AY * res, res);
 
-function frame(P, extra = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut den Boss nicht mehr am Stück.
+function frame(...a) { return lazyFrame(() => frameNow(...a)); }
+function frameNow(P, extra = {}) {
   const res = fineRes(), g = new FineCanvas(W, H, res), g2 = new FineCanvas(W, H, res);
   let meta;
   const base = buildFrame(W, H, AX, AY, (p) => { meta = drawNerith(p, g, P, GLOW.tide, extra, false); }, { fine: true, res });
@@ -959,7 +962,8 @@ function frame(P, extra = {}) {
   return base;
 }
 
-function remainsFrame(k) {
+function remainsFrame(...a) { return lazyFrame(() => remainsFrameNow(...a)); }
+function remainsFrameNow(k) {
   const res = fineRes(), g = new FineCanvas(W, H, res), g2 = new FineCanvas(W, H, res);
   const base = buildFrame(W, H, AX, AY, (p) => drawRemains(p, g, k, GLOW.tide), { fine: true, res });
   drawRemains(new NullCanvas(res), g2, k, GLOW.flood);

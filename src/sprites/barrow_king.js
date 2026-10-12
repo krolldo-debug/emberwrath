@@ -1,5 +1,5 @@
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -1334,7 +1334,11 @@ function finish(L, fx, meta, rim = true) {
   return f;
 }
 
-function frame(P, extra = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut den Boss nicht mehr am Stück. atRes(fn) hält die Bildfeinheit (RS) vom Anlegen für den späteren Bau fest.
+function atRes(fn) { const rs = RS; return () => { if (RS !== rs) setRes(rs); return fn(); }; }
+function frame(...a) { return lazyFrame(atRes(() => frameNow(...a))); }
+function frameNow(P, extra = {}) {
   const L = Layers.get();
   const meta = drawUlgrim(new Pen(L), new GlowPen(L), P, extra);
   return finish(L, extra.fx, meta);
@@ -1342,7 +1346,8 @@ function frame(P, extra = {}) {
 
 // Zerfall zu Staub: der kniende Körper löst sich von oben nach unten auf,
 // Staub steigt auf, zurück bleiben Rüstung, Schwert und Krone.
-function dissolveFrame(P, k) {
+function dissolveFrame(...a) { return lazyFrame(atRes(() => dissolveFrameNow(...a))); }
+function dissolveFrameNow(P, k) {
   const Lb = Layers.get(1);
   drawUlgrim(new Pen(Lb), new GlowPen(Lb), P, {});
   rimLight(Lb);

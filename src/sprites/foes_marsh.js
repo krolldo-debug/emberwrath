@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -456,7 +456,9 @@ function blitRows(c, s, off) {
 // X.sink = 0..1 lässt die Figur im Morast versinken (alles unter der Bodenlinie wird abgeschnitten).
 // Figur und Leuchtebene entstehen auf FineCanvas (res = fineRes()); Drehen und Versinken rechnen in Texeln,
 // Anker, Rahmengrößen und Metadaten bleiben in Weltpixeln.
-function makeFrame(spec, P, X = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (spec, P, X) => lazyFrame(() => makeFrameNow(spec, P, X));
+function makeFrameNow(spec, P, X = {}) {
   const { W, H, AX, AY } = spec, pad = spec.pad ?? 8;
   const W2 = W + pad * 2, H2 = H + pad * 2;
   const res = fineRes(), g = new FineCanvas(W2, H2, res);

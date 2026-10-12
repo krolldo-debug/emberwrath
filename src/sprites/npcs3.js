@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { fineRes, pixelsToCanvas } from '../gfx/Fine.js';
 import { TAU } from '../core/math.js';
 import { buildFine, glowCanvas, lazySets, fmap, band, stitch, fold, grain, tone as toneRaw, headFine, legsFine, armFine, torsoFine, skirtFine } from './npcFine.js';
@@ -1948,13 +1948,15 @@ function drawRyn(p, g, { t = 0, talk = 0, gest = 0 }) {
 }
 
 // ------------------------------------------------------------ Animationen (idle 6 Frames, talk 4 Frames)
+// Frames aufgeschoben (gfx/Sprite.js LazyFrame): gebaut, wenn sie gezeigt werden oder die Vorbereitung dran ist
 function makeSet(draw) {
-  const idle = new Animation(phases(6).map((t) => mkFrame((p, g) => draw(p, g, { t }))), 6);
+  const mk = (fn) => lazyFrame(() => mkFrame(fn));
+  const idle = new Animation(phases(6).map((t) => mk((p, g) => draw(p, g, { t }))), 6);
   const talk = new Animation([
-    mkFrame((p, g) => draw(p, g, { t: 0.1, talk: 1, gest: 1 })),
-    mkFrame((p, g) => draw(p, g, { t: 0.25, talk: 0, gest: 2 })),
-    mkFrame((p, g) => draw(p, g, { t: 0.4, talk: 1, gest: 2 })),
-    mkFrame((p, g) => draw(p, g, { t: 0.55, talk: 0, gest: 1 })),
+    mk((p, g) => draw(p, g, { t: 0.1, talk: 1, gest: 1 })),
+    mk((p, g) => draw(p, g, { t: 0.25, talk: 0, gest: 2 })),
+    mk((p, g) => draw(p, g, { t: 0.4, talk: 1, gest: 2 })),
+    mk((p, g) => draw(p, g, { t: 0.55, talk: 0, gest: 1 })),
   ], 6);
   return { idle, talk };
 }

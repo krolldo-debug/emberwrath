@@ -1,5 +1,5 @@
 import { outlineCanvas } from '../gfx/PixelCanvas.js';
-import { SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { SpriteFrame, Animation, lazyFrame as deferFrame } from '../gfx/Sprite.js';
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -1387,7 +1387,13 @@ function glowTexels(pt) {
   return { bb, pos, ga, gb };
 }
 
-function frame(P, ex = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut die Mutter nicht mehr am Stück. Gebaut wird in der Bildfeinheit (RS) vom Anlegen.
+function frame(P, ex) {
+  const rs = RS;
+  return deferFrame(() => { if (RS !== rs) setRes(rs); return frameNow(P, ex); });
+}
+function frameNow(P, ex = {}) {
   const pt = Painter.get();
   const meta = drawMother(pt, P, ex);
   rimPass(pt);

@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -355,10 +355,9 @@ function rimGlow(anims, rim) {
   const hexc = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
   const T = hexc(rim.top), Sd = hexc(rim.side ?? rim.top);
   const GT = hexc(rim.glowTop), GS = rim.glowSide ? hexc(rim.glowSide) : null;
-  const done = new Set();
-  for (const a of Object.values(anims)) for (const f of a.frames) {
-    if (done.has(f)) continue;
-    done.add(f);
+  // je Frame einmal, aufgeschobene Frames gleich nach ihrem Bau (Animation.eachFrame)
+  const memo = new Map();
+  for (const a of Object.values(anims)) a.eachFrame((f) => {
     const k = rim.k ?? 0.45, fine2 = (f.res ?? 1) > 1;
     const c = f.canvas, W = c.width, H = c.height;
     const cx = c.getContext('2d'), img = cx.getImageData(0, 0, W, H), d = img.data;
@@ -392,7 +391,7 @@ function rimGlow(anims, rim) {
     }
     cx.putImageData(img, 0, 0);
     if (gx) gx.putImageData(gimg, 0, 0);
-  }
+  }, memo);
   return anims;
 }
 
@@ -462,7 +461,9 @@ function rimLight(p, g, rim) {
 }
 
 // Frame bauen: spec = { W, H, AX, AY, pad?, rim? }; draw(p, g) -> meta (absolut)
-function makeFrame(S, draw, fx = null) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (S, draw, fx) => lazyFrame(() => makeFrameNow(S, draw, fx));
+function makeFrameNow(S, draw, fx = null) {
   const pad = S.pad ?? 8, res = fineRes();
   const W2 = S.W + pad * 2, H2 = S.H + pad * 2;
   const g = new FineCanvas(W2, H2, res);

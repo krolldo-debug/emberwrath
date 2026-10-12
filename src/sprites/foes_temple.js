@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -254,7 +254,9 @@ function fmap(p, x0, y0, rows, pal) {
 
 // Baut einen Frame: draw(p, g, P, extra) -> meta (absolute Koordinaten).
 // extra.rot = [winkel, drehpunktX, drehpunktY] kippt die ganze Figur (Sturz).
-function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (W, H, AX, AY, draw, P, extra) => lazyFrame(() => makeFrameNow(W, H, AX, AY, draw, P, extra));
+function makeFrameNow(W, H, AX, AY, draw, P, extra = {}) {
   const res = fineRes(), g = new TrackCanvas(W, H, res);
   let meta = {};
   const f = buildFrame(W, H, AX, AY, (p) => {

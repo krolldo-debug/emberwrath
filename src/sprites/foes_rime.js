@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { FK } from './foes_cinder.js';
 
@@ -187,7 +187,9 @@ const dp = (p, x, y, c) => p.dot(x + 0.25, y + 0.25, c);
 
 // Rahmen-Bau: draw(p, g) -> meta mit absoluten Koordinaten. pad = Rand um die Zeichenfläche. Figur und
 // Leucht-Ebene auf FineCanvas (res = fineRes()); Anker/Meta/Größen in Weltpixeln.
-function makeFrame(W, H, AX, AY, draw, fx = null, pad = 0) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (W, H, AX, AY, draw, fx, pad) => lazyFrame(() => makeFrameNow(W, H, AX, AY, draw, fx, pad));
+function makeFrameNow(W, H, AX, AY, draw, fx = null, pad = 0) {
   const W2 = W + pad * 2, H2 = H + pad * 2, res = fineRes();
   const g = new FineCanvas(W2, H2, res);
   g.translate(pad, pad);

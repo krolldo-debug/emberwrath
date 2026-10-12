@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -700,7 +700,10 @@ function glowFrames(base, g, res) {
   base.glowEnraged = new SpriteFrame(pixelsToCanvas(e, g.W, g.H), AX * res, AY * res, res);
 }
 
-function frame(P, extra) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut den Boss nicht mehr am Stück.
+function frame(...a) { return lazyFrame(() => frameNow(...a)); }
+function frameNow(P, extra) {
   const res = fineRes(), g = new FineCanvas(W, H, res);
   let meta;
   const base = buildFrame(W, H, AX, AY, (p) => { meta = drawBonelord(p, g, P, GLOW.violet, extra); }, { fine: true, res });
@@ -712,7 +715,8 @@ function frame(P, extra) {
   return base;
 }
 
-function collapseFrame(k) {
+function collapseFrame(...a) { return lazyFrame(() => collapseFrameNow(...a)); }
+function collapseFrameNow(k) {
   const res = fineRes(), g = new FineCanvas(W, H, res);
   const base = buildFrame(W, H, AX, AY, (p) => drawCollapse(p, g, k, GLOW.violet), { fine: true, res });
   glowFrames(base, g, res);

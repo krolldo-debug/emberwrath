@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, pixelsToCanvas, col32, outlinePixels } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -309,7 +309,9 @@ function finishGlowAware(d, w, h, gd, rim = 0.3, shade = 0.26) {
   return d;
 }
 
-function makeFrame(W, H, AX, AY, draw, fx = null, pad = 0, fine = false) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (W, H, AX, AY, draw, fx, pad, fine) => lazyFrame(() => makeFrameNow(W, H, AX, AY, draw, fx, pad, fine));
+function makeFrameNow(W, H, AX, AY, draw, fx = null, pad = 0, fine = false) {
   const W2 = W + pad * 2, H2 = H + pad * 2;
   const res = fine ? fineRes() : 1;
   let meta = {}, f;
@@ -408,10 +410,9 @@ function rimGlow(anims, rim) {
   const T = hexc(rim.top), Sd = hexc(rim.side ?? rim.top);
   const GT = hexc(rim.glowTop), GS = rim.glowSide ? hexc(rim.glowSide) : null;
   const k = rim.k ?? 0.45;
-  const done = new Set();
-  for (const a of Object.values(anims)) for (const f of a.frames) {
-    if (done.has(f)) continue;
-    done.add(f);
+  // je Frame einmal, aufgeschobene Frames gleich nach ihrem Bau (Animation.eachFrame)
+  const memo = new Map();
+  for (const a of Object.values(anims)) a.eachFrame((f) => {
     const c = f.canvas, W = c.width, H = c.height, res = f.res ?? 1;
     const cx = c.getContext('2d'), img = cx.getImageData(0, 0, W, H), d = img.data;
     const gc = f.glow?.canvas, gW = gc ? gc.width : 0, gH = gc ? gc.height : 0;
@@ -449,7 +450,7 @@ function rimGlow(anims, rim) {
       }
       cx.putImageData(img, 0, 0);
       if (gx) gx.putImageData(gimg, 0, 0);
-      continue;
+      return;
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const m = y * W + x;
@@ -469,7 +470,7 @@ function rimGlow(anims, rim) {
     }
     cx.putImageData(img, 0, 0);
     if (gx) gx.putImageData(gimg, 0, 0);
-  }
+  }, memo);
   return anims;
 }
 

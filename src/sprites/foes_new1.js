@@ -1,5 +1,5 @@
 import { PAL } from '../gfx/Palette.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, pixelsToCanvas, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -429,7 +429,9 @@ function glowFrame(g, ax, ay) {
 // ungedreht (liegender Schild). X.fx = Frame-Marke. X.ground = Boden unter der
 // Figur wegschneiden (Eingraben): Zeilen ab dieser Höhe (Grundmaß) werden geleert.
 // Feinraster: p und g sind FineCanvas (res = fineRes()); Drehen, Verschieben und Randlicht auf Texeln.
-function makeFrame(S, draw0, P, X0 = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (S, draw0, P, X0) => lazyFrame(() => makeFrameNow(S, draw0, P, X0));
+function makeFrameNow(S, draw0, P, X0 = {}) {
   const pad = S.pad ?? 10;
   const G = S.gs;
   const wrap = (q) => (G ? new GeoPC(q, G.s, G.ax, G.ay, S.AX, S.AY) : q);
@@ -2192,8 +2194,8 @@ function drawHarpyCorpse(p, g, P, X) {
 }
 
 function harpyAnims() {
-  const mk = (P, X) => { const f = makeFrame(HP, drawHarpy, P, X); f.hover = Math.round(P.hov); return f; };
-  const mkC = (P, X) => { const f = makeFrame(HP, drawHarpyCorpse, P, X); f.hover = 0; return f; };
+  const mk = (P, X) => lazyFrame(() => { const f = makeFrameNow(HP, drawHarpy, P, X); f.hover = Math.round(P.hov); return f; });
+  const mkC = (P, X) => lazyFrame(() => { const f = makeFrameNow(HP, drawHarpyCorpse, P, X); f.hover = 0; return f; });
   const flap = (i, n, o = {}) => {
     const ph = (i / n) * TAU;
     const w = -Math.cos(ph + Math.sin(ph) * 0.45);

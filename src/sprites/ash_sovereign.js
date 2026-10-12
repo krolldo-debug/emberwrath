@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
@@ -1611,7 +1611,11 @@ function withForm(P, form) {
   return o;
 }
 
-function frame(P, form, extra = {}) {
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut den Boss nicht mehr am Stück. atRes(fn) hält die Bildfeinheit (RS) vom Anlegen für den späteren Bau fest.
+function atRes(fn) { const rs = RS; return () => { if (RS !== rs) setRes(rs); return fn(); }; }
+function frame(...a) { return lazyFrame(atRes(() => frameNow(...a))); }
+function frameNow(P, form, extra = {}) {
   const Q = withForm(P, form);
   const L = layers();
   const p = new Pen(L), g = new GlowPen(L);
@@ -1630,7 +1634,8 @@ function track(keys, n, form, { loop = false, extras = {} } = {}) {
 
 // Todesframe: Figur (ohne Krone und ohne Schwert) zerfällt, Schwert steckt im Boden,
 // die Krone fällt, prallt auf und bleibt schräg liegen.
-function deathFrame(P, form, fx) {
+function deathFrame(...a) { return lazyFrame(atRes(() => deathFrameNow(...a))); }
+function deathFrameNow(P, form, fx) {
   const Q = withForm(P, form);
   const L = layers();
   const p = new Pen(L), g = new GlowPen(L);
@@ -1659,15 +1664,11 @@ function deathFrame(P, form, fx) {
   return finish(L, fx, meta, Q.inferno > 0.5);
 }
 
-// Animationen erst bei Bedarf bauen
+// Animationen gleich anlegen: ihre Frames entstehen aufgeschoben (frame/deathFrame → LazyFrame), das Anlegen kostet
+// fast nichts. So sieht die Vorbereitung (world/spriteWarm.js) alle Animationen des Bosses.
 function lazy(defs) {
   const o = {};
-  for (const [k, fn] of Object.entries(defs)) {
-    Object.defineProperty(o, k, {
-      configurable: true, enumerable: true,
-      get() { const v = fn(); Object.defineProperty(o, k, { value: v, writable: true, enumerable: true, configurable: true }); return v; },
-    });
-  }
+  for (const [k, fn] of Object.entries(defs)) o[k] = fn();
   return o;
 }
 
