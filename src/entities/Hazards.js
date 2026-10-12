@@ -1,5 +1,7 @@
 import { Entity } from './Entity.js';
 import { rand } from '../core/math.js';
+import { fineRes } from '../gfx/Fine.js';
+import { ellipsePts, fillEllipse } from './Effects.js';
 
 // Bleibende Gefahrenfläche am Boden (Giftwolke, Frostfeld, Glutfeld) für
 // Spezialangriff `cloud` normaler Gegner (Enemy.js). Schadet dem Helden in
@@ -51,6 +53,7 @@ export class HazardCloud extends Entity {
   render(ctx, cx, cy) {
     const a = this.#alpha();
     if (a <= 0) return;
+    if (fineRes() > 1) { this.#renderFine(ctx, cx, cy, a); return; }
     const x = this.x - cx, y = this.y - cy, [r, g, b] = this.look.base;
     // Bodenfleck
     ctx.globalAlpha = 0.22 * a;
@@ -67,16 +70,47 @@ export class HazardCloud extends Entity {
     ctx.globalAlpha = 1;
   }
 
+  // Feinraster: Bodenfleck flächig in zwei harten Stufen (Fluch: Kern fast schwarz-violett), Rand als Feinpixel-
+  // Kontur; Schwaden als runde Ballen mit hellem Feinpixel oben links (Licht von oben links), Deckkraft in Stufen
+  #renderFine(ctx, cx, cy, a) {
+    const q = 2, P = 0.5, L = this.look, X = Math.round((this.x - cx) * q) / q, Y = Math.round((this.y - cy) * q) / q;
+    const step = (v) => (v > 0.66 ? 1 : v > 0.33 ? 0.66 : 0.33);
+    const curse = this.element === 'curse', R = this.radius;
+    ctx.globalAlpha = 0.33 * step(a);
+    ctx.fillStyle = L.puff[2]; fillEllipse(ctx, X, Y, R, R * 0.6, q, P);
+    ctx.globalAlpha = (curse ? 0.66 : 0.33) * step(a);
+    ctx.fillStyle = curse ? '#16052a' : L.puff[2]; fillEllipse(ctx, X, Y, R * 0.72, R * 0.43, q, P);
+    // Rand: Feinpixel-Kontur, hinten gestrichelt
+    const e = ellipsePts(R, R * 0.6, q);
+    ctx.globalAlpha = 0.66 * step(a); ctx.fillStyle = L.puff[1];
+    for (let i = 0; i < e.n; i++) if (e.u[i] < 0.5 || i % 3) ctx.fillRect(X + e.xy[2 * i] * P, Y + e.xy[2 * i + 1] * P, P, P);
+    for (const p of this.puffs) {
+      const k = Math.sin(this.t * 1.3 + p.ph);
+      const px = X + Math.cos(p.a + this.t * 0.25) * p.r, py = Y + Math.sin(p.a + this.t * 0.25) * p.r * 0.6 - 3 - k * 2;
+      const w = Math.round(p.s), h = Math.max(1, Math.round(p.s * 0.6)), x0 = Math.round(px - w / 2), y0 = Math.round(py - h / 3);
+      ctx.globalAlpha = step((0.42 + 0.14 * k) * a * 1.4) * 0.5;
+      ctx.fillStyle = L.puff[(p.ph * 10 | 0) % 3];
+      // runder Ballen: zwei Rechtecke mit abgeschnittenen Ecken (Feinpixel)
+      ctx.fillRect(x0 + P, y0, w - 2 * P, h); ctx.fillRect(x0, y0 + P, w, Math.max(P, h - 2 * P));
+      ctx.fillStyle = L.puff[0]; ctx.fillRect(x0 + P, y0 + P, P, P);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   renderEmissive(ctx, cx, cy) {
     if (this.arm > 0 && this.t < this.arm + 0.3) armRing(ctx, this.x - cx, this.y - cy, this.radius, this.t / this.arm, ARM_COLOR[this.element] ?? '#ffb640', this.t);
     const a = this.#alpha();
     if (a <= 0) return;
-    ctx.globalAlpha = 0.5 * a;
+    const fine = fineRes() > 1;
+    ctx.globalAlpha = fine ? (a > 0.5 ? 0.66 : 0.33) : 0.5 * a;
     ctx.fillStyle = this.look.glow;
     for (let i = 0; i < this.puffs.length; i += 3) {
       const p = this.puffs[i];
       const px = this.x - cx + Math.cos(p.a + this.t * 0.25) * p.r, py = this.y - cy + Math.sin(p.a + this.t * 0.25) * p.r * 0.6 - 4;
-      if (Math.sin(this.t * 3 + p.ph) > 0.6) ctx.fillRect(Math.round(px), Math.round(py), 1, 1);
+      if (Math.sin(this.t * 3 + p.ph) > 0.6) {
+        if (fine) { ctx.fillRect(Math.round(px * 2) / 2, Math.round(py * 2) / 2, 0.5, 0.5); ctx.fillRect(Math.round(px * 2) / 2 - 0.5, Math.round(py * 2) / 2 + 0.5, 0.5, 0.5); }
+        else ctx.fillRect(Math.round(px), Math.round(py), 1, 1);
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -84,8 +118,21 @@ export class HazardCloud extends Entity {
 
 // Pixelrand einer scharf werdenden Fläche: dunkle Kante + Glutrand, der schneller blinkt, je näher der Schaden
 function armRing(ctx, x, y, r, k, color, t) {
-  const n = Math.max(16, Math.round(r * 2.2));
   const on = k < 0.6 || Math.sin(t * 26) > -0.2;
+  if (fineRes() > 1) {
+    // Feinraster: lückenlose Feinpixel-Kontur, dunkle Kante darunter, Glutrand 1 Weltpixel stark
+    const X = Math.round(x * 2) / 2, Y = Math.round(y * 2) / 2, e = ellipsePts(r, r * 0.6, 2), xy = e.xy;
+    ctx.save();
+    ctx.globalAlpha = 0.66; ctx.fillStyle = 'rgb(14,6,10)';
+    for (let i = 0; i < e.n; i++) ctx.fillRect(X + xy[2 * i] * 0.5, Y + xy[2 * i + 1] * 0.5 + 1, 0.5, 0.5);
+    if (on) {
+      ctx.globalAlpha = k < 0.5 ? 0.66 : 1; ctx.fillStyle = color;
+      for (let i = 0; i < e.n; i++) ctx.fillRect(X + xy[2 * i] * 0.5, Y + xy[2 * i + 1] * 0.5, 0.5, 1);
+    }
+    ctx.restore();
+    return;
+  }
+  const n = Math.max(16, Math.round(r * 2.2));
   ctx.save();
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;

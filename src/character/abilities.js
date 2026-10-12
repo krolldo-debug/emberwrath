@@ -1,10 +1,13 @@
 import { Entity } from '../entities/Entity.js';
 import { levelGapMult, combatLevel } from '../progression/levelGap.js';
-import { SlashEffect, Afterimage } from '../entities/Effects.js';
+import { SlashEffect, Afterimage, ellipsePts, drawRuns, fillEllipse } from '../entities/Effects.js';
+import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { SLASH_STYLES } from '../sprites/effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { PAL } from '../gfx/Palette.js';
 import { EV } from '../core/events.js';
+import { fineRes } from '../gfx/Fine.js';
+import { renderBolt } from '../entities/Projectile.js';
 
 // Zweihänder in der Hand: schmaler, durchscheinender Hiebbogen wie beim Grundangriff (sprites/effects.js SLASH_STYLES.greatHeavy)
 function heavySlash(h) { const own = h.animator?.anims?.setSlash; return h.animator?.anims?.greatWeapon ? SLASH_STYLES.greatHeavy : own ? SLASH_STYLES[own + 'Heavy'] : SLASH_STYLES.heroHeavy; }
@@ -33,6 +36,8 @@ const PROJECTILES = {
   bolt: { radius: 4, life: 1.2, light: { radius: 34, color: [255, 150, 60] } },
   fireball: { radius: 6, life: 1.4, light: { radius: 56, color: [255, 130, 40] } },
 };
+
+const HERO_FIRE = ['#fff0b0', '#ffb640', '#f07a1c', '#7a2208'];
 
 export class HeroProjectile extends Entity {
   // pierce: true = unbegrenzt, Zahl = so viele zusätzliche Gegner; explode: { r, damage, knockback } beim Aufprall
@@ -124,6 +129,20 @@ export class HeroProjectile extends Entity {
     const c = Math.cos(this.angle), s = Math.sin(this.angle);
     const len = this.kind === 'arrow' ? 8 : 4;
     const yy = y - this.z;
+    const q = fineRes();
+    if (q > 1) {
+      // Feinraster: Schaft/Klinge 2 Feinpixel stark (oben Licht, unten Schatten), Spitze mit Glanzpunkt, Federn zweifarbig
+      const P = 1 / q, X = this.x - cx, Y = this.y - this.z - cy, up = c >= 0 ? 1 : -1;
+      for (let i = 0; i <= len * q; i++) {
+        const u = i * P, px = Math.round((X - c * u) * q) * P, py = Math.round((Y - s * u) * q) * P;
+        const tip = u < 2, feather = this.kind === 'arrow' && u > len - 2.5;
+        ctx.fillStyle = tip ? PAL.steel[5] : feather ? '#e8e0d0' : this.kind === 'arrow' ? '#9a6a42' : PAL.steel[4];
+        ctx.fillRect(px, py, P, P);
+        ctx.fillStyle = tip ? PAL.steel[3] : feather ? '#a89c88' : this.kind === 'arrow' ? '#5e3e24' : PAL.steel[2];
+        ctx.fillRect(Math.round((X - c * u + s * P * up) * q) * P, Math.round((Y - s * u - c * P * up) * q) * P, P, P);
+      }
+      return;
+    }
     for (let i = 0; i <= len; i++) {
       const px = Math.round(x - c * i), py = Math.round(yy - s * i);
       ctx.fillStyle = i < 2 ? PAL.steel[5] : this.kind === 'arrow' ? (i > len - 2 ? '#e8e0d0' : '#7e5432') : PAL.steel[3];
@@ -133,6 +152,11 @@ export class HeroProjectile extends Entity {
 
   renderEmissive(ctx, cx, cy) {
     const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
+    // Feinraster: Glutkugel wie die Zauberkugeln der Gegner (entities/Projectile.js renderBolt), Feuer mit Flammenzungen
+    if (this.fiery && fineRes() > 1) {
+      renderBolt(ctx, this.x - cx, this.y - this.z - cy, this.angle, 'fire', HERO_FIRE, this.kind === 'fireball' ? 4.5 : 3, this.life);
+      return;
+    }
     if (this.kind === 'fireball') {
       ctx.fillStyle = 'rgba(240,122,28,0.4)'; ctx.fillRect(x - 5, y - 3, 10, 7); ctx.fillRect(x - 3, y - 5, 7, 11);
       ctx.fillStyle = '#f07a1c'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
@@ -349,13 +373,23 @@ class Meteor extends Entity {
     }
   }
   render(ctx, cx, cy) {
-    const k = this.t / this.delay;
+    const k = this.t / this.delay, q = fineRes();
+    if (q > 1) {
+      // Feinraster: Schatten des Brockens wächst in harten Stufen (Kern dunkler)
+      const P = 1 / q, X = Math.round((this.x - cx) * q) / q, Y = Math.round((this.y - cy) * q) / q;
+      ctx.fillStyle = '#040208';
+      ctx.globalAlpha = 0.33; fillEllipse(ctx, X, Y, 6 + k * 12, 3 + k * 6, q, P);
+      if (k > 0.4) { ctx.globalAlpha = 0.66; fillEllipse(ctx, X, Y, 3 + k * 7, 1.5 + k * 3.5, q, P); }
+      ctx.globalAlpha = 1;
+      return;
+    }
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     ctx.globalAlpha = 0.25 + k * 0.35; ctx.fillStyle = 'rgba(4,2,8,0.6)';
     ctx.beginPath(); ctx.ellipse(x, y, 6 + k * 12, 3 + k * 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
   }
   renderEmissive(ctx, cx, cy) {
-    const k = this.t / this.delay;
+    const k = this.t / this.delay, q = fineRes();
+    if (q > 1) { this.#renderFine(ctx, cx, cy, k, q); return; }
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     ctx.globalAlpha = 0.35; ctx.strokeStyle = '#f07a1c';
     ctx.beginPath(); ctx.ellipse(x, y, 40, 28, 0, 0, Math.PI * 2); ctx.stroke();
@@ -370,6 +404,55 @@ class Meteor extends Entity {
     for (let i = 1; i < 6; i++) { ctx.globalAlpha = 0.5 - i * 0.08; ctx.fillStyle = '#f07a1c'; ctx.fillRect(fx - i * 3, fy - i * 8, 3, 3); }
     ctx.globalAlpha = 1;
   }
+  // Feinraster: Zielring wie die Bosswarnungen (dunkle Kante, Glutrand, wachsender Innenring), Glutblock als Bild
+  // (Basalt mit Glutrissen, Licht von oben links) mit Flammenschweif in harten Stufen
+  #renderFine(ctx, cx, cy, k, q) {
+    const P = 1 / q, X = Math.round((this.x - cx) * q) / q, Y = Math.round((this.y - cy) * q) / q;
+    ctx.fillStyle = '#0e060a'; drawRuns(ctx, X, Y + P, ellipsePts(40, 28, q).runs, P);
+    ctx.fillStyle = k > 0.75 && Math.sin(this.t * 40) > 0 ? '#ffd070' : '#f07a1c'; drawRuns(ctx, X, Y, ellipsePts(40, 28, q).runs, P);
+    if (k > 0.05) { ctx.fillStyle = '#ffb640'; drawRuns(ctx, X, Y, ellipsePts(40 * k, 28 * k, q).runs, P); }
+    const m = meteorSprite(q, Math.floor(this.t * 12) % 2);
+    const fx = Math.round((X - (1 - k) * 60) * q) / q, fy = Math.round((Y - (1 - k) * 170) * q) / q;
+    ctx.drawImage(m.canvas, fx - m.ax, fy - m.ay, m.w, m.h);
+  }
+}
+
+// Glutblock mit Flammenschweif (nach oben links, gegen die Fallrichtung), vorgerechnet je Feinstufe und Flackerbild
+const meteorCache = new Map();
+function meteorSprite(q, f) {
+  const key = `${q}|${f}`;
+  let m = meteorCache.get(key);
+  if (m) return m;
+  const W = 34, H = 52, ax = 26, ay = 44;   // Weltpixel; Brockenmitte bei (ax, ay)
+  const cv = makeCanvas(W * q, H * q), g = cv.getContext('2d');
+  const put = (x, y, col) => { g.fillStyle = col; g.fillRect(Math.round(x * q), Math.round(y * q), 1, 1); };
+  // Schweif: Flammenzungen entlang (-60, -170), werden schmaler und dunkler; deckend, in Stufen
+  const len = Math.hypot(60, 170), dx = -60 / len, dy = -170 / len, nx = -dy, ny = dx;
+  const FIRE = ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c', '#7a2208'];
+  for (let i = 3; i < 44; i += 1 / q) {
+    const t = i / 44, w = 5.5 * (1 - t) + 0.5;
+    for (let j = -w; j <= w; j += 1 / q) {
+      const e = Math.abs(j) / w, wav = Math.sin(i * 0.7 + f * 2 + j) * 0.5;
+      if (e + wav * 0.2 > 1) continue;
+      if (t > 0.6 && ((Math.round(i * q) + Math.round(j * q)) & 1)) continue;   // Auslauf als Raster
+      const idx = Math.min(4, Math.floor(t * 3.2 + e * 1.6));
+      put(ax + dx * i + nx * j, ay + dy * i + ny * j, FIRE[idx]);
+    }
+  }
+  // Brocken: Basalt-Kugel 11 Weltpixel, oben links glühend, Risse
+  const R = 5.5;
+  for (let Y = -R; Y <= R; Y += 1 / q) for (let Xx = -R; Xx <= R; Xx += 1 / q) {
+    const d = Math.hypot(Xx, Y) / R;
+    if (d > 1) continue;
+    const l = d + (Xx + Y) / R * 0.4;
+    const crack = Math.abs(Math.sin(Xx * 1.7 + Y * 0.9 + f)) < 0.18 || Math.abs(Math.sin(Xx * -0.8 + Y * 1.9)) < 0.14;
+    const col = d > 0.86 ? '#2a0e08' : l < 0.15 ? '#fff0b0' : l < 0.45 ? '#ffb640' : crack ? '#ff8a2a' : l < 0.8 ? '#7a2208' : '#3a1a10';
+    put(ax + Xx, ay + Y, col);
+  }
+  put(ax - 2.5, ay - 3, '#ffffff');
+  m = { canvas: cv, w: W, h: H, ax, ay };
+  meteorCache.set(key, m);
+  return m;
 }
 
 export const ABILITY_IMPL = {
@@ -616,7 +699,7 @@ export const ABILITY_IMPL = {
       h.vx = h.vy = 0; h.kbx = h.kby = 0;
       h.invuln = Math.max(h.invuln, 0.3);
       h.skillState.from = { x: ox, y: oy };
-      w.bus.emit('spellImpact', { x: h.x, y: h.y - 8, element: 'shadow', radius: 10 });
+      w.bus.emit('spellImpact', { x: h.x, y: h.y, element: 'shadow', radius: 10 });   // am Fuß: die Leerenpfütze liegt unter der Figur
     },
     update(h, w, dt, t, def) {
       h.vx *= 0.7; h.vy *= 0.7;
