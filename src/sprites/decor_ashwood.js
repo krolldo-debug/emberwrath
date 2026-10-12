@@ -280,38 +280,33 @@ export function conifer(f, { cx, top, bottom, half, tiers = 6, pal, seed, lo = 1
     for (let x = mx - q.w * 0.7; x < mx + q.w * 0.7; x += rng.range(1.2, 2.2)) teeth.push({ x, w: rng.range(0.7, 1.2), l: rng.range(0.6, 2) });
     q.B = B; q.teeth = teeth;
   }
+  // Malreihenfolge: untere Etagen zuerst, darin Kern, Unterkante, dann die Zweige von oben nach unten.
   for (let t = tiers - 1; t >= 0; t--) {
-    const q = T[t], { y0, h, mx, B, teeth } = q, wm = Math.max(q.wl, q.wr);
-    f.scan(mx - wm - 4, y0, mx + wm + 4, q.e + 3, (x, y) => {
+    const q = T[t], { y0, h, mx, B, teeth } = q, wm = Math.max(q.wl, q.wr), up = t > 0 ? T[t - 1].e : -99;
+    const tone = (i, y) => P[Math.max(0, Math.min(P.length - 1, t > 0 && y < up + 1.2 ? i - 1 : i))];
+    f.scan(mx - wm, y0, mx + wm, q.e + 2.2, (x, y) => {
       const dx = x - mx, v = Math.max(0, Math.min(1, (y - y0) / h));
-      const rel = dx / Math.max(1, wm);
-      let ny = null;
-      const fx = Math.floor(x * 2);
-      for (let j = 0; j < B.length; j++) {
-        const o = B[j], u = o.sd * (x - o.x) / o.len;
-        if (u < -0.3 || u > 1) continue;
-        const uu = Math.max(0, u), cy = o.y + o.drop * uu * uu, ht = o.th * (1 - uu) ** 0.75;
-        const r = y < cy ? (y - cy) / (ht * 0.7) : (y - cy) / ht;
-        if (r < -1 || r > 1) continue;
-        // Nadelsaum: an Unter- und Oberkante fehlen einzelne Feinspalten (ausgefranst statt glatter Keil)
-        const hz = hash2(fx, j + t * 31, seed);
-        if ((r > 0.5 && hz < 0.42 - (r - 0.5) * 0.2) || (r > 0.75 && hz < 0.7) || (r < -0.7 && hz < 0.3)) continue;
-        if (ny === null || Math.abs(r) < Math.abs(ny)) ny = r;
-      }
       const hw = (dx < 0 ? q.wl : q.wr) * v ** 0.85 * 0.62;
       let core = Math.abs(dx) < hw && y < q.e;
-      if (!core && ny === null && y >= q.e - 0.5) {                                 // Nadelspitzen an der Unterkante
-        for (const o of teeth) { const a = Math.abs(x - o.x) / o.w; if (a < 1 && y - (q.e - 0.5) < o.l * (1 - a)) { core = true; break; } }
-      }
-      if (ny === null && !core) return null;
-      let i;
-      if (ny !== null) i = stepOf(shade(rel * 0.8, ny * 0.9 - 0.15) + bias, lo, hi) - (ny > 0.5 ? 1 : 0);
-      else i = stepOf(shade(rel * 0.9, 0.2) + bias - 0.15, lo, hi - 1);
-      const up = t > 0 ? T[t - 1].e : -99;
-      if (t > 0 && y < up + 1.2) i -= 1;                                            // Schatten der Etage darüber
-      if (cap && t > 0 && y >= up - 0.2 && y < up + 0.9 && rel < capW * 2 - 1 && ny !== null && ny < -0.3) return C[rel < -0.45 ? C.length - 1 : C.length - 2];
-      return P[Math.max(0, Math.min(P.length - 1, i))];
+      if (!core && y >= q.e - 0.5) for (const o of teeth) { const a = Math.abs(x - o.x) / o.w; if (a < 1 && y - (q.e - 0.5) < o.l * (1 - a)) { core = true; break; } }
+      return core ? tone(stepOf(shade(dx / Math.max(1, wm) * 0.9, 0.2) + bias - 0.15, lo, hi - 1), y) : 0;
     });
+    for (let j = 0; j < B.length; j++) {
+      const o = B[j], xa = o.sd < 0 ? o.x - o.len : o.x - o.len * 0.3, xb = o.sd < 0 ? o.x + o.len * 0.3 : o.x + o.len;
+      f.scan(xa, o.y - o.th, xb, o.y + o.drop + o.th, (x, y) => {
+        const u = o.sd * (x - o.x) / o.len;
+        if (u < -0.3 || u > 1) return 0;
+        const uu = Math.max(0, u), cy = o.y + o.drop * uu * uu, ht = o.th * (1 - uu) ** 0.75;
+        const r = y < cy ? (y - cy) / (ht * 0.7) : (y - cy) / ht;
+        if (r < -1 || r > 1) return 0;
+        // Nadelsaum: an Unter- und Oberkante fehlen einzelne Feinspalten (ausgefranst statt glatter Keil)
+        const hz = hash2(Math.floor(x * 2), j + t * 31, seed);
+        if ((r > 0.5 && hz < 0.42 - (r - 0.5) * 0.2) || (r > 0.75 && hz < 0.7) || (r < -0.7 && hz < 0.3)) return 0;
+        const rel = (x - mx) / Math.max(1, wm);
+        if (cap && t > 0 && y >= up - 0.2 && y < up + 0.9 && rel < capW * 2 - 1 && r < -0.3) return C[rel < -0.45 ? C.length - 1 : C.length - 2];
+        return tone(stepOf(shade(rel * 0.8, r * 0.9 - 0.15) + bias, lo, hi) - (r > 0.5 ? 1 : 0), y);
+      });
+    }
   }
   if (cap && capTop) f.scan(cx - 1.2, top - 0.5, cx + 1, top + 1.6, (x, y) => (x - cx < (y - top) * 0.6 ? C[C.length - 1] : null));
   return T;
