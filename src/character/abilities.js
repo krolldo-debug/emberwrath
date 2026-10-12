@@ -5,6 +5,8 @@ import { SLASH_STYLES } from '../sprites/effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { PAL } from '../gfx/Palette.js';
 import { EV } from '../core/events.js';
+import { fineRes } from '../gfx/Fine.js';
+import { renderBolt } from '../entities/Projectile.js';
 
 // Zweihänder in der Hand: schmaler, durchscheinender Hiebbogen wie beim Grundangriff (sprites/effects.js SLASH_STYLES.greatHeavy)
 function heavySlash(h) { const own = h.animator?.anims?.setSlash; return h.animator?.anims?.greatWeapon ? SLASH_STYLES.greatHeavy : own ? SLASH_STYLES[own + 'Heavy'] : SLASH_STYLES.heroHeavy; }
@@ -33,6 +35,8 @@ const PROJECTILES = {
   bolt: { radius: 4, life: 1.2, light: { radius: 34, color: [255, 150, 60] } },
   fireball: { radius: 6, life: 1.4, light: { radius: 56, color: [255, 130, 40] } },
 };
+
+const HERO_FIRE = ['#fff0b0', '#ffb640', '#f07a1c', '#7a2208'];
 
 export class HeroProjectile extends Entity {
   // pierce: true = unbegrenzt, Zahl = so viele zusätzliche Gegner; explode: { r, damage, knockback } beim Aufprall
@@ -124,6 +128,20 @@ export class HeroProjectile extends Entity {
     const c = Math.cos(this.angle), s = Math.sin(this.angle);
     const len = this.kind === 'arrow' ? 8 : 4;
     const yy = y - this.z;
+    const q = fineRes();
+    if (q > 1) {
+      // Feinraster: Schaft/Klinge 2 Feinpixel stark (oben Licht, unten Schatten), Spitze mit Glanzpunkt, Federn zweifarbig
+      const P = 1 / q, X = this.x - cx, Y = this.y - this.z - cy, up = c >= 0 ? 1 : -1;
+      for (let i = 0; i <= len * q; i++) {
+        const u = i * P, px = Math.round((X - c * u) * q) * P, py = Math.round((Y - s * u) * q) * P;
+        const tip = u < 2, feather = this.kind === 'arrow' && u > len - 2.5;
+        ctx.fillStyle = tip ? PAL.steel[5] : feather ? '#e8e0d0' : this.kind === 'arrow' ? '#9a6a42' : PAL.steel[4];
+        ctx.fillRect(px, py, P, P);
+        ctx.fillStyle = tip ? PAL.steel[3] : feather ? '#a89c88' : this.kind === 'arrow' ? '#5e3e24' : PAL.steel[2];
+        ctx.fillRect(Math.round((X - c * u + s * P * up) * q) * P, Math.round((Y - s * u - c * P * up) * q) * P, P, P);
+      }
+      return;
+    }
     for (let i = 0; i <= len; i++) {
       const px = Math.round(x - c * i), py = Math.round(yy - s * i);
       ctx.fillStyle = i < 2 ? PAL.steel[5] : this.kind === 'arrow' ? (i > len - 2 ? '#e8e0d0' : '#7e5432') : PAL.steel[3];
@@ -133,6 +151,11 @@ export class HeroProjectile extends Entity {
 
   renderEmissive(ctx, cx, cy) {
     const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
+    // Feinraster: Glutkugel wie die Zauberkugeln der Gegner (entities/Projectile.js renderBolt), Feuer mit Flammenzungen
+    if (this.fiery && fineRes() > 1) {
+      renderBolt(ctx, this.x - cx, this.y - this.z - cy, this.angle, 'fire', HERO_FIRE, this.kind === 'fireball' ? 4.5 : 3, this.life);
+      return;
+    }
     if (this.kind === 'fireball') {
       ctx.fillStyle = 'rgba(240,122,28,0.4)'; ctx.fillRect(x - 5, y - 3, 10, 7); ctx.fillRect(x - 3, y - 5, 7, 11);
       ctx.fillStyle = '#f07a1c'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
