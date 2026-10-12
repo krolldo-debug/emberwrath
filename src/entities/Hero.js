@@ -7,6 +7,7 @@ import { Light } from '../gfx/Lighting.js';
 import { heroRes } from '../sprites/hero.js';
 import { getMountSprites } from '../sprites/mounts.js';
 import { drawSetGlow, drawSetEmit, spawnSetParticles } from '../sprites/heroSets.js';
+import { drawWeaponFx } from '../gfx/weaponFx.js';
 import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
@@ -14,6 +15,13 @@ import { pickTarget, aimAngle, targetable } from '../character/aim.js';
 import { applyLevelGap } from '../progression/levelGap.js';
 import { applyBossPower } from '../world/bossFury.js';
 
+// Leuchtpunkt (frame.glows) auf einer Waffe mit eigenen Effekten (ab episch)? Abstand zur Achse ≤ 3 Weltpixel.
+function nearWeapon(g, a) {
+  if (!a || a.tier < 2 || a.back) return false;
+  const dx = Math.cos(a.ang), dy = Math.sin(a.ang);
+  const u = Math.max(a.u0 - 2, Math.min(a.u1 + 1, (g.x - a.x) * dx + (g.y - a.y) * dy));
+  return Math.hypot(g.x - a.x - dx * u, g.y - a.y - dy * u) <= (a.arc ? 4.5 : 3);
+}
 // Konstanten, die für alle Klassen gleich sind (Klassenwerte: character/classes.js)
 const H = {
   radius: 5,
@@ -290,14 +298,16 @@ export class Hero extends Actor {
     this.rideOff = { x: (this.mountFrame.seat.x - hip.x) * (this.facing < 0 ? -1 : 1), y: this.mountFrame.seat.y - hip.y };
   }
 
-  // Seltenheits-Effekte der Waffe (Stufe aus character/gearLook.js, Achse aus frame.weapon):
-  // episch = Funken/Flammen je Element + Licht, legendär = doppelt so dicht und heller.
+  // Seltenheits-Effekte der Waffe (Stufe aus character/gearLook.js, Achse aus frame.weapon), Teilchen-Teil:
+  // episch = einzelne Feinpixel-Funken von der Waffe + Licht, legendär = dazu Glut, die vom Lichtkreis am Boden aufsteigt.
+  // Sparsam: episch etwa 4, legendär etwa 10 Teilchen gleichzeitig je Held. Gezeichnet wird in gfx/weaponFx.js (drawWeaponFx).
   #weaponFx(dt, world) {
     const a = this.dead ? null : this.currentFrame()?.weapon;
     const tier = a?.tier ?? 0;
     const el = ELEMENTS[a?.fx] ?? ELEMENTS.arcane;
     if (tier >= 2 && world.addLight) {
-      if (!this.weaponLight || this.weaponLight.dead) this.weaponLight = world.addLight(new Light({ follow: this, offsetY: -12, radius: 30, intensity: 0, flicker: 0.3, bloom: 0.15 }));
+      // bloom 0: kein weicher Schein über der Figur – das Leuchten liefern Kante, Funken und Ring als harte Pixel
+      if (!this.weaponLight || this.weaponLight.dead) this.weaponLight = world.addLight(new Light({ follow: this, offsetY: -12, radius: 30, intensity: 0, flicker: 0.3, bloom: 0 }));
       const L = this.weaponLight;
       // Bogen liegt vor dem Körper: Licht und Funken gedämpft, sonst überstrahlt er die Figur
       const dim = a.arc ? 0.5 : 1;
@@ -305,21 +315,33 @@ export class Hero extends Actor {
       L.flicker = a.fx === 'fire' ? 0.35 : 0.15;
     } else if (this.weaponLight) this.weaponLight.intensity = 0;
     if (tier < 2 || !world.particles || this.state === 'roll') return;
-    this.fxAcc = (this.fxAcc ?? 0) + dt * (tier >= 3 ? 30 : 16) * (a.arc ? 0.4 : 1);
+    const c = el.colors;
+    const r = (lo, hi) => lo + Math.random() * (hi - lo);
+    const P = world.particles;
+    // Funken von der Waffe
+    this.fxAcc = (this.fxAcc ?? 0) + dt * (tier >= 3 ? 10 : 7) * (a.arc ? 0.6 : a.u1 - a.u0 < 8 ? 0.5 : 1);   // Bogen, kurze Waffen: weniger
     const f = this.facing < 0 ? -1 : 1;
     const dx = Math.cos(a.ang), dy = Math.sin(a.ang);
+    const res = this.currentFrame().res ?? 1;
     while (this.fxAcc >= 1) {
       this.fxAcc -= 1;
       const u = a.u0 + Math.random() * (a.u1 - a.u0);
       const side = Math.random() * 2 - 1 + (a.arc ? a.arc * (1 - ((2 * (u - a.u0)) / (a.u1 - a.u0) - 1) ** 2) : 0);
-      const x = this.x + this.rideOff.x + (a.x + dx * u - dy * side) * f - (f < 0 ? 1 / (this.currentFrame().res ?? 1) : 0);
+      const x = this.x + this.rideOff.x + (a.x + dx * u - dy * side) * f - (f < 0 ? 1 / res : 0);
       const y = this.y + this.rideOff.y + a.y + dy * u + dx * side;
-      const c = el.colors;
-      const r = (lo, hi) => lo + Math.random() * (hi - lo);
-      if (a.fx === 'fire') world.particles.spawn({ x, y, vx: r(-4, 4), rise: r(18, 34), wobble: 18, life: r(0.25, 0.55), colors: [c[0], c[1], c[2], c[3], c[4]], emissive: true });
-      else if (a.fx === 'frost') world.particles.spawn({ x, y, vx: r(-5, 5), vy: r(-2, 6), rise: r(-6, 2), life: r(0.4, 0.8), colors: [c[0], c[1], c[2]], emissive: true });
-      else if (a.fx === 'poison') world.particles.spawn({ x, y, vx: r(-2, 2), rise: r(-14, -6), life: r(0.3, 0.6), colors: [c[1], c[2], c[3]], emissive: true });
-      else world.particles.spawn({ x, y, vx: r(-4, 4), rise: r(6, el.rise + 10), wobble: 12, life: r(0.35, 0.8), colors: [c[0], c[1], c[2], c[3]], emissive: true });
+      const base = { x, y, fine: true, fade: false, emissive: true, size: Math.random() < 0.2 ? 2 : 1 };
+      if (a.fx === 'fire') P.spawn({ ...base, vx: r(-4, 4), rise: r(16, 28), wobble: 14, life: r(0.45, 0.8), colors: [c[0], c[1], c[2], c[3]] });
+      else if (a.fx === 'frost' || a.fx === 'water') P.spawn({ ...base, vx: r(-5, 5), vy: r(-2, 4), rise: r(-6, 1), life: r(0.5, 0.8), colors: [c[0], c[1], c[2], c[3]] });
+      else if (a.fx === 'poison') P.spawn({ ...base, vx: r(-2, 2), rise: r(-12, -5), life: r(0.4, 0.7), colors: [c[1], c[2], c[3]] });
+      else P.spawn({ ...base, vx: r(-4, 4), rise: r(6, el.rise + 8), wobble: 10, life: r(0.45, 0.8), colors: [c[0], c[1], c[2], c[3]] });
+    }
+    // Legendär: Glut steigt vom vorderen Bogen des Lichtkreises auf (nicht beritten: dort fehlt der Ring)
+    if (tier < 3 || this.riding) return;
+    this.ringAcc = (this.ringAcc ?? 0) + dt * 3.5;
+    while (this.ringAcc >= 1) {
+      this.ringAcc -= 1;
+      const t = Math.random() * Math.PI;   // vordere Hälfte
+      P.spawn({ x: this.x + Math.cos(t) * 10, y: this.y + 0.5 + Math.sin(t) * 4, vx: r(-2, 2), rise: r(10, 18), wobble: 8, life: r(0.8, 1.2), colors: [c[1], c[2], c[3], c[4]], fine: true, fade: false, emissive: true });
     }
   }
 
@@ -666,8 +688,9 @@ export class Hero extends Actor {
         const x = Math.round(this.x - cx + ox + g.x * this.facing - (this.facing < 0 ? 1 / (gf.res ?? 1) : 0));
         const y = Math.round(this.y - cy + oy + g.y);
         if (g.pulse || g.orbit) { drawSetGlow(ctx, g, x, y, t, Math.max(1, Math.min(3, CONFIG.renderScale ?? 1))); continue; }
-        // Skinset getragen: keine weichen Scheine, nur der harte Kernpunkt (Stil der Sets)
-        if (gf.emit) { ctx.globalAlpha = 1; ctx.fillStyle = g.color; ctx.fillRect(x, y, 1, 1); continue; }
+        // Skinset getragen: keine weichen Scheine, nur der harte Kernpunkt (Stil der Sets). Ebenso Leuchtpunkte an einer
+        // epischen/legendären Waffe: dort liefern Kante und Funken (gfx/weaponFx.js) das Leuchten.
+        if (gf.emit || (gf === f && nearWeapon(g, f.weapon))) { ctx.globalAlpha = 1; ctx.fillStyle = g.color; ctx.fillRect(x, y, 1, 1); continue; }
         const r = Math.max(1, Math.min(4, Math.round(g.r)));
         ctx.globalAlpha = 0.2;
         ctx.fillStyle = g.color;
@@ -678,7 +701,7 @@ export class Hero extends Actor {
       }
       ctx.globalAlpha = 1;
     }
-    this.#renderWeaponFx(ctx, cx, cy, f);
+    drawWeaponFx(ctx, { x: this.x, y: this.y, facing: this.facing, frame: f, ox: this.rideOff.x, oy: this.rideOff.y, ring: !this.riding && this.state !== 'roll', seed: this.id }, cx, cy);
     // Schutz-Aura (Kriegsschrei)
     if (this.buffs.some((b) => b.id === 'guard')) {
       const t = performance.now() / 1000;
@@ -691,79 +714,4 @@ export class Hero extends Actor {
     }
   }
 
-  // Leuchten an der Waffe: selten = wandernder Glanz, episch/legendär = flackernde Aura und Flammenzungen.
-  #renderWeaponFx(ctx, cx, cy, frame) {
-    const a = frame.weapon;
-    if (!a || !a.tier || a.back) return;   // back: Zweihänder hinter dem Kopf (Ausholen), Effekt nicht über den Helm legen
-    const t = performance.now() / 1000;
-    const f = this.facing < 0 ? -1 : 1;
-    const dx = Math.cos(a.ang), dy = Math.sin(a.ang);
-    const bend = (u) => (a.arc ? a.arc * (1 - ((2 * (u - a.u0)) / (a.u1 - a.u0) - 1) ** 2) : 0); // Bogen gekrümmt
-    // Feinraster des Spielbilds (Überabtastung, INTEGRATION §11.12): Funken und Zungen feiner als ein Weltpixel
-    const q = Math.max(1, Math.min(3, CONFIG.renderScale ?? 1)), P = 1 / q;
-    const snap = (v) => Math.round(v * q) / q;
-    const ox = this.rideOff.x, oy = this.rideOff.y;
-    const px = (u, s = 0) => snap(this.x - cx + ox + (a.x + dx * u - dy * (s + bend(u))) * f - (f < 0 ? 1 / (frame.res ?? 1) : 0));
-    const py = (u, s = 0) => snap(this.y - cy + oy + a.y + dy * u + dx * (s + bend(u)));
-    const el = ELEMENTS[a.fx] ?? ELEMENTS.arcane, c = el.colors;
-    const prev = ctx.globalCompositeOperation;
-    ctx.globalCompositeOperation = 'lighter';
-    if (a.tier >= 2) {
-      // weiche Aura entlang der Waffe
-      const strong = a.tier >= 3;
-      const dim = a.arc ? 0.45 : a.great ? 0.35 : 1;   // Bogen: schwächere Aura, Zungen nur an den Enden; Zweihänder: Klinge bleibt lesbar
-      for (let u = a.u0; u <= a.u1; u += a.arc ? 3 : 1.5) {
-        const n = 0.5 + 0.5 * Math.sin(t * 11 + u * 1.7) * Math.sin(t * 7.3 - u);
-        const x = px(u), y = py(u);
-        ctx.globalAlpha = ((strong ? 0.1 : 0.06) + n * 0.06) * dim;
-        ctx.fillStyle = c[2];
-        ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
-        ctx.globalAlpha = ((strong ? 0.12 : 0.07) + n * 0.08) * dim;
-        ctx.fillStyle = c[1];
-        ctx.fillRect(x - 1, y - 1, 3, 3);
-      }
-      // Flammenzungen (Feuer, Heilig) bzw. Funkeln (andere Elemente)
-      const tongues = a.fx === 'fire' || a.fx === 'holy';
-      const n = a.arc ? 2 : a.great ? 3 : strong ? 7 : 5;
-      for (let i = 0; i < n; i++) {
-        const u = a.arc ? (i ? a.u1 - 0.5 : a.u0 + 0.5) : a.u0 + (a.u1 - a.u0) * ((i + 0.5) / n);
-        const ph = t * (tongues ? 9 : 4) + i * 2.39;
-        const h = tongues ? Math.max(0, Math.round((1 + 2.6 * (0.5 + 0.5 * Math.sin(ph)) + (strong ? 1 : 0)) * q * 0.8)) : 0;
-        const x = px(u), y = py(u);
-        if (tongues) {
-          for (let k = 0; k <= h; k++) {
-            const kk = k / Math.max(1, h);
-            ctx.globalAlpha = 0.9 - kk * 0.5;
-            ctx.fillStyle = kk < 0.25 ? c[0] : kk < 0.8 ? c[1] : c[3];
-            const wdt = q > 1 && kk < 0.5 ? 2 * P : P;
-            ctx.fillRect(x + snap(Math.sin(ph * 0.7 + kk * 3) * 0.6), y - (k + 1) * P, wdt, P);
-          }
-        } else if (Math.sin(ph) > 0.6) {
-          ctx.globalAlpha = 0.9;
-          ctx.fillStyle = c[0];
-          ctx.fillRect(x, y, P, P);
-          ctx.globalAlpha = 0.45;
-          ctx.fillStyle = c[1];
-          ctx.fillRect(x - 2 * P, y, 5 * P, P); ctx.fillRect(x, y - 2 * P, P, 5 * P);
-        }
-      }
-    }
-    // Glanzlicht, das über die Waffe wandert (ab selten)
-    const period = a.tier >= 2 ? 1.6 : 2.4;
-    const p = ((t + (this.id ?? 0) * 0.37) % period) / 0.4;
-    if (p < 1) {
-      const u = a.u0 + (a.u1 - a.u0) * p;
-      const x = px(u), y = py(u);
-      const r1 = q > 1 ? 2 : 1, r2 = q > 1 ? 5 : 2;
-      ctx.globalAlpha = 0.95;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x, y, P, P);
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(x - r1 * P, y, (2 * r1 + 1) * P, P); ctx.fillRect(x, y - r1 * P, P, (2 * r1 + 1) * P);
-      ctx.globalAlpha = 0.2;
-      ctx.fillRect(x - r2 * P, y, (2 * r2 + 1) * P, P); ctx.fillRect(x, y - r2 * P, P, (2 * r2 + 1) * P);
-    }
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = prev;
-  }
 }

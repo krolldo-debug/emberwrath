@@ -31,6 +31,7 @@ import { Chest, ExitPortal } from '../entities/Interactive.js';
 import { FlowField } from './FlowField.js';
 import { QuestGuide } from './QuestGuide.js';
 import { takePrebuilt } from './warmup.js';
+import { SpriteWarmer } from './spriteWarm.js';
 import { updateBossFury } from './bossFury.js';
 import { rand, pick } from '../core/math.js';
 
@@ -113,6 +114,8 @@ export class World {
 
     const L = CONFIG.lighting;
     this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: L.heroLightRadius, color: L.heroLightColor, intensity: level.kind === 'outdoor' ? 0.6 : 0.85, flicker: 0.05, bloom: 0 }));
+    // Figuren-Frames entstehen aufgeschoben (gfx/Sprite.js LazyFrame); der Rest wird nach dem Betreten in Häppchen gebaut
+    this.spriteWarm = new SpriteWarmer(this);
   }
 
   // Verstreute Knochen & Blutflecken im Dungeon, Laub und Steinchen draußen
@@ -210,6 +213,7 @@ export class World {
     const e = new Enemy(type, x, y, this.assets, opts);
     this.actors.push(e);
     this.enemies.push(e);
+    this.spriteWarm?.add(e);
     return e;
   }
 
@@ -243,6 +247,7 @@ export class World {
     this.guide.update(dt);
     this.trial?.update(dt);
     this.life.update(dt);
+    this.spriteWarm.update(dt);
 
     this.actors = this.actors.filter((a) => !a.removed);
     this.enemies = this.enemies.filter((a) => !a.removed);
@@ -358,7 +363,8 @@ export class World {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     // Außenkarten (Outdoor.chunked) zeichnen ihren Boden kachelweise in renderLiquid; background ist dort nur das Übersichtsbild
-    if (!this.dungeon.chunked) ctx.drawImage(this.background, cx, cy, W, H, 0, 0, W, H);
+    // Dungeon-Hintergrund in Texeln (background.res, Feinraster 2): Ausschnitt in Texeln, Ziel in Weltpixeln
+    if (!this.dungeon.chunked) { const q = this.background.res ?? 1; ctx.drawImage(this.background, cx * q, cy * q, W * q, H * q, 0, 0, W, H); }
     this.dungeon.renderLiquid?.(ctx, cx, cy, this.time);
     // Dekal-Ebene kachelweise (gfx/Decals.js render); Altform: eine weltgroße Leinwand
     if (this.decals.render) this.decals.render(ctx, cx, cy, W, H); else ctx.drawImage(this.decals.canvas, cx, cy, W, H, 0, 0, W, H);

@@ -1,4 +1,5 @@
 import { buildFrame, Animation } from '../gfx/Sprite.js';
+import { rimLight } from './hero.js';
 
 // Reittiere (Thread A, INTEGRATION §12.6). Seitenansicht wie die Helden (Blick rechts, links = gespiegelt),
 // Licht von oben links. Körperbau aus character/mounts.js (sprite + look), gerastert im feinen Raster
@@ -125,6 +126,8 @@ const MANE_GLOW = { fire: '#ff8a30', starlight: '#8eb0ff', soul: '#40d8a4' };
 const HOOF_GLOW = { ghost: '#8affb0', starlight: '#c4d8ff', soul: '#7affd4' };
 const band = (A, v) => A[clamp(Math.round(v), 0, A.length - 1)];
 const shadeOf = (A, base = 2, k = 1.4, rim = 0.85) => (l, t, e) => band(A, base + l * k - (e > rim ? 0.7 : 0));
+// Fell mit Glanz: auf der Lichtseite eine zusammenhängende helle Fläche in der hellsten Stufe (Stufe B, Feinraster)
+const sheenOf = (A, base = 2, k = 1.4, rim = 0.85) => (l, t, e) => (l > 0.74 && e > 0.38 && e < 0.8 ? A[A.length - 1] : band(A, base + l * k - (e > rim ? 0.7 : 0)));
 const dim = (A) => [A[0], A[0], A[1], A[2], A[3]];
 
 // Zweigelenk-IK
@@ -201,6 +204,66 @@ const DRAKE_PAL = {
     GLOW: ['#5ab8f0', '#8ad4ff', '#d8f4ff'],
   },
 };
+
+// Mähne als geschlossener Kamm (Pferd, Elch; Stufe B): Strähnen schräg nach hinten unten, je Strähne dunkle Fuge und
+// gezackte Spitze, heller zum Kamm hin. n0/n1 = Hals (Widerrist -> Genick), nr = Halsradien.
+function crestMane(R, n0, n1, nr, Mn, ph) {
+  const dx = n1[0] - n0[0], dy = n1[1] - n0[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  let nx = uy, ny = -ux;
+  if (ny > 0) { nx = -nx; ny = -ny; }
+  const rM = Math.max(nr[0], nr[1]) + 2, sheen = sheenCol(Mn[Mn.length - 1]);
+  R.each(Math.min(n0[0], n1[0]) - rM - 1, Math.min(n0[1], n1[1]) - rM - 1, Math.max(n0[0], n1[0]) + rM + 1, Math.max(n0[1], n1[1]) + rM, (x, y, F, G) => {
+    const rx = x - n0[0], ry = y - n0[1], t = (rx * ux + ry * uy) / L, o = rx * nx + ry * ny;
+    if (t < -0.1 || t > 1.06) return;
+    const r = nr[0] + (nr[1] - nr[0]) * clamp(t, 0, 1), s = t * L;
+    const k = s * 0.95 + o * 0.5 + ph * 0.12, strand = k - Math.floor(k);
+    const lo = r * 0.45 + strand * 1.0 + Math.max(0, t - 0.82) * 8 + Math.max(0, -t) * 10;
+    const hi = r + 1.5 + (1 - strand) * 0.6 - Math.max(0, t - 0.98) * 8 - Math.max(0, -t) * 6;
+    if (o < lo || o > hi) return;
+    const v = (o - lo) / Math.max(0.5, hi - lo);
+    let c = band(Mn, 1.3 + v * 2.0);
+    if (strand < 0.14) c = Mn[v < 0.6 ? 0 : 1];                          // Fuge zwischen den Strähnen
+    else if (strand > 0.36 && strand < 0.62 && v > 0.4) c = sheen;     // Glanz auf der Strähne
+    R.put(F, G, c);
+  });
+}
+// Haarglanz: hellste Mähnenstufe ein Viertel zum kühlen Licht (dunkle Mähnen sonst unsichtbar auf dem Fell)
+const sheenCache = new Map();
+function sheenCol(c) {
+  let v = sheenCache.get(c);
+  if (!v) {
+    const n = parseInt(c.slice(1, 7), 16), m = (x, t) => Math.round(x + (t - x) * 0.3).toString(16).padStart(2, '0');
+    v = '#' + m(n >> 16, 200) + m((n >> 8) & 255, 196) + m(n & 255, 210);
+    sheenCache.set(c, v);
+  }
+  return v;
+}
+// Funkeln (Stufe B): Kreuz aus 5 Feinpixeln, weißer Kern, harte Arme; nur an festen Stellen (kein Sprenkel)
+function sparkle(R, x, y, arm, core, long = false) {
+  const d = 1 / R.s;
+  R.dot(x, y, core);
+  for (const [u, v] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { R.dot(x + u * d, y + v * d, arm); if (long && v) R.dot(x + u * d * 2, y + v * d * 2, arm); }
+}
+// Flammenzunge (Stufe B): verjüngt sich zur Spitze, leicht geschwungen, außen dunkler Saum, heller Kern unten
+function flameTongue(R, x, y, len, lean, curl, ramp, core) {
+  let px = x, py = y;
+  for (let i = 1; i <= 6; i++) {
+    const t = i / 6, nx = x - lean * len * t + Math.sin(t * Math.PI) * curl, ny = y - len * t;
+    R.line(px, py, nx, ny, 1.5 * (1 - t) + 0.35, ramp[Math.min(ramp.length - 1, Math.floor(t * ramp.length))]);
+    if (t < 0.6) R.line(px, py, nx, ny, 0.3, core);
+    px = nx; py = ny;
+  }
+}
+// Sattelzeug fein: Naht auf dem Sitz (Punktlinie), Ziernaht über dem Deckensaum, Glanz auf Zwiesel und Schnalle
+function tackDetail(R, T, sx, sy, by, depth, curve) {
+  for (let x = sx - 2.4; x <= sx + 2.0; x += 1) R.dot(x, sy + 1.25, T.strap[3]);
+  R.line(sx - 2.6, sy - 0.05, sx + 2.2, sy + 0.1, 0.3, T.strap[3]);
+  R.dot(sx - 3.5, sy - 1.1, T.metal[2]); R.dot(sx + 2.9, sy - 1.3, T.metal[2]);
+  for (let x = sx - 3.6; x <= sx + 3.2; x += 1) {
+    const nx = (x - (sx - 0.25)) / 4.2, y = by + depth - nx * nx * curve - 1.15;
+    if (y > sy + 1.9) R.dot(x, y, T.cloth[2]);
+  }
+}
 
 function drawDrake(R, G, B, look, pose) {
   const { SLAG, SLAG_BELLY, SLAG_WING, DRAKE_HORN, EMBER, GLOW } = DRAKE_PAL[look.coat] ?? DRAKE_PAL.cinder;
@@ -295,6 +358,20 @@ function drawDrake(R, G, B, look, pose) {
     R.capsule(sh[0], sh[1], wr[0], wr[1], near ? 1.7 : 1.3, near ? 1.1 : 0.9, (l) => band(bone, 1 + l * 1.4));
     R.line(wr[0], wr[1], wr[0] + 1.8, wr[1] - 1.9, 0.8, near ? DRAKE_HORN[3] : DRAKE_HORN[1]);   // Daumenkralle
     for (const t of tips) R.dot(t[0], t[1], near ? DRAKE_HORN[2] : DRAKE_HORN[1]);
+    if (near && R.s >= 2 && look.coat === 'phoenix') {
+      // Phönix: Flammenzungen an den Fingerspitzen, weißgoldener Kern, züngeln mit der Animation
+      tips.forEach(([x, y], i) => {
+        const fl = 2.4 + Math.sin(ph * 2 + i * 1.7) * 0.7 + (i === 1 ? 0.8 : 0);
+        flameTongue(R, x + 0.3, y + 0.6, fl, 0.45, Math.sin(ph * 2 + i) * 0.5, ['#c4340e', EMBER[0], EMBER[1], EMBER[2]], EMBER[3]);
+      });
+    }
+    if (near && R.s >= 2 && look.coat === 'rime') {
+      // Reif: Eiskristalle auf der Flughaut funkeln versetzt
+      [0, 1, 2].forEach((i) => {
+        const a = tips[i], m = [wr[0] + (a[0] - wr[0]) * 0.58, wr[1] + (a[1] - wr[1]) * 0.58 + 1.2];
+        if (Math.sin(ph * 2 + i * 2.1) > -0.4) sparkle(R, m[0], m[1], '#bfe6ff', '#ffffff', i === 1);
+      });
+    }
   };
   wing(false);
 
@@ -348,6 +425,9 @@ function drawDrake(R, G, B, look, pose) {
 
   // ---- nahe Schwinge über dem Rücken ----
   wing(true);
+  if (look.coat === 'rime' && R.s >= 2) {
+    for (const [x, y, i] of [[-3.5, -11.6, 0], [3.8, -12.4, 1], [hd[0][0] + 1, hd[0][1] - 1.2, 2]]) if (Math.sin(ph * 2 + i * 2.6 + 1) > -0.3) sparkle(R, x, y + (i < 2 ? bob : 0), '#d4f0ff', '#ffffff');
+  }
   if (look.coat === 'rime') {
     // Reifschwinge: Schnee rieselt aus den Schwingen, Frostatem vor dem Maul
     for (let i = 0; i < 6; i++) {
@@ -375,6 +455,7 @@ function drawDrake(R, G, B, look, pose) {
   R.line(sx + 2.8, sy - 1.2, sx + 3.2, sy + 0.6, 0.9, T.strap[3]);
   R.line(sx - 0.5, sy + 2, sx - 0.3, sy + 6.8, 0.6, T.strap[1]);
   R.dot(sx - 0.4, sy + 5.4, T.metal[2]);
+  if (R.s >= 2) tackDetail(R, T, sx, sy, by0, 3.6, 1.8);
   const bit = [hd[2][0] + 1.4, hd[2][1] - 0.4];
   R.line(bit[0], bit[1], sx + 3, sy - 0.2, 0.5, T.strap[3]);
   R.dot(bit[0], bit[1], T.metal[2]);
@@ -391,7 +472,8 @@ function drawMount(R, G, B, look, pose) {
   const flameGlow = MANE_GLOW[look.mane] ?? '#ff8a30';
   const bob = pose.bob, dy = (p) => [p[0], p[1] + bob];
   const rump = dy(B.rump), chest = dy(B.chest);
-  const bodyShade = shadeOf(C, 2.1, 1.35);
+  const fine = R.s >= 2;
+  const bodyShade = fine ? sheenOf(C, 2.1, 1.35) : shadeOf(C, 2.1, 1.35);
   const legShade = (near) => shadeOf(near ? C : dim(C), 2, 1.2);
 
   // Beine: ferne zuerst (dunkler), nahe nach dem Rumpf
@@ -422,6 +504,7 @@ function drawMount(R, G, B, look, pose) {
     if (B.hoof === 'hoof') {
       const hc = look.coat === 'bone' ? ['#2a2418', '#4a4030', '#6a5c44'] : ['#0e0a08', '#1e1814', '#34302a'];
       R.capsule(k.ex - 0.3, k.ey + 0.2, k.ex + 0.7, k.ey + 0.6, 1.2, 1.2, (l) => hc[clamp(Math.round(1 + l - hv), 0, 2)]);
+      if (fine && L.near) { R.dot(k.ex - 0.6, k.ey - 0.3, look.coat === 'bone' ? '#8a7a5a' : '#564c42'); R.dot(k.ex - 0.1, k.ey - 0.5, look.coat === 'bone' ? '#8a7a5a' : '#564c42'); }
       if (look.tack === 'gold' || look.tack === 'silver') R.line(k.ex - 1.1, k.ey - 0.8, k.ex + 1.1, k.ey - 0.8, 0.5, T.metal[1 + (L.near ? 1 : 0)]);
       if (fire || ghost) G.push({ x: Math.round(k.ex), y: Math.round(k.ey), color: fire ? '#ffb640' : HOOF_GLOW[look.mane] ?? '#a060f0', r: 1.5 });
     } else if (B.hoof === 'paw') {
@@ -495,6 +578,22 @@ function drawMount(R, G, B, look, pose) {
   } else {
     R.capsule(rump[0], rump[1], chest[0], chest[1], B.rB, B.rC, (l, t, e, x, y) => bodyShade(l + (y > chest[1] + B.rC * 0.5 ? -0.5 : 0), t, e));
   }
+  if (fine && !B.shell && B.legs === 4) {
+    // Muskelzeichnung: Schulter- und Keulenbogen als harte Kante (Knick dunkel, darüber ein Feinpixel Licht), Bauchlinie
+    const arc = (x0, y0, x1, y1, bulge, dark, light) => {
+      let px = x0, py = y0;
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8, x = x0 + (x1 - x0) * t + Math.sin(t * Math.PI) * bulge, y = y0 + (y1 - y0) * t;
+        R.line(px, py, x, y, 0.3, dark);
+        if (light && t > 0.15 && t < 0.8) R.dot(x - 0.5, y, light);
+        px = x; py = y;
+      }
+    };
+    const dk = C[1], lt = C[3];
+    arc(chest[0] - 2.2, chest[1] - B.rC * 0.55, chest[0] - 0.6, chest[1] + B.rC * 0.6, -1.3, dk, lt);   // Schulterblatt
+    arc(rump[0] + 2.4, rump[1] - B.rB * 0.6, rump[0] + 2.2, rump[1] + B.rB * 0.5, 1.6, dk, null);       // Keule
+    R.line(rump[0] + 3.5, rump[1] + B.rB * 0.72, chest[0] - 2.5, chest[1] + B.rC * 0.72, 0.3, C[1]);   // Bauchlinie
+  }
   if (look.coat === 'bone') {
     // Rippen und Wirbel
     for (let i = 0; i < 5; i++) { const x = rump[0] + 4 + i * 2.4; R.line(x, rump[1] - 3.5, x + 0.8, rump[1] + 3, 0.6, i % 2 ? C[1] : C[0]); }
@@ -519,6 +618,23 @@ function drawMount(R, G, B, look, pose) {
     });
     for (const [a, b] of [[0, 2], [2, 4], [4, 5], [1, 3]]) R.line(stars[a][0], stars[a][1] + bob, stars[b][0], stars[b][1] + bob, 0.3, '#4a64c8');
     G.push({ x: -1, y: Math.round(-13 + bob), color: '#4a64d0', r: 6 });
+  }
+  if (fine && (look.glow === 'magma' || look.glow === 'soul')) {
+    // Rückenkamm: Fellbüschel vom Widerrist zur Kruppe, nach hinten gekämmt. Höllenhund: Spitzen glühen;
+    // Seelenwolf: Büschel gehen in Seelenflammen über (heller Kern), züngeln mit der Animation.
+    const soul = look.glow === 'soul', n = 9;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1), x = rump[0] + 1 + (chest[0] - rump[0] - 1) * t, y = rump[1] - B.rB * 0.92 + (chest[1] - B.rC * 0.92 - rump[1] + B.rB * 0.92) * t;
+      const h = (soul ? 1.6 : 1.3) + (i % 3 === 1 ? 0.8 : 0) + (soul ? Math.sin(pose.ph * 2 + i * 1.3) * 0.5 : 0);
+      const ex = x - 1.3 - h * 0.35, ey = y - h;
+      if (soul) {
+        R.line(x, y + 0.4, ex, ey, 0.9, (u) => (u < 0.4 ? C[3] : u < 0.8 ? '#40d8a4' : '#9cf8d4'));
+        if (i % 2 === 0) R.line(x - 0.2, y, ex + 0.3, ey + 0.5, 0.3, '#effff8');
+      } else {
+        R.line(x, y + 0.4, ex, ey, 0.9, (u) => (u < 0.5 ? C[2] : C[3]));
+        if (i % 2 === 0) R.dot(ex + 0.1, ey + 0.2, i % 4 === 0 ? '#ffc060' : '#ff8a30');
+      }
+    }
   }
   if (look.glow === 'soul') {
     // Seelenlicht: Flammenzeichnung auf der Flanke, Schein um den Körper
@@ -583,20 +699,33 @@ function drawMount(R, G, B, look, pose) {
   R.line(sx + 2.8, sy - 1.2, sx + 3.2, sy + 0.6, 0.9, T.strap[3]);     // Horn
   R.line(sx - 0.5, sy + 2, sx - 0.3, sy + 6.5, 0.6, T.strap[1]);       // Gurt
   R.dot(sx - 0.4, sy + 6.8, T.metal[2]);
+  if (fine) tackDetail(R, T, sx, sy, blanketY, 4.6, 2.2);
 
   // Hals und Kopf
+  let crest = null;
   if (B.neck) {
     const n0 = dy(B.neck[0]), n1 = dy([B.neck[1][0] + pose.nod * 0.3, B.neck[1][1] + pose.nod]);
     R.capsule(n0[0], n0[1], n1[0], n1[1], B.neckR[0], B.neckR[1], bodyShade);
     if (B.ear || look.mane) {
       // Mähne entlang des Halses
-      if (!B.beak && !B.horns?.startsWith('drake')) {
+      if (fine && B.ear === 'horse' && !flame) crest = [n0, n1];   // Kamm nach dem Kopf (läuft bis zum Genick)
+      else if (!B.beak && !B.horns?.startsWith('drake')) {
         const n = 7;
         for (let i = 0; i <= n; i++) {
           const t = i / n, x = n0[0] + (n1[0] - n0[0]) * t - 1.8, y = n0[1] + (n1[1] - n0[1]) * t - (B.neckR[0] + (B.neckR[1] - B.neckR[0]) * t) * 0.7;
           const len = B.ear === 'wolf' ? 1.6 : 2.6 + Math.sin(t * 5 + pose.ph) * 0.5;
           const wl = B.ear === 'wolf' && flame ? len + 1.6 : len;
           R.line(x + 1, y, x - wl * 0.7, y + wl * 0.5 + (flame ? -wl : 0), 1.1, (u) => flame ? Mn[clamp(Math.round(3 + u * 1.4 - (i % 2)), 0, 4)] : B.ear === 'wolf' ? band(C, 1.3 + u) : Mn[clamp(Math.round(2.5 - u * 2 + (i % 2) * 0.5), 0, Mn.length - 1)]);
+          // Stufe B: Flammenzungen mit heißem Kern, Fellbüschel mit heller Spitze
+          if (fine && flame) R.line(x + 0.6, y - 0.2, x - wl * 0.55, y + wl * 0.4 - wl * 0.85, 0.3, (u) => (u > 0.3 && u < 0.85 ? Mn[4] : null));
+          else if (fine && B.ear === 'wolf') R.dot(x - wl * 0.6, y + wl * 0.42, C[4]);
+        }
+        if (fine && look.mane === 'starlight') {
+          for (let i = 0; i < 3; i++) {
+            const t = 0.2 + i * 0.3, x = n0[0] + (n1[0] - n0[0]) * t - 2.6, y = n0[1] + (n1[1] - n0[1]) * t - 3.2;
+            if (Math.sin(pose.ph * 2 + i * 2.2) > -0.2) sparkle(R, x, y, Mn[1], '#ffffff', i === 1);
+          }
+          sparkle(R, tailRoot[0] - 2.4 + sw, tailRoot[1] + 5, Mn[1], '#ffffff');
         }
         if (flame && !B.jaw) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 3), color: flameGlow, r: 3 });
         if (ghost) G.push({ x: Math.round(n0[0] + (n1[0] - n0[0]) * 0.5 - 2), y: Math.round(n0[1] + (n1[1] - n0[1]) * 0.5 - 2), color: EYES[look.mane] ?? '#a060f0', r: 3 });
@@ -605,6 +734,7 @@ function drawMount(R, G, B, look, pose) {
   }
   const h0 = dy([B.head[0][0] + pose.nod * 0.3, B.head[0][1] + pose.nod]), h1 = dy([B.head[1][0] + pose.nod * 0.3, B.head[1][1] + pose.nod]);
   R.capsule(h0[0], h0[1], h1[0], h1[1], B.headR[0], B.headR[1], bodyShade);
+  if (crest) crestMane(R, crest[0], crest[1], B.neckR, Mn, pose.ph);
   if (B.jaw) {
     // Unterkiefer mit Reißzähnen, glühender Rachen dazwischen
     const open = pose.walk ? 0.5 : (Math.sin(pose.ph) > 0.5 ? 0.9 : 0.4);
@@ -615,6 +745,14 @@ function drawMount(R, G, B, look, pose) {
     R.line(h0[0] + 2.4, h0[1] - 1.6, h1[0] - 0.4, h1[1] - 1.4, 0.5, C[4]);              // Licht auf dem Nasenrücken
     R.ellipse(h1[0] + 1.2, h1[1] - 0.6, 0.9, 0.7, () => '#060304');                      // Nase
     G.push({ x: Math.round((h0[0] + h1[0]) / 2 + 1), y: Math.round(h1[1] + 1.6), color: '#ff7a20', r: 1.6 });
+  }
+  if (fine && B.ear === 'horse') {
+    // Ganasche (runde Wange), Licht auf dem Nasenrücken, Maulspalte, dunkleres Maul
+    R.ellipse(h0[0] + 0.5, h0[1] + 0.7, 2.1, 1.7, (l, d) => band(C, 1.9 + l * 1.4 - (d > 0.85 ? 0.7 : 0)));
+    const ux = h1[0] - h0[0], uy = h1[1] - h0[1];
+    R.line(h0[0] + ux * 0.38, h0[1] + uy * 0.38 - B.headR[0] * 0.78, h1[0] - 0.3, h1[1] - B.headR[1] * 0.85, 0.3, C[4]);
+    R.line(h1[0] - 1.8, h1[1] + 1.05, h1[0] + 0.3, h1[1] + 0.85, 0.3, C[0]);
+    R.ellipse(h1[0] + 0.2, h1[1] + 0.2, 1.1, 1.0, (l) => band(C, 1.2 + l));
   }
   if (B.beak) R.capsule(h1[0] - 0.4, h1[1], h1[0] + 3.2, h1[1] + 0.6, 1, 0.35, (l) => band(['#6a4a10', '#a07820', '#d8b040', '#f0d870'], 1.5 + l));
   // Ohren, Hörner, Geweih
@@ -660,13 +798,28 @@ function drawMount(R, G, B, look, pose) {
     for (const s of [-1, 1]) R.line(h1[0] - 0.5, h1[1] + s * 0.5, h1[0] + 2.8, h1[1] + s * 1.3 - 0.4, 0.8, (t) => band(MD, 1 + t * 2));
     R.line(h0[0] + 0.5, h0[1] - 2.4, h0[0] + 2.8, h0[1] - 5.5, 0.9, (t) => band(C, 2 + t * 2));
   }
+  // Stirnschopf über der Stirn (Pferd/Elch), Strähnen nach vorne
+  if (fine && B.ear === 'horse' && !flame && look.mane) {
+    R.line(h0[0] - 0.4, h0[1] - 2.3, h0[0] + 1.5, h0[1] - 0.7, 0.8, (u) => Mn[u < 0.6 ? 2 : 1]);
+    R.line(h0[0] - 0.1, h0[1] - 2.5, h0[0] + 1.1, h0[1] - 1.3, 0.3, Mn[Mn.length - 1]);
+  }
   // Auge
   const eye = [h0[0] + (h1[0] - h0[0]) * 0.28, h0[1] + (h1[1] - h0[1]) * 0.28 - B.headR[0] * 0.35];
   const ec = EYES[look.eyes];
+  if (fine && !B.shell) {
+    // Brauenbogen dunkel, Lidkante unten im Licht
+    R.line(eye[0] - 0.8, eye[1] - 0.75, eye[0] + 1.1, eye[1] - 0.6, 0.3, C[ec ? 0 : 1]);
+    R.dot(eye[0] + 0.3, eye[1] + 0.55, C[3]);
+  }
   R.dot(eye[0], eye[1], ec ?? '#0a0608');
   if (R.s >= 2) R.dot(eye[0] + 0.5, eye[1], ec ?? '#0a0608');
-  if (ec) G.push({ x: Math.round(eye[0]), y: Math.round(eye[1]), color: ec, r: 1.5 });
-  else R.dot(eye[0] - 0.2, eye[1] - 0.5, '#f0e8e0');
+  if (ec) {
+    G.push({ x: Math.round(eye[0]), y: Math.round(eye[1]), color: ec, r: 1.5 });
+    if (fine) R.dot(eye[0] + 0.5, eye[1], '#fffef4');   // heißer Kern im leuchtenden Auge
+  } else {
+    R.dot(eye[0] - 0.2, eye[1] - 0.5, '#f0e8e0');
+    if (fine) R.dot(eye[0] + 0.5, eye[1] + 0.5, '#3a2a24');   // Iris unten im Auge
+  }
   // Nüstern und Zaumzeug
   if (!B.beak && B.ear !== 'wolf' && !B.shell) R.dot(h1[0] + 0.4, h1[1] - 0.2, C[0]);
   if (B.ear === 'wolf') R.dot(h1[0] + 1, h1[1] - 0.4, '#0a0608');
@@ -684,7 +837,8 @@ function drawMount(R, G, B, look, pose) {
 function makeFrame(B, look, pose, res) {
   const R = new Raster(res), G = [];
   drawMount(R, G, B, look, pose);
-  const f = buildFrame(W * res, H * res, AX * res, AY * res, (p) => R.blit(p.ctx));
+  if (res >= 2) rimLight(R.buf, R.fw, R.fh);   // kühle Lichtkante wie am Helden (dunkles Fell auf dunklem Boden)
+  const f = buildFrame(W * res, H * res, AX * res, AY * res, (p) => R.blit(p.ctx), { res: 1 });   // Raster ist schon fein
   if (res > 1) f.res = res;
   f.seat = { x: B.seat[0], y: B.seat[1] + pose.bob };
   f.glows = G;

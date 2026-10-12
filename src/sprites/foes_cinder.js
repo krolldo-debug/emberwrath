@@ -1,6 +1,7 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
-import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
+import { FineCanvas, fineRes, pixelsToCanvas, col32, outlinePixels } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Gegner der Schlackenhöhen: Feuerwicht, Magmahund, Aschegolem,
@@ -11,6 +12,11 @@ import { hash2 } from '../core/math.js';
 // Lava, Glut und Flammen liegen zusätzlich auf einer Leucht-Ebene (frame.glow).
 // Die Hilfsfunktionen (FK) nutzt auch foes_forge.js.
 // Blickrichtung rechts, Anker = Bodenkontakt.
+//
+// Feinraster (docs/STYLE.md „Feinraster“, Stufe B): Figuren mit spec.fine zeichnen auf FineCanvas in Weltpixeln
+// (Farb- und Leuchtebene); ell/cap/poly/flame/veins/arcSmear/robe tasten dann Feinpixel ab, p.px/p.rect setzen
+// ganze Weltpixel, Feinarbeit steht in `if (p.fine)`. Ohne spec.fine (foes_throne.js) und bei Qualität „Niedrig“
+// (fineRes() 1) zeichnen dieselben Helfer wie früher auf PixelCanvas.
 
 // ================================================================ Kit
 
@@ -37,6 +43,38 @@ function sample(keys, t) {
   return keys[keys.length - 1][1];
 }
 
+// Stift für Rasterschleifen: setzt die Zelle mit linker oberer Ecke (x, y) – fein ein Feinpixel (Pixelpuffer),
+// sonst ein Weltpixel über ctx (Farbe zwischengespeichert, wie früher).
+function pen(p) {
+  if (p.fine) {
+    // schneller Weg: deckende Farbe direkt in den Pixelpuffer (Formen setzen Tausende Feinpixel je Frame)
+    const r = p.res, W = p.W, H = p.H, buf = p.buf; let last = null, v = 0;
+    return (x, y, c) => {
+      if (c !== last) { last = c; v = col32(c); }
+      const F = Math.round((x + p.ox) * r), G = Math.round((y + p.oy) * r);
+      if (F < 0 || G < 0 || F >= W || G >= H) return;
+      if (v >>> 24 === 255) { buf[G * W + F] = v; p.dirty = true; } else p.put(F, G, v);
+    };
+  }
+  const ctx = p.ctx; let last = null;
+  return (x, y, c) => { if (c !== last) { ctx.fillStyle = c; last = c; } ctx.fillRect(x, y, 1, 1); };
+}
+// Leuchtebene löschen: Rechteck in Weltpixeln (fein direkt im Pixelpuffer, solange die Leinwand nicht angelegt ist).
+function wipe(c, x, y, w = 1, h = 1) {
+  if (c.buf && !c._canvas) {
+    const r = c.res, F0 = Math.round((x + c.ox) * r), G0 = Math.round((y + c.oy) * r);
+    const F1 = Math.min(c.W, F0 + Math.round(w * r)), G1 = Math.min(c.H, G0 + Math.round(h * r));
+    for (let G = Math.max(0, G0); G < G1; G++) for (let F = Math.max(0, F0); F < F1; F++) c.buf[G * c.W + F] = 0;
+  } else c.ctx.clearRect(x, y, w, h);
+}
+// eine Rasterzelle (linke obere Ecke x, y; Kante q) der Leuchtebene löschen
+function wipeCell(c, x, y, q) {
+  if (c.buf && !c._canvas) {
+    const F = c.F(x + q / 2), G = c.G(y + q / 2);
+    if (F >= 0 && G >= 0 && F < c.W && G < c.H) c.buf[G * c.W + F] = 0;
+  } else c.ctx.clearRect(x, y, 1, 1);
+}
+
 // Lichtrichtung (von links oben, leicht zum Betrachter)
 const LX = -0.52, LY = -0.66, LZ = 0.54;
 // Verdecker: solange gesetzt, löschen ell()/cap() die Glow-Ebene unter sich,
@@ -48,16 +86,18 @@ function tone(ramp, nx, ny, nz, bias, noise) {
   return ramp[clamp(Math.floor(t * ramp.length), 0, ramp.length - 1)];
 }
 
-// Schattierte Ellipse (optional gedreht, mit Materialrauschen).
+// Schattierte Ellipse (optional gedreht, mit Materialrauschen). Fein: Feinpixel abgetastet,
+// das Materialrauschen bleibt je Weltpixel (keine Feinsprenkel).
 function ell(p, cx, cy, rx, ry, ramp, o = {}) {
   const { rot = 0, noise = 0, seed = 1, bias = 0, clip = null, rim = 0 } = o;
-  if (rim) ell(p, cx, cy, rx + rim, ry + rim, [ramp[0]], { rot, clip });
+  // Trennrand (rim) fein nur ein Feinpixel stark: Teile bleiben getrennt, ohne dicke dunkle Kontur
+  if (rim) { const rr = p.fine ? rim * 0.5 : rim; ell(p, cx, cy, rx + rr, ry + rr, [ramp[0]], { rot, clip }); }
   const c = Math.cos(rot), s = Math.sin(rot);
   const R = Math.ceil(Math.max(rx, ry)) + 1;
-  const ctx = p.ctx; let last = null;
-  for (let y = Math.floor(cy - R); y <= cy + R; y++) {
-    for (let x = Math.floor(cx - R); x <= cx + R; x++) {
-      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+  const q = p.fine ? p.step : 1, h = q / 2, put = pen(p);
+  for (let y = Math.floor(cy - R); y <= cy + R; y += q) {
+    for (let x = Math.floor(cx - R); x <= cx + R; x += q) {
+      const dx = x + h - cx, dy = y + h - cy;
       const u = (dx * c + dy * s) / rx, v = (-dx * s + dy * c) / ry;
       const d2 = u * u + v * v;
       if (d2 > 1) continue;
@@ -65,10 +105,8 @@ function ell(p, cx, cy, rx, ry, ramp, o = {}) {
       const nz = Math.sqrt(1 - d2);
       const nx = u * c - v * s, ny = u * s + v * c;
       const n = noise ? (hash2(Math.round(dx) + 64, Math.round(dy) + 64, seed) - 0.5) * noise : 0;
-      const col = tone(ramp, nx, ny, nz, bias, n);
-      if (col !== last) { ctx.fillStyle = col; last = col; }
-      ctx.fillRect(x, y, 1, 1);
-      if (OCC) OCC.ctx.clearRect(x, y, 1, 1);
+      put(x, y, tone(ramp, nx, ny, nz, bias, n));
+      if (OCC) wipeCell(OCC, x, y, q);
     }
   }
 }
@@ -76,15 +114,15 @@ function ell(p, cx, cy, rx, ry, ramp, o = {}) {
 // Schattierte Kapsel (Gliedmaßen): Radius r0 -> r1.
 function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
   const { noise = 0, seed = 1, bias = 0, rim = 0 } = o;
-  if (rim) cap(p, x0, y0, x1, y1, r0 + rim, r1 + rim, [ramp[0]]);
+  if (rim) { const rr = p.fine ? rim * 0.5 : rim; cap(p, x0, y0, x1, y1, r0 + rr, r1 + rr, [ramp[0]]); }
   const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 0.0001;
   const R = Math.ceil(Math.max(r0, r1)) + 1;
-  const ctx = p.ctx; let last = null;
+  const q = p.fine ? p.step : 1, h = q / 2, put = pen(p);
   const minX = Math.floor(Math.min(x0, x1) - R), maxX = Math.ceil(Math.max(x0, x1) + R);
   const minY = Math.floor(Math.min(y0, y1) - R), maxY = Math.ceil(Math.max(y0, y1) + R);
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const px = x + 0.5, py = y + 0.5;
+  for (let y = minY; y <= maxY; y += q) {
+    for (let x = minX; x <= maxX; x += q) {
+      const px = x + h, py = y + h;
       const t = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
       const qx = x0 + dx * t, qy = y0 + dy * t;
       const r = r0 + (r1 - r0) * t;
@@ -92,29 +130,29 @@ function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
       if (d > r) continue;
       const nx = ex / (r || 1), ny = ey / (r || 1), nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
       const n = noise ? (hash2(Math.round(px - x0) + 64, Math.round(py - y0) + 64, seed) - 0.5) * noise : 0;
-      const col = tone(ramp, nx, ny, nz, bias, n);
-      if (col !== last) { ctx.fillStyle = col; last = col; }
-      ctx.fillRect(x, y, 1, 1);
-      if (OCC) OCC.ctx.clearRect(x, y, 1, 1);
+      put(x, y, tone(ramp, nx, ny, nz, bias, n));
+      if (OCC) wipeCell(OCC, x, y, q);
     }
   }
 }
 
 // Gefülltes Polygon (Scanline, ohne Kantenglättung). col: Farbe oder (x,y)=>Farbe.
+// Fein: Zeilen und Spannen im Feinraster; col bekommt die linke obere Ecke der Feinzelle.
 function poly(p, pts, col) {
   let minY = Infinity, maxY = -Infinity;
   for (const q of pts) { minY = Math.min(minY, q[1]); maxY = Math.max(maxY, q[1]); }
-  for (let y = Math.floor(minY); y <= Math.ceil(maxY); y++) {
-    const yc = y + 0.5, xs = [];
+  const q = p.fine ? p.step : 1, fn = typeof col === 'function', put = fn ? pen(p) : null;
+  for (let y = Math.floor(minY); y <= Math.ceil(maxY); y += q) {
+    const yc = y + q / 2, xs = [];
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length];
       if ((a[1] <= yc && b[1] > yc) || (b[1] <= yc && a[1] > yc)) xs.push(a[0] + (yc - a[1]) / (b[1] - a[1]) * (b[0] - a[0]));
     }
     xs.sort((m, n) => m - n);
     for (let k = 0; k + 1 < xs.length; k += 2) {
-      const x0 = Math.round(xs[k]), x1 = Math.round(xs[k + 1]);
-      if (typeof col === 'function') for (let x = x0; x < x1; x++) { const c = col(x, y); if (c) p.px(x, y, c); }
-      else if (x1 > x0) p.rect(x0, y, x1 - x0, 1, col);
+      const x0 = Math.round(xs[k] / q) * q, x1 = Math.round(xs[k + 1] / q) * q;
+      if (fn) for (let x = x0; x < x1; x += q) { const c = col(x, y); if (c) put(x, y, c); }
+      else if (x1 > x0) p.rect(x0, y, x1 - x0, q, col);
     }
   }
 }
@@ -139,22 +177,52 @@ function glowDot(g, x, y, r, k = 1) {
   if (r > 1.5) g.ellipse(x, y, Math.max(0.5, r - 2), Math.max(0.5, r - 2), GLOW[4]);
 }
 
+// Nur fein: Glutkern auf der Leuchtebene als genau zwei harte Stufen (außen Ring, innen heller Kern), volle
+// Deckkraft, kein Verlauf und kein Hof. Danach im Kernbereich die Leuchtebene überall löschen, wo das Sprite keine
+// Glutfarbe zeigt (Gestein, Spangen) – sonst liegt ein rosa Hof auf dem Stein.
+const HOT32 = new Set([...LAVA, '#ffffff', '#fff8d8'].map(col32));
+function coreGlow(p, g, cx, cy, rx, ry, ix, iy, irx, iry, cOut = GLOW[2], cIn = GLOW[4]) {
+  g.ellipse(cx, cy, rx, ry, cOut);
+  g.ellipse(ix, iy, irx, iry, cIn);
+}
+function keepGlowOnHot(p, g, x, y, w, h) {
+  if (!p.fine || p._canvas || g._canvas) return;
+  const F0 = Math.max(0, p.F(x)), G0 = Math.max(0, p.G(y)), F1 = Math.min(p.W, p.F(x + w)), G1 = Math.min(p.H, p.G(y + h));
+  for (let G = G0; G < G1; G++) for (let F = F0; F < F1; F++) {
+    const m = G * p.W + F;
+    if (g.buf[m] && !HOT32.has(p.buf[m])) g.buf[m] = 0;
+  }
+}
+
 // Glühende Risse innerhalb einer Ellipse (Random Walk, relativ zur Mitte,
 // damit sie mit dem Körper mitwandern). heat 0..1.
+// Fein: Riss 1 Weltpixel breit als Saum, darin eine Kernlinie (1 Feinpixel) eine Stufe heißer.
 function veins(p, g, cx, cy, rx, ry, seed, n, heat = 1, o = {}) {
   const { len = 6, dark = null } = o;
+  const fine = p.fine;
   for (let i = 0; i < n; i++) {
     let x = (hash2(i, 1, seed) - 0.5) * 1.3 * rx, y = (hash2(i, 2, seed) - 0.5) * 1.3 * ry;
     let a = hash2(i, 3, seed) * Math.PI * 2;
     const L = Math.round(len * (0.6 + hash2(i, 4, seed) * 0.8));
+    let lx = null, ly = 0, lk = 0;
     for (let s = 0; s < L; s++) {
       if ((x * x) / (rx * rx * 0.8) + (y * y) / (ry * ry * 0.8) > 1) break;
       const mid = 1 - Math.abs(s / L - 0.5) * 2;
       const h = heat * (0.45 + mid * 0.55);
-      if (h < 0.18) p.px(cx + x, cy + y, dark || LAVA[0]);
+      const k = h < 0.18 ? 0 : h > 0.75 ? 3 : h > 0.45 ? 2 : 1;
+      if (!k) p.px(cx + x, cy + y, dark || LAVA[0]);
       else {
-        p.px(cx + x, cy + y, h > 0.75 ? LAVA[3] : h > 0.45 ? LAVA[2] : LAVA[1]);
-        g.px(cx + x, cy + y, GLOW[h > 0.75 ? 3 : h > 0.45 ? 2 : 1]);
+        p.px(cx + x, cy + y, LAVA[k]);
+        g.px(cx + x, cy + y, GLOW[k]);
+      }
+      if (fine) {
+        // Mitte des gesetzten Weltpixels (FineCanvas.px rastet auf das Feinraster)
+        const mx = Math.round((cx + x) * 2) / 2 + 0.5, my = Math.round((cy + y) * 2) / 2 + 0.5;
+        if (lx !== null && k && lk) {
+          const kk = Math.min(k, lk);
+          p.fline(lx, ly, mx, my, LAVA[kk + 1]); g.fline(lx, ly, mx, my, GLOW[kk + 1]);
+        }
+        lx = mx; ly = my; lk = k;
       }
       x += Math.cos(a); y += Math.sin(a) * 0.85;
       a += (hash2(i, s + 7, seed) - 0.5) * 1.5;
@@ -163,8 +231,29 @@ function veins(p, g, cx, cy, rx, ry, seed, n, heat = 1, o = {}) {
 }
 
 // Flammenzunge: Basis (x,y), wächst nach oben, neigt sich um lean px je Zeile.
+// Fein: Zungenform je Feinpixel – heller, schmaler Kern im farbigen Saum; Flackerlücken je Weltpixel.
 function flame(p, g, x, y, h, w, ph, o = {}) {
   const { lean = 0, seed = 3, hot = 1, glowOnly = false } = o;
+  if (p.fine) {
+    const q = p.step, yb = Math.round(y) + 1;
+    for (let v = yb - q / 2; v > yb - h; v -= q) {
+      const j = Math.max(0, yb - 0.5 - v), f = j / h, jw = Math.round(j);
+      const hw = w * (1 - f * f * 0.85) * (0.82 + 0.28 * Math.sin(ph * 2 + j * 1.3 + seed));
+      const xc = x + lean * j + Math.sin(ph + j * 0.8 + seed) * f * 1.4;
+      const F0 = Math.floor((xc - hw - 0.5) / q), F1 = Math.ceil((xc + hw + 0.5) / q);
+      for (let F = F0; F <= F1; F++) {
+        const u = (F + 0.5) * q, k = u - xc;
+        const e = Math.abs(k) / (hw + 0.5);
+        if (e > 1) continue;
+        if (f > 0.5 && hash2(Math.round(k) + 9, jw + Math.floor(ph * 3), seed) < (f - 0.45) * 1.3) continue;
+        const heat = (1 - f * 0.85) * (1 - e * 0.95) * hot;
+        const i = heat > 0.74 ? 5 : heat > 0.56 ? 4 : heat > 0.38 ? 3 : heat > 0.22 ? 2 : 1;
+        if (!glowOnly) p.dot(u, v, LAVA[i]);
+        g.dot(u, v, GLOW[Math.min(4, Math.max(1, i - 1))]);
+      }
+    }
+    return;
+  }
   for (let j = 0; j < h; j++) {
     const f = j / h;
     const hw = w * (1 - f * f * 0.85) * (0.82 + 0.28 * Math.sin(ph * 2 + j * 1.3 + seed));
@@ -188,57 +277,107 @@ function fireball(p, g, x, y, r, ph) {
   ell(p, x, y, r, r, [LAVA[2], LAVA[3], LAVA[4], LAVA[5]], { bias: 0.1 });
   flame(p, g, x - 0.5, y - r * 0.4, Math.round(r * 2.2), r * 0.7, ph, { lean: -0.25, seed: 5 });
   glowDot(g, x, y, r + 0.5);
+  if (p.fine) {
+    // weißglühender Kern mit Glanz oben links, dunkler Saum unten rechts
+    ell(p, x - r * 0.25, y - r * 0.2, r * 0.45, r * 0.45, [LAVA[5]]);
+    p.dot(x - r * 0.45, y - r * 0.45, '#ffffff');
+    if (r > 1.5) { p.fline(x + r * 0.2, y + r * 0.85, x + r * 0.8, y + r * 0.35, LAVA[2]); }
+  }
 }
 
 // Rahmen-Bau: draw(p, g) -> meta mit absoluten Koordinaten. pad = Rand um die
 // Zeichenfläche (Staub, Funken, Schweife dürfen über das Grundmaß hinausragen).
-function makeFrame(W, H, AX, AY, draw, fx = null, pad = 0) {
+// fine: Feinraster (Stufe B) – Farb- und Leuchtebene als FineCanvas, sobald fineRes() > 1.
+// Feinschliff wie finishPixels (Mondlicht-Kante oben, Kontaktschatten unten, gleiche Stärken), aber nicht auf
+// Pixeln, deren Leuchtebene mindestens GLOW[1] trägt: Glut und Flammen bekommen sonst einen rosa Mondlichtsaum.
+function finishGlowAware(d, w, h, gd, rim = 0.3, shade = 0.26) {
+  const solid = (i) => (d[i] >>> 24) > 40;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const m = y * w + x, v = d[m];
+      if ((v >>> 24) <= 40) continue;
+      const up = y === 0 || !solid(m - w), down = y === h - 1 || !solid(m + w);
+      if (up === down) continue;
+      const gv = gd[m];
+      if ((gv >>> 24) > 40 && (gv & 255) >= 0x80) continue;
+      let r = v & 255, g = (v >>> 8) & 255, b = (v >>> 16) & 255;
+      if (up) { r += (216 - r) * rim; g += (220 - g) * rim; b += (255 - b) * rim; }
+      else { r *= 1 - shade; g *= 1 - shade; b *= 1 - shade; }
+      d[m] = ((v & 0xff000000) | (Math.round(b) << 16) | (Math.round(g) << 8) | Math.round(r)) >>> 0;
+    }
+  }
+  return d;
+}
+
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht.
+const makeFrame = (W, H, AX, AY, draw, fx, pad, fine) => lazyFrame(() => makeFrameNow(W, H, AX, AY, draw, fx, pad, fine));
+function makeFrameNow(W, H, AX, AY, draw, fx = null, pad = 0, fine = false) {
   const W2 = W + pad * 2, H2 = H + pad * 2;
-  const g = new PixelCanvas(W2, H2);
-  g.ctx.translate(pad, pad);
-  let meta = {};
-  const f = buildFrame(W2, H2, AX + pad, AY + pad, (p) => { p.ctx.translate(pad, pad); meta = draw(p, g) || {}; OCC = null; });
-  f.glow = new SpriteFrame(g.canvas, AX + pad, AY + pad);
+  const res = fine ? fineRes() : 1;
+  let meta = {}, f;
+  if (res > 1) {
+    // Wie buildFrame(..., { fine: true }), aber der Feinschliff lässt glühende Pixel aus (siehe finishGlowAware)
+    const g = new FineCanvas(W2, H2, res), p = new FineCanvas(W2, H2, res);
+    g.translate(pad, pad); p.translate(pad, pad);
+    meta = draw(p, g) || {}; OCC = null;
+    const gd = g.pixels(), d = finishGlowAware(p.pixels(), p.W, p.H, gd);
+    f = new SpriteFrame(pixelsToCanvas(outlinePixels(d, p.W, p.H), p.W + 2, p.H + 2), (AX + pad) * res + 1, (AY + pad) * res + 1, res);
+    // Leuchtebene direkt aus dem Pixelpuffer (ein putImageData)
+    f.glow = new SpriteFrame(pixelsToCanvas(gd, g.W, g.H), (AX + pad) * res, (AY + pad) * res, res);
+  } else {
+    const g = new PixelCanvas(W2, H2);
+    g.ctx.translate(pad, pad);
+    f = buildFrame(W2, H2, AX + pad, AY + pad, (p) => { p.ctx.translate(pad, pad); meta = draw(p, g) || {}; OCC = null; });
+    f.glow = new SpriteFrame(g.canvas, AX + pad, AY + pad);
+  }
   f.meta = {};
   for (const k in meta) f.meta[k] = { dx: Math.round(meta[k].x - AX), dy: Math.round(meta[k].y - AY) };
   f.fx = fx;
   return f;
 }
 
-// n Frames aus einer Keyframe-Spur. spec = { W, H, AX, AY, pad?, draw(p, g, P, extra, t) }
+// n Frames aus einer Keyframe-Spur. spec = { W, H, AX, AY, pad?, fine?, draw(p, g, P, extra, t) }
 function track(spec, keys, n, { loop = false, extras = {} } = {}) {
   const out = [];
   for (let i = 0; i < n; i++) {
     const t = loop ? i / n : n === 1 ? 1 : i / (n - 1);
     const P = sample(keys, t);
     const ex = extras[i] || {};
-    out.push(makeFrame(spec.W, spec.H, spec.AX, spec.AY, (p, g) => spec.draw(p, g, P, ex, t), ex.fx ?? null, spec.pad ?? 8));
+    out.push(makeFrame(spec.W, spec.H, spec.AX, spec.AY, (p, g) => spec.draw(p, g, P, ex, t), ex.fx ?? null, spec.pad ?? 8, spec.fine));
   }
   return out;
 }
-const still = (spec, draw, fx = null) => makeFrame(spec.W, spec.H, spec.AX, spec.AY, draw, fx, spec.pad ?? 8);
+const still = (spec, draw, fx = null) => makeFrame(spec.W, spec.H, spec.AX, spec.AY, draw, fx, spec.pad ?? 8, spec.fine);
 
 // Schwung-Schleier (Smear) um einen Drehpunkt – heller Bogen, auf beiden Ebenen.
+// Fein: Bogenform je Feinpixel, Dichte je Weltpixel (sonst flimmert es), Außenkante geschlossener.
 function arcSmear(p, g, cx, cy, a0, a1, r0, r1, cols, seed = 13, glowIt = true) {
   const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
-  const R1 = Math.ceil(r1);
-  for (let y = -R1; y <= R1; y++) for (let x = -R1; x <= R1; x++) {
-    const d = Math.hypot(x, y);
+  const R1 = Math.ceil(r1), fine = p.fine, q = fine ? p.step : 1, h = fine ? q / 2 : 0;
+  for (let y = -R1; y <= R1; y += q) for (let x = -R1; x <= R1; x += q) {
+    const sx = x + h, sy = y + h;
+    const d = Math.hypot(sx, sy);
     if (d < r0 || d > r1) continue;
-    let a = Math.atan2(y, x);
+    let a = Math.atan2(sy, sx);
     while (a < lo - Math.PI) a += Math.PI * 2;
     while (a > lo + Math.PI) a -= Math.PI * 2;
     if (a < lo || a > hi) continue;
     const fresh = a1 > a0 ? (a - lo) / span : (hi - a) / span;
     const radial = (d - r0) / (r1 - r0);
     const dens = fresh * fresh * 0.5 + Math.max(0, radial - 0.3) * (0.3 + 0.7 * fresh);
-    if (hash2(x + 99, y + 99, seed) > dens) continue;
-    p.px(cx + x, cy + y, radial > 0.8 ? cols[2] : fresh > 0.6 ? cols[1] : cols[0]);
-    if (glowIt && fresh > 0.4 && radial > 0.5) g.px(cx + x, cy + y, radial > 0.8 ? GLOW[3] : GLOW[1]);
+    if (!fine) {
+      if (hash2(x + 99, y + 99, seed) > dens) continue;
+      p.px(cx + x, cy + y, radial > 0.8 ? cols[2] : fresh > 0.6 ? cols[1] : cols[0]);
+      if (glowIt && fresh > 0.4 && radial > 0.5) g.px(cx + x, cy + y, radial > 0.8 ? GLOW[3] : GLOW[1]);
+      continue;
+    }
+    if (hash2(Math.floor(x) + 99, Math.floor(y) + 99, seed) > dens + (radial > 0.86 ? 0.3 : 0)) continue;
+    p.dot(cx + sx, cy + sy, radial > 0.86 ? cols[2] : radial > 0.7 || fresh > 0.6 ? cols[1] : cols[0]);
+    if (glowIt && fresh > 0.4 && radial > 0.5) g.dot(cx + sx, cy + sy, radial > 0.86 ? GLOW[3] : GLOW[1]);
   }
 }
 
-// Staub-/Funkenkranz am Boden (Einschlag)
+// Staub-/Funkenkranz am Boden (Einschlag). Fein: Funken als Strich mit weißem Kopf.
 function dustRing(p, g, x, y, r, seed, cols, sparks = true) {
   for (let i = 0; i < 18; i++) {
     const a = (i / 18) * Math.PI * 2 + hash2(i, 1, seed) * 0.3;
@@ -246,7 +385,13 @@ function dustRing(p, g, x, y, r, seed, cols, sparks = true) {
     const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.4 - (Math.sin(a) < 0 ? hash2(i, 3, seed) * 3 : 0);
     p.px(px, py, cols[i % cols.length]);
     if (hash2(i, 4, seed) < 0.5) p.px(px + 1, py, cols[(i + 1) % cols.length]);
-    if (sparks && hash2(i, 5, seed) < 0.35) { const sy = py - 2 - hash2(i, 6, seed) * 5; p.px(px, sy, LAVA[4]); g.px(px, sy, GLOW[3]); }
+    if (sparks && hash2(i, 5, seed) < 0.35) {
+      const sy = py - 2 - hash2(i, 6, seed) * 5;
+      if (p.fine) {
+        p.dot(px, sy, LAVA[5]); p.dot(px, sy + 0.5, LAVA[4]); p.dot(px - 0.5 * Math.sign(Math.cos(a)), sy + 1, LAVA[3]);
+        g.dot(px, sy, GLOW[4]); g.dot(px, sy + 0.5, GLOW[3]); g.dot(px - 0.5 * Math.sign(Math.cos(a)), sy + 1, GLOW[2]);
+      } else { p.px(px, sy, LAVA[4]); g.px(px, sy, GLOW[3]); }
+    }
   }
 }
 
@@ -258,20 +403,21 @@ function dustRing(p, g, x, y, r, seed, cols, sparks = true) {
 // Schlackenhöhen, Faulmarsch) lesbar bleibt, wo die Lichtkarte die Farbebene
 // abdunkelt. Glühende Stellen bleiben unberührt. Anker/Meta/Größen ändern sich nicht.
 // rim = { top, side, glowTop, glowSide, k }
+// Feinraster (STYLE §8): Frame und Leuchtebene sind in Texeln (frame.res je Weltpixel); der Saum ist ein Weltpixel
+// tief, also res Texelreihen – die innere fein eine Stufe schwächer.
 function rimGlow(anims, rim) {
   const hexc = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
   const T = hexc(rim.top), Sd = hexc(rim.side ?? rim.top);
   const GT = hexc(rim.glowTop), GS = rim.glowSide ? hexc(rim.glowSide) : null;
   const k = rim.k ?? 0.45;
-  const done = new Set();
-  for (const a of Object.values(anims)) for (const f of a.frames) {
-    if (done.has(f)) continue;
-    done.add(f);
-    const c = f.canvas, W = c.width, H = c.height;
+  // je Frame einmal, aufgeschobene Frames gleich nach ihrem Bau (Animation.eachFrame)
+  const memo = new Map();
+  for (const a of Object.values(anims)) a.eachFrame((f) => {
+    const c = f.canvas, W = c.width, H = c.height, res = f.res ?? 1;
     const cx = c.getContext('2d'), img = cx.getImageData(0, 0, W, H), d = img.data;
     const gc = f.glow?.canvas, gW = gc ? gc.width : 0, gH = gc ? gc.height : 0;
     const gx = gc ? gc.getContext('2d') : null, gimg = gx ? gx.getImageData(0, 0, gW, gH) : null, gd = gimg?.data;
-    // Glow-Ebene liegt ohne Konturrand: Versatz aus den Ankern
+    // Glow-Ebene liegt ohne Konturrand: Versatz aus den Ankern (Texel)
     const ox = gc ? Math.round(f.ax - f.glow.ax) : 0, oy = gc ? Math.round(f.ay - f.glow.ay) : 0;
     const A = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) A[i] = d[i * 4 + 3] > 0 ? 1 : 0;
@@ -282,22 +428,49 @@ function rimGlow(anims, rim) {
       if (A[y * W + x] && (!op(x - 1, y) || !op(x + 1, y) || !op(x, y - 1) || !op(x, y + 1))) O[y * W + x] = 1;
     }
     const ring = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? O[y * W + x] : 1);
+    if (res > 1) {
+      // Fein: eine durchgehende helle Randlinie (1 Texel, 4-zusammenhängend auch auf Schrägen) nur an Kanten, die
+      // nach oben links zeigen. Rechts/unten kein Saum (sonst Punktkette mit Lücken).
+      // Ausgelassen wird nur echte Glut (Leuchtebene ab GLOW[1]), nicht ihr schwacher Hof.
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const m = y * W + x;
+        if (!A[m] || O[m]) continue;
+        // Außenrichtung = Summe der Versätze zu Konturtexeln in der 8er-Nachbarschaft; Licht kommt von oben links
+        let ux = 0, uy = 0;
+        for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) if ((u || v) && ring(x + u, y + v)) { ux += u; uy += v; }
+        if (!ux && !uy) continue;
+        if (-ux - uy <= 0) continue;
+        const up = uy < 0;
+        const qx = x - ox, qy = y - oy, gi = (qy * gW + qx) * 4;
+        const inG = gd && qx >= 0 && qy >= 0 && qx < gW && qy < gH;
+        if (inG && gd[gi + 3] > 0 && gd[gi] >= 0x80) continue; // Glut bleibt Glut
+        const i = m * 4, f2 = up ? k : k * 0.8;
+        d[i] += (T[0] - d[i]) * f2; d[i + 1] += (T[1] - d[i + 1]) * f2; d[i + 2] += (T[2] - d[i + 2]) * f2;
+        if (inG) { gd[gi] = GT[0]; gd[gi + 1] = GT[1]; gd[gi + 2] = GT[2]; gd[gi + 3] = 255; }
+      }
+      cx.putImageData(img, 0, 0);
+      if (gx) gx.putImageData(gimg, 0, 0);
+      return;
+    }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const m = y * W + x;
       if (!A[m] || O[m]) continue;
-      const up = ring(x, y - 1), side = ring(x - 1, y) || ring(x + 1, y);
+      let up = 0, side = 0;
+      for (let s = 1; s <= res && !up; s++) if (ring(x, y - s)) up = s;
+      for (let s = 1; s <= res && !side; s++) if (ring(x - s, y) || ring(x + s, y)) side = s;
       if (!up && !side) continue;
       const qx = x - ox, qy = y - oy, gi = (qy * gW + qx) * 4;
       const inG = gd && qx >= 0 && qy >= 0 && qx < gW && qy < gH;
       if (inG && gd[gi + 3] > 0) continue; // Glut bleibt Glut
-      const i = m * 4, col = up ? T : Sd, f2 = up ? k : k * 0.6;
+      const depth = up || side, deep = depth > 1;
+      const i = m * 4, col = up ? T : Sd, f2 = (up ? k : k * 0.6) * (deep ? 0.55 : 1);
       d[i] += (col[0] - d[i]) * f2; d[i + 1] += (col[1] - d[i + 1]) * f2; d[i + 2] += (col[2] - d[i + 2]) * f2;
       const gcol = up ? GT : GS;
-      if (inG && gcol) { gd[gi] = gcol[0]; gd[gi + 1] = gcol[1]; gd[gi + 2] = gcol[2]; gd[gi + 3] = 255; }
+      if (inG && gcol && !deep) { gd[gi] = gcol[0]; gd[gi + 1] = gcol[1]; gd[gi + 2] = gcol[2]; gd[gi + 3] = 255; }
     }
     cx.putImageData(img, 0, 0);
     if (gx) gx.putImageData(gimg, 0, 0);
-  }
+  }, memo);
   return anims;
 }
 
@@ -321,7 +494,7 @@ const SMEAR = ['#6a7a98', '#b8c8e0', '#f4f8ff'];
 
 // ================================================================ Feuerwicht
 
-const IMP = { W: 34, H: 38, AX: 16, AY: 35 };
+const IMP = { W: 34, H: 38, AX: 16, AY: 35, fine: true };
 const IMP_REST = {
   hov: 10, bx: 0, lean: 0, wing: 0.2, wingB: 0.2, arm: 0.6, armB: 1.2, jaw: 0, tail: 0,
   fl: 0, spit: 0, eye: 1, legs: 0, flame: 1, claw: 0,
@@ -346,10 +519,56 @@ function batWing(p, g, sx, sy, ang, span, ramp, bone, front) {
     const d = Math.hypot(x - sx, y - sy) / span;
     return d > 0.75 ? ramp[front ? 3 : 2] : d > 0.4 ? ramp[front ? 2 : 1] : ramp[front ? 1 : 0];
   });
+  if (p.fine) {
+    // Handfein: Membranadern zwischen den Fingern (dunkel, Lichtseite eine Stufe heller), Knochen als
+    // feine Doppellinie (Lichtkante oben), glimmender Saum an den Bogenkanten
+    for (let i = 0; i < 2; i++) {
+      const a = fingers[i], b = fingers[i + 1], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      p.fline(elbow[0], elbow[1], mx + (elbow[0] - mx) * 0.2, my + (elbow[1] - my) * 0.2, ramp[front ? 0 : 0]);
+      p.fline(elbow[0] - 0.5, elbow[1], mx + (elbow[0] - mx) * 0.35 - 0.5, my + (elbow[1] - my) * 0.35, ramp[front ? 3 : 1]);
+      if (front) { const e = pts[3 + i * 2]; p.dot(e[0], e[1], LAVA[3]); g.dot(e[0], e[1], GLOW[2]); }
+    }
+    p.fline(sx, sy, elbow[0], elbow[1], bone[front ? 2 : 1], 1);
+    p.fline(sx, sy - 0.5, elbow[0], elbow[1] - 0.5, bone[front ? 4 : 2]);
+    for (const f of fingers) p.fline(elbow[0], elbow[1], f[0], f[1], bone[front ? 2 : 1]);
+    p.fline(elbow[0], elbow[1] - 0.5, fingers[0][0], fingers[0][1] - 0.5, bone[front ? 3 : 2]);
+    p.dot(elbow[0], elbow[1] - 1, bone[front ? 4 : 2]); p.dot(elbow[0] + 0.5, elbow[1] - 1, HORN[front ? 3 : 1]);
+    if (front) for (const f of fingers) { p.dot(f[0], f[1], LAVA[4]); p.dot(f[0] + 0.5, f[1], LAVA[2]); g.dot(f[0], f[1], GLOW[3]); g.dot(f[0] + 0.5, f[1], GLOW[1]); }
+    return;
+  }
   p.line(sx, sy, elbow[0], elbow[1], bone[front ? 3 : 2]);
   for (const f of fingers) p.line(elbow[0], elbow[1], f[0], f[1], bone[front ? 2 : 1]);
   p.px(elbow[0], elbow[1] - 1, bone[front ? 4 : 2]);
   if (front) for (const f of fingers) { p.px(f[0], f[1], LAVA[2]); g.px(f[0], f[1], GLOW[1]); }
+}
+
+// Handfein: Gesicht des Wichts (hx/hy auf das Feinraster gerastet) – Glutaugen mit Schlitzpupille und Glanz,
+// Brauenwulst mit Lichtkante, Nasenrücken, Nüster, spitze Zähne und Mundwinkel, Hörner mit Lichtkante, Ohrmuschel.
+function impFace(p, g, P, hx, hy, jaw, ec) {
+  // Brauenwulst: Lichtkante oben, Schattenkante zum Auge
+  p.fline(hx - 0.5, hy - 2, hx + 3.5, hy - 2, SKIN[5]); p.dot(hx + 2, hy - 1.5, SKIN[1]);
+  p.dot(hx + 4, hy - 1.5, SKIN[4]); p.dot(hx + 4.5, hy - 1, SKIN[3]);
+  if (P.eye > 0.3) {
+    for (const ex of [hx + 1, hx + 3]) {
+      p.dot(ex, hy - 1, '#ffffff'); p.dot(ex + 0.5, hy - 1, ec); p.dot(ex, hy - 0.5, ec);
+      p.dot(ex + 0.5, hy - 0.5, '#5a1004'); p.dot(ex + 0.5, hy, '#5a1004');            // Schlitzpupille (Blick nach vorn)
+      p.dot(ex, hy, LAVA[4]); p.dot(ex, hy + 0.5, LAVA[3]); p.dot(ex + 0.5, hy + 0.5, LAVA[2]);
+      g.dot(ex, hy - 1, GLOW[4]); g.dot(ex + 0.5, hy - 0.5, GLOW[2]); g.dot(ex + 0.5, hy, GLOW[2]);
+    }
+  } else { p.fline(hx + 0.5, hy - 0.5, hx + 1.5, hy - 0.5, SKIN[3]); p.fline(hx + 2.5, hy - 0.5, hx + 3.5, hy - 0.5, SKIN[3]); }
+  // Nasenrücken im Licht, Nüster, Wangenknochen
+  p.dot(hx + 4.5, hy - 0.5, SKIN[5]); p.dot(hx + 5, hy, SKIN[5]); p.dot(hx + 5.5, hy + 0.5, SKIN[2]); p.dot(hx + 5, hy + 0.5, VOID);
+  p.dot(hx - 0.5, hy, SKIN[4]); p.dot(hx - 1, hy + 0.5, SKIN[3]);
+  // Maul: Lippe oben im Licht, spitze Zähne, Mundwinkel
+  p.fline(hx + 1, hy + 0.5, hx + 4, hy + 0.5, SKIN[4]);
+  p.dot(hx + 1.5, hy + 1.5, HORN[4]); p.dot(hx + 3.5, hy + 1.5, HORN[4]); p.dot(hx + 4.5, hy + 1.5, HORN[3]);
+  p.dot(hx + 0.5, hy + 1, '#2a0408'); p.dot(hx + 0.5, hy + 1.5 + jaw, SKIN[1]);
+  if (jaw) { p.dot(hx + 2.5, hy + 0.5 + jaw, HORN[4]); p.dot(hx + 2.5, hy + 1 + jaw, LAVA[5]); g.dot(hx + 2.5, hy + 1 + jaw, GLOW[4]); }
+  // Hörner: Lichtkante oben, helle Spitze
+  p.fline(hx - 1, hy - 3.5, hx - 3, hy - 5.5, HORN[4]); p.dot(hx - 5, hy - 6.5, '#fffbef');
+  p.fline(hx + 1, hy - 3.5, hx + 1, hy - 5, HORN[4]); p.dot(hx - 1, hy - 7.5, '#fffbef'); p.dot(hx + 2.5, hy - 3.5, HORN[0]);
+  // Ohrmuschel: dunkle Mulde, helle Kante
+  p.fline(hx - 3, hy - 0.5, hx - 5, hy - 2.5, SKIN[0]); p.fline(hx - 3, hy - 1.5, hx - 5.5, hy - 3, SKIN[4]);
 }
 
 function drawImp(p, g, P, ex) {
@@ -391,6 +610,14 @@ function drawImp(p, g, P, ex) {
   p.px(chx + 1, chy + 2, LAVA[3]); p.px(chx + 1, chy + 3, LAVA[4]); p.px(chx + 2, chy + 4, LAVA[2]); p.px(chx, chy + 4, LAVA[2]);
   p.px(chx - 1, chy + 1, SKIN[5]);
   g.px(chx + 1, chy + 3, GLOW[3]); g.px(chx + 1, chy + 2, GLOW[2]); g.px(chx + 2, chy + 4, GLOW[1]); g.px(chx, chy + 4, GLOW[1]);
+  if (p.fine) {
+    // Handfein: Bauchriss mit weißglühendem Kern, Rippenkanten im Licht, Nabelglut
+    const bx = p.snap(chx), by = p.snap(chy);
+    p.fline(bx + 1.5, by + 2, bx + 1.5, by + 3.5, LAVA[5]); p.fline(bx + 1.5, by + 4, bx + 2.5, by + 4.5, LAVA[3]); p.fline(bx + 1, by + 4, bx + 0.5, by + 4.5, LAVA[3]);
+    g.fline(bx + 1.5, by + 2, bx + 1.5, by + 3.5, GLOW[4]);
+    p.fline(bx - 1.5, by + 0.5, bx - 0.5, by + 1, SKIN[4]); p.fline(bx - 1.5, by + 2, bx - 0.5, by + 2.5, SKIN[3]);
+    p.dot(bx - 1, by + 1, SKIN[5]); p.dot(bx + 2.5, by + 1.5, SKIN[1]);
+  }
   leg(1, -Math.sin(P.tail) * 0.8, SKIN.slice(1, 5), CHAR[2]);
 
   // hinterer Arm
@@ -436,6 +663,7 @@ function drawImp(p, g, P, ex) {
     p.px(hx + 1, hy - 1, ec); p.px(hx + 3, hy - 1, ec); p.px(hx + 3, hy, LAVA[4]); p.px(hx + 1, hy, LAVA[3]);
     g.px(hx + 1, hy - 1, GLOW[4]); g.px(hx + 3, hy - 1, GLOW[4]); g.px(hx + 3, hy, GLOW[3]); g.px(hx + 1, hy, GLOW[2]);
   } else { p.px(hx + 1, hy - 1, SKIN[1]); p.px(hx + 3, hy - 1, SKIN[1]); }
+  if (p.fine) impFace(p, g, P, p.snap(hx), p.snap(hy), jaw, ec);
   meta.eye = { x: hx + 2, y: hy - 1 };
   meta.head = { x: hx, y: hy - 4 };
 
@@ -449,7 +677,10 @@ function drawImp(p, g, P, ex) {
     const a = ca + k * 0.5;
     p.px(hF[0] + Math.cos(a) * 1.5, hF[1] + Math.sin(a) * 1.5, HORN[3]);
     p.px(hF[0] + Math.cos(a) * 2.4, hF[1] + Math.sin(a) * 2.4, HORN[4]);
+    // fein: Kralle läuft spitz aus, dunkle Unterkante
+    if (p.fine) { p.dot(hF[0] + Math.cos(a) * 3.1, hF[1] + Math.sin(a) * 3.1, HORN[4]); p.dot(hF[0] + Math.cos(a) * 1.8 + 0.5, hF[1] + Math.sin(a) * 1.8 + 0.5, HORN[1]); }
   }
+  if (p.fine) { p.dot(shF[0] - 0.5, shF[1] - 0.5, SKIN[5]); p.dot(shF[0], shF[1] - 1, SKIN[5]); }
   meta.hand = { x: hF[0], y: hF[1] };
 
   if (ex.smear) arcSmear(p, g, shF[0], shF[1], ex.smear[0], ex.smear[1], 3, 8, ['#8a5040', '#e8a070', '#fff0d0'], 13);
@@ -480,6 +711,12 @@ function drawImpCorpse(p, g, k) {
   const glow = 1 - k;
   if (glow > 0.2) { p.px(cx + 1, cy, LAVA[2]); g.px(cx + 1, cy, GLOW[2]); flame(p, g, cx + 4, cy - 2, Math.round(1 + glow * 3), 1, k * 6, { seed: 4 }); }
   else { p.px(cx + 1, cy, LAVA[0]); p.px(cx + 5, cy - 1, LAVA[1]); g.px(cx + 5, cy - 1, GLOW[0]); }
+  if (p.fine) {
+    // fein: Flügelknochen mit Lichtkante, Membranader, Horn mit heller Spitze, erlöschendes Auge
+    p.fline(cx - 8.5, cy + 0.5, cx - 2, cy - 3.5, SKIN[3]); p.fline(cx - 6, cy, cx - 2.5, cy - 1.5, MEMB[0]);
+    p.fline(cx + 5, cy - 2.5, cx + 3.5, cy - 4, HORN[4]); p.dot(cx + 3, cy - 4, '#fffbef');
+    p.dot(cx + 5.5, cy - 1, glow > 0.2 ? LAVA[5] : LAVA[2]); p.dot(cx + 6.5, cy, VOID); p.dot(cx + 4, cy - 2, k > 0.6 ? CHAR[3] : SKIN[5]);
+  }
   return { eye: { x: cx + 5, y: cy - 1 }, mouth: { x: cx + 6, y: cy }, hand: { x: cx + 2, y: cy }, head: { x: cx + 4, y: cy - 3 } };
 }
 
@@ -523,7 +760,7 @@ function createImp() {
 
 // ================================================================ Magmahund
 
-const HOUND = { W: 54, H: 36, AX: 22, AY: 32 };
+const HOUND = { W: 54, H: 36, AX: 22, AY: 32, fine: true };
 const HD_REST = {
   bx: 0, by: 0, pitch: 0, head: 0, jaw: 0.1, tail: 0, heat: 0.7, breath: 0,
   fAx: 0, fAy: 0, fBx: 0, fBy: 0, hAx: 0, hAy: 0, hBx: 0, hBy: 0, lie: 0,
@@ -565,6 +802,21 @@ function houndHead(p, g, nx, ny, jaw, heat, ex, meta) {
   meta.head = { x: nx, y: ny - 4 };
   // Lavarisse am Kopf
   p.px(nx - 1, ny + 1, LAVA[2]); g.px(nx - 1, ny + 1, GLOW[2]); p.px(nx - 2, ny, LAVA[1]);
+  if (p.fine) {
+    // Handfein: Obsidian-Glanzlinie über Stirn und Nasenrücken, Brauenkante über dem Glutauge
+    // (weißer Kern, Schlitz), Nüster, Reißzähne mit Spitze, Lefzenglut
+    const x = p.snap(nx), y = p.snap(ny);
+    p.fline(x - 2, y - 3, x + 1, y - 2.5, OBS_SHINE); p.fline(x + 2, y - 2, x + 7, y - 1, OBS_SHINE);
+    p.fline(x + 2, y - 1.5, x + 6.5, y - 0.5, OBS[3]); p.dot(x + 8, y - 0.5, OBS[5]);
+    p.fline(x, y - 1.5, x + 2.5, y - 1.5, OBS[0]); p.dot(x - 0.5, y - 1.5, OBS[4]);
+    if (!ex.hurt) { p.dot(x + 1, y - 1, LAVA[5]); p.dot(x + 1.5, y - 1, '#ffffff'); p.dot(x + 2, y - 0.5, LAVA[2]); p.dot(x + 2.5, y - 1, LAVA[4]); g.dot(x + 1.5, y - 1, GLOW[4]); }
+    p.dot(x + 8, y + 0.5, VOID); p.dot(x + 7.5, y + 1, OBS[4]);
+    p.dot(x + 7, y + 3, MASK[4]); p.dot(x + 4, y + 3, MASK[3]); p.dot(x + 7.5, y + 2, MASK[2]);
+    const t3 = J(6, -1.5); p.dot(t3[0], t3[1], MASK[4]);
+    if (jaw > 0.12) { const q = J(3, 0.5); p.dot(q[0], q[1], LAVA[3]); p.dot(q[0], q[1] + 0.5, LAVA[2]); g.dot(q[0], q[1], GLOW[2]); }
+    // Ohrsplitter: dunkle Unterkante
+    p.fline(nx - 2, ny - 2, nx - 6, ny - 4.5, OBS[1]);
+  }
 }
 
 function drawHound(p, g, P, ex) {
@@ -582,6 +834,12 @@ function drawHound(p, g, P, ex) {
     p.rect(k.ex - 1, k.ey - 1, 4, 1, ramp[far ? 1 : 2]);
     p.px(k.ex + 3, k.ey - 1, far ? OBS[3] : OBS_SHINE);
     if (!far) { p.px(k.jx, k.jy, LAVA[2]); g.px(k.jx, k.jy, GLOW[2]); }
+    if (p.fine) {
+      // Krallen fein, Lichtkante über der Pfote, Glutkern im Gelenk
+      const fx = p.snap(k.ex), fy = p.snap(k.ey);
+      p.dot(fx + 4, fy - 0.5, far ? OBS[2] : OBS[5]); p.dot(fx + 2, fy - 0.5, far ? OBS[2] : OBS[4]); p.fline(fx - 1, fy - 1, fx + 2, fy - 1, ramp[far ? 2 : 4]);
+      if (!far) { const jx = p.snap(k.jx), jy = p.snap(k.jy); p.dot(jx, jy, LAVA[4]); g.dot(jx, jy, GLOW[4]); }
+    }
     return k;
   };
   const farR = OBS.slice(0, 4);
@@ -613,6 +871,18 @@ function drawHound(p, g, P, ex) {
     const h = [2, 4, 3, 5, 3][i];
     poly(p, [[x - 1.5, y + 1], [x - 1 - h * 0.7, y - h], [x + 1.5, y + 1]], OBS[2]);
     p.line(x - 1, y, x - 1 - h * 0.7, y - h, OBS_SHINE); p.px(x, y, OBS[4]);
+    if (p.fine) {
+      // Splitter fein: Schattenfacette rechts, weiße Glanzspitze, Glutfuge am Fuß
+      p.fline(x + 1, y + 0.5, x - 0.5 - h * 0.7, y - h + 1, OBS[1]); p.fline(x + 0.5, y + 0.5, x - 0.5 - h * 0.7, y - h + 1.5, OBS[3]);
+      p.dot(x - 1 - h * 0.7, y - h, '#d8d0f0');
+      if (heat > 0.5 && i % 2) { p.dot(x - 0.5, y + 1, LAVA[3]); g.dot(x - 0.5, y + 1, GLOW[2]); }
+    }
+  }
+  if (p.fine) {
+    // Glasfacetten auf Schulter und Kruppe (Glanzlinie 1 Feinpixel, darunter dunkle Kante)
+    for (const [ox, oy, l] of [[-1.5, -3.5, 3], [0.5, -2.5, 2]]) {
+      for (const c of [sh, hip]) { p.fline(c.x + ox, c.y + oy, c.x + ox + l, c.y + oy - 0.5, OBS[5]); p.fline(c.x + ox + 0.5, c.y + oy + 0.5, c.x + ox + l, c.y + oy, OBS[1]); }
+    }
   }
 
   // nahe Beine
@@ -641,6 +911,12 @@ function drawHoundCorpse(p, g, k) {
   for (let i = 0; i < 5; i++) { const x = cx - 7 + i * 3.5; poly(p, [[x - 1, cy - 3], [x - 2, cy - 6 - (i % 2)], [x + 1, cy - 3]], OBS[2]); p.px(x - 1, cy - 4, OBS_SHINE); }
   veins(p, g, cx, cy, 10, 3.6, 31, 6, 0.9 * (1 - k), { len: 7, dark: '#2a0c08' });
   if (k < 0.7) { p.px(cx + 16, cy + 3, LAVA[3]); g.px(cx + 16, cy + 3, GLOW[2]); }
+  if (p.fine) {
+    // fein: Glanzlinie auf Schädel und Schnauze, Splitter mit weißer Spitze, erloschenes Auge mit Glutrest
+    p.fline(cx + 9, cy - 2, cx + 13, cy - 2.5, OBS_SHINE); p.fline(cx + 13, cy - 0.5, cx + 17.5, cy + 0.5, OBS[4]);
+    for (let i = 0; i < 5; i++) { const x = cx - 7 + i * 3.5; p.dot(x - 2, cy - 6 - (i % 2), '#d8d0f0'); p.fline(x + 0.5, cy - 3, x - 1, cy - 5.5 - (i % 2), OBS[1]); }
+    p.dot(cx + 12, cy, k < 0.5 ? LAVA[4] : OBS[0]); p.dot(cx + 12.5, cy, OBS[0]);
+  }
   return { eye: { x: cx + 12, y: cy }, mouth: { x: cx + 17, y: cy + 2 }, head: { x: cx + 11, y: cy - 3 } };
 }
 
@@ -690,7 +966,7 @@ function createHound() {
 
 // ================================================================ Aschegolem
 
-const GOLEM = { W: 60, H: 52, AX: 28, AY: 48 };
+const GOLEM = { W: 60, H: 52, AX: 28, AY: 48, fine: true };
 const GL_REST = {
   hipX: 0, hipY: 0, lean: 0.05, head: 0, heat: 0.7,
   fFx: 5, fFy: 0, fBx: -6, fBy: 0,
@@ -705,6 +981,24 @@ function rock(p, g, x, y, r, ramp, seed, heat, cracks = 1, rim = 0) {
   p.px(x - r * 0.5, y - r * 0.6, ramp[ramp.length - 1]);
   p.px(x - r * 0.2, y - r * 0.75, ramp[ramp.length - 2]);
   if (cracks && r > 2.5) veins(p, g, x, y, r, r, seed + 5, cracks, heat, { len: Math.round(r * 1.3) });
+  if (p.fine && r > 1.8) rockFine(p, x, y, r, ramp, seed);
+}
+
+// Handfein: Gesteinskanten – Lichtkante oben links (1 Feinpixel), eine Bruchfacette quer über den Brocken
+// (helle Fläche über dunkler Kante) und ein kalter Haarriss mit Lichtlippe (je Brocken anders, wandert mit).
+function rockFine(p, x, y, r, ramp, seed) {
+  const n = ramp.length, ry = r * 0.92;
+  for (let a = -2.75; a <= -0.95; a += 0.5 / r) p.dot(x + Math.cos(a) * (r - 0.35), y + Math.sin(a) * (ry - 0.35), ramp[n - 2]);
+  const fa = -0.4 + hash2(seed, 1, 77) * 0.8, fl = r * (0.5 + hash2(seed, 2, 77) * 0.3);
+  const fx = x - r * 0.15, fy = y - r * 0.2 + hash2(seed, 3, 77) * r * 0.3;
+  const ax = fx - Math.cos(fa) * fl, ay = fy - Math.sin(fa) * fl * 0.6, bx = fx + Math.cos(fa) * fl, by = fy + Math.sin(fa) * fl * 0.6;
+  p.fline(ax, ay, bx, by, ramp[n - 1]); p.fline(ax, ay + 0.5, bx, by + 0.5, ramp[1]);
+  if (r > 3.5) {
+    const cx0 = x + r * (0.1 + hash2(seed, 4, 77) * 0.3), cy0 = y + r * 0.15;
+    const cx1 = cx0 + r * 0.35, cy1 = cy0 + r * 0.45, cx2 = cx1 - r * 0.1, cy2 = cy1 + r * 0.25;
+    p.fline(cx0, cy0, cx1, cy1, ramp[0]); p.fline(cx1, cy1, cx2, cy2, ramp[0]);
+    p.fline(cx0 + 0.5, cy0, cx1 + 0.5, cy1, ramp[3]);
+  }
 }
 
 function drawAshGolem(p, g, P, ex) {
@@ -748,12 +1042,22 @@ function drawAshGolem(p, g, P, ex) {
       const yy = ch.y + dy + Math.round(x * py) + (x % 3 === 0 ? 0 : 0);
       p.px(ch.x + x, yy, ASH[1]); p.px(ch.x + x, yy - 1, ASH[x < 0 ? 5 : 4]);
     }
+    // fein: Bandkante als Feinpixel-Grat, darunter eine Schattenkerbe
+    if (p.fine) { const y0 = p.snap(ch.y + dy - w * py), y1 = p.snap(ch.y + dy + w * py); p.fline(ch.x - w, y0 - 1, ch.x + w, y1 - 1, '#a29a96'); p.fline(ch.x - w, y0 + 0.5, ch.x + w, y1 + 0.5, ASH[0]); }
   }
   // Kernriss in der Brust
   const cx = ch.x + px * 2, cy = ch.y + 0.5;
   veins(p, g, ch.x, ch.y + 1, 9, 8, 50, 5, heat, { len: 7 });
   p.ellipse(cx, cy, 2, 2.6, LAVA[1]); p.ellipse(cx, cy, 1.2, 1.8, LAVA[3]); p.px(cx, cy, LAVA[5]);
-  glowDot(g, cx, cy, 1.6 + heat);
+  if (!p.fine) glowDot(g, cx, cy, 1.6 + heat);
+  if (p.fine) {
+    // Kernriss: weißer Kern im gelben Saum, gezackte Bruchkante oben links im Licht
+    p.ellipse(cx, cy - 0.2, 0.7, 1.1, LAVA[4]); p.dot(cx - 0.25, cy - 0.5, '#ffffff'); p.dot(cx - 0.25, cy, LAVA[5]);
+    p.fline(cx - 2.5, cy - 1.5, cx - 1, cy - 3, ASH[5]); p.fline(cx + 1.5, cy + 2.5, cx + 0.5, cy + 3, ASH[0]);
+    // Leuchtebene: zwei harte Stufen deckungsgleich mit dem Kern, kein Hof aufs Gestein
+    coreGlow(p, g, cx, cy, 2, 2.6, cx, cy, 1.2, 1.8);
+    keepGlowOnHot(p, g, cx - 5, cy - 5, 10, 10);
+  }
   meta.chest = { x: cx, y: cy };
 
   // vorderes Bein
@@ -767,6 +1071,16 @@ function drawAshGolem(p, g, P, ex) {
   p.rect(hx, hy - 0.5, 4, 1, ec); p.px(hx + 1, hy - 0.5, LAVA[5]);
   g.rect(hx, hy - 0.5, 4, 1, GLOW[3]); g.px(hx + 1, hy - 0.5, GLOW[4]); g.px(hx + 4, hy - 0.5, GLOW[1]);
   p.px(hx + 2, hy + 2, LAVA[1]); p.px(hx + 3, hy + 2, VOID);
+  if (p.fine) {
+    // Handfein: Stirnwulst mit Lichtkante und Bruchkerbe, Sehschlitz mit weißglühendem Kern im Glutsaum,
+    // Wangenkante, Mundriss mit Glutfaden
+    const x = p.snap(hx), y = p.snap(hy);
+    p.fline(x - 3, y - 2.5, x + 3.5, y - 3, '#a29a96'); p.dot(x + 1, y - 2.5, ASH[2]); p.dot(x + 1.5, y - 2, ASH[1]);
+    p.fline(x - 0.5, y - 1, x + 4, y - 1, VOID);
+    if (!ex.hurt) { p.fline(x + 0.5, y - 0.5, x + 3, y - 0.5, LAVA[5]); p.dot(x + 1, y - 0.5, '#ffffff'); p.fline(x, y, x + 3.5, y, LAVA[3]); g.fline(x + 0.5, y - 0.5, x + 3, y - 0.5, GLOW[4]); }
+    p.fline(x + 3.5, y + 0.5, x + 4, y + 2, ASH[4]); p.dot(x - 1, y + 1, ASH[1]);
+    p.fline(x + 1.5, y + 2, x + 3, y + 2.5, LAVA[3]); g.dot(x + 2, y + 2, GLOW[2]);
+  }
   meta.eye = { x: hx + 2, y: hy };
   meta.head = { x: hx, y: hy - 4 };
 
@@ -791,6 +1105,12 @@ function drawGolemRubble(p, g, k) {
   ell(p, hx, hy, 4, 3.4, ASH, { noise: 0.22, seed: 61 });
   p.rect(hx + 1, hy, 3, 1, heat > 0.2 ? LAVA[3] : ASH[0]);
   if (heat > 0.2) g.rect(hx + 1, hy, 3, 1, GLOW[3]);
+  if (p.fine) {
+    // fein: Stirnwulst mit Lichtkante, Sehschlitz mit Kern (erlischt), Bruchkante am Kopf
+    p.fline(hx - 3, hy - 2, hx + 3, hy - 2.5, '#a29a96'); p.fline(hx + 1, hy - 0.5, hx + 4, hy - 0.5, VOID);
+    if (heat > 0.2) { p.fline(hx + 1.5, hy, hx + 3, hy, LAVA[5]); g.fline(hx + 1.5, hy, hx + 3, hy, GLOW[4]); }
+    p.fline(hx - 3, hy + 1, hx - 1, hy + 2.5, ASH[0]);
+  }
   return { eye: { x: hx + 2, y: hy }, head: { x: hx, y: hy - 4 }, hand: { x: AX + 10, y: gy - 4 }, chest: { x: AX + 2, y: gy - 6 } };
 }
 
@@ -842,7 +1162,7 @@ function createAshGolem() {
 
 // ================================================================ Schlackenkultist
 
-const CULT = { W: 44, H: 42, AX: 20, AY: 38 };
+const CULT = { W: 44, H: 42, AX: 20, AY: 38, fine: true };
 const CU_REST = {
   bob: 0, lean: 0, hem: 0, stepA: 0, stepB: 0, head: 0,
   hFx: 6, hFy: 9, hBx: -4, hBy: 10, ball: 2.2, fl: 0, eye: 1, wind: 0,
@@ -850,8 +1170,11 @@ const CU_REST = {
 const cp = (o) => ({ ...CU_REST, ...o });
 
 // Robe als Trapez mit ausgefranstem, glimmendem Saum (gemeinsam mit dem Akolythen)
+// Fein: Feinpixel abgetastet; jede Falte zweifarbig (dunkle Talkante, helle Gratkante zum Licht), Saumrisse
+// und Glutfunken je Weltpixel, die Glut mit heißem Kern.
 function robe(p, g, x, top, bottom, wTop, wBot, lean, hem, ramp, char, seed, embers = 1) {
   const H = bottom - top;
+  if (p.fine) { robeFine(p, g, x, top, H, wTop, wBot, lean, hem, ramp, char, seed, embers); return; }
   for (let j = 0; j <= H; j++) {
     const f = j / H;
     const cx = x + lean * (H - j) * 0.35;
@@ -878,6 +1201,74 @@ function robe(p, g, x, top, bottom, wTop, wBot, lean, hem, ramp, char, seed, emb
   }
 }
 
+function robeFine(p, g, x, top, H, wTop, wBot, lean, hem, ramp, char, seed, embers) {
+  // Spannen wie im Original: Weltpixel round(-hw)..round(hw) ab cx+sway, also Mitte cx+sway+0.5 und
+  // halbe Breite hw+0.5 – hier stetig abgetastet, damit die A-Linie in halben Pixeln weich nach unten aufgeht.
+  const q = p.step, put = pen(p);
+  for (let j = 0; j <= Math.floor(H) + 1 - q; j += q) {
+    const f = j / H;
+    const cx = x + lean * (H - j) * 0.35;
+    const hw = wTop + (wBot - wTop) * Math.pow(Math.min(1, f), 0.8);
+    const sway = Math.sin(hem + f * 2) * f * 1.4;
+    // Schultern abgerundet: die obersten Reihen laufen schräg ein, statt als flache Kante (mit Mondlicht-Saum) abzuschließen
+    const sh = Math.max(0, 1.6 - j) * 0.9;
+    const c0 = cx + sway + 0.5, Y = Math.floor((top + j + q / 2) / q) * q;   // Feinzeile wie dot()
+    const X0 = Math.ceil((c0 - hw - 0.5 + sh - q / 2) / q) * q, X1 = c0 + hw + 0.5 - sh - q / 2;
+    for (let X = X0; X <= X1 + 1e-6; X += q) {
+      const k = X + q / 2 - c0, kw = Math.round(k), u = clamp((k + hw) / (2 * hw), 0, 1);
+      // Zerfetzter Saum (Rissbreite je Weltspalte, Rissende fein)
+      if (j > H - 3) {
+        const tear = hash2(kw + 30, 3, seed) * 3;
+        if (H - j < tear - 0.5 + Math.sin(hem + kw) * 0.6) continue;
+      }
+      const ph = (k - lean * j * 0.2) * 1.3 + sway, fold = Math.sin(ph) * 0.5 + 0.5;
+      const t = (1 - u) * 0.55 + fold * 0.35 - f * 0.25 + 0.2;
+      const rr = f > 0.72 ? char : ramp;
+      let ci = clamp(Math.floor(t * rr.length), 0, rr.length - 1);
+      // Falten zweifarbig: Tal (Sinus unten) eine Stufe dunkler, Grat auf der Lichtseite eine Stufe heller
+      if (fold < 0.07 || j < 1) ci = Math.max(0, ci - 1);       // j<1: Schatten unter der Kapuze
+      else if (fold > 0.9 && Math.cos(ph) > 0) ci = Math.min(rr.length - 1, ci + 1);
+      put(X, Y, rr[ci]);
+    }
+  }
+  // Saumglut wie im Original je Weltpixel (gleiche Stellen, gleiche Farbe LAVA[3]), fein mit heißem Kern oben links
+  if (!embers) return;
+  for (let j = 0; j <= H; j++) {
+    const f = j / H;
+    if (f <= 0.78) continue;
+    const cx = x + lean * (H - j) * 0.35, hw = wTop + (wBot - wTop) * Math.pow(f, 0.8);
+    const sway = Math.sin(hem + f * 2) * f * 1.4;
+    for (let k = Math.round(-hw); k <= Math.round(hw); k++) {
+      if (j > H - 3 && H - j < hash2(k + 30, 3, seed) * 3 - 0.5 + Math.sin(hem + k) * 0.6) continue;
+      if (hash2(k + 50, j, seed) >= 0.07 * embers) continue;
+      const X = Math.round(cx + k + sway), Y = Math.round(top + j);
+      p.px(X, Y, LAVA[3]); g.px(X, Y, GLOW[2]); p.dot(X, Y, LAVA[4]); g.dot(X, Y, GLOW[3]);
+    }
+  }
+}
+
+// Handfein: Kapuzenrand im Licht mit Faltenkerbe, Schattenkante im Kapuzeninneren, Maske mit Stirnhörnchen,
+// Wangenknochen, Nasengrat und Kinnkante; Augenhöhlen dunkel mit Glutpupille (weißer Kern), feiner Maskenriss.
+function cultistFace(p, g, P, ex, hx, hy, mx, my, ec) {
+  // Kapuze: Lichtkante oben links, Faltenkerbe, Saum der Öffnung hell/dunkel zweifarbig
+  for (let a = -2.9; a <= -1.1; a += 0.12) p.dot(hx - 0.5 + Math.cos(a) * 4.2, hy + Math.sin(a) * 4.2, ROBE[4]);
+  p.fline(hx - 2.5, hy - 2.5, hx - 1, hy + 2, ROBE[1]); p.fline(hx - 2, hy - 2.5, hx - 0.5, hy + 1.5, ROBE[3]);
+  p.fline(mx - 1.5, my - 1, mx - 1.5, my + 5, ROBE[4]); p.fline(mx - 1, my - 0.5, mx - 1, my + 5, VOID);
+  // Maske: Stirn, Hörnchen, Wangenknochen, Nasengrat, Kinn
+  p.fline(mx - 0.5, my, mx + 3, my - 0.5, MASK[4]); p.dot(mx + 0.5, my - 1, MASK[4]); p.dot(mx + 2.5, my - 1, MASK[3]); p.dot(mx + 2.5, my - 1.5, MASK[4]);
+  p.fline(mx + 1, my + 1, mx + 1, my + 3, MASK[4]); p.dot(mx + 1.5, my + 3, MASK[1]);
+  p.fline(mx - 0.5, my + 3, mx + 0.5, my + 3.5, MASK[3]); p.fline(mx + 3, my + 3, mx + 3, my + 4, MASK[2]);
+  p.fline(mx + 0.5, my + 4.5, mx + 2.5, my + 4.5, MASK[2]); p.dot(mx + 1.5, my + 5.5, MASK[1]);
+  p.fline(mx + 0.5, my + 4, mx + 2, my + 4, '#2a1a14');                    // Mundschlitz
+  // Riss quer über die Maske, unten eine Glutader
+  p.fline(mx + 2, my + 0.5, mx + 1.5, my + 2.5, MASK[1]); p.fline(mx + 1.5, my + 2.5, mx + 2.5, my + 3.5, MASK[1]);
+  // Augen: Höhle mit Glutpupille
+  for (const e of [mx, mx + 2]) {
+    p.dot(e - 0.5, my + 1.5, VOID); p.dot(e + 0.5, my + 1.5, VOID); p.dot(e, my + 2, '#2a0a06'); p.dot(e, my + 1, MASK[0]);
+    if (P.eye > 0.3) { p.dot(e, my + 1.5, ex.hurt ? '#ffffff' : '#fff8d8'); p.dot(e + 0.5, my + 1.5, LAVA[3]); g.dot(e, my + 1.5, GLOW[4]); }
+  }
+}
+
 function drawCultist(p, g, P, ex) {
   const { AX, AY } = CULT;
   const meta = {};
@@ -901,6 +1292,19 @@ function drawCultist(p, g, P, ex) {
   p.px(x + 2 + P.lean, by + 1, CHAR[3]); p.px(x + 2 + P.lean, by + 3, LAVA[1]);
   // Stola vorn: rot mit Glutmustern
   for (let j = 0; j < 12; j++) { p.px(x + 3 + P.lean * (1.5 - j * 0.1), top + 2 + j, ROBE[4]); if (j % 4 === 2) { p.px(x + 3 + P.lean * (1.5 - j * 0.1), top + 2 + j, LAVA[2]); g.px(x + 3 + P.lean * (1.5 - j * 0.1), top + 2 + j, GLOW[1]); } }
+  if (p.fine) {
+    // Stola fein: Lichtkante links, Schattenkante rechts, Glutrunen gedämpft wie im Original (Kern LAVA[3]), damit sie nicht als Glutreihe vorstechen
+    for (let j = 0; j < 12; j += 0.5) {
+      const sx = p.snap(x + 3 + P.lean * (1.5 - Math.floor(j) * 0.1)), sy = p.snap(top + 2) + j;
+      p.dot(sx, sy, j % 4 < 2 ? '#8a3424' : ROBE[4]); p.dot(sx + 0.5, sy, ROBE[2]);
+    }
+    for (let j = 2; j < 12; j += 4) {
+      const sx = p.snap(x + 3 + P.lean * (1.5 - j * 0.1)), sy = p.snap(top + 2 + j);
+      p.dot(sx, sy, LAVA[3]); p.dot(sx, sy + 0.5, LAVA[2]); g.dot(sx, sy, GLOW[2]);
+    }
+    // Gürtel: Knotenlicht
+    p.dot(x + 2 + P.lean, by - 0.5, LAVA[4]);
+  }
 
   // Kapuze mit Spitze und Maske
   const hx = sh.x + 1 + P.head, hy = top - 4;
@@ -919,6 +1323,7 @@ function drawCultist(p, g, P, ex) {
     p.px(mx + 0, my + 1.5, ec); p.px(mx + 2, my + 1.5, ec);
     g.px(mx + 0, my + 1.5, GLOW[4]); g.px(mx + 2, my + 1.5, GLOW[4]); g.px(mx + 1, my + 1.5, GLOW[1]);
   } else { p.px(mx, my + 1.5, VOID); p.px(mx + 2, my + 1.5, VOID); }
+  if (p.fine) cultistFace(p, g, P, ex, p.snap(hx), p.snap(hy), p.snap(mx), p.snap(my), ec);
   meta.eye = { x: mx + 1, y: my + 1.5 };
   meta.head = { x: hx, y: hy - 5 };
 
@@ -957,6 +1362,12 @@ function drawCultistCorpse(p, g, k) {
   poly(p, [[AX + 10, gy - 5], [AX + 15, gy - 4], [AX + 15, gy - 1], [AX + 10, gy - 1]], MASK[3]);
   p.px(AX + 12, gy - 3, k < 0.5 ? LAVA[3] : VOID); p.px(AX + 14, gy - 3, VOID);
   if (k < 0.5) g.px(AX + 12, gy - 3, GLOW[3]);
+  if (p.fine) {
+    // fein: Robenfalten zweifarbig auf dem Haufen, Maske mit Stirnkante, Riss und Augenhöhlen
+    for (const x of [-8, -4, 0, 4]) { p.fline(AX + x, gy - 3.5, AX + x + 1, gy, ROBE[0]); p.fline(AX + x - 0.5, gy - 3.5, AX + x + 0.5, gy, x < 0 ? ROBE[4] : ROBE[3]); }
+    p.fline(AX + 10, gy - 5, AX + 15, gy - 4, MASK[4]); p.fline(AX + 13, gy - 4.5, AX + 12.5, gy - 1.5, MASK[1]);
+    p.dot(AX + 12, gy - 3, k < 0.5 ? LAVA[5] : VOID); p.dot(AX + 14.5, gy - 3, VOID); p.fline(AX + 11, gy - 1.5, AX + 14, gy - 1.5, MASK[2]);
+  }
   // ausglühende Glut
   for (let i = 0; i < 6; i++) {
     const x = AX - 8 + i * 3, y = gy - hash2(i, 1, 3) * 3;
@@ -1008,7 +1419,7 @@ function createCultist() {
 
 // ================================================================ Der Schlackenkoloss (Elite)
 
-const BEH = { W: 104, H: 82, AX: 46, AY: 76, pad: 12 };
+const BEH = { W: 104, H: 82, AX: 46, AY: 76, pad: 12, fine: true };
 const BH_REST = {
   hipX: 0, hipY: 0, lean: 0.1, head: 0, headY: 0, jaw: 0.15, core: 1, vent: 0,
   fFx: 9, fFy: 0, fBx: -9, fBy: 0,
@@ -1022,6 +1433,7 @@ const SLAG_D = ['#0a0709', '#141011', '#1f1718', '#2c2122', '#3a2b2b'];
 function slabs(p, g, cx, cy, rx, ry, ramp, seed, heat, n = 6, o = {}) {
   ell(p, cx, cy, rx, ry, ramp, { noise: 0.14, seed, ...o });
   veins(p, g, cx, cy, rx, ry, seed + 3, n, heat, { len: Math.round((rx + ry) * 0.5) });
+  if (p.fine) rockFine(p, cx, cy, Math.min(rx, ry * 1.08), ramp, seed);
 }
 function spike(p, bx, by, a, h, w, ramp) {
   const tx = bx + Math.cos(a) * h, ty = by + Math.sin(a) * h;
@@ -1029,6 +1441,11 @@ function spike(p, bx, by, a, h, w, ramp) {
   poly(p, [[bx - nx, by - ny], [tx, ty], [bx + nx, by + ny]], ramp[2]);
   p.line(bx - nx * 0.5, by - ny * 0.5, tx, ty, OBS_SHINE);
   p.px(bx + nx * 0.6, by + ny * 0.6, ramp[1]);
+  if (p.fine) {
+    // Obsidiandorn fein: Schattenfacette, Mittelgrat, weiße Glanzspitze
+    p.fline(bx + nx * 0.9, by + ny * 0.9, tx, ty, ramp[0]); p.fline(bx + nx * 0.2, by + ny * 0.2, tx, ty, ramp[4]);
+    p.dot(tx, ty, '#e0d8f8');
+  }
 }
 
 function drawBehemoth(p, g, P, ex) {
@@ -1068,6 +1485,7 @@ function drawBehemoth(p, g, P, ex) {
       const kx = k.ex + 4 + i * 0.8, ky = k.ey - 2 + i * 3;
       poly(p, [[kx, ky], [kx + 4, ky + 0.5], [kx, ky + 2]], OBS[back ? 1 : 3]);
       if (!back) p.px(kx + 1, ky + 0.5, OBS_SHINE);
+      if (p.fine && !back) { p.fline(kx, ky, kx + 3.5, ky + 0.5, OBS_SHINE); p.fline(kx, ky + 1.5, kx + 3, ky + 1, OBS[1]); p.dot(kx + 3.5, ky + 0.5, '#e0d8f8'); }
     }
     veins(p, g, k.ex, k.ey + 2, 5, 4.5, seed + 4, back ? 1 : 2, heat * (back ? 0.5 : 1.1), { len: 5 });
     return k;
@@ -1091,13 +1509,21 @@ function drawBehemoth(p, g, P, ex) {
   const cr = 4.6 + (heat - 1) * 1.6;
   ell(p, cx, cy, cr + 1.4, cr + 2, [SLAG[0]]);
   ell(p, cx, cy, cr, cr + 0.6, [LAVA[1], LAVA[2], LAVA[3], LAVA[4], LAVA[5]], { bias: 0.25 });
-  g.ellipse(cx, cy, cr + 3, cr + 3.5, GLOW[0]);
-  glowDot(g, cx, cy, cr);
+  if (!p.fine) { g.ellipse(cx, cy, cr + 3, cr + 3.5, GLOW[0]); glowDot(g, cx, cy, cr); }
+  else coreGlow(p, g, cx, cy, cr, cr + 0.6, cx - 0.6, cy - 0.6, cr * 0.5, cr * 0.55, GLOW[1]); // Ring dunkler: Kern selbst ist schon hell
   // Schlackespangen über dem Kern
   for (const [a, l] of [[-2.4, 7], [-0.5, 6], [1.9, 6.5], [0.9, 5.5]]) {
     const x0 = cx + Math.cos(a) * (cr + 2), y0 = cy + Math.sin(a) * (cr + 2);
     cap(p, x0, y0, cx + Math.cos(a) * (cr - 2), cy + Math.sin(a) * (cr - 2), 1.2, 0.8, SLAG.slice(1));
     void l;
+  }
+  if (p.fine) {
+    // Kern fein: weißglühende Mitte, Glanz oben links, Spangen mit Lichtkante
+    ell(p, cx - 0.6, cy - 0.6, cr * 0.38, cr * 0.42, [LAVA[5]]);
+    p.dot(cx - cr * 0.45, cy - cr * 0.5, '#ffffff'); p.dot(cx - cr * 0.45 + 0.5, cy - cr * 0.5, '#ffffff');
+    for (const a of [-2.4, -0.5, 1.9, 0.9]) { const x0 = cx + Math.cos(a) * (cr + 2), y0 = cy + Math.sin(a) * (cr + 2); p.fline(x0 - 0.5, y0 - 0.5, cx + Math.cos(a) * (cr - 1.5) - 0.5, cy + Math.sin(a) * (cr - 1.5) - 0.5, SLAG[5]); }
+    // Leuchtebene nur auf der Glut: Spangen und Schlackering leuchten nicht mit
+    keepGlowOnHot(p, g, cx - cr - 3, cy - cr - 3, 2 * cr + 6, 2 * cr + 7);
   }
   meta.chest = { x: cx, y: cy };
   for (let i = 0; i < 3; i++) { const dx = cx - 2 + i * 2, dy = cy + cr + 3 + ((i + Math.floor(P.vent * 2)) % 3); p.px(dx, dy, LAVA[3]); g.px(dx, dy, GLOW[2]); }
@@ -1131,9 +1557,12 @@ function drawBehemoth(p, g, P, ex) {
       const a = -2.5 + i * 0.3;
       const nx = x + Math.cos(a) * 1.4 * s, ny = y + Math.sin(a) * 1.4 * s;
       cap(p, x, y, nx, ny, 2.4 - i * 0.24, 2.2 - i * 0.24, ramp);
+      // fein: Glanzlinie auf der Hornoberseite, Wachstumsringe
+      if (p.fine) { p.fline(x - 0.5, y - (1.8 - i * 0.2), nx - 0.5, ny - (1.7 - i * 0.2), i < 6 ? OBS_SHINE : ramp[4]); if (i % 3 === 1) p.fline(x + 0.6, y - 1.2, x + 0.6, y + 1, ramp[0]); }
       x = nx; y = ny;
     }
     p.px(x, y, OBS_SHINE);
+    if (p.fine) p.dot(x, y, '#e0d8f8');
   };
   horn(hx - 4, hy - 2, 0.6, OBS.slice(1));
   const mo = Math.round(P.jaw * 5);
@@ -1150,6 +1579,19 @@ function drawBehemoth(p, g, P, ex) {
   const ec = ex.hurt ? '#ffffff' : LAVA[5];
   p.rect(hx + 1, hy - 0.5, 3, 1, ec); p.px(hx - 2, hy - 0.5, LAVA[3]);
   g.rect(hx, hy - 1, 5, 2, GLOW[2]); g.rect(hx + 1, hy - 0.5, 3, 1, GLOW[4]); g.px(hx - 2, hy - 0.5, GLOW[3]);
+  if (p.fine) {
+    // Handfein: Stirnplatte mit Lichtkante und Kerbe, Glutauge mit weißem Kern unter dunkler Brauenkante,
+    // Reißzähne mit Spitze, Lavasabber mit hellem Kern, Kinnkante
+    const x = p.snap(hx), y = p.snap(hy);
+    p.fline(x - 5, y - 3.5, x + 4.5, y - 3.5, '#9a7a6c'); p.dot(x - 1, y - 3, SLAG[1]); p.dot(x - 1, y - 2.5, SLAG[0]);
+    p.fline(x, y - 1, x + 5, y - 1, VOID);
+    if (!ex.hurt) { p.fline(x + 1, y - 0.5, x + 3.5, y - 0.5, LAVA[5]); p.dot(x + 1.5, y - 0.5, '#ffffff'); p.fline(x + 1, y, x + 3.5, y, LAVA[3]); g.fline(x + 1, y - 0.5, x + 3.5, y - 0.5, GLOW[4]); }
+    p.dot(x - 2, y - 0.5, LAVA[5]);
+    for (let i = 0; i < 3; i++) { p.dot(x + 2.5 + i * 2, y + 3, MASK[3]); p.dot(x + 2 + i * 2, y + 1.5 + mo, MASK[4]); }
+    if (mo > 1) { p.fline(x + 2, y + 3.5, x + 5, y + 3.5, LAVA[5]); g.fline(x + 2, y + 3.5, x + 5, y + 3.5, GLOW[4]); }
+    if (P.jaw > 0.3) { p.dot(x + 3, y + 6 + mo, LAVA[5]); p.dot(x + 3.5, y + 7 + mo, LAVA[4]); }
+    p.fline(x - 1, y + 5.5 + mo, x + 5, y + 5.5 + mo, SLAG[1]); p.fline(x - 1, y + 3 + mo, x + 1, y + 2.5 + mo, SLAG[5]);
+  }
   meta.eye = { x: hx + 2, y: hy };
   meta.head = { x: hx, y: hy - 8 };
   horn(hx + 1, hy - 3, 0.75, OBS.slice(2));
@@ -1196,8 +1638,19 @@ function drawBehemothHeap(p, g, k) {
   // Kern: erkaltet von Gelb zu dunklem Rot
   const kc = heat > 0.6 ? [LAVA[2], LAVA[3], LAVA[4], LAVA[5]] : heat > 0.2 ? [LAVA[0], LAVA[1], LAVA[2], LAVA[3]] : [SLAG[1], SLAG[2], LAVA[0], LAVA[1]];
   ell(p, cx + 2, gy - 8, 4, 3, kc, { bias: 0.2 });
-  if (heat > 0.05) glowDot(g, cx + 2, gy - 8, 1 + heat * 3);
+  if (heat > 0.05 && !p.fine) glowDot(g, cx + 2, gy - 8, 1 + heat * 3);
+  if (heat > 0.05 && p.fine) {
+    // fein: zwei harte Stufen, mit der Hitze dunkler; nur auf den Glutpixeln des Kerns
+    coreGlow(p, g, cx + 2, gy - 8, 4, 3, cx + 1.6, gy - 8.4, 2, 1.5, GLOW[heat > 0.6 ? 2 : 1], GLOW[heat > 0.6 ? 4 : heat > 0.2 ? 3 : 2]);
+    keepGlowOnHot(p, g, cx - 3, gy - 12, 10, 8);
+  }
   if (heat > 0.4) flame(p, g, cx - 8, gy - 16 + k * 3, Math.round(3 + heat * 4), 1.3, k * 7, { seed: 4 });
+  if (p.fine) {
+    // fein: Kopf mit Stirnkante und erlöschendem Auge, Hornbruch mit Glanz, Faust mit Knöchelkanten
+    p.fline(hx - 4, hy - 3, hx + 3, hy - 3.5, '#9a7a6c'); p.dot(hx + 2, hy - 1, heat > 0.3 ? LAVA[5] : SLAG[0]);
+    p.fline(hx + 8.5, gy - 2.5, hx + 12.5, gy - 5.5, OBS_SHINE);
+    for (let i = 0; i < 3; i++) p.fline(cx + 26, gy - 8 + i * 2.5, cx + 28.5, gy - 7.5 + i * 2.5, SLAG[5]);
+  }
   return {
     eye: { x: hx + 2, y: hy }, head: { x: hx, y: hy - 6 }, mouth: { x: hx + 5, y: hy + 2 }, chest: { x: cx + 2, y: gy - 8 },
     hand: { x: cx + 24, y: gy - 5 }, handB: { x: cx - 10, y: gy - 6 },
@@ -1296,4 +1749,5 @@ export function createCinderFoes(only) {
 export const FK = {
   GLOW, LAVA, ease, linear, snap, clamp, mix, sample, ell, cap, poly, ik, glowDot, veins, flame, fireball,
   makeFrame, track, still, arcSmear, dustRing, occlude, robe, hash2, SMEAR, OBS, OBS_SHINE, CHAR, MASK, VOID, rimGlow,
+  pen, wipe,
 };

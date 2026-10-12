@@ -1,6 +1,7 @@
 import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
-import { createFloorTiles, createWallFaceTiles, createWallTopTile } from '../sprites/tiles.js';
+import { createFloorTiles, createFloorTilesFine, createWallFaceTiles, createWallTopTile } from '../sprites/tiles.js';
+import { fineRes } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 import { TileMap } from './TileMap.js';
 
@@ -85,15 +86,22 @@ export class Dungeon extends TileMap {
     }
   }
 
+  // Hintergrund mit r = fineRes() Texeln je Weltpixel (c.res): Feinraster-Bodenkacheln (biome.floorFine, Katakomben
+  // createFloorTilesFine, canvas.res = 2) zeigen ihre Feinpixel, alles andere wird in Weltpixeln gezeichnet (×r).
   renderBackground(props, crypt, biome = null) {
-    const floor = biome?.floor ?? createFloorTiles();
+    const r = fineRes();
+    const floor = (r > 1 ? (biome ? biome.floorFine : createFloorTilesFine()) : null) ?? biome?.floor ?? createFloorTiles();
+    // Viertel (Weltpixel-Ausschnitt sx, sy, T×T) einer Makrokachel, Feinkacheln in ihrer Texelgröße
+    const quarter = (mt, sx, sy, px, py) => { const q = mt.res ?? 1; ctx.drawImage(mt, sx * q, sy * q, T * q, T * q, px, py, T, T); };
     const faces = biome?.faces ?? createWallFaceTiles();
     const top = biome?.top ?? createWallTopTile();
     const edge = biome?.topEdge ?? '#3a3346', edgeLight = biome?.topEdgeLight ?? '#4b4259';
     this.biomeTiles = biome;
-    const c = makeCanvas(this.pixelW, this.pixelH);
+    const c = makeCanvas(this.pixelW * r, this.pixelH * r);
+    c.res = r;
     const ctx = c.getContext('2d');
     ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(r, 0, 0, r, 0, 0);
 
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
@@ -105,7 +113,7 @@ export class Dungeon extends TileMap {
           if (L?.tile) {
             // Randkacheln sind außerhalb der organischen Uferlinie durchsichtig: Boden darunter legen
             const mt = floor[Math.floor(hash2(x >> 1, y >> 1, 3) * floor.length)];
-            ctx.drawImage(mt, (x & 1) * T, (y & 1) * T, T, T, px, py, T, T);
+            quarter(mt, (x & 1) * T, (y & 1) * T, px, py);
             ctx.drawImage(L.tile(x, y, 0, this.liquidCells.find((c) => c.x === x && c.y === y).m), px, py);
           }
           else if (L) { ctx.drawImage(L.frames[0], px, py); if (this.rows[y - 1]?.[x] !== '~' && L.edge) ctx.drawImage(L.edge, px, py); }
@@ -115,7 +123,7 @@ export class Dungeon extends TileMap {
         if (kind === 'floor') {
           // Makrotile je 2x2-Block wählen, Viertel passend zur Zelle zeichnen
           const mt = floor[Math.floor(hash2(x >> 1, y >> 1, 3) * floor.length)];
-          ctx.drawImage(mt, (x & 1) * T, (y & 1) * T, T, T, px, py, T, T);
+          quarter(mt, (x & 1) * T, (y & 1) * T, px, py);
         }
         else if (kind === 'faceLower') ctx.drawImage(faces.lower[Math.floor(h * faces.lower.length)], px, py);
         else if (kind === 'faceUpper') ctx.drawImage(faces.upper[Math.floor(h * faces.upper.length)], px, py);

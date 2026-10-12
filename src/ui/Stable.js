@@ -40,10 +40,11 @@ export function stableStrips(deko) {
   const stamp = (B, e, fx, fy, map) => {
     const s = e?.sprite ?? e, cv = s?.canvas;
     if (!cv) return;
-    const a = cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, cv.width, cv.height).data;
-    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+    const a = cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, cv.width, cv.height).data, r = s.res ?? 1;
+    // Feinraster: je Weltpixel ein Texel abtasten (frame.res)
+    for (let y = 0; y < cv.height; y += r) for (let x = 0; x < cv.width; x += r) {
       const i = (y * cv.width + x) * 4;
-      if (a[i + 3] >= 128) B.set(fx - s.ax + x, fy - s.ay + y, map([a[i], a[i + 1], a[i + 2], 255]));
+      if (a[i + 3] >= 128) B.set(fx + (x - s.ax) / r, fy + (y - s.ay) / r, map([a[i], a[i + 1], a[i + 2], 255]));
     }
   };
   const TUFTS = [['.L...L.', 'LML.LM.', 'MMDLMMD', '.SSSSS.'], ['L.L', 'MLM', 'SSS'], ['..L.L..', '.LM.ML.', 'LMMDMMD', 'SSSSSS.'], ['.L..', 'LMLM', 'MDMD', '.SS.']];

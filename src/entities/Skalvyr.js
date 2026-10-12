@@ -252,6 +252,8 @@ export class FrostField extends Entity {
 // ------------------------------------------------------------------ Boss
 
 export class Skalvyr extends Actor {
+  get fxSprites() { return this.fxAnims.fx; }
+
   constructor(x, y, assets) {
     const def = { ...ENEMY_TYPES.frost_wyrm, ...DEFS.frost_wyrm };
     const anims = assets.sprites[def.sprites];
@@ -265,7 +267,7 @@ export class Skalvyr extends Actor {
     this.radius = def.radius; this.mass = def.mass;
     this.hurtRadius = def.hurtRadius; this.bodyHeight = def.bodyHeight;
     this.shadowW = def.shadowW; this.material = def.material;
-    this.fxSprites = anims.fx;
+    this.fxAnims = anims; // fxSprites erst beim ersten Gebrauch (Säulen, Eiszapfen, Risse; Ladezeit)
     this.home = { x, y };
     this.facing = 1;
     this.phase = 1;
@@ -869,6 +871,8 @@ export class Skalvyr extends Actor {
   }
 
   #frameEvents(world) {
+    // Ruhend (vor dem Kampf): noch nicht gebaute Frames nicht dafür bauen – Schlaf-/Ruheposen tragen keine Marken
+    if (!this.engaged && !this.animator.frameReady) return;
     const f = this.animator.frame;
     if (f === this.lastFrame) return;
     this.lastFrame = f;

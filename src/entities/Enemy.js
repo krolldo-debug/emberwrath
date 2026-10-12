@@ -540,6 +540,8 @@ export class Enemy extends Actor {
 
   // Frame-Marken der Sprites (Schritte schwerer Gegner)
   #frameEvents(world) {
+    // Ferne Gegner: noch nicht gebaute Frames nicht dafür bauen (Marken wirken nur in Heldennähe; Ladezeit)
+    if (!this.animator.frameReady && Math.hypot(world.hero.x - this.x, world.hero.y - this.y) > 320) return;
     const f = this.animator.frame;
     if (f === this.lastFrame) return;
     this.lastFrame = f;

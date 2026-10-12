@@ -2,6 +2,7 @@ import { Entity } from './Entity.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand } from '../core/math.js';
+import { drawGlowLayer } from '../gfx/Sprite.js';
 
 // Interaktive Weltobjekte. Gemeinsame Form (siehe world/Interactions.js):
 //   interactRange, canInteract(world), prompt(world) -> Text, promptAnchor() -> {x,y},
@@ -140,10 +141,10 @@ export class Gate extends Entity {
   }
   render(ctx, cx, cy) {
     if (this.k <= 0.01) return;
-    const s = this.sprite;
+    const s = this.sprite, r = s.res ?? 1;
     const visH = Math.max(1, Math.round(s.canvas.height * this.k));
     ctx.drawImage(s.canvas, 0, s.canvas.height - visH, s.canvas.width, visH,
-      Math.round(this.x - cx - s.ax), Math.round(this.y - cy - visH + 1), s.canvas.width, visH);
+      Math.round(this.x - cx - s.ax / r), Math.round(this.y - cy - visH / r + 1), s.canvas.width / r, visH / r);
   }
 }
 
@@ -226,7 +227,7 @@ export class WorldObject extends Entity {
     const L = this.look, s = L.sprite;
     if (!L.glow || !s) return;
     ctx.globalAlpha = 0.75 + 0.25 * Math.sin(this.t * 3);
-    ctx.drawImage(L.glow, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+    drawGlowLayer(ctx, s, L.glow, this.x - cx, this.y - cy);
     ctx.globalAlpha = 1;
   }
 }
@@ -356,15 +357,14 @@ export class Waystone extends Entity {
   }
   renderEmissive(ctx, cx, cy) {
     const L = this.looks, s = L.sprite;
-    const x0 = Math.round(this.x - cx - s.ax), y0 = Math.round(this.y - cy - s.ay);
     const pulse = 0.78 + 0.22 * Math.sin(this.t * 2.4) + this.flash * 0.4;
     // Gedimmte Runen (noch nicht entdeckt) flimmern schwach
     const dimA = (1 - this.k) * (0.45 + 0.25 * Math.sin(this.t * 1.3 + Math.sin(this.t * 3.7)));
-    if (dimA > 0.01) { ctx.globalAlpha = Math.min(1, dimA); ctx.drawImage(L.glowDim, x0, y0); }
-    if (this.k > 0.01) { ctx.globalAlpha = Math.min(1, this.k * pulse); ctx.drawImage(L.glowLit, x0, y0); }
+    if (dimA > 0.01) { ctx.globalAlpha = Math.min(1, dimA); drawGlowLayer(ctx, s, L.glowDim, this.x - cx, this.y - cy); }
+    if (this.k > 0.01) { ctx.globalAlpha = Math.min(1, this.k * pulse); drawGlowLayer(ctx, s, L.glowLit, this.x - cx, this.y - cy); }
     const c = L.crystal, bob = Math.round(Math.sin(this.t * 1.6) * 1.5 * (0.4 + this.k * 0.6));
     ctx.globalAlpha = Math.min(1, 0.08 + this.k * 0.8 * pulse);
-    ctx.drawImage(L.crystalGlow, Math.round(this.x - cx - c.ax), Math.round(this.y - cy + L.crystalY - 3 + bob - c.ay));
+    drawGlowLayer(ctx, c, L.crystalGlow, this.x - cx, this.y - cy + L.crystalY - 3 + bob);
     ctx.globalAlpha = 1;
     // Freischalt-Funkeln: Sternkreuz am Kristall
     if (this.flash > 0) {
@@ -424,11 +424,11 @@ export class QuestBoard extends Entity {
   renderEmissive(ctx, cx, cy) {
     const L = this.looks, s = L.sprite;
     ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.t * 7 + Math.sin(this.t * 13));
-    ctx.drawImage(L.glow, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+    drawGlowLayer(ctx, s, L.glow, this.x - cx, this.y - cy);
     if (this.k > 0.02) {
       const m = L.mark;
       ctx.globalAlpha = this.k * (0.7 + 0.3 * Math.sin(this.t * 4));
-      ctx.drawImage(L.markGlow, Math.round(this.x - cx - m.ax), Math.round(this.y - cy + L.markY + this.#markPos() - m.ay));
+      drawGlowLayer(ctx, m, L.markGlow, this.x - cx, this.y - cy + L.markY + this.#markPos());
     }
     ctx.globalAlpha = 1;
   }

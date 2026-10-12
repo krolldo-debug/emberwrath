@@ -7,11 +7,11 @@ jede HTML-Oberfläche. Verantwortlich: Thread D. Werkzeuge liegen in `src/gfx/`.
 
 | Thema | Regel |
 |---|---|
-| Auflösung | Intern 480×270, Tile 16 px. Nichts hochskalieren: Details entstehen durch Pixel, nicht durch Vergrößern. |
+| Auflösung | Intern 480×270 Weltpixel, Tile 16 px. Gezeichnet wird im **Feinraster** (2 Feinpixel je Weltpixel, Abschnitt „Feinraster“ unten). Details entstehen durch Feinpixel, nicht durch Vergrößern. |
 | Figurengrößen | Held/Humanoide 22–28 px hoch (Fußpunkt = Anker). Kleine Kreaturen 10–16 px, Wolf ~24×16, Boss 40–56 px. |
 | Perspektive | 3/4-Draufsicht. Boden leicht gestaucht (Ellipsen y ≈ 0,5–0,6 × x). |
 | Licht | Kommt in allen Sprites **von oben links**: hellste Kante oben/links, Schatten unten/rechts. Die Szene wird zusätzlich per Lightmap beleuchtet – Sprites nicht selbst „glühen“ lassen (dafür `renderEmissive`). |
-| Umriss | Immer über `buildFrame(...)`/`outlineCanvas()` (1 px). Standard ist der **selektive Umriss**: fast schwarz, an Oberkanten leicht im Materialton. Keine eigenen schwarzen Konturen zusätzlich zeichnen. |
+| Umriss | Immer über `buildFrame(...)`/`outlineCanvas()` (1 Feinpixel). Standard ist der **selektive Umriss**: fast schwarz, an Oberkanten leicht im Materialton. Keine eigenen schwarzen Konturen zusätzlich zeichnen. |
 | Palette | Farben nur aus `PAL` (`gfx/Palette.js`) bzw. Rampen mit 3–5 Stufen (dunkel → hell). Pro Material eine Rampe, keine Einzelfarben „nach Gefühl“. Neue Rampen dürfen in eigenen Dateien stehen, sollen aber Sättigung und Helligkeit der vorhandenen treffen. |
 | Materialien | Metall: harter Glanzpunkt (1–2 px `steel[5]`), dunkle Spiegelung. Stoff/Leder: weiche Stufen, kein Glanz. Knochen: warmes Elfenbein `bone`. Magie/Glut: nur in Emissive-Pässen und Partikeln. |
 | Dithering | Sparsam, nur für große Flächen (`PixelCanvas.vgrad(x, y, w, h, rampe)` = gerasterter Verlauf). Keine Anti-Aliasing-Kanten, keine Halbtransparenz in Sprites (außer Spinnweben/Rauch). |
@@ -207,3 +207,78 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - **9c:** Linienwarnung mit Bresenham-Kanten, Fläche ca. 30 % (kühle Farben ×0,75), kein Pfeil an der Schlagkante. Porträts: Kopfformen (SHAPES), Hauttöne, Augenabstand/-höhe, Mimik und Alter je Figur; Kleidung in 3 flachen Tönen mit Faltenformen. Mutter Fäulnis: Hauttöne stark grün-lastig, damit sie unter violettem Umgebungslicht grün bleibt (Lichtfarben multiplizieren!). Sprite-Frames mit `keepAlpha` behalten Transparenz (nur Zweihänder-Schwungbögen).
 - **9d:** Zweihänder: Schwungbogen nur noch über den SlashEffect (folgt der Zielrichtung), keine Bögen in den Sprite-Frames; vorheriger Kombo-Bogen wird beim nächsten Hieb entfernt (keepAlpha wieder entfernt). Warnungen: Kontur einfach (1 px hell, 1 px dunkel nur außen), Fläche max. ca. 20 %, Schlagkante endet bei 88 %. Porträts: Kopfbreite 30–44 px, Ohren, große Nasenformen; Falten nur bei Alten. Ulgrim: dunkles Mumienleder (MUMMY) – helle Gesichter wirken unter getöntem Zonenlicht (Hügelgrab türkis) wie Masken.
 - **9e:** Laufpfeile als feste Pixelmasken in 8 Richtungen (chevronMask), schmale Strahlen ohne weiche Fläche. Porträts: Haut in 4 flachen Tönen ohne Einzelpixel, je Figur eigene Ohrform und Nasenrücken-Licht (line/tip/side/none).
+
+## Feinraster: Grafikupdate (Vertrag, ab 11.10.)
+
+Ziel des Nutzers: Pixel-RPG bleibt, aber feiner – Figuren, NPCs, Gegner, Gebiete und jedes Item zeigen mehr Detail,
+Episches bekommt mehr Effekte, an einigen Orten mehr Kontrast. Dieser Abschnitt ist für alle Grafik-Threads verbindlich
+und geht den älteren Regeln oben vor.
+
+### 1. Maß und Raster
+- **Welt bleibt unverändert:** Spielbild 480–640 × 270–360 Weltpixel, Kachel 16, Kamera, Hitboxen, Anker, `frame.meta`,
+  Partikelkoordinaten – alles weiter in Weltpixeln. Kein Thread ändert Größenverhältnisse (Figurengrößen wie in „Grundlagen“).
+- **Eine Feinstufe für alles: `FINE = 2`** Feinpixel je Weltpixel (`gfx/Fine.js`). Das ist die Überabtastung k = 2, die Desktop und
+  Handy („Mittel“) schon heute nutzen – die Bildrate ändert sich dadurch nicht. **Keine Stufe 3** (Nutzer 30.09.: zu detailreich).
+- `fineRes()` liefert 2, bei Qualität „Niedrig“ (k = 1) 1: dann muss alles wie vor dem Update aussehen (alte Weltpixel-Zeichnung).
+- Ein Raster pro Bild: Innerhalb einer Figur keine Mischung aus groben 2×2-Blöcken und Feinpixeln als Versehen. 2×2 ist erlaubt,
+  wenn es gewollt ist (Großformen), Details sind Feinpixel. Positionen landen beim Zeichnen ganzzahlig im Feinraster (`SpriteFrame.draw`).
+
+### 2. Zwei Stufen
+- **Stufe A (automatisch, für das ganze Spiel sofort):** `buildFrame` zeichnet die alte Weltpixel-Grafik, skaliert ×2 mit Scale2x
+  (keine neuen Farben, glättet Treppen), gibt den **Feinschliff** (Mondlicht-Kante oben, Kontaktschatten unten, je 1 Feinpixel) und den
+  Umriss (1 Feinpixel). Kein Zutun nötig. Item-Bilder ohne eigene 48er-Fassung bekommen dasselbe.
+- **Stufe B (handfein, Arbeit der Bereichs-Threads):** `buildFrame(w, h, ax, ay, draw, { fine: true })` – `draw` bekommt eine
+  `FineCanvas`: Koordinaten in Weltpixeln; `px/rect/line` = ganze Weltpixel, `dot` = ein Feinpixel, `fline` = feine Linie,
+  `each(x0, y0, x1, y1, fn)` tastet Feinpixelmitten ab (Formen: Kugeln, Kapseln, Glieder), `ellipse` fein, `translate` statt
+  `ctx.translate`. Vorlage: `sprites/foes_ashwood.js` (Helfer `vol/capsule/limb/poly` auf `each/dot`, Zusatzdetails in `if (p.fine)`).
+  Held und Reittiere rastern schon fein (eigener `Raster`, `buildFrame(..., { res: 1 })` + `frame.res`).
+
+### 3. Was „handfein“ heißt
+- Silhouette, Großformen, Farben und Animation bleiben wiedererkennbar; die Lesbarkeit auf dunklem Boden mindestens wie vorher.
+- Neu im Feinraster: **Gesichter** (Augenweiß, Pupille, Glanzpunkt, Brauenkante, Nasenrücken-Licht, Mundwinkel), **Haar/Fell** in
+  Strähnen, **Metall** 5 Stufen + Glanzlinie (1 Feinpixel) + Glanzpunkt, **Leder** mit Naht als Punktlinie und Kratzern, **Stoff**
+  mit zweifarbigen Falten, **Glut/Magie** mit heißem hellem Kern im farbigen Saum (Leuchtebene ebenfalls fein).
+- Licht von oben links, harte Stufen. Kein Rauschen, kein Sprenkel, keine Halbtransparenz in Sprites, keine geglätteten Kanten.
+- Bewegungsspuren (Hiebbögen) dicht je Weltpixel, nicht pro Feinpixel gestreut (sonst flimmert es).
+
+### 4. Kontrast und Farbe
+- Figuren vor Boden: Boden dunkler und weniger gesättigt als die Figuren, die ihn betreten; Wege heller als Waldboden.
+- Lichtinseln (Feuer, Laternen, Kristalle) kräftig und warm, dazwischen kühl und dunkel – Kontrast entsteht durch Licht, nicht
+  durch globale Filter. Zonenwerte (`ambient`, Lichtstärken) pro Zone, nie für alle Zonen gleichzeitig.
+- Rampen mindestens 5 Stufen für Materialien, die im Feinraster Glanz zeigen (Metall, Edelstein, Glas).
+
+### 5. Effekte für Episches
+- Laufzeit-Effekte in Weltkoordinaten, auf 0,5 gerundet (Feinpixel), harte Kanten; Schein nur als gestufte Pixelringe oder Dither
+  (höchstens 3 Alpha-Stufen), kein weicher Verlauf.
+- Staffel nach Seltenheit (Farbthema aus `gfx/ItemFx.js` `itemFxTheme`, damit Inventar und Welt zusammenpassen):
+  selten = gelegentlicher Glanzlauf; episch = zusätzlich umlaufende Feinpixel-Funken und pulsierende Kante; legendär = zusätzlich
+  Flammen-/Runenzungen entlang der Waffe, aufsteigende Funken und ein gestufter Lichtkreis am Boden.
+- Budget: höchstens ~12 zusätzliche Partikel je Held; bei 40 Spielern pro Welt zählt jeder Held.
+
+### 6. Items
+- Zwei Fassungen aus **einer** Quelle (`gearLook.itemLook` → `Icons.itemIconId`, getragenes Aussehen = Item-Bild):
+  24×24 (`res 1`) und 48×48 (`res 2`). `iconCanvas(id, res)`, `iconUrl(id, res)`. Die Fassung richtet sich nach der Darstellungsgröße:
+  `itemIconEl`/`iconEl` nehmen `res 2`, sobald ein Bildpunkt ≥ 2 Gerätepixel groß wird (Desktop-Plätze mit `--fpx` 2 zeigen also die 48er);
+  `iconRes()` (nur nach `devicePixelRatio ≥ 1,5`) ist der Rückfall, wo die Größe unbekannt ist.
+- Waffen zeichnen ihre 48er-Fassung nativ (`sprites/hero.js drawWeaponIcon(put, look, 48)`), weitere Familien über `REG_FINE`.
+  Ohne eigene Fassung: 24er ×2 (Stufe A). Anzeige weiter über `itemIconEl` (Rahmen/Effektstreifen mit `--fpx` unverändert).
+- Wer ein Icon als Pixelbild weiterverarbeitet (z. B. `ui/WardrobePanel.js`), fordert die Fassung ausdrücklich an (`iconCanvas(id, 1)`).
+
+### 7. Leistung (Handy quer muss flüssig bleiben)
+- Bildrate: unverändert, weil k nicht steigt. Gemessen 11.10. (Chromium ohne GPU): Aschenwald Desktop 43 → 45 fps, Handy quer
+  (CPU ×4) 6,1 → 6,1 fps – kein Unterschied.
+- Ladezeit: Sprites haben 4× so viele Texel. Grenze: **+25 % Bauzeit je Zone**. Gezeichnet wird in Pixelpuffer (FineCanvas), nie per
+  `fillRect` je Feinpixel; Hochskalieren, Feinschliff und Umriss laufen in einem Durchgang. Gemessen: Aschenwald-Gegner (Stufe B)
+  291 → 346 ms, Aschenwald-Deko (Stufe A) 216 → 266 ms.
+- Speicher: Sprite-Texturen ×4. Caches mit Obergrenze (Held: `cache.size`, Boden: `MAX_CHUNKS`) in Texeln rechnen, nicht in Stück.
+
+- Frames entstehen lazy (`lazyFrame`/`lazyFrames` in `gfx/Sprite.js`): Ein Satz anzulegen kostet nur Millisekunden, gebaut wird beim ersten Zeigen; `world/spriteWarm.js` baut nach dem Betreten in Häppchen (≤ ~3 ms je Bild, Nahes und Boss zuerst) vor. Neue Sprite-Dateien nutzen dasselbe Muster, damit der Zonenwechsel nicht wächst.
+
+### 8. Pflichten für Code, der Frames weiterverarbeitet
+- `frame.canvas`, `ax`, `ay` sind Texel; Weltgröße = Texel / `frame.res`. Nie `canvas.width` als Weltbreite lesen.
+- Helfer in `gfx/Sprite.js`: `blitFrame(ctx, frame, x, y)` (Frame in eine Weltpixel-Zeichnung setzen), `drawGlowLayer(ctx, sprite,
+  glowCanvas, x, y)` (alte Leuchtebene in Weltpixeln oder feine in Texeln, beides richtig), `glowCanvasSize(frame)`.
+- Bekannte Stellen, die Frames als Bild weiterverarbeiten und beim Umstellen auf Stufe B geprüft werden müssen:
+  `sprites/foes_new2.js` (rimGlow), `sprites/foes_cinder.js`, `sprites/foes_marsh.js` (sink), `sprites/decor_frost.js` (Bergfuß),
+  `sprites/nerith.js`/`bonelord.js` (glowEnraged), `account/CreateStage.js`, `ui/Stable.js`, `shop/index.js` (Vorschau).
+

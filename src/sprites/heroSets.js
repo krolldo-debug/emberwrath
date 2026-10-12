@@ -96,6 +96,8 @@ export function setPauldron(R, L, sk, K) {
         px = nx; py = ny;
       }
     }
+    // Glanzlinie und Glanzpunkt auf der Schwarzstahlkuppel
+    R.dot(x - 1.6, y + 0.1, A[4]); R.dot(x - 1.1, y - 0.2, '#fdfcff'); R.dot(x - 0.6, y - 0.4, A[4]);
     // Glutstein in Goldfassung
     R.ellipse(x + 0.5, y + 1.2, 0.75, 0.7, (nx, ny, d) => (d > 0.75 ? Gd[3] : nx + ny < -0.4 ? C.ember[4] : C.ember[3]));
     sk.G?.push({ x: Math.round(x + 0.5), y: Math.round(y + 1), color: C.ember[3], r: 1.3, pulse: 1, set: s });

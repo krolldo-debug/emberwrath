@@ -2,6 +2,7 @@ import { Entity, getShadow } from '../entities/Entity.js';
 import { Animator } from '../gfx/Sprite.js';
 import { INTERP_DELAY_MS, EXTRAPOLATE_MS, FLAG_DEAD, FLAG_RIDING } from './protocol.js';
 import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
+import { drawWeaponFx } from '../gfx/weaponFx.js';
 
 // Ein anderer Spieler in derselben Zone und Welt. Liegt in world.entities (wird y-sortiert gezeichnet und beleuchtet,
 // nimmt aber nicht am Kampf teil). Position und Animation kommen als Zustände vom Server und werden mit
@@ -147,7 +148,7 @@ export class RemotePlayer extends Entity {
     if (a < 1) ctx.globalAlpha = 1;
   }
 
-  // Leuchtpunkte des Frames (Augen, Stabkristall) wie beim eigenen Helden.
+  // Leuchtpunkte des Frames (Augen, Stabkristall) und Seltenheits-Effekte der Waffe wie beim eigenen Helden.
   renderEmissive(ctx, cx, cy) {
     const f = this.animator?.frame;
     if (!f || (this.dead && this.animator.finished)) return;
@@ -157,8 +158,7 @@ export class RemotePlayer extends Entity {
       drawSetEmit(ctx, f.emit, this.x - cx, this.y - cy, this.facing < 0, t);
       ctx.globalAlpha = 1;
     }
-    if (!f.glows?.length) return;
-    for (const g of f.glows) {
+    for (const g of f.glows ?? []) {
       const x = Math.round(this.x - cx + g.x * this.facing - (this.facing < 0 ? 1 / (f.res ?? 1) : 0));
       const y = Math.round(this.y - cy + g.y);
       // Klassen-Skinsets: pulsierende Punkte und kreisende Runen wie beim eigenen Helden
@@ -168,5 +168,11 @@ export class RemotePlayer extends Entity {
       ctx.fillRect(x, y, 1, 1);
     }
     ctx.globalAlpha = 1;
+    // Glanzlauf, Kante, Funken, Zungen/Runen, Lichtkreis (gfx/weaponFx.js) – nur für Mitspieler in voller Feinheit
+    // (NetSession: höchstens MAX_FINE), die übrigen bleiben schlicht. Teilchen und Licht hat nur der eigene Held.
+    if (this.fine && f.weapon?.tier) {
+      drawWeaponFx(ctx, { x: this.x, y: this.y, facing: this.facing, frame: f, ring: !this.riding && this.animator.name !== 'roll', seed: this.id, t, alpha: this.alpha }, cx, cy);
+      ctx.globalAlpha = 1;
+    }
   }
 }
