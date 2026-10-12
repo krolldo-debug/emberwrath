@@ -399,9 +399,16 @@ function greataxe(p, g, hx, hy, a, heat = 0) {
     g.epx(x, y, mid > 0.4 ? 4 : 3);
     if (heat > 0.3 && vo - vi > 2) { const [x2, y2] = at(u, vo - 1.5); g.px(x2, y2, 1); g.epx(x2, y2, 2); }
   }
-  for (const u of runes) {
+  if (RS === 1) for (const u of runes) {
     const [x, y] = at(u, 6 + (Math.round(u) % 2)); p.px(x, y, MAG[1]); g.px(x, y, 2); g.epx(x, y, 3);
-    if (RS > 1) { p.dot(x, y, MAG[3]); g.dot(x, y, 3); }
+  } else {
+    // fein: statt Runenpunkten eine zusammenhängende Glutrune quer übers Blatt (Kerbe, heißer Kern)
+    const pts = [[31, 5.5], [33.5, 7], [36, 6], [38.5, 7.5], [41, 6]].map(([u, v]) => at(u, v));
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+      seg(x0, y0, x1, y1, (x, y) => { p.px(x, y, MAG[1]); g.apx(x, y, 1); g.epx(x, y, 2); });
+      p.fline(x0, y0, x1, y1, MAG[3]); g.fline(x0, y0, x1, y1, 3);
+    }
   }
   if (RS > 1) {
     // Handfein: geschliffene Schneide als Glanzlinie, Facettengrat, Scharten; Glanz auf den Goldbändern
@@ -586,6 +593,11 @@ function torso(p, g, along, P, meta) {
       const rel = (k + hwB) / (hwB + hwF);
       let i = rel < 0.08 ? 1 : rel < 0.3 ? 2 : rel < 0.62 ? 3 : rel < 0.86 ? 2 : 1;
       const [x, y] = along(s, k);
+      if (seam && RS > 1 && Math.abs(s - LAME * 2) > LAME * 0.5) {
+        // fein: nur eine Bauchnaht glüht (bündelt die Adern), die übrigen sind dunkle Fugen
+        p.px(x, y, OBS[0]);
+        continue;
+      }
       if (seam) {
         if (rel > 0.05 && rel < 0.95) { p.px(x, y, rel > 0.25 && rel < 0.75 ? MAG[3] : MAG[2]); if (rel > 0.15 && rel < 0.85) g.px(x, y, rel > 0.3 && rel < 0.7 ? 2 : 1); }
         else p.px(x, y, OBS[0]);
@@ -619,7 +631,7 @@ function torso(p, g, along, P, meta) {
     for (let i = 0; i < c.length - 1; i++) {
       const [x0, y0] = along(c[i][0] * SPINE, c[i][1] * 1.16), [x1, y1] = along(c[i + 1][0] * SPINE, c[i + 1][1] * 1.16);
       seg(x0, y0, x1, y1, (x, y) => { p.px(x, y, i === 0 ? MAG[3] : MAG[2]); g.apx(x, y, i === 0 ? 2 : 1); g.epx(x, y, i === 0 ? 4 : 3); });
-      if (RS > 1) { p.fline(x0, y0, x1, y1, i === 0 ? HOT : MAG[3]); g.fline(x0, y0, x1, y1, i === 0 ? 3 : 2); }
+      if (RS > 1 && i === 0) { p.fline(x0, y0, x1, y1, HOT); g.fline(x0, y0, x1, y1, 3); }   // heißer Kern nur am Glutkern
     }
   }
   if (RS > 1) {
@@ -681,7 +693,7 @@ function belt(p, g, hipX, hipY, P, legF, legB) {
         if (j === 5) c = pl.ramp[3];
         p.px(x + i + (j > pl.len - 3 ? (j - pl.len + 3) * 0.5 : 0), hipY + j, c);
       }
-      if (j === 4) { p.px(x + 2, hipY + j, MAG[1]); p.px(x + 3, hipY + j, MAG[1]); g.px(x + 2, hipY + j, 1); }
+      if (j === 4 && RS === 1) { p.px(x + 2, hipY + j, MAG[1]); p.px(x + 3, hipY + j, MAG[1]); g.px(x + 2, hipY + j, 1); }
     }
     p.px(pl.x + 1, hipY + 2, GOLD[3]);
   }
@@ -706,8 +718,10 @@ function leg(p, g, hx, hy, L, ramp, back, P) {
   for (let t = 0.15; t < 0.95; t += 0.05) p.px(L.jx + dx * t + 1, L.jy + dy * t, ramp[3]);
   // Glutnaht quer über die Schiene
   const mx = L.jx + dx * 0.6, my = L.jy + dy * 0.6;
-  p.line(mx - 3, my, mx + 3, my + 0.5, back ? MAG[1] : MAG[3]); g.line(mx - 2, my, mx + 2, my + 0.5, back ? 1 : 2);
-  seg(L.jx + 0.5, L.jy + 3, mx, my, (x, y) => { p.px(x, y, back ? MAG[1] : MAG[2]); g.apx(x, y, back ? 0 : 1); g.epx(x, y, back ? 1 : 3); });
+  if (RS > 1 && back) p.line(mx - 3, my, mx + 3, my + 0.5, ramp[0]);   // fein: hinteres Bein ohne Glutnaht (weniger Sprenkel)
+  else { p.line(mx - 3, my, mx + 3, my + 0.5, back ? MAG[1] : MAG[3]); g.line(mx - 2, my, mx + 2, my + 0.5, back ? 1 : 2); }
+  if (RS > 1 && back) seg(L.jx + 0.5, L.jy + 3, mx, my, (x, y) => p.px(x, y, ramp[0]));
+  else seg(L.jx + 0.5, L.jy + 3, mx, my, (x, y) => { p.px(x, y, back ? MAG[1] : MAG[2]); g.apx(x, y, back ? 0 : 1); g.epx(x, y, back ? 1 : 3); });
   if (RS > 1 && !back) { p.fline(L.jx + 0.5, L.jy + 3, mx, my, MAG[3]); p.fline(mx - 3, my, mx + 3, my + 0.5, HOT); g.fline(mx - 2, my, mx + 2, my + 0.5, 3); }
   // Sabaton: breit, gestaffelt, Messingkappe, Krallen
   const ex = Math.round(L.ex), ey = Math.round(L.ey);
@@ -719,7 +733,7 @@ function leg(p, g, hx, hy, L, ramp, back, P) {
   p.rect(ex + 4, ey - 5, 3, 1, back ? GOLD[1] : GOLD[3]);
   const cl = back ? [HORN[1], HORN[2]] : [HORN[3], HORN[4]];
   p.px(ex + 7, ey - 2, cl[0]); p.px(ex + 8, ey - 1, cl[1]); p.px(ex + 7, ey - 1, cl[0]); p.px(ex + 8, ey - 3, cl[0]);
-  p.px(ex, ey - 3, MAG[3]); p.px(ex + 1, ey - 3, MAG[2]); g.px(ex, ey - 3, back ? 1 : 3); g.px(ex + 1, ey - 3, back ? 0 : 2);
+  if (RS === 1 || !back) { p.px(ex, ey - 3, MAG[3]); p.px(ex + 1, ey - 3, MAG[2]); g.px(ex, ey - 3, back ? 1 : 3); g.px(ex + 1, ey - 3, back ? 0 : 2); }
   // Kniekachel mit Dorn
   p.ellipse(L.jx, L.jy, 4, 3.6, ramp[0]);
   p.ellipse(L.jx - 0.3, L.jy - 0.3, 3.2, 2.8, ramp[1]);
@@ -745,8 +759,12 @@ function pauldron(p, g, x, y, rx, ry, ramp, spikes, front) {
     p.ellipse(lx, ly, lr, 2.6, ramp[0]);
     p.ellipse(lx - 0.3, ly - 0.6, lr - 0.8, 1.6, ramp[2]);
     p.line(lx - lr + 1.5, ly - 2, lx + lr - 1.5, ly - 2, ramp[3]);
-    p.line(lx - lr + 2, ly + 1, lx + lr - 2, ly + 1, front ? MAG[2] : MAG[1]);
-    for (let k = -lr + 3; k < lr - 2; k++) g.px(lx + k, ly + 1, front ? (k % 3 === 0 ? 3 : 2) : 1);
+    if (RS > 1 && (!front || l === 2)) p.line(lx - lr + 2, ly + 1, lx + lr - 2, ly + 1, ramp[0]);   // fein: nur eine Glutfuge je Schulter
+    else {
+      p.line(lx - lr + 2, ly + 1, lx + lr - 2, ly + 1, front ? MAG[2] : MAG[1]);
+      for (let k = -lr + 3; k < lr - 2; k++) g.px(lx + k, ly + 1, front ? (k % 3 === 0 ? 3 : 2) : 1);
+      if (RS > 1) { p.fline(lx - lr + 2.5, ly + 1, lx + lr - 2.5, ly + 1, HOT); g.fline(lx - lr + 3, ly + 1, lx + lr - 3, ly + 1, 3); }
+    }
   }
   // Kuppel
   p.ellipse(x, y, rx, ry, ramp[0]);
@@ -795,6 +813,18 @@ function flameMane(p, g, hx, hy, P) {
         p.px(x, y, c);
         const i = t > 0.78 ? 1 : e > 0.7 ? 2 : t < 0.35 && e < 0.4 ? 4 : 3;
         if (i > 1) g.apx(x, y, i - 2); g.epx(x, y, Math.min(4, i + 1));
+      }
+    }
+    if (RS > 1) {
+      // fein: gelbweißer Kern entlang der Flammenmitte, harte dunkelrote Spitze
+      for (let d = 0; d < L * 0.7; d += 0.2) {
+        const t = d / L, wob = Math.sin(d * 0.45 + P.capeT * 2 + f * 1.3) * t * 2.2;
+        const x = rx + Math.cos(a) * d - Math.sin(a) * wob, y = ry + Math.sin(a) * d + Math.cos(a) * wob;
+        const hw = ((1 - t) * 2.4 + 0.5) * (t < 0.3 ? 0.45 : 0.25);
+        for (let k = -hw; k <= hw; k += 0.2) {
+          const cx = x - Math.sin(a) * k, cy = y + Math.cos(a) * k;
+          p.dot(cx, cy, t < 0.35 ? '#fffbe6' : HOT); g.dot(cx, cy, 4);
+        }
       }
     }
   }
@@ -925,7 +955,7 @@ function crownAt(p, g, x, y, fall) {
     const yy = y - 1 + Math.round(dx * tilt);
     for (let k = 1; k <= h; k++) p.px(x + dx + (k > h - 2 ? 1 : 0) * (dx > 6 ? 1 : 0), yy - k, k === h ? GOLD[4] : dx < 5 ? GOLD[3] : GOLD[2]);
     // glühende Zackenspitzen
-    if (fall < 0.9) { const tx = x + dx + (dx > 6 ? 1 : 0); g.px(tx, yy - h, 3); g.px(tx, yy - h + 1, 1); g.epx(tx, yy - h - 1, 3); }
+    if (fall < 0.9) { const tx = x + dx + (dx > 6 ? 1 : 0); g.px(tx, yy - h, 3); if (RS === 1) g.px(tx, yy - h + 1, 1); g.epx(tx, yy - h - 1, 3); }
   }
   if (RS > 1) for (let i = 0; i < 12; i += 1) p.dot(x + i + 0.2, y - 1 + Math.round(i * tilt), i < 6 ? '#fff4c8' : GOLD[4]);
   p.px(x + 7, y - 1 + Math.round(7 * tilt), MAG[2]);
@@ -964,6 +994,7 @@ function cape(p, g, tx, ty, gy, P) {
       const idx = k === 0 ? 3 : k < fl / 2 ? 2 : 1;
       g.px(lx + Math.sin(k * 0.8 + i) * 0.6, by - 1 - k, idx);
       g.epx(lx, by - 1 - k, idx + 1);
+      if (RS > 1 && k < fl * 0.6 && (i & 1) === 0) g.dot(lx + 0.6 + Math.sin(k * 0.8 + i) * 0.6, by - 0.5 - k, 4);
     }
     if (hash2(i, 9, 5) < 0.3) g.px(lx - 1, by - fl - 2 - (hash2(i, 3, 5) * 4 | 0), 2);
   }

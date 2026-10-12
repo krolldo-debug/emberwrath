@@ -1115,19 +1115,26 @@ function headFine(p, hx, hy, j, P, eyeOn) {
     for (const c of [10, 12]) p.t((hx + c) * RS, (hy + lr) * RS + 1, A[3]);
   }
   for (let c = 9; c <= 10; c++) fp(c, MOUTH_ROW + 1, 0, 0, A[5]), fp(c, MOUTH_ROW + 1, 1, 0, A[5]);
-  // Aschebart in Strähnen: Texelspalten im Wechsel hell/dunkel, Spitzen gezackt
-  const BR = [HAIR[0], HAIR[1], HAIR[2], HAIR[3], HAIR[4]], lv = { b: 1, B: 2, L: 3 };
+  // Aschebart in Strähnen: je Strähne Lichtkante (links, Licht von oben links), Mittelton und dunkle Fuge
+  // (3 Texel). Schattenlinie unter dem Kinn trennt vom Gesicht, Spitzen dunkel abgesetzt und mit Schattentexel
+  // darunter gegen Kragen und Halsberge; Außenkante dunkel, Mittelsträhne mit Glanz.
+  const isB = (r, c) => r < HEAD.length && c >= 0 && c < 16 && 'bBL'.includes(HEAD[r][c]);
   for (let r = MOUTH_ROW + 2; r < HEAD.length; r++) for (let c = 0; c < 16; c++) {
-    const k = lv[HEAD[r][c]];
-    if (k === undefined) continue;
-    const tip = r + 1 >= HEAD.length || !(HEAD[r + 1][c] in lv);
+    if (!isB(r, c)) continue;
+    const tip = !isB(r + 1, c), top = r === MOUTH_ROW + 2, edgeL = !isB(r, c - 1), edgeR = !isB(r, c + 1);
     for (let sx = 0; sx < RS; sx++) {
-      const X = (c * RS + sx) % 3, cl = BR[Math.max(0, Math.min(4, k + (X === 0 ? 1 : X === 2 ? -1 : 0)))];
-      fp(c, r, sx, 0, cl);
-      fp(c, r, sx, 1, tip && (c + sx) & 1 ? BR[0] : cl);
+      const FX = c * RS + sx, sh = ((r - MOUTH_ROW - 2) >> 1) * (c < 8 ? 1 : -1), k = (((FX + 2 - sh) % 3) + 3) % 3, centre = c === 8 || (c === 7 && sx === 1);   // Strähnen laufen zur Bartspitze zusammen
+      for (let sy = 0; sy < RS; sy++) {
+        let cl = k === 0 ? (centre ? ASH[5] : ASH[4]) : k === 1 ? ASH[2] : ASH[0];
+        if (tip && sy === RS - 1) cl = k === 0 ? ASH[3] : k === 1 ? ASH[1] : ASH[0];   // Spitze dunkler
+        if (top && sy === 0) cl = k === 0 ? ASH[3] : '#1c1518';                          // Schatten unter dem Kinn
+        if ((edgeL && sx === 0) || (edgeR && sx === RS - 1)) cl = ASH[0];                 // Außenkontur
+        fp(c, r, sx, sy, cl);
+      }
+      // Schattentexel unter der Spitze (auf Kragen/Halsberge): klare Trennung
+      if (tip && k !== 2 && (r + 1 >= HEAD.length || HEAD[r + 1][c] === '.')) fp(c, r + 1, sx, 0, '#140f12');
     }
   }
-  fp(8, 16, 0, 0, HAIR[4]); fp(8, 17, 0, 0, HAIR[4]); fp(7, 16, 1, 0, HAIR[3]);
 }
 
 // Krone: Goldreif, fünf Zacken (vorn höher), Glutsteine, Flammen über den Spitzen.
