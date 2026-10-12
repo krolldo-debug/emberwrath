@@ -2848,17 +2848,27 @@ export function iconCanvas(id, res = iconRes()) {
   return c;
 }
 
+const urlKey = new Map();   // Bild-URL -> [Schlüssel, Feinheit] (für fitIcon: Fassung eines fremden <img> erkennen)
 export function iconUrl(id, res = iconRes()) {
   const key = SKILL_ART[id] ? id : resolve(id);
   const ck = res > 1 ? `${key}@2` : key;
   let u = urlCache.get(ck);
-  if (!u) { u = iconCanvas(key, res).toDataURL(); urlCache.set(ck, u); }
+  if (!u) { u = iconCanvas(key, res).toDataURL(); urlCache.set(ck, u); urlKey.set(u, [key, res > 1 ? 2 : 1]); }
+  fitScanSoon();
   return u;
 }
 
 // Ohne Angabe: Items mit eigener Feinfassung zeigen sie, sobald ein Bildpunkt der 26er-Fassung ≥ 2 Gerätepixel breit ist
-// (auch am Desktop-Bildschirm); alles andere wie bisher nach devicePixelRatio.
-export function iconEl(id, cssSize = 32, res = !SKILL_ART[id] && REG_FINE[resolve(id)] && cssSize / 26 * (window.devicePixelRatio || 1) >= 2 ? 2 : iconRes()) {
+// (auch am Desktop-Bildschirm); alles andere wie bisher nach devicePixelRatio. Nach dem ersten Layout wählt fitIcon
+// Fassung und ganzzahlige Bildgröße nach der echten Breite (Feinheit ohne Angabe), die Platzgröße bleibt cssSize.
+export function iconEl(id, cssSize = 32, res) {
+  const auto = res == null;
+  const img = iconImg(id, cssSize, auto ? (!SKILL_ART[id] && REG_FINE[resolve(id)] && cssSize / 26 * (window.devicePixelRatio || 1) >= 2 ? 2 : iconRes()) : res);
+  if (!auto) img.dataset.fitRes = String(res > 1 ? 2 : 1);
+  fitIcon(img);
+  return img;
+}
+function iconImg(id, cssSize, res) {
   const img = document.createElement('img');
   img.src = iconUrl(id, res);
   img.alt = '';
@@ -2868,15 +2878,88 @@ export function iconEl(id, cssSize = 32, res = !SKILL_ART[id] && REG_FINE[resolv
   return img;
 }
 
+// Ganzzahlige Anzeige freistehender Icons (Grafikupdate): Ein <img class="ef-icon"> mit fester Platzgröße (width/height
+// bzw. CSS) zeigt sein Bild in n·52 bzw. n·26 Gerätepixeln, also n·52/dpr bzw. n·26/dpr CSS-px – jeder Bildpunkt gleich
+// breit. Der Platz bleibt, wie er war (border-box + Innenabstand, Bild mittig auf ganzen Gerätepixeln). Fassung: die
+// größte ganzzahlige Größe, die in den Platz passt; bei gleicher Größe die 52er (Feinfassung bzw. ab dpr 1,5), sonst die
+// 26er. Füllte das Bild so weniger als 75 % des Platzes (kleine Plätze, Verkleinerung, Menüknöpfe 36 px am Desktop),
+// bleibt alles wie bisher – ein deutlich kleineres Symbol fiele mehr auf als ungleich breite Bildpunkte. Embleme der
+// Fähigkeiten (48er mit eigenem Rahmen) bleiben unberührt. Erfasst werden Icons aus iconEl und – über eine Suche nach
+// iconUrl-Aufrufen – auch <img>, denen Code außerhalb (z. B. ui/Hud.js) eine iconUrl als src gibt; wechselt deren src,
+// wird neu eingepasst.
+let fitWatch = null, fitSrc = null, fitScan = 0;
+const fitW = new WeakMap();   // img -> [Breite, Höhe] des Platzes in CSS-px (border-box)
+function fitScanSoon() {
+  if (fitScan || typeof document === 'undefined' || typeof ResizeObserver !== 'function') return;
+  fitScan = requestAnimationFrame(() => {
+    fitScan = 0;
+    for (const img of document.querySelectorAll('img.ef-icon:not([data-fit])')) fitIcon(img);
+  });
+}
+let fitRefit = 0;
+function fitIcon(img) {
+  if (typeof ResizeObserver !== 'function' || img.dataset.fit) return;
+  img.dataset.fit = '1';
+  if (!fitWatch) {   // Fenstergröße/Drehen: Skalen per transform ändern sich ohne neue Layoutgröße, also alle neu einpassen
+    addEventListener('resize', () => {
+      fitRefit ||= requestAnimationFrame(() => {
+        fitRefit = 0;
+        for (const el of document.querySelectorAll('img.ef-icon[data-fit="1"]')) if (fitW.has(el)) fitApply(el);
+      });
+    });
+  }
+  fitWatch ??= new ResizeObserver((entries) => {
+    for (const e of entries) {
+      const el = e.target;
+      if (!el.isConnected) {   // entfernt oder noch nicht eingehängt: loslassen, die nächste Suche findet es wieder
+        fitWatch.unobserve(el); fitW.delete(el); delete el.dataset.fit;
+        continue;
+      }
+      const b = e.borderBoxSize?.[0], r = b ? null : el.getBoundingClientRect();
+      fitW.set(el, [b ? b.inlineSize : r.width, b ? b.blockSize : r.height]);
+      fitApply(el);
+    }
+  });
+  fitWatch.observe(img, { box: 'border-box' });
+  fitSrc ??= new MutationObserver((recs) => { for (const m of recs) if (fitW.has(m.target)) fitApply(m.target); });
+  fitSrc.observe(img, { attributes: true, attributeFilter: ['src'] });
+}
+function fitClear(st) { st.boxSizing = st.padding = ''; }
+function fitApply(img) {
+  const st = img.style, [w, h] = fitW.get(img) ?? [0, 0];
+  const src = img.getAttribute('src'), kr = src ? urlKey.get(src) : null;
+  if (!kr || !w || !h || SKILL_ART[kr[0]] || !img.hasAttribute('width')) { fitClear(st); return; }
+  const cs = getComputedStyle(img);
+  if (parseFloat(cs.borderLeftWidth) || parseFloat(cs.borderTopWidth)) { fitClear(st); return; }   // Rahmen: Platz nicht umrechnen
+  // Gerätepixel aus der gezeichneten Größe: Vorfahren können per transform skalieren (Handy: --touch-scale der Aktionsknöpfe)
+  const r = img.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, u = (r.width / w) * dpr;   // Gerätepixel je Layout-px
+  const [key, cur] = kr, dw = Math.round(r.width * dpr), dh = Math.round(r.height * dpr), dev = Math.min(dw, dh);
+  if (!dev) { fitClear(st); return; }
+  const lock = +img.dataset.fitRes || 0;
+  const s2 = 52 * Math.floor(dev / 52), s1 = 26 * Math.floor(dev / 26);
+  const res = lock || (s2 && s2 >= s1 && (REG_FINE[key] || dpr >= 1.5) ? 2 : 1), s = res > 1 ? s2 : s1;
+  if (!s || s / dev < 0.75) { fitClear(st); return; }
+  if (res !== cur) { img.src = iconUrl(key, res); return; }   // src-Wechsel ruft fitApply erneut auf
+  const pl = Math.floor((dw - s) / 2), pt = Math.floor((dh - s) / 2);
+  st.boxSizing = 'border-box';
+  st.padding = `${pt / u}px ${(dw - s - pl) / u}px ${(dh - s - pt) / u}px ${pl / u}px`;
+}
+
 // Feinheit eines Item-Icons nach dem ersten Layout (Grafikupdate): Das Bild wird ganzzahlig vergrößert, ein Bildpunkt der
-// 52er-Fassung (Feinpixel) bzw. der 26er-Fassung ist immer eine ganze Zahl Gerätepixel. Wo der Platz es erlaubt, füllt das
-// Motiv etwa 70 % des Platzes (bleibt im Innenbereich des Rahmens), sonst so viel wie ganzzahlig passt (Desktop 52 px:
-// ganzer Platz wie bisher). Rahmen und Effektstreifen folgen derselben Feinheit (--fpx).
-// Größte ganzzahlige Vergrößerung, die in den Platz passt (füllt sie ihn ganz, schneidet FRAME_CLIP den Rand ab).
-// Feinfassung (52 Bildpunkte) vor der 24er (26), solange sie mindestens 65 % des Platzes füllt.
+// 52er-Fassung (Feinpixel) bzw. der 26er-Fassung ist immer eine ganze Zahl Gerätepixel. Rahmen und Effektstreifen folgen
+// derselben Feinheit (--fpx).
+// Größte ganzzahlige Vergrößerung bis 90 % der Platzbreite: Darüber läge der Bildrand unter dem Rahmenband (3 von 52
+// Bildpunkten, FRAME_CLIP). Die Feinfassung (52) vor der 26er, außer die 26er füllt deutlich mehr (≥ 8 % der Platzbreite,
+// solange die 52er unter 80 % bleibt). Nur wo so weniger als 70 % gefüllt wären (kleine Plätze, z. B. 52 Gerätepixel),
+// füllt das Bild den ganzen Platz wie bisher und FRAME_CLIP schneidet den Rand ab.
+const FILL_MAX = 0.9;
 function pickScale(dev) {
-  const n2 = Math.floor(dev / 52), n1 = Math.max(1, Math.floor(dev / 26));
-  return n2 >= 1 && (52 * n2 / dev >= 0.65 || 52 * n2 >= 26 * n1) ? { res: 2, n: n2 } : { res: 1, n: n1 };
+  const n2 = Math.floor(dev * FILL_MAX / 52), n1 = Math.floor(dev * FILL_MAX / 26);
+  const f2 = 52 * n2 / dev, f1 = 26 * n1 / dev;
+  if (n2 && !(f2 < 0.8 && f1 - f2 >= 0.08)) return { res: 2, n: n2 };
+  if (n1 && f1 >= 0.7) return { res: 1, n: n1 };
+  const m2 = Math.floor(dev / 52), m1 = Math.max(1, Math.floor(dev / 26));
+  return m2 >= 1 && 52 * m2 >= 26 * m1 ? { res: 2, n: m2 } : { res: 1, n: m1 };
 }
 function setIconRes(span, res) {
   const img = span.querySelector(':scope > img');
@@ -2932,7 +3015,9 @@ export function itemIconEl(def, cssSize = 40) {
   const id = itemIconId(def), dev = (u ? u : cssSize * 0.8 / 26) * (window.devicePixelRatio || 1);
   const res = dev >= 2 ? 2 : 1;
   span.dataset.icon = id;
-  span.append(iconEl(id, u ? 26 * u : Math.round(cssSize * 0.8), res));
+  const img = iconImg(id, u ? 26 * u : Math.round(cssSize * 0.8), res);
+  img.dataset.fit = 'off';   // Größe regeln watchFine und CSS (--fpx), nicht fitIcon
+  span.append(img);
   if (u) { span.classList.add('px'); span.style.setProperty('--fpx', `${u}px`); }
   if (def?.name) span.title = def.name;
   // Ab ungewöhnlich: gezeichneter Seltenheitsrahmen, ab episch mit Aufleuchten in Stufen (zweites Bild)
