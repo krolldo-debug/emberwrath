@@ -258,7 +258,7 @@ function snowPx(R, K, ki, KW, S, wi, dt, F, G, o, rip) {
   let k = bandW(fineAt(S.tone, S, F, G), 2, dt, 0.08);
   const L = fineAt(S.lit, S, F, G);
   if (L > 0.07) k++; else if (L < -0.07) k--;
-  if (rip && S.rz !== null && fineAt(S.rz, S, F, G) > 0.64) {
+  if (rip && S.rz !== null && S.rz[wi] > 0.64) {
     const p = (G + F * 0.21 + fineAt(S.hgt, S, F, G) * 40) / 9, f = p - Math.floor(p);
     if (f < 0.111) k++; else if (f < 0.222) k--;
   }

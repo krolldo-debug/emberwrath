@@ -29,19 +29,19 @@ const P = {
   bank: ramp(['#0d0b09', '#16120e', '#211b15', '#2a221a']),
   // Pfützen: Spiegel heller als der Schlamm (Himmel/Licht gespiegelt), Glanz in harter Stufe
   pool: ramp(['#16201e', '#1e2b29', '#283a37', '#3a524c', '#58756a']),
-  rim: 0x5c5040,   // nasser Uferrand im Licht (oben links)
+  rim: 0x6f6149,   // nasser Uferrand im Licht (oben links)
   // Entengrütze
   weed: ramp(['#13211a', '#1a2e1f', '#223b24', '#2d4a2a']),
 };
 
 const WP = { water: P.water, bank: P.bank, weed: P.weed, bubbles: true };
 
-function* marshSetup(x0, y0, cw, ch, K, KW, M) {
+function* marshSetup(x0, y0, cw, ch, K, KW, M, map) {
   const S = chunkCtx(x0, y0, cw, ch, K, KW, M);
   S.tone = S.noise([[4, 11, 11, 901, 0.65], [2, 4, 4, 902, 0.35]]);
   S.patch = S.noise([[4, 17, 14, 903, 1]]);
   S.wet = S.noise([[4, 11, 11, 905, 1]]);
-  puddles(S);
+  puddles(S, map);
   yield;
   waterPrep(S, x0, y0, cw, ch, K, KW, WP);
   yield;
@@ -143,15 +143,21 @@ function* marshSetup(x0, y0, cw, ch, K, KW, M) {
 // Pfützen: wenige rundliche Mulden (je Zelle 70 × 50 Weltpixel höchstens eine, eher dort, wo es nass ist), Umriss
 // leicht gewellt, ohne Ausläufer. Maske je Chunk in Feinpixeln mit 2 Feinpixeln Rand (Kantenabfragen).
 const PB = 2;
-function puddles(S) {
+function puddles(S, map) {
   const PW = S.W2 + 2 * PB, pm = S.pm = new Uint8Array(PW * (S.H2 + 2 * PB));
   S.cells(140, 100, 48, (cx, cy) => {
     const h = hash2(cx, cy, 990);
     if (h >= 0.5) return;
     const px = cx * 140 + 30 + hash2(cx, cy, 991) * 80, py = cy * 100 + 24 + hash2(cx, cy, 992) * 52;
     const w = vnoise(px / 22, py / 22, 905);   // Nässe am Mittelpunkt global (wie S.wet), gleich in allen Nachbarchunks
-    if (h >= (w > 0.58 ? 0.5 : w > 0.48 ? 0.3 : 0.08)) return;
+    if (h >= (w > 0.55 ? 0.5 : w > 0.45 ? 0.36 : 0.14)) return;
     const rx = 16 + hash2(cx, cy, 993) * 14, ry = rx * (0.55 + hash2(cx, cy, 994) * 0.15);
+    // nur auf offenem Boden: Kacheln unter der Pfütze (mit Rand) ohne Deko/Steg, Umriss ganz auf demselben Untergrund
+    // (sonst schneidet Steg oder Grasrand sie zu einem spitzen Keil). Kacheln aus der Karte = in allen Chunks gleich.
+    if (map) {
+      for (let ty = Math.floor((py - ry - 6) / 32); ty <= Math.floor((py + ry + 6) / 32); ty++)
+        for (let tx = Math.floor((px - rx - 6) / 32); tx <= Math.floor((px + rx + 6) / 32); tx++) if (map.terrainAt(tx, ty) !== '.' || map.isWall(tx, ty)) return;
+    }
     const g0 = Math.max(-PB, Math.floor(py - ry - 2) - S.G0), g1 = Math.min(S.H2 + PB, Math.ceil(py + ry + 2) - S.G0);
     const f0 = Math.max(-PB, Math.floor(px - rx - 2) - S.F0), f1 = Math.min(S.W2 + PB, Math.ceil(px + rx + 2) - S.F0);
     for (let g = g0; g < g1; g++) for (let f = f0; f < f1; f++) {
