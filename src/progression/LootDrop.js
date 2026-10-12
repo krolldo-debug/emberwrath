@@ -1,5 +1,6 @@
 import { drawLoot, rarityRgb } from '../gfx/Icons.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
+import { fineRes } from '../gfx/Fine.js';
 import { Light } from '../gfx/Lighting.js';
 import { getShadow } from '../entities/Entity.js';
 import { RARITIES } from './items.js';
@@ -101,18 +102,22 @@ export class LootDrop {
     if (!front.length) {
       drawLoot(ctx, this.look, x, y + 1, this.t + this.seed, opts);
     } else {
-      const m = maskCanvas(ctx.canvas.width, ctx.canvas.height), mx = m.getContext('2d');
+      // Hilfsleinwand in voller Auflösung des Spielbilds (gleiche Überabtastung wie ctx, Feinraster bleibt fein)
+      const m = maskCanvas(ctx.canvas.width, ctx.canvas.height), mx = m.getContext('2d'), k = ctx.getTransform().a;
       const bx = x - 16, by = y - 72, bw = 32, bh = 84;
+      mx.setTransform(k, 0, 0, k, 0, 0); mx.imageSmoothingEnabled = false;
       mx.clearRect(bx, by, bw, bh);
       drawLoot(mx, this.look, x, y + 1, this.t + this.seed, opts);
       mx.globalCompositeOperation = 'destination-out';
       for (const a of front) a.render(mx, cx, cy);
       mx.globalCompositeOperation = 'source-over'; mx.globalAlpha = 1;
-      ctx.drawImage(m, bx, by, bw, bh, bx, by, bw, bh);
+      mx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(m, bx * k, by * k, bw * k, bh * k, bx, by, bw, bh);
     }
     if (this.rarity !== 'common' && (this.t * 2 + this.seed) % 2 < 0.12) {
+      const f = fineRes() > 1 ? 0.5 : 1;   // Glitzer über der rechten oberen Ecke, im Raster des Items
       ctx.fillStyle = '#fffbe0';
-      ctx.fillRect(x + 4, Math.round(y - 12 - this.#bob()), 1, 1);
+      ctx.fillRect(x + 5, Math.round((y - 14 - this.#bob()) / f) * f, f, f);
     }
   }
 }
