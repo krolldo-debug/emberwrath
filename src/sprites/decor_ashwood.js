@@ -644,12 +644,37 @@ function bramble(v) {
 }
 
 // ------------------------------------------------------------ Aschbedeckte Felsen
+// Stufe B: gewölbter Fels in harten Lichtstufen, Bruchkante mit Lichtsaum, Aschekappe mit gezacktem Rand
 function ashRock(v) {
   const rng = createRng(110 + v);
   const R = OUT.rock;
   const w = [14, 18, 11][v], h = [10, 12, 8][v];
   return mk(w + 4, h + 3, (p) => {
     const cx = (w + 3) / 2, cy = h / 2 + 1.5;
+    if (p.fine) {
+      const X = cx + 0.5, Y = cy + 0.5, rx = w / 2 + 0.3, ry = h / 2 + 0.3;
+      groundPatch(p, X, h + 1.6, rx + 1, 1.4, v, [ASH[1], ASH[2], ASH[3]]);
+      lump(p, X, Y, rx, ry, [...R, '#6a5d72'], { lo: 1, hi: 5, bias: -0.08 });
+      // Bruchkante: dunkle Linie, rechts davon eine Stufe dunkler, links Lichtsaum
+      const k0 = [X + 1, Y - ry + 2], k1 = [X + 3.2, Y + 1.5];
+      p.each(k0[0] - 0.5, k0[1], k1[0] + 3, k1[1], (x, y) => {
+        const t = (y - k0[1]) / (k1[1] - k0[1]), ex = k0[0] + (k1[0] - k0[0]) * t;
+        const nx = (x - X) / rx, ny = (y - Y) / ry;
+        if (nx * nx + ny * ny > 0.8) return null;
+        return x < ex ? null : x < ex + 0.5 ? R[1] : x < ex + 2.5 ? R[2] : null;
+      });
+      p.fline(k0[0] - 0.5, k0[1], k1[0] - 0.5, k1[1], R[4]);
+      // Aschekappe auf der Oberseite, links dicker
+      p.each(X - rx, Y - ry - 0.5, X + rx, Y, (x, y) => {
+        const t = 1 - ((x - X) / rx) ** 2;
+        if (t <= 0) return null;
+        const yt = Y - ry * Math.sqrt(t), depth = (x < X + 2 ? 3.2 : 1.8) - 0.9 * Math.abs(Math.sin(x * 1.7 + v));
+        if (y < yt || y > yt + depth) return null;
+        return y < yt + 1.5 ? ASH[6] : y < yt + depth - 0.5 ? ASH[5] : ASH[4];
+      });
+      for (let i = 0; i < 3; i++) p.dot(X + rng.int(-w / 3, w / 4), Y + rng.int(0, 2), ASH[4]);
+      return;
+    }
     p.ellipse(cx, cy, w / 2, h / 2, R[2]);
     p.ellipse(cx - 1, cy - 1, w / 2 - 2, h / 2 - 2, R[3]);
     p.ellipse(cx - 2, cy - 1.5, w / 4, h / 4, R[4]);
@@ -666,7 +691,7 @@ function ashRock(v) {
     }
     for (let i = 0; i < 4; i++) p.px(cx + rng.int(-w / 3, w / 4), cy + rng.int(-1, 2), ASH[4]);
     ashPatch(p, Math.round(cx), h + 1, Math.round(w / 2) + 1, 1, v);
-  }, { ax: Math.floor((w + 4) / 2), ay: h + 1, box: [-Math.floor(w / 2) + 1, -3, Math.floor(w / 2) - 1, 1] });
+  }, { ax: Math.floor((w + 4) / 2), ay: h + 1, box: [-Math.floor(w / 2) + 1, -3, Math.floor(w / 2) - 1, 1], b: true });
 }
 
 // ------------------------------------------------------------ Zelte
@@ -780,7 +805,7 @@ function drawTentFine(p, g, o) {
     return pal[Math.max(0, i)];
   });
   // Saumkante unter dem Dachüberstand (Schattenlinie)
-  p.fline(x0 + 3, gy + 2.5, cx + 0.5, gy - 0.5, pal[0]); p.fline(cx + 0.5, gy - 0.5, x1 - 2, gy + 2.5, pal[0]);
+  p.fline(cx + 0.5, gy - 0.5, x0 + 3, Bt - 0.5, pal[2]); p.fline(cx + 0.5, gy - 0.5, x1 - 2, Bt - 0.5, pal[0]);
   // Eingang: dunkles Dreieck mit Innenschimmer, linke Klappe zurückgeschlagen und gerafft
   fpoly(p, [[cx + 0.5, gy + 3], [cx - 3, Bt], [cx + 5, Bt]], (x, y) => (y > Bt - 1.2 && x > cx - 1 && x < cx + 3 ? '#1a1210' : dark));
   fpoly(p, [[cx, gy + 4], [cx - 4, Bt], [cx - 1, Bt]], (x, y) => (x > cx - 1.6 + (y - gy) * 0.05 ? pal[3] : pal[4]));
@@ -1036,7 +1061,19 @@ function campfireBig() {
       if (Math.sin(a) < -0.2) continue;
       p.ellipse(x, y, 2, 1.4, S[2]); p.px(x - 1, y - 1, S[4]); p.px(x, y - 1, S[3]);
     }
-  }, { ax: 17, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 150, color: [255, 150, 70], intensity: 1, bloom: 0.45 } }); // Lichtinsel: weiter und mit mehr Glut
+  }, {
+    ax: 17, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 150, color: [255, 150, 70], intensity: 1, bloom: 0.45 }, // Lichtinsel: weiter und mit mehr Glut
+    // fein: heiße Kerne in den Flammenzungen und im Glutbett, Glanz auf Kessel und Spieß
+    fine: (f, g) => {
+      const cx = 17, cy = H - 6;
+      for (const [x, y, h] of [[cx - 2, cy - 3, 4], [cx, cy - 4, 6], [cx + 2, cy - 3, 3]]) for (let i = 0; i < h - 1; i++) {
+        const xx = x + (i % 3 === 2 ? 1 : 0) + 0.25, yy = y - i + 0.25;
+        f.dot(xx, yy, i < 2 ? '#fff0b0' : EMB[5]); g.dot(xx, yy, '#fff8d8');
+      }
+      for (let i = 0; i < 26; i += 3) { const x = cx + Math.round(Math.cos(i * 2.4) * (i % 7)), y = cy + Math.round(Math.sin(i * 2.4) * (i % 7) * 0.35); f.dot(x, y, EMB[5]); g.dot(x, y, '#fff0b0'); }
+      f.fline(cx - 3, 10, cx - 1, 10, IRON[5]); f.dot(cx - 2.5, 11.5, IRON[4]); f.fline(4, cy - 9, 12, cy - 9, IRON[4]);
+    },
+  });
 }
 
 // ------------------------------------------------------------ Holzstapel
@@ -1548,37 +1585,80 @@ function hauntedTree(v) {
   const W = 44, H = 56, cx = 22, bottom = H - 1;
   return mk(W, H, (p, g) => {
     ashPatch(p, cx, bottom - 1, 12, 2, 1011 + v);
+    const fine = p.fine;
     const branch = (x, y, a, len, th, depth) => {
       const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len;
-      for (let i = 0; i < th; i++) p.line(x + i, y, x2 + i * 0.5, y2, i === 0 ? BIRCH[4] : BIRCH[2]);
-      if (depth <= 0 || len < 3) { if (rng.chance(0.5)) p.line(x2, y2, x2 + rng.int(-1, 1), y2 + rng.int(3, 7), GHOST[1]); return; }
+      if (fine) {
+        // Ast fein: Körper, Lichtkante oben, Schattenkante unten
+        p.fline(x + 0.5, y + 0.5, x2 + 0.5, y2 + 0.5, BIRCH[2], Math.max(0, th * 0.75 - 0.25));
+        p.fline(x + 0.5, y, x2 + 0.5, y2, th > 1 ? BIRCH[4] : BIRCH[3]);
+        if (th > 1) p.fline(x + 1, y + 1, x2 + 1, y2 + 1, BIRCH[1]);
+      } else for (let i = 0; i < th; i++) p.line(x + i, y, x2 + i * 0.5, y2, i === 0 ? BIRCH[4] : BIRCH[2]);
+      if (depth <= 0 || len < 3) {
+        if (rng.chance(0.5)) {
+          const dx = rng.int(-1, 1), dy = rng.int(3, 7);
+          // herabhängende Geisterflechte
+          if (fine) { p.fline(x2 + 0.5, y2 + 0.5, x2 + dx + 0.5, y2 + dy, GHOST[1]); p.dot(x2 + dx + 0.5, y2 + dy, GHOST[2]); } else p.line(x2, y2, x2 + dx, y2 + dy, GHOST[1]);
+        }
+        return;
+      }
       const n = rng.int(1, 2);
       for (let k = 0; k < n; k++) branch(x2, y2, a + rng.range(-0.9, 0.9), len * rng.range(0.55, 0.75), Math.max(1, th - 1), depth - 1);
     };
     // gedrehter Stamm
-    for (let y = bottom - 26; y <= bottom; y++) {
-      const off = Math.round(Math.sin(y * 0.25 + v) * 2), hw = 3 + (y > bottom - 4 ? bottom - y > 1 ? 1 : 3 : 0);
-      for (let x = cx - hw + off; x <= cx + hw + off; x++) p.px(x, y, BIRCH[x === cx - hw + off ? 5 : x === cx + hw + off ? 1 : (x + y) % 5 === 0 ? 2 : 3]);
+    const off = (y) => Math.sin(y * 0.25 + v) * 2;
+    if (fine) {
+      trunk(p, bottom - 27, bottom + 0.5, (y) => cx + 0.5 + off(y), (y) => (y > bottom - 4 ? (bottom - y > 1 ? 9 : 13) : y < bottom - 22 ? 3 + (y - (bottom - 26)) : 7), [...BIRCH], 1012 + v, { lo: 1, hi: 4, groove: 1.4 });
+      // Drehung: schräge Rillen
+      for (let y = bottom - 25; y < bottom - 2; y += 2) p.fline(cx - 2.5 + off(y), y, cx + 2.5 + off(y + 2), y + 1.5, BIRCH[2]);
+    } else for (let y = bottom - 26; y <= bottom; y++) {
+      const o = Math.round(off(y)), hw = 3 + (y > bottom - 4 ? bottom - y > 1 ? 1 : 3 : 0);
+      for (let x = cx - hw + o; x <= cx + hw + o; x++) p.px(x, y, BIRCH[x === cx - hw + o ? 5 : x === cx + hw + o ? 1 : (x + y) % 5 === 0 ? 2 : 3]);
     }
     branch(cx, bottom - 25, -Math.PI / 2 + rng.range(-0.2, 0.2), 12, 3, 4);
     branch(cx - 1, bottom - 20, -Math.PI / 2 - 1.0, 11, 2, 3);
     branch(cx + 1, bottom - 22, -Math.PI / 2 + 1.0, 11, 2, 3);
     // Gesicht im Stamm: zwei leuchtende Höhlen
+    if (fine) {
+      const fx = (y) => Math.round(off(y));
+      fpoly(p, [[cx - 3 + fx(bottom - 16), bottom - 17], [cx - 1 + fx(bottom - 16), bottom - 16.5], [cx - 1 + fx(bottom - 16), bottom - 14], [cx - 3 + fx(bottom - 16), bottom - 14.5]], DARK);
+      fpoly(p, [[cx + 1 + fx(bottom - 15), bottom - 15.5], [cx + 3 + fx(bottom - 15), bottom - 16], [cx + 3 + fx(bottom - 15), bottom - 13.5], [cx + 1 + fx(bottom - 15), bottom - 13]], DARK);
+      p.oval(cx + fx(bottom - 10), bottom - 10, 2.2, 1.1, DARK); p.fline(cx - 2 + fx(bottom - 11), bottom - 11.5, cx + 2 + fx(bottom - 11), bottom - 11.5, BIRCH[1]);
+      for (const [x, y] of [[cx - 2.5 + fx(bottom - 16), bottom - 15.5], [cx + 2 + fx(bottom - 15), bottom - 14.5]]) { p.dot(x, y, GHOST[4]); p.dot(x + 0.5, y, GHOST[3]); g.dot(x, y, GHOST[4]); g.dot(x + 0.5, y, GHOST[3]); g.dot(x, y + 0.5, GHOST[2]); g.dot(x, y - 0.5, GHOST[2]); }
+      // Irrlichter: heller Kern, Ring aus Feinpixeln
+      for (const [x, y] of [[6, 14], [38, 20], [30, 6]].slice(0, 2 + v)) {
+        p.rect(x, y, 1, 1, GHOST[3]); p.dot(x, y, GHOST[4]);
+        g.rect(x, y, 1, 1, GHOST[4]); for (const [dx, dy] of [[-0.5, 0], [-0.5, 0.5], [1, 0], [1, 0.5], [0, -0.5], [0.5, -0.5], [0, 1], [0.5, 1]]) g.dot(x + dx, y + dy, GHOST[2]);
+        for (const [dx, dy] of [[-1, 0.5], [1.5, 0], [0.5, -1], [0, 1.5]]) g.dot(x + dx, y + dy, GHOST[1]);
+      }
+      return;
+    }
     p.rect(cx - 3, bottom - 17, 2, 3, DARK); p.rect(cx + 1, bottom - 16, 2, 3, DARK); p.rect(cx - 2, bottom - 11, 4, 2, DARK);
     g.px(cx - 3, bottom - 16, GHOST[3]); g.px(cx + 2, bottom - 15, GHOST[3]);
     // Irrlichter
     for (const [x, y] of [[6, 14], [38, 20], [30, 6]].slice(0, 2 + v)) { p.px(x, y, GHOST[3]); g.px(x, y, GHOST[4]); g.px(x - 1, y, GHOST[2]); g.px(x + 1, y, GHOST[2]); g.px(x, y - 1, GHOST[2]); g.px(x, y + 1, GHOST[2]); }
-  }, { ax: cx, box: [-4, -3, 4, 1], light: { dx: 0, dy: -30, radius: 60, color: [120, 230, 170], intensity: 0.45 } });
+  }, { ax: cx, box: [-4, -3, 4, 1], light: { dx: 0, dy: -30, radius: 60, color: [120, 230, 170], intensity: 0.45 }, b: true });
 }
 function glowShrooms(v) {
   return mk(14, 12, (p, g) => {
     const caps = [[3, 8, 2], [8, 6, 3], [11, 9, 1.6]].slice(0, 2 + (v % 2));
     for (const [x, y, r] of caps) {
+      if (p.fine) {
+        // Stiel mit Lichtkante, Hut als Kuppel: dunkler Rand, heller Kern, Lamellen darunter, Sporenpunkte
+        p.rect(x, y, 1, 11 - y, BIRCH[3]); p.fline(x, y, x, 11, BIRCH[4]);
+        const X = x + 0.5, Y = y + 0.5;
+        p.oval(X, Y + 0.3, r, r * 0.45, SHROOM[1]);
+        p.each(X - r, Y - r, X + r, Y + r, (xx, yy) => { const nx = (xx - X) / r, ny = (yy - Y) / (r * 0.6); if (nx * nx + ny * ny > 1 || yy > Y + 0.2) return null; return nx + ny < -0.7 ? SHROOM[3] : nx + ny < 0.3 ? SHROOM[2] : SHROOM[1]; });
+        p.dot(X - r * 0.4, Y - r * 0.3, SHROOM[4]);
+        g.each(X - r, Y - r, X + r, Y + r, (xx, yy) => { const nx = (xx - X) / r, ny = (yy - Y) / (r * 0.6); const d = nx * nx + ny * ny; return d > 1 ? null : d < 0.2 ? SHROOM[3] : SHROOM[2]; });
+        g.dot(X - 0.5, Y + r * 0.6, SHROOM[2]); g.dot(X + 0.5, Y + r * 0.6 + 0.5, SHROOM[1]);
+        continue;
+      }
       p.rect(x, y, 1, 11 - y, BIRCH[3]);
       p.ellipse(x, y, r, r * 0.6, SHROOM[2]); p.px(x - 1, y - 1, SHROOM[3]);
       g.ellipse(x, y, r, r * 0.6, SHROOM[3]); g.px(x - 1, y - 1, SHROOM[4]);
     }
-  }, { ax: 7, light: v === 0 ? { dx: 0, dy: -6, radius: 34, color: [170, 110, 255], intensity: 0.5 } : undefined });
+  }, { ax: 7, light: v === 0 ? { dx: 0, dy: -6, radius: 34, color: [170, 110, 255], intensity: 0.5 } : undefined, b: true });
 }
 function fallenTree(v) {
   return mk(46, 20, (p, g) => {
@@ -2011,7 +2091,14 @@ function lanternPost() {
     p.rect(5, 6, 2, 27, WOOD[2]); p.rect(5, 6, 1, 27, WOOD[4]); p.rect(5, 6, 7, 1, WOOD[3]);
     p.rect(9, 8, 4, 6, IRON[1]); p.rect(10, 9, 2, 4, GOLD[4]); g.rect(10, 9, 2, 4, GOLD[3]); g.px(10, 10, '#fff2c0');
     p.rect(4, 32, 4, 1, WOOD[1]);
-  }, { ax: 6, box: [-2, -2, 2, 1], light: { dx: 5, dy: -22, radius: 86, color: [255, 180, 100], intensity: 1, bloom: 0.4 } });
+  }, {
+    ax: 6, box: [-2, -2, 2, 1], light: { dx: 5, dy: -22, radius: 86, color: [255, 180, 100], intensity: 1, bloom: 0.4 },
+    fine: (f, g) => {   // Flamme mit heißem Kern, Glasrahmen mit Sprosse, Lichtkante am Pfahl
+      f.dot(10.5, 10, '#fff8d8'); f.dot(10.5, 10.5, '#fff0b0'); f.dot(11, 11, GOLD[3]); g.dot(10.5, 10, '#ffffff'); g.dot(10.5, 10.5, '#fff8d8');
+      f.fline(9, 8, 12.5, 8, IRON[3]); f.fline(9, 13.5, 12.5, 13.5, IRON[0]); f.fline(9, 8, 9, 13.5, IRON[2]);
+      f.fline(5, 7, 5, 32, WOOD[4]); for (let y = 9; y < 31; y += 4) f.fline(5.5, y, 5.5, y + 1.5, WOOD[1]);
+    },
+  });
 }
 
 // Mühlenruine auf der Bachinsel: Mauerreste und gebrochenes Rad
