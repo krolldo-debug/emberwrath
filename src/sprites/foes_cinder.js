@@ -1,7 +1,7 @@
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
-import { FineCanvas, fineRes, pixelsToCanvas, col32 } from '../gfx/Fine.js';
+import { FineCanvas, fineRes, pixelsToCanvas, col32, outlinePixels } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Gegner der Schlackenhöhen: Feuerwicht, Magmahund, Aschegolem,
@@ -271,17 +271,40 @@ function fireball(p, g, x, y, r, ph) {
 // Rahmen-Bau: draw(p, g) -> meta mit absoluten Koordinaten. pad = Rand um die
 // Zeichenfläche (Staub, Funken, Schweife dürfen über das Grundmaß hinausragen).
 // fine: Feinraster (Stufe B) – Farb- und Leuchtebene als FineCanvas, sobald fineRes() > 1.
+// Feinschliff wie finishPixels (Mondlicht-Kante oben, Kontaktschatten unten, gleiche Stärken), aber nicht auf
+// Pixeln, deren Leuchtebene mindestens GLOW[1] trägt: Glut und Flammen bekommen sonst einen rosa Mondlichtsaum.
+function finishGlowAware(d, w, h, gd, rim = 0.3, shade = 0.26) {
+  const solid = (i) => (d[i] >>> 24) > 40;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const m = y * w + x, v = d[m];
+      if ((v >>> 24) <= 40) continue;
+      const up = y === 0 || !solid(m - w), down = y === h - 1 || !solid(m + w);
+      if (up === down) continue;
+      const gv = gd[m];
+      if ((gv >>> 24) > 40 && (gv & 255) >= 0x80) continue;
+      let r = v & 255, g = (v >>> 8) & 255, b = (v >>> 16) & 255;
+      if (up) { r += (216 - r) * rim; g += (220 - g) * rim; b += (255 - b) * rim; }
+      else { r *= 1 - shade; g *= 1 - shade; b *= 1 - shade; }
+      d[m] = ((v & 0xff000000) | (Math.round(b) << 16) | (Math.round(g) << 8) | Math.round(r)) >>> 0;
+    }
+  }
+  return d;
+}
+
 function makeFrame(W, H, AX, AY, draw, fx = null, pad = 0, fine = false) {
   const W2 = W + pad * 2, H2 = H + pad * 2;
   const res = fine ? fineRes() : 1;
   let meta = {}, f;
   if (res > 1) {
-    const g = new FineCanvas(W2, H2, res);
-    g.translate(pad, pad);
-    f = buildFrame(W2, H2, AX + pad, AY + pad, (p) => { p.translate(pad, pad); meta = draw(p, g) || {}; OCC = null; }, { fine: true, res });
-    // Leuchtebene direkt aus dem Pixelpuffer (ein putImageData), solange niemand ihr ctx benutzt hat
-    const gc = g._canvas ? g.canvas : pixelsToCanvas(g.pixels(), g.W, g.H);
-    f.glow = new SpriteFrame(gc, (AX + pad) * res, (AY + pad) * res, res);
+    // Wie buildFrame(..., { fine: true }), aber der Feinschliff lässt glühende Pixel aus (siehe finishGlowAware)
+    const g = new FineCanvas(W2, H2, res), p = new FineCanvas(W2, H2, res);
+    g.translate(pad, pad); p.translate(pad, pad);
+    meta = draw(p, g) || {}; OCC = null;
+    const gd = g.pixels(), d = finishGlowAware(p.pixels(), p.W, p.H, gd);
+    f = new SpriteFrame(pixelsToCanvas(outlinePixels(d, p.W, p.H), p.W + 2, p.H + 2), (AX + pad) * res + 1, (AY + pad) * res + 1, res);
+    // Leuchtebene direkt aus dem Pixelpuffer (ein putImageData)
+    f.glow = new SpriteFrame(pixelsToCanvas(gd, g.W, g.H), (AX + pad) * res, (AY + pad) * res, res);
   } else {
     const g = new PixelCanvas(W2, H2);
     g.ctx.translate(pad, pad);
@@ -387,6 +410,30 @@ function rimGlow(anims, rim) {
       if (A[y * W + x] && (!op(x - 1, y) || !op(x + 1, y) || !op(x, y - 1) || !op(x, y + 1))) O[y * W + x] = 1;
     }
     const ring = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? O[y * W + x] : 1);
+    if (res > 1) {
+      // Fein: eine durchgehende helle Randlinie (1 Texel, 4-zusammenhängend auch auf Schrägen) nur an Kanten, die
+      // nach oben links zeigen. Rechts/unten kein Saum (sonst Punktkette mit Lücken).
+      // Ausgelassen wird nur echte Glut (Leuchtebene ab GLOW[1]), nicht ihr schwacher Hof.
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const m = y * W + x;
+        if (!A[m] || O[m]) continue;
+        // Außenrichtung = Summe der Versätze zu Konturtexeln in der 8er-Nachbarschaft; Licht kommt von oben links
+        let ux = 0, uy = 0;
+        for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) if ((u || v) && ring(x + u, y + v)) { ux += u; uy += v; }
+        if (!ux && !uy) continue;
+        if (-ux - uy <= 0) continue;
+        const up = uy < 0;
+        const qx = x - ox, qy = y - oy, gi = (qy * gW + qx) * 4;
+        const inG = gd && qx >= 0 && qy >= 0 && qx < gW && qy < gH;
+        if (inG && gd[gi + 3] > 0 && gd[gi] >= 0x80) continue; // Glut bleibt Glut
+        const i = m * 4, f2 = up ? k : k * 0.8;
+        d[i] += (T[0] - d[i]) * f2; d[i + 1] += (T[1] - d[i + 1]) * f2; d[i + 2] += (T[2] - d[i + 2]) * f2;
+        if (inG) { gd[gi] = GT[0]; gd[gi + 1] = GT[1]; gd[gi + 2] = GT[2]; gd[gi + 3] = 255; }
+      }
+      cx.putImageData(img, 0, 0);
+      if (gx) gx.putImageData(gimg, 0, 0);
+      continue;
+    }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const m = y * W + x;
       if (!A[m] || O[m]) continue;

@@ -129,6 +129,41 @@ function rimArc(p, cx, cy, rx, ry, a0, a1, c, k = 0.84) {
   }
 }
 
+// Fein: Silhouette um 1 Feinpixel wachsen lassen (Materialfarbe des Nachbarn). Der Feinumriss ist nur 1 Feinpixel
+// statt 1 Weltpixel dick; so bleiben Fläche und Gewicht der Figur wie vorher. Nur Pixel mit mindestens G deckenden
+// Nachbarn geben Farbe ab: Flächen, Glieder und gerade Linien wachsen, schräge Einzelstriche und Spitzen bleiben fein.
+function grow(p, G = 2) {
+  if (!p.fine || p._canvas) return;
+  // Maske mit 2 Pixeln Rand (keine Bereichsprüfungen), nur im Rahmen der deckenden Pixel gerechnet
+  const { W, H } = p, b = new Int32Array(p.buf.buffer, p.buf.byteOffset, W * H), P = W + 4, L = P * (H + 4);   // Int32: ohne Zahl-Boxing
+  if (GM.length < L) { GM = new Uint8Array(L); GN = new Uint8Array(L); }
+  const m = GM, n = GN;
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0, i = y * W; x < W; x++, i++) {
+      if (!b[i]) continue;
+      m[(y + 2) * P + x + 2] = 1;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y;
+    }
+  }
+  if (x1 < 0) return;
+  for (let y = y0; y <= y1; y++) for (let x = x0, q = (y + 2) * P + x0 + 2; x <= x1; x++, q++) if (m[q]) n[q] = m[q - P] + m[q + P] + m[q - 1] + m[q + 1];
+  const xa = Math.max(0, x0 - 1), xb = Math.min(W - 1, x1 + 1), ya = Math.max(0, y0 - 1), yb = Math.min(H - 1, y1 + 1);
+  for (let y = ya; y <= yb; y++) {
+    for (let x = xa, q = (y + 2) * P + xa + 2, i = y * W + xa; x <= xb; x++, q++, i++) {
+      if (m[q]) continue;
+      // Reihenfolge: unten (Oberkante wächst mit Lichtfarbe), oben, links, rechts
+      const d = n[q + P] >= G ? P : n[q - P] >= G ? -P : n[q - 1] >= G ? -1 : n[q + 1] >= G ? 1 : 0;
+      // schmale Lücken (bis 2 Feinpixel, z. B. zwischen Rippen) bleiben offen: dort zeichnet der Umriss die dunkle Fuge
+      if (!d || m[q - d] || m[q - 2 * d]) continue;
+      b[i] = b[d === P ? i + W : d === -P ? i - W : i + d];   // Quelle war schon deckend, bleibt unverändert
+    }
+  }
+  m.fill(0, 0, L); n.fill(0, 0, L);
+  p.dirty = true;
+}
+let GM = new Uint8Array(0), GN = GM;   // Arbeitsmasken von grow (wiederverwendet)
+
 function drawSpider(p, o = {}) {
   const { t = 0, bob = 0, rear = 0, lunge = 0, fangs = 0, hurt = false, legAmp = 1 } = o;
   const cy = 20 + bob - rear;
@@ -344,13 +379,13 @@ function drawDead(p, k) {
 
 export function createSpiderSprites() {
   const fine = { fine: true };
-  const f = (o) => buildFrame(W, H, AX, AY, (p) => drawSpider(p, o), fine);
+  const f = (o) => buildFrame(W, H, AX, AY, (p) => { drawSpider(p, o); grow(p); }, fine);
   return {
     idle: new Animation([0, 1, 2, 3].map((i) => f({ t: i * 0.06, bob: i === 2 ? 1 : 0, legAmp: 0.4, fangs: i === 3 ? 1 : 0 })), 6),
     walk: new Animation([0, 1, 2, 3, 4, 5].map((i) => f({ t: i / 6, bob: i % 2 })), 16),
     windup: new Animation([f({ rear: 2, fangs: 1 }), f({ rear: 4, fangs: 1 }), f({ rear: 5, fangs: 0, bob: 1 })], 10, false),
     strike: new Animation([f({ lunge: 3, fangs: 1, t: 0.2 }), f({ lunge: 2, fangs: 0, t: 0.4 })], 12, false),
     hurt: new Animation([f({ bob: 1, hurt: true, rear: 1 })], 1, false),
-    death: new Animation([f({ rear: 3, hurt: true }), buildFrame(W, H, AX, AY, (p) => drawDead(p, 0), fine), buildFrame(W, H, AX, AY, (p) => drawDead(p, 1), fine)], 8, false),
+    death: new Animation([f({ rear: 3, hurt: true }), buildFrame(W, H, AX, AY, (p) => { drawDead(p, 0); grow(p); }, fine), buildFrame(W, H, AX, AY, (p) => { drawDead(p, 1); grow(p); }, fine)], 8, false),
   };
 }

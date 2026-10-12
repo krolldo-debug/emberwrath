@@ -1,6 +1,7 @@
 import { PAL } from '../gfx/Palette.js';
 import { Animation } from '../gfx/Sprite.js';
 import { FK } from './foes_cinder.js';
+import { col32 } from '../gfx/Fine.js';
 
 // Gegner der Glutschmiede: Schmiedegolem, Flammenakolyth, Glutdrache und
 // der Wächter der Esse (Elite). Gleicher Rig-/Glow-Ansatz wie foes_cinder.js
@@ -171,6 +172,18 @@ function arcHi(p, cx, cy, rx, ry, a0, a1, c) {
 // Oberkante einer Weltpixel-Linie (p.line rundet die Endpunkte) als Glanzlinie in Feinpixeln
 const lineHi = (p, x0, y0, x1, y1, c) => p.fline(Math.round(x0), Math.round(y0), Math.round(x1), Math.round(y1), c);
 
+// Nur fein: Leuchtebene in einem Rechteck (Weltpixel) dort löschen, wo das Sprite inzwischen keine Glutfarbe mehr
+// zeigt – Glut, die von später Gezeichnetem verdeckt ist, scheint dann nicht mehr rosa durch.
+const HOT32 = new Set(LAVA.map(col32));
+function unglow(p, g, x, y, w, h) {
+  if (!p.fine || p._canvas || g._canvas) return;
+  const F0 = p.F(x), G0 = p.G(y), F1 = p.F(x + w), G1 = p.G(y + h);
+  for (let G = Math.max(0, G0); G < Math.min(G1, p.H); G++) for (let F = Math.max(0, F0); F < Math.min(F1, p.W); F++) {
+    const m = G * p.W + F;
+    if (g.buf[m] && !HOT32.has(p.buf[m])) g.buf[m] = 0;
+  }
+}
+
 // Funkenregen (Schmiedeschlag) auf beiden Ebenen
 function sparks(p, g, x, y, r, seed, n = 14) {
   for (let i = 0; i < n; i++) {
@@ -276,12 +289,23 @@ function drawForgeGolem(p, g, P, ex) {
     if (p.fine) { p.dot(fcx + x + fh, fcy + y + fh, LAVA[i]); g.dot(fcx + x + fh, fcy + y + fh, GLOW[Math.min(4, i - 1)]); }
     else { p.px(fcx + x, fcy + y, LAVA[i]); g.px(fcx + x, fcy + y, GLOW[Math.min(4, i - 1)]); }
   }
-  for (const bx of [-2, 0, 2]) {
-    p.rect(fcx + bx, fcy - 3, 1, 7, IRON[1]); wipe(g, fcx + bx, fcy - 3, 1, 7); p.px(fcx + bx, fcy - 3, IRON[3]);
-    // fein: Gitterstab rund – Lichtkante links, Glut glänzt rechts am Stab
-    if (p.fine) { p.fline(fcx + bx, fcy - 2.5, fcx + bx, fcy + 3.5, IRON[3]); p.dot(fcx + bx, fcy - 3, IRON[5]); p.fline(fcx + bx + 0.5, fcy - 2, fcx + bx + 0.5, fcy + 3, '#3a2a28'); }
+  if (p.fine) {
+    // Fein: Leuchten nur im Fenster (kein Halo über Messing und Eisen – der färbte es rosa), heißer Kern
+    // unten links der Mitte; dann die Gitterstäbe dunkel und hart, ihre Leuchtebene gelöscht
+    glowDot(g, fcx - 1, fcy + 1, 1.2);
+    const x0 = p.snap(fcx), y0 = p.snap(fcy);
+    p.ellipse(x0 - 1, y0 + 0.5, 1.4, 1.2, LAVA[5]); p.dot(x0 - 1, y0 + 0.5, '#ffffff'); p.dot(x0 - 1.5, y0 + 0.5, '#ffffff');
+    for (const bx of [-2, 0, 2]) {
+      p.rect(fcx + bx, fcy - 3, 1, 7, IRON[1]); wipe(g, fcx + bx, fcy - 3, 1, 7);
+      const sx = p.snap(fcx + bx), sy = p.snap(fcy - 3);
+      p.fline(sx, sy, sx, sy + 6.5, IRON[2]); p.fline(sx + 0.5, sy + 0.5, sx + 0.5, sy + 6.5, IRON[0]);
+    }
+  } else {
+    for (const bx of [-2, 0, 2]) {
+      p.rect(fcx + bx, fcy - 3, 1, 7, IRON[1]); wipe(g, fcx + bx, fcy - 3, 1, 7); p.px(fcx + bx, fcy - 3, IRON[3]);
+    }
+    g.ellipse(fcx, fcy, 6.5, 6.5, GLOW[0]); glowDot(g, fcx - 1, fcy + 1, 1.2);
   }
-  g.ellipse(fcx, fcy, 6.5, 6.5, GLOW[0]); glowDot(g, fcx - 1, fcy + 1, 1.2);
   rivet(p, fcx - 5, fcy - 1); rivet(p, fcx + 4, fcy - 4); rivet(p, fcx + 3, fcy + 4);
   meta.chest = { x: fcx, y: fcy };
   // Kratzer / Nähte
@@ -293,7 +317,9 @@ function drawForgeGolem(p, g, P, ex) {
     for (let yy = ty + 4.5; yy < ty + 13.5; yy += 1) p.dot(tx + 16, yy, IRON[1]);
     for (const [a, b, l] of [[3, 6, 3], [14, 5, 2], [12, 12, 3]]) { p.fline(tx + a, ty + b, tx + a + l, ty + b + l * 0.6, IRON[1]); p.fline(tx + a + 0.5, ty + b - 0.5, tx + a + l + 0.5, ty + b + l * 0.6 - 0.5, IRON[4]); }
     arcHi(p, fcx, fcy, 4.8, 4.8, -2.7, -0.9, BRASS[5]);
-    p.dot(fcx - 1, fcy - 2, '#ffffff'); p.dot(fcx - 0.5, fcy - 2, LAVA[5]);
+    // Panzer-Glanzlinien (1 Feinpixel, oben links): Kesseloberkante mit Fase und linke Kante bis zum Messingband
+    p.fline(tx + 3, ty + 0.5, tx + 12, ty + 0.5, SHINE); p.fline(tx + 0.5, ty + 3, tx + 2.5, ty + 1, SHINE);
+    p.fline(tx + 0.5, ty + 4, tx + 0.5, ty + 13, IRON[5]);
   }
 
   // vorderes Bein
@@ -333,6 +359,14 @@ function drawForgeGolem(p, g, P, ex) {
   cap(p, shF.x, shF.y + 1, k.jx, k.jy, 2.8, 2.4, IRON, { rim: 1 });
   ell(p, k.jx, k.jy, 2.3, 2.3, BRASS);
   cap(p, k.jx, k.jy, k.ex, k.ey, 2.6, 3, IRON, { rim: 1 });
+  if (p.fine) {
+    // Panzer-Glanzlinien: Schulterkuppel oben links als Bogen, Ober- und Unterarm mit Glanzlinie auf der Lichtseite
+    arcHi(p, p.snap(shF.x) - 0.25, p.snap(shF.y) - 0.25, 4, 3.4, -2.7, -1.3, SHINE);
+    for (const [ax, ay, bx2, by2, r] of [[shF.x, shF.y + 1, k.jx, k.jy, 2.2], [k.jx, k.jy, k.ex, k.ey, 2.2]]) {
+      const L = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = (by2 - ay) / L, ny = -(bx2 - ax) / L, sg = nx + ny < 0 ? 1 : -1;
+      p.fline(ax + nx * r * sg + (bx2 - ax) * 0.2, ay + ny * r * sg + (by2 - ay) * 0.2, bx2 + nx * r * sg - (bx2 - ax) * 0.25, by2 + ny * r * sg - (by2 - ay) * 0.25, SHINE);
+    }
+  }
   occlude(null);
   // Hammerkopf am Handgelenk: Achse quer zum Unterarm, gedreht um ham
   const fa = Math.atan2(k.ey - k.jy, k.ex - k.jx);
@@ -748,16 +782,22 @@ function drawDrake(p, g, P, ex) {
     if (i % 3 === 0) p.px(x, y - 1, BELLY[0]);
   }
   // Schuppenreihen
-  for (let i = 0; i < 12; i++) {
+  if (!p.fine) for (let i = 0; i < 12; i++) {
     const u = i / 11, x = hip.x - 2 + (sh.x - hip.x + 2) * u, y = hip.y - 2 + (sh.y - hip.y) * u;
     p.px(x + (i % 2), y + (i % 3) - 1, DRK[5]);
   }
   if (p.fine) {
-    // Handfein: Schuppenreihen als kleine Bögen (helle Kante oben links, Schatten unten), Bauchplatten-Fugen
-    for (let i = 0; i < 18; i++) {
-      const u = (i % 9) / 8, row = i < 9 ? -2.5 : 0.5;
-      const x = hip.x - 2 + (sh.x - hip.x + 2) * u + (i < 9 ? 0 : 1), y = hip.y + row + (sh.y - hip.y) * u;
-      p.dot(x, y, DRK[5]); p.dot(x + 0.5, y, DRK[4]); p.dot(x + 1, y + 0.5, DRK[1]); p.dot(x - 0.5, y + 0.5, DRK[3]);
+    // Handfein: statt Sprenkeln ruhige Schuppenbögen (Rand ◡ 2 Weltpixel breit, Lichtkante darüber) in drei versetzten Reihen entlang
+    // des Rückens, oben heller; nur auf schon gedecktem Rumpf (ragt nicht über die Silhouette). Bauchplatten-Fugen.
+    const onBody = (x, y, c) => { const F = p.F(x), G = p.G(y); if (F >= 0 && G >= 0 && F < p.W && G < p.H && (p._canvas || p.buf[G * p.W + F])) p.dot(x, y, c); };
+    const L = Math.hypot(sh.x - hip.x, sh.y - hip.y) + 4, ax = (sh.x - hip.x) / (L - 4 || 1), ay = (sh.y - hip.y) / (L - 4 || 1);
+    for (const [row, off, ca, cb] of [[-3.5, 0, DRK[5], DRK[2]], [-1.5, 1, DRK[5], DRK[2]], [0.5, 0, DRK[4], DRK[1]]]) {
+      for (let t = -2 + off; t <= L - 3; t += 2) {
+        const x = p.snap(hip.x + ax * t - 1), y = p.snap(hip.y + ay * t + row);
+        // Schuppenrand ◡ dunkel, darüber Lichtkante oben links
+        onBody(x - 1, y, cb); onBody(x - 0.5, y + 0.5, cb); onBody(x, y + 0.5, cb); onBody(x + 0.5, y, cb);
+        onBody(x - 0.5, y - 0.5, ca); onBody(x - 1, y - 0.5, ca);
+      }
     }
     for (let i = 0; i <= bl; i += 2) {
       const u = i / bl, x = hip.x - 3 + (sh.x - hip.x + 4) * u, y = hip.y + 3.5 + (sh.y - hip.y) * u + Math.sin(u * Math.PI) * 0.8;
@@ -992,7 +1032,8 @@ function anvil(p, g, cx, cy, heat, dir = 1) {
     // Handfein: polierte Bahn – Glanzlinie 1 Feinpixel weiß, darunter Stahl hell; Glanzpunkt; Naht mit heißem Kern;
     // Hornspitze und Taillenkante mit Lichtkante, Hammerdellen in der Bahn
     p.fline(x - 9, t + 0.5, x + 7.5, t + 0.5, PAL.steel[4]); p.fline(x - 8.5, t, x + 4, t, '#ffffff'); p.dot(x - 6, t + 1, '#ffffff');
-    p.fline(x - 8, t + 3, x + 6.5, t + 3, LAVA[Math.min(5, hot + 1)]); g.fline(x - 8, t + 3, x + 6.5, t + 3, GLOW[Math.min(4, hot)]);
+    // Nahtkern nur auf den glühenden Nahtpixeln (durchgehend gezogen leuchtete er auch über dem Eisen rosa)
+    for (let i = -8; i <= 6; i++) if (hash2(i, 3, 17) > 0.3) for (const h of [0, 0.5]) { p.dot(x + i + h, t + 3, LAVA[Math.min(5, hot + 1)]); g.dot(x + i + h, t + 3, GLOW[Math.min(4, hot)]); }
     for (const dx of [-5, 1, 4]) { p.dot(x + dx, t + 1.5, IRON[2]); p.dot(x + dx + 0.5, t + 1.5, IRON[5]); }
     p.fline(hx0, t + 0.5, hx0 + dir * 9, t + 2, '#ffffff'); p.fline(x - 4, t + 6.5, x - 4, t + 11, IRON[4]);
     p.fline(x - 7.5, t + 12, x + 7, t + 12, BRASS[5]);
@@ -1112,12 +1153,20 @@ function drawWarden(p, g, P, ex) {
     const x0 = p.snap(fcx), y0 = p.snap(fcy);
     p.ellipse(x0 - 0.5, y0 + 1, 1.2, 1, LAVA[5]); p.dot(x0 - 0.75, y0 + 0.75, '#ffffff');
   }
-  for (const bx of [-2, 0, 2]) {
-    p.rect(fcx + bx, fcy - 3, 1, 7, IRON[1]); wipe(g, fcx + bx, fcy - 3, 1, 7);
-    if (p.fine) { const x0 = p.snap(fcx + bx), y0 = p.snap(fcy - 3); p.fline(x0, y0, x0, y0 + 6.5, IRON[4]); p.dot(x0, y0, '#ffffff'); p.fline(x0 + 0.5, y0 + 1, x0 + 0.5, y0 + 6, '#4a2a22'); }
+  if (p.fine) {
+    // Fein: kein Halo über Messingrahmen und Panzer (färbte ihn rosa) – Leuchten nur in der Glut, vor den Stäben;
+    // Gitterstäbe dunkel und hart (Kante IRON[2], Schattenseite IRON[0]), ihre Leuchtebene gelöscht
+    glowDot(g, fcx - 1, fcy + 1, 0.8 + heat);
+    for (const bx of [-2, 0, 2]) {
+      p.rect(fcx + bx, fcy - 3, 1, 7, IRON[1]); wipe(g, fcx + bx, fcy - 3, 1, 7);
+      const x0 = p.snap(fcx + bx), y0 = p.snap(fcy - 3);
+      p.fline(x0, y0, x0, y0 + 6.5, IRON[2]); p.fline(x0 + 0.5, y0 + 0.5, x0 + 0.5, y0 + 6.5, IRON[0]);
+    }
+  } else {
+    for (const bx of [-2, 0, 2]) { p.rect(fcx + bx, fcy - 3, 1, 7, IRON[1]); wipe(g, fcx + bx, fcy - 3, 1, 7); }
+    g.ellipse(fcx, fcy, 7 + heat, 7 + heat, GLOW[0]);
+    glowDot(g, fcx - 1, fcy + 1, 0.8 + heat);
   }
-  g.ellipse(fcx, fcy, 7 + heat, 7 + heat, GLOW[0]);
-  glowDot(g, fcx - 1, fcy + 1, 0.8 + heat);
   meta.chest = { x: fcx, y: fcy };
   for (const [rx, ry] of [[-8, 1], [-7, 6], [7, -2], [8, 4]]) rivet(p, ch.x + rx, ch.y + ry);
   if (p.fine) {
@@ -1217,6 +1266,8 @@ function drawWarden(p, g, P, ex) {
       if (hash2(Math.round(a * 20), r, 8) < 0.55) g.px(x, y, GLOW[r < 8 ? 2 : 1]);
     }
   }
+  // fein: Ambossnaht hinter Hand und Rumpf nicht durchscheinen lassen
+  unglow(p, g, shield.x - 8, shield.y + 3, 16, 1);
   return meta;
 }
 

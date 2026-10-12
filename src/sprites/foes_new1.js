@@ -380,6 +380,23 @@ function giveFC(fc, clear = true) {
   if (l.length < 4) l.push(fc);
 }
 
+// Fein: helles Leuchten nur über glühenden Pixeln. Wo die Figur deckend und nicht glühend ist (Chitin über
+// dem verdeckten Hinterleib), wird helles Leuchten gelöscht – sonst färbt es die dunkle Fläche pastellig.
+// Dunkle Glut (Rotsaum) und Leuchten neben der Figur bleiben.
+function glowOnHot(p0, g0) {
+  const p = p0.base ?? p0, g = g0.base ?? g0, pb = p.pixels(), gb = g.pixels(), n = gb.length;
+  for (let i = 0; i < n; i++) {
+    const v = gb[i];
+    if (!v || (v & 255) + ((v >>> 8) & 255) <= 160) continue;
+    const c = pb[i];
+    if ((c >>> 24) <= 40) continue;
+    const r = c & 255, b = (c >>> 16) & 255;
+    if (r >= 160 && b <= 190 && r > b + 60) continue;
+    gb[i] = 0;
+  }
+  g.dirty = true;
+}
+
 let EMPTY_GLOW = null;
 // Feine Leuchtebene: Leinwand entsteht erst beim ersten Zeichnen (wie SpriteFrame.flipped) – spart Ladezeit;
 // nie gezeigte Frames (seltene Tode) kosten nichts.
@@ -709,9 +726,10 @@ function drawBeetle(p, g, P, X) {
     for (let s = 0; s < cr.length - 1; s++) {
       const q0 = el(cr[s][0], cr[s][1]), q1 = el(cr[s + 1][0], cr[s + 1][1]);
       if (v < 1) { p.fline(q0.x, q0.y, q1.x, q1.y, '#3a1408', 0.75); continue; }
-      p.fline(q0.x, q0.y, q1.x, q1.y, hot(v - 1), 1.1);
+      // Saum satt orange-rot (nie heller als GLOW_EMBER[1]), Kern weißgelb; Leuchtebene: Saum dunkelrot, Kern hell
+      p.fline(q0.x, q0.y, q1.x, q1.y, hot(Math.min(v - 1, 1.4)), 1.1);
       p.fline(q0.x, q0.y, q1.x, q1.y, v > 2.4 ? GLOW_EMBER[4] : hot(v));
-      if (v > 1.2) { g.fline(q0.x, q0.y, q1.x, q1.y, hot(v - 2), 1.1); g.fline(q0.x, q0.y, q1.x, q1.y, hot(v - 0.8)); }
+      if (v > 1.2) { g.fline(q0.x, q0.y, q1.x, q1.y, GLOW_EMBER[0], 1.1); g.fline(q0.x, q0.y, q1.x, q1.y, hot(v - 0.8)); }
     }
   }
   else for (const cr of B_CRACKS) {
@@ -787,6 +805,7 @@ function drawBeetle(p, g, P, X) {
   // --- nahe Beine
   for (let i = 0; i < 3; i++) leg(i, true);
   if (X.dust) dust(p, BS.AX + X.dust, gy, 5, 7, DUST_W, 10);
+  if (p.fine) glowOnHot(p, g);
   return meta;
 }
 
@@ -1862,13 +1881,12 @@ function harpyWing(p, g, rx, ry, w, fold, near, spread, lean) {
         const band = Math.floor(t / 2.2) % 2 === 1, taper = t < len - 1.5 ? 1 : Math.max(0, (len + 0.25 - t) / 1.75);
         const k0 = -0.5 * taper, k1 = 1.2 * taper;
         for (let k = k0; k <= k1 + 1e-6; k += q) {
-          const c = k < k0 + q && taper > 0.5 ? (band ? (near ? WBAR[2] : WBAR[1]) : R[near ? 4 : 3])
+          const c = k < k0 + q && taper > 0.5 ? (near ? WBAR[1] : R[3])
             : k > k1 - q && taper > 0.5 ? R[0] : k > 0.5 ? R[near ? 2 : 1] : Math.abs(k - 0.2) < q * 0.6 && near ? (band ? WBAR[2] : R[4])
             : band ? (near ? WBAR[1] : WBAR[0]) : R[near ? 3 : 2];
           p.dot(bx0 + cx * t + qx * k, by0 + cy * t + qy * k, c);
         }
       }
-      p.dot(bx0 + cx * (len + 0.25), by0 + cy * (len + 0.25), near ? '#f0dcb8' : WBAR[1]);
       continue;
     }
     for (let t = 0; t <= len; t += 0.5) {
@@ -1882,7 +1900,8 @@ function harpyWing(p, g, rx, ry, w, fold, near, spread, lean) {
   // Fläche
   const pts = [];
   for (let s = 0; s <= L; s += 1) pts.push(P(s, -Math.sin((s / L) * Math.PI) * 1.1));
-  for (let s = L; s >= 0; s -= 1) pts.push(P(s, W(s) + (Math.round(s) % 2) * 0.8));
+  // Hinterkante: grob gezackt (Federspitzen); fein glatt, damit die Kante nicht in Krümel zerfällt
+  for (let s = L; s >= 0; s -= 1) pts.push(P(s, W(s) + (p.fine ? 0.5 : (Math.round(s) % 2) * 0.8)));
   const fine = p.fine;
   poly(p, pts, (x, y) => {
     const lx = x + 0.5 - rx, ly = y + 0.5 - ry;
@@ -1902,7 +1921,11 @@ function harpyWing(p, g, rx, ry, w, fold, near, spread, lean) {
         return R[near ? 4 : 3];
       }
       const band = Math.floor((f * 5 + s * 0.12)) % 2 === 0;
-      if (f > 0.78) return band ? (near ? WBAR[1] : WBAR[0]) : R[1];
+      // Hinterkante: durchgehende Lichtkante (1 Feinpixel), dahinter dunkle Fuge, dann gebänderter Saum
+      const e = W(clamp(s, 0, L)) + 0.5 - c;
+      if (e < 0.55) return near ? WBAR[1] : R[3];
+      if (e < 1.05) return R[0];
+      if (f > 0.78) return band ? R[near ? 4 : 3] : R[1];
       const fv = s - c * 0.35, fm = fv - Math.floor(fv / 1.8) * 1.8;
       if (fm < 0.55) return R[1];                                              // Fuge zwischen den Armschwingen
       return band ? R[near ? 3 : 2] : R[2];
@@ -2066,36 +2089,61 @@ function drawHarpy(p, g, P, X) {
   // Haarkrone (Stirnfedern)
   for (let k = -2; k <= 2; k++) p.px(hx + k * 0.8, hy - 2.8 - (k === 0 ? 1 : 0) + Math.abs(k) * 0.3, HAIRH[k === 0 ? 5 : 4]);
   p.px(hx + 1.5, hy - 3.6 - P.hair, HAIRH[5]);
-  // Gesicht: Nase/Kinn spitz, Auge glüht, Maul
+  // Gesicht: Nase/Kinn spitz, Auge glüht, Maul (grob; fein: eigenes Gesicht in Feinpixeln, s. u.)
   const fx = hx + 2.4, fy = hy + 0.4;
-  p.px(fx, fy, SKH[4]); p.px(fx + 0.6, fy + 0.6, SKH[3]);
   const ex = hx + 1.2, ey = hy - 0.6;
-  p.px(ex - 0.6, ey - 1, HAIRH[1]); p.px(ex + 0.6, ey - 1.2, HAIRH[1]);   // Braue, böse
-  if (P.eye > 0.3) { p.px(ex, ey, '#ffc040'); g.px(ex, ey, '#f0a030'); g.px(ex - 1, ey, '#5a2a08'); }
-  else p.px(ex, ey, SKH[0]);
   const jw = P.jaw;
-  if (jw > 0.3) {
-    p.px(hx + 1.6, hy + 1.8, '#2a0608'); p.px(hx + 2.2, hy + 2.2 + jw, '#2a0608'); p.px(hx + 1.6, hy + 2.6 + jw, '#2a0608');
-    p.px(hx + 2.3, hy + 1.6, '#f0e8d8'); p.px(hx + 2.1, hy + 3 + jw, '#f0e8d8');
-    p.px(hx + 1.2, hy + 3.2 + jw, SKH[3]);
-  } else { p.px(hx + 1.6, hy + 1.8, SKH[1]); p.px(hx + 2.2, hy + 1.8, SKH[2]); }
-  if (p.fine) {
-    // Handfein: Bernsteinauge mit Schlitzpupille und Glanzpunkt, böse Brauenkante, Wangenknochen und
-    // Nasenrücken im Licht, Nasenloch; Mund mit Mundwinkel, beim Kreischen spitze Zähne und Zunge
-    const ax = Math.round(ex), ay = Math.round(ey);
-    if (P.eye > 0.3) {
-      p.dot(ax, ay, '#fffbe0'); p.dot(ax + 0.5, ay, '#ffc040'); p.dot(ax, ay + 0.5, '#e08a20'); p.dot(ax + 0.5, ay + 0.5, '#2a0808');
-      p.dot(ax + 1, ay, '#c86018'); g.dot(ax, ay, '#fff0b0'); g.dot(ax + 0.5, ay, '#f0a030');
-    } else { p.dot(ax, ay + 0.5, SKH[0]); p.dot(ax + 0.5, ay + 0.5, SKH[0]); p.dot(ax + 1, ay + 0.5, SKH[1]); }
-    p.dot(ax - 0.5, ay + 0.5, SKH[1]);                                                      // Augenhöhle
-    p.fline(ax - 0.5, ay - 1, ax + 1, ay - 0.5, HAIRH[0]); p.dot(ax - 0.5, ay - 1.5, SKH[5]); // Braue, Stirnlicht
-    p.dot(ax + 1.5, ay + 0.5, SKH[5]); p.dot(ax + 2, ay + 1, SKH[5]); p.dot(ax + 2, ay + 1.5, SKH[1]);   // Nasenrücken, Nasenloch
-    p.dot(ax - 0.5, ay + 1.5, SKH[4]);                                                       // Wangenknochen
-    const mx = Math.round(hx + 1.6), my = Math.round(hy + 1.8);
+  if (!p.fine) {
+    p.px(fx, fy, SKH[4]); p.px(fx + 0.6, fy + 0.6, SKH[3]);
+    p.px(ex - 0.6, ey - 1, HAIRH[1]); p.px(ex + 0.6, ey - 1.2, HAIRH[1]);   // Braue, böse
+    if (P.eye > 0.3) { p.px(ex, ey, '#ffc040'); g.px(ex, ey, '#f0a030'); g.px(ex - 1, ey, '#5a2a08'); }
+    else p.px(ex, ey, SKH[0]);
     if (jw > 0.3) {
-      p.dot(mx + 0.5, my + 0.5, '#f0e8d8'); p.dot(mx + 1, my + 1, '#f0e8d8'); p.dot(mx + 0.5, my + 1 + Math.round(jw * 2) / 2, '#8a2a30');
-      p.dot(mx - 0.5, my, '#140406');
-    } else { p.dot(mx - 0.5, my, SKH[0]); p.dot(mx + 0.5, my + 0.5, SKH[3]); }
+      p.px(hx + 1.6, hy + 1.8, '#2a0608'); p.px(hx + 2.2, hy + 2.2 + jw, '#2a0608'); p.px(hx + 1.6, hy + 2.6 + jw, '#2a0608');
+      p.px(hx + 2.3, hy + 1.6, '#f0e8d8'); p.px(hx + 2.1, hy + 3 + jw, '#f0e8d8');
+      p.px(hx + 1.2, hy + 3.2 + jw, SKH[3]);
+    } else { p.px(hx + 1.6, hy + 1.8, SKH[1]); p.px(hx + 2.2, hy + 1.8, SKH[2]); }
+  } else {
+    // Handfein: Kopf mit Licht oben links (Lichtbogen, Glanzpunkt) und Schatten unten hinten; Gesicht im
+    // Texelraster (i nach vorn, j nach unten, 0 = Kopfmitte): dunkle Augenhöhle, Bernsteinauge mit
+    // Schlitzpupille und Glanz, böse Braue, Nasenrücken im Licht mit Nasenloch, Wangenknochen, Mund
+    const hr = P.lean * 0.5, hc = Math.cos(hr), hs = Math.sin(hr);
+    const hP = (t, k) => { const u = Math.cos(t) * 2.9 * k, v = Math.sin(t) * 3.1 * k; return [hx + u * hc - v * hs, hy + u * hs + v * hc]; };
+    for (let t = 3.3; t <= 4.75; t += 0.06) { const [x, y] = hP(t, 0.8); p.dot(x, y, t > 3.7 && t < 4.3 ? SKH[5] : SKH[4]); }
+    { const [x, y] = hP(3.95, 0.6); p.dot(x, y, '#dcb8b4'); }
+    for (let t = 1.5; t <= 2.7; t += 0.06) { const [x, y] = hP(t, 0.86); p.dot(x, y, SKH[1]); }
+    const I0 = Math.floor(hx * 2), J0 = Math.floor(hy * 2);
+    const T = (i, j, c, gc) => { const x = (I0 + i + 0.5) / 2, y = (J0 + j + 0.5) / 2; p.dot(x, y, c); if (gc) g.dot(x, y, gc); };
+    // Gesichtsfläche heller als der Hinterkopf (nur innerhalb des Kopfumrisses): oben Licht, unten Mittelton
+    for (let j = -1; j <= 4; j++) for (let i = 1; i <= 5; i++) {
+      const u = (i + 0.5) / 5.8, v = (j + 0.5) / 6.2;
+      if (u * u + v * v <= 0.92) T(i, j, j <= 0 || (j <= 2 && i <= 3) ? SKH[4] : SKH[3]);
+    }
+    // Stirn im Licht, Braue (fällt zur Nase hin ab)
+    T(-2, -4, SKH[5]); T(-1, -4, SKH[5]); T(0, -4, SKH[4]);
+    T(0, -3, HAIRH[1]); T(1, -3, HAIRH[0]); T(2, -3, HAIRH[0]); T(3, -2, HAIRH[0]); T(4, -2, HAIRH[1]);
+    // Augenhöhle und Auge
+    T(0, -2, SKH[0]); T(0, -1, SKH[0]); T(4, -1, SKH[1]);
+    T(1, 0, SKH[1]); T(2, 0, SKH[1]); T(3, 0, SKH[2]);
+    if (P.eye > 0.3) {
+      T(1, -2, '#fffbe0', '#fff0b0'); T(2, -2, '#2a0808'); T(3, -2, '#ffc040', '#f0a030');
+      T(1, -1, '#e08a20', '#f07a1c'); T(2, -1, '#2a0808'); T(3, -1, '#c86018', '#c8420c');
+    } else { T(1, -2, SKH[2]); T(2, -2, SKH[2]); T(3, -2, SKH[2]); T(1, -1, SKH[0]); T(2, -1, SKH[0]); T(3, -1, SKH[0]); }
+    // Nase: Rücken im Licht, Spitze ragt vor, Nasenloch und Schatten darunter
+    T(5, -1, SKH[4]); T(5, 0, SKH[5]); T(6, 0, SKH[4]); T(6, 1, SKH[5]); T(6, 2, SKH[2]); T(5, 1, SKH[4]); T(5, 2, SKH[0]); T(4, 2, SKH[2]);
+    // Wange: Knochen im Licht, darunter Schatten
+    T(-1, 1, SKH[5]); T(0, 1, SKH[5]); T(1, 1, SKH[4]); T(0, 2, SKH[2]); T(1, 3, SKH[2]);
+    if (jw > 0.3) {
+      // Kreischen: dunkler Schlund, spitze Zähne oben und unten, Zunge, Unterlippe
+      const J = 1 + Math.round(jw * 2);
+      for (let j = 3; j <= 3 + J; j++) for (let i = 2; i <= 5; i++) T(i, j, i === 2 && j > 3 ? SKH[1] : '#140406');
+      T(4, 3, '#f0e8d8'); T(5, 3, '#f0e8d8'); T(3, 3, '#c8beb0'); T(4, 3 + J, '#f0e8d8');
+      T(3, 2 + J, '#8a2a30'); T(4, 2 + J, '#8a2a30');
+      T(3, 4 + J, SKH[4]); T(4, 4 + J, SKH[4]); T(5, 4 + J, SKH[2]);
+    } else {
+      T(2, 3, SKH[1]); T(3, 3, SKH[0]); T(4, 3, SKH[0]);
+      T(3, 4, SKH[4]); T(4, 4, SKH[4]); T(3, 5, SKH[2]);
+    }
   }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: hx + 2.4, y: hy + 2 };

@@ -685,11 +685,13 @@ function drawBoneStaff(p, g, hx, hy, a, glowK, ph) {
   }
   if (glowK > 0.05) {
     const r = 1 + glowK * 2.6;
-    glowDot(g, tx, ty, r, DGLOW);
+    // fein: Glut in nur 2 Stufen (kein brauner Außenring), heller Kern
+    if (p.fine) { oval(g, tx, ty, r, r, DGLOW[2]); oval(g, tx, ty, Math.max(0.5, r - 1.2), Math.max(0.5, r - 1.2), DGLOW[4]); }
+    else glowDot(g, tx, ty, r, DGLOW);
     for (let i = 0; i < 7; i++) {
       const aa = ph * 2 + i * TAU / 7, rr = r + 2 + hash2(i, 3, 7) * 2;
       const qx = tx + Math.cos(aa) * rr, qy = ty + Math.sin(aa) * rr * 0.8;
-      if (p.fine) { p.dot(qx, qy, DGLOW[4]); p.dot(qx + 0.5, qy, DUSTC[3]); g.dot(qx, qy, DGLOW[4]); g.dot(qx + 0.5, qy, DGLOW[2]); g.dot(qx - 0.5, qy, DGLOW[1]); continue; }
+      if (p.fine) { p.dot(qx, qy, DGLOW[4]); p.dot(qx + 0.5, qy, DUSTC[3]); g.dot(qx, qy, DGLOW[4]); g.dot(qx + 0.5, qy, DGLOW[2]); continue; }
       p.px(qx, qy, DUSTC[3]); g.px(qx, qy, DGLOW[2]);
     }
   }
@@ -710,9 +712,9 @@ function lyingStaff(gx, gy) {
 // Widderschädel als Maske: Schädeldach, Schnauze, dunkle Hörner eingerollt
 function ramSkull(p, g, hx, hy, P) {
   // Schädeldach
-  ell(p, hx + 1, hy - 1.2, 3.0, 2.4, BONE, { noise: 0.12, seed: 41, bias: 0.05 });
+  ell(p, hx + 1, hy - 1.2, 3.0, 2.4, BONE, { noise: 0.12, seed: 41, bias: p.fine ? 0.17 : 0.05 });   // fein: hellerer Knochen, hebt sich vom Fell ab
   // Schnauze nach vorn unten
-  poly(p, [[hx + 2.2, hy - 2.6], [hx + 6.8, hy + 0.4], [hx + 6.4, hy + 2.0], [hx + 2.4, hy + 0.8]], (x, y) => (y < hy - 0.5 ? BONE[4] : y < hy + 1 ? BONE[3] : BONE[1]));
+  poly(p, [[hx + 2.2, hy - 2.6], [hx + 6.8, hy + 0.4], [hx + 6.4, hy + 2.0], [hx + 2.4, hy + 0.8]], (x, y) => (y < hy - 0.5 ? BONE[4] : y < hy + 1 ? BONE[3] : p.fine ? BONE[2] : BONE[1]));
   p.px(hx + 6.5, hy + 1.5, BONE[0]);
   // Hornschnecke seitlich: oben ansetzen, nach hinten-unten-vorn einrollen
   const cx = hx - 0.6, cy = hy + 0.6;
@@ -761,6 +763,8 @@ function ramSkull(p, g, hx, hy, P) {
       p.dot(hx + 2.5, hy - 0.5, hot); p.dot(hx + 2.5, hy - 1, DGLOW[3]); p.dot(hx + 2, hy - 0.5, DGLOW[2]);
       g.dot(hx + 2.5, hy - 0.5, '#ffffff'); g.dot(hx + 3, hy - 0.5, DGLOW[3]);
     }
+    // Schattenspalt unter der Maske (Kiefer- und Schädelunterkante), damit sie sich vom Körper absetzt
+    p.fline(hx + 2.5, hy + 1.5, hx + 6.5, hy + 2.75, OUT_D, 0.5); p.fline(hx - 2, hy + 1.25, hx + 2.5, hy + 1.5, OUT_D, 0.5);
   }
 }
 
@@ -801,7 +805,7 @@ function drawShaman(p, g, P, X) {
     const rel = (x - backHem.x) / span;
     const fold = ((x - Math.round(hip.x) + 40) + Math.floor((y - hip.y) * 0.25)) % 4;
     let i = rel < 0.18 ? 3 : rel < 0.5 ? 2 : 1;
-    if (p.fine) return HIDE[clamp(i + (y < shL.y + 2.5 ? 1 : 0), 0, 5)];   // fein: Falten/Fell folgen als Strähnen
+    if (p.fine) return HIDE[rel < 0.3 ? 4 : rel < 0.62 ? 3 : 2];   // fein: Stoff in 3 Stufen (Licht von links), Falten folgen
     if (fold === 0) i -= 1; else if (fold === 2 && rel < 0.5) i += 1;
     if (y < shL.y + 2.5) i += 1;
     if (hash2(x, y, 17) < 0.1) i -= 1;
@@ -812,15 +816,19 @@ function drawShaman(p, g, P, X) {
   if (p.fine) {
     // Handfein: Fellhaut in Strähnen (nach unten gekämmt, Licht links), zwei zweifarbige Falten
     const x0 = Math.min(backHem.x, shL.x) - 1, x1 = Math.max(frontHem.x, shR.x) + 1, ins = (x, y) => inPoly(robe, x, y + 1.2) && inPoly(robe, x, y);
-    strands(p, x0, shL.y, x1, Math.max(frontHem.y, backHem.y), 70, 17, -0.4 - P.cape * 0.6 + sway * 0.2, 1.8, (x, y, i) => {
-      const rel = (x - backHem.x) / Math.max(1, frontHem.x - backHem.x);
-      return rel < 0.3 ? HIDE[i % 3 ? 4 : 5] : rel < 0.6 ? HIDE[i % 2 ? 3 : 1] : HIDE[i % 2 ? 0 : 2];
-    }, ins);
-    for (const [u, v] of [[0.25, 0.35], [0.55, 0.62]]) {
+    // Großform: drei Faltenkanten von der Schulter zum Saum (Schattenrinne dunkel, links daneben Lichtkante)
+    for (const [u, v] of [[0.15, 0.22], [0.42, 0.48], [0.7, 0.76]]) {
       const ax = shL.x + (shR.x - shL.x) * u, ay = shL.y + (shR.y - shL.y) * u + 2.5;
       const bx = backHem.x + (frontHem.x - backHem.x) * v, by = backHem.y + (frontHem.y - backHem.y) * v - 1.5;
-      p.fline(ax, ay, bx, by, HIDE[0]); p.fline(ax - 0.5, ay + 0.5, bx - 0.5, by, HIDE[4]);
+      p.fline(ax + 0.5, ay, bx + 0.5, by, HIDE[0], 0.5); p.fline(ax, ay, bx, by, HIDE[1]); p.fline(ax - 0.5, ay + 0.5, bx - 0.5, by, HIDE[5]);
     }
+    // wenige Fellzotteln, je Zone eine Stufe heller als der Stoff (erst auf der Großform)
+    strands(p, x0, shL.y + 1, x1, Math.max(frontHem.y, backHem.y) - 2, 14, 17, -0.4 - P.cape * 0.6 + sway * 0.2, 1.6, (x) => {
+      const rel = (x - backHem.x) / Math.max(1, frontHem.x - backHem.x);
+      return rel < 0.3 ? HIDE[5] : rel < 0.62 ? HIDE[4] : HIDE[3];
+    }, ins);
+    // Schulterzone heller (Licht von oben)
+    p.fline(shL.x, shL.y + 0.5, shR.x, shR.y + 0.5, HIDE[5]);
   }
   // Ocker-Zickzackband über dem Saum
   if (p.fine) {
@@ -876,13 +884,13 @@ function drawShaman(p, g, P, X) {
 
   // --- Fellkragen mit Zahnkette
   const col = pt(SD.spine - 0.1, -0.4);
-  ell(p, col.x - 0.6, col.y, 4.2, 2.3, SHAG, { noise: 0.4, seed: 23 });
+  ell(p, col.x - 0.6, col.y, 4.2, 2.3, SHAG, { noise: p.fine ? 0 : 0.4, seed: 23 });   // fein: ohne Rauschen, Zotteln tragen die Struktur
   if (p.fine) {
     // Handfein: Kragenfell in Zotteln (oben hell, nach außen-unten gekämmt), Zahnkette mit Glanzpunkt
-    strands(p, col.x - 4.6, col.y - 2, col.x + 3.6, col.y + 2, 34, 23, 0, 1.6, (x, y, i) => {
+    strands(p, col.x - 4.6, col.y - 2, col.x + 3.6, col.y + 2, 14, 23, 0, 1.6, (x, y) => {
       const lx = (x - col.x + 0.6) / 4.2, ly = (y - col.y) / 2.3;
       if (lx * lx + ly * ly > 0.9) return null;
-      return ly < -0.3 ? SHAG[i % 2 ? 5 : 4] : lx < 0 ? SHAG[i % 2 ? 3 : 2] : SHAG[i % 2 ? 1 : 2];
+      return ly < -0.3 ? SHAG[5] : lx < 0 ? SHAG[4] : SHAG[2];
     });
     for (let i = -3.5; i <= 3; i += 0.75) p.fline(col.x + i, col.y + 1.5, col.x + i - 0.3, col.y + 2.5 + hash2(Math.round(i * 4), 1, 5) * 1.2, SHAG[1]);
     for (let i = 0; i < 6; i++) { const t = pt(SD.spine - 2.1 - i * 0.15, 0.3 + i * 0.5); p.dot(t.x, t.y, BONE[3]); p.dot(t.x, t.y + 0.5, BONE[1]); if (i % 2) p.dot(t.x - 0.5, t.y, BONE[4]); }
@@ -1868,7 +1876,9 @@ function lanternStaff(p, g, hx, hy, a, sw, flame, ph) {
     p.px(lx + x, ly + y, LGLOW[i]); g.px(lx + x, ly + y, LGLOW[Math.min(4, i + 1)]);
   }
   if (f > 0.1) {
-    glowDot(g, lx, ly, 2 + f * 2.2, LGLOW);
+    // fein: Halo klein und gestuft (zwei Ringe, dunkles Grün), damit Käfig und Flamme lesbar bleiben
+    if (p.fine) { const r = 1.6 + f * 1.4; oval(g, lx, ly, r + 1, r + 0.5, LGLOW[0]); oval(g, lx, ly, r, r - 0.5, LGLOW[0]); oval(g, lx, ly - 0.5, 1, 1.5, LGLOW[1]); }
+    else glowDot(g, lx, ly, 2 + f * 2.2, LGLOW);
     p.px(lx, ly - 1, LGLOW[4]);
     if (p.fine) {
       // Irrlicht: züngelnde Flamme mit weißem Kern im grünen Saum
@@ -2247,35 +2257,28 @@ const frp = (o = {}) => ({ ...FR_REST, ...o });
 function iceSlab(p, g, pts, crack, seed) {
   let cx = 0, cy = 0; for (const q of pts) { cx += q[0]; cy += q[1]; } cx /= pts.length; cy /= pts.length;
   if (p.fine) {
-    // Handfein: Eis in Facetten – je Kante eine Fläche, nach Licht (oben links) gestuft, Mitte als helle
-    // Tafel; Glanzlinie (1 Feinpixel) auf den Lichtkanten, dunkle Unterkante, Glanzpunkt an der hellsten Ecke
+    // Handfein: Eisplatte in 3 klaren Stufen quer zum Licht (oben links hell, Mitte, unten rechts tief), kein Sprenkel;
+    // Facettenkante: Lichtkanten hell, Schattenkanten dunkel; eine Glanzlinie je Platte auf der hellsten Kante
     const n = pts.length, h = p.step / 2;
-    const ang = pts.map((q) => Math.atan2(q[1] - cy, q[0] - cx));
-    const lit = pts.map((a, i) => {
-      const b = pts[(i + 1) % n], mx = (a[0] + b[0]) / 2 - cx, my = (a[1] + b[1]) / 2 - cy, l = Math.hypot(mx, my) || 1;
-      return (mx * -0.6 + my * -0.8) / l;
-    });
+    let e0 = Infinity, e1 = -Infinity;
+    for (const q of pts) { const t = (q[0] - cx) * 0.6 + (q[1] - cy) * 0.8; e0 = Math.min(e0, t); e1 = Math.max(e1, t); }
+    const s0 = e0 + (e1 - e0) * 0.36, s1 = e0 + (e1 - e0) * 0.7;
     poly(p, pts, (x, y) => {
-      const dx = x + h - cx, dy = y + h - cy, a = Math.atan2(dy, dx);
-      let k = 0;
-      for (let i = 0; i < n; i++) {
-        const a0 = ang[i], a1 = ang[(i + 1) % n];
-        let d1 = a1 - a0; while (d1 < 0) d1 += TAU; while (d1 >= TAU) d1 -= TAU;
-        let d = a - a0; while (d < 0) d += TAU; while (d >= TAU) d -= TAU;
-        if (d <= d1) { k = i; break; }
-      }
-      const t = lit[k], b = pts[(k + 1) % n], c = pts[k];
-      const ex = (c[0] + b[0]) / 2 - cx, ey = (c[1] + b[1]) / 2 - cy, rr = (dx * ex + dy * ey) / (ex * ex + ey * ey || 1);
-      if (rr < 0.38) return RICE[3];
-      return RICE[t > 0.5 ? 4 : t > 0.05 ? 3 : t > -0.45 ? 2 : 1];
+      const t = (x + h - cx) * 0.6 + (y + h - cy) * 0.8;
+      return t < s0 ? RICE[4] : t < s1 ? RICE[3] : RICE[2];
     });
+    let best = 0, bl = -Infinity;
     for (let i = 0; i < n; i++) {
       const a = pts[i], b = pts[(i + 1) % n];
-      p.fline(a[0], a[1], b[0], b[1], lit[i] > 0.05 ? RICE[5] : lit[i] > -0.45 ? RICE[2] : RICE[0]);
-      p.fline(cx + (a[0] - cx) * 0.38, cy + (a[1] - cy) * 0.38, a[0], a[1], RICE[4]);
+      const mx = (a[0] + b[0]) / 2 - cx, my = (a[1] + b[1]) / 2 - cy, l = Math.hypot(mx, my) || 1, lit = (mx * -0.6 + my * -0.8) / l;
+      p.fline(a[0], a[1], b[0], b[1], lit > 0.1 ? RICE[5] : lit > -0.3 ? RICE[3] : RICE[1]);
+      if (lit > bl) { bl = lit; best = i; }
     }
-    let best = 0; for (let i = 1; i < n; i++) if (pts[i][0] + pts[i][1] < pts[best][0] + pts[best][1]) best = i;
-    const tl = pts[best]; p.dot(tl[0] + (cx - tl[0]) * 0.2, tl[1] + (cy - tl[1]) * 0.2, '#ffffff');
+    // Glanzlinie: auf der hellsten Kante, ein Stück nach innen versetzt, mit weißem Kern am Anfang
+    const a = pts[best], b = pts[(best + 1) % n], ix = (cx - (a[0] + b[0]) / 2) * 0.22, iy = (cy - (a[1] + b[1]) / 2) * 0.22;
+    const u0 = 0.2, u1 = 0.7;
+    p.fline(a[0] + (b[0] - a[0]) * u0 + ix, a[1] + (b[1] - a[1]) * u0 + iy, a[0] + (b[0] - a[0]) * u1 + ix, a[1] + (b[1] - a[1]) * u1 + iy, '#d8ecff');
+    p.dot(a[0] + (b[0] - a[0]) * u0 + ix, a[1] + (b[1] - a[1]) * u0 + iy, '#ffffff');
   } else poly(p, pts, (x, y) => {
     const dx = x - cx, dy = y - cy;
     let i = 2 + (dx < -0.5 && dy < 0.5 ? 1 : 0) + (dy < -1 ? 1 : 0) - (dy > 1.5 ? 1 : 0) - (dx > 1.5 ? 1 : 0);
@@ -2519,75 +2522,88 @@ function drawRevenant(p, g, P, X) {
   };
   pauldron(shB, false);
 
-  // --- Kopf: Topfhelm mit Sehschlitz
-  ell(p, hx + 0.5, hy, 3.9, 4.2, RSTEEL, { noise: 0.12, seed: 19, bias: 0.04 });
-  p.rect(hx - 3, hy + 2.5, 7, 1.5, RSTEEL[2]);                   // Unterrand
-  p.line(hx + 1.5, hy - 3.6, hx + 1.5, hy + 3, RSTEEL[5]);        // Mittelgrat
-  // Sehschlitz mit blauen Augen
-  p.rect(hx, hy - 0.6, 4.5, 1.2, '#04060a');
-  const ec = P.eye > 1.2 ? BLUEG[4] : BLUEG[3];
-  if (P.eye > 0.2) {
-    p.px(hx + 1.5, hy - 0.4, ec); p.px(hx + 3.2, hy - 0.4, ec);
-    g.px(hx + 1.5, hy - 0.4, BLUEG[3]); g.px(hx + 3.2, hy - 0.4, BLUEG[3]); g.px(hx + 2.4, hy - 0.4, BLUEG[1]);
-    if (P.eye > 1.2) { g.px(hx + 4.5, hy - 0.4, BLUEG[2]); g.px(hx + 5.5, hy - 0.7, BLUEG[1]); }
-  }
-  // Atemlöcher
-  p.px(hx + 3, hy + 1.6, '#04060a'); p.px(hx + 2, hy + 1.8, '#04060a');
-  if (p.fine) {
-    // Handfein: Topfhelm – Glanzlinie auf der Kuppel, Glanzpunkt, Mittelgrat zweifarbig, Sehschlitz mit Lichtkante
-    // darüber, Augen mit weißem Kern im blauen Saum, Atemlöcher als Kreuzmuster, Nietenreihe am Unterrand
-    for (let a = -2.7; a <= -1.0; a += 0.1) p.dot(hx + 0.5 + Math.cos(a) * 3.3, hy + Math.sin(a) * 3.6, RSTEEL[6]);
-    p.dot(hx - 1, hy - 2.5, '#e8eef8'); p.dot(hx - 0.5, hy - 2.5, RSTEEL[6]);
-    p.fline(hx + 1.5, hy - 3.5, hx + 1.5, hy - 1, RSTEEL[6]); p.fline(hx + 2, hy - 3.5, hx + 2, hy - 1, RSTEEL[2]);
-    p.fline(hx, hy - 1, hx + 4.5, hy - 1, RSTEEL[5]); p.fline(hx, hy + 0.5, hx + 4.5, hy + 0.5, RSTEEL[1]);
-    if (P.eye > 0.2) for (const ex of [1.5, 3.2]) { p.dot(hx + ex, hy - 0.5, '#ffffff'); g.dot(hx + ex, hy - 0.5, '#ffffff'); p.dot(hx + ex + 0.5, hy - 0.5, BLUEG[3]); }
-    for (const [a, b] of [[2, 1.5], [3, 1.5], [2.5, 2], [3.5, 2]]) p.dot(hx + a, hy + b, '#04060a');
-    for (let k = -2.5; k <= 3.5; k += 1.5) p.dot(hx + k, hy + 3, RSTEEL[5]);
-  }
-  meta.eye = { x: hx + 2.4, y: hy - 0.4 };
-  meta.mouth = { x: hx + 3, y: hy + 2 };
-  if (ice) {
-    // Eiskrone und Eisbart
-    for (let i = 0; i < 4; i++) {
-      const bx = hx - 2 + i * 1.6, by = hy - 3.4 + Math.abs(i - 1.5) * 0.4;
-      const L = [4, 6, 5, 3][i];
-      for (let s = 0; s < L; s++) { p.px(bx - s * 0.3, by - s, CROWN[s >= L - 2 ? 3 : 1 + (i % 2)]); g.px(bx - s * 0.3, by - s, s >= L - 2 ? '#3a4a66' : '#141c2c'); }
-      g.px(bx - (L - 1) * 0.3, by - L + 1, ICE_G[3]);
-      if (p.fine) { p.fline(bx + 0.5, by + 0.5, bx + 0.5 - (L - 1) * 0.3, by - L + 1.5, CROWN[0]); p.fline(bx, by, bx - (L - 1) * 0.3, by - L + 1, CROWN[3]); p.dot(bx - (L - 1) * 0.3, by - L + 1, '#ffffff'); }   // Zacke: Schattenfläche rechts, Grat hell
+  // Kopf und vorderer Arm. Fein: vordere Schulter zuerst, dann der Kopf, dann Arm und Schwert – so verdeckt
+  // die Schulter (Eisplatte, Dornen) das Helmvisier nicht mehr; grob bleibt die alte Reihenfolge.
+  const head = () => {
+    // --- Kopf: Topfhelm mit Sehschlitz
+    ell(p, hx + 0.5, hy, 3.9, 4.2, RSTEEL, { noise: 0.12, seed: 19, bias: 0.04 });
+    p.rect(hx - 3, hy + 2.5, 7, 1.5, RSTEEL[2]);                   // Unterrand
+    p.line(hx + 1.5, hy - 3.6, hx + 1.5, hy + 3, RSTEEL[5]);        // Mittelgrat
+    // fein: dunkles Visierfeld unter dem Schlitz (Gesicht lesbar), Unterkante mit Lichtkante
+    if (p.fine) {
+      poly(p, [[hx - 0.5, hy - 1.5], [hx + 5, hy - 1.5], [hx + 4.5, hy + 2.5], [hx + 0.5, hy + 2.75]], RSTEEL[1]);
+      p.fline(hx + 0.5, hy + 2.75, hx + 4.5, hy + 2.5, RSTEEL[3]); p.fline(hx + 5, hy - 1.5, hx + 4.5, hy + 2.5, RSTEEL[0]);
     }
-    for (let i = 0; i < 5; i++) {
-      const bx = hx - 1 + i * 1.2, by = hy + 3.6;
-      const L = 2 + (i % 3);
-      if (p.fine) { p.fline(bx, by, bx + (L - 1) * 0.1, by + L - 0.5, CROWN[2], 0.5); p.fline(bx + 0.5, by, bx + 0.5, by + L - 1, CROWN[0]); p.dot(bx + (L - 1) * 0.1, by + L - 0.5, '#ffffff'); continue; }   // Eiszapfen-Bart
-      for (let s = 0; s < L; s++) p.px(bx + s * 0.1, by + s, CROWN[s === L - 1 ? 3 : 2]);
+    // Sehschlitz mit blauen Augen
+    p.rect(hx, hy - 0.6, 4.5, 1.2, '#04060a');
+    const ec = P.eye > 1.2 ? BLUEG[4] : BLUEG[3];
+    if (P.eye > 0.2) {
+      p.px(hx + 1.5, hy - 0.4, ec); p.px(hx + 3.2, hy - 0.4, ec);
+      g.px(hx + 1.5, hy - 0.4, BLUEG[3]); g.px(hx + 3.2, hy - 0.4, BLUEG[3]); g.px(hx + 2.4, hy - 0.4, BLUEG[1]);
+      if (P.eye > 1.2) { g.px(hx + 4.5, hy - 0.4, BLUEG[2]); g.px(hx + 5.5, hy - 0.7, BLUEG[1]); }
     }
-    meta.head = { x: hx, y: hy - 9 };
-  } else {
-    // Riss im Helm, abgebrochenes Horn
-    p.line(hx - 1.5, hy - 3, hx + 0.5, hy - 1, RSTEEL[1]); g.px(hx - 0.5, hy - 2, BLUEG[1]);
-    p.line(hx - 2.5, hy - 2.5, hx - 4, hy - 5, BONE[1]); p.px(hx - 4, hy - 5, BONE[2]);
-    meta.head = { x: hx, y: hy - 6 };
-  }
-  // Frostatem
-  if (P.mist > 0) {
-    for (let i = 0; i < 4; i++) {
-      const u = ((P.capeT / TAU) + i * 0.25) % 1;
-      const x = hx + 5 + u * 5, y = hy + 1.5 - u * 3 + Math.sin(P.capeT + i) * 0.6;
-      if (p.fine) { const c = ['#eef6fa', '#c6dce8', '#9ab8cc'][Math.floor(u * 3)]; p.dot(x, y, c); p.dot(x + 0.5, y - 0.5, c); if (u < 0.5) p.dot(x + 0.5, y, c); continue; }
-      p.px(x, y, ['#eef6fa', '#c6dce8', '#9ab8cc'][Math.floor(u * 3)]);
+    // Atemlöcher
+    p.px(hx + 3, hy + 1.6, '#04060a'); p.px(hx + 2, hy + 1.8, '#04060a');
+    if (p.fine) {
+      // Handfein: Topfhelm – Glanzlinie auf der Kuppel, Glanzpunkt, Mittelgrat zweifarbig, Sehschlitz mit Lichtkante
+      // darüber, Augen mit weißem Kern im blauen Saum, Atemlöcher als Kreuzmuster, Nietenreihe am Unterrand
+      for (let a = -2.7; a <= -1.0; a += 0.1) p.dot(hx + 0.5 + Math.cos(a) * 3.3, hy + Math.sin(a) * 3.6, RSTEEL[6]);
+      p.dot(hx - 1, hy - 2.5, '#e8eef8'); p.dot(hx - 0.5, hy - 2.5, RSTEEL[6]);
+      p.fline(hx + 1.5, hy - 3.5, hx + 1.5, hy - 1, RSTEEL[6]); p.fline(hx + 2, hy - 3.5, hx + 2, hy - 1, RSTEEL[2]);
+      p.fline(hx, hy - 1, hx + 4.5, hy - 1, RSTEEL[5]); p.fline(hx, hy + 0.5, hx + 4.5, hy + 0.5, RSTEEL[1]);
+      if (P.eye > 0.2) { for (const ex of [1.5, 3.2]) { p.dot(hx + ex, hy - 0.5, '#ffffff'); g.dot(hx + ex, hy - 0.5, '#ffffff'); p.dot(hx + ex + 0.5, hy - 0.5, BLUEG[3]); p.dot(hx + ex - 0.5, hy - 0.5, BLUEG[2]); } g.fline(hx + 0.5, hy - 0.5, hx + 4.5, hy - 0.5, BLUEG[2]); g.fline(hx + 1, hy - 1, hx + 4, hy - 1, BLUEG[1]); g.fline(hx + 1, hy, hx + 4, hy, BLUEG[1]); }   // Augenglut mit Saum
+      for (const [a, b] of [[2, 1.5], [3, 1.5], [2.5, 2], [3.5, 2]]) p.dot(hx + a, hy + b, '#04060a');
+      for (let k = -2.5; k <= 3.5; k += 1.5) p.dot(hx + k, hy + 3, RSTEEL[5]);
     }
-  }
+    meta.eye = { x: hx + 2.4, y: hy - 0.4 };
+    meta.mouth = { x: hx + 3, y: hy + 2 };
+    if (ice) {
+      // Eiskrone und Eisbart
+      for (let i = 0; i < 4; i++) {
+        const bx = hx - 2 + i * 1.6, by = hy - 3.4 + Math.abs(i - 1.5) * 0.4;
+        const L = [4, 6, 5, 3][i];
+        for (let s = 0; s < L; s++) { p.px(bx - s * 0.3, by - s, CROWN[s >= L - 2 ? 3 : 1 + (i % 2)]); g.px(bx - s * 0.3, by - s, s >= L - 2 ? '#3a4a66' : '#141c2c'); }
+        g.px(bx - (L - 1) * 0.3, by - L + 1, ICE_G[3]);
+        if (p.fine) { p.fline(bx + 0.5, by + 0.5, bx + 0.5 - (L - 1) * 0.3, by - L + 1.5, CROWN[0]); p.fline(bx, by, bx - (L - 1) * 0.3, by - L + 1, CROWN[3]); p.dot(bx - (L - 1) * 0.3, by - L + 1, '#ffffff'); }   // Zacke: Schattenfläche rechts, Grat hell
+      }
+      for (let i = 0; i < 5; i++) {
+        const bx = hx - 1 + i * 1.2, by = hy + 3.6;
+        const L = 2 + (i % 3);
+        if (p.fine) { p.fline(bx, by, bx + (L - 1) * 0.1, by + L - 0.5, CROWN[2], 0.5); p.fline(bx + 0.5, by, bx + 0.5, by + L - 1, CROWN[0]); p.dot(bx + (L - 1) * 0.1, by + L - 0.5, '#ffffff'); continue; }   // Eiszapfen-Bart
+        for (let s = 0; s < L; s++) p.px(bx + s * 0.1, by + s, CROWN[s === L - 1 ? 3 : 2]);
+      }
+      meta.head = { x: hx, y: hy - 9 };
+    } else {
+      // Riss im Helm, abgebrochenes Horn
+      p.line(hx - 1.5, hy - 3, hx + 0.5, hy - 1, RSTEEL[1]); g.px(hx - 0.5, hy - 2, BLUEG[1]);
+      p.line(hx - 2.5, hy - 2.5, hx - 4, hy - 5, BONE[1]); p.px(hx - 4, hy - 5, BONE[2]);
+      meta.head = { x: hx, y: hy - 6 };
+    }
+    // Frostatem
+    if (P.mist > 0) {
+      for (let i = 0; i < 4; i++) {
+        const u = ((P.capeT / TAU) + i * 0.25) % 1;
+        const x = hx + 5 + u * 5, y = hy + 1.5 - u * 3 + Math.sin(P.capeT + i) * 0.6;
+        if (p.fine) { const c = ['#eef6fa', '#c6dce8', '#9ab8cc'][Math.floor(u * 3)]; p.dot(x, y, c); p.dot(x + 0.5, y - 0.5, c); if (u < 0.5) p.dot(x + 0.5, y, c); continue; }
+        p.px(x, y, ['#eef6fa', '#c6dce8', '#9ab8cc'][Math.floor(u * 3)]);
+      }
+    }
 
-  // --- vorderer Arm + Schwert
-  if (X.smear) smearArc(p, g, shF.x, shF.y, X.smear[0], X.smear[1], 10, 24, FROST_SMEAR, ['#2a7ab0', '#a0e8ff'], X.smear[2] ?? 1);
-  const tip = P.held > 0.5 ? revSword(p, g, armF.ex, armF.ey, P.wa, P.ice) : { x: armF.ex, y: armF.ey };
-  cap(p, shF.x, shF.y, armF.jx, armF.jy, 2.0, 1.7, RSTEEL);
-  cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 1.8, 1.7, RSTEEL);
-  ell(p, armF.ex, armF.ey, 1.7, 1.6, RSTEEL);
-  if (p.fine) { p.fline(shF.x - 1.5, shF.y + 0.5, armF.jx - 1.5, armF.jy, RSTEEL[6]); p.dot(armF.ex - 0.75, armF.ey - 0.75, '#e0e8f4'); for (let k = -1; k <= 1; k++) p.dot(armF.ex + 1, armF.ey + k * 0.5, RSTEEL[1]); }   // Armschiene, Handschuh-Fingerfugen
-  if (ice) iceSlab(p, g, [[armF.jx - 1, armF.jy - 1.5], [armF.jx + 2.5, armF.jy - 1.8], [armF.ex + 1, armF.ey - 1.2], [armF.ex - 1.2, armF.ey + 1.2], [armF.jx - 1.5, armF.jy + 1.2]], P.crack, 21);
-  else { const m = { x: (armF.jx + armF.ex) / 2, y: (armF.jy + armF.ey) / 2 }; p.px(m.x, m.y + 1, CORPSE[2]); g.px(m.x, m.y + 1, BLUEG[0]); }
-  pauldron(shF, true);
+  };
+  let tip;
+  const front = () => {
+    // --- vorderer Arm + Schwert
+    if (X.smear) smearArc(p, g, shF.x, shF.y, X.smear[0], X.smear[1], 10, 24, FROST_SMEAR, ['#2a7ab0', '#a0e8ff'], X.smear[2] ?? 1);
+    tip = P.held > 0.5 ? revSword(p, g, armF.ex, armF.ey, P.wa, P.ice) : { x: armF.ex, y: armF.ey };
+    cap(p, shF.x, shF.y, armF.jx, armF.jy, 2.0, 1.7, RSTEEL);
+    cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 1.8, 1.7, RSTEEL);
+    ell(p, armF.ex, armF.ey, 1.7, 1.6, RSTEEL);
+    if (p.fine) { p.fline(shF.x - 1.5, shF.y + 0.5, armF.jx - 1.5, armF.jy, RSTEEL[6]); p.dot(armF.ex - 0.75, armF.ey - 0.75, '#e0e8f4'); for (let k = -1; k <= 1; k++) p.dot(armF.ex + 1, armF.ey + k * 0.5, RSTEEL[1]); }   // Armschiene, Handschuh-Fingerfugen
+    if (ice) iceSlab(p, g, [[armF.jx - 1, armF.jy - 1.5], [armF.jx + 2.5, armF.jy - 1.8], [armF.ex + 1, armF.ey - 1.2], [armF.ex - 1.2, armF.ey + 1.2], [armF.jx - 1.5, armF.jy + 1.2]], P.crack, 21);
+    else { const m = { x: (armF.jx + armF.ex) / 2, y: (armF.jy + armF.ey) / 2 }; p.px(m.x, m.y + 1, CORPSE[2]); g.px(m.x, m.y + 1, BLUEG[0]); }
+  };
+  if (p.fine) { pauldron(shF, true); head(); front(); }
+  else { head(); front(); pauldron(shF, true); }
   meta.hand = { x: armF.ex, y: armF.ey };
   meta.tip = tip;
   if (X.burst) {   // Eisstoß: Splitterstern an der Spitze
@@ -3172,7 +3188,7 @@ function drawBombardier(p, g, P, X) {
   // Brille: Messingring, glühendes Glas
   oval(p, hx + 1.8, hy - 0.4, 1.6, 1.4, BRASS[2]); p.px(hx + 1.2, hy - 1.2, BRASS[4]);
   p.rect(hx + 1.3, hy - 0.8, 2, 1.5, P.eye > 0.5 ? LAVA[3] : '#2a1008');
-  if (P.eye > 0.5) { glowDot(g, hx + 2, hy - 0.3, 1.6, EGLOW); g.rect(hx + 1.3, hy - 0.8, 2, 1.5, EGLOW[3]); g.px(hx + 1.3, hy - 0.8, EGLOW[4]); p.px(hx + 1.3, hy - 0.8, LAVA[5]); }
+  if (P.eye > 0.5) { if (!p.fine) { glowDot(g, hx + 2, hy - 0.3, 1.6, EGLOW); g.rect(hx + 1.3, hy - 0.8, 2, 1.5, EGLOW[3]); g.px(hx + 1.3, hy - 0.8, EGLOW[4]); } p.px(hx + 1.3, hy - 0.8, LAVA[5]); }
   p.line(hx - 3, hy - 0.8, hx, hy - 0.6, LEAT[1]);                        // Brillenband
   // Maul + Hauer
   const jw = P.jaw;
@@ -3183,13 +3199,23 @@ function drawBombardier(p, g, P, X) {
   if (p.fine) {
     // Handfein: Ogergesicht – Stirnwulst mit Lichtkante, Brille mit Messing-Glanzlinie und weißheißem Glas-Kern,
     // Nasenrücken-Licht und Nasenloch, Hauer mit Glanzpunkt, Mundwinkel, Bartstoppeln, Ohrmuschel
+    // Gesicht klar gegliedert: Stirnwulst (Licht oben, Schatten darunter) – Brille – Wangenlicht – Maul – Kinn
     p.fline(hx - 1, hy - 2, hx + 3.5, hy - 1.5, OGRE[5]);
-    for (let a = -2.8; a <= -0.6; a += 0.25) p.dot(hx + 1.8 + Math.cos(a) * 2, hy - 0.4 + Math.sin(a) * 1.8, BRASS[4]);
-    if (P.eye > 0.5) { p.dot(hx + 1.5, hy - 0.5, '#ffffff'); p.dot(hx + 2, hy - 0.5, LAVA[5]); g.dot(hx + 1.5, hy - 0.5, '#ffffff'); p.dot(hx + 2.5, hy + 0.5, LAVA[2]); }
+    // Brille: Messingring rundum (oben links hell, unten rechts dunkel), Glas dunkelrot mit kleinem weißheißem Kern
+    for (let a = -3.1; a <= 3.1; a += 0.2) p.dot(hx + 1.8 + Math.cos(a) * 1.9, hy - 0.4 + Math.sin(a) * 1.7, Math.cos(a) + Math.sin(a) < -0.3 ? BRASS[4] : Math.cos(a) + Math.sin(a) > 0.6 ? BRASS[1] : BRASS[3]);
+    p.rect(hx + 1, hy - 1, 2, 1.5, P.eye > 0.5 ? LAVA[1] : '#2a1008');
+    if (P.eye > 0.5) {
+      p.dot(hx + 1.75, hy - 0.5, '#ffffff'); p.dot(hx + 2.25, hy - 0.5, LAVA[4]); p.dot(hx + 1.75, hy, LAVA[3]); p.dot(hx + 1.25, hy - 1, LAVA[5]);
+      g.rect(hx + 1, hy - 1, 2, 1.5, EGLOW[1]); g.dot(hx + 1.75, hy - 0.5, '#ffffff'); g.dot(hx + 2.25, hy - 0.5, EGLOW[3]); g.dot(hx + 1.75, hy, EGLOW[2]);
+    }
+    // Wangenlicht zwischen Brille und Maul, Nasenrücken vorn
+    p.fline(hx + 0.5, hy + 1.25, hx + 3, hy + 1.25, OGRE[4]);
     p.fline(hx + 3.5, hy, hx + 4, hy + 1, OGRE[5]); p.dot(hx + 3.5, hy + 1.25, OGRE[0]);
-    p.dot(hx + 3.25, hy + 0.25 + jw, '#fffbef'); p.dot(hx + 3.75, hy + 1 + jw, BONE[1]);
-    p.dot(hx + 0.5, hy + 2 + jw, OGRE[0]); p.dot(hx + 4, hy + 1.75 + jw, OGRE[0]);
-    for (let k = 0; k < 4; k++) p.dot(hx + 1 + k * 0.75, hy + 2.75 + jw * 0.5 + (k & 1) * 0.5, OGRE[1]);
+    // Maul als klarer dunkler Spalt (2 Feinpixel), Unterlippe mit Lichtkante, Hauer davor
+    p.fline(hx + 1, hy + 2 + jw, hx + 3.5, hy + 1.75 + jw, '#120808', 1);
+    p.fline(hx + 1, hy + 3 + jw, hx + 3.5, hy + 2.75 + jw, OGRE[4]);
+    p.dot(hx + 3.25, hy + 0.25 + jw, '#fffbef'); p.dot(hx + 3.25, hy + 0.75 + jw, BONE[4]); p.dot(hx + 3.25, hy + 1.25 + jw, BONE[3]); p.dot(hx + 3.75, hy + 1.25 + jw, BONE[1]);
+    p.dot(hx + 1.25, hy + 1.75 + jw, BONE[3]);
     p.dot(hx - 2, hy + 0.5, OGRE[0]); p.dot(hx - 2.5, hy - 0.5, OGRE[5]);
   }
   meta.eye = { x: hx + 2, y: hy - 0.4 };
@@ -3422,8 +3448,10 @@ function phaseFlicker(k, seed, dis = 0) {
     const r = p.res ?? 1, W = p.w * r, H = p.h * r;
     if (dis > 0) dissolve(p, g, dis, seed + 7, 0, p.h - 14, [PHASE[2], VOIDC[5], MAGE[2], PHASE[1]]);
     const d = getPix(p);
-    // Zeilen versetzen
-    for (let Y = 0; Y < H; Y++) {
+    // Zeilen versetzen. Fein nur bei starkem Flimmern (Verschwinden, Treffer, Tod): bei schwachem Flimmern (Ruhe,
+    // Ausholen, Hieb) zerschnitt der Versatz Körper und Klingenschleier in waagerechte Streifen – dort bleibt nur
+    // der Farbsaum.
+    if (r === 1 || k > 0.6 || dis > 0) for (let Y = 0; Y < H; Y++) {
       const y = Math.floor(Y / r);
       const rr = hash2(y >> 1, 3, seed);
       if (rr > k * 0.45) continue;
@@ -3579,7 +3607,7 @@ function rimGlowPixels(d32, W, H, r, o, gd32, GW, GH, ox, oy) {
     const I = ((i / w) | 0) + Y0, J = I * W + (i % w) + X0;   // Index im ganzen Frame
     if (within(up[i], r)) { col = T; kk = k; tops.push(J); }
     else if (within(up[i], 2 * r) && !within(dn[i], r)) { col = T; kk = k * 0.45; }
-    else if (within(lf[i], r) || within(rt[i], r)) { col = Sd; kk = k * 0.8; sides.push(J); }
+    else if (within(lf[i], r) || (r === 1 && within(rt[i], r))) { col = Sd; kk = k * 0.8; sides.push(J); }   // fein: Seitenlicht nur links
     if (!col) continue;
     for (let j = 0; j < 3; j++) d[J * 4 + j] = Math.round(d[J * 4 + j] * (1 - kk) + col[j] * kk);
   }

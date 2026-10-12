@@ -82,22 +82,51 @@ function crack(p, pts, saum, core, hot) {
   p.dot(a[0], a[1], PAL.ember[1]); p.dot(z[0] + 0.5, z[1], PAL.ember[1]);
   p.dot(m[0], m[1], hot);
 }
-// Fellsträhnen in Gruppen: je Büschel einige lange, gleich gerichtete Striche nach hinten unten (Licht oben links:
-// helle Oberkante, ein Feinpixel darunter die dunkle Kerbe). tufts = [x, y, Anzahl, Länge] in lokalen Koordinaten,
-// rel(y) 0..1 = Höhe am Körper (oben hell). inside(x, y) prüft beide Enden, damit keine Strähne aus der Silhouette ragt.
-function strands(p, X, Y, tufts, rel, inside, F) {
-  for (const [cx, cy, n, l] of tufts) {
-    for (let k = 0; k < n; k++) {
-      // Strähnen eines Büschels liegen parallel, je 1 Weltpixel quer versetzt, die mittleren etwas länger
-      const x = cx + k * 0.45 - (k & 1) * 0.5, y = cy + k * 1.05, len = l - Math.abs(k - (n - 1) / 2) * 0.6;
-      const x1 = x - len * 0.9, y1 = y + len * 0.42, xm = x - len * 0.4, ym = y + len * 0.19;
-      if (!inside(x, y) || !inside(x1, y1)) continue;
-      const r = rel(y), hi = r < 0.4 ? F[5] : F[4], lo = r < 0.7 ? F[2] : F[1];
-      p.fline(X(x), Y(y) + 0.5, X(x1), Y(y1) + 0.5, lo);
-      p.fline(X(x), Y(y), X(xm), Y(ym), hi);
-    }
+// Lange Fellsträhnen, nach hinten unten gekämmt und leicht geschwungen: Lichtkante oben, Schattenkante einen
+// Feinpixel darunter (Licht oben links). list = [x, y, Länge, hell] in lokalen Koordinaten.
+function strands(p, X, Y, list, F) {
+  for (const [x, y, l, top] of list) {
+    const xm = x - l * 0.5, ym = y + l * 0.18, x1 = x - l * 0.95, y1 = y + l * 0.5;
+    const hi = top ? F[5] : F[4], lo = top ? F[2] : F[1];
+    p.fline(X(x), Y(y) + 0.5, X(xm), Y(ym) + 0.5, lo); p.fline(X(xm), Y(ym) + 0.5, X(x1), Y(y1) + 0.5, lo);
+    p.fline(X(x), Y(y), X(xm), Y(ym), hi); p.fline(X(xm), Y(ym), X(x1 + 0.6), Y(y1 - 0.3), hi);
   }
 }
+
+// Fein: Silhouette um 1 Feinpixel wachsen lassen (Materialfarbe des Nachbarn). Der Feinumriss ist nur 1 Feinpixel
+// statt 1 Weltpixel dick; so bleiben Fläche und Gewicht der Figur wie vorher. Nur Pixel mit mindestens G deckenden
+// Nachbarn geben Farbe ab: Flächen, Glieder und gerade Linien wachsen, schräge Einzelstriche und Spitzen bleiben fein.
+function grow(p, G = 2) {
+  if (!p.fine || p._canvas) return;
+  // Maske mit 2 Pixeln Rand (keine Bereichsprüfungen), nur im Rahmen der deckenden Pixel gerechnet
+  const { W, H } = p, b = new Int32Array(p.buf.buffer, p.buf.byteOffset, W * H), P = W + 4, L = P * (H + 4);   // Int32: ohne Zahl-Boxing
+  if (GM.length < L) { GM = new Uint8Array(L); GN = new Uint8Array(L); }
+  const m = GM, n = GN;
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0, i = y * W; x < W; x++, i++) {
+      if (!b[i]) continue;
+      m[(y + 2) * P + x + 2] = 1;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y;
+    }
+  }
+  if (x1 < 0) return;
+  for (let y = y0; y <= y1; y++) for (let x = x0, q = (y + 2) * P + x0 + 2; x <= x1; x++, q++) if (m[q]) n[q] = m[q - P] + m[q + P] + m[q - 1] + m[q + 1];
+  const xa = Math.max(0, x0 - 1), xb = Math.min(W - 1, x1 + 1), ya = Math.max(0, y0 - 1), yb = Math.min(H - 1, y1 + 1);
+  for (let y = ya; y <= yb; y++) {
+    for (let x = xa, q = (y + 2) * P + xa + 2, i = y * W + xa; x <= xb; x++, q++, i++) {
+      if (m[q]) continue;
+      // Reihenfolge: unten (Oberkante wächst mit Lichtfarbe), oben, links, rechts
+      const d = n[q + P] >= G ? P : n[q - P] >= G ? -P : n[q - 1] >= G ? -1 : n[q + 1] >= G ? 1 : 0;
+      // schmale Lücken (bis 2 Feinpixel, z. B. zwischen Rippen) bleiben offen: dort zeichnet der Umriss die dunkle Fuge
+      if (!d || m[q - d] || m[q - 2 * d]) continue;
+      b[i] = b[d === P ? i + W : d === -P ? i - W : i + d];   // Quelle war schon deckend, bleibt unverändert
+    }
+  }
+  m.fill(0, 0, L); n.fill(0, 0, L);
+  p.dirty = true;
+}
+let GM = new Uint8Array(0), GN = GM;   // Arbeitsmasken von grow (wiederverwendet)
 
 function drawWolf(p, v, o = {}) {
   const { t = 0, amp = 1, crouch = 0, leap = 0, headUp = 0, jaw = 0, hurt = false, lying = 0, bob = 0 } = o;
@@ -133,8 +162,7 @@ function drawWolf(p, v, o = {}) {
     p.px(X(18), Y(19), lying > 0.9 ? F[1] : v.mane); p.px(X(23), Y(19), PAL.ember[1]);
     if (p.fine) {
       // Handfein: Fellsträhnen auf der Flanke, Lid mit Wimpernkante, Nasenglanz, Glut erlischt zu dunklem Kern
-      const inBody = (x, y) => ((x - 20) / 11) ** 2 + ((y - 21.5) / 3.6) ** 2 < 0.7;
-      strands(p, X, Y, [[13, 19.2, 3, 2.6], [20, 19, 4, 2.8], [26, 19.4, 3, 2.4]], (y) => (y - 18) / 7, inBody, F);
+      strands(p, X, Y, [[16, 19.4, 5, true], [24, 19.8, 5, false]], F);
       p.fline(X(32), Y(21.2), X(33.5), Y(21.2), F[0]); p.dot(X(31.5), Y(20.6), F[5]);
       p.dot(X(39), Y(22), '#5a4a52');
       crack(p, [[X(16.2), Y(18.6)], [X(17), Y(18.9)], [X(18), Y(19)], [X(18.8), Y(19.4)], [X(19.6), Y(19.5)]], PAL.ember[1], lying > 0.9 ? PAL.ember[2] : PAL.ember[3], lying > 0.9 ? PAL.ember[2] : PAL.ember[4]);
@@ -232,10 +260,8 @@ function drawWolf(p, v, o = {}) {
   leg(27, Math.PI, false, true);
   if (p.fine) {
     // Fellsträhnen über Rumpf und Keule (nach den vorderen Beinen, damit die Keule mitbehaart ist)
-    const e = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
-    const inBody = (x, y) => Math.min(e(x, y, 13, by, 5.5, 4.2), e(x, y, 19, by + 0.3, 6, 3.4), e(x, y, 25 + leap, by - 0.6, 5.2, 5.4)) < 0.74;
-    const tufts = [[11.5, by - 3.2, 3, 3.6], [14.5, by - 0.4, 2, 3.2], [21, by - 2.8, 3, 3.6], [26.5, by - 3.2, 3, 3.4], [27, by + 0.4, 2, 3]];
-    strands(p, X, Y, tufts, (y) => (y - (by - 5)) / 9.5, inBody, F);
+    // drei lange Strähnen: Keule, Flanke, Schulter
+    strands(p, X, Y, [[16.5, by - 2.4, 5.6, true], [22.5, by - 2, 5.4, false], [24.5 + leap, by + 0.5, 4.8, false]], F);
     // Glutrisse über dem Fell: geschwungene Linien ohne Kreuzung
     crack(p, [[X(15.4), Y(by - 3)], [X(16.2), Y(by - 2.5)], [X(16.8), Y(by - 1.7)], [X(17.8), Y(by - 1.2)], [X(18.3), Y(by - 0.3)], [X(18.2), Y(by + 0.6)]], PAL.ember[2], PAL.ember[4], PAL.ember[5]);
     crack(p, [[X(22.6), Y(by - 4.1)], [X(23.2), Y(by - 3.2)], [X(24), Y(by - 2.7)], [X(24.4), Y(by - 1.7)], [X(25.2), Y(by - 1)]], PAL.ember[2], PAL.ember[4], PAL.ember[5]);
@@ -363,7 +389,7 @@ export function createWolfSprites(kind = 'wolf') {
   const v = VARIANTS[kind];
   const W = Math.round(46 * v.s), H = Math.round(32 * v.s);
   const AX = Math.round(W / 2), AY = H - 5;
-  const f = (o) => buildFrame(W, H, AX, AY, (p) => drawWolf(p, v, o), { fine: true });
+  const f = (o) => buildFrame(W, H, AX, AY, (p) => { drawWolf(p, v, o); grow(p); }, { fine: true });
   return {
     idle: new Animation([0, 1, 2, 3].map((i) => f({ t: i * 0.05, amp: 0, bob: i === 2 ? 1 : 0, jaw: i === 3 ? 0.6 : 0 })), 4),
     walk: new Animation([0, 1, 2, 3, 4, 5].map((i) => f({ t: i / 6, amp: 1, bob: i % 3 === 0 ? 1 : 0 })), 13),

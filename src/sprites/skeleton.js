@@ -273,6 +273,41 @@ function fineSkull(p, hx, hy, { jaw, eye, hurt, weapon }) {
   }
 }
 
+// Fein: Silhouette um 1 Feinpixel wachsen lassen (Materialfarbe des Nachbarn). Der Feinumriss ist nur 1 Feinpixel
+// statt 1 Weltpixel dick; so bleiben Fläche und Gewicht der Figur wie vorher. Nur Pixel mit mindestens G deckenden
+// Nachbarn geben Farbe ab: Flächen, Glieder und gerade Linien wachsen, schräge Einzelstriche und Spitzen bleiben fein.
+function grow(p, G = 2) {
+  if (!p.fine || p._canvas) return;
+  // Maske mit 2 Pixeln Rand (keine Bereichsprüfungen), nur im Rahmen der deckenden Pixel gerechnet
+  const { W, H } = p, b = new Int32Array(p.buf.buffer, p.buf.byteOffset, W * H), P = W + 4, L = P * (H + 4);   // Int32: ohne Zahl-Boxing
+  if (GM.length < L) { GM = new Uint8Array(L); GN = new Uint8Array(L); }
+  const m = GM, n = GN;
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0, i = y * W; x < W; x++, i++) {
+      if (!b[i]) continue;
+      m[(y + 2) * P + x + 2] = 1;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; y1 = y;
+    }
+  }
+  if (x1 < 0) return;
+  for (let y = y0; y <= y1; y++) for (let x = x0, q = (y + 2) * P + x0 + 2; x <= x1; x++, q++) if (m[q]) n[q] = m[q - P] + m[q + P] + m[q - 1] + m[q + 1];
+  const xa = Math.max(0, x0 - 1), xb = Math.min(W - 1, x1 + 1), ya = Math.max(0, y0 - 1), yb = Math.min(H - 1, y1 + 1);
+  for (let y = ya; y <= yb; y++) {
+    for (let x = xa, q = (y + 2) * P + xa + 2, i = y * W + xa; x <= xb; x++, q++, i++) {
+      if (m[q]) continue;
+      // Reihenfolge: unten (Oberkante wächst mit Lichtfarbe), oben, links, rechts
+      const d = n[q + P] >= G ? P : n[q - P] >= G ? -P : n[q - 1] >= G ? -1 : n[q + 1] >= G ? 1 : 0;
+      // schmale Lücken (bis 2 Feinpixel, z. B. zwischen Rippen) bleiben offen: dort zeichnet der Umriss die dunkle Fuge
+      if (!d || m[q - d] || m[q - 2 * d]) continue;
+      b[i] = b[d === P ? i + W : d === -P ? i - W : i + d];   // Quelle war schon deckend, bleibt unverändert
+    }
+  }
+  m.fill(0, 0, L); n.fill(0, 0, L);
+  p.dirty = true;
+}
+let GM = new Uint8Array(0), GN = GM;   // Arbeitsmasken von grow (wiederverwendet)
+
 function drawSkeleton(p, o = {}) {
   const {
     bob = 0, crouch = 0, lean = 0, legF = [0, 0], legB = [0, 0],
@@ -448,7 +483,7 @@ function drawCollapse(p, t, weapon) {
 }
 
 export function createSkeletonSprites(weapon = 'sword') {
-  const f = (o) => buildFrame(W, H, 15 + OX, 29 + OY, (p) => drawSkeleton(p, { weapon, ...o }), { fine: true });
+  const f = (o) => buildFrame(W, H, 15 + OX, 29 + OY, (p) => { drawSkeleton(p, { weapon, ...o }); grow(p); }, { fine: true });
   const baseArm = weapon === 'sword' ? 0.9 : 0;
 
   const idle = [0, 1, 2, 3].map((i) => f({ bob: i === 2 ? 1 : 0, jaw: i === 1 ? 1 : 0, arm: baseArm + (i % 2) * 0.08, eye: i === 3 ? 2 : 1 }));
@@ -482,7 +517,7 @@ export function createSkeletonSprites(weapon = 'sword') {
     f({ lean: -2, arm: baseArm - 1.2, jaw: 1, hurt: true }),
     f({ crouch: 3, lean: -1, arm: baseArm + 0.8, jaw: 1, eye: 0, legF: [2, 0], legB: [-2, 0] }),
     f({ crouch: 6, lean: 0, arm: baseArm + 1.4, jaw: 1, eye: 0, legF: [4, 0], legB: [-4, 0] }),
-    ...[0.2, 0.6, 1].map((t) => buildFrame(W, H, 15 + OX, 29 + OY, (p) => drawCollapse(p, t, weapon), { fine: true })),
+    ...[0.2, 0.6, 1].map((t) => buildFrame(W, H, 15 + OX, 29 + OY, (p) => { drawCollapse(p, t, weapon); grow(p); }, { fine: true })),
   ];
   anims.death = new Animation(death, 12, false);
   return anims;
