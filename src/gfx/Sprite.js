@@ -1,3 +1,4 @@
+import { CONFIG } from '../config.js';
 import { PixelCanvas, outlineCanvas, silhouette, flipCanvas } from './PixelCanvas.js';
 import { FineCanvas, fineRes, scale2x, finishPixels, outlinePixels, pixelsToCanvas, canvasPixels } from './Fine.js';
 
@@ -75,18 +76,116 @@ export function glowCanvasSize(f) {
   return [Math.round((f.canvas.width - 2) / r) + 2, Math.round((f.canvas.height - 2) / r) + 2];
 }
 
+// Aufgeschobener Frame (Ladezeit beim Zonenwechsel): Sprite-Dateien legen lazyFrame(() => …) statt des fertigen
+// Frames in die Frameliste einer Animation. Gezeichnet wird erst, wenn der Frame gebraucht wird (frameAt, frames[i])
+// oder wenn ihn die Vorbereitung in Häppchen baut (Animation.warmOne, world/spriteWarm.js). Das Ergebnis ist
+// dasselbe wie beim sofortigen Bauen; die Zeichenfunktion darf nur ihre eigenen Argumente lesen.
+// Gebaut wird mit der Bildfeinheit (CONFIG.renderScale) von damals, als der Frame angelegt wurde: ein Satz bleibt
+// einheitlich, auch wenn die Qualität inzwischen gewechselt hat.
+export class LazyFrame {
+  #build;
+  #value = null;
+  #scale;
+  constructor(build) { this.#build = build; this.#scale = CONFIG.renderScale; }
+  get() {
+    if (!this.#value) {
+      const keep = CONFIG.renderScale;
+      CONFIG.renderScale = this.#scale;
+      try {
+        let v = this.#build();
+        while (v instanceof LazyFrame) v = v.get();
+        this.#value = v; this.#build = null;
+      } finally { CONFIG.renderScale = keep; }
+    }
+    return this.#value;
+  }
+}
+export const lazyFrame = (build) => new LazyFrame(build);
+export const resolveFrame = (f) => (f instanceof LazyFrame ? f.get() : f);
+// n aufgeschobene Frames, die nur gemeinsam entstehen (z. B. Zersplittern aus dem Puffer des letzten Bildes):
+// der erste Zugriff baut die ganze Gruppe. build() muss genau n Frames liefern.
+export function lazyFrames(n, build) {
+  let list = null;
+  const at = (i) => {
+    if (!list) {
+      list = build();
+      if (list.length !== n) throw new Error(`lazyFrames: ${list.length} statt ${n} Frames`);
+    }
+    return list[i];
+  };
+  return Array.from({ length: n }, (_, i) => new LazyFrame(() => at(i)));
+}
+const LAZY_FRAMES = {
+  get(t, k) {
+    const v = t[k];
+    if (v instanceof LazyFrame) return (t[k] = v.get());
+    return v;
+  },
+};
+
 // Animation = Frameliste + Timing. Zustand liegt im Animator der Entity.
+// Enthält die Liste aufgeschobene Frames (LazyFrame), ist frames eine Hülle, die beim Lesen baut: Außenstehende sehen
+// immer fertige Frames (frames[i], length, map, Spread …).
 export class Animation {
+  #raw = null; // Frameliste mit noch offenen LazyFrames (null = alles fertig)
   constructor(frames, fps = 10, loop = true) {
-    this.frames = frames; this.fps = fps; this.loop = loop;
+    this.fps = fps; this.loop = loop;
+    if (Array.isArray(frames) && frames.some((f) => f instanceof LazyFrame)) {
+      this.#raw = [...frames];
+      this.frames = new Proxy(this.#raw, LAZY_FRAMES);
+    } else this.frames = frames;
   }
   get duration() { return this.frames.length / this.fps; }
+  #index(t) {
+    const i = Math.floor(t * this.fps);
+    return this.loop ? i % this.frames.length : Math.min(i, this.frames.length - 1);
+  }
+  // Ist der Frame zur Zeit t schon gebaut? (Frame-Marken ferner, ruhender Figuren nicht erzwingen)
+  builtAt(t) { const raw = this.#raw; return !raw || !(raw[this.#index(t)] instanceof LazyFrame); }
   frameAt(t) {
-    let i = Math.floor(t * this.fps);
-    if (this.loop) i %= this.frames.length;
-    else i = Math.min(i, this.frames.length - 1);
+    const i = this.#index(t);
+    const raw = this.#raw;
+    if (raw) { const f = raw[i]; return f instanceof LazyFrame ? (raw[i] = f.get()) : f; }
     return this.frames[i];
   }
+  // Nachbearbeitung je Frame: fn(frame) ändert den fertigen Frame. Aufgeschobene Frames bleiben aufgeschoben (fn läuft
+  // nach dem Bau). memo teilen, wenn mehrere Animationen dieselben Frames enthalten: jeder Frame nur einmal.
+  eachFrame(fn, memo = new Map()) {
+    const list = this.#raw ?? this.frames;
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i];
+      let r = memo.get(f);
+      if (!r) {
+        if (f instanceof LazyFrame) r = new LazyFrame(() => { const v = f.get(); fn(v); return v; });
+        else { fn(f); r = f; }
+        memo.set(f, r);
+      }
+      if (r !== f) list[i] = r;
+    }
+  }
+  // Noch nicht gebaute Frames?
+  get pending() { return !!this.#raw && this.#raw.some((f) => f instanceof LazyFrame); }
+  // Einen offenen Frame bauen (Vorbereitung in Häppchen). false = es war nichts mehr offen.
+  warmOne() {
+    const raw = this.#raw;
+    if (!raw) return false;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i] instanceof LazyFrame) { raw[i] = raw[i].get(); return true; }
+    }
+    this.frames = raw; this.#raw = null; // alles fertig: ab jetzt ohne Hülle
+    return false;
+  }
+}
+// Alle schon angelegten Animationen eines Sprite-Satzes (Objekt mit Animation-Werten), z. B. für die Vorbereitung.
+// Noch nicht angelegte (Getter, die beim ersten Zugriff bauen, z. B. Heldensätze) bleiben unberührt.
+export function animationsOf(set) {
+  const out = [];
+  if (!set || typeof set !== 'object') return out;
+  for (const k of Object.keys(set)) {
+    const a = Object.getOwnPropertyDescriptor(set, k)?.value;
+    if (a instanceof Animation) out.push(a);
+  }
+  return out;
 }
 
 export class Animator {
@@ -104,5 +203,6 @@ export class Animator {
   }
   update(dt) { this.time += dt; }
   get frame() { return this.current.frameAt(this.time); }
+  get frameReady() { return this.current.builtAt?.(this.time) ?? true; }
   get finished() { return !this.current.loop && this.time >= this.current.duration; }
 }

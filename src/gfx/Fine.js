@@ -194,16 +194,18 @@ export function scale2x(sd, w, h) {
 // Feinschliff: Mondlicht-Kante oben (1 Feinpixel heller, leicht kühl) und Kontaktschatten unten (1 Feinpixel dunkler).
 // Gibt Figuren auf dunklem Boden Volumen und Kontur, ohne weichen Schein. Ändert die Silhouette nicht.
 export function finishPixels(d, w, h, { rim = 0.3, shade = 0.26 } = {}) {
-  const solid = (i) => (d[i] >>> 24) > 40;
+  // Gleiches Ergebnis wie je Pixel mit Nachbarprüfung, aber zeilenweise ohne Hilfsfunktion (Ladezeit)
+  const kr = 1 - shade, last = h - 1;
   for (let y = 0; y < h; y++) {
+    const row = y * w;
     for (let x = 0; x < w; x++) {
-      const m = y * w + x, v = d[m];
+      const m = row + x, v = d[m];
       if ((v >>> 24) <= 40) continue;
-      const up = y === 0 || !solid(m - w), down = y === h - 1 || !solid(m + w);
+      const up = y === 0 || (d[m - w] >>> 24) <= 40, down = y === last || (d[m + w] >>> 24) <= 40;
       if (up === down) continue;
       let r = v & 255, g = (v >>> 8) & 255, b = (v >>> 16) & 255;
       if (up) { r += (216 - r) * rim; g += (220 - g) * rim; b += (255 - b) * rim; }
-      else { r *= 1 - shade; g *= 1 - shade; b *= 1 - shade; }
+      else { r *= kr; g *= kr; b *= kr; }
       d[m] = ((v & 0xff000000) | (Math.round(b) << 16) | (Math.round(g) << 8) | Math.round(r)) >>> 0;
     }
   }
@@ -216,14 +218,28 @@ export function outlinePixels(sd, sw, sh) {
   const w = sw + 2, h = sh + 2, od = new Uint32Array(w * h);
   const or = OUT & 255, og = (OUT >>> 8) & 255, ob = (OUT >>> 16) & 255;
   const mask = new Uint8Array(w * h);
-  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if ((sd[y * sw + x] >>> 24) > 40) mask[(y + 1) * w + x + 1] = 1;
+  // Belegter Spaltenbereich je Maskenzeile: Ausgabezeilen werden nur dort abgesucht, wo Zeile darüber, selbst oder
+  // darunter etwas hat (Figuren füllen ihren Rahmen selten; Ergebnis gleich).
+  const lo = new Int32Array(h).fill(w), hi = new Int32Array(h).fill(-1);
+  for (let y = 0; y < sh; y++) {
+    const so = y * sw, mo = (y + 1) * w + 1;
+    let a = -1, b = -1;
+    for (let x = 0; x < sw; x++) if ((sd[so + x] >>> 24) > 40) { mask[mo + x] = 1; if (a < 0) a = x; b = x; }
+    if (a >= 0) { lo[y + 1] = a + 1; hi[y + 1] = b + 1; }
+  }
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const m = y * w + x;
+    let x0 = lo[y], x1 = hi[y];
+    if (y > 0) { if (lo[y - 1] < x0) x0 = lo[y - 1]; if (hi[y - 1] > x1) x1 = hi[y - 1]; }
+    if (y + 1 < h) { if (lo[y + 1] < x0) x0 = lo[y + 1]; if (hi[y + 1] > x1) x1 = hi[y + 1]; }
+    if (x1 < 0) continue;
+    if (x0 > 0) x0--;
+    if (x1 < w - 1) x1++;
+    const row = y * w;
+    for (let x = x0; x <= x1; x++) {
+      const m = row + x;
       if (mask[m]) { od[m] = (sd[(y - 1) * sw + x - 1] | 0xff000000) >>> 0; continue; }
       const below = y + 1 < h && mask[m + w] === 1, above = y > 0 && mask[m - w] === 1;
-      const left = x > 0 && mask[m - 1] === 1, right = x + 1 < w && mask[m + 1] === 1;
-      if (!(below || above || left || right)) continue;
+      if (!(below || above || (x > 0 && mask[m - 1] === 1) || (x + 1 < w && mask[m + 1] === 1))) continue;
       if (below && !above) {
         const s = sd[y * sw + x - 1];
         od[m] = (0xff000000 | (Math.round(ob * 0.62 + ((s >>> 16) & 255) * 0.3) << 16) | (Math.round(og * 0.62 + ((s >>> 8) & 255) * 0.3) << 8) | Math.round(or * 0.62 + (s & 255) * 0.3)) >>> 0;
