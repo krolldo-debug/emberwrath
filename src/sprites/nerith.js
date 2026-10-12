@@ -172,13 +172,12 @@ function strand(p, g, glow, ox, oy, dir, L, w0, j, P, { shade = 1, sheen = false
     if (p.fine) {
       // Fein: zwei Abtastreihen je Schritt (lückenlos), Unterlocken mit dunklen Fugen (Strähnen),
       // Glanzband als Glanzlinie 1 Feinpixel mit hellem Saum
-      const H = hw + 0.25;
+      const H = hw + 0.4;   // fein etwas voller (Figur kräftiger)
       for (const b of [0.3, 0]) {
         const cx = x - Math.cos(a) * b, cy = y - Math.sin(a) * b;
         for (let k = -H; k <= H + 0.01; k += 0.25) {
           const ks = k * sgn, ak = Math.abs(k);
           let sh = shade - (f > 0.7 ? 1 : 0);
-          if (f > 0.1 && f < 0.85 && H > 2 && Math.abs(ak - H * 0.5) < 0.13) sh -= 1;
           if (sheen && f > 0.08 && f < 0.6) { const dd = Math.abs(ks - hw * 0.3); if (dd < 0.13) sh = shade + 2; else if (dd < 0.38) sh = shade + 1; }
           if (edge && ks < -H + 0.4 && f > 0.15) sh = 0;
           pt(p, cx + nx * k, cy + ny * k, HAIR[clamp5(sh)]);
@@ -196,6 +195,32 @@ function strand(p, g, glow, ox, oy, dir, L, w0, j, P, { shade = 1, sheen = false
     if (glowy && hash2(j, Math.floor(s * 1.5), 17) < glowy) g.px(x, y, glow[hash2(j, Math.floor(s), 19) < 0.3 ? 3 : 2]);
   }
   return { x, y };
+}
+
+// Fein: Strähnenlinien über der fertigen Haarmasse (gleicher Pfad wie strand): helle Strähne mit harter Lichtkante
+// (1 Feinpixel Glanz, daneben ein Mittelton) oder dunkle Mulde. off = Lage quer zur Strähne (-1 Schatten … +1 Licht).
+function hairLine(p, ox, oy, dir, L, w0, P, u, shade, off, lit) {
+  let x = ox, y = oy;
+  const wild = 1 + P.hairWild * 1.4;
+  for (let s = 0; s < L; s += 0.6) {
+    const f = s / L;
+    const a = dir + Math.sin(P.hairT + s * 0.13 + u * 1.6) * (0.06 + 0.42 * f) * wild
+      + Math.sin(P.hairT * 2 + u * 3.1 + s * 0.29) * 0.12 * f * P.hairWild;
+    const px0 = x, py0 = y;
+    x += Math.cos(a) * 0.6; y += Math.sin(a) * 0.6;
+    if (f < 0.06 || f > (lit ? 0.82 : 0.68)) continue;
+    const hw = Math.max(0.5, w0 * (1 - f * f * 0.9)) / 2;
+    const nx = -Math.sin(a), ny = Math.cos(a), sgn = nx + ny > 0 ? -1 : 1;
+    const k = off * hw * sgn, kx = nx * k, ky = ny * k;
+    if (lit) {
+      const top = f < 0.55 ? Math.min(5, shade + 2) : Math.min(5, shade + 1);
+      hair(p, px0 + kx, py0 + ky, x + kx, y + ky, HAIR[top]);
+      hair(p, px0 + kx - nx * sgn * 0.5, py0 + ky - ny * sgn * 0.5, x + kx - nx * sgn * 0.5, y + ky - ny * sgn * 0.5, HAIR[Math.min(5, shade + 1)]);
+    } else {
+      hair(p, px0 + kx, py0 + ky, x + kx, y + ky, HAIR[Math.max(0, shade - 2)]);
+      hair(p, px0 + kx + nx * sgn * 0.5, py0 + ky + ny * sgn * 0.5, x + kx + nx * sgn * 0.5, y + ky + ny * sgn * 0.5, HAIR[Math.max(1, shade - 1)]);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- Unterleib
@@ -217,19 +242,27 @@ function veils(p, g, glow, wx, wy, P, flood) {
       let y = wy + 2 + s;
       if (curl) { x += Math.sin(curl) * 3 * v; y -= (1 - Math.cos(curl)) * 2 * v; }
       // Spitzen laufen spitz zu statt zu zerfasern
-      const hw = w0 * (1 - v * v * 0.88) / 2 + grow;
+      const hw = w0 * (1 - v * v * 0.88) / 2 * (fine ? 1.15 : 1) + grow;
       for (let k = -hw; k <= hw + 0.01; k += 0.5 * q) {
         // Licht über die ganze Breite des Wasserleibs (links hell), unten heller Schaum
         const gx = u + (k / 14);
         let i = gx < 0.18 ? 4 : gx < 0.45 ? 3 : gx < 0.78 ? 2 : 1;
         if (v > 0.8) i = Math.min(5, i + 1);
         if (k > hw - 0.6 * q && j % 3 === 2) i = Math.max(1, i - 1); // Faltenkante
-        if (fine && k < -hw + 0.3 && j % 3 === 0 && v > 0.16) i = Math.min(5, i + 1); // fein: helle Gegenkante (zweifarbige Falte)
+        if (fine && v > 0.16 && !tent) {
+          // fein: Geisterleib mit hellem Kern je Bahn und harten Kanten (links Licht, rechts dunkle Fuge)
+          const ak = Math.abs(k + hw * 0.15);
+          if (ak < 0.13 && j >= 3 && j <= 8 && v > 0.2 && v < 0.88) i = 5;
+          else if (ak < hw * 0.2 && u < 0.75) i = Math.min(5, i + 1);
+          if (k < -hw + 0.3 && j % 2 === 0) i = Math.min(5, i + 1);
+          else if (k > hw - 0.3) i = Math.max(0, i - 2);
+        }
         let c = WATER[i];
         if (v < 0.16) c = ROBE[gx < 0.3 ? 4 : gx < 0.7 ? 3 : 2];
         else if (tent) c = k * 2 < -hw ? WATER[4] : k > hw - 0.6 * q ? ROBE[1] : WATER[2];
         pt(p, x + k, y, c);
       }
+      if (fine && !tent && j >= 3 && j <= 8 && v > 0.2 && v < 0.88) pt(g, x - hw * 0.15, y, glow[j >= 4 && j <= 7 && v < 0.7 ? 1 : 0]); // Geisterkern (Leuchtebene)
       if (tent && Math.floor(s) % 4 === 2 && v > 0.25 && v < 0.85) {
         if (fine) { if (s % 1 < 0.3) { pt(p, x + hw * 0.3, y, WATER[5]); pt(p, x + hw * 0.3 + 0.5, y + 0.5, ROBE[1]); pt(p, x + hw * 0.3, y + 0.5, WATER[3]); } }
         else p.px(x + hw * 0.3, y, WATER[5]); // Saugnäpfe
@@ -264,7 +297,7 @@ function skirt(p, g, glow, wx, wy, P) {
       const S = Math.floor(s), v = s / len;
       const x = x0 - P.trail * 7 * v * v + Math.sin(P.clothT * 1.2 + u * 2.2 + v * 3) * 1.2 * v + (u - 0.5) * 6 * v * P.veil;
       const y = wy + s;
-      const wd = s > len - 2 ? 2 : 3; // Bahnen überlappen, Enden spitz
+      const wd = (s > len - 2 ? 2 : 3) + (fine ? 0.5 : 0); // Bahnen überlappen, Enden spitz (fein etwas breiter)
       p.rect(x, y, wd, q, ROBE[S === 2 ? Math.min(5, sh + 1) : s > len - 3 ? Math.max(1, sh - 1) : sh]);
       if (i % 2 === 1 && s > 3) {
         if (fine) p.rect(x + wd - 0.5, y, 0.5, q, ROBE[Math.max(0, sh - 1)]);
@@ -472,6 +505,18 @@ function drawFigure(p, g, P, glow, ex, flood) {
     const L = 32 + [10, 4, 12, 6][clump] + (1 - Math.abs(cl - 0.5) * 2) * 9 - lift * 4 + P.hairWild * 6;
     strand(p, g, glow, ox, oy, dir, L, 7 - u * 1.6, j, P, { u, shade: u < 0.3 ? 4 : u < 0.65 ? 3 : 2, sheen: j === 3 || j === 8 || j === 13, edge: cl < 0.2, glowy: flood ? 0.04 : 0 });
   }
+  if (fine) {
+    // Haarmasse gliedern: je Büschel 2–3 helle Strähnen mit harter Lichtkante und dunkle Mulden dazwischen
+    for (const [j, off, lit] of [[1, 0.45, true], [3, -0.2, false], [4, 0.5, true], [6, 0.3, true], [9, 0.45, true], [11, -0.2, false],
+      [12, 0.4, true], [14, 0.35, true], [16, 0.5, true]]) {
+      const u = j / (nH - 1), th = -Math.PI / 2 - u * 1.5 - 0.1;
+      const ox = hcx - 1 + Math.cos(th) * 4.5, oy = hcy - 1 + Math.sin(th) * 4.5;
+      const dir = Math.PI / 2 + 0.35 + u * 0.35 + lift * (0.95 + u * 0.3);
+      const cu = Math.min(3.999, u * 4), clump = Math.floor(cu), cl = cu - clump;
+      const L = 32 + [10, 4, 12, 6][clump] + (1 - Math.abs(cl - 0.5) * 2) * 9 - lift * 4 + P.hairWild * 6;
+      hairLine(p, ox, oy, dir, L, 7 - u * 1.6, P, u, u < 0.3 ? 4 : u < 0.65 ? 3 : 2, off, lit);
+    }
+  }
   // Zusätzliche, wild peitschende Leuchtsträhnen (nur Leucht-Ebene, Phase 2)
   if (flood) {
     for (let j = 0; j < 4; j++) {
@@ -515,7 +560,7 @@ function drawFigure(p, g, P, glow, ex, flood) {
   const grow = (1 - q) / 2;
   for (let s = -1; s <= SPINE + 0.5; s += 0.5 * q) {
     const f = Math.max(0, s) / SPINE;
-    const hw = 4.6 + f * 2 + (f > 0.78 ? 0.8 : 0) - (f > 0.95 ? 1.8 : 0) + grow;
+    const hw = 4.6 + f * 2 + (f > 0.78 ? 0.8 : 0) - (f > 0.95 ? 1.8 : 0) + grow + (fine ? 0.4 : 0);
     const cx = wx + sl * s, cy = wy - cl * s;
     for (let k = -hw; k <= hw + 0.01; k += 0.5 * q) {
       const e = (k + hw) / (2 * hw);

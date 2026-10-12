@@ -517,7 +517,17 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
     if (fine) {
       // Glanzlinie als Lichtsichel oben links, Glanzpunkt, Kratzer
       for (let a = 3.5; a < 4.95; a += 0.08) pt(p, x - 1.5 + Math.cos(a) * (rx - 3.6), y - 1.5 + Math.sin(a) * (ry - 3), front ? St[4] : R[3]);
+      // harte Glanzlinie oben links auf der Plattenkante: durchgehend, Mitte am hellsten, darunter Mittelton
+      const arc = (rx2, ry2, a0, a1, cOf) => {
+        let qx = x - 0.5 + Math.cos(a0) * rx2, qy = y - 0.5 + Math.sin(a0) * ry2;
+        for (let a = a0 + 0.1; a <= a1 + 0.001; a += 0.1) {
+          const nx2 = x - 0.5 + Math.cos(a) * rx2, ny2 = y - 0.5 + Math.sin(a) * ry2;
+          hair(p, qx, qy, nx2, ny2, cOf(a)); qx = nx2; qy = ny2;
+        }
+      };
       for (let a = 3.2; a < 5.3; a += 0.08) pt(p, x - 0.5 + Math.cos(a) * (rx - 1.3), y - 0.5 + Math.sin(a) * (ry - 1.3), ramp[2]);
+      arc(rx - 1.3, ry - 1.3, 3.35, 5.0, (a) => (a > 3.85 && a < 4.6 ? (front ? '#ffffff' : St[4]) : front ? St[5] : St[3]));
+      arc(rx - 1.8, ry - 1.8, 3.5, 4.8, () => (front ? St[4] : R[3]));
       pt(p, x - rx * 0.45, y - ry * 0.6, front ? St[5] : St[3]); pt(p, x - rx * 0.45 + 0.5, y - ry * 0.6, front ? St[4] : R[3]);
       hair(p, x + rx * 0.15, y - ry * 0.05, x + rx * 0.5, y + ry * 0.3, ramp[0]);
       hair(p, x - rx * 0.35, y + ry * 0.15, x - rx * 0.1, y + ry * 0.35, ramp[0]); pt(p, x - rx * 0.35, y + ry * 0.15 - 0.5, front ? St[3] : R[3]);
