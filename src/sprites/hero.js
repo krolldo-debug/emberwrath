@@ -2087,7 +2087,7 @@ function drawBlade(R, G, w, hx, hy, ang, len, far) {
     if (half > 1 && Math.abs(vv) < 0.35) c = Bl[2];
     if (w.fuller && Math.abs(vv) < 0.3 && t < 0.7 && half > 1) c = Bl[1];
     if (w.runes && Math.abs(vv) < 0.5 && t > 0.15 && t < 0.7 && Math.round(u) % 2 === 0) c = w.runes[3];
-    if (w.glow && !far && t > 0.3 && vv > 0.1) c = w.glow[3];
+    if (w.glow && !far && t > 0.3 && vv > hw - 0.5) c = w.glow[3]; // Glut nur als Schneidenkante;
     return c;
   });
   weaponAxis(G, w, hx, hy, ang, 1.7, len, far);
