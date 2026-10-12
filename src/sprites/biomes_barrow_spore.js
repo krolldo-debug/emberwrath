@@ -2,6 +2,8 @@ import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
 import { createRng } from '../core/math.js';
+import { FineCanvas, col32 } from '../gfx/Fine.js';
+import { D4, vnoise } from './ground/kit.js';
 
 // Kacheln, Flüssigkeiten und Deko für zwei Dungeons der Runde 3:
 //   'barrow' – Das Heulende Hügelgrab: Grabkammern unter einem Erdhügel. Gestampfte Erde,
@@ -1312,6 +1314,504 @@ function sporeRotAltar() {
   }, { glow: true, box: [-14, -6, 14, 1], light: { dx: 0, dy: -20, radius: 66, color: [180, 100, 255], intensity: 0.85 } });
 }
 
+// ================================================================== FEINRASTER-BODEN
+// Feinkacheln (docs/STYLE.md „Feinraster“): dieselben Makrokacheln wie barrowFloor/sporeFloor – gleiche rng-Folge,
+// also gleiche Platten, Knollen, Wurzeln und Beigaben –, gezeichnet mit 2 Feinpixeln je Weltpixel (64×64 Texel,
+// canvas.res = 2). Flächen flach, Übergänge geordnet gerastert, Details in Feinpixeln: Fasen und Fugen 1 Feinpixel,
+// Abplatzungen, Risse mit Lichtkante, Kiesel mit Glanzpunkt und Schlagschatten, Flechtenbüschel. Zusatzentscheidungen
+// kommen aus einem eigenen rng (xr), die Folge der groben Kacheln bleibt unberührt. Die groben Kacheln (Qualität
+// „Niedrig“) bleiben unverändert. Werkzeuge hier werden auch von biomes_rime_throne.js benutzt.
+export const C32 = (ramp) => ramp.map(col32);
+// Rampenwissen für Schatten/Licht auf beliebigem Untergrund: Farbe → [Rampe, Stufe]
+export function rampIndex(ramps) {
+  const m = new Map();
+  for (const r of ramps) r.forEach((c, i) => { if (!m.has(c)) m.set(c, [r, i]); });
+  return m;
+}
+// Stufe mit schmaler geordneter Rasterung am Übergang (harte Stufen, kein Verlauf); D = Bayer-Wert 0..1
+export function stepQ(v, D, w = 0.24) {
+  const k = Math.floor(v), f = v - k, a = 0.5 - w / 2;
+  return k + (f > a + w ? 1 : f > a && D < (f - a) / w ? 1 : 0);
+}
+// Glattes Tonfeld 64×64 Texel aus einem groben Gitter (je 4 Texel ein Wert, bilinear) – günstig statt vnoise je Texel
+export function toneField(fn) {
+  const g = new Float32Array(17 * 17), out = new Float32Array(4096);
+  for (let j = 0; j <= 16; j++) for (let i = 0; i <= 16; i++) g[j * 17 + i] = fn(i * 4, j * 4);
+  for (let Y = 0; Y < 64; Y++) {
+    const j = Y >> 2, v = (Y & 3) / 4;
+    for (let X = 0; X < 64; X++) {
+      const i = X >> 2, u = (X & 3) / 4, q = j * 17 + i;
+      const a = g[q] + (g[q + 1] - g[q]) * u, b = g[q + 17] + (g[q + 18] - g[q + 17]) * u;
+      out[Y * 64 + X] = a + (b - a) * v;
+    }
+  }
+  return out;
+}
+export const bayer = (X, Y) => D4[(Y & 3) * 4 + (X & 3)] / 16;
+
+// Feinkachel 32×32 Weltpixel = 64×64 Texel; Zeichnen in den Pixelpuffer der FineCanvas (Farben als col32)
+export class FineTile {
+  constructor(idx, size = 32) {
+    this.fc = new FineCanvas(size, size, 2);
+    this.b = this.fc.buf; this.W = size * 2; this.idx = idx;
+  }
+  in(X, Y) { return X >= 0 && Y >= 0 && X < this.W && Y < this.W; }
+  get(X, Y) { return this.in(X, Y) ? this.b[Y * this.W + X] : 0; }
+  set(X, Y, c) { if (X >= 0 && Y >= 0 && X < this.W && Y < this.W) this.b[Y * this.W + X] = c; }
+  fill(X, Y, w, h, c) { for (let j = Y; j < Y + h; j++) for (let i = X; i < X + w; i++) this.set(i, j, c); }
+  // Untergrund um k Stufen seiner Rampe abdunkeln (k < 0: aufhellen); unbekannte Farben bleiben
+  shade(X, Y, k = 1) {
+    if (!this.in(X, Y)) return;
+    const i = Y * this.W + X, e = this.idx.get(this.b[i]);
+    if (e) this.b[i] = e[0][Math.max(0, Math.min(e[0].length - 1, e[1] - k))];
+  }
+  // Stufe der Untergrundfarbe in Rampe r (-1 = andere Farbe)
+  lvl(X, Y, r) { const e = this.idx.get(this.get(X, Y)); return e && e[0] === r ? e[1] : -1; }
+  // Ellipse über Texelmitten: fn(X, Y, dx, dy, q) mit normierten Abständen
+  ell(cx, cy, rx, ry, fn) {
+    for (let Y = Math.floor(cy - ry - 1); Y <= Math.ceil(cy + ry + 1); Y++) for (let X = Math.floor(cx - rx - 1); X <= Math.ceil(cx + rx + 1); X++) {
+      const dx = (X + 0.5 - cx) / rx, dy = (Y + 0.5 - cy) / ry;
+      fn(X, Y, dx, dy, dx * dx + dy * dy);
+    }
+  }
+  // Linie im Texelraster (Bresenham), fn(X, Y, i)
+  line(X0, Y0, X1, Y1, fn) {
+    X0 = Math.round(X0); Y0 = Math.round(Y0); X1 = Math.round(X1); Y1 = Math.round(Y1);
+    const dx = Math.abs(X1 - X0), dy = -Math.abs(Y1 - Y0), sx = X0 < X1 ? 1 : -1, sy = Y0 < Y1 ? 1 : -1;
+    let err = dx + dy, i = 0;
+    for (;;) {
+      fn(X0, Y0, i++);
+      if (X0 === X1 && Y0 === Y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; X0 += sx; }
+      if (e2 <= dx) { err += dx; Y0 += sy; }
+    }
+  }
+  // Kiesel: Glanzpunkt oben links, Kante unten rechts dunkel, Schlagschatten auf den Untergrund (St: Rampe ≥ 6)
+  pebble(cx, cy, rx, ry, St, shadow = 2) {
+    const top = St.length - 1, cells = [];
+    this.ell(cx, cy, rx, ry, (X, Y, dx, dy, q) => {
+      if (q <= 1) {
+        const lit = -dx * 0.55 - dy * 0.85;
+        cells.push([X, Y, lit > 0.5 && q < 0.75 ? St[top] : St[lit > 0.05 ? top - 2 : lit > -0.5 ? top - 3 : top - 4]]);
+      }
+    });
+    if (shadow) this.ell(cx + rx * 0.35, cy + 0.9, rx, ry, (X, Y, dx, dy, q) => { if (q <= 1 && dy > 0) this.shade(X, Y, shadow); });
+    for (const [X, Y, c] of cells) this.set(X, Y, c);
+  }
+  // Rille (Gravur, Riss): Maske dunkel, Lichtkante unten rechts auf dem Untergrund
+  groove(mask, dark, lightK = -2) {
+    const W = this.W;
+    for (let i = 0; i < mask.length; i++) if (mask[i]) this.b[i] = dark;
+    for (let i = 0; i < mask.length; i++) {
+      if (!mask[i]) continue;
+      const X = i % W, Y = (i / W) | 0;
+      if (Y + 1 < W && X + 1 < W && !mask[i + W + 1]) this.shade(X + 1, Y + 1, lightK);
+    }
+  }
+  done() { this.fc.dirty = true; const c = this.fc.canvas; c.res = 2; return c; }
+}
+
+// Wurzel/Ranke fein: Polygonzug in Weltpixeln, Breite w0 → w1 (Weltpixel), rund schattiert (Licht oben links),
+// Schlagschatten unten rechts. R: Rampe (7 Stufen).
+function strandFine(t, pts, w0, w1, R, xr) {
+  const W = t.W, best = new Float32Array(W * W).fill(9), lit = new Float32Array(W * W);
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i], l = Math.hypot(bx - ax, by - ay) || 0.01;
+    for (let s = 0; s <= l; s += 0.2) {
+      const u = s / l, x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
+      const r = Math.max(0.7, w0 + (w1 - w0) * ((acc + s) / len)), cx = 2 * x + 1, cy = 2 * y + 1;
+      for (let Y = Math.floor(cy - r); Y <= Math.ceil(cy + r); Y++) for (let X = Math.floor(cx - r); X <= Math.ceil(cx + r); X++) {
+        if (X < 0 || Y < 0 || X >= W || Y >= W) continue;
+        const dx = X + 0.5 - cx, dy = Y + 0.5 - cy, d = Math.hypot(dx, dy) / r, k = Y * W + X;
+        if (d <= 1 && d < best[k]) { best[k] = d; lit[k] = -(dx * 0.6 + dy * 0.8) / r; }
+      }
+    }
+    acc += l;
+  }
+  for (let k = 0; k < best.length; k++) if (best[k] <= 1 && k + W + 1 < best.length && best[k + W + 1] > 1 && (k % W) + 1 < W) t.shade((k % W) + 1, ((k / W) | 0) + 1, 2);
+  for (let k = 0; k < best.length; k++) {
+    if (best[k] > 1) continue;
+    const l = lit[k];
+    t.b[k] = l > 0.5 ? R[5] : l > 0.05 ? R[4] : l > -0.5 ? R[3] : R[2];
+  }
+  // Würzelchen: feine Seitentriebe, Spitze hell
+  for (let i = 1; i < pts.length - 1; i++) {
+    if (!xr.chance(0.3)) continue;
+    const [x, y] = pts[i], sx = xr.chance(0.5) ? 1 : -1;
+    let X = Math.round(2 * x + 1 + sx * 2), Y = Math.round(2 * y + 1);
+    for (let k = 0; k < 3; k++) {
+      if (best[Y * W + X] <= 1) break;
+      t.shade(X + 1, Y + 1, 1); t.set(X, Y, k === 2 ? R[4] : R[2]);
+      X += sx; Y += xr.chance(0.5) ? 1 : 0;
+    }
+  }
+  const [ex, ey] = pts[pts.length - 1];
+  t.set(Math.round(2 * ex + 1), Math.round(2 * ey + 1), R[5]);
+}
+
+// ------------------------------------------------------------ Hügelgrab fein
+let BCOL = null;
+function barrowCols() {
+  if (BCOL) return BCOL;
+  const E = C32(EARTH), S = C32(BST), R = C32(ROOT), L = C32(LICH), Cl = C32(CLAY), G = C32(GOLD), B = C32(BONE);
+  BCOL = { E, S, R, L, Cl, G, B, idx: rampIndex([E, S, R, Cl, B, G, L]) };
+  return BCOL;
+}
+
+// Erde: flach, wenige große Feucht-/Trittflecken (geordnet gerastert), zum Kachelrand hin ausgeblendet (nahtlos)
+function earthFine(t, n, C) {
+  const E = C.E, tf = toneField((X, Y) => vnoise(X / 20 + n * 5.7, Y / 15 + n * 3.1, 2111) * 0.8 + vnoise(X / 6, Y / 6, 2113 + n) * 0.2);
+  for (let Y = 0; Y < 64; Y++) for (let X = 0; X < 64; X++) {
+    const edge = Math.min(X, Y, 63 - X, 63 - Y), w = Math.min(1, edge / 10);
+    const v = 0.5 + (tf[Y * 64 + X] - 0.5) * w;
+    const D = bayer(X, Y);
+    let c = E[2];
+    if (v < 0.33 || (v < 0.38 && D < (0.38 - v) / 0.05)) c = E[1];
+    else if (v > 0.69 || (v > 0.64 && D < (v - 0.64) / 0.05)) c = E[3];
+    t.b[Y * 64 + X] = c;
+  }
+}
+
+function roughSlabFine(t, rng, xr, x, y, w, h, base, C) {
+  const S = C.S, x0 = x + 1, y0 = y + 1, x1 = x + w - 2, y1 = y + h - 2;
+  if (x1 - x0 < 2 || y1 - y0 < 2) return null;
+  const chip = () => rng.int(0, 2);
+  const cTL = chip(), cTR = chip(), cBL = chip(), cBR = chip();
+  const X0 = 2 * x0, Y0 = 2 * y0, X1 = 2 * x1 + 1, Y1 = 2 * y1 + 1;
+  const tl = 2 * cTL, tr = 2 * cTR, bl = 2 * cBL, br = 2 * cBR;
+  const inS = (X, Y) => {
+    if (X < X0 || X > X1 || Y < Y0 || Y > Y1) return false;
+    const dl = X - X0, dr = X1 - X, dt = Y - Y0, db = Y1 - Y;
+    return !(dl + dt < tl || dr + dt < tr || dl + db < bl || dr + db < br);
+  };
+  // Schlagschatten der Platte auf die Erde (unten rechts, 1 Feinpixel), dann Fläche mit Fasen
+  for (let Y = Y0; Y <= Y1 + 1; Y++) for (let X = X0; X <= X1 + 1; X++) if (!inS(X, Y) && inS(X - 1, Y - 1)) t.shade(X, Y, 2);
+  const inner = new Uint8Array(4096);
+  for (let Y = Y0; Y <= Y1; Y++) for (let X = X0; X <= X1; X++) {
+    if (!inS(X, Y)) continue;
+    let k = base;
+    if (!inS(X, Y - 1) || !inS(X - 1, Y)) k = base + 1;
+    else if (!inS(X, Y + 1) || !inS(X + 1, Y)) k = base - 1;
+    else if (!inS(X + 1, Y + 1)) k = base - 1;
+    else inner[Y * 64 + X] = 1;
+    t.set(X, Y, S[k]);
+  }
+  t.set(X0 + tl + 1, Y0, S[base + 2]); t.set(X0, Y0 + tl + 1, S[base + 2]);
+  // Schieferschichtung: Kanten der Lagen (dunkel, darunter Licht), Lücken wie grob
+  for (let yy = y0 + 2; yy < y1 - 1; yy += rng.int(3, 5)) {
+    const sx = x0 + rng.int(1, 3), ex = x1 - rng.int(1, 3);
+    const Y = 2 * yy + 1, jog = xr.int(0, 3), on = [];
+    for (let xx = sx; xx <= ex; xx++) on[xx] = rng.chance(0.75);
+    for (let xx = sx; xx <= ex; xx++) {
+      if (!on[xx] && !(on[xx - 1] && on[xx + 1])) continue;
+      for (let X = 2 * xx; X <= 2 * xx + 1; X++) {
+        const YY = Y + (jog && X > 2 * (sx + jog) ? -1 : 0);
+        if (inner[YY * 64 + X]) { t.set(X, YY, S[base - 1]); if (inner[(YY + 1) * 64 + X]) t.set(X, YY + 1, S[base + 1]); }
+      }
+    }
+    if (rng.chance(0.5)) { const hx = 2 * (sx + rng.int(0, 2)); if (inner[(Y - 2) * 64 + hx]) t.set(hx, Y - 2, S[base + 2]); }
+  }
+  // Flechten: kleine Büschel aus Feinpixeln, oben heller, Schatten darunter
+  if (rng.chance(0.4)) {
+    const lx = rng.int(x0 + 1, Math.max(x0 + 1, x1 - 2)), ly = rng.int(y0 + 1, Math.max(y0 + 1, y1 - 2));
+    for (let m = 0; m < 5; m++) {
+      const ax = lx + rng.int(-1, 2), ay = ly + rng.int(-1, 1), i = LICH.indexOf(rng.pick(LICH));
+      const X = 2 * ax + xr.int(0, 1), Y = 2 * ay + xr.int(0, 1);
+      t.shade(X, Y + 1, 1); t.shade(X + 1, Y + 1, 1);
+      t.set(X, Y, C.L[i]);
+      if (xr.chance(0.6)) t.set(X + 1, Y, C.L[Math.max(0, i - 1)]);
+      if (xr.chance(0.5)) t.set(X, Y - 1, C.L[Math.min(2, i + 1)]);
+    }
+  }
+  // Abplatzung an der Oberkante (Erde sichtbar, Bruchkante darunter im Licht)
+  if (xr.chance(0.45) && X1 - X0 > tl + tr + 10) {
+    const X = X0 + tl + 3 + xr.int(0, X1 - X0 - tl - tr - 9), wd = xr.int(2, 3);
+    for (let i = 0; i < wd; i++) { t.set(X + i, Y0, C.E[1]); if (i > 0 && i < wd - 1) t.set(X + i, Y0 + 1, C.E[1]); }
+    for (let i = 0; i < wd; i++) t.set(X + i, Y0 + (i > 0 && i < wd - 1 ? 2 : 1), S[base + 1]);
+  }
+  // Haarriss
+  if (xr.chance(0.3)) {
+    let X = X0 + 4 + xr.int(0, Math.max(0, X1 - X0 - 10)), Y = Y0 + 3 + xr.int(0, Math.max(0, Y1 - Y0 - 8));
+    const dx = xr.chance(0.5) ? 1 : -1;
+    for (let i = 0, n = xr.int(4, 8); i < n; i++) {
+      if (!inner[Y * 64 + X]) break;
+      t.set(X, Y, S[Math.max(0, base - 2)]);
+      if (inner[(Y + 1) * 64 + X]) t.set(X, Y + 1, S[base + 1]);
+      if (xr.chance(0.6)) X += dx; else Y += 1;
+      if (xr.chance(0.3)) Y += 1;
+    }
+  }
+  return { inS, inner, X0, Y0, X1, Y1 };
+}
+
+function pebbleFine(t, x, y, big, C) {
+  t.pebble(2 * x + (big ? 1.4 : 2), 2 * y + (big ? 1.6 : 2), big ? 2.5 : 1.6, big ? 1.8 : 1.2, C.S, 2);
+}
+
+function longBoneFine(t, x0, y0, x1, y1, B) {
+  const A = [2 * x0 + 1, 2 * y0 + 1], Z = [2 * x1 + 1, 2 * y1 + 1];
+  t.line(A[0], A[1], Z[0], Z[1], (X, Y) => { t.shade(X + 1, Y + 2, 2); });
+  t.line(A[0], A[1], Z[0], Z[1], (X, Y) => { t.set(X, Y, B[3]); t.set(X, Y + 1, B[1]); });
+  const knob = (cx, cy, d) => {
+    t.shade(cx + 1, cy + 2, 2); t.shade(cx, cy + 2, 2);
+    t.set(cx - 1, cy - 1, B[3 - d]); t.set(cx, cy - 1, B[4 - d]); t.set(cx - 1, cy, B[3 - d]); t.set(cx, cy, B[2]);
+    t.set(cx - 1, cy + 1, B[2 - d]); t.set(cx, cy + 1, B[1]);
+  };
+  knob(A[0] - 1, A[1], 0); t.set(A[0], A[1] + 2, B[1]); t.set(A[0] - 1, A[1] + 2, B[2]);
+  knob(Z[0] + 1, Z[1], 1); t.set(Z[0] + 2, Z[1], B[1]);
+}
+
+function barrowFloorFine(count = 10, seed = 211) {
+  const rng = createRng(seed), C = barrowCols(), E = C.E;
+  const tiles = [];
+  for (let n = 0; n < count; n++) {
+    const t = new FineTile(C.idx), xr = createRng(seed * 977 + n * 131 + 7);
+    earthFine(t, n, C);
+    // grobe Erdkrumen-Folge (160 + 40) verbrauchen; jede vierte wird eine feine Krume (oben hell, unten dunkel)
+    const crumbs = [];
+    for (let k = 0; k < 160; k++) { const px = rng.int(0, 31), py = rng.int(0, 31); rng.pick(E); if (k % 9 === 0) crumbs.push([px, py]); }
+    for (let k = 0; k < 40; k++) { rng.int(0, 31); rng.int(0, 31); }
+    for (const [px, py] of crumbs) {
+      const X = 2 * px + xr.int(0, 1), Y = 2 * py + xr.int(0, 1);
+      if (xr.chance(0.5)) { t.set(X, Y, E[4]); t.set(X + 1, Y, E[3]); t.set(X, Y + 1, E[1]); t.set(X + 1, Y + 1, E[0]); }
+      else { t.set(X, Y, E[4]); t.set(X, Y + 1, E[0]); }
+    }
+    const rects = [];
+    splitRects(rng, 0, 0, 32, 32, rects, 9);
+    let special = n === 3 ? 'rune' : n === 6 ? 'grave' : null;
+    for (const [x, y, w, h] of rects) {
+      if (special && w >= 12 && h >= 10) {
+        const base = 3;
+        const sl = roughSlabFine(t, rng, xr, x, y, w, h, base, C);
+        const cx = x + (w >> 1), cy = y + (h >> 1), mask = new Uint8Array(4096);
+        const dot = (X, Y) => { if (X >= 0 && Y >= 0 && X < 64 && Y < 64 && sl.inS(X, Y)) mask[Y * 64 + X] = 1; };
+        if (special === 'rune') {
+          const r = Math.min(w, h) / 2 - 2;
+          for (let k = 0; k < 3; k++) {
+            const a0 = (k / 3) * Math.PI * 2;
+            for (let a = 0; a < Math.PI * 1.6; a += 0.04) {
+              const rr = r * (1 - a / (Math.PI * 2.2));
+              const xw = cx + Math.cos(a0 + a) * rr * 0.9 + Math.cos(a0) * r * 0.25 + 0.5;
+              const yw = cy + Math.sin(a0 + a) * rr * 0.75 + Math.sin(a0) * r * 0.2 + 0.5;
+              const X = Math.floor(2 * xw), Y = Math.floor(2 * yw);
+              dot(X, Y); if (a < Math.PI * 1.1) dot(X + 1, Y);
+            }
+          }
+        } else {
+          // Grabplatte mit eingeritztem Schwert (Knauf oben, Klinge läuft spitz aus)
+          const bx = 2 * cx, yt = 2 * (y + 3), yb = 2 * (y + h - 3);
+          for (let Y = yt + 2; Y < yb; Y++) { dot(bx, Y); if (Y < yb - 3) dot(bx + 1, Y); }
+          for (let X = 2 * (cx - 2); X <= 2 * (cx + 2) + 1; X++) { dot(X, 2 * (y + 5) + 1); if (X > 2 * (cx - 2) && X < 2 * (cx + 2) + 1) dot(X, 2 * (y + 5) + 2); }
+          dot(bx - 1, yt); dot(bx, yt - 1); dot(bx + 1, yt - 1); dot(bx + 2, yt); dot(bx, yt + 1); dot(bx + 1, yt + 1); dot(bx, yt); dot(bx + 1, yt);
+        }
+        t.groove(mask, C.S[0], -2);
+        special = null;
+        continue;
+      }
+      if (rng.chance(0.6)) { const b = rng.pick([2, 2, 3, 3]); roughSlabFine(t, rng, xr, x, y, w, h, b, C); }
+      else {
+        // Offene Erde: Kiesel, dunkle Feuchte
+        for (let k = 0; k < rng.int(1, 3); k++) {
+          const px = x + rng.int(2, Math.max(2, w - 3)), py = y + rng.int(2, Math.max(2, h - 3));
+          pebbleFine(t, px, py, rng.chance(0.4), C);
+        }
+        if (rng.chance(0.5)) {
+          const cx = x + (w >> 1), cy = y + (h >> 1);
+          for (let j = -1; j <= 1; j++) for (let i = -2; i <= 2; i++) rng.chance(0.6);
+          t.ell(2 * cx + 1, 2 * cy + 1, 5.5, 3, (X, Y, dx, dy, q) => {
+            if (q > 1 || t.lvl(X, Y, E) < 0) return;
+            if (q < 0.78 || bayer(X, Y) < 0.5) t.set(X, Y, E[1]);
+          });
+        }
+      }
+    }
+    // Wurzeln (gleiche Pfade wie grob, rund und fein)
+    if (rng.chance(0.35)) {
+      const sx = rng.int(4, 27), sy = rng.int(3, 10);
+      const pts = wander(rng, sx, sy, rng.range(-0.6, 0.6), 1, rng.int(5, 9), 0.5).map(([x, y]) => [Math.max(2, Math.min(29, x)), Math.max(2, Math.min(29, y))]);
+      const [bx, by] = pts[Math.min(pts.length - 1, 3)];
+      const pts2 = wander(rng, bx, by, 1, 0.4, 3, 0.4).map(([x, y]) => [Math.max(1, Math.min(30, x)), Math.max(1, Math.min(30, y))]);
+      strandFine(t, pts, 2.3, 0.8, C.R, xr);
+      strandFine(t, pts2, 1.1, 0.7, C.R, xr);
+    }
+    // Knochensplitter, Scherben, Grabbeigaben
+    if (rng.chance(0.45)) {
+      const x = rng.int(3, 26), y = rng.int(3, 27);
+      longBoneFine(t, x, y, x + rng.int(3, 5), y + rng.int(-1, 1), C.B);
+    }
+    if (rng.chance(0.25)) {
+      const X = 2 * rng.int(2, 28), Y = 2 * rng.int(2, 28), K = C.Cl;
+      for (const [i, j] of [[0, 2], [1, 2], [2, 2], [3, 1], [1, 3], [2, 3]]) t.shade(X + i, Y + j, 2);
+      t.set(X, Y, K[5]); t.set(X + 1, Y, K[4]); t.set(X + 2, Y, K[4]);
+      t.set(X, Y + 1, K[3]); t.set(X + 1, Y + 1, K[3]); t.set(X + 2, Y + 1, K[2]); t.set(X + 3, Y + 1, K[1]);
+      t.set(X, Y + 2, K[1]);
+    }
+    if (n === 8) {
+      const x = rng.int(6, 24), y = rng.int(6, 24), G = C.G;
+      const coin = (X, Y, big) => {
+        t.shade(X + 1, Y + 2, 2); t.shade(X + 2, Y + 2, 2); if (big) t.shade(X + 3, Y + 2, 2);
+        t.set(X, Y, G[5]); t.set(X + 1, Y, G[4]); t.set(X, Y + 1, G[3]); t.set(X + 1, Y + 1, G[2]);
+        if (big) { t.set(X + 2, Y, G[3]); t.set(X + 2, Y + 1, G[1]); t.set(X - 1, Y, G[4]); t.set(X - 1, Y + 1, G[2]); }
+      };
+      coin(2 * x + 1, 2 * y, true); t.set(2 * x + 1, 2 * y, C.G[6]);
+      coin(2 * x + 6, 2 * y + 3, false);
+    }
+    tiles.push(t.done());
+  }
+  return tiles;
+}
+
+// ------------------------------------------------------------ Sporenschlund fein
+let SCOL = null;
+function sporeCols() {
+  if (SCOL) return SCOL;
+  const F = C32(FLESH), M = C32(MYC), St = C32(STALK), Gr = C32(SGRN), Vi = C32(SVIO), Sl = C32(SLIME);
+  SCOL = { F, M, St, Gr, Vi, Sl, idx: rampIndex([F, M, St, Sl, Gr, Vi]) };
+  return SCOL;
+}
+
+// Knolle fein: harte Lichtstufen (Licht oben links), Glanzsaum oben links, dunkler Rand unten rechts
+function bumpFine(t, x, y, rx, ry, base, F, xr) {
+  const cx = 2 * x + 1, cy = 2 * y + 1, Rx = 2 * rx, Ry = 2 * ry;
+  const inB = (X, Y) => { const dx = (X + 0.5 - cx) / Rx, dy = (Y + 0.5 - cy) / Ry; return dx * dx + dy * dy <= 1; };
+  t.ell(cx + 1.2, cy + 1.6, Rx, Ry, (X, Y, dx, dy, q) => { if (q <= 1 && !inB(X, Y)) t.set(X, Y, F[0]); });
+  t.ell(cx, cy, Rx, Ry, (X, Y, nx, ny, d) => {
+    if (d > 1) return;
+    let l = -(nx * 0.65 + ny * 0.85) * (1 - d * 0.25);
+    if (d > 0.72 && nx + ny > 0.3) l -= 0.6;
+    let k = stepQ(base + l * 1.7, bayer(X, Y), 0.16);
+    if (!inB(X, Y - 1) || !inB(X - 1, Y)) { if (nx + ny < -0.2) k += 1; }
+    else if (!inB(X, Y + 1) || !inB(X + 1, Y)) k -= 1;
+    t.set(X, Y, F[Math.max(0, Math.min(6, k))]);
+  });
+  // Hautfalte: gebogene Kerbe im unteren Teil großer Knollen (dunkel, darunter Licht)
+  if (rx > 4.5 && xr.chance(0.55)) {
+    const a0 = 0.05 + xr.next() * 0.3, a1 = a0 + 0.3 + xr.next() * 0.25, k = 0.45 + xr.next() * 0.25;
+    let last = -1;
+    for (let a = a0; a < a1; a += 0.04) {
+      const X = Math.round(cx + Math.cos(a * Math.PI) * Rx * k), Y = Math.round(cy + Math.sin(a * Math.PI) * Ry * k * 0.9 - Ry * 0.1);
+      if (Y * 64 + X === last || !inB(X, Y + 1)) continue;
+      last = Y * 64 + X;
+      t.shade(X, Y, 2); t.shade(X, Y + 1, -1);
+    }
+  }
+}
+
+function sporeFloorFine(count = 10, seed = 311) {
+  const rng = createRng(seed), C = sporeCols(), F = C.F;
+  const tiles = [];
+  for (let n = 0; n < count; n++) {
+    const t = new FineTile(C.idx), xr = createRng(seed * 977 + n * 131 + 7);
+    t.b.fill(F[1]);
+    // grobe Sprenkel-Folge verbrauchen; wenige werden feine Poren im Grund
+    const pores = [];
+    for (let k = 0; k < 90; k++) { const x = rng.int(0, 31), y = rng.int(0, 31); rng.pick([FLESH[0], FLESH[2], FLESH[2]]); if (k % 6 === 0) pores.push([x, y]); }
+    // Grund: flach, wenige dunkle Senken (nahtlos zum Rand ausgeblendet)
+    const tf = toneField((X, Y) => vnoise(X / 16 + n * 4.3, Y / 13 + n * 2.9, 3111));
+    for (let Y = 0; Y < 64; Y++) for (let X = 0; X < 64; X++) {
+      const w = Math.min(1, Math.min(X, Y, 63 - X, 63 - Y) / 10);
+      const v = 0.5 + (tf[Y * 64 + X] - 0.5) * w;
+      if (v < 0.25 || (v < 0.29 && bayer(X, Y) < (0.29 - v) / 0.04)) t.b[Y * 64 + X] = F[0];
+    }
+    for (const [x, y] of pores) { const X = 2 * x + xr.int(0, 1), Y = 2 * y + xr.int(0, 1); t.set(X, Y, F[0]); t.set(X, Y + 1, F[2]); }
+    const bumps = [];
+    for (let k = 0; k < 7; k++) {
+      const rx = rng.range(3.6, 7), ry = rx * rng.range(0.6, 0.8);
+      bumps.push([rng.range(rx + 0.5, 31.5 - rx), rng.range(ry + 0.5, 31.5 - ry), rx, ry, rng.pick([2, 3, 3, 4])]);
+    }
+    bumps.sort((a, b) => a[1] - b[1]);
+    for (const [x, y, rx, ry, k] of bumps) {
+      bumpFine(t, x, y, rx, ry, k - 0.4, F, xr);
+      if (rng.chance(0.3)) {
+        const X = Math.round(2 * (x - rx * 0.35)), Y = Math.round(2 * (y - ry * 0.45));
+        t.set(X, Y, F[6]); t.set(X + 1, Y, F[5]); t.set(X, Y + 1, F[5]);
+      }
+      // Poren: Loch dunkel, Unterkante hell
+      // (nebeneinanderliegende Poren lesen sich als Augenpaar: dann nur eine)
+      if (rng.chance(0.5)) for (let m = 0, got = []; m < 3; m++) {
+        const X = Math.round(2 * (x + rng.range(-rx, rx) * 0.5) + 1), Y = Math.round(2 * (y + rng.range(-ry, ry) * 0.5) + 1);
+        if (got.some(([a, b]) => Math.abs(b - Y) <= 2 && Math.abs(a - X) <= 7)) continue;
+        got.push([X, Y]);
+        t.shade(X, Y + 1, -1); t.set(X, Y, F[0]);
+      }
+    }
+    // Myzelfäden: 1 Feinpixel, verzweigt, Knoten heller, Schatten unten rechts
+    for (let tt = 0; tt < (rng.chance(0.5) ? 1 : 0); tt++) {
+      const pts = wander(rng, rng.int(4, 27), rng.int(4, 27), rng.range(-1, 1), rng.range(-1, 1), rng.int(4, 8), 0.8);
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+        if (bx < 1 || by < 1 || bx > 30 || by > 30) break;
+        const c = i < 3 ? C.M[3] : C.M[2], A = [2 * ax + 1, 2 * ay + 1], B = [2 * bx + 1, 2 * by + 1];
+        t.line(A[0], A[1], B[0], B[1], (X, Y) => t.shade(X + 1, Y + 1, 2));
+        t.line(A[0], A[1], B[0], B[1], (X, Y) => t.set(X, Y, c));
+        t.set(Math.round(B[0]), Math.round(B[1]), C.M[4]);
+        if (rng.chance(0.3)) {
+          let X = Math.round(B[0]) + 1, Y = Math.round(B[1]) + 1;
+          for (let k = 0; k < 3; k++) { t.set(X, Y, C.M[1]); X += 1; Y += xr.chance(0.5) ? 1 : 0; }
+        }
+      }
+    }
+    // Schleimpfütze: dunkler Oberrand, Fläche in Stufen, Glanz oben links
+    if (rng.chance(0.25)) {
+      const px = rng.int(6, 25), py = rng.int(6, 25), rx = rng.int(2, 4), Sl = C.Sl;
+      const cx = 2 * px + 1, cy = 2 * py + 1, Rx = 2 * rx + 1, Ry = 3;
+      const inP = (X, Y) => { const dx = (X + 0.5 - cx) / Rx, dy = (Y + 0.5 - cy) / Ry; return dx * dx + dy * dy <= 1; };
+      t.ell(cx, cy, Rx, Ry, (X, Y, dx, dy, q) => {
+        if (q > 1) return;
+        let c = q < 0.35 ? Sl[3] : Sl[2];
+        if (!inP(X, Y - 1)) c = Sl[0];
+        else if (!inP(X, Y + 1) || !inP(X + 1, Y)) c = Sl[4];
+        else if (!inP(X - 1, Y)) c = Sl[1];
+        t.set(X, Y, c);
+      });
+      const gx = cx - Rx + 3, gy = cy - 1;
+      t.set(gx, gy, Sl[7]); t.set(gx + 1, gy, Sl[6]); t.set(gx + 2, gy, Sl[5]); t.set(gx + 1, gy + 1, Sl[4]);
+      t.set(cx + 2, cy, Sl[5]); t.set(cx + 3, cy, Sl[4]);
+    }
+    // Kleine Leuchtpilze: Stiel 1 Feinpixel, Hut gewölbt mit heller Kuppe, dunkle Lamellen
+    const shrooms = n % 4 === 0 ? 1 : 0;
+    for (let s = 0; s < shrooms; s++) {
+      const x = rng.int(3, 27), y = rng.int(4, 27), R = rng.chance(0.55) ? C.Gr : C.Vi;
+      for (let c = 0; c < rng.int(2, 3); c++) {
+        const mx = x + c * 2 + rng.int(0, 1), my = y + rng.int(-1, 1);
+        const X = 2 * mx + 1, Y = 2 * my + 1, tall = xr.int(0, 1);
+        t.shade(X + 1, Y + 1, 2); t.shade(X + 2, Y + 1, 2);
+        for (let k = 0; k <= 1 + tall; k++) t.set(X, Y - k, C.St[k === 0 ? 3 : 5]);
+        const cy = Y - 2 - tall;
+        t.set(X - 2, cy, R[2]); t.set(X - 1, cy, R[3]); t.set(X, cy, R[3]); t.set(X + 1, cy, R[2]); t.set(X + 2, cy, R[1]);
+        t.set(X - 1, cy - 1, R[5]); t.set(X, cy - 1, R[4]); t.set(X + 1, cy - 1, R[3]);
+        t.set(X - 1, cy - 2, R[6]); t.set(X, cy - 2, R[5]);
+      }
+    }
+    // Sporenstaub: einzelne Feinpixel
+    for (let k = 0; k < rng.int(1, 3); k++) {
+      const x = rng.int(1, 30), y = rng.int(1, 30), c = rng.pick([SVIO[2], SGRN[2], MYC[1]]);
+      const R = c === SVIO[2] ? C.Vi : c === SGRN[2] ? C.Gr : C.M;
+      t.set(2 * x + xr.int(0, 1), 2 * y + xr.int(0, 1), R[c === MYC[1] ? 1 : 3]);
+    }
+    // Glühende Spalte: Rille 2 Feinpixel, Glutkern 1 Feinpixel
+    if (n === 5 || n === 9) {
+      let cx = rng.int(6, 22), cy = rng.int(6, 12);
+      const path = [];
+      for (let i = 0; i < 10; i++) { path.push([cx, cy]); cx += rng.int(-1, 1) || 1; cy += 1; }
+      for (let i = 1; i < path.length; i++) {
+        const [ax, ay] = path[i - 1], [bx, by] = path[i];
+        t.line(2 * ax + 1, 2 * ay + 1, 2 * bx + 1, 2 * by + 1, (X, Y) => { t.set(X, Y, F[0]); t.set(X + 1, Y, F[0]); t.shade(X + 2, Y + 1, -1); });
+      }
+      for (let i = 2; i < 8; i++) {
+        const [ax, ay] = path[i - 1], [bx, by] = path[i];
+        t.line(2 * ax + 1, 2 * ay + 1, 2 * bx + 1, 2 * by + 1, (X, Y, j) => t.set(X, Y, (i + j) % 3 ? C.Gr[3] : C.Gr[4]));
+      }
+    }
+    tiles.push(t.done());
+  }
+  return tiles;
+}
+
 // ================================================================== Einstieg
 const CACHE = {};
 export function createBiomeTiles3(biome = 'barrow') {
@@ -1320,6 +1820,9 @@ export function createBiomeTiles3(biome = 'barrow') {
   if (biome === 'spore') {
     out = {
       floor: sporeFloor(),
+      // Feinraster (Qualität Hoch/Mittel): 64×64 Texel, canvas.res = 2; einmal gebaut, resetFine() für Messungen
+      get floorFine() { return (this._fine ??= sporeFloorFine()); },
+      resetFine() { this._fine = null; },
       faces: sporeFaces(),
       top: sporeTop(),
       topEdge: '#2a1a2a', topEdgeLight: '#46304a',
@@ -1338,6 +1841,8 @@ export function createBiomeTiles3(biome = 'barrow') {
   } else {
     out = {
       floor: barrowFloor(),
+      get floorFine() { return (this._fine ??= barrowFloorFine()); },
+      resetFine() { this._fine = null; },
       faces: barrowFaces(),
       top: barrowTop(),
       topEdge: '#2a2521', topEdgeLight: '#403830',

@@ -2,7 +2,15 @@ import { createHall } from './hall.js';
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
+import { fineRes, col32 } from '../gfx/Fine.js';
 import { createRng, hash2 } from '../core/math.js';
+import { FK as KIT_FK, hxi, D4, clampI, band, darken, field, vnoise as kitNoise } from './ground/kit.js';
+import { FINE_GROUND as KIT_FINE } from './ground/index.js';
+
+// Terraincodes, Rauschen und Feinraster-Böden liegen im Boden-Werkzeugkasten (ground/); hier weitergereicht
+export const FK = KIT_FK;
+export const vnoise = kitNoise;
+export const FINE_GROUND = KIT_FINE;
 
 // Außenbereich "Glutsenke": nächtliches Tal mit Glutspalten.
 // Licht kommt von oben links (Mond), warme Akzente von Laternen und Fenstern.
@@ -47,15 +55,6 @@ function rgb(hex) {
   let v = hexCache.get(hex);
   if (!v) { const n = parseInt(hex.slice(1), 16); v = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; hexCache.set(hex, v); }
   return v;
-}
-
-// Glatter Wertrauschen-Wert 0..1
-export function vnoise(x, y, seed = 0) {
-  const x0 = Math.floor(x), y0 = Math.floor(y);
-  const fx = x - x0, fy = y - y0;
-  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
-  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
 // Pixel-"Shader" für den Boden. Liefert [r,g,b].
@@ -106,10 +105,6 @@ export function groundPixel(kind, px, py, pal = OUT) {
 }
 
 // ------------------------------------------------------------ Feinboden (Feinraster: 2×2 Texel je Weltpixel)
-// Terrain-Codes des Feinrasters (world/Outdoor.js #fineGround legt je Chunk ein Raster mit Rand an)
-export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4 };
-const hxi = (c) => parseInt(c.slice(1), 16);
-const D4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 // Aschenwald: kühler Waldboden mit Moos- und Aschefeldern, Laubreste in Rost, warme Wege, Kiesel mit Licht oben links
 const AW = {
   floor: ['#0c100f', '#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'].map(hxi),
@@ -122,32 +117,6 @@ const AW = {
   pave: PAL.stone.map(hxi),
   mortar: hxi(PAL.mortar),
 };
-const clampI = (v, a, b) => (v < a ? a : v > b ? b : v);
-// Band eines 0..1-Werts mit schmaler, geordneter Rasterung am Übergang (Pixel-Art-Kante statt Rauschen)
-function band(t, n, dt) {
-  const v = t * n, k = Math.floor(v), f = v - k;
-  return k + (f > 0.6 ? 1 : f > 0.4 && dt < (f - 0.4) / 0.2 ? 1 : 0);
-}
-function darken(c, k) { return (((c >> 16) & 255) * k) << 16 | (((c >> 8) & 255) * k) << 8 | ((c & 255) * k); }
-
-// Rauschfelder je Chunk (mit Rand): Werte auf grobem, global ausgerichtetem Gitter, bilinear auf jedes Weltpixel
-// verteilt (je Chunk einmal; Nachbarchunks rechnen am Rand dieselben Werte)
-function field(x0, y0, w, h, step, fn, out, add, k) {
-  const W = Math.ceil(w / step) + 2, H = Math.ceil(h / step) + 2, a = new Float32Array(W * H);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) a[j * W + i] = fn(x0 + i * step, y0 + j * step);
-  const inv = 1 / step;
-  for (let y = 0; y < h; y++) {
-    const fy = y * inv, j = fy | 0, ay = fy - j, o = y * w;
-    for (let x = 0; x < w; x++) {
-      const fx = x * inv, i = fx | 0, ax = fx - i, q = j * W + i;
-      const t = a[q] + (a[q + 1] - a[q]) * ax, u = a[q + W] + (a[q + W + 1] - a[q + W]) * ax;
-      const v = (t + (u - t) * ay) * k;
-      out[o + x] = add ? out[o + x] + v : v;
-    }
-  }
-  return out;
-}
-
 // Vorarbeit je Chunk: Rauschfelder und alle Kleinteile als Stempel (Halme, Kiesel, Laub, Zweige, Risse, Krumen,
 // Trittspuren). Je Zelle entscheidet der Hash und der Ort des Ankers (Terrain, Moos, Wegmitte) – so wird ein Halm
 // oder Kiesel nie von einer Fleckgrenze zerschnitten und Nachbarchunks stempeln am Rand dasselbe.
@@ -300,6 +269,7 @@ function paveFine(F, G) {
 // Aschenwald-Boden je Feinpixel. F/G: Feinpixel (Welt × 2), K: Terrainraster (FK), ki: Index von (F, G) darin, KW: Zeilenbreite,
 // S: Vorarbeit des Chunks (ashwoodSetup). Kleinteile kommen fertig aus den Stempeln, hier nur Untergrund und Kanten.
 function ashwoodFine(kind, F, G, K, ki, KW, S) {
+  if (kind > FK.PAVE) return -1;   // Wasser/Spalten: Weltpixel-Shader
   if (kind === FK.PAVE) return paveFine(F, G);
   const o = (G - S.G0) * S.W2 + (F - S.F0), a = S.abs[o];
   const GR = FK.GRASS;
@@ -468,6 +438,7 @@ export function createRock(seed) {
 }
 
 export function createBush(seed) {
+  if (fineRes() > 1) return createBushFine(seed);
   const rng = createRng(seed);
   const G = OUT.pine;
   return buildFrame(16, 12, 8, 11, (p) => {
@@ -475,6 +446,59 @@ export function createBush(seed) {
     for (let i = 0; i < 10; i++) p.px(rng.int(2, 13), rng.int(2, 8), G[4]);
     if (rng.chance(0.6)) for (let i = 0; i < 3; i++) p.px(rng.int(3, 12), rng.int(4, 9), PAL.crimson[3]);
   });
+}
+
+// Busch im Feinraster: wenige klar abgesetzte Laubballen, Licht von oben links in harten Stufen,
+// dunkle Unterseite, dunkle Fuge wo ein vorderer Ballen über einem hinteren liegt; keine kühle Lichtkante.
+const BUSH = ['#070d0b', '#0f1a16', '#15241d', '#1c3025', '#28432f', '#37573b', '#4c6e45'].map(col32);
+function createBushFine(seed) {
+  const rng = createRng(seed);
+  const n = 3 + rng.int(0, 1), berries = rng.chance(0.6);
+  const blobs = [{ cx: 8, cy: 8.6, rx: 7, ry: 2.6 }];                 // flacher Sockel (Schattenseite)
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1), mid = 1 - Math.abs(t - 0.5) * 2;
+    blobs.push({ cx: 3.8 + t * 8.4 + rng.range(-0.6, 0.6), cy: 6.4 - mid * 2 + rng.range(-0.4, 0.6), rx: rng.range(3.1, 3.9), ry: rng.range(2.7, 3.2) });
+  }
+  // hintere (obere, mittlere) Ballen zuerst, vordere seitliche zuletzt
+  const order = [0, ...blobs.slice(1).map((b, i) => [b, i + 1]).sort((a, b) => a[0].cy - b[0].cy).map((a) => a[1])];
+  return buildFrame(16, 12, 8, 11, (f) => {
+    const r = f.res, Wt = f.W, Ht = f.H, buf = f.buf;
+    for (const bi of order) {
+      const b = blobs[bi], base = bi === 0;
+      for (let Gy = 0; Gy < Ht; Gy++) for (let Fx = 0; Fx < Wt; Fx++) {
+        const x = (Fx + 0.5) / r, y = (Gy + 0.5) / r;
+        const nx = (x - b.cx) / b.rx, ny = (y - b.cy) / b.ry, d2 = nx * nx + ny * ny;
+        if (d2 > 1) continue;
+        // gezackter Laubrand: an der Kante fehlen einzelne Feinpixel (Blattspitzen), unten nicht
+        if (d2 > 0.78 && ny < 0.5 && hash2(Fx, Gy, 711 + seed) < 0.38) continue;
+        const i = Gy * Wt + Fx, under = buf[i];
+        let k;
+        if (base) k = ny < -0.2 ? 2 : 1;
+        else {
+          const l = -0.62 * nx - 0.72 * ny + 0.35 * Math.sqrt(1 - d2) - 0.12;
+          k = l < -0.38 ? 1 : l < -0.05 ? 2 : l < 0.28 ? 3 : l < 0.6 ? 4 : 5;
+          if (under && d2 > 0.8 && ny > -0.35) k = 1;                   // Fuge über dem hinteren Ballen
+          if (k >= 4 && d2 < 0.35 && nx < -0.05 && ny < -0.05 && hash2(Fx >> 1, Gy >> 1, 713 + bi) < 0.3) k = 6;
+        }
+        buf[i] = BUSH[k];
+      }
+      if (!base) {                                                      // ein paar Blattbüschel als Glanzbögen auf der Lichtseite
+        for (let j = 0; j < 3; j++) {
+          const a = -2.2 + rng.range(-0.5, 0.6), d = rng.range(0.35, 0.7);
+          const F = Math.floor((b.cx + Math.cos(a) * b.rx * d) * r), G = Math.floor((b.cy + Math.sin(a) * b.ry * d) * r);
+          if (F < 1 || G < 1 || F >= Wt - 2 || G >= Ht - 1 || !buf[G * Wt + F]) continue;
+          buf[G * Wt + F] = BUSH[6]; buf[G * Wt + F + 1] = BUSH[5]; buf[(G + 1) * Wt + F] = BUSH[3]; buf[(G + 1) * Wt + F + 1] = BUSH[3];
+        }
+      }
+    }
+    if (berries) for (let j = 0; j < 3; j++) {
+      const b = blobs[1 + rng.int(0, n - 1)];
+      const x = Math.round(b.cx + rng.range(-1.8, 1.2)), y = Math.round(b.cy + rng.range(-1.2, 1));
+      if (!buf[f.G(y) * Wt + f.F(x)]) continue;
+      f.rect(x, y, 1, 1, PAL.crimson[2]); f.dot(x, y, PAL.crimson[4]); f.dot(x + 0.5, y + 0.5, PAL.crimson[1]);
+    }
+    f.dirty = true;
+  }, { fine: true, finish: false });
 }
 
 // Grasbüschel, Blumen, Pilze – werden in den Boden gestempelt

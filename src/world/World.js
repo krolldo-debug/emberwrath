@@ -358,7 +358,8 @@ export class World {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     // Außenkarten (Outdoor.chunked) zeichnen ihren Boden kachelweise in renderLiquid; background ist dort nur das Übersichtsbild
-    if (!this.dungeon.chunked) ctx.drawImage(this.background, cx, cy, W, H, 0, 0, W, H);
+    // Dungeon-Hintergrund in Texeln (background.res, Feinraster 2): Ausschnitt in Texeln, Ziel in Weltpixeln
+    if (!this.dungeon.chunked) { const q = this.background.res ?? 1; ctx.drawImage(this.background, cx * q, cy * q, W * q, H * q, 0, 0, W, H); }
     this.dungeon.renderLiquid?.(ctx, cx, cy, this.time);
     // Dekal-Ebene kachelweise (gfx/Decals.js render); Altform: eine weltgroße Leinwand
     if (this.decals.render) this.decals.render(ctx, cx, cy, W, H); else ctx.drawImage(this.decals.canvas, cx, cy, W, H, 0, 0, W, H);
