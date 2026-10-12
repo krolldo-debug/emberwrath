@@ -250,30 +250,66 @@ export function canopy(f, blobs, pal, seed, { lo = 1, hi = pal.length - 2, tuft 
 // Nadelbaum-Krone in Etagen: gezähnte, hängende Unterkanten, Lichtseite links, Schattenband unter jeder Etage,
 // Nadelstriche schräg nach außen. cap = Rampe für Asche/Schnee auf den Etagenkanten (capW = Anteil der Breite).
 export function conifer(f, { cx, top, bottom, half, tiers = 6, pal, seed, lo = 1, hi = pal.length - 1, cap = null, capW = 0.35, capTop = false, sway = 0, bias = -0.06 }) {
+  // Etagen aus hängenden Zweigen: je Etage ein dunkler Kern und an beiden Seiten ungleich lange, nach außen
+  // spitz auslaufende und abwärts hängende Zweige (ausgefranste Silhouette), an der Unterkante spitze Nadelbüschel.
+  // Zweigoberseite im Licht (links heller), Unterseite dunkel; harte Stufen, keine Schraffur.
   const rng = createRng(seed), P = pal32(pal), C = cap ? pal32(cap) : null;
   const T = [];
+  let acc = 0; const hs = [];
+  for (let t = 0; t < tiers; t++) { const h = rng.range(0.8, 1.25) * (0.7 + 0.3 * (t + 1) / tiers); hs.push(h); acc += h; }
+  let run = 0;
   for (let t = 0; t < tiers; t++) {
-    const e = top + (bottom - top) * Math.pow((t + 1) / tiers, 0.92);
-    const w = half * (0.3 + 0.7 * ((t + 1) / tiers)) * rng.range(0.9, 1.08);
-    T.push({ e, w, ph: rng.range(0, 1), dx: sway * (1 - (t + 1) / tiers) + rng.range(-0.6, 0.6) });
+    run += hs[t];
+    const e = top + (bottom - top) * Math.pow(run / acc, 0.95);
+    const w = half * (0.28 + 0.72 * ((t + 1) / tiers)) * rng.range(0.84, 1.08);
+    T.push({ e, w, wl: w * rng.range(0.85, 1.1), wr: w * rng.range(0.85, 1.1), dx: sway * (1 - (t + 1) / tiers) + rng.range(-0.7, 0.7) });
   }
-  const tri = (u) => 1 - Math.abs(2 * fract(u) - 1);
-  const edge = (t, x) => { const q = T[t], a = Math.min(1, Math.abs(x - cx - q.dx) / q.w); return q.e + 1.4 * a * a; };
+  for (let t = 0; t < tiers; t++) {
+    const q = T[t], y0 = t === 0 ? top : T[t - 1].e - (q.e - T[t - 1].e) * 0.85, h = q.e - y0, mx = cx + q.dx;
+    Object.assign(q, { y0, h, mx });
+    const B = [];
+    for (const sd of [-1, 1]) {
+      const ws = sd < 0 ? q.wl : q.wr, n = 1 + Math.max(1, Math.round(ws / 4));
+      for (let k = 0; k < n; k++) {
+        const v = 0.3 + 0.7 * (k + rng.range(0.5, 1)) / n, base = ws * v ** 0.85 * 0.55;
+        const len = (ws * v ** 0.85 - base) * rng.range(0.9, 1.35) + 1;
+        B.push({ sd, x: mx + sd * base, y: y0 + h * v - 0.6 + rng.range(-0.5, 0.5), len, th: Math.min(2.6, 0.9 + len * 0.3) * rng.range(0.75, 1.2), drop: len * rng.range(0.2, 0.6) });
+      }
+    }
+    const teeth = [];
+    for (let x = mx - q.w * 0.7; x < mx + q.w * 0.7; x += rng.range(1.2, 2.2)) teeth.push({ x, w: rng.range(0.7, 1.2), l: rng.range(0.6, 2) });
+    q.B = B; q.teeth = teeth;
+  }
   for (let t = tiers - 1; t >= 0; t--) {
-    const q = T[t], y0 = t === 0 ? top : T[t - 1].e - (q.e - T[t - 1].e) * 0.95, h = q.e - y0, mx = cx + q.dx;
-    f.scan(mx - q.w - 1.5, y0, mx + q.w + 1.5, q.e + 3, (x, y) => {
-      const dx = x - mx, ad = Math.abs(dx), v = (y - y0) / h;
-      const hw = q.w * Math.max(0, Math.min(1, v)) ** 0.85 + 0.9 * tri((y - y0) / 1.3 + q.ph) - 0.3;
-      if (ad > hw) return null;
-      const ey = edge(t, x), tooth = 1.5 * tri((x - mx) / 1.6 + q.ph);
-      if (y > ey && y - ey > tooth) return null;
-      const rel = dx / Math.max(0.6, hw);
-      let i = stepOf(shade(rel * 0.85, -0.35 + 0.55 * Math.min(1, v)) + bias, lo, hi);
-      const up = t > 0 ? edge(t - 1, x) : -99;
-      if (y < up + 1.6) i -= 2;                                                   // Schatten der Etage darüber
-      else if (fract((y - y0 - ad * 0.6) / 1.7 + q.ph) < 0.27 && y < ey) i -= 1; // Nadelstriche
-      if (y > ey && rel < -0.15 && y - ey > tooth - 0.6) i += 1;                  // helle Nadelspitzen links
-      if (cap && y >= up + 0.2 && y < up + 1.3 && rel < capW * 2 - 1 && t > 0) return C[rel < -0.45 ? C.length - 1 : C.length - 2];
+    const q = T[t], { y0, h, mx, B, teeth } = q, wm = Math.max(q.wl, q.wr);
+    f.scan(mx - wm - 4, y0, mx + wm + 4, q.e + 3, (x, y) => {
+      const dx = x - mx, v = Math.max(0, Math.min(1, (y - y0) / h));
+      const rel = dx / Math.max(1, wm);
+      let ny = null;
+      const fx = Math.floor(x * 2);
+      for (let j = 0; j < B.length; j++) {
+        const o = B[j], u = o.sd * (x - o.x) / o.len;
+        if (u < -0.3 || u > 1) continue;
+        const uu = Math.max(0, u), cy = o.y + o.drop * uu * uu, ht = o.th * (1 - uu) ** 0.75;
+        const r = y < cy ? (y - cy) / (ht * 0.7) : (y - cy) / ht;
+        if (r < -1 || r > 1) continue;
+        // Nadelsaum: an Unter- und Oberkante fehlen einzelne Feinspalten (ausgefranst statt glatter Keil)
+        const hz = hash2(fx, j + t * 31, seed);
+        if ((r > 0.5 && hz < 0.42 - (r - 0.5) * 0.2) || (r > 0.75 && hz < 0.7) || (r < -0.7 && hz < 0.3)) continue;
+        if (ny === null || Math.abs(r) < Math.abs(ny)) ny = r;
+      }
+      const hw = (dx < 0 ? q.wl : q.wr) * v ** 0.85 * 0.62;
+      let core = Math.abs(dx) < hw && y < q.e;
+      if (!core && ny === null && y >= q.e - 0.5) {                                 // Nadelspitzen an der Unterkante
+        for (const o of teeth) { const a = Math.abs(x - o.x) / o.w; if (a < 1 && y - (q.e - 0.5) < o.l * (1 - a)) { core = true; break; } }
+      }
+      if (ny === null && !core) return null;
+      let i;
+      if (ny !== null) i = stepOf(shade(rel * 0.8, ny * 0.9 - 0.15) + bias, lo, hi) - (ny > 0.5 ? 1 : 0);
+      else i = stepOf(shade(rel * 0.9, 0.2) + bias - 0.15, lo, hi - 1);
+      const up = t > 0 ? T[t - 1].e : -99;
+      if (t > 0 && y < up + 1.2) i -= 1;                                            // Schatten der Etage darüber
+      if (cap && t > 0 && y >= up - 0.2 && y < up + 0.9 && rel < capW * 2 - 1 && ny !== null && ny < -0.3) return C[rel < -0.45 ? C.length - 1 : C.length - 2];
       return P[Math.max(0, Math.min(P.length - 1, i))];
     });
   }
@@ -386,14 +422,27 @@ function charredPine(seed, H, broken) {
       const x0 = cx + 0.5 + b.side * 1, y0 = b.y + 0.5;
       const x1 = x0 + b.side * b.len, y1 = y0 + Math.sin(b.a) * b.len * 0.6;
       const mx = x0 + (x1 - x0) * 0.45, my = y0 + (y1 - y0) * 0.45;
+      let tx = x1, ty = y1;                                                   // Astende (fein: gebogener Ast)
       if (fine) {
-        // dick am Stamm, fein zur Spitze; Unterseite dunkler
-        p.fline(x0, y0, mx, my, CHAR[2], 1); p.fline(x0, y0 + 0.5, mx, my + 0.5, CHAR[1]);
-        p.fline(mx, my, x1, y1, CHAR[3]);
-        for (let i = 1; i < b.len * 2; i++) {
-          const t = i / (b.len * 2);
-          if ((i + b.y) % 3 === 0) continue;
-          p.dot(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - (t < 0.45 ? 1 : 0.5), b.side < 0 ? ASH[5] : ASH[4]);
+        // gebogener Ast, dick am Stamm, spitz oder abgebrochen; Unterseite dunkler, Asche nur auf flachen Oberseiten
+        const rf = createRng(seed * 31 + b.y * 7 + (b.side > 0 ? 1 : 0));
+        const stub = rf.chance(0.15), L = stub ? rf.range(1.5, 3.2) : b.len * rf.range(0.85, 1.45);
+        const a0 = b.a * rf.range(0.4, 1.6) + rf.range(-0.35, 0.25), bend = rf.range(-0.5, 0.6);
+        const pts = [];
+        for (let i = 0; i <= 8; i++) { const t = i / 8, a = a0 + bend * t; pts.push([x0 + b.side * Math.cos(a) * L * t, y0 + Math.sin(a) * L * t * 0.75]); }
+        for (let i = 0; i < 8; i++) {
+          const t = i / 8, [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+          const w = stub ? 1 : t < 0.4 ? 1 : t < 0.7 ? 0.5 : 0;
+          p.fline(ax, ay, bx, by, CHAR[2], w);
+          if (t < 0.6) p.fline(ax, ay + (w ? 0.5 : 0.5), bx, by + 0.5, CHAR[1]);
+          if (Math.abs(by - ay) < Math.abs(bx - ax) * 0.6 && hash2(i, b.y, seed) < 0.45) p.dot(ax, ay - (w ? 0.5 : 0.5), b.side < 0 ? ASH[4] : ASH[3]);
+        }
+        const [ex, ey] = pts[8]; tx = ex; ty = ey;
+        if (stub) { p.dot(ex, ey, CHAR[4]); p.dot(ex, ey + 0.5, CHAR[3]); }      // heller Bruch
+        else for (let k = rf.int(0, 2); k > 0; k--) {                         // Seitenzweige in verschiedene Richtungen
+          const [sx, sy] = pts[rf.int(3, 6)], up = rf.chance(0.6), l = rf.range(1.5, 4);
+          const a = a0 + (up ? -1 : 1) * rf.range(0.6, 1.2);
+          p.fline(sx, sy, sx + b.side * Math.cos(a) * l, sy + Math.sin(a) * l * 0.8, CHAR[3]);
         }
       } else {
         p.line(x0, y0, x1, y1, CHAR[2]);
@@ -403,18 +452,17 @@ function charredPine(seed, H, broken) {
       // Zweiggabel
       if (b.len > 5 && rng.chance(0.7)) {
         const t = rng.range(0.5, 0.8), fx = x0 + (x1 - x0) * t, fy = y0 + (y1 - y0) * t;
-        if (fine) { p.fline(fx, fy, fx + b.side * 2.5, fy - 2.5, CHAR[3]); p.dot(fx + b.side * 2.5, fy - 3, ASH[4]); } else p.line(fx, fy, fx + b.side * 2, fy - 2, CHAR[3]);
+        if (!fine) p.line(fx, fy, fx + b.side * 2, fy - 2, CHAR[3]);
       }
       // verbrannte Nadelreste
       if (rng.chance(0.15)) {
-        if (fine) { p.oval(x1, y1 + 0.3, 2, 1.1, '#231512'); p.oval(x1 - 0.5, y1, 1, 0.5, '#3a2016'); } else { p.ellipse(x1, y1, 2, 1, '#231512'); p.px(x1 - 1, y1 - 1, '#3a2016'); }
+        if (fine) { p.oval(tx, ty + 0.3, 1.6, 0.9, '#231512'); p.oval(tx - 0.5, ty, 0.8, 0.5, '#3a2016'); } else { p.ellipse(x1, y1, 2, 1, '#231512'); p.px(x1 - 1, y1 - 1, '#3a2016'); }
       }
       // glimmende Spitze: heißer Kern, farbiger Saum
       if (rng.chance(0.4)) {
         const two = rng.chance(0.5);
         if (fine) {
-          emberDot(p, g, x1 - 0.5, y1 - 0.5, two);
-          if (two) { p.dot(x1 - b.side, y1, EMB[2]); p.dot(x1 - b.side * 0.5, y1 + 0.5, EMB[2]); }
+          emberDot(p, g, tx - 0.5, ty - 0.5, two);
         } else {
           p.px(x1, y1, EMB[3]); g.px(x1, y1, EMB[4]);
           if (two) { p.px(x1 - b.side, y1, EMB[2]); g.px(x1 - b.side, y1, EMB[2]); }
@@ -1024,12 +1072,72 @@ function bannerPole() {
 }
 
 // ------------------------------------------------------------ Großes Lagerfeuer
+// Lagerfeuer im Feinraster, von Hand: Glutbett aus Kohlestücken, Scheite mit Lichtkante, Flammenzungen als
+// geschwungene Tropfen in harten Farbstufen (roter Saum, orange, gelb, weißer Kern), Leuchtebene gleich geformt.
+function flameTongue(f, g, bx, by, h, w, ph) {
+  const lay = [[1, EMB[2], EMB[3]], [0.66, EMB[3], EMB[4]], [0.36, EMB[4], '#fff0b0'], [0.16, '#fff0b0', '#fff8d8']];
+  for (const [k, c, gc] of lay) {
+    const each = (cv, col, grow) => cv.each(bx - w - 1.5, by - h - 0.5, bx + w + 1.5, by + 0.5, (x, y) => {
+      const v = (by - y) / h;
+      if (v < 0 || v > (k < 0.5 ? 0.62 + k : 1)) return null;
+      const sx = Math.sin(v * 3.2 + ph) * 0.7 * v;
+      const hw = w * k * grow * Math.pow(1 - v, 0.9) * Math.min(1, 0.45 + v * 3);
+      return Math.abs(x - bx - sx) < hw ? col : null;
+    });
+    each(f, c, 1);
+    each(g, gc, 1.15);
+  }
+}
+function campfireFine(p, g, cx, cy) {
+  const S = PAL.stone;
+  // Glutbett
+  p.oval(cx + 0.5, cy + 0.5, 8, 3, '#1a0806');
+  const coals = [[-5, 0.6, 1.4], [-2.5, 1.2, 1.6], [0.5, 0.4, 1.3], [3, 1.1, 1.5], [5.5, 0.3, 1.2], [-1, -0.6, 1.1], [2, -0.4, 1]];
+  for (const [dx, dy, r] of coals) {
+    const x = cx + 0.5 + dx, y = cy + 0.5 + dy;
+    p.oval(x, y, r, r * 0.6, EMB[1]); p.oval(x - 0.3, y - 0.2, r * 0.65, r * 0.4, EMB[2]); p.dot(x - 0.5, y - 0.4, EMB[4]);
+    g.oval(x, y, r, r * 0.6, EMB[2]); g.dot(x - 0.5, y - 0.4, EMB[5]);
+  }
+  // Spieß (hinter dem Feuer): Astgabeln, Stab, Braten
+  const sy = cy - 9;
+  p.fline(3.5, sy, 4.5, cy + 2.5, WOOD[3], 1); p.fline(3, sy + 0.5, 4, cy + 2.5, WOOD[4]);
+  p.fline(30.5, sy, 29.5, cy + 2.5, WOOD[2], 1);
+  p.fline(2, sy - 1, 3.5, sy, WOOD[3]); p.fline(5, sy - 1, 3.5, sy, WOOD[3]); p.fline(28.5, sy - 1, 30.5, sy, WOOD[2]); p.fline(31.5, sy - 1, 30.5, sy, WOOD[2]);
+  p.fline(3, sy + 0.5, 31, sy + 0.5, IRON[2], 0.5); p.fline(4, sy, 30, sy, IRON[4]);
+  p.oval(8.5, sy + 0.5, 3, 2, '#5a2a18'); p.oval(8, sy, 2, 1.2, '#8a4a2a'); p.dot(7, sy - 0.5, '#c88a52'); p.oval(9.5, sy + 1.5, 1.6, 0.5, '#3a1810');
+  // Scheite: rund mit Lichtkante oben, Schnittfläche, glühende Enden zur Mitte
+  const log = (x0, y0, x1, y1, lit) => { p.fline(x0, y0, x1, y1, WOOD[1], 1.5); p.fline(x0, y0 - 0.5, x1, y1 - 0.5, lit ? WOOD[4] : WOOD[3]); p.fline(x0, y0 + 0.5, x1, y1 + 0.5, WOOD[0]); };
+  log(cx - 8, cy + 2, cx + 4.5, cy - 2.5, true); log(cx + 9, cy + 2, cx - 3.5, cy - 2.5, false);
+  p.oval(cx - 8, cy + 1.6, 0.9, 0.9, WOOD[4]); p.dot(cx - 8, cy + 1.5, '#8a5a3c');
+  for (const [x, y] of [[cx + 4, cy - 2.5], [cx - 3, cy - 2.5]]) { p.dot(x, y, EMB[4]); p.dot(x + 0.5, y + 0.5, EMB[3]); g.dot(x, y, EMB[5]); }
+  // Flammen: Mitte hoch, Seiten kleiner, leicht verschwungen
+  flameTongue(p, g, cx + 0.5, cy - 1, 7.5, 2.4, 0.3);
+  flameTongue(p, g, cx - 2, cy - 0.5, 5.5, 1.8, 2.1);
+  flameTongue(p, g, cx + 3, cy - 0.5, 4.5, 1.6, 4.2);
+  for (const [x, y] of [[cx - 1, cy - 11], [cx + 2.5, cy - 9.5], [cx - 3.5, cy - 8]]) { p.dot(x, y, EMB[4]); g.dot(x, y, EMB[5]); } // Funken
+  // Dreibein und Kessel
+  p.fline(cx - 7, cy + 1.5, cx + 0.5, 2, WOOD[4], 1); p.fline(cx + 7, cy + 1.5, cx + 1, 2, WOOD[2], 1); p.fline(cx + 0.5, 1, cx + 0.5, 2.5, WOOD[3], 1);
+  p.fline(cx + 0.5, 3, cx + 0.5, 8.5, IRON[2]);
+  p.oval(cx + 0.5, 12.5, 4.2, 3, IRON[0]); p.oval(cx, 12, 3.6, 2.5, IRON[1]); p.oval(cx - 1, 11.2, 1.8, 1.2, IRON[2]); p.fline(cx - 2.5, 10.5, cx - 1, 10, IRON[4]);
+  p.fline(cx - 4, 9.5, cx + 5, 9.5, IRON[3], 1); p.fline(cx - 4, 9, cx + 5, 9, IRON[4]);
+  p.oval(cx + 0.5, 9.2, 3.2, 0.6, '#3a4a2a'); p.dot(cx + 1.5, 9, '#7a8a4a');
+  // Steinring vorn: Steine mit Licht oben links, vom Feuer angestrahlt
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    if (Math.sin(a) < -0.2) continue;
+    const x = cx + 0.5 + Math.cos(a) * 10, y = cy + 0.5 + Math.sin(a) * 3.8;
+    lump(p, x, y, 2, 1.4, S, { lo: 1, hi: 4, bias: -0.05 });
+    if (Math.cos(a) * (x - cx) <= 0 || Math.abs(Math.cos(a)) < 0.5) p.dot(x - 0.5, y - 1, EMB[2]);
+  }
+}
+
 function campfireBig() {
   const W = 34, H = 28;
   const S = PAL.stone;
   return mk(W, H, (p, g) => {
     const cx = 17, cy = H - 6;
     ashPatch(p, cx, cy + 1, 15, 4, 31);
+    if (p.fine) { campfireFine(p, g, cx, cy); return; }
     // Glutbett
     p.ellipse(cx, cy, 8, 3, '#1a0806');
     for (let i = 0; i < 26; i++) {
@@ -1067,16 +1175,7 @@ function campfireBig() {
     }
   }, {
     ax: 17, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 150, color: [255, 150, 70], intensity: 1, bloom: 0.45 }, // Lichtinsel: weiter und mit mehr Glut
-    // fein: heiße Kerne in den Flammenzungen und im Glutbett, Glanz auf Kessel und Spieß
-    fine: (f, g) => {
-      const cx = 17, cy = H - 6;
-      for (const [x, y, h] of [[cx - 2, cy - 3, 4], [cx, cy - 4, 6], [cx + 2, cy - 3, 3]]) for (let i = 0; i < h - 1; i++) {
-        const xx = x + (i % 3 === 2 ? 1 : 0) + 0.25, yy = y - i + 0.25;
-        f.dot(xx, yy, i < 2 ? '#fff0b0' : EMB[5]); g.dot(xx, yy, '#fff8d8');
-      }
-      for (let i = 0; i < 26; i += 3) { const x = cx + Math.round(Math.cos(i * 2.4) * (i % 7)), y = cy + Math.round(Math.sin(i * 2.4) * (i % 7) * 0.35); f.dot(x, y, EMB[5]); g.dot(x, y, '#fff0b0'); }
-      f.fline(cx - 3, 10, cx - 1, 10, IRON[5]); f.dot(cx - 2.5, 11.5, IRON[4]); f.fline(4, cy - 9, 12, cy - 9, IRON[4]);
-    },
+    b: true,
   });
 }
 
@@ -1348,7 +1447,7 @@ function ashFir(seed, H = 50, W = 32) {
     ashPatch(p, cx, bottom - 1, 9, 2, seed);
     if (p.fine) {
       trunk(p, bottom - 9, bottom + 1, () => cx + 0.5, (y) => 3.5 + Math.max(0, y - bottom + 2) * 1.2, CHAR, seed, { lo: 1, hi: 4 });
-      conifer(p, { cx: cx + 0.5, top, bottom: bottom - 6, half: W / 2 - 1.5, tiers: 6, pal: FIRB, lo: 1, hi: 5, seed, cap: [ASH[3], ASH[4], ASH[5]], capW: 0.32 });
+      conifer(p, { cx: cx + 0.5, top, bottom: bottom - 6, half: W / 2 - 1.5, tiers: 6, pal: FIR, lo: 0, hi: 4, seed, cap: [ASH[2], ASH[3], ASH[4]], capW: 0.3, bias: -0.18 });
       if (rng.chance(0.5)) { const y = rng.int(bottom - 30, bottom - 12), x = cx + rng.int(-5, 5); emberDot(p, g, x, y); }
       return;
     }
@@ -2053,7 +2152,7 @@ function treePlatform(v) {
     under: (f) => {
       if (!f.fine) return;
       trunk(f, 18, b - 0.5, () => cx + 0.5, (y) => (y > b - 8 ? 15 : 11), WOOD, 1603 + v, { lo: 1, hi: 4, groove: 1.5 });
-      conifer(f, { cx: cx + 0.5, top: 1, bottom: 54, half: 27, tiers: 7, pal: FIRB, lo: 1, hi: 5, seed: 1605 + v, cap: [ASH[3], ASH[4], ASH[5]], capW: 0.3 });
+      conifer(f, { cx: cx + 0.5, top: 1, bottom: 54, half: 27, tiers: 7, pal: FIR, lo: 0, hi: 4, seed: 1605 + v, cap: [ASH[2], ASH[3], ASH[4]], capW: 0.3, bias: -0.18 });
     },
   });
 }

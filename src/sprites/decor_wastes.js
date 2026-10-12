@@ -396,32 +396,37 @@ function charredRuin(v) {
 // ------------------------------------------------------------ Obsidiansplitter
 // Obsidiankeil fein: Lichtseite in zwei Facetten mit Glanzgrat, Schattenseite mit Facettenlinie und warmem Bodenreflex
 const OBS_WARM = ['#3a1414', '#4e1c12'];
-function shardF(p, g, x, tipY, hw, lean, base, { glint = 0.3, bright = 0 } = {}) {
+function shardF(p, g, x, tipY, hw, lean, base, { glint = 0.3, bright = 0, ember = 0, seed = 0 } = {}) {
   const tx = x + lean + 0.5, bx = x + 0.5, by = base + 1, L = x - hw, Rr = x + hw + 1, H = by - tipY;
+  const warm = hash2(Math.round(x * 2), tipY, seed + 1039) < 0.35;
   fpoly(p, [[tx, tipY], [L, by], [Rr, by]], (px, py) => {
     const t = (py - tipY) / H, rx = tx + (bx - tx) * t;
     if (px < rx) {
-      const lx = tx + (L - tx) * t, u = (rx - px) / Math.max(0.01, rx - lx);
-      if (t < 0.13 + bright * 0.05) return OBS[6 - (t > 0.07 ? 1 : 0)];
-      if (u < 0.14) return t < glint + 0.15 ? OBS[6] : OBS[5];
-      if (u > 0.88 && t < 0.6) return OBS[5];
-      const w = rx - lx;
-      if (Math.abs(u - 0.52) * w < 0.25 && t > 0.18) return OBS[3];
-      return OBS[4 + (bright && t < 0.45 && u < 0.5 ? 1 : 0)];
+      // Lichtseite: u = 0 am Grat, 1 an der linken Außenkante (dort Glanzkante)
+      const lx = tx + (L - tx) * t, w = rx - lx, u = (rx - px) / Math.max(0.01, w);
+      if (t < 0.12 + bright * 0.04) return OBS[u > 0.35 ? 6 : 5];
+      if ((1 - u) * w < 0.5) return t < glint + 0.2 ? OBS[6] : OBS[5];
+      if (u * w < 0.5) return OBS[3];
+      if (Math.abs(u - 0.55) * w < 0.25 && t > 0.2) return OBS[5];
+      return OBS[4 + (bright && t < 0.4 && u > 0.5 ? 1 : 0)];
     }
-    const rr = tx + (Rr - tx) * t, u = (px - rx) / Math.max(0.01, rr - rx);
-    if (t > 0.94 && u > 0.2) return OBS_WARM[1];
-    if (t > 0.86 - u * 0.08) return OBS_WARM[0];
-    if (u < 0.12) return OBS[2];
-    if (Math.abs(u - 0.55) * (rr - rx) < 0.25 && t > 0.2) return OBS[2];
+    // Schattenseite: dunkel, dunkelste Stufe an der rechten Schattenkante
+    const rr = tx + (Rr - tx) * t, w = rr - rx, u = (px - rx) / Math.max(0.01, w);
+    if ((1 - u) * w < 0.5) return OBS[0];
+    if (warm && t > 0.9 && u > 0.25 && u < 0.8) return OBS_WARM[0];
+    if (Math.abs(u - 0.4) * w < 0.25 && t > 0.25) return OBS[2];
     return OBS[1];
   });
-  const gy = tipY + H * glint, gx = tx + (bx - tx) * glint - 0.5;
-  p.dot(gx, gy, '#ffffff'); p.dot(gx, gy + 0.5, OBS[6]); p.dot(tx - 0.25, tipY + 0.25, OBS[6]);
-  g.dot(gx, gy, '#7a3a6a'); g.dot(gx, gy + 0.5, '#4a2040'); g.dot(tx - 0.25, tipY + 0.25, '#4a2040');
-  // Glutreflex unten rechts: heißer Punkt im roten Saum
-  const ex = x + Math.round(hw) - 0.5, ey = base - 0.5;
-  p.dot(ex, ey, EMB[4]); p.dot(ex + 0.5, ey, EMB[2]); p.dot(ex, ey + 0.5, EMB[2]); g.dot(ex, ey, EMB[5]); g.dot(ex + 0.5, ey, EMB[3]); g.dot(ex, ey + 0.5, EMB[3]);
+  // Glanzpunkt auf der linken Kante, Spitzlicht
+  const gy = tipY + H * glint, gx = tx + (L - tx) * glint + 0.5;
+  p.dot(gx, gy, '#ffffff'); p.dot(gx, gy + 0.5, OBS[6]); p.dot(tx - 0.5, tipY + 0.5, OBS[6]);
+  g.dot(gx, gy, '#7a3a6a'); g.dot(gx, gy + 0.5, '#4a2040');
+  // Glutreflex nur bei einzelnen Spitzen, Lage gestreut: heißer Punkt im roten Saum
+  if (ember) {
+    const r = hash2(Math.round(x * 2), tipY, seed + 1038);
+    const ex = x + 0.5 + Math.round((r * 1.6 - 0.3) * hw * 2) / 2, ey = base - 0.5 - Math.round(r * 7) / 2;
+    p.dot(ex, ey, EMB[4]); p.dot(ex + 0.5, ey, EMB[2]); p.dot(ex, ey + 0.5, EMB[1]); g.dot(ex, ey, EMB[5]); g.dot(ex + 0.5, ey, EMB[2]);
+  }
 }
 function obsidianShards(v) {
   const rng = createRng(1030 + v);
@@ -436,7 +441,7 @@ function obsidianShards(v) {
     ashPatch(p, g, 14, H - 3, 12, 2, 1031 + v);
     const order = [...shards].sort((a, b) => a[1] - b[1]);
     if (p.fine) {
-      for (const [x, tipY, hw, lean] of order) shardF(p, g, x, tipY, hw, lean, base);
+      for (const [x, tipY, hw, lean] of order) shardF(p, g, x, tipY, hw, lean, base, { seed: 1030 + v, ember: hash2(x, tipY, 1037 + v) < 0.3 });
       for (let i = 0; i < 5; i++) { const x = rng.int(3, 24); p.dot(x, H - 2, OBS[3]); p.dot(x + 0.5, H - 2, OBS[1]); p.dot(x, H - 2.5, OBS[5]); }
       return;
     }
@@ -2092,7 +2097,7 @@ function obsidianNeedle(v) {
         return n > 0.5 && m <= 0.5 ? O[5] : n > 0.62 ? O[4] : n > 0.4 ? O[3] : n > 0.25 ? O[2] : O[1];
       });
       const order = [...spires].sort((a, b) => a[1] - b[1]);
-      for (const [x, tipY, hw, lean] of order) shardF(p, g, x, tipY, hw, lean, base, { glint: 0.25, bright: 1 });
+      for (const [x, tipY, hw, lean] of order) shardF(p, g, x, tipY, hw, lean, base, { glint: 0.25, bright: 1, seed: 1410 + v, ember: hash2(x, tipY, 1417 + v) < 0.25 });
       return;
     }
     // Sockel aus Obsidiangrus (deckt die Kachel)
