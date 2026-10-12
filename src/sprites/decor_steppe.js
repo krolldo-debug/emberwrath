@@ -2500,25 +2500,64 @@ function saltCrust(v) {
     }
   }, { ax: 17, ay: -2, fine: (f) => saltCrustFine(f, v, W, H, cx, cy) });
 }
-// Salzkruste fein: Rand in weichen Lappen (kein Ausfransen in Einzelpixel), Risse 1 Feinpixel zwischen den Platten,
-// jede Platte leicht gewölbt (Licht oben links, dunkler Rand unten rechts), kleine Kristallglanzpunkte in der Mitte
+// Salzkruste fein: Salzpfanne aus vielen kleinen Platten, deren Ränder als weiße Salzwülste aufstehen (Licht oben links,
+// Schattenseite eine Stufe dunkler), Platten flach und matt; außen feuchter dunkler Saum als Kontur. Zwei Spielarten
+// tragen ausgebleichte Tierreste (Schädel, Rippen, Röhrenknochen) mit Kontur und Schlagschatten nach rechts unten.
 function saltCrustFine(f, v, W, H, cx, cy) {
-  const rng = createRng(1210 + v), S = pal32(SALT);
-  const cells = [];
-  for (let i = 0; i < 6; i++) cells.push([rng.range(3, W - 3), rng.range(3, H - 3)]);
+  const rng = createRng(1210 + v), S = pal32(SALT), DAMP = col32('#3a3530');
   const rx = 12 + rng.range(0, 4), ry = 7.5 + rng.range(0, 3);
+  const cells = [];
+  for (let j = 0; j < 5; j++) for (let i = 0; i < 7; i++) cells.push([1 + i * 5.2 + rng.range(0, 3.6), 1 + j * 5.4 + rng.range(0, 3.6)]);
+  const N = cells.length;
   f.scan(0, 0, W - 0.01, H - 0.01, (x, y) => {
     const nx = (x - cx) / rx, ny = (y - cy) / ry;
     const r = Math.hypot(nx, ny) + (vnoise(x / 2.6, y / 2.6, 1214 + v) - 0.5) * 0.6;
     if (r > 0.95) return 0;
+    if (r > 0.88) return DAMP;                                             // feuchter Saum = Kontur
     let d0 = Infinity, d1 = Infinity, q = 0;
-    for (let i = 0; i < 6; i++) { const c = cells[i], d = Math.hypot(x - c[0], y - c[1]); if (d < d0) { d1 = d0; d0 = d; q = i; } else if (d < d1) d1 = d; }
-    if (d1 - d0 < 0.55) return S[1];                                     // Riss
-    if (r > 0.8) return S[2];                                            // dünner Rand
-    const c = cells[q], ox = x - c[0], oy = y - c[1];
-    if (d1 - d0 < 1.1) return ox + oy > 0 ? S[4] : S[3];                 // aufgewölbter Plattenrand: Licht auf der Seite zur Sonne
-    return S[q % 3 === 0 ? 2 : 3];
+    for (let i = 0; i < N; i++) { const c = cells[i], dx = x - c[0], dy = y - c[1], d = dx * dx + dy * dy; if (d < d0) { d1 = d0; d0 = d; q = i; } else if (d < d1) d1 = d; }
+    const gap = Math.sqrt(d1) - Math.sqrt(d0), c = cells[q], lit = (x - c[0]) + (y - c[1]) > 0;
+    if (r > 0.8) return gap < 0.5 ? S[3] : S[1];                           // Rand: Platten dunkler, Wülste laufen aus
+    if (gap < 0.3) return S[5];                                            // Grat der Salzwulst
+    if (gap < 0.8) return lit ? S[4] : S[2];                               // Flanke: zum Licht hell, abgewandt dunkel
+    if (gap < 1.15 && !lit) return S[1];                                   // Schlagschatten der Wulst auf der Platte
+    return vnoise(x / 1.7, y / 1.7, 1216 + v) > 0.62 ? S[3] : S[2];        // matte Platte, leicht fleckig
   });
+  if (v === 1 || v === 3) {
+    // erst der Schlagschatten (gleiche Formen, nach rechts unten versetzt, flach), dann die Knochen mit Kontur
+    const SH = Array(7).fill('#2c2824');
+    saltRemains(f, v, SH, 0.9, 0.9, null);
+    saltRemains(f, v, BONE, 0, 0, { edge: BSEAM, edgeLit: BSEAM_L });
+  }
+}
+// Tierreste auf der Salzkruste: v 1 = Rinderschädel mit Hörnern und Röhrenknochen, v 3 = Rippenbogen mit Wirbelsäule
+function saltRemains(f, v, pal, dx, dy, edge) {
+  const o = { lo: 1, hi: 5, bias: -0.12, ...(edge ?? {}) };
+  const T = (pts) => tube(f, pts.map(([x, y, r]) => [x + dx, y + dy, r]), pal, o);
+  const L = (x, y, rx, ry) => lump(f, x + dx, y + dy, rx, ry, pal, { lo: 1, hi: 5 });
+  if (v === 1) {
+    T([[7.2, 12.6, 1.05], [10.6, 11.6, 1.5], [12.4, 10.9, 1.9]]);              // Schnauze
+    L(13.4, 10.2, 3.1, 2.5);                                                // Hirnschale
+    T(smooth([[11.6, 8.6, 0.9], [9.6, 7.0, 0.75], [9.0, 4.8, 0.55], [10.0, 3.6, 0.35]], 3));   // Horn links
+    T(smooth([[15.4, 8.8, 0.9], [17.8, 7.6, 0.75], [19.0, 5.6, 0.55], [18.4, 4.2, 0.35]], 3)); // Horn rechts
+    T([[19.4, 15.4, 0.8], [26.4, 14.0, 0.75]]);                             // Röhrenknochen
+    for (const [ex, ey] of [[19.4, 15.4], [26.4, 14.0]]) { T([[ex - 0.2, ey - 0.8, 0.85], [ex + 0.2, ey - 0.8, 0.85]]); T([[ex - 0.2, ey + 0.8, 0.85], [ex + 0.2, ey + 0.8, 0.85]]); }
+    if (edge) {
+      f.oval(12.6, 10.0, 1.0, 0.85, BSEAM); f.oval(15.2, 10.6, 0.7, 0.6, BSEAM);           // Augenhöhlen
+      f.dot(8.0, 12.4, BSEAM); f.dot(8.0, 13.1, BSEAM);                                   // Nasenlöcher
+      f.fline(13.6, 11.6, 14.6, 12.2, BONE[2]); f.dot(12.4, 8.4, BONE[6]); f.dot(10.0, 11.0, BONE[6]);
+    }
+  } else {
+    for (let k = 0; k < 4; k++) {
+      const bx = 10.5 + k * 3.6;
+      T(smooth([[bx, 8.8, 0.75], [bx + 2.0, 10.6, 0.75], [bx + 2.2, 13.6, 0.6], [bx + 1.0, 15.4, 0.45]], 3));
+    }
+    T([[8.4, 8.6, 1.0], [24.6, 8.0, 0.8]]);                                  // Wirbelsäule
+    for (let k = 0; k < 6; k++) L(9.4 + k * 2.9, 8.5 - k * 0.1, 1.15, 1.05);
+    T([[22.6, 14.2, 0.75], [27.4, 16.0, 0.7]]);                             // abgebrochener Röhrenknochen
+    T([[22.4, 13.4, 0.8], [22.8, 13.4, 0.8]]); T([[22.2, 15.0, 0.8], [22.6, 15.0, 0.8]]);
+    if (edge) for (let k = 0; k < 6; k++) { f.dot(9.9 + k * 2.9, 9.0 - k * 0.1, BSEAM); f.dot(9.0 + k * 2.9, 8.0 - k * 0.1, BONE[6]); }
+  }
 }
 
 // ------------------------------------------------------------ Schilf am Wasserloch

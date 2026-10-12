@@ -2624,7 +2624,9 @@ function peakFineEntry(o) {
   const RK = warm ? ROCKW : ROCK, r = fineRes(), Wt = W * r, Ht = H * r, R = pal32(RK), S = SNOW32, I = ICE32;
   const base0 = H - 6, base = Math.round(H * 0.48);
   const peaks = tops.map(([fx, y]) => [W * fx, y]), ymin = Math.min(...peaks.map((q) => q[1]));
-  const top = new Float64Array(Wt), foot = new Float64Array(Wt), lit = new Float64Array(Wt);
+  const top = new Float64Array(Wt), foot = new Float64Array(Wt), lit = new Float64Array(Wt), fsb = new Float64Array(Wt);
+  // Fußlinie je Gipfel anders (Amplitude, Wellenlänge, Wehenabstand aus dem Seed), keine gleiche Welle überall
+  const fAmp = 1 + 2.6 * hash2(seed, 1, 2985), fFq = 2.4 + 4.5 * hash2(seed, 2, 2985), fDr = 4 + 7 * hash2(seed, 3, 2985);
   for (let F = 0; F < Wt; F++) {
     const x = (F + 0.5) / r - 0.5;
     let y = base0;
@@ -2634,7 +2636,8 @@ function peakFineEntry(o) {
     }
     const sh = (vnoiseLite(x / 13, seed, 2964) - 0.5) * 10 * Math.min(1, (y - 2) / 20);
     top[F] = Math.max(0.5, y + sh + (vnoiseLite(x / 3, seed, 2951) - 0.5) * 4);
-    foot[F] = base + 1 - 2.5 * vnoiseLite(x / 3.5, seed, 2968);
+    foot[F] = base + 1 - fAmp * vnoiseLite(x / fFq, seed, 2968) - 1.6 * vnoiseLite(x / 11, seed, 2978);
+    fsb[F] = 0.5 + 3.8 * Math.pow(vnoiseLite(x / fDr, seed, 2979), 2);   // Schneewehe am Fuß: mal schmal, mal hoch
     lit[F] = ymin + (base - ymin) * (0.3 + snow * 0.7) + (vnoiseLite(x / 6, seed, 2954) - 0.5) * 8;   // Schneegrenze
   }
   const inside = (F, y) => F >= 0 && F < Wt && y >= top[F] && y <= foot[F];
@@ -2649,7 +2652,10 @@ function peakFineEntry(o) {
     ck[q] = Math.min(4, (side < 0 ? 3 : 1) + (hash2(i, j, seed + 5) < 0.45 ? 1 : 0) + (ny < -0.5 ? 1 : 0) - (side > 0 && ny > 0 ? 1 : 0));   // 4 harte Stufen, Licht oben links
     const F = Math.max(0, Math.min(Wt - 1, Math.floor((x + 0.5) * r)));
     const high = y < lit[F] ? 1 : y < lit[F] + 6 ? 0.4 : 0;
-    cs[q] = ny < -0.12 && high > 0 ? (-ny) * gh * 1.3 * high - gh * 0.25 : -99;     // Schneekappe: bis zu dieser Tiefe unter der Zellmitte
+    // steile Flanken halten kaum Schnee: Steigung der Gratlinie über der Zelle
+    const Fa = Math.max(0, F - 2 * r), Fb = Math.min(Wt - 1, F + 2 * r), stp = Math.abs(top[Fb] - top[Fa]) / Math.max(0.5, (Fb - Fa) / r);
+    const fs = stp > 2.2 ? 0.25 : stp > 1.4 ? 0.6 : 1;
+    cs[q] = ny < -0.12 - (1 - fs) * 0.45 && high > 0 ? (-ny) * gh * 1.3 * high * fs - gh * 0.25 : -99;     // Schneekappe: bis zu dieser Tiefe unter der Zellmitte
   }
   // Gletscherzunge (falls ice), auf die kleinere Form umgerechnet
   const tongueX = peaks.length > 1 ? (peaks[0][0] + peaks[1][0]) / 2 : peaks[0][0] + W * 0.14;
@@ -2699,7 +2705,7 @@ function peakFineEntry(o) {
       }
       const dt = y - top[F];
       if (dt < 1 && x < cm) col = snowy || y < lit[F] ? S[6] : R[5];                        // Grat: Licht nur auf der Lichtseite
-      if (y > foot[F] - 1.6) col = y < foot[F] - 1.1 ? S[5] : S[4];                                   // Fuß läuft in Schnee aus
+      if (y > foot[F] - fsb[F]) col = y < foot[F] - fsb[F] + 0.5 ? S[6] : y > foot[F] - 0.6 ? S[3] : S[4];   // Fuß läuft in Schnee aus
       d[G * Wt + F] = col;
     }
   }
@@ -2744,28 +2750,50 @@ function rockSpire(v) {
       // schräge Schichtfugen, Schattenkante rechts; Schnee auf allen Absätzen (snowRim), Eislinsen in der Kluft
       snowPatch(p, Math.round(cx), bottom, Math.round(W / 2) - 1, 2, 2963 + v);
       const R = pal32(ROCK);
-      for (const [nx, top, half] of needles) {
+      // je Nadel unregelmäßige waagerechte Absätze; zwischen zwei Absätzen eigener Block (Kluft an anderer Stelle,
+      // Breite leicht versetzt), so entsteht ein gestufter Felsturm statt gleichmäßiger Schraffur
+      const L = needles.map(([nx, top], ni) => {
+        const ys = [];
+        for (let y = top + 8 + Math.floor(hash2(ni, v, 2968) * 6); y < bottom - 6; y += 9 + Math.floor(hash2(y, nx, 2965) * 10)) ys.push(y);
+        return ys;
+      });
+      const seg = (ni, y) => { let i = 0; while (i < L[ni].length && L[ni][i] < y) i++; return i; };
+      const shape = (ni, y) => {
+        const [nx, top, half] = needles[ni], t = Math.max(0, (y - top) / (bottom - top)), sg = seg(ni, y);
+        const hw = 1 + half * Math.pow(t, 0.7) + (vnoiseLite(y / 4, nx, 2960) - 0.5) * 2.4 - (sg > 0 ? (hash2(sg, ni, 2969) * 0.9) : 0);
+        return [nx + (1 - t) * (v === 2 ? -3 : 2), hw, sg];
+      };
+      needles.forEach(([nx, top], ni) => {
         p.scan(0, top, W, bottom + 1, (sx, sy) => {
           const x = sx - 0.5, y = sy - 0.5, t = (y - top) / (bottom - top);
           if (t < 0 || t > 1.02) return 0;
-          const hw = 1 + half * Math.pow(Math.max(0, t), 0.7) + (vnoiseLite(y / 4, nx, 2960) - 0.5) * 2.4, mid = nx + (1 - t) * (v === 2 ? -3 : 2);
+          const [mid, hw, sg] = shape(ni, y);
           if (x < mid - hw - 0.5 || x > mid + hw + 0.5) return 0;
-          const rel = (x - (mid - hw - 0.5)) / (2 * hw + 1);
-          let k = rel < 0.07 ? 6 : rel < 0.3 ? 5 : rel < 0.55 ? 4 : rel < 0.8 ? 3 : rel < 0.93 ? 2 : 1;
-          if (Math.abs(rel - 0.55) < 0.03 && fract(y / 11 + nx) > 0.25) k = 1;                       // Kluft zwischen den Flächen
-          if (fract((y + x * 0.5) / 7) < 0.08) k -= 1;                                                // Schichtfuge (fein)
+          const rel = (x - (mid - hw - 0.5)) / (2 * hw + 1), kr = 0.42 + hash2(sg, ni, 2970) * 0.22;
+          let k = rel < 0.07 ? 6 : rel < 0.3 ? 5 : rel < kr ? 4 : rel < 0.8 ? 3 : rel < 0.93 ? 2 : 1;
+          if (Math.abs(rel - kr) < 0.03 && hash2(Math.floor(y / 3), sg + ni * 7, 2971) > 0.35) k = 1;   // Kluft, je Block versetzt
           return R[clampI(k, 7)];
         });
-      }
-      // Schneesimse auf einzelnen Schichtfugen (Lichtseite), dann Schnee auf allen Oberkanten
-      // kurze waagerechte Simse auf der Lichtseite: Schneekante oben, Schatten darunter
-      for (const [nx, top, half] of needles) for (let y = top + 10; y < bottom - 6; y += 14 + Math.floor(hash2(y, nx, 2965) * 6)) {
-        const t = (y - top) / (bottom - top), hw = 1 + half * Math.pow(t, 0.7) + (vnoiseLite(y / 4, nx, 2960) - 0.5) * 2.4, mid = nx + (1 - t) * (v === 2 ? -3 : 2);
-        const x0 = mid - hw - 0.5, x1 = x0 + 1.5 + 1.5 * hash2(y, nx, 2966);
-        p.fline(x0 - 0.5, y - 0.5, x1, y - 0.5, SNOW[6]); p.fline(x0, y, x1, y, SNOW[4]); p.fline(x0, y + 0.5, x1 - 0.5, y + 0.5, ROCK[0]);
-      }
+      });
+      // Absätze: Fuge über die ganze Breite (dunkel, Licht darüber), Schneesims auf der Lichtseite, Eiszapfen nur an
+      // einzelnen Simsen und unregelmäßig lang
+      needles.forEach(([nx], ni) => L[ni].forEach((y, li) => {
+        const [mid, hw] = shape(ni, y - 0.5), x0 = mid - hw - 0.5, x1 = mid + hw + 0.5;
+        const xm = x0 + (x1 - x0) * (0.35 + hash2(li, ni, 2976) * 0.4), st = hash2(li, ni, 2977) < 0.5 ? 0.5 : -0.5;   // Fuge mit Versatz
+        p.fline(x0 + 0.5, y, xm, y, ROCK[1]); p.fline(xm, y + st, x1 - 0.5, y + st, ROCK[1]);
+        p.fline(x0 + 0.5, y - 0.5, xm, y - 0.5, ROCK[5]); p.fline(xm + 0.5, y + st - 0.5, x1 - 1, y + st - 0.5, ROCK[4]);
+        const sw = 1.5 + 2.5 * hash2(y, nx, 2966);
+        p.fline(x0 - 0.5, y - 1, x0 + sw, y - 1, SNOW[6]); p.fline(x0, y - 0.5, x0 + sw, y - 0.5, SNOW[4]);
+        if (hash2(li, ni + v * 5, 2972) < 0.45) {
+          const n = 1 + Math.floor(hash2(li, ni, 2973) * 3);
+          for (let k = 0; k < n; k++) {
+            const ix = x0 + 0.5 + hash2(li * 3 + k, ni, 2974) * (x1 - x0 - 1.5), len = 1 + hash2(k, li, 2975) * 2.5;
+            p.fline(ix, y + 0.5, ix, y + 0.5 + len, ICE[3]); p.dot(ix, y + 0.5, ICE[5]);
+            if (len > 2) g.dot(ix, y + 1, ICE[3]);
+          }
+        }
+      }));
       snowRim(p, 0, 0, W, bottom - 1, { d: 1, dl: 0.7, split: cx, seed: 2962 + v });
-      for (let y = 8; y < bottom; y += 9) { const [nx, top] = needles[0], t = (y - top) / (bottom - top); if (t > 0.1) iceLens(p, g, Math.round(nx + (1 - t) * (v === 2 ? -3 : 2)) + 1, y, 1.5); }
       snowDriftF(p, cx, bottom + 1.2, W / 2 - 2, 1.4, 2967 + v);
       for (let i = 0; i < 3; i++) { const x = 3 + Math.floor(hash2(i, v, 2964) * (W - 6)); lump(p, x + 1, bottom + 1, 1.5, 1, ROCK, { lo: 2, hi: 5 }); p.fline(x, bottom, x + 1.5, bottom, SNOW[6]); }
       return;
