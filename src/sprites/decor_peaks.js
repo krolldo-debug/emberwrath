@@ -433,6 +433,7 @@ function deadTree(seed) {
   const rng = createRng(seed);
   const W = 36, H = 42;
   return mk(W, H, (p, g) => {
+    if (p.fine) { deadTreeFine(p, g, seed); return; }
     ashPatch(p, 18, H - 2, 10, 2, seed);
     const tips = [], segs = [];
     // Geometrie zuerst (gleiche Zufallsfolge wie früher), dann zeichnen
@@ -446,43 +447,6 @@ function deadTree(seed) {
     branch(17, 27, -Math.PI / 2 + rng.range(-0.3, 0.3), 11, 3, 4);
     branch(16, 31, -Math.PI / 2 - 1.0, 9, 2, 3);
     branch(18, 30, -Math.PI / 2 + 0.95, 9, 2, 3);
-    if (p.fine) {
-      // Wurzeln
-      p.fline(16, H - 2, 10.5, H - 1, CHAR[3], 1); p.fline(15, H - 2.5, 11, H - 1.5, CHAR[4]);
-      p.fline(20, H - 2, 25.5, H - 1, CHAR[1], 1); p.fline(16.5, H - 2, 13.5, H - 1, CHAR[4]);
-      // Stamm mit Rillen, Asche auf der Lichtseite
-      const sx = (y) => 18 + Math.sin(Math.floor(y) * 0.4) * 0.7;
-      p.scan(15, 26, 21, H - 1, (x, y) => {
-        const dx = x - sx(y);
-        if (dx < -2 || dx >= 2) return 0;
-        let k = dx < -1.5 ? 5 : dx < -0.5 ? 4 : dx < 1 ? 3 : dx < 1.5 ? 2 : 1;
-        if (k > 1 && Math.abs(((dx + 2) % 1.25) - 0.9) < 0.2 && Math.floor(y / 2.5) % 3 !== 1) k -= 1;
-        return CHAR32[k];
-      });
-      for (let y = 27; y < H - 3; y += 2.5) p.dot(sx(y) - 2, y, ASHG[4]);
-      // Äste: hinten dünn nach vorn dick; Glied = Schattenseite, Kern, Lichtkante
-      for (const [x, y, x2, y2, th, len] of segs) {
-        const w0 = th * 0.75 + 0.25, w1 = Math.max(0.5, (th - 1) * 0.75 + 0.25);
-        const ax = x + th * 0.4, ex = x2 + th * 0.25;
-        const nx = -(y2 - y) / len, ny = (x2 - x) / len;          // Normale (zeigt nach rechts/unten bei Ästen nach oben)
-        const steps = Math.ceil(len * 2);
-        for (let i = 0; i <= steps; i++) {
-          const t = i / steps, w = w0 + (w1 - w0) * t;
-          const cx = ax + (ex - ax) * t, cy = y + (y2 - y) * t;
-          const sgn = nx * 1 + ny * 0.3 > 0 ? 1 : -1;                // Schattenseite eher rechts
-          for (let k = -w / 2; k <= w / 2 + 0.01; k += 0.5) {
-            const rel = k / Math.max(0.5, w / 2) * sgn;
-            p.dot(cx + nx * k, cy + ny * k, rel > 0.35 ? CHAR[1] : rel < -0.3 ? CHAR[5] : CHAR[3]);
-          }
-          // Asche bleibt nur auf flacheren Ästen liegen: ein zusammenhängender Streifen auf der Oberseite
-          if (len > 4 && Math.abs(ny) > 0.55 && t > 0.2 && t < 0.6) p.dot(cx, cy - w / 2 - 0.5, ASHG[t < 0.45 ? 4 : 3]);
-        }
-      }
-      // Glutkern im Stamm, glimmende Spitzen
-      emberCrack(p, g, 17.5, 33.5, 3, seed);
-      for (const [tx, ty] of tips) if (rng.chance(0.35)) emberDot(p, g, tx, ty);
-      return;
-    }
     p.line(15, H - 2, 10, H - 1, CHAR[3]); p.line(20, H - 2, 25, H - 1, CHAR[1]); p.line(16, H - 2, 13, H - 1, CHAR[4]);
     for (let y = 26; y < H - 1; y++) { const s = Math.round(Math.sin(y * 0.4) * 0.7); p.px(16 + s, y, CHAR[5]); p.px(17 + s, y, CHAR[3]); p.px(18 + s, y, CHAR[2]); p.px(19 + s, y, CHAR[1]); }
     for (const [x, y, x2, y2, th, len] of segs) {
@@ -494,6 +458,96 @@ function deadTree(seed) {
     p.px(17, 34, EMB[2]); p.px(17, 35, EMB[3]); p.px(18, 36, EMB[2]); g.px(17, 35, EMB[4]); g.px(17, 34, EMB[3]); g.px(18, 36, EMB[3]);
   }, { ax: 18, box: [-3, -3, 3, 1], b: true });
 }
+// Schlackenbaum fein (eigene Gestalt, gleiche Maße und Anker): Äste als geknickte Polylinien mit unregelmäßigen
+// Winkeln, verschieden lang, zur Spitze dünner, einige abgebrochen (Splitterkante, teils glimmend); Stamm mit
+// leichter S-Kurve und Borkenrillen; Fuß mit Wurzelanläufen, die schräg in den Boden greifen (keine Platte).
+function deadTreeFine(p, g, seed) {
+  const H = 42, rng = createRng(seed * 7 + 41), tips = [], stubs = [], limbs = [];
+  const grow = (x, y, a, len, w, depth) => {
+    const n = Math.max(2, Math.round(len / 2.6)), pts = [[x, y, w]];
+    const broken = depth < 3 && depth > 0 && rng.chance(0.2), stop = broken ? rng.int(1, n - 1) : n;
+    let cx = x, cy = y;
+    for (let i = 1; i <= stop; i++) {
+      a += rng.range(-0.32, 0.32) + (-Math.PI / 2 - a) * (depth >= 3 ? 0.04 : 0.12);
+      if (rng.chance(0.22)) a += rng.range(-0.75, 0.75);                   // Knick
+      const sl = (len / n) * rng.range(0.75, 1.25);
+      cx = Math.max(1.5, Math.min(34.5, cx + Math.cos(a) * sl)); cy += Math.sin(a) * sl;
+      pts.push([cx, cy, Math.max(0.5, w * (1 - (i / n) * 0.6))]);
+      if (cy < 2.5) break;                                                 // oberer Bildrand: Ast endet
+    }
+    limbs.push(pts);
+    if (broken) { stubs.push([cx, cy, a]); }
+    else if (depth <= 0 || len < 3) { tips.push([cx, cy]); return; }
+    // Seitenäste an zufälligen Stellen, abwechselnd links/rechts
+    const k = depth > 0 ? rng.int(1, depth > 2 ? 3 : 2) : 0;
+    let side = rng.chance(0.5) ? 1 : -1;
+    for (let j = 0; j < k; j++) {
+      const at = Math.max(1, Math.min(pts.length - 1, Math.round(pts.length * rng.range(0.4, 1)) - (j === k - 1 && !broken ? 0 : 0)));
+      const [bx, by, bw] = pts[at], ba = Math.atan2(by - pts[at - 1][1], bx - pts[at - 1][0]);
+      let na = ba + side * rng.range(0.4, 1.1);
+      if (Math.sin(na) > 0.25) na = ba - side * rng.range(0.4, 0.9);            // nicht nach unten hängen
+      grow(bx, by, na, len * rng.range(0.4, 0.75), Math.max(0.5, bw * 0.75), depth - 1);
+      side = -side;
+    }
+    if (!broken && k < 2 && depth > 0) grow(cx, cy, a + rng.range(-0.3, 0.3), len * rng.range(0.4, 0.6), Math.max(0.5, pts[pts.length - 1][2] * 0.8), depth - 1);
+  };
+  const xAt = (y) => 18 + Math.sin((y - 22) * 0.22) * 0.9;
+  const wAt = (y) => 3.2 + Math.max(0, y - 22) * 0.06 + (y > H - 4 ? (y - (H - 4)) * 0.5 : 0);
+  // Hauptäste aus der Krone des Stamms, ein tiefer Seitenast
+  grow(xAt(23) - 0.5, 23.5, -Math.PI / 2 - rng.range(0.3, 0.6), rng.range(13, 16), 2.6, 4);
+  grow(xAt(23) + 0.5, 23.5, -Math.PI / 2 + rng.range(0.55, 0.85), rng.range(10, 13), 2.2, 3);
+  grow(xAt(28) - 1, 28.5, -Math.PI / 2 - rng.range(0.9, 1.3), rng.range(8, 12), 1.6, 2);
+  if (rng.chance(0.6)) grow(xAt(30) + 1, 30.5, -Math.PI / 2 + rng.range(0.9, 1.4), rng.range(6, 9), 1.3, 1);
+  // Wurzelanläufe: von der Stammbasis schräg nach außen, verjüngt, enden im Boden
+  // [Seite, Länge, Stärke, Ansatzhöhe über dem Boden]: lange flache Anläufe außen, ein kurzer steiler vorn
+  const roots = [[-1, 8, 1.8, 3.5], [1, 6.5, 1.7, 3], [-0.35, 3, 1.4, 1.8], [0.5, 3.5, 1.2, 2.2]];
+  roots.forEach(([sd, ln0, rw, hh], ri) => {
+    const ln = ln0 * (0.75 + hash2(ri, 5, seed) * 0.5), x0 = xAt(H - 4) + Math.sign(sd) * 1.3, y0 = H - 1 - hh;
+    const pts = [];
+    for (let i = 0; i <= 4; i++) { const t = i / 4; pts.push([x0 + sd * ln * t, y0 + hh * Math.pow(t, 0.6) - 0.2, Math.max(0.5, rw * (1 - t * 0.8))]); }
+    limbs.unshift(pts);
+  });
+  // Stamm
+  p.scan(13, 21, 23, H, (x, y) => {
+    if (y > H - 0.5) return 0;
+    const hw = wAt(y) / 2, dx = x - xAt(y);
+    if (dx < -hw || dx >= hw) return 0;
+    const rel = dx / hw;
+    let k = rel < -0.6 ? 5 : rel < -0.15 ? 4 : rel < 0.45 ? 3 : rel < 0.75 ? 2 : 1;
+    const gr = (dx + hw) / 1.2;
+    if (k > 1 && gr - Math.floor(gr) < 0.28 && hash2(Math.floor(gr), Math.floor(y / 3.2), seed) < 0.7) k -= 2;
+    return CHAR32[Math.max(1, k)];
+  });
+  // Äste und Wurzeln: Glieder mit Lichtseite oben links, Schatten unten rechts
+  for (const pts of limbs) {
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0, w0] = pts[i - 1], [x1, y1, w1] = pts[i];
+      const L = Math.hypot(x1 - x0, y1 - y0) || 1, nx = -(y1 - y0) / L, ny = (x1 - x0) / L;
+      const sg = nx * 0.7 + ny > 0 ? 1 : -1;                                // +: Normale zeigt nach unten rechts
+      for (let s = 0; s <= L; s += 0.25) {
+        const t = s / L, w = w0 + (w1 - w0) * t, cx = x0 + (x1 - x0) * t, cy = y0 + (y1 - y0) * t;
+        if (w < 0.8) { p.dot(cx, cy, CHAR[3]); continue; }
+        for (let k = -w / 2; k <= w / 2 + 0.01; k += 0.5) {
+          const rel = (k / (w / 2)) * sg;
+          p.dot(cx + nx * k, cy + ny * k, rel > 0.4 ? CHAR[1] : rel < -0.5 ? (w > 1.6 ? CHAR[5] : CHAR[4]) : CHAR[3]);
+        }
+        // Asche auf flachen, dicken Ästen
+        if (w > 1.2 && Math.abs(ny) > 0.7 && hash2(Math.floor(cx), Math.floor(cy), seed + 9) < 0.6) p.dot(cx, cy - w / 2 - 0.25, ASHG[4]);
+      }
+    }
+  }
+  // Abgebrochene Enden: helle Splitterkante
+  stubs.forEach(([x, y, a], i) => {
+    p.dot(x, y, CHAR[5]); p.dot(x + Math.cos(a) * 0.5, y + Math.sin(a) * 0.5 - 0.5, BIRCH_SPLINTER);
+  });
+  // Glutriss im Stamm, glimmende Spitzen
+  emberCrack(p, g, Math.round(xAt(34) * 2) / 2 - 0.5, 32.5, 3, seed);
+  let lit = 0;
+  for (const [x, y] of tips) if (lit < 2 && rng.chance(0.3) && y > 0.5) { emberDot(p, g, Math.round(x), Math.round(y)); lit++; }
+  // Bodenkontakt: Asche zwischen den Wurzeln (kleine Häufchen, keine Platte)
+  for (const dx of [-4.5, -2, 2.5, 5]) { const x = xAt(H - 2) + dx; p.dot(x, H - 1, ASHG[3]); p.dot(x + 0.5, H - 1, ASHG[2]); p.dot(x, H - 1.5, ASHG[4]); }
+}
+const BIRCH_SPLINTER = '#6a5650';
 const CHAR32 = pal32(['#0a0708', '#130e0f', '#1c1516', '#281e1f', '#352929', '#44363a']);
 
 // ------------------------------------------------------------ Aschewehen
@@ -1265,6 +1319,32 @@ function lavaBridge() {
   });
 }
 
+// Felsmasse fein (gleicher Umriss wie basLump): Schichtung in schrägen, leicht gewellten Bänken, in jeder Bank Blöcke
+// mit Klüften; Töne in harten dunklen Stufen (BAS 1–3), Lichtkante (BAS 4) nur am Rand oben links und an den
+// Bankoberkanten der Lichtseite, rechts/unten eine Stufe dunkler; Fugen BAS 0. Nie heller als der Basalt ringsum.
+function crag(f, cx, cy, rx, ry, seed) {
+  const B = BAS32;
+  f.scan(cx - rx * 1.2, cy - ry * 1.2, cx + rx * 1.2, cy + ry * 1.2, (x, y) => {
+    const dx = (x - cx) / rx, dy = (y - cy) / ry, a = Math.atan2(dy, dx);
+    const e = 1 + Math.sin(a * 3 + seed) * 0.12 + Math.sin(a * 7 + seed * 1.3) * 0.06;
+    const d = Math.sqrt(dx * dx + dy * dy) / e;
+    if (d > 1) return 0;
+    const lit = dx + dy * 1.2;
+    if (d > 0.93) return lit < -0.5 ? B[4] : lit > 0.3 ? B[0] : B[1];   // Bruchkante: Licht nur oben links
+    const s0 = y + (x - cx) * 0.22 + Math.sin(x * 0.23 + seed) * 1.1 + Math.sin(x * 0.07 + seed * 2) * 1.5;
+    const sv = (s0 + Math.sin(s0 * 0.45 + seed) * 1.3) / 3.8, band = Math.floor(sv), by = sv - band;
+    const per = 7 + hash2(band, 2, seed) * 7, sl = (hash2(band, 4, seed) - 0.5) * 3;
+    const jx = (x + hash2(band, 1, seed) * 13 + by * sl) / per, blk = Math.floor(jx), open = hash2(band, blk, seed + 7) < 0.7;
+    let k = lit < -0.35 ? 3 : lit > 0.55 ? 1 : 2;
+    if (hash2(band, blk, seed + 3) < 0.3) k -= 1;
+    if (by > 0.86) return B[0];                                            // Bankfuge
+    if (open && jx - blk < 0.55 / per) return B[0];                        // Kluft
+    if (by < 0.14 && k >= 2) return B[Math.min(4, k + 1)];                 // Oberkante der Bank fängt Licht
+    if (open && jx - blk < 1.1 / per && k >= 2) return B[3];              // Kluftkante links hell
+    return B[Math.max(1, k)];
+  });
+}
+
 // ------------------------------------------------------------ Stolleneingang in der Felswand
 function mineEntrance() {
   const W = 62, H = 52, cx = 31, by = H - 1;
@@ -1318,13 +1398,7 @@ function mineEntrance() {
     ax: 31, box: [-19, -8, 19, 1], light: { dx: -14, dy: -28, radius: 66, color: [255, 150, 70], intensity: 0.85 },
     under: (f) => {
       if (!f.fine) return;
-      rockF(f, 9, 22, 10, 22, 921, BAS, { lo: 1, hi: 4, bias: -0.2, sectors: 6 });
-      rockF(f, 53, 22, 10, 22, 922, BAS, { lo: 1, hi: 4, bias: -0.2, sectors: 6 });
-      rockF(f, cx, 8, 26, 9, 923, BAS, { lo: 1, hi: 5, bias: -0.2, sectors: 9, ash: [ASHG[3], ASHG[4]] });
-      // Klüfte: dunkle Fuge mit heller Lippe darunter
-      for (const [x0, y0, x1, y1] of [[3, 14, 8, 21], [8, 21, 6, 30], [4, 34, 9, 40], [56, 12, 59, 20], [55, 26, 60, 33], [12, 3, 17, 6], [44, 2, 49, 5]]) {
-        f.fline(x0, y0, x1, y1, BAS[0]); f.fline(x0 + 0.5, y0 + 0.5, x1 + 0.5, y1 + 0.5, BAS[4]);
-      }
+      crag(f, 9, 22, 10, 22, 921); crag(f, 53, 22, 10, 22, 922); crag(f, cx, 8, 26, 9, 923);
     },
     // Fein: Laternenglas mit Kern, Glut in den Erzbrocken, Glanz an Hacke und Klammern, Schienenglanz im Lichtkegel
     fine: (f, g) => {
