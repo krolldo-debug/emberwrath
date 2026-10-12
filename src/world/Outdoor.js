@@ -521,26 +521,41 @@ export class Outdoor extends TileMap {
     }
   }
 
-  // Felsmaler (organisch, Basalt, pal.paintCliffs) im Feinraster: Sie rechnen in Weltpixeln auf einer Leinwand und
-  // ändern jedes Pixel affin (Fels deckend setzen, Schatten abdunkeln). Zwei Läufe auf schwarzem und weißem Grund
-  // liefern je Weltpixel und Kanal out = in·a + c (c = Lauf schwarz, a = (weiß − schwarz)/255); applyOverlay legt das
-  // auf die 2×2 Texel des feinen Bodens (Schatten behalten die Feinheit darunter). cover: 1 = deckend, kein Boden nötig.
+  // Felsmaler (organisch, Basalt, pal.paintCliffs) im Feinraster: Sie rechnen in Weltpixeln und ändern jedes Pixel
+  // affin (Fels deckend setzen, Schatten abdunkeln). Gesucht ist je Weltpixel und Kanal out = in·a + c; applyOverlay legt
+  // das auf die 2×2 Texel des feinen Bodens (Schatten behalten die Feinheit darunter). cover: 1 = deckend, kein Boden nötig.
+  // Organisch/Basalt: ein Lauf auf schwarzem Grund (c) mit mitgeführten Faktoren (am). Biom-Maler (fremder Code):
+  // zwei Läufe auf schwarzem und weißem Grund, a = (weiß − schwarz)/255.
   *#cliffOverlay(x0, y0, cw, ch) {
-    const run = function* (self, fill) {
-      const c = makeCanvas(cw, ch), x = c.getContext('2d', { willReadFrequently: true });
-      x.fillStyle = fill; x.fillRect(0, 0, cw, ch);
-      if (self.organic) yield* (self.basalt ? self.#basaltCliffs(x, x0, y0, cw, ch) : self.#organicCliffs(x, self.rockR, x0, y0, cw, ch));
-      if (self.painter) yield* self.painter(x, x0, y0, cw, ch, self);
-      return x.getImageData(0, 0, cw, ch).data;
-    };
-    const A = yield* run(this, '#000');
+    const n = cw * ch, A = new Uint8ClampedArray(n * 4), B = new Uint8ClampedArray(n * 4);
+    if (this.organic) {
+      const img = new ImageData(cw, ch), am = new Float32Array(n * 2).fill(1);
+      const fake = { getImageData: () => img, putImageData: () => {} };
+      yield* (this.basalt ? this.#basaltCliffs(fake, x0, y0, cw, ch, am) : this.#organicCliffs(fake, this.rockR, x0, y0, cw, ch, am));
+      const d = img.data;
+      for (let j = 0, i = 0; j < n; j++, i += 4) {
+        const rg = am[j * 2] * 255, b = am[j * 2 + 1] * 255;
+        A[i] = d[i]; A[i + 1] = d[i + 1]; A[i + 2] = d[i + 2];
+        B[i] = d[i] + rg; B[i + 1] = d[i + 1] + rg; B[i + 2] = d[i + 2] + b;
+      }
+    } else { A.fill(0); B.fill(255); }
+    if (this.painter) {
+      // Biom-Maler auf die Ergebnisse der organischen Felsen (sonst Grund schwarz/weiß) – Reihenfolge wie bei r = 1
+      const run = function* (self, base) {
+        const c = makeCanvas(cw, ch), x = c.getContext('2d', { willReadFrequently: true }), im = x.createImageData(cw, ch);
+        for (let i = 0; i < base.length; i += 4) { im.data[i] = base[i]; im.data[i + 1] = base[i + 1]; im.data[i + 2] = base[i + 2]; im.data[i + 3] = 255; }
+        x.putImageData(im, 0, 0);
+        yield* self.painter(x, x0, y0, cw, ch, self);
+        return x.getImageData(0, 0, cw, ch).data;
+      };
+      const A2 = yield* run(this, A), B2 = yield* run(this, B);
+      A.set(A2); B.set(B2);
+    }
     let any = false;
-    for (let i = 0; i < A.length; i += 4) if (A[i] | A[i + 1] | A[i + 2]) { any = true; break; }
-    const B = yield* run(this, '#fff');
-    const cover = new Uint8Array(cw * ch);
-    for (let j = 0, i = 0; j < cover.length; j++, i += 4) {
+    const cover = new Uint8Array(n);
+    for (let j = 0, i = 0; j < n; j++, i += 4) {
       if (B[i] === A[i] && B[i + 1] === A[i + 1] && B[i + 2] === A[i + 2]) { cover[j] = 1; any = true; }
-      else if (!any && (B[i] & B[i + 1] & B[i + 2]) !== 255) any = true;
+      else if (!any && (A[i] | A[i + 1] | A[i + 2] || (B[i] & B[i + 1] & B[i + 2]) !== 255)) any = true;
     }
     return any ? { A, B, cover } : null;
   }
@@ -876,7 +891,8 @@ export class Outdoor extends TileMap {
   // Chunkweise: ctx ist die Chunk-Leinwand (Ursprung = Welt x0,y0). Die Maske wird mit Rand berechnet
   // (oben 10 px für den Schlagschatten, unten 40 px für die Wandhöhe, seitlich 4 px), damit jedes
   // Pixel exakt wie bei der früheren Gesamtberechnung entsteht.
-  *#organicCliffs(ctx, R, x0, y0, cw, ch) {
+  // am: Ebenen-Modus (#cliffOverlay) – Faktoren je Pixel (Rot/Grün, Blau) statt Abdunkeln des Bodens
+  *#organicCliffs(ctx, R, x0, y0, cw, ch, am = null) {
     const W = this.pixelW, H = this.pixelH, G = this.pal.grass, ICE = this.pal.water;
     const cap = this.pal.capPixel ?? null; // optional: Hochfläche je Pixel umfärben (Grate, Geröll), liefert Hex oder null
     const mx0 = Math.max(0, x0 - 4), mx1 = Math.min(W, x0 + cw + 4);
@@ -893,8 +909,8 @@ export class Outdoor extends TileMap {
     const inM = (x, y) => x < 0 || y < 0 || x >= W || y >= H || M[(y - my0) * MW + x - mx0] === 1;
     const img = ctx.getImageData(0, 0, cw, ch), d = img.data;
     const idx = (px, py) => ((py - y0) * cw + px - x0) * 4;
-    const put = (i, hex) => { const v = hexInt(hex); d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; };
-    const dark = (i, k) => { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.8; };
+    const put = (i, hex) => { const v = hexInt(hex); d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; if (am) am[i >> 1] = am[(i >> 1) + 1] = 0; };
+    const dark = (i, k) => { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.8; if (am) { am[i >> 1] *= 1 - k; am[(i >> 1) + 1] *= 1 - k * 0.8; } };
     const dith = (x, y) => DITH[(y & 3) * 4 + (x & 3)] / 16;
     const yIn0 = y0, yIn1 = y0 + ch;
     for (let px = x0; px < x0 + cw; px++) {
@@ -985,7 +1001,7 @@ export class Outdoor extends TileMap {
   // Basaltklippen (level.organicCliffs = 'basalt', Glutöde): dieselbe weiche Maske wie die Frostgipfel,
   // aber Säulenbasalt in der Wand (senkrechte Säulen, versetzte Köpfe, Querfugen), auf der Hochfläche
   // sechseckige Säulenköpfe unter Ascheverwehungen. Kein Schnee, keine Eiszapfen. Deterministisch, chunkweise.
-  *#basaltCliffs(ctx, x0, y0, cw, ch) {
+  *#basaltCliffs(ctx, x0, y0, cw, ch, am = null) {
     const W = this.pixelW, H = this.pixelH, hx = (c) => parseInt(c.slice(1), 16), G = this.pal.grass.map(hx), B = BASALT.map(hx);
     // Maskenfenster nicht an der Karte gekappt (außerhalb gilt Fels): Nachbarabfragen ohne Grenzprüfung
     const mx0 = x0 - 4, mx1 = x0 + cw + 4, my0 = y0 - 10, my1 = y0 + ch + 40;
@@ -1010,8 +1026,8 @@ export class Outdoor extends TileMap {
     if (!any) return;
     const img = ctx.getImageData(0, 0, cw, ch), d = img.data;
     const idx = (px, py) => ((py - y0) * cw + px - x0) * 4;
-    const put = (i, v) => { d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; };
-    const dark = (i, k) => { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.8; };
+    const put = (i, v) => { d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; if (am) am[i >> 1] = am[(i >> 1) + 1] = 0; };
+    const dark = (i, k) => { d[i] *= 1 - k; d[i + 1] *= 1 - k; d[i + 2] *= 1 - k * 0.8; if (am) { am[i >> 1] *= 1 - k; am[(i >> 1) + 1] *= 1 - k * 0.8; } };
     const dith = (x, y) => [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5][(y & 3) * 4 + (x & 3)] / 16;
     // Säulenköpfe: kachelbare Voronoi-Textur (einmal berechnet), je Pixel nur ein Nachschlag
     const HX = basaltHex();
