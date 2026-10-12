@@ -1,7 +1,7 @@
 import { PAL } from './Palette.js';
 import { PixelCanvas, outlineCanvas, makeCanvas } from './PixelCanvas.js';
 import { upscale2x, finishFine, FineCanvas, col32, fineRes } from './Fine.js';
-import { decorateItemIcon } from './ItemFx.js';
+import { decorateItemIcon, setItemFxRes } from './ItemFx.js';
 import { installRarityFrames } from './RarityFrame.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
 import { DYES } from '../character/cosmetics.js';
@@ -2133,25 +2133,40 @@ function fangFine(p) {
     return pick(B, k);
   });
 }
+// Fell: aufgespannte Tierhaut (Rumpf, vier Läufe, Kopfansatz, Rute), Haar in wenigen Strähnenbündeln vom Rückgrat
+// schräg nach außen; Licht oben links, gezackter Rand nur an den Außenkanten.
 function peltFine(p) {
-  const R = M.fur;
-  fgrid(p, 2, 3, 22, 22, (x, y, F, G) => {
-    const dx = (x - 12) / 8, dy = (y - 12.5) / 7.5, d = dx * dx + dy * dy;
-    const leg = Math.abs(Math.abs(dx) - 0.95) < 0.25 && Math.abs(Math.abs(dy) - 0.85) < 0.3;
-    const tuftEdge = d > 0.92 && d <= 1 && (Math.floor(Math.atan2(dy, dx) * 9) % 2 === 0);      // gezackter Fellrand
-    if ((d > 1 || tuftEdge) && !leg) return null;
-    if (leg && d > 1) {
-      const out = Math.max(Math.abs(Math.abs(dx) - 0.95) / 0.25, Math.abs(Math.abs(dy) - 0.85) / 0.3);
-      if (out > 0.7 && Math.abs(dy) > 0.95 && F % 2 === 0) return '#e8e0d0';                       // Krallen
-      return pick(R, 2.4 - dy * 0.5 - out * 0.8);
+  const R = M.fur, LEGS = [[8.2, 8.6, 5, 5.4], [15.8, 8.6, 19, 5.4], [7.8, 16.2, 4.6, 19.4], [16.2, 16.2, 19.4, 19.4]];
+  const inside = (x, y) => {
+    const dx = (x - 12) / 6.7, dy = (y - 12.4) / 7.4;
+    if (dx * dx + dy * dy <= 1) return 'body';
+    for (const [x0, y0, x1, y1] of LEGS) {
+      const d = segD(x, y, x0, y0, x1, y1), along = Math.hypot(x - x0, y - y0) / Math.hypot(x1 - x0, y1 - y0);
+      if (d < 2.4 - along * 0.9) return 'leg';
+      if (Math.hypot(x - x1 - (x1 - x0) * 0.18, y - y1 - (y1 - y0) * 0.18) < 1.55) return 'paw';    // Pfote, leicht ausgestellt
     }
-    let k = domeK(dx, dy, 1, 3, 0.9);
-    // Strähnen: vom Rückgrat schräg nach außen, je Strähne Lichtkante und Schattenfuge
-    const lane = (Math.abs(x - 12) - (y - 12.5) * 0.45 * Math.sign(x - 12 || 1)) * 1.25;
-    const fr = ((lane % 1) + 1) % 1;
-    if (fr < 0.2) k -= 1; else if (fr < 0.38) k += 0.6;
-    if (Math.abs(dx) < 0.07 && Math.abs(dy) < 0.8) k -= 1;                                          // Rückenstreif
-    if (d > 0.8) k -= 0.6;
+    if (((x - 12) / 2.5) ** 2 + ((y - 4.8) / 2.4) ** 2 <= 1) return 'head';
+    for (const e of [-1, 1]) if (y > 1.4 && y < 3.6 && Math.abs(x - 12 - e * 1.9) < (y - 1.4) * 0.55) return 'head';   // Ohren
+    if (segD(x, y, 12, 19.5, 12.9, 22.6) < 1.1) return 'tail';
+    return null;
+  };
+  fgrid(p, 1.5, 1.5, 22.5, 23, (x, y, F, G) => {
+    const part = inside(x, y);
+    if (!part) return null;
+    // Randzacken: nur dort, wo ein Feinpixel weiter außen nichts mehr ist, jedes zweite Strähnenende frei
+    const ox = x - 12, oy = y - 12.4, n = Math.hypot(ox, oy) || 1, ex = x + ox / n * 0.5, ey = y + oy / n * 0.5;
+    const edge = !inside(ex, ey);
+    const tuft = Math.floor(Math.atan2(oy, ox) * 7 + 50) % 2 === 0;
+    if (edge && tuft && part === 'body') return null;
+    let k = 2.6 - (ox / 9 + oy / 9) * 1.1;                                          // Licht oben links
+    if (part === 'leg' || part === 'tail') k -= 0.4;
+    if (part === 'paw') return edge && (F + G) % 2 === 0 ? '#e8e0d0' : pick(R, k - 0.9);   // Krallen an der Kante
+    // Strähnenbündel: Koordinate quer zur Haarrichtung (vom Rückgrat schräg nach unten außen)
+    const side = Math.sign(ox) || 1, across = Math.abs(ox) * 0.9 - oy * 0.55;
+    const fr = ((across / 2.2) % 1 + 1) % 1;
+    if (fr < 0.14) k -= 1.1; else if (fr < 0.42 && side < 0) k += 0.6; else if (fr < 0.3) k += 0.4;
+    if (Math.abs(ox) < 0.6 && part === 'body' && Math.abs(oy) < 6) k = Math.min(k, 1.2);  // dunkler Rückenstreif
+    if (edge) k -= 0.7;
     return pick(R, k);
   });
 }
@@ -2191,9 +2206,9 @@ function oreFine(p, rock, vein, hot) {
       return rock[0];
     }
     // Facettenlicht: Facette zeigt in Richtung Saat−Mitte, Licht oben links; Kante zur Mitte heller
-    let k = 2.2 - ((sx - 11) + (sy - 13)) / 6 - (b1 > 1.6 ? 0.4 : 0);
-    if (b2 - b1 < 0.6 && ((x - sx) + (y - sy)) < 0) k += 0.8;
-    if (Math.hypot(dx, dy) > r - 0.6) k -= 0.7;
+    let k = 2.6 - ((sx - 11) + (sy - 13)) / 4 - (b1 > 1.6 ? 0.4 : 0);
+    if (b2 - b1 < 0.6 && ((x - sx) + (y - sy)) < 0) k += 1;
+    if (Math.hypot(dx, dy) > r - 0.75) k += dx + dy < -2.5 ? 1.8 : dx + dy > 2 ? -0.9 : -0.2;     // harte Lichtkante oben links
     return pick(rock, k);
   });
   if (vein && !hot) {
@@ -2501,24 +2516,37 @@ function charmFine(p, o) {
 }
 
 // --- Färbungen (hängendes Tuch)
+// Färbung: Tuch über einer Goldstange, nach unten in Falten auslaufend. Licht oben links: Faltenflanken, die nach
+// links schauen, hell, Grat mit Glanzstreif, Kehle dunkel; Rippen im Stoff jede dritte Feinzeile auf den Lichtflanken.
 function dyeFine(p, R) {
-  const G = M.gold;
-  fgrid(p, 6, 5, 18, 21, (x, y, F, Gy) => {
-    const tail = y >= 17 && Math.abs(x - 12) < (y - 16) * 1.4;
-    if (tail) return null;
-    const f = ((x - 6) % 4 + 4) % 4;                                                             // Falten 4 breit
-    let k = f < 0.5 ? 0.6 : f < 1.5 ? 3.2 : f < 2.5 ? 2.4 : 1.6;
-    if (f >= 1 && f < 1.5 && y < 10) k = 4;                                                      // Glanz oben
-    if (x < 6.5) k = 0;
-    if (y < 5.5) k += 0.7;
-    if (Gy % 2 === 0 && y > 16.2 && y < 16.7) return G[2];                                       // Saumborte
-    if (Math.abs(y - 16) < 0.25 && F % 2 === 0) return G[3];
-    return R[clamp(Math.round(k), 0, R.length - 1)];
+  const G = M.gold, top = 4.4, hem0 = 20;
+  // Stange mit Knäufen (hinter dem Tuch)
+  fgrid(p, 3, 3, 21, 6, (x, y) => {
+    const knob = Math.min(Math.hypot(x - 4.4, y - 4.5), Math.hypot(x - 19.6, y - 4.5));
+    if (knob < 1.3) return x + y < (x < 12 ? 8.4 : 23.6) ? G[4] : knob > 0.9 ? G[1] : G[2];
+    if (x < 4.4 || x > 19.6 || y < 3.9 || y > 5.2) return null;
+    return y < 4.3 ? G[4] : y < 4.8 ? G[3] : G[1];
   });
-  // Stange mit Knäufen
-  fgrid(p, 3.5, 2.5, 20.5, 5, (x, y) => {
-    if (x < 5 || x > 19) return Math.hypot(x - (x < 5 ? 4.3 : 19.7), y - 3.8) < 1.1 ? (x + y < (x < 5 ? 7.5 : 23) ? G[4] : G[1]) : null;
-    return y < 3.4 ? G[4] : y < 4.1 ? G[3] : y < 4.6 ? G[2] : G[1];
+  fgrid(p, 3, top, 21, 22.5, (x, y, F, Gy) => {
+    const t = clamp((y - top) / (hem0 - top), 0, 1), half = 5.3 + t * 2.4 + t * t * 0.9, cx = 11.9 + t * t * 0.8;
+    const u = (x - cx) / half;
+    if (Math.abs(u) > 1) return null;
+    const ph = (u + 1) * 3.6 * Math.PI - 1.2 + t * 0.9, amp = 0.25 + t * 0.75;
+    const h = Math.sin(ph), slope = Math.cos(ph);                                   // slope > 0: Flanke schaut nach links ins Licht
+    const hem = hem0 + h * amp * 1.2;
+    if (y > hem) {                                                                  // Kehlen am Saum: Innenseite der hinteren Lage
+      if (h > 0.2 || y > hem0 + 0.5) return null;
+      return y > hem0 ? R[0] : R[1];
+    }
+    if (y < top + 0.6) return pick(R, 3.6 - u * 0.8);                              // Umschlag über der Stange
+    if (y < top + 1.1) return R[1];                                                 // Schattenfuge unter dem Umschlag
+    let k = 2.2 + slope * amp * 1.4 + h * amp * 0.6 - t * 0.35 - u * 0.25;
+    if (h > 0.55 && slope > 0 && slope < 0.75 && y < 15) k = 4;                     // Glanzstreif auf dem Grat, oben
+    if (h < -0.8) k = Math.min(k, 0.6 + (1 - amp));                                 // Kehle
+    if (Math.abs(u) > 0.92) k -= 0.9;                                               // Außenkanten rollen weg
+    if (slope > 0.5 && (Gy + (F >> 2)) % 4 === 0 && k > 2.5 && k < 3.5) k -= 0.7;     // Köperrippen im Stoff (nur im Licht sichtbar)
+    if (hem - y < 0.5) k += slope > 0 ? 0.7 : -0.7;                                 // umgeschlagener Saum
+    return pick(R, k);
   });
 }
 
@@ -2840,27 +2868,60 @@ export function iconEl(id, cssSize = 32, res = !SKILL_ART[id] && REG_FINE[resolv
   return img;
 }
 
+// Feinheit eines Item-Icons nach dem ersten Layout (Grafikupdate): Das Bild wird ganzzahlig vergrößert, ein Bildpunkt der
+// 52er-Fassung (Feinpixel) bzw. der 26er-Fassung ist immer eine ganze Zahl Gerätepixel. Wo der Platz es erlaubt, füllt das
+// Motiv etwa 70 % des Platzes (bleibt im Innenbereich des Rahmens), sonst so viel wie ganzzahlig passt (Desktop 52 px:
+// ganzer Platz wie bisher). Rahmen und Effektstreifen folgen derselben Feinheit (--fpx).
+// Größte ganzzahlige Vergrößerung, die in den Platz passt (füllt sie ihn ganz, schneidet FRAME_CLIP den Rand ab).
+// Feinfassung (52 Bildpunkte) vor der 24er (26), solange sie mindestens 65 % des Platzes füllt.
+function pickScale(dev) {
+  const n2 = Math.floor(dev / 52), n1 = Math.max(1, Math.floor(dev / 26));
+  return n2 >= 1 && (52 * n2 / dev >= 0.65 || 52 * n2 >= 26 * n1) ? { res: 2, n: n2 } : { res: 1, n: n1 };
+}
+function setIconRes(span, res) {
+  const img = span.querySelector(':scope > img');
+  if (img && span.dataset.res !== String(res)) img.src = iconUrl(span.dataset.icon, res);
+  span.dataset.res = String(res);
+  const r = span.dataset.rarity;
+  for (const fr of span.querySelectorAll(':scope > .ef-frame')) {
+    const st = fr.style;
+    if (res > 1) {
+      st.borderImageSource = `var(--ef-frame-${r}-fine${fr.classList.contains('lit') ? '-lit' : ''})`;
+      st.borderImageSlice = '9'; st.borderWidth = st.borderImageWidth = 'calc(4.5 * var(--fpx))';
+    } else { st.borderImageSource = st.borderImageSlice = st.borderWidth = st.borderImageWidth = ''; }
+  }
+  setItemFxRes(span, res);
+}
+const FRAME_CLIP = (() => {   // Innenbereich: 3 von 52 Bildpunkten Rand, Ecken 10 Bildpunkte abgeschrägt
+  const a = `${(3 / 52 * 100).toFixed(2)}%`, c = `${(10 / 52 * 100).toFixed(2)}%`, A = `${(49 / 52 * 100).toFixed(2)}%`, C = `${(42 / 52 * 100).toFixed(2)}%`;
+  return `polygon(${a} ${c}, ${c} ${a}, ${C} ${a}, ${A} ${c}, ${A} ${C}, ${C} ${A}, ${c} ${A}, ${a} ${C})`;
+})();
 let fineWatch = null;
-function watchFine(img, id, res0) {
+function watchFine(span) {
   if (typeof ResizeObserver !== 'function') return;
   fineWatch ??= new ResizeObserver((entries) => {
     for (const e of entries) {
-      const w = e.contentRect.width;
+      const el = e.target, w = e.borderBoxSize?.[0]?.inlineSize ?? el.getBoundingClientRect().width;   // ganze Platzbreite, Rahmen inklusive
       if (!w) continue;
-      fineWatch.unobserve(e.target);
-      const res = (w / 26) * (window.devicePixelRatio || 1) >= 2 ? 2 : 1, el = e.target;
-      if (el.dataset.res !== String(res)) { el.src = iconUrl(el.dataset.icon, res); el.dataset.res = String(res); }
+      fineWatch.unobserve(el);
+      if (el.closest('.pg-bag.small')) continue;                       // feste 1-px-Fassung (CSS)
+      const dpr = window.devicePixelRatio || 1, dev = w * dpr;
+      const { res, n } = pickScale(dev), fpx = res * n / dpr;
+      // Plätze im Inventar lesen --pg-fpx (progression.css, !important), alle anderen --fpx
+      el.style.setProperty(el.parentElement?.classList.contains('pg-slot') ? '--pg-fpx' : '--fpx', `${fpx}px`);
+      setIconRes(el, res);
+      // Füllt das Bild den Platz ganz, bleibt es im Innenbereich des Rahmens: Rand und Ecken abschneiden
+      const img = el.querySelector(':scope > img'), full = 26 * res * n / dev > 0.9;
+      if (img) img.style.clipPath = full && el.dataset.rarity !== 'common' ? FRAME_CLIP : '';
     }
   });
-  img.dataset.icon = id;
-  img.dataset.res = String(res0);
-  fineWatch.observe(img);
+  fineWatch.observe(span);
 }
 
 // Item-Icon mit Seltenheitsrahmen (Aussehen in ui/theme.css: .ef-item-icon).
-// Ab 24 px pixelgenau: ein gemeinsamer ganzzahliger Faktor --fpx (CSS-px je Bildpunkt) für Icon (26 Bildpunkte),
-// Rahmen (gfx/RarityFrame.js) und Effektstreifen (gfx/ItemFx.js). Das Icon steht mittig und darf am Rand
-// unter den Rahmen laufen. Panels mit festen Platzgrößen setzen --fpx per CSS selbst.
+// Ab 24 px pixelgenau: ein gemeinsamer Faktor --fpx (CSS-px je Bildpunkt) für Icon (26 Bildpunkte),
+// Rahmen (gfx/RarityFrame.js) und Effektstreifen (gfx/ItemFx.js). Das Icon steht mittig. Bis zum ersten Layout gilt
+// die Schätzung aus cssSize, danach wählt watchFine Feinheit und Größe nach der echten Breite.
 export function itemIconEl(def, cssSize = 40) {
   const span = document.createElement('span');
   const rarity = def?.rarity ?? 'common';
@@ -2868,13 +2929,10 @@ export function itemIconEl(def, cssSize = 40) {
   span.dataset.rarity = rarity;
   span.style.setProperty('--size', `${cssSize}px`);
   const u = cssSize >= 24 ? Math.max(1, Math.floor(cssSize / 24)) : 0;
-  // Feinfassung, sobald ein Bildpunkt der 26er-Fassung mindestens 2 Gerätepixel breit ist – auch am Desktop-Bildschirm
-  // (großer Platz, --fpx 2) und nicht erst bei devicePixelRatio ≥ 1,5. Panels setzen --fpx teils per CSS: die
-  // tatsächliche Breite prüft fineWatch nach dem ersten Layout und tauscht die Fassung bei Bedarf (einmalig).
   const id = itemIconId(def), dev = (u ? u : cssSize * 0.8 / 26) * (window.devicePixelRatio || 1);
-  const res = dev >= 2 ? 2 : 1, img = iconEl(id, u ? 26 * u : Math.round(cssSize * 0.8), res);
-  if (u) watchFine(img, id, res);
-  span.append(img);
+  const res = dev >= 2 ? 2 : 1;
+  span.dataset.icon = id;
+  span.append(iconEl(id, u ? 26 * u : Math.round(cssSize * 0.8), res));
   if (u) { span.classList.add('px'); span.style.setProperty('--fpx', `${u}px`); }
   if (def?.name) span.title = def.name;
   // Ab ungewöhnlich: gezeichneter Seltenheitsrahmen, ab episch mit Aufleuchten in Stufen (zweites Bild)
@@ -2885,7 +2943,9 @@ export function itemIconEl(def, cssSize = 40) {
     if (rarity === 'epic' || rarity === 'legendary') span.append(Object.assign(document.createElement('i'), { className: 'ef-frame lit' }));
   }
   // Ab selten: animierte Effektebenen im Thema des Items (gfx/ItemFx.js)
-  return decorateItemIcon(span, def);
+  decorateItemIcon(span, def, u ? res : 1);
+  if (u) { setIconRes(span, res); watchFine(span); }
+  return span;
 }
 
 // ---------------------------------------------------------------- Beute am Boden
@@ -3009,6 +3069,43 @@ const LOOT_PAL = {
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const lit = (x, y, d) => BAYER[(y & 3) * 4 + (x & 3)] < d * 16;
 
+// Gold am Boden im Feinraster: zwei Münzstapel und eine liegende Münze (das 24er-Goldsymbol liest sich klein wie „2“)
+let goldGround = null;
+function goldGroundSprite() {
+  if (goldGround) return goldGround;
+  const G = M.gold, c = makeCanvas(24, 18), x = c.getContext('2d');
+  const coin = (cx, cy) => {
+    for (let py = Math.floor(cy - 3); py <= cy + 4; py++) for (let px = Math.floor(cx - 5); px <= cx + 5; px++) {
+      const fx = px + 0.5 - cx, fy = py + 0.5 - cy, face = (fx / 4.6) ** 2 + (fy / 2.1) ** 2, side = (fx / 4.6) ** 2 + ((fy - 1.5) / 2.1) ** 2;
+      let col = null;
+      if (face <= 1) col = face > 0.55 ? (fx + fy * 2 < 0 ? G[4] : G[2]) : Math.abs(fx) < 1 && Math.abs(fy) < 0.6 ? G[2] : fx < -0.5 ? G[4] : G[3];
+      else if (side <= 1) col = fx > 2.5 || fy > 2.6 ? G[0] : G[1];
+      if (col) { x.fillStyle = col; x.fillRect(px, py, 1, 1); }
+    }
+  };
+  for (const [cx, cy] of [[7, 12], [7, 10], [7, 8], [7, 6], [16, 12], [16, 10], [12, 14.5]]) coin(cx, cy);
+  x.fillStyle = '#ffffff'; x.fillRect(4, 5, 1, 1); x.fillRect(14, 9, 1, 1);
+  goldGround = outlineCanvas(c);
+  return goldGround;
+}
+
+// Bild der liegenden Beute und seine Lage (Weltpixel), für Körper- und Leuchtpass gleich
+function lootBody(def, rarity, order, x, y, bob) {
+  if (fineRes() > 1) {
+    // Feinraster: das Item-Bild selbst (24er-Fassung = 12 Weltpixel), Kante in Seltenheitsfarbe ab selten
+    const gold = def?.gold != null || !def, ic = gold ? goldGroundSprite() : iconCanvas(itemIconId(def), 1), spr = order ? rimSprite(ic, rarity, 2) : ic;
+    const w = spr.width / 2, h = spr.height / 2;
+    return { spr, x: x - w / 2, y: Math.round((y - h - bob + (gold ? 1 : 2) + (order ? 0.5 : 0)) * 2) / 2, w, h };
+  }
+  const spr = order ? rimSprite(lootSprite(def), rarity) : lootSprite(def);
+  return { spr, x: x - (spr.width >> 1), y: Math.round(y - spr.height - bob + 2 + (order ? 1 : 0)), w: spr.width, h: spr.height };
+}
+
+// Leuchtpass auf eigener Leinwand im Raster des Items (Feinpixel), danach wird der Umriss des Items ausgestanzt:
+// Säule, Flammen und Funken liegen so immer hinter dem Gegenstand, nie darüber.
+const FX_W = 32, FX_H = 84, FX_UP = 72;
+let fxCanvas = null;
+
 // Beute zeichnen: Fußpunkt (x, y) in Bildschirm-Pixeln, bob = Höhe über dem Boden.
 // Ab "uncommon" steigt eine Pixelsäule in Seltenheitsfarbe auf, ab "rare" mit farbiger Kante am Gegenstand;
 // "epic"/"legendary" mit breiterer Säule, zweitem Bodenring und aufsteigenden Funken.
@@ -3018,58 +3115,75 @@ export function drawLoot(ctx, def, x, y, t = 0, { bob = 0, emissive = false } = 
   const order = { rare: 1, epic: 2, legendary: 3 }[rarity] ?? 0;
   x = Math.round(x); y = Math.round(y);
   if (!emissive) {
-    if (fineRes() > 1) {
-      // Feinraster: das Item-Bild selbst (24er-Fassung = 12 Weltpixel), Kante in Seltenheitsfarbe ab selten
-      const ic = iconCanvas(def?.gold != null || !def ? 'gold' : itemIconId(def), 1), spr = order ? rimSprite(ic, rarity, 2) : ic;
-      const w = spr.width / 2, h = spr.height / 2;
-      ctx.drawImage(spr, x - w / 2, Math.round((y - h - bob + 2 + (order ? 0.5 : 0)) * 2) / 2, w, h);
-      return;
-    }
-    const spr = order ? rimSprite(lootSprite(def), rarity) : lootSprite(def);
-    ctx.drawImage(spr, x - (spr.width >> 1), Math.round(y - spr.height - bob + 2 + (order ? 1 : 0)));
+    const b = lootBody(def, rarity, order, x, y, bob);
+    ctx.drawImage(b.spr, b.x, b.y, b.w, b.h);
     return;
   }
   if (rarity === 'common') return;
-  const pal = LOOT_PAL[rarity];
+  const R = fineRes(), ox = x - FX_W / 2, oy = y - FX_UP;
+  if (!fxCanvas || fxCanvas.width !== FX_W * R) fxCanvas = makeCanvas(FX_W * R, FX_H * R);
+  const fx = fxCanvas.getContext('2d');
+  fx.setTransform(1, 0, 0, 1, 0, 0);
+  fx.globalCompositeOperation = 'source-over';
+  fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  fx.setTransform(R, 0, 0, R, -ox * R, -oy * R);
+  lootGlow(fx, rarity, order, x, y, t, 1 / R);
+  const b = lootBody(def, rarity, order, x, y, bob);
+  fx.globalCompositeOperation = 'destination-out';
+  fx.drawImage(b.spr, b.x, b.y, b.w, b.h);
+  fx.globalCompositeOperation = 'source-over';
+  fx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(fxCanvas, ox, oy, FX_W, FX_H);
+}
+
+// Säule, Bodenringe, Funken; s = Rasterschritt in Weltpixeln (0,5 im Feinraster)
+function lootGlow(ctx, rarity, order, x, y, t, s) {
+  const pal = LOOT_PAL[rarity], n = 1 / s;
   const [tall, core, mid] = LOOT_PILLAR[rarity];
   const strong = Math.sin(t * 3) > -0.2; // zwei feste Helligkeitsstufen statt weichem Pulsieren
-  const rise = Math.floor(t * 10);
-  for (let j = 0; j < tall; j++) {
-    const row = y - 3 - j, f = 1 - j / tall;
-    // Dichte in festen Stufen: unten fast voll, oben vereinzelt
-    const d = Math.ceil(f * 6) / 6 * (strong ? 0.8 : 0.66);
-    for (let i = -mid - (order ? 1 : 0); i <= mid + (order ? 1 : 0); i++) {
-      const a = Math.abs(i), edge = a > mid;
-      const k = a <= core ? 2 : a <= mid - 1 || mid === 0 ? 1 : 0;
-      if (!lit(x + i, row + rise, edge ? d * 0.35 : a <= core ? Math.min(1, d + 0.2) : d)) continue;
+  const rise = Math.floor(t * 10 * n);
+  // Säule: Breiten in Feinpixeln, Raster je Feinpixel
+  const cw = (core + 0.5) * n, mw = (mid + 0.5) * n, ew = mw + (order ? n : 0);
+  for (let j = 0; j < tall * n; j++) {
+    const row = y - 3 - (j + 1) * s, f = 1 - j / (tall * n);
+    const d = Math.ceil(f * 6) / 6 * (strong ? 0.8 : 0.66);   // Dichte in festen Stufen: unten fast voll, oben vereinzelt
+    for (let i = -Math.ceil(ew); i < Math.ceil(ew); i++) {
+      const a = Math.abs(i + 0.5);
+      if (a > ew) continue;
+      const edge = a > mw, k = a <= cw ? 2 : a <= mw - n || mid === 0 ? 1 : 0;
+      if (!lit(i, j + rise, edge ? d * 0.35 : a <= cw ? Math.min(1, d + 0.2) : d)) continue;
       ctx.fillStyle = pal[edge ? 0 : k];
-      ctx.fillRect(x + i, row, 1, 1);
+      ctx.fillRect(x + i * s, row, s, s);
     }
   }
-  // Bodenring aus kreisenden Pixelfunken; ab episch ein zweiter, gegenläufiger Ring
+  const q = (v) => Math.round(v / s) * s;
+  // Bodenring aus kreisenden Funken; ab episch ein zweiter, gegenläufiger Ring
   const rings = order >= 2 ? [[7, 2.5, 1], [11, 4, -0.7]] : [[7, 2.5, 1]];
   for (const [rx, ry, dir] of rings) {
-    const n = Math.round(rx * 2.4);
-    for (let a = 0; a < n; a++) {
+    const m = Math.round(rx * 2.4 * Math.min(n, 1.5));
+    for (let a = 0; a < m; a++) {
       if ((a + Math.floor(t * 10)) % 3 === 0) continue;
+      const px = q(x - s / 2 + Math.cos(a / m * 6.283 + t * dir) * rx), py = q(y + Math.sin(a / m * 6.283 + t * dir) * ry);
       ctx.fillStyle = a % 2 && order ? pal[strong ? 2 : 1] : pal[strong ? 1 : 0];
-      ctx.fillRect(Math.round(x + Math.cos(a / n * 6.283 + t * dir) * rx), Math.round(y + Math.sin(a / n * 6.283 + t * dir) * ry), 1, 1);
+      ctx.fillRect(px, py, s, s);
+      if (n > 1 && a % 2 === 0) { ctx.fillStyle = pal[0]; ctx.fillRect(px + s, py, s, s); }   // kurzer Schweif
     }
   }
   if (order >= 2) {
     for (let k = 0; k < 2 + order; k++) {
-      const ph = (t * 0.8 + k / (2 + order)) % 1;
+      const ph = (t * 0.8 + k / (2 + order)) % 1, px = q(x - s / 2 + Math.sin(k * 2.1 + t) * (mid + 3)), py = q(y - 4 - ph * tall * 0.8);
       ctx.fillStyle = pal[ph < 0.6 ? 3 : 1];
-      ctx.fillRect(Math.round(x + Math.sin(k * 2.1 + t) * (mid + 3)), Math.round(y - 4 - ph * tall * 0.8), 1, 1);
+      ctx.fillRect(px, py, s, s);
+      if (n > 1 && ph < 0.6) { ctx.fillStyle = pal[1]; ctx.fillRect(px, py + s, s, s); }
     }
   }
-  if (order === 3) legendaryCrown(ctx, pal, x, y, t);
+  if (order === 3) legendaryCrown(ctx, pal, x, y, t, s);
 }
 
 // Legendär hebt sich deutlich von Episch ab: Flammenzungen im Kreis hinter und neben der Beute (in festen Stufen
 // flackernd) und vier Runen, die auf dem Außenring wandern. Im Feinraster mit Feinpixeln, sonst ganze Weltpixel.
-function legendaryCrown(ctx, pal, x, y, t) {
-  const s = fineRes() > 1 ? 0.5 : 1, q = (v) => Math.round(v / s) * s;
+function legendaryCrown(ctx, pal, x, y, t, s) {
+  const q = (v) => Math.round(v / s) * s;
   const step = Math.floor(t * 9);
   for (let i = 0; i < 9; i++) {
     const a = Math.PI * 0.92 + i / 8 * Math.PI * 1.16;          // hintere Hälfte des Rings, etwas um die Seiten herum
