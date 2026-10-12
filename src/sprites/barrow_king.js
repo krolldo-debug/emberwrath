@@ -394,8 +394,12 @@ function runeSword(p, g, hx, hy, a, power = 0) {
   // Hohlkehle: durchgehende Geisterlinie, Runen darin heller
   for (let u = B0 + 2; u <= L - 9; u += 0.5) {
     const [x, y] = at(u, 0);
-    p.px(x, y, GH[1]);
+    p.px(x, y, RS > 1 ? GH[2] : GH[1]);
     g.px(x, y, 1 + power * 0.6);
+  }
+  if (RS > 1) for (let u = B0 + 2.5; u <= L - 9.5; u += 0.25) {
+    // fein: heller Frostkern in der Geisterlinie
+    const [x, y] = at(u, 0); p.cdot(x, y, '#c4fbee'); g.dot(x, y, 2 + power);
   }
   const runes = [16, 24, 32, 40];
   for (const u of runes) {
@@ -946,12 +950,16 @@ function faceFine(p, g, hx, hy, j, lit) {
   fp(11, 5, 0, 1, MUMMY_HI); fp(11, 5, 1, 1, MUMMY_HI); fp(12, 5, 0, 1, MUMMY[4]);
   // Stirnfalte unter dem Reif
   for (let c = 7; c <= 9; c++) { fp(c, 4, 1, 1, MUMMY[3]); if (c < 9) fp(c + 1, 4, 0, 1, MUMMY[3]); }
-  // Augen: weißer Kern mit Glanzpunkt, kühler Rand; Höhlenboden als dunkle Lidkante
+  // Augen: größer und heller als die alte Zelle – Frostkern (ganze Zelle hell, Glanzpunkt oben links) mit blassblauem
+  // Frostsaum rundum in der Höhle; Höhlenboden als dunkle Lidkante
   for (let c = 4; c <= 8; c++) { fp(c, 8, 0, 1, MUMMY[1]); fp(c, 8, 1, 1, MUMMY[1]); }
   if (lit) {
-    fp(6, 7, 0, 0, '#ffffff'); fp(6, 7, 1, 0, EYE_PT); fp(6, 7, 0, 1, EYE_PT); fp(6, 7, 1, 1, '#8aa6c4');
-    fp(5, 7, 1, 0, '#2c3848'); fp(7, 7, 0, 1, '#2c3848');
-    fp(12, 7, 0, 0, '#ffffff'); fp(12, 7, 1, 1, '#7c96b4');
+    const CORE = '#e4f6ff', FR1 = '#a8caee', FR2 = '#7aa2d2';
+    fp(6, 7, 0, 0, '#ffffff'); fp(6, 7, 1, 0, CORE); fp(6, 7, 0, 1, CORE); fp(6, 7, 1, 1, EYE_PT);
+    fp(5, 7, 1, 0, FR1); fp(5, 7, 1, 1, FR2); fp(7, 7, 0, 0, FR1); fp(7, 7, 0, 1, FR2);
+    fp(6, 8, 0, 0, FR2); fp(6, 8, 1, 0, FR2); fp(6, 6, 0, 1, '#3c5470'); fp(6, 6, 1, 1, '#3c5470');
+    fp(12, 7, 0, 0, '#ffffff'); fp(12, 7, 1, 0, CORE); fp(12, 7, 0, 1, CORE); fp(12, 7, 1, 1, FR1);
+    fp(11, 7, 1, 0, FR1); fp(11, 7, 1, 1, FR2); fp(12, 8, 0, 0, FR2);
     g.tapx((hx + 6) * RS, (hy + 7) * RS, 4); g.tepx((hx + 6) * RS, (hy + 7) * RS, 4);
   }
   // Nasenrücken-Licht, Nasenspitze, Nasenloch
@@ -963,11 +971,11 @@ function faceFine(p, g, hx, hy, j, lit) {
   // Lippenkante (eingetrocknet, über den Zähnen) und Mundwinkel
   for (let c = 5; c <= 7; c++) { fp(c, 10, 0, 0, MUMMY[2]); fp(c, 10, 1, 0, MUMMY[2]); }
   fp(4, 10, 1, 1, VOID); fp(3, 11, 1, 0, VOID);
-  // Zähne oben: nach unten spitz, Glanz oben links
+  // Zähne oben: geschlossene Reihe, nur die kleinen Zähne laufen spitz zu (Lücke unten rechts), Glanz auf den großen
   for (let c = 5; c <= 9; c++) {
     const big = (c - 5) % 2 === 0;
-    fp(c, 11, 0, 0, big ? '#f2e8cc' : ANT[2]); fp(c, 11, 1, 0, big ? ANT[3] : ANT[1]);
-    fp(c, 11, 0, 1, big ? ANT[3] : ANT[1]); fp(c, 11, 1, 1, VOID);
+    fp(c, 11, 0, 0, big ? '#ece0c0' : ANT[3]); fp(c, 11, 1, 0, big ? ANT[3] : ANT[2]);
+    fp(c, 11, 0, 1, big ? ANT[3] : ANT[2]); fp(c, 11, 1, 1, big ? ANT[2] : VOID);
   }
   // Zähne unten: nach oben spitz
   const jr = 13 + j;
@@ -1163,7 +1171,7 @@ function cape(p, g, tx, ty, gy, P) {
       if (v < 0.06 && u < 0.7) c = CAPE[4];
       if (u > 0.94) c = CAPE[0];
       const hemD = len - j;
-      if (hemD <= 1) c = CAPE_HEM[2];
+      if (hemD <= 1) c = RS > 1 ? '#3a8478' : CAPE_HEM[2];   // fein: Frostsaum heller
       else if (hemD <= 3 && v > 0.6) c = CAPE_HEM[1];
       else if (hemD <= 6 && v > 0.6) c = sh > 1.8 ? CAPE_HEM[1] : CAPE_HEM[0];
       p.px(x, top + j, c);
@@ -1173,6 +1181,12 @@ function cape(p, g, tx, ty, gy, P) {
     // Geisterschimmer am Saum
     const by = top + len;
     g.apx(lx, by - 1, 1); if (i % 2 === 0) g.apx(lx, by - 2, 0);
+    if (RS > 1) {
+      // fein: Frostkante – heller Rand unten am Saum, Eisglitzer an jeder zweiten Bahn
+      p.sub(lx, by - 1, 0, 1, '#7ad8c4'); p.sub(lx, by - 1, 1, 1, '#5cbcaa'); g.sub(lx, by - 1, 0, 1, 2);
+      if (i % 2 === 1) { p.sub(lx, by - 2, 0, 1, '#4fa898'); g.sub(lx, by - 2, 0, 1, 1); }
+      if (i % 4 === 2) { p.sub(lx, by - 1, 0, 0, '#c8fff0'); g.sub(lx, by - 1, 0, 0, 3); }
+    }
     g.epx(lx, by - 1, 2);
     if (i % 3 === 0) {
       const fl = 1 + Math.round((Math.sin(P.capeT * 2 + i * 1.7) * 0.5 + 0.5) * 3 + hash2(i, 7, 5) * 2);
