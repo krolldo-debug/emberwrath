@@ -1,8 +1,10 @@
 import { PAL } from '../gfx/Palette.js';
-import { PixelCanvas } from '../gfx/PixelCanvas.js';
+import { PixelCanvas, makeCanvas } from '../gfx/PixelCanvas.js';
+import { col32 } from '../gfx/Fine.js';
 import { buildFrame } from '../gfx/Sprite.js';
 import { createRng, hash2 } from '../core/math.js';
 import { makeLava, paintLavaShore, vnoise } from './biomes.js';
+import { FineTile, C32, rampIndex, stepQ, bayer } from './biomes_barrow_spore.js';
 
 // Kacheln, Flüssigkeiten und Deko für zwei Dungeons der Runde 3:
 //   'rime'   – Die Reifhöhlen: Kristallhöhle aus blaugrauem Fels unter Eis und Reif,
@@ -803,6 +805,8 @@ function throneMedallion(ctx, cx, cy) {
 function throneDecorate(ctx, map) {
   const T = 16;
   paintLavaShore(ctx, map, { wall: FLO, crust: CRUST, emb: EMB, grout: OGROUT, seed: 911 });
+  // Feinraster-Hintergrund (2 Texel je Weltpixel): Bodenzier je Feinpixel
+  if (ctx.getTransform().a >= 2) { throneDecorateFine(ctx, map); return; }
   const P = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); };
   // Wandmasse (freistehende Einzelzellen wie Fackeln/Deko im Raum bekommen keinen Goldrahmen)
   const hard = (x, y) => map.isWall(x, y) && !map.isLiquid(x, y);
@@ -1284,6 +1288,399 @@ function throneTrophyRack() {
   }, { box: [-14, -4, 14, 1] });
 }
 
+// ================================================================== FEINRASTER-BODEN
+// Feinkacheln (docs/STYLE.md „Feinraster“) mit derselben rng-Folge wie rimeFloor/throneFloor: gleiche Platten,
+// Eisspiegel, Wehen, Glutadern; gezeichnet mit 2 Feinpixeln je Weltpixel (64×64 Texel, canvas.res = 2).
+// Statt Körnung flache Plattenflächen; Fuge 1 Feinpixel mit Lichtfase darunter, Fasen 1 Feinpixel, Reifsaum,
+// Abplatzungen, Risse mit Lichtkante, Glanzlinien im Eis/Obsidian. Zusatzentscheidungen aus eigenem rng (xr).
+const clI = (r, i) => r[Math.max(0, Math.min(r.length - 1, i))];
+
+// Gefaste Platte fein: Fuge oben/links 1 Feinpixel, Lichtfase oben/links, Schattenfase unten/rechts, runde Ecken.
+// Verbraucht die Körnungs-Folge der groben bevelSlab (int, int, next je Korn).
+function bevelSlabFine(t, rng, x, y, w, h, R, base, grout, grain) {
+  for (let i = 0; i < (w * h) / grain; i++) { rng.int(0, Math.max(0, w - 3)); rng.int(0, Math.max(0, h - 3)); rng.next(); }
+  const X0 = 2 * x, Y0 = 2 * y, X1 = 2 * (x + w) - 1, Y1 = 2 * (y + h) - 1, W = 2 * w, H = 2 * h;
+  t.fill(X0, Y0, W, H, R[base]);
+  if (h > 5) t.fill(X0 + 2, Y1 - 2, W - 3, 2, R[base - 1]);           // Fuß
+  t.fill(X0, Y0, W, 1, grout); t.fill(X0, Y0, 1, H, grout);           // Fuge
+  t.fill(X0 + 1, Y0 + 1, W - 2, 1, clI(R, base + 1));                  // Lichtfase
+  t.fill(X0 + 1, Y0 + 1, 1, H - 2, clI(R, base + 1));
+  t.fill(X0 + 1, Y1, W - 1, 1, R[Math.max(0, base - 2)]);              // Schattenfase
+  t.fill(X1, Y0 + 1, 1, H - 1, R[Math.max(0, base - 1)]);
+  t.set(X0 + 1, Y0 + 1, grout); t.set(X1, Y0 + 1, grout); t.set(X0 + 1, Y1, grout); t.set(X1, Y1, grout);
+  t.set(X0 + 2, Y0 + 1, clI(R, base + 2)); t.set(X0 + 1, Y0 + 2, clI(R, base + 2));
+  return { X0, Y0, X1, Y1 };
+}
+
+// Rissweg (Weltpixel-Punkte) im Texelraster: fn(X, Y, i = Abschnitt)
+function pathFine(t, pts, fn) {
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+    t.line(2 * ax + 1, 2 * ay + 1, 2 * bx + 1, 2 * by + 1, (X, Y) => fn(X, Y, i));
+  }
+}
+
+// ------------------------------------------------------------ Reifhöhlen fein
+let RCOL = null;
+function rimeCols() {
+  if (RCOL) return RCOL;
+  const K = C32(RK), I = C32(ICE), S = C32(SNOW), g = col32(RGROUT);
+  RCOL = { K, I, S, g, idx: rampIndex([K, S, I]) };
+  return RCOL;
+}
+
+function snowFloorFine(t, sx, sy, C) {
+  const S = C.S;
+  const dAt = (wx, wy) => { const i = wx - sx, j = wy - sy; return (i * i) / 36 + (j * j) / 9 + Math.sin(i * 1.7 + j) * 0.12; };
+  for (let Y = 2 * sy - 8; Y <= 2 * sy + 9; Y++) for (let X = 2 * sx - 14; X <= 2 * sx + 15; X++) {
+    const wx = X / 2 - 0.25, wy = Y / 2 - 0.25, d = dAt(wx, wy), j = wy - sy;
+    if (d > 1) { if (dAt(wx, wy - 0.5) <= 1 && j > 0) t.shade(X, Y, 2); continue; }
+    if (d > 0.78 && ((X + Y) & 1)) continue;
+    let c = d > 0.78 ? S[0] : j < -1 ? S[3] : j < 1 ? S[2] : S[1];
+    if (d <= 0.78 && j < -1 && dAt(wx, wy - 0.5) > 0.78 && wx - sx < 1) c = S[4];
+    t.set(X, Y, c);
+  }
+  t.set(2 * sx - 4, 2 * sy - 3, S[5]); t.set(2 * sx - 3, 2 * sy - 3, S[4]);
+}
+
+function rimeFloorFine(count = 10, seed = 811) {
+  const rng = createRng(seed), C = rimeCols(), K = C.K, I = C.I, S = C.S;
+  const tiles = [];
+  for (let n = 0; n < count; n++) {
+    const t = new FineTile(C.idx), xr = createRng(seed * 977 + n * 131 + 7);
+    t.b.fill(C.g);
+    const rects = [];
+    splitRects(rng, 0, 0, 32, 32, rects, 6);
+    for (const [x, y, w, h] of rects) {
+      const base = rng.pick([2, 2, 3, 3, 2]);
+      const { X0, Y0, X1, Y1 } = bevelSlabFine(t, rng, x, y, w, h, K, base, C.g, 14);
+      // Reifsaum unter der Lichtfase oben (hängt 1–2 Feinpixel herab) und an der linken Kante
+      for (let i = 1; i < w - 1; i++) if (rng.chance(0.45)) {
+        const dy = rng.chance(0.7) ? 1 : 2, c = rng.pick([SNOW[0], SNOW[1], RK[5]]);
+        const top = c === SNOW[1] ? S[1] : c === SNOW[0] ? S[0] : K[5];
+        for (let k = 0; k < 2; k++) {
+          const X = 2 * (x + i) + k, len = dy - (k && xr.chance(0.5) ? 1 : 0);
+          for (let j = 0; j < len; j++) t.set(X, Y0 + 2 + j, j ? K[base + 1] : top);
+        }
+        if (xr.chance(0.12)) t.set(2 * (x + i), Y0 + 2, S[3]);
+      }
+      for (let j = 2; j < h - 1; j++) if (rng.chance(0.3)) {
+        const c = rng.pick([SNOW[0], RK[5]]);
+        t.set(X0 + 2, 2 * (y + j) + xr.int(0, 1), c === SNOW[0] ? S[0] : K[5]);
+      }
+      // Frostfeder: feiner Reifzweig auf größeren Platten (Spitze hell)
+      if (w >= 8 && h >= 7 && xr.chance(0.3)) {
+        let X = X0 + 4 + xr.int(0, 2 * w - 14), Y = Y0 + 5 + xr.int(0, 2 * h - 13);
+        const n2 = xr.int(3, 5);
+        for (let i = 0; i < n2; i++) {
+          t.set(X, Y, i === n2 - 1 ? S[2] : S[0]);
+          if (i % 2 === 1) t.set(X - 1, Y - 1, S[0]);
+          X += 1; Y -= 1;
+        }
+      }
+      // Abgeplatzte Ecke unten rechts (Bruchflächen zum Licht hin hell)
+      if (rng.chance(0.4)) {
+        t.set(X1, Y1 - 1, C.g); t.set(X1, Y1 - 2, C.g); t.set(X1 - 1, Y1, C.g); t.set(X1 - 2, Y1, C.g); t.set(X1 - 1, Y1 - 1, C.g);
+        t.set(X1 - 2, Y1 - 1, K[base + 1]); t.set(X1 - 1, Y1 - 2, K[base + 1]);
+      }
+    }
+    // Eisspiegel: glatte Ovale, Stufen zum Licht hin heller, Reifrand oben links, Glanzlinien 1 Feinpixel
+    if (n % 3 === 0 || n === 7) {
+      const rx = rng.int(6, 8), ry = rng.int(4, 5);
+      const cx = rng.int(rx + 3, 28 - rx), cy = rng.int(ry + 3, 28 - ry);
+      const ox = rng.pick([-4, 4]), oy = rng.int(2, 3), rx2 = rx - 2, ry2 = ry - 1;
+      const inIce = (x, y) => {
+        const d1 = ((x - cx) ** 2) / (rx * rx) + ((y - cy) ** 2) / (ry * ry);
+        const d2 = ((x - cx - ox) ** 2) / (rx2 * rx2) + ((y - cy - oy) ** 2) / (ry2 * ry2);
+        return Math.min(d1, d2) + Math.sin(x * 1.3 + y * 0.7) * 0.08 < 1;
+      };
+      for (let Y = 2; Y < 62; Y++) for (let X = 2; X < 62; X++) {
+        const wx = X / 2 - 0.25, wy = Y / 2 - 0.25;
+        if (!inIce(wx, wy)) continue;
+        const refl = (wx - cx) * 0.25 + (wy - cy) * 0.6;
+        let c = I[Math.max(0, Math.min(2, stepQ(1.1 - refl / 2.2, bayer(X, Y))))];
+        if (!inIce(wx, wy - 0.5) || !inIce(wx - 0.5, wy)) c = S[0];
+        else if (!inIce(wx, wy + 0.5) || !inIce(wx + 0.5, wy)) c = K[1];
+        else if ((!inIce(wx, wy - 1) || !inIce(wx - 1, wy)) && refl < 0) c = I[3];
+        t.set(X, Y, c);
+      }
+      for (let k = 0; k < 2; k++) {
+        const sx = cx - 3 + k * 3, sy = cy - 2 + k, len = (k ? 3 : 4) * 2;
+        for (let i = 0; i < len; i++) {
+          const X = 2 * sx + i, Y = 2 * sy + i;
+          if (inIce(X / 2 - 0.25, Y / 2 - 0.25)) t.set(X, Y, i === 2 ? I[6] : i === 1 || i === 3 ? I[5] : I[3]);
+        }
+      }
+      t.set(2 * cx + 6, 2 * cy + 2, I[4]); t.set(2 * cx + 7, 2 * cy + 3, I[2]);
+      t.set(2 * cx - 8, 2 * cy + 4, I[3]);
+    }
+    // Schneeverwehung nahe einer Ecke
+    if (n % 4 === 1 || n === 6) {
+      const sx = rng.pick([8, 23]), sy = rng.pick([5, 26]);
+      snowFloorFine(t, sx, sy, C);
+    }
+    // Frostblumen: kleiner Stern, Mitte hell, untere Spitze dunkel
+    for (let k = 0; k < rng.int(1, 3); k++) {
+      const x = rng.int(2, 29), y = rng.int(2, 29), X = 2 * x + 1, Y = 2 * y + 1;
+      t.set(X, Y, S[4]);
+      t.set(X - 1, Y, S[2]); t.set(X + 1, Y, S[2]); t.set(X - 2, Y, S[1]); t.set(X + 2, Y, S[1]);
+      t.set(X, Y - 1, S[2]); t.set(X, Y - 2, S[1]); t.set(X, Y + 1, S[1]); t.set(X, Y + 2, S[0]);
+      t.set(X - 1, Y - 1, S[0]); t.set(X + 1, Y - 1, S[0]);
+    }
+    // Riss mit Lichtkante und glitzerndem Eis
+    if (rng.chance(0.4)) {
+      let cx = rng.int(3, 26), cy = rng.int(2, 16);
+      const pts = [], glit = [];
+      for (let i = 0, len = rng.int(5, 10); i < len; i++) {
+        pts.push([cx, cy]);
+        if (i > 1 && rng.chance(0.35)) glit.push([cx, cy]);
+        cx += rng.int(-1, 1) || 1; cy += rng.int(0, 1);
+      }
+      pathFine(t, pts, (X, Y) => t.shade(X, Y + 1, -1));
+      pathFine(t, pts, (X, Y) => t.set(X, Y, C.g));
+      glit.forEach(([gx, gy], i) => { t.set(2 * gx + 2, 2 * gy + 1, I[i ? 4 : 6]); t.set(2 * gx + 3, 2 * gy + 2, I[3]); });
+    }
+    tiles.push(t.done());
+  }
+  return tiles;
+}
+
+// ------------------------------------------------------------ Aschethron fein
+let TCOL = null;
+function throneCols() {
+  if (TCOL) return TCOL;
+  const F = C32(FLO), Gl = C32(GLINT), G = C32(GOLD), A = C32(ASH), Cr = C32(CRUST), E = C32(EMB), O = C32(OBS), Rd = C32(RED);
+  TCOL = { F, Gl, G, A, Cr, E, O, Rd, g: col32(OGROUT), idx: rampIndex([F, A, Cr, G]) };
+  return TCOL;
+}
+
+function throneFloorFine(count = 20, seed = 911) {
+  const rng = createRng(seed), C = throneCols(), F = C.F, G = C.G, E = C.E;
+  const tiles = [];
+  for (let n = 0; n < count; n++) {
+    const t = new FineTile(C.idx), xr = createRng(seed * 977 + n * 131 + 7);
+    t.b.fill(C.g);
+    const rects = [];
+    splitRects(rng, 0, 0, 32, 32, rects, 9);
+    for (const [x, y, w, h] of rects) {
+      const base = rng.pick([2, 3, 3, 2, 3, 4]);
+      const { X0, Y0, X1, Y1 } = bevelSlabFine(t, rng, x, y, w, h, F, base, C.g, 14);
+      // Spiegelung im polierten Obsidian: breites, flaches Lichtband diagonal (harte Kanten), daneben ein schmales
+      if (xr.chance(0.45) && w > 7 && h > 7) {
+        const a = xr.int(6, Math.max(6, w + h - 12)), wd = xr.int(3, 6);   // a: Abstand (X + Y) von der Ecke oben links
+        for (let Y = Y0 + 2; Y < Y1 - 2; Y++) for (let X = X0 + 2; X < X1; X++) {
+          const sd = (X - X0) + (Y - Y0);
+          if ((sd >= a && sd < a + wd) || sd === a + wd + 2) t.set(X, Y, F[base + 1]);
+        }
+      }
+      // Glasglanz an der Lichtkante, Spiegelstreifen diagonal (1 Feinpixel, zwei parallele Linien)
+      if (rng.chance(0.3) && w > 9 && h > 9) { t.set(X0 + 3, Y0 + 3, C.Gl[1]); t.set(X0 + 4, Y0 + 4, C.Gl[0]); t.set(X0 + 5, Y0 + 5, F[5]); t.set(X0 + 3, Y0 + 4, F[5]); }
+      if (rng.chance(0.35) && w > 9) {
+        const L = 2 * (Math.min(w, h) - 5);
+        for (let i = 0; i < L; i++) t.set(X0 + 6 + i, 2 * (y + h) - 7 - i, F[base + 1]);
+        for (let i = 2; i < L - 3; i++) if (i % 4 !== 3) t.set(X0 + 9 + i, 2 * (y + h) - 7 - i, F[base + 1]);
+      }
+      // Abgeplatzte Ecke unten rechts
+      if (rng.chance(0.25)) {
+        t.set(X1 - 1, Y1 - 1, C.g); t.set(X1 - 2, Y1 - 1, C.g); t.set(X1 - 1, Y1 - 2, C.g); t.set(X1, Y1 - 1, C.g); t.set(X1 - 1, Y1, C.g);
+        t.set(X1 - 3, Y1 - 1, F[base - 1]); t.set(X1 - 2, Y1 - 2, F[base + 1]); t.set(X1 - 1, Y1 - 3, F[base + 1]);
+      }
+    }
+    // Haarriss: 1 Feinpixel, Bruchkante darunter im Licht
+    if (rng.chance(0.4)) {
+      let cx = rng.int(4, 27), cy = rng.int(3, 20);
+      const len = rng.int(5, 10), pts = [];
+      for (let i = 0; i < len; i++) { pts.push([cx, cy]); cx += rng.int(-1, 1) || 1; cy += rng.chance(0.6) ? 1 : 0; }
+      pathFine(t, pts, (X, Y) => { if (t.get(X, Y + 1) !== C.g) t.set(X, Y + 1, F[4]); });
+      pathFine(t, pts, (X, Y) => t.set(X, Y, C.g));
+    }
+    // Glutader: Rille 2 Feinpixel, heißer Kern 1 Feinpixel, Kruste am Rand
+    if (n === 4 || n === 9 || n === 17) {
+      let cx = rng.int(6, 24), cy = rng.int(4, 14);
+      const len = rng.int(8, 13), pts = [];
+      for (let i = 0; i < len; i++) { pts.push([cx, cy]); cx += rng.int(-1, 1) || 1; cy += rng.int(0, 1); }
+      pathFine(t, pts, (X, Y, i) => { t.set(X, Y, C.g); if (i > 1 && i < len - 1) { t.set(X + 1, Y, C.g); t.set(X - 1, Y, C.Cr[2]); } });
+      pathFine(t, pts, (X, Y, i) => {
+        if (i < 2 || i > len - 2) return;
+        const hot = i > 3 && i < len - 4;
+        t.set(X, Y, hot ? ((X + Y) % 3 ? E[2] : E[3]) : C.Cr[4]);
+        if (hot && (X + Y) % 5 === 0) t.set(X + 1, Y, E[1]);
+      });
+    }
+    // Einlegearbeit: Goldraute im Fugenkreuz, Fasen zum Licht hin hell, Glutkern
+    if (n === 11) {
+      const cx = 33, cy = 33;
+      t.fill(cx - 7, cy - 7, 14, 14, C.g);
+      for (let j = -5; j <= 5; j++) for (let i = -5; i <= 5; i++) {
+        const k = Math.abs(i) + Math.abs(j);
+        if (k > 5) continue;
+        const up = i + j < 0;
+        t.set(cx + i, cy + j, k === 5 ? (up ? G[5] : G[2]) : k === 4 ? (up ? G[4] : G[3]) : k <= 1 ? (i + j < 0 ? E[4] : E[3]) : G[3]);
+      }
+      t.set(cx - 2, cy - 2, G[6]); t.set(cx - 1, cy - 1, E[5]);
+    }
+    // Asche und Glutstaub: einzelne Feinpixel, gelegentlich ein kurzer Wisch
+    for (let k = 0; k < rng.int(3, 7); k++) {
+      const x = rng.int(2, 30), y = rng.int(2, 30), c = rng.pick([ASH[2], ASH[3], ASH[2], CRUST[2]]);
+      const X = 2 * x + xr.int(0, 1), Y = 2 * y + xr.int(0, 1);
+      t.set(X, Y, c === CRUST[2] ? C.Cr[3] : c === ASH[3] ? C.A[4] : C.A[3]);
+      if (rng.chance(0.3)) { t.set(X + 1, Y, C.A[2]); t.set(X + 2, Y, C.A[1]); }
+    }
+    tiles.push(t.done());
+  }
+  return tiles;
+}
+
+// Feinlage für throneDecorate: Texel je Zelle (32×32), am Ende als Bild je Zelle in den Hintergrund
+class TexLayer {
+  constructor() { this.cells = new Map(); }
+  set(U, V, c) {
+    if (U < 0 || V < 0) return;
+    const k = (V >> 5) * 65536 + (U >> 5);
+    let b = this.cells.get(k);
+    if (!b) this.cells.set(k, (b = new Uint32Array(1024)));
+    b[(V & 31) * 32 + (U & 31)] = c;
+  }
+  flush(ctx) {
+    const sc = makeCanvas(32, 32), g = sc.getContext('2d'), img = g.createImageData(32, 32), d = new Uint32Array(img.data.buffer);
+    for (const [k, b] of this.cells) {
+      d.set(b); g.putImageData(img, 0, 0);
+      ctx.drawImage(sc, (k % 65536) * T, Math.floor(k / 65536) * T, T, T);
+    }
+  }
+}
+
+// Medaillon fein (Mittelpunkt in Weltpixeln): Goldring mit Lichtseite oben links, Flammenkrone mit Fasen
+function throneMedallionFine(L, C, cx, cy) {
+  const G = C.G, U0 = 2 * cx + 1, V0 = 2 * cy + 1;
+  for (let v = -17; v <= 17; v++) for (let u = -21; u <= 21; u++) {
+    const x = u / 2, y = v / 2, q = (x / 9.75) ** 2 + (y / 8.25) ** 2;
+    if (q > 1) continue;
+    const r1 = Math.hypot(x / 9.5, y / 7.5), r2 = Math.hypot(x / 7.5, y / 5.8), lit = x + y < 0;
+    let c = C.O[1];
+    if (r1 > 0.96 && r1 <= 1.04) c = lit ? G[4] : G[2];
+    else if (r1 > 0.9 && r1 <= 0.96) c = lit ? G[5] : G[3];
+    else if (r1 > 1.04) c = C.g;
+    else if (r2 > 0.95 && r2 <= 1.05) c = G[1];
+    L.set(U0 + u, V0 + v, c);
+  }
+  const crown = ['..#...#...#..', '..#..###..#..', '.###.###.###.', '#############', '#.#.#.#.#.#.#'];
+  const on = (i, j) => crown[j]?.[i] === '#';
+  for (let j = 0; j < crown.length; j++) for (let i = 0; i < crown[j].length; i++) {
+    if (!on(i, j)) continue;
+    for (let b = 0; b < 2; b++) for (let a = 0; a < 2; a++) {
+      let c = j === 3 ? G[5] : j > 3 ? G[2] : G[3];
+      if (b === 0 && !on(i, j - 1)) c = j === 3 ? G[6] : G[4];
+      else if (a === 0 && !on(i - 1, j)) c = j > 3 ? G[3] : G[4];
+      else if (b === 1 && !on(i, j + 1)) c = G[1];
+      L.set(2 * (cx - 6 + i) + a, 2 * (cy - 3 + j) + b, c);
+    }
+  }
+  L.set(2 * cx, 2 * cy - 6, C.E[4]); L.set(2 * cx + 1, 2 * cy - 6, C.E[5]); L.set(2 * cx, 2 * cy - 5, C.E[3]); L.set(2 * cx + 1, 2 * cy - 5, C.E[3]);
+  for (const sx of [-4, 4]) { L.set(2 * (cx + sx), 2 * cy - 4, C.E[4]); L.set(2 * (cx + sx) + 1, 2 * cy - 4, C.E[3]); L.set(2 * (cx + sx), 2 * cy - 3, C.E[2]); }
+  L.set(2 * (cx - 9), 2 * (cy - 1), G[6]); L.set(2 * (cx - 9) + 1, 2 * (cy - 1), G[5]);
+}
+
+// throneDecorate im Feinraster (Hintergrund mit 2 Texeln je Weltpixel): gleiche Bänder, Bahn und Zier wie grob,
+// aber je Feinpixel bestimmt – runde Ecken, Goldleisten mit Lichtfase oben links, Porphyr flach mit gestuften Adern.
+function throneDecorateFine(ctx, map) {
+  const C = throneCols(), G = C.G, Rd = C.Rd, OG = C.g, L = new TexLayer();
+  const hard = (x, y) => map.isWall(x, y) && !map.isLiquid(x, y);
+  const solid = (x, y) => hard(x, y) && (hard(x - 1, y) || hard(x + 1, y) || hard(x, y - 1) || hard(x, y + 1));
+  const NB = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+  const IN = 6;
+  // 2) Raumrand: Fuge, Goldleiste (3 Feinpixel, Lichtfase zur Lichtseite), dunkle Schattenlinie
+  for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
+    if (map.wallKind(x, y) !== 'floor') continue;
+    const nb = NB.filter(([nx, ny]) => solid(x + nx, y + ny));
+    if (!nb.length) continue;
+    const dist = (px, py) => {
+      let d = 99;
+      for (const [nx, ny] of nb) {
+        const gx = Math.max(nx * T - px, 0, px - nx * T - T), gy = Math.max(ny * T - py, 0, py - ny * T - T);
+        if (gx < IN + 2.5 && gy < IN + 2.5) d = Math.min(d, Math.hypot(gx, gy));   // weiter weg: ohnehin außerhalb
+      }
+      return d;
+    };
+    const inG = (d) => d >= IN && d < IN + 1.5;
+    for (let v = 0; v < 2 * T; v++) for (let u = 0; u < 2 * T; u++) {
+      const px = (u + 0.5) / 2, py = (v + 0.5) / 2, d = dist(px, py);
+      if (d < IN - 0.5 || d >= IN + 2) continue;
+      const U = 2 * x * T + u, V = 2 * y * T + v;
+      let c;
+      if (d < IN) c = OG;
+      else if (d < IN + 1.5) {
+        if (!inG(dist(px - 0.5, py)) || !inG(dist(px, py - 0.5))) c = G[4];
+        else if (!inG(dist(px + 0.5, py)) || !inG(dist(px, py + 0.5))) c = G[2];
+        else c = G[3];
+        if (((U + V) & 31) === 0) c = G[6]; else if (((U + V) & 31) === 1) c = G[5];
+      } else c = G[1];
+      L.set(U, V, c);
+    }
+  }
+  // 3) Arena-Achse
+  const A = map.level?.arena;
+  if (A) {
+    const gy = A.gateRow ?? A.y - 1;
+    const gx = [];
+    for (let x = A.x; x < A.x + A.w + 2; x++) if (map.rows[gy]?.[x] === 'G') gx.push(x);
+    const axis = gx.length ? (Math.min(...gx) + Math.max(...gx) + 1) / 2 * T : (A.x + A.w / 2) * T;
+    const half = gx.length ? Math.min(28, (gx.length * T) / 2 - 5) : 24;
+    const ax = Math.floor(axis / T);
+    let ye = gy + 1;
+    while (ye < map.h && map.rows[ye]?.[ax] !== '#') ye++;
+    const y0 = (gy + 1) * T, y1 = ye * T - IN - 2;
+    const xl = Math.round(axis - half), xh = Math.round(axis + half);
+    let lk = -1, lf = false;   // Zellenabfrage zwischengespeichert (je Zeile wechselt die Zelle nur alle 32 Texel)
+    for (let V = 2 * y0; V < 2 * y1; V++) for (let U = 2 * xl; U < 2 * xh; U++) {
+      const wx = (U + 0.5) / 2, wy = (V + 0.5) / 2, tx = Math.floor(wx / T), ty = Math.floor(wy / T), key = ty * 4096 + tx;
+      if (key !== lk) { lk = key; lf = map.wallKind(tx, ty) === 'floor'; }
+      if (!lf) continue;
+      const left = wx < axis, e = half - Math.abs(wx - axis);
+      let c;
+      if (V >= 2 * y1 - 4) c = V === 2 * y1 - 1 ? OG : V === 2 * y1 - 4 ? G[4] : V === 2 * y1 - 2 ? G[2] : G[3]; // Abschlussleiste
+      else if (e < 0.5) c = OG;
+      else if (e < 2.5) c = e < 1 ? (left ? G[4] : G[2]) : e < 2 ? G[3] : (left ? G[2] : G[4]);
+      else if (e < 3) c = G[1];
+      else if (e < 4) c = OG;
+      else if (e < 4.5) c = G[3];
+      else if (e < 5) c = G[1];
+      else {
+        // Porphyrplatten (32×16 Weltpixel, versetzt): Fuge 1 Feinpixel, Fasen, flache Tonflächen
+        const ry = V - 2 * y0, row = Math.floor(ry / 32), off = row & 1 ? 32 : 0;
+        const lx = U - 2 * xl + off, col = Math.floor(lx / 64), cx = lx % 64, cy = ry % 32;
+        const tone = hash2(col, row, 983) < 0.4 ? 1 : 0;
+        const nv = vnoise(wx, wy, 11, 977) * 0.8 + vnoise(wx, wy, 4, 978) * 0.2 + tone * 0.18;
+        c = Rd[1 + Math.max(0, Math.min(2, stepQ((nv - 0.22) * 3.2, bayer(U, V), 0.08)))];
+        if (cy === 0 || cx === 0) c = OG;
+        else if (cy === 1 || cx === 1) c = Rd[3];
+        else if (cy === 31 || cx === 63) c = Rd[0];
+        else if (cy >= 29) c = Rd[1];
+        else if ((cx - cy + 128) % 64 === 18 && cy > 6 && cy < 24) c = Rd[4];
+        else if ((cx - cy + 128) % 64 === 19 && cy > 8 && cy < 22) c = Rd[3];
+        else if (hash2(U >> 1, V >> 1, 979) < 0.006) c = (U & 1) || (V & 1) ? Rd[0] : Rd[4];
+      }
+      L.set(U, V, c);
+    }
+    // Goldrauten auf der Achse und ein Medaillon in der Arenamitte
+    const mid = Math.round((y0 + y1) / 2 / 6) * 6;
+    for (let wy = y0 + 24; wy < y1 - 12; wy += 48) {
+      if (Math.abs(wy - mid) < 30) continue;
+      const cx = Math.round(axis), cy = wy;
+      if (map.wallKind(Math.floor(cx / T), Math.floor(cy / T)) !== 'floor') continue;
+      const U0 = 2 * cx + 1, V0 = 2 * cy + 1;
+      for (let j = -7; j <= 7; j++) for (let i = -7; i <= 7; i++) {
+        const k = Math.abs(i) + Math.abs(j);
+        if (k > 7) continue;
+        const up = i + j < 0;
+        L.set(U0 + i, V0 + j, k === 7 ? OG : k === 6 ? (up ? G[5] : G[2]) : k === 5 ? (up ? G[4] : G[3]) : k <= 1 ? (up ? C.E[4] : C.E[3]) : k === 2 ? C.E[2] : OG);
+      }
+    }
+    if (map.wallKind(Math.floor(axis / T), Math.floor(mid / T)) === 'floor') throneMedallionFine(L, C, Math.round(axis), mid);
+  }
+  L.flush(ctx);
+}
+
 // ================================================================== Einstieg
 const CACHE = {};
 export function createBiomeTiles3(biome = 'rime') {
@@ -1292,6 +1689,9 @@ export function createBiomeTiles3(biome = 'rime') {
   if (biome === 'throne') {
     out = {
       floor: throneFloor(),
+      // Feinraster (Qualität Hoch/Mittel): 64×64 Texel, canvas.res = 2; einmal gebaut, resetFine() für Messungen
+      get floorFine() { return (this._fine ??= throneFloorFine()); },
+      resetFine() { this._fine = null; },
       faces: throneFaces(),
       top: throneTop(),
       topEdge: '#2a2032', topEdgeLight: '#6e4a24',
@@ -1312,6 +1712,8 @@ export function createBiomeTiles3(biome = 'rime') {
   } else {
     out = {
       floor: rimeFloor(),
+      get floorFine() { return (this._fine ??= rimeFloorFine()); },
+      resetFine() { this._fine = null; },
       faces: rimeFaces(),
       top: rimeTop(),
       topEdge: '#24324a', topEdgeLight: '#4e6a88',
