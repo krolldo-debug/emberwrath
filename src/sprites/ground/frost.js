@@ -1,6 +1,6 @@
 import { hash2 } from '../../core/math.js';
 import { PAL } from '../../gfx/Palette.js';
-import { FK, ramp, hxi, D4, clampI, chunkCtx, pebble, blade, stroke, vnoise, soilFine, soilAt, paveAt, awayFrom, fineAt, bandW } from './kit.js';
+import { FK, ramp, hxi, D4, clampI, chunkCtx, field, pebble, blade, stroke, vnoise, soilFine, soilAt, paveAt, awayFrom, fineAt, bandW } from './kit.js';
 
 // Feinraster-Boden der Frostzinnen (biome 'frost'). Farben wie GROUND_FROST / frostPixel in sprites/decor_frost.js
 // (dort nur gelesen): Alt- und Neuschnee, apere Erde, Nadelwaldboden, Gletschereis, Geröll, Eis- und Höhlenboden,
@@ -12,8 +12,11 @@ const C = {
   old: ramp(['#46526a', '#535f77', '#616d85', '#707c94', '#808ca3', '#95a0b5']),
   // Neuschnee eine halbe Stufe ruhiger als G_NEW (nicht grell; Glitzer und Lippen tragen das Licht)
   neu: ramp(['#64738b', '#7b8aa2', '#93a2b8', '#aab7ca', '#c3cedd', '#e0e8f2']),
-  track: ramp(['#34353d', '#41424b', '#4e4f59', '#5c5d67', '#6c6d77', '#7f808a']),
+  // festgetretener Schnee: kühl und nah am Altschnee (Spur ruhig, kein Flickenmuster)
+  track: ramp(['#383f50', '#434b5d', '#4f586a', '#5b6477', '#697285', '#7b8497']),
   earth: ramp(['#211b18', '#2c2420', '#383029', '#463b32', '#554839', '#665747']),
+  // apere Stellen in Siedlungen: gefrorene Erde, kühl und nah am Altschnee (keine dunkelbraunen Flecken)
+  thaw: ramp(['#2f2e36', '#3a3840', '#45424a', '#504c54', '#5d5961', '#6c6870']),
   straw: ramp(['#3a3224', '#4f4630', '#665b3c', '#7a6e48', '#8d8054', '#9d9062']),
   needle: ramp(['#121815', '#1a211d', '#212a24', '#29342c', '#334036', '#3f4c40']),
   litter: ramp(['#2a2018', '#3a2c20', '#4a3828', '#5c4632']),
@@ -45,7 +48,21 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
   for (let i = d; i < S.n - d; i++) lit[i] = S.hgt[i + d] - S.hgt[i - d];
   S.fresh = has[32] ? S.noise([[8, 110, 80, 454, 0.85], [4, 30, 26, 456, 0.15]]) : null;
   S.rz = has[32] || has[SN] || has[SA] ? S.noise([[6, 40, 30, 455, 1]]) : null;
-  S.pat = has[SE] || has[SF] ? S.noise([[4, 13, 11, 443, 0.75], [3, 5, 5, 444, 0.25]]) : null;
+  S.pat = has[SF] ? S.noise([[4, 13, 11, 443, 0.75], [3, 5, 5, 444, 0.25]]) : null;
+  // Apere Erde: ruhiges Feld (eine Lage), aper nur nahe Wegen, Plätzen und Feuern (S.near 0..1, weich verlaufend)
+  if (has[SE]) {
+    S.pe = S.noise([[6, 17, 14, 443, 1]]);
+    const kg = map.kgrid, mw = map.w, mh = map.h, rows = level.map;
+    const nearT = (tx, ty) => {
+      for (let y = ty - 1; y <= ty + 1; y++) for (let x = tx - 1; x <= tx + 1; x++) {
+        if (x < 0 || y < 0 || x >= mw || y >= mh) continue;
+        const k = kg[y * mw + x];
+        if (k === FK.DIRT || k === FK.PAVE || rows?.[y]?.[x] === 'F') return 1;
+      }
+      return 0;
+    };
+    S.near = field(S.fx0, S.fy0, S.fw, S.fh, 8, (x, y) => nearT(Math.floor(x / 16), Math.floor(y / 16)), new Float32Array(S.n), false, 1);
+  }
   S.gcov = has[SG] ? S.noise([[4, 18, 13, 450, 0.7], [4, 30, 7, 449, 0.3]]) : null;
   // Haarrisse im Eis (Netz: Höhenlinie des Rauschens)
   S.crk = has[SG] || has[SI] ? S.noise([[3, 9, 7, 451, 1]]) : null;
@@ -60,6 +77,9 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
 const freshAt = (S, F, G, dt) => fineAt(S.fresh, S, F, G) + (dt - 0.5) * 0.03 > 0.47;
 // Fleckdecke (Schnee auf Erde/Wald, Schneebänder auf dem Gletscher) am Feinpixel: Feld fein interpoliert, harte Kante
 const covAt = (f, S, F, G, thr) => fineAt(f, S, F, G) + (D4[(G & 3) * 4 + (F & 3)] / 16 - 0.5) * 0.012 > thr;
+// Schwelle der Schneedecke auf aperer Erde: fern von Wegen fast geschlossen, an Wegen/Feuern kleine apere Stellen
+const thrSE = (S, F, G) => 0.25 + 0.13 * fineAt(S.near, S, F, G);
+const bareSE = (S, F, G) => !covAt(S.pe, S, F, G, thrSE(S, F, G));
 
 function stamps(S) {
   const { kAt, wi } = S;
@@ -92,7 +112,7 @@ function stamps(S) {
     const AF = Math.floor(px), AG = Math.floor(py), k = kAt(AF, AG);
     if (k !== GR) return;
     const s = sAt(AF, AG), w = wi(AF, AG);
-    const bare = s === SE ? !covAt(S.pat, S, AF, AG, 0.5) : s === ST;
+    const bare = s === SE ? bareSE(S, AF, AG) : s === ST;
     const dens = s === SS ? 0.55 : s === SE ? (bare ? 0.12 : 0) : s === ST ? 0.3 : snowy(s) ? 0.022 : 0;
     if (h >= dens) return;
     const St = s === ST ? C.cave : C.stone, tint = hash2(cx, cy, 845) < 0.3 ? -1 : 0;
@@ -106,10 +126,10 @@ function stamps(S) {
       const hb = hash2(cx, cy, 851);
       if (hb >= 0.5) continue;
       const bx = Math.floor(hash2(cx, cy, 852) * 3), F = cx * 3 + bx, G = cy * 6 - oy + 5;
-      if (kAt(F, G) !== GR || sAt(F, G) !== SE || covAt(S.pat, S, F, G, 0.47)) continue;
+      if (kAt(F, G) !== GR || sAt(F, G) !== SE || !bareSE(S, F, G)) continue;
       // Büschel: dicht in Horsten (Tonfeld hoch), sonst nur vereinzelt
       const t = S.tone[wi(F, G)];
-      if (hb >= (t > 0.6 ? 0.5 : t > 0.52 ? 0.14 : 0.03)) continue;
+      if (hb >= (t > 0.6 ? 0.22 : t > 0.52 ? 0.06 : 0.01)) continue;
       const hh = 2 + Math.floor(hash2(cx, cy, 853) * 3), l = hash2(cx, cy, 854);
       blade(S, F, G, hh, l < 0.25 ? -1 : l < 0.5 ? 1 : 0, C.straw);
     }
@@ -273,7 +293,7 @@ function patchSnow(f, thr, R, K, ki, KW, S, wi, dt, F, G, o) {
 // Spur: festgetretener Schnee (Rand zum Schnee: oben Schatten der Böschung, unten Lichtkante), auf aperer Erde und
 // im Wald Matsch und Erde, in Grotten Eis und Fels
 function trackPx(s, K, ki, KW, S, wi, dt, a, o, F, G) {
-  const T = s === SI ? C.cice : s === ST ? C.cave : (s === SE || s === SF) && !covAt(S.pat, S, F, G, 0.62) ? C.earth : C.track;
+  const T = s === SI ? C.cice : s === ST ? C.cave : s === SE && bareSE(S, F, G) ? C.thaw : s === SF && !covAt(S.pat, S, F, G, 0.62) ? C.earth : C.track;
   if (K[ki - KW] === GR) return T[1];
   if (K[ki - 1] === GR || K[ki - 2 * KW] === GR) return T[2];
   if (K[ki + KW] === GR || K[ki + 1] === GR) return T[4];
@@ -309,10 +329,10 @@ function frostFine(kind, F, G, K, ki, KW, S) {
     case SW: return snowPx(C.neu, K, ki, KW, S, wi, dt, F, G, o, false);
     case SS: return snowPx(C.old, K, ki, KW, S, wi, dt, F, G, o, false);
     case SE: {
-      const c = patchSnow(S.pat, 0.5, C.old, K, ki, KW, S, wi, dt, F, G, o);
+      const c = patchSnow(S.pe, thrSE(S, F, G), C.old, K, ki, KW, S, wi, dt, F, G, o);
       if (c >= 0) return c;
-      if (c === -2) return C.earth[0];
-      return C.earth[clampI(1 + bandW(fineAt(S.tone, S, F, G), 2.4, dt, 0.12) + (S.rel[o] < 0 ? -1 : 0), 0, 5)];
+      if (c === -2) return C.thaw[1];
+      return C.thaw[clampI(2 + bandW(fineAt(S.tone, S, F, G), 1.6, dt, 0.12) + (S.rel[o] < 0 ? -1 : 0), 0, 5)];
     }
     case SF: {
       const c = patchSnow(S.pat, 0.6, C.old, K, ki, KW, S, wi, dt, F, G, o);

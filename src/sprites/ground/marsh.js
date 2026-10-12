@@ -1,5 +1,5 @@
 import { hash2 } from '../../core/math.js';
-import { FK, ramp, D4, clampI, band, darken, chunkCtx, awayFrom, pebble, blade, waterPrep, waterStamps, waterFine } from './kit.js';
+import { FK, ramp, D4, clampI, band, darken, chunkCtx, awayFrom, fineAt, pebble, blade, waterPrep, waterStamps, waterFine } from './kit.js';
 
 // Feinraster-Boden des Faulmarschs (Palette GROUND_MARSH in sprites/decor_marsh.js, hier nachgebaut).
 // Moor: Moospolster mit Licht oben links, Seggenbüschel mit fahlen Spitzen, nasse Torfflecken mit Pfützen;
@@ -27,8 +27,9 @@ const P = {
   water: ramp(['#060b0c', '#0a1012', '#0f1a1b', '#142426', '#1d3433', '#2f4b46', '#46685a']),
   // Uferböschung (Schlamm, oben im Licht)
   bank: ramp(['#0d0b09', '#16120e', '#211b15', '#2a221a']),
-  // Pfützen (trüb, dunkler als offenes Wasser)
-  pool: ramp(['#0f1513', '#151d1b', '#26332f']),
+  // Pfützen: Spiegel heller als der Schlamm (Himmel/Licht gespiegelt), Glanz in harter Stufe
+  pool: ramp(['#16201e', '#1e2b29', '#283a37', '#3a524c', '#58756a']),
+  rim: 0x5c5040,   // nasser Uferrand im Licht (oben links)
   // Entengrütze
   weed: ramp(['#13211a', '#1a2e1f', '#223b24', '#2d4a2a']),
 };
@@ -40,6 +41,8 @@ function* marshSetup(x0, y0, cw, ch, K, KW, M) {
   S.tone = S.noise([[4, 11, 11, 901, 0.65], [2, 4, 4, 902, 0.35]]);
   S.patch = S.noise([[4, 17, 14, 903, 1]]);
   S.wet = S.noise([[4, 11, 11, 905, 1]]);
+  // Pfützen: eigenes, kleinteiliges Feld (halbe Größe), mit der Nässe verrechnet (keine Schnittkanten)
+  S.pf = S.noise([[3, 5.5, 4.5, 906, 1]]);
   yield;
   waterPrep(S, x0, y0, cw, ch, K, KW, WP);
   yield;
@@ -138,11 +141,16 @@ function* marshSetup(x0, y0, cw, ch, K, KW, M) {
   return S;
 }
 
-// Pfütze (wet über thr): Oberkante 1 Feinpixel dunkel, Spiegel, kurze Glanzstriche; -1 = keine Pfütze
-function puddle(F, G, S, wi, w, dt, thr) {
-  if (!(w > thr + 0.02 || (w > thr && dt < (w - thr) / 0.02))) return -1;
-  if (!(G & 1) && S.wet[wi - S.fw] <= thr) return P.mud[1];
-  return !(G & 1) && hash2(F >> 2, G, 977) < 0.08 ? P.pool[2] : P.pool[(G & 1) && S.wet[wi - S.fw] <= thr ? 0 : 1];
+// Pfütze: Feld fein interpoliert (Kontur im Feinraster), Rand oben links hell (1 Feinpixel), darunter Spiegelkante,
+// Rand unten rechts dunkel, im Spiegel selten ein kurzer Glanzstrich; -1 = keine Pfütze
+const PUD = 0.715;
+const pudAt = (S, F, G) => fineAt(S.pf, S, F, G) * 0.62 + fineAt(S.wet, S, F, G) * 0.38 > PUD;
+function puddle(F, G, S, wi) {
+  if (S.pf[wi] * 0.62 + S.wet[wi] * 0.38 < PUD - 0.06 || !pudAt(S, F, G)) return -1;
+  if (!pudAt(S, F, G - 1) || !pudAt(S, F - 1, G)) return P.rim;
+  if (!pudAt(S, F, G + 1) || !pudAt(S, F + 1, G)) return P.mud[1];
+  if (!pudAt(S, F, G - 2) || !pudAt(S, F - 2, G)) return P.pool[3];
+  return hash2(F >> 2, G >> 1, 977) < 0.04 && !(G & 1) ? P.pool[4] : P.pool[2];
 }
 
 function marshFine(kind, F, G, K, ki, KW, S) {
@@ -162,9 +170,8 @@ function marshFine(kind, F, G, K, ki, KW, S) {
     if (up === GR) return D[1];   // Grasnarbe wirft eine Kante
     if (a >= 0) return a;
     // Wasser in Spuren und Mulden: dunkler Spiegel, Unterkante hell, Glanzstrich
-    const pud = puddle(F, G, S, wi, w, dt, 0.83);
+    const pud = puddle(F, G, S, wi);
     if (pud >= 0) return pud;
-    if (!(G & 1) && S.wet[wi - S.fw] > 0.83) return D[6];   // Unterkante im Licht
     const near = K[ki + KW] === GR || K[ki + 2 * KW] === GR || K[ki - 2 * KW] === GR || K[ki - 1] === GR || K[ki + 1] === GR || K[ki - 2] === GR || K[ki + 2] === GR;
     let i = 3 + clampI(band(t, 2.8, dt), 0, 2) + (near ? -1 : 0);
     if (K[ki + KW] === GR || K[ki + 2 * KW] === GR) {
@@ -176,13 +183,12 @@ function marshFine(kind, F, G, K, ki, KW, S) {
   }
   if (a >= 0) return a;
   if (up === DI) return P.floor[6];
+  const pud = puddle(F, G, S, wi);
+  if (pud >= 0) return pud;
   // Moor: nasser Torf / Grundton / Polsterflächen
   const p = S.patch[wi];
   if (w > 0.74 || (w > 0.7 && dt < (w - 0.7) / 0.04)) {
-    // Torf mit kleinen Pfützen
-    const pud = puddle(F, G, S, wi, w, dt, 0.85);
-    if (pud >= 0) return pud;
-    if (!(G & 1) && S.wet[wi - S.fw] > 0.85) return P.peat[3];
+    // nasser Torf
     return P.peat[1 + clampI(band(t, 2, dt), 0, 2)];
   }
   const lush = p > 0.6 || (p > 0.55 && dt < (p - 0.55) / 0.05);

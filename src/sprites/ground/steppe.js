@@ -368,11 +368,12 @@ function stamps(S) {
     const tc = rAt(S, AF, AG) ? topAt(S, AF, AG) : -1;
     if (k >= FK.PAVE || tc === 0 || tc === 3 || s === S_Q || s === S_W || s === S_S) return;
     let dens, St = SST;
-    if (tc === 2) { dens = 0.1; St = RST; }
+    if (tc === 2) { dens = 0.05; St = RST; }
     else if (tc === 1) dens = 0.03;
     else if (k === DI && GRASSY[s]) dens = pathMid(AF, AG) ? 0.08 : 0.16;
     else if (s === S_C) { dens = 0.5; St = RST; }
-    else if (s === S_R || s === S_M) { dens = 0.16; St = RST; }
+    else if (s === S_R) { dens = 0.06; St = RST; }
+    else if (s === S_M) { dens = 0.16; St = RST; }
     else if (s === S_B) { dens = 0.3; St = BST; }
     else dens = s === S_A ? 0.06 : 0.035;
     if (h >= dens) return;
@@ -401,16 +402,18 @@ function stamps(S) {
       const ki = (G - G0 + M) * KW + F - F0 + M;   // Anker liegt im Rand des Rasters
       if (K[ki] !== GR) continue;
       const tc = RK[ki] ? topAt(S, F, G) : -1;
-      if (tc === 0 || tc === 3) continue;
+      // keine Halme auf Felsflächen (Wand, Kappe, Platten) und Rotsand
+      if (tc === 0 || tc === 2 || tc === 3) continue;
       const s = tc === 1 ? S_PLAIN : tc === 2 ? S_M : SO[ki];
       if (s > S_B) continue;
       let R, dens;
       const wi = S.wi(F, G), p = S.patch[wi];
       if (s <= S_A) { R = BLR[s === S_PLAIN && S.gold[wi] > 0.6 ? S_Y : s]; dens = s === S_A ? 0.07 : p > 0.62 ? 0.6 : p > 0.45 ? 0.3 : p < 0.28 ? 0.02 : 0.14; }
       else if (s === S_M) { R = BL_GLD; dens = vnoise(F / 26, G / 22, 434) > 0.58 ? 0.4 : 0.03; }
-      else if (s === S_R) { R = BL_GLD; dens = 0.05; }
       else if (s === S_B) { R = BL_GRS; dens = 0.03; }
       else continue;
+      // Halm darf nicht in Rotsand/Fels hineinragen (Spitze bis 5 Feinpixel höher)
+      if (SO[ki - 5 * KW] === S_R || RK[ki - 5 * KW]) continue;
       const pathBelow = S.kAt(F, G + 2) === DI || S.kAt(F, G + 3) === DI;
       if (pathBelow && s <= S_A) dens = Math.max(dens, 0.5);
       if (h >= dens) continue;
@@ -449,7 +452,6 @@ function rampFine(L, px, py, t) {
   if (f < 2.3) return MESR[f < 1.4 ? 3 : 4];                                    // Setzstufe: unten dunkler
   if (f < 2.8) return MESR[al > halfW - 4 && wear < 0.5 ? 6 : 8];               // Trittkante im Licht
   if (f < 3.3) return MESR[al > halfW - 4 && wear < 0.5 ? 5 : 7];
-  if (al > halfW - 4 && hash2(wx, wy >> 1, 1409) < 0.12) return BL_GLD[3 + (hash2(wx, wy, 1410) < 0.5 ? 1 : 0)];
   if (wear < 0.35 && Math.abs(lat - (hash2(k, 2, 1411) - 0.5) * 10) < 0.35 && f > 4) return MESR[2];   // Riss
   return MESR[5 + (t > 0.6 ? 1 : 0) - (al > halfW - 3 ? 1 : 0)];
 }
