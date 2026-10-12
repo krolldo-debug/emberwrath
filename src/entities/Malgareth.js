@@ -791,6 +791,8 @@ export class Malgareth extends Actor {
   // ---------------------------------------------------------------- Ereignisse, Umgebung
 
   #frameEvents(world) {
+    // Ruhend (vor dem Kampf): noch nicht gebaute Frames nicht dafür bauen – Schlaf-/Ruheposen tragen keine Marken
+    if (!this.engaged && !this.animator.frameReady) return;
     const f = this.animator.frame;
     if (f === this.lastFrame) return;
     this.lastFrame = f;

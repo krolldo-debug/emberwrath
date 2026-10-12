@@ -3,6 +3,7 @@ import { LEVELS } from './levels.js';
 import { LEVELS2 } from './levels2.js';
 import { LEVELS3 } from './levels3.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
+import { animationsOf } from '../gfx/Sprite.js';
 
 // Zone vorbereiten, bevor man sie betritt: Während der Spieler seinen Helden erstellt oder auswählt,
 // entstehen Karte, Grafiken der Zone und der Boden rund um den Ankunftsort in kleinen Häppchen.
@@ -86,19 +87,23 @@ function* tasks(game, zone, spawnId, pos) {
   ]);
   void assets.props;
   yield;
+  const sets = [];
   for (const k of keys) {
     if (!k || !(k in assets.sprites)) continue;
-    void assets.sprites[k];
+    sets.push(assets.sprites[k]);
     yield;
   }
-  if (!outdoor) return;
-  // Boden rund um den Ankunftsort
-  const dungeon = new Outdoor(level);
-  prebuilt = { level, dungeon };
-  yield;
-  const at = (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) ? pos
-    : dungeon.spawns[spawnId] ?? dungeon.spawns.start ?? dungeon.heroStart;
-  yield* dungeon.prewarm(assets, at.x, at.y);
+  if (outdoor) {
+    // Boden rund um den Ankunftsort
+    const dungeon = new Outdoor(level);
+    prebuilt = { level, dungeon };
+    yield;
+    const at = (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) ? pos
+      : dungeon.spawns[spawnId] ?? dungeon.spawns.start ?? dungeon.heroStart;
+    yield* dungeon.prewarm(assets, at.x, at.y);
+  }
+  // Figuren-Frames (entstehen aufgeschoben, gfx/Sprite.js LazyFrame): einer je Häppchen
+  for (const a of sets.flatMap((s) => animationsOf(s))) while (a.warmOne()) yield;
 }
 
 // Zone eines Spielstands vorbereiten (ohne Spielstand: Startzone wie bei einem neuen Helden).
