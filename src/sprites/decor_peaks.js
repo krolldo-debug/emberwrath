@@ -3,7 +3,8 @@ import { createRng, hash2 } from '../core/math.js';
 import { OUT, groundPixel, vnoise } from './outdoor.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
-import { mk, poly, ashPatch, drawTent } from './decor_ashwood.js';
+import { fineRes, canvasPixels } from '../gfx/Fine.js';
+import { mk, poly, ashPatch, drawTent, shade, stepOf, fpoly, emberDot, emberCrack, pal32, DecoCanvas } from './decor_ashwood.js';
 
 // Schlackenhöhen: schwarzer Basalt, Obsidian, Lavatümpel; Feste Rauhwacht,
 // der Riss und das Tor zur Glutschmiede. Licht von links oben; alles
@@ -152,6 +153,80 @@ function crack(p, g, rng, x, y, len, dir = 0) {
   }
 }
 
+// ---------------------------------------------------------------- Feinraster-Helfer (docs/STYLE.md „Feinraster“)
+const HOT = '#fff0b0';
+const col32h = (c) => pal32([c])[0];
+// Glutriss im Feinraster: Pfad in Feinpixel-Schritten, farbiger Saum (EMB 2) quer zur Laufrichtung, heißer Kern
+// (EMB 4/5) in der Mitte, kühlere Enden; Leuchtebene gestuft: heller Kern, Saum, vereinzelt äußerer Schein.
+function crackF(f, g, rng, x, y, len, dir = 0) {
+  const pts = [];
+  let a = dir, cx = x + 0.5, cy = y + 0.5;
+  for (let i = 0; i < len * 2; i++) {
+    pts.push([Math.round(cx * 2) / 2, Math.round(cy * 2) / 2, Math.abs(Math.cos(a)) >= Math.abs(Math.sin(a) * 0.7)]);
+    a += rng.range(-0.3, 0.3);
+    cx += Math.cos(a) * 0.5; cy += Math.sin(a) * 0.35;
+  }
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const [px, py, horiz] = pts[i];
+    if (i === 0 || i === n - 1) continue;
+    const [ox, oy] = horiz ? [0, 0.5] : [0.5, 0];
+    f.dot(px - ox, py - oy, EMB[2]); f.dot(px + ox, py + oy, EMB[1]);
+    g.dot(px - ox, py - oy, EMB[3]); g.dot(px + ox, py + oy, EMB[2]);
+    if (i > 1 && i < n - 2) { g.dot(px - ox * 2, py - oy * 2, EMB[1]); g.dot(px + ox * 2, py + oy * 2, EMB[1]); }
+  }
+  for (let i = 0; i < n; i++) {
+    const [px, py] = pts[i], mid = i > 1 && i < n - 2, hot = mid && i % 3 !== 0;
+    f.dot(px, py, i === 0 || i === n - 1 ? EMB[3] : hot ? EMB[5] : EMB[4]);
+    g.dot(px, py, i === 0 || i === n - 1 ? EMB[3] : mid ? HOT : EMB[4]);
+  }
+}
+// Flammenzunge fein (Fackeln, Emblemflammen): Saum dunkelorange, innen gelb, weißer Kern am Fuß; Leuchtebene eine
+// Stufe heller. cx = Mitte am Fuß, by = Fuß, h/w = Höhe/Breite in Weltpixeln, lean = Neigung der Spitze.
+function flameF(f, g, cx, by, h, w, lean = 0.4) {
+  const heat = (x, y) => {
+    const v = (by - y) / h;
+    if (v < 0 || v > 1) return -1;
+    const c = cx + lean * v * v * w, hw = (w / 2) * Math.pow(Math.sin(Math.PI * Math.min(1, v * 0.8 + 0.2)), 0.8);
+    const u = Math.abs(x - c) / Math.max(0.01, hw);
+    return u > 1 ? -1 : (1 - u) * 0.6 + (1 - v) * 0.65;
+  };
+  f.each(cx - w, by - h, cx + w, by, (x, y) => { const t = heat(x, y); return t < 0 ? null : t > 1 ? EMB[5] : t > 0.75 ? EMB[4] : t > 0.45 ? EMB[3] : EMB[2]; });
+  g.each(cx - w, by - h, cx + w, by, (x, y) => { const t = heat(x, y); return t < 0 ? null : t > 0.9 ? HOT : t > 0.6 ? EMB[5] : t > 0.4 ? EMB[4] : EMB[3]; });
+}
+// Laternenglas fein (Rahmen aus der alten Zeichnung bleibt): heißer Kern in der Mitte, gestufter Saum zum Rahmen,
+// Sprosse als Feinpixel-Strich, Glanzpunkt oben links. x, y, w, h = Glasfläche in Weltpixeln.
+function lanternF(f, g, x, y, w, h, warm = false) {
+  const cx = x + w / 2, cy = y + h * 0.55;
+  const t = (px, py) => Math.max(Math.abs(px - cx) / (w / 2), Math.abs(py - cy) / (h / 2));
+  const C = warm ? ['#c87a2c', '#e8b060', '#ffd890', HOT] : [EMB[3], EMB[4], EMB[5], HOT];
+  f.each(x, y, x + w - 0.01, y + h - 0.01, (px, py) => { const d = t(px, py); return d > 0.8 ? C[0] : d > 0.5 ? C[1] : d > 0.25 ? C[2] : C[3]; });
+  g.each(x, y, x + w - 0.01, y + h - 0.01, (px, py) => { const d = t(px, py); return d > 0.8 ? C[1] : d > 0.45 ? C[2] : C[3]; });
+  f.dot(x, y, WHITE);
+}
+// Kantiger Felsklumpen fein: unregelmäßiger Umriss, Facetten (Normalen in Sektoren gestuft), Licht oben links,
+// harte Stufen, dunkle Kante unten rechts. ash = Rampe für Asche auf der Oberseite.
+function rockF(f, cx, cy, rx, ry, seed, pal, { lo = 1, hi = pal.length - 2, bias = 0, ash = null, sectors = 7, rough = 1, flat = null, rim = 0.84 } = {}) {
+  const P = pal32(pal), A = ash ? pal32(ash) : null, ph = (seed * 0.731) % 1;
+  f.scan(cx - rx * 1.2, cy - ry * 1.2, cx + rx * 1.2, cy + ry * 1.2, (x, y) => {
+    const dx = (x - cx) / rx, dy = (y - cy) / ry, a = Math.atan2(dy, dx);
+    const e = 1 + (Math.sin(a * 3 + seed) * 0.12 + Math.sin(a * 7 + seed * 1.3) * 0.06) * rough;
+    const d = Math.sqrt(dx * dx + dy * dy) / e;
+    if (d > 1 || (flat !== null && y > flat)) return 0;
+    let nx, ny;
+    if (d < 0.42) { nx = -0.12; ny = -0.32; }                           // Deckfläche
+    else {
+      const sct = (Math.floor((a / (Math.PI * 2)) * sectors + ph + sectors) + 0.5 - ph) / sectors * Math.PI * 2;
+      const m = d < 0.75 ? 0.62 : 0.9;
+      nx = Math.cos(sct) * m; ny = Math.sin(sct) * m - 0.15;
+    }
+    let i = stepOf(shade(nx, ny) + bias, lo, hi);
+    if (d > rim && dx + dy > 0.5) i = Math.max(0, i - (d > 0.9 && rim < 0.84 ? 2 : 1));
+    if (A && d > 0.62 && dy < -0.45 && dx < 0.4) return A[d > 0.86 ? A.length - 1 : A.length - 2];
+    return P[i];
+  });
+}
+
 // ------------------------------------------------------------ Basaltsäulen
 function basaltColumns(v) {
   const rng = createRng(500 + v);
@@ -163,6 +238,7 @@ function basaltColumns(v) {
   ][v];
   return mk(W, H, (p) => {
     ashPatch(p, 15, H - 2, 14, 2, 500 + v);
+    if (p.fine) { basaltFine(p, sets, v); return; }
     for (const [x, top, w, bot] of sets) {
       for (let y = top + 1; y <= bot; y++) for (let i = 0; i < w; i++) {
         const rel = i / (w - 1);
@@ -181,7 +257,60 @@ function basaltColumns(v) {
     }
     // Geröll
     for (let i = 0; i < 5; i++) { const x = rng.int(2, 27), y = H - 1 - rng.int(0, 1); p.px(x, y, BAS[3]); p.px(x - 1, y, BAS[5]); }
-  }, { ax: 15, box: [-11, -4, 11, 1] });
+  }, { ax: 15, box: [-11, -4, 11, 1], b: true });
+}
+// Säulen fein: Sechskantprismen mit drei sichtbaren Flächen (links Licht, vorn Halbschatten, rechts Schatten),
+// heller Grat zwischen Licht- und Vorderfläche, Sechseck-Deckfläche mit Lichtkante, Querfugen als Bögen
+// (dunkle Fuge, helle Lippe darunter), einzelne Haarrisse und abgeplatzte Kanten; Asche als Fleck auf der Kappe.
+const BAS32 = pal32(BAS), ASHG32 = pal32(['#1a1819', '#262325', '#343032', '#454042', '#5a5456', '#746d6c']);
+function basaltFine(p, sets, v) {
+  sets.forEach(([x, top, w, bot], c) => {
+    const uL = 0.3, uR = 0.72, seed = 500 + v * 17 + c * 5;
+    const ash = hash2(c, 1, seed) < 0.7;
+    // Unterkante der Deckfläche (= Kanten zwischen den Flächen), relativ zur Kappenoberkante
+    const lowE = (u) => (u < uL ? 1.5 + (u / uL) * 1.5 : u < uR ? 3 : 3 - ((u - uR) / (1 - uR)) * 1.5);
+    const topE = (u) => (u < uL ? 1.5 - (u / uL) * 1.5 : u < uR ? 0 : ((u - uR) / (1 - uR)) * 1.5);
+    const y0 = top - 1;
+    p.scan(x, y0, x + w, bot + 1, (px, py) => {
+      const u = (px - x) / w;
+      if (u >= 1 || py >= bot + 1) return 0;
+      const ry = py - y0;
+      if (ry < topE(u)) return 0;
+      if (ry < lowE(u)) {                                                   // Deckfläche
+        if (ash && u < 0.6 && ry < topE(u) + 1.6 && u > 0.1) return ASHG32[ry < topE(u) + 0.6 ? 5 : 4];
+        if (ry < topE(u) + 0.5) return BAS32[6];
+        return u > uR - 0.05 && ry > lowE(u) - 0.6 ? BAS32[4] : BAS32[5];
+      }
+      if (ry < lowE(u) + 0.5) return BAS32[1];                              // Schattenfuge unter der Kappe
+      let k = u < uL ? 4 : u < uR ? 3 : 2;
+      if (u >= uL && u < uL + 0.5 / w) k = 5;                                // Grat im Licht
+      else if (u >= uR && u < uR + 0.5 / w) k = 1;                          // Schattenkante
+      else if (u > 1 - 0.5 / w) k = 1;
+      // Querfugen alle 7 Weltpixel, als Bogen wie die Kappenunterkante
+      const j = ((ry - lowE(u) + 1.5) % 7 + 7) % 7;
+      const seg = Math.floor((ry - lowE(u) + 1.5) / 7);
+      const hv = hash2(c, seg, seed + 5);
+      if (hv < 0.3 && k > 2) k -= 1; else if (hv > 0.85 && k < 5) k += 1;    // Segmente leicht verschieden
+      if (seg > 0 || j > 2) {
+        if (j < 0.5 && seg > 0) return BAS32[0];
+        if (j < 1 && seg > 0) k = Math.min(6, k + 1);
+        else if (j > 6.5) k = Math.max(1, k - 1);
+      }
+      // abgeplatzte Ecke an der Lichtkante
+      if (seg > 0 && u < 0.5 / w * 3 && j < 2.5 && hash2(c, seg, seed + 3) < 0.5) k = 2;
+      return BAS32[k];
+    });
+  });
+  // Geröll: kleine Brocken mit Lichtkante
+  const rng = createRng(510 + v);
+  for (let i = 0; i < 5; i++) {
+    const x = rng.int(2, 27) + 0.5, y = 37 - rng.int(0, 1) + 0.5;
+    p.scan(x - 1.2, y - 0.8, x + 1.2, y + 0.8, (px, py) => {
+      const dx = (px - x) / 1.1, dy = (py - y) / 0.7;
+      if (dx * dx + dy * dy > 1) return 0;
+      return BAS32[dy < -0.2 ? (dx < 0.2 ? 5 : 4) : dy > 0.4 ? 1 : 3];
+    });
+  }
 }
 
 // ------------------------------------------------------------ Obsidianspitzen
@@ -196,6 +325,7 @@ function obsidianSpikes(v) {
   return mk(W, H, (p, g) => {
     ashPatch(p, 11, H - 2, 9, 2, 520 + v);
     const base = H - 2;
+    if (p.fine) { obsidianFine(p, g, shards, base, rng); return; }
     for (const [x, tipY, hw, lean] of shards) {
       const tx = x + lean;
       // linke (beleuchtete) Facette
@@ -212,7 +342,46 @@ function obsidianSpikes(v) {
       p.px(x + 1, base - 3, OBS[3]); p.px(x + 2, base - 5, OBS[3]);
     }
     for (let i = 0; i < 4; i++) { const x = rng.int(3, 18); p.px(x, H - 1, OBS[3]); p.px(x, H - 2, OBS[5]); }
-  }, { ax: 11, box: [-6, -3, 6, 1] });
+  }, { ax: 11, box: [-6, -3, 6, 1], b: true });
+}
+// Obsidian fein: Glas mit harten Facetten. Lichtfacette links mit Kantenlicht und Spiegelstreif, Grat als
+// heller Feinpixel-Strich, Schattenfacette mit violettem Innenschimmer und kühler Gegenlichtkante, weißer
+// Glanzpunkt an der Spitze; Fuß in Asche (dunkler). Leuchtebene: nur Glanzpunkte, gedämpft violett.
+function obsidianFine(p, g, shards, base, rng) {
+  const O = pal32(OBS), B1 = base + 1;
+  for (const [x, tipY, hw, lean] of shards) {
+    const tx = x + lean + 0.5, bx = x + 0.5, L0 = x - hw, R0 = x + hw + 1;
+    const hgt = B1 - tipY;
+    p.scan(Math.min(L0, tx) - 0.5, tipY, Math.max(R0, tx) + 0.5, B1, (px, py) => {
+      const t = (py - tipY) / hgt;
+      if (t < 0 || t > 1) return 0;
+      const mx = tx + (bx - tx) * t, lx = Math.min(tx + (L0 - tx) * t, mx - 0.25), rx = Math.max(tx + (R0 - tx) * t, mx + 0.25);
+      if (px < lx || px >= rx) return 0;
+      if (px < mx) {
+        const s = (px - lx) / Math.max(0.5, mx - lx);
+        if (px - lx < 0.5 && t < 0.75) return O[5];                         // Kantenlicht
+        if (mx - px <= 0.5) return O[t < 0.8 ? 5 : 4];                       // Grat
+        if (t > 0.86) return O[3];                                           // Fuß
+        if (s > 0.42 && s < 0.6 && t > 0.12 && t < 0.72) return O[t < 0.3 ? 6 : 5]; // Spiegelstreif
+        return O[t > 0.68 ? 3 : 4];
+      }
+      const s = (px - mx) / Math.max(0.5, rx - mx);
+      if (rx - px <= 0.5 && t > 0.25 && t < 0.8) return O[3];               // Gegenlicht am Rand
+      if (t > 0.55 && t < 0.86 && s > 0.25 && s < 0.7) return O[t > 0.7 ? 3 : 2]; // Innenschimmer
+      return O[s < 0.45 ? 2 : 1];
+    });
+    // Glanzpunkt an der Spitze, kleiner Stern im Spiegelstreif
+    const sx = tx + (L0 + (bx - L0) * 0.5 - tx) * 0.3, sy = tipY + hgt * 0.3;
+    p.dot(tx - 0.5, tipY, OBS[6]); p.dot(tx - 0.5, tipY + 0.5, OBS[5]);
+    p.dot(sx, sy, WHITE); p.dot(sx, sy - 0.5, OBS[6]); p.dot(sx, sy + 0.5, OBS[6]);
+    g.dot(sx, sy, '#6a58a0'); g.dot(sx, sy - 0.5, '#3a2c58'); g.dot(sx, sy + 0.5, '#3a2c58');
+    g.dot(tx - 0.5, tipY, '#4a3a70');
+  }
+  // Splitter im Geröll
+  for (let i = 0; i < 4; i++) {
+    const x = rng.int(3, 18);
+    p.rect(x, base + 1, 1, 1, OBS[2]); p.dot(x, base + 1, OBS[5]); p.dot(x, base + 0.5, OBS[4]); p.dot(x + 0.5, base + 1.5, OBS[1]);
+  }
 }
 
 // ------------------------------------------------------------ Lavafelsen
@@ -222,6 +391,25 @@ function lavaRock(v) {
   const W = w + 4, H = h + 3;
   return mk(W, H, (p, g) => {
     const cx = W / 2 - 0.5, cy = h / 2 + 1.5;
+    if (p.fine) {
+      // Fein: kantiger Basaltbrocken mit Facetten, Poren als kleine Krater, Glutrisse mit heißem Kern,
+      // Glut sickert am Fuß aus (Tropfen mit hellem Kern), Lichtkante oben links
+      rockF(p, cx + 0.5, cy + 0.5, w / 2 + 0.5, h / 2 + 0.5, 540 + v * 3, BAS, { lo: 1, hi: 6, bias: -0.12, rough: 0.35, flat: h + 1 });
+      p.fline(cx - w / 2 + 1.5, h + 0.75, cx + w / 2 - 0.5, h + 0.75, BAS[1]);
+      for (let i = 0; i < 6; i++) {
+        const x = cx + 0.5 + rng.range(-w / 3, w / 3), y = cy + 0.5 + rng.range(-2, 2.5);
+        const fx = Math.floor(x * 2) / 2, fy = Math.floor(y * 2) / 2;
+        p.dot(fx, fy, BAS[0]); p.dot(fx + 0.5, fy, BAS[1]); p.dot(fx, fy + 0.5, BAS[4]);
+      }
+      crackF(p, g, rng, Math.round(cx - w / 4), Math.round(cy - 1), 5 + v, 0.4);
+      crackF(p, g, rng, Math.round(cx + 1), Math.round(cy + 2), 4 + v, -0.3);
+      if (v === 1) crackF(p, g, rng, Math.round(cx + 3), Math.round(cy - 3), 4, 1.2);
+      for (let x = Math.round(cx - w / 3); x < cx + w / 3; x++) if (hash2(x, 0, 541 + v) < 0.3) {
+        p.rect(x, h + 1, 1, 1, EMB[2]); p.dot(x, h + 1, EMB[4]); p.dot(x + 0.5, h + 1.5, EMB[1]);
+        g.rect(x, h + 1, 1, 1, EMB[3]); g.dot(x, h + 1, HOT); g.dot(x, h + 0.5, EMB[2]);
+      }
+      return;
+    }
     p.ellipse(cx, cy, w / 2, h / 2, BAS[2]);
     p.ellipse(cx - 1, cy - 1, w / 2 - 2, h / 2 - 2, BAS[3]);
     p.ellipse(cx - 2, cy - 2, w / 4, h / 4, BAS[4]);
@@ -235,35 +423,78 @@ function lavaRock(v) {
     if (v === 1) crack(p, g, rng, Math.round(cx + 3), Math.round(cy - 3), 4, 1.2);
     // glühender Fuß
     for (let x = Math.round(cx - w / 3); x < cx + w / 3; x++) if (hash2(x, 0, 541 + v) < 0.3) { p.px(x, h + 1, EMB[1]); g.px(x, h + 1, EMB[2]); }
-  }, { ax: Math.floor(W / 2), ay: h + 1, box: [-Math.floor(w / 2) + 1, -3, Math.floor(w / 2) - 1, 1], light: { dx: 0, dy: -4, radius: 34, color: [255, 120, 50], intensity: 0.55 } });
+  }, { ax: Math.floor(W / 2), ay: h + 1, box: [-Math.floor(w / 2) + 1, -3, Math.floor(w / 2) - 1, 1], light: { dx: 0, dy: -4, radius: 34, color: [255, 120, 50], intensity: 0.55 }, b: true });
 }
 
 // ------------------------------------------------------------ Verkohlte Bäume
+// Fein: Äste als sich verjüngende Glieder (Lichtkante links, Schattenseite rechts), Asche als Punktlinie auf der
+// Oberseite, Borke mit Rillen, Glutkern im Stamm und glimmende Astspitzen mit heißem Kern.
 function deadTree(seed) {
   const rng = createRng(seed);
   const W = 36, H = 42;
   return mk(W, H, (p, g) => {
     ashPatch(p, 18, H - 2, 10, 2, seed);
-    const tips = [];
+    const tips = [], segs = [];
+    // Geometrie zuerst (gleiche Zufallsfolge wie früher), dann zeichnen
     const branch = (x, y, a, len, th, depth) => {
       const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len;
-      for (let i = 0; i < th; i++) p.line(x + i, y, x2 + i * 0.5, y2, i === 0 ? CHAR[5] : i === th - 1 ? CHAR[1] : CHAR[3]);
-      // Asche auf der Oberseite
-      if (len > 4) p.px(Math.round((x + x2) / 2), Math.round((y + y2) / 2) - 1, ASHG[4]);
-      if (depth <= 0 || len < 3) { tips.push([Math.round(x2), Math.round(y2)]); return; }
+      segs.push([x, y, x2, y2, th, len, depth]);
+      if (depth <= 0 || len < 3) { tips.push([Math.round(x2), Math.round(y2), x2, y2]); return; }
       const n = rng.int(1, 2);
       for (let k = 0; k < n; k++) branch(x2, y2, a + rng.range(-0.9, 0.9), len * rng.range(0.55, 0.75), Math.max(1, th - 1), depth - 1);
     };
-    p.line(15, H - 2, 10, H - 1, CHAR[3]); p.line(20, H - 2, 25, H - 1, CHAR[1]); p.line(16, H - 2, 13, H - 1, CHAR[4]);
-    for (let y = 26; y < H - 1; y++) { const s = Math.round(Math.sin(y * 0.4) * 0.7); p.px(16 + s, y, CHAR[5]); p.px(17 + s, y, CHAR[3]); p.px(18 + s, y, CHAR[2]); p.px(19 + s, y, CHAR[1]); }
     branch(17, 27, -Math.PI / 2 + rng.range(-0.3, 0.3), 11, 3, 4);
     branch(16, 31, -Math.PI / 2 - 1.0, 9, 2, 3);
     branch(18, 30, -Math.PI / 2 + 0.95, 9, 2, 3);
+    if (p.fine) {
+      // Wurzeln
+      p.fline(16, H - 2, 10.5, H - 1, CHAR[3], 1); p.fline(15, H - 2.5, 11, H - 1.5, CHAR[4]);
+      p.fline(20, H - 2, 25.5, H - 1, CHAR[1], 1); p.fline(16.5, H - 2, 13.5, H - 1, CHAR[4]);
+      // Stamm mit Rillen, Asche auf der Lichtseite
+      const sx = (y) => 18 + Math.sin(Math.floor(y) * 0.4) * 0.7;
+      p.scan(15, 26, 21, H - 1, (x, y) => {
+        const dx = x - sx(y);
+        if (dx < -2 || dx >= 2) return 0;
+        let k = dx < -1.5 ? 5 : dx < -0.5 ? 4 : dx < 1 ? 3 : dx < 1.5 ? 2 : 1;
+        if (k > 1 && Math.abs(((dx + 2) % 1.25) - 0.9) < 0.2 && Math.floor(y / 2.5) % 3 !== 1) k -= 1;
+        return CHAR32[k];
+      });
+      for (let y = 27; y < H - 3; y += 2.5) p.dot(sx(y) - 2, y, ASHG[4]);
+      // Äste: hinten dünn nach vorn dick; Glied = Schattenseite, Kern, Lichtkante
+      for (const [x, y, x2, y2, th, len] of segs) {
+        const w0 = th * 0.75 + 0.25, w1 = Math.max(0.5, (th - 1) * 0.75 + 0.25);
+        const ax = x + th * 0.4, ex = x2 + th * 0.25;
+        const nx = -(y2 - y) / len, ny = (x2 - x) / len;          // Normale (zeigt nach rechts/unten bei Ästen nach oben)
+        const steps = Math.ceil(len * 2);
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps, w = w0 + (w1 - w0) * t;
+          const cx = ax + (ex - ax) * t, cy = y + (y2 - y) * t;
+          const sgn = nx * 1 + ny * 0.3 > 0 ? 1 : -1;                // Schattenseite eher rechts
+          for (let k = -w / 2; k <= w / 2 + 0.01; k += 0.5) {
+            const rel = k / Math.max(0.5, w / 2) * sgn;
+            p.dot(cx + nx * k, cy + ny * k, rel > 0.35 ? CHAR[1] : rel < -0.3 ? CHAR[5] : CHAR[3]);
+          }
+          // Asche bleibt nur auf flacheren Ästen liegen: ein zusammenhängender Streifen auf der Oberseite
+          if (len > 4 && Math.abs(ny) > 0.55 && t > 0.2 && t < 0.6) p.dot(cx, cy - w / 2 - 0.5, ASHG[t < 0.45 ? 4 : 3]);
+        }
+      }
+      // Glutkern im Stamm, glimmende Spitzen
+      emberCrack(p, g, 17.5, 33.5, 3, seed);
+      for (const [tx, ty] of tips) if (rng.chance(0.35)) emberDot(p, g, tx, ty);
+      return;
+    }
+    p.line(15, H - 2, 10, H - 1, CHAR[3]); p.line(20, H - 2, 25, H - 1, CHAR[1]); p.line(16, H - 2, 13, H - 1, CHAR[4]);
+    for (let y = 26; y < H - 1; y++) { const s = Math.round(Math.sin(y * 0.4) * 0.7); p.px(16 + s, y, CHAR[5]); p.px(17 + s, y, CHAR[3]); p.px(18 + s, y, CHAR[2]); p.px(19 + s, y, CHAR[1]); }
+    for (const [x, y, x2, y2, th, len] of segs) {
+      for (let i = 0; i < th; i++) p.line(x + i, y, x2 + i * 0.5, y2, i === 0 ? CHAR[5] : i === th - 1 ? CHAR[1] : CHAR[3]);
+      if (len > 4) p.px(Math.round((x + x2) / 2), Math.round((y + y2) / 2) - 1, ASHG[4]);
+    }
     for (const [x, y] of tips) if (rng.chance(0.35)) { p.px(x, y, EMB[3]); g.px(x, y, EMB[4]); }
     // Glutkern im Stamm
     p.px(17, 34, EMB[2]); p.px(17, 35, EMB[3]); p.px(18, 36, EMB[2]); g.px(17, 35, EMB[4]); g.px(17, 34, EMB[3]); g.px(18, 36, EMB[3]);
-  }, { ax: 18, box: [-3, -3, 3, 1] });
+  }, { ax: 18, box: [-3, -3, 3, 1], b: true });
 }
+const CHAR32 = pal32(['#0a0708', '#130e0f', '#1c1516', '#281e1f', '#352929', '#44363a']);
 
 // ------------------------------------------------------------ Aschewehen
 function ashDrift(v) {
@@ -271,6 +502,24 @@ function ashDrift(v) {
   const W = v ? 22 : 28, H = v ? 8 : 10;
   return mk(W, H, (p) => {
     const cx = W / 2, cy = H - 3;
+    if (p.fine) {
+      // Fein: Wehe mit Licht von links oben, Windrippeln als feine Grate (heller Kamm, Schatten dahinter),
+      // ein paar Basaltkiesel, dunkle Kante am Fuß
+      const A = pal32(ASHG), rx = W / 2 - 0.5, ry = H / 2 - 0.5, ox = cx + 0.5, oy = cy + 0.5;
+      p.scan(ox - rx, oy - ry, ox + rx, oy + ry, (x, y) => {
+        const nx = (x - ox) / rx, ny = (y - oy) / ry, d = nx * nx + ny * ny;
+        if (d > 1) return 0;
+        let i = stepOf(shade(nx * 0.9 + 0.15, ny * 1.1), 1, 4);
+        const r = (y - oy + Math.sin(x * 0.45) * 0.7 + nx * 1.2) / 2.3;
+        const fr = r - Math.floor(r);
+        if (d < 0.7 && ny < 0.45 && ny > -0.7) { if (fr < 0.11) i = Math.min(5, i + 1); else if (fr < 0.22) i = Math.max(1, i - 1); }
+        if (d > 0.8 && nx + ny > 0.4) i = Math.max(1, i - 1);
+        if (y > H - 2 && y < H - 1.5) i = 1;
+        return A[i];
+      });
+      for (let i = 0; i < 4; i++) { const x = rng.int(3, W - 4), y = rng.int(2, H - 3); p.rect(x, y, 1, 1, BAS[3]); p.dot(x, y, BAS[5]); p.dot(x + 0.5, y + 0.5, BAS[1]); }
+      return;
+    }
     p.ellipse(cx, cy, W / 2 - 1, H / 2 - 1, ASHG[2]);
     p.ellipse(cx - 2, cy - 1, W / 2 - 4, H / 2 - 2, ASHG[3]);
     p.ellipse(cx - 4, cy - 2, W / 4, H / 4 - 0.5, ASHG[4]);
@@ -278,7 +527,7 @@ function ashDrift(v) {
     for (let r = 0; r < 3; r++) for (let x = 3 + r * 2; x < W - 4 - r; x++) { const y = cy - 1 + r + Math.round(Math.sin(x * 0.5 + r) * 0.6); if (hash2(x, r, 561) < 0.6) p.px(x, y, r === 0 ? ASHG[5] : ASHG[2]); }
     for (let i = 0; i < 4; i++) p.px(rng.int(3, W - 4), rng.int(2, H - 3), BAS[3]);
     p.rect(2, H - 2, W - 4, 1, ASHG[1]);
-  }, { ax: Math.floor(W / 2), ay: H - 2 });
+  }, { ax: Math.floor(W / 2), ay: H - 2, b: true });
 }
 
 // ------------------------------------------------------------ Festungsmauer
@@ -345,6 +594,12 @@ function torch(p, g, x, y) {
   g.px(x, y - 1, EMB[4]); g.px(x + 1, y - 1, EMB[5]); g.px(x, y - 2, EMB[5]); g.px(x + 1, y - 3, EMB[4]); g.px(x, y - 4, EMB[2]);
 }
 
+// Fackel fein: Flammenzunge mit Kern, Glanz am Eisenring und Lichtkante am Schaft
+function torchF(f, g, x, y) {
+  flameF(f, g, x + 1, y + 0.5, 4, 2.4, 0.3);
+  f.fline(x, y + 0.5, x, y + 4.5, WOOD[4]); f.fline(x - 1, y + 2, x + 2.5, y + 2, IRON[3]); f.dot(x - 1, y + 2, IRON[4]);
+}
+
 function fortGate() {
   const W = 56, H = 52;
   return mk(W, H, (p, g) => {
@@ -385,6 +640,16 @@ function fortGate() {
   }, {
     ax: 28, light: { dx: 0, dy: -24, radius: 90, color: [255, 150, 70], intensity: 0.9 },
     extra: { boxes: [[-28, -5, -13, 1], [12, -5, 28, 1]], lights: [{ dx: -21, dy: -27, radius: 60, color: [255, 150, 70], intensity: 0.9 }, { dx: 21, dy: -27, radius: 60, color: [255, 150, 70], intensity: 0.9 }], door: { dx: 0, dy: -3 } },
+    // Fein: Fackeln mit Kern, Wappen mit Goldglanz, Fallgatterspitzen und Torbeschläge mit Glanzpunkt
+    fine: (f, g) => {
+      torchF(f, g, 6, 26); torchF(f, g, 48, 26);
+      const cx = 28;
+      f.fline(cx - 4, 12, cx + 4.5, 12, GOLD[4]); f.dot(cx - 4, 12, WHITE);
+      f.fline(cx - 2, 16, cx, 13, GOLD[4]); f.dot(cx, 13.5, GOLD[4]); f.dot(cx, 14, WHITE);
+      f.fline(cx - 3.5, 13, cx - 3.5, 15.5, CRIM[4]);
+      for (let x = 16; x < 40; x += 3) { f.dot(x, 28, IRON[5]); f.dot(x + 0.5, 28.5, IRON[2]); }
+      for (const y of [32, 38, 44]) { f.dot(16.5, y - 1.5, IRON[4]); f.dot(39.5, y - 1.5, IRON[3]); }
+    },
   });
 }
 
@@ -423,7 +688,21 @@ function fortTower() {
     p.rect(7, bodyTop + 6, 2, 5, GOLD[3]); p.px(6, bodyTop + 7, GOLD[2]); p.px(9, bodyTop + 7, GOLD[2]); p.px(7, bodyTop + 6, GOLD[4]);
     // Fackeln neben der Tür
     torch(p, g, 11, bottom - 16); torch(p, g, 26, bottom - 16);
-  }, { ax: 19, box: [-15, -6, 15, 1], light: { dx: 0, dy: -18, radius: 80, color: [255, 150, 70], intensity: 0.9 } });
+  }, {
+    ax: 19, box: [-15, -6, 15, 1], light: { dx: 0, dy: -18, radius: 80, color: [255, 150, 70], intensity: 0.9 },
+    // Fein: Fackeln mit Kern, Glut hinter den Scharten mit hellem Kern, Goldglanz an Banner und Wimpel, Türbeschlag
+    fine: (f, g) => {
+      const bottom = 67, bodyTop = 18;
+      torchF(f, g, 11, bottom - 16); torchF(f, g, 26, bottom - 16);
+      for (const [x, y] of [[18, 26], [25, 40]]) {
+        f.rect(x, y + 3, 1, 2, EMB[2]); f.dot(x + 0.5, y + 3.5, EMB[4]); f.dot(x + 0.5, y + 4, EMB[5]); f.dot(x, y + 4.5, EMB[3]);
+        g.dot(x + 0.5, y + 3.5, EMB[5]); g.dot(x + 0.5, y + 4, HOT); g.dot(x, y + 4, EMB[4]); g.dot(x + 1, y + 4, EMB[3]);
+      }
+      f.fline(7, bodyTop + 6, 7, bodyTop + 10.5, GOLD[4]); f.dot(7, bodyTop + 6, WHITE);
+      f.fline(5, bodyTop + 2, 5, bodyTop + 17.5, CRIM[4]); f.dot(30, 1, GOLD[4]);
+      f.fline(16, bottom - 11, 22.5, bottom - 11, IRON[2]); f.fline(16, bottom - 6, 22.5, bottom - 6, IRON[2]); f.dot(21, bottom - 8, GOLD[4]);
+    },
+  });
 }
 
 // ------------------------------------------------------------ Militärzelt
@@ -433,12 +712,28 @@ function tent() {
     ashPatch(p, 19, H - 2, 17, 2, 641);
     drawTent(p, g, { W, H, pal: BLUE, band: CRIM, ragged: false, seed: 17 });
     const cx = 19;
+    if (p.fine) {
+      // Wimpelstange (Eisen mit Glanzlinie, Goldknauf), Wimpel mit Falte; Waffenständer: Schäfte mit Lichtkante,
+      // Speerspitzen mit Schneide und Glanzpunkt, Querholz mit Zapfen
+      p.fline(cx + 0.5, 0.5, cx + 0.5, 4.5, IRON[2], 0.5); p.fline(cx, 0.5, cx, 4.5, IRON[4]);
+      p.oval(cx + 0.5, 0.5, 0.7, 0.7, GOLD[2]); p.dot(cx, 0, GOLD[4]); p.dot(cx + 0.5, 0, GOLD[3]);
+      fpoly(p, [[cx + 1, 1], [cx + 7, 1.2], [cx + 5.6, 2.1], [cx + 6.6, 3], [cx + 1, 3]], (x, y) => (y < 1.5 ? CRIM[4] : x > cx + 3.8 && y > 2.2 ? CRIM[2] : CRIM[3]));
+      p.fline(cx + 1, 2.5, cx + 4.5, 2.5, CRIM[2]); p.dot(cx + 1, 1, CRIM[4]);
+      for (const [x, top, wc] of [[cx + 11, H - 14, WOOD[3]], [cx + 14, H - 13, WOOD[2]]]) {
+        p.fline(x + 0.5, H - 3, x + 0.5, top + 1, wc, 0.5); p.fline(x, H - 3, x, top + 1, WOOD[4]);
+        fpoly(p, [[x + 0.5, top - 1.5], [x - 0.25, top + 0.5], [x + 0.5, top + 1.25], [x + 1.25, top + 0.5]], (xx) => (xx < x + 0.5 ? IRON[4] : IRON[2]));
+        p.dot(x, top - 0.5, IRON[5]); p.dot(x, top + 1.5, IRON[1]); p.dot(x + 0.5, top + 1.5, IRON[1]);
+      }
+      p.rect(cx + 10, H - 7, 6, 1, WOOD[1]); p.fline(cx + 10, H - 7, cx + 15.5, H - 7, WOOD[3]);
+      p.dot(cx + 10, H - 6.5, WOOD[0]); p.dot(cx + 15.5, H - 6.5, WOOD[0]);
+      return;
+    }
     p.line(cx, 0, cx, 4, IRON[3]); p.px(cx, 0, GOLD[4]);
     p.rect(cx + 1, 1, 5, 2, CRIM[3]); p.px(cx + 6, 1, CRIM[3]); p.px(cx + 1, 1, CRIM[4]); p.rect(cx + 2, 2, 4, 1, CRIM[2]);
     // Waffenständer mit Speeren
     p.line(cx + 11, H - 3, cx + 11, H - 14, WOOD[3]); p.line(cx + 14, H - 3, cx + 14, H - 13, WOOD[2]);
     p.px(cx + 11, H - 15, IRON[4]); p.px(cx + 14, H - 14, IRON[4]); p.rect(cx + 10, H - 7, 6, 1, WOOD[1]);
-  }, { ax: 19, box: [-14, -7, 14, 1] });
+  }, { ax: 19, box: [-14, -7, 14, 1], b: true });
 }
 
 // ------------------------------------------------------------ Bannerstange (Rauhwacht)
@@ -501,7 +796,27 @@ function forge() {
     p.rect(3, 22, 6, 6, WOOD[2]); p.rect(3, 22, 1, 6, WOOD[4]); p.rect(3, 24, 6, 1, IRON[1]); p.rect(4, 22, 4, 1, '#1a2a44'); p.px(5, 22, '#3a5a80');
     // Glutschein am Steinsockel
     p.rect(14, 18, 8, 3, '#1a0806'); p.rect(15, 19, 6, 1, EMB[2]); g.rect(15, 19, 6, 1, EMB[3]);
-  }, { ax: 20, box: [-11, -5, 18, 1], light: { dx: -2, dy: -18, radius: 90, color: [255, 140, 60], intensity: 1 } });
+  }, {
+    ax: 20, box: [-11, -5, 18, 1], light: { dx: -2, dy: -18, radius: 90, color: [255, 140, 60], intensity: 1 },
+    // Fein: Glutbett aus Kohlen mit heißen Kernen, glühendes Eisen (weißer Kern im orangen Saum), Glanz an Zange,
+    // Amboss und Haube, Wasserglanz im Eimer, Glutspalt im Sockel mit Kern
+    fine: (f, g) => {
+      f.scan(11, 10, 25, 12, (x, y) => (y < 10.5 ? 0 : col32h(y < 11 ? EMB[3] : EMB[2])));
+      for (let x = 11.6; x < 25; x += 1.9) { const y = 10.6 + (Math.round(x) % 2) * 0.3; f.oval(x, y, 0.95, 0.6, CHAR[3]); f.dot(x - 0.5, y - 0.5, CHAR[5]); }
+      for (let x = 12.5; x < 24.5; x += 1.9) {
+        f.dot(x, 10.5, EMB[4]); f.dot(x + 0.5, 10.5, EMB[3]); f.dot(x, 10, EMB[5]);
+        g.dot(x, 10.5, HOT); g.dot(x, 10, EMB[4]); g.dot(x + 0.5, 10.5, EMB[4]); g.dot(x - 0.5, 10.5, EMB[3]);
+      }
+      f.fline(16, 9, 22, 8, EMB[3], 1); f.fline(16, 9, 22, 8, EMB[5]); f.dot(16, 9, EMB[4]);
+      g.fline(16, 9, 22, 8, HOT); g.fline(16, 9.5, 22, 8.5, EMB[4]); g.fline(16, 8.5, 22, 7.5, EMB[3]);
+      f.fline(22.5, 8, 30, 5, IRON[4]); f.dot(26, 6.5, IRON[5]);
+      f.fline(28, 15, 33, 15, IRON[5]); f.dot(29, 15, WHITE); f.fline(26, 16, 27.5, 16, IRON[4]);
+      f.fline(13, 1, 18, 1, FST[6]);
+      f.dot(5.5, 22, '#6a8ab0'); f.dot(6, 22, '#3a5a80');
+      for (let x = 16; x < 20.5; x += 0.5) { f.dot(x, 19, x > 16.5 && x < 19.5 ? EMB[4] : EMB[3]); g.dot(x, 19, x > 16.5 && x < 19.5 ? HOT : EMB[4]); }
+      f.dot(17.5, 19.5, EMB[5]); f.dot(18, 19.5, EMB[3]);
+    },
+  });
 }
 
 // ------------------------------------------------------------ Kisten
@@ -572,7 +887,24 @@ function riftSeal(on) {
     }
     // Schlacke/Asche am Fuß
     for (let i = 0; i < 6; i++) p.px(3 + ((i * 7) % 20), bottom, ASHG[3]);
-  }, { ax: 13, box: [-6, -4, 6, 1], light: on ? { dx: 0, dy: -24, radius: 70, color: [200, 150, 255], intensity: 0.85 } : undefined });
+  }, {
+    ax: 13, box: [-6, -4, 6, 1], light: on ? { dx: 0, dy: -24, radius: 70, color: [200, 150, 255], intensity: 0.85 } : undefined,
+    // Fein: Runen weiß als Kern, auf der Leuchtebene ein violetter Saum aus Feinpixeln rings um jede Rune;
+    // Kantenglanz am Monolithen
+    fine: (f, g) => {
+      const ring = [[12, 14], [13, 14], [14, 14], [15, 15], [15, 16], [15, 17], [14, 18], [13, 18], [12, 18], [11, 17], [11, 16], [11, 15]];
+      const glyphs = [[12, 22], [12, 23], [12, 24], [13, 23], [14, 22], [14, 24], [11, 28], [12, 29], [13, 28], [14, 29], [15, 28], [13, 30], [12, 34], [13, 34], [14, 34], [13, 35], [12, 36], [14, 36], [13, 16]];
+      const all = [...ring, ...glyphs], has = new Set(all.map(([x, y]) => x + ',' + y));
+      for (const [x, y] of all) {
+        if (!on) continue;
+        for (const [dx, dy, ox, oy] of [[-1, 0, -0.5, 0], [-1, 0, -0.5, 0.5], [1, 0, 1, 0], [1, 0, 1, 0.5], [0, -1, 0, -0.5], [0, -1, 0.5, -0.5], [0, 1, 0, 1], [0, 1, 0.5, 1]]) {
+          if (!has.has((x + dx) + ',' + (y + dy))) g.dot(x + ox, y + oy, MAG[2]);
+        }
+      }
+      f.fline(8, 8, 12, 4, OBS[6]); f.fline(8, 9, 8, 30, OBS[5]); f.dot(8, 8, WHITE);
+      if (on) { f.dot(12, 4, WHITE); g.dot(12, 4, WHITE); g.dot(11.5, 4, MAG[3]); g.dot(12.5, 4, MAG[3]); }
+    },
+  });
 }
 
 // ------------------------------------------------------------ Tor zur Glutschmiede
@@ -653,6 +985,25 @@ function forgeGate() {
   }, {
     ax: 38, light: { dx: 0, dy: -18, radius: 110, color: [255, 120, 50], intensity: 1 },
     extra: { boxes: [[-38, -8, -12, 1], [12, -8, 38, 1]], door: { dx: 0, dy: -2 } },
+    // Fein: Lavarinnen und Becken mit weißem Kern im Saum, Glutspalt der Tür mit Kernlinie, Emblemflamme,
+    // Runenband mit hellen Kernpunkten
+    fine: (f, g) => {
+      const bottom = 67, cx = 38, ftop = 12, dtop = ftop + 9;
+      for (const lx of [8, 67]) {
+        for (let y = 20; y <= bottom - 3; y++) {
+          const x = lx + Math.round(Math.sin(y * 0.3) * 1);
+          f.dot(x + 0.5, y, EMB[5]); f.dot(x + 0.5, y + 0.5, EMB[5]); f.dot(x, y + 0.5, EMB[4]);
+          g.dot(x + 0.5, y, EMB[5]); g.dot(x + 0.5, y + 0.5, HOT);
+        }
+        f.oval(lx + 0.5, bottom - 0.5, 2.2, 0.6, EMB[4]); f.fline(lx - 1, bottom - 0.5, lx + 1.5, bottom - 0.5, EMB[5]);
+        g.oval(lx + 0.5, bottom - 0.5, 2.2, 0.6, EMB[5]); g.fline(lx - 1, bottom - 0.5, lx + 1.5, bottom - 0.5, HOT);
+      }
+      f.fline(cx + 0.5, dtop + 2, cx + 0.5, bottom, EMB[5]); f.fline(cx - 1, dtop + 2, cx - 1, bottom, EMB[3]); f.fline(cx + 1.5, dtop + 2, cx + 1.5, bottom, EMB[3]);
+      g.fline(cx + 0.5, dtop + 2, cx + 0.5, bottom, HOT); g.fline(cx, dtop + 2, cx, bottom, EMB[5]);
+      for (let x = cx - 3; x < cx + 4; x += 0.5) { f.dot(x, bottom, Math.abs(x - cx - 0.5) < 1.5 ? EMB[5] : EMB[4]); g.dot(x, bottom, HOT); }
+      flameF(f, g, cx + 0.5, 5, 4.5, 3, 0.2);
+      for (let x = 16 + 3; x < 59 - 2; x += 4) { f.dot(x, ftop + 7, EMB[4]); f.dot(x + 0.5, ftop + 7.5, EMB[3]); g.dot(x, ftop + 7, HOT); }
+    },
   });
 }
 
@@ -661,6 +1012,27 @@ function lavaVent() {
   const W = 28, H = 14;
   return mk(W, H, (p, g) => {
     const bottom = H - 1, cy = bottom - 4, cx = 14;
+    if (p.fine) {
+      // Fein: Kruste als flacher Kegel mit Facetten, Spalt mit dunkler Lippe, farbigem Saum und weißem Kern;
+      // Hitzeschein gestuft (zwei Ringe auf der Leuchtebene) statt halbdurchsichtiger Fläche
+      rockF(p, cx + 0.5, cy + 0.5, 12.5, 4.5, 551, BAS, { lo: 1, hi: 5, bias: -0.1, rough: 0.2, sectors: 9 });
+      for (let x = cx - 8; x <= cx + 8.5; x += 0.5) {
+        const y = cy + Math.sin(x * 0.9) * 1, hw = Math.max(0, 1.6 - Math.abs(x - cx) / 6);
+        const yt = Math.round(y * 2) / 2, yb = yt + Math.max(0.5, Math.round(hw * 2) / 2);
+        p.dot(x, yt - 0.5, BAS[0]);
+        for (let yy = yt; yy <= yb; yy += 0.5) {
+          const core = yy > yt && yy < yb, hot = core && Math.abs(x - cx) < 5;
+          p.dot(x, yy, hot ? EMB[5] : core ? EMB[4] : yy === yt ? EMB[3] : EMB[2]);
+          g.dot(x, yy, hot ? HOT : core ? EMB[4] : EMB[3]);
+        }
+        p.dot(x, yb + 0.5, EMB[1]); g.dot(x, yb + 0.5, EMB[2]);
+        if (Math.abs(x - cx) < 6) { g.dot(x, yt - 0.5, EMB[2]); g.dot(x, yt - 1, EMB[1]); }
+      }
+      for (const [x, y] of [[3, cy], [24, cy + 1], [6, cy + 3], [21, cy - 2]]) {
+        p.rect(x, y, 2, 2, BAS[3]); p.rect(x, y, 1.5, 0.5, BAS[5]); p.dot(x, y, BAS[6]); p.rect(x + 1.5, y + 0.5, 0.5, 1.5, BAS[1]);
+      }
+      return;
+    }
     // Kruste
     p.ellipse(cx, cy, 12, 4, BAS[2]); p.ellipse(cx - 1, cy - 1, 10, 3, BAS[3]); p.ellipse(cx - 3, cy - 2, 5, 1.5, BAS[4]);
     // Spalt (gezackt)
@@ -674,7 +1046,7 @@ function lavaVent() {
     // Schlackebrocken am Rand
     for (const [x, y] of [[3, cy], [24, cy + 1], [6, cy + 3], [21, cy - 2]]) { p.rect(x, y, 2, 2, BAS[3]); p.px(x, y, BAS[5]); }
     g.ctx.fillStyle = 'rgba(255,120,50,0.25)'; g.ctx.fillRect(cx - 4, cy - 3, 9, 2);
-  }, { ax: 14, ay: H - 2, light: { dx: 0, dy: -4, radius: 48, color: [255, 120, 50], intensity: 0.8 }, extra: { steam: { dx: 0, dy: -4 } } });
+  }, { ax: 14, ay: H - 2, light: { dx: 0, dy: -4, radius: 48, color: [255, 120, 50], intensity: 0.8 }, extra: { steam: { dx: 0, dy: -4 } }, b: true });
 }
 
 // ============================================================ Runde 5: Gebirge
@@ -686,14 +1058,38 @@ const RUST = ['#140a08', '#24120d', '#3a1d13', '#55291a', '#723a22', '#8f4e2c'];
 const BRASS = ['#2a1a08', '#4a3010', '#7a5a1e', '#b08a34', '#e0c060', '#fff0a8'];
 const SOOT = ['#060508', '#0b090d', '#110e14', '#18141c'];
 
-function mkFlat(W, H, draw, { ax, ay, extra } = {}) {
+// Im Feinraster (res 2) ist das Bild 2W×2H Texel ohne Rand: die Leuchtebene wird dann in Texelgröße deckungsgleich
+// zum Sprite gebaut (drawGlowLayer zeichnet sie skaliert an dieselbe Stelle); fine(f, g) setzt feine Zusätze
+// (Glutkerne) auf das hochskalierte Bild und die Leuchtebene. Bei res 1 alles wie früher.
+function mkFlat(W, H, draw, { ax, ay, extra, fine = null } = {}) {
+  const res = fineRes();
   const gl = new PixelCanvas(W + 2, H + 2);
   gl.ctx.translate(1, 1);
   let used = false;
   const g = { px: (x, y, c) => { used = true; gl.px(x, y, c); }, rect: (x, y, w, h, c) => { used = true; gl.rect(x, y, w, h, c); } };
   const sprite = buildFrame(W, H, ax, ay, (p) => draw(p, g), { outline: false });
   const e = { sprite };
-  if (used) e.glow = gl.canvas;
+  if (res === 1) {
+    if (used) e.glow = gl.canvas;
+  } else {
+    let gf = null;
+    if (fine) {
+      const fc = new DecoCanvas(W, H, res), ctx = sprite.canvas.getContext('2d');
+      fc.buf = canvasPixels(sprite.canvas);
+      const fg = { dot: (x, y, c) => { used = true; (gf ??= new DecoCanvas(W, H, res)).dot(x, y, c); } };
+      fine(fc, fg);
+      const img = ctx.createImageData(W * res, H * res);
+      new Uint32Array(img.data.buffer).set(fc.pixels());
+      ctx.putImageData(img, 0, 0);
+    }
+    if (used) {
+      const gc = new PixelCanvas(W * res, H * res);
+      gc.ctx.imageSmoothingEnabled = false;
+      gc.ctx.drawImage(gl.canvas, 1, 1, W, H, 0, 0, W * res, H * res);
+      if (gf) gc.ctx.drawImage(gf.canvas, 0, 0);
+      e.glow = gc.canvas;
+    }
+  }
   if (extra) Object.assign(e, extra);
   return e;
 }
@@ -768,7 +1164,22 @@ function rampSteps(rows) {
       for (let i = 0; i < 4; i++) { p.px(i, y, BAS[[1, 3, 2, 1][i]]); p.px(W - 1 - i, y, BAS[[0, 1, 2, 1][i]]); }
       if (y % 8 === 4) { p.px(1, y, BAS[4]); p.px(2, y, BAS[3]); }
     }
-  }, { ax: 27, ay: -2 });
+  }, {
+    ax: 27, ay: -2,
+    // Glutfuge: heißer Kern im Saum (gleiche Lage wie die Weltpixel-Glut)
+    fine: (f, g) => {
+      const n = Math.ceil((H - 1) / 8);
+      for (let s = 0; s < n; s++) {
+        if (hash2(s, 1, 903) >= 0.3) continue;
+        const cx = X0 + 8 + Math.floor(hash2(s, 2, 904) * 46), y0 = s * 8;
+        for (let i = 1; i < 4; i++) {
+          const x = cx + i, y = y0 + 6 - (i % 2);
+          f.dot(x, y, EMB[3]); f.dot(x + 0.5, y, i === 2 ? EMB[5] : EMB[4]); f.dot(x, y + 0.5, EMB[1]);
+          g.dot(x + 0.5, y, i === 2 ? HOT : EMB[4]); g.dot(x, y, EMB[4]);
+        }
+      }
+    },
+  });
 }
 
 // ------------------------------------------------------------ Lavabrücke (Basalt, 6 Kacheln)
@@ -840,15 +1251,26 @@ function lavaBridge() {
       p.rect(x0 + 2, 1, 5, 2, IRON[2]); p.px(x0 + 3, 1, EMB[4]); p.px(x0 + 5, 1, EMB[3]);
       g.rect(x0 + 2, 0, 5, 2, EMB[4]); g.px(x0 + 4, -1, EMB[3]);
     }
-  }, { ax: 40, ay: 22, box: [-40, -14, 56, 1], extra: { low: true, lights: [{ dx: -36, dy: -22, radius: 54, color: [255, 140, 60], intensity: 0.8 }, { dx: 52, dy: -22, radius: 54, color: [255, 140, 60], intensity: 0.8 }] } });
+  }, {
+    ax: 40, ay: 22, box: [-40, -14, 56, 1], extra: { low: true, lights: [{ dx: -36, dy: -22, radius: 54, color: [255, 140, 60], intensity: 0.8 }, { dx: 52, dy: -22, radius: 54, color: [255, 140, 60], intensity: 0.8 }] },
+    // Fein: Feuerkörbe mit Kohlen (heißer Kern im Saum), Glanz an den Kettenpfosten
+    fine: (f, g) => {
+      for (const x0 of [0, W - 9]) {
+        f.fline(x0 + 2.5, 1, x0 + 6.5, 1, EMB[3]); f.dot(x0 + 3, 1, EMB[5]); f.dot(x0 + 3.5, 1, EMB[4]); f.dot(x0 + 5, 1, EMB[4]); f.dot(x0 + 5.5, 1, EMB[5]);
+        f.fline(x0 + 2, 2.5, x0 + 6.5, 2.5, IRON[3]);
+        g.dot(x0 + 3, 1, HOT); g.dot(x0 + 5.5, 1, HOT); g.dot(x0 + 4, 0.5, EMB[5]); g.dot(x0 + 4.5, 0, EMB[4]);
+      }
+      for (let px0 = 10; px0 < W - 4; px0 += 19) { f.dot(px0, DECK1 - 7, IRON[5]); f.fline(px0, DECK1 - 6.5, px0, DECK1 - 2, IRON[3]); }
+    },
+  });
 }
 
 // ------------------------------------------------------------ Stolleneingang in der Felswand
 function mineEntrance() {
   const W = 62, H = 52, cx = 31, by = H - 1;
   return mk(W, H, (p, g) => {
-    // Felsumrahmung (verschmilzt mit der Klippe)
-    basLump(p, 9, 22, 10, 22, 921); basLump(p, 53, 22, 10, 22, 922); basLump(p, cx, 8, 26, 9, 923);
+    // Felsumrahmung (verschmilzt mit der Klippe); im Feinraster als Facettenfels in der unteren Ebene
+    if (!g.fine) { basLump(p, 9, 22, 10, 22, 921); basLump(p, 53, 22, 10, 22, 922); basLump(p, cx, 8, 26, 9, 923); }
     // Schwarzer Schlund mit Tiefe
     for (let y = 14; y <= by; y++) for (let x = 15; x <= 47; x++) {
       const d = Math.max(Math.abs(x - cx) / 16, (by - y) / 36);
@@ -892,7 +1314,29 @@ function mineEntrance() {
     for (const [x, y] of [[6, by - 1], [9, by], [52, by - 1], [56, by]]) { p.rect(x, y - 1, 3, 2, BAS[3]); p.px(x, y - 1, BAS[5]); p.px(x + 1, y, EMB[3]); g.px(x + 1, y, EMB[4]); }
     p.line(50, by - 1, 55, by - 9, WOOD[3]); p.line(52, by - 10, 58, by - 7, IRON[3]); p.px(52, by - 10, IRON[5]);
     ashPatch(p, cx, by, 14, 1, 925);
-  }, { ax: 31, box: [-19, -8, 19, 1], light: { dx: -14, dy: -28, radius: 66, color: [255, 150, 70], intensity: 0.85 } });
+  }, {
+    ax: 31, box: [-19, -8, 19, 1], light: { dx: -14, dy: -28, radius: 66, color: [255, 150, 70], intensity: 0.85 },
+    under: (f) => {
+      if (!f.fine) return;
+      rockF(f, 9, 22, 10, 22, 921, BAS, { lo: 1, hi: 4, bias: -0.2, sectors: 6 });
+      rockF(f, 53, 22, 10, 22, 922, BAS, { lo: 1, hi: 4, bias: -0.2, sectors: 6 });
+      rockF(f, cx, 8, 26, 9, 923, BAS, { lo: 1, hi: 5, bias: -0.2, sectors: 9, ash: [ASHG[3], ASHG[4]] });
+      // Klüfte: dunkle Fuge mit heller Lippe darunter
+      for (const [x0, y0, x1, y1] of [[3, 14, 8, 21], [8, 21, 6, 30], [4, 34, 9, 40], [56, 12, 59, 20], [55, 26, 60, 33], [12, 3, 17, 6], [44, 2, 49, 5]]) {
+        f.fline(x0, y0, x1, y1, BAS[0]); f.fline(x0 + 0.5, y0 + 0.5, x1 + 0.5, y1 + 0.5, BAS[4]);
+      }
+    },
+    // Fein: Laternenglas mit Kern, Glut in den Erzbrocken, Glanz an Hacke und Klammern, Schienenglanz im Lichtkegel
+    fine: (f, g) => {
+      lanternF(f, g, 16, 20, 3, 4);
+      for (const [x, y] of [[6, by - 1], [9, by], [52, by - 1], [56, by]]) {
+        f.dot(x + 1, y, EMB[4]); f.dot(x + 1.5, y, EMB[3]); f.dot(x + 1, y + 0.5, EMB[2]); g.dot(x + 1, y, HOT); g.dot(x + 1.5, y, EMB[4]);
+      }
+      f.fline(52, by - 10, 57.5, by - 7.5, IRON[4]); f.dot(52, by - 10, WHITE);
+      for (const x of [15, 47]) f.dot(x - 1, 11, IRON[4]);
+      for (let y = by; y > by - 9; y--) { const t = (by - y) / 18, sp = Math.round(9 - t * 5); f.dot(cx - sp, y, IRON[4]); }
+    },
+  });
 }
 
 // ------------------------------------------------------------ Gleisstück (senkrecht, eine Kachel)
@@ -933,7 +1377,30 @@ function mineCart(v) {
     for (const wx of [8, 20]) {
       p.ellipse(wx, by - 4, 3, 3, IRON[1]); p.ellipse(wx, by - 4, 2, 2, IRON[2]); p.px(wx - 1, by - 6, IRON[4]); p.px(wx, by - 4, IRON[0]);
     }
-  }, { ax: 14, box: [-10, -5, 10, 1], light: v === 0 ? { dx: 0, dy: -18, radius: 36, color: [255, 120, 50], intensity: 0.5 } : undefined });
+  }, {
+    ax: 14, box: [-10, -5, 10, 1], light: v === 0 ? { dx: 0, dy: -18, radius: 36, color: [255, 120, 50], intensity: 0.5 } : undefined,
+    // Fein: glühendes Erz mit weißem Kern, Obsidianglanz, Nietenglanz, Radnaben und Schienenkante
+    fine: (f, g) => {
+      if (v === 0) for (const [x, y] of [[7, 4], [12, 3], [17, 5], [21, 4], [10, 6]]) {
+        f.dot(x + 0.5, y, EMB[5]); f.dot(x + 1, y, EMB[4]); f.dot(x, y + 0.5, EMB[3]); f.dot(x + 1.5, y + 0.5, EMB[2]);
+        g.dot(x + 0.5, y, HOT); g.dot(x + 1, y, EMB[5]); g.dot(x, y, EMB[4]);
+      } else { f.dot(16, 3, WHITE); f.dot(9, 5, WHITE); f.fline(16.5, 3.5, 17.5, 4.5, OBS[5]); }
+      for (const x of [6, 13, 20]) f.dot(x, 9, WHITE);
+      // Räder rund nachzeichnen: Reifen, Felge, Nabe, Lichtbogen oben links
+      for (const wx of [8, 20]) {
+        const c = wx + 0.5, cy = 19.5;
+        f.each(c - 3.5, cy - 3.5, c + 3.5, cy + 3.5, (x, y) => {
+          const dx = x - c, dy = y - cy, d = Math.sqrt(dx * dx + dy * dy);
+          if (d > 3.55) return null;
+          if (d > 2.6) return dx + dy < -2 ? IRON[3] : dx + dy > 1.5 ? IRON[0] : IRON[1];
+          if (d < 0.9) return d < 0.45 ? IRON[0] : IRON[3];
+          return Math.abs(dx) < 0.3 || Math.abs(dy) < 0.3 ? IRON[2] : '#141824';
+        });
+        f.dot(c - 2, cy - 2.5, IRON[4]);
+      }
+      f.fline(1, 21, 26.5, 21, IRON[4]);
+    },
+  });
 }
 
 // ------------------------------------------------------------ Grubenstütze mit Laterne
@@ -955,7 +1422,7 @@ function pitProps() {
     p.line(13, 8, 13, 13, IRON[2]);
     p.rect(11, 14, 5, 7, IRON[1]); p.rect(12, 15, 3, 5, EMB[4]); p.px(12, 15, EMB[5]); p.rect(11, 14, 5, 1, IRON[3]); p.px(13, 21, IRON[2]);
     g.rect(11, 14, 5, 7, EMB[3]); g.rect(12, 15, 3, 5, EMB[5]);
-  }, { ax: 13, extra: { boxes: [[-10, -3, -5, 1], [6, -3, 10, 1]] }, light: { dx: 0, dy: -20, radius: 62, color: [255, 150, 70], intensity: 0.8 } });
+  }, { ax: 13, extra: { boxes: [[-10, -3, -5, 1], [6, -3, 10, 1]] }, light: { dx: 0, dy: -20, radius: 62, color: [255, 150, 70], intensity: 0.8 }, fine: (f, g) => lanternF(f, g, 12, 15, 3, 5) });
 }
 
 // ------------------------------------------------------------ Schlackenhalde
@@ -965,6 +1432,24 @@ function slagHeap(v) {
     const by = H - 1, cx = W / 2;
     ashPatch(p, Math.floor(cx), by - 1, Math.floor(W / 2) - 1, 2, 960 + v);
     const humps = [[[cx - 5, by - 6, 8, 6], [cx + 6, by - 4, 6, 4]], [[cx - 2, by - 5, 8, 5], [cx + 5, by - 3, 4, 3]], [[cx - 6, by - 7, 9, 7], [cx + 6, by - 5, 8, 5], [cx + 1, by - 9, 5, 4]]][v];
+    if (p.fine) {
+      // Fein: Kuppen als kantige Schlacke mit Facetten und Asche auf den Graten, glasige Brocken (Obsidian mit
+      // Glanzfacette), Glutnester mit heißem Kern
+      for (const [hx, hy, rx, ry] of humps) rockF(p, hx, hy, rx + 0.3, ry + 0.3, 961 + v + hx, BAS, { lo: 1, hi: 5, bias: -0.2, ash: [ASHG[3], ASHG[4]], rough: 0.8, rim: 0.7 });
+      const rng = createRng(962 + v), solid = (x, y) => (p.buf[Math.floor(y * 2) * p.W + Math.floor(x * 2)] >>> 24) > 0;
+      for (let i = 0; i < 9; i++) {
+        const x = Math.round(rng.range(3, W - 4)), y = Math.round(rng.range(by - 10, by - 1));
+        if (!solid(x + 0.5, y + 0.5) || !solid(x - 0.5, y - 0.5)) continue;
+        const big = rng.chance(0.5);
+        p.dot(x, y, OBS[big ? 4 : 3]); p.dot(x - 0.5, y - 0.5, OBS[big ? 6 : 5]); p.dot(x, y - 0.5, OBS[5]); p.dot(x - 0.5, y, OBS[4]); p.dot(x + 0.5, y, OBS[2]); p.dot(x, y + 0.5, OBS[1]);
+      }
+      for (let i = 0; i < 4; i++) {
+        const x = Math.round(rng.range(4, W - 5)), y = Math.round(rng.range(by - 6, by - 1));
+        if (!solid(x + 0.5, y + 0.5)) continue;
+        emberDot(p, g, x, y);
+      }
+      return;
+    }
     for (const [hx, hy, rx, ry] of humps) basLump(p, hx, hy, rx, ry, 961 + v + hx);
     // glasige Brocken und Obsidianglanz
     const rng = createRng(962 + v);
@@ -984,7 +1469,7 @@ function slagHeap(v) {
       if (hash2(x, 0, 963 + v) < 0.5) p.px(x, y, ASHG[3 + (hash2(x, 1, 964) < 0.4 ? 1 : 0)]);
       break;
     }
-  }, { ax: Math.floor([30, 24, 34][v] / 2), box: [-Math.floor([30, 24, 34][v] / 2) + 4, -5, Math.floor([30, 24, 34][v] / 2) - 4, 1], extra: { low: true } });
+  }, { ax: Math.floor([30, 24, 34][v] / 2), box: [-Math.floor([30, 24, 34][v] / 2) + 4, -5, Math.floor([30, 24, 34][v] / 2) - 4, 1], extra: { low: true }, b: true });
 }
 
 // ------------------------------------------------------------ Steinmann mit Wimpel
@@ -993,12 +1478,28 @@ function cairn(v) {
   return mk(W, H, (p) => {
     ashPatch(p, 8, by, 6, 1, 970 + v);
     const stones = [[8, by - 2, 6, 2.4], [7, by - 6, 5, 2], [8.5, by - 9.5, 4, 1.8], [7.5, by - 12.5, 3, 1.5], [8, by - 15, 2, 1.2]];
+    if (p.fine) {
+      // Fein: geschichtete Platten mit Facetten (Licht oben links, Schattenfuge unter jeder Platte), Stab mit
+      // Lichtkante, Wimpel mit Falte und Saum
+      stones.forEach(([x, y, rx, ry], i) => {
+        rockF(p, x, y, rx + 0.3, ry + 0.2, 971 + i + v * 7, FST, { lo: 1, hi: 5, bias: -0.06, rough: 0.6, sectors: 5, rim: 0.72 });
+      });
+      p.fline(9.5, by - 16, 9.5, 2, WOOD[2], 0.5); p.fline(9, by - 16, 9, 2, WOOD[4]); p.dot(9, 1.5, WOOD[4]); p.dot(9.5, 1.5, WOOD[3]);
+      const len = v ? 6 : 5;
+      p.scan(10, 2, 10 + len, 7, (x, y) => {
+        const i = x - 10, yt = 3 + Math.sin(i * 0.9) * 0.8, hgt = i < len - 2 ? 3 : 2 + (len - 1 - i) * 0.5, r = y - yt;
+        if (r < 0 || r >= hgt) return 0;
+        const slope = Math.cos(i * 0.9);                                    // Falte: steigende Seite im Licht
+        return col32h(r < 0.5 ? CRIM[4] : r >= hgt - 0.5 ? CRIM[1] : slope < -0.3 ? CRIM[2] : i < 2 ? CRIM[4] : CRIM[3]);
+      });
+      return;
+    }
     stones.forEach(([x, y, rx, ry], i) => basLump(p, x, y, rx, ry, 971 + i + v * 7, FST));
     // Stab mit rotem Wimpel
     p.line(9, by - 16, 9, 2, WOOD[3]); p.px(9, 1, WOOD[4]);
     const len = v ? 6 : 5;
     for (let i = 0; i < len; i++) { const y = 3 + Math.round(Math.sin(i * 0.9) * 0.8); p.px(10 + i, y, CRIM[i < 2 ? 4 : 3]); p.px(10 + i, y + 1, CRIM[2]); if (i < len - 2) p.px(10 + i, y + 2, CRIM[1]); }
-  }, { ax: 8, box: [-4, -3, 4, 1] });
+  }, { ax: 8, box: [-4, -3, 4, 1], b: true });
 }
 
 // ------------------------------------------------------------ Feuerschale auf Dreibein
@@ -1006,13 +1507,44 @@ function brazier() {
   const W = 16, H = 22, by = H - 1;
   const e = mk(W, H, (p, g) => {
     ashPatch(p, 8, by, 6, 1, 981);
+    if (p.fine) {
+      // Dreibein mit Lichtkante, Schale als Eisen in 5 Stufen (Rand mit Glanzlinie, Nieten), Glutbett aus
+      // Kohlen: dunkle Kruste, farbiger Saum, heißer Kern; Leuchtebene gestuft (Kern hell, Saum, Schein darüber)
+      p.fline(3.5, by + 0.5, 6.5, 12.5, IRON[2], 0.5); p.fline(3, by + 0.5, 6, 12.5, IRON[4]);
+      p.fline(13.5, by + 0.5, 10.5, 12.5, IRON[1], 0.5); p.fline(13, by + 0.5, 10, 12.5, IRON[2]);
+      p.fline(8.5, by - 0.5, 8.5, 13, IRON[1], 0.5); p.fline(8, by - 0.5, 8, 13, IRON[2]);
+      p.dot(3, by + 0.5, IRON[4]); p.dot(13.5, by + 0.5, IRON[3]);
+      fpoly(p, [[2, 9], [14, 9], [13, 11.5], [11.5, 13], [4.5, 13], [3, 11.5]], (x, y) => {
+        const u = (x - 2) / 12;
+        if (y < 9.5) return u < 0.15 ? IRON[5] : IRON[4];
+        let k = u < 0.18 ? 4 : u < 0.45 ? 3 : u < 0.8 ? 2 : 1;
+        if (y > 12.4) k = Math.max(0, k - 1);
+        if (y >= 10.5 && y < 11) k = Math.max(1, k - 1);                    // Reif um die Schale
+        return IRON[k];
+      });
+      p.fline(2.5, 9, 6, 9, IRON[5]);
+      for (const x of [4, 8, 12]) { p.dot(x, 11.5, x < 8 ? IRON[5] : IRON[3]); p.dot(x + 0.5, 12, IRON[0]); }
+      // Kohlen: Klumpen mit Kruste oben links, Glut dazwischen
+      p.scan(3, 7, 13, 9, (x, y) => (y >= 8 ? col32h(EMB[2]) : 0));
+      const coals = [[3.6, 8.2, 1.1], [5.4, 7.9, 1.3], [7.4, 8.1, 1.2], [9.3, 7.8, 1.3], [11.2, 8.1, 1.2], [12.6, 8.4, 0.8], [6.5, 7.3, 0.8], [10.3, 7.2, 0.8]];
+      for (const [x, y, r] of coals) {
+        p.oval(x, y, r, r * 0.75, CHAR[3]); p.oval(x - 0.25, y - 0.25, r * 0.6, r * 0.45, CHAR[5]);
+      }
+      for (let x = 3; x < 13; x += 0.5) g.dot(x, 8.5, EMB[3]);
+      for (const [x, y] of [[4.5, 8.5], [6.5, 8.5], [8.4, 8.5], [10.3, 8.5], [12, 8.5], [5.5, 7.5], [9.5, 7.5]]) {
+        p.dot(x, y, EMB[4]); p.dot(x + 0.5, y, EMB[3]); p.dot(x, y - 0.5, EMB[3]);
+        g.dot(x, y, HOT); g.dot(x + 0.5, y, EMB[4]); g.dot(x, y - 0.5, EMB[4]); g.dot(x - 0.5, y, EMB[3]);
+      }
+      p.dot(8, 8.5, EMB[5]); p.dot(10.5, 8.5, EMB[5]);
+      return;
+    }
     p.line(3, by, 6, 12, IRON[2]); p.line(13, by, 10, 12, IRON[1]); p.line(8, by - 1, 8, 13, IRON[1]);
     p.px(3, by, IRON[3]); p.px(13, by, IRON[2]);
     p.rect(2, 9, 12, 2, IRON[3]); p.rect(3, 11, 10, 1, IRON[2]); p.rect(4, 12, 8, 1, IRON[1]);
     p.rect(2, 9, 12, 1, IRON[4]); p.px(2, 9, IRON[5]);
     for (let x = 3; x < 13; x++) { const c = hash2(x, 0, 982) < 0.4 ? EMB[4] : EMB[3]; p.px(x, 8, c); g.px(x, 8, EMB[5]); }
     p.px(5, 7, EMB[3]); p.px(10, 7, EMB[2]); g.px(5, 7, EMB[4]); g.px(10, 7, EMB[3]);
-  }, { ax: 8, box: [-4, -3, 4, 1], light: { dx: 0, dy: -16, radius: 82, color: [255, 140, 60], intensity: 0.95 }, extra: { embers: { dx: 0, dy: -16, rate: 1.4 } } });
+  }, { ax: 8, box: [-4, -3, 4, 1], light: { dx: 0, dy: -16, radius: 82, color: [255, 140, 60], intensity: 0.95 }, extra: { embers: { dx: 0, dy: -16, rate: 1.4 } }, b: true });
   e.flames = emberFlames(9, 12, 6, 983);
   e.flameAt = { dx: -4, dy: -24 };
   return e;
@@ -1745,7 +2277,16 @@ function sluiceGate(open) {
     for (let a = 0; a < Math.PI * 2; a += 0.15) p.px(Math.round(wx + Math.cos(a) * 4), Math.round(wy + Math.sin(a) * 2.5), IRON[3]);
     for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4 + (open ? 0.4 : 0); p.line(wx, wy, Math.round(wx + Math.cos(a) * 4), Math.round(wy + Math.sin(a) * 2.5), IRON[2]); }
     p.px(wx, wy, GOLD[3]);
-  }, { ax: 16, box: [-14, -4, 14, 1], light: { dx: 0, dy: -4, radius: open ? 70 : 40, color: [255, 120, 50], intensity: open ? 0.9 : 0.5 } });
+  }, {
+    ax: 16, box: [-14, -4, 14, 1], light: { dx: 0, dy: -4, radius: open ? 70 : 40, color: [255, 120, 50], intensity: open ? 0.9 : 0.5 },
+    // Fein: Glutstrom mit weißem Kern im Saum, Nietenglanz am Schütz
+    fine: (f, g) => {
+      const by = 35;
+      if (open) { f.fline(9, by - 1.5, 22.5, by - 1.5, EMB[5]); g.fline(9, by - 1.5, 22.5, by - 1.5, HOT); f.fline(8, by - 0.5, 23.5, by - 0.5, EMB[2]); }
+      else { f.fline(10, by - 3, 21.5, by - 3, EMB[3]); f.fline(12, by - 3, 19.5, by - 3, EMB[4]); g.fline(12, by - 3, 19.5, by - 3, EMB[5]); }
+      for (const x of [10, 15, 21]) f.dot(x, (open ? 9 : 17) + 2, WHITE);
+    },
+  });
 }
 
 // ------------------------------------------------------------ Harpyiennest auf der Klippenkante
@@ -1828,7 +2369,10 @@ function liftWinch() {
     p.line(7, 11, 7, by - 22, ROPE[2]); p.rect(3, by - 22, 8, 7, IRON[1]); basLump(p, 7, by - 19, 3.4, 2.6, 1602, BAS);
     // Laterne am Ständer
     p.rect(30, 16, 4, 5, IRON[1]); p.rect(31, 17, 2, 3, EMB[4]); g.rect(30, 16, 4, 5, EMB[3]); g.px(31, 18, EMB[5]);
-  }, { ax: 20, box: [-16, -6, 18, 1], light: { dx: 12, dy: -42, radius: 60, color: [255, 170, 90], intensity: 0.7 } });
+  }, {
+    ax: 20, box: [-16, -6, 18, 1], light: { dx: 12, dy: -42, radius: 60, color: [255, 170, 90], intensity: 0.7 },
+    fine: (f, g) => { lanternF(f, g, 31, 17, 2, 3); f.dot(47, 5, WHITE); f.dot(31.5, 39, IRON[5]); },
+  });
 }
 
 // Aufzugskorb unten am Fuß der Klippe
@@ -1892,7 +2436,7 @@ function mineLamp(v) {
     g.rect(7, 9, 5, 6, EMB[3]); g.rect(8, 10, 3, 4, EMB[5]);
     // Steinkeil am Fuß
     basLump(p, 4, by - 1, 3, 1.6, 1632 + v, BAS);
-  }, { ax: 4, box: [-2, -2, 2, 1], light: { dx: 5, dy: -18, radius: 64, color: [255, 180, 100], intensity: 0.8 } });
+  }, { ax: 4, box: [-2, -2, 2, 1], light: { dx: 5, dy: -18, radius: 64, color: [255, 180, 100], intensity: 0.8 }, fine: (f, g) => lanternF(f, g, 8, 10, 3, 4, v === 1) });
 }
 
 // Bergmannsgrab: Geröllhügel mit eingeschlagener Spitzhacke, Grubenhelm und Grubenlicht
@@ -1910,7 +2454,15 @@ function minerGrave(v) {
     p.ellipse(hx + 1, by - 12, 3, 1.8, BRASS[2]); p.px(hx, by - 13, BRASS[4]);
     const lx = v ? 6 : 19;
     p.rect(lx, by - 6, 3, 3, IRON[1]); p.px(lx + 1, by - 5, EMB[4]); g.px(lx + 1, by - 5, EMB[5]);
-  }, { ax: 13, box: [-9, -4, 9, 1], light: { dx: v ? -6 : 7, dy: -6, radius: 30, color: [255, 170, 90], intensity: 0.45 } });
+  }, {
+    ax: 13, box: [-9, -4, 9, 1], light: { dx: v ? -6 : 7, dy: -6, radius: 30, color: [255, 170, 90], intensity: 0.45 },
+    fine: (f, g) => {
+      const lx = v ? 6 : 19, hx = v ? 20 : 6, by = 25;
+      f.dot(lx + 1, by - 5, EMB[5]); f.dot(lx + 1.5, by - 5, EMB[4]); f.dot(lx + 1, by - 4.5, EMB[3]); f.dot(lx + 1.5, by - 4.5, EMB[2]);
+      g.dot(lx + 1, by - 5, HOT); g.dot(lx + 1.5, by - 5, EMB[4]); g.dot(lx + 1, by - 4.5, EMB[4]); g.dot(lx + 0.5, by - 5, EMB[3]);
+      f.dot(hx - 5, by - 18, WHITE); f.dot(hx + 6, by - 20, IRON[5]); f.dot(hx, by - 13, BRASS[5]);
+    },
+  });
 }
 
 // Erzbrecher: verlassenes Pochwerk mit Stampfern, Rad und Erzhaufen
