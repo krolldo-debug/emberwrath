@@ -633,8 +633,17 @@ function oak(seed) {
     for (let i = 0; i < 9; i++) balls.push([cx + rng.range(-12, 12), rng.range(8, 24), rng.range(6, 9)]);
     balls.push([cx - 6, 12, 8], [cx + 6, 13, 8], [cx, 7, 8]);
     balls.sort((a, b) => a[1] - b[1]);
+    if (p.fine) {
+      // Krone im Feinraster: vier klar abgesetzte Laubbüschel (hinten dunkler), Licht oben links, dunkle Unterseite
+      const j = (k) => (hash2(k, 7, seed) - 0.5) * 2;
+      leafClump(p, cx - 8 + j(1), 17, 8, 6.5, 1, seed + 1);
+      leafClump(p, cx + 8 + j(2), 16, 8, 6.5, 1, seed + 2);
+      leafClump(p, cx + 1 + j(3), 10, 9, 7, 0, seed + 3);
+      leafClump(p, cx - 3 + j(4), 22, 10, 6, 0, seed + 4);
+      leafClump(p, cx + 8 + j(5), 23, 6.5, 5, 0, seed + 5);
+    }
     for (const [bx, by, r] of balls) {
-      if (p.fine) { leafBall(p, bx, by, r, seed); continue; }
+      if (p.fine) continue;
       if (coarseSkip(p)) continue;
       for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
         const d = (x * x + y * y) / (r * r);
@@ -649,7 +658,30 @@ function oak(seed) {
     }
     // Schatten unten in der Krone
     if (lo(p)) for (let x = 4; x < W - 4; x++) for (let y = 26; y < 31; y++) if (hash2(x, y, seed + 3) < 0.25) p.px(x, y, LEAF[0]);
-  }, { ax: cx, box: [-3, -3, 3, 1], extra: { shadow: 22 } });
+  }, { ax: cx, box: [-3, -3, 3, 1], extra: { shadow: 22 }, finish: false });
+}
+
+// Laubbüschel im Feinraster: Rand in wenigen runden Buckeln, harte Lichtstufen von oben links, unten ein dunkles
+// Schattenband; dazu drei Unterbüschel als helle Kappe oben links + dunkle Sichel unten rechts (Form statt Rauschen).
+function leafClump(p, bx, by, rx, ry, dark, seed) {
+  const ph = hash2(seed, 1, 77) * 6.28;
+  const sub = [[-0.42, -0.2, 0.42], [0.35, -0.38, 0.4], [0.05, 0.3, 0.45]].map(([u, v, r]) => [u + (hash2(seed, u * 9, 3) - 0.5) * 0.15, v, r]);
+  p.each(bx - rx - 1, by - ry - 1, bx + rx + 1, by + ry + 1, (x, y) => {
+    const u = (x - bx) / rx, v = (y - by) / ry, d = u * u + v * v;
+    const f = 1 + 0.07 * Math.sin(Math.atan2(v, u) * 6 + ph);
+    if (d > f * f) return null;
+    const z = Math.sqrt(Math.max(0, 1 - d));
+    const l = -u * 0.55 - v * 0.75 + z * 0.45;
+    let i = l > 0.62 ? 4 : l > 0.22 ? 3 : l > -0.2 ? 2 : l > -0.55 ? 1 : 0;
+    for (const [su, sv, sr] of sub) {
+      const du = (u - su) / sr, dv = (v - sv) / sr, dd = du * du + dv * dv;
+      if (dd > 1) continue;
+      if (dd > 0.62 && du + dv > 0.55) i = Math.max(0, i - 1);           // Sichel unten rechts
+      else if (dd < 0.45 && du + dv < -0.45 && i >= 2) i = Math.min(5, i + 1);   // Kappe oben links
+    }
+    if (v > 0.55 && d > 0.55) i = Math.min(i, 1);
+    return LEAF[clampI(i - dark, 6)];
+  });
 }
 
 // Laubballen im Feinraster: gewellter Rand, Blattbüschel als kleine Schuppen (Licht oben links an jedem Büschel,

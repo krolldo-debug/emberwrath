@@ -2,7 +2,7 @@ import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFine, fmap, grain, tone } from '../sprites/npcFine.js';
 
-// Rabenpost: eisenbeschlagener Briefkasten auf Steinsockel, Schindeldach, Siegel der Glutwaage unter dem Schlitz,
+// Rabenpost: eisenbeschlagener Briefkasten auf Steinsockel, Schindeldach, Wachssiegel unter dem Schlitz,
 // Laterne am Haken (brennt, wenn Post wartet) und ein Rabe auf dem First. Anker = Fußpunkt.
 // Feinraster Stufe B (npcFine.buildFine): alter Weg grob, Details im feinen Durchgang (`if (p.fine)`); bei „Niedrig“ nur alt.
 // Die Leuchtebene bleibt in Weltpixeln (mail/index.js zeichnet sie direkt).
@@ -76,23 +76,23 @@ function box(p) {
     p.rect(9, fy - 26.5, 8, 0.5, '#1a1420'); p.rect(9, fy - 26, 8, 0.5, ST[0]);
     p.rect(8, fy - 25, 10, 0.5, G[2]); p.rect(8, fy - 24.5, 10, 0.5, G[0]); p.dot(8.5, fy - 25, G[3]);
   }
-  // Siegel der Glutwaage: rotes Wachs mit Goldprägung
+  // Siegel: rotes Wachs mit Goldprägung
   if (p.fine) {
-    // Wachs unregelmäßig mit Tropfen, Licht oben links, eingeprägte Waage in Gold
+    // Runde Wachsscheibe mit hartem Umriss, Licht oben links, eingeprägte Glutflamme in Gold
     fmap(p, 10, fy - 24, [
-      '....4443....',
-      '..44433322..',
-      '.443333h3221',
-      '.43hGhGGh321',
-      '443g33h33g21',
-      '43hgh3hhgh21',
-      '43333h333221',
-      '.333hhhh221.',
-      '.3322222211.',
-      '..32222211..',
-      '...221111...',
-      '....21......',
-    ], { 4: nudge(C[4]), 3: nudge(C[3]), 2: nudge(C[2]), 1: nudge(C[1]), G: G[4], h: G[3], g: G[2] });
+      '....oooo....',
+      '..oo4443oo..',
+      '.o44443332o.',
+      '.o4433h322o.',
+      'o443h3hg221o',
+      'o433hhGg221o',
+      'o433hGGg221o',
+      'o332hGGg211o',
+      '.o322hg221o.',
+      '.o32222111o.',
+      '..oo2211oo..',
+      '....oooo....',
+    ], { o: nudge(C[0]), 4: nudge(C[4]), 3: nudge(C[3]), 2: nudge(C[2]), 1: nudge(C[1]), G: G[4], h: G[3], g: G[2] });
   } else {
     p.rect(11, fy - 23, 4, 4, C[3]); p.rect(12, fy - 24, 2, 6, C[3]); p.rect(10, fy - 22, 6, 2, C[3]);
     p.px(11, fy - 23, C[4]); p.px(12, fy - 24, C[4]); p.px(14, fy - 20, C[1]); p.px(15, fy - 21, C[2]); p.px(13, fy - 19, C[2]);

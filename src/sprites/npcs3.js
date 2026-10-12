@@ -117,14 +117,14 @@ function fur(p, x, y, w, h, F, ph = 0, lean = 0, horiz = false) {
   p.each(x, y, x + w, y + h + 0.5, (X, Y) => {
     const dx = X - x, dy = Y - y;
     if (dx < 0 || dx >= w || dy < 0 || dy >= h + 0.5) return null;
-    // Strähne = Feinspalte, die langsam wandert (lange, zusammenhängende Striche statt Flecken)
+    // Strähne = 2 Feinspalten breit, sanft geschwungen: links Lichtkante, rechts dunkle Fuge (ruhig statt Streifenrauschen)
     const u = horiz ? dy : dx, v = horiz ? dx : dy;
-    const s = u * 2 + Math.sin(v * 1.1 + u * 0.7 + ph) * 0.7 - v * lean * 2;
-    const f = ((Math.floor(s) % 3) + 3) % 3;
-    if (dy >= h && (horiz || f !== 1)) return null;                     // Spitzen hängen über die Unterkante
+    const s = u * 2 + Math.sin(v * 0.8 + ph) * 0.35 - v * lean * 2;
+    const f = ((Math.floor(s) % 4) + 4) % 4;
+    if (dy >= h && (horiz || f === 0 || f === 3)) return null;          // Spitzen (Strähnenmitte) hängen über die Unterkante
     const k = dy / h;                                                   // Licht von oben
     let i = k < 0.4 ? n - 1 : k < 0.75 ? n - 2 : n - 3;
-    if (f === 0) i -= 1; else if (f === 2 && k < 0.4) i += 1;
+    if (f === 3) i -= 1; else if (f === 0 && k < 0.5) i += 1;
     if (dy >= h - 0.5) i = Math.min(i, n - 3);
     return F[Math.max(0, Math.min(n - 1, i))];
   });
@@ -183,19 +183,19 @@ function drawVarra(p, g, { t = 0, talk = 0, gest = 0 }) {
   // Rundschild auf dem Rücken
   const sx = cx - 6, sy = ty + 4;
   if (p.fine) {
-    // Leder über Holz: Rand mit Lichtkante, eingeprägter Ring, Buckel aus Bronze mit Glanz, Nieten
+    // Leder über Holz, gewölbt: großes Glanzfeld oben links, Schatten unten rechts, Rand mit Lichtkante,
+    // sechs Nieten auf dem Rand, Buckel aus Bronze mit Glanz (harte Stufen, keine Sprenkel)
     p.ellipseFine(sx + 0.5, sy + 0.5, 5.35, 6.4, (nx, ny, d) => {
       const l = nx * 0.6 + ny * 0.8;
-      if (d > 0.74) return l < -0.45 ? OCHRE[2] : OCHRE[1];
-      if (d > 0.56 && d < 0.64) return l < -0.3 ? OCHRE[4] : OCHRE[1];
-      return l < -0.5 ? OCHRE[3] : l > 0.55 ? OCHRE[1] : OCHRE[2];
+      if (d > 0.72) return l < -0.3 ? OCHRE[3] : l > 0.4 ? OCHRE[0] : OCHRE[1];
+      if (l < -0.55 && d > 0.3 && d < 0.68) return OCHRE[4];
+      return l < -0.15 ? OCHRE[3] : l < 0.45 ? OCHRE[2] : OCHRE[1];
     });
-    for (let a = 0; a < 8; a++) {
-      const rx = sx + 0.5 + Math.cos(a * TAU / 8) * 4.4, ry = sy + 0.5 + Math.sin(a * TAU / 8) * 5.4;
-      p.dot(rx, ry, BRZ[3]); p.dot(rx + 0.5, ry + 0.5, BRZ[1]);
+    for (let a = 0; a < 6; a++) {
+      const rx = sx + 0.5 + Math.cos(a * TAU / 6 + 0.5) * 4.6, ry = sy + 0.5 + Math.sin(a * TAU / 6 + 0.5) * 5.6;
+      p.dot(rx, ry, BRZ[4]); p.dot(rx, ry + 0.5, BRZ[1]);
     }
-    p.fline(sx - 2, sy + 2.5, sx - 0.5, sy + 4, OCHRE[1]); p.dot(sx + 2.5, sy - 2.5, OCHRE[1]);   // Kerben
-    dome(p, sx + 0.5, sy + 0.5, 1.9, 1.9, BRZ, sy + 2.5, '#fff4c8');
+    fmap(p, sx - 0.5, sy - 0.5, ['.433.', '4w432', '34321', '23211', '.111.'], { w: '#fff4c8', 4: BRZ[4], 3: BRZ[3], 2: BRZ[2], 1: BRZ[1] });   // Buckel
   } else {
     p.ellipse(sx, sy, 5, 6, OCHRE[1]); p.ellipse(sx, sy, 4, 5, OCHRE[2]);
     p.ellipse(sx - 1, sy - 1, 2, 3, OCHRE[3]);
@@ -1141,20 +1141,21 @@ function drawEskil(p, g, { t = 0, talk = 0, gest = 0 }) {
   const ty = 18 - b, hy = 9 - b;
   // Pelzumhang (breit, bis fast zum Boden)
   if (p.fine) {
-    // Fell in langen, welligen Strähnen statt Sprenkeln; Lichtkante links, Spitzen unten gezackt
+    // Fell in breiten Zotteln (2 Weltpixel) parallel zur Außenkante: links Lichtkante, rechts dunkle Fuge,
+    // oben links hell, unten rechts dunkel, jede Zottel endet unten in einer Spitze
     const left = (y) => { const k = (y - ty) / (fy - ty); return cx - 4 - (4 + k * 3 + sw * k); };
     p.each(cx - 13, ty - 2, cx + 1.99, fy - 0.01, (x, y) => {
-      const xl = left(y);
+      const xl = left(Math.min(y, fy - 1));
       if (x < xl - 0.25) return null;
-      const k = (y - ty) / (fy - ty);
-      const s = (x - xl) * 2 + Math.sin(y * 0.9 + x * 0.6) * 0.9 + sw * k;
-      const f = ((Math.floor(s) % 4) + 4) % 4;
-      if (y > fy - 1.5 && Math.sin(x * 4.4) > 0.2) return null;
-      let i = x < xl + 1 ? 3 : x > cx - 1 ? 1 : 2;
-      if (f === 0) i -= 1; else if (f === 2 && i < 3) i += 1;
-      if (x < xl + 0.5 && y < ty + 6) i = 4;
-      if (y > fy - 2.5) i = Math.min(i, 2);
-      return GREYF[Math.max(0, i)];
+      const k = Math.max(0, (y - ty) / (fy - ty)), r = (x - xl + 0.25) / 2;
+      const L = Math.floor(r), q = r - L;
+      const tip = fy - 1.75 - ((L * 5) % 3) * 0.5;                      // Zottelenden leicht versetzt
+      if (y > tip && Math.abs(q - 0.5) * 2 > 1 - (y - tip) / 1.75) return null;
+      let i = k < 0.35 ? 3 : k < 0.7 ? 2 : 1;
+      if (L === 0) i += 1; else if (x > cx - 1) i -= 1;
+      if (q >= 0.75) i -= 1; else if (q < 0.25 && k < 0.6) i += 1;
+      if (y > tip - 0.5) i = Math.min(i, 1);
+      return GREYF[Math.max(0, Math.min(4, i))];
     });
   } else {
     for (let y = ty - 2; y <= fy - 1; y++) {

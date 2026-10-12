@@ -27,17 +27,17 @@ const NOGLOW = { px() {}, rect() {}, line() {}, ellipse() {}, dot() {}, fline() 
 function head(p, hx, hy, talk) {
   const S = SKIN;
   if (p.fine) {
-    // Gesicht fein, graue Schläfen in Strähnen, gezwirbelter Schnurrbart und Spitzbart
+    // Gesicht fein, graue Schläfen in zwei Strähnen, gezwirbelter Schnurrbart und Spitzbart (Licht oben links)
     headFine(p, hx, hy, { skin: S, talk, brow: GREY[2], old: true, iris: '#4a5a6a' });
-    fmap(p, hx + 1, hy + 2, ['cdcb', 'bcbc', 'cbcb', 'bccb', 'cbbc', 'bcb.', 'cb..', 'b...'], { b: GREY[1], c: GREY[2], d: GREY[3] });
+    fmap(p, hx + 1, hy + 2, ['ddcd', 'dccc', 'dccb', 'ccbb', 'ccbb', 'cbb.', 'cb..', 'b...'], { b: GREY[1], c: GREY[2], d: GREY[3] });
     fmap(p, hx + 3, hy + 5.5, [
-      '...dccd...',
-      '..dccbbccd',
-      '.bcb.mm.bc',
-      '.bcbccbc..',
-      '..bcbcb...',
-      '..cbcbc...',
-      '...bcb....',
+      '...dddc...',
+      '..dcccccb.',
+      '.dcb.mm.cb',
+      '.cbdcccb..',
+      '..dcccbb..',
+      '..dccbb...',
+      '...dcb....',
       '...cb.....',
       '....b.....',
     ], { b: GREY[1], c: GREY[2], d: GREY[3], m: talk ? MOUTH : '#6a4a40' });
@@ -145,14 +145,14 @@ function draw(p, g, { t = 0, talk = 0, gest = 0 }) {
   p.rect(cx - 5, ty - 1, 11, 3, WINE[3]); p.rect(cx - 5, ty - 1, 11, 1, WINE[4]); p.px(cx - 5, ty + 1, WINE[2]); p.px(cx + 5, ty + 1, WINE[2]);
   if (p.fine) {
     p.rect(cx - 5, ty - 0.5, 11, 0.5, WINE[3]); p.rect(cx - 5, ty - 1, 3, 0.5, tone(WINE[4], 0.18)); p.rect(cx + 3.5, ty - 0.5, 2.5, 2.5, WINE[2]);
-    // Pelz in Büscheln, Spitzen hängen über den Mantel
+    // Pelz in sechs Büscheln (links im Licht, rechts im Schatten), Spitzen hängen über den Mantel
     fmap(p, cx - 4, ty - 2.5, [
-      '...dc.dcd..cd.....',
-      '..cdcc.dcdc.cdc...',
-      '.cbccdcbccbcdcbc..',
-      'cbcbbcbbcbcbbcbbc.',
-      'bbabbcbabbabbcbab.',
-      '.a.ba..a.b.a..ab..',
+      '.dc.dc.dc.dc.cb.cb',
+      'dccdccdccdcccbbcbb',
+      'dcbdcbdcbdcbcbacba',
+      'ccbccbccbccbbbabba',
+      'cbacbacbacbabaabaa',
+      '.a.....a.....a....',
     ], { a: GREY[0], b: GREY[1], c: GREY[2], d: GREY[3] });
   } else { p.rect(cx - 4, ty - 2, 9, 2, GREY[1]); p.rect(cx - 3, ty - 2, 7, 1, GREY[2]); p.px(cx + 3, ty - 2, GREY[3]); }
   // Amtskette mit der Glutwaage

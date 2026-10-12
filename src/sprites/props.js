@@ -409,16 +409,19 @@ export function createBarrel() {
     for (const y of [3, 11]) { p.rect(1, y, 10, 1, St[1]); p.rect(2, y, 8, 1, St[2]); p.px(9, y, St[4]); }
     ell(p, 6, 1, 4, 1, WOOD[3]); p.rect(3, 1, 6, 1, WOOD[4]);
     if (!p.fine) return;
-    // fein: Dauben mit Fugen (dunkel + Lichtkante), Maserung längs, Reifen mit Glanz und Nägeln, Deckel mit Spund
-    const inside = (x, y) => ((x - 6) / 5.5) ** 2 + ((y - 7) / 7) ** 2 < 0.86;
-    for (const [x, lit] of [[4, WOOD[3]], [7, WOOD[3]], [2.5, WOOD[2]], [9, WOOD[4]]]) {
-      for (let y = 2; y < 13.5; y += 0.5) {
-        if (!inside(x, y)) continue;
-        if ((y >= 3 && y < 4) || (y >= 11 && y < 12)) continue;
-        p.dot(x, y, WOOD[1]); if (inside(x + 0.5, y)) p.dot(x + 0.5, y, lit);
-      }
-    }
-    grainIn(p, 1, 4, 10, 7, WOOD[1], WOOD[3], 3, false, (x, y) => inside(x, y) && (x % 1.5 > 0.4));
+    // fein: fünf Dauben mit vier geraden Fugen (dunkel + Lichtkante), Licht von links oben, Reifen mit Glanz und Nägeln,
+    // Deckel mit Spund
+    const DAUBE = [2, 3, 3, 2, 1];
+    p.each(0.5, 2, 11.5, 14, (x, y) => {
+      if (((x - 6) / 5.5) ** 2 + ((y - 7) / 7) ** 2 >= 1) return null;
+      if ((y >= 3 && y < 4) || (y >= 11 && y < 12)) return null;
+      const r = Math.max(0, Math.min(9.99, x - 1)), d = Math.floor(r / 2), q = r - d * 2;
+      let i = DAUBE[d];
+      if (d > 0 && q < 0.5) return WOOD[Math.max(0, i - 2)];
+      if (d > 0 && d < 3 && q < 1) i += 1;
+      if (y >= 12.5) i -= 1;
+      return WOOD[Math.max(0, Math.min(4, i))];
+    });
     for (const y of [3, 11]) {
       p.rect(1.5, y, 9, 0.5, St[3]); p.rect(5, y, 4, 0.5, St[4]); p.dot(9, y, St[5]);
       p.rect(1.5, y + 0.5, 9, 0.5, St[1]); p.dot(1, y + 0.5, St[0]);
