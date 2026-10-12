@@ -135,3 +135,88 @@ export function stroke(S, ax, ay, len, s, col, rel = -2, light = 1) {
     if (light && i < len - 1) S.mark(F, G + 1, light);
   }
 }
+
+// Feld (Weltpixel mit Rand, aus S.noise) am Feinpixel (F, G) bilinear zwischen den Weltpixelmitten: Grenzen, die
+// aus dem Feld folgen, verlaufen dann im Feinraster statt in 2×2-Stufen (4 Lesezugriffe)
+export function fineAt(f, S, F, G) {
+  const tx = (F - S.F0) / 2 - 0.25, ty = (G - S.G0) / 2 - 0.25, ix = Math.floor(tx), iy = Math.floor(ty);
+  const ax = tx - ix, ay = ty - iy, q = (iy + S.m) * S.fw + ix + S.m;
+  const a = f[q] + (f[q + 1] - f[q]) * ax, b = f[q + S.fw] + (f[q + S.fw + 1] - f[q + S.fw]) * ax;
+  return a + (b - a) * ay;
+}
+
+// Bodenart (level.soil, Zeilen wie die Karte) je Feinpixel, im selben Raster wie das Terrain K (Breite KW, Rand M):
+// Index = ki. Grenze verwackelt wie in den Weltpixel-Shadern (Rauschen /sc, Seeds sa/sb, Ausschlag amp Weltpixel,
+// hier als Feld auf grobem Gitter, fein interpoliert), am Übergang geordnet gerastert (dr Weltpixel).
+// Ohne soil: alles ' ' (32). S.soilHas[code] = 1, wenn die Bodenart im Raster (mit Rand) vorkommt.
+export function soilFine(S, soil, sc, sa, sb, amp, dr = 0.5) {
+  const { K, KW, M, F0, G0, fw } = S, out = new Uint8Array(K.length), has = S.soilHas = new Uint8Array(256);
+  if (!soil) { has[32] = 1; return out.fill(32); }
+  const jx = S.noise([[4, sc, sc, sa, 1]]), jy = S.noise([[4, sc, sc, sb, 1]]), H = K.length / KW;
+  // Blöcke von 16 × 16 Feinpixeln, deren erreichbare Kacheln (Ausschlag + Rasterung) alle dieselbe Bodenart haben,
+  // sofort füllen; nur gemischte Blöcke je Feinpixel rechnen
+  const r = amp / 2 + dr / 2 + 0.5, BW = Math.ceil(KW / 16), BH = Math.ceil(H / 16), mixed = new Uint8Array(BW * BH);
+  for (let bj = 0; bj < BH; bj++) for (let bi = 0; bi < BW; bi++) {
+    const ax = (F0 - M + bi * 16) / 2 - r, ay = (G0 - M + bj * 16) / 2 - r;
+    const tx0 = Math.floor(ax / 16), tx1 = Math.floor((ax + 8 + 2 * r) / 16), ty0 = Math.floor(ay / 16), ty1 = Math.floor((ay + 8 + 2 * r) / 16);
+    let c = -1, same = true;
+    for (let ty = ty0; ty <= ty1 && same; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      const row = soil[ty], v = row ? row.charCodeAt(tx) || 32 : 32;
+      if (c < 0) c = v; else if (v !== c) { same = false; break; }
+    }
+    if (!same) { mixed[bj * BW + bi] = 1; continue; }
+    has[c] = 1;
+    for (let g = bj * 16; g < Math.min(H, bj * 16 + 16); g++) out.fill(c, g * KW + bi * 16, g * KW + Math.min(KW, bi * 16 + 16));
+  }
+  // Rand: Feinpixel ganz außen nehmen den letzten Wert (Interpolation braucht einen Nachbarn)
+  for (let g = 0; g < H; g++) {
+    const G = G0 - M + g, ty = Math.max(0, g / 2 - 0.25), iy = Math.min(Math.floor(ty), S.fh - 2), ay = ty - iy;
+    const y0 = (G + 0.5) / 2, rb = (G & 3) * 4;
+    let last = -1, lastC = 32;
+    const mr = (g >> 4) * BW;
+    for (let f = 0; f < KW; f++) {
+      if (mixed[mr + (f >> 4)] === 0) { f |= 15; continue; }
+      const F = F0 - M + f, tx = Math.max(0, f / 2 - 0.25), ix = Math.min(Math.floor(tx), fw - 2), ax = tx - ix, q = iy * fw + ix;
+      const a = jx[q] + (jx[q + 1] - jx[q]) * ax, b = jx[q + fw] + (jx[q + fw + 1] - jx[q + fw]) * ax;
+      const c = jy[q] + (jy[q + 1] - jy[q]) * ax, e = jy[q + fw] + (jy[q + fw + 1] - jy[q + fw]) * ax;
+      const d = (D4[rb + (F & 3)] / 16 - 0.5) * dr;
+      const x = (F + 0.5) / 2 + (a + (b - a) * ay - 0.5) * amp + d, y = y0 + (c + (e - c) * ay - 0.5) * amp + d;
+      const tyi = Math.floor(y / 16), txi = Math.floor(x / 16), key = tyi * 65536 + txi;
+      if (key !== last) { last = key; const row = soil[tyi]; lastC = row ? row.charCodeAt(txi) || 32 : 32; has[lastC] = 1; }
+      out[g * KW + f] = lastC;
+    }
+  }
+  return out;
+}
+// Bodenart am Anker (Stempel; Index wie S.kAt)
+export function soilAt(S, F, G) {
+  const { M, KW, W2, H2 } = S;
+  return S.soil[(clampI(G - S.G0, -M, H2 + M - 1) + M) * KW + clampI(F - S.F0, -M, W2 + M - 1) + M];
+}
+
+// Pflaster fein in der Lage von groundPixel(':') (Steine 6 × 5 Weltpixel = 12 × 10 Feinpixel, Reihen versetzt):
+// Stufe 1..5 der Steinrampe (Licht oben links, Kante unten rechts dunkler, je Stein eine Abplatzung an einer Ecke)
+// oder -1 für die Fuge (1 Feinpixel).
+export function paveAt(F, G) {
+  const row = Math.floor(G / 10), sh = (row & 1) * 6, col = Math.floor((F + sh) / 12);
+  const lx = F + sh - col * 12, ly = G - row * 10;
+  if (lx === 0 || ly === 0) return -1;
+  const s = hash2(col, row, 16);
+  let i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
+  if (ly === 1 || lx === 1) i += 1;
+  else if (ly === 9 || lx === 11) i -= 1;
+  // Abplatzung: kleine dunkle Kerbe an einer Ecke (je Stein fest)
+  const c = hash2(col, row, 751);
+  if (c < 0.35) {
+    const cx = c < 0.17 ? 11 : 1;
+    if (ly >= 8 && Math.abs(lx - cx) <= (ly === 9 ? 1 : 0)) i = 1;
+  }
+  return clampI(i, 1, 5);
+}
+
+// Wie band(), aber mit wählbarer Breite w des gerasterten Übergangs (Anteil einer Stufe, z. B. 0,1 = schmal):
+// bei flachen Feldern bleibt die Rasterung so ein schmaler Saum statt eines breiten Schachbretts
+export function bandW(t, n, dt, w) {
+  const v = t * n, k = Math.floor(v), f = v - k, a = 0.5 - w / 2;
+  return k + (f > a + w ? 1 : f > a && dt < (f - a) / w ? 1 : 0);
+}
