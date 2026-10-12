@@ -497,11 +497,17 @@ function body(pt, P, L) {
   }
 }
 
-// Leib fein: Texelmitten, harte Stufen; Adern schmaler (Rille) mit Lichtkante darunter, violett ohne Sprenkel,
-// Leuchten folgt der feinen Ader (heller Kern); Poren rund mit Lichtlippe; Schleimfäden 1 Texel mit Tropfen.
+// Leib fein: Texelmitten, harte Stufen; Adern schmal und leuchtend (heller Kern, dunkler Saum), Fäulnisflecken
+// als harte, beulige Flecken; Poren rund mit Lichtlippe; Schleimfäden 1 Texel mit Tropfen.
 // Schnell: Zeilenwerte vorab, Beulen (sin 5a, sin 9a) über Tschebyschow-Polynome statt atan2, direkt in die Puffer.
 const C07 = Math.cos(0.7), S07 = Math.sin(0.7), C21 = Math.cos(2.1), S21 = Math.sin(2.1);
-const FLESH_VT = FLESH.map((c) => blend(c, [120, 70, 170], 0.35));
+const VEIN_LIT = R(['#7a48ac', '#a874e0', '#e4c2ff']);
+const ROTC = R(['#1c1018', '#3a2634', '#4c4230', '#140a10', '#5e5a34']);
+// Fäulnisflecken im Leib-Raum (u, v, Radius)
+const ROT_SPOTS = [[-0.52, -0.18, 0.12], [-0.18, 0.18, 0.1], [0.34, -0.36, 0.11], [0.62, 0.06, 0.09], [0.08, 0.48, 0.12],
+  [-0.72, 0.32, 0.1], [0.46, 0.56, 0.08], [-0.36, -0.62, 0.09], [0.16, -0.08, 0.07], [-0.04, 0.78, 0.09], [0.82, 0.38, 0.07], [-0.86, -0.1, 0.07]]
+  .map((sp, n) => [...sp, n * 1.7]);
+const SPROW = new Array(ROT_SPOTS.length);
 function bodyFine(pt, P, L) {
   const { cx, cy, rx, ry } = L;
   const pores = [];
@@ -517,17 +523,20 @@ function bodyFine(pt, P, L) {
     if (v * v > lmax * lmax) continue;
     const reach = rxw * Math.sqrt(lmax * lmax - v * v);
     const xa = Math.max(X0, Math.floor((cx - reach) * RS) - RS), xb = Math.min(X1, Math.ceil((cx + reach) * RS) + RS);
-    const rowV = Math.sin(v * 4.3 + 1.1) * 1.6 + 0.4, rowU = Math.sin(((tc(Y - 1) - cy) / ry) * 4.3 + 1.1) * 1.6 + 0.4;
+    const rowV = Math.sin(v * 4.3 + 1.1) * 1.6 + 0.4;
     const lamRow = 0.52 - (v > 0.3 ? (v - 0.3) * 0.55 : 0) - col, hk = v > 0.15 ? 0.09 * (v - 0.15) : 0, hv = 0.5 + v * 2;
     const veinRow = v < 0.62, wy = Math.floor(Y / RS), row = Y * TW;
-    let mx0 = TW, mx1 = -1, gw = false;
+    let mx0 = TW, mx1 = -1, gw = false, ns = 0;
+    for (const sp of ROT_SPOTS) if (Math.abs(v - sp[1]) < sp[2] * 1.5) SPROW[ns++] = sp;
     // u wächst je Texel gleichmäßig: Ader- und Faltenwellen über Drehschritte statt sin je Texel
     const du = 1 / (RS * rxw), ua = (tc(xa) - cx) / rxw;
     const cdV = Math.cos(5.2 * du), sdV = Math.sin(5.2 * du), cdH = Math.cos(11 * du), sdH = Math.sin(11 * du);
-    let sV = Math.sin(ua * 5.2 + rowV), cV = Math.cos(ua * 5.2 + rowV), sU = Math.sin(ua * 5.2 + rowU), cU = Math.cos(ua * 5.2 + rowU);
+    let sV = Math.sin(ua * 5.2 + rowV), cV = Math.cos(ua * 5.2 + rowV);
     let sH = Math.sin(ua * 11 + hv), cH = Math.cos(ua * 11 + hv), q;
+    const pB = P.pulse + v * 2, cdP = Math.cos(3 * du), sdP = Math.sin(3 * du);
+    let sP = Math.sin(pB + ua * 3), cP = Math.cos(pB + ua * 3);
     for (let X = xa; X <= xb; X++, q = sV * cdV + cV * sdV, cV = cV * cdV - sV * sdV, sV = q,
-      q = sU * cdV + cU * sdV, cU = cU * cdV - sU * sdV, sU = q, q = sH * cdH + cH * sdH, cH = cH * cdH - sH * sdH, sH = q) {
+      q = sH * cdH + cH * sdH, cH = cH * cdH - sH * sdH, sH = q, q = sP * cdP + cP * sdP, cP = cP * cdP - sP * sdP, sP = q) {
       const u = ua + (X - xa) * du;
       const r = Math.sqrt(u * u + v * v);
       if (r > lmax) continue;
@@ -547,16 +556,28 @@ function bodyFine(pt, P, L) {
       const vein = vn < VW && d < 0.94 && veinRow;
       const k = row + X;
       if (vein) {
-        i = Math.max(1, i - 2);
-        b[k] = i >= 2 ? FLESH_VT[i] : vn < 0.02 ? VEIN_DEEP : FLESH[i];
-        gA[k] = 0; gB[k] = 0;
-        if (hash2(Math.floor(X / RS) >> 1, wy >> 1, 233) < 0.3) {
-          const lv = (1 + (Math.sin(P.pulse + u * 3 + v * 2) > 0.4 ? 1 : 0) + (vn < 0.015 ? 1 : 0)) * gk;
-          if (lv >= 0.5) { const l = Math.min(4, Math.round(lv)); gA[k] = VA[l]; gB[k] = VB[l]; gw = true; }
-        }
+        // leuchtende Ader: heller violetter Kern, Leuchten auf der ganzen Ader (pulsierend)
+        b[k] = vn < 0.018 ? VEIN_LIT[2] : i >= 3 ? VEIN_LIT[1] : VEIN_LIT[0];
+        const lv = (1.4 + (sP > 0.4 ? 1 : 0) + (vn < 0.018 ? 1 : 0)) * gk;
+        if (lv >= 0.5) { const l = Math.min(4, Math.round(lv)); gA[k] = VA[l]; gB[k] = VB[l]; gw = true; } else { gA[k] = 0; gB[k] = 0; }
       } else {
-        // Lichtkante unter der Rille: liegt die Ader eine Texelzeile höher?
-        b[k] = vn < 0.11 && d < 0.94 && veinRow && i < 6 && Math.abs(sU) < VW ? FLESH[i + 1] : FLESH[i];
+        let c = FLESH[i];
+        if (vn < 0.085 && d < 0.94 && veinRow) c = FLESH[i > 1 ? i - 1 : 0];   // dunkler Saum, damit die Ader glimmt
+        else {
+          // Fäulnisflecken: harte, beulige Flecken
+          for (let n = 0; n < ns; n++) {
+            const sp = SPROW[n], ex = u - sp[0];
+            if (ex > sp[2] * 1.3 || ex < -sp[2] * 1.3) continue;
+            const ey = (v - sp[1]) / 1.15;
+            if (ey > sp[2] * 1.3 || ey < -sp[2] * 1.3) continue;
+            const dd = Math.sqrt(ex * ex + ey * ey) / sp[2] + 0.16 * Math.sin(ex * 45 + ey * 33 + sp[3]);
+            if (dd >= 1) continue;
+            // dunkler Rand, faulig-brauner Grund (Schattenseite violett), eingesunkene Mitte, nasser Lichtsaum unten
+            c = dd > 0.78 ? ROTC[0] : dd < 0.32 ? ROTC[3] : dd < 0.5 && ex + ey > sp[2] * 0.15 && i >= 3 ? ROTC[4] : i >= 3 ? ROTC[2] : ROTC[1];
+            break;
+          }
+        }
+        b[k] = c;
         gA[k] = 0; gB[k] = 0;
         if (d < 0.9 && X % RS === 0 && Y % RS === 0) {
           const wx = X / RS;
@@ -582,7 +603,6 @@ function bodyFine(pt, P, L) {
     pt.px(x, y1, SLIME[4]); pt.dot(x - 0.25, y1 - 0.25, SLIME_SPEC); pt.dot(x + 0.25, y1 + 0.25, SLIME[3]);
   }
 }
-const VEIN_DEEP = hex('#2a1640');
 
 function sac(pt, P, L, s, i) {
   const c = sacPos(L, s);
@@ -631,9 +651,8 @@ function sac(pt, P, L, s, i) {
     if (rr > 5) for (let k = -0.6; k <= 0.6; k += 0.15) pt.px(c.x + k * rr, c.y + Math.sin(k * 3 + i) * rr * 0.25 + rr * 0.1, SAC[2]);
   }
 }
-// Sporensack fein: Fleischkragen mit Lichtkante, Membran in harten Stufen, feine Adern (verzweigt, matt
-// leuchtend), Glanzpunkt mit weißem Kern und Gegenlicht unten rechts; Leuchten mit heißem Kern.
-const SAC_SPEC = hex('#ffffff');
+// Sporensack fein (Pustel): Fleischkragen mit Lichtkante, hellgrüner Kern mit dunklem, leicht beuligem Rand,
+// faule Flecken, leuchtende Adern, kleiner unperfekter Glanzpunkt; Leuchten mit heißem Kern.
 function sacFine(pt, P, c, rr, gp, torn, i) {
   for (let a = 0; a < TAU; a += 0.06) {
     if (Math.sin(a) < -0.35) continue;
@@ -644,13 +663,28 @@ function sacFine(pt, P, c, rr, gp, torn, i) {
   // Lippe des Kragens: Lichtkante oben links, Schattenfalte rechts
   for (let a = Math.PI * 0.9; a < Math.PI * 1.65; a += 0.03) pt.dot(c.x + Math.cos(a) * (rr + 2.1), c.y + Math.sin(a) * (rr + 2.1) * 0.9, FLESH[6]);
   for (let a = -0.3; a < 1.1; a += 0.04) pt.dot(c.x + Math.cos(a) * (rr + 0.55), c.y + Math.sin(a) * (rr + 0.55) * 0.9, FLESH[1]);
-  const dim = clamp(P.sacGlow, 0, 1.2), rf = rr + 0.35;
-  for (let Y = TX(c.y - rf - 0.5); Y <= TX(c.y + rf + 0.5); Y++) {
+  // Pustel: hellgrüner Kern, nach außen dunkler, dunkler Rand; Umriss leicht beulig, ein, zwei faule Flecken
+  const dim = clamp(P.sacGlow, 0, 1.2), rf = rr + 0.35, R2 = rf * 1.12, sh = dim < 0.5 ? 1 : 0;
+  const W3c = Math.cos(i * 1.9), W3s = Math.sin(i * 1.9), W7c = Math.cos(i), W7s = Math.sin(i);
+  const blots = [];
+  if (rr > 4) for (let k = 0; k < (rr > 6.5 ? 2 : 1); k++) {
+    const a = hash2(i, k, 249) * TAU, f = 0.35 + hash2(i, k, 251) * 0.35;
+    blots.push({ x: Math.cos(a) * rr * f, y: Math.sin(a) * rr * f, r: rr * (0.13 + hash2(i, k, 253) * 0.08), w: k + i });
+  }
+  for (let Y = TX(c.y - R2 - 0.5); Y <= TX(c.y + R2 + 0.5); Y++) {
     const dy = tc(Y) - c.y;
-    for (let X = TX(c.x - rf - 0.5); X <= TX(c.x + rf + 0.5); X++) {
+    for (let X = TX(c.x - R2 - 0.5); X <= TX(c.x + R2 + 0.5); X++) {
       const dx = tc(X) - c.x, d2 = dx * dx + dy * dy;
-      if (d2 > rf * rf) continue;
-      const d = Math.sqrt(d2) / rf;
+      if (d2 > R2 * R2) continue;
+      let d = Math.sqrt(d2) / rf;
+      if (d > 0.82) {
+        // Beulen sin(3a+φ), sin(7a+ψ) über Tschebyschow-Polynome (ohne atan2)
+        const rr0 = Math.sqrt(d2), co = dx / rr0, si = dy / rr0, c2 = co * co;
+        const s3 = si * (4 * c2 - 1), k3 = co * (4 * c2 - 3);
+        const s7 = si * (64 * c2 * c2 * c2 - 80 * c2 * c2 + 24 * c2 - 1), k7 = co * (64 * c2 * c2 * c2 - 112 * c2 * c2 + 56 * c2 - 7);
+        d /= 1 + 0.07 * (s3 * W3c + k3 * W3s) + 0.04 * (s7 * W7c + k7 * W7s);
+      }
+      if (d > 1) continue;
       if (torn) {
         const ang = Math.atan2(dy, dx);
         if (d < 0.72) {
@@ -659,43 +693,44 @@ function sacFine(pt, P, c, rr, gp, torn, i) {
         } else if (hash2(Math.floor((ang + 4) * 3.2), i, 243) < 0.6) pt.tex(X, Y, d > 0.9 ? FLESH[3] : d < 0.78 && dy < 0 ? FLESH[5] : FLESH[4]);
         continue;
       }
-      const nz = Math.sqrt(1 - d * d), nx = dx / rf, ny = dy / rf;
-      const lam = 0.3 + (-0.5 * nx - 0.6 * ny) * 0.35 + nz * 0.25 + (dim - 0.6) * 0.3;
-      let col = shadeF(SAC, clamp(lam, 0, 0.86));
-      if (d > 0.88) col = SAC[dim > 0.5 ? 2 : 1];
-      pt.tex(X, Y, col);
+      const dl = d + (dx + dy) / rf * 0.12;   // Licht oben links: Kern leicht dorthin versetzt
+      let k = dl < 0.36 ? 5 : dl < 0.6 ? 4 : dl < 0.78 ? 3 : dl < 0.9 ? 2 : 1;
+      if (d > 0.93) k = 0;
+      else if (d > 0.86) k = Math.min(k, 1);
+      for (const bl of blots) {
+        const ex = dx - bl.x, ey = dy - bl.y;
+        if (Math.abs(ex) > bl.r * 1.3 || Math.abs(ey) > bl.r * 1.3) continue;
+        const bd = Math.sqrt(ex * ex + ey * ey) / bl.r + 0.18 * Math.sin(ex * 5 + ey * 4 + bl.w);
+        if (bd < 1) { k = Math.max(1, Math.min(k, 3) - (bd > 0.6 ? 2 : 1)); break; }
+      }
+      pt.tex(X, Y, SAC[Math.max(0, k - sh)]);
       if (d < 0.8) pt.gtex(X, Y, K_SAC, (0.8 - d) * 3.6 * gp + 0.3 * gp + (d < 0.2 ? 0.6 : 0));
     }
   }
   if (torn) return;
-  // Membranadern: vom Rand nach innen, mit kurzer Gabel
+  // Adern: leuchtend vom dunklen Rand zum Kern, mit kurzer Gabel
   if (rr > 3.2) {
     const nv = rr > 6 ? 4 : 2;
     for (let k = 0; k < nv; k++) {
       const a0 = 0.6 + (k / nv) * TAU * 0.8 + hash2(i, k, 247) * 0.6 + (i % 2) * 0.5;
       let a = a0, prev = null;
-      for (let f = 0.92; f >= 0.35; f -= 0.06) {
+      for (let f = 0.9; f >= 0.5; f -= 0.06) {
         a += Math.sin(f * 9 + k + i) * 0.07;
         const p = { x: c.x + Math.cos(a) * rr * f, y: c.y + Math.sin(a) * rr * f };
-        if (prev) { pt.fline(prev.x, prev.y, p.x, p.y, SAC[2]); pt.gfline(prev.x, prev.y, p.x, p.y, K_SAC, 1); }
-        if (Math.abs(f - 0.62) < 0.03 && rr > 5) {
-          const b = a + 0.5, q = { x: p.x + Math.cos(b) * rr * 0.22, y: p.y + Math.sin(b) * rr * 0.22 };
-          pt.fline(p.x, p.y, q.x, q.y, SAC[2]); pt.gfline(p.x, p.y, q.x, q.y, K_SAC, 1);
+        if (prev) { pt.fline(prev.x, prev.y, p.x, p.y, f > 0.7 ? SAC[4] : SAC[5]); pt.gfline(prev.x, prev.y, p.x, p.y, K_SAC, 2.6 * gp); }
+        if (Math.abs(f - 0.72) < 0.03 && rr > 5) {
+          const b = a + 0.5, q = { x: p.x + Math.cos(b) * rr * 0.2, y: p.y + Math.sin(b) * rr * 0.2 };
+          pt.fline(p.x, p.y, q.x, q.y, SAC[4]); pt.gfline(p.x, p.y, q.x, q.y, K_SAC, 2 * gp);
         }
         prev = p;
       }
     }
   }
-  // Glanzpunkt oben links (weißer Kern), Gegenlicht unten rechts
-  const gx = c.x - rr * 0.42, gy = c.y - rr * 0.48;
-  if (rr > 4) {
-    pt.dot(gx - 0.5, gy, SAC[5]); pt.dot(gx + 0.5, gy, SAC[5]); pt.dot(gx + 1, gy + 0.5, SAC[5]); pt.dot(gx - 0.5, gy + 0.5, SAC[5]);
-    pt.dot(gx, gy, SAC[6]); pt.dot(gx, gy + 0.5, SAC[6]); pt.dot(gx + 0.5, gy + 0.5, SAC[6]);
-    pt.dot(gx, gy, SAC_SPEC);
-    if (rr > 6) { pt.dot(gx + 1.5, gy - 0.5, SAC[5]); pt.dot(gx + 2, gy - 0.5, SAC[5]); }
-    for (let a = 0.35; a < 1.25; a += 0.12) pt.dot(c.x + Math.cos(a) * rr * 0.8, c.y + Math.sin(a) * rr * 0.8, SAC[4]);
-  } else { pt.dot(gx, gy, SAC[6]); pt.dot(gx + 0.5, gy, SAC[5]); }
-  pt.gdot(gx, gy, K_SAC, 4);
+  // kleiner, unperfekter Glanzpunkt oben links (feucht, nicht Plastik)
+  const gx = c.x - rr * 0.38, gy = c.y - rr * 0.44;
+  pt.dot(gx, gy, SAC[6]);
+  if (rr > 4) { pt.dot(gx + 0.5, gy - 0.5, SAC[6]); pt.dot(gx - 0.5, gy + 0.5, SAC[5]); }
+  pt.gdot(gx, gy, K_SAC, 3);
 }
 
 const torsoW = (t) => t < 0.25 ? 16 - t * 12 : t < 0.68 ? 13 + (t - 0.25) * 14 : 19 - (t - 0.68) * 30;
