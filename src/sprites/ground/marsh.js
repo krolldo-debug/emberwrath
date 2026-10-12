@@ -1,5 +1,5 @@
 import { hash2 } from '../../core/math.js';
-import { FK, ramp, D4, clampI, band, darken, chunkCtx, awayFrom, fineAt, pebble, blade, waterPrep, waterStamps, waterFine } from './kit.js';
+import { FK, ramp, D4, clampI, band, darken, vnoise, chunkCtx, awayFrom, pebble, blade, waterPrep, waterStamps, waterFine } from './kit.js';
 
 // Feinraster-Boden des Faulmarschs (Palette GROUND_MARSH in sprites/decor_marsh.js, hier nachgebaut).
 // Moor: Moospolster mit Licht oben links, Seggenbüschel mit fahlen Spitzen, nasse Torfflecken mit Pfützen;
@@ -41,8 +41,7 @@ function* marshSetup(x0, y0, cw, ch, K, KW, M) {
   S.tone = S.noise([[4, 11, 11, 901, 0.65], [2, 4, 4, 902, 0.35]]);
   S.patch = S.noise([[4, 17, 14, 903, 1]]);
   S.wet = S.noise([[4, 11, 11, 905, 1]]);
-  // Pfützen: eigenes, kleinteiliges Feld (halbe Größe), mit der Nässe verrechnet (keine Schnittkanten)
-  S.pf = S.noise([[3, 5.5, 4.5, 906, 1]]);
+  puddles(S);
   yield;
   waterPrep(S, x0, y0, cw, ch, K, KW, WP);
   yield;
@@ -141,12 +140,33 @@ function* marshSetup(x0, y0, cw, ch, K, KW, M) {
   return S;
 }
 
-// Pfütze: Feld fein interpoliert (Kontur im Feinraster), Rand oben links hell (1 Feinpixel), darunter Spiegelkante,
-// Rand unten rechts dunkel, im Spiegel selten ein kurzer Glanzstrich; -1 = keine Pfütze
-const PUD = 0.715;
-const pudAt = (S, F, G) => fineAt(S.pf, S, F, G) * 0.62 + fineAt(S.wet, S, F, G) * 0.38 > PUD;
-function puddle(F, G, S, wi) {
-  if (S.pf[wi] * 0.62 + S.wet[wi] * 0.38 < PUD - 0.06 || !pudAt(S, F, G)) return -1;
+// Pfützen: wenige rundliche Mulden (je Zelle 70 × 50 Weltpixel höchstens eine, eher dort, wo es nass ist), Umriss
+// leicht gewellt, ohne Ausläufer. Maske je Chunk in Feinpixeln mit 2 Feinpixeln Rand (Kantenabfragen).
+const PB = 2;
+function puddles(S) {
+  const PW = S.W2 + 2 * PB, pm = S.pm = new Uint8Array(PW * (S.H2 + 2 * PB));
+  S.cells(140, 100, 48, (cx, cy) => {
+    const h = hash2(cx, cy, 990);
+    if (h >= 0.5) return;
+    const px = cx * 140 + 30 + hash2(cx, cy, 991) * 80, py = cy * 100 + 24 + hash2(cx, cy, 992) * 52;
+    const w = vnoise(px / 22, py / 22, 905);   // Nässe am Mittelpunkt global (wie S.wet), gleich in allen Nachbarchunks
+    if (h >= (w > 0.58 ? 0.5 : w > 0.48 ? 0.3 : 0.08)) return;
+    const rx = 16 + hash2(cx, cy, 993) * 14, ry = rx * (0.55 + hash2(cx, cy, 994) * 0.15);
+    const g0 = Math.max(-PB, Math.floor(py - ry - 2) - S.G0), g1 = Math.min(S.H2 + PB, Math.ceil(py + ry + 2) - S.G0);
+    const f0 = Math.max(-PB, Math.floor(px - rx - 2) - S.F0), f1 = Math.min(S.W2 + PB, Math.ceil(px + rx + 2) - S.F0);
+    for (let g = g0; g < g1; g++) for (let f = f0; f < f1; f++) {
+      const F = S.F0 + f, G = S.G0 + g, dx = (F + 0.5 - px) / rx, dy = (G + 0.5 - py) / ry;
+      // Welle des Umrisses: grob (keine Spitzen), je Pfütze eigener Seed
+      const q = (dx * dx + dy * dy) * (1 + (vnoise(F / 9, G / 7, 995 + (cx & 7) * 13 + (cy & 7)) - 0.5) * 0.5);
+      if (q <= 1) pm[(g + PB) * PW + f + PB] = 1;
+    }
+  });
+}
+const pudAt = (S, F, G) => S.pm[(G - S.G0 + PB) * (S.W2 + 2 * PB) + F - S.F0 + PB] === 1;
+// Pfütze: Rand oben links hell (1 Feinpixel), darunter Spiegelkante, Rand unten rechts dunkel, im Spiegel selten ein
+// kurzer Glanzstrich; -1 = keine Pfütze
+function puddle(F, G, S) {
+  if (!pudAt(S, F, G)) return -1;
   if (!pudAt(S, F, G - 1) || !pudAt(S, F - 1, G)) return P.rim;
   if (!pudAt(S, F, G + 1) || !pudAt(S, F + 1, G)) return P.mud[1];
   if (!pudAt(S, F, G - 2) || !pudAt(S, F - 2, G)) return P.pool[3];
@@ -170,7 +190,7 @@ function marshFine(kind, F, G, K, ki, KW, S) {
     if (up === GR) return D[1];   // Grasnarbe wirft eine Kante
     if (a >= 0) return a;
     // Wasser in Spuren und Mulden: dunkler Spiegel, Unterkante hell, Glanzstrich
-    const pud = puddle(F, G, S, wi);
+    const pud = puddle(F, G, S);
     if (pud >= 0) return pud;
     const near = K[ki + KW] === GR || K[ki + 2 * KW] === GR || K[ki - 2 * KW] === GR || K[ki - 1] === GR || K[ki + 1] === GR || K[ki - 2] === GR || K[ki + 2] === GR;
     let i = 3 + clampI(band(t, 2.8, dt), 0, 2) + (near ? -1 : 0);
@@ -183,7 +203,7 @@ function marshFine(kind, F, G, K, ki, KW, S) {
   }
   if (a >= 0) return a;
   if (up === DI) return P.floor[6];
-  const pud = puddle(F, G, S, wi);
+  const pud = puddle(F, G, S);
   if (pud >= 0) return pud;
   // Moor: nasser Torf / Grundton / Polsterflächen
   const p = S.patch[wi];

@@ -1,6 +1,6 @@
 import { hash2 } from '../../core/math.js';
 import { PAL } from '../../gfx/Palette.js';
-import { FK, ramp, hxi, D4, clampI, chunkCtx, field, pebble, blade, stroke, vnoise, soilFine, soilAt, paveAt, awayFrom, fineAt, bandW } from './kit.js';
+import { FK, ramp, hxi, D4, clampI, chunkCtx, field, pebble, stroke, vnoise, soilFine, soilAt, paveAt, awayFrom, fineAt, bandW } from './kit.js';
 
 // Feinraster-Boden der Frostzinnen (biome 'frost'). Farben wie GROUND_FROST / frostPixel in sprites/decor_frost.js
 // (dort nur gelesen): Alt- und Neuschnee, apere Erde, Nadelwaldboden, Gletschereis, Geröll, Eis- und Höhlenboden,
@@ -16,8 +16,7 @@ const C = {
   track: ramp(['#383f50', '#434b5d', '#4f586a', '#5b6477', '#697285', '#7b8497']),
   earth: ramp(['#211b18', '#2c2420', '#383029', '#463b32', '#554839', '#665747']),
   // apere Stellen in Siedlungen: gefrorene Erde, kühl und nah am Altschnee (keine dunkelbraunen Flecken)
-  thaw: ramp(['#2f2e36', '#3a3840', '#45424a', '#504c54', '#5d5961', '#6c6870']),
-  straw: ramp(['#3a3224', '#4f4630', '#665b3c', '#7a6e48', '#8d8054', '#9d9062']),
+  thaw: ramp(['#363c47', '#404752', '#4a525e', '#565e6b', '#646d7a', '#727c8a']),
   needle: ramp(['#121815', '#1a211d', '#212a24', '#29342c', '#334036', '#3f4c40']),
   litter: ramp(['#2a2018', '#3a2c20', '#4a3828', '#5c4632']),
   gice: ramp(['#1b3846', '#24505f', '#2f6474', '#3f7a8b', '#5794a3', '#8cc0cb']),
@@ -73,12 +72,14 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
   return S;
 }
 
-// Neuschnee am Ort (offene Fläche: großflächiger Wechsel, schmaler gerasterter Übergang)
-const freshAt = (S, F, G, dt) => fineAt(S.fresh, S, F, G) + (dt - 0.5) * 0.03 > 0.47;
+// Neuschnee am Ort (offene Fläche: großflächiger Wechsel mit harter, ruhiger Kante – das Feld ändert sich so langsam,
+// dass jede Rasterung am Übergang zu einem breiten Punktfeld würde)
+const freshAt = (S, F, G) => fineAt(S.fresh, S, F, G) > 0.47;
 // Fleckdecke (Schnee auf Erde/Wald, Schneebänder auf dem Gletscher) am Feinpixel: Feld fein interpoliert, harte Kante
-const covAt = (f, S, F, G, thr) => fineAt(f, S, F, G) + (D4[(G & 3) * 4 + (F & 3)] / 16 - 0.5) * 0.012 > thr;
+// harte Kante ohne Rasterung (Schnee liegt erhaben auf: Lichtkante oben, Schattenzeile darunter)
+const covAt = (f, S, F, G, thr) => fineAt(f, S, F, G) > thr;
 // Schwelle der Schneedecke auf aperer Erde: fern von Wegen fast geschlossen, an Wegen/Feuern kleine apere Stellen
-const thrSE = (S, F, G) => 0.25 + 0.13 * fineAt(S.near, S, F, G);
+const thrSE = (S, F, G) => 0.32 * fineAt(S.near, S, F, G) - 0.03;
 const bareSE = (S, F, G) => !covAt(S.pe, S, F, G, thrSE(S, F, G));
 
 function stamps(S) {
@@ -119,21 +120,7 @@ function stamps(S) {
     pebble(S, px, py, rx, ry, St, tint, -2);
     if (!bare) snowCap(S, px, py, rx, ry);
   });
-  // Trockene Halme auf aperer Erde (nicht im Schneefleck)
-  for (let cx = Math.floor((S.F0 - 3) / 3); cx <= Math.floor((S.F0 + S.W2 + 3) / 3); cx++) {
-    const oy = Math.floor(hash2(cx, 3, 850) * 6);
-    for (let cy = Math.floor((S.G0 - 6 + oy) / 6); cy <= Math.floor((S.G0 + S.H2 + 6 + oy) / 6); cy++) {
-      const hb = hash2(cx, cy, 851);
-      if (hb >= 0.5) continue;
-      const bx = Math.floor(hash2(cx, cy, 852) * 3), F = cx * 3 + bx, G = cy * 6 - oy + 5;
-      if (kAt(F, G) !== GR || sAt(F, G) !== SE || !bareSE(S, F, G)) continue;
-      // Büschel: dicht in Horsten (Tonfeld hoch), sonst nur vereinzelt
-      const t = S.tone[wi(F, G)];
-      if (hb >= (t > 0.6 ? 0.22 : t > 0.52 ? 0.06 : 0.01)) continue;
-      const hh = 2 + Math.floor(hash2(cx, cy, 853) * 3), l = hash2(cx, cy, 854);
-      blade(S, F, G, hh, l < 0.25 ? -1 : l < 0.5 ? 1 : 0, C.straw);
-    }
-  }
+  // Apere Erde in Siedlungen: keine Halme (ruhige, kühle Fläche)
   // Waldboden: Zweige (Schatten darunter) und Zapfen
   S.cells(12, 10, 8, (cx, cy) => {
     const h = hash2(cx, cy, 860);
@@ -269,9 +256,9 @@ function crevFine(level, segs, F, G) {
 function snowPx(R, K, ki, KW, S, wi, dt, F, G, o, rip) {
   if (K[ki + KW] === DI) return R[4];
   let k = bandW(fineAt(S.tone, S, F, G), 2, dt, 0.08);
-  const L = fineAt(S.lit, S, F, G) + (dt - 0.5) * 0.008;
+  const L = fineAt(S.lit, S, F, G);
   if (L > 0.07) k++; else if (L < -0.07) k--;
-  if (rip && S.rz !== null && S.rz[wi] > 0.6 + dt * 0.08) {
+  if (rip && S.rz !== null && fineAt(S.rz, S, F, G) > 0.64) {
     const p = (G + F * 0.21 + fineAt(S.hgt, S, F, G) * 40) / 9, f = p - Math.floor(p);
     if (f < 0.111) k++; else if (f < 0.222) k--;
   }
@@ -348,7 +335,7 @@ function frostFine(kind, F, G, K, ki, KW, S) {
     }
     case SI: return icePx(C.cice, S, F, G, dt, o);
     case ST: return C.cave[clampI(1 + bandW(fineAt(S.tone, S, F, G), 2.4, dt, 0.12) + S.rel[o], 0, 6)];
-    default: return snowPx(freshAt(S, F, G, dt) ? C.neu : C.old, K, ki, KW, S, wi, dt, F, G, o, true);
+    default: return snowPx(freshAt(S, F, G) ? C.neu : C.old, K, ki, KW, S, wi, dt, F, G, o, true);
   }
 }
 

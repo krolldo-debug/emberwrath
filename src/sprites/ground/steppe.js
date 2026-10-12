@@ -163,7 +163,10 @@ function soilGrid(S, L) {
       jx = new Float32Array(gw * gh); jy = new Float32Array(gw * gh);
       for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
         const cx = gx0 + i, cy = gy0 + j;
-        jx[j * gw + i] = (vnoise(cx * 4 / 11, cy * 4 / 11, 401) - 0.5) * 18; jy[j * gw + i] = (vnoise(cx * 4 / 11, cy * 4 / 11, 402) - 0.5) * 18;
+        // Ausschlag höchstens ±15 px (< 1 Kachel: einheitliche Kacheln bleiben einheitlich); gröber und weiter als
+        // im Weltpixel-Shader, damit lange gerade Kartengrenzen (Rotsand, Strohgold) sichtbar gebrochen werden
+        jx[j * gw + i] = (vnoise(cx * 4 / 13, cy * 4 / 13, 401) - 0.5) * 22 + (vnoise(cx * 4 / 5, cy * 4 / 5, 403) - 0.5) * 8;
+        jy[j * gw + i] = (vnoise(cx * 4 / 13, cy * 4 / 13, 402) - 0.5) * 22 + (vnoise(cx * 4 / 5, cy * 4 / 5, 404) - 0.5) * 8;
       }
     }
     // Versatz je Weltpixel (wie dort), Grenze je Feinpixel (+0/+0,5 px)
@@ -281,7 +284,9 @@ function rockTops(S, L, x0, y0, cw, ch) {
   for (let y = 0; y < chT; y++) for (let x = 0; x < cwT; x++) {
     const i = x + AX, j = y + AU, k = j * ww + i;
     if (!WM[k]) continue;
-    const px = wx0 + i, py = wy0 + j, kd = kW(px, py), th = topH(kd);
+    // Felsart je Kachel, Grenze verwackelt (sonst endet z. B. die Grasdecke der Randhügel an einer geraden Kachelkante)
+    const px = wx0 + i, py = wy0 + j;
+    const kd = kW(px + Math.round((vnoise(px / 9, py / 8, 1371) - 0.5) * 16), py + Math.round((vnoise(px / 9, py / 8, 1372) - 0.5) * 16)), th = topH(kd);
     // Wand (Fuß tiefer, innerhalb der größten Wandhöhe): Weltpixel-Shader
     const b = dd[k];
     if (b && b <= 40 && gW(px, py + b) < th) continue;
