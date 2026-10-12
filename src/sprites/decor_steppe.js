@@ -782,8 +782,8 @@ function fpoly(f, pts, col) {
 // Normale quer zur Achse, Licht oben links in harten Stufen, dunkle Kante unten rechts.
 const TZ = { z: new Float32Array(0), g: new Uint32Array(0), gen: 0 };
 // Je Feinpixel gilt die Kapsel, deren Achse am nächsten liegt (relativ zum Radius): keine Nähte an den Gelenken.
-function tube(f, pts, pal, { lo = 1, hi = pal.length - 2, bias = 0, rimK = 1 } = {}) {
-  const P = pal32(pal), r2 = f.res, Wf = f.W, n = f.W * f.H;
+function tube(f, pts, pal, { lo = 1, hi = pal.length - 2, bias = 0, rimK = 1, edge = null, edgeLit = null } = {}) {
+  const P = pal32(pal), r2 = f.res, Wf = f.W, n = f.W * f.H, E = edge ? col32(edge) : 0, EL = edgeLit ? col32(edgeLit) : E;
   if (TZ.z.length < n) { TZ.z = new Float32Array(n); TZ.g = new Uint32Array(n); }
   const Z = TZ.z, ZG = TZ.g, gen = ++TZ.gen;
   const zo = Math.round(f.ox * r2), zg = Math.round(f.oy * r2);
@@ -798,6 +798,8 @@ function tube(f, pts, pal, { lo = 1, hi = pal.length - 2, bias = 0, rimK = 1 } =
       if (ZG[zi] === gen && q >= Z[zi]) return 0;
       Z[zi] = q; ZG[zi] = gen;
       const nx = ox / r, ny = oy / r;
+      // Kontur 1 Feinpixel: Schattenfuge unten rechts, schwächere Kante oben links (trennt überlappende Knochen)
+      if (E && r > 1.05 && d2 > (r - 0.55) * (r - 0.55)) return nx + ny > -0.25 ? E : EL;
       let k = stepOf(shadeN(nx, ny) + bias, lo, hi);
       if (d2 > r * r * 0.55 && nx + ny > 0.55) k -= rimK;
       return P[Math.max(0, k)];
@@ -1140,6 +1142,70 @@ function boulder(v) {
   }, { ax: Math.floor(W / 2), box: [-Math.floor(W / 2) + 2, -4, Math.floor(W / 2) - 2, 1], b: true });
 }
 
+// ------------------------------------------------------------ Knochen fein: Fugen, Risse, Abplatzer, Kleinknochen
+const BSEAM = '#2a2118', BSEAM_L = '#4a3f30';
+const BONE_SET = new Set();
+const boneSetFill = () => { if (!BONE_SET.size) for (const c of BONE.slice(1)) BONE_SET.add(col32(c)); return BONE_SET; };
+// Schattenfuge: Knochenpixel, deren Nachbar rechts/unten kein Knochen ist, werden dunkel (Weltrechteck x0..x1, y0..y1)
+function boneSeam(f, x0, y0, x1, y1) {
+  const B = boneSetFill(), r = f.res, W = f.W, H = f.H, b = f.buf, S = col32(BSEAM);
+  const F0 = Math.max(0, Math.floor(x0 * r)), F1 = Math.min(W - 2, Math.ceil(x1 * r)), G0 = Math.max(0, Math.floor(y0 * r)), G1 = Math.min(H - 2, Math.ceil(y1 * r));
+  const mark = [];
+  for (let G = G0; G <= G1; G++) for (let F = F0; F <= F1; F++) {
+    const i = G * W + F;
+    if (!B.has(b[i])) continue;
+    const rt = b[i + 1], dn = b[i + W];
+    if ((rt >>> 24 && !B.has(rt) && rt !== S) || (dn >>> 24 && !B.has(dn) && dn !== S)) mark.push(i);
+  }
+  for (const i of mark) b[i] = S;
+  f.dirty = true;
+}
+// Risse und Abplatzer entlang eines Knochenstrangs q = [[x, y, r], ...] (fein)
+function boneWear(p, q, seed, n = 3) {
+  for (let k = 0; k < n; k++) {
+    const i = 1 + Math.floor(hash2(k, 1, seed) * (q.length - 3)), [x, y, r] = q[i], [x2, y2] = q[i + 1];
+    const dx = x2 - x, dy = y2 - y, l = Math.hypot(dx, dy) || 1, tx = dx / l, ty = dy / l;
+    let nx = -ty, ny = tx; if (nx + ny > 0) { nx = -nx; ny = -ny; }                      // Normale zur Lichtseite
+    if (hash2(k, 2, seed) < 0.55) {
+      // Haarriss: schräg über den Knochen, dunkel mit Lichtlippe
+      const a = r * 0.7, len = 1.2 + r * 0.8;
+      const sx = x + nx * a * 0.5, sy = y + ny * a * 0.5, ex = sx - nx * a + tx * len, ey = sy - ny * a + ty * len;
+      p.fline(sx, sy, (sx + ex) / 2 + tx * 0.4, (sy + ey) / 2 + ty * 0.4, BSEAM); p.fline((sx + ex) / 2 + tx * 0.4, (sy + ey) / 2 + ty * 0.4, ex, ey, BSEAM);
+      p.fline(sx + 0.5, sy + 0.25, (sx + ex) / 2 + tx * 0.4 + 0.5, (sy + ey) / 2 + ty * 0.4 + 0.25, BONE[5]);
+    } else {
+      // Abplatzer an der Lichtkante: Mulde in Mittelton, dunkler Grund unten rechts
+      const cx = x + nx * r * 0.45, cy = y + ny * r * 0.45, rr = Math.max(0.6, r * 0.35);
+      p.oval(cx, cy, rr * 1.3, rr, BONE[2]); p.dot(cx + rr * 0.4, cy + rr * 0.3, BSEAM); p.dot(cx - rr * 0.6, cy - rr * 0.5, BONE[5]);
+    }
+  }
+}
+// Röhrenknochen am Boden: Schaft mit verdickten Gelenkenden (je zwei Knubbel), Kontur, Schlagschatten
+function longBone(p, x0, y0, x1, y1, r = 0.7) {
+  const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+  p.oval((x0 + x1) / 2 + 0.6, (y0 + y1) / 2 + r + 0.5, l / 2 + 1, r + 0.4, '#120d09');
+  tube(p, [[x0, y0, r], [x1, y1, r * 0.9]], BONE, { lo: 1, hi: 5, bias: -0.1, edge: BSEAM, edgeLit: BSEAM_L });
+  for (const [ex, ey] of [[x0, y0], [x1, y1]]) for (const s of [-1, 1]) {
+    tube(p, [[ex + nx * s * r * 0.7, ey + ny * s * r * 0.7, r * 0.95], [ex + nx * s * r * 0.7 + 0.01, ey + ny * s * r * 0.7, r * 0.95]], BONE, { lo: 1, hi: 5, bias: -0.06, edge: BSEAM, edgeLit: BSEAM_L });
+  }
+}
+// kleiner Wirbel am Boden (fein): Körper, Dornfortsatz, Querfortsätze, Kontur
+function smallVert(p, x, y, s = 1) {
+  p.oval(x + 0.7, y + 0.9 * s, 2.2 * s, 0.8 * s, '#120d09');
+  tube(p, [[x - 2 * s, y, 0.5 * s + 0.2], [x + 2 * s, y, 0.5 * s + 0.2]], BONE, { lo: 1, hi: 4, bias: -0.1 });
+  tube(p, [[x, y, 0.4 * s + 0.3], [x - 0.5 * s, y - 2.2 * s, 0.25 * s + 0.25]], BONE, { lo: 1, hi: 5, bias: -0.05 });
+  lump(p, x, y, 1.2 * s, 1 * s, BONE, { lo: 1, hi: 5 });
+  p.dot(x + 0.75 * s, y + 0.5 * s, BSEAM); p.dot(x - 0.5 * s, y - 0.5 * s, BONE[6]);
+}
+// gesplittertes Bruchende eines Knochens bei (x, y) in Richtung (tx, ty) mit Radius r
+function splinter(p, x, y, tx, ty, r) {
+  const nx = -ty, ny = tx;
+  for (let k = -1; k <= 1; k++) {
+    const bx = x + nx * r * 0.6 * k, by = y + ny * r * 0.6 * k, len = 1 + ((k + 3) % 3) * 1.1;
+    p.fline(bx, by, bx + tx * len, by + ty * len, k < 0 ? BONE[5] : k > 0 ? BONE[2] : BONE[4]);
+  }
+  p.oval(x - tx * 0.3, y - ty * 0.3, r * 0.55, r * 0.55, BONE[1]); p.dot(x - tx * 0.3 + 0.25, y - ty * 0.3 + 0.25, BSEAM);
+}
+
 // ------------------------------------------------------------ Gebleichte Knochen
 function boneShade(x, y, rel, seed) {
   // rel: 0 = Lichtseite, 1 = Schattenseite
@@ -1154,7 +1220,9 @@ function boneStroke(p, pts, w0, w1, seed, far = false) {
   if (p.fine && p.scan) {
     // fein: gerundeter Strang (Kapseln), Licht oben links; hintere Knochen dunkler
     const n = pts.length - 1, q = pts.map(([x, y], i) => [x + 0.5, y + 0.5, (w0 + (w1 - w0) * (i / n)) / 2 + 0.3]);
-    tube(p, q.length > 2 && q.length < 12 ? smooth(q, 4) : q, BONE, far ? { lo: 1, hi: 3, bias: -0.08 } : { lo: 1, hi: 5, bias: -0.1 });
+    const qq = q.length > 2 && q.length < 12 ? smooth(q, 4) : q;
+    tube(p, qq, BONE, far ? { lo: 1, hi: 3, bias: -0.12, edge: BSEAM, edgeLit: BSEAM } : { lo: 1, hi: 5, bias: -0.14, edge: BSEAM, edgeLit: BSEAM_L });
+    if (!far && qq.length > 6) boneWear(p, qq, seed, Math.min(4, Math.round(qq.length / 10)));
     return;
   }
   const N = 40;
@@ -1181,6 +1249,7 @@ function giantRibs() {
   return mk(W, H, (p) => {
     const by = H - 1, fine = p.fine;
     dustPatch(p, 29, by - 2, 27, 3, 761);
+    if (fine) { giantRibsFine(p, by); return; }
     // Wirbelsäule oben: Bogen von links unten bis rechts, hinten gebrochen
     const spine = (x) => by - 4 - Math.sin(Math.min(1, Math.max(0, (x - 3) / 50)) * Math.PI) * 30;
     // hintere Rippen (andere Körperseite), dunkler, leicht versetzt
@@ -1233,6 +1302,60 @@ function giantRibs() {
   }, { ax: 29, extra: { boxes: [[-23, -4, -17, 1], [-7, -4, -1, 1], [9, -4, 15, 1]] }, b: true });
 }
 
+// Brustkorb im Feinraster: Rippen verschieden dick und gebogen, eine gebrochen (Stumpf mit Splittern, Stück liegt davor),
+// Gelenkköpfe am Rückgrat, Konturfugen zwischen den Knochen, Risse/Abplatzer, Schlagschatten, Kleinknochen am Boden.
+function giantRibsFine(p, by) {
+  const spine = (x) => by - 4 - Math.sin(Math.min(1, Math.max(0, (x - 3) / 50)) * Math.PI) * 30;
+  // Schlagschatten am Boden (Licht oben links → Schatten nach rechts unten)
+  p.oval(32, by - 0.6, 25, 1.6, '#110d09'); p.oval(36, by - 1.6, 17, 1.3, '#110d09');
+  for (let k = 0; k < 5; k++) {
+    const sx = 13 + k * 8, sy = spine(sx);
+    boneStroke(p, [[sx + 2, sy + 1], [sx + 7 + (k % 2), sy + 10], [sx + 8 - (k % 3) * 0.5, by - 8], [sx + 6, by - 3]], 2.5 - (k % 2) * 0.4, 1.5, 770 + k, true);
+  }
+  // Wirbel: Dornfortsatz, Körper mit Fuge zum Nachbarn
+  for (let x = 4; x <= 52; x += 3) {
+    const y = Math.round(spine(x)), hgt = 3.5 + (x % 2) + ((x * 7) % 5) * 0.3;
+    if (x > 8 && x < 50) tube(p, [[x + 0.5, y - 1, 0.7], [x - 0.3, y - hgt, 0.4]], BONE, { lo: 1, hi: 5, bias: -0.08, edge: BSEAM, edgeLit: BSEAM_L });
+    lump(p, x + 0.5, y + 0.5, 1.7, 2.1, BONE, { lo: 1, hi: 5, bias: -0.08 });
+    p.fline(x + 2, y - 0.75, x + 2, y + 2, BSEAM); p.dot(x - 0.5, y - 0.75, BONE[6]);
+  }
+  // vordere Rippen: Dicke, Krümmung und Länge je Rippe verschieden, Rippe 3 gebrochen
+  const TH = [1, 0.8, 1.18, 0.95, 1.06], BW = [0, 1.3, -0.8, 0.5, -0.5];
+  for (let k = 0; k < 5; k++) {
+    const sx = 11 + k * 8, sy = spine(sx), len = by - 1 - sy, b = BW[k], th = TH[k];
+    const pts = [[sx, sy + 1], [sx - 6 - b, sy + len * 0.32], [sx - 7 - b * 0.6, sy + len * 0.7], [sx - 4, by - 1]];
+    const q = smooth(pts.map(([x, y], i) => [x + 0.5, y + 0.5, ((4.2 + (2.2 - 4.2) * (i / 3)) * th) / 2 + 0.3]), 5);
+    const cut = k === 3 ? Math.round(q.length * 0.58) : q.length;
+    const qq = q.slice(0, cut);
+    tube(p, qq, BONE, { lo: 1, hi: 5, bias: -0.14, edge: BSEAM, edgeLit: BSEAM_L });
+    boneWear(p, qq, 780 + k, 3);
+    // Gelenkkopf am Rückgrat
+    const [hx, hy, hr] = q[0];
+    lump(p, hx + 0.3, hy - 0.2, hr * 1.15, hr * 1.05, BONE, { lo: 2, hi: 5, bias: -0.04 }); p.dot(hx + hr * 0.8, hy + hr * 0.5, BSEAM); p.dot(hx - hr * 0.4, hy - hr * 0.6, BONE[6]);
+    if (k === 3) {
+      const [ex, ey, er] = qq[qq.length - 1], [px, py] = qq[qq.length - 2], l = Math.hypot(ex - px, ey - py) || 1;
+      splinter(p, ex, ey, (ex - px) / l, (ey - py) / l, er);
+      // abgebrochenes Stück liegt am Boden
+      p.oval(sx - 4, by - 0.2, 4.5, 0.9, '#110d09');
+      tube(p, [[sx - 8.5, by - 1.2, 0.95], [sx - 4.5, by - 1.5, 0.9], [sx - 1, by - 0.9, 0.75]], BONE, { lo: 1, hi: 5, bias: -0.12, edge: BSEAM, edgeLit: BSEAM_L });
+      splinter(p, sx - 8.5, by - 1.2, -1, 0, 0.9);
+    } else {
+      // Erdhaufen am Rippenende
+      p.oval(sx - 3.5, by - 0.2, 3.2, 1.3, DUST[2]); p.oval(sx - 4, by - 0.6, 2.2, 0.7, DUST[3]); p.dot(sx - 5.75, by - 1.25, DUST[3]);
+    }
+    blade(p, sx - 7, by - 1, 3 + (k % 3), -1, STRAW, 1, 4);
+    blade(p, sx - 2, by - 1, 2 + (k % 2), 1, STRAW, 1, 3);
+  }
+  // gebrochene Rippe liegt davor, Kleinknochen am Boden
+  boneStroke(p, [[40, by - 2], [47, by - 3], [53, by - 1]], 2.6, 1.8, 790);
+  splinter(p, 53.9, by - 0.4, 1, 0.3, 0.9);
+  longBone(p, 1.5, by - 1.3, 6.5, by - 0.6, 0.6);
+  smallVert(p, 34.5, by - 1.2, 0.8);
+  // Asche in den Kerben
+  for (let i = 0; i < 18; i++) { const x = 4 + ((i * 29) % 50), y = Math.round(spine(x)) - 1; p.dot(x + 0.25, y - 0.25, ASH[4]); p.dot(x - 0.25, y + 0.25, ASH[3]); }
+  for (let i = 0; i < 8; i++) { const x = 6 + ((i * 37) % 46); blade(p, x, by, 2 + (i % 3), (i % 2 ? 1 : -1), STRAW, 2, 5); }
+}
+
 function giantSkull() {
   const W = 50, H = 30;
   return mk(W, H, (p) => {
@@ -1267,12 +1390,13 @@ function giantSkull() {
 }
 // Steppenschädel im Feinraster: gleiche Umrisse, Knochen in harten Stufen, Hornringe, Zahnreihe, Nahtlinien
 function giantSkullFine(p, by) {
+  p.oval(30, by - 0.5, 20, 1.6, '#110d09'); p.oval(30, by - 2, 10, 1.4, '#110d09');
   for (let i = 0; i < 5; i++) { const x = 36 + i * 3, y = by - 4 + (i >> 1); lump(p, x + 0.5, y + 0.5, 1.7, 2.1, BONE, { lo: 2, hi: 5 }); p.dot(x + 1.75, y + 0.75, BONE[1]); }
-  const top = shadeLump(p, 28, by - 10, 10, 8, BONE.slice(1), 796, { rough: 0.05, flat: 0.3, rim: BONE[3] });
+  const top = shadeLump(p, 28, by - 10, 10, 8, BONE.slice(1), 796, { rough: 0.05, flat: 0.3, rim: BONE[3], bias: -0.06 });
   // Schnauze: Fläche oben hell, Flanke in Stufen, Unterkiefer dunkel
   fpoly(p, [[20.5, by - 14.5], [8.5, by - 9.5], [4.5, by - 5.5], [5.5, by - 2.5], [20.5, by - 2.5], [24.5, by - 7.5]], (x, y) => {
     const t = (y - (by - 15)) / 12 + (x > 16.5 ? 0.15 : 0);
-    return BONE[t < 0.22 ? 5 : t < 0.5 ? 4 : t < 0.78 ? 3 : 2];
+    return BONE[t < 0.18 ? 5 : t < 0.42 ? 4 : t < 0.72 ? 3 : 2];
   });
   p.fline(8.5, by - 9.75, 19.5, by - 14.75, BONE[6]); p.fline(9, by - 9.25, 19.5, by - 14.25, BONE[5]);
   p.fline(7, by - 5.25, 19, by - 5.75, BONE[2]);                        // Kieferlinie
@@ -1293,6 +1417,9 @@ function giantSkullFine(p, by) {
   // Schädelnähte und Risse
   p.fline(30.5, by - 15.5, 33, by - 11, BONE[1]); p.fline(33, by - 11, 32, by - 8, BONE[1]); p.fline(30, by - 15.5, 32.5, by - 11, BONE[5]);
   p.fline(25, by - 16, 27, by - 15, BONE[2]); p.fline(27, by - 15, 28, by - 16.5, BONE[2]);
+  boneSeam(p, 3, by - 27, 50, by);
+  longBone(p, 22.5, by - 1.2, 30.5, by - 0.7, 0.65);
+  smallVert(p, 2.5, by - 1.4, 0.75);
   for (let i = 0; i < 9; i++) blade(p, 3 + i * 5, by, 2 + (i % 3), (i % 2 ? 1 : -1), STRAW, 1, 4);
   for (const [F, y] of top.fine) if (F < 56 && hash2(F, 0, 799) < 0.6) p.dot(F / 2 + 0.25, y, ASH[4]);
 }
@@ -2624,9 +2751,20 @@ function boneArchFine(p, ribs, by) {
     const q = [];
     // alte Bänder waren senkrechte Spannen: quer zur Rippe gemessen ist die Stärke th·|Tangente x|
     const rad = (i) => { const a = pts[Math.max(0, i - 3)], b = pts[Math.min(pts.length - 1, i + 3)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return Math.max(1.1, (pts[i][2] / 2) * Math.abs(b[0] - a[0]) / l + 0.6); };
-    for (let i = 0; i < pts.length; i += 8) q.push([pts[i][0] + 0.5, pts[i][1] + 0.5, rad(i)]);
-    const e = pts.length - 1; q.push([pts[e][0] + 0.5, pts[e][1] + 0.5, rad(e)]);
-    tube(p, q, BONE, ri >= 2 ? { lo: 1, hi: 4, bias: -0.12 } : { lo: 1, hi: 5, bias: -0.06 });
+    const TK = [1.1, 0.92, 1.04, 0.86][ri], WV = (i) => 1 + Math.sin(i * 0.021 + ri * 1.7) * 0.07;   // Stärke je Rippe, leicht wellig
+    const e0 = ri === 3 ? Math.round(pts.length * 0.84) : pts.length;                                // innere rechte Rippe abgebrochen
+    for (let i = 0; i < e0; i += 8) q.push([pts[i][0] + 0.5, pts[i][1] + 0.5, rad(i) * TK * WV(i)]);
+    const e = e0 - 1; q.push([pts[e][0] + 0.5, pts[e][1] + 0.5, rad(e) * TK]);
+    tube(p, q, BONE, ri >= 2 ? { lo: 1, hi: 4, bias: -0.16, edge: BSEAM, edgeLit: BSEAM } : { lo: 1, hi: 5, bias: -0.1, edge: BSEAM, edgeLit: BSEAM_L });
+    boneWear(p, q, 1274 + ri * 5, ri >= 2 ? 3 : 6);
+    const [ex, ey, er] = q[q.length - 1], [px, py] = q[q.length - 2], l = Math.hypot(ex - px, ey - py) || 1, tx = (ex - px) / l, ty = (ey - py) / l;
+    if (ri === 3) splinter(p, ex, ey, tx, ty, er);
+    else {
+      // Gelenkkopf an der Rippenspitze mit Halsfuge
+      p.fline(ex - ty * er, ey + tx * er, ex + ty * er, ey - tx * er, BSEAM);
+      lump(p, ex + tx * 1.2, ey + ty * 1.2, er * 1.3, er * 1.15, BONE, { lo: 1, hi: ri >= 2 ? 4 : 5, bias: -0.08 });
+      p.dot(ex + tx * 1.2 + er * 0.7, ey + ty * 1.2 + er * 0.6, BSEAM);
+    }
     // Wachstumsringe: kurze Fugen quer zur Rippe, nur auf der Schattenhälfte
     for (let i = 17; i < pts.length - 4; i += 34) {
       const [x0, y0] = pts[i], [x1, y1] = pts[i + 2], dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l, sg = nx + ny > 0 ? 1 : -1, r = rad(i) - 0.6;
@@ -2638,7 +2776,7 @@ function boneArchFine(p, ribs, by) {
   // Lederriemen mit Knoten, Schädel und Fetische an der Krone
   for (const [x, y0, y1] of [[42.5, 10, 22], [52.5, 12, 20]]) { p.fline(x, y0, x, y1, HIDE[2]); p.fline(x - 0.5, y0, x - 0.5, y1, HIDE[4]); p.dot(x - 0.5, y0 + 2, HIDE[5]); }
   p.oval(42.5, 24.6, 3.6, 2.8, BONE[3]); p.oval(42, 24, 2.6, 2, BONE[4]); p.dot(40.25, 22.75, BONE[6]); p.dot(40.75, 22.75, BONE[5]);
-  p.rect(40.5, 23.5, 1.5, 1.5, INTERIOR); p.rect(43, 23.5, 1.5, 1.5, INTERIOR); p.dot(44.25, 24.75, BONE[2]);
+  p.oval(41.2, 24.3, 0.8, 0.75, INTERIOR); p.oval(43.9, 24.3, 0.8, 0.75, INTERIOR); p.dot(42.5, 25.5, BONE[1]); p.dot(44.5, 25, BONE[2]); p.dot(42.75, 24, BONE[5]);
   p.rect(40.5, 27, 4.5, 2, BONE[3]); for (let x = 40.75; x < 45; x += 1) p.dot(x, 27.25, BONE[5]); p.fline(40.5, 28.75, 45, 28.75, BONE[1]);
   for (let i = 0; i < 4; i++) { const x = 50 + i, y = 21 + (i % 2), c = [RED, STRAW, RED, GOLD][i]; p.rect(x, y, 1, 1.5, c[3]); p.dot(x, y, c[4] ?? c[3]); p.dot(x + 0.5, y + 1, c[2]); }
 }
@@ -3035,25 +3173,15 @@ function burialScaffold(v) {
 }
 
 // Riesenrippe, die aus dem Boden ragt (n: Bogen nach Süden geneigt, s: nach Norden)
-function giantRib(south) {
+function giantRib(south, v = 0) {
   const W = 30, H = 56, by = H - 1;
   return mk(W, H, (p) => {
     dustPatch(p, 15, by - 1, 12, 2, south ? 1561 : 1562);
+    if (p.fine) { giantRibFine(p, south, v, W, by); return; }
     // Mittellinie: steigt steil auf und krümmt sich oben zur Wirbelsäule
     const c = (t) => { const a = t * Math.PI * 0.62; return [7 + (1 - Math.cos(a)) * 17, by - 2 - Math.sin(a) * 48]; };
     const N = 90, pts = [];
     for (let i = 0; i <= N; i++) { const t = i / N, [x, y] = c(t); pts.push([south ? W - 1 - x : x, y, 3.4 - t * 1.9]); }
-    if (p.fine) {
-      // gerundeter Knochen (Kapseln), Wachstumsringe als Fugen, Bruchkerbe, Erdwulst am Fuß
-      const q = []; for (let i = 0; i <= N; i += 6) q.push([pts[i][0] + 0.5, pts[i][1] + 0.5, pts[i][2] + 0.5]);
-      tube(p, q, BONE, { lo: 1, hi: 5, bias: -0.08 });
-      for (let i = 10; i < N; i += 17) { const [x, y, r] = pts[i], [x2, y2] = pts[i + 1], dx = x2 - x, dy = y2 - y, l = Math.hypot(dx, dy) || 1; p.fline(x + 0.5 - (dy / l) * r * 0.2, y + 0.5 + (dx / l) * r * 0.2, x + 0.5 + (dy / l) * r, y + 0.5 - (dx / l) * r, BONE[2]); }
-      const [kx, ky] = pts[38]; p.fline(kx + 0.25, ky + 0.25, kx + 1.75, ky + 1.25, BONE[1]); p.fline(kx - 0.25, ky + 0.25, kx + 1.25, ky + 1.25, BONE[5]);
-      const [fx] = pts[0];
-      p.oval(fx + 0.5, by - 0.5, 5, 1.5, DUST[2]); p.oval(fx, by - 0.9, 3.5, 0.8, DUST[3]); p.dot(fx - 2.75, by - 1.25, STRAW[3]);
-      blade(p, Math.round(fx) - 4, by - 1, 4, -1, STRAW, 1, 4); blade(p, Math.round(fx) + 3, by - 1, 3, 1, STRAW, 1, 4);
-      return;
-    }
     // Schatten-, Grund-, Lichtdurchgang (Licht von links oben)
     for (const [x, y, r] of pts) p.ellipse(x + 0.6, y + 0.6, r, r, BONE[1]);
     for (const [x, y, r] of pts) p.ellipse(x, y, r * 0.85, r * 0.85, BONE[3]);
@@ -3067,15 +3195,68 @@ function giantRib(south) {
   }, { ax: south ? 22 : 8, box: [-5, -3, 5, 1], b: true });
 }
 
+// Riesenrippe fein, drei Spielarten je Richtung (nur Feinraster): v0 kräftig, v1 schlanker und stärker gekrümmt,
+// v2 auf halber Höhe abgebrochen (Splitterende, Oberteil liegt am Boden). Gelenkkopf an der Spitze, Konturfuge,
+// Risse/Abplatzer, Wachstumsringe, Schlagschatten nach rechts unten.
+function giantRibFine(p, south, v, W, by) {
+  const X = (x) => (south ? W - x : x);
+  const CA = [0.62, 0.7, 0.62][v], CW = [0.82, 0.74, 1][v], HS = [1, 0.9, 1][v], TH = [1.12, 0.84, 1][v], N = 90;
+  const c = (t) => { const a = t * Math.PI * CA; return [7 + (1 - Math.cos(a)) * 17 * CW, by - 2 - Math.sin(a) * 48 * HS]; };
+  const q = [];
+  for (let i = 0; i <= N; i += 5) { const t = i / N, [x, y] = c(t); q.push([X(x + 0.5), y + 0.5, (3.4 - t * 1.9) * TH + 0.45]); }
+  const cut = v === 2 ? Math.round(q.length * 0.6) : q.length, qq = q.slice(0, cut);
+  const fx = qq[0][0];
+  // Schlagschatten: Licht oben links → Schatten am Fuß nach rechts
+  p.oval(fx + 4.5, by - 0.4, 6.5, 1.3, '#110d09');
+  if (v === 2) p.oval(15.5, by - 0.3, 9, 1.1, '#110d09');
+  tube(p, qq, BONE, { lo: 1, hi: 5, bias: -0.12, edge: BSEAM, edgeLit: BSEAM_L });
+  // Wachstumsringe: Fuge auf der Schattenhälfte
+  for (let i = 2; i < qq.length - 2; i += 3 + (v % 2)) {
+    const [x, y, r] = qq[i], [x2, y2] = qq[i + 1], dx = x2 - x, dy = y2 - y, l = Math.hypot(dx, dy) || 1;
+    let nx = -dy / l, ny = dx / l; if (nx + ny < 0) { nx = -nx; ny = -ny; }
+    p.fline(x + nx * r * 0.15, y + ny * r * 0.15, x + nx * (r - 0.6), y + ny * (r - 0.6), BONE[2]);
+  }
+  boneWear(p, qq, 1563 + v * 7 + (south ? 3 : 0), v === 1 ? 3 : 4);
+  const [ex, ey, er] = qq[qq.length - 1], [px, py] = qq[qq.length - 2], l = Math.hypot(ex - px, ey - py) || 1;
+  if (v === 2) {
+    splinter(p, ex, ey, (ex - px) / l, (ey - py) / l, er);
+    // Oberteil liegt quer am Boden: Splitterende links, Gelenkkopf rechts
+    const g = [[X(9.5), by - 1.4, 1.35], [X(15.5), by - 2.2, 1.2], [X(21.5), by - 1.9, 1.05], [X(25), by - 1.3, 0.95]];
+    tube(p, smooth(g, 3), BONE, { lo: 1, hi: 5, bias: -0.12, edge: BSEAM, edgeLit: BSEAM_L });
+    splinter(p, g[0][0], g[0][1], south ? 1 : -1, 0.1, 1.3);
+    lump(p, g[3][0] + (south ? -0.6 : 0.6), by - 1.6, 1.4, 1.2, BONE, { lo: 2, hi: 5, bias: -0.06 }); p.dot(g[3][0] + (south ? -0.2 : 1.2), by - 1.1, BSEAM);
+    // Splitter im Staub
+    for (const [x, y] of [[13, by - 0.6], [6, by - 0.9], [19.5, by - 0.5]]) { p.fline(X(x), y, X(x + 1.2), y - 0.3, BONE[4]); p.dot(X(x + 0.6), y + 0.25, BSEAM); }
+  } else {
+    // Gelenkkopf (Rippenkopf) an der Spitze: abgesetzter Hals (Fuge), runder Kopf, kleiner Höcker davor
+    const tx = (ex - px) / l, ty = (ey - py) / l, hx = ex + tx * 1.1, hy = ey + ty * 1.1, hr = er * 1.3;
+    p.fline(ex - ty * er * 0.9 - tx * 0.3, ey + tx * er * 0.9 - ty * 0.3, ex + ty * er * 0.9 - tx * 0.3, ey - tx * er * 0.9 - ty * 0.3, BSEAM);
+    lump(p, hx, hy, hr, hr * 0.92, BONE, { lo: 1, hi: 5, bias: -0.1 });
+    p.fline(hx + hr * 0.2, hy + hr * 0.85, hx + hr * 0.85, hy + hr * 0.2, BSEAM); p.dot(hx - hr * 0.35, hy - hr * 0.45, BONE[6]);
+    lump(p, ex - tx * 2.6 + ty * er * 0.8, ey - ty * 2.6 - tx * er * 0.8, er * 0.6, er * 0.5, BONE, { lo: 2, hi: 5 });
+  }
+  // Erdwulst am Fuß
+  p.oval(fx + 0.5, by - 0.5, 5, 1.5, DUST[2]); p.oval(fx, by - 0.9, 3.5, 0.8, DUST[3]); p.dot(fx - 2.75, by - 1.25, STRAW[3]);
+  if (v === 1) smallVert(p, X(20), by - 1.2, 0.75);
+  blade(p, Math.round(fx) - 4, by - 1, 4, -1, STRAW, 1, 4); blade(p, Math.round(fx) + 3, by - 1, 3, 1, STRAW, 1, 4);
+}
+
 // Riesenwirbel (halb im Boden)
 function giantVertebra(v) {
   const W = 22, H = 18, by = H - 1;
   return mk(W, H, (p) => {
     dustPatch(p, 11, by - 1, 9, 1.6, 1571 + v);
-    shadeLump(p, 11, by - 5, 7, 4.2, BONE.slice(1), 1572 + v, { rough: 0.08, flat: 0.2, rim: BONE[3] });
+    if (p.fine) { p.oval(13, by - 0.6, 9, 1.4, '#110d09'); p.oval(13.5, by - 1.6, 6, 1.1, '#110d09'); }
+    shadeLump(p, 11, by - 5, 7, 4.2, BONE.slice(1), 1572 + v, p.fine ? { rough: 0.08, flat: 0.2, rim: BONE[3], bias: -0.06 } : { rough: 0.08, flat: 0.2, rim: BONE[3] });
     boneStroke(p, [[11, by - 8], [10 + v, by - 14], [9 + v * 2, by - 16]], 3, 1.4, 1573 + v);
     boneStroke(p, [[5, by - 5], [1, by - 4]], 2.4, 1.6, 1574); boneStroke(p, [[17, by - 5], [21, by - 4]], 2.4, 1.6, 1575);
-    if (p.fine) { p.oval(11.5, by - 4.5, 1.7, 1.3, BONE[1]); p.oval(11.2, by - 4.8, 1, 0.7, INTERIOR); p.fline(9.75, by - 6, 12.5, by - 6, BONE[5]); }
+    if (p.fine) {
+      p.oval(11.5, by - 4.5, 1.7, 1.3, BONE[1]); p.oval(11.2, by - 4.8, 1, 0.7, INTERIOR); p.fline(9.75, by - 6, 12.5, by - 6, BONE[5]);
+      // Abplatzer und Riss am Wirbelkörper, Kleinknochen daneben, Fugen zwischen den Teilen
+      p.oval(7.5, by - 6.5, 1, 0.7, BONE[2]); p.dot(7.75, by - 6.25, BSEAM); p.fline(14.5, by - 7.5, 15.5, by - 5.5, BSEAM); p.fline(15.5, by - 5.5, 15, by - 3.5, BSEAM);
+      longBone(p, 15.5 - v * 12, by - 1.2, 19.5 - v * 12, by - 0.8, 0.55);
+      boneSeam(p, 0, 0, 22, by);
+    }
     else p.ellipse(11, by - 5, 1.6, 1.2, BONE[2]);
   }, { ax: 11, box: [-6, -3, 6, 1], b: true });
 }
@@ -3085,7 +3266,8 @@ function giantSkullBig() {
   const W = 84, H = 50, by = H - 1;
   return mk(W, H, (p) => {
     dustPatch(p, 42, by - 3, 40, 4, 1581);
-    shadeLump(p, 50, by - 15, 17, 13, BONE.slice(1), 1582, { rough: 0.05, flat: 0.3, rim: BONE[3] });
+    if (p.fine) { p.oval(48, by - 0.8, 34, 2.2, '#110d09'); p.oval(56, by - 2.5, 17, 2, '#110d09'); }
+    shadeLump(p, 50, by - 15, 17, 13, BONE.slice(1), 1582, p.fine ? { rough: 0.05, flat: 0.3, rim: BONE[3], bias: -0.06 } : { rough: 0.05, flat: 0.3, rim: BONE[3] });
     if (p.fine) {
       fpoly(p, [[36.5, by - 23.5], [14.5, by - 15.5], [6.5, by - 8.5], [8.5, by - 3.5], [36.5, by - 3.5], [42.5, by - 11.5]], (x, y) => {
         const t = (y - (by - 24)) / 20 + (x > 30.5 ? 0.15 : 0);
@@ -3109,7 +3291,13 @@ function giantSkullBig() {
       for (let t = 0; t <= 1; t += 0.025) { const a = -0.2 - t * 3.2 - side * 0.4, r = 15 - t * 10; horn.push([54 + side * 10 + Math.cos(a) * r, by - 28 + Math.sin(a) * r * 0.75]); }
       boneStroke(p, horn, 6, 1.2, 1584 + side, side === 1);
     }
-    if (p.fine) { p.fline(52.5, by - 25.5, 57.5, by - 16.5, BONE[1]); p.fline(57.5, by - 16.5, 55.5, by - 10.5, BONE[1]); p.fline(52, by - 25.5, 57, by - 16.5, BONE[5]); }
+    if (p.fine) {
+      p.fline(52.5, by - 25.5, 57.5, by - 16.5, BSEAM); p.fline(57.5, by - 16.5, 55.5, by - 10.5, BSEAM); p.fline(52, by - 25.5, 57, by - 16.5, BONE[5]);
+      p.fline(44, by - 26, 47, by - 24, BSEAM); p.fline(47, by - 24, 48, by - 26.5, BSEAM);                       // Schädelnaht
+      p.oval(62, by - 12, 1.6, 1.1, BONE[2]); p.dot(62.5, by - 11.5, BSEAM); p.dot(61, by - 12.75, BONE[6]);   // Abplatzer
+      boneSeam(p, 0, 0, 84, by);
+      longBone(p, 68.5, by - 1.6, 76.5, by - 2.4, 0.75); smallVert(p, 79, by - 1.5, 0.8);
+    }
     else { p.line(52, by - 26, 57, by - 17, BONE[1]); p.line(57, by - 17, 55, by - 11, BONE[1]); }
     for (let i = 0; i < 12; i++) blade(p, 4 + i * 6, by - 1, 2 + (i % 3), (i % 2 ? 1 : -1), STRAW, 1, 4);
   }, { ax: 42, box: [-34, -7, 30, 1], b: true });
@@ -3251,8 +3439,8 @@ export function createSteppeDecor() {
     towerRuin: towerRuin(),
     gnollDen: [0, 1].map(gnollDen),
     burialScaffold: [0, 1].map(burialScaffold),
-    giantRibN: giantRib(false),
-    giantRibS: giantRib(true),
+    giantRibN: fineRes() > 1 ? [0, 1, 2].map((v) => giantRib(false, v)) : giantRib(false),
+    giantRibS: fineRes() > 1 ? [0, 1, 2].map((v) => giantRib(true, v)) : giantRib(true),
     giantVertebra: [0, 1].map(giantVertebra),
     giantSkullBig: giantSkullBig(),
     // Runde 6: Felsnadeln
