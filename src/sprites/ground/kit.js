@@ -220,3 +220,146 @@ export function bandW(t, n, dt, w) {
   const v = t * n, k = Math.floor(v), f = v - k, a = 0.5 - w / 2;
   return k + (f > a + w ? 1 : f > a && dt < (f - a) / w ? 1 : 0);
 }
+
+// Abstandsfeld zu allen Weltpixeln, von deren 2 × 2 Feinpixeln einer einen Terraincode der Bitmaske mask trägt
+// (Bit 1 << FK-Code). Gerechnet in Weltpixeln (Chamfer 3/4) über das ganze Terrainraster K (Zeilenbreite KW, Rand M),
+// Ergebnis wie die Rauschfelder indiziert (S.wi), Einheit Feinpixel × 3 (gekappt bei 255). null, wenn der Code nicht
+// vorkommt. Nahtlos über Chunkgrenzen für Abstände bis zum Rand (der kürzeste Weg liegt dann ganz im Raster).
+export function distField(K, KW, mask) {
+  const w = KW >> 1, h = (K.length / KW) >> 1, n = w * h, d = new Uint8Array(n);
+  let any = false;
+  for (let y = 0; y < h; y++) {
+    const r0 = 2 * y * KW, r1 = r0 + KW;
+    for (let x = 0; x < w; x++) {
+      const f = 2 * x, hit = ((mask >> K[r0 + f]) | (mask >> K[r0 + f + 1]) | (mask >> K[r1 + f]) | (mask >> K[r1 + f + 1])) & 1;
+      d[y * w + x] = hit ? 0 : 127;
+      if (hit) any = true;
+    }
+  }
+  if (!any) return null;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    let v = d[i];
+    if (v === 0) continue;
+    if (x > 0 && d[i - 1] + 3 < v) v = d[i - 1] + 3;
+    if (y > 0) {
+      if (d[i - w] + 3 < v) v = d[i - w] + 3;
+      if (x > 0 && d[i - w - 1] + 4 < v) v = d[i - w - 1] + 4;
+      if (x < w - 1 && d[i - w + 1] + 4 < v) v = d[i - w + 1] + 4;
+    }
+    d[i] = v;
+  }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    const i = y * w + x;
+    let v = d[i];
+    if (v === 0) continue;
+    if (x < w - 1 && d[i + 1] + 3 < v) v = d[i + 1] + 3;
+    if (y < h - 1) {
+      if (d[i + w] + 3 < v) v = d[i + w] + 3;
+      if (x < w - 1 && d[i + w + 1] + 4 < v) v = d[i + w + 1] + 4;
+      if (x > 0 && d[i + w - 1] + 4 < v) v = d[i + w - 1] + 4;
+    }
+    d[i] = v;
+  }
+  for (let i = 0; i < n; i++) d[i] = d[i] >= 127 ? 255 : d[i] * 2;
+  return d;
+}
+export const fissureDist = (K, KW, code) => distField(K, KW, 1 << code);
+
+// Glanzpunkte des alten Wasser-Shaders (sprites/outdoor.js groundPixel '~' und world/Outdoor.js #groundAt):
+// Weltpixel, an denen er Welle (Stufe 3) und Leuchtpunkt setzt. Feines Wasser gibt dort -1 zurück, damit
+// Glanz und Leuchtebene genau wie bisher entstehen. Ergebnis je Weltpixel des Chunks (cw × ch), Rand 1 links/rechts.
+export function waterGlints(x0, y0, cw, ch) {
+  const W = cw + 2, g = new Uint8Array(W * ch);
+  for (let y = 0; y < ch; y++) {
+    const py = y0 + y, s = Math.sin(py * 0.6) * 2 + py * 0.9;
+    for (let x = -1; x <= cw; x++) {
+      const px = x0 + x;
+      if (hash2(px, py, 25) < 0.3 && hash2(px, py, 13) < 0.5 && Math.sin(px * 0.35 + s) > 0.93) g[y * W + x + 1] = 1;
+    }
+  }
+  return g;
+}
+
+// ------------------------------------------------------------ Feines Wasser (Seen, Bäche, Sumpf)
+// WP: { water: Rampe 7 (0 Schatten, 3/4 Grundton wie der alte Ton 1/2, 5 Glanz wie der alte Ton 3, 6 hellster),
+//       bank: Rampe 4 (Uferböschung, 3 = oben im Licht), weed: Rampe 4 oder null (Entengrütze), bubbles: Gasblasen }
+// waterPrep in fineSetup (nach chunkCtx), waterStamps danach (Wellenstriche, Blasen, Grütze-Blättchen),
+// waterFine in finePixel für kind === FK.WATER. Ohne Wasser im Raster bleibt S.ld null (waterFine liefert dann -1).
+const WATER_LAND = 0xff & ~(1 << FK.WATER);
+export function waterPrep(S, x0, y0, cw, ch, K, KW, WP) {
+  S.ld = null; S.gl = null;
+  let water = false;
+  for (let i = 0; i < K.length; i++) if (K[i] === FK.WATER) { water = true; break; }
+  if (!water) return;
+  S.ld = distField(K, KW, WATER_LAND);
+  S.gl = waterGlints(x0, y0, cw, ch);
+  S.gw = cw + 2;
+  // Wasserton: Tonfeld des Bioms (S.tone, sonst eigenes); Grütze-Feld
+  S.wt = S.tone ?? S.noise([[4, 9, 9, 11, 0.6], [2, 3, 3, 12, 0.4]]);
+  S.scum = WP.weed ? S.noise([[4, 10, 8, 907, 1]]) : null;
+}
+function ldAt(S, F, G) { return S.ld[S.wi(F, G)]; }
+// Entengrütze: nahe am Ufer und im Grütze-Feld (d: Abstand zum Land, dt: Rasterwert am Rand)
+function scumAt(S, F, G, d, dt) {
+  if (!S.scum || d > 45) return false;
+  const s = S.scum[S.wi(F, G)] + (d < 15 ? (15 - d) / 40 : 0);
+  return s > 0.8 || (s > 0.75 && dt < (s - 0.75) / 0.05);
+}
+export function waterStamps(S, WP) {
+  if (!S.ld) return;
+  const W = WP.water;
+  // Wellenstriche abseits vom Ufer: Strich hell, darunter dunkel
+  S.cells(14, 6, 6, (cx, cy) => {
+    if (hash2(cx, cy, 980) >= 0.4) return;
+    const F = cx * 14 + 1 + Math.floor(hash2(cx, cy, 981) * 8), G = cy * 6 + 1 + Math.floor(hash2(cx, cy, 982) * 4);
+    if (ldAt(S, F, G) < 15 || ldAt(S, F + 6, G) < 15) return;
+    const len = 3 + Math.floor(hash2(cx, cy, 983) * 4);
+    for (let i = 0; i < len; i++) S.put(F + i, G, W[i === 0 || i === len - 1 ? 4 : 5]);
+    for (let i = 1; i < len - 1; i++) S.put(F + i, G + 1, W[2]);
+  });
+  // Gasblasen: Ring 3 × 3, oben links hell, unten rechts dunkel
+  if (WP.bubbles) S.cells(18, 14, 4, (cx, cy) => {
+    if (hash2(cx, cy, 985) >= 0.12) return;
+    const F = cx * 18 + 3 + Math.floor(hash2(cx, cy, 986) * 12), G = cy * 14 + 3 + Math.floor(hash2(cx, cy, 987) * 8);
+    if (ldAt(S, F, G) < 18) return;
+    S.put(F, G - 1, W[6]); S.put(F - 1, G, W[5]); S.put(F + 1, G, W[4]); S.put(F, G + 1, W[2]); S.put(F, G, W[2]);
+    if (hash2(cx, cy, 988) < 0.5) { S.put(F + 3, G + 1, W[5]); S.put(F + 3, G + 2, W[2]); }
+  });
+  // Grütze-Blättchen: 2 Feinpixel, Schatten darunter
+  if (WP.weed) S.cells(5, 4, 2, (cx, cy) => {
+    if (hash2(cx, cy, 990) >= 0.6) return;
+    const F = cx * 5 + Math.floor(hash2(cx, cy, 991) * 4), G = cy * 4 + Math.floor(hash2(cx, cy, 992) * 3);
+    if (S.kAt(F, G) !== FK.WATER || S.kAt(F + 1, G) !== FK.WATER || !scumAt(S, F, G, ldAt(S, F, G), 0.5)) return;
+    S.put(F, G, WP.weed[3]); S.put(F + 1, G, WP.weed[2]); S.mark(F, G + 1, -1); S.mark(F + 1, G + 1, -1);
+  });
+}
+// Wasser je Feinpixel (o: Index im Chunk, dt: Rasterwert). Ufer unter Land: Böschung (oben hell), dann Schatten.
+// Die alten Glanzpunkte (mit Leuchtebene) liefert der Weltpixel-Shader (-1) für die obere Feinzeile.
+export function waterFine(F, G, K, ki, KW, S, o, dt, WP) {
+  if (!S.ld) return -1;
+  const W = WP.water, B = WP.bank, WA = FK.WATER;
+  const wi = (((G - S.G0) >> 1) + S.m) * S.fw + ((F - S.F0) >> 1) + S.m, d = S.ld[wi];
+  if (d < 24) {
+    if (K[ki - KW] !== WA) return B[3];
+    if (K[ki - 2 * KW] !== WA) return B[2];
+    if (K[ki - 3 * KW] !== WA) return B[1];
+    if (K[ki - 4 * KW] !== WA) return W[1];
+    if (K[ki - 5 * KW] !== WA || K[ki - 6 * KW] !== WA) return W[2];
+    // unteres Ufer (Land darunter): flaches Wasser hell; seitlich dunkler Saum
+    if (K[ki + KW] !== WA) return W[5];
+    if (K[ki - 1] !== WA || K[ki + 1] !== WA) return W[2];
+  }
+  const a = S.abs[o];
+  if (a >= 0) return a;
+  const lx = ((F - S.F0) >> 1) + 1, ly = (G - S.G0) >> 1, gi = ly * S.gw + lx;
+  if (S.gl[gi]) {
+    if (!(G & 1) && K[ki - 6 * KW] === WA && K[ki - 2 * KW] === WA) return -1;
+    return W[4];
+  }
+  // Glanzstrich: je ein Feinpixel links und rechts verlängert
+  if (!(G & 1) && ((S.gl[gi - 1] && !(F & 1)) || (S.gl[gi + 1] && (F & 1)))) return W[4];
+  const t = S.wt[wi];
+  if (scumAt(S, F, G, d, dt)) return WP.weed[(t > 0.5 ? 1 : 0) + (S.rel[o] < 0 ? 0 : 1)];
+  return W[3 + clampI(band(t, 2, dt), 0, 1)];
+}
