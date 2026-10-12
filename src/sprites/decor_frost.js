@@ -4,7 +4,7 @@ import { OUT, groundPixel, vnoise } from './outdoor.js';
 import { mk, poly, drawTent, shade, stepOf, lump, conifer, trunk, fpoly, groundPatch, pal32 } from './decor_ashwood.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { SpriteFrame } from '../gfx/Sprite.js';
-import { fineRes, col32 } from '../gfx/Fine.js';
+import { fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 
 // Frostzinnen: verschneite Gipfel, Nordmänner-Feste, Eishöhlen und die
 // Knochen erschlagener Eistrolle. Licht von links oben (Mond), Schnee liegt
@@ -816,6 +816,24 @@ function iciclesF(p, g, x0, x1, y, seed, maxLen = 5, density = 0.45) {
 }
 
 // ------------------------------------------------------------ Verschneite Tanne
+// Silhouette der alten Weltpixel-Tanne (gleiche Zufallsfolge wie der alte Zeichenweg): Etagen, hängende Zweigspitzen,
+// Spitze und Stamm. Der Feinraster-Baum wird darauf beschnitten.
+function oldPineMask(seed, W, H) {
+  const rng = createRng(seed), cx = 16, bottom = H - 1, M = new Uint8Array(W * H);
+  const set = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) M[y * W + x] = 1; };
+  for (let y = bottom - 9; y <= bottom; y++) for (let x = cx - 2; x <= cx + 2; x++) set(x, y);
+  const tiers = Math.max(4, Math.round((H - 12) / 7.2)), span = bottom - 10;
+  for (let t = 0; t < tiers; t++) {
+    const k = t / (tiers - 1), baseY = Math.round(bottom - 8 - k * (span - 8)), half = 14 - k * 10 + rng.range(-0.6, 0.6), th = Math.round(11 - k * 3);
+    for (let dy = 0; dy < th; dy++) {
+      const y = baseY - dy, hw = Math.max(0, half * (1 - dy / th) ** 0.9 + rng.range(-0.7, 0.7));
+      for (let x = Math.round(cx - hw); x <= Math.round(cx + hw); x++) set(x, y);
+      if (dy === 0) for (let x = Math.round(cx - hw); x <= Math.round(cx + hw); x += 2) if (rng.chance(0.55)) set(x, y + 1);
+    }
+  }
+  set(cx, 0); set(cx, 1); set(cx, 2);
+  return M;
+}
 function snowPine(seed, H) {
   const rng = createRng(seed);
   const W = 34, cx = 16, bottom = H - 1;
@@ -834,18 +852,20 @@ function snowPine(seed, H) {
         const top = t === tiers - 1 ? 1 : baseY - th + 1;
         // Schatten dieser Etage auf der darunterliegenden (zwischen den Zähnen sichtbar)
         if (t > 0) darkenBand(p, cx + 0.5, half + 0.5, baseY + 0.4, 2.2, PINE);
-        conifer(p, { cx: cx + 0.5, top, bottom: baseY + 0.6, half: half + 0.5, tiers: 1, pal: PINE, seed: seed + t * 7, lo: 1, hi: 4, bias: -0.17, cap: t === tiers - 1 ? [SNOW[4], SNOW[5], SNOW[6]] : null, capTop: t === tiers - 1 });
+        conifer(p, { cx: cx + 0.5, top, bottom: baseY + 0.6, half: half - 0.3, tiers: 1, pal: PINE, seed: seed + t * 7, lo: 1, hi: 4, bias: -0.17, cap: t === tiers - 1 ? [SNOW[4], SNOW[5], SNOW[6]] : null, capTop: t === tiers - 1 });
         ST.push([baseY, half]);
       }
-      snowRim(p, 0, 0, W, bottom - 7, { d: 1.5, dl: 1, split: cx + 1.5, seed, wave: 0.4 });
-      // Polster: Schneeklumpen auf den äußeren Zweigspitzen, folgen der hängenden Etagenkante
-      for (const [baseY, half] of ST) for (const sd of [-1, 1]) for (const r of [0.48, 0.7, 0.9]) {
-        const h = hash2(Math.round(r * 10), baseY * sd, seed + 11);
-        if (h < 0.22) continue;
-        const x = cx + 0.5 + sd * half * (r + (h - 0.5) * 0.08), y = baseY + 0.6 + 1.4 * r * r - 1.3;
-        const rx = 1.3 + h * 0.9 - (r > 0.85 ? 0.3 : 0);
-        lump(p, x, y, rx, 0.75 + h * 0.25, SNOW, sd < 0 ? { lo: 4, hi: 6, bias: 0.12 } : { lo: 3, hi: 5, bias: -0.05 });
+      snowRim(p, 0, 0, W, bottom - 7, { d: 1, dl: 0.5, split: cx + 1.5, seed, wave: 0.3 });
+      // Polster sparsam: je Etage höchstens ein Klumpen je Seite auf den äußeren Zweigspitzen
+      for (const [baseY, half] of ST) for (const sd of [-1, 1]) {
+        const h = hash2(baseY, sd, seed + 11);
+        if (h < (sd < 0 ? 0.3 : 0.55)) continue;
+        const r = 0.62 + 0.2 * h, x = cx + 0.5 + sd * (half - 0.3) * r, y = baseY + 0.6 + 1.4 * r * r - 1.4;
+        lump(p, x, y, 1.1 + h * 0.5, 0.7, SNOW, sd < 0 ? { lo: 4, hi: 6, bias: 0.1 } : { lo: 3, hi: 5, bias: -0.05 });
       }
+      // Krone nie über die alte Silhouette hinaus (verdeckt den Helden nicht stärker als vorher)
+      const M = oldPineMask(seed, W, H), r = p.res;
+      for (let G = 0; G < Math.floor((bottom - 2.5) * r); G++) for (let F = 0; F < p.W; F++) if (!M[Math.floor(G / r) * W + Math.floor(F / r)]) p.buf[G * p.W + F] = 0;
       lump(p, cx - 0.5, bottom + 0.2, 3.2, 1.2, SNOW, { lo: 3, hi: 6, cut: (x, y) => y > bottom + 0.6 });   // Schnee am Stammfuß
       // Raureif: wenige Glitzerpunkte auf der Lichtseite (1 Feinpixel, kalter Schein)
       for (let i = 0; i < 3; i++) {
@@ -2398,6 +2418,7 @@ function ledgeSnow(v) {
 const ROCKW = ['#151310', '#211d1a', '#2e2925', '#3d3731', '#4f4840', '#645b51', '#7c7266'];
 function peakSprite(o) {
   const { W, H, tops, sl = 1, sr = 1, snow = 0.42, warm = false, ice = 0, seed = 2950 } = o;
+  if (FR()) return peakFineEntry(o);
   const RK = warm ? ROCKW : ROCK;
   const rng = createRng(seed);
   let peakMask = null;
@@ -2446,7 +2467,7 @@ function peakSprite(o) {
     const tongueX = peaks.length > 1 ? (peaks[0][0] + peaks[1][0]) / 2 : peaks[0][0] + W * 0.14;
     const ty0 = base - H * 0.62, ty1 = base - H * 0.1;
     const tongue = (x, y) => {
-      if (!ice || y < ty0 || y > ty1) return 0;
+      if (!ice || (FR() && NO_TONGUE) || y < ty0 || y > ty1) return 0;
       const t = (y - ty0) / (ty1 - ty0);
       const w = ice * (2.5 + 7 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - t * 0.55));
       const cx = tongueX + t * W * 0.06 + (vnoiseLite(y / 9, seed, 2962) - 0.5) * 6;
@@ -2592,6 +2613,108 @@ function peakFine(p, g, o) {
   p.peakMask = mask;
 }
 
+// Gipfel im Feinraster (eigener Frame, ohne Lichtsaum des Feinschliffs): sichtbar ist wie im alten Spielbild nur der
+// obere Teil (Gipfel bis etwa halbe Höhe, Fuß läuft in Schnee aus; W, H, Anker unverändert). Fels als Facetten in 4 harten
+// Stufen, Licht nur von oben links; an den Facettengrenzen dunkle Klüfte unten rechts und Lichtgrate oben links; Schnee als
+// Kappen auf nach oben zeigenden Facetten (harte Kante), Gletscherzunge vorerst weggelassen (NO_TONGUE).
+// Umriss dunkel, am Fuß keiner.
+const NO_TONGUE = true;   // Gletscherzunge wirkte im Feinraster aufgeklebt (Koordinator-Prüfung): weggelassen
+function peakFineEntry(o) {
+  const { W, H, tops, sl = 1, sr = 1, snow = 0.42, warm = false, ice = 0, seed = 2950 } = o;
+  const RK = warm ? ROCKW : ROCK, r = fineRes(), Wt = W * r, Ht = H * r, R = pal32(RK), S = SNOW32, I = ICE32;
+  const base0 = H - 6, base = Math.round(H * 0.48);
+  const peaks = tops.map(([fx, y]) => [W * fx, y]), ymin = Math.min(...peaks.map((q) => q[1]));
+  const top = new Float64Array(Wt), foot = new Float64Array(Wt), lit = new Float64Array(Wt);
+  for (let F = 0; F < Wt; F++) {
+    const x = (F + 0.5) / r - 0.5;
+    let y = base0;
+    for (const [px, py] of peaks) {
+      const slope = x < px ? (base0 - py) / Math.max(4, px - 3) * Math.max(1, sl) : (base0 - py) / Math.max(4, W - 4 - px) * Math.max(1, sr);
+      y = Math.min(y, py + Math.abs(x - px) * slope);
+    }
+    const sh = (vnoiseLite(x / 13, seed, 2964) - 0.5) * 10 * Math.min(1, (y - 2) / 20);
+    top[F] = Math.max(0.5, y + sh + (vnoiseLite(x / 3, seed, 2951) - 0.5) * 4);
+    foot[F] = base + 1 - 2.5 * vnoiseLite(x / 3.5, seed, 2968);
+    lit[F] = ymin + (base - ymin) * (0.3 + snow * 0.7) + (vnoiseLite(x / 6, seed, 2954) - 0.5) * 8;   // Schneegrenze
+  }
+  const inside = (F, y) => F >= 0 && F < Wt && y >= top[F] && y <= foot[F];
+  const crest = (x, y) => { let b = 1e9; for (const [px, py] of peaks) b = Math.min(b, x - (px + (y - py) * (sr > sl ? 0.18 : 0.38) + (vnoiseLite(y / 6, px, 2953) - 0.5) * 6)); return b; };
+  // Facetten: Zellen auf einem verwackelten Gitter, je Zelle Normale (Seite des Grats + Zufall) und Schneefall
+  const gs = Math.max(4.5, Math.min(8, H / 12)), gh = gs * 0.8, CW = Math.ceil(W / gs) + 2, CH = Math.ceil(H / gh) + 2;
+  const cx = new Float64Array(CW * CH), cy = new Float64Array(CW * CH), ck = new Int8Array(CW * CH), cs = new Float64Array(CW * CH), cside = new Int8Array(CW * CH), cnx = new Float64Array(CW * CH);
+  for (let j = 0; j < CH; j++) for (let i = 0; i < CW; i++) {
+    const q = j * CW + i, x = (i - 1 + 0.15 + 0.7 * hash2(i, j, seed + 1)) * gs, y = (j - 1 + 0.15 + 0.7 * hash2(i, j, seed + 2)) * gh;
+    const side = crest(x, y) < 0 ? -1 : 1, nx = side * (0.35 + 0.4 * hash2(i, j, seed + 3)), ny = -0.8 + 1.05 * hash2(i, j, seed + 4);
+    cx[q] = x; cy[q] = y; cside[q] = side; cnx[q] = nx;
+    ck[q] = Math.min(4, (side < 0 ? 3 : 1) + (hash2(i, j, seed + 5) < 0.45 ? 1 : 0) + (ny < -0.5 ? 1 : 0) - (side > 0 && ny > 0 ? 1 : 0));   // 4 harte Stufen, Licht oben links
+    const F = Math.max(0, Math.min(Wt - 1, Math.floor((x + 0.5) * r)));
+    const high = y < lit[F] ? 1 : y < lit[F] + 6 ? 0.4 : 0;
+    cs[q] = ny < -0.12 && high > 0 ? (-ny) * gh * 1.3 * high - gh * 0.25 : -99;     // Schneekappe: bis zu dieser Tiefe unter der Zellmitte
+  }
+  // Gletscherzunge (falls ice), auf die kleinere Form umgerechnet
+  const tongueX = peaks.length > 1 ? (peaks[0][0] + peaks[1][0]) / 2 : peaks[0][0] + W * 0.14;
+  const ty0 = ymin + (base - ymin) * 0.3, ty1 = base - 1;
+  const tongue = (x, y) => {
+    if (!ice || NO_TONGUE || y < ty0 || y > ty1) return 0;
+    const t = (y - ty0) / (ty1 - ty0), w = ice * (1 + 3 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - t * 0.4));
+    const c = tongueX + t * W * 0.04 + (vnoiseLite(y / 9, seed, 2962) - 0.5) * 4;
+    return Math.abs(x - c) < w ? (x < c ? 1 : 2) : 0;
+  };
+  const d = new Uint32Array(Wt * Ht);
+  for (let G = 0; G < Ht; G++) {
+    const y = (G + 0.5) / r - 0.5;
+    let cm = -1e9;   // crest(x, y) < 0  <=>  x < cm (Gratlinie dieser Zeile einmal je Zeile)
+    for (const [px, py] of peaks) cm = Math.max(cm, px + (y - py) * (sr > sl ? 0.18 : 0.38) + (vnoiseLite(y / 6, px, 2953) - 0.5) * 6);
+    for (let F = 0; F < Wt; F++) {
+      if (!inside(F, y)) continue;
+      const x = (F + 0.5) / r - 0.5;
+      // nächste und zweitnächste Zelle
+      // Abstand gestreckt entlang der Falllinie der Flanke (links nach unten links, rechts nach unten rechts):
+      // Facetten werden zu schrägen Platten und Rippen statt Pflaster
+      const sd = x < cm ? -0.6 : 0.6, dn = Math.hypot(sd, 1), ux = sd / dn, uy = 1 / dn;
+      const gi = Math.floor(x / gs) + 1, gj = Math.floor(y / gh) + 1;
+      let d1 = 1e9, d2 = 1e9, q1 = 0, q2 = 0;
+      for (let j = gj - 2; j <= gj + 2; j++) for (let i = gi - 2; i <= gi + 2; i++) {
+        if (i < 0 || j < 0 || i >= CW || j >= CH) continue;
+        const q = j * CW + i, ex = x - cx[q], ey = y - cy[q], al = (ex * ux + ey * uy) / 2.3, ac = ey * ux - ex * uy, e = al * al + ac * ac;
+        if (e < d1) { d2 = d1; q2 = q1; d1 = e; q1 = q; } else if (e < d2) { d2 = e; q2 = q; }
+      }
+      const edge = Math.sqrt(d2) - Math.sqrt(d1), side = cside[q1];
+      let k = ck[q1];
+      if (!inside(F + 1, y) && side > 0) k = 1;                                                       // Schattenflanke
+      let col = R[k];
+      const snowy = y - cy[q1] - cnx[q1] * (x - cx[q1]) * 0.35 < cs[q1];
+      if (snowy) col = side < 0 ? S[k >= 4 ? 6 : 5] : S[k >= 3 ? 4 : 3];
+      if (edge < 0.5 && ck[q2] !== ck[q1]) {
+        const up = (cx[q2] - cx[q1]) * 0.6 + (cy[q2] - cy[q1]) < 0;   // Nachbar liegt oben/links: Oberkante dieser Facette
+        if (!up && ck[q2] > ck[q1]) col = snowy ? S[side < 0 ? 4 : 2] : R[0];                          // Kluft unter heller Platte
+        else if (up && side < 0 && ck[q1] > ck[q2]) col = snowy ? S[6] : R[5];                        // Lichtgrat oben links
+      }
+      const tg = tongue(x, y);
+      if (tg) {
+        const arc = y - Math.abs(x - tongueX) * 0.35, a5 = arc - 5 * Math.floor(arc / 5);
+        col = Math.abs(a5 - 2.5) < 0.5 ? I[1] : tg === 1 ? I[3] : I[2];
+        if (!tongue(x, y - 1)) col = R[0];                                                            // Schatten der Felskante darüber
+        else if (!tongue(x, y + 0.6)) col = I[5];                                                     // Lichtkante unten
+      }
+      const dt = y - top[F];
+      if (dt < 1 && x < cm) col = snowy || y < lit[F] ? S[6] : R[5];                        // Grat: Licht nur auf der Lichtseite
+      if (y > foot[F] - 1.6) col = y < foot[F] - 1.1 ? S[5] : S[4];                                   // Fuß läuft in Schnee aus
+      d[G * Wt + F] = col;
+    }
+  }
+  // Umriss: dunkel, 1 Texel, nicht am Fuß
+  const Wo = Wt + 2, Ho = Ht + 2, od = new Uint32Array(Wo * Ho), OUTC = col32('#07080c');
+  for (let G = 0; G < Ht; G++) for (let F = 0; F < Wt; F++) if (d[G * Wt + F]) od[(G + 1) * Wo + F + 1] = d[G * Wt + F];
+  for (let G = 0; G < Ho; G++) for (let F = 0; F < Wo; F++) {
+    const m = G * Wo + F;
+    if (od[m] || (G - 1) / r > base - 3.5) continue;
+    if ((F > 0 && od[m - 1] && od[m - 1] !== OUTC) || (F < Wo - 1 && od[m + 1] && od[m + 1] !== OUTC) || (G > 0 && od[m - Wo] && od[m - Wo] !== OUTC) || (G < Ho - 1 && od[m + Wo] && od[m + Wo] !== OUTC)) od[m] = OUTC;
+  }
+  const ax = Math.floor(W / 2), ay = H - 4;
+  return { sprite: new SpriteFrame(pixelsToCanvas(od, Wo, Ho), ax * r + 1, ay * r + 1, r), occlude: [-W / 2 + 6, -H + 8, W / 2 - 6, -10] };
+}
+
 // Große Gipfel ('N') und kleinere Kuppen/Grate ('G')
 const PEAKS_BIG = [
   { W: 92, H: 104, tops: [[0.38, 4], [0.7, 18]], snow: 0.45, seed: 2950 },
@@ -2608,7 +2731,6 @@ const PEAKS_SMALL = [
   { W: 44, H: 56, tops: [[0.55, 2]], sl: 1.1, sr: 1.4, snow: 0.36, warm: true, seed: 2983 },
   { W: 74, H: 54, tops: [[0.22, 6]], sl: 1.2, sr: 1, snow: 0.4, seed: 2984 },
 ];
-function mountainPeak(v) { return peakSprite(PEAKS_BIG[v]); }
 
 // Felsnadel: freistehender, schlanker Zacken auf den Schneefeldern
 function rockSpire(v) {
@@ -2636,10 +2758,11 @@ function rockSpire(v) {
         });
       }
       // Schneesimse auf einzelnen Schichtfugen (Lichtseite), dann Schnee auf allen Oberkanten
-      for (const [nx, top, half] of needles) for (let y = top + 9; y < bottom - 5; y += 12 + Math.floor(hash2(y, nx, 2965) * 6)) {
+      // kurze waagerechte Simse auf der Lichtseite: Schneekante oben, Schatten darunter
+      for (const [nx, top, half] of needles) for (let y = top + 10; y < bottom - 6; y += 14 + Math.floor(hash2(y, nx, 2965) * 6)) {
         const t = (y - top) / (bottom - top), hw = 1 + half * Math.pow(t, 0.7) + (vnoiseLite(y / 4, nx, 2960) - 0.5) * 2.4, mid = nx + (1 - t) * (v === 2 ? -3 : 2);
-        const x0 = mid - hw - 0.5, x1 = x0 + (2 * hw + 1) * (0.28 + 0.2 * hash2(y, nx, 2966)), y1 = y - (x1 - x0) * 0.5;   // folgt der Schichtfuge
-        p.fline(x0 + 0.5, y + 0.5, x1, y1 + 0.5, ROCK[1]); p.fline(x0, y - 0.5, x1, y1 - 0.5, SNOW[6]); p.fline(x0 + 0.5, y, x1 - 0.5, y1, SNOW[5]); p.dot(x0 - 0.5, y, SNOW[5]);
+        const x0 = mid - hw - 0.5, x1 = x0 + 1.5 + 1.5 * hash2(y, nx, 2966);
+        p.fline(x0 - 0.5, y - 0.5, x1, y - 0.5, SNOW[6]); p.fline(x0, y, x1, y, SNOW[4]); p.fline(x0, y + 0.5, x1 - 0.5, y + 0.5, ROCK[0]);
       }
       snowRim(p, 0, 0, W, bottom - 1, { d: 1, dl: 0.7, split: cx, seed: 2962 + v });
       for (let y = 8; y < bottom; y += 9) { const [nx, top] = needles[0], t = (y - top) / (bottom - top); if (t > 0.1) iceLens(p, g, Math.round(nx + (1 - t) * (v === 2 ? -3 : 2)) + 1, y, 1.5); }
@@ -2900,6 +3023,7 @@ function frozenCascade(v) {
 }
 
 export function createFrostDecor() {
+  const peakBig = PEAKS_BIG.map(peakSprite);   // mountainPeak 0–2 sind dieselben Formen: nur einmal bauen
   return {
     snowPines: [snowPine(701, 50), snowPine(705, 58), snowPine(709, 42)],
     frozenRocks: [0, 1, 2].map(frozenRock),
@@ -2943,9 +3067,9 @@ export function createFrostDecor() {
     weaponRack: weaponRack(),
     // Runde 5/2: Gebirge und Points of Interest
     ledgeSnow: [0, 1, 0, 1, 2].map(ledgeSnow),
-    mountainPeak: [0, 1, 2].map(mountainPeak),
+    mountainPeak: peakBig.slice(0, 3),
     // Runde 6: mehr Gipfelformen, unregelmäßig gruppiert (N groß, G klein)
-    mountainPeakBig: PEAKS_BIG.map(peakSprite),
+    mountainPeakBig: peakBig,
     mountainPeakSmall: PEAKS_SMALL.map(peakSprite),
     rockSpire: [0, 1, 2].map(rockSpire),
     frozenPond: [0, 1].map(frozenPond),
