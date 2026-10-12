@@ -2,11 +2,15 @@ import { createHall } from './hall.js';
 import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
+import { fineRes, col32 } from '../gfx/Fine.js';
 import { createRng, hash2 } from '../core/math.js';
-import { FK, hxi, D4, clampI, band, darken, field, vnoise } from './ground/kit.js';
-export { FINE_GROUND } from './ground/index.js';
+import { FK as KIT_FK, hxi, D4, clampI, band, darken, field, vnoise as kitNoise } from './ground/kit.js';
+import { FINE_GROUND as KIT_FINE } from './ground/index.js';
 
-export { FK, vnoise };  // Terraincodes/Rauschen liegen im Boden-Werkzeugkasten (ground/kit.js)
+// Terraincodes, Rauschen und Feinraster-Böden liegen im Boden-Werkzeugkasten (ground/); hier weitergereicht
+export const FK = KIT_FK;
+export const vnoise = kitNoise;
+export const FINE_GROUND = KIT_FINE;
 
 // Außenbereich "Glutsenke": nächtliches Tal mit Glutspalten.
 // Licht kommt von oben links (Mond), warme Akzente von Laternen und Fenstern.
@@ -434,6 +438,7 @@ export function createRock(seed) {
 }
 
 export function createBush(seed) {
+  if (fineRes() > 1) return createBushFine(seed);
   const rng = createRng(seed);
   const G = OUT.pine;
   return buildFrame(16, 12, 8, 11, (p) => {
@@ -441,6 +446,59 @@ export function createBush(seed) {
     for (let i = 0; i < 10; i++) p.px(rng.int(2, 13), rng.int(2, 8), G[4]);
     if (rng.chance(0.6)) for (let i = 0; i < 3; i++) p.px(rng.int(3, 12), rng.int(4, 9), PAL.crimson[3]);
   });
+}
+
+// Busch im Feinraster: wenige klar abgesetzte Laubballen, Licht von oben links in harten Stufen,
+// dunkle Unterseite, dunkle Fuge wo ein vorderer Ballen über einem hinteren liegt; keine kühle Lichtkante.
+const BUSH = ['#070d0b', '#0f1a16', '#15241d', '#1c3025', '#28432f', '#37573b', '#4c6e45'].map(col32);
+function createBushFine(seed) {
+  const rng = createRng(seed);
+  const n = 3 + rng.int(0, 1), berries = rng.chance(0.6);
+  const blobs = [{ cx: 8, cy: 8.6, rx: 7, ry: 2.6 }];                 // flacher Sockel (Schattenseite)
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1), mid = 1 - Math.abs(t - 0.5) * 2;
+    blobs.push({ cx: 3.8 + t * 8.4 + rng.range(-0.6, 0.6), cy: 6.4 - mid * 2 + rng.range(-0.4, 0.6), rx: rng.range(3.1, 3.9), ry: rng.range(2.7, 3.2) });
+  }
+  // hintere (obere, mittlere) Ballen zuerst, vordere seitliche zuletzt
+  const order = [0, ...blobs.slice(1).map((b, i) => [b, i + 1]).sort((a, b) => a[0].cy - b[0].cy).map((a) => a[1])];
+  return buildFrame(16, 12, 8, 11, (f) => {
+    const r = f.res, Wt = f.W, Ht = f.H, buf = f.buf;
+    for (const bi of order) {
+      const b = blobs[bi], base = bi === 0;
+      for (let Gy = 0; Gy < Ht; Gy++) for (let Fx = 0; Fx < Wt; Fx++) {
+        const x = (Fx + 0.5) / r, y = (Gy + 0.5) / r;
+        const nx = (x - b.cx) / b.rx, ny = (y - b.cy) / b.ry, d2 = nx * nx + ny * ny;
+        if (d2 > 1) continue;
+        // gezackter Laubrand: an der Kante fehlen einzelne Feinpixel (Blattspitzen), unten nicht
+        if (d2 > 0.78 && ny < 0.5 && hash2(Fx, Gy, 711 + seed) < 0.38) continue;
+        const i = Gy * Wt + Fx, under = buf[i];
+        let k;
+        if (base) k = ny < -0.2 ? 2 : 1;
+        else {
+          const l = -0.62 * nx - 0.72 * ny + 0.35 * Math.sqrt(1 - d2) - 0.12;
+          k = l < -0.38 ? 1 : l < -0.05 ? 2 : l < 0.28 ? 3 : l < 0.6 ? 4 : 5;
+          if (under && d2 > 0.8 && ny > -0.35) k = 1;                   // Fuge über dem hinteren Ballen
+          if (k >= 4 && d2 < 0.35 && nx < -0.05 && ny < -0.05 && hash2(Fx >> 1, Gy >> 1, 713 + bi) < 0.3) k = 6;
+        }
+        buf[i] = BUSH[k];
+      }
+      if (!base) {                                                      // ein paar Blattbüschel als Glanzbögen auf der Lichtseite
+        for (let j = 0; j < 3; j++) {
+          const a = -2.2 + rng.range(-0.5, 0.6), d = rng.range(0.35, 0.7);
+          const F = Math.floor((b.cx + Math.cos(a) * b.rx * d) * r), G = Math.floor((b.cy + Math.sin(a) * b.ry * d) * r);
+          if (F < 1 || G < 1 || F >= Wt - 2 || G >= Ht - 1 || !buf[G * Wt + F]) continue;
+          buf[G * Wt + F] = BUSH[6]; buf[G * Wt + F + 1] = BUSH[5]; buf[(G + 1) * Wt + F] = BUSH[3]; buf[(G + 1) * Wt + F + 1] = BUSH[3];
+        }
+      }
+    }
+    if (berries) for (let j = 0; j < 3; j++) {
+      const b = blobs[1 + rng.int(0, n - 1)];
+      const x = Math.round(b.cx + rng.range(-1.8, 1.2)), y = Math.round(b.cy + rng.range(-1.2, 1));
+      if (!buf[f.G(y) * Wt + f.F(x)]) continue;
+      f.rect(x, y, 1, 1, PAL.crimson[2]); f.dot(x, y, PAL.crimson[4]); f.dot(x + 0.5, y + 0.5, PAL.crimson[1]);
+    }
+    f.dirty = true;
+  }, { fine: true, finish: false });
 }
 
 // Grasbüschel, Blumen, Pilze – werden in den Boden gestempelt
