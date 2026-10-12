@@ -1,6 +1,6 @@
 import { hash2 } from '../../core/math.js';
 import { PAL } from '../../gfx/Palette.js';
-import { FK, ramp, hxi, D4, clampI, band, darken, vnoise, field, chunkCtx, pebble, stroke, paveIdx } from './kit.js';
+import { FK, ramp, hxi, D4, clampI, band, darken, vnoise, field, chunkCtx, pebble, stroke } from './kit.js';
 
 // Feinraster-Boden: Glutöde (level.biome 'wastes'). Weltpixel-Shader: sprites/decor_wastes.js (wastesPixel, nur gelesen).
 // ',' Aschesand (Dünenrippel, Krustenplatten mit Rissen, Holzkohle, Basaltkiesel, Obsidiansplitter, Glutkrümel),
@@ -205,8 +205,26 @@ function baseKind(S, F, G, kind) {
   const P = S.P, tx = F >> 5, ty = G >> 5;
   return tx >= 0 && ty >= 0 && tx < P.W && ty < P.H && P.base[ty * P.W + tx] === 2 ? FK.DIRT : FK.GRASS;
 }
+// Platz der Glutöde: Ziegel unterschiedlich lang (Reihen 10 Feinpixel hoch, je 24 Feinpixel ein oder zwei Ziegel von 8–16,
+// selten einer über die ganze Länge, Stoßfugen je Reihe versetzt), Licht oben links: Kante oben/links eine Stufe heller,
+// Eckpixel oben links am hellsten, Kante unten/rechts dunkler. -1 = Fuge (1 Feinpixel).
+function brickIdx(F, G) {
+  const row = Math.floor(G / 10), ly = G - row * 10;
+  if (ly === 0) return -1;
+  const u = F + Math.floor(hash2(row, 0, 451) * 24), cell = Math.floor(u / 24), lu = u - cell * 24;
+  const split = hash2(cell, row, 452) < 0.85 ? 8 + Math.floor(hash2(cell, row, 453) * 9) : 24;
+  const first = lu < split, b = cell * 2 + (first ? 0 : 1), lx = first ? lu : lu - split, len = first ? split : 24 - split;
+  if (lx === 0) return -1;
+  const s = hash2(b, row, 16), e = hash2(b, row, 454);
+  if (e > 0.88 && lx === len - 1 && ly === 9) return -1;              // abgeschlagene Ecke unten rechts
+  if (lx === 1 && ly === 1) return 5;                                 // Lichtkantenpixel
+  let i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
+  if (ly === 1 || lx === 1) i = Math.min(4, i + 1);
+  else if (ly === 9 || lx === len - 1) i -= 1;
+  return i;
+}
 function paveCol(F, G) {
-  const i = paveIdx(F, G);
+  const i = brickIdx(F, G);
   return i < 0 ? MORT : PAVE[clampI(i, 1, 5)];
 }
 

@@ -48,17 +48,36 @@ export function field(x0, y0, w, h, step, fn, out, add, k) {
   const W = Math.ceil(w / step) + 2, H = Math.ceil(h / step) + 2, a = new Float32Array(W * H);
   const gx = Math.floor(x0 / step) * step, gy = Math.floor(y0 / step) * step, ox = x0 - gx, oy = y0 - gy;
   for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) a[j * W + i] = fn(gx + i * step, gy + j * step);
-  const inv = 1 / step;
+  const inv = 1 / step, IX = new Int32Array(w), AX = new Float64Array(w);
+  for (let x = 0; x < w; x++) { const fx = (x + ox) * inv; IX[x] = fx | 0; AX[x] = fx - IX[x]; }
   for (let y = 0; y < h; y++) {
-    const fy = (y + oy) * inv, j = fy | 0, ay = fy - j, o = y * w;
-    for (let x = 0; x < w; x++) {
-      const fx = (x + ox) * inv, i = fx | 0, ax = fx - i, q = j * W + i;
-      const t = a[q] + (a[q + 1] - a[q]) * ax, u = a[q + W] + (a[q + W + 1] - a[q + W]) * ax;
-      const v = (t + (u - t) * ay) * k;
-      out[o + x] = add ? out[o + x] + v : v;
+    const fy = (y + oy) * inv, j = fy | 0, ay = fy - j, o = y * w, r = j * W;
+    if (add) for (let x = 0; x < w; x++) {
+      const q = r + IX[x], ax = AX[x], t = a[q] + (a[q + 1] - a[q]) * ax, u = a[q + W] + (a[q + W + 1] - a[q + W]) * ax;
+      out[o + x] += (t + (u - t) * ay) * k;
+    } else for (let x = 0; x < w; x++) {
+      const q = r + IX[x], ax = AX[x], t = a[q] + (a[q + 1] - a[q]) * ax, u = a[q + W] + (a[q + W + 1] - a[q + W]) * ax;
+      out[o + x] = (t + (u - t) * ay) * k;
     }
   }
   return out;
+}
+
+// vnoise(x / sx, y / sy, seed) für die Gitterpunkte von field() über einem Chunk, bitgleich, aber mit den Gitterhashes aus
+// einer Tabelle (je Gitterzelle des Rauschens einmal statt viermal je Punkt)
+function vnTable(x0, y0, w, h, step, sx, sy, seed) {
+  const W = Math.ceil(w / step) + 2, H = Math.ceil(h / step) + 2;
+  const gx = Math.floor(x0 / step) * step, gy = Math.floor(y0 / step) * step;
+  const lx0 = Math.floor(gx / sx), ly0 = Math.floor(gy / sy);
+  const LW = Math.floor((gx + (W - 1) * step) / sx) - lx0 + 2, LH = Math.floor((gy + (H - 1) * step) / sy) - ly0 + 2;
+  const L = new Float64Array(LW * LH);
+  for (let j = 0; j < LH; j++) for (let i = 0; i < LW; i++) L[j * LW + i] = hash2(lx0 + i, ly0 + j, seed);
+  return (x, y) => {
+    const X = x / sx, Y = y / sy, xi = Math.floor(X), yi = Math.floor(Y), fx = X - xi, fy = Y - yi;
+    const q = (yi - ly0) * LW + xi - lx0, a = L[q], b = L[q + 1], c = L[q + LW], d = L[q + LW + 1];
+    const tx = fx * fx * (3 - 2 * fx), ty = fy * fy * (3 - 2 * fy);
+    return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+  };
 }
 
 // Chunk-Kontext für fineSetup/finePixel. x0/y0/cw/ch: Chunk in Weltpixeln, K/KW/M: Terrainraster (Feinpixel, Rand M).
@@ -88,7 +107,7 @@ export function chunkCtx(x0, y0, cw, ch, K, KW, M) {
     // Rauschfeld anlegen: Liste [schritt, maßstab x, maßstab y, seed, gewicht] (Weltpixel)
     noise(layers) {
       const out = new Float32Array(this.n);
-      layers.forEach(([step, sx, sy, seed, k], i) => field(this.fx0, this.fy0, fw, fh, step, (x, y) => vnoise(x / sx, y / sy, seed), out, i > 0, k));
+      layers.forEach(([step, sx, sy, seed, k], i) => field(this.fx0, this.fy0, fw, fh, step, vnTable(this.fx0, this.fy0, fw, fh, step, sx, sy, seed), out, i > 0, k));
       return out;
     },
   };
