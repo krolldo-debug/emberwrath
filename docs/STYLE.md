@@ -272,6 +272,8 @@ und geht den älteren Regeln oben vor.
   291 → 346 ms, Aschenwald-Deko (Stufe A) 216 → 266 ms.
 - Speicher: Sprite-Texturen ×4. Caches mit Obergrenze (Held: `cache.size`, Boden: `MAX_CHUNKS`) in Texeln rechnen, nicht in Stück.
 
+- Frames entstehen lazy (`lazyFrame`/`lazyFrames` in `gfx/Sprite.js`): Ein Satz anzulegen kostet nur Millisekunden, gebaut wird beim ersten Zeigen; `world/spriteWarm.js` baut nach dem Betreten in Häppchen (≤ ~3 ms je Bild, Nahes und Boss zuerst) vor. Neue Sprite-Dateien nutzen dasselbe Muster, damit der Zonenwechsel nicht wächst.
+
 ### 8. Pflichten für Code, der Frames weiterverarbeitet
 - `frame.canvas`, `ax`, `ay` sind Texel; Weltgröße = Texel / `frame.res`. Nie `canvas.width` als Weltbreite lesen.
 - Helfer in `gfx/Sprite.js`: `blitFrame(ctx, frame, x, y)` (Frame in eine Weltpixel-Zeichnung setzen), `drawGlowLayer(ctx, sprite,
