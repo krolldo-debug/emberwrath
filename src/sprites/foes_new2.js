@@ -119,11 +119,11 @@ function cap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
 }
 
 // Gefülltes Polygon (Scanline, fein in Feinpixelzeilen). col: Farbe oder (x, y) => Farbe|null;
-// x/y sind die linke obere Ecke des Pixels (fein: Vielfache von p.step).
-function poly(p, pts, col) {
+// x/y sind die linke obere Ecke des Pixels (fein: Vielfache von p.step). q = 1 erzwingt auch fein ganze
+// Weltpixel (ruhige Kanten in 1-Weltpixel-Treppen).
+function poly(p, pts, col, q = p.step ?? 1) {
   let minY = Infinity, maxY = -Infinity;
-  for (const q of pts) { minY = Math.min(minY, q[1]); maxY = Math.max(maxY, q[1]); }
-  const q = p.step ?? 1;
+  for (const v of pts) { minY = Math.min(minY, v[1]); maxY = Math.max(maxY, v[1]); }
   for (let y = Math.floor(minY); y <= Math.ceil(maxY); y += q) {
     const yc = y + q / 2, xs = [];
     for (let i = 0; i < pts.length; i++) {
@@ -219,6 +219,12 @@ function glowDot(g, x, y, r, ramp) {
   if (g.fine && r > 1.2) { const c = ramp[Math.min(ramp.length - 1, 4)]; g.dot(x + 0.25, y + 0.25, c); g.dot(x + 0.75, y + 0.25, c); g.dot(x + 0.25, y + 0.75, c); g.dot(x + 0.75, y + 0.75, c); }
 }
 
+// fein: Leuchtfleck in genau 2 harten Stufen (außen dunklerer Ring, innen hell), volle Deckkraft, kein Verlauf
+function glow2(g, x, y, r, ri, outer, inner) {
+  oval(g, x, y, r, r, outer);
+  oval(g, x, y, ri, ri, inner);
+}
+
 // Pixelpuffer (Uint32, RGBA) einer FineCanvas zum Nachbearbeiten: ohne Leinwand der Puffer selbst (direkt
 // bearbeitbar), sonst eine Kopie, die putPix zurückschreibt. Spart Leinwand-Umwege (getImageData/putImageData).
 function getPix(p) { return p.pixels(); }
@@ -229,7 +235,9 @@ const bytes = (d) => new Uint8ClampedArray(d.buffer, d.byteOffset, d.length * 4)
 // Wie buildFrame (fein): Feinschliff (nur bei res > 1) und Kontur 1 Texel, Ergebnis (W+2)×(H+2) – aber nur im
 // belegten Rechteck (+1 Texel durchsichtiger Rand) gerechnet. Außerhalb ist das Ergebnis ohnehin leer, und am
 // Bildrand verhalten sich beide Werkzeuge wie bei durchsichtigen Nachbarn → pixelgleich zu buildFrame.
-function finishOutline(d, W, H, res) {
+// keep (nur fein, optional): Map Farbe → [Oberkante, Unterkante]; diese Farben bekommen an Ober-/Unterkante statt
+// der Tönung des Feinschliffs eine feste Rampenstufe (keine Mischfarben).
+function finishOutline(d, W, H, res, keep = null) {
   let X0 = W, X1 = -1, Y0 = -1, Y1 = -1;
   for (let y = 0; y < H; y++) {
     const o = y * W;
@@ -247,7 +255,11 @@ function finishOutline(d, W, H, res) {
     const xa = Math.max(0, cx0), xb = Math.min(W, cx0 + cw);
     crop.set(d.subarray(y * W + xa, y * W + xb), (y - cy0) * cw + xa - cx0);
   }
-  if (res > 1) finishPixels(crop, cw, ch);
+  if (res > 1) {
+    const fix = keep ? keepEdges(crop, cw, ch, keep) : null;
+    finishPixels(crop, cw, ch);
+    if (fix) for (let k = 0; k < fix.length; k += 2) crop[fix[k]] = fix[k + 1];
+  }
   const o = outlinePixels(crop, cw, ch), ow = cw + 2;
   // o(0,0) entspricht Quelle (cx0 − 1, cy0 − 1) → Ausgabe (cx0, cy0)
   for (let j = 0; j < ch + 2; j++) {
@@ -258,6 +270,17 @@ function finishOutline(d, W, H, res) {
   }
   OUTR = [Math.max(0, cy0) * OW, Math.min(H + 2, cy0 + ch + 2) * OW];
   return out;
+}
+// Kantenpixel (genau oben oder genau unten frei, wie finishPixels) mit keep-Farbe → [Index, Ersatzfarbe, …]
+function keepEdges(d, w, h, keep) {
+  const fix = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const m = y * w + x, e = keep.get(d[m]);
+    if (!e) continue;
+    const up = y === 0 || d[m - w] < A40, down = y === h - 1 || d[m + w] < A40;
+    if (up !== down) fix.push(m, up ? e[0] : e[1]);
+  }
+  return fix;
 }
 // Ausgabepuffer von finishOutline wiederverwenden (wird gleich in eine Leinwand kopiert): beim nächsten Frame gleicher
 // Größe nur die zuletzt belegten Zeilen leeren statt neu anzulegen.
@@ -372,6 +395,8 @@ function rimLight(p, g, rim) {
   const lw = X1 - X0 + 1 + r, lh = Y1 - Y0 + 1 + r, op = scratchOp(lw * lh);
   for (let y = Y0; y <= Y1; y++) for (let x = X0, l = (y - Y0 + r) * lw + r; x <= X1; x++, l++) if (px[y * w + x] >= A40) op[l] = 1;
   const [r0, g0, b0] = rim.c, k1 = rim.k1 ?? 0.42, k2 = rim.k2 ?? 0.24;
+  // fein: rim.map (Farbe → Farbe) setzt für diese Farben statt einer Mischfarbe eine feste Rampenstufe
+  const mp = r > 1 && rim.map ? rim.map() : null;
   for (let y = Y0; y <= Y1; y++) for (let x = X0, l = (y - Y0 + r) * lw + r; x <= X1; x++, l++) {
     if (!op[l]) continue;
     const i = y * w + x, gv = g32[i];
@@ -385,6 +410,7 @@ function rimLight(p, g, rim) {
       k = fu ? k1 : fl ? k2 : fd ? k2 * 0.5 : 0;
     }
     if (!k) continue;
+    if (mp) { const m = mp.get(px[i]); if (m !== undefined) { if (k >= k2) px[i] = m; continue; } }
     const j = i * 4;
     d[j] += (r0 - d[j]) * k; d[j + 1] += (g0 - d[j + 1]) * k; d[j + 2] += (b0 - d[j + 2]) * k;
   }
@@ -503,7 +529,7 @@ function makeFrame(S, draw, P, X = {}) {
   };
   const pc = takeFine(W, H, res);
   body(pc);
-  const d = finishOutline(pc.pixels(), pc.W, pc.H, res), DW = pc.W + 2, DH = pc.H + 2;
+  const d = finishOutline(pc.pixels(), pc.W, pc.H, res, res > 1 && S.keep ? S.keep() : null), DW = pc.W + 2, DH = pc.H + 2;
   const gd = g.pixels();
   // rimGlow-Saum gleich auf den Pixeldaten (Kontur 1 Texel → Leuchtebene 1 Texel versetzt)
   if (RIM_GLOW) rimGlowPixels(d, DW, DH, res, RIM_GLOW, gd, g.W, g.H, -1, -1);
@@ -575,6 +601,10 @@ const DUSTC = ['#5e5040', '#7e6e56', '#a49276', '#cbb894', '#e8dcc0'];
 const OCHRE = ['#3a0e08', '#6e1c0e', '#a0321a', '#c8502a', '#e07a3c'];
 const ASHSK = ['#211a17', '#3a2f29', '#594a40', '#7b6a5c', '#9e8d7c', '#c2b4a2'];  // aschebemalte Haut
 const HIDE = ['#130e0b', '#221911', '#342619', '#4a3824', '#634c32', '#7e6344'];   // Fellumhang
+const ROBE3 = [HIDE[4], HIDE[3], HIDE[2]];   // fein: Robe hell / mittel / dunkel (eine Rampe)
+const ROBE_FOLD = HIDE[1];                     // fein: Faltenkante
+const MASK_RIM = '#1a120c';                    // fein: dunkler Rand um die Schädelmaske
+const FEATH = ['#2e2722', '#6a5e50'];          // fein: Feder dunkel / hell
 const SHAG = ['#120e0b', '#211a14', '#33291f', '#4a3c2d', '#655340', '#837058'];
 const DRIFT = ['#2a2218', '#4e4232', '#7a6c52', '#a8987a', '#d0c4a4'];             // gebleichtes Treibholz
 const HORN = ['#1e1812', '#362c22', '#54463a', '#76664f', '#9a8a6c', '#bcad8c'];
@@ -587,7 +617,19 @@ const STONE = ['#1e1c1a', '#34302b', '#4c463e', '#686052', '#867c6a', '#a49a86']
 
 // ================================================================ Staubschamane
 
-const SS = { W: 60, H: 52, AX: 26, AY: 46, pad: 12, rim: { c: [238, 224, 196], k1: 0.3, k2: 0.14 } };
+// rim.map / keep (nur fein): Robe und Ockerband bekommen als Randlicht und an Ober-/Unterkante feste Stufen der
+// Robenrampe statt Mischfarben (Robe bleibt bei 3 Brauntönen + Faltenfarbe + 2 Ocker)
+let SH_RIM_MAP = null, SH_KEEP = null;
+const SS = {
+  W: 60, H: 52, AX: 26, AY: 46, pad: 12,
+  rim: { c: [238, 224, 196], k1: 0.3, k2: 0.14, map: () => SH_RIM_MAP ??= new Map([
+    [ROBE3[0], ROBE3[0]], [ROBE3[1], ROBE3[0]], [ROBE3[2], ROBE3[1]], [ROBE_FOLD, ROBE_FOLD], [OCHRE[3], OCHRE[3]], [OCHRE[1], OCHRE[1]],
+  ].map(([a, b]) => [col32(a), col32(b)])) },
+  keep: () => SH_KEEP ??= new Map([
+    [ROBE3[0], ROBE3[0], ROBE3[1]], [ROBE3[1], ROBE3[0], ROBE3[2]], [ROBE3[2], ROBE3[1], ROBE_FOLD], [ROBE_FOLD, ROBE_FOLD, ROBE_FOLD],
+    [OCHRE[3], OCHRE[3], OCHRE[1]], [OCHRE[1], OCHRE[1], OCHRE[1]],
+  ].map(([a, t, b]) => [col32(a), [col32(t), col32(b)]])),
+};
 const SD = { legH: 10, thigh: 5, shin: 5.5, spine: 8, upper: 4.2, fore: 4.6, sh: 1.4, hipW: 1 };
 const SH_REST = {
   hipX: 0, hipY: 0, lean: 0.24, head: 0, headY: 0, fFx: 3, fFy: 0, fBx: -3, fBy: 0,
@@ -711,6 +753,12 @@ function lyingStaff(gx, gy) {
 
 // Widderschädel als Maske: Schädeldach, Schnauze, dunkle Hörner eingerollt
 function ramSkull(p, g, hx, hy, P) {
+  if (p.fine) {
+    // fein: dunkler Rand um die Maske (Schädeldach und Schnauze ½ Weltpixel größer), damit sie sich im Zaubern
+    // von Kopf, Kragen und Federn absetzt
+    ell(p, hx + 1, hy - 1.2, 3.5, 2.9, [MASK_RIM]);
+    poly(p, [[hx + 2, hy - 3.2], [hx + 7.4, hy + 0.3], [hx + 6.9, hy + 2.6], [hx + 2.1, hy + 1.4]], MASK_RIM);
+  }
   // Schädeldach
   ell(p, hx + 1, hy - 1.2, 3.0, 2.4, BONE, { noise: 0.12, seed: 41, bias: p.fine ? 0.17 : 0.05 });   // fein: hellerer Knochen, hebt sich vom Fell ab
   // Schnauze nach vorn unten
@@ -725,14 +773,14 @@ function ramSkull(p, g, hx, hy, P) {
     const r = 3.6 - t * 2.6;
     const x = cx + Math.cos(ang) * r * 1.1, y = cy + Math.sin(ang) * r;
     const w = 1.7 - t * 0.9;
-    const ridge = Math.floor(t * 16) % 2 === 0;
+    const ridge = p.fine || Math.floor(t * 16) % 2 === 0;   // fein: ohne Wechselringe (ruhig), Rillen als Feinlinie
     for (let k = -w; k <= w; k += hq) {
       const qx = x + Math.cos(ang) * k, qy = y + Math.sin(ang) * k;
       put(qx, qy, k > w - he ? HORN[ridge ? 5 : 4] : k < -w + he ? HORN[1] : HORN[ridge ? 3 : 2]);
     }
   }
   if (p.fine) {
-    for (let t = 0.04; t < 0.95; t += 0.075) {
+    for (let t = 0.08; t < 0.9; t += 0.15) {
       const ang = -Math.PI * 0.5 - t * Math.PI * 1.7, r = 3.6 - t * 2.6, w = 1.7 - t * 0.9;
       const x = cx + Math.cos(ang) * r * 1.1, y = cy + Math.sin(ang) * r, c = Math.cos(ang + 0.25), sn = Math.sin(ang + 0.25);
       p.fline(x - c * (w - 0.3), y - sn * (w - 0.3), x + c * (w - 0.4), y + sn * (w - 0.4), HORN[1]);
@@ -805,40 +853,39 @@ function drawShaman(p, g, P, X) {
     const rel = (x - backHem.x) / span;
     const fold = ((x - Math.round(hip.x) + 40) + Math.floor((y - hip.y) * 0.25)) % 4;
     let i = rel < 0.18 ? 3 : rel < 0.5 ? 2 : 1;
-    if (p.fine) return HIDE[rel < 0.3 ? 4 : rel < 0.62 ? 3 : 2];   // fein: Stoff in 3 Stufen (Licht von links), Falten folgen
     if (fold === 0) i -= 1; else if (fold === 2 && rel < 0.5) i += 1;
     if (y < shL.y + 2.5) i += 1;
     if (hash2(x, y, 17) < 0.1) i -= 1;
     return HIDE[clamp(i, 0, 5)];
   };
   const robe = [[shL.x, shL.y], [shR.x, shR.y], [waistF.x, waistF.y], [frontHem.x, frontHem.y], [backHem.x + 3, backHem.y + 1], [backHem.x, backHem.y]];
-  poly(p, robe, robeCol);
   if (p.fine) {
-    // Handfein: Fellhaut in Strähnen (nach unten gekämmt, Licht links), zwei zweifarbige Falten
-    const x0 = Math.min(backHem.x, shL.x) - 1, x1 = Math.max(frontHem.x, shR.x) + 1, ins = (x, y) => inPoly(robe, x, y + 1.2) && inPoly(robe, x, y);
-    // Großform: drei Faltenkanten von der Schulter zum Saum (Schattenrinne dunkel, links daneben Lichtkante)
-    for (const [u, v] of [[0.15, 0.22], [0.42, 0.48], [0.7, 0.76]]) {
-      const ax = shL.x + (shR.x - shL.x) * u, ay = shL.y + (shR.y - shL.y) * u + 2.5;
-      const bx = backHem.x + (frontHem.x - backHem.x) * v, by = backHem.y + (frontHem.y - backHem.y) * v - 1.5;
-      p.fline(ax + 0.5, ay, bx + 0.5, by, HIDE[0], 0.5); p.fline(ax, ay, bx, by, HIDE[1]); p.fline(ax - 0.5, ay + 0.5, bx - 0.5, by, HIDE[5]);
+    // fein: Robe als Großform in genau 3 Stufen einer Rampe (hell oben links, mittel, dunkel unten rechts) plus
+    // eine dunkle Faltenkanten-Farbe. Gefüllt in ganzen Weltpixeln: Kanten und Stufengrenzen laufen in ruhigen
+    // 1-Weltpixel-Treppen, kein Rauschen, keine Mischfarben, keine Einzelsträhnen.
+    const topY = Math.min(shL.y, shR.y), botY = Math.max(frontHem.y, backHem.y), span = Math.max(1, frontHem.x - backHem.x);
+    poly(p, robe, (x, y) => {
+      const t = (x + 0.5 - backHem.x) / span * 0.7 + (y + 0.5 - topY) / Math.max(1, botY - topY) * 0.45;
+      return ROBE3[t < 0.4 ? 0 : t < 0.72 ? 1 : 2];
+    }, 1);
+    // Faltenkanten: Schulter → Saum, je Weltzeile ein Feinpixel breit an ganzer Weltpixel-Spalte (Treppe 1 Weltpixel)
+    for (const [u, v] of [[0.2, 0.26], [0.5, 0.55], [0.78, 0.8]]) {
+      const ax = shL.x + (shR.x - shL.x) * u, ay = Math.round(shL.y + (shR.y - shL.y) * u + 3);
+      const bx = backHem.x + (frontHem.x - backHem.x) * v, by = Math.round(backHem.y + (frontHem.y - backHem.y) * v - 3);
+      for (let y = ay; y <= by; y++) {
+        const x = Math.round(ax + (bx - ax) * (y - ay) / Math.max(1, by - ay));
+        if (inPoly(robe, x + 0.5, y + 0.5)) p.rect(x, y, 0.5, 1, ROBE_FOLD);
+      }
     }
-    // wenige Fellzotteln, je Zone eine Stufe heller als der Stoff (erst auf der Großform)
-    strands(p, x0, shL.y + 1, x1, Math.max(frontHem.y, backHem.y) - 2, 14, 17, -0.4 - P.cape * 0.6 + sway * 0.2, 1.6, (x) => {
-      const rel = (x - backHem.x) / Math.max(1, frontHem.x - backHem.x);
-      return rel < 0.3 ? HIDE[5] : rel < 0.62 ? HIDE[4] : HIDE[3];
-    }, ins);
-    // Schulterzone heller (Licht von oben)
-    p.fline(shL.x, shL.y + 0.5, shR.x, shR.y + 0.5, HIDE[5]);
-  }
+  } else poly(p, robe, robeCol);
   // Ocker-Zickzackband über dem Saum
   if (p.fine) {
-    // fein: gemaltes Zickzack als Feinlinie mit hellem Farbauftrag oben
+    // fein: gemaltes Zickzack als Feinlinie in 2 Tönen (Farbe, Schatten darunter)
     let px0 = null;
     for (let x = Math.round(backHem.x) + 1; x <= Math.round(frontHem.x) - 1; x += 1) {
       const f = (x - backHem.x) / Math.max(1, frontHem.x - backHem.x);
       const y0 = backHem.y + (frontHem.y - backHem.y) * f - 2.5 - ((x + 40) % 2 ? 0.75 : 0);
       if (px0) { p.fline(px0[0], px0[1], x, y0, OCHRE[3]); p.fline(px0[0], px0[1] + 0.5, x, y0 + 0.5, OCHRE[1]); }
-      if ((x + 40) % 2) p.dot(x, y0, OCHRE[4]);
       px0 = [x, y0];
     }
   } else for (let x = Math.round(backHem.x) + 1; x <= Math.round(frontHem.x) - 1; x++) {
@@ -856,8 +903,8 @@ function drawShaman(p, g, P, X) {
       // fein: Fransen als einzelne Fellzotteln, je Weltpixel zwei verschieden lang
       for (const o of [0, 0.5]) {
         const LL = L + (hash2(x * 2 + o * 2, 7, 19) - 0.5) * 1.2;
-        p.fline(x + o, y0, x + o - P.cape * 0.5, y0 + LL - 0.5, o ? HIDE[1] : HIDE[2]);
-        p.dot(x + o - P.cape * 0.5, y0 + LL - 0.5, HIDE[0]);
+        p.fline(x + o, y0, x + o - P.cape * 0.5, y0 + LL - 0.5, o ? ROBE_FOLD : ROBE3[2]);
+        p.dot(x + o - P.cape * 0.5, y0 + LL - 0.5, ROBE_FOLD);   // dunkle Spitze in der Faltenfarbe (keine Zusatzfarbe)
       }
       continue;
     }
@@ -884,15 +931,15 @@ function drawShaman(p, g, P, X) {
 
   // --- Fellkragen mit Zahnkette
   const col = pt(SD.spine - 0.1, -0.4);
-  ell(p, col.x - 0.6, col.y, 4.2, 2.3, SHAG, { noise: p.fine ? 0 : 0.4, seed: 23 });   // fein: ohne Rauschen, Zotteln tragen die Struktur
+  ell(p, col.x - 0.6, col.y, 4.2, 2.3, p.fine ? SHAG.slice(2, 5) : SHAG, { noise: p.fine ? 0 : 0.4, seed: 23 });   // fein: 3 Stufen ohne Rauschen
   if (p.fine) {
     // Handfein: Kragenfell in Zotteln (oben hell, nach außen-unten gekämmt), Zahnkette mit Glanzpunkt
-    strands(p, col.x - 4.6, col.y - 2, col.x + 3.6, col.y + 2, 14, 23, 0, 1.6, (x, y) => {
+    // ruhig: nur wenige helle Zotteln oben, unten Fransen in einem Ton
+    strands(p, col.x - 4.6, col.y - 2, col.x + 3.6, col.y + 2, 6, 23, 0, 1.6, (x, y) => {
       const lx = (x - col.x + 0.6) / 4.2, ly = (y - col.y) / 2.3;
-      if (lx * lx + ly * ly > 0.9) return null;
-      return ly < -0.3 ? SHAG[5] : lx < 0 ? SHAG[4] : SHAG[2];
+      return lx * lx + ly * ly > 0.9 || ly >= -0.3 ? null : SHAG[5];
     });
-    for (let i = -3.5; i <= 3; i += 0.75) p.fline(col.x + i, col.y + 1.5, col.x + i - 0.3, col.y + 2.5 + hash2(Math.round(i * 4), 1, 5) * 1.2, SHAG[1]);
+    for (let i = -3.5; i <= 3; i += 1) p.fline(col.x + i, col.y + 1.5, col.x + i - 0.3, col.y + 2.5 + hash2(Math.round(i * 4), 1, 5) * 1.2, SHAG[1]);
     for (let i = 0; i < 6; i++) { const t = pt(SD.spine - 2.1 - i * 0.15, 0.3 + i * 0.5); p.dot(t.x, t.y, BONE[3]); p.dot(t.x, t.y + 0.5, BONE[1]); if (i % 2) p.dot(t.x - 0.5, t.y, BONE[4]); }
   } else {
     for (let i = -3; i <= 3; i += 1.3) p.px(col.x + i, col.y + 2 + (hash2(i * 3 | 0, 1, 5) * 1.6 | 0), SHAG[1]);
@@ -900,69 +947,76 @@ function drawShaman(p, g, P, X) {
   }
 
   // --- Kopf: Gesicht im Schatten unter dem Widderschädel
-  ell(p, hx + 1.6, hy + 1.0, 2.2, 2.0, ['#120c0a', '#1c1410', '#2a1e18', '#3a2a20']);
-  p.px(hx + 3, hy + 2.6 + Math.round(P.jaw), '#080404');
-  // Ziegenbart
-  if (p.fine) {
-    // Handfein: Gesicht im Maskenschatten – Wangenlicht, Lippen, Mundwinkel, Zähne bei offenem Kiefer;
-    // Ziegenbart in fünf Strähnen (hell oben, dunkle Spitzen)
-    p.dot(hx + 3.5, hy + 1.5, '#4a3628'); p.dot(hx + 3, hy + 1.5, '#3a2a20');
-    p.fline(hx + 2, hy + 2.5 + P.jaw, hx + 3.5, hy + 2.5 + P.jaw, '#080404'); p.dot(hx + 1.5, hy + 2, '#2a1e18');
-    if (P.jaw > 0.4) { p.dot(hx + 2.5, hy + 2.5, '#d8ccb4'); p.dot(hx + 3, hy + 2.5, '#bab0a0'); p.dot(hx + 2.5, hy + 3 + P.jaw, '#4a1410'); }
-    for (let i = 0; i < 5; i++) {
-      const bx = hx + 1.75 + i * 0.4, ex = hx + 1.5 + i * 0.3 - P.cape, ey = hy + 5.5 + (i % 2 ? 0.5 : 0) - Math.abs(i - 2) * 0.4;
-      p.fline(bx, hy + 3, ex, ey, i < 2 ? '#bab0a0' : i === 4 ? '#6a6258' : '#9a9080'); p.dot(ex, ey + 0.5, '#5a544a');
-    }
-  } else { p.line(hx + 2.5, hy + 3, hx + 2 - P.cape, hy + 6, '#9a9080'); p.px(hx + 3, hy + 3, '#bab0a0'); p.px(hx + 2 - P.cape, hy + 6, '#6a6258'); }
-  ramSkull(p, g, hx, hy - 1.5, P);
-  // Federn hinten am Schädel
-  for (let i = 0; i < 3; i++) {
-    const bx = hx - 2.5 - i * 0.8, by = hy - 3.5 + i * 0.8;
-    const ang = -2.1 - i * 0.35 - P.cape * 0.3 + Math.sin(P.capeT + i) * 0.08;
+  const headPart = () => {
+    ell(p, hx + 1.6, hy + 1.0, 2.2, 2.0, ['#120c0a', '#1c1410', '#2a1e18', '#3a2a20']);
+    p.px(hx + 3, hy + 2.6 + Math.round(P.jaw), '#080404');
+    // Ziegenbart
     if (p.fine) {
-      // fein: Feder mit hellem Kiel und Fahnen in Feinpixeln, Spitze ockerfarben
-      const L = 6 - i, ca = Math.cos(ang), sa = Math.sin(ang), ex = bx + ca * L, ey = by + sa * L;
-      const mx = bx + ca * (L - 2), my = by + sa * (L - 2);
-      p.fline(bx + sa * 0.5, by - ca * 0.5, mx + sa * 0.5, my - ca * 0.5, '#5a5046');       // Fahne zum Licht
-      p.fline(bx - sa * 0.5, by + ca * 0.5, mx - sa * 0.5, my + ca * 0.5, '#2a2420');       // Fahne im Schatten
-      p.fline(mx + sa * 0.4, my - ca * 0.4, ex, ey, OCHRE[4]); p.fline(mx - sa * 0.4, my + ca * 0.4, ex, ey, OCHRE[2]);
-      p.fline(bx, by, ex - ca * 0.5, ey - sa * 0.5, '#8a7e6c');                                // Kiel
-      continue;
-    }
-    for (let s = 0; s < 6 - i; s++) p.px(bx + Math.cos(ang) * s, by + Math.sin(ang) * s, s >= 4 - i ? OCHRE[3] : s % 2 ? '#2a2420' : '#4a4038');
-  }
-  meta.eye = { x: hx + 2.5, y: hy - 2 };
-  meta.head = { x: hx + 1, y: hy - 7 };
-  meta.mouth = { x: hx + 3, y: hy + 3 };
+      // Handfein: Gesicht im Maskenschatten – Wangenlicht, Lippen, Mundwinkel, Zähne bei offenem Kiefer;
+      // Ziegenbart in fünf Strähnen (hell oben, dunkle Spitzen)
+      p.dot(hx + 3.5, hy + 1.5, '#4a3628'); p.dot(hx + 3, hy + 1.5, '#3a2a20');
+      p.fline(hx + 2, hy + 2.5 + P.jaw, hx + 3.5, hy + 2.5 + P.jaw, '#080404'); p.dot(hx + 1.5, hy + 2, '#2a1e18');
+      if (P.jaw > 0.4) { p.dot(hx + 2.5, hy + 2.5, '#d8ccb4'); p.dot(hx + 3, hy + 2.5, '#bab0a0'); p.dot(hx + 2.5, hy + 3 + P.jaw, '#4a1410'); }
+      for (let i = 0; i < 5; i++) {
+        const bx = hx + 1.75 + i * 0.4, ex = hx + 1.5 + i * 0.3 - P.cape, ey = hy + 5.5 + (i % 2 ? 0.5 : 0) - Math.abs(i - 2) * 0.4;
+        p.fline(bx, hy + 3, ex, ey, i < 2 ? '#bab0a0' : i === 4 ? '#6a6258' : '#9a9080'); p.dot(ex, ey + 0.5, '#5a544a');
+      }
+    } else { p.line(hx + 2.5, hy + 3, hx + 2 - P.cape, hy + 6, '#9a9080'); p.px(hx + 3, hy + 3, '#bab0a0'); p.px(hx + 2 - P.cape, hy + 6, '#6a6258'); }
+    // Federn hinten am Schädel (fein vor der Maske gezeichnet: die Maske mit dunklem Rand liegt über den Kielen)
+    const feathers = () => { for (let i = 0; i < 3; i++) {
+      const bx = hx - 2.5 - i * 0.8, by = hy - 3.5 + i * 0.8;
+      const ang = -2.1 - i * 0.35 - P.cape * 0.3 + Math.sin(P.capeT + i) * 0.08;
+      if (p.fine) {
+        // fein: ruhige Feder in 2 Stufen (obere Fahne hell, untere dunkel), klare Spitze; letztes Drittel ocker
+        const L = 6 - i, ca = Math.cos(ang), sa = Math.sin(ang), ex = bx + ca * L, ey = by + sa * L;
+        const mx = bx + ca * (L - 2), my = by + sa * (L - 2), w = 0.75;
+        const up = -sa * w, uq = ca * w;   // Normale zur Lichtseite (nach oben)
+        poly(p, [[bx, by], [bx + up, by + uq], [mx + up, my + uq], [ex, ey], [mx, my]], FEATH[1]);
+        poly(p, [[bx, by], [mx, my], [ex, ey], [mx - up, my - uq], [bx - up, by - uq]], FEATH[0]);
+        poly(p, [[mx, my], [mx + up, my + uq], [ex, ey]], OCHRE[3]);
+        poly(p, [[mx, my], [ex, ey], [mx - up, my - uq]], OCHRE[1]);
+        continue;
+      }
+      for (let s = 0; s < 6 - i; s++) p.px(bx + Math.cos(ang) * s, by + Math.sin(ang) * s, s >= 4 - i ? OCHRE[3] : s % 2 ? '#2a2420' : '#4a4038');
+    } };
+    if (p.fine) { feathers(); ramSkull(p, g, hx, hy - 1.5, P); } else { ramSkull(p, g, hx, hy - 1.5, P); feathers(); }
+    meta.eye = { x: hx + 2.5, y: hy - 2 };
+    meta.head = { x: hx + 1, y: hy - 7 };
+    meta.mouth = { x: hx + 3, y: hy + 3 };
+  };
 
   // --- Vorderer Arm + Stab
-  if (X.smear) smearArc(p, g, shF.x, shF.y, X.smear[0], X.smear[1], 11, 18, [DUSTC[1], DUSTC[2], DUSTC[3]], DGLOW.slice(1, 3), X.smear[2] ?? 1);
   let tip = null;
-  const arm = () => {
-    cap(p, shF.x, shF.y, armF.jx, armF.jy, 1.2, 1.0, SKD);
-    cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 1.0, 0.9, SKD);
-    const bx = armF.jx + (armF.ex - armF.jx) * 0.6, by = armF.jy + (armF.ey - armF.jy) * 0.6;
-    p.px(bx, by, BONE[3]); p.px(bx + 0.6, by + 0.6, BONE[2]);
-    ell(p, shF.x - 0.3, shF.y, 1.8, 1.5, SHAG.slice(1));
-    if (p.fine) {
-      // Armreif aus Knochen mit Glanzpunkt, Schulterfell in Zotteln, gemalte Linie am Unterarm
-      p.dot(bx - 0.25, by - 0.25, BONE[4]);
-      for (let k = -1.5; k <= 1.5; k += 0.5) p.fline(shF.x + k - 0.3, shF.y - 1, shF.x + k - 0.6, shF.y + 1.5 + Math.abs(k) * 0.3, k < 0 ? SHAG[4] : SHAG[2]);
-      p.fline(armF.jx + 0.4, armF.jy - 0.2, armF.jx + (armF.ex - armF.jx) * 0.45 + 0.4, armF.jy + (armF.ey - armF.jy) * 0.45 - 0.2, PAINT_D);
+  const frontPart = () => {
+    if (X.smear) smearArc(p, g, shF.x, shF.y, X.smear[0], X.smear[1], 11, 18, [DUSTC[1], DUSTC[2], DUSTC[3]], DGLOW.slice(1, 3), X.smear[2] ?? 1);
+    const arm = () => {
+      cap(p, shF.x, shF.y, armF.jx, armF.jy, 1.2, 1.0, SKD);
+      cap(p, armF.jx, armF.jy, armF.ex, armF.ey, 1.0, 0.9, SKD);
+      const bx = armF.jx + (armF.ex - armF.jx) * 0.6, by = armF.jy + (armF.ey - armF.jy) * 0.6;
+      p.px(bx, by, BONE[3]); p.px(bx + 0.6, by + 0.6, BONE[2]);
+      ell(p, shF.x - 0.3, shF.y, 1.8, 1.5, SHAG.slice(1));
+      if (p.fine) {
+        // Armreif aus Knochen mit Glanzpunkt, Schulterfell in Zotteln, gemalte Linie am Unterarm
+        p.dot(bx - 0.25, by - 0.25, BONE[4]);
+        for (let k = -1.5; k <= 1.5; k += 0.5) p.fline(shF.x + k - 0.3, shF.y - 1, shF.x + k - 0.6, shF.y + 1.5 + Math.abs(k) * 0.3, k < 0 ? SHAG[4] : SHAG[2]);
+        p.fline(armF.jx + 0.4, armF.jy - 0.2, armF.jx + (armF.ex - armF.jx) * 0.45 + 0.4, armF.jy + (armF.ey - armF.jy) * 0.45 - 0.2, PAINT_D);
+      }
+    };
+    if (P.held > 0.5) {
+      tip = drawBoneStaff(p, g, armF.ex, armF.ey, P.sa, P.cast, P.sph);
+      arm();
+      ell(p, armF.ex, armF.ey, 1.1, 1.1, SKD); p.px(armF.ex - 0.5, armF.ey - 0.5, SKD[4]);
+      if (p.fine) { p.dot(armF.ex - 0.75, armF.ey - 0.75, SKD[5]); p.dot(armF.ex + 0.25, armF.ey - 0.25, SKD[1]); p.dot(armF.ex + 0.25, armF.ey + 0.5, SKD[1]); }   // Knöchel
+    } else {
+      arm();
+      ell(p, armF.ex, armF.ey, 1.0, 1.0, SKD);
     }
-  };
-  if (P.held > 0.5) {
-    tip = drawBoneStaff(p, g, armF.ex, armF.ey, P.sa, P.cast, P.sph);
-    arm();
-    ell(p, armF.ex, armF.ey, 1.1, 1.1, SKD); p.px(armF.ex - 0.5, armF.ey - 0.5, SKD[4]);
-    if (p.fine) { p.dot(armF.ex - 0.75, armF.ey - 0.75, SKD[5]); p.dot(armF.ex + 0.25, armF.ey - 0.25, SKD[1]); p.dot(armF.ex + 0.25, armF.ey + 0.5, SKD[1]); }   // Knöchel
-  } else {
-    arm();
-    ell(p, armF.ex, armF.ey, 1.0, 1.0, SKD);
-  }
-  meta.hand = tip ?? { x: armF.ex, y: armF.ey };
-  if (tip) meta.tip = tip;
+    meta.hand = tip ?? { x: armF.ex, y: armF.ey };
+    if (tip) meta.tip = tip;
 
+  };
+  // fein: Hand über dem Kopf (Zaubern, Ausholen) → Arm und Stab hinter den Kopf, damit die Schädelmaske frei bleibt
+  if (p.fine && armF.ey < hy) { frontPart(); headPart(); } else { headPart(); frontPart(); }
   dustSwirl(p, g, gx, SS.AY, P.sph, P.swirl, true);
   if (X.dust) dust(p, SS.AX + X.dust, SS.AY, 8, 3, DUSTC, 14);
   return meta;
@@ -1873,11 +1927,15 @@ function lanternStaff(p, g, hx, hy, a, sw, flame, ph) {
     const hot = 1 - Math.abs(x) * 0.4 - (y + 2) * 0.12 + Math.sin(ph * 3 + y) * 0.1;
     const i = clamp(Math.floor(hot * f * 4.2), 0, 4);
     if (f < 0.1) { p.px(lx + x, ly + y, '#141a14'); continue; }
-    p.px(lx + x, ly + y, LGLOW[i]); g.px(lx + x, ly + y, LGLOW[Math.min(4, i + 1)]);
+    p.px(lx + x, ly + y, LGLOW[i]); if (!p.fine) g.px(lx + x, ly + y, LGLOW[Math.min(4, i + 1)]);   // fein: Leuchtebene nur aus den 2 Stufen unten
   }
   if (f > 0.1) {
-    // fein: Halo klein und gestuft (zwei Ringe, dunkles Grün), damit Käfig und Flamme lesbar bleiben
-    if (p.fine) { const r = 1.6 + f * 1.4; oval(g, lx, ly, r + 1, r + 0.5, LGLOW[0]); oval(g, lx, ly, r, r - 0.5, LGLOW[0]); oval(g, lx, ly - 0.5, 1, 1.5, LGLOW[1]); }
+    // fein: Halo klein in genau 2 harten Stufen (grüner Ring, heller Flammenkern), damit Käfig und Flamme lesbar bleiben
+    if (p.fine) {
+      oval(g, lx, ly, 1.5 + f * 0.8, 2 + f * 0.8, LGLOW[2]); oval(g, lx, ly - 0.5, 0.75, 1.25, LGLOW[4]);
+      // Käfigstäbe bleiben dunkel: Leuchtebene dort frei (Licht nur zwischen den Stäben und als Saum außen)
+      clearBox(g, lx - 2, ly - 3, 5, 1); clearBox(g, lx - 2, ly + 3, 5, 1); clearBox(g, lx - 2, ly - 2, 1, 5); clearBox(g, lx + 2, ly - 2, 1, 5);
+    }
     else glowDot(g, lx, ly, 2 + f * 2.2, LGLOW);
     p.px(lx, ly - 1, LGLOW[4]);
     if (p.fine) {
@@ -1885,7 +1943,6 @@ function lanternStaff(p, g, hx, hy, a, sw, flame, ph) {
       const X0 = Math.round(lx), Y0 = Math.round(ly), wv = Math.sin(ph * 3) > 0 ? 0.5 : 0;
       p.fline(X0 + 0.25 + wv, Y0 - 2, X0 + 0.25, Y0 + 1, LGLOW[4]); p.dot(X0 + 0.25, Y0 - 0.5, '#ffffff'); p.dot(X0 + 0.25, Y0, '#ffffff');
       p.dot(X0 - 0.75, Y0 + 2, LGLOW[1]); p.dot(X0 + 1.25, Y0 + 2, LGLOW[1]);
-      g.fline(X0 + 0.25 + wv, Y0 - 2, X0 + 0.25, Y0 + 1, '#ffffff');
     }
   }
   return { x: lx, y: ly };
@@ -2470,19 +2527,21 @@ function drawRevenant(p, g, P, X) {
     for (let r = 0; r < 3; r++) p.px(core.x - 0.5 + r * 0.6, core.y - 1.2 + r * 1.2, '#8a9aa6');   // Rippen
     p.px(core.x + 0.4, core.y + 0.2, BLUEG[3]); p.px(core.x - 0.3, core.y + 0.6, BLUEG[2]);
     if (p.fine) { p.dot(core.x + 0.5, core.y + 0.5, '#ffffff'); g.dot(core.x + 0.5, core.y + 0.5, '#ffffff'); p.fline(core.x - 1.5, core.y - 2.5, core.x + 2.2, core.y - 1.2, '#5a6a7a'); }   // Kern weißglühend, Risskante
-    glowDot(g, core.x + 0.3, core.y + 0.3, 1.4 * gk + 0.4, BLUEG);
+    if (!p.fine) glowDot(g, core.x + 0.3, core.y + 0.3, 1.4 * gk + 0.4, BLUEG);
     // Leuchtadern
     for (let i = 0; i < 4; i++) {
       let x = core.x, y = core.y;
-      for (let s = 0; s < 3; s++) { x += Math.cos(i * 1.6 + s * 0.4) * 1.2; y += Math.sin(i * 1.6 + s * 0.4) * 1.2; if (gk > 0.3) g.px(x, y, BLUEG[1]); }
+      for (let s = 0; s < 3; s++) { x += Math.cos(i * 1.6 + s * 0.4) * 1.2; y += Math.sin(i * 1.6 + s * 0.4) * 1.2; if (gk > 0.3) g.px(x, y, BLUEG[p.fine ? 2 : 1]); }
     }
+    if (p.fine) { const r = 1.2 * gk + 0.6; glow2(g, core.x + 0.3, core.y + 0.3, r, Math.max(0.25, r * 0.45), BLUEG[2], BLUEG[4]); }   // fein: 2 harte Stufen
   } else {
     iceSlab(p, g, [[core.x - 3.5, core.y - 4.2], [core.x + 3.2, core.y - 3.4], [core.x + 3.6, core.y + 1.5], [core.x + 0.5, core.y + 4], [core.x - 3, core.y + 2.5]], P.crack, 14);
     // tiefblauer Kern schimmert durch das Eis
     ell(p, core.x + 0.2, core.y + 0.2, 1.8, 1.8, ['#0a1a5a', '#1838a8', '#3a70e8', '#a8d0ff']);
     p.px(core.x - 0.4, core.y - 0.4, '#e8f4ff');
     if (p.fine) { p.dot(core.x + 0.25, core.y + 0.25, '#ffffff'); p.dot(core.x - 0.25, core.y + 0.25, '#e8f4ff'); }
-    glowDot(g, core.x + 0.2, core.y + 0.2, 1.6 * gk + 0.8, BLUEG);
+    if (p.fine) { const r = 1.3 * gk + 0.9; glow2(g, core.x + 0.2, core.y + 0.2, r, Math.max(0.25, r * 0.45), BLUEG[2], BLUEG[4]); }   // fein: 2 harte Stufen
+    else glowDot(g, core.x + 0.2, core.y + 0.2, 1.6 * gk + 0.8, BLUEG);
   }
 
   leg(legF, hip.x + FRD.hipW, true);

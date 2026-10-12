@@ -177,6 +177,23 @@ function glowDot(g, x, y, r, k = 1) {
   if (r > 1.5) g.ellipse(x, y, Math.max(0.5, r - 2), Math.max(0.5, r - 2), GLOW[4]);
 }
 
+// Nur fein: Glutkern auf der Leuchtebene als genau zwei harte Stufen (außen Ring, innen heller Kern), volle
+// Deckkraft, kein Verlauf und kein Hof. Danach im Kernbereich die Leuchtebene überall löschen, wo das Sprite keine
+// Glutfarbe zeigt (Gestein, Spangen) – sonst liegt ein rosa Hof auf dem Stein.
+const HOT32 = new Set([...LAVA, '#ffffff', '#fff8d8'].map(col32));
+function coreGlow(p, g, cx, cy, rx, ry, ix, iy, irx, iry, cOut = GLOW[2], cIn = GLOW[4]) {
+  g.ellipse(cx, cy, rx, ry, cOut);
+  g.ellipse(ix, iy, irx, iry, cIn);
+}
+function keepGlowOnHot(p, g, x, y, w, h) {
+  if (!p.fine || p._canvas || g._canvas) return;
+  const F0 = Math.max(0, p.F(x)), G0 = Math.max(0, p.G(y)), F1 = Math.min(p.W, p.F(x + w)), G1 = Math.min(p.H, p.G(y + h));
+  for (let G = G0; G < G1; G++) for (let F = F0; F < F1; F++) {
+    const m = G * p.W + F;
+    if (g.buf[m] && !HOT32.has(p.buf[m])) g.buf[m] = 0;
+  }
+}
+
 // Glühende Risse innerhalb einer Ellipse (Random Walk, relativ zur Mitte,
 // damit sie mit dem Körper mitwandern). heat 0..1.
 // Fein: Riss 1 Weltpixel breit als Saum, darin eine Kernlinie (1 Feinpixel) eine Stufe heißer.
@@ -1031,11 +1048,14 @@ function drawAshGolem(p, g, P, ex) {
   const cx = ch.x + px * 2, cy = ch.y + 0.5;
   veins(p, g, ch.x, ch.y + 1, 9, 8, 50, 5, heat, { len: 7 });
   p.ellipse(cx, cy, 2, 2.6, LAVA[1]); p.ellipse(cx, cy, 1.2, 1.8, LAVA[3]); p.px(cx, cy, LAVA[5]);
-  glowDot(g, cx, cy, 1.6 + heat);
+  if (!p.fine) glowDot(g, cx, cy, 1.6 + heat);
   if (p.fine) {
     // Kernriss: weißer Kern im gelben Saum, gezackte Bruchkante oben links im Licht
     p.ellipse(cx, cy - 0.2, 0.7, 1.1, LAVA[4]); p.dot(cx - 0.25, cy - 0.5, '#ffffff'); p.dot(cx - 0.25, cy, LAVA[5]);
     p.fline(cx - 2.5, cy - 1.5, cx - 1, cy - 3, ASH[5]); p.fline(cx + 1.5, cy + 2.5, cx + 0.5, cy + 3, ASH[0]);
+    // Leuchtebene: zwei harte Stufen deckungsgleich mit dem Kern, kein Hof aufs Gestein
+    coreGlow(p, g, cx, cy, 2, 2.6, cx, cy, 1.2, 1.8);
+    keepGlowOnHot(p, g, cx - 5, cy - 5, 10, 10);
   }
   meta.chest = { x: cx, y: cy };
 
@@ -1488,8 +1508,8 @@ function drawBehemoth(p, g, P, ex) {
   const cr = 4.6 + (heat - 1) * 1.6;
   ell(p, cx, cy, cr + 1.4, cr + 2, [SLAG[0]]);
   ell(p, cx, cy, cr, cr + 0.6, [LAVA[1], LAVA[2], LAVA[3], LAVA[4], LAVA[5]], { bias: 0.25 });
-  g.ellipse(cx, cy, cr + 3, cr + 3.5, GLOW[0]);
-  glowDot(g, cx, cy, cr);
+  if (!p.fine) { g.ellipse(cx, cy, cr + 3, cr + 3.5, GLOW[0]); glowDot(g, cx, cy, cr); }
+  else coreGlow(p, g, cx, cy, cr, cr + 0.6, cx - 0.6, cy - 0.6, cr * 0.5, cr * 0.55, GLOW[1]); // Ring dunkler: Kern selbst ist schon hell
   // Schlackespangen über dem Kern
   for (const [a, l] of [[-2.4, 7], [-0.5, 6], [1.9, 6.5], [0.9, 5.5]]) {
     const x0 = cx + Math.cos(a) * (cr + 2), y0 = cy + Math.sin(a) * (cr + 2);
@@ -1501,6 +1521,8 @@ function drawBehemoth(p, g, P, ex) {
     ell(p, cx - 0.6, cy - 0.6, cr * 0.38, cr * 0.42, [LAVA[5]]);
     p.dot(cx - cr * 0.45, cy - cr * 0.5, '#ffffff'); p.dot(cx - cr * 0.45 + 0.5, cy - cr * 0.5, '#ffffff');
     for (const a of [-2.4, -0.5, 1.9, 0.9]) { const x0 = cx + Math.cos(a) * (cr + 2), y0 = cy + Math.sin(a) * (cr + 2); p.fline(x0 - 0.5, y0 - 0.5, cx + Math.cos(a) * (cr - 1.5) - 0.5, cy + Math.sin(a) * (cr - 1.5) - 0.5, SLAG[5]); }
+    // Leuchtebene nur auf der Glut: Spangen und Schlackering leuchten nicht mit
+    keepGlowOnHot(p, g, cx - cr - 3, cy - cr - 3, 2 * cr + 6, 2 * cr + 7);
   }
   meta.chest = { x: cx, y: cy };
   for (let i = 0; i < 3; i++) { const dx = cx - 2 + i * 2, dy = cy + cr + 3 + ((i + Math.floor(P.vent * 2)) % 3); p.px(dx, dy, LAVA[3]); g.px(dx, dy, GLOW[2]); }
@@ -1615,7 +1637,12 @@ function drawBehemothHeap(p, g, k) {
   // Kern: erkaltet von Gelb zu dunklem Rot
   const kc = heat > 0.6 ? [LAVA[2], LAVA[3], LAVA[4], LAVA[5]] : heat > 0.2 ? [LAVA[0], LAVA[1], LAVA[2], LAVA[3]] : [SLAG[1], SLAG[2], LAVA[0], LAVA[1]];
   ell(p, cx + 2, gy - 8, 4, 3, kc, { bias: 0.2 });
-  if (heat > 0.05) glowDot(g, cx + 2, gy - 8, 1 + heat * 3);
+  if (heat > 0.05 && !p.fine) glowDot(g, cx + 2, gy - 8, 1 + heat * 3);
+  if (heat > 0.05 && p.fine) {
+    // fein: zwei harte Stufen, mit der Hitze dunkler; nur auf den Glutpixeln des Kerns
+    coreGlow(p, g, cx + 2, gy - 8, 4, 3, cx + 1.6, gy - 8.4, 2, 1.5, GLOW[heat > 0.6 ? 2 : 1], GLOW[heat > 0.6 ? 4 : heat > 0.2 ? 3 : 2]);
+    keepGlowOnHot(p, g, cx - 3, gy - 12, 10, 8);
+  }
   if (heat > 0.4) flame(p, g, cx - 8, gy - 16 + k * 3, Math.round(3 + heat * 4), 1.3, k * 7, { seed: 4 });
   if (p.fine) {
     // fein: Kopf mit Stirnkante und erlöschendem Auge, Hornbruch mit Glanz, Faust mit Knöchelkanten
