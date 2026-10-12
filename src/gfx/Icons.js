@@ -2949,16 +2949,18 @@ function fitApply(img) {
 // 52er-Fassung (Feinpixel) bzw. der 26er-Fassung ist immer eine ganze Zahl Gerätepixel. Rahmen und Effektstreifen folgen
 // derselben Feinheit (--fpx).
 // Größte ganzzahlige Vergrößerung bis 90 % der Platzbreite: Darüber läge der Bildrand unter dem Rahmenband (3 von 52
-// Bildpunkten, FRAME_CLIP). Die Feinfassung (52) vor der 26er, außer die 26er füllt deutlich mehr (≥ 8 % der Platzbreite,
-// solange die 52er unter 80 % bleibt). Nur wo so weniger als 70 % gefüllt wären (kleine Plätze, z. B. 52 Gerätepixel),
-// füllt das Bild den ganzen Platz wie bisher und FRAME_CLIP schneidet den Rand ab.
+// Bildpunkten, FRAME_CLIP). Die Feinfassung (52) hat immer Vorrang vor der 26er: Bliebe sie so unter 80 %, füllt sie
+// stattdessen den ganzen Platz und FRAME_CLIP schneidet den Rand ab (wie im abgenommenen Probestück). Die 26er nur,
+// wo die 52er gar nicht hineinpasst.
 const FILL_MAX = 0.9;
 function pickScale(dev) {
   const n2 = Math.floor(dev * FILL_MAX / 52), n1 = Math.floor(dev * FILL_MAX / 26);
   const f2 = 52 * n2 / dev, f1 = 26 * n1 / dev;
-  if (n2 && !(f2 < 0.8 && f1 - f2 >= 0.08)) return { res: 2, n: n2 };
-  if (n1 && f1 >= 0.7) return { res: 1, n: n1 };
   const m2 = Math.floor(dev / 52), m1 = Math.max(1, Math.floor(dev / 26));
+  // Feinfassung hat Vorrang (Detail vor Größe): wäre sie mit Rahmenabstand zu klein, lieber ganz füllen (Rand unter dem Rahmen)
+  if (n2 && f2 < 0.8 && m2 > n2) return { res: 2, n: m2 };
+  if (n2) return { res: 2, n: n2 };
+  if (n1 && f1 >= 0.7) return { res: 1, n: n1 };
   return m2 >= 1 && 52 * m2 >= 26 * m1 ? { res: 2, n: m2 } : { res: 1, n: m1 };
 }
 function setIconRes(span, res) {
