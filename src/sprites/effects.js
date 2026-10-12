@@ -158,12 +158,13 @@ export function getEnemySlashFrame(angle, frame, res = fineRes()) {
 }
 
 // Radiale Licht-Sprites (vorgerendert statt pro Frame Gradienten zu bauen).
-// stepped (Feinraster, gfx/Lighting.js): drei harte Lichtstufen statt Verlauf – Kern, Hof, Saum. Die Stufen sind so
-// gewählt, dass die Lichtmenge insgesamt der weichen Fassung entspricht (Stimmung der Gebiete bleibt gleich).
+// stepped (Feinraster, gfx/Lighting.js): Kern und Hof in zwei harten Stufen statt Verlauf; nur der schwache äußere
+// Saum läuft weich aus, damit keine harten Scheiben über Wände in die Dunkelheit reichen (wirkt sonst wie Bokeh).
+// Die Lichtmenge entspricht insgesamt der weichen Fassung (Stimmung der Gebiete bleibt gleich).
+// stepped === 'bloom': Schein nur als kleiner Kern in zwei Stufen, ohne Saum.
 const lightCache = new Map();
-const LIGHT_STEPS = [[0.3, 0.82], [0.55, 0.48], [0.8, 0.19]];
-// Schein (Bloom): kleiner Kern, schmale Stufen – sonst liegen große, milchige Scheiben über den Figuren
-const BLOOM_STEPS = [[0.2, 0.85], [0.42, 0.38], [0.66, 0.1]];
+const LIGHT_STEPS = [[0.3, 0.95], [0.5, 0.52]];
+const BLOOM_STEPS = [[0.2, 0.85], [0.42, 0.35]];
 export function getLightSprite(radius, rgb, stepped = false) {
   const r = Math.max(4, Math.round(radius / 4) * 4);
   const key = `${r}|${rgb.join(',')}|${stepped}`;
@@ -173,6 +174,12 @@ export function getLightSprite(radius, rgb, stepped = false) {
   const ctx = c.getContext('2d');
   if (stepped) {
     const [cr, cg, cb] = rgb;
+    if (stepped !== 'bloom') {
+      const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+      [[0, 0.36], [0.5, 0.36], [0.7, 0.15], [0.86, 0.05], [1, 0]].forEach(([t, a]) => g.addColorStop(t, `rgba(${cr},${cg},${cb},${a})`));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, r * 2, r * 2);
+    }
     // von außen nach innen deckend übermalen: jede Stufe eine Kreisfläche (Pixelkreis, keine Kantenglättung)
     const steps = stepped === 'bloom' ? BLOOM_STEPS : LIGHT_STEPS;
     for (let i = steps.length - 1; i >= 0; i--) {

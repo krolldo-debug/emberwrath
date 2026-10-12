@@ -222,7 +222,8 @@ export class Shockwave extends Entity {
     if (fineRes() === 1) { COARSE.Shockwave.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
-    if (this.void && q > 1) { voidPool(ctx, this.x - cx, this.y - cy, this.radius, k, q); return; }
+    // kleine Pfützen liegen meist unter einer Figur (Treffer, Schattenschritt): hinten in der Mitte frei
+    if (this.void && q > 1) { voidPool(ctx, this.x - cx, this.y - cy, this.radius, k, q, this.radius <= 12 ? 5 : 0); return; }
     const al = A3((1 - k) * 1.15);
     if (!al) return;
     const r = 2 + this.radius * (1 - Math.pow(1 - k, 3));
@@ -249,28 +250,32 @@ export class Shockwave extends Entity {
 // zieht sich dann in Stufen zusammen. Deckend gezeichnet (source-over): dunkel bleibt dunkel, auch auf dunklem Boden.
 const VOID = ['#f0d8ff', '#b070ff', '#7a30e0', '#4a148e', '#12041e'];
 const VOID_COLORS = new Set(['#c890ff', '#d090f0']);   // ELEMENTS.shadow/curse colors[1] (gfx/Particles.js)
-export function fillEllipse(ctx, X, Y, rx, ry, q, P) {
-  const RY = Math.max(1, Math.round(ry * q));
+// gap (Weltpixel): in der hinteren Hälfte (über dem Mittelpunkt) bleibt die Mitte so breit frei – dort steht die Figur
+export function fillEllipse(ctx, X, Y, rx, ry, q, P, gap = 0) {
+  const RY = Math.max(1, Math.round(ry * q)), G = Math.round(gap * q);
   for (let j = -RY; j <= RY; j++) {
     const w = Math.round(rx * q * Math.sqrt(Math.max(0, 1 - (j / RY) ** 2)));
-    if (w > 0) ctx.fillRect(X - w * P, Y + j * P, (2 * w + 1) * P, P);
+    if (w <= 0) continue;
+    if (j < 0 && G > 0) { if (w > G) { ctx.fillRect(X - w * P, Y + j * P, (w - G) * P, P); ctx.fillRect(X + (G + 1) * P, Y + j * P, (w - G) * P, P); } continue; }
+    ctx.fillRect(X - w * P, Y + j * P, (2 * w + 1) * P, P);
   }
 }
-export function voidPool(ctx, x, y, radius, k, q) {
+export function voidPool(ctx, x, y, radius, k, q, gap = 0) {
   const P = 1 / q, X = sn(x, q), Y = sn(y, q);
   const grow = k < 0.2 ? 0.55 + k * 2.25 : k < 0.7 ? 1 : 1 - (k - 0.7) * 1.6;
-  const r = Math.max(2, Math.round((radius * 0.75 + 4) * grow * q) / q);
+  const r = Math.round((radius * 0.75 + 4) * grow * q) / q;
   if (r < 2) return;
   ctx.globalAlpha = 1;
-  ctx.fillStyle = VOID[2]; fillEllipse(ctx, X, Y, r + 1, (r + 1) * 0.5, q, P);
-  ctx.fillStyle = VOID[3]; fillEllipse(ctx, X, Y, r, r * 0.5, q, P);
-  ctx.fillStyle = VOID[4]; fillEllipse(ctx, X, Y + P, r - 2, (r - 2) * 0.5, q, P);
+  ctx.fillStyle = VOID[2]; fillEllipse(ctx, X, Y, r + 1, (r + 1) * 0.5, q, P, gap);
+  ctx.fillStyle = VOID[3]; fillEllipse(ctx, X, Y, r, r * 0.5, q, P, gap);
+  ctx.fillStyle = VOID[4]; fillEllipse(ctx, X, Y + P, r - 2, (r - 2) * 0.5, q, P, gap ? gap + 1 : 0);
   // heller Saum oben links und Glutpunkte am Rand (wandern)
   const e = ellipsePts(r + 1, (r + 1) * 0.5, q), xy = e.xy;
   ctx.fillStyle = k < 0.5 ? VOID[0] : VOID[1];
-  for (let i = 0; i < e.n; i++) { const u = e.u[i]; if (u > 0.55 && u < 0.8) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P, P, P); }
+  const G = gap * q, free = (i) => G > 0 && xy[2 * i + 1] < 0 && Math.abs(xy[2 * i]) <= G;
+  for (let i = 0; i < e.n; i++) { const u = e.u[i]; if (u > 0.55 && u < 0.8 && !free(i)) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P, P, P); }
   ctx.fillStyle = VOID[1];
-  for (let i = 0; i < e.n; i++) { const u = (e.u[i] + k * 0.5) % 1; if ((u * 9) % 1 < 0.12) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P - P, P, P); }
+  for (let i = 0; i < e.n; i++) { const u = (e.u[i] + k * 0.5) % 1; if ((u * 9) % 1 < 0.12 && !free(i)) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P - P, P, P); }
 }
 
 // Lichtsäule (Stufenaufstieg, Boss besiegt): senkrechter Strahl aus harten Spalten – weißer Kern, Farbband,
@@ -387,11 +392,10 @@ function novaFrame(radius, cols, tongues, seed, f, q) {
       if (dd <= R + tongue && dd >= r0) {
         const t = (dd - r0) / Math.max(1, R + tongue - r0); // 0 innen … 1 außen
         idx = t > 0.92 ? 3 : t > 0.7 ? 2 : t > 0.35 ? 1 : 0;
-        al = fade * (idx === 0 ? 0.35 : idx === 1 ? 0.6 : 0.85);
-        // Feinraster: innerste Stufe als Dither statt durchscheinend
-        if (q > 1 && idx === 0 && (X + Y) & 1) continue;
-      } else if (k < 0.5 && dd < Math.max(0, r0 - 2) && dd > r0 - 4 && q > 1 && (X + Y) % 2 === 0) {
-        idx = 1; al = 0.5 - k;   // Nachglühen innen: gedünnte Linie
+        // innerstes Dunkelband in zwei harten Stufen (innen zart, außen kräftiger), kein Schachbrett
+        al = fade * (idx === 0 ? (t < 0.17 ? 0.3 : 0.5) : idx === 1 ? 0.6 : 0.85);
+      } else if (k < 0.5 && dd < Math.max(0, r0 - 2) && dd > r0 - 3 && q > 1) {
+        idx = 1; al = 0.5 - k;   // Nachglühen innen: dünne Linie
       } else continue;
       const A = A3(al);
       if (!A) continue;
@@ -515,30 +519,30 @@ export class RiftFlash extends Entity {
   renderEmissive(ctx, cx, cy) {
     if (fineRes() === 1) { COARSE.RiftFlash.call(this, ctx, cx, cy); return; }
     const q = fineRes();
-    // Feinraster: Riss in die Leere – Kern fast schwarz-violett, darum gesättigtes Violett in harten Stufen, außen
-    // ein heller Saum (links heller: Licht von oben links), Splitter nach außen; am Fuß eine Leerenpfütze.
-    // Deckend (source-over), damit der dunkle Kern auf jedem Boden steht.
+    // Feinraster: Riss in die Leere. Er steht genau auf der Figur (Effekte liegen immer über den Figuren), deshalb
+    // nur kurz und innen ausgespart: zwei gesättigte Risskanten mit hellem Saum links, dazwischen bleibt die Figur
+    // sichtbar; dunkler Kern nur über dem Kopf und als Leerenpfütze am Fuß. Deckend (source-over).
     const P = 1 / q, k = 1 - this.life / this.max;
-    const open = k < 0.25 ? k / 0.25 : 1 - (k - 0.25) / 0.75;
-    if (open <= 0.12) return;
     const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
-    voidPool(ctx, this.x - cx, this.y - cy, 10, Math.min(0.69, k * 1.2), q);
-    const w = Math.max(1, Math.round(4 * open * q)), rows = Math.round(this.height * (0.6 + 0.4 * open) * q);
-    const rim = this.cols[0], sat = this.cols[1], deep = VOID[3], core = VOID[4];
+    voidPool(ctx, this.x - cx, this.y - cy, 4, k * 1.4, q, 5);
+    if (k > 0.45) return;
+    const open = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.3;
+    if (open <= 0.15) return;
+    const w = Math.max(1, Math.round(7 * open * q)), rows = Math.round((this.height + 8) * (0.6 + 0.4 * open) * q);
+    const body = Math.round(this.height * q);   // Höhe der Figur in Feinpixeln: hier innen frei
+    const rim = this.cols[0], sat = this.cols[1], core = VOID[4], deep = VOID[3];
     for (let i = 0; i < rows; i++) {
       const t = i / rows, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI))), y = Y - (i + 2) * P;
-      const zig = ((i * 5) % 7 < 2 ? 1 : 0) * P;   // ausgefranster Rand, je Zeile fest (kein Flimmern)
-      ctx.fillStyle = sat; ctx.fillRect(X - (ww + 1) * P - zig, y, (2 * ww + 3) * P + zig, P);
-      if (ww > 1) { ctx.fillStyle = deep; ctx.fillRect(X - (ww - 1) * P, y, (2 * ww - 1) * P, P); }
-      if (ww > 2) { ctx.fillStyle = core; ctx.fillRect(X - (ww - 2) * P, y, (2 * ww - 3) * P, P); }
+      const zig = ((i * 5) % 7 < 2 ? 1 : 0) * P;
+      ctx.fillStyle = sat;
+      ctx.fillRect(X - (ww + 1) * P - zig, y, 2 * P + zig, P); ctx.fillRect(X + (ww - 1) * P, y, 2 * P, P);
       ctx.fillStyle = rim; ctx.fillRect(X - (ww + 1) * P - zig, y, P, P);
+      if (i >= body && ww > 2) { ctx.fillStyle = deep; ctx.fillRect(X - (ww - 1) * P, y, (2 * ww - 2) * P, P); ctx.fillStyle = core; ctx.fillRect(X - (ww - 2) * P, y, (2 * ww - 4) * P, P); }
       if (ww > 2 && (i * 7) % 11 === 0) { ctx.fillStyle = rim; ctx.fillRect(X + (i & 2 ? ww + 2 : -ww - 3) * P, y, P, P); }
     }
-    // Spitzen oben und unten weiß
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(X, Y - (rows + 2) * P, P, 2 * P);
   }
-
 }
 
 // Aufladen (Durchschuss, Zauber): Lichtpunkte ziehen spiralförmig zur Hand. Feinraster: jeder Punkt mit Schweif,

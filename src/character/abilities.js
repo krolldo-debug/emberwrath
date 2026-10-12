@@ -699,7 +699,7 @@ export const ABILITY_IMPL = {
       h.vx = h.vy = 0; h.kbx = h.kby = 0;
       h.invuln = Math.max(h.invuln, 0.3);
       h.skillState.from = { x: ox, y: oy };
-      w.bus.emit('spellImpact', { x: h.x, y: h.y - 8, element: 'shadow', radius: 10 });
+      w.bus.emit('spellImpact', { x: h.x, y: h.y, element: 'shadow', radius: 10 });   // am Fuß: die Leerenpfütze liegt unter der Figur
     },
     update(h, w, dt, t, def) {
       h.vx *= 0.7; h.vy *= 0.7;
