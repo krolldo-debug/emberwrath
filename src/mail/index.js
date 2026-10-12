@@ -1,5 +1,6 @@
 import { EV } from '../core/events.js';
 import { Decor } from '../entities/Decor.js';
+import { drawGlowLayer } from '../gfx/Sprite.js';
 import { TRADE_MIN_LEVEL } from '../market/rules.js';
 import { PLACES } from './places.js';
 import { createMailboxSprites } from './sprite.js';
@@ -94,7 +95,7 @@ class Mailbox extends Decor {
     if (this.lit < 0.02) return;
     const g = this.sp.glow, s = this.sprite;
     ctx.globalAlpha = this.lit * (0.85 + 0.15 * Math.sin(this.t * 2.3)) * this.alpha;
-    ctx.drawImage(g, Math.round(this.x - cx - s.ax), Math.round(this.y - cy - s.ay));
+    drawGlowLayer(ctx, s, g, this.x - cx, this.y - cy);   // rechnet frame.res heraus (Feinraster)
     ctx.globalAlpha = 1;
   }
   canInteract(world) { return !world.hero.dead; }

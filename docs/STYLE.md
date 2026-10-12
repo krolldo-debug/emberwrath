@@ -257,7 +257,9 @@ und geht den älteren Regeln oben vor.
 
 ### 6. Items
 - Zwei Fassungen aus **einer** Quelle (`gearLook.itemLook` → `Icons.itemIconId`, getragenes Aussehen = Item-Bild):
-  24×24 (`res 1`, Bildschirme mit `devicePixelRatio < 1,5`) und 48×48 (`res 2`). `iconCanvas(id, res)`, `iconUrl(id, res)`, `iconRes()`.
+  24×24 (`res 1`) und 48×48 (`res 2`). `iconCanvas(id, res)`, `iconUrl(id, res)`. Die Fassung richtet sich nach der Darstellungsgröße:
+  `itemIconEl`/`iconEl` nehmen `res 2`, sobald ein Bildpunkt ≥ 2 Gerätepixel groß wird (Desktop-Plätze mit `--fpx` 2 zeigen also die 48er);
+  `iconRes()` (nur nach `devicePixelRatio ≥ 1,5`) ist der Rückfall, wo die Größe unbekannt ist.
 - Waffen zeichnen ihre 48er-Fassung nativ (`sprites/hero.js drawWeaponIcon(put, look, 48)`), weitere Familien über `REG_FINE`.
   Ohne eigene Fassung: 24er ×2 (Stufe A). Anzeige weiter über `itemIconEl` (Rahmen/Effektstreifen mit `--fpx` unverändert).
 - Wer ein Icon als Pixelbild weiterverarbeitet (z. B. `ui/WardrobePanel.js`), fordert die Fassung ausdrücklich an (`iconCanvas(id, 1)`).

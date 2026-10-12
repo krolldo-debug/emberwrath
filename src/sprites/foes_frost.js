@@ -1,6 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
-import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation } from '../gfx/Sprite.js';
+import { FineCanvas, fineRes, col32, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Gegner der Frostzinnen: Eistroll, Frostwolf, Reifhexe, Schneepirscher und
@@ -50,18 +50,105 @@ function ik(ax, ay, tx, ty, l1, l2, bend) {
   return { jx: ax + ux * a - uy * h * bend, jy: ay + uy * a + ux * h * bend, ex: ax + dx, ey: ay + dy };
 }
 
+// Feinraster (docs/STYLE.md „Feinraster“, Stufe B): gezeichnet wird auf FineCanvas in Weltpixeln. Die Formen
+// (limb, ell, smearArc, shard …) tasten bei fein = true Feinpixel ab; p.px/p.rect/p.line setzen ganze Weltpixel.
+// Bei res 1 tasten alle Helfer exakt wie früher ab (Weltpixel, x+0.5-Mitten), damit „Niedrig“ pixelgleich bleibt.
+// Ein Weltpunkt (x, y) meint wie bei PixelCanvas.px den Pixel round(x) – fein also das Feinpixel um x+0.5.
+function put(p, x, y, c) { if (p.fine) p.dot(x + 0.5, y + 0.5, c); else p.px(x, y, c); }
+
+// Schnelle Feinraster-Werkzeuge (nur fein): Farben als Uint32 (col32), direkt in den Puffer der FineCanvas.
+// eachI = FineCanvas.each, fn liefert Uint32 oder 0; dotI = FineCanvas.dot.
+function eachI(p, x0, y0, x1, y1, fn) {
+  const r = p.res, W = p.W, H = p.H, b = p.buf;
+  const F0 = Math.floor(x0 * r), F1 = Math.ceil(x1 * r), G0 = Math.floor(y0 * r), G1 = Math.ceil(y1 * r);
+  const fo = Math.round(p.ox * r), go = Math.round(p.oy * r);
+  for (let G = G0; G <= G1; G++) {
+    const GG = G + go;
+    if (GG < 0 || GG >= H) continue;
+    const y = (G + 0.5) / r, row = GG * W;
+    for (let F = F0; F <= F1; F++) {
+      const FF = F + fo;
+      if (FF < 0 || FF >= W) continue;
+      const v = fn((F + 0.5) / r, y);
+      if (v) b[row + FF] = v;
+    }
+  }
+  p.dirty = true;
+}
+function dotI(p, x, y, v) {
+  const F = Math.floor((x + p.ox) * p.res + 1e-6), G = Math.floor((y + p.oy) * p.res + 1e-6);
+  if (F < 0 || G < 0 || F >= p.W || G >= p.H) return;
+  p.buf[G * p.W + F] = v; p.dirty = true;
+}
+
+// Gefüllte Ellipse: grob exakt wie PixelCanvas.ellipse (Zeilen, Mitte gerundet), fein abgetastet um dieselbe Mitte.
+function ell(p, cx, cy, rx, ry, c) {
+  if (!p.fine) {
+    for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
+      const t = 1 - (y * y) / (ry * ry);
+      if (t < 0) continue;
+      const hw = Math.round(rx * Math.sqrt(t) - 0.15);
+      p.rect(Math.round(cx - hw), Math.round(cy + y), hw * 2 + 1, 1, c);
+    }
+    return;
+  }
+  const X = cx + 0.5, Y = cy + 0.5, ax = rx + 0.42, ay = ry + 0.42, c32 = col32(c);
+  eachI(p, X - ax, Y - ay, X + ax, Y + ay, (x, y) => { const u = (x - X) / ax, v = (y - Y) / ay; return u * u + v * v <= 1 ? c32 : 0; });
+}
+
+// Gewölbte Fläche: grob wie ell; fein mit harter Schattensichel unten rechts (cs) und Lichtkante oben links (cl).
+function volEll(p, cx, cy, rx, ry, c, cs, cl = null) {
+  if (!p.fine) { ell(p, cx, cy, rx, ry, c); return; }
+  const X = cx + 0.5, Y = cy + 0.5, ax = rx + 0.42, ay = ry + 0.42, C = col32(c), CS = col32(cs), CL = cl ? col32(cl) : 0;
+  eachI(p, X - ax, Y - ay, X + ax, Y + ay, (x, y) => {
+    const u = (x - X) / ax, v = (y - Y) / ay;
+    if (u * u + v * v > 1) return 0;
+    const su = u + 0.32, sv = v + 0.32, lu = u - 0.38, lv = v - 0.38;
+    if (su * su + sv * sv > 1) return CS;
+    if (CL && lu * lu + lv * lv > 1.1) return CL;
+    return C;
+  });
+}
+
+// Handfeine Details (nur fein): fd = ein Feinpixel mit linker oberer Ecke bei (x, y) (Vielfache von 0.5),
+// fl = feine Linie zwischen Weltpunkten (Pixelmitten wie put).
+const fd = (p, x, y, c) => p.dot(x + 0.25, y + 0.25, c);
+const fl = (p, x0, y0, x1, y1, c, w = 0) => p.fline(x0 + 0.5, y0 + 0.5, x1 + 0.5, y1 + 0.5, c, w);
+
+// Eiskristall mit Facetten (nur fein): Basis (bx, by) → Spitze (tx, ty), halbe Breite w an der Basis.
+// Lichtseite (oben links) hell, Schattenseite dunkel mit dunkler Kante, heller Grat (1 Feinpixel) auf der
+// Mittelachse, weiße Spitze. gt: ab diesem Anteil leuchten Grat und Spitze auf g (null = kein Leuchten).
+function shard(p, g, bx, by, tx, ty, w, gt = 0.35, R = ICE, RG = ICE_G) {
+  const X0 = bx + 0.5, Y0 = by + 0.5, ax = tx - bx, ay = ty - by, L = Math.hypot(ax, ay) || 0.01;
+  const ux = ax / L, uy = ay / L;
+  let nx = -uy, ny = ux;
+  if (nx + ny > 0) { nx = -nx; ny = -ny; }
+  const m = w + 0.6, Q = R.map((c) => (c ? col32(c) : 0)), G4 = col32(RG[4]), G3 = col32(RG[3]), glow = g && gt !== null;
+  eachI(p, Math.min(X0, X0 + ax) - m, Math.min(Y0, Y0 + ay) - m, Math.max(X0, X0 + ax) + m, Math.max(Y0, Y0 + ay) + m, (x, y) => {
+    const rx = x - X0, ry = y - Y0, t = (rx * ux + ry * uy) / L, k = rx * nx + ry * ny;
+    if (t < -0.25 / L - 0.05 || t > 1) return 0;
+    const half = w * (1 - Math.max(0, t)) + 0.12;
+    if (Math.abs(k) > half) return 0;
+    if (t > 0.8 || (Math.abs(k) < 0.26 && t > 0.15)) { if (glow && t >= gt) dotI(g, x, y, t > 0.8 ? G4 : G3); return Q[5]; }
+    if (k > 0) return k > half - 0.5 && half > 0.9 ? Q[5] : Q[4];
+    return k < -half + 0.5 && half > 0.7 ? Q[1] : Q[2];
+  });
+}
+
 // Dickes Glied mit Licht von links oben (ramp: 4 Stufen dunkel → hell).
 function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
   const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }
-  const steps = Math.ceil(len * 2);
+  const q = p.step ?? 1, steps = Math.ceil(len * 2 / q), e = Math.max(q, 0.5);
+  const Q = p.fine ? ramp.map(col32) : null;
   for (let i = 0; i <= steps; i++) {
     const t = i / steps, x = x0 + dx * t, y = y0 + dy * t;
     const hw = (w0 + (w1 - w0) * t) / 2;
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      const c = k > hw - 1 ? ramp[3] : k < -hw + 1 ? ramp[0] : k > 0 ? ramp[2] : ramp[1];
-      p.px(x + nx * k, y + ny * k, c);
+    for (let k = -hw; k <= hw + 0.01; k += 0.5 * q) {
+      const j = k > hw - e ? 3 : k < -hw + e ? 0 : k > 0 ? 2 : 1;
+      if (Q) dotI(p, x + nx * k + 0.5, y + ny * k + 0.5, Q[j]);
+      else p.px(x + nx * k, y + ny * k, ramp[j]);
     }
   }
 }
@@ -69,84 +156,101 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
 // Schwung-Schleier: geschlossene Sichel von a0 nach a1 (Drehpunkt cx/cy); am
 // Ende (frisch) breit und hell, zum Anfang hin dünn auslaufend. Bewusst ohne
 // Rasterrauschen, damit die dunkle Kontur auf Schnee keine Krümel erzeugt.
+// Fein: dichte Abtastung (lückenlos je Feinpixel), Stufen hart – kein Streuen.
 function smearArc(p, g, cx, cy, a0, a1, r0, r1, cols, gcols, sy = 1) {
-  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 2) + 2;
+  const q = p.step ?? 1;
+  const n = Math.ceil(Math.abs(a1 - a0) * r1 * 2 / q) + 2;
   for (let i = 0; i <= n; i++) {
     const f = i / n, a = a0 + (a1 - a0) * f;
     const th = (r1 - r0) * (0.15 + 0.6 * f * f);
-    for (let r = r1 - th; r <= r1; r += 0.5) {
+    for (let r = r1 - th; r <= r1; r += 0.5 * q) {
       const radial = (r - (r1 - th)) / (th || 1);
-      const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
+      let x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * sy;
+      if (!p.fine) { x = Math.round(x); y = Math.round(y); }
       const c = radial > 0.75 ? cols[2] : radial > 0.35 ? cols[1] : cols[0];
-      p.px(x, y, c);
-      if (g && gcols && f > 0.3 && radial > 0.4) g.px(x, y, radial > 0.75 ? gcols[1] : gcols[0]);
+      put(p, x, y, c);
+      if (g && gcols && f > 0.3 && radial > 0.4) put(g, x, y, radial > 0.75 ? gcols[1] : gcols[0]);
     }
   }
 }
 
-function rotBlit(src, dst, px, py, ang) {
-  const W = src.w, H = src.h;
-  const s = src.ctx.getImageData(0, 0, W, H).data;
-  const img = dst.ctx.getImageData(0, 0, W, H), d = img.data;
+// Dreht einen Texelpuffer (W×H) pixelgenau (nächster Nachbar) um einen Drehpunkt (Texel).
+function rotBuf(s, W, H, px, py, ang) {
+  const d = new Uint32Array(W * H);
   const c = Math.cos(-ang), sn = Math.sin(-ang);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const rx = x + 0.5 - px, ry = y + 0.5 - py;
     const sx = Math.floor(px + rx * c - ry * sn), sy = Math.floor(py + rx * sn + ry * c);
     if (sx < 0 || sy < 0 || sx >= W || sy >= H) continue;
-    const si = (sy * W + sx) * 4;
-    if (s[si + 3] === 0) continue;
-    const di = (y * W + x) * 4;
-    d[di] = s[si]; d[di + 1] = s[si + 1]; d[di + 2] = s[si + 2]; d[di + 3] = s[si + 3];
+    const v = s[sy * W + sx];
+    if (v >>> 24) d[y * W + x] = v;
   }
-  dst.ctx.putImageData(img, 0, 0);
+  return d;
+}
+// Texelpuffer zeilenversetzt (dy Texel) in eine leere FineCanvas gleicher Breite kopieren.
+function blitRows(dst, s, H, dy) {
+  const W = dst.W, b = dst.buf;
+  for (let y = 0; y < H; y++) {
+    const ty = y + dy;
+    if (ty < 0 || ty >= dst.H) continue;
+    for (let x = 0, i = y * W, o = ty * W; x < W; x++, i++, o++) if (s[i]) b[o] = s[i];
+  }
+  dst.dirty = true;
 }
 
 // Licht-Durchgang nach dem Zeichnen: Pixel mit freier Oberkante/linker Kante
 // werden zum kalten Schlüssellicht gezogen, Pixel mit freier Unter-/rechter
 // Kante leicht in den violett-blauen Kernschatten. Gibt jeder Figur Volumen und
 // trennt die Silhouette auch auf hellem Schnee sauber vom Boden.
+// Arbeitet auf Texeln: der äußerste Texel bekommt die volle Stärke, fein folgt eine
+// zweite, halb so starke Stufe (zusammen ~1 Weltpixel tief, harte Kante).
 const RIM_KEY = [226, 244, 255], RIM_SHADE = [10, 14, 34];
+const u8 = (v) => { if (!(v > 0)) return 0; if (v >= 255) return 255; const f = Math.floor(v), r = v - f; return r > 0.5 ? f + 1 : r < 0.5 ? f : f + (f & 1); };
 function shadePass(p, keyK = 0.3, shadeK = 0.28) {
-  const W = p.w, H = p.h;
-  const img = p.ctx.getImageData(0, 0, W, H), d = img.data;
-  const A = new Uint8Array(W * H);
-  for (let i = 0; i < W * H; i++) A[i] = d[i * 4 + 3] > 40 ? 1 : 0;
-  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : A[y * W + x]);
+  const W = p.W, H = p.H, R = p.res;
+  let img = null, d = p.buf;
+  if (p._canvas) { img = p.ctx.getImageData(0, 0, W, H); d = new Uint32Array(img.data.buffer); }
+  // Deckungsmaske mit Rand R (spart Bereichsprüfungen)
+  const MW = W + 2 * R, A = new Uint8Array(MW * (H + 2 * R));
+  for (let y = 0; y < H; y++) for (let x = 0, i = y * W, m = (y + R) * MW + R; x < W; x++, i++, m++) if ((d[i] >>> 24) > 40) A[m] = 1;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (!A[y * W + x]) continue;
-    const i = (y * W + x) * 4;
-    const up = !at(x, y - 1), lf = !at(x - 1, y), dn = !at(x + 1, y + 1) || !at(x, y + 1), rt = !at(x + 1, y);
+    const m = (y + R) * MW + x + R;
+    if (!A[m]) continue;
     let t = 0, c = null;
-    if (up || lf) { t = keyK * (up && lf ? 1.2 : up ? 1 : 0.7); c = RIM_KEY; }
-    else if (dn && rt) { t = shadeK; c = RIM_SHADE; }
-    else if (dn || rt) { t = shadeK * 0.55; c = RIM_SHADE; }
+    for (let s = 1; s <= R && !c; s++) {
+      const up = !A[m - s * MW], lf = !A[m - s], dn = !A[m + s * MW + s] || !A[m + s * MW], rt = !A[m + s];
+      const f = s === 1 ? 1 : 0.5;
+      if (up || lf) { t = keyK * (up && lf ? 1.2 : up ? 1 : 0.7) * f; c = RIM_KEY; }
+      else if (dn && rt) { t = shadeK * f; c = RIM_SHADE; }
+      else if (dn || rt) { t = shadeK * 0.55 * f; c = RIM_SHADE; }
+    }
     if (!c) continue;
-    d[i] += (c[0] - d[i]) * t; d[i + 1] += (c[1] - d[i + 1]) * t; d[i + 2] += (c[2] - d[i + 2]) * t;
+    const i = y * W + x, v = d[i], r0 = v & 255, g0 = (v >>> 8) & 255, b0 = (v >>> 16) & 255;
+    d[i] = ((v & 0xff000000) | (u8(b0 + (c[2] - b0) * t) << 16) | (u8(g0 + (c[1] - g0) * t) << 8) | u8(r0 + (c[0] - r0) * t)) >>> 0;
   }
-  p.ctx.putImageData(img, 0, 0);
+  if (img) p.ctx.putImageData(img, 0, 0);
+  else p.dirty = true;
 }
 
 // Baut einen Frame: draw(p, g, P, extra) -> meta (absolute Koordinaten).
 // extra.rot = [winkel, drehpunktX, drehpunktY] kippt die ganze Figur (Sturz),
 // extra.post(p, g) zeichnet danach ungedreht (z. B. liegende Waffe, Bodeneis).
+// Figur und Leucht-Ebene liegen auf FineCanvas (res = fineRes()); Anker, Maße und meta bleiben Weltpixel.
 function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
-  const g = new PixelCanvas(W, H);
+  const res = fineRes(), g = new FineCanvas(W, H, res);
   let meta = {};
   const f = buildFrame(W, H, AX, AY, (p) => {
     if (extra.rot && Math.abs(extra.rot[0]) > 0.001) {
-      const PAD = 24, HH = H + PAD * 2;
-      const tp = new PixelCanvas(W, HH), tg = new PixelCanvas(W, HH);
-      tp.ctx.translate(0, PAD); tg.ctx.translate(0, PAD);
+      const PAD = 24, HH = H + PAD * 2, WR = W * res, HR = HH * res;
+      const tp = new FineCanvas(W, HH, res), tg = new FineCanvas(W, HH, res);
+      tp.translate(0, PAD); tg.translate(0, PAD);
       meta = draw(tp, tg, P, extra) || {};
-      tp.ctx.setTransform(1, 0, 0, 1, 0, 0); tg.ctx.setTransform(1, 0, 0, 1, 0, 0);
       const [a, rx, ry0] = extra.rot, ry = ry0 + PAD;
-      const rp = new PixelCanvas(W, HH), rg = new PixelCanvas(W, HH);
-      rotBlit(tp, rp, rx, ry, a); rotBlit(tg, rg, rx, ry, a);
-      const d = rp.ctx.getImageData(0, 0, W, HH).data;
+      const rp = rotBuf(tp.pixels(), WR, HR, rx * res, ry * res, a), rg = rotBuf(tg.pixels(), WR, HR, rx * res, ry * res, a);
       let bottom = -1;
-      for (let y = HH - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 40) { bottom = y; break; }
-      const shift = bottom >= 0 ? (AY - 1) - (bottom - PAD) : 0;
-      p.ctx.drawImage(rp.canvas, 0, shift - PAD); g.ctx.drawImage(rg.canvas, 0, shift - PAD);
+      for (let y = HR - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < WR; x++) if ((rp[y * WR + x] >>> 24) > 40) { bottom = y; break; }
+      const shiftT = bottom >= 0 ? (AY * res - 1) - (bottom - PAD * res) : 0, shift = shiftT / res;
+      blitRows(p, rp, HR, shiftT - PAD * res); blitRows(g, rg, HR, shiftT - PAD * res);
       const c = Math.cos(a), s = Math.sin(a);
       for (const k in meta) {
         const m = meta[k], dx = m.x - rx, dy = m.y - ry0;
@@ -155,8 +259,9 @@ function makeFrame(W, H, AX, AY, draw, P, extra = {}) {
     } else meta = draw(p, g, P, extra) || {};
     shadePass(p, extra.rimK ?? 0.3);
     if (extra.post) Object.assign(meta, extra.post(p, g) || {});
-  });
-  f.glow = new SpriteFrame(g.canvas, AX, AY);
+  }, { fine: true, res });
+  // Leuchtebene direkt aus dem Puffer (g wird nie per ctx bemalt): spart das Auslesen einer leeren Leinwand
+  f.glow = new SpriteFrame(g._canvas ? g.canvas : pixelsToCanvas(g.buf, g.W, g.H), AX * res, AY * res, res);
   f.meta = {};
   for (const k in meta) f.meta[k] = { dx: Math.round(meta[k].x - AX), dy: Math.round(meta[k].y - AY) };
   f.fx = extra.fx ?? null;
@@ -203,7 +308,24 @@ const IRON = ['#12141c', '#222734', '#363d4e', '#525c72', '#7e8ba4', '#b8c4d8'];
 
 // Kalter Atemhauch: kleine Nebelwölkchen vor dem Maul (Phase ph 0..1).
 // Nur ein zarter Kern auf der Grundebene, der Rest leuchtet (lesbar auf Schnee).
-function breath(p, g, x, y, ph, dir = 1, n = 3, size = 1) {
+function breath(p, g, x, y, ph, dir = 1, n = 3, size = 1, calm = false) {
+  if (p.fine) { // fein: kleine, unregelmäßige Reifwölkchen aus Pixelflocken (fest verteilt je Wölkchen, treiben
+    // mit der Phase auseinander und werden weniger); Leuchten nur auf den Flocken. calm (Ruhebild): höchstens 2 Flocken.
+    for (let i = 0; i < n; i++) {
+      const f = (ph + i / n) % 1;
+      if (f > 0.7 || (calm && (i > 0 || f > 0.5))) continue;
+      const bx = x + dir * (1 + f * 5 * size), by = y - f * 2.5 * size + (i - 1) * 0.5;
+      const spread = (0.6 + f * 1.8) * size, m = calm ? 2 : Math.max(1, (size > 1.2 ? 4 : 3) - Math.floor(f * 3));
+      for (let j = 0; j < m; j++) {
+        const a = hash2(i, j, 71) * TAU, rr = spread * (0.3 + 0.7 * hash2(i, j, 72));
+        const X = p.snap(bx + Math.cos(a) * rr * 1.3 + 0.25), Y = p.snap(by + Math.sin(a) * rr * 0.7 + 0.25);
+        fd(p, X, Y, f < 0.35 ? MIST[2] : MIST[1]);
+        if (j === 0 && f < 0.4 && !calm) fd(p, X + 0.5 * dir, Y - 0.5, MIST[1]);       // Flocke mit Schweif
+        fd(g, X, Y, f < 0.35 ? ICE_G[3] : ICE_G[2]);
+      }
+    }
+    return;
+  }
   for (let i = 0; i < n; i++) {
     const f = (ph + i / n) % 1;
     if (f > 0.8) continue;
@@ -220,6 +342,10 @@ function breath(p, g, x, y, ph, dir = 1, n = 3, size = 1) {
 
 // Herabhängender Eiszapfen (spitz nach unten), mit Leuchtspitze.
 function icicle(p, g, x, y, len, lit = 1) {
+  if (p.fine) { // fein: spitzer Zapfen mit Facettengrat, nur die untere Hälfte leuchtet
+    shard(p, lit > 0.2 ? g : null, x - (len > 3 ? 0.25 : 0), y, x, y + len - 0.5, len > 3 ? 0.95 : 0.7, 0.4);
+    return;
+  }
   for (let j = 0; j < len; j++) {
     const f = j / len;
     const c = f < 0.3 ? ICE[3] : f < 0.75 ? ICE[4] : ICE[5];
@@ -232,6 +358,20 @@ function icicle(p, g, x, y, len, lit = 1) {
 // Eissplitter, die schräg aus dem Boden brechen (Einschlag).
 function iceBurst(p, g, cx, gy, s, n = 5, seed = 1) {
   if (s <= 0.02) return;
+  if (p.fine) { // fein: Splitter mit Facettengrat und leuchtender Spitze, Schneestaub als kleine Häufchen
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n - 1) / 2) * 3.2 + (hash2(i, seed, 61) - 0.5) * 2;
+      const h = (3 + hash2(i, seed, 62) * 6) * s * (1 - Math.abs(off) / (n * 2.4));
+      if (h < 0.5) continue;
+      const lean = off * 0.12;
+      shard(p, g, cx + off, gy, cx + off + lean * (h - 0.5), gy - h + 0.5, 1.6, 0.35);
+    }
+    for (let i = 0; i < n * 3; i++) {
+      const x = p.snap(cx + (hash2(i, seed, 63) - 0.5) * n * 7), y = p.snap(gy - hash2(i, seed, 64) * 3 * s);
+      fd(p, x, y, MIST[2]); fd(p, x + 0.5, y, i % 3 ? MIST[1] : MIST[2]); fd(p, x + 0.5, y + 0.5, MIST[0]);
+    }
+    return;
+  }
   for (let i = 0; i < n; i++) {
     const off = (i - (n - 1) / 2) * 3.2 + (hash2(i, seed, 61) - 0.5) * 2;
     const h = (3 + hash2(i, seed, 62) * 6) * s * (1 - Math.abs(off) / (n * 2.4));
@@ -288,7 +428,87 @@ const TR_REST = {
 const trpose = (o = {}) => ({ ...TR_REST, ...o });
 
 // Trollkeule: knorriger Baumstamm, Eisenring, Knochendornen, Eiskruste am Kopf.
+const BONE_R = [BONE[0], BONE[1], BONE[2], BONE[3], BONE[3], BONE[4]];   // Knochen als Kristall-Rampe (shard)
+// Facettenklumpen (nur fein): Punkt (s, k) → Stufe des nächsten Facettenkerns (seeds: [s, k, Stufe]),
+// -1 auf der Grenze zweier Facetten (Grat, ~1 Feinpixel breit).
+function facet(seeds, s, k) {
+  let d1 = 1e9, d2 = 1e9, i1 = 0;
+  for (let i = 0; i < seeds.length; i++) {
+    const e = (s - seeds[i][0]) ** 2 + (k - seeds[i][1]) ** 2;
+    if (e < d1) { d2 = d1; d1 = e; i1 = i; } else if (e < d2) d2 = e;
+  }
+  return Math.sqrt(d2) - Math.sqrt(d1) < 0.32 ? -1 : seeds[i1][2];
+}
+const CLUB_ICE = [[0.6, -2, 2], [1.4, 1.7, 4], [2.8, -0.2, 3], [4, 2.1, 4], [4.4, -2.3, 2], [5.6, 0.6, 3], [6.6, -1, 3]];
+
+// Keule fein: Holz in 5 Stufen mit Maserung und Astknoten, Eisenring mit Glanzlinie und Nieten,
+// Knochendornen mit Grat, facettierte Eiskruste.
+function drawClubFine(p, g, hx, hy, a, frost) {
+  const dx = Math.cos(a), dy = Math.sin(a);
+  let nx = -dy, ny = dx; if (nx + ny > 0) { nx = -nx; ny = -ny; }
+  const L = 21, at = (s, k) => [hx + dx * s + nx * k, hy + dy * s + ny * k];
+  const grain = [[-0.5, 0], [0.2, 2.1], [0.62, 4.3]];
+  for (let s = -4; s <= L; s += 0.25) {
+    const f = Math.max(0, s) / L;
+    const hw = 1.2 + f * f * 2.6 + (s > L - 5 ? 0.6 : 0);
+    for (let k = -hw; k <= hw; k += 0.25) {
+      const u = k / hw;
+      let i = k > hw - 0.4 ? 4 : u > 0.3 ? 3 : u > -0.35 ? 2 : 1;
+      for (const [g0, ph] of grain) {
+        const gu = g0 + Math.sin(s * 0.42 + ph) * 0.12;
+        if (Math.abs(u - gu) * hw < 0.13 && Math.sin(s * 0.55 + ph * 1.7) > -0.55 && i > 1 && k <= hw - 0.4) { i -= 1; break; }
+      }
+      const [x, y] = at(s, k);
+      put(p, x, y, WOOD[i]);
+    }
+  }
+  // Astknoten: dunkles Auge mit heller Wulst oben links
+  for (const [s, k] of [[9, 1.3], [14, -1.6], [2.5, -0.4]]) {
+    const [x, y] = at(s, k);
+    fd(p, x, y, WOOD[0]); fd(p, x + 0.5, y, WOOD[1]); fd(p, x, y + 0.5, WOOD[1]);
+    fd(p, x - 0.5, y - 0.5, WOOD[4]); fd(p, x + 0.5, y + 0.5, WOOD[3]);
+  }
+  // Eisenring: 5 Stufen quer zur Achse, dunkle Ränder, 1 Feinpixel Glanzlinie, Glanzpunkt, zwei Nieten
+  for (let s = 10.75; s <= 11.76; s += 0.25) {
+    for (let k = -2.4; k <= 2.41; k += 0.25) {
+      const edge = s < 10.8 || s > 11.7;
+      const i = edge ? (k > 1.2 ? 2 : 1) : k > 1.5 ? 5 : k > 0.6 ? 4 : k > -0.4 ? 3 : k > -1.6 ? 2 : 1;
+      const [x, y] = at(s, k);
+      put(p, x, y, IRON[i]);
+    }
+  }
+  for (let k = -0.6; k <= 2.2; k += 0.25) { const [x, y] = at(11, k); put(p, x, y, k > 1.4 ? IRON[5] : IRON[4]); }
+  { const [x, y] = at(11, 1.6); put(p, x, y, '#eef4ff'); }
+  for (const k of [-1.3, 0.9]) { const [x, y] = at(11.5, k); put(p, x, y, IRON[5]); const [x2, y2] = at(11.75, k - 0.25); put(p, x2, y2, IRON[0]); }
+  // Knochendornen seitlich (Grat, helle Spitze)
+  for (const [s, side] of [[15, 1], [18, -1], [20, 1]]) {
+    const [bx, by] = at(s, 2.2 * side);
+    shard(p, null, bx, by, bx + nx * side * 2 + dx * 0.4, by + ny * side * 2 + dy * 0.4, 0.75, null, BONE_R);
+  }
+  // Eiskruste am Kopf: facettierter Klumpen, Grate leuchten
+  for (let s = L - 5; s <= L + 1.5; s += 0.25) {
+    const hw = 3.6 - Math.max(0, s - L) * 1.6;
+    for (let k = -hw; k <= hw; k += 0.25) {
+      const fi = facet(CLUB_ICE, s - (L - 5), k), ridge = fi < 0;
+      let c = ridge ? (k > -0.3 ? ICE[5] : ICE[1]) : ICE[fi];
+      if (k > hw - 0.45) c = ICE[5];
+      else if (k < -hw + 0.45) c = ICE[1];
+      const [x, y] = at(s, k);
+      put(p, x, y, c);
+      if (frost > 0.3 && ((ridge && k > -0.3) || k > hw - 0.45 || s > L)) put(g, x, y, ridge || k > hw - 0.45 ? ICE_G[4] : ICE_G[3]);
+    }
+  }
+  // Eisdornen, die aus dem Kopf ragen
+  for (const [s, side, len] of [[L - 2, 1, 4], [L, -1, 3], [L + 1, 0, 3]]) {
+    const ex = side === 0 ? dx : nx * side, ey = side === 0 ? dy : ny * side;
+    const [bx, by] = at(s, 2.5 * side);
+    shard(p, frost > 0.3 ? g : null, bx, by, bx + ex * (len - 0.5), by + ey * (len - 0.5), 0.95, 0.2);
+  }
+  return { x: hx + dx * (L + 2), y: hy + dy * (L + 2) };
+}
+
 function drawClub(p, g, hx, hy, a, frost) {
+  if (p.fine) return drawClubFine(p, g, hx, hy, a, frost);
   const dx = Math.cos(a), dy = Math.sin(a);
   let nx = -dy, ny = dx; if (nx + ny > 0) { nx = -nx; ny = -ny; }
   const L = 21;
@@ -341,6 +561,43 @@ function drawClub(p, g, hx, hy, a, frost) {
 function drawIceFist(p, g, x, y, a, frost, k = 1) {
   const r = 6.5 * k;
   const dx = Math.cos(a), dy = Math.sin(a);
+  if (p.fine) { // fein: Facettenbänder mit Graten, feine leuchtende Risse, Dornen mit Grat
+    const q = 0.25;
+    for (let yy = -r; yy <= r; yy += q) for (let xx = -r; xx <= r; xx += q) {
+      const d = Math.abs(xx) + Math.abs(yy) * 0.9;
+      if (d > r * 1.25 || Math.abs(xx) > r || Math.abs(yy) > r * 0.92) continue;
+      const lx = xx * 0.7 - yy * 0.7;
+      let c = lx < -r * 0.45 ? ICE[4] : lx < 0 ? ICE[3] : lx < r * 0.45 ? ICE[2] : ICE[1];
+      if (Math.abs(lx + r * 0.45) < 0.2) c = ICE[5];
+      else if (Math.abs(lx) < 0.2) c = ICE[4];
+      else if (Math.abs(lx - r * 0.45) < 0.2) c = ICE[1];
+      if (d > r * 1.13 || Math.abs(xx) > r - 0.4) c = lx < 0 ? ICE[4] : ICE[1];
+      if ((d > r * 1.13 || Math.abs(xx) > r - 0.4) && lx < -r * 0.3) c = ICE[5];
+      put(p, x + xx, y + yy, c);
+    }
+    ell(p, x - dx, y - dy, 2.6 * k, 2.2 * k, G_SKIN[2]);
+    ell(p, x - dx - 0.6, y - dy - 0.6, 1.5 * k, 1.1 * k, G_SKIN[3]);
+    fd(p, p.snap(x - dx - 1.2), p.snap(y - dy - 1.2), G_SKIN[5]);
+    for (let i = -1; i <= 1; i++) fd(p, p.snap(x - dx + i * 0.9 + 0.5), p.snap(y - dy + 1), G_SKIN[1]);
+    const cracks = [[-0.8, -0.2, 0.3, 0.6], [0.2, -0.9, 0.7, -0.1], [-0.5, 0.5, 0.4, 0.9]];
+    for (const [x0, y0, x1, y1] of cracks) {
+      fl(p, x + x0 * r + 0.5, y + y0 * r + 0.5, x + x1 * r + 0.5, y + y1 * r + 0.5, ICE[1]);
+      fl(p, x + x0 * r, y + y0 * r, x + x1 * r, y + y1 * r, ICE[5]);
+      if (frost > 0.3) fl(g, x + x0 * r, y + y0 * r, x + x1 * r, y + y1 * r, frost > 0.9 ? ICE_G[4] : ICE_G[3]);
+    }
+    const nx = -dy, ny = dx;
+    for (let i = -1; i <= 1; i++) {
+      const bx = x + dx * r * 0.7 + nx * i * r * 0.55, by = y + dy * r * 0.7 + ny * i * r * 0.55;
+      const len = (i === 0 ? 4 : 3) * k + 0.5;
+      shard(p, frost > 0.3 ? g : null, bx, by, bx + dx * len, by + dy * len, 1.15, 0.3);
+    }
+    if (frost > 0.3) {
+      const X = p.snap(x - r * 0.5), Y = p.snap(y - r * 0.5);
+      fd(g, X, Y, ICE_G[5]); fd(g, X - 0.5, Y, ICE_G[3]); fd(g, X + 0.5, Y, ICE_G[3]); fd(g, X, Y - 0.5, ICE_G[3]); fd(g, X, Y + 0.5, ICE_G[3]);
+      fd(p, X, Y, '#ffffff');
+    }
+    return { x: x + dx * r * 1.5, y: y + dy * r * 1.5 };
+  }
   // kantiger Block (Achteck), dunkle Innenseite, helle Facetten
   for (let yy = -r; yy <= r; yy += 0.5) for (let xx = -r; xx <= r; xx += 0.5) {
     const d = Math.abs(xx) + Math.abs(yy) * 0.9;
@@ -351,7 +608,7 @@ function drawIceFist(p, g, x, y, a, frost, k = 1) {
     p.px(x + xx, y + yy, c);
   }
   // eingeschlossene Faust (dunkel durchscheinend)
-  p.ellipse(x - dx, y - dy, 2.6 * k, 2.2 * k, G_SKIN[2]);
+  ell(p, x - dx, y - dy, 2.6 * k, 2.2 * k, G_SKIN[2]);
   p.px(x - dx - 1, y - dy - 1, G_SKIN[4]);
   // Facettenlinien + Risse (leuchtend)
   const cracks = [[-0.8, -0.2, 0.3, 0.6], [0.2, -0.9, 0.7, -0.1], [-0.5, 0.5, 0.4, 0.9]];
@@ -373,13 +630,38 @@ function drawIceFist(p, g, x, y, a, frost, k = 1) {
   return { x: x + dx * r * 1.5, y: y + dy * r * 1.5 };
 }
 
+// Lederlappen (nur fein, über einem p.rect): Lichtkante links, Schattenkante rechts, Naht als Punktlinie,
+// ein Kratzer, ausgefranste Unterkante. b = Grundstufe in LOIN.
+function leatherFlap(p, x, y, w, h, b, seed) {
+  const x0 = p.snap(x), y0 = p.snap(y), x1 = x0 + p.snap(w) - 0.5, y1 = y0 + p.snap(h) - 0.5;
+  if (x1 - x0 < 0.9) return;
+  for (let yy = y0; yy <= y1; yy += 0.5) { fd(p, x0, yy, LOIN[Math.min(4, b + 1)]); fd(p, x1, yy, LOIN[Math.max(0, b - 1)]); }
+  const sx = x0 + (x1 - x0 > 1.6 ? 1 : 0.5);
+  for (let yy = y0 + 0.5; yy <= y1 - 1; yy += 1) fd(p, sx, yy, LOIN[Math.min(4, b + 2)]);
+  const ky = y0 + 1.5 + (seed % 3) * 0.5;
+  if (ky + 1 < y1) { fd(p, x1 - 0.5, ky, LOIN[0]); fd(p, x1 - 1, ky + 0.5, LOIN[0]); fd(p, x1 - 0.5, ky + 0.5, LOIN[4]); }
+  if (seed % 2 === 0) fd(p, x0 + 0.5, y1 + 0.5, LOIN[b]);                       // ausgefranste Zunge unten
+}
+
+// Kralle (nur fein): 2×2 Feinpixel-Haken mit Glanzkante oben, dunkle Spitze vorn unten. (x, y) Feinraster.
+function claw(p, x, y, dir = 1) {
+  fd(p, x, y, BONE[3]); fd(p, x + 0.5 * dir, y, BONE[4]); fd(p, x + 0.5 * dir, y + 0.5, BONE[2]); fd(p, x + dir, y + 0.5, BONE[1]);
+}
+
 // Klauenhand (offen oder zur Faust geballt).
 function trollHand(p, x, y, S, k, open, dir = 1) {
-  p.ellipse(x, y, 2.2 * k, 2 * k, S[3]);
+  ell(p, x, y, 2.2 * k, 2 * k, S[3]);
   p.px(x - 1, y - 1, S[5]);
   const n = 3;
   for (let i = 0; i < n; i++) {
     const fx = x + (i - 1) * 1.3 * k, fy = y + 1.5 * k;
+    if (p.fine) {
+      if (open > 0.5) {
+        fl(p, fx, fy, fx + dir * 0.5, fy + 2 * k, S[2], 0.5); fl(p, fx - 0.5, fy, fx + dir * 0.5 - 0.5, fy + 2 * k, S[4]);
+        claw(p, p.snap(fx + dir * 0.5), p.snap(fy + 2.2 * k), dir);
+      } else { fd(p, p.snap(fx), p.snap(fy), S[2]); fd(p, p.snap(fx) + 0.5, p.snap(fy), S[1]); fd(p, p.snap(fx), p.snap(fy) - 0.5, S[5]); }
+      continue;
+    }
     if (open > 0.5) { p.line(fx, fy, fx + dir * 0.5, fy + 2.2 * k, S[2]); p.px(fx + dir * 0.5, fy + 2.5 * k, BONE[3]); }
     else p.px(fx, fy, S[2]);
   }
@@ -416,58 +698,103 @@ function drawTroll(p, g, P, X, T) {
   limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 4.5 * k, 4 * k, R4(0, 1, 1, 2));
   trollHand(p, armB.ex, armB.ey, [S[0], S[0], S[1], S[2], S[2], S[3]], k, P.hBopen);
   if (chief && X.slamFists) { // zweite Eisfaust-Wucht: auch die hintere Hand schlägt
-    p.ellipse(armB.ex, armB.ey, 3 * k, 2.6 * k, S[2]);
+    ell(p, armB.ex, armB.ey, 3 * k, 2.6 * k, S[2]);
   }
 
   // --- 2. hinteres Bein
   limb(p, hip.x - D.hipW, hip.y, legB.jx, legB.jy, 6.5 * k, 5.5 * k, R4(0, 0, 1, 2));
   limb(p, legB.jx, legB.jy, legB.ex, legB.ey - 1.5 * k, 5.5 * k, 5 * k, R4(0, 0, 1, 2));
-  p.ellipse(legB.ex + 1.5 * k, legB.ey - 1.2 * k, 3.5 * k, 1.6 * k, S[1]);
-  for (let i = 0; i < 3; i++) p.px(legB.ex + (2.5 + i * 1.4) * k, legB.ey - 0.5, BONE[1]);
+  ell(p, legB.ex + 1.5 * k, legB.ey - 1.2 * k, 3.5 * k, 1.6 * k, S[1]);
+  if (p.fine) for (let i = 0; i < 3; i++) { // hintere Krallen im Schatten, nur die Spitze fängt Licht
+    const X = p.snap(legB.ex + (2.5 + i * 1.4) * k), Y = p.snap(legB.ey - 0.5);
+    fd(p, X, Y, BONE[1]); fd(p, X + 0.5, Y, BONE[2]); fd(p, X + 1, Y + 0.5, BONE[1]); fd(p, X - 0.5, Y - 0.5, S[0]);
+  } else for (let i = 0; i < 3; i++) p.px(legB.ex + (2.5 + i * 1.4) * k, legB.ey - 0.5, BONE[1]);
 
   // --- 3. Lendenschurz / Fellschurz hinten
   for (let i = 0; i < 4; i++) {
     const a = pt(-0.5 * k, (-5 + i * 1.6) * k);
     const sw = Math.sin(P.capeT + i) * 0.7;
     p.rect(a.x - 1 + sw, a.y, 2.2 * k, (5 + (i % 2)) * k, LOIN[i % 2 ? 1 : 2]);
+    if (p.fine) leatherFlap(p, a.x - 1 + sw, a.y, 2.2 * k, (5 + (i % 2)) * k, i % 2 ? 1 : 2, i);
   }
 
   // --- 4. Rumpf: gewaltiger Brustkorb, Bauch, Buckel
   const belly = pt(4.5 * k, 2.5 * k), chestC = pt(D.spine - 3 * k, 0.5 * k), hump = pt(D.spine - 1 * k, -3.5 * k);
-  p.ellipse(belly.x, belly.y, 8 * k, 7 * k, S[2]);
-  p.ellipse(chestC.x, chestC.y, 9.5 * k, 7.5 * k, S[2]);
-  p.ellipse(hump.x, hump.y, 8 * k, 6 * k, S[2]);
+  ell(p, belly.x, belly.y, 8 * k, 7 * k, S[2]);
+  ell(p, chestC.x, chestC.y, 9.5 * k, 7.5 * k, S[2]);
+  ell(p, hump.x, hump.y, 8 * k, 6 * k, S[2]);
   // Licht von oben links (Rücken, Schulter)
-  p.ellipse(hump.x - 1 * k, hump.y - 2 * k, 6 * k, 3 * k, S[3]);
-  p.ellipse(chestC.x + 1.5 * k, chestC.y - 1 * k, 5.5 * k, 3.5 * k, S[3]);
-  p.ellipse(chestC.x + 2.5 * k, chestC.y - 1.5 * k, 3 * k, 2 * k, S[4]);
+  ell(p, hump.x - 1 * k, hump.y - 2 * k, 6 * k, 3 * k, S[3]);
+  ell(p, chestC.x + 1.5 * k, chestC.y - 1 * k, 5.5 * k, 3.5 * k, S[3]);
+  volEll(p, chestC.x + 2.5 * k, chestC.y - 1.5 * k, 3 * k, 2 * k, S[4], S[3], S[5]);
   // Brustmuskeln / Bauchfalten
   const q = (u, kk, c) => { const o = pt(u * k, kk * k); p.px(o.x, o.y, c); };
   for (let u = 3; u <= 7; u += 1) q(u, 6.8 - (u - 3) * 0.2, S[1]);
   q(6, 4, S[4]); q(7, 5, S[4]); q(4, 5.5, S[3]); q(2, 5, S[3]); q(9.5, 5, S[1]); q(10, 3.5, S[1]);
   // Bauch (heller, etwas grünlich-blau)
-  p.ellipse(belly.x + 3 * k, belly.y + 1 * k, 4 * k, 4.5 * k, S[3]);
-  p.ellipse(belly.x + 3.5 * k, belly.y + 0.5 * k, 2.2 * k, 3 * k, S[4]);
-  // Narben (zwei helle Kratzer mit dunkler Kante) statt Flecken-Rauschen
-  for (const [u0, k0, len] of [[D.spine - 5 * k, 2 * k, 3], [D.spine - 9 * k, 4.5 * k, 2]]) {
-    for (let j = 0; j < len * k; j++) { const o = pt(u0 - j * 0.8, k0 + j * 0.6); p.px(o.x, o.y, S[5]); p.px(o.x + 0.6, o.y + 1, S[1]); }
+  ell(p, belly.x + 3 * k, belly.y + 1 * k, 4 * k, 4.5 * k, S[3]);
+  volEll(p, belly.x + 3.5 * k, belly.y + 0.5 * k, 2.2 * k, 3 * k, S[4], S[3], S[5]);
+  if (p.fine) {
+    // Handfein: Muskelkanten als harte Zweiton-Linien (Licht darüber, Schatten darunter)
+    const fq = (u0, k0, u1, k1, cl, cd) => { const a = pt(u0 * k, k0 * k), b = pt(u1 * k, k1 * k); fl(p, a.x, a.y, b.x, b.y, cl); fl(p, a.x + 0.5, a.y + 0.5, b.x + 0.5, b.y + 0.5, cd); };
+    fq(D.spine / k - 1.5, 5.2, D.spine / k - 5.5, 6.6, S[4], S[1]);   // Brustmuskel-Unterkante
+    fq(6.5, 6.4, 3, 6.9, S[3], S[1]);                                  // Bauchfalte
+    fq(5, 4.8, 3.5, 5.4, S[4], S[2]);
+    fd(p, pt(6 * k, 4 * k).x, pt(6 * k, 4 * k).y, S[5]); fd(p, pt(9.5 * k, 5 * k).x, pt(9.5 * k, 5 * k).y, S[1]);
+    // Narben: heller Wulst mit dunkler Kante, Stichkerben quer
+    for (const [u0, k0, len] of [[D.spine - 5 * k, 2 * k, 3], [D.spine - 9 * k, 4.5 * k, 2]]) {
+      const a = pt(u0, k0), b = pt(u0 - (len * k - 1) * 0.8, k0 + (len * k - 1) * 0.6);
+      fl(p, a.x, a.y, b.x, b.y, S[5]); fl(p, a.x + 0.5, a.y + 0.5, b.x + 0.5, b.y + 0.5, S[1]);
+      for (let j = 0.5; j < len * k - 0.5; j += 1) { const o = pt(u0 - j * 0.8, k0 + j * 0.6); fd(p, o.x - 0.5, o.y + 0.5, S[1]); fd(p, o.x + 0.5, o.y - 0.5, S[1]); }
+    }
+    // Brusthaar: feine dunkle Strähnen, nach unten gekämmt
+    for (let i = 0; i < 7; i++) {
+      const o = pt(D.spine - (2.8 + i * 0.95) * k, (2.4 + (i % 3) * 0.5) * k);
+      fl(p, o.x, o.y, o.x + 0.5, o.y + 1, i % 2 ? S[1] : S[0]);
+    }
+  } else {
+    // Narben (zwei helle Kratzer mit dunkler Kante) statt Flecken-Rauschen
+    for (const [u0, k0, len] of [[D.spine - 5 * k, 2 * k, 3], [D.spine - 9 * k, 4.5 * k, 2]]) {
+      for (let j = 0; j < len * k; j++) { const o = pt(u0 - j * 0.8, k0 + j * 0.6); p.px(o.x, o.y, S[5]); p.px(o.x + 0.6, o.y + 1, S[1]); }
+    }
+    // Brustbehaarung: kurze dunkle Strähnen auf der Brustmitte
+    for (let i = 0; i < 4; i++) { const o = pt(D.spine - (3 + i * 1.6) * k, (2.5 + (i % 2)) * k); p.px(o.x, o.y, S[1]); p.px(o.x + 0.6, o.y + 1, S[1]); }
   }
-  // Brustbehaarung: kurze dunkle Strähnen auf der Brustmitte
-  for (let i = 0; i < 4; i++) { const o = pt(D.spine - (3 + i * 1.6) * k, (2.5 + (i % 2)) * k); p.px(o.x, o.y, S[1]); p.px(o.x + 0.6, o.y + 1, S[1]); }
   // Gürtel mit Fellschurz vorn
-  for (let kk = -6 * k; kk <= 7 * k; kk += 0.5) { const o = pt(0.8 * k, kk); p.px(o.x, o.y, LOIN[1]); const o2 = pt(1.5 * k, kk); p.px(o2.x, o2.y, LOIN[3]); }
+  if (p.fine) {
+    // Ledergurt: dunkle Unterkante, helle Oberkante, Naht als Punktlinie, Eisenschnalle mit Glanzpunkt
+    for (let kk = -6 * k; kk <= 7 * k; kk += 0.25) {
+      const a = pt(0.55 * k, kk), b = pt(0.95 * k, kk), c = pt(1.35 * k, kk), d = pt(1.75 * k, kk);
+      put(p, a.x, a.y, LOIN[0]); put(p, b.x, b.y, LOIN[2]); put(p, c.x, c.y, LOIN[3]); put(p, d.x, d.y, LOIN[4]);
+    }
+    for (let kk = -5.5 * k; kk <= 6.5 * k; kk += 1) { const o = pt(1.15 * k, kk); put(p, o.x, o.y, LOIN[4]); }
+    const bu = pt(1.15 * k, 6 * k);
+    for (const [ox, oy, c] of [[-0.5, -0.5, IRON[4]], [0, -0.5, IRON[5]], [0.5, -0.5, IRON[3]], [-0.5, 0, IRON[3]], [0.5, 0, IRON[1]], [-0.5, 0.5, IRON[2]], [0, 0.5, IRON[1]], [0.5, 0.5, IRON[0]]]) fd(p, p.snap(bu.x) + ox + 0.5, p.snap(bu.y) + oy + 0.5, c);
+    fd(p, p.snap(bu.x) + 0.5, p.snap(bu.y) + 0.5, LOIN[0]); fd(p, p.snap(bu.x), p.snap(bu.y), '#eef4ff');
+  } else for (let kk = -6 * k; kk <= 7 * k; kk += 0.5) { const o = pt(0.8 * k, kk); p.px(o.x, o.y, LOIN[1]); const o2 = pt(1.5 * k, kk); p.px(o2.x, o2.y, LOIN[3]); }
   for (let i = 0; i < 3; i++) {
     const a = pt(0.5 * k, (1 + i * 2.2) * k);
     const sw = Math.sin(P.capeT + i * 1.3) * 0.6;
     p.rect(a.x + sw, a.y, 2.4 * k, (6 - i) * k, LOIN[i % 2 ? 3 : 2]);
     p.px(a.x + sw, a.y, LOIN[4]);
+    if (p.fine) leatherFlap(p, a.x + sw, a.y + 1, 2.4 * k, (6 - i) * k - 1, i % 2 ? 3 : 2, i + 5);
   }
   if (chief) { // Gürtelschädel
     const bk = pt(1.2 * k, 4 * k);
-    p.ellipse(bk.x, bk.y, 2.2, 2.4, BONE[3]); p.px(bk.x - 1, bk.y - 1, BONE[4]);
+    ell(p, bk.x, bk.y, 2.2, 2.4, BONE[3]); p.px(bk.x - 1, bk.y - 1, BONE[4]);
     p.px(bk.x - 1, bk.y, '#1a0e10'); p.px(bk.x + 1, bk.y, '#1a0e10'); p.px(bk.x, bk.y + 2, BONE[1]);
     const bk2 = pt(1.2 * k, -3 * k);
-    p.ellipse(bk2.x, bk2.y, 1.6, 1.8, BONE[2]); p.px(bk2.x, bk2.y, '#1a0e10');
+    ell(p, bk2.x, bk2.y, 1.6, 1.8, BONE[2]); p.px(bk2.x, bk2.y, '#1a0e10');
+    if (p.fine) {
+      // Schädel fein: Riss über die Stirn, Augenhöhlen mit Glanzrand, Zahnkerben, Nasenloch
+      const X = Math.round(bk.x), Y = Math.round(bk.y);
+      fl(p, X - 0.5, Y - 2, X + 0.5, Y - 1, BONE[1]); fd(p, X + 1, Y - 1, BONE[1]);
+      fd(p, X - 1, Y - 0.5, BONE[4]); fd(p, X + 1, Y - 0.5, BONE[4]); fd(p, X + 1.5, Y + 0.5, BONE[2]);
+      fd(p, X, Y + 1, BONE[1]); fd(p, X + 0.5, Y + 1, '#1a0e10');
+      for (let i = -1; i <= 1; i++) fd(p, X + i * 0.5 + 0.25, Y + 2, i ? BONE[2] : '#1a0e10');
+      const Z = Math.round(bk2.x), V = Math.round(bk2.y);
+      fd(p, Z - 0.5, V - 1, BONE[3]); fd(p, Z + 0.5, V + 0.5, BONE[1]); fd(p, Z + 1, V - 0.5, BONE[1]);
+    }
   }
 
   // --- 5. Mähne / Eisbärenfell über Buckel und Rücken, Eiszapfen
@@ -478,6 +805,19 @@ function drawTroll(p, g, P, X, T) {
     const u = i / (strands - 1);
     const base = pt(D.spine + (1 - u * 9) * k, (-1.5 - u * 3.8) * k);
     const len = (4 + hash2(i, 4, chief ? 13 : 11) * 4 + u * 3) * k;
+    if (p.fine) {
+      // Strähne: dunkle Fuge links, Kern, Schattenkante rechts; Wurzel im Licht, Spitze schmal
+      for (let j = 0; j < len - 0.25; j += 0.5) {
+        const v = j / len;
+        const x = base.x - v * (2 + P.sway) * k * 0.8 + Math.sin(P.capeT + v * 2 + i) * 0.5 * v;
+        const y = base.y + j * 0.9;
+        const core = v < 0.2 ? MN[5] : v < 0.5 ? MN[4] : MN[3];
+        if (v < 0.85) put(p, x - 0.5, y, v < 0.35 ? MN[4] : MN[2]);
+        put(p, x, y, core);
+        if (v > 0.15 && v < 0.75) put(p, x + 0.5, y, chief ? MN[i % 2 ? 1 : 2] : MN[i % 2 ? 0 : 1]);
+      }
+      continue;
+    }
     for (let j = 0; j < len; j++) {
       const v = j / len;
       const x = base.x - v * (2 + P.sway) * k * 0.8 + Math.sin(P.capeT + v * 2 + i) * 0.5 * v;
@@ -489,6 +829,13 @@ function drawTroll(p, g, P, X, T) {
   // Mähnenkamm oben (hell, Schnee darauf)
   for (let i = 0; i < 9; i++) {
     const o = pt(D.spine + (1.5 - i * 1.1) * k, (-4.5 - Math.sin(i / 8 * Math.PI) * 1.2) * k);
+    if (p.fine) { // Fellspitzen fein, Schneehäubchen mit Schattenkante
+      const snow = i % 3 === 1;
+      put(p, o.x, o.y, snow ? '#f4f8fc' : MN[5 - (chief ? 0 : 1)]); put(p, o.x + 0.5, o.y, snow ? '#c8d8e4' : MN[4]);
+      put(p, o.x - 0.5, o.y + 0.5, MN[4]); put(p, o.x, o.y + 0.5, snow ? '#f4f8fc' : MN[3]); put(p, o.x + 0.5, o.y + 0.5, MN[2]);
+      put(p, o.x, o.y + 1, MN[3]); put(p, o.x + 0.5, o.y + 1, MN[1]);
+      continue;
+    }
     p.px(o.x, o.y, i % 3 === 1 ? '#f4f8fc' : MN[5 - (chief ? 0 : 1)]);
     p.px(o.x, o.y + 1, MN[3]);
   }
@@ -502,6 +849,7 @@ function drawTroll(p, g, P, X, T) {
   const crystals = chief ? [[D.spine - 2 * k, -6 * k, 5], [D.spine - 6 * k, -6.5 * k, 6], [D.spine - 10 * k, -5 * k, 4], [D.spine + 1 * k, -6 * k, 3]] : [[D.spine - 3, -6, 3], [D.spine - 6.5, -5.5, 4], [D.spine - 9.5, -4.5, 2]];
   for (const [u, kk, h] of crystals) {
     const o = pt(u, kk);
+    if (p.fine) { shard(p, fr > 0.3 ? g : null, o.x, o.y + 0.5, o.x - (h - 1) * (0.35 + P.lean * 0.6), o.y - (h - 1) - 0.25, 1.35, 0.3); continue; }
     for (let j = 0; j < h; j++) {
       const x = o.x - j * 0.35 - P.lean * j * 0.6, y = o.y - j;
       p.px(x, y, j === h - 1 ? ICE[5] : ICE[3]); p.px(x - 1, y + 0.5, ICE[1]);
@@ -514,40 +862,68 @@ function drawTroll(p, g, P, X, T) {
   limb(p, hip.x + D.hipW, hip.y, legF.jx, legF.jy, 7 * k, 6 * k, R4(0, 2, 3, 4));
   limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 1.5 * k, 6 * k, 5.5 * k, R4(0, 2, 3, 4));
   // Muskelwulst am Oberschenkel (Licht oben links)
-  { const mt = { x: (hip.x + D.hipW + legF.jx) / 2, y: (hip.y + legF.jy) / 2 }; p.ellipse(mt.x - 0.5, mt.y - 1, 1.8 * k, 2.4 * k, S[4]); p.px(mt.x - 1, mt.y - 2.5 * k, S[5]); }
+  { const mt = { x: (hip.x + D.hipW + legF.jx) / 2, y: (hip.y + legF.jy) / 2 }; volEll(p, mt.x - 0.5, mt.y - 1, 1.8 * k, 2.4 * k, S[4], S[3], S[5]); p.px(mt.x - 1, mt.y - 2.5 * k, S[5]); }
   p.px(legF.jx - 1, legF.jy - 1, S[5]); p.px(legF.jx, legF.jy - 1, S[5]);
-  p.ellipse(legF.ex + 1.5 * k, legF.ey - 1.2 * k, 3.8 * k, 1.7 * k, S[2]);
+  ell(p, legF.ex + 1.5 * k, legF.ey - 1.2 * k, 3.8 * k, 1.7 * k, S[2]);
   p.px(legF.ex, legF.ey - 2 * k, S[4]);
-  for (let i = 0; i < 3; i++) { p.px(legF.ex + (3 + i * 1.4) * k, legF.ey - 1, BONE[3]); p.px(legF.ex + (3.5 + i * 1.4) * k, legF.ey - 1, BONE[2]); }
-  // Reif an den Waden
-  p.px(legF.jx + 1, legF.jy + 2, '#e8f2f8'); p.px(legF.jx + 2, legF.jy + 4, ICE[4]);
+  if (p.fine) {
+    // Zehen mit Fugen, Krallen mit Glanzkante; Kniescheibe und Schienbeinkante im Licht
+    for (let i = 0; i < 3; i++) {
+      const cx = p.snap(legF.ex + (3 + i * 1.4) * k), cy = p.snap(legF.ey - 1);
+      fd(p, cx - 0.5, cy - 1, S[1]); fd(p, cx - 0.5, cy - 0.5, S[1]);
+      claw(p, cx, cy);
+    }
+    fd(p, legF.jx - 1, legF.jy - 1.5, S[6]); fd(p, legF.jx - 0.5, legF.jy - 1.5, S[6]); fd(p, legF.jx + 0.5, legF.jy - 0.5, S[2]);
+    { const a = { x: legF.jx - 1.8 * k, y: legF.jy + 1 }, b = { x: legF.ex - 1.6 * k, y: legF.ey - 3 * k }; fl(p, a.x, a.y, b.x, b.y, S[5]); }
+    // Reif an der Wade: kleine Eiskruste mit Grat
+    shard(p, null, legF.jx + 1.5, legF.jy + 2, legF.jx + 2.2, legF.jy + 4.5, 0.7, null);
+    fd(p, legF.jx + 1, legF.jy + 2, '#e8f2f8');
+  } else {
+    for (let i = 0; i < 3; i++) { p.px(legF.ex + (3 + i * 1.4) * k, legF.ey - 1, BONE[3]); p.px(legF.ex + (3.5 + i * 1.4) * k, legF.ey - 1, BONE[2]); }
+    // Reif an den Waden
+    p.px(legF.jx + 1, legF.jy + 2, '#e8f2f8'); p.px(legF.jx + 2, legF.jy + 4, ICE[4]);
+  }
 
   // --- 7. Kopf: tief und vorgereckt, schwere Stirn, Knollennase, Hauer
   const neck = pt(D.spine - 1 * k, 4.5 * k);
   const hx = Math.round(neck.x + (4.5 + P.head) * k), hy = Math.round(neck.y + (0.5 + P.headY) * k);
   const jaw = Math.round(P.jaw * 2.5 * k);
   // Nackenschatten trennt Kopf und Schulterbuckel
-  p.ellipse(hx - 4 * k, hy + 0.5 * k, 3.5 * k, 4 * k, S[1]);
+  ell(p, hx - 4 * k, hy + 0.5 * k, 3.5 * k, 4 * k, S[1]);
   // Unterkiefer (breit, vorstehend – Unterbiss)
-  p.ellipse(hx + 1.5 * k, hy + 2.8 * k + jaw, 4.6 * k, 2.4 * k, S[2]);
-  p.ellipse(hx + 2 * k, hy + 2.2 * k + jaw, 3.2 * k, 1.3 * k, S[3]);
+  const hg = p.fine ? 0.5 : 0;   // fein: Kopf ~1 Weltpixel größer, damit das Gesicht lesbar wird
+  ell(p, hx + 1.5 * k, hy + 2.8 * k + jaw, 4.6 * k + hg, 2.4 * k + hg, S[2]);
+  ell(p, hx + 2 * k, hy + 2.2 * k + jaw, 3.2 * k, 1.3 * k, S[3]);
   p.line(hx - 1 * k, hy + 4.6 * k + jaw, hx + 4 * k, hy + 4.6 * k + jaw, S[1]);
   if (jaw > 0) { // Maulhöhle
     p.rect(hx - 1 * k, hy + 1.2 * k, 5.5 * k, jaw + 1, '#0a0c14');
     p.rect(hx, hy + 1.2 * k + jaw, 4 * k, 1, '#4a2434');
   }
   // Schädel (flach, breit), Licht von oben links
-  p.ellipse(hx, hy - 1 * k, 5 * k, 3.8 * k, S[3]);
-  p.ellipse(hx - 1 * k, hy - 2.2 * k, 3.6 * k, 2.2 * k, S[4]);
+  ell(p, hx, hy - 1 * k, 5 * k + hg, 3.8 * k + hg, S[3]);
+  ell(p, hx - 1 * k, hy - 2.2 * k, 3.6 * k, 2.2 * k, S[4]);
   p.px(hx - 2.5 * k, hy - 3.8 * k, S[6]); p.px(hx - 1.5 * k, hy - 4.2 * k, S[5]);
   // Haarschopf, der in die Mähne übergeht
+  const HM = chief ? MANE : MN;
   for (let i = 0; i < 5; i++) {
     const bx = hx - 3 * k + i * 1.2 * k, by = hy - 4 * k + Math.abs(i - 1.5) * 0.4;
-    p.line(bx, by, bx - 3 - P.sway, by + 1 + i * 0.3, i % 2 ? (chief ? MANE : MN)[2] : (chief ? MANE : MN)[3]);
+    if (p.fine) { // Schopf in Strähnen: Kern, dunkle Fuge, helle Wurzel
+      const ex2 = bx - 3 - P.sway, ey2 = by + 1 + i * 0.3;
+      fl(p, bx, by + 0.5, ex2, ey2 + 0.5, HM[1]);
+      fl(p, bx, by, ex2, ey2, i % 2 ? HM[3] : HM[4]);
+      fd(p, p.snap(bx), p.snap(by), HM[5]); fd(p, p.snap(ex2), p.snap(ey2) + 0.5, HM[2]);
+      continue;
+    }
+    p.line(bx, by, bx - 3 - P.sway, by + 1 + i * 0.3, i % 2 ? HM[2] : HM[3]);
   }
   // spitzes Ohr nach hinten oben
-  p.line(hx - 3.5 * k, hy - 0.5 * k, hx - 7 * k, hy - 3.5 * k, S[4]); p.line(hx - 3.5 * k, hy + 0.5 * k, hx - 6.5 * k, hy - 2.5 * k, S[2]);
-  p.px(hx - 7 * k, hy - 3.5 * k, S[5]);
+  if (p.fine) {
+    shard(p, null, hx - 3.5 * k, hy, hx - 7 * k, hy - 3.5 * k, 1.1 * k, null, [S[0], S[1], S[2], S[3], S[4], S[5]]);
+    fl(p, hx - 4 * k, hy + 0.2 * k, hx - 5.8 * k, hy - 1.6 * k, S[1]);
+  } else {
+    p.line(hx - 3.5 * k, hy - 0.5 * k, hx - 7 * k, hy - 3.5 * k, S[4]); p.line(hx - 3.5 * k, hy + 0.5 * k, hx - 6.5 * k, hy - 2.5 * k, S[2]);
+    p.px(hx - 7 * k, hy - 3.5 * k, S[5]);
+  }
   // Stirnwulst: schwerer, heller Grat, der zur Nase hin abfällt (finsterer Blick),
   // darunter eine tiefe Schattenhöhle für die Augen
   const ex = hx + Math.round(3 * k), ey = hy - Math.round(0.4 * k);
@@ -562,17 +938,71 @@ function drawTroll(p, g, P, X, T) {
   // Eistroll: Bernsteinaugen (Iris 1..4 von T_EYE), Häuptling: Eisaugen
   const EC = chief ? [ICE[2], ICE[3], ICE[4], ICE[5]] : [T_EYE[1], T_EYE[2], T_EYE[3], T_EYE[4]];
   const EG = chief ? [ICE_G[1], ICE_G[2], ICE_G[3], ICE_G[4], ICE_G[5]] : T_EYE_G;
-  p.px(ex, ey, eyeOn ? EC[3] : S[1]); p.px(ex - 1, ey, eyeOn ? EC[1] : S[0]);
-  p.px(bx2, ey, eyeOn ? EC[2] : S[1]);
-  if (chief) p.px(bx2 + 1, ey, eyeOn ? EC[0] : S[0]);
-  if (eyeOn) { g.px(ex, ey, EG[4]); g.px(ex - 1, ey, EG[2]); g.px(ex + 1, ey, EG[1]); g.px(bx2, ey, EG[3]); g.px(bx2 - 1, ey, EG[0]); g.px(ex, ey - 1, EG[0]); }
+  if (p.fine) {
+    // Handfein: Brauenwulst mit klarer heller Kante direkt über einer tiefschwarzen Höhle, darin ein heller
+    // Augenpunkt (weißer Kern) im glühenden Iris-Saum; Nasenwurzel trennt die Augen, Unterlid und Wangenknochen
+    const bw = chief ? 2 : 1, core = chief ? '#ffffff' : '#fffbe8';
+    for (let x = bx2 - 1.5; x <= ex + 1.5; x += 0.5) {
+      fd(p, x, ey - 2, x < ex ? S[4] : S[3]);
+      fd(p, x, ey - 1.5, x < ex + 0.5 ? S[5] : S[4]);
+      fd(p, x, ey - 1, x < ex + 1 ? S[6] : S[5]);                                   // Brauenkante
+    }
+    for (let x = bx2 - 1; x <= ex + 1; x += 0.5) for (const y of [ey - 0.5, ey, ey + 0.5]) fd(p, x, y, S[0]);
+    fd(p, bx2 - 1.5, ey - 0.5, S[1]); fd(p, ex + 1.5, ey - 0.5, S[1]);
+    fd(p, bx2 + bw - 0.5, ey - 2.5, S[1]); fd(p, bx2 + bw, ey - 2.5, S[2]);         // Stirnfurche
+    for (let x = bx2 + bw; x < ex - 1; x += 0.5) { fd(p, x, ey, S[1]); fd(p, x, ey + 0.5, S[2]); }   // Nasenwurzel
+    for (let x = bx2 - 0.5; x <= ex + 0.5; x += 0.5) { fd(p, x, ey + 1, S[1]); fd(p, x, ey + 1.5, x < ex ? S[4] : S[3]); }
+    if (eyeOn) {
+      // vorderes Auge: Kern oben Mitte, Iris rundum
+      for (const [x, y, c] of [[-1, 0, EC[1]], [-0.5, 0, core], [0, 0, EC[2]], [-1, 0.5, EC[0]], [-0.5, 0.5, EC[1]], [0, 0.5, EC[0]]]) fd(p, ex + x, ey + y, c);
+      for (const [x, y, c] of [[-0.5, 0, EG[4]], [-1, 0, EG[2]], [0, 0, EG[2]], [-0.5, 0.5, EG[1]], [-1.5, 0, EG[0]], [0.5, 0, EG[0]]]) fd(g, ex + x, ey + y, c);
+      // hinteres Auge: kleiner, Kern gedämpft
+      const bc = bx2 + bw - 0.5;
+      fd(p, bc, ey, EC[3]); fd(p, bc - 0.5, ey, EC[1]); fd(p, bc, ey + 0.5, EC[0]); if (chief) fd(p, bc + 0.5, ey, EC[1]);
+      fd(g, bc, ey, EG[3]); fd(g, bc - 0.5, ey, EG[1]); fd(g, bc + 0.5, ey, EG[0]);
+    } else {
+      for (let x = ex - 1; x <= ex; x += 0.5) fd(p, x, ey + 0.5, S[2]);
+      fd(p, bx2 + bw - 0.5, ey + 0.5, S[2]);
+    }
+  } else {
+    p.px(ex, ey, eyeOn ? EC[3] : S[1]); p.px(ex - 1, ey, eyeOn ? EC[1] : S[0]);
+    p.px(bx2, ey, eyeOn ? EC[2] : S[1]);
+    if (chief) p.px(bx2 + 1, ey, eyeOn ? EC[0] : S[0]);
+    if (eyeOn) { g.px(ex, ey, EG[4]); g.px(ex - 1, ey, EG[2]); g.px(ex + 1, ey, EG[1]); g.px(bx2, ey, EG[3]); g.px(bx2 - 1, ey, EG[0]); g.px(ex, ey - 1, EG[0]); }
+  }
   meta.eye = { x: ex, y: ey };
   // Knollennase, ragt über den Kiefer; dunkles Nasenloch
-  p.ellipse(hx + 5.2 * k, hy + 0.6 * k, 1.8 * k, 1.5 * k, S[4]);
+  ell(p, hx + 5.2 * k, hy + 0.6 * k, 1.8 * k, 1.5 * k, S[4]);
   p.px(hx + 5 * k, hy - 0.2 * k, S[6]); p.px(hx + 6 * k, hy + 1.5 * k, S[1]); p.px(hx + 4.5 * k, hy + 1.6 * k, S[1]);
   p.px(hx + 5.6 * k, hy + 1.1 * k, S[0]);
+  if (p.fine) {
+    // Nasenrücken-Licht von der Brauenkante bis zur Knolle, Glanzpunkt, Nasenflügel, Nasenloch
+    fl(p, ex + 1.5, ey - 1, hx + 4.4 * k, hy - 0.4 * k, S[5]);
+    fd(p, p.snap(hx + 4.6 * k), p.snap(hy - 0.3 * k), S[6]); fd(p, p.snap(hx + 5.1 * k), p.snap(hy - 0.3 * k), S[5]);
+    fd(p, p.snap(hx + 4.2 * k), p.snap(hy + 1 * k), S[2]); fd(p, p.snap(hx + 4.4 * k), p.snap(hy + 1.4 * k), S[1]);
+    fd(p, p.snap(hx + 5.5 * k), p.snap(hy + 1 * k), S[0]); fd(p, p.snap(hx + 5.5 * k) + 0.5, p.snap(hy + 1 * k), S[1]);
+  }
   // Lippennaht mit gezackter oberer Zahnreihe (geschlossen) bzw. Zähne im offenen Maul
-  if (jaw <= 0) {
+  const tooth = (x, y, down = true) => { // Zahn fein: 2 Feinpixel breit, spitz, Glanz links
+    x = p.snap(x); y = p.snap(y);
+    fd(p, x, y, BONE[4]); fd(p, x + 0.5, y, BONE[3]); fd(p, x + (down ? 0.25 : 0.25), y + (down ? 0.5 : -0.5), BONE[2]);
+  };
+  if (p.fine) {
+    const ly = p.snap(hy + 1.6 * k), lx0 = p.snap(hx - 1 * k), lx1 = p.snap(hx + 4.2 * k);
+    if (jaw <= 0) {
+      for (let x = lx0; x <= lx1; x += 0.5) { fd(p, x, ly, S[0]); fd(p, x, ly + 0.5, S[1]); }
+      fd(p, lx0 - 0.5, ly + 0.5, S[0]); fd(p, lx0 - 0.5, ly - 0.5, S[4]); fd(p, lx0 - 1, ly + 1, S[1]);   // Mundwinkel
+      for (let i = 0; i < 3; i++) tooth(hx + (0.2 + i * 1.3) * k, ly + 0.5);
+      for (let x = lx0 + 0.5; x <= lx1 - 0.5; x += 0.5) fd(p, x, ly - 0.5, S[4]);                       // Oberlippe im Licht
+    } else {
+      const my = p.snap(hy + 1.2 * k);
+      for (let i = 0; i < 4; i++) tooth(hx + (-0.5 + i * 1.3) * k, my + 0.5);
+      for (let i = 0; i < 3; i++) tooth(hx + (0.2 + i * 1.3) * k, my + jaw + 0.5, false);
+      const tx = p.snap(hx + 2 * k), ty = my + jaw - 1;
+      fd(p, tx - 0.5, ty + 0.5, '#7a3046'); fd(p, tx, ty + 0.5, '#7a3046'); fd(p, tx + 0.5, ty + 0.5, '#5a2034'); fd(p, tx - 0.5, ty, '#a04a60'); fd(p, tx, ty, '#7a3046');
+      fd(p, lx0 - 0.5, my + 0.5, S[0]); fd(p, lx0 - 0.5, my + jaw, S[0]);
+    }
+  } else if (jaw <= 0) {
     p.line(hx - 1 * k, hy + 1.6 * k, hx + 4.2 * k, hy + 1.6 * k, S[0]);
     for (let i = 0; i < 3; i++) p.px(hx + (0.2 + i * 1.3) * k, hy + 1.6 * k + 1, i % 2 ? BONE[3] : BONE[4]);
   } else {
@@ -583,13 +1013,30 @@ function drawTroll(p, g, P, X, T) {
   const tusk = (tx, big) => {
     const ty = hy + 2.2 * k + jaw;
     const h = big ? (chief ? 5 : 3) : 2;
+    if (p.fine) { // Hauer fein, etwas größer: Wurzel dunkel, Glanzkante links, Mitte, Schattenkante rechts, Spitze hell
+      const X = p.snap(tx) - (big ? 0.5 : 0), Y = p.snap(ty) + (big ? 0.5 : 0), H = h + (big ? 1 : 0.5);
+      for (let j = 0; j <= H - 1; j += 0.5) {
+        const f = j / Math.max(1, H - 1), x = X + p.snap(Math.max(0, f - 0.35) * 1.2), y = Y - j;
+        const w = !big ? (f < 0.6 ? 2 : 1) : f < 0.45 ? 3 : f < 0.85 ? 2 : 1;
+        if (j < 0.5) { for (let i = 0; i < w; i++) fd(p, x + i * 0.5, y, BONE[1]); fd(p, x + w * 0.5, y, S[1]); continue; }
+        fd(p, x, y, w === 1 ? '#fffbef' : f > 0.5 ? '#fffbef' : BONE[4]);
+        if (w > 1) fd(p, x + 0.5, y, w === 3 ? BONE[3] : BONE[2]);
+        if (w > 2) fd(p, x + 1, y, BONE[2]);
+      }
+      if (chief && big) { fd(p, X + 1, Y - 2, BONE[1]); fd(p, X + 0.5, Y - 1.5, BONE[2]); }   // Kerbe/Riss
+      return;
+    }
     for (let j = 0; j < h; j++) p.px(tx + (j > 1 ? 0.6 : 0), ty - j, j === h - 1 ? '#fffbef' : j === 0 ? BONE[2] : BONE[4]);
   };
   tusk(hx + 4 * k, true); tusk(hx + 1 * k, false);
   // Frostbart am Kinn mit kleinen Eiszapfen
   for (let i = 0; i < (chief ? 5 : 3); i++) {
     const bx = hx + (-0.5 + i * 1.5) * k, by = hy + 5 * k + jaw;
-    p.px(bx, by, MN[3]); p.px(bx, by + 1, MN[2]);
+    if (p.fine) { // Frostbart: hängende Strähnen mit Reif an den Spitzen
+      const X = p.snap(bx), Y = p.snap(by);
+      fd(p, X, Y, MN[4]); fd(p, X + 0.5, Y, MN[2]); fd(p, X, Y + 0.5, MN[3]); fd(p, X + 0.5, Y + 0.5, MN[1]);
+      fd(p, X + 0.25 - 0.25, Y + 1, MN[2]); fd(p, X, Y + 1.5, i % 2 ? '#e8f2f8' : MN[3]);
+    } else { p.px(bx, by, MN[3]); p.px(bx, by + 1, MN[2]); }
     if (i === (chief ? 2 : 0)) icicle(p, g, bx, by + 2, 2, fr);
   }
   meta.mouth = { x: hx + 5 * k, y: hy + 2 * k + jaw * 0.5 };
@@ -598,9 +1045,29 @@ function drawTroll(p, g, P, X, T) {
   // Knochenkrone des Häuptlings
   if (chief) {
     const cy = hy - 4 * k;
-    for (let i = -3; i <= 3; i++) { p.px(hx + i * 1.6, cy + 1 + Math.abs(i) * 0.3, BONE[1]); p.px(hx + i * 1.6 + 0.8, cy + 1 + Math.abs(i) * 0.3, BONE[2]); }
     const spikes = [[-5, 4, -0.5], [-2.5, 6, -0.2], [0, 8, 0], [2.5, 6, 0.25], [5, 4, 0.55]];
-    for (const [ox, h, l] of spikes) {
+    if (p.fine) {
+      // Krone fein: Knochenband aus Wirbeln mit Gelenkkerben, Dornen mit Grat und Rissen, facettiertes Eisjuwel
+      for (let i = -3; i <= 3; i++) {
+        const X = p.snap(hx + i * 1.6), Y = p.snap(cy + 1 + Math.abs(i) * 0.3);
+        fd(p, X, Y, BONE[3]); fd(p, X + 0.5, Y, BONE[2]); fd(p, X + 1, Y, BONE[2]); fd(p, X + 1.5, Y, BONE[0]);
+        fd(p, X, Y + 0.5, BONE[2]); fd(p, X + 0.5, Y + 0.5, BONE[1]); fd(p, X + 1, Y + 0.5, BONE[1]); fd(p, X + 1.5, Y + 0.5, BONE[0]);
+      }
+      for (const [ox, h, l] of spikes) {
+        const bx = hx + ox, by = cy + Math.abs(ox) * 0.3;
+        shard(p, null, bx, by, bx + l * (h - 1), by - (h - 1), 1.05, null, BONE_R);
+        if (h > 5) { const m = Math.round(h * 0.45); fd(p, p.snap(bx + l * m) - 0.5, p.snap(by - m), BONE[1]); fd(p, p.snap(bx + l * m), p.snap(by - m) + 0.5, BONE[1]); }
+      }
+      const X = p.snap(hx - 0.5), Y = p.snap(cy - 1);
+      const GEM = [[ICE[5], ICE[4], ICE[4], ICE[2]], [ICE[4], ICE[5], ICE[3], ICE[1]], [ICE[3], ICE[3], ICE[2], ICE[1]], [ICE[2], ICE[1], ICE[1], ICE[0]]];
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) fd(p, X + i * 0.5, Y + j * 0.5, GEM[j][i]);
+      if (fr > 0.3) {
+        for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) fd(g, X + i * 0.5, Y + j * 0.5, i + j < 2 ? ICE_G[5] : i + j < 4 ? ICE_G[4] : ICE_G[3]);
+        fd(g, X - 0.5, Y + 0.5, ICE_G[2]); fd(g, X + 2, Y + 0.5, ICE_G[2]); fd(g, X + 0.5, Y - 0.5, ICE_G[2]); fd(g, X - 1, Y + 0.5, ICE_G[1]); fd(g, X + 2.5, Y + 0.5, ICE_G[1]);
+      }
+      meta.head = { x: hx, y: cy - 8 };
+    } else for (let i = -3; i <= 3; i++) { p.px(hx + i * 1.6, cy + 1 + Math.abs(i) * 0.3, BONE[1]); p.px(hx + i * 1.6 + 0.8, cy + 1 + Math.abs(i) * 0.3, BONE[2]); }
+    if (!p.fine) for (const [ox, h, l] of spikes) {
       for (let j = 0; j < h; j++) {
         const x = hx + ox + l * j, y = cy - j + Math.abs(ox) * 0.3;
         p.px(x, y, j > h - 2 ? '#fffbef' : j > h * 0.5 ? BONE[4] : BONE[3]);
@@ -608,13 +1075,13 @@ function drawTroll(p, g, P, X, T) {
       }
     }
     // Eisjuwel in der Mitte
-    p.rect(hx - 0.5, cy - 1, 2, 2, ICE[4]); p.px(hx - 0.5, cy - 1, ICE[5]);
-    if (fr > 0.3) { g.rect(hx - 0.5, cy - 1, 2, 2, ICE_G[4]); g.px(hx - 1.5, cy - 0.5, ICE_G[2]); g.px(hx + 1.5, cy - 0.5, ICE_G[2]); }
+    if (!p.fine) p.rect(hx - 0.5, cy - 1, 2, 2, ICE[4]), p.px(hx - 0.5, cy - 1, ICE[5]);
+    if (fr > 0.3 && !p.fine) { g.rect(hx - 0.5, cy - 1, 2, 2, ICE_G[4]); g.px(hx - 1.5, cy - 0.5, ICE_G[2]); g.px(hx + 1.5, cy - 0.5, ICE_G[2]); }
     meta.head = { x: hx, y: cy - 8 };
   }
 
   // Frostatem vor dem Maul
-  if (P.br >= 0) breath(p, g, meta.mouth.x + 1, meta.mouth.y, P.br, 1, X.bigBreath ? 6 : 3, (X.bigBreath ? 1.8 : 1) * (chief ? 1.3 : 1));
+  if (P.br >= 0) breath(p, g, meta.mouth.x + 1, meta.mouth.y, P.br, 1, X.bigBreath ? 6 : 3, (X.bigBreath ? 1.8 : 1) * (chief ? 1.3 : 1), X.calm);
 
   // --- 8. vorderer Arm (+ Keule bzw. Eisfaust)
   if (!chief && clubFront && !X.noClub) {
@@ -625,21 +1092,47 @@ function drawTroll(p, g, P, X, T) {
   p.px(shF.x - 1, shF.y - 2, S[6]); p.px(shF.x, shF.y - 2, S[5]);
   limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 5 * k, 4.8 * k, R4(0, 2, 4, 5));
   // Bizepswulst + Ellbogenschatten
-  { const bm = { x: shF.x + (armF.jx - shF.x) * 0.45, y: shF.y + (armF.jy - shF.y) * 0.45 }; p.ellipse(bm.x - 0.5, bm.y - 0.5, 1.6 * k, 1.6 * k, S[5]); p.px(bm.x - 1, bm.y - 1.5, S[6]); p.px(armF.jx, armF.jy + 1, S[1]); }
+  { const bm = { x: shF.x + (armF.jx - shF.x) * 0.45, y: shF.y + (armF.jy - shF.y) * 0.45 }; volEll(p, bm.x - 0.5, bm.y - 0.5, 1.6 * k, 1.6 * k, S[5], S[4], S[6]); p.px(bm.x - 1, bm.y - 1.5, S[6]); p.px(armF.jx, armF.jy + 1, S[1]); }
   // Eisschulterpanzer (Eis-Verkrustung auf der Schulter)
   const sp = { x: shF.x - 0.5, y: shF.y - 1 * k };
-  p.ellipse(sp.x, sp.y, 3.2 * k, 2.4 * k, ICE[2]); p.ellipse(sp.x - 0.8, sp.y - 0.8, 2.2 * k, 1.4 * k, ICE[3]);
-  p.px(sp.x - 2 * k, sp.y - 1.5 * k, ICE[5]);
-  for (let i = 0; i < (chief ? 3 : 2); i++) {
-    const bx = sp.x - 1.5 * k + i * 2.2 * k, by = sp.y - 2 * k;
-    for (let j = 0; j < 3 * k; j++) { p.px(bx - j * 0.4, by - j, j > 3 * k - 2 ? ICE[5] : ICE[4]); if (fr > 0.3) g.px(bx - j * 0.4, by - j, ICE_G[3]); }
+  if (p.fine) {
+    // Eispanzer fein: facettierter Klumpen (Grate hell zur Lichtseite), Dornen mit Grat
+    const X = sp.x + 0.5, Y = sp.y + 0.5, ax = 3.2 * k + 0.42, ay = 2.4 * k + 0.42;
+    const seeds = [[-1.6 * k, -1.1 * k, 4], [0.5 * k, -1.3 * k, 3], [1.9 * k, 0.3 * k, 2], [-0.9 * k, 0.9 * k, 3], [0.8 * k, 1.3 * k, 2], [-2.6 * k, 0.4 * k, 3]];
+    p.each(X - ax, Y - ay, X + ax, Y + ay, (x, y) => {
+      const u = (x - X) / ax, v = (y - Y) / ay, d = u * u + v * v;
+      if (d > 1) return null;
+      if (d > 0.72) return u + v < -0.2 ? ICE[4] : u + v > 0.5 ? ICE[1] : ICE[2];
+      const fi = facet(seeds, x - X, y - Y);
+      return fi < 0 ? (u + v < 0.4 ? ICE[5] : ICE[1]) : ICE[fi];
+    });
+    for (let i = 0; i < (chief ? 3 : 2); i++) {
+      const bx = sp.x - 1.5 * k + i * 2.2 * k, by = sp.y - 1.6 * k, h = 3 * k - 1;
+      shard(p, fr > 0.3 ? g : null, bx, by, bx - h * 0.4, by - h, 0.95, 0.25);
+    }
+  } else {
+    ell(p, sp.x, sp.y, 3.2 * k, 2.4 * k, ICE[2]); ell(p, sp.x - 0.8, sp.y - 0.8, 2.2 * k, 1.4 * k, ICE[3]);
+    p.px(sp.x - 2 * k, sp.y - 1.5 * k, ICE[5]);
+    for (let i = 0; i < (chief ? 3 : 2); i++) {
+      const bx = sp.x - 1.5 * k + i * 2.2 * k, by = sp.y - 2 * k;
+      for (let j = 0; j < 3 * k; j++) { p.px(bx - j * 0.4, by - j, j > 3 * k - 2 ? ICE[5] : ICE[4]); if (fr > 0.3) g.px(bx - j * 0.4, by - j, ICE_G[3]); }
+    }
   }
   icicle(p, g, sp.x + 1, sp.y + 2 * k, Math.round(3 * k), fr);
-  if (fr > 0.3) g.px(sp.x - 2 * k, sp.y - 1.5 * k, ICE_G[4]);
+  if (fr > 0.3) { if (p.fine) { fd(g, p.snap(sp.x - 2 * k), p.snap(sp.y - 1.5 * k), ICE_G[5]); fd(g, p.snap(sp.x - 2 * k) + 0.5, p.snap(sp.y - 1.5 * k), ICE_G[3]); } else g.px(sp.x - 2 * k, sp.y - 1.5 * k, ICE_G[4]); }
   // Lederwicklung am Unterarm
   for (const t of [0.5, 0.65]) {
     const bw = { x: armF.jx + (armF.ex - armF.jx) * t, y: armF.jy + (armF.ey - armF.jy) * t };
-    p.ellipse(bw.x, bw.y, 2.3 * k, 1 * k, LOIN[2]); p.px(bw.x - 1, bw.y - 1, LOIN[4]);
+    ell(p, bw.x, bw.y, 2.3 * k, 1 * k, LOIN[2]); p.px(bw.x - 1, bw.y - 1, LOIN[4]);
+    if (p.fine) { // Wicklung: Lichtkante oben, Schattenkante unten, Naht als Punktlinie
+      const X = bw.x + 0.5, Y = bw.y + 0.5, ax = 2.3 * k + 0.42, ay = k + 0.42;
+      p.each(X - ax, Y - ay, X + ax, Y + ay, (x, y) => {
+        const u = (x - X) / ax, v = (y - Y) / ay, d = u * u + v * v;
+        if (d > 1) return null;
+        return v < -0.55 ? LOIN[3] : v > 0.5 ? LOIN[0] : null;
+      });
+      for (let x = -1.5 * k; x <= 1.5 * k; x += 1) fd(p, p.snap(X + x), p.snap(Y) - 0.25, LOIN[4]);
+    }
   }
 
   if (chief) {
@@ -652,8 +1145,13 @@ function drawTroll(p, g, P, X, T) {
   } else {
     if (!X.noClub) {
       // Faust um den Stiel
-      p.ellipse(armF.ex, armF.ey, 2.4 * k, 2.2 * k, S[4]); p.px(armF.ex - 1, armF.ey - 1, S[6]);
+      ell(p, armF.ex, armF.ey, 2.4 * k, 2.2 * k, S[4]); p.px(armF.ex - 1, armF.ey - 1, S[6]);
       p.px(armF.ex + 1, armF.ey + 1, S[2]);
+      if (p.fine) { // Fingerfugen und Knöchel im Licht
+        const X = p.snap(armF.ex), Y = p.snap(armF.ey);
+        for (let i = -1; i <= 1; i++) fd(p, X + i + 0.5, Y - 0.5, S[5]);
+        fl(p, X - 1, Y + 0.5, X + 1, Y + 0.5, S[3]); fd(p, X - 1, Y - 1, S[6]);
+      }
     } else trollHand(p, armF.ex, armF.ey, S, k, 1);
     meta.hand = { x: armF.ex, y: armF.ey };
     if (clubTip) meta.tip = clubTip;
@@ -670,7 +1168,7 @@ function iceTrollAnims() {
   const idle = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 6, kk = (1 - Math.cos(t * TAU)) / 2;
-    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t, frost: i % 3 === 0 ? 1.2 : 1 }));
+    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t, frost: i % 3 === 0 ? 1.2 : 1 }, { calm: true }));
   }
   const walk = [];
   for (let i = 0; i < 8; i++) {
@@ -740,7 +1238,7 @@ function chiefAnims() {
   const idle = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 6, kk = (1 - Math.cos(t * TAU)) / 2;
-    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t }));
+    idle.push(mk({ ...mixP(idleA, idleB, kk), br: t }, { calm: true }));
   }
   const walk = [];
   for (let i = 0; i < 8; i++) {
@@ -846,11 +1344,31 @@ function qLeg(p, hx, hy, fx, fy, l1, l2, front, w, ramp, paw) {
   limb(p, L.jx, L.jy, L.ex, L.ey - 1, w * 0.7, w * 0.6, ramp);
   p.rect(L.ex - 1, L.ey - 1, paw, 1, ramp[0]);
   p.px(L.ex + paw - 2, L.ey - 1, ramp[1]);
+  if (p.fine) { // Pfote fein: Zehenballen mit Fugen, Lichtkante oben, helle Krallen vorn
+    const X = p.snap(L.ex - 1), Y = p.snap(L.ey - 1);
+    for (let i = 0; i < paw; i += 0.5) fd(p, X + i, Y, i % 1 ? ramp[2] : ramp[1]);
+    for (let i = 1; i < paw; i += 1) fd(p, X + i - 0.5, Y + 0.5, '#0e1018');
+    fd(p, X + paw - 0.5, Y + 0.5, '#d8dce4'); fd(p, X + paw - 1.5, Y + 0.5, '#9aa2b0');
+  }
   return L;
 }
 
 // Kopf-Richtung: Schnauzenwinkel a (0 = nach vorn, negativ = hoch).
 const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
+
+// Eisauge (nur fein) für Wolf und Pirscher: Zellen round(ex)-1..round(ex), Zeile round(ey) wie grob.
+// Mandelform: dunkler Lidrand, Iris eisblau, heller Kern + Glanzpunkt; darüber helle Brauenkante.
+// Leuchten fein: Kern weiß, harter Hof in zwei Stufen. F = Fellrampe (dunkel → hell).
+function iceEye(p, g, ex, ey, on, F) {
+  const X = Math.round(ex), Y = Math.round(ey);
+  for (let x = X - 1.5; x <= X + 1; x += 0.5) fd(p, x, Y - 1.5, x < X ? F[6] : F[5]);    // Brauenkante im Licht
+  fd(p, X - 1, Y - 1, F[0]); fd(p, X - 0.5, Y - 1, F[0]); fd(p, X, Y - 1, F[0]); fd(p, X + 0.5, Y - 1, F[1]);
+  if (!on) { fd(p, X - 1, Y, F[1]); fd(p, X - 0.5, Y, F[0]); fd(p, X, Y, F[0]); fd(p, X + 0.5, Y, F[1]); fd(p, X - 0.5, Y + 0.5, F[2]); fd(p, X, Y + 0.5, F[2]); return; }
+  const E = [[F[0], ICE[2], ICE[3], F[0]], [F[1], ICE[3], ICE[5], ICE[2]]];
+  for (let j = 0; j < 2; j++) for (let i = 0; i < 4; i++) fd(p, X - 1 + i * 0.5, Y + j * 0.5, E[j][i]);
+  fd(p, X + 0.5, Y + 1, F[1]);                                                            // Tränenrinne
+  for (const [ox, oy, c] of [[0, 0.5, ICE_G[5]], [-0.5, 0.5, ICE_G[3]], [0.5, 0.5, ICE_G[3]], [0, 0, ICE_G[3]], [-0.5, 0, ICE_G[2]], [-1, 0.5, ICE_G[1]], [1, 0.5, ICE_G[1]], [0, 1, ICE_G[1]]]) fd(g, X + ox, Y + oy, c);
+}
 
 // ================================================================ Frostwolf
 
@@ -883,7 +1401,7 @@ function drawFrostWolf(p, g, P, X) {
     }
     if (lie > 0) { fx = hx + (front ? 5 : -4) * lie + (fx - hx) * (1 - lie); fy = Math.min(gy, fy); }
     qLeg(p, hx, hy - 1, fx, fy, front ? 7.5 : 8, front ? 7.5 : 9, front, near ? 2.8 : 2.4, col, 3);
-    if (!front) p.ellipse(hx - 0.5, hy + 1.5, near ? 3 : 2.5, near ? 3.5 : 3, col[1]);
+    if (!front) ell(p, hx - 0.5, hy + 1.5, near ? 3 : 2.5, near ? 3.5 : 3, col[1]);
   };
   const run = P.gallop > 0.5;
   leg(6, 0, false, false);
@@ -893,31 +1411,50 @@ function drawFrostWolf(p, g, P, X) {
   const ts = Math.sin(P.t * TAU * 2) * P.amp * 0.8;
   const tailA = 2.3 - P.tail * 0.9 - P.amp * 0.35 - P.leap * 0.6;
   let tx = ox + 1, ty = Y(1, by - 2);
+  const tseg = [];
   for (let i = 0; i < 9; i++) {
     const a = tailA + i * 0.05 + ts * 0.05;
     tx += Math.cos(a) * 1.2; ty += Math.sin(a) * 1.2;
     const r = 1.1 + Math.sin(i / 8 * Math.PI) * 1.0;
-    p.ellipse(tx, ty, r, r, WF[4]);
+    ell(p, tx, ty, r, r, WF[4]);
     p.px(tx - 0.5, ty - r + 0.5, WF[6]);
+    tseg.push([tx, ty, r, a]);
   }
   p.px(tx, ty, WF[7]); p.px(tx - 1, ty + 1, WF[6]);
+  if (p.fine) { // Rute fein: gekämmte Strähnen, oben hell, unten dunkel, Spitze weiß
+    for (const [x, y, r, a] of tseg) {
+      const cx = Math.cos(a), cy = Math.sin(a);
+      fl(p, x - 0.3, y - r + 0.6, x - 0.3 + cx * 1.3, y - r + 0.6 + cy * 1.3 + 0.4, WF[6]);
+      fl(p, x + 0.6, y + r - 0.2, x + 0.6 + cx * 1.2, y + r - 0.2 + cy * 1.2, WF[2]);
+      fd(p, p.snap(x), p.snap(y), WF[5]); fd(p, p.snap(x) + 0.5, p.snap(y) + 0.5, WF[3]);
+    }
+    fd(p, p.snap(tx) - 0.5, p.snap(ty) + 0.5, WF[7]); fd(p, p.snap(tx), p.snap(ty) + 1, WF[6]);
+  }
 
   // --- Rumpf
   const flat = 1 - side * 0.25;
-  p.ellipse(ox + 7, Y(7, by), 6, 4.8 * flat, WF[4]);
-  p.ellipse(ox + 13, Y(13, by + 0.3), 7.5, 4.2 * flat, WF[4]);
-  p.ellipse(ox + 20, Y(20, by - 0.5), 5.5, 5.3 * flat, WF[4]);
+  ell(p, ox + 7, Y(7, by), 6, 4.8 * flat, WF[4]);
+  ell(p, ox + 13, Y(13, by + 0.3), 7.5, 4.2 * flat, WF[4]);
+  ell(p, ox + 20, Y(20, by - 0.5), 5.5, 5.3 * flat, WF[4]);
   // Bauch dunkler, Rücken hell (Schnee-Fell)
-  p.ellipse(ox + 13, Y(13, by + 3.4), 6.5, 1.3, WF[2]);
-  p.ellipse(ox + 8, Y(8, by + 3.5), 4, 1.5, WF[3]);
-  p.ellipse(ox + 12, Y(12, by - 3), 9, 2.2 * flat, WF[5]);
-  p.ellipse(ox + 12, Y(12, by - 4), 7, 1.2, WF[6]);
+  ell(p, ox + 13, Y(13, by + 3.4), 6.5, 1.3, WF[2]);
+  ell(p, ox + 8, Y(8, by + 3.5), 4, 1.5, WF[3]);
+  ell(p, ox + 12, Y(12, by - 3), 9, 2.2 * flat, WF[5]);
+  ell(p, ox + 12, Y(12, by - 4), 7, 1.2, WF[6]);
   for (let x = 2; x <= 22; x++) p.px(ox + x, Y(x, by - 5 - (x > 15 ? (x - 15) * 0.2 : 0)) + (x % 3 === 0 ? 1 : 0), x % 4 === 0 ? WF[7] : WF[6]);
   // Oberschenkel-Wölbung
-  p.ellipse(ox + 5, Y(5, by + 1), 3.5, 3.5, WF[3]); p.ellipse(ox + 4.5, Y(4.5, by), 2.5, 2.5, WF[5]);
+  ell(p, ox + 5, Y(5, by + 1), 3.5, 3.5, WF[3]); ell(p, ox + 4.5, Y(4.5, by), 2.5, 2.5, WF[5]);
   // Fellstruktur: gerichtete Strähnen (nach hinten-unten gekämmt) statt Rauschen;
   // oben helle Spitzen, an der Flanke dunkle Strähnen, die zum Bauch hin dichter werden
-  for (let i = 0; i < 16; i++) {
+  if (p.fine) {
+    // Handfein: Rückenlinie in Feinpixeln, gekämmte Strähnen (Licht oben links: oben hell, Flanke dunkel)
+    for (let x = 2; x <= 22; x += 0.5) put(p, ox + x, Y(x, by - 5 - (x > 15 ? (x - 15) * 0.2 : 0)) + ((x * 2) % 5 === 0 ? 0.5 : 0), (x * 2) % 6 === 0 ? WF[7] : WF[6]);
+    for (let i = 0; i < 44; i++) {
+      const x = 3 + hash2(i, 1, 52) * 19.5, y = -3 + hash2(i, 2, 52) * 6.8;
+      const c = y < -1 ? (i % 3 ? WF[6] : WF[7]) : y < 1.5 ? (i % 2 ? WF[3] : WF[5]) : WF[2];
+      fl(p, ox + x, Y(x, by + y), ox + x - 1.4, Y(x - 1.4, by + y + 0.9), c);
+    }
+  } else for (let i = 0; i < 16; i++) {
     const x = 3 + hash2(i, 1, 51) * 19, y = -2.5 + hash2(i, 2, 51) * 6;
     const c = y < 0 ? WF[6] : y < 2 ? WF[3] : WF[2];
     p.px(ox + x, Y(x, by + y), c); p.px(ox + x - 1, Y(x - 1, by + y + 1), c);
@@ -925,6 +1462,7 @@ function drawFrostWolf(p, g, P, X) {
   // Eisstachel-Kamm entlang des Rückens: große, nach hinten geneigte Kristalle
   // (prägt die Silhouette – kein anderer Wolf hat diese Zackenlinie)
   const spike = (bx, byy, h, lean, lit) => {
+    if (p.fine) { shard(p, lit ? g : null, bx, byy + 0.5, bx - lean * h, byy - h, 2.1, 0.35); return; }
     for (let j = 0; j < h; j++) {
       const f = j / h, w = (1 - f) * 2;
       const cx2 = bx - lean * j;
@@ -951,17 +1489,30 @@ function drawFrostWolf(p, g, P, X) {
   const hx = ox + 27 + P.leap * 2, hy = Y(27, by - 8.5) + lie * 5 + Math.max(0, P.ha) * 3;
   limb(p, ox + 20, Y(20, by - 1), hx - 1.5, hy + 1, 7, 5, [WF[3], WF[4], WF[5], WF[6]]);
   const nx = ox + 23, ny = Y(23, by - 4);
-  p.ellipse(nx, ny + 1, 4.5, 5.5, WF[5]);
-  p.ellipse(nx - 1, ny - 1, 3, 3, WF[6]);
-  for (let i = 0; i < 8; i++) {
-    const a = -2.4 + i * 0.5, r = 5 + (i % 2);
-    const x = nx + Math.cos(a) * r - 1, y = ny + 1 + Math.sin(a) * r * 1.1;
-    p.px(x, y, i % 2 ? WF[6] : WF[5]); p.px(x - Math.cos(a) * 0.8, y - Math.sin(a) * 0.8, WF[4]);
+  ell(p, nx, ny + 1, 4.5, 5.5, WF[5]);
+  ell(p, nx - 1, ny - 1, 3, 3, WF[6]);
+  if (p.fine) { // Halskrause in Strähnen: helle Spitzen außen, dunkle Fugen innen
+    for (let i = 0; i < 15; i++) {
+      const a = -2.4 + i * 0.27, r = 5 + (i % 2) * 0.7;
+      const x = nx + Math.cos(a) * r - 1, y = ny + 1 + Math.sin(a) * r * 1.1;
+      const ix = x - Math.cos(a) * 2, iy = y - Math.sin(a) * 2;
+      fl(p, ix, iy, x, y, i % 3 === 0 ? WF[4] : WF[5]);
+      fd(p, p.snap(x + 0.5), p.snap(y + 0.5), i % 2 ? WF[7] : WF[6]);
+      if (i % 2) fl(p, ix + 0.5, iy + 0.5, x - Math.cos(a) * 0.5 + 0.5, y - Math.sin(a) * 0.5 + 0.5, WF[3]);
+    }
+    for (const [x, y, c] of [[nx + 1, ny + 6, WF[5]], [nx - 1, ny + 7, WF[4]], [nx + 2, ny + 5, WF[6]], [nx, ny + 6.5, WF[6]]]) fl(p, x, y - 1, x - 0.3, y + 0.5, c);
+  } else {
+    for (let i = 0; i < 8; i++) {
+      const a = -2.4 + i * 0.5, r = 5 + (i % 2);
+      const x = nx + Math.cos(a) * r - 1, y = ny + 1 + Math.sin(a) * r * 1.1;
+      p.px(x, y, i % 2 ? WF[6] : WF[5]); p.px(x - Math.cos(a) * 0.8, y - Math.sin(a) * 0.8, WF[4]);
+    }
+    p.px(nx + 1, ny + 6, WF[5]); p.px(nx - 1, ny + 7, WF[4]); p.px(nx + 2, ny + 5, WF[6]);
   }
-  p.px(nx + 1, ny + 6, WF[5]); p.px(nx - 1, ny + 7, WF[4]); p.px(nx + 2, ny + 5, WF[6]);
   // Eismähne: Kristallsplitter strahlen aus der Halskrause nach hinten/oben
   if (side < 0.5) for (const [a0, l] of [[-2.5, 5], [-2.1, 6], [-1.7, 5], [-2.85, 4]]) {
     const ax = Math.cos(a0), ay = Math.sin(a0);
+    if (p.fine) { shard(p, P.frost > 0.3 ? g : null, nx - 1 + ax * 3.5, ny + ay * 3.5, nx - 1 + ax * (3 + l), ny + ay * (3 + l), 1, 0.5); continue; }
     for (let j = 1; j <= l; j++) {
       const qx = nx - 1 + ax * (3 + j), qy = ny + ay * (3 + j);
       p.px(qx, qy, j === l ? ICE[5] : j > l / 2 ? ICE[4] : ICE[3]);
@@ -973,14 +1524,19 @@ function drawFrostWolf(p, g, P, X) {
   // --- Kopf
   const ha = P.ha, d = dirOf(ha);
   // Schädel etwas wuchtiger, Unterseite im Schatten
-  p.ellipse(hx, hy + 0.3, 4.1, 3.5, WF[3]);
-  p.ellipse(hx - 0.2, hy - 0.3, 3.7, 3, WF[4]);
-  p.ellipse(hx - 0.5, hy - 1.2, 3, 1.8, WF[6]);
+  ell(p, hx, hy + 0.3, 4.1, 3.5, WF[3]);
+  ell(p, hx - 0.2, hy - 0.3, 3.7, 3, WF[4]);
+  ell(p, hx - 0.5, hy - 1.2, 3, 1.8, WF[6]);
   p.px(hx - 1.5, hy - 2.5, WF[7]);
   // Ohren (spitz, zurückgelegt beim Knurren)
   const earBack = P.ear;
   const ear = (ex, ey, near) => {
     const tipx = ex - 1 - earBack * 2.5 + d.y * 1.5, tipy = ey - 4 + earBack * 2;
+    if (p.fine) { // Ohr fein: Kante mit Grat, dunkle Ohrmuschel, helle Spitze
+      shard(p, null, ex + 0.5, ey + 0.3, tipx, tipy, 1.2, null, near ? [WF[1], WF[2], WF[3], WF[4], WF[5], WF[7]] : [WF[0], WF[1], WF[2], WF[3], WF[3], WF[4]]);
+      if (near) fl(p, ex + 0.6, ey - 0.4, ex + 0.2 + (tipx - ex) * 0.45, ey + (tipy - ey) * 0.45, WF[1]);
+      return;
+    }
     p.line(ex, ey, tipx, tipy, near ? WF[5] : WF[3]); p.line(ex + 1, ey, tipx + 0.5, tipy + 1, near ? WF[4] : WF[2]);
     p.px(tipx, tipy, near ? WF[7] : WF[4]);
     if (near) p.px(ex + 0.5, ey - 1, WF[1]);
@@ -993,22 +1549,50 @@ function drawFrostWolf(p, g, P, X) {
   const ja = ha + P.jaw * 0.45, jd = dirOf(ja);
   const jx = hx + jd.x * 6.2, jy = hy + 1.8 + jd.y * 6.2;
   p.line(hx + 1, hy + 2, jx, jy, WF[3]); p.line(hx + 1, hy + 1.5, jx - jd.x * 0.5, jy - 0.8, WF[2]);
+  const fang = (x, y, up) => { // Fangzahn fein: 1 Feinpixel breit, 2 lang, Spitze knochig
+    x = p.snap(x); y = p.snap(y);
+    fd(p, x, y, '#f4f4ec'); fd(p, x, y + (up ? -0.5 : 0.5), up ? '#f4f4ec' : BONE[3]); fd(p, x + 0.5, y, '#b8b8b0');
+  };
   if (P.jaw > 0.2) { // Maul, Zähne, Zunge
-    p.line(hx + 1.5, hy + 1, tipX - d.x, tipY + 0.5 - d.y, '#1a0c14');
-    p.line(hx + 2, hy + 1.5, jx - jd.x * 1.5, jy - 1, '#6a2a3a');
-    p.px(tipX - d.x * 1.5, tipY + 1, '#f4f4ec'); p.px(jx - jd.x * 1.5, jy - 1.5, '#f4f4ec'); p.px(hx + d.x * 3, hy + d.y * 3 + 1.5, '#e0e0d8');
+    if (p.fine) {
+      fl(p, hx + 1.5, hy + 1, tipX - d.x, tipY + 0.5 - d.y, '#1a0c14', 1);
+      fl(p, hx + 2, hy + 1.5, jx - jd.x * 1.5, jy - 1, '#6a2a3a', 0.5); fl(p, hx + 2, hy + 1.25, jx - jd.x * 1.7, jy - 1.25, '#8a3a4c');
+      fang(tipX - d.x * 1.5, tipY + 1, false); fang(tipX - d.x * 2.5, tipY + 0.8, false);
+      fang(jx - jd.x * 1.5, jy - 1, true); fang(hx + d.x * 3, hy + d.y * 3 + 1.5, false);
+    } else {
+      p.line(hx + 1.5, hy + 1, tipX - d.x, tipY + 0.5 - d.y, '#1a0c14');
+      p.line(hx + 2, hy + 1.5, jx - jd.x * 1.5, jy - 1, '#6a2a3a');
+      p.px(tipX - d.x * 1.5, tipY + 1, '#f4f4ec'); p.px(jx - jd.x * 1.5, jy - 1.5, '#f4f4ec'); p.px(hx + d.x * 3, hy + d.y * 3 + 1.5, '#e0e0d8');
+    }
   }
   // Nasenrücken hell (Licht von oben), Stirnabsatz, helle Wangenkrause
-  p.line(sx0 + 0.5, sy0 - 1.2, tipX - d.x * 1.5, tipY - 1.6 - d.y, WF[6]);
-  p.px(hx + 2, hy - 2, WF[6]);
-  p.px(hx - 1, hy + 2, WF[6]); p.px(hx - 2, hy + 2.5, WF[5]); p.px(hx, hy + 2.5, WF[5]);
+  if (p.fine) {
+    fl(p, sx0 + 0.5, sy0 - 1.2, tipX - d.x * 1.5, tipY - 1.6 - d.y, WF[6], 0.5);
+    fl(p, sx0 + 0.5, sy0 - 1.45, tipX - d.x * 2, tipY - 1.85 - d.y, WF[7]);
+    fd(p, p.snap(hx + 2), p.snap(hy - 2), WF[6]); fd(p, p.snap(hx + 2.5), p.snap(hy - 2), WF[7]); fd(p, p.snap(hx + 1.5), p.snap(hy - 1.5), WF[3]);
+    for (const [x, y, c] of [[hx - 1, hy + 2, WF[6]], [hx - 2, hy + 2.5, WF[5]], [hx, hy + 2.5, WF[5]], [hx - 0.5, hy + 3, WF[7]], [hx + 0.5, hy + 2.5, WF[4]]]) fl(p, x, y - 0.5, x - 0.5, y + 0.5, c);
+  } else {
+    p.line(sx0 + 0.5, sy0 - 1.2, tipX - d.x * 1.5, tipY - 1.6 - d.y, WF[6]);
+    p.px(hx + 2, hy - 2, WF[6]);
+    p.px(hx - 1, hy + 2, WF[6]); p.px(hx - 2, hy + 2.5, WF[5]); p.px(hx, hy + 2.5, WF[5]);
+  }
   // geschlossenes Maul: dunkle Lefzenlinie mit Fangzahn
   if (P.jaw <= 0.2) {
-    p.line(hx + 1.5, hy + 1.6, tipX - d.x * 1.2, tipY + 0.4, WF[0]);
-    p.px(hx + d.x * 4.5, hy + d.y * 4.5 + 2.2, '#f4f4ec');
+    if (p.fine) {
+      fl(p, hx + 1.5, hy + 1.6, tipX - d.x * 1.2, tipY + 0.4, WF[0]); fl(p, hx + 1.5, hy + 2.1, tipX - d.x * 1.6, tipY + 0.9, WF[2]);
+      fd(p, p.snap(hx + 1), p.snap(hy + 1.6), WF[0]); fd(p, p.snap(hx + 0.5), p.snap(hy + 2.1), WF[1]);   // Mundwinkel
+      fang(hx + d.x * 4.5, hy + d.y * 4.5 + 2.2, false);
+    } else {
+      p.line(hx + 1.5, hy + 1.6, tipX - d.x * 1.2, tipY + 0.4, WF[0]);
+      p.px(hx + d.x * 4.5, hy + d.y * 4.5 + 2.2, '#f4f4ec');
+    }
   }
-  // Nase: kräftig, 2×2 mit Glanzpunkt
-  p.rect(tipX - 1, tipY - 1, 2, 2, '#0c0e14'); p.px(tipX - 1, tipY - 1, WF[2]); // Nase
+  // Nase: kräftig, 2×2 mit Glanzpunkt (fein: gerundet, Nasenloch, Glanzpunkt)
+  if (p.fine) {
+    const X = Math.round(tipX - 1), Y0 = Math.round(tipY - 1);
+    const NOSE = [['#3a4458', '#8a96aa', '#1a1e28', null], ['#1a1e28', '#0c0e14', '#0c0e14', '#0c0e14'], ['#0c0e14', '#0c0e14', '#030406', '#0c0e14'], [null, '#1a1e28', '#0c0e14', '#1a1e28']];
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) if (NOSE[j][i]) fd(p, X + i * 0.5, Y0 + j * 0.5, NOSE[j][i]);
+  } else { p.rect(tipX - 1, tipY - 1, 2, 2, '#0c0e14'); p.px(tipX - 1, tipY - 1, WF[2]); } // Nase
   if (side < 0.5 && P.jaw < 0.5) { icicle(p, g, Math.round(hx + 2), Math.round(hy + 3), 3, P.frost); icicle(p, g, Math.round(hx + 4), Math.round(hy + 3), 2, P.frost); }
   // Auge: eisblau, leuchtend, dunkle Maske darum
   const ex = hx + 1 + d.x, ey = hy - 1 + d.y * 0.5;
@@ -1016,13 +1600,14 @@ function drawFrostWolf(p, g, P, X) {
   p.line(ex - 4, ey - 1, ex - 2, ey, WF[2]);
   p.px(ex - 1, ey - 1, WF[1]); p.px(ex, ey - 1, WF[0]); p.px(ex + 1, ey - 1, WF[1]);
   p.px(ex + 1, ey + 0.5, WF[1]); p.px(ex + 2, ey + 1, WF[2]);
-  if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); p.px(ex - 1, ey, ICE[3]); g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[3]); }
+  if (p.fine) iceEye(p, g, ex, ey, P.eye > 0.3, WF);
+  else if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); p.px(ex - 1, ey, ICE[3]); g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[3]); }
   else { p.px(ex, ey, WF[1]); p.px(ex - 1, ey, WF[1]); }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: tipX, y: tipY + 1 };
   meta.head = { x: hx, y: hy - 6 };
   // eisiger Atemhauch
-  if (P.br >= 0) breath(p, g, tipX, tipY + 1, P.br, d.x >= 0 ? 1 : -1, X.bigBreath ? 5 : 3, X.bigBreath ? 1.4 : 0.9);
+  if (P.br >= 0) breath(p, g, tipX, tipY + 1, P.br, d.x >= 0 ? 1 : -1, X.bigBreath ? 5 : 3, X.bigBreath ? 1.4 : 0.9, X.calm);
   return meta;
 }
 
@@ -1031,7 +1616,7 @@ function frostWolfAnims() {
   const idle = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 6, k = (1 - Math.cos(t * TAU)) / 2;
-    idle.push(mk(wpose({ bob: k > 0.5 ? 1 : 0, ha: 0.12 + k * 0.08, br: t, tail: k * 0.2, frost: i % 3 === 0 ? 1.2 : 1 })));
+    idle.push(mk(wpose({ bob: k > 0.5 ? 1 : 0, ha: 0.12 + k * 0.08, br: t, tail: k * 0.2, frost: i % 3 === 0 ? 1.2 : 1 }), { calm: true }));
   }
   const walk = [];
   for (let i = 0; i < 6; i++) walk.push(mk(wpose({ t: i / 6, amp: 1, bob: i % 3 === 1 ? 1 : 0, ha: 0.2, br: i / 6, tail: 0.3 }), { fx: i % 3 === 0 ? 'step' : null }));
@@ -1098,13 +1683,22 @@ function drawStalker(p, g, P, X) {
     if (sw > 0) { fx += (hx + sx - fx) * sw; fy += (hy + sy - fy) * sw; }
     const L = qLeg(p, hx, hy - 1, fx, fy, front ? 7.5 : 8, front ? 7 : 8.5, front, near ? 3.8 : 3.2, col, 4);
     if (!front) { // Keule: gewölbt, Licht oben links (kein dunkles „Loch“)
-      p.ellipse(hx - 0.5, hy + 1.5, near ? 3.5 : 3, near ? 4 : 3.5, col[near ? 2 : 1]);
-      if (near) { p.ellipse(hx - 1.2, hy + 0.5, 2.2, 2.4, col[3]); p.px(hx - 2, hy - 0.5, CF[6]); }
+      ell(p, hx - 0.5, hy + 1.5, near ? 3.5 : 3, near ? 4 : 3.5, col[near ? 2 : 1]);
+      if (near) { ell(p, hx - 1.2, hy + 0.5, 2.2, 2.4, col[3]); p.px(hx - 2, hy - 0.5, CF[6]); }
     }
     // Streifen am Bein
-    if (near) p.px((hx + L.jx) / 2, (hy + L.jy) / 2, STRIPE[1]);
-    // Krallen bei erhobener Pranke
-    if (sw > 0.3) for (let i = 0; i < 3; i++) { p.px(L.ex + 2, L.ey - 1 + i, BONE[4]); p.px(L.ex + 3, L.ey + i, BONE[3]); }
+    if (p.fine) {
+      if (near) { const mx = (hx + L.jx) / 2, my = (hy + L.jy) / 2; fl(p, mx - 1, my - 0.5, mx + 0.5, my + 0.25, STRIPE[1]); fl(p, mx - 0.5, my + 0.5, mx + 0.5, my + 0.75, STRIPE[2]); }
+      // Krallen bei erhobener Pranke: gebogene Sicheln mit Glanzkante
+      if (sw > 0.3) for (let i = 0; i < 3; i++) {
+        const X = p.snap(L.ex + 2), Y = p.snap(L.ey - 1 + i);
+        fd(p, X, Y, BONE[3]); fd(p, X + 0.5, Y, BONE[4]); fd(p, X + 1, Y + 0.5, BONE[3]); fd(p, X + 1, Y + 1, BONE[2]); fd(p, X + 0.5, Y + 0.5, BONE[1]);
+      }
+    } else {
+      if (near) p.px((hx + L.jx) / 2, (hy + L.jy) / 2, STRIPE[1]);
+      // Krallen bei erhobener Pranke
+      if (sw > 0.3) for (let i = 0; i < 3; i++) { p.px(L.ex + 2, L.ey - 1 + i, BONE[4]); p.px(L.ex + 3, L.ey + i, BONE[3]); }
+    }
     return L;
   };
   leg(6, 0, false, false, 0);
@@ -1117,40 +1711,58 @@ function drawStalker(p, g, P, X) {
     const a = tailA + Math.sin(P.tailT + i * 0.35) * 0.25 * (i / 15) + i * 0.075;
     tx += Math.cos(a) * 1.2; ty += Math.sin(a) * 1.2;
     const r = 1.8 - i * 0.04;
-    p.ellipse(tx, ty, r, r, i % 4 === 2 ? STRIPE[2] : CF[4]);
+    ell(p, tx, ty, r, r, i % 4 === 2 ? STRIPE[2] : CF[4]);
     if (i % 4 !== 2) p.px(tx, ty - r + 0.5, CF[6]);
+    if (p.fine) { // Fellkante: oben helle Strähne, unten Schatten; Ringe mit dunklem Kern
+      if (i % 4 === 2) { fd(p, p.snap(tx), p.snap(ty), STRIPE[0]); fd(p, p.snap(tx) + 0.5, p.snap(ty) - 0.5, STRIPE[1]); }
+      else { fd(p, p.snap(tx) + 0.5, p.snap(ty - r + 0.5), CF[7]); fd(p, p.snap(tx), p.snap(ty + r), CF[3]); fd(p, p.snap(tx) + 0.5, p.snap(ty + r) - 0.5, CF[3]); }
+    }
   }
-  p.ellipse(tx, ty, 1.5, 1.5, STRIPE[1]);
+  ell(p, tx, ty, 1.5, 1.5, STRIPE[1]);
+  if (p.fine) { fd(p, p.snap(tx) - 0.5, p.snap(ty) - 0.5, STRIPE[2]); fd(p, p.snap(tx) + 0.5, p.snap(ty) + 0.5, STRIPE[0]); }
 
   // --- Rumpf (lang, Schultern höher)
   const flat = 1 - side * 0.25;
-  p.ellipse(ox + 7, Y(7, by), 6.5, 5 * flat, CF[4]);
-  p.ellipse(ox + 15, Y(15, by + 0.5), 9, 4.6 * flat, CF[4]);
-  p.ellipse(ox + 23, Y(23, by - 0.5), 6.5, 5.8 * flat, CF[4]);
-  p.ellipse(ox + 15, Y(15, by + 3.8), 8, 1.4, CF[2]);
-  p.ellipse(ox + 14, Y(14, by - 3), 10, 2, CF[5]);
-  p.ellipse(ox + 14, Y(14, by - 3.8), 8, 1, CF[6]);
-  p.ellipse(ox + 23, Y(23, by - 4), 4, 1.5, CF[6]);
+  ell(p, ox + 7, Y(7, by), 6.5, 5 * flat, CF[4]);
+  ell(p, ox + 15, Y(15, by + 0.5), 9, 4.6 * flat, CF[4]);
+  ell(p, ox + 23, Y(23, by - 0.5), 6.5, 5.8 * flat, CF[4]);
+  ell(p, ox + 15, Y(15, by + 3.8), 8, 1.4, CF[2]);
+  ell(p, ox + 14, Y(14, by - 3), 10, 2, CF[5]);
+  ell(p, ox + 14, Y(14, by - 3.8), 8, 1, CF[6]);
+  ell(p, ox + 23, Y(23, by - 4), 4, 1.5, CF[6]);
   // Hinterbacke + Schulterblatt
-  p.ellipse(ox + 5, Y(5, by + 1), 3.5, 3.5, CF[4]); p.ellipse(ox + 4.5, Y(4.5, by), 2.5, 2.2, CF[5]);
+  ell(p, ox + 5, Y(5, by + 1), 3.5, 3.5, CF[4]); ell(p, ox + 4.5, Y(4.5, by), 2.5, 2.2, CF[5]);
   // Tigerstreifen (dunkel, quer)
   const stripes = [[4, -2, 2], [8, -4, 5], [11, -4, 6], [14, -4, 5], [17, -4, 6], [20, -4, 4], [24, -5, 3]];
   for (const [x, y0, len] of stripes) {
+    if (p.fine) { // Streifen fein: oben breit, nach unten spitz auslaufend, Kern dunkler, leicht geknickt
+      for (let j = 0; j < len - 0.25; j += 0.5) {
+        const xx = x + j * 0.35 - Math.max(0, j - len / 2) * 0.5, w = j < len * 0.6 ? 1 : 0.5;
+        put(p, ox + xx, Y(xx, by + y0 + j), j < 0.75 ? STRIPE[2] : STRIPE[1]);
+        if (w > 0.5) put(p, ox + xx + 0.5, Y(xx + 0.5, by + y0 + j), j < 0.75 ? STRIPE[2] : STRIPE[0]);
+      }
+      continue;
+    }
     for (let j = 0; j < len; j++) {
       const xx = x + j * 0.35 + (j > len / 2 ? -0.5 : 0);
       p.px(ox + xx, Y(xx, by + y0 + j), j < 1 ? STRIPE[2] : STRIPE[1]);
     }
   }
   // Fellstruktur: kurze, nach hinten gekämmte Strähnen; Rücken hell, Flanke dunkler
-  for (let i = 0; i < 14; i++) {
+  if (p.fine) for (let i = 0; i < 40; i++) { // kurze, gekämmte Fellstriche
+    const x = 3 + hash2(i, 1, 58) * 23, y = -3 + hash2(i, 2, 58) * 6.5;
+    const c = y < -1.2 ? (i % 3 ? CF[6] : CF[7]) : y < 1.5 ? (i % 2 ? CF[3] : CF[5]) : CF[2];
+    fl(p, ox + x, Y(x, by + y), ox + x - 1.1, Y(x - 1.1, by + y + 0.7), c);
+  } else for (let i = 0; i < 14; i++) {
     const x = 3 + hash2(i, 1, 57) * 23, y = -2.5 + hash2(i, 2, 57) * 5.5;
     const c = y < -0.5 ? CF[6] : CF[3];
     p.px(ox + x, Y(x, by + y), c); p.px(ox + x - 1, Y(x - 1, by + y + 1), c);
   }
   // heller Bauchpelz (Schneetarnung)
-  p.ellipse(ox + 18, Y(18, by + 3), 5, 1, CF[5]);
+  ell(p, ox + 18, Y(18, by + 3), 5, 1, CF[5]);
   // Eiskristalle auf den Schulterblättern (Tarnung im Schnee, leuchten kalt)
   for (const [x, h, l] of [[20, 4, -0.5], [22.5, 5, -0.3], [25, 3, -0.2]]) {
+    if (p.fine) { const bx = ox + x, byy = Y(x, by - 5.5); shard(p, P.frost > 0.3 ? g : null, bx - 0.3, byy + 0.5, bx + l * (h - 1), byy - (h - 1) - 0.25, 1.25, 0.3); continue; }
     for (let j = 0; j < h; j++) {
       const xx = ox + x + l * j, yy = Y(x, by - 5.5) - j;
       p.px(xx, yy, j === h - 1 ? ICE[5] : j > h / 2 ? ICE[4] : ICE[3]); p.px(xx - 1, yy + 0.5, ICE[1]);
@@ -1166,33 +1778,70 @@ function drawStalker(p, g, P, X) {
   // --- Kopf: flach, breit, Säbelzähne
   const ha = P.ha, d = dirOf(ha);
   const hx = ox + 30, hy = Y(30, by - 3.5) + lie * 1.5;
-  p.ellipse(hx, hy + 0.3, 4.7, 3.8, CF[3]);
-  p.ellipse(hx - 0.2, hy - 0.1, 4.3, 3.3, CF[4]);
-  p.ellipse(hx - 0.6, hy - 1.1, 3.4, 1.9, CF[6]);
+  ell(p, hx, hy + 0.3, 4.7, 3.8, CF[3]);
+  ell(p, hx - 0.2, hy - 0.1, 4.3, 3.3, CF[4]);
+  ell(p, hx - 0.6, hy - 1.1, 3.4, 1.9, CF[6]);
   p.px(hx - 2, hy - 2.6, CF[7]);
-  p.ellipse(hx - 2, hy + 1.5, 2.5, 2, CF[5]); // Backenbart
+  ell(p, hx - 2, hy + 1.5, 2.5, 2, CF[5]); // Backenbart
   p.px(hx - 4, hy + 2, CF[6]); p.px(hx - 4, hy + 3, CF[5]);
   // Stirnstreifen
-  p.px(hx - 1, hy - 3, STRIPE[1]); p.px(hx, hy - 3, STRIPE[2]); p.px(hx - 2, hy - 2, STRIPE[1]);
+  if (p.fine) { // feine Stirnzeichnung: drei Bögen, Backenbart in Strähnen
+    const X = Math.round(hx), Y0 = Math.round(hy);
+    fl(p, X - 1, Y0 - 3, X - 0.5, Y0 - 2, STRIPE[1]); fl(p, X + 0.5, Y0 - 3, X + 0.5, Y0 - 2.5, STRIPE[0]); fl(p, X - 2, Y0 - 2.5, X - 2, Y0 - 1.5, STRIPE[1]);
+    fd(p, X - 0.5, Y0 - 3.5, CF[7]); fd(p, X + 1, Y0 - 3, CF[6]);
+    for (let i = 0; i < 5; i++) fl(p, hx - 1 - i * 0.6, hy + 1 + (i % 2) * 0.5, hx - 1.8 - i * 0.6, hy + 2.6 + (i % 2) * 0.5, i % 2 ? CF[6] : CF[4]);
+  } else { p.px(hx - 1, hy - 3, STRIPE[1]); p.px(hx, hy - 3, STRIPE[2]); p.px(hx - 2, hy - 2, STRIPE[1]); }
   // Ohren (rund, angelegt beim Angriff)
   const earY = hy - 3 + P.ear * 1.5;
-  p.ellipse(hx - 2.5 - P.ear, earY - 1, 1.3, 1.5, CF[3]); p.px(hx - 2.5 - P.ear, earY - 2, CF[6]);
-  p.ellipse(hx - 0.5 - P.ear, earY - 1.3, 1.3, 1.5, CF[5]); p.px(hx - 0.5 - P.ear, earY - 1.5, STRIPE[1]);
+  ell(p, hx - 2.5 - P.ear, earY - 1, 1.3, 1.5, CF[3]); p.px(hx - 2.5 - P.ear, earY - 2, CF[6]);
+  ell(p, hx - 0.5 - P.ear, earY - 1.3, 1.3, 1.5, CF[5]); p.px(hx - 0.5 - P.ear, earY - 1.5, STRIPE[1]);
+  if (p.fine) { // Ohr fein: heller Rand oben links, dunkle Muschel, Rückfleck
+    const X = p.snap(hx - 0.5 - P.ear), Y0 = p.snap(earY - 1.3);
+    fd(p, X - 0.5, Y0 - 1, CF[7]); fd(p, X, Y0 - 1, CF[6]); fd(p, X - 1, Y0 - 0.5, CF[6]);
+    fd(p, X, Y0 - 0.5, STRIPE[1]); fd(p, X + 0.5, Y0 - 0.5, STRIPE[0]); fd(p, X, Y0, STRIPE[2]); fd(p, X + 0.5, Y0 + 0.5, CF[3]);
+  }
   // kurze Schnauze: helles Schnurrhaarpolster, dunkle Nase, Nasenrücken im Licht
   const sx = hx + d.x * 4, sy = hy + d.y * 4 + 0.5;
-  p.ellipse(sx, sy, 2.3, 1.8, CF[5]);
-  p.ellipse(sx - 0.3, sy + 0.6, 1.6, 1, CF[7]);
+  ell(p, sx, sy, 2.3, 1.8, CF[5]);
+  ell(p, sx - 0.3, sy + 0.6, 1.6, 1, CF[7]);
   p.line(hx + 1, hy - 1.8, sx + 0.5, sy - 1.6, CF[6]);
-  p.rect(sx + 1, sy - 1.5, 2, 1, '#1a1418'); p.px(sx + 1.5, sy - 0.5, '#3a2228');
-  p.px(sx - 1, sy + 0.5, CF[3]); p.px(sx, sy + 1, CF[3]);         // Schnurrhaarpunkte
-  // Maul: Unterkiefer klappt auf
   const jo = P.jaw * 2.5;
-  if (P.jaw > 0.1) { p.rect(sx - 2, sy + 1, 4, jo, '#1a0c14'); p.px(sx - 1, sy + 1 + jo * 0.6, '#7a2a3a'); }
-  p.line(sx - 2, sy + 1.5 + jo, sx + 1.5, sy + 1.5 + jo, CF[3]);
-  // Säbelzähne (lang, knochenweiß, leicht nach hinten gebogen)
-  for (const [ox2, len] of [[0.5, 5], [-1, 4]]) {
-    const fx = sx + ox2, fy = sy + 1;
-    for (let j = 0; j < len; j++) p.px(fx - j * 0.15, fy + j, j === len - 1 ? BONE[3] : j === 0 ? BONE[2] : '#f8f4e8');
+  if (p.fine) {
+    // Nase: Dreieck mit Glanzpunkt und Nasenlöchern; Schnurrhaarpolster mit Punktreihen, feine Schnurrhaare
+    const X = p.snap(sx + 1), Y0 = p.snap(sy - 1.5);
+    for (const [i, j, c] of [[0, 0, '#5a4048'], [0.5, 0, '#c8a0a8'], [1, 0, '#3a2228'], [1.5, 0, '#1a1418'], [0, 0.5, '#1a1418'], [0.5, 0.5, '#3a2228'], [1, 0.5, '#1a1418'], [1.5, 0.5, '#0a0608'], [0.5, 1, '#1a1418'], [1, 1, '#3a2228']]) fd(p, X + i, Y0 + j, c);
+    fl(p, sx + 1.5, sy, sx + 1.5, sy + 0.5, '#2a1a20');                                      // Nasenrinne
+    for (const [x, y] of [[-1.2, 0.3], [-0.5, 0.5], [-1, 1], [-0.3, 1.1], [0.3, 0.8]]) fd(p, p.snap(sx + x), p.snap(sy + y), CF[3]);
+    fl(p, sx - 1.2, sy + 0.6, sx - 4.2, sy + 0.1, CF[7]); fl(p, sx - 1, sy + 1.1, sx - 3.8, sy + 1.6, CF[6]);
+    fl(p, sx + 0.8, sy + 0.8, sx + 3.5, sy + 0.6, CF[6]);
+    if (P.jaw > 0.1) {
+      p.rect(sx - 2, sy + 1, 4, jo, '#1a0c14');
+      fl(p, sx - 1.5, sy + 1 + jo * 0.6, sx + 0.5, sy + 1 + jo * 0.6, '#7a2a3a'); fd(p, p.snap(sx - 1), p.snap(sy + 0.5 + jo * 0.6), '#a04a5c');
+      for (let i = 0; i < 3; i++) { fd(p, p.snap(sx - 1.5 + i), p.snap(sy + 1 + jo) - 0.5, '#e8e4d8'); }
+    }
+    fl(p, sx - 2, sy + 1.5 + jo, sx + 1.5, sy + 1.5 + jo, CF[3]); fl(p, sx - 2, sy + 2 + jo, sx + 1, sy + 2 + jo, CF[2]);
+    // Säbelzähne fein: Glanzkante vorn, Schattenkante hinten, Wurzel im Zahnfleisch, Spitze dunkler
+    for (const [ox2, len] of [[0.5, 5], [-1, 4]]) {
+      const fx = sx + ox2, fy = sy + 1;
+      for (let j = 0; j < len - 0.25; j += 0.5) {
+        const x = fx - j * 0.15, y = fy + j, t = j / len;
+        if (j < 0.5) { put(p, x, y, '#5a3038'); put(p, x + 0.5, y, '#5a3038'); continue; }
+        put(p, x + 0.5, y, t > 0.82 ? BONE[3] : '#fffbef');
+        if (t < 0.75) put(p, x, y, t < 0.4 ? '#f8f4e8' : BONE[3]);
+        if (t < 0.6) put(p, x - 0.5, y, BONE[2]);
+      }
+    }
+  } else {
+    p.rect(sx + 1, sy - 1.5, 2, 1, '#1a1418'); p.px(sx + 1.5, sy - 0.5, '#3a2228');
+    p.px(sx - 1, sy + 0.5, CF[3]); p.px(sx, sy + 1, CF[3]);         // Schnurrhaarpunkte
+    // Maul: Unterkiefer klappt auf
+    if (P.jaw > 0.1) { p.rect(sx - 2, sy + 1, 4, jo, '#1a0c14'); p.px(sx - 1, sy + 1 + jo * 0.6, '#7a2a3a'); }
+    p.line(sx - 2, sy + 1.5 + jo, sx + 1.5, sy + 1.5 + jo, CF[3]);
+    // Säbelzähne (lang, knochenweiß, leicht nach hinten gebogen)
+    for (const [ox2, len] of [[0.5, 5], [-1, 4]]) {
+      const fx = sx + ox2, fy = sy + 1;
+      for (let j = 0; j < len; j++) p.px(fx - j * 0.15, fy + j, j === len - 1 ? BONE[3] : j === 0 ? BONE[2] : '#f8f4e8');
+    }
   }
   // Auge: schmal, eisblau
   const ex = hx + 1.5 + d.x, ey = hy - 1 + d.y * 0.5;
@@ -1200,7 +1849,8 @@ function drawStalker(p, g, P, X) {
   p.px(ex - 1, ey - 1, STRIPE[1]); p.px(ex, ey - 1, STRIPE[0]); p.px(ex + 1, ey - 1, STRIPE[1]);
   p.px(ex - 2, ey, STRIPE[1]); p.px(ex + 1, ey, STRIPE[1]);
   p.px(ex + 1, ey + 1, STRIPE[1]); p.px(ex + 1.5, ey + 2, STRIPE[2]);
-  if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); p.px(ex - 1, ey, ICE[3]); g.px(ex, ey, ICE_G[5]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex + 1, ey, ICE_G[2]); }
+  if (p.fine) { iceEye(p, g, ex, ey, P.eye > 0.3, [STRIPE[0], STRIPE[1], STRIPE[2], CF[3], CF[4], CF[6], CF[7]]); fl(p, ex + 1, ey + 1, ex + 1.5, ey + 2.5, STRIPE[1]); }
+  else if (P.eye > 0.3) { p.px(ex, ey, ICE[5]); p.px(ex - 1, ey, ICE[3]); g.px(ex, ey, ICE_G[5]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex + 1, ey, ICE_G[2]); }
   else { p.px(ex, ey, STRIPE[1]); p.px(ex - 1, ey, STRIPE[1]); }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: sx + 2, y: sy + 1 };
@@ -1274,6 +1924,7 @@ const hpose = (o = {}) => ({ ...H_REST, ...o });
 
 // Krummer Stab aus Schwarzholz mit Frostkristall-Büschel; gibt die Kristallmitte zurück.
 function drawRimeStaff(p, g, hx, hy, a, cast, orbit) {
+  if (p.fine) return drawRimeStaffFine(p, g, hx, hy, a, cast, orbit);
   const dx = Math.cos(a), dy = Math.sin(a);
   let nx = -dy, ny = dx;
   // Schaft (leicht gewunden)
@@ -1326,6 +1977,66 @@ function drawRimeStaff(p, g, hx, hy, a, cast, orbit) {
   return c0;
 }
 
+// Stab fein: gewundenes Schwarzholz mit Lichtkante und Maserkerben, Eisenkappe mit Glanz, Klaue mit
+// Gelenkkerben, Kristallbüschel mit Facettengrat; Lichthof in harten Ringen statt gestreuter Punkte.
+function drawRimeStaffFine(p, g, hx, hy, a, cast, orbit) {
+  const dx = Math.cos(a), dy = Math.sin(a);
+  let nx = -dy, ny = dx;
+  let lx = nx, ly = ny; if (lx + ly > 0) { lx = -lx; ly = -ly; }      // Lichtseite (oben links)
+  for (let s = -13; s <= 9; s += 0.25) {
+    const w = Math.sin(s * 0.7) * 0.5;
+    const x = hx + dx * s + nx * w, y = hy + dy * s + ny * w;
+    put(p, x + lx * 0.5, y + ly * 0.5, (s * 4 | 0) % 11 === 0 ? WOOD[2] : WOOD[3]);
+    put(p, x, y, WOOD[2]);
+    put(p, x - lx * 0.5, y - ly * 0.5, (s * 4 | 0) % 7 === 3 ? WOOD[0] : WOOD[1]);
+  }
+  // Eisenkappe am Fuß
+  const fx = hx - dx * 13, fy = hy - dy * 13;
+  put(p, fx, fy, IRON[3]); put(p, fx + lx * 0.5, fy + ly * 0.5, IRON[5]); put(p, fx - lx * 0.5, fy - ly * 0.5, IRON[1]);
+  put(p, fx - dx * 0.5, fy - dy * 0.5, IRON[2]); put(p, fx + dx * 0.5 + lx * 0.5, fy + dy * 0.5 + ly * 0.5, IRON[4]);
+  // Klaue oben, die den Kristall hält
+  const cx = hx + dx * 12, cy = hy + dy * 12;
+  for (const sd of [-1, 1]) {
+    const x0 = hx + dx * 9 + nx * sd, y0 = hy + dy * 9 + ny * sd, x1 = cx + nx * sd * 2.2, y1 = cy + ny * sd * 2.2;
+    fl(p, x0, y0, x1, y1, WOOD[3], 0.5); fl(p, x0 + lx * 0.25, y0 + ly * 0.25, x1 + lx * 0.25, y1 + ly * 0.25, WOOD[4]);
+    put(p, (x0 + x1) / 2, (y0 + y1) / 2, WOOD[0]);                                            // Gelenkkerbe
+    put(p, x1 + dx, y1 + dy, WOOD[1]); put(p, x1 + dx * 1.5, y1 + dy * 1.5, BONE[2]);         // Krallenspitze
+  }
+  // Kristall-Büschel (3 Spitzen) mit Facettengrat
+  const glow = cast > 0.1;
+  for (const [off, len, w] of [[-0.55, 4, 1.1], [0.5, 4.5, 1.2], [0, 6, 1.6]]) {
+    const sa = a + off, sdx = Math.cos(sa), sdy = Math.sin(sa);
+    const b0 = cx - sdx * 0.8, b1 = cy - sdy * 0.8, t0 = cx + sdx * (len + 0.3), t1 = cy + sdy * (len + 0.3);
+    shard(p, null, b0, b1, t0, t1, w + 0.1, null);
+    if (glow) { // Kristall leuchtet ganz, Facetten in Stufen nach Stärke, Grat am hellsten
+      const b = cast > 0.7 ? 4 : cast > 0.35 ? 3 : 2;
+      shard(g, null, b0, b1, t0, t1, w + 0.1, null, [0, ICE_G[b - 2], ICE_G[b - 1], 0, ICE_G[b], ICE_G[Math.min(5, b + 1)]]);
+    }
+  }
+  const c0 = { x: cx + dx * 2, y: cy + dy * 2 };
+  if (cast > 0.4) { // Lichthof: zwei harte Ringe (je 1 Feinpixel), drehende Lücken, heller Kern
+    const r = 2 + cast * 3;
+    for (let i = 0; i < 40; i++) {
+      const aa = i / 40 * TAU + orbit;
+      if (i % 10 > 6) continue;
+      fd(g, p.snap(c0.x + 0.5 + Math.cos(aa) * r), p.snap(c0.y + 0.5 + Math.sin(aa) * r), i % 10 < 3 ? ICE_G[2] : ICE_G[1]);
+      if (i % 2 === 0) fd(g, p.snap(c0.x + 0.5 + Math.cos(aa) * (r - 1)), p.snap(c0.y + 0.5 + Math.sin(aa) * (r - 1)), ICE_G[1]);
+    }
+    const X = p.snap(c0.x + 0.5), Y = p.snap(c0.y + 0.5);
+    fd(g, X, Y, ICE_G[5]); fd(g, X - 0.5, Y, ICE_G[4]); fd(g, X, Y - 0.5, ICE_G[4]); fd(g, X + 0.5, Y, ICE_G[3]); fd(g, X, Y + 0.5, ICE_G[3]);
+  }
+  // kreisende Eissplitter: kleine Rauten mit hellem Grat
+  for (let i = 0; i < 3; i++) {
+    const aa = orbit + i * TAU / 3;
+    const ox = c0.x + Math.cos(aa) * (5 + cast * 2), oy = c0.y + Math.sin(aa) * (2.5 + cast);
+    const front = Math.sin(aa) > 0, X = p.snap(ox), Y = p.snap(oy);
+    fd(p, X, Y - 1, front ? ICE[5] : ICE[3]); fd(p, X, Y - 0.5, front ? ICE[4] : ICE[2]); fd(p, X + 0.5, Y - 0.5, front ? ICE[3] : ICE[1]);
+    fd(p, X, Y, front ? ICE[5] : ICE[3]); fd(p, X + 0.5, Y, front ? ICE[2] : ICE[1]); fd(p, X, Y + 0.5, ICE[2]);
+    fd(g, X, Y - 0.5, front ? ICE_G[4] : ICE_G[2]); fd(g, X, Y, front ? ICE_G[3] : ICE_G[1]); fd(g, X + 0.5, Y - 0.5, ICE_G[1]);
+  }
+  return c0;
+}
+
 function drawWitch(p, g, P, X) {
   const K = P.kneel;
   const PP = { ...P, hipY: P.hipY + K * 5 };
@@ -1338,6 +2049,17 @@ function drawWitch(p, g, P, X) {
   const hx = Math.round(neck.x + P.head), hy = Math.round(neck.y - 3 + P.headY);
   for (let i = 0; i < 9; i++) {
     const len = 9 + (hash2(i, 1, 33) * 5 | 0) - K * 3;
+    if (p.fine) { // Strähne: heller Glanz oben, Kern, dunkle Fuge; Spitzen dünn
+      for (let j = 0; j < len - 0.25; j += 0.5) {
+        const v = j / len;
+        const x = hx - 2 - i * 0.5 - v * 3 + Math.sin(P.hairT + v * 3 + i * 0.7) * 1.2 * v;
+        const y = hy - 2 + j + i * 0.25;
+        const core = v < 0.2 ? HAIR[4] : v > 0.78 ? HAIR[0] : i % 3 === 2 ? HAIR[1] : i % 2 ? HAIR[2] : HAIR[3];
+        put(p, x, y, core);
+        if (v < 0.7) put(p, x + 0.5, y, v < 0.3 ? HAIR[3] : i % 3 === 2 ? HAIR[0] : HAIR[1]);
+      }
+      continue;
+    }
     for (let j = 0; j < len; j++) {
       const v = j / len;
       const x = hx - 2 - i * 0.5 - v * 3 + Math.sin(P.hairT + v * 3 + i * 0.7) * 1.2 * v;
@@ -1348,7 +2070,10 @@ function drawWitch(p, g, P, X) {
   // --- hinterer Arm (knochige Krallenhand)
   limb(p, shB.x, shB.y, armB.jx, armB.jy, 2.5, 2, [ROBE[0], ROBE[1], ROBE[1], ROBE[2]]);
   limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 2, 1.5, [HSKIN[0], HSKIN[1], HSKIN[1], HSKIN[2]]);
-  for (let i = 0; i < 3; i++) p.px(armB.ex + i - 1 + P.claw, armB.ey + 1 + (i === 1 ? 1 : 0), HSKIN[1]);
+  if (p.fine) for (let i = 0; i < 3; i++) { // Knochenfinger mit Gelenkkerbe und dunkler Krallenspitze
+    const X = p.snap(armB.ex + i - 1 + P.claw), Y = p.snap(armB.ey + 1 + (i === 1 ? 1 : 0));
+    fd(p, X, Y - 0.5, HSKIN[2]); fd(p, X, Y, HSKIN[1]); fd(p, X + 0.5, Y + 0.5, HSKIN[0]); fd(p, X, Y + 0.5, i === 1 ? '#c8d8e0' : HSKIN[1]);
+  } else for (let i = 0; i < 3; i++) p.px(armB.ex + i - 1 + P.claw, armB.ey + 1 + (i === 1 ? 1 : 0), HSKIN[1]);
   if (P.claw > 0.3 || P.cast > 0.6) { // Frostfunken in der Krallenhand
     for (let i = 0; i < 4; i++) { const aa = P.orbit * 1.7 + i * 1.6; g.px(armB.ex + Math.cos(aa) * 2, armB.ey + Math.sin(aa) * 2, i % 2 ? ICE_G[3] : ICE_G[2]); }
     p.px(armB.ex, armB.ey, ICE[4]); g.px(armB.ex, armB.ey, ICE_G[4]);
@@ -1362,7 +2087,27 @@ function drawWitch(p, g, P, X) {
   const feetX = HAX + P.hipX + (P.fFx + P.fBx) * 0.3;
   const bottom = HAY - 1 - Math.max(0, (P.fFy + P.fBy) * 0.3);
   const y0 = Math.round(top.y), y1 = Math.round(bottom);
-  for (let y = y0; y <= y1; y++) {
+  if (p.fine) {
+    // Robe fein: Bahnen in 4 Stufen, zweifarbige Falten (dunkle Kerbe, helle Kante links davon), kurze
+    // Saumfalten unten; Kanten folgen der Form im Feinraster
+    for (let y = y0; y <= y1 + 0.5; y += 0.5) {
+      const t = Math.min(1, (y - y0) / Math.max(1, y1 - y0));
+      const cx = top.x + (feetX - top.x) * t - P.hem * t * t * 2;
+      const hw = 3.5 + t * 4.2 + Math.sin(P.hem * 2 + t * 4) * 0.4 * t + K * 2 * t;
+      const W2 = 2 * hw;
+      for (let x = Math.floor((cx - hw) * 2) / 2; x <= cx + hw + 1; x += 0.5) {
+        const xc = x + 0.25;
+        if (xc < cx - hw || xc > cx + hw + 1) continue;
+        const u = (xc - 0.5 - (cx - hw)) / W2, pxw = (v) => Math.abs(u - v) * W2;
+        let c = u < 0.12 ? ROBE[4] : u < 0.4 ? ROBE[3] : u < 0.78 ? ROBE[2] : ROBE[1];
+        const fa = 0.33 + Math.sin(P.hem + t * 2) * 0.03;
+        if (t > 0.3) { if (pxw(fa) < 0.25) c = ROBE[1]; else if (pxw(fa - 0.5 / W2) < 0.25) c = ROBE[4]; }
+        if (t > 0.45) { if (pxw(0.66) < 0.25) c = ROBE[0]; else if (pxw(0.66 - 0.5 / W2) < 0.25) c = ROBE[3]; }
+        if (t > 0.72) for (const v of [0.18, 0.5, 0.86]) { if (pxw(v + (t - 0.72) * 0.1) < 0.25) c = v > 0.7 ? ROBE[0] : ROBE[1]; else if (pxw(v + (t - 0.72) * 0.1 - 0.5 / W2) < 0.25 && v < 0.7) c = ROBE[4]; }
+        fd(p, x, y, c);
+      }
+    }
+  } else for (let y = y0; y <= y1; y++) {
     const t = (y - y0) / Math.max(1, y1 - y0);
     const cx = top.x + (feetX - top.x) * t - P.hem * t * t * 2;
     const hw = 3.5 + t * 4.2 + Math.sin(P.hem * 2 + t * 4) * 0.4 * t + K * 2 * t;
@@ -1377,7 +2122,15 @@ function drawWitch(p, g, P, X) {
   }
   // Saum: ausgefranst, mit Reif (weiß-blau) besetzt
   const hemCx = feetX - P.hem * 2, hemHw = 7.7 + K * 2;
-  for (let x = Math.round(hemCx - hemHw); x <= Math.round(hemCx + hemHw); x++) {
+  if (p.fine) { // Fellsaum fein: Büschel in Strähnen, Reifglitzer, Fransen unten im Wechsel
+    for (let x = Math.round(hemCx - hemHw); x <= Math.round(hemCx + hemHw) + 0.5; x += 0.5) {
+      const xi = Math.round(x * 2), j = hash2(Math.round(x - 0.25) - Math.round(hemCx), 3, 35);
+      fd(p, x, y1 - 2, xi % 3 === 0 ? PELT[4] : ROBE[3]); fd(p, x, y1 - 1.5, xi % 3 === 1 ? PELT[2] : PELT[4]);
+      fd(p, x, y1 - 1, xi % 4 === 0 ? PELT[2] : PELT[3]); fd(p, x, y1 - 0.5, xi % 2 ? PELT[3] : PELT[2]);
+      if (j > 0.45 && xi % 2 === 0) { fd(p, x, y1, PELT[2]); if (j > 0.75) fd(p, x, y1 + 0.5, PELT[1]); }
+      if (xi % 7 === 3) fd(p, x, y1 - 2, PELT[5]);
+    }
+  } else for (let x = Math.round(hemCx - hemHw); x <= Math.round(hemCx + hemHw); x++) {
     const j = hash2(x - Math.round(hemCx), 3, 35);
     p.px(x, y1 - 1, j < 0.5 ? PELT[3] : PELT[4]);
     p.px(x, y1 - 2, j < 0.3 ? PELT[4] : ROBE[3]);
@@ -1387,21 +2140,45 @@ function drawWitch(p, g, P, X) {
   for (let i = 0; i < 4; i++) {
     const t = 0.35 + i * 0.16, y = y0 + (y1 - y0) * t;
     const cx = top.x + (feetX - top.x) * t + 1;
+    if (p.fine) { // Eisschnörkel: kleine Spirale aus Feinpixeln, leuchtender Kern
+      const X = p.snap(cx), Y = p.snap(y);
+      for (const [ox, oy, c] of [[0, 0, ICE[4]], [0.5, -0.5, ICE[3]], [1, 0, ICE[3]], [1, 0.5, ICE[2]], [0.5, 1, ICE[2]], [0, 0.5, ICE[3]], [1.5, 1, ICE[2]], [-0.5, -0.5, ICE[2]]]) fd(p, X + ox, Y + oy, c);
+      fd(g, X, Y, ICE_G[2]); fd(g, X + 0.5, Y - 0.5, ICE_G[1]); fd(g, X + 1, Y, ICE_G[1]);
+      continue;
+    }
     p.px(cx, y, ICE[3]); p.px(cx + 1, y + 1, ICE[2]);
     g.px(cx, y, ICE_G[1]);
   }
   // Gürtelschnur mit Knochenamuletten
   const bl = pt(3, 0);
-  for (let k = -3.5; k <= 3.5; k += 0.5) { const o = pt(3, k); p.px(o.x, o.y, BONE[1]); }
-  p.px(bl.x + 2, bl.y + 2, BONE[3]); p.px(bl.x + 2, bl.y + 3, BONE[4]); p.px(bl.x + 1, bl.y + 4, ICE[4]); g.px(bl.x + 1, bl.y + 4, ICE_G[3]);
+  if (p.fine) { // gedrehte Schnur, Knochenzahn mit Kerbe, Eistropfen mit Glanz
+    for (let k = -3.5; k <= 3.5; k += 0.25) { const o = pt(3, k), o2 = pt(2.6, k); put(p, o.x, o.y, (k * 4 & 1) ? BONE[1] : BONE[2]); put(p, o2.x, o2.y, (k * 4 & 1) ? BONE[0] : BONE[1]); }
+    const X = p.snap(bl.x + 2), Y = p.snap(bl.y + 2);
+    fd(p, X, Y - 0.5, BONE[1]); fd(p, X, Y, BONE[4]); fd(p, X + 0.5, Y, BONE[2]); fd(p, X, Y + 0.5, BONE[3]); fd(p, X + 0.5, Y + 0.5, BONE[1]); fd(p, X, Y + 1, BONE[3]); fd(p, X + 0.25, Y + 1.5, BONE[2]);
+    const I = p.snap(bl.x + 1), J = p.snap(bl.y + 4);
+    fd(p, I, J - 0.5, BONE[1]); fd(p, I, J, ICE[5]); fd(p, I + 0.5, J, ICE[3]); fd(p, I, J + 0.5, ICE[3]); fd(p, I + 0.5, J + 0.5, ICE[1]); fd(p, I + 0.25, J + 1, ICE[2]);
+    fd(g, I, J, ICE_G[4]); fd(g, I + 0.5, J, ICE_G[2]); fd(g, I, J + 0.5, ICE_G[2]);
+  } else {
+    for (let k = -3.5; k <= 3.5; k += 0.5) { const o = pt(3, k); p.px(o.x, o.y, BONE[1]); }
+    p.px(bl.x + 2, bl.y + 2, BONE[3]); p.px(bl.x + 2, bl.y + 3, BONE[4]); p.px(bl.x + 1, bl.y + 4, ICE[4]); g.px(bl.x + 1, bl.y + 4, ICE_G[3]);
+  }
 
   // --- Fellstola über den Schultern mit Eiszapfen
   // dunkler Wolfspelz (Kontrast zu Haar und Gesicht), helle Strähnenspitzen oben
   const col = pt(HD.spine, 0);
-  p.ellipse(col.x, col.y + 0.5, 4.8, 2.4, MANE[2]);
-  p.ellipse(col.x - 0.7, col.y - 0.3, 3.8, 1.5, MANE[3]);
-  for (let i = -4; i <= 3; i += 2) { p.px(col.x + i, col.y - 1.2, MANE[5]); p.px(col.x + i + 1, col.y - 0.4, MANE[4]); }
-  for (let i = -4; i <= 4; i += 1) p.px(col.x + i, col.y + 2.5 + ((i + 8) % 2), MANE[i % 2 ? 1 : 2]);
+  ell(p, col.x, col.y + 0.5, 4.8, 2.4, MANE[2]);
+  ell(p, col.x - 0.7, col.y - 0.3, 3.8, 1.5, MANE[3]);
+  if (p.fine) { // Wolfspelz in Strähnen: helle Spitzen oben, gezackte Unterkante
+    for (let i = -4.5; i <= 4; i += 0.5) {
+      const ii = Math.round(i * 2), x = col.x + i, y = col.y - 1.4 + Math.abs(i) * 0.08;
+      fl(p, x, y, x - 0.6, y + 1.6, ii % 3 === 0 ? MANE[4] : ii % 3 === 1 ? MANE[3] : MANE[2]);
+      if (ii % 2 === 0) fd(p, p.snap(x + 0.5), p.snap(y + 0.5), ii % 4 ? MANE[5] : MANE[4]);
+      fl(p, x, col.y + 1.6, x - 0.3, col.y + 2.6 + (ii % 3 === 0 ? 0.5 : 0), ii % 2 ? MANE[1] : MANE[2]);
+    }
+  } else {
+    for (let i = -4; i <= 3; i += 2) { p.px(col.x + i, col.y - 1.2, MANE[5]); p.px(col.x + i + 1, col.y - 0.4, MANE[4]); }
+    for (let i = -4; i <= 4; i += 1) p.px(col.x + i, col.y + 2.5 + ((i + 8) % 2), MANE[i % 2 ? 1 : 2]);
+  }
   icicle(p, g, col.x - 3, col.y + 3, 3, 1); icicle(p, g, col.x + 2, col.y + 3, 2, 1);
 
   // --- Kopf: hager, frostblaue Haut, Hakennase, Eiskrone. Pixelgenau gesetzt
@@ -1410,8 +2187,8 @@ function drawWitch(p, g, P, X) {
   // m Mund, t Zahn.
   const eyeOn = P.eye > 0.3, open = P.jaw > 0.5;
   // Hinterkopf: Haarmasse, Licht oben links
-  p.ellipse(hx - 1.5, hy - 0.2, 2.2, 3.4, HAIR[1]);
-  p.ellipse(hx - 1.9, hy - 1.4, 1.4, 1.8, HAIR[2]);
+  ell(p, hx - 1.5, hy - 0.2, 2.2, 3.4, HAIR[1]);
+  ell(p, hx - 1.9, hy - 1.4, 1.4, 1.8, HAIR[2]);
   const FACE = [
     [-3, 'hHH32.'],
     [-2, 'h2343.'],
@@ -1436,22 +2213,49 @@ function drawWitch(p, g, P, X) {
   p.px(hx + 5, hy, HSKIN[3]); p.px(hx + 5, hy + 1, HSKIN[1]);
   // Augenglühen (+ schwaches hinteres Auge in der Höhle)
   const ex = hx + 2, ey = hy - 1;
-  if (eyeOn) { g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex, ey - 1, ICE_G[1]); }
+  if (p.fine) {
+    // Handfein: Brauenkante + gesträubte Reifbraue, glühendes Auge mit weißem Kern in tiefer Höhle,
+    // Nasenrücken-Licht bis zur Hakenspitze, Nasenloch, eingefallene Wange, schmaler Mund mit hängendem Winkel
+    const F = (x, y, c) => fd(p, hx + x, hy + y, c);
+    F(1, -1.5, HSKIN[4]); F(1.5, -1.5, HSKIN[5]); F(2, -1.5, HSKIN[5]); F(2.5, -1.5, HSKIN[4]); F(3, -1.5, HSKIN[3]);
+    F(0.5, -2.5, HAIR[4]); F(1, -2.5, HAIR[3]); F(1.5, -2, HAIR[3]); F(2, -2, HAIR[2]); F(2.5, -2, HAIR[2]);
+    F(1, -1, HSKIN[0]); F(1, -0.5, HSKIN[0]); F(3, -1, HSKIN[0]); F(3, -0.5, HSKIN[1]);
+    if (eyeOn) {
+      F(1.5, -1, ICE[2]); F(2, -1, ICE[4]); F(2.5, -1, ICE[3]);
+      F(1.5, -0.5, ICE[3]); F(2, -0.5, ICE[5]); F(2.5, -0.5, ICE[2]);
+      for (const [x, y, c] of [[2, -0.5, ICE_G[5]], [2, -1, ICE_G[4]], [1.5, -0.5, ICE_G[3]], [2.5, -0.5, ICE_G[3]], [1.5, -1, ICE_G[2]], [2.5, -1, ICE_G[2]], [1, -0.5, ICE_G[1]], [3, -0.5, ICE_G[1]], [2, 0, ICE_G[1]], [2, -1.5, ICE_G[1]]]) fd(g, hx + x, hy + y, c);
+    } else { F(1.5, -0.5, HSKIN[1]); F(2, -0.5, HSKIN[2]); F(2.5, -0.5, HSKIN[1]); }
+    F(3.5, -1, HSKIN[5]); F(4, -0.5, HSKIN[5]); F(4.5, 0, HSKIN[4]); F(5, 0, HSKIN[4]); F(5.5, 0, HSKIN[3]);
+    F(5.5, 0.5, HSKIN[2]); F(5, 1, HSKIN[2]); F(5.5, 1, HSKIN[1]); F(5.5, 1.5, HSKIN[0]); F(4.5, 1, HSKIN[0]);
+    F(1.5, 0, HSKIN[3]); F(2, 0, HSKIN[4]); F(1.5, 0.5, HSKIN[0]); F(1.5, 1, HSKIN[0]); F(2, 1.5, HSKIN[1]);   // Wangenknochen, Höhlung
+    if (!open) { F(2.5, 1, '#1a1020'); F(3, 1, '#1a1020'); F(3.5, 1, '#1a1020'); F(4, 1, HSKIN[1]); F(3, 1.5, HSKIN[3]); F(3.5, 1.5, HSKIN[2]); F(2.5, 1.5, '#1a1020'); }
+    else { F(3.5, 1, '#e8f0f0'); F(3, 2, '#e8f0f0'); F(3.5, 1.5, '#2a1428'); }
+    F(2, 2.5, HSKIN[1]); F(2.5, 2.5, HSKIN[3]); F(2, 3, HSKIN[0]);                                         // Kinnspitze
+  } else if (eyeOn) { g.px(ex, ey, ICE_G[5]); g.px(ex + 1, ey, ICE_G[2]); g.px(ex - 1, ey, ICE_G[3]); g.px(ex, ey - 1, ICE_G[1]); }
   meta.eye = { x: ex, y: ey };
   meta.mouth = { x: hx + 3, y: hy + 2 };
   // Stirnsträhne fällt vorn über die Schläfe
-  p.px(hx + 1, hy - 3, HAIR[4]); p.px(hx, hy - 2, HAIR[2]); p.px(hx - 1, hy + 2, HAIR[1]); p.px(hx, hy + 3, HAIR[0]);
+  if (p.fine) { // Strähnen über Schläfe und Wange
+    fl(p, hx + 1, hy - 3, hx, hy - 1.5, HAIR[4]); fl(p, hx + 1.5, hy - 3, hx + 0.5, hy - 2, HAIR[3]);
+    fl(p, hx, hy - 1, hx - 0.5, hy + 2.5, HAIR[2]); fl(p, hx - 0.5, hy, hx - 1, hy + 3, HAIR[1]); fd(p, hx, hy + 3, HAIR[0]);
+  } else { p.px(hx + 1, hy - 3, HAIR[4]); p.px(hx, hy - 2, HAIR[2]); p.px(hx - 1, hy + 2, HAIR[1]); p.px(hx, hy + 3, HAIR[0]); }
   // Eiskrone: schmales Band, 5 Zacken (mittlere am höchsten), nur Spitzen leuchten
-  p.line(hx - 1, hy - 4, hx + 3, hy - 4, ICE[1]);
   const crown = [[-1, 2], [0, 3], [1, 5], [2, 3], [3, 2]];
-  for (const [cx, h] of crown) {
+  if (p.fine) {
+    for (let x = hx - 1; x <= hx + 3.5; x += 0.5) { fd(p, x, hy - 4, ICE[2]); fd(p, x, hy - 3.5, ICE[1]); }
+    for (const [cx, h] of crown) shard(p, g, hx + cx, hy - 4.5, hx + cx, hy - 4 - h, h > 4 ? 0.85 : 0.6, 0.72);
+    fd(p, hx + 1, hy - 4, ICE[5]); fd(p, hx + 1.5, hy - 4, ICE[3]); fd(p, hx + 1, hy - 3.5, ICE[3]); fd(p, hx + 1.5, hy - 3.5, ICE[1]);
+    fd(g, hx + 1, hy - 4, ICE_G[4]); fd(g, hx + 1.5, hy - 4, ICE_G[2]); fd(g, hx + 1, hy - 3.5, ICE_G[2]);
+    meta.head = { x: hx, y: hy - 10 };
+  } else p.line(hx - 1, hy - 4, hx + 3, hy - 4, ICE[1]);
+  if (!p.fine) for (const [cx, h] of crown) {
     for (let j = 0; j < h; j++) {
       const x = hx + cx, y = hy - 5 - j;
       p.px(x, y, j === h - 1 ? (h > 4 ? ICE[5] : ICE[4]) : j === 0 ? ICE[2] : ICE[3]);
       if (j === h - 1) g.px(x, y, h > 4 ? ICE_G[5] : ICE_G[3]);
     }
   }
-  p.px(hx + 1, hy - 4, ICE[4]); g.px(hx + 1, hy - 4, ICE_G[3]);    // Stirnjuwel
+  if (!p.fine) { p.px(hx + 1, hy - 4, ICE[4]); g.px(hx + 1, hy - 4, ICE_G[3]); }    // Stirnjuwel
   meta.head = { x: hx, y: hy - 10 };
 
   // --- vorderer Arm + Stab
@@ -1461,7 +2265,14 @@ function drawWitch(p, g, P, X) {
     limb(p, armF.jx, armF.jy, armF.jx + (armF.ex - armF.jx) * 0.6, armF.jy + (armF.ey - armF.jy) * 0.6, 3, 4, [ROBE[1], ROBE[2], ROBE[3], ROBE[4]]);
     const cu = { x: armF.jx + (armF.ex - armF.jx) * 0.62, y: armF.jy + (armF.ey - armF.jy) * 0.62 };
     p.px(cu.x, cu.y, PELT[4]); p.px(cu.x + 1, cu.y + 1, PELT[3]); p.px(cu.x - 1, cu.y + 1, PELT[3]);
-    p.ellipse(shF.x, shF.y, 1.8, 1.4, PELT[3]); p.px(shF.x - 1, shF.y - 1, PELT[5]);
+    volEll(p, shF.x, shF.y, 1.8, 1.4, PELT[3], PELT[2], PELT[4]); p.px(shF.x - 1, shF.y - 1, PELT[5]);
+    if (p.fine) { // Ärmelfalte zweifarbig, Fellstulpe und Schulterfell in Strähnen
+      const m = { x: armF.jx + (armF.ex - armF.jx) * 0.3, y: armF.jy + (armF.ey - armF.jy) * 0.3 };
+      fl(p, armF.jx - 0.5, armF.jy + 0.5, m.x - 0.5, m.y + 0.5, ROBE[1]); fl(p, armF.jx - 1, armF.jy, m.x - 1, m.y, ROBE[4]);
+      for (let i = -1.5; i <= 1.5; i += 0.5) fl(p, cu.x + i, cu.y, cu.x + i + 0.3, cu.y + 1.3, i * 2 % 2 ? PELT[3] : PELT[5]);
+      for (const [i, c] of [[-1.5, PELT[2]], [-0.5, PELT[1]], [0.5, PELT[2]], [1.5, PELT[1]]]) fd(p, p.snap(shF.x + i), p.snap(shF.y + 1.5), c);
+      fd(p, p.snap(shF.x - 1), p.snap(shF.y - 1), PELT[5]); fd(p, p.snap(shF.x - 0.5), p.snap(shF.y - 1), PELT[5]);
+    }
   };
   sleeve();
   if (X.noStaff) { p.rect(armF.ex - 1, armF.ey - 1, 2, 2, HSKIN[2]); return meta; }
@@ -1481,6 +2292,12 @@ function frostRing(p, g, cx, cy, r, s) {
     const rr = r + (hash2(i, 5, 87) - 0.5) * 1.2;
     const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * 0.38;
     if (hash2(i, 6, 87) > s) continue;
+    if (p.fine) { // fein: Leuchtring 1 Feinpixel + Saum, Reifzacken als kleine Splitter mit Grat
+      const X = p.snap(x), Y = p.snap(y);
+      fd(g, X, Y, ICE_G[3]); fd(g, X + 0.5, Y, ICE_G[2]); fd(g, X, Y + 0.5, ICE_G[1]); fd(g, X + 0.5, Y + 0.5, ICE_G[1]);
+      if (i % 4 === 0) shard(p, g, x, y + 0.5, x - 0.2, y - 2.2, 0.7, 0.5);
+      continue;
+    }
     g.px(x, y, ICE_G[2]); g.px(x, y + 1, ICE_G[1]);
     if (i % 4 === 0) { // Reifzacken
       p.px(x, y, ICE[3]); p.px(x, y - 1, ICE[4]); p.px(x, y - 2, ICE[5]);

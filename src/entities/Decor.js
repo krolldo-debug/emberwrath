@@ -43,7 +43,7 @@ export class Decor extends Entity {
     if (o.occlude) {
       const h = world.hero, [a, b, c, d] = o.occlude;
       const behind = h && h.y < this.y && h.x > this.x + a && h.x < this.x + c && h.y > this.y + b && h.y < this.y + d;
-      this.alpha += ((behind ? 0.45 : 1) - this.alpha) * Math.min(1, dt * 10);
+      this.alpha += ((behind ? 0.25 : 1) - this.alpha) * Math.min(1, dt * 10);
     }
   }
 

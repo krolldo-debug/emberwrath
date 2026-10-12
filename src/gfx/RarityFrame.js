@@ -82,6 +82,68 @@ function drawFrame(rarity, lit) {
   return p.canvas.toDataURL();
 }
 
+// Feinraster (Grafikupdate, docs/STYLE.md „Feinraster“): dieselben Rahmen als 32×32-Bild mit Linien aus Feinpixeln.
+// Gezeigt neben 48er-Icons: 9-Slice mit 9 Feinpixeln Ecke (= 4,5 Bildpunkte, Icons.js FRAME_FINE_SLICE). Die Kanten sind
+// halb so dick wie im groben Rahmen, die Eckzier kleiner – das Motiv bleibt im Innenbereich sichtbar.
+const NF = 32;
+const EDGE_FINE = {
+  uncommon: { tl: ['l', 'b', 'd'], br: ['b', 'd', 'd'] },
+  rare: { tl: ['h', 'l', 'b', 'd'], br: ['l', 'b', 'd', 'd'] },
+  epic: { tl: ['h', 'l', 'b', 'd'], br: ['l', 'b', 'd', 'd'] },
+  legendary: { tl: ['h', 'h', 'l', 'b', 'd', 'e'], br: ['l', 'b', 'b', 'b', 'd', 'e'] },
+};
+// Ecke oben links in Feinpixeln (bis 9×9), wird in alle Ecken gespiegelt; ' ' = Kante bleibt, '.' = ausgeschnitten
+const CORNER_FINE = {
+  uncommon: [],
+  rare: [
+    'h  ',
+    ' hl',
+    ' lGb',
+    '  bd',
+  ],
+  epic: [
+    '..d',
+    '.dl',
+    'dlh',
+    '   hlb',
+    '    wGd',
+    '    Ggd',
+    '     dd',
+  ],
+  legendary: [
+    '....dhhhh',
+    '...dhllll',
+    '..dhhhhhh',
+    '.dhhlbbbb',
+    'dhhlwGGgd',
+    'hlhbGGggD',
+    'hlhbGggDD',
+    'hlhbgDDDd',
+    'hlhbdDDde',
+  ],
+};
+function drawFrameFine(rarity, lit) {
+  const pal = PAL[rarity], edge = EDGE_FINE[rarity];
+  const p = new PixelCanvas(NF, NF);
+  const col = (k) => pal[lit ? LIT[k] ?? k : k] ?? pal[k] ?? pal.b;
+  for (let y = 0; y < NF; y++) {
+    for (let x = 0; x < NF; x++) {
+      const dt = y, dl = x, db = NF - 1 - y, dr = NF - 1 - x;
+      const m = Math.min(dt, dl, db, dr);
+      const list = m === dt || m === dl ? (m === db || m === dr ? (dt <= db ? edge.tl : edge.br) : edge.tl) : edge.br;
+      if (m < list.length) p.px(x, y, col(list[m]));
+    }
+  }
+  CORNER_FINE[rarity].forEach((line, y) => [...line].forEach((k, x) => {
+    if (k === ' ') return;
+    for (const [fx, fy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const X = fx ? NF - 1 - x : x, Y = fy ? NF - 1 - y : y;
+      p.px(X, Y, k === '.' ? CUT : col(k));
+    }
+  }));
+  return p.canvas.toDataURL();
+}
+
 let installed = false;
 export function installRarityFrames() {
   if (installed || typeof document === 'undefined') return;
@@ -89,6 +151,10 @@ export function installRarityFrames() {
   const root = document.documentElement.style;
   for (const r of Object.keys(PAL)) {
     root.setProperty(`--ef-frame-${r}`, `url(${drawFrame(r, false)})`);
-    if (r === 'epic' || r === 'legendary') root.setProperty(`--ef-frame-${r}-lit`, `url(${drawFrame(r, true)})`);
+    root.setProperty(`--ef-frame-${r}-fine`, `url(${drawFrameFine(r, false)})`);
+    if (r === 'epic' || r === 'legendary') {
+      root.setProperty(`--ef-frame-${r}-lit`, `url(${drawFrame(r, true)})`);
+      root.setProperty(`--ef-frame-${r}-fine-lit`, `url(${drawFrameFine(r, true)})`);
+    }
   }
 }

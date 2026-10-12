@@ -1,9 +1,10 @@
 import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
-import { mk, poly } from './decor_ashwood.js';
+import { mk, poly, pal32, shade, stepOf, lump, fpoly, groundPatch, DecoCanvas } from './decor_ashwood.js';
 import { shadeLump, dustPatch, blade, bayer } from './decor_steppe.js';
 import { PixelCanvas, outlineCanvas } from '../gfx/PixelCanvas.js';
 import { SpriteFrame } from '../gfx/Sprite.js';
+import { fineRes, canvasPixels, pixelsToCanvas } from '../gfx/Fine.js';
 
 // Faulmarsch: fauliges Moor unter Nebel, Sporen, tote Weiden, Pfahlbauten der Moorleute,
 // versunkene Ruinen und der Sporenschlund. Licht von links oben; alles Leuchtende
@@ -102,6 +103,248 @@ function glowShroom(p, g, x, y, r, h, G, seed) {
   g.px(x - Math.round(r * 0.4), cy - Math.round(r * 0.4), G[3]);
 }
 
+// ====================================================================== Feinraster-Helfer (Stufe B)
+// Koordinaten in Weltpixeln; alte Pixel-Index-Koordinate x deckt [x, x+1) ab. Licht von oben links, harte Stufen,
+// kein Rauschen: Unregelmäßigkeit nur über Dreieckswellen (tri) und ganze Weltpixel-Hashes.
+const fract = (v) => v - Math.floor(v);
+const tri = (u) => 1 - Math.abs(2 * fract(u) - 1);
+// Funktion y -> Wert je Feinzeile merken (Stammachse/-breite werden je Feinpixel abgefragt)
+const memo = (fn) => { const m = new Map(); return (y) => { let v = m.get(y); if (v === undefined) m.set(y, (v = fn(y))); return v; }; };
+const STEM = ['#4a4a3e', '#6a6a5a', '#8a8a78', '#b0b098', '#ccccb4'];
+
+// Schlammfleck fein (gelappter Rand, helle Kante oben links) mit Pfütze: dunkler Spiegel, Uferschatten, Glanzstriche
+function fMud(p, cx, cy, rx, ry, seed, water = true) {
+  groundPatch(p, cx + 0.5, cy + 0.5, rx + 0.5, ry + 0.5, seed, [MUD[1], MUD[2], MUD[3]]);
+  if (!water || rx < 5) return;
+  const wx = cx + 2.5, wy = cy + 0.5, wrx = rx - 2.5, wry = Math.max(1, ry - 0.5);
+  const [w0, w1, w2, w3] = pal32([SW[1], SW[2], SW[3], SW[4]]), ph = hash2(seed, 5, 9) * 4;
+  p.scan(wx - wrx, wy - wry, wx + wrx, wy + wry, (x, y) => {
+    const nx = (x - wx) / wrx, ny = (y - wy) / wry;
+    if (nx * nx + ny * ny > 1 - 0.25 * tri(nx * 1.3 + ph)) return 0;
+    if (ny < -0.4) return w0;
+    if (ny > -0.15 && ny < 0.3 && tri(x * 0.2 + ph) > 0.62) return nx < -0.1 ? w3 : w2;
+    return w1;
+  });
+}
+// Wasserring um Pfahl/Stängel (vorne geschlossen, hinten offen)
+function fRing(p, cx, cy, rx, ry = 0.9) {
+  p.each(cx - rx - 0.5, cy - ry - 0.5, cx + rx + 0.5, cy + ry + 0.5, (x, y) => {
+    const nx = (x - cx) / rx, ny = (y - cy) / ry, d = nx * nx + ny * ny;
+    if (d > 1.12 || d < 0.55 || (ny < -0.1 && nx > -0.45)) return null;
+    return nx < -0.2 ? SW[4] : SW[3];
+  });
+}
+// Hängender Moosbart fein: Hauptsträhne (oben 1 Weltpixel, Lichtseite links), dunklere Nebensträhne, Lichtfaser
+function fBeard(p, x, y, len, seed) {
+  if (len < 1) return;
+  const X = x + 0.5, h = hash2(x, y, seed);
+  const sw = (k, ph) => Math.sin(k * 0.45 + seed + ph) * 0.7 * (k / len);
+  const ci = (t) => (t < 0.15 ? 4 : t < 0.5 ? 3 : t < 0.8 ? 2 : 1);
+  const l2 = len * (0.4 + h * 0.4);
+  for (let k = 0.5; k < l2; k += 0.5) p.dot(X + 0.5 + sw(k, 1.7), y + k, BEARD[Math.max(1, ci(k / len) - 1)]);
+  const L = len + (h < 0.5 ? 0.5 : 0);
+  for (let k = 0; k < L; k += 0.5) {
+    const t = Math.min(1, k / len), xx = X + sw(k, 0);
+    p.dot(xx - 0.25, y + k, BEARD[ci(t)]);
+    if (t < 0.6) p.dot(xx + 0.25, y + k, BEARD[ci(t) - 1]);
+  }
+  if (len > 3) for (let k = 0; k < len * 0.35; k += 0.5) p.dot(X - 0.5 + sw(k, -1.1), y + k, BEARD[k < len * 0.15 ? 5 : 4]);
+}
+// Halm fein: unten 1 Weltpixel (Lichtkante links), oben 1 Feinpixel; Farbe von unten dunkel nach oben hell
+function fBlade(p, x, y, h, bend, ramp, lo = 1, hi = ramp.length - 1) {
+  const X = x + 0.5;
+  for (let k = 0; k <= h + 0.5; k += 0.5) {
+    const t = Math.min(1, k / Math.max(1, h)), xx = X + bend * t * t, yy = y + 0.75 - k;
+    const i = clampI(Math.round(lo + (hi - lo) * t), ramp.length);
+    if (t < 0.6) { p.dot(xx - 0.25, yy, ramp[clampI(i + 1, ramp.length)]); p.dot(xx + 0.25, yy, ramp[i]); } else p.dot(xx, yy, ramp[i]);
+  }
+  return [X + bend, y - h];
+}
+// Leuchtpilz fein: Stiel mit Lichtseite, Hut als Kuppel in harten Stufen, Lamellen mit heißem Kern auf der Leuchtebene
+function fShroom(p, g, x, y, r, h, G, seed) {
+  const X = x + 1, cy = y - h, yb = cy + 1, sw = r > 1 ? 0.9 : 0.75;
+  const S = pal32(STEM), P = pal32(G);
+  p.scan(X - sw, cy + 1, X + sw, y + 1, (px_, py) => {
+    if (px_ < X - sw || px_ > X + sw || py > y + 1) return 0;
+    const rel = (px_ - X) / sw;
+    let i = rel < -0.4 ? 4 : rel < 0.1 ? 3 : rel < 0.6 ? 2 : 1;
+    if (py > y + 0.5 || py < cy + 1.5) i -= 1;
+    return S[i];
+  });
+  const rx = r + 1, ry = r * 0.7 + 0.7;
+  p.scan(X - rx, yb - ry, X + rx, yb, (px_, py) => {
+    const nx = (px_ - X) / rx, ny = (py - yb) / ry;
+    if (ny > 0 || nx * nx + ny * ny > 1) return 0;
+    let i = stepOf(shade(nx * 0.9, ny - 0.15), 1, 3);
+    if (ny > -0.3) i = Math.min(i, nx < -0.3 ? 2 : 1);
+    return P[i];
+  });
+  // Lamellen: Schattenzeile, darunter Leuchtzeile (Lamellen im Feinpixeltakt)
+  for (let xx = X - r + 0.25; xx < X + r; xx += 0.5) {
+    const k = Math.round((xx - X) * 2);
+    p.dot(xx, yb, G[1]); p.dot(xx, yb + 0.5, k & 1 ? G[2] : G[3]);
+    g.dot(xx, yb, G[2]); g.dot(xx, yb + 0.5, Math.abs(xx - X) < r * 0.5 ? G[4] : G[3]);
+  }
+  for (let k = 0; k < Math.max(1, r); k++) {
+    const sx = x + Math.round((hash2(k, 0, seed) - 0.5) * r * 1.4) + 0.5, sy = cy - Math.round(hash2(k, 1, seed) * r * 0.5) + 0.25;
+    p.dot(sx, sy, G[4]); g.dot(sx, sy, G[4]);
+    if (r > 1) { p.dot(sx + 0.5, sy, G[3]); p.dot(sx, sy + 0.5, G[3]); g.dot(sx + 0.5, sy, G[3]); g.dot(sx, sy + 0.5, G[3]); }
+  }
+  g.dot(X - rx * 0.45, yb - ry * 0.6, G[3]);
+}
+// Gerundeter Fels in harten Lichtstufen, Rand leicht unregelmäßig (niedrige Frequenzen, kein Rauschen).
+// Liefert nichts; Oberkante für Moos über fTop() aus dem Puffer.
+function boulder(p, cx, cy, rx, ry, pal, seed, { lo = 1, hi = pal.length - 1, bias = 0, rough = 0.1, flat = 0.25, keep = null, rimC = null } = {}) {
+  const P = pal32(pal), RC = rimC ? pal32([rimC])[0] : 0;
+  const edge = (a) => 1 + (Math.sin(a * 3 + seed) * 0.5 + Math.sin(a * 5 + seed * 1.7) * 0.3 + Math.sin(a * 2 + seed * 0.3) * 0.2) * rough;
+  p.scan(cx - rx * 1.2, cy - ry * 1.2, cx + rx * 1.2, cy + ry * 1.2, (x, y) => {
+    let dx = (x - cx) / rx, dy = (y - cy) / ry;
+    if (flat && dy > 1 - flat) dy = 1 - flat + (dy - (1 - flat)) * 0.25;
+    const r2 = dx * dx + dy * dy;
+    if (r2 > (1 + rough) * (1 + rough)) return 0;
+    const e = edge(Math.atan2(dy, dx)), d = Math.sqrt(r2) / e;
+    if (d > 1 || (keep && !keep(x, y))) return 0;
+    const nx = dx / e, ny = dy / e;
+    if (RC && d > 0.84 && nx > 0.35 && ny > -0.2 && ny < 0.7) return RC;    // kühler Reflex unten rechts
+    let i = stepOf(shade(nx, ny * 1.1) + bias, lo, hi);
+    if (d > 0.8 && nx + ny > 0.55) i -= 1;
+    return P[Math.max(0, i)];
+  });
+}
+// Oberkante eines gezeichneten Bereichs: Feinspalte → erste deckende Zeile (Weltkoordinate) zwischen y0 und y1
+function fTop(p, x0, x1, y0, y1) {
+  const r = p.res, W = p.W, b = p.buf, out = [];
+  const G0 = Math.max(0, Math.floor(y0 * r)), G1 = Math.min(p.H, Math.ceil(y1 * r));
+  for (let F = Math.max(0, Math.floor(x0 * r)); F < Math.min(W, Math.ceil(x1 * r)); F++) {
+    let G = G0;
+    while (G < G1 && !b[G * W + F]) G++;
+    if (G < G1) out.push([(F + 0.5) / r, G / r]);
+  }
+  return out;
+}
+// Moospolster über einer Oberkante (aus fTop): heller Rand, zwei Töne, Schattenzeile darunter, ab und zu eine Tropfnase
+function fMossCap(p, top, depth, seed, xMax = Infinity) {
+  for (const [x, yt] of top) {
+    if (x > xMax) continue;
+    const fade = xMax < Infinity ? Math.min(1, (xMax - x) / 3) : 1;
+    const dd = Math.round((0.5 + depth * (0.3 + 0.7 * tri(x * 0.23 + seed * 0.37)) * fade) * 2) / 2;
+    for (let k = 0; k < dd; k += 0.5) p.dot(x, yt + k, MOSS[k === 0 ? (x < xMax - 4 ? 6 : 5) : k < 1 ? 5 : 4]);
+    p.dot(x, yt + dd, MOSS[2]);
+    const wx = Math.floor(x);
+    if (fade > 0.5 && hash2(wx, 7, seed) < 0.22) {
+      const L = 1 + Math.floor(hash2(wx, 8, seed) * 3), left = x - wx < 0.5;
+      for (let k = 0; k < L; k += 0.5) if (k < L - 0.5 || left) p.dot(x, yt + dd + k, left ? MOSS[4] : MOSS[3]);
+    }
+  }
+}
+// Rissige Borke: Platten zwischen senkrechten Längsfurchen, je Platte eigene Querbrüche und eigener Ton (harte, dunkle
+// Stufen), Licht nur als schmale Kante am linken Plattenkamm. Kein durchgehender Glanzstreif: die Lichtseite besteht aus
+// einzelnen helleren Platten. T = [Furche, dunkel, Grund, Lichtplatte, Kamm]. xAt/wAt stetig (Weltpixel).
+function roughBark(p, y0, y1, xAt, wAt, T, { seed = 0, plate = 1.5, twist = 0, wet = null } = {}) {
+  const P = pal32(T);
+  let x0 = Infinity, x1 = -Infinity;
+  for (let y = y0; y <= y1; y += 0.5) { const h = wAt(y) / 2 + 1; x0 = Math.min(x0, xAt(y) - h); x1 = Math.max(x1, xAt(y) + h); }
+  p.scan(x0, y0, x1, y1, (x, y) => {
+    const hw = wAt(y) / 2, dx = x - xAt(y);
+    if (dx < -hw || dx >= hw || y > y1) return 0;
+    const rel = dx / hw, n = Math.max(2, Math.round((2 * hw) / plate));
+    const u = ((rel + 1) / 2) * n + twist * y, col = Math.floor(u), fu = u - col;
+    const len = 3 + hash2(col, 1, seed) * 3.5, v = (y + hash2(col, 0, seed) * 6) / len, row = Math.floor(v), fv = v - row;
+    const cut = 0.35 + 0.5 * hash2(col, row, seed + 3);
+    if (fu < 0.18 || (fv < 0.1 && fu < cut)) return P[0];                                          // Längsfurche, Querbruch
+    const pc = (((col - twist * y) + 0.5) / n) * 2 - 1, h = hash2(col, row, seed + 7);
+    let i = pc < -0.4 ? 3 : pc < 0.3 ? 2 : 1;
+    if (h < 0.18) i -= 1; else if (h > 0.8 && i < 3) i += 1;
+    if (wet !== null && y > wet) i = Math.max(1, i - 1);
+    if (i < 1) i = 1;
+    if (pc < 0.15 && fu < 0.34 && fv > 0.2 && i >= 2) return P[4];                   // Kamm im Licht (1 Feinpixel)
+    if (rel > 0.8) return P[1];
+    return P[i];
+  });
+}
+// Moos- und Faulflecken auf einem Stamm: gelappte Flecken (Moos: hell oben links, dunkler Rand; Fäule: schwarzer Kern)
+function barkPatches(p, xAt, wAt, y0, y1, seed, n, { moss = true, rot = true } = {}) {
+  for (let k = 0; k < n; k++) {
+    const y = y0 + hash2(k, 0, seed) * (y1 - y0), side = -0.75 + hash2(k, 1, seed) * 1.3;
+    const cx = xAt(y) + side * wAt(y) / 2, rx = 0.7 + hash2(k, 2, seed) * 0.9, ry = 1 + hash2(k, 3, seed) * 1.6, ph = hash2(k, 4, seed) * 6;
+    const isMoss = moss && (!rot || hash2(k, 5, seed) < 0.6);
+    p.each(cx - rx - 0.5, y - ry - 0.5, cx + rx + 0.5, y + ry + 0.5, (x, yy) => {
+      const hw = wAt(yy) / 2, dx = x - xAt(yy);
+      if (dx < -hw || dx >= hw) return null;
+      const nx = (x - cx) / rx, ny = (yy - y) / ry, a = Math.atan2(ny, nx), d = nx * nx + ny * ny;
+      if (d > 0.85 + 0.3 * Math.sin(a * 3 + ph)) return null;
+      if (isMoss) return d > 0.55 ? MOSS[2] : nx + ny < -0.3 ? MOSS[5] : MOSS[4];
+      return d < 0.35 ? '#0a0c0a' : '#1a1712';
+    });
+  }
+}
+// Toter Ast: verjüngt, mit Knick; oben schmale Lichtkante nur am Ansatz, unten Schatten; abgebrochen = helle Bruchfläche.
+// T wie roughBark. Liefert die Spitze.
+function deadLimb(p, x0, y0, s, len, rise, w0, T, { broken = false, seed = 0 } = {}) {
+  const kx = 0.45 + hash2(seed, 1, 3) * 0.2, bend = (hash2(seed, 2, 3) - 0.5) * 2.5;
+  const at = (t) => [x0 + s * len * t, y0 - rise * t + (t < kx ? bend * t / kx : bend * (1 - (t - kx) / (1 - kx)))];
+  const steps = Math.max(4, Math.round(len * 2));
+  let [lx, ly] = at(0);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps, [x, y] = at(t), w = w0 * (1 - t) + (broken ? 0.6 : 0.1) * t;
+    if (w > 0.75) { p.fline(lx, ly, x, y, T[2], w); p.fline(lx, ly + w / 2, x, y + w / 2, T[1]); if (t < 0.5) p.fline(lx, ly - w / 2 + 0.25, x, y - w / 2 + 0.25, T[4]); }
+    else p.fline(lx, ly, x, y, t < 0.7 ? T[2] : T[1]);
+    lx = x; ly = y;
+  }
+  if (broken) { p.dot(lx, ly - 0.25, T[4]); p.dot(lx + s * 0.5, ly, T[3]); }
+  return [lx, ly];
+}
+
+// ---------------------------------------------------------------- Feine Zusätze über der alten Zeichnung (mk fine)
+// Laternenglas (Weltrechteck x, y, w, h): Glanzstreif links, Flamme als Tropfen (Saum, Mitte, heißer Kern),
+// Leuchtebene gestuft: Glas, Flamme, Kern. C = [Glas, Glanz, Saum, Mitte, Kern], L = Leuchtfarben [Glas, Saum, Mitte, Kern]
+const LAMP_C = ['#6a6420', '#8a8430', '#c8b848', '#f0e070', '#fff8c8'];
+const LAMP_L = ['#a8a040', '#d8d060', '#f0e070', '#fffad0'];
+function fLamp(f, g, x, y, w, h, C = LAMP_C, L = LAMP_L, lit = true) {
+  f.fline(x + 0.25, y + 0.25, x + 0.25, y + h - 0.75, C[1]);
+  if (!lit) return;
+  const fx = x + w / 2, fy = y + h * 0.62, fr = Math.min(1, w * 0.3), fh = Math.min(h * 0.55, 2.4);
+  const inF = (xx, yy) => { const dy = yy - fy; if (dy > fr * 0.9) return 9; const ww = dy < 0 ? fr * (1 + dy / fh) : fr * Math.sqrt(Math.max(0, 1 - (dy / (fr * 0.9)) ** 2)); return Math.abs(xx - fx) / Math.max(0.01, ww); };
+  g.each(x, y, x + w, y + h, (xx, yy) => (xx < x || yy < y || xx > x + w || yy > y + h ? null : L[0]));
+  for (const t of [f, g]) t.each(fx - 1.5, fy - fh - 0.5, fx + 1.5, fy + 1.5, (xx, yy) => {
+    const d = inF(xx, yy);
+    if (d > 1) return null;
+    const P = t === f ? C : [null, null, L[1], L[2], L[3]];
+    return d < 0.4 && yy > fy - fh * 0.4 ? P[4] : d < 0.75 ? P[3] : P[2];
+  });
+}
+// warmes Fenster: Glut-Stufen, Kreuzsprosse, heißer Kern; Leuchtebene gestuft
+function fWindow(f, g, x, y, w, h, bar = null) {
+  f.each(x, y, x + w, y + h, (xx, yy) => {
+    if (xx > x + w || yy > y + h) return null;
+    const e = Math.min(xx - x, x + w - xx, yy - y, y + h - yy);
+    return e < 0.5 ? (yy - y < 0.5 ? EMB[1] : EMB[2]) : e < 1 ? EMB[3] : EMB[4];
+  });
+  g.each(x, y, x + w, y + h, (xx, yy) => {
+    if (xx > x + w || yy > y + h) return null;
+    const e = Math.min(xx - x, x + w - xx, yy - y, y + h - yy);
+    return e < 0.5 ? EMB[3] : e < 1 ? EMB[4] : '#fff0b0';
+  });
+  if (bar !== null) f.fline(bar + 0.25, y, bar + 0.25, y + h - 0.5, ROT[1]);
+}
+// Flammenzunge: Fuß (x, yb) stetig, Höhe h, Breite w: Saum, Mitte, Kern; auf Sprite und Leuchtebene
+function fFlame(f, g, x, yb, h, w, lean = 0, clip = null) {
+  const at = (yy) => { const t = (yb - yy) / h; return [x + lean * t * t, w * (t < 0.25 ? 0.7 + t * 1.2 : (1 - t) * 1.33)]; };
+  for (const t of [f, g]) t.each(x - w - 1, yb - h - 0.5, x + w + 1, yb + 0.5, (xx, yy) => {
+    if (yy > yb || yy < yb - h || (clip && clip(xx, yy))) return null;
+    const [cx, hw] = at(yy), d = Math.abs(xx - cx) / Math.max(0.3, hw);
+    if (d > 1) return null;
+    const k = (yb - yy) / h;
+    if (t === f) return d < 0.4 && k < 0.5 ? (k < 0.25 && d < 0.3 ? '#fff0b0' : EMB[4]) : d < 0.72 && k < 0.8 ? EMB[3] : EMB[2];
+    return d < 0.4 && k < 0.5 ? '#fff0b0' : d < 0.75 ? EMB[4] : EMB[3];
+  });
+}
+// Glimmende Augen/Punkte: heißer Feinpixel-Kern, farbiger Saum (Sprite und Leuchtebene)
+function fEye(f, g, x, y, G) {
+  f.dot(x + 0.25, y + 0.25, G[4]); f.dot(x + 0.75, y + 0.25, G[3]); f.dot(x + 0.25, y + 0.75, G[3]); f.dot(x + 0.75, y + 0.75, G[2]);
+  g.dot(x + 0.25, y + 0.25, '#ffffff'); g.dot(x + 0.75, y + 0.25, G[4]); g.dot(x + 0.25, y + 0.75, G[4]); g.dot(x + 0.75, y + 0.75, G[3]);
+}
+
 // ------------------------------------------------------------ Tote Trauerweiden
 function willowTree(seed, H, v) {
   const rng = createRng(seed);
@@ -120,6 +363,7 @@ function willowTree(seed, H, v) {
       const len = rng.int(13, 21), rise = rng.int(4, 9);
       branches.push({ s, y0, len, rise });
     }
+    if (p.fine) { willowFine(p, seed, H, v, branches, crownY, lean); return; }
     const pts = [];
     for (const b of branches) {
       const x0 = tx(b.y0);
@@ -170,7 +414,70 @@ function willowTree(seed, H, v) {
       const len = Math.round(3 + t * 9 + hash2(x, y, seed + 10) * 9);
       beard(p, x, y, Math.min(len, bottom - y - 3), seed + i);
     }
-  }, { ax: cx, box: [-4, -3, 4, 1] });
+  }, { ax: cx, box: [-4, -3, 4, 1], b: true });
+}
+
+// Stufe B: Äste als sich verjüngende Bögen (Lichtgrat oben, Schatten unten), Stamm mit Drehwuchs-Furchen und
+// Moos an der Nordseite, Astloch mit Lichtlippe, Moosbärte in Strähnen, Wurzeln ins Wasser mit Ringen.
+function willowFine(p, seed, H, v, branches, crownY, lean) {
+  const cx = 27, bottom = H - 1;
+  fMud(p, cx, bottom - 1, 14, 3, seed);
+  const tx = memo((y) => cx + 0.5 + lean * Math.max(0, 1 - (y - crownY) / (bottom - crownY)) ** 1.5 + Math.sin(y * 0.25 + seed) * 0.8);
+  const tw = (y) => { const k = (y - crownY) / (bottom - crownY); return 3.5 + k * 4.5 + (y > bottom - 4 ? (y - (bottom - 4)) * 1.6 : 0); };
+  const pts = [];
+  for (const b of branches) {
+    const x0 = tx(b.y0 + 0.5), y0 = b.y0 + 0.5;
+    const at = (t) => [x0 + b.s * b.len * t, y0 - b.rise * Math.sin(t * Math.PI * 0.75) + t * t * 7];
+    let [lx, ly] = at(0);
+    for (let t = 0.04; t <= 1.001; t += 0.04) {
+      const [x, y] = at(t);
+      if (t < 0.45) {
+        p.fline(lx, ly, x, y, ROT[3], 1);
+        if (t < 0.22) p.fline(lx, ly + 1, x, y + 1, ROT[1]);
+        else p.fline(lx, ly + 0.5, x, y + 0.5, ROT[1]);
+        p.fline(lx, ly, x, y, b.s < 0 || t < 0.3 ? ROT[5] : ROT[4]);
+      } else {
+        p.fline(lx, ly, x, y, t < 0.75 ? ROT[3] : ROT[2]);
+        if (t < 0.7) p.fline(lx, ly + 0.5, x, y + 0.5, ROT[1]);
+        if (b.s < 0 && t < 0.7) p.dot(x, y - 0.5, ROT[4]);
+      }
+      if (t > 0.25 && Math.abs(t * 20 - Math.round(t * 20)) < 0.4) pts.push([Math.round(x - 0.5), Math.round(y + 0.5), t]);
+      lx = x; ly = y;
+    }
+    // Zweiggabel
+    const fx = x0 + b.s * b.len * 0.55, fy = y0 - b.rise * Math.sin(0.55 * Math.PI * 0.9);
+    p.fline(fx, fy, fx + b.s * 4, fy - 4, ROT[3]); p.fline(fx + b.s * 4, fy - 4, fx + b.s * 7, fy - 2, ROT[2]);
+    p.dot(fx + b.s * 4, fy - 4.5, ROT[4]);
+    pts.push([Math.round(fx + b.s * 6 - 0.5), Math.round(fy - 1.5), 0.9]);
+  }
+  // Stamm mit Drehwuchs, Moos unten links, nasser dunkler Fuß
+  const TR = [ROT[0], ROT[2], ROT[3], ROT[4], ROT[5]];
+  roughBark(p, crownY - 3, bottom + 1, tx, tw, TR, { seed, plate: 1.6, twist: 0.06, wet: bottom - 2 });
+  barkPatches(p, (y) => tx(y) - tw(y) * 0.2, (y) => tw(y) * 0.6, bottom - 14, bottom - 1, seed + 21, 4, { rot: false });
+  // gespaltene Krone
+  const tc = tx(crownY - 3);
+  fpoly(p, [[tc - 2, crownY - 2.5], [tc - 1.2, crownY - 5], [tc - 0.3, crownY - 3], [tc + 1.2, crownY - 6], [tc + 2.2, crownY - 2.5]], (x) => (x < tc ? ROT[4] : ROT[2]));
+  p.dot(tc - 1.2, crownY - 4.5, ROT[5]); p.dot(tc + 1.2, crownY - 5.5, ROT[4]); p.fline(tc - 0.3, crownY - 3, tc - 0.3, crownY - 1.5, ROT[0]);
+  // Astloch: dunkle Höhle, Lichtlippe oben links, beleuchtete Innenwand unten rechts
+  const hy = crownY + Math.round((bottom - crownY) * 0.45) + 0.5, hx = tx(hy);
+  p.each(hx - 2.5, hy - 3, hx + 2.5, hy + 3, (x, y) => {
+    const nx = (x - hx) / 1.5, ny = (y - hy) / 2.2, d = nx * nx + ny * ny;
+    if (d > 1.45) return null;
+    if (d > 1) return nx + ny < -0.4 ? ROT[5] : nx + ny > 0.6 ? ROT[1] : null;
+    return d > 0.55 && nx + ny > 0.5 ? ROT[2] : INTERIOR;
+  });
+  // Wurzeln ins Wasser
+  const bx = tx(bottom);
+  p.fline(bx - 3, bottom - 1.5, bx - 9, bottom + 0.5, ROT[4], 1); p.fline(bx - 3, bottom - 2, bx - 9, bottom, ROT[5]); p.fline(bx - 4, bottom - 0.5, bx - 8, bottom + 0.5, ROT[2]);
+  p.fline(bx + 3, bottom - 1.5, bx + 8, bottom + 0.5, ROT[2], 1); p.fline(bx + 2, bottom - 0.5, bx + 5, bottom + 0.5, ROT[1]);
+  fRing(p, bx - 8.5, bottom + 0.6, 1.6, 0.8);
+  // Moosbärte
+  for (let i = 0; i < pts.length; i++) {
+    const [x, y, t] = pts[i];
+    if (hash2(x, y, seed + 9) > 0.3 || i % 2) continue;
+    const len = Math.round(3 + t * 9 + hash2(x, y, seed + 10) * 9);
+    fBeard(p, x, y, Math.min(len, bottom - y - 3), seed + i);
+  }
 }
 
 // ------------------------------------------------------------ Faulige Stümpfe
@@ -179,6 +486,7 @@ function deadStump(v) {
   const W = 22, H = [16, 20, 14][v];
   return mk(W, H, (p, g) => {
     const cx = 11, bottom = H - 1, hw = [4, 3, 5][v], topY = [6, 5, 5][v];
+    if (p.fine) { stumpFine(p, g, v, rng, cx, bottom, hw, topY); return; }
     mudPatch(p, cx, bottom - 1, 10, 2, 1040 + v);
     // Wurzeln
     p.line(cx - hw, bottom - 1, cx - hw - 4, bottom, ROT[4]); p.line(cx - hw, bottom - 2, cx - hw - 2, bottom - 1, ROT[3]);
@@ -211,7 +519,70 @@ function deadStump(v) {
       glowShroom(p, g, cx + hw + 2, bottom - 2, 1, 3, GLT, 1046);
     }
     for (let i = 0; i < 3; i++) p.px(cx - hw + rng.int(0, 2), bottom - rng.int(2, 6), MOSS[4]);
-  }, { ax: 11, box: [-4, -3, 4, 1] });
+  }, { ax: 11, box: [-4, -3, 4, 1], b: true });
+}
+// Stufe B: Holzkörper mit senkrechten Faserrillen und Lichtseite, Schnittfläche mit Jahresringen,
+// Baumschwamm-Konsolen mit Lichtkante, Splitterkrone als spitze Zacken, Höhlung mit beleuchteter Rückwand.
+function stumpFine(p, g, v, rng, cx, bottom, hw, topY) {
+  const seed = 1040 + v, X = cx + 0.5;
+  fMud(p, cx, bottom - 1, 10, 2, seed);
+  p.fline(X - hw, bottom - 1, X - hw - 4, bottom + 0.5, ROT[3], 1); p.fline(X - hw, bottom - 1.5, X - hw - 4, bottom, ROT[5]);
+  p.fline(X - hw, bottom - 2, X - hw - 2, bottom - 0.5, ROT[4]);
+  p.fline(X + hw, bottom - 1, X + hw + 4, bottom + 0.5, ROT[1], 1); p.fline(X + hw, bottom - 1.5, X + hw + 3.5, bottom, ROT[2]);
+  const half = hw + 0.5;
+  const wAt = (y) => 2 * half + (y > bottom - 2 ? (y - bottom + 2) * 0.7 : 0) + (v === 1 ? Math.sin(y * 0.7) * 0.4 : 0);
+  roughBark(p, v === 1 ? topY - 0.5 : topY + 0.5, bottom, () => X, wAt, [ROT[0], ROT[2], ROT[3], ROT[4], ROT[5]], { seed, plate: 1.5, wet: bottom - 1.5 });
+  barkPatches(p, () => X, wAt, topY + 2, bottom - 1, seed + 5, 2 + v, { rot: v !== 0 });
+  if (v === 0) {
+    p.oval(X, topY + 0.5, half, 1.7, ROT[3]);
+    p.each(X - half, topY - 1.5, X + half, topY + 2, (x, y) => {
+      const nx = (x - X) / (half - 0.4), ny = (y - topY - 0.5) / 1.3, d = Math.sqrt(nx * nx + ny * ny);
+      if (d > 1) return null;
+      if (d < 0.22) return INTERIOR;
+      if (d < 0.42) return ROT[1];
+      return fract(d * 3.2) < 0.3 ? ROT[2] : nx + ny < -0.3 ? ROT[5] : ROT[4];
+    });
+    // Moospolster auf der Lichtseite
+    for (let i = 0; i < 4; i++) { const mx = X - half + 0.6 + i * 1.3; p.oval(mx, topY - 0.3 + (i & 1) * 0.3, 1.1, 0.75, MOSS[5]); p.dot(mx - 0.4, topY - 0.8 + (i & 1) * 0.3, MOSS[6]); }
+    p.fline(X - half + 0.25, topY, X - half + 0.25, topY + 2, MOSS[4]);
+    // Baumschwamm-Konsolen
+    for (const [x, y] of [[cx + hw, topY + 4], [cx + hw, topY + 7]]) {
+      p.each(x - 0.5, y - 1, x + 3.5, y + 2, (xx, yy) => {
+        const nx = (xx - x - 1.2) / 2.1, ny = (yy - y - 0.9) / 1.2;
+        if (nx * nx + ny * ny > 1 || ny > 0.55) return null;
+        return ny > 0.15 ? '#4a2e16' : ny < -0.45 || nx < -0.55 ? '#b07a3a' : '#8a5a2a';
+      });
+      p.dot(x + 0.25, y - 0.25, '#c8925a');
+    }
+  } else if (v === 1) {
+    const tops = [0, -4, -2, -5, -1, 0, -3], x0 = cx - hw;
+    const pts = [[x0, topY + 1]];
+    for (let i = 0; i < 7; i++) { const t = topY + tops[i]; pts.push([x0 + i, t + 1], [x0 + i + (i & 1 ? 0.7 : 0.3), t - 0.4], [x0 + i + 1, t + 1]); }
+    pts.push([x0 + 7, topY + 1]);
+    fpoly(p, pts, (x, y) => {
+      const k = x - x0;
+      let i = k < 2 ? 5 : k < 4 ? 4 : 2;
+      if (fract(k * 2) < 0.5 && k > 1 && hash2(Math.floor(k * 2), Math.floor(y), 3) < 0.5) i -= 1;
+      return ROT[i];
+    });
+    for (let i = 0; i < 7; i++) p.dot(x0 + i + (i & 1 ? 0.5 : 0.25), topY + tops[i], i < 4 ? ROT[6] : ROT[4]);
+    p.fline(cx - 0.5, topY - 1, cx - 0.5, topY + 1.5, ROT[1]);
+    fBeard(p, cx + 2, topY + 1, 7, 3); fBeard(p, cx - 2, topY, 5, 5);
+    for (let y = topY + 2; y < bottom - 1; y += 3) { p.dot(X - half + 0.25, y + 0.25, MOSS[5]); p.dot(X - half + 0.25, y + 0.75, MOSS[4]); p.dot(X - half + 0.75, y + 0.75, MOSS[3]); }
+  } else {
+    p.oval(X, topY + 0.5, half, 1.7, ROT[4]);
+    p.oval(X - 0.25, topY + 0.25, half - 0.5, 1.2, ROT[5]);
+    p.each(X - half, topY - 1, X + half, topY + 2, (x, y) => {
+      const nx = (x - X) / (half - 1.2), ny = (y - topY - 0.6) / 1.05;
+      if (nx * nx + ny * ny > 1) return null;
+      return ny < -0.25 ? ROT[2] : INTERIOR;                                         // Rückwand im Licht, Schlund dunkel
+    });
+    for (let x = cx - hw; x <= cx + hw; x++) if (hash2(x, 5, 1043) < 0.6) { p.dot(x + 0.25, topY - 0.25, MOSS[6]); p.dot(x + 0.75, topY - 0.25, MOSS[5]); p.dot(x + 0.5, topY + 0.25, MOSS[4]); }
+    fShroom(p, g, cx - hw - 1, bottom - 1, 1, 2, GLT, 1044);
+    fShroom(p, g, cx + 2, topY - 1, 2, 2, GLT, 1045);
+    fShroom(p, g, cx + hw + 2, bottom - 2, 1, 3, GLT, 1046);
+  }
+  for (let i = 0; i < 3; i++) { const x = cx - hw + rng.int(0, 2), y = bottom - rng.int(2, 6); p.oval(x + 0.6, y + 0.5, 0.75, 0.6, MOSS[4]); p.dot(x + 0.25, y + 0.25, MOSS[5]); }
 }
 
 // ------------------------------------------------------------ Schilf / Rohrkolben
@@ -220,6 +591,7 @@ function reeds(v) {
   const W = 20, H = 26;
   return mk(W, H, (p) => {
     const bottom = H - 1;
+    if (p.fine) { reedsFine(p, v, rng, W, bottom); return; }
     // Wasserfläche
     for (let x = 1; x < W - 1; x++) for (let y = bottom - 1; y <= bottom; y++) if (hash2(x, y, 1061) < 0.85 || y === bottom) p.px(x, y, (x + y) % 4 === 0 ? SW[3] : SW[2]);
     // Seerosenblatt
@@ -239,7 +611,52 @@ function reeds(v) {
     for (let i = 0; i < 4; i++) { const x = 3 + rng.int(0, 12); p.line(x, bottom - 1, x + (i % 2 ? 5 : -4), bottom - 9, REED[i % 2 ? 3 : 5]); p.line(x + 1, bottom - 1, x + (i % 2 ? 6 : -3), bottom - 8, REED[2]); }
     // Libelle (winziger Glanzpunkt)
     if (v === 2) { p.px(12, 6, '#6ae0d0'); p.px(11, 6, '#2a8a8a'); p.px(13, 6, '#2a8a8a'); }
-  }, { ax: 10 });
+  }, { ax: 10, b: true });
+}
+// Stufe B: Wasserstreifen mit Lichtkante, Seerosenblatt mit Kerbe, Halme fein verjüngt, Rohrkolben als Walze mit
+// Lichtseite und Spitze, breite Blätter mit Mittelrippe.
+function reedsFine(p, v, rng, W, bottom) {
+  const [s1, s2, s3, s4] = pal32([SW[1], SW[2], SW[3], SW[4]]);
+  p.scan(1, bottom - 1, W - 1, bottom + 1, (x, y) => {
+    const e = Math.abs(x - W / 2) / (W / 2 - 1), top = bottom - 1 + Math.max(0, (e - 0.75) * 4);
+    if (e > 1 || y < top) return 0;
+    if (y < top + 0.5) return x < W / 2 ? s3 : s2;
+    return y > bottom + 0.5 ? s1 : tri(x * 0.25 + v) > 0.85 ? s4 : s2;
+  });
+  if (v !== 1) {
+    const lx = (v === 0 ? 15 : 4) + 0.5, ly = bottom - 0.5;
+    p.each(lx - 4, ly - 2, lx + 4, ly + 2, (x, y) => {
+      const nx = (x - lx) / 3.5, ny = (y - ly) / 1.3;
+      if (nx * nx + ny * ny > 1) return null;
+      if (ny > -0.1 && Math.abs(nx - ny * 0.4 - 0.15) < 0.12) return SW[1];          // Kerbe
+      return ny > 0.45 ? MOSS[3] : nx + ny < -0.6 ? MOSS[6] : MOSS[4];
+    });
+    p.dot(lx - 1.5, ly - 0.5, MOSS[6]);
+  }
+  const n = 6 + v * 2;
+  for (let i = 0; i < n; i++) {
+    const x = 3 + rng.int(0, 13), h = rng.int(10, 22), bend = rng.range(-3, 3);
+    fBlade(p, x, bottom - 1, h, bend, REED, 1, bend < 0 ? 5 : 4);
+    if (rng.chance(0.5)) {
+      const kx = x + 0.5 + bend * 0.64 * 0.64 + 0.5, ky = bottom - 1 - Math.round(h * 0.8);
+      p.fline(kx - 0.25, ky - 0.5, kx - 0.25, ky - 2, REED[3]);
+      p.each(kx - 1.2, ky - 0.5, kx + 1.2, ky + 4.5, (xx, yy) => {
+        const nx = (xx - kx) / 1, ny = (yy - ky - 2) / 2.2;
+        if (nx * nx + Math.max(0, Math.abs(ny) - 0.55) ** 2 * 6 > 1) return null;
+        return nx < -0.4 ? CATT[3] : nx < 0.4 ? CATT[2] : CATT[1];
+      });
+      p.dot(kx - 0.75, ky + 0.25, '#8a5a34');
+    }
+    fRing(p, x + 0.5, bottom + 0.5, 1.4, 0.7);
+  }
+  for (let i = 0; i < 4; i++) {
+    const x = 3 + rng.int(0, 12), dx = i % 2 ? 5 : -4, c = REED[i % 2 ? 3 : 5];
+    fpoly(p, [[x, bottom], [x + dx + 0.5, bottom - 9], [x + 2, bottom]], (xx, yy) => {
+      const t = (bottom - yy) / 9, mid = x + 1 + (dx - 0.5) * t;
+      return Math.abs(xx - mid) < 0.3 ? REED[2] : (xx < mid) === (dx < 0) ? REED[2] : c;
+    });
+  }
+  if (v === 2) { p.fline(11, 6.25, 13.75, 6.25, '#2a8a8a'); p.dot(13.75, 6.25, '#6ae0d0'); p.dot(12, 5.75, '#6ae0d0'); p.dot(12.5, 5.75, '#9ef0e0'); }
 }
 
 // ------------------------------------------------------------ Leuchtpilze
@@ -248,17 +665,26 @@ function mushrooms(v) {
   const G = [GLT, GLV, GLG][v];
   return mk(W, H, (p, g) => {
     const bottom = H - 1;
-    mudPatch(p, 10, bottom - 1, 8, 2, 1080 + v, false);
-    for (let x = 3; x < 17; x++) if (hash2(x, 1, 1081 + v) < 0.5) p.px(x, bottom - 2, MOSS[3 + (x % 2)]);
+    if (p.fine) {
+      fMud(p, 10, bottom - 1, 8, 2, 1080 + v, false);
+      for (let x = 3; x < 17; x++) if (hash2(x, 1, 1081 + v) < 0.5) { p.oval(x + 0.5, bottom - 1.6, 0.9, 0.6, MOSS[3 + (x % 2)]); p.dot(x + 0.25, bottom - 2, MOSS[5]); }
+    } else {
+      mudPatch(p, 10, bottom - 1, 8, 2, 1080 + v, false);
+      for (let x = 3; x < 17; x++) if (hash2(x, 1, 1081 + v) < 0.5) p.px(x, bottom - 2, MOSS[3 + (x % 2)]);
+    }
     const sets = [
       [[6, bottom - 1, 2, 5], [11, bottom - 1, 3, 9], [15, bottom, 1, 3], [8, bottom, 1, 2]],
       [[9, bottom - 1, 4, 6], [4, bottom, 2, 3], [15, bottom - 1, 2, 4]],
       [[10, bottom - 1, 5, 4], [4, bottom, 1, 2], [16, bottom, 2, 2]],
     ][v];
-    sets.forEach(([x, y, r, h], k) => glowShroom(p, g, x, y, r, h, G, 1082 + v * 5 + k));
-    // Sporen in der Luft
-    for (let k = 0; k < 4; k++) { const x = 3 + Math.round(hash2(k, 0, 1090 + v) * 14), y = 1 + Math.round(hash2(k, 1, 1090 + v) * 7); g.px(x, y, G[3]); }
-  }, { ax: 10 });
+    sets.forEach(([x, y, r, h], k) => (p.fine ? fShroom : glowShroom)(p, g, x, y, r, h, G, 1082 + v * 5 + k));
+    // Sporen in der Luft (fein: heißer Kern, Saum)
+    for (let k = 0; k < 4; k++) {
+      const x = 3 + Math.round(hash2(k, 0, 1090 + v) * 14), y = 1 + Math.round(hash2(k, 1, 1090 + v) * 7);
+      if (!g.fine) { g.px(x, y, G[3]); continue; }
+      g.dot(x + 0.25, y + 0.25, G[4]); g.dot(x + 0.75, y + 0.25, G[2]); g.dot(x + 0.25, y + 0.75, G[2]); g.dot(x - 0.25, y + 0.25, G[1]); g.dot(x + 0.25, y - 0.25, G[1]);
+    }
+  }, { ax: 10, b: true });
 }
 
 // ------------------------------------------------------------ Moosfelsen
@@ -267,6 +693,7 @@ function mossRock(v) {
   const [W, H] = [[22, 16], [30, 21], [16, 12]][v];
   return mk(W, H, (p) => {
     const cx = W / 2, by = H - 1;
+    if (p.fine) { mossRockFine(p, v, rng, W, H); return; }
     mudPatch(p, Math.floor(cx), by - 1, Math.floor(W / 2) - 1, 2, 1100 + v, v !== 2);
     const lumps = [[[cx, by - 6, 9.5, 6.4]], [[cx - 3, by - 8.5, 10, 8.5], [cx + 8, by - 4.5, 5.5, 4.4]], [[cx, by - 4.5, 6.6, 4.4]]][v];
     lumps.forEach(([x, y, rx, ry], k) => {
@@ -278,7 +705,33 @@ function mossRock(v) {
     // Pilzchen / Farnreste
     if (v === 1) { p.px(4, by - 2, '#a08a60'); p.px(4, by - 3, '#c0a878'); p.px(5, by - 3, '#806a48'); }
     for (let i = 0; i < 3 + v; i++) blade(p, rng.int(1, W - 2), by, rng.int(1, 3), rng.range(-1.5, 1.5), REED, 1, 4);
-  }, { ax: Math.floor(W / 2), box: [-Math.floor(W / 2) + 2, -4, Math.floor(W / 2) - 2, 1] });
+  }, { ax: Math.floor(W / 2), box: [-Math.floor(W / 2) + 2, -4, Math.floor(W / 2) - 2, 1], b: true });
+}
+// Stufe B: nasser Fels in harten Stufen mit kühlem Reflex unten rechts, Moospolster mit Tropfnasen auf der
+// Lichtseite, Nässeglanz oben links, Risse mit Lichtlippe, Halme am Fuß.
+function mossRockFine(p, v, rng, W, H) {
+  const cx = W / 2, by = H - 1;
+  fMud(p, Math.floor(cx), by - 1, Math.floor(W / 2) - 1, 2, 1100 + v, v !== 2);
+  const lumps = [[[cx, by - 6, 9.5, 6.4]], [[cx - 3, by - 8.5, 10, 8.5], [cx + 8, by - 4.5, 5.5, 4.4]], [[cx, by - 4.5, 6.6, 4.4]]][v];
+  const RP = MST.slice(0, 7);
+  lumps.forEach(([x, y, rx, ry], k) => {
+    const seed = 1101 + v * 3 + k;
+    boulder(p, x, y, rx, ry, RP, seed, { lo: 1, hi: 6, bias: -0.04, rough: 0.12, flat: 0.25, rimC: MST[3], keep: k ? (xx, yy) => yy > y - ry * 0.4 || xx > x - rx * 0.3 : null });
+    // Riss: dunkle Linie, darunter Lichtlippe
+    const c0 = x + rx * (0.15 - 0.3 * hash2(seed, 2, 1)), c1 = c0 + rx * 0.25;
+    p.fline(c0, y - ry * 0.35, c1, y + ry * 0.35, MST[1]); p.fline(c0 + 0.5, y - ry * 0.35 + 0.5, c1 + 0.5, y + ry * 0.35 + 0.5, MST[4]);
+    // Nässeglanz
+    p.dot(x - rx * 0.45, y - ry * 0.5, MST[7]); p.dot(x - rx * 0.45 + 0.5, y - ry * 0.5, MST[6]); p.dot(x - rx * 0.3, y - ry * 0.62, MST[6]);
+    const top = fTop(p, x - rx * 1.2, x + rx * 1.2, y - ry * 1.3, y);
+    fMossCap(p, top, 2.2 + (k === 0 ? 0.8 : 0), seed + 1, x + rx * 0.6);
+    // nasse Schlieren unter dem Moos
+    for (let i = 0; i < 3; i++) {
+      const xx = Math.round(x + rng.range(-rx * 0.5, rx * 0.5)) + 0.25, t = top.find(([tx]) => Math.abs(tx - xx) < 0.3), l = rng.int(2, 4);
+      if (t) p.fline(xx, t[1] + 2.5, xx, t[1] + 2.5 + l, MST[2]);
+    }
+  });
+  if (v === 1) { p.fline(4.25, by - 1.5, 4.25, by - 3, '#a08a60'); p.oval(4.6, by - 3.2, 1, 0.6, '#c0a878'); p.dot(5.25, by - 3, '#806a48'); }
+  for (let i = 0; i < 3 + v; i++) fBlade(p, rng.int(1, W - 2), by, rng.int(1, 3), rng.range(-1.5, 1.5), REED, 1, 4);
 }
 
 // ------------------------------------------------------------ Pfahlhütte
@@ -355,6 +808,13 @@ function stiltHut() {
     ax: 31, box: [-26, -8, 26, 1],
     light: { dx: -21, dy: -40, radius: 70, color: [220, 210, 120], intensity: 0.75 },
     extra: { smoke: { dx: 9, dy: -60, rate: 1.2 } },
+    fine: (f, g) => {
+      fWindow(f, g, 15, 29, 4, 3, 17);
+      fLamp(f, g, 8, 30, 3, 3, ['#4a4418', '#6a6420', '#c8c050', '#f0e080', '#fff8c8']);
+      f.dot(8.25, 29.25, IRON[4]); f.fline(8, 33.25, 10.75, 33.25, IRON[2]);
+      // Geweih am First: Lichtkante
+      f.fline(24, 3.25, 21.25, 0.5, BONE[4]);
+    },
   });
 }
 
@@ -447,7 +907,10 @@ function watchtower() {
     const lx = 34, ly = 17;
     p.line(lx + 1, 15, lx + 1, ly - 1, IRON[2]); p.rect(lx - 1, ly, 5, 1, IRON[2]); p.rect(lx, ly + 1, 3, 4, '#4a4418'); p.px(lx + 1, ly + 2, '#fff0a0'); p.px(lx, ly + 3, '#c8c050'); p.rect(lx - 1, ly + 5, 5, 1, IRON[1]);
     g.rect(lx, ly + 1, 3, 4, '#b0b040'); g.px(lx + 1, ly + 2, '#fff8c0');
-  }, { ax: 22, box: [-15, -6, 15, 1], light: { dx: 13, dy: -50, radius: 70, color: [220, 220, 120], intensity: 0.8 } });
+  }, {
+    ax: 22, box: [-15, -6, 15, 1], light: { dx: 13, dy: -50, radius: 70, color: [220, 220, 120], intensity: 0.8 },
+    fine: (f, g) => { fLamp(f, g, 34, 18, 3, 4, ['#4a4418', '#6a6420', '#c8c050', '#f0e080', '#fff8c8']); f.fline(33, 17.25, 37.75, 17.25, IRON[4]); },
+  });
 }
 
 // ------------------------------------------------------------ Bannerstange (Moorvolk)
@@ -520,7 +983,19 @@ function campfireBig() {
       if (Math.sin(a) < -0.2) continue;
       p.ellipse(x, y, 2, 1.4, S[3]); p.px(x - 1, y - 1, S[6]); p.px(x, y - 1, S[5]); if (i % 3 === 0) p.px(x + 1, y - 1, MOSS[5]);
     }
-  }, { ax: 18, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 106, color: [255, 160, 80], intensity: 0.95 }, extra: { smoke: { dx: 0, dy: -14, rate: 2 }, embers: { dx: 0, dy: -8, rate: 1.5 } } });
+  }, {
+    ax: 18, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 106, color: [255, 160, 80], intensity: 0.95 }, extra: { smoke: { dx: 0, dy: -14, rate: 2 }, embers: { dx: 0, dy: -8, rate: 1.5 } },
+    fine: (f, g) => {
+      const cx = 18, cy = H - 6;
+      const kettle = (x, y) => ((x - cx - 0.5) / 4.5) ** 2 + ((y - cy + 5.5) / 3.4) ** 2 < 1;
+      fFlame(f, g, cx - 1.5, cy - 1.5, 4, 1.2, -0.6, kettle); fFlame(f, g, cx + 2.5, cy - 1.5, 3.5, 1.1, 0.6, kettle); fFlame(f, g, cx + 0.5, cy - 1, 5, 1.5, 0.3, kettle);
+      for (const [x, y] of [[cx - 5, cy + 1], [cx + 5, cy + 1], [cx - 2, cy + 2], [cx + 3, cy + 2], [cx - 6, cy - 0.5]]) { f.dot(x + 0.25, y + 0.25, EMB[4]); g.dot(x + 0.25, y + 0.25, '#fff0b0'); g.dot(x + 0.75, y + 0.25, EMB[4]); }
+      // grüner Sud im Kessel: Glanz und Blasen mit Kern
+      f.fline(cx - 2.5, cy - 9 + 0.25, cx - 0.5, cy - 9 + 0.25, GLG[3]); f.dot(cx + 1.25, cy - 9.25, GLG[4]); g.dot(cx + 1.25, cy - 9.25, GLG[4]); g.dot(cx + 1.75, cy - 9.25, GLG[3]);
+      f.dot(cx - 0.75, cy - 10.75, GLG[3]); g.dot(cx - 0.75, cy - 10.75, GLG[4]);
+      f.fline(cx - 3, cy - 7.75, cx - 2, cy - 7.75, IRON[5]);
+    },
+  });
 }
 
 // ------------------------------------------------------------ Fäulnistotem (Schrein)
@@ -592,7 +1067,20 @@ function rotTotem(on, kind = 'rot') {
     // Sporenwolke (aktiv)
     if (on) for (let k = 0; k < 10; k++) { const x = 4 + Math.round(hash2(k, 0, 1175) * 18), y = 2 + Math.round(hash2(k, 1, 1175) * 26); p.px(x, y, GLG[3]); g.px(x, y, k % 3 ? GLG[3] : GLG[4]); }
     totemOverlay(p, g, kind, on, bottom);
-  }, { ax: 12, box: [-5, -3, 5, 1], light: on ? { dx: 0, dy: -24, radius: 76, color: [120, 240, 150], intensity: 0.85 } : undefined });
+  }, {
+    ax: 12, box: [-5, -3, 5, 1], light: on ? { dx: 0, dy: -24, radius: 76, color: [120, 240, 150], intensity: 0.85 } : undefined,
+    fine: (f, g) => {
+      // Schädel: Stirnlicht, Nasenloch, Augenhöhlen (aktiv mit heißem Kern), Geweih mit Lichtgrat
+      const sx = 12, sy = 6;
+      f.fline(sx - 1.75, sy + 0.25, sx + 2.75, sy + 0.25, BONE[4]); f.dot(sx + 0.75, sy + 4.25, INTERIOR); f.dot(sx + 0.75, sy + 4.75, BONE[1]);
+      f.fline(sx - 0.75, sy + 7.25, sx + 2.75, sy + 7.25, BONE[1]);
+      for (const ex of [sx - 1, sx + 2]) { if (on) { fEye(f, g, ex, sy + 2, GLG); g.dot(ex + 0.25, sy + 3.25, GLG[3]); } else f.dot(ex + 0.25, sy + 2.25, '#000000'); }
+      f.fline(sx - 2, sy + 0.75, sx - 5.5, sy - 2.25, BONE[4]); f.fline(sx - 6, sy - 2.5, sx - 7.5, sy - 5.5, BONE[4]); f.dot(sx - 9.75, sy - 2.75, BONE[4]);
+      // Fratze: Kerbkanten und Augen
+      f.fline(10, 24.25, 15.75, 24.25, ROT[0]); f.fline(10, 23.75, 15.75, 23.75, ROT[5]);
+      if (on) { fEye(f, g, 11, 22, GLG); fEye(f, g, 14, 22, GLG); g.fline(11.25, 26.75, 14.75, 26.75, GLG[2]); }
+    },
+  });
 }
 
 // ------------------------------------------------------------ Umgestürzter Wagen (aufhebbar)
@@ -706,6 +1194,7 @@ function sporeGate() {
   const W = 84, H = 64;
   return mk(W, H, (p, g) => {
     const by = H - 1, cx = 42;
+    if (p.fine) { sporeGateFine(p, g, W, H); return; }
     mudPatch(p, cx, by - 2, 40, 3, 1211, false);
     // Felsmassiv
     const top = shadeLump(p, cx, by - 20, 40, 26, MST.slice(0, 7), 1212, { rough: 0.1, flat: 0.5, noise: 0.14, rim: MST[3] });
@@ -759,8 +1248,84 @@ function sporeGate() {
   }, {
     ax: 42,
     light: { dx: 0, dy: -18, radius: 84, color: [190, 110, 255], intensity: 0.7 },
-    extra: { boxes: [[-40, -14, -15, 1], [15, -14, 40, 1], [-15, -40, 15, -24]], door: { dx: 0, dy: -3 } },
+    extra: { boxes: [[-40, -14, -15, 1], [15, -14, 40, 1], [-15, -40, 15, -24]], door: { dx: 0, dy: -3 } }, b: true,
   });
+}
+
+// Stufe B: Felsmassiv in harten Stufen mit eingebetteten Brocken und Spalten, dickes Moospolster, Pilzmaul mit
+// gestufter Lippe, feinen Lamellen-Rippen und Zähnen, Schlund mit gestuftem Leuchten (heißer Kern), Riesenpilze fein.
+function sporeGateFine(p, g, W, H) {
+  const by = H - 1, cx = 42, X = cx + 0.5;
+  fMud(p, cx, by - 2, 40, 3, 1211, false);
+  const RP = MST.slice(0, 7);
+  boulder(p, X, by - 19.5, 40, 26, RP, 1212, { lo: 1, hi: 6, bias: 0.02, rough: 0.1, flat: 0.5, rimC: MST[3] });
+  // eingebettete Brocken (eigenes Licht, dunkle Fuge unten rechts)
+  const inRock = (x, y) => { const dx = (x - X) / 40, dy = (y - by + 19.5) / 26; return dx * dx + dy * dy < 0.8; };
+  for (const [x, y, rx, ry, sd] of [[10, by - 16, 5, 3.6, 1], [20, by - 30, 6, 4, 2], [66, by - 22, 6.5, 4.4, 3], [74, by - 12, 4.5, 3.2, 4], [56, by - 36, 5, 3.4, 5], [8, by - 5, 4, 2.6, 6], [76, by - 4, 4, 2.6, 7], [32, by - 40, 4.5, 3, 8]]) {
+    if (!inRock(x, y)) continue;
+    p.each(x - rx, y - ry, x + rx + 1, y + ry + 1, (xx, yy) => { const nx = (xx - x - 0.6) / rx, ny = (yy - y - 0.6) / ry; return nx * nx + ny * ny <= 1 && nx + ny > 0.4 ? MST[1] : null; });
+    boulder(p, x, y, rx, ry, RP, 1230 + sd, { lo: 2, hi: 6, bias: -0.08, rough: 0.15, flat: 0.15 });
+  }
+  const top = fTop(p, 0, W, 0, by - 10);
+  fMossCap(p, top, 3.6, 1213);
+  for (const [x, y, l] of [[12, by - 30, 10], [70, by - 26, 9], [22, by - 14, 6]]) {
+    for (let i = 0; i < l; i += 0.5) { const xx = x + 0.5 + Math.sin(i) * 1; p.dot(xx, y + i, MST[0]); p.dot(xx + 0.5, y + i, MST[4]); }
+  }
+  // Pilzmaul: äußere Lippe in Stufen
+  const mcx = X, mcy = by - 13.5, mrx = 17, mry = 14;
+  const F = pal32(FLESH), SW_ = (x, y, rx, ry) => { const dx = (x - mcx) / rx, dy = (y - mcy) / ry; return [dx, dy, dy > 0 ? Math.abs(dx) : Math.hypot(dx, dy)]; };
+  p.scan(mcx - mrx - 4, mcy - mry - 3, mcx + mrx + 4, by + 1, (x, y) => {
+    const [dx, dy, d] = SW_(x, y, mrx + 4, mry + 3);
+    if (d > 1 || y > by + 1) return 0;
+    if (d > 0.93) return F[dx < -0.3 && dy < 0.2 ? 2 : 1];
+    const l = -dx * 0.5 - (dy < 0 ? dy : 0) * 0.7;
+    return F[clampI(Math.floor(2.5 + l * 2.5), 6)];
+  });
+  // Lamellen (radiale Rippen) und Schlund
+  const ribA = (x, y) => Math.abs(Math.sin(Math.atan2(y - mcy, x - mcx) * 9));
+  const [i0, i1] = pal32([INTERIOR, '#120a10']);
+  p.scan(mcx - mrx, mcy - mry, mcx + mrx, by + 1, (x, y) => {
+    const [, , d] = SW_(x, y, mrx, mry);
+    if (d > 1 || y > by + 1) return 0;
+    const r = ribA(x, y);
+    if (d < 0.6) return i0;
+    if (d < 0.72) return r > 0.8 ? F[2] : i1;
+    if (r > 0.75) return r > 0.93 && d < 0.95 ? F[5] : x < mcx ? F[4] : F[3];
+    return d > 0.96 ? F[0] : F[1];
+  });
+  // Zähne: spitze Kegel zum Schlund, Lichtseite oben links
+  const tooth = (x, y, ux, uy, len) => {
+    const nx = -uy, ny = ux, b = 0.9;
+    fpoly(p, [[x + nx * b, y + ny * b], [x + ux * len, y + uy * len], [x - nx * b, y - ny * b]], (xx, yy) => {
+      const t = ((xx - x) * ux + (yy - y) * uy) / len, side = (xx - x) * nx + (yy - y) * ny;
+      return t > 0.65 ? '#786a60' : side * (nx + ny) < 0 ? '#d8c8b8' : '#a89888';
+    });
+  };
+  for (let k = 0; k < 11; k++) {
+    const a = Math.PI + (k / 10) * Math.PI, x = mcx + Math.cos(a) * mrx * 0.74, y = mcy + 0.5 + Math.sin(a) * mry * 0.74;
+    tooth(x, y, -Math.cos(a), -Math.sin(a), 2.6);
+  }
+  for (const s2 of [-1, 1]) for (let k = 0; k < 3; k++) tooth(mcx + s2 * mrx * 0.72, mcy + 3.5 + k * 4, -s2, 0, 2.4);
+  // Leuchten tief im Schlund: gestufte Ringe, heißer Kern
+  const gx = mcx, gyc = mcy + 4.5;
+  p.each(gx - 8, gyc - 10, gx + 8, by + 1, (x, y) => {
+    const d = Math.hypot((x - gx) / 8, (y - gyc) / 10);
+    if (d >= 1 || y > by + 1) return null;
+    return d < 0.22 ? GLV[1] : d < 0.55 || Math.floor(y * 2) % 2 ? GLV[0] : null;
+  });
+  g.each(gx - 8, gyc - 10, gx + 8, by + 1, (x, y) => {
+    const d = Math.hypot((x - gx) / 8, (y - gyc) / 10);
+    if (d >= 1 || y > by + 1) return null;
+    return d < 0.08 ? GLV[4] : d < 0.22 ? GLV[3] : d < 0.4 ? GLV[2] : d < 0.55 || Math.floor(y * 2) % 2 ? GLV[1] : null;
+  });
+  // Riesenpilze auf dem Fels, kleine am Fuß
+  for (const [x, y, r, G] of [[20, by - 36, 7, GLV], [30, by - 42, 5, GLT], [60, by - 38, 8, GLV], [70, by - 30, 4, GLG], [12, by - 22, 3, GLT]]) fShroom(p, g, x, y, r, Math.round(r * 1.6), G, x * 7 + y);
+  for (const [x, G] of [[8, GLT], [18, GLV], [66, GLG], [76, GLT]]) fShroom(p, g, x, by - 1, 1, 2, G, x);
+  for (let k = 0; k < 18; k++) {
+    const x = 6 + Math.round(hash2(k, 0, 1215) * 72) + 0.25, y = 2 + Math.round(hash2(k, 1, 1215) * 30) + 0.25, G = k % 3 ? GLV : GLT;
+    g.dot(x, y, G[4]); g.dot(x + 0.5, y, G[2]); g.dot(x, y + 0.5, G[2]);
+    if (k % 4 === 0) p.dot(x, y, G[3]);
+  }
 }
 
 // ------------------------------------------------------------ Laternenpfahl
@@ -783,7 +1348,10 @@ function lanternPost() {
     g.rect(lx, ly + 1, 3, 5, '#a8a040'); g.px(lx + 1, ly + 2, '#fffad0'); g.px(lx + 1, ly + 3, '#fff0a0');
     // Nachtfalter
     p.px(lx + 4, ly - 2, '#8a8a70'); g.px(lx + 4, ly - 2, '#403c20');
-  }, { ax: 5, box: [-2, -2, 2, 1], light: { dx: 6, dy: -30, radius: 64, color: [230, 220, 130], intensity: 0.8 } });
+  }, {
+    ax: 5, box: [-2, -2, 2, 1], light: { dx: 6, dy: -30, radius: 64, color: [230, 220, 130], intensity: 0.8 },
+    fine: (f, g) => { fLamp(f, g, 11, 9, 3, 5); f.fline(10, 8.25, 14.75, 8.25, IRON[4]); f.dot(12.25, 7.25, IRON[5]); f.fline(10, 15.25, 14.75, 15.25, IRON[3]); },
+  });
 }
 
 // ============================================================ Runde 5: Inselarchipel
@@ -798,14 +1366,45 @@ function lanternPost() {
 const PLANK = ['#0e0d0b', '#191713', '#25221b', '#322d23', '#40392c', '#4f4635', '#615643', '#776a52'];
 const SILT = ['#2a2c20', '#3a3c2a', '#4e4e36'];
 
-// Flaches Sprite ohne Umriss; Leuchtebene in Sprite-Größe (Anker gleich).
-function flat(W, H, ax, ay, draw, extra = null) {
-  const p = new PixelCanvas(W, H), gl = new PixelCanvas(W, H);
-  let used = false;
-  const g = { px: (x, y, c) => { used = true; gl.px(x, y, c); }, rect: (x, y, w, h, c) => { used = true; gl.rect(x, y, w, h, c); } };
+// Flaches Sprite ohne Umriss; Leuchtebene in Sprite-Größe (Anker gleich). Mit up (oder fine) im Feinraster ×2 mit Scale2x
+// (Rand geklemmt, damit gekachelte Bohlen an den Zellkanten keine Kerben bekommen), frame.res = 2; Leuchtebene ebenso.
+// fine(f, g): optionale feine Zusätze (DecoCanvas über dem hochskalierten Bild, g.dot fein).
+function scale2xClamp(sd, w, h) {
+  const od = new Uint32Array(w * h * 4), W2 = w * 2;
+  const at = (x, y) => { const v = sd[Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))]; return (v >>> 24) > 40 ? v : 0; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const E = sd[y * w + x];
+    let e0 = E, e1 = E, e2 = E, e3 = E;
+    const B = at(x, y - 1), D = at(x - 1, y), F = at(x + 1, y), Hh = at(x, y + 1);
+    if (B !== Hh && D !== F) { if (D === B) e0 = D; if (B === F) e1 = F; if (D === Hh) e2 = D; if (Hh === F) e3 = F; }
+    const o = y * 2 * W2 + x * 2;
+    od[o] = e0; od[o + 1] = e1; od[o + W2] = e2; od[o + W2 + 1] = e3;
+  }
+  return od;
+}
+function flat(W, H, ax, ay, draw, extra = null, fine = null, up = !!fine) {
+  const p = new PixelCanvas(W, H);
+  let gl = null;                            // Leuchtebene erst bei Bedarf
+  const G = () => (gl ??= new PixelCanvas(W, H));
+  const g = { px: (x, y, c) => G().px(x, y, c), rect: (x, y, w, h, c) => G().rect(x, y, w, h, c) };
   draw(p, g);
-  const e = { sprite: new SpriteFrame(p.canvas, ax, ay) };
-  if (used) e.glow = gl.canvas;
+  const used = !!gl, res = fineRes();
+  let e;
+  if (res === 1 || !up) {
+    e = { sprite: new SpriteFrame(p.canvas, ax, ay) };
+    if (used) e.glow = gl.canvas;
+  } else {
+    let d = scale2xClamp(canvasPixels(p.canvas), W, H), gd = used ? scale2xClamp(canvasPixels(gl.canvas), W, H) : null;
+    if (fine) {
+      const f = new DecoCanvas(W, H, res), gf = new DecoCanvas(W, H, res);
+      f.buf = d; if (gd) gf.buf = gd;
+      let gu = false;
+      fine(f, { fine: true, dot: (x, y, c) => { gu = true; gf.dot(x, y, c); }, each: (...a) => { gu = true; gf.each(...a); }, fline: (...a) => { gu = true; gf.fline(...a); } });
+      d = f.pixels(); if (gu || gd) gd = gf.pixels();
+    }
+    e = { sprite: new SpriteFrame(pixelsToCanvas(d, W * res, H * res), ax * res, ay * res, res) };
+    if (gd) e.glow = pixelsToCanvas(gd, W * res, H * res);
+  }
   if (extra) Object.assign(e, extra);
   return e;
 }
@@ -912,7 +1511,8 @@ function deckCarrier(v, post, lantern = false) {
       // Lichtfleck auf den Brettern
       for (let y = a + 2; y < a + 9; y++) for (let x = 4; x < 14; x++) if (((x + y) & 1) && Math.hypot(x - 9, (y - a - 5) * 1.6) < 5) p.px(x, y, PLANK[6]);
     }
-  }, lantern ? { light: { dx: 1, dy: -16, radius: 66, color: [230, 220, 130], intensity: 0.8 } } : null);
+  }, lantern ? { light: { dx: 1, dy: -16, radius: 66, color: [230, 220, 130], intensity: 0.8 } } : null,
+  lantern ? (f, g) => { const ly = top - 22; fLamp(f, g, 8, ly + 1, 3, 5); f.fline(7, ly + 0.25, 11.75, ly + 0.25, IRON[4]); } : null);
 }
 // Nord-Süd-Steg (1 breit) und breite Gänge: waagrechte Bretter. side: 'one' | 'L' | 'R'
 function stegNS(v, post, side = 'one') {
@@ -964,7 +1564,7 @@ function fordShallows(v) {
       p.px(Math.round(sx - rx - 1), Math.round(sy + ry), SW[4]); p.px(Math.round(sx + rx + 1), Math.round(sy + ry), SW[5]);
     }
     for (let k = 0; k < 3; k++) { const x = 3 + Math.floor(hash2(k, v, 2320) * 13), y = 1 + Math.floor(hash2(k, v, 2321) * 14); p.px(x, y, SW[5]); p.px(x + 1, y, SW[4]); }
-  });
+  }, null, null, true);
 }
 // Dammufer: Faschinen (Reisigbündel) und Pflöcke an der Böschungskante
 function fascine(p, x0, x1, y, seed) {
@@ -1031,7 +1631,7 @@ function lilyPads(v) {
     });
     if (v !== 1) { const [x, y] = pads[1]; p.px(x - 1, y - 2, '#e8d8e0'); p.px(x, y - 2, '#f8eef2'); p.px(x + 1, y - 2, '#d8b8c8'); p.px(x, y - 3, '#ffffff'); p.px(x, y - 1, '#e0c040'); }
     for (let k = 0; k < 4; k++) { const x = 2 + Math.floor(hash2(k, v, 2501) * 24), y = 2 + Math.floor(hash2(k, v, 2502) * 12); p.px(x, y, SW[4]); }
-  });
+  }, null, null, true);
 }
 // Versunkene Dächer: v0 Strohgiebel, v1 Schieferdach mit Schornstein, v2 Kapellenspitze
 function sunkenRoof(v) {
@@ -1087,7 +1687,7 @@ function sunkenRoof(v) {
     }
     p.px(2, wl + 2, SW[4]); p.px(W - 3, wl + 2, SW[4]); p.px(3, wl + 3, SW[3]); p.px(W - 4, wl + 3, SW[3]);
     if (v === 0) { g.px(cx + 5, wl - 5, GLG[2]); p.px(cx + 5, wl - 5, GLG[3]); }                  // Irrlicht im Dachloch
-  });
+  }, null, null, true);
 }
 // Nebelschwaden über dem Nebelsee (halbdurchsichtig)
 function mistWisps(v) {
@@ -1125,7 +1725,7 @@ function drownedBoat(v) {
       beard(q, bx + s, wl - 12, 5, v + 1);
     });
     for (let x = 3; x < W - 3; x += 2) if (hash2(x, v, 2801) < 0.6) p.px(x, wl, SW[4]);
-  });
+  }, null, null, true);
 }
 // Riesenpilze (Pilzwald)
 function giantShroom(v) {
@@ -1135,6 +1735,7 @@ function giantShroom(v) {
   const capR = [17, 21, 14][v], capY = [20, 22, 18][v];
   return mk(W, H, (p, g) => {
     const by = H - 1;
+    if (p.fine) { giantShroomFine(p, g, v, G, CAP, H, W, cx, capR, capY); return; }
     mudPatch(p, cx, by - 1, 14, 3, 2900 + v);
     // Stiel: leicht gebogen, Ring, Knolle
     const bend = [3, -4, 2][v];
@@ -1177,7 +1778,92 @@ function giantShroom(v) {
     // kleine Pilze am Fuß, schwebende Sporen
     glowShroom(p, g, cx - 9, by - 1, 2, 3, G, 2950 + v); glowShroom(p, g, cx + 10, by, 1, 2, G, 2951 + v);
     for (let k = 0; k < 6; k++) { const x = 6 + Math.floor(hash2(k, 5, 2960 + v) * 44), y = 2 + Math.floor(hash2(k, 6, 2960 + v) * (capY + 6)); g.px(x, y, G[3]); if (k % 2) p.px(x, y, G[3]); }
-  }, { ax: cx, box: [-5, -4, 5, 1], light: { dx: 0, dy: -(H - capY) + 4, radius: 74, color: [[190, 110, 255], [90, 230, 210], [110, 240, 140]][v], intensity: 0.55 } });
+  }, { ax: cx, box: [-5, -4, 5, 1], light: { dx: 0, dy: -(H - capY) + 4, radius: 74, color: [[190, 110, 255], [90, 230, 210], [110, 240, 140]][v], intensity: 0.55 }, b: true });
+}
+// Riesenpilz-Hut fein: Kuppel in harten Stufen (CAP), Lamellen strahlenförmig mit Leuchtkern, Leuchtflecken mit heißem
+// Kern, Sporenfäden mit Perlen. X = Mitte (stetig), capY = Unterkante wie im alten Code.
+function bigCapFine(p, g, X, capY, capR, CAP, G, seed, spots) {
+  const P = pal32(G), C = pal32(CAP);
+  // Lamellen-Unterseite: Bogen unter dem Hutrand, Rippen zur Stielmitte
+  const gy = capY + 0.5;
+  p.scan(X - capR + 1.5, capY, X + capR - 1.5, capY + 4.5, (x, y) => {
+    const d = Math.abs(x - X) / capR, yy = capY + 1.5 + (1 - d * d) * 3;
+    if (y > yy || d > 0.92) return 0;
+    const a = Math.atan2(y - gy + 1, x - X), rib = fract(a * 7 / Math.PI + 0.5) < 0.42;
+    if (y < capY + 1) return P[d > 0.8 ? 3 : 1];
+    return rib ? P[d < 0.3 ? 1 : 2] : P[0];
+  });
+  g.each(X - capR + 1.5, capY, X + capR - 1.5, capY + 4.5, (x, y) => {
+    const d = Math.abs(x - X) / capR, yy = capY + 1.5 + (1 - d * d) * 3;
+    if (y > yy || d > 0.92) return null;
+    const a = Math.atan2(y - gy + 1, x - X), rib = fract(a * 7 / Math.PI + 0.5) < 0.42;
+    if (y < capY + 1) return d > 0.8 && fract(x * 0.7) < 0.5 ? G[4] : G[3];
+    return rib ? (d < 0.3 ? G[2] : G[3]) : G[1];
+  });
+  // Kuppel
+  p.scan(X - capR - 0.5, capY - 4 - capR * 0.6, X + capR + 0.5, capY + 1, (x, y) => {
+    const nx = (x - X) / (capR + 0.5), ny = (y - capY - 0.5) / (capR * 0.55 + 4.5);
+    const yl = capY + 0.5 + 0.6 * tri((x - X) * 0.45 + seed * 0.1);           // gewellte Hutkante
+    if (y > yl || nx * nx + ny * ny > 1) return 0;
+    let i = stepOf(shade(nx * 0.95, ny * 1.05 - 0.05), 1, 4);
+    if (y > yl - 0.5) i = nx < -0.5 ? 2 : 1;                                     // Hutrand
+    else if (y > yl - 1.5 && nx > -0.2) i = Math.min(i, 2);
+    return C[i];
+  });
+  // Leuchtflecken
+  for (let k = 0; k < spots; k++) {
+    const a = hash2(k, 0, seed) * Math.PI, r = Math.sqrt(hash2(k, 1, seed)) * 0.85;
+    const x = X + Math.cos(a) * capR * r, y = capY - 4 - Math.sin(a) * capR * 0.5 * r + 0.5, big = hash2(k, 2, 2930) < 0.4;
+    const rx = big ? 1.1 : 0.6, ry = rx * (0.55 + 0.4 * (1 - r));
+    p.each(x - rx - 0.5, y - ry - 0.5, x + rx + 0.5, y + ry + 0.5, (xx, yy) => {
+      const nx = (xx - x) / rx, ny = (yy - y) / ry, d = nx * nx + ny * ny;
+      return d > 1 ? null : d < 0.35 ? G[4] : G[3];
+    });
+    g.dot(x, y, G[4]); g.dot(x - 0.5, y, G[3]); g.dot(x + 0.5, y, G[3]); g.dot(x, y - 0.5, G[3]); g.dot(x, y + 0.5, G[2]);
+    if (big) { g.dot(x - 1, y, G[2]); g.dot(x + 1, y, G[2]); }
+  }
+}
+function giantShroomFine(p, g, v, G, CAP, H, W, cx, capR, capY) {
+  const by = H - 1, X = cx + 0.5, S = pal32(['#4a4638', '#5a5648', '#7c7868', '#a8a490', '#c8c4b0', '#dcd8c4']);
+  fMud(p, cx, by - 1, 14, 3, 2900 + v);
+  const bend = [3, -4, 2][v];
+  const sx = (y) => X + bend * Math.sin(((y - capY) / (by - capY)) * Math.PI);
+  const hw = (y) => { const t = (y - capY) / (by - capY); return 3.4 + t * t * 4 + (y > by - 5 ? Math.min(2, (y - by + 5) * 0.8) : 0); };
+  p.scan(cx - 14, capY, cx + 14, by, (x, y) => {
+    const w = hw(y), dx = x - sx(y);
+    if (dx < -w || dx >= w) return 0;
+    const rel = dx / w;
+    let i = rel < -0.55 ? 4 : rel < -0.05 ? 3 : rel < 0.5 ? 2 : rel < 0.85 ? 1 : 0;
+    if (rel > -0.85 && fract((dx + w) / 1.6) < 0.22 && hash2(Math.floor((dx + w) / 1.6), Math.floor(y / 4), 2910 + v) < 0.6) i -= 1;   // Fasern
+    if (rel < -0.75 && y > capY + 6) i = 5;
+    if (y < capY + 5 + rel * 1.5) i -= 1;                                                 // Hutschatten
+    if (y > by - 1.5) i -= 1;
+    return S[clampI(i, 6)];
+  });
+  // Manschette: hängender Ring mit Falten
+  const ry = capY + Math.round((by - capY) * 0.32), rc = sx(ry);
+  p.each(rc - 8, ry - 0.5, rc + 8, ry + 3.5, (x, y) => {
+    const dx = x - rc, e = Math.abs(dx) / 7.5;
+    if (e > 1) return null;
+    const low = ry + 2 + 0.9 * tri(dx * 0.55) - e * 0.8;
+    if (y < ry - 0.5 * (1 - e) || y > low) return null;
+    if (y < ry + 0.5) return dx < 0 ? '#e0dcc8' : '#b4b09c';
+    return y > low - 0.5 ? '#6a6656' : tri(dx * 0.55) > 0.6 ? '#7a7666' : dx < -2 ? '#a8a490' : '#8a8676';
+  });
+  bigCapFine(p, g, X, capY, capR, CAP, G, 2930 + v, 9 + v * 2);
+  // Sporenfäden mit Leuchtperle
+  for (let k = 0; k < 5; k++) {
+    const x = cx - capR + 3 + Math.floor(hash2(k, 3, 2940 + v) * (capR * 2 - 6)) + 0.25, len = 3 + Math.floor(hash2(k, 4, 2940) * 7);
+    p.fline(x, capY + 3, x, capY + 3 + len - 1, G[1]);
+    p.dot(x, capY + 2.5 + len, G[4]); p.dot(x + 0.5, capY + 2.5 + len, G[3]); p.dot(x, capY + 3 + len, G[3]);
+    g.dot(x, capY + 2.5 + len, G[4]); g.dot(x + 0.5, capY + 2.5 + len, G[3]); g.dot(x, capY + 3 + len, G[2]);
+  }
+  fShroom(p, g, cx - 9, by - 1, 2, 3, G, 2950 + v); fShroom(p, g, cx + 10, by, 1, 2, G, 2951 + v);
+  for (let k = 0; k < 6; k++) {
+    const x = 6 + Math.floor(hash2(k, 5, 2960 + v) * 44) + 0.25, y = 2 + Math.floor(hash2(k, 6, 2960 + v) * (capY + 6)) + 0.25;
+    g.dot(x, y, G[4]); g.dot(x + 0.5, y, G[2]); g.dot(x, y + 0.5, G[2]);
+    if (k % 2) p.dot(x, y, G[3]);
+  }
 }
 // Hexenhütte (Geheimecke im Pilzwald)
 function witchHut() {
@@ -1236,7 +1922,26 @@ function witchHut() {
     p.px(67, by - 21, GLG[3]); g.px(67, by - 21, GLG[4]); g.px(69, by - 21, GLG[4]); p.px(69, by - 21, GLG[3]);
     // Kerzen auf der Schwelle
     for (const x of [34, 50]) { p.rect(x, floorY - 5, 2, 3, '#d8d0b0'); p.px(x, floorY - 6, '#ffd060'); g.px(x, floorY - 6, '#ffe890'); g.px(x, floorY - 7, '#ffb040'); }
-  }, { ax: 36, box: [-24, -14, 26, -4], light: { dx: -26, dy: -8, radius: 84, color: [140, 240, 120], intensity: 0.8 }, extra: { smoke: { dx: 14, dy: -70, rate: 1.5 } } });
+  }, {
+    ax: 36, box: [-24, -14, 26, -4], light: { dx: -26, dy: -8, radius: 84, color: [140, 240, 120], intensity: 0.8 }, extra: { smoke: { dx: 14, dy: -70, rate: 1.5 } },
+    fine: (f, g) => {
+      // Rundfenster: gestuftes Grünlicht mit heißem Kern, Sprossenkreuz
+      const W2 = ['#1e4a14', '#3a8a2a', '#6ac04a', '#c8ff90'], WG = ['#2a6a1e', '#3a8a2a', '#4aa83a', '#e0ffc0'];
+      const bar = (x, y) => (x > 21.5 && x < 22.5) || (y > 46 && y < 46.5);
+      for (const [t, P] of [[f, W2], [g, WG]]) t.each(18.5, 42.5, 26.5, 50.5, (x, y) => { const d = Math.hypot(x - 22.5, y - 46.5); return d > 3.5 || (t === g && bar(x, y)) ? null : d > 2.8 ? P[0] : d > 1.8 ? P[1] : d > 0.7 ? P[2] : P[3]; });
+      f.fline(22.25, 43, 22.25, 50, ROT[2]); f.fline(19, 46.25, 26, 46.25, ROT[2]); f.fline(21.75, 43, 21.75, 50, ROT[4]);
+      // Kessel: Sud mit Glanz und Blasen
+      const kx = 9, ky = 65;
+      f.fline(kx - 4, ky - 4.75, kx - 1, ky - 4.75, '#6ac04a'); fEye(f, g, kx - 2, ky - 4.5, ['#1e4a14', '#3a8a2a', '#6ac04a', '#a8f070', '#e0ffc0']);
+      f.dot(kx + 1.25, ky - 6.25, '#a8f070'); g.dot(kx + 1.25, ky - 6.25, '#e0ffc0'); f.dot(kx - 0.75, ky - 8.25, '#6ac04a'); g.dot(kx - 0.75, ky - 8.25, '#a8f070');
+      f.fline(kx - 5, ky - 2.75, kx - 3, ky - 3.75, '#4a4a3c');
+      for (let x = kx - 4; x <= kx + 4; x += 2) { f.dot(x + 0.25, ky + 4.25, EMB[4]); g.dot(x + 0.25, ky + 4.25, '#fff0b0'); }
+      // Kerzen: kleine Flammen mit Kern
+      for (const x of [34, 50]) { fFlame(f, g, x + 0.75, 56.5, 2.2, 0.6); f.dot(x + 0.25, 57.25, '#fffbe8'); }
+      // Schädel auf dem Pfahl
+      fEye(f, g, 67, 50, GLG); fEye(f, g, 69, 50, GLG);
+    },
+  });
 }
 // Truhen der Geheimecken
 function cacheChest(kind, open) {
@@ -1257,7 +1962,16 @@ function cacheChest(kind, open) {
       else { g.px(11, 10, GOLD[4]); }
     }
     if (kind === 'witch') { beard(p, 4, 9, 4, 1); glowShroom(p, g, 19, by - 1, 1, 2, GLG, 3101); }
-  }, { ax: 11, box: [-8, -5, 8, 1] });
+  }, {
+    ax: 11, box: [-8, -5, 8, 1],
+    fine: (f, g) => {
+      const band = kind === 'witch' ? BONE : IRON, by = 17;
+      for (const x of [6, 15]) { f.fline(x + 0.25, 8, x + 0.25, by - 1.5, band[band === BONE ? 3 : 4]); f.fline(x + 1.75, 8, x + 1.75, by - 1.5, band[1]); f.dot(x + 0.75, 9.25, band[5] ?? band[4]); f.dot(x + 0.75, by - 2.75, band[3]); }
+      if (open) { for (const x of [8, 11, 14]) { f.dot(x + 0.25, 8.25, '#fff8d0'); g.dot(x + 0.25, 8.25, GOLD[4]); } }
+      else if (kind !== 'witch') { f.dot(10.25, 9.25, GOLD[4]); f.dot(11.25, 10.25, '#fff8d0'); g.dot(11.25, 10.25, '#fff8d0'); }
+      else fEye(f, g, 11, 10, ['#1e4a14', '#3a8a2a', '#6ac04a', '#c8ff90', '#e0ffc0']);
+    },
+  });
 }
 
 // Ertrunkene Bäume: kahle Stämme im tiefen Wasser
@@ -1265,6 +1979,7 @@ function drownedTree(v) {
   const rng = createRng(3200 + v);
   const H = [52, 44, 60][v], W = 44, cx = 22, wl = H - 5;
   return mk(W, H, (p) => {
+    if (p.fine) { drownedTreeFine(p, v, rng, H, W, cx, wl); return; }
     for (let y = wl; y < H; y++) for (let x = 4; x < W - 4; x++) if (((x + y) & 1) && Math.abs(x - cx) / 16 + (y - wl) / 5 < 1) p.px(x, y, rgba(2, 8, 6, 0.5));
     const top = [12, 16, 8][v], lean = [2, -3, 1][v];
     const tx = (y) => cx + Math.round(lean * (wl - y) / (wl - top));
@@ -1290,7 +2005,66 @@ function drownedTree(v) {
     for (let x = tx(wl) - 5; x <= tx(wl) + 5; x++) { p.px(x, wl - 1, MOSS[3 + (x % 2)]); if (hash2(x, v, 3201) < 0.5) p.px(x, wl - 2, MOSS[4]); }
     for (let x = tx(wl) - 8; x <= tx(wl) + 8; x += 3) p.px(x, wl + 1, SW[4]);
     p.px(tx(wl) - 9, wl, SW[5]); p.px(tx(wl) + 9, wl, SW[5]);
-  }, { ax: cx });
+  }, { ax: cx, b: true });
+}
+// Stufe B: Spiegelung als dunkle Wellenlinien mit Stammspiegel, Stamm mit Furchen und nassem Fuß, Äste verjüngt,
+// Moosring an der Wasserlinie, Ringe im Wasser.
+function drownedTreeFine(p, v, rng, H, W, cx, wl) {
+  const top = [12, 16, 8][v], lean = [2, -3, 1][v], seed = 3200 + v;
+  // Knickstamm: Mittellinie aus Stützpunkten (lineare Stücke), Breite mit Wülsten an Astansätzen
+  const ks = [];
+  for (let y = wl, k = 0; y > top - 6; y -= 5 + hash2(k, 9, seed) * 5, k++) ks.push([y, (hash2(k, 8, seed) - 0.5) * 1.8]);
+  const kink = (y) => { for (let i = 0; i < ks.length - 1; i++) { const [ya, da] = ks[i], [yb, db] = ks[i + 1]; if (y <= ya && y >= yb) return da + (db - da) * (ya - y) / (ya - yb); } return ks[ks.length - 1][1]; };
+  const tx = memo((y) => cx + 0.5 + lean * (wl - y) / (wl - top) + kink(y) * Math.min(1, (wl - y) / 6));
+  const limbs = [];
+  for (let k = 0; k < 5; k++) {
+    const y0 = top + rng.int(0, Math.round((wl - top) * 0.5)) + 0.5, s = k % 2 ? 1 : -1, len = rng.int(7, 14);
+    limbs.push({ y0, s, len, beard: rng.chance(0.6), bl: rng.int(4, 9) });
+  }
+  limbs.push({ y0: top + (wl - top) * 0.66, s: v ? 1 : -1, len: 2, stub: true });
+  const tw = memo((y) => {
+    let w = 4.6 + ((y - top) / (wl - top)) * 4.8 + (y > wl - 2.5 ? (y - wl + 2.5) * 0.9 : 0);
+    for (const b of limbs) { const d = Math.abs(y - b.y0); if (d < 1.6) w += (1.6 - d) * 0.9; }
+    return w;
+  });
+  const T = [MST[2], MST[3], MST[4], MST[5], MST[6]];
+  // Spiegelung: dunkle Wellenlinien, Stammspiegel
+  const [d0, d1, r0, r1] = pal32(['#030907', SW[0], MST[1], MST[2]]);
+  p.scan(4, wl, W - 4, H, (x, y) => {
+    const e = Math.abs(x - cx - 0.5) / 16 + (y - wl) / 5;
+    if (e >= 1) return 0;
+    const row = Math.floor(y * 2) - wl * 2;
+    if (Math.abs(x - tx(wl)) < 2.2 - row * 0.25 && (row & 1) === 0) return x < tx(wl) ? r1 : r0;
+    if (row & 1) return 0;
+    return tri(x * 0.15 + row * 0.3) > 0.3 + e * 0.5 ? (e < 0.5 ? d0 : d1) : 0;
+  });
+  // Äste hinter dem Stamm: lange mit Gabel, kurze abgebrochen, Stummel
+  limbs.forEach((b, k) => {
+    const x0 = tx(b.y0) + b.s * 0.5;
+    if (b.stub) { deadLimb(p, x0, b.y0, b.s, b.len + tw(b.y0) / 2, 0.6, 1.4, T, { broken: true, seed: seed + k }); return; }
+    const broken = k === 2 || k === 4 - v, len = broken ? b.len * 0.55 : b.len;
+    const [x1, y1] = deadLimb(p, x0, b.y0, b.s, len, len / 2, 1.3, T, { broken, seed: seed + k });
+    if (!broken) p.fline(x1, y1, x1 + b.s * 2, y1 - 3, T[1]);
+    if (b.beard) fBeard(p, Math.round(x1 - b.s * 2 - 0.5), Math.round(y1 + 0.5), b.bl, k + v);
+  });
+  roughBark(p, top, wl + 0.5, tx, tw, T, { seed, plate: 1.8, twist: 0.04, wet: wl - 4 });
+  barkPatches(p, tx, tw, top + 3, wl - 3, seed + 11, 6);
+  // abgebrochene Krone: Splitterzacken unterschiedlicher Höhe, Bruchholz heller
+  const hw = tw(top) / 2, xt = tx(top), spikes = [1.5, 3.5, 0.8, 2.6, 1.2];
+  const pts = [[xt - hw, top + 1]];
+  spikes.forEach((h, i) => { const xa = xt - hw + (2 * hw * i) / spikes.length, xb = xt - hw + (2 * hw * (i + 1)) / spikes.length; pts.push([xa, top + 0.5 - (i ? spikes[i - 1] * 0.3 : 0)], [(xa + xb) / 2, top - h], [xb, top + 0.3]); });
+  pts.push([xt + hw, top + 1]);
+  fpoly(p, pts, (x, y) => (y < top - 1 && x < xt ? T[3] : x > xt + hw * 0.4 ? T[1] : T[2]));
+  spikes.forEach((h, i) => { const xm = xt - hw + (2 * hw * (i + 0.5)) / spikes.length; p.dot(xm, top - h + 0.25, i < 3 ? '#5a5e52' : T[3]); });
+  // Moos an der Wasserlinie: fleckig, mit Lücken
+  const bx = tx(wl);
+  p.each(bx - 5.5, wl - 3, bx + 5.5, wl, (x, y) => {
+    const dx = x - bx, cxw = Math.floor(dx + 6), h = hash2(cxw, 4, seed) < 0.25 ? 0 : 0.8 + 1.6 * hash2(cxw, 5, seed);
+    if (Math.abs(dx) > tw(wl) / 2 + 0.5 || y < wl - h) return null;
+    return y < wl - h + 0.5 ? (dx < 0 ? MOSS[5] : MOSS[4]) : dx < 0 ? MOSS[4] : MOSS[3];
+  });
+  fRing(p, bx, wl + 0.8, 7.5, 1.1);
+  p.dot(bx - 9, wl + 0.25, SW[5]); p.dot(bx + 9, wl + 0.25, SW[5]);
 }
 // Irrlicht über dem Wasser (Glühen + Licht, ohne Umriss)
 function willWisp(v) {
@@ -1323,7 +2097,16 @@ function questLantern(color, on) {
     if (on) { g.rect(lx - 1, ly + 1, 5, 6, C[2]); g.px(lx, ly + 2, C[3]); g.px(lx + 1, ly + 3, C[3]); g.px(lx + 1, ly - 2, C[1]); }
     // farbiges Band am Pfahl (auch erloschen erkennbar)
     p.rect(x0, 20, 2, 3, C[1]); p.px(x0, 20, C[2]);
-  }, { ax: 6, box: [-2, -2, 2, 1], light: on ? { dx: 6, dy: -26, radius: 70, color: LANTERN_LIGHT[color], intensity: 0.9 } : undefined });
+  }, {
+    ax: 6, box: [-2, -2, 2, 1], light: on ? { dx: 6, dy: -26, radius: 70, color: LANTERN_LIGHT[color], intensity: 0.9 } : undefined,
+    fine: (f, g) => {
+      const lx = 11, ly = 9;
+      fLamp(f, g, lx - 1, ly + 1, 5, 6, [C[0], on ? C[3] : C[1], C[2], C[3], '#ffffff'], [C[2], C[2], C[3], '#ffffff'], on);
+      f.fline(lx - 2, ly + 1.25, lx + 4.75, ly + 1.25, IRON[3]); f.fline(lx - 2, ly + 8.25, lx + 4.75, ly + 8.25, IRON[3]); f.dot(lx - 2 + 0.25, ly + 1.25, IRON[4]);
+      f.fline(lx + 1.25, ly + 1.5, lx + 1.25, ly + 6.75, IRON[2]);
+      f.dot(5.25, 20.25, C[3]);
+    },
+  });
 }
 // Hexenkessel im Schilf
 function hagCauldron(on) {
@@ -1338,7 +2121,17 @@ function hagCauldron(on) {
     for (let x = kx - 5; x <= kx + 5; x += 2) { p.px(x, by - 1, on ? ROT[1] : EMB[3]); if (!on) g.px(x, by - 1, EMB[4]); }
     p.rect(kx + 9, by - 6, 3, 4, BONE[3]); p.px(kx + 9, by - 5, INTERIOR);
     for (let i = 0; i < 6; i++) blade(p, 2 + i * 5, by, 5 + (i % 3) * 3, i % 2 ? 1 : -1, REED, 1, 5);
-  }, { ax: 15, box: [-8, -5, 8, 1], light: on ? undefined : { dx: 0, dy: -12, radius: 60, color: [140, 240, 120], intensity: 0.6 } });
+  }, {
+    ax: 15, box: [-8, -5, 8, 1], light: on ? undefined : { dx: 0, dy: -12, radius: 60, color: [140, 240, 120], intensity: 0.6 },
+    fine: (f, g) => {
+      const kx = 15, ky = 18;
+      f.fline(kx - 7, ky - 4.25, kx + 3, ky - 4.25, '#3a3a30'); f.dot(kx - 5.75, ky - 2.75, '#4a4a3e');
+      if (on) return;
+      f.fline(kx - 5, ky - 5.25, kx - 2, ky - 5.25, '#8ae060');
+      fEye(f, g, kx - 2, ky - 5.5, ['#1e4a14', '#3a8a2a', '#6ac04a', '#a8f070', '#e0ffc0']); fEye(f, g, kx + 3, ky - 6, ['#1e4a14', '#3a8a2a', '#6ac04a', '#a8f070', '#e0ffc0']);
+      for (let x = kx - 5; x <= kx + 5; x += 2) { f.dot(x + 0.25, 24.25, EMB[4]); g.dot(x + 0.25, 24.25, '#fff0b0'); }
+    },
+  });
 }
 // Gräber der Ertrunkenen (Holzkreuze, Grabsteine im Moos)
 function marshGraves(v) {
@@ -1507,8 +2300,25 @@ function netRack(v) {
 function leechClutch(v) {
   const W = 28, H = 18;
   return mk(W, H, (p, g) => {
-    mudPatch(p, 14, 13, 12, 4, 3420 + v, true);
     const eggs = [[[8, 10, 4, 3], [15, 9, 5, 4], [21, 11, 3, 2.4], [12, 13, 3, 2]], [[10, 11, 5, 3.4], [17, 10, 3.6, 3], [20, 13, 3, 2], [6, 13, 2.4, 1.8]]][v];
+    if (p.fine) {
+      // Stufe B: glänzende Gallertkugeln (harte Stufen, Glanzpunkt), Embryos als dunkle Kerne mit fahlem Schein
+      fMud(p, 14, 13, 12, 4, 3420 + v, true);
+      for (const [x, y, rx, ry] of eggs) {
+        const X = x + 0.5, Y = y + 0.5;
+        lump(p, X, Y, rx + 0.4, ry + 0.4, FLESH, { lo: 1, hi: 4, bias: -0.05 });
+        for (let k = 0; k < 3; k++) {
+          const ex = Math.round(x - rx + 1 + hash2(k, x, 3421) * (rx * 2 - 2)) + 0.5, ey = Math.round(y - ry + 1 + hash2(k, y, 3422) * (ry * 2 - 2)) + 0.5;
+          p.oval(ex, ey, 0.7, 0.55, '#2a1a10'); p.dot(ex - 0.25, ey - 0.25, '#4a3a20');
+          g.dot(ex - 0.25, ey - 0.25, '#6a9a40'); g.dot(ex + 0.25, ey - 0.25, '#3a5a28'); g.dot(ex - 0.25, ey + 0.25, '#3a5a28');
+        }
+        p.dot(X - rx * 0.45, Y - ry * 0.5, '#d8a8c0'); p.dot(X - rx * 0.45 + 0.5, Y - ry * 0.5, FLESH[5]); p.dot(X - rx * 0.45, Y - ry * 0.5 + 0.5, FLESH[5]);
+        g.dot(X, Y, '#3a5a28');
+      }
+      for (let k = 0; k < 5; k++) { const x = 4 + Math.floor(hash2(k, v, 3423) * 20); p.fline(x + 0.25, 15.25, x + 1.25, 16.75, '#4a5a3a'); p.dot(x + 0.25, 15.25, '#8a9a68'); }
+      return;
+    }
+    mudPatch(p, 14, 13, 12, 4, 3420 + v, true);
     for (const [x, y, rx, ry] of eggs) {
       p.ellipse(x, y, rx, ry, FLESH[2]);
       p.ellipse(x - 0.6, y - 0.6, rx - 1, ry - 1, FLESH[3]);
@@ -1517,7 +2327,7 @@ function leechClutch(v) {
       g.px(Math.round(x), Math.round(y), '#3a5a28');
     }
     for (let k = 0; k < 5; k++) { const x = 4 + Math.floor(hash2(k, v, 3423) * 20); p.px(x, 15, '#6a7a50'); p.px(x + 1, 16, '#4a5a3a'); } // Schleim
-  }, { ay: 14, box: [-10, -6, 10, 2] });
+  }, { ay: 14, box: [-10, -6, 10, 2], b: true });
 }
 // Trockengestell mit Fischen und Fellen am Ufer
 function dryingRack(v) {
