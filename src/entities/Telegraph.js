@@ -95,9 +95,11 @@ export class Telegraph extends Entity {
   render(ctx, cx, cy) {
     const k = this.#k(), [r, g, b] = this.color;
     if (this.shape === 'line' && this.width < 8) return; // schmale Strahlen: nur der Pixelstrahl im Emissive-Pass
-    // Kühle Farben (Wasser, Eis, Gift) wirken auf dunklem Boden heller: Fläche etwas zarter
-    const cool = b > r || g > r ? 0.75 : 1;
-    const rgba = (m, a) => `rgba(${r * m | 0},${g * m | 0},${b * m | 0},${a * cool})`;
+    // Kühle Farben (Wasser, Eis, Gift, Schatten): auf hellem Schnee sonst zu blass – im Feinraster kräftiger und
+    // eine Spur dunkler; bei „Niedrig“ wie früher etwas zarter
+    const isCool = b > r || g > r, fine = fineRes() > 1;
+    const cool = isCool ? (fine ? 1.6 : 0.75) : 1, deep = isCool && fine ? 0.8 : 1;
+    const rgba = (m, a) => `rgba(${r * m * deep | 0},${g * m * deep | 0},${b * m * deep | 0},${a * cool})`;
     const line = this.shape === 'line';
     ctx.save();
     ctx.globalAlpha = this.#intro();
@@ -149,9 +151,14 @@ export class Telegraph extends Entity {
     const c = this.#ring;
     if (c?.key === key) return c;
     const cool = this.color[2] > this.color[0] || this.color[1] > this.color[0];
+    const D = (a) => [14, 6, 10, a];
+    // Feinraster: kühle Farben (blau, violett, grün) mit doppelter, deckender Dunkelkante und satter Farbe (Schnee);
+    // warme (rot, orange) mit heller Innenlinie, damit sie sich von rotem Glutboden abheben
     const layers = q > 1
-      ? [[2, [14, 6, 10, 200]], [-2, [14, 6, 10, 140]], [1, lite(hot ? 0.7 : cool ? 0.3 : 0.4)], [0, lite(hot ? 0.45 : cool ? 0.08 : 0.12)], [-1, hot ? lite(0.2) : this.color.map((v) => Math.round(v * 0.72))]]
-      : [[1, [14, 6, 10, 140]], [0, lite(hot ? 0.6 : cool ? 0.2 : 0.35)]];
+      ? cool
+        ? [[3, D(220)], [2, D(255)], [1, lite(hot ? 0.6 : 0.3)], [0, hot ? lite(0.3) : this.color], [-1, this.color.map((v) => Math.round(v * 0.7))], [-2, D(220)]]
+        : [[3, D(140)], [2, D(230)], [1, lite(hot ? 0.7 : 0.4)], [0, lite(hot ? 0.45 : 0.12)], [-1, D(200)], [-2, lite(hot ? 0.85 : 0.68)], [-3, D(170)]]
+      : [[1, D(140)], [0, lite(hot ? 0.6 : cool ? 0.2 : 0.35)]];
     const sets = layers.map(([g, col]) => [this.#outline(q, 1, g), col]);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const [pts] of sets) for (const [x, y] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
@@ -177,8 +184,9 @@ export class Telegraph extends Entity {
     const lite = (m) => `rgb(${liteRgb(m).join(',')})`;
     const X = Math.round(this.x * q) / q - cx, Y = Math.round(this.y * q) / q - cy;   // Fußpunkt auf dem Feinraster
     ctx.save();
-    // Farbschleier, damit der Farbcode auch auf dunklem Boden erhalten bleibt
-    ctx.globalAlpha = (k > 0.5 ? 0.07 : 0.04) * intro;
+    // Farbschleier, damit der Farbcode auch auf dunklem Boden erhalten bleibt (kühle Farben im Feinraster kräftiger)
+    const coolV = q > 1 && (b > r || g > r) ? 1.8 : 1;
+    ctx.globalAlpha = (k > 0.5 ? 0.07 : 0.04) * coolV * intro;
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     this.#path(ctx, cx, cy);
     ctx.fill();
@@ -216,7 +224,8 @@ export class Telegraph extends Entity {
     const n = Math.max(arc ? 4 : 6, Math.round(this.r / (arc ? 14 : 9))), rot = arc ? 0 : this.t * 0.06;
     const big = this.r >= 40, P = 1 / q;
     ctx.globalAlpha = intro;
-    ctx.fillStyle = lite(q > 1 ? 0.5 + 0.3 * k : 0.35 + 0.35 * k);
+    if (q > 1) { this.#runesFine(ctx, cx, cy, k, lite, n, arc, rot, big, P); return; }
+    ctx.fillStyle = lite(0.35 + 0.35 * k);
     for (let i = 0; i < n; i++) {
       const t = arc ? (i + 0.5) / n : (i / n + rot) % 1;
       const [fx, fy] = this.#edgePoint(t, cx, cy, 0.78);
@@ -237,6 +246,25 @@ export class Telegraph extends Entity {
         ctx.fillRect(Math.round(fx * q) / q, Math.round(fy * q) / q, P, P);
       }
     }
+  }
+  // Feinraster: Runen groß und hell – jedes Runen-Texel ein Weltpixel (5 × 5 bzw. ab Radius 25 die 7 × 7-Formen),
+  // darunter ein dunkler Schlagschatten (ein Feinpixel nach rechts unten), damit sie auf Schnee wie auf Glut stehen.
+  #runesFine(ctx, cx, cy, k, lite, n, arc, rot, big, P) {
+    const set = this.r >= 25 ? 3 : 0, pos = [];
+    for (let i = 0; i < n; i++) {
+      const t = arc ? (i + 0.5) / n : (i / n + rot) % 1;
+      const [fx, fy] = this.#edgePoint(t, cx, cy, big ? 0.7 : 0.66);
+      pos.push(Math.round(fx), Math.round(fy), i % 3 + set);
+    }
+    const pass = (col, d) => {
+      ctx.fillStyle = col;
+      for (let j = 0; j < pos.length; j += 3) for (const [rx, ry] of RUNES[pos[j + 2]]) ctx.fillRect(pos[j] + rx + d, pos[j + 1] + ry + d, 1, 1);
+    };
+    pass('rgb(14,6,10)', P);
+    pass(lite(0.62 + 0.25 * k), 0);
+    // heller Kern-Feinpixel oben links in jedem Runen-Texel (Licht von oben links)
+    ctx.fillStyle = lite(0.92);
+    for (let j = 0; j < pos.length; j += 3) for (const [rx, ry] of RUNES[pos[j + 2]]) ctx.fillRect(pos[j] + rx, pos[j + 1] + ry, P, P);
   }
   // Laufpfeile entlang der Angriffsrichtung: handgesetzte Pixelformen in 8 Richtungen (keine gedrehten Linien).
   // Feinraster: Pfeil in Weltpixeln, die Vorderkante (Spitze) eine Stufe heller in Feinpixeln.
@@ -364,24 +392,39 @@ export class DamageWave extends Entity {
     const q = fineRes(), P = 1 / q;
     const k = this.t / this.duration;
     const [r, g, b] = this.color;
-    const al = 1 - k * 0.8, A = al > 0.66 ? 1 : al > 0.4 ? 0.66 : 0.33;
+    const al = 1 - k * 0.8, A = q > 1 ? (k < 0.6 ? 1 : k < 0.85 ? 0.66 : 0.33) : al > 0.66 ? 1 : al > 0.4 ? 0.66 : 0.33;
     const X = Math.round((this.x - cx) * q) / q, Y = Math.round((this.y - cy) * q) / q;
     const R = this.r, pts = (rr) => ellipsePts(rr, rr * 0.6, q);
     const draw = (e, col) => { ctx.fillStyle = col; drawRuns(ctx, X, Y, e.runs, P); };
     ctx.save();
     ctx.globalAlpha = A;
     if (q > 1) {
-      draw(pts(R + P), 'rgba(14,6,10,0.66)');
-      draw(pts(R), `rgb(${Math.round(r + (255 - r) * 0.55)},${Math.round(g + (255 - g) * 0.55)},${Math.round(b + (255 - b) * 0.55)})`);
-      draw(pts(R - P), `rgb(${r},${g},${b})`);
-      draw(pts(R - 2 * P), `rgb(${r},${g},${b})`);
-      draw(pts(R - 3 * P), 'rgba(14,6,10,0.66)');
-      if (k < 0.5) { ctx.globalAlpha = 0.66; const e = pts(R - 2); ctx.fillStyle = '#ffffff'; for (let i = 0; i < e.n; i += 3) ctx.fillRect(X + e.xy[2 * i] * P, Y + e.xy[2 * i + 1] * P, P, P); }
+      // Feinraster: gefülltes Band (Zeile für Zeile zwischen zwei Ellipsen, überall gleich stark, auch oben und
+      // unten): außen dunkel, heller Saum, drei Feinpixel Farbe, helle Innenlinie, innen dunkel – wie die Warnflächen
+      const lite = (m) => `rgb(${Math.round(r + (255 - r) * m)},${Math.round(g + (255 - g) * m)},${Math.round(b + (255 - b) * m)})`;
+      const bands = [[2.5, 'rgb(14,6,10)'], [1.5, lite(0.55)], [1, `rgb(${r},${g},${b})`], [-0.5, lite(0.7)], [-1, 'rgb(14,6,10)'], [-1.5, null]];
+      for (let i = 0; i < bands.length - 1; i++) {
+        ctx.fillStyle = bands[i][1];
+        annulus(ctx, X, Y, R + bands[i][0], R + bands[i + 1][0], 0.6, q, P);
+      }
+      if (k < 0.5) { const e = pts(R + 0.5); ctx.fillStyle = '#ffffff'; for (let i = 0; i < e.n; i += 4) ctx.fillRect(X + e.xy[2 * i] * P, Y + e.xy[2 * i + 1] * P, P, P); }
     } else {
       draw(pts(R), `rgb(${r},${g},${b})`); draw(pts(R - 1), `rgb(${r},${g},${b})`);
       ctx.globalAlpha = (1 - k) > 0.5 ? 0.66 : 0.33; draw(pts(R - 2), '#ffffff');
     }
     ctx.restore();
+  }
+}
+
+// Ellipsenring als Zeilen-Spannen zwischen Außen- (ro) und Innenradius (ri), Höhe × ratio, in Feinpixeln
+function annulus(ctx, X, Y, ro, ri, ratio, q, P) {
+  const RO = ro * q, RI = ri * q, HO = Math.round(RO * ratio), HI = RI * ratio;
+  for (let j = -HO; j <= HO; j++) {
+    const xo = Math.round(RO * Math.sqrt(Math.max(0, 1 - (j / (RO * ratio)) ** 2)));
+    const xi = Math.abs(j) < HI ? Math.round(RI * Math.sqrt(Math.max(0, 1 - (j / HI) ** 2))) : -1;
+    const y = Y + j * P;
+    if (xi < 0) { ctx.fillRect(X - xo * P, y, (2 * xo + 1) * P, P); continue; }
+    if (xo > xi) { ctx.fillRect(X - xo * P, y, (xo - xi) * P, P); ctx.fillRect(X + (xi + 1) * P, y, (xo - xi) * P, P); }
   }
 }
 

@@ -12,6 +12,8 @@ export const ELEMENTS = {
   frost: { colors: ['#ffffff', '#ccf2ff', '#86d0ff', '#4c9cf0', '#2a5cc8'], light: [140, 200, 255], sound: 'frost', pitch: 1, rise: -4 },
   holy: { colors: ['#ffffff', '#fff0b0', '#ffd66a', '#e8a830', '#8a5a18'], light: [255, 220, 140], sound: 'magic', pitch: 1.3, rise: 26 },
   shadow: { colors: ['#f4e2ff', '#c890ff', '#9a52f4', '#6c2ad0', '#43168c'], light: [150, 80, 255], sound: 'magic', pitch: 0.6, rise: 10 },
+  // Fluch (Gegner): eigene Rampe, damit Einschläge als Leerenpfütze erkannt werden (entities/Effects.js voidPool)
+  curse: { colors: ['#f4d8ff', '#d090f0', '#a050c8', '#6a2a90', '#3a1450'], light: [170, 80, 210], sound: 'magic', pitch: 0.7, rise: 6 },
   arcane: { colors: ['#ffffff', '#e0b8ff', '#c07aff', '#8a4ae0', '#4a1a90'], light: [190, 130, 255], sound: 'magic', pitch: 1, rise: 14 },
   poison: { colors: ['#e8ffb0', '#a8e05a', '#6aa02a', '#3a6a18', '#1a300a'], light: [150, 230, 90], sound: 'poison', pitch: 1, rise: 8 },
   nature: { colors: ['#f0ffe0', '#b0f080', '#60c050', '#2e8038', '#12401a'], light: [150, 240, 140], sound: 'magic', pitch: 1.1, rise: 12 },
@@ -200,6 +202,16 @@ export class ParticleSystem {
         rise: el.rise * rand(0.5, 1.5), wobble: kind === 'fire' || kind === 'shadow' ? 25 : 8,
         life: rand(0.35, 0.9), colors: el.colors, emissive: true, size: Math.random() < 0.25 ? 2 : 1, shrink: true,
       });
+    }
+    // Schatten/Fluch: dazu dunkle Schwaden (fast schwarz-violett, deckend), damit der Einschlag als dichter Nebel steht
+    if ((kind === 'shadow' || kind === 'curse') && fineRes() > 1) {
+      for (let i = 0, n = Math.ceil(count / 2); i < n; i++) {
+        const a = rand(0, Math.PI * 2), r = rand(0, radius * 1.2), s = rand(4, 18);
+        this.spawn({
+          x: x + Math.cos(a) * r, y: y + Math.sin(a) * r * 0.6, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6, drag: 3,
+          rise: rand(2, 8), wobble: 18, life: rand(0.5, 1.0), colors: [el.colors[3], el.colors[4], '#16052a'], emissive: true, size: 2,
+        });
+      }
     }
   }
 

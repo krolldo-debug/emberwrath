@@ -44,9 +44,12 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
       if (u > head) continue;
       const behind = (head - u) / tailLen;
       if (behind > 1) continue;
-      const thick = width * (1 - behind) * (0.4 + 0.6 * fade);
+      // Feinraster: nie dünner als 1 Weltpixel (sonst zerfasert der Bogen auf dem Handy); ausgeblendet wird
+      // über ein Raster (jedes zweite, dann jedes vierte Texel), nicht über Durchsichtigkeit
+      const thick = Math.max(res > 1 ? 1 : 0, width * (1 - behind) * (0.4 + 0.6 * fade));
       const inner = radius - thick;
       const i = (Y * S + X) * 4;
+      const gone = res > 1 && (fade < 0.34 ? (X & 1) || (Y & 1) : fade < 0.67 && ((X + Y) & 1));
       if (hard) {
         // Skinset: schmale Sichel aus deckenden Pixeln, Schneide außen weiß, zum Schweif hin Geisterlicht
         if (r > radius || r < inner) continue;
@@ -61,17 +64,25 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
         const e = (radius - r) / Math.max(thick, 0.001);
         const edge = radius - r < (res > 1 ? e1 * 2 : 1) || e < 0.22;
         const al = a3((edge ? 1 : 0.68 * (1 - e)) * (1 - behind * 0.8) * fade);
-        if (al) set(i, edge ? (res > 1 && radius - r < e1 ? ramp[0] : ramp[1]) : e < 0.6 ? ramp[2] : ramp[3], al);
+        if (res > 1) {
+          // deckend: Kante voll, Schleier als Raster (statt halb durchsichtig)
+          if (!al || gone || (!edge && ((X + Y) & 1))) continue;
+          set(i, edge ? (radius - r < e1 ? ramp[0] : ramp[1]) : e < 0.6 ? ramp[3] : ramp[4], 255);
+          continue;
+        }
+        if (al) set(i, edge ? ramp[1] : e < 0.6 ? ramp[2] : ramp[3], al);
         continue;
       }
       // Nachglühen innen: ein schmales, durchscheinendes Band in der dunklen Glutfarbe
       if (r < inner && r >= inner - (res > 1 ? 1.5 : 3) && behind < 0.8) {
-        const al = a3((res > 1 ? 0.5 : (1 - (inner - r) / 3) * 0.45) * (0.8 - behind) * 1.6 * fade);
+        if (res > 1) { if (!gone && fade > 0.5 && !((X + Y) & 1)) set(i, ramp[5], 255); continue; }   // Raster, deckend
+        const al = a3((1 - (inner - r) / 3) * 0.45 * (0.8 - behind) * 1.6 * fade);
         if (al) set(i, ramp[4], Math.min(al, 85));
         continue;
       }
       // Schneide: heller Saum außen an der Spitze (im Feinraster genau ein Feinpixel)
       if (r > radius && r <= radius + (res > 1 ? e1 : 1) && behind < 0.25) {
+        if (res > 1) { if (!gone && behind < 0.2) set(i, [255, 255, 240], 255); continue; }
         set(i, [255, 255, 240], a3((1 - behind * 4) * fade * 0.9));
         continue;
       }
@@ -79,6 +90,8 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
       const edge = (radius - r) / Math.max(thick, 0.001); // 0 = Schneide außen
       let idx = Math.floor(edge * (res > 1 ? 2.6 : 2.2) + behind * 3.2 + (1 - fade) * 2);
       idx = Math.max(0, Math.min(ramp.length - 1, idx));
+      // Feinraster: deckend, der Auslauf wird über die dunkleren Rampenstufen und das Raster leiser
+      if (res > 1) { if (!gone) set(i, ramp[idx], 255); continue; }
       set(i, ramp[idx], a3(Math.min(1, (1.15 - behind) * fade + 0.1)));
     }
   }
@@ -145,14 +158,34 @@ export function getEnemySlashFrame(angle, frame, res = fineRes()) {
 }
 
 // Radiale Licht-Sprites (vorgerendert statt pro Frame Gradienten zu bauen).
+// stepped (Feinraster, gfx/Lighting.js): drei harte Lichtstufen statt Verlauf – Kern, Hof, Saum. Die Stufen sind so
+// gewählt, dass die Lichtmenge insgesamt der weichen Fassung entspricht (Stimmung der Gebiete bleibt gleich).
 const lightCache = new Map();
-export function getLightSprite(radius, rgb) {
+const LIGHT_STEPS = [[0.3, 0.82], [0.55, 0.48], [0.8, 0.19]];
+export function getLightSprite(radius, rgb, stepped = false) {
   const r = Math.max(4, Math.round(radius / 4) * 4);
-  const key = `${r}|${rgb.join(',')}`;
+  const key = `${r}|${rgb.join(',')}|${stepped ? 1 : 0}`;
   let c = lightCache.get(key);
   if (c) return c;
   c = makeCanvas(r * 2, r * 2);
   const ctx = c.getContext('2d');
+  if (stepped) {
+    const [cr, cg, cb] = rgb;
+    // von außen nach innen deckend übermalen: jede Stufe eine Kreisfläche (Pixelkreis, keine Kantenglättung)
+    for (let i = LIGHT_STEPS.length - 1; i >= 0; i--) {
+      const [t, a] = LIGHT_STEPS[i], R = t * r;
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${a})`;
+      for (let y = 0; y < r * 2; y++) {
+        const dy = y + 0.5 - r;
+        if (Math.abs(dy) > R) continue;
+        const w = Math.round(Math.sqrt(R * R - dy * dy));
+        ctx.clearRect(r - w, y, w * 2, 1);
+        ctx.fillRect(r - w, y, w * 2, 1);
+      }
+    }
+    lightCache.set(key, c);
+    return c;
+  }
   const g = ctx.createRadialGradient(r, r, 0, r, r, r);
   const [cr, cg, cb] = rgb;
   // Weicher, annähernd quadratischer Abfall: heller Kern, langer warmer Saum
@@ -256,6 +289,7 @@ export function getRarityRing(colors, res, frame, rx = 11, ry = 4.5) {
   const key = `${colors.join()}|${res}|${frame}|${rx}|${ry}`;
   let c = ringCache.get(key);
   if (c) return c;
+  if (res === 1) { c = rarityRingCoarse(colors, frame, rx, ry); ringCache.set(key, c); return c; }   // „Niedrig“: Ring wie vor dem Feinraster
   const top = 3;   // Platz über dem Ring für die Flammenzungen (Weltpixel)
   const W = Math.round((2 * rx + 2) * res), H = Math.round((2 * ry + 2 + 2 * top) * res);   // oben und unten gleich viel Rand: Hero.js zentriert das Bild am Fußpunkt
   const canvas = makeCanvas(W, H);
@@ -302,4 +336,41 @@ export function getRarityRing(colors, res, frame, rx = 11, ry = 4.5) {
   c = { canvas, w: W / res, h: H / res };
   ringCache.set(key, c);
   return c;
+}
+
+// „Niedrig“ (res 1): der Ring vor dem Feinraster, unverändert (gestrichelter Außenring, gedünnter Innenring, Knoten)
+function rarityRingCoarse(colors, frame, rx, ry) {
+  const W = 2 * rx + 2, H = Math.round(2 * ry + 2);
+  const canvas = makeCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H), d = img.data;
+  const cx = W / 2, cy = H / 2;
+  const inside = (x, y, a, b) => (((x + 0.5 - cx) / a) ** 2 + ((y + 0.5 - cy) / b) ** 2) <= 1;
+  const edge = (x, y, a, b) => inside(x, y, a, b) && (!inside(x - 1, y, a, b) || !inside(x + 1, y, a, b) || !inside(x, y - 1, a, b) || !inside(x, y + 1, a, b));
+  const rgb = colors.map(hexToRgb);
+  const put = (x, y, col) => { const i = (y * W + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; };
+  const DASH = 12, phase = frame / RING_FRAMES;
+  const pulse = 0.5 + 0.5 * Math.cos((frame / RING_FRAMES) * TAU * 2);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const wx = x + 0.5 - cx, wy = y + 0.5 - cy;
+      if (wy < 0 && Math.abs(wx) < 6) continue;   // hinter den Beinen offen
+      const a = (Math.atan2(wy / ry, wx / rx) / TAU + 1) % 1;
+      if (edge(x, y, rx, ry)) {
+        const u = (a * DASH + phase) % 1;
+        if (u < 0.62) put(x, y, rgb[u > 0.45 ? 3 : 4]);
+        continue;
+      }
+      if (edge(x, y, rx - 2, ry - 1) && (x + y) % 2 === 0) put(x, y, rgb[4]);
+    }
+  }
+  for (let k = 0; k < 4; k++) {
+    const ang = ((k + 0.5) / 4) * TAU;
+    const nx = Math.round(cx + Math.cos(ang) * rx - 0.5), ny = Math.round(cy + Math.sin(ang) * ry - 0.5);
+    if (Math.sin(ang) < 0 && Math.abs(Math.cos(ang) * rx) < 6) continue;
+    put(nx, ny, rgb[pulse > 0.5 ? 2 : 3]);
+    if (pulse > 0.25) for (const [ex, ey] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (nx + ex >= 0 && nx + ex < W && ny + ey >= 0 && ny + ey < H) put(nx + ex, ny + ey, rgb[3]);
+  }
+  ctx.putImageData(img, 0, 0);
+  return { canvas, w: W, h: H };
 }

@@ -208,22 +208,65 @@ export class Shockwave extends Entity {
     this.radius = radius; this.color = color; this.life = this.max = life;
     this.rgb = hexRgb(color);
     this.cols = [rgbStr(hot(this.rgb, 0.6)), color, rgbStr(dark(this.rgb, 0.6))];
+    // Schatten/Fluch: keine Linie, sondern eine flächige Leerenpfütze (siehe voidPool)
+    this.void = VOID_COLORS.has(color);
+    // Kleine Trefferringe (Krit, Treffer am Fuß) im Feinraster ein Drittel kleiner und kürzer
+    this.small = !this.void && radius <= 16 && fineRes() > 1;
+    if (this.small) { this.radius = radius * 0.67; this.life = this.max = life * 0.67; }
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
+    if (this.void && q > 1) { voidPool(ctx, this.x - cx, this.y - cy, this.radius, k, q); return; }
     const al = A3((1 - k) * 1.15);
     if (!al) return;
     const r = 2 + this.radius * (1 - Math.pow(1 - k, 3));
     const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
     ctx.globalAlpha = al;
+    if (this.small) {
+      // hinterer Bogen bleibt hinter der Figur offen (Ring liegt um die Füße, nicht über dem Körper)
+      const e = ellipsePts(r, r * 0.5, q), cut = 6 * q, back = (u, i) => u < 0.5 || Math.abs(e.xy[2 * i]) > cut;
+      ctx.fillStyle = k < 0.3 ? this.cols[0] : this.color;
+      ring(ctx, X, Y, e, P, back);
+      ctx.globalAlpha = 1;
+      return;
+    }
     ctx.fillStyle = k < 0.2 ? this.cols[0] : this.color;
     ring(ctx, X, Y, ellipsePts(r, r * 0.5, q), P);
     if (k < 0.6) { ctx.fillStyle = k < 0.2 ? this.color : this.cols[2]; ring(ctx, X, Y, ellipsePts(r - 1, (r - 1) * 0.5, q), P); }
     if (q > 1 && k < 0.4 && r > 4) { ctx.fillStyle = this.cols[2]; ring(ctx, X, Y, ellipsePts(r - 2, (r - 2) * 0.5, q), P, (u, i) => i % 2 === 0); }
     ctx.globalAlpha = 1;
   }
+}
+
+// Leerenpfütze (Schatten-/Fluch-Einschlag): flächige Ellipse, Kern fast schwarz-violett, darum gesättigtes
+// Violett in drei harten Stufen, oben links ein heller Saum (Licht von oben links). Wächst schnell auf, steht,
+// zieht sich dann in Stufen zusammen. Deckend gezeichnet (source-over): dunkel bleibt dunkel, auch auf dunklem Boden.
+const VOID = ['#f0d8ff', '#b070ff', '#7a30e0', '#4a148e', '#12041e'];
+const VOID_COLORS = new Set(['#c890ff', '#d090f0']);   // ELEMENTS.shadow/curse colors[1] (gfx/Particles.js)
+export function fillEllipse(ctx, X, Y, rx, ry, q, P) {
+  const RY = Math.max(1, Math.round(ry * q));
+  for (let j = -RY; j <= RY; j++) {
+    const w = Math.round(rx * q * Math.sqrt(Math.max(0, 1 - (j / RY) ** 2)));
+    if (w > 0) ctx.fillRect(X - w * P, Y + j * P, (2 * w + 1) * P, P);
+  }
+}
+export function voidPool(ctx, x, y, radius, k, q) {
+  const P = 1 / q, X = sn(x, q), Y = sn(y, q);
+  const grow = k < 0.2 ? 0.55 + k * 2.25 : k < 0.7 ? 1 : 1 - (k - 0.7) * 1.6;
+  const r = Math.max(2, Math.round(radius * 0.75 * grow * q) / q);
+  if (r < 2) return;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = VOID[2]; fillEllipse(ctx, X, Y, r + 1, (r + 1) * 0.5, q, P);
+  ctx.fillStyle = VOID[3]; fillEllipse(ctx, X, Y, r, r * 0.5, q, P);
+  ctx.fillStyle = VOID[4]; fillEllipse(ctx, X, Y + P, r - 2, (r - 2) * 0.5, q, P);
+  // heller Saum oben links und Glutpunkte am Rand (wandern)
+  const e = ellipsePts(r + 1, (r + 1) * 0.5, q), xy = e.xy;
+  ctx.fillStyle = k < 0.5 ? VOID[0] : VOID[1];
+  for (let i = 0; i < e.n; i++) { const u = e.u[i]; if (u > 0.55 && u < 0.8) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P, P, P); }
+  ctx.fillStyle = VOID[1];
+  for (let i = 0; i < e.n; i++) { const u = (e.u[i] + k * 0.5) % 1; if ((u * 9) % 1 < 0.12) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P - P, P, P); }
 }
 
 // Lichtsäule (Stufenaufstieg, Boss besiegt): senkrechter Strahl aus harten Spalten – weißer Kern, Farbband,
@@ -269,6 +312,9 @@ export class LightPillar extends Entity {
 export class ImpactStar extends Entity {
   constructor(x, y, { size = 7, color = '#ffe8a0', life = 0.14, rays = 4, angle = 0 } = {}) {
     super(x, y);
+    // Feinraster: Treffersterne ein Drittel kleiner und kürzer, Mitte offen (die getroffene Figur bleibt sichtbar)
+    this.fine = fineRes() > 1 && size <= 10;
+    if (this.fine) { size *= 0.67; life *= 0.75; }
     this.size = size; this.rgb = hexRgb(color); this.life = this.max = life; this.rays = rays; this.angle = angle;
     this.cols = ['#ffffff', rgbStr(this.rgb), rgbStr(dark(this.rgb, 0.6))];
   }
@@ -279,7 +325,7 @@ export class ImpactStar extends Entity {
     const al = A3(1.2 - k);
     if (!al) return;
     const len = this.size * (k < 0.3 ? 0.5 + k * 1.7 : 1.1 - (k - 0.3) * 0.6);
-    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q), hole = this.fine ? 2 : -1;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = al;
     // je Farbstufe ein Durchgang (wenige fillStyle-Wechsel)
@@ -289,14 +335,17 @@ export class ImpactStar extends Entity {
         const a = this.angle + (r / this.rays) * Math.PI + k * 0.6, ca = Math.cos(a), sa = Math.sin(a);
         const l = r % 2 ? len * 0.6 : len;
         for (let i = -l; i <= l; i += P) {
+          if (Math.abs(i) < hole) continue;
           const f = 1 - Math.abs(i) / (l + 1), b = f > 0.7 ? 0 : f > 0.35 ? 1 : 2;
           if (b === band) ctx.fillRect(sn(X + ca * i, q), sn(Y + sa * i, q), P, P);
         }
       }
     }
-    const core = Math.max(1, Math.round(3 * (1 - k))) * (q > 1 ? 1 : 1);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(sn(X - (core * P) / 2, q), sn(Y - (core * P) / 2, q), core * P + (q > 1 ? P : 0), core * P + (q > 1 ? P : 0));
+    if (!this.fine || k < 0.3) {
+      const core = this.fine ? 1 : Math.max(1, Math.round(3 * (1 - k)));
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(sn(X - (core * P) / 2, q), sn(Y - (core * P) / 2, q), core * P + (q > 1 ? P : 0), core * P + (q > 1 ? P : 0));
+    }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -344,15 +393,17 @@ function novaFrame(radius, cols, tongues, seed, f, q) {
       d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = Math.round(A * 255);
     }
   }
-  // Innenglut (erste Hälfte): flache Scheibe in zwei Stufen
-  if (k < 0.5) {
-    const A = Math.round(A3((0.5 - k) * 1.2) * 255);
+  // Innenglut (erstes Drittel): kein durchscheinender Fleck, sondern harter Kern und gedünnter Saum, deckend
+  if (k < 0.34) {
+    const rr = 5 * (1 - k * 1.5);
     for (let Y = 0; Y < H; Y++) for (let X = 0; X < W; X++) {
-      const dx = (X + 0.5) / q - (n + 0.5), dy = ((Y + 0.5) / q - H / q / 2) * 2, dd = Math.hypot(dx / 6, dy / 6);
+      const dx = (X + 0.5) / q - (n + 0.5), dy = ((Y + 0.5) / q - H / q / 2) * 2, dd = Math.hypot(dx, dy) / rr;
       if (dd > 1) continue;
-      const i = (Y * W + X) * 4, col = rgb[dd < 0.5 ? 3 : 2];
+      const i = (Y * W + X) * 4;
       if (d[i + 3]) continue;
-      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = A;
+      if (dd > 0.45 && (X + Y) & 1) continue;
+      const col = rgb[dd < 0.45 ? 3 : 2];
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -364,16 +415,48 @@ export class NovaBurst extends Entity {
   constructor(x, y, { radius = 38, colors = ['#7a2208', '#f07a1c', '#ffb640', '#fff0b0'], life = 0.5, tongues = 18 } = {}) {
     super(x, y);
     this.radius = radius; this.colors = colors; this.life = this.max = life; this.tongues = tongues;
-    this.seed = Math.floor(Math.random() * 4) * 1.7;
+    const r = Math.random();
+    this.seed = Math.floor(r * 4) * 1.7;   // Feinraster: 4 Zungenmuster (Bildfolge gecacht)
+    this.seedCoarse = r * 100;             // „Niedrig“: wie früher
+    this.cols = colors.map(hexRgb);
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
     const q = fineRes();
+    if (q === 1) { this.#renderCoarse(ctx, cx, cy); return; }
     const k = 1 - this.life / this.max;
     const f = Math.max(0, Math.min(NOVA_FRAMES - 1, Math.floor(k * NOVA_FRAMES)));
     const img = novaFrame(this.radius, this.colors, this.tongues, this.seed, f, q);
     ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(img.canvas, sn(this.x - cx - img.w / 2, q), sn(this.y - cy - img.h / 2, q), img.w, img.h);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  // „Niedrig“: der Ring vor dem Feinraster, unverändert
+  #renderCoarse(ctx, cx, cy) {
+    const k = 1 - this.life / this.max;
+    const R = 3 + this.radius * (1 - Math.pow(1 - Math.min(1, k * 1.6), 3));
+    const band = Math.max(2, this.radius * 0.35 * (1 - k));
+    const x0 = this.x - cx, y0 = this.y - cy;
+    const fade = 1 - k * k;
+    ctx.globalCompositeOperation = 'lighter';
+    const r0 = Math.max(0, R - band), n = Math.ceil(R + 8);
+    for (let dy = -Math.ceil(n * 0.5); dy <= Math.ceil(n * 0.5); dy++) {
+      for (let dx = -n; dx <= n; dx++) {
+        const d = Math.hypot(dx, dy * 2);
+        const a = Math.atan2(dy * 2, dx);
+        const tongue = Math.max(0, Math.sin(a * this.tongues * 0.5 + this.seedCoarse + k * 6)) * 4 * (1 - k);
+        if (d > R + tongue || d < r0) continue;
+        const t = (d - r0) / Math.max(1, R + tongue - r0);
+        const idx = t > 0.92 ? 3 : t > 0.7 ? 2 : t > 0.35 ? 1 : 0;
+        const alpha = fade * (idx === 0 ? 0.35 : idx === 1 ? 0.6 : 0.85);
+        ctx.fillStyle = rgbStr(this.cols[idx], alpha);
+        ctx.fillRect(Math.round(x0 + dx), Math.round(y0 + dy), 1, 1);
+      }
+    }
+    if (k < 0.5) {
+      ctx.fillStyle = rgbStr(this.cols[2], (0.5 - k) * 0.6);
+      for (let dy = -3; dy <= 3; dy++) { const w = Math.round(Math.sqrt(9 - dy * dy) * 2); ctx.fillRect(Math.round(x0 - w), Math.round(y0 + dy), w * 2 + 1, 1); }
+    }
     ctx.globalCompositeOperation = 'source-over';
   }
 }
@@ -402,9 +485,10 @@ export class SpinVortex extends Entity {
         const r = this.radius * (0.55 + 0.45 * (1 - t)), ca = Math.cos(a), sa = Math.sin(a);
         ctx.globalAlpha = al;
         ctx.fillStyle = this.cols[t < 0.12 ? 0 : t < 0.5 ? 1 : 2];
-        ctx.fillRect(sn(X + ca * r, q), sn(Y + sa * r * 0.5, q), P, P);
-        if (t < 0.5) ctx.fillRect(sn(X + ca * (r - 1), q), sn(Y + sa * (r - 1) * 0.5, q), P, P);
-        if (q > 1 && t < 0.25) ctx.fillRect(sn(X + ca * (r - 0.5), q), sn(Y + sa * (r - 0.5) * 0.5, q), P, P);
+        // Feinraster: jeder Bahnpunkt mindestens 1 Weltpixel breit (dünner zerfasert der Bogen auf dem Handy)
+        const S = q > 1 ? 1 : P;
+        ctx.fillRect(sn(X + ca * r - S / 2, q), sn(Y + sa * r * 0.5 - S / 2, q), S, S);
+        if (t < 0.5) ctx.fillRect(sn(X + ca * (r - 1) - S / 2, q), sn(Y + sa * (r - 1) * 0.5 - S / 2, q), S, S);
       }
     }
     ctx.globalAlpha = 1;
@@ -422,30 +506,51 @@ export class RiftFlash extends Entity {
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
-    const q = fineRes(), P = 1 / q;
+    const q = fineRes();
+    if (q === 1) { this.#renderCoarse(ctx, cx, cy); return; }
+    // Feinraster: Riss in die Leere – Kern fast schwarz-violett, darum gesättigtes Violett in harten Stufen, außen
+    // ein heller Saum (links heller: Licht von oben links), Splitter nach außen; am Fuß eine Leerenpfütze.
+    // Deckend (source-over), damit der dunkle Kern auf jedem Boden steht.
+    const P = 1 / q, k = 1 - this.life / this.max;
+    const open = k < 0.25 ? k / 0.25 : 1 - (k - 0.25) / 0.75;
+    if (open <= 0.12) return;
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
+    voidPool(ctx, this.x - cx, this.y - cy, 10, Math.min(0.69, k * 1.2), q);
+    const w = Math.max(1, Math.round(4 * open * q)), rows = Math.round(this.height * (0.6 + 0.4 * open) * q);
+    const rim = this.cols[0], sat = this.cols[1], deep = VOID[3], core = VOID[4];
+    for (let i = 0; i < rows; i++) {
+      const t = i / rows, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI))), y = Y - (i + 2) * P;
+      const zig = ((i * 5) % 7 < 2 ? 1 : 0) * P;   // ausgefranster Rand, je Zeile fest (kein Flimmern)
+      ctx.fillStyle = sat; ctx.fillRect(X - (ww + 1) * P - zig, y, (2 * ww + 3) * P + zig, P);
+      if (ww > 1) { ctx.fillStyle = deep; ctx.fillRect(X - (ww - 1) * P, y, (2 * ww - 1) * P, P); }
+      if (ww > 2) { ctx.fillStyle = core; ctx.fillRect(X - (ww - 2) * P, y, (2 * ww - 3) * P, P); }
+      ctx.fillStyle = rim; ctx.fillRect(X - (ww + 1) * P - zig, y, P, P);
+      if (ww > 2 && (i * 7) % 11 === 0) { ctx.fillStyle = rim; ctx.fillRect(X + (i & 2 ? ww + 2 : -ww - 3) * P, y, P, P); }
+    }
+    // Spitzen oben und unten weiß
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(X, Y - (rows + 2) * P, P, 2 * P);
+  }
+  #renderCoarse(ctx, cx, cy) {
+    const P = 1;
     const k = 1 - this.life / this.max;
     const open = k < 0.3 ? k / 0.3 : 1 - (k - 0.3) / 0.7;
     const al = A3(open * 1.3);
     if (!al) return;
-    const w = Math.max(1, Math.round(3 * open * q)), rows = Math.round(this.height * (0.6 + 0.4 * open) * q);
-    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
+    const w = Math.max(1, Math.round(3 * open)), rows = Math.round(this.height * (0.6 + 0.4 * open));
+    const X = Math.round(this.x - cx), Y = Math.round(this.y - cy);
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = al;
     for (let i = 0; i < rows; i++) {
-      const t = i / rows, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI))), y = Y - i * P;
-      // Innenfläche: Dither in der dunklen Stufe (Feinraster) bzw. flach (Niedrig)
+      const t = i / rows, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI))), y = Y - i;
       ctx.fillStyle = this.cols[2];
-      if (q > 1) { for (let j = -ww + 1 + ((i + ww) & 1); j < ww; j += 2) ctx.fillRect(X + j * P, y, P, P); }
-      else ctx.fillRect(X - ww, y, ww * 2 + 1, 1);
-      if (ww > 1) { ctx.fillStyle = this.cols[0]; ctx.fillRect(X - ww * P, y, P, P); ctx.fillRect(X + ww * P, y, P, P); }
+      ctx.fillRect(X - ww, y, ww * 2 + 1, 1);
+      if (ww > 1) { ctx.fillStyle = this.cols[0]; ctx.fillRect(X - ww, y, 1, 1); ctx.fillRect(X + ww, y, 1, 1); }
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(X, y, open > 0.6 && q > 1 ? 2 * P : P, P);
-      // Splitter: kurze helle Zacken nach außen, je Zeile fest verteilt (kein Flimmern)
-      if (q > 1 && ww > 2 && (i * 7) % 11 === 0) { ctx.fillStyle = this.cols[1]; ctx.fillRect(X + (i & 2 ? ww + 1 : -ww - 1) * P, y, P, P); }
+      ctx.fillRect(X, y, 1, 1);
     }
-    // Bodenellipse: Feinpixel-Ring, hinten gestrichelt
     ctx.fillStyle = this.cols[1];
-    ring(ctx, X, Y, ellipsePts(5 + 6 * k, 2.5 + 3 * k, q), P, (u) => u < 0.5 || (u * 20) % 1 < 0.5);
+    ring(ctx, X, Y, ellipsePts(5 + 6 * k, 2.5 + 3 * k, 1), P, (u) => u < 0.5 || (u * 20) % 1 < 0.5);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }

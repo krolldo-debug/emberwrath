@@ -247,6 +247,7 @@ function tailSprite(el, c, radius, angle, q) {
 //   shadow/curse – dunkler Kern mit hellem Rand, Splitter kreisen außen (Schatten soll sich klar abheben)
 //   fire   – Flammenzungen nach oben; poison – Tropfen unten; water – Glanzbogen; spore/dust – Körner außen
 const boltCache = new Map();
+const VOID_DEEP = '#4a148e';
 function boltSprite(el, c, radius, f, q) {
   const key = `${el}|${c.join()}|${radius}|${f}|${q}`;
   let b = boltCache.get(key);
@@ -259,12 +260,15 @@ function boltSprite(el, c, radius, f, q) {
   const pol = (a, r) => [Math.round(mid + Math.cos(a) * r * q), Math.round(mid + Math.sin(a) * r * q)];
   const dark = el === 'shadow' || el === 'curse';
   // Kugel
+  // Leere (Schatten/Fluch): Kern fast schwarz-violett, darum gesättigtes Violett in drei harten Stufen, außen
+  // ein Feinpixel-Saum in der Mittelfarbe – so steht die Kugel auch auf dunklem Boden als Ring mit Loch
+  const halo = dark ? 1 + 1 / (q * rr) : 1;
   for (let Y = 0; Y < S; Y++) for (let X = 0; X < S; X++) {
     const ox = (X - mid) / q, oy = (Y - mid) / q, d = Math.hypot(ox, oy) / rr;
-    if (d > 1) continue;
+    if (d > halo) continue;
     const l = d + (ox + oy) / rr * 0.32;   // Licht von oben links
     let col;
-    if (dark) col = d > 0.82 ? c[1] : d > 0.6 ? c[2] : l < 0.1 ? c[3] : '#14061e';
+    if (dark) col = d > 1 ? c[2] : d > 0.78 ? (ox + oy < 0 ? c[1] : c[2]) : d > 0.55 ? VOID_DEEP : '#12041e';
     else col = d > 0.84 ? c[3] : l < 0.12 ? c[0] : l < 0.5 ? c[1] : c[2];
     put(X, Y, col);
   }
