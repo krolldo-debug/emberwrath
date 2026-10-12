@@ -363,3 +363,27 @@ export function waterFine(F, G, K, ki, KW, S, o, dt, WP) {
   if (scumAt(S, F, G, d, dt)) return WP.weed[(t > 0.5 ? 1 : 0) + (S.rel[o] < 0 ? 0 : 1)];
   return W[3 + clampI(band(t, 2, dt), 0, 1)];
 }
+
+// Pflaster fein (Paket Boden, Steppe/Glutöde): Steine 12 × 10 Feinpixel (= 6 × 5 Weltpixel wie groundPixel ':'), jede
+// zweite Reihe um 6 versetzt, Fuge 1 Feinpixel. Liefert den Rampenindex (Licht oben links, Kante unten rechts dunkel,
+// gelegentlich Riss mit Lichtkante oder abgeschlagene Ecke) oder -1 = Fuge. Gleiche Steinfolge wie der Weltpixel-Shader.
+export const PAVE_W = 12, PAVE_H = 10;
+export function paveIdx(F, G, seed = 16) {
+  const row = Math.floor(G / 10), sh = (row & 1) * 6, col = Math.floor((F + sh) / 12);
+  const lx = F + sh - col * 12, ly = G - row * 10;
+  if (lx === 0 || ly === 0) return -1;
+  const s = hash2(col, row, seed);
+  let i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
+  const e = hash2(col, row, seed + 735);
+  // abgeschlagene Ecke (oben links oder unten rechts): Fugenfarbe
+  if (e < 0.14 && ((lx === 1 && ly === 1) || (lx <= 2 && ly === 1 && e < 0.05))) return -1;
+  if (e > 0.9 && lx === 11 && ly === 9) return -1;
+  // Riss quer über den Stein: dunkle Linie, darunter Lichtkante
+  if (e > 0.3 && e < 0.42) {
+    const c = 3 + Math.floor(hash2(col, row, seed + 736) * 6), d = ly - 2 - Math.round((lx - c) * 0.5);
+    if (lx >= c && lx <= c + 5) { if (d === 0) return 1; if (d === 1) return Math.min(5, i + 1); }
+  }
+  if (ly === 1 || lx === 1) i += 1;
+  else if (ly === 9 || lx === 11) i -= 1;
+  return i;
+}
