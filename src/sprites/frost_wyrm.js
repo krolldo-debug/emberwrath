@@ -504,7 +504,7 @@ function bodyTexel(L, q, r, P, heart, gy, xs, ys, dx, dy, a, i, row, dith) {
     // Bauchplatten: quer gerippt (fein: 1 Texel Fuge, darunter 1 Texel Lichtkante der nächsten Platte)
     let idx = (lum + 0.5) * 3 + dith * (RS > 1 ? 0.3 : 0.5);
     const fr = ((U / 3.1) % 1 + 1) % 1;
-    if (RS > 1) { if (fr < 0.14) idx -= 1.2; else if (fr < 0.29) idx += 0.45; }
+    if (RS > 1) { idx += 0.45; if (fr < 0.14) idx -= 1.5; else if (fr < 0.29) idx += 0.5; if (v < bellyEdge + 0.07) idx -= 1.6; }
     else if (fr < 0.26) idx -= 0.9;
     if (v > 0.93) idx -= 1;
     if (row >= gy - 1 && q.h < r + 2) idx -= 1.5;
@@ -526,6 +526,7 @@ function bodyTexel(L, q, r, P, heart, gy, xs, ys, dx, dy, a, i, row, dith) {
       else if (gf > 0.72 && v < -0.2 && hash2(cid, row2, 7) < 0.5) idx += gf > 0.86 ? 1.1 : 0.7;
     } else if (fr < 0.22) idx -= 0.75;
     else if (fr > 0.7 && v < -0.2 && hash2(Math.floor(cellF), row2, 7) < 0.5) idx += 0.7;
+    if (RS > 1 && v > bellyEdge - 0.1 && r > 2.2) idx -= 1.1;   // fein: Schattenfuge an den Bauchplatten
     if (v < -0.86) idx -= 0.8; // Rückengrat
     if (row >= gy - 1 && q.h < r + 2) idx -= 1.5; // Bodenschatten
     c = SCALEc[Math.max(0, Math.min(6, Math.round(idx)))]; m = M_SCALE;
@@ -576,11 +577,13 @@ function spike(p, g, q, r, P, sz, o) {
     const side = rx * px + ry * py;
     let c;
     if (RS > 1) {
-      // fein: Glanzlinie auf dem Grat (1 Texel), je Flanke zwei Facetten, dunkle Facettenkante
-      const hwA = Math.max(0.3, bw * (1 - along)), s = side / hwA, sl = s * litSide;
-      if (Math.abs(side) < 0.27) c = CRYS[along > 0.3 ? 4 : 3];
-      else if (sl > 0) c = along < 0.2 ? CRYS[1] : sl < 0.5 ? CRYS[3] : CRYS[2];
-      else c = along < 0.2 ? CRYS[0] : sl > -0.42 ? CRYS[1] : sl > -0.62 && along > 0.25 ? CRYS[2] : CRYS[0];
+      // fein: harter weißer Kern im Grat, helle Gratzone, weißblaue Spitze, je Flanke zwei Facetten
+      const hwA = Math.max(0.3, bw * (1 - along)), s = side / hwA, sl = s * litSide, as = Math.abs(side);
+      if (as < 0.26 && along > 0.32) c = '#ffffff';
+      else if (as < 0.55) c = CRYS[along > 0.3 ? 4 : 3];
+      else if (along > 0.78) c = sl > 0 ? '#f4fdff' : CRYS[3];
+      else if (sl > 0) c = along < 0.2 ? CRYS[1] : sl < 0.62 ? CRYS[3] : CRYS[2];
+      else c = along < 0.2 ? CRYS[0] : sl > -0.45 ? CRYS[1] : sl > -0.65 && along > 0.25 ? CRYS[2] : CRYS[0];
     } else if (Math.abs(side) < 0.55) c = CRYS[along > 0.55 ? 4 : 3];
     else if (side * litSide > 0) c = along < 0.22 ? CRYS[1] : CRYS[3];
     else c = along < 0.22 ? CRYS[0] : CRYS[1];
@@ -588,7 +591,7 @@ function spike(p, g, q, r, P, sz, o) {
     if (!frozen) {
       if (Math.abs(side) < 0.8 && along > 0.35) g.dot(x, y, along > 0.8 ? 3 : P.crest > 0.5 ? 2 : 1);
       else if (along > 0.25) g.edot(x, y, side * litSide > 0 ? 2 : 1);
-      if (RS > 1 && Math.abs(side) < 0.27 && along > 0.55) g.dot(x, y, along > 0.85 ? 4 : 3);   // fein: heller Kern im Grat
+      if (RS > 1 && Math.abs(side) < 0.55 && along > 0.4) g.dot(x, y, along > 0.75 || Math.abs(side) < 0.26 ? 4 : 3);   // fein: harter heller Kern im Grat
     }
   });
   if (RS > 1) p.dot(tipx, tipy, '#f4fdff', M_CRYS); else p.px(tipx, tipy, CRYS[4], M_CRYS);
@@ -696,6 +699,8 @@ function drawHead(p, g, bx, by, P, o) {
     const [ju, jv] = invJ(u, v);
     // drei flache Bänder: helle Kieferkante, Seite, dunkle Unterseite
     const idx = jv < LIP + 1.4 ? 4 : jv < LIP + 3.6 ? 3 : 2;
+    // fein: Kieferschatten – Unterseite deutlich dunkler, harte Schattenkante unter der Kieferkante
+    if (RS > 1) return SCALE[jv > LIP + 4.4 ? 0 : jv > LIP + 3.2 ? 1 : jv > LIP + 1.4 ? 2 : idx];
     return SCALE[idx];
   }, M_HEAD);
   // Kinnbart aus Eiszapfen
@@ -809,6 +814,17 @@ function drawHead(p, g, bx, by, P, o) {
     let idx = h > 0.72 ? 4 : 3;
     if (u < -1.5 && h < 0.72) idx = Math.min(idx, 2);                    // Wange hinten im Schatten
     if (u > 14 && u < 23 && h > 0.72 && ((u - 14) % 3.2) < 0.75) idx = 5; // Schnauzenschuppen (Höcker)
+    if (RS > 1) {
+      // fein: Licht von oben links – helle Kante an der Schädeloberkante, Stirnfläche heller nach hinten oben,
+      // Oberlippe im Schatten (Kieferschatten), Hinterkopf dunkel
+      const dt = v - topV(u);
+      if (dt < 0.45 && u < 26.5) return u < 14 ? '#c4eef6' : RIM;
+      if (dt < 1.6 && u < 24) return u < 18 ? SCALE[6] : SCALE[5];
+      if (dt < 3.2 && u < 22 && idx >= 4) idx = 5;
+      if (u < -4.9 && h > 0.25) return SCALE[5];                         // Hinterkopf zum Licht
+      if (h < 0.3 && u > -2) idx = 2;
+      else if (h < 0.5 && idx === 3) idx = 3;
+    }
     return SCALE[idx];
   }, M_HEAD);
   // Brauenwulst: kräftiger Knochenbogen über dem Auge, vorn tiefer (finsterer Blick):
@@ -968,8 +984,16 @@ function hornCurve(p, g, T, [[u0, v0], [u1, v1], [u2, v2]], w0, w1, far, P, froz
         p.fline(bx + nx * bw * 0.5, by + ny * bw * 0.5, x + nx * hw * 0.5, y + ny * hw * 0.5, far || dim ? CRYS[2] : t > 0.55 ? '#f4fdff' : CRYS[4], M_CRYS);
       }
     }
-    const [tx, ty] = T(u2, v2);
-    p.dot(tx, ty, far || dim ? CRYS[2] : '#f4fdff', M_CRYS);
+    // harter weißer Kern im hellen Hornende (fern/gedämpft: hellblau), Spitze weiß
+    for (let i = 6; i < rings.length; i += 6) {
+      const t = rings[i + 5];
+      if (t < (far || dim ? 0.7 : 0.45)) continue;
+      p.fline(rings[i], rings[i + 1], rings[i + 2], rings[i + 3], far || dim ? CRYS[3] : '#ffffff', M_CRYS);
+      if (!frozen && !far && !dim) g.fline(rings[i], rings[i + 1], rings[i + 2], rings[i + 3], t > 0.7 ? 4 : 3);
+    }
+    const [tx, ty] = T(u2, v2), [sx, sy] = T(u1 * 0.06 + u2 * 0.94, v1 * 0.06 + v2 * 0.94);
+    p.fline(sx, sy, tx, ty, far || dim ? CRYS[3] : '#ffffff', M_CRYS);
+    if (!frozen && !far && !dim) g.dot(tx, ty, 4);
   }
   // Leuchten erst nach allen Segmenten (sonst decken spätere Segmente es ab)
   for (let i = 0; i < gl.length; i += 3) {
