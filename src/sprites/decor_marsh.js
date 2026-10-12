@@ -108,6 +108,8 @@ function glowShroom(p, g, x, y, r, h, G, seed) {
 // kein Rauschen: Unregelmäßigkeit nur über Dreieckswellen (tri) und ganze Weltpixel-Hashes.
 const fract = (v) => v - Math.floor(v);
 const tri = (u) => 1 - Math.abs(2 * fract(u) - 1);
+// Funktion y -> Wert je Feinzeile merken (Stammachse/-breite werden je Feinpixel abgefragt)
+const memo = (fn) => { const m = new Map(); return (y) => { let v = m.get(y); if (v === undefined) m.set(y, (v = fn(y))); return v; }; };
 const STEM = ['#4a4a3e', '#6a6a5a', '#8a8a78', '#b0b098', '#ccccb4'];
 
 // Schlammfleck fein (gelappter Rand, helle Kante oben links) mit Pfütze: dunkler Spiegel, Uferschatten, Glanzstriche
@@ -198,7 +200,9 @@ function boulder(p, cx, cy, rx, ry, pal, seed, { lo = 1, hi = pal.length - 1, bi
   p.scan(cx - rx * 1.2, cy - ry * 1.2, cx + rx * 1.2, cy + ry * 1.2, (x, y) => {
     let dx = (x - cx) / rx, dy = (y - cy) / ry;
     if (flat && dy > 1 - flat) dy = 1 - flat + (dy - (1 - flat)) * 0.25;
-    const e = edge(Math.atan2(dy, dx)), d = Math.hypot(dx, dy) / e;
+    const r2 = dx * dx + dy * dy;
+    if (r2 > (1 + rough) * (1 + rough)) return 0;
+    const e = edge(Math.atan2(dy, dx)), d = Math.sqrt(r2) / e;
     if (d > 1 || (keep && !keep(x, y))) return 0;
     const nx = dx / e, ny = dy / e;
     if (RC && d > 0.84 && nx > 0.35 && ny > -0.2 && ny < 0.7) return RC;    // kühler Reflex unten rechts
@@ -233,25 +237,62 @@ function fMossCap(p, top, depth, seed, xMax = Infinity) {
     }
   }
 }
-// Rinde mit Drehwuchs: xAt/wAt stetig (Weltpixel), Bänder Lichtseite links, schräge Furchen mit Lichtgrat darunter
-function bark(p, y0, y1, xAt, wAt, pal, idx, { twist = 0.45, period = 3, seed = 0, wet = null, moss = null } = {}) {
-  const P = pal32(pal), M = pal32(MOSS);
+// Rissige Borke: Platten zwischen senkrechten Längsfurchen, je Platte eigene Querbrüche und eigener Ton (harte, dunkle
+// Stufen), Licht nur als schmale Kante am linken Plattenkamm. Kein durchgehender Glanzstreif: die Lichtseite besteht aus
+// einzelnen helleren Platten. T = [Furche, dunkel, Grund, Lichtplatte, Kamm]. xAt/wAt stetig (Weltpixel).
+function roughBark(p, y0, y1, xAt, wAt, T, { seed = 0, plate = 1.5, twist = 0, wet = null } = {}) {
+  const P = pal32(T);
   let x0 = Infinity, x1 = -Infinity;
   for (let y = y0; y <= y1; y += 0.5) { const h = wAt(y) / 2 + 1; x0 = Math.min(x0, xAt(y) - h); x1 = Math.max(x1, xAt(y) + h); }
-  const [a, b, c, d] = idx;
   p.scan(x0, y0, x1, y1, (x, y) => {
     const hw = wAt(y) / 2, dx = x - xAt(y);
     if (dx < -hw || dx >= hw || y > y1) return 0;
-    const rel = dx / hw;
-    if (moss && y > moss && rel < -0.78 + 0.35 * tri(y * 0.3 + seed * 0.1) * Math.min(1, (y - moss) / 4)) return rel < -0.85 ? M[5] : M[4];
-    let i = rel < -0.55 ? a : rel < -0.05 ? b : rel < 0.5 ? c : d;
-    const u = fract((dx + y * twist) / period + seed * 0.13);
-    const on = hash2(Math.floor((dx + y * twist) / period + seed * 0.13), Math.floor(y / 5), seed) < 0.75;
-    if (rel > -0.8 && u < 0.17 && on) i -= 2;
-    else if (rel < 0.45 && u >= 0.17 && u < 0.34 && on) i += 1;
-    if (wet !== null && y > wet) i -= 1;
-    return P[clampI(i, P.length)];
+    const rel = dx / hw, n = Math.max(2, Math.round((2 * hw) / plate));
+    const u = ((rel + 1) / 2) * n + twist * y, col = Math.floor(u), fu = u - col;
+    const len = 3 + hash2(col, 1, seed) * 3.5, v = (y + hash2(col, 0, seed) * 6) / len, row = Math.floor(v), fv = v - row;
+    const cut = 0.35 + 0.5 * hash2(col, row, seed + 3);
+    if (fu < 0.18 || (fv < 0.1 && fu < cut)) return P[0];                                          // Längsfurche, Querbruch
+    const pc = (((col - twist * y) + 0.5) / n) * 2 - 1, h = hash2(col, row, seed + 7);
+    let i = pc < -0.4 ? 3 : pc < 0.3 ? 2 : 1;
+    if (h < 0.18) i -= 1; else if (h > 0.8 && i < 3) i += 1;
+    if (wet !== null && y > wet) i = Math.max(1, i - 1);
+    if (i < 1) i = 1;
+    if (pc < 0.15 && fu < 0.34 && fv > 0.2 && i >= 2) return P[4];                   // Kamm im Licht (1 Feinpixel)
+    if (rel > 0.8) return P[1];
+    return P[i];
   });
+}
+// Moos- und Faulflecken auf einem Stamm: gelappte Flecken (Moos: hell oben links, dunkler Rand; Fäule: schwarzer Kern)
+function barkPatches(p, xAt, wAt, y0, y1, seed, n, { moss = true, rot = true } = {}) {
+  for (let k = 0; k < n; k++) {
+    const y = y0 + hash2(k, 0, seed) * (y1 - y0), side = -0.75 + hash2(k, 1, seed) * 1.3;
+    const cx = xAt(y) + side * wAt(y) / 2, rx = 0.7 + hash2(k, 2, seed) * 0.9, ry = 1 + hash2(k, 3, seed) * 1.6, ph = hash2(k, 4, seed) * 6;
+    const isMoss = moss && (!rot || hash2(k, 5, seed) < 0.6);
+    p.each(cx - rx - 0.5, y - ry - 0.5, cx + rx + 0.5, y + ry + 0.5, (x, yy) => {
+      const hw = wAt(yy) / 2, dx = x - xAt(yy);
+      if (dx < -hw || dx >= hw) return null;
+      const nx = (x - cx) / rx, ny = (yy - y) / ry, a = Math.atan2(ny, nx), d = nx * nx + ny * ny;
+      if (d > 0.85 + 0.3 * Math.sin(a * 3 + ph)) return null;
+      if (isMoss) return d > 0.55 ? MOSS[2] : nx + ny < -0.3 ? MOSS[5] : MOSS[4];
+      return d < 0.35 ? '#0a0c0a' : '#1a1712';
+    });
+  }
+}
+// Toter Ast: verjüngt, mit Knick; oben schmale Lichtkante nur am Ansatz, unten Schatten; abgebrochen = helle Bruchfläche.
+// T wie roughBark. Liefert die Spitze.
+function deadLimb(p, x0, y0, s, len, rise, w0, T, { broken = false, seed = 0 } = {}) {
+  const kx = 0.45 + hash2(seed, 1, 3) * 0.2, bend = (hash2(seed, 2, 3) - 0.5) * 2.5;
+  const at = (t) => [x0 + s * len * t, y0 - rise * t + (t < kx ? bend * t / kx : bend * (1 - (t - kx) / (1 - kx)))];
+  const steps = Math.max(4, Math.round(len * 2));
+  let [lx, ly] = at(0);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps, [x, y] = at(t), w = w0 * (1 - t) + (broken ? 0.6 : 0.1) * t;
+    if (w > 0.75) { p.fline(lx, ly, x, y, T[2], w); p.fline(lx, ly + w / 2, x, y + w / 2, T[1]); if (t < 0.5) p.fline(lx, ly - w / 2 + 0.25, x, y - w / 2 + 0.25, T[4]); }
+    else p.fline(lx, ly, x, y, t < 0.7 ? T[2] : T[1]);
+    lx = x; ly = y;
+  }
+  if (broken) { p.dot(lx, ly - 0.25, T[4]); p.dot(lx + s * 0.5, ly, T[3]); }
+  return [lx, ly];
 }
 
 // ---------------------------------------------------------------- Feine Zusätze über der alten Zeichnung (mk fine)
@@ -381,7 +422,7 @@ function willowTree(seed, H, v) {
 function willowFine(p, seed, H, v, branches, crownY, lean) {
   const cx = 27, bottom = H - 1;
   fMud(p, cx, bottom - 1, 14, 3, seed);
-  const tx = (y) => cx + 0.5 + lean * Math.max(0, 1 - (y - crownY) / (bottom - crownY)) ** 1.5 + Math.sin(y * 0.25 + seed) * 0.8;
+  const tx = memo((y) => cx + 0.5 + lean * Math.max(0, 1 - (y - crownY) / (bottom - crownY)) ** 1.5 + Math.sin(y * 0.25 + seed) * 0.8);
   const tw = (y) => { const k = (y - crownY) / (bottom - crownY); return 3.5 + k * 4.5 + (y > bottom - 4 ? (y - (bottom - 4)) * 1.6 : 0); };
   const pts = [];
   for (const b of branches) {
@@ -410,7 +451,9 @@ function willowFine(p, seed, H, v, branches, crownY, lean) {
     pts.push([Math.round(fx + b.s * 6 - 0.5), Math.round(fy - 1.5), 0.9]);
   }
   // Stamm mit Drehwuchs, Moos unten links, nasser dunkler Fuß
-  bark(p, crownY - 3, bottom + 1, tx, tw, ROT, [5, 4, 3, 2], { twist: 0.5, period: 3, seed, wet: bottom - 2, moss: bottom - 14 });
+  const TR = [ROT[0], ROT[2], ROT[3], ROT[4], ROT[5]];
+  roughBark(p, crownY - 3, bottom + 1, tx, tw, TR, { seed, plate: 1.6, twist: 0.06, wet: bottom - 2 });
+  barkPatches(p, (y) => tx(y) - tw(y) * 0.2, (y) => tw(y) * 0.6, bottom - 14, bottom - 1, seed + 21, 4, { rot: false });
   // gespaltene Krone
   const tc = tx(crownY - 3);
   fpoly(p, [[tc - 2, crownY - 2.5], [tc - 1.2, crownY - 5], [tc - 0.3, crownY - 3], [tc + 1.2, crownY - 6], [tc + 2.2, crownY - 2.5]], (x) => (x < tc ? ROT[4] : ROT[2]));
@@ -481,22 +524,15 @@ function deadStump(v) {
 // Stufe B: Holzkörper mit senkrechten Faserrillen und Lichtseite, Schnittfläche mit Jahresringen,
 // Baumschwamm-Konsolen mit Lichtkante, Splitterkrone als spitze Zacken, Höhlung mit beleuchteter Rückwand.
 function stumpFine(p, g, v, rng, cx, bottom, hw, topY) {
-  const seed = 1040 + v, X = cx + 0.5, R = pal32(ROT);
+  const seed = 1040 + v, X = cx + 0.5;
   fMud(p, cx, bottom - 1, 10, 2, seed);
   p.fline(X - hw, bottom - 1, X - hw - 4, bottom + 0.5, ROT[3], 1); p.fline(X - hw, bottom - 1.5, X - hw - 4, bottom, ROT[5]);
   p.fline(X - hw, bottom - 2, X - hw - 2, bottom - 0.5, ROT[4]);
   p.fline(X + hw, bottom - 1, X + hw + 4, bottom + 0.5, ROT[1], 1); p.fline(X + hw, bottom - 1.5, X + hw + 3.5, bottom, ROT[2]);
   const half = hw + 0.5;
-  p.scan(X - half - 0.5, topY, X + half + 0.5, bottom, (x, y) => {
-    const fl = y > bottom - 2 ? (y - bottom + 2) * 0.35 : 0, dx = x - X;
-    if (dx < -half - fl || dx >= half + fl) return 0;
-    const rel = dx / (half + fl);
-    let i = rel < -0.6 ? 5 : rel < -0.1 ? 4 : rel < 0.5 ? 3 : 2;
-    const u = fract((dx + half) / 1.5), col = Math.floor((dx + half) / 1.5);
-    if (rel > -0.7 && u < 0.3 && hash2(col, Math.floor(y / 3), seed) < 0.7) i -= 1;
-    if (y > bottom - 1.5) i -= 1;
-    return R[clampI(i, 7)];
-  });
+  const wAt = (y) => 2 * half + (y > bottom - 2 ? (y - bottom + 2) * 0.7 : 0) + (v === 1 ? Math.sin(y * 0.7) * 0.4 : 0);
+  roughBark(p, v === 1 ? topY - 0.5 : topY + 0.5, bottom, () => X, wAt, [ROT[0], ROT[2], ROT[3], ROT[4], ROT[5]], { seed, plate: 1.5, wet: bottom - 1.5 });
+  barkPatches(p, () => X, wAt, topY + 2, bottom - 1, seed + 5, 2 + v, { rot: v !== 0 });
   if (v === 0) {
     p.oval(X, topY + 0.5, half, 1.7, ROT[3]);
     p.each(X - half, topY - 1.5, X + half, topY + 2, (x, y) => {
@@ -1330,7 +1366,7 @@ function lanternPost() {
 const PLANK = ['#0e0d0b', '#191713', '#25221b', '#322d23', '#40392c', '#4f4635', '#615643', '#776a52'];
 const SILT = ['#2a2c20', '#3a3c2a', '#4e4e36'];
 
-// Flaches Sprite ohne Umriss; Leuchtebene in Sprite-Größe (Anker gleich). Im Feinraster (fineRes 2) ×2 mit Scale2x
+// Flaches Sprite ohne Umriss; Leuchtebene in Sprite-Größe (Anker gleich). Mit up (oder fine) im Feinraster ×2 mit Scale2x
 // (Rand geklemmt, damit gekachelte Bohlen an den Zellkanten keine Kerben bekommen), frame.res = 2; Leuchtebene ebenso.
 // fine(f, g): optionale feine Zusätze (DecoCanvas über dem hochskalierten Bild, g.dot fein).
 function scale2xClamp(sd, w, h) {
@@ -1346,7 +1382,7 @@ function scale2xClamp(sd, w, h) {
   }
   return od;
 }
-function flat(W, H, ax, ay, draw, extra = null, fine = null) {
+function flat(W, H, ax, ay, draw, extra = null, fine = null, up = !!fine) {
   const p = new PixelCanvas(W, H);
   let gl = null;                            // Leuchtebene erst bei Bedarf
   const G = () => (gl ??= new PixelCanvas(W, H));
@@ -1354,7 +1390,7 @@ function flat(W, H, ax, ay, draw, extra = null, fine = null) {
   draw(p, g);
   const used = !!gl, res = fineRes();
   let e;
-  if (res === 1) {
+  if (res === 1 || !up) {
     e = { sprite: new SpriteFrame(p.canvas, ax, ay) };
     if (used) e.glow = gl.canvas;
   } else {
@@ -1528,7 +1564,7 @@ function fordShallows(v) {
       p.px(Math.round(sx - rx - 1), Math.round(sy + ry), SW[4]); p.px(Math.round(sx + rx + 1), Math.round(sy + ry), SW[5]);
     }
     for (let k = 0; k < 3; k++) { const x = 3 + Math.floor(hash2(k, v, 2320) * 13), y = 1 + Math.floor(hash2(k, v, 2321) * 14); p.px(x, y, SW[5]); p.px(x + 1, y, SW[4]); }
-  });
+  }, null, null, true);
 }
 // Dammufer: Faschinen (Reisigbündel) und Pflöcke an der Böschungskante
 function fascine(p, x0, x1, y, seed) {
@@ -1595,7 +1631,7 @@ function lilyPads(v) {
     });
     if (v !== 1) { const [x, y] = pads[1]; p.px(x - 1, y - 2, '#e8d8e0'); p.px(x, y - 2, '#f8eef2'); p.px(x + 1, y - 2, '#d8b8c8'); p.px(x, y - 3, '#ffffff'); p.px(x, y - 1, '#e0c040'); }
     for (let k = 0; k < 4; k++) { const x = 2 + Math.floor(hash2(k, v, 2501) * 24), y = 2 + Math.floor(hash2(k, v, 2502) * 12); p.px(x, y, SW[4]); }
-  });
+  }, null, null, true);
 }
 // Versunkene Dächer: v0 Strohgiebel, v1 Schieferdach mit Schornstein, v2 Kapellenspitze
 function sunkenRoof(v) {
@@ -1651,7 +1687,7 @@ function sunkenRoof(v) {
     }
     p.px(2, wl + 2, SW[4]); p.px(W - 3, wl + 2, SW[4]); p.px(3, wl + 3, SW[3]); p.px(W - 4, wl + 3, SW[3]);
     if (v === 0) { g.px(cx + 5, wl - 5, GLG[2]); p.px(cx + 5, wl - 5, GLG[3]); }                  // Irrlicht im Dachloch
-  });
+  }, null, null, true);
 }
 // Nebelschwaden über dem Nebelsee (halbdurchsichtig)
 function mistWisps(v) {
@@ -1689,7 +1725,7 @@ function drownedBoat(v) {
       beard(q, bx + s, wl - 12, 5, v + 1);
     });
     for (let x = 3; x < W - 3; x += 2) if (hash2(x, v, 2801) < 0.6) p.px(x, wl, SW[4]);
-  });
+  }, null, null, true);
 }
 // Riesenpilze (Pilzwald)
 function giantShroom(v) {
@@ -1974,35 +2010,58 @@ function drownedTree(v) {
 // Stufe B: Spiegelung als dunkle Wellenlinien mit Stammspiegel, Stamm mit Furchen und nassem Fuß, Äste verjüngt,
 // Moosring an der Wasserlinie, Ringe im Wasser.
 function drownedTreeFine(p, v, rng, H, W, cx, wl) {
-  const top = [12, 16, 8][v], lean = [2, -3, 1][v];
-  const tx = (y) => cx + 0.5 + lean * (wl - y) / (wl - top);
-  const tw = (y) => 4.4 + ((y - top) / (wl - top)) * 4.8;
+  const top = [12, 16, 8][v], lean = [2, -3, 1][v], seed = 3200 + v;
+  // Knickstamm: Mittellinie aus Stützpunkten (lineare Stücke), Breite mit Wülsten an Astansätzen
+  const ks = [];
+  for (let y = wl, k = 0; y > top - 6; y -= 5 + hash2(k, 9, seed) * 5, k++) ks.push([y, (hash2(k, 8, seed) - 0.5) * 1.8]);
+  const kink = (y) => { for (let i = 0; i < ks.length - 1; i++) { const [ya, da] = ks[i], [yb, db] = ks[i + 1]; if (y <= ya && y >= yb) return da + (db - da) * (ya - y) / (ya - yb); } return ks[ks.length - 1][1]; };
+  const tx = memo((y) => cx + 0.5 + lean * (wl - y) / (wl - top) + kink(y) * Math.min(1, (wl - y) / 6));
+  const limbs = [];
+  for (let k = 0; k < 5; k++) {
+    const y0 = top + rng.int(0, Math.round((wl - top) * 0.5)) + 0.5, s = k % 2 ? 1 : -1, len = rng.int(7, 14);
+    limbs.push({ y0, s, len, beard: rng.chance(0.6), bl: rng.int(4, 9) });
+  }
+  limbs.push({ y0: top + (wl - top) * 0.66, s: v ? 1 : -1, len: 2, stub: true });
+  const tw = memo((y) => {
+    let w = 4.6 + ((y - top) / (wl - top)) * 4.8 + (y > wl - 2.5 ? (y - wl + 2.5) * 0.9 : 0);
+    for (const b of limbs) { const d = Math.abs(y - b.y0); if (d < 1.6) w += (1.6 - d) * 0.9; }
+    return w;
+  });
+  const T = [MST[2], MST[3], MST[4], MST[5], MST[6]];
+  // Spiegelung: dunkle Wellenlinien, Stammspiegel
   const [d0, d1, r0, r1] = pal32(['#030907', SW[0], MST[1], MST[2]]);
   p.scan(4, wl, W - 4, H, (x, y) => {
     const e = Math.abs(x - cx - 0.5) / 16 + (y - wl) / 5;
     if (e >= 1) return 0;
     const row = Math.floor(y * 2) - wl * 2;
-    if (Math.abs(x - tx(wl)) < 2.2 - row * 0.25 && (row & 1) === 0) return x < tx(wl) ? r1 : r0;     // Stammspiegel
+    if (Math.abs(x - tx(wl)) < 2.2 - row * 0.25 && (row & 1) === 0) return x < tx(wl) ? r1 : r0;
     if (row & 1) return 0;
     return tri(x * 0.15 + row * 0.3) > 0.3 + e * 0.5 ? (e < 0.5 ? d0 : d1) : 0;
   });
-  for (let k = 0; k < 5; k++) {
-    const y0 = top + rng.int(0, Math.round((wl - top) * 0.5)) + 0.5, s = k % 2 ? 1 : -1, len = rng.int(7, 14);
-    const x0 = tx(y0), x1 = x0 + s * len, y1 = y0 - len / 2;
-    const xm = x0 + s * 3.5, ym = y0 - 1.75;
-    p.fline(x0, y0, xm, ym, MST[4], 1); p.fline(x0, y0 + 0.5, xm, ym + 0.5, MST[2]); if (s < 0) p.fline(x0, y0 - 0.5, xm, ym - 0.5, MST[5]);
-    p.fline(xm, ym, x1, y1, MST[3]);
-    p.fline(x1, y1, x1 + s * 2, y1 - 3, MST[3]); p.dot(x1 + s * 2, y1 - 3, MST[4]);
-    if (rng.chance(0.6)) fBeard(p, Math.round(x1 - s * 2 - 0.5), Math.round(y1 + 0.5), rng.int(4, 9), k + v);
-  }
-  bark(p, top, wl + 0.5, tx, tw, MST, [5, 4, 3, 2], { twist: 0.5, period: 3.5, seed: 3200 + v, wet: wl - 6 });
-  p.dot(tx(top) - 1, top - 0.5, MST[5]); p.dot(tx(top) - 1, top - 1, MST[6]); p.dot(tx(top) + 0.5, top - 1.5, MST[4]); p.dot(tx(top) + 1, top - 1, MST[3]);
-  // Moosring an der Wasserlinie
+  // Äste hinter dem Stamm: lange mit Gabel, kurze abgebrochen, Stummel
+  limbs.forEach((b, k) => {
+    const x0 = tx(b.y0) + b.s * 0.5;
+    if (b.stub) { deadLimb(p, x0, b.y0, b.s, b.len + tw(b.y0) / 2, 0.6, 1.4, T, { broken: true, seed: seed + k }); return; }
+    const broken = k === 2 || k === 4 - v, len = broken ? b.len * 0.55 : b.len;
+    const [x1, y1] = deadLimb(p, x0, b.y0, b.s, len, len / 2, 1.3, T, { broken, seed: seed + k });
+    if (!broken) p.fline(x1, y1, x1 + b.s * 2, y1 - 3, T[1]);
+    if (b.beard) fBeard(p, Math.round(x1 - b.s * 2 - 0.5), Math.round(y1 + 0.5), b.bl, k + v);
+  });
+  roughBark(p, top, wl + 0.5, tx, tw, T, { seed, plate: 1.8, twist: 0.04, wet: wl - 4 });
+  barkPatches(p, tx, tw, top + 3, wl - 3, seed + 11, 6);
+  // abgebrochene Krone: Splitterzacken unterschiedlicher Höhe, Bruchholz heller
+  const hw = tw(top) / 2, xt = tx(top), spikes = [1.5, 3.5, 0.8, 2.6, 1.2];
+  const pts = [[xt - hw, top + 1]];
+  spikes.forEach((h, i) => { const xa = xt - hw + (2 * hw * i) / spikes.length, xb = xt - hw + (2 * hw * (i + 1)) / spikes.length; pts.push([xa, top + 0.5 - (i ? spikes[i - 1] * 0.3 : 0)], [(xa + xb) / 2, top - h], [xb, top + 0.3]); });
+  pts.push([xt + hw, top + 1]);
+  fpoly(p, pts, (x, y) => (y < top - 1 && x < xt ? T[3] : x > xt + hw * 0.4 ? T[1] : T[2]));
+  spikes.forEach((h, i) => { const xm = xt - hw + (2 * hw * (i + 0.5)) / spikes.length; p.dot(xm, top - h + 0.25, i < 3 ? '#5a5e52' : T[3]); });
+  // Moos an der Wasserlinie: fleckig, mit Lücken
   const bx = tx(wl);
-  p.each(bx - 5.5, wl - 2.5, bx + 5.5, wl, (x, y) => {
-    const dx = x - bx, h = 1.2 + 0.9 * tri(dx * 0.4 + v);
-    if (Math.abs(dx) > 5.3 || y < wl - h) return null;
-    return y < wl - h + 0.5 ? (dx < 0 ? MOSS[5] : MOSS[4]) : dx < 1 ? MOSS[4] : MOSS[3];
+  p.each(bx - 5.5, wl - 3, bx + 5.5, wl, (x, y) => {
+    const dx = x - bx, cxw = Math.floor(dx + 6), h = hash2(cxw, 4, seed) < 0.25 ? 0 : 0.8 + 1.6 * hash2(cxw, 5, seed);
+    if (Math.abs(dx) > tw(wl) / 2 + 0.5 || y < wl - h) return null;
+    return y < wl - h + 0.5 ? (dx < 0 ? MOSS[5] : MOSS[4]) : dx < 0 ? MOSS[4] : MOSS[3];
   });
   fRing(p, bx, wl + 0.8, 7.5, 1.1);
   p.dot(bx - 9, wl + 0.25, SW[5]); p.dot(bx + 9, wl + 0.25, SW[5]);
