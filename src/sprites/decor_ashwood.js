@@ -101,13 +101,16 @@ export function bevelPixels(src, d, w, h, { T = 15, lit = 0.2, dark = -0.3 } = {
   return out;
 }
 
+// Leuchtebene in Weltpixeln mit 1 px Rand (Schein darf über den Sprite-Rand hinaus).
+function mkGlowW(W, H) { const c = new PixelCanvas(W + 2, H + 2); c.ctx.translate(1, 1); return c; }
+
 let BEVEL = true;
 export function setBevel(v) { BEVEL = v; }
 // Baut einen Deko-Eintrag. draw(p, g): p = Sprite-Ebene, g = Glow-Ebene (gleiche Koordinaten).
 export function mk(W, H, draw, { ax = Math.floor(W / 2), ay = H - 1, box, light, extra, b = false, under = null, fine = null, bevel = BEVEL } = {}) {
   const res = fineRes();
   let gw = null, gf = null;                 // Leuchtebenen erst bei Bedarf: Weltpixel (alter Code) und fein
-  const W0 = () => (gw ??= new PixelCanvas(W, H)), F0 = () => (gf ??= new DecoCanvas(W, H, res));
+  const W0 = () => (gw ??= mkGlowW(W, H)), F0 = () => (gf ??= new DecoCanvas(W, H, res));
   const g = {
     fine: res > 1, res,
     px: (x, y, c) => W0().px(x, y, c),
@@ -145,10 +148,11 @@ export function mk(W, H, draw, { ax = Math.floor(W / 2), ay = H - 1, box, light,
     sprite = new SpriteFrame(pixelsToCanvas(d, Wt + 2, Ht + 2), ax * res + 1, ay * res + 1, res);
   }
   const e = { sprite };
-  if (gw || gf) {
+  if (gw && !gf && res === 1) e.glow = gw.canvas; // wie früher: Weltauflösung mit 1 px Rand
+  else if (gw || gf) {
     const gc = new PixelCanvas(W * res + 2, H * res + 2);
     gc.ctx.imageSmoothingEnabled = false;
-    if (gw) gc.ctx.drawImage(gw.canvas, 1, 1, W * res, H * res);
+    if (gw) gc.ctx.drawImage(gw.canvas, 1 - res, 1 - res, (W + 2) * res, (H + 2) * res);
     if (gf) {
       const img = gc.ctx.getImageData(0, 0, W * res + 2, H * res + 2), o = new Uint32Array(img.data.buffer);
       const f = padPixels(gf.pixels(), W * res, H * res);
@@ -306,7 +310,7 @@ export function emberCrack(f, g, x, y, len, seed) {
 }
 // Glimmpunkt: 1 Weltpixel Glut mit heißem Feinpixel oben links und Schein auf der Leuchtebene
 export function emberDot(f, g, x, y, big = false) {
-  x = Math.floor(x * 2) / 2; y = Math.floor(y * 2) / 2;
+  x = Math.round(x); y = Math.round(y); // ganze Weltpixel: Kern liegt immer im Glutpixel
   f.rect(x, y, 1, 1, EMB[3]); f.dot(x, y, EMB[5]); f.dot(x + 0.5, y + 0.5, EMB[2]);
   g.rect(x, y, 1, 1, EMB[4]); g.dot(x, y, '#fff0b0');
   for (const [dx, dy] of [[-0.5, 0], [-0.5, 0.5], [1, 0], [1, 0.5], [0, -0.5], [0.5, -0.5], [0, 1], [0.5, 1]]) g.dot(x + dx, y + dy, EMB[2]);
