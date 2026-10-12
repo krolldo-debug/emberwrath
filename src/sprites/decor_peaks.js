@@ -2143,7 +2143,7 @@ function* paintCliffs(ctx, x0, y0, cw, ch, map) {
   if (!FTEX) yield* buildTex();
   const [F7, F14] = FTEX;
   const CL = cleftTable(X0, Y0, X1, Y1, 541), VN = veinTable(X0, Y0, X1, Y1);
-  const N532 = ntab(X0, X1, Y0, Y1, 24, 20, 532), N537 = ntab(X0, X1, Y0, Y1, 20, 15, 537), N545 = ntab(X0, X1, Y0, Y1, 5, 4, 545), N545b = ntab(X0, X1, Y0, Y1, 6, 5, 545), N546 = ntab(X0, X1, Y0, Y1, 1.6, 20, 546);
+  const N532 = ntab(X0, X1, Y0, Y1, 24, 20, 532), N537 = ntab(X0, X1, Y0, Y1, 20, 15, 537), N545 = ntab(X0, X1, Y0, Y1, 10, 7, 545), N545b = ntab(X0, X1, Y0, Y1, 6, 5, 545), N546 = ntab(X0, X1, Y0, Y1, 1.6, 20, 546);
   const N551 = ntab(X0, X1, Y0, Y1, 14, 10, 551), N552 = ntab(X0, X1, Y0, Y1, 4, 4, 552), N556 = ntab(X0, X1, Y0, Y1, 13, 10, 556);
   const img = ctx.getImageData(bx0 - x0, by0 - y0, BW, BH), d = img.data;
   // Abstand (px) zum nächsten Fels darüber je Bodenpixel (für den Schlagschatten), spaltenweise
@@ -2213,8 +2213,9 @@ function* paintCliffs(ctx, x0, y0, cw, ch, map) {
         if (top === 0) k = 7 + (hash2(px, 3, 544) < 0.3 ? 1 : 0);                      // heller Saum der Oberkante
         else if (top === 1) k = Math.max(k, 5);
         let z545 = 0, drip = false; { const q = R545 + K545[cc], sx = X545[cc], a = V545[q], b = V545[q + 1], c2 = V545[q + W545], d2 = V545[q + W545 + 1]; z545 = a + (b - a) * sx + (c2 - a) * S545 + (a - b - c2 + d2) * sx * S545; }
-        const spot = z545 > 0.8;
-        if (!spot) { let z546 = 0; { const q = R546 + K546[cc], sx = X546[cc], a = V546[q], b = V546[q + 1], c2 = V546[q + W546], d2 = V546[q + W546 + 1]; z546 = a + (b - a) * sx + (c2 - a) * S546 + (a - b - c2 + d2) * sx * S546; } if (z546 > 0.78) { let z545b = 0; { const q = R545b + K545b[cc], sx = X545b[cc], a = V545b[q], b = V545b[q + 1], c2 = V545b[q + W545b], d2 = V545b[q + W545b + 1]; z545b = a + (b - a) * sx + (c2 - a) * S545b + (a - b - c2 + d2) * sx * S545b; } drip = z545b > 0.66; } }
+        // Rost an der Wand: wenige größere Flecken (grobes Rauschen, harte Schwelle) und seltene Rostfahnen
+        const spot = z545 > 0.86;
+        if (!spot) { let z546 = 0; { const q = R546 + K546[cc], sx = X546[cc], a = V546[q], b = V546[q + 1], c2 = V546[q + W546], d2 = V546[q + W546 + 1]; z546 = a + (b - a) * sx + (c2 - a) * S546 + (a - b - c2 + d2) * sx * S546; } if (z546 > 0.86) { let z545b = 0; { const q = R545b + K545b[cc], sx = X545b[cc], a = V545b[q], b = V545b[q + 1], c2 = V545b[q + W545b], d2 = V545b[q + W545b + 1]; z545b = a + (b - a) * sx + (c2 - a) * S545b + (a - b - c2 + d2) * sx * S545b; } drip = z545b > 0.76; } }
         let colr = (spot || drip ? RKR : RK)[Math.max(0, Math.min(8, k))];
         if (top > 2 && t > 2 && nva) { const vv = veinAt(VN, VA, nva, px, py); if (vv === 1) colr = RK[1]; else if (vv) colr = VEIN[vv]; }
         d[i] = colr[0]; d[i + 1] = colr[1]; d[i + 2] = colr[2];
@@ -2262,7 +2263,7 @@ function* paintCliffs(ctx, x0, y0, cw, ch, map) {
         }
       }
       let z556 = 0; { const q = R556 + K556[cc], sx = X556[cc], a = V556[q], b = V556[q + 1], c2 = V556[q + W556], d2 = V556[q + W556 + 1]; z556 = a + (b - a) * sx + (c2 - a) * S556 + (a - b - c2 + d2) * sx * S556; }
-      const rust = z556 > 0.79;
+      const rust = z556 > 0.87;                                                         // seltene Rostflecken auf der Kuppe
       const col = (rust ? RKR : RK)[Math.max(0, Math.min(8, k))];
       d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
     }
