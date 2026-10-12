@@ -2,6 +2,9 @@ import { PAL } from '../gfx/Palette.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
 import { createRng, hash2 } from '../core/math.js';
+import { col32 } from '../gfx/Fine.js';
+import { FineTile, finePath } from './tiles.js';
+import { band, dith } from './ground/kit.js';
 
 // Kacheln, Flüssigkeiten und Deko für zwei weitere Dungeons:
 //   'temple' – Der Versunkene Tempel: überfluteter Meerestempel aus türkis-grünem
@@ -1553,6 +1556,322 @@ function forgePipes() {
   }, { box: [-9, -3, 9, 1] });
 }
 
+// ================================================================== Feinraster-Böden (docs/STYLE.md „Feinraster“)
+// Gleiche Platten, Farben und rng-Folge wie templeFloor/forgeFloor (die grobe Fassung bleibt für Qualität Niedrig),
+// gezeichnet mit 2 Feinpixeln je Weltpixel (64×64 Texel, canvas.res = 2): Fugen 1 Feinpixel mit Lichtkante, Fasen,
+// Abplatzungen, Risse mit Lichtkante, Algen/Halme mit heller Spitze, Glanzpunkte. Kein Sprenkel, harte Stufen.
+const f32 = (list) => list.map((c) => col32(c));
+const TSTf = f32(TST), TSWf = f32(TSW), TGf = col32(TGROUT), SANDf = f32(SAND), ALGf = f32(ALG), WATf = f32(WAT), SHELLf = f32(SHELL);
+const BASf = f32(BAS), IRONf = f32(IRON), BRASSf = f32(BRASS), SOOTf = f32(SOOT), CRUSTf = f32(CRUST), EMBf = f32(EMB), FGf = col32(FGROUT);
+const MOSAICf = f32(['#5a6a52', '#1a3a44', '#16303a', '#3e6a66', '#1d4448', '#193a3e', '#72806a', TST[1], TST[3], '#122a32', '#4a5a44']);
+const ALGr = [ALGf[0], ALGf[1], ALGf[1], ALGf[2], ALGf[3], ALGf[4]];   // Halm: Spitze ALG[4]
+const T_TONE = FineTile.tones([TSTf, TSWf, SANDf, ALGf, WATf]);
+const F_TONE = FineTile.tones([BASf, IRONf, CRUSTf]);
+
+// Körnung der groben Fassung (gleiche rng-Folge): wenige bewusst gesetzte Grübchen/Buckel
+function grainFine(t, rng, x, y, w, h, grain) {
+  for (let i = 0; i < (w * h) / grain; i++) {
+    const px = x + 1 + rng.int(0, Math.max(0, w - 3)), py = y + 1 + rng.int(0, Math.max(0, h - 3));
+    const r = rng.next(), F = px * 2 + (i & 1), G = py * 2 + ((i >> 1) & 1);
+    if (G >= y * 2 + h * 2 - 3 || F >= x * 2 + w * 2 - 3) continue;
+    if (r < 0.6) { if (i % 2 === 0) { t.shift(F, G, -1); if (i % 4 === 0) t.shift(F + 1, G, -1); t.shift(F, G + 1, 1); } }
+    else if (i % 3 === 0) { t.shift(F, G, 1); t.shift(F, G + 1, -1); }
+  }
+}
+// Fugenstaub: Mörtel in der Nähe der groben Staubpunkte bekommt die Staubfarbe
+function jointDust(t, pts, grout, seed) {
+  for (const [x, y, c] of pts) for (let j = -3; j <= 3; j++) for (let k = -3; k <= 3; k++) {
+    const F = x * 2 + k, G = y * 2 + j;
+    if (t.get(F, G) === grout && hash2(F, G, seed) < 0.55) t.set(F, G, c);
+  }
+}
+// Riss wie crackLine (gleiche rng-Folge), ohne Haken, Mitte 2 Feinpixel breit; liefert die Feinpixel
+function crackPts(rng, x, y, len, light = true) {
+  let cx = x, cy = y, F = x * 2, G = y * 2, dir = 0;
+  const pts = [[F, G]];
+  for (let i = 0; i < len; i++) {
+    if (light) rng.chance(0.4);
+    if (rng.chance(0.15)) { const bx = rng.int(-1, 1); finePath(F, G, F + bx * 2 + (bx ? 0 : 1), G + 3, pts); }
+    const s = rng.int(-1, 1) || 1;
+    dir ||= s;
+    cx += dir; cy += rng.int(0, 1);
+    if (i > len / 3 && i < (len * 2) / 3) pts.push([F + 1, G]);
+    const nF = cx * 2 + (hash2(cx, cy, 44) < 0.5 ? 0 : 1), nG = cy * 2 + (hash2(cx, cy, 45) < 0.5 ? 0 : 1);
+    finePath(F, G, nF, nG, pts);
+    F = nF; G = nG;
+  }
+  return pts;
+}
+// Halm/Alge: Fuß (F, G), Höhe hh, Spitze hell, dunkler Fuß, Schatten rechts
+function bladeFine(t, F, G, hh, lean, R) {
+  t.shift(F + 1, G, -1);
+  for (let r = 0; r < hh; r++) {
+    const top = r === hh - 1;
+    t.set(F + (top && hh > 2 ? lean : 0), G - r, R[top ? 5 : r === hh - 2 ? 4 : r === 0 ? 1 : 3]);
+  }
+}
+
+// ---------------------------------------------------------------- Tempel
+function mosaicFine(t, rng, x, y, w, h) {
+  const X = x * 2, Y = y * 2;
+  t.rect(X, Y, w * 2, h * 2, TGf);
+  const phase = rng.range(0, 6);
+  const C = { '#5a6a52': 0, '#1a3a44': 1, '#16303a': 2, '#3e6a66': 3, '#1d4448': 4, '#193a3e': 5 };
+  for (let j = 0; j + 1 < h; j += 2) {
+    for (let i = 0; i + 1 < w; i += 2) {
+      const u = i / 2, v = j / 2;
+      const crest = h / 4 + Math.sin(u * 0.9 + phase) * 1.3;
+      let c;
+      if (Math.abs(v - crest) < 0.7) c = '#5a6a52';
+      else if (v < crest) c = (u + v) % 3 === 0 ? '#1a3a44' : '#16303a';
+      else if (Math.abs(v - crest - 2) < 0.7) c = '#3e6a66';
+      else c = (u * 7 + v * 3) % 5 === 0 ? '#1d4448' : '#193a3e';
+      const missing = rng.chance(0.12);
+      rng.chance(0.3);
+      const F = X + i * 2, G = Y + j * 2;
+      if (missing) { t.rect(F, G, 4, 4, TSTf[1]); t.set(F + 1, G + 1, TSTf[0]); t.set(F + 2, G + 1, TSTf[0]); continue; }
+      const glint = rng.chance(0.3);
+      // Steinchen 3×3 Feinpixel, Fuge 1 Feinpixel; Glanz oben links, Schatten unten rechts
+      const k = C[c], body = MOSAICf[k];
+      t.rect(F, G, 3, 3, body);
+      const hi = k === 0 ? MOSAICf[6] : k === 3 ? MOSAICf[10] : MOSAICf[8];
+      if (glint) t.set(F, G, hi);
+      t.set(F + 2, G + 2, k === 0 ? MOSAICf[10] : k === 3 ? MOSAICf[4] : MOSAICf[9]);
+    }
+  }
+  // Rahmen: oben/links im Schatten, unten/rechts Licht (eingetieftes Feld)
+  t.rect(X - 2, Y - 2, w * 2 + 2, 2, TSTf[1]); t.rect(X - 2, Y - 2, 2, h * 2 + 2, TSTf[1]);
+  t.rect(X - 1, Y - 1, w * 2 + 1, 1, TSTf[0]); t.rect(X - 1, Y - 1, 1, h * 2 + 1, TSTf[0]);
+  t.rect(X, Y + h * 2 - 2, w * 2, 2, TSTf[4]); t.rect(X + w * 2 - 2, Y, 2, h * 2, TSTf[4]);
+  t.rect(X, Y + h * 2 - 2, w * 2 - 1, 1, TSTf[3]); t.rect(X + w * 2 - 2, Y, 1, h * 2 - 1, TSTf[3]);
+}
+
+function fossilFine(t, cx, cy, ramp, base) {
+  const pts = [], seen = new Set();
+  for (let a = 0; a < Math.PI * 5; a += 0.05) {
+    const r = 0.7 + a * 0.3;
+    const F = Math.floor((cx + 0.5 + Math.cos(a) * r) * 2), G = Math.floor((cy + 0.5 + Math.sin(a) * r * 0.85) * 2);
+    if (!seen.has(G * 64 + F)) { seen.add(G * 64 + F); pts.push([F, G]); }
+  }
+  t.groove(pts, ramp[Math.max(0, base - 2)]);
+  for (const [F, G] of pts) if (!seen.has((G + 1) * 64 + F + 1) && !seen.has((G + 1) * 64 + F)) t.shift(F + 1, G + 1, 1);
+}
+
+function templeFloorFine(count = 10, seed = 71) {
+  const rng = createRng(seed);
+  const tiles = [];
+  for (let n = 0; n < count; n++) {
+    const t = new FineTile(T_TONE);
+    t.rect(0, 0, 64, 64, TGf);
+    const dust = [];
+    for (let k = 0; k < 30; k++) dust.push([rng.int(0, 31), rng.int(0, 31), col32(rng.pick(['#0c1719', '#0a1416', SAND[0]]))]);
+    const rects = [];
+    splitRects(rng, 0, 0, 32, 32, rects, 7);
+    let mosaic = n === 4;
+    let spiral = n === 7;
+    for (const [x, y, w, h] of rects) {
+      const ramp = rng.chance(0.15) ? TSWf : TSTf;
+      const base = rng.pick([2, 2, 2, 3]);
+      t.slab(x * 2, y * 2, w * 2, h * 2, ramp, base, TGf, Math.max(0, base - 2), Math.max(0, base - 1));
+      grainFine(t, rng, x, y, w, h, 20);
+      if (mosaic && w >= 12 && h >= 12) { mosaicFine(t, rng, x + 2, y + 2, w - 4, h - 4); mosaic = false; continue; }
+      if (spiral && w >= 11 && h >= 11) { fossilFine(t, x + (w >> 1), y + (h >> 1), ramp, base); spiral = false; continue; }
+      // Nasse Mulde: flache dunklere Fläche, Rand unten eine Stufe heller, Glanz oben links
+      if (rng.chance(0.35) && w > 6 && h > 6) {
+        const cx = x + rng.int(2, w - 3), cy = y + rng.int(2, h - 3);
+        for (let j = -2; j <= 2; j++) for (let i = -3; i <= 3; i++) {
+          if (i * i / 9 + j * j / 4 > 1 || ((i + j) & 1 && rng.chance(0.5))) continue;
+        }
+        // Form aus drei versetzten Flecken (unregelmäßig, harte Kante), Glanz oben links
+        const D = () => ramp[base - 1], F0 = cx * 2 + 1, G0 = cy * 2 + 1, hh = hash2(cx, cy, 60);
+        t.ellipse(F0, G0, 5, 2.6, D);
+        t.ellipse(F0 + (hh < 0.5 ? 3 : -3), G0 + 1.5, 3.5, 2, D);
+        t.ellipse(F0 + (hh < 0.5 ? -2 : 2), G0 - 1.2, 2.6, 1.6, D);
+        t.set(F0 - 3, G0 - 1, ramp[base + 1]); t.set(F0 - 2, G0 - 1, ramp[base]);
+      }
+    }
+    // Riss mit Algenbewuchs
+    if (rng.chance(0.5)) {
+      const pts = crackPts(rng, rng.int(3, 26), rng.int(2, 14), rng.int(5, 11));
+      t.groove(pts, TGf);
+      pts.forEach(([F, G]) => { if (hash2(F, G, 61) < 0.18) { t.set(F, G - 1, ALGf[2]); t.set(F + 1, G - 1, ALGf[3]); } });
+    }
+    // Algen wachsen aus den Fugen: Fugen in der Nähe grün, Halme mit heller Spitze
+    const tufts = rng.int(1, 3);
+    for (let k = 0; k < tufts; k++) {
+      const mx = rng.int(2, 29), my = rng.int(2, 29);
+      const bl = [];
+      for (let m = 0; m < 10; m++) {
+        const x = mx + rng.int(-3, 3), y = my + rng.int(-2, 2);
+        const c = rng.pick([ALG[1], ALG[2], ALG[2], ALG[3]]), tall = rng.chance(0.25);
+        bl.push([x * 2 + (m & 1), y * 2 + 1, ALG.indexOf(c), tall, m]);
+      }
+      for (let G = my * 2 - 7; G <= my * 2 + 7; G++) for (let F = mx * 2 - 9; F <= mx * 2 + 9; F++) {
+        if (t.get(F, G) === TGf && hash2(F, G, 62) < 0.8) t.set(F, G, ALGf[(F + G) & 1 ? 0 : 1]);
+      }
+      bl.sort((a, b) => a[1] - b[1]);
+      for (const [F, G, ci, tall, m] of bl) {
+        const l = hash2(F, G, 63);
+        // flache Polster, nur wenige hohe Triebe (Spitze hell)
+        if (!tall) { t.set(F, G, ALGf[ci]); t.set(F + 1, G, ALGf[ci - 1]); t.set(F, G - 1, ALGf[Math.min(3, ci + 1)]); t.set(F + 1, G + 1, ALGf[0]); continue; }
+        bladeFine(t, F, G, 3 + (m & 1), l < 0.3 ? -1 : l > 0.7 ? 1 : 0, ALGr);
+      }
+    }
+    // Sandverwehung in einer Ecke: flache Sandflächen, Kante unten dunkler, einzelne Körner mit Glanz
+    if (rng.chance(0.4)) {
+      const sx = rng.pick([2, 26]), sy = rng.pick([3, 27]);
+      const pts = [];
+      for (let m = 0; m < 16; m++) pts.push([sx + rng.int(-3, 3), sy + rng.int(-2, 2), SAND.indexOf(rng.pick(SAND.slice(1)))]);
+      for (const [x, y] of pts) t.ellipse(x * 2 + 1, y * 2 + 1.5, 2.2, 1.6, (F, G, q, dx, dy) => (dy > 0.4 ? SANDf[1] : SANDf[2]));
+      for (const [x, y, k] of pts) if (k === 3) { t.set(x * 2, y * 2, SANDf[3]); t.set(x * 2, y * 2 + 1, SANDf[1]); }
+    }
+    // Pfütze mit Spiegelung: harte Stufen, Uferkante unten heller
+    if (rng.chance(0.3)) {
+      const px = rng.int(6, 24) * 2, py = rng.int(6, 24) * 2, rx = rng.int(3, 5) * 2 + 1;
+      t.ellipse(px + 1, py + 1, rx, 3.4, (F, G, q, dx, dy) => WATf[dy < -0.5 ? 1 : dy > 0.55 && q > 0.6 ? 3 : 2]);
+      t.ellipse(px + 1, py + 1.6, rx - 2.5, 1.6, () => WATf[1]);
+      t.set(px - rx + 3, py, WATf[6]); t.set(px - rx + 4, py, WATf[5]); t.set(px - rx + 5, py, WATf[5]); t.set(px - rx + 6, py, WATf[4]);
+      t.set(px + 2, py + 2, WATf[4]); t.set(px + 3, py + 2, WATf[4]);
+    }
+    // Muschelsplitter: kleiner Fächer mit Rippen, Glanz oben links, Schatten
+    for (let k = 0; k < (rng.chance(0.4) ? 1 : 0); k++) {
+      const x = rng.int(1, 30), y = rng.int(1, 30), hi = SHELL.indexOf(rng.pick([SHELL[3], SHELL[4]]));
+      const F = x * 2, G = y * 2;
+      t.shift(F + 1, G + 3, -2); t.shift(F + 2, G + 3, -2); t.shift(F + 3, G + 2, -2);
+      t.set(F + 1, G, SHELLf[hi + 1]); t.set(F, G + 1, SHELLf[hi]); t.set(F + 1, G + 1, SHELLf[hi - 1]); t.set(F + 2, G + 1, SHELLf[hi]);
+      t.set(F + 1, G + 2, SHELLf[1]); t.set(F, G + 2, SHELLf[2]); t.set(F + 2, G + 2, SHELLf[2]);
+    }
+    jointDust(t, dust, TGf, 64);
+    tiles.push(t.canvas());
+  }
+  return tiles;
+}
+
+// ---------------------------------------------------------------- Schmiede
+// Eisenplatte (Feinpixel): Fase 1 Feinpixel, Riffelblech als Rauten mit Glanzpunkt, Nieten mit Glanz und Schatten
+function ironPlateFine(t, X, Y, W, H, b, tread) {
+  const R = IRONf;
+  t.rect(X, Y, W, H, R[b]);
+  t.rect(X, Y, W, 1, R[b + 1]); t.rect(X, Y, 1, H, R[b + 1]); t.set(X + 1, Y + 1, R[b + 2]);
+  t.rect(X + 1, Y + H - 1, W - 1, 1, R[b - 2]); t.rect(X + W - 1, Y + 1, 1, H - 1, R[b - 1]);
+  t.rect(X + 1, Y + H - 2, W - 2, 1, R[b - 1]);
+  if (tread) {
+    for (let j = 6, row = 0; j < H - 5; j += 6, row++) for (let i = 6 + (row & 1) * 4; i < W - 5; i += 8) {
+      const F = X + i, G = Y + j;
+      t.set(F, G, R[b + 2]); t.set(F + 1, G, R[b + 1]); t.set(F + 1, G + 1, R[b + 1]); t.set(F + 2, G + 1, R[b - 1]); t.set(F + 2, G + 2, R[b - 1]);
+    }
+  }
+  for (const [rx, ry] of [[2, 2], [W - 5, 2], [2, H - 5], [W - 5, H - 5]]) {
+    const F = X + rx, G = Y + ry;
+    t.set(F, G, R[b + 3]); t.set(F + 1, G, R[b + 2]); t.set(F, G + 1, R[b + 2]); t.set(F + 1, G + 1, R[b]);
+    t.set(F + 2, G + 1, R[b - 2]); t.set(F + 1, G + 2, R[b - 2]); t.set(F + 2, G + 2, R[b - 2]);
+  }
+}
+// Rost-Gitter über Glutschacht: Glut in harten Ringen (heiß in der Mitte), Stäbe mit Lichtkante
+function grateFine(t, X, Y, W, H) {
+  t.rect(X, Y, W, H, IRONf[1]);
+  const cx = X + W / 2, cy = Y + H / 2;
+  for (let G = Y + 2; G < Y + H - 2; G++) for (let F = X + 2; F < X + W - 2; F++) {
+    const d = Math.abs(F + 0.5 - cx) / (W / 2) + Math.abs(G + 0.5 - cy) / (H / 2);
+    const k = band(1 - d, 4, dith(F, G));
+    t.set(F, G, k >= 3 ? EMBf[2] : k === 2 ? EMBf[1] : k === 1 ? CRUSTf[3] : CRUSTf[1]);
+  }
+  for (let i = 4; i < W - 2; i += 6) {
+    t.rect(X + i, Y + 2, 2, H - 4, IRONf[3]); t.rect(X + i, Y + 2, 1, H - 4, IRONf[4]);
+    t.set(X + i, Y + 2, IRONf[5]); t.rect(X + i + 2, Y + 3, 1, H - 5, CRUSTf[0]);
+  }
+  t.rect(X, Y, W, 2, IRONf[3]); t.rect(X, Y, W, 1, IRONf[4]); t.rect(X, Y, 2, H, IRONf[3]); t.rect(X, Y, 1, H, IRONf[4]);
+  t.rect(X, Y + H - 2, W, 2, IRONf[1]); t.rect(X, Y + H - 1, W, 1, IRONf[0]); t.rect(X + W - 2, Y, 2, H, IRONf[1]); t.rect(X + W - 1, Y, 1, H, IRONf[0]);
+  t.rect(X + 2, Y + 2, W - 4, 1, CRUSTf[0]);
+  for (const [F, G] of [[X + 1, Y + 1], [X + W - 3, Y + 1], [X + 1, Y + H - 3], [X + W - 3, Y + H - 3]]) { t.set(F, G, IRONf[6]); t.set(F + 1, G + 1, IRONf[2]); }
+}
+
+function forgeFloorFine(count = 10, seed = 131) {
+  const rng = createRng(seed);
+  const tiles = [];
+  for (let n = 0; n < count; n++) {
+    const t = new FineTile(F_TONE);
+    t.rect(0, 0, 64, 64, FGf);
+    const dust = [];
+    for (let k = 0; k < 40; k++) dust.push([rng.int(0, 31), rng.int(0, 31), col32(rng.pick(SOOT))]);
+    const rects = [];
+    splitRects(rng, 0, 0, 32, 32, rects, 6);
+    const special = n === 1 || n === 6 ? 'plate' : n === 3 ? 'grate' : null;
+    let used = false;
+    for (const [x, y, w, h] of rects) {
+      const X = x * 2, Y = y * 2, W = w * 2, H = h * 2;
+      if (!used && special && w >= 12 && h >= 12) {
+        used = true;
+        t.slab(X, Y, W, H, BASf, 2, FGf, 0, 1, true, 2);
+        grainFine(t, rng, x, y, w, h, 12);
+        const sw = Math.min(w - 2, special === 'plate' ? 16 : 12), sh = Math.min(h - 2, special === 'plate' ? 14 : 10);
+        const sx = x + 1 + ((w - 2 - sw) >> 1), sy = y + 1 + ((h - 2 - sh) >> 1);
+        // Schlagschatten der Einlage auf die Platte (unten rechts)
+        t.rect(sx * 2 + 2, sy * 2 + sh * 2, sw * 2, 1, BASf[0]); t.rect(sx * 2 + sw * 2, sy * 2 + 2, 1, sh * 2 - 1, BASf[0]);
+        if (special === 'plate') ironPlateFine(t, sx * 2, sy * 2, sw * 2, sh * 2, 2, rng.chance(0.6));
+        else grateFine(t, sx * 2, sy * 2, sw * 2, sh * 2);
+        continue;
+      }
+      const base = rng.pick([2, 2, 3, 3, 2]);
+      t.slab(X, Y, W, H, BASf, base, FGf, Math.max(0, base - 2), Math.max(0, base - 1), true, 2);
+      grainFine(t, rng, x, y, w, h, 12);
+      // Basaltplatten: unregelmäßig abgeschlagene Kanten (Kerbe mit heller/dunkler Bruchkante)
+      for (let k = 0; k < 3; k++) {
+        if (!rng.chance(0.5)) continue;
+        const side = rng.int(0, 3);
+        const ex = side === 0 ? x + rng.int(1, w - 3) : side === 1 ? x + w - 2 : side === 2 ? x + rng.int(1, w - 3) : x;
+        const ey = side === 0 ? y : side === 1 ? y + rng.int(1, h - 3) : side === 2 ? y + h - 1 : y + rng.int(1, h - 3);
+        const F = ex * 2, G = ey * 2;
+        if (side === 0) { t.rect(F, G, 4, 1, FGf); t.rect(F + 1, G + 1, 2, 1, FGf); t.set(F + 1, G + 2, BASf[base + 1]); t.set(F + 2, G + 2, BASf[base + 1]); t.set(F + 3, G + 1, BASf[base + 1]); }
+        else if (side === 2) { t.rect(F, G + 1, 4, 1, FGf); t.rect(F + 1, G, 2, 1, FGf); t.set(F, G, BASf[base - 1]); t.set(F + 1, G - 1, BASf[base - 1]); t.set(F + 2, G - 1, BASf[base - 1]); }
+        else if (side === 1) { t.rect(F + 3, G, 1, 4, FGf); t.rect(F + 2, G + 1, 1, 2, FGf); t.set(F + 1, G + 1, BASf[base - 1]); t.set(F + 1, G + 2, BASf[base - 1]); t.set(F + 2, G + 3, BASf[base - 1]); }
+        else { t.rect(F, G, 1, 4, FGf); t.rect(F + 1, G + 1, 1, 2, FGf); t.set(F + 2, G + 1, BASf[base + 1]); t.set(F + 2, G + 2, BASf[base + 1]); t.set(F + 1, G + 3, BASf[base + 1]); }
+      }
+      // Glasiger Basaltglanz: kurzer Lichtstreif mit Glanzpunkt
+      if (rng.chance(0.35)) {
+        const gx = x + rng.int(2, w - 4), gy = y + rng.int(2, h - 4), F = gx * 2, G = gy * 2;
+        t.set(F + 1, G, BASf[6]); t.set(F + 2, G, BASf[4]); t.set(F, G + 1, BASf[5]);
+      }
+    }
+    // Riss mit schwacher Glut: dunkler Riss, darin glühende Abschnitte (Kruste → Glut), Lichtkante darunter
+    if (rng.chance(0.5)) {
+      let cx = rng.int(4, 26), cy = rng.int(3, 14), dir = 0;
+      const len = rng.int(6, 12);
+      let F = cx * 2, G = cy * 2;
+      const pts = [[F, G]], hot = [];
+      for (let i = 0; i < len; i++) {
+        const glow = i > 1 && i < len - 2 && rng.chance(0.45);
+        const s = rng.int(-1, 1) || 1;
+        dir ||= s;
+        cx += dir; cy += rng.int(0, 1);
+        const nF = cx * 2 + (hash2(cx, cy, 65) < 0.5 ? 0 : 1), nG = cy * 2 + (hash2(cx, cy, 66) < 0.5 ? 0 : 1);
+        const seg = finePath(F, G, nF, nG, []);
+        pts.push(...seg);
+        if (glow) hot.push(...seg.map(([a, b]) => [a, b, i % 3 ? 0 : 1]));
+        F = nF; G = nG;
+      }
+      t.groove(pts, FGf);
+      for (const [a, b, k] of hot) { t.set(a, b, k ? EMBf[1] : CRUSTf[4]); if (k) t.set(a, b - 1, CRUSTf[3]); }
+      if (hot.length) { const [a, b] = hot[hot.length >> 1]; t.set(a, b, EMBf[2]); }
+    }
+    // Ruß- und Schlackespritzer: flache dunkle Flecken; Metalltropfen mit Glanzpunkt
+    for (let k = 0; k < rng.int(2, 5); k++) {
+      const x = rng.int(1, 30), y = rng.int(1, 30), c = col32(rng.pick([SOOT[0], SOOT[1], CRUST[1]])), wide = rng.chance(0.3);
+      const F = x * 2, G = y * 2;
+      t.rect(F, G, wide ? 4 : 2, 2, c); t.set(F + 1, G - 1, c); if (wide) t.set(F + 4, G + 1, c);
+    }
+    if (rng.chance(0.3)) {
+      const F = rng.int(3, 28) * 2, G = rng.int(3, 28) * 2;
+      t.shift(F + 2, G + 2, -2); t.shift(F + 1, G + 2, -2); t.shift(F + 2, G + 1, -2);
+      t.set(F, G, BRASSf[6]); t.set(F + 1, G, BRASSf[4]); t.set(F, G + 1, BRASSf[4]); t.set(F + 1, G + 1, BRASSf[2]);
+      t.set(F - 1, G - 1, BRASSf[3]);
+    }
+    jointDust(t, dust, FGf, 67);
+    tiles.push(t.canvas());
+  }
+  return tiles;
+}
+
 // ================================================================== Einstieg
 const CACHE = {};
 export function createBiomeTiles(biome = 'temple') {
@@ -1601,6 +1920,11 @@ export function createBiomeTiles(biome = 'temple') {
       },
     };
   }
+  // Feinraster-Boden (Qualität Hoch/Mittel): erst bei Bedarf gebaut, dann gecacht; resetFine() verwirft ihn (Messung)
+  const mkFine = biome === 'forge' ? forgeFloorFine : templeFloorFine;
+  let fine = null;
+  Object.defineProperty(out, 'floorFine', { get: () => (fine ??= mkFine()), configurable: true });
+  out.resetFine = () => { fine = null; };
   CACHE[biome] = out;
   return out;
 }
