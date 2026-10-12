@@ -102,6 +102,7 @@ export class ParticleSystem {
   // heißer Kern, Funkenschweife als feine Linie mit hellem Kopf. Bei „Niedrig“ (fineRes 1) wie früher in Weltpixeln.
   #draw(ctx, camX, camY, emissive) {
     const q = fineRes(), P = 1 / q, fine = q > 1;
+    if (!fine) { this.#drawCoarse(ctx, camX, camY, emissive); return; }
     for (const p of this.active) {
       if (p.emissive !== emissive) continue;
       const t = 1 - p.life / p.maxLife, cols = p.colors, n = cols.length;
@@ -140,6 +141,32 @@ export class ParticleSystem {
         ctx.fillRect(x, y, s, s);
         if (ci > 0) { ctx.fillStyle = cols[ci - 1]; ctx.fillRect(x, y, P, P); }
       }
+    }
+    ctx.globalAlpha = 1;
+  }
+  // „Niedrig“: Zeichnung vor dem Feinraster, unverändert (Weltpixel, stetiges Ausblenden)
+  #drawCoarse(ctx, camX, camY, emissive) {
+    for (const p of this.active) {
+      if (p.emissive !== emissive) continue;
+      const t = 1 - p.life / p.maxLife;
+      const color = p.colors[Math.min(p.colors.length - 1, Math.floor(t * p.colors.length))];
+      if (p.fine) {
+        if (!p.fade && t > 0.75 && Math.floor(p.life * 24 + p.seed) % 2) continue;
+        const s = Math.max(1, Math.round(p.shrink ? p.size * (1 - t) : p.size));
+        ctx.globalAlpha = p.fade ? p.alpha * Math.min(1, (p.life / p.maxLife) * 2.5) : p.alpha;
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.round(p.x - camX), Math.round(p.y - p.z - camY), s, s);
+        continue;
+      }
+      const s = p.shrink ? Math.max(1, Math.round(p.size * (1 - t))) : p.size;
+      const x = Math.round(p.x - camX - s / 2), y = Math.round(p.y - p.z - camY - s / 2);
+      ctx.globalAlpha = p.fade ? p.alpha * Math.min(1, (p.life / p.maxLife) * 2.5) : p.alpha;
+      ctx.fillStyle = color;
+      if (p.streak) {
+        const len = Math.min(4, Math.hypot(p.vx, p.vy) * 0.02);
+        const nx = p.vx / (Math.hypot(p.vx, p.vy) || 1), ny = p.vy / (Math.hypot(p.vx, p.vy) || 1);
+        for (let k = 0; k <= len; k++) ctx.fillRect(Math.round(x - nx * k), Math.round(y - ny * k), 1, 1);
+      } else ctx.fillRect(x, y, s, s);
     }
     ctx.globalAlpha = 1;
   }

@@ -44,12 +44,12 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
       if (u > head) continue;
       const behind = (head - u) / tailLen;
       if (behind > 1) continue;
-      // Feinraster: nie dünner als 1 Weltpixel (sonst zerfasert der Bogen auf dem Handy); ausgeblendet wird
-      // über ein Raster (jedes zweite, dann jedes vierte Texel), nicht über Durchsichtigkeit
+      // Feinraster: nie dünner als 1 Weltpixel (sonst zerfasert der Bogen auf dem Handy); deckend, ausgeblendet wird
+      // über die dunkleren Rampenstufen (dim), nicht über Durchsichtigkeit oder Raster
       const thick = Math.max(res > 1 ? 1 : 0, width * (1 - behind) * (0.4 + 0.6 * fade));
       const inner = radius - thick;
       const i = (Y * S + X) * 4;
-      const gone = res > 1 && (fade < 0.34 ? (X & 1) || (Y & 1) : fade < 0.67 && ((X + Y) & 1));
+      const dim = fade < 0.34 ? 2 : fade < 0.67 ? 1 : 0;
       if (hard) {
         // Skinset: schmale Sichel aus deckenden Pixeln, Schneide außen weiß, zum Schweif hin Geisterlicht
         if (r > radius || r < inner) continue;
@@ -66,8 +66,8 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
         const al = a3((edge ? 1 : 0.68 * (1 - e)) * (1 - behind * 0.8) * fade);
         if (res > 1) {
           // deckend: Kante voll, Schleier als Raster (statt halb durchsichtig)
-          if (!al || gone || (!edge && ((X + Y) & 1))) continue;
-          set(i, edge ? (radius - r < e1 ? ramp[0] : ramp[1]) : e < 0.6 ? ramp[3] : ramp[4], 255);
+          if (!al || (!edge && e > 0.6)) continue;
+          set(i, ramp[Math.min(5, (edge ? (radius - r < e1 ? 0 : 1) : 4) + dim)], 255);
           continue;
         }
         if (al) set(i, edge ? ramp[1] : e < 0.6 ? ramp[2] : ramp[3], al);
@@ -75,14 +75,14 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
       }
       // Nachglühen innen: ein schmales, durchscheinendes Band in der dunklen Glutfarbe
       if (r < inner && r >= inner - (res > 1 ? 1.5 : 3) && behind < 0.8) {
-        if (res > 1) { if (!gone && fade > 0.5 && !((X + Y) & 1)) set(i, ramp[5], 255); continue; }   // Raster, deckend
+        if (res > 1) { if (fade > 0.5 && r >= inner - e1) set(i, ramp[5], 255); continue; }   // eine Feinpixel-Linie, deckend
         const al = a3((1 - (inner - r) / 3) * 0.45 * (0.8 - behind) * 1.6 * fade);
         if (al) set(i, ramp[4], Math.min(al, 85));
         continue;
       }
       // Schneide: heller Saum außen an der Spitze (im Feinraster genau ein Feinpixel)
       if (r > radius && r <= radius + (res > 1 ? e1 : 1) && behind < 0.25) {
-        if (res > 1) { if (!gone && behind < 0.2) set(i, [255, 255, 240], 255); continue; }
+        if (res > 1) { if (!dim && behind < 0.2) set(i, [255, 255, 240], 255); continue; }
         set(i, [255, 255, 240], a3((1 - behind * 4) * fade * 0.9));
         continue;
       }
@@ -91,7 +91,7 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
       let idx = Math.floor(edge * (res > 1 ? 2.6 : 2.2) + behind * 3.2 + (1 - fade) * 2);
       idx = Math.max(0, Math.min(ramp.length - 1, idx));
       // Feinraster: deckend, der Auslauf wird über die dunkleren Rampenstufen und das Raster leiser
-      if (res > 1) { if (!gone) set(i, ramp[idx], 255); continue; }
+      if (res > 1) { set(i, ramp[Math.min(ramp.length - 1, idx + dim)], 255); continue; }
       set(i, ramp[idx], a3(Math.min(1, (1.15 - behind) * fade + 0.1)));
     }
   }
@@ -162,9 +162,11 @@ export function getEnemySlashFrame(angle, frame, res = fineRes()) {
 // gewählt, dass die Lichtmenge insgesamt der weichen Fassung entspricht (Stimmung der Gebiete bleibt gleich).
 const lightCache = new Map();
 const LIGHT_STEPS = [[0.3, 0.82], [0.55, 0.48], [0.8, 0.19]];
+// Schein (Bloom): kleiner Kern, schmale Stufen – sonst liegen große, milchige Scheiben über den Figuren
+const BLOOM_STEPS = [[0.2, 0.85], [0.42, 0.38], [0.66, 0.1]];
 export function getLightSprite(radius, rgb, stepped = false) {
   const r = Math.max(4, Math.round(radius / 4) * 4);
-  const key = `${r}|${rgb.join(',')}|${stepped ? 1 : 0}`;
+  const key = `${r}|${rgb.join(',')}|${stepped}`;
   let c = lightCache.get(key);
   if (c) return c;
   c = makeCanvas(r * 2, r * 2);
@@ -172,8 +174,9 @@ export function getLightSprite(radius, rgb, stepped = false) {
   if (stepped) {
     const [cr, cg, cb] = rgb;
     // von außen nach innen deckend übermalen: jede Stufe eine Kreisfläche (Pixelkreis, keine Kantenglättung)
-    for (let i = LIGHT_STEPS.length - 1; i >= 0; i--) {
-      const [t, a] = LIGHT_STEPS[i], R = t * r;
+    const steps = stepped === 'bloom' ? BLOOM_STEPS : LIGHT_STEPS;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      const [t, a] = steps[i], R = t * r;
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${a})`;
       for (let y = 0; y < r * 2; y++) {
         const dy = y + 0.5 - r;

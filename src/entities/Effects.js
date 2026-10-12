@@ -108,6 +108,7 @@ export class Afterimage extends Entity {
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.Afterimage.call(this, ctx, cx, cy); return; }
     ctx.globalCompositeOperation = 'lighter';
     // zwei harte Stufen statt stetigem Ausblenden
     ctx.globalAlpha = this.life / this.max > 0.5 ? 0.33 : 0.16;
@@ -133,6 +134,7 @@ export class SpawnMarker extends Entity {
     if (this.t >= this.duration) { this.removed = true; this.onDone(); }
   }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.SpawnMarker.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = Math.min(1, this.t / this.duration);
     const r = 3 + k * 9;
@@ -191,6 +193,7 @@ export class RuneGlow extends Entity {
   }
   update(dt) { this.t += dt; this.surge = Math.max(0, this.surge - dt); }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.RuneGlow.call(this, ctx, cx, cy); return; }
     const g = this.rune.glow;
     const v = 0.25 + 0.2 * Math.sin(this.t * 1.7) + this.surge;
     ctx.globalAlpha = Math.min(1, v > 0.8 ? 1 : v > 0.36 ? 0.45 : 0.25);
@@ -216,6 +219,7 @@ export class Shockwave extends Entity {
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.Shockwave.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     if (this.void && q > 1) { voidPool(ctx, this.x - cx, this.y - cy, this.radius, k, q); return; }
@@ -255,7 +259,7 @@ export function fillEllipse(ctx, X, Y, rx, ry, q, P) {
 export function voidPool(ctx, x, y, radius, k, q) {
   const P = 1 / q, X = sn(x, q), Y = sn(y, q);
   const grow = k < 0.2 ? 0.55 + k * 2.25 : k < 0.7 ? 1 : 1 - (k - 0.7) * 1.6;
-  const r = Math.max(2, Math.round(radius * 0.75 * grow * q) / q);
+  const r = Math.max(2, Math.round((radius * 0.75 + 4) * grow * q) / q);
   if (r < 2) return;
   ctx.globalAlpha = 1;
   ctx.fillStyle = VOID[2]; fillEllipse(ctx, X, Y, r + 1, (r + 1) * 0.5, q, P);
@@ -283,6 +287,7 @@ export class LightPillar extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.LightPillar.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const grow = Math.min(1, k * 6), fade = Math.min(1, (this.life / this.max) * 2.5);
@@ -320,6 +325,7 @@ export class ImpactStar extends Entity {
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.ImpactStar.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const al = A3(1.2 - k);
@@ -471,6 +477,7 @@ export class SpinVortex extends Entity {
   }
   update(dt) { this.life -= dt; this.x = this.follow.x; this.y = this.follow.y; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.SpinVortex.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max, fade = Math.min(1, (1 - k) * 2.5);
     const X = this.x - cx, Y = this.y - cy - 2;
@@ -506,8 +513,8 @@ export class RiftFlash extends Entity {
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.RiftFlash.call(this, ctx, cx, cy); return; }
     const q = fineRes();
-    if (q === 1) { this.#renderCoarse(ctx, cx, cy); return; }
     // Feinraster: Riss in die Leere – Kern fast schwarz-violett, darum gesättigtes Violett in harten Stufen, außen
     // ein heller Saum (links heller: Licht von oben links), Splitter nach außen; am Fuß eine Leerenpfütze.
     // Deckend (source-over), damit der dunkle Kern auf jedem Boden steht.
@@ -531,29 +538,7 @@ export class RiftFlash extends Entity {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(X, Y - (rows + 2) * P, P, 2 * P);
   }
-  #renderCoarse(ctx, cx, cy) {
-    const P = 1;
-    const k = 1 - this.life / this.max;
-    const open = k < 0.3 ? k / 0.3 : 1 - (k - 0.3) / 0.7;
-    const al = A3(open * 1.3);
-    if (!al) return;
-    const w = Math.max(1, Math.round(3 * open)), rows = Math.round(this.height * (0.6 + 0.4 * open));
-    const X = Math.round(this.x - cx), Y = Math.round(this.y - cy);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = al;
-    for (let i = 0; i < rows; i++) {
-      const t = i / rows, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI))), y = Y - i;
-      ctx.fillStyle = this.cols[2];
-      ctx.fillRect(X - ww, y, ww * 2 + 1, 1);
-      if (ww > 1) { ctx.fillStyle = this.cols[0]; ctx.fillRect(X - ww, y, 1, 1); ctx.fillRect(X + ww, y, 1, 1); }
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(X, y, 1, 1);
-    }
-    ctx.fillStyle = this.cols[1];
-    ring(ctx, X, Y, ellipsePts(5 + 6 * k, 2.5 + 3 * k, 1), P, (u) => u < 0.5 || (u * 20) % 1 < 0.5);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-  }
+
 }
 
 // Aufladen (Durchschuss, Zauber): Lichtpunkte ziehen spiralförmig zur Hand. Feinraster: jeder Punkt mit Schweif,
@@ -566,6 +551,7 @@ export class ChargeGlow extends Entity {
   }
   update(dt) { this.life -= dt; this.x = this.follow.x + (this.follow.facing ?? 1) * 7; this.y = this.follow.y + this.offY; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.ChargeGlow.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
@@ -600,6 +586,7 @@ export class SoulWisp extends Entity {
   }
   update(dt) { this.life -= dt; this.y -= dt * 22; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.SoulWisp.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max, a = Math.min(1, (1 - k) * 1.6) * Math.min(1, k * 8);
     const al = A3(a);
@@ -719,6 +706,7 @@ export class XpOrb extends Entity {
     this.z = Math.max(0, this.z - dt * 40);
   }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.XpOrb.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const x = sn(this.x - cx, q), y = sn(this.y - this.z - cy, q);
     const hotNow = Math.sin(this.t * 22 + this.ph) > 0;
@@ -754,6 +742,7 @@ export class PixelFlash extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.PixelFlash.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const step = Math.min(3, Math.floor(k * 4));               // 4 feste Stufen
@@ -797,6 +786,7 @@ export class LevelUpBurst extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.LevelUpBurst.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
@@ -872,6 +862,7 @@ export class LootBeam extends Entity {
   }
   #c(name, a) { return this.cols[name].replace('A', a.toFixed(2)); }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.LootBeam.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q, legend = this.tier >= 3;
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     const fallK = Math.min(1, this.t / this.fall);
@@ -982,6 +973,7 @@ export class CoinFountain extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    if (fineRes() === 1) { COARSE.CoinFountain.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const age = this.max - this.life;
     ctx.globalAlpha = A3(Math.min(1, (this.life / this.max) * 3));
@@ -1004,3 +996,285 @@ export class CoinFountain extends Entity {
     ctx.globalAlpha = 1;
   }
 }
+
+// „Niedrig“ (fineRes 1): die Zeichnung vor dem Feinraster, unverändert übernommen. Jede Effektklasse ruft bei
+// q = 1 ihre Fassung hier auf, damit die sparsame Qualitätsstufe genau so aussieht wie früher.
+const BEAM_BANDS_COARSE = [1, 0.85, 0.7, 0.55, 0.42, 0.3, 0.2, 0.12];
+const COARSE = {
+  Afterimage(ctx, cx, cy) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (this.life / this.max) * 0.35;
+      const img = this.flip ? this.frame.flashFlipped : this.frame.flash;
+      const ax = this.flip ? this.frame.canvas.width - this.frame.ax : this.frame.ax;
+      const r = this.frame.res ?? 1; // Texel je Weltpixel (§11.12)
+      ctx.drawImage(img, Math.round((this.x - cx) * r - ax) / r, Math.round((this.y - cy) * r - this.frame.ay) / r, img.width / r, img.height / r);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  SpawnMarker(ctx, cx, cy) {
+      const k = this.t / this.duration;
+      const r = 3 + k * 9;
+      const x = this.x - cx, y = this.y - cy;
+      ctx.fillStyle = `rgba(160,96,240,${0.25 + k * 0.5})`;
+      const n = 14;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + this.t * 5;
+        ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.55), 1, 1);
+      }
+      ctx.fillStyle = `rgba(224,184,255,${k})`;
+      ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  },
+  RuneGlow(ctx, cx, cy) {
+      const g = this.rune.glow;
+      ctx.globalAlpha = 0.25 + 0.2 * Math.sin(this.t * 1.7) + this.surge;
+      ctx.drawImage(g, Math.round(this.x - cx - g.width / 2), Math.round(this.y - cy - g.height / 2));
+      ctx.globalAlpha = 1;
+  },
+  Shockwave(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const r = 2 + this.radius * (1 - Math.pow(1 - k, 3));
+      const x = this.x - cx, y = this.y - cy;
+      const n = Math.max(12, Math.round(r * 3));
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = (1 - k) * 0.9;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const px = Math.round(x + Math.cos(a) * r), py = Math.round(y + Math.sin(a) * r * 0.5);
+        ctx.fillRect(px, py, 1, 1);
+        if (k < 0.5) ctx.fillRect(Math.round(x + Math.cos(a) * (r - 1)), Math.round(y + Math.sin(a) * (r - 1) * 0.5), 1, 1);
+      }
+      ctx.globalAlpha = 1;
+  },
+  LightPillar(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const grow = Math.min(1, k * 6), fade = Math.min(1, (this.life / this.max) * 2.5);
+      const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+      const w = Math.max(1, Math.round(10 * grow * fade));
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < w; i++) {
+        const edge = Math.abs(i - (w - 1) / 2) / Math.max(1, w / 2);
+        ctx.globalAlpha = (1 - edge) * 0.5 * fade;
+        ctx.fillStyle = edge < 0.3 ? '#ffffff' : this.color;
+        const hgt = Math.round(this.height * grow * (1 - edge * 0.3));
+        ctx.fillRect(x - Math.floor(w / 2) + i, y - hgt, 1, hgt + 1);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  ImpactStar(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const len = this.size * (k < 0.3 ? 0.5 + k * 1.7 : 1.1 - (k - 0.3) * 0.6);
+      const x = this.x - cx, y = this.y - cy;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let r = 0; r < this.rays; r++) {
+        const a = this.angle + (r / this.rays) * Math.PI + k * 0.6;
+        const l = r % 2 ? len * 0.6 : len;
+        for (let i = -l; i <= l; i++) {
+          const f = 1 - Math.abs(i) / (l + 1);
+          ctx.fillStyle = f > 0.7 ? `rgba(255,255,255,${(1 - k) * f})` : rgbStr(this.rgb, (1 - k) * f);
+          ctx.fillRect(Math.round(x + Math.cos(a) * i), Math.round(y + Math.sin(a) * i), 1, 1);
+        }
+      }
+      const core = Math.max(1, Math.round(3 * (1 - k)));
+      ctx.fillStyle = `rgba(255,255,255,${1 - k})`;
+      ctx.fillRect(Math.round(x - core / 2), Math.round(y - core / 2), core, core);
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  SpinVortex(ctx, cx, cy) {
+      const k = 1 - this.life / this.max, fade = Math.min(1, (1 - k) * 2.5);
+      const x = this.x - cx, y = this.y - cy - 2;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let arm = 0; arm < 3; arm++) {
+        const base = k * 22 + arm * (Math.PI * 2 / 3);
+        for (let i = 0; i < 26; i++) {
+          const t = i / 26, a = base - t * 2.2;
+          const r = this.radius * (0.55 + 0.45 * (1 - t));
+          const al = (1 - t) * fade;
+          ctx.fillStyle = t < 0.15 ? `rgba(255,255,255,${al})` : rgbStr(this.rgb, al * 0.8);
+          ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.5), 1, 1);
+          if (t < 0.5) ctx.fillRect(Math.round(x + Math.cos(a) * (r - 1)), Math.round(y + Math.sin(a) * (r - 1) * 0.5), 1, 1);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  RiftFlash(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const open = k < 0.3 ? k / 0.3 : 1 - (k - 0.3) / 0.7;
+      const w = Math.max(1, Math.round(3 * open)), hgt = Math.round(this.height * (0.6 + 0.4 * open));
+      const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < hgt; i++) {
+        const t = i / hgt, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI)));
+        ctx.fillStyle = rgbStr(this.rgb, 0.28 * open);
+        ctx.fillRect(x - ww, y - i, ww * 2 + 1, 1);
+        if (ww > 1) { ctx.fillStyle = rgbStr(this.rgb, 0.6 * open); ctx.fillRect(x - ww, y - i, 1, 1); ctx.fillRect(x + ww, y - i, 1, 1); }
+        ctx.fillStyle = `rgba(255,255,255,${0.9 * open})`;
+        ctx.fillRect(x, y - i, 1, 1);
+      }
+      // Bodenellipse
+      ctx.fillStyle = rgbStr(this.rgb, 0.6 * open);
+      for (let a = 0; a < 20; a++) { const an = a / 20 * Math.PI * 2; ctx.fillRect(Math.round(x + Math.cos(an) * (5 + 6 * k)), Math.round(y + Math.sin(an) * (2.5 + 3 * k)), 1, 1); }
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  ChargeGlow(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const x = this.x - cx, y = this.y - cy;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 16; i++) {
+        const ph = (i / 16 + k * 1.5) % 1;
+        const r = this.reach * (1 - ph), a = i * 2.4 + ph * 4;
+        ctx.fillStyle = rgbStr(this.rgb, 0.3 + ph * 0.7);
+        ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.7), 1, 1);
+        if (ph > 0.6) ctx.fillRect(Math.round(x + Math.cos(a - 0.3) * (r + 1.5)), Math.round(y + Math.sin(a - 0.3) * (r + 1.5) * 0.7), 1, 1);
+      }
+      const c = Math.round(1 + k * 3);
+      ctx.fillStyle = rgbStr(this.rgb, 0.5); ctx.fillRect(Math.round(x - c), Math.round(y - c / 2), c * 2 + 1, c + 1);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  SoulWisp(ctx, cx, cy) {
+      const k = 1 - this.life / this.max, a = Math.min(1, (1 - k) * 1.6) * Math.min(1, k * 8);
+      const x = Math.round(this.x - cx + Math.sin(this.ph + k * 9) * 3), y = Math.round(this.y - cy);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = rgbStr(this.rgb, a * 0.35);
+      ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
+      for (let i = 1; i < 6; i++) { ctx.fillStyle = rgbStr(this.rgb, a * (1 - i / 6) * 0.6); ctx.fillRect(Math.round(x - Math.sin(this.ph + k * 9 - i * 0.5) * 2), y + i + 1, 1, 1); }
+      ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillRect(x, y, 1, 1);
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  XpOrb(ctx, cx, cy) {
+      const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
+      const hot = Math.sin(this.t * 22 + this.ph) > 0;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 1; i < this.trail.length; i++) {
+        const [tx, ty] = this.trail[i];
+        ctx.fillStyle = i === 1 ? 'rgba(240,122,28,0.7)' : 'rgba(200,66,12,0.45)';
+        ctx.fillRect(Math.round(tx - cx), Math.round(ty - cy), 1, 1);
+      }
+      ctx.fillStyle = 'rgba(240,122,28,0.55)';
+      ctx.fillRect(x - 1, y, 1, 2); ctx.fillRect(x + 2, y, 1, 2); ctx.fillRect(x, y - 1, 2, 1); ctx.fillRect(x, y + 2, 2, 1);
+      ctx.fillStyle = hot ? '#fff0b0' : '#ffb640';
+      ctx.fillRect(x, y, 2, 2);
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  PixelFlash(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const step = Math.min(3, Math.floor(k * 4));               // 4 feste Stufen
+      const len = Math.round(this.size * [0.45, 1, 0.8, 0.5][step]);
+      const x = Math.round(this.x - cx), y = Math.round(this.y - cy + this.offY);
+      const col = step === 0 ? 'rgba(255,255,255,1)' : rgbStr(this.rgb, [1, 0.95, 0.7, 0.4][step]);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = col;
+      ctx.fillRect(x - len, y, len * 2 + 1, 1);                   // waagrecht
+      ctx.fillRect(x, y - len, 1, len * 2 + 1);                   // senkrecht
+      const d = Math.round(len * 0.45);                           // kurze Diagonalen
+      for (let i = 1; i <= d; i++) { ctx.fillRect(x + i, y + i, 1, 1); ctx.fillRect(x - i, y + i, 1, 1); ctx.fillRect(x + i, y - i, 1, 1); ctx.fillRect(x - i, y - i, 1, 1); }
+      const c = step < 2 ? 2 : 1;                                  // heller Kern
+      ctx.fillStyle = step < 2 ? '#ffffff' : rgbStr(this.rgb, 0.8);
+      ctx.fillRect(x - c, y - c, c * 2 + 1, c * 2 + 1);
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  LevelUpBurst(ctx, cx, cy) {
+      const k = 1 - this.life / this.max;
+      const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+      const fade = q3(Math.min(1, (this.life / this.max) * 3));
+      const open = 1 - Math.pow(1 - Math.min(1, k * 3), 3);
+      ctx.globalCompositeOperation = 'lighter';
+      const r = 8 + open * 22, spin = k * 2.4;
+      for (const [rr, a0, n] of [[r, 0.8, 40], [r * 0.72, 0.5, 28]]) {
+        ctx.fillStyle = rgbStr(this.rgb, a0 * fade);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          ctx.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y + Math.sin(a) * rr * 0.45), 1, 1);
+        }
+      }
+      for (let i = 0; i < 8; i++) {
+        const a = spin + (i / 8) * Math.PI * 2, rr = r * 0.86;
+        const px = Math.round(x + Math.cos(a) * rr), py = Math.round(y + Math.sin(a) * rr * 0.45);
+        ctx.fillStyle = `rgba(255,240,176,${0.9 * fade})`;
+        ctx.fillRect(px, py - 1, 1, 3); if (i % 2) ctx.fillRect(px - 1, py, 3, 1);
+      }
+      // aufsteigende Lichtstrahlen am Kreisrand, in drei Helligkeitsstufen
+      for (const ray of this.rays) {
+        const t = Math.max(0, Math.min(1, (k - ray.d) * 2.2));
+        if (t <= 0 || t >= 1) continue;
+        const px = Math.round(x + Math.cos(ray.a + spin * 0.5) * r * 0.9), py = Math.round(y + Math.sin(ray.a + spin * 0.5) * r * 0.4);
+        const hgt = Math.round(ray.h * Math.sin(t * Math.PI));
+        for (let j = 0; j < hgt; j++) {
+          const f = q3(1 - j / hgt);
+          ctx.fillStyle = j < 2 ? `rgba(255,240,176,${0.8 * f})` : rgbStr(this.rgb, 0.55 * f);
+          ctx.fillRect(px, py - j, 1, 1);
+        }
+      }
+      for (let i = 0; i < 14; i++) {
+        const ph = (k * 1.4 + i / 14) % 1;
+        const a = i * 2.4 + ph * 7, rr = (1 - ph) * r * 0.8;
+        ctx.fillStyle = rgbStr(this.rgb, q3(1 - ph) * fade);
+        ctx.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y - 4 - ph * 46 + Math.sin(a) * rr * 0.4), 1, 1);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  LootBeam(ctx, cx, cy) {
+      const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+      const fallK = Math.min(1, this.t / this.fall);
+      const yBottom = Math.round(-10 + (y + 10) * fallK);
+      const after = Math.max(0, this.t - this.fall) / (this.max - this.fall);
+      const fade = after < 0.6 ? 1 : after < 0.8 ? 0.6 : 0.3;      // Ausblenden in Stufen
+      // Breite in Stufen: Aufblitzen beim Einschlag, dann ruhige Säule, zum Ende schmaler
+      const flare = this.landed && after < 0.08 ? 1 : 0;
+      const shrink = after > 0.8 ? 1 : 0;
+      const core = Math.max(0, this.tier - 1 + flare - shrink);     // halbe Breiten
+      const mid = core + 1 + this.tier + flare - shrink;
+      const outer = mid + 2;
+      const [r, g, b] = this.rgb;
+      ctx.globalCompositeOperation = 'lighter';
+      const band = 22;
+      for (let j = 0; yBottom - j > 0; j += 2) {
+        const bi = Math.floor(j / band);
+        if (bi >= BEAM_BANDS_COARSE.length) break;
+        const a = BEAM_BANDS_COARSE[bi] * fade, row = yBottom - j - 2;
+        ctx.fillStyle = `rgba(${r},${g},${b},${(a * 0.75).toFixed(2)})`;
+        ctx.fillRect(x - mid, row, mid * 2 + 1, 2);
+        ctx.fillStyle = `rgba(255,248,220,${a.toFixed(2)})`;
+        ctx.fillRect(x - core, row, core * 2 + 1, 2);
+        // geditherter Rand: jedes zweite Pixel, versetzt je Zeile
+        ctx.fillStyle = `rgba(${r},${g},${b},${(a * 0.45).toFixed(2)})`;
+        for (let i = mid + 1; i <= outer; i++) {
+          const o = ((i + (j >> 1)) & 1);
+          ctx.fillRect(x - i, row + o, 1, 1); ctx.fillRect(x + i, row + 1 - o, 1, 1);
+        }
+      }
+      if (this.landed) {
+        // Funken steigen in der Säule auf
+        ctx.fillStyle = `rgba(255,248,220,${fade})`;
+        for (const m of this.motes) {
+          const p = (m.o + this.t * m.s) % 1;
+          ctx.fillRect(x + m.dx * (core + 1), Math.round(y - 4 - p * 70), 1, 1);
+        }
+        // Bodenring aus kreisenden Pixelfunken, beim Einschlag kurz weiter
+        const rr = 6 + this.tier * 3 + (after < 0.15 ? Math.round((0.15 - after) * 60) : 0);
+        const n = 10 + this.tier * 4;
+        for (let i = 0; i < n; i++) {
+          const ang = (i / n) * Math.PI * 2 + this.t * 2.2;
+          const on = (i + Math.floor(this.t * 12)) % 3 !== 0;
+          if (!on) continue;
+          ctx.fillStyle = i % 2 ? `rgba(255,248,220,${fade})` : `rgba(${r},${g},${b},${fade})`;
+          ctx.fillRect(Math.round(x + Math.cos(ang) * rr), Math.round(y + Math.sin(ang) * rr * 0.4), 1, 1);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+  },
+  CoinFountain(ctx, cx, cy) {
+      const age = this.max - this.life, fade = Math.min(1, (this.life / this.max) * 3);
+      ctx.globalAlpha = fade;
+      for (const c of this.coins) {
+        if (age < c.d) continue;
+        const x = Math.round(this.x + c.x - cx), y = Math.round(this.y + c.y - c.z - cy);
+        const spin = Math.abs(Math.sin(age * 12 + c.ph));
+        const w = spin > 0.66 ? 3 : spin > 0.25 ? 2 : 1;
+        ctx.fillStyle = '#b8862a'; ctx.fillRect(x - (w >> 1), y - 1, w, 3);
+        ctx.fillStyle = spin > 0.9 ? '#ffffff' : '#ffd66a'; ctx.fillRect(x - (w >> 1), y - 1, Math.max(1, w - 1), 2);
+      }
+      ctx.globalAlpha = 1;
+  },
+};

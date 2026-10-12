@@ -97,7 +97,7 @@ export class LightingSystem {
       // der Leerenpfütze (entities/Effects.js voidPool) wieder auf
       const [cr, cg, cb] = li.color, voidish = stepped && cb >= cr && cg < cb * 0.6;
       ctx.globalAlpha = Math.max(0, Math.min(1, li.value * li.bloom * (this.bloomScale ?? 1) * (voidish ? 0.3 : 1)));
-      ctx.drawImage(getLightSprite(32, li.color, stepped), sx - r, sy - r, r * 2, r * 2);
+      ctx.drawImage(getLightSprite(32, li.color, stepped && 'bloom'), sx - r, sy - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1;
     ctx.imageSmoothingEnabled = false;
