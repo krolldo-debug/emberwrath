@@ -8,9 +8,10 @@ import { fineRes } from './Fine.js';
 // light: Lichtfarbe (RGB), sound: Sfx-Name. Von Feedback und Effekten genutzt.
 export const ELEMENTS = {
   fire: { colors: ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c', '#7a2208'], light: [255, 150, 60], sound: 'fire', pitch: 1, rise: 20 },
-  frost: { colors: ['#ffffff', '#c0e8ff', '#7ac0f0', '#3a78c0', '#1a3470'], light: [140, 200, 255], sound: 'frost', pitch: 1, rise: -4 },
+  // Frost und Schatten (11.10., Grafikupdate): dunkle Stufen heller und satter, sonst verschwinden sie auf dunklem Boden
+  frost: { colors: ['#ffffff', '#ccf2ff', '#86d0ff', '#4c9cf0', '#2a5cc8'], light: [140, 200, 255], sound: 'frost', pitch: 1, rise: -4 },
   holy: { colors: ['#ffffff', '#fff0b0', '#ffd66a', '#e8a830', '#8a5a18'], light: [255, 220, 140], sound: 'magic', pitch: 1.3, rise: 26 },
-  shadow: { colors: ['#e0b8ff', '#a060f0', '#6a2cb0', '#3a1466', '#1a0a2e'], light: [150, 80, 255], sound: 'magic', pitch: 0.6, rise: 10 },
+  shadow: { colors: ['#f4e2ff', '#c890ff', '#9a52f4', '#6c2ad0', '#43168c'], light: [150, 80, 255], sound: 'magic', pitch: 0.6, rise: 10 },
   arcane: { colors: ['#ffffff', '#e0b8ff', '#c07aff', '#8a4ae0', '#4a1a90'], light: [190, 130, 255], sound: 'magic', pitch: 1, rise: 14 },
   poison: { colors: ['#e8ffb0', '#a8e05a', '#6aa02a', '#3a6a18', '#1a300a'], light: [150, 230, 90], sound: 'poison', pitch: 1, rise: 8 },
   nature: { colors: ['#f0ffe0', '#b0f080', '#60c050', '#2e8038', '#12401a'], light: [150, 240, 140], sound: 'magic', pitch: 1.1, rise: 12 },
@@ -18,6 +19,9 @@ export const ELEMENTS = {
   water: { colors: ['#ffffff', '#c6eaf6', '#76bcdc', '#3886b2', '#1c5882'], light: [90, 190, 255], sound: 'splash', pitch: 0.8, rise: -6 },
   physical: { colors: ['#ffffff', '#ffe8a0', '#ffc050', '#f07a1c', '#7a2208'], light: [255, 200, 130], sound: 'hit', pitch: 1, rise: 0 },
 };
+
+// Ausblenden in drei harten Stufen (1 / ⅔ / ⅓), kein weicher Verlauf
+const step3 = (v) => (v > 0.66 ? 1 : v > 0.33 ? 0.66 : 0.33);
 
 class Particle {
   reset(o) {
@@ -90,12 +94,16 @@ export class ParticleSystem {
       }
     }
   }
+  // Feinraster (docs/STYLE.md „Feinraster“ §5): Lage auf Feinpixel gerundet, Ausblenden in höchstens drei harten
+  // Alpha-Stufen statt weich. Im Feinraster bekommen Teilchen eine Form: 1 Weltpixel = 2×2 Feinpixel mit heißem
+  // Feinpixel oben links (Licht von oben links, eine Rampenstufe heller), ab 2 Weltpixeln abgerundete Ecken und
+  // heißer Kern, Funkenschweife als feine Linie mit hellem Kopf. Bei „Niedrig“ (fineRes 1) wie früher in Weltpixeln.
   #draw(ctx, camX, camY, emissive) {
-    const q = fineRes(), P = 1 / q;
+    const q = fineRes(), P = 1 / q, fine = q > 1;
     for (const p of this.active) {
       if (p.emissive !== emissive) continue;
-      const t = 1 - p.life / p.maxLife;
-      const color = p.colors[Math.min(p.colors.length - 1, Math.floor(t * p.colors.length))];
+      const t = 1 - p.life / p.maxLife, cols = p.colors, n = cols.length;
+      const ci = Math.min(n - 1, Math.floor(t * n)), color = cols[ci];
       if (p.fine) {
         if (!p.fade && t > 0.75 && Math.floor(p.life * 24 + p.seed) % 2) continue;
         const s = Math.max(1, Math.round(p.shrink ? p.size * (1 - t) : p.size)) * P;
@@ -105,21 +113,39 @@ export class ParticleSystem {
         continue;
       }
       const s = p.shrink ? Math.max(1, Math.round(p.size * (1 - t))) : p.size;
-      const x = Math.round(p.x - camX - s / 2), y = Math.round(p.y - p.z - camY - s / 2);
-      ctx.globalAlpha = p.fade ? p.alpha * Math.min(1, (p.life / p.maxLife) * 2.5) : p.alpha;
+      const x = Math.round((p.x - camX - s / 2) * q) * P, y = Math.round((p.y - p.z - camY - s / 2) * q) * P;
+      ctx.globalAlpha = p.fade ? p.alpha * step3(Math.min(1, (p.life / p.maxLife) * 2.5)) : p.alpha;
       ctx.fillStyle = color;
       if (p.streak) {
-        const len = Math.min(4, Math.hypot(p.vx, p.vy) * 0.02);
-        const nx = p.vx / (Math.hypot(p.vx, p.vy) || 1), ny = p.vy / (Math.hypot(p.vx, p.vy) || 1);
-        for (let k = 0; k <= len; k++) ctx.fillRect(Math.round(x - nx * k), Math.round(y - ny * k), 1, 1);
-      } else ctx.fillRect(x, y, s, s);
+        const v = Math.hypot(p.vx, p.vy) || 1, nx = p.vx / v, ny = p.vy / v;
+        const len = Math.min(4, v * 0.02);
+        if (!fine) { for (let k = 0; k <= len; k++) ctx.fillRect(Math.round(x - nx * k), Math.round(y - ny * k), 1, 1); continue; }
+        // Schweif in Feinpixeln (hinten eine Stufe dunkler), Kopf 1 Weltpixel mit heißem Feinpixel
+        const tail = cols[Math.min(n - 1, ci + 1)];
+        for (let k = 2, m = Math.round(len * q) + 1; k <= m; k++) {
+          if (k > m / 2 + 1) ctx.fillStyle = tail;
+          ctx.fillRect(Math.round((x - nx * k * P) * q) * P, Math.round((y - ny * k * P) * q) * P, P, P);
+        }
+        ctx.fillStyle = color; ctx.fillRect(x, y, 1, 1);
+        ctx.fillStyle = cols[Math.max(0, ci - 1)]; ctx.fillRect(x + (nx < 0 ? 0 : P), y + (ny < 0 ? 0 : P), P, P);
+        continue;
+      }
+      if (!fine) { ctx.fillRect(x, y, s, s); continue; }
+      if (s >= 2) {
+        ctx.fillRect(x + P, y, s - 2 * P, s); ctx.fillRect(x, y + P, s, s - 2 * P);
+        if (n > 1) { ctx.fillStyle = cols[Math.max(0, ci - 1)]; ctx.fillRect(x + P, y + P, s / 2, s / 2); }
+      } else {
+        ctx.fillRect(x, y, s, s);
+        if (ci > 0) { ctx.fillStyle = cols[ci - 1]; ctx.fillRect(x, y, P, P); }
+      }
     }
     ctx.globalAlpha = 1;
   }
   // Schatten der fliegenden Splitter (verankert sie optisch am Boden)
   drawShadows(ctx, camX, camY) {
+    const q = fineRes(), P = 1 / q;
     ctx.fillStyle = 'rgba(5,3,10,0.4)';
-    for (const p of this.active) if (p.gravity && p.z > 1 && !p.emissive) ctx.fillRect(Math.round(p.x - camX), Math.round(p.y - camY), 1, 1);
+    for (const p of this.active) if (p.gravity && p.z > 1 && !p.emissive) ctx.fillRect(Math.round((p.x - camX - 0.5) * q) * P, Math.round((p.y - camY) * q) * P, 1, P);
   }
   drawLit(ctx, camX, camY) { this.#draw(ctx, camX, camY, false); }
   drawEmissive(ctx, camX, camY) { this.#draw(ctx, camX, camY, true); }

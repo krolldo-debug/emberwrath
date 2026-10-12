@@ -1,8 +1,82 @@
 import { Entity } from './Entity.js';
 import { getSlashFrame, getEnemySlashFrame, SLASH_FRAMES } from '../sprites/effects.js';
+import { makeCanvas } from '../gfx/PixelCanvas.js';
+import { fineRes } from '../gfx/Fine.js';
 
 // Kurzlebige visuelle Objekte. Sie leben in world.effects und werden
 // (größtenteils) im Emissive-Pass gezeichnet – also nicht abgedunkelt.
+//
+// Feinraster (docs/STYLE.md „Feinraster“ §5): Effekte rechnen in Weltkoordinaten, gezeichnet wird auf Feinpixel
+// gerundet (q = fineRes(), 2 Feinpixel je Weltpixel; bei Qualität „Niedrig“ 1 = wie früher in Weltpixeln). Harte
+// Kanten, heller heißer Kern im farbigen Saum, Schein nur als gestufte Pixelringe oder Dither, Durchsicht in höchstens
+// drei Stufen (A3). Effekte mit vielen Pixeln (Flammenring) werden als Bildfolge vorgerechnet und nur noch geblittet.
+const sn = (v, q) => Math.round(v * q) / q;
+const A3 = (v) => (v > 0.66 ? 1 : v > 0.33 ? 0.66 : v > 0.04 ? 0.33 : 0);
+const rgbStr = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const dark = (c, m) => [Math.round(c[0] * m), Math.round(c[1] * m), Math.round(c[2] * m)];
+const hot = (c, m) => [Math.round(c[0] + (255 - c[0]) * m), Math.round(c[1] + (255 - c[1]) * m), Math.round(c[2] + (255 - c[2]) * m)];
+function hexRgb(h) {
+  if (h[0] !== '#') { const m = h.match(/\d+/g); return m ? m.slice(0, 3).map(Number) : [255, 255, 255]; }
+  const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// Punktliste (Texel) → Rechtecke: waagrecht benachbarte Punkte einer Zeile werden zu einem Streifen, einzelne
+// Punkte, die in einer Spalte direkt untereinander liegen, zu einem senkrechten. So kostet ein großer Ring einige
+// Dutzend statt hunderter fillRect-Aufrufe. pts = flaches Array [x0, y0, x1, y1, …]; Ergebnis Int16Array [x, y, w, h, …].
+export function pixelRuns(pts) {
+  const n = pts.length / 2, idx = Array.from({ length: n }, (_, i) => i);
+  idx.sort((a, b) => pts[2 * a + 1] - pts[2 * b + 1] || pts[2 * a] - pts[2 * b]);
+  const rows = [];
+  for (let k = 0; k < n;) {
+    const x = pts[2 * idx[k]], y = pts[2 * idx[k] + 1];
+    let w = 1;
+    while (k + w < n && pts[2 * idx[k + w] + 1] === y && pts[2 * idx[k + w]] === x + w) w++;
+    rows.push([x, y, w, 1]);
+    k += w;
+  }
+  // einzelne Punkte senkrecht zusammenfassen
+  const singles = new Map(), out = [];
+  for (const r of rows) if (r[2] === 1) singles.set(r[0] * 65536 + r[1], r); else out.push(r);
+  const used = new Set();
+  for (const r of [...singles.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1])) {
+    const key = r[0] * 65536 + r[1];
+    if (used.has(key)) continue;
+    let h = 1;
+    while (singles.has(r[0] * 65536 + r[1] + h)) { used.add(r[0] * 65536 + r[1] + h); h++; }
+    out.push([r[0], r[1], 1, h]);
+  }
+  return Int16Array.from(out.flat());
+}
+export function drawRuns(ctx, X, Y, runs, P) {
+  for (let i = 0; i < runs.length; i += 4) ctx.fillRect(X + runs[i] * P, Y + runs[i + 1] * P, runs[i + 2] * P, runs[i + 3] * P);
+}
+
+// Ellipsen-Umriss als Feinpixel (Versätze in Texeln zur Mitte), lückenlos und ohne Doppelpunkte; dazu je Punkt der
+// Winkelanteil 0..1 (für Striche/Lauflichter) und die zusammengefassten Rechtecke (runs) für volle Ringe.
+// Gecacht nach Radien in Feinpixeln.
+const ELL = new Map();
+export function ellipsePts(rx, ry, q) {
+  const RX = Math.max(1, Math.round(rx * q)), RY = Math.max(1, Math.round(ry * q)), key = RX * 4096 + RY;
+  let e = ELL.get(key);
+  if (e) return e;
+  if (ELL.size > 600) ELL.clear();
+  const seen = new Set(), xy = [], u = [];
+  const n = Math.ceil(Math.PI * 2 * Math.max(RX, RY) * 1.6);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, x = Math.round(Math.cos(a) * RX), y = Math.round(Math.sin(a) * RY), k = (x + 2048) * 4096 + y + 2048;
+    if (seen.has(k)) continue;
+    seen.add(k); xy.push(x, y); u.push(i / n);
+  }
+  e = { xy: Int16Array.from(xy), u: Float32Array.from(u), n: u.length, runs: pixelRuns(xy) };
+  ELL.set(key, e);
+  return e;
+}
+// Punkte einer Ellipse zeichnen; pick(u, i) → true/false wählt aus (Striche, Dither). Farbe vorher setzen.
+function ring(ctx, X, Y, e, P, pick = null) {
+  if (!pick) { drawRuns(ctx, X, Y, e.runs, P); return; }
+  const xy = e.xy;
+  for (let i = 0; i < e.n; i++) if (pick(e.u[i], i)) ctx.fillRect(X + xy[2 * i] * P, Y + xy[2 * i + 1] * P, P, P);
+}
 
 export class SlashEffect extends Entity {
   constructor(owner, angle, style, reverse, duration, enemy = false) {
@@ -19,8 +93,11 @@ export class SlashEffect extends Entity {
   }
   renderEmissive(ctx, cx, cy) {
     const f = Math.min(SLASH_FRAMES - 1, Math.floor((this.t / this.duration) * SLASH_FRAMES));
-    const img = this.enemy ? getEnemySlashFrame(this.angle, f) : getSlashFrame(this.style, this.angle, f, this.reverse);
-    ctx.drawImage(img, Math.round(this.x - cx - img.width / 2), Math.round(this.y - cy - img.height / 2));
+    const fr = this.enemy ? getEnemySlashFrame(this.angle, f) : getSlashFrame(this.style, this.angle, f, this.reverse);
+    const r = fr.res, c = fr.canvas;
+    // Mitte des vollen Quadrats auf den Effektpunkt, Ecke auf das Feinraster
+    const left = Math.round((this.x - cx - fr.size / 2) * r) / r, top = Math.round((this.y - cy - fr.size / 2) * r) / r;
+    ctx.drawImage(c, left + fr.ox / r, top + fr.oy / r, c.width / r, c.height / r);
   }
 }
 
@@ -32,7 +109,8 @@ export class Afterimage extends Entity {
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = (this.life / this.max) * 0.35;
+    // zwei harte Stufen statt stetigem Ausblenden
+    ctx.globalAlpha = this.life / this.max > 0.5 ? 0.33 : 0.16;
     const img = this.flip ? this.frame.flashFlipped : this.frame.flash;
     const ax = this.flip ? this.frame.canvas.width - this.frame.ax : this.frame.ax;
     const r = this.frame.res ?? 1; // Texel je Weltpixel (§11.12)
@@ -42,7 +120,8 @@ export class Afterimage extends Entity {
   }
 }
 
-// Beschwörungszeichen: kündigt einen Gegner-Spawn an (Telegraphing).
+// Beschwörungszeichen: kündigt einen Gegner-Spawn an (Telegraphing). Zwei gegenläufige Punktkreise in Feinpixeln,
+// die sich zusammenziehen, innen ein Runenkreuz, das zum Ende heller wird.
 export class SpawnMarker extends Entity {
   constructor(x, y, duration, onDone) {
     super(x, y);
@@ -54,17 +133,31 @@ export class SpawnMarker extends Entity {
     if (this.t >= this.duration) { this.removed = true; this.onDone(); }
   }
   renderEmissive(ctx, cx, cy) {
-    const k = this.t / this.duration;
+    const q = fineRes(), P = 1 / q;
+    const k = Math.min(1, this.t / this.duration);
     const r = 3 + k * 9;
-    const x = this.x - cx, y = this.y - cy;
-    ctx.fillStyle = `rgba(160,96,240,${0.25 + k * 0.5})`;
-    const n = 14;
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
+    const n = 14 * q;
+    ctx.globalAlpha = A3(0.4 + k * 0.6);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + this.t * 5;
-      ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.55), 1, 1);
+      ctx.fillStyle = i % q ? '#6a2cb0' : '#a060f0';
+      ctx.fillRect(sn(X + Math.cos(a) * r, q), sn(Y + Math.sin(a) * r * 0.55, q), P, P);
     }
-    ctx.fillStyle = `rgba(224,184,255,${k})`;
-    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+    if (q > 1) {
+      ctx.fillStyle = '#a060f0';
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 - this.t * 3;
+        ctx.fillRect(sn(X + Math.cos(a) * r * 0.6, q), sn(Y + Math.sin(a) * r * 0.33, q), P, P);
+      }
+    }
+    ctx.globalAlpha = A3(k);
+    if (ctx.globalAlpha) {
+      ctx.fillStyle = '#e0b8ff';
+      ctx.fillRect(X - P, Y, 3 * P, P); ctx.fillRect(X, Y - P, P, 3 * P);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(X, Y, P, P);
+    }
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -90,7 +183,7 @@ export class FloatingText extends Entity {
   }
 }
 
-// Pulsierender Runenkreis in der Raummitte.
+// Pulsierender Runenkreis in der Raummitte (Helligkeit in drei Stufen).
 export class RuneGlow extends Entity {
   constructor(x, y, rune) {
     super(x, y);
@@ -99,42 +192,47 @@ export class RuneGlow extends Entity {
   update(dt) { this.t += dt; this.surge = Math.max(0, this.surge - dt); }
   renderEmissive(ctx, cx, cy) {
     const g = this.rune.glow;
-    ctx.globalAlpha = 0.25 + 0.2 * Math.sin(this.t * 1.7) + this.surge;
+    const v = 0.25 + 0.2 * Math.sin(this.t * 1.7) + this.surge;
+    ctx.globalAlpha = Math.min(1, v > 0.8 ? 1 : v > 0.36 ? 0.45 : 0.25);
     ctx.drawImage(g, Math.round(this.x - cx - g.width / 2), Math.round(this.y - cy - g.height / 2));
     ctx.globalAlpha = 1;
   }
 }
 
-// Sich ausbreitender Ring (Einschlag, Aura, Stufenaufstieg). Pixelgenau als
-// Ellipse in Bodenperspektive gezeichnet, äußerer Rand hell, innen transparent.
+// Sich ausbreitender Ring (Einschlag, Aura, Stufenaufstieg). Pixelgenau als Ellipse in Bodenperspektive:
+// außen ein Feinpixel-Ring (am Anfang weiß glühend, dann in der Farbe), innen ein zweiter in der Farbe und ein
+// gedünnter dunkler Nachlauf. Ausblenden in drei Stufen.
 export class Shockwave extends Entity {
   constructor(x, y, { radius = 24, color = '#ffffff', life = 0.4 } = {}) {
     super(x, y);
     this.radius = radius; this.color = color; this.life = this.max = life;
+    this.rgb = hexRgb(color);
+    this.cols = [rgbStr(hot(this.rgb, 0.6)), color, rgbStr(dark(this.rgb, 0.6))];
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
+    const al = A3((1 - k) * 1.15);
+    if (!al) return;
     const r = 2 + this.radius * (1 - Math.pow(1 - k, 3));
-    const x = this.x - cx, y = this.y - cy;
-    const n = Math.max(12, Math.round(r * 3));
-    ctx.fillStyle = this.color;
-    ctx.globalAlpha = (1 - k) * 0.9;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const px = Math.round(x + Math.cos(a) * r), py = Math.round(y + Math.sin(a) * r * 0.5);
-      ctx.fillRect(px, py, 1, 1);
-      if (k < 0.5) ctx.fillRect(Math.round(x + Math.cos(a) * (r - 1)), Math.round(y + Math.sin(a) * (r - 1) * 0.5), 1, 1);
-    }
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
+    ctx.globalAlpha = al;
+    ctx.fillStyle = k < 0.2 ? this.cols[0] : this.color;
+    ring(ctx, X, Y, ellipsePts(r, r * 0.5, q), P);
+    if (k < 0.6) { ctx.fillStyle = k < 0.2 ? this.color : this.cols[2]; ring(ctx, X, Y, ellipsePts(r - 1, (r - 1) * 0.5, q), P); }
+    if (q > 1 && k < 0.4 && r > 4) { ctx.fillStyle = this.cols[2]; ring(ctx, X, Y, ellipsePts(r - 2, (r - 2) * 0.5, q), P, (u, i) => i % 2 === 0); }
     ctx.globalAlpha = 1;
   }
 }
 
-// Lichtsäule (Stufenaufstieg, Boss besiegt): vertikaler Strahl mit Kern.
+// Lichtsäule (Stufenaufstieg, Boss besiegt): senkrechter Strahl aus harten Spalten – weißer Kern, Farbband,
+// geditherter Saum; Breite und Helligkeit in Stufen.
 export class LightPillar extends Entity {
   constructor(x, y, { color = '#ffd66a', life = 1.2, follow = null, height = 90 } = {}) {
     super(x, y);
     this.color = color; this.life = this.max = life; this.follow = follow; this.height = height;
+    this.rgb = hexRgb(color); this.deep = rgbStr(dark(this.rgb, 0.55));
   }
   update(dt) {
     this.life -= dt;
@@ -142,17 +240,21 @@ export class LightPillar extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const grow = Math.min(1, k * 6), fade = Math.min(1, (this.life / this.max) * 2.5);
-    const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
-    const w = Math.max(1, Math.round(10 * grow * fade));
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
+    const half = Math.max(1, Math.round(5 * grow * fade * q));   // halbe Breite in Feinpixeln
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < w; i++) {
-      const edge = Math.abs(i - (w - 1) / 2) / Math.max(1, w / 2);
-      ctx.globalAlpha = (1 - edge) * 0.5 * fade;
-      ctx.fillStyle = edge < 0.3 ? '#ffffff' : this.color;
-      const hgt = Math.round(this.height * grow * (1 - edge * 0.3));
-      ctx.fillRect(x - Math.floor(w / 2) + i, y - hgt, 1, hgt + 1);
+    for (let i = -half; i <= half; i++) {
+      const edge = Math.abs(i) / half;
+      const al = A3((1 - edge * 0.8) * 0.75 * fade);
+      if (!al) continue;
+      ctx.globalAlpha = al;
+      ctx.fillStyle = edge < 0.25 ? '#ffffff' : edge < 0.7 ? this.color : this.deep;
+      const hgt = sn(this.height * grow * (1 - edge * 0.3), q);
+      if (edge >= 0.7 && q > 1) { for (let j = (i & 1) * P; j < hgt; j += 2 * P) ctx.fillRect(X + i * P, Y - j, P, P); continue; }
+      ctx.fillRect(X + i * P, Y - hgt, P, hgt + P);
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -161,170 +263,260 @@ export class LightPillar extends Entity {
 
 // ---------------------------------------------------------------------------
 // Runde 2: Kampf- und Magieeffekte. Alle pixelgenau, im Emissive-Pass, additiv.
-const rgbStr = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 
-// Treffer-Stern: kurzer Kreuz-/Sternblitz am Einschlagpunkt, dreht leicht.
+// Treffer-Stern: kurzer Kreuz-/Sternblitz am Einschlagpunkt, dreht leicht. Strahlen in Feinpixeln: innen weiß,
+// dann Farbe, Spitzen dunkler; Kern 2×2 bzw. 3×3 Feinpixel.
 export class ImpactStar extends Entity {
   constructor(x, y, { size = 7, color = '#ffe8a0', life = 0.14, rays = 4, angle = 0 } = {}) {
     super(x, y);
     this.size = size; this.rgb = hexRgb(color); this.life = this.max = life; this.rays = rays; this.angle = angle;
+    this.cols = ['#ffffff', rgbStr(this.rgb), rgbStr(dark(this.rgb, 0.6))];
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
+    const al = A3(1.2 - k);
+    if (!al) return;
     const len = this.size * (k < 0.3 ? 0.5 + k * 1.7 : 1.1 - (k - 0.3) * 0.6);
-    const x = this.x - cx, y = this.y - cy;
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
     ctx.globalCompositeOperation = 'lighter';
-    for (let r = 0; r < this.rays; r++) {
-      const a = this.angle + (r / this.rays) * Math.PI + k * 0.6;
-      const l = r % 2 ? len * 0.6 : len;
-      for (let i = -l; i <= l; i++) {
-        const f = 1 - Math.abs(i) / (l + 1);
-        ctx.fillStyle = f > 0.7 ? `rgba(255,255,255,${(1 - k) * f})` : rgbStr(this.rgb, (1 - k) * f);
-        ctx.fillRect(Math.round(x + Math.cos(a) * i), Math.round(y + Math.sin(a) * i), 1, 1);
+    ctx.globalAlpha = al;
+    // je Farbstufe ein Durchgang (wenige fillStyle-Wechsel)
+    for (let band = 2; band >= 0; band--) {
+      ctx.fillStyle = this.cols[band];
+      for (let r = 0; r < this.rays; r++) {
+        const a = this.angle + (r / this.rays) * Math.PI + k * 0.6, ca = Math.cos(a), sa = Math.sin(a);
+        const l = r % 2 ? len * 0.6 : len;
+        for (let i = -l; i <= l; i += P) {
+          const f = 1 - Math.abs(i) / (l + 1), b = f > 0.7 ? 0 : f > 0.35 ? 1 : 2;
+          if (b === band) ctx.fillRect(sn(X + ca * i, q), sn(Y + sa * i, q), P, P);
+        }
       }
     }
-    const core = Math.max(1, Math.round(3 * (1 - k)));
-    ctx.fillStyle = `rgba(255,255,255,${1 - k})`;
-    ctx.fillRect(Math.round(x - core / 2), Math.round(y - core / 2), core, core);
+    const core = Math.max(1, Math.round(3 * (1 - k))) * (q > 1 ? 1 : 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(sn(X - (core * P) / 2, q), sn(Y - (core * P) / 2, q), core * P + (q > 1 ? P : 0), core * P + (q > 1 ? P : 0));
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
 }
 
-// Flammen-/Elementring am Boden: breites, gefülltes Band mit züngelnden Spitzen,
-// innen verglühend. colors: [dunkel, mittel, hell, weiß]
+// Flammen-/Elementring am Boden: breites, gefülltes Band mit züngelnden Spitzen, innen verglühend.
+// colors: [dunkel, mittel, hell, weiß]. Vorgerechnet als Bildfolge (NOVA_FRAMES Bilder, 4 Zungenmuster) im
+// Feinraster – das alte Zeichnen Pixel für Pixel kostete pro Bild einige tausend fillRect-Aufrufe.
+const NOVA_FRAMES = 14;
+const novaCache = new Map();
+function novaFrame(radius, cols, tongues, seed, f, q) {
+  const key = `${radius}|${cols.join()}|${tongues}|${seed}|${f}|${q}`;
+  let c = novaCache.get(key);
+  if (c) return c;
+  if (novaCache.size > 240) novaCache.clear();
+  const k = (f + 0.5) / NOVA_FRAMES;
+  const R = 3 + radius * (1 - Math.pow(1 - Math.min(1, k * 1.6), 3));
+  const band = Math.max(2, radius * 0.35 * (1 - k));
+  const fade = 1 - k * k;
+  const r0 = Math.max(0, R - band), n = Math.ceil(R + 6);
+  const W = (2 * n + 1) * q, H = (n + 2) * q;   // Höhe: Ellipse 2:1
+  const canvas = makeCanvas(W, H), ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H), d = img.data;
+  const rgb = cols.map(hexRgb);
+  for (let Y = 0; Y < H; Y++) {
+    for (let X = 0; X < W; X++) {
+      const dx = (X + 0.5) / q - (n + 0.5), dy = ((Y + 0.5) / q - H / q / 2) * 2;
+      const dd = Math.hypot(dx, dy);
+      if (dd > R + 5 || dd < r0 - 4) continue;
+      const a = Math.atan2(dy, dx);
+      const tongue = Math.max(0, Math.sin(a * tongues * 0.5 + seed + k * 6)) * 4 * (1 - k);
+      let idx, al;
+      if (dd <= R + tongue && dd >= r0) {
+        const t = (dd - r0) / Math.max(1, R + tongue - r0); // 0 innen … 1 außen
+        idx = t > 0.92 ? 3 : t > 0.7 ? 2 : t > 0.35 ? 1 : 0;
+        al = fade * (idx === 0 ? 0.35 : idx === 1 ? 0.6 : 0.85);
+        // Feinraster: innerste Stufe als Dither statt durchscheinend
+        if (q > 1 && idx === 0 && (X + Y) & 1) continue;
+      } else if (k < 0.5 && dd < Math.max(0, r0 - 2) && dd > r0 - 4 && q > 1 && (X + Y) % 2 === 0) {
+        idx = 1; al = 0.5 - k;   // Nachglühen innen: gedünnte Linie
+      } else continue;
+      const A = A3(al);
+      if (!A) continue;
+      const i = (Y * W + X) * 4, col = rgb[idx];
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = Math.round(A * 255);
+    }
+  }
+  // Innenglut (erste Hälfte): flache Scheibe in zwei Stufen
+  if (k < 0.5) {
+    const A = Math.round(A3((0.5 - k) * 1.2) * 255);
+    for (let Y = 0; Y < H; Y++) for (let X = 0; X < W; X++) {
+      const dx = (X + 0.5) / q - (n + 0.5), dy = ((Y + 0.5) / q - H / q / 2) * 2, dd = Math.hypot(dx / 6, dy / 6);
+      if (dd > 1) continue;
+      const i = (Y * W + X) * 4, col = rgb[dd < 0.5 ? 3 : 2];
+      if (d[i + 3]) continue;
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = A;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  c = { canvas, w: W / q, h: H / q };
+  novaCache.set(key, c);
+  return c;
+}
 export class NovaBurst extends Entity {
   constructor(x, y, { radius = 38, colors = ['#7a2208', '#f07a1c', '#ffb640', '#fff0b0'], life = 0.5, tongues = 18 } = {}) {
     super(x, y);
-    this.radius = radius; this.cols = colors.map(hexRgb); this.life = this.max = life; this.tongues = tongues;
-    this.seed = Math.random() * 100;
+    this.radius = radius; this.colors = colors; this.life = this.max = life; this.tongues = tongues;
+    this.seed = Math.floor(Math.random() * 4) * 1.7;
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes();
     const k = 1 - this.life / this.max;
-    const R = 3 + this.radius * (1 - Math.pow(1 - Math.min(1, k * 1.6), 3));
-    const band = Math.max(2, this.radius * 0.35 * (1 - k));
-    const x0 = this.x - cx, y0 = this.y - cy;
-    const fade = 1 - k * k;
+    const f = Math.max(0, Math.min(NOVA_FRAMES - 1, Math.floor(k * NOVA_FRAMES)));
+    const img = novaFrame(this.radius, this.colors, this.tongues, this.seed, f, q);
     ctx.globalCompositeOperation = 'lighter';
-    const r0 = Math.max(0, R - band), n = Math.ceil(R + 8);
-    for (let dy = -Math.ceil(n * 0.5); dy <= Math.ceil(n * 0.5); dy++) {
-      for (let dx = -n; dx <= n; dx++) {
-        const d = Math.hypot(dx, dy * 2);
-        const a = Math.atan2(dy * 2, dx);
-        const tongue = Math.max(0, Math.sin(a * this.tongues * 0.5 + this.seed + k * 6)) * 4 * (1 - k);
-        if (d > R + tongue || d < r0) continue;
-        const t = (d - r0) / Math.max(1, R + tongue - r0); // 0 innen … 1 außen
-        const idx = t > 0.92 ? 3 : t > 0.7 ? 2 : t > 0.35 ? 1 : 0;
-        const alpha = fade * (idx === 0 ? 0.35 : idx === 1 ? 0.6 : 0.85);
-        ctx.fillStyle = rgbStr(this.cols[idx], alpha);
-        ctx.fillRect(Math.round(x0 + dx), Math.round(y0 + dy), 1, 1);
-      }
-    }
-    // Innenglut
-    if (k < 0.5) {
-      ctx.fillStyle = rgbStr(this.cols[2], (0.5 - k) * 0.6);
-      for (let dy = -3; dy <= 3; dy++) { const w = Math.round(Math.sqrt(9 - dy * dy) * 2); ctx.fillRect(Math.round(x0 - w), Math.round(y0 + dy), w * 2 + 1, 1); }
-    }
+    ctx.drawImage(img.canvas, sn(this.x - cx - img.w / 2, q), sn(this.y - cy - img.h / 2, q), img.w, img.h);
     ctx.globalCompositeOperation = 'source-over';
   }
 }
 
-// Wirbel um den Helden (Wirbelsturm): zwei gegenläufige Sichelbögen am Boden.
+// Wirbel um den Helden (Wirbelsturm): drei Sichelarme am Boden. Kopf 2 Feinpixel stark und weiß, dann Farbe,
+// der Schweif eine Stufe dunkler und dünner.
 export class SpinVortex extends Entity {
   constructor(follow, { radius = 26, color = '#ffc050', life = 0.5 } = {}) {
     super(follow.x, follow.y);
     this.follow = follow; this.radius = radius; this.rgb = hexRgb(color); this.life = this.max = life;
+    this.cols = ['#ffffff', rgbStr(this.rgb), rgbStr(dark(this.rgb, 0.6))];
   }
   update(dt) { this.life -= dt; this.x = this.follow.x; this.y = this.follow.y; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max, fade = Math.min(1, (1 - k) * 2.5);
-    const x = this.x - cx, y = this.y - cy - 2;
+    const X = this.x - cx, Y = this.y - cy - 2;
+    const n = 26 * q;
     ctx.globalCompositeOperation = 'lighter';
     for (let arm = 0; arm < 3; arm++) {
       const base = k * 22 + arm * (Math.PI * 2 / 3);
-      for (let i = 0; i < 26; i++) {
-        const t = i / 26, a = base - t * 2.2;
-        const r = this.radius * (0.55 + 0.45 * (1 - t));
-        const al = (1 - t) * fade;
-        ctx.fillStyle = t < 0.15 ? `rgba(255,255,255,${al})` : rgbStr(this.rgb, al * 0.8);
-        ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.5), 1, 1);
-        if (t < 0.5) ctx.fillRect(Math.round(x + Math.cos(a) * (r - 1)), Math.round(y + Math.sin(a) * (r - 1) * 0.5), 1, 1);
+      for (let i = 0; i < n; i++) {
+        const t = i / n, a = base - t * 2.2;
+        const al = A3((1 - t) * fade * 1.2);
+        if (!al) break;
+        const r = this.radius * (0.55 + 0.45 * (1 - t)), ca = Math.cos(a), sa = Math.sin(a);
+        ctx.globalAlpha = al;
+        ctx.fillStyle = this.cols[t < 0.12 ? 0 : t < 0.5 ? 1 : 2];
+        ctx.fillRect(sn(X + ca * r, q), sn(Y + sa * r * 0.5, q), P, P);
+        if (t < 0.5) ctx.fillRect(sn(X + ca * (r - 1), q), sn(Y + sa * (r - 1) * 0.5, q), P, P);
+        if (q > 1 && t < 0.25) ctx.fillRect(sn(X + ca * (r - 0.5), q), sn(Y + sa * (r - 0.5) * 0.5, q), P, P);
       }
     }
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
 }
 
-// Riss / Portalblitz (Blinzeln, Schattenschritt): vertikaler Spalt, der aufreißt und sich schließt.
+// Riss / Portalblitz (Blinzeln, Schattenschritt): senkrechter Spalt, der aufreißt und sich schließt. Feinraster:
+// weißer Kern (1 Feinpixel, offen 2), helle Ränder, Innenfläche gedithert statt durchscheinend, Splitter am Rand.
 export class RiftFlash extends Entity {
   constructor(x, y, { color = '#b884ff', life = 0.35, height = 22 } = {}) {
     super(x, y);
     this.rgb = hexRgb(color); this.life = this.max = life; this.height = height;
+    this.cols = [rgbStr(hot(this.rgb, 0.45)), rgbStr(this.rgb), rgbStr(dark(this.rgb, 0.55))];
   }
   update(dt) { this.life -= dt; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const open = k < 0.3 ? k / 0.3 : 1 - (k - 0.3) / 0.7;
-    const w = Math.max(1, Math.round(3 * open)), hgt = Math.round(this.height * (0.6 + 0.4 * open));
-    const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+    const al = A3(open * 1.3);
+    if (!al) return;
+    const w = Math.max(1, Math.round(3 * open * q)), rows = Math.round(this.height * (0.6 + 0.4 * open) * q);
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < hgt; i++) {
-      const t = i / hgt, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI)));
-      ctx.fillStyle = rgbStr(this.rgb, 0.28 * open);
-      ctx.fillRect(x - ww, y - i, ww * 2 + 1, 1);
-      if (ww > 1) { ctx.fillStyle = rgbStr(this.rgb, 0.6 * open); ctx.fillRect(x - ww, y - i, 1, 1); ctx.fillRect(x + ww, y - i, 1, 1); }
-      ctx.fillStyle = `rgba(255,255,255,${0.9 * open})`;
-      ctx.fillRect(x, y - i, 1, 1);
+    ctx.globalAlpha = al;
+    for (let i = 0; i < rows; i++) {
+      const t = i / rows, ww = Math.max(1, Math.round(w * Math.sin(t * Math.PI))), y = Y - i * P;
+      // Innenfläche: Dither in der dunklen Stufe (Feinraster) bzw. flach (Niedrig)
+      ctx.fillStyle = this.cols[2];
+      if (q > 1) { for (let j = -ww + 1 + ((i + ww) & 1); j < ww; j += 2) ctx.fillRect(X + j * P, y, P, P); }
+      else ctx.fillRect(X - ww, y, ww * 2 + 1, 1);
+      if (ww > 1) { ctx.fillStyle = this.cols[0]; ctx.fillRect(X - ww * P, y, P, P); ctx.fillRect(X + ww * P, y, P, P); }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(X, y, open > 0.6 && q > 1 ? 2 * P : P, P);
+      // Splitter: kurze helle Zacken nach außen, je Zeile fest verteilt (kein Flimmern)
+      if (q > 1 && ww > 2 && (i * 7) % 11 === 0) { ctx.fillStyle = this.cols[1]; ctx.fillRect(X + (i & 2 ? ww + 1 : -ww - 1) * P, y, P, P); }
     }
-    // Bodenellipse
-    ctx.fillStyle = rgbStr(this.rgb, 0.6 * open);
-    for (let a = 0; a < 20; a++) { const an = a / 20 * Math.PI * 2; ctx.fillRect(Math.round(x + Math.cos(an) * (5 + 6 * k)), Math.round(y + Math.sin(an) * (2.5 + 3 * k)), 1, 1); }
+    // Bodenellipse: Feinpixel-Ring, hinten gestrichelt
+    ctx.fillStyle = this.cols[1];
+    ring(ctx, X, Y, ellipsePts(5 + 6 * k, 2.5 + 3 * k, q), P, (u) => u < 0.5 || (u * 20) % 1 < 0.5);
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
 }
 
-// Aufladen (Durchschuss, Zauber): Lichtpunkte ziehen spiralförmig zur Hand.
+// Aufladen (Durchschuss, Zauber): Lichtpunkte ziehen spiralförmig zur Hand. Feinraster: jeder Punkt mit Schweif,
+// die Ladung in der Hand wächst als Raute mit weißem Kern.
 export class ChargeGlow extends Entity {
   constructor(follow, { color = '#a8ff90', life = 0.3, offY = -12, reach = 14 } = {}) {
     super(follow.x, follow.y);
     this.follow = follow; this.rgb = hexRgb(color); this.life = this.max = life; this.offY = offY; this.reach = reach + 4;
+    this.cols = ['#ffffff', rgbStr(hot(this.rgb, 0.3)), rgbStr(this.rgb), rgbStr(dark(this.rgb, 0.6))];
   }
   update(dt) { this.life -= dt; this.x = this.follow.x + (this.follow.facing ?? 1) * 7; this.y = this.follow.y + this.offY; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
-    const x = this.x - cx, y = this.y - cy;
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q);
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 16; i++) {
       const ph = (i / 16 + k * 1.5) % 1;
       const r = this.reach * (1 - ph), a = i * 2.4 + ph * 4;
-      ctx.fillStyle = rgbStr(this.rgb, 0.3 + ph * 0.7);
-      ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.7), 1, 1);
-      if (ph > 0.6) ctx.fillRect(Math.round(x + Math.cos(a - 0.3) * (r + 1.5)), Math.round(y + Math.sin(a - 0.3) * (r + 1.5) * 0.7), 1, 1);
+      ctx.globalAlpha = A3(0.3 + ph * 0.8);
+      ctx.fillStyle = this.cols[ph > 0.6 ? 1 : 2];
+      ctx.fillRect(sn(X + Math.cos(a) * r, q), sn(Y + Math.sin(a) * r * 0.7, q), P, P);
+      ctx.fillStyle = this.cols[3];
+      if (ph > 0.3) ctx.fillRect(sn(X + Math.cos(a - 0.3) * (r + 1.5), q), sn(Y + Math.sin(a - 0.3) * (r + 1.5) * 0.7, q), P, P);
     }
-    const c = Math.round(1 + k * 3);
-    ctx.fillStyle = rgbStr(this.rgb, 0.5); ctx.fillRect(Math.round(x - c), Math.round(y - c / 2), c * 2 + 1, c + 1);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+    // Ladung: Raute, wächst in Feinpixeln
+    const c = Math.round((1 + k * 3) * q);
+    ctx.globalAlpha = 0.66; ctx.fillStyle = this.cols[2];
+    for (let j = -c; j <= c; j++) { const ww = c - Math.abs(j); ctx.fillRect(X - ww * P, Y + (j * P) / 2, (2 * ww + 1) * P, P); }
+    ctx.globalAlpha = 1; ctx.fillStyle = this.cols[1];
+    ctx.fillRect(X - P, Y, 3 * P, P); ctx.fillRect(X, Y - P, P, 3 * P);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(X, Y, P, P);
     ctx.globalCompositeOperation = 'source-over';
   }
 }
 
-// Seelenlicht beim Tod eines Gegners: kleines Irrlicht steigt schlingernd auf.
+// Seelenlicht beim Tod eines Gegners: kleines Irrlicht steigt schlingernd auf. Feinraster: Flämmchen mit weißem Kern
+// und Farbsaum, darunter ein geschwungener Feinpixel-Schweif.
 export class SoulWisp extends Entity {
   constructor(x, y, { color = '#c6a8ff', life = 1.1 } = {}) {
     super(x, y);
     this.rgb = hexRgb(color); this.life = this.max = life; this.ph = Math.random() * 6;
+    this.cols = [rgbStr(hot(this.rgb, 0.5)), rgbStr(this.rgb), rgbStr(dark(this.rgb, 0.6))];
   }
   update(dt) { this.life -= dt; this.y -= dt * 22; if (this.life <= 0) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max, a = Math.min(1, (1 - k) * 1.6) * Math.min(1, k * 8);
-    const x = Math.round(this.x - cx + Math.sin(this.ph + k * 9) * 3), y = Math.round(this.y - cy);
+    const al = A3(a);
+    if (!al) return;
+    const X = sn(this.x - cx + Math.sin(this.ph + k * 9) * 3, q), Y = sn(this.y - cy, q);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = rgbStr(this.rgb, a * 0.35);
-    ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
-    for (let i = 1; i < 6; i++) { ctx.fillStyle = rgbStr(this.rgb, a * (1 - i / 6) * 0.6); ctx.fillRect(Math.round(x - Math.sin(this.ph + k * 9 - i * 0.5) * 2), y + i + 1, 1, 1); }
-    ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillRect(x, y, 1, 1);
+    ctx.globalAlpha = al * 0.66;
+    ctx.fillStyle = this.cols[2];
+    ctx.fillRect(X - 2, Y - 1, 5, 3); ctx.fillRect(X - 1, Y - 2, 3, 5);
+    ctx.globalAlpha = al;
+    if (q > 1) {
+      ctx.fillStyle = this.cols[1]; ctx.fillRect(X - 1, Y - P, 2 + P, 2 * P + P); ctx.fillRect(X - P, Y - 1 - P, 2 * P + P, 3);
+      ctx.fillStyle = this.cols[0]; ctx.fillRect(X - P, Y - P, 2 * P, 2 * P);
+    }
+    for (let i = 1; i < 6 * q; i++) {
+      const j = i / q;
+      ctx.globalAlpha = A3(a * (1 - j / 6) * 0.9);
+      ctx.fillStyle = this.cols[j < 2 ? 1 : 2];
+      ctx.fillRect(sn(X - Math.sin(this.ph + k * 9 - j * 0.5) * 2, q), Y + j + 1, P, P);
+    }
+    ctx.globalAlpha = al; ctx.fillStyle = '#ffffff'; ctx.fillRect(X, Y, P, P);
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
 }
@@ -384,7 +576,8 @@ export class DamageNumber extends Entity {
 }
 
 // Seelenfunke (EP): springt aus dem besiegten Gegner und fliegt nach kurzem Zögern
-// beschleunigt in den Helden (gesamt etwa 0,4–0,6 s). Glutfarben, 2×2 Pixel.
+// beschleunigt in den Helden (gesamt etwa 0,4–0,6 s). Glutfarben, 2×2 Weltpixel: im Feinraster
+// abgerundet mit heißem Kern und Glanzpunkt oben links, Schweif in Feinpixeln.
 // onAbsorb() beim Ankommen (Klang, Funken). XpOrb.live zählt aktive Funken (Deckel im Feedback).
 export class XpOrb extends Entity {
   static live = 0;
@@ -421,24 +614,30 @@ export class XpOrb extends Entity {
     this.z = Math.max(0, this.z - dt * 40);
   }
   renderEmissive(ctx, cx, cy) {
-    const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
-    const hot = Math.sin(this.t * 22 + this.ph) > 0;
+    const q = fineRes(), P = 1 / q;
+    const x = sn(this.x - cx, q), y = sn(this.y - this.z - cy, q);
+    const hotNow = Math.sin(this.t * 22 + this.ph) > 0;
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 1; i < this.trail.length; i++) {
       const [tx, ty] = this.trail[i];
-      ctx.fillStyle = i === 1 ? 'rgba(240,122,28,0.7)' : 'rgba(200,66,12,0.45)';
-      ctx.fillRect(Math.round(tx - cx), Math.round(ty - cy), 1, 1);
+      ctx.fillStyle = i === 1 ? 'rgba(240,122,28,0.66)' : 'rgba(200,66,12,0.33)';
+      ctx.fillRect(sn(tx - cx + 0.5, q), sn(ty - cy + 0.5, q), q > 1 && i === 1 ? 2 * P : 1, q > 1 && i === 1 ? 2 * P : 1);
     }
-    ctx.fillStyle = 'rgba(240,122,28,0.55)';
+    ctx.fillStyle = 'rgba(240,122,28,0.66)';
     ctx.fillRect(x - 1, y, 1, 2); ctx.fillRect(x + 2, y, 1, 2); ctx.fillRect(x, y - 1, 2, 1); ctx.fillRect(x, y + 2, 2, 1);
-    ctx.fillStyle = hot ? '#fff0b0' : '#ffb640';
+    ctx.fillStyle = hotNow ? '#fff0b0' : '#ffb640';
     ctx.fillRect(x, y, 2, 2);
+    if (q > 1) {
+      ctx.fillStyle = '#f07a1c'; ctx.fillRect(x + 2 - P, y + 2 - P, P, P);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, P, P);
+    }
     ctx.globalCompositeOperation = 'source-over';
   }
 }
 
 // Örtlicher Pixel-Blitz (Stufenaufstieg, legendäre Beute): vierzackiger Stern, der in
 // wenigen festen Stufen aufgeht und verglüht – statt eines Schleiers über dem ganzen Bild.
+// Feinraster: Strahlen innen 1 Weltpixel stark, außen 1 Feinpixel; Diagonalen in Feinpixeln.
 export class PixelFlash extends Entity {
   constructor(x, y, { color = '#ffd66a', size = 22, life = 0.24, follow = null, offY = 0 } = {}) {
     super(x, y);
@@ -450,20 +649,30 @@ export class PixelFlash extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const step = Math.min(3, Math.floor(k * 4));               // 4 feste Stufen
     const len = Math.round(this.size * [0.45, 1, 0.8, 0.5][step]);
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy + this.offY);
-    const col = step === 0 ? 'rgba(255,255,255,1)' : rgbStr(this.rgb, [1, 0.95, 0.7, 0.4][step]);
+    const col = step === 0 ? '#ffffff' : rgbStr(this.rgb, [1, 1, 0.66, 0.33][step]);
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = col;
-    ctx.fillRect(x - len, y, len * 2 + 1, 1);                   // waagrecht
-    ctx.fillRect(x, y - len, 1, len * 2 + 1);                   // senkrecht
-    const d = Math.round(len * 0.45);                           // kurze Diagonalen
-    for (let i = 1; i <= d; i++) { ctx.fillRect(x + i, y + i, 1, 1); ctx.fillRect(x - i, y + i, 1, 1); ctx.fillRect(x + i, y - i, 1, 1); ctx.fillRect(x - i, y - i, 1, 1); }
+    if (q > 1) {
+      const inner = Math.round(len * 0.4);
+      ctx.fillRect(x - len, y + P / 2, len * 2 + 1, P); ctx.fillRect(x + P / 2, y - len, P, len * 2 + 1);   // dünn bis in die Spitzen
+      ctx.fillRect(x - inner, y, inner * 2 + 1, 1); ctx.fillRect(x, y - inner, 1, inner * 2 + 1);            // innen voll
+      const d = Math.round(len * 0.45 * q);
+      for (let i = 1; i <= d; i++) { const o = i * P; ctx.fillRect(x + 0.5 + o, y + 0.5 + o, P, P); ctx.fillRect(x + 0.5 - o, y + 0.5 + o, P, P); ctx.fillRect(x + 0.5 + o, y + 0.5 - o, P, P); ctx.fillRect(x + 0.5 - o, y + 0.5 - o, P, P); }
+    } else {
+      ctx.fillRect(x - len, y, len * 2 + 1, 1);
+      ctx.fillRect(x, y - len, 1, len * 2 + 1);
+      const d = Math.round(len * 0.45);
+      for (let i = 1; i <= d; i++) { ctx.fillRect(x + i, y + i, 1, 1); ctx.fillRect(x - i, y + i, 1, 1); ctx.fillRect(x + i, y - i, 1, 1); ctx.fillRect(x - i, y - i, 1, 1); }
+    }
     const c = step < 2 ? 2 : 1;                                  // heller Kern
-    ctx.fillStyle = step < 2 ? '#ffffff' : rgbStr(this.rgb, 0.8);
+    ctx.fillStyle = step < 2 ? '#ffffff' : rgbStr(this.rgb, 0.66);
     ctx.fillRect(x - c, y - c, c * 2 + 1, c * 2 + 1);
+    if (q > 1 && step < 2) { ctx.fillStyle = rgbStr(this.rgb); ctx.fillRect(x - c - P, y, P, 1); ctx.fillRect(x + c + 1, y, P, 1); ctx.fillRect(x, y - c - P, 1, P); ctx.fillRect(x, y + c + 1, 1, P); }
     ctx.globalCompositeOperation = 'source-over';
   }
 }
@@ -483,42 +692,46 @@ export class LevelUpBurst extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     const fade = q3(Math.min(1, (this.life / this.max) * 3));
     const open = 1 - Math.pow(1 - Math.min(1, k * 3), 3);
     ctx.globalCompositeOperation = 'lighter';
     const r = 8 + open * 22, spin = k * 2.4;
-    for (const [rr, a0, n] of [[r, 0.8, 40], [r * 0.72, 0.5, 28]]) {
-      ctx.fillStyle = rgbStr(this.rgb, a0 * fade);
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2;
-        ctx.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y + Math.sin(a) * rr * 0.45), 1, 1);
-      }
-    }
+    // zwei Ringe: außen voll in Feinpixeln, innen gestrichelt und gegenläufig
+    ctx.fillStyle = rgbStr(this.rgb, 0.66 * fade);
+    ring(ctx, x, y, ellipsePts(r, r * 0.45, q), P);
+    ctx.fillStyle = rgbStr(this.rgb, 0.33 * fade + 0.33);
+    ring(ctx, x, y, ellipsePts(r * 0.72, r * 0.72 * 0.45, q), P, (u) => ((u + spin * 0.1) * 24) % 1 < 0.5);
     for (let i = 0; i < 8; i++) {
       const a = spin + (i / 8) * Math.PI * 2, rr = r * 0.86;
-      const px = Math.round(x + Math.cos(a) * rr), py = Math.round(y + Math.sin(a) * rr * 0.45);
-      ctx.fillStyle = `rgba(255,240,176,${0.9 * fade})`;
-      ctx.fillRect(px, py - 1, 1, 3); if (i % 2) ctx.fillRect(px - 1, py, 3, 1);
+      const px = sn(x + Math.cos(a) * rr, q), py = sn(y + Math.sin(a) * rr * 0.45, q);
+      ctx.fillStyle = `rgba(255,240,176,${fade})`;
+      ctx.fillRect(px, py - 1, P, 2 + P); if (i % 2) ctx.fillRect(px - 1, py, 2 + P, P);
+      if (q > 1) { ctx.fillStyle = '#ffffff'; ctx.fillRect(px, py, P, P); }
     }
-    // aufsteigende Lichtstrahlen am Kreisrand, in drei Helligkeitsstufen
+    // aufsteigende Lichtstrahlen am Kreisrand, in drei Helligkeitsstufen, Kopf weiß
     for (const ray of this.rays) {
       const t = Math.max(0, Math.min(1, (k - ray.d) * 2.2));
       if (t <= 0 || t >= 1) continue;
-      const px = Math.round(x + Math.cos(ray.a + spin * 0.5) * r * 0.9), py = Math.round(y + Math.sin(ray.a + spin * 0.5) * r * 0.4);
+      const px = sn(x + Math.cos(ray.a + spin * 0.5) * r * 0.9, q), py = sn(y + Math.sin(ray.a + spin * 0.5) * r * 0.4, q);
       const hgt = Math.round(ray.h * Math.sin(t * Math.PI));
       for (let j = 0; j < hgt; j++) {
         const f = q3(1 - j / hgt);
-        ctx.fillStyle = j < 2 ? `rgba(255,240,176,${0.8 * f})` : rgbStr(this.rgb, 0.55 * f);
-        ctx.fillRect(px, py - j, 1, 1);
+        ctx.fillStyle = j < 2 ? `rgba(255,240,176,${0.66 + 0.33 * f})` : rgbStr(this.rgb, 0.66 * f);
+        ctx.fillRect(px, py - j, P, 1);
+        if (q > 1 && j < hgt * 0.4) ctx.fillRect(px + P, py - j, P, 1);
       }
+      if (q > 1) { ctx.fillStyle = '#ffffff'; ctx.fillRect(px, py - hgt, 2 * P, P); }
     }
     for (let i = 0; i < 14; i++) {
       const ph = (k * 1.4 + i / 14) % 1;
       const a = i * 2.4 + ph * 7, rr = (1 - ph) * r * 0.8;
       ctx.fillStyle = rgbStr(this.rgb, q3(1 - ph) * fade);
-      ctx.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y - 4 - ph * 46 + Math.sin(a) * rr * 0.4), 1, 1);
+      const sx = sn(x + Math.cos(a) * rr, q), sy = sn(y - 4 - ph * 46 + Math.sin(a) * rr * 0.4, q);
+      ctx.fillRect(sx, sy, q > 1 && ph < 0.5 ? 2 * P : 1, q > 1 && ph < 0.5 ? 2 * P : 1);
+      if (q > 1 && ph < 0.5) { ctx.fillStyle = '#fff0b0'; ctx.fillRect(sx, sy, P, P); }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -528,7 +741,10 @@ export class LevelUpBurst extends Entity {
 // Seltenheitsfarbe vom Himmel ein und folgt dem Beutestück (über dropId gesucht, C spawnt
 // es nach dem Ereignis). Pixel-Säule: Kern, Seltenheitsfarbe, geditherter Rand, nach oben
 // in festen Stufen ausblendend; am Boden kreisen Pixelfunken. onLand() beim Einschlag.
-const BEAM_BANDS = [1, 0.85, 0.7, 0.55, 0.42, 0.3, 0.2, 0.12];
+// Staffel (Feinraster): selten = schlichte Säule; episch = zusätzlich zwei Funkenbänder, die sich um die Säule
+// winden; legendär = breitere Säule mit Flammenzungen am Fuß, aufsteigenden Runenringen und doppeltem Bodenring –
+// legendär soll sich auf den ersten Blick von episch abheben.
+const BEAM_BANDS = [1, 1, 0.66, 0.66, 0.66, 0.33, 0.33, 0.33];
 export class LootBeam extends Entity {
   constructor(x, y, { dropId, rgb = [255, 214, 106], tier = 1, onLand = null } = {}) {
     super(x, y);
@@ -537,6 +753,7 @@ export class LootBeam extends Entity {
     this.fall = 0.14;                         // Zeit, bis die Säule den Boden erreicht
     this.max = 1.1 + tier * 0.55;
     this.motes = Array.from({ length: 4 + tier * 3 }, () => ({ o: Math.random(), s: 0.5 + Math.random(), dx: Math.floor(Math.random() * 3) - 1 }));
+    this.cols = { core: 'rgba(255,248,220,A)', mid: `rgba(${rgb.join(',')},A)`, deep: `rgba(${dark(rgb, 0.6).join(',')},A)`, hot: `rgba(${hot(rgb, 0.5).join(',')},A)` };
   }
   update(dt, world) {
     this.t += dt;
@@ -548,52 +765,90 @@ export class LootBeam extends Entity {
     if (!this.landed && this.t >= this.fall) { this.landed = true; this.onLand?.(this); }
     if (this.t >= this.max) this.removed = true;
   }
+  #c(name, a) { return this.cols[name].replace('A', a.toFixed(2)); }
   renderEmissive(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q, legend = this.tier >= 3;
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     const fallK = Math.min(1, this.t / this.fall);
     const yBottom = Math.round(-10 + (y + 10) * fallK);
     const after = Math.max(0, this.t - this.fall) / (this.max - this.fall);
-    const fade = after < 0.6 ? 1 : after < 0.8 ? 0.6 : 0.3;      // Ausblenden in Stufen
+    const fade = after < 0.6 ? 1 : after < 0.8 ? 0.66 : 0.33;      // Ausblenden in Stufen
     // Breite in Stufen: Aufblitzen beim Einschlag, dann ruhige Säule, zum Ende schmaler
     const flare = this.landed && after < 0.08 ? 1 : 0;
     const shrink = after > 0.8 ? 1 : 0;
     const core = Math.max(0, this.tier - 1 + flare - shrink);     // halbe Breiten
-    const mid = core + 1 + this.tier + flare - shrink;
+    const mid = core + 1 + this.tier + flare - shrink + (legend ? 1 : 0);
     const outer = mid + 2;
-    const [r, g, b] = this.rgb;
     ctx.globalCompositeOperation = 'lighter';
     const band = 22;
     for (let j = 0; yBottom - j > 0; j += 2) {
       const bi = Math.floor(j / band);
       if (bi >= BEAM_BANDS.length) break;
       const a = BEAM_BANDS[bi] * fade, row = yBottom - j - 2;
-      ctx.fillStyle = `rgba(${r},${g},${b},${(a * 0.75).toFixed(2)})`;
+      ctx.fillStyle = this.#c('mid', a * 0.66);
       ctx.fillRect(x - mid, row, mid * 2 + 1, 2);
-      ctx.fillStyle = `rgba(255,248,220,${a.toFixed(2)})`;
+      ctx.fillStyle = this.#c('core', a);
       ctx.fillRect(x - core, row, core * 2 + 1, 2);
-      // geditherter Rand: jedes zweite Pixel, versetzt je Zeile
-      ctx.fillStyle = `rgba(${r},${g},${b},${(a * 0.45).toFixed(2)})`;
+      if (q > 1) {
+        // Feinraster: heller Saum zwischen Kern und Farbe, dunkle Kante außen an der Farbe
+        ctx.fillStyle = this.#c('hot', a); ctx.fillRect(x - core - P, row, P, 2); ctx.fillRect(x + core + 1, row, P, 2);
+        ctx.fillStyle = this.#c('deep', a); ctx.fillRect(x - mid, row, P, 2); ctx.fillRect(x + mid + 1 - P, row, P, 2);
+      }
+      // geditherter Rand: jedes zweite Pixel, versetzt je Zeile (im Feinraster je Feinzeile)
+      ctx.fillStyle = this.#c('mid', a * 0.33);
       for (let i = mid + 1; i <= outer; i++) {
-        const o = ((i + (j >> 1)) & 1);
-        ctx.fillRect(x - i, row + o, 1, 1); ctx.fillRect(x + i, row + 1 - o, 1, 1);
+        if (q > 1) {
+          for (let s = 0; s < 4; s++) { const o = ((i + s + (j >> 1)) & 1) * P; ctx.fillRect(x - i + o, row + s * P, P, P); ctx.fillRect(x + i + P - o, row + s * P, P, P); }
+        } else {
+          const o = ((i + (j >> 1)) & 1);
+          ctx.fillRect(x - i, row + o, 1, 1); ctx.fillRect(x + i, row + 1 - o, 1, 1);
+        }
       }
     }
     if (this.landed) {
       // Funken steigen in der Säule auf
-      ctx.fillStyle = `rgba(255,248,220,${fade})`;
+      ctx.fillStyle = this.#c('core', fade);
       for (const m of this.motes) {
         const p = (m.o + this.t * m.s) % 1;
-        ctx.fillRect(x + m.dx * (core + 1), Math.round(y - 4 - p * 70), 1, 1);
+        ctx.fillRect(x + m.dx * (core + 1), sn(y - 4 - p * 70, q), q > 1 ? P : 1, q > 1 ? 2 * P : 1);
+      }
+      // Episch: zwei Funkenbänder winden sich um die Säule (vorne hell, hinten dunkel)
+      if (this.tier === 2 && q > 1) {
+        for (let s = 0; s < 2; s++) for (let j = 0; j < 46; j += P) {
+          const a = this.t * 5 + j * 0.22 + s * Math.PI, front = Math.sin(a) > 0;
+          if (((j * q) | 0) % 3 === 2) continue;
+          ctx.fillStyle = front ? this.#c('hot', fade) : this.#c('deep', fade * 0.66);
+          ctx.fillRect(sn(x + 0.5 + Math.cos(a) * (mid + 1.5), q), sn(y - 3 - j, q), P, P);
+        }
+      }
+      // Legendär: Runenringe steigen auf, Flammenzungen am Fuß
+      if (legend) {
+        for (let s = 0; s < 3; s++) {
+          const p = (this.t * 0.7 + s / 3) % 1, ry = y - 4 - p * 64, rr = mid + 4 - p * 2;
+          ctx.fillStyle = this.#c(p < 0.35 ? 'core' : p < 0.7 ? 'hot' : 'mid', fade * (p < 0.7 ? 1 : 0.66));
+          ring(ctx, x + 0.5, sn(ry, q), ellipsePts(rr, 1.5, q), P, (u) => u < 0.5 || ((u * 10) % 1) < 0.5);
+        }
+        if (q > 1) for (let i = -mid - 2; i <= mid + 2; i++) {
+          const h = Math.max(0, Math.sin(this.t * 14 + i * 1.7) * 2.5 + 2.5 - Math.abs(i) * 0.25);
+          for (let j = 0; j < h * q; j++) {
+            ctx.fillStyle = this.#c(j < h * q * 0.4 ? 'hot' : 'mid', fade);
+            ctx.fillRect(x + i + (i & 1) * P, y - j * P, P, P);
+          }
+        }
       }
       // Bodenring aus kreisenden Pixelfunken, beim Einschlag kurz weiter
       const rr = 6 + this.tier * 3 + (after < 0.15 ? Math.round((0.15 - after) * 60) : 0);
-      const n = 10 + this.tier * 4;
+      const n = (10 + this.tier * 4) * (q > 1 ? 2 : 1);
       for (let i = 0; i < n; i++) {
         const ang = (i / n) * Math.PI * 2 + this.t * 2.2;
         const on = (i + Math.floor(this.t * 12)) % 3 !== 0;
         if (!on) continue;
-        ctx.fillStyle = i % 2 ? `rgba(255,248,220,${fade})` : `rgba(${r},${g},${b},${fade})`;
-        ctx.fillRect(Math.round(x + Math.cos(ang) * rr), Math.round(y + Math.sin(ang) * rr * 0.4), 1, 1);
+        ctx.fillStyle = i % 2 ? this.#c('core', fade) : this.#c('mid', fade);
+        ctx.fillRect(sn(x + Math.cos(ang) * rr, q), sn(y + Math.sin(ang) * rr * 0.4, q), q > 1 ? P : 1, q > 1 ? P : 1);
+      }
+      if (legend) {
+        ctx.fillStyle = this.#c('deep', fade);
+        ring(ctx, x + 0.5, y, ellipsePts(rr + 3, (rr + 3) * 0.4, q), P, (u) => ((u * 16 - this.t * 2) % 1 + 1) % 1 < 0.6);
       }
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -601,7 +856,7 @@ export class LootBeam extends Entity {
 }
 
 // Goldfontäne (Quest abgeschlossen, große Goldfunde): Münzen springen im Bogen
-// aus dem Boden und blitzen beim Drehen auf.
+// aus dem Boden und blitzen beim Drehen auf. Feinraster: Münze mit Rand, Prägung und Glanzpunkt.
 export class CoinFountain extends Entity {
   constructor(x, y, { count = 14, life = 1.1, spread = 1 } = {}) {
     super(x, y);
@@ -622,15 +877,24 @@ export class CoinFountain extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
-    const age = this.max - this.life, fade = Math.min(1, (this.life / this.max) * 3);
-    ctx.globalAlpha = fade;
+    const q = fineRes(), P = 1 / q;
+    const age = this.max - this.life;
+    ctx.globalAlpha = A3(Math.min(1, (this.life / this.max) * 3));
     for (const c of this.coins) {
       if (age < c.d) continue;
       const x = Math.round(this.x + c.x - cx), y = Math.round(this.y + c.y - c.z - cy);
       const spin = Math.abs(Math.sin(age * 12 + c.ph));
       const w = spin > 0.66 ? 3 : spin > 0.25 ? 2 : 1;
-      ctx.fillStyle = '#b8862a'; ctx.fillRect(x - (w >> 1), y - 1, w, 3);
-      ctx.fillStyle = spin > 0.9 ? '#ffffff' : '#ffd66a'; ctx.fillRect(x - (w >> 1), y - 1, Math.max(1, w - 1), 2);
+      const x0 = x - (w >> 1);
+      ctx.fillStyle = '#b8862a'; ctx.fillRect(x0, y - 1, w, 3);
+      ctx.fillStyle = spin > 0.9 ? '#ffffff' : '#ffd66a'; ctx.fillRect(x0, y - 1, Math.max(1, w - 1), 2);
+      if (q > 1) {
+        // Ecken abrunden, Lichtkante oben links, Prägung als dunkler Feinpixel
+        ctx.fillStyle = '#8a5a18';
+        if (w > 1) { ctx.fillRect(x0 + w - P, y + 2 - P, P, P); ctx.fillRect(x0 + P, y + 2 - P, w - 2 * P, P); }
+        ctx.fillStyle = '#fff0b0'; ctx.fillRect(x0, y - 1, P, P);
+        if (w === 3 && spin <= 0.9) { ctx.fillStyle = '#b8862a'; ctx.fillRect(x0 + 1 + P, y, P, P); }
+      }
     }
     ctx.globalAlpha = 1;
   }

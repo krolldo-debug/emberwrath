@@ -1,6 +1,7 @@
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { PAL, hexToRgb } from '../gfx/Palette.js';
 import { TAU } from '../core/math.js';
+import { fineRes } from '../gfx/Fine.js';
 
 // Schwerthieb-Bögen, pixelgenau für jede Richtung berechnet und gecacht.
 // Farben laufen von heißem Weiß (Schneide) zu Glut-Orange (Schweif).
@@ -13,23 +14,28 @@ const HOT = ['#fff8e0', '#ffe8a0', '#ffc050', '#f07a1c', '#c8420c', '#7a2208'].m
 const MOON = ['#ffffff', '#e9f7ff', '#a8f0ec', '#4ad8cc', '#1a8a8a'].map(hexToRgb);
 const COLD = ['#ffffff', '#e0ecff', '#a8c0f0', '#7088c8', '#48527a', '#2d3548'].map(hexToRgb);
 
-function buildSlashFrame({ radius, width, span, heavy, soft, hard }, dirIndex, frame, reverse) {
+// Feinraster (docs/STYLE.md „Feinraster“): res Texel je Weltpixel (fineRes, bei „Niedrig“ 1). Der Bogen besteht aus
+// harten Farbbändern, Durchsicht nur in drei Stufen (1 / ⅔ / ⅓) – kein weicher Verlauf, kein Streumuster (Hiebbögen
+// sollen dicht bleiben, sonst flimmern sie). Im Feinraster: Schneide als 1 Feinpixel heller Strich, Nachglühen innen
+// als ein Feinpixel-Band. Liefert { canvas, ox, oy, res, size }: das Bild ist auf den gefüllten Bereich beschnitten,
+// ox/oy = Lage im vollen Quadrat (Texel), size = Seitenlänge des vollen Quadrats in Weltpixeln.
+const a3 = (v) => (v > 0.7 ? 255 : v > 0.4 ? 170 : v > 0.12 ? 85 : 0);
+function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, reverse, res) {
   const R = radius + 3;
-  const size = R * 2 + 1;
-  const c = makeCanvas(size, size);
-  const ctx = c.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  const d = img.data;
+  const size = R * 2 + 1, S = size * res, e1 = 1 / res;   // e1 = ein Feinpixel in Weltpixeln
+  const d = new Uint8ClampedArray(S * S * 4);
   const dir = (dirIndex / DIRS) * TAU;
   const prog = (frame + 1) / FRAMES;
   const head = Math.min(1, prog * 1.6);
   const tailLen = 0.75;
   const fade = prog > 0.6 ? 1 - (prog - 0.6) / 0.4 : 1;
-  const ramp = heavy ? HOT : HOT;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = x - R, dy = y - R;
+  const ramp = HOT;
+  const set = (i, col, al) => { d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = al; };
+  for (let Y = 0; Y < S; Y++) {
+    for (let X = 0; X < S; X++) {
+      const dx = (X + 0.5) / res - (R + 0.5), dy = (Y + 0.5) / res - (R + 0.5);
       const r = Math.hypot(dx, dy);
+      if (r > radius + 1.2 || r < radius - width - 3.5) continue;
       let a = Math.atan2(dy, dx) - dir;
       a = ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
       let u = (a + span / 2) / span;
@@ -40,59 +46,66 @@ function buildSlashFrame({ radius, width, span, heavy, soft, hard }, dirIndex, f
       if (behind > 1) continue;
       const thick = width * (1 - behind) * (0.4 + 0.6 * fade);
       const inner = radius - thick;
+      const i = (Y * S + X) * 4;
       if (hard) {
         // Skinset: schmale Sichel aus deckenden Pixeln, Schneide außen weiß, zum Schweif hin Geisterlicht
         if (r > radius || r < inner) continue;
         const idx = Math.floor(((radius - r) / Math.max(thick, 0.001)) * 1.8 + behind * 2.6 + (1 - fade) * 2);
         if (idx >= MOON.length) continue;
-        const col = MOON[idx], ih = (y * size + x) * 4;
-        d[ih] = col[0]; d[ih + 1] = col[1]; d[ih + 2] = col[2]; d[ih + 3] = 255;
+        set(i, MOON[idx], 255);
         continue;
       }
       if (soft) {
-        // Zweihänder: wie der Bogen am Helden – heller Rand auf der Spitzenbahn, darunter ein dünner, durchscheinender Glutschleier
+        // Zweihänder: heller Rand auf der Spitzenbahn, darunter ein dünner Glutschleier in zwei Stufen
         if (r > radius || r < inner) continue;
-        const i4s = (y * size + x) * 4, e = (radius - r) / Math.max(thick, 0.001);
-        const col = e < 0.22 ? ramp[1] : e < 0.6 ? ramp[2] : ramp[3];
-        const al = (e < 0.22 ? 1 : 0.68 * (1 - e)) * (1 - behind * 0.8) * fade;
-        d[i4s] = col[0]; d[i4s + 1] = col[1]; d[i4s + 2] = col[2]; d[i4s + 3] = Math.round(255 * Math.min(1, al));
+        const e = (radius - r) / Math.max(thick, 0.001);
+        const edge = radius - r < (res > 1 ? e1 * 2 : 1) || e < 0.22;
+        const al = a3((edge ? 1 : 0.68 * (1 - e)) * (1 - behind * 0.8) * fade);
+        if (al) set(i, edge ? (res > 1 && radius - r < e1 ? ramp[0] : ramp[1]) : e < 0.6 ? ramp[2] : ramp[3], al);
         continue;
       }
-      const i4 = (y * size + x) * 4;
-      // Nachglühen: weicher Saum innen, heller 1-px-Rand außen an der Spitze
-      if (r < inner && r >= inner - 3 && behind < 0.8) {
-        const col = ramp[4]; const a = (1 - (inner - r) / 3) * (0.8 - behind) * 0.45 * fade;
-        d[i4] = col[0]; d[i4 + 1] = col[1]; d[i4 + 2] = col[2]; d[i4 + 3] = Math.round(255 * a);
+      // Nachglühen innen: ein schmales, durchscheinendes Band in der dunklen Glutfarbe
+      if (r < inner && r >= inner - (res > 1 ? 1.5 : 3) && behind < 0.8) {
+        const al = a3((res > 1 ? 0.5 : (1 - (inner - r) / 3) * 0.45) * (0.8 - behind) * 1.6 * fade);
+        if (al) set(i, ramp[4], Math.min(al, 85));
         continue;
       }
-      if (r > radius && r <= radius + 1 && behind < 0.25) {
-        d[i4] = 255; d[i4 + 1] = 255; d[i4 + 2] = 240; d[i4 + 3] = Math.round(255 * (1 - behind * 4) * fade * 0.8);
+      // Schneide: heller Saum außen an der Spitze (im Feinraster genau ein Feinpixel)
+      if (r > radius && r <= radius + (res > 1 ? e1 : 1) && behind < 0.25) {
+        set(i, [255, 255, 240], a3((1 - behind * 4) * fade * 0.9));
         continue;
       }
       if (r > radius || r < inner) continue;
       const edge = (radius - r) / Math.max(thick, 0.001); // 0 = Schneide außen
-      let idx = Math.floor(edge * 2.2 + behind * 3.2 + (1 - fade) * 2);
+      let idx = Math.floor(edge * (res > 1 ? 2.6 : 2.2) + behind * 3.2 + (1 - fade) * 2);
       idx = Math.max(0, Math.min(ramp.length - 1, idx));
-      const col = ramp[soft ? Math.min(idx, 2) : idx];
-      const i = (y * size + x) * 4;
-      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2];
-      // soft (Zweihänder): durchscheinender Schleier, nach innen und zum Schweif hin ausblendend
-      const body = soft ? (edge < 0.18 ? 0.95 : 0.62 * (1 - edge) ** 1.3) * (1 - behind) * fade : Math.min(1, (1.15 - behind) * fade + 0.1);
-      d[i + 3] = Math.round(255 * body);
+      set(i, ramp[idx], a3(Math.min(1, (1.15 - behind) * fade + 0.1)));
     }
   }
+  return cropFrame(d, S, res, size);
+}
+
+// Leeren Rand abschneiden (spart Speicher: der Bogen füllt nur einen Teil des Quadrats)
+function cropFrame(d, S, res, size) {
+  let x0 = S, y0 = S, x1 = -1, y1 = -1;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (d[(y * S + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) { x0 = y0 = 0; x1 = y1 = 0; }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const canvas = makeCanvas(w, h), ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) img.data.set(d.subarray(((y + y0) * S + x0) * 4, ((y + y0) * S + x0 + w) * 4), y * w * 4);
   ctx.putImageData(img, 0, 0);
-  return c;
+  return { canvas, ox: x0, oy: y0, res, size };
 }
 
 export const SLASH_FRAMES = FRAMES;
 
-export function getSlashFrame(style, angle, frame, reverse = false) {
+export function getSlashFrame(style, angle, frame, reverse = false, res = fineRes()) {
   let di = Math.round((angle / TAU) * DIRS) % DIRS;
   if (di < 0) di += DIRS;
-  const key = `${style.key}|${di}|${frame}|${reverse ? 1 : 0}`;
+  const key = `${style.key}|${di}|${frame}|${reverse ? 1 : 0}|${res}`;
   let c = cache.get(key);
-  if (!c) { c = buildSlashFrame(style, di, frame, reverse); cache.set(key, c); }
+  if (!c) { c = buildSlashFrame(style, di, frame, reverse, res); cache.set(key, c); }
   return c;
 }
 
@@ -109,15 +122,15 @@ export const SLASH_STYLES = {
 };
 
 // Enemy-Hiebe in kalter, fahler Farbe – visuell klar vom Helden getrennt.
-export function getEnemySlashFrame(angle, frame) {
+export function getEnemySlashFrame(angle, frame, res = fineRes()) {
   let di = Math.round((angle / TAU) * DIRS) % DIRS;
   if (di < 0) di += DIRS;
-  const key = `enemyc|${di}|${frame}`;
+  const key = `enemyc|${di}|${frame}|${res}`;
   let c = cache.get(key);
   if (!c) {
-    const src = buildSlashFrame(SLASH_STYLES.enemy, di, frame, false);
-    const ctx = src.getContext('2d');
-    const img = ctx.getImageData(0, 0, src.width, src.height);
+    c = buildSlashFrame(SLASH_STYLES.enemy, di, frame, false, res);
+    const ctx = c.canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, c.canvas.width, c.canvas.height);
     for (let i = 0; i < img.data.length; i += 4) {
       if (!img.data[i + 3]) continue;
       const lum = (img.data[i] + img.data[i + 1] + img.data[i + 2]) / 765;
@@ -126,7 +139,7 @@ export function getEnemySlashFrame(angle, frame) {
       img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2];
     }
     ctx.putImageData(img, 0, 0);
-    c = src; cache.set(key, c);
+    cache.set(key, c);
   }
   return c;
 }
@@ -151,12 +164,24 @@ export function getLightSprite(radius, rgb) {
   return c;
 }
 
-export function createArrowSprite() {
-  const c = makeCanvas(9, 3);
+// Gegnerpfeil 9 × 3 Weltpixel (Spitze rechts). res 2: Schaft mit Lichtkante oben, Stahlspitze mit Glanzpunkt,
+// zweifarbige Federn (entities/Projectile.js Arrow zeichnet ihn gedreht in Weltgröße).
+export function createArrowSprite(res = 1) {
+  const c = makeCanvas(9 * res, 3 * res);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = PAL.leather[3]; ctx.fillRect(1, 1, 6, 1);
-  ctx.fillStyle = PAL.steel[4]; ctx.fillRect(7, 1, 2, 1); ctx.fillRect(7, 0, 1, 3);
-  ctx.fillStyle = PAL.crimson[3]; ctx.fillRect(0, 0, 2, 1); ctx.fillRect(0, 2, 2, 1);
+  if (res === 1) {
+    ctx.fillStyle = PAL.leather[3]; ctx.fillRect(1, 1, 6, 1);
+    ctx.fillStyle = PAL.steel[4]; ctx.fillRect(7, 1, 2, 1); ctx.fillRect(7, 0, 1, 3);
+    ctx.fillStyle = PAL.crimson[3]; ctx.fillRect(0, 0, 2, 1); ctx.fillRect(0, 2, 2, 1);
+    return c;
+  }
+  const S = res / 2;   // Raster unten in Feinpixeln (18 × 6), bei res 2 genau 1 Texel
+  const r = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, w * S, h * S); };
+  r(0, 0, 4, 1, PAL.crimson[4]); r(1, 1, 4, 1, PAL.crimson[3]); r(1, 4, 4, 1, PAL.crimson[2]); r(0, 5, 4, 1, PAL.crimson[1]);
+  r(2, 2, 12, 1, '#8a6446'); r(2, 3, 12, 1, PAL.leather[2]);
+  r(5, 2, 1, 2, PAL.leather[1]);   // Wicklung hinter den Federn
+  r(14, 0, 1, 1, PAL.steel[3]); r(14, 1, 2, 1, PAL.steel[4]); r(14, 2, 3, 1, PAL.steel[5]); r(14, 3, 3, 1, PAL.steel[3]);
+  r(14, 4, 2, 1, PAL.steel[2]); r(14, 5, 1, 1, PAL.steel[1]); r(17, 2, 1, 1, '#ffffff'); r(17, 3, 1, 1, PAL.steel[4]);
   return c;
 }
 
@@ -218,18 +243,21 @@ export function createGuideSprites() {
   return { frames, arrow, end };
 }
 
-// Lichtkreis am Boden für legendäre Waffen (entities/Hero.js): Pixelring statt weichem Schein. Zwei Ellipsen aus
-// einzelnen Feinpixeln – außen umlaufende Striche (Kopf heller), innen gedithert –, dazu vier pulsierende Knoten.
+// Lichtkreis am Boden für legendäre Waffen (entities/Hero.js): Pixelring statt weichem Schein. Außen ein geschlossener
+// Ring in der Mittelfarbe mit umlaufenden hellen Strichen (Kopf fast weiß), darüber kleine Flammenzungen, die am Ring
+// aufsteigen; innen ein zweiter, gestrichelter Ring und ein geditherter dritter; dazu vier pulsierende Knoten.
 // Hinter den Beinen bleibt der Ring offen (wird im Leuchtpass über die Figur gelegt). Gezeichnet mit 'lighter':
 // harte Pixel, die den Boden in der Elementfarbe aufhellen. colors = Elementrampe hell → dunkel (gfx/Particles.js).
-// Liefert { canvas, w, h } in Weltpixeln; RING_FRAMES Bilder, nahtlos umlaufend.
+// Liefert { canvas, w, h } in Weltpixeln; RING_FRAMES Bilder, nahtlos umlaufend. Legendär soll sich klar von Episch
+// (nur Kante und Funken an der Waffe) abheben – der Ring ist das sichtbarste Zeichen dafür.
 export const RING_FRAMES = 12;
 const ringCache = new Map();
 export function getRarityRing(colors, res, frame, rx = 11, ry = 4.5) {
   const key = `${colors.join()}|${res}|${frame}|${rx}|${ry}`;
   let c = ringCache.get(key);
   if (c) return c;
-  const W = Math.round((2 * rx + 2) * res), H = Math.round((2 * ry + 2) * res);
+  const top = 3;   // Platz über dem Ring für die Flammenzungen (Weltpixel)
+  const W = Math.round((2 * rx + 2) * res), H = Math.round((2 * ry + 2 + 2 * top) * res);   // oben und unten gleich viel Rand: Hero.js zentriert das Bild am Fußpunkt
   const canvas = makeCanvas(W, H);
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(W, H), d = img.data;
@@ -237,29 +265,38 @@ export function getRarityRing(colors, res, frame, rx = 11, ry = 4.5) {
   const inside = (x, y, a, b) => (((x + 0.5 - cx) / (a * res)) ** 2 + ((y + 0.5 - cy) / (b * res)) ** 2) <= 1;
   const edge = (x, y, a, b) => inside(x, y, a, b) && (!inside(x - 1, y, a, b) || !inside(x + 1, y, a, b) || !inside(x, y - 1, a, b) || !inside(x, y + 1, a, b));
   const rgb = colors.map(hexToRgb);
-  const put = (x, y, col) => { const i = (y * W + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; };
-  const DASH = 12, phase = frame / RING_FRAMES;
+  const put = (x, y, col) => { if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; };
+  const DASH = 8, phase = frame / RING_FRAMES;
   const pulse = 0.5 + 0.5 * Math.cos((frame / RING_FRAMES) * TAU * 2);
+  const open = (wx, wy) => wy < 0 && Math.abs(wx) < 6;   // hinter den Beinen offen
+  const tongues = [];
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const wx = (x + 0.5 - cx) / res, wy = (y + 0.5 - cy) / res;
-      if (wy < 0 && Math.abs(wx) < 6) continue;   // hinter den Beinen offen
+      if (open(wx, wy)) continue;
       const a = (Math.atan2(wy / ry, wx / rx) / TAU + 1) % 1;
       if (edge(x, y, rx, ry)) {
         const u = (a * DASH + phase) % 1;
-        if (u < 0.62) put(x, y, rgb[u > 0.45 ? 3 : 4]);
+        put(x, y, rgb[u > 0.82 ? 0 : u > 0.62 ? 1 : 2]);
+        if (u > 0.82 && wy > -1 && (x + frame) % 3 === 0) tongues.push([x, y, u]);
         continue;
       }
-      if (edge(x, y, rx - 2, ry - 1) && (x + y) % 2 === 0) put(x, y, rgb[4]);
+      if (edge(x, y, rx - 2, ry - 1)) { const u = (a * DASH - phase * 2 + 0.5) % 1; if (u < 0.55) put(x, y, rgb[u < 0.15 ? 2 : 3]); continue; }
+      if (res > 1 && edge(x, y, rx - 4, ry - 2) && (x + y) % 2 === 0) put(x, y, rgb[4]);
     }
+  }
+  // Flammenzungen: am Kopf jedes hellen Strichs steigt eine kurze Zunge auf (2–3 Feinpixel, oben dunkler)
+  for (const [x, y, u] of tongues) {
+    const n = res > 1 ? (u > 0.92 ? 3 : 2) : 1;
+    for (let k = 1; k <= n; k++) put(x, y - k, rgb[Math.min(4, k)]);
   }
   // Knoten auf den Diagonalen: heller Kern, Kreuz in der Mittelfarbe (atmet in zwei Stufen)
   for (let k = 0; k < 4; k++) {
     const ang = ((k + 0.5) / 4) * TAU;
     const nx = Math.round(cx + Math.cos(ang) * rx * res - 0.5), ny = Math.round(cy + Math.sin(ang) * ry * res - 0.5);
     if (Math.sin(ang) < 0 && Math.abs(Math.cos(ang) * rx) < 6) continue;
-    put(nx, ny, rgb[pulse > 0.5 ? 2 : 3]);
-    if (pulse > 0.25) for (const [ex, ey] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (nx + ex >= 0 && nx + ex < W && ny + ey >= 0 && ny + ey < H) put(nx + ex, ny + ey, rgb[3]);
+    put(nx, ny, rgb[pulse > 0.5 ? 0 : 1]);
+    if (pulse > 0.25) for (const [ex, ey] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) put(nx + ex, ny + ey, rgb[2]);
   }
   ctx.putImageData(img, 0, 0);
   c = { canvas, w: W / res, h: H / res };
