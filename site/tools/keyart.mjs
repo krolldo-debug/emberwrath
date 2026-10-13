@@ -20,8 +20,8 @@ const SCENES = [
   K('titel', { noGlows: true, floorClean: { biome: 'biome_rime', keep: [2, 4, 8] }, cls: 'warrior', zone: 'rime_caverns', target: 'boss', party: [['mage', 'dps', 'emberborn'], ['ranger', 'dps', 'elf']], density: 0.2, hideFx: process.env.HIDE ?? 'ImpactStar',
     hero: [-58, 16], comps: [[-86, 2], [-82, 30]], cam: [-50, -4], light: [[20, -60, 150, [140, 200, 255], 1.1], [-80, 10, 70, [255, 190, 140], 0.5]], keys: [['r', 900], ['t', 2600]] }),
   // Malgareth: Goldraster im Boden entfernt, warmes Fülllicht auf der Gruppe
-  K('malgareth', { cls: 'warrior', zone: 'ashen_throne', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], floorPatch: 'biome_throne', density: 0.3, hideFx: 'ImpactStar',
-    grade: 'brightness(1.05) contrast(1.12) saturate(1.05)', hero: [-40, 10], comps: [[-66, -2], [-62, 24]], cam: [-24, -26], light: [[-60, 4, 80, [255, 200, 160], 0.7], [-70, -14, 46, [230, 210, 255], 0.9]], keys: [['r', 900], ['g', 2600]] }),
+  K('malgareth', { lightMode: 'soft', cls: 'warrior', zone: 'ashen_throne', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], floorPatch: 'biome_throne', density: 0.3, hideFx: 'ImpactStar',
+    grade: 'brightness(1.3) contrast(1.12) saturate(1.05)', hero: [-40, 10], comps: [[-66, -2], [-62, 24]], cam: [-24, -26], light: [[-60, 4, 80, [255, 200, 160], 0.7], [-70, -14, 46, [230, 210, 255], 0.9]], keys: [['r', 900], ['g', 2600]] }),
   // Ulgrim: vom Thron weggezogen, wenig Partikel, mehr Kontrast
   K('ulgrim', { cls: 'warrior', zone: 'howling_barrow', target: 'boss', party: [['mage', 'dps', 'emberborn'], ['ranger', 'dps', 'elf']], at: [0, 40], density: 0.06, hideFx: 'ImpactStar|Shockwave|Afterimage',
     grade: 'brightness(1.3) contrast(1.3) saturate(1.1)', hero: [-34, 10], comps: [[-60, -2], [-56, 22]], cam: [-22, -20], light: [[-50, 0, 90, [255, 180, 110], 0.7], [20, -30, 80, [110, 240, 220], 0.35]], keys: [['r', 900], ['g', 2600]] }),
@@ -30,12 +30,13 @@ const SCENES = [
   K('nerith', { cls: 'warrior', zone: 'sunken_temple', target: 'boss', party: [['mage', 'dps', 'emberborn'], ['ranger', 'dps', 'elf']], density: 0.3, hideFx: 'ImpactStar',
     grade: 'brightness(1.3) contrast(1.2) saturate(1.1)', hero: [-40, 10], comps: [[-66, -2], [-62, 22]], cam: [-24, -18], light: [[-60, 0, 80, [255, 180, 110], 0.6]], keys: [['r', 900]] }),
   // Mutter Fäulnis im Sporenschlund (13.10.: im Feinraster dunkler – Grundlicht ×2,2, warmes Licht auf der Gruppe)
-  K('faeulnis', { cls: 'warrior', zone: 'spore_hollow', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], density: 0.25, hideFx: 'ImpactStar|Shockwave',
-    grade: 'brightness(1.25) contrast(1.18) saturate(1.1)', amb: 2.2, hero: [-50, 10], comps: [[-78, -2], [-74, 24]], cam: [-30, -16], light: [[-70, 0, 80, [255, 190, 140], 0.6], [-62, 8, 60, [255, 210, 170], 0.8]], keys: [['r', 900], ['g', 2600]] }),
+  K('faeulnis', { lightMode: 'soft', cls: 'warrior', zone: 'spore_hollow', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], density: 0.25, hideFx: 'ImpactStar|Shockwave',
+    grade: 'brightness(1.4) contrast(1.18) saturate(1.1)', amb: 2.2, hero: [-50, 10], comps: [[-78, -2], [-74, 24]], cam: [-30, -16], light: [[-70, 0, 80, [255, 190, 140], 0.6], [-62, 8, 60, [255, 210, 170], 0.8]], keys: [['r', 900], ['g', 2600]] }),
 ];
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const meta = {};
-for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) {
+// OVR (JSON {id: {…}}) überschreibt Szenenwerte zum Ausprobieren
+for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id)).map((s) => ({ ...s, ...(process.env.OVR ? JSON.parse(process.env.OVR)[s.id] : null) }))) {
   const ctx = await b.newContext(sc.portrait ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: false, hasTouch: false } : { viewport: { width: 1920, height: 1080 } });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('ERR', sc.id, e.message)); p.on('console', (m) => { if (m.type() === 'warning' && /missing/.test(m.text())) console.log(m.text()); });
@@ -165,6 +166,37 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
       window.__names = names;
       for (const a of [...(w.actors ?? []), ...(w.enemies ?? [])]) { a.flash = 0; a.hpBarTimer = 0; }
       const undo = [];
+      // Licht für die Aufnahme (sc.lightMode): Die gestuften Lichtscheiben des Feinrasters erscheinen im Standbild als
+      // Kästen/Scheiben um Feuer und Laternen. 'flat' = keine Punktlichter, nur Grundlicht sc.flat (RGB);
+      // 'soft' = Punktlichter mit weichem Verlauf (wie vor dem Feinraster). Beide ohne Leuchten-Pass (bloom).
+      if (sc.lightMode && w.lighting) {
+        const lt = w.lighting, amb0 = lt.ambient, ap = lt.apply, bl = lt.bloom;
+        if (sc.lightMode === 'flat') {
+          if (sc.flat) lt.ambient = sc.flat;
+          lt.apply = function (ctx, cx, cy) { return ap.call(this, ctx, cx, cy, []); };
+        } else {
+          const { getLightSprite } = await import('/src/sprites/effects.js');
+          lt.apply = function (ctx, camX, camY, lights) {
+            const l = this.ctx, LM = this.canvas.width / this.w;
+            const [ar, ag, ab] = this.ambient;
+            l.setTransform(LM, 0, 0, LM, 0, 0); l.globalCompositeOperation = 'source-over'; l.globalAlpha = 1;
+            l.fillStyle = `rgb(${ar},${ag},${ab})`; l.fillRect(0, 0, this.w, this.h);
+            l.globalCompositeOperation = 'lighter'; l.imageSmoothingEnabled = true;
+            for (const li of lights) {
+              const r = li.radius, sx = li.x - camX, sy = li.y - camY;
+              if (sx + r < 0 || sy + r < 0 || sx - r > this.w || sy - r > this.h) continue;
+              l.globalAlpha = Math.max(0, Math.min(1, li.value));
+              l.drawImage(getLightSprite(64, li.color, false), sx - r, sy - r, r * 2, r * 2);
+            }
+            l.globalAlpha = 1;
+            ctx.globalCompositeOperation = 'multiply'; const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
+            ctx.imageSmoothingEnabled = sm; ctx.globalCompositeOperation = 'source-over';
+          };
+        }
+        lt.bloom = () => {};
+        undo.push(() => { lt.ambient = amb0; lt.apply = ap; lt.bloom = bl; });
+      }
       // Lichtkreis legendärer Waffen am Boden (gfx/weaponFx.js getRarityRing) sieht im Standbild wie ein Zielring aus: ausblenden
       const RG = window.__ringSet ??= await (async () => {
         const [{ getRarityRing, RING_FRAMES }, { ELEMENTS }] = await Promise.all([import('/src/sprites/effects.js'), import('/src/gfx/Particles.js')]);
