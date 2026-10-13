@@ -1,7 +1,7 @@
 import { CLASSES } from '../character/classes.js';
 import { ABILITY_IMPL, fireProjectile } from '../character/abilities.js';
 import { SlashEffect, Afterimage } from '../entities/Effects.js';
-import { SLASH_STYLES } from '../sprites/effects.js';
+import { heroSlashStyle } from '../sprites/effects.js';
 import { CONFIG } from '../config.js';
 import { FX_UPGRADED, FX_MULTISHOT, FX_INFERNO, FX_INFERNO_BIG, FX_PIERCE } from './protocol.js';
 
@@ -129,8 +129,7 @@ export class RemoteCombat {
         done = true;
         if (melee) {
           const great = !!r.anims?.greatWeapon;
-          const own = r.anims?.setSlash;
-          const style = great ? (a.heavy ? SLASH_STYLES.greatHeavy : SLASH_STYLES.great) : own ? SLASH_STYLES[a.heavy ? own + 'Heavy' : own] : a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
+          const style = heroSlashStyle({ great, own: r.anims?.setSlash, rogue: r.look?.classId === 'rogue' }, !!a.heavy);
           if (great) for (const e of this.s.world.effects) if (e instanceof SlashEffect && e.owner === r) e.removed = true;
           v.addEffect(new SlashEffect(r, ang, style, combo === 1, a.active + 0.08));
           v.bus.emit('swing', { actor: r, heavy: !!a.heavy, angle: ang });

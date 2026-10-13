@@ -1,6 +1,6 @@
 import { Actor } from './Actor.js';
 import { SlashEffect, Afterimage } from './Effects.js';
-import { SLASH_STYLES } from '../sprites/effects.js';
+import { heroSlashStyle } from '../sprites/effects.js';
 import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
 import { Light } from '../gfx/Lighting.js';
@@ -10,6 +10,7 @@ import { drawSetGlow, drawSetEmit, spawnSetParticles } from '../sprites/heroSets
 import { drawWeaponFx } from '../gfx/weaponFx.js';
 import { canMount, zoneMountable, noMountAt, MOUNT_CAST, MOUNT_REASON_TEXT } from '../character/mounts.js';
 import { CONFIG } from '../config.js';
+import { fineRes } from '../gfx/Fine.js';
 import { ABILITY_IMPL, fireProjectile, heroHitbox, applyPoison } from '../character/abilities.js';
 import { pickTarget, aimAngle, targetable } from '../character/aim.js';
 import { applyLevelGap } from '../progression/levelGap.js';
@@ -533,8 +534,7 @@ export class Hero extends Actor {
       damage: this.damageFor(a.mult), knockback: a.knockback, heavy: !!a.heavy, ttl: a.active,
     });
     const great = !!this.animator.anims?.greatWeapon;
-    const own = this.animator.anims?.setSlash;
-    const style = great ? (a.heavy ? SLASH_STYLES.greatHeavy : SLASH_STYLES.great) : own ? SLASH_STYLES[a.heavy ? own + 'Heavy' : own] : a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
+    const style = heroSlashStyle({ great, own: this.animator.anims?.setSlash, rogue: this.classId === 'rogue' }, !!a.heavy);
     // Zweihänder: nur ein Bogen gleichzeitig – der vorige Hieb der Kombo verschwindet, sobald der nächste beginnt
     if (great) for (const e of world.effects ?? []) if (e instanceof SlashEffect && e.owner === this) e.removed = true;
     world.addEffect(new SlashEffect(this, this.aimAngle, style, this.combo === 1, a.active + 0.08));
@@ -691,11 +691,15 @@ export class Hero extends Actor {
         // Skinset getragen: keine weichen Scheine, nur der harte Kernpunkt (Stil der Sets). Ebenso Leuchtpunkte an einer
         // epischen/legendären Waffe: dort liefern Kante und Funken (gfx/weaponFx.js) das Leuchten.
         if (gf.emit || (gf === f && nearWeapon(g, f.weapon))) { ctx.globalAlpha = 1; ctx.fillStyle = g.color; ctx.fillRect(x, y, 1, 1); continue; }
+        // Feinraster: kein halbdurchsichtiges Viereck um den Punkt (lag als Geisterfläche über Reiter, Schild und Schweif);
+        // das Leuchten ist im Sprite gezeichnet, hier nur der harte Kernpunkt wie bei Mitspielern (net/RemotePlayer.js)
         const r = Math.max(1, Math.min(4, Math.round(g.r)));
-        ctx.globalAlpha = 0.2;
         ctx.fillStyle = g.color;
-        ctx.fillRect(x - r, y - r + 1, r * 2 + 1, r * 2 - 1);
-        ctx.fillRect(x - r + 1, y - r, r * 2 - 1, r * 2 + 1);
+        if (fineRes() === 1) {
+          ctx.globalAlpha = 0.2;
+          ctx.fillRect(x - r, y - r + 1, r * 2 + 1, r * 2 - 1);
+          ctx.fillRect(x - r + 1, y - r, r * 2 - 1, r * 2 + 1);
+        }
         ctx.globalAlpha = 0.9;
         ctx.fillRect(x, y, 1, 1);
       }

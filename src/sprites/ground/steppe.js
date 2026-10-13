@@ -48,7 +48,10 @@ const S_PLAIN = 0, S_Y = 1, S_G = 2, S_A = 3, S_R = 4, S_S = 5, S_B = 6, S_C = 7
 const SCODE = { ' ': 0, y: 1, g: 2, a: 3, r: 4, k: 4, s: 5, b: 6, c: 7, w: 8, m: 9, q: 10, h: 0 };
 const GRASSY = [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];   // Wege darin: Erdweg
 const BLR = [BL_GRS, BL_GLD, BL_GRN, BL_ASH];
-const BASE = [GRS, GLD, GRN, ASH];
+// Bodenflächen: Strohgold und sattes Gras zur Hälfte ins Steppengras gemischt (die vollen Rampen nebeneinander ergaben
+// großflächige Tarnflecken); die vollen Farben bleiben Halmen, Kanten und Hochflächen
+const GLDS = GLD.map((c, i) => mix(c, GRS[i], 0.5)), GRNS = GRN.map((c, i) => mix(c, GRS[i], 0.5));
+const BASE = [GRS, GLDS, GRNS, ASH];
 
 // Farbe mit Faktor (auch > 1, begrenzt)
 function shadeC(c, k) {
@@ -683,12 +686,12 @@ function fineRow(S, G) {
       // Gras (häufigster Fall, wie soilCol): Grundton in Stufen, Strohgold, sattes Gras in Horsten, kahle Flecken
       const p = patch[wi];
       let R = BASE[s];
-      if (s === S_PLAIN) { const gv = gold[wi]; if (gv > 0.62 || (gv > 0.58 && dt < (gv - 0.58) / 0.04)) R = GLD; }
+      if (s === S_PLAIN) { const gv = gold[wi]; if (gv > 0.62 || (gv > 0.58 && dt < (gv - 0.58) / 0.04)) R = GLDS; }
       else if (s === S_G && (p < 0.38 || (p < 0.41 && dt < (0.41 - p) / 0.03))) R = GRS;
       if (K[ki - KW] === DI) c = R === ASH ? ASH[4] : R[4];
       else {
-        if (s <= S_Y && (p < 0.19 || (p < 0.22 && dt < (0.22 - p) / 0.03))) c = DRT[3];
-        else { const v = t * 3, k = Math.floor(v), q = v - k; c = R[1 + clampI(k + (q > 0.6 ? 1 : q > 0.4 && dt < (q - 0.4) / 0.2 ? 1 : 0), 0, 2)]; }
+        if (s <= S_Y && (p < 0.13 || (p < 0.16 && dt < (0.16 - p) / 0.03))) c = DRT[3];
+        else { const v = t * 2, k = Math.floor(v), q = v - k; c = R[2 + clampI(k + (q > 0.6 ? 1 : q > 0.4 && dt < (q - 0.4) / 0.2 ? 1 : 0), 0, 1)]; }
         if (rel[o] < 0) c = darken(c, 0.62);
       }
     } else if (kind === PAV) c = s === S_W ? fordFine(F / 2, G / 2) : paveCol(F, G);
@@ -732,16 +735,16 @@ function soilCol(kind, K, ki, KW, S, F, G, o, dt, t, wi, s) {
     // Sattes Gras nur in Horsten (Fleckenfeld), dazwischen Steppengras
     const p = S.patch[wi];
     let R = BASE[s];
-    if (s === S_PLAIN) { const gv = S.gold[wi]; if (gv > 0.62 || (gv > 0.58 && dt < (gv - 0.58) / 0.04)) R = GLD; }
+    if (s === S_PLAIN) { const gv = S.gold[wi]; if (gv > 0.62 || (gv > 0.58 && dt < (gv - 0.58) / 0.04)) R = GLDS; }
     else if (s === S_G && (p < 0.38 || (p < 0.41 && dt < (0.41 - p) / 0.03))) R = GRS;
     if (K[ki - KW] === FK.DIRT) return R === ASH ? ASH[4] : R[4];
-    if ((s === S_PLAIN || s === S_Y) && (p < 0.19 || (p < 0.22 && dt < (0.22 - p) / 0.03))) c = DRT[3];
-    else c = R[1 + clampI(band(t, 3, dt), 0, 2)];
+    if ((s === S_PLAIN || s === S_Y) && (p < 0.13 || (p < 0.16 && dt < (0.16 - p) / 0.03))) c = DRT[3];
+    else c = R[2 + clampI(band(t, 2, dt), 0, 1)];
   } else if (s === S_R || s === S_Q) {
     if (s === S_Q) { const r = rampFine(S.segs, F / 2, G / 2, t); if (r >= 0) return r; }
     // Rotsand: Windrippel als feine Linien (Kamm hell, Lee dunkel darunter)
     const ph = F * 0.21 + G * 0.08 + S.patch[wi] * 7, q = ph / 6.2832 - Math.floor(ph / 6.2832);
-    let i = 1 + clampI(band(t, 2.6, dt), 0, 2) + dirt;
+    let i = 2 + clampI(band(t, 1.8, dt), 0, 1) + dirt;
     if (q < 0.06) i += 1; else if (q < 0.1) i += dt < 0.5 ? 1 : 0; else if (q < 0.2) i -= 1;
     c = RED[clampI(i + (rel > 0 ? 1 : 0), 0, 6)];
   } else if (s === S_S || s === S_B) {
@@ -787,18 +790,19 @@ function capCol(F, G, dt, t, dirt) {
   const cr = Math.abs(vnC(N_CAP, F / 26, G / 18, 433) - 0.5);
   if (cr < 0.006) return CAP[0];
   if (cr < 0.03 && Math.abs(vnC(N_CAP1, F / 26, (G - 1) / 18, 433) - 0.5) < 0.006) return CAP[5];
-  return CAP[clampI(1 + band(t, 3.4, dt) + dirt, 0, 6)];
+  return CAP[clampI(2 + band(t, 1.8, dt) + dirt, 0, 6)];   // ruhig: zwei Tonstufen statt Flecken
 }
 // Schluchtrand: Sandsteinplatten im Rotsand (Oberkante und linke Kante im Licht, Unterkante dunkel, Fuge)
 function slabCol(F, G, dt, t) {
-  const v = vnC(N_SL, F / 16, G / 12, 1355);
-  if (v > 0.6) {
-    if (vnC(N_SL1, F / 16, (G - 1) / 12, 1355) <= 0.6 || vnC(N_SL2, (F - 1) / 16, G / 12, 1355) <= 0.6) return MESR[7];
-    if (vnC(N_SL3, F / 16, (G + 1) / 12, 1355) <= 0.6) return MESR[4];
+  // vereinzelte Platten (dichter wirkten sie wie Tarnflecken), Sand dazwischen in zwei Tonstufen
+  const v = vnC(N_SL, F / 16, G / 12, 1355), P = 0.7;
+  if (v > P) {
+    if (vnC(N_SL1, F / 16, (G - 1) / 12, 1355) <= P || vnC(N_SL2, (F - 1) / 16, G / 12, 1355) <= P) return MESR[7];
+    if (vnC(N_SL3, F / 16, (G + 1) / 12, 1355) <= P) return MESR[4];
     return MESR[5 + (t > 0.62 || (t > 0.58 && dt < 0.5) ? 1 : 0)];
   }
-  if (v > 0.575) return MESR[2];
-  return RED[2 + clampI(band(t, 2.6, dt), 0, 2)];
+  if (v > P - 0.025) return MESR[2];
+  return RED[2 + clampI(band(t, 1.8, dt), 0, 1)];
 }
 
 // ------------------------------------------------------------ Fels je Feinpixel
@@ -868,8 +872,8 @@ function rockCol(S, F, G, o, K, ki, KW) {
       // Böschung der Randhügel: Erde, oben Grasnarbe (zur Ebene), unten dunkler
       const dF = S.qa, useL = S.qc;
       if (dF >= S.qb - 2) return useL ? GLD[5] : GLD[3];
-      let k = (useL ? 5 : 2) + Math.floor(vnC(N_BK, F / 8, G / 6, 1388) * 2.4) - (dF <= 4 ? 2 : 0);
-      if (vnC(N_BK2, F / 18, G / 5, 1389) < 0.2) k -= 1;
+      // ruhig: zwei Tonstufen in großen Flächen (feines Rauschen wirkte verrauscht)
+      let k = (useL ? 5 : 2) + Math.floor(vnC(N_BK, F / 16, G / 12, 1388) * 1.8) - (dF <= 4 ? 2 : 0);
       return UPF[clampI(k, 0, 8)];
     }
     case C_SIDER: return (kd === KIND_HILL ? UPF : MESR)[(S.qa <= 2 ? 1 : 2) + (STRATA2[(G >> 2) & 31] > 5 ? 1 : 0)];
@@ -881,13 +885,13 @@ function rockCol(S, F, G, o, K, ki, KW) {
   if (c === C_SLAB || c === C_SLABF) return slabCol(F, G, dt, t);
   // Randhügel: Grasdecke, innen heller (Stufen), Felsköpfe mit Licht oben links und Schatten unten rechts
   const v = vnC(N_KN, F / 18, G / 14, 1361);
-  if (v > 0.76) {
+  if (v > 0.8) {
     const w = vnC(N_KN1, (F - 3) / 18, (G - 3) / 14, 1361), lit = w < v;
-    if (v > 0.8) return lit ? (v - w > 0.012 ? UPF[8] : UPF[7]) : v > 0.84 ? UPF[6] : UPF[5];
+    if (v > 0.83) return lit ? (v - w > 0.012 ? UPF[8] : UPF[7]) : v > 0.86 ? UPF[6] : UPF[5];
     return lit ? UPF[6] : UPF[3];
   }
   let col = soilCol(FK.GRASS, K, ki, KW, S, F, G, o, dt, t, wi, S_PLAIN);
-  if (v > 0.62 && vnC(N_KN2, (F - 2) / 18, (G - 3) / 14, 1361) > 0.76) col = darken(col, 0.62);
+  if (v > 0.66 && vnC(N_KN2, (F - 2) / 18, (G - 3) / 14, 1361) > 0.8) col = darken(col, 0.62);
   return shadeC(col, 0.92 + 0.12 * bandW((S.qa - 0.92) / 0.12, 1, dt, 0.1));
 }
 

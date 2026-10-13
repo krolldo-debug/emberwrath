@@ -38,6 +38,13 @@ export class Dungeon extends TileMap {
 
   isLiquid(tx, ty) { return this.rows[ty]?.[tx] === '~'; }
 
+  // Leere je Kachel (Mauerkrone ohne Front, 1 = kein Licht; gfx/Lighting.js setVoid)
+  voidTiles() {
+    const v = new Uint8Array(this.w * this.h);
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.wallKind(x, y) === 'top') v[y * this.w + x] = 1;
+    return v;
+  }
+
   // Wasser/Lava ist fest, verdeckt aber keine Sicht (Geschosse fliegen darüber)
   lineOfSight(ax, ay, bx, by) {
     const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / 6);

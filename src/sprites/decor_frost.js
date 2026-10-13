@@ -170,22 +170,24 @@ function frostCap(px, py, level, col) {
       return pre ? null : CAP_NEW[ci(k + 1, 6)];
     }
     case 'e': {
-      // aper: Erde mit Halmen, einzelne Blöcke, Schneereste in den Mulden
-      const pat = vc(50, px / 12, py / 9, 477) * 0.8 + vc(51, px / 5, py / 5, 478) * 0.2;
-      if (pat > 0.66) return null;
-      if (pat > 0.63) return CAP_WARM[1];
-      const b = blocks(px, py, 5, 4, 479, 100);
+      // aper: ruhige Erde mit wenigen großen Blöcken und vereinzelten Halmen, Schneereste in großen Mulden
+      // (kleinteiliges Rauschen ergab ein Tarnfleckmuster)
+      const pat = vc(50, px / 18, py / 13, 477);
+      if (pat > 0.78) return null;
+      if (pat > 0.75) return CAP_WARM[1];
+      const b = blocks(px, py, 10, 7, 479, 100);
       if (b >= 0) return CAP_WARM[b + 1];
-      if (hash2(px, py >> 1, 480) < 0.12) return CAP_STRAW[Math.floor(hash2(px, py, 481) * 3)];
-      return CAP_WARM[ci(1 + Math.floor(vc(52, px / 7, py / 7, 482) * 2.2), 6)];
+      if (hash2(px, py >> 1, 480) < 0.035) return CAP_STRAW[Math.floor(hash2(px, py, 481) * 3)];
+      return CAP_WARM[vc(52, px / 16, py / 12, 482) > 0.55 ? 3 : 2];
     }
     case 'r': {
-      // blanker Grat: Blöcke mit Licht von links oben, Schnee in Fugen und Mulden
-      const cov = vc(53, px / 11, py / 8, 485) * 0.8 + vc(54, px / 5, py / 5, 486) * 0.2;
-      if (cov > 0.64) return null;
-      const b = blocks(px, py, 7, 5, 487, 102);
+      // blanker Grat: Blöcke mit Licht von links oben, Schnee in Mulden
+      // (ruhig: zusammenhängender Fels, Schnee nur in großen Mulden statt Fleck um Fleck)
+      const cov = vc(53, px / 15, py / 11, 485);
+      if (cov > 0.7) return null;
+      const b = blocks(px, py, 11, 8, 487, 102);
       if (b >= 0) return CAP_WARM[b + 1];
-      return cov > 0.5 ? CAP_NEW[2] : CAP_WARM[1];
+      return CAP_WARM[cov > 0.66 ? 3 : 2];
     }
     case 'f': return canopy(px, py, col);
     case 'n': return pre ? null : CAP_NEW[ci(k, 6)];
