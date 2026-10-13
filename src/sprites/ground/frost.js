@@ -74,7 +74,7 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
 
 // Neuschnee am Ort (offene Fläche: großflächiger Wechsel mit harter, ruhiger Kante – das Feld ändert sich so langsam,
 // dass jede Rasterung am Übergang zu einem breiten Punktfeld würde)
-const freshAt = (S, F, G) => fineAt(S.fresh, S, F, G) > 0.47;
+const freshAt = (S, F, G) => S.fresh !== null && fineAt(S.fresh, S, F, G) > 0.47;   // ohne Neuschnee im Chunk (has[32]) kein Feld
 // Fleckdecke (Schnee auf Erde/Wald, Schneebänder auf dem Gletscher) am Feinpixel: Feld fein interpoliert, harte Kante
 // harte Kante ohne Rasterung (Schnee liegt erhaben auf: Lichtkante oben, Schattenzeile darunter)
 const covAt = (f, S, F, G, thr) => fineAt(f, S, F, G) > thr;
