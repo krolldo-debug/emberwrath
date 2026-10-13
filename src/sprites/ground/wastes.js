@@ -4,8 +4,8 @@ import { FK, ramp, hxi, D4, clampI, band, darken, vnoise, field, chunkCtx, pebbl
 
 // Feinraster-Boden: Glutöde (level.biome 'wastes'). Weltpixel-Shader: sprites/decor_wastes.js (wastesPixel, nur gelesen).
 // ',' Aschesand (Dünenrippel, Krustenplatten mit Rissen, Holzkohle, Basaltkiesel, Obsidiansplitter, Glutkrümel),
-// '.' Ocker/Brandboden (Wege: Fahrspuren, Krumen, Risse), ':' Pflaster mit ausfransendem Rand Stein für Stein (gleiches
-// Feld wie dort: Randsteine verrußt und abgeschlagen, Einzelsteine davor). Lava und Glutspalten: Weltpixel-Shader (-1),
+// '.' Ocker/Brandboden (Wege: Fahrspuren, Krumen, Risse), ':' Pflaster mit klarer Kante (gleiches Feld wie dort, ohne
+// Ausfransen; Randsteine eine Stufe dunkler). Lava und Glutspalten: Weltpixel-Shader (-1),
 // Basaltklippen kommen als Felsmaler-Ebene darüber (level.organicCliffs).
 
 const P = (a) => ramp(a);
@@ -36,6 +36,14 @@ function paveInfo(level) {
   }
   const pav = new Uint8Array(n), near = new Uint8Array(n), base = new Uint8Array(n);
   for (let i = 0; i < n; i++) pav[i] = K[i] === 3 ? 1 : 0;
+  // einzelne Boden-Kacheln mitten im Platz (überwiegend Pflaster ringsum) gepflastert: keine Löcher im Platz
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x;
+    if (K[i] === 3 || (K[i] !== 1 && K[i] !== 2)) continue;
+    let c = 0;
+    for (let j = -1; j <= 1; j++) for (let q = -1; q <= 1; q++) if (K[i + j * W + q] === 3) c++;
+    if (c >= 5) pav[i] = 1;
+  }
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     let a = 0, c1 = 0, c2 = 0;
     for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
@@ -58,11 +66,12 @@ function paveField(P, sx, sy) {
   const k = ty * W + tx;
   return (A[k] * (1 - ax) + A[k + 1] * ax) * (1 - ay) + (A[k + W] * (1 - ax) + A[k + W + 1] * ax) * ay;
 }
-// Wert eines Pflastersteins (col/row im 6 × 5-Weltpixel-Raster): 9 = sicher Pflaster, > 0,62 liegt, > 0,5 Randstein,
-// 0,28..0,5 und Hash < 0,22 Einzelstein, sonst Boden
+// Wert eines Pflastersteins (col/row im 6 × 5-Weltpixel-Raster): 9 = sicher Pflaster, > 0,5 liegt, bis 0,75 Randstein,
+// sonst Boden. Ohne Rauschen: der Platz endet an einer klaren, gezeichneten Kante (das Ausfransen Stein für Stein
+// wirkte wie Treppen-/Maskenrand und Flecken)
 function stoneV(P, col, row) {
   const off = (row & 1) * 3, sx = col * 6 - off + 3, sy = row * 5 + 2.5, f = paveField(P, sx, sy);
-  return f >= 1 ? 9 : f + (vnoise(sx / 19, sy / 19, 431) - 0.5) * 0.75 + (vnoise(sx / 7, sy / 7, 434) - 0.5) * 0.35 + (hash2(col, row, 432) - 0.5) * 0.3;
+  return f >= 1 ? 9 : f;
 }
 
 // ------------------------------------------------------------ Vorarbeit je Chunk
@@ -173,33 +182,21 @@ function wastesFine(kind, F, G, K, ki, KW, S) {
   if (kind > FK.PAVE) return -1;                         // Lava, Glutspalten: Weltpixel-Shader
   const f = F - S.F0, g = G - S.G0, o = g * S.W2 + f;
   const dt = D4[(G & 3) * 4 + (F & 3)] / 16, wi = ((g >> 1) + S.m) * S.fw + (f >> 1) + S.m;
-  // Pflaster (Stein für Stein ausfransend)
+  // Pflaster mit klarer Kante: Randsteine eine Stufe dunkler, Unterkante im Schatten
   const row = Math.floor(G / 10), sh = (row & 1) * 6, col = Math.floor((F + sh) / 12);
   const si = (row - S.r0) * S.nc + col - S.c0, v = S.SV[si];
   if (v >= 0 || kind === FK.PAVE) {
     const vv = v < 0 ? 9 : v;
     if (vv > 0.5) {
       const c = paveCol(F, G);
-      if (vv >= 0.62) return c;
-      // Randstein: Ecken abgeschlagen, verrußt
-      const lx = F + sh - col * 12, ly = G - row * 10;
-      if ((lx <= 2 || lx >= 10) && (ly <= 2 || ly >= 8) && !((lx === 2 || lx === 10) && (ly === 2 || ly === 8))) { /* Ecke weg: Boden */ }
-      else if (lx > 0 && ly > 0 && hash2(F >> 1, G >> 1, 435) < 0.1) { /* ausgebrochen */ }
-      else return c === MORT ? MORT : darken(c, ly >= 8 ? 0.7 : 0.84);
-    } else if (vv > 0.28 && hash2(col, row, 433) < 0.22) {
-      // Einzelstein vor dem Rand: kleiner, ohne Fuge, Licht oben links, Schattenkante unten
-      const lx = F + sh - col * 12, ly = G - row * 10;
-      if (lx >= 2 && lx <= 9 && ly >= 2 && ly <= 7 && !((lx === 2 || lx === 9) && (ly === 2 || ly === 7) && hash2(col, row, 436) < 0.6)) {
-        const s = hash2(col, row, 16), i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
-        return PAVE[clampI(ly === 7 ? 1 : ly === 2 || lx === 2 ? i + 1 : lx === 9 ? i - 1 : i, 1, 5)];
-      }
-      if (ly === 8 && lx >= 3 && lx <= 9) return darken(groundCol(baseKind(S, F, G, kind), K, ki, KW, S, F, G, o, dt, wi), 0.6);
+      if (vv >= 0.75 || c === MORT) return c;
+      return darken(c, G - row * 10 >= 8 ? 0.7 : 0.84);
     }
     return groundCol(baseKind(S, F, G, kind), K, ki, KW, S, F, G, o, dt, wi);
   }
   return groundCol(kind, K, ki, KW, S, F, G, o, dt, wi);
 }
-// Boden unter ausgefranstem Pflaster: Pflasterkachel → häufigster Boden der Nachbarn (wie dort)
+// Boden neben dem Pflaster: Pflasterkachel → häufigster Boden der Nachbarn (wie dort)
 function baseKind(S, F, G, kind) {
   if (kind !== FK.PAVE) return kind;
   const P = S.P, tx = F >> 5, ty = G >> 5;
@@ -235,7 +232,7 @@ function groundCol(kind, K, ki, KW, S, F, G, o, dt, wi) {
     if (K[ki - KW] === GR) return OCH[1];
     if (a >= 0) return a;
     const near = K[ki - 2 * KW] === GR || K[ki + KW] === GR || K[ki + 2 * KW] === GR || K[ki - 1] === GR || K[ki + 1] === GR || K[ki - 2] === GR || K[ki + 2] === GR;
-    let i = 3 + clampI(band(t, 2.8, dt), 0, 3) + (near ? -1 : 0);
+    let i = 4 + clampI(band(t, 1.8, dt), 0, 1) + (near ? -1 : 0);   // ruhig: zwei Tonstufen
     const r = S.rut[wi];
     if (r > 0.74 || (r > 0.7 && dt < (r - 0.7) / 0.04)) i -= 1;
     return OCH[clampI(i + rel, 0, 7)];
@@ -244,7 +241,7 @@ function groundCol(kind, K, ki, KW, S, F, G, o, dt, wi) {
   if (K[ki - KW] === FK.DIRT || K[ki - KW] === FK.PAVE) return ASH[5];
   if (a >= 0) return a;
   const p = S.patch[wi];
-  let i = 2 + clampI(band(t, 3.4, dt), 0, 3);
+  let i = 3 + clampI(band(t, 1.8, dt), 0, 1);   // ruhig: zwei Tonstufen (vier ergaben Tarnflecken)
   if (p < 0.42) {
     const ph = F * 0.15 + G * 0.21 + p * 9, q = ph / 6.2832 - Math.floor(ph / 6.2832);
     if (q < 0.05) i += 1; else if (q < 0.08) i += dt < 0.5 ? 1 : 0; else if (q < 0.17) i -= 1;

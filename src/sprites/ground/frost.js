@@ -50,9 +50,9 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
   S.fresh = has[32] ? S.noise([[8, 110, 80, 454, 0.85], [4, 30, 26, 456, 0.15]]) : null;
   S.rz = has[32] || has[SN] || has[SA] ? S.noise([[6, 40, 30, 455, 1]]) : null;
   S.pat = has[SF] ? S.noise([[4, 13, 11, 443, 0.75], [3, 5, 5, 444, 0.25]]) : null;
-  // Apere Erde: ruhiges Feld (eine Lage), aper nur nahe Wegen, Plätzen und Feuern (S.near 0..1, weich verlaufend)
+  // Apere Erde: aper nur nahe Wegen, Plätzen und Feuern (S.near 0..1, weich verlaufend); die Schneedecke endet an
+  // einer ruhigen Kante entlang dieses Felds (Rauschen ergab Schneeflecken)
   if (has[SE]) {
-    S.pe = S.noise([[6, 17, 14, 443, 1]]);
     const kg = map.kgrid, mw = map.w, mh = map.h, rows = level.map;
     const nearT = (tx, ty) => {
       for (let y = ty - 1; y <= ty + 1; y++) for (let x = tx - 1; x <= tx + 1; x++) {
@@ -63,6 +63,8 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
       return 0;
     };
     S.near = field(S.fx0, S.fy0, S.fw, S.fh, 8, (x, y) => nearT(Math.floor(x / 16), Math.floor(y / 16)), new Float32Array(S.n), false, 1);
+    const wv = S.noise([[8, 34, 28, 443, 1]]);   // großräumig gewellte Kante, keine Flecken
+    S.pe = S.near.map((v, i) => 1 - v + (wv[i] - 0.5) * 0.4);
   }
   S.gcov = has[SG] ? S.noise([[4, 18, 13, 450, 0.7], [4, 30, 7, 449, 0.3]]) : null;
   // Haarrisse im Eis (Netz: Höhenlinie des Rauschens)
@@ -77,8 +79,8 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
 // Fleckdecke (Schnee auf Erde/Wald, Schneebänder auf dem Gletscher) am Feinpixel: Feld fein interpoliert, harte Kante
 // harte Kante ohne Rasterung (Schnee liegt erhaben auf: Lichtkante oben, Schattenzeile darunter)
 const covAt = (f, S, F, G, thr) => fineAt(f, S, F, G) > thr;
-// Schwelle der Schneedecke auf aperer Erde: fern von Wegen fast geschlossen, an Wegen/Feuern kleine apere Stellen
-const thrSE = (S, F, G) => 0.32 * fineAt(S.near, S, F, G) - 0.03;
+// Schwelle der Schneedecke auf aperer Erde (S.pe = 1 − Nähe zu Wegen/Plätzen/Feuern): aper nur am Weg
+const thrSE = () => 0.25;
 const bareSE = (S, F, G) => !covAt(S.pe, S, F, G, thrSE(S, F, G));
 
 function stamps(S) {

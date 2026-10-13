@@ -12,7 +12,7 @@ import { GROUND_PEAKS } from '../sprites/decor_peaks.js';
 
 // Wertrauschen mit gemerkter Gitterzelle je Aufrufstelle (Formel wie vnoise, bitgleich): benachbarte
 // Pixel liegen fast immer in derselben Zelle, dann entfallen die vier Hashes
-const VNC = new Float64Array(12 * 7).fill(NaN);
+const VNC = new Float64Array(14 * 7).fill(NaN);
 function vnc(s, x, y, seed) {
   const x0 = Math.floor(x), y0 = Math.floor(y), o = s * 7;
   if (VNC[o] !== x0 || VNC[o + 1] !== y0 || VNC[o + 6] !== seed) {
@@ -277,6 +277,7 @@ export class Outdoor extends TileMap {
     this.#setRes(this.#wantRes());
     this.#prepare();
     this.kgrid = null;
+    this.nearPave = null;
     this.overview = null;
     this.ready = true;
     // Die Karten (ui/MapArt) zeichnen aus dem Raster und lesen world.background nicht mehr; das
@@ -608,6 +609,12 @@ export class Outdoor extends TileMap {
       const w = this.w;
       this.kgrid = new Uint8Array(w * this.h);
       for (let y = 0; y < this.h; y++) for (let x = 0; x < w; x++) this.kgrid[y * w + x] = KCODE[this.terrain[y][x]] ?? FK.GRASS;
+      // Kacheln mit Pflaster in der 3 × 3-Nachbarschaft (dort folgt die Pflasterkante ganzen Steinen, #fineKinds)
+      const h = this.h, np = this.nearPave = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (this.kgrid[y * w + x] !== FK.PAVE) continue;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const xx = x + i, yy = y + j; if (xx >= 0 && yy >= 0 && xx < w && yy < h) np[yy * w + xx] = 1; }
+      }
     }
     for (let py = y0 - M / 2; py < y0 + ch + M / 2; py += 32) {
       this.#fineKinds(K, KW, M, x0, y0, cw, py, Math.min(py + 32, y0 + ch + M / 2));
@@ -636,6 +643,15 @@ export class Outdoor extends TileMap {
         const in0 = tx0 >= 0 && tx0 < w, in1 = tx1 >= 0 && tx1 < w;
         K[b] = r0 >= 0 && in0 ? kg[r0 + tx0] : G; K[b + 1] = r0 >= 0 && in1 ? kg[r0 + tx1] : G;
         K[b + KW] = r1 >= 0 && in0 ? kg[r1 + tx0] : G; K[b + KW + 1] = r1 >= 0 && in1 ? kg[r1 + tx1] : G;
+        // Pflaster: Kante folgt ganzen Steinen (Raster 6 × 5 Weltpixel wie kit paveAt), entschieden an der Steinmitte –
+        // klare, gezeichnete Kante statt eines pixelweise ausfransenden Treppenrands
+        const ptx = Math.floor(px / T), pty = Math.floor(py / T);
+        if (ptx >= 0 && pty >= 0 && ptx < w && pty < h && this.nearPave[pty * w + ptx]) {
+          const row = Math.floor(py / 5), sh = (row & 1) * 3, cx = Math.floor((px + sh) / 6) * 6 - sh + 3, cy = row * 5 + 2.5;
+          const qx = Math.floor((cx + (vnc(12, cx / 7, cy / 7, 21) - 0.5) * 9) / T), qy = Math.floor((cy + (vnc(13, cx / 7, cy / 7, 22) - 0.5) * 9) / T);
+          const kc = qx >= 0 && qy >= 0 && qx < w && qy < h ? kg[qy * w + qx] : G, pc = kc === FK.PAVE;
+          for (const e of [b, b + 1, b + KW, b + KW + 1]) if ((K[e] === FK.PAVE) !== pc) K[e] = kc;
+        }
       }
     }
   }
