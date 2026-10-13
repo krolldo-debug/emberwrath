@@ -20,12 +20,12 @@ const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.goto('http://localhost:8102/index.html');
 await p.waitForFunction(() => window.emberfall?.scenes?.currentId, null, { timeout: 20000 });
-const files = await p.evaluate(async ({ RIDERS }) => {
+const files = await p.evaluate(async ({ RIDERS, ITEM_RES }) => {
   const g = window.emberfall;
   const { resolveGear } = await import('/src/character/gearLook.js');
   const { animsForLook } = await import('/src/character/mounts.js');
   const { getMountSprites } = await import('/src/sprites/mounts.js');
-  const { iconCanvas } = await import('/src/gfx/Icons.js');
+  const { iconCanvas, itemIconId } = await import('/src/gfx/Icons.js');
   const mods = {
     ulgrim: ['/src/sprites/barrow_king.js', 'createUlgrimSprites'], rotmother: ['/src/sprites/rot_mother.js', 'createRotMotherSprites'],
     skalvyr: ['/src/sprites/frost_wyrm.js', 'createSkalvyrSprites'], malgareth: ['/src/sprites/ash_sovereign.js', 'createMalgarethSprites'],
@@ -40,7 +40,9 @@ const files = await p.evaluate(async ({ RIDERS }) => {
     c.getContext('2d').drawImage(src, x0 - pad, y0 - pad, c.width, c.height, 0, 0, c.width, c.height);
     return c;
   };
-  const drawFrame = (fr) => { const c = document.createElement('canvas'); c.width = 600; c.height = 600; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; fr.draw(x, 300, 400, {}); return trim(c); };
+  // Zusammengesetzte Frames (Reiter auf Reittier) ohne eigenes Bild: in Feinpixeln zeichnen (×2), sonst rechnet der Browser
+  // die Feinpixel (frame.res 2, docs/STYLE.md „Feinraster“ §8) auf Weltpixel herunter.
+  const drawFrame = (fr) => { const c = document.createElement('canvas'); c.width = 600; c.height = 600; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.scale(2, 2); fr.draw(x, 150, 200, {}); return trim(c); };
   const anim = (set, k) => (typeof set[k] === 'function' ? set[k]() : set[k]);
   for (const [name, [path, fn]] of Object.entries(mods)) {
     const set = (await import(path))[fn]();
@@ -55,9 +57,15 @@ const files = await p.evaluate(async ({ RIDERS }) => {
     out[`ritt-${mountId}.png`] = png(drawFrame(set.ride.frames[0]));
     const d = g.content.get('item', 'mount_' + mountId); if (d) out[`icon-mount_${mountId}.png`] = png(iconCanvas(d.icon));
   }
-  for (const id of ['kingsbane', 'veilpiercer', 'dawnstring', 'staff_of_last_ash', 'sovereign_plate', 'sovereign_signet']) { const d = g.content.get('item', id); if (d) out[`item-${id}.png`] = png(iconCanvas(d.icon)); }
+  // Item-Bilder wie im Inventar (docs/STYLE.md „Feinraster“ §6): Bild aus dem getragenen Aussehen (itemIconId), Feinfassung
+  // res 2 = 52 × 52 (48er mit Umriss, mittig) – auf der Seite 1:1 in 52-px-Plätzen. ITEM_RES=1 liefert die alte 26er-Fassung.
+  const IRES = ITEM_RES;
+  // Stab der letzten Asche: das Bild aus dem getragenen Aussehen (look:…) zeigt einen kurzen Kolben statt des Stabs mit
+  // Flamme; hier das eigene Symbol (staff_t8, Feinfassung) wie bisher auf der Seite.
+  const OWN_ICON = ['staff_of_last_ash'];
+  for (const id of ['kingsbane', 'veilpiercer', 'dawnstring', 'staff_of_last_ash', 'sovereign_plate', 'sovereign_signet']) { const d = g.content.get('item', id); if (d) out[`item-${id}.png`] = png(iconCanvas(OWN_ICON.includes(id) ? d.icon : itemIconId(d), IRES)); }
   return { out, log };
-}, { RIDERS });
+}, { RIDERS, ITEM_RES: +(process.env.ITEM_RES ?? 2) });
 for (const [f, url] of Object.entries(files.out)) writeFileSync(`${OUT}/${f}`, Buffer.from(url.split(',')[1], 'base64'));
 console.log(files.log.join('\n')); console.log(Object.keys(files.out).length, 'Dateien');
 await b.close();

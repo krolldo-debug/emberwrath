@@ -117,6 +117,7 @@ const RIDERS = {
   soul_wolf: ['emberborn', 'rogue', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'], 'bound', 'soullight'],
 };
 const HARD = ['phoenix_wing', 'astral_stallion', 'soul_wolf'];
+const BOXES = { rime_drake: [65, 44, 30, 42], hellhound: [47, 50, 24, 47], ember_charger: [41, 47, 20, 44] };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
@@ -137,7 +138,7 @@ await p.route('**/src/sprites/mounts.js', async (route) => {
 });
 await p.goto(`${BASE}/index.html`);
 await p.waitForFunction(() => window.emberfall?.scenes?.currentId, null, { timeout: 30000 });
-const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE, HARD }) => {
+const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE, HARD, BOXES }) => {
   const g = window.emberfall;
   const { resolveGear } = await import('/src/character/gearLook.js');
   const { getHeroSprites } = await import('/src/sprites/hero.js');
@@ -168,15 +169,28 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE, HARD }) => {
       const lift = h2(P.L), dy = -lift;
       x.setTransform(RES, 0, 0, RES, 0, 0);
       fr.draw(x, AX / RES, AY / RES + dy, {});
-      // Leuchtpunkte (Augen, Glut, Schatten) genau wie Hero.renderEmissive im Spiel
-      for (const gl of fr.glows ?? []) {
-        const gx = Math.round(AX / RES + gl.x), gy = Math.round(AY / RES + dy + gl.y), r = Math.max(1, Math.min(4, Math.round(gl.r)));
-        if (hard) { x.fillStyle = gl.color; x.fillRect(gx, gy, 1, 1); continue; }
-        x.globalAlpha = 0.2; x.fillStyle = gl.color;
-        x.fillRect(gx - r, gy - r + 1, r * 2 + 1, r * 2 - 1); x.fillRect(gx - r + 1, gy - r, r * 2 - 1, r * 2 + 1);
-        x.globalAlpha = 0.9; x.fillRect(gx, gy, 1, 1); x.globalAlpha = 1;
-      }
+      // Leuchtpunkte (Augen, Glut) hart wie in render-sets.mjs: Mittelpunkt in voller Farbe, der Schein färbt nur die
+      // deckenden Bildpunkte darunter ein. (Im Spiel liegt um jeden Punkt ein Quadrat mit 20 % Deckkraft – auf dem
+      // Boden ein Schein, auf der Website eine halbtransparente Geisterfläche, z. B. am Schild.)
       x.setTransform(1, 0, 0, 1, 0, 0);
+      const hex = (cc) => { const mm = /^#?([0-9a-f]{6})$/i.exec(cc); return mm ? [0, 2, 4].map((k) => parseInt(mm[1].slice(k, k + 2), 16)) : null; };
+      const img = x.getImageData(0, 0, S, S), D = img.data;
+      for (const gl of fr.glows ?? []) {
+        const col = hex(gl.color); if (!col) continue;
+        const gx = Math.round(AX / RES + gl.x) * RES, gy = Math.round(AY / RES + dy + gl.y) * RES;
+        const r = hard ? 0 : Math.max(1, Math.min(2, Math.round(gl.r)));
+        for (let ey = -r; ey <= r; ey++) for (let ex = -r; ex <= r; ex++) {
+          const dd = Math.abs(ex) + Math.abs(ey); if (dd > r) continue;
+          const k = dd === 0 ? 1 : 0.4 / dd;
+          for (let py = 0; py < RES; py++) for (let px = 0; px < RES; px++) {
+            const i = ((gy + ey * RES + py) * S + gx + ex * RES + px) * 4;
+            if (dd > 0 && D[i + 3] < 128) continue;
+            for (let cc = 0; cc < 3; cc++) D[i + cc] = Math.round(D[i + cc] * (1 - k) + col[cc] * k);
+            D[i + 3] = 255;
+          }
+        }
+      }
+      x.putImageData(img, 0, 0);
       cs.push(c); lifts.push(lift);
     }
     let x0 = S, y0 = S, x1 = -1, y1 = -1;
@@ -188,12 +202,20 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE, HARD }) => {
     const pad = 2;
     x0 = AX - Math.ceil((AX - x0 + pad) / RES) * RES; y0 = AY - Math.ceil((AY - y0 + pad) / RES) * RES;
     x1 = AX + Math.ceil((x1 - AX + pad) / RES) * RES; y1 = AY + Math.max(2, Math.ceil((y1 - AY + pad) / RES)) * RES;
+    // Feste Rahmen (Breite Höhe FußX FußY in Weltpixeln) wie in data-f der Seite, damit sich Maße nicht ändern,
+    // wenn der Inhalt schmaler wird (z. B. seit die Leuchtpunkte keinen weichen Schein mehr haben)
+    const fix = BOXES[mountId];
+    if (fix) {
+      const [fw, fh, ffx, ffy] = fix, nx0 = AX - ffx * RES, ny0 = AY - ffy * RES, nx1 = nx0 + fw * RES, ny1 = ny0 + fh * RES;
+      if (nx0 > x0 + pad || ny0 > y0 + pad || nx1 < x1 - pad || ny1 < y1 - pad) log.push(`${mountId}: fester Rahmen schneidet ab`);
+      x0 = nx0; y0 = ny0; x1 = nx1; y1 = ny1;
+    }
     const w = x1 - x0, h = y1 - y0;
     const sheet = document.createElement('canvas'); sheet.width = w * cs.length; sheet.height = h;
     const sx = sheet.getContext('2d'); sx.imageSmoothingEnabled = false;
     cs.forEach((c, i) => sx.drawImage(c, x0, y0, w, h, i * w, 0, w, h));
-    if (HARD.includes(mountId)) {
-      // Harte Kanten: halbtransparente Bildpunkte weg (Schatten/Schein zeichnet die Seite selbst in harten Stufen)
+    {
+      // Harte Kanten für alle: halbtransparente Bildpunkte weg (Schatten/Schein zeichnet die Seite selbst in harten Stufen)
       const id = sx.getImageData(0, 0, sheet.width, h);
       for (let i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] < 128 ? 0 : 255;
       sx.putImageData(id, 0, 0);
@@ -202,7 +224,7 @@ const res = await p.evaluate(async ({ RIDERS, ONLY, GAITCODE, HARD }) => {
     meta[mountId] = { w: w / RES, h: h / RES, res: RES, frames: cs.length, fps: G.fps, gait: gaitId, foot: { x: (AX - x0) / RES, y: (AY - y0) / RES }, fly: G.fly ?? 0, name: def.name, lift: lifts };
   }
   return { out, meta, log };
-}, { RIDERS, ONLY, GAITCODE, HARD });
+}, { RIDERS, ONLY, GAITCODE, HARD, BOXES });
 for (const [f, url] of Object.entries(res.out)) writeFileSync(`${OUT}/${f}`, Buffer.from(url.split(',')[1], 'base64'));
 if (res.log.length) console.log(res.log.join('\n'));
 writeFileSync(`${OUT}/gang.json`, JSON.stringify(res.meta, null, 1));

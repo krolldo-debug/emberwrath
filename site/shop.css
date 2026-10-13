@@ -89,7 +89,7 @@
 .services { padding: clamp(70px, 8vw, 104px) 0 clamp(80px, 9vw, 120px); }
 .svc-list { list-style: none; margin: clamp(26px, 3vw, 40px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .svc { display: flex; flex-direction: column; padding: 24px; background: #0b0610; border: 1px solid rgba(106, 69, 38, 0.7); }
-.svc img { width: 78px; height: 78px; margin: 0 0 16px; }
+.svc img { width: 104px; height: 104px; margin: 0 0 16px; }   /* 52er-Feinfassung ×2 */
 .svc h3 { margin: 0 0 8px; font: 700 22px/1.15 var(--font-title); color: #fff1d6; }
 .svc p { margin: 0 0 20px; color: var(--soft); font-size: 15px; }
 .svc-buy { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: auto; }
@@ -124,7 +124,7 @@
   .packs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .packs .pack:nth-child(4) { grid-column: 1 / 2; }
   .svc-list { grid-template-columns: minmax(0, 1fr); }
-  .svc { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; gap: 0 22px; align-items: center; }
+  .svc { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 0 22px; align-items: center; }
   .svc img { margin: 0; }
   .svc p { margin: 0; }
   .svc-buy { flex-direction: column; align-items: flex-end; margin: 0; }

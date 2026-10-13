@@ -27,7 +27,8 @@ const W = (id, o) => ({ id, frames: +(process.env.FRAMES ?? 18), every: 120, cli
   grade: 'brightness(1.5) contrast(1.08) saturate(1.1)', hideFx: 'ImpactStar', cam: [-16, -14], ...o });
 export const SCENES = [
   W('welt-glutsenke', { cls: 'warrior', g20: true, zone: 'emberhollow', target: 'type:wolf', amb: 1.3, pos: [700, 440], hero: [-26, 4], foes: [[20, -14], [8, 18], [-58, 12]], keys: [['q', 1400]], light: [[-20, -6, 70, [255, 200, 150], 0.45]] }),
-  W('welt-katakomben', { cls: 'mage', g20: true, zone: 'catacombs', target: 'type:skeleton', pos: [490, 112], hero: [-28, 6], foes: [[22, -10], [-4, 26], [-54, -4]], keys: [['q', 700]], click: false, cam: [-20, -4] }),
+  // Katakomben (13.10.): im Feinraster dunkler – Grundlicht ×1,8 und warmes Licht an beiden Feuerschalen und auf der Gruppe
+  W('welt-katakomben', { lightMode: 'soft', cls: 'mage', g20: true, zone: 'catacombs', target: 'type:skeleton', pos: [490, 112], hero: [-28, 6], foes: [[22, -10], [-4, 26], [-54, -4]], keys: [['q', 700]], click: false, cam: [-20, -4], amb: 1.8, grade: 'brightness(1.75) contrast(1.08) saturate(1.1)', light: [[-112, -34, 90, [255, 170, 100], 0.6], [95, 78, 80, [255, 160, 90], 0.6], [-12, 0, 80, [255, 200, 150], 0.5]] }),
   W('welt-aschenwald', { cls: 'ranger', g20: true, zone: 'ashwood', target: 'type:ash_boar', pos: [440, 240], hero: [-56, 8], foes: [[20, 24], [34, -14]], keys: [['q', 1000], ['r', 1000]], cam: [-24, -14], amb: 2.2, light: [[-50, -6, 70, [255, 200, 150], 0.5], [16, 0, 60, [255, 150, 90], 0.35]] }),
   W('welt-tempel', { cls: 'warrior', g20: true, zone: 'sunken_temple', target: 'type:tide_cultist', pos: [836, 178], hero: [-26, 4], foes: [[20, 16]], foeType: 'drowned', keys: [['q', 1600]], cam: [-20, -26], amb: 1.3 }),
   W('welt-schlacke', { cls: 'mage', g20: true, zone: 'cinder_peaks', target: 'type:fire_imp', pos: [600, 446], hero: [-56, 6], foes: [[16, -16], [12, 20]], keys: [['t', 1200]], cam: [-28, -18] }),
@@ -39,13 +40,17 @@ export const SCENES = [
   W('welt-frostzinnen', { cls: 'warrior', zone: 'frostspire', target: 'type:frost_wolf', pos: [880, 480], hero: [-26, 4], foes: [[20, -14], [10, 18]], keys: [['q', 1500]], cam: [-20, -26], grade: 'brightness(1.3) contrast(1.1) saturate(1.1)' }),
   W('welt-reifhoehlen', { cls: 'ranger', zone: 'rime_caverns', target: 'boss', hero: [-66, 16], foes: [], keys: [['r', 1500]], cam: [-24, -14] }),
   W('welt-gluetoede', { cls: 'mage', zone: 'ember_wastes', target: 'type:cinder_knight', pos: [1250, 690], hero: [-50, 6], foes: [[-104, 14], [26, 28]], keys: [['t', 1300]], cam: [-30, -16] }),
-  W('welt-aschethron', { cls: 'warrior', zone: 'ashen_throne', target: 'boss', hero: [-52, 14], foes: [], keys: [['q', 1500]], cam: [-22, -28], floorPatch: 'biome_throne', amb: 1.7, light: [[-52, 4, 70, [255, 200, 160], 0.55], [-10, -40, 90, [255, 140, 80], 0.35]], grade: 'brightness(1.45) contrast(1.1) saturate(1.05)' }),
+  W('welt-aschethron', { lightMode: 'soft', cls: 'warrior', zone: 'ashen_throne', target: 'boss', hero: [-52, 14], foes: [], keys: [['q', 1500]], cam: [-22, -28], floorPatch: 'biome_throne', amb: 1.7, light: [[-52, 4, 70, [255, 200, 160], 0.55], [-10, -40, 90, [255, 140, 80], 0.35]], grade: 'brightness(1.45) contrast(1.1) saturate(1.05)' }),
   // Leben in der Welt (ohne Kampf): Quest, Schmied, Händler, Reiten, Gruppe in der Stadt
-  W('leben-quest', { cls: 'warrior', g20: true, zone: 'emberhollow', target: 'npc:elder_maren', hero: [34, 10], face: -1, foes: [], click: false, keys: [], cam: [18, -14], density: 0.6 }),
+  // lightMode 'soft' (13.10.): weiche Punktlichter statt der gestuften Lichtscheiben, die im Standbild als Kästen wirken
+  // (13.10.: Händlerin rechts angesprochen – links steht ihr Wagen, der beim Dahinterstehen durchsichtig wird;
+  //  Ritt auf dem gepflasterten Platz mit dem Glutbrunnen östlich der Letzten Bastion (Glutöde), gleichmäßiges Licht;
+//  in Siedlungen – noMount-Flächen – sitzt der Held ab)
+  W('leben-quest', { lightMode: 'soft', cls: 'warrior', g20: true, zone: 'emberhollow', target: 'npc:elder_maren', hero: [34, 10], face: -1, foes: [], click: false, keys: [], cam: [18, -14], density: 0.6 }),
   W('leben-schmied', { cls: 'mage', zone: 'emberhollow', target: 'npc:smith_brom', hero: [-34, 8], foes: [], click: false, keys: [], cam: [-16, -14], density: 0.6 }),
-  W('leben-handel', { cls: 'rogue', zone: 'ashen_steppe', target: 'npc:trader_imra', hero: [-30, 6], foes: [], click: false, keys: [], cam: [-10, -30], density: 0.6, amb: 1.5, light: [[-16, -6, 70, [255, 200, 150], 0.4]] }),
-  W('leben-ritt', { cls: 'warrior', zone: 'frostspire', target: 'pos', pos: [760, 560], hero: [0, 0], face: 1, mount: 'rime_drake', hold: 'KeyD', foes: [], click: false, keys: [], cam: [-20, -20], density: 0.6 }),
-  W('leben-gruppe', { cls: 'warrior', zone: 'frostspire', target: 'npc:jarl_eskil', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-30, 26], comps: [[-68, 12, 1], [-56, 40, 1]], foes: [], click: false, keys: [], cam: [-22, -6], density: 0.6 }),
+  W('leben-handel', { lightMode: 'soft', cls: 'rogue', zone: 'ashen_steppe', target: 'npc:trader_imra', hero: [28, 8], face: -1, foes: [], click: false, keys: [], cam: [19, -30], density: 0.6, amb: 1.5, light: [[-16, -6, 70, [255, 200, 150], 0.4]] }),
+  W('leben-ritt', { cls: 'warrior', zone: 'ember_wastes', target: 'pos', pos: [1017, 748], hero: [0, 0], face: 1, mount: 'rime_drake', hold: 'KeyD', foes: [], click: false, keys: [], cam: [-2, -14], density: 0.6, lightMode: 'flat', flat: [215, 180, 158] }),
+  W('leben-gruppe', { lightMode: 'soft', cls: 'warrior', zone: 'frostspire', target: 'npc:jarl_eskil', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-30, 26], comps: [[-68, 12, 1], [-56, 40, 1]], foes: [], click: false, keys: [], cam: [-22, -6], density: 0.6 }),
 ];
 const env = (k, d) => (process.env[k] ? JSON.parse(process.env[k]) : d);
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -159,7 +164,8 @@ const run = async (sc0) => {
     };
     set(); setInterval(set, 8);
     const L = w.lights[0]?.constructor;
-    if (L) for (const [dx, dy, r, color, intensity] of sc.light ?? []) w.addLight(new L({ x: T.x + dx, y: T.y + dy, radius: r, color, intensity, flicker: 0.05, bloom: 0.5 }));
+    // Gegenlicht ohne Leuchten-Pass (bloom 0): der gestufte Schein des Feinrasters läge als flache Scheibe über den Figuren
+    if (L) for (const [dx, dy, r, color, intensity] of sc.light ?? []) w.addLight(new L({ x: T.x + dx, y: T.y + dy, radius: r, color, intensity, flicker: 0.05, bloom: 0 }));
     window.__camC = { x: T.x + sc.cam[0], y: T.y + sc.cam[1] };
     window.__T = T;
     return { x: T.x, y: T.y, type: t.type ?? t.constructor.name, foes: foes.length, L: L?.name, nl: w.lights.length };
@@ -186,13 +192,53 @@ const run = async (sc0) => {
       g.loop.running = false;
       await new Promise((res) => requestAnimationFrame(res));
       const undo = [];
+      // Licht für die Aufnahme (sc.lightMode): Die gestuften Lichtscheiben des Feinrasters erscheinen im Standbild als
+      // Kästen/Scheiben um Feuer und Laternen. 'flat' = keine Punktlichter, nur Grundlicht sc.flat (RGB);
+      // 'soft' = Punktlichter mit weichem Verlauf (wie vor dem Feinraster). Beide ohne Leuchten-Pass (bloom).
+      if (sc.lightMode && w.lighting) {
+        const lt = w.lighting, amb0 = lt.ambient, ap = lt.apply, bl = lt.bloom;
+        if (sc.lightMode === 'flat') {
+          if (sc.flat) lt.ambient = sc.flat;
+          lt.apply = function (ctx, cx, cy) { return ap.call(this, ctx, cx, cy, []); };
+        } else {
+          const { getLightSprite } = await import('/src/sprites/effects.js');
+          lt.apply = function (ctx, camX, camY, lights) {
+            const l = this.ctx, LM = this.canvas.width / this.w;
+            const [ar, ag, ab] = this.ambient;
+            l.setTransform(LM, 0, 0, LM, 0, 0); l.globalCompositeOperation = 'source-over'; l.globalAlpha = 1;
+            l.fillStyle = `rgb(${ar},${ag},${ab})`; l.fillRect(0, 0, this.w, this.h);
+            l.globalCompositeOperation = 'lighter'; l.imageSmoothingEnabled = true;
+            for (const li of lights) {
+              const r = li.radius, sx = li.x - camX, sy = li.y - camY;
+              if (sx + r < 0 || sy + r < 0 || sx - r > this.w || sy - r > this.h) continue;
+              l.globalAlpha = Math.max(0, Math.min(1, li.value));
+              l.drawImage(getLightSprite(64, li.color, false), sx - r, sy - r, r * 2, r * 2);
+            }
+            l.globalAlpha = 1;
+            ctx.globalCompositeOperation = 'multiply'; const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
+            ctx.imageSmoothingEnabled = sm; ctx.globalCompositeOperation = 'source-over';
+          };
+        }
+        lt.bloom = () => {};
+        undo.push(() => { lt.ambient = amb0; lt.apply = ap; lt.bloom = bl; });
+      }
+      // Lichtkreis legendärer Waffen am Boden (gfx/weaponFx.js getRarityRing) sieht im Standbild wie ein Zielring aus: ausblenden
+      const RG = window.__ringSet ??= await (async () => {
+        const [{ getRarityRing, RING_FRAMES }, { ELEMENTS }] = await Promise.all([import('/src/sprites/effects.js'), import('/src/gfx/Particles.js')]);
+        const set = new Set(); for (const el of Object.values(ELEMENTS)) for (let f = 0; f < RING_FRAMES; f++) for (const q of [1, 2]) set.add(getRarityRing(el.colors, q, f).canvas);
+        return set;
+      })();
+      const DI = CanvasRenderingContext2D.prototype, odi = DI.drawImage;
+      DI.drawImage = function (im, ...a) { if (RG.has(im)) return; return odi.call(this, im, ...a); };
+      undo.push(() => { DI.drawImage = odi; });
       // Effekte: Schadenszahlen weg, Warnflächen (samt ihrem roten Licht) ausblenden
       const HIDE = new RegExp('Shockwave|Telegraph|DamageWave|SpawnMarker|GraveMarker|Fissure|Cataclysm|EmberPatch|AshWave|GraveRift|FireField|FrostField|ToxicRing|RootSpikes|SpinVortex|ChargeGlow|RiftFlash|NovaBurst|FlameRing|Whirlpool|Shockwave|GraveMarker' + (sc.hideFx ? '|' + sc.hideFx : ''));
       for (const key of ['effects', 'entities']) {
         const arr = w[key]; if (!Array.isArray(arr)) continue;
         for (let j = arr.length - 1; j >= 0; j--) {
           const e = arr[j], n = e?.constructor?.name ?? '';
-          if (n === 'FloatingText') arr.splice(j, 1);
+          if (n === 'FloatingText' || n === 'DamageNumber') arr.splice(j, 1);
           else if (HIDE.test(n) || e?.visual === 'road') {
             arr.splice(j, 1); undo.push(() => arr.push(e));
             if (e.light) { const L = e.light, v = L.intensity; L.intensity = 0; undo.push(() => { L.intensity = v; }); }

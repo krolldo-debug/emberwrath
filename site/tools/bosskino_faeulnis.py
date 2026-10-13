@@ -15,7 +15,7 @@
 import math
 import numpy as np
 from bosskino import (Fig, MAT, flip, hash2, hexc, Buf, bands, BAYER4, seam_wave, strip, outline_mask, edge_of,
-                      floor, stamp, finish, over, vnoise, dome, SW, SH, FY, ik, rot, lerp)
+                      floor, stamp, finish, over, vnoise, dome, SW, SH, FY, ik, rot, lerp, K, GLOW, SPEC, PAD, SWX)
 
 # Fäulnis-Palette: entsättigt – Fäulnis-Violett, Oliv, Knochen; Leuchten kränklich-giftig (Oliv-Gelb) statt Limette.
 SP = ['#1e2410', '#3e4a1e', '#6e7a34', '#a8b05a', '#dcdca0']        # Giftglut (dunkel -> hell)
@@ -53,7 +53,11 @@ MAT.update({
     'slime': ['#0c0e08', '#262c14', '#3e4820', '#646e30', '#9aa056'],
     'eye': ['#262a10', '#4e5a1e', '#8e9a3a', '#c8ca74', '#eeecbc'],
     'void': ['#050307'] * 5,
+    'eyew': ['#ffffe8'] * 5,
+    'pupil': ['#14160a'] * 5,
 })
+GLOW.clear(); GLOW.update({'eye', 'sacg', 'gillg', 'vein'})
+SPEC.clear(); SPEC.update({'bone': '#e4dcc0', 'fang': '#fffbe8', 'fleshl': '#d8c8bc'})
 RIM_F = {'flesh': '#9a8484', 'skin': '#9a9670', 'hide': '#8e8060', 'face': '#9c9e70', 'cap': '#8e5e52', 'bark': '#8c7e5c', 'moss': '#7a8048',
          'myc': '#b4a8b0', 'sac': '#bcbc76', 'spot': '#d8ceae'}
 RIM_B = {'flesh': '#6e5a80', 'fleshd': '#4e3e60', 'cap': '#6e5a80', 'capd': '#4e3e60', 'bark': '#4e5630', 'barkd': '#30361e',
@@ -188,6 +192,15 @@ def face(f, x, h, jaw=0, eye=1.0):
         rows = rows + [open_] * jaw
     rows = rows + FACE[FSPLIT:]
     m = f.sprite(x, h, rows, leg)
+    # Feinraster: Schlitzpupillen mit Glanzpunkt, Brauenwulst-Kante, Nasenrücken
+    X0, Y0 = f.at(x, h); X0 *= K; Y0 *= K
+    for dx, dy, mt, t in ((13, 14, 'pupil', 0), (13, 15, 'pupil', 0), (14, 14, 'eyew', 4),
+                          (34, 14, 'pupil', 0), (34, 15, 'pupil', 0), (35, 14, 'eyew', 4), (37, 12, 'eyew', 4)):
+        f.fpx(X0 + dx, Y0 + dy, mt, t, under=True)
+    for dx in list(range(8, 20)) + list(range(26, 44)):
+        f.fpx(X0 + dx, Y0 + 9, 'faceh', 4 if dx > 30 else 3, under=True)
+    for i in range(7):
+        f.fpx(X0 + 27 + i // 3, Y0 + 15 + i, 'faceh', 4, under=True)
     # Schlund glimmt bei offenem Maul
     if jaw >= 2:
         X0, Y0 = f.at(x, h)
@@ -787,7 +800,7 @@ def arm_layer(p, front=True, aph=0.0, clip=None):
     arm(f, shF if front else shB, (h[0] + d[0], h[1] + d[1]), el_out=p.get('eo', 0), claw=p.get('claw', 0.3), back=not front,
         seed=7 if front else 3, clip=clip, sway=aph, fing=p.get('fing' if front else 'fingb'), elbow=p.get('ef' if front else 'eb'))
     im = f.render(rim=RIM_F if front else None, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im
 
 
@@ -801,7 +814,7 @@ def body_layer(p, ph=0.0, glow=0, sacp=None, sglow=None):
     N, T, _Rt = torso(f, p, ph)
     head(f, N, p, ph, glow=glow)
     im = f.render(rim=RIM_F, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im
 
 
@@ -821,6 +834,7 @@ SPORE = SP
 
 def setp(A, x, y, c):
     x, y = int(x), int(y)
+    if A.shape[1] == SWX: x += PAD        # breite Ebene: Spalte = Szenen-x + PAD
     if 0 <= x < A.shape[1] and 0 <= y < A.shape[0]: A[y, x] = (*hexc(c), 255) if isinstance(c, str) else c
 
 
@@ -864,11 +878,11 @@ def mushroom(A, G, x0, base, sh, sw, cw, ch, cols, gl, glow_cols, seed=0):
 
 def scene():
     L = {}
-    F = bands(SH, SW, 0, 180, ['#050208', '#08040e', '#0c0614', '#10081a', '#160c20', '#1a1024'])
-    G = np.zeros((SH, SW, 4), np.uint8)
+    F = bands(SH, SWX, 0, 180, ['#050208', '#08040e', '#0c0614', '#10081a', '#160c20', '#1a1024'])
+    G = np.zeros((SH, SWX, 4), np.uint8)
     rng = np.random.default_rng(5)
     # Höhlendecke: hängende Hyphenfäden und Wurzelvorhänge
-    for x in range(0, SW, 3):
+    for x in range(-PAD, SW + PAD, 3):
         L_ = int(6 + hash2(x, 1, 4) * 40 + (30 if hash2(x // 9, 2, 4) > 0.7 else 0))
         for y in range(L_):
             if hash2(x, y // 3, 6) > 0.85: continue
@@ -877,12 +891,13 @@ def scene():
             setp(G, x, L_, VIO[2]); setp(F, x, L_, VIO[2])
     # Riesenpilze fern (Silhouetten, Lamellen glimmen violett)
     FC = ['#0a0612', '#140c20', '#1c1230', '#26183c', '#302048']
-    for x0, base, sh, sw, cw, ch, sd in ((40, 176, 120, 14, 46, 26, 1), (150, 176, 84, 10, 30, 18, 2), (540, 176, 136, 16, 52, 28, 3), (250, 176, 60, 8, 22, 12, 4)):
+    for x0, base, sh, sw, cw, ch, sd in ((40, 176, 120, 14, 46, 26, 1), (150, 176, 84, 10, 30, 18, 2), (540, 176, 136, 16, 52, 28, 3), (250, 176, 60, 8, 22, 12, 4),
+                                      (-96, 176, 104, 12, 40, 22, 5), (-20, 176, 52, 8, 18, 10, 6), (676, 176, 92, 12, 36, 20, 7)):
         mushroom(F, G, x0, base, sh, sw, cw, ch, FC, True, ['#160e1e', '#2a1e36', VIO[1], VIO[2]], sd)
     # Brennpunkt: Sporennebel hinter Kopf und Buckel – unregelmäßiger Hof in vier harten Stufen, Kanten im
     # Bayer-Raster aufgelöst (kein glatter Kreis); grüne Sporenkörner darin
     cx, cy = BX - 26, 58
-    Y, X = np.mgrid[0:176, 0:SW]
+    Y, X = np.mgrid[0:176, 0:SWX]; X = X - PAD
     ang = np.arctan2(Y - cy, (X - cx) / 1.35)
     d = np.hypot((X - cx) / 1.35, Y - cy)
     wob = 1 + 0.16 * np.sin(ang * 5 + 1.2) + 0.09 * np.sin(ang * 11 + 0.4) + (vnoise(X * 0.07, Y * 0.07, 16) - 0.5) * 0.55
@@ -906,17 +921,18 @@ def scene():
     for i in range(80):
         a = rng.uniform(0, 2 * math.pi); r = rng.uniform(16, 96)
         x, y = int(cx + math.cos(a) * r * 1.35), int(cy + math.sin(a) * r * 0.85)
-        if 0 <= x < SW and 0 <= y < 170:
+        if -PAD <= x < SW + PAD and 0 <= y < 170:
             c = SPORE[2] if r < 50 else SPORE[1]
             setp(F, x, y, c); setp(G, x, y, SPORE[3] if r < 40 else c)
     L['fern'] = dict(img=F, f=0.15)
     L['fern-glut'] = dict(img=G, f=0.15, glow=dict(per=3.4, lo=0.45, steps=3))
     # Mitte: Pilzgruppen, Wurzelbögen, hinterer Boden
-    M = np.zeros((SH, SW, 4), np.uint8); MG = np.zeros((SH, SW, 4), np.uint8)
-    bf, _, _ = floor(166, SH, [3, 3, 4, 4, 5, 6, 7, 8, 9], ['#06040a', '#0e0a14', '#16101e', '#1e1628', '#281e34'], vx=BX, vy=40, tile=30, seed=31, chips=0.1)
+    M = np.zeros((SH, SWX, 4), np.uint8); MG = np.zeros((SH, SWX, 4), np.uint8)
+    bf, _, _ = floor(166, SH, [3, 3, 4, 4, 5, 6, 7, 8, 9], ['#06040a', '#0e0a14', '#16101e', '#1e1628', '#281e34'], vx=BX, vy=40, tile=30, seed=31, chips=0.1,
+                     w=SWX, ox=-PAD)
     stamp(M, bf)
     # Wurzelbögen über die Wand
-    for x0, x1, top, wd in ((-20, 120, 110, 5), (90, 230, 130, 4), (430, 600, 100, 6)):
+    for x0, x1, top, wd in ((-20, 120, 110, 5), (90, 230, 130, 4), (430, 600, 100, 6), (-160, -30, 124, 4), (590, 712, 116, 5)):
         for i in range(80):
             k = i / 79
             x = x0 + (x1 - x0) * k; y = 170 - (170 - top) * math.sin(math.pi * k)
@@ -926,24 +942,27 @@ def scene():
     MC = ['#0c070a', '#2a1820', '#40242a', '#583236', '#744642']
     GC = ['#0c0e08', '#1e2214', '#30361e', '#464e2a', '#626a3a']
     for x0, sh, sw, cw, ch, cols, sd in ((84, 26, 5, 14, 8, MC, 11), (100, 16, 4, 9, 5, GC, 12), (196, 22, 5, 12, 7, GC, 13), (212, 12, 3, 7, 4, MC, 14),
-                                        (480, 30, 6, 16, 9, MC, 15), (500, 18, 4, 10, 6, GC, 16), (14, 18, 4, 10, 6, GC, 17)):
+                                        (480, 30, 6, 16, 9, MC, 15), (500, 18, 4, 10, 6, GC, 16), (14, 18, 4, 10, 6, GC, 17),
+                                        (-70, 24, 5, 13, 8, GC, 18), (-56, 14, 3, 8, 5, MC, 19), (-130, 20, 4, 11, 6, MC, 20), (626, 26, 5, 14, 8, GC, 23),
+                                        (644, 15, 4, 8, 5, MC, 24), (700, 20, 4, 10, 6, MC, 25)):
         gc = [SP[0], SP[1], SP[2], SP[3]] if cols is GC else ['#160e1e', '#2a1e36', VIO[1], VIO[2]]
         mushroom(M, MG, x0, 170, sh, sw, cw, ch, cols, True, gc, sd)
     L['mitte'] = dict(img=M, f=0.45)
     L['mitte-glut'] = dict(img=MG, f=0.45, glow=dict(per=2.9, lo=0.4, steps=3))
     # Boden: Erde mit Moos, Fugen für das Gift, glimmende Schleimpfützen
-    Bd, seam, _ = floor(FY - 4, SH, [4, 5, 6, 7, 9, 11], ['#06040a', '#120e12', '#1c1618', '#26201e', '#322a24'], vx=BX - 30, vy=-40, tile=30, seed=37, chips=0.1)
-    for x in range(SW): Bd[FY - 4, x] = (*hexc('#464e2a' if hash2(x, 1, 2) > 0.35 else '#30361e'), 255)
+    Bd, seam, _ = floor(FY - 4, SH, [4, 5, 6, 7, 9, 11], ['#06040a', '#120e12', '#1c1618', '#26201e', '#322a24'], vx=BX - 30, vy=-40, tile=30, seed=37, chips=0.1,
+                       w=SWX, ox=-PAD)
+    for x in range(SWX): Bd[FY - 4, x] = (*hexc('#464e2a' if hash2(x - PAD, 1, 2) > 0.35 else '#30361e'), 255)
     for y, x in zip(*np.nonzero(seam)):
         if y == FY - 4: continue
         Bd[y, x] = (*hexc('#0a0610'), 255)
-    BG = np.zeros((SH, SW, 4), np.uint8)
+    BG = np.zeros((SH, SWX, 4), np.uint8)
     for y in range(FY - 3, SH):
-        for x in range(SW):
-            n = hash2(x // 6, y // 3, 7)
+        for x in range(SWX):
+            n = hash2((x - PAD) // 6, y // 3, 7)
             if n > 0.88 and not seam[y, x]:
                 Bd[y, x] = (*hexc('#22261a' if n < 0.95 else '#30361e'), 255)
-    for px, py, rw in ((120, FY + 6, 12), (240, FY + 14, 9), (60, FY + 18, 14), (470, FY + 10, 10)):
+    for px, py, rw in ((120, FY + 6, 12), (240, FY + 14, 9), (60, FY + 18, 14), (470, FY + 10, 10), (-90, FY + 12, 12), (-140, FY + 20, 9), (630, FY + 15, 11)):
         for y in range(py - 2, py + 3):
             for x in range(px - rw, px + rw + 1):
                 if ((x - px) / rw) ** 2 + ((y - py) / 2.5) ** 2 <= 1:
@@ -953,14 +972,16 @@ def scene():
         y = FY + dy
         for x in range(BX - hw + 40, BX + hw + 40):
             if 0 <= x < SW:
-                r, g, b_, a = Bd[y, x]
-                if a: Bd[y, x] = (int(r * k), int(g * k), int(b_ * k), a)
+                r, g, b_, a = Bd[y, x + PAD]
+                if a: Bd[y, x + PAD] = (int(r * k), int(g * k), int(b_ * k), a)
     L['boden'] = dict(img=Bd, f=1.0)
     L['boden-glut'] = dict(img=BG, f=1.0, glow=dict(per=2.6, lo=0.4, steps=3))
     # Vordergrund: Pilzsilhouetten und Wurzeln
-    V = np.zeros((SH, SW, 4), np.uint8); VG = np.zeros((SH, SW, 4), np.uint8)
+    V = np.zeros((SH, SWX, 4), np.uint8); VG = np.zeros((SH, SWX, 4), np.uint8)
     mushroom(V, VG, 14, SH + 4, 34, 7, 22, 12, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 21)
     mushroom(V, VG, 540, SH + 4, 22, 6, 16, 9, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 22)
+    mushroom(V, VG, -118, SH + 4, 30, 7, 20, 11, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 26)
+    mushroom(V, VG, 684, SH + 4, 28, 6, 19, 10, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 27)
     stamp(V, VG)
     L['vorn'] = dict(img=V, f=1.35)
     return L, seam
@@ -1046,34 +1067,75 @@ def dorn(h=64, w=34, seed=0):
     return out
 
 
-def wolke(w=80, h=64, n=11, seed=0):
-    """Sporenwolke quillt in Pixelstufen: Ballen wachsen und steigen, helle Kerne, dunkler Saum, zerfällt über
-    Bayer-Schwellen; Fuß unten Mitte."""
+def wolke(w=80, h=64, n=11, seed=0, k=K):
+    """Sporenwolke, gezeichnet im Feinraster (k Feinpixel je Szenenpixel; Maße w, h in Szenenpixeln): Ballen als harte
+    Scheiben in drei Tönen (Körper, Lichtsichel oben links, heller Kern), dunkle Naht, wo ein Ballen vor dem anderen liegt,
+    1 Feinpixel dunkler Umriss. Ballen wachsen und steigen; danach schrumpfen sie Ton um Ton, zerfallen in kleine
+    Bällchen und Sporenpunkte. Keine Rasterung, keine Zwischentöne. Fuß unten Mitte."""
     r = np.random.default_rng(seed)
-    balls = [(r.uniform(-22, 22), r.uniform(4, 30), r.uniform(9, 17), r.uniform(0, 0.25)) for _ in range(9)]
-    Y, X = np.mgrid[0:h, 0:w]
-    pal = np.array([(*hexc(c), 255) for c in [VI[0], VI[1], SP[1], SP[2], SP[3], SP[4]]], np.uint8)
+    W, H = w * k, h * k
+    balls = [(r.uniform(-22, 22), r.uniform(4, 30), r.uniform(9, 17), r.uniform(0, 0.25), r.uniform(0.62, 0.95)) for _ in range(9)]
+    balls.sort(key=lambda b: -b[1])                  # hohe (hintere) Ballen zuerst, tiefe davor
+    bits = [(r.uniform(-30, 30), r.uniform(6, 40), r.uniform(2.2, 4.2), r.uniform(-1, 1)) for _ in range(12)]
+    dots = [(r.uniform(-34, 34), r.uniform(4, 52), r.uniform(0.4, 1.0)) for _ in range(26)]
+    Y, X = np.mgrid[0:H, 0:W]
+    Xs, Ys = (X + 0.5) / k, (Y + 0.5) / k             # Feinpixelmitte in Szenenpixeln
+    C = {n_: np.array((*hexc(c), 255), np.uint8) for n_, c in
+         dict(rim=VI[0], seam=SP[0], body=SP[1], mid=SP[2], lit=SP[3], core=SP[4]).items()}
     out = []
-    for k in range(n):
-        t = (k + 1) / n
-        im = np.zeros((h, w, 4), np.uint8)
-        v = np.zeros((h, w))
-        for bx, by, br, d in balls:
+    for f in range(n):
+        t = (f + 1) / n
+        late = max(0.0, (t - 0.5) / 0.5)              # 0 … 1 im Zerfall
+        im = np.zeros((H, W, 4), np.uint8)
+        cover = np.zeros((H, W), bool)
+        seam = np.zeros((H, W), bool)
+        def disc(cx, cy, rad, tones):
+            nonlocal cover
+            q = np.hypot(Xs - cx, (Ys - cy) * 1.1)
+            m = q <= rad
+            if not m.any(): return
+            # Naht: Rand dieses Ballens über bereits gezeichneten (1 Feinpixel)
+            inner = np.hypot(Xs - cx, (Ys - cy) * 1.1) <= rad - 1.0 / k
+            seam[m & ~inner & cover] = True
+            seam[inner] = False
+            body, lit, core = tones
+            im[m] = C[body]
+            if lit:
+                ql = np.hypot(Xs - (cx - rad * 0.22), (Ys - (cy - rad * 0.26)) * 1.1)
+                im[m & (ql <= rad * 0.78)] = C[lit]
+            if core:
+                qc = np.hypot(Xs - (cx - rad * 0.3), (Ys - (cy - rad * 0.34)) * 1.1)
+                im[m & (qc <= rad * 0.34)] = C[core]
+            cover |= m
+        for bx, by, br, d, life in balls:
             tt = max(0, t - d)
-            if tt <= 0: continue
-            rad = br * min(1, tt * 2.4 + 0.25)
-            cyy = h - 3 - by * min(1, tt * 1.6 + 0.2) - t * 8
-            q = 1 - np.hypot(X - (w / 2 + bx * (0.6 + tt)), (Y - cyy) * 1.1) / rad
-            v = np.maximum(v, q)
-        dens = 1.0 - max(0, t - 0.5) * 1.9
-        th = BAYER4[Y % 4, X % 4]
-        on = (v > 0) & (th < dens + v * 0.6)
-        lv = np.select([v > 0.72, v > 0.48, v > 0.26, v > 0.1], [5, 4, 3, 2], 1)
-        lv = np.clip(lv - (1 if t > 0.55 else 0) - (1 if t > 0.8 else 0), 0, 5)
-        lv = np.where((lv == 5) & (k > 1), 4, lv)
-        im[on] = pal[lv[on]]
+            if tt <= 0 or late > life: continue
+            grow = min(1, tt * 2.4 + 0.25)
+            rad = br * grow * (1 - 0.55 * late / life)
+            if rad < 1.6: continue
+            cx = w / 2 + bx * (0.6 + tt)
+            cy = h - 3 - by * min(1, tt * 1.6 + 0.2) - t * 8
+            if late < 0.25: tones = ('mid', 'lit', 'core' if f < 6 and br > 11 else None)
+            elif late < 0.6: tones = ('body', 'mid', None)
+            else: tones = ('body', None, None)
+            disc(cx, cy, rad, tones)
+        if late > 0:                                    # Bällchen lösen sich und steigen
+            for bx, by, br, dr in bits:
+                if late > 0.95: break
+                rad = br * (1 - late * 0.7)
+                cx = w / 2 + bx * (0.9 + late * 0.5) + dr * late * 6
+                cy = h - 6 - by - late * 14
+                disc(cx, cy, rad, ('mid', 'lit', None) if late < 0.5 else ('body', 'mid', None))
+        im[seam & cover] = C['seam']
         a = im[:, :, 3] > 0
-        if t < 0.75: im[outline_mask(a)] = pal[0]
+        im[outline_mask(a) & ~a] = C['rim'] if late < 0.85 else C['seam']
+        # Sporenpunkte (je 1 Feinpixel, heller Kern), ab der Mitte des Quellens
+        if t > 0.3:
+            for dx, dy, sp in dots:
+                if sp < late * 0.9: continue
+                x_ = int((w / 2 + dx * (0.7 + t * 0.5)) * k); y_ = int((h - 4 - dy - t * 10) * k)
+                if 1 <= x_ < W - 1 and 1 <= y_ < H - 1 and not a[y_, x_]:
+                    im[y_, x_] = C['core' if sp > 0.7 else 'lit']
         out.append(im)
     return out
 
@@ -1132,7 +1194,7 @@ def arm_frames(p, front, aph, clip, smear_arc=None):
         xs = [x for x in range(f.W) if row[x] is not None]
         mound(f, xs, clip)
     im = f.render(rim=RIM_F if front else None, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im, xs
 
 
@@ -1194,7 +1256,8 @@ def build():
     fx['dorn'] = strip(dorn(DH, DW, 1))
     fx['dorn2'] = strip(dorn(dH, dW, 2))
     fx['wolke'] = strip(wolke(80, 64, 11, 3))
-    wave, wm = seam_wave(seam, imp_s, FY - 2, v=260, ms=60, pal=SPORE, direction=-1, maxd=400, peak=lambda d: 4 if d < 80 else 3 if d < 200 else 2,
+    B['fein'] = B.get('fein', set()) | {'wolke'}   # im Feinraster gezeichnet, kein Scale2x
+    wave, wm = seam_wave(seam, imp_s, FY - 2, v=260, ms=60, pal=SPORE, direction=-1, maxd=400, ox=-PAD, peak=lambda d: 4 if d < 80 else 3 if d < 200 else 2,
                          ages=(0.1, 0.32, 0.65, 1.05))
     fx['welle'] = wave
     ev = [dict(k='bild', r='welle', at=0, x=wm['x'], y=wm['y'], w=wm['w'], h=wm['h'], n=wm['n'], ms=wm['ms'], z='boden'),

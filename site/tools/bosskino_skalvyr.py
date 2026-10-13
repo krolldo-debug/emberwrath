@@ -13,7 +13,7 @@
 import math
 import numpy as np
 from bosskino import (Fig, MAT, hash2, hexc, FROST, Buf, bands, BAYER4, vnoise,
-                      seam_wave, strip, outline_mask, floor, stamp, finish, SW, SH, FY)
+                      seam_wave, strip, outline_mask, floor, stamp, finish, SW, SH, FY, K, GLOW, SPEC, PAD, SWX)
 
 MAT.update({
     'scl': ['#03070e', '#0e2036', '#183652', '#285878', '#4686a6'],
@@ -28,6 +28,8 @@ MAT.update({
     'eye': ['#0a3050', '#2a9cd8', '#8aeaff', '#d8fcff', '#ffffff'],
     'svoid': ['#020309'] * 5,
 })
+GLOW.clear(); GLOW.update({'fg', 'eye'})
+SPEC.clear(); SPEC.update({'horn': '#e4f2fc', 'crys': '#ffffff', 'teeth': '#ffffff', 'bel': '#eefaff'})
 RIM_F = {'scl': '#a6dcec', 'bel': '#f0fcff', 'crys': '#ffffff', 'horn': '#d0e8f4', 'scld': '#5a9ab8'}
 RIM_B = {'scl': '#2a9cc8', 'scld': '#16608a', 'bel': '#7ed8f0', 'crys': '#9aeefc', 'horn': '#6ac0e0', 'crysd': '#3a94c8'}
 OUT = '#010309'
@@ -330,6 +332,12 @@ def head(f, base, ang=0.0, jaw=0.0, eye=4, roar=0.0):
         for dx, dy in ((-5, 0), (5, 0), (-4, 1), (6, -1)):
             X, Y = ex + dx, ey + dy
             if 0 <= X < f.W and 0 <= Y < f.H and f.mat[Y, X] == 'svoid': f.mat[Y, X] = 'fg'; f.tone[Y, X] = 1
+        # Feinraster: senkrechte Schlitzpupille, weißer Glanzpunkt, heller Lidrand
+        FXe, FYe = ex * K, ey * K
+        for j in range(-3, 4): f.fpx(FXe + 2, FYe + j, 'svoid', 0, under=True)
+        f.fpx(FXe + 1, FYe - 2, 'svoid', 0, under=True); f.fpx(FXe + 1, FYe + 2, 'svoid', 0, under=True)
+        f.fpx(FXe - 2, FYe - 2, 'teeth', 4, under=True); f.fpx(FXe - 1, FYe - 2, 'teeth', 4, under=True)
+        for dx in range(-7, 9): f.fpx(FXe + dx, FYe - 5, 'eye', 2, under=True)
     else:
         for dx in range(-3, 5): f.px(ex + dx, ey, 'eye', 1)
     # Nüster
@@ -375,11 +383,11 @@ def breath(im, f, mouth, ang, st):
     a = math.radians(ang); dx, dh = math.cos(a), math.sin(a); nx, nh = -dh, dx
     mx, mh = mouth
     Hh, Ww = im.shape[:2]
-    X0, Y0 = f.at(mx, mh)
-    span = int(R * f.S) + 4
+    X0, Y0 = f.at(mx, mh); X0 *= K; Y0 *= K               # im Feinraster abgetastet
+    span = (int(R * f.S) + 4) * K
     for y in range(max(0, Y0 - span), min(Hh, Y0 + span)):
-        for x in range(max(0, X0 - 6), min(Ww, X0 + span)):
-            px = (x + 0.5 - f.FX) / f.S - mx; ph = (f.FY - (y + 0.5)) / f.S - mh
+        for x in range(max(0, X0 - 6 * K), min(Ww, X0 + span)):
+            px = ((x + 0.5) / K - f.FX) / f.S - mx; ph = (f.FY - (y + 0.5) / K) / f.S - mh
             d = px * dx + ph * dh; o = px * nx + ph * nh
             if d > R: continue
             w = 2 + d * 0.36                                    # halbe Kegelbreite (flach)
@@ -403,9 +411,9 @@ def breath(im, f, mouth, ang, st):
         o = rng.uniform(-1.3, 1.3) * (2 + d * 0.36)
         hx, hh = mx + dx * d + nx * o, mh + dh * d + nh * o
         Ls = 2 + int(rng.integers(0, 3))
-        for k in range(Ls + 1):
-            X, Y = f.at(hx - dx * k, hh - dh * k)
-            if 0 <= X < Ww and 0 <= Y < Hh: im[Y, X] = (*hexc('#ffffff' if k == 0 else JET[3] if k < 2 else JET[2]), 255)
+        for k in range(2 * Ls + 1):
+            X, Y = f.fat(hx - dx * k / 2, hh - dh * k / 2)
+            if 0 <= X < Ww and 0 <= Y < Hh: im[Y, X] = (*hexc('#ffffff' if k < 2 else JET[3] if k < 4 else JET[2]), 255)
 
 
 # ------------------------------------------------------------------------------------------- Posen
@@ -482,7 +490,7 @@ def figure(p, ph=0.0, puff=-1, cloud=-1):
     im = f.render(outline=OUT, rim=RIM_F, rim_back=RIM_B)
     if cloud >= 0:
         breath(im, f, hd['schlund'], hd['gape'] + p.get('cdir', 0), cloud)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im
 
 
@@ -492,44 +500,51 @@ WF = BX - 34          # gefrorener Wasserfall hinter Hals und Kopf
 FLOOR = ['#040810', '#0a1626', '#102034', '#172c44', '#203a56']
 
 
+def _o(img): return PAD if img.shape[1] == SWX else 0      # breite Ebene: Spalte = Szenen-x + PAD
+
+
 def pillar(img, glow, x0, w, top, bot, cols, rim, seed=0, waist=0.45, glint=None):
     """Eissäule Decke -> Boden: Taille in der Mitte, Zylinderlicht (links hell), senkrechte Schlieren, Lichtkante."""
+    o = _o(img)
     ym = (top + bot) / 2
     for y in range(max(0, top), min(SH, bot)):
         k = abs(y - ym) / ((bot - top) / 2)
         hw = w / 2 * (1 - waist + waist * k ** 1.6) + 1.2 * math.sin(y * 0.21 + seed) * (1 - k)
         a, b = int(round(x0 - hw)), int(round(x0 + hw))
-        for x in range(max(0, a), min(SW, b + 1)):
+        for x in range(max(-o, a), min(SW + o, b + 1)):
             u = (x - a + 0.5) / max(1, b - a + 1)
             st = math.sin(x * 0.9 + seed * 3 + math.sin(y * 0.05 + seed) * 2)
             t = 3 if u < 0.22 else 2 if u < 0.55 else 1 if u < 0.85 else 0
             if st > 0.82 and 0 < t < 3: t += 1
-            if x == a: img[y, x] = (*hexc(rim), 255); continue
-            img[y, x] = (*hexc(cols[t]), 255)
-            if glint is not None and x == a + 1 and (y // 3) % 4 == 0: glow[y, x] = (*hexc(glint), 255)
+            if x == a: img[y, x + o] = (*hexc(rim), 255); continue
+            img[y, x + o] = (*hexc(cols[t]), 255)
+            if glint is not None and x == a + 1 and (y // 3) % 4 == 0: glow[y, x + o] = (*hexc(glint), 255)
 
 
 def hang(img, x0, w, L, cols, rim, top=0):
     """Hängender Zapfen (Kegel), Licht links."""
+    o = _o(img)
     for y in range(top, top + L):
         k = 1 - (y - top) / L
         hw = w / 2 * k ** 0.75
         a, b = int(round(x0 - hw)), int(round(x0 + hw))
-        for x in range(max(0, a), min(SW, b + 1)):
+        for x in range(max(-o, a), min(SW + o, b + 1)):
             u = (x - a + 0.5) / max(1, b - a + 1)
             t = 2 if u < 0.35 else 1 if u < 0.75 else 0
-            img[y, x] = (*hexc(rim if x == a and b - a >= 2 else cols[t]), 255)
+            img[y, x + o] = (*hexc(rim if x == a and b - a >= 2 else cols[t]), 255)
 
 
 def scene():
+    """Ebenen SWX breit (Szenen-x -PAD .. SW + PAD, Spalte = x + PAD): breite Bühnen zeigen links und rechts mehr Höhle."""
     L = {}
+    P, WW = PAD, SWX
     rng = np.random.default_rng(5)
-    Y, X = np.mgrid[0:SH, 0:SW]
+    Y, X = np.mgrid[0:SH, 0:WW]
     # ---- Ferne (0,15): gefrorene Vorhänge an der Höhlenwand, ferne Säulen im Dunst, Wasserfall, Deckenzapfen
-    F = bands(SH, SW, 0, 176, ['#020409', '#03060d', '#040912', '#060d19', '#081221'])
-    G = np.zeros((SH, SW, 4), np.uint8)
+    F = bands(SH, WW, 0, 176, ['#020409', '#03060d', '#040912', '#060d19', '#081221'])
+    G = np.zeros((SH, WW, 4), np.uint8)
     WALL = ['#04080f', '#070e1a', '#0b1525', '#101e32', '#162842']
-    xs = np.arange(SW)
+    xs = np.arange(WW) - P
     hf = np.sin(xs * 0.11) * 1.0 + np.sin(xs * 0.047 + 1.3) * 1.6 + np.sin(xs * 0.23 + 0.4) * 0.5
     slope = np.gradient(hf)
     for y in range(4, 178):
@@ -540,10 +555,10 @@ def scene():
         F[y, :] = np.array([(*hexc(c), 255) for c in WALL], np.uint8)[t]
     # Rand oben: Wand geht in die Decke über (dunkler), Bayer-Stufe
     for y in range(0, 30):
-        for x in range(SW):
+        for x in range(WW):
             if BAYER4[y % 4, x % 4] > y / 30: F[y, x] = (*hexc('#020409'), 255)
     FP = ['#0c1a2c', '#13253c', '#1b3350', '#284868']
-    for x0, w, s in ((118, 30, 1), (470, 34, 3)):
+    for x0, w, s in ((118, 30, 1), (470, 34, 3), (-62, 28, 5), (664, 32, 6)):
         pillar(F, G, x0, w, 0, 176, FP, '#3a6488', seed=s, waist=0.5)
     # gefrorener Wasserfall: senkrechte Eisbahnen in harten Stufen, Licht in der Mitte
     ICEF = ['#0a1e36', '#123a5a', '#1c5a80', '#2c80a8', '#4aa8d0', '#88d4ef', '#dcf8ff']
@@ -556,27 +571,31 @@ def scene():
             v = k * 0.75 + stripe * 0.35 + (BAYER4[y % 4, x % 4] - 0.5) * 0.12
             lv = 6 if v > 0.95 else 5 if v > 0.82 else 4 if v > 0.68 else 3 if v > 0.52 else 2 if v > 0.36 else 1 if v > 0.2 else 0
             if u > 0.92 and BAYER4[y % 4, x % 4] < (u - 0.92) * 12: continue
-            F[y, x] = (*hexc(ICEF[max(0, lv - 2)]), 255)
-            if lv >= 3: G[y, x] = (*hexc(ICEF[lv]), 255)
+            F[y, x + P] = (*hexc(ICEF[max(0, lv - 2)]), 255)
+            if lv >= 3: G[y, x + P] = (*hexc(ICEF[lv]), 255)
     # Deckenzapfen fern: zwei Reihen
-    for x0 in range(2, SW, 7):
+    for x0 in range(2 - 7 * 22, SW + P, 7):
         L_ = 5 + int(hash2(x0, 3, 1) * 16)
         hang(F, x0, 4 + (x0 % 3), L_, ['#0a1626', '#14283e', '#203c58'], '#3a6488')
     L['fern'] = dict(img=F, f=0.15)
     L['fern-glut'] = dict(img=G, f=0.15, glow=dict(per=3.8, lo=0.55, steps=3))
     # ---- Mitte (0,45): hinterer Eisboden, nahe Eissäulen, Zapfenbüschel, Stalagmiten, leuchtende Kristalle
-    M = np.zeros((SH, SW, 4), np.uint8); MG = np.zeros((SH, SW, 4), np.uint8)
-    bf, bs, _ = floor(168, SH, [3, 3, 4, 4, 5, 6, 7, 8, 9], ['#030710', '#08121f', '#0d1a2c', '#13243a', '#1a3048'], vx=BX, vy=40, tile=30, seed=41, chips=0.0)
+    M = np.zeros((SH, WW, 4), np.uint8); MG = np.zeros((SH, WW, 4), np.uint8)
+    bf, bs, _ = floor(168, SH, [3, 3, 4, 4, 5, 6, 7, 8, 9], ['#030710', '#08121f', '#0d1a2c', '#13243a', '#1a3048'], vx=BX, vy=40, tile=30, seed=41, chips=0.0,
+                      w=WW, ox=-P)
     stamp(M, bf)
-    for x in range(SW): M[168, x] = (*hexc('#4a7896' if hash2(x, 2, 5) > 0.3 else '#2c5070'), 255)
+    for x in range(WW): M[168, x] = (*hexc('#4a7896' if hash2(x - P, 2, 5) > 0.3 else '#2c5070'), 255)
     MP = ['#050c18', '#0a1828', '#12263c', '#1c3a58']
     pillar(M, MG, 22, 34, 0, 172, MP, '#4a86b0', seed=4, waist=0.42, glint='#88d4f0')
     pillar(M, MG, 540, 40, 0, 172, MP, '#4a86b0', seed=8, waist=0.4, glint='#88d4f0')
+    pillar(M, MG, -118, 36, 0, 172, MP, '#4a86b0', seed=11, waist=0.44, glint='#88d4f0')
+    pillar(M, MG, 680, 34, 0, 172, MP, '#4a86b0', seed=12, waist=0.42, glint='#88d4f0')
     HC = ['#060e1a', '#10223a', '#1c3a5a']
     for x0, w, L_ in ((84, 9, 46), (96, 6, 30), (106, 7, 56), (116, 4, 22), (226, 6, 34), (236, 9, 60), (248, 5, 28),
-                      (430, 7, 40), (442, 10, 64), (456, 6, 36), (468, 4, 20), (300, 5, 24), (312, 4, 16)):
+                      (430, 7, 40), (442, 10, 64), (456, 6, 36), (468, 4, 20), (300, 5, 24), (312, 4, 16),
+                      (-72, 8, 50), (-60, 5, 30), (-50, 7, 40), (-140, 6, 36), (612, 8, 54), (624, 5, 28), (636, 7, 42)):
         hang(M, x0, w, L_, HC, '#5a9ac0')
-        MG[min(SH - 1, L_ - 2), x0] = (*hexc('#9aeefc'), 255)
+        MG[min(SH - 1, L_ - 2), x0 + P] = (*hexc('#9aeefc'), 255)
     def stalag(x0, w, top, bot=171):
         for y in range(top, bot):
             k = (y - top) / (bot - top)
@@ -584,15 +603,15 @@ def scene():
             for x in range(x0 - hw, x0 + hw + 1):
                 u = (x - x0 + hw) / (2 * hw + 1)
                 t = 3 if u < 0.2 else 2 if u < 0.55 else 1
-                M[y, x] = (*hexc(['#060c16', '#0f1e32', '#1a3350', '#3a6a90'][t]), 255)
-    for x0, w, top in ((60, 6, 138), (196, 8, 132), (262, 5, 150), (412, 7, 140), (500, 5, 152)):
+                M[y, x + P] = (*hexc(['#060c16', '#0f1e32', '#1a3350', '#3a6a90'][t]), 255)
+    for x0, w, top in ((60, 6, 138), (196, 8, 132), (262, 5, 150), (412, 7, 140), (500, 5, 152), (-88, 7, 136), (-26, 5, 148), (646, 6, 140)):
         stalag(x0, w, top)
     def crystals(cx, by, n, seed):
         r = np.random.default_rng(seed)
         for i in range(n):
             h = int(r.integers(9, 24)); a = r.uniform(-0.55, 0.55); bx = cx + int(r.integers(-9, 10))
             for k in range(h):
-                x = int(round(bx + a * k)); y = by - k
+                x = int(round(bx + a * k)) + P; y = by - k
                 w = max(0, int(2.6 * (1 - k / h) + 0.5))
                 for dx in range(-w, w + 1):
                     c = ['#1d5488', '#3a94c8', '#88d4f0'][min(2, max(0, 1 - dx))]
@@ -600,55 +619,60 @@ def scene():
                     if dx <= 0 and k > h * 0.3: MG[y, x + dx] = (*hexc(FROST[3 if dx < 0 else 2]), 255)
                 if k == h - 1: MG[y, x] = (*hexc('#ffffff'), 255)
     crystals(110, 170, 6, 1); crystals(276, 170, 4, 2); crystals(420, 170, 5, 3); crystals(30, 171, 4, 4)
+    crystals(-60, 170, 5, 5); crystals(-128, 171, 3, 6); crystals(610, 170, 4, 7); crystals(700, 171, 3, 8)
     L['mitte'] = dict(img=M, f=0.45)
     L['mitte-glut'] = dict(img=MG, f=0.45, glow=dict(per=3.1, lo=0.5, steps=3))
     # ---- Boden (1,0): große Eisplatten, klare Fugen, ruhige Töne, Spiegelglanz (Schrägstreifen), Abglanz des Wasserfalls
-    Bd, seam, tid = floor(FY - 4, SH, [4, 5, 6, 8, 10, 12], FLOOR, vx=BX - 30, vy=-40, tile=44, seed=43, chips=0.0)
-    BG = np.zeros((SH, SW, 4), np.uint8)
+    Bd, seam, tid = floor(FY - 4, SH, [4, 5, 6, 8, 10, 12], FLOOR, vx=BX - 30, vy=-40, tile=44, seed=43, chips=0.0, w=WW, ox=-P)
+    BG = np.zeros((SH, WW, 4), np.uint8)
     C = np.array([(*hexc(c), 255) for c in FLOOR], np.uint8)
     for y in range(FY - 3, SH):
-        for x in range(SW):
+        for x in range(WW):
             if seam[y, x]: continue
-            q = (x + (y - FY) * 2.2) % 70
+            q = (x - P + (y - FY) * 2.2) % 70
             if q < 3 or 9 <= q < 10:
                 ci = FLOOR.index('#%02x%02x%02x' % tuple(Bd[y, x, :3])) if '#%02x%02x%02x' % tuple(Bd[y, x, :3]) in FLOOR else 2
                 Bd[y, x] = C[min(4, ci + 1)]
     # Abglanz des Wasserfalls im Eis: Spalten nahe WF heller, Rand gerastert
     for y in range(FY - 3, SH):
         for x in range(WF - 50, WF + 51):
-            if seam[y, x]: continue
+            if seam[y, x + P]: continue
             k = 1 - abs(x - WF) / 50 - (y - FY) / 40
             if k <= 0 or (k < 0.35 and BAYER4[y % 4, x % 4] > k * 3): continue
-            Bd[y, x] = (*hexc('#2c5274' if k > 0.6 and x % 3 else '#1f3c5a'), 255)
-    for x in range(SW): Bd[FY - 4, x] = (*hexc('#7aa8c4' if hash2(x, 1, 2) > 0.3 else '#4a7896'), 255)
+            Bd[y, x + P] = (*hexc('#2c5274' if k > 0.6 and x % 3 else '#1f3c5a'), 255)
+    for x in range(WW): Bd[FY - 4, x] = (*hexc('#7aa8c4' if hash2(x - P, 1, 2) > 0.3 else '#4a7896'), 255)
     for y, x in zip(*np.nonzero(seam)):
         if y == FY - 4: continue
         Bd[y, x] = (*hexc('#02050b'), 255)
         # Fugen nahe dem Wurm glimmen kalt
-        far = abs(x - (BX + 40)) / 140 + (y - FY) / 26
+        far = abs(x - P - (BX + 40)) / 140 + (y - FY) / 26
         if far < 1.0 and y < SH - 4:
             Bd[y, x] = (*hexc('#0c2a44'), 255)
             if far < 0.55: BG[y, x] = (*hexc(FROST[1]), 255)
     # Schatten unter dem Wurm (feste Stufen): Brust/Klauen und Leib
     for dy, k in ((-3, 0.62), (-2, 0.55), (-1, 0.55), (0, 0.6), (1, 0.72)):
         y = FY + dy
-        for x in range(BX - 46, BX + 170):
+        for x in range(BX - 46 + P, BX + 170 + P):
             r, g, b_, a = Bd[y, x]
             if a: Bd[y, x] = (int(r * k), int(g * k), int(b_ * k), a)
             BG[y, x] = 0
     L['boden'] = dict(img=Bd, f=1.0)
     L['boden-glut'] = dict(img=BG, f=1.0, glow=dict(per=3.3, lo=0.4, steps=3))
-    # ---- Vorn (1,35): hängende Zapfen oben links/rechts, Eisblöcke unten, Schattenrisse mit Lichtkante
-    V = Buf()
-    vm = np.zeros((SH, SW), bool)
-    for x0, w, L_ in ((6, 16, 40), (20, 10, 26), (34, 13, 50), (48, 7, 20), (530, 14, 44), (546, 10, 30), (516, 8, 22)):
+    # ---- Vorn (1,35): hängende Zapfen oben, Eisblöcke unten, Schattenrisse mit Lichtkante
+    V = Buf(w=WW)
+    vm = np.zeros((SH, WW), bool)
+    for x0, w, L_ in ((6, 16, 40), (20, 10, 26), (34, 13, 50), (48, 7, 20), (530, 14, 44), (546, 10, 30), (516, 8, 22),
+                      (-128, 14, 46), (-112, 9, 28), (-96, 12, 36), (-60, 8, 24), (604, 12, 40), (622, 9, 26), (664, 15, 48), (690, 10, 30)):
         for y in range(0, L_):
             k = 1 - y / L_
             hw = w / 2 * k ** 0.8
-            vm[y, max(0, int(round(x0 - hw))):min(SW, int(round(x0 + hw)) + 1)] = True
-    vm[0:3, :60] = True; vm[0:3, 508:] = True
-    vm |= V.poly([(-4, SH), (-4, 184), (10, 176), (16, 186), (24, 172), (32, 190), (42, 196), (48, SH)])
-    vm |= V.poly([(506, SH), (514, 198), (528, 188), (546, 192), (564, 186), (564, SH)])
+            vm[y, max(0, int(round(x0 - hw)) + P):min(WW, int(round(x0 + hw)) + 1 + P)] = True
+    vm[0:3, :60 + P] = True; vm[0:3, 508 + P:] = True
+    sh_ = lambda pts: [(x + P, y) for x, y in pts]
+    vm |= V.poly(sh_([(-P - 4, SH), (-P - 4, 190), (-130, 186), (-104, 193), (-82, 182), (-62, 190), (-40, 186), (-22, 193), (-4, 184), (10, 176), (16, 186), (24, 172),
+                      (32, 190), (42, 196), (48, SH)]))
+    vm |= V.poly(sh_([(506, SH), (514, 198), (528, 188), (546, 192), (564, 186), (590, 193), (616, 184), (642, 191), (672, 182), (700, 189), (SW + P + 4, 185),
+                      (SW + P + 4, SH)]))
     V.a[vm] = (*hexc('#010309'), 255)
     e = outline_mask(~vm) & vm
     V.a[e] = (*hexc('#0f2238'), 255)
@@ -1159,7 +1183,7 @@ def build():
     fx['reste'] = strip(reste())
     bd = [dict(k='bild', r='schatten', at=t0, x=RF0[0], y=RF0[1], w=RFW, h=RFH, n=len(sh_), ms=SHMS, quer=True, z='boden'),
           dict(k='bild', r='reste', at=RFAT, x=RF0[0], y=RF0[1], w=RFW, h=RFH, n=RFN, ms=RFMS, quer=True, z='boden')]
-    wave, wm = seam_wave(seam, SAL_X, FY - 3, v=260, ms=60, pal=FROST, direction=0, maxd=330,
+    wave, wm = seam_wave(seam, SAL_X, FY - 3, v=260, ms=60, pal=FROST, direction=0, maxd=330, ox=-PAD,
                          peak=lambda d: 4 if d < 60 else 3 if d < 150 else 2, ages=(0.1, 0.3, 0.6, 1.0))
     fx['welle'] = wave
     bd.append(dict(k='bild', r='welle', at=0, x=wm['x'], y=wm['y'], w=wm['w'], h=wm['h'], n=wm['n'], ms=wm['ms'], z='boden'))
