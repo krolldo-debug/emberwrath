@@ -30,7 +30,7 @@ const SCENES = [
   K('nerith', { cls: 'warrior', zone: 'sunken_temple', target: 'boss', party: [['mage', 'dps', 'emberborn'], ['ranger', 'dps', 'elf']], density: 0.3, hideFx: 'ImpactStar',
     grade: 'brightness(1.3) contrast(1.2) saturate(1.1)', hero: [-40, 10], comps: [[-66, -2], [-62, 22]], cam: [-24, -18], light: [[-60, 0, 80, [255, 180, 110], 0.6]], keys: [['r', 900]] }),
   // Mutter Fäulnis im Sporenschlund (13.10.: im Feinraster dunkler – Grundlicht ×2,2, warmes Licht auf der Gruppe)
-  K('faeulnis', { lightMode: 'soft', cls: 'warrior', zone: 'spore_hollow', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], density: 0.25, hideFx: 'ImpactStar|Shockwave',
+  K('faeulnis', { lightMode: 'soft', noPools: true, cls: 'warrior', zone: 'spore_hollow', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], density: 0.25, hideFx: 'ImpactStar|Shockwave',
     grade: 'brightness(1.4) contrast(1.18) saturate(1.1)', amb: 2.2, hero: [-50, 10], comps: [[-78, -2], [-74, 24]], cam: [-30, -16], light: [[-70, 0, 80, [255, 190, 140], 0.6], [-62, 8, 60, [255, 210, 170], 0.8]], keys: [['r', 900], ['g', 2600]] }),
 ];
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -93,6 +93,15 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id)).m
       }
     }
     if (sc.density != null) g.scenes.current.world.particles.density = sc.density;
+    if (sc.noPools) {
+      // Sporenbecken ('~') als Boden zeichnen: die grellgrünen Becken neben der Gruppe lenken ab (nur für die Aufnahme)
+      const w0 = g.scenes.current.world, d = w0.dungeon;
+      for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) if (d.rows[y][x] === '~') { d.solid[y * d.w + x] = 0; if (d.terrain?.[y]) d.terrain[y][x] = '.'; }
+      for (let y = 0; y < d.h; y++) if (d.rows[y].includes('~')) d.rows[y] = typeof d.rows[y] === 'string' ? d.rows[y].replaceAll('~', '.') : d.rows[y].map((c) => (c === '~' ? '.' : c));
+      d.liquidCells = [];
+      d.level.secrets = [...(d.level.secrets ?? []), { id: '__shot', char: '\u0000' }];
+      w0.openSecret('__shot');   // baut den Hintergrund neu
+    }
     if (sc.amb) { const L = g.scenes.current.world.lighting; L.ambient = L.ambient.map((v) => v * sc.amb); }   // Grundlicht (wie welt.mjs)
     // wenig Blutspritzer, keine Blutflecken am Boden (wie welt.mjs)
     { const w0 = g.scenes.current.world;

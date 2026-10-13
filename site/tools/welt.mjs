@@ -50,7 +50,7 @@ export const SCENES = [
   W('leben-schmied', { cls: 'mage', zone: 'emberhollow', target: 'npc:smith_brom', hero: [-34, 8], foes: [], click: false, keys: [], cam: [-16, -14], density: 0.6 }),
   W('leben-handel', { lightMode: 'soft', cls: 'rogue', zone: 'ashen_steppe', target: 'npc:trader_imra', hero: [28, 8], face: -1, foes: [], click: false, keys: [], cam: [19, -30], density: 0.6, amb: 1.5, light: [[-16, -6, 70, [255, 200, 150], 0.4]] }),
   W('leben-ritt', { cls: 'warrior', zone: 'ember_wastes', target: 'pos', pos: [1017, 748], hero: [0, 0], face: 1, mount: 'rime_drake', hold: 'KeyD', foes: [], click: false, keys: [], cam: [-2, -14], density: 0.6, lightMode: 'flat', flat: [215, 180, 158] }),
-  W('leben-gruppe', { lightMode: 'soft', cls: 'warrior', zone: 'frostspire', target: 'npc:jarl_eskil', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-30, 26], comps: [[-68, 12, 1], [-56, 40, 1]], foes: [], click: false, keys: [], cam: [-22, -6], density: 0.6 }),
+  W('leben-gruppe', { lightMode: 'flat', flat: [180, 178, 200], cls: 'warrior', zone: 'frostspire', target: 'npc:jarl_eskil', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-30, 26], comps: [[-68, 12, 1], [-56, 40, 1]], foes: [], click: false, keys: [], cam: [-22, -6], density: 0.6 }),
 ];
 const env = (k, d) => (process.env[k] ? JSON.parse(process.env[k]) : d);
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
