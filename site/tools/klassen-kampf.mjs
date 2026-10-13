@@ -108,20 +108,32 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     const R = g.view.width / (await import('/src/config.js')).CONFIG.viewWidth;   // Bildpunkte je Weltpixel (2)
     const W = 240, H = 140, ox = 70, oy = 100, cx0 = Math.round(x0 - ox), cy0 = Math.round(y0 - oy);
     const frames = [];
+    // Nicht zeigen (und beim Abwarten nicht mitzählen): Schrift (Schadenszahlen laufen seit der Belohnungsrunde als
+    // DamageNumber in Echtzeit und würden jede Fähigkeit bis zur Grenze strecken), Seelenfunken/EP-Kugeln
+    const HIDE = /FloatingText|DamageNumber|SoulWisp|XpOrb|CoinFountain|LootBeam|LevelUpBurst/;
+    // Lichtkreis der legendären Waffe (gfx/weaponFx.js, im Spiel ein 'lighter'-Ring auf dem Boden): ohne Boden wirkt er
+    // wie ein Auswahlring, daher hier weglassen (RING=1 zeigt ihn). Erkannt am Zeichnen im Modus 'lighter' während h.render.
+    const hideRing = !c.ring;
+    const noRing = (fn) => (x, ...a) => {
+      if (!hideRing) return fn(x, ...a);
+      x.drawImage = function (...q) { if (this.globalCompositeOperation === 'lighter') return; return CanvasRenderingContext2D.prototype.drawImage.apply(this, q); };
+      try { return fn(x, ...a); } finally { delete x.drawImage; }
+    };
+    const heroRender = noRing(h.render.bind(h)), heroEmissive = noRing(h.renderEmissive.bind(h));
     const draw = () => {
       const cv = document.createElement('canvas'); cv.width = W * R; cv.height = H * R;
       const x = cv.getContext('2d'); x.setTransform(R, 0, 0, R, 0, 0); x.imageSmoothingEnabled = false;
       dummy.flash = Math.min(dummy.flash, 0.025); dummy.hpBarTimer = 0; dummy.hp = dummy.maxHp;
-      const show = (e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name);
+      const show = (e) => !old.has(e) && !HIDE.test(e.constructor?.name);
       const ents = w.entities.filter(show), fx = w.effects.filter(show);
       drawCracks(x, cx0, cy0);
       const ds = [...ents, h, ...(c.foe ? [dummy] : []), ...w.projectiles].sort((a, b2) => a.sortY - b2.sortY);
-      for (const d of ds) d.render(x, cx0, cy0);
+      for (const d of ds) (d === h ? heroRender : d.render.bind(d))(x, cx0, cy0);
       // Schwebende Funken der Ausrüstung, die weit über die Bühne steigen, nicht zeichnen
       const all = w.particles.active, keep = all.filter((q) => q.y - (q.z ?? 0) > y0 - 44);
       w.particles.active = keep;
       w.particles.drawLit(x, cx0, cy0);
-      for (const d of ds) d.renderEmissive?.(x, cx0, cy0);
+      for (const d of ds) (d === h ? heroEmissive : d.renderEmissive?.bind(d))?.(x, cx0, cy0);
       w.particles.drawEmissive(x, cx0, cy0);
       w.particles.active = all;
       for (const e of fx) e.renderEmissive?.(x, cx0, cy0);
@@ -139,7 +151,7 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     for (let i = 0; i < 6; i++) { for (let k = 0; k < STEPS; k++) step(); h.x = x0; h.y = y0; h.facing = 1; draw(); }
     const fight = frames.splice(0);
     // Abwarten, bis Held wieder ruht und alle Effekte verklungen sind (höchstens 4 s)
-    const busy = () => h.animator.name !== 'idle' || cracks.some((ck) => simT - ck.t < CRACK_LIFE) || w.projectiles.length > 0 || w.effects.some((e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name)) || w.entities.some((e) => !old.has(e) && !/FloatingText|SoulWisp/.test(e.constructor?.name));
+    const busy = () => h.animator.name !== 'idle' || cracks.some((ck) => simT - ck.t < CRACK_LIFE) || w.projectiles.length > 0 || w.effects.some((e) => !old.has(e) && !HIDE.test(e.constructor?.name)) || w.entities.some((e) => !old.has(e) && !HIDE.test(e.constructor?.name));
     const settle = () => { for (let i = 0; i < 240 && busy(); i++) { step(); h.x = x0; h.y = y0; h.facing = 1; } h.buffs = []; w.particles.active.splice(0); for (let i = 0; i < 90; i++) step(); h.x = x0; h.y = y0; h.facing = 1; };
     // Glanzkreuz auf der Waffe hängt an performance.now: in Ruhe- und Fähigkeitsbildern festhalten, damit nichts aufblitzt
     const pn = performance.now.bind(performance);
@@ -180,7 +192,7 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
       return strip.toDataURL('image/png');
     };
     return { url: toStrip(fight), idle: toStrip(idle), skills: skills.map(toStrip), counts: { fight: fight.length, idle: idle.length, skills: skills.map((f) => f.length), hc, dc }, fw, fh, R, n: fight.length, foot: { x: ox - x1, y: oy - y1 } };
-  }, { cls, c: { ...c, foeType: process.env.FOE ?? c.foeType }, FPS, STEPS });
+  }, { cls, c: { ...c, foeType: process.env.FOE ?? c.foeType, ring: process.env.RING === '1' }, FPS, STEPS });
   const save = (f, url) => writeFileSync(`${OUT}/${f}`, Buffer.from(url.split(',')[1], 'base64'));
   save(`kampf-${cls}.png`, r.url); save(`ruhe-${cls}.png`, r.idle);
   r.skills.forEach((u, i) => save(`kampf-${cls}-${i + 1}.png`, u));
