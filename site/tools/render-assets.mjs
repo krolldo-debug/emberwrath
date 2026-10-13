@@ -12,7 +12,7 @@ const POSES = { idle: [0], atk1: [2, 3], atk2: [3], spin: [1], cast: [2, 3], sla
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
-await p.goto('http://localhost:8102/index.html');
+await p.goto(`${process.env.EW_URL ?? 'http://localhost:8102'}/index.html`);   // EW_URL für einen anderen Stand
 await p.waitForFunction(() => window.emberfall?.scenes?.currentId, null, { timeout: 20000 });
 const files = await p.evaluate(async ({ HEROES, POSES }) => {
   const g = window.emberfall;
