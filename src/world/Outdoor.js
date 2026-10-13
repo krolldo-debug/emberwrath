@@ -12,7 +12,7 @@ import { GROUND_PEAKS } from '../sprites/decor_peaks.js';
 
 // Wertrauschen mit gemerkter Gitterzelle je Aufrufstelle (Formel wie vnoise, bitgleich): benachbarte
 // Pixel liegen fast immer in derselben Zelle, dann entfallen die vier Hashes
-const VNC = new Float64Array(14 * 7).fill(NaN);
+const VNC = new Float64Array(12 * 7).fill(NaN);
 function vnc(s, x, y, seed) {
   const x0 = Math.floor(x), y0 = Math.floor(y), o = s * 7;
   if (VNC[o] !== x0 || VNC[o + 1] !== y0 || VNC[o + 6] !== seed) {
@@ -278,6 +278,7 @@ export class Outdoor extends TileMap {
     this.#prepare();
     this.kgrid = null;
     this.nearPave = null;
+    this.paveT = null;
     this.overview = null;
     this.ready = true;
     // Die Karten (ui/MapArt) zeichnen aus dem Raster und lesen world.background nicht mehr; das
@@ -609,10 +610,18 @@ export class Outdoor extends TileMap {
       const w = this.w;
       this.kgrid = new Uint8Array(w * this.h);
       for (let y = 0; y < this.h; y++) for (let x = 0; x < w; x++) this.kgrid[y * w + x] = KCODE[this.terrain[y][x]] ?? FK.GRASS;
-      // Kacheln mit Pflaster in der 3 × 3-Nachbarschaft (dort folgt die Pflasterkante ganzen Steinen, #fineKinds)
-      const h = this.h, np = this.nearPave = new Uint8Array(w * h);
+      // Pflasterkacheln (einzelne Bodenkacheln mitten im Platz zählen mit: keine Löcher) und Kacheln mit Pflaster in der
+      // 3 × 3-Nachbarschaft: dort entscheidet das geglättete Pflasterfeld, #fineKinds
+      const h = this.h, kg = this.kgrid, pt = this.paveT = new Uint8Array(w * h), np = this.nearPave = new Uint8Array(w * h);
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        if (this.kgrid[y * w + x] !== FK.PAVE) continue;
+        if (kg[y * w + x] === FK.PAVE) { pt[y * w + x] = 1; continue; }
+        if (kg[y * w + x] > FK.PAVE || x < 1 || y < 1 || x >= w - 1 || y >= h - 1) continue;
+        let c = 0;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (kg[(y + j) * w + x + i] === FK.PAVE) c++;
+        if (c >= 5) pt[y * w + x] = 1;
+      }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!pt[y * w + x]) continue;
         for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const xx = x + i, yy = y + j; if (xx >= 0 && yy >= 0 && xx < w && yy < h) np[yy * w + xx] = 1; }
       }
     }
@@ -643,17 +652,34 @@ export class Outdoor extends TileMap {
         const in0 = tx0 >= 0 && tx0 < w, in1 = tx1 >= 0 && tx1 < w;
         K[b] = r0 >= 0 && in0 ? kg[r0 + tx0] : G; K[b + 1] = r0 >= 0 && in1 ? kg[r0 + tx1] : G;
         K[b + KW] = r1 >= 0 && in0 ? kg[r1 + tx0] : G; K[b + KW + 1] = r1 >= 0 && in1 ? kg[r1 + tx1] : G;
-        // Pflaster: Kante folgt ganzen Steinen (Raster 6 × 5 Weltpixel wie kit paveAt), entschieden an der Steinmitte –
-        // klare, gezeichnete Kante statt eines pixelweise ausfransenden Treppenrands
+        // Pflaster: Kante am geglätteten Kachelfeld (gerade Kanten, abgeschrägte Ecken) statt verwackelt Pixel für Pixel –
+        // ein klarer, gezeichneter Platzrand; die Randsteine setzt #fineRows
         const ptx = Math.floor(px / T), pty = Math.floor(py / T);
         if (ptx >= 0 && pty >= 0 && ptx < w && pty < h && this.nearPave[pty * w + ptx]) {
-          const row = Math.floor(py / 5), sh = (row & 1) * 3, cx = Math.floor((px + sh) / 6) * 6 - sh + 3, cy = row * 5 + 2.5;
-          const qx = Math.floor((cx + (vnc(12, cx / 7, cy / 7, 21) - 0.5) * 9) / T), qy = Math.floor((cy + (vnc(13, cx / 7, cy / 7, 22) - 0.5) * 9) / T);
-          const kc = qx >= 0 && qy >= 0 && qx < w && qy < h ? kg[qy * w + qx] : G, pc = kc === FK.PAVE;
-          for (const e of [b, b + 1, b + KW, b + KW + 1]) if ((K[e] === FK.PAVE) !== pc) K[e] = kc;
+          for (let q = 0; q < 4; q++) {
+            const e = b + (q & 1) + (q >> 1) * KW, want = this.#paveField(px + 0.25 + (q & 1) * 0.5, py + 0.25 + (q >> 1) * 0.5) >= 0.5;
+            if (want) K[e] = FK.PAVE;
+            else if (K[e] === FK.PAVE) K[e] = this.#besidePave(ptx, pty);
+          }
         }
       }
     }
+  }
+
+  // Pflasterfeld (Kacheln aus paveT, bilinear zwischen den Kachelmitten) an einem Weltpunkt
+  #paveField(x, y) {
+    const w = this.w, fx = x / T - 0.5, fy = y / T - 0.5, tx = Math.floor(fx), ty = Math.floor(fy), ax = fx - tx, ay = fy - ty;
+    const at = (i, j) => (i < 0 || j < 0 || i >= w || j >= this.h ? 0 : this.paveT[j * w + i]);
+    return (at(tx, ty) * (1 - ax) + at(tx + 1, ty) * ax) * (1 - ay) + (at(tx, ty + 1) * (1 - ax) + at(tx + 1, ty + 1) * ax) * ay;
+  }
+  // Boden neben dem Platz: Kachel selbst, sonst die erste Nachbarkachel ohne Pflaster
+  #besidePave(tx, ty) {
+    const w = this.w, kg = this.kgrid;
+    for (const [i, j] of [[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const x = tx + i, y = ty + j;
+      if (x >= 0 && y >= 0 && x < w && y < this.h && kg[y * w + x] < FK.PAVE) return kg[y * w + x];
+    }
+    return FK.GRASS;
   }
 
   // Farben der Feinzeilen [Ga, Gb); Wasser/Spalten über den Weltpixel-Shader (zwei Feinpixel nebeneinander teilen ihn)
@@ -664,7 +690,14 @@ export class Outdoor extends TileMap {
       for (let F = 0; F < W2; F++) {
         const ki = row + F, kind = K[ki], o = G * W2 + F;
         if (cover && cover[crow + (F >> 1)]) { d32[o] = 0xff000000; continue; }   // Felsmaler deckt (Ebene folgt)
-        const v = fp(kind, F0 + F, G0 + G, K, ki, KW, S);
+        let v = fp(kind, F0 + F, G0 + G, K, ki, KW, S);
+        // Randsteine: äußerste Feinzeile dunkle Kante, die nächsten zwei eine Stufe dunkler
+        if (kind === FK.PAVE && v >= 0) {
+          const P = FK.PAVE;
+          const e1 = K[ki - 1] !== P || K[ki + 1] !== P || K[ki - KW] !== P || K[ki + KW] !== P;
+          const e2 = e1 || K[ki - 3] !== P || K[ki + 3] !== P || K[ki - 3 * KW] !== P || K[ki + 3 * KW] !== P;
+          if (e2) { const k = e1 ? 0.5 : 0.76; v = ((((v >> 16) & 255) * k) << 16) | ((((v >> 8) & 255) * k) << 8) | ((v & 255) * k); }
+        }
         if (v >= 0) { d32[o] = (0xff000000 | ((v & 255) << 16) | (v & 0xff00) | (v >> 16)) >>> 0; continue; }
         // Weltpixel-Shader: je Weltpixel und Terrain einmal (Merker je Spalte, gilt für beide Feinzeilen)
         const wx = F >> 1, key = ((G >> 1) * 8 + kind) + 1;

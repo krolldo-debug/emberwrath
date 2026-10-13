@@ -1,6 +1,6 @@
 import { Actor } from './Actor.js';
 import { SlashEffect, Afterimage } from './Effects.js';
-import { SLASH_STYLES } from '../sprites/effects.js';
+import { heroSlashStyle } from '../sprites/effects.js';
 import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
 import { Light } from '../gfx/Lighting.js';
@@ -534,8 +534,7 @@ export class Hero extends Actor {
       damage: this.damageFor(a.mult), knockback: a.knockback, heavy: !!a.heavy, ttl: a.active,
     });
     const great = !!this.animator.anims?.greatWeapon;
-    const own = this.animator.anims?.setSlash;
-    const style = great ? (a.heavy ? SLASH_STYLES.greatHeavy : SLASH_STYLES.great) : own ? SLASH_STYLES[a.heavy ? own + 'Heavy' : own] : a.heavy ? SLASH_STYLES.heroHeavy : SLASH_STYLES.hero;
+    const style = heroSlashStyle({ great, own: this.animator.anims?.setSlash, rogue: this.classId === 'rogue' }, !!a.heavy);
     // Zweihänder: nur ein Bogen gleichzeitig – der vorige Hieb der Kombo verschwindet, sobald der nächste beginnt
     if (great) for (const e of world.effects ?? []) if (e instanceof SlashEffect && e.owner === this) e.removed = true;
     world.addEffect(new SlashEffect(this, this.aimAngle, style, this.combo === 1, a.active + 0.08));
