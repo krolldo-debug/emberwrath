@@ -12,6 +12,8 @@ const C = {
   old: ramp(['#46526a', '#535f77', '#616d85', '#707c94', '#808ca3', '#95a0b5']),
   // Neuschnee eine halbe Stufe ruhiger als G_NEW (nicht grell; Glitzer und Lippen tragen das Licht)
   neu: ramp(['#64738b', '#7b8aa2', '#93a2b8', '#aab7ca', '#c3cedd', '#e0e8f2']),
+  // offene Schneefläche ohne Bodenangabe: ein Ton zwischen Alt- und Neuschnee (der Wechsel beider ergab Tarnflecken)
+  snow: ramp(['#525f77', '#637088', '#758299', '#8793a9', '#9aa6ba', '#b3bccd']),
   // festgetretener Schnee: kühl und nah am Altschnee (Spur ruhig, kein Flickenmuster)
   track: ramp(['#383f50', '#434b5d', '#4f586a', '#5b6477', '#697285', '#7b8497']),
   earth: ramp(['#211b18', '#2c2420', '#383029', '#463b32', '#554839', '#665747']),
@@ -72,9 +74,6 @@ function* frostSetup(x0, y0, cw, ch, K, KW, M, map) {
   return S;
 }
 
-// Neuschnee am Ort (offene Fläche: großflächiger Wechsel mit harter, ruhiger Kante – das Feld ändert sich so langsam,
-// dass jede Rasterung am Übergang zu einem breiten Punktfeld würde)
-const freshAt = (S, F, G) => S.fresh !== null && fineAt(S.fresh, S, F, G) > 0.47;   // ohne Neuschnee im Chunk (has[32]) kein Feld
 // Fleckdecke (Schnee auf Erde/Wald, Schneebänder auf dem Gletscher) am Feinpixel: Feld fein interpoliert, harte Kante
 // harte Kante ohne Rasterung (Schnee liegt erhaben auf: Lichtkante oben, Schattenzeile darunter)
 const covAt = (f, S, F, G, thr) => fineAt(f, S, F, G) > thr;
@@ -140,7 +139,7 @@ function stamps(S) {
     if (hash2(cx, cy, 875) >= 0.1) return;
     const F = cx * 12 + 1 + Math.floor(hash2(cx, cy, 876) * 10), G = cy * 10 + 1 + Math.floor(hash2(cx, cy, 877) * 8);
     const s = sAt(F, G);
-    if (kAt(F, G) !== GR || !(s === SI || (s === SG && !covAt(S.gcov, S, F, G, 0.6)))) return;
+    if (kAt(F, G) !== GR || !(s === SI || (s === SG && !covAt(S.gcov, S, F, G, 0.66)))) return;
     S.put(F, G, s === SI ? C.cice[5] : C.gice[5]);
   });
   // Knochensplitter im Trollhöhlenboden
@@ -238,7 +237,7 @@ function crevFine(level, segs, F, G) {
   if (!solid) {
     // Schneebrücke: Spalte nur als Schatten im Schnee, Lichtkante auf der Brücke
     if (e < -0.8) return sn < 0 && e > -1.3 ? C.neu[3] : C.neu[4];
-    if (e < 0.6) return C.old[2];
+    if (e < 0.6) return C.snow[1];
     return -1;
   }
   if (e < 0) {
@@ -247,7 +246,7 @@ function crevFine(level, segs, F, G) {
     return C.wall[clampI(Math.floor(Math.sqrt(Math.max(0, q)) * 6.2), 0, 5)];   // Nordwand: hell oben, rasch dunkel
   }
   if (sn < 0 && e < 1.4) return e < 0.5 ? C.neu[5] : C.neu[4];                  // verschneiter Oberrand, Kante im Licht
-  if (sn > 0 && e < 3.5 && D4[(G & 3) * 4 + (F & 3)] / 16 < 0.5 - e / 7) return C.old[3];
+  if (sn > 0 && e < 3.5 && D4[(G & 3) * 4 + (F & 3)] / 16 < 0.5 - e / 7) return C.snow[2];
   return -1;
 }
 
@@ -255,9 +254,10 @@ function crevFine(level, segs, F, G) {
 // die Fläche zum Mond), Windrippen (rip), Weglippe hell; rel: Stempel-Relief (Schatten, Bruchkanten)
 function snowPx(R, K, ki, KW, S, wi, dt, F, G, o, rip) {
   if (K[ki + KW] === DI) return R[4];
-  let k = bandW(fineAt(S.tone, S, F, G), 2, dt, 0.08);
+  // ruhig: ein Grundton, Licht und Schatten nur an deutlichen Wehen (großflächige Tonstufen ergaben Tarnflecken)
+  let k = 0;
   const L = fineAt(S.lit, S, F, G);
-  if (L > 0.07) k++; else if (L < -0.07) k--;
+  if (L > 0.16) k++; else if (L < -0.16) k--;
   if (rip && S.rz !== null && S.rz[wi] > 0.64) {
     const p = (G + F * 0.21 + fineAt(S.hgt, S, F, G) * 40) / 9, f = p - Math.floor(p);
     if (f < 0.111) k++; else if (f < 0.222) k--;
@@ -311,31 +311,31 @@ function frostFine(kind, F, G, K, ki, KW, S) {
   if (kind === DI) return trackPx(s, K, ki, KW, S, wi, dt, a, o, F, G);
   if (a >= 0) return a;
   switch (s) {
-    case SN: return snowPx(C.neu, K, ki, KW, S, wi, dt, F, G, o, true);
-    case SA: return snowPx(C.old, K, ki, KW, S, wi, dt, F, G, o, true);
-    case SW: return snowPx(C.neu, K, ki, KW, S, wi, dt, F, G, o, false);
-    case SS: return snowPx(C.old, K, ki, KW, S, wi, dt, F, G, o, false);
+    // Neu- und Altschnee im selben Ton (zwei Rampen nebeneinander ergaben Tarnflecken); Neuschnee glitzert
+    case SN: case SA: return snowPx(C.snow, K, ki, KW, S, wi, dt, F, G, o, true);
+    case SW: return snowPx(C.snow, K, ki, KW, S, wi, dt, F, G, o, false);
+    case SS: return snowPx(C.snow, K, ki, KW, S, wi, dt, F, G, o, false);
     case SE: {
-      const c = patchSnow(S.pe, thrSE(S, F, G), C.old, K, ki, KW, S, wi, dt, F, G, o);
+      const c = patchSnow(S.pe, thrSE(S, F, G), C.snow, K, ki, KW, S, wi, dt, F, G, o);
       if (c >= 0) return c;
       if (c === -2) return C.thaw[1];
       return C.thaw[clampI(2 + bandW(fineAt(S.tone, S, F, G), 1.6, dt, 0.12) + (S.rel[o] < 0 ? -1 : 0), 0, 5)];
     }
     case SF: {
-      const c = patchSnow(S.pat, 0.6, C.old, K, ki, KW, S, wi, dt, F, G, o);
+      const c = patchSnow(S.pat, 0.6, C.snow, K, ki, KW, S, wi, dt, F, G, o);
       if (c >= 0) return c;
       if (c === -2) return C.needle[0];
       return C.needle[clampI(1 + bandW(fineAt(S.tone, S, F, G), 2.4, dt, 0.12) + (S.rel[o] < 0 ? -1 : 0), 0, 5)];
     }
     case SG: {
-      const c = patchSnow(S.gcov, 0.6, C.neu, K, ki, KW, S, wi, dt, F, G, o);
+      const c = patchSnow(S.gcov, 0.66, C.snow, K, ki, KW, S, wi, dt, F, G, o);
       if (c >= 0) return c;
       if (c === -2) return C.gice[0];
       return icePx(C.gice, S, F, G, dt, o);
     }
     case SI: return icePx(C.cice, S, F, G, dt, o);
     case ST: return C.cave[clampI(1 + bandW(fineAt(S.tone, S, F, G), 2.4, dt, 0.12) + S.rel[o], 0, 6)];
-    default: return snowPx(freshAt(S, F, G) ? C.neu : C.old, K, ki, KW, S, wi, dt, F, G, o, true);
+    default: return snowPx(C.snow, K, ki, KW, S, wi, dt, F, G, o, true);
   }
 }
 

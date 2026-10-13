@@ -32,9 +32,8 @@ export class Light {
 // Lightmap-Verfahren: Umgebungsdunkel + additive Lichter, dann per
 // "multiply" über die Szene. Danach optional additiver Bloom-Schimmer.
 // Die Lightmap hat halbe Auflösung: Füllen und Mischen kosten ein Viertel (Handy, große Außenkarten).
-// Feinraster (docs/STYLE.md, Grafikupdate): Licht in drei harten Stufen (vorgerechnete Stufen-Sprites, gleiche
-// Lichtmenge wie der weiche Verlauf), ohne Glättung vergrößert – Kanten auf 2-Weltpixel-Raster wie Pixel-Art.
-// Bei „Niedrig“ bleibt der weiche Verlauf.
+// Licht ist ein weicher, runder Verlauf in allen Qualitätsstufen: harte Stufen ergaben auf dem halben Raster eckige,
+// halbtransparente Scheiben um Feuer und Laternen (Nachtrag Grafikupdate). Hart gezeichnet werden die Flammen selbst.
 const LM = 0.5;
 const lmSize = (v) => Math.max(1, Math.ceil(v * LM));
 export class LightingSystem {
@@ -65,19 +64,20 @@ export class LightingSystem {
     l.fillStyle = `rgb(${Math.min(255, ar + k * 60)},${Math.min(255, ag + k * 40)},${Math.min(255, ab + k * 30)})`;
     l.fillRect(0, 0, this.w, this.h);
     l.globalCompositeOperation = 'lighter';
-    const stepped = fineRes() > 1;
-    l.imageSmoothingEnabled = !stepped;
+    l.imageSmoothingEnabled = true;
     for (const li of lights) {
       const r = li.radius;
       const sx = li.x - camX, sy = li.y - camY;
       if (sx + r < 0 || sy + r < 0 || sx - r > this.w || sy - r > this.h) continue;
       l.globalAlpha = Math.max(0, Math.min(1, li.value));
-      l.drawImage(getLightSprite(64, li.color, stepped), sx - r, sy - r, r * 2, r * 2);
+      l.drawImage(getLightSprite(64, li.color), sx - r, sy - r, r * 2, r * 2);
     }
     l.globalAlpha = 1;
     ctx.globalCompositeOperation = 'multiply';
+    // ungeglättet vergrößert: der weiche Verlauf in 2-Weltpixel-Schritten liest sich als Pixel-Licht und spart
+    // das Filtern der ganzen Bildfläche (Handy)
     const smooth = ctx.imageSmoothingEnabled;
-    ctx.imageSmoothingEnabled = !stepped;
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
     ctx.imageSmoothingEnabled = smooth;
     ctx.globalCompositeOperation = 'source-over';
@@ -86,8 +86,8 @@ export class LightingSystem {
   bloom(ctx, camX, camY, lights) {
     if (this.bloomScale === 0) return; // Qualität „Niedrig“: kein Leuchten-Pass
     ctx.globalCompositeOperation = 'lighter';
-    const stepped = fineRes() > 1;
-    ctx.imageSmoothingEnabled = !stepped;
+    const fine = fineRes() > 1;
+    ctx.imageSmoothingEnabled = true;
     for (const li of lights) {
       if (!li.bloom) continue;
       const r = li.radius * 0.45;
@@ -95,9 +95,9 @@ export class LightingSystem {
       if (sx + r < 0 || sy + r < 0 || sx - r > this.w || sy - r > this.h) continue;
       // Feinraster: violette (Schatten-/Fluch-)Lichter kaum überstrahlen, sonst hellt der Schein den dunklen Kern
       // der Leerenpfütze (entities/Effects.js voidPool) wieder auf
-      const [cr, cg, cb] = li.color, voidish = stepped && cb >= cr && cg < cb * 0.6;
+      const [cr, cg, cb] = li.color, voidish = fine && cb >= cr && cg < cb * 0.6;
       ctx.globalAlpha = Math.max(0, Math.min(1, li.value * li.bloom * (this.bloomScale ?? 1) * (voidish ? 0.3 : 1)));
-      ctx.drawImage(getLightSprite(32, li.color, stepped && 'bloom'), sx - r, sy - r, r * 2, r * 2);
+      ctx.drawImage(getLightSprite(32, li.color), sx - r, sy - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1;
     ctx.imageSmoothingEnabled = false;

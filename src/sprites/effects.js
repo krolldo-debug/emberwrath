@@ -21,6 +21,7 @@ const COLD = ['#ffffff', '#e0ecff', '#a8c0f0', '#7088c8', '#48527a', '#2d3548'].
 // ox/oy = Lage im vollen Quadrat (Texel), size = Seitenlänge des vollen Quadrats in Weltpixeln.
 const a3 = (v) => (v > 0.7 ? 255 : v > 0.4 ? 170 : v > 0.12 ? 85 : 0);
 function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, reverse, res) {
+  if (res > 1 && !hard) return buildDrawnSlash({ radius, width, span, soft }, dirIndex, frame, reverse, res);
   const R = radius + 3;
   const size = R * 2 + 1, S = size * res, e1 = 1 / res;   // e1 = ein Feinpixel in Weltpixeln
   const d = new Uint8ClampedArray(S * S * 4);
@@ -98,6 +99,66 @@ function buildSlashFrame({ radius, width, span, soft, hard }, dirIndex, frame, r
   return cropFrame(d, S, res, size);
 }
 
+// Feinraster: gezeichnete Sichel statt glatter Ringbänder (die wirkten wie Vektor-Ellipsen). Körper auf dem
+// Weltpixel-Raster: Sichel läuft zur Spitze und zum Schweif spitz zu, Farbbänder in ganzen Pixelstufen, dunkle
+// Innenkante, der Schweif zerfällt in Speedlines (lange Strichel auf jeder zweiten Bahn). Nur die Schneide außen ist ein Feinpixel heller Strich.
+function buildDrawnSlash({ radius, width, span, soft }, dirIndex, frame, reverse, res) {
+  const R = radius + 3;
+  const size = R * 2 + 1, S = size * res, e1 = 1 / res;
+  const d = new Uint8ClampedArray(S * S * 4);
+  const dir = (dirIndex / DIRS) * TAU;
+  const prog = (frame + 1) / FRAMES;
+  const head = Math.min(1, prog * 1.6);
+  const tailLen = 0.75;
+  const fade = prog > 0.6 ? 1 - (prog - 0.6) / 0.4 : 1;
+  const dim = fade < 0.34 ? 2 : fade < 0.67 ? 1 : 0;
+  const arcPx = span * radius;
+  const put = (X, Y, n, col) => { for (let y = Y; y < Y + n; y++) for (let x = X; x < X + n; x++) { const i = (y * S + x) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; } };
+  // Lage auf dem Bogen: u (0 … 1 entlang der Schlagrichtung), behind (0 = Spitze, 1 = Schweifende)
+  const where = (dx, dy) => {
+    let a = Math.atan2(dy, dx) - dir;
+    a = ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
+    let u = (a + span / 2) / span;
+    if (u < 0 || u > 1) return null;
+    if (reverse) u = 1 - u;
+    if (u > head) return null;
+    const behind = (head - u) / tailLen;
+    return behind > 1 ? null : { u, behind };
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x + 0.5 - (R + 0.5), dy = y + 0.5 - (R + 0.5);
+      const r = Math.hypot(dx, dy), w = where(dx, dy);
+      if (!w) continue;
+      const { u, behind } = w;
+      const tip = (head - u) * arcPx;   // Weltpixel hinter der Spitze
+      let T = width * Math.pow(1 - behind, 0.8) * (0.45 + 0.55 * fade);
+      const end = Math.min(tip, u * arcPx);   // Spitze und Bogenanfang laufen spitz aus
+      if (end < 6) T *= 0.15 + end / 7;
+      T = Math.max(1, Math.round(T));
+      const dd = radius - r;
+      if (dd < 0 || dd >= T) continue;
+      const band = Math.floor(dd);
+      // Schweif: nur Strichel auf jeder zweiten Bahn, gegeneinander versetzt
+      if (behind > 0.5 && (band % 2 || Math.floor(u * arcPx / 4 + band * 1.5) % 3 === 2)) continue;
+      const e = dd / T;
+      let idx = e < 0.25 ? (behind < 0.15 ? 0 : 1) : e < 0.55 ? 2 : e < 0.8 ? 3 : 4;
+      if (!soft && T >= 3 && band === T - 1 && behind < 0.5) idx = 5;   // dunkle Innenkante
+      idx = Math.min(5, idx + Math.floor(behind * 2.2) + dim);
+      put(x * res, y * res, res, HOT[idx]);
+    }
+  }
+  // Schneide: ein Feinpixel heller Strich außen an der Spitze
+  if (!dim) for (let Y = 0; Y < S; Y++) for (let X = 0; X < S; X++) {
+    const dx = (X + 0.5) / res - (R + 0.5), dy = (Y + 0.5) / res - (R + 0.5);
+    const r = Math.hypot(dx, dy);
+    if (r <= radius || r > radius + e1) continue;
+    const w = where(dx, dy);
+    if (w && w.behind < 0.25 && (head - w.u) * arcPx >= 1) put(X, Y, 1, [255, 255, 240]);
+  }
+  return cropFrame(d, S, res, size);
+}
+
 // Leeren Rand abschneiden (spart Speicher: der Bogen füllt nur einen Teil des Quadrats)
 function cropFrame(d, S, res, size) {
   let x0 = S, y0 = S, x1 = -1, y1 = -1;
@@ -158,44 +219,14 @@ export function getEnemySlashFrame(angle, frame, res = fineRes()) {
 }
 
 // Radiale Licht-Sprites (vorgerendert statt pro Frame Gradienten zu bauen).
-// stepped (Feinraster, gfx/Lighting.js): Kern und Hof in zwei harten Stufen statt Verlauf; nur der schwache äußere
-// Saum läuft weich aus, damit keine harten Scheiben über Wände in die Dunkelheit reichen (wirkt sonst wie Bokeh).
-// Die Lichtmenge entspricht insgesamt der weichen Fassung (Stimmung der Gebiete bleibt gleich).
-// stepped === 'bloom': Schein nur als kleiner Kern in zwei Stufen, ohne Saum.
 const lightCache = new Map();
-const LIGHT_STEPS = [[0.3, 0.95], [0.5, 0.52]];
-const BLOOM_STEPS = [[0.2, 0.85], [0.42, 0.35]];
-export function getLightSprite(radius, rgb, stepped = false) {
+export function getLightSprite(radius, rgb) {
   const r = Math.max(4, Math.round(radius / 4) * 4);
-  const key = `${r}|${rgb.join(',')}|${stepped}`;
+  const key = `${r}|${rgb.join(',')}`;
   let c = lightCache.get(key);
   if (c) return c;
   c = makeCanvas(r * 2, r * 2);
   const ctx = c.getContext('2d');
-  if (stepped) {
-    const [cr, cg, cb] = rgb;
-    if (stepped !== 'bloom') {
-      const g = ctx.createRadialGradient(r, r, 0, r, r, r);
-      [[0, 0.36], [0.5, 0.36], [0.7, 0.15], [0.86, 0.05], [1, 0]].forEach(([t, a]) => g.addColorStop(t, `rgba(${cr},${cg},${cb},${a})`));
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, r * 2, r * 2);
-    }
-    // von außen nach innen deckend übermalen: jede Stufe eine Kreisfläche (Pixelkreis, keine Kantenglättung)
-    const steps = stepped === 'bloom' ? BLOOM_STEPS : LIGHT_STEPS;
-    for (let i = steps.length - 1; i >= 0; i--) {
-      const [t, a] = steps[i], R = t * r;
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${a})`;
-      for (let y = 0; y < r * 2; y++) {
-        const dy = y + 0.5 - r;
-        if (Math.abs(dy) > R) continue;
-        const w = Math.round(Math.sqrt(R * R - dy * dy));
-        ctx.clearRect(r - w, y, w * 2, 1);
-        ctx.fillRect(r - w, y, w * 2, 1);
-      }
-    }
-    lightCache.set(key, c);
-    return c;
-  }
   const g = ctx.createRadialGradient(r, r, 0, r, r, r);
   const [cr, cg, cb] = rgb;
   // Weicher, annähernd quadratischer Abfall: heller Kern, langer warmer Saum
