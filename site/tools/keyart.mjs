@@ -29,9 +29,9 @@ const SCENES = [
     grade: 'brightness(1.35) contrast(1.35) saturate(1.1)', hero: [-34, 10], comps: [[-60, -2], [-56, 22]], cam: [-22, -20], light: [[-50, 0, 90, [255, 180, 110], 0.6], [30, -40, 90, [150, 230, 255], 0.5]], keys: [] }),
   K('nerith', { cls: 'warrior', zone: 'sunken_temple', target: 'boss', party: [['mage', 'dps', 'emberborn'], ['ranger', 'dps', 'elf']], density: 0.3, hideFx: 'ImpactStar',
     grade: 'brightness(1.3) contrast(1.2) saturate(1.1)', hero: [-40, 10], comps: [[-66, -2], [-62, 22]], cam: [-24, -18], light: [[-60, 0, 80, [255, 180, 110], 0.6]], keys: [['r', 900]] }),
-  // Mutter Fäulnis im Sporenschlund
+  // Mutter Fäulnis im Sporenschlund (13.10.: im Feinraster dunkler – Grundlicht ×2,2, warmes Licht auf der Gruppe)
   K('faeulnis', { cls: 'warrior', zone: 'spore_hollow', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], density: 0.25, hideFx: 'ImpactStar|Shockwave',
-    grade: 'brightness(1.25) contrast(1.18) saturate(1.1)', hero: [-50, 10], comps: [[-78, -2], [-74, 24]], cam: [-30, -16], light: [[-70, 0, 80, [255, 190, 140], 0.6]], keys: [['r', 900], ['g', 2600]] }),
+    grade: 'brightness(1.25) contrast(1.18) saturate(1.1)', amb: 2.2, hero: [-50, 10], comps: [[-78, -2], [-74, 24]], cam: [-30, -16], light: [[-70, 0, 80, [255, 190, 140], 0.6], [-62, 8, 60, [255, 210, 170], 0.8]], keys: [['r', 900], ['g', 2600]] }),
 ];
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const meta = {};
@@ -92,6 +92,12 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
       }
     }
     if (sc.density != null) g.scenes.current.world.particles.density = sc.density;
+    if (sc.amb) { const L = g.scenes.current.world.lighting; L.ambient = L.ambient.map((v) => v * sc.amb); }   // Grundlicht (wie welt.mjs)
+    // wenig Blutspritzer, keine Blutflecken am Boden (wie welt.mjs)
+    { const w0 = g.scenes.current.world;
+      for (const k of ['splat', 'stamp', 'stampFrame']) if (w0.decals?.[k]) w0.decals[k] = () => {};
+      const gore = w0.particles.gore.bind(w0.particles);
+      w0.particles.gore = (x, y, z, a, n, pal) => gore(x, y, z, a, Math.ceil(n * 0.3), pal, false); }
     setInterval(() => { const w = g.scenes.current.world; if (!w) return; for (const a of w.actors) if (a === w.hero || a.companion) { a.hp = a.maxHp; a.resource = a.maxResource; } }, 50);
   }, { ...sc, mageHood: process.env.MAGEHOOD ?? 'colossus_hood', race: G40[sc.cls][0], gear: G40[sc.cls][1] });
   await p.addStyleTag({ content: '#ui{display:none!important}' });
@@ -119,7 +125,8 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
     };
     set(); setInterval(set, 8);
     const L = w.lights[0]?.constructor;
-    if (L) for (const [dx, dy, r, color, intensity] of sc.light ?? []) w.addLight(new L({ x: T.x + dx, y: T.y + dy, radius: r, color, intensity, flicker: 0.05, bloom: 0.5 }));
+    // Gegenlicht ohne Leuchten-Pass (bloom 0): der gestufte Schein des Feinrasters läge als flache Scheibe über den Figuren
+    if (L) for (const [dx, dy, r, color, intensity] of sc.light ?? []) w.addLight(new L({ x: T.x + dx, y: T.y + dy, radius: r, color, intensity, flicker: 0.05, bloom: 0 }));
     window.__camC = { x: T.x + sc.cam[0], y: T.y + sc.cam[1] };
     return { x: T.x, y: T.y, id: t.def?.id ?? t.type };
   }, sc);
@@ -148,7 +155,7 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
         const arr = w[key]; if (!Array.isArray(arr)) continue;
         for (let j = arr.length - 1; j >= 0; j--) {
           const n = arr[j]?.constructor?.name;
-          if (n === 'FloatingText') arr.splice(j, 1);
+          if (n === 'FloatingText' || n === 'DamageNumber') arr.splice(j, 1);
           else if (sc.hideFx && new RegExp(sc.hideFx).test(n ?? '')) hidden.push([arr, arr.splice(j, 1)[0]]);
           else if (/Telegraph|DamageWave|Marker|Fissure|Spear|Meteor|Pillar|Cataclysm|Patch|AshWave|GraveRift|Shockwave|SpinVortex|ChargeGlow|RiftFlash|NovaBurst|FlameRing|Whirlpool|FrostField|ToxicRing|RootSpikes|FireField/.test(n ?? '')) hidden.push([arr, arr.splice(j, 1)[0]]);
         }
@@ -158,6 +165,15 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
       window.__names = names;
       for (const a of [...(w.actors ?? []), ...(w.enemies ?? [])]) { a.flash = 0; a.hpBarTimer = 0; }
       const undo = [];
+      // Lichtkreis legendärer Waffen am Boden (gfx/weaponFx.js getRarityRing) sieht im Standbild wie ein Zielring aus: ausblenden
+      const RG = window.__ringSet ??= await (async () => {
+        const [{ getRarityRing, RING_FRAMES }, { ELEMENTS }] = await Promise.all([import('/src/sprites/effects.js'), import('/src/gfx/Particles.js')]);
+        const set = new Set(); for (const el of Object.values(ELEMENTS)) for (let f = 0; f < RING_FRAMES; f++) for (const q of [1, 2]) set.add(getRarityRing(el.colors, q, f).canvas);
+        return set;
+      })();
+      const DI = CanvasRenderingContext2D.prototype, odi = DI.drawImage;
+      DI.drawImage = function (im, ...a) { if (RG.has(im)) return; return odi.call(this, im, ...a); };
+      undo.push(() => { DI.drawImage = odi; });
       for (const a of [...(w.actors ?? []), ...(w.enemies ?? [])]) if (typeof a.type === 'string' && a.def) {
         Object.defineProperty(a, 'isEngaged', { value: false, configurable: true, writable: true });
         const nh = a.nearHero; a.nearHero = false; undo.push(() => { delete a.isEngaged; a.nearHero = nh; });
