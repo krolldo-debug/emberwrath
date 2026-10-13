@@ -15,6 +15,18 @@ def hexc(h): h = h.lstrip('#'); return (int(h[0:2], 16), int(h[2:4], 16), int(h[
 
 # Szenenraster (für alle Bühnen gleich): Breite, Höhe, Bodenlinie (Füße), Rand für Parallaxe
 SW, SH, FY = 560, 216, 190
+# Feinraster (wie im Spiel, docs/STYLE.md „Feinraster“): K Feinpixel je Szenenpixel. Großformen entstehen weiter im
+# Szenenraster (Fig, Ebenen, Effekte), jedes Bild wird in K-facher Auflösung ausgegeben: Figuren aus ihren Teil-/Material-
+# karten (Scale2x auf den Teilen, Umriss, Innenkanten und Lichtkanten je 1 Feinpixel, Glanzlinien auf Metall, heller
+# Glutkern) plus handfeine Details in Feinpixeln (Gesichter, Augen, Glanzpunkte), Flammen fein abgetastet, Ebenen per Scale2x.
+K = int(os.environ.get('BOSSKINO_K', '2'))
+MAXW = 4096        # größte Atlasbreite (Feinpixel)
+GLOW = set()       # Materialien, die glühen (heller Kern im Feinraster)
+SPEC = {}          # Material -> Glanzfarbe (1 Feinpixel an der Oberkante der hellsten Stufe)
+# Breite Bühnen (Laptops mit e = 1) zeigen mehr als 560 Szenenpixel: die Ebenen reichen links und rechts je PAD weiter
+# (Szenen-x -PAD .. SW + PAD, Arrays SWX breit, Spalte = x + PAD). Figur, Effekte und Koordinaten bleiben, wie sie sind.
+PAD = 152
+SWX = SW + 2 * PAD
 BOSSE = ['malgareth', 'faeulnis', 'skalvyr']   # Ulgrim (bosskino_ulgrim.py) vorerst nicht gezeigt
 
 # Materialien: Ton 0 = Innenkante, 1..4 Schatten -> Licht
@@ -147,28 +159,144 @@ class Fig:
             if mat: s.mat[y, x] = mat
             if tone is not None: s.tone[y, x] = tone(s.tone[y, x]) if callable(tone) else tone
 
-    def render(s, outline='#0c0609', rim=None, rim_back=None, inner=True):
+    # ---------------- Feinpixel-Details (Figurraster in K-facher Auflösung), angewandt beim Rendern
+    def fat(s, x, h):
+        """Figurpunkt -> Feinpixel (Spalte, Zeile) im K-fachen Figurraster."""
+        return int(math.floor(K * (s.FX + x * s.S))), int(math.floor(K * (s.FY - h * s.S)))
+
+    def fpx(s, X, Y, mat, t, under=False):
+        """Ein Feinpixel (Feinraster-Koordinaten). under: nur, wo die Figur schon gefüllt ist."""
+        if not hasattr(s, 'fdec'): s.fdec = []
+        s.fdec.append((int(X), int(Y), mat, t, under))
+
+    def fdot(s, x, h, mat, t, under=False):
+        X, Y = s.fat(x, h); s.fpx(X, Y, mat, t, under)
+
+    def fline(s, A, B, mat, t, under=True, step=0.25):
+        """Feine Linie (1 Feinpixel) zwischen Figurpunkten."""
+        L = math.hypot(B[0] - A[0], B[1] - A[1]) * K * s.S
+        n = max(1, int(L / step))
+        seen = set()
+        for i in range(n + 1):
+            q = s.fat(*lerp(A, B, i / n))
+            if q in seen: continue
+            seen.add(q); s.fpx(q[0], q[1], mat, t, under)
+
+    def fsprite(s, X0, Y0, rows, legend, under=False):
+        """Handgesetzte Feinpixel (Zeichenketten) oben links bei Feinpixel X0, Y0; legend: Zeichen -> (Material, Ton)."""
+        for j, row in enumerate(rows):
+            for i, ch in enumerate(row):
+                if ch in legend: s.fpx(X0 + i, Y0 + j, *legend[ch], under=under)
+
+    def render(s, outline='#0c0609', rim=None, rim_back=None, inner=True, **kw):
+        """Rendert die Figur. Bei K > 1 im Feinraster: Teilkarte per Scale2x vergrößert (glatte Kanten, keine neuen Töne),
+        Innenkanten, Umriss und Gegenlicht je 1 Feinpixel, Lichtkante oben und Kontaktschatten unten, heller Glutkern,
+        Glanzlinie auf Metall, danach die handgesetzten Feinpixel. Ergebnis: RGBA (K·H × K·W)."""
+        if K == 1:
+            s._apply_fdec(1)
+            return s.render_px(outline=outline, rim=rim, rim_back=rim_back, inner=inner, **kw)
+        keep = (s.mat, s.tone, s.part, s.H, s.W)
+        filled = s.mat != None
+        names = sorted({m for m in s.mat[filled]})
+        mid = np.zeros((s.H, s.W), np.int64)
+        for i, n in enumerate(names): mid[s.mat == n] = i + 1
+        lab = ((s.part.astype(np.int64) * 256 + mid) * 16 + s.tone.astype(np.int64)) * filled + filled
+        L2 = scale2x(lab) if K == 2 else np.repeat(np.repeat(lab, K, 0), K, 1)
+        f2 = L2 > 0
+        v = L2 - 1
+        tone = (v % 16).astype(np.int8); v //= 16
+        mi = v % 256; part = (v // 256).astype(np.int16)
+        mat = np.full(L2.shape, None, dtype=object)
+        for i, n in enumerate(names): mat[f2 & (mi == i + 1)] = n
+        part[~f2] = 0
+        tone = s._feinschliff(mat, tone, part, f2)
+        s.mat, s.tone, s.part, s.H, s.W = mat, tone, part, L2.shape[0], L2.shape[1]
+        try:
+            s._apply_fdec(K)
+            im = s.render_px(outline=outline, rim=rim, rim_back=rim_back, inner=inner, **kw)
+            # Glanzlinie: oberstes Feinpixel jeder hellsten Fläche auf Metall
+            if SPEC:
+                tt = s.tone; mm = s.mat
+                above_t = np.zeros_like(tt); above_t[1:] = tt[:-1]
+                above_p = np.zeros_like(s.part); above_p[1:] = s.part[:-1]
+                for m_, col in SPEC.items():
+                    sel = (mm == m_) & (tt == 4) & ((above_t < 4) | (above_p != s.part)) & (im[:, :, 3] > 0)
+                    lum = im[:, :, :3].astype(int).sum(-1)
+                    sel &= lum >= sum(hexc(MAT[m_][4])) - 2       # nicht über Innenkante oder Gegenlicht
+                    im[sel, :3] = hexc(col)
+        finally:
+            s.mat, s.tone, s.part, s.H, s.W = keep
+        return im
+
+    def _feinschliff(s, mat, tone, part, f2):
+        tone = tone.copy()
+        H2, W2 = f2.shape
+        up_e = np.ones_like(f2); up_e[1:] = ~f2[:-1]
+        dn_e = np.ones_like(f2); dn_e[:-1] = ~f2[1:]
+        isglow = np.zeros_like(f2)
+        for g in GLOW: isglow |= (mat == g)
+        lit = f2 & up_e & (tone >= 1) & (tone < 4) & ~isglow
+        tone[lit] += 1
+        sh = f2 & dn_e & ~up_e & (tone > 1) & ~isglow
+        tone[sh] -= 1
+        if GLOW:
+            # heller Kern: Glutpixel, deren 8 Nachbarn alle mindestens so heiß glühen, eine Stufe heller
+            gp = np.pad(np.where(isglow, tone, -1), 1, constant_values=-1)
+            core = isglow & (tone >= 2) & (tone < 4)
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if dy or dx: core &= gp[1 + dy:H2 + 1 + dy, 1 + dx:W2 + 1 + dx] >= tone
+            tone[core] += 1
+        return tone
+
+    def _apply_fdec(s, k):
+        dec = getattr(s, 'fdec', [])
+        if not dec: return
+        pd = s.np + 1; s.line[pd] = False; s.rim[pd] = False
+        for X, Y, m, t, under in dec:
+            if k == 1: X, Y = X // K, Y // K
+            if not (0 <= X < s.W and 0 <= Y < s.H): continue
+            if under and s.mat[Y, X] is None: continue
+            if m is None: s.mat[Y, X] = None; s.part[Y, X] = 0; continue
+            if s.mat[Y, X] is None: s.part[Y, X] = pd
+            s.mat[Y, X] = m; s.tone[Y, X] = t
+
+    def render_px(s, outline='#0c0609', rim=None, rim_back=None, inner=True):
         """rim: {mat: farbe} warme Kante vorn (rechts); rim_back: {mat: farbe} Gegenlicht hinten (links)."""
         H, W = s.H, s.W
         im = np.zeros((H, W, 4), np.uint8)
         filled = s.mat != None
-        for y, x in zip(*np.nonzero(filled)):
-            m = s.mat[y, x]; t = s.tone[y, x]
-            p = s.part[y, x]
-            if inner and s.line.get(p):
-                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    xx, yy = x + dx, y + dy
-                    if 0 <= xx < W and 0 <= yy < H and s.mat[yy, xx] is not None and 0 < s.part[yy, xx] < p - s.gap.get(p, 0):
-                        t = 0; break
-            im[y, x, :3] = hexc(MAT[m][t]); im[y, x, 3] = 255
-        a0 = im[:, :, 3] > 0
+        P = s.part.astype(np.int64)
+        t = s.tone.astype(np.int64).copy()
+        if inner:
+            mp = int(P.max()) + 1
+            larr = np.array([bool(s.line.get(p)) for p in range(mp)])
+            garr = np.array([s.gap.get(p, 0) for p in range(mp)])
+            thr = P - garr[P]
+            Pp = np.pad(P, 1); Fp = np.pad(filled, 1)
+            cond = np.zeros((H, W), bool)
+            for dy, dx in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+                q = Pp[1 + dy:H + 1 + dy, 1 + dx:W + 1 + dx]; fq = Fp[1 + dy:H + 1 + dy, 1 + dx:W + 1 + dx]
+                cond |= fq & (q > 0) & (q < thr)
+            cond &= filled & larr[P]
+            t[cond] = 0
+        for m in {m for m in s.mat[filled]}:
+            sel = s.mat == m
+            C = np.array([hexc(c) for c in MAT[m]], np.uint8)
+            im[sel, :3] = C[np.clip(t[sel], 0, len(C) - 1)]
+        im[filled, 3] = 255
+        a0 = filled
+        mp = int(P.max()) + 1
+        rarr = np.array([s.rim.get(p, True) for p in range(mp)])
         for side, R in ((1, rim), (-1, rim_back)):
             if not R: continue
-            for y, x in zip(*np.nonzero(a0)):
-                xx = x + side
-                if 0 <= xx < W and a0[y, xx]: continue
-                m = s.mat[y, x]
-                if m in R and s.tone[y, x] > 0 and s.rim.get(s.part[y, x], True): im[y, x, :3] = hexc(R[m])
+            nb = np.zeros((H, W), bool)
+            if side == 1: nb[:, :-1] = a0[:, 1:]
+            else: nb[:, 1:] = a0[:, :-1]
+            edge = a0 & ~nb & (s.tone > 0) & rarr[P]
+            for m, c in R.items():
+                sel = edge & (s.mat == m)
+                im[sel, :3] = hexc(c)
         if outline:
             a = im[:, :, 3] > 0
             o = np.zeros_like(a)
@@ -176,6 +304,39 @@ class Fig:
             o &= ~a
             im[o] = (*hexc(outline), 255)
         return im
+
+
+def scale2x(L):
+    """Scale2x (EPX) auf einer Karte (2D, beliebige ganze Werte) oder einem RGBA-Bild: keine neuen Werte, Treppen geglättet."""
+    rgba = L.ndim == 3
+    if rgba: L = L.astype(np.uint32).view(np.uint32) if False else (L[:, :, 0].astype(np.uint32) << 24 | L[:, :, 1].astype(np.uint32) << 16 | L[:, :, 2].astype(np.uint32) << 8 | L[:, :, 3].astype(np.uint32))
+    P = np.pad(L, 1, mode='edge')
+    h, w = L.shape
+    B = P[:-2, 1:-1]; D = P[1:-1, :-2]; F = P[1:-1, 2:]; Hh = P[2:, 1:-1]
+    c = (B != Hh) & (D != F)
+    out = np.empty((h * 2, w * 2), L.dtype)
+    out[0::2, 0::2] = np.where(c & (D == B), D, L)
+    out[0::2, 1::2] = np.where(c & (B == F), F, L)
+    out[1::2, 0::2] = np.where(c & (D == Hh), D, L)
+    out[1::2, 1::2] = np.where(c & (Hh == F), F, L)
+    if rgba:
+        o = np.zeros((h * 2, w * 2, 4), np.uint8)
+        o[:, :, 0] = out >> 24; o[:, :, 1] = (out >> 16) & 255; o[:, :, 2] = (out >> 8) & 255; o[:, :, 3] = out & 255
+        return o
+    return out
+
+
+def up(im, k=None):
+    """Szenenbild (RGBA) -> Feinraster (Scale2x; bei K > 2 Wiederholung)."""
+    k = K if k is None else k
+    if k == 1: return im
+    if k == 2: return scale2x(im)
+    return np.repeat(np.repeat(im, k, 0), k, 1)
+
+
+def upm(m, k=None):
+    k = K if k is None else k
+    return np.repeat(np.repeat(m, k, 0), k, 1) if k > 1 else m
 
 
 LIGHT = np.array([0.6, -0.55, 0.58]); LIGHT = LIGHT / np.linalg.norm(LIGHT)
@@ -215,6 +376,9 @@ def rot(p, c, ang):
 
 
 def over(a, b):
+    """b über a (deckend/leer). Ist eines der Bilder im Szenenraster und das andere im Feinraster, wird es vergrößert."""
+    if a.shape[0] * K == b.shape[0] and a.shape[1] * K == b.shape[1]: a = up(a)
+    elif b.shape[0] * K == a.shape[0] and b.shape[1] * K == a.shape[1]: b = up(b)
     r = a.copy(); m = b[:, :, 3] > 0; r[m] = b[m]; return r
 
 
@@ -241,15 +405,18 @@ GHOST = ['#0b3a40', '#127272', '#22b0a4', '#7ef0d6', '#e8fff8']
 SPORE = ['#0e4a1c', '#22882e', '#5ad040', '#b4f478', '#f4ffd8']
 FROST = ['#0a3050', '#1670a0', '#34b8e4', '#9aeefc', '#ffffff']
 
-def flame(src, t, n, R=4.4, pal=FLAME, up=0.42, side=1.0, rise=1.8, gain=1.5, shape=None):
-    """Flammen um eine Maske (src), Bild t von n (Schleife). Harte Stufen, äußerster Kranz dunkel. Rückgabe RGBA wie src."""
+def flame(src, t, n, R=4.4, pal=FLAME, up=0.42, side=1.0, rise=1.8, gain=1.5, shape=None, k=None):
+    """Flammen um eine Maske (src, Szenenraster), Bild t von n (Schleife). Harte Stufen, äußerster Kranz dunkel.
+    Abgetastet im Feinraster (k Feinpixel je Pixel, Standard K): gleiche Form, feinere Zungenränder. Rückgabe RGBA (k·H × k·W)."""
+    k = K if k is None else k
     H, W = src.shape
     by, bx = np.nonzero(src)
-    out = np.zeros((H, W, 4), np.uint8)
+    out = np.zeros((H * k, W * k, 4), np.uint8)
     if len(bx) == 0: return out
     y0, y1 = max(0, by.min() - int(R * 4)), min(H, by.max() + 4)
     x0, x1 = max(0, bx.min() - int(R * 2.5)), min(W, bx.max() + int(R * 2.5))
-    Y, X = np.mgrid[y0:y1, x0:x1]
+    Yf, Xf = np.mgrid[y0 * k:y1 * k, x0 * k:x1 * k]
+    Y = (Yf + 0.5) / k - 0.5; X = (Xf + 0.5) / k - 0.5
     d = np.full(Y.shape, 99.0)
     step = max(1, len(bx) // 900)
     for qx, qy in zip(bx[::step], by[::step]):
@@ -261,17 +428,19 @@ def flame(src, t, n, R=4.4, pal=FLAME, up=0.42, side=1.0, rise=1.8, gain=1.5, sh
     nz = vnoise(X * 0.42, Y * 0.30 + sh, per) * 0.65 + vnoise(X * 0.9 + 9, Y * 0.62 + sh * 2, per) * 0.35
     heat = 1 - d / R + (nz - 0.5) * gain
     lv = np.select([heat > 0.78, heat > 0.6, heat > 0.42, heat > 0.25, heat > 0.12], [4, 3, 2, 1, 0], -1)
-    for k in range(5):
-        m = lv == k
-        out[y0:y1, x0:x1][m] = (*hexc(pal[k]), 255)
-    out[src] = 0
+    for kk in range(5):
+        m = lv == kk
+        out[y0 * k:y1 * k, x0 * k:x1 * k][m] = (*hexc(pal[kk]), 255)
+    out[upm(src, k)] = 0
     return out
 
 
-def fire(w, h, t, n, pal=FLAME, hw=0.42, seed=0, speed=1.0, lick=1.0, core=0.45):
+def fire(w, h, t, n, pal=FLAME, hw=0.42, seed=0, speed=1.0, lick=1.0, core=0.45, k=1):
     """Freie Flamme (w × h, Fuß unten Mitte), Bild t von n als Schleife: Zungen aus Rauschen, das nach oben wandert,
-    Breite nimmt nach oben ab, harte Stufen (außen dunkelrot, innen weißgelb)."""
-    Y, X = np.mgrid[0:h, 0:w]
+    Breite nimmt nach oben ab, harte Stufen (außen dunkelrot, innen weißgelb). k > 1: im Feinraster abgetastet
+    (Rückgabe k·h × k·w), gleiche Form."""
+    Yf, Xf = np.mgrid[0:h * k, 0:w * k]
+    Y = (Yf + 0.5) / k - 0.5; X = (Xf + 0.5) / k - 0.5
     up = (h - 1 - Y) / max(1, h - 1)                     # 0 unten .. 1 oben
     per = 16
     sh = t / n * per * speed
@@ -280,13 +449,13 @@ def fire(w, h, t, n, pal=FLAME, hw=0.42, seed=0, speed=1.0, lick=1.0, core=0.45)
     n1 = vnoise(X * 0.34 + seed * 7.3, (Y * 0.22 + sh) % per, per)
     n2 = vnoise(X * 0.8 + seed * 3.1 + 11, (Y * 0.5 + sh * 2) % per, per)
     nz = n1 * 0.65 + n2 * 0.35
-    width = (1 - up ** 1.3) * (0.75 + 0.5 * nz)
+    width = (1 - np.clip(up, 0, None) ** 1.3) * (0.75 + 0.5 * nz)
     heat = 1 - u / np.maximum(0.05, width) - up * 0.35 + (nz - 0.5) * lick
     heat = np.where(up > 0.97, -1, heat)
     lv = np.select([heat > 1 - core * 0.45, heat > 1 - core * 0.75, heat > 0.32, heat > 0.15, heat > 0.02], [4, 3, 2, 1, 0], -1)
-    out = np.zeros((h, w, 4), np.uint8)
-    for k in range(5):
-        out[lv == k] = (*hexc(pal[k]), 255)
+    out = np.zeros((h * k, w * k, 4), np.uint8)
+    for kk in range(5):
+        out[lv == kk] = (*hexc(pal[kk]), 255)
     return out
 
 
@@ -370,11 +539,12 @@ def shade_mask(m, cols, light=(-1, -1), r=3.0):
 
 
 # ------------------------------------------------------------------------------------------- Boden und Mauern
-def floor(y0, y1, rows, ramp, vx=SW / 2, vy=-260, tile=40, seed=1, w=SW, rough=0.5, chips=0.08):
+def floor(y0, y1, rows, ramp, vx=SW / 2, vy=-260, tile=40, seed=1, w=SW, rough=0.5, chips=0.08, ox=0):
     """Bodenplatten in Seitenansicht mit Fluchtpunkt (vx, vy): Zeilen von y0 an (Höhen rows), Fugen 1 Pixel.
     ramp: 5 Farben dunkel -> hell. Rückgabe (RGBA, Fugenmaske, Plattennummer)."""
     h = SH
     out = np.zeros((h, w, 4), np.uint8); seam = np.zeros((h, w), bool); tid = np.full((h, w), -1, np.int32)
+    W0 = w
     C = np.array([(*hexc(c), 255) for c in ramp], np.uint8)
     y = y0; r = 0
     rng = np.random.default_rng(seed)
@@ -387,7 +557,8 @@ def floor(y0, y1, rows, ramp, vx=SW / 2, vy=-260, tile=40, seed=1, w=SW, rough=0
         off = (r % 2) * 0.5 + rng.random() * 0.3
         for yy in range(y, yb):
             kk = (yy + 0.5 - vy) / (ym - vy)
-            for x in range(w):
+            for xc in range(W0):
+                x = xc + ox
                 # Spaltenindex im Plattenraster dieser Zeile, Fugen laufen zum Fluchtpunkt
                 xm = vx + (x + 0.5 - vx) / kk
                 u = (xm - vx) / tw + off + 50
@@ -397,39 +568,39 @@ def floor(y0, y1, rows, ramp, vx=SW / 2, vy=-260, tile=40, seed=1, w=SW, rough=0
                 base = 1 + int(hs * 2.2)
                 n = hash2(x, yy, seed + 3)
                 if yy == y:
-                    seam[yy, x] = True; tid[yy, x] = t; out[yy, x] = C[0]; continue
+                    seam[yy, xc] = True; tid[yy, xc] = t; out[yy, xc] = C[0]; continue
                 du = 1.0 / (kk * tw)
                 if fu < du:
-                    seam[yy, x] = True; tid[yy, x] = t; out[yy, x] = C[0]; continue
+                    seam[yy, xc] = True; tid[yy, xc] = t; out[yy, xc] = C[0]; continue
                 tone = base
                 if yy == y + 1: tone = min(4, base + 1)
                 if yy == yb - 1 and tone > 0: tone -= 1
                 if fu < 2 * du and tone < 4: tone = min(4, tone + 1)
                 if n < chips: tone = max(0, tone - 1)
                 elif n > 1 - chips * rough: tone = min(4, tone + 1)
-                out[yy, x] = C[tone]; tid[yy, x] = t
+                out[yy, xc] = C[tone]; tid[yy, xc] = t
         y = yb; r += 1
     return out, seam, tid
 
 
-def bricks(x0, y0, x1, y1, bw, bh, ramp, seed=2, mortar=None):
-    """Mauerwerk (RGBA SW × SH), Steine bw × bh, versetzt; ramp 4–5 Farben."""
-    out = np.zeros((SH, SW, 4), np.uint8)
+def bricks(x0, y0, x1, y1, bw, bh, ramp, seed=2, mortar=None, ox=0, w=SW):
+    """Mauerwerk (RGBA w × SH, Spalte 0 = Szenen-x ox), Steine bw × bh, versetzt, Raster ab x0; ramp 4–5 Farben."""
+    out = np.zeros((SH, w, 4), np.uint8)
     C = np.array([(*hexc(c), 255) for c in ramp], np.uint8)
     M = (*hexc(mortar or ramp[0]), 255)
     for y in range(max(0, y0), min(SH, y1)):
         r = (y - y0) // bh; fy = (y - y0) % bh
         off = (r % 2) * bw // 2
-        for x in range(max(0, x0), min(SW, x1)):
+        for x in range(max(ox, x0), min(ox + w, x1)):
             c = (x - x0 + off) // bw; fx = (x - x0 + off) % bw
-            if fy == bh - 1 or fx == 0: out[y, x] = M; continue
+            if fy == bh - 1 or fx == 0: out[y, x - ox] = M; continue
             hs = hash2(c, r, seed); base = 1 + int(hs * 2)
             t = base
             if fy == 0: t = min(len(ramp) - 1, base + 1)
             if fx == bw - 1 or fy == bh - 2: t = max(1, base - 1)
             n = hash2(x, y, seed + 5)
             if n < 0.06: t = max(1, t - 1)
-            out[y, x] = C[t]
+            out[y, x - ox] = C[t]
     return out
 
 
@@ -439,12 +610,13 @@ def stamp(dst, src):
 
 # ------------------------------------------------------------------------------------------- Fugenwelle
 def seam_wave(seams, x0, y0, v, ms, pal, peak=lambda d: 4 if d < 45 else 3 if d < 110 else 2, ages=(0.07, 0.2, 0.4, 0.62),
-              yscale=2.4, maxd=260, direction=0, extra=None, seed=11, jitter=0.05):
+              yscale=2.4, maxd=260, direction=0, extra=None, seed=11, jitter=0.05, ox=0):
     """Glut läuft vom Punkt (x0, y0) über die Fugen (Maske seams). direction: -1 nur nach links, 1 nur rechts, 0 beide.
     Rückgabe: (Bildstreifen RGBA, Rahmen x, y, w, h, Bilderzahl)."""
     rng = np.random.default_rng(seed)
     pts = {}
     ys, xs = np.nonzero(seams)
+    xs = xs + ox                                   # Spalte -> Szenen-x
     for y, x in zip(ys, xs):
         if y < y0 or abs(x - x0) > maxd: continue
         if direction and (x - x0) * direction < -6: continue
@@ -502,14 +674,36 @@ class Atlas:
     def add(s, name, im):
         s.items.append((name, im))
     def pack(s):
-        order = sorted(range(len(s.items)), key=lambda i: -s.items[i][1].shape[0])
-        x = y = rowh = 0; rects = {}
+        """Skyline-Packer (unten links): Bilder nach Höhe sortiert, jedes dort, wo seine Unterkante am höchsten liegt."""
+        order = sorted(range(len(s.items)), key=lambda i: (-s.items[i][1].shape[0], -s.items[i][1].shape[1]))
         W = max(s.width, max(im.shape[1] for _, im in s.items))
+        sky = [[0, 0, W]]          # Abschnitte [x, y, Breite]
+        rects = {}
         for i in order:
             name, im = s.items[i]; h, w = im.shape[:2]
-            if x + w > W: x = 0; y += rowh; rowh = 0
-            rects[name] = [x, y, w, h]; x += w; rowh = max(rowh, h)
-        Ht = y + rowh
+            best = None
+            for j in range(len(sky)):
+                x = sky[j][0]
+                if x + w > W: break
+                y, k, rem = 0, j, w
+                while rem > 0:
+                    y = max(y, sky[k][1]); rem -= sky[k][2]; k += 1
+                if best is None or y + h < best[1] + h or (y == best[1] and x < best[0]): best = (x, y)
+            x, y = best
+            rects[name] = [x, y, w, h]
+            # Skyline erneuern
+            new = []
+            for sx, sy, sw in sky:
+                if sx + sw <= x or sx >= x + w: new.append([sx, sy, sw]); continue
+                if sx < x: new.append([sx, sy, x - sx])
+                if sx + sw > x + w: new.append([x + w, sy, sx + sw - x - w])
+            new.append([x, y + h, w])
+            new.sort()
+            sky = []
+            for q in new:
+                if sky and sky[-1][1] == q[1] and sky[-1][0] + sky[-1][2] == q[0]: sky[-1][2] += q[2]
+                else: sky.append(q)
+        Ht = max(r[1] + r[3] for r in rects.values())
         out = np.zeros((Ht, W, 4), np.uint8)
         for name, im in s.items:
             X, Y, w, h = rects[name]; out[Y:Y + h, X:X + w] = im
@@ -541,41 +735,48 @@ def save_webp(arr, path, opaque=False):
 
 
 # ------------------------------------------------------------------------------------------- Zusammenbau je Boss
-def compose(B, t_ms=0):
-    """Standbild der Bühne (alle Ebenen, Figur in Ruhe Bild 0) in vollem Szenenraster."""
-    img = np.zeros((SH, SW, 4), np.uint8); img[:, :, 3] = 255
+def kcrop(x0, y0, x1, y1):
+    """Rahmen im Feinraster auf ganze Szenenpixel erweitern."""
+    return x0 - x0 % K, y0 - y0 % K, x1 + (-x1) % K, y1 + (-y1) % K
+
+
+def compose(B, t_ms=0, wide=False):
+    """Standbild der Bühne (alle Ebenen, Figur in Ruhe Bild 0) im Feinraster (K·SH × K·SW; wide: ganze Breite SWX)."""
+    o = PAD * K if wide else 0
+    Wt = (SWX if wide else SW) * K
+    img = np.zeros((SH * K, Wt, 4), np.uint8); img[:, :, 3] = 255
+    def put(sub, x, y):
+        h, w = sub.shape[:2]
+        x += o
+        X0, Y0 = max(0, x), max(0, y); X1, Y1 = min(Wt, x + w), min(SH * K, y + h)
+        if X1 <= X0 or Y1 <= Y0: return
+        s2 = sub[Y0 - y:Y1 - y, X0 - x:X1 - x]; m = s2[:, :, 3] > 0
+        img[Y0:Y1, X0:X1][m] = s2[m]
     for L in B['layers']:
         if L.get('poster', True) is False: continue
-        sub = L['img']; x, y = L['x'], L['y']
-        h, w = sub.shape[:2]
-        m = sub[:, :, 3] > 0
-        img[y:y + h, x:x + w][m] = sub[m]
+        put(L['img'], L['x'] * K, L['y'] * K)
         if L['name'] == B['meta'].get('schaleNach'):
-            sw_ = B['meta']['schale']['w']
+            sw_ = B['meta']['schale']['w'] * K
             for x, y in B['meta'].get('schalen', []):
-                fr = B['fx']['schale'][:, :sw_]
-                mm = fr[:, :, 3] > 0
-                img[y:y + fr.shape[0], x:x + sw_][mm] = fr[mm]
+                put(B['fx']['schale'][:, :sw_], x * K, y * K)
         if L['name'] == B.get('figure_after', 'boden'):
             F = B['figure']
-            fr = F['poster']
-            fh, fw = fr.shape[:2]
-            X, Y = F['x'], F['y']
-            X0, Y0 = max(0, X), max(0, Y); X1, Y1 = min(SW, X + fw), min(SH, Y + fh)
-            sub2 = fr[Y0 - Y:Y1 - Y, X0 - X:X1 - X]; mm = sub2[:, :, 3] > 0
-            img[Y0:Y1, X0:X1][mm] = sub2[mm]
+            put(F['poster'], F['x'] * K, F['y'] * K)
     return img
 
 
 def finish(name, FXo, FYo, BX, parts, moment, hit_idx, imp_px, Ld, order, fx, meta, poster_parts=None, nach=None):
     """Gemeinsamer Abschluss je Boss. parts: [(Name, [Bilder], Ruhe-Eintrag)] in Zeichenreihenfolge (Figurraster, Blick
-    rechts); moment: [(Bild, ms)]; imp_px: Spalte des Einschlags im Figurraster. Spiegelt alles (Blick nach links),
-    schneidet auf einen gemeinsamen Rahmen, legt die Figur mit dem Fußpunkt auf (BX, FY)."""
+    rechts, Bilder im Feinraster); moment: [(Bild, ms)]; imp_px: Spalte des Einschlags im Figurraster (Szenenpixel).
+    Spiegelt alles (Blick nach links), schneidet auf einen gemeinsamen Rahmen (ganze Szenenpixel), legt die Figur mit dem
+    Fußpunkt auf (BX, FY). Maße in Szenenpixeln."""
+    moment = [(up(im) if im.shape[0] * K == Ld_h(parts) else im, ms) for im, ms in moment]
     uniq, idx = dedupe([im for im, _ in moment])
     allims = [im for _, ims, _ in parts for im in ims] + uniq
-    x0, y0, x1, y1 = common_crop(allims)
+    x0, y0, x1, y1 = kcrop(*common_crop(allims))
     cut = lambda im: flip(im[y0:y1, x0:x1])
-    fx_ = (x1 - 1) - FXo; fy_ = FYo - y0
+    sx0, sy0, sx1, sy1 = x0 // K, y0 // K, x1 // K, y1 // K
+    fx_ = (sx1 - 1) - FXo; fy_ = FYo - sy0
     FXs, FYs = BX - fx_, FY - fy_
     sheets = {n: strip([cut(i) for i in ims]) for n, ims, _ in parts}
     sheets['moment'] = strip([cut(i) for i in uniq])
@@ -583,9 +784,9 @@ def finish(name, FXo, FYo, BX, parts, moment, hit_idx, imp_px, Ld, order, fx, me
     for n, ims, _ in parts:
         if poster_parts and n not in poster_parts: continue
         po = cut(ims[0]) if po is None else over(po, cut(ims[0]))
-    imp_scene = int(FXs + (x1 - 1 - imp_px))
+    imp_scene = int(FXs + (sx1 - 1 - imp_px))
     m = dict(meta)
-    m.update({'name': name, 'fig': {'x': int(FXs), 'y': int(FYs), 'w': int(x1 - x0), 'h': int(y1 - y0)},
+    m.update({'name': name, 'fig': {'x': int(FXs), 'y': int(FYs), 'w': int(sx1 - sx0), 'h': int(sy1 - sy0)},
               'ruhe': [dict(r, r=n) for n, _, r in parts],
               'moment': {'f': [[i, ms] for i, (_, ms) in zip(idx, moment)], 'hit': hit_idx}})
     layers = []
@@ -595,7 +796,8 @@ def finish(name, FXo, FYo, BX, parts, moment, hit_idx, imp_px, Ld, order, fx, me
         a = np.nonzero(dd['img'][:, :, 3])
         if not len(a[0]): continue
         ya, yb, xa, xb = a[0].min(), a[0].max() + 1, a[1].min(), a[1].max() + 1
-        e = dict(name=n, img=dd['img'][ya:yb, xa:xb], x=int(xa), y=int(ya), f=dd['f'])
+        ox = -PAD if dd['img'].shape[1] == SWX else 0
+        e = dict(name=n, img=dd['img'][ya:yb, xa:xb], x=int(xa) + ox, y=int(ya), f=dd['f'])
         if 'glow' in dd: e['glow'] = dd['glow']
         layers.append(e)
     names = [L['name'] for L in layers]
@@ -604,32 +806,71 @@ def finish(name, FXo, FYo, BX, parts, moment, hit_idx, imp_px, Ld, order, fx, me
             'fx': fx, 'meta': m, 'figure_after': m['nach'], 'previews': {'moment': sheets['moment']}}, imp_scene
 
 
+def Ld_h(parts):
+    """Höhe der Teilbilder (Feinraster), um Momentbilder im Szenenraster zu erkennen."""
+    return parts[0][1][0].shape[0]
+
+
 def main():
     IMG, TMP = sys.argv[1], sys.argv[2]
     only = sys.argv[3].split(',') if len(sys.argv) > 3 and sys.argv[3] else BOSSE
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    sizes, meta = {}, {'szene': {'W': SW, 'H': SH, 'FY': FY}, 'bosse': {}}
+    sizes, meta = {}, {'szene': {'W': SW, 'H': SH, 'FY': FY, 'F': K, 'X0': -PAD, 'X1': SW + PAD}, 'bosse': {}}
     for name in only:
         mod = importlib.import_module('bosskino_' + name)
         B = mod.build()
-        atlas = Atlas(1024)
-        lay = []
+        fein = B.get('fein', set())
+        # Ebenen und Effekte im Szenenraster -> Feinraster (Scale2x), Figur und feine Effekte sind es schon
+        for L in B['layers']:
+            if not L.get('fein'): L['img'] = up(L['img'])
+        B['fx'] = {k: (v if k in fein else up(v)) for k, v in B.get('fx', {}).items()}
+        # Figurstreifen auf den gemeinsamen Rahmen ihrer Bilder zuschneiden (spart Speicher: Kronenflammen u. a. sind klein)
+        m0 = B['meta']; fwid, fhgt = m0['fig']['w'] * K, m0['fig']['h'] * K; offs = {}
+        for k, im in list(B['figure']['sheets'].items()):
+            n = im.shape[1] // fwid
+            fr = [im[:, i * fwid:(i + 1) * fwid] for i in range(n)]
+            x0, y0, x1, y1 = kcrop(*common_crop(fr))
+            if x1 <= x0: x0, y0, x1, y1 = 0, 0, K, K
+            B['figure']['sheets'][k] = strip([q[y0:y1, x0:x1] for q in fr])
+            offs[k] = [x0 // K, y0 // K, (x1 - x0) // K, (y1 - y0) // K]
+        # breite Bildstreifen in Reihen umbrechen (Atlas höchstens MAXW Feinpixel breit, sicher für Handy-Grafikspeicher)
+        fw = {}
+        for e in m0.get('ereignisse', []):
+            if e.get('quer'): fw['X:' + e['r']] = e['w']
+            if e.get('k') == 'wand': fw.update({'X:' + e['r']: e['w'], 'X:' + e['r2']: e['w2'], 'X:' + e['r3']: e['w3']})
+            if e.get('k') == 'zapfen': fw['X:' + e['r2']] = e['sw']
+        if m0.get('schale'): fw['X:schale'] = m0['schale']['w']
+        for k in B['figure']['sheets']: fw['F:' + k] = offs[k][2]
+        wraps = {}
+        def wrap(key, im):
+            # Zielbreite: so schmal, dass die Streifen neben dem breitesten Einzelbild (z. B. Fugenwelle) Platz finden
+            wmax = max([L['img'].shape[1] for L in B['layers']] + [v.shape[1] for kk, v in B['fx'].items() if 'X:' + kk not in fw])
+            tw = MAXW - wmax if MAXW - wmax >= 1600 else MAXW
+            if im.shape[1] <= tw or key not in fw: return im
+            w = fw[key] * K; h = im.shape[0]; n = im.shape[1] // w; per = max(1, tw // w); rows = -(-n // per)
+            out = np.zeros((rows * h, per * w, 4), np.uint8)
+            for i in range(n): out[(i // per) * h:(i // per + 1) * h, (i % per) * w:(i % per + 1) * w] = im[:, i * w:(i + 1) * w]
+            wraps[key] = [w, h, per]
+            return out
+        atlas = Atlas(MAXW)
         for L in B['layers']:
             atlas.add('L:' + L['name'], L['img'])
         F = B['figure']
-        for k, im in F['sheets'].items(): atlas.add('F:' + k, im)
-        for k, im in B.get('fx', {}).items(): atlas.add('X:' + k, im)
+        for k, im in F['sheets'].items(): atlas.add('F:' + k, wrap('F:' + k, im))
+        for k, im in B['fx'].items(): atlas.add('X:' + k, wrap('X:' + k, im))
         arr, rects = atlas.pack()
+        for k, v in wraps.items(): rects[k] = rects[k] + v
         path = os.path.join(IMG, f'bosskino-{name}.webp')
         sizes[f'bosskino-{name}.webp'] = save_webp(arr, path)
         Image.fromarray(arr).save(os.path.join(TMP, f'atlas-{name}.png'))
         m = B['meta']
-        m['layers'] = [dict({k: v for k, v in L.items() if k not in ('img', 'poster')}, r=rects['L:' + L['name']]) for L in B['layers']]
-        m['figur'] = dict(F['meta'], r={k: rects['F:' + k] for k in F['sheets']})
-        m['fxr'] = {k: rects['X:' + k] for k in B.get('fx', {})}
+        m['layers'] = [dict({k: v for k, v in L.items() if k not in ('img', 'poster', 'fein')}, r=rects['L:' + L['name']]) for L in B['layers']]
+        m['figur'] = dict(F['meta'], r={k: rects['F:' + k] for k in F['sheets']}, o=offs)
+        m['fxr'] = {k: rects['X:' + k] for k in B['fx']}
         meta['bosse'][name] = m
         po = compose(B)
         Image.fromarray(po).convert('RGB').save(os.path.join(TMP, f'standbild-{name}.png'))
+        Image.fromarray(compose(B, wide=True)).convert('RGB').save(os.path.join(TMP, f'standbild-{name}-breit.png'))
         if name == 'malgareth':
             sizes['bosskino.webp'] = save_webp(po, os.path.join(IMG, 'bosskino.webp'), opaque=True)
         for k, im in B.get('previews', {}).items():

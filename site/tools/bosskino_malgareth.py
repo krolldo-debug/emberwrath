@@ -11,7 +11,7 @@
 import math
 import numpy as np
 from bosskino import (fire as feuer, Fig, MAT, ik, lerp, rot, over, flip, flame, vnoise, hash2, hexc, FLAME, Buf, bands, chk, BAYER4,
-                      seam_wave, common_crop, strip, dedupe, outline_mask, edge_of, floor, bricks, stamp, SW, SH, FY)
+                      seam_wave, common_crop, strip, dedupe, outline_mask, edge_of, floor, bricks, stamp, SW, SH, FY, K, kcrop, GLOW, SPEC, up, PAD, SWX)
 
 MAT.update({
     'iron': ['#07050a', '#15101a', '#2a222c', '#4a3e48', '#8c7c7a'],
@@ -31,7 +31,12 @@ MAT.update({
     'lea': ['#0e0809', '#1e1418', '#2e2026', '#443038', '#5e4650'],
     'emb': ['#5a1406', '#a8300a', '#f0661a', '#ffb048', '#fff0c0'],
     'void': ['#07040a'] * 5,
+    'eyew': ['#ffffff'] * 5,
+    'pupil': ['#1a0503'] * 5,
+    'spec': ['#e8e4f0'] * 5,
 })
+GLOW.clear(); GLOW.update({'emb'})
+SPEC.clear(); SPEC.update({'iron': '#c4bcb8', 'blade': '#c8c0d4', 'gold': '#fff0b8', 'wbone': '#f0e6d2'})
 INNER_WARM = {'iron': '#b8400e', 'irond': '#7a2208', 'gold': '#ffb048'}
 COLD = {'iron': '#a4aec0', 'irond': '#525868', 'blade': '#c8d0e0', 'wbone': '#e8eef4'}
 RIM_F = {'iron': '#a4aec0', 'irond': '#5a6070', 'gold': '#ffe0a0', 'robe': '#d8503a', 'skin': '#efe4d6', 'beard': '#d0c6b8', 'blade': '#b4a8b8',
@@ -71,37 +76,67 @@ class GFig(Fig):
         s.put(mask, mat, **kw); s.grp[s.np] = grp; s.glow[s.np] = glow
         return mask
 
-    def render(s, outline='#0c0609', rim=None, rim_back=None):
+    def render_px(s, outline='#0c0609', rim=None, rim_back=None, inner=True):
         Hh, Ww = s.H, s.W
         im = np.zeros((Hh, Ww, 4), np.uint8)
         filled = s.mat != None
-        for y, x in zip(*np.nonzero(filled)):
-            m = s.mat[y, x]; t = s.tone[y, x]; p = s.part[y, x]; col = None
-            if s.line.get(p):
-                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    xx, yy = x + dx, y + dy
-                    if 0 <= xx < Ww and 0 <= yy < Hh and s.mat[yy, xx] is not None and 0 < s.part[yy, xx] < p:
-                        q = s.part[yy, xx]
-                        if p in s.grp and s.grp.get(q) == s.grp[p]: col = MAT['emb'][s.glow[p]] if (x + y) % 5 else MAT['emb'][min(4, s.glow[p] + 1)]
-                        else: t = 0
-                        break
-            if col is None and s.tone[y, x] > 0:
-                # warme Gegenlichtkante an jeder Plattenkante zur Glutsonne (im Bild rechts = hier links)
-                q = s.part[y, x - 1] if x > 0 and s.mat[y, x - 1] is not None else -1
-                if rim_back and m in INNER_WARM and q != p and q < p and s.rim.get(p, True): col = INNER_WARM[m]
-                # kalte Glanzkante oben an hellen Flächen (Licht von links oben)
-                elif m in COLD and s.tone[y, x] >= 3:
-                    q2 = s.part[y - 1, x] if y > 0 and s.mat[y - 1, x] is not None else -1
-                    if q2 != p and q2 < p: col = COLD[m]
-            im[y, x, :3] = hexc(col or MAT[m][t]); im[y, x, 3] = 255
-        a0 = im[:, :, 3] > 0
+        P = s.part.astype(np.int64); mp = int(P.max()) + 1
+        larr = np.array([bool(s.line.get(p)) for p in range(mp)])
+        rarr = np.array([s.rim.get(p, True) for p in range(mp)])
+        garr = np.array([s.grp.get(p, -1) if p in s.grp else -1 for p in range(mp)], dtype=object)
+        gid = {g: i for i, g in enumerate(sorted({g for g in s.grp.values()}))}
+        gnum = np.array([gid[s.grp[p]] if p in s.grp else -1 for p in range(mp)])
+        glw = np.array([s.glow.get(p, 1) for p in range(mp)])
+        t = s.tone.astype(np.int64).copy()
+        col = np.zeros((Hh, Ww), np.int64)          # 0 = Materialfarbe, 1 = Glutfuge, 2 = warme Kante, 3 = kalte Kante
+        gl = np.zeros((Hh, Ww), np.int64)
+        Pp = np.pad(P, 1); Fp = np.pad(filled, 1)
+        Y, X = np.mgrid[0:Hh, 0:Ww]
+        done = ~(filled & larr[P])
+        for dy, dx in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            q = Pp[1 + dy:Hh + 1 + dy, 1 + dx:Ww + 1 + dx]; fq = Fp[1 + dy:Hh + 1 + dy, 1 + dx:Ww + 1 + dx]
+            hit = ~done & fq & (q > 0) & (q < P)
+            same = hit & (gnum[P] >= 0) & (gnum[q] == gnum[P])
+            col[same] = 1
+            gl[same] = np.where((X[same] + Y[same]) % 5 != 0, glw[P[same]], np.minimum(4, glw[P[same]] + 1))
+            t[hit & ~same] = 0
+            done |= hit
+        if K > 1:
+            # Glutfuge im Feinraster: heller Kern (1 Feinpixel, eine Stufe heißer) mit dunkelrotem Saum auf der Nachbarplatte
+            core = col == 1
+            gl[core] = np.minimum(4, gl[core] + 1)
+            cp = np.pad(core, 1)
+            nb = np.zeros((Hh, Ww), bool)
+            for dy, dx in ((0, -1), (0, 1), (-1, 0), (1, 0)): nb |= cp[1 + dy:Hh + 1 + dy, 1 + dx:Ww + 1 + dx]
+            saum = nb & ~core & filled & (gnum[P] >= 0) & (col == 0) & (t > 0)
+            col[saum] = 1; gl[saum] = 1
+        left = np.full((Hh, Ww), -1, np.int64); left[:, 1:] = np.where(filled[:, :-1], P[:, :-1], -1)
+        above = np.full((Hh, Ww), -1, np.int64); above[1:] = np.where(filled[:-1], P[:-1], -1)
+        free = filled & (col == 0) & (s.tone > 0)
+        for m in {m for m in s.mat[filled]}:
+            sel = s.mat == m
+            if rim_back and m in INNER_WARM:
+                w_ = free & sel & (left != P) & (left < P) & rarr[P]
+                col[w_] = 2
+            if m in COLD:
+                c_ = free & sel & (col == 0) & (s.tone >= 3) & (above != P) & (above < P) & ~((left != P) & (left < P) & rarr[P] & bool(rim_back) & (m in INNER_WARM))
+                col[c_] = 3
+            C = np.array([hexc(c) for c in MAT[m]], np.uint8)
+            mm = sel & (col == 0)
+            im[mm, :3] = C[np.clip(t[mm], 0, 4)]
+            if m in INNER_WARM: im[sel & (col == 2), :3] = hexc(INNER_WARM[m])
+            if m in COLD: im[sel & (col == 3), :3] = hexc(COLD[m])
+        E = np.array([hexc(c) for c in MAT['emb']], np.uint8)
+        im[col == 1, :3] = E[gl[col == 1]]
+        im[filled, 3] = 255
+        a0 = filled
         for side, R in ((1, rim), (-1, rim_back)):
             if not R: continue
-            for y, x in zip(*np.nonzero(a0)):
-                xx = x + side
-                if 0 <= xx < Ww and a0[y, xx]: continue
-                m = s.mat[y, x]
-                if m in R and s.tone[y, x] > 0 and s.rim.get(s.part[y, x], True): im[y, x, :3] = hexc(R[m])
+            nb = np.zeros((Hh, Ww), bool)
+            if side == 1: nb[:, :-1] = a0[:, 1:]
+            else: nb[:, 1:] = a0[:, :-1]
+            edge = a0 & ~nb & (s.tone > 0) & rarr[P]
+            for m, c in R.items(): im[edge & (s.mat == m), :3] = hexc(c)
         if outline:
             a = im[:, :, 3] > 0
             o = np.zeros_like(a)
@@ -193,6 +228,9 @@ def sword(f, grip, ang, glow=1):
     f.put(f.poly([P(7, -3), P(6, -12), P(9, -17), P(12, -15), P(10, -11), P(10.5, -3), P(10.5, 3), P(10, 11), P(12, 15), P(9, 17), P(6, 12), P(7, 3)]),
           'gold', shade='dome', r=1.6, dcuts=(0.25, 0.55, 0.8))
     f.put(f.poly([P(7.2, -1.8), P(10.2, -1.8), P(10.2, 1.8), P(7.2, 1.8)]), 'emb', fixed=4, line=False)
+    # Feinraster: durchgehende Glanzlinie an der oberen Schneide, Glanzpunkt nahe der Parierstange
+    f.fline(P(11, 4.3), P(tip - 15, 3.4), 'blade', 4)
+    f.fline(P(13, 3.9), P(24, 3.7), 'spec', 4)
     fire = f.poly([P(26, -5), P(tip - 14, -4), P(tip, 0), P(tip - 14, 4), P(26, 5)]) & blade
     tipp = P(tip, 0)
     return blade, fire, tipp, P
@@ -295,6 +333,44 @@ HLEG = {'K': ('skin', 0), '1': ('skin', 1), '2': ('skin', 2), '3': ('skin', 3), 
         'b': ('beard', 1), 'B': ('beard', 2), 'c': ('beard', 3), 'C': ('beard', 4)}
 
 
+# Gesicht im Feinraster (Feinpixel relativ zur linken oberen Ecke von HEAD, Blick nach rechts; Licht kommt im Bild von
+# links oben = hier von rechts oben): Brauenkante, Lidspalte mit Glut, Schlitzpupille und Glanzpunkt, Unterlid, Nasenrücken,
+# Wangenknochen, schmaler Mund.
+FACE_F = {
+    # hinteres Auge (Spalten 14..27, Zeilen 13..21)
+    (14, 13): ['..4444444444..',
+               'KKKKKKKKKKKK..',
+               'KKKKKKKKKKKK..',
+               'KKrroEEEorrKK.',
+               'KKroEEpWEoorK.',
+               '.KKrooEpEoorrK',
+               '..KKKrrooorrKK',
+               '..KKKKKKKKKKK.',
+               '..333333333332'],
+    # vorderes Auge (Spalten 32..43)
+    (32, 13): ['.44444444444',
+               'KKKKKKKKKKKK',
+               'KKKKKKKKKKKK',
+               'KKrroEEoorKK',
+               'KKroEpWEorK.',
+               'KKroEpEoorK.',
+               '.KKrrooorKK.',
+               '..KKKKKKK...',
+               '...3333333..'],
+    # Nasenrücken und Nasenspitze
+    (30, 14): ['44', '34', '.4', '.34', '..4', '..34', '...4', '...34', '....4', '....44', '.....44', '......4K', '.....KK'],
+    # Mund: schmale Linie mit Mundwinkel, Unterlippe hell
+    (30, 28): ['K2KKKKKKKKK', 'K23333333..'],
+}
+FLEG_F = {'K': ('skin', 0), '1': ('skin', 1), '2': ('skin', 2), '3': ('skin', 3), '4': ('skin', 4),
+          'r': ('emb', 1), 'o': ('emb', 3), 'E': ('emb', 4), 'W': ('eyew', 4), 'p': ('pupil', 0)}
+
+
+def face_fine(f, X0, Y0):
+    for (dx, dy), rows in FACE_F.items():
+        f.fsprite(X0 * K + dx, Y0 * K + dy, rows, FLEG_F, under=True)
+
+
 def head(f, Pz):
     """Kopf (Dreiviertel, Blick nach vorn), Haar und Krone; gibt (Zackenmaske, Bildzeile der Reifoberkante) zurück."""
     n = Pz.T(4, 44)
@@ -304,6 +380,7 @@ def head(f, Pz):
                    (hx - 2, hh - 37), (hx + 3, hh - 26), (hx + 6, hh - 16)])
     f.put(hair, 'hair', shade='cyl', cut=(0.3, 0.7))
     f.sprite(hx, hh, HEAD, HLEG)
+    face_fine(f, *f.at(hx, hh))
     # Krone: goldener Reif über der Stirn (schräg, Dreiviertel), fünf Flammenzacken, Glutsteine
     band = f.poly([(hx + 2, hh - 7.5), (hx + 2, hh - 3), (hx + 10, hh + 0.5), (hx + 20, hh + 0.3), (hx + 20.3, hh - 4.3), (hx + 10, hh - 5)])
     f.put(band, 'gold', shade='vcyl', cut=(0.25, 0.6))
@@ -610,13 +687,13 @@ def back_img(p, ph):
     cape(f, Pz, ph)
     wing(f, root, q['wo'], q['wd'], ph)
     im = f.render(rim=None, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im
 
 
 def crown_fl(cm, t, R):
     fl = flame(cm[0], t, FLA_N, R=R, up=0.3, rise=1.4)
-    fl[cm[1]:] = 0
+    fl[cm[1] * K:] = 0
     return fl
 
 
@@ -624,7 +701,7 @@ def body_img(p):
     f = new()
     crown, fire, blade, tip = body(f, p)
     im = f.render(rim=RIM_F, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     fire[FY0 - 2:] = False; blade[FY0:] = False
     return im, crown, fire, blade, tip
 
@@ -747,36 +824,39 @@ EMB = MAT['emb']
 
 def sheen(img, seam, cx, w, y0, y1):
     """Spiegelung der Glutsonne im polierten Obsidian: Platten nahe cx eine Stufe wärmer, Rand gerastert."""
+    o = PAD if img.shape[1] == SWX else 0
     for y in range(y0, y1):
-        for x in range(max(0, int(cx - 2 * w)), min(SW, int(cx + 2 * w))):
-            if seam[y, x] or img[y, x, 3] == 0: continue
+        for x in range(max(-o, int(cx - 2 * w)), min(SW + o, int(cx + 2 * w))):
+            if seam[y, x + o] or img[y, x + o, 3] == 0: continue
             k = 1 - abs(x - cx) / w - (y - y0) / (y1 - y0) * 0.35
             if k <= 0: continue
             lv = 2 if k > 0.55 else 1
             if k < 0.25 and BAYER4[y % 4, x % 4] > k * 4: continue
-            r, g, b, _ = img[y, x]
-            img[y, x, :3] = (min(255, r + 18 * lv), min(255, g + 6 * lv), min(255, b + 2 * lv))
+            r, g, b, _ = img[y, x + o]
+            img[y, x + o, :3] = (min(255, r + 18 * lv), min(255, g + 6 * lv), min(255, b + 2 * lv))
 
 
 def scene():
     L = {}
     # ---- Ferne: Rückwand, Friese, Glutsonne, Thron (Tiefe 0,15)
-    F = bands(SH, SW, 0, 150, ['#030106', '#07030a', '#0b050e', '#110710', '#170a12'])
-    wall = bricks(0, 26, SW, 168, 22, 9, OBSI, seed=4)
-    stamp(F, wall)
-    G = np.zeros((SH, SW, 4), np.uint8)
+    # Arrays SWX breit (Spalte = Szenen-x + PAD), damit breite Bühnen links und rechts weiter Halle zeigen
+    F = bands(SH, SWX, 0, 150, ['#030106', '#07030a', '#0b050e', '#110710', '#170a12'])
+    wall = bricks(0, 26, SW + PAD, 168, 22, 9, OBSI, seed=4, ox=-PAD, w=SWX)
+    wall2 = bricks(-22 * 7, 26, 0, 168, 22, 9, OBSI, seed=4, ox=-PAD, w=SWX)
+    stamp(F, wall); stamp(F, wall2)
+    G = np.zeros((SH, SWX, 4), np.uint8)
     def frieze(y, h, col=('#2a1408', '#5a3010', '#8a4a18')):
         F[y:y + h, :] = (*hexc('#0a0508'), 255)
         F[y, :] = (*hexc(col[2]), 255); F[y + h - 1, :] = (*hexc(col[0]), 255)
-        for x in range(SW):           # Mäander
-            u = x % 8
+        for x in range(SWX):           # Mäander
+            u = (x - PAD) % 8
             pat = [(1, 1, 1, 1, 1, 0, 0, 0), (1, 0, 0, 0, 1, 0, 1, 1), (1, 0, 1, 1, 1, 0, 1, 0), (1, 0, 0, 0, 0, 0, 1, 0)]
             for j in range(min(4, h - 3)):
                 if pat[j][u]: F[y + 2 + j, x] = (*hexc(col[1]), 255)
     frieze(24, 8); frieze(150, 7)
     # Glutsonne: Ringe in harten Stufen mit Bayer-Kante, Strahlen
     cx, cy, R = SUN
-    Y, X = np.mgrid[0:SH, 0:SW]
+    Y, X = np.mgrid[0:SH, 0:SWX]; X = X - PAD
     d = np.hypot(X + 0.5 - cx, (Y + 0.5 - cy) * 1.0)
     SUNC = ['#2a0a06', '#4a1008', '#7a1e08', '#b8380c', '#e86418', '#ffa040', '#ffd890']
     dd = d / R + (BAYER4[Y % 4, X % 4] - 0.5) * 0.06
@@ -793,8 +873,8 @@ def scene():
         m = lvl == k
         F[m] = (*hexc(SUNC[max(0, k - 2)]), 255)
     # Thron: Schattenriss vor der Sonne (hohe Lehne, Hörner, Zacken), Kanten glühen vom Gegenlicht
-    T = Buf()
-    tx = cx - 2
+    T = Buf(w=SWX)
+    tx = cx - 2 + PAD                 # Thron in Spalten
     back = [(tx - 26, 168), (tx - 26, 92), (tx - 34, 80), (tx - 23, 84), (tx - 19, 66), (tx - 12, 76), (tx - 5, 50), (tx, 64), (tx + 5, 50), (tx + 12, 76), (tx + 19, 66),
             (tx + 23, 84), (tx + 34, 80), (tx + 26, 92), (tx + 26, 168)]
     tm = T.poly(back)
@@ -824,18 +904,19 @@ def scene():
     L['fern'] = dict(img=F, f=0.15)
     L['fern-glut'] = dict(img=G, f=0.15, glow=dict(per=3.6, lo=0.55, steps=3))
     # ---- Mitte: Säulen, Banner, Feuerschalen, hinterer Boden (Tiefe 0,45)
-    M = np.zeros((SH, SW, 4), np.uint8); MG = np.zeros((SH, SW, 4), np.uint8)
-    back_floor, bseam, _ = floor(168, SH, [3, 3, 4, 4, 5, 5, 6, 7, 8, 9], FLOORC, vx=cx, vy=40, tile=30, seed=7)
+    M = np.zeros((SH, SWX, 4), np.uint8); MG = np.zeros((SH, SWX, 4), np.uint8)
+    back_floor, bseam, _ = floor(168, SH, [3, 3, 4, 4, 5, 5, 6, 7, 8, 9], FLOORC, vx=cx, vy=40, tile=30, seed=7, w=SWX, ox=-PAD)
     sheen(back_floor, bseam, cx, 46, 168, 190)
     stamp(M, back_floor)
     # Glut vom Thron auf dem hinteren Boden: Fugen nahe der Mitte glimmen
     for y, x in zip(*np.nonzero(bseam)):
-        dx = abs(x - cx)
+        dx = abs(x - PAD - cx)
         if dx < 120 and y > 172:
             M[y, x] = (*hexc('#3a1208' if dx > 60 else '#5a1a0c'), 255)
             if dx < 60 and chk(x, y): MG[y, x] = (*hexc(EMB[1]), 255)
     PIL = ['#06030a', '#0f0913', '#19101c', '#241626', '#33202e']
     def column(x0, w, top=0, bot=172):
+        x0 += PAD
         for y in range(top, bot):
             for x in range(x0, x0 + w):
                 u = (x - x0 + 0.5) / w
@@ -853,11 +934,12 @@ def scene():
                 M[yy, x] = (*hexc(PIL[2 if yy == bot - 6 else 1]), 255)
             for yy in range(26, 34):
                 M[yy, x] = (*hexc(PIL[3 if yy == 26 else 1]), 255)
-    for x0 in (28, 172, 488):
+    for x0 in (-116, 28, 172, 488, 632):
         column(x0, 24)
     # Banner: karmin, Goldsaum, Krone, unten geschlitzt
     BAN = ['#1e070c', '#3c0d15', '#5e141d', '#851f25', '#ae3330']
     def banner(x0, w=20, top=38, L=74, seed=1):
+        x0 += PAD
         for y in range(top, top + L + 8):
             for x in range(x0, x0 + w):
                 u = (x - x0 + 0.5) / w
@@ -876,7 +958,7 @@ def scene():
             M[cy0 + dy, cx0 + dx] = (*hexc('#e8a040' if dy <= -3 else '#c4752a'), 255)
         # Stange
         for x in range(x0 - 3, x0 + w + 3): M[top - 2, x] = (*hexc('#5a3010'), 255); M[top - 1, x] = (*hexc('#2a1408'), 255)
-    for x0, s in ((96, 1), (232, 2), (528, 3)):
+    for x0, s in ((-40, 4), (96, 1), (232, 2), (528, 3), (664, 5)):
         banner(x0, seed=s)
     # Feuerschalen auf Dreifüßen: Schale in Mitte, Flamme als eigene Bildfolge
     braziers = []
@@ -884,25 +966,25 @@ def scene():
         for k in range(18):
             y = by_ + 4 + k
             for dx in (-6 + k // 3, 6 - k // 3, 0):
-                M[y, bx_ + dx] = (*hexc('#5a3010' if dx else '#2a1408'), 255)
+                M[y, bx_ + dx + PAD] = (*hexc('#5a3010' if dx else '#2a1408'), 255)
         for dx in range(-6, 7):
             for dy in range(0, 5):
                 if abs(dx) <= 6 - dy:
-                    M[by_ + dy, bx_ + dx] = (*hexc(['#c4752a', '#8a4a18', '#5a3010', '#2a1408', '#2a1408'][dy]), 255)
-        for dx in range(-5, 6): MG[by_ - 1, bx_ + dx] = (*hexc(EMB[3] if abs(dx) < 3 else EMB[2]), 255)
+                    M[by_ + dy, bx_ + dx + PAD] = (*hexc(['#c4752a', '#8a4a18', '#5a3010', '#2a1408', '#2a1408'][dy]), 255)
+        for dx in range(-5, 6): MG[by_ - 1, bx_ + dx + PAD] = (*hexc(EMB[3] if abs(dx) < 3 else EMB[2]), 255)
         braziers.append((bx_, by_))
     L['mitte'] = dict(img=M, f=0.45)
     L['mitte-glut'] = dict(img=MG, f=0.45, glow=dict(per=4.1, lo=0.66, steps=3))
     # ---- Boden: Thronpodest vorn (Tiefe 1): große Platten, Glutfugen nahe dem Boss
-    Bd, seam, _ = floor(FY - 4, SH, [4, 5, 6, 7, 9, 11], ['#07040a', '#150d13', '#1f141a', '#2a1a21', '#3a2428'], vx=BX - 30, vy=-40, tile=34, seed=11)
+    Bd, seam, _ = floor(FY - 4, SH, [4, 5, 6, 7, 9, 11], ['#07040a', '#150d13', '#1f141a', '#2a1a21', '#3a2428'], vx=BX - 30, vy=-40, tile=34, seed=11, w=SWX, ox=-PAD)
     sheen(Bd, seam, SUN[0], 40, FY - 4, SH)
     # Kante oben vom Thron angestrahlt
-    for x in range(SW):
-        Bd[FY - 4, x] = (*hexc('#4a2a22' if hash2(x, 1, 2) > 0.2 else '#33201e'), 255)
-    BG = np.zeros((SH, SW, 4), np.uint8)
+    for x in range(SWX):
+        Bd[FY - 4, x] = (*hexc('#4a2a22' if hash2(x - PAD, 1, 2) > 0.2 else '#33201e'), 255)
+    BG = np.zeros((SH, SWX, 4), np.uint8)
     for y, x in zip(*np.nonzero(seam)):
         if y == FY - 4: continue
-        far = abs(x - BX) / 90 + (y - FY) / 30
+        far = abs(x - PAD - BX) / 90 + (y - FY) / 30
         lv = 0 if far < 0.5 else 1 if far < 1.3 else 2
         deep = y > FY + 18
         Bd[y, x] = (*hexc('#3a1410' if lv == 2 or deep else EMB[1]), 255)
@@ -910,15 +992,16 @@ def scene():
     # Schatten des Bosses (feste Stufen)
     for dy, hw, k in [(-3, 30, 0.6), (-2, 40, 0.55), (-1, 44, 0.55), (0, 40, 0.6), (1, 30, 0.7)]:
         y = FY + dy
-        for x in range(BX - hw, BX + hw):
+        for x in range(BX - hw + PAD, BX + hw + PAD):
             r, g, b_, a = Bd[y, x]
             if a: Bd[y, x] = (int(r * k), int(g * k), int(b_ * k), a)
             BG[y, x] = 0
     L['boden'] = dict(img=Bd, f=1.0)
     L['boden-glut'] = dict(img=BG, f=1.0, glow=dict(per=3.4, lo=0.6, steps=3))
     # ---- Vordergrund (Tiefe 1,35): Säulentrümmer links, Kette rechts oben, Schattenriss mit Glutkante
-    V = Buf()
-    vm = V.poly([(-10, SH), (-10, 176), (4, 172), (10, 178), (18, 174), (26, 184), (34, 192), (44, 200), (50, SH)])
+    V = Buf(w=SWX)
+    vm = V.poly([(x + PAD, y) for x, y in [(-PAD - 4, SH), (-PAD - 4, 194), (-134, 190), (-112, 187), (-96, 191), (-74, 184), (-52, 181),
+                                           (-38, 176), (-24, 179), (-10, 176), (4, 172), (10, 178), (18, 174), (26, 184), (34, 192), (44, 200), (50, SH)]])
     V.a[vm] = (*hexc('#07040a'), 255)
     e = outline_mask(~vm) & vm
     top_e = e & ~np.roll(vm, 1, axis=0)
@@ -926,12 +1009,13 @@ def scene():
     for y, x in zip(*np.nonzero(top_e)):
         if hash2(x, y, 9) < 0.25: V.a[y, x] = (*hexc('#7a2a10'), 255)
     # Kette
-    for k in range(64):
-        y = k; x = 536 + int(round(2 * math.sin(k / 9)))
-        if k % 4 < 3:
-            V.set(x, y, '#2a1814'); V.set(x + 1, y, '#120a0c' if k % 4 else '#4a2a20')
-        else:
-            V.set(x - 1, y, '#2a1814'); V.set(x + 2, y, '#2a1814')
+    for cx_, L_, ph_ in ((536, 64, 0.0), (-92, 48, 1.7)):
+        for k in range(L_):
+            y = k; x = cx_ + PAD + int(round(2 * math.sin(k / 9 + ph_)))
+            if k % 4 < 3:
+                V.set(x, y, '#2a1814'); V.set(x + 1, y, '#120a0c' if k % 4 else '#4a2a20')
+            else:
+                V.set(x - 1, y, '#2a1814'); V.set(x + 2, y, '#2a1814')
     L['vorn'] = dict(img=V.a, f=1.35)
     return L, seam, braziers
 
@@ -944,7 +1028,7 @@ def layer_list(Ld, order):
         im, x, y = None, 0, 0
         a = np.nonzero(d['img'][:, :, 3])
         y0, y1, x0, x1 = a[0].min(), a[0].max() + 1, a[1].min(), a[1].max() + 1
-        e = dict(name=n, img=d['img'][y0:y1, x0:x1], x=int(x0), y=int(y0), f=d['f'])
+        e = dict(name=n, img=d['img'][y0:y1, x0:x1], x=int(x0) - (PAD if d['img'].shape[1] == SWX else 0), y=int(y0), f=d['f'])
         if 'glow' in d: e['glow'] = d['glow']
         if n.endswith('-glut'): e['poster'] = True
         out.append(e)
@@ -981,15 +1065,16 @@ def impact_star(pal=FLAME, w=41, h=34):
     return out
 
 
-def bush(w, h, t, tongues):
-    """Buschige Flammenwand: mehrere Zungen nebeneinander (x-Mitte, Breite, Höhe als Anteil, Saat), harte Stufen."""
-    out = np.zeros((h, w, 4), np.uint8)
+def bush(w, h, t, tongues, k=K):
+    """Buschige Flammenwand: mehrere Zungen nebeneinander (x-Mitte, Breite, Höhe als Anteil, Saat), harte Stufen.
+    Im Feinraster (k·h × k·w)."""
+    out = np.zeros((h * k, w * k, 4), np.uint8)
     order = sorted(tongues, key=lambda q: q[2])
     for cx, ww, hh, sd in order:
         tw, th = max(6, int(w * ww)), max(8, int(h * hh))
-        im = feuer(tw, th, (t + sd) % 6, 6, seed=sd, hw=0.46, lick=1.15, core=0.55)
-        x0 = int(round(cx * w - tw / 2)); y0 = h - th
-        sub = out[y0:y0 + th, max(0, x0):x0 + tw]
+        im = feuer(tw, th, (t + sd) % 6, 6, seed=sd, hw=0.46, lick=1.15, core=0.55, k=k)
+        x0 = int(round(cx * w - tw / 2)) * k; y0 = (h - th) * k
+        sub = out[y0:y0 + th * k, max(0, x0):x0 + tw * k]
         src = im[:, max(0, -x0):max(0, -x0) + sub.shape[1]]
         msk = src[:, :, 3] > 0
         # hellere Stufe gewinnt (Kern über Rand), damit sich die Zungen zu einer Wand verbinden
@@ -1050,15 +1135,16 @@ def build():
                 kk = {'ein': 0 if art == 'hit' else 1, 'nach1': 1, 'nach2': 2, 'nach3': 3, 'zieh': 3}[pn]
                 im = over(im, cracks(imp_x, min(3, kk)))
                 if pn in ('nach1', 'nach2'): im = over(im, chunks(imp_x, kk - 1))
-            im[:FY0 - 168] = 0            # Schutz: nichts über 170 px (Szene y >= 20)
+            im[:(FY0 - 168) * K] = 0            # Schutz: nichts über 170 px (Szene y >= 20)
             frames.append(im); seq.append(round(ms / n)); tms += round(ms / n)
         prev = p
     uniq, idx = dedupe(frames)
     # ---- gemeinsamer Rahmen, gespiegelt (Blick nach links)
     allims = backs + bodies + crowns + flammen + uniq
-    x0, y0, x1, y1 = common_crop(allims)
+    c0, r0, c1, r1 = kcrop(*common_crop(allims))
+    cut = lambda im: flip(im[r0:r1, c0:c1])
+    x0, y0, x1, y1 = c0 // K, r0 // K, c1 // K, r1 // K          # Szenenpixel
     fw, fh_ = x1 - x0, y1 - y0
-    cut = lambda im: flip(im[y0:y1, x0:x1])
     fx = (x1 - 1) - FX
     fy = FY0 - y0
     sheets = {'hinten': strip([cut(i) for i in backs]), 'koerper': strip([cut(i) for i in bodies]),
@@ -1071,14 +1157,14 @@ def build():
     Ld, seam, braziers = scene()
     layers = layer_list(Ld, ['fern', 'fern-glut', 'mitte', 'mitte-glut', 'boden', 'boden-glut', 'vorn'])
     # ---- Effekte: Fugenwelle, Feuerwand (halbe Bühnenhöhe) durch die ganze Halle, Einschlagstern, Feuerschalen
-    wave, wmeta = seam_wave(seam, imp_scene, FY - 3, v=300, ms=60, pal=FLAME, direction=-1, maxd=420,
+    wave, wmeta = seam_wave(seam, imp_scene, FY - 3, v=300, ms=60, pal=FLAME, direction=-1, maxd=420, ox=-PAD,
                             peak=lambda d: 4 if d < 60 else 3 if d < 180 else 2)
     fx_ = {'welle': wave}
     WW, WH, W2, H2, W3, H3 = 74, 100, 40, 58, 18, 28
     fx_['wand'] = strip([bush(WW, WH, i, [(0.5, 0.62, 1.0, 1), (0.24, 0.42, 0.72, 4), (0.76, 0.44, 0.8, 7), (0.1, 0.24, 0.45, 9), (0.9, 0.26, 0.5, 11)]) for i in range(6)])
     fx_['wand2'] = strip([bush(W2, H2, i, [(0.5, 0.7, 1.0, 2), (0.22, 0.5, 0.7, 5), (0.8, 0.5, 0.78, 8)]) for i in range(6)])
-    fx_['wand3'] = strip([feuer(W3, H3, i, 6, seed=3) for i in range(6)])
-    fx_['schale'] = strip([feuer(16, 20, i, 6, seed=5, hw=0.38) for i in range(6)])
+    fx_['wand3'] = strip([feuer(W3, H3, i, 6, seed=3, k=K) for i in range(6)])
+    fx_['schale'] = strip([feuer(16, 20, i, 6, seed=5, hw=0.38, k=K) for i in range(6)])
     fx_['blitz'] = strip(impact_star())
     sch = [[int(x - 8), int(y - 19)] for x, y in braziers]
     FUNKEN = ['#fff2c0', '#ffb648', '#e8641a', '#a8300a']
@@ -1107,5 +1193,5 @@ def build():
         'dauer': 9.5, 'start': 2.4,
     }
     return {'layers': layers, 'figure': {'sheets': sheets, 'meta': {'fx': int(fx), 'fy': int(fy)}, 'poster': poster, 'x': int(FXs), 'y': int(FYs)},
-            'fx': fx_, 'meta': meta, 'figure_after': 'boden-glut',
+            'fx': fx_, 'fein': {'wand', 'wand2', 'wand3', 'schale'}, 'meta': meta, 'figure_after': 'boden-glut',
             'previews': {'moment': sheets['moment']}}

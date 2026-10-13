@@ -1,7 +1,8 @@
 // Bosskino der Startseite (site/bosskino.js zeichnet es live auf ein Canvas, Abschnitt #bosse):
 // Die Bosse als eigene Pixel-Art in Seitenansicht, riesig in ihrem Gebiet, je mit einer Signatur-Attacke.
 // Gleiches Prinzip wie das Titelbild (tools/titel-held.mjs): ein Szenenraster für alle Ebenen (560 × 216 Szenenpixel),
-// jede Ebene und jede Figur 1:1 darin, ganzzahlig vergrößert, keine Ebene skaliert oder verzerrt.
+// jede Ebene und jede Figur 1:1 darin, ganzzahlig vergrößert, keine Ebene skaliert oder verzerrt. Ausgegeben im Feinraster wie
+// das Spiel (2 Feinpixel je Szenenpixel, docs/STYLE.md „Feinraster“): Atlanten in doppelter Auflösung, Maße weiter in Szenenpixeln.
 // Gezeichnet in Python (tools/bosskino.py mit je einem Modul bosskino_<boss>.py): Ebenen (Ferne, Mitte, Boden mit
 // Fugen, Vordergrund, je mit Glut-Ebene), Figur in Ruhe aus Teilen mit eigenen Zyklen, Attacke als ganze Bilder,
 // Effekte als Bildfolgen. Je Boss ein Atlas img/bosskino-<boss>.webp (verlustfrei), Standbild img/bosskino.webp
