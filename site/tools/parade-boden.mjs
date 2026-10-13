@@ -1,5 +1,6 @@
 // Boden der Reittier-Parade (Startseite): zwei nahtlos waagerecht kachelbare Streifen in Spielpixeln, 2 Bildpunkte je
 // Weltpixel (RES 2 wie die Reittier-Streifen, tools/reittiere-gang.mjs).
+// Feinraster (13.10.): Boden und Hügel in Weltpixeln (×2), die Steppen-Deko in Feinpixeln wie im Spiel auf „Hoch“.
 //   parade-nah.webp  512 × 40 Weltpixel: Laufboden. Zeile 0–3 hinterer Grasrand, 4–13 Wegspur (festgetretene Erde, Kies,
 //                    Steine), Lauflinie (Hufe setzen auf) = Zeile LAUF (10); darunter Gras-Kacheln mit Steinen und Büscheln.
 //   parade-fern.webp 512 × 28 Weltpixel: Hügelkette mit Büscheln und Felsen, oben transparent, dunkel und kontrastarm.
@@ -29,7 +30,10 @@ const p = await b.newPage();
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.route(`${BASE}/__leer`, (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><meta charset="utf-8">' }));
 await p.goto(`${BASE}/__leer`);
-const res = await p.evaluate(async ({ W, NH, FH }) => {
+const res = await p.evaluate(async ({ W, NH, FH, RES }) => {
+  // Feinraster (docs/STYLE.md): Deko wie im Spiel auf Qualität „Hoch“ (renderScale 2 → Sprites mit frame.res 2)
+  const { CONFIG } = await import('/src/config.js');
+  CONFIG.renderScale = RES;
   const S = await import('/src/sprites/decor_steppe.js');
   const { createRng, hash2 } = await import('/src/core/math.js');
   const deko = S.createSteppeDecor();
@@ -50,15 +54,20 @@ const res = await p.evaluate(async ({ W, NH, FH }) => {
   const pc = (B, ox = 0, oy = 0) => ({ px: (x, y, c) => B.set(x + ox, y + oy, c) });
   // Sprite (Canvas) mit Fußpunkt (fx, fy) stempeln; map ersetzt Farben (Ferne)
   const pixels = (cv) => { const x = cv.getContext('2d', { willReadFrequently: true }); return x.getImageData(0, 0, cv.width, cv.height).data; };
+  // Feinraster: B ist der RES-fache Puffer; Sprites mit frame.res = RES landen texelgenau (Feinpixel), ältere
+  // Weltpixel-Sprites (res 1) als RES×RES-Blöcke. Gespiegelt wird um die Sprite-Breite (Anker wie im Spiel).
   const stamp = (B, e, fx, fy, map = null, flip = false) => {
-    const s = e.sprite ?? e, cv = s.canvas, a = pixels(cv);
+    const s = e.sprite ?? e, cv = s.canvas, a = pixels(cv), r = s.res ?? 1, k = RES / r;
+    const ax = flip ? cv.width - 1 - s.ax : s.ax;
     for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
       const sx = flip ? cv.width - 1 - x : x, i = (y * cv.width + sx) * 4;
       if (a[i + 3] < 128) continue;
-      const c = [a[i], a[i + 1], a[i + 2], 255];
-      B.set(fx - s.ax + x, fy - s.ay + y, map ? map(c) : c);
+      const c = [a[i], a[i + 1], a[i + 2], 255], v = map ? map(c) : c;
+      for (let j = 0; j < k; j++) for (let q = 0; q < k; q++) B.set(fx * RES + (x - ax) * k + q, fy * RES + (y - s.ay) * k + j, v);
     }
   };
+  // Weltpixel-Puffer auf RES vergrößern (nächster Nachbar): Boden, Wege und Hügel bleiben in Weltpixeln wie bisher
+  const up = (B) => { const U = buf(B.w * RES, B.h * RES); for (let y = 0; y < U.h; y++) for (let x = 0; x < U.w; x++) U.set(x, y, B.get(Math.floor(x / RES), Math.floor(y / RES))); return U; };
 
   // ---------------------------------------------------------------- Kacheln 16×16
   // Grasbüschel-Glyphen: L Licht, M Mitte, D dunkel, S Schatten darunter (Licht von links oben wie im Spiel)
@@ -144,12 +153,14 @@ const res = await p.evaluate(async ({ W, NH, FH }) => {
   for (let i = 0; i < 4; i++) items.push({ e: deko.boulders[i === 2 ? 0 : 2], x: Math.round((i + 0.55 + rng.next() * 0.3) * W / 4), y: i === 2 ? 39 : 30 + rng.int(0, 5), f: i % 2 === 1 });
   // Findlinge fest abgedunkelt (heller Kalkstein stäche auf der dunklen Seite heraus)
   const dim = (k) => (c) => [c[0] * k, c[1] * k, c[2] * k, 255];
-  items.sort((a, c) => a.y - c.y).forEach((o) => stamp(N, o.e, o.x, o.y, o.e === deko.steppeGrass[0] || o.e === deko.steppeGrass[2] ? dim(0.92) : dim(0.72), o.f));
+  const N2 = up(N);
+  items.sort((a, c) => a.y - c.y).forEach((o) => stamp(N2, o.e, o.x, o.y, o.e === deko.steppeGrass[0] || o.e === deko.steppeGrass[2] ? dim(0.92) : dim(0.72), o.f));
   // Unterkante zur dunklen Seite hin abdunkeln: feste Stufen mit geordnetem Raster (keine Filter)
-  for (let y = 30; y < NH; y++) for (let x = 0; x < W; x++) {
-    const t = (y - 29) / 11, k = 1 - 0.55 * t + (S.bayer(x, y) - 0.5) * 0.12, q = Math.round(k * 8) / 8, c = N.get(x, y);
+  for (let Y = 30 * RES; Y < NH * RES; Y++) for (let X = 0; X < W * RES; X++) {
+    const x = Math.floor(X / RES), y = Math.floor(Y / RES);
+    const t = (y - 29) / 11, k = 1 - 0.55 * t + (S.bayer(x, y) - 0.5) * 0.12, q = Math.round(k * 8) / 8, c = N2.get(X, Y);
     const bg = [10, 5, 16];
-    N.set(x, y, [bg[0] + (c[0] - bg[0]) * q, bg[1] + (c[1] - bg[1]) * q, bg[2] + (c[2] - bg[2]) * q, 255]);
+    N2.set(X, Y, [bg[0] + (c[0] - bg[0]) * q, bg[1] + (c[1] - bg[1]) * q, bg[2] + (c[2] - bg[2]) * q, 255]);
   }
 
   // ---------------------------------------------------------------- ferner Streifen
@@ -178,25 +189,26 @@ const res = await p.evaluate(async ({ W, NH, FH }) => {
   // kleine Silhouetten auf der hinteren Kette (noch dunkler)
   const backMap = (c) => rgb(FAR2[(0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]) > 90 ? 3 : 2]);
   for (let i = 0; i < 6; i++) { const x = Math.round((i + fr.next()) * W / 6); far.unshift({ e: deko.steppeGrass[2], x, y: hbAt(x) + 2, map: backMap }); }
+  const F2 = up(F);
   far.sort((a, c) => (a.map === backMap) - (c.map === backMap) || a.y - c.y);
-  far.filter((o) => o.map === backMap).concat(far.filter((o) => o.map !== backMap)).forEach((o) => stamp(F, o.e, o.x, o.y, o.map));
+  far.filter((o) => o.map === backMap).concat(far.filter((o) => o.map !== backMap)).forEach((o) => stamp(F2, o.e, o.x, o.y, o.map));
 
   const toUrl = (B) => { const c = document.createElement('canvas'); c.width = B.w; c.height = B.h; c.getContext('2d').putImageData(new ImageData(B.d, B.w, B.h), 0, 0); return c.toDataURL('image/png'); };
-  return { nah: toUrl(N), fern: toUrl(F) };
-}, { W, NH, FH });
+  return { nah: toUrl(N2), fern: toUrl(F2) };
+}, { W, NH, FH, RES });
 await b.close();
 
-const fN = join(TMP, 'nah-1x.png'), fF = join(TMP, 'fern-1x.png'), VOR = join(TMP, 'vorschau.png');
+const fN = join(TMP, 'nah.png'), fF = join(TMP, 'fern.png'), VOR = join(TMP, 'vorschau.png');
 writeFileSync(fN, Buffer.from(res.nah.split(',')[1], 'base64'));
 writeFileSync(fF, Buffer.from(res.fern.split(',')[1], 'base64'));
 const outN = join(OUTDIR, 'parade-nah.webp'), outF = join(OUTDIR, 'parade-fern.webp');
-// Hochskalieren (nächster Nachbar, RES), verlustfrei speichern, Vorschau: fern 2× über nah 2×, Überlappung wie auf der Seite
+// Verlustfrei speichern (Streifen kommen schon in RES), Vorschau: fern 2× über nah 2×, Überlappung wie auf der Seite
 const py = `
 import sys, json
 from PIL import Image
 fN, fF, outN, outF, vor, RES, UE = json.loads(sys.argv[1])
 n = Image.open(fN).convert('RGBA'); f = Image.open(fF).convert('RGBA')
-N = n.resize((n.width * RES, n.height * RES), Image.NEAREST); Fm = f.resize((f.width * RES, f.height * RES), Image.NEAREST)
+N = n; Fm = f   # schon in RES (Feinraster der Deko)
 N.convert('RGB').save(outN, 'WEBP', lossless=True, quality=100, method=6)
 Fm.save(outF, 'WEBP', lossless=True, quality=100, method=6)
 w = N.width * 2; top = 24 * RES; fy = top; ny = fy + Fm.height - UE * RES
