@@ -1067,34 +1067,75 @@ def dorn(h=64, w=34, seed=0):
     return out
 
 
-def wolke(w=80, h=64, n=11, seed=0):
-    """Sporenwolke quillt in Pixelstufen: Ballen wachsen und steigen, helle Kerne, dunkler Saum, zerfällt über
-    Bayer-Schwellen; Fuß unten Mitte."""
+def wolke(w=80, h=64, n=11, seed=0, k=K):
+    """Sporenwolke, gezeichnet im Feinraster (k Feinpixel je Szenenpixel; Maße w, h in Szenenpixeln): Ballen als harte
+    Scheiben in drei Tönen (Körper, Lichtsichel oben links, heller Kern), dunkle Naht, wo ein Ballen vor dem anderen liegt,
+    1 Feinpixel dunkler Umriss. Ballen wachsen und steigen; danach schrumpfen sie Ton um Ton, zerfallen in kleine
+    Bällchen und Sporenpunkte. Keine Rasterung, keine Zwischentöne. Fuß unten Mitte."""
     r = np.random.default_rng(seed)
-    balls = [(r.uniform(-22, 22), r.uniform(4, 30), r.uniform(9, 17), r.uniform(0, 0.25)) for _ in range(9)]
-    Y, X = np.mgrid[0:h, 0:w]
-    pal = np.array([(*hexc(c), 255) for c in [VI[0], VI[1], SP[1], SP[2], SP[3], SP[4]]], np.uint8)
+    W, H = w * k, h * k
+    balls = [(r.uniform(-22, 22), r.uniform(4, 30), r.uniform(9, 17), r.uniform(0, 0.25), r.uniform(0.62, 0.95)) for _ in range(9)]
+    balls.sort(key=lambda b: -b[1])                  # hohe (hintere) Ballen zuerst, tiefe davor
+    bits = [(r.uniform(-30, 30), r.uniform(6, 40), r.uniform(2.2, 4.2), r.uniform(-1, 1)) for _ in range(12)]
+    dots = [(r.uniform(-34, 34), r.uniform(4, 52), r.uniform(0.4, 1.0)) for _ in range(26)]
+    Y, X = np.mgrid[0:H, 0:W]
+    Xs, Ys = (X + 0.5) / k, (Y + 0.5) / k             # Feinpixelmitte in Szenenpixeln
+    C = {n_: np.array((*hexc(c), 255), np.uint8) for n_, c in
+         dict(rim=VI[0], seam=SP[0], body=SP[1], mid=SP[2], lit=SP[3], core=SP[4]).items()}
     out = []
-    for k in range(n):
-        t = (k + 1) / n
-        im = np.zeros((h, w, 4), np.uint8)
-        v = np.zeros((h, w))
-        for bx, by, br, d in balls:
+    for f in range(n):
+        t = (f + 1) / n
+        late = max(0.0, (t - 0.5) / 0.5)              # 0 … 1 im Zerfall
+        im = np.zeros((H, W, 4), np.uint8)
+        cover = np.zeros((H, W), bool)
+        seam = np.zeros((H, W), bool)
+        def disc(cx, cy, rad, tones):
+            nonlocal cover
+            q = np.hypot(Xs - cx, (Ys - cy) * 1.1)
+            m = q <= rad
+            if not m.any(): return
+            # Naht: Rand dieses Ballens über bereits gezeichneten (1 Feinpixel)
+            inner = np.hypot(Xs - cx, (Ys - cy) * 1.1) <= rad - 1.0 / k
+            seam[m & ~inner & cover] = True
+            seam[inner] = False
+            body, lit, core = tones
+            im[m] = C[body]
+            if lit:
+                ql = np.hypot(Xs - (cx - rad * 0.22), (Ys - (cy - rad * 0.26)) * 1.1)
+                im[m & (ql <= rad * 0.78)] = C[lit]
+            if core:
+                qc = np.hypot(Xs - (cx - rad * 0.3), (Ys - (cy - rad * 0.34)) * 1.1)
+                im[m & (qc <= rad * 0.34)] = C[core]
+            cover |= m
+        for bx, by, br, d, life in balls:
             tt = max(0, t - d)
-            if tt <= 0: continue
-            rad = br * min(1, tt * 2.4 + 0.25)
-            cyy = h - 3 - by * min(1, tt * 1.6 + 0.2) - t * 8
-            q = 1 - np.hypot(X - (w / 2 + bx * (0.6 + tt)), (Y - cyy) * 1.1) / rad
-            v = np.maximum(v, q)
-        dens = 1.0 - max(0, t - 0.5) * 1.9
-        th = BAYER4[Y % 4, X % 4]
-        on = (v > 0) & (th < dens + v * 0.6)
-        lv = np.select([v > 0.72, v > 0.48, v > 0.26, v > 0.1], [5, 4, 3, 2], 1)
-        lv = np.clip(lv - (1 if t > 0.55 else 0) - (1 if t > 0.8 else 0), 0, 5)
-        lv = np.where((lv == 5) & (k > 1), 4, lv)
-        im[on] = pal[lv[on]]
+            if tt <= 0 or late > life: continue
+            grow = min(1, tt * 2.4 + 0.25)
+            rad = br * grow * (1 - 0.55 * late / life)
+            if rad < 1.6: continue
+            cx = w / 2 + bx * (0.6 + tt)
+            cy = h - 3 - by * min(1, tt * 1.6 + 0.2) - t * 8
+            if late < 0.25: tones = ('mid', 'lit', 'core' if f < 6 and br > 11 else None)
+            elif late < 0.6: tones = ('body', 'mid', None)
+            else: tones = ('body', None, None)
+            disc(cx, cy, rad, tones)
+        if late > 0:                                    # Bällchen lösen sich und steigen
+            for bx, by, br, dr in bits:
+                if late > 0.95: break
+                rad = br * (1 - late * 0.7)
+                cx = w / 2 + bx * (0.9 + late * 0.5) + dr * late * 6
+                cy = h - 6 - by - late * 14
+                disc(cx, cy, rad, ('mid', 'lit', None) if late < 0.5 else ('body', 'mid', None))
+        im[seam & cover] = C['seam']
         a = im[:, :, 3] > 0
-        if t < 0.75: im[outline_mask(a)] = pal[0]
+        im[outline_mask(a) & ~a] = C['rim'] if late < 0.85 else C['seam']
+        # Sporenpunkte (je 1 Feinpixel, heller Kern), ab der Mitte des Quellens
+        if t > 0.3:
+            for dx, dy, sp in dots:
+                if sp < late * 0.9: continue
+                x_ = int((w / 2 + dx * (0.7 + t * 0.5)) * k); y_ = int((h - 4 - dy - t * 10) * k)
+                if 1 <= x_ < W - 1 and 1 <= y_ < H - 1 and not a[y_, x_]:
+                    im[y_, x_] = C['core' if sp > 0.7 else 'lit']
         out.append(im)
     return out
 
@@ -1215,6 +1256,7 @@ def build():
     fx['dorn'] = strip(dorn(DH, DW, 1))
     fx['dorn2'] = strip(dorn(dH, dW, 2))
     fx['wolke'] = strip(wolke(80, 64, 11, 3))
+    B['fein'] = B.get('fein', set()) | {'wolke'}   # im Feinraster gezeichnet, kein Scale2x
     wave, wm = seam_wave(seam, imp_s, FY - 2, v=260, ms=60, pal=SPORE, direction=-1, maxd=400, ox=-PAD, peak=lambda d: 4 if d < 80 else 3 if d < 200 else 2,
                          ages=(0.1, 0.32, 0.65, 1.05))
     fx['welle'] = wave

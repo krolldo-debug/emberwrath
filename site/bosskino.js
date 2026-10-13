@@ -78,7 +78,7 @@
   };
   const placePoster = () => {
     layout(META.bosse[ORDER[cur]]);
-    Object.assign(poster.style, { width: `${(S.W * d) / dpr}px`, height: `${(S.H * d) / dpr}px`, left: `${(ox - camX * d) / dpr}px`, top: `${(-camY * d) / dpr}px` });
+    Object.assign(poster.style, { width: `${(XW * d) / dpr}px`, height: `${(S.H * d) / dpr}px`, left: `${(ox - (camX - X0) * d) / dpr}px`, top: `${(-camY * d) / dpr}px` });   // Standbild X0 … X1
   };
   placePoster();
   let live = null;   // gesetzt, sobald das Canvas zeichnet
@@ -86,7 +86,7 @@
 
   // ---------- Bilder: ein Atlas je Boss, erst bei Bedarf
   const atlases = {};
-  const load = (n) => (atlases[n] ??= new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = `${IMG}bosskino-${n}.webp`; }));
+  const load = (n) => (atlases[n] ??= new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = `${IMG}bosskino-${n}.webp`; }).catch((er) => { delete atlases[n]; throw er; }));   // Fehlschlag: beim nächsten Mal neu laden
   const conn = navigator.connection;
   const lean = conn && (conn.saveData || /(^|-)2g/.test(conn.effectiveType ?? ''));
   let wanted = false;
@@ -95,7 +95,7 @@
     load(ORDER[cur]).then(() => start(), () => {});
   };
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver(([e], o) => { if (e.isIntersecting) { want(); o.disconnect(); } }, { rootMargin: '900px 0px' }).observe(stage);
+    new IntersectionObserver((es, o) => { if (es.some((e) => e.isIntersecting)) { want(); o.disconnect(); } }, { rootMargin: '900px 0px' }).observe(stage);
   }
 
   let pick = (i, user) => {
@@ -397,7 +397,7 @@
       img = im; show(cur); B.img = im; size();
       draw(); cv.classList.add('on');
       if (!reduced) prefetch();
-      new IntersectionObserver(([e]) => { vis = e.isIntersecting; run_(); }).observe(stage);
+      new IntersectionObserver((es) => { vis = es[es.length - 1].isIntersecting; run_(); }).observe(stage);   // letzter Eintrag zählt (mehrere je Aufruf möglich)
       document.addEventListener('visibilitychange', run_);
     }, () => {});
   }

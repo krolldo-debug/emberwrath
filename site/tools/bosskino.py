@@ -870,9 +870,10 @@ def main():
         meta['bosse'][name] = m
         po = compose(B)
         Image.fromarray(po).convert('RGB').save(os.path.join(TMP, f'standbild-{name}.png'))
-        Image.fromarray(compose(B, wide=True)).convert('RGB').save(os.path.join(TMP, f'standbild-{name}-breit.png'))
-        if name == 'malgareth':
-            sizes['bosskino.webp'] = save_webp(po, os.path.join(IMG, 'bosskino.webp'), opaque=True)
+        pw_ = compose(B, wide=True)
+        Image.fromarray(pw_).convert('RGB').save(os.path.join(TMP, f'standbild-{name}-breit.png'))
+        if name == 'malgareth':   # Standbild in ganzer Breite (X0 … X1), damit es auch breite Bühnen füllt
+            sizes['bosskino.webp'] = save_webp(pw_, os.path.join(IMG, 'bosskino.webp'), opaque=True)
         for k, im in B.get('previews', {}).items():
             Image.fromarray(im).save(os.path.join(TMP, f'{name}-{k}.png'))
     print(json.dumps({'meta': meta, 'sizes': sizes}, default=int))
