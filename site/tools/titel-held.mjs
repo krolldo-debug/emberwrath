@@ -221,20 +221,24 @@ const res = await p.evaluate(async (SZ) => {
   const LTF = LT * Q, LBF = LB * Q;
   // links vom Helden kühlt der Strom zu dunkler Kruste ab (dort steht die Überschrift); Übergang gerastert
   const cool = (x) => Math.max(0, Math.min(1, (x - 288) / 26));
-  const COOL = ['#24100d', '#3a120c', '#5a1a0c'];
+  const COOL = ['#1c0e0c', '#28110d', '#38150d'];
+  const COOLRIM = ['#201512', '#2a1a15'];                // Ufer des erkalteten Stroms: Asche der Ebene
   const LAV = [], LAVG = [];
   for (let f = 0; f < LH; f++) {
     const L = buf(WF, LBF - LTF), LG = buf(WF, LBF - LTF), at = lavaAt(THRONE, f % 4, false);
     for (const [X, [Y0, Y1]] of river) {
       if (X < 0 || X >= WF) continue;
-      if (Y1 > Y0) { L.set(X, Y0 - 2 - LTF, '#2a100e'); L.set(X, Y0 - 1 - LTF, '#3a1410'); L.set(X, Y1 + 1 - LTF, '#3a1410'); L.set(X, Y1 + 2 - LTF, '#2a100e'); }   // Krustensaum
       const cl = cool(sx(X));
+      if (Y1 > Y0 && cl > 0.5) { L.set(X, Y0 - 2 - LTF, '#2a100e'); L.set(X, Y0 - 1 - LTF, '#3a1410'); L.set(X, Y1 + 1 - LTF, '#3a1410'); L.set(X, Y1 + 2 - LTF, '#2a100e'); }   // Krustensaum (nur am heißen Strom)
       for (let Y = Y0; Y <= Y1; Y++) {
         let [c, g] = at(X + 1024, Y + 600), l = lum(c);
         if (X >= Q * (FX - 16) && l < 0.5) { c = EMB[(X > Q * (FX - 4) ? 1 : 2) + chk(X, Y)]; g = EMB[2]; l = 0.6; }   // Quelle: läuft glühend aus
         if (l >= (1 - cl) * 1.01) { L.set(X, Y - LTF, c); if (g) LG.set(X, Y - LTF, g); continue; }   // das Heißeste glüht am längsten
-        L.set(X, Y - LTF, COOL[l > 0.55 ? 2 : l > 0.35 ? 1 : 0]);
-        if (l > 0.7 && chk(X, Y)) LG.set(X, Y - LTF, EMB[1]);
+        // erkaltet: Ufer franst organisch in die Asche aus (Wertrauschen, keine geraden Kanten), Schollen dunkel
+        const e = Math.min(Y - Y0, Y1 - Y), nz = vnoise(X / 9, Y / 4, 77) * 0.7 + vnoise(X / 3, Y / 2, 78) * 0.3;
+        if (e < 5 && nz * 6 > e + 1.2) { L.set(X, Y - LTF, COOLRIM[e < 2 ? 0 : chk(X, Y)]); continue; }
+        L.set(X, Y - LTF, COOL[l > 0.7 ? 2 : l > 0.45 ? 1 : 0]);
+        if (l > 0.8 && chk(X, Y) && cl > 0.3) LG.set(X, Y - LTF, EMB[1]);
       }
     }
     for (const [X, Y, lv] of embers) { L.set(X, Y - LTF, EMB[lv - 1]); LG.set(X, Y - LTF, EMB[lv]); }
