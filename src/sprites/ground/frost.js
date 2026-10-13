@@ -311,11 +311,14 @@ function frostFine(kind, F, G, K, ki, KW, S) {
   const a = S.abs[o], s = S.soil[ki], dt = D4[(G & 3) * 4 + (F & 3)] / 16;
   const wi = (((G - S.G0) >> 1) + S.m) * S.fw + ((F - S.F0) >> 1) + S.m;
   if (kind === DI) return trackPx(s, K, ki, KW, S, wi, dt, a, o, F, G);
-  // Schneeverwehung am Pflasterrand: zwei Feinpixel heller Schnee seitlich und unterhalb der Randsteine
+  // Schneeverwehung am Pflasterrand: zwei Feinpixel heller Schnee oberhalb und seitlich der Randsteine. Unterhalb
+  // nicht: dort las sich die Lippe als lose helle Linie unter der Insel.
   if (s !== SI && s !== ST) {
     const PV = FK.PAVE;
-    if (K[ki - KW] === PV || K[ki - 1] === PV || K[ki + 1] === PV || K[ki + KW] === PV) return C.snow[5];
-    if (K[ki - 2 * KW] === PV || K[ki - 2] === PV || K[ki + 2] === PV || K[ki + 2 * KW] === PV) return C.snow[4];
+    if (K[ki - KW] !== PV && K[ki - 2 * KW] !== PV) {
+      if (K[ki - 1] === PV || K[ki + 1] === PV || K[ki + KW] === PV) return C.snow[5];
+      if (K[ki - 2] === PV || K[ki + 2] === PV || K[ki + 2 * KW] === PV) return C.snow[4];
+    }
   }
   if (a >= 0) return a;
   switch (s) {

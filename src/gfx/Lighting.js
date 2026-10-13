@@ -156,7 +156,8 @@ export class LightingSystem {
 
 // Stufenlicht als Pixelkreise in Lightmap-Größe (Radius r Weltpixel, r · LM Pixel): Kern, Hof, Saum. Die Lichtmenge
 // entspricht ungefähr dem weichen Verlauf.
-const STEPS = [[0.32, 0.92], [0.6, 0.5], [0.88, 0.17]];
+// Äußerste Stufe bei 0,66 statt 0,88 (Radius −25 %): der weite Saum lag wie ein bräunlicher Schleier über der halben Szene
+const STEPS = [[0.32, 0.92], [0.52, 0.5], [0.66, 0.15]];
 // Schimmer: nur Kern und Hof, flacher – sonst stapeln sich helle Scheiben über dem Stufenlicht
 const GLOW_STEPS = [[0.45, 0.6], [0.8, 0.22]];
 const stepCache = new Map();
