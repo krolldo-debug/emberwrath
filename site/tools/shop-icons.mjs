@@ -4,7 +4,8 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 const OUT = process.argv[2] ?? 'icons'; mkdirSync(OUT, { recursive: true });
-const ICONS = { 'svc-rename': 'scroll', 'svc-race': 'ui_character', 'svc-slot': 'key_iron' };
+// Heldenplatz: heller Beinschlüssel (key_bone) statt Eisenschlüssel – der graue Schlüssel ging auf dem dunklen Kartengrund unter.
+const ICONS = { 'svc-rename': 'scroll', 'svc-race': 'ui_character', 'svc-slot': 'key_bone' };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage();
 await p.goto(`${process.env.EW_URL ?? 'http://localhost:8102'}/index.html`);

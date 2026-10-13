@@ -60,7 +60,10 @@ const files = await p.evaluate(async ({ RIDERS, ITEM_RES }) => {
   // Item-Bilder wie im Inventar (docs/STYLE.md „Feinraster“ §6): Bild aus dem getragenen Aussehen (itemIconId), Feinfassung
   // res 2 = 52 × 52 (48er mit Umriss, mittig) – auf der Seite 1:1 in 52-px-Plätzen. ITEM_RES=1 liefert die alte 26er-Fassung.
   const IRES = ITEM_RES;
-  for (const id of ['kingsbane', 'veilpiercer', 'dawnstring', 'staff_of_last_ash', 'sovereign_plate', 'sovereign_signet']) { const d = g.content.get('item', id); if (d) out[`item-${id}.png`] = png(iconCanvas(itemIconId(d), IRES)); }
+  // Stab der letzten Asche: das Bild aus dem getragenen Aussehen (look:…) zeigt einen kurzen Kolben statt des Stabs mit
+  // Flamme; hier das eigene Symbol (staff_t8, Feinfassung) wie bisher auf der Seite.
+  const OWN_ICON = ['staff_of_last_ash'];
+  for (const id of ['kingsbane', 'veilpiercer', 'dawnstring', 'staff_of_last_ash', 'sovereign_plate', 'sovereign_signet']) { const d = g.content.get('item', id); if (d) out[`item-${id}.png`] = png(iconCanvas(OWN_ICON.includes(id) ? d.icon : itemIconId(d), IRES)); }
   return { out, log };
 }, { RIDERS, ITEM_RES: +(process.env.ITEM_RES ?? 2) });
 for (const [f, url] of Object.entries(files.out)) writeFileSync(`${OUT}/${f}`, Buffer.from(url.split(',')[1], 'base64'));

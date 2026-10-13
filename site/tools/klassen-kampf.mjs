@@ -120,6 +120,18 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
       try { return fn(x, ...a); } finally { delete x.drawImage; }
     };
     const heroRender = noRing(h.render.bind(h)), heroEmissive = noRing(h.renderEmissive.bind(h));
+    // Harte Pixel (docs/STYLE.md „Feinraster“ §3/§5): Bögen, Ringe und Schein der Effekte zeichnet das Spiel mit geglätteten
+    // Canvas-Pfaden und Deckkraft. Für die Website wird jedes Bild auf Feinpixel quantisiert: Deckkraft ab 160 voll,
+    // 64–159 als Schachbrett (Dither, wie die Schatten der Shop-Bühnen), darunter weg. Farbe bleibt die ungemischte Farbe
+    // des Bildpunkts. Ergebnis: nur Alpha 0/255, keine weichen Kanten.
+    const harden = (x, W2, H2) => {
+      const id = x.getImageData(0, 0, W2, H2), D = id.data;
+      for (let y = 0, i = 3; y < H2; y++) for (let xx = 0; xx < W2; xx++, i += 4) {
+        const a = D[i];
+        D[i] = a >= 160 || (a >= 64 && ((xx + y) & 1) === 0) ? 255 : 0;
+      }
+      x.putImageData(id, 0, 0);
+    };
     const draw = () => {
       const cv = document.createElement('canvas'); cv.width = W * R; cv.height = H * R;
       const x = cv.getContext('2d'); x.setTransform(R, 0, 0, R, 0, 0); x.imageSmoothingEnabled = false;
@@ -137,6 +149,7 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
       w.particles.drawEmissive(x, cx0, cy0);
       w.particles.active = all;
       for (const e of fx) e.renderEmissive?.(x, cx0, cy0);
+      harden(x, cv.width, cv.height);
       frames.push(cv);
     };
     const plan = new Map(c.plan);
