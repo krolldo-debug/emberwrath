@@ -3,19 +3,18 @@ import { SpriteFrame, Animation, lazyFrame as deferFrame } from '../gfx/Sprite.j
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
-// Mutter Fäulnis – Boss des Sporenschlunds (Stufe 32).
+// Mutter Fäulnis – Boss des Sporenschlunds (Stufe 32). „Leuchtpilz-Königin“.
 //
-// Riesige, halb pflanzliche Brutmutter: ein aufgeblähter, geäderter Pilzleib
-// sitzt auf einem Teppich aus Wurzelsträngen, trägt leuchtende Sporensäcke,
-// kleine Pilze auf dem Rücken und vorn einen gekrümmten, fahlen Oberkörper mit
-// schmalem Schädel unter einem breiten Hut (Lamellen, Warzen, Hyphenfäden).
-// Zwei lange Ranken-Arme mit Dornen und Wurzelkrallen.
+// Riesige Brutmutter: ein aufgeblähter, nachtblauer Leib mit türkis leuchtenden Adern, Leuchtpunkten und
+// Sporensäcken sitzt auf einem Teppich aus dunklen Wurzelsträngen. Vorn wächst ein schlanker, blaugrauer
+// Oberkörper heraus: hageres Gesicht mit Leuchtaugen, dahinter ein Lamellenkragen wie eine Halskrause, darüber
+// ein glockiger, gerillter Hut in Nachtviolett mit kleinem Buckel, durchscheinendem Leuchtrand und leuchtenden
+// Lamellen; vom Hutrand hängen helle Leuchtfäden. Zwei lange, sehnige Arme mit Leuchtader und Krallenhänden.
 //
 // Alles wird als implizite Formen in einen Uint32-Puffer gezeichnet (schnell,
-// drehbar), danach Randlicht (oben/links hell, rechts violetter Rückstrahl) und
+// drehbar), danach Randlicht (oben/links hell, rechts türkiser Rückstrahl) und
 // die übliche selektive Outline. Schlüsselposen werden weich interpoliert.
-// Leucht-Ebenen: `glow` (Säcke/Augen grün, Lamellen/Adern violett) und
-// `glowEnraged` für Phase 3 (Säcke/Augen magenta, Lamellen grün).
+// Leucht-Ebenen: `glow` (alles türkis) und `glowEnraged` für Phase 3 (violett).
 // Blickrichtung rechts, Anker = Bodenmitte unter dem Leib. Frames sind auf ihren
 // Inhalt zugeschnitten (Anker entsprechend versetzt), Leucht-Ebenen ebenso.
 //
@@ -39,28 +38,29 @@ const hex = (h) => (0xff000000 | (parseInt(h.slice(5, 7), 16) << 16) | (parseInt
 const R = (a) => a.map(hex);
 
 // Materialrampen (dunkel -> hell)
-const FLESH = R(['#140c16', '#261628', '#3c2240', '#583656', '#7a5272', '#a07a90', '#c8a8b2']);
-const SKIN = R(['#0e120e', '#1c261e', '#304032', '#4a5c48', '#6a8062', '#94a888', '#c4d2b0']);
-const CAP = R(['#0e070f', '#201024', '#361634', '#522046', '#742e54', '#9a4660', '#c2706c']);
-const FACE = R(['#181a14', '#343a2c', '#58604a', '#848c70', '#b0b698', '#dadcc0']);
-const SPOT = R(['#6a5a46', '#a4927a', '#d6c8a6', '#f4ecd4']);
-const GILL = R(['#120c16', '#261c2e', '#3e3048', '#5c4a66', '#84708e', '#b4a2ba']);
-const BARK = R(['#0c0a08', '#1a1610', '#2c2618', '#443a24', '#605234', '#847450']);
-const MOSS = R(['#0c1a0c', '#183018', '#264a20', '#3a682a', '#5a903a']);
-const SAC = R(['#08180c', '#103016', '#1a4e22', '#2e7c30', '#5aae44', '#a2de6c', '#e6ffbe']);
-const SLIME = R(['#0c160a', '#162a12', '#24421a', '#3c6426', '#64923a']);
-const BONE = R(['#3a3428', '#6a604a', '#a0947a', '#d4caac']);
-const RIM_HI = [236, 244, 214], RIM_BIO = [160, 110, 232];
+const FLESH = R(['#06080e', '#0d1120', '#171d31', '#232b45', '#313b5b', '#455375', '#637393']);
+const SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5', '#d5e1e9']);
+const CAP = R(['#07051a', '#120d2c', '#1d1540', '#2a1f58', '#3c2c72', '#54408e', '#7862ae']);
+const SPOT = R(['#46566a', '#7a8ea2', '#b4c6d4', '#e6f2f6']);
+const GILL = R(['#061e28', '#0a3846', '#115e6c', '#1c8e96', '#46c6c2', '#a6f2ea']);
+const HAIR = R(['#16262e', '#2a4652', '#46707c', '#70a2aa', '#a4d4d4', '#dcf8f2']);
+const BARK = R(['#08080c', '#121218', '#1e1e28', '#2c2c3a', '#3e3e50', '#545468']);
+const MOSS = R(['#08161a', '#0e2a2e', '#164044', '#20585a', '#2e7472']);
+const SAC = R(['#04161c', '#082e36', '#0e5860', '#1c9898', '#58dacd', '#a6f4e6', '#e6fff8']);
+const SLIME = R(['#060a12', '#0a1420', '#10202e', '#183444', '#2a5a66']);
+const BONE = R(['#2c3440', '#56647a', '#8ea0b4', '#c8d6e2']);
+const RIM_HI = [228, 238, 240], RIM_BIO = [80, 220, 210];
 
-// Leucht-Rampen (5 Stufen) und Zuordnung je Phase
+// Leucht-Rampen (5 Stufen) und Zuordnung je Phase: Phase 1–2 alles türkis, Phase 3 violett (Sporen magenta)
 const GL = {
-  green: ['#0e4a1c', '#22882e', '#5ad040', '#b4f478', '#f4ffd8'],
-  violet: ['#2e0e52', '#6224b0', '#a458f4', '#dea8ff', '#fff2ff'],
+  cyan: ['#04383a', '#0a726e', '#1cc0ae', '#7cf0dc', '#e2fff6'],
+  pale: ['#0a3a3e', '#1a7a7a', '#4cd2c4', '#b4fae8', '#ffffff'],
+  violet: ['#3a0a4a', '#7a1a9a', '#c048ec', '#eaa8ff', '#ffffff'],
   magenta: ['#4a0a40', '#9a1a88', '#ec48c8', '#ffa8ee', '#ffffff'],
 };
 const K_SAC = 0, K_GILL = 1, K_EYE = 2, K_SPORE = 3, K_VEIN = 4;
-const SET_A = [GL.green, GL.violet, GL.green, GL.green, GL.violet].map(R);
-const SET_B = [GL.magenta, GL.green, GL.magenta, GL.violet, GL.green].map(R);
+const SET_A = [GL.cyan, GL.cyan, GL.pale, GL.cyan, GL.cyan].map(R);
+const SET_B = [GL.violet, GL.violet, GL.violet, GL.magenta, GL.violet].map(R);
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -172,7 +172,7 @@ function blend(c, rgb, k) {
   return (0xff000000 | (Math.round(b + (rgb[2] - b) * k) << 16) | (Math.round(g + (rgb[1] - g) * k) << 8) | Math.round(r + (rgb[0] - r) * k)) >>> 0;
 }
 
-// Randlicht: helle Kante oben/links, violetter Rückstrahl rechts – die Figur
+// Randlicht: helle Kante oben/links, türkiser Rückstrahl rechts – die Figur
 // liest sich so auch auf dunklem Pilzboden klar.
 // An Ort und Stelle (liest nur, ob Nachbarn belegt sind; blend gibt nie 0) und nur im belegten Bereich.
 // Fein ist die Kante 1 Texel stark.
@@ -342,7 +342,7 @@ function slimePool(pt, P, L) {
   }
 }
 // Schleimlache fein: dunkler Saum, Lichtseite oben, harte Glanzsicheln und Blasen mit hellem Punkt statt Sprenkeln
-const SLIME_HI = hex('#b4dc78'), SLIME_SPEC = hex('#eaffc8');
+const SLIME_HI = hex('#4cbcb4'), SLIME_SPEC = hex('#d8fff6');
 function slimeFine(pt, P, cx, cy, rx, ry) {
   const ex = 0.45 / ry;   // Rand wie das grobe Raster
   // Spaltenwerte (Wellung des Rands, Glanzsicheln) einmal je Spalte
@@ -378,7 +378,7 @@ function slimeFine(pt, P, cx, cy, rx, ry) {
   }
 }
 
-// Kleine Pilze auf dem Rücken des Leibs
+// Kleine Leuchtglocken auf dem Rücken des Leibs
 function backShrooms(pt, P, L) {
   const list = [[-0.78, -0.5, 7, -0.5], [-0.48, -0.86, 9, -0.2], [-0.98, -0.02, 5, -0.9], [-0.15, -0.98, 5, 0.15]];
   list.forEach(([u, v, h, tilt], i) => {
@@ -404,15 +404,15 @@ function backShrooms(pt, P, L) {
         if (ly > rim) { pt.px(X, Y, GILL[3]); pt.gl(X, Y, K_GILL, 1.5 + 0.5 * Math.sin(P.pulse + i)); continue; }
         const hgt = (rim - ly) / (rim - top + 0.01);
         pt.px(X, Y, shade(CAP, 0.3 + hgt * 0.45 - q * 0.25, X, Y));
-        if (hash2(i * 13 + Math.round(lx), Math.round(ly), 221) < 0.12 && hgt > 0.3) pt.px(X, Y, SPOT[2]);
+        if (ly > rim - 0.8) { pt.px(X, Y, GILL[4]); pt.gl(X, Y, K_GILL, 1.2); }
       }
     }
   });
 }
-// Rückenpilz-Hut fein: Kuppel in harten Stufen, Lichtkante oben links, zwei runde Tupfen mit Glanz,
-// darunter Lamellen als Texelrillen (leuchten violett)
+// Rückenglocke fein: Kuppel in harten Stufen, Lichtkante oben links, Rillen, durchscheinender Leuchtrand,
+// darunter Lamellen als Texelrillen (leuchten türkis)
 function shroomCapFine(pt, P, i, ex, ey, r, ca, sa) {
-  const R2 = r + 2.5, sp = [[-0.42, 0.55], [0.3, 0.35]];
+  const R2 = r + 2.5;
   for (let Y = TX(ey - R2); Y <= TX(ey + R2); Y++) {
     const yy = tc(Y) - ey;
     for (let X = TX(ex - R2); X <= TX(ex + R2); X++) {
@@ -420,7 +420,7 @@ function shroomCapFine(pt, P, i, ex, ey, r, ca, sa) {
       const lx = xx * ca + yy * sa, ly = -xx * sa + yy * ca;
       const q = lx / (r + 0.4);
       if (Math.abs(q) >= 1) continue;
-      const top = -(r + 0.4) * 0.75 * Math.sqrt(1 - q * q) - 0.2, rim = 0.6 + q * q * 0.8;
+      const top = -(r + 0.4) * 0.85 * Math.pow(1 - q * q, 0.6) - 0.2, rim = 0.6 + q * q * 0.8;
       if (ly < top || ly > rim + 1.3) continue;
       if (ly > rim) {
         pt.tex(X, Y, ((lx * 1.4 + 9.5) % 1) < 0.34 ? GILL[1] : ly > rim + 0.8 ? GILL[2] : GILL[3]);
@@ -429,12 +429,9 @@ function shroomCapFine(pt, P, i, ex, ey, r, ca, sa) {
       }
       const hgt = (rim - ly) / (rim - top + 0.01);
       let c = shadeF(CAP, 0.3 + hgt * 0.45 - q * 0.25);
-      if (ly > rim - 0.5) c = CAP[2];
-      else if (ly - top < 0.55 && q < 0.15) c = q < -0.35 ? CAP[6] : CAP[5];   // Lichtkante
-      for (const [su, sv] of sp) {
-        const dd = Math.hypot(q - su, (ly - (top + (rim - top) * sv)) / (r * 0.75));
-        if (dd < 0.2) { c = dd < 0.1 && q < su ? SPOT[3] : SPOT[2]; break; }
-      }
+      if (ly > rim - 0.6) { c = q < 0.2 ? GILL[4] : GILL[3]; pt.tex(X, Y, c); pt.gtex(X, Y, K_GILL, 1.4 + 0.4 * Math.sin(P.pulse + i)); continue; }
+      if (ly - top < 0.55 && q < 0.15) c = q < -0.35 ? CAP[6] : CAP[5];   // Lichtkante
+      else if (hgt < 0.75 && Math.abs(Math.sin(q * 6.5)) < 0.2) c = CAP[2];   // Rillen
       pt.tex(X, Y, c);
     }
   }
@@ -497,12 +494,12 @@ function body(pt, P, L) {
   }
 }
 
-// Leib fein: Texelmitten, harte Stufen; Adern schmal und leuchtend (heller Kern, dunkler Saum), Fäulnisflecken
+// Leib fein: Texelmitten, harte Stufen; Adern schmal und leuchtend (heller Kern, dunkler Saum), dunkle Mulden
 // als harte, beulige Flecken; Poren rund mit Lichtlippe; Schleimfäden 1 Texel mit Tropfen.
 // Schnell: Zeilenwerte vorab, Beulen (sin 5a, sin 9a) über Tschebyschow-Polynome statt atan2, direkt in die Puffer.
 const C07 = Math.cos(0.7), S07 = Math.sin(0.7), C21 = Math.cos(2.1), S21 = Math.sin(2.1);
-const VEIN_LIT = R(['#7a48ac', '#a874e0', '#e4c2ff']);
-const ROTC = R(['#1c1018', '#3a2634', '#4c4230', '#140a10', '#5e5a34']);
+const VEIN_LIT = R(['#1c8e96', '#46c6c2', '#c6fff2']);
+const ROTC = R(['#05070e', '#10162a', '#1a2438', '#03040a', '#285a62']);
 // Fäulnisflecken im Leib-Raum (u, v, Radius)
 const ROT_SPOTS = [[-0.52, -0.18, 0.12], [-0.18, 0.18, 0.1], [0.34, -0.36, 0.11], [0.62, 0.06, 0.09], [0.08, 0.48, 0.12],
   [-0.72, 0.32, 0.1], [0.46, 0.56, 0.08], [-0.36, -0.62, 0.09], [0.16, -0.08, 0.07], [-0.04, 0.78, 0.09], [0.82, 0.38, 0.07], [-0.86, -0.1, 0.07]]
@@ -556,7 +553,7 @@ function bodyFine(pt, P, L) {
       const vein = vn < VW && d < 0.94 && veinRow;
       const k = row + X;
       if (vein) {
-        // leuchtende Ader: heller violetter Kern, Leuchten auf der ganzen Ader (pulsierend)
+        // leuchtende Ader: heller türkiser Kern, Leuchten auf der ganzen Ader (pulsierend)
         b[k] = vn < 0.018 ? VEIN_LIT[2] : i >= 3 ? VEIN_LIT[1] : VEIN_LIT[0];
         const lv = (1.4 + (sP > 0.4 ? 1 : 0) + (vn < 0.018 ? 1 : 0)) * gk;
         if (lv >= 0.5) { const l = Math.min(4, Math.round(lv)); gA[k] = VA[l]; gB[k] = VB[l]; gw = true; } else { gA[k] = 0; gB[k] = 0; }
@@ -572,7 +569,7 @@ function bodyFine(pt, P, L) {
             if (ey > sp[2] * 1.3 || ey < -sp[2] * 1.3) continue;
             const dd = Math.sqrt(ex * ex + ey * ey) / sp[2] + 0.16 * Math.sin(ex * 45 + ey * 33 + sp[3]);
             if (dd >= 1) continue;
-            // dunkler Rand, faulig-brauner Grund (Schattenseite violett), eingesunkene Mitte, nasser Lichtsaum unten
+            // dunkler Rand, eingesunkener Grund, tiefe Mitte, nasser türkiser Lichtsaum unten
             c = dd > 0.78 ? ROTC[0] : dd < 0.32 ? ROTC[3] : dd < 0.5 && ex + ey > sp[2] * 0.15 && i >= 3 ? ROTC[4] : i >= 3 ? ROTC[2] : ROTC[1];
             break;
           }
@@ -601,6 +598,21 @@ function bodyFine(pt, P, L) {
     pt.px(x, y0, SLIME[3]);
     pt.fline(x, y0, x + 0.1, y1 - 0.4, SLIME[3]); pt.fline(x + 0.5, y0, x + 0.5, y0 + (len - 1) * 0.35, SLIME[2]);
     pt.px(x, y1, SLIME[4]); pt.dot(x - 0.25, y1 - 0.25, SLIME_SPEC); pt.dot(x + 0.25, y1 + 0.25, SLIME[3]);
+  }
+}
+
+// Leuchtpunkte auf der Haut des Leibs (pulsieren versetzt), fein mit heißem Kern
+function freckles(pt, P, L) {
+  const n = Math.round(24 * (1 - P.collapse * 0.4));
+  for (let i = 0; i < n; i++) {
+    const u = -0.92 + hash2(i, 1, 341) * 1.75, v = -0.86 + hash2(i, 2, 341) * 1.4;
+    if (u * u + v * v > 0.8) continue;
+    const x = L.cx + u * L.rx * (1 + 0.2 * v), y = L.cy + v * L.ry;
+    const lv = (1.6 + (Math.sin(P.pulse * 0.7 + i * 2.3) > 0.3 ? 1 : 0)) * clamp(P.sacGlow, 0.3, 1.4);
+    if (RS > 1) {
+      pt.dot(x, y, SAC[4]); pt.gdot(x, y, K_SPORE, lv + 0.8);
+      if (i % 3 === 0) { pt.dot(x + 0.5, y, SAC[3]); pt.gdot(x + 0.5, y, K_SPORE, lv); }
+    } else if (i % 2 === 0) { pt.px(x, y, SAC[4]); pt.gl(x, y, K_SPORE, lv); }
   }
 }
 
@@ -651,7 +663,7 @@ function sac(pt, P, L, s, i) {
     if (rr > 5) for (let k = -0.6; k <= 0.6; k += 0.15) pt.px(c.x + k * rr, c.y + Math.sin(k * 3 + i) * rr * 0.25 + rr * 0.1, SAC[2]);
   }
 }
-// Sporensack fein (Pustel): Fleischkragen mit Lichtkante, hellgrüner Kern mit dunklem, leicht beuligem Rand,
+// Sporensack fein (Pustel): Fleischkragen mit Lichtkante, hell türkiser Kern mit dunklem, leicht beuligem Rand,
 // faule Flecken, leuchtende Adern, kleiner unperfekter Glanzpunkt; Leuchten mit heißem Kern.
 function sacFine(pt, P, c, rr, gp, torn, i) {
   for (let a = 0; a < TAU; a += 0.06) {
@@ -663,7 +675,7 @@ function sacFine(pt, P, c, rr, gp, torn, i) {
   // Lippe des Kragens: Lichtkante oben links, Schattenfalte rechts
   for (let a = Math.PI * 0.9; a < Math.PI * 1.65; a += 0.03) pt.dot(c.x + Math.cos(a) * (rr + 2.1), c.y + Math.sin(a) * (rr + 2.1) * 0.9, FLESH[6]);
   for (let a = -0.3; a < 1.1; a += 0.04) pt.dot(c.x + Math.cos(a) * (rr + 0.55), c.y + Math.sin(a) * (rr + 0.55) * 0.9, FLESH[1]);
-  // Pustel: hellgrüner Kern, nach außen dunkler, dunkler Rand; Umriss leicht beulig, ein, zwei faule Flecken
+  // Pustel: hell türkiser Kern, nach außen dunkler, dunkler Rand; Umriss leicht beulig, ein, zwei faule Flecken
   const dim = clamp(P.sacGlow, 0, 1.2), rf = rr + 0.35, R2 = rf * 1.12, sh = dim < 0.5 ? 1 : 0;
   const W3c = Math.cos(i * 1.9), W3s = Math.sin(i * 1.9), W7c = Math.cos(i), W7s = Math.sin(i);
   const blots = [];
@@ -747,7 +759,7 @@ function torso(pt, P, L) {
   const fine = RS > 1;
   tube(pt, pts, wf, fine ? (e, t) => {
     // fein: schmale Rippenrillen mit Lichtgrat darunter, Sehne an der Flanke
-    let v = 0.42 + e * 0.36 + t * 0.08;
+    let v = 0.42 + e * 0.36 + t * 0.08 - (t > 0.7 ? (t - 0.7) * 2.2 : 0);   // Schatten unter Kopf und Kragen
     if (t > 0.3 && t < 0.78 && e < 0.1 && e > -0.85) {
       const f = ((t - 0.3) * 11) % 1 - 0.5;
       if (Math.abs(f) < 0.08) v -= 0.32;
@@ -756,7 +768,7 @@ function torso(pt, P, L) {
     if (t > 0.2 && t < 0.9 && Math.abs(e - 0.55) < 0.07) v += 0.12;
     return shadeF(SKIN, v);
   } : (e, t, x, y) => {
-    let v = 0.42 + e * 0.36 + t * 0.08;
+    let v = 0.42 + e * 0.36 + t * 0.08 - (t > 0.7 ? (t - 0.7) * 2.2 : 0);   // Schatten unter Kopf und Kragen
     // Rippen auf der Vorderseite
     if (t > 0.3 && t < 0.78 && e < 0.1 && e > -0.85 && Math.abs(((t - 0.3) * 11) % 1 - 0.5) < 0.13) v -= 0.3;
     return shade(SKIN, v, x, y);
@@ -768,97 +780,97 @@ function torso(pt, P, L) {
     pt.px(bx - ca, by - sa, BONE[2]); pt.px(bx - ca * 2, by - sa * 2, BONE[3]); pt.px(bx, by + 1, BONE[1]);
     if (fine) { pt.dot(bx - ca * 2 - 0.25, by - sa * 2 - 0.25, SPOT[3]); pt.dot(bx + 0.25, by + 1.25, BONE[0]); }
   }
-  // Konsolenpilze am Rücken, mit leuchtenden Lamellen (fein: Lichtkante oben, Lamellenrillen)
-  for (const [t, w] of [[0.42, 6], [0.66, 4]]) {
-    const p = pts[Math.round(t * 24)], hw = wf(t) / 2;
-    const x0 = p.x - ca * hw, y0 = p.y - sa * hw;
-    for (let k = 0; k < w; k++) {
-      const x = x0 - ca * k * 0.9, y = y0 - sa * k * 0.9 + k * 0.15;
-      pt.px(x, y - 1, CAP[5 - Math.min(3, k >> 1)]); pt.px(x, y, CAP[3]);
-      pt.px(x, y + 1, GILL[3]); pt.gl(x, y + 1, K_GILL, 2);
-      if (fine) {
-        pt.dot(x - 0.25, y - 1.25, k < 2 ? CAP[6] : CAP[5]); pt.dot(x + 0.25, y + 0.25, CAP[1]);
-        if (k & 1) { pt.dot(x, y + 1.25, GILL[1]); pt.gdot(x - 0.5, y + 1.25, K_GILL, 3); }
+  // Leuchtadern steigen aus dem Leib in den Rumpf (vorn, Schattenseite) und verzweigen sich
+  for (let k = 0; k < 3; k++) {
+    const t1 = 0.62 - k * 0.12, ph = P.pulse + k * 1.9;
+    let prev = null;
+    for (let t = 0.04; t <= t1; t += 0.03) {
+      const p = pts[Math.round(t * 24)], hw = wf(t) / 2;
+      const off = 0.08 + k * 0.26 + 0.12 * Math.sin(t * 17 + k * 2.3);
+      const q = { x: p.x + ca * hw * off, y: p.y + sa * hw * off };
+      if (prev) {
+        if (fine) { pt.fline(prev.x, prev.y, q.x, q.y, t > t1 - 0.1 ? SAC[3] : SAC[4]); pt.gfline(prev.x, prev.y, q.x, q.y, K_VEIN, 2.2 + (Math.sin(ph - t * 6) > 0.4 ? 1 : 0)); }
+        else if (Math.round(t * 33) % 2 === 0) { pt.px(q.x, q.y, SAC[3]); pt.gl(q.x, q.y, K_VEIN, 1.6); }
       }
+      prev = q;
     }
   }
   return pts;
 }
 
 
-// Umhang aus Myzel über den Schultern: Kapuzenkragen und hängende Fransen
-function mantle(pt, P, L) {
-  const { B, N } = L;
+// Lamellenkragen hinter Hals und Kopf: Fächer aus Lamellen wie eine Halskrause, gewellter Rand leuchtet.
+// Folgt der Rumpfneigung; öffnet sich beim Schrei (gillOpen), sinkt beim Tod zusammen.
+function ruff(pt, P, L) {
+  const { N } = L;
   const lc = Math.cos(P.lean), ls = Math.sin(P.lean);
-  const t0 = 0.97;
-  const ox = B.x + (N.x - B.x) * t0, oy = B.y + (N.y - B.y) * t0;
-  for (let k = -13; k <= 8; k += 0.5) {
-    const e = (k + 13) / 21; // 0 hinten .. 1 vorn
-    const x0 = ox + lc * k, y0 = oy + ls * k + Math.pow(Math.abs(k + 2) / 11, 2) * 3;
-    const len = (5 + 5 * Math.sin(e * Math.PI) + hash2(Math.round(k * 2), 1, 311) * 3) * (1 - P.collapse * 0.3);
-    let x = x0, y = y0;
-    for (let st = 0; st < len; st++) {
-      const f = st / len;
-      x += Math.sin(P.hyT + k * 0.7 + st * 0.35) * 0.18 * f - (P.lean - 0.3) * 0.25; y += 1;
-      if (f > 0.7 && hash2(Math.round(k * 2), st, 313) < (f - 0.7) * 2.2) continue;
-      const lit = e < 0.35 ? 1 : e > 0.8 ? -1 : 0;
-      let c = st < 2 ? CAP[3 + (lit > 0 ? 1 : 0)] : f < 0.5 ? GILL[3 + (lit > 0 ? 1 : 0) - (lit < 0 ? 1 : 0)] : GILL[2 + (lit > 0 ? 1 : 0)];
-      if (Math.round(k * 2) % 3 === 0 && st >= 2) c = GILL[1];
-      pt.px(x, y, c);
-      if (f > 0.55 && Math.round(k * 2) % 5 === 1) pt.gl(x, y, K_GILL, 1 + f);
+  const ox = N.x - ls * 9 + lc * 1.5, oy = N.y + lc * 9 + ls * 1.5;   // um das Kinn herum, hinter dem Hals
+  const R0 = 20 * (1 + 0.16 * P.gillOpen - 0.06 * Math.max(0, -P.cap)) * (1 - 0.35 * P.collapse), RI = 4.5;
+  const fine = RS > 1, ph = P.pulse * 0.8, droop = P.collapse * 6;
+  for (let Y = TX(oy - R0 - 2); Y <= TX(oy + R0 * 0.5 + droop); Y++) {
+    const dy = tc(Y) - oy;
+    for (let X = TX(ox - R0 - 2); X <= TX(ox + R0 + 2); X++) {
+      const dx = tc(X) - ox;
+      const lu = dx * lc + dy * ls, lw = dx * ls - dy * lc + droop * Math.abs(lu) / R0;   // lu rechts, lw oben
+      if (lw < -2.5) continue;
+      const r = Math.hypot(lu, lw * 1.12), ang = Math.atan2(Math.max(lw, -2.5), lu);
+      if (r < RI) continue;
+      const g = Math.cos(ang * 14 + 0.4), edge = R0 + g * 0.9 - (lw < 0 ? -lw * 0.5 : 0);
+      if (r > edge) continue;
+      const f = r / R0, lam = Math.floor(ang * 14 / Math.PI + 0.5);
+      if (r > edge - (fine ? 1.1 : 1.4)) {
+        pt.tex(X, Y, g > 0.2 ? GILL[5] : GILL[4]);
+        pt.gtex(X, Y, K_GILL, 2.2 + (Math.sin(ph + lam * 0.9) > 0.3 ? 1 : 0) + (g > 0.6 ? 0.6 : 0));
+        continue;
+      }
+      let v = 0.02 + (g > 0.6 ? 0.28 : g > 0 ? 0.15 : 0) + f * 0.2 - (lu > 0 ? 0.06 : 0);
+      if (fine && g > 0.6 && g < 0.75) v += 0.14;   // Lichtgrat an der Lamellenkante
+      pt.tex(X, Y, shadeF(GILL, v));
+      if (g > 0.75 && f > 0.7) pt.gtex(X, Y, K_GILL, (f - 0.7) * 5 + 0.3);
     }
-  }
-  // Kragenwulst
-  for (let k = -12; k <= 7; k += 0.5) {
-    const x = ox + lc * k, y = oy + ls * k + Math.pow(Math.abs(k + 2) / 11, 2) * 3 - 1;
-    pt.px(x, y - 1, CAP[5]); pt.px(x, y, CAP[4]); pt.px(x, y + 1, CAP[2]);
-    if (hash2(Math.round(k * 2), 5, 315) < 0.25) pt.px(x, y - 1, SPOT[2]);
-    if (RS > 1) { if (k < 1) pt.dot(x, y - 1.25, CAP[6]); pt.dot(x, y + 1.25, CAP[1]); }
   }
 }
 
-// Kopf: hageres Pilzweib als Pixelkarte (aufrecht, saubere Kanten, flache Töne).
-// Runder, leicht schiefer Schädel, Licht von links oben; eingefallene Wangen und
-// Schläfen mit violetten und braunen Fäulnisschatten. Schräge, mandelförmige
-// Leuchtaugen unter einem schiefen Knochenwulst, kleines drittes Auge auf der Stirn,
-// lange Hakennase, schiefes Maul mit ungleichen Fängen, spitzes Kinn.
-// o Kontur, 1–5 Haut (Schatten → Glanz), p/q Fäulnisschatten (violett/braun),
-// B/b Knochenwulst, k Höhle, E/e Auge (Kern/Rand), n Nasenloch, M Maul, T/t Fänge
+// Kopf: hageres, blaugraues Gesicht als Pixelkarte (aufrecht, saubere Kanten, flache Töne), 3/4 nach rechts.
+// Hohe Stirn, Licht von links oben; tief eingesunkene Augenhöhlen mit schrägen, türkis leuchtenden Augen
+// (innen tief, außen hoch), eingefallene Wangen mit nachtblauen Schatten, langer schmaler Nasenrücken,
+// breites Maul mit Fängen, spitzes Kinn.
+// o Kontur, 1–5 Haut (Schatten → Glanz), p/q Wangenschatten, k Höhle, E/e Auge (Kern/Rand), n Nasenloch,
+// M Maul, T/t Fänge oben/unten
 const RM_FACE = [
-  '.......oooooo.......',
-  '....ooo44444333o....',
-  '...o44444444333q1o..',
-  '..o44544444k333q211o',
-  '..o4454444kEek32211o',
-  '.o445544444kk332211o',
-  '.o4BBb444444332bb21o',
-  '.o44BBBb4444bBBb221o',
-  'o44kkk3bb43bbkkk1p1o',
-  'o4kEEek3543kEEek2p1o',
-  'o44kkeek543keekkp11o',
-  'o553kkk35433kkk2pp1o',
-  'o45333335433322q1p1o',
-  'o45pp333543332qpp1po',
-  '.o4pp33355433222pp1o',
-  '.o4qp333n2n33222p1o.',
-  '.o33p33ooooooo2p21o.',
-  '.o3p3oMTMMTTMo22p1o.',
-  '.o33poMTMMMTMMo2p1o.',
-  '.o33p3oMtMMMtMMo21o.',
-  '..o33poMMtMMtMo1o...',
-  '..o333pooooooo21o...',
-  '...o333223322qp1o...',
-  '....oo3333222poo....',
-  '......oo432poo......',
+  '......oooooooo......',
+  '....oo4444444433o...',
+  '...o444455544443o...',
+  '..o44455555444433o..',
+  '..o44555544444333o..',
+  '.o4455444444443332o.',
+  '.o44544444444433321o',
+  '.o43k44444444433k21o',
+  'o4kkkk34444443kkkk1o',
+  'o4kEEkkk34443kkEEk1o',
+  'o43kkEEek343keEEkp1o',
+  'o4533kkkk54kkkkp221o',
+  '.o4533333543332p21o.',
+  '.o4p4333355433p221o.',
+  '..o4p333355433pp1o..',
+  '..o4pp333n55n3p21o..',
+  '..o3p3oooooooo2p1o..',
+  '...op3oTMMMMTo2o....',
+  '...o3poMtMMtMo1o....',
+  '...o33oooooooo1o....',
+  '....o3332232p2o.....',
+  '....o333222pp2o.....',
+  '.....o332222po......',
+  '......o33222o.......',
+  '.......o4322o.......',
   '........oooo........',
 ];
-const RM_SPLIT = 19; // ab dieser Zeile (untere Fänge) klappt der Unterkiefer nach unten
+const RM_SPLIT = 18; // ab dieser Zeile (untere Fänge) klappt der Unterkiefer nach unten
 const RM_MAW_X0 = 6, RM_MAW_X1 = 13; // Maulspalte (Spalten)
-// kräftig gesättigtes Grün: bleibt unter dem violetten Umgebungslicht des Sporenschlunds grün
-const RM_SKIN = R(['#140a12', '#182c14', '#284a1c', '#3f7024', '#5a922e', '#82bc40']);
-const RM_ROT = R(['#3c2042', '#4e3424']);
-const RM_EYE = R(['#f4ffc0', '#8fe03a']), RM_EYE_OFF = R(['#2a3420', '#1c2416']);
-const RM_MAW = hex('#1c0812'), RM_FANG = R(['#e6dab2', '#a8946a']), RM_BROW = R(['#cbb98c', '#8c7650']);
+const RM_SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5']);
+const RM_ROT = R(['#191a36', '#24304a']);
+const RM_EYE = R(['#e2fff6', '#46d6c6']), RM_EYE_OFF = R(['#1d2331', '#121620']);
+const RM_MAW = hex('#06050c'), RM_FANG = R(['#d5e1e9', '#8ea0b4']), RM_BROW = R(['#a5b5c5', '#515d75']);
 function headPos(P, L) {
   const { N } = L, ca = Math.cos(P.lean), sa = Math.sin(P.lean);
   return { x: N.x + ca * 6 + sa * 4 + P.head, y: N.y - ca * 4 + sa * 3 + P.headY };
@@ -874,6 +886,8 @@ function head(pt, P, L, meta) {
     ? (e) => e > 0.35 ? (e > 0.8 ? RM_SKIN[4] : RM_SKIN[3]) : e < -0.35 ? RM_ROT[0] : Math.abs(e - 0.02) < 0.08 || Math.abs(e + 0.22) < 0.06 ? RM_SKIN[3] : RM_SKIN[2]
     : (e) => e > 0.35 ? RM_SKIN[3] : e < -0.35 ? RM_ROT[0] : RM_SKIN[2]);
   const j = Math.round(P.jaw * 7);
+  // Schlagschatten unter dem Kinn auf Hals und Brust
+  pt.ellipse(ox + 10.5, oy + 24.5 + j, 4.5, 2.2, SKIN[1]);
   const lit = P.eye > 0.15;
   const C = {
     o: RM_SKIN[0], 1: RM_SKIN[1], 2: RM_SKIN[2], 3: RM_SKIN[3], 4: RM_SKIN[4], 5: RM_SKIN[5],
@@ -891,7 +905,7 @@ function head(pt, P, L, meta) {
     for (let x = 0; x < s.length; x++) if (s[x] !== '.') { pt.px(ox + x, y, C[s[x]]); glowAt(s[x], ox + x, y); }
   };
   for (let r = 0; r < RM_SPLIT; r++) row(r, oy + r);
-  // offenes Maul: Wangen strecken sich, dazwischen der dunkle Schlund (glimmt grün)
+  // offenes Maul: Wangen strecken sich, dazwischen der dunkle Schlund (glimmt türkis)
   for (let k = 0; k < j; k++) {
     const y = oy + RM_SPLIT + k, s = RM_FACE[RM_SPLIT - 1];
     for (let x = 0; x < s.length; x++) {
@@ -903,35 +917,13 @@ function head(pt, P, L, meta) {
   }
   for (let r = RM_SPLIT; r < RM_FACE.length; r++) row(r, oy + r + j);
   if (fine) faceFine(pt, P, ox, oy, j, lit, C);
-  // Konsolenpilze am Hinterkopf (auf der Kontur, nicht im Gesicht)
-  for (let k = 0; k < 3; k++) {
-    const x = ox - 1, y = oy + 10 + k * 3;
-    pt.px(x - 1, y, CAP[5]); pt.px(x, y, CAP[4]); pt.px(x - 1, y + 1, GILL[3]); pt.gl(x - 1, y + 1, K_GILL, 1.8);
-    if (fine) { pt.dot(x - 1.25, y - 0.25, CAP[6]); pt.dot(x - 0.75, y + 1.25, GILL[1]); pt.gdot(x - 1.25, y + 1.25, K_GILL, 3); }
-  }
-  meta.eye = { x: ox + 8, y: oy + 9 };
-  meta.mouth = { x: ox + 10, y: oy + 18 + j * 0.5 };
-  // Kinnfäden
-  for (let k = 0; k < 4; k++) {
-    let x = ox + 7 + k * 2, y = oy + 23 + j - (k === 0 || k === 3 ? 1 : 0);
-    const len = 3 + k * 1.1 + hash2(k, 1, 251) * 3;
-    for (let st = 0; st < len; st++) {
-      const px0 = x, py0 = y;
-      x += Math.sin(P.hyT * 1.3 + k * 2 + st * 0.4) * 0.35 + (P.lean - 0.3) * 0.3; y += 0.9;
-      // fein: Faden 1 Texel (am Ansatz voll), Spitze als Tropfen
-      if (fine && st >= 1 && st <= len - 2) pt.fline(px0, py0, x, y, RM_SKIN[st < 3 ? 3 : 2]);
-      else pt.px(x, y, st > len - 2 ? GILL[4] : RM_SKIN[2]);
-    }
-    if (fine) pt.dot(x - 0.25, y - 0.25, GILL[5]);
-    if (k === 1 || k === 3) { pt.gl(x, y, K_SPORE, 2); if (fine) pt.gdot(x - 0.25, y - 0.25, K_SPORE, 4); }
-  }
+  meta.eye = { x: ox + 9, y: oy + 9 };
+  meta.mouth = { x: ox + 10, y: oy + 17.5 + j * 0.5 };
 }
 
-// Gesicht fein (Pixelkarte als RS×RS-Zellen, dann Texel-Details): Außenkontur 1 Texel, Brauenwulst mit Lichtkante
-// und harter Unterkante, Augen mit Glanzpunkt und Schlitzpupille (geschlossen: Lidlinie), Nasenrücken-Licht,
-// Nasenflügel, Lippenkanten im Licht, Mundwinkel, spitze Fänge mit Glanz.
-const FACE_HI = hex('#b2e464'), BROW_HI = hex('#ece0b4'), BROW_LO = hex('#5c4a30');
-const FANG_HI = hex('#fffbe8'), PUPIL = hex('#142008'), EYE_SPEC = hex('#ffffff'), IRIS = hex('#a8e448');
+// Gesicht fein (Pixelkarte als RS×RS-Zellen, dann Texel-Details): Außenkontur 1 Texel, Glanz auf Stirn und
+// Wangenknochen, Nasenrücken im Licht, Augen mit weißem Kern oben links (geschlossen: Lidlinie), spitze Fänge mit Glanz.
+const FACE_HI = hex('#d5e1e9'), FANG_HI = hex('#ffffff'), EYE_SPEC = hex('#ffffff');
 function faceFine(pt, P, ox, oy, j, lit, C) {
   const S = RS - 1, NR = RM_FACE.length;
   const rowY = (r) => oy + r + (r >= RM_SPLIT ? j : 0);
@@ -944,6 +936,7 @@ function faceFine(pt, P, ox, oy, j, lit, C) {
     }
   };
   const skin = (ch) => ch !== '.' && ch !== 'o' && C[ch] !== undefined;
+  const eye = (ch) => ch === 'E' || ch === 'e';
   for (let r = 0; r < NR; r++) for (let c = 0; c < RM_FACE[r].length; c++) {
     const ch = RM_FACE[r][c];
     if (ch === 'o') {
@@ -954,11 +947,7 @@ function faceFine(pt, P, ox, oy, j, lit, C) {
       if (u === '.' && skin(d) && d !== 'M') fill(c, r, 'b', C[d]);
       else if (d === '.' && skin(u) && u !== 'M') fill(c, r, 't', C[u]);
     } else if (ch === '5') fp(c, r, 0, 0, FACE_HI);
-    else if (ch === 'B' || ch === 'b') {
-      const brow = (x) => x === 'B' || x === 'b';
-      if (!brow(at(c, r - 1))) fill(c, r, 't', ch === 'B' ? BROW_HI : RM_BROW[0]);
-      if (!brow(at(c, r + 1))) fill(c, r, 'b', ch === 'B' ? RM_BROW[1] : BROW_LO);
-    } else if (ch === 'T') {
+    else if (ch === 'T') {
       // Fang oben: Glanz oben links, Schatten rechts, spitz nach unten
       if (at(c, r - 1) !== 'T') fp(c, r, 0, 0, FANG_HI);
       fill(c, r, 'r', RM_FANG[1]);
@@ -968,6 +957,10 @@ function faceFine(pt, P, ox, oy, j, lit, C) {
       fill(c, r, 'l', RM_FANG[0]);
       if (at(c, r - 1) !== 't') { fp(c, r, 0, 0, RM_MAW); fp(c, r, S, 0, FANG_HI); }
     } else if (ch === 'n') { fill(c, r, 'b', RM_SKIN[0]); fp(c, r, 0, 0, RM_SKIN[3]); }
+    else if (eye(ch)) {
+      if (lit) { if (ch === 'E' && !eye(at(c - 1, r))) { fp(c, r, 0, 0, EYE_SPEC); pt.gtex((ox + c) * RS, rowY(r) * RS, K_EYE, 4); } }
+      else { fill(c, r, 't', RM_SKIN[3]); fill(c, r, 'b', RM_SKIN[0]); }
+    } else if (ch === 'k' && at(c, r - 1) !== 'k' && !eye(at(c, r - 1)) && skin(at(c, r - 1))) fill(c, r, 't', RM_SKIN[1]);   // weiche Höhlenkante
   }
   // gedehnte Zeilen des offenen Mauls: Außenkontur ebenso 1 Texel
   const sr = RM_FACE[RM_SPLIT - 1];
@@ -977,65 +970,44 @@ function faceFine(pt, P, ox, oy, j, lit, C) {
     const side = l === '.' && skin(rr) ? [S, C[rr]] : rr === '.' && skin(l) ? [0, C[l]] : null;
     if (side) for (let sy = 0; sy <= S; sy++) pt.tex((ox + c) * RS + side[0], Y + sy, side[1]);
   }
-  // Nasenrücken im Licht (Spalte 8), Schattenflanke daneben
-  for (let r = 9; r <= 13; r++) { fill(8, r, 'l', FACE_HI); fp(9, r, S, 0, RM_SKIN[3]); fp(9, r, S, S, RM_SKIN[3]); }
-  fp(8, 14, 0, 0, FACE_HI); fp(9, 14, S, S, RM_SKIN[3]);
-  // Oberlippe: Lichtkante über der Maulkontur; Unterlippe/Kinn im Licht; Mundwinkel mit Falte
-  for (const c of [7, 9, 11, 12]) fill(c, 15, 'b', RM_SKIN[4]);
-  for (let c = 5; c <= 9; c++) fp(c, 22, 0, 0, RM_SKIN[4]), fp(c, 22, S, 0, RM_SKIN[4]);
-  fp(5, 16, 0, S, RM_SKIN[4]); fp(4, 18, S, S, RM_SKIN[0]); fp(5, 19, 0, 0, RM_SKIN[0]); fp(4, 19, S, S, RM_ROT[0]);
-  // Augen: helles Weiß, grüne Iris, Schlitzpupille, Glanzpunkt oben links an der Pupille; geschlossen: Lidlinie
-  for (const [c0, r, small] of [[3, 9, false], [12, 9, false], [11, 4, true]]) {
-    const X = (ox + c0) * RS, Y = rowY(r) * RS;
-    if (lit) {
-      if (small) {
-        pt.tex(X, Y, EYE_SPEC); pt.tex(X + 1, Y, PUPIL); pt.tex(X, Y + 1, IRIS); pt.tex(X + 1, Y + 1, PUPIL);
-        pt.gtex(X, Y, K_EYE, 4); pt.gtex(X, Y + 1, K_EYE, 3);
-      } else {
-        pt.tex(X + 1, Y, EYE_SPEC); pt.tex(X + 2, Y, PUPIL); pt.tex(X + 3, Y, IRIS);
-        pt.tex(X + 1, Y + 1, IRIS); pt.tex(X + 2, Y + 1, PUPIL); pt.tex(X + 3, Y + 1, RM_EYE[1]);
-        pt.gtex(X + 1, Y, K_EYE, 4); pt.gtex(X + 3, Y, K_EYE, 3.4); pt.gtex(X + 1, Y + 1, K_EYE, 3.4);
-      }
-    } else {
-      const n = small ? 2 : 3;
-      for (let c = 0; c < n * RS; c++) { pt.tex(X + c, Y, RM_SKIN[3]); pt.tex(X + c, Y + RS - 1, RM_SKIN[0]); }
-    }
-  }
+  // Nasenrücken im Licht (Spalte 9), Schattenflanke rechts daneben
+  for (let r = 11; r <= 14; r++) { fill(9, r, 'l', FACE_HI); fp(11, r, 0, S, RM_SKIN[2]); }
+  // Oberlippe mit Lichtkante, Kinn im Licht
+  for (let c = 7; c <= 8; c++) fill(c, 15, 'b', RM_SKIN[4]);
+  for (let c = 5; c <= 7; c++) fp(c, 21, 0, 0, RM_SKIN[4]);
 }
 
-// Hut: Kuppel mit Warzen, darunter Lamellen, Hyphen hängen vom Rand
-const SPOTS = [[-0.62, 0.38, 3.2], [-0.25, 0.72, 3.6], [0.18, 0.62, 2.8], [0.52, 0.34, 2.6], [-0.05, 0.3, 2], [-0.8, 0.12, 2], [0.72, 0.1, 1.8], [0.35, 0.86, 1.8], [-0.45, 0.14, 1.6]];
+// Hut: Glocke mit kleinem Buckel und radialen Rillen in Nachtviolett, durchscheinender Leuchtrand,
+// darunter leuchtende Lamellen; Leuchtfäden hängen vom Rand
 function capGeom(P) {
-  const Rr = 31 * (1 + P.capSquash * 0.1), Hd = 15 * (1 - P.capSquash * 0.22);
+  const Rr = 29 * (1 + P.capSquash * 0.1), Hd = 19 * (1 - P.capSquash * 0.22), Ub = 3.6 * (1 - P.capSquash * 0.3);
   const gm = 1 + Math.max(0, -P.cap) * 2.2 + P.gillOpen;
-  const rimY = (lx) => { const q = lx / Rr; return 1 + 3.4 * q * q + 0.7 * Math.sin(lx * 0.8 + 1.3) * (Math.abs(q) > 0.5 ? 1 : 0.35); };
-  return { Rr, Hd, gm, rimY };
+  const rimY = (lx) => { const q = lx / Rr; return 1 + 2.8 * q * q + 0.35 * Math.sin(lx * 0.8 + 1.3) * (Math.abs(q) > 0.5 ? 1 : 0.4); };
+  // Höhe der Glocke über dem Rand (mit Buckel) je lx
+  const bell = (lx) => { const q = Math.min(1, Math.abs(lx / Rr)); return Hd * Math.pow(Math.max(0, 1 - Math.pow(q, 2.4)), 0.5) + Ub * Math.exp(-q * q * 40); };
+  return { Rr, Hd, Ub, gm, rimY, bell };
 }
-// Fein: Texelmitten, harte Stufen, Lichtkante oben links (2 Texel) und dunkle Lippe am Hutrand, Warzen mit
-// schmalem Ring und Glanzpunkt, schmale Lamellen (1 Texel) mit hellem Grat zum Rand hin; Leuchten je Lamelle.
-const SPOT_HI = hex('#fffaf0');
+// Fein: Texelmitten, harte Stufen, Lichtkante oben links, Rillen 1–2 Texel, Leuchtrand (Band + helle Unterkante),
+// schmale Lamellen (1 Texel) mit hellem Grat zum Rand hin; Leuchten je Lamelle.
 function capPass(pt, P, K, part) {
-  const { Rr, Hd, gm, rimY } = capGeom(P);
+  const { Rr, Hd, Ub, gm, rimY, bell } = capGeom(P);
   const th = P.cap, c = Math.cos(th), s = Math.sin(th);
   const OFF = -4; // Hutmitte etwas hinter dem Kopf
-  const spots = SPOTS.map(([q, h, r]) => { const lx = q * Rr; return { lx, ly: rimY(lx) - h * Hd * Math.sqrt(1 - q * q), r }; });
   const fine = RS > 1, dome = part === 'dome';
-  // ly-Bereich, den die Teile überhaupt erreichen (rimY liegt in [0,3; 5,1]): spart rimY je Pixel, Ergebnis gleich
-  const lyLo = dome ? 0.3 - Hd * 1.05 - 0.01 : 0.29, lyHi = dome ? 5.11 : 5.11 + 5 * gm;
+  // ly-Bereich, den die Teile überhaupt erreichen (rimY liegt in [0,6; 5,2])
+  const lyLo = dome ? 0.6 - Hd - Ub - 0.2 : 0.59, lyHi = dome ? 5.2 : 5.2 + 5 * gm;
   const ex = fine ? 0.25 : 0;   // fein: Rand wie das grobe Raster
   const XL = Math.floor(K.x - 42) * RS, XR = Math.ceil(K.x + 42) * RS + RS - 1, Rx = Rr + ex;
-  // fein: Randlinie und Kuppelhöhe hängen nur von lx ab – als Tafel (Schritt 0,1 Weltpixel) statt sin je Texel;
+  // Randlinie und Glockenhöhe hängen nur von lx ab – als Tafel (Schritt 0,1 Weltpixel) statt je Texel;
   // Lamellen-Puls je Lamelle einmal
-  let RIMT = null, TOPT = null, SQT = null;
-  const TS = 10, TN = Math.ceil(2 * Rx * TS) + 1, LPULSE = fine ? new Float32Array(240).fill(NaN) : null;
-  if (fine) {
-    RIMT = new Float32Array(TN); TOPT = new Float32Array(TN); SQT = new Float32Array(TN);
-    for (let k = 0; k < TN; k++) {
-      const lx = k / TS - Rx, q = Math.max(-1, Math.min(1, lx / Rx)), sq = Math.sqrt(1 - q * q);
-      RIMT[k] = rimY(lx); SQT[k] = sq; TOPT[k] = Hd * sq * (1 + 0.05 * Math.sin(q * 7 + 1));
-    }
+  const TS = 10, TN = Math.ceil(2 * Rx * TS) + 1, LPULSE = new Float32Array(240).fill(NaN);
+  const RIMT = new Float32Array(TN), TOPT = new Float32Array(TN), SQT = new Float32Array(TN);
+  for (let k = 0; k < TN; k++) {
+    const lx = k / TS - Rx, q = Math.max(-1, Math.min(1, lx / Rx));
+    RIMT[k] = rimY(lx); SQT[k] = Math.sqrt(1 - q * q); TOPT[k] = bell(lx);
   }
-  for (let Y = Math.floor(K.y - 40) * RS; Y <= Math.ceil(K.y + 26) * RS + RS - 1; Y++) {
+  const gw = fine ? 0.16 : 0.22, pr = 0.9 + 0.5 * Math.sin(P.pulse * 0.9);
+  for (let Y = Math.floor(K.y - 44) * RS; Y <= Math.ceil(K.y + 26) * RS + RS - 1; Y++) {
     const y = tc(Y), dy = y - K.y;
     // Spalten dieser Zeile, in denen lx und ly überhaupt passen können (beide linear in dx), mit Rand: Ergebnis gleich
     let d0 = (-Rx + OFF - dy * s) / c, d1 = (Rx + OFF - dy * s) / c;
@@ -1047,123 +1019,78 @@ function capPass(pt, P, K, part) {
     const xs = Math.max(XL, Math.floor((K.x + d0 + 0.5) * RS - 0.5) - 2), xe = Math.min(XR, Math.ceil((K.x + d1 + 0.5) * RS - 0.5) + 2);
     const dx0 = tc(xs) - K.x, ddx = 1 / RS;
     for (let X = xs; X <= xe; X++) {
-      const dx = fine ? dx0 + (X - xs) * ddx : X - K.x;
+      const dx = dx0 + (X - xs) * ddx;
       const lx = dx * c + dy * s - OFF, ly = -dx * s + dy * c;
       if (ly < lyLo - ex || ly > lyHi + ex) continue;
       const q = lx / (Rr + ex);
       if (Math.abs(q) >= 1) continue;
-      let sq, rim, top;
-      if (fine) { const k = Math.round((lx + Rx) * TS); sq = SQT[k]; rim = RIMT[k]; top = rim - TOPT[k] - ex; }
-      else {
-        sq = Math.sqrt(1 - q * q);
-        rim = rimY(lx);
-        top = rim - Hd * sq * (1 + 0.05 * Math.sin(q * 7 + 1)) - ex;
-      }
+      const k = Math.round((lx + Rx) * TS), sq = SQT[k], rim = RIMT[k], top = rim - TOPT[k] - ex;
       if (dome && ly >= top && ly <= rim + ex) {
-        // Ausgefranster Rand
-        if (ly > rim - 1.2 && Math.abs(q) > 0.3 && hash2(Math.round(lx), 3, 261) < 0.18) continue;
-        const hgt = (rim - ly) / (rim - top + 0.01);
-        let v = 0.28 + hgt * 0.42 - q * 0.26 + (hgt > 0.55 && q < 0.1 ? 0.14 : 0);
-        if (ly > rim - 1.5) v -= 0.16;
-        if (!fine && hgt > 0.2 && Math.abs(Math.sin(q * 9 + hgt * 2)) < 0.06) v -= 0.12; // Runzeln (fein: Falten am Rand, s. u.)
-        let col = fine ? shadeF(CAP, v) : shade(CAP, v, X, Y);
-        if (fine) {
-          if (ly > rim - 0.5) col = CAP[1];                                   // dunkle Lippe am Rand
-          else if (ly > rim - 1 && q < -0.1) col = CAP[4];                    // Lichtsaum über der Lippe
-          else if (ly - top < 0.55 && q < 0.25) col = q < -0.3 ? CAP[6] : CAP[5];   // Lichtkante oben
-          else if (ly - top < 1.05 && q < -0.45) col = CAP[5];
-        }
-        for (const sp of spots) {
-          if (Math.abs(lx - sp.lx) >= sp.r || Math.abs(ly - sp.ly) * 1.35 >= sp.r) continue;
-          const dd = Math.hypot(lx - sp.lx, (ly - sp.ly) * 1.35);
-          if (dd < sp.r) {
-            const lit = (lx - sp.lx) + (ly - sp.ly) < -0.5;
-            if (!fine) col = dd > sp.r - 0.9 ? SPOT[lit ? 2 : 0] : SPOT[lit ? 3 : 2];
-            else {
-              col = dd > sp.r - 0.55 ? SPOT[lit ? 1 : 0] : SPOT[lit ? 3 : 2];
-              if (sp.r > 2.2 && Math.hypot(lx - sp.lx + sp.r * 0.38, (ly - sp.ly) * 1.35 + sp.r * 0.38) < 0.5) col = SPOT_HI;
-              else if (!lit && dd > sp.r - 1.1 && dd <= sp.r - 0.55) col = SPOT[1];
-            }
-            break;
-          }
+        const hgt = (rim - ly) / (rim - top + 0.01), up = ly - top;
+        let col;
+        if (ly > rim - (fine ? 0.5 : 0.8)) {                                   // leuchtende Unterkante
+          col = q < 0.3 ? GILL[5] : GILL[4];
+          pt.gtex(X, Y, K_GILL, 2.4 * pr + 0.6);
+        } else if (ly > rim - 1.9) {                                         // durchscheinender Rand
+          col = q < -0.2 ? CAP[5] : q < 0.45 ? CAP[4] : CAP[3];
+          pt.gtex(X, Y, K_GILL, 1.1 * pr);
+        } else {
+          let v = 0.12 + hgt * 0.5 - q * 0.36 + (hgt > 0.6 && q < 0.05 ? 0.12 : 0);
+          // radiale Rillen: zur Spitze hin zusammenlaufend
+          const q0 = q / Math.max(0.2, 1 - 0.6 * Math.pow(hgt, 1.4)), gs = Math.sin(q0 * 13 + 0.3);
+          if (hgt < 0.8 && Math.abs(gs) < gw) v -= 0.15;
+          else if (fine && hgt < 0.8 && gs > gw && gs < gw * 2.2 && q < 0.3) v += 0.07;   // Lichtgrat neben der Rille
+          col = fine ? shadeF(CAP, v) : shade(CAP, v, X, Y);
+          if (up < (fine ? 0.55 : 0.9) && q < 0.25) col = q < -0.3 ? CAP[6] : CAP[5];   // Lichtkante oben
+          else if (fine && up < 1.05 && q < -0.45) col = CAP[5];
         }
         pt.tex(X, Y, col);
       } else if (!dome && ly > rim && ly <= rim + (2.4 + 2.6 * sq) * gm) {
         const depth = (ly - rim) / ((2.4 + 2.6 * sq) * gm);
         const gx = lx * (1 - depth * 0.45);
-        if (!fine) {
-          const line = ((gx / 2.4) % 1 + 1) % 1 < 0.38;
-          const col = Math.abs(lx) < 4 && depth > 0.5 ? GILL[0] : line ? GILL[1] : depth > 0.6 ? GILL[2] : GILL[3];
-          pt.tex(X, Y, col);
-          if (!line && Math.abs(lx) > 3) {
-            const lam = Math.floor((gx / 2.4) + 100);
-            const hot = (lam % 2 === 0) ? 1.6 : 0.9;
-            pt.gl(X, Y, K_GILL, (hot + 0.6 * Math.sin(P.pulse + lam * 0.7)) * (1 - depth * 0.5) * (1 + P.gillOpen * 0.5));
-          }
-          continue;
-        }
-        const f = ((gx / 2.4) % 1 + 1) % 1, line = f < 0.2;
-        let col = Math.abs(lx) < 4 && depth > 0.5 ? GILL[0] : line ? GILL[1] : f < 0.36 && depth < 0.55 ? GILL[4] : depth > 0.6 ? GILL[2] : GILL[3];
-        if (depth < 0.1 && !line) col = GILL[2];   // Schatten direkt unter dem Hutrand
+        const f = ((gx / 2.4) % 1 + 1) % 1, line = f < (fine ? 0.2 : 0.38);
+        let col = Math.abs(lx) < 4 && depth > 0.5 ? GILL[0] : line ? GILL[1] : fine && f < 0.36 && depth < 0.55 ? GILL[4] : depth > 0.6 ? GILL[2] : GILL[3];
+        if (fine && depth < 0.1 && !line) col = GILL[2];   // Schatten direkt unter dem Hutrand
         pt.tex(X, Y, col);
         if (!line && Math.abs(lx) > 3) {
           const lam = Math.floor((gx / 2.4) + 100);
           let pu = LPULSE[lam];
           if (pu !== pu) pu = LPULSE[lam] = ((lam % 2 === 0) ? 1.6 : 0.9) + 0.6 * Math.sin(P.pulse + lam * 0.7);
-          pt.gtex(X, Y, K_GILL, pu * (1 - depth * 0.5) * (1 + P.gillOpen * 0.5) + (f < 0.42 ? 0.7 : 0));
+          if (fine) pt.gtex(X, Y, K_GILL, pu * (1 - depth * 0.5) * (1 + P.gillOpen * 0.5) + (f < 0.42 ? 0.7 : 0));
+          else pt.gl(X, Y, K_GILL, pu * (1 - depth * 0.5) * (1 + P.gillOpen * 0.5));
         }
       }
     }
   }
   const toW = (lx, ly) => ({ x: K.x + (lx + OFF) * c - ly * s, y: K.y + (lx + OFF) * s + ly * c });
-  if (fine && dome) {
-    // Falten am Hutrand: kurze Kerben vom Rand nach oben, Lichtseite links daneben (statt Runzel-Sprenkeln)
-    for (let q = -0.86; q <= 0.86; q += 0.155) {
-      const lx = q * Rr, rim = rimY(lx), h = 1.4 + 1.4 * Math.abs(Math.sin(q * 5.3 + 0.4));
-      if (spots.some((sp) => Math.abs(lx - sp.lx) < sp.r + 0.6 && rim - h - 0.6 < sp.ly + sp.r)) continue;
-      const a = toW(lx, rim - 0.7), b = toW(lx * 0.97, rim - 0.7 - h), a2 = toW(lx - 0.5, rim - 0.7), b2 = toW(lx * 0.97 - 0.5, rim - 0.7 - h * 0.7);
-      if (q < 0.1) pt.fline(a2.x, a2.y, b2.x, b2.y, CAP[4]);
-      pt.fline(a.x, a.y, b.x, b.y, CAP[1]);
-    }
-  }
-  return { toW, rimY, Rr, Hd };
+  return { toW, rimY, Rr, Hd: Hd + Ub };
 }
-// Hyphen vom Hutrand; fein: Fäden als Texellinien mit Perlen, dazwischen feinere Nebenfäden, Sporenperle mit Glanz
+// Leuchtfäden vom Hutrand: helle Fäden (vor dem Gesicht kurz), Spitze glimmt; fein 1 Texel mit Perlen
 function hyphae(pt, P, cg) {
-  const fine = RS > 1;
-  for (let j = 0; j < 11; j++) {
-    const q = -0.94 + j * 0.188;
-    if (q > -0.3 && q < 0.72) continue;
+  const fine = RS > 1, n = 24;
+  for (let j = 0; j < n; j++) {
+    const q = -0.95 + j * (1.9 / (n - 1)) + (hash2(j, 4, 271) - 0.5) * 0.03;
     const lx = q * cg.Rr;
-    const p = cg.toW(lx, cg.rimY(lx) + 0.5);
+    const p = cg.toW(lx, cg.rimY(lx) + 0.4);
+    const face = q > -0.32 && q < 0.62;
+    let len = (4 + hash2(j, 1, 271) * 14) * (1 + P.gillOpen * 0.25) * (1 - P.collapse * 0.3) - (face ? 13 : 0);
+    if (len < 2) continue;
     let x = p.x, y = p.y;
-    const len = 4 + hash2(j, 1, 271) * 12 * (1 + P.gillOpen * 0.3);
-    for (let s = 0; s < len; s++) {
-      const x0 = x, y0 = y;
-      x += Math.sin(P.hyT + j * 1.3 + s * 0.3) * 0.3 * (s / len) + (P.cap - 0.06) * 0.4; y += 0.95;
-      if (!fine || s < 2) pt.px(x, y, s < 2 ? GILL[3] : (s & 1) ? GILL[2] : GILL[4]);
-      else { pt.fline(x0, y0, x, y, GILL[3]); if (s % 3 === 0) { pt.dot(x - 0.5, y, GILL[4]); pt.dot(x, y, GILL[5]); } }
+    for (let st = 0; st < len; st++) {
+      const x0 = x, y0 = y, f = st / len;
+      x += Math.sin(P.hyT + j * 1.3 + st * 0.3) * 0.3 * f + (P.cap - 0.06) * 0.4; y += 0.95;
+      const c = HAIR[f > 0.75 ? 5 : f > 0.4 ? 4 : 3];
+      if (!fine) { if ((st & 1) === 0 || f > 0.6) pt.px(x, y, c); }
+      else { pt.fline(x0, y0, x, y, c); if (st % 4 === 3) pt.dot(x - 0.5, y, HAIR[2]); }
     }
-    if (hash2(j, 2, 271) < 0.55) {
-      pt.px(x, y + 1, SAC[4]); pt.gl(x, y + 1, K_SPORE, 2 + (Math.sin(P.pulse + j) > 0 ? 1 : 0));
-      if (fine) { pt.dot(x - 0.25, y + 0.75, SAC[6]); pt.gdot(x - 0.25, y + 0.75, K_SPORE, 4); }
-    }
-    if (fine && q + 0.094 < 1) {
-      // Nebenfaden (1 Texel) zwischen den Hauptfäden
-      const lx2 = (q + 0.094) * cg.Rr, p2 = cg.toW(lx2, cg.rimY(lx2) + 0.4);
-      let x2 = p2.x, y2 = p2.y;
-      const l2 = 3 + hash2(j, 3, 271) * 7;
-      for (let s = 0; s < l2; s++) {
-        const a = x2, b = y2;
-        x2 += Math.sin(P.hyT * 1.2 + j * 2.1 + s * 0.4) * 0.25 + (P.cap - 0.06) * 0.4; y2 += 0.95;
-        pt.fline(a, b, x2, y2, s < 2 ? GILL[3] : GILL[2]);
-      }
-      pt.dot(x2, y2 + 0.5, GILL[5]); pt.gdot(x2, y2 + 0.5, K_GILL, 2.5);
-    }
+    const lv = 2.4 + (Math.sin(P.pulse + j * 1.7) > 0.2 ? 1 : 0);
+    if (fine) { pt.dot(x, y + 0.5, HAIR[5]); pt.gdot(x, y + 0.5, K_GILL, lv + 0.6); pt.gdot(x, y, K_GILL, lv - 0.6); }
+    else if (j % 2 === 0) { pt.px(x, y + 1, HAIR[5]); pt.gl(x, y + 1, K_GILL, lv); }
   }
 }
 
-// Ranken-Arm: Bezier-Strang mit Dornen, Moos, Knoten, Wurzelkrallen
+// Arm: langer, sehniger Strang in Blaugrau mit Ellbogenknoten, Sehnenlinie und türkiser Leuchtader,
+// am Ende eine Hand mit vier langen Krallenfingern
 function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
   const dx = E.x - S.x, dy = E.y - S.y, len = Math.hypot(dx, dy) || 1;
   const px = -dy / len, py = dx / len;
@@ -1173,85 +1100,59 @@ function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
   const clipping = P.plunge > 0.3;
   if (clipping) pt.clip = GY - 1;
   const sh = back ? -0.16 : 0;
-  const wf = (t) => (8.6 - t * 5.4) + Math.max(0, 1.3 - Math.abs(t - 0.32) * 12) + Math.max(0, 1 - Math.abs(t - 0.64) * 12);
+  const wf = (t) => (6.4 - t * 3.2) + Math.max(0, 1.6 - Math.abs(t - 0.5) * 11) + Math.max(0, 1.2 - Math.abs(t - 0.06) * 10);
   const fine = RS > 1;
-  let lt = NaN, moss = false, r = 0, ga = 0, gb = 0, gon = false;   // je Abtastschritt (t) nur einmal rechnen
   tube(pt, pts, wf, fine ? (e, t) => {
-    // fein: Moospolster mit Lichtkante, Rindenringe als Kerbe mit hellem Wulst, Längsrillen (Borke)
-    if (t !== lt) {
-      lt = t; moss = t < 0.8 && Math.sin(t * 31 + seed) + Math.sin(t * 13 + seed * 2.7) > 0.2; r = ((t * 9 + seed) % 1) - 0.5;
-      ga = -0.35 - 0.06 * Math.sin(t * 40 + seed); gb = 0.2 - 0.05 * Math.sin(t * 29 + seed); gon = ((t * 23 + seed) % 1) < 0.7;
-    }
-    if (moss && e > 0.45) return MOSS[back ? 2 : e > 0.82 ? 4 : 3];
-    let v = 0.4 + e * 0.38 + sh;
-    if (Math.abs(r) < 0.03) v -= 0.3;
-    else if (r > 0.03 && r < 0.07) v += 0.16;
-    else if (gon && (Math.abs(e - ga) < 0.07 || Math.abs(e - gb) < 0.07)) v -= 0.2;
-    return BARK[v <= 0 ? 0 : v >= 1 ? 5 : (v * 5 + 0.5) | 0];
-  } : (e, t, x, y) => {
-    if (e > 0.45 && t < 0.8 && hash2(x >> 1, y >> 1, 281 + seed) < 0.4) return MOSS[back ? 2 : 3 + (e > 0.8 ? 1 : 0)];
-    let v = 0.4 + e * 0.38 + sh;
-    if (Math.abs(((t * 9 + seed) % 1) - 0.5) < 0.05) v -= 0.25; // Rindenringe
-    return shade(BARK, v, x, y);
-  });
-  // Dornen auf der Außenseite (fein: am Fuß breit, zur Spitze 1 Texel, Knochenspitze mit Glanz)
-  for (let i = 3; i < pts.length - 3; i += 4) {
-    const a = pts[i], b = pts[i + 1];
+    // fein: Sehne als heller Grat auf der Lichtseite, Kerbe unter dem Ellbogen, Handgelenk dunkler
+    let v = 0.36 + e * 0.38 + sh - (t > 0.86 ? 0.08 : 0);
+    if (Math.abs(e - 0.42) < 0.08 && t > 0.1 && t < 0.86) v += 0.13;
+    else if (Math.abs(e + 0.3) < 0.07 && t > 0.56 && t < 0.84) v -= 0.14;
+    if (Math.abs(t - 0.5) < 0.012) v -= 0.18;
+    return SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
+  } : (e, t, x, y) => shade(SKIN, 0.36 + e * 0.38 + sh, x, y));
+  // Leuchtader längs des Arms (pulsiert vom Leib zur Hand)
+  let prev = null;
+  for (let i = 2; i < pts.length - 2; i++) {
+    const a = pts[i], b = pts[i + 1], t = a.t;
+    if (t > 0.88) break;
     const tx = b.x - a.x, ty = b.y - a.y, tl = Math.hypot(tx, ty) || 1;
-    const side = (i >> 2) % 2 ? 1 : -1;
-    const nx = (-ty / tl) * side, ny = (tx / tl) * side;
-    const hw = wf(a.t) / 2;
-    const L0 = 2 + (hash2(i, seed, 283) * 2) * (1 - a.t * 0.5);
-    if (!fine) {
-      for (let k = 0; k <= L0; k += 0.5) {
-        const x = a.x + nx * (hw + k) + (tx / tl) * k * 0.5, y = a.y + ny * (hw + k) + (ty / tl) * k * 0.5;
-        pt.px(x, y, k > L0 - 1 ? BONE[back ? 2 : 3] : BARK[back ? 2 : 3]);
-      }
-      continue;
+    let nx = -ty / tl, ny = tx / tl;
+    if (nx + ny > 0) { nx = -nx; ny = -ny; }
+    const o = wf(t) * (0.1 - 0.16 * Math.sin(t * 9 + seed));
+    const q = { x: a.x - nx * o, y: a.y - ny * o };
+    if (prev) {
+      const lv = (back ? 1.5 : 2.2) + (Math.sin(P.pulse * 1.5 - t * 8) > 0.5 ? 1 : 0);
+      if (fine) { pt.fline(prev.x, prev.y, q.x, q.y, back ? SAC[3] : SAC[4]); pt.gfline(prev.x, prev.y, q.x, q.y, K_VEIN, lv); }
+      else if (i % 2 === 0) { pt.px(q.x, q.y, SAC[3]); pt.gl(q.x, q.y, K_VEIN, lv - 0.6); }
     }
-    const lit = nx + ny < 0;   // Dorn zeigt zum Licht (oben links)
-    for (let k = -0.5; k <= L0 + 0.25; k += 0.25) {
-      const x = a.x + nx * (hw + k) + (tx / tl) * k * 0.5, y = a.y + ny * (hw + k) + (ty / tl) * k * 0.5;
-      const w = Math.max(0, (1 - (k + 0.5) / (L0 + 0.75)) * 1.1);
-      const tip = k > L0 - 1;
-      const cMid = tip ? BONE[back ? 2 : 3] : BARK[back ? 2 : 3];
-      pt.dot(x, y, cMid);
-      for (let o = 0.25; o <= w; o += 0.25) {
-        pt.dot(x + (tx / tl) * o, y + (ty / tl) * o, tip ? BONE[back ? 1 : 2] : BARK[back ? 1 : lit ? 4 : 2]);
-        pt.dot(x - (tx / tl) * o, y - (ty / tl) * o, tip ? BONE[back ? 2 : 3] : BARK[back ? 2 : lit ? 3 : 1]);
-      }
-    }
-    if (!back) { const k = L0 - 0.75; pt.dot(a.x + nx * (hw + k) + (tx / tl) * k * 0.5 - 0.25, a.y + ny * (hw + k) + (ty / tl) * k * 0.5 - 0.25, SPOT[3]); }
+    prev = q;
   }
-  // Leuchtknoten (fein: heißer Kern, dunkler Ring)
-  for (const t of [0.46, 0.78]) {
-    const p = pts[Math.round(t * n)];
-    pt.px(p.x, p.y, GILL[4]); pt.px(p.x + 1, p.y, GILL[3]);
-    pt.gl(p.x, p.y, K_VEIN, back ? 1.6 : 2.4); pt.gl(p.x + 1, p.y, K_VEIN, 1.4);
-    if (fine) {
-      pt.dot(p.x - 0.25, p.y - 0.25, GILL[5]); pt.dot(p.x + 1.25, p.y + 0.25, GILL[2]); pt.dot(p.x - 0.75, p.y + 0.25, BARK[1]);
-      pt.gdot(p.x - 0.25, p.y - 0.25, K_VEIN, back ? 3 : 4);
-    }
-  }
-  // Wurzelkrallen
+  // Ellbogenknoten mit Glanz
+  const el = pts[Math.round(0.5 * n)];
+  pt.px(el.x - 1, el.y - 1, SKIN[back ? 3 : 5]);
+  if (fine) pt.dot(el.x - 1.25, el.y - 1.25, SKIN[back ? 4 : 6]);
+  // Krallenhand: vier lange Finger, Krallen hell
   const a = pts[pts.length - 3], b = pts[pts.length - 1];
   const base = Math.atan2(b.y - a.y, b.x - a.x);
+  pt.ellipse(b.x, b.y, 2.4, 2.1, SKIN[back ? 2 : 3]);
   for (let f = 0; f < 4; f++) {
     const fa = base + (f - 1.5) * (0.28 + claw * 0.38);
-    const fl = 7 + hash2(f, seed, 285) * 3;
+    const fl = 8 + hash2(f, seed, 285) * 3 - (f === 0 ? 2 : 0);
     const fp = [];
     let x = b.x, y = b.y, ang = fa;
-    for (let s = 0; s <= fl; s += 1) {
-      fp.push({ x, y, t: s / fl });
-      ang += (1 - claw) * 0.16 * (f < 2 ? 1 : -1) + 0.02;
+    for (let s2 = 0; s2 <= fl; s2 += 1) {
+      fp.push({ x, y, t: s2 / fl });
+      ang += (1 - claw) * 0.18 * (f < 2 ? 1 : -1) + 0.03;
       x += Math.cos(ang); y += Math.sin(ang);
     }
-    tube(pt, fp, (t) => 2.4 - t * 1.4, (e, t, X, Y) => t > 0.75 ? BONE[e > 0 ? 3 : 2] : shade(BARK, 0.45 + e * 0.35 + sh, X, Y));
+    tube(pt, fp, (t) => (t > 0.72 ? 1.5 - (t - 0.72) * 3 : 2.2 - t * 0.6), (e, t, X, Y) => t > 0.72
+      ? (e > 0 ? HAIR[back ? 3 : 5] : HAIR[back ? 2 : 4])
+      : fine ? SKIN[Math.max(0, Math.min(6, Math.round((0.32 + e * 0.32 + sh) * 6)))] : shade(SKIN, 0.32 + e * 0.32 + sh, X, Y));
     if (fine) {
-      // Krallenspitze: Glanzpunkt, Gelenkkerbe
-      const q = fp[fp.length - 2], m = fp[Math.round(fp.length * 0.45)];
-      if (q) pt.dot(q.x - 0.25, q.y - 0.25, back ? BONE[3] : SPOT[3]);
-      if (m) pt.dot(m.x, m.y, BARK[1]);
+      // Krallenspitze glimmt leicht, Fingergelenk als Kerbe
+      const q = fp[fp.length - 1], m = fp[Math.round(fp.length * 0.45)];
+      if (q && !back) { pt.dot(q.x, q.y, HAIR[5]); pt.gdot(q.x, q.y, K_GILL, 2); }
+      if (m) pt.dot(m.x, m.y, SKIN[1]);
     }
   }
   meta[key] = { x: b.x, y: b.y };
@@ -1281,7 +1182,7 @@ function smear(pt, S, a0, a1, r0, r1) {
       if (hash2(Math.round(a * 60), j, 291) > fresh * (1.1 - j * 0.22)) continue;
       const X = S.x + Math.cos(a) * r, Y = S.y + Math.sin(a) * r;
       if (Y >= GY - 1) continue;
-      pt.px(X, Y, j === 0 ? SKIN[6] : j === 1 ? MOSS[4] : MOSS[3]);
+      pt.px(X, Y, j === 0 ? HAIR[5] : j === 1 ? SAC[4] : SAC[3]);
       if (j < 2 && fresh > 0.4) pt.gl(X, Y, K_SPORE, j === 0 ? 2.4 : 1.4);
     }
   }
@@ -1318,13 +1219,14 @@ function drawMother(pt, P, ex) {
   vineArm(pt, P, SB, EB, P.bCurl, P.bClaw, true, 7, meta, 'handB');
   backShrooms(pt, P, L);
   body(pt, P, L);
+  freckles(pt, P, L);
   const order = SACS.map((s, i) => [s, i]).sort((a, b) => a[0].v - b[0].v);
   for (const [s, i] of order) sac(pt, P, L, s, i);
   meta.sac = sacPos(L, SACS[0]);
   meta.core = { x: L.cx, y: L.cy };
   roots(pt, P, L, true);
+  ruff(pt, P, L);
   torso(pt, P, L);
-  mantle(pt, P, L);
   meta.chest = { x: (L.B.x + N.x) / 2 + 2, y: (L.B.y + N.y) / 2 };
   // Hutbefestigung über dem Kopf
   const hp = headPos(P, L);
