@@ -140,43 +140,117 @@ def line_px(a, b):
 
 
 # ------------------------------------------------------------------------------------------- Gesicht
-# Hageres, blaugraues Gesicht, Dreiviertelansicht nach rechts (Pixelkarte): hohe Stirn, tief eingesunkene Höhlen mit
-# schrägen, türkis leuchtenden Augen (E Kern, e Rand), schmaler Nasenrücken, eingefallene Wangen mit nachtblauen Schatten,
-# breites Maul mit Fängen, spitzes Kinn. o Kontur, 1–4 Haut, 5 Glanz, p/q Wangenschatten, k Höhle.
+# Ausgezehrtes Hexengesicht (wie rot_mother.js), Dreiviertelansicht nach rechts, Licht von links oben: zornig gesenkter
+# Brauenwulst mit Stirn- und Zornesfalten, tief liegende schräge Schlitzaugen (türkis), Krähenfüße, hoher Wangenknochen
+# über eingefallener Wange, lange Hakennase mit Höckerwarze, Nasolabialfalte, gefletschtes Maul mit schiefen Zähnen,
+# spitzes vorspringendes Kinn mit Warze. FACE in Figurpixeln, FACE_F in Feinpixeln (K = 2) darüber.
+# o Kontur, 1–6 Haut (Schatten → Glanz), p/q kalte Wangenhöhle, k Höhle, E/e Auge, M Maul, T/t Zähne.
 FACE = [
-    '........oooooooooo......',
-    '......oo1223334444oo....',
-    '.....o11223334444455o...',
-    '....o1122333444455554o..',
-    '...o11223334444455554o..',
-    '...o1p223334444444555o..',
-    '..o1pkk2233344444kk544o.',
-    '..o1kkkkk2334444kkkkk4o.',
-    '..o1kkEEkkk3444kkkEEkk4o',
-    '..o1pkkkEEek344keEEkkk4o',
-    '..o1p2kkkkkk3455kkkkp44o',
-    '..o1pq22233334553333p45o',
-    '..o1pq22233334555333p45o',
-    '...o1pq2223334555433p45o',
-    '...o1ppq223334n55n3pp4o.',
-    '...o1pq222333333333pp4o.',
-    '....o1p2ooooooooooo2p4o.',
-    '....o1poTMMMMMMMMTo2p4o.',
-    '....o1poMTMMMMMMTMo2po..',
-    '....o1poMtMMMMMtMMo2po..',
-    '.....o1oooooooooooo2o...',
-    '.....o1pq2222333333po...',
-    '......o1pq22233334po....',
-    '.......o1pq2233345o.....',
-    '........o1p223345o......',
-    '.........oo12344o.......',
-    '...........oo33o........',
-    '.............oo.........',
+    '......oo444ooo',
+    '....oo54444444o',
+    '...o55544444443o',
+    '..o5554444444333o',
+    '..o55322444443332o',
+    '.o655522545433332o',
+    '.o6666555554133334o',
+    'o44556666666344555o',
+    'o44kekkkkk25652ke1o',
+    'o44keEEEek3246eEe21o',
+    'o5643kkk14433446552o',
+    'o6666665444423344445o',
+    'o61553444443322234555o',
+    '.o3ppq3344443222223464o',
+    '.o3qqqq334444142222331o',
+    '..o43qqqq445112222223o',
+    '..o4443q3455114MT22oo',
+    '...o4443441MMMMMMM2o',
+    '....ooo43451MMMMM22o',
+    '.......o44441MM3224o',
+    '........o322211424o',
+    '.........oo3456425o',
+    '...........o34314o',
+    '............o2134o',
+    '.............o13o',
+    '..............oo',
 ]
-FSPLIT = 19          # ab dieser Zeile klappt der Unterkiefer nach unten
-FLEG = {'o': ('face', 0), '1': ('face', 1), '2': ('face', 2), '3': ('face', 3), '4': ('face', 4), '5': ('faceh', 3),
-        'p': ('rot', 2), 'q': ('rot', 3), 'B': ('brow', 3), 'b': ('brow', 2), 'k': ('face', 0), 'n': ('face', 0),
-        'M': ('maw', 1), 'T': ('fang', 3), 't': ('fang', 2), 'E': ('eye', 4), 'e': ('eye', 2)}
+FACE_F = [
+    '................ooooooo',
+    '.............ooo4444444ooo',
+    '...........oo5544444444444oo',
+    '..........o55544444444444443o',
+    '........oo5555444444444444433oo',
+    '.......o55555444444444444443333o',
+    '......o5555544444444444444333333o',
+    '......o5555544444444444444333333o',
+    '.....o555532222244444444443333332o',
+    '....o55553655555224444444433333322o',
+    '....o55556542222554455444333333322o',
+    '...o6666555355552445535423333333322o',
+    '...o6666666655545445534413333333332o',
+    '..o566666666665555555423313333344444o',
+    '..o444555566666666655662334444555553o',
+    '..o444332222345566666666555555443221o',
+    '..o4443kkkkkkkkkk4555256665521111111o',
+    '..o414kkeekkkkkkkkkkk245566654kkeek2o',
+    '.o4144kkkeEEEEEeekkkk22445666eEEekk21o',
+    '.o54143kkkkkkeeEeekk33234455ee6654221o',
+    '.o5525443kkkkkkk444444323344566555432o',
+    '.o526655511111111144443233344442265542o',
+    '..o666666666665554444444223333444535424oo',
+    '..o66666665555444444443422223333344442553o',
+    '..o665555554444444444333322222233344525654o',
+    '..o5111223334444444444333222222223344555654o',
+    '..o43qpppqq233344444444332222222222334456541o',
+    '...o3qpqqppq23334444444443221222222233466652o',
+    '...o33qqqqqpqq333444444444214222222223356552o',
+    '....o433qqqqpqq33344444444144222222222233311o',
+    '....o44433qqqpqqq34444455414221212222222311o',
+    '.....o44433qqqpqq34456651141222kk2221oooooo',
+    '......o444433qqqq34565144444441111222o',
+    '......o44444333q3446515511111tMMMT122o',
+    '.......o4444443344451555MTMMMTMMTMM22o',
+    '........oooo4444434415MMMTtMMTMMMMM22o',
+    '............o4443334511MTMMMtMMMMM222o',
+    '.............oo433445551tMMMtMMtM1224o',
+    '...............o4444444411MMMMM112224o',
+    '................o44444333333333322234o',
+    '.................o3322222211111322244o',
+    '..................o32222233445442134o',
+    '...................oo334455566542251o',
+    '.....................o3344555542165o',
+    '......................o334444321252o',
+    '.......................o3333321144o',
+    '........................o22221134o',
+    '.........................oo211233o',
+    '...........................o1233o',
+    '............................o33o',
+    '.............................oo',
+]
+FSPLIT, FSPLIT_F = 18, 36          # ab dieser Zeile klappt der Unterkiefer nach unten
+FLEG = {'o': ('face', 0), '1': ('hide', 1), '2': ('face', 1), '3': ('face', 2), '4': ('face', 3), '5': ('face', 4), '6': ('faceh', 3),
+        'p': ('rot', 2), 'q': ('rot', 3), 'k': ('face', 0), 'M': ('maw', 1), 'T': ('fang', 3), 't': ('fang', 2), 'E': ('eye', 4), 'e': ('eye', 2)}
+
+
+def _open_rows(rows, split, n):
+    """Zeilen mit aufgeklapptem Kiefer: die Zeile über der Teilung wird n-mal gedehnt (ohne Zähne und Faltenlinien),
+    die Maulspalte schließt sich zu den Mundwinkeln hin linsenförmig."""
+    mid = rows[split - 1]
+    cols = [i for i, c in enumerate(mid) if c in 'MTt']
+    if not cols or n <= 0: return list(rows), None
+    m0, m1 = cols[0], cols[-1]; mw = m1 - m0
+    out = list(rows[:split])
+    for k in range(n):
+        u = abs(k - (n - 1) / 2) / ((n - 1) / 2) if n > 1 else 0
+        ins = int(round(u * u * mw * 0.22))
+        r = ''
+        for i, c in enumerate(mid):
+            if c == '.': r += '.'
+            elif m0 + ins <= i <= m1 - ins: r += 'M'
+            elif c == 'o': r += 'o'
+            elif m0 <= i <= m1: r += '2'
+            else: r += '3' if c in '12kpq' else c
+        out.append(r)
+    return out + list(rows[split:]), (m0, m1, split, n)
 
 
 def face(f, x, h, jaw=0, eye=1.0):
@@ -185,28 +259,24 @@ def face(f, x, h, jaw=0, eye=1.0):
     ev = 4 if eye >= 1 else 3 if eye >= 0.6 else 2
     leg['E'] = ('eye', ev); leg['e'] = ('eye', max(1, ev - 2))
     if eye >= 1.3: leg['e'] = ('eye', 3)
-    rows = FACE[:FSPLIT]
-    if jaw > 0:
-        mid = FACE[FSPLIT - 1]
-        open_ = ''.join(('M' if 8 <= i <= 17 and c != '.' and c != 'o' else c) for i, c in enumerate(mid))
-        rows = rows + [open_] * jaw
-    rows = rows + FACE[FSPLIT:]
+    rows, mo = _open_rows(FACE, FSPLIT, jaw)
     m = f.sprite(x, h, rows, leg)
-    # Feinraster: weißer Kern in den Augen, Lichtkante über den Höhlen, Nasenrücken
-    X0, Y0 = f.at(x, h); X0 *= K; Y0 *= K
-    for dx, dy in ((12, 16), (13, 16), (36, 16), (37, 16), (16, 18), (34, 18)):
-        f.fpx(X0 + dx, Y0 + dy, 'eyew', 4, under=True)
-    for dx in list(range(8, 20)) + list(range(32, 44)):
-        f.fpx(X0 + dx, Y0 + 11, 'faceh', 4 if dx > 30 else 3, under=True)
-    for i in range(8):
-        f.fpx(X0 + 29, Y0 + 20 + i, 'faceh', 4, under=True)
-    # Schlund glimmt bei offenem Maul
-    if jaw >= 2:
-        X0, Y0 = f.at(x, h)
-        for j in range(jaw):
-            for i in range(9, 17):
-                Y = Y0 + FSPLIT + j; X = X0 + i
-                if 0 <= Y < f.H and f.mat[Y, X] == 'maw' and (i + j) % 2 == 0 and j >= jaw // 2: f.mat[Y, X] = 'eye'; f.tone[Y, X] = 1
+    X0, Y0 = f.at(x, h)
+    # Feinraster: dieselbe Karte in Feinpixeln darüber (Falten, Nase, Augen, Zähne)
+    if K == 2:
+        frows, fmo = _open_rows(FACE_F, FSPLIT_F, jaw * 2)
+        f.fsprite(X0 * K, Y0 * K, frows, leg, under=True)
+    # Schlund glimmt bei offenem Maul (tief und mittig)
+    if jaw >= 2 and mo:
+        m0, m1, sp, n = mo
+        for j in range(n // 2, n):
+            for i in range(m0 + 2, m1 - 1):
+                Y = Y0 + sp + j; X = X0 + i
+                if 0 <= Y < f.H and 0 <= X < f.W and f.mat[Y, X] == 'maw':
+                    f.mat[Y, X] = 'eye'; f.tone[Y, X] = 2 if j >= n - 2 and abs(i - (m0 + m1) / 2) < 3 else 1
+                    if K == 2:
+                        for dy in (0, 1):
+                            for dx in (0, 1): f.fpx(X * K + dx, Y * K + dy, 'eye', f.tone[Y, X])
     return m
 
 
@@ -294,53 +364,35 @@ def finger(f, base, ang, L, curl, w0=4.2, back=False, clip=None):
 
 
 def arm(f, sh, hand, el_out=0.0, claw=0.0, back=False, seed=0, clip=None, sway=0.0, droop=0.0, fing=None, elbow=None):
-    """Langer, sehniger Arm: Schulter -> Ellbogen -> Handgelenk, blaugraue Haut mit Sehnengrat und türkiser Leuchtader,
-    knochiger Ellbogen, Hand mit vier langen Krallenfingern."""
+    """Langer, ausgezehrter Arm: dünner Knochen unter Haut, Schulterkugel, spitzer Ellbogenknoten mit Falten,
+    Unterarmmuskel, Ellenkante im Licht, knochiges Handgelenk; harte Lichtstufen, Kontur. Hand mit vier Krallenfingern."""
     mb = 'hide' if back else 'skin'
     el = elbow if elbow else ik(sh, hand, 46, 74, bend=1)
     el = (el[0] + el_out * 0.4, el[1] - el_out)
-    up = bez(sh, lerp(lerp(sh, el, 0.5), (sh[0] + 6, sh[1] + 8), 0.2), el, 8)
-    lo = bez(el, lerp(lerp(el, hand, 0.5), (hand[0] + 6, el[1]), 0.22), hand, 10)
+    up = bez(sh, lerp(lerp(sh, el, 0.5), (sh[0] + 6, sh[1] + 8), 0.08), el, 8)
+    lo = bez(el, lerp(lerp(el, hand, 0.5), (hand[0] + 6, el[1]), 0.08), hand, 10)
     pts = up + lo[1:]
     n = len(pts); tj = (len(up) - 1) / (n - 1)
-    base = 14 if not back else 13
+    base = 9.5 if not back else 9
     def wf(t):
         t = np.asarray(t, float)
-        w = np.where(t < tj, base - 2.5 * t / tj, (base - 3.0) - 3.5 * (t - tj) / (1 - tj))
+        w = np.where(t < tj, base - 2.0 * t / tj, (base - 3.0) - 2.6 * (t - tj) / (1 - tj))
         bump = lambda c, a, k: np.maximum(0, a - np.abs(t - c) * k)
-        return w + bump(tj, 3.0, 40) + bump(tj * 0.35, 1.6, 20) + bump(tj + (1 - tj) * 0.3, 1.4, 24) + bump(0.97, 2.0, 30)
+        return (w + bump(tj, 4.2, 60) + bump(tj * 0.12, 2.6, 18) - bump(tj * 0.55, 1.0, 10)
+                + bump(tj + (1 - tj) * 0.22, 2.2, 16) + bump(0.95, 1.8, 40))
     T = Tube(f, pts, wf, clip=clip)
     v = T.v - (0.14 if back else 0)
-    tn = tones(v, (0.24, 0.5, 0.78))
-    # Sehnengrat auf der Lichtseite, Kerbe unter dem Ellbogen
-    sinew = T.m & (np.abs(T.e - 0.42) < 0.1) & (T.t > 0.08) & (T.t < 0.9) & (tn < 4)
-    tn = np.where(sinew, tn + 1, tn)
-    notch = T.m & (np.abs(T.t - tj) < 0.01) & (tn > 1)
-    tn = np.where(notch, tn - 1, tn)
+    tn = tones(v, (0.3, 0.52, 0.76))
+    # Ellenkante im Licht (Unterarm), Sehne am Oberarm, Ellbogenglanz und Falten
+    ulna = T.m & (np.abs(T.e - 0.35) < 0.1) & (T.t > tj + 0.05) & (T.t < 0.9)
+    tn = np.where(ulna, 4, tn)
+    sinew = T.m & (np.abs(T.e - 0.05) < 0.08) & (T.t > 0.1) & (T.t < tj - 0.06)
+    tn = np.where(sinew & (tn > 1), tn - 1, tn)
+    crease = T.m & ((np.abs(T.t - tj + 0.035) < 0.006) | (np.abs(T.t - tj - 0.035) < 0.006)) & (T.e < 0.3) & (T.e > -0.6)
+    tn = np.where(crease & (tn > 1), tn - 1, tn)
     paint(f, T.m, mb, np.maximum(1, tn).astype(int))
-    P = T.pts
-    def nrm(i, up_=True):
-        a, c = P[max(0, i - 1)], P[min(len(P) - 1, i + 1)]
-        tx, ty = c[0] - a[0], c[1] - a[1]; tl = math.hypot(tx, ty) or 1
-        nx, ny = ty / tl, -tx / tl
-        if (ny > 0) == up_: nx, ny = -nx, -ny
-        return nx, ny, tx / tl, ty / tl
-    # Leuchtader: wellt sich längs des Arms, pulsiert
-    prev = None
-    for i in range(1, len(P) - 2):
-        k = i / (len(P) - 1)
-        nx, ny, _, _ = nrm(i)
-        hw = float(wf(k)) / 2
-        o = hw * (0.05 + 0.25 * math.sin(k * 9 + seed))
-        cur = (P[i][0] - nx * o, P[i][1] - ny * o)
-        if prev:
-            for X_, Y_ in line_px(prev, cur):
-                if clip is not None and Y_ >= clip: continue
-                if 0 <= Y_ < f.H and 0 <= X_ < f.W and T.m[Y_, X_]:
-                    f.mat[Y_, X_] = 'vein'; f.tone[Y_, X_] = (4 if (Y_ // 3 + int(sway * 8)) % 4 == 0 else 3) - (1 if back else 0)
-        prev = cur
     # Ellbogenknoten
-    kn = f.ell(el[0] - 0.5, el[1] + 0.5, 5.5, 5.0)
+    kn = f.ell(el[0] - 0.5, el[1] + 0.5, 4.2, 3.8)
     if clip is not None: kn[clip:] = False
     kt = dome(kn, r=2.4, cuts=(0.25, 0.55, 0.82))
     paint(f, kn, mb, np.where(kn, kt - (1 if back else 0), 0).clip(1, 4), line=False)
@@ -348,7 +400,7 @@ def arm(f, sh, hand, el_out=0.0, claw=0.0, back=False, seed=0, clip=None, sway=0
     for dx, dy, tt in ((1, -3, 4), (2, -3, 3)):
         if clip is None or eY + dy < clip: f.px(eX + dx, eY + dy, 'skinl' if not back else 'skin', tt - (1 if back else 0))
     # Schulter: runde Kugel, aus der der Arm wächst
-    sk = f.ell(sh[0] + 1, sh[1] + 1, 6, 5.5)
+    sk = f.ell(sh[0] + 1, sh[1] + 1, 5.2, 4.8)
     if clip is not None: sk[clip:] = False
     st_ = dome(sk, r=3, cuts=(0.28, 0.55, 0.8))
     paint(f, sk, mb, np.where(sk, st_ - (1 if back else 0), 0).clip(1, 4), line=False)
@@ -359,7 +411,7 @@ def arm(f, sh, hand, el_out=0.0, claw=0.0, back=False, seed=0, clip=None, sway=0
     fing = fing or (0, 0, 0, 0)
     for j in range(4):
         L = (24, 29, 27, 19)[j] * (0.85 if back else 1)
-        finger(f, hand, a0 + (1.5 - j) * sp * 0.6 + 12 - claw * 10 + fing[j], L, -(40 + claw * 50) - fing[j] * 0.5, w0=4.2 if not back else 3.8, back=back, clip=clip)
+        finger(f, hand, a0 + (1.5 - j) * sp * 0.6 + 12 - claw * 10 + fing[j], L, -(40 + claw * 50) - fing[j] * 0.5, w0=3.6 if not back else 3.3, back=back, clip=clip)
     hm = f.ell(hand[0], hand[1], 5.4, 5.0)
     if clip is not None: hm[clip:] = False
     paint(f, hm, mb, np.where(hm, dome(hm, r=2, cuts=(0.3, 0.6, 0.85)) - (1 if back else 0), 0).clip(1, 4), line=False)
@@ -599,15 +651,14 @@ def torso(f, p, ph):
         t = np.where(rib, np.minimum(4, big + 1), t); mat[rib & (big >= 3)] = 'bone'
         t = np.where(rib & (mat == 'bone'), 3, t)
         t = np.where(und, 1, t)
-    # --- Lamellen: Bauchfalten wie eine Pilzunterseite, senkrechte Blätter, Spitzen glimmen giftig
-    lam = m & (LH <= 86) & (LH > 60) & (U > 0.3)
-    mat[lam] = 'gill'
-    st = np.floor(LX / 3.0); sf = LX / 3.0 - st
-    lt = np.where(sf < 0.34, 1, np.where(sf < 0.67, 2 + (big >= 3), 3))
-    t = np.where(lam, np.clip(lt, 1, 4), t)
-    t = np.where(m & (np.abs(LH - 86) < 0.7) & (U > 0.3), 1, t)
-    tipg = lam & (LH < 66) & (sf >= 0.35) & (st % 2 == 0)
-    mat[tipg] = 'gillg'; t = np.where(tipg, 3, t)
+    # --- Bauch: eingefallene Haut mit zwei quer laufenden Hautfalten
+    belly = m & (LH <= 86) & (LH > 60) & (U > 0.3)
+    mat[belly] = 'skin'
+    t = np.where(belly, np.clip(big - 1, 1, 3), t)
+    for h0 in (70, 78):
+        fold = belly & (np.abs(LH - h0 - 2 * (U - 0.6)) < 0.8 / KZ)
+        t = np.where(fold, 1, t)
+        t = np.where(belly & (np.abs(LH - h0 - 1.6 / KZ - 2 * (U - 0.6)) < 0.7 / KZ), np.minimum(4, big), t)
     mat[m & (U >= 0.6) & (LH > 84) & (mat == 'hide')] = 'skin'
     paint(f, m, mat, np.where(m, t, 0).astype(int))
     # --- Leuchtknospen: kleine glimmende Kuppen mit Hautkragen, Glanzpunkt oben vorn
@@ -676,23 +727,34 @@ def mantle(f, N, Rt, ph, glow=0, sway=0.0):
         f.px(int(round(x)), int(round(y)) + 1, 'sacg', 2 + (glow + i) % 3)
 
 
-def ruff(f, N, p, glow=0):
-    """Lamellenkragen hinter Hals und Kopf: Fächer aus Lamellen wie eine Halskrause, gewellter Rand leuchtet."""
+def ruff(f, N, p, glow=0, keep=None):
+    """Lamellenkragen um den Halsansatz wie eine Halskrause: einzelne Lamellenblätter als Keile mit Lichtkante,
+    Mittelrippe und Schattenseite, dazwischen tiefe dunkle Spalten; nur die gerundeten Blattspitzen leuchten.
+    Die hintere Hälfte liegt im Schatten."""
     lean = math.radians(p.get('lean', 0))
-    cx, cy = f.at(N[0] + 4, N[1] + 2)
-    R0 = 25 * (1 + 0.12 * p.get('gill', 0)) * (1 - 0.15 * p.get('squash', 0))
+    cx, cy = f.at(N[0] - 3, N[1] - 1)
+    R0 = 22 * (1 + 0.12 * p.get('gill', 0)) * (1 - 0.15 * p.get('squash', 0))
+    FL, NB = 2.0, 10
     Y, X = np.mgrid[0:f.H, 0:f.W] + 0.5
     dx, dy = X - cx, Y - cy
-    lu = dx * math.cos(lean) - dy * math.sin(lean); lw = -(dx * math.sin(lean) + dy * math.cos(lean))   # lw nach oben
-    r = np.hypot(lu, lw * 1.1); ang = np.arctan2(np.maximum(lw, -3), lu)
-    g = np.cos(ang * 15 + 0.4)
-    edge = R0 + g * 1.2 - np.where(lw < 0, -lw * 0.5, 0)
-    m = (lw > -3) & (r > 5) & (r <= edge)
-    rim = m & (r > edge - 2.2)
-    fr = r / R0
-    t = np.where(g > 0.6, 3, np.where(g > 0, 2, 1)) + np.where(fr > 0.6, 1, 0)
+    lu = dx * math.cos(lean) - dy * math.sin(lean); lw = dx * math.sin(lean) + dy * math.cos(lean)   # lw nach vorn/unten
+    r = np.hypot(lu, lw * FL); ang = np.arctan2(lw * FL, lu)
+    bf = ang * NB / math.pi + 0.3; bi = np.floor(bf); fr = bf - bi
+    gap = fr < 0.2
+    q = np.where(gap, 0, (fr - 0.2) / 0.8)
+    tip = R0 * (0.82 + 0.18 * np.sin(np.pi * q))
+    blade = ~gap & (r > 3) & (r <= tip)
+    slit = gap & (r > 3) & (r <= R0 * 0.6)
+    fq = r / R0
+    back = lw < 0
     mat = np.full((f.H, f.W), 'gill', dtype=object)
-    mat[rim] = 'gillg'; t = np.where(rim, 3 + ((np.floor(ang * 15 / math.pi) + glow) % 2 == 0), t)
+    t = np.where(q < 0.18, 4, np.where(q < 0.5, 3, np.where(q > 0.8, 1, 2))) - np.where(fq < 0.45, 1, 0) - np.where(back, 1, 0)
+    t = np.where(blade & (np.abs(q - 0.5) < 0.07) & (fq > 0.35), t - 1, t)
+    rim = blade & (r > tip - 2.2)
+    mat[rim] = 'gillg'; t = np.where(rim, np.where(back, 2, 3 + ((bi + glow) % 2 == 0)), t)
+    mat[slit] = 'void'; t = np.where(slit, 1, t)
+    m = blade | slit
+    if keep is not None: m &= ~keep
     paint(f, m, mat, np.clip(t, 1, 4).astype(int))
 
 
@@ -709,6 +771,7 @@ def neck(f, N, p):
     tn = np.where(gap, 1, tn)
     rotn = nk.m & (nk.e < -0.55); mat[rotn] = 'rot'; tn = np.where(rotn, 2, tn)
     paint(f, nk.m, mat, np.clip(tn, 1, 4).astype(int))
+    return nk.m, f.np
 
 
 def head(f, N, p, ph, glow=0):
@@ -778,9 +841,9 @@ def body_layer(p, ph=0.0, glow=0, sacp=None, sglow=None):
     roots(f, ph, front=False, wig=0.6)
     brood(f, ph, br=p.get('breath', 0), sacp=sacp, glow=sglow, swell=p.get('swell', 0), vein=glow, flat=p.get('flat', 0))
     roots(f, ph, front=True, wig=0.6)
-    ruff(f, body_rt(p)[0]((14, 126)), p, glow=glow)
-    neck(f, body_rt(p)[0]((14, 126)), p)
+    nkm, nkp = neck(f, body_rt(p)[0]((14, 126)), p)
     N, T, _Rt = torso(f, p, ph)
+    ruff(f, N, p, glow=glow, keep=nkm & (f.part == nkp))   # Kragen vor dem Rumpf, hinter dem sichtbaren Hals
     head(f, N, p, ph, glow=glow)
     im = f.render(rim=RIM_F, rim_back=RIM_B)
     im[GROUND * K:] = 0

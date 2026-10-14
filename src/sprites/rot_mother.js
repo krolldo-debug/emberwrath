@@ -40,11 +40,13 @@ const R = (a) => a.map(hex);
 // Materialrampen (dunkel -> hell)
 const FLESH = R(['#06080e', '#0d1120', '#171d31', '#232b45', '#313b5b', '#455375', '#637393']);
 const SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5', '#d5e1e9']);
+const CAP_EDGE = R(['#c4b4ec', '#9c88d0']);
 const CAP = R(['#07051a', '#120d2c', '#1d1540', '#2a1f58', '#3c2c72', '#54408e', '#7862ae']);
 const SPOT = R(['#46566a', '#7a8ea2', '#b4c6d4', '#e6f2f6']);
 const GILL = R(['#061e28', '#0a3846', '#115e6c', '#1c8e96', '#46c6c2', '#a6f2ea']);
 const HAIR = R(['#16262e', '#2a4652', '#46707c', '#70a2aa', '#a4d4d4', '#dcf8f2']);
-const BARK = R(['#08080c', '#121218', '#1e1e28', '#2c2c3a', '#3e3e50', '#545468']);
+const BARK = R(['#08080c', '#14161e', '#222634', '#323a4c', '#48526a', '#64708c']);
+const SHADOW = R(['#020205', '#05060c']);
 const MOSS = R(['#08161a', '#0e2a2e', '#164044', '#20585a', '#2e7472']);
 const SAC = R(['#04161c', '#082e36', '#0e5860', '#1c9898', '#58dacd', '#a6f4e6', '#e6fff8']);
 const SLIME = R(['#060a12', '#0a1420', '#10202e', '#183444', '#2a5a66']);
@@ -799,78 +801,140 @@ function torso(pt, P, L) {
 }
 
 
-// Lamellenkragen hinter Hals und Kopf: Fächer aus Lamellen wie eine Halskrause, gewellter Rand leuchtet.
-// Folgt der Rumpfneigung; öffnet sich beim Schrei (gillOpen), sinkt beim Tod zusammen.
+// Lamellenkragen hinter Hals und Kopf: Fächer aus einzelnen Lamellenblättern wie eine Halskrause. Jedes Blatt
+// ist ein Keil mit Lichtkante links, Schattenseite rechts und gerundeter Spitze; dazwischen tiefe, dunkle Spalten.
+// Nur die Blattspitzen leuchten. Folgt der Rumpfneigung; öffnet sich beim Schrei (gillOpen), sinkt beim Tod zusammen.
+const RUFF_GAP = hex('#05070c');
 function ruff(pt, P, L) {
   const { N } = L;
   const lc = Math.cos(P.lean), ls = Math.sin(P.lean);
-  const ox = N.x - ls * 9 + lc * 1.5, oy = N.y + lc * 9 + ls * 1.5;   // um das Kinn herum, hinter dem Hals
-  const R0 = 20 * (1 + 0.16 * P.gillOpen - 0.06 * Math.max(0, -P.cap)) * (1 - 0.35 * P.collapse), RI = 4.5;
-  const fine = RS > 1, ph = P.pulse * 0.8, droop = P.collapse * 6;
-  for (let Y = TX(oy - R0 - 2); Y <= TX(oy + R0 * 0.5 + droop); Y++) {
+  const ox = N.x - ls * 3, oy = N.y + lc * 3;   // Halsansatz
+  const R0 = 16 * (1 + 0.18 * P.gillOpen) * (1 - 0.35 * P.collapse), RI = 2.5, FL = 1.75;   // FL: Scheibe in Aufsicht
+  const fine = RS > 1, ph = P.pulse * 0.8, droop = P.collapse * 5, NB = 9;   // Blätter je Halbkreis
+  const ext = R0 + 2;
+  for (let Y = TX(oy - ext); Y <= TX(oy + ext); Y++) {
     const dy = tc(Y) - oy;
-    for (let X = TX(ox - R0 - 2); X <= TX(ox + R0 + 2); X++) {
+    for (let X = TX(ox - ext); X <= TX(ox + ext); X++) {
       const dx = tc(X) - ox;
-      const lu = dx * lc + dy * ls, lw = dx * ls - dy * lc + droop * Math.abs(lu) / R0;   // lu rechts, lw oben
-      if (lw < -2.5) continue;
-      const r = Math.hypot(lu, lw * 1.12), ang = Math.atan2(Math.max(lw, -2.5), lu);
-      if (r < RI) continue;
-      const g = Math.cos(ang * 14 + 0.4), edge = R0 + g * 0.9 - (lw < 0 ? -lw * 0.5 : 0);
-      if (r > edge) continue;
-      const f = r / R0, lam = Math.floor(ang * 14 / Math.PI + 0.5);
-      if (r > edge - (fine ? 1.1 : 1.4)) {
-        pt.tex(X, Y, g > 0.2 ? GILL[5] : GILL[4]);
-        pt.gtex(X, Y, K_GILL, 2.2 + (Math.sin(ph + lam * 0.9) > 0.3 ? 1 : 0) + (g > 0.6 ? 0.6 : 0));
+      const lu = dx * lc + dy * ls, lw = -(dx * ls - dy * lc) - droop * (lu * lu) / (R0 * R0) * 2;   // lu rechts, lw vorn/unten
+      const r = Math.hypot(lu, lw * FL), ang = Math.atan2(lw * FL, lu);
+      if (r < RI || r > R0 + 1) continue;
+      const back = lw < 0;                                          // hintere Hälfte: dunkler
+      const bf = ang * NB / Math.PI + 0.3, bi = Math.floor(bf), fr = bf - bi;
+      const gap = fr < 0.2;
+      const q = gap ? 0 : (fr - 0.2) / 0.8;
+      const tip = R0 * (0.82 + 0.18 * Math.sin(Math.PI * q));
+      if (gap ? r > R0 * 0.6 : r > tip) continue;
+      const f = r / R0;
+      if (gap) { pt.tex(X, Y, f < 0.35 ? GILL[0] : RUFF_GAP); continue; }
+      if (r > tip - (fine ? 1.1 : 1.5)) {                           // Blattspitze leuchtet
+        pt.tex(X, Y, back ? GILL[3] : q < 0.45 ? GILL[5] : GILL[4]);
+        pt.gtex(X, Y, K_GILL, (back ? 1.2 : 1.8) + (Math.sin(ph + bi * 0.9) > 0.3 ? 1 : 0) + (q < 0.45 ? 0.4 : 0));
         continue;
       }
-      let v = 0.02 + (g > 0.6 ? 0.28 : g > 0 ? 0.15 : 0) + f * 0.2 - (lu > 0 ? 0.06 : 0);
-      if (fine && g > 0.6 && g < 0.75) v += 0.14;   // Lichtgrat an der Lamellenkante
-      pt.tex(X, Y, shadeF(GILL, v));
-      if (g > 0.75 && f > 0.7) pt.gtex(X, Y, K_GILL, (f - 0.7) * 5 + 0.3);
+      // Wölbung quer (Lichtkante), zum Hals hin dunkler, Mittelrippe; hinten im Schatten
+      let v = 0.1 + 0.42 * f + (q < 0.18 ? 0.26 : q < 0.5 ? 0.1 : q > 0.8 ? -0.12 : 0) - (back ? 0.16 : 0);
+      if (fine && Math.abs(q - 0.5) < 0.07 && f > 0.35) v -= 0.12;
+      let col = fine ? shadeF(GILL, v) : shade(GILL, v, X, Y);
+      if (q > 0.9 || f < 0.3) col = GILL[0];
+      pt.tex(X, Y, col);
     }
   }
 }
 
-// Kopf: hageres, blaugraues Gesicht als Pixelkarte (aufrecht, saubere Kanten, flache Töne), 3/4 nach rechts.
-// Hohe Stirn, Licht von links oben; tief eingesunkene Augenhöhlen mit schrägen, türkis leuchtenden Augen
-// (innen tief, außen hoch), eingefallene Wangen mit nachtblauen Schatten, langer schmaler Nasenrücken,
-// breites Maul mit Fängen, spitzes Kinn.
-// o Kontur, 1–5 Haut (Schatten → Glanz), p/q Wangenschatten, k Höhle, E/e Auge (Kern/Rand), n Nasenloch,
-// M Maul, T/t Fänge oben/unten
-const RM_FACE = [
-  '......oooooooo......',
-  '....oo4444444433o...',
-  '...o444455544443o...',
-  '..o44455555444433o..',
-  '..o44555544444333o..',
-  '.o4455444444443332o.',
-  '.o44544444444433321o',
-  '.o43k44444444433k21o',
-  'o4kkkk34444443kkkk1o',
-  'o4kEEkkk34443kkEEk1o',
-  'o43kkEEek343keEEkp1o',
-  'o4533kkkk54kkkkp221o',
-  '.o4533333543332p21o.',
-  '.o4p4333355433p221o.',
-  '..o4p333355433pp1o..',
-  '..o4pp333n55n3p21o..',
-  '..o3p3oooooooo2p1o..',
-  '...op3oTMMMMTo2o....',
-  '...o3poMtMMtMo1o....',
-  '...o33oooooooo1o....',
-  '....o3332232p2o.....',
-  '....o333222pp2o.....',
-  '.....o332222po......',
-  '......o33222o.......',
-  '.......o4322o.......',
-  '........oooo........',
+// Kopf: ausgezehrtes Hexengesicht, 3/4 nach rechts, Licht von links oben. Zornig gesenkter Brauenwulst mit
+// Stirn- und Zornesfalten, tief liegende schräge Schlitzaugen (türkis), Krähenfüße, hoher Wangenknochen über
+// eingefallener Wange, lange Hakennase mit Höckerwarze, die über die Wange hinausragt, Nasolabialfalte,
+// gefletschtes Maul mit schiefen Zähnen, spitzes vorspringendes Kinn mit Warze.
+// Zwei Pixelkarten: RM_FACE_FINE in Halb-Weltpixeln (Feinraster), RM_FACE in Weltpixeln (Stufe „Niedrig“).
+// o Kontur, 1–6 Haut (Schatten → Glanz), p/q kalte Wangenhöhle, k Höhle, E/e Auge (Kern/Rand),
+// M Maul, T/t Zähne (Licht/Schatten)
+const RM_FACE_FINE = [
+  '................ooooooo',
+  '.............ooo4444444ooo',
+  '...........oo5544444444444oo',
+  '..........o55544444444444443o',
+  '........oo5555444444444444433oo',
+  '.......o55555444444444444443333o',
+  '......o5555544444444444444333333o',
+  '......o5555544444444444444333333o',
+  '.....o555532222244444444443333332o',
+  '....o55553655555224444444433333322o',
+  '....o55556542222554455444333333322o',
+  '...o6666555355552445535423333333322o',
+  '...o6666666655545445534413333333332o',
+  '..o566666666665555555423313333344444o',
+  '..o444555566666666655662334444555553o',
+  '..o444332222345566666666555555443221o',
+  '..o4443kkkkkkkkkk4555256665521111111o',
+  '..o414kkeekkkkkkkkkkk245566654kkeek2o',
+  '.o4144kkkeEEEEEeekkkk22445666eEEekk21o',
+  '.o54143kkkkkkeeEeekk33234455ee6654221o',
+  '.o5525443kkkkkkk444444323344566555432o',
+  '.o526655511111111144443233344442265542o',
+  '..o666666666665554444444223333444535424oo',
+  '..o66666665555444444443422223333344442553o',
+  '..o665555554444444444333322222233344525654o',
+  '..o5111223334444444444333222222223344555654o',
+  '..o43qpppqq233344444444332222222222334456541o',
+  '...o3qpqqppq23334444444443221222222233466652o',
+  '...o33qqqqqpqq333444444444214222222223356552o',
+  '....o433qqqqpqq33344444444144222222222233311o',
+  '....o44433qqqpqqq34444455414221212222222311o',
+  '.....o44433qqqpqq34456651141222kk2221oooooo',
+  '......o444433qqqq34565144444441111222o',
+  '......o44444333q3446515511111tMMMT122o',
+  '.......o4444443344451555MTMMMTMMTMM22o',
+  '........oooo4444434415MMMTtMMTMMMMM22o',
+  '............o4443334511MTMMMtMMMMM222o',
+  '.............oo433445551tMMMtMMtM1224o',
+  '...............o4444444411MMMMM112224o',
+  '................o44444333333333322234o',
+  '.................o3322222211111322244o',
+  '..................o32222233445442134o',
+  '...................oo334455566542251o',
+  '.....................o3344555542165o',
+  '......................o334444321252o',
+  '.......................o3333321144o',
+  '........................o22221134o',
+  '.........................oo211233o',
+  '...........................o1233o',
+  '............................o33o',
+  '.............................oo',
 ];
-const RM_SPLIT = 18; // ab dieser Zeile (untere Fänge) klappt der Unterkiefer nach unten
-const RM_MAW_X0 = 6, RM_MAW_X1 = 13; // Maulspalte (Spalten)
-const RM_SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5']);
+const RM_FACE = [
+  '......oo444ooo',
+  '....oo54444444o',
+  '...o55544444443o',
+  '..o5554444444333o',
+  '..o55322444443332o',
+  '.o655522545433332o',
+  '.o6666555554133334o',
+  'o44556666666344555o',
+  'o44kekkkkk25652ke1o',
+  'o44keEEEek3246eEe21o',
+  'o5643kkk14433446552o',
+  'o6666665444423344445o',
+  'o61553444443322234555o',
+  '.o3ppq3344443222223464o',
+  '.o3qqqq334444142222331o',
+  '..o43qqqq445112222223o',
+  '..o4443q3455114MT22oo',
+  '...o4443441MMMMMMM2o',
+  '....ooo43451MMMMM22o',
+  '.......o44441MM3224o',
+  '........o322211424o',
+  '.........oo3456425o',
+  '...........o34314o',
+  '............o2134o',
+  '.............o13o',
+  '..............oo',
+];
+const RM_SPLIT_FINE = 36, RM_SPLIT = 18; // ab dieser Zeile klappt der Unterkiefer nach unten
+const RM_SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5', '#d5e1e9']);
 const RM_ROT = R(['#191a36', '#24304a']);
 const RM_EYE = R(['#e2fff6', '#46d6c6']), RM_EYE_OFF = R(['#1d2331', '#121620']);
-const RM_MAW = hex('#06050c'), RM_FANG = R(['#d5e1e9', '#8ea0b4']), RM_BROW = R(['#a5b5c5', '#515d75']);
+const RM_MAW = hex('#06050c'), RM_FANG = R(['#d5e1e9', '#8ea0b4']);
 function headPos(P, L) {
   const { N } = L, ca = Math.cos(P.lean), sa = Math.sin(P.lean);
   return { x: N.x + ca * 6 + sa * 4 + P.head, y: N.y - ca * 4 + sa * 3 + P.headY };
@@ -880,102 +944,64 @@ function head(pt, P, L, meta) {
   const { x: hx, y: hy } = headPos(P, L);
   const ox = Math.round(hx) - 9, oy = Math.round(hy) - 11;
   // Hals mit Sehnen
-  const nk = qbez({ x: N.x, y: N.y + 2 }, { x: (N.x + hx) / 2, y: (N.y + hy) / 2 + 3 }, { x: ox + 9, y: oy + 21 }, 8);
+  const nk = qbez({ x: N.x, y: N.y + 2 }, { x: (N.x + hx) / 2, y: (N.y + hy) / 2 + 3 }, { x: ox + 10, y: oy + 21 }, 8);
   const fine = RS > 1;
   tube(pt, nk, () => 7, fine
     ? (e) => e > 0.35 ? (e > 0.8 ? RM_SKIN[4] : RM_SKIN[3]) : e < -0.35 ? RM_ROT[0] : Math.abs(e - 0.02) < 0.08 || Math.abs(e + 0.22) < 0.06 ? RM_SKIN[3] : RM_SKIN[2]
     : (e) => e > 0.35 ? RM_SKIN[3] : e < -0.35 ? RM_ROT[0] : RM_SKIN[2]);
   const j = Math.round(P.jaw * 7);
   // Schlagschatten unter dem Kinn auf Hals und Brust
-  pt.ellipse(ox + 10.5, oy + 24.5 + j, 4.5, 2.2, SKIN[1]);
+  pt.ellipse(ox + 12, oy + 24 + (fine ? Math.max(0, Math.round(P.jaw * 14) - 2) / 2 : j), 4.5, 2.2, SKIN[1]);
   const lit = P.eye > 0.15;
   const C = {
-    o: RM_SKIN[0], 1: RM_SKIN[1], 2: RM_SKIN[2], 3: RM_SKIN[3], 4: RM_SKIN[4], 5: RM_SKIN[5],
-    p: RM_ROT[0], q: RM_ROT[1], B: RM_BROW[0], b: RM_BROW[1], k: RM_SKIN[0], n: RM_SKIN[0],
-    M: RM_MAW, T: RM_FANG[0], t: RM_FANG[1],
+    o: RM_SKIN[0], 1: RM_SKIN[1], 2: RM_SKIN[2], 3: RM_SKIN[3], 4: RM_SKIN[4], 5: RM_SKIN[5], 6: RM_SKIN[6],
+    p: RM_ROT[0], q: RM_ROT[1], k: RM_SKIN[0], M: RM_MAW, T: RM_FANG[0], t: RM_FANG[1],
     E: lit ? RM_EYE[0] : RM_EYE_OFF[0], e: lit ? RM_EYE[1] : RM_EYE_OFF[1],
   };
-  const glowAt = (ch, x, y) => {
-    if (!lit) return;
-    if (ch === 'E') pt.gl(x, y, K_EYE, 2.8 + P.eye * 0.9);
-    else if (ch === 'e') pt.gl(x, y, K_EYE, 1.6 + P.eye * 0.6);
+  // Zelle = ½ Weltpixel (fein, RS/2 Texel) bzw. 1 Weltpixel (grob)
+  const map = fine ? RM_FACE_FINE : RM_FACE, split = fine ? RM_SPLIT_FINE : RM_SPLIT, cw = fine ? RS / 2 : 1;
+  // fein öffnet sich das Maul erst ab jaw ≈ 0,15 (in Ruhe geschlossen), danach in Halbpixeln
+  const X0 = ox * (fine ? RS : 1), Y0 = oy * (fine ? RS : 1), jj = fine ? Math.max(0, Math.round(P.jaw * 14) - 2) : j;
+  const cell = (c, r, col, ch, gk) => {
+    if (!fine) {
+      pt.px(ox + c, oy + r, col);
+      if (gk) pt.gl(ox + c, oy + r, K_EYE, gk);
+      return;
+    }
+    for (let b = 0; b < cw; b++) for (let a = 0; a < cw; a++) {
+      pt.tex(X0 + c * cw + a, Y0 + r * cw + b, col);
+      if (gk) pt.gtex(X0 + c * cw + a, Y0 + r * cw + b, K_EYE, gk);
+    }
   };
-  const row = (r, y) => {
-    const s = RM_FACE[r];
-    for (let x = 0; x < s.length; x++) if (s[x] !== '.') { pt.px(ox + x, y, C[s[x]]); glowAt(s[x], ox + x, y); }
-  };
-  for (let r = 0; r < RM_SPLIT; r++) row(r, oy + r);
-  // offenes Maul: Wangen strecken sich, dazwischen der dunkle Schlund (glimmt türkis)
-  for (let k = 0; k < j; k++) {
-    const y = oy + RM_SPLIT + k, s = RM_FACE[RM_SPLIT - 1];
-    for (let x = 0; x < s.length; x++) {
-      if (s[x] === '.') continue;
-      const inMaw = x >= RM_MAW_X0 && x <= RM_MAW_X1;
-      pt.px(ox + x, y, inMaw ? RM_MAW : C[s[x]]);
-      if (inMaw && x > RM_MAW_X0 && x < RM_MAW_X1 && j >= 2) pt.gl(ox + x, y, K_EYE, 0.6 + (k / j) * 1.6 * Math.min(1.3, P.eye));
+  const eyeGlow = (ch) => (!lit ? 0 : ch === 'E' ? 2.8 + P.eye * 0.9 : ch === 'e' ? 1.6 + P.eye * 0.6 : 0);
+  for (let r = 0; r < map.length; r++) {
+    const s = map[r], y = r + (r >= split ? jj : 0);
+    for (let c = 0; c < s.length; c++) if (s[c] !== '.') cell(c, y, C[s[c]], s[c], eyeGlow(s[c]));
+  }
+  // offenes Maul: die Zeile über der Teilung streckt sich (ohne Zähne) zu einer Linse – die Mundwinkel schließen
+  // sich zur Mitte hin mit Lippe, tief im Schlund glimmt es türkis
+  const sr = map[split - 1];
+  let m0 = sr.length, m1 = -1;
+  for (let c = 0; c < sr.length; c++) if ('MTt'.includes(sr[c])) { m0 = Math.min(m0, c); m1 = c; }
+  const mw = m1 - m0;
+  for (let k = 0; k < jj; k++) {
+    const u = jj > 1 ? Math.abs(k - (jj - 1) / 2) / ((jj - 1) / 2) : 0, inset = Math.round(u * u * mw * 0.22);
+    const deep = 1 - u;
+    for (let c = 0; c < sr.length; c++) {
+      const ch = sr[c];
+      if (ch === '.') continue;
+      const inMaw = c >= m0 + inset && c <= m1 - inset;
+      // außerhalb des Schlunds: gedehnte Haut ohne die Falten-/Schattenlinien der Zeile (sonst senkrechte Streifen)
+      if (!inMaw) { cell(c, split + k, ch === 'o' ? C.o : c >= m0 && c <= m1 ? RM_SKIN[2] : '12kpq'.includes(ch) ? RM_SKIN[3] : C[ch], ch, 0); continue; }
+      const cu = Math.abs((c - m0) / (mw || 1) - 0.5) * 2;   // 0 Mitte .. 1 Mundwinkel
+      const gk = jj >= (fine ? 4 : 2) && cu < 0.75 ? (0.4 + deep * 1.5 * (1 - cu)) * Math.min(1.3, P.eye) : 0;
+      cell(c, split + k, RM_MAW, ch, gk);
     }
   }
-  for (let r = RM_SPLIT; r < RM_FACE.length; r++) row(r, oy + r + j);
-  if (fine) faceFine(pt, P, ox, oy, j, lit, C);
   meta.eye = { x: ox + 9, y: oy + 9 };
-  meta.mouth = { x: ox + 10, y: oy + 17.5 + j * 0.5 };
+  meta.mouth = { x: ox + 13.5, y: oy + 17.5 + (fine ? jj / 4 : j * 0.5) };
 }
 
-// Gesicht fein (Pixelkarte als RS×RS-Zellen, dann Texel-Details): Außenkontur 1 Texel, Glanz auf Stirn und
-// Wangenknochen, Nasenrücken im Licht, Augen mit weißem Kern oben links (geschlossen: Lidlinie), spitze Fänge mit Glanz.
-const FACE_HI = hex('#d5e1e9'), FANG_HI = hex('#ffffff'), EYE_SPEC = hex('#ffffff');
-function faceFine(pt, P, ox, oy, j, lit, C) {
-  const S = RS - 1, NR = RM_FACE.length;
-  const rowY = (r) => oy + r + (r >= RM_SPLIT ? j : 0);
-  const at = (c, r) => (r < 0 || r >= NR || c < 0 || c >= RM_FACE[r].length ? '.' : RM_FACE[r][c]);
-  const fp = (c, r, sx, sy, col) => pt.tex((ox + c) * RS + sx, rowY(r) * RS + sy, col);
-  const fill = (c, r, side, col) => {   // eine Texelreihe/-spalte einer Zelle: 'l' 'r' 't' 'b'
-    for (let k = 0; k <= S; k++) {
-      if (side === 'l') fp(c, r, 0, k, col); else if (side === 'r') fp(c, r, S, k, col);
-      else if (side === 't') fp(c, r, k, 0, col); else fp(c, r, k, S, col);
-    }
-  };
-  const skin = (ch) => ch !== '.' && ch !== 'o' && C[ch] !== undefined;
-  const eye = (ch) => ch === 'E' || ch === 'e';
-  for (let r = 0; r < NR; r++) for (let c = 0; c < RM_FACE[r].length; c++) {
-    const ch = RM_FACE[r][c];
-    if (ch === 'o') {
-      // Außenkontur auf 1 Texel: die Innenhälfte nimmt die Farbe der Nachbarzelle an
-      const l = at(c - 1, r), rr = at(c + 1, r), u = at(c, r - 1), d = at(c, r + 1);
-      if (l === '.' && skin(rr)) fill(c, r, 'r', C[rr]);
-      else if (rr === '.' && skin(l)) fill(c, r, 'l', C[l]);
-      if (u === '.' && skin(d) && d !== 'M') fill(c, r, 'b', C[d]);
-      else if (d === '.' && skin(u) && u !== 'M') fill(c, r, 't', C[u]);
-    } else if (ch === '5') fp(c, r, 0, 0, FACE_HI);
-    else if (ch === 'T') {
-      // Fang oben: Glanz oben links, Schatten rechts, spitz nach unten
-      if (at(c, r - 1) !== 'T') fp(c, r, 0, 0, FANG_HI);
-      fill(c, r, 'r', RM_FANG[1]);
-      if (at(c, r + 1) !== 'T') { fp(c, r, S, S, RM_MAW); fp(c, r, 0, S, RM_FANG[0]); }
-    } else if (ch === 't') {
-      // Fang unten: spitz nach oben, Spitze im Licht
-      fill(c, r, 'l', RM_FANG[0]);
-      if (at(c, r - 1) !== 't') { fp(c, r, 0, 0, RM_MAW); fp(c, r, S, 0, FANG_HI); }
-    } else if (ch === 'n') { fill(c, r, 'b', RM_SKIN[0]); fp(c, r, 0, 0, RM_SKIN[3]); }
-    else if (eye(ch)) {
-      if (lit) { if (ch === 'E' && !eye(at(c - 1, r))) { fp(c, r, 0, 0, EYE_SPEC); pt.gtex((ox + c) * RS, rowY(r) * RS, K_EYE, 4); } }
-      else { fill(c, r, 't', RM_SKIN[3]); fill(c, r, 'b', RM_SKIN[0]); }
-    } else if (ch === 'k' && at(c, r - 1) !== 'k' && !eye(at(c, r - 1)) && skin(at(c, r - 1))) fill(c, r, 't', RM_SKIN[1]);   // weiche Höhlenkante
-  }
-  // gedehnte Zeilen des offenen Mauls: Außenkontur ebenso 1 Texel
-  const sr = RM_FACE[RM_SPLIT - 1];
-  for (let k = 0; k < j; k++) for (let c = 0; c < sr.length; c++) {
-    if (sr[c] !== 'o') continue;
-    const l = sr[c - 1] ?? '.', rr = sr[c + 1] ?? '.', Y = (oy + RM_SPLIT + k) * RS;
-    const side = l === '.' && skin(rr) ? [S, C[rr]] : rr === '.' && skin(l) ? [0, C[l]] : null;
-    if (side) for (let sy = 0; sy <= S; sy++) pt.tex((ox + c) * RS + side[0], Y + sy, side[1]);
-  }
-  // Nasenrücken im Licht (Spalte 9), Schattenflanke rechts daneben
-  for (let r = 11; r <= 14; r++) { fill(9, r, 'l', FACE_HI); fp(11, r, 0, S, RM_SKIN[2]); }
-  // Oberlippe mit Lichtkante, Kinn im Licht
-  for (let c = 7; c <= 8; c++) fill(c, 15, 'b', RM_SKIN[4]);
-  for (let c = 5; c <= 7; c++) fp(c, 21, 0, 0, RM_SKIN[4]);
-}
 
 // Hut: Glocke mit kleinem Buckel und radialen Rillen in Nachtviolett, durchscheinender Leuchtrand,
 // darunter leuchtende Lamellen; Leuchtfäden hängen vom Rand
@@ -1041,8 +1067,9 @@ function capPass(pt, P, K, part) {
           if (hgt < 0.8 && Math.abs(gs) < gw) v -= 0.15;
           else if (fine && hgt < 0.8 && gs > gw && gs < gw * 2.2 && q < 0.3) v += 0.07;   // Lichtgrat neben der Rille
           col = fine ? shadeF(CAP, v) : shade(CAP, v, X, Y);
-          if (up < (fine ? 0.55 : 0.9) && q < 0.25) col = q < -0.3 ? CAP[6] : CAP[5];   // Lichtkante oben
-          else if (fine && up < 1.05 && q < -0.45) col = CAP[5];
+          // helle Randkante über die ganze Kuppel (Silhouette trägt auch ohne Leuchten), links am hellsten
+          if (up < (fine ? 0.55 : 0.9)) col = q < -0.3 ? CAP_EDGE[0] : q < 0.4 ? CAP_EDGE[1] : CAP[6];
+          else if (fine && up < 1.05) col = q < -0.1 ? CAP[6] : CAP[5];
         }
         pt.tex(X, Y, col);
       } else if (!dome && ly > rim && ly <= rim + (2.4 + 2.6 * sq) * gm) {
@@ -1073,7 +1100,7 @@ function hyphae(pt, P, cg) {
     const lx = q * cg.Rr;
     const p = cg.toW(lx, cg.rimY(lx) + 0.4);
     const face = q > -0.32 && q < 0.62;
-    let len = (4 + hash2(j, 1, 271) * 14) * (1 + P.gillOpen * 0.25) * (1 - P.collapse * 0.3) - (face ? 13 : 0);
+    let len = (4 + hash2(j, 1, 271) * 14) * (1 + P.gillOpen * 0.25) * (1 - P.collapse * 0.3) - (face ? 18 : 0);
     if (len < 2) continue;
     let x = p.x, y = p.y;
     for (let st = 0; st < len; st++) {
@@ -1089,52 +1116,46 @@ function hyphae(pt, P, cg) {
   }
 }
 
-// Arm: langer, sehniger Strang in Blaugrau mit Ellbogenknoten, Sehnenlinie und türkiser Leuchtader,
-// am Ende eine Hand mit vier langen Krallenfingern
+// Arm: lang und ausgezehrt – dünner Knochen unter Haut mit Schulterkugel, spitzem Ellbogenknoten (Falten),
+// Unterarmmuskel, Ellenkante im Licht und knochigem Handgelenk; gezeichnete dunkle Kontur, harte Lichtstufen,
+// türkise Leuchtader. Hand mit vier langen Krallenfingern mit Knöcheln.
+const bump = (t, c, w, a) => { const u = (t - c) / w; return u > -1 && u < 1 ? a * (1 - u * u) : 0; };
 function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
   const dx = E.x - S.x, dy = E.y - S.y, len = Math.hypot(dx, dy) || 1;
   const px = -dy / len, py = dx / len;
-  const C = { x: (S.x + E.x) / 2 + px * curl, y: (S.y + E.y) / 2 + py * curl };
   const n = Math.max(16, Math.round(len * 1.2));
-  const pts = qbez(S, C, E, n);
+  // Ober- und Unterarm als zwei gerade Glieder mit Knick am Ellbogen (statt einer weichen Kurve)
+  const M = { x: (S.x + E.x) / 2 + px * curl * 1.1, y: (S.y + E.y) / 2 + py * curl * 1.1 };
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = t < 0.5 ? t * 2 : (t - 0.5) * 2, A = t < 0.5 ? S : M, Bp = t < 0.5 ? M : E;
+    pts.push({ x: A.x + (Bp.x - A.x) * u, y: A.y + (Bp.y - A.y) * u, t });
+  }
   const clipping = P.plunge > 0.3;
   if (clipping) pt.clip = GY - 1;
   const sh = back ? -0.16 : 0;
-  const wf = (t) => (6.4 - t * 3.2) + Math.max(0, 1.6 - Math.abs(t - 0.5) * 11) + Math.max(0, 1.2 - Math.abs(t - 0.06) * 10);
-  const fine = RS > 1;
+  const wf = (t) => 3.1 - t * 0.9 + bump(t, 0.03, 0.09, 2.8) - bump(t, 0.3, 0.12, 0.35) + bump(t, 0.5, 0.06, 2.8)
+    + bump(t, 0.62, 0.09, 1.3) + bump(t, 0.87, 0.03, 0.9);
+  const fine = RS > 1, OL = SKIN[0];
+  // Kontur: etwas breiterer dunkler Strang darunter (auch vor dem Leib klar abgesetzt)
+  tube(pt, pts, (t) => wf(t) + (fine ? 1.1 : 1.6), () => OL);
   tube(pt, pts, wf, fine ? (e, t) => {
-    // fein: Sehne als heller Grat auf der Lichtseite, Kerbe unter dem Ellbogen, Handgelenk dunkler
-    let v = 0.36 + e * 0.38 + sh - (t > 0.86 ? 0.08 : 0);
-    if (Math.abs(e - 0.42) < 0.08 && t > 0.1 && t < 0.86) v += 0.13;
-    else if (Math.abs(e + 0.3) < 0.07 && t > 0.56 && t < 0.84) v -= 0.14;
-    if (Math.abs(t - 0.5) < 0.012) v -= 0.18;
-    return SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
-  } : (e, t, x, y) => shade(SKIN, 0.36 + e * 0.38 + sh, x, y));
-  // Leuchtader längs des Arms (pulsiert vom Leib zur Hand)
-  let prev = null;
-  for (let i = 2; i < pts.length - 2; i++) {
-    const a = pts[i], b = pts[i + 1], t = a.t;
-    if (t > 0.88) break;
-    const tx = b.x - a.x, ty = b.y - a.y, tl = Math.hypot(tx, ty) || 1;
-    let nx = -ty / tl, ny = tx / tl;
-    if (nx + ny > 0) { nx = -nx; ny = -ny; }
-    const o = wf(t) * (0.1 - 0.16 * Math.sin(t * 9 + seed));
-    const q = { x: a.x - nx * o, y: a.y - ny * o };
-    if (prev) {
-      const lv = (back ? 1.5 : 2.2) + (Math.sin(P.pulse * 1.5 - t * 8) > 0.5 ? 1 : 0);
-      if (fine) { pt.fline(prev.x, prev.y, q.x, q.y, back ? SAC[3] : SAC[4]); pt.gfline(prev.x, prev.y, q.x, q.y, K_VEIN, lv); }
-      else if (i % 2 === 0) { pt.px(q.x, q.y, SAC[3]); pt.gl(q.x, q.y, K_VEIN, lv - 0.6); }
+    // harte Stufen: Lichtkante, Mittelton, Schatten, Kernschatten am Rand
+    let v = e > 0.62 ? 0.8 : e > 0.18 ? 0.62 : e > -0.4 ? 0.46 : e > -0.78 ? 0.3 : 0.18;
+    v += sh;
+    if (t > 0.55 && t < 0.85 && Math.abs(e - 0.32) < 0.1) v = 0.82 + sh;          // Ellenkante im Licht
+    else if (t > 0.12 && t < 0.44 && Math.abs(e - 0.05) < 0.08) v -= 0.16;        // Sehne am Oberarm
+    if (t > 0.45 && t < 0.56) {                                                     // Ellbogen: Glanz und Falten
+      if (e > 0.45) v = 0.95 + sh;
+      if ((Math.abs(t - 0.47) < 0.007 || Math.abs(t - 0.53) < 0.007) && e < 0.3 && e > -0.6) v -= 0.3;
     }
-    prev = q;
-  }
-  // Ellbogenknoten mit Glanz
-  const el = pts[Math.round(0.5 * n)];
-  pt.px(el.x - 1, el.y - 1, SKIN[back ? 3 : 5]);
-  if (fine) pt.dot(el.x - 1.25, el.y - 1.25, SKIN[back ? 4 : 6]);
-  // Krallenhand: vier lange Finger, Krallen hell
+    if (t > 0.84 && t < 0.9 && e > 0.3) v = 0.8 + sh;                              // Handgelenkknöchel
+    return SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
+  } : (e, t, x, y) => shade(SKIN, (e > 0.5 ? 0.75 : e > -0.3 ? 0.5 : 0.25) + sh + (t > 0.46 && t < 0.54 && e > 0.3 ? 0.15 : 0), x, y));
+  // Krallenhand: knochiger Handrücken, vier lange Finger mit zwei Knöcheln, helle Krallen; erst Konturen, dann Füllung
   const a = pts[pts.length - 3], b = pts[pts.length - 1];
   const base = Math.atan2(b.y - a.y, b.x - a.x);
-  pt.ellipse(b.x, b.y, 2.4, 2.1, SKIN[back ? 2 : 3]);
+  const fingers = [];
   for (let f = 0; f < 4; f++) {
     const fa = base + (f - 1.5) * (0.28 + claw * 0.38);
     const fl = 8 + hash2(f, seed, 285) * 3 - (f === 0 ? 2 : 0);
@@ -1145,14 +1166,23 @@ function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
       ang += (1 - claw) * 0.18 * (f < 2 ? 1 : -1) + 0.03;
       x += Math.cos(ang); y += Math.sin(ang);
     }
-    tube(pt, fp, (t) => (t > 0.72 ? 1.5 - (t - 0.72) * 3 : 2.2 - t * 0.6), (e, t, X, Y) => t > 0.72
-      ? (e > 0 ? HAIR[back ? 3 : 5] : HAIR[back ? 2 : 4])
-      : fine ? SKIN[Math.max(0, Math.min(6, Math.round((0.32 + e * 0.32 + sh) * 6)))] : shade(SKIN, 0.32 + e * 0.32 + sh, X, Y));
+    fingers.push(fp);
+  }
+  const fw = (t) => (t > 0.74 ? 1.5 - (t - 0.74) * 3.4 : 1.6 - t * 0.4 + bump(t, 0.3, 0.07, 0.7) + bump(t, 0.58, 0.06, 0.5));
+  pt.ellipse(b.x, b.y, 3.0, 2.7, OL);
+  for (const fp of fingers) tube(pt, fp, (t) => fw(t) + (fine ? 1 : 1.4), (e, t) => (t > 0.74 ? HAIR[0] : OL));
+  pt.ellipse(b.x, b.y, 2.4, 2.1, SKIN[back ? 2 : 3]);
+  if (fine) { pt.dot(b.x - 1, b.y - 1, SKIN[back ? 3 : 5]); pt.dot(b.x - 0.5, b.y - 1.25, SKIN[back ? 3 : 5]); }
+  for (const fp of fingers) {
+    tube(pt, fp, fw, (e, t, X, Y) => {
+      if (t > 0.74) return e > 0 ? HAIR[back ? 3 : 5] : HAIR[back ? 2 : 4];
+      let v = (e > 0.4 ? 0.62 : e > -0.3 ? 0.46 : 0.28) + sh;
+      if (fine && (Math.abs(t - 0.3) < 0.06 || Math.abs(t - 0.58) < 0.05) && e > 0) v += 0.2;   // Knöchel im Licht
+      return fine ? SKIN[Math.max(0, Math.min(6, Math.round(v * 6)))] : shade(SKIN, v, X, Y);
+    });
     if (fine) {
-      // Krallenspitze glimmt leicht, Fingergelenk als Kerbe
-      const q = fp[fp.length - 1], m = fp[Math.round(fp.length * 0.45)];
+      const q = fp[fp.length - 1];
       if (q && !back) { pt.dot(q.x, q.y, HAIR[5]); pt.gdot(q.x, q.y, K_GILL, 2); }
-      if (m) pt.dot(m.x, m.y, SKIN[1]);
     }
   }
   meta[key] = { x: b.x, y: b.y };
@@ -1214,6 +1244,9 @@ function drawMother(pt, P, ex) {
   const EF = { x: SF.x + P.hFx + 1, y: SF.y + P.hFy - 3 };
   const EB = { x: SB.x + P.hBx, y: SB.y + P.hBy };
 
+  // Kontaktschatten: harte, fast schwarze Lache unter Leib und Wurzeln, setzt die Figur vom Boden ab
+  { const cx = L.cx + 5, rx = 46 * P.rootSpread + P.collapse * 8;
+    pt.ellipse(cx, GY - 0.5, rx, 6.5, SHADOW[0]); pt.ellipse(cx - 2, GY - 1, rx * 0.86, 5.2, SHADOW[1]); }
   slimePool(pt, P, L);
   roots(pt, P, L, false);
   vineArm(pt, P, SB, EB, P.bCurl, P.bClaw, true, 7, meta, 'handB');
@@ -1225,8 +1258,8 @@ function drawMother(pt, P, ex) {
   meta.sac = sacPos(L, SACS[0]);
   meta.core = { x: L.cx, y: L.cy };
   roots(pt, P, L, true);
-  ruff(pt, P, L);
   torso(pt, P, L);
+  ruff(pt, P, L);
   meta.chest = { x: (L.B.x + N.x) / 2 + 2, y: (L.B.y + N.y) / 2 };
   // Hutbefestigung über dem Kopf
   const hp = headPos(P, L);
