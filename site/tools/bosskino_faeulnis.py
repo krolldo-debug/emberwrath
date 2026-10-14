@@ -24,24 +24,24 @@ MAT.update({
     'flesh': ['#06080e', '#171d31', '#232b45', '#313b5b', '#455375'],
     'fleshd': ['#04060a', '#0d1120', '#171d31', '#232b45', '#313b5b'],
     'fleshl': ['#06080e', '#455375', '#637393', '#8494b2', '#a6b4cc'],
-    'skin': ['#090b14', '#333d51', '#515d75', '#77899f', '#a5b5c5'],
-    'skinl': ['#090b14', '#77899f', '#a5b5c5', '#c4d2de', '#e2ecf2'],
-    'hide': ['#090b14', '#1d2331', '#2e374b', '#46526a', '#626f88'],
-    'face': ['#090b14', '#333d51', '#515d75', '#77899f', '#a5b5c5'],
-    'faceh': ['#090b14', '#77899f', '#a5b5c5', '#d5e1e9', '#eef6fa'],
-    'rot': ['#090b14', '#121428', '#191a36', '#24304a', '#2e3a58'],
+    'skin': ['#0c0c12', '#42404c', '#66626e', '#928c94', '#bdb7ba'],
+    'skinl': ['#0c0c12', '#928c94', '#bdb7ba', '#d6d0d0', '#eeeae8'],
+    'hide': ['#0c0c12', '#26262e', '#3a3842', '#55525e', '#75707c'],
+    'face': ['#0c0c12', '#42404c', '#66626e', '#928c94', '#bdb7ba'],
+    'faceh': ['#0c0c12', '#928c94', '#bdb7ba', '#e6e2e0', '#f6f2f0'],
+    'rot': ['#0c0c12', '#16142a', '#1e1a30', '#2e2a44', '#3a3654'],
     'brow': ['#090b14', '#333d51', '#515d75', '#77899f', '#a5b5c5'],
     'maw': ['#06050c', '#06050c', '#0a0814', '#0e0c1a', '#141222'],
     'fang': ['#2c3440', '#56647a', '#8ea0b4', '#c8d6e2', '#eef6fa'],
     'cap': ['#07051a', '#1d1540', '#2a1f58', '#3c2c72', '#54408e'],
-    'capl': ['#07051a', '#54408e', '#6a54a2', '#8270b8', '#9e8ed0'],
+    'capl': ['#07051a', '#54408e', '#7a66b4', '#a898dc', '#e4dafa'],
     'capd': ['#05030f', '#120d2c', '#1d1540', '#2a1f58', '#3c2c72'],
     'gill': ['#041218', '#0a2a36', '#0e4452', '#14606c', '#1c8086'],
     'gillg': ['#061e28', '#1c8e96', '#46c6c2', '#a6f2ea', '#e2fff6'],
     'myc': ['#16262e', '#46707c', '#70a2aa', '#a4d4d4', '#dcf8f2'],
     'cloak': ['#06080e', '#171d31', '#232b45', '#313b5b', '#455375'],
-    'bark': ['#08080c', '#1e1e28', '#2c2c3a', '#3e3e50', '#545468'],
-    'barkd': ['#050508', '#121218', '#1e1e28', '#2c2c3a', '#3e3e50'],
+    'bark': ['#0e0e14', '#3c4258', '#565e7a', '#747e9c', '#98a2be'],
+    'barkd': ['#08080c', '#262a3a', '#3c4258', '#565e7a', '#747e9c'],
     'moss': ['#08161a', '#0e2a2e', '#164044', '#20585a', '#2e7472'],
     'mossd': ['#050c0e', '#08161a', '#0e2a2e', '#164044', '#20585a'],
     'sac': ['#04161c', '#062830', '#0a4650', '#127478', '#1c9898'],
@@ -58,7 +58,7 @@ MAT.update({
 })
 GLOW.clear(); GLOW.update({'eye', 'sacg', 'gillg', 'vein', 'pus'})
 SPEC.clear(); SPEC.update({'bone': '#e6f2f6', 'fang': '#ffffff', 'fleshl': '#c4d2e6', 'skin': '#d5e1e9'})
-RIM_F = {'flesh': '#7a88a8', 'skin': '#c4d2de', 'hide': '#a6b4c8', 'face': '#c4d2de', 'cap': '#8e7cc4', 'bark': '#6a6a84', 'moss': '#3e8a86',
+RIM_F = {'flesh': '#7a88a8', 'skin': '#e6e2e0', 'hide': '#bdb7ba', 'face': '#e6e2e0', 'cap': '#8e7cc4', 'bark': '#6a6a84', 'moss': '#3e8a86',
          'myc': '#dcf8f2', 'sac': '#a6f4e6', 'spot': '#e6f2f6'}
 RIM_B = {'flesh': '#2a8a8a', 'fleshd': '#1c6464', 'cap': '#3a9a9a', 'capd': '#2a7272', 'bark': '#2a6060', 'barkd': '#1c4444',
          'skin': '#46c6c2', 'hide': '#2a9090', 'moss': '#2a8080', 'mossd': '#1c5a5a', 'gill': '#46c6c2', 'myc': '#46c6c2', 'face': '#46c6c2'}
@@ -314,8 +314,12 @@ def cap(f, c, tilt=0.0, gills=1.0, glow=0, hy=0.0, Rr=40, Hd=23, squash=0.0):
     hgt = np.where(dm, (rimy - ly) / np.maximum(0.01, rimy - top), 0)
     v = 0.16 + hgt * 0.46 + q * 0.34 + np.where((hgt > 0.6) & (q > -0.05), 0.12, 0)
     q0 = q / np.maximum(0.2, 1 - 0.6 * np.power(hgt, 1.4))
-    gs = np.sin(q0 * 14 + 0.3)
-    v -= np.where((hgt < 0.82) & (np.abs(gs) < 0.2), 0.16, 0)             # radiale Rillen
+    ga = q0 * 14 + 0.3; gi = np.round(ga / np.pi)
+    jit = np.vectorize(lambda a, b: hash2(int(a), int(b), 401))
+    gs = np.sin(ga + 0.45 * np.sin(hgt * 6.5 + gi * 1.9) + (jit(gi, 1) - 0.5) * 0.9)   # unregelmäßige Rillen
+    gw_ = 0.1 + 0.18 * jit(gi, 2)
+    cut_ = jit(gi, np.floor(hgt * 5) + 7) < 0.22
+    v -= np.where((hgt < 0.82) & (np.abs(gs) < gw_) & ~cut_, 0.16, 0)             # radiale Rillen
     v += np.where((hgt < 0.82) & (gs < -0.2) & (gs > -0.42) & (q > -0.3), 0.07, 0)   # Lichtgrat daneben
     t = np.select([v < 0.22, v < 0.42, v < 0.6, v < 0.78], [1, 2, 3, 4], 4)
     cm = np.full((f.H, f.W), 'cap', dtype=object)
@@ -323,6 +327,8 @@ def cap(f, c, tilt=0.0, gills=1.0, glow=0, hy=0.0, Rr=40, Hd=23, squash=0.0):
     # durchscheinender Rand (Band) und leuchtende Unterkante
     band = dm & (ly > rimy - 3.2)
     cm[band] = 'capl'; t = np.where(band, np.where(q > 0.2, 3, 2), t)
+    up_ = dm & (ly - top < 1.8)                                              # helle Oberkante
+    cm[up_] = 'capl'; t = np.where(up_, np.where(q > -0.2, 4, 3), t)
     edge = dm & (ly > rimy - 1.2)
     cm[edge] = 'gillg'; t = np.where(edge, 3 + ((np.floor(lx / 4) + glow) % 2 == 0), t)
     paint(f, dm, cm, t.astype(int))
@@ -390,7 +396,7 @@ def arm(f, sh, hand, el_out=0.0, claw=0.0, back=False, seed=0, clip=None, sway=0
     tn = np.where(sinew & (tn > 1), tn - 1, tn)
     crease = T.m & ((np.abs(T.t - tj + 0.035) < 0.006) | (np.abs(T.t - tj - 0.035) < 0.006)) & (T.e < 0.3) & (T.e > -0.6)
     tn = np.where(crease & (tn > 1), tn - 1, tn)
-    paint(f, T.m, mb, np.maximum(1, tn).astype(int))
+    paint(f, T.m, mb, np.maximum(1, tn).astype(int), line=False)   # Form über harte Stufen, keine Linienkontur
     # Ellbogenknoten
     kn = f.ell(el[0] - 0.5, el[1] + 0.5, 4.2, 3.8)
     if clip is not None: kn[clip:] = False
@@ -410,9 +416,9 @@ def arm(f, sh, hand, el_out=0.0, claw=0.0, back=False, seed=0, clip=None, sway=0
     sp = 22 + claw * 14
     fing = fing or (0, 0, 0, 0)
     for j in range(4):
-        L = (24, 29, 27, 19)[j] * (0.85 if back else 1)
-        finger(f, hand, a0 + (1.5 - j) * sp * 0.6 + 12 - claw * 10 + fing[j], L, -(40 + claw * 50) - fing[j] * 0.5, w0=3.6 if not back else 3.3, back=back, clip=clip)
-    hm = f.ell(hand[0], hand[1], 5.4, 5.0)
+        L = (14, 17, 16, 11)[j] * (0.85 if back else 1)
+        finger(f, hand, a0 + (1.5 - j) * sp * 0.6 + 12 - claw * 10 + fing[j], L, -(40 + claw * 50) - fing[j] * 0.5, w0=4.8 if not back else 4.4, back=back, clip=clip)
+    hm = f.ell(hand[0], hand[1], 6.2, 5.6)
     if clip is not None: hm[clip:] = False
     paint(f, hm, mb, np.where(hm, dome(hm, r=2, cuts=(0.3, 0.6, 0.85)) - (1 if back else 0), 0).clip(1, 4), line=False)
     return el, T

@@ -39,13 +39,13 @@ const R = (a) => a.map(hex);
 
 // Materialrampen (dunkel -> hell)
 const FLESH = R(['#06080e', '#0d1120', '#171d31', '#232b45', '#313b5b', '#455375', '#637393']);
-const SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5', '#d5e1e9']);
-const CAP_EDGE = R(['#c4b4ec', '#9c88d0']);
+const SKIN = R(['#0c0c12', '#26262e', '#42404c', '#66626e', '#928c94', '#bdb7ba', '#e6e2e0']);   // fahle Aschehaut, wärmer als der Leib
+const CAP_EDGE = R(['#ece4ff', '#c8bcf0', '#a090dc']);
 const CAP = R(['#07051a', '#120d2c', '#1d1540', '#2a1f58', '#3c2c72', '#54408e', '#7862ae']);
 const SPOT = R(['#46566a', '#7a8ea2', '#b4c6d4', '#e6f2f6']);
 const GILL = R(['#061e28', '#0a3846', '#115e6c', '#1c8e96', '#46c6c2', '#a6f2ea']);
 const HAIR = R(['#16262e', '#2a4652', '#46707c', '#70a2aa', '#a4d4d4', '#dcf8f2']);
-const BARK = R(['#08080c', '#14161e', '#222634', '#323a4c', '#48526a', '#64708c']);
+const BARK = R(['#0e0e14', '#262a3a', '#3c4258', '#565e7a', '#747e9c', '#98a2be']);
 const SHADOW = R(['#020205', '#05060c']);
 const MOSS = R(['#08161a', '#0e2a2e', '#164044', '#20585a', '#2e7472']);
 const SAC = R(['#04161c', '#082e36', '#0e5860', '#1c9898', '#58dacd', '#a6f4e6', '#e6fff8']);
@@ -126,7 +126,7 @@ class Painter {
     const v = lvl * this.gk;
     if (v < 0.5) return;
     if (X < 0 || X >= TW || Y < 0 || Y >= this.clip * RS || Y >= TH) return;
-    const l = Math.min(4, Math.round(v)), i = Y * TW + X;
+    const l = v < 1.3 ? 1 : v < 2.6 ? 2 : 4, i = Y * TW + X;   // drei harte Leuchtstufen
     this.g[i] = SET_A[k][l]; this.e[i] = SET_B[k][l];
     if (X < this.x0) this.x0 = X; if (X > this.x1) this.x1 = X; if (Y < this.y0) this.y0 = Y; if (Y > this.y1) this.y1 = Y;
   }
@@ -708,7 +708,7 @@ function sacFine(pt, P, c, rr, gp, torn, i) {
         continue;
       }
       const dl = d + (dx + dy) / rf * 0.12;   // Licht oben links: Kern leicht dorthin versetzt
-      let k = dl < 0.36 ? 5 : dl < 0.6 ? 4 : dl < 0.78 ? 3 : dl < 0.9 ? 2 : 1;
+      let k = dl < 0.42 ? 5 : dl < 0.72 ? 3 : 2;   // harte Stufen: heißer Kern, Mittelring, dunkler Rand
       if (d > 0.93) k = 0;
       else if (d > 0.86) k = Math.min(k, 1);
       for (const bl of blots) {
@@ -718,7 +718,7 @@ function sacFine(pt, P, c, rr, gp, torn, i) {
         if (bd < 1) { k = Math.max(1, Math.min(k, 3) - (bd > 0.6 ? 2 : 1)); break; }
       }
       pt.tex(X, Y, SAC[Math.max(0, k - sh)]);
-      if (d < 0.8) pt.gtex(X, Y, K_SAC, (0.8 - d) * 3.6 * gp + 0.3 * gp + (d < 0.2 ? 0.6 : 0));
+      if (d < 0.72) pt.gtex(X, Y, K_SAC, (d < 0.18 ? 3.2 : dl < 0.42 ? 2.0 : 1.0) * gp);
     }
   }
   if (torn) return;
@@ -931,8 +931,8 @@ const RM_FACE = [
   '..............oo',
 ];
 const RM_SPLIT_FINE = 36, RM_SPLIT = 18; // ab dieser Zeile klappt der Unterkiefer nach unten
-const RM_SKIN = R(['#090b14', '#1d2331', '#333d51', '#515d75', '#77899f', '#a5b5c5', '#d5e1e9']);
-const RM_ROT = R(['#191a36', '#24304a']);
+const RM_SKIN = R(['#0c0c12', '#26262e', '#42404c', '#66626e', '#928c94', '#bdb7ba', '#e6e2e0']);
+const RM_ROT = R(['#1e1a30', '#2e2a44']);
 const RM_EYE = R(['#e2fff6', '#46d6c6']), RM_EYE_OFF = R(['#1d2331', '#121620']);
 const RM_MAW = hex('#06050c'), RM_FANG = R(['#d5e1e9', '#8ea0b4']);
 function headPos(P, L) {
@@ -1063,13 +1063,17 @@ function capPass(pt, P, K, part) {
         } else {
           let v = 0.12 + hgt * 0.5 - q * 0.36 + (hgt > 0.6 && q < 0.05 ? 0.12 : 0);
           // radiale Rillen: zur Spitze hin zusammenlaufend
-          const q0 = q / Math.max(0.2, 1 - 0.6 * Math.pow(hgt, 1.4)), gs = Math.sin(q0 * 13 + 0.3);
-          if (hgt < 0.8 && Math.abs(gs) < gw) v -= 0.15;
-          else if (fine && hgt < 0.8 && gs > gw && gs < gw * 2.2 && q < 0.3) v += 0.07;   // Lichtgrat neben der Rille
+          // unregelmäßig: jede Rille mit eigener Breite, leichtem Schwung und Unterbrechungen
+          const q0 = q / Math.max(0.2, 1 - 0.6 * Math.pow(hgt, 1.4)), ga = q0 * 13 + 0.3, gi = Math.round(ga / Math.PI);
+          const gs = Math.sin(ga + 0.45 * Math.sin(hgt * 6.5 + gi * 1.9) + (hash2(gi, 1, 401) - 0.5) * 0.9);
+          const gwi = gw * (0.5 + hash2(gi, 2, 401) * 1.1), cut = hash2(gi, Math.floor(hgt * 5), 403) < 0.22;
+          if (hgt < 0.8 + hash2(gi, 3, 401) * 0.12 && Math.abs(gs) < gwi && !cut) v -= 0.15;
+          else if (fine && hgt < 0.8 && gs > gwi && gs < gwi * 2.2 && q < 0.3 && !cut) v += 0.07;   // Lichtgrat neben der Rille
           col = fine ? shadeF(CAP, v) : shade(CAP, v, X, Y);
           // helle Randkante über die ganze Kuppel (Silhouette trägt auch ohne Leuchten), links am hellsten
-          if (up < (fine ? 0.55 : 0.9)) col = q < -0.3 ? CAP_EDGE[0] : q < 0.4 ? CAP_EDGE[1] : CAP[6];
-          else if (fine && up < 1.05) col = q < -0.1 ? CAP[6] : CAP[5];
+          if (up < (fine ? 0.6 : 0.9)) col = q < -0.3 ? CAP_EDGE[0] : q < 0.4 ? CAP_EDGE[1] : CAP_EDGE[2];
+          else if (up < (fine ? 1.6 : 1.9)) col = q < -0.1 ? CAP_EDGE[1] : q < 0.5 ? CAP_EDGE[2] : CAP[6];
+          else if (fine && up < 2.3 && q < 0.3) col = CAP[6];
         }
         pt.tex(X, Y, col);
       } else if (!dome && ly > rim && ly <= rim + (2.4 + 2.6 * sq) * gm) {
@@ -1116,15 +1120,17 @@ function hyphae(pt, P, cg) {
   }
 }
 
-// Arm: lang und ausgezehrt – dünner Knochen unter Haut mit Schulterkugel, spitzem Ellbogenknoten (Falten),
-// Unterarmmuskel, Ellenkante im Licht und knochigem Handgelenk; gezeichnete dunkle Kontur, harte Lichtstufen,
-// türkise Leuchtader. Hand mit vier langen Krallenfingern mit Knöcheln.
+// Arm: lang und ausgezehrt – zwei Glieder mit Knick, dünner Oberarm, spitzer Ellbogenknochen, eingefallener
+// Unterarm mit Rinne, Handgelenk dünner als die Hand. Modelliert nur über harte Hell-Dunkel-Stufen (Lichtkante,
+// Mittelton, Schatten, Kernschatten) statt Linienkontur. Krallenhand: breiter Handrücken, vier klar getrennte,
+// gegliederte Finger mit hellen Krallen.
 const bump = (t, c, w, a) => { const u = (t - c) / w; return u > -1 && u < 1 ? a * (1 - u * u) : 0; };
+const skinStep = (v) => SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
 function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
   const dx = E.x - S.x, dy = E.y - S.y, len = Math.hypot(dx, dy) || 1;
   const px = -dy / len, py = dx / len;
   const n = Math.max(16, Math.round(len * 1.2));
-  // Ober- und Unterarm als zwei gerade Glieder mit Knick am Ellbogen (statt einer weichen Kurve)
+  // Ober- und Unterarm als zwei gerade Glieder mit Knick am Ellbogen
   const M = { x: (S.x + E.x) / 2 + px * curl * 1.1, y: (S.y + E.y) / 2 + py * curl * 1.1 };
   const pts = [];
   for (let i = 0; i <= n; i++) {
@@ -1133,57 +1139,55 @@ function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
   }
   const clipping = P.plunge > 0.3;
   if (clipping) pt.clip = GY - 1;
-  const sh = back ? -0.16 : 0;
-  const wf = (t) => 3.1 - t * 0.9 + bump(t, 0.03, 0.09, 2.8) - bump(t, 0.3, 0.12, 0.35) + bump(t, 0.5, 0.06, 2.8)
-    + bump(t, 0.62, 0.09, 1.3) + bump(t, 0.87, 0.03, 0.9);
-  const fine = RS > 1, OL = SKIN[0];
-  // Kontur: etwas breiterer dunkler Strang darunter (auch vor dem Leib klar abgesetzt)
-  tube(pt, pts, (t) => wf(t) + (fine ? 1.1 : 1.6), () => OL);
+  const sh = back ? -0.18 : 0;
+  // Breite: Schulterkugel, dünner Oberarm, Ellbogen, kurzer Muskelansatz, eingefallener Unterarm, schmales Handgelenk
+  const wf = (t) => (t < 0.5 ? 3.9 - t * 1.4 : 3.4 - (t - 0.5) * 2.8) + bump(t, 0.03, 0.09, 2.6) + bump(t, 0.5, 0.06, 1.4)
+    + bump(t, 0.6, 0.07, 1.1) - bump(t, 0.76, 0.12, 0.4);
+  const fine = RS > 1;
   tube(pt, pts, wf, fine ? (e, t) => {
-    // harte Stufen: Lichtkante, Mittelton, Schatten, Kernschatten am Rand
-    let v = e > 0.62 ? 0.8 : e > 0.18 ? 0.62 : e > -0.4 ? 0.46 : e > -0.78 ? 0.3 : 0.18;
-    v += sh;
-    if (t > 0.55 && t < 0.85 && Math.abs(e - 0.32) < 0.1) v = 0.82 + sh;          // Ellenkante im Licht
-    else if (t > 0.12 && t < 0.44 && Math.abs(e - 0.05) < 0.08) v -= 0.16;        // Sehne am Oberarm
-    if (t > 0.45 && t < 0.56) {                                                     // Ellbogen: Glanz und Falten
-      if (e > 0.45) v = 0.95 + sh;
-      if ((Math.abs(t - 0.47) < 0.007 || Math.abs(t - 0.53) < 0.007) && e < 0.3 && e > -0.6) v -= 0.3;
-    }
-    if (t > 0.84 && t < 0.9 && e > 0.3) v = 0.8 + sh;                              // Handgelenkknöchel
-    return SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
-  } : (e, t, x, y) => shade(SKIN, (e > 0.5 ? 0.75 : e > -0.3 ? 0.5 : 0.25) + sh + (t > 0.46 && t < 0.54 && e > 0.3 ? 0.15 : 0), x, y));
-  // Krallenhand: knochiger Handrücken, vier lange Finger mit zwei Knöcheln, helle Krallen; erst Konturen, dann Füllung
-  const a = pts[pts.length - 3], b = pts[pts.length - 1];
-  const base = Math.atan2(b.y - a.y, b.x - a.x);
-  const fingers = [];
-  for (let f = 0; f < 4; f++) {
-    const fa = base + (f - 1.5) * (0.28 + claw * 0.38);
-    const fl = 8 + hash2(f, seed, 285) * 3 - (f === 0 ? 2 : 0);
-    const fp = [];
-    let x = b.x, y = b.y, ang = fa;
-    for (let s2 = 0; s2 <= fl; s2 += 1) {
-      fp.push({ x, y, t: s2 / fl });
-      ang += (1 - claw) * 0.18 * (f < 2 ? 1 : -1) + 0.03;
-      x += Math.cos(ang); y += Math.sin(ang);
-    }
-    fingers.push(fp);
+    let v = e > 0.55 ? 0.82 : e > 0.05 ? 0.64 : e > -0.55 ? 0.44 : 0.22;          // harte Stufen
+    if (t > 0.58 && t < 0.9 && Math.abs(e + 0.05) < 0.12) v = 0.3;                  // Rinne im Unterarm
+    if (t > 0.58 && t < 0.88 && e > 0.5) v = 0.9;                                   // Ellenkante im Licht
+    if (t > 0.12 && t < 0.42 && Math.abs(e - 0.2) < 0.08) v -= 0.18;               // Sehne am Oberarm
+    return skinStep(v + sh);
+  } : (e, t, x, y) => shade(SKIN, (e > 0.45 ? 0.8 : e > -0.35 ? 0.55 : 0.28) + sh, x, y));
+  // Ellbogenknochen: spitzer Knauf nach außen, Glanz oben, Schatten darunter, zwei Hautfalten in der Beuge
+  const ox = M.x - (S.x + E.x) / 2, oy = M.y - (S.y + E.y) / 2, ol = Math.hypot(ox, oy) || 1;
+  const ux = ox / ol, uy = oy / ol;
+  const kx = M.x + ux * 1.3, ky = M.y + uy * 1.3;
+  pt.ellipse(kx, ky, 1.4, 1.2, SKIN[back ? 2 : 4]);
+  pt.ellipse(kx + ux * 0.5 - 0.3, ky + uy * 0.5 - 0.3, 0.7, 0.6, SKIN[back ? 3 : 5]);
+  if (fine) {
+    pt.dot(kx + ux * 1.4 - 0.5, ky + uy * 1.4 - 0.5, SKIN[back ? 4 : 6]);
+    pt.dot(kx + 0.75, ky + 1.25, SKIN[1]); pt.dot(kx + 1.25, ky + 0.75, SKIN[1]);
+    for (const k of [-1.2, 1.2]) pt.dot(M.x - ux * 1.5 + uy * k * 0.4, M.y - uy * 1.5 - ux * k * 0.4, SKIN[1]);
   }
-  const fw = (t) => (t > 0.74 ? 1.5 - (t - 0.74) * 3.4 : 1.6 - t * 0.4 + bump(t, 0.3, 0.07, 0.7) + bump(t, 0.58, 0.06, 0.5));
-  pt.ellipse(b.x, b.y, 3.0, 2.7, OL);
-  for (const fp of fingers) tube(pt, fp, (t) => fw(t) + (fine ? 1 : 1.4), (e, t) => (t > 0.74 ? HAIR[0] : OL));
-  pt.ellipse(b.x, b.y, 2.4, 2.1, SKIN[back ? 2 : 3]);
-  if (fine) { pt.dot(b.x - 1, b.y - 1, SKIN[back ? 3 : 5]); pt.dot(b.x - 0.5, b.y - 1.25, SKIN[back ? 3 : 5]); }
-  for (const fp of fingers) {
-    tube(pt, fp, fw, (e, t, X, Y) => {
-      if (t > 0.74) return e > 0 ? HAIR[back ? 3 : 5] : HAIR[back ? 2 : 4];
-      let v = (e > 0.4 ? 0.62 : e > -0.3 ? 0.46 : 0.28) + sh;
-      if (fine && (Math.abs(t - 0.3) < 0.06 || Math.abs(t - 0.58) < 0.05) && e > 0) v += 0.2;   // Knöchel im Licht
-      return fine ? SKIN[Math.max(0, Math.min(6, Math.round(v * 6)))] : shade(SKIN, v, X, Y);
-    });
-    if (fine) {
-      const q = fp[fp.length - 1];
-      if (q && !back) { pt.dot(q.x, q.y, HAIR[5]); pt.gdot(q.x, q.y, K_GILL, 2); }
+  // Krallenhand: Handrücken breiter als das Handgelenk, vier getrennte Finger aus der Knöchelreihe
+  const a = pts[pts.length - 3], b = pts[pts.length - 1];
+  const base = Math.atan2(b.y - a.y, b.x - a.x), bc = Math.cos(base), bs = Math.sin(base);
+  const hx = b.x + bc * 1.6, hy = b.y + bs * 1.6;
+  pt.ellipse(hx, hy, 3.4, 2.9, SKIN[back ? 2 : 3]);
+  pt.ellipse(hx - 0.7, hy - 0.8, 1.9, 1.3, SKIN[back ? 3 : 4]);
+  if (fine) pt.dot(hx - 1.5, hy - 1.5, SKIN[back ? 4 : 5]);
+  for (let f = 0; f < 4; f++) {
+    const off = (f - 1.5) * 1.75;
+    const fa = base + (f - 1.5) * (0.16 + claw * 0.22);
+    const fl = 6.2 + hash2(f, seed, 285) * 1.2 - (f === 0 ? 1.4 : 0);
+    let x = hx + bc * 2.2 - bs * off, y = hy + bs * 2.2 + bc * off, ang = fa;
+    const fp = [];
+    for (let s2 = 0; s2 <= fl; s2 += 0.5) {
+      fp.push({ x, y, t: s2 / fl });
+      ang += ((1 - claw) * 0.18 * (f < 2 ? 1 : -1) + 0.035) * 0.5;
+      x += Math.cos(ang) * 0.5; y += Math.sin(ang) * 0.5;
     }
+    tube(pt, fp, (t) => (t > 0.68 ? 1.9 - (t - 0.68) * 4.6 : 2.0 - t * 0.4 + bump(t, 0.06, 0.08, 0.5) + bump(t, 0.4, 0.06, 0.45)), (e, t, X, Y) => {
+      if (t > 0.68) return e > 0.2 ? HAIR[back ? 3 : 5] : e > -0.4 ? HAIR[back ? 2 : 4] : HAIR[back ? 1 : 2];
+      let v = (e > 0.3 ? 0.7 : e > -0.4 ? 0.5 : 0.24) + sh;
+      if (fine && (t < 0.12 || Math.abs(t - 0.4) < 0.05) && e > 0.1) v += 0.18;
+      if (fine && e < -0.75) v = 0.14 + sh;   // dunkle Kante trennt die Finger   // Knöchel im Licht
+      return fine ? skinStep(v) : shade(SKIN, v, X, Y);
+    });
+    if (fine && !back) { const q = fp[fp.length - 1]; pt.dot(q.x, q.y, HAIR[5]); pt.gdot(q.x, q.y, K_GILL, 2); }
   }
   meta[key] = { x: b.x, y: b.y };
   pt.clip = H;
@@ -1245,8 +1249,8 @@ function drawMother(pt, P, ex) {
   const EB = { x: SB.x + P.hBx, y: SB.y + P.hBy };
 
   // Kontaktschatten: harte, fast schwarze Lache unter Leib und Wurzeln, setzt die Figur vom Boden ab
-  { const cx = L.cx + 5, rx = 46 * P.rootSpread + P.collapse * 8;
-    pt.ellipse(cx, GY - 0.5, rx, 6.5, SHADOW[0]); pt.ellipse(cx - 2, GY - 1, rx * 0.86, 5.2, SHADOW[1]); }
+  { const cx = L.cx + 5, rx = 44 * P.rootSpread + P.collapse * 8;
+    pt.ellipse(cx, GY + 1, rx, 7.5, SHADOW[0]); pt.ellipse(cx - 2, GY, rx * 0.88, 6, SHADOW[1]); }
   slimePool(pt, P, L);
   roots(pt, P, L, false);
   vineArm(pt, P, SB, EB, P.bCurl, P.bClaw, true, 7, meta, 'handB');
