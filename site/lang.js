@@ -4,6 +4,9 @@
 // Suchmaschinen werden nie umgeleitet, damit alle Fassungen im Index bleiben.
 // Außerdem: Sprachauswahl in der Kopfleiste (Globus öffnet die Liste, Klick merkt die Wahl).
 (() => {
+  // JavaScript läuft: .no-js schon hier im Kopf entfernen (nicht erst in site.js am Seitenende), sonst malt der Browser
+  // zuerst die Fassung ohne JavaScript, und Bereiche wie die Set-Bühne im Shop schieben danach die Seite (Layout-Verschiebung).
+  document.documentElement.classList.remove('no-js');
   const KEY = 'emberwrath:lang';
   const IDS = ['de', 'en', 'es', 'fr'];
   let saved = null;

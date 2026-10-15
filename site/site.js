@@ -9,6 +9,18 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
   // Bilderordner auch für /en/ (dort sind alle Pfade absolut): neben dem Favicon
   const IMG = new URL('img/', document.querySelector('link[rel="icon"]')?.href ?? location.href).href;
+  // Erst das Titelbild, dann der Rest: Bilder weiter unten (Parade, Symbole) und das Spiel-Vorabladen beginnen erst,
+  // wenn die Seite geladen ist und das größte Bild (LCP) gemalt wurde. Sonst teilen sie sich auf dem Handy die Leitung
+  // mit dem Titelbild, und Lighthouse rechnet jede Datei, die vor dem ersten Malen fertig ist, in die LCP-Zeit ein.
+  const nachErstbild = new Promise((ok) => {
+    const go = () => requestAnimationFrame(() => setTimeout(ok, 0));
+    const loaded = () => {
+      if (!window.PerformanceObserver?.supportedEntryTypes?.includes('largest-contentful-paint')) { go(); return; }
+      new PerformanceObserver((l, o) => { if (l.getEntries().length) { o.disconnect(); go(); } }).observe({ type: 'largest-contentful-paint', buffered: true });
+      setTimeout(ok, 3000);   // Hintergrund-Tab: dort meldet der Browser kein LCP
+    };
+    if (document.readyState === 'complete') loaded(); else addEventListener('load', loaded, { once: true });
+  });
 
   // ---------- Links aus der Konfiguration
   const links = { play: cfg.playUrl, login: cfg.loginUrl, register: cfg.registerUrl };
@@ -203,10 +215,10 @@
       const [w, h, fx, fy, n, fps, fly, v] = li.dataset.f.split(' ').map(Number);
       const lift = (li.dataset.l ?? '').split(' ').filter(Boolean).map(Number);
       const glow = li.style.getPropertyValue('--glow').trim();
-      const img = new Image(); img.src = `${IMG}gang-${li.dataset.m}.webp`;
+      const img = new Image(); nachErstbild.then(() => { img.src = `${IMG}gang-${li.dataset.m}.webp`; });
       return { li, w, h, fx, fy, n, fps, fly, v, lift, img, glow: glow ? `rgb(${glow})` : null };
     });
-    const layer = (src) => { const i = new Image(); i.src = `${IMG}${src}`; return i; };
+    const layer = (src) => { const i = new Image(); nachErstbild.then(() => { i.src = `${IMG}${src}`; }); return i; };
     const near = layer('parade-nah.webp'), far = layer('parade-fern.webp');
     // Spielpixel: Laufhöhe, Gesamthöhe; Lauflinie im nahen Streifen, Versatz der fernen Ebene über der Lauflinie
     const BASE = +parade.dataset.base, H = +parade.dataset.h, NEAR_Y = +parade.dataset.nearY, FAR_Y = +parade.dataset.farY;
@@ -323,6 +335,10 @@
       addEventListener('resize', () => { layout(); draw(); });
     }
   }
+
+  // Symbole der Klassen stehen mit loading="lazy" in der Seite (nicht vor dem Titelbild laden); nach dem Titelbild auch die
+  // der verborgenen Reiter holen, damit beim Wechsel nichts nachlädt.
+  nachErstbild.then(() => { for (const im of $$('.cls-panel img[loading="lazy"]')) im.loading = 'eager'; });
 
   // ---------- Klassen: Reiter wechseln das Porträt (Pfeiltasten wie bei Tabs üblich)
   const tabs = $$('.cls-tabs [role="tab"]');
@@ -637,12 +653,20 @@
     }).catch(() => {});
   }
 
-  // ---------- Spiel vorab laden (Startseite): build.mjs setzt <link rel="prefetch"> auf spielen/spiel.<hash>.js.
-  // Safari kennt rel=prefetch nicht; dort holt ein leiser Abruf die Datei nach dem Laden in den Browser-Speicher.
+  // ---------- Spiel vorab laden (Startseiten): build.mjs nennt spielen/spiel.<hash>.js (und das Wörterbuch) in
+  // <meta name="ew-vorab">; hier wird daraus erst nach dem Titelbild (nachErstbild) und einer Pause ein <link rel="prefetch">.
+  // Als <link rel="prefetch"> im Kopf lief der Abruf (gut 2 MB) gleich zu Beginn mit, und Lighthouse rechnete ihn in die
+  // LCP-Zeit (Handy: 16 s statt gut 2 s). Safari kennt rel=prefetch nicht: dort ein leiser Abruf in den Browser-Speicher.
   // Nicht bei Datensparmodus.
-  const pre = document.querySelector('link[rel="prefetch"][as="script"]');
-  if (pre && !navigator.connection?.saveData && !pre.relList?.supports?.('prefetch')) {
-    addEventListener('load', () => setTimeout(() => fetch(pre.href, { priority: 'low' }).catch(() => {}), 1500), { once: true });
+  const vorab = $$('meta[name="ew-vorab"]').map((m) => m.content).filter(Boolean);
+  if (vorab.length && !navigator.connection?.saveData) {
+    nachErstbild.then(() => setTimeout(() => {
+      const probe = document.createElement('link');
+      for (const href of vorab) {
+        if (probe.relList?.supports?.('prefetch')) document.head.append(Object.assign(document.createElement('link'), { rel: 'prefetch', as: 'script', href }));
+        else fetch(href, { priority: 'low' }).catch(() => {});
+      }
+    }, 1500));
   }
 
   // ---------- Jahr in der Fußzeile
