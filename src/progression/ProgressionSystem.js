@@ -120,6 +120,7 @@ export class ProgressionSystem {
     if ((this.dailyT -= dt) > 0) return;
     this.dailyT = DAILY_CHECK;
     if (!clockReady()) { syncClock(); this.dailyT = 5; return; }
+    if (session.game?.ledger && !session.game.ledger.ready) { this.dailyT = 2; return; } // Würfel des Servers (src/ledger) abwarten
     const d = session.state.slices.daily, now = serverNow();
     if (!d || boardDay(now) <= d.day) return;
     // Ruhiger Moment für die Ansage: kein Fenster offen, kein Einstiegshinweis sichtbar, Held am Leben
@@ -133,7 +134,15 @@ export class ProgressionSystem {
     return !!run && (run.phase === 'clear' || run.phase === 'boss') && this.s.state.slices.world?.zoneId === TRIAL_ZONE;
   }
 
+  // Beute erst würfeln, wenn der Würfel des Servers da ist (src/ledger, kurz nach dem Laden): Sonst bestätigt der
+  // Server sie nicht. Bis dahin wartet sie; hat der Held die Zone schon verlassen, verfällt sie wie liegengebliebene Beute.
   #rollLoot(payload, x, y) {
+    const lg = this.s.game?.ledger;
+    if (lg && !lg.ready) {
+      const world = this.s.world;
+      lg.whenReady(() => { if (this.s.world === world) this.#rollLoot(payload, x, y); });
+      return;
+    }
     const r = this.s.state.commit('loot:roll', { ...payload, x, y });
     for (const d of r?.drops ?? []) if (d.dropId) this.s.world.spawn(new LootDrop(this.s, d, x, y - 4));
   }

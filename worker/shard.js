@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { verifyToken } from './auth.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { filterChat } from '../src/net/chatFilter.js';
-import { REPORT_REASONS, saveReport, activeMutes, loadCharacter } from './moderation.js';
+import { REPORT_REASONS, saveReport, activeMutes, loadCharacter, NEW_LEVEL_MAX } from './moderation.js';
 import { nameProblem } from '../src/net/names.js';
 import { ITEMS } from '../src/progression/items.js';
 import {
@@ -267,17 +267,19 @@ export class ZoneShard extends DurableObject {
     p.reserved = true;
 
     const ch = m.char && typeof m.char === 'object' ? m.char : {};
-    const [k, mutes, stored] = await Promise.all([ignoreKey(this.env, user.uid), activeMutes(this.env, [user.uid]), loadCharacter(this.env, user.uid, ch.id)]);
+    const [k, mutes, found] = await Promise.all([ignoreKey(this.env, user.uid), activeMutes(this.env, [user.uid]), loadCharacter(this.env, user.uid, ch.id)]);
+    const stored = found?.missing ? null : found;
     if (this.players.get(ws) !== p) return; // inzwischen getrennt oder ersetzt
     if (mutes) { const mm = mutes.get(user.uid); if (mm) this.mutes.set(user.uid, mm); else this.mutes.delete(user.uid); }
     const mute = this.mutes.get(user.uid) ?? null;
     // Name und Stufe, die andere sehen: aus dem gespeicherten Charakter (Supabase). Die Stufe darf um eine über dem letzten
     // Speicherstand liegen (Aufstieg seit dem letzten Autosave). Ohne Speicherstand (neuer Charakter, Störung): Angaben
-    // des Clients, aber geprüft. Reservierte oder anstößige Namen sieht niemand; dann „Abenteurer XXXX“.
+    // des Clients, aber geprüft; kennt die Cloud ihn nicht, höchstens Stufe NEW_LEVEL_MAX. Reservierte oder anstößige Namen
+    // sieht niemand; dann „Abenteurer XXXX“.
     let name = cleanText(stored?.name || ch.name, NAME_MAX);
     const blocked = nameProblem(name);
     if (blocked) name = `Abenteurer ${k.slice(0, 4).toUpperCase()}`;
-    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : LEVEL_MAX;
+    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : found?.missing ? NEW_LEVEL_MAX : LEVEL_MAX;
     const level = Math.max(stored?.level ?? 1, Math.min(cleanLevel(ch.level), levelMax));
     const player = {
       id: ++this.seq, uid: user.uid, k, mute, msgs: [], name, level, levelMax,

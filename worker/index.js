@@ -5,6 +5,7 @@ import { PvpArena } from './pvp/arena.js';
 import { handleForms } from './forms.js';
 import { handleShop } from './shop.js';
 import { handleBugReport } from './bugreport.js';
+import { handleLedger } from './ledger.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
 import { ZONES } from '../src/world/zones.js';
@@ -19,6 +20,7 @@ import { pageHeaders } from './headers.js';
 //   /net/forms/support, /net/newsletter/*            Support-Formular und Newsletter der Website (worker/forms.js)
 //   /net/shop/status|checkout|webhook                Gold-Shop mit Stripe (worker/shop.js, docs/SHOP.md)
 //   /net/bug                                         Fehlermeldung aus dem Spiel (worker/bugreport.js)
+//   /net/buch                                        Fortschrittsbuch: Server bestätigt Erfahrung, Gold, Beute (worker/ledger.js)
 // Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
 // außer den Seitenaufrufen aus assets.run_worker_first (wrangler.jsonc): Die kommen hier vorbei, damit alte Adressen
 // (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
@@ -172,6 +174,10 @@ export default {
       }
       if (route === '/bug') {
         try { return await handleBugReport(request, config(env), url); } catch (e) { console.error('bug', e?.message); return json({ error: 'server' }, 500); }
+      }
+      if (route === '/buch') {
+        if (await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
+        try { return await handleLedger(request, config(env), url); } catch (e) { console.error('buch', e?.message); return json({ error: 'server' }, 500); }
       }
       if (route.startsWith('/shop/')) {
         // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)
