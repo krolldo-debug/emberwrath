@@ -43,7 +43,7 @@ const DOT_CLASSES = { rogue: true };
 const EARLY_LEAVE_MS = 5000;   // wer so kurz nach dem Gong (oder davor) aufgibt: zählt wie nicht angetreten
 const PAIR_DAILY = 2;          // gewertete Kämpfe je Paar von Konten und Tag (gegen Absprachen mit Zweitkonten)
 const TOP_EVERY_MS = 2000;
-const MAX_CHARS = 8;           // Helden je Konto (wie account/CharacterListScene.js MAX_CHARACTERS)
+const MAX_CHARS = 20;          // Helden je Konto und Saison (8 gleichzeitig, account/CharacterListScene.js; Puffer für gelöschte und neue)
 // Schadensbudget je Klasse: Vorrat und Nachfüllen je Sekunde, als Vielfaches von power × pvpDamage(Klasse).
 // Etwa das 1,2-Fache dessen, was die Rechnung ohne Fehlschläge ergibt (src/pvp/test/sim.mjs), damit nichts
 // Echtes abgelehnt wird. Die Obergrenze je Treffer (maxHitDamage) bleibt die eigentliche Sperre.

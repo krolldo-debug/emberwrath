@@ -4707,5 +4707,5 @@ export const EN = {
   "Diamantklinge": "Diamond Blade",
   "Erreiche in der Glutarena die Liga Diamant.": "Reach the Diamond league in the Ember Arena.",
   "Erreiche in der Glutarena die Liga Glutmeister.": "Reach the Ember Master league in the Ember Arena.",
-  "Mit diesem Konto kämpfen schon acht Helden in dieser Saison.": "Eight heroes from this account are already fighting this season."
+  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "20 heroes from this account are already fighting this season."
 };

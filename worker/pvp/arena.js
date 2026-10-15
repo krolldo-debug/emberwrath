@@ -9,7 +9,7 @@ import { ArenaHub } from './hub.js';
 // Speicher: Wertungen, Tageszähler und Bestenliste im Speicher des Objekts (SQLite, im Gratis-Tarif enthalten).
 // Keine Datenbank-Migration nötig. Name, Stufe, Klasse und Volk liest der Server aus dem gespeicherten Charakter
 // (Supabase, Secret SUPABASE_SERVICE_ROLE_KEY wie der Welt-Server); ist er dort (noch) nicht zu finden, gelten die
-// Angaben des Clients (höchstens 8 Helden je Konto und Saison in der Wertung, hub.js #claim).
+// Angaben des Clients (höchstens 20 Helden je Konto und Saison in der Wertung, hub.js #claim).
 //
 // Kosten: Takt (250 ms) nur, solange jemand verbunden ist oder ein Kampf läuft; sonst wird das Objekt entladen.
 // Im Kampf sendet jeder Spieler etwa 8 Zustände je Sekunde, eingehende Nachrichten zählen 20:1 als Anfrage.
