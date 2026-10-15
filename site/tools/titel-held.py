@@ -513,9 +513,45 @@ def vnoise(x, y, per=16):
     return a * (1 - fy) + b * fy
 
 FLAME = ['#5a1206', '#a8300a', '#e8641a', '#ffb648', '#fff2c0']
+
+
+def _nb(m):
+    """Anzahl gesetzter 4-Nachbarn je Feinpixel."""
+    p = np.pad(m, 1).astype(np.int8)
+    return p[:-2, 1:-1] + p[2:, 1:-1] + p[1:-1, :-2] + p[1:-1, 2:]
+
+
+def _clean(m, it=3):
+    """Stufenkanten glätten ohne Weichzeichnen: Sporne (< 2 Nachbarn) weg, Kerben (>= 3 Nachbarn) zu."""
+    for _ in range(it):
+        n = _nb(m); m = (m & (n >= 2)) | (~m & (n >= 3))
+    return m
+
+
+def _erode(m): return m & (_nb(m) == 4)
+
+
+def _islands(m, keep, nmin):
+    """Teile (4-verbunden) unter nmin Feinpixeln, die keep nicht berühren, entfernen."""
+    seen = np.zeros_like(m); out = m.copy(); h, w = m.shape
+    for sy, sx in zip(*np.nonzero(m)):
+        if seen[sy, sx]: continue
+        st, comp, touch = [(sy, sx)], [], False
+        seen[sy, sx] = True
+        while st:
+            y, x = st.pop(); comp.append((y, x)); touch |= bool(keep[y, x])
+            for yy, xx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if 0 <= yy < h and 0 <= xx < w and m[yy, xx] and not seen[yy, xx]: seen[yy, xx] = True; st.append((yy, xx))
+        if not touch and len(comp) < nmin:
+            for y, x in comp: out[y, x] = False
+    return out
+
+
 def flame(blade, t, n, R=4.4):
-    """Flammen um die Klinge (Maske blade), Bild t von n (Schleife). Harte Stufen, äußerster Kranz dunkelrot, Kern
-    hell. Abstand: waagerecht 1, nach oben 0,42, nach unten 1,8 je Feinpixel (exakt über zwei Durchläufe)."""
+    """Flammen um die Klinge (Maske blade), Bild t von n (Schleife). Feinraster-Glut: eine geschlossene Form mit harten
+    Kanten, Saum rot (1 Feinpixel), darin Orange, Gold und ein weißgelber Kern an der Klinge – kein dunkelroter
+    Schein, keine Fetzen oder Fäden, keine Halbtransparenz. Zungen steigen als Sägezahn je Spalte auf (spitz oben).
+    Abstand: waagerecht 1, nach oben 0,42, nach unten 1,8 je Feinpixel (exakt über zwei Durchläufe)."""
     by, bx = np.nonzero(blade)
     if len(bx) == 0: return np.zeros((H, W, 4), np.uint8)
     y0, y1 = max(0, by.min() - 16 * Q), min(H, by.max() + 4 * Q)
@@ -528,13 +564,24 @@ def flame(blade, t, n, R=4.4):
     Y, X = np.mgrid[y0:y1, x0:x1]
     per = 16
     sh = t / n * per
-    nz = vnoise(X * 0.42 / Q, Y * 0.30 / Q + sh, per) * 0.65 + vnoise(X * 0.9 / Q + 9, Y * 0.62 / Q + sh * 2, per) * 0.35
-    heat = 1 - g / (R * Q) + (nz - 0.5) * 1.5
+    nz = vnoise(X * 0.55 / Q, Y * 0.17 / Q + sh, per) * 0.7 + vnoise(X * 1.1 / Q + 9, Y * 0.34 / Q + sh * 2, per) * 0.3
+    ph = vnoise(X * 0.45 / Q + 31, np.zeros_like(Y, float) + 3, per) * 2.2      # Phase der Zungen je Spalte
+    lick = (Y / (11.0 * Q) + t / n + ph) % 1.0                                   # Sägezahn, schließt die Schleife
+    heat = 1 - g / (R * Q) + (nz - 0.5) * 0.7 + (lick - 0.5) * 0.9
+    bl = blade[y0:y1, x0:x1]
+    F = _clean((heat > 0.2) | bl)
+    core = _erode(F); p = np.pad(core, 1)
+    thick = core | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
+    thin = F & ~thick & ~bl                          # lange Fäden (1–2 Feinpixel breit) weg, kurze Spitzen bleiben
+    F &= ~_islands(thin, np.zeros_like(thin), 11)
+    F = _islands(F, bl, 24) | bl
+    G = _clean((heat > 0.58) | bl) & _erode(F)       # Gold nie direkt am Saum
+    K = _clean((heat > 0.8) | bl) & _erode(G)        # Kern nie direkt am Orange
+    lv = np.full(F.shape, -1)
+    lv[F] = 1; lv[_erode(F)] = 2; lv[G] = 3; lv[K] = 4
     out = np.zeros((H, W, 4), np.uint8)
-    lv = np.select([heat > 0.78, heat > 0.6, heat > 0.42, heat > 0.25, heat > 0.12], [4, 3, 2, 1, 0], -1)
-    for k in range(5):
-        m = lv == k
-        out[y0:y1, x0:x1][m] = (*hexc(FLAME[k]), 255)
+    sub = out[y0:y1, x0:x1]
+    for k in range(1, 5): sub[lv == k] = (*hexc(FLAME[k]), 255)
     out[blade] = 0
     return out
 
