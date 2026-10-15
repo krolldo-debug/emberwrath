@@ -226,6 +226,12 @@ function consumeRolls(ses, raw) {
   }
   return out;
 }
+// Preis bezahlt: im Eintrag abgegeben UND im Buch vorhanden (Ausgeben von Gold oder Gegenständen, die der Server nicht
+// kennt, bringt nichts; Abgänge buchen höchstens bis 0)
+function paid({ b, d }, gold, mats = []) {
+  if (gold > 0 && (d.gold > -gold || b.gold < gold)) return false;
+  return mats.every((m) => (d.items[m.itemId] ?? 0) <= -m.qty && (b.items[m.itemId] ?? 0) >= m.qty);
+}
 const takeRoll = (env, label) => env.rolls[label]?.shift() ?? null;
 
 const trim = (a, n) => { if (a.length > n) a.splice(0, a.length - n); };
@@ -266,6 +272,11 @@ function ruleKill(env) {
   if (en.boss && !en.summoned && !en.trial) {
     const last = st.bosses[en.bossId] ?? 0;
     if (ctx.at - last < RATE.bossGapS * 1000) return;
+  }
+  // Glutprüfung: ein Boss je Lauf
+  if (en.boss && !en.summoned && en.trial) {
+    if (st.trial.run.boss) return;
+    st.trial.run.boss = true;
   }
   if (en.rareId) {
     const last = st.rares[en.rareId] ?? 0;
@@ -440,7 +451,7 @@ function ruleBuy(env) {
   const { p, d } = env;
   const id = p.itemId, qty = Math.max(1, posInt(p.qty ?? 1));
   if (!vendorHas(p.vendorId, id)) return;
-  if (-d.gold < buyPrice(ITEMS[id]) * qty) return;
+  if (!paid(env, buyPrice(ITEMS[id]) * qty)) return;
   env.give(id, qty);
 }
 
@@ -459,8 +470,7 @@ function ruleCraft(env) {
   const { p, d } = env;
   const r = RECIPES[p.recipeId];
   if (!r || (r.level ?? 1) > env.lv) return;
-  if ((r.gold ?? 0) > 0 && -d.gold < r.gold) return;
-  for (const m of r.mats) if (-(d.items[m.itemId] ?? 0) < m.qty && m.itemId !== r.result) return;
+  if (!paid(env, r.gold ?? 0, r.mats.filter((m) => m.itemId !== r.result))) return;
   env.give(r.result, r.qty ?? 1);
 }
 
@@ -569,35 +579,45 @@ function ruleShopCredit(env) {
 // ---------------------------------------------------------------- Erfolge
 // ---------------------------------------------------------------- Schmiede, Bank
 // Verstärkung, Verzauberung und Bankausbau zählen nur, wenn der Preis im selben Eintrag bezahlt wurde.
-const paid = (d, gold, mats = []) => d.gold <= -gold && mats.every((m) => (d.items[m.itemId] ?? 0) <= -m.qty);
 function ruleUpgrade(env) {
   const { b, p, d, lv } = env;
   if (!EQUIP_SLOTS.includes(p.slot)) return;
   const cur = b.items[upId(p.slot)] ?? 0;
   if (cur >= UPGRADE_MAX) return;
   const cost = upgradeCost(cur);
-  if (lv >= cost.reqLevel && paid(d, cost.gold, cost.mats)) env.give(upId(p.slot), 1);
+  if (lv >= cost.reqLevel && paid(env, cost.gold, cost.mats)) env.give(upId(p.slot), 1);
 }
 function ruleEnchant(env) {
   const { p, d, lv } = env;
   const e = Object.hasOwn(ENCHANTS, p.enchantId) ? ENCHANTS[p.enchantId] : null;
   if (!e || !e.slots.includes(p.slot) || !EQUIP_SLOTS.includes(p.slot)) return;
-  if (lv >= e.level && paid(d, e.gold, e.mats)) env.give(enId(p.slot, p.enchantId), 1);
+  if (lv >= e.level && paid(env, e.gold, e.mats)) env.give(enId(p.slot, p.enchantId), 1);
 }
 function ruleBankExpand(env) {
   const step = env.b.items[BANK_ID] ?? 0;
-  if (step < BANK_SIZES.length - 1 && paid(env.d, BANK_COSTS[step])) env.give(BANK_ID, 1);
+  if (step < BANK_SIZES.length - 1 && paid(env, BANK_COSTS[step])) env.give(BANK_ID, 1);
 }
 
+// Erfolge mit Belohnung, die das Buch zählt: Bedingung prüft der Server selbst (ACH_CHECK). Ohne Prüfung keine Buchung;
+// der Test verlangt für jede gezählte Belohnung eine Prüfung.
+export const ACH_CHECK = {
+  upgrade_15: ({ b, allow }) => EQUIP_SLOTS.some((k) => (b.items[upId(k)] ?? 0) + (allow.items[upId(k)] ?? 0) >= UPGRADE_MAX),
+  trial_20: ({ st }) => st.trial.best >= 20,
+};
+export function achievementItem(id, classId) {
+  const r = ACHIEVEMENTS[id]?.reward;
+  if (r?.kind === 'item') { const item = rewardItemId(r, CLASSES[classId]?.primary); return counted(item) && isTracked(item) ? item : null; }
+  if (r?.kind === 'mount') return COUNTED_MOUNTS[r.id] ?? null;
+  return null;
+}
 function ruleAchievements(env) {
   const { st, e, ctx } = env;
   for (const id of Array.isArray(e.a) ? e.a.slice(0, 20) : []) {
-    const def = ACHIEVEMENTS[id];
-    if (!def?.reward || st.ach.includes(id)) continue;
+    if (!Object.hasOwn(ACHIEVEMENTS, id) || !ACHIEVEMENTS[id].reward || st.ach.includes(id)) continue;
+    const item = achievementItem(id, ctx.classId);
+    if (item && !ACH_CHECK[id]?.(env)) continue;
     st.ach.push(id);
-    const r = def.reward;
-    if (r.kind === 'item') { const item = rewardItemId(r, CLASSES[ctx.classId]?.primary); if (counted(item)) env.give(item, 1); }
-    else if (r.kind === 'mount' && COUNTED_MOUNTS[r.id]) env.give(COUNTED_MOUNTS[r.id], 1);
+    if (item) env.give(item, 1);
   }
 }
 

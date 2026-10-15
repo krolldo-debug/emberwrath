@@ -356,7 +356,7 @@ end $$;
 --   Platz       null oder { itemId: Text, qty: ganze Zahl 1…1e6 }   (Tasche, Bank, Questbeutel)
 --   Ausrüstung  Text, null oder { itemId: Text }                  Material  { id: ganze Zahl 0…1e6 }
 --   Gold        ganze Zahl -1e9…2^31-1   Erfahrung 0…2^31-1   Stufe 1…40
---   Verstärkung ganze Zahl 0…15   Verzauberung Text
+--   Verstärkung ganze Zahl 0…15   Verzauberung Text   Bankgröße eine der Stufen   Tasche immer vorhanden
 -- Ehrliche Spielstände ändert das nie.
 create or replace function public.ledger_fix_slot(e jsonb) returns jsonb
 language sql immutable set search_path = '' as $$
@@ -386,7 +386,17 @@ declare
   b jsonb;
   p text[];
 begin
-  if jsonb_typeof(s -> 'slices') is distinct from 'object' then return s; end if;
+  -- Fehlt die Tasche, gäbe das Spiel beim Laden die Startausrüstung (create): leere Tasche einsetzen
+  if jsonb_typeof(s) is distinct from 'object' then s := '{}'::jsonb; end if;
+  if jsonb_typeof(s -> 'slices') is distinct from 'object' then s := jsonb_set(s, '{slices}', '{}'::jsonb); end if;
+  if jsonb_typeof(s #> '{slices,inventory}') is null or jsonb_typeof(s #> '{slices,inventory}') = 'null' then
+    s := jsonb_set(s, '{slices,inventory}', '{"slots": [], "equipment": {}, "mats": {}, "questBag": [], "upgrades": {}, "enchants": {}}'::jsonb);
+  end if;
+  -- Bankgröße: nur genau eine der Stufen (JavaScript liest 48.000000000000000001 als 48), sonst lädt das Spiel 16
+  a := s #> '{slices,bank,size}';
+  if jsonb_typeof(a) = 'number' and not (a::numeric = any(array[16,24,32,40,48]::numeric[])) then
+    s := jsonb_set(s, '{slices,bank,size}', '16'::jsonb);
+  end if;
   -- Tasche, Bank: Plätze bleiben an ihrer Stelle; Questbeutel: ungültige Einträge fallen weg
   foreach p slice 1 in array array[array['slices', 'inventory', 'slots'], array['slices', 'bank', 'slots']] loop
     a := s #> p;

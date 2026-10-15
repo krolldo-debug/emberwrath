@@ -226,6 +226,12 @@ let SNAP;
   ok(sl && sl.wallet.gold === -1e9 && sl.progress.level === 1, 'Gold und Stufe außerhalb des Bereichs auf den Rand gesetzt', sl && { g: sl.wallet.gold, p: sl.progress });
   ok(sl && sl.inventory.slots[9] === null && sl.inventory.equipment.ring === null, 'Gegenstände mit Liste statt Text entfernt', sl && { slot: sl.inventory.slots[9], ring: sl.inventory.equipment.ring });
   ok(sl && same(sl.inventory.upgrades, {}) && same(sl.inventory.enchants, {}), 'Verstärkung als Text oder Liste, Verzauberung als Liste entfernt', sl?.inventory);
+  // Zahl mit mehr Stellen, als JavaScript kennt (das Spiel liest 48), und fehlende Tasche (das Spiel gäbe die Startausrüstung)
+  const raw = JSON.stringify(SNAP).replace('"size":16', '"size":48.00000000000000000001');
+  const n2 = (await pool.query('select public.ledger_normalize($1::jsonb) as n', [raw])).rows[0].n;
+  ok(n2.slices.bank.size === 16, 'Bankgröße zwischen den Stufen wird 16', n2.slices.bank.size);
+  const n3 = (await pool.query(`select public.ledger_normalize('{"meta": {}}'::jsonb) as n`)).rows[0].n;
+  ok(Array.isArray(n3.slices?.inventory?.slots), 'Fehlende Tasche wird leer eingesetzt', n3);
 }
 await upload(A, 'held', SNAP); // zurück auf den gültigen Stand
 

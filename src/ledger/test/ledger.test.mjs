@@ -9,9 +9,13 @@ import { RARE_ENEMIES } from '../../progression/rares.js';
 import { TRIAL_ZONE } from '../../progression/trials.js';
 import { boardOffers, WEEK_GOAL } from '../../progression/board.js';
 import { valuesOfSlices, valuesOf, COUNTED_MOUNTS } from '../values.js';
-import { freshState, openSession, applyEntries, levelForXp, RATE, _test } from '../rules.js';
+import { freshState, openSession, applyEntries, levelForXp, RATE, _test, ACH_CHECK, achievementItem } from '../rules.js';
+import { buyPrice, ITEMS as ALL_ITEMS } from '../../progression/items.js';
+import { totalXpForLevel as xpFor } from '../../progression/xp.js';
 import { ledgerRng } from '../rng.js';
 import { ENCHANTS } from '../../progression/smithing.js';
+import { ACHIEVEMENTS } from '../../progression/achievements.js';
+import { CLASSES } from '../../character/classes.js';
 import { DAY, T0, makeGame, bookValues, assertInSync, levelOf, kill, TRASH, playQuest, housekeeping } from './harness.mjs';
 
 const tests = [];
@@ -107,6 +111,32 @@ test('Schmiede und Bank: nur bezahlte Verstärkung, Verzauberung und Bankausbau 
   assert.equal(g.server.book.items['^up:chest'] ?? 0, 0);
   assert.equal(g.server.book.items[`^en:weapon:${Object.keys(ENCHANTS)[0]}`] ?? 0, 0);
   assert.ok((g.server.book.items['^bank'] ?? 0) <= 1);
+});
+
+test('Bezahlen mit Gold oder Gegenständen, die das Buch nicht kennt, bringt nichts; Erfolge nur mit erfüllter Bedingung', () => {
+  const g = makeGame({ classId: 'warrior' });
+  const t = g.tap;
+  const push = (e) => { t.queue.push({ s: 'S1', k: ++t.session.k, now: g.clock.t, p: {}, ...e }); };
+  g.flush();
+  g.server.book.xp = xpFor(35); g.server.book.gold = 1000; // Stufe und Gold reichen, Zutaten fehlen im Buch
+  const gold0 = g.server.book.gold, price = buyPrice(ALL_ITEMS.minor_potion) * 500;
+  assert.ok(price > gold0);
+  for (let i = 0; i < 20; i++) push({ t: 'craft:make', p: { recipeId: 'brew_supreme_potion' }, d: { g: -20, i: { troll_fat: -2, spore_cap: -1, supreme_potion: 2 } } });
+  push({ t: 'shop:buy', p: { vendorId: 'smith_brom', itemId: 'minor_potion', qty: 500 }, d: { g: -price, i: { minor_potion: 500 } } });
+  push({ t: 'inventory:sort', a: ['upgrade_15'], d: { i: { forge_heart_str: 1 } } });
+  g.flush();
+  const b = g.server.book;
+  assert.equal(b.items.supreme_potion ?? 0, 0, 'Rezept ohne Zutaten im Buch');
+  assert.ok((b.items.minor_potion ?? 0) <= 5, 'Kauf auf Pump');
+  assert.equal(b.items.forge_heart_str ?? 0, 0, 'Erfolg ohne +15');
+  assert.ok(b.gold <= gold0);
+  assert.ok(!b.state.ach.includes('upgrade_15'), 'Erfolg bleibt offen, bis die Bedingung erfüllt ist');
+});
+
+test('Jede Erfolgsbelohnung, die das Buch zählt, hat eine Prüfung des Servers', () => {
+  for (const id of Object.keys(ACHIEVEMENTS)) {
+    for (const cls of Object.keys(CLASSES)) if (achievementItem(id, cls)) assert.ok(ACH_CHECK[id], `${id} (${cls}) ohne Prüfung`);
+  }
 });
 
 test('Wiederholt gemeldete Einträge zählen einmal', () => {

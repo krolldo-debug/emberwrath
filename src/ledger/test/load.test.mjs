@@ -44,7 +44,7 @@ function randomRaw(r) {
   if (r() < 0.05) inv.mats = Object.keys(inv.mats);
   const bankSize = pick(r, [...BANK_SIZES, '48', [48], 48.0, 20, 64, null]);
   const bank = { size: bankSize, slots: Array.from({ length: 48 }, slot) };
-  return {
+  const snap = {
     meta: { accountId: 'a', characterId: 'c', createdAt: 1, savedAt: 1, playTime: 3600, version: 1 },
     slices: {
       character: { name: 'Held', classId: 'warrior', mounts: { owned: [], active: null, riding: false } },
@@ -53,6 +53,12 @@ function randomRaw(r) {
       inventory: inv, bank, mail: { loot: [] },
     },
   };
+  // Fehlende Bereiche: das Spiel legt sie neu an (Tasche mit Startausrüstung)
+  const x = r();
+  if (x < 0.03) snap.slices.inventory = null;
+  else if (x < 0.06) delete snap.slices.inventory;
+  else if (x < 0.08) delete snap.slices;
+  return snap;
 }
 
 // Nachsichtig zählen, was das Spiel nach dem Laden hat: Schlüssel wie beim Property-Zugriff (String()), Mengen wie Number()
