@@ -1,9 +1,11 @@
 import { ZoneShard } from './shard.js';
 import { Directory } from './directory.js';
 import { DungeonFinder } from './finder/queue.js';
+import { PvpArena } from './pvp/arena.js';
 import { handleForms } from './forms.js';
 import { handleShop } from './shop.js';
 import { handleBugReport } from './bugreport.js';
+import { handleLedger } from './ledger.js';
 import { ONLINE_CONFIG } from '../src/online/config.js';
 import { NET_PATH, MAX_WORLDS, ZONE_ID_RE, shardName } from '../src/net/protocol.js';
 import { ZONES } from '../src/world/zones.js';
@@ -14,13 +16,15 @@ import { pageHeaders } from './headers.js';
 //   /net/worlds?zone=<id>                            Welten einer Zone mit Belegung (für „Welt wechseln“)
 //   /net/status                                      Spieler online je Zone und Welt
 //   /net/finder                                      WebSocket zur Dungeonsuche (worker/finder/, src/finder/README.md)
+//   /net/arena, /net/arena/top                       WebSocket zur Glutarena (PvP) und Bestenliste (worker/pvp/, src/pvp/README.md)
 //   /net/forms/support, /net/newsletter/*            Support-Formular und Newsletter der Website (worker/forms.js)
 //   /net/shop/status|checkout|webhook                Gold-Shop mit Stripe (worker/shop.js, docs/SHOP.md)
 //   /net/bug                                         Fehlermeldung aus dem Spiel (worker/bugreport.js)
+//   /net/buch                                        Fortschrittsbuch: Server bestätigt Erfahrung, Gold, Beute (worker/ledger.js)
 // Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
 // außer den Seitenaufrufen aus assets.run_worker_first (wrangler.jsonc): Die kommen hier vorbei, damit alte Adressen
 // (REDIRECT_HOSTS) mit 301 auf CANONICAL_HOST umleiten. /net/* leitet nie um, laufende Verbindungen bleiben bestehen.
-export { ZoneShard, Directory, DungeonFinder };
+export { ZoneShard, Directory, DungeonFinder, PvpArena };
 
 const json = (body, status = 200, cache = 'no-store') => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': cache },
@@ -84,7 +88,11 @@ async function handleNet(request, env, url, ctx) {
   const route = url.pathname.slice(NET_PATH.length);
   const zone = url.searchParams.get('zone') ?? '';
   if (route === '/status') return cachedJson(request, env, ctx, route, async () => ({ zones: await directory(env).overview() }));
-  if ((route === '/finder' || route === '/ws') && await limited(request, env, route)) {
+  if (route === '/arena/top') {
+    if (!env.PVP_ARENA) return json({ error: 'unavailable' }, 503);
+    return cachedJson(request, env, ctx, route, async () => (await env.PVP_ARENA.get(env.PVP_ARENA.idFromName('main')).fetch(new Request(new URL('/top', url.origin)))).json());
+  }
+  if ((route === '/finder' || route === '/ws' || route === '/arena') && await limited(request, env, route)) {
     return json({ error: 'rate_limited' }, 429);
   }
   if (route === '/finder') {
@@ -92,6 +100,12 @@ async function handleNet(request, env, url, ctx) {
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);
     if (!originOk(request, url, env)) return json({ error: 'origin' }, 403);
     return env.DUNGEON_FINDER.get(env.DUNGEON_FINDER.idFromName('main')).fetch(request);
+  }
+  if (route === '/arena') {
+    if (!env.PVP_ARENA) return json({ error: 'unavailable' }, 503);
+    if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'upgrade' }, 426);
+    if (!originOk(request, url, env)) return json({ error: 'origin' }, 403);
+    return env.PVP_ARENA.get(env.PVP_ARENA.idFromName('main')).fetch(request);
   }
   if (!ZONE_ID_RE.test(zone) || (!ZONE_IDS.has(zone) && env.NET_ANY_ZONE !== 'true')) return json({ error: 'zone' }, 400);
 
@@ -160,6 +174,10 @@ export default {
       }
       if (route === '/bug') {
         try { return await handleBugReport(request, config(env), url); } catch (e) { console.error('bug', e?.message); return json({ error: 'server' }, 500); }
+      }
+      if (route === '/buch') {
+        if (await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
+        try { return await handleLedger(request, config(env), url); } catch (e) { console.error('buch', e?.message); return json({ error: 'server' }, 500); }
       }
       if (route.startsWith('/shop/')) {
         // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)

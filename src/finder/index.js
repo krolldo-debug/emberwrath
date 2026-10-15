@@ -11,7 +11,7 @@ import { createFinderPanel } from './FinderPanel.js';
 export function installFinder(game) {
   const finder = new FinderService(game);
   game.finder = finder;
-  game.panels.register('finder', (session) => createFinderPanel(session), { title: 'Dungeonsuche' });
+  game.panels.register('finder', (session, params) => createFinderPanel(session, params), { title: 'Dungeonsuche' });
   game.addSessionSystem('finder', (session) => {
     const fs = new FinderSession(session, finder);
     finder.session = fs; // laufende Sitzung (Party, HUD) – für Tests und andere Bereiche lesbar

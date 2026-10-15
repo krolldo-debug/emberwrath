@@ -22,7 +22,8 @@ import { xpInfo, equipmentBonus, trackedQuests, trackedQuestId, questTarget, npc
 // Details: src/progression/README.md
 export function installProgression(game) {
   registerProgressionContent(game.content);
-  const logic = registerProgressionState(game.state);
+  // Würfel für Beute und Belohnungen: online vom Fortschrittsbuch (src/ledger), sonst Math.random
+  const logic = registerProgressionState(game.state, { roll: (label) => game.ledger?.roll(label) ?? Math.random });
 
   const state = game.state, content = game.content;
   let system = null;

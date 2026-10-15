@@ -64,7 +64,7 @@ export class World {
     this.boss = null;
     this.prompt = null;
 
-    const level = LEVELS[zone.level] ?? LEVELS2[zone.level] ?? LEVELS3[zone.level];
+    const level = LEVELS[zone.level] ?? LEVELS2[zone.level] ?? LEVELS3[zone.level] ?? session.content?.find('level', zone.level);
     if (!level) throw new Error(`Level ${zone.level} unbekannt`);
     this.dungeon = level.kind === 'outdoor' ? (takePrebuilt(level) ?? new Outdoor(level)) : new Dungeon(level);
     this.decals = new Decals(this.dungeon.pixelW, this.dungeon.pixelH);
@@ -114,7 +114,10 @@ export class World {
     }
 
     const L = CONFIG.lighting;
-    this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: L.heroLightRadius, color: L.heroLightColor, intensity: level.kind === 'outdoor' ? 0.6 : 0.85, flicker: 0.05, bloom: 0 }));
+    // Heldenlicht nur in Dungeons (dort sonst zu dunkel); draußen lag es als heller Kreis um den Helden. Dort hellt
+    // stattdessen das Figurenlicht nur Held und Mitspieler auf, der Boden bleibt dunkel.
+    this.figureLight = level.kind === 'outdoor' ? FIGURE_LIGHT : 0;
+    if (level.kind !== 'outdoor') this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: L.heroLightRadius, color: L.heroLightColor, intensity: 0.85, flicker: 0.05, bloom: 0 }));
     // Figuren-Frames entstehen aufgeschoben (gfx/Sprite.js LazyFrame); der Rest wird nach dem Betreten in Häppchen gebaut
     this.spriteWarm = new SpriteWarmer(this);
   }
@@ -379,7 +382,8 @@ export class World {
     for (const d of drawables) d.render(ctx, cx, cy);
     this.particles.drawLit(ctx, cx, cy);
 
-    this.lighting.apply(ctx, cx, cy, this.lights);
+    const figs = this.figureLight ? drawables.filter((d) => d === this.hero || d.team === 'remote') : null;
+    this.lighting.apply(ctx, cx, cy, this.lights, figs?.length ? { ...this.figureLight, paint: (g) => paintFigures(g, figs, cx, cy) } : null);
 
     // Emissive-Pass: alles, was selbst leuchtet
     this.dungeon.renderEmissive?.(ctx, cx, cy, this.time);
@@ -397,5 +401,15 @@ export class World {
       ctx.strokeStyle = 'rgba(80,160,255,0.6)';
       for (const b of this.dungeon.boxes) if (!b.off) ctx.strokeRect(b.x0 - cx, b.y0 - cy, b.x1 - b.x0, b.y1 - b.y0);
     }
+  }
+}
+
+// Figurenlicht draußen: Licht in Form von Held und Mitspielern (gfx/Lighting.js apply), kein Kreis am Boden
+const FIGURE_LIGHT = { color: CONFIG.lighting.heroLightColor, intensity: 0.5 };
+function paintFigures(g, figs, cx, cy) {
+  for (const d of figs) {
+    if (d.drawSprite) { d.drawSprite(g, cx, cy); continue; }
+    const f = d.animator?.frame;
+    if (f) f.draw(g, d.x - cx, d.y - cy, { flip: d.facing < 0, alpha: d.alpha ?? 1 });
   }
 }

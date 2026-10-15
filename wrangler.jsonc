@@ -31,12 +31,14 @@
     "bindings": [
       { "name": "ZONE_SHARD", "class_name": "ZoneShard" },
       { "name": "DIRECTORY", "class_name": "Directory" },
-      { "name": "DUNGEON_FINDER", "class_name": "DungeonFinder" }
+      { "name": "DUNGEON_FINDER", "class_name": "DungeonFinder" },
+      { "name": "PVP_ARENA", "class_name": "PvpArena" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ZoneShard", "Directory"] },
-    { "tag": "v2", "new_sqlite_classes": ["DungeonFinder"] }
+    { "tag": "v2", "new_sqlite_classes": ["DungeonFinder"] },
+    { "tag": "v3", "new_sqlite_classes": ["PvpArena"] }
   ],
   // Support-Formular: Mail an die geprüfte Zieladresse aus Email Routing (SUPPORT_TO).
   "send_email": [{ "name": "SUPPORT_MAIL" }],

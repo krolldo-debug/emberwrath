@@ -1429,3 +1429,62 @@ html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-
 body:has(.ef-panel-host) .hud-banner[data-kind]::before { display: none; }
 .ef-touch:not(.ef-portrait) .hud-banner[data-kind="legendary"] { padding: 14px 26px 15px; }
 .ef-touch .hud-banner[data-kind="legendary"]::before { width: auto; height: auto; margin: 0; }
+
+/* ===================== Handy quer (15.10.): aufgeräumtes HUD =====================
+   Gilt nur für Touch im Querformat bis 500 px Höhe (Handys); Desktop und Tablet bleiben unverändert.
+   Kein Questhinweis und keine Gebietsanzeige (Gold bleibt), Inventar als eigener Knopf neben dem Chat,
+   Shop direkt in der Burger-Liste, Aktionsknöpfe dicht in einem Raster aus 48-px-Feldern (4 px Abstand). */
+.hud-bag-btn { display: none; }
+html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [data-action="worlds"]) { display: none; }
+@media (max-height: 500px) {
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-quest-hint,
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-zone-name,
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-zone-sub,
+  html.ef-touch:not(.ef-portrait) .ef-hud .net-world { display: none; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-gold { margin-top: 0; }
+
+  /* Inventar rechts neben dem Chat (Chat 226 px vom Rand); ohne Chat (Dungeon) rückt es an dessen Platz */
+  html.ef-touch:not(.ef-portrait) .net-chat-btn { width: 44px; height: 44px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn {
+    display: grid; place-items: center; position: fixed; inset: auto; z-index: 1; pointer-events: auto; cursor: pointer;
+    left: calc(env(safe-area-inset-left, 0px) + 276px); top: calc(env(safe-area-inset-top, 0px) + 8px);
+    width: 44px; height: 44px; padding: 0; border-radius: 2px; border: 2px solid var(--ef-panel-edge);
+    background: rgba(14, 8, 22, 0.8); -webkit-tap-highlight-color: transparent;
+  }
+  html.ef-touch:not(.ef-portrait):not(:has(.net-chat-btn:not([hidden]))) .ef-hud .hud-bag-btn { left: calc(env(safe-area-inset-left, 0px) + 226px); }
+  /* Bossleiste oder Arenagegner oben in der Mitte: Inventar rückt unter das Heldenfeld, sonst läge es auf der Leiste */
+  html.ef-touch:not(.ef-portrait):has(.hud-boss.show, .pv-top:not([hidden])) .ef-hud .hud-bag-btn {
+    left: calc(env(safe-area-inset-left, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 92px);
+  }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn img { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55)); }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn:active { border-color: var(--ef-gold); }
+
+  /* Burger-Liste: Inventar hat jetzt seinen Knopf, dafür stehen Welt (Weltwechsel, Spielerliste) und Shop hier (im Menü entfällt er) */
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn[data-action="inventory"] { display: none; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [data-action="worlds"]):not(.hidden) { display: flex; }
+  html.ef-touch:not(.ef-portrait) .menu-panel .menu-shop { display: none; }
+  /* Sieben Einträge passen so auch bei 360 px Höhe ohne Scrollen unter den Knopf */
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list { gap: 3px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn { height: 36px; }
+
+  /* Aktionsknöpfe: Raster 4 × 3 Felder (Spalten von rechts, Zeilen von unten), Angriff belegt 2 × 2 in der Ecke.
+     oben:   Interagieren | Fähigkeit 3 | Fähigkeit 4 | Reittier
+     Mitte:  Trank        | Fähigkeit 2 | Angriff
+     unten:  Ausweichen   | Fähigkeit 1 | Angriff */
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-actions { width: 204px; height: 152px; transform: scale(var(--touch-scale, 1)); }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot { width: 48px; height: 48px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot.big { width: 88px; height: 88px; right: 6px; bottom: 6px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot.big img { width: 46px; height: 46px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="skill1"] { right: 104px; bottom: 0; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="skill2"] { right: 104px; bottom: 52px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="skill3"] { right: 104px; bottom: 104px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="skill4"] { right: 52px; bottom: 104px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="mount"] { right: 0; bottom: 104px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="dodge"] { right: 156px; bottom: 0; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="potion"] { right: 156px; bottom: 52px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="interact"] { right: 156px; bottom: 104px; }
+  /* Eine Form im Raster: Ausweichen, Trank, Reittier und Interagieren als abgerundete Quadrate wie die Fähigkeiten */
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot:is([data-action="dodge"], [data-action="potion"], [data-action="mount"], [data-action="interact"]) { border-radius: 12px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="dodge"] img,
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="interact"] img { width: 30px; height: 30px; }
+}

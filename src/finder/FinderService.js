@@ -80,6 +80,7 @@ export class FinderService {
     if (!zone || !d) return { ok: false, error: 'Unbekannter Dungeon.' };
     if (!d.open) return { ok: false, error: `${d.name} ist ab Stufe ${Math.max(1, d.min - 2)} erreichbar.` };
     if (!roleAllowed(role, c.classId)) return { ok: false, error: `${ROLES[role]?.name ?? 'Diese Rolle'} können nur Krieger übernehmen.` };
+    if (this.game.pvp?.busy) return { ok: false, error: 'Du bist gerade in der Glutarena.' };
     if (this.state === 'active') this.leave(true);
     this.origin = this.#here() ?? this.origin;
     this.req = { dungeonId, role, since: Date.now() };

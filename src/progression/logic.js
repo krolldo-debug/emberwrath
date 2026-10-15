@@ -341,7 +341,9 @@ function mergeStacks(slots) {
 }
 
 // --- Registrierung
-export function registerProgressionState(state, { rng = Math.random } = {}) {
+// roll(label): Würfel für eine Belohnung ('loot', 'trial', 'daily', 'board'). Online liefert das Fortschrittsbuch
+// (src/ledger) den Würfel des Servers, damit er die Beute nachrechnen kann; ohne roll gilt rng.
+export function registerProgressionState(state, { rng = Math.random, roll = null } = {}) {
   const emptyStats = () => ({ kills: 0, bossKills: 0, eliteKills: 0, questsCompleted: 0, goldEarned: 0, itemsLooted: 0, crafted: 0, epicFound: 0, legendaryFound: 0, byType: {} });
 
   state.defineSlice('progress', {
@@ -429,7 +431,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
     return r;
   }, opts);
   // Hilfen für endgame.js (Bank, Schmiede, Glutprüfungen)
-  const helpers = { def, rng, bag, addItem, removeItem, takeFromSlot, addGold, fitsAll, capacityFor, grantXp, pickEquipment };
+  const helpers = { def, rng, roll: roll ?? (() => rng), bag, addItem, removeItem, takeFromSlot, addGold, fitsAll, capacityFor, grantXp, pickEquipment };
 
   // --- Erfahrung
   def('progress:grantXp', (s, { amount, source }, ctx) => grantXp(s, ctx, amount | 0, source), auth);
@@ -797,7 +799,7 @@ export function registerProgressionState(state, { rng = Math.random } = {}) {
       ? { chest: String(id ?? 'chest'), level: lvl }
       : { type: id, level: lvl, family: family ?? e?.family, elite: elite ?? e?.elite, boss: isBoss ?? e?.boss, bossId: bossId ?? e?.bossId ?? (isBoss ? id : undefined), rareId, champion: !!champion };
     if (inTrial(s)) enemy.trial = true;
-    const drops = rollLoot(enemy, { rng, classId: s.slices.character?.classId ?? null, questNeed: questNeed(s, ctx) });
+    const drops = rollLoot(enemy, { rng: helpers.roll('loot'), classId: s.slices.character?.classId ?? null, questNeed: questNeed(s, ctx) });
     // Bossbeute (Boss oder Bosstruhe): bleibt sie liegen, kommt sie beim Verlassen der Zone ins Postfach (src/mail)
     const boss = source === 'chest' ? (String(enemy.chest).startsWith('boss') ? true : null) : enemy.boss ? enemy.bossId ?? enemy.type : null;
     const out = [];

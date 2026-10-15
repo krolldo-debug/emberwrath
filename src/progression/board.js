@@ -162,7 +162,8 @@ export function registerBoardState(state, h) {
     b.weekClaimed = true;
     h.addGold(s, ctx, chest.gold, 'board:week');
     for (const m of chest.mats) h.addItem(s, ctx, m.itemId, m.qty, 'quest', { overflow: true });
-    const gear = h.pickEquipment({ level, rarity: h.rng() < chest.gear.rare ? 'rare' : 'uncommon', classId: s.slices.character?.classId ?? null, rng: h.rng });
+    const rng = h.roll('board');
+    const gear = h.pickEquipment({ level, rarity: rng() < chest.gear.rare ? 'rare' : 'uncommon', classId: s.slices.character?.classId ?? null, rng });
     if (gear) h.addItem(s, ctx, gear, 1, 'quest', { overflow: true });
     ctx.bus.emit('board:changed', { week: true });
     return { ok: true, gold: chest.gold, gear };
