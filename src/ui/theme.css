@@ -1503,10 +1503,25 @@ html.ef-touch:not(.ef-portrait) .ef-hud .hud-frame {
 html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu { right: calc(var(--ef-edge-r) + 8px); top: calc(env(safe-area-inset-top, 0px) + var(--ef-edge-t) + 8px); }
 /* Talentpunkt-Punkt am Menüknopf innen statt über der Ecke (die gerundete Bildschirmecke schnitte ihn sonst an) */
 html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu-toggle > .hud-dot { right: 3px; top: 3px; }
-/* EP-Leiste mittig und in beiden Drehlagen gleich breit; endet vor den Aktionsknöpfen, auch wenn diese der Kamera ausweichen */
+/* EP-Leiste mittig und in beiden Drehlagen gleich breit; endet vor den Aktionsknöpfen (204 px, auch wenn sie der Kamera
+   ausweichen). Auf kleinen Schirmen (iPhone SE) rückt sie nach links, damit sie mindestens 240 px breit bleibt. */
 html.ef-touch:not(.ef-portrait) .ef-hud .hud-xp-wrap {
-  left: calc(30% + var(--ef-safe-l) + var(--ef-safe-r) - var(--ef-edge-l) - var(--ef-edge-r));
-  right: calc(30% + var(--ef-safe-l) + var(--ef-safe-r) - var(--ef-edge-l) - var(--ef-edge-r));
+  --xp-r: max(30%, calc(var(--ef-safe-l) + var(--ef-safe-r) - var(--ef-edge-l) - var(--ef-edge-r) + 204px * var(--touch-scale, 1) + 14px));
+  right: var(--xp-r); left: max(0px, min(var(--xp-r), calc(100% - var(--xp-r) - 240px)));
+}
+/* Bossleiste und Arenagegner zwischen Heldenfeld und Gold, nie darüber */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-boss { max-width: calc(100% - 2 * (max(var(--ef-edge-l), var(--ef-edge-r)) + 240px) - 60px); }
+html.ef-touch:not(.ef-portrait) #ui .pv-top { max-width: calc(100% - 2 * (max(var(--ef-edge-l), var(--ef-edge-r)) + 240px)); }
+/* Schmale Querformate (iPhone SE, 8): Leiste vom Heldenfeld bis zur Minimap, das Gold ruht so lange */
+@media (max-width: 720px) {
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-boss {
+    left: calc(var(--ef-edge-l) + 226px); right: calc(var(--ef-edge-r) + 158px); width: auto; max-width: none; transform: none;
+  }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-boss-name { white-space: nowrap; }
+  html.ef-touch:not(.ef-portrait) #ui .pv-top {
+    left: calc(var(--ef-edge-l) + 226px); right: calc(var(--ef-edge-r) + 158px); width: auto; max-width: none; transform: none;
+  }
+  html.ef-touch:not(.ef-portrait):has(.hud-boss.show, .pv-top:not([hidden])) .ef-hud .hud-zone { visibility: hidden; }
 }
 html.ef-touch:not(.ef-portrait) .ef-hud .hud-actions { right: calc(var(--ef-safe-r) + 6px); }
 html.ef-touch:not(.ef-portrait) .net-chat-btn { left: calc(var(--ef-edge-l) + 226px); top: calc(env(safe-area-inset-top, 0px) + var(--ef-edge-t) + 8px); }
