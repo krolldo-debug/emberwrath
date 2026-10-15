@@ -64,7 +64,7 @@ export class World {
     this.boss = null;
     this.prompt = null;
 
-    const level = LEVELS[zone.level] ?? LEVELS2[zone.level] ?? LEVELS3[zone.level];
+    const level = LEVELS[zone.level] ?? LEVELS2[zone.level] ?? LEVELS3[zone.level] ?? session.content?.find('level', zone.level);
     if (!level) throw new Error(`Level ${zone.level} unbekannt`);
     this.dungeon = level.kind === 'outdoor' ? (takePrebuilt(level) ?? new Outdoor(level)) : new Dungeon(level);
     this.decals = new Decals(this.dungeon.pixelW, this.dungeon.pixelH);

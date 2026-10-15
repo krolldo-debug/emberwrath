@@ -1,0 +1,117 @@
+/* Glutarena (src/pvp): Reiter im Fenster der Dungeonsuche, Gegnerleiste, Gong, Ergebnis.
+   Stil wie die Dungeonsuche (src/finder/finder.css): Pixelrahmen, Gold für Gewähltes, wenig Text. */
+
+/* ------------------------------------------------------------ Reiter im Kopf des Fensters */
+.fd-tabs { flex: 1; display: flex; gap: 4px; min-width: 0; }
+.fd-tab {
+  flex: 0 1 auto; padding: 4px 10px 6px; cursor: pointer; white-space: nowrap;
+  background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ef-muted);
+}
+.fd-tab[aria-selected="true"] { color: var(--ef-gold); border-bottom-color: var(--ef-gold); }
+.fd-tab:hover { color: var(--ef-text); }
+.fd-tabs .fd-tab.fd-title { flex: 0 1 auto; }
+
+/* ------------------------------------------------------------ Arena-Reiter */
+.pv-pick { flex: 1 1 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; min-height: 0; }
+.pv-me {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 8px 12px; text-align: center;
+  background: radial-gradient(circle at 50% 30%, #2a1a2a, #120a18 70%); border: 1px solid #3a2530;
+}
+.pv-crest { width: 64px; height: 64px; image-rendering: pixelated; margin-bottom: 2px; }
+.pv-league { font: 700 16px/1.1 var(--ef-font-title); letter-spacing: 0.06em; }
+.pv-big { font: 700 28px/1 var(--ef-font); color: var(--ef-text); font-variant-numeric: tabular-nums; }
+.pv-next, .pv-wl, .pv-season, .pv-daily { font-size: 12px; color: var(--ef-muted); }
+.pv-wl { color: var(--ef-text); margin-top: 4px; }
+.pv-right { display: flex; flex-direction: column; min-height: 0; }
+.pv-top10 { flex: 1 1 auto; min-height: 0; }
+.pv-board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pv-board li {
+  display: grid; grid-template-columns: 22px 18px minmax(0, 1fr) auto; align-items: center; gap: 6px;
+  padding: 4px 8px; background: rgba(255, 255, 255, 0.03); font-size: 13px;
+}
+.pv-board li.me { background: rgba(232, 194, 90, 0.12); box-shadow: inset 2px 0 0 var(--ef-gold); }
+.pv-board li.pv-empty { display: block; color: var(--ef-muted); background: none; padding: 6px 0; }
+.pv-rank { color: var(--ef-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pv-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-pts { color: var(--ef-gold); font-variant-numeric: tabular-nums; }
+.pv-emblem { image-rendering: pixelated; flex: 0 0 auto; }
+.pv-queue { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 12px; text-align: center; }
+.pv-queue .fd-h { margin: 0; }
+.pv-queue .fd-foot { margin-top: 2px; }
+.pv-queue .fd-go { margin-top: 0; }
+
+@media (max-height: 460px) {
+  .pv-pick { grid-template-columns: 180px minmax(0, 1fr); gap: 12px; }
+  .pv-me { padding: 6px 6px 8px; gap: 2px; }
+  .pv-crest { width: 48px; height: 48px; }
+  .pv-big { font-size: 22px; }
+  .pv-board li { padding: 2px 8px; }
+  .pv-board li:nth-child(n+7) { display: none; }
+}
+@media (max-height: 380px) { .pv-board li:nth-child(n+6) { display: none; } .pv-next { display: none; } }
+@media (max-width: 520px) { .pv-pick { grid-template-columns: 1fr; } .pv-top10 { display: none; } }
+
+/* ------------------------------------------------------------ Gegner im Kampf (Platz der Boss-Leiste) */
+#ui .pv-top {
+  position: fixed; z-index: 2; pointer-events: none;
+  left: 50%; transform: translateX(-50%); top: max(6px, calc(50% - var(--view-h) / 2 + var(--hud-gap, 10px)));
+  width: min(380px, 40vw); display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: center;
+  font: 600 13px/1.2 var(--ef-font); color: var(--ef-text);
+}
+.pv-top[hidden] { display: none !important; }
+.pv-foe { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.pv-name { color: #ff9a80; font: 700 15px/1.1 var(--ef-font-title); letter-spacing: 0.05em; text-shadow: 0 1px 0 #000, 0 0 10px rgba(200, 30, 30, 0.7); }
+.pv-meter { height: 14px; }
+.pv-meter .hud-bar-text { font-size: 11px; }
+.pv-timer {
+  align-self: center; min-width: 54px; padding: 1px 8px; margin-top: 1px;
+  font: 700 13px/1.2 var(--ef-font); color: var(--ef-text); font-variant-numeric: tabular-nums;
+  background: rgba(10, 6, 14, 0.78); border: 1px solid #3a2530; text-shadow: 0 1px 0 #000;
+}
+.pv-timer.storm { color: #ffb070; border-color: #a0461a; box-shadow: 0 0 8px rgba(240, 122, 28, 0.45); animation: pv-storm 1s steps(2) infinite; }
+@keyframes pv-storm { 50% { color: #ffe08a; } }
+
+/* ------------------------------------------------------------ Gong */
+#ui .pv-count {
+  position: fixed; z-index: 3; pointer-events: none; left: 50%; top: 38%; transform: translate(-50%, -50%);
+  font: 700 64px/1 var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.04em;
+  text-shadow: 0 3px 0 #0b0710, 0 0 18px rgba(240, 122, 28, 0.7);
+  animation: pv-pop 1s steps(6) infinite;
+}
+#ui .pv-count.go { color: #ffe08a; font-size: 48px; animation: none; }
+.pv-count[hidden] { display: none !important; }
+@keyframes pv-pop { 0% { transform: translate(-50%, -50%) scale(1.25); } 30%, 100% { transform: translate(-50%, -50%) scale(1); } }
+
+/* ------------------------------------------------------------ Ergebnis */
+#ui .pv-result {
+  position: fixed; z-index: 6; pointer-events: auto; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(400px, calc(100vw - 24px)); padding: 14px 18px 16px; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  color: var(--ef-text); font: 400 14px/1.35 var(--ef-font); background: #120a18;
+}
+.pv-result[hidden] { display: none !important; }
+.pv-title { margin: 0; font: 700 28px/1.1 var(--ef-font-title); letter-spacing: 0.06em; color: var(--ef-text); }
+.pv-result.win .pv-title { color: var(--ef-gold); text-shadow: 0 0 14px rgba(240, 160, 40, 0.5); }
+.pv-result.loss .pv-title { color: #d0706a; }
+.pv-why { margin: -2px 0 0; font-size: 13px; color: var(--ef-muted); }
+.pv-rating { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.pv-rating.pending { color: var(--ef-muted); }
+.pv-tier { font: 700 15px/1 var(--ef-font-title); letter-spacing: 0.04em; }
+.pv-num { font-variant-numeric: tabular-nums; }
+.pv-delta { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pv-delta.up { color: #8fe08a; }
+.pv-delta.down { color: #e07a6a; }
+.pv-gold { color: var(--ef-gold); font-weight: 700; }
+.pv-result .pv-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 6px; }
+.pv-result .pv-foot .ef-btn { min-height: 44px; padding: 8px 6px; white-space: nowrap; font: 700 14px/1 var(--ef-font); color: var(--ef-text); cursor: pointer; }
+
+@media (max-height: 460px) {
+  #ui .pv-top { width: min(300px, 36vw); font-size: 12px; }
+  .pv-name { font-size: 13px; }
+  .pv-meter { height: 11px; }
+  #ui .pv-count { font-size: 48px; }
+  .pv-title { font-size: 22px; }
+  #ui .pv-result { top: 56%; padding: 10px 14px 12px; gap: 6px; }
+}
+/* schmale Querformate: Gegnerleiste zwischen eigenem Rahmen und Karte */
+@media (max-width: 700px) { #ui .pv-top { width: 30vw; } }
