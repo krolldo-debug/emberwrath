@@ -271,13 +271,19 @@ async function fight(hub, a, b) {
   ok(rated <= 1, `dasselbe Paar wird nicht beliebig oft gewertet (${rated} weitere)`);
 }
 {
-  // Ohne gespeicherten Charakter kein Zutritt
+  // Gespeicherter Charakter zählt; sonst Angaben des Clients, aber höchstens 8 Helden je Konto und Saison
   const hub = hubOf(memStore(), { profile: async (uid, cid) => (cid === 'cu1' ? { name: 'Echt', level: 30, classId: 'mage', raceId: 'elf' } : null) });
   const a = await join(hub, 'Falsch', 'u1', { queue: false, level: 5 });
-  ok(a.out[0]?.t === 'welcome', 'gespeicherter Charakter: Zutritt (Stufe vom Server)');
-  const s = sock('z'); hub.open(s);
-  await send(hub, s, { t: 'hello', v: PVP_VERSION, token: 'ok:u2', char: { id: 'erfunden', name: 'Fake', level: 40, classId: 'mage', raceId: 'elf' } });
-  ok(s.last('bye')?.reason === 'char', 'erfundener Charakter: abgewiesen');
+  ok(a.out[0]?.t === 'welcome' && hub.conns.get(a).char.name === 'Echt' && hub.conns.get(a).char.classId === 'mage', 'gespeicherter Charakter: Name, Stufe und Klasse vom Server');
+  const n = sock('n'); hub.open(n);
+  await send(hub, n, { t: 'hello', v: PVP_VERSION, token: 'ok:u2', char: { id: 'neu1', name: 'Neuling', level: 20, classId: 'rogue', raceId: 'elf' } });
+  ok(n.out[0]?.t === 'welcome', 'Charakter noch nicht in der Cloud: trotzdem Zutritt');
+  let last = null;
+  for (let i = 2; i <= 9; i++) { last = sock('n' + i); hub.open(last); await send(hub, last, { t: 'hello', v: PVP_VERSION, token: 'ok:u2', char: { id: 'neu' + i, name: 'Held' + i, level: 20, classId: 'rogue', raceId: 'elf' } }); }
+  ok(last.last('bye')?.reason === 'many', 'neunter Held desselben Kontos: abgewiesen');
+  const back = sock('b'); hub.open(back);
+  await send(hub, back, { t: 'hello', v: PVP_VERSION, token: 'ok:u2', char: { id: 'neu1', name: 'Neuling', level: 20, classId: 'rogue', raceId: 'elf' } });
+  ok(back.out[0]?.t === 'welcome', 'bekannter Held desselben Kontos: weiter Zutritt');
 }
 {
   // Bestenliste über die Verbindung ohne Kontoschlüssel und gedrosselt

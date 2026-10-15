@@ -4707,5 +4707,5 @@ export const FR = {
   "Diamantklinge": "Lame de diamant",
   "Erreiche in der Glutarena die Liga Diamant.": "Atteins la ligue Diamant dans l'Arène des Braises.",
   "Erreiche in der Glutarena die Liga Glutmeister.": "Atteins la ligue Maître des Braises dans l'Arène des Braises.",
-  "Dein Held ist noch nicht gespeichert. Versuche es gleich noch einmal.": "Ton héros n'est pas encore sauvegardé. Réessaie dans un instant."
+  "Mit diesem Konto kämpfen schon acht Helden in dieser Saison.": "Huit héros de ce compte combattent déjà cette saison."
 };

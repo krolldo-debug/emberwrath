@@ -43,6 +43,7 @@ const DOT_CLASSES = { rogue: true };
 const EARLY_LEAVE_MS = 5000;   // wer so kurz nach dem Gong (oder davor) aufgibt: zählt wie nicht angetreten
 const PAIR_DAILY = 2;          // gewertete Kämpfe je Paar von Konten und Tag (gegen Absprachen mit Zweitkonten)
 const TOP_EVERY_MS = 2000;
+const MAX_CHARS = 8;           // Helden je Konto (wie account/CharacterListScene.js MAX_CHARACTERS)
 // Schadensbudget je Klasse: Vorrat und Nachfüllen je Sekunde, als Vielfaches von power × pvpDamage(Klasse).
 // Etwa das 1,2-Fache dessen, was die Rechnung ohne Fehlschläge ergibt (src/pvp/test/sim.mjs), damit nichts
 // Echtes abgelehnt wird. Die Obergrenze je Treffer (maxHitDamage) bleibt die eigentliche Sperre.
@@ -166,10 +167,12 @@ export class ArenaHub {
     const raw = m.char && typeof m.char === 'object' ? m.char : {};
     const charId = typeof raw.id === 'string' && ID_RE.test(raw.id) ? raw.id : '';
     if (!charId) { this.#bye(c, 'auth'); return; }
-    // profile: undefined = kein Speicher eingerichtet (Entwicklung), null = Charakter nicht gefunden oder Fehler
-    const stored = this.profile ? await this.profile(user.uid, charId).catch(() => null) : undefined;
+    // Gespeicherter Charakter, falls die Cloud ihn liefert; sonst (noch nicht hochgeladen, Abfrage gescheitert) gelten
+    // die Angaben des Clients. Gegen erfundene Charaktere: höchstens MAX_CHARS Wertungen je Konto und Saison.
+    const stored = this.profile ? await this.profile(user.uid, charId).catch(() => null) : null;
     if (!this.conns.has(c.socket)) return;
-    if (stored === null) { this.#bye(c, 'char'); return; }
+    if (!(await this.#claim(user.uid, charId))) { this.#bye(c, 'many'); return; }
+    if (!this.conns.has(c.socket)) return;
     // Name, Stufe, Klasse und Volk aus dem Speicherstand (Stufe höchstens eine darüber, wie auf dem Welt-Server)
     const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : LEVEL_MAX;
     const char = {
@@ -515,6 +518,16 @@ export class ArenaHub {
     return rec;
   }
 
+  // Charakter für die Saison anmelden; false, wenn das Konto schon MAX_CHARS andere Helden in der Arena hat
+  async #claim(uid, charId) {
+    const key = `a:${seasonAt(this.now()).n}:${uid}`;
+    const list = (await this.store.get(key).catch(() => null)) ?? [];
+    if (list.includes(charId)) return true;
+    if (list.length >= MAX_CHARS) return false;
+    await this.store.put(key, [...list, charId]).catch(() => {});
+    return true;
+  }
+
   async #saveRec(rec) {
     await this.store.put(this.#key(rec.season, rec.uid, rec.charId), rec).catch((e) => console.error('pvp save', e?.message));
     for (const c of this.conns.values()) if (c.uid === rec.uid && c.char?.id === rec.charId) c.rec = rec;
@@ -587,7 +600,7 @@ export class ArenaHub {
 
   #send(c, msg) { try { c.socket.send(JSON.stringify(msg)); } catch { /* Verbindung weg: close() räumt auf */ } }
 
-  #bye(c, reason) { this.#send(c, { t: 'bye', reason }); this.#drop(c, 4000 + ({ auth: 3, version: 2, level: 4, char: 5 }[reason] ?? 1), reason); }
+  #bye(c, reason) { this.#send(c, { t: 'bye', reason }); this.#drop(c, 4000 + ({ auth: 3, version: 2, level: 4, many: 5 }[reason] ?? 1), reason); }
 
   #drop(c, code, reason) {
     this.close(c.socket);

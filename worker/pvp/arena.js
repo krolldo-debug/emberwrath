@@ -8,8 +8,8 @@ import { ArenaHub } from './hub.js';
 //
 // Speicher: Wertungen, Tageszähler und Bestenliste im Speicher des Objekts (SQLite, im Gratis-Tarif enthalten).
 // Keine Datenbank-Migration nötig. Name, Stufe, Klasse und Volk liest der Server aus dem gespeicherten Charakter
-// (Supabase, Secret SUPABASE_SERVICE_ROLE_KEY wie der Welt-Server). Ist der Charakter dort nicht zu finden, gibt es
-// keinen Zutritt (Wertungen sind öffentlich); fehlt das Secret, gelten die Angaben des Clients.
+// (Supabase, Secret SUPABASE_SERVICE_ROLE_KEY wie der Welt-Server); ist er dort (noch) nicht zu finden, gelten die
+// Angaben des Clients (höchstens 8 Helden je Konto und Saison in der Wertung, hub.js #claim).
 //
 // Kosten: Takt (250 ms) nur, solange jemand verbunden ist oder ein Kampf läuft; sonst wird das Objekt entladen.
 // Im Kampf sendet jeder Spieler etwa 8 Zustände je Sekunde, eingehende Nachrichten zählen 20:1 als Anfrage.
@@ -72,18 +72,18 @@ export class PvpArena extends DurableObject {
   }
 }
 
-// Gespeicherter Charakter -> { name, level, classId, raceId } | null (nicht gefunden, Fehler) | undefined (kein Secret) (wie worker/moderation.js loadCharacter, mit Klasse und Volk)
+// Gespeicherter Charakter -> { name, level, classId, raceId } | null (nicht gefunden, Fehler, kein Secret) (wie worker/moderation.js loadCharacter, mit Klasse und Volk)
 async function loadArenaChar(env, uid, charId) {
   const key = String(env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
-  if (!key) return undefined; // ohne Secret (Entwicklung): Angaben des Clients
+  if (!key) return null; // ohne Secret (Entwicklung): Angaben des Clients
   if (!/^[0-9a-f-]{36}$/i.test(uid) || !/^[A-Za-z0-9_-]{1,64}$/.test(String(charId ?? ''))) return null;
   const base = String(env.SUPABASE_URL || ONLINE_CONFIG.supabaseUrl).replace(/\/$/, '');
   try {
     const r = await fetch(`${base}/rest/v1/characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(charId)}&select=name,level,class_id,race_id&limit=1`, {
       headers: { apikey: key, ...(key.startsWith('eyJ') ? { authorization: `Bearer ${key}` } : {}) },
     });
-    if (!r.ok) return null;
+    if (!r.ok) { console.error('pvp profile', r.status); return null; }
     const row = (await r.json())?.[0];
     return row ? { name: String(row.name ?? ''), level: Number(row.level) || 1, classId: row.class_id ?? null, raceId: row.race_id ?? null } : null;
-  } catch { return null; }
+  } catch (e) { console.error('pvp profile', e?.message); return null; }
 }
