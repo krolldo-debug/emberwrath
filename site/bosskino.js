@@ -13,12 +13,13 @@
   const poster = stage?.querySelector('img');
   if (!root || !stage || !poster) return;
   // <bosskino.mjs> – von tools/bosskino.mjs geschrieben, nicht von Hand ändern
-  const META = {"szene":{"W":560,"H":216,"FY":190,"F":2,"X0":-152,"X1":712},"bosse":{"malgareth":{"name":"malgareth","glut":["#fff2c0","#ffb648","#c8420c"],"fokus":[300,290],"fig":{"x":201,"y":23,"w":272,"h":171},"ruhe":[{"r":"hinten","n":8,"ms":170},{"r":"koerper","seq":[0,0,0,1,1,2,2,2,1,1],"ms":210},{"r":"krone","n":6,"ms":100,"dy":[0,-1,-2],"von":"koerper"},{"r":"flamme","n":6,"ms":100}],"moment":{"f":[[0,130],[1,110],[2,110],[3,80],[4,80],[5,80],[6,80],[7,80],[8,80],[9,80],[10,60],[11,50],[12,60],[13,70],[14,90],[15,110],[16,140],[17,140],[18,140],[19,110],[20,130],[21,110],[22,130],[23,120]],"hit":12},"stopp":80,"beben":[[0,3],[2,-2],[-1,1],[1,0]],"warn":{"x0":8,"x1":240,"y":187,"h":7,"dir":-1,"vor":760,"c":["#7a1a08","#c8420c","#ffb648"]},"ereignisse":[{"k":"bild","r":"welle","at":0,"x":-152,"y":187,"w":405,"h":29,"n":35,"ms":60,"z":"boden"},{"k":"bild","r":"blitz","at":0,"x":226,"y":159,"w":41,"h":34,"n":5,"ms":60,"quer":true,"z":"vorn"},{"k":"wand","r":"wand","r2":"wand2","r3":"wand3","at":30,"x":242,"y":193,"dir":-1,"v":300,"weg":328,"w":74,"h":100,"w2":40,"h2":58,"w3":18,"h3":28,"n":6,"ms":70,"abst":8,"nach":680,"z":"vorn"},{"k":"funken","at":0,"x":246,"y":188,"n":34,"r":5,"vx":60,"vy":140,"g":300,"c":["#fff2c0","#ffb648","#e8641a","#a8300a"]},{"k":"funken","at":0,"x":246,"y":189,"n":20,"r":9,"vx":40,"vy":50,"g":80,"c":["#6a5040","#4e3a30","#3a2a24"]}],"schalen":[[70,131],[436,131]],"schale":{"w":16,"h":20,"n":6,"ms":90},"schaleNach":"mitte-glut","teilchen":"asche","dichte":2.2,"nach":"boden-glut","dauer":9.5,"start":2.4,"layers":[{"name":"fern","x":-152,"y":0,"f":0.15,"r":[2176,2030,1728,432]},{"name":"fern-glut","x":286,"y":0,"f":0.15,"glow":{"per":3.6,"lo":0.55,"steps":3},"r":[3114,2462,338,322]},{"name":"mitte","x":-152,"y":0,"f":0.45,"r":[0,2052,1728,432]},{"name":"mitte-glut","x":73,"y":149,"f":0.45,"glow":{"per":4.1,"lo":0.66,"steps":3},"r":[1452,2894,754,132]},{"name":"boden","x":-152,"y":186,"f":1,"r":[0,3026,1728,60]},{"name":"boden-glut","x":230,"y":187,"f":1,"glow":{"per":3.4,"lo":0.6,"steps":3},"r":[2206,3010,488,44]},{"name":"vorn","x":-152,"y":0,"f":1.35,"r":[1728,2462,1386,432]}],"figur":{"fx":151,"fy":167,"r":{"hinten":[0,2484,1552,332],"koerper":[3114,2784,696,314],"krone":[2694,2962,336,44],"flamme":[888,2816,564,142],"moment":[0,0,2176,2052,544,342,4]},"o":{"hinten":[147,2,97,166],"koerper":[66,11,116,157],"krone":[130,5,28,22],"flamme":[63,97,47,71],"moment":[0,0,272,171]}},"fxr":{"welle":[2176,0,810,2030],"wand":[0,2816,888,200],"wand2":[2206,2894,480,116],"wand3":[3810,2462,216,56],"schale":[3810,2518,192,40],"blitz":[2686,2894,410,68]}},"faeulnis":{"glut":["#e2fff6","#7cf0dc","#0a726e"],"fokus":[300,332],"teilchen":"sporen","dichte":3.4,"dauer":9.5,"start":2.2,"name":"faeulnis","fig":{"x":229,"y":22,"w":340,"h":169},"ruhe":[{"n":6,"ms":150,"r":"arm-h"},{"n":8,"ms":170,"r":"koerper"},{"n":6,"ms":150,"r":"arm-v"}],"moment":{"f":[[0,110],[1,100],[2,120],[3,120],[4,120],[5,120],[6,60],[7,60],[8,100],[9,110],[10,130],[11,110],[12,120],[13,140],[14,140],[15,140],[16,200],[17,160]],"hit":8},"nach":"boden-glut","ereignisse":[{"k":"bild","r":"welle","at":0,"x":-149,"y":188,"w":407,"h":28,"n":46,"ms":60,"z":"boden"},{"k":"bild","r":"blitz","at":0,"x":239,"y":172,"w":25,"h":22,"n":4,"ms":60,"quer":true,"z":"vorn"},{"k":"funken","at":0,"x":251,"y":188,"n":22,"r":6,"vx":40,"vy":90,"g":200,"c":["#e2fff6","#7cf0dc","#1cc0ae","#0a726e"]},{"k":"funken","at":0,"x":251,"y":189,"n":16,"r":8,"vx":30,"vy":40,"g":80,"c":["#584c36","#3e3626","#28231a"]},{"k":"bild","r":"dorn","at":100,"x":205,"y":114,"w":40,"h":78,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":180,"x":225,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"dorn2","at":215,"x":180,"y":139,"w":30,"h":54,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":295,"x":195,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"wolke","at":355,"x":155,"y":128,"w":80,"h":64,"n":11,"ms":100,"quer":true,"z":"vorn"},{"k":"funken","at":275,"x":195,"y":184,"n":10,"r":6,"vx":18,"vy":30,"g":0,"c":["#e2fff6","#7cf0dc","#1cc0ae","#0a726e"]},{"k":"bild","r":"dorn","at":330,"x":145,"y":116,"w":40,"h":78,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":410,"x":165,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"dorn2","at":446,"x":120,"y":138,"w":30,"h":54,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":526,"x":135,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"wolke","at":586,"x":95,"y":128,"w":80,"h":64,"n":11,"ms":100,"quer":true,"z":"vorn"},{"k":"funken","at":506,"x":135,"y":184,"n":10,"r":6,"vx":18,"vy":30,"g":0,"c":["#e2fff6","#7cf0dc","#1cc0ae","#0a726e"]},{"k":"bild","r":"dorn","at":561,"x":85,"y":115,"w":40,"h":78,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":641,"x":105,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"dorn2","at":676,"x":60,"y":140,"w":30,"h":54,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":756,"x":75,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"wolke","at":816,"x":35,"y":128,"w":80,"h":64,"n":11,"ms":100,"quer":true,"z":"vorn"},{"k":"funken","at":736,"x":75,"y":184,"n":10,"r":6,"vx":18,"vy":30,"g":0,"c":["#e2fff6","#7cf0dc","#1cc0ae","#0a726e"]},{"k":"bild","r":"dorn","at":792,"x":25,"y":114,"w":40,"h":78,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":872,"x":45,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"dorn2","at":907,"x":0,"y":139,"w":30,"h":54,"n":9,"ms":80,"quer":true,"z":"vorn"},{"k":"funken","at":987,"x":15,"y":188,"n":8,"r":5,"vx":26,"vy":60,"g":220,"c":["#584c36","#3e3626","#464e2a"]},{"k":"bild","r":"wolke","at":1047,"x":-25,"y":128,"w":80,"h":64,"n":11,"ms":100,"quer":true,"z":"vorn"},{"k":"funken","at":967,"x":15,"y":184,"n":10,"r":6,"vx":18,"vy":30,"g":0,"c":["#e2fff6","#7cf0dc","#1cc0ae","#0a726e"]}],"stopp":70,"beben":[[0,3],[2,-2],[-2,1],[1,-1],[-1,1],[1,0],[0,1]],"warn":{"x0":12,"x1":247,"y":187,"h":7,"dir":-1,"vor":650,"c":["#04383a","#0a726e","#7cf0dc"]},"layers":[{"name":"fern","x":-152,"y":0,"f":0.15,"r":[0,3018,1728,432]},{"name":"fern-glut","x":-146,"y":1,"f":0.15,"glow":{"per":3.4,"lo":0.45,"steps":3},"r":[1728,3018,1716,262]},{"name":"mitte","x":-152,"y":97,"f":0.45,"r":[1728,3280,1728,238]},{"name":"mitte-glut","x":-138,"y":134,"f":0.45,"glow":{"per":2.9,"lo":0.4,"steps":3},"r":[0,3842,1694,54]},{"name":"boden","x":-152,"y":186,"f":1,"r":[1684,3782,1728,60]},{"name":"boden-glut","x":-149,"y":194,"f":1,"glow":{"per":2.6,"lo":0.4,"steps":3},"r":[1694,3842,1582,38]},{"name":"vorn","x":-138,"y":174,"f":1.35,"r":[0,3724,1684,84]}],"figur":{"r":{"arm-h":[0,3450,1164,166],"koerper":[814,2028,1788,990,596,330,3],"arm-v":[1884,3518,1344,136],"moment":[814,0,2040,2028,680,338,3]},"o":{"arm-h":[59,69,97,83],"koerper":[42,4,298,165],"arm-v":[29,76,112,68],"moment":[0,0,340,169]}},"fxr":{"blitz":[3644,0,410,68],"dorn":[1164,3518,720,156],"dorn2":[0,3616,540,108],"wolke":[1884,3654,1760,128],"welle":[0,0,814,2576]}},"skalvyr":{"glut":["#ffffff","#9aeefc","#34b8e4"],"fokus":[292,298],"teilchen":"schnee","dichte":5,"dauer":9.5,"start":2.2,"beben":[[0,4],[3,-3],[-3,2],[2,-2],[-2,1],[1,-1],[0,1],[1,0]],"stopp":80,"name":"skalvyr","fig":{"x":167,"y":20,"w":390,"h":171},"ruhe":[{"n":12,"ms":150,"r":"koerper"}],"moment":{"f":[[0,150],[1,170],[2,100],[3,110],[4,110],[5,110],[6,110],[7,110],[8,150],[9,170],[10,190],[11,170]],"hit":8},"nach":"boden-glut","ereignisse":[{"k":"bild","r":"schatten","at":-770,"x":62,"y":176,"w":260,"h":26,"n":20,"ms":40,"quer":true,"z":"boden"},{"k":"bild","r":"reste","at":270,"x":62,"y":176,"w":260,"h":26,"n":11,"ms":150,"quer":true,"z":"boden"},{"k":"bild","r":"welle","at":0,"x":-138,"y":187,"w":661,"h":29,"n":41,"ms":60,"z":"boden"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-20,"x":174,"y":187,"vor":640,"w":18,"h":62,"n":5,"ms":16,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-m","r2":"steckt-m","at":-70,"x":226,"y":188,"vor":640,"w":24,"h":82,"n":5,"ms":26,"sw":60,"sh":88,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-m","r2":"steckt-m","at":-110,"x":160,"y":190,"vor":640,"w":24,"h":82,"n":5,"ms":34,"sw":60,"sh":88,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-130,"x":252,"y":194,"vor":640,"w":18,"h":62,"n":5,"ms":38,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-l","r2":"steckt-l","at":0,"x":190,"y":195,"vor":640,"w":30,"h":104,"n":5,"ms":12,"sw":66,"sh":110,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-40,"x":138,"y":196,"vor":640,"w":18,"h":62,"n":5,"ms":20,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-90,"x":208,"y":197,"vor":640,"w":18,"h":62,"n":5,"ms":30,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"bild","r":"kranz","at":0,"x":62,"y":52,"w":260,"h":150,"n":12,"ms":60,"quer":true,"z":"vorn"},{"k":"funken","at":-520,"x":200,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-460,"x":150,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-400,"x":250,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-340,"x":120,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-280,"x":228,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-220,"x":176,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]}],"warn":null,"layers":[{"name":"fern","x":-152,"y":0,"f":0.15,"r":[2080,2736,1728,432]},{"name":"fern-glut","x":264,"y":7,"f":0.15,"glow":{"per":3.8,"lo":0.55,"steps":3},"r":[3808,0,220,342]},{"name":"mitte","x":-152,"y":0,"f":0.45,"r":[2080,3168,1728,432]},{"name":"mitte-glut","x":-140,"y":0,"f":0.45,"glow":{"per":3.1,"lo":0.5,"steps":3},"r":[0,3636,1696,342]},{"name":"boden","x":-152,"y":186,"f":1,"r":[2080,4252,1728,60]},{"name":"boden-glut","x":341,"y":192,"f":1,"glow":{"per":3.3,"lo":0.4,"steps":3},"r":[3880,466,204,20]},{"name":"vorn","x":-152,"y":0,"f":1.35,"r":[2080,3600,1728,432]}],"figur":{"r":{"koerper":[1322,1368,1998,1368,666,342,3],"moment":[1322,0,2340,1368,780,342,3]},"o":{"koerper":[57,0,333,171],"moment":[0,0,390,171]}},"fxr":{"zapfen-l":[4028,0,60,208],"steckt-l":[2080,4032,660,220],"zapfen-m":[4028,208,48,164],"steckt-m":[2740,4032,600,176],"zapfen-s":[3880,342,36,124],"steckt-s":[3340,4032,540,136],"kranz":[0,2736,2080,900,520,300,4],"schatten":[0,3978,2080,260,520,52,4],"reste":[0,4238,2080,156,520,52,4],"welle":[0,0,1322,2378]}}}};
+  const META = {"szene":{"W":560,"H":216,"FY":190,"F":2,"X0":-152,"X1":712},"reihe":["nerith","skalvyr","malgareth"],"bosse":{"nerith":{"glut":["#e4fff9","#3cc8b8","#0d5f5a"],"fokus":[300,290],"teilchen":"geist","dichte":3,"dauer":9.5,"start":2.2,"stopp":80,"beben":[[0,3],[2,-2],[-2,1],[1,-1],[0,1],[1,0]],"name":"nerith","fig":{"x":216,"y":22,"w":285,"h":169},"ruhe":[{"n":12,"ms":160,"r":"koerper"}],"moment":{"f":[[0,150],[1,130],[2,120],[3,120],[4,120],[5,120],[6,60],[7,70],[8,80],[9,110],[10,160],[11,220],[12,150],[13,150]],"hit":7},"nach":"boden-glut","ereignisse":[{"k":"bild","r":"welle","at":0,"x":-152,"y":187,"w":400,"h":29,"n":37,"ms":60,"z":"boden"},{"k":"bild","r":"krone","at":0,"x":209,"y":100,"w":64,"h":92,"n":9,"ms":70,"quer":true,"z":"vorn"},{"k":"wand","r":"wand","r2":"wand2","r3":"wand3","at":60,"x":227,"y":193,"dir":-1,"v":260,"weg":373,"w":76,"h":72,"w2":30,"h2":22,"w3":18,"h3":12,"n":6,"ms":80,"abst":9,"nach":620,"z":"vorn","einzeln":true,"staub":["#c6eaf6","#6cb8da","#3384ae"]},{"k":"funken","at":0,"x":241,"y":188,"n":36,"r":6,"vx":70,"vy":160,"g":320,"c":["#c6eaf6","#76bcdc","#3886b2","#1a4f78"]},{"k":"funken","at":40,"x":241,"y":189,"n":18,"r":12,"vx":20,"vy":40,"g":0,"c":["#e4fff9","#8cf0e2","#3cc8b8","#0d5f5a"]}],"warn":{"x0":10,"x1":233,"y":187,"h":7,"dir":-1,"vor":700,"c":["#063a48","#0e7888","#a0fff0"]},"schalen":[[84,127],[460,127]],"schale":{"w":16,"h":20,"n":6,"ms":90},"schaleNach":"mitte-glut","blaetter":2,"dims":[[4026,1948],[3872,804]],"layers":[{"name":"fern","x":-152,"y":0,"f":0.15,"r":[1728,432,[1,0,0,1,1]]},{"name":"fern-glut","x":126,"y":19,"f":0.15,"glow":{"per":4.2,"lo":0.45,"steps":3},"r":[992,262,[1,1728,432,1,1]]},{"name":"mitte","x":-152,"y":30,"f":0.45,"r":[1728,372,[1,0,432,1,1]]},{"name":"mitte-glut","x":36,"y":70,"f":0.45,"glow":{"per":3.7,"lo":0.55,"steps":3},"r":[954,152,[1,2720,616,1,1]]},{"name":"boden","x":-152,"y":186,"f":1,"r":[1728,60,[0,912,1804,1,1]]},{"name":"boden-glut","x":267,"y":187,"f":1,"glow":{"per":2.8,"lo":0.45,"steps":3},"r":[360,58,[0,2640,1804,1,1]]},{"name":"vorn","x":-152,"y":0,"f":1.35,"r":[1714,432,[1,1728,0,1,1]]}],"figur":{"r":{"koerper":[366,332,[0,0,676,11,12]],"moment":[570,338,[0,0,0,7,14]]},"o":{"koerper":[85,3,183,166],"moment":[0,0,285,169]}},"fxr":{"wand":[152,144,[0,0,1804,6,6]],"wand2":[60,44,[0,3000,1804,6,6]],"wand3":[36,24,[0,3552,1804,6,6]],"schale":[32,40,[0,3360,1804,6,6]],"krone":[128,184,[1,2720,432,9,9]],"welle":[800,58,[0,0,1340,5,37]]}},"skalvyr":{"glut":["#ffffff","#9aeefc","#34b8e4"],"fokus":[296,298],"teilchen":"schnee","dichte":5,"dauer":9.5,"start":2.2,"beben":[[0,4],[3,-3],[-3,2],[2,-2],[-2,1],[1,-1],[0,1],[1,0]],"stopp":80,"name":"skalvyr","fig":{"x":167,"y":20,"w":356,"h":171},"ruhe":[{"n":12,"ms":150,"r":"koerper"}],"moment":{"f":[[0,150],[1,170],[2,100],[3,110],[4,110],[5,110],[6,110],[7,110],[8,150],[9,170],[10,190],[11,170]],"hit":8},"nach":"boden-glut","ereignisse":[{"k":"bild","r":"schatten","at":-770,"x":62,"y":176,"w":260,"h":26,"n":20,"ms":40,"quer":true,"z":"boden"},{"k":"bild","r":"reste","at":270,"x":62,"y":176,"w":260,"h":26,"n":11,"ms":150,"quer":true,"z":"boden"},{"k":"bild","r":"welle","at":0,"x":-138,"y":187,"w":661,"h":29,"n":41,"ms":60,"z":"boden"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-20,"x":174,"y":187,"vor":640,"w":18,"h":62,"n":5,"ms":16,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-m","r2":"steckt-m","at":-70,"x":226,"y":188,"vor":640,"w":24,"h":82,"n":5,"ms":26,"sw":60,"sh":88,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-m","r2":"steckt-m","at":-110,"x":160,"y":190,"vor":640,"w":24,"h":82,"n":5,"ms":34,"sw":60,"sh":88,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-130,"x":252,"y":194,"vor":640,"w":18,"h":62,"n":5,"ms":38,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-l","r2":"steckt-l","at":0,"x":190,"y":195,"vor":640,"w":30,"h":104,"n":5,"ms":12,"sw":66,"sh":110,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-40,"x":138,"y":196,"vor":640,"w":18,"h":62,"n":5,"ms":20,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"zapfen","r":"zapfen-s","r2":"steckt-s","at":-90,"x":208,"y":197,"vor":640,"w":18,"h":62,"n":5,"ms":30,"sw":54,"sh":68,"mr":1,"z":"vorn"},{"k":"bild","r":"kranz","at":0,"x":62,"y":52,"w":260,"h":150,"n":12,"ms":60,"quer":true,"z":"vorn"},{"k":"funken","at":-520,"x":200,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-460,"x":150,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-400,"x":250,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-340,"x":120,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-280,"x":228,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]},{"k":"funken","at":-220,"x":176,"y":10,"n":10,"r":16,"vx":6,"vy":-30,"g":140,"c":["#ffffff","#9aeefc","#34b8e4","#1670a0"]}],"warn":null,"blaetter":3,"dims":[[4074,1942],[4056,1936],[3640,588]],"layers":[{"name":"fern","x":-152,"y":0,"f":0.15,"r":[1728,432,[1,0,1284,1,1]]},{"name":"fern-glut","x":264,"y":7,"f":0.15,"glow":{"per":3.8,"lo":0.55,"steps":3},"r":[220,342,[1,3640,0,1,1]]},{"name":"mitte","x":-152,"y":0,"f":0.45,"r":[1728,432,[1,1728,1284,1,1]]},{"name":"mitte-glut","x":-140,"y":0,"f":0.45,"glow":{"per":3.1,"lo":0.5,"steps":3},"r":[1696,342,[2,1728,0,1,1]]},{"name":"boden","x":-152,"y":186,"f":1,"r":[1728,60,[1,660,1716,1,1]]},{"name":"boden-glut","x":341,"y":192,"f":1,"glow":{"per":3.3,"lo":0.4,"steps":3},"r":[204,20,[0,3640,1838,1,1]]},{"name":"vorn","x":-152,"y":0,"f":1.35,"r":[1728,432,[2,0,0,1,1]]}],"figur":{"r":{"koerper":[598,342,[1,0,0,6,12]],"moment":[712,342,[0,0,0,5,12]]},"o":{"koerper":[57,0,299,171],"moment":[0,0,356,171]}},"fxr":{"zapfen-l":[60,208,[0,3966,0,1,1]],"steckt-l":[132,220,[1,0,1716,5,5]],"zapfen-m":[48,164,[0,4026,0,1,1]],"steckt-m":[120,176,[1,3456,1284,5,5]],"zapfen-s":[36,124,[0,4026,164,1,1]],"steckt-s":[108,136,[1,3456,1460,5,5]],"kranz":[520,300,[1,0,684,7,12]],"schatten":[520,52,[2,0,432,7,20]],"reste":[520,52,[0,0,1838,7,11]],"welle":[1322,58,[0,0,1026,3,41]]}},"malgareth":{"name":"malgareth","glut":["#fff2c0","#ffb648","#c8420c"],"fokus":[300,290],"fig":{"x":209,"y":23,"w":272,"h":171},"ruhe":[{"r":"hinten","n":8,"ms":170},{"r":"koerper","seq":[0,0,0,1,1,2,2,2,1,1],"ms":210},{"r":"krone","n":6,"ms":100,"dy":[0,-1,-2],"von":"koerper"},{"r":"flamme","n":6,"ms":100}],"moment":{"f":[[0,130],[1,110],[2,110],[3,80],[4,80],[5,80],[6,80],[7,80],[8,80],[9,80],[10,60],[11,50],[12,60],[13,70],[14,90],[15,110],[16,140],[17,140],[18,140],[19,110],[20,130],[21,110],[22,130],[23,120]],"hit":12},"stopp":80,"beben":[[0,3],[2,-2],[-1,1],[1,0]],"warn":{"x0":8,"x1":242,"y":187,"h":7,"dir":-1,"vor":760,"c":["#7a1a08","#c8420c","#ffb648"]},"ereignisse":[{"k":"bild","r":"welle","at":0,"x":-152,"y":187,"w":407,"h":29,"n":36,"ms":60,"z":"boden"},{"k":"bild","r":"blitz","at":0,"x":228,"y":159,"w":41,"h":34,"n":5,"ms":60,"quer":true,"z":"vorn"},{"k":"wand","r":"wand","r2":"wand2","r3":"wand3","at":30,"x":244,"y":193,"dir":-1,"v":300,"weg":330,"w":74,"h":100,"w2":40,"h2":58,"w3":18,"h3":28,"n":6,"ms":70,"abst":8,"nach":680,"z":"vorn"},{"k":"funken","at":0,"x":248,"y":188,"n":34,"r":5,"vx":60,"vy":140,"g":300,"c":["#fff2c0","#ffb648","#e8641a","#a8300a"]},{"k":"funken","at":0,"x":248,"y":189,"n":20,"r":9,"vx":40,"vy":50,"g":80,"c":["#6a5040","#4e3a30","#3a2a24"]}],"schalen":[[70,131],[436,131]],"schale":{"w":16,"h":20,"n":6,"ms":90},"schaleNach":"mitte-glut","teilchen":"asche","dichte":2.2,"nach":"boden-glut","dauer":9.5,"start":2.4,"blaetter":2,"dims":[[4070,1948],[4002,1194]],"layers":[{"name":"fern","x":-152,"y":0,"f":0.15,"r":[1728,432,[1,0,0,1,1]]},{"name":"fern-glut","x":286,"y":0,"f":0.15,"glow":{"per":3.6,"lo":0.55,"steps":3},"r":[338,322,[1,3456,0,1,1]]},{"name":"mitte","x":-152,"y":0,"f":0.45,"r":[1728,432,[1,1728,0,1,1]]},{"name":"mitte-glut","x":73,"y":149,"f":0.45,"glow":{"per":4.1,"lo":0.66,"steps":3},"r":[754,132,[1,3232,836,1,1]]},{"name":"boden","x":-152,"y":186,"f":1,"r":[1728,60,[0,890,1832,1,1]]},{"name":"boden-glut","x":230,"y":187,"f":1,"glow":{"per":3.4,"lo":0.6,"steps":3},"r":[488,44,[0,2834,1832,1,1]]},{"name":"vorn","x":-152,"y":0,"f":1.35,"r":[1386,432,[1,0,432,1,1]]}],"figur":{"fx":143,"fy":167,"r":{"hinten":[374,330,[1,0,864,8,8]],"koerper":[182,314,[1,3456,322,3,3]],"krone":[54,44,[0,3322,1832,6,6]],"flamme":[40,148,[1,2992,836,6,6]],"moment":[544,342,[0,0,0,7,24]]},"o":{"hinten":[51,3,187,165],"koerper":[98,11,91,157],"krone":[131,5,27,22],"flamme":[134,94,20,74],"moment":[0,0,272,171]}},"fxr":{"welle":[814,58,[0,0,1368,5,36]],"wand":[148,200,[1,2992,636,6,6]],"wand2":[80,116,[0,0,1832,6,6]],"wand3":[36,56,[0,2618,1832,6,6]],"schale":[32,40,[0,3646,1832,6,6]],"blitz":[82,68,[0,480,1832,5,5]]}}},"v":"6634599ccd"};
   // </bosskino.mjs>
   if (!META) return;
   const S = META.szene;
   const tabs = [...root.querySelectorAll('[role="tab"]')];
   const texts = [...root.querySelectorAll('[data-text]')];
+  tabs.forEach((t) => { if (!META.bosse[t.dataset.boss]) t.hidden = true; });   // Reiter ohne Bilder (noch nicht gebaut) ausblenden
   const ORDER = tabs.map((t) => t.dataset.boss).filter((n) => META.bosse[n]);
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const narrow = matchMedia('(max-width: 820px)');
@@ -56,37 +57,63 @@
   // Die Bühnenhöhe folgt aus d.
   const F = S.F ?? 1;
   const X0 = S.X0 ?? 0, X1 = S.X1 ?? S.W, XW = X1 - X0;   // Hintergründe reichen seitlich über die Szene hinaus (X0 … X1)
-  let dpr = 1, cw = 0, ch = 0, d = 1, e = 1, vw = 0, vh = 0, camX = 0, camY = 0, pw = 0, ox = 0;
+  // Leinwand höchstens 4096 Gerätepixel breit und 8 Megapixel groß (WebKit/Safari zeichnet größere still nicht);
+  // sonst eine Stufe kleiner, eine Leinwand schmaler als die Bühne bekommt den dunklen Rand
+  const CMAX = 4096, CPIX = 8e6;
+  let dpr = 1, cw = 0, ch = 0, d = 1, e = 1, vw = 0, vh = 0, camX = 0, camY = 0, pw = 0, ox = 0, cut = false;
   const layout = (m) => {
     dpr = devicePixelRatio || 1;
     cw = stage.clientWidth;
     const W = Math.round(cw * dpr);
-    const avail = (narrow.matches ? innerHeight * 0.8 : innerHeight < 640 ? innerHeight * 0.92 : innerHeight - 180) * dpr;   // Desktop: Platz für Kopfleiste und Boss-Auswahl
-    const eh = Math.max(1, Math.floor(avail / (F * (S.H - 20))));
+    // Flache Fenster (Handy quer): Bühne und Boss-Auswahl passen zusammen unter die feste Kopfleiste, damit Krone und Kopf
+    // nicht hinter ihr liegen; dafür zeigt die Bühne mindestens 176 Szenenzeilen (Krone bis Boden) und kürzt unten
+    const flat = innerHeight < 640;
+    let avail = (narrow.matches ? innerHeight * 0.8 : innerHeight - 180) * dpr;   // Desktop: Platz für Kopfleiste und Boss-Auswahl
+    if (flat) {
+      const bar = document.querySelector('.top')?.offsetHeight ?? 0;
+      const wahl = root.querySelector('.kino-wahl');
+      const below = wahl ? wahl.offsetHeight + (parseFloat(getComputedStyle(wahl).marginTop) || 0) : 0;
+      avail = Math.max(innerHeight * 0.55, innerHeight - bar - below - 2) * dpr;
+    }
+    const eh = Math.max(1, Math.floor(avail / (F * (flat ? 176 : S.H - 20))));
     const ew = narrow.matches ? Math.max(1, Math.floor(W / (F * 380))) : Math.max(1, Math.ceil(W / (F * (S.W - 16))));
-    e = Math.min(ew, eh); d = e * F;
-    pw = Math.min(W, XW * d); ox = Math.floor((W - pw) / 2);
+    e = Math.min(ew, eh) + 1;
+    do { e--; d = e * F; pw = Math.min(W, XW * d, CMAX); vh = Math.min(S.H, Math.max(flat ? 176 : 0, Math.floor(avail / d))); } while (e > 1 && pw * vh * d > CPIX);
+    ox = Math.floor((W - pw) / 2); cut = pw < Math.min(W, XW * d);
     vw = pw / d;
-    vh = Math.min(S.H, Math.floor(avail / d));
     ch = (vh * d) / dpr;
     stage.style.height = `${ch}px`;
     const fx = m.fokus[narrow.matches ? 1 : 0];
     // breiter als die Szene (Laptops mit e = 1): auf die Szenenmitte, die verlängerten Hintergründe füllen die Bühne;
     // schmaler: Ausschnitt um den Boss (fokus) innerhalb der Szene
     camX = vw >= S.W - 12 ? Math.max(X0, Math.floor((S.W - vw) / 2)) : Math.max(6, Math.min(S.W - 6 - Math.ceil(vw), Math.round(fx - vw / 2)));
-    camY = S.H - vh;
+    // niedriger als die Szene: unten zuerst kürzen (unter dem Boden), Krone und Kopf (fig.y) bleiben im Bild
+    camY = Math.max(0, Math.min(S.H - vh, (m.fig?.y ?? 20) - 4));
   };
   const placePoster = () => {
     layout(META.bosse[ORDER[cur]]);
     Object.assign(poster.style, { width: `${(XW * d) / dpr}px`, height: `${(S.H * d) / dpr}px`, left: `${(ox - (camX - X0) * d) / dpr}px`, top: `${(-camY * d) / dpr}px` });   // Standbild X0 … X1
   };
+  if (META.v && !/[?&]v=/.test(poster.getAttribute('src'))) poster.src = `${IMG}bosskino.webp?v=${META.v}`;   // Standbild passend zur Version
   placePoster();
   let live = null;   // gesetzt, sobald das Canvas zeichnet
   addEventListener('resize', () => (live ? live.size() : placePoster()));
 
-  // ---------- Bilder: ein Atlas je Boss, erst bei Bedarf
+  // ---------- Bilder: je Boss einige Atlasblätter (je ≤ 4096 px Kante, ≤ 8 MP), erst bei Bedarf. Ein Boss zeichnet erst,
+  // wenn alle seine Blätter geladen und dekodiert sind; fehlt eines, bleibt das Standbild bzw. der bisherige Boss.
   const atlases = {};
-  const load = (n) => (atlases[n] ??= new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = `${IMG}bosskino-${n}.webp`; }).catch((er) => { delete atlases[n]; throw er; }));   // Fehlschlag: beim nächsten Mal neu laden
+  // Mit Version (?v=; alte Bilder aus dem Zwischenspeicher passen nicht zu neuen Maßen), in der erwarteten Größe und fertig dekodiert.
+  const sheet = (n, s) => new Promise((ok, no) => {
+    const i = new Image(), want = META.bosse[n].dims?.[s];
+    i.onerror = no;
+    i.onload = () => {
+      if (!want || i.naturalWidth !== want[0] || i.naturalHeight !== want[1]) { no(new Error(`${n}-${s}`)); return; }
+      (i.decode ? i.decode() : Promise.resolve()).then(() => ok(i), no);
+    };
+    i.src = `${IMG}bosskino-${n}-${s}.webp?v=${META.v}`;
+  });
+  const load = (n) => (atlases[n] ??= Promise.all(Array.from({ length: META.bosse[n].blaetter }, (_, s) => sheet(n, s)))
+    .catch((er) => { delete atlases[n]; throw er; }));   // Fehlschlag: beim nächsten Mal neu laden
   const conn = navigator.connection;
   const lean = conn && (conn.saveData || /(^|-)2g/.test(conn.effectiveType ?? ''));
   let wanted = false;
@@ -112,11 +139,11 @@
     const ctx = cv.getContext('2d');
     const rnd = (a, b) => a + Math.random() * (b - a);
     const stepped = (v, n) => Math.round(v * n) / n;
-    let B = null, img = null, T = 0, t = 0, parts = [], kx = 0, ky = 0, shakeT = -1, freeze = 0, mx = 0, my = 0, tmx = 0, tmy = 0, sx = 0, sy = 0;
+    let B = null, imgs = null, T = 0, t = 0, parts = [], kx = 0, ky = 0, shakeT = -1, freeze = 0, mx = 0, my = 0, tmx = 0, tmy = 0, sx = 0, sy = 0;
     let fired = new Set(), lastHit = false, trans = null, nextIdx = -1, busy = false;
     let edge = null;
     const mkEdge = () => {
-      if (vw < XW - 12) { edge = null; return; }
+      if (vw < XW - 12 && !cut) { edge = null; return; }   // Rand nur, wo die Leinwand vor der Bühnenkante endet
       edge = document.createElement('canvas'); edge.width = 4 * d + 4 * F * e; edge.height = cv.height;
       const g = edge.getContext('2d'); g.fillStyle = '#05020a'; g.fillRect(0, 0, 4 * d, cv.height);
       for (let j = 0; j < cv.height / e; j++) for (let i = 0; i < 4 * F; i++) if (!((i + j) & 1)) g.fillRect(4 * d + i * e, j * e, e, e);
@@ -127,18 +154,25 @@
 
     // ---------- Zeichnen in Szenenpixeln
     const off = (f) => [Math.round(sx * f) + kx, Math.round(sy * f) + ky];
-    const blit = (r, ox0, oy0, w, h, x, y, f) => {   // Ausschnitt (ox0, oy0, w, h; Szenenpixel) aus Atlasrechteck r (Feinpixel) an Szenenstelle x, y, Tiefe f
+    const blit = (r, ox0, oy0, w, h, x, y, f) => {   // Ausschnitt (ox0, oy0, w, h; Szenenpixel) aus Atlaseintrag r an Szenenstelle x, y, Tiefe f
+      // r = [Bildbreite, Bildhöhe, [Blatt, x, y, Bilder je Reihe, Anzahl], …] (Feinpixel); ox0/oy0 wählen das Bild
+      // einer waagrechten bzw. senkrechten Folge und den Versatz darin
       const [px, py] = off(f);
       const X = (x - camX - px) * d, Y = (y - camY - py) * d;
       const x0 = Math.max(0, Math.floor(-X / d)), x1 = Math.min(w, Math.ceil((cv.width - X) / d));
       const y0 = Math.max(0, Math.floor(-Y / d)), y1 = Math.min(h, Math.ceil((cv.height - Y) / d));
       if (x1 <= x0 || y1 <= y0) return;
-      let sx = r[0] + ox0 * F, sy = r[1] + oy0 * F;
-      if (r.length > 4) {   // Bildstreifen im Atlas in Reihen umbrochen: [x, y, w, h, Bildbreite, Bildhöhe, Bilder je Reihe]
-        const i = Math.floor((ox0 * F) / r[4]);
-        sx = r[0] + (i % r[6]) * r[4] + (ox0 * F - i * r[4]); sy = r[1] + Math.floor(i / r[6]) * r[5] + oy0 * F;
-      }
-      ctx.drawImage(img, sx + x0 * F, sy + y0 * F, (x1 - x0) * F, (y1 - y0) * F, X + x0 * d, Y + y0 * d, (x1 - x0) * d, (y1 - y0) * d);
+      const fw = r[0], fh = r[1], ix = Math.floor((ox0 * F) / fw), iy = Math.floor((oy0 * F) / fh);
+      let i = ix + iy, c = 2;
+      while (c < r.length - 1 && i >= r[c][4]) { i -= r[c][4]; c++; }
+      const [s, bx, by, per] = r[c], im = imgs[s];
+      if (!im) return;
+      const sx = bx + (i % per) * fw + (ox0 * F - ix * fw), sy = by + Math.floor(i / per) * fh + (oy0 * F - iy * fh);
+      // Quellausschnitt nie über den Bildrand (Safari zeichnet sonst still nichts)
+      const u0 = Math.max(x0, Math.ceil(-sx / F)), u1 = Math.min(x1, Math.floor((im.naturalWidth - sx) / F));
+      const v0 = Math.max(y0, Math.ceil(-sy / F)), v1 = Math.min(y1, Math.floor((im.naturalHeight - sy) / F));
+      if (u1 <= u0 || v1 <= v0) return;
+      ctx.drawImage(im, sx + u0 * F, sy + v0 * F, (u1 - u0) * F, (v1 - v0) * F, X + u0 * d, Y + v0 * d, (u1 - u0) * d, (v1 - v0) * d);
     };
     const dot = (x, y, c, f = 1) => { const [px, py] = off(f); ctx.fillStyle = c; ctx.fillRect((Math.round(x) - camX - px) * d, (Math.round(y) - camY - py) * d, d, d); };
     // Teilchen im Feinraster: Lage auf ganze Feinpixel, Größe s Feinpixel
@@ -190,7 +224,7 @@
           prev.getContext('2d').drawImage(cv, 0, 0);
           trans = { prev, t: 0, c: B.m.glut ?? ['#ffd890', '#f07a1c', '#a8300a'], seed: Math.random() * 99, sparks: 0 };
         }
-        img = im; show(i); B.img = im;
+        imgs = im; show(i);
         if (reduced) draw(); else prefetch();
         if (nextIdx >= 0) { const n = nextIdx; nextIdx = -1; go(n, true); }
       }, () => { busy = false; });
@@ -328,15 +362,15 @@
           }
           if (dist > weg) continue;
           const k = Math.floor(et / e.ms) % e.n, x = e.x + e.dir * dist - (e.w >> 1);
-          blit(r, ((k + 3) % e.n) * e.w, 0, e.w, e.h, x - e.dir * 12, e.y - e.h + 6, 1);   // zweite Säule dahinter, etwas kleiner
+          if (!e.einzeln) blit(r, ((k + 3) % e.n) * e.w, 0, e.w, e.h, x - e.dir * 12, e.y - e.h + 6, 1);   // zweite Säule dahinter, etwas kleiner (einzeln: nur eine)
           blit(r, k * e.w, 0, e.w, e.h, x, e.y - e.h, 1);
           if (Math.random() < 0.7) spawn({ x: x + e.w / 2 + rnd(-8, 8), y: e.y - rnd(6, e.h * 0.8), vx: rnd(-10, 10), vy: -rnd(24, 60), g: 0, wob: 10, max: rnd(0.3, 0.8), f: 1, c: m.glut });
-          if (Math.random() < 0.4) spawn({ x: x + e.w / 2 + rnd(-6, 6), y: e.y - 1, vx: rnd(-20, 20) + e.dir * 10, vy: -rnd(10, 30), g: 80, wob: 0, max: rnd(0.4, 0.8), f: 1, c: ['#6a5040', '#4e3a30', '#3a2a24'] });
+          if (Math.random() < 0.4) spawn({ x: x + e.w / 2 + rnd(-6, 6), y: e.y - 1, vx: rnd(-20, 20) + e.dir * 10, vy: -rnd(10, 30), g: 80, wob: 0, max: rnd(0.4, 0.8), f: 1, c: e.staub || ['#6a5040', '#4e3a30', '#3a2a24'] });   // staub: eigene Farben
         }
       }
     };
     const draw = () => {
-      if (!B || !img) return;
+      if (!B || !imgs) return;
       const m = B.m;
       const mt = reduced ? -1e9 : (T - m.start) * 1000;
       const inMoment = mt >= 0 && mt < momentLen(m);
@@ -344,7 +378,7 @@
       ctx.fillStyle = '#05020a'; ctx.fillRect(0, 0, cv.width, cv.height);
       for (const L of m.layers) {
         ctx.globalAlpha = reduced ? 1 : pulse(L.glow, t);
-        blit(L.r, 0, 0, L.r[2] / F, L.r[3] / F, L.x, L.y, L.f);
+        blit(L.r, 0, 0, L.r[0] / F, L.r[1] / F, L.x, L.y, L.f);
         ctx.globalAlpha = 1;
         if (L.name === m.schaleNach) {
           const sc = m.schale, k = reduced ? 0 : Math.floor((t * 1000) / sc.ms) % sc.n;
@@ -379,7 +413,7 @@
             const v = i < cols ? thr(i, rows - 1 - j) * 1.08 - 0.04 : -1;
             const keep = v > P + 0.06;
             if (keep && a < 0) a = i;
-            if (!keep && a >= 0) { ctx.drawImage(trans.prev, a * bs, j * bs, (i - a) * bs, bs, a * bs, j * bs, (i - a) * bs, bs); a = -1; }
+            if (!keep && a >= 0) { const ww = Math.min((i - a) * bs, trans.prev.width - a * bs), hh = Math.min(bs, trans.prev.height - j * bs); if (ww > 0 && hh > 0) ctx.drawImage(trans.prev, a * bs, j * bs, ww, hh, a * bs, j * bs, ww, hh); a = -1; }   // nie über den Rand
             if (i < cols && !keep && v > P) { ctx.fillStyle = v > P + 0.03 ? trans.c[2] : trans.c[1]; ctx.fillRect(i * bs, j * bs, bs, bs); }
           }
         }
@@ -389,13 +423,13 @@
     const tick = (now) => {
       if (!vis || document.hidden) { on = false; return; }
       const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
-      if (B && img) { update(dt); draw(); }
+      if (B && imgs) { update(dt); draw(); }
       requestAnimationFrame(tick);
     };
     const run_ = () => { if (!reduced && vis && !document.hidden && !on) { on = true; last = 0; requestAnimationFrame(tick); } };
     load(ORDER[cur]).then((im) => {
-      img = im; show(cur); B.img = im; size();
-      draw(); cv.classList.add('on');
+      imgs = im; show(cur); size();
+      draw(); cv.classList.add('on'); poster.style.visibility = 'hidden';   // Standbild nicht neben einer schmaleren Leinwand zeigen
       if (!reduced) prefetch();
       new IntersectionObserver((es) => { vis = es[es.length - 1].isIntersecting; run_(); }).observe(stage);   // letzter Eintrag zählt (mehrere je Aufruf möglich)
       document.addEventListener('visibilitychange', run_);
