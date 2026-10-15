@@ -109,6 +109,9 @@ section { position: relative; }
   width: calc(960px * var(--f)); height: calc(540px * var(--f));
   left: clamp(calc(100% - 960px * var(--f)), calc(var(--ax, 0.5) * 100% - var(--fx, 0.5) * 960px * var(--f)), 0px);
   top: clamp(calc(100% - 540px * var(--f)), calc(var(--ay, 0.5) * 100% - var(--fy, 0.5) * 540px * var(--f)), 0px); }
+/* Bis zum ersten großen Bild (lang.js setzt .vorlauf, site.js nimmt es nach dem LCP weg): Szenen weiter unten nicht laden.
+   Ein verborgenes Bild mit loading="lazy" lädt der Browser nicht; die Rahmen haben feste Maße, es springt nichts. */
+.vorlauf img.shot[loading="lazy"] { display: none; }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -2;
   background: linear-gradient(90deg, rgba(5, 2, 10, 0.92) 0%, rgba(5, 2, 10, 0.8) 30%, rgba(5, 2, 10, 0.35) 46%, rgba(5, 2, 10, 0) 58%),
     linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 18%); }

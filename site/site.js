@@ -21,6 +21,7 @@
     };
     if (document.readyState === 'complete') loaded(); else addEventListener('load', loaded, { once: true });
   });
+  nachErstbild.then(() => doc.classList.remove('vorlauf'));   // Szenen weiter unten freigeben (lang.js, site.css)
 
   // ---------- Links aus der Konfiguration
   const links = { play: cfg.playUrl, login: cfg.loginUrl, register: cfg.registerUrl };
@@ -397,12 +398,17 @@
   // Die Aufnahmen haben die native Auflösung des Spiels (960 × 540). CSS gibt je Bildschirmbreite einen
   // Faktor vor (--f); hier wird er auf ganze Bildschirmpunkte gerundet, so weit erhöht, dass das Bild seinen
   // Rahmen füllt, und der Ausschnitt (--fx/--fy = Bildpunkt, der an die Stelle --ax/--ay des Rahmens soll, sonst in die Mitte) auf ganze Punkte gesetzt.
+  // Im <picture> (Einstieg /welt) ist der Rahmen das Element um das <picture>. data-handy="x b": bis 430 px Breite liefert
+  // das <picture> nur den Streifen x … x+b (gleiche <source>-Bedingung wie hier); gerechnet wird mit dem ganzen Bild,
+  // gezeigt wird der Streifen an seiner Stelle.
   const shots = $$('img.shot');
+  const frameOf = (img) => (img.parentElement.tagName === 'PICTURE' ? img.parentElement.parentElement : img.parentElement);
+  const handy = matchMedia('(max-width: 430px)');
   const mobile = matchMedia('(max-width: 820px)');
   const fitShots = () => {
     const dpr = devicePixelRatio || 1;
     for (const img of shots) {
-      const frame = img.parentElement, cw = frame.clientWidth, ch = frame.clientHeight;
+      const frame = frameOf(img), cw = frame.clientWidth, ch = frame.clientHeight;
       if (!cw || !ch) continue;
       const w = Number(img.getAttribute('width')), h = Number(img.getAttribute('height'));
       const cs = getComputedStyle(img);
@@ -417,7 +423,9 @@
       const ax = parseFloat(cs.getPropertyValue('--ax')) || 0.5, ay = parseFloat(cs.getPropertyValue('--ay')) || 0.5;
       const left = snap(Math.min(0, Math.max(cw - iw, cw * ax - fx * iw)));
       const top = snap(Math.min(0, Math.max(ch - ih, ch * ay - fy * ih)));
-      Object.assign(img.style, { width: `${iw}px`, height: `${ih}px`, left: `${left}px`, top: `${top}px` });
+      const [cx, cb] = img.dataset.handy && handy.matches ? img.dataset.handy.split(' ').map(Number) : [0, w];
+      Object.assign(img.style, { width: `${cb * k}px`, height: `${ih}px`, left: `${left + cx * k}px`, top: `${top}px` });
+      img.classList.add('da');   // ausgerichtet: welt.css zeigt das Einstiegsbild erst jetzt (sonst spränge es)
     }
   };
   if (shots.length) {
@@ -425,7 +433,7 @@
     const queue = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitShots); };
     fitShots();
     addEventListener('resize', queue);
-    if ('ResizeObserver' in window) { const ro = new ResizeObserver(queue); for (const img of shots) ro.observe(img.parentElement); }
+    if ('ResizeObserver' in window) { const ro = new ResizeObserver(queue); for (const img of shots) ro.observe(frameOf(img)); }
   }
 
   // ---------- Figuren und Symbole (img.px): CSS-Maße sind ganzzahlige Vielfache; bei krummer Bildschirmskalierung
