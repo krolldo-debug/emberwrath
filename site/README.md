@@ -68,8 +68,22 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
 - Vorschaubild beim Teilen (`og-teilen.png`, 1200 × 630, auf allen Seiten und Sprachfassungen als og:image und twitter:image): `tools/og.py`
   aus den Paradestreifen. Neues Motiv = neuer Dateiname, sonst zeigen Messenger das alte Bild aus ihrem Zwischenspeicher.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
-- `welt-quest/handel/ritt/gruppe.webp`: ruhige Szenen ohne Kampf (`tools/welt.mjs leben-…`: NPC als Ziel, Reittier, Mitspieler),
-  `welt-dungeon.webp` mit `tools/keyart.mjs faeulnis`. Gespräch auf /welt: Porträts `npc-*` ×1 (96 px).
+- Seite /welt („Von der Glutsenke zum Aschethron“, `welt.html`, `welt.css`, `welt.js`): ein Weg von Stufe 1 bis 40 mit
+  Stufenschildern (welt.js füllt die Spur und schaltet erreichte Schilder um), sechs Etappen abwechselnd links und rechts,
+  dazwischen randlose Bänder (Glutarena ab Stufe 10, Reittier-Parade ab Stufe 20, Mitspieler und Städte) und zwei große
+  Auftritte (Glutschmiede mit Ignaroth, Thronsaal mit Malgareth). Alles hart: Glutkanten aus drei Farbbändern, gezeichnete
+  Rahmen, Knöpfe auf dieser Seite ohne Schein. Szenen `reise-*.webp` (960 × 540) aus `tools/welt.mjs welt-…`
+  (`welt-aufbruch`, `-glutsenke`, `-aschenwald`, `-arena`, `-schlacke`, `-ignaroth`, `-steppe`, `-marsch`, `-frostzinnen`,
+  `-aschethron`; PNG `…-NN.png` je Bild, bestes Bild wählen und verlustfrei nach WebP), `welt-gruppe.webp` aus `leben-gruppe`.
+  Die Glutarena nimmt welt.mjs in `pvp_arena` vor der Nordwand auf (Schmelztiegel, Kohlebecken; Heimweg der Arena abgeschaltet),
+  das Band zeigt sie enger (`.band.nah`, ×2). Dungeon-Marken: Gebiet und Stufe als zwei `<b>` (Umbruch nur vor der Stufe),
+  darunter der Bossname; der Text bleibt in seiner Spalte. Bossfiguren der Dungeon-Marken
+  `tor-*.png` mit `tools/bossfiguren.mjs` (erstes Ruhebild, 1:1, auf der Seite halb). Bildausschnitt je Bild über
+  `--fx/--fy` (Handy `--mx/--my`) am `img.shot`, `--ay` setzt die Stelle im Rahmen (Einstieg: Mitte unter der Kopfleiste).
+  Die Parade dort zeigt keinen Tiernamen (nur für Screenreader).
+- Parade (Startseite und /welt, beide `data-hart`: keine Maske an den Rändern, kein Auslauf unten, einfarbiger Grund):
+  Größe 4 bzw. 3 Bildschirmpunkte je Weltpixel, aber höchstens so groß, dass die Bühne
+  in 60 % der Fensterhöhe passt (Handy quer); sie zeichnet beim Laden und nach Größenänderungen sofort ein Standbild.
 - `gewoelbe.webp`, `gewoelbe-breit.webp`: Titelbild des Spiels als Hintergrund für Support und Newsletter (`tools/gewoelbe.mjs`).
   Die Seite vergrößert sie ganzzahlig und pixelgenau (Klassen ×6/×5/×4, Handy gut ×3, Bosskino ganzzahlig in Gerätepixeln, Parade 4 bzw. 3 Bildschirmpunkte je Weltpixel, Symbole ×2).
 
@@ -89,7 +103,8 @@ node site/tools/bosskino.mjs [malgareth,faeulnis,skalvyr]  # Bosskino: Atlanten,
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
 node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)
-node site/tools/welt.mjs wl leben-quest,leben-handel # Szenen auf /welt
+node site/tools/welt.mjs wl aufbruch,arena,ignaroth # Szenen auf /welt (Ids ohne „welt-“)
+node site/tools/bossfiguren.mjs site/img          # Bossfiguren der Dungeon-Marken auf /welt
 ```
 
 Die Aufnahme hält den Helden unverwundbar, friert für jedes Bild die Spielschleife ein und entfernt Schadenszahlen,

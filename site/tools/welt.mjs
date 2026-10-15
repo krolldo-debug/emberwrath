@@ -29,18 +29,22 @@ export const SCENES = [
   W('welt-glutsenke', { cls: 'warrior', g20: true, zone: 'emberhollow', target: 'type:wolf', amb: 1.3, pos: [700, 440], hero: [-26, 4], foes: [[20, -14], [8, 18], [-58, 12]], keys: [['q', 1400]], light: [[-20, -6, 70, [255, 200, 150], 0.45]] }),
   // Katakomben (13.10.): im Feinraster dunkler – Grundlicht ×1,8 und warmes Licht an beiden Feuerschalen und auf der Gruppe
   W('welt-katakomben', { lightMode: 'soft', cls: 'mage', g20: true, zone: 'catacombs', target: 'type:skeleton', pos: [490, 112], hero: [-28, 6], foes: [[22, -10], [-4, 26], [-54, -4]], keys: [['q', 700]], click: false, cam: [-20, -4], amb: 1.8, grade: 'brightness(1.75) contrast(1.08) saturate(1.1)', light: [[-112, -34, 90, [255, 170, 100], 0.6], [95, 78, 80, [255, 160, 90], 0.6], [-12, 0, 80, [255, 200, 150], 0.5]] }),
-  W('welt-aschenwald', { cls: 'ranger', g20: true, zone: 'ashwood', target: 'type:ash_boar', pos: [440, 240], hero: [-56, 8], foes: [[20, 24], [34, -14]], keys: [['q', 1000], ['r', 1000]], cam: [-24, -14], amb: 2.2, light: [[-50, -6, 70, [255, 200, 150], 0.5], [16, 0, 60, [255, 150, 90], 0.35]] }),
+  W('welt-aschenwald', { lightMode: 'flat', flat: [200, 190, 185], cls: 'ranger', g20: true, zone: 'ashwood', target: 'type:ash_boar', pos: [640, 600], hero: [-56, 8], foes: [[20, 24], [34, -14]], keys: [['q', 1000], ['r', 1000]], cam: [-10, -10], amb: 2.2, light: [[-50, -6, 70, [255, 200, 150], 0.5], [16, 0, 60, [255, 150, 90], 0.35]] }),
   W('welt-tempel', { cls: 'warrior', g20: true, zone: 'sunken_temple', target: 'type:tide_cultist', pos: [836, 178], hero: [-26, 4], foes: [[20, 16]], foeType: 'drowned', keys: [['q', 1600]], cam: [-20, -26], amb: 1.3 }),
-  W('welt-schlacke', { cls: 'mage', g20: true, zone: 'cinder_peaks', target: 'type:fire_imp', pos: [600, 446], hero: [-56, 6], foes: [[16, -16], [12, 20]], keys: [['t', 1200]], cam: [-28, -18] }),
+  W('welt-schlacke', { lightMode: 'flat', flat: [190, 165, 160], cls: 'mage', g20: true, zone: 'cinder_peaks', target: 'type:fire_imp', pos: [600, 446], hero: [-56, 6], foes: [[16, -16], [12, 20]], keys: [['t', 1200]], cam: [-28, -18] }),
   W('welt-schmiede', { cls: 'rogue', g20: true, zone: 'molten_forge', target: 'rare:Glutschwinge', pos: [560, 360], hero: [-64, 12], foes: [[40, 34]], foeType: 'ember_drake', keys: [['r', 1100]], cam: [-20, 6], amb: 1.9, light: [[-46, -4, 70, [255, 190, 140], 0.5], [10, -10, 80, [255, 120, 50], 0.5]] }),
-  W('welt-steppe', { cls: 'warrior', zone: 'ashen_steppe', target: 'type:steppe_raider', pos: [1345, 204], hero: [-24, 4], foes: [[18, 18], [26, -14]], keys: [['q', 1500]], cam: [-50, -28] }),
+  W('welt-steppe', { lightMode: 'flat', flat: [205, 180, 160], cls: 'warrior', zone: 'ashen_steppe', target: 'type:steppe_raider', pos: [1345, 204], hero: [-24, 4], foes: [[18, 18], [26, -14]], keys: [['q', 1500]], cam: [-50, -28] }),
   W('welt-huegelgrab', { cls: 'rogue', zone: 'howling_barrow', target: 'boss', hero: [-48, 12], foes: [], keys: [['r', 1600]], cam: [-20, -22], at: [0, 40], amb: 1.6, light: [[-48, 0, 60, [255, 190, 140], 0.6], [10, -40, 100, [120, 230, 220], 0.4]] }),
-  W('welt-marsch', { cls: 'ranger', zone: 'blighted_marsh', target: 'type:swamp_leech', pos: [330, 372], hero: [-42, 4], foes: [[16, 16], [24, -12]], keys: [['q', 1500]], cam: [0, -10], amb: 1.6, light: [[-42, -6, 46, [230, 220, 190], 0.45]] }),
+  W('welt-marsch', { lightMode: 'soft', cls: 'ranger', zone: 'blighted_marsh', target: 'type:bog_slime', pos: [430, 1230], hero: [-42, 4], foes: [[16, 16], [24, -12]], keys: [['q', 1500]], cam: [10, -10], amb: 2.2, light: [[-42, -6, 46, [230, 220, 190], 0.45]] }),
   W('welt-sporenschlund', { cls: 'mage', zone: 'spore_hollow', target: 'boss', hero: [-92, -2], foes: [], keys: [['t', 1300]], cam: [-36, -22] }),
-  W('welt-frostzinnen', { cls: 'warrior', zone: 'frostspire', target: 'type:frost_wolf', pos: [880, 480], hero: [-26, 4], foes: [[20, -14], [10, 18]], keys: [['q', 1500]], cam: [-20, -26], grade: 'brightness(1.3) contrast(1.1) saturate(1.1)' }),
+  W('welt-frostzinnen', { lightMode: 'flat', flat: [175, 182, 210], cls: 'warrior', zone: 'frostspire', target: 'type:frost_wolf', pos: [880, 480], hero: [-26, 4], foes: [[20, -14], [10, 18]], keys: [['q', 1500]], cam: [-20, -26], grade: 'brightness(1.3) contrast(1.1) saturate(1.1)' }),
   W('welt-reifhoehlen', { cls: 'ranger', zone: 'rime_caverns', target: 'boss', hero: [-66, 16], foes: [], keys: [['r', 1500]], cam: [-24, -14] }),
-  W('welt-gluetoede', { cls: 'mage', zone: 'ember_wastes', target: 'type:cinder_knight', pos: [1250, 690], hero: [-50, 6], foes: [[-104, 14], [26, 28]], keys: [['t', 1300]], cam: [-30, -16] }),
+  W('welt-gluetoede', { lightMode: 'flat', flat: [200, 165, 150], cls: 'mage', zone: 'ember_wastes', target: 'type:cinder_knight', pos: [1250, 690], hero: [-50, 6], foes: [[-104, 14], [26, 28]], keys: [['t', 1300]], cam: [-30, -16] }),
   W('welt-aschethron', { lightMode: 'soft', cls: 'warrior', zone: 'ashen_throne', target: 'boss', hero: [-52, 14], foes: [], keys: [['q', 1500]], cam: [-22, -28], floorPatch: 'biome_throne', amb: 1.7, light: [[-52, 4, 70, [255, 200, 160], 0.55], [-10, -40, 90, [255, 140, 80], 0.35]], grade: 'brightness(1.45) contrast(1.1) saturate(1.05)' }),
+  // Welt-Seite r2 (15.10.): Einstieg „Aufbruch“ (Gruppe bei Maren), Großauftritt Ignaroth, Glutarena (Zweikampf)
+  W('welt-aufbruch', { lightMode: 'soft', cls: 'warrior', zone: 'emberhollow', target: 'npc:elder_maren', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf'], ['rogue', 'dps', 'emberborn']], hero: [54, 40], comps: [[30, 22, 1], [28, 56, 1], [78, 26, 1]], face: 1, foes: [], click: false, keys: [], cam: [40, 18], density: 0.6 }),
+  W('welt-ignaroth', { lightMode: 'soft', cls: 'warrior', zone: 'molten_forge', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-58, 18], comps: [[-88, 2], [-84, 34]], foes: [], keys: [], hideFx: 'ImpactStar|Meteor', cam: [-30, -24], amb: 1.6, light: [[-60, 4, 80, [255, 200, 160], 0.6]], grade: 'brightness(1.4) contrast(1.1) saturate(1.05)' }),
+  W('welt-arena', { cls: 'warrior', zone: 'pvp_arena', target: 'pos', pos: [328, 132], party: [['rogue', 'dps', 'emberborn']], hero: [-20, 4], comps: [[20, -2, -1]], face: 1, foes: [], click: true, keys: [], cam: [0, -20], density: 0.5, lightMode: 'soft', amb: 2.8, light: [[-20, -4, 50, [255, 210, 170], 1], [20, -6, 50, [255, 210, 170], 1], [0, -50, 110, [255, 150, 80], 0.8]], grade: 'brightness(1.6) contrast(1.1) saturate(1.08)' }),  // Bild 00: Klingen treffen sich vor der Nordwand (Schmelztiegel, Kohlebecken)
   // Leben in der Welt (ohne Kampf): Quest, Schmied, Händler, Reiten, Gruppe in der Stadt
   // lightMode 'soft' (13.10.): weiche Punktlichter statt der gestuften Lichtscheiben, die im Standbild als Kästen wirken
   // (13.10.: Händlerin rechts angesprochen – links steht ihr Wagen, der beim Dahinterstehen durchsichtig wird;
@@ -95,6 +99,8 @@ const run = async (sc0) => {
       g.finder.state = 'active';
     }
     if (sc.mount) { g.state.commit('mount:learn', { mountId: sc.mount, shop: true }); g.state.commit('mount:select', { mountId: sc.mount }); }
+    // Glutarena ohne Kampfpartner: die Arena-Sitzung schickt sonst sofort nach Hause (pvp/ArenaSession.js)
+    if (sc.zone === 'pvp_arena' && g.pvp) g.pvp.returnHome = () => {};
     g.scenes.current.travel(sc.zone, sc.spawn ?? 'start'); await wait(2500);
     const w0 = g.scenes.current.world;
     if (sc.party) {
