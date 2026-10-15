@@ -63,7 +63,7 @@ const HINTS = {
   },
   gear: {
     pc: { k: ['I'], t: 'Neue Ausrüstung im Inventar', sel: '[data-action="inventory"]', place: 'above' },
-    touch: { t: 'Neue Ausrüstung im Inventar', sel: '.hud-menu-toggle', place: 'below' },
+    touch: { t: 'Neue Ausrüstung im Inventar', sel: ['.hud-bag-btn', '.hud-menu-toggle'], place: 'below' },
   },
   map: {
     pc: { k: ['M'], t: 'Karte öffnen', sel: '.hud-minimap', place: 'left' },
@@ -219,9 +219,22 @@ export class Guide {
 
   #target(d) {
     if (d.slot) return this.hud.slots?.find((x) => x.action === d.slot)?.el ?? null;
+    // mehrere Ziele: das erste sichtbare (Handy quer: eigener Inventar-Knopf statt Burger)
+    if (Array.isArray(d.sel)) return d.sel.map((q) => this.hud.root.querySelector(q)).find((el) => el?.getBoundingClientRect().width) ?? null;
     if (d.sel) return this.hud.root.querySelector(d.sel) ?? null;
     if (d.bar) return this.hud.barEl ?? null;
     return null;
+  }
+
+  // Umriss der sichtbaren Aktionsknöpfe (der Container selbst hat leere Ecken)
+  #barRect() {
+    let left = Infinity, top = Infinity;
+    for (const sl of this.hud.slots ?? []) {
+      const r = sl.el.getBoundingClientRect();
+      if (!r.width) continue;
+      left = Math.min(left, r.left); top = Math.min(top, r.top);
+    }
+    return left < Infinity ? { left, top } : null;
   }
 
   // harter Schnitt (Pixel-Look: keine Zwischenbilder)
@@ -265,6 +278,12 @@ export class Guide {
       const py = hero && cam ? cr.top + ((hero.y - cam.ry) / CONFIG.viewHeight) * cr.height : H / 2;
       x = Math.max(m, Math.min(W - w - m, px - w / 2));
       y = Math.max(m, Math.min(H - hh - m, py + Math.max(16, cr.height * 0.06)));
+      // Handy quer (wie theme.css: bis 500 px Höhe): nie über den Aktionsknöpfen unten rechts; erst nach links ausweichen, sonst darüber
+      const b = c.touch && H <= 500 && W > H ? this.#barRect() : null;
+      if (b && x + w > b.left - gap && y + hh > b.top - gap) {
+        if (b.left - gap - w >= m) x = b.left - gap - w;
+        else y = Math.max(m, b.top - gap - hh);
+      }
     }
     x = Math.round(x); y = Math.round(y);
     const key = `${x},${y},${ax}`;
