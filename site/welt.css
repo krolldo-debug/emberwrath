@@ -21,11 +21,12 @@
 /* ---------- Einstieg: Aufbruch in der Glutsenke, groß (×3), der Titel darunter auf festem Grund */
 .auftakt-bild { position: relative; overflow: hidden; height: clamp(420px, calc(100svh - 250px), 760px); background: #05020a; --f: 2; }
 @media (min-width: 1200px) { .auftakt-bild { --f: 3; } }
+/* Gruppe in die Mitte des sichtbaren Teils unter der Kopfleiste, damit die Leiste nichts anschneidet */
+.auftakt-bild .shot { --ay: 0.55; }
 @media (min-width: 2200px) { .auftakt-bild { --f: 4; } }
 .auftakt-text { padding-top: clamp(30px, 3.4vw, 48px); text-align: center; }
 .kicker { margin: 0 0 12px; font: 700 13px/1 var(--font); letter-spacing: 0.22em; text-transform: uppercase; color: var(--ember); }
 .auftakt h1 { margin: 0; font: 700 clamp(34px, 4.6vw, 64px)/1.05 var(--font-title); color: #fbe9c6; text-wrap: balance; }
-.auftakt-zeile { margin: 12px 0 0; font-size: clamp(16px, 1.4vw, 18px); color: var(--soft); }
 
 /* ---------- Die Reise: links der Weg (Spur + Füllung, welt.js setzt --fill), rechts Etappen und Bänder */
 .reise { padding: clamp(44px, 4.4vw, 70px) 0 0; }
@@ -65,12 +66,16 @@
 .rahmen::before { top: 0; left: 0; }
 .rahmen::after { bottom: 0; right: 0; }
 
-/* Dungeon-Marke: Boss halb so groß, zwei feste Zeilen, unter dem Text der Etappe */
-.marke { display: flex; align-items: flex-end; gap: 14px; margin: 26px 0 0; padding-top: 16px; border-top: 2px solid #24161c; white-space: nowrap; }
+/* Dungeon-Marke: Boss halb so groß (bei 1 Bildpunkt je CSS-Pixel 1:1); Gebiet und Stufe bilden eine Zeile, die vor der Stufe umbricht
+   (der Punkt bleibt am Gebiet, die Stufe bleibt ganz),
+   darunter der Name. Der Text bleibt in seiner Spalte und bricht dort um, statt ins Bild zu laufen. */
+.marke { display: flex; align-items: flex-end; gap: 14px; margin: 26px 0 0; padding-top: 16px; border-top: 2px solid #24161c; }
 .marke img { flex: none; width: calc(var(--w) / 2); height: calc(var(--h) / 2); }
-.marke > span { padding-bottom: 4px; }
-.marke b { display: block; font: 700 12px/1.2 var(--font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ember); }
-.marke b + span { display: block; margin-top: 5px; font: 700 17px/1.2 var(--font-title); color: #fbe9c6; }
+.marke > span { flex: 1 1 auto; min-width: 0; padding-bottom: 4px; font-size: 12px; line-height: 1.3; }
+.marke b { font: 700 12px/1.3 var(--font); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ember); }
+.marke b:first-child::after { content: "\a0·"; }   /* Punkt fest am Gebiet */
+.marke b + b { white-space: nowrap; }
+.marke .boss { display: block; margin-top: 5px; font: 700 17px/1.2 var(--font-title); color: #fbe9c6; text-wrap: balance; }
 
 /* ---------- Bänder (Glutarena, Reittiere, Mitspieler): Kopf am Weg, Bild randlos, der Weg läuft darunter durch */
 .band-kopf { grid-column: 2; align-self: center; }
@@ -80,9 +85,13 @@
 .voll { grid-column: 1 / -1; position: relative; z-index: 3; margin: 26px calc(50% - 50vw) 0; }
 .band { overflow: hidden; height: clamp(260px, 24vw, 400px); background: #05020a; --f: 3; }
 @media (max-width: 1199px) { .band { --f: 2; } }
+/* Glutarena: enger geschnitten (×2), damit Kämpfer, Schmelztiegel und Kohlebecken das Band füllen */
+@media (min-width: 1200px) and (min-height: 501px) { .band.nah { --f: 2; } }
 .ritt { background: #0a0510; }
 .ritt .parade { margin: 0; }
 .ritt .parade canvas { -webkit-mask-image: none; mask-image: none; }
+/* Unter der Parade kein Name: bei mehreren Tieren im Bild bliebe unklar, welches gemeint ist (Liste bleibt für Screenreader) */
+.ritt .parade-names { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ---------- Großer Auftritt (Ignaroth, Aschethron): Szene über die volle Breite, Schild und Name darunter */
 .auftritt { padding-bottom: clamp(40px, 4vw, 60px); }
@@ -107,7 +116,7 @@
   .et-bild { height: clamp(260px, 56vw, 460px); }
 }
 @media (max-width: 820px) {
-  .auftakt-bild { height: 62svh; min-height: 320px; --f: 1; }
+  .auftakt-bild { height: 62svh; min-height: 320px; --f: 1.5; }
   .auftakt-text { text-align: left; }
   .weg { --rail: 56px; --gap: 12px; }
   .weg > li, .auftritt { padding-bottom: 64px; }
@@ -117,11 +126,9 @@
   .et-art { font-size: 11px; }
   .stimme p { font-size: 17px; }
   .et-bild { height: 76vw; --f: 0.5; }
-  .marke { margin-top: 16px; padding-top: 0; border-top: 0; gap: 10px; white-space: normal; }
-  .marke > span { min-width: 0; }
+  .marke { margin-top: 16px; padding-top: 0; border-top: 0; gap: 10px; }
   .marke b { font-size: 10.5px; letter-spacing: 0.06em; }
-  .marke b + span { font-size: 15px; }
-  .marke b, .marke b + span { text-wrap: balance; }
+  .marke .boss { font-size: 15px; }
   .band { height: 70vw; --f: 0.5; }
   .auftritt-bild { height: 86vw; --f: 0.5; }
   .stufe-ziel { min-width: 72px; font-size: 22px; padding: 10px; }
@@ -129,7 +136,8 @@
 }
 /* Handy quer: jedes Bild passt unter die Kopfleiste */
 @media (min-width: 821px) and (max-height: 500px) {
-  .auftakt-bild { height: calc(100svh - 66px); min-height: 0; --f: 1; }
+  .auftakt-bild { height: calc(100svh - 66px); min-height: 0; --f: 1.5; }
+  .auftakt-bild .shot { --ay: 0.6; }
   .et-bild, .band, .auftritt-bild { height: calc(100svh - 110px); min-height: 0; --f: 1; }
   .stufe { top: 76px; }
 }

@@ -210,7 +210,7 @@
     const near = layer('parade-nah.webp'), far = layer('parade-fern.webp');
     // Spielpixel: Laufhöhe, Gesamthöhe; Lauflinie im nahen Streifen, Versatz der fernen Ebene über der Lauflinie
     const BASE = +parade.dataset.base, H = +parade.dataset.h, NEAR_Y = +parade.dataset.nearY, FAR_Y = +parade.dataset.farY;
-    const hard = parade.hasAttribute('data-hart');   // Welt-Seite: Boden ohne weichen Auslauf
+    const hard = parade.hasAttribute('data-hart');   // data-hart: Boden ohne weichen Auslauf (Startseite und Welt)
     const CAM = 22;   // Kamerafahrt (Spielpixel/s): naher Boden voll, ferne Ebene zu 40 %
     let wp = 4, W = 400, dpr = 1, runners = [], dust = [], nextAt = 0, qi = 0, last = 0, on = false, vis = false, clockT = 0, shown = null;
     const layout = () => {

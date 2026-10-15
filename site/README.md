@@ -75,10 +75,14 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   Rahmen, Knöpfe auf dieser Seite ohne Schein. Szenen `reise-*.webp` (960 × 540) aus `tools/welt.mjs welt-…`
   (`welt-aufbruch`, `-glutsenke`, `-aschenwald`, `-arena`, `-schlacke`, `-ignaroth`, `-steppe`, `-marsch`, `-frostzinnen`,
   `-aschethron`; PNG `…-NN.png` je Bild, bestes Bild wählen und verlustfrei nach WebP), `welt-gruppe.webp` aus `leben-gruppe`.
-  Die Glutarena nimmt welt.mjs in `pvp_arena` auf (Heimweg der Arena abgeschaltet). Bossfiguren der Dungeon-Marken
+  Die Glutarena nimmt welt.mjs in `pvp_arena` vor der Nordwand auf (Schmelztiegel, Kohlebecken; Heimweg der Arena abgeschaltet),
+  das Band zeigt sie enger (`.band.nah`, ×2). Dungeon-Marken: Gebiet und Stufe als zwei `<b>` (Umbruch nur vor der Stufe),
+  darunter der Bossname; der Text bleibt in seiner Spalte. Bossfiguren der Dungeon-Marken
   `tor-*.png` mit `tools/bossfiguren.mjs` (erstes Ruhebild, 1:1, auf der Seite halb). Bildausschnitt je Bild über
-  `--fx/--fy` (Handy `--mx/--my`) am `img.shot`. Die Parade dort trägt `data-hart`: ohne weiche Ränder.
-- Parade (Startseite und /welt): Größe 4 bzw. 3 Bildschirmpunkte je Weltpixel, aber höchstens so groß, dass die Bühne
+  `--fx/--fy` (Handy `--mx/--my`) am `img.shot`, `--ay` setzt die Stelle im Rahmen (Einstieg: Mitte unter der Kopfleiste).
+  Die Parade dort zeigt keinen Tiernamen (nur für Screenreader).
+- Parade (Startseite und /welt, beide `data-hart`: keine Maske an den Rändern, kein Auslauf unten, einfarbiger Grund):
+  Größe 4 bzw. 3 Bildschirmpunkte je Weltpixel, aber höchstens so groß, dass die Bühne
   in 60 % der Fensterhöhe passt (Handy quer); sie zeichnet beim Laden und nach Größenänderungen sofort ein Standbild.
 - `gewoelbe.webp`, `gewoelbe-breit.webp`: Titelbild des Spiels als Hintergrund für Support und Newsletter (`tools/gewoelbe.mjs`).
   Die Seite vergrößert sie ganzzahlig und pixelgenau (Klassen ×6/×5/×4, Handy gut ×3, Bosskino ganzzahlig in Gerätepixeln, Parade 4 bzw. 3 Bildschirmpunkte je Weltpixel, Symbole ×2).
