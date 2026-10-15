@@ -91,8 +91,8 @@
     const io = new IntersectionObserver((list) => {
       for (const e of list) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
     }, { rootMargin: '0px 0px -8% 0px' });
-    $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => io.observe(el));
-  } else $$('.reveal, .talk, h2.title, .lore h1.title').forEach((el) => el.classList.add('in'));
+    $$('.reveal, h2.title').forEach((el) => io.observe(el));
+  } else $$('.reveal, h2.title').forEach((el) => el.classList.add('in'));
 
   // ---------- Bildstreifen abspielen: ein Element zeigt jeweils ein Bild eines waagerechten Streifens (Hintergrundbild),
   // oder eine Zeichenfläche bekommt das Bild per drawImage (große Streifen: kein riesiges skaliertes Hintergrundbild,
@@ -210,12 +210,16 @@
     const near = layer('parade-nah.webp'), far = layer('parade-fern.webp');
     // Spielpixel: Laufhöhe, Gesamthöhe; Lauflinie im nahen Streifen, Versatz der fernen Ebene über der Lauflinie
     const BASE = +parade.dataset.base, H = +parade.dataset.h, NEAR_Y = +parade.dataset.nearY, FAR_Y = +parade.dataset.farY;
+    const hard = parade.hasAttribute('data-hart');   // Welt-Seite: Boden ohne weichen Auslauf
     const CAM = 22;   // Kamerafahrt (Spielpixel/s): naher Boden voll, ferne Ebene zu 40 %
     let wp = 4, W = 400, dpr = 1, runners = [], dust = [], nextAt = 0, qi = 0, last = 0, on = false, vis = false, clockT = 0, shown = null;
     const layout = () => {
       dpr = devicePixelRatio || 1;
       const wide = parade.clientWidth > 820;
-      wp = 2 * Math.max(1, Math.round(((wide ? 4 : 3) * dpr) / 2));   // Bildschirmpunkte je Spielpixel (gerade: Streifen in 2× Auflösung)
+      // Bildschirmpunkte je Spielpixel (gerade: Streifen in 2× Auflösung); höchstens 60 % der Fensterhöhe (Handy quer)
+      const fit = Math.floor((innerHeight * 0.6 * dpr) / H / 2) * 2;
+      wp = 2 * Math.max(1, Math.round(((wide ? 4 : 3) * dpr) / 2));
+      if (fit >= 2) wp = Math.min(wp, fit);
       parade.style.setProperty('--ph', `${(H * wp) / dpr}px`);
       cv.width = Math.round(parade.clientWidth * dpr); cv.height = H * wp;
       W = cv.width / wp;
@@ -250,9 +254,11 @@
       tile(far, BASE - FAR_Y, cam * 0.4);
       tile(near, BASE - NEAR_Y, cam);
       // Unten in den Seitenhintergrund ausblenden
-      const fb = ctx.createLinearGradient(0, cv.height - px(16), 0, cv.height);
-      fb.addColorStop(0, 'rgba(10, 5, 16, 0)'); fb.addColorStop(1, 'rgba(10, 5, 16, 1)');
-      ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(16), cv.width, px(16));
+      if (!hard) {
+        const fb = ctx.createLinearGradient(0, cv.height - px(16), 0, cv.height);
+        fb.addColorStop(0, 'rgba(10, 5, 16, 0)'); fb.addColorStop(1, 'rgba(10, 5, 16, 1)');
+        ctx.fillStyle = fb; ctx.fillRect(0, cv.height - px(16), cv.width, px(16));
+      }
       // Schatten werden mit der Höhe kleiner und blasser
       for (const r of runners) {
         const { lift } = heightOf(r), k = Math.max(0.5, 1 - lift / 60);
@@ -312,7 +318,9 @@
       // Bühne nicht leer beginnen: die Parade läuft unsichtbar schon eine Weile
       for (let i = 0; i < 30 * 9; i++) update(1 / 30, false);
       new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis && !on) { on = true; last = 0; requestAnimationFrame(tick); } }, { rootMargin: '60px' }).observe(parade);
-      addEventListener('resize', () => { layout(); });
+      // Bühne nie leer: nach dem Laden der Bilder und nach jeder Größenänderung ein Standbild zeichnen (auch außerhalb des Bildschirms)
+      for (const im of [near, far, ...defs.map((d) => d.img)]) im.addEventListener('load', () => { if (!on) draw(); }, { once: true });
+      addEventListener('resize', () => { layout(); draw(); });
     }
   }
 
