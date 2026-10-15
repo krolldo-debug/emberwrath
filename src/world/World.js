@@ -114,7 +114,8 @@ export class World {
     }
 
     const L = CONFIG.lighting;
-    this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: L.heroLightRadius, color: L.heroLightColor, intensity: level.kind === 'outdoor' ? 0.6 : 0.85, flicker: 0.05, bloom: 0 }));
+    // Heldenlicht nur in Dungeons (dort sonst zu dunkel); draußen lag es als heller Kreis um den Helden
+    if (level.kind !== 'outdoor') this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: L.heroLightRadius, color: L.heroLightColor, intensity: 0.85, flicker: 0.05, bloom: 0 }));
     // Figuren-Frames entstehen aufgeschoben (gfx/Sprite.js LazyFrame); der Rest wird nach dem Betreten in Häppchen gebaut
     this.spriteWarm = new SpriteWarmer(this);
   }
