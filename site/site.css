@@ -183,6 +183,9 @@ section { position: relative; }
 /* Standbild im Feinraster (1728 × 432 Feinpixel = Szene −152 … 712 × 216), --p Bildschirmpunkte je Szenenpixel (gerade bzw. mit der
    Pixeldichte ganzzahlig je Feinpixel). bosskino.js richtet es pixelgenau aus; ohne JavaScript gelten diese Näherungen. */
 .kino-buehne { --p: 2; }
+/* Sprung oder Fokus auf die Bühne: unter der festen Kopfleiste (66 px, schmal 58 px) halten */
+.kino-buehne { scroll-margin-top: 66px; }
+@media (max-width: 820px) { .kino-buehne { scroll-margin-top: 58px; } }
 .no-js .kino-buehne { height: calc(216px * var(--p)); }
 .kino-bild { position: absolute; bottom: 0; max-width: none; image-rendering: pixelated;
   width: calc(864px * var(--p)); height: calc(216px * var(--p)); left: clamp(calc(100% - 864px * var(--p)), calc(50% - 387px * var(--p)), 0px); }
@@ -633,3 +636,12 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 }
 @media (max-width: 380px) { .nav .lang-list a { font-size: 12.5px; } }
 .legal-lang { margin: 0 0 22px; padding: 10px 14px; border: 1px solid #5a3a1a; color: var(--text); font-size: 14px; opacity: 0.85; }
+
+/* Handy quer: Boss-Auswahl knapper, damit Bühne und Namen zusammen unter die Kopfleiste passen (bosskino.js misst sie) */
+@media (max-height: 500px) and (orientation: landscape) {
+  .kino-wahl { margin-top: 8px; }
+  .kino-wahl button { padding: 8px 6px 4px; }
+  .kino-wahl b { font-size: 17px; }
+  .kino-wahl span { margin-top: 2px; font-size: 11px; line-height: 1.2; }
+}
+@media (max-height: 380px) and (orientation: landscape) { .kino-wahl span + span { display: none; } }

@@ -42,7 +42,7 @@ GLOW.clear(); GLOW.update({'tg'})
 SPEC.clear(); SPEC.update({'gold': '#fff4c8', 'bronze': '#b4dcc8', 'pearl': '#ffffff', 'coral': '#ffd8c0'})
 TG = MAT['tg']
 WATER = ['#061226', '#0f2c4a', '#1a4f78', '#3384ae', '#6cb8da', '#c6eaf6', '#ffffff']
-RIM_F = {'skin': '#d6e6e4', 'robe': '#54a996', 'gold': '#fff0b8', 'hair': '#3f7a6c', 'wat': '#a8dcef', 'coral': '#ffc0a0',
+RIM_F = {'skin': '#bcd0d0', 'robe': '#54a996', 'gold': '#fff0b8', 'hair': '#3f7a6c', 'wat': '#76bcdc', 'coral': '#ffc0a0',
          'bronze': '#a6d0bc', 'robed': '#2f6057'}
 RIM_B = {'hair': '#13807e', 'haird': '#0b5a62', 'robe': '#2ec8cc', 'robed': '#0e7888', 'wat': '#5ae0e0', 'watd': '#1aa8b0',
          'skin': '#7ee8e0', 'gold': '#a0fff0', 'coral': '#ff9a7a', 'bronze': '#2ec8cc'}
@@ -877,15 +877,15 @@ def figure(p, smear_from=None):
 # ------------------------------------------------------------------------------------------- Gischtsichel
 def smear(p0, p1, n=160):
     """Gischtsichel als runder Bogen um die Hand der Endpose (Radius = Zinkenspitze), vom Winkel der Ausholpose bis zum
-    Endwinkel;
-    Sichel wächst vom alten Ende (spitz, gerastert) zum neuen (breit, rund): außen weiß, dann hellblau, innen tiefblau.
+    Endwinkel, im Feinraster. Sichel wächst vom alten Ende (spitz, gerastert) zum neuen (breit, rund): harte Wasserstufen,
+    hellstes Band innen, Kante mittelblau, Umriss 1 Feinpixel dunkel (kein weißer Rand).
     Unter der Hallendecke der Figur (HMAX) läuft sie dünn aus statt abgeschnitten zu werden."""
     q0, q1 = Pose(p0).p, Pose(p1).p
     cx, ch = q1['hF']; R = 89.0
     a0 = math.radians(q0['staff'] + 14); a1 = math.radians(q1['staff'])
     span = a1 - a0
-    Y, X = np.mgrid[0:H, 0:W]
-    x = X + 0.5 - FX; h = FY0 - Y - 0.5
+    Y, X = np.mgrid[0:H * K, 0:W * K]
+    x = (X + 0.5) / K - FX; h = FY0 - (Y + 0.5) / K
     phi = np.arctan2(h - ch, x - cx)
     phi = a0 + ((phi - a0) * np.sign(span)) % (2 * math.pi) * np.sign(span)
     t = (phi - a0) / span
@@ -894,17 +894,19 @@ def smear(p0, p1, n=160):
     th = TH * np.clip(t, 0, 1) ** 0.9 * np.clip((HMAX - 3 - h) / 10, 0, 1)
     rad = (r - (R + 1.5 - th)) / np.maximum(th, 0.5)
     m = (t >= 0) & (t <= 1.02) & (rad >= 0) & (rad <= 1) & (th > 0.6)
-    out = np.zeros((H, W, 4), np.uint8)
+    out = np.zeros((H * K, W * K, 4), np.uint8)
     for y, xx in zip(*np.nonzero(m)):
         tt = t[y, xx]; rr = rad[y, xx]
-        lv = 6 if rr > 0.82 else 5 if rr > 0.6 else 4 if rr > 0.36 else 3
-        if tt < 0.5: lv = min(lv, 5)
+        sx, sy = xx // K, y // K                      # Raster und Ausfransen je Szenenpixel (flimmert nicht)
+        lv = 4 if rr > 0.86 else 5 if rr > 0.56 else 4 if rr > 0.3 else 3
+        if tt < 0.5: lv = min(lv, 4)
         if tt < 0.3:
-            lv = min(lv, 4)
-            if (xx + y) % 2 or hash2(xx, y, 9) < 0.35: continue
-        if tt < 0.14 and hash2(xx, y, 4) < 0.6: continue
+            lv = min(lv, 3)
+            if (sx + sy) % 2 or hash2(sx, sy, 9) < 0.35: continue
+        if tt < 0.14 and hash2(sx, sy, 4) < 0.6: continue
         out[y, xx] = (*hexc(WATER[lv]), 255)
-    out[FY0:] = 0
+    rand_dunkel(out)
+    out[FY0 * K:] = 0
     return out
 
 
@@ -1283,6 +1285,22 @@ def scene():
 
 
 # ------------------------------------------------------------------------------------------- Effekte (Feinraster)
+def rand_dunkel(im, depth=3):
+    """Wasser ohne hellen Rand: die äußeren Feinpixel jeder Form (depth tief) höchstens Mittelblau, die hellen Stufen
+    (Schaum, Glanz) nur innen; danach dunkler Umriss 1 Feinpixel. Kein weißer Comic-Rand."""
+    a_ = im[:, :, 3] > 0
+    ring = np.zeros_like(a_); m = a_.copy()
+    for _ in range(depth):
+        e = edge_of(m); ring |= e; m = m & ~e
+    hi = [hexc(WATER[5]), hexc(WATER[6]), hexc('#ffffff')]
+    rgb = im[:, :, :3]
+    bright = np.zeros_like(a_)
+    for c in hi: bright |= np.all(rgb == c, axis=-1)
+    im[ring & bright, :3] = hexc(WATER[4])
+    im[outline_mask(a_)] = (*hexc('#030a14'), 255)
+    return im
+
+
 def wave_img(w, h, t, n, k=K):
     """Brechende Flutwelle, läuft nach links: flacher Rücken rechts, Kamm mit eingerollter Lippe links, dunkle Röhre
     unter der Lippe, angestrahlte Front (Licht von oben links), Schaumkante an der Lippe, Gischtwalze am Fuß.
@@ -1312,14 +1330,15 @@ def wave_img(w, h, t, n, k=K):
     bl = np.where((np.sin((x * 2.2 - y + 0.08 * np.sin(y * 9)) * 20 + ph) > 0.86) & (bl < 5) & (x > 0.4), bl + 1, bl)
     bl = np.where(top - y < 0.05, np.maximum(bl, 4), bl)
     lv = np.where(body, bl, lv)
-    ll = np.where(r > 0.93, 6, np.where(r > 1 - thick * 0.45, 5, 4))
-    ll = np.where((th > 175) & (r > 0.9), 6, ll)
+    # Lippe: Kante in Mittelblau, darunter ein helles Band (harte Stufen, kein weißer Rand; Umriss dunkel, s. u.)
+    ll = np.where(r > 0.9, 4, np.where(r > 1 - thick * 0.55, 5, 4))
+    ll = np.where((th > 175) & (r > 0.86) & (r <= 0.9), 5, ll)
     lv = np.where(lip, ll, lv)
     lv = np.where(tube & (y > 0.2) & (r > 0.25), np.where(r > 1 - thick - 0.06, 1, 0), lv)
     # Gischtwalze am Fuß (unregelmäßig, je Szenenpixel)
     rb = 0.13 + 0.04 * np.sin(x * 40 + ph * 2) + 0.03 * np.sin(x * 83 - ph)
     roll = (y < rb) & (x > 0.03) & (x < 0.6)
-    lv = np.where(roll & (lv < 5), np.where(rb - y < 0.035, 6, 5), lv)
+    lv = np.where(roll & (lv < 5), np.where(rb - y < 0.035, 5, 4), lv)
     out = np.zeros((h * k, w * k, 4), np.uint8)
     for q in range(7): out[lv == q] = (*C[q], 255)
     rng = np.random.default_rng(t)
@@ -1327,10 +1346,11 @@ def wave_img(w, h, t, n, k=K):
         a = math.radians(rng.uniform(80, 200)); rr = rng.uniform(1.04, 1.25)
         X = int((cx + math.cos(a) * rx * rr) * w * k); Y = int((1 - (cy + math.sin(a) * ry * rr)) * h * k)
         if 0 <= X < w * k - 1 and 0 <= Y < h * k - 1:
-            out[Y, X] = (*C[6], 255); out[Y + 1, X] = (*C[4], 255)
-    a_ = out[:, :, 3] > 0
-    out[outline_mask(a_) & (Yf < h * k * 0.86)] = (*hexc('#030a14'), 255)
-    return out
+            out[Y, X] = (*C[5], 255); out[Y + 1, X] = (*C[3], 255)
+    # Glanzpunkte (Weiß nur innen, einzelne Feinpixel) auf dem hellen Band der Lippe
+    gl = lip & (ll == 5) & (np.sin(th * 0.35 + ph) > 0.97) & (r > 1 - thick * 0.4)
+    out[gl] = (*C[6], 255)
+    return rand_dunkel(out)
 
 
 def column_img(w, h, t, n, k=K):
@@ -1342,15 +1362,14 @@ def column_img(w, h, t, n, k=K):
     prof = bumps * np.clip(1 - (x / 0.5) ** 2, 0, 1) ** 0.45
     m = y < prof
     C = [hexc(c) for c in WATER]
-    lv = np.where(prof - y < 0.12, 6, np.where(prof - y < 0.3, 5, np.where(x < 0, 4, 3)))
+    lv = np.where(prof - y < 0.12, 5, np.where(prof - y < 0.3, 4, 3))
     out = np.zeros((h * k, w * k, 4), np.uint8)
     for q in range(7): out[m & (lv == q)] = (*C[q], 255)
     rng = np.random.default_rng(t + 50)
     for i in range(5):
         X = int(rng.uniform(0.1, 0.9) * w * k); Y = int(rng.uniform(0.0, 0.3) * h * k)
-        if out[Y, X, 3] == 0: out[Y, X] = (*C[6], 255)
-    a_ = out[:, :, 3] > 0
-    out[outline_mask(a_) & (Yf < h * k * 0.8)] = (*hexc('#030a14'), 255)
+        if out[Y, X, 3] == 0: out[Y, X] = (*C[5], 255)
+    rand_dunkel(out)
     return out
 
 
@@ -1370,7 +1389,7 @@ def crown_imgs(w=64, h=92, n=9, k=K):
         if f < 3:                                                     # Gischtkuppel
             r = 9 + f * 6; ry = r * (0.9 - f * 0.12)
             d = ((xs - w / 2) / r) ** 2 + ((hs - 1) / ry) ** 2
-            lvl = np.where(d < 1, np.where(d < 0.35, 6 if f == 0 else 5, np.where(d < 0.7, 4, 3)), lvl)
+            lvl = np.where(d < 1, np.where(d < 0.35, 5, np.where(d < 0.7, 4, 3)), lvl)
         for dx, hgt, sd in jets:
             Hj = h * 0.92 * hgt * grow
             fall = max(0.0, tt - 0.55) * 2.2                         # Säule sinkt von unten weg, Kopf zerfällt
@@ -1381,27 +1400,26 @@ def crown_imgs(w=64, h=92, n=9, k=K):
             u = (xs - xc) / hw
             m = (np.abs(u) < 1) & (hs >= 0) & (hs < Hj) & (fr > fall)
             jl = np.where(u > 0.35, 5, np.where(u > -0.4, 4, 3))
-            jl = np.where(fr > 0.8, 6, jl)
+            jl = np.where((fr > 0.8) & (jl > 3), 5, jl)
             lvl = np.where(m, np.maximum(lvl, jl), lvl)
             # Tropfenkopf über der Spitze
             hx, hy = w / 2 + dx * (0.5 + tt * 0.4) + dx * 0.35, Hj + 1.5 + tt * 3
             dd = ((xs - hx) / 2.4) ** 2 + ((hs - hy) / 2.2) ** 2
-            if tt < 0.85: lvl = np.where(dd < 1, np.maximum(lvl, np.where(dd < 0.4, 6, 5)), lvl)
+            if tt < 0.85: lvl = np.where(dd < 1, np.maximum(lvl, np.where(dd < 0.3, 5, 4)), lvl)
         for q in range(7):
             im[lvl == q] = (*C[q], 255)
         rng = np.random.default_rng(f + 7)
         for i in range(int(10 + 8 * tt)):
             X = int((w / 2 + rng.uniform(-28, 28)) * k); Y = int((h - rng.uniform(4, h * 0.95 * grow + 4)) * k)
             if 0 <= X < w * k - 1 and 0 <= Y < h * k - 1 and im[Y, X, 3] == 0:
-                im[Y, X] = (*C[6 if i % 3 else 4], 255); im[Y + 1, X] = (*C[3], 255)
-        # Ring am Wasser
+                im[Y, X] = (*C[5 if i % 3 else 4], 255); im[Y + 1, X] = (*C[3], 255)
+        rand_dunkel(im)
+        # Ring am Wasser (ohne Umriss)
         rx = 10 + tt * 26; ry = rx * 0.25
         for i in range(int(rx * 8)):
             a = i / (rx * 8) * 2 * math.pi
             X, Y = int((w / 2 + math.cos(a) * rx) * k), int((h - 3 + math.sin(a) * ry) * k)
-            if 0 <= X < w * k and 0 <= Y < h * k and (i // 3) % 4: im[Y, X] = (*C[5 if math.sin(a) > 0 else 4], 255)
-        a_ = im[:, :, 3] > 0
-        im[outline_mask(a_)] = (*hexc('#030a14'), 255)
+            if 0 <= X < w * k and 0 <= Y < h * k and (i // 3) % 4 and im[Y, X, 3] == 0: im[Y, X] = (*C[4 if math.sin(a) > 0 else 3], 255)
         out.append(im)
     return out
 
@@ -1454,7 +1472,7 @@ def build():
     wave, wm = seam_wave(seam, imp_s, FY - 3, v=280, ms=60, pal=TG, direction=-1, maxd=430, ox=-PAD,
                          peak=lambda d: 4 if d < 60 else 3 if d < 170 else 2)
     B['fx']['welle'] = wave
-    SPRAY = ['#ffffff', '#c6eaf6', '#76bcdc', '#3886b2']
+    SPRAY = ['#c6eaf6', '#76bcdc', '#3886b2', '#1a4f78']
     BUBB = ['#e4fff9', '#8cf0e2', '#3cc8b8', '#0d5f5a']
     B['meta']['ereignisse'] = [
         dict(k='bild', r='welle', at=0, x=wm['x'], y=wm['y'], w=wm['w'], h=wm['h'], n=wm['n'], ms=wm['ms'], z='boden'),
