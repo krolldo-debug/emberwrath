@@ -3,7 +3,7 @@
 // - def.dmgMult (enemyTypes*.js / defs_*.js), in Gruppen-Dungeons × groupDmgMult (finder/config.js): skaliert jeden Treffer, dessen Urheber der Boss ist – Nahkampf,
 //   Geschosse, Warnflächen, Wellen, Bodenflächen (Urheber über owner/hero/caster/source bis zu drei Stufen).
 //   Beschworene Diener (eigene def ohne boss) bleiben unverändert.
-// - Raserei: Nach FURY_START s Kampf (Boss engaged) +FURY_STEP Schaden je FURY_EVERY s, Toast und roter Schimmer.
+// - Raserei: Nach FURY_START s Kampf (je Boss überschreibbar über boss.furyStart) (Boss engaged) +FURY_STEP Schaden je FURY_EVERY s, Toast und roter Schimmer.
 //   Verhindert, dass weit unterstufige Helden einen Boss mit Trankvorrat „aussitzen“.
 // Einbau: Actor.takeHit -> applyBossPower(hit, this) (neben applyLevelGap); World.update -> updateBossFury(this, dt).
 import { Entity } from '../entities/Entity.js';
@@ -27,9 +27,9 @@ export function bossOf(src) {
 }
 
 // Wutmodus-Faktor eines Bosses für eine Kampfdauer t (s)
-export function furyMult(t) {
-  if (!(t >= FURY_START)) return 1;
-  return 1 + FURY_STEP * (1 + Math.floor((t - FURY_START) / FURY_EVERY));
+export function furyMult(t, start = FURY_START) {
+  if (!(t >= start)) return 1;
+  return 1 + FURY_STEP * (1 + Math.floor((t - start) / FURY_EVERY));
 }
 
 // Passt hit.damage für Treffer eines Bosses an Nicht-Gegnern an (einmal je Treffer).
@@ -50,7 +50,7 @@ export function updateBossFury(world, dt) {
   if (!b || b.dead) { if (b?.furyAura) { b.furyAura.removed = true; b.furyAura = null; } return; }
   if (!b.engaged) { b.furyT = 0; b.furyMult = 1; return; }
   b.furyT = (b.furyT ?? 0) + dt;
-  const m = furyMult(b.furyT);
+  const m = furyMult(b.furyT, b.furyStart); // b.furyStart: eigener Beginn (Varkhul allein, finder/groupScale.js)
   if (m > (b.furyMult ?? 1)) {
     if ((b.furyMult ?? 1) === 1) {
       world.bus.emit(EV.UI_TOAST, { text: `${shortName(b)} gerät in Raserei!`, kind: 'warn' });
