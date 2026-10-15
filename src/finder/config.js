@@ -13,6 +13,10 @@ export const FINDER_CONFIG = {
   bossHpScaleById: { bonelord: 1.6 },
   bossDmgScaleById: { bonelord: 0.7, rot_mother: 1.2, frost_wyrm: 1.25 },
 
+  // Erster Dungeon allein (ohne Gruppe): keine Gruppenwerte, Boss mit eigenem Leben/Schaden und späterer Raserei.
+  // Ziel: Varkhul fällt allein in etwa 4–6 Minuten, auch für einen Glutmagier auf Stufe 5–6.
+  solo: { catacombs: { bossHp: 0.7, bossDmg: 0.1, furyStart: 420 } },
+
   // Gefallene Gruppenmitglieder stehen so viele Sekunden nach Kampfende wieder auf (mit 40 % Leben).
   reviveAfter: 3,
   reviveHp: 0.4,

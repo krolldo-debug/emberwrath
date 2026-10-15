@@ -17,3 +17,15 @@ export function scaleForGroup(e, world) {
   else if (e.lvlPower) { e.dmgMul *= FINDER_CONFIG.dmgScale ?? 1; e.power = e.lvlPower * e.dmgMul; }
   return true;
 }
+
+// Erster Dungeon allein (ohne Gruppe/Söldner): Gegner ohne Gruppenfaktor, Boss mit eigenen Werten (FINDER_CONFIG.solo),
+// damit neue Spieler ihn in wenigen Minuten schaffen. Mit Gruppe gilt weiter scaleForGroup.
+export function scaleForSolo(e, world, cfg) {
+  if (e.groupScaled || e.summoned || e.hp !== e.maxHp) return false;
+  e.groupScaled = true;
+  if (e !== world.boss && !e.def?.boss) return true;
+  e.maxHp = Math.round(e.maxHp * (cfg.bossHp ?? 1)); e.hp = e.maxHp;
+  e.groupDmgMult = cfg.bossDmg ?? 1;
+  if (cfg.furyStart) e.furyStart = cfg.furyStart;
+  return true;
+}
