@@ -64,7 +64,9 @@ export class LightingSystem {
     this.ctx = this.canvas.getContext('2d');
   }
 
-  apply(ctx, camX, camY, lights) {
+  // figure (optional): { color, intensity, paint(g) } – paint zeichnet Figuren (Held, Mitspieler) in Kamerakoordinaten;
+  // ihre Umrisse werden als Licht in die Lightmap gelegt: die Figur wird hell, der Boden daneben nicht.
+  apply(ctx, camX, camY, lights, figure = null) {
     // Weltpixel, nicht ctx.canvas: das Spielbild ist überabgetastet (CONFIG.renderScale).
     if (CONFIG.viewWidth !== this.w || CONFIG.viewHeight !== this.h) this.resize(CONFIG.viewWidth, CONFIG.viewHeight);
     const l = this.ctx;
@@ -86,6 +88,7 @@ export class LightingSystem {
       else l.drawImage(getLightSprite(64, li.color), sx - r, sy - r, r * 2, r * 2);
     }
     l.globalAlpha = 1;
+    if (figure) this.#figureLight(figure);
     if (this.voidMask) {
       // Leere: Licht dort wieder entfernen und mit dem Umgebungsdunkel füllen
       l.imageSmoothingEnabled = false;
@@ -102,6 +105,31 @@ export class LightingSystem {
     ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
     ctx.imageSmoothingEnabled = smooth;
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  #figureLight({ color, intensity, paint }) {
+    if (!this.figCanvas || this.figCanvas.width !== this.canvas.width || this.figCanvas.height !== this.canvas.height) {
+      this.figCanvas = makeCanvas(this.canvas.width, this.canvas.height);
+    }
+    const g = this.figCanvas.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, this.figCanvas.width, this.figCanvas.height);
+    g.setTransform(LM, 0, 0, LM, 0, 0);
+    g.imageSmoothingEnabled = true;   // Randpixel der halben Auflösung nur anteilig hell: kein Saum neben der Figur
+    paint(g);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+    g.fillRect(0, 0, this.figCanvas.width, this.figCanvas.height);
+    const l = this.ctx;
+    l.setTransform(1, 0, 0, 1, 0, 0);
+    l.globalCompositeOperation = 'lighter';
+    l.globalAlpha = intensity;
+    l.drawImage(this.figCanvas, 0, 0);
+    l.globalAlpha = 1;
+    l.setTransform(LM, 0, 0, LM, 0, 0);
   }
 
   bloom(ctx, camX, camY, lights) {

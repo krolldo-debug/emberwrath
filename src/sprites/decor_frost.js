@@ -1543,7 +1543,7 @@ function campfireBig() {
     // Sitzstämme mit Schnee
     p.rect(1, cy + 1, 7, 3, WOOD[2]); p.rect(1, cy + 1, 7, 1, SNOW[6]); p.ellipse(1, cy + 2, 1, 1.4, '#a88452');
     p.rect(28, cy + 2, 7, 3, WOOD[1]); p.rect(28, cy + 2, 7, 1, SNOW[5]); p.ellipse(35, cy + 3, 1, 1.4, '#8a6a44');
-  }, { ax: 18, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 120, color: [255, 150, 70], intensity: 1 }, extra: { embers: { dx: 0, dy: -12, rate: 5 } },
+  }, { ax: 18, ay: H - 3, box: [-9, -4, 9, 2], light: { dx: 0, dy: -8, radius: 140, color: [255, 150, 70], intensity: 1 }, extra: { embers: { dx: 0, dy: -12, rate: 5 } },
     fine: (f, g) => embersF(f, g, 18.5, H - 5.5, 8, 2.6, '#1a0806', [[-5, 0.5, 1], [4.5, 0.6, 1.1], [-1, 1.2, 1.3], [6.5, -0.4, 0.7], [-6.8, -0.3, 0.6]]) });
 }
 
