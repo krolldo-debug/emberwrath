@@ -26,7 +26,7 @@ const Q_EMBERHOLLOW = ['q_ashen_wolves', 'q_glutfang', 'q_into_catacombs', 'q_sp
 const Q_ASHWOOD = ['q_boar_cull', 'q_bandit_camp', 'q_bandit_chief', 'q_temple_shore', 'q_nerith', 'q_to_the_peaks', 'q_thorn_sap', 'q_lost_satchel', 'q_drowned_relics'];
 const Q_PEAKS = ['q_imp_plague', 'q_hound_pack', 'q_behemoth', 'q_forge_gate', 'q_forge_warden', 'q_forge_cores', 'q_ember_drakes', 'q_ignaroth', 'q_obsidian_shards', 'q_rift_seals', 'q_cultist_tomes'];
 
-export const ACHIEVEMENT_GROUPS = { story: 'Geschichte', combat: 'Kampf', loot: 'Beute', craft: 'Handwerk', trial: 'Glutprüfungen' };
+export const ACHIEVEMENT_GROUPS = { story: 'Geschichte', combat: 'Kampf', loot: 'Beute', craft: 'Handwerk', trial: 'Glutprüfungen', pvp: 'Glutarena' };
 
 export const ACHIEVEMENTS = {
   // --- Geschichte
@@ -90,6 +90,15 @@ export const ACHIEVEMENTS = {
   trial_10: A('trial', 'Herr der Esse', 'Bestehe Glutprüfung 10.', 'amulet_sun', 40, (s) => s.slices.trials?.best ?? 0, 10, 'Herr der Esse'),
   trial_20: A('trial', 'Glutfürst', 'Bestehe Glutprüfung 20.', 'ore_ember', 50, (s) => s.slices.trials?.best ?? 0, 20, 'Glutfürst', { kind: 'mount', id: 'ember_scarab' }),
   trial_30: A('trial', 'Unverlöschlich', 'Bestehe Glutprüfung 30.', 'amulet_sun', 60, (s) => s.slices.trials?.best ?? 0, 30, 'der Unverlöschliche', { kind: 'dye', id: 'whiteflame' }),
+
+  // --- Glutarena (src/pvp/, Slice 'pvp': Siege insgesamt, beste Liga als Stufe 0 Bronze … 5 Glutmeister)
+  arena_first: A('pvp', 'Arenaneuling', 'Gewinne einen Kampf in der Glutarena.', 'sword', 10, (s) => s.slices.pvp?.wins ?? 0),
+  arena_25: A('pvp', 'Gladiator', 'Gewinne 25 Kämpfe in der Glutarena.', 'sword', 20, (s) => s.slices.pvp?.wins ?? 0, 25, 'Gladiator'),
+  arena_100: A('pvp', 'Arenaschreck', 'Gewinne 100 Kämpfe in der Glutarena.', 'charm_skull', 40, (s) => s.slices.pvp?.wins ?? 0, 100, 'Arenaschreck'),
+  arena_gold: A('pvp', 'Goldene Klinge', 'Erreiche in der Glutarena die Liga Gold.', 'seal', 15, (s) => s.slices.pvp?.bestTier ?? 0, 2),
+  arena_platinum: A('pvp', 'Platinklinge', 'Erreiche in der Glutarena die Liga Platin.', 'ring_sapphire', 25, (s) => s.slices.pvp?.bestTier ?? 0, 3, 'Platinklinge'),
+  arena_diamond: A('pvp', 'Diamantklinge', 'Erreiche in der Glutarena die Liga Diamant.', 'gem_sapphire', 35, (s) => s.slices.pvp?.bestTier ?? 0, 4, 'Diamantklinge'),
+  arena_master: A('pvp', 'Glutmeister', 'Erreiche in der Glutarena die Liga Glutmeister.', 'amulet_sun', 50, (s) => s.slices.pvp?.bestTier ?? 0, 5, 'Glutmeister'),
 };
 
 // Erfolge mit Belohnung, ungefähr in der Reihenfolge, in der man sie erreicht (Vitrine im Fenster)

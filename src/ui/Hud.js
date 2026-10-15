@@ -260,6 +260,7 @@ export class Hud {
   #instanceText() {
     const z = this.s.zone;
     if (!z) return '';
+    if (z.def?.tag) return z.def.tag;
     return z.def?.instanced ? `Dungeon-Instanz · bis ${z.def.maxPlayers ?? 5} Spieler` : 'Offenes Gebiet';
   }
 
@@ -286,7 +287,7 @@ export class Hud {
     this.pName.title = [race, cls].filter(Boolean).join(' · ');
     const z = this.s.zone;
     setText(this.zName, z?.def?.name ?? '');
-    setText(this.zSub, z ? (z.def?.instanced ? 'Dungeon-Instanz' : 'Offenes Gebiet') : '');
+    setText(this.zSub, z ? (z.def?.tag ?? (z.def?.instanced ? 'Dungeon-Instanz' : 'Offenes Gebiet')) : '');
     this.zSub.title = '';
     this.portraitDirty = true;
   }

@@ -196,7 +196,7 @@ export function achievementsPanel(s) {
           h('span.pg-select-wrap', h('select.pg-select', { onchange: (e) => st.commit('achievement:title', { id: e.target.value || null }) },
             h('option', { value: '', selected: !a.title }, 'Kein Titel'),
             titles.map(([id, d]) => h('option', { value: id, selected: a.title === id }, d.title))))) : null),
-      h('div.ach-tabs', { role: 'tablist' }, [['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)].map(([gid, label]) => [gid, gid === 'trial' && compact() ? 'Prüfungen' : label]).map(([gid, label]) => h(`button.ach-tab${group === gid ? '.on' : ''}`, {
+      h('div.ach-tabs', { role: 'tablist' }, [['all', 'Alle'], ...Object.entries(ACHIEVEMENT_GROUPS)].map(([gid, label]) => [gid, compact() && gid === 'trial' ? 'Prüfungen' : compact() && gid === 'pvp' ? 'Arena' : label]).map(([gid, label]) => h(`button.ach-tab${group === gid ? '.on' : ''}`, {
         type: 'button', role: 'tab', 'aria-selected': String(group === gid), onclick: () => { group = gid; redraw(); },
       }, label))),
       h('div.pg-scroll.pg-keep-scroll.ach-list',

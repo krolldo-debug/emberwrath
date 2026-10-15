@@ -48,8 +48,9 @@ export class ZoneTransition {
     if (def.recommendedLevel) bits.push(`Empfohlene Stufe ${def.recommendedLevel}`);
     const subSaysInstance = /instanz/i.test(def.subtitle ?? '');
     if (def.instanced) bits.push(subSaysInstance ? `bis ${def.maxPlayers ?? 5} Spieler` : `Instanz · bis ${def.maxPlayers ?? 5} Spieler`);
-    this.meta.textContent = bits.join(' · ');
-    this.tip.textContent = `Tipp: ${TIPS[this.tipIndex++ % TIPS.length]}`;
+    // Eigene Zeilen eines Gebiets (z. B. die Glutarena): meta statt Stufe/Instanz, tip statt Zufallstipp
+    this.meta.textContent = def.meta ?? bits.join(' · ');
+    this.tip.textContent = `Tipp: ${def.tip ?? TIPS[this.tipIndex++ % TIPS.length]}`;
     this.el.classList.toggle('dungeon', !!def.instanced || def.kind === 'dungeon');
     this.el.classList.add('show');
     // Ein Frame später die "instant"-Klasse lösen, damit das Ausblenden animiert

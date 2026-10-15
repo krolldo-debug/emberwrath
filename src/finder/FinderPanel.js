@@ -2,12 +2,17 @@ import { h, clear } from '../core/dom.js';
 import { ROLES, roleAllowed } from './protocol.js';
 import { finderIcon } from './icons.js';
 import { dungeonEmblem, dungeonScene } from './art.js';
+import { renderArena, arenaOpen } from '../pvp/ArenaPanel.js';
 
 // Panel 'finder': Dungeon und Rolle wählen, Suche starten/beenden, Suchstand. Wenig Text: Name, Stufe,
 // Symbole; Erklärungen der Rollen stehen im Tooltip. Jeder Dungeon hat ein eigenes Wappen und ein kleines
 // Eingangsbild (art.js), das rechts über der Rollenwahl und während der Suche erscheint.
-export function createFinderPanel(session) {
+// Ab Stufe 10 trägt der Kopf zwei Reiter: Dungeons und Glutarena (PvP, src/pvp/ArenaPanel.js).
+export function createFinderPanel(session, params = {}) {
   const g = session.game, finder = g.finder;
+  const arena = arenaOpen(g);
+  let tab = arena && (params.tab ?? (g.pvp?.busy ? 'arena' : g.pvp?.lastTab)) === 'arena' ? 'arena' : 'dungeon';
+  let arenaView = null;
   const c = finder.char();
   const list = finder.dungeons(c.level);
   let pick = finder.req?.dungeonId ?? 'random';
@@ -19,7 +24,10 @@ export function createFinderPanel(session) {
   const root = h('div.ef-panel.fd-panel', { role: 'dialog', 'aria-label': 'Dungeonsuche' },
     h('header.fd-head',
       h('img.fd-head-icon', { src: finderIcon('group', 2), alt: '', width: 32, height: 32 }),
-      h('h2.ef-sub.fd-title', 'Dungeonsuche'),
+      arena
+        ? h('div.fd-tabs', { role: 'tablist' }, ...[['dungeon', 'Dungeons'], ['arena', 'Glutarena']].map(([id, label]) =>
+          h('button.ef-sub.fd-title.fd-tab', { type: 'button', role: 'tab', 'data-tab': id, onclick: () => setTab(id) }, label)))
+        : h('h2.ef-sub.fd-title', 'Dungeonsuche'),
       h('button.fd-close', { type: 'button', 'aria-label': 'Schließen', onclick: () => session.panels.close() }, '×'),
     ),
     body, error,
@@ -127,8 +135,20 @@ export function createFinderPanel(session) {
     countEl.textContent = n != null && n > 1 ? `${n} Spieler suchen gerade für diesen Dungeon.` : '';
   }
 
+  function setTab(id) {
+    tab = id;
+    if (g.pvp) g.pvp.lastTab = id;
+    for (const b of root.querySelectorAll('.fd-tab')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+    arenaView?.dispose();
+    arenaView = null;
+    shown = null;
+    error.textContent = '';
+    if (tab === 'arena') { clear(body); arenaView = renderArena(session, body); } else render();
+  }
+
   let shown = null;
   function render() {
+    if (tab === 'arena') return;
     const st = finder.state;
     const view = st === 'queued' || st === 'proposal' || st === 'accepted' ? 'queued' : st === 'active' ? 'active' : 'pick';
     if (view === shown && view !== 'pick') return;
@@ -136,7 +156,7 @@ export function createFinderPanel(session) {
     timeEl = null;
     if (view === 'queued') renderQueued(); else if (view === 'active') renderActive(); else renderPick();
   }
-  render();
+  if (arena) setTab(tab); else render();
   const off = g.bus.on('finder:changed', render);
-  return { root, update: tick, dispose: off };
+  return { root, update: () => (arenaView ? arenaView.update() : tick()), dispose: () => { off(); arenaView?.dispose(); } };
 }

@@ -10,6 +10,7 @@ import { installUi } from './ui/index.js';
 import { installOnline } from './online/index.js';
 import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
+import { installPvp } from './pvp/index.js';
 import { installShop } from './shop/index.js';
 import { installMarket } from './market/index.js';
 import { installMail } from './mail/index.js';
@@ -31,6 +32,7 @@ game
   .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
+  .use(installPvp)         // Glutarena: gewertete Kämpfe 1 gegen 1 (src/pvp, worker/pvp)
   .use(installShop)        // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
   .use(installMarket)      // Auktionshaus in jeder Stadt (src/market, Buchungen nur in der Datenbank)
   .use(installMail)        // Postfach in jeder Stadt (src/mail): Auktionshaus, Briefe von Spielern, Bossbeute
