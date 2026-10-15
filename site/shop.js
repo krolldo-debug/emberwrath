@@ -52,7 +52,9 @@
   if (setSec && setStage) {
     const cv = $('canvas', setStage); cv.dataset.var = '--sh';
     // Breite bestimmt den Maßstab; auf niedrigen Bildschirmen (Handy quer) passt die Bühne in die Höhe
-    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 10 : w > 420 ? 9 : w > 340 ? 7 : 6, Math.max(4, (innerHeight - 135) / 50)), true);
+    // Maßstab wie die Klassen-Figuren der Startseite (5–6 CSS-px je Spielpixel, also 2,5–3 je Feinpixel): das Set-Bild ist
+    // im Feinraster (2 Bildpunkte je Spielpixel) und soll fein wirken, nicht als große Blöcke
+    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 6 : w > 340 ? 5 : 4, Math.max(3, (innerHeight - 135) / 50)), true);
     const BASE = 43;   // Fußlinie in Spielpixeln; die Figur füllt gut drei Viertel der Bühne
     const tabs = $$('.set-tabs [role="tab"]'), switches = $$('.set-switch button');
     const imgs = {}, scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');
@@ -64,37 +66,43 @@
       return { panel, cls, w, h, fx, fy, n, fps, img: imgs[cls], glow: rgb(panel) };
     };
     const glowC = (a) => `rgba(${cur.glow}, ${a})`;
+    // Podest im Feinraster: f(x, y, w, h) in Feinpixeln (½ Spielpixel) relativ zur Bühnenmitte bzw. Fußlinie
     const drawDais = () => {
       const cx = Math.round(st.W / 2), on = look || prog < 1 ? 1 : 0.45;
+      const f = (x, y, w, h, c) => st.rect(cx + x / 2, BASE + y / 2, w / 2, h / 2, c);
       // Lichtsäule hinter dem Helden in harten Stufen, nach oben schwächer
       for (let i = 0; i < 6; i++) {
-        const y0 = BASE - 6 - i * 8, a = (0.07 - i * 0.011) * on;
+        const y0 = -12 - i * 16, a = (0.07 - i * 0.011) * on;
         if (a <= 0) break;
-        st.rect(cx - 10, y0 - 8, 20, 8, glowC(a * 0.6));
-        st.rect(cx - 5, y0 - 8, 10, 8, glowC(a));
+        f(-20, y0 - 16, 40, 16, glowC(a * 0.6));
+        f(-10, y0 - 16, 20, 16, glowC(a));
       }
-      // Lichtlache um das Podest
-      for (const [rx, ry, a] of [[26, 5, 0.05], [21, 4, 0.06]]) {
-        for (let y = -ry; y <= ry; y++) { const hw = Math.round(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); st.rect(cx - hw, BASE + 2 + y, hw * 2, 1, glowC(a * on)); }
+      // Lichtlache um das Podest (Zeilen je Feinpixel)
+      for (const [rx, ry, a] of [[52, 10, 0.05], [42, 8, 0.06]]) {
+        for (let y = -ry; y <= ry; y++) { const hw = Math.round(rx * Math.sqrt(1 - (y / (ry + 0.5)) ** 2)); f(-hw, 4 + y, hw * 2, 1, glowC(a * on)); }
       }
-      // Podest: Seitenwand aus Steinquadern, Glutfuge unten, Deckplatte als Ellipse
-      const RX = 15, RY = 3;
-      for (let y = 0; y < 4; y++) {
-        const hw = RX - (y === 3 ? 1 : 0);
-        st.rect(cx - hw, BASE + RY - 1 + y, hw * 2, 1, y === 0 ? '#2b2134' : '#1d1525');
-        if (y > 0 && y < 3) for (let x = -RX + 3 + (y % 2) * 3; x < RX; x += 6) st.rect(cx + x, BASE + RY - 1 + y, 1, 1, '#110b17');
+      // Podest: Seitenwand aus Steinquadern (Fugen 1 Feinpixel, Licht oben links), Glutfuge unten, Deckplatte als Ellipse
+      const RX = 30, RY = 6, WALL = 8;
+      for (let y = 0; y < WALL; y++) {
+        const hw = RX - (y >= WALL - 2 ? 1 : 0), yy = RY - 2 + y;
+        f(-hw, yy, hw * 2, 1, y === 0 ? '#2b2134' : y < 3 ? '#231a2c' : '#1d1525');
+        f(-hw, yy, 1, 1, y === 0 ? '#3a2e46' : '#271e31');                 // linke Kante im Licht
+        if (y === 3) f(-hw + 1, yy, hw * 2 - 2, 1, '#150f1b');            // waagerechte Fuge
+        else if (y > 0 && y < WALL - 1) for (let x = -RX + 5 + (y > 3 ? 6 : 0); x < RX - 2; x += 12) { f(x, yy, 1, 1, '#110b17'); f(x + 1, yy, 1, 1, '#2a2033'); }
       }
-      st.rect(cx - RX + 1, BASE + RY + 3, RX * 2 - 2, 1, glowC(0.55 * on));
+      f(-RX + 2, RY - 2 + WALL, RX * 2 - 4, 1, glowC(0.6 * on));
+      f(-RX + 6, RY - 1 + WALL, RX * 2 - 12, 1, glowC(0.3 * on));
       for (let y = -RY; y <= RY; y++) {
         const hw = Math.round(RX * Math.sqrt(1 - (y / (RY + 0.5)) ** 2));
-        st.rect(cx - hw, BASE + y, hw * 2, 1, y === -RY ? '#4a3c56' : y < 0 ? '#382c43' : y < 2 ? '#30263a' : '#2a2133');
+        f(-hw, y, hw * 2, 1, y === -RY ? '#5a4a68' : y < -RY + 2 ? '#463853' : y < 0 ? '#382c43' : y < 3 ? '#30263a' : '#2a2133');
+        if (y > -RY && y < 2) f(-hw, y, 1, 1, '#4e405c');                   // Lichtkante links
       }
-      // Runenring auf der Platte, flackert sacht
+      // Runenring auf der Platte, flackert sacht; einzelne Feinpixel, je dritter heiß
       const k = 0.6 + 0.25 * Math.sin(clock * 2.2);
-      for (let i = 0; i < 24; i++) {
-        if (i % 4 === 3) continue;
-        const a = (i / 24) * Math.PI * 2, x = Math.round(Math.cos(a) * (RX - 4)), y = Math.round(Math.sin(a) * (RY - 1));
-        st.rect(cx + x, BASE + y, 1, 1, glowC(k * on));
+      for (let i = 0; i < 40; i++) {
+        if (i % 5 === 4) continue;
+        const a = (i / 40) * Math.PI * 2, x = Math.round(Math.cos(a) * (RX - 8)), y = Math.round(Math.sin(a) * (RY - 2));
+        f(x, y, 1, 1, (i + Math.floor(clock * 3)) % 7 === 0 ? `rgba(255, 244, 208, ${k * on})` : glowC(k * on));
       }
     };
     const drawHero = () => {
@@ -103,17 +111,17 @@
       const f = Math.floor(clock * d.fps) % d.n, x = st.W / 2 - d.fx, y = BASE - d.fy;
       if (prog >= 1) { st.blit(d.img, f * d.w, look * d.h, d.w, d.h, x, y); return; }
       // Verwandlung: unterhalb der Kante das neue Aussehen, darüber das alte
-      const edge = Math.round(d.h * (1 - prog));
+      const edge = Math.round(d.h * 2 * (1 - prog)) / 2;   // in Feinpixel-Zeilen
       if (edge > 0) st.blit(d.img, f * d.w, from * d.h, d.w, edge, x, y);
       if (edge < d.h) st.blit(d.img, f * d.w, look * d.h + edge, d.w, d.h - edge, x, y + edge);
-      // Glühende Kante in Form der Figur: 1 Spielpixel Zeile des neuen Bildes, eingefärbt
-      const row = Math.min(d.h - 1, edge);
-      scratch.width = d.w * 2; scratch.height = 2;
-      sctx.clearRect(0, 0, scratch.width, 2);
-      sctx.drawImage(d.img, f * d.w * 2, (look * d.h + row) * 2, d.w * 2, 2, 0, 0, d.w * 2, 2);
-      sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = `rgb(${d.glow})`; sctx.fillRect(0, 0, scratch.width, 2);
+      // Glühende Kante in Form der Figur: 1 Feinpixel-Zeile des neuen Bildes, eingefärbt
+      const row = Math.min(d.h - 0.5, edge);
+      scratch.width = d.w * 2; scratch.height = 1;
+      sctx.clearRect(0, 0, scratch.width, 1);
+      sctx.drawImage(d.img, f * d.w * 2, (look * d.h + row) * 2, d.w * 2, 1, 0, 0, d.w * 2, 1);
+      sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = `rgb(${d.glow})`; sctx.fillRect(0, 0, scratch.width, 1);
       sctx.globalCompositeOperation = 'source-over';
-      st.ctx.drawImage(scratch, 0, 0, d.w * 2, 2, st.px(x), st.px(y + row), d.w * st.wp, st.wp);
+      st.ctx.drawImage(scratch, 0, 0, d.w * 2, 1, st.px(x), st.px(y + row), d.w * st.wp, st.wp / 2);
       if (Math.random() < 0.9) motes.push({ x: x + Math.random() * d.w, y: y + row, vx: (Math.random() - 0.5) * 10, vy: -8 - Math.random() * 14, life: 0, max: 0.5 + Math.random() * 0.5, hot: true });
     };
     // Funke deckend, verglüht in harten Stufen: weiß → Farbe des Sets → dunkle Glut
