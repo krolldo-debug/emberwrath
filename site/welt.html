@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05020a">
-  <title>Die Welt von Emberwrath – Gebiete, Völker und Bosse</title>
-  <meta name="description" content="Die Welt des Browser-Rollenspiels Emberwrath: vierzehn Gebiete von der Glutsenke bis zum Aschethron, vier Völker und die Glutprüfungen bis Stufe 40.">
+  <title>Die Welt von Emberwrath – von der Glutsenke zum Aschethron</title>
+  <meta name="description" content="Die Welt des Browser-Rollenspiels Emberwrath: fünfzehn Gebiete von der Glutsenke bis zum Aschethron, Dungeons mit Bossen, Reittiere ab Stufe 20 und bis zu 40 Spieler in jeder Welt.">
   <link rel="canonical" href="https://www.emberwrath.com/welt">
   <meta property="og:site_name" content="Emberwrath">
   <meta property="og:locale" content="de_DE">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.emberwrath.com/welt">
-  <meta property="og:title" content="Die Welt von Emberwrath – Gebiete, Völker und Bosse">
-  <meta property="og:description" content="Die Welt des Browser-Rollenspiels Emberwrath: vierzehn Gebiete von der Glutsenke bis zum Aschethron, vier Völker und die Glutprüfungen bis Stufe 40.">
+  <meta property="og:title" content="Die Welt von Emberwrath – von der Glutsenke zum Aschethron">
+  <meta property="og:description" content="Fünfzehn Gebiete, Dungeons mit Bossen, Reittiere ab Stufe 20 und bis zu 40 Spieler in jeder Welt.">
   <meta property="og:image" content="https://www.emberwrath.com/img/og-teilen.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -20,66 +20,179 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://www.emberwrath.com/img/og-teilen.png">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" as="image" href="img/welt-quest.webp" fetchpriority="high">
   <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="welt.css">
 </head>
-<body class="world-page">
+<body class="world-page reise-page">
 <!--#include header-->
 
 <main id="inhalt">
 
-  <section class="lore" aria-labelledby="h-lore">
-    <div class="lore-bg"><img style="--fx:0.46;--fy:0.59" class="px shot" src="img/welt-aschethron.webp" alt="" width="960" height="540"></div>
-    <canvas class="embers" data-n="45" aria-hidden="true"></canvas>
-    <div class="wrap">
-      <div class="lore-text">
-        <h1 id="h-lore" class="title">Eine Krone aus Flammen</h1>
-        <p>Vor Generationen fiel Glut vom Himmel auf die Senke unter dem Aschegrat. Jetzt ist der Berg erwacht, und Ignaroth, der ihn weckte, liegt erschlagen in seiner Schmiede.</p>
-      </div>
-      <ol class="talk" aria-label="Am Feuer der Rauhwacht">
-        <li class="say" style="--i:0"><span class="say-face"><img class="px" src="img/npc-commander_hale.png" alt="" width="96" height="96"></span><div class="say-box"><b>Hale <span>Kommandant der Rauhwacht</span></b><p>„Ignaroth ist gefallen. Warum fällt dann immer noch Asche?“</p></div></li>
-        <li class="say r" style="--i:1"><span class="say-face"><img class="px" src="img/npc-elder_maren.png" alt="" width="96" height="96"></span><div class="say-box"><b>Maren <span>Dorfälteste</span></b><p>„Weil er nie der Herr war. Auf Varkhuls Siegel glüht ein zweites Zeichen, eine Krone aus Flammen.“</p></div></li>
-        <li class="say" style="--i:2"><span class="say-face"><img class="px" src="img/npc-seer_ysolde.png" alt="" width="96" height="96"></span><div class="say-box"><b>Ysolde <span>Seherin</span></b><p>„Ich habe sie gesehen. Sie brennt im Norden, auf einem Thron aus Asche.“</p></div></li>
-        <li class="say r" style="--i:3"><span class="say-face"><img class="px" src="img/npc-commander_hale.png" alt="" width="96" height="96"></span><div class="say-box"><b>Hale</b><p>„Malgareth. Mit diesem Namen haben uns die Alten als Kinder Angst gemacht.“</p></div></li>
-        <li class="say" style="--i:4"><span class="say-face"><img class="px" src="img/npc-seer_ysolde.png" alt="" width="96" height="96"></span><div class="say-box"><b>Ysolde</b><p>„Er ist kein Märchen. Er wartet. Und er weiß längst, wer seinen Diener erschlagen hat.“</p></div></li>
-        <li class="say r" style="--i:5"><span class="say-face"><img class="px" src="img/npc-commander_hale.png" alt="" width="96" height="96"></span><div class="say-box"><b>Hale</b><p>„Dann reitest du bei Sonnenaufgang in die Steppe. Folge der Krone, bis sie aufhört zu brennen.“</p></div></li>
-      </ol>
+  <!-- Auftakt: Nacht in der Glutsenke, darunter der Titel auf festem Grund (keine Schrift auf der Szene) -->
+  <section class="auftakt" aria-labelledby="h-welt">
+    <div class="auftakt-bild"><img style="--fx:0.5;--fy:0.56;--mx:0.5" class="px shot" src="img/welt-quest.webp" alt="Ein Krieger mit flammender Klinge steht nachts vor dem Haus der Dorfältesten Maren in der Glutsenke" width="960" height="540" fetchpriority="high"></div>
+    <div class="wrap auftakt-text">
+      <p class="kicker">Stufe 1 bis 40</p>
+      <h1 id="h-welt" class="title">Von der Glutsenke zum Aschethron</h1>
+      <p class="sec-line">Fünfzehn Gebiete. Bis zu 40 Spieler in jeder Welt.</p>
     </div>
   </section>
 
-  <section class="scenes" aria-label="Szenen aus der Welt">
-    <div class="wrap">
-      <article class="scene reveal">
-        <figure><img style="--fx:0.48;--fy:0.5" class="px shot" src="img/welt-quest.webp" alt="Krieger mit flammender Klinge vor dem Haus der Dorfältesten Maren in der Glutsenke, daneben die Schmiede" width="960" height="540" loading="lazy"></figure>
-        <div class="scene-text ef-frame"><h2>Aufträge</h2><p>In der Glutsenke beginnt alles mit einer Bitte von Maren. 85 Quests führen dich bis vor den Aschethron.</p></div>
-      </article>
-      <article class="scene r reveal">
-        <figure><img style="--fx:0.5;--fy:0.72" class="px shot" src="img/welt-handel.webp" alt="Schurke bei der Händlerin Imra im Außenposten der Aschensteppe, zwischen Jurten und Lagerfeuer" width="960" height="540" loading="lazy"></figure>
-        <div class="scene-text ef-frame"><h2>Handel</h2><p>Händler wie Imra kaufen deine Beute und haben, was du für den nächsten Kampf brauchst.</p></div>
-      </article>
-      <article class="scene reveal">
-        <figure><img style="--fx:0.52;--fy:0.52" class="px shot" src="img/welt-ritt.webp" alt="Krieger auf der Reifschwinge reitet auf der Straße durch die Glutöde" width="960" height="540" loading="lazy"></figure>
-        <div class="scene-text ef-frame"><h2>Reittiere</h2><p>Ab Stufe 20 trägt dich ein Reittier durch die Welt. Die seltensten lassen nur Bosse fallen.</p></div>
-      </article>
-      <article class="scene r reveal">
-        <figure><img style="--fx:0.5;--fy:0.52" class="px shot" src="img/welt-gruppe.webp" alt="Krieger, Magierin und Waldläufer bei Jarl Eskil im verschneiten Frosthold" width="960" height="540" loading="lazy"></figure>
-        <div class="scene-text ef-frame"><h2>Gemeinsam</h2><p>In Frosthold und überall sonst triffst du andere Spieler. Bis zu 40 teilen sich eine Welt.</p></div>
-      </article>
-      <article class="scene reveal">
-        <figure><img style="--fx:0.66;--fy:0.48;--mx:0.58" class="px shot" src="img/welt-dungeon.webp" alt="Krieger, Magierin und Waldläuferin kämpfen im Sporenschlund gegen Mutter Fäulnis" width="960" height="540" loading="lazy"></figure>
-        <div class="scene-text ef-frame"><h2>Dungeons</h2><p>Vierzehn Gebiete und sieben Bosse bis Stufe 40. Danach warten die Glutprüfungen.</p></div>
-      </article>
-    </div>
+  <!-- Die Reise: eine Etappe je Wildnis, mit dem Dungeon, der dort wartet. Der Weg links füllt sich beim Scrollen (welt.js). -->
+  <section class="reise" aria-label="Die Reise von Stufe 1 bis 40">
+    <ol class="weg" data-weg>
+
+      <li class="etappe" style="--ton: 255, 170, 90">
+        <div class="et-kopf">
+          <span class="stufe"><b>1</b><i>–5</i></span>
+          <h2>Glutsenke</h2>
+          <p class="et-art">Startgebiet</p>
+        </div>
+        <blockquote class="stimme"><p>„Die Glut in der Senke wird unruhig, Wanderer.“</p><cite>Maren, Dorfälteste</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.51;--fy:0.51" class="px shot" src="img/reise-glutsenke.webp" alt="Ein Krieger kämpft nachts in der Glutsenke gegen ein Wolfsrudel" width="960" height="540" loading="lazy"></figure>
+        <aside class="tor" aria-label="Dungeon">
+          <img class="px tor-boss" style="--w:152px;--h:173px" src="img/tor-varkhul.png" alt="" width="152" height="173" loading="lazy">
+          <div class="tor-text"><p class="tor-art">Dungeon · Stufe 3–6</p><h3>Die Katakomben</h3><p class="tor-name">Varkhul, der Knochenfürst</p></div>
+        </aside>
+      </li>
+
+      <li class="etappe" style="--ton: 150, 200, 120">
+        <div class="et-kopf">
+          <span class="stufe"><b>6</b><i>–11</i></span>
+          <h2>Der Aschenwald</h2>
+          <p class="et-art">Wildnis</p>
+        </div>
+        <blockquote class="stimme"><p>„Bleib auf den Wegen. Im Aschenwald jagt alles, was noch atmet.“</p><cite>Ilsa, Waldwächterin</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.49;--fy:0.52" class="px shot" src="img/reise-aschenwald.webp" alt="Eine Waldläuferin schießt im Aschenwald auf Aschekeiler" width="960" height="540" loading="lazy"></figure>
+        <aside class="tor" aria-label="Dungeon">
+          <img class="px tor-boss" style="--w:128px;--h:160px" src="img/tor-nerith.png" alt="" width="128" height="160" loading="lazy">
+          <div class="tor-text"><p class="tor-art">Dungeon · Stufe 10–12</p><h3>Der Versunkene Tempel</h3><p class="tor-name">Nerith, die Ertrunkene Priesterin</p></div>
+        </aside>
+      </li>
+
+      <li class="etappe" style="--ton: 255, 120, 50">
+        <div class="et-kopf">
+          <span class="stufe"><b>12</b><i>–17</i></span>
+          <h2>Die Schlackenhöhen</h2>
+          <p class="et-art">Wildnis</p>
+        </div>
+        <blockquote class="stimme"><p>„Die Feste hält. Noch. Wir brauchen jede Klinge.“</p><cite>Hale, Kommandant der Rauhwacht</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.5;--fy:0.53" class="px shot" src="img/reise-schlacke.webp" alt="Eine Glutmagierin kämpft in den Schlackenhöhen gegen Feuerkobolde" width="960" height="540" loading="lazy"></figure>
+        <aside class="tor" aria-label="Dungeon">
+          <img class="px tor-boss" style="--w:149px;--h:234px" src="img/tor-ignaroth.png" alt="" width="149" height="234" loading="lazy">
+          <div class="tor-text"><p class="tor-art">Dungeon · Stufe 17–20</p><h3>Die Glutschmiede</h3><p class="tor-name">Ignaroth, der Glut-Tyrann</p></div>
+        </aside>
+      </li>
+
+      <!-- Meilenstein: Stufe 20 -->
+      <li class="meilenstein" style="--ton: 160, 200, 255">
+        <div class="et-kopf">
+          <span class="stufe stufe-rast" aria-hidden="true"><b></b></span>
+          <h2>Ab Stufe 20 reitest du</h2>
+        </div>
+        <div class="voll ritt">
+          <div class="parade" data-base="82" data-h="110" data-near-y="10" data-far-y="34">
+            <canvas aria-hidden="true"></canvas>
+            <ul class="parade-names" aria-label="Reittiere">
+              <li data-m="steppe_horse" data-f="40 44 19 41 12 15 0 86" data-l="0 0 0 0 0 0 0 0 0 0 2.5 2.5">Steppenpferd</li>
+              <li data-m="frost_elk" data-f="37 45 16 42 10 10 0 74" data-l="1 0 0 0 0 1 0 0 0 0" style="--glow: 170, 220, 255">Frostelch</li>
+              <li data-m="rime_drake" data-f="65 44 30 42 12 12 26 80" data-l="1.5 2.5 4 5 5 5 4 2.5 1 0.5 0 0.5" style="--glow: 120, 190, 255">Reifschwinge</li>
+              <li data-m="ash_wolf" data-f="40 43 19 41 12 14 0 90" data-l="0 0 2 4.5 6 6 4.5 2.5 0.5 0 0 0">Aschenwolf</li>
+            </ul>
+          </div>
+        </div>
+        <p class="meilen-zeile">Dazu öffnen sich die Glutprüfungen.</p>
+      </li>
+
+      <li class="etappe" style="--ton: 230, 170, 100">
+        <div class="et-kopf">
+          <span class="stufe"><b>20</b><i>–25</i></span>
+          <h2>Die Aschensteppe</h2>
+          <p class="et-art">Wildnis</p>
+        </div>
+        <blockquote class="stimme"><p>„Ein Reittier sucht sich seinen Reiter aus. Meistens jedenfalls.“</p><cite>Orla, Stallmeisterin</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.58;--fy:0.57" class="px shot" src="img/reise-steppe.webp" alt="Ein Krieger kämpft in der Aschensteppe gegen Steppenräuber, daneben ein Tierskelett" width="960" height="540" loading="lazy"></figure>
+        <aside class="tor" aria-label="Dungeon">
+          <img class="px tor-boss" style="--w:195px;--h:200px" src="img/tor-ulgrim.png" alt="" width="195" height="200" loading="lazy">
+          <div class="tor-text"><p class="tor-art">Dungeon · Stufe 24–26</p><h3>Das Heulende Hügelgrab</h3><p class="tor-name">Ulgrim, der Hügelkönig</p></div>
+        </aside>
+      </li>
+
+      <!-- Zwischenhalt: Städte -->
+      <li class="meilenstein" style="--ton: 232, 194, 90">
+        <div class="et-kopf">
+          <span class="stufe stufe-rast" aria-hidden="true"><b></b></span>
+          <h2>In den Städten</h2>
+        </div>
+        <figure class="voll band"><img style="--fx:0.5;--fy:0.62" class="px shot" src="img/welt-handel.webp" alt="Ein Schurke bei der Händlerin Imra im Außenposten der Aschensteppe, zwischen Jurten und Lagerfeuer" width="960" height="540" loading="lazy"></figure>
+        <ul class="schilder">
+          <li>Auktionshaus</li>
+          <li>Postfach</li>
+          <li>Auftragsbrett</li>
+          <li>Wegstein</li>
+        </ul>
+      </li>
+
+      <li class="etappe" style="--ton: 150, 220, 160">
+        <div class="et-kopf">
+          <span class="stufe"><b>25</b><i>–31</i></span>
+          <h2>Die Faulmarsch</h2>
+          <p class="et-art">Wildnis</p>
+        </div>
+        <blockquote class="stimme"><p>„Atme flach. Die Sporen sind heute gierig.“</p><cite>Thane, Moorwächter</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.46;--fy:0.5" class="px shot" src="img/reise-marsch.webp" alt="Eine Waldläuferin kämpft in der Faulmarsch gegen Sumpfegel" width="960" height="540" loading="lazy"></figure>
+      </li>
+
+      <li class="etappe" style="--ton: 170, 220, 255">
+        <div class="et-kopf">
+          <span class="stufe"><b>31</b><i>–36</i></span>
+          <h2>Die Frostzinnen</h2>
+          <p class="et-art">Wildnis</p>
+        </div>
+        <blockquote class="stimme"><p>„Der Winter hier oben verzeiht nichts. Ich auch nicht.“</p><cite>Eskil, Jarl von Frosthold</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.52;--fy:0.56" class="px shot" src="img/reise-frostzinnen.webp" alt="Ein Krieger kämpft in den verschneiten Frostzinnen gegen Frostwölfe" width="960" height="540" loading="lazy"></figure>
+        <aside class="tor" aria-label="Dungeon">
+          <img class="px tor-boss" style="--w:236px;--h:191px" src="img/tor-skalvyr.png" alt="" width="236" height="191" loading="lazy">
+          <div class="tor-text"><p class="tor-art">Dungeon · Stufe 35–37</p><h3>Die Reifhöhlen</h3><p class="tor-name">Skalvyr, der Frostwurm</p></div>
+        </aside>
+      </li>
+
+      <!-- Zwischenhalt: gemeinsam -->
+      <li class="meilenstein" style="--ton: 190, 200, 240">
+        <div class="et-kopf">
+          <span class="stufe stufe-rast" aria-hidden="true"><b></b></span>
+          <h2>Bis zu 40 Spieler in jeder Welt</h2>
+        </div>
+        <figure class="voll band"><img style="--fx:0.5;--fy:0.52" class="px shot" src="img/welt-gruppe.webp" alt="Krieger, Magierin und Waldläufer bei Jarl Eskil im verschneiten Frosthold" width="960" height="540" loading="lazy"></figure>
+      </li>
+
+      <li class="etappe" style="--ton: 255, 110, 40">
+        <div class="et-kopf">
+          <span class="stufe"><b>36</b><i>–40</i></span>
+          <h2>Die Glutöde</h2>
+          <p class="et-art">Wildnis</p>
+        </div>
+        <blockquote class="stimme"><p>„Hinter diesen Mauern endet die Welt. Vor ihnen beginnt der Thron.“</p><cite>Corvane, Marschall der letzten Bastion</cite></blockquote>
+        <figure class="et-bild rahmen"><img style="--fx:0.51;--fy:0.53" class="px shot" src="img/reise-gluetoede.webp" alt="Eine Glutmagierin kämpft in der Glutöde neben einem Lavastrom gegen Schlackenritter" width="960" height="540" loading="lazy"></figure>
+      </li>
+    </ol>
   </section>
 
-  <section class="final" aria-labelledby="h-final">
-    <div class="wrap final-inner">
-      <h2 id="h-final" class="title">Deine Reise beginnt in der Glutsenke.</h2>
-      <a class="btn primary big" data-link="play" href="spielen/">Jetzt spielen</a>
+  <!-- Ende der Reise: der Aschethron -->
+  <section class="thron" aria-labelledby="h-thron">
+    <div class="thron-bild"><img style="--fx:0.5;--fy:0.4;--mx:0.52" class="px shot" src="img/reise-aschethron.webp" alt="Ein Krieger stellt sich im Thronsaal Malgareth, dem Aschenfürsten" width="960" height="540" loading="lazy"></div>
+    <div class="wrap thron-text">
+      <span class="stufe stufe-ziel"><b>40</b></span>
+      <h2 id="h-thron" class="title">Der Aschethron</h2>
+      <p class="tor-name">Malgareth, der Aschenfürst</p>
+      <a class="btn primary big" data-link="play" href="spielen/">Deine Reise beginnen</a>
     </div>
   </section>
 </main>
 
 <!--#include footer-->
+<script src="welt.js"></script>
 </body>
 </html>
