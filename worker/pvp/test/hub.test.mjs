@@ -169,6 +169,7 @@ async function fight(hub, a, b) {
   const b = await join(hub, 'Borin', 'u2');
   await hub.tick();
   await fight(hub, a, b);
+  clock += 8000;
   await hub.close(b);
   clock += 2000; await hub.tick();
   ok(!a.last('end'), 'Verbindungsabbruch: kurze Gnadenfrist');
@@ -184,8 +185,122 @@ async function fight(hub, a, b) {
   const b = await join(hub, 'Borin', 'u2');
   await hub.tick();
   await fight(hub, a, b);
+  clock += 8000;
   await send(hub, b, { t: 'leave' });
   ok(a.last('end')?.result === 'win' && b.last('end')?.result === 'loss', 'Aufgeben: Niederlage');
+}
+
+// ---------------------------------------------------------------- Sicherheit
+{
+  // Unverwundbarkeit nur mit eigener Fähigkeit und nach Abklingzeit
+  const hub = hubOf();
+  const a = await join(hub, 'Aria', 'u1', { classId: 'mage' });
+  const b = await join(hub, 'Borin', 'u2', { classId: 'warrior' });
+  await hub.tick();
+  await fight(hub, a, b);
+  let landed = 0;
+  for (let i = 0; i < 20; i++) {
+    clock += 700;
+    await send(hub, b, { t: 's', s: [130, 100, 0, 0, 1, 0], fx: [['k', 0, 'shadow_step'], ['k', 0, 'blink']] });
+    const n = b.all('hp').length;
+    await send(hub, a, { t: 'hit', d: 20 });
+    if (b.all('hp').length > n) landed++;
+  }
+  ok(landed === 20, `fremde Fähigkeiten machen nicht unverwundbar (${landed} von 20 Treffern)`);
+  const a2 = await join(hub, 'Cara', 'u3', { classId: 'mage' });
+  const b2 = await join(hub, 'Dorn', 'u4', { classId: 'rogue' });
+  await hub.tick();
+  await fight(hub, a2, b2);
+  landed = 0;
+  for (let i = 0; i < 20; i++) {
+    clock += 700;
+    await send(hub, b2, { t: 's', s: [130, 100, 0, 0, 1, 0], fx: [['k', 0, 'shadow_step']] });
+    const n = b2.all('hp').length;
+    await send(hub, a2, { t: 'hit', d: 20 });
+    if (b2.all('hp').length > n) landed++;
+  }
+  ok(landed >= 15, `Schattenschritt nur nach Abklingzeit (${landed} von 20 Treffern)`);
+}
+{
+  // Dauerschaden: nur Schurken, klein, eigenes Budget
+  const hub = hubOf();
+  const a = await join(hub, 'Aria', 'u1', { classId: 'mage' });
+  const b = await join(hub, 'Borin', 'u2', { classId: 'warrior' });
+  await hub.tick();
+  await fight(hub, a, b);
+  for (let i = 0; i < 10; i++) { clock += 100; await send(hub, a, { t: 'hit', d: 1e5, dot: true }); }
+  ok(!b.last('hp'), 'Magier kann keinen Dauerschaden melden');
+  const r = await join(hub, 'Rika', 'u3', { classId: 'rogue' });
+  const w = await join(hub, 'Wulf', 'u4', { classId: 'warrior' });
+  await hub.tick();
+  await fight(hub, r, w);
+  for (let i = 0; i < 20; i++) { clock += 100; await send(hub, r, { t: 'hit', d: 1e5, dot: true }); }
+  const ticks = w.all('hp');
+  const stR = arenaStats('rogue', 'human');
+  const big = Math.max(...ticks.map((x) => x.dmg));
+  ok(ticks.length <= 9 && big <= Math.ceil(stR.power * 0.145 * 0.35 * 1.25 * 1.01 + 1), `Gifttakte begrenzt: ${ticks.length} Takte in 2 s, höchstens ${big}`);
+}
+{
+  // Absprache: Zweitkonto gibt sofort auf
+  const hub = hubOf();
+  const a = await join(hub, 'Haupt', 'u1');
+  const b = await join(hub, 'Zweit', 'u2');
+  await hub.tick();
+  const id = a.last('match').id;
+  await send(hub, a, { t: 'ready', id });
+  await send(hub, b, { t: 'leave' });
+  ok(a.last('end')?.delta === 0 && a.last('end').gold === 0 && b.last('end')?.delta < 0, 'Aufgeben vor dem Gong: kein Sieg für den anderen');
+  const c = await join(hub, 'Haupt2', 'u3');
+  const d = await join(hub, 'Zweit2', 'u4');
+  await hub.tick();
+  await fight(hub, c, d);
+  clock += 2000;
+  await send(hub, d, { t: 'leave' });
+  ok(c.last('end')?.delta === 0, 'Aufgeben in den ersten Sekunden: kein Sieg für den anderen');
+  // dasselbe Paar höchstens zweimal am Tag gewertet
+  let rated = 0;
+  for (let i = 0; i < 4; i++) {
+    await send(hub, c, { t: 'queue' }); await send(hub, d, { t: 'queue' });
+    await hub.tick();
+    if (!c.last('match') || c.last('end')?.id === c.last('match').id) { clock += TIMING.botAfterMs + 10; await hub.tick(); break; }
+    await fight(hub, c, d);
+    clock += 8000;
+    await send(hub, d, { t: 'leave' });
+    if (c.last('end')?.delta > 0) rated++;
+  }
+  ok(rated <= 1, `dasselbe Paar wird nicht beliebig oft gewertet (${rated} weitere)`);
+}
+{
+  // Ohne gespeicherten Charakter kein Zutritt
+  const hub = hubOf(memStore(), { profile: async (uid, cid) => (cid === 'cu1' ? { name: 'Echt', level: 30, classId: 'mage', raceId: 'elf' } : null) });
+  const a = await join(hub, 'Falsch', 'u1', { queue: false, level: 5 });
+  ok(a.out[0]?.t === 'welcome', 'gespeicherter Charakter: Zutritt (Stufe vom Server)');
+  const s = sock('z'); hub.open(s);
+  await send(hub, s, { t: 'hello', v: PVP_VERSION, token: 'ok:u2', char: { id: 'erfunden', name: 'Fake', level: 40, classId: 'mage', raceId: 'elf' } });
+  ok(s.last('bye')?.reason === 'char', 'erfundener Charakter: abgewiesen');
+}
+{
+  // Bestenliste über die Verbindung ohne Kontoschlüssel und gedrosselt
+  const hub = hubOf();
+  const a = await join(hub, 'Aria', 'u1', { queue: false });
+  for (let i = 0; i < 5; i++) await send(hub, a, { t: 'top' });
+  ok(a.all('top').length === 1, 'top höchstens alle 2 s');
+  ok(a.last('top').list.every((x) => !('k' in x)), 'top ohne Kontoschlüssel');
+}
+{
+  // zweites Fenster mitten im Kampf: alter Kämpfer gilt als weg, Wiederverbinden übernimmt
+  const hub = hubOf();
+  const a = await join(hub, 'Aria', 'u1');
+  const b = await join(hub, 'Borin', 'u2');
+  await hub.tick();
+  await fight(hub, a, b);
+  clock += 8000;
+  const b2 = await join(hub, 'Borin', 'u2', { queue: false });
+  ok(b.last('bye')?.reason === 'replaced' && b2.last('match')?.resume, 'zweites Fenster übernimmt den Kampf');
+  const b3s = sock('b3'); hub.open(b3s);
+  await send(hub, b3s, { t: 'hello', v: PVP_VERSION, token: 'ok:u2', char: { id: 'anders', name: 'Anders', level: 30, classId: 'mage', raceId: 'elf' } });
+  clock += TIMING.graceMs + 10; await hub.tick();
+  ok(a.last('end')?.result === 'win', 'anderer Charakter im zweiten Fenster: Kampf verloren nach der Frist');
 }
 
 // ---------------------------------------------------------------- Wertungsfenster, Tagesbelohnung, Takt

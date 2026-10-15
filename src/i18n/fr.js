@@ -4706,5 +4706,6 @@ export const FR = {
   "Erreiche in der Glutarena die Liga Platin.": "Atteins la ligue Platine dans l'Arène des Braises.",
   "Diamantklinge": "Lame de diamant",
   "Erreiche in der Glutarena die Liga Diamant.": "Atteins la ligue Diamant dans l'Arène des Braises.",
-  "Erreiche in der Glutarena die Liga Glutmeister.": "Atteins la ligue Maître des Braises dans l'Arène des Braises."
+  "Erreiche in der Glutarena die Liga Glutmeister.": "Atteins la ligue Maître des Braises dans l'Arène des Braises.",
+  "Dein Held ist noch nicht gespeichert. Versuche es gleich noch einmal.": "Ton héros n'est pas encore sauvegardé. Réessaie dans un instant."
 };
