@@ -22,7 +22,7 @@ const REASON_TEXT = {
   level: `Die Arena öffnet ab Stufe ${PVP_MIN_LEVEL}.`,
   replaced: 'Die Arena wurde in einem anderen Fenster geöffnet.',
   version: 'Bitte lade das Spiel neu, um die Arena zu betreten.',
-  char: 'Dein Held ist noch nicht gespeichert. Versuche es gleich noch einmal.',
+  many: 'Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.',
 };
 
 export class PvpService {

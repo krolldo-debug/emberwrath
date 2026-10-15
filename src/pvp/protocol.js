@@ -25,7 +25,7 @@
 //   hp      { side, hp, max, dmg, crit, dot, heal, ub }   Leben eines Kämpfers nach Treffer/Heilung (ub: Unbeugsam)
 //   end     { id, result, reason, me: Wertung, delta, gold }   result 'win'|'loss'|'draw', reason 'ko'|'time'|'left'|'absent'
 //   top     { season, list: [{ name, classId, rating, wins, losses }] }
-//   bye     { reason }             'auth' | 'version' | 'replaced' | 'level' | 'char' (Charakter nicht gespeichert)
+//   bye     { reason }             'auth' | 'version' | 'replaced' | 'level' | 'many' (Konto hat schon 20 Helden in der Saison)
 //
 // Wertung = { rating, wins, losses, draws, games, best, tier, season, daily }
 // Gegner  = { name, level, classId, raceId, look, rating }

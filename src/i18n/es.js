@@ -4707,5 +4707,5 @@ export const ES = {
   "Diamantklinge": "Hoja de diamante",
   "Erreiche in der Glutarena die Liga Diamant.": "Alcanza la liga Diamante en la Arena de Ascuas.",
   "Erreiche in der Glutarena die Liga Glutmeister.": "Alcanza la liga Maestro de Ascuas en la Arena de Ascuas.",
-  "Dein Held ist noch nicht gespeichert. Versuche es gleich noch einmal.": "Tu héroe aún no se ha guardado. Inténtalo de nuevo en un momento."
+  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "Ya hay 20 héroes de esta cuenta luchando esta temporada."
 };
