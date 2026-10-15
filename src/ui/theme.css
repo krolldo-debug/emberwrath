@@ -1452,6 +1452,10 @@ html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [da
     background: rgba(14, 8, 22, 0.8); -webkit-tap-highlight-color: transparent;
   }
   html.ef-touch:not(.ef-portrait):not(:has(.net-chat-btn:not([hidden]))) .ef-hud .hud-bag-btn { left: calc(env(safe-area-inset-left, 0px) + 226px); }
+  /* Bossleiste oder Arenagegner oben in der Mitte: Inventar rückt unter das Heldenfeld, sonst läge es auf der Leiste */
+  html.ef-touch:not(.ef-portrait):has(.hud-boss.show, .pv-top:not([hidden])) .ef-hud .hud-bag-btn {
+    left: calc(env(safe-area-inset-left, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 92px);
+  }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn img { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55)); }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn:active { border-color: var(--ef-gold); }
 
