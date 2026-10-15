@@ -8,6 +8,7 @@ import { installWorld } from './world/index.js';
 import { installProgression } from './progression/index.js';
 import { installUi } from './ui/index.js';
 import { installOnline } from './online/index.js';
+import { installLedger } from './ledger/index.js';
 import { installNet } from './net/index.js';
 import { installFinder } from './finder/index.js';
 import { installPvp } from './pvp/index.js';
@@ -30,6 +31,7 @@ game
   .use(installProgression) // Thread C
   .use(installUi)          // Thread D
   .use(installOnline)      // Online-Konten (src/online, docs/ONLINE.md)
+  .use(installLedger)      // Fortschrittsbuch: Server bestätigt Erfahrung, Gold und Beute (src/ledger)
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
   .use(installPvp)         // Glutarena: gewertete Kämpfe 1 gegen 1 (src/pvp, worker/pvp)

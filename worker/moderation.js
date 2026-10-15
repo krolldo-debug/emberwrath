@@ -44,12 +44,17 @@ export async function activeMutes(env, uids) {
   } catch { return undefined; }
 }
 
-// Gespeicherter Charakter (Name, Stufe) -> { name, level } | null. Quelle für das, was andere Spieler sehen:
-// der Client darf Name und Stufe nicht frei behaupten. null bei unbekannt, fehlendem Secret oder Störung.
+// Gespeicherter Charakter -> { name, level, classId, raceId } | { missing: true } | null. Quelle für das, was andere
+// Spieler sehen: der Client darf Name, Stufe und Klasse nicht frei behaupten.
+//   missing: Die Cloud kennt den Charakter nicht (noch nie hochgeladen): höchstens so stark wie ein neuer Held (NEW_LEVEL_MAX).
+//   null: kein Secret oder Störung (dann gelten die geprüften Angaben des Clients).
+export const NEW_LEVEL_MAX = 3; // wie characters_plausible beim ersten Hochladen
 export async function loadCharacter(env, uid, charId) {
   if (!moderationReady(env) || !/^[0-9a-f-]{36}$/i.test(uid) || !/^[A-Za-z0-9_-]{1,64}$/.test(String(charId ?? ''))) return null;
   try {
-    const rows = await db(env, `characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(charId)}&select=name,level&limit=1`);
-    return rows?.[0] ? { name: String(rows[0].name ?? ''), level: Number(rows[0].level) || 1 } : null;
+    const rows = await db(env, `characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(charId)}&select=name,level,class_id,race_id&limit=1`);
+    const r = rows?.[0];
+    if (!Array.isArray(rows)) return null;
+    return r ? { name: String(r.name ?? ''), level: Number(r.level) || 1, classId: r.class_id ?? null, raceId: r.race_id ?? null } : { missing: true };
   } catch { return null; }
 }

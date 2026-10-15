@@ -26,6 +26,7 @@ import { CLASSES, ABILITIES } from '../../src/character/classes.js';
 // Gegen Herausforderer (Bots) kämpft der Client allein; der Server vergibt dafür halbe Wertung bis BOT_RATING_CAP.
 
 const HELLO_TIMEOUT_MS = 10_000;
+const NEW_LEVEL_MAX = 3;       // Charakter, den die Cloud nicht kennt: höchstens so stark wie ein neuer Held (worker/moderation.js)
 const MAX_MSG = 8192;
 const RATE_PER_S = 40, RATE_BURST = 80;
 const MAX_DIST = 360;          // Weltpixel zwischen den Kämpfern, weiter trifft nichts (Pfeil 260 + Laufweg + Verzögerung)
@@ -167,14 +168,16 @@ export class ArenaHub {
     const raw = m.char && typeof m.char === 'object' ? m.char : {};
     const charId = typeof raw.id === 'string' && ID_RE.test(raw.id) ? raw.id : '';
     if (!charId) { this.#bye(c, 'auth'); return; }
-    // Gespeicherter Charakter, falls die Cloud ihn liefert; sonst (noch nicht hochgeladen, Abfrage gescheitert) gelten
-    // die Angaben des Clients. Gegen erfundene Charaktere: höchstens MAX_CHARS Wertungen je Konto und Saison.
-    const stored = this.profile ? await this.profile(user.uid, charId).catch(() => null) : null;
+    // Gespeicherter Charakter, falls die Cloud ihn liefert. Kennt sie ihn nicht (erfunden, noch nie hochgeladen), zählt er
+    // wie ein neuer Held (NEW_LEVEL_MAX, zu niedrig für die Arena). Nur bei einer Störung gelten die Angaben des Clients;
+    // gegen erfundene Charaktere dann höchstens MAX_CHARS Wertungen je Konto und Saison.
+    const found = this.profile ? await this.profile(user.uid, charId).catch(() => null) : null;
+    const stored = found?.missing ? null : found;
     if (!this.conns.has(c.socket)) return;
     if (!(await this.#claim(user.uid, charId))) { this.#bye(c, 'many'); return; }
     if (!this.conns.has(c.socket)) return;
     // Name, Stufe, Klasse und Volk aus dem Speicherstand (Stufe höchstens eine darüber, wie auf dem Welt-Server)
-    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : LEVEL_MAX;
+    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : found?.missing ? NEW_LEVEL_MAX : LEVEL_MAX;
     const char = {
       id: charId,
       name: cleanName(stored?.name || raw.name),
