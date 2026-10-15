@@ -75,7 +75,7 @@
 /* Handy: unter der Minimap, rechts endet die Tafel vor der Aktionsgruppe (Fähigkeiten, Trank, Angriff bleiben frei);
    drei Spalten, damit sie flach bleibt. Zweizeilige Beschriftung ist erlaubt (feste Zellbreite). */
 .ef-touch .menu-panel {
-  top: calc(env(safe-area-inset-top, 0px) + 94px); right: calc(env(safe-area-inset-right, 0px) + 236px); bottom: auto;
+  top: calc(env(safe-area-inset-top, 0px) + 94px); right: calc(var(--ef-safe-r, env(safe-area-inset-right, 0px)) + 236px); bottom: auto;
   width: 348px; padding: 8px 10px 10px; gap: 4px; max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 94px - 22px); /* Minimap endet bei 86 px, XP-Leiste unten */
 }
 .ef-touch .menu-panel[data-page="settings"], .ef-touch .menu-panel[data-page="help"], .ef-touch .menu-panel[data-page="report"] { width: 360px; }
