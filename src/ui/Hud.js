@@ -142,11 +142,11 @@ export class Hud {
     this.barEl = el('div.hud-actions', this.slots.map((s) => s.el));
 
     // Menüknöpfe
-    const menuBtn = (action, key, label, icon) => el('button.hud-menu-btn', {
-      type: 'button', title: `${label} (${key})`, 'aria-label': label, dataset: { action },
-      onclick: (e) => { e.currentTarget.blur(); this.s.sfx.play?.('ui'); this.#openMenu(false); this.#tap(action); },
+    const menuBtn = (action, key, label, icon, run = null) => el('button.hud-menu-btn', {
+      type: 'button', title: key ? `${label} (${key})` : label, 'aria-label': label, dataset: { action },
+      onclick: (e) => { e.currentTarget.blur(); this.s.sfx.play?.('ui'); this.#openMenu(false); if (run) run(); else this.#tap(action); },
     }, el('img.ef-icon.hud-menu-icon', { src: iconUrl(icon), alt: '', width: 30, height: 30, draggable: 'false' }),
-      el('span.hud-menu-label', label), el('kbd.hud-key', key));
+      el('span.hud-menu-label', label), key ? el('kbd.hud-key', key) : null);
     // Touch: ein einzelner Menüknopf klappt die Liste auf (spart Platz auf dem Handy);
     // Desktop: die Liste steht offen als Knopfreihe (.hud-menu-list mit display: contents).
     this.menuList = el('div.hud-menu-list',
@@ -155,7 +155,10 @@ export class Hud {
       menuBtn('quests', 'L', 'Quests', 'ui_quests'),
       menuBtn('talents', 'U', 'Talente', 'ui_talents'),
       menuBtn('pause', 'Esc', 'Menü', 'ui_menu'),
+      // Nur Handy quer (theme.css): Shop direkt in der Liste statt erst im Menü
+      menuBtn('shop', null, 'Shop', 'gold', () => this.s.panels?.open?.('goldshop')),
     );
+    this.shopBtn = this.menuList.querySelector('[data-action="shop"]');
     this.menuToggle = el('button.hud-menu-toggle', {
       type: 'button', 'aria-label': 'Menü öffnen', 'aria-expanded': 'false',
       onclick: () => { this.s.sfx.play?.('ui'); this.#openMenu(!this.menuOpen); },
@@ -175,7 +178,13 @@ export class Hud {
     this.stickEl = el('div.hud-stick', this.stickKnob);
     this.stickHint = el('div.hud-stick-hint', 'Hier ziehen zum Laufen');
 
-    this.root = el('div.ef-hud', this.viewEl, this.frame, this.barEl, this.menuEl, this.stickEl, this.stickHint);
+    // Nur Handy quer (theme.css): Inventar als eigener Knopf oben neben dem Chat
+    this.bagBtn = el('button.hud-bag-btn', {
+      type: 'button', title: 'Inventar (I)', 'aria-label': 'Inventar',
+      onclick: (e) => { e.currentTarget.blur(); this.s.sfx.play?.('ui'); this.#openMenu(false); this.#tap('inventory'); },
+    }, el('img.ef-icon', { src: iconUrl('ui_bag'), alt: '', width: 28, height: 28, draggable: 'false' }));
+
+    this.root = el('div.ef-hud', this.viewEl, this.frame, this.barEl, this.menuEl, this.bagBtn, this.stickEl, this.stickHint);
     this.game.ui.hud.replaceChildren(this.root);
     this.#refreshStatic();
   }
@@ -225,6 +234,7 @@ export class Hud {
     let free = 0;
     try { free = talentPointsTotal(sl.progress?.level ?? 1) - spentPoints(sl.character?.talents ?? {}); } catch { free = 0; }
     toggle(this.menuEl, 'has-talent', free > 0);
+    toggle(this.shopBtn, 'hidden', !this.game.shop?.visible);
   }
 
   #tap(action) {
