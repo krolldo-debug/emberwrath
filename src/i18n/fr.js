@@ -4709,5 +4709,11 @@ export const FR = {
   "Diamantklinge": "Lame de diamant",
   "Erreiche in der Glutarena die Liga Diamant.": "Atteins la ligue Diamant dans l'Arène des Braises.",
   "Erreiche in der Glutarena die Liga Glutmeister.": "Atteins la ligue Maître des Braises dans l'Arène des Braises.",
-  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "20 héros de ce compte combattent déjà cette saison."
+  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "20 héros de ce compte combattent déjà cette saison.",
+  "Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.": "Conçu pour trois héros. Tu trouveras des compagnons dans la Recherche de donjon.",
+  "Die Glutarena ist offen: Dungeonsuche im Menü.": "L'Arène des Braises est ouverte : recherche de donjon dans le menu.",
+  "Söldner anheuern": "Engager des mercenaires",
+  "Anheuern · {0} Gold": "Engager · {0} or",
+  "Allein": "Seul",
+  "Instanz": "Instance"
 };

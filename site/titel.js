@@ -9,6 +9,9 @@
 // Schlachtruf (Klinge hoch, Kopf in den Nacken, Funkenring, Feuerschalen lodern) und Erdspalter (Ausholen, Halten,
 // Einschlag mit Erschütterung, eine Glutwelle läuft über die Fugen der Kruste, Staub und Funken).
 // Ohne JavaScript oder bei reduzierter Bewegung bleibt das Standbild (hier pixelgenau ausgerichtet).
+// Eingebunden direkt hinter dem Titelbild (nicht async, nicht am Seitenende): so richtet es das Standbild noch vor dem
+// ersten Malen aus. site.css hält es bis dahin verborgen, sonst spränge es (Layout-Verschiebung); async liefe erst nach
+// dem ersten Malen, das Standbild käme ein Bild später (LCP später).
 (() => {
   const box = document.querySelector('.hero-bg[data-titel]');
   const poster = box?.querySelector('img');
@@ -41,6 +44,7 @@
     camX = Math.max(0, Math.min(S.W - Math.ceil(vw), Math.round(S.HX - f.ax * vw)));
     camY = Math.max(0, Math.round(S.FY - f.fy * vh));
     Object.assign(poster.style, { width: `${(S.W * d) / dpr}px`, height: `${(S.H * d) / dpr}px`, left: `${(-camX * d) / dpr}px`, top: `${(-camY * d) / dpr}px` });
+    poster.classList.add('da');   // jetzt pixelgenau: sichtbar (site.css hält es bis dahin verborgen, sonst springt es)
   };
   layout();
   addEventListener('resize', layout);
@@ -64,7 +68,16 @@
   const NAMES = ['titel-fern', 'titel-fern-glut', 'titel-strom', 'titel-strom-glut', 'titel-mitte', 'titel-mitte-glut', 'titel-nah', 'titel-nah-glut', 'titel-welle',
     'titel-held-umhang', 'titel-held-koerper', 'titel-held-flamme', 'titel-held-klinge', 'titel-held-momente'];
   const start = () => Promise.all(NAMES.map(load)).then((im) => run(Object.fromEntries(NAMES.map((n, i) => [n.slice(6), im[i]]))), () => {});
-  if (document.readyState === 'complete') setTimeout(start, 200); else addEventListener('load', () => setTimeout(start, 200), { once: true });
+  // Ebenen erst laden, wenn die Seite geladen ist und das Standbild (LCP) gemalt wurde: vorher teilen sie sich auf dem
+  // Handy die Leitung mit ihm, und Lighthouse rechnet jede Datei, die vor dem ersten Malen fertig ist, in die LCP-Zeit ein.
+  let begun = false;
+  const begin = () => { if (!begun) { begun = true; setTimeout(start, 200); } };
+  const loaded = () => {
+    if (!window.PerformanceObserver?.supportedEntryTypes?.includes('largest-contentful-paint')) { begin(); return; }
+    new PerformanceObserver((l, o) => { if (l.getEntries().length) { o.disconnect(); requestAnimationFrame(begin); } }).observe({ type: 'largest-contentful-paint', buffered: true });
+    setTimeout(begin, 3000);   // Hintergrund-Tab: dort meldet der Browser kein LCP
+  };
+  if (document.readyState === 'complete') loaded(); else addEventListener('load', loaded, { once: true });
 
   function run(I) {
     try { live(I); } catch { stop(); }

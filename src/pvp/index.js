@@ -73,6 +73,6 @@ export function installPvp(game) {
 
   // Stufe 10: Hinweis, dass die Arena offen ist (einmal)
   game.bus.on(EV.LEVEL_UP, (e) => {
-    if (e?.level === PVP_MIN_LEVEL) game.bus.emit(EV.UI_TOAST, { text: 'Die Glutarena ist offen: Dungeonsuche (O).', kind: 'quest' });
+    if (e?.level === PVP_MIN_LEVEL) game.bus.emit(EV.UI_TOAST, { text: game.input?.usingTouch ? 'Die Glutarena ist offen: Dungeonsuche im Menü.' : 'Die Glutarena ist offen: Dungeonsuche (O).', kind: 'quest' });
   });
 }

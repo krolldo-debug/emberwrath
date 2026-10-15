@@ -4709,5 +4709,11 @@ export const ES = {
   "Diamantklinge": "Hoja de diamante",
   "Erreiche in der Glutarena die Liga Diamant.": "Alcanza la liga Diamante en la Arena de Ascuas.",
   "Erreiche in der Glutarena die Liga Glutmeister.": "Alcanza la liga Maestro de Ascuas en la Arena de Ascuas.",
-  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "Ya hay 20 héroes de esta cuenta luchando esta temporada."
+  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "Ya hay 20 héroes de esta cuenta luchando esta temporada.",
+  "Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.": "Pensado para tres héroes. Encontrarás compañeros en el Buscador de mazmorras.",
+  "Die Glutarena ist offen: Dungeonsuche im Menü.": "La Arena de Ascuas está abierta: buscador de mazmorras en el menú.",
+  "Söldner anheuern": "Contratar mercenarios",
+  "Anheuern · {0} Gold": "Contratar · {0} de oro",
+  "Allein": "Solo",
+  "Instanz": "Instancia"
 };

@@ -145,14 +145,15 @@ copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-
 }
 const landing = buildSite(root, site);
 // Startseiten (de/en/es/fr): Spiel unauffällig vorab laden, damit „Kostenlos spielen“ nicht mehr aufs Herunterladen wartet,
-// dazu das Wörterbuch der Sprache. site.js holt es dort nach, wo der Browser rel=prefetch nicht kennt (Safari).
+// dazu das Wörterbuch der Sprache. Nur als <meta name="ew-vorab">: site.js lädt erst nach dem Titelbild (LCP) vorab, ein
+// <link rel="prefetch"> im Kopf liefe gleich mit los und kostete auf dem Handy die LCP-Zeit.
 for (const f of ['index.html', ...Object.keys(dictFiles).map((id) => `${id}/index.html`)]) {
   const p = resolve(site, f);
   let page;
   try { page = readFileSync(p, 'utf8'); } catch { continue; }
   const id = f.slice(0, 2);
-  const dict = dictFiles[id] && f !== 'index.html' ? `  <link rel="prefetch" href="/spielen/${dictFiles[id]}" as="script">\n` : '';
-  writeFileSync(p, page.replace('</head>', `  <link rel="prefetch" href="/spielen/${gameFile}" as="script">\n${dict}</head>`));
+  const dict = dictFiles[id] && f !== 'index.html' ? `  <meta name="ew-vorab" content="/spielen/${dictFiles[id]}">\n` : '';
+  writeFileSync(p, page.replace('</head>', `  <meta name="ew-vorab" content="/spielen/${gameFile}">\n${dict}</head>`));
 }
 // Cloudflare Pages / Netlify lesen _headers: HTML immer frisch laden (neue Versionen sofort sichtbar),
 // dazu übliche Sicherheits-Header (worker/headers.js). Kein externer Inhalt nötig – das Spiel ist eine einzige Datei.
@@ -200,6 +201,9 @@ writeFileSync(resolve(site, '_headers'), [
   '  Cache-Control: no-cache',
   '/img/*',
   '  Cache-Control: public, max-age=86400',
+  // Schriften ändern sich nie (neue Schrift = neuer Dateiname): 30 Tage ohne Rückfrage, sonst prüft jeder Besuch sie neu
+  '/fonts/*',
+  '  Cache-Control: public, max-age=2592000',
   '/spielen/spiel.*',
   '  Cache-Control: public, max-age=31536000, immutable',
   '/spielen/sprache-*',

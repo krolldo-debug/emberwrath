@@ -139,6 +139,9 @@ export function buildLang(id, html, page, outDir, tr, missing) {
       const v = getAttr(el, a);
       if (v != null && !(el.tag === 'link' && /alternate|canonical/.test(getAttr(el, 'rel') ?? ''))) setAttr(el, a, mapUrl(v, id));
     }
+    // srcset (<picture><source>, <img>): jede Adresse wie src
+    const set = getAttr(el, 'srcset');
+    if (set != null) setAttr(el, 'srcset', set.split(',').map((part) => part.trim().replace(/^\S+/, (u) => mapUrl(u, id))).join(', '));
     const style = getAttr(el, 'style');
     if (style && /url\(/.test(style)) setAttr(el, 'style', style.replace(/url\((?!["']?(?:\/|https?:|data:))["']?([^)"']+)["']?\)/g, 'url(/$1)'));
     if (el.tag === 'meta' && getAttr(el, 'property') === 'og:locale') setAttr(el, 'content', meta.og);

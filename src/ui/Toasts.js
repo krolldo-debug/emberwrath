@@ -64,7 +64,7 @@ export class Toasts {
     });
     bus.on(EV.QUEST_READY, (e) => {
       const def = c.find('quest', e.questId);
-      const npc = c.find('npc', def?.turnIn ?? def?.giver)?.name;
+      const npc = c.find('npc', def?.turnInNpc ?? def?.turnIn ?? def?.giver)?.name;
       this.push(`${qTitle(e.questId)} erfüllt${npc ? ` – zurück zu ${npc}` : ''}`, 'quest', 'scroll');
     });
   }

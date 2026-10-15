@@ -75,6 +75,9 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   Rahmen, Knöpfe auf dieser Seite ohne Schein. Szenen `reise-*.webp` (960 × 540) aus `tools/welt.mjs welt-…`
   (`welt-aufbruch`, `-glutsenke`, `-aschenwald`, `-arena`, `-schlacke`, `-ignaroth`, `-steppe`, `-marsch`, `-frostzinnen`,
   `-aschethron`; PNG `…-NN.png` je Bild, bestes Bild wählen und verlustfrei nach WebP), `welt-gruppe.webp` aus `leben-gruppe`.
+  Einstiegsbild fürs Handy hoch (≤ 430 px): `reise-aufbruch-handy.webp` = Bildpunkte x 294–666 (volle Höhe) aus
+  `reise-aufbruch.webp`, per `<picture>` geliefert, `data-handy="294 372"`; nach neuem Einstiegsbild neu schneiden.
+  Szenen mit `loading="lazy"` lädt die Seite erst nach dem ersten großen Bild (`.vorlauf`: lang.js, site.js, site.css).
   Die Glutarena nimmt welt.mjs in `pvp_arena` vor der Nordwand auf (Schmelztiegel, Kohlebecken; Heimweg der Arena abgeschaltet),
   das Band zeigt sie enger (`.band.nah`, ×2). Dungeon-Marken: Gebiet und Stufe als zwei `<b>` (Umbruch nur vor der Stufe),
   darunter der Bossname; der Text bleibt in seiner Spalte. Bossfiguren der Dungeon-Marken

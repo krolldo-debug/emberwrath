@@ -4,6 +4,14 @@
 // Suchmaschinen werden nie umgeleitet, damit alle Fassungen im Index bleiben.
 // Außerdem: Sprachauswahl in der Kopfleiste (Globus öffnet die Liste, Klick merkt die Wahl).
 (() => {
+  // JavaScript läuft: .no-js schon hier im Kopf entfernen (nicht erst in site.js am Seitenende), sonst malt der Browser
+  // zuerst die Fassung ohne JavaScript, und Bereiche wie die Set-Bühne im Shop schieben danach die Seite (Layout-Verschiebung).
+  document.documentElement.classList.remove('no-js');
+  // Szenen weiter unten (img.shot mit loading="lazy") erst nach dem ersten großen Bild laden: .vorlauf blendet sie aus
+  // (display: none, der Rahmen hat feste Maße, nichts verschiebt sich), site.js nimmt die Klasse nach dem LCP weg;
+  // falls site.js nicht läuft, spätestens nach 4 s.
+  document.documentElement.classList.add('vorlauf');
+  setTimeout(() => document.documentElement.classList.remove('vorlauf'), 4000);
   const KEY = 'emberwrath:lang';
   const IDS = ['de', 'en', 'es', 'fr'];
   let saved = null;

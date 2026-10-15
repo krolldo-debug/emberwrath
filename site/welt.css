@@ -23,6 +23,20 @@
 @media (min-width: 1200px) { .auftakt-bild { --f: 3; } }
 /* Gruppe in die Mitte des sichtbaren Teils unter der Kopfleiste, damit die Leiste nichts anschneidet */
 .auftakt-bild .shot { --ay: 0.55; }
+.auftakt-bild picture { display: contents; }
+/* Mit JavaScript erst zeigen, wenn site.js das Bild ausgerichtet hat (.da), sonst springt es nach dem ersten Malen
+   (Layout-Verschiebung); spätestens nach 2 s trotzdem, ohne JavaScript sofort (<noscript> in welt.html). */
+.auftakt-bild .shot:not(.da) { animation: titel-warten 0s 2s backwards; }
+/* Handy hoch (≤ 430 px): <picture> liefert nur die Mitte (reise-aufbruch-handy.webp = Bildpunkte 294–666 von 960,
+   data-handy). Sichtbar sind dort höchstens 430 / 1,2 ≈ 358 Bildpunkte um die Mitte (kleinster Faktor von site.js bei
+   krummer Bildschirmdichte), also immer innerhalb des Streifens. Lage wie beim ganzen Bild, nur um 294 Bildpunkte
+   nach rechts versetzt (site.js; hier die Näherung ohne JavaScript). 294 = 2·3·7·7: der Versatz ist bei den üblichen
+   Bildschirmdichten (2, 3, 1,75, 2,625, 3,5) ganze CSS-Pixel, sonst rastert Chrome das Bildpunktraster um einen
+   Gerätepixel anders. Neues Einstiegsbild = Streifen neu schneiden (gleiche Bildpunkte). */
+@media (max-width: 430px) {
+  .auftakt-bild .shot { width: calc(372px * var(--f));
+    left: calc(clamp(calc(100% - 960px * var(--f)), calc(var(--ax, 0.5) * 100% - var(--fx, 0.5) * 960px * var(--f)), 0px) + 294px * var(--f)); }
+}
 @media (min-width: 2200px) { .auftakt-bild { --f: 4; } }
 .auftakt-text { padding-top: clamp(30px, 3.4vw, 48px); text-align: center; }
 .kicker { margin: 0 0 12px; font: 700 13px/1 var(--font); letter-spacing: 0.22em; text-transform: uppercase; color: var(--ember); }

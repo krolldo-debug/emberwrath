@@ -20,10 +20,12 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://www.emberwrath.com/img/og-teilen.png">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preload" as="image" href="img/reise-aufbruch.webp" fetchpriority="high">
+  <link rel="preload" as="image" href="img/reise-aufbruch-handy.webp" media="(max-width: 430px)" fetchpriority="high">
+  <link rel="preload" as="image" href="img/reise-aufbruch.webp" media="(min-width: 431px)" fetchpriority="high">
   <link rel="preload" as="font" type="font/woff2" href="fonts/cinzel-latin-700-normal.woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
   <link rel="stylesheet" href="welt.css">
+  <noscript><style>.auftakt-bild .shot:not(.da) { animation: none; }</style></noscript>
 </head>
 <body class="world-page reise-page">
 <!--#include header-->
@@ -32,7 +34,7 @@
 
   <!-- Einstieg: Aufbruch in der Glutsenke (site/tools/welt.mjs welt-aufbruch), Titel darunter auf festem Grund -->
   <section class="auftakt" aria-labelledby="h-welt">
-    <div class="auftakt-bild"><img style="--fx:0.5;--fy:0.48;--mx:0.5;--my:0.48" class="px shot" src="img/reise-aufbruch.webp" alt="Krieger, Glutmagierin, Waldläuferin und Schurke brechen nachts in der Glutsenke auf, neben ihnen die Dorfälteste Maren mit ihrer Laterne" width="960" height="540" fetchpriority="high"></div>
+    <div class="auftakt-bild"><picture><source media="(max-width: 430px)" srcset="img/reise-aufbruch-handy.webp" width="372" height="540"><img style="--fx:0.5;--fy:0.48;--mx:0.5;--my:0.48" class="px shot" data-handy="294 372" src="img/reise-aufbruch.webp" alt="Krieger, Glutmagierin, Waldläuferin und Schurke brechen nachts in der Glutsenke auf, neben ihnen die Dorfälteste Maren mit ihrer Laterne" width="960" height="540" fetchpriority="high"></picture></div>
     <div class="wrap auftakt-text">
       <p class="kicker">Stufe 1 bis 40</p>
       <h1 id="h-welt">Von der Glutsenke zum Aschethron</h1>

@@ -426,7 +426,7 @@ export class Hud {
         const done = have >= need;
         return h(`li.hud-obj${done ? '.done' : ''}`, h('span.hud-obj-text', o.text ?? o.label ?? o.id), need > 1 ? h('span.hud-obj-n', `${have}/${need}`) : null);
       });
-      const giver = c.find('npc', def.turnIn ?? def.giver)?.name;
+      const giver = c.find('npc', def.turnInNpc ?? def.turnIn ?? def.giver)?.name;
       const isTracked = qid === tracked;
       const row = h(`div.hud-quest${ready ? '.ready' : ''}${isTracked ? '.tracked' : ''}`, {
         role: canTrack ? 'button' : null, tabindex: canTrack ? '0' : null,

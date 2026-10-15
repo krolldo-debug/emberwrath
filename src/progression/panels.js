@@ -421,6 +421,14 @@ function questlogView(s) {
 
 // ---------------------------------------------------------------- Questdialog
 const TALK = '__talk';
+
+// Dungeon-Bosse sind auf drei Helden ausgelegt (finder/groupScale.js) – der Questdialog sagt, wo es Gefährten gibt
+function groupBossHint(c, def, objectives) {
+  const open = objectives.some((o) => o.kind === 'boss' && !o.done);
+  const zone = c.find('zone', def.objectives.find((o) => o.kind === 'boss')?.zone);
+  if (!open || !zone?.instanced || zone.kind !== 'dungeon' || zone.trial) return null;
+  return h('p.pg-hint', 'Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.');
+}
 function questDialogView(s, { npcId } = {}) {
   let selected = null, msg = '';
   return (redraw) => {
@@ -433,7 +441,7 @@ function questDialogView(s, { npcId } = {}) {
     const line = c.find('npcLine', npcId);
     const idle = npcIdleLine(s.state, c, npcId) ?? c.find('npc', npcId)?.greeting ?? 'Sei gegrüßt.';
 
-    let body;
+    let body, primary = null;
     if (!entry) {
       body = h('div.pg-dialog-text', h('p', `„${idle}“`));
     } else {
@@ -444,7 +452,7 @@ function questDialogView(s, { npcId } = {}) {
       const text = status === 'available' ? def.offer : status === 'ready' && turnInOf(def) === npcId ? def.completeText : def.progressText;
       const actions = [];
       if (status === 'available') {
-        actions.push(actionBtn('Annehmen', () => { const r = commit(s, 'quest:accept', { questId: def.id }); msg = r.ok ? '' : 'Das geht gerade nicht.'; redraw(); }, { primary: true }));
+        primary = actionBtn('Annehmen', () => { const r = commit(s, 'quest:accept', { questId: def.id }); msg = r.ok ? '' : 'Das geht gerade nicht.'; redraw(); }, { primary: true });
       } else if (status === 'ready' && turnInOf(def) === npcId) {
         const turnIn = (choice) => {
           const r = commit(s, 'quest:turnIn', { questId: def.id, choice });
@@ -453,16 +461,17 @@ function questDialogView(s, { npcId } = {}) {
         };
         // Entscheidung: jede Wahl ist ein eigener Knopf, darunter steht, was sie bewirkt
         if (def.choices) for (const ch of def.choices) actions.push(h('div.pg-choice', actionBtn(ch.label, () => turnIn(ch.id), { primary: true }), ch.hint ? h('small.pg-wrap', ch.hint) : null));
-        else actions.push(actionBtn('Quest abschließen', () => turnIn(null), { primary: true }));
+        else primary = actionBtn('Quest abschließen', () => turnIn(null), { primary: true });
       }
       body = h('div.pg-dialog-quest',
         h('div.pg-quest-title.big', def.title, h('span.pg-quest-lvl', ` · Stufe ${def.level ?? 1}`), def.repeatable ? h('span.pg-tag.rep', 'Kopfgeld') : null),
         h('p.pg-dialog-text', `„${text ?? def.summary}“`),
         status === 'ready' && def.choices && turnInOf(def) === npcId ? h('p.pg-hint', 'Deine Entscheidung bestimmt, wie es weitergeht.') : null,
         def.objectives.length ? h('div', h('h3', 'Ziele'), objectivesEl(objectives)) : null,
+        groupBossHint(c, def, objectives),
         rewardsEl(c, def.rewards, questRewardItems(st, c, def.id)),
         a?.status === 'ready' && turnInOf(def) !== npcId ? h('p.pg-hint', `Abgeben bei ${npcShortName(c, turnInOf(def))}`) : null,
-        msg ? h('p.pg-msg', msg) : null,
+        msg && !primary ? h('p.pg-msg', msg) : null,
         actions.length ? h('div.pg-actions', actions) : null);
     }
 
@@ -474,7 +483,9 @@ function questDialogView(s, { npcId } = {}) {
 
     return panelFrame(s, 'dialog', name,
       h('div.pg-scroll.pg-keep-scroll.pg-dialog', tabs, body),
+      // Annehmen/Abschließen steht immer sichtbar im Fuß (am Handy quer läge es sonst unter dem Bildrand der Liste)
       h('footer.pg-dialog-foot',
+        primary ? h('span.pg-foot-primary', primary, msg ? h('span.pg-msg', msg) : null) : null,
         vendor ? actionBtn('Handeln', () => s.panels.open('shop', { vendorId: npcId })) : null,
         vendor?.craft ? actionBtn('Schmiede', () => s.panels.open('craft', { vendorId: npcId })) : null,
         vendor?.craft && levelOf(s) >= 5 ? actionBtn('Verstärken', () => s.panels.open('smith', { vendorId: npcId })) : null,
