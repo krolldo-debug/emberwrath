@@ -3,7 +3,7 @@ import { EV } from '../core/events.js';
 import { MenuScene } from '../account/TitleScene.js';
 import { focusIfDesktop, characterLine, backButton } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
-import { fmtDate } from '../i18n/index.js';
+import { fmtDate, tr, onLangChange } from '../i18n/index.js';
 
 // Anmeldeseite (Szene 'login'). params.mode:
 //   'login'        E-Mail + Passwort, Google
@@ -24,8 +24,27 @@ const consentMeta = () => ({ terms_version: LEGAL.termsVersion, terms_accepted_a
 // Hat das Konto die aktuelle Fassung der Nutzungsbedingungen bestätigt? (Google-Konten kommen ohne Häkchen an.)
 export const needsConsent = (user) => !!user && user.user_metadata?.terms_version !== LEGAL.termsVersion;
 const legalLink = (text, href) => h('a.on-legal-link', { href, target: '_blank', rel: 'noopener' }, text);
-// Ganze Sätze als ein Text (Übersetzung beim Anzeigen), die Links darunter als eigene Zeile.
-const legalLinks = () => h('p.on-legal-links', legalLink('Nutzungsbedingungen', LEGAL.terms), legalLink('Datenschutzerklärung', LEGAL.privacy));
+// Leise Fußzeile unter dem Anmeldeformular (Datenschutz muss beim Anmelden erreichbar bleiben).
+const legalFoot = () => h('p.on-legal-foot', legalLink('Nutzungsbedingungen', LEGAL.terms), h('span', { 'aria-hidden': 'true' }, '·'), legalLink('Datenschutz', LEGAL.privacy));
+// Frage + Wechsel-Knopf in einer ruhigen Zeile, z. B. „Noch kein Konto? Registrieren“.
+const switchLine = (question, label, onclick) => h('p.on-switch', h('span', question), ' ', h('button.on-link', { type: 'button', onclick }, label));
+
+// Häkchen-Satz: ganzer Satz als ein Text übersetzt, die beiden Begriffe darin werden zu Links.
+// Finden sich die Begriffe in einer Sprache nicht im Satz, stehen die Links wie früher darunter.
+const CONSENT_SENTENCE = 'Ich akzeptiere die Nutzungsbedingungen und habe die Datenschutzerklärung zur Kenntnis genommen.';
+function consentSentence() {
+  const text = tr(CONSENT_SENTENCE);
+  const parts = [];
+  let rest = text;
+  for (const [word, href] of [[tr('Nutzungsbedingungen'), LEGAL.terms], [tr('Datenschutzerklärung'), LEGAL.privacy]]) {
+    const i = rest.toLocaleLowerCase().indexOf(word.toLocaleLowerCase());
+    if (i < 0) return null;
+    parts.push(rest.slice(0, i), legalLink(rest.slice(i, i + word.length), href));
+    rest = rest.slice(i + word.length);
+  }
+  // Schon übersetzt: der Beobachter soll die Teilstücke nicht noch einmal übersetzen.
+  return h('span', { translate: 'no' }, ...parts, rest);
+}
 
 const svgIcon = (markup) => { const s = h('span.on-provider-icon'); s.innerHTML = markup; return s; };
 
@@ -67,10 +86,12 @@ export class LoginScene extends MenuScene {
     this.busy = false;
     this.root = h('div.ef-screen.acc-screen.on-screen');
     this.off = this.game.bus.on(EV.ONLINE_CHANGED, () => { if (this.mode === 'account') this.#render(); });
+    // Der Häkchen-Satz wird selbst übersetzt (Links darin), also bei Sprachwechsel neu zeichnen.
+    this.offLang = onLangChange(() => { if (this.mode === 'register' || this.mode === 'consent') this.#render(); });
     this.#render();
   }
 
-  exit() { super.exit(); this.off?.(); }
+  exit() { super.exit(); this.off?.(); this.offLang?.(); }
 
   back() {
     if (this.mode === 'forgot' || this.mode === 'register') { this.#go('login'); return; }
@@ -185,23 +206,26 @@ export class LoginScene extends MenuScene {
         this.online.afterSignIn();
       });
     };
+    // „Passwort vergessen?“ sitzt rechts in der Zeile des Passwort-Labels (außerhalb des <label>).
+    const pwRow = h('div.on-pw-row', pw.el,
+      h('button.on-link.on-forgot', { type: 'button', onclick: () => this.#go('forgot') }, 'Passwort vergessen?'));
     return h('div.on-body',
       this.#providers(),
       h('form.on-form', { onsubmit: submit, novalidate: true },
-        email.el, pw.el,
+        email.el, pwRow,
         this.#messageBox(),
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Anmelden')),
-      h('div.on-links',
-        h('button.on-link', { type: 'button', onclick: () => this.#go('forgot') }, 'Passwort vergessen?'),
-        h('button.on-link', { type: 'button', onclick: () => this.#go('register') }, 'Noch kein Konto? Registrieren')),
-      legalLinks());
+      h('div.on-after',
+        switchLine('Noch kein Konto?', 'Registrieren', () => this.#go('register')),
+        legalFoot()));
   }
 
   #consentBox() {
     const consent = h('input', { type: 'checkbox', required: true });
+    const inline = consentSentence();
     const consentEl = h('label.on-check', consent,
-      h('span', h('span', 'Ich akzeptiere die Nutzungsbedingungen und habe die Datenschutzerklärung zur Kenntnis genommen.'), ' ', h('span', AGE_CLAUSE)));
-    return { consent, consentEl: h('div.on-consent', consentEl, legalLinks()) };
+      h('span', inline ?? h('span', CONSENT_SENTENCE), ' ', h('span', AGE_CLAUSE)));
+    return { consent, consentEl: h('div.on-consent', consentEl, inline ? null : legalFoot()) };
   }
 
   // Nach der ersten Google-Anmeldung (oder neuer Fassung der Bedingungen): Zustimmung einmal nachholen und im Konto vermerken.
@@ -254,7 +278,7 @@ export class LoginScene extends MenuScene {
         name.el, email.el, pw.el, consentEl,
         this.#messageBox(),
         h('button.ef-btn.primary.on-submit', { type: 'submit' }, 'Konto erstellen')),
-      h('div.on-links', h('button.on-link', { type: 'button', onclick: () => this.#go('login') }, 'Schon ein Konto? Anmelden')));
+      switchLine('Schon ein Konto?', 'Anmelden', () => this.#go('login')));
   }
 
   #forgot() {
