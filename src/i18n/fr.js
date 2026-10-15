@@ -4714,5 +4714,6 @@ export const FR = {
   "Die Glutarena ist offen: Dungeonsuche im Menü.": "L'Arène des Braises est ouverte : recherche de donjon dans le menu.",
   "Söldner anheuern": "Engager des mercenaires",
   "Anheuern · {0} Gold": "Engager · {0} or",
-  "Allein": "Seul"
+  "Allein": "Seul",
+  "Instanz": "Instance"
 };

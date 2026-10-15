@@ -155,7 +155,7 @@
 .fd-prop-title { margin: 4px 0 10px; font: 700 20px/1.15 var(--ef-font-title); color: var(--ef-gold); }
 .fd-prop-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .fd-prop-row {
-  display: grid; grid-template-columns: 16px 18px auto auto 1fr 18px; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: 16px 18px minmax(0, 1fr) auto auto 18px; align-items: center; gap: 8px;
   padding: 6px 8px; background: rgba(34, 22, 48, 0.8); border: 1px solid #3e2a44;
 }
 .fd-prop-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -248,7 +248,18 @@
 .ef-touch #ui .fd-chat { width: min(300px, 60vw); }
 
 /* ------------------------------------------------------------ Söldner anheuern (dieselbe Tafel am Dungeon-Portal) */
-.fd-hire .fd-ready { visibility: hidden; }
+.fd-hire .fd-ready { display: none; }
+#ui .fd-hire .fd-prop-row { grid-template-columns: 16px 18px minmax(0, 1fr) auto auto; }
+body.fd-offering .hud-prompt { visibility: hidden !important; }
 .fd-hire-btns { margin-top: 12px; }
 .fd-hire-btns .ef-btn { padding: 8px 10px; white-space: nowrap; }
 .fd-hire-btns .ef-btn:disabled { opacity: 0.55; cursor: default; }
+@media (max-height: 460px) {
+  #ui .fd-prop { width: min(316px, calc(100vw - 24px)); padding: 8px 12px 10px; }
+  .fd-prop-kicker { font-size: 10.5px; }
+  .fd-prop-title { margin: 2px 0 6px; font-size: 16px; }
+  .fd-prop-row { padding: 3px 6px; }
+  .fd-prop-timer { margin: 8px 0 6px; }
+  .fd-hire-btns { margin-top: 8px; }
+  .fd-prop-btns .ef-btn { min-height: 36px; font-size: 14px; }
+}

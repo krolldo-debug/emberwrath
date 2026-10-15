@@ -4714,5 +4714,6 @@ export const EN = {
   "Die Glutarena ist offen: Dungeonsuche im Menü.": "The Ember Arena is open: Dungeon Finder in the menu.",
   "Söldner anheuern": "Hire Mercenaries",
   "Anheuern · {0} Gold": "Hire · {0} Gold",
-  "Allein": "Alone"
+  "Allein": "Alone",
+  "Instanz": "Instance"
 };

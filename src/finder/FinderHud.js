@@ -85,6 +85,8 @@ export class FinderHud {
     } else if (st === 'offer') this.#renderOffer();
     else { this.propEl.hidden = true; this.propFor = null; }
     this.menuBtn.classList.toggle('fd-busy', st !== 'idle' && st !== 'offer');
+    // Portal-Hinweis hinter der Angebotstafel ausblenden
+    document.body.classList.toggle('fd-offering', st === 'offer');
   }
 
   #renderProposal() {
@@ -158,15 +160,17 @@ export class FinderHud {
 
   #memberList(g) {
     const list = h('ul.fd-prop-list');
-    for (const m of g.members) {
+    // Eigener Held zuerst, dann wie angeboten (Verteidiger vor Schaden)
+    const members = [...g.members].sort((a, b) => (b.self ? 1 : 0) - (a.self ? 1 : 0));
+    for (const m of members) {
       const cls = this.content.find('class', m.classId);
       const mark = h('span.fd-ready', { 'aria-label': 'wartet' });
       const row = h('li.fd-prop-row',
         h('img.ef-icon.fd-role-icon', { src: finderIcon(m.role, 1), alt: ROLES[m.role]?.name ?? '', title: ROLES[m.role]?.name ?? '', width: 16, height: 16 }),
-        cls ? h('img.ef-icon', { src: iconUrl(cls.icon), alt: '', width: 18, height: 18 }) : null,
-        h('span.fd-prop-name', { translate: 'no' }, m.name, m.self ? h('span', ' (du)') : null),
-        m.kind === 'merc' && this.finder.labelMercs ? h('span.fd-tag', { title: 'Füllt einen freien Platz' }, 'Söldner') : null,
-        h('span.fd-prop-lv', `Stufe ${m.level} ${cls?.name ?? ''}`),
+        cls ? h('img.ef-icon', { src: iconUrl(cls.icon), alt: cls.name, title: cls.name, width: 18, height: 18 }) : h('span'),
+        h('span.fd-prop-name', h('span', { translate: 'no' }, m.name), m.self ? h('span', ' (du)') : null),
+        m.kind === 'merc' && this.finder.labelMercs ? h('span.fd-tag', { title: 'Füllt einen freien Platz' }, 'Söldner') : h('span'),
+        h('span.fd-prop-lv', { title: cls?.name ?? null }, `Stufe ${m.level}`),
         mark);
       this.propRows.set(m.kind === 'merc' ? m.id : m.ticketId, mark);
       list.append(row);
@@ -308,6 +312,7 @@ export class FinderHud {
   }
 
   dispose() {
+    document.body.classList.remove('fd-offering');
     window.removeEventListener('keydown', this.onKey);
     for (const off of this.offs) off();
     for (const el of [this.menuBtn, this.queueEl, this.propEl, this.partyEl, this.chatEl, this.chatBtn, this.doneEl]) el.remove();
