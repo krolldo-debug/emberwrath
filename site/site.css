@@ -610,7 +610,7 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 }
 
 /* Sprachauswahl (site/i18n/build-en.mjs, lang.js): Pixel-Globus mit Kürzel, Liste als gezeichneter Rahmen ohne Rundung.
-   Handy: Liste steht offen im Menü. Dazu der Hinweis auf den übersetzten Rechtstexten. */
+   Handy: Globus im Menü klappt die Liste darunter auf. Dazu der Hinweis auf den übersetzten Rechtstexten. */
 .nav-lang { position: relative; display: flex; }
 .lang-btn { display: flex; align-items: center; gap: 7px; padding: 10px 0; margin: -10px 0; background: none; border: 0; color: var(--text); opacity: 0.75; cursor: pointer; font: 600 13px/1 var(--font); letter-spacing: 0.14em; }
 .lang-btn svg { flex: none; }
@@ -627,9 +627,11 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 .nav .lang-list a[aria-current] { color: #1a0d05; background: linear-gradient(180deg, #f0cf6a 0 50%, #d8a83e 50% 100%); font-weight: 600; }
 .nav .lang-list a[aria-current]::before { background: #1a0d05; transform: rotate(45deg); }
 @media (max-width: 820px) {
-  .nav-lang { order: 0; display: block; padding: 18px 0 4px; }
-  .lang-btn { display: none; }
-  .lang-list, .nav-lang.open .lang-list { display: grid; position: static; grid-template-columns: repeat(4, 1fr); gap: 6px; min-width: 0; padding: 0; background: none; border: 0; }
+  /* wie am Desktop: Globus mit Kürzel, die Sprachen erscheinen erst nach dem Antippen darunter */
+  .nav-lang { order: 0; display: block; padding: 14px 0 4px; }
+  .lang-btn { margin: 0; padding: 8px 0; min-height: 44px; font-size: 15px; opacity: 0.9; }
+  .lang-list { display: none; position: static; grid-template-columns: repeat(4, 1fr); gap: 6px; min-width: 0; margin-top: 8px; padding: 0; background: none; border: 0; }
+  .nav-lang.open .lang-list, .no-js .nav-lang:focus-within .lang-list { display: grid; }
   .nav .lang-list a { justify-content: center; min-height: 46px; padding: 0 4px; font-size: 14px; border: 2px solid var(--edge); }
   .nav .lang-list a::before { display: none; }
   .nav .lang-list a[aria-current] { border-color: #ffd27a; }
