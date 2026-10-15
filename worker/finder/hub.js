@@ -3,6 +3,8 @@ import { FINDER_VERSION, TIMING, cleanChar, cleanDungeon, cleanRole, roleAllowed
 import { nameProblem } from '../../src/net/names.js';
 import { LEVEL_MAX } from '../../src/net/protocol.js';
 
+const NEW_LEVEL_MAX = 3; // Charakter, den die Cloud nicht kennt: höchstens so stark wie ein neuer Held (worker/moderation.js)
+
 // Kern der Gruppensuche auf dem Server, ohne Cloudflare-Abhängigkeiten (in Node testbar, worker/finder/test/).
 // Eine Verbindung = ein suchender Spieler = ein Ticket im Matchmaker. Das Durable Object (queue.js) reicht nur
 // Nachrichten, Schließen und den Takt herein.
@@ -91,10 +93,15 @@ export class FinderHub {
     // Dasselbe Konto sucht schon (zweiter Tab, Neuladen): die alte Suche endet.
     for (const o of [...this.conns.values()]) if (o !== c && o.uid === user.uid) this.#bye(o, 'replaced');
     const char = cleanChar(m.char);
-    const stored = this.profile ? await this.profile(user.uid, char.id).catch(() => null) : null;
+    const found = this.profile ? await this.profile(user.uid, char.id).catch(() => null) : null;
     if (!this.conns.has(c.socket)) return;
+    // Name, Stufe und Klasse aus dem gespeicherten Charakter (Klasse entscheidet über die Rolle Tank); kennt die Cloud ihn
+    // nicht, höchstens so stark wie ein neuer Held
+    const stored = found?.missing ? null : found;
     if (stored?.name) char.name = stored.name;
-    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : LEVEL_MAX;
+    if (stored?.classId) char.classId = stored.classId;
+    if (stored?.raceId) char.raceId = stored.raceId;
+    const levelMax = stored ? Math.min(LEVEL_MAX, stored.level + 1) : found?.missing ? NEW_LEVEL_MAX : LEVEL_MAX;
     char.level = Math.max(stored?.level ?? 1, Math.min(char.level, levelMax));
     if (nameProblem(char.name)) char.name = 'Abenteurer';
     // erst jetzt als angemeldet gelten (bis hierhin wartende 'queue'-Nachrichten laufen unten mit fertigem char)

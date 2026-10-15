@@ -286,6 +286,13 @@ async function fight(hub, a, b) {
   ok(back.out[0]?.t === 'welcome', 'bekannter Held desselben Kontos: weiter Zutritt');
 }
 {
+  // Cloud kennt den Charakter nicht (erfunden): zählt wie ein neuer Held, zu niedrig für die Arena
+  const hub = hubOf(memStore(), { profile: async () => ({ missing: true }) });
+  const n = sock('m'); hub.open(n);
+  await send(hub, n, { t: 'hello', v: PVP_VERSION, token: 'ok:u3', char: { id: 'erfunden', name: 'Fake', level: 40, classId: 'rogue', raceId: 'elf' } });
+  ok(n.last('bye')?.reason === 'level', 'Charakter, den die Cloud nicht kennt: abgewiesen (Stufe)');
+}
+{
   // Bestenliste über die Verbindung ohne Kontoschlüssel und gedrosselt
   const hub = hubOf();
   const a = await join(hub, 'Aria', 'u1', { queue: false });

@@ -95,8 +95,9 @@ export function registerDailyState(state, h) {
 
   const gear = (s, level, g) => {
     if (!g) return null;
-    const rarity = g.epic && h.rng() < g.epic ? 'epic' : g.rarity;
-    return h.pickEquipment({ level, rarity, classId: s.slices.character?.classId ?? null, rng: h.rng });
+    const rng = h.roll('daily');
+    const rarity = g.epic && rng() < g.epic ? 'epic' : g.rarity;
+    return h.pickEquipment({ level, rarity, classId: s.slices.character?.classId ?? null, rng });
   };
   const grant = (s, ctx, r, gearId, source) => {
     if (r.gold) h.addGold(s, ctx, r.gold, source);

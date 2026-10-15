@@ -86,7 +86,7 @@ export function trialKill(s, ctx, { type, elite, isBoss, bossId, trialTime }, h)
     if (run.value >= run.target) { run.phase = 'boss'; ctx.bus.emit(TRIAL_EV.BOSS, { bossId: run.bossId, tier: run.tier }); }
   } else if (run.phase === 'boss' && isBoss && (bossId ?? type) === run.bossId) {
     const firstClear = !tr.cleared[run.tier];
-    const rewards = trialRewards(run.tier, { rng: h.rng, classId: s.slices.character?.classId ?? null, firstClear, level: s.slices.progress.level });
+    const rewards = trialRewards(run.tier, { rng: h.roll('trial'), classId: s.slices.character?.classId ?? null, firstClear, level: s.slices.progress.level });
     run.phase = 'done';
     run.time = Math.round(trialTime ?? 0);
     run.rewards = rewards;

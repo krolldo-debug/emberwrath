@@ -108,6 +108,22 @@ async function join(hub, name, uid, { classId = 'mage', role = 'dps', dungeonId 
   const t2 = [...hub.mm.tickets.values()].find((t) => t.id !== t1.id);
   ok(t2?.name === 'Abenteurer' && t2.level === 40, `ohne Speicherstand: Name „${t2?.name}“, Stufe ${t2?.level}`);
 }
+{
+  // Cloud kennt den Charakter nicht: höchstens Stufe 3; gespeicherte Klasse entscheidet über Tank
+  const hub = new FinderHub({ verify, profile: async (uid) => (uid === 'u1' ? { name: 'Borin', level: 20, classId: 'mage', raceId: 'elf' } : { missing: true }), now, humanGroups: true });
+  const s1 = sock('a'); hub.open(s1);
+  await hub.message(s1, JSON.stringify({ t: 'hello', v: 1, token: 'ok:u1', char: { id: 'c1', name: 'Borin', level: 20, classId: 'warrior', raceId: 'human' } }));
+  await hub.message(s1, JSON.stringify({ t: 'queue', dungeonId: 'catacombs', role: 'tank' }));
+  await wait();
+  const t1 = [...hub.mm.tickets.values()][0];
+  ok(t1?.classId === 'mage' && t1.role === 'dps', `gespeicherte Klasse zählt (${t1?.classId}, Rolle ${t1?.role})`);
+  const s2 = sock('b'); hub.open(s2);
+  await hub.message(s2, JSON.stringify({ t: 'hello', v: 1, token: 'ok:u2', char: { id: 'c9', name: 'Erfunden', level: 40, classId: 'warrior', raceId: 'human' } }));
+  await hub.message(s2, JSON.stringify({ t: 'queue', dungeonId: 'catacombs', role: 'dps' }));
+  await wait();
+  const t2 = [...hub.mm.tickets.values()].find((t) => t.id !== t1?.id);
+  ok(t2?.level === 3, `nicht in der Cloud: Stufe ${t2?.level} statt 40`);
+}
 
 console.log(fails ? `${fails} Fehler` : 'alles grün');
 process.exit(fails ? 1 : 0);

@@ -37,6 +37,7 @@ export class CloudSync {
     this.#running = null;
     this.#lock = null;
     this.#full = null;
+    this.ledger = null; // Fortschrittsbuch (src/ledger/index.js setzt es)
   }
 
   #timer; #running; #lock; #full;
@@ -109,6 +110,7 @@ export class CloudSync {
     if (await checkVersion()) return;
     const acc = this.accountId;
     const doneDeletes = new Set(), uploaded = new Map(), adopted = new Set(), rejected = new Set();
+    let waitLedger = false;
     this.#set('syncing');
     try {
       for (const id of todo.deleted) {
@@ -125,6 +127,14 @@ export class CloudSync {
           for (const id of await this.#adopt(acc, changed, true)) adopted.add(id);
           rows = rows.filter((r) => !changed.includes(r.id));
         }
+        // Fortschrittsbuch (src/ledger): erst die Einträge des Spielstands an den Server, sonst kappt die Datenbank
+        // den Stand auf das Buch. Kann der Server sie gerade nicht annehmen, wartet dieser Charakter auf den nächsten Versuch.
+        if (this.ledger && rows.length) {
+          const exists = new Set((remote ?? []).map((r) => r.id));
+          const ready = [];
+          for (const r of rows) if (await this.ledger.beforeUpload(r, { exists: exists.has(r.id) })) ready.push(r); else waitLedger = true;
+          rows = ready;
+        }
       }
       if (rows.length) {
         const st = this.#state();
@@ -132,12 +142,15 @@ export class CloudSync {
         for (const r of rows) st.sent[r.id] = Date.parse(r.saved_at);
         this.#setState(st);
         // Die Antwort nennt die gespeicherten Zeilen; fehlt eine, hat die Plausibilitätsprüfung des Servers sie abgelehnt.
-        const res = await this.client.rest('/characters?on_conflict=user_id,id&select=id', { method: 'POST', body: rows, prefer: 'resolution=merge-duplicates,return=representation', keepalive: true });
-        const kept = Array.isArray(res) ? new Set(res.map((r) => r.id)) : null;
+        // Anderer Zeitstempel: Die Datenbank hat den Stand auf das Fortschrittsbuch gekappt (Cloud-Stand übernehmen).
+        const res = await this.client.rest('/characters?on_conflict=user_id,id&select=id,saved_at', { method: 'POST', body: rows, prefer: 'resolution=merge-duplicates,return=representation', keepalive: true });
+        const kept = Array.isArray(res) ? new Map(res.map((r) => [r.id, Date.parse(r.saved_at)])) : null;
         for (const r of rows) {
-          if (!kept || kept.has(r.id)) uploaded.set(r.id, Date.parse(r.saved_at));
+          const at = kept?.get(r.id);
+          if (!kept || at === Date.parse(r.saved_at)) uploaded.set(r.id, Date.parse(r.saved_at));
           else rejected.add(r.id);
         }
+        for (const id of uploaded.keys()) this.ledger?.uploaded(id);
         // Gültigen Cloud-Stand zurückholen, der abgelehnte Stand bleibt in einem Speicherplatz.
         if (rejected.size) {
           for (const id of rejected) delete this.stashed[id];
@@ -146,6 +159,7 @@ export class CloudSync {
       }
       this.lastSyncAt = Date.now();
       this.#set('ok');
+      if (waitLedger) this.schedule(5000);
     } catch (e) {
       this.#set(e?.code === 'network' ? 'offline' : 'error', e);
       if (e?.code === 'network') this.schedule(30_000);

@@ -8,8 +8,9 @@ import { ArenaHub } from './hub.js';
 //
 // Speicher: Wertungen, Tageszähler und Bestenliste im Speicher des Objekts (SQLite, im Gratis-Tarif enthalten).
 // Keine Datenbank-Migration nötig. Name, Stufe, Klasse und Volk liest der Server aus dem gespeicherten Charakter
-// (Supabase, Secret SUPABASE_SERVICE_ROLE_KEY wie der Welt-Server); ist er dort (noch) nicht zu finden, gelten die
-// Angaben des Clients (höchstens 20 Helden je Konto und Saison in der Wertung, hub.js #claim).
+// (Supabase, Secret SUPABASE_SERVICE_ROLE_KEY wie der Welt-Server). Kennt die Cloud den Charakter nicht, zählt er wie ein
+// neuer Held (Stufe 3, zu niedrig für die Arena); nur bei einer Störung gelten die Angaben des Clients (höchstens 20
+// Helden je Konto und Saison in der Wertung, hub.js #claim).
 //
 // Kosten: Takt (250 ms) nur, solange jemand verbunden ist oder ein Kampf läuft; sonst wird das Objekt entladen.
 // Im Kampf sendet jeder Spieler etwa 8 Zustände je Sekunde, eingehende Nachrichten zählen 20:1 als Anfrage.
@@ -72,7 +73,8 @@ export class PvpArena extends DurableObject {
   }
 }
 
-// Gespeicherter Charakter -> { name, level, classId, raceId } | null (nicht gefunden, Fehler, kein Secret) (wie worker/moderation.js loadCharacter, mit Klasse und Volk)
+// Gespeicherter Charakter -> { name, level, classId, raceId } | { missing: true } (nicht in der Cloud) | null (Fehler, kein Secret)
+// (wie worker/moderation.js loadCharacter)
 async function loadArenaChar(env, uid, charId) {
   const key = String(env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
   if (!key) return null; // ohne Secret (Entwicklung): Angaben des Clients
@@ -84,6 +86,6 @@ async function loadArenaChar(env, uid, charId) {
     });
     if (!r.ok) { console.error('pvp profile', r.status); return null; }
     const row = (await r.json())?.[0];
-    return row ? { name: String(row.name ?? ''), level: Number(row.level) || 1, classId: row.class_id ?? null, raceId: row.race_id ?? null } : null;
+    return row ? { name: String(row.name ?? ''), level: Number(row.level) || 1, classId: row.class_id ?? null, raceId: row.race_id ?? null } : { missing: true };
   } catch (e) { console.error('pvp profile', e?.message); return null; }
 }
