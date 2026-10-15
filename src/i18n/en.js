@@ -4709,5 +4709,7 @@ export const EN = {
   "Diamantklinge": "Diamond Blade",
   "Erreiche in der Glutarena die Liga Diamant.": "Reach the Diamond league in the Ember Arena.",
   "Erreiche in der Glutarena die Liga Glutmeister.": "Reach the Ember Master league in the Ember Arena.",
-  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "20 heroes from this account are already fighting this season."
+  "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "20 heroes from this account are already fighting this season.",
+  "Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.": "Built for three heroes. You'll find companions in the Dungeon Finder.",
+  "Die Glutarena ist offen: Dungeonsuche im Menü.": "The Ember Arena is open: Dungeon Finder in the menu."
 };
