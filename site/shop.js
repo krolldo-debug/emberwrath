@@ -52,9 +52,9 @@
   if (setSec && setStage) {
     const cv = $('canvas', setStage); cv.dataset.var = '--sh';
     // Breite bestimmt den Maßstab; auf niedrigen Bildschirmen (Handy quer) passt die Bühne in die Höhe
-    // Maßstab wie die Klassen-Figuren der Startseite (5–6 CSS-px je Spielpixel, also 2,5–3 je Feinpixel): das Set-Bild ist
-    // im Feinraster (2 Bildpunkte je Spielpixel) und soll fein wirken, nicht als große Blöcke
-    const st = stage(cv, 50, (w) => Math.min(w > 480 ? 6 : w > 340 ? 5 : 4, Math.max(3, (innerHeight - 135) / 50)), true);
+    // 4 CSS-px je Spielpixel (2 je Feinpixel), auf schmalen Bildschirmen 3: das Set-Bild ist im Feinraster
+    // (2 Bildpunkte je Spielpixel) und soll fein wirken, nicht als große Blöcke
+    const st = stage(cv, 50, (w) => Math.min(w > 340 ? 4 : 3, Math.max(3, (innerHeight - 135) / 50)), true);
     const BASE = 43;   // Fußlinie in Spielpixeln; die Figur füllt gut drei Viertel der Bühne
     const tabs = $$('.set-tabs [role="tab"]'), switches = $$('.set-switch button');
     const imgs = {}, scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');
