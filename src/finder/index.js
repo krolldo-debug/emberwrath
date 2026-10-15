@@ -1,16 +1,29 @@
 import { FinderService } from './FinderService.js';
 import { FinderSession } from './FinderSession.js';
 import { createFinderPanel } from './FinderPanel.js';
+import { hireCost, hireable } from './hire.js';
+import { EV } from '../core/events.js';
 
 // Dungeon-Gruppensuche (Online-Dungeonmodus): 3er-Gruppen aus echten Spielern, freie Plätze füllen Söldner.
 // Beschreibung, Protokoll und Einbau: src/finder/README.md. Server: worker/finder/queue.js.
 //
 // game.finder (FinderService) für andere Bereiche:
-//   state ('idle' | 'queued' | 'proposal' | 'accepted' | 'active'), group, queue({ dungeonId, role }), cancel(), leave()
+//   state ('idle' | 'offer' | 'queued' | 'proposal' | 'accepted' | 'active'), group, queue({ dungeonId, role }), cancel(), leave()
+// Command 'finder:hire' { dungeonId }: Söldnergruppe am Dungeon-Portal anheuern (Preis aus hire.js, nur Gold-Abgang;
+// das Fortschrittsbuch bucht Ausgaben ohne eigene Regel).
 // Panel 'finder' (Taste O, Knopf in der HUD-Menüreihe), Sitzungssystem 'finder' (Party, HUD, Chat).
 export function installFinder(game) {
   const finder = new FinderService(game);
   game.finder = finder;
+  game.state.defineCommand('finder:hire', (s, { dungeonId }, ctx) => {
+    const zone = ctx.content.find('zone', dungeonId);
+    if (!hireable(zone)) return { ok: false, reason: 'zone' };
+    const cost = hireCost(zone), w = s.get('wallet');
+    if (w.gold < cost) return { ok: false, reason: 'gold', cost };
+    w.gold -= cost;
+    ctx.bus.emit(EV.GOLD_CHANGED, { delta: -cost, total: w.gold, source: `hire:${zone.id}` });
+    return { ok: true, cost };
+  });
   game.panels.register('finder', (session, params) => createFinderPanel(session, params), { title: 'Dungeonsuche' });
   game.addSessionSystem('finder', (session) => {
     const fs = new FinderSession(session, finder);

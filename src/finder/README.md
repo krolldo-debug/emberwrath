@@ -28,9 +28,18 @@ Warteschlange niemand Passendes sucht, füllen **Söldner** (Bots) die freien Pl
   Glutprüfungen ausgenommen). Nach einer Niederlage füllen die Söldner ihre Tränke auf. Geprüft mit ganzen Dungeon-Läufen (Spieler-Bot +
   zwei Söldner, alle vier Klassen): jeder Dungeon auf seiner Stufe schaffbar, Varkhul mit gelegentlicher Niederlage.
 
+## Söldner anheuern (`hire.js`)
+Wer allein (ohne Dungeonsuche) durch das Portal eines Gruppen-Dungeons geht, sieht vor der Reise dieselbe Tafel wie
+„Gruppe gefunden“, mit „Allein“ und „Anheuern · Preis“. Anheuern zieht das Gold ab (Command `finder:hire`, Preis
+rechnet der Command aus der Einstiegsstufe: Katakomben 30 bis Aschethron 495) und reist mit zwei Söldnern hinein
+(auf drei aufgefüllt wie in der Suche, Krieger sind Verteidiger). Weggehen oder Fallen schließt das Angebot. Das
+Fortschrittsbuch bucht den Abgang ohne eigene Regel (Ausgaben gelten immer), es braucht kein neues SQL.
+Haken: Portale melden `portal:enter` { zoneId, spawnId, held } (entities/Interactive.js), `held = true` hält die Reise an.
+
 ## Schalter (`config.js`, FINDER_CONFIG)
 - `labelMercs: true` – Söldner tragen dezent das Söldner-Zeichen und „Söldner“ im Tooltip. **Auf `false` setzen,
   um die Kennzeichnung abzuschalten.**
+- `hireOffer: true` – Söldner-Angebot am Dungeon-Portal (false = sofort allein hinein).
 - `humanGroups` / Server-Variable `FINDER_HUMAN_GROUPS=true` – mehrere echte Spieler in eine Gruppe. Standard **aus**:
   Das braucht geteilte Gegner in der Instanz (Mehrspieler Stufe 2, src/net/README.md). Bis dahin bekommt jeder echte
   Spieler seine eigene Gruppe mit Söldnern; die Warteschlange und ihre Zahlen sind trotzdem echt.

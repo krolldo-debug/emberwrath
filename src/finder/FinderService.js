@@ -3,19 +3,24 @@ import { FinderClient } from './FinderClient.js';
 import { Matchmaker } from './matchmaker.js';
 import { ROLES, roleAllowed } from './protocol.js';
 import { FINDER_CONFIG } from './config.js';
+import { hireCost, hireable, hireGroup } from './hire.js';
 
 // Dungeon-Gruppensuche über die ganze Spielsitzung (auch über Zonenwechsel): game.finder.
 //
 // Zustände (state): 'idle' -> 'queued' -> 'proposal' -> 'accepted' -> 'active' -> 'idle'
+//                   'idle' -> 'offer' -> 'active' | 'idle'   (Söldner anheuern am Dungeon-Portal, hire.js)
 //   queue({ dungeonId, role })   anmelden (Server-Warteschlange; ist der Server nicht erreichbar, sucht der Client
 //                                selbst mit derselben Gruppenbildung – dann eben ohne andere Spieler)
 //   cancel()                     abmelden
 //   respond(ok)                  Bereitschaftsprüfung beantworten
 //   leave()                      Gruppe verlassen (Söldner gehen)
 //   dungeons(level)              Liste für die Auswahl: [{ id, name, min, max, open }]
+//   hire() / solo()              Angebot am Portal annehmen (Gold, Söldnergruppe) oder allein hineingehen
 // Ereignisse auf game.bus: 'finder:changed' { state } (Anzeige), 'finder:chat' { from, text, kind }.
 const STORE_KEY = 'emberwrath:finder:';
 const MERC_READY = [700, 3400];
+// Portal betreten (entities/Interactive.js): Hörer dürfen die Reise anhalten (go.held = true)
+const PORTAL_ENTER = EV.PORTAL_ENTER ?? 'portal:enter';
 const posOf = (o) => (Number.isFinite(o?.x) && Number.isFinite(o?.y) ? { x: o.x, y: o.y } : null);
 
 export class FinderService {
@@ -42,6 +47,7 @@ export class FinderService {
     game.bus.on(EV.SCENE_CHANGE, (e) => { if (e?.to !== 'play' && this.state !== 'idle') this.cancel(true); });
     // Wer den Gruppen-Dungeon verlässt (Ausgangsportal, Menü, „Zurück“), landet wieder dort, wo er beigetreten ist
     game.bus.on(EV.ZONE_TRAVEL_PLAN, (p) => this.#redirect(p));
+    game.bus.on(PORTAL_ENTER, (go) => { if (this.#offer(go)) go.held = true; });
   }
 
   // ------------------------------------------------------------------ Auswahl
@@ -83,6 +89,7 @@ export class FinderService {
     if (this.game.pvp?.busy) return { ok: false, error: 'Du bist gerade in der Glutarena.' };
     if (this.state === 'active') this.leave(true);
     this.origin = this.#here() ?? this.origin;
+    this.offerTo = null;
     this.req = { dungeonId, role, since: Date.now() };
     this.state = 'queued';
     this.searching = null;
@@ -96,6 +103,7 @@ export class FinderService {
   }
 
   cancel(silent = false) {
+    if (this.state === 'offer') return this.#dropOffer();
     if (this.state === 'active') return this.leave();
     this.client.stop();
     this.local = null;
@@ -116,6 +124,50 @@ export class FinderService {
     if (me) this.ready.add(me.ticketId);
     if (this.mode === 'server') this.client.accept(this.group.id, true);
     else this.#emitAll(this.local.accept(me.ticketId, this.group.id, true));
+    this.#changed();
+  }
+
+  // ------------------------------------------------------------------ Söldner anheuern
+  // Allein durch das Portal eines Gruppen-Dungeons (nicht über die Suche): erst das Angebot zeigen, die Reise wartet.
+  #offer(go) {
+    if (this.state === 'offer') return go?.zoneId === this.offerTo?.zoneId; // Angebot steht schon
+    const zone = this.game.content.find('zone', go?.zoneId);
+    if (this.state !== 'idle' || this.game.pvp?.busy || !hireable(zone) || FINDER_CONFIG.hireOffer === false) return false;
+    const here = this.#here();
+    if (!here) return false; // Treppen innerhalb eines Dungeons: kein Angebot
+    this.offerTo = { zoneId: zone.id, spawnId: go.spawnId ?? 'start', x: here.x, y: here.y };
+    this.hireCost = hireCost(zone);
+    this.group = hireGroup(this.char(), zone.id);
+    this.state = 'offer';
+    this.game.sfx?.play?.('ui');
+    this.#changed();
+    return true;
+  }
+
+  // Annehmen: Gold zahlen (Command finder:hire, Preis rechnet der Command selbst), dann mit der Gruppe hinein
+  hire() {
+    if (this.state !== 'offer' || !this.group) return { ok: false };
+    const r = this.game.state.commit('finder:hire', { dungeonId: this.group.dungeonId });
+    if (!r?.ok) { this.#changed(); return r ?? { ok: false }; }
+    this.game.sfx?.play?.('coin');
+    const to = this.offerTo;
+    this.offerTo = null;
+    this.#begin(this.group, to?.spawnId);
+    return r;
+  }
+
+  // Ablehnen: allein hinein wie bisher
+  solo() {
+    if (this.state !== 'offer') return;
+    const to = this.offerTo;
+    this.#dropOffer();
+    if (to) this.game.bus.emit(EV.ZONE_TRAVEL, { zoneId: to.zoneId, spawnId: to.spawnId });
+  }
+
+  #dropOffer() {
+    this.state = 'idle';
+    this.group = null;
+    this.offerTo = null;
     this.#changed();
   }
 
@@ -220,7 +272,7 @@ export class FinderService {
     this.#tick();
   }
 
-  #begin(group) {
+  #begin(group, spawnId = 'start') {
     this.origin = this.#here() ?? this.origin;
     this.client.stop();
     this.local = null;
@@ -229,7 +281,7 @@ export class FinderService {
     this.startedAt = Date.now();
     this.#store({ group, origin: this.origin, at: this.startedAt });
     this.#changed();
-    this.game.bus.emit(EV.ZONE_TRAVEL, { zoneId: group.dungeonId, spawnId: 'start' });
+    this.game.bus.emit(EV.ZONE_TRAVEL, { zoneId: group.dungeonId, spawnId });
   }
 
   #stopSearch(note) {

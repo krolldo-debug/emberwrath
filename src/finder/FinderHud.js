@@ -2,11 +2,11 @@ import { h, clear } from '../core/dom.js';
 import { iconUrl } from '../gfx/Icons.js';
 import { ROLES } from './protocol.js';
 import { finderIcon } from './icons.js';
-import { tr } from '../i18n/index.js';
+import { tr, fmtNum } from '../i18n/index.js';
 
 // HUD der Gruppensuche (HTML-Ebene):
 //   Menüknopf „Dungeonsuche“ (in der Knopfreihe des HUD, Taste O), Suchanzeige mit Zeit,
-//   Bereitschaftsfenster „Gruppe gefunden“, Gruppenanzeige (Leben/Ressource der Mitspieler),
+//   Bereitschaftsfenster „Gruppe gefunden“ (dieselbe Tafel bietet am Dungeon-Portal Söldner gegen Gold an), Gruppenanzeige (Leben/Ressource der Mitspieler),
 //   Gruppenchat (Enter), Abschlussleiste nach dem Endboss.
 const LOG_MAX = 40;
 const FADE_MS = 25_000;
@@ -82,8 +82,9 @@ export class FinderHud {
     if (st === 'proposal' || st === 'accepted') {
       if (this.s.panels.openId === 'finder') this.s.panels.close();
       this.#renderProposal();
-    } else this.propEl.hidden = true;
-    this.menuBtn.classList.toggle('fd-busy', st !== 'idle');
+    } else if (st === 'offer') this.#renderOffer();
+    else { this.propEl.hidden = true; this.propFor = null; }
+    this.menuBtn.classList.toggle('fd-busy', st !== 'idle' && st !== 'offer');
   }
 
   #renderProposal() {
@@ -94,21 +95,9 @@ export class FinderHud {
     if (this.propFor !== g.id) {
       this.propFor = g.id;
       clear(this.propEl);
+      this.propEl.classList.remove('fd-hire');
       this.propRows = new Map();
-      const list = h('ul.fd-prop-list');
-      for (const m of g.members) {
-        const cls = this.content.find('class', m.classId);
-        const mark = h('span.fd-ready', { 'aria-label': 'wartet' });
-        const row = h('li.fd-prop-row',
-          h('img.ef-icon.fd-role-icon', { src: finderIcon(m.role, 1), alt: ROLES[m.role]?.name ?? '', title: ROLES[m.role]?.name ?? '', width: 16, height: 16 }),
-          cls ? h('img.ef-icon', { src: iconUrl(cls.icon), alt: '', width: 18, height: 18 }) : null,
-          h('span.fd-prop-name', { translate: 'no' }, m.name, m.self ? h('span', ' (du)') : null),
-          m.kind === 'merc' && this.finder.labelMercs ? h('span.fd-tag', { title: 'Füllt einen freien Platz' }, 'Söldner') : null,
-          h('span.fd-prop-lv', `Stufe ${m.level} ${cls?.name ?? ''}`),
-          mark);
-        this.propRows.set(m.kind === 'merc' ? m.id : m.ticketId, mark);
-        list.append(row);
-      }
+      const list = this.#memberList(g);
       this.propBar = h('i');
       this.propBtns = h('div.fd-prop-btns',
         h('button.ef-btn.danger', { type: 'button', onclick: () => this.finder.respond(false) }, 'Ablehnen'),
@@ -131,6 +120,60 @@ export class FinderHud {
     }
   }
 
+  // Söldner anheuern (Dungeon-Portal allein betreten): dieselbe Tafel, ohne Bereitschaft und Zeitleiste
+  #renderOffer() {
+    const g = this.finder.group;
+    if (!g) return;
+    if (this.propFor !== g.id) {
+      this.propFor = g.id;
+      clear(this.propEl);
+      this.propEl.classList.add('fd-hire');
+      this.propRows = new Map();
+      const cost = this.finder.hireCost;
+      this.hireLabel = h('span');
+      this.hireBtn = h('button.ef-btn.primary', { type: 'button', onclick: () => this.finder.hire() }, this.hireLabel);
+      this.propEl.append(
+        h('p.fd-prop-kicker', 'Söldner anheuern'),
+        h('h2.ef-sub.fd-prop-title', this.content.find('zone', g.dungeonId)?.name ?? 'Dungeon'),
+        this.#memberList(g),
+        h('div.fd-prop-btns.fd-hire-btns',
+          h('button.ef-btn', { type: 'button', onclick: () => this.finder.solo() }, 'Allein'),
+          this.hireBtn));
+      this.hireCost = cost;
+      this.hireShort = null;
+    }
+    this.propEl.hidden = false;
+    this.#offerGold();
+  }
+
+  // Knopf je nach Gold: Preis oder Fehlbetrag
+  #offerGold() {
+    const cost = this.hireCost ?? 0;
+    const short = Math.max(0, cost - (this.s.state.slices.wallet?.gold ?? 0));
+    if (short === this.hireShort) return;
+    this.hireShort = short;
+    this.hireBtn.disabled = short > 0;
+    this.hireLabel.textContent = tr(short > 0 ? `Es fehlen ${fmtNum(short)} Gold` : `Anheuern · ${fmtNum(cost)} Gold`);
+  }
+
+  #memberList(g) {
+    const list = h('ul.fd-prop-list');
+    for (const m of g.members) {
+      const cls = this.content.find('class', m.classId);
+      const mark = h('span.fd-ready', { 'aria-label': 'wartet' });
+      const row = h('li.fd-prop-row',
+        h('img.ef-icon.fd-role-icon', { src: finderIcon(m.role, 1), alt: ROLES[m.role]?.name ?? '', title: ROLES[m.role]?.name ?? '', width: 16, height: 16 }),
+        cls ? h('img.ef-icon', { src: iconUrl(cls.icon), alt: '', width: 18, height: 18 }) : null,
+        h('span.fd-prop-name', { translate: 'no' }, m.name, m.self ? h('span', ' (du)') : null),
+        m.kind === 'merc' && this.finder.labelMercs ? h('span.fd-tag', { title: 'Füllt einen freien Platz' }, 'Söldner') : null,
+        h('span.fd-prop-lv', `Stufe ${m.level} ${cls?.name ?? ''}`),
+        mark);
+      this.propRows.set(m.kind === 'merc' ? m.id : m.ticketId, mark);
+      list.append(row);
+    }
+    return list;
+  }
+
   // ------------------------------------------------------------------ Tick
   update() {
     // Knopf in die Menüreihe des HUD einhängen (vor „Menü“), sobald es sie gibt
@@ -147,7 +190,8 @@ export class FinderHud {
       const text = `Suche Gruppe · ${d?.name ?? ''} · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
       if (this.queueEl.textContent !== tr(text)) this.queueEl.textContent = tr(text);
     }
-    if (!this.propEl.hidden && f.group) {
+    if (f.state === 'offer') this.#offerUpdate();
+    else if (!this.propEl.hidden && f.group) {
       const left = Math.max(0, f.group.expires - Date.now());
       this.propBar.style.setProperty('--f', (left / 30000).toFixed(3));
       this.#renderProposal();
@@ -155,6 +199,13 @@ export class FinderHud {
     this.#party();
     const now = Date.now();
     if (!this.open) for (const el of this.log.children) if (!el.classList.contains('old') && now - el._at > FADE_MS) el.classList.add('old');
+  }
+
+  // Angebot verfällt, wenn man weggeht oder fällt
+  #offerUpdate() {
+    const hero = this.s.world?.hero, o = this.finder.offerTo;
+    if (!hero || hero.dead || !o || !Number.isFinite(o.x) || Math.hypot(hero.x - o.x, hero.y - o.y) > 56) { this.finder.cancel(true); return; }
+    this.#offerGold();
   }
 
   #party() {

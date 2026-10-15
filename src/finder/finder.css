@@ -168,7 +168,7 @@
 .fd-prop-timer { height: 3px; margin: 12px 0 10px; background: #2a1c30; }
 .fd-prop-timer i { display: block; height: 100%; width: calc(var(--f, 1) * 100%); background: var(--ef-gold); transition: width 0.25s linear; }
 .fd-prop-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
-.fd-prop-btns .ef-btn { min-height: 42px; font: 700 15px/1 var(--ef-font); color: var(--ef-text); cursor: pointer; }
+.fd-prop-btns .ef-btn { min-width: 0; min-height: 42px; font: 700 15px/1 var(--ef-font); color: var(--ef-text); cursor: pointer; }
 .fd-prop-btns[hidden], .fd-prop-wait[hidden] { display: none; }
 .fd-prop-wait { margin: 0; text-align: center; color: var(--ef-muted); min-height: 42px; line-height: 42px; }
 .fd-role-icon { width: 16px; height: 16px; }
@@ -246,3 +246,9 @@
 /* Hochformat/Handy: Gruppenanzeige kompakter, Chat schmaler */
 .ef-portrait #ui .fd-party { width: 124px; top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .ef-touch #ui .fd-chat { width: min(300px, 60vw); }
+
+/* ------------------------------------------------------------ Söldner anheuern (dieselbe Tafel am Dungeon-Portal) */
+.fd-hire .fd-ready { visibility: hidden; }
+.fd-hire-btns { margin-top: 12px; }
+.fd-hire-btns .ef-btn { padding: 8px 10px; white-space: nowrap; }
+.fd-hire-btns .ef-btn:disabled { opacity: 0.55; cursor: default; }

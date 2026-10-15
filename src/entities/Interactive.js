@@ -53,7 +53,10 @@ export class Portal extends Entity {
       world.bus.emit(EV.UI_TOAST, { text: `Zu gefährlich – erst ab Stufe ${this.minLevel}.`, kind: 'warn' });
       return;
     }
-    world.bus.emit(EV.ZONE_TRAVEL, { zoneId: this.to.zoneId, spawnId: this.to.spawnId });
+    // Bereiche dürfen vorher fragen und die Reise anhalten (Dungeonsuche: Söldner anheuern, finder/hire.js)
+    const go = { zoneId: this.to.zoneId, spawnId: this.to.spawnId, held: false };
+    world.bus.emit(EV.PORTAL_ENTER ?? 'portal:enter', go);
+    if (!go.held) world.bus.emit(EV.ZONE_TRAVEL, { zoneId: this.to.zoneId, spawnId: this.to.spawnId });
   }
 }
 

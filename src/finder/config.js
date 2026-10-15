@@ -17,6 +17,10 @@ export const FINDER_CONFIG = {
   reviveAfter: 3,
   reviveHp: 0.4,
 
+  // Söldner anheuern: Wer allein durch das Portal eines Gruppen-Dungeons geht, bekommt eine Söldnergruppe gegen Gold
+  // angeboten (Preise in hire.js). false = Portal führt wie früher sofort allein hinein.
+  hireOffer: true,
+
   // Mehrere echte Spieler in einer Gruppe: erst mit geteilten Gegnern in der Instanz (Mehrspieler Stufe 2).
   // Muss zum Server passen (Worker-Variable FINDER_HUMAN_GROUPS).
   humanGroups: false,

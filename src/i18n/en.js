@@ -4711,5 +4711,8 @@ export const EN = {
   "Erreiche in der Glutarena die Liga Glutmeister.": "Reach the Ember Master league in the Ember Arena.",
   "Mit diesem Konto kämpfen schon 20 Helden in dieser Saison.": "20 heroes from this account are already fighting this season.",
   "Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.": "Built for three heroes. You'll find companions in the Dungeon Finder.",
-  "Die Glutarena ist offen: Dungeonsuche im Menü.": "The Ember Arena is open: Dungeon Finder in the menu."
+  "Die Glutarena ist offen: Dungeonsuche im Menü.": "The Ember Arena is open: Dungeon Finder in the menu.",
+  "Söldner anheuern": "Hire Mercenaries",
+  "Anheuern · {0} Gold": "Hire · {0} Gold",
+  "Allein": "Alone"
 };
