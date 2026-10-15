@@ -25,6 +25,9 @@
   --ef-touch: 44px;
   --hud-fs: clamp(11px, calc(var(--view-scale) * 4.6px), 15px);
   --hud-gap: clamp(6px, calc(var(--view-scale) * 3px), 14px);
+  /* Seitenränder fürs Handy-Querformat; ui/SafeEdges.js verkleinert sie auf dem iPhone (Kamera nur auf einer Seite) */
+  --ef-edge-l: env(safe-area-inset-left, 0px); --ef-edge-r: env(safe-area-inset-right, 0px);
+  --ef-safe-l: env(safe-area-inset-left, 0px); --ef-safe-r: env(safe-area-inset-right, 0px);
 }
 .ef-touch { --ef-touch: 52px; }
 
@@ -1487,4 +1490,26 @@ html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [da
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot:is([data-action="dodge"], [data-action="potion"], [data-action="mount"], [data-action="interact"]) { border-radius: 12px; }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="dodge"] img,
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="interact"] img { width: 30px; height: 30px; }
+}
+
+/* ===================================================================
+   Handy quer: bis an den Rand (ui/SafeEdges.js). Ecken-Elemente nutzen --ef-edge-*, was auf mittlerer Höhe
+   liegt (Aktionsknöpfe, offener Chat) --ef-safe-* (nur auf der Kameraseite voller Abstand). Desktop unverändert.
+   =================================================================== */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-frame {
+  left: var(--ef-edge-l); width: calc(100% - var(--ef-edge-l) - var(--ef-edge-r));
+}
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu { right: calc(var(--ef-edge-r) + 8px); }
+/* Talentpunkt-Punkt am Menüknopf innen statt über der Ecke (die gerundete Bildschirmecke schnitte ihn sonst an) */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu-toggle > .hud-dot { right: 3px; top: 3px; }
+/* EP-Leiste endet vor den Aktionsknöpfen, auch wenn diese der Kamera rechts ausweichen */
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-xp-wrap { right: calc(30% + var(--ef-safe-r) - var(--ef-edge-r)); }
+html.ef-touch:not(.ef-portrait) .ef-hud .hud-actions { right: calc(var(--ef-safe-r) + 6px); }
+html.ef-touch:not(.ef-portrait) .net-chat-btn { left: calc(var(--ef-edge-l) + 226px); }
+html.ef-touch:not(.ef-portrait) #ui .net-chat { left: calc(var(--ef-edge-l) + 8px); }
+html.ef-touch:not(.ef-portrait) #ui .net-chat.open { left: calc(var(--ef-safe-l) + 8px); }
+@media (max-height: 500px) {
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn { left: calc(var(--ef-edge-l) + 276px); }
+  html.ef-touch:not(.ef-portrait):not(:has(.net-chat-btn:not([hidden]))) .ef-hud .hud-bag-btn { left: calc(var(--ef-edge-l) + 226px); }
+  html.ef-touch:not(.ef-portrait):has(.hud-boss.show, .pv-top:not([hidden])) .ef-hud .hud-bag-btn { left: calc(var(--ef-edge-l) + 8px); }
 }
