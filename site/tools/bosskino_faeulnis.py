@@ -1,63 +1,67 @@
-# Bosskino: Mutter Fäulnis (Stufe 32) im Sporenschlund.
-# Figur nach rot_mother.js: aufgeblähter, geäderter Brutleib auf einem Teppich aus Wurzelsträngen, pulsierende
-# Sporenkapseln mit Fleischkragen, Konsolenpilze und kleine Pilze auf dem Rücken; vorn ein verwachsener, gekrümmter
-# Oberkörper (Rippen, Wirbelknoten, Myzelmantel mit Fransen), hageres grünes Hexengesicht (Knochenwulst, tiefliegende
-# Leuchtaugen, drittes Auge, Hakennase, Maul mit Fängen) unter einem breiten Warzenhut mit glimmenden Lamellen und
-# Hyphenfäden; zwei knorrige, gegliederte Rankenarme aus Rinde und Moos mit Dornen, Leuchtknoten und Wurzelkrallen.
+# Bosskino: Mutter Fäulnis (Stufe 32) im Sporenschlund – „Leuchtpilz-Königin“.
+# Figur nach rot_mother.js: aufgeblähter, nachtblauer Brutleib auf einem Teppich aus dunklen Wurzelsträngen, türkis
+# leuchtende Adern, Leuchtpunkte und Sporenkapseln mit Fleischkragen, kleine Leuchtglocken auf dem Rücken; vorn ein
+# schlanker, blaugrauer Oberkörper (Rippen, Wirbelknoten, Leuchtadern), Lamellenkragen wie eine Halskrause, hageres
+# Gesicht mit schrägen Leuchtaugen und Fängen unter einem glockigen, gerillten Hut in Nachtviolett mit Leuchtrand,
+# leuchtenden Lamellen und hellen Leuchtfäden; zwei lange, sehnige Arme mit Leuchtader und Krallenhänden.
 # Gezeichnet mit Blick nach rechts, im Bild gespiegelt.
 # Ruhe in drei Teilen mit eigenen Zyklen: hinterer Arm und vorderer Arm (Krallen, Wiegen) und Leib (Atem, Kapseln,
 # Augen, Fransen).
 # Attacke „Wurzelbruch“: Ausholen (sie richtet sich auf, Ranken hoch), Halten (Kapseln schwellen, Maul auf,
 # Zittern), Hieb in zwei Bildern (Ellbogen führt, Unterarm peitscht), Einschlag mit Stauchung (Leib flacher und
 # breiter, Hut gequetscht), Nachschwingen, Zurückfedern, Nachbeben; Wurzeldornen brechen nacheinander aus dem Boden,
-# aus jedem zweiten Bruch quillt eine Sporenwolke in Pixelstufen, Gift läuft oliv durch die Fugen.
+# aus jedem zweiten Bruch quillt eine Sporenwolke in Pixelstufen, Leuchtgift läuft türkis durch die Fugen.
 # Gesamte Figur bleibt in allen Bildern unter Szenen-y 20 (Oberkörper gestaucht/abgesenkt, KZ/DZ).
 import math
 import numpy as np
 from bosskino import (Fig, MAT, flip, hash2, hexc, Buf, bands, BAYER4, seam_wave, strip, outline_mask, edge_of,
-                      floor, stamp, finish, over, vnoise, dome, SW, SH, FY, ik, rot, lerp)
+                      floor, stamp, finish, over, vnoise, dome, SW, SH, FY, ik, rot, lerp, K, GLOW, SPEC, PAD, SWX)
 
-# Fäulnis-Palette: entsättigt – Fäulnis-Violett, Oliv, Knochen; Leuchten kränklich-giftig (Oliv-Gelb) statt Limette.
-SP = ['#1e2410', '#3e4a1e', '#6e7a34', '#a8b05a', '#dcdca0']        # Giftglut (dunkel -> hell)
-VI = ['#1e1226', '#3e2a4a', '#5e4670', '#8a6e9a', '#c0aac8']        # Fäulnisviolett
+# Palette der Leuchtpilz-Königin: nachtblauer Leib, blaugraue Haut, nachtvioletter Hut; Leuchten türkis.
+SP = ['#04383a', '#0a726e', '#1cc0ae', '#7cf0dc', '#e2fff6']        # Leuchten (dunkel -> hell)
+VI = ['#0a3846', '#1c8e96', '#46c6c2', '#a6f2ea', '#e2fff6']        # Leuchtadern
 MAT.update({
-    'flesh': ['#120a12', '#2c1c2a', '#44303e', '#5e4652', '#7c626a'],
-    'fleshd': ['#0a060a', '#20141e', '#30222e', '#44303e', '#5e4652'],
-    'fleshl': ['#120a12', '#5e4652', '#7c626a', '#9a8080', '#b8a49a'],
-    'skin': ['#0e0e0a', '#2a2a1e', '#42422c', '#5e5c3e', '#7c7852'],
-    'skinl': ['#0e0e0a', '#5e5c3e', '#7c7852', '#9c966c', '#bab48a'],
-    'hide': ['#0c0a08', '#262019', '#3c3326', '#564a36', '#74664a'],
-    'face': ['#100c0c', '#2a2c1e', '#43482c', '#606640', '#808458'],
-    'faceh': ['#100c0c', '#606640', '#808458', '#a2a478', '#c2c09a'],
-    'rot': ['#120a10', '#261a24', '#382630', '#4a3628', '#62482e'],
-    'brow': ['#140a12', '#4e4432', '#7a6c4e', '#ada080', '#d0c6a6'],
-    'maw': ['#160810', '#160810', '#220c16', '#2e101c', '#3a1422'],
-    'fang': ['#3a2e1e', '#665a40', '#9a8c6a', '#cec4a0', '#ece4c8'],
-    'cap': ['#0c070a', '#2a1820', '#40242a', '#583236', '#744642'],
-    'capl': ['#0c070a', '#583236', '#744642', '#8e5e52', '#a87c66'],
-    'capd': ['#08040a', '#1e1018', '#2a1820', '#40242a', '#583236'],
-    'gill': ['#100c12', '#221a26', '#362a3a', '#4e3e50', '#6e5c6e'],
-    'gillg': ['#100c12', '#2e3416', '#545c26', '#868e44', '#bcbe7c'],
-    'myc': ['#100c12', '#362e3a', '#504650', '#726672', '#9c8e98'],
-    'cloak': ['#0c0610', '#22142c', '#36203e', '#503454', '#6e4c6c'],
-    'bark': ['#0c0a08', '#28231a', '#3e3626', '#584c36', '#766850'],
-    'barkd': ['#080604', '#18150f', '#28231a', '#3e3626', '#584c36'],
-    'moss': ['#0c0e08', '#1e2214', '#30361e', '#464e2a', '#626a3a'],
-    'mossd': ['#08090a', '#0c0e08', '#1e2214', '#30361e', '#464e2a'],
-    'sac': ['#10120a', '#283014', '#424e20', '#66722e', '#8e9648'],
-    'sacg': ['#10120a', '#66722e', '#8e9648', '#bcbc76', '#e0dcae'],
-    'pus': ['#120e08', '#34321a', '#5a5a28', '#868a40', '#b8b674'],
+    'flesh': ['#06080e', '#171d31', '#232b45', '#313b5b', '#455375'],
+    'fleshd': ['#04060a', '#0d1120', '#171d31', '#232b45', '#313b5b'],
+    'fleshl': ['#06080e', '#455375', '#637393', '#8494b2', '#a6b4cc'],
+    'skin': ['#0c0c12', '#42404c', '#66626e', '#928c94', '#bdb7ba'],
+    'skinl': ['#0c0c12', '#928c94', '#bdb7ba', '#d6d0d0', '#eeeae8'],
+    'hide': ['#0c0c12', '#26262e', '#3a3842', '#55525e', '#75707c'],
+    'face': ['#0c0c12', '#42404c', '#66626e', '#928c94', '#bdb7ba'],
+    'faceh': ['#0c0c12', '#928c94', '#bdb7ba', '#e6e2e0', '#f6f2f0'],
+    'rot': ['#0c0c12', '#16142a', '#1e1a30', '#2e2a44', '#3a3654'],
+    'brow': ['#090b14', '#333d51', '#515d75', '#77899f', '#a5b5c5'],
+    'maw': ['#06050c', '#06050c', '#0a0814', '#0e0c1a', '#141222'],
+    'fang': ['#2c3440', '#56647a', '#8ea0b4', '#c8d6e2', '#eef6fa'],
+    'cap': ['#07051a', '#1d1540', '#2a1f58', '#3c2c72', '#54408e'],
+    'capl': ['#07051a', '#54408e', '#7a66b4', '#a898dc', '#e4dafa'],
+    'capd': ['#05030f', '#120d2c', '#1d1540', '#2a1f58', '#3c2c72'],
+    'gill': ['#041218', '#0a2a36', '#0e4452', '#14606c', '#1c8086'],
+    'gillg': ['#061e28', '#1c8e96', '#46c6c2', '#a6f2ea', '#e2fff6'],
+    'myc': ['#16262e', '#46707c', '#70a2aa', '#a4d4d4', '#dcf8f2'],
+    'cloak': ['#06080e', '#171d31', '#232b45', '#313b5b', '#455375'],
+    'bark': ['#0e0e14', '#3c4258', '#565e7a', '#747e9c', '#98a2be'],
+    'barkd': ['#08080c', '#262a3a', '#3c4258', '#565e7a', '#747e9c'],
+    'moss': ['#08161a', '#0e2a2e', '#164044', '#20585a', '#2e7472'],
+    'mossd': ['#050c0e', '#08161a', '#0e2a2e', '#164044', '#20585a'],
+    'sac': ['#04161c', '#062830', '#0a4650', '#127478', '#1c9898'],
+    'sacg': ['#04161c', '#1cb0a4', '#58dacd', '#a6f4e6', '#e6fff8'],
+    'pus': ['#04161c', '#0e5860', '#1c9898', '#58dacd', '#c6fff2'],
     'vein': VI,
-    'spot': ['#28241c', '#4a4232', '#746a52', '#9e9274', '#c2b896'],
-    'bone': ['#16130e', '#363024', '#625844', '#928870', '#c0b698'],
-    'slime': ['#0c0e08', '#262c14', '#3e4820', '#646e30', '#9aa056'],
-    'eye': ['#262a10', '#4e5a1e', '#8e9a3a', '#c8ca74', '#eeecbc'],
+    'spot': ['#2c3440', '#46566a', '#7a8ea2', '#b4c6d4', '#e6f2f6'],
+    'bone': ['#16181e', '#2c3440', '#56647a', '#8ea0b4', '#c8d6e2'],
+    'slime': ['#060a12', '#10202e', '#183444', '#2a5a66', '#4cbcb4'],
+    'eye': ['#04383a', '#0a726e', '#1cc0ae', '#7cf0dc', '#e2fff6'],
     'void': ['#050307'] * 5,
+    'eyew': ['#ffffff'] * 5,
+    'pupil': ['#0a1420'] * 5,
 })
-RIM_F = {'flesh': '#9a8484', 'skin': '#9a9670', 'hide': '#8e8060', 'face': '#9c9e70', 'cap': '#8e5e52', 'bark': '#8c7e5c', 'moss': '#7a8048',
-         'myc': '#b4a8b0', 'sac': '#bcbc76', 'spot': '#d8ceae'}
-RIM_B = {'flesh': '#6e5a80', 'fleshd': '#4e3e60', 'cap': '#6e5a80', 'capd': '#4e3e60', 'bark': '#4e5630', 'barkd': '#30361e',
-         'skin': '#6e7a34', 'hide': '#5e5470', 'moss': '#6e7a34', 'mossd': '#3e4a1e', 'gill': '#6e5a80', 'myc': '#6e5a80', 'face': '#6e7a34'}
+GLOW.clear(); GLOW.update({'eye', 'sacg', 'gillg', 'vein', 'pus'})
+SPEC.clear(); SPEC.update({'bone': '#e6f2f6', 'fang': '#ffffff', 'fleshl': '#c4d2e6', 'skin': '#d5e1e9'})
+RIM_F = {'flesh': '#7a88a8', 'skin': '#e6e2e0', 'hide': '#bdb7ba', 'face': '#e6e2e0', 'cap': '#8e7cc4', 'bark': '#6a6a84', 'moss': '#3e8a86',
+         'myc': '#dcf8f2', 'sac': '#a6f4e6', 'spot': '#e6f2f6'}
+RIM_B = {'flesh': '#2a8a8a', 'fleshd': '#1c6464', 'cap': '#3a9a9a', 'capd': '#2a7272', 'bark': '#2a6060', 'barkd': '#1c4444',
+         'skin': '#46c6c2', 'hide': '#2a9090', 'moss': '#2a8080', 'mossd': '#1c5a5a', 'gill': '#46c6c2', 'myc': '#46c6c2', 'face': '#46c6c2'}
 
 W, H, FX, FY0 = 340, 214, 196, 206
 S = 1.0
@@ -136,43 +140,117 @@ def line_px(a, b):
 
 
 # ------------------------------------------------------------------------------------------- Gesicht
-# Hageres Pilzweib, Dreiviertelansicht nach rechts (Pixelkarte): Knochenwulst über tiefen Höhlen, schräge
-# Mandelaugen (E Kern, e Rand), kleines drittes Auge, Hakennase, eingefallene Wangen mit Fäulnisschatten,
-# Maul mit ungleichen Fängen, spitzes Kinn. o Kontur, 1–4 Haut, 5 Glanz, p/q Fäulnis, B/b Wulst, k Höhle.
+# Ausgezehrtes Hexengesicht (wie rot_mother.js), Dreiviertelansicht nach rechts, Licht von links oben: zornig gesenkter
+# Brauenwulst mit Stirn- und Zornesfalten, tief liegende schräge Schlitzaugen (türkis), Krähenfüße, hoher Wangenknochen
+# über eingefallener Wange, lange Hakennase mit Höckerwarze, Nasolabialfalte, gefletschtes Maul mit schiefen Zähnen,
+# spitzes vorspringendes Kinn mit Warze. FACE in Figurpixeln, FACE_F in Feinpixeln (K = 2) darüber.
+# o Kontur, 1–6 Haut (Schatten → Glanz), p/q kalte Wangenhöhle, k Höhle, E/e Auge, M Maul, T/t Zähne.
 FACE = [
-    '......ooooooooooooo.....',
-    '....oo1222333344444oo...',
-    '...o1p2223333444445o....',
-    '..o1p222333334444455o...',
-    '..o1p2223333444455555o..',
-    '.o1pkkkk233455kkkkkkk5o.',
-    '.o1pkEkkkk345kkkkkEEk4o.',
-    '.o1pkkeEkk34kkkeEEkkk4o.',
-    '.o1p2kkkk334kkkkkk44455o',
-    '.o1p2223334444455544555o',
-    '.o1pq2223p34445555445555o',
-    '.o1pq222pp344444554455555o',
-    '.o1pq222pp3344444444o44455o',
-    '..o1q22pp33344444444o2224o.',
-    '..o1pq2pp3334444kn44oooooo.',
-    '..o1pq2p33oooooooooo.......',
-    '...o1ppoMTMMTMMTTMMo....',
-    '...o1pqoMMTMMMMMTMo.....',
-    '....o1poMMMMMMMMMMo.....',
-    '....o1poMtMMMtMMtMo.....',
-    '.....o1poMtMMtMMMo......',
-    '.....o1pqoooooooo3o.....',
-    '......o1pq223334445o....',
-    '.......o1pq2233445o.....',
-    '........o1p223345o......',
-    '.........oo12344o.......',
-    '...........oo3oo........',
-    '.............o..........',
+    '......oo444ooo',
+    '....oo54444444o',
+    '...o55544444443o',
+    '..o5554444444333o',
+    '..o55322444443332o',
+    '.o655522545433332o',
+    '.o6666555554133334o',
+    'o44556666666344555o',
+    'o44kekkkkk25652ke1o',
+    'o44keEEEek3246eEe21o',
+    'o5643kkk14433446552o',
+    'o6666665444423344445o',
+    'o61553444443322234555o',
+    '.o3ppq3344443222223464o',
+    '.o3qqqq334444142222331o',
+    '..o43qqqq445112222223o',
+    '..o4443q3455114MT22oo',
+    '...o4443441MMMMMMM2o',
+    '....ooo43451MMMMM22o',
+    '.......o44441MM3224o',
+    '........o322211424o',
+    '.........oo3456425o',
+    '...........o34314o',
+    '............o2134o',
+    '.............o13o',
+    '..............oo',
 ]
-FSPLIT = 18          # ab dieser Zeile klappt der Unterkiefer nach unten
-FLEG = {'o': ('face', 0), '1': ('face', 1), '2': ('face', 2), '3': ('face', 3), '4': ('face', 4), '5': ('faceh', 3),
-        'p': ('rot', 2), 'q': ('rot', 3), 'B': ('brow', 3), 'b': ('brow', 2), 'k': ('face', 0), 'n': ('face', 0),
-        'M': ('maw', 1), 'T': ('fang', 3), 't': ('fang', 2), 'E': ('eye', 4), 'e': ('eye', 2)}
+FACE_F = [
+    '................ooooooo',
+    '.............ooo4444444ooo',
+    '...........oo5544444444444oo',
+    '..........o55544444444444443o',
+    '........oo5555444444444444433oo',
+    '.......o55555444444444444443333o',
+    '......o5555544444444444444333333o',
+    '......o5555544444444444444333333o',
+    '.....o555532222244444444443333332o',
+    '....o55553655555224444444433333322o',
+    '....o55556542222554455444333333322o',
+    '...o6666555355552445535423333333322o',
+    '...o6666666655545445534413333333332o',
+    '..o566666666665555555423313333344444o',
+    '..o444555566666666655662334444555553o',
+    '..o444332222345566666666555555443221o',
+    '..o4443kkkkkkkkkk4555256665521111111o',
+    '..o414kkeekkkkkkkkkkk245566654kkeek2o',
+    '.o4144kkkeEEEEEeekkkk22445666eEEekk21o',
+    '.o54143kkkkkkeeEeekk33234455ee6654221o',
+    '.o5525443kkkkkkk444444323344566555432o',
+    '.o526655511111111144443233344442265542o',
+    '..o666666666665554444444223333444535424oo',
+    '..o66666665555444444443422223333344442553o',
+    '..o665555554444444444333322222233344525654o',
+    '..o5111223334444444444333222222223344555654o',
+    '..o43qpppqq233344444444332222222222334456541o',
+    '...o3qpqqppq23334444444443221222222233466652o',
+    '...o33qqqqqpqq333444444444214222222223356552o',
+    '....o433qqqqpqq33344444444144222222222233311o',
+    '....o44433qqqpqqq34444455414221212222222311o',
+    '.....o44433qqqpqq34456651141222kk2221oooooo',
+    '......o444433qqqq34565144444441111222o',
+    '......o44444333q3446515511111tMMMT122o',
+    '.......o4444443344451555MTMMMTMMTMM22o',
+    '........oooo4444434415MMMTtMMTMMMMM22o',
+    '............o4443334511MTMMMtMMMMM222o',
+    '.............oo433445551tMMMtMMtM1224o',
+    '...............o4444444411MMMMM112224o',
+    '................o44444333333333322234o',
+    '.................o3322222211111322244o',
+    '..................o32222233445442134o',
+    '...................oo334455566542251o',
+    '.....................o3344555542165o',
+    '......................o334444321252o',
+    '.......................o3333321144o',
+    '........................o22221134o',
+    '.........................oo211233o',
+    '...........................o1233o',
+    '............................o33o',
+    '.............................oo',
+]
+FSPLIT, FSPLIT_F = 18, 36          # ab dieser Zeile klappt der Unterkiefer nach unten
+FLEG = {'o': ('face', 0), '1': ('hide', 1), '2': ('face', 1), '3': ('face', 2), '4': ('face', 3), '5': ('face', 4), '6': ('faceh', 3),
+        'p': ('rot', 2), 'q': ('rot', 3), 'k': ('face', 0), 'M': ('maw', 1), 'T': ('fang', 3), 't': ('fang', 2), 'E': ('eye', 4), 'e': ('eye', 2)}
+
+
+def _open_rows(rows, split, n):
+    """Zeilen mit aufgeklapptem Kiefer: die Zeile über der Teilung wird n-mal gedehnt (ohne Zähne und Faltenlinien),
+    die Maulspalte schließt sich zu den Mundwinkeln hin linsenförmig."""
+    mid = rows[split - 1]
+    cols = [i for i, c in enumerate(mid) if c in 'MTt']
+    if not cols or n <= 0: return list(rows), None
+    m0, m1 = cols[0], cols[-1]; mw = m1 - m0
+    out = list(rows[:split])
+    for k in range(n):
+        u = abs(k - (n - 1) / 2) / ((n - 1) / 2) if n > 1 else 0
+        ins = int(round(u * u * mw * 0.22))
+        r = ''
+        for i, c in enumerate(mid):
+            if c == '.': r += '.'
+            elif m0 + ins <= i <= m1 - ins: r += 'M'
+            elif c == 'o': r += 'o'
+            elif m0 <= i <= m1: r += '2'
+            else: r += '3' if c in '12kpq' else c
+        out.append(r)
+    return out + list(rows[split:]), (m0, m1, split, n)
 
 
 def face(f, x, h, jaw=0, eye=1.0):
@@ -181,93 +259,98 @@ def face(f, x, h, jaw=0, eye=1.0):
     ev = 4 if eye >= 1 else 3 if eye >= 0.6 else 2
     leg['E'] = ('eye', ev); leg['e'] = ('eye', max(1, ev - 2))
     if eye >= 1.3: leg['e'] = ('eye', 3)
-    rows = FACE[:FSPLIT]
-    if jaw > 0:
-        mid = FACE[FSPLIT - 1]
-        open_ = ''.join(('M' if 10 <= i <= 19 and c != '.' and c != 'o' else c) for i, c in enumerate(mid))
-        rows = rows + [open_] * jaw
-    rows = rows + FACE[FSPLIT:]
+    rows, mo = _open_rows(FACE, FSPLIT, jaw)
     m = f.sprite(x, h, rows, leg)
-    # Schlund glimmt bei offenem Maul
-    if jaw >= 2:
-        X0, Y0 = f.at(x, h)
-        for j in range(jaw):
-            for i in range(12, 19):
-                Y = Y0 + FSPLIT + j; X = X0 + i
-                if 0 <= Y < f.H and f.mat[Y, X] == 'maw' and (i + j) % 2 == 0 and j >= jaw // 2: f.mat[Y, X] = 'eye'; f.tone[Y, X] = 1
+    X0, Y0 = f.at(x, h)
+    # Feinraster: dieselbe Karte in Feinpixeln darüber (Falten, Nase, Augen, Zähne)
+    if K == 2:
+        frows, fmo = _open_rows(FACE_F, FSPLIT_F, jaw * 2)
+        f.fsprite(X0 * K, Y0 * K, frows, leg, under=True)
+    # Schlund glimmt bei offenem Maul (tief und mittig)
+    if jaw >= 2 and mo:
+        m0, m1, sp, n = mo
+        for j in range(n // 2, n):
+            for i in range(m0 + 2, m1 - 1):
+                Y = Y0 + sp + j; X = X0 + i
+                if 0 <= Y < f.H and 0 <= X < f.W and f.mat[Y, X] == 'maw':
+                    f.mat[Y, X] = 'eye'; f.tone[Y, X] = 2 if j >= n - 2 and abs(i - (m0 + m1) / 2) < 3 else 1
+                    if K == 2:
+                        for dy in (0, 1):
+                            for dx in (0, 1): f.fpx(X * K + dx, Y * K + dy, 'eye', f.tone[Y, X])
     return m
 
 
 # ------------------------------------------------------------------------------------------- Hut
-SPOTS = [(-0.66, 0.42, 3.4), (-0.3, 0.74, 3.8), (0.12, 0.66, 3.0), (0.48, 0.4, 2.8), (-0.05, 0.34, 2.2), (-0.86, 0.14, 2.2),
-         (0.74, 0.14, 2.0), (0.34, 0.86, 2.0), (-0.48, 0.16, 1.8), (0.62, 0.66, 1.6)]
-
-
-def cap(f, c, tilt=0.0, gills=1.0, glow=0, hy=0.0, Rr=42, Hd=25, squash=0.0):
-    """Breiter Warzenhut. c: Figurpunkt der Hutunterseite (Mitte); tilt in Grad (+ = nach vorn geneigt)."""
+def cap(f, c, tilt=0.0, gills=1.0, glow=0, hy=0.0, Rr=40, Hd=23, squash=0.0):
+    """Glockenhut mit kleinem Buckel und radialen Rillen, durchscheinender Leuchtrand, leuchtende Lamellen darunter,
+    helle Leuchtfäden hängen vom Rand. c: Figurpunkt der Hutunterseite (Mitte); tilt in Grad (+ = nach vorn geneigt)."""
     cx, cy = f.at(*c)
     a = math.radians(tilt); ca, sa = math.cos(a), math.sin(a)
-    Hd = Hd * (1 - squash * 0.2)
+    Hd = Hd * (1 - squash * 0.2); Ub = 4.0 * (1 - squash * 0.3)
     Y, X = np.mgrid[0:f.H, 0:f.W] + 0.5
     dx, dy = X - cx, Y - cy
     lx = dx * ca + dy * sa; ly = -dx * sa + dy * ca           # lokal: lx quer, ly nach unten
     q = lx / Rr
     inside = np.abs(q) < 1
-    sq = np.sqrt(np.clip(1 - q * q, 0, 1))
-    rimy = 1 + 4.0 * q * q + 0.9 * np.sin(lx * 0.7 + 1.3) * np.where(np.abs(q) > 0.45, 1, 0.3)
-    top = rimy - Hd * sq * (1 + 0.06 * np.sin(q * 7 + 1)) * (0.92 + 0.08 * (q < 0))
+    aq = np.clip(np.abs(q), 0, 1)
+    sq = np.sqrt(1 - aq * aq)
+    rimy = 1 + 3.0 * q * q + 0.4 * np.sin(lx * 0.6 + 1.3) * np.where(aq > 0.5, 1, 0.4)
+    top = rimy - Hd * np.power(np.clip(1 - aq ** 2.4, 0, 1), 0.5) - Ub * np.exp(-q * q * 40)
     # Lamellen unter dem Rand
     gd = (3 + 5 * sq) * gills
-    gm = inside & (ly > rimy) & (ly <= rimy + gd) & (np.abs(q) < 0.93)
+    gm = inside & (ly > rimy) & (ly <= rimy + gd) & (aq < 0.94)
     depth = np.where(gm, (ly - rimy) / np.maximum(gd, 1), 0)
     gx = lx * (1 - depth * 0.5)
     lam = np.floor(gx / 2.6)
     lin = ((gx / 2.6) % 1) < 0.4
     gt = np.where(lin, 1, np.where(depth > 0.6, 2, 3))
     gmat = np.full((f.H, f.W), 'gill', dtype=object)
-    hot = gm & ~lin & (np.abs(lx) > 5) & (((lam + glow) % 3) != 0) & (depth < 0.75)
+    hot = gm & ~lin & (np.abs(lx) > 5) & (((lam + glow) % 3) != 0) & (depth < 0.8)
     gmat[hot] = 'gillg'
     gt = np.where(hot, np.where(depth < 0.35, 3 + ((lam + glow) % 2 == 0), 2), gt)
     paint(f, gm, gmat, gt.astype(int), line=False)
-    # Kuppel
+    # Glocke
     dm = inside & (ly >= top) & (ly <= rimy)
-    rag = (ly > rimy - 1.3) & (np.abs(q) > 0.3) & (hash2(np.round(lx), 3, 261) < 0.2)
-    dm &= ~rag
     hgt = np.where(dm, (rimy - ly) / np.maximum(0.01, rimy - top), 0)
-    v = 0.26 + hgt * 0.4 + q * 0.3 + np.where((hgt > 0.55) & (q > -0.1), 0.12, 0)
-    v -= np.where(ly > rimy - 1.6, 0.18, 0)
-    wr = (hgt > 0.2) & (np.abs(np.sin(q * 9 + hgt * 2.2)) < 0.07)
-    v -= np.where(wr, 0.14, 0)
-    v += (BAYER4[(Y.astype(int)) % 4, (X.astype(int)) % 4] - 0.5) * 0.12
+    v = 0.16 + hgt * 0.46 + q * 0.34 + np.where((hgt > 0.6) & (q > -0.05), 0.12, 0)
+    q0 = q / np.maximum(0.2, 1 - 0.6 * np.power(hgt, 1.4))
+    ga = q0 * 14 + 0.3; gi = np.round(ga / np.pi)
+    jit = np.vectorize(lambda a, b: hash2(int(a), int(b), 401))
+    gs = np.sin(ga + 0.45 * np.sin(hgt * 6.5 + gi * 1.9) + (jit(gi, 1) - 0.5) * 0.9)   # unregelmäßige Rillen
+    gw_ = 0.1 + 0.18 * jit(gi, 2)
+    cut_ = jit(gi, np.floor(hgt * 5) + 7) < 0.22
+    v -= np.where((hgt < 0.82) & (np.abs(gs) < gw_) & ~cut_, 0.16, 0)             # radiale Rillen
+    v += np.where((hgt < 0.82) & (gs < -0.2) & (gs > -0.42) & (q > -0.3), 0.07, 0)   # Lichtgrat daneben
     t = np.select([v < 0.22, v < 0.42, v < 0.6, v < 0.78], [1, 2, 3, 4], 4)
     cm = np.full((f.H, f.W), 'cap', dtype=object)
     cm[dm & (v >= 0.78)] = 'capl'; t = np.where(dm & (v >= 0.78), np.where(v > 0.9, 3, 2), t)
-    # Warzen
-    for sx, sh_, r in SPOTS:
-        slx = sx * Rr; sly = 1 + 4.0 * sx * sx - sh_ * Hd * math.sqrt(1 - sx * sx)
-        dd = np.hypot(lx - slx, (ly - sly) * 1.35)
-        wm = dm & (dd < r)
-        lit = ((lx - slx) - (ly - sly)) > 0.4
-        cm[wm] = 'spot'
-        t = np.where(wm, np.where(dd > r - 0.9, np.where(lit, 2, 1), np.where(lit, 4, 3)), t)
+    # durchscheinender Rand (Band) und leuchtende Unterkante
+    band = dm & (ly > rimy - 3.2)
+    cm[band] = 'capl'; t = np.where(band, np.where(q > 0.2, 3, 2), t)
+    up_ = dm & (ly - top < 1.8)                                              # helle Oberkante
+    cm[up_] = 'capl'; t = np.where(up_, np.where(q > -0.2, 4, 3), t)
+    edge = dm & (ly > rimy - 1.2)
+    cm[edge] = 'gillg'; t = np.where(edge, 3 + ((np.floor(lx / 4) + glow) % 2 == 0), t)
     paint(f, dm, cm, t.astype(int))
-    # Hyphenfäden vom Rand
-    for j in range(12):
-        qq = -0.95 + j * 0.172
-        if -0.35 < qq < 0.7: continue
-        L_ = 5 + hash2(j, 1, 271) * 13
-        llx = qq * Rr; lly = 1 + 4.0 * qq * qq + 0.5
+    # Leuchtfäden vom Rand (vor dem Gesicht kurz)
+    for j in range(26):
+        qq = -0.95 + j * 0.076
+        face_ = -0.62 < qq < 0.36
+        L_ = (5 + hash2(j, 1, 271) * 16) * gills ** 0.3 - (14 if face_ else 0)
+        if L_ < 2: continue
+        llx = qq * Rr; lly = 1 + 3.0 * qq * qq + 0.6
         px_, py_ = cx + llx * ca - lly * sa, cy + llx * sa + lly * ca
         for st in range(int(L_)):
             px_ += math.sin(hy + j * 1.3 + st * 0.3) * 0.3 * (st / L_) + sa * 0.6; py_ += 0.95
-            f.px(int(round(px_)), int(round(py_)), 'myc', 3 if st < 2 else 2 if st % 2 else 4)
-        if hash2(j, 2, 271) < 0.6: f.px(int(round(px_)), int(round(py_)) + 1, 'sacg', 3 + (glow + j) % 2)
+            fr = st / L_
+            f.px(int(round(px_)), int(round(py_)), 'myc', 4 if fr > 0.7 else 3 if fr > 0.3 else 2)
+        f.px(int(round(px_)), int(round(py_)) + 1, 'sacg', 2 + (glow + j) % 3)
     return (cx, cy)
 
 
 # ------------------------------------------------------------------------------------------- Arme
 def finger(f, base, ang, L, curl, w0=4.2, back=False, clip=None):
-    """Wurzelkralle: gekrümmter Strang (Grad, Figurkoordinaten), Rinde, Knochenspitze."""
+    """Krallenfinger: gekrümmter Strang (Grad, Figurkoordinaten), blaugraue Haut, helle Kralle."""
     pts = [base]; x, h = base; a = math.radians(ang)
     n = max(3, int(L / 2))
     for i in range(n):
@@ -275,119 +358,67 @@ def finger(f, base, ang, L, curl, w0=4.2, back=False, clip=None):
         x += math.cos(a) * L / n; h += math.sin(a) * L / n
         pts.append((x, h))
     T = Tube(f, pts, lambda t: np.maximum(1.0, w0 - np.asarray(t) * (w0 - 1.0)), clip=clip)
-    v = T.v - (0.12 if back else 0)
+    v = T.v - (0.14 if back else 0)
     tn = tones(v, (0.25, 0.5, 0.78))
-    mt = np.full((f.H, f.W), 'barkd' if back else 'bark', dtype=object)
-    tip = T.t > 0.62
-    mt[tip] = 'bone'; tn = np.where(tip, np.where(v > 0.45, 3 if back else 4, 2), tn)
-    joint = np.abs(T.t - 0.36) < 0.06
+    mt = np.full((f.H, f.W), 'hide' if back else 'skin', dtype=object)
+    tip = T.t > 0.66
+    mt[tip] = 'myc'; tn = np.where(tip, np.where(v > 0.45, 3 if back else 4, 2), tn)
+    joint = (np.abs(T.t - 0.36) < 0.05) | (np.abs(T.t - 0.58) < 0.04)
     tn = np.where(joint & ~tip & (tn > 1), tn - 1, tn)
     paint(f, T.m, mt, tn.astype(int))
     return pts[-1]
 
 
 def arm(f, sh, hand, el_out=0.0, claw=0.0, back=False, seed=0, clip=None, sway=0.0, droop=0.0, fing=None, elbow=None):
-    """Knorriger, gegliederter Rankenarm: Schulter -> Ellbogen -> Handgelenk, Rindenglieder mit Ringen und Knoten,
-    Moos oben, Dornen außen, Wurzelhaare unten, zwei Leuchtknoten, vier Wurzelkrallen."""
-    mb, mm = ('barkd', 'mossd') if back else ('bark', 'moss')
+    """Langer, ausgezehrter Arm: dünner Knochen unter Haut, Schulterkugel, spitzer Ellbogenknoten mit Falten,
+    Unterarmmuskel, Ellenkante im Licht, knochiges Handgelenk; harte Lichtstufen, Kontur. Hand mit vier Krallenfingern."""
+    mb = 'hide' if back else 'skin'
     el = elbow if elbow else ik(sh, hand, 46, 74, bend=1)
     el = (el[0] + el_out * 0.4, el[1] - el_out)
-    up = bez(sh, lerp(lerp(sh, el, 0.5), (sh[0] + 6, sh[1] + 8), 0.2), el, 8)
-    lo = bez(el, lerp(lerp(el, hand, 0.5), (hand[0] + 6, el[1]), 0.22), hand, 10)
+    up = bez(sh, lerp(lerp(sh, el, 0.5), (sh[0] + 6, sh[1] + 8), 0.08), el, 8)
+    lo = bez(el, lerp(lerp(el, hand, 0.5), (hand[0] + 6, el[1]), 0.08), hand, 10)
     pts = up + lo[1:]
     n = len(pts); tj = (len(up) - 1) / (n - 1)
-    base = 17 if not back else 15
+    base = 9.5 if not back else 9
     def wf(t):
         t = np.asarray(t, float)
-        w = np.where(t < tj, base - 4.0 * t / tj, (base - 4.5) - 5.5 * (t - tj) / (1 - tj))
+        w = np.where(t < tj, base - 2.0 * t / tj, (base - 3.0) - 2.6 * (t - tj) / (1 - tj))
         bump = lambda c, a, k: np.maximum(0, a - np.abs(t - c) * k)
-        return w + bump(tj, 4.0, 40) + bump(tj * 0.5, 2.2, 30) + bump(tj + (1 - tj) * 0.45, 2.2, 30) + bump(0.97, 3.0, 30) + 1.2 * np.sin(t * 23 + seed)
+        return (w + bump(tj, 4.2, 60) + bump(tj * 0.12, 2.6, 18) - bump(tj * 0.55, 1.0, 10)
+                + bump(tj + (1 - tj) * 0.22, 2.2, 16) + bump(0.95, 1.8, 40))
     T = Tube(f, pts, wf, clip=clip)
     v = T.v - (0.14 if back else 0)
-    tn = tones(v, (0.24, 0.5, 0.78))
-    mat = np.full((f.H, f.W), mb, dtype=object)
-    Y, X = np.mgrid[0:f.H, 0:f.W]
-    # Gliederung: dunkle Ringfugen, darüber eine helle Kante (Rindenwulst)
-    seg_t = [tj * 0.5, tj, tj + (1 - tj) * 0.45, 0.94]
-    for c in seg_t:
-        ring = T.m & (np.abs(T.t - c) < 0.011)
-        tn = np.where(ring, 1, tn)
-        lip = T.m & (T.t - c > 0.011) & (T.t - c < 0.03) & (tn < 4) & (v > 0.3)
-        tn = np.where(lip, tn + 1, tn)
-    # Längsrisse in der Rinde
-    crack = T.m & (np.abs(np.sin(T.t * 70 + T.e * 2.2 + seed)) < 0.1) & (np.abs(T.e) < 0.75) & (tn > 1)
-    tn = np.where(crack, tn - 1, tn)
-    moss = T.m & (v > 0.55) & (T.t < 0.9) & (vnoise(X * 0.3 + seed * 3, Y * 0.3, 16) > 0.6)
-    mat[moss] = mm; tn = np.where(moss, np.where(v > 0.74, 4, 3), tn)
-    paint(f, T.m, mat, np.maximum(1, tn).astype(int))
-    P = T.pts
-    def nrm(i, up_=True):
-        a, c = P[max(0, i - 1)], P[min(len(P) - 1, i + 1)]
-        tx, ty = c[0] - a[0], c[1] - a[1]; tl = math.hypot(tx, ty) or 1
-        nx, ny = ty / tl, -tx / tl
-        if (ny > 0) == up_: nx, ny = -nx, -ny
-        return nx, ny, tx / tl, ty / tl
-    # Wurzelhaare unten
-    for i in range(2, len(P) - 2):
-        if hash2(i, seed, 289) > 0.55: continue
-        nx, ny, tx, ty = nrm(i, up_=False)
-        hw = float(wf(i / (len(P) - 1))) / 2
-        x_, y_ = P[i][0] + nx * (hw - 0.5), P[i][1] + ny * (hw - 0.5)
-        L = 3 + int(hash2(i, seed, 291) * 5)
-        for st in range(L):
-            x_ += math.sin(sway * 6.28 + i + st * 0.6) * 0.35; y_ += 1
-            if clip is not None and y_ >= clip: break
-            f.px(int(round(x_)), int(round(y_)), mb, 2 if st < L - 1 else 3)
-    # Dornen außen (oben), zur Hand hin kleiner, leicht zur Hand geneigt
-    for i in range(1, len(P) - 2, 2):
-        nx, ny, tx, ty = nrm(i)
-        k = i / (len(P) - 1)
-        hw = float(wf(k)) / 2
-        L0 = (6.0 - 3.0 * k) * (0.75 + 0.5 * hash2(i, seed, 283))
-        bx, by = P[i][0] + nx * (hw - 1.2), P[i][1] + ny * (hw - 1.2)
-        tip = (bx + nx * L0 + tx * L0 * 0.5, by + ny * L0 + ty * L0 * 0.5)
-        B1 = (bx - tx * 2.4, by - ty * 2.4); B2 = (bx + tx * 2.4, by + ty * 2.4)
-        tri = f.poly([(B1[0] - f.FX, f.FY - B1[1]), (tip[0] - f.FX, f.FY - tip[1]), (B2[0] - f.FX, f.FY - B2[1])])
-        if clip is not None: tri[clip:] = False
-        if tri.any():
-            tt = np.where(tri, 2, 0)
-            # Licht auf der Vorderkante
-            ys, xs = np.nonzero(tri)
-            for y, x in zip(ys, xs):
-                if not tri[y, min(f.W - 1, x + 1)] or not tri[max(0, y - 1), x]: tt[y, x] = 3
-            paint(f, tri, 'bone', tt - (1 if back else 0))
-            f.px(int(round(tip[0])), int(round(tip[1])), 'bone', 3 if back else 4)
-    # Leuchtknoten (violett) auf zwei Gliedern
-    for t0 in (tj * 0.72, tj + (1 - tj) * 0.7):
-        i = int(round(t0 * (len(P) - 1)))
-        nx, ny, _, _ = nrm(i)
-        X_, Y_ = int(round(P[i][0] + nx * 2)), int(round(P[i][1] + ny * 2))
-        if clip is not None and Y_ + 1 >= clip: continue
-        for dx, dy, tt in ((0, 0, 4), (1, 0, 3), (0, 1, 3), (1, 1, 2), (-1, 0, 2), (0, -1, 2)):
-            f.px(X_ + dx, Y_ + dy, 'vein', max(1, tt - (1 if back else 0)))
+    tn = tones(v, (0.3, 0.52, 0.76))
+    # Ellenkante im Licht (Unterarm), Sehne am Oberarm, Ellbogenglanz und Falten
+    ulna = T.m & (np.abs(T.e - 0.35) < 0.1) & (T.t > tj + 0.05) & (T.t < 0.9)
+    tn = np.where(ulna, 4, tn)
+    sinew = T.m & (np.abs(T.e - 0.05) < 0.08) & (T.t > 0.1) & (T.t < tj - 0.06)
+    tn = np.where(sinew & (tn > 1), tn - 1, tn)
+    crease = T.m & ((np.abs(T.t - tj + 0.035) < 0.006) | (np.abs(T.t - tj - 0.035) < 0.006)) & (T.e < 0.3) & (T.e > -0.6)
+    tn = np.where(crease & (tn > 1), tn - 1, tn)
+    paint(f, T.m, mb, np.maximum(1, tn).astype(int), line=False)   # Form über harte Stufen, keine Linienkontur
     # Ellbogenknoten
-    kn = f.ell(el[0] - 0.5, el[1] + 0.5, 7.0, 6.0)
+    kn = f.ell(el[0] - 0.5, el[1] + 0.5, 4.2, 3.8)
     if clip is not None: kn[clip:] = False
-    kt = dome(kn, r=2.6, cuts=(0.25, 0.55, 0.82))
+    kt = dome(kn, r=2.4, cuts=(0.25, 0.55, 0.82))
     paint(f, kn, mb, np.where(kn, kt - (1 if back else 0), 0).clip(1, 4), line=False)
     eX, eY = f.at(*el)
-    for dx, dy, m_, tt in ((1, -3, 'bone', 3), (2, -4, 'bone', 4), (-2, -2, mm, 3), (-3, -2, mm, 4)):
-        if clip is None or eY + dy < clip: f.px(eX + dx, eY + dy, m_, tt - (1 if back else 0))
-    # Schulterknoten: Wurzelknolle, aus der der Arm wächst, Ausläufer greifen auf den Rumpf
-    sk = f.ell(sh[0] + 1, sh[1] + 1, 7, 6)
+    for dx, dy, tt in ((1, -3, 4), (2, -3, 3)):
+        if clip is None or eY + dy < clip: f.px(eX + dx, eY + dy, 'skinl' if not back else 'skin', tt - (1 if back else 0))
+    # Schulter: runde Kugel, aus der der Arm wächst
+    sk = f.ell(sh[0] + 1, sh[1] + 1, 5.2, 4.8)
     if clip is not None: sk[clip:] = False
     st_ = dome(sk, r=3, cuts=(0.28, 0.55, 0.8))
-    smat = np.where(sk & (st_ >= 4) & (hash2(*np.mgrid[0:f.H, 0:f.W][::-1], 77) < 0.5), mm, mb).astype(object)
-    paint(f, sk, smat, np.where(sk, st_ - (1 if back else 0), 0).clip(1, 4), line=False)
+    paint(f, sk, mb, np.where(sk, st_ - (1 if back else 0), 0).clip(1, 4), line=False)
     # Krallen: vier, gespreizt, krümmen sich nach unten
     dx_, dh_ = hand[0] - lo[-3][0], hand[1] - lo[-3][1]
     a0 = math.degrees(math.atan2(dh_, dx_))
     sp = 22 + claw * 14
     fing = fing or (0, 0, 0, 0)
     for j in range(4):
-        L = (24, 28, 26, 19)[j] * (0.85 if back else 1)
-        finger(f, hand, a0 + (1.5 - j) * sp * 0.6 + 12 - claw * 10 + fing[j], L, -(40 + claw * 50) - fing[j] * 0.5, w0=5.4 if not back else 4.8, back=back, clip=clip)
-    hm = f.ell(hand[0], hand[1], 6.6, 6.0)
+        L = (14, 17, 16, 11)[j] * (0.85 if back else 1)
+        finger(f, hand, a0 + (1.5 - j) * sp * 0.6 + 12 - claw * 10 + fing[j], L, -(40 + claw * 50) - fing[j] * 0.5, w0=4.8 if not back else 4.4, back=back, clip=clip)
+    hm = f.ell(hand[0], hand[1], 6.2, 5.6)
     if clip is not None: hm[clip:] = False
     paint(f, hm, mb, np.where(hm, dome(hm, r=2, cuts=(0.3, 0.6, 0.85)) - (1 if back else 0), 0).clip(1, 4), line=False)
     return el, T
@@ -473,7 +504,7 @@ def brood(f, ph, br=0, sacp=None, glow=None, swell=0.0, vein=0, flat=0.0):
         if f.mat[y, x] == 'flesh' and f.tone[y, x] > 1:
             f.tone[y, x] = 0
             if y + 1 < f.H and f.mat[y + 1, x] == 'flesh': f.tone[y + 1, x] = min(4, f.tone[y + 1, x] + 1)
-    # Adern (violett glimmend): weiche Bögen von unten nach oben, Stamm 2 px, Äste 1 px, Glanz daneben
+    # Adern (türkis glimmend): weiche Bögen von unten nach oben, Stamm 2 px, Äste 1 px, Glanz daneben
     def vein_line(pts, wide, k):
         for (x1, h1), (x2, h2) in zip(pts, pts[1:]):
             for X_, Y_ in line_px(f.at(x1, h1), f.at(x2, h2)):
@@ -524,18 +555,15 @@ def brood(f, ph, br=0, sacp=None, glow=None, swell=0.0, vein=0, flat=0.0):
         X_, Y_ = f.at(top[0] - cw + 1, top[1] - 1.5)
         for k in range(int(cw * 2) - 1):
             f.px(X_ + k, Y_ + 1, 'gillg', 3 if (k + i) % 2 else 2)
-        for k in range(3):
-            if cw < 8 and k != 1: continue
-            sx_, sy_ = f.at(top[0] + (k - 1) * cw * 0.45, top[1] + cw * (0.38 if k != 1 else 0.52))
-            f.px(sx_, sy_, 'spot', 4); f.px(sx_ + 1, sy_, 'spot', 3)
-    # Konsolenpilze an der Flanke (Regale mit glimmender Unterseite)
-    for i, (x, h_, w_) in enumerate(((-150, 50, 8), (-112, 30, 6), (-4, 64, 7))):
-        x, h_ = x * (1 + flat * 0.25), h_ * fz
-        sh = f.poly([(x - w_, h_), (x - w_ * 0.7, h_ + 4), (x + w_ * 0.3, h_ + 5), (x + w_, h_ + 2), (x + w_ * 0.8, h_ - 0.5)])
-        paint(f, sh, 'cap', np.where(sh, dome(sh, r=1.6, cuts=(0.25, 0.5, 0.8)), 0))
-        X_, Y_ = f.at(x - w_ + 1, h_ - 0.5)
-        for k in range(int(w_ * 2) - 2):
-            f.px(X_ + k, Y_, 'gillg', 3 if (k + i) % 2 else 2)
+        for k in range(int(cw * 2) - 1):     # Rillen der Glocke
+            if k % 4 == 1:
+                for d in range(1, int(cw * 0.45)):
+                    X2, Y2 = X_ + k, Y_ - d
+                    if 0 <= Y2 < f.H and 0 <= X2 < f.W and cp[Y2, X2] and f.tone[Y2, X2] > 1: f.tone[Y2, X2] -= 1
+    # Leuchtpunkte auf der Haut
+    for y, x in zip(*np.nonzero(whole & (hash2(X // 3, Y // 3, 343) < 0.05) & (X % 3 == 1) & (Y % 3 == 1) & (Y < gy - 6))):
+        if f.mat[y, x] == 'flesh' and f.tone[y, x] > 0:
+            f.mat[y, x] = 'sacg'; f.tone[y, x] = 2 + int(hash2(x, y + int(ph * 9), 345) > 0.6)
     for i, (x, h_, r, p0) in enumerate(SACS):
         sac(f, x * (1 + flat * 0.25), h_ * fz + br * 0.5, r + swell, sacp[i] if sacp else 0, glow[i] if glow else 1)
     return whole
@@ -598,9 +626,9 @@ def _interp(pts, h):
 
 
 def torso(f, p, ph):
-    """Verwachsener, nach vorn gekrümmter Oberkörper mit klaren Materialzonen (Licht links oben = Figur rechts oben):
-    Buckel aus fauligen Rindenplatten (Fugen dunkel, Oberkante hell), eingefallene Brust aus fahler Haut mit
-    Rippenbögen, Lamellenfalten am Bauch (Pilzunterseite), gezeichnete Eiterpusteln, Wirbeldornen, Konsolenpilze."""
+    """Schlanker, nach vorn gekrümmter Oberkörper (Licht links oben = Figur rechts oben): glatter blaugrauer Rücken mit
+    Schulterblatt und Wirbelknoten, eingefallene Brust mit Rippenbögen, Lamellenfalten am Bauch (leuchtende Spitzen),
+    Leuchtknospen und Leuchtadern, die aus dem Leib aufsteigen."""
     Rt, inv = body_rt(p)
     back = [(-34, 64), (-38, 84), (-34, 102), (-24, 118), (-10, 128), (4, 132), (12, 131)]
     front = [(22, 124), (25, 114), (24, 102), (19, 92), (14, 82), (12, 70), (10, 60)]
@@ -612,23 +640,15 @@ def torso(f, p, ph):
     big = dome(m, r=10, cuts=(0.28, 0.52, 0.78))                # große Form
     mat = np.full((f.H, f.W), 'hide', dtype=object)
     t = big.copy()
-    # --- Rindenplatten auf Buckel und Flanke: Reihen entlang der Höhe, versetzte Fugen, je Platte eigene Wölbung
+    # --- Rücken: glatte, dunklere Haut, Schulterblatt als weiche Wölbung
     plate = m & (U < 0.6) & (LH > 70)
-    rowh = 10.0
-    r = np.floor((LH - 70) / rowh); fr = (LH - 70) / rowh - r
-    cc = U * 3.2 + (r % 2) * 0.5; c = np.floor(cc); fc = cc - c
-    seam = plate & ((fr < 0.1) | (fc < 0.07))
-    pt = np.clip(np.minimum(big, 3) + np.where(fr > 0.7, 1, 0) - np.where(fr < 0.3, 1, 0) + np.where((fc > 0.78) & (fr > 0.3), 1, 0), 1, 4)
-    t = np.where(plate, pt, t)
-    t = np.where(seam, 1, t)
-    # Moosplatten (ganze Platten, klar begrenzt)
-    mp = plate & ~seam & (hash2(r, c, 41) < 0.28)
-    mat[mp] = 'moss'
+    sb = plate & (np.abs(U - 0.3) < 0.14) & (np.abs(LH - 112) < 9)
+    t = np.where(sb & (t < 4), t + 1, t)
+    t = np.where(plate & (np.abs(U - 0.18) < 0.03) & (LH > 90) & (t > 1), t - 1, t)
     # --- Brust: fahle, eingefallene Haut mit Rippenbögen
     chest = m & (U >= 0.6) & (LH > 84)
     mat[chest] = 'skin'
     t = np.where(chest, np.clip(big, 2, 4), t)
-    t = np.where(m & (np.abs(U - 0.6) < 0.035) & (LH > 70), 1, t)    # Fuge Rinde/Haut
     for k in range(5):
         h0 = 92 + k * 7
         ry = h0 - 2.5 * (U - 0.6) / 0.4           # Rippen fallen zur Brust hin
@@ -637,20 +657,18 @@ def torso(f, p, ph):
         t = np.where(rib, np.minimum(4, big + 1), t); mat[rib & (big >= 3)] = 'bone'
         t = np.where(rib & (mat == 'bone'), 3, t)
         t = np.where(und, 1, t)
-    # --- Lamellen: Bauchfalten wie eine Pilzunterseite, senkrechte Blätter, Spitzen glimmen giftig
-    lam = m & (LH <= 86) & (LH > 60) & (U > 0.3)
-    mat[lam] = 'gill'
-    st = np.floor(LX / 3.0); sf = LX / 3.0 - st
-    lt = np.where(sf < 0.34, 1, np.where(sf < 0.67, 2 + (big >= 3), 3))
-    t = np.where(lam, np.clip(lt, 1, 4), t)
-    t = np.where(m & (np.abs(LH - 86) < 0.7) & (U > 0.3), 1, t)
-    tipg = lam & (LH < 66) & (sf >= 0.35) & (st % 2 == 0)
-    mat[tipg] = 'gillg'; t = np.where(tipg, 3, t)
+    # --- Bauch: eingefallene Haut mit zwei quer laufenden Hautfalten
+    belly = m & (LH <= 86) & (LH > 60) & (U > 0.3)
+    mat[belly] = 'skin'
+    t = np.where(belly, np.clip(big - 1, 1, 3), t)
+    for h0 in (70, 78):
+        fold = belly & (np.abs(LH - h0 - 2 * (U - 0.6)) < 0.8 / KZ)
+        t = np.where(fold, 1, t)
+        t = np.where(belly & (np.abs(LH - h0 - 1.6 / KZ - 2 * (U - 0.6)) < 0.7 / KZ), np.minimum(4, big), t)
     mat[m & (U >= 0.6) & (LH > 84) & (mat == 'hide')] = 'skin'
     paint(f, m, mat, np.where(m, t, 0).astype(int))
-    # --- Eiterpusteln: gezeichnete Kuppen mit Hautkragen, Glanzpunkt oben vorn, dunkle Pore
-    for i, (px_, ph_, pr) in enumerate(((-24, 96, 3.6), (-12, 112, 2.8), (-30, 80, 2.6), (-4, 100, 2.2), (16, 106, 2.0),
-                                       (-18, 124, 2.0), (6, 118, 1.6), (-36, 92, 1.6))):
+    # --- Leuchtknospen: kleine glimmende Kuppen mit Hautkragen, Glanzpunkt oben vorn
+    for i, (px_, ph_, pr) in enumerate(((-24, 96, 2.6), (-30, 80, 2.0), (-12, 114, 1.8), (-34, 104, 1.4))):
         cx, ch = Rt((px_, ph_))
         ring = f.ell(cx, ch - 0.3, pr + 1.2, pr + 0.9)
         paint(f, ring, 'skin', np.where(ring, np.minimum(4, dome(ring, r=1.4, cuts=(0.3, 0.55, 0.8)) + 0), 0), line=True)
@@ -661,13 +679,13 @@ def torso(f, p, ph):
         f.px(X0, Y0, 'pus', 4)
         if pr >= 2.5:
             f.px(*f.at(cx - pr * 0.3, ch - pr * 0.3), 'pus', 1)
-    # Rückgrat: Wirbeldornen aus Knochen, nach hinten oben gerichtet, zum Nacken kleiner
+    # Rückgrat: kleine Wirbelknoten, zum Nacken kleiner
     for i, ((x1, h1), (x2, h2)) in enumerate(zip(back[1:], back[2:])):
         for k in (0.2, 0.7):
             bx, bh = x1 + (x2 - x1) * k, h1 + (h2 - h1) * k
             tx, th = x2 - x1, h2 - h1; tl = math.hypot(tx, th) or 1
             nx, nh = -th / tl, tx / tl
-            L = 11 - i * 1.4 + (2 if k > 0.5 else 0)
+            L = 4.5 - i * 0.5 + (1 if k > 0.5 else 0)
             b0 = Rt((bx, bh))
             a_ = Rt((bx - tx / tl * 2.4, bh - th / tl * 2.4)); b_ = Rt((bx + tx / tl * 2.4, bh + th / tl * 2.4))
             tipp = (b0[0] + nx * L - 3 * tx / tl, b0[1] + nh * L * 0.9 - 3 * th / tl)
@@ -679,17 +697,17 @@ def torso(f, p, ph):
                 if not tm[max(0, y - 1), x] or not tm[y, min(f.W - 1, x + 1)]: tt[y, x] = 3
             paint(f, tm, 'bone', tt)
             X_, Y_ = f.at(*tipp); f.px(X_, Y_, 'bone', 4)
-    # Konsolenpilze am Buckel: Regale mit Warzen, Unterseite glimmt
-    for i, (x, h_, w_) in enumerate(((-38, 88, 10), (-30, 108, 8))):
-        c_ = Rt((x, h_))
-        sh = f.poly([(c_[0] + 2, c_[1]), (c_[0] - w_ * 0.4, c_[1] + 3.5), (c_[0] - w_, c_[1] + 2.5), (c_[0] - w_ * 1.1, c_[1] - 0.5), (c_[0] - w_ * 0.6, c_[1] - 1.5), (c_[0] + 2, c_[1] - 1.5)])
-        tt = np.where(sh, dome(sh, r=1.8, cuts=(0.25, 0.5, 0.78)), 0)
-        cm = np.where(sh & (tt == 4), 'capl', 'cap').astype(object); tt = np.where(cm == 'capl', 2, tt)
-        paint(f, sh, cm, tt.astype(int))
-        X0, Y0 = f.at(c_[0] - w_ * 1.05, c_[1] - 1)
-        for k in range(int(w_ * 1.1)):
-            f.px(X0 + k, Y0 + 1, 'gillg', 3 if (k + i) % 2 else 2)
-        f.px(*f.at(c_[0] - w_ * 0.5, c_[1] + 2.5), 'spot', 4)
+    # Leuchtadern steigen aus dem Leib über die Brust
+    for k, (x0, top_, ph0) in enumerate(((4, 118, 0.4), (12, 110, 1.7), (-6, 104, 2.9))):
+        prev = None
+        for h_ in range(60, top_, 2):
+            x_ = x0 + 2.2 * math.sin(h_ * 0.11 + ph0) + (h_ - 60) * 0.06
+            cur = f.at(*Rt((x_, h_)))
+            if prev:
+                for X_, Y_ in line_px(prev, cur):
+                    if 0 <= Y_ < f.H and 0 <= X_ < f.W and m[Y_, X_] and f.mat[Y_, X_] in ('skin', 'hide', 'bone'):
+                        f.mat[Y_, X_] = 'vein'; f.tone[Y_, X_] = 4 if (Y_ // 3 + k + int(ph * 6)) % 4 == 0 else 3
+            prev = cur
     # Fleischlippen über dem Ansatz (klare Wülste)
     for i, (x, h_, rx, rh) in enumerate(((-28, 64, 15, 9), (-6, 60, 14, 8), (8, 58, 9, 6))):
         cx, ch = Rt((x, h_))
@@ -715,6 +733,37 @@ def mantle(f, N, Rt, ph, glow=0, sway=0.0):
         f.px(int(round(x)), int(round(y)) + 1, 'sacg', 2 + (glow + i) % 3)
 
 
+def ruff(f, N, p, glow=0, keep=None):
+    """Lamellenkragen um den Halsansatz wie eine Halskrause: einzelne Lamellenblätter als Keile mit Lichtkante,
+    Mittelrippe und Schattenseite, dazwischen tiefe dunkle Spalten; nur die gerundeten Blattspitzen leuchten.
+    Die hintere Hälfte liegt im Schatten."""
+    lean = math.radians(p.get('lean', 0))
+    cx, cy = f.at(N[0] - 3, N[1] - 1)
+    R0 = 22 * (1 + 0.12 * p.get('gill', 0)) * (1 - 0.15 * p.get('squash', 0))
+    FL, NB = 2.0, 10
+    Y, X = np.mgrid[0:f.H, 0:f.W] + 0.5
+    dx, dy = X - cx, Y - cy
+    lu = dx * math.cos(lean) - dy * math.sin(lean); lw = dx * math.sin(lean) + dy * math.cos(lean)   # lw nach vorn/unten
+    r = np.hypot(lu, lw * FL); ang = np.arctan2(lw * FL, lu)
+    bf = ang * NB / math.pi + 0.3; bi = np.floor(bf); fr = bf - bi
+    gap = fr < 0.2
+    q = np.where(gap, 0, (fr - 0.2) / 0.8)
+    tip = R0 * (0.82 + 0.18 * np.sin(np.pi * q))
+    blade = ~gap & (r > 3) & (r <= tip)
+    slit = gap & (r > 3) & (r <= R0 * 0.6)
+    fq = r / R0
+    back = lw < 0
+    mat = np.full((f.H, f.W), 'gill', dtype=object)
+    t = np.where(q < 0.18, 4, np.where(q < 0.5, 3, np.where(q > 0.8, 1, 2))) - np.where(fq < 0.45, 1, 0) - np.where(back, 1, 0)
+    t = np.where(blade & (np.abs(q - 0.5) < 0.07) & (fq > 0.35), t - 1, t)
+    rim = blade & (r > tip - 2.2)
+    mat[rim] = 'gillg'; t = np.where(rim, np.where(back, 2, 3 + ((bi + glow) % 2 == 0)), t)
+    mat[slit] = 'void'; t = np.where(slit, 1, t)
+    m = blade | slit
+    if keep is not None: m &= ~keep
+    paint(f, m, mat, np.clip(t, 1, 4).astype(int))
+
+
 def neck(f, N, p):
     hd = p.get('head', (0, 0))
     hx, hh = N[0] + 13 + hd[0], N[1] + 10 + hd[1]
@@ -728,6 +777,7 @@ def neck(f, N, p):
     tn = np.where(gap, 1, tn)
     rotn = nk.m & (nk.e < -0.55); mat[rotn] = 'rot'; tn = np.where(rotn, 2, tn)
     paint(f, nk.m, mat, np.clip(tn, 1, 4).astype(int))
+    return nk.m, f.np
 
 
 def head(f, N, p, ph, glow=0):
@@ -787,7 +837,7 @@ def arm_layer(p, front=True, aph=0.0, clip=None):
     arm(f, shF if front else shB, (h[0] + d[0], h[1] + d[1]), el_out=p.get('eo', 0), claw=p.get('claw', 0.3), back=not front,
         seed=7 if front else 3, clip=clip, sway=aph, fing=p.get('fing' if front else 'fingb'), elbow=p.get('ef' if front else 'eb'))
     im = f.render(rim=RIM_F if front else None, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im
 
 
@@ -797,11 +847,12 @@ def body_layer(p, ph=0.0, glow=0, sacp=None, sglow=None):
     roots(f, ph, front=False, wig=0.6)
     brood(f, ph, br=p.get('breath', 0), sacp=sacp, glow=sglow, swell=p.get('swell', 0), vein=glow, flat=p.get('flat', 0))
     roots(f, ph, front=True, wig=0.6)
-    neck(f, body_rt(p)[0]((14, 126)), p)
+    nkm, nkp = neck(f, body_rt(p)[0]((14, 126)), p)
     N, T, _Rt = torso(f, p, ph)
+    ruff(f, N, p, glow=glow, keep=nkm & (f.part == nkp))   # Kragen vor dem Rumpf, hinter dem sichtbaren Hals
     head(f, N, p, ph, glow=glow)
     im = f.render(rim=RIM_F, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im
 
 
@@ -821,6 +872,7 @@ SPORE = SP
 
 def setp(A, x, y, c):
     x, y = int(x), int(y)
+    if A.shape[1] == SWX: x += PAD        # breite Ebene: Spalte = Szenen-x + PAD
     if 0 <= x < A.shape[1] and 0 <= y < A.shape[0]: A[y, x] = (*hexc(c), 255) if isinstance(c, str) else c
 
 
@@ -864,11 +916,11 @@ def mushroom(A, G, x0, base, sh, sw, cw, ch, cols, gl, glow_cols, seed=0):
 
 def scene():
     L = {}
-    F = bands(SH, SW, 0, 180, ['#050208', '#08040e', '#0c0614', '#10081a', '#160c20', '#1a1024'])
-    G = np.zeros((SH, SW, 4), np.uint8)
+    F = bands(SH, SWX, 0, 180, ['#050208', '#08040e', '#0c0614', '#10081a', '#160c20', '#1a1024'])
+    G = np.zeros((SH, SWX, 4), np.uint8)
     rng = np.random.default_rng(5)
     # Höhlendecke: hängende Hyphenfäden und Wurzelvorhänge
-    for x in range(0, SW, 3):
+    for x in range(-PAD, SW + PAD, 3):
         L_ = int(6 + hash2(x, 1, 4) * 40 + (30 if hash2(x // 9, 2, 4) > 0.7 else 0))
         for y in range(L_):
             if hash2(x, y // 3, 6) > 0.85: continue
@@ -877,12 +929,13 @@ def scene():
             setp(G, x, L_, VIO[2]); setp(F, x, L_, VIO[2])
     # Riesenpilze fern (Silhouetten, Lamellen glimmen violett)
     FC = ['#0a0612', '#140c20', '#1c1230', '#26183c', '#302048']
-    for x0, base, sh, sw, cw, ch, sd in ((40, 176, 120, 14, 46, 26, 1), (150, 176, 84, 10, 30, 18, 2), (540, 176, 136, 16, 52, 28, 3), (250, 176, 60, 8, 22, 12, 4)):
+    for x0, base, sh, sw, cw, ch, sd in ((40, 176, 120, 14, 46, 26, 1), (150, 176, 84, 10, 30, 18, 2), (540, 176, 136, 16, 52, 28, 3), (250, 176, 60, 8, 22, 12, 4),
+                                      (-96, 176, 104, 12, 40, 22, 5), (-20, 176, 52, 8, 18, 10, 6), (676, 176, 92, 12, 36, 20, 7)):
         mushroom(F, G, x0, base, sh, sw, cw, ch, FC, True, ['#160e1e', '#2a1e36', VIO[1], VIO[2]], sd)
     # Brennpunkt: Sporennebel hinter Kopf und Buckel – unregelmäßiger Hof in vier harten Stufen, Kanten im
     # Bayer-Raster aufgelöst (kein glatter Kreis); grüne Sporenkörner darin
     cx, cy = BX - 26, 58
-    Y, X = np.mgrid[0:176, 0:SW]
+    Y, X = np.mgrid[0:176, 0:SWX]; X = X - PAD
     ang = np.arctan2(Y - cy, (X - cx) / 1.35)
     d = np.hypot((X - cx) / 1.35, Y - cy)
     wob = 1 + 0.16 * np.sin(ang * 5 + 1.2) + 0.09 * np.sin(ang * 11 + 0.4) + (vnoise(X * 0.07, Y * 0.07, 16) - 0.5) * 0.55
@@ -906,17 +959,18 @@ def scene():
     for i in range(80):
         a = rng.uniform(0, 2 * math.pi); r = rng.uniform(16, 96)
         x, y = int(cx + math.cos(a) * r * 1.35), int(cy + math.sin(a) * r * 0.85)
-        if 0 <= x < SW and 0 <= y < 170:
+        if -PAD <= x < SW + PAD and 0 <= y < 170:
             c = SPORE[2] if r < 50 else SPORE[1]
             setp(F, x, y, c); setp(G, x, y, SPORE[3] if r < 40 else c)
     L['fern'] = dict(img=F, f=0.15)
     L['fern-glut'] = dict(img=G, f=0.15, glow=dict(per=3.4, lo=0.45, steps=3))
     # Mitte: Pilzgruppen, Wurzelbögen, hinterer Boden
-    M = np.zeros((SH, SW, 4), np.uint8); MG = np.zeros((SH, SW, 4), np.uint8)
-    bf, _, _ = floor(166, SH, [3, 3, 4, 4, 5, 6, 7, 8, 9], ['#06040a', '#0e0a14', '#16101e', '#1e1628', '#281e34'], vx=BX, vy=40, tile=30, seed=31, chips=0.1)
+    M = np.zeros((SH, SWX, 4), np.uint8); MG = np.zeros((SH, SWX, 4), np.uint8)
+    bf, _, _ = floor(166, SH, [3, 3, 4, 4, 5, 6, 7, 8, 9], ['#06040a', '#0e0a14', '#16101e', '#1e1628', '#281e34'], vx=BX, vy=40, tile=30, seed=31, chips=0.1,
+                     w=SWX, ox=-PAD)
     stamp(M, bf)
     # Wurzelbögen über die Wand
-    for x0, x1, top, wd in ((-20, 120, 110, 5), (90, 230, 130, 4), (430, 600, 100, 6)):
+    for x0, x1, top, wd in ((-20, 120, 110, 5), (90, 230, 130, 4), (430, 600, 100, 6), (-160, -30, 124, 4), (590, 712, 116, 5)):
         for i in range(80):
             k = i / 79
             x = x0 + (x1 - x0) * k; y = 170 - (170 - top) * math.sin(math.pi * k)
@@ -926,24 +980,27 @@ def scene():
     MC = ['#0c070a', '#2a1820', '#40242a', '#583236', '#744642']
     GC = ['#0c0e08', '#1e2214', '#30361e', '#464e2a', '#626a3a']
     for x0, sh, sw, cw, ch, cols, sd in ((84, 26, 5, 14, 8, MC, 11), (100, 16, 4, 9, 5, GC, 12), (196, 22, 5, 12, 7, GC, 13), (212, 12, 3, 7, 4, MC, 14),
-                                        (480, 30, 6, 16, 9, MC, 15), (500, 18, 4, 10, 6, GC, 16), (14, 18, 4, 10, 6, GC, 17)):
+                                        (480, 30, 6, 16, 9, MC, 15), (500, 18, 4, 10, 6, GC, 16), (14, 18, 4, 10, 6, GC, 17),
+                                        (-70, 24, 5, 13, 8, GC, 18), (-56, 14, 3, 8, 5, MC, 19), (-130, 20, 4, 11, 6, MC, 20), (626, 26, 5, 14, 8, GC, 23),
+                                        (644, 15, 4, 8, 5, MC, 24), (700, 20, 4, 10, 6, MC, 25)):
         gc = [SP[0], SP[1], SP[2], SP[3]] if cols is GC else ['#160e1e', '#2a1e36', VIO[1], VIO[2]]
         mushroom(M, MG, x0, 170, sh, sw, cw, ch, cols, True, gc, sd)
     L['mitte'] = dict(img=M, f=0.45)
     L['mitte-glut'] = dict(img=MG, f=0.45, glow=dict(per=2.9, lo=0.4, steps=3))
     # Boden: Erde mit Moos, Fugen für das Gift, glimmende Schleimpfützen
-    Bd, seam, _ = floor(FY - 4, SH, [4, 5, 6, 7, 9, 11], ['#06040a', '#120e12', '#1c1618', '#26201e', '#322a24'], vx=BX - 30, vy=-40, tile=30, seed=37, chips=0.1)
-    for x in range(SW): Bd[FY - 4, x] = (*hexc('#464e2a' if hash2(x, 1, 2) > 0.35 else '#30361e'), 255)
+    Bd, seam, _ = floor(FY - 4, SH, [4, 5, 6, 7, 9, 11], ['#06040a', '#120e12', '#1c1618', '#26201e', '#322a24'], vx=BX - 30, vy=-40, tile=30, seed=37, chips=0.1,
+                       w=SWX, ox=-PAD)
+    for x in range(SWX): Bd[FY - 4, x] = (*hexc('#464e2a' if hash2(x - PAD, 1, 2) > 0.35 else '#30361e'), 255)
     for y, x in zip(*np.nonzero(seam)):
         if y == FY - 4: continue
         Bd[y, x] = (*hexc('#0a0610'), 255)
-    BG = np.zeros((SH, SW, 4), np.uint8)
+    BG = np.zeros((SH, SWX, 4), np.uint8)
     for y in range(FY - 3, SH):
-        for x in range(SW):
-            n = hash2(x // 6, y // 3, 7)
+        for x in range(SWX):
+            n = hash2((x - PAD) // 6, y // 3, 7)
             if n > 0.88 and not seam[y, x]:
                 Bd[y, x] = (*hexc('#22261a' if n < 0.95 else '#30361e'), 255)
-    for px, py, rw in ((120, FY + 6, 12), (240, FY + 14, 9), (60, FY + 18, 14), (470, FY + 10, 10)):
+    for px, py, rw in ((120, FY + 6, 12), (240, FY + 14, 9), (60, FY + 18, 14), (470, FY + 10, 10), (-90, FY + 12, 12), (-140, FY + 20, 9), (630, FY + 15, 11)):
         for y in range(py - 2, py + 3):
             for x in range(px - rw, px + rw + 1):
                 if ((x - px) / rw) ** 2 + ((y - py) / 2.5) ** 2 <= 1:
@@ -953,14 +1010,16 @@ def scene():
         y = FY + dy
         for x in range(BX - hw + 40, BX + hw + 40):
             if 0 <= x < SW:
-                r, g, b_, a = Bd[y, x]
-                if a: Bd[y, x] = (int(r * k), int(g * k), int(b_ * k), a)
+                r, g, b_, a = Bd[y, x + PAD]
+                if a: Bd[y, x + PAD] = (int(r * k), int(g * k), int(b_ * k), a)
     L['boden'] = dict(img=Bd, f=1.0)
     L['boden-glut'] = dict(img=BG, f=1.0, glow=dict(per=2.6, lo=0.4, steps=3))
     # Vordergrund: Pilzsilhouetten und Wurzeln
-    V = np.zeros((SH, SW, 4), np.uint8); VG = np.zeros((SH, SW, 4), np.uint8)
+    V = np.zeros((SH, SWX, 4), np.uint8); VG = np.zeros((SH, SWX, 4), np.uint8)
     mushroom(V, VG, 14, SH + 4, 34, 7, 22, 12, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 21)
     mushroom(V, VG, 540, SH + 4, 22, 6, 16, 9, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 22)
+    mushroom(V, VG, -118, SH + 4, 30, 7, 20, 11, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 26)
+    mushroom(V, VG, 684, SH + 4, 28, 6, 19, 10, ['#030205', '#08050c', '#0e0a14', '#140e1c', '#1a1224'], True, ['#08050c', '#160e1e', '#2a1e36', VIO[1]], 27)
     stamp(V, VG)
     L['vorn'] = dict(img=V, f=1.35)
     return L, seam
@@ -1046,34 +1105,75 @@ def dorn(h=64, w=34, seed=0):
     return out
 
 
-def wolke(w=80, h=64, n=11, seed=0):
-    """Sporenwolke quillt in Pixelstufen: Ballen wachsen und steigen, helle Kerne, dunkler Saum, zerfällt über
-    Bayer-Schwellen; Fuß unten Mitte."""
+def wolke(w=80, h=64, n=11, seed=0, k=K):
+    """Sporenwolke, gezeichnet im Feinraster (k Feinpixel je Szenenpixel; Maße w, h in Szenenpixeln): Ballen als harte
+    Scheiben in drei Tönen (Körper, Lichtsichel oben links, heller Kern), dunkle Naht, wo ein Ballen vor dem anderen liegt,
+    1 Feinpixel dunkler Umriss. Ballen wachsen und steigen; danach schrumpfen sie Ton um Ton, zerfallen in kleine
+    Bällchen und Sporenpunkte. Keine Rasterung, keine Zwischentöne. Fuß unten Mitte."""
     r = np.random.default_rng(seed)
-    balls = [(r.uniform(-22, 22), r.uniform(4, 30), r.uniform(9, 17), r.uniform(0, 0.25)) for _ in range(9)]
-    Y, X = np.mgrid[0:h, 0:w]
-    pal = np.array([(*hexc(c), 255) for c in [VI[0], VI[1], SP[1], SP[2], SP[3], SP[4]]], np.uint8)
+    W, H = w * k, h * k
+    balls = [(r.uniform(-22, 22), r.uniform(4, 30), r.uniform(9, 17), r.uniform(0, 0.25), r.uniform(0.62, 0.95)) for _ in range(9)]
+    balls.sort(key=lambda b: -b[1])                  # hohe (hintere) Ballen zuerst, tiefe davor
+    bits = [(r.uniform(-30, 30), r.uniform(6, 40), r.uniform(2.2, 4.2), r.uniform(-1, 1)) for _ in range(12)]
+    dots = [(r.uniform(-34, 34), r.uniform(4, 52), r.uniform(0.4, 1.0)) for _ in range(26)]
+    Y, X = np.mgrid[0:H, 0:W]
+    Xs, Ys = (X + 0.5) / k, (Y + 0.5) / k             # Feinpixelmitte in Szenenpixeln
+    C = {n_: np.array((*hexc(c), 255), np.uint8) for n_, c in
+         dict(rim=VI[0], seam=SP[0], body=SP[1], mid=SP[2], lit=SP[3], core=SP[4]).items()}
     out = []
-    for k in range(n):
-        t = (k + 1) / n
-        im = np.zeros((h, w, 4), np.uint8)
-        v = np.zeros((h, w))
-        for bx, by, br, d in balls:
+    for f in range(n):
+        t = (f + 1) / n
+        late = max(0.0, (t - 0.5) / 0.5)              # 0 … 1 im Zerfall
+        im = np.zeros((H, W, 4), np.uint8)
+        cover = np.zeros((H, W), bool)
+        seam = np.zeros((H, W), bool)
+        def disc(cx, cy, rad, tones):
+            nonlocal cover
+            q = np.hypot(Xs - cx, (Ys - cy) * 1.1)
+            m = q <= rad
+            if not m.any(): return
+            # Naht: Rand dieses Ballens über bereits gezeichneten (1 Feinpixel)
+            inner = np.hypot(Xs - cx, (Ys - cy) * 1.1) <= rad - 1.0 / k
+            seam[m & ~inner & cover] = True
+            seam[inner] = False
+            body, lit, core = tones
+            im[m] = C[body]
+            if lit:
+                ql = np.hypot(Xs - (cx - rad * 0.22), (Ys - (cy - rad * 0.26)) * 1.1)
+                im[m & (ql <= rad * 0.78)] = C[lit]
+            if core:
+                qc = np.hypot(Xs - (cx - rad * 0.3), (Ys - (cy - rad * 0.34)) * 1.1)
+                im[m & (qc <= rad * 0.34)] = C[core]
+            cover |= m
+        for bx, by, br, d, life in balls:
             tt = max(0, t - d)
-            if tt <= 0: continue
-            rad = br * min(1, tt * 2.4 + 0.25)
-            cyy = h - 3 - by * min(1, tt * 1.6 + 0.2) - t * 8
-            q = 1 - np.hypot(X - (w / 2 + bx * (0.6 + tt)), (Y - cyy) * 1.1) / rad
-            v = np.maximum(v, q)
-        dens = 1.0 - max(0, t - 0.5) * 1.9
-        th = BAYER4[Y % 4, X % 4]
-        on = (v > 0) & (th < dens + v * 0.6)
-        lv = np.select([v > 0.72, v > 0.48, v > 0.26, v > 0.1], [5, 4, 3, 2], 1)
-        lv = np.clip(lv - (1 if t > 0.55 else 0) - (1 if t > 0.8 else 0), 0, 5)
-        lv = np.where((lv == 5) & (k > 1), 4, lv)
-        im[on] = pal[lv[on]]
+            if tt <= 0 or late > life: continue
+            grow = min(1, tt * 2.4 + 0.25)
+            rad = br * grow * (1 - 0.55 * late / life)
+            if rad < 1.6: continue
+            cx = w / 2 + bx * (0.6 + tt)
+            cy = h - 3 - by * min(1, tt * 1.6 + 0.2) - t * 8
+            if late < 0.25: tones = ('mid', 'lit', 'core' if f < 6 and br > 11 else None)
+            elif late < 0.6: tones = ('body', 'mid', None)
+            else: tones = ('body', None, None)
+            disc(cx, cy, rad, tones)
+        if late > 0:                                    # Bällchen lösen sich und steigen
+            for bx, by, br, dr in bits:
+                if late > 0.95: break
+                rad = br * (1 - late * 0.7)
+                cx = w / 2 + bx * (0.9 + late * 0.5) + dr * late * 6
+                cy = h - 6 - by - late * 14
+                disc(cx, cy, rad, ('mid', 'lit', None) if late < 0.5 else ('body', 'mid', None))
+        im[seam & cover] = C['seam']
         a = im[:, :, 3] > 0
-        if t < 0.75: im[outline_mask(a)] = pal[0]
+        im[outline_mask(a) & ~a] = C['rim'] if late < 0.85 else C['seam']
+        # Sporenpunkte (je 1 Feinpixel, heller Kern), ab der Mitte des Quellens
+        if t > 0.3:
+            for dx, dy, sp in dots:
+                if sp < late * 0.9: continue
+                x_ = int((w / 2 + dx * (0.7 + t * 0.5)) * k); y_ = int((h - 4 - dy - t * 10) * k)
+                if 1 <= x_ < W - 1 and 1 <= y_ < H - 1 and not a[y_, x_]:
+                    im[y_, x_] = C['core' if sp > 0.7 else 'lit']
         out.append(im)
     return out
 
@@ -1132,7 +1232,7 @@ def arm_frames(p, front, aph, clip, smear_arc=None):
         xs = [x for x in range(f.W) if row[x] is not None]
         mound(f, xs, clip)
     im = f.render(rim=RIM_F if front else None, rim_back=RIM_B)
-    im[GROUND:] = 0
+    im[GROUND * K:] = 0
     return im, xs
 
 
@@ -1194,7 +1294,8 @@ def build():
     fx['dorn'] = strip(dorn(DH, DW, 1))
     fx['dorn2'] = strip(dorn(dH, dW, 2))
     fx['wolke'] = strip(wolke(80, 64, 11, 3))
-    wave, wm = seam_wave(seam, imp_s, FY - 2, v=260, ms=60, pal=SPORE, direction=-1, maxd=400, peak=lambda d: 4 if d < 80 else 3 if d < 200 else 2,
+    B['fein'] = B.get('fein', set()) | {'wolke'}   # im Feinraster gezeichnet, kein Scale2x
+    wave, wm = seam_wave(seam, imp_s, FY - 2, v=260, ms=60, pal=SPORE, direction=-1, maxd=400, ox=-PAD, peak=lambda d: 4 if d < 80 else 3 if d < 200 else 2,
                          ages=(0.1, 0.32, 0.65, 1.05))
     fx['welle'] = wave
     ev = [dict(k='bild', r='welle', at=0, x=wm['x'], y=wm['y'], w=wm['w'], h=wm['h'], n=wm['n'], ms=wm['ms'], z='boden'),

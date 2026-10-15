@@ -22,12 +22,12 @@ import { rand, pick, angleDiff } from '../core/math.js';
 // Felder wie Nerith/Ignaroth: type, def, bossId, level, hp/maxHp, phase, engaged, hurtable, adds, home;
 // engage(world), update, die, renderEmissive.
 
-const GREEN = ['#f4ffd8', '#b4f478', '#5ad040', '#22882e'];
-const VIOLET = ['#fff2ff', '#dea8ff', '#a458f4', '#6224b0'];
-const RAGE = ['#ffffff', '#ffa8ee', '#ec48c8', '#9a1a88'];
-const SLIME = ['#162a12', '#24421a', '#3c6426'];
-const GREEN_RGB = [110, 230, 80], VIOLET_RGB = [170, 90, 255], RAGE_RGB = [230, 80, 210];
-const WARN_POISON = [170, 235, 60], WARN_ROOT = [255, 90, 60];
+const CYAN = ['#e2fff6', '#7cf0dc', '#1cc0ae', '#0a726e'];
+const PALE = ['#ffffff', '#b4fae8', '#4cd2c4', '#1a7a7a'];
+const RAGE = ['#ffffff', '#eaa8ff', '#c048ec', '#7a1a9a'];
+const SLIME = ['#0a1420', '#10202e', '#183444'];
+const CYAN_RGB = [60, 225, 205], PALE_RGB = [130, 240, 228], RAGE_RGB = [192, 72, 236];
+const WARN_POISON = [90, 235, 215], WARN_ROOT = [255, 90, 60];
 
 // Schaden (Magier-HP Stufe 32 ≈ 591): normal 8–12 %, groß 20–30 %
 const DMG = { lash: 66, sweep: 60, bolt: 38, lob: 44, cloud: 17, root: 84, burst: 150, roar: 40, ring: 24 };
@@ -53,7 +53,7 @@ function areaHit(world, owner, x, y, r, damage, knockback, heavy = true) {
   return hurtHero(world, owner, damage, dx / l, dy / l, knockback, heavy);
 }
 
-function puff(world, x, y, count, colors = GREEN, power = 1) {
+function puff(world, x, y, count, colors = CYAN, power = 1) {
   for (let i = 0; i < count; i++) {
     const a = rand(0, Math.PI * 2), s = rand(8, 40) * power;
     world.particles.spawn({ x: x + rand(-3, 3), y: y + rand(-2, 2), vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6, drag: 3, rise: rand(6, 22), wobble: 14, life: rand(0.5, 1.1), colors, emissive: true, size: Math.random() < 0.35 ? 2 : 1, shrink: true });
@@ -81,7 +81,7 @@ export class SporeBolt extends Entity {
     if (world.dungeon.isWall(Math.floor(nx / 16), Math.floor((ny - 4) / 16))) { this.#pop(world); return; }
     this.x = nx; this.y = ny;
     this.z = Math.max(6, this.z - dt * 10);
-    if (Math.random() < dt * 22) world.particles.spawn({ x: this.x + rand(-1, 1), y: this.y, z: this.z, vx: 0, vy: 0, rise: rand(4, 10), wobble: 6, life: 0.4, colors: this.owner.enraged ? RAGE.slice(1) : GREEN.slice(1), emissive: true });
+    if (Math.random() < dt * 22) world.particles.spawn({ x: this.x + rand(-1, 1), y: this.y, z: this.z, vx: 0, vy: 0, rise: rand(4, 10), wobble: 6, life: 0.4, colors: this.owner.enraged ? RAGE.slice(1) : CYAN.slice(1), emissive: true });
     const h = world.hero;
     if (!h.dead && Math.hypot(h.x - this.x, h.centerY - (this.y - this.z * 0.3)) < h.hurtRadius + 3) {
       if (hurtHero(world, this.owner, this.damage, Math.cos(this.angle), Math.sin(this.angle), 90)) this.#pop(world);
@@ -89,7 +89,7 @@ export class SporeBolt extends Entity {
   }
   #pop(world) {
     this.removed = true;
-    puff(world, this.x, this.y - 2, 7, this.owner.enraged ? RAGE : GREEN, 0.8);
+    puff(world, this.x, this.y - 2, 7, this.owner.enraged ? RAGE : CYAN, 0.8);
     world.decals.splat(this.x, this.y, SLIME, 3);
     world.bus.emit('arrowStuck', { x: this.x, y: this.y });
   }
@@ -101,7 +101,7 @@ export class SporeBolt extends Entity {
   renderEmissive(ctx, cx, cy) {
     if (this.t < this.delay) return;
     const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
-    const c = this.owner.enraged ? RAGE : GREEN;
+    const c = this.owner.enraged ? RAGE : CYAN;
     for (let i = 1; i <= 5; i++) {
       ctx.globalAlpha = 0.7 - i * 0.12;
       ctx.fillStyle = i < 3 ? c[2] : c[3];
@@ -131,10 +131,10 @@ export class ToxicCloud extends Entity {
       if (life >= this.duration) { this.removed = true; if (this.light) this.light.dead = true; return; }
     }
     if (!this.alive) return;
-    if (!this.light) this.light = world.addLight(new Light({ x: this.x, y: this.y, radius: this.r * 2.2, color: this.owner.enraged ? RAGE_RGB : GREEN_RGB, intensity: 0.45, flicker: 0.2, ttl: this.duration, bloom: 0.1 }));
+    if (!this.light) this.light = world.addLight(new Light({ x: this.x, y: this.y, radius: this.r * 2.2, color: this.owner.enraged ? RAGE_RGB : CYAN_RGB, intensity: 0.45, flicker: 0.2, ttl: this.duration, bloom: 0.1 }));
     if (Math.random() < dt * 9) {
       const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * this.r;
-      world.particles.spawn({ x: this.x + Math.cos(a) * rr, y: this.y + Math.sin(a) * rr * 0.6, vx: rand(-4, 4), vy: 0, rise: rand(3, 10), wobble: 10, life: rand(0.8, 1.6), colors: this.owner.enraged ? RAGE.slice(1) : GREEN.slice(1), emissive: true, alpha: 0.8 });
+      world.particles.spawn({ x: this.x + Math.cos(a) * rr, y: this.y + Math.sin(a) * rr * 0.6, vx: rand(-4, 4), vy: 0, rise: rand(3, 10), wobble: 10, life: rand(0.8, 1.6), colors: this.owner.enraged ? RAGE.slice(1) : CYAN.slice(1), emissive: true, alpha: 0.8 });
     }
     this.cool -= dt;
     const h = world.hero;
@@ -159,7 +159,7 @@ export class ToxicCloud extends Entity {
     const life = this.t - this.delay;
     const fade = Math.min(1, life * 3, (this.duration - life) * 1.2);
     if (fade <= 0) return;
-    const c = this.owner.enraged ? ['#4a0a40', '#9a1a88', '#ec48c8', '#ffa8ee'] : ['#0e4a1c', '#22882e', '#5ad040', '#b4f478'];
+    const c = this.owner.enraged ? ['#3a0a4a', '#7a1a9a', '#c048ec', '#eaa8ff'] : ['#04383a', '#0a726e', '#1cc0ae', '#7cf0dc'];
     // Bodenschleier: ringförmige Schwaden, die langsam kreisen
     const n = Math.round(this.r * 3.2);
     for (let i = 0; i < n; i++) {
@@ -206,15 +206,15 @@ export class SporeLob extends Entity {
     this.x = this.sx + (this.tx - this.sx) * k;
     this.y = this.sy + (this.ty - this.sy) * k;
     this.z = this.sz * (1 - k) + Math.sin(k * Math.PI) * 60;
-    if (Math.random() < 0.6) world.particles.spawn({ x: this.x, y: this.y, z: this.z, vx: 0, vy: 0, gravity: 120, life: 0.4, colors: this.owner.enraged ? RAGE.slice(1) : GREEN.slice(1), emissive: true });
+    if (Math.random() < 0.6) world.particles.spawn({ x: this.x, y: this.y, z: this.z, vx: 0, vy: 0, gravity: 120, life: 0.4, colors: this.owner.enraged ? RAGE.slice(1) : CYAN.slice(1), emissive: true });
     if (k >= 1) {
       this.removed = true;
       if (this.owner.dead) return;
       areaHit(world, this.owner, this.tx, this.ty, this.r, DMG.lob, 120, false);
-      puff(world, this.tx, this.ty, 22, this.owner.enraged ? RAGE : GREEN, 1.4);
-      world.particles.ring(this.tx, this.ty, 6, 18, this.owner.enraged ? RAGE : GREEN, 80);
+      puff(world, this.tx, this.ty, 22, this.owner.enraged ? RAGE : CYAN, 1.4);
+      world.particles.ring(this.tx, this.ty, 6, 18, this.owner.enraged ? RAGE : CYAN, 80);
       world.decals.splat(this.tx, this.ty, SLIME, 9);
-      world.addLight(new Light({ x: this.tx, y: this.ty - 6, radius: 70, color: this.owner.enraged ? RAGE_RGB : GREEN_RGB, intensity: 0.9, ttl: 0.35, bloom: 0.5 }));
+      world.addLight(new Light({ x: this.tx, y: this.ty - 6, radius: 70, color: this.owner.enraged ? RAGE_RGB : CYAN_RGB, intensity: 0.9, ttl: 0.35, bloom: 0.5 }));
       world.session.camera?.shake(3);
       world.bus.emit('spellImpact', { x: this.tx, y: this.ty, element: 'poison', radius: this.r });
       this.owner.addHazard(world, new ToxicCloud(this.tx, this.ty, this.owner, { r: this.r, duration: this.cloud }));
@@ -228,9 +228,9 @@ export class SporeLob extends Entity {
   }
   renderEmissive(ctx, cx, cy) {
     const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
-    const c = this.owner.enraged ? RAGE : GREEN;
+    const c = this.owner.enraged ? RAGE : CYAN;
     const w = Math.sin(this.t * 14) > 0 ? 1 : 0;
-    ctx.fillStyle = '#583656'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
+    ctx.fillStyle = '#313b5b'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
     ctx.fillStyle = c[3]; ctx.fillRect(x - 2, y - 2, 5 + w, 5);
     ctx.fillStyle = c[2]; ctx.fillRect(x - 1, y - 1, 3, 3);
     ctx.fillStyle = c[0]; ctx.fillRect(x - 1, y - 2, 1, 1);
@@ -259,13 +259,13 @@ export class VineLash extends Entity {
     if (this.owner.dead || this.t > this.out + this.hold + this.back) { this.removed = true; return; }
     const L = this.len * this.ext;
     if (this.t < this.out + 0.03 && Math.random() < 0.9) {
-      const p = this.#pt(L); world.particles.dust(p.x, p.y, 2, '#2c2618');
+      const p = this.#pt(L); world.particles.dust(p.x, p.y, 2, '#2c2c3a');
     }
     if (!this.impacted && this.t >= this.out) {
       this.impacted = true;
       const p = this.#pt(this.len);
-      world.particles.dust(p.x, p.y, 10, '#2c2618');
-      for (let s = 12; s < this.len; s += 14) { const q = this.#pt(s, rand(-3, 3)); world.particles.dust(q.x, q.y, 2, '#1a1610'); }
+      world.particles.dust(p.x, p.y, 10, '#2c2c3a');
+      for (let s = 12; s < this.len; s += 14) { const q = this.#pt(s, rand(-3, 3)); world.particles.dust(q.x, q.y, 2, '#121218'); }
       world.session.camera?.shake(5);
       world.session.hitstop?.(0.04);
     }
@@ -274,7 +274,7 @@ export class VineLash extends Entity {
     const rx = h.x - this.x, ry = (h.y - this.y) / 0.75;
     const along = rx * this.cos + ry * this.sin, perp = -rx * this.sin + ry * this.cos;
     if (along > 0 && along < L + 4 && Math.abs(perp) < this.width / 2 + 3) {
-      if (hurtHero(world, this.owner, this.damage, this.cos, this.sin, 260, true)) { this.hitDone = true; world.particles.sparks(h.x, h.centerY, this.angle, 8, ['#ffffff', '#d4caac', '#847450']); }
+      if (hurtHero(world, this.owner, this.damage, this.cos, this.sin, 260, true)) { this.hitDone = true; world.particles.sparks(h.x, h.centerY, this.angle, 8, ['#ffffff', '#c8d6e2', '#6a7a90']); }
       else if (h.dodgedTimer > 0) this.hitDone = true;
     }
   }
@@ -282,7 +282,7 @@ export class VineLash extends Entity {
   render(ctx, cx, cy) {
     const L = this.len * this.ext;
     if (L < 2) return;
-    const cols = ['#1a1610', '#3a3220', '#5a4e30', '#7e6e44', '#a8966a'];
+    const cols = ['#121218', '#2a3040', '#3e485c', '#56647a', '#7a8ea2'];
     for (let s = 0; s <= L; s += 1) {
       const f = s / this.len;
       const wob = Math.sin(s * 0.22 - this.t * 30) * 2.2 * (1 - f * 0.5) * (this.t < this.out + 0.1 ? 1 : 0.4);
@@ -295,20 +295,20 @@ export class VineLash extends Entity {
       }
       if (s % 7 === 3) {
         const side = (s % 14 === 3) ? 1 : -1, p = this.#pt(s, (w + 2) * side + wob);
-        ctx.fillStyle = '#d4caac'; ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 2), 1, 1);
+        ctx.fillStyle = '#c8d6e2'; ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 2), 1, 1);
       }
     }
     // Wurzelkralle an der Spitze
     const tip = this.#pt(L);
-    ctx.fillStyle = '#847450';
+    ctx.fillStyle = '#6a7a90';
     for (let i = -1; i <= 1; i++) { const q = this.#pt(L + 4, i * 3); ctx.fillRect(Math.round(q.x - cx), Math.round(q.y - cy - 2), 1, 1); }
-    ctx.fillStyle = '#443a24'; ctx.fillRect(Math.round(tip.x - cx) - 1, Math.round(tip.y - cy) - 3, 3, 3);
+    ctx.fillStyle = '#3e3e50'; ctx.fillRect(Math.round(tip.x - cx) - 1, Math.round(tip.y - cy) - 3, 3, 3);
   }
   renderEmissive(ctx, cx, cy) {
     const L = this.len * this.ext;
     // leuchtende Ader entlang der Ranke (liest sich auch im Dunkeln)
     ctx.globalAlpha = 0.55;
-    ctx.fillStyle = this.owner.enraged ? '#22882e' : '#6224b0';
+    ctx.fillStyle = this.owner.enraged ? '#7a1a9a' : '#0a726e';
     for (let s = 2; s < L; s += 1) {
       const f = s / this.len;
       const wob = Math.sin(s * 0.22 - this.t * 30) * 2.2 * (1 - f * 0.5) * (this.t < this.out + 0.1 ? 1 : 0.4);
@@ -316,7 +316,7 @@ export class VineLash extends Entity {
       ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 3), 1, 1);
     }
     ctx.globalAlpha = 1;
-    ctx.fillStyle = this.owner.enraged ? '#5ad040' : '#a458f4';
+    ctx.fillStyle = this.owner.enraged ? '#c048ec' : '#1cc0ae';
     for (let s = 10; s < L; s += 16) { const p = this.#pt(s); ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 3), 1, 1); }
     if (this.t < this.out + 0.08) {
       const p = this.#pt(L);
@@ -343,15 +343,15 @@ export class RootSpikes extends Entity {
   update(dt, world) {
     this.t += dt;
     if (this.owner.dead && !this.burst) { this.removed = true; return; }
-    if (!this.burst && this.t < this.delay && Math.random() < dt * 14) world.particles.dust(this.x + rand(-this.r, this.r) * 0.7, this.y + rand(-4, 4), 1, '#2c2618');
+    if (!this.burst && this.t < this.delay && Math.random() < dt * 14) world.particles.dust(this.x + rand(-this.r, this.r) * 0.7, this.y + rand(-4, 4), 1, '#2c2c3a');
     if (!this.burst && this.t >= this.delay) {
       this.burst = true;
       areaHit(world, this.owner, this.x, this.y, this.r, this.damage, 200);
-      world.particles.dust(this.x, this.y, 16, '#2c2618');
-      world.particles.bones(this.x, this.y, 4, -Math.PI / 2, 8, ['#1a1610', '#2c2618', '#443a24', '#605234']);
-      puff(world, this.x, this.y - 4, 8, this.owner.enraged ? RAGE : VIOLET, 1);
-      world.decals.splat(this.x, this.y, ['#140e0a', '#1e160e', '#2a2014'], 10);
-      world.addLight(new Light({ x: this.x, y: this.y - 12, radius: 60, color: VIOLET_RGB, intensity: 0.8, ttl: 0.3, bloom: 0.4 }));
+      world.particles.dust(this.x, this.y, 16, '#2c2c3a');
+      world.particles.bones(this.x, this.y, 4, -Math.PI / 2, 8, ['#121218', '#2c2c3a', '#3e3e50', '#545468']);
+      puff(world, this.x, this.y - 4, 8, this.owner.enraged ? RAGE : PALE, 1);
+      world.decals.splat(this.x, this.y, ['#0a0c14', '#10141e', '#181c2a'], 10);
+      world.addLight(new Light({ x: this.x, y: this.y - 12, radius: 60, color: PALE_RGB, intensity: 0.8, ttl: 0.3, bloom: 0.4 }));
       world.session.camera?.shake(4);
       world.bus.emit('spellImpact', { x: this.x, y: this.y, element: 'nature', radius: this.r });
     }
@@ -367,7 +367,7 @@ export class RootSpikes extends Entity {
   render(ctx, cx, cy) {
     const g = this.#grow();
     if (g <= 0) return;
-    const cols = ['#0c0a08', '#1a1610', '#2c2618', '#443a24', '#605234', '#847450'];
+    const cols = ['#08080c', '#121218', '#2c2c3a', '#3e3e50', '#545468', '#6a7a90'];
     for (const s of this.spikes) {
       const bx = this.x + s.dx - cx, by = this.y + s.dy - cy;
       const H = s.h * g;
@@ -378,7 +378,7 @@ export class RootSpikes extends Entity {
         for (let k = -w; k <= w; k += 1) {
           const e = (k + w) / (2 * w);
           ctx.fillStyle = e < 0.25 ? cols[5] : e < 0.5 ? cols[4] : e < 0.8 ? cols[3] : cols[1];
-          if (f > 0.82) ctx.fillStyle = e < 0.5 ? '#d4caac' : '#a0947a';
+          if (f > 0.82) ctx.fillStyle = e < 0.5 ? '#c8d6e2' : '#8ea0b4';
           ctx.fillRect(Math.round(x0 + k), Math.round(by - y), 1, 1);
         }
         // Seitentriebe
@@ -397,7 +397,7 @@ export class RootSpikes extends Entity {
     if (!this.burst) {
       // Leuchtende Risse vor dem Ausbruch
       const k = Math.min(1, this.t / this.delay);
-      ctx.fillStyle = this.owner.enraged ? '#5ad040' : '#a458f4';
+      ctx.fillStyle = this.owner.enraged ? '#c048ec' : '#1cc0ae';
       for (let i = 0; i < 12; i++) {
         const a = i * 0.52 + this.seed, rr = (0.2 + ((i * 0.37) % 0.8)) * this.r * k;
         ctx.globalAlpha = 0.4 + 0.5 * k;
@@ -407,7 +407,7 @@ export class RootSpikes extends Entity {
       return;
     }
     if (g <= 0) return;
-    ctx.fillStyle = this.owner.enraged ? '#b4f478' : '#dea8ff';
+    ctx.fillStyle = this.owner.enraged ? '#eaa8ff' : '#7cf0dc';
     for (const s of this.spikes) {
       const H = s.h * g * 0.55;
       ctx.fillRect(Math.round(this.x + s.dx + s.lean * H - cx), Math.round(this.y + s.dy - H - cy), 1, 1);
@@ -437,7 +437,7 @@ export class ToxicRing extends Entity {
     for (let i = 0; i < 3; i++) {
       const a = rand(0, Math.PI * 2);
       const x = this.x + Math.cos(a) * (this.rx + rand(0, 10)), y = this.y + Math.sin(a) * (this.ry + rand(0, 6));
-      world.particles.spawn({ x, y, vx: -Math.cos(a) * rand(2, 8), vy: -Math.sin(a) * rand(1, 5), rise: rand(2, 10), wobble: 10, life: rand(0.9, 1.6), colors: ['#b4f478', '#5ad040', '#22882e'], emissive: true, alpha: 0.7 });
+      world.particles.spawn({ x, y, vx: -Math.cos(a) * rand(2, 8), vy: -Math.sin(a) * rand(1, 5), rise: rand(2, 10), wobble: 10, life: rand(0.9, 1.6), colors: RAGE.slice(1), emissive: true, alpha: 0.7 });
     }
     this.cool -= dt;
     const h = world.hero;
@@ -445,7 +445,7 @@ export class ToxicRing extends Entity {
       const dx = this.x - h.x, dy = this.y - h.y, d = Math.hypot(dx, dy) || 1;
       if (hurtHero(world, this.owner, this.damage, dx / d, dy / d, 40, false, true)) {
         this.cool = this.tick;
-        puff(world, h.x, h.y - 6, 6, GREEN, 0.8);
+        puff(world, h.x, h.y - 6, 6, RAGE, 0.8);
       }
     }
   }
@@ -453,10 +453,10 @@ export class ToxicRing extends Entity {
     const fade = this.fade ?? 1;
     const W = 480, H = 270; // Sichtfläche in Weltpixeln (Obergrenze)
     const x = this.x - cx, y = this.y - cy;
-    // grünlicher Schleier außerhalb (even-odd: alles außer der Ellipse)
+    // violetter Schleier außerhalb (even-odd: alles außer der Ellipse)
     ctx.save();
     ctx.globalAlpha = 0.16 * fade * Math.min(1, this.t * 0.8);
-    ctx.fillStyle = '#3c8a2a';
+    ctx.fillStyle = '#6a2a8a';
     ctx.beginPath(); ctx.rect(-10, -10, W + 20, H + 20); ctx.ellipse(x, y, this.rx, this.ry, 0, 0, Math.PI * 2); ctx.fill('evenodd');
     ctx.restore();
     // Rand: dichte, wabernde Nebelkante
@@ -466,12 +466,12 @@ export class ToxicRing extends Entity {
       const wob = Math.sin(a * 9 + this.t * 2.2) * 2.5 + Math.sin(a * 23 - this.t * 3.1) * 1.5;
       const px = Math.round(x + Math.cos(a) * (this.rx + wob)), py = Math.round(y + Math.sin(a) * (this.ry + wob * 0.6));
       ctx.globalAlpha = (0.55 + 0.3 * Math.sin(this.t * 5 + i)) * fade;
-      ctx.fillStyle = i % 3 === 0 ? '#b4f478' : '#5ad040';
+      ctx.fillStyle = i % 3 === 0 ? '#eaa8ff' : '#c048ec';
       ctx.fillRect(px, py, 1, 1);
       ctx.globalAlpha = 0.3 * fade;
-      ctx.fillStyle = '#22882e';
+      ctx.fillStyle = '#7a1a9a';
       ctx.fillRect(Math.round(px + Math.cos(a) * 3), Math.round(py + Math.sin(a) * 2), 2, 1);
-      if (i % 4 === 0) { const hh = (this.t * 7 + i) % 8; ctx.globalAlpha = 0.4 * fade * (1 - hh / 8); ctx.fillStyle = '#b4f478'; ctx.fillRect(px, Math.round(py - hh), 1, 1); }
+      if (i % 4 === 0) { const hh = (this.t * 7 + i) % 8; ctx.globalAlpha = 0.4 * fade * (1 - hh / 8); ctx.fillStyle = '#eaa8ff'; ctx.fillRect(px, Math.round(py - hh), 1, 1); }
     }
     ctx.globalAlpha = 1;
   }
@@ -524,9 +524,9 @@ export class RotMother extends Actor {
     this.animator.play('awaken', true);
     world.bus.emit(EV.BOSS_ENGAGED, { bossId: this.bossId, name: this.def.name });
     world.session.camera?.shake(4);
-    puff(world, this.x, this.y - 20, 30, GREEN, 1.4);
-    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -46, radius: 110, color: GREEN_RGB, intensity: 0.55, flicker: 0.12, bloom: 0.3 }));
-    this.gillLight = world.addLight(new Light({ follow: this, offsetY: -84, radius: 70, color: VIOLET_RGB, intensity: 0.35, flicker: 0.1, bloom: 0.2 }));
+    puff(world, this.x, this.y - 20, 30, CYAN, 1.4);
+    this.coreLight = world.addLight(new Light({ follow: this, offsetY: -46, radius: 110, color: CYAN_RGB, intensity: 0.55, flicker: 0.12, bloom: 0.3 }));
+    this.gillLight = world.addLight(new Light({ follow: this, offsetY: -84, radius: 70, color: PALE_RGB, intensity: 0.35, flicker: 0.1, bloom: 0.2 }));
   }
 
   addHazard(world, h) {
@@ -564,18 +564,18 @@ export class RotMother extends Actor {
     switch (this.state) {
       case 'sleep':
         this.vx = this.vy = 0;
-        if (Math.random() < dt * 2) puff(world, this.x + rand(-30, 20), this.y - rand(10, 40), 1, GREEN, 0.3);
+        if (Math.random() < dt * 2) puff(world, this.x + rand(-30, 20), this.y - rand(10, 40), 1, CYAN, 0.3);
         break;
 
       case 'intro':
         this.vx = this.vy = 0;
-        if (this.stateTime < 1.2 && Math.random() < dt * 30) world.particles.dust(this.x + rand(-40, 40), this.y + rand(-4, 4), 1, '#2c2618');
+        if (this.stateTime < 1.2 && Math.random() < dt * 30) world.particles.dust(this.x + rand(-40, 40), this.y + rand(-4, 4), 1, '#2c2c3a');
         if (this.stateTime > 2.0) { this.hurtable = true; this.setState('chase'); }
         break;
 
       case 'roar':
         this.vx *= 0.7; this.vy *= 0.7;
-        if (Math.random() < dt * 30) puff(world, this.x + rand(-30, 30), this.y - rand(10, 70), 1, this.enraged ? RAGE : GREEN, 0.6);
+        if (Math.random() < dt * 30) puff(world, this.x + rand(-30, 30), this.y - rand(10, 70), 1, this.enraged ? RAGE : CYAN, 0.6);
         if (this.stateTime > 1.5) { this.hurtable = true; this.cooldown = 0.4; this.setState('chase'); }
         break;
 
@@ -619,14 +619,14 @@ export class RotMother extends Actor {
         if (this.castKind === 'spit') this.#track(world, dt, 2.5);
         if (Math.random() < dt * 30) {
           const m = this.#meta(this.castKind === 'lob' || this.castKind === 'burst' ? 'sac' : 'mouth');
-          world.particles.spawn({ x: m.x + rand(-5, 5), y: m.y + rand(-5, 5), vx: 0, vy: 0, rise: rand(-18, -6), wobble: 8, life: 0.4, colors: this.enraged ? RAGE : GREEN, emissive: true });
+          world.particles.spawn({ x: m.x + rand(-5, 5), y: m.y + rand(-5, 5), vx: 0, vy: 0, rise: rand(-18, -6), wobble: 8, life: 0.4, colors: this.enraged ? RAGE : CYAN, emissive: true });
         }
         if (this.stateTime >= this.windup) this.#release(world);
         break;
 
       case 'rooted':
         this.vx *= 0.7; this.vy *= 0.7;
-        if (Math.random() < dt * 20) world.particles.dust(this.x + rand(-40, 40), this.y + rand(-6, 6), 1, '#2c2618');
+        if (Math.random() < dt * 20) world.particles.dust(this.x + rand(-40, 40), this.y + rand(-6, 6), 1, '#2c2c3a');
         if (this.stateTime >= this.recover) { this.setState('chase'); this.cooldown = this.enraged ? 0.4 : 0.8; }
         break;
 
@@ -638,7 +638,7 @@ export class RotMother extends Actor {
       case 'dead':
         this.vx *= 0.85; this.vy *= 0.85;
         if (this.stateTime < 3.5 && Math.random() < dt * (14 - this.stateTime * 3.5)) {
-          world.particles.spawn({ x: this.x + rand(-40, 40), y: this.y - rand(0, 40), vx: rand(-4, 4), vy: 0, rise: rand(6, 16), wobble: 12, life: rand(1, 2), colors: GREEN.slice(1), emissive: true, alpha: 0.8 });
+          world.particles.spawn({ x: this.x + rand(-40, 40), y: this.y - rand(0, 40), vx: rand(-4, 4), vy: 0, rise: rand(6, 16), wobble: 12, life: rand(1, 2), colors: CYAN.slice(1), emissive: true, alpha: 0.8 });
         }
         break;
     }
@@ -652,18 +652,18 @@ export class RotMother extends Actor {
     const f = this.hp / this.maxHp;
     if (this.phase === 1 && f <= 0.66) {
       this.phase = 2;
-      world.bus.emit(EV.UI_BANNER, { title: 'Die Wurzeln erwachen', sub: 'Der Boden selbst gehorcht Mutter Fäulnis', color: '#c080ff' });
+      world.bus.emit(EV.UI_BANNER, { title: 'Die Wurzeln erwachen', sub: 'Der Boden selbst gehorcht Mutter Fäulnis', color: '#7cf0dc' });
       this.#roar(world);
       this.timers.roots = 2.2; this.timers.brood = Math.min(this.timers.brood, 4);
       if (this.gillLight) this.gillLight.intensity = 0.55;
       world.bus.emit('bossPhase', { bossId: this.bossId, phase: 2 });
     } else if (this.phase === 2 && f <= 0.33) {
       this.phase = 3;
-      world.bus.emit(EV.UI_BANNER, { title: 'Raserei der Brut', sub: 'Giftschwaden schnüren den Schlund ein', color: '#9ae060' });
+      world.bus.emit(EV.UI_BANNER, { title: 'Raserei der Brut', sub: 'Giftschwaden schnüren den Schlund ein', color: '#d08cff' });
       this.#roar(world);
       this.timers.burst = 3.5; this.timers.brood = Math.min(this.timers.brood, 6);
       if (this.coreLight) { this.coreLight.color = RAGE_RGB; this.coreLight.intensity = 0.7; this.coreLight.radius = 125; }
-      if (this.gillLight) { this.gillLight.color = GREEN_RGB; this.gillLight.intensity = 0.5; }
+      if (this.gillLight) { this.gillLight.color = [220, 150, 255]; this.gillLight.intensity = 0.5; }
       this.pending.push({ t: 1.2, fn: (w) => this.#startRing(w) });
       world.bus.emit('bossPhase', { bossId: this.bossId, phase: 3 });
     }
@@ -679,7 +679,7 @@ export class RotMother extends Actor {
     world.session.slowmo?.(0.5, 0.5);
     // Druckwelle beim Phasenwechsel: nur Rückstoß, kein Schaden (wie bei Varkhul)
     this.pending.push({ t: 0.4, fn: () => {
-      const wave = world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 140, duration: 0.9, damage: 0, color: this.enraged ? RAGE_RGB : VIOLET_RGB }));
+      const wave = world.addEffect(new DamageWave(this.x, this.y, this, { maxR: 140, duration: 0.9, damage: 0, color: this.enraged ? RAGE_RGB : PALE_RGB }));
       if (wave) wave.hitDone = true;
       const h = world.hero, dx = h.x - this.x, dy = h.y - this.y, d = Math.hypot(dx, dy) || 1;
       if (!h.dead && d < 140) { h.kbx += (dx / d) * 240; h.kby += (dy / d) * 240; }
@@ -860,7 +860,7 @@ export class RotMother extends Actor {
     world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 68, angle: a, arc: 2.3, damage: DMG.sweep, knockback: 250, heavy: true, ttl: 0.14 });
     for (let i = 0; i < 9; i++) {
       const b = a - 1.1 + i * 0.28;
-      world.particles.dust(this.x + Math.cos(b) * 48, this.y + Math.sin(b) * 28, 2, '#2c2618');
+      world.particles.dust(this.x + Math.cos(b) * 48, this.y + Math.sin(b) * 28, 2, '#2c2c3a');
     }
     world.session.camera?.shake(5);
     world.bus.emit('enemySwing', { actor: this, heavy: true });
@@ -870,7 +870,7 @@ export class RotMother extends Actor {
     this.animSpeed = 1;
     const kind = this.castKind;
     this.setState('strike'); this.recover = this.enraged ? 0.45 : 0.65;
-    const col = this.enraged ? RAGE_RGB : GREEN_RGB;
+    const col = this.enraged ? RAGE_RGB : CYAN_RGB;
     if (kind === 'spit') {
       this.animator.play('spit', true);
       const m = this.#meta('mouth');
@@ -895,7 +895,7 @@ export class RotMother extends Actor {
       for (const t of this.lobTargets ?? []) {
         world.spawn(new SporeLob(s.x, this.y, this.y - s.y, t.x, t.y, this, { flight: t.flight, r: 26, cloud: this.enraged ? 12 : 9 }));
       }
-      puff(world, s.x, s.y, 16, this.enraged ? RAGE : GREEN, 1.2);
+      puff(world, s.x, s.y, 16, this.enraged ? RAGE : CYAN, 1.2);
       world.addLight(new Light({ x: s.x, y: s.y, radius: 80, color: col, intensity: 0.9, ttl: 0.3, bloom: 0.6 }));
       world.bus.emit('bossSporeLob', { bossId: this.bossId, count: this.lobTargets?.length ?? 0 });
       return;
@@ -904,7 +904,7 @@ export class RotMother extends Actor {
       this.animator.play('brood', true);
       this.recover = 0.8;
       const m = this.#meta('mouth');
-      puff(world, m.x, m.y, 14, GREEN, 1);
+      puff(world, m.x, m.y, 14, CYAN, 1);
       for (const p of this.broodSpots ?? []) {
         if (this.adds.length >= 4) break;
         world.decals.splat(p.x, p.y, SLIME, 7);
@@ -914,7 +914,7 @@ export class RotMother extends Actor {
           const e = world.spawnEnemy(type, p.x, p.y, { respawned: true, home: { ...this.home } });
           e.aggroed = true; e.summoned = true; e.xpOverride = 18;
           this.adds.push(e);
-          puff(world, p.x, p.y, 10, GREEN, 0.9);
+          puff(world, p.x, p.y, 10, CYAN, 0.9);
         });
         world.spawn(marker);
         this.adds.push(marker); // Platz reservieren, bis der Sporling schlüpft
@@ -936,7 +936,7 @@ export class RotMother extends Actor {
       const c = this.#meta('core');
       for (let i = 0; i < 6; i++) puff(world, c.x + rand(-26, 26), c.y + rand(-16, 16), 8, RAGE, 1.8);
       world.particles.ring(this.x, this.y - 6, 16, 40, RAGE, 170);
-      world.addEffect(new Shockwave(this.x, this.y - 2, { radius: 84, color: '#ffa8ee', life: 0.5 }));
+      world.addEffect(new Shockwave(this.x, this.y - 2, { radius: 84, color: '#eaa8ff', life: 0.5 }));
       world.addLight(new Light({ x: this.x, y: this.y - 30, radius: 160, color: RAGE_RGB, intensity: 1.3, ttl: 0.45, bloom: 0.9 }));
       world.decals.splat(this.x, this.y, SLIME, 22);
       world.session.hitstop?.(0.08);
@@ -989,34 +989,34 @@ export class RotMother extends Actor {
     this.lastFrame = f;
     if (f.fx === 'roar') {
       const h = this.#meta('mouth');
-      if (this.dead) { puff(world, h.x, h.y, 26, GREEN, 1.4); world.session.camera?.shake(5); return; }
+      if (this.dead) { puff(world, h.x, h.y, 26, CYAN, 1.4); world.session.camera?.shake(5); return; }
       world.session.camera?.shake(8);
-      const cols = this.enraged ? RAGE : this.phase >= 2 ? VIOLET : GREEN;
+      const cols = this.enraged ? RAGE : this.phase >= 2 ? PALE : CYAN;
       world.particles.ring(h.x, h.y, 10, 36, cols, 120);
       world.addEffect(new Shockwave(this.x, this.y - 4, { radius: 96, color: cols[1], life: 0.7 }));
-      world.addLight(new Light({ x: h.x, y: h.y, radius: 160, color: this.enraged ? RAGE_RGB : GREEN_RGB, intensity: 1, ttl: 0.5, bloom: 0.7 }));
+      world.addLight(new Light({ x: h.x, y: h.y, radius: 160, color: this.enraged ? RAGE_RGB : CYAN_RGB, intensity: 1, ttl: 0.5, bloom: 0.7 }));
       for (let i = 0; i < 8; i++) puff(world, this.x + rand(-40, 40), this.y - rand(20, 70), 3, cols, 1.2);
       world.bus.emit('bossRoar', { bossId: this.bossId, x: this.x, y: this.y });
       const hero = world.hero, dx = hero.x - this.x, dy = hero.y - this.y, d = Math.hypot(dx, dy) || 1;
       if (!hero.dead && d < 120) { hero.kbx += (dx / d) * 250; hero.kby += (dy / d) * 250; }
     } else if (f.fx === 'cast') {
       const m = this.#meta(this.castKind === 'lob' ? 'sac' : 'mouth');
-      world.particles.ring(m.x, m.y, 4, 14, this.enraged ? RAGE : GREEN, 70);
+      world.particles.ring(m.x, m.y, 4, 14, this.enraged ? RAGE : CYAN, 70);
     } else if (f.fx === 'impact') {
       if (this.dead) {
         world.session.camera?.shake(6);
-        world.particles.dust(this.x, this.y, 20, '#2c2618');
-        puff(world, this.x, this.y - 20, 30, GREEN, 1.6);
+        world.particles.dust(this.x, this.y, 20, '#2c2c3a');
+        puff(world, this.x, this.y - 20, 30, CYAN, 1.6);
         world.decals.splat(this.x + rand(-10, 10), this.y, SLIME, 16);
       } else if (this.animator.name === 'plunge') {
         const hl = this.#meta('hand'), hb = this.#meta('handB');
-        for (const p of [hl, hb]) { world.particles.dust(p.x, this.y, 10, '#2c2618'); world.particles.bones(p.x, this.y, 2, -Math.PI / 2, 5, ['#1a1610', '#2c2618', '#443a24']); }
-        world.addEffect(new Shockwave(this.x, this.y - 2, { radius: 60, color: '#a458f4', life: 0.5 }));
+        for (const p of [hl, hb]) { world.particles.dust(p.x, this.y, 10, '#2c2c3a'); world.particles.bones(p.x, this.y, 2, -Math.PI / 2, 5, ['#121218', '#2c2c3a', '#3e3e50']); }
+        world.addEffect(new Shockwave(this.x, this.y - 2, { radius: 60, color: '#4cd2c4', life: 0.5 }));
         world.session.camera?.shake(7);
         world.session.hitstop?.(0.05);
       } else if (this.animator.name === 'lash') {
         const hd = this.#meta('hand');
-        world.particles.dust(hd.x, this.y + 2, 6, '#2c2618');
+        world.particles.dust(hd.x, this.y + 2, 6, '#2c2c3a');
       }
     }
   }
@@ -1026,7 +1026,7 @@ export class RotMother extends Actor {
     const rate = [4, 6, 12][this.phase - 1];
     if (Math.random() < dt * rate) {
       const s = this.#meta('sac');
-      world.particles.spawn({ x: s.x + rand(-30, 20) * this.facing, y: s.y + rand(-10, 30), vx: rand(-5, 5), vy: 0, rise: rand(6, 16), wobble: 12, life: rand(1, 2), colors: this.enraged ? RAGE.slice(1) : Math.random() < 0.3 ? VIOLET.slice(1) : GREEN.slice(1), emissive: true, alpha: 0.85 });
+      world.particles.spawn({ x: s.x + rand(-30, 20) * this.facing, y: s.y + rand(-10, 30), vx: rand(-5, 5), vy: 0, rise: rand(6, 16), wobble: 12, life: rand(1, 2), colors: this.enraged ? RAGE.slice(1) : Math.random() < 0.3 ? PALE.slice(1) : CYAN.slice(1), emissive: true, alpha: 0.85 });
     }
     if (Math.random() < dt * 1.5) world.decals.splat(this.x + rand(-26, 26), this.y + rand(-3, 4), SLIME, 3);
   }
@@ -1034,7 +1034,7 @@ export class RotMother extends Actor {
   onHurt(hit) {
     if (this.state === 'sleep') return;
     if (this.state === 'chase' && this.hurtAnim <= 0 && (hit?.heavy || Math.random() < 0.25)) { this.hurtAnim = 0.33; this.animator.play('hurt', true); }
-    if (this.world && Math.random() < 0.4) puff(this.world, this.x + rand(-16, 16), this.y - rand(20, 50), 3, GREEN, 0.6);
+    if (this.world && Math.random() < 0.4) puff(this.world, this.x + rand(-16, 16), this.y - rand(20, 50), 3, CYAN, 0.6);
     this.world?.bus.emit('bossHurt', { actor: this });
   }
 
@@ -1057,9 +1057,9 @@ export class RotMother extends Actor {
     if (this.coreLight) this.coreLight.dead = true;
     if (this.gillLight) this.gillLight.dead = true;
     w.addLight(new Light({ x: this.x, y: this.y - 40, radius: 190, color: [170, 255, 130], intensity: 1.2, ttl: 1.4, bloom: 0.9 }));
-    this.deathLight = w.addLight(new Light({ x: this.x, y: this.y - 14, radius: 90, color: GREEN_RGB, intensity: 0.6, flicker: 0.15, ttl: 6, bloom: 0.2 }));
-    puff(w, this.x, this.y - 30, 50, GREEN, 1.8);
-    puff(w, this.x, this.y - 40, 20, VIOLET, 1.4);
+    this.deathLight = w.addLight(new Light({ x: this.x, y: this.y - 14, radius: 90, color: CYAN_RGB, intensity: 0.6, flicker: 0.15, ttl: 6, bloom: 0.2 }));
+    puff(w, this.x, this.y - 30, 50, CYAN, 1.8);
+    puff(w, this.x, this.y - 40, 20, PALE, 1.4);
     w.bus.emit('spellImpact', { x: this.x, y: this.y - 20, element: 'poison', radius: 70, big: true });
   }
 
@@ -1080,7 +1080,7 @@ export class RotMother extends Actor {
       const r = Math.round(2 + k * 5), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#ffa8ee' : '#b4f478';
+      ctx.fillStyle = this.enraged ? '#eaa8ff' : '#7cf0dc';
       ctx.fillRect(x - 1, y - 1, 3, 3);
     }
   }

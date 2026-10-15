@@ -2,7 +2,7 @@ import { Entity } from '../entities/Entity.js';
 import { levelGapMult, combatLevel } from '../progression/levelGap.js';
 import { SlashEffect, Afterimage, ellipsePts, drawRuns, fillEllipse } from '../entities/Effects.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
-import { SLASH_STYLES } from '../sprites/effects.js';
+import { heroSlashStyle } from '../sprites/effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { PAL } from '../gfx/Palette.js';
 import { EV } from '../core/events.js';
@@ -10,7 +10,7 @@ import { fineRes } from '../gfx/Fine.js';
 import { renderBolt } from '../entities/Projectile.js';
 
 // Zweihänder in der Hand: schmaler, durchscheinender Hiebbogen wie beim Grundangriff (sprites/effects.js SLASH_STYLES.greatHeavy)
-function heavySlash(h) { const own = h.animator?.anims?.setSlash; return h.animator?.anims?.greatWeapon ? SLASH_STYLES.greatHeavy : own ? SLASH_STYLES[own + 'Heavy'] : SLASH_STYLES.heroHeavy; }
+function heavySlash(h) { return heroSlashStyle({ great: !!h.animator?.anims?.greatWeapon, own: h.animator?.anims?.setSlash, rogue: h.classId === 'rogue' }, true); }
 
 // Verhalten der Klassenfähigkeiten und Helden-Geschosse (Thread A).
 // Daten (Name, Kosten, Abklingzeit, Schadensfaktor) stehen in classes.js.

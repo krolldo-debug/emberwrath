@@ -12,12 +12,12 @@ const POSES = { idle: [0], atk1: [2, 3], atk2: [3], spin: [1], cast: [2, 3], sla
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
-await p.goto('http://localhost:8102/index.html');
+await p.goto(`${process.env.EW_URL ?? 'http://localhost:8102'}/index.html`);   // EW_URL für einen anderen Stand
 await p.waitForFunction(() => window.emberfall?.scenes?.currentId, null, { timeout: 20000 });
 const files = await p.evaluate(async ({ HEROES, POSES }) => {
   const g = window.emberfall;
   const { logoCanvas } = await import('/src/gfx/Logo.js');
-  const { iconCanvas, abilityIcon } = await import('/src/gfx/Icons.js');
+  const { iconCanvas, abilityIcon, itemIconId } = await import('/src/gfx/Icons.js');
   const { getHeroSprites } = await import('/src/sprites/hero.js');
   const { resolveGear } = await import('/src/character/gearLook.js');
   const { CLASSES, ABILITIES } = await import('/src/character/classes.js');
@@ -48,7 +48,7 @@ const files = await p.evaluate(async ({ HEROES, POSES }) => {
     for (const k of ['idle', 'roar', 'cast', 'cleave', 'slam', 'sweep', 'breath']) { const a = anim(set, k); if (!a) continue; for (const i of [0, Math.floor(a.frames.length / 2)]) out[`boss-${name}-${k}${i}.png`] = png(trim(a.frames[i].canvas)); }
   }
   for (const id of ['crown_of_embers_blade', 'nightwhisper', 'starfall', 'worldstaff', 'tyrant_plate', 'ember_heart', 'tyrant_helm', 'emberwarden_mail']) {
-    const d = g.content.get('item', id); if (d) out[`item-${id}.png`] = png(iconCanvas(d.icon));
+    const d = g.content.get('item', id); if (d) out[`item-${id}.png`] = png(iconCanvas(itemIconId(d), 2));   // Feinfassung 52 × 52 wie in render40.mjs
   }
   for (const [race, cls] of [['human', 'warrior'], ['dwarf', 'warrior'], ['elf', 'ranger'], ['emberborn', 'mage']]) out[`volk-${race}.png`] = png(trim(anim(getHeroSprites(race, cls, 0, null, null, 2), 'idle').frames[0].canvas));
   for (const id of ['elder_maren', 'warden_ilsa', 'commander_hale', 'seer_ysolde', 'smith_brom']) out[`npc-${id}.png`] = png(npcPortrait(id));

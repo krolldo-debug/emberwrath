@@ -4,8 +4,8 @@ import { FK, ramp, hxi, D4, clampI, band, darken, vnoise, field, chunkCtx, pebbl
 
 // Feinraster-Boden: Glutöde (level.biome 'wastes'). Weltpixel-Shader: sprites/decor_wastes.js (wastesPixel, nur gelesen).
 // ',' Aschesand (Dünenrippel, Krustenplatten mit Rissen, Holzkohle, Basaltkiesel, Obsidiansplitter, Glutkrümel),
-// '.' Ocker/Brandboden (Wege: Fahrspuren, Krumen, Risse), ':' Pflaster mit ausfransendem Rand Stein für Stein (gleiches
-// Feld wie dort: Randsteine verrußt und abgeschlagen, Einzelsteine davor). Lava und Glutspalten: Weltpixel-Shader (-1),
+// '.' Ocker/Brandboden (Wege: Fahrspuren, Krumen, Risse), ':' Ziegelpflaster (Kante und Randsteine setzt
+// world/Outdoor.js). Lava und Glutspalten: Weltpixel-Shader (-1),
 // Basaltklippen kommen als Felsmaler-Ebene darüber (level.organicCliffs).
 
 const P = (a) => ramp(a);
@@ -17,75 +17,13 @@ const OBS = P(['#050306', '#0f0912', '#1c1020', '#2e1834', '#48264e', '#8a4a7c',
 const EMB = PAL.ember.map(hxi);
 const PAVE = PAL.stone.map(hxi), MORT = hxi(PAL.mortar);
 
-// ------------------------------------------------------------ Pflasterränder (wie decor_wastes.js paveInfo, je Level)
-const PK = { ',': 1, '.': 2, ':': 3 };
-const PTERR = new Set([',', '.', ':', '#', '~', '=']);
-const PINFO = new WeakMap();
-function paveInfo(level) {
-  let c = PINFO.get(level);
-  if (c) return c;
-  const R = level.map, H = R.length, W = R[0].length, n = W * H;
-  const k = new Uint8Array(n);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const ch = R[y][x]; k[y * W + x] = PK[ch] ?? (PTERR.has(ch) ? 0 : 255); }
-  const K = Uint8Array.from(k);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (k[y * W + x] !== 255) continue;
-    const cnt = [0, 0, 0, 0];
-    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const xx = x + i, yy = y + j; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const v = k[yy * W + xx]; if (v >= 1 && v <= 3) cnt[v]++; }
-    K[y * W + x] = cnt[3] > cnt[1] && cnt[3] > cnt[2] ? 3 : cnt[2] > cnt[1] ? 2 : 1;
-  }
-  const pav = new Uint8Array(n), near = new Uint8Array(n), base = new Uint8Array(n);
-  for (let i = 0; i < n; i++) pav[i] = K[i] === 3 ? 1 : 0;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    let a = 0, c1 = 0, c2 = 0;
-    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
-      const xx = x + i, yy = y + j; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-      const v = K[yy * W + xx];
-      if (v === 3 && Math.abs(i) <= 1 && Math.abs(j) <= 1) a = 1;
-      if (v === 1) c1++; else if (v === 2) c2++;
-    }
-    near[y * W + x] = a;
-    base[y * W + x] = K[y * W + x] === 1 || K[y * W + x] === 2 ? K[y * W + x] : c2 > c1 ? 2 : 1;
-  }
-  c = { W, H, pav, near, base };
-  PINFO.set(level, c);
-  return c;
-}
-function paveField(P, sx, sy) {
-  const fx = sx / 16 - 0.5, fy = sy / 16 - 0.5, tx = Math.floor(fx), ty = Math.floor(fy), ax = fx - tx, ay = fy - ty;
-  const W = P.W, A = P.pav;
-  if (tx < 0 || ty < 0 || tx + 1 >= W || ty + 1 >= P.H) return 0;
-  const k = ty * W + tx;
-  return (A[k] * (1 - ax) + A[k + 1] * ax) * (1 - ay) + (A[k + W] * (1 - ax) + A[k + W + 1] * ax) * ay;
-}
-// Wert eines Pflastersteins (col/row im 6 × 5-Weltpixel-Raster): 9 = sicher Pflaster, > 0,62 liegt, > 0,5 Randstein,
-// 0,28..0,5 und Hash < 0,22 Einzelstein, sonst Boden
-function stoneV(P, col, row) {
-  const off = (row & 1) * 3, sx = col * 6 - off + 3, sy = row * 5 + 2.5, f = paveField(P, sx, sy);
-  return f >= 1 ? 9 : f + (vnoise(sx / 19, sy / 19, 431) - 0.5) * 0.75 + (vnoise(sx / 7, sy / 7, 434) - 0.5) * 0.35 + (hash2(col, row, 432) - 0.5) * 0.3;
-}
-
 // ------------------------------------------------------------ Vorarbeit je Chunk
 function* wastesSetup(x0, y0, cw, ch, K, KW, M, map) {
   const S = chunkCtx(x0, y0, cw, ch, K, KW, M);
-  S.P = paveInfo(map.level);
   // Rauschfelder (Weltpixel mit Rand): Grundton (zwei Lagen auf einem Gitter), Flecken (Rippel/Kruste, auch Fahrspuren)
   S.tone = field(S.fx0, S.fy0, S.fw, S.fh, 4, (x, y) => vnoise(x / 12, y / 10, 901) * 0.65 + vnoise(x / 4, y / 4, 902) * 0.35, new Float32Array(S.n), false, 1);
   S.patch = S.noise([[4, 23, 17, 903, 1]]);
   S.rut = S.patch;
-  // Pflastersteine im Chunk (mit Rand) vorab bewerten: Wert je Stein (col/row), nur nahe Pflaster
-  const c0 = Math.floor((S.F0 - 16) / 12) - 1, r0 = Math.floor((S.G0 - 16) / 10) - 1;
-  const nc = Math.ceil((S.W2 + 32) / 12) + 3, nr = Math.ceil((S.H2 + 32) / 10) + 3;
-  const SV = new Float32Array(nc * nr).fill(-1);
-  const P = S.P;
-  for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
-    const row = r0 + r, col = c0 + c, off = (row & 1) * 3, sx = col * 6 - off + 3, sy = row * 5 + 2.5;
-    const tx = Math.floor(sx / 16), ty = Math.floor(sy / 16);
-    if (tx < 0 || ty < 0 || tx >= P.W || ty >= P.H) continue;
-    if (!P.near[ty * P.W + tx] && !P.pav[ty * P.W + tx]) continue;
-    SV[r * nc + c] = stoneV(P, col, row);
-  }
-  S.SV = SV; S.c0 = c0; S.r0 = r0; S.nc = nc;
   yield;
   stamps(S);
   return S;
@@ -173,37 +111,9 @@ function wastesFine(kind, F, G, K, ki, KW, S) {
   if (kind > FK.PAVE) return -1;                         // Lava, Glutspalten: Weltpixel-Shader
   const f = F - S.F0, g = G - S.G0, o = g * S.W2 + f;
   const dt = D4[(G & 3) * 4 + (F & 3)] / 16, wi = ((g >> 1) + S.m) * S.fw + (f >> 1) + S.m;
-  // Pflaster (Stein für Stein ausfransend)
-  const row = Math.floor(G / 10), sh = (row & 1) * 6, col = Math.floor((F + sh) / 12);
-  const si = (row - S.r0) * S.nc + col - S.c0, v = S.SV[si];
-  if (v >= 0 || kind === FK.PAVE) {
-    const vv = v < 0 ? 9 : v;
-    if (vv > 0.5) {
-      const c = paveCol(F, G);
-      if (vv >= 0.62) return c;
-      // Randstein: Ecken abgeschlagen, verrußt
-      const lx = F + sh - col * 12, ly = G - row * 10;
-      if ((lx <= 2 || lx >= 10) && (ly <= 2 || ly >= 8) && !((lx === 2 || lx === 10) && (ly === 2 || ly === 8))) { /* Ecke weg: Boden */ }
-      else if (lx > 0 && ly > 0 && hash2(F >> 1, G >> 1, 435) < 0.1) { /* ausgebrochen */ }
-      else return c === MORT ? MORT : darken(c, ly >= 8 ? 0.7 : 0.84);
-    } else if (vv > 0.28 && hash2(col, row, 433) < 0.22) {
-      // Einzelstein vor dem Rand: kleiner, ohne Fuge, Licht oben links, Schattenkante unten
-      const lx = F + sh - col * 12, ly = G - row * 10;
-      if (lx >= 2 && lx <= 9 && ly >= 2 && ly <= 7 && !((lx === 2 || lx === 9) && (ly === 2 || ly === 7) && hash2(col, row, 436) < 0.6)) {
-        const s = hash2(col, row, 16), i = s < 0.3 ? 2 : s < 0.8 ? 3 : 4;
-        return PAVE[clampI(ly === 7 ? 1 : ly === 2 || lx === 2 ? i + 1 : lx === 9 ? i - 1 : i, 1, 5)];
-      }
-      if (ly === 8 && lx >= 3 && lx <= 9) return darken(groundCol(baseKind(S, F, G, kind), K, ki, KW, S, F, G, o, dt, wi), 0.6);
-    }
-    return groundCol(baseKind(S, F, G, kind), K, ki, KW, S, F, G, o, dt, wi);
-  }
+  // Pflaster: Kante und Randsteine kommen aus dem Terrain (world/Outdoor.js #fineKinds/#fineRows)
+  if (kind === FK.PAVE) return paveCol(F, G);
   return groundCol(kind, K, ki, KW, S, F, G, o, dt, wi);
-}
-// Boden unter ausgefranstem Pflaster: Pflasterkachel → häufigster Boden der Nachbarn (wie dort)
-function baseKind(S, F, G, kind) {
-  if (kind !== FK.PAVE) return kind;
-  const P = S.P, tx = F >> 5, ty = G >> 5;
-  return tx >= 0 && ty >= 0 && tx < P.W && ty < P.H && P.base[ty * P.W + tx] === 2 ? FK.DIRT : FK.GRASS;
 }
 // Platz der Glutöde: Ziegel unterschiedlich lang (Reihen 10 Feinpixel hoch, je 24 Feinpixel ein oder zwei Ziegel von 8–16,
 // selten einer über die ganze Länge, Stoßfugen je Reihe versetzt), Licht oben links: Kante oben/links eine Stufe heller,
@@ -235,7 +145,7 @@ function groundCol(kind, K, ki, KW, S, F, G, o, dt, wi) {
     if (K[ki - KW] === GR) return OCH[1];
     if (a >= 0) return a;
     const near = K[ki - 2 * KW] === GR || K[ki + KW] === GR || K[ki + 2 * KW] === GR || K[ki - 1] === GR || K[ki + 1] === GR || K[ki - 2] === GR || K[ki + 2] === GR;
-    let i = 3 + clampI(band(t, 2.8, dt), 0, 3) + (near ? -1 : 0);
+    let i = 4 + clampI(band(t, 1.8, dt), 0, 1) + (near ? -1 : 0);   // ruhig: zwei Tonstufen
     const r = S.rut[wi];
     if (r > 0.74 || (r > 0.7 && dt < (r - 0.7) / 0.04)) i -= 1;
     return OCH[clampI(i + rel, 0, 7)];
@@ -244,7 +154,7 @@ function groundCol(kind, K, ki, KW, S, F, G, o, dt, wi) {
   if (K[ki - KW] === FK.DIRT || K[ki - KW] === FK.PAVE) return ASH[5];
   if (a >= 0) return a;
   const p = S.patch[wi];
-  let i = 2 + clampI(band(t, 3.4, dt), 0, 3);
+  let i = 3 + clampI(band(t, 1.8, dt), 0, 1);   // ruhig: zwei Tonstufen (vier ergaben Tarnflecken)
   if (p < 0.42) {
     const ph = F * 0.15 + G * 0.21 + p * 9, q = ph / 6.2832 - Math.floor(ph / 6.2832);
     if (q < 0.05) i += 1; else if (q < 0.08) i += dt < 0.5 ? 1 : 0; else if (q < 0.17) i -= 1;

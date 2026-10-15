@@ -82,12 +82,14 @@ export class NetHud {
   onWelcome(m, others) {
     this.others = others;
     this.#badge();
-    // Nach einem Wiederverbinden in dieselbe Welt keine neue Meldung
-    const key = `${m.zone}~${m.world}`;
-    if (key === this.lastWelcome) return;
-    this.lastWelcome = key;
+    // Meldung nur, wenn sich die Weltnummer wirklich ändert (Weltwechsel). Nicht beim Einloggen, Wiederbeleben,
+    // Wiederverbinden oder Gebietswechsel in derselben Welt: Welt und Spielerzahl stehen ohnehin im Abzeichen.
+    // Gemerkt am Client, der Szenenwechsel (Login, Tod) überlebt; die HUD wird pro Sitzung neu gebaut.
+    const prev = this.client.lastWelcomeWorld;
+    this.client.lastWelcomeWorld = m.world;
+    if (prev == null || prev === m.world) return;
     const zone = this.s.zone?.def?.name ?? '';
-    this.system(`Du bist in Welt ${m.world}${zone ? ` · ${zone}` : ''}. ${others ? `${others + 1} Spieler hier.` : 'Noch niemand sonst hier.'}`);
+    this.system(`Du bist in Welt ${m.world}${zone ? ` · ${zone}` : ''}.`);
   }
 
   population(others) { this.others = others; this.#badge(); }

@@ -70,6 +70,7 @@ export class World {
     this.decals = new Decals(this.dungeon.pixelW, this.dungeon.pixelH);
     this.particles = new ParticleSystem(this.decals);
     this.lighting = new LightingSystem(CONFIG.viewWidth, CONFIG.viewHeight, zone.ambient ?? CONFIG.lighting.ambient);
+    if (this.dungeon.voidTiles) this.lighting.setVoid(this.dungeon.voidTiles(), this.dungeon.w, this.dungeon.h);
     this.combat = new CombatSystem(this.bus);
 
     this.lights = [];
