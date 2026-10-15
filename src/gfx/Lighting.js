@@ -32,7 +32,7 @@ export class Light {
 // Lightmap-Verfahren: Umgebungsdunkel + additive Lichter, dann per
 // "multiply" über die Szene. Danach optional additiver Bloom-Schimmer.
 // Die Lightmap hat halbe Auflösung: Füllen und Mischen kosten ein Viertel (Handy, große Außenkarten).
-// Feinraster (docs/STYLE.md): Licht in drei harten, runden Stufen, je Radius als Pixelkreis genau in Lightmap-Größe
+// Feinraster (docs/STYLE.md): Licht in feinen harten, runden Stufen, je Radius als Pixelkreis genau in Lightmap-Größe
 // gezeichnet (nicht skaliert – skalierte Stufen-Sprites ergaben eckige Scheiben) und auf das Lightmap-Raster gesetzt.
 // Bei „Niedrig“ der weiche Verlauf. Leere (Mauerkronen, Dungeon.voidTiles) bleibt dunkel: kein Schein über die Raumwand.
 const LM = 0.5;
@@ -64,7 +64,9 @@ export class LightingSystem {
     this.ctx = this.canvas.getContext('2d');
   }
 
-  apply(ctx, camX, camY, lights) {
+  // figure (optional): { color, intensity, paint(g) } – paint zeichnet Figuren (Held, Mitspieler) in Kamerakoordinaten;
+  // ihre Umrisse werden als Licht in die Lightmap gelegt: die Figur wird hell, der Boden daneben nicht.
+  apply(ctx, camX, camY, lights, figure = null) {
     // Weltpixel, nicht ctx.canvas: das Spielbild ist überabgetastet (CONFIG.renderScale).
     if (CONFIG.viewWidth !== this.w || CONFIG.viewHeight !== this.h) this.resize(CONFIG.viewWidth, CONFIG.viewHeight);
     const l = this.ctx;
@@ -86,6 +88,7 @@ export class LightingSystem {
       else l.drawImage(getLightSprite(64, li.color), sx - r, sy - r, r * 2, r * 2);
     }
     l.globalAlpha = 1;
+    if (figure) this.#figureLight(figure);
     if (this.voidMask) {
       // Leere: Licht dort wieder entfernen und mit dem Umgebungsdunkel füllen
       l.imageSmoothingEnabled = false;
@@ -102,6 +105,31 @@ export class LightingSystem {
     ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
     ctx.imageSmoothingEnabled = smooth;
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  #figureLight({ color, intensity, paint }) {
+    if (!this.figCanvas || this.figCanvas.width !== this.canvas.width || this.figCanvas.height !== this.canvas.height) {
+      this.figCanvas = makeCanvas(this.canvas.width, this.canvas.height);
+    }
+    const g = this.figCanvas.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+    g.clearRect(0, 0, this.figCanvas.width, this.figCanvas.height);
+    g.setTransform(LM, 0, 0, LM, 0, 0);
+    g.imageSmoothingEnabled = true;   // Randpixel der halben Auflösung nur anteilig hell: kein Saum neben der Figur
+    paint(g);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+    g.fillRect(0, 0, this.figCanvas.width, this.figCanvas.height);
+    const l = this.ctx;
+    l.setTransform(1, 0, 0, 1, 0, 0);
+    l.globalCompositeOperation = 'lighter';
+    l.globalAlpha = intensity;
+    l.drawImage(this.figCanvas, 0, 0);
+    l.globalAlpha = 1;
+    l.setTransform(LM, 0, 0, LM, 0, 0);
   }
 
   bloom(ctx, camX, camY, lights) {
@@ -154,15 +182,33 @@ export class LightingSystem {
   }
 }
 
-// Stufenlicht als Pixelkreise in Lightmap-Größe (Radius r Weltpixel, r · LM Pixel): Kern, Hof, Saum. Die Lichtmenge
-// entspricht ungefähr dem weichen Verlauf.
-// Äußerste Stufe bei 0,66 statt 0,88 (Radius −25 %): der weite Saum lag wie ein bräunlicher Schleier über der halben Szene
-const STEPS = [[0.32, 0.92], [0.52, 0.5], [0.66, 0.15]];
-// Schimmer: nur Kern und Hof, flacher – sonst stapeln sich helle Scheiben über dem Stufenlicht
-const GLOW_STEPS = [[0.45, 0.6], [0.8, 0.22]];
+// Stufenlicht als Pixelkreise in Lightmap-Größe (Radius r Weltpixel, r · LM Pixel). Der weiche Verlauf (getLightSprite)
+// wird in Zwölftel-Helligkeitsstufen gerastert: harte Pixelkanten, aber jede Kante nur ein kleiner Sprung. Früher drei
+// große Stufen (0,92 / 0,5 / 0,15) – die lasen sich als heller Kreis um Held, Laternen und Feuer.
+function quantized(curve, scale, levels) {
+  const at = (t) => {
+    for (let i = 1; i < curve.length; i++) if (t <= curve[i][0]) {
+      const [t0, a0] = curve[i - 1], [t1, a1] = curve[i];
+      return a0 + (a1 - a0) * (t - t0) / (t1 - t0);
+    }
+    return 0;
+  };
+  const out = [];
+  for (let k = 1; k <= 64; k++) {
+    const t = k / 64, a = Math.round(at(t - 1 / 128) * scale * levels) / levels;
+    if (a <= 0) break;
+    if (out.length && out[out.length - 1][1] === a) out[out.length - 1][0] = t;
+    else out.push([t, a]);
+  }
+  return out;
+}
+const SOFT = [[0, 1], [0.12, 0.92], [0.3, 0.66], [0.5, 0.36], [0.7, 0.15], [0.86, 0.05], [1, 0]];
+const STEPS = quantized(SOFT, 1, 12);
+// Schimmer: flacher, sonst stapeln sich helle Scheiben über dem Stufenlicht
+const GLOW_STEPS = quantized(SOFT, 0.85, 16);
 const stepCache = new Map();
 function steppedLight(r, rgb, steps = STEPS) {
-  const key = `${r}|${rgb.join(',')}|${steps.length}`;
+  const key = `${r}|${rgb.join(',')}|${steps === GLOW_STEPS ? 'g' : 's'}`;
   let c = stepCache.get(key);
   if (c) return c;
   const R = Math.round(r * LM), n = R * 2;
