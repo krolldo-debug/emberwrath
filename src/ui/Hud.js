@@ -155,9 +155,11 @@ export class Hud {
       menuBtn('quests', 'L', 'Quests', 'ui_quests'),
       menuBtn('talents', 'U', 'Talente', 'ui_talents'),
       menuBtn('pause', 'Esc', 'Menü', 'ui_menu'),
-      // Nur Handy quer (theme.css): Shop direkt in der Liste statt erst im Menü
+      // Nur Handy quer (theme.css): Welten (statt der Weltanzeige oben) und Shop direkt in der Liste statt erst im Menü
+      menuBtn('worlds', null, 'Welt', 'ui_map', () => this.#worldBadge()?.click()),
       menuBtn('shop', null, 'Shop', 'gold', () => this.s.panels?.open?.('goldshop')),
     );
+    this.worldBtn = this.menuList.querySelector('[data-action="worlds"]');
     this.shopBtn = this.menuList.querySelector('[data-action="shop"]');
     this.menuToggle = el('button.hud-menu-toggle', {
       type: 'button', 'aria-label': 'Menü öffnen', 'aria-expanded': 'false',
@@ -235,7 +237,12 @@ export class Hud {
     try { free = talentPointsTotal(sl.progress?.level ?? 1) - spentPoints(sl.character?.talents ?? {}); } catch { free = 0; }
     toggle(this.menuEl, 'has-talent', free > 0);
     toggle(this.shopBtn, 'hidden', !this.game.shop?.visible);
+    const badge = this.#worldBadge();
+    toggle(this.worldBtn, 'hidden', !badge || badge.hidden);
   }
+
+  // Weltanzeige des Mehrspielers (net/NetHud.js hängt sie in den Zonenblock): Antippen öffnet Weltwechsel und Spielerliste
+  #worldBadge() { return this.frame.querySelector('.net-world'); }
 
   #tap(action) {
     this.input.press(action);

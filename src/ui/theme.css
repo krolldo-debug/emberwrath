@@ -1435,7 +1435,7 @@ body:has(.ef-panel-host) .hud-banner[data-kind]::before { display: none; }
    Kein Questhinweis und keine Gebietsanzeige (Gold bleibt), Inventar als eigener Knopf neben dem Chat,
    Shop direkt in der Burger-Liste, Aktionsknöpfe dicht in einem Raster aus 48-px-Feldern (4 px Abstand). */
 .hud-bag-btn { display: none; }
-html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn[data-action="shop"] { display: none; }
+html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [data-action="worlds"]) { display: none; }
 @media (max-height: 500px) {
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-quest-hint,
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-zone-name,
@@ -1455,10 +1455,13 @@ html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn[data-action="shop"] { displa
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn img { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55)); }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-bag-btn:active { border-color: var(--ef-gold); }
 
-  /* Burger-Liste: Inventar hat jetzt seinen Knopf, dafür steht der Shop hier (im Menü entfällt er) */
+  /* Burger-Liste: Inventar hat jetzt seinen Knopf, dafür stehen Welt (Weltwechsel, Spielerliste) und Shop hier (im Menü entfällt er) */
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn[data-action="inventory"] { display: none; }
-  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn[data-action="shop"]:not(.hidden) { display: flex; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [data-action="worlds"]):not(.hidden) { display: flex; }
   html.ef-touch:not(.ef-portrait) .menu-panel .menu-shop { display: none; }
+  /* Sieben Einträge passen so auch bei 360 px Höhe ohne Scrollen unter den Knopf */
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list { gap: 3px; }
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-menu .hud-menu-list .hud-menu-btn { height: 36px; }
 
   /* Aktionsknöpfe: Raster 4 × 3 Felder (Spalten von rechts, Zeilen von unten), Angriff belegt 2 × 2 in der Ecke.
      oben:   Interagieren | Fähigkeit 3 | Fähigkeit 4 | Reittier
