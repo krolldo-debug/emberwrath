@@ -5,12 +5,13 @@
 // das Spiel (2 Feinpixel je Szenenpixel, docs/STYLE.md „Feinraster“): Atlanten in doppelter Auflösung, Maße weiter in Szenenpixeln.
 // Gezeichnet in Python (tools/bosskino.py mit je einem Modul bosskino_<boss>.py): Ebenen (Ferne, Mitte, Boden mit
 // Fugen, Vordergrund, je mit Glut-Ebene), Figur in Ruhe aus Teilen mit eigenen Zyklen, Attacke als ganze Bilder,
-// Effekte als Bildfolgen. Je Boss ein Atlas img/bosskino-<boss>.webp (verlustfrei), Standbild img/bosskino.webp
+// Effekte als Bildfolgen. Je Boss Atlasblätter img/bosskino-<boss>-<n>.webp (verlustfrei, je höchstens 4096 px Kante und 8 MP), Standbild img/bosskino.webp
 // (Malgareth; ohne JS und bei reduzierter Bewegung). Maße, Bildfolgen und Ereignisse schreibt dieses Skript in den Block
 // <bosskino.mjs> in site/bosskino.js.
 // Aufruf: node site/tools/bosskino.mjs [bosse,kommagetrennt]   (ohne Angabe alle; braucht Python 3 mit numpy, Pillow)
 // Zwischenbilder (Atlanten als PNG, Standbilder, Momentblätter) nach $ZWISCHEN/bosskino (Standard /tmp).
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -34,6 +35,17 @@ const old = src.match(/  const META = (.*);\n  \/\/ <\/bosskino\.mjs>/);
 const prev = old && old[1] !== 'null' ? JSON.parse(old[1]) : null;
 const meta = out.meta;
 if (prev && only) meta.bosse = { ...prev.bosse, ...meta.bosse };
+// nur Bosse der Auswahl (meta.reihe) in Blätter-Form behalten, in dieser Reihenfolge
+meta.bosse = Object.fromEntries(meta.reihe.filter((n) => meta.bosse[n]?.blaetter).map((n) => [n, meta.bosse[n]]));
+// Version über alle gezeigten Bilder (Blätter und Standbild): bosskino.js lädt …webp?v=…, alte Bilder aus dem
+// Zwischenspeicher passen sonst nicht zu neuen Maßen
+const h = createHash('sha1');
+for (const f of ['bosskino.webp', ...Object.entries(meta.bosse).flatMap(([n, b]) => Array.from({ length: b.blaetter }, (_, s) => `bosskino-${n}-${s}.webp`))]) {
+  const p = join(IMG, f);
+  if (!existsSync(p)) throw new Error(`${f} fehlt`);
+  h.update(f).update(readFileSync(p));
+}
+meta.v = h.digest('hex').slice(0, 10);
 const block = `  // <bosskino.mjs> – von tools/bosskino.mjs geschrieben, nicht von Hand ändern\n  const META = ${JSON.stringify(meta)};\n  // </bosskino.mjs>`;
 if (!re.test(src)) throw new Error('META-Block in bosskino.js nicht gefunden');
 writeFileSync(JS, src.replace(re, block));

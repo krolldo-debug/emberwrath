@@ -4,8 +4,9 @@
 # die Gelenke. Hageres aschfahles Gesicht in Dreiviertelansicht mit zwei glühenden Augen, langer Bart und Haar aus Asche,
 # eiserne Flammenkrone. Echte Schwingen: Oberarm-, Unterarm- und Fingerknochen, dazwischen gespannte, zerrissene Haut mit
 # verbrannten Rändern. Karminroter Königsmantel und Wappenrock. Bidenhänder aus schwarzem Stahl mit Glutader.
-# Gezeichnet mit Blick nach rechts (x nach vorn, h nach oben, Füße bei h = 0), im Bild gespiegelt (Blick nach links).
-# Attacke „Aschewelle“: Klinge aus dem Boden ziehen, Rückschwung hinter den Kopf, Halten, Hieb über den Kopf in den Boden
+# Er steht frontal zur Kamera (Schultern breit, beide Schulterpanzer und Schwingen, breiter Stand), in Ruhe das Schwert vor
+# sich in den Boden gestemmt. Gezeichnet mit x = Richtung der Attacke (h nach oben, Füße bei h = 0), im Bild gespiegelt (Hieb nach links).
+# Attacke „Aschewelle“: Klinge aus dem Boden ziehen, Rückschwung über die Schulter hinter den Kopf, Halten, Hieb über den Kopf in den Boden
 # (jedes Schwungbild eigens gestellt, Schwungsichel genau auf der Klingenbahn), Treffer-Einfrieren, Beben, Nachfedern;
 # eine halbhohe Feuerwand läuft durch die ganze Halle nach links, Glut durch die Fugen der Bodenplatten.
 import math
@@ -45,7 +46,7 @@ RIM_B = {'iron': '#e8641a', 'irond': '#a8300a', 'gold': '#ffb048', 'goldd': '#c8
          'mem': '#c8420c', 'memd': '#7a2208', 'wbone': '#ffb048', 'wboned': '#c8420c', 'hair': '#c8420c', 'beard': '#f0a050',
          'skin': '#ffb048', 'blade': '#e8641a'}
 
-W, H, FX, FY0 = 280, 190, 120, 180
+W, H, FX, FY0 = 330, 190, 150, 180
 GROUND = FY0 + 1
 HMAX = 163            # höchster Punkt der Klinge/Schwingen über den Füßen (Szene: y >= 20 inkl. Kontur und Flammen)
 
@@ -159,7 +160,7 @@ def pol(a, L, o=(0, 0)):
 
 
 # ------------------------------------------------------------------------------------------- Pose -> Gelenke
-DEF = dict(crouch=0, lean=3, hipx=0, fN=15, fF=-14, breath=0, wo=0.0, wd=0.0, wehen=0, vor=0, rock=0, head=0)
+DEF = dict(crouch=0, lean=0, hipx=0, fN=21, fF=-21, breath=0, wo=0.0, wd=0.0, wehen=0, vor=0, rock=0, head=0)
 
 
 class Pose:
@@ -258,37 +259,6 @@ def gauntlet(f, c, d, far=False):
     return fist
 
 
-def arm(f, Pz, sh, hand, far=False, glowgrp=None, upper=True, bend=-1):
-    """Arm in Platten, verjüngt: Oberarmröhre mit Goldrand, Ellbogenkachel mit Fächer, Armschiene zur Hand schmaler,
-    Panzerhandschuh mit Stulpe. Gibt Ellbogen zurück."""
-    m, gm = ('irond', 'goldd') if far else ('iron', 'gold')
-    el = ik(sh, hand, 26, 25, bend=bend)
-    if upper: upper_arm(f, sh, el, far)
-    f.put(f.seg(el, hand, 11, 7.5), m, cut=(0.22, 0.5))
-    dx, dh = hand[0] - el[0], hand[1] - el[1]; L = math.hypot(dx, dh) or 1
-    ux, uh = dx / L, dh / L
-    # Grat auf der Armschiene
-    line_px(f, (el[0] + ux * 6 - uh * 1.5, el[1] + uh * 6 + ux * 1.5), (hand[0] - ux * 8 - uh * 1.2, hand[1] - uh * 8 + ux * 1.2), m, 4, only=(m,))
-    back = (el[0] - ux * 9, el[1] - uh * 9)
-    side = (-uh, ux) if ux >= 0 else (uh, -ux)
-    f.put(f.poly([(el[0] + side[0] * 6, el[1] + side[1] * 6), (back[0] - side[0] * 2, back[1] - side[1] * 2),
-                  (el[0] - side[0] * 5, el[1] - side[1] * 5)]), gm, light=(1, -1), hi=1, mid=2, flat=4)
-    f.put(f.ell(el[0], el[1], 6, 6), m, shade='ball', dcuts=(0.12, 0.5, 0.82))
-    gauntlet(f, hand, (ux, uh), far)
-    return el
-
-
-def upper_arm(f, sh, el, far=False):
-    m, gm = ('irond', 'goldd') if far else ('iron', 'gold')
-    f.put(f.seg(sh, el, 12, 9.5), m, cut=(0.22, 0.5))
-    # Goldrand am unteren Ende der Oberarmröhre
-    a = lerp(sh, el, 0.72); b = lerp(sh, el, 0.8)
-    f.put(f.seg(a, b, 11.5, 11), m, cut=(0.22, 0.5))
-    dx, dh = el[0] - sh[0], el[1] - sh[1]; L = math.hypot(dx, dh) or 1
-    px_, ph_ = -dh / L, dx / L
-    line_px(f, (b[0] + px_ * 5.6, b[1] + ph_ * 5.6), (b[0] - px_ * 5.6, b[1] - ph_ * 5.6), gm, 3, only=(m,))
-
-
 # ------------------------------------------------------------------------------------------- Kopf (Handarbeit)
 HEAD = [
     '.......hhhHHHhh.........',
@@ -298,14 +268,14 @@ HEAD = [
     '...hHHG223333444444K....',
     '..hHHHG2233333444444K...',
     '..hHHG22233334444444K...',
-    '..hHHG2KKKKKK334KKKKKK..',
-    '..hHHG1KrEEoK234KrEoK...',
-    '..hHHG21KroorK34KrorK3..',
-    '..hHHh21KKKKK12344KKK3..',
-    '..hHHh112223333444333K..',
+    '..hHHG2223333344444444..',
+    '..hHHG2223333344444444..',
+    '..hHHG2223333344444443..',
+    '..hHHh2122333344444443..',
+    '..hHHh112223333444443K..',
     '..hHHhK1122233344443K...',
-    '..hHHhKK11222333444443K.',
-    '..hHHbK111223333K1KKK...',
+    '..hHHhKK112223334443K...',
+    '..hHHbK1112233333443K...',
     '..hHHbBK11BBcCCcCBcK....',
     '..hHHbBcKBcKKKKKKcBc....',
     '..hHHbBcBcBcCcCcBcBc....',
@@ -333,34 +303,33 @@ HLEG = {'K': ('skin', 0), '1': ('skin', 1), '2': ('skin', 2), '3': ('skin', 3), 
         'b': ('beard', 1), 'B': ('beard', 2), 'c': ('beard', 3), 'C': ('beard', 4)}
 
 
-# Gesicht im Feinraster (Feinpixel relativ zur linken oberen Ecke von HEAD, Blick nach rechts; Licht kommt im Bild von
-# links oben = hier von rechts oben): Brauenkante, Lidspalte mit Glut, Schlitzpupille und Glanzpunkt, Unterlid, Nasenrücken,
-# Wangenknochen, schmaler Mund.
+# Gesicht im Feinraster (Feinpixel relativ zur linken oberen Ecke von HEAD; Licht kommt im Bild von links oben = hier von
+# rechts oben): Brauenkante, Lidspalte mit Glut, runde Pupille mit Glanzpunkt, Unterlid, Nasenrücken, Mund.
 FACE_F = {
-    # hinteres Auge (Spalten 14..27, Zeilen 13..21)
-    (14, 13): ['..4444444444..',
-               'KKKKKKKKKKKK..',
-               'KKKKKKKKKKKK..',
-               'KKrroEEEorrKK.',
-               'KKroEEpWEoorK.',
-               '.KKrooEpEoorrK',
-               '..KKKrrooorrKK',
-               '..KKKKKKKKKKK.',
-               '..333333333332'],
-    # vorderes Auge (Spalten 32..43)
-    (32, 13): ['.44444444444',
-               'KKKKKKKKKKKK',
-               'KKKKKKKKKKKK',
-               'KKrroEEoorKK',
-               'KKroEpWEorK.',
-               'KKroEpEoorK.',
-               '.KKrrooorKK.',
-               '..KKKKKKK...',
-               '...3333333..'],
-    # Nasenrücken und Nasenspitze
-    (30, 14): ['44', '34', '.4', '.34', '..4', '..34', '...4', '...34', '....4', '....44', '.....44', '......4K', '.....KK'],
-    # Mund: schmale Linie mit Mundwinkel, Unterlippe hell
-    (30, 28): ['K2KKKKKKKKK', 'K23333333..'],
+    # Blick zum Betrachter (Dreiviertel): beide Augen gleich hoch, runde Pupillen mittig, Nasenrücken zwischen den Augen
+    # nach unten, Mund mittig darunter, Brauen zur Nase hin gesenkt. Hinteres Auge (Schattenseite) etwas schmaler.
+    (17, 12): ['KKK......',
+               '.44KKKK..',
+               'KKKKKKKKK',
+               'KKroEEorK',
+               'KroEppWoK',
+               'KroEppEoK',
+               'KKrooooKK',
+               '.KKKKKKK.',
+               '..22222..'],
+    (32, 12): ['.......KKK',
+               '..KKKK44..',
+               'KKKKKKKKKK',
+               'KKroEEEorK',
+               'KroEppWEoK',
+               'KroEppEEoK',
+               'KKrroooorK',
+               '.KKKKKKKK.',
+               '..333333..'],
+    # Nasenrücken (Lichtseite rechts), Nasenspitze mit Nasenlöchern
+    (27, 16): ['.24', '.24', '.24', '.234', '.234', '1234', '1234', '12334', 'K2333K', '.KK.KK'],
+    # Mund: waagrecht, Unterlippe hell
+    (24, 29): ['.KKKKKKKKKKK.', '..233333332..'],
 }
 FLEG_F = {'K': ('skin', 0), '1': ('skin', 1), '2': ('skin', 2), '3': ('skin', 3), '4': ('skin', 4),
           'r': ('emb', 1), 'o': ('emb', 3), 'E': ('emb', 4), 'W': ('eyew', 4), 'p': ('pupil', 0)}
@@ -373,12 +342,16 @@ def face_fine(f, X0, Y0):
 
 def head(f, Pz):
     """Kopf (Dreiviertel, Blick nach vorn), Haar und Krone; gibt (Zackenmaske, Bildzeile der Reifoberkante) zurück."""
-    n = Pz.T(4, 44)
-    hx, hh = round(n[0] - 10 + Pz.p['head']), round(n[1] + 21)
+    n = Pz.T(0, 44)
+    hx, hh = round(n[0] - 12 + Pz.p['head']), round(n[1] + 21)
     wh = Pz.p['wehen']; ph = Pz.p.get('hph', 0)
-    hair = f.poly([(hx + 5, hh - 0.5), (hx + 0.5, hh - 5), (hx - 2, hh - 14), (hx - 5 - wh * 0.3, hh - 26), (hx - 8 - wh * 0.5, hh - 38 + ph),
-                   (hx - 2, hh - 37), (hx + 3, hh - 26), (hx + 6, hh - 16)])
-    f.put(hair, 'hair', shade='cyl', cut=(0.3, 0.7))
+    hairpts = [(hx + 5, hh - 0.5), (hx + 0.5, hh - 5), (hx - 2, hh - 14), (hx - 4 - wh * 0.3, hh - 22), (hx - 7 - wh * 0.5, hh - 31 + ph),
+               (hx - 1, hh - 30), (hx + 3, hh - 22), (hx + 6, hh - 16)]
+    # von vorn: Haar fällt zu beiden Seiten des Gesichts (Seite +x gespiegelt, weht weniger)
+    ax = hx + 12.5
+    hair2 = [(2 * ax - x + (wh * 0.4 if j in (3, 4) else 0), h) for j, (x, h) in enumerate(hairpts)]
+    f.put(f.poly(hair2), 'hair', shade='cyl', cut=(0.3, 0.7))
+    f.put(f.poly(hairpts), 'hair', shade='cyl', cut=(0.3, 0.7))
     f.sprite(hx, hh, HEAD, HLEG)
     face_fine(f, *f.at(hx, hh))
     # Krone: goldener Reif über der Stirn (schräg, Dreiviertel), fünf Flammenzacken, Glutsteine
@@ -487,40 +460,45 @@ def wing(f, root, wo, wd, ph, far=False):
 
 # ------------------------------------------------------------------------------------------- Mantel
 def cape(f, Pz, ph):
+    """Königsmantel von vorn: fällt von beiden Schultern hinter dem Körper bis zum Boden, links und rechts der Beine
+    sichtbar, zwischen den Beinen sieht man sein Futter. wehen: weht beim Hieb nach hinten (-x), vor: Saum schwingt nach."""
     P = Pz.p
     t = ph * 2 * math.pi
     wh, vo = P['wehen'], P['vor']
-    sh = Pz.T(-10, 40)
-    sh2 = Pz.T(2, 38)
-    back = []
+    shB, shF = Pz.T(-19, 40), Pz.T(19, 40)
     n = 14
+    back, front = [], []
     for i in range(n + 1):
         k = i / n
-        h = sh[1] * (1 - k) + 2 * k
-        x = sh[0] - 6 - k * (18 + wh * 2.4 + max(0, Pz.lean) * 0.7) - 1.8 * math.sin(t - k * 4.5) * k + vo * k * k * 1.2
-        back.append((x, h + wh * 0.9 * k * k))
+        h = shB[1] * (1 - k) + 2 * k
+        x = shB[0] - 3 - k * (15 + wh * 2.0) - 1.6 * math.sin(t - k * 4.5) * k + vo * k * k
+        back.append((x, h + wh * 0.8 * k * k))
+        h = shF[1] * (1 - k) + 2 * k
+        x = shF[0] + 3 + k * (13 - wh * 1.1) + 1.4 * math.sin(t + 1.3 - k * 4.0) * k + vo * k * k * 1.4
+        front.append((x, h + wh * 0.3 * k * k))
     hem = []
-    xe = back[-1][0]
-    fx = Pz.p['fF'] + 4
-    for i in range(1, 9):
-        k = i / 8
-        x = xe + (fx - xe) * k
-        hem.append((x, 2 + 2.2 * math.sin(t * 1 + k * 8) * (1 - k * 0.5) + wh * 0.4 * (1 - k) + max(0, vo) * 0.3 * (1 - k)))
-    pts = [sh2, sh] + back + hem + [Pz.T(-4, 8)]
+    xa, xb = back[-1][0], front[-1][0]
+    for i in range(1, 12):
+        k = i / 12
+        x = xa + (xb - xa) * k
+        hem.append((x, 2 + 2.0 * math.sin(t + k * 9) * (0.6 + 0.4 * k) + wh * 0.5 * (1 - k) + max(0, vo) * 0.3))
+    pts = back + hem + front[::-1]
     m = f.poly(pts)
     f.put(m, 'robe', fixed=2)
     ys, xs = np.nonzero(m)
     y_top, y_bot = ys.min(), ys.max()
     rows = {}
     for y, x in zip(ys, xs): rows.setdefault(y, []).append(x)
+    cx = f.at(*Pz.T(0, 0))[0]
     for y, x in zip(ys, xs):
         a0, b0 = min(rows[y]), max(rows[y])
-        u = (x - a0) / max(1, b0 - a0)
         dep = (y - y_top) / max(1, y_bot - y_top)
-        fo = math.sin((u * 2.6 + dep * 0.5) * 2 * math.pi + t * 0.6 + dep * 2.0)
-        f.tone[y, x] = 2 + (1 if fo > 0.55 else -1 if fo < -0.35 else 0)
+        fo = math.sin((x - cx) * 0.42 + t * 0.6 + dep * 2.0)
+        tt = 2 + (1 if fo > 0.55 else -1 if fo < -0.35 else 0)
+        if abs(x - cx) < 9 and dep > 0.35: tt = max(1, tt - 1)            # Futter zwischen den Beinen: dunkler
+        f.tone[y, x] = tt
         if x - a0 < 1: f.tone[y, x] = 1
-    # Saum verbrannt: Glut am unteren Rand, ausgefranst
+        if b0 - x < 1 and tt < 3: f.tone[y, x] = tt + 1                  # Lichtseite (+x) mit heller Kante
     for y, x in zip(ys, xs):
         if y + 1 < f.H and not m[y + 1, x]:
             hs = hash2(x, y, 4)
@@ -534,80 +512,91 @@ def cape(f, Pz, ph):
 def dep_ok(y, yb): return yb - y < 30
 
 
-# ------------------------------------------------------------------------------------------- Körper
+# ------------------------------------------------------------------------------------------- Körper (von vorn)
+# Malgareth steht frontal zur Kamera (wie der Kopf): Schultern breit, beide Schulterpanzer, Kürass aus zwei Brustplatten
+# mit Mittelgrat, breiter Stand mit beiden Beinen nebeneinander. In Ruhe ist der Bidenhänder vor ihm in den Boden gestemmt,
+# beide Hände auf dem Knauf. Rumpf-Ort: x quer (nach +x = Blickrichtung der Attacke, im Bild links), h nach oben.
+SHX = 21         # Schulter quer zur Mitte
+
+
 def legs(f, Pz):
     P = Pz.p
     out = {}
-    for far in (True, False):
-        m = 'irond' if far else 'iron'; gm = 'goldd' if far else 'gold'
-        hipj = Pz.T(-5, -4) if far else Pz.T(6, -4)
-        fx0 = P['fF'] if far else P['fN']
-        ank = (fx0, 11)
-        kn = ik(hipj, ank, 37, 34, bend=1)
-        # Oberschenkel (verjüngt), Beinschiene mit Wadenwölbung und Grat
-        f.put(f.seg(hipj, kn, 17, 12), m, cut=(0.22, 0.5))
-        f.put(f.seg(kn, ank, 12, 8), m, cut=(0.22, 0.5))
-        calf = f.poly([lerp(kn, ank, 0.15), (lerp(kn, ank, 0.4)[0] - 8, lerp(kn, ank, 0.4)[1]), (lerp(kn, ank, 0.85)[0] - 4.5, lerp(kn, ank, 0.85)[1]),
-                       (lerp(kn, ank, 0.85)[0] + 4.5, lerp(kn, ank, 0.85)[1]), (lerp(kn, ank, 0.35)[0] + 6.5, lerp(kn, ank, 0.35)[1])])
-        f.put(calf, m, cut=(0.22, 0.5))
-        line_px(f, (kn[0] + 4, kn[1] - 6), (ank[0] + 3.2, ank[1] + 3), m, 4, only=(m,))
-        # schwerer Panzerschuh: Lamellen, Spitze, Sporn, Goldrand
-        sab = f.poly([(fx0 - 8, 0), (fx0 + 17, 0), (fx0 + 15, 3), (fx0 + 8, 7), (fx0 + 5, 13), (fx0 - 6, 14), (fx0 - 9, 7)])
+    for s in (-1, 1):
+        m, gm = 'iron', 'gold'
+        hipj = Pz.T(8 * s, -4)
+        fx0 = P['fN'] if s > 0 else P['fF']
+        ank = (fx0, 12)
+        # von vorn: gebeugte Knie zeigen zur Kamera (Bein kürzer), nur leicht nach außen
+        kn = lerp(hipj, ank, 0.5); kn = (kn[0] + s * (1.0 + P['crouch'] * 0.12), kn[1])
+        f.put(f.seg(hipj, kn, 18, 14), m, cut=(0.22, 0.5))
+        f.put(f.seg(kn, ank, 13, 9.5), m, cut=(0.22, 0.5))
+        a, b = lerp(kn, ank, 0.18), lerp(kn, ank, 0.8)
+        f.put(f.poly([a, (lerp(kn, ank, 0.4)[0] - 7.5, lerp(kn, ank, 0.4)[1]), (b[0] - 4.5, b[1]), (b[0] + 4.5, b[1]),
+                      (lerp(kn, ank, 0.4)[0] + 7.5, lerp(kn, ank, 0.4)[1])]), m, cut=(0.22, 0.5))
+        line_px(f, (kn[0] + 1.5, kn[1] - 6), (ank[0] + 1.2, ank[1] + 3), m, 4, only=(m,))
+        # Panzerschuh von vorn: breite Kappe, Spitze leicht nach außen, Lamellen quer, Goldrand am Rist
+        o = 2.5 * s
+        sab = f.poly([(fx0 - 8 + o, 0), (fx0 + 8 + o, 0), (fx0 + 8 + o * 0.6, 4), (fx0 + 6, 10), (fx0 + 5, 14), (fx0 - 5, 14), (fx0 - 6, 10), (fx0 - 8 + o * 0.6, 4)])
         f.put(sab, m, shade='dome', r=3, dcuts=(0.15, 0.42, 0.72))
-        for xx, top in ((fx0 + 3, 9), (fx0 + 8, 6), (fx0 + 12, 3.5)):
-            line_px(f, (xx, 1), (xx - 1.5, top), m, 0)
-        f.put(f.poly([(fx0 - 8, 11), (fx0 + 5, 11), (fx0 + 5, 14.5), (fx0 - 7, 14.5)]), gm, fixed=3)
-        f.put(f.poly([(fx0 - 9, 3), (fx0 - 13, 2), (fx0 - 9, 5)]), m, fixed=2)
-        # Kniekachel mit Fächer und Kniedorn
+        for hh in (4, 7.5):
+            line_px(f, (fx0 - 6.5 + o * 0.5, hh), (fx0 + 6.5 + o * 0.5, hh), m, 0, only=(m,))
+        f.put(f.poly([(fx0 - 6, 10.5), (fx0 + 6, 10.5), (fx0 + 6, 13.5), (fx0 - 6, 13.5)]), gm, fixed=3)
+        # Kniekachel: Kuppel mit Fächern zu beiden Seiten
         kx, kh = kn
-        f.put(f.poly([(kx - 1, kh + 8), (kx - 9, kh + 3), (kx - 8, kh - 5), (kx - 1, kh - 2)]), gm, light=(1, -1), hi=1, mid=2, flat=4)
-        f.put(f.ell(kx + 1.5, kh, 7, 6.5), m, shade='ball', dcuts=(0.12, 0.5, 0.82))
-        f.put(f.poly([(kx + 6, kh + 2), (kx + 13, kh + 0.5), (kx + 6, kh - 2.5)]), m, light=(1, -1), hi=1, mid=2, flat=4)
-        X, Y = f.at(kx + 12.5, kh + 0.5); f.px(X, Y, gm, 4)
-        out[far] = kn
+        for d in (-1, 1):
+            f.put(f.poly([(kx + d * 1, kh + 7), (kx + d * 9, kh + 3), (kx + d * 9, kh - 4), (kx + d * 1, kh - 3)]), gm, light=(1, -1), hi=1, mid=2, flat=4)
+        f.put(f.ell(kx, kh, 6.5, 6.5), m, shade='ball', dcuts=(0.12, 0.5, 0.82))
+        f.put(f.poly([(kx - 2, kh - 4), (kx, kh - 10), (kx + 2, kh - 4)]), m, light=(1, -1), hi=1, mid=2, flat=4)
+        X, Y = f.at(kx, kh - 9.5); f.px(X, Y, gm, 4)
+        out[s] = kn
     return out
 
 
 def torso(f, Pz):
     P = Pz.p
     U = Pz.U
-    # Wappenrock vorn, karmin mit Goldsaum, bis unter die Knie
     sw = P['rock']
-    rock = f.poly(U([(-3, 2), (13, 2), (14, -14)]) + [(Pz.T(14, -14)[0] + 1 + sw, 34), (Pz.T(12, -14)[0] + sw * 1.4, 22),
-                                                     (Pz.T(2, -14)[0] + sw * 1.4, 21), (Pz.T(-2, -14)[0] + sw, 30)] + U([(-3, -14)]))
+    # Wappenrock vorn zwischen den Beinen, karmin mit Goldsaum, unten spitz
+    lo = Pz.T(-11, -16), Pz.T(11, -16)
+    rock = f.poly(U([(-9, 3), (9, 3)]) + [(lo[1][0] + 1, lo[1][1]), (lo[1][0] + 1 + sw, 30), (Pz.T(0, -16)[0] + sw * 1.4, 22),
+                                          (lo[0][0] - 1 + sw, 30), (lo[0][0] - 1, lo[0][1])])
     f.put(rock, 'robe', cut=(0.25, 0.6))
     ys, xs = np.nonzero(rock)
     for y, x in zip(ys, xs):
         if y + 2 < f.H and (not rock[y + 1, x] or not rock[y + 2, x]): f.mat[y, x] = 'gold'; f.tone[y, x] = 3 if rock[y + 1, x] else 2
-    c = Pz.T(6, -9)
+    c = Pz.T(0, -9)
     for dx, dh, t in ((0, 0, 4), (-2, 0, 3), (2, 0, 3), (0, 1, 3), (0, -1, 3), (0, -2, 2), (-1, 2, 2), (1, 2, 2), (-3, 2, 2), (3, 2, 2), (0, 3, 3)):
         f.dot(c[0] + dx, c[1] + dh, 'gold', t)
-    # Beintaschen
-    for i, (h0, h1) in enumerate(((3, -10), (-8, -22))):
-        f.put(f.poly(U([(-14 + i * 2, h0), (1, h0 + 1), (-1 - i * 2, h1 + 2), (-12 + i * 4, h1)])), 'iron', shade='dome', r=3, dcuts=(0.15, 0.42, 0.72))
-    # Gürtel mit Glutschnalle (schmale Taille)
-    f.put(f.poly(U([(-12, 2), (13, 2), (13, 7), (-12, 7)])), 'lea', fixed=2)
-    f.put(f.poly(U([(7, 1), (13, 1), (13, 8), (7, 8)])), 'gold', shade='dome', r=1.5)
-    f.dot(*Pz.T(10, 4.5), 'emb', 4); f.dot(*Pz.T(10, 3.5), 'emb', 3)
-    # Bauchreifen: zur Brust breiter werdend (Taillierung)
-    for i, (h0, h1, w0, w1) in enumerate(((7, 12, 11, 12), (11, 17, 12, 15))):
-        f.g(f.poly(U([(-w0, h0), (w0 + 1, h0), (w1 + 2, h1), (-w1 - 1, h1)])), 'iron', 'bauch', glow=1, shade='lame', bh=6)
-    # Kürass: zwei V-förmige Brustplatten mit Mittelgrat, Spitze unten zur Taille
-    ridge_b, ridge_t = (9, 13), (12, 47)
-    back_pl = f.poly(U([(-13, 17), (-19, 29), (-20, 40), (-14, 46), (2, 48), ridge_t, ridge_b]))
-    front_pl = f.poly(U([ridge_b, ridge_t, (16, 46), (23, 38), (24, 28), (18, 19)]))
-    f.g(back_pl, 'iron', 'bauch', glow=1, shade='ball', dcuts=(0.05, 0.45, 0.8))
-    f.g(front_pl, 'iron', 'bauch', glow=1, shade='ball', dcuts=(0.1, 0.4, 0.72))
-    line_px(f, Pz.T(*ridge_b), Pz.T(*ridge_t), 'gold', 3)
-    line_px(f, Pz.T(ridge_b[0] + 1, ridge_b[1] + 2), Pz.T(ridge_t[0] + 1, ridge_t[1] - 1), 'iron', 4, only=('iron',))
+    # Beintaschen beidseits über den Hüften (zwei Reihen)
+    for s in (-1, 1):
+        for i, (h0, h1) in enumerate(((3, -10), (-8, -21))):
+            q = [(s * (6 + i * 2), h0), (s * (19 + i), h0 - 1), (s * (19 + i), h1), (s * (8 + i * 2), h1 + 2)]
+            f.put(f.poly(U(q)), 'iron', shade='dome', r=3, dcuts=(0.15, 0.42, 0.72))
+    # Gürtel mit Glutschnalle in der Mitte
+    f.put(f.poly(U([(-14, 2), (14, 2), (14, 7), (-14, 7)])), 'lea', fixed=2)
+    f.put(f.poly(U([(-3.5, 1), (3.5, 1), (3.5, 8), (-3.5, 8)])), 'gold', shade='dome', r=1.5)
+    f.dot(*Pz.T(0, 4.5), 'emb', 4); f.dot(*Pz.T(0, 3.5), 'emb', 3)
+    # Bauchreifen: zur Brust breiter
+    for h0, h1, w0, w1 in ((7, 12, 13, 14), (11, 17, 14, 17)):
+        f.g(f.poly(U([(-w0, h0), (w0, h0), (w1, h1), (-w1, h1)])), 'iron', 'bauch', glow=1, shade='lame', bh=6)
+    # Kürass: zwei Brustplatten mit Mittelgrat, breit zur Kamera
+    rb, rt = (0, 14), (0, 47)
+    pl = [(-12, 49), (-20, 44), (-23, 32), (-18, 20)]
+    left_pl = f.poly(U([rb, rt] + pl))
+    right_pl = f.poly(U([rb, rt] + [(-x, h) for x, h in pl]))
+    f.g(left_pl, 'iron', 'bauch', glow=1, shade='ball', dcuts=(0.05, 0.45, 0.8))
+    f.g(right_pl, 'iron', 'bauch', glow=1, shade='ball', dcuts=(0.1, 0.4, 0.72))
+    line_px(f, Pz.T(*rb), Pz.T(*rt), 'gold', 3)
+    line_px(f, Pz.T(1, 16), Pz.T(1, 46), 'iron', 4, only=('iron',))
     # glühender Kern mit Rissen, die als Glutadern über die Platten laufen
-    hx, hh = Pz.T(6, 27)
+    hx, hh = Pz.T(0, 28)
     core = f.ell(hx, hh, 3.6, 3.4)
     for y, x in zip(*np.nonzero(core)):
         d = math.hypot(x + 0.5 - f.FX - hx, f.FY - y - 0.5 - hh)
         f.mat[y, x] = 'emb'; f.tone[y, x] = 4 if d < 1.6 else 3 if d < 2.6 else 2
     rng = np.random.default_rng(5)
-    for a0, L in ((20, 13), (75, 12), (130, 10), (200, 11), (250, 9), (320, 12), (165, 7)):
+    for a0, L in ((20, 13), (75, 12), (130, 10), (200, 11), (250, 9), (320, 12), (165, 7), (290, 8)):
         x, h = hx, hh; a = math.radians(a0)
         for j in range(int(L)):
             a += rng.uniform(-0.5, 0.5)
@@ -616,61 +605,92 @@ def torso(f, Pz):
             if 0 <= X < f.W and 0 <= Y < f.H and f.mat[Y, X] in ('iron', 'gold', 'emb') and not (f.mat[Y, X] == 'emb' and f.tone[Y, X] > 2):
                 f.mat[Y, X] = 'emb'; f.tone[Y, X] = 2 if j < L * 0.4 else 1
     # hohe Halsberge: drei Ringe um den Hals, oben Goldrand
-    for i, (h0, h1, w) in enumerate(((43, 48, 11), (47, 52, 10), (51, 56, 9))):
-        gm_ = f.poly(U([(-w + 1, h0), (w, h0 + 0.5), (w - 1, h1), (-w + 2, h1)]))
+    for i, (h0, h1, w) in enumerate(((43, 48, 12), (47, 52, 11), (51, 56, 10))):
+        gm_ = f.poly(U([(-w, h0), (w, h0 + 0.5), (w - 1, h1), (-w + 1, h1)]))
         f.g(gm_, 'iron', 'hals', glow=1, shade='ball', dcuts=(0.05, 0.45, 0.8))
         if i == 2:
             for y, x in zip(*np.nonzero(gm_)):
                 if y == 0 or not gm_[y - 1, x]: f.mat[y, x] = 'gold'; f.tone[y, x] = 3
-    return front_pl
+    return right_pl
 
 
-def pauldron(f, Pz, far=False):
-    m, gm = ('irond', 'goldd') if far else ('iron', 'gold')
-    if far:
-        c = Pz.T(15, 40)
-        dome = f.poly([(c[0] - 8, c[1] - 3), (c[0] - 6, c[1] + 6), (c[0] + 2, c[1] + 9), (c[0] + 9, c[1] + 5), (c[0] + 10, c[1] - 4), (c[0] + 6, c[1] - 9)])
-        f.put(dome, m, shade='dome', r=3)
-        return dome
-    c = Pz.T(-10, 39)
-    # zwei Lamellen unter der Kuppel (Glutfugen), dann große Kuppel, Goldrand, Flammenzacken
-    lame = f.ell(c[0] - 1, c[1] - 4, 13.5, 9) & ~f.poly([(c[0] - 30, c[1] + 30), (c[0] + 30, c[1] + 30), (c[0] + 30, c[1] - 6), (c[0] - 30, c[1] - 4)])
-    f.g(lame, m, 'pauld', glow=1, shade='ball', dcuts=(0.0, 0.42, 0.75))
-    dome = f.ell(c[0] - 1, c[1] + 1, 14, 11) & ~f.poly([(c[0] - 30, c[1] - 30), (c[0] + 30, c[1] - 30), (c[0] + 30, c[1] - 7), (c[0] - 30, c[1] - 5)])
-    f.g(dome, m, 'pauld', glow=1, shade='ball', dcuts=(0.12, 0.5, 0.82))
-    # Grat (Kamm) über die Kuppel
-    line_px(f, (c[0] - 8, c[1] + 9), (c[0] + 7, c[1] + 8.5), gm, 3, only=(m,))
+def pauldron(f, Pz, s):
+    """Schulterpanzer der Seite s (-1 / +1): zwei Lamellen mit Glutfugen, große Kuppel mit Goldrand, Flammenzacken nach
+    oben außen."""
+    m, gm = 'iron', 'gold'
+    c = Pz.T(s * 25, 39)
+    lame = f.ell(c[0] + s * 0.5, c[1] - 4, 12, 9) & ~f.poly([(c[0] - 30, c[1] + 30), (c[0] + 30, c[1] + 30), (c[0] + 30, c[1] - 5), (c[0] - 30, c[1] - 5)])
+    f.g(lame, m, 'pauld%d' % s, glow=1, shade='ball', dcuts=(0.0, 0.42, 0.75))
+    dome = f.ell(c[0] + s * 0.5, c[1] + 2, 12.5, 12) & ~f.poly([(c[0] - 30, c[1] - 30), (c[0] + 30, c[1] - 30), (c[0] + 30, c[1] - 6), (c[0] - 30, c[1] - 6)])
+    f.g(dome, m, 'pauld%d' % s, glow=1, shade='ball', dcuts=(0.12, 0.5, 0.82))
+    line_px(f, (c[0] - 7, c[1] + 9), (c[0] + 7, c[1] + 9), gm, 3, only=(m,))
     ed = edge_of(dome)
     for y, x in zip(*np.nonzero(dome)):
         if ed[y, x] or (y + 2 < f.H and not dome[y + 2, x]): f.mat[y, x] = gm; f.tone[y, x] = 3 if ed[y, x] and y + 1 < f.H and dome[y + 1, x] else 2
-    # Flammenzacken nach oben hinten
-    for x0, L, a in ((-13, 10, 140), (-7, 14, 122), (0, 11, 104)):
-        b = (c[0] + x0, c[1] + 8 + (2 if x0 > -9 else 0))
-        tip = pol(a, L, b)
-        mid = pol(a + 20, L * 0.55, b)
+    # Flammenzacken nach oben außen
+    for x0, L, a in ((-11, 10, 140), (-5, 14, 120), (2, 10, 100)):
+        b = (c[0] + (x0 if s < 0 else -x0), c[1] + 8 + (2 if x0 > -9 else 0))
+        aa = a if s < 0 else 180 - a
+        tip = pol(aa, L, b)
+        mid = pol(aa + (20 if s < 0 else -20), L * 0.55, b)
         f.put(f.poly([(b[0] - 3, b[1] - 1), mid, tip, (b[0] + 3, b[1] - 1)]), m, light=(1, -1), hi=1, mid=2, flat=4)
         X, Y = f.at(*tip); f.px(X, Y, 'emb', 3); f.px(X, Y + 1, 'emb', 2)
     return dome
+
+
+def elbow(Pz, sh, hand, s, l1=27, l2=27):
+    """Ellbogen von vorn: von beiden Lösungen die weiter außen liegende (Seite s)."""
+    a, b = ik(sh, hand, l1, l2, bend=1), ik(sh, hand, l1, l2, bend=-1)
+    mid = Pz.T(0, 30)[0]
+    return a if (a[0] - mid) * s > (b[0] - mid) * s else b
+
+
+def upper_arm(f, sh, el, far=False):
+    m, gm = ('irond', 'goldd') if far else ('iron', 'gold')
+    f.put(f.seg(sh, el, 12, 9.5), m, cut=(0.22, 0.5))
+    a = lerp(sh, el, 0.72); b = lerp(sh, el, 0.8)
+    f.put(f.seg(a, b, 11.5, 11), m, cut=(0.22, 0.5))
+    dx, dh = el[0] - sh[0], el[1] - sh[1]; L = math.hypot(dx, dh) or 1
+    px_, ph_ = -dh / L, dx / L
+    line_px(f, (b[0] + px_ * 5.6, b[1] + ph_ * 5.6), (b[0] - px_ * 5.6, b[1] - ph_ * 5.6), gm, 3, only=(m,))
+
+
+def forearm(f, el, hand, far=False):
+    """Armschiene zur Hand schmaler, Ellbogenkachel mit Fächer, Panzerhandschuh mit Stulpe."""
+    m, gm = ('irond', 'goldd') if far else ('iron', 'gold')
+    f.put(f.seg(el, hand, 11, 7.5), m, cut=(0.22, 0.5))
+    dx, dh = hand[0] - el[0], hand[1] - el[1]; L = math.hypot(dx, dh) or 1
+    ux, uh = dx / L, dh / L
+    line_px(f, (el[0] + ux * 6 - uh * 1.5, el[1] + uh * 6 + ux * 1.5), (hand[0] - ux * 8 - uh * 1.2, hand[1] - uh * 8 + ux * 1.2), m, 4, only=(m,))
+    back = (el[0] - ux * 8, el[1] - uh * 8)
+    side = (-uh, ux) if ux >= 0 else (uh, -ux)
+    f.put(f.poly([(el[0] + side[0] * 6, el[1] + side[1] * 6), (back[0] - side[0] * 2, back[1] - side[1] * 2),
+                  (el[0] - side[0] * 5, el[1] - side[1] * 5)]), gm, light=(1, -1), hi=1, mid=2, flat=4)
+    f.put(f.ell(el[0], el[1], 6, 6), m, shade='ball', dcuts=(0.12, 0.5, 0.82))
+    gauntlet(f, hand, (ux, uh), far)
 
 
 def body(f, p, smear_im=None):
     """Ganzer Körper mit Schwert in Zeichenreihenfolge. Rückgabe Kronenmaske, Feuermaske der Klinge, Klinge, Spitze."""
     Pz = Pose(p)
     hN, hF = hands_of(p['grip'], p['ang'])
-    # hinterer Arm (hinter dem Rumpf)
-    pauldron(f, Pz, far=True)
-    arm(f, Pz, Pz.T(12, 33), hF, far=True)
+    behind = p.get('hinter', False)
+    if behind: blade, fire, tip, _ = sword(f, p['grip'], p['ang'], glow=p.get('glut', 1))
     legs(f, Pz)
     torso(f, Pz)
-    blade, fire, tip, _ = sword(f, p['grip'], p['ang'], glow=p.get('glut', 1))
-    # vorderer Arm: Oberarm, Schulterpanzer darüber, dann Unterarm/Hand
-    sh = Pz.T(-2, 33)
-    bend = 1 if hN[1] > sh[1] + 8 else -1
-    el = ik(sh, hN, 26, 25, bend=bend)
-    upper_arm(f, sh, el)
-    pauldron(f, Pz)
+    # Hände: die weiter vorn (+x) liegende gehört zum Arm der Seite +x; gleich weit: die untere
+    hs = sorted([hN, hF], key=lambda q: (q[0], -q[1]))
+    arms = []
+    for s, hand in ((-1, hs[0]), (1, hs[1])):
+        sh = Pz.T(s * SHX, 33)
+        el = elbow(Pz, sh, hand, s)
+        arms.append((s, sh, el, hand))
+        upper_arm(f, sh, el)
+    pauldron(f, Pz, -1)
+    pauldron(f, Pz, 1)
     crown = head(f, Pz)
-    arm(f, Pz, sh, hN, upper=False, bend=bend)
+    if not behind: blade, fire, tip, _ = sword(f, p['grip'], p['ang'], glow=p.get('glut', 1))
+    for s, sh, el, hand in arms: forearm(f, el, hand)
     return crown, fire, blade, tip
 
 
@@ -678,14 +698,27 @@ def body(f, p, smear_im=None):
 def new(): return GFig()
 
 
+def mirror_into(dst, src, col):
+    """Teilkarte von src an der Spalte col gespiegelt nach dst übernehmen (dst noch leer)."""
+    Wd = dst.W
+    for j in range(src.W):
+        jj = 2 * col - j
+        if 0 <= jj < Wd:
+            dst.mat[:, jj] = src.mat[:, j]; dst.tone[:, jj] = src.tone[:, j]; dst.part[:, jj] = src.part[:, j]
+    dst.np = src.np; dst.line = dict(src.line); dst.rim = dict(src.rim)
+
+
 def back_img(p, ph):
-    """Schwingen (fern, nah) und Mantel."""
+    """Schwingen (beide Seiten, hinter den Schultern ausgebreitet) und Mantel."""
     q = dict(DEF, **p)
     Pz = Pose(q); f = new()
-    root = Pz.T(-12, 36)
-    wing(f, (root[0] + 7, root[1] + 3), q['wo'], q['wd'], ph + 0.2, far=True)
+    rF, rB = Pz.T(10, 37), Pz.T(-10, 37)
+    # Schwinge der Seite +x: als Schwinge nach -x gezeichnet und an ihrer Wurzel gespiegelt
+    tmp = new()
+    wing(tmp, rF, q['wo'], q['wd'] * 0.6, ph + 0.35)
+    mirror_into(f, tmp, f.at(*rF)[0])
+    wing(f, rB, q['wo'], q['wd'], ph)
     cape(f, Pz, ph)
-    wing(f, root, q['wo'], q['wd'], ph)
     im = f.render(rim=None, rim_back=RIM_B)
     im[GROUND * K:] = 0
     return im
@@ -773,19 +806,20 @@ def chunks(xi, k):
 
 # ------------------------------------------------------------------------------------------- Posen
 POSEN = {
-    'ruhe': dict(grip=(36, 78), ang=-58, wo=0.25),
-    'zug': dict(grip=(30, 100), ang=-104, crouch=3, lean=-2, wo=0.15, rock=-1),
-    'h1': dict(grip=(12, 116), ang=-148, crouch=4, lean=-7, wo=0.35, wehen=4, rock=-2, fN=17),
-    'h2': dict(grip=(-3, 139), ang=-156, crouch=5, lean=-11, wo=0.7, wehen=8, rock=-3, fN=18),
-    'aus': dict(grip=(0, 147), ang=-150, crouch=6, lean=-13, wo=1.0, wehen=10, rock=-3, fN=19, glut=1),
-    'hieb1': dict(grip=(26, 138), ang=-256, crouch=3, lean=2, wo=0.75, wd=0.2, wehen=8, fN=24, hipx=3),
-    'hieb2': dict(grip=(56, 112), ang=-332, crouch=8, lean=16, wo=0.35, wd=0.55, wehen=6, vor=2, fN=30, fF=-16, hipx=6, rock=2),
-    'ein': dict(grip=(60, 56), ang=-410, crouch=17, lean=27, wo=0.2, wd=0.9, wehen=12, vor=0, fN=32, fF=-18, hipx=9, rock=4, head=1),
-    'nach1': dict(grip=(60, 54), ang=-410.5, crouch=21, lean=30, wo=0.15, wd=1.0, wehen=16, vor=0, fN=32, fF=-18, hipx=9, rock=5, head=1),
-    'nach2': dict(grip=(60, 56), ang=-410, crouch=15, lean=25, wo=0.3, wd=0.6, wehen=9, vor=0, fN=32, fF=-18, hipx=9, rock=3, head=1),
-    'nach3': dict(grip=(60, 56), ang=-410, crouch=17, lean=27, wo=0.22, wd=0.75, wehen=5, vor=0, fN=32, fF=-18, hipx=9, rock=2, head=1),
-    'zieh': dict(grip=(48, 76), ang=-424, crouch=9, lean=14, wo=0.15, wd=0.3, vor=2, fN=26, fF=-16, hipx=5, rock=1),
-    'auf': dict(grip=(38, 80), ang=-420, crouch=3, lean=6, wo=0.05, fN=19, hipx=2),
+    # frontal: Griffhöhe und -lage in Figurkoordinaten; hinter = Klinge hinter Kopf und Rumpf (Ausholen über die Schulter)
+    'ruhe': dict(grip=(0, 86), ang=-450, wo=0.3),
+    'zug': dict(grip=(0, 100), ang=-456, crouch=2, wo=0.2, rock=-1),
+    'h1': dict(grip=(-12, 122), ang=-120, crouch=3, lean=-4, wo=0.4, wehen=3, rock=-1),
+    'h2': dict(grip=(-18, 140), ang=-138, crouch=4, lean=-7, wo=0.75, wehen=6, rock=-2, hinter=True),
+    'aus': dict(grip=(-20, 148), ang=-150, crouch=6, lean=-9, wo=1.0, wehen=8, rock=-2, glut=1, hinter=True),
+    'hieb1': dict(grip=(16, 155), ang=-256, crouch=3, lean=2, wo=0.75, wd=0.2, wehen=8, fN=22, hipx=2),
+    'hieb2': dict(grip=(46, 98), ang=-332, crouch=8, lean=12, wo=0.35, wd=0.55, wehen=6, vor=2, fN=28, hipx=5, rock=2),
+    'ein': dict(grip=(56, 58), ang=-410, crouch=17, lean=22, wo=0.2, wd=0.9, wehen=12, fN=32, fF=-20, hipx=9, rock=4, head=1),
+    'nach1': dict(grip=(56, 56), ang=-410.5, crouch=21, lean=25, wo=0.15, wd=1.0, wehen=16, fN=32, fF=-20, hipx=9, rock=5, head=1),
+    'nach2': dict(grip=(56, 58), ang=-410, crouch=15, lean=20, wo=0.3, wd=0.6, wehen=9, fN=32, fF=-20, hipx=9, rock=3, head=1),
+    'nach3': dict(grip=(56, 58), ang=-410, crouch=17, lean=22, wo=0.22, wd=0.75, wehen=5, fN=32, fF=-20, hipx=9, rock=2, head=1),
+    'zieh': dict(grip=(40, 78), ang=-424, crouch=9, lean=12, wo=0.15, wd=0.3, vor=2, fN=26, fF=-19, hipx=5, rock=1),
+    'auf': dict(grip=(16, 84), ang=-440, crouch=3, lean=4, wo=0.15, fN=20, hipx=2),
 }
 
 def mischpose(a, b, k):

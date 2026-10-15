@@ -20,14 +20,17 @@ SW, SH, FY = 560, 216, 190
 # karten (Scale2x auf den Teilen, Umriss, Innenkanten und Lichtkanten je 1 Feinpixel, Glanzlinien auf Metall, heller
 # Glutkern) plus handfeine Details in Feinpixeln (Gesichter, Augen, Glanzpunkte), Flammen fein abgetastet, Ebenen per Scale2x.
 K = int(os.environ.get('BOSSKINO_K', '2'))
-MAXW = 4096        # größte Atlasbreite (Feinpixel)
+MAXW = 4096        # größte Blattbreite (Feinpixel)
+# Blatthöhe: höchstens 8 Megapixel je Bild (WebKit/Safari scheitert still an großen Bildern und Leinwänden; iOS-Grenze
+# 16,7 MP für alle Leinwände zusammen). Jeder Boss bekommt so viele Blätter, wie er braucht.
+MAXH = 8_000_000 // MAXW // 2 * 2
 GLOW = set()       # Materialien, die glühen (heller Kern im Feinraster)
 SPEC = {}          # Material -> Glanzfarbe (1 Feinpixel an der Oberkante der hellsten Stufe)
 # Breite Bühnen (Laptops mit e = 1) zeigen mehr als 560 Szenenpixel: die Ebenen reichen links und rechts je PAD weiter
 # (Szenen-x -PAD .. SW + PAD, Arrays SWX breit, Spalte = x + PAD). Figur, Effekte und Koordinaten bleiben, wie sie sind.
 PAD = 152
 SWX = SW + 2 * PAD
-BOSSE = ['malgareth', 'faeulnis', 'skalvyr']   # Ulgrim (bosskino_ulgrim.py) vorerst nicht gezeigt
+BOSSE = ['nerith', 'skalvyr', 'malgareth']   # Reihenfolge der Auswahl; Fäulnis und Ulgrim (bosskino_faeulnis/ulgrim.py) nicht gezeigt
 
 # Materialien: Ton 0 = Innenkante, 1..4 Schatten -> Licht
 MAT = {}
@@ -667,47 +670,65 @@ def common_crop(ims):
     return int(x0), int(y0), int(x1), int(y1)
 
 
-class Atlas:
-    """Einfacher Regalpacker: Bilder (RGBA) in Reihen, Rückgabe Rechtecke [x, y, w, h]."""
-    def __init__(s, width=1024):
-        s.items = []; s.width = width
-    def add(s, name, im):
-        s.items.append((name, im))
-    def pack(s):
-        """Skyline-Packer (unten links): Bilder nach Höhe sortiert, jedes dort, wo seine Unterkante am höchsten liegt."""
-        order = sorted(range(len(s.items)), key=lambda i: (-s.items[i][1].shape[0], -s.items[i][1].shape[1]))
-        W = max(s.width, max(im.shape[1] for _, im in s.items))
-        sky = [[0, 0, W]]          # Abschnitte [x, y, Breite]
-        rects = {}
-        for i in order:
-            name, im = s.items[i]; h, w = im.shape[:2]
-            best = None
-            for j in range(len(sky)):
-                x = sky[j][0]
-                if x + w > W: break
-                y, k, rem = 0, j, w
-                while rem > 0:
-                    y = max(y, sky[k][1]); rem -= sky[k][2]; k += 1
-                if best is None or y + h < best[1] + h or (y == best[1] and x < best[0]): best = (x, y)
-            x, y = best
-            rects[name] = [x, y, w, h]
-            # Skyline erneuern
-            new = []
-            for sx, sy, sw in sky:
-                if sx + sw <= x or sx >= x + w: new.append([sx, sy, sw]); continue
-                if sx < x: new.append([sx, sy, x - sx])
-                if sx + sw > x + w: new.append([x + w, sy, sx + sw - x - w])
-            new.append([x, y + h, w])
-            new.sort()
-            sky = []
-            for q in new:
-                if sky and sky[-1][1] == q[1] and sky[-1][0] + sky[-1][2] == q[0]: sky[-1][2] += q[2]
-                else: sky.append(q)
-        Ht = max(r[1] + r[3] for r in rects.values())
-        out = np.zeros((Ht, W, 4), np.uint8)
-        for name, im in s.items:
-            X, Y, w, h = rects[name]; out[Y:Y + h, X:X + w] = im
-        return out, rects
+def pack_sheets(blocks, W=MAXW, H=MAXH):
+    """Skyline-Packer (unten links) über mehrere Blätter W × H: Blöcke nach Höhe sortiert, jeder auf das erste Blatt, wo
+    er passt, dort, wo seine Unterkante am höchsten liegt; sonst ein neues Blatt. blocks: {Name: Bild}.
+    Rückgabe: [Blatt-Bilder], {Name: (Blatt, x, y)}."""
+    order = sorted(blocks, key=lambda n: (-blocks[n].shape[0], -blocks[n].shape[1], n))
+    skies, pos = [], {}
+    def place(sky, w, h):
+        best = None
+        for j in range(len(sky)):
+            x = sky[j][0]
+            if x + w > W: break
+            y, k, rem = 0, j, w
+            while rem > 0:
+                y = max(y, sky[k][1]); rem -= sky[k][2]; k += 1
+            if y + h <= H and (best is None or y < best[1] or (y == best[1] and x < best[0])): best = (x, y)
+        return best
+    for n in order:
+        h, w = blocks[n].shape[:2]
+        assert w <= W and h <= H, f'Block {n} ({w} × {h}) größer als ein Blatt'
+        for si, sky in enumerate(skies):
+            b = place(sky, w, h)
+            if b: break
+        else:
+            skies.append([[0, 0, W]]); si = len(skies) - 1; sky = skies[si]; b = (0, 0)
+        x, y = b; pos[n] = (si, x, y)
+        new = []
+        for sx, sy, sw in sky:
+            if sx + sw <= x or sx >= x + w: new.append([sx, sy, sw]); continue
+            if sx < x: new.append([sx, sy, x - sx])
+            if sx + sw > x + w: new.append([x + w, sy, sx + sw - x - w])
+        new.append([x, y + h, w]); new.sort()
+        sky.clear()
+        for q in new:
+            if sky and sky[-1][1] == q[1] and sky[-1][0] + sky[-1][2] == q[0]: sky[-1][2] += q[2]
+            else: sky.append(q)
+    sheets = []
+    for si in range(len(skies)):
+        names = [n for n in blocks if pos[n][0] == si]
+        Wt = max(pos[n][1] + blocks[n].shape[1] for n in names); Ht = max(pos[n][2] + blocks[n].shape[0] for n in names)
+        out = np.zeros((Ht, Wt, 4), np.uint8)
+        for n in names:
+            _, x, y = pos[n]; h, w = blocks[n].shape[:2]; out[y:y + h, x:x + w] = blocks[n]
+        sheets.append(out)
+    return sheets, pos
+
+
+def frame_blocks(key, frames, W=MAXW, H=MAXH):
+    """Bildfolge (gleich große Bilder) in Blöcke: je Reihe so viele Bilder, wie in W passen, je Block so viele Reihen,
+    wie in H passen. Rückgabe [(Blockname, Bild, Bilder je Reihe, erstes Bild, Anzahl)]."""
+    fh, fw = frames[0].shape[:2]; n = len(frames)
+    per = max(1, min(n, W // fw)); rows_max = max(1, H // fh); out = []
+    i0 = 0
+    while i0 < n:
+        cnt = min(n - i0, per * rows_max); rows = -(-cnt // per); cols = min(per, cnt)
+        im = np.zeros((rows * fh, cols * fw, 4), np.uint8)
+        for j in range(cnt):
+            im[(j // per) * fh:(j // per + 1) * fh, (j % per) * fw:(j % per + 1) * fw] = frames[i0 + j]
+        out.append((f'{key}#{i0}', im, per, i0, cnt)); i0 += cnt
+    return out
 
 
 def strip(ims):
@@ -815,8 +836,10 @@ def main():
     IMG, TMP = sys.argv[1], sys.argv[2]
     only = sys.argv[3].split(',') if len(sys.argv) > 3 and sys.argv[3] else BOSSE
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    sizes, meta = {}, {'szene': {'W': SW, 'H': SH, 'FY': FY, 'F': K, 'X0': -PAD, 'X1': SW + PAD}, 'bosse': {}}
+    sizes, meta = {}, {'szene': {'W': SW, 'H': SH, 'FY': FY, 'F': K, 'X0': -PAD, 'X1': SW + PAD}, 'reihe': BOSSE, 'bosse': {}}
     for name in only:
+        if not os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), f'bosskino_{name}.py')):
+            print(f'bosskino_{name}.py fehlt, {name} übersprungen', file=sys.stderr); continue
         mod = importlib.import_module('bosskino_' + name)
         B = mod.build()
         fein = B.get('fein', set())
@@ -833,37 +856,40 @@ def main():
             if x1 <= x0: x0, y0, x1, y1 = 0, 0, K, K
             B['figure']['sheets'][k] = strip([q[y0:y1, x0:x1] for q in fr])
             offs[k] = [x0 // K, y0 // K, (x1 - x0) // K, (y1 - y0) // K]
-        # breite Bildstreifen in Reihen umbrechen (Atlas höchstens MAXW Feinpixel breit, sicher für Handy-Grafikspeicher)
-        fw = {}
+        # Bildfolgen in Einzelbilder zerlegen und auf Blätter (höchstens MAXW × MAXH) packen. Maße je Eintrag in META:
+        # [Bildbreite, Bildhöhe, [Blatt, x, y, Bilder je Reihe, Anzahl], …] (Feinpixel); Bild i liegt im Block mit
+        # erstem Bild ≤ i an (x + ((i − erstes) % je) · Breite, y + ⌊(i − erstes) / je⌋ · Höhe).
+        fw, fh = {}, {}
         for e in m0.get('ereignisse', []):
-            if e.get('quer'): fw['X:' + e['r']] = e['w']
+            if e.get('k') == 'bild': (fw if e.get('quer') else fh)['X:' + e['r']] = e['w' if e.get('quer') else 'h']
             if e.get('k') == 'wand': fw.update({'X:' + e['r']: e['w'], 'X:' + e['r2']: e['w2'], 'X:' + e['r3']: e['w3']})
             if e.get('k') == 'zapfen': fw['X:' + e['r2']] = e['sw']
         if m0.get('schale'): fw['X:schale'] = m0['schale']['w']
         for k in B['figure']['sheets']: fw['F:' + k] = offs[k][2]
-        wraps = {}
-        def wrap(key, im):
-            # Zielbreite: so schmal, dass die Streifen neben dem breitesten Einzelbild (z. B. Fugenwelle) Platz finden
-            wmax = max([L['img'].shape[1] for L in B['layers']] + [v.shape[1] for kk, v in B['fx'].items() if 'X:' + kk not in fw])
-            tw = MAXW - wmax if MAXW - wmax >= 1600 else MAXW
-            if im.shape[1] <= tw or key not in fw: return im
-            w = fw[key] * K; h = im.shape[0]; n = im.shape[1] // w; per = max(1, tw // w); rows = -(-n // per)
-            out = np.zeros((rows * h, per * w, 4), np.uint8)
-            for i in range(n): out[(i // per) * h:(i // per + 1) * h, (i % per) * w:(i % per + 1) * w] = im[:, i * w:(i + 1) * w]
-            wraps[key] = [w, h, per]
-            return out
-        atlas = Atlas(MAXW)
-        for L in B['layers']:
-            atlas.add('L:' + L['name'], L['img'])
+        items = {'L:' + L['name']: L['img'] for L in B['layers']}
         F = B['figure']
-        for k, im in F['sheets'].items(): atlas.add('F:' + k, wrap('F:' + k, im))
-        for k, im in B['fx'].items(): atlas.add('X:' + k, wrap('X:' + k, im))
-        arr, rects = atlas.pack()
-        for k, v in wraps.items(): rects[k] = rects[k] + v
-        path = os.path.join(IMG, f'bosskino-{name}.webp')
-        sizes[f'bosskino-{name}.webp'] = save_webp(arr, path)
-        Image.fromarray(arr).save(os.path.join(TMP, f'atlas-{name}.png'))
-        m = B['meta']
+        items.update({'F:' + k: im for k, im in F['sheets'].items()})
+        items.update({'X:' + k: im for k, im in B['fx'].items()})
+        blocks, layout = {}, {}
+        for key, im in items.items():
+            if key in fw:
+                w = fw[key] * K; frames = [im[:, i * w:(i + 1) * w] for i in range(im.shape[1] // w)]
+            elif key in fh:
+                h = fh[key] * K; frames = [im[i * h:(i + 1) * h] for i in range(im.shape[0] // h)]
+            else:
+                frames = [im]
+            layout[key] = [int(frames[0].shape[1]), int(frames[0].shape[0])]
+            for bn, bim, per, i0, cnt in frame_blocks(key, frames):
+                blocks[bn] = bim; layout[key].append([bn, per, cnt])
+        sheets, pos = pack_sheets(blocks)
+        rects = {key: v[:2] + [[pos[bn][0], pos[bn][1], pos[bn][2], per, cnt] for bn, per, cnt in v[2:]] for key, v in layout.items()}
+        for si, arr in enumerate(sheets):
+            fn = f'bosskino-{name}-{si}.webp'
+            sizes[fn] = save_webp(arr, os.path.join(IMG, fn))
+            Image.fromarray(arr).save(os.path.join(TMP, f'atlas-{name}-{si}.png'))
+        old = os.path.join(IMG, f'bosskino-{name}.webp')        # früherer Einzelatlas
+        if os.path.exists(old): os.remove(old)
+        m = B['meta']; m['blaetter'] = len(sheets); m['dims'] = [[int(a.shape[1]), int(a.shape[0])] for a in sheets]
         m['layers'] = [dict({k: v for k, v in L.items() if k not in ('img', 'poster', 'fein')}, r=rects['L:' + L['name']]) for L in B['layers']]
         m['figur'] = dict(F['meta'], r={k: rects['F:' + k] for k in F['sheets']}, o=offs)
         m['fxr'] = {k: rects['X:' + k] for k in B['fx']}

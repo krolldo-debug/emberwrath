@@ -16,8 +16,8 @@ from bosskino import (Fig, MAT, hash2, hexc, FROST, Buf, bands, BAYER4, vnoise,
                       seam_wave, strip, outline_mask, floor, stamp, finish, SW, SH, FY, K, GLOW, SPEC, PAD, SWX)
 
 MAT.update({
-    'scl': ['#03070e', '#0e2036', '#183652', '#285878', '#4686a6'],
-    'scld': ['#02050a', '#0a1828', '#12283e', '#1c3c58', '#2c5878'],
+    'scl': ['#03070e', '#18293c', '#28445e', '#3e6a8a', '#6a9fbe'],
+    'scld': ['#02050a', '#111e2e', '#1c3047', '#284763', '#3a6584'],
     'bel': ['#0b1a28', '#365c74', '#5a88a0', '#8ab6ca', '#c6e6f2'],
     'crys': ['#06142a', '#1d5488', '#3a94c8', '#88d4f0', '#e8fcff'],
     'crysd': ['#040c18', '#0f2a48', '#1a4670', '#2c6a98', '#4a90bc'],
@@ -417,7 +417,7 @@ def breath(im, f, mouth, ang, st):
 
 
 # ------------------------------------------------------------------------------------------- Posen
-BODY = [(-198, 44), (-190, 26), (-174, 12), (-152, 11), (-132, 34), (-108, 66), (-82, 58), (-62, 32), (-38, 24), (-18, 32)]
+BODY = [(-160, 48), (-165, 30), (-157, 13), (-139, 10), (-121, 32), (-104, 63), (-82, 58), (-62, 32), (-38, 24), (-18, 32)]
 RAD = [2.0, 3.5, 6, 9.5, 13, 17, 19, 21, 22.5, 24, 26, 21.5, 18, 16, 14.5]
 rad = lambda k: float(np.interp(k, range(len(RAD)), RAD))
 
@@ -541,9 +541,9 @@ def scene():
     rng = np.random.default_rng(5)
     Y, X = np.mgrid[0:SH, 0:WW]
     # ---- Ferne (0,15): gefrorene Vorhänge an der Höhlenwand, ferne Säulen im Dunst, Wasserfall, Deckenzapfen
-    F = bands(SH, WW, 0, 176, ['#020409', '#03060d', '#040912', '#060d19', '#081221'])
+    F = bands(SH, WW, 0, 176, ['#020306', '#030509', '#04070d', '#060a12', '#070c17'])
     G = np.zeros((SH, WW, 4), np.uint8)
-    WALL = ['#04080f', '#070e1a', '#0b1525', '#101e32', '#162842']
+    WALL = ['#030509', '#060a11', '#090f19', '#0d1522', '#121b2c']
     xs = np.arange(WW) - P
     hf = np.sin(xs * 0.11) * 1.0 + np.sin(xs * 0.047 + 1.3) * 1.6 + np.sin(xs * 0.23 + 0.4) * 0.5
     slope = np.gradient(hf)
@@ -557,11 +557,11 @@ def scene():
     for y in range(0, 30):
         for x in range(WW):
             if BAYER4[y % 4, x % 4] > y / 30: F[y, x] = (*hexc('#020409'), 255)
-    FP = ['#0c1a2c', '#13253c', '#1b3350', '#284868']
+    FP = ['#0b131e', '#101b29', '#172535', '#203348']
     for x0, w, s in ((118, 30, 1), (470, 34, 3), (-62, 28, 5), (664, 32, 6)):
-        pillar(F, G, x0, w, 0, 176, FP, '#3a6488', seed=s, waist=0.5)
+        pillar(F, G, x0, w, 0, 176, FP, '#2c4560', seed=s, waist=0.5)
     # gefrorener Wasserfall: senkrechte Eisbahnen in harten Stufen, Licht in der Mitte
-    ICEF = ['#0a1e36', '#123a5a', '#1c5a80', '#2c80a8', '#4aa8d0', '#88d4ef', '#dcf8ff']
+    ICEF = ['#08141f', '#0d2233', '#14334a', '#1e4a66', '#2c6482', '#4a8aa6', '#8cbccc']
     for x in range(WF - 62, WF + 63):
         u = abs(x - WF) / 62
         top = int(10 + 12 * u * u + 3 * math.sin(x * 0.7))
@@ -585,16 +585,16 @@ def scene():
                       w=WW, ox=-P)
     stamp(M, bf)
     for x in range(WW): M[168, x] = (*hexc('#4a7896' if hash2(x - P, 2, 5) > 0.3 else '#2c5070'), 255)
-    MP = ['#050c18', '#0a1828', '#12263c', '#1c3a58']
-    pillar(M, MG, 22, 34, 0, 172, MP, '#4a86b0', seed=4, waist=0.42, glint='#88d4f0')
-    pillar(M, MG, 540, 40, 0, 172, MP, '#4a86b0', seed=8, waist=0.4, glint='#88d4f0')
-    pillar(M, MG, -118, 36, 0, 172, MP, '#4a86b0', seed=11, waist=0.44, glint='#88d4f0')
-    pillar(M, MG, 680, 34, 0, 172, MP, '#4a86b0', seed=12, waist=0.42, glint='#88d4f0')
-    HC = ['#060e1a', '#10223a', '#1c3a5a']
+    MP = ['#050a12', '#09131f', '#0f1d2d', '#182b40']
+    pillar(M, MG, 22, 34, 0, 172, MP, '#30566e', seed=4, waist=0.42, glint='#88d4f0')
+    pillar(M, MG, 540, 40, 0, 172, MP, '#30566e', seed=8, waist=0.4, glint='#88d4f0')
+    pillar(M, MG, -118, 36, 0, 172, MP, '#30566e', seed=11, waist=0.44, glint='#88d4f0')
+    pillar(M, MG, 680, 34, 0, 172, MP, '#30566e', seed=12, waist=0.42, glint='#88d4f0')
+    HC = ['#050a12', '#0b1726', '#142739']
     for x0, w, L_ in ((84, 9, 46), (96, 6, 30), (106, 7, 56), (116, 4, 22), (226, 6, 34), (236, 9, 60), (248, 5, 28),
                       (430, 7, 40), (442, 10, 64), (456, 6, 36), (468, 4, 20), (300, 5, 24), (312, 4, 16),
                       (-72, 8, 50), (-60, 5, 30), (-50, 7, 40), (-140, 6, 36), (612, 8, 54), (624, 5, 28), (636, 7, 42)):
-        hang(M, x0, w, L_, HC, '#5a9ac0')
+        hang(M, x0, w, L_, HC, '#3a6680')
         MG[min(SH - 1, L_ - 2), x0 + P] = (*hexc('#9aeefc'), 255)
     def stalag(x0, w, top, bot=171):
         for y in range(top, bot):
@@ -603,7 +603,7 @@ def scene():
             for x in range(x0 - hw, x0 + hw + 1):
                 u = (x - x0 + hw) / (2 * hw + 1)
                 t = 3 if u < 0.2 else 2 if u < 0.55 else 1
-                M[y, x + P] = (*hexc(['#060c16', '#0f1e32', '#1a3350', '#3a6a90'][t]), 255)
+                M[y, x + P] = (*hexc(['#050a12', '#0c1828', '#14273c', '#2c5068'][t]), 255)
     for x0, w, top in ((60, 6, 138), (196, 8, 132), (262, 5, 150), (412, 7, 140), (500, 5, 152), (-88, 7, 136), (-26, 5, 148), (646, 6, 140)):
         stalag(x0, w, top)
     def crystals(cx, by, n, seed):
@@ -1192,7 +1192,7 @@ def build():
                  c=['#ffffff', '#9aeefc', '#34b8e4', '#1670a0']) for i, x in enumerate((200, 150, 250, 120, 228, 176))]
     B, imp = finish('skalvyr', FX, FY0, BX, [('koerper', idle, dict(n=N_RUHE, ms=MS_RUHE))], frames, HIT, FX + 60, Ld,
                     ['fern', 'fern-glut', 'mitte', 'mitte-glut', 'boden', 'boden-glut', 'vorn'], fx,
-                    {'glut': ['#ffffff', '#9aeefc', '#34b8e4'], 'fokus': [292, 298], 'teilchen': 'schnee', 'dichte': 5,
+                    {'glut': ['#ffffff', '#9aeefc', '#34b8e4'], 'fokus': [296, 298], 'teilchen': 'schnee', 'dichte': 5,
                      'dauer': 9.5, 'start': 2.2,
                      'beben': [[0, 4], [3, -3], [-3, 2], [2, -2], [-2, 1], [1, -1], [0, 1], [1, 0]], 'stopp': 80})
     B['meta']['ereignisse'] = bd + ev + dust

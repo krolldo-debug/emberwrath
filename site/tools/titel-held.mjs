@@ -19,6 +19,7 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -336,6 +337,13 @@ if (process.env.NURSZENE) process.exit(0);
 
 // ---------------------------------------------------------------------------------------------- 2. Held, Glutwelle, Standbild (Python)
 const out = JSON.parse(execFileSync('python3', [join(HERE, 'titel-held.py'), TMP, IMG], { maxBuffer: 1 << 26 }).toString());
+// Version aller Bilder (Prüfsumme): titel.js lädt sie als ?v=…, damit nie alte Bilder (Zwischenspeicher) mit neuen Maßen
+// zusammenkommen
+{
+  const h = createHash('sha256');
+  for (const f of Object.keys(out.sizes).sort()) h.update(readFileSync(join(IMG, f)));
+  out.meta.v = h.digest('hex').slice(0, 10);
+}
 let total = 0;
 for (const [f, n] of Object.entries(out.sizes)) { total += n; console.log(`${f.padEnd(26)} ${(n / 1024).toFixed(1).padStart(7)} KB`); }
 console.log(`zusammen ${(total / 1024).toFixed(1)} KB; Vorschau ${join(TMP, 'vorschau.png')}`);

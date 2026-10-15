@@ -14,7 +14,7 @@
   const poster = box?.querySelector('img');
   if (!box || !poster) return;
   // <titel-held.mjs> – von tools/titel-held.mjs geschrieben, nicht von Hand ändern
-  const META = {"szene":{"Q":2,"W":1280,"H":544,"FY":424,"HX":660,"HOR":292,"FX":768,"LH":4,"LT":286,"LH2":154,"NT":411},"held":{"w":255,"h":264,"fx":109,"fy":253},"ruhe":{"atem":6,"atemMs":180,"umhang":8,"umhangMs":170,"flamme":6,"flammeMs":100,"klinge":[136,187,149,256]},"momente":{"schrei":{"f":[[0,110],[1,80],[2,80],[3,100],[4,100],[5,100],[6,100],[7,100],[8,100],[9,100],[10,100],[11,100],[12,100],[13,100],[14,100],[15,100],[16,100],[17,90],[18,90],[19,120]],"hit":3},"schlag":{"f":[[0,100],[1,70],[20,70],[21,80],[22,100],[23,100],[24,100],[25,100],[26,60],[27,104],[28,104],[29,104],[30,104],[31,104],[32,260],[33,150]],"hit":9}},"klingen":[[136,155,142,247],[160,131,231,190],[228,90,156,116],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[217,32,151,96],[228,90,156,116],[160,131,231,190],[136,155,142,247],[207,37,147,107],[41,33,102,103],[12,43,88,95],[12,43,88,95],[12,43,88,95],[12,43,88,95],[234,82,162,115],[167,190,213,254],[167,190,213,254],[167,190,213,254],[167,190,213,254],[167,190,213,254],[167,188,217,254],[136,155,142,247]],"welle":{"x":390,"y":426,"w":761,"h":118,"n":26,"ms":60,"v":600,"x0":770}};
+  const META = {"szene":{"Q":2,"W":1280,"H":544,"FY":424,"HX":660,"HOR":292,"FX":768,"LH":4,"LT":286,"LH2":154,"NT":411},"held":{"w":252,"h":258,"fx":107,"fy":248,"cols":16},"ruhe":{"atem":6,"atemMs":180,"umhang":8,"umhangMs":170,"flamme":6,"flammeMs":100,"klinge":[134,182,147,251]},"momente":{"schrei":{"f":[[0,110],[1,80],[2,80],[3,100],[4,100],[5,100],[6,100],[7,100],[8,100],[9,100],[10,100],[11,100],[12,100],[13,100],[14,100],[15,100],[16,100],[17,90],[18,90],[19,120]],"hit":3},"schlag":{"f":[[0,100],[1,70],[20,70],[21,80],[22,100],[23,100],[24,100],[25,100],[26,60],[27,104],[28,104],[29,104],[30,104],[31,104],[32,260],[33,150]],"hit":9}},"klingen":[[134,150,140,242],[158,126,229,185],[226,85,154,111],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[215,27,149,91],[226,85,154,111],[158,126,229,185],[134,150,140,242],[205,32,145,102],[39,28,100,98],[10,38,86,90],[10,38,86,90],[10,38,86,90],[10,38,86,90],[232,77,160,110],[165,185,211,249],[165,185,211,249],[165,185,211,249],[165,185,211,249],[165,185,211,249],[165,183,215,249],[134,150,140,242]],"dims":{"titel-held-umhang":[2016,258],"titel-held-koerper":[1512,258],"titel-held-flamme":[1512,258],"titel-held-klinge":[252,258],"titel-held-momente":[4032,774],"titel-nah":[1280,133],"titel-nah-glut":[1280,133],"titel-fern":[1280,444],"titel-fern-glut":[1280,444],"titel-mitte":[1280,444],"titel-mitte-glut":[1280,444],"titel-strom":[1280,616],"titel-strom-glut":[1280,616],"titel-welle":[761,3068]},"welle":{"x":390,"y":426,"w":761,"h":118,"n":26,"ms":60,"v":600,"x0":770},"v":"52cc41f061"};
   // </titel-held.mjs>
   if (!META) return;
   const S = META.szene, HD = META.held, RU = META.ruhe, Q = S.Q;
@@ -26,8 +26,13 @@
   // in Szenenpixeln, d ganzzahlig je Feinpixel
   const frame = () => (phone.matches ? { ax: 0.42, fy: 0.78, cols: 160 } : narrow.matches ? { ax: 0.6, fy: 0.66, rows: 215 } : { ax: 0.725, fy: 0.88, rows: 170 });
   let dpr = 1, cw = 0, ch = 0, d = 1, vw = 0, vh = 0, camX = 0, camY = 0;
+  // dpr: Leinwandpixel je CSS-Pixel. Höchstens 4096 je Kante und 16 MP (Safari/WebKit zeichnet größere Leinwände still
+  // nicht) – sonst ganzzahlig geteilt; die Leinwand wird dann ganzzahlig und pixelgenau (CSS pixelated) vergrößert.
   const layout = () => {
-    dpr = devicePixelRatio || 1;
+    const real = devicePixelRatio || 1;
+    let k = 1;
+    while (box.clientWidth * real > 4096 * k || box.clientHeight * real > 4096 * k || box.clientWidth * box.clientHeight * real * real > 16e6 * k * k) k++;
+    dpr = real / k;
     cw = box.clientWidth; ch = box.clientHeight;
     const f = frame(), W = Math.round(cw * dpr), H = Math.round(ch * dpr);
     d = Math.max(1, Math.round(f.cols ? W / (f.cols * Q) : H / (f.rows * Q)));
@@ -44,14 +49,29 @@
   const conn = navigator.connection;
   if (conn && (conn.saveData || /(^|-)2g/.test(conn.effectiveType ?? ''))) return;
 
-  // ---------- Bilder
-  const load = (n) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = `${IMG}${n}.webp`; });
+  // ---------- Bilder: mit Version (?v=, alte Bilder aus dem Zwischenspeicher passen nicht zu neuen Maßen), fertig
+  // dekodiert und in der erwarteten Größe – sonst bleibt nur das Standbild stehen (nie eine halbe Szene)
+  const load = (n) => new Promise((ok, no) => {
+    const i = new Image();
+    i.onload = () => {
+      const want = META.dims[n];
+      if (!want || i.naturalWidth !== want[0] || i.naturalHeight !== want[1]) { no(new Error(n)); return; }
+      (i.decode ? i.decode() : Promise.resolve()).then(() => ok(i), no);
+    };
+    i.onerror = no;
+    i.src = `${IMG}${n}.webp?v=${META.v}`;
+  });
   const NAMES = ['titel-fern', 'titel-fern-glut', 'titel-strom', 'titel-strom-glut', 'titel-mitte', 'titel-mitte-glut', 'titel-nah', 'titel-nah-glut', 'titel-welle',
     'titel-held-umhang', 'titel-held-koerper', 'titel-held-flamme', 'titel-held-klinge', 'titel-held-momente'];
   const start = () => Promise.all(NAMES.map(load)).then((im) => run(Object.fromEntries(NAMES.map((n, i) => [n.slice(6), im[i]]))), () => {});
   if (document.readyState === 'complete') setTimeout(start, 200); else addEventListener('load', () => setTimeout(start, 200), { once: true });
 
   function run(I) {
+    try { live(I); } catch { stop(); }
+  }
+  // Fehlerfall: Leinwand weg, Standbild sichtbar und pixelgenau ausgerichtet
+  let stop = () => { box.querySelector('.titel-live')?.remove(); poster.style.visibility = ''; };
+  function live(I) {
     const cv = document.createElement('canvas');
     cv.className = 'titel-live'; cv.setAttribute('aria-hidden', 'true');
     box.append(cv);
@@ -64,6 +84,12 @@
     size();
     removeEventListener('resize', layout);
     addEventListener('resize', size);
+    let dead = false;
+    stop = () => {
+      dead = true;
+      removeEventListener('resize', size); addEventListener('resize', layout); layout();
+      cv.remove(); poster.style.visibility = '';
+    };
 
     // ---------- Kamera: langsames Schweben, auf dem Desktop etwas Tiefe zum Mauszeiger; alles in ganzen Feinpixeln
     let mx = 0, my = 0, tmx = 0, tmy = 0, sx = 0, sy = 0, kx = 0, ky = 0;
@@ -73,8 +99,8 @@
     const blit = (img, sx0, sy0, w, h, x, y, f) => {
       const [ox0, oy0] = off(f);
       const ox = (x - camX - ox0) * d, oy = (y - camY - oy0) * d;
-      const x0 = Math.max(0, Math.floor(-ox / d)), x1 = Math.min(w, Math.ceil((cv.width - ox) / d));
-      const y0 = Math.max(0, Math.floor(-oy / d)), y1 = Math.min(h, Math.ceil((cv.height - oy) / d));
+      const x0 = Math.max(0, Math.floor(-ox / d)), x1 = Math.min(w, Math.ceil((cv.width - ox) / d), img.width - sx0);   // Quelle nie über den Bildrand (Safari)
+      const y0 = Math.max(0, Math.floor(-oy / d)), y1 = Math.min(h, Math.ceil((cv.height - oy) / d), img.height - sy0);
       if (x1 <= x0 || y1 <= y0) return;
       ctx.drawImage(img, sx0 + x0, sy0 + y0, x1 - x0, y1 - y0, ox + x0 * d, oy + y0 * d, (x1 - x0) * d, (y1 - y0) * d);
     };
@@ -208,7 +234,8 @@
         blit(I['held-flamme'], (Math.floor(ms / RU.flammeMs) % RU.flamme) * HD.w, 0, HD.w, HD.h, HX0, HY0, 1);
         blit(I['held-klinge'], 0, 0, HD.w, HD.h, HX0, HY0, 1);
       } else {
-        blit(I['held-momente'], META.momente[mode].f[mf][0] * HD.w, 0, HD.w, HD.h, HX0, HY0, 1);
+        const i = META.momente[mode].f[mf][0];   // Streifen in Zeilen umbrochen (HD.cols Bilder je Zeile)
+        blit(I['held-momente'], (i % HD.cols) * HD.w, Math.floor(i / HD.cols) * HD.h, HD.w, HD.h, HX0, HY0, 1);
       }
       // Einschlag: harter Lichtstern mit hellem Kern, dann ein Glutkranz (Feinpixel)
       if (blitz) {
@@ -234,14 +261,16 @@
     // ---------- Schleife nur, solange das Bild sichtbar ist
     let on = false, vis = false, last = 0, T = 0;
     const tick = (now) => {
-      if (!vis || document.hidden) { on = false; return; }
+      if (dead || !vis || document.hidden) { on = false; return; }
       const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now; T += dt;
-      draw(T, update(dt, T));
+      try { draw(T, update(dt, T)); } catch { stop(); return; }
       requestAnimationFrame(tick);
     };
-    const go = () => { if (vis && !document.hidden && !on) { on = true; last = 0; requestAnimationFrame(tick); } };
+    const go = () => { if (!dead && vis && !document.hidden && !on) { on = true; last = 0; requestAnimationFrame(tick); } };
     draw(0);
+    // Leinwand deckt das Standbild ganz; erst wenn Bild 0 steht, wird das Standbild ausgeblendet (nie beide sichtbar)
     cv.classList.add('on');
+    poster.style.visibility = 'hidden';
     new IntersectionObserver(([e]) => { vis = e.isIntersecting; go(); }).observe(box);
     document.addEventListener('visibilitychange', go);
   }
