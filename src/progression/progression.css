@@ -239,6 +239,7 @@
 .pg-dialog-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; padding: 10px 18px 14px; border-top: 1px solid #2e2032; }
 .pg-dialog-foot .pg-gold { margin-right: auto; }
 .pg-dialog-foot .pg-msg { margin: 0; }
+.pg-foot-primary { display: inline-flex; align-items: center; gap: 10px; margin-right: auto; }
 
 /* Händler */
 .pg-panel.pg-shop, .pg-panel.pg-craft { width: min(96vw, 620px); }
@@ -398,6 +399,8 @@
   .pg-dialog-foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; padding: 8px 12px 10px; }
   .pg-dialog-foot .pg-btn { padding: 8px 6px; font-size: 14px; min-height: 40px; }
   .pg-dialog-foot .pg-bye { display: none; }
+  .pg-foot-primary { grid-column: 1 / -1; margin-right: 0; }
+  .pg-foot-primary .pg-btn { flex: 1; }
 }
 
 /* Schnellverkauf und Mehrfachauswahl */
