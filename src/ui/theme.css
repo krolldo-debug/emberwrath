@@ -1479,6 +1479,8 @@ html .ef-hud .hud-menu .hud-menu-list .hud-menu-btn:is([data-action="shop"], [da
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="dodge"] { right: 156px; bottom: 0; }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="potion"] { right: 156px; bottom: 52px; }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="interact"] { right: 156px; bottom: 104px; }
+  /* Eine Form im Raster: Ausweichen, Trank, Reittier und Interagieren als abgerundete Quadrate wie die Fähigkeiten */
+  html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot:is([data-action="dodge"], [data-action="potion"], [data-action="mount"], [data-action="interact"]) { border-radius: 12px; }
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="dodge"] img,
   html.ef-touch:not(.ef-portrait) .ef-hud .hud-slot[data-action="interact"] img { width: 30px; height: 30px; }
 }
