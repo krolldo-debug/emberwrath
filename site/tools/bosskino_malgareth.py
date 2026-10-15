@@ -298,14 +298,14 @@ HEAD = [
     '...hHHG223333444444K....',
     '..hHHHG2233333444444K...',
     '..hHHG22233334444444K...',
-    '..hHHG2KKKKKK334KKKKKK..',
-    '..hHHG1KrEEoK234KrEoK...',
-    '..hHHG21KroorK34KrorK3..',
-    '..hHHh21KKKKK12344KKK3..',
-    '..hHHh112223333444333K..',
+    '..hHHG2223333344444444..',
+    '..hHHG2223333344444444..',
+    '..hHHG2223333344444443..',
+    '..hHHh2122333344444443..',
+    '..hHHh112223333444443K..',
     '..hHHhK1122233344443K...',
-    '..hHHhKK11222333444443K.',
-    '..hHHbK111223333K1KKK...',
+    '..hHHhKK112223334443K...',
+    '..hHHbK1112233333443K...',
     '..hHHbBK11BBcCCcCBcK....',
     '..hHHbBcKBcKKKKKKcBc....',
     '..hHHbBcBcBcCcCcBcBc....',
@@ -333,34 +333,33 @@ HLEG = {'K': ('skin', 0), '1': ('skin', 1), '2': ('skin', 2), '3': ('skin', 3), 
         'b': ('beard', 1), 'B': ('beard', 2), 'c': ('beard', 3), 'C': ('beard', 4)}
 
 
-# Gesicht im Feinraster (Feinpixel relativ zur linken oberen Ecke von HEAD, Blick nach rechts; Licht kommt im Bild von
-# links oben = hier von rechts oben): Brauenkante, Lidspalte mit Glut, Schlitzpupille und Glanzpunkt, Unterlid, Nasenrücken,
-# Wangenknochen, schmaler Mund.
+# Gesicht im Feinraster (Feinpixel relativ zur linken oberen Ecke von HEAD; Licht kommt im Bild von links oben = hier von
+# rechts oben): Brauenkante, Lidspalte mit Glut, runde Pupille mit Glanzpunkt, Unterlid, Nasenrücken, Mund.
 FACE_F = {
-    # hinteres Auge (Spalten 14..27, Zeilen 13..21)
-    (14, 13): ['..4444444444..',
-               'KKKKKKKKKKKK..',
-               'KKKKKKKKKKKK..',
-               'KKrroEEEorrKK.',
-               'KKroEEpWEoorK.',
-               '.KKrooEpEoorrK',
-               '..KKKrrooorrKK',
-               '..KKKKKKKKKKK.',
-               '..333333333332'],
-    # vorderes Auge (Spalten 32..43)
-    (32, 13): ['.44444444444',
-               'KKKKKKKKKKKK',
-               'KKKKKKKKKKKK',
-               'KKrroEEoorKK',
-               'KKroEpWEorK.',
-               'KKroEpEoorK.',
-               '.KKrrooorKK.',
-               '..KKKKKKK...',
-               '...3333333..'],
-    # Nasenrücken und Nasenspitze
-    (30, 14): ['44', '34', '.4', '.34', '..4', '..34', '...4', '...34', '....4', '....44', '.....44', '......4K', '.....KK'],
-    # Mund: schmale Linie mit Mundwinkel, Unterlippe hell
-    (30, 28): ['K2KKKKKKKKK', 'K23333333..'],
+    # Blick zum Betrachter (Dreiviertel): beide Augen gleich hoch, runde Pupillen mittig, Nasenrücken zwischen den Augen
+    # nach unten, Mund mittig darunter, Brauen zur Nase hin gesenkt. Hinteres Auge (Schattenseite) etwas schmaler.
+    (17, 12): ['KKK......',
+               '.44KKKK..',
+               'KKKKKKKKK',
+               'KKroEEorK',
+               'KroEppWoK',
+               'KroEppEoK',
+               'KKrooooKK',
+               '.KKKKKKK.',
+               '..22222..'],
+    (32, 12): ['.......KKK',
+               '..KKKK44..',
+               'KKKKKKKKKK',
+               'KKroEEEorK',
+               'KroEppWEoK',
+               'KroEppEEoK',
+               'KKrroooorK',
+               '.KKKKKKKK.',
+               '..333333..'],
+    # Nasenrücken (Lichtseite rechts), Nasenspitze mit Nasenlöchern
+    (27, 16): ['.24', '.24', '.24', '.234', '.234', '1234', '1234', '12334', 'K2333K', '.KK.KK'],
+    # Mund: waagrecht, Unterlippe hell
+    (24, 29): ['.KKKKKKKKKKK.', '..233333332..'],
 }
 FLEG_F = {'K': ('skin', 0), '1': ('skin', 1), '2': ('skin', 2), '3': ('skin', 3), '4': ('skin', 4),
           'r': ('emb', 1), 'o': ('emb', 3), 'E': ('emb', 4), 'W': ('eyew', 4), 'p': ('pupil', 0)}
