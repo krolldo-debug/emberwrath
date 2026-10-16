@@ -1,8 +1,9 @@
 import { FINDER_CONFIG } from './config.js';
 
 // Gegner in Dungeon-Instanzen sind auf drei Personen ausgelegt – mit Gruppe aus der Dungeonsuche ebenso wie allein
-// durchs Portal (Nutzerwunsch 10.10.). Glutprüfungen haben eigene Stufen und bleiben außen vor.
-export function isGroupDungeon(zone) { return !!zone?.instanced && zone.kind === 'dungeon' && !zone.trial; }
+// durchs Portal (Nutzerwunsch 10.10.). Glutprüfungen haben eigene Stufen und bleiben außen vor, ebenso die Glutarena
+// (dort kämpfen alle mit denselben Arena-Werten, src/pvp/arenaStats.js).
+export function isGroupDungeon(zone) { return !!zone?.instanced && zone.kind === 'dungeon' && !zone.trial && !zone.pvp; }
 
 // Einmal je Gegner, solange er unverletzt ist; Beschworene (Diener der Bosse) bleiben wie sie sind.
 export function scaleForGroup(e, world) {
