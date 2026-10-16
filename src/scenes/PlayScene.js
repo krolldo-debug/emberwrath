@@ -163,6 +163,9 @@ export class PlayScene {
     }
     const a = b.actor;
     if (Math.abs(a.x - hero.x) > 320 || Math.abs(a.y - hero.y) > 260) return y;
+    // Verwandlung (Malgareth Gestalt 2/3): kurz den Boss zeigen statt den Helden, sonst schneidet die Boss-Leiste
+    // auf dem Handy quer den Kopf ab, wenn der Held weit unter ihm steht
+    if (a.state === 'transform') return Math.min(y, a.y - (a.bodyHeight ?? 32) + 90);
     const want = Math.min(y, (hero.y + a.y - (a.bodyHeight ?? 32) * 1.6) / 2);
     // Held hat Vorrang: Füße bleiben über der Aktionsleiste. Touch quer hat unten mittig nur die EP-Leiste (Tasten seitlich),
     // dort darf der Held tiefer stehen, damit über ihm im 270 hohen Bild Platz für den Boss bleibt.
