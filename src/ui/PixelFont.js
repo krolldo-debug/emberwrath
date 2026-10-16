@@ -11,7 +11,6 @@ const G = {
   Q: '.#.|#.#|#.#|#.#|.##', R: '##.|#.#|##.|#.#|#.#', S: '.##|#..|.#.|..#|##.', T: '###|.#.|.#.|.#.|.#.',
   U: '#.#|#.#|#.#|#.#|###', V: '#.#|#.#|#.#|#.#|.#.', W: '#...#|#...#|#.#.#|##.##|#...#', X: '#.#|#.#|.#.|#.#|#.#',
   Y: '#.#|#.#|.#.|.#.|.#.', Z: '###|..#|.#.|#..|###',
-  Ä: '#.#|.#.|#.#|###|#.#', Ö: '#.#|...|###|#.#|###', Ü: '#.#|...|#.#|#.#|###', ß: '##.|#.#|##.|#.#|###',
   0: '###|#.#|#.#|#.#|###', 1: '.#.|##.|.#.|.#.|###', 2: '##.|..#|.#.|#..|###', 3: '##.|..#|.#.|..#|##.',
   4: '#.#|#.#|###|..#|..#', 5: '###|#..|##.|..#|##.', 6: '.##|#..|###|#.#|###', 7: '###|..#|.#.|.#.|.#.',
   8: '###|#.#|###|#.#|###', 9: '###|#.#|###|..#|##.',
@@ -28,8 +27,9 @@ const ACCENTS = {
   Á: ['A', 'acute'], À: ['A', 'grave'], Â: ['A', 'circ'], É: ['E', 'acute'], È: ['E', 'grave'], Ê: ['E', 'circ'], Ë: ['E', 'uml'],
   Í: ['I', 'acute'], Ì: ['I', 'grave'], Î: ['I', 'circ'], Ï: ['I', 'uml'], Ó: ['O', 'acute'], Ò: ['O', 'grave'], Ô: ['O', 'circ'],
   Ú: ['U', 'acute'], Ù: ['U', 'grave'], Û: ['U', 'circ'], Ñ: ['N', 'tilde'], Ÿ: ['Y', 'uml'],
+  Ä: ['A', 'uml'], Ö: ['O', 'uml'], Ü: ['U', 'uml'],
 };
-// Ä Ö Ü bleiben in der vertrauten gestauchten Form oben (wie bisher), alle anderen nach diesem Schema
+// Ä Ö Ü ebenso (die gestauchte Form las sich als X); ß gibt es nicht, toUpperCase() macht daraus SS
 for (const [ch, [b, a]] of Object.entries(ACCENTS)) {
   const w = G[b].split('|')[0].length;
   const acc = [...ABOVE[a], '.'.repeat(w)].map((r) => (r.length === w ? r : r.padStart(Math.floor((w + r.length) / 2), '.').padEnd(w, '.')));

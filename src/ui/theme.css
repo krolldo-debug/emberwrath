@@ -1557,7 +1557,7 @@ html.ef-touch:not(.ef-portrait) #ui .net-chat.open { left: calc(var(--ef-safe-l)
   border: calc(5 * var(--p)) solid transparent; border-image: var(--fn-frame) 15 fill / calc(5 * var(--p)) stretch;
 }
 .fn-title { width: calc(var(--w) * var(--tp)); height: calc(var(--h) * var(--tp)); }
-.fn-sub { font: 600 13px/1.2 var(--ef-font); color: #e8d8b0; letter-spacing: 0.06em; text-shadow: 0 1px 0 #000; white-space: nowrap; }
+.fn-sub { width: calc(var(--w) * var(--sp, 2px)); height: calc(var(--h) * var(--sp, 2px)); }
 .fn.show .fn-card, .fn.show .fn-crest { animation: fn-in 0.2s steps(3, end) both; }
 .fn.show .fn-rays { animation: fn-rays 0.3s steps(1, end) 0.2s 4 both; }
 @keyframes fn-in { 0% { transform: scale(1.5); opacity: 0; } 100% { transform: none; opacity: 1; } }
@@ -1565,7 +1565,6 @@ html.ef-touch:not(.ef-portrait) #ui .net-chat.open { left: calc(var(--ef-safe-l)
 @keyframes fn-life { 0%, 92% { opacity: 1; } 96% { opacity: 0.5; } 100% { opacity: 0; } }
 .ef-touch .fn { --p: 2px; --tp: 4px; --cp: 2px; top: 7%; }
 .ef-touch .fn-card { border-image-source: var(--fn-frame2); border-image-slice: 10 fill; }
-.ef-touch .fn-sub { font-size: 11px; }
 /* Während des Kapitelendes: Hinweise und Systemzeilen aus, Meldungen hält ui/Toasts.js zurück */
 .ef-finale .ef-guide-layer, .ef-finale .net-line.sys { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .fn.show .fn-card, .fn.show .fn-crest, .fn.show .fn-rays { animation: none; visibility: visible; } }

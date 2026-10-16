@@ -1746,13 +1746,13 @@ export class Enemy extends Actor {
     // Namensschild der Champions: Name + Kräfte in Kraftfarbe
     if (this.champion && this.font && (this.isEngaged || this.nearHero)) {
       const x = Math.round(this.x - cx), y = Math.round(this.y - cy - this.bodyHeight - 23); // Platz für die Krone
-      this.font.draw(ctx, this.displayLabel.toUpperCase(), x, y - 7, { color: this.champion.color, align: 'center', shadow: true });
+      this.font.draw(ctx, this.displayLabel.toUpperCase(), x, y - 7 - Math.min(1, this.font.ascent(this.champion.labels.join(' · '))), { color: this.champion.color, align: 'center', shadow: true });
       this.font.draw(ctx, this.champion.labels.join(' · ').toUpperCase(), x, y, { color: '#d8ccb8', align: 'center', shadow: true });
     }
     // Namensschild seltener Gegner (in der Nähe oder im Kampf)
     if (this.rareId && this.font && (this.isEngaged || this.nearHero)) {
       const x = Math.round(this.x - cx), y = Math.round(this.y - cy - this.bodyHeight - 17);
-      this.font.draw(ctx, this.rareName.toUpperCase(), x, y - 7, { color: this.look?.tint ?? '#ffd84a', align: 'center', shadow: true });
+      this.font.draw(ctx, this.rareName.toUpperCase(), x, y - 7 - Math.min(1, this.font.ascent(this.rareTitle ?? '')), { color: this.look?.tint ?? '#ffd84a', align: 'center', shadow: true });
       if (this.rareTitle) this.font.draw(ctx, this.rareTitle.toUpperCase(), x, y, { color: '#c8b8a0', align: 'center', shadow: true });
     }
   }

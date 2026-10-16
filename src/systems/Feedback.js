@@ -149,13 +149,13 @@ export class FeedbackSystem {
     bus.on(EV.QUEST_COMPLETED, (e) => {
       const w = this.game.world, h = w.hero;
       this.#sfx('questDone');
-      // Kapitelende (quest.finale, q_ignaroth auf Stufe 20): eine Lichtsäule und Fanfare statt Goldregen; die Ansage
+      // Kapitelende (quest.finale, q_ignaroth auf Stufe 20): eine harte Lichtsäule und Fanfare statt Goldregen; die Ansage
       // (ui/Finale.js) trägt den Moment, die EP-Zahl entfällt
       if (this.game.content?.find('quest', e?.questId)?.finale) {
         this.finaleAt = performance.now();
         this.#shake(4);
-        w.addEffect(new LightPillar(h.x, h.y, { color: '#ffd66a', life: 1.4 }));
-        w.addEffect(new Shockwave(h.x, h.y - 8, { radius: 56, color: '#ffd66a', life: 0.6 }));
+        // Säule steht über dem Kopf (deckend, würde sonst den Helden verdecken), kein Ring
+        w.addEffect(new LightPillar(h.x, h.y - (h.bodyHeight ?? 16) - 3, { color: '#ffd66a', life: 1.4, height: 80, hard: true }));
         this.#sfx('victory');
         return;
       }

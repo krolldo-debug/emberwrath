@@ -281,9 +281,10 @@ export function voidPool(ctx, x, y, radius, k, q, gap = 0) {
 // Lichtsäule (Stufenaufstieg, Boss besiegt): senkrechter Strahl aus harten Spalten – weißer Kern, Farbband,
 // geditherter Saum; Breite und Helligkeit in Stufen.
 export class LightPillar extends Entity {
-  constructor(x, y, { color = '#ffd66a', life = 1.2, follow = null, height = 90 } = {}) {
+  // hard: deckend in drei Farbstufen ohne Alpha und Additiv (Kapitelende); Ein- und Ausblenden über Breite in Stufen
+  constructor(x, y, { color = '#ffd66a', life = 1.2, follow = null, height = 90, hard = false } = {}) {
     super(x, y);
-    this.color = color; this.life = this.max = life; this.follow = follow; this.height = height;
+    this.color = color; this.life = this.max = life; this.follow = follow; this.height = height; this.hard = hard;
     this.rgb = hexRgb(color); this.deep = rgbStr(dark(this.rgb, 0.55));
   }
   update(dt) {
@@ -292,6 +293,7 @@ export class LightPillar extends Entity {
     if (this.life <= 0) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
+    if (this.hard) { this.#hard(ctx, cx, cy); return; }
     if (fineRes() === 1) { COARSE.LightPillar.call(this, ctx, cx, cy); return; }
     const q = fineRes(), P = 1 / q;
     const k = 1 - this.life / this.max;
@@ -311,6 +313,19 @@ export class LightPillar extends Entity {
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
+  }
+  #hard(ctx, cx, cy) {
+    const q = fineRes(), P = 1 / q, f = this.life / this.max;
+    const step = Math.min(Math.ceil((1 - f) * 18), Math.ceil(f * 6), 3);   // Breite 1/3 → 3/3 → … → 1/3
+    if (step <= 0) return;
+    const X = sn(this.x - cx, q), Y = sn(this.y - cy, q), half = Math.round(step * 1.5 * q);
+    const cols = ['#fff0b0', this.color, this.deep];
+    for (let i = -half; i <= half; i++) {
+      const band = Math.min(2, Math.floor((Math.abs(i) / (half + 1)) * 3));
+      const hgt = sn(this.height * (1 - band * 0.18) * (step / 3), q);
+      ctx.fillStyle = cols[band];
+      ctx.fillRect(X + i * P, Y - hgt, P, hgt);
+    }
   }
 }
 

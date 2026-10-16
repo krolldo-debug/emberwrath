@@ -1,5 +1,5 @@
 import { h } from '../core/dom.js';
-import { lang } from '../i18n/index.js';
+import { lang, tr } from '../i18n/index.js';
 import { frameUrl, pixelTitle } from './pixelFrame.js';
 
 // Kapitelende (quest.finale, z. B. Ignaroth auf Stufe 20): eigene Ansage statt des Stufen-Banners.
@@ -31,7 +31,8 @@ function crestCanvas() {
   return c;
 }
 
-// Strahlenfächer 61 × 20 über dem Wappen: 7 Strahlen, zwei Farbstufen, harte Kanten
+// Strahlenfächer 61 × 20 über dem Wappen: 5 Strahlen, zwei Farbstufen, harte Kanten
+// (nur die steilen Strahlen: flache würden als lose Krümel an der Bannerkante enden)
 function raysCanvas() {
   const W = 61, H = 20, c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -41,11 +42,19 @@ function raysCanvas() {
     const r = Math.hypot(x - ox, oy - y);
     if (r < 7 || r > 31) continue;
     const k = ((a - 18) % 24 + 24) % 24;                   // Strahl alle 24°, Breite 8°
-    if (a < 16 || a > 164 || k > 8) continue;
+    if (a < 40 || a > 140 || k > 8) continue;
     ctx.fillStyle = r > 23 ? '#c8761c' : k < 2 || k > 6 ? '#e8a23a' : '#ffd66a';
     ctx.fillRect(x, y, 1, 1);
   }
   return c;
+}
+
+// Text an der Wortgrenze nahe der Mitte teilen
+function halves(text) {
+  const mid = text.length / 2;
+  let best = -1;
+  for (let i = text.indexOf(' '); i >= 0; i = text.indexOf(' ', i + 1)) if (best < 0 || Math.abs(i - mid) < Math.abs(best - mid)) best = i;
+  return best < 0 ? [text] : [text.slice(0, best), text.slice(best + 1)];
 }
 
 const px = (cv, cls) => { const e = h(`canvas.${cls}`); e.width = cv.width; e.height = cv.height; e.getContext('2d').drawImage(cv, 0, 0); e.style.setProperty('--w', cv.width); e.style.setProperty('--h', cv.height); return e; };
@@ -56,7 +65,7 @@ export class Finale {
     this.rays = px(raysCanvas(), 'fn-rays');
     this.crest = px(crestCanvas(), 'fn-crest');
     this.title = h('canvas.fn-title');
-    this.sub = h('div.fn-sub');
+    this.sub = h('canvas.fn-sub');
     this.el = h('div.fn', { role: 'status', 'aria-live': 'polite' },
       h('div.fn-top', this.rays, this.crest), h('div.fn-card', this.title, this.sub));
     this.el.style.setProperty('--fn-frame', `url(${frameUrl(3)})`);
@@ -71,9 +80,19 @@ export class Finale {
     this.title.width = c.width; this.title.height = c.height;
     this.title.getContext('2d').drawImage(c, 0, 0);
     this.title.style.setProperty('--w', c.width); this.title.style.setProperty('--h', c.height);
-    this.title.setAttribute('aria-label', title);
+    this.title.setAttribute('aria-label', tr(title));
     this.title.lang = lang();
-    this.sub.textContent = sub ?? '';
+    // Untertitel ebenfalls in der Bitmap-Schrift, einfach (ohne Glanz), mit hartem Schatten; am Handy in zwei Zeilen,
+    // sonst wäre er breiter als der Titel
+    const font = this.s.game.font, text = sub ? tr(sub) : '', lines = this.s.input?.usingTouch ? halves(text) : [text];
+    const up = Math.max(...lines.map((l) => font.ascent(l, true))), lh = 6 + up + 1;
+    this.sub.width = Math.max(1, ...lines.map((l) => font.measure(l, 1, true) + 1)); this.sub.height = lh * lines.length - 1;
+    const sc = this.sub.getContext('2d');
+    sc.clearRect(0, 0, this.sub.width, this.sub.height);
+    lines.forEach((l, i) => font.draw(sc, l, Math.floor(this.sub.width / 2), up + i * lh, { color: '#e8d8b0', align: 'center', shadow: true, shadowColor: '#14060a', raw: true }));
+    this.sub.style.setProperty('--w', this.sub.width); this.sub.style.setProperty('--h', this.sub.height);
+    this.sub.setAttribute('aria-label', text);
+    this.sub.style.display = sub ? '' : 'none';
     this.el.classList.remove('show');
     void this.el.offsetWidth;   // Animation neu starten
     this.el.classList.add('show');

@@ -63,7 +63,7 @@ const HINTS = {
   },
   gear: {
     pc: { k: ['I'], t: 'Neue Ausrüstung im Inventar', sel: '[data-action="inventory"]', place: 'above' },
-    touch: { t: 'Neue Ausrüstung im Inventar', sel: ['.hud-bag-btn', '.hud-menu-toggle'], place: 'below' },
+    touch: { t: 'Neue Ausrüstung im Inventar', sel: ['.hud-bag-btn', '.hud-menu-toggle'], place: 'below', align: 'start' },
   },
   map: {
     pc: { k: ['M'], t: 'Karte öffnen', sel: '.hud-minimap', place: 'left' },
@@ -258,7 +258,8 @@ export class Guide {
     if (r && r.width) {
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       if (c.d.place === 'left') { x = r.left - w - gap; y = cy - hh / 2; }
-      else if (c.d.place === 'below') { x = cx - w / 2; y = r.bottom + gap; }
+      // align start: Hinweis beginnt am Ziel und läuft nach rechts (Taschenknopf: sonst über der Lebensanzeige)
+      else if (c.d.place === 'below') { x = c.d.align === 'start' ? r.left - gap : cx - w / 2; y = r.bottom + gap; }
       else if (c.d.row) {
         // über der Knopfgruppe auf Höhe des Nachbar-Hinweises (z. B. „Angreifen“)
         const q = this.hud.slots?.find((sl) => sl.action === c.d.row)?.el.getBoundingClientRect();

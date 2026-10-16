@@ -83,7 +83,8 @@ export class Npc extends Entity {
     }
     const font = this.world.session.font;
     if (this.nearHero && font) {
-      font.draw(ctx, this.def.name.toUpperCase(), x, top - 8, { color: '#e8c25a', align: 'center', shadow: true });
+      // Titel mit Umlaut/Akzent (WALDWÄCHTERIN): Name eine Zeile höher, damit die Punkte frei stehen
+      font.draw(ctx, this.def.name.toUpperCase(), x, top - 8 - Math.min(1, font.ascent(this.def.title ?? '')), { color: '#e8c25a', align: 'center', shadow: true });
       if (this.def.title) font.draw(ctx, this.def.title.toUpperCase(), x, top - 1, { color: '#a89ab8', align: 'center', shadow: true });
     }
   }
