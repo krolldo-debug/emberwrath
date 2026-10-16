@@ -153,9 +153,11 @@
   .et-bild, .band, .auftritt-bild { height: calc(100svh - 110px); min-height: 0; --f: 1; }
   .stufe { top: 76px; }
 }
-/* Einstieg auf dem Handy quer (auch unter 821 px Breite, z. B. 740 × 360): Faktor 1, damit Gruppe und Truhe (Bildpunkte
-   y 165–350) ganz in den Teil unter der Kopfleiste passen; --ay setzt die Gruppe in dessen Mitte */
+/* Einstieg auf dem Handy quer (auch unter 821 px Breite, z. B. 740 × 360): Bild so hoch wie das Fenster, Gruppe und Truhe
+   (Bildpunkte x 380–590, y 167–347) mittig im Teil unter der Kopfleiste. Faktor 5/3 (dpr 3: 5 Gerätepunkte je Bildpunkt,
+   dpr 2: 3), bei sehr flachen Fenstern 4/3, damit die Gruppe ganz hineinpasst. Die Überschrift beginnt unter dem Bild. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .auftakt-bild { height: calc(100svh - 66px); min-height: 0; --f: 1; }
-  .auftakt-bild .shot { --ay: 0.6; }
+  .auftakt-bild { height: 100svh; min-height: 0; --f: 1.667; }
+  .auftakt-bild .shot { --ay: 0.583; }
 }
+@media (orientation: landscape) and (max-height: 379px) { .auftakt-bild { --f: 1.334; } }
