@@ -42,7 +42,8 @@ export const RUN_CAST = {
   },
   escort_imra_caravan: {
     title: 'Imras Karawane', start: 'Eskorte: Bring Imras Karawane zum Außenposten.', speed: 26, foe: 'gnoll_trapper',
-    members: [{ look: 'caravan', name: 'Karawane', hits: 24 }],
+    // 40 statt 24: die Fallensteller schießen aus Abstand auf die Karawane, Nahkämpfer erreichen sie spät (Rundgang 21–30)
+    members: [{ look: 'caravan', name: 'Karawane', hits: 40 }],
   },
   escort_pilgrims: {
     title: 'Die Pilger', start: 'Eskorte: Führe die sechs Pilger zum Kronenschrein.', speed: 24, foe: 'cinder_bombardier',
