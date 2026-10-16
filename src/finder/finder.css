@@ -167,7 +167,7 @@
 .fd-ready.ok::after { inset: 2px 3px 4px 3px; background: none; border: solid #5ad07a; border-width: 0 2px 2px 0; transform: rotate(40deg); animation: none; }
 .fd-prop-timer { height: 3px; margin: 12px 0 10px; background: #2a1c30; }
 .fd-prop-timer i { display: block; height: 100%; width: calc(var(--f, 1) * 100%); background: var(--ef-gold); transition: width 0.25s linear; }
-.fd-prop-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.fd-prop-btns { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
 .fd-prop-btns .ef-btn { min-width: 0; min-height: 42px; font: 700 15px/1 var(--ef-font); color: var(--ef-text); cursor: pointer; }
 .fd-prop-btns[hidden], .fd-prop-wait[hidden] { display: none; }
 .fd-prop-wait { margin: 0; text-align: center; color: var(--ef-muted); min-height: 42px; line-height: 42px; }
@@ -252,10 +252,10 @@
 #ui .fd-hire .fd-prop-row { grid-template-columns: 16px 18px minmax(0, 1fr) auto auto; }
 body.fd-offering .hud-prompt { visibility: hidden !important; }
 .fd-hire-btns { margin-top: 12px; }
-.fd-hire-btns .ef-btn { padding: 8px 10px; white-space: nowrap; }
-.fd-hire-btns .ef-btn:disabled { opacity: 0.55; cursor: default; }
+.fd-prop-btns .ef-btn { padding: 8px 10px; white-space: nowrap; }   /* Preis auf dem Knopf bleibt einzeilig */
+.fd-prop-btns .ef-btn:disabled { opacity: 0.55; cursor: default; }
 @media (max-height: 460px) {
-  #ui .fd-prop { width: min(316px, calc(100vw - 24px)); padding: 8px 12px 10px; }
+  #ui .fd-prop { width: min(340px, calc(100vw - 24px)); padding: 8px 12px 10px; }
   .fd-prop-kicker { font-size: 10.5px; }
   .fd-prop-title { margin: 2px 0 6px; font-size: 16px; }
   .fd-prop-row { padding: 3px 6px; }
