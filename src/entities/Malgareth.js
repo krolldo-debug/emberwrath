@@ -116,7 +116,7 @@ export class Malgareth extends Actor {
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
-    this.hurtRadius = def.hurtRadius; this.bodyHeight = def.bodyHeight;
+    this.hurtRadius = def.hurtRadius; this.bodyHeight = this.baseBodyHeight = def.bodyHeight;
     this.shadowW = def.shadowW; this.material = def.material;
     this.assets = assets;
     this.home = { x, y };
@@ -308,6 +308,9 @@ export class Malgareth extends Actor {
     this.#cancel(world);
     const from = this.phase;
     this.phase = phase;
+    // Gestalt 2 und 3 sind deutlich größer (bis ~150 px über den Füßen): die Kamera (PlayScene #cameraY) und die
+    // Trefferfunken richten sich nach bodyHeight, sonst schnitt die Boss-Leiste auf dem Handy den Kopf ab
+    this.bodyHeight = Math.round(this.baseBodyHeight * (phase === 2 ? 1.5 : 1.65));
     this.hurtable = false;
     this.setState('transform');
     this.animator.play(from === 1 ? 'ascend' : 'unleash', true);

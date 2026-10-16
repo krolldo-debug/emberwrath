@@ -652,12 +652,13 @@ export const QUESTS_40 = {
     rewards: { xp: Q(32, W.side), gold: 320, gear: [{ ilvl: 33, rarity: 'rare', slot: 'ring' }] },
   },
   q_white_hunt: {
+    // 16.10. (Rundgang 31–40): Erkunden statt der dritten Wolfs- und Pirscherjagd in Folge
     title: 'Die weiße Jagd', giver: 'hunter_sigrun', level: 33, requires: ['q_snow_stalkers'],
-    summary: 'Geh mit Sigrun auf die große Winterjagd: Frostwölfe und Schneepirscher.',
-    offer: 'Einmal im Jahr jagen die Frostholder, bis der Schnee rot ist. Dieses Jahr war keiner da, der jagen konnte. Du bist da. Fünfzehn Wölfe oder Pirscher, dann hat Frosthold Fleisch für den Winter.',
-    progressText: 'Wölfe und Pirscher streifen über die Hänge der Frostzinnen.',
-    completeText: 'Fleisch für den ganzen Winter. Heute Abend wird in der Halle gesungen, und dein Name kommt in der dritten Strophe vor. Die erste und zweite gehören den Toten.',
-    objectives: [{ id: 'hunt', text: 'Wölfe und Pirscher erlegt', count: 15, kind: 'kill', target: ['frost_wolf', 'snow_stalker'], zone: 'frostspire' }],
+    summary: 'Folge der Fährte des weißen Hirschs über die Frostzinnen.',
+    offer: 'Einmal im Jahr folgen die Frostholder dem weißen Hirsch. Keiner erlegt ihn, man folgt ihm nur, und wer ihn sieht, hat ein gutes Jahr. Dieses Jahr war keiner da, der jagen konnte. Du bist da. Seine Fährte führt durch den Jägerwald, über den Eisspiegelsee und hinauf aufs Gletscherfeld.',
+    progressText: 'Jägerwald, Eisspiegelsee, Gletscherfeld. Die Fährte ist frisch.',
+    completeText: 'Du hast ihn gesehen? Oben am Gletscher? Dann wird es ein gutes Jahr. Heute Abend wird in der Halle gesungen, und dein Name kommt in der dritten Strophe vor. Die erste und zweite gehören den Toten.',
+    objectives: [{ id: 'tracks', text: 'Der Fährte des weißen Hirschs gefolgt', count: 3, kind: 'reach', target: ['pine_wood', 'frozen_lake', 'glacier'], zone: 'frostspire' }],
     rewards: { xp: Q(33, W.side), gold: 330, gear: [{ ilvl: 34, rarity: 'uncommon', slot: 'chest' }] },
   },
 
@@ -681,12 +682,13 @@ export const QUESTS_40 = {
     rewards: { xp: Q(37, W.side), gold: 400, gear: [{ ilvl: 38, rarity: 'uncommon', slot: 'feet' }] },
   },
   q_adept_hunt: {
+    // 16.10. (Rundgang 31–40): Erkunden statt einer zweiten Adeptenjagd neben den Siegeln
     title: 'Die Adepten der Krone', giver: 'marshal_corvane', level: 38, requires: ['q_wastes_obelisks'],
-    summary: 'Erschlag die Glutadepten, die neue Obelisken entzünden wollen.',
-    offer: 'Die Obelisken sind aus, aber die Adepten haben es noch nicht begriffen. Sie schleichen nachts hinaus und versuchen, sie wieder zu entzünden. Ich will, dass keiner von ihnen zurückkommt. Zehn genügen, um es den anderen klarzumachen.',
-    progressText: 'Die Glutadepten sammeln sich bei den erloschenen Obelisken.',
-    completeText: 'Die Obelisken bleiben kalt. Meine Wachen haben in der letzten Nacht nicht einen einzigen Funken gesehen. Gut gemacht.',
-    objectives: [{ id: 'adepts', text: 'Glutadepten besiegt', count: 10, kind: 'kill', target: 'ember_cultist_adept', zone: 'ember_wastes' }],
+    summary: 'Späh die drei Treffpunkte der Glutadepten in Altglut aus.',
+    offer: 'Die Obelisken sind aus, aber die Adepten haben es noch nicht begriffen. Nachts schleichen sie durch die Ruinen von Altglut und treffen sich, um neue zu entzünden. Ich will wissen, wo. Man sagt, am Tempel der Ersten Flamme, auf dem Scherbenmarkt und am Prozessionsweg. Sieh dir alle drei an und komm lebend zurück.',
+    progressText: 'Tempel der Ersten Flamme, Scherbenmarkt, Prozessionsweg. Alle drei liegen in Altglut.',
+    completeText: 'Drei Treffpunkte, und du hast sie alle gesehen. Ab heute Nacht stehen dort meine Wachen. Die Obelisken bleiben kalt.',
+    objectives: [{ id: 'haunts', text: 'Treffpunkte der Adepten ausgespäht', count: 3, kind: 'reach', target: ['flame_temple', 'shard_market', 'procession_way'], zone: 'ember_wastes' }],
     rewards: { xp: Q(38, W.side), gold: 420, gear: [{ ilvl: 39, rarity: 'rare', slot: 'amulet' }] },
   },
 

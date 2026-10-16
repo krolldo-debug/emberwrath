@@ -1005,7 +1005,8 @@ export function buildEmberWastes() {
       escort_pilgrims: {
         kind: 'escort',
         path: escortPath,
-        ambush: [{ at: amb(0.3), type: 'cinder_bombardier', n: 3 }, { at: amb(0.62), type: 'cinder_bombardier', n: 3 }, { at: amb(0.85), type: 'cinder_bombardier', n: 2 }],
+        clearPath: 8,
+        ambush: [{ at: amb(0.3), type: 'cinder_bombardier', n: 2 }, { at: amb(0.62), type: 'cinder_bombardier', n: 2 }, { at: amb(0.85), type: 'cinder_bombardier', n: 2 }],
       },
     },
     respawn: 45,
