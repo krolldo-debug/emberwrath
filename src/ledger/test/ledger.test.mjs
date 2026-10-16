@@ -173,6 +173,7 @@ test('Tagesbelohnung, Auftragsbrett, Wochentruhe, Glutprüfung', () => {
   const s = g.state;
   s.slices.progress.level = 20; s.slices.progress.xp = 54695;
   s.slices.quests.completed.push('q_ignaroth');
+  Object.assign(s.slices.board, { day: 0, week: 0 }); // Brett beim Anlegen auf Date.now(), hier zählt die Testuhr ab T0
   const snap = s.snapshot(), v = valuesOf(snap);
   g.server.book = { xp: v.xp, gold: v.gold, items: v.items, state: freshState(snap) };
   openSession(g.server.book.state, { sid: 'S1', seed: 'seed-1', at: g.clock.t });
