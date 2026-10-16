@@ -29,6 +29,7 @@ export class NetRival extends RemotePlayer {
     this.rise = 1;
     this.material = 'flesh';
     this.killReported = true;
+    this.groupScaled = true; // keine Dungeon-Skalierung (finder/groupScale.js)
     this.maxHp = max;
     this.srvHp = max;
     this.downed = false;

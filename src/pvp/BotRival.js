@@ -25,6 +25,7 @@ export function createBotRival(session, foe, x, y, player) {
   bot.rival = true;
   bot.team = 'foe';
   bot.killReported = true;
+  bot.groupScaled = true; // keine Dungeon-Skalierung (finder/groupScale.js): Arena-Werte gelten unverändert
   bot.facing = player.x < x ? -1 : 1;
   const brain = new ArenaBrain(bot, player, foe.skill ?? 0.5);
   bot.brain = brain;
