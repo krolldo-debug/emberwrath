@@ -3,6 +3,7 @@ import { iconUrl } from '../gfx/Icons.js';
 import { ROLES } from './protocol.js';
 import { finderIcon } from './icons.js';
 import { tr, fmtNum } from '../i18n/index.js';
+import { hireCost, mercCount } from './hire.js';
 
 // HUD der Gruppensuche (HTML-Ebene):
 //   Menüknopf „Dungeonsuche“ (in der Knopfreihe des HUD, Taste O), Suchanzeige mit Zeit,
@@ -101,9 +102,14 @@ export class FinderHud {
       this.propRows = new Map();
       const list = this.#memberList(g);
       this.propBar = h('i');
+      // Söldner in der Gruppe kosten Gold (hire.js); der Preis steht auf dem Knopf
+      this.propCost = hireCost(d, mercCount(g));
+      this.propShort = null;
+      this.enterLabel = h('span', 'Betreten');
+      this.enterBtn = h('button.ef-btn.primary', { type: 'button', onclick: () => this.finder.respond(true) }, this.enterLabel);
       this.propBtns = h('div.fd-prop-btns',
         h('button.ef-btn.danger', { type: 'button', onclick: () => this.finder.respond(false) }, 'Ablehnen'),
-        h('button.ef-btn.primary', { type: 'button', onclick: () => this.finder.respond(true) }, 'Betreten'));
+        this.enterBtn);
       this.propWait = h('p.fd-prop-wait', 'Warte auf die anderen …');
       this.propEl.append(
         h('p.fd-prop-kicker', 'Gruppe gefunden'),
@@ -115,6 +121,14 @@ export class FinderHud {
     this.propEl.hidden = false;
     this.propBtns.hidden = accepted;
     this.propWait.hidden = !accepted;
+    if (this.propCost) {
+      const short = Math.max(0, this.propCost - (this.s.state.slices.wallet?.gold ?? 0));
+      if (short !== this.propShort) {
+        this.propShort = short;
+        this.enterBtn.disabled = short > 0;
+        this.enterLabel.textContent = tr(short > 0 ? `Es fehlen ${fmtNum(short)} Gold` : `Betreten · ${fmtNum(this.propCost)} Gold`);
+      }
+    }
     for (const [id, mark] of this.propRows) {
       const ok = this.finder.ready.has(id);
       mark.classList.toggle('ok', ok);
@@ -155,7 +169,7 @@ export class FinderHud {
     if (short === this.hireShort) return;
     this.hireShort = short;
     this.hireBtn.disabled = short > 0;
-    this.hireLabel.textContent = tr(short > 0 ? `Es fehlen ${fmtNum(short)} Gold` : `Anheuern · ${fmtNum(cost)} Gold`);
+    this.hireLabel.textContent = tr(short > 0 ? `Es fehlen ${fmtNum(short)} Gold` : cost ? `Anheuern · ${fmtNum(cost)} Gold` : 'Kostenlos anheuern');
   }
 
   #memberList(g) {

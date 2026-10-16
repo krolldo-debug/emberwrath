@@ -26,6 +26,13 @@ export class QuestGuide {
     const bus = world.bus;
     this.offs = [EV.QUEST_TRACKED, EV.QUEST_ACCEPTED, EV.QUEST_PROGRESS, EV.QUEST_COMPLETED, EV.QUEST_READY, 'quest:abandoned', EV.ENEMY_KILLED, EV.OBJECT_INTERACT]
       .filter(Boolean).map((ev) => bus.on(ev, () => { this.dirty = true; }));
+    // Falsche Reihenfolge (Totems, Laternen): die Objekte erlöschen und sind sofort wieder benutzbar
+    this.offs.push(bus.on('quest:sequenceReset', (e) => {
+      for (const it of world.interactables) {
+        if (it.objectId && it.objectId !== e?.keep && e?.targets?.includes(it.objectId) && 'usedTime' in it) { it.used = false; it.usedTime = 0; }
+      }
+      this.dirty = true;
+    }));
   }
 
   get enabled() {

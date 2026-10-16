@@ -147,6 +147,22 @@ test('Interagieren zählt jedes Objekt einmal, Pfad zeigt auf das nächste offen
   assert.equal(questStatus(state, content, 'q_temple_shore'), 'ready');
 });
 
+test('Falsche Reihenfolge setzt zurück und gibt die Objekte frei (quest:sequenceReset)', () => {
+  const { c, state, bus } = setup();
+  c('progress:grantXp', { amount: totalXpForLevel(26) });
+  state.slices.quests.completed.push('q_marsh_lurkers');
+  assert.equal(c('quest:accept', { questId: 'q_marsh_totems' }).ok, true);
+  const resets = []; bus.on('quest:sequenceReset', (e) => resets.push(e));
+  c('quest:event', { kind: 'interact', target: 'rot_totem_2' });
+  assert.equal(resets.length, 1); assert.deepEqual(resets[0].targets, ['rot_totem_1', 'rot_totem_2', 'rot_totem_3']); assert.equal(resets[0].keep, null);
+  c('quest:event', { kind: 'interact', target: 'rot_totem_1' });
+  c('quest:event', { kind: 'interact', target: 'rot_totem_1' });   // schon aktiv: kein Zurücksetzen
+  assert.equal(resets.length, 1);
+  c('quest:event', { kind: 'interact', target: 'rot_totem_2' });
+  c('quest:event', { kind: 'interact', target: 'rot_totem_3' });
+  assert.equal(state.slices.quests.active.q_marsh_totems.status, 'ready');
+});
+
 test('Boss vor Annahme besiegt zählt trotzdem (world.bossesDefeated)', () => {
   const { c, state, content } = setup();
   state.slices.progress.level = 5;

@@ -20,6 +20,12 @@ export const FINDER_CONFIG = {
   // Söldner anheuern: Wer allein durch das Portal eines Gruppen-Dungeons geht, bekommt eine Söldnergruppe gegen Gold
   // angeboten (Preise in hire.js). false = Portal führt wie früher sofort allein hinein.
   hireOffer: true,
+  // Söldner kosten Gold (Preise in hire.js), am Portal wie in der Dungeonsuche. Der allererste Dungeon ist kostenlos (Nutzer 16.10.).
+  hireFree: ['catacombs'],
+  // Söldner sind schwächer als ein gleich ausgerüsteter Spieler, damit der Kampf mit ihnen eine Herausforderung bleibt
+  // (16.10.: Nerith fiel mit zwei Söldnern in unter 2 Minuten). Gemessen mit 0,5: Nerith ~3 Min., Ignaroth ~4 Min.;
+  // fällt der Spieler früh, verlieren die Söldner Ignaroth allein. 1 = volle Kraft.
+  mercPower: 0.5,
 
   // Mehrere echte Spieler in einer Gruppe: erst mit geteilten Gegnern in der Instanz (Mehrspieler Stufe 2).
   // Muss zum Server passen (Worker-Variable FINDER_HUMAN_GROUPS).

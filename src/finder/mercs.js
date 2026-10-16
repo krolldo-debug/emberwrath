@@ -49,7 +49,8 @@ export function makeMerc(rng, { role = 'dps', level = 1, takenNames = new Set(),
   const hair = RACE_HAIR[raceId] ?? RACE_HAIR.human;
   const name = mercName(rng, takenNames);
   takenNames.add(name.toLowerCase());
-  const lv = Math.max(1, Math.min(40, level + rng.weighted([[0, 5], [1, 2], [-1, 2], [2, 1]])));
+  // Söldner haben immer genau die Stufe des Helden (Nutzer 16.10.)
+  const lv = Math.max(1, Math.min(40, level));
   return {
     kind: 'merc',
     id: `m${(rng() * 0xffffffff) >>> 0}`,

@@ -3,7 +3,7 @@ import { FinderClient } from './FinderClient.js';
 import { Matchmaker } from './matchmaker.js';
 import { ROLES, roleAllowed } from './protocol.js';
 import { FINDER_CONFIG } from './config.js';
-import { hireCost, hireable, hireGroup } from './hire.js';
+import { hireCost, hireable, hireGroup, mercCount } from './hire.js';
 
 // Dungeon-Gruppensuche über die ganze Spielsitzung (auch über Zonenwechsel): game.finder.
 //
@@ -120,6 +120,13 @@ export class FinderService {
       this.#stopSearch('Gruppe abgelehnt.');
       return;
     }
+    // Söldner in der vorgeschlagenen Gruppe kosten wie am Portal (16.10.); echte Mitspieler nichts
+    const mercs = mercCount(this.group);
+    if (mercs) {
+      const r = this.game.state.commit('finder:hire', { dungeonId: this.group.dungeonId, mercs });
+      if (!r?.ok) { this.#changed(); return; }
+      if (r.cost) this.game.sfx?.play?.('coin');
+    }
     this.state = 'accepted';
     if (me) this.ready.add(me.ticketId);
     if (this.mode === 'server') this.client.accept(this.group.id, true);
@@ -136,8 +143,8 @@ export class FinderService {
     const here = this.#here();
     if (!here) return false; // Treppen innerhalb eines Dungeons: kein Angebot
     this.offerTo = { zoneId: zone.id, spawnId: go.spawnId ?? 'start', x: here.x, y: here.y };
-    this.hireCost = hireCost(zone);
     this.group = hireGroup(this.char(), zone.id);
+    this.hireCost = hireCost(zone, mercCount(this.group));
     this.state = 'offer';
     this.game.sfx?.play?.('ui');
     this.#changed();
@@ -147,9 +154,9 @@ export class FinderService {
   // Annehmen: Gold zahlen (Command finder:hire, Preis rechnet der Command selbst), dann mit der Gruppe hinein
   hire() {
     if (this.state !== 'offer' || !this.group) return { ok: false };
-    const r = this.game.state.commit('finder:hire', { dungeonId: this.group.dungeonId });
+    const r = this.game.state.commit('finder:hire', { dungeonId: this.group.dungeonId, mercs: mercCount(this.group) });
     if (!r?.ok) { this.#changed(); return r ?? { ok: false }; }
-    this.game.sfx?.play?.('coin');
+    if (r.cost) this.game.sfx?.play?.('coin');
     const to = this.offerTo;
     this.offerTo = null;
     this.#begin(this.group, to?.spawnId);

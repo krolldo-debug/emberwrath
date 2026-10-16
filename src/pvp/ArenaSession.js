@@ -221,20 +221,19 @@ export class ArenaSession {
     this.s.bus.emit(EV.UI_TOAST, { text: 'In der Arena wirken keine Tränke.', kind: 'warn' });
   }
 
-  // Name über dem Gegner (Stufe 40, Name in Rot; Herausforderer mit Söldner-Abzeichen wie in der Dungeonsuche)
+  // Name über dem Gegner (ohne Stufe: in der Arena haben alle dieselben Werte; Name in Rot; Herausforderer mit Söldner-Abzeichen wie in der Dungeonsuche)
   #nameplate(ctx, d) {
     const r = d.rival, cam = this.s.camera, font = this.s.font;
     if (!r || !cam || !font) return;
     const x = Math.round(r.x - cam.rx), y = Math.round(r.y - cam.ry - 34);
     if (x < -60 || y < -10 || x > CONFIG.viewWidth + 60 || y > CONFIG.viewHeight + 40) return;
     const tag = d.kind === 'bot' && FINDER_CONFIG.labelMercs;
-    const lvl = '40', name = r.name ?? '';
-    const wl = font.measure(lvl), wn = font.measure(name, 1, true), total = wl + 3 + wn + (tag ? 7 : 0);
+    const name = r.name ?? '';
+    const wn = font.measure(name, 1, true), total = wn + (tag ? 7 : 0);
     let x0 = Math.round(x - total / 2);
     ctx.globalAlpha = r.downed ? 0.5 : 0.95;
     if (tag) { badge(ctx, x0, y); x0 += 7; }
-    font.draw(ctx, lvl, x0, y, { color: '#f2c14e', outline: true });
-    font.draw(ctx, name, x0 + wl + 3, y, { color: '#ff8a6a', outline: true, raw: true });
+    font.draw(ctx, name, x0, y, { color: '#ff8a6a', outline: true, raw: true });
     ctx.globalAlpha = 1;
   }
 }
