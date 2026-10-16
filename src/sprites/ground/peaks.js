@@ -1,6 +1,6 @@
 import { hash2 } from '../../core/math.js';
 import { PAL } from '../../gfx/Palette.js';
-import { FK, ramp, hxi, vnoise, clampI, chunkCtx, pebble, stroke, soilAt, paveAt, awayFrom } from './kit.js';
+import { FK, ramp, lift, hxi, vnoise, clampI, chunkCtx, pebble, stroke, soilAt, paveAt, awayFrom } from './kit.js';
 
 // Feinraster-Boden der Schlackenhöhen (biome 'peaks'). Farben wie GROUND_PEAKS / peaksPixel in sprites/decor_peaks.js
 // (dort nur gelesen): Basaltgeröll (Grundton), helle Asche (u), Schlacke mit Rostflecken (v), Erzadern (o),
@@ -9,21 +9,21 @@ import { FK, ramp, hxi, vnoise, clampI, chunkCtx, pebble, stroke, soilAt, paveAt
 // links und Schlagschatten, Risse mit Lichtkante, Blasen im Schlackenglas, einzelne Glanzpunkte. Rostwasser und
 // Glutspalten: Weltpixel-Shader (-1). Die gemalten Felsen (paintCliffs) kommen als Ebene darüber (world/Outdoor.js).
 const C = {
-  scree: ramp(['#131519', '#1a1c21', '#22252a', '#2b2e34', '#35383e', '#41444a', '#52555b']),
+  scree: ramp(lift(['#131519', '#1a1c21', '#22252a', '#2b2e34', '#35383e', '#41444a', '#52555b'], 1.3)),
   // Erzboden: gedecktes Braun, die Adern (eine Stufe heller) tragen den Rostton
-  ore: ramp(['#18100c', '#21160f', '#2c1c13', '#382317', '#472c1c', '#5a3722', '#74472b']),
-  slag: ramp(['#0b0b0e', '#111116', '#17181e', '#1f2028', '#282a34', '#343846', '#5a6c8c']),
+  ore: ramp(lift(['#18100c', '#21160f', '#2c1c13', '#382317', '#472c1c', '#5a3722', '#74472b'], 1.3)),
+  slag: ramp(lift(['#0b0b0e', '#111116', '#17181e', '#1f2028', '#282a34', '#343846', '#5a6c8c'], 1.3)),
   sulf: ramp(['#1d1a0e', '#2a2512', '#3a3216', '#4c411a', '#5f511f', '#776726', '#958436']),
-  grav: ramp(['#161618', '#1d1d1f', '#262628', '#303032', '#3b3a3b', '#474545', '#555251', '#67635f']),
-  ash: ramp(['#1c1a18', '#24221f', '#2d2b27', '#383530', '#44403a', '#514c45', '#615b52']),
+  grav: ramp(lift(['#161618', '#1d1d1f', '#262628', '#303032', '#3b3a3b', '#474545', '#555251', '#67635f'], 1.3)),
+  ash: ramp(lift(['#1c1a18', '#24221f', '#2d2b27', '#383530', '#44403a', '#514c45', '#615b52'], 1.3)),
   // Schlacke der Nordstufe (v): dunkles, kaum warmes Grau; Rost nur in einzelnen Flecken (rust)
-  vslag: ramp(['#141314', '#1b191a', '#232021', '#2c2829', '#363132', '#423c3c', '#524a49']),
-  rust: ramp(['#1d130d', '#261910', '#311f14', '#3d2719', '#4a301f', '#583925', '#69442c']),
-  rub: ramp(['#141518', '#1b1c1f', '#232427', '#2c2d30', '#36363a', '#434245', '#545150']),
+  vslag: ramp(lift(['#141314', '#1b191a', '#232021', '#2c2829', '#363132', '#423c3c', '#524a49'], 1.3)),
+  rust: ramp(lift(['#1d130d', '#261910', '#311f14', '#3d2719', '#4a301f', '#583925', '#69442c'], 1.3)),
+  rub: ramp(lift(['#141518', '#1b1c1f', '#232427', '#2c2d30', '#36363a', '#434245', '#545150'], 1.3)),
   // Basaltbrocken: mehr Licht auf der Oberseite als der Boden (Material liest sich auch im Dunkeln)
-  peb: ramp(['#0e0f12', '#1d1e22', '#2a2b30', '#383a3f', '#4a4c52', '#5f6168', '#7a7c83']),
+  peb: ramp(lift(['#0e0f12', '#1d1e22', '#2a2b30', '#383a3f', '#4a4c52', '#5f6168', '#7a7c83'], 1.3)),
   // Erdwege: festgetretene Erde, gedeckt (kein Rostton)
-  dirt: ramp(['#141010', '#1a1513', '#231c17', '#2e241d', '#3a2d24', '#47372b', '#554133', '#644c3b']),
+  dirt: ramp(['#1a1513', '#231c17', '#2e241d', '#3a2d24', '#47372b', '#554133', '#644c3b', '#735743']),
   pave: ramp(PAL.stone),
   mortar: hxi(PAL.mortar),
 };

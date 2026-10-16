@@ -269,9 +269,9 @@ export class QuestGuide {
     for (const p of this.#samples(16, off)) {
       const a = this.#alpha(p) * this.fade;
       if (a <= 0.02) continue;
-      ctx.globalAlpha = a * 0.5;
+      ctx.globalAlpha = a * 0.85;
       ctx.fillStyle = '#1a0a04';
-      ctx.fillRect(Math.round(p.x - cx - 2), Math.round(p.y - cy - 1), 5, 3);
+      ctx.fillRect(Math.round(p.x - cx - 3), Math.round(p.y - cy - 1), 7, 3);
     }
     ctx.restore();
   }

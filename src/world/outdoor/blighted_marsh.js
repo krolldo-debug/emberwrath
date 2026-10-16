@@ -1,7 +1,7 @@
-import { createRng } from '../../core/math.js';
+import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
 import { rim } from '../levels2.js';
-import { near, box, each, blob, roadNet, foe, strew } from '../mapkit.js';
+import { near, box, each, blob, roadNet, foe, strew, trailLights, levelSpots, clearAround } from '../mapkit.js';
 
 // ---------------------------------------------------------------- Faulmarsch (25–31), Runde 5 / Review 2
 // Inselarchipel: Grundfläche ist Wasser, alles Land sind Inseln. Verbunden
@@ -365,8 +365,10 @@ export function buildBlightedMarsh() {
     else if (near(m, x, y, 'r', 2) && rng.chance(0.07)) put(x, y, 'o');
     else if (rng.chance(0.008)) put(x, y, 'o');
   }
+  // Laternen an Dämmen und Stegen
+  trailLights(m, net, { ch: 'L', every: 11, gap: 6, lit: 'FHW', keep, minW: 2 });
 
-  return {
+  const out = {
     name: 'Die Faulmarsch',
     kind: 'outdoor',
     biome: 'marsh',
@@ -429,4 +431,8 @@ export function buildBlightedMarsh() {
     ],
     signText: 'Nord: Der Frostpass · Nordost: Der Sporenschlund · Ost: Nebelinseln, Nebelsee und Pfahlsumpf · Süd: Pilzwald und Alter Damm · West: Die Aschensteppe',
   };
+  // Streudeko verdeckt keine Gegner, NPCs, Objekte oder Portale
+  clearAround(m, levelSpots(m, out), 'wdkm');
+  out.map = m.rows();
+  return out;
 }
