@@ -239,7 +239,11 @@ function sequenceStep(s, ctx, questId, a, o, target) {
   if (list[at] === target) { setProgress(ctx, questId, a, o, at + 1); return; }
   if (list.slice(0, at).includes(target)) return;   // schon aktiviert: nichts passiert
   setProgress(ctx, questId, a, o, list[0] === target ? 1 : 0);
-  if (at > 0 || list[0] !== target) questToast(ctx, o.failText ?? 'Die Zeichen erlöschen. Die Reihenfolge war falsch.');
+  if (at > 0 || list[0] !== target) {
+    questToast(ctx, o.failText ?? 'Die Zeichen erlöschen. Die Reihenfolge war falsch.');
+    // Die Welt löscht die Objekte wieder, sonst bleiben sie bis zu 90 s gesperrt (QuestGuide)
+    ctx.bus.emit('quest:sequenceReset', { questId, targets: list, keep: list[0] === target ? target : null });
+  }
 }
 function recordQuestEvent(s, ctx, kind, target, n = 1) {
   const q = s.get('quests');
