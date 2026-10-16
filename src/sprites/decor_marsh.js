@@ -15,7 +15,7 @@ import { fineRes, canvasPixels, pixelsToCanvas } from '../gfx/Fine.js';
 export const GROUND_MARSH = {
   grass: lift(['#0c120e', '#111912', '#162117', '#1c291b', '#233220', '#2c3d26'], 1.25),
   dirt: lift(['#100e0b', '#17140f', '#1f1b14', '#28221a', '#312a20', '#3c3327'], 1.25),
-  water: lift(['#0a1012', '#142426', '#1d3433', '#2f4b46', '#46685a'], 1.25),
+  water: ['#0a1012', '#142426', '#1d3433', '#2f4b46', '#46685a'],
   tufts: true,
 };
 
@@ -1350,7 +1350,7 @@ function lanternPost() {
     // Nachtfalter
     p.px(lx + 4, ly - 2, '#8a8a70'); g.px(lx + 4, ly - 2, '#403c20');
   }, {
-    ax: 5, box: [-2, -2, 2, 1], light: { dx: 6, dy: -30, radius: 64, color: [230, 220, 130], intensity: 0.8 },
+    ax: 5, box: [-2, -2, 2, 1], light: { dx: 6, dy: -30, radius: 64, color: [255, 185, 105], intensity: 0.85 },
     fine: (f, g) => { fLamp(f, g, 11, 9, 3, 5); f.fline(10, 8.25, 14.75, 8.25, IRON[4]); f.dot(12.25, 7.25, IRON[5]); f.fline(10, 15.25, 14.75, 15.25, IRON[3]); },
   });
 }
@@ -1698,10 +1698,10 @@ function mistWisps(v) {
       const e = ((x - 32) / 31) ** 2 + ((y - 12) / 11) ** 2;
       if (e > 1) continue;
       const n = vn(x / 9 + v * 3, y / 4, 2700) * 0.65 + vn(x / 4, y / 2.5, 2701 + v) * 0.35;
+      // zwei harte Dichtestufen statt weichem Verlauf
       const a = (n - 0.42) * 1.4 * (1 - e);
-      if (a <= 0.03) continue;
-      if (a < 0.12 && ((x + y) & 1)) continue;
-      p.px(x, y, rgba(150, 172, 150, Math.min(0.34, a).toFixed(3)));
+      if (a <= 0.07) continue;
+      p.px(x, y, rgba(150, 172, 150, a > 0.2 ? 0.3 : 0.15));
     }
   });
 }

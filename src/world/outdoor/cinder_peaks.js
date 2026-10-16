@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
-import { near, each, blob, roadNet, MISPLACED, foe, strew, trailLights } from '../mapkit.js';
+import { near, each, blob, roadNet, MISPLACED, foe, strew, trailLights, levelSpots, clearAround } from '../mapkit.js';
 
 // ---------------------------------------------------------------- Schlackenhöhen (12–20)
 // Ein Erzgebirge in drei Höhenstufen. Runde 6: Die Stufen entstehen aus einem Höhenfeld (LV) statt aus
@@ -561,7 +561,7 @@ export function buildCinderPeaks() {
   // Glutbecken an den Wegen, wo noch keine Lampe brennt
   trailLights(m, net, { ch: 'b', every: 14, gap: 7, lit: 'nlFeT', keep, minW: 2 });
 
-  return {
+  const out = {
     name: 'Die Schlackenhöhen',
     kind: 'outdoor',
     biome: 'peaks',
@@ -631,4 +631,8 @@ export function buildCinderPeaks() {
         to: { zoneId: 'ashen_steppe', spawnId: 'from_cinder_peaks' }, prompt: 'Ostwärts in die Aschensteppe' },
     ],
   };
+  // Streudeko verdeckt keine Gegner, NPCs, Objekte oder Portale
+  clearAround(m, levelSpots(m, out), 'ktKjr');
+  out.map = m.rows();
+  return out;
 }

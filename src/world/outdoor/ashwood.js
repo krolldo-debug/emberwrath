@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
-import { near, box, each, blob, roadNet, foe, strew, circle, trailLights } from '../mapkit.js';
+import { near, box, each, blob, roadNet, foe, strew, circle, trailLights, levelSpots, clearAround } from '../mapkit.js';
 import { noise2, rimRock, forestFill, bridgeH, waterSpan, sealPockets } from './emberhollow.js';
 
 // ---------------------------------------------------------------- Der Aschenwald (Stufe 6–12)
@@ -292,7 +292,6 @@ export function buildAshwood() {
       const sp = species(x, y);
       return sp === 'Z' ? 't' : sp === 'D' ? 'd' : 'W';                // vorgelagerte Einzelbäume
     }
-    if ((near(m, x, y, 'U', 1) || near(m, x, y, 'D', 1)) && hash2(x, y, 771) < 0.05) return 'm';   // Leuchtpilze am Waldsaum
     if (near(m, x, y, 'U', 1) || near(m, x, y, 'Z', 1)) return rng.chance(0.06) ? (rng.chance(0.6) ? 'u' : 'o') : null;
     if (free && rng.chance(0.035)) return north(x, y) ? 't' : rng.chance(0.7) ? 'W' : 'd';
     if (rng.chance(0.015)) return 'r';
@@ -326,7 +325,7 @@ export function buildAshwood() {
   const SOLID = new Set(['#', '~', '=', 'H', 'f', 'Z', 'z', 'U', 'D', 'N', 'C', 'a', 'w', 'v', 'M', 'B', '<', '>', 'k', 'Y', 'G']);
   sealPockets(m, [29, 45], SOLID, 'Z');
 
-  return {
+  const out = {
     name: 'Der Aschenwald',
     kind: 'outdoor',
     biome: 'ashwood',
@@ -395,4 +394,8 @@ export function buildAshwood() {
         to: { zoneId: 'cinder_peaks', spawnId: 'from_ashwood' }, prompt: 'Aufstieg zu den Schlackenhöhen' },
     ],
   };
+  // Streudeko verdeckt keine Gegner, NPCs, Objekte oder Portale
+  clearAround(m, levelSpots(m, out), 'tdW');
+  out.map = m.rows();
+  return out;
 }

@@ -34,7 +34,7 @@ export const BIOME_GROUND = {
   // Aschenwald: kühler Waldboden (Moos/Asche), wärmere und hellere Wege – damit Lichtinseln und Wege vor dem
   // Wald stehen (Umgebungslicht der Zone dafür etwas dunkler/kühler, world/zones.js). finePixel: Feinraster-Boden.
   ashwood: {
-    grass: lift(['#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'], 1.25),
+    grass: lift(['#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'], 1.4),
     dirt: ['#231c16', '#2e251d', '#3a3026', '#473b2f', '#554739', '#655645'],
     water: ['#050a0c', '#081114', '#0c1a1f', '#12272e', '#1c3a44'],
     tufts: false,
@@ -107,9 +107,9 @@ export function groundPixel(kind, px, py, pal = OUT) {
 // ------------------------------------------------------------ Feinboden (Feinraster: 2×2 Texel je Weltpixel)
 // Aschenwald: kühler Waldboden mit Moos- und Aschefeldern, Laubreste in Rost, warme Wege, Kiesel mit Licht oben links
 const AW = {
-  floor: lift(['#0c100f', '#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'], 1.25).map(hxi),
-  moss: lift(['#151f15', '#1c291b', '#253421', '#2e4029', '#3b4f33', '#4d6240'], 1.25).map(hxi),
-  ash: lift(['#202325', '#292c2e', '#323638', '#3e4244', '#4c4f51'], 1.25).map(hxi),
+  floor: lift(['#0c100f', '#111614', '#161c19', '#1c231f', '#232b25', '#2b342c', '#353f34'], 1.4).map(hxi),
+  moss: lift(['#151f15', '#1c291b', '#253421', '#2e4029', '#3b4f33', '#4d6240'], 1.4).map(hxi),
+  ash: lift(['#202325', '#292c2e', '#323638', '#3e4244', '#4c4f51'], 1.4).map(hxi),
   leaf: ['#2a1812', '#3f2217', '#57301e', '#6f3f25', '#88512d'].map(hxi),
   dirt: ['#231c16', '#2e251d', '#3a3026', '#473b2f', '#554739', '#655645', '#766552', '#87745f'].map(hxi),
   stone: ['#120f0e', '#2a2523', '#3b3532', '#4e4843', '#645c56', '#80776f', '#a0968b'].map(hxi),

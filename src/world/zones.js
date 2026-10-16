@@ -45,7 +45,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['emberhollow', 'sunken_temple', 'cinder_peaks'],
     enemies: ['ash_boar', 'bandit', 'bandit_archer', 'thorn_crawler', 'bandit_chief', 'ember_beetle', 'bandit_shieldbearer'],
-    ambient: [104, 106, 138], // kühl: Lichtinseln (Feuer, Laternen) und helle Wege stehen davor (Boden dafür heller, sprites/outdoor.js)
+    ambient: [126, 118, 128], // gedämpft warm: Lichtinseln (Feuer, Laternen) und helle Wege stehen davor (Boden dafür heller, sprites/outdoor.js)
   },
   sunken_temple: {
     name: 'Der Versunkene Tempel',

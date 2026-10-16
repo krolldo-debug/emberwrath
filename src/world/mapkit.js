@@ -110,3 +110,27 @@ export function circle(m, cx, cy, rx, ry, n, ch, a0 = 0) {
   }
 }
 
+// Wichtige Stellen einer Karte: Gegner, NPCs, Ankunftspunkte, Objekte, Portale (Kachelkoordinaten)
+export function levelSpots(m, L) {
+  const chars = new Set([...Object.keys(L.enemies ?? {}), ...Object.keys(L.npcs ?? {}), ...Object.keys(L.points ?? {})]);
+  const s = [];
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (chars.has(m.get(x, y))) s.push([x, y]);
+  for (const o of [...(L.objects ?? []), ...(L.portals ?? [])]) s.push([o.x, o.y]);
+  return s;
+}
+
+// Freiraum um wichtige Stellen: hohe Streudeko (removable) daneben und südlich davor wird wieder Boden –
+// Kronen und Felsen ragen nach oben und würden Gegner, Hütten und Portale sonst verdecken.
+export function clearAround(m, spots, removable, { r = 2, south = 3 } = {}) {
+  const R = new Set(removable);
+  let n = 0;
+  for (const [sx, sy] of spots) {
+    const cx = Math.round(sx), cy = Math.round(sy);
+    for (let y = cy - 1; y <= cy + south; y++) for (let x = cx - r; x <= cx + r; x++) {
+      if (!R.has(m.get(x, y))) continue;
+      const nb = [m.get(x - 1, y), m.get(x + 1, y), m.get(x, y - 1), m.get(x, y + 1)].find((c) => GROUND.has(c));
+      m.set(x, y, nb ?? ','); n++;
+    }
+  }
+  return n;
+}

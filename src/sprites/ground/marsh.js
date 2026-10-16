@@ -24,14 +24,14 @@ const P = {
   root: ramp(['#120d0a', '#1f1610', '#2e2118', '#3e2e21']),
   stone: ramp(['#0c0e0c', '#1b1f1b', '#252a25', '#30362f', '#3d443b', '#4d5549', '#636b5c']),
   // Sumpfwasser (0 Schatten … 4 Glanz), wie GROUND_MARSH.water
-  water: ramp(lift(['#060b0c', '#0a1012', '#0f1a1b', '#142426', '#1d3433', '#2f4b46', '#46685a'], 1.25)),
+  water: ramp(['#060b0c', '#0a1012', '#0f1a1b', '#142426', '#1d3433', '#2f4b46', '#46685a']),
   // Uferböschung (Schlamm, oben im Licht)
-  bank: ramp(lift(['#0d0b09', '#16120e', '#211b15', '#2a221a'], 1.25)),
+  bank: ramp(['#0d0b09', '#16120e', '#211b15', '#2a221a']),
   // Pfützen: Spiegel heller als der Schlamm (Himmel/Licht gespiegelt), Glanz in harter Stufe
   pool: ramp(['#16201e', '#1e2b29', '#283a37', '#3a524c', '#58756a']),
   rim: 0x6f6149,   // nasser Uferrand im Licht (oben links)
   // Entengrütze
-  weed: ramp(lift(['#13211a', '#1a2e1f', '#223b24', '#2d4a2a'], 1.25)),
+  weed: ramp(['#13211a', '#1a2e1f', '#223b24', '#2d4a2a']),
 };
 
 const WP = { water: P.water, bank: P.bank, weed: P.weed, bubbles: true };

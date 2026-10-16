@@ -1,7 +1,7 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
 import { rim } from '../levels2.js';
-import { near, box, each, blob, roadNet, foe, strew, trailLights } from '../mapkit.js';
+import { near, box, each, blob, roadNet, foe, strew, trailLights, levelSpots, clearAround } from '../mapkit.js';
 
 // ---------------------------------------------------------------- Faulmarsch (25–31), Runde 5 / Review 2
 // Inselarchipel: Grundfläche ist Wasser, alles Land sind Inseln. Verbunden
@@ -361,15 +361,14 @@ export function buildBlightedMarsh() {
     if (!deep(x, y)) continue;
     if (mist(x, y) && rng.chance(0.06)) put(x, y, 'x');
     else if ((mist(x, y) || box({ x: 18, y: 2, w: 42, h: 28 }, 0)(x, y)) && rng.chance(0.014)) put(x, y, 'i');
-    else if (hash2(x, y, 381) < 0.006) put(x, y, 'i');   // Irrlichter auch über dem offenen Wasser
     else if (rng.chance(0.016)) put(x, y, 'n');
     else if (near(m, x, y, 'r', 2) && rng.chance(0.07)) put(x, y, 'o');
     else if (rng.chance(0.008)) put(x, y, 'o');
   }
   // Laternen an Dämmen und Stegen
-  trailLights(m, net, { ch: 'L', every: 13, gap: 7, lit: 'FHW', keep, minW: 2 });
+  trailLights(m, net, { ch: 'L', every: 11, gap: 6, lit: 'FHW', keep, minW: 2 });
 
-  return {
+  const out = {
     name: 'Die Faulmarsch',
     kind: 'outdoor',
     biome: 'marsh',
@@ -432,4 +431,8 @@ export function buildBlightedMarsh() {
     ],
     signText: 'Nord: Der Frostpass · Nordost: Der Sporenschlund · Ost: Nebelinseln, Nebelsee und Pfahlsumpf · Süd: Pilzwald und Alter Damm · West: Die Aschensteppe',
   };
+  // Streudeko verdeckt keine Gegner, NPCs, Objekte oder Portale
+  clearAround(m, levelSpots(m, out), 'wdkm');
+  out.map = m.rows();
+  return out;
 }
