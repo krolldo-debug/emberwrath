@@ -155,7 +155,7 @@ export class FeedbackSystem {
         this.finaleAt = performance.now();
         this.#shake(4);
         // Säule steht über dem Kopf (deckend, würde sonst den Helden verdecken), kein Ring
-        w.addEffect(new LightPillar(h.x, h.y - (h.bodyHeight ?? 16) - 3, { color: '#ffd66a', life: 1.4, height: 80, hard: true }));
+        w.addEffect(new LightPillar(h.x, h.y - (h.bodyHeight ?? 16) - 8, { color: '#ffd66a', life: 1.4, height: 80, hard: true }));
         this.#sfx('victory');
         return;
       }
