@@ -233,3 +233,16 @@ Alles sichtbar im Auftragsbrett, kein neues Fenster und kein neuer Knopf.
   Handy quer: Tasche 9 × 4 ohne Scrollen, Größe aus Bildschirmhöhe und -breite, Figur 3× bzw. 4×.
 - **Seltenheit:** gezeichnete Pixelrahmen je Seltenheit (gfx/RarityFrame.js, border-image ganzzahlig) im ganzen Spiel,
   Detailkarte mit Kopfband in Seltenheitsfarbe, Beute am Boden mit farbiger Kante und gestufter Lichtsäule (gfx/Icons.js drawLoot).
+
+## Runde 16.10.: Mehr Abwechslung bei Quests (Spielspaß-Bewertung 1–30)
+
+- **Glutspur zu Nebenquests:** Ist die verfolgte Hauptquest hier (aktuelle Zone) zu tun, führt `questTarget()` zuerst zu Gebern
+  von Nebenquests in dieser Zone, deren Stufe höchstens die der Hauptquest ist und deren Angebot man noch nicht gesehen hat
+  (`quests.offered`, gesetzt beim Ansprechen des Gebers). Danach wieder die Hauptquest.
+- **Automatisch verfolgt** wird nach `autoQuestId()`: hier zu tun vor anderswo, niedrigere Stufe zuerst, bei gleicher Stufe die
+  Hauptquest, Kopfgelder zuletzt. Im Questlog selbst gewählte Quests bleiben (`quests.pinned`).
+- **`retired: true`:** Quest ist in eine andere aufgegangen und wird nicht mehr angeboten; wer sie schon angenommen hat, gibt sie
+  normal ab (das Fortschrittsbuch kennt sie weiter). Aufgelöst: `q_hound_pack` (in `q_imp_plague`), `q_steppe_raiders`
+  (Plünderer fallen im Kriegslager), `q_marsh_lurkers`. `requires` nur lockern, nie verschärfen (sonst lehnt das Buch Abgaben ab).
+- Neu im Hauptweg: Lavaschleusen, Weites Land (Erkunden), Irrlichter. Reitunterricht: Strecke ablaufen statt Felle sammeln.
+  Thane gibt Kröten an der Mauer (jetzt Brisa) und Tiefer in den Nebel (jetzt Moll) ab.

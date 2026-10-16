@@ -25,7 +25,8 @@ export const QUESTS_40 = {
     rewards: { xp: Q(20, W.travel), gold: 120, items: [{ itemId: 'superior_potion', qty: 3 }] },
   },
   q_steppe_raiders: {
-    title: 'Staub und Klingen', giver: 'captain_varra', main: true, level: 20, requires: ['q_new_horizons'],
+    // Aufgelöst (16.10.): Plünderer fallen im Kriegslager (q_steppe_warcamp). Bleibt für angenommene Spielstände.
+    title: 'Staub und Klingen', giver: 'captain_varra', main: true, retired: true, level: 20, requires: ['q_new_horizons'],
     summary: 'Treibe die Plünderer zurück, die den Außenposten belagern.',
     offer: 'Seit Wochen reiten Plünderer bis an unsere Palisade. Sie tragen Khars Farben, und Khar trägt die Flammenkrone. Erschlag fünfzehn von ihnen, egal ob mit Klinge oder Bogen. Dann wissen sie, dass hier wieder jemand kämpft.',
     progressText: 'Die Plünderer streifen rund um den Außenposten. Fünfzehn müssen fallen.',
@@ -34,9 +35,9 @@ export const QUESTS_40 = {
     rewards: { xp: Q(20, W.kill), gold: 140, gear: [{ ilvl: 21, rarity: 'uncommon', slot: 'weapon' }] },
   },
   q_steppe_banners: {
-    title: 'Banner der Krone', giver: 'captain_varra', main: true, level: 21, requires: ['q_steppe_raiders'],
+    title: 'Banner der Krone', giver: 'captain_varra', main: true, level: 21, requires: ['q_new_horizons'],
     summary: 'Reiß die drei Kriegsbanner nieder, mit denen Khar die Stämme sammelt.',
-    offer: 'Khar hat drei Kriegsbanner in der Steppe aufgestellt. Wo sie wehen, strömen die Stämme zu ihm. Nimm diese Pechfackeln und brenn sie nieder, eins nach dem anderen. Ohne Banner ist er nur ein Mann mit einem großen Pferd.',
+    offer: 'Seit Wochen reiten Plünderer bis an unsere Palisade. Sie tragen Khars Farben, und Khar trägt die Flammenkrone. Er hat drei Kriegsbanner in der Steppe aufgestellt. Wo sie wehen, strömen die Stämme zu ihm. Nimm diese Pechfackeln und brenn sie nieder, eins nach dem anderen. Ohne Banner ist er nur ein Mann mit einem großen Pferd.',
     progressText: 'Die Banner stehen weit verstreut in der Steppe. Such nach dem Rauch der Wachfeuer.',
     completeText: 'Drei Banner im Staub. Die Stämme werden sich fragen, ob Khar wirklich so stark ist, wie er behauptet.',
     startItems: [{ itemId: 'pitch_torch', qty: 3 }],
@@ -104,11 +105,11 @@ export const QUESTS_40 = {
   // --- Orla (Reiten)
   q_first_ride: {
     title: 'Reitunterricht', giver: 'stablemaster_orla', level: 20, minLevel: 20, requires: ['q_ignaroth'],
-    summary: 'Bring Orla Hyänenfelle für einen Sattel und lerne das Reiten.',
-    offer: 'Du willst reiten? Dann lern es richtig. Erst brauchst du einen Sattel, und ein guter Sattel braucht Hyänenfell. Bring mir sechs Felle. Dann zeige ich dir, wie man aufsitzt, ohne sich den Hals zu brechen.',
-    progressText: 'Die Staubhyänen jagen in Rudeln in der offenen Steppe.',
+    summary: 'Lauf Orlas Reitstrecke ab und lerne das Reiten.',
+    offer: 'Du willst reiten? Dann lern es richtig. Jeder Neuling läuft zuerst meine Strecke ab: die Westweide, den Hirtenbrunnen und die Rotschlucht. Wer den Boden kennt, stürzt nicht. Danach zeige ich dir, wie man aufsitzt, ohne sich den Hals zu brechen.',
+    progressText: 'Westweide, Hirtenbrunnen, Rotschlucht. Dann zurück zu mir.',
     completeText: 'Gute Felle. Und jetzt hoch mit dir … Fersen runter, Rücken gerade. Siehst du, du kannst reiten. Ein Tier bekommst du von mir aber nicht geschenkt. Meine Pferde kosten, und wilde Tiere musst du dir selbst verdienen.',
-    objectives: [{ id: 'hides', text: 'Hyänenfelle gesammelt', count: 6, kind: 'collect', target: 'hyena_hide', from: ['dust_hyena'], zone: 'ashen_steppe' }],
+    objectives: [{ id: 'course', text: 'Reitstrecke abgelaufen', count: 3, kind: 'reach', target: ['pasture', 'shepherd_well', 'red_canyon'], zone: 'ashen_steppe' }],
     rewards: { xp: Q(20, W.lesson), gold: 80 },
   },
 
@@ -161,7 +162,8 @@ export const QUESTS_40 = {
 
   // ================================================================ Faulmarsch & Sporenschlund (25–31)
   q_marsh_lurkers: {
-    title: 'Was im Wasser lauert', giver: 'warden_thane', main: true, level: 25, requires: ['q_into_the_marsh'],
+    // Aufgelöst (16.10.): zu viele Tötungsquests am Stück. Bleibt für angenommene Spielstände.
+    title: 'Was im Wasser lauert', giver: 'warden_thane', main: true, retired: true, level: 25, requires: ['q_into_the_marsh'],
     summary: 'Säubere die Wege rund um die Mirefeste von Moorlauerern.',
     offer: 'Die Moorlauerer ziehen meine Späher ins Wasser, einen nach dem anderen. Wenn du hier nützlich sein willst, erschlag fünfzehn von ihnen. Dann reden wir über alles andere.',
     progressText: 'Die Moorlauerer warten im flachen Wasser neben den Stegen.',
@@ -170,7 +172,7 @@ export const QUESTS_40 = {
     rewards: { xp: Q(25, W.kill), gold: 190, gear: [{ ilvl: 26, rarity: 'uncommon', slot: 'weapon' }] },
   },
   q_marsh_totems: {
-    title: 'Totems der Fäulnis', giver: 'warden_thane', main: true, level: 26, requires: ['q_marsh_lurkers'],
+    title: 'Totems der Fäulnis', giver: 'warden_thane', main: true, level: 26, requires: ['q_into_the_marsh'],
     summary: 'Verbrenne die drei Faultotems, die den Nebel über der Marsch halten.',
     offer: 'Der Nebel ist nicht natürlich. Die Faulpriester haben drei Totems aufgestellt, die ihn nähren: eins aus Knochen, eins aus Moos, eins aus Schlamm. Sie stützen sich gegenseitig. Brich zuerst das aus Knochen, dann das aus Moos, zuletzt das aus Schlamm, sonst wachsen die anderen nach. Wenn der Nebel lichter wird, sehen wir endlich, womit wir es zu tun haben.',
     progressText: 'Die Totems stehen tief im Nebel. Folge dem Gestank.',
@@ -603,11 +605,11 @@ export const QUESTS_40 = {
     rewards: { xp: Q(26, W.side), gold: 230, items: [{ itemId: 'superior_potion', qty: 4 }] },
   },
   q_toad_wall: {
-    title: 'Kröten an der Mauer', giver: 'warden_thane', level: 27, requires: ['q_marsh_totems'],
+    title: 'Kröten an der Mauer', giver: 'alchemist_brisa', level: 27, requires: ['q_marsh_totems'],
     summary: 'Erlege die Seuchenkröten, die sich an der Mauer der Mirefeste sammeln.',
-    offer: 'Seit die Totems brennen, kriechen die Seuchenkröten aus dem Nebel an meine Mauer. Ihr Gift frisst den Mörtel. Ich habe Wachen, aber keine, die eine Kröte anfassen wollen. Erschlag zwölf.',
+    offer: 'Seit die Totems brennen, kriechen die Seuchenkröten aus dem Nebel an Thanes Mauer. Ihr Gift frisst den Mörtel, und seine Wachen fassen keine Kröte an. Ich schon, aber lieber tote. Erschlag zwölf.',
     progressText: 'Die Seuchenkröten hocken im Schilf rund um die Mirefeste.',
-    completeText: 'Die Mauer steht, und meine Wachen haben aufgehört, sich zu kratzen. Wasch dir die Hände, bevor du hier etwas anfasst.',
+    completeText: 'Die Mauer steht, und Thanes Wachen haben aufgehört, sich zu kratzen. Wasch dir die Hände, bevor du hier etwas anfasst.',
     objectives: [{ id: 'toads', text: 'Seuchenkröten erlegt', count: 12, kind: 'kill', target: 'plague_toad', zone: 'blighted_marsh' }],
     rewards: { xp: Q(27, W.side), gold: 240, gear: [{ ilvl: 28, rarity: 'uncommon', slot: 'hands' }] },
   },
@@ -621,11 +623,11 @@ export const QUESTS_40 = {
     rewards: { xp: Q(28, W.side), gold: 260, gear: [{ ilvl: 29, rarity: 'rare', slot: 'amulet' }] },
   },
   q_deep_mist: {
-    title: 'Tiefer in den Nebel', giver: 'warden_thane', level: 29, requires: ['q_sunken_village'],
-    summary: 'Halte die Stege zum Sporenschlund frei, damit Thanes Späher durchkommen.',
-    offer: 'Meine Späher müssen bis zum Sporenschlund, aber auf den Stegen wimmelt es von Getier. Lauerer, Egel, Kröten, alles, was beißt. Mach zwanzig davon unschädlich. Dann schicke ich meine Leute los.',
+    title: 'Tiefer in den Nebel', giver: 'trader_moll', level: 29, requires: ['q_sunken_village'],
+    summary: 'Halte die Stege zum Sporenschlund frei, damit Molls Träger durchkommen.',
+    offer: 'Am Sporenschlund wachsen Pilze, für die man im Süden in Gold bezahlt. Meine Träger kämen hin, aber auf den Stegen wimmelt es von Getier. Lauerer, Egel, Kröten, alles, was beißt. Mach zwanzig davon unschädlich, dann teilen wir.',
     progressText: 'Die Stege zum Sporenschlund führen durch den tiefsten Nebel der Marsch.',
-    completeText: 'Meine Späher sind durch. Sie sagen, aus dem Schlund steigt ein Leuchten, das nicht von dieser Welt ist. Ich glaube ihnen. Leider.',
+    completeText: 'Meine Träger sind durch. Sie sagen, aus dem Schlund steigt ein Leuchten, das nicht von dieser Welt ist. Die Pilze haben sie trotzdem mitgebracht.',
     objectives: [{ id: 'beasts', text: 'Kreaturen auf den Stegen besiegt', count: 20, kind: 'kill', target: ['bog_lurker', 'swamp_leech', 'plague_toad'], zone: 'blighted_marsh' }],
     rewards: { xp: Q(29, W.side), gold: 280, gear: [{ ilvl: 30, rarity: 'uncommon', slot: 'head' }] },
   },

@@ -24,7 +24,7 @@ const BOSSES = ['bonelord', 'drowned_priestess', 'ember_tyrant', 'barrow_king', 
 
 const Q_EMBERHOLLOW = ['q_ashen_wolves', 'q_glutfang', 'q_into_catacombs', 'q_spider_silk', 'q_bonelord', 'q_road_east'];
 const Q_ASHWOOD = ['q_boar_cull', 'q_bandit_camp', 'q_bandit_chief', 'q_temple_shore', 'q_nerith', 'q_to_the_peaks', 'q_thorn_sap', 'q_lost_satchel', 'q_drowned_relics'];
-const Q_PEAKS = ['q_imp_plague', 'q_hound_pack', 'q_behemoth', 'q_forge_gate', 'q_forge_warden', 'q_forge_cores', 'q_ember_drakes', 'q_ignaroth', 'q_obsidian_shards', 'q_rift_seals', 'q_cultist_tomes'];
+const Q_PEAKS = ['q_imp_plague', 'q_behemoth', 'q_forge_gate', 'q_forge_warden', 'q_forge_cores', 'q_ember_drakes', 'q_ignaroth', 'q_obsidian_shards', 'q_rift_seals', 'q_cultist_tomes'];
 
 export const ACHIEVEMENT_GROUPS = { story: 'Geschichte', combat: 'Kampf', loot: 'Beute', craft: 'Handwerk', trial: 'Glutprüfungen', pvp: 'Glutarena' };
 

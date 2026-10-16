@@ -11,7 +11,7 @@ import { ITEMS, EQUIP_SLOTS, RARITIES, stackSize, buyPrice, equipSlotFor, canUse
 import { QUESTS, NPC_LINES, VENDORS } from './quests.js';
 import { rollLoot, BOSS_QUEST_GRANTS, pickEquipment } from './loot.js';
 import { RECIPES } from './crafting.js';
-import { countItem, npcShortName, questStatus, questRewardItems, vendorStock, trackedQuestId, junkSlots, isUpgrade, sellableSlots, SELL_TIERS } from './selectors.js';
+import { countItem, npcShortName, questStatus, questRewardItems, vendorStock, trackedQuestId, autoQuestId, junkSlots, isUpgrade, sellableSlots, SELL_TIERS } from './selectors.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { ENCHANTS, UPGRADE_MAX } from './smithing.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from './rares.js';
@@ -184,6 +184,16 @@ function grantXp(s, ctx, amount, source) {
   }
   if (p.level >= LEVEL_CAP) { p.xp = totalXpForLevel(LEVEL_CAP); p.xpNext = p.xp; }
   return amount;
+}
+
+// Gespräch mit einem Questgeber: seine Nebenquest-Angebote gelten als gesehen
+function markOffers(s, ctx, npcId) {
+  const q = s.get('quests');
+  q.offered ??= [];
+  for (const def of ctx.content.all('quest')) {
+    if (def.giver !== npcId || def.main || def.repeatable || q.offered.includes(def.id)) continue;
+    if (questStatus(s, ctx.content, def.id) === 'available') q.offered.push(def.id);
+  }
 }
 
 function setTracked(s, ctx, questId) {
@@ -403,7 +413,9 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
   state.defineSlice('wallet', { create: () => ({ gold: 0 }), deserialize: (raw) => ({ gold: Math.max(-1e9, raw.gold | 0) }) });
 
   state.defineSlice('quests', {
-    create: () => ({ active: {}, completed: [], repeats: {}, choices: {}, tracked: null, guide: null }),
+    // offered: Nebenquests, deren Angebot man beim Geber gesehen hat (Glutspur führt dann nicht mehr hin)
+    // pinned: tracked wurde im Questlog selbst gewählt (sonst wählt autoQuestId bei Annahme und Abgabe)
+    create: () => ({ active: {}, completed: [], repeats: {}, choices: {}, tracked: null, pinned: false, guide: null, offered: [] }),
     deserialize: (raw) => {
       const active = {};
       for (const [id, a] of Object.entries(raw.active ?? {})) {
@@ -413,7 +425,9 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
       const completed = (raw.completed ?? []).filter((id) => Object.hasOwn(QUESTS, id));
       // Entscheidungen bei der Abgabe (quest.choices): { questId: choiceId }
       const choices = Object.fromEntries(Object.entries(raw.choices ?? {}).filter(([id, c]) => QUESTS[id]?.choices?.some((x) => x.id === c)));
-      return { active, completed, repeats: { ...raw.repeats }, choices, tracked: active[raw.tracked] ? raw.tracked : null, guide: Object.hasOwn(QUESTS, raw.guide ?? '') ? raw.guide : null };
+      const offered = (Array.isArray(raw.offered) ? raw.offered : []).filter((id) => Object.hasOwn(QUESTS, id) && !completed.includes(id) && !active[id]);
+      const tracked = active[raw.tracked] ? raw.tracked : null;
+      return { active, completed, repeats: { ...raw.repeats }, choices, tracked, pinned: !!(tracked && raw.pinned), guide: Object.hasOwn(QUESTS, raw.guide ?? '') ? raw.guide : null, offered };
     },
   });
 
@@ -478,7 +492,11 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
 
   // Erreichte Fläche / betretene Zone / besiegter Boss / benutztes Objekt / Gespräch -> Quest-Fortschritt
   // Bosse der Glutprüfungen sind Abbilder: Sie zählen nicht für Story-Quests
-  def('quest:event', (s, { kind, target }, ctx) => (kind === 'boss' && inTrial(s) ? { ok: false } : recordQuestEvent(s, ctx, kind, target)), auth);
+  def('quest:event', (s, { kind, target }, ctx) => {
+    if (kind === 'boss' && inTrial(s)) return { ok: false };
+    if (kind === 'talk') markOffers(s, ctx, target);
+    return recordQuestEvent(s, ctx, kind, target);
+  }, auth);
   // Boss besiegt: Questgegenstand direkt vergeben, wenn die Quest ihn noch braucht (z. B. Flammenkrone des Aschenfürsten)
   def('quest:bossReward', (s, { bossId }, ctx) => {
     if (inTrial(s)) return { ok: false, items: [] };
@@ -510,9 +528,9 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
     for (const it of quest.startItems ?? []) { const miss = it.qty - countItem(s, it.itemId); if (miss > 0) addItem(s, ctx, it.itemId, miss, 'quest', { overflow: true }); }
     ctx.bus.emit(EV.QUEST_ACCEPTED, { questId });
     if (s.get('quests').guide === questId) s.get('quests').guide = null;
-    // Neue Hauptquests oder erste Quest automatisch verfolgen
-    const tracked = s.get('quests').tracked;
-    if (!tracked || !s.get('quests').active[tracked] || (quest.main && !ctx.content.find('quest', tracked)?.main)) setTracked(s, ctx, questId);
+    // Verfolgen: selbst gewählte Quest bleibt, sonst die nächste nach autoQuestId (Zone, Stufe, Hauptquest)
+    const q = s.get('quests');
+    if (!q.pinned || !q.active[q.tracked]) { q.pinned = false; setTracked(s, ctx, autoQuestId(s, ctx.content)); }
     refreshQuests(s, ctx);
     return { ok: true };
   });
@@ -520,6 +538,7 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
   def('quest:track', (s, { questId }, ctx) => {
     if (questId && !s.get('quests').active[questId]) return { ok: false };
     s.get('quests').guide = null;
+    s.get('quests').pinned = !!questId;
     setTracked(s, ctx, questId ?? null);
     return { ok: true };
   });
@@ -537,7 +556,7 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
     if (!q.active[questId]) return { ok: false };
     delete q.active[questId];
     for (const it of ctx.content.find('quest', questId)?.startItems ?? []) if (ctx.content.find('item', it.itemId)?.type === 'quest') removeItem(s, ctx, it.itemId, countItem(s, it.itemId));
-    if (q.tracked === questId) setTracked(s, ctx, trackedQuestId(s, ctx.content));
+    if (q.tracked === questId) { q.pinned = false; setTracked(s, ctx, trackedQuestId(s, ctx.content)); }
     return { ok: true };
   });
 
@@ -568,7 +587,7 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
     const overflow = (s.get('inventory').questBag ?? []).reduce((n, e) => n + e.qty, 0) - before;
     if (overflow > 0) ctx.bus.emit(EV.UI_TOAST, { text: 'Tasche voll – die Belohnung liegt im Questbeutel (Inventar)', kind: 'warn', icon: 'bag' });
     s.get('progress').stats.questsCompleted++;
-    if (q.tracked === questId) setTracked(s, ctx, trackedQuestId(s, ctx.content));
+    if (q.tracked === questId) { q.pinned = false; setTracked(s, ctx, trackedQuestId(s, ctx.content)); }
     ctx.bus.emit(EV.QUEST_COMPLETED, { questId, rewards: { ...rewards, items } });
     if (rewards.xp) grantXp(s, ctx, rewards.xp, `quest:${questId}`);
     // reachLevel: das Ende der Geschichte hebt garantiert auf diese Stufe (Glutprüfungen ab 20)

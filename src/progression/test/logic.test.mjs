@@ -19,6 +19,7 @@ import { levelGapMult, levelGapTakenMult, applyLevelGap, levelGapTier, combatLev
 import { mobTuning } from '../difficulty.js';
 import { boardOffers, boardDay, boardWeek, offerRewards, WEEK_GOAL, boardHasOffers, BOARD_REGIONS, ELITE_LEVEL, ELITE_REACH } from '../board.js';
 import { ENEMY_TYPES } from '../../entities/enemyTypes.js';
+import { NPCS as WORLD_NPCS } from '../../world/zones.js';
 import { STREAK_DAYS, loginReward, firstWinReward, weeklyChallenge, challengeReward, dailyHasReward } from '../daily.js';
 import { setWorldFeatures, openObjectives } from '../selectors.js';
 import { trialSpec, trialChances, trialRewards, trialThemesFor } from '../trials.js';
@@ -150,7 +151,7 @@ test('Interagieren zählt jedes Objekt einmal, Pfad zeigt auf das nächste offen
 test('Falsche Reihenfolge setzt zurück und gibt die Objekte frei (quest:sequenceReset)', () => {
   const { c, state, bus } = setup();
   c('progress:grantXp', { amount: totalXpForLevel(26) });
-  state.slices.quests.completed.push('q_marsh_lurkers');
+  state.slices.quests.completed.push('q_into_the_marsh');
   assert.equal(c('quest:accept', { questId: 'q_marsh_totems' }).ok, true);
   const resets = []; bus.on('quest:sequenceReset', (e) => resets.push(e));
   c('quest:event', { kind: 'interact', target: 'rot_totem_2' });
@@ -161,6 +162,42 @@ test('Falsche Reihenfolge setzt zurück und gibt die Objekte frei (quest:sequenc
   c('quest:event', { kind: 'interact', target: 'rot_totem_2' });
   c('quest:event', { kind: 'interact', target: 'rot_totem_3' });
   assert.equal(state.slices.quests.active.q_marsh_totems.status, 'ready');
+});
+
+test('Glutspur: Abstecher zu Nebenquests in der Zone, Wechsel nach Stufe, aufgelöste Quests (Spielspaß 16.10.)', () => {
+  const { c, state, content } = setup();
+  content.defineAll('npc', WORLD_NPCS);
+  c('progress:grantXp', { amount: totalXpForLevel(13) });
+  state.slices.world.zoneId = 'cinder_peaks';
+  state.slices.quests.completed.push('q_to_the_peaks');
+  c('quest:accept', { questId: 'q_imp_plague' });
+  // Nebenquests liegen über der Hauptquest: kein Abstecher
+  assert.equal(questTarget(state, content).id, 'fire_imp');
+  for (let i = 0; i < 10; i++) c('progress:kill', { type: 'fire_imp', level: 13 });
+  for (let i = 0; i < 6; i++) c('progress:kill', { type: 'magma_hound', level: 13 });
+  assert.equal(c('quest:turnIn', { questId: 'q_imp_plague' }).ok, true);
+  assert.equal(questStatus(state, content, 'q_hound_pack'), 'locked', 'aufgelöst');
+  assert.equal(questStatus(state, content, 'q_behemoth'), 'available');
+  c('quest:event', { kind: 'talk', target: 'commander_hale' });
+  c('quest:accept', { questId: 'q_behemoth' });
+  c('quest:accept', { questId: 'q_lava_sluices' });
+  assert.equal(trackedQuestId(state, content), 'q_lava_sluices', 'niedrigere Stufe zuerst');
+  // Ysoldes Splitter (13) liegt unter der verfolgten Hauptquest: Glutspur führt zu ihr
+  let t = questTarget(state, content);
+  assert.deepEqual([t.kind, t.id, t.questId, t.offer], ['npc', 'seer_ysolde', 'q_obsidian_shards', true]);
+  // Angesprochen, aber nicht angenommen: kein erneuter Abstecher
+  c('quest:event', { kind: 'talk', target: 'seer_ysolde' });
+  assert.equal(questTarget(state, content).questId, 'q_lava_sluices');
+  // Angenommen: wird verfolgt, weil sie hier und niedriger ist
+  c('quest:accept', { questId: 'q_obsidian_shards' });
+  assert.equal(trackedQuestId(state, content), 'q_obsidian_shards');
+  // Selbst gewählt bleibt gewählt
+  c('quest:track', { questId: 'q_behemoth' });
+  c('quest:accept', { questId: 'q_bounty_peaks' });
+  assert.equal(trackedQuestId(state, content), 'q_behemoth');
+  // Wer q_hound_pack schon angenommen hatte, bringt sie zu Ende
+  state.slices.quests.active.q_hound_pack = { status: 'active', progress: {} };
+  assert.equal(questStatus(state, content, 'q_hound_pack'), 'active');
 });
 
 test('Boss vor Annahme besiegt zählt trotzdem (world.bossesDefeated)', () => {
@@ -446,7 +483,7 @@ test('Erweiterung: Quests, Kette und Inhalte bis 40', () => {
   const byGiver = {};
   for (const q of Object.values(QUESTS)) if (q.level >= 20 && !q.repeatable) (byGiver[q.giver] ??= []).push(q);
   for (const giver of ['captain_varra', 'warden_thane', 'jarl_eskil', 'marshal_corvane']) {
-    const n = byGiver[giver].filter((q) => q.main).length;
+    const n = byGiver[giver].filter((q) => q.main && !q.retired).length;
     assert.ok(n >= 6 && n <= 8, `${giver}: ${n} Hauptquests`);
   }
   for (const giver of ['nomad_kesh', 'alchemist_brisa', 'hunter_sigrun', 'pilgrim_aldo']) assert.ok(byGiver[giver].length >= 4 && byGiver[giver].length <= 8, `${giver}: ${byGiver[giver].length}`);
