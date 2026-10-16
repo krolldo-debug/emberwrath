@@ -263,7 +263,7 @@ export const OTHER_40 = {
   // reqQuest: Orla verkauft erst nach dieser Quest. Gold allein (auch gekauftes) reicht nie: Das Glutross gibt es erst nach Malgareth.
 // Preise aus test/pacing.mjs: Stufe 25–35 bringt höchstens ≈ 28 000 Gold je Stunde (alle Beute verkauft), realistisch
 // ≈ 75 % davon → seltenes Reittier ≈ 3,5 Stunden. Stufe 20→40 bringt realistisch ≈ 160 000 Gold → das epische erst gegen 40.
-  mount_steppe_horse: MOUNT_ITEM('steppe_horse', 'Zügel: Steppenpferd', 'rare', 2500, { source: 'vendor', price: 75000, reqQuest: 'q_first_ride' }),
+  mount_steppe_horse: MOUNT_ITEM('steppe_horse', 'Zügel: Steppenpferd', 'rare', 2500, { source: 'vendor', price: 10000, reqQuest: 'q_first_ride' }),
   mount_ash_wolf: MOUNT_ITEM('ash_wolf', 'Halsband: Aschenwolf', 'rare', 2500, { source: 'vendor', price: 75000, reqQuest: 'q_first_ride' }),
   mount_marsh_strider: MOUNT_ITEM('marsh_strider', 'Pfeife: Sumpfschreiter', 'rare', 2500, { source: 'boss' }),
   mount_bone_stallion: MOUNT_ITEM('bone_stallion', 'Totenglocke: Knochenhengst', 'epic', 8000, { source: 'boss' }),

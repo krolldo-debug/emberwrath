@@ -406,9 +406,11 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () =>
   const avg = per.reduce((a, b) => a + b, 0) / per.length;
   assert.ok(avg >= 13 && avg <= 22, `Schnitt ${avg} min je Stufe`);
   assert.ok(Math.max(...per) <= 32, 'keine extremen Ausreißer');
-  // Reittier-Preise: selten ≈ 3–4 h bei 75 % des verkauften Beutewerts, episch erst gegen 40
-  const rare = ITEMS.mount_steppe_horse.price, epic = ITEMS.mount_ember_charger.price;
+  // Reittier-Preise: Steppenpferd als erstes Tier bald nach 20 (16.10., Nutzer: 10.000 Gold), Aschenwolf ≈ 3–4 h
+  // bei 75 % des verkauften Beutewerts, episch erst gegen 40
+  const first = ITEMS.mount_steppe_horse.price, rare = ITEMS.mount_ash_wolf.price, epic = ITEMS.mount_ember_charger.price;
   const realistic = x.goldPerHour25to35 * 0.75;
+  assert.ok(first / realistic <= 0.6, `Steppenpferd ${first} = ${(first / realistic).toFixed(1)} h`);
   assert.ok(rare / realistic >= 3 && rare / realistic <= 4, `seltenes Reittier ${rare} = ${(rare / realistic).toFixed(1)} h`);
   // Glutross: Prestige nach Malgareth, braucht auch nach 40 noch Gold aus Prüfungen und Kopfgeldern
   assert.ok(x.goldAt(40) * 0.75 < epic && x.goldAt(40) >= epic * 0.8, 'episches Reittier erst nach 40');
@@ -478,7 +480,7 @@ test('Reittiere: Kauf bei Orla, Lernen per Gegenstand, Drops nur von Bossen', ()
   assert.equal(c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' }).reason, 'gold');
   c('wallet:addGold', { amount: 399000 });
   const r = c('shop:buy', { vendorId: 'stablemaster_orla', itemId: 'mount_steppe_horse' });
-  assert.equal(r.ok, true); assert.equal(r.price, 75000);
+  assert.equal(r.ok, true); assert.equal(r.price, 10000);
   const used = c('inventory:use', { slot: slotOf(state, 'mount_steppe_horse') });
   assert.equal(used.ok, true); assert.equal(used.mountId, 'steppe_horse');
   assert.equal(countItem(state, 'mount_steppe_horse'), 0);

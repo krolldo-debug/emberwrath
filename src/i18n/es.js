@@ -2277,6 +2277,7 @@ export const ES = {
   "Hier gibt es noch keine Erfolge.": "Aún no hay logros aquí.",
   "Hier ist der Schrein. Die Krone flüstert. Hörst du sie? Entscheide.": "Aquí está el santuario. La Corona susurra. ¿La oyes? Decide.",
   "Hier kannst du nicht reiten": "Aquí no puedes montar",
+  "Im Lager wird nicht geritten. Erst draußen aufsitzen": "En el campamento no se monta. Monta fuera",
   "Hier sichern": "Guardar aquí",
   "Hier steht es … Ignaroths Herz ist verwundbar, wenn er sich verwandelt. Merk dir das.": "Aquí lo dice… El corazón de Ignaroth es vulnerable cuando se transforma. Recuérdalo.",
   "Hier ziehen zum Laufen": "Arrastra aquí para moverte",

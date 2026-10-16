@@ -525,7 +525,7 @@ Reittiere kämpfen nicht, haben keine Werte außer Tempo.
 
 | Mount-ID | Name | Seltenheit | Beschaffung (C) |
 |---|---|---|---|
-| `steppe_horse` | Steppenpferd | rare | Orla, sehr teuer (75 000 Gold) |
+| `steppe_horse` | Steppenpferd | rare | Orla, 10 000 Gold (erstes Reittier ab Stufe 20) |
 | `ash_wolf` | Aschenwolf | rare | Orla, sehr teuer (75 000 Gold) |
 | `marsh_strider` | Sumpfschreiter | rare | Elite `bog_horror`, 1 % |
 | `bone_stallion` | Knochenhengst | epic | Boss `barrow_king`, 1 % |
