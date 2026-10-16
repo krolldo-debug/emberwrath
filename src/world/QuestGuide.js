@@ -166,6 +166,36 @@ export class QuestGuide {
     return portal ? { x: portal.x, y: portal.y + 6, near: 18, label: 'portal', portal } : null;
   }
 
+  // Kacheln, die ein hohes Objekt (Zelt, Baumkrone, Turm) oberhalb seiner Kollisionsbox verdeckt. Die Spur meidet sie
+  // (Mehrkosten im A*, Glättung schneidet nicht hindurch) und zeichnet dort keine Glutpunkte: sonst liefe sie sichtbar
+  // über das Objekt. Einmal je Welt, Deko steht fest.
+  #cover() {
+    const f = this.world.flow;
+    if (this.coverGrid?.length === f.w * f.h) return this.coverGrid;
+    const c = new Uint8Array(f.w * f.h);
+    for (const o of this.world.props ?? []) {
+      const s = o.sprite, b = o.box;
+      if (!s?.canvas || !b) continue;
+      const r = s.res ?? 1, w = s.canvas.width / r, ax = (o.flip ? s.canvas.width - s.ax : s.ax) / r;
+      const x0 = o.x - ax, x1 = x0 + w, y0 = o.y - s.ay / r, y1 = b.y0;
+      if (y1 - y0 < 10) continue;   // flache Dinge (Kisten, Steine) verdecken nichts
+      for (let ty = Math.max(0, Math.floor(y0 / T)); ty <= Math.min(f.h - 1, Math.floor(y1 / T)); ty++) {
+        const cy = ty * T + T / 2;
+        if (cy < y0 || cy >= y1) continue;
+        for (let tx = Math.max(0, Math.floor(x0 / T)); tx <= Math.min(f.w - 1, Math.floor(x1 / T)); tx++) {
+          const cx = tx * T + T / 2;
+          if (cx > x0 + 2 && cx < x1 - 2) c[ty * f.w + tx] = 1;
+        }
+      }
+    }
+    return (this.coverGrid = c);
+  }
+
+  #covered(px, py) {
+    const f = this.world.flow, x = Math.floor(px / T), y = Math.floor(py / T);
+    return x >= 0 && y >= 0 && x < f.w && y < f.h && this.#cover()[y * f.w + x] === 1;
+  }
+
   #blocked(x, y) {
     const f = this.world.flow;
     if (x < 0 || y < 0 || x >= f.w || y >= f.h) return true;
@@ -191,6 +221,7 @@ export class QuestGuide {
     const g = new Float32Array(W * f.h).fill(Infinity);
     const from = new Int32Array(W * f.h).fill(-1);
     const closed = new Uint8Array(W * f.h);
+    const cover = this.#cover();
     const heap = [[0, start]];
     const hfn = (i) => { const x = i % W, y = (i / W) | 0; const dx = Math.abs(x - e[0]), dy = Math.abs(y - e[1]); return Math.max(dx, dy) + 0.414 * Math.min(dx, dy); };
     const push = (item) => { heap.push(item); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
@@ -207,7 +238,7 @@ export class QuestGuide {
         const nx = x + dx, ny = y + dy;
         if (this.#blocked(nx, ny)) continue;
         if (dx && dy && (this.#blocked(x + dx, y) || this.#blocked(x, y + dy))) continue;
-        const ni = ny * W + nx, ng = g[i] + c;
+        const ni = ny * W + nx, ng = g[i] + c + cover[ni] * 3;
         if (ng < g[ni]) { g[ni] = ng; from[ni] = i; push([ng + hfn(ni), ni]); }
       }
     }
@@ -238,6 +269,7 @@ export class QuestGuide {
       for (const [ox, oy] of [[0, 0], [5, 0], [-5, 0], [0, 5], [0, -5]]) {
         if (this.#blocked(Math.floor((x + ox) / T), Math.floor((y + oy) / T))) return false;
       }
+      if (this.#covered(x, y)) return false;
     }
     return true;
   }
@@ -290,7 +322,7 @@ export class QuestGuide {
       const off = (this.time * 26) % 16;
       for (const p of this.#samples(16, off)) {
         const a = this.#alpha(p) * this.fade;
-        if (a <= 0.02) continue;
+        if (a <= 0.02 || this.#covered(p.x, p.y)) continue;   // hinter Zelt/Baumkrone verborgen
         // Pfeilspitze (Chevron) in Laufrichtung, 2 px dick
         const ux = Math.cos(p.ang), uy = Math.sin(p.ang) * 0.8, vx = -uy, vy = ux;
         const px = p.x - cx, py = p.y - cy;

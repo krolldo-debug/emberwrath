@@ -452,12 +452,13 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () =>
   const per = Object.values(x.full.minutesPerLevel);
   console.log(`    20→40 ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, je Stufe ${Math.min(...per).toFixed(0)}–${Math.max(...per).toFixed(0)} min, ${x.full.bounties} Kopfgelder`);
   assert.equal(x.full.level, 40);
-  assert.ok(x.hours20to40 >= 4.8 && x.hours20to40 <= 6.5, `${x.hours20to40} h`);
+  // 16.10.: Quests 21–30 geben 40 % mehr (xp.js QUEST_XP_BOOST), weniger Kopfgeld-Pflicht → rund 4,1 statt 4,9 h
+  assert.ok(x.hours20to40 >= 4 && x.hours20to40 <= 6.5, `${x.hours20to40} h`);
   assert.ok(x.questShare >= 0.62 && x.questShare <= 0.75, `Quest-Anteil ${x.questShare}`);
   // Die Geschichte endet kurz vor 40, nicht mit zwei Stufen Kopfgeld
   assert.ok(x.full.milestones.q_homecoming >= 39, `Heimkehr auf Stufe ${x.full.milestones.q_homecoming}`);
   const avg = per.reduce((a, b) => a + b, 0) / per.length;
-  assert.ok(avg >= 13 && avg <= 22, `Schnitt ${avg} min je Stufe`);
+  assert.ok(avg >= 11 && avg <= 22, `Schnitt ${avg} min je Stufe`);
   assert.ok(Math.max(...per) <= 32, 'keine extremen Ausreißer');
   // Reittier-Preise: Steppenpferd als erstes Tier bald nach 20 (16.10., Nutzer: 10.000 Gold), Aschenwolf ≈ 3–4 h
   // bei 75 % des verkauften Beutewerts, episch erst gegen 40

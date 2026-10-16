@@ -224,7 +224,7 @@ export function buildAshwood() {
   each([[57, 38], [62, 37], [65, 39], [69, 33]], (x, y) => foe(m, x, y, 'g'));                           // Käfer an den Meilern
   each([[92, 41], [97, 47], [107, 46], [104, 51], [96, 53], [110, 38], [113, 47], [100, 39]], (x, y) => foe(m, x, y, 'x')); // Ruine
   each([[94, 38], [114, 43], [110, 54]], (x, y) => foe(m, x, y, 'y'));
-  each([[90, 46], [101, 38], [101, 54]], (x, y) => foe(m, x, y, 's'));
+  foe(m, 90, 46, 's');                                                   // Schildträger am Tor, nicht mehr neben Rask
   foe(m, 103, 47, 'X');
   each([[68, 56], [72, 57], [70, 55]], (x, y) => foe(m, x, y, 'g')); each([[67, 54], [73, 58]], (x, y) => foe(m, x, y, 'c')); // Steinbruch
   each([[55, 64], [61, 65]], (x, y) => foe(m, x, y, 'c')); foe(m, 57, 71, 'g');                          // Mühleninsel

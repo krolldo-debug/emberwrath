@@ -146,11 +146,20 @@ export class FeedbackSystem {
     bus.on(EV.ITEM_EQUIPPED, () => this.#sfx('ui'));
     bus.on(EV.QUEST_ACCEPTED, () => this.#sfx('quest'));
     bus.on(EV.QUEST_READY, () => this.#sfx('quest'));
-    bus.on(EV.QUEST_COMPLETED, () => {
+    bus.on(EV.QUEST_COMPLETED, (e) => {
       const w = this.game.world, h = w.hero;
       this.#sfx('questDone');
       this.#aura({ actor: h, element: 'holy' });
       w.addEffect(new CoinFountain(h.x, h.y, { count: 16 }));
+      // Kapitelende (quest.finale, q_ignaroth auf Stufe 20): Lichtsäule, Schockwelle und Siegesfanfare am Helden
+      if (!this.game.content?.find('quest', e?.questId)?.finale) return;
+      this.#shake(5);
+      w.lighting.ambientBoost = 1;
+      w.addEffect(new Shockwave(h.x, h.y - 8, { radius: 80, color: '#ffd66a', life: 1 }));
+      w.addEffect(new LightPillar(h.x, h.y, { color: '#ffd66a', life: 2 }));
+      w.addEffect(new CoinFountain(h.x, h.y, { count: 30, life: 1.6, spread: 1.8 }));
+      w.particles.element(h.x, h.y - 10, 'holy', 70, 44);
+      this.#sfx('victory');
     });
     bus.on(EV.LOOT_DROPPED, (e) => this.#lootDropped(e));
     bus.on(EV.BOSS_ENGAGED, () => {

@@ -266,7 +266,11 @@ export class Hud {
     bus.on('trial:boss', () => this.#queueBanner('Der Wächter erscheint', 'Besiege ihn, um die Prüfung abzuschließen', '#ff5a40', 'trial'));
     bus.on('trial:completed', (e) => this.#queueBanner('Prüfung bestanden!', e?.tier ? `Stufe ${e.tier} gemeistert` : 'Belohnung erhalten', '#ffd66a', 'trial'));
     bus.on('trial:failed', () => this.#queueBanner('Prüfung gescheitert', 'Die Zeit ist abgelaufen – versuch es erneut', '#c04040', 'trial'));
-    bus.on(EV.QUEST_COMPLETED, (e) => this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest'));
+    bus.on(EV.QUEST_COMPLETED, (e) => {
+      const fin = this.s.content.find('quest', e.questId)?.finale;   // Kapitelende (q_ignaroth): großes Banner statt „Quest abgeschlossen“
+      if (fin) this.#queueBanner(fin.title, fin.sub, '#ffd66a', 'boss');
+      else this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest');
+    });
     bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
     bus.on(EV.BOSS_RESET, () => { this.boss = null; });
     bus.on(EV.BOSS_DEFEATED, () => { this.#queueBanner('Sieg!', `${this.boss?.actor?.def?.name ?? 'Der Boss'} ist besiegt`, '#ffd66a', 'boss'); this.boss = null; });

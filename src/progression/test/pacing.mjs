@@ -20,7 +20,7 @@ import { loginReward, firstWinReward, challengeReward, STREAK_DAYS } from '../da
 export const SEC_PER_KILL = 60 / PACE.killsPerMinute;
 export const SEC_PER_QUEST = 30;
 // Ab 20 nimmt der Spieler Quests bis GAP Stufen über sich an; sonst macht er Kopfgelder.
-export const GAP = 2;
+export const GAP = Number(globalThis.process?.env?.GAP ?? 2);
 
 export const ENEMY_LEVELS = {
   // Durchschnitt der echten Weltdaten (Thread B, Stand 2026-09-30)

@@ -106,12 +106,12 @@ export const ENEMY_TYPES = {
   },
   bandit_chief: {
     name: 'Rask, der Brandschatzer', family: 'human', level: 10, xp: 300, elite: true, sprites: 'bandit_chief',
-    hp: 1700, speed: 42, radius: 10, mass: 4, hurtRadius: 13, bodyHeight: 38, shadowW: 30, material: 'flesh',
+    hp: 1500, speed: 42, radius: 10, mass: 4, hurtRadius: 13, bodyHeight: 38, shadowW: 30, material: 'flesh',
     eye: { x: 5, y: -32 }, hurtTime: 0.15, aggro: 120, leash: 260, wander: 8, spawnStyle: 'fade', roar: true, roarTime: 1.1,
     attack: { kind: 'melee', range: 30, windup: 0.6, active: 0.14, recover: 0.5, cooldown: 1.0, damage: 30, knockback: 220, reach: 32, arc: 2.4, lunge: 90 },
     specials: [
       { kind: 'spin', anim: 'spin', range: 70, windup: 0.6, duration: 2.0, radius: 26, damage: 16, speedMul: 0.9, cooldown: 9 },
-      { kind: 'charge', range: 160, minRange: 60, windup: 0.8, speed: 250, duration: 0.6, damage: 40, cooldown: 7, stun: 1.2 },
+      { kind: 'charge', range: 160, minRange: 60, windup: 0.8, speed: 250, duration: 0.6, damage: 32, cooldown: 8, stun: 0.7 },
     ],
   },
   // --- Versunkener Tempel (Stufe 10–12)
