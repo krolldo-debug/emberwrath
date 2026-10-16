@@ -47,7 +47,7 @@ export const RUN_CAST = {
   },
   escort_pilgrims: {
     title: 'Die Pilger', start: 'Eskorte: Führe die sechs Pilger zum Kronenschrein.', speed: 24, foe: 'cinder_bombardier',
-    members: [0, 1, 2, 3, 4, 5].map((i) => ({ npc: 'pilgrim_aldo', name: i ? 'Pilger' : 'Aldo', hits: 8, hue: [0, 140, 210, 300, 60, 250][i] })),
+    members: [0, 1, 2, 3, 4, 5].map((i) => ({ npc: 'pilgrim_aldo', name: i ? 'Pilger' : 'Aldo', hits: 20, hue: [0, 140, 210, 300, 60, 250][i] })),
   },
   defend_rift_ritual: {
     title: 'Ysoldes Ritual', start: 'Verteidige Ysolde, bis das Ritual vollendet ist.', foe: 'cinder_cultist', circle: true,
@@ -55,7 +55,7 @@ export const RUN_CAST = {
   },
   defend_sigrun_lodge: {
     title: 'Sigruns Jagdhütte', start: 'Halte die Jagdhütte mit Sigrun, bis der Sturm vorüber ist.', foe: 'frost_revenant',
-    members: [{ npc: 'hunter_sigrun', name: 'Sigrun', hits: 40 }],
+    members: [{ npc: 'hunter_sigrun', name: 'Sigrun', hits: 70 }],
   },
 };
 
@@ -553,6 +553,16 @@ class EscortRun extends QuestRun {
     this.path = (this.route.path ?? []).map((p) => this.tilePx(p));
     if (!this.path.length) this.path = [{ x: w.hero.x, y: w.hero.y }];
     this.ambush = (this.route.ambush ?? []).map((a) => ({ ...a, done: false })).sort((a, b) => a.at - b.at);
+    // clearPath (Kacheln): Gegner der Zone dicht am Weg ziehen sich zurück wie beim Verteidigen. Ohne das trafen
+    // die Pilger in der Glutöde auf Überfall und Streifen zugleich (Rundgang 31–40: Held 37/38 fiel jedes Mal).
+    if (this.route.clearPath) {
+      const r = this.route.clearPath * T;
+      for (const e of w.enemies) {
+        if (e.dead || e.def?.boss || e.questRun || !this.path.some((p) => Math.hypot(e.x - p.x, e.y - p.y) < r)) continue;
+        e.removed = true;
+        w.particles.dust?.(e.x, e.y, 6);
+      }
+    }
     const s = this.src ?? w.hero;
     const sx = this.src?.objectId ? s.x : this.path[0].x, sy = this.src?.objectId ? s.y : this.path[0].y;
     this.idx = 0;

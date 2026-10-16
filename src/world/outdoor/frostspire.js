@@ -801,7 +801,7 @@ export function buildFrostspire() {
       ...tunnels.map(([x, y], i) => ({ id: `burrow_tunnel_${i + 1}`, kind: 'shrine', decor: 'burrowHole', name: 'Wühlerbau', prompt: 'Sprengpulver legen', x, y })),
     ],
     questRoutes: {
-      defend_sigrun_lodge: { kind: 'defend', at: defendAt, spawns: defendSpawns, foe: 'frost_revenant', seconds: 120 },
+      defend_sigrun_lodge: { kind: 'defend', at: defendAt, spawns: defendSpawns, foe: 'frost_revenant', seconds: 90, n: 1 },
     },
     portals: [
       { id: 'to_blighted_marsh', x: 90, y: 102.4, range: 28, visual: 'road', dir: [0, 1],

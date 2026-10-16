@@ -37,7 +37,7 @@ export const BOARD_REGIONS = [
 // Stufen der Brett-Eliten (wie entities/enemyTypes*.js, der Test prüft das). Kopfgeld gibt es erst, wenn der Held
 // höchstens ELITE_REACH Stufen darunter liegt: Eliten ab 20 kämpfen 2 Stufen höher (levelGap.js), am unteren Rand
 // einer Region wären sie sonst kaum zu schaffen.
-export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 40 };
+export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 39 };
 export const ELITE_REACH = 3;
 export function boardElites(region, level) { return region.elites.filter((id) => (ELITE_LEVEL[id] ?? 0) <= level + ELITE_REACH); }
 
