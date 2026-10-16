@@ -103,13 +103,17 @@ export function createRound3Enemies(T) {
     ice_elemental: d('fire_imp', 'ice_elemental', 'Eiselementar', [35, 37], { family: 'construct', material: 'stone', hp: 1.2 }),
     crystal_spider: d('spider', 'crystal_spider', 'Kristallspinne', [35, 37], { family: 'spider', material: 'chitin' }),
     frozen_knight: d('temple_guardian', 'frozen_knight', 'Erfrorener Ritter', [36, 37], { family: 'undead', material: 'stone' }),
-    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 155000, { dmgMult: 4, family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
+    // 125000 statt 155000 (Rundgang 31–40): mit zwei Söldnern auf Stufe 36 dauerte der Kampf fast 6 Minuten,
+    // Ulgrim und Mutter Fäulnis brauchen gut 3,5
+    frost_wyrm: boss('frost_wyrm', 'Skalvyr, der Frostwurm', 37, 125000, { dmgMult: 4, family: 'dragon', material: 'stone', radius: 14, hurtRadius: 18, bodyHeight: 54, shadowW: 56 }),
     // --- Glutöde (36–40)
     ash_wraith: d('drowned', 'ash_wraith', 'Aschegeist', [36, 39], { family: 'undead', spawnStyle: 'fade' }),
     cinder_knight: d('forge_golem', 'cinder_knight', 'Schlackenritter', [37, 40], { family: 'construct', material: 'stone' }),
     magma_serpent: d('ember_drake', 'magma_serpent', 'Magmaschlange', [37, 40], { family: 'beast' }),
     ember_cultist_adept: d('flame_acolyte', 'ember_cultist_adept', 'Glutadept', [38, 40], { family: 'human' }),
-    waste_colossus: d('forge_warden', 'waste_colossus', 'Der Glutkoloss', 40, { family: 'construct' }),
+    // 39 (Rundgang 31–40): wie die anderen Feld-Elite eine Stufe über der Quest (q_colossus 38); mit 40 zählte er als 42
+    // und Fernkämpfer auf Questniveau machten kaum Schaden
+    waste_colossus: d('forge_warden', 'waste_colossus', 'Der Glutkoloss', 39, { family: 'construct' }),
     // --- Aschethron (38–40)
     throne_guard: d('bandit', 'throne_guard', 'Thronwache', [38, 40], { family: 'human', material: 'stone', hp: 1.3 }),
     ash_priest: d('flame_acolyte', 'ash_priest', 'Aschepriester', [38, 40], { family: 'human' }),

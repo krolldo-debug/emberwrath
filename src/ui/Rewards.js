@@ -127,7 +127,7 @@ export class Rewards {
     if (!v.width) return null;
     const x = v.left + ((hero.x - cam.rx) / CONFIG.viewWidth) * v.width;
     const y = v.top + ((hero.y - (hero.bodyHeight ?? 16) * 0.7 - cam.ry) / CONFIG.viewHeight) * v.height;
-    return { x: x - l.left, y: y - l.top };
+    return { x: x - l.left, y: y - l.top, px: v.width / CONFIG.viewWidth };
   }
 
   #targetPoint(el) {
@@ -167,19 +167,22 @@ export class Rewards {
     if (!from || !to || this.flying >= MAX_FLYING) return null;
     const dur = 0.62;
     let last = 0;
+    const flip = Math.random() < 0.5 ? 1 : 0;
     for (let i = 0; i < count && this.flying < MAX_FLYING; i++) {
       const delay = i * stagger;
       last = delay + dur;
       const img = h('img.rw-fly-item', { src, alt: '', width: size, height: size, draggable: 'false' });
       // Seltenes fliegt mit harter 1-px-Kante in Seltenheitsfarbe (kein weicher Schein)
       if (glow) { const c = `rgb(${glow.join(',')})`; img.style.filter = `drop-shadow(1px 0 0 ${c}) drop-shadow(-1px 0 0 ${c}) drop-shadow(0 1px 0 ${c}) drop-shadow(0 -1px 0 ${c})`; }
-      img.style.left = `${from.x - size / 2}px`;
+      // Auswurf seitlich neben dem Helden (nicht auf seiner Figur), dann vom Helden weg nach oben
+      const side = (i + flip) % 2 ? -1 : 1, sx = from.x + side * (12 * from.px + size / 2);
+      img.style.left = `${sx - size / 2}px`;
       img.style.top = `${from.y - size / 2}px`;
       this.layer.append(img);
       this.flying++;
       // Bogen: erst seitlich hochspringen, dann beschleunigt ins Ziel
-      const ox = (Math.random() - 0.5) * spread * 2, oy = -spread * (0.7 + Math.random() * 0.6);
-      const dx = to.x - from.x, dy = to.y - from.y;
+      const ox = side * (0.3 + Math.random() * 0.7) * spread, oy = -spread * (0.7 + Math.random() * 0.6);
+      const dx = to.x - sx, dy = to.y - from.y;
       const anim = img.animate([
         { transform: 'translate(0, 0) scale(0.4)', opacity: 0, easing: 'cubic-bezier(.2,.8,.3,1)' },
         { transform: `translate(${ox}px, ${oy}px) scale(1.15)`, opacity: 1, offset: 0.32, easing: 'cubic-bezier(.55,0,.85,.35)' },

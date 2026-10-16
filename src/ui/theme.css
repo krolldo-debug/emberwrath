@@ -1538,3 +1538,37 @@ html.ef-touch:not(.ef-portrait) #ui .net-chat.open { left: calc(var(--ef-safe-l)
   }
   html.ef-touch:not(.ef-portrait):has(.hud-boss.show, .pv-top:not([hidden])):not(:has(.net-chat-btn:not([hidden]))) .ef-hud .hud-bag-btn { left: calc(var(--ef-edge-l) + 226px); }
 }
+
+/* Kapitelende (ui/Finale.js, quest.finale): gezeichneter Rahmen, Flammenkrone, harte Strahlen nur über dem Wappen,
+   Titel in Pixelschrift. Alles in ganzen Bildpunkten (--p), Auftritt und Strahlen in festen Stufen, kein Schein. */
+.fn {
+  --p: 3px; --tp: 6px; --cp: 4px;
+  position: absolute; left: 50%; top: 1%; translate: -50% 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; pointer-events: none; visibility: hidden;
+}
+.fn.show { visibility: visible; animation: fn-life 3.4s steps(1, end) forwards; }
+.fn canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.fn-top { position: relative; width: calc(61 * var(--cp)); height: calc(22 * var(--cp)); margin-bottom: calc(-6 * var(--cp)); z-index: 1; }
+.fn-rays { position: absolute; left: 0; top: 0; width: calc(61 * var(--cp)); height: calc(20 * var(--cp)); visibility: hidden; }
+.fn-crest { position: absolute; left: 50%; bottom: 0; translate: -50% 0; width: calc(17 * var(--cp)); height: calc(12 * var(--cp)); }
+.fn-card {
+  display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
+  padding: calc(4 * var(--p)) calc(6 * var(--p)) calc(2 * var(--p));
+  border: calc(5 * var(--p)) solid transparent; border-image: var(--fn-frame) 15 fill / calc(5 * var(--p)) stretch;
+}
+.fn-title { width: calc(var(--w) * var(--tp)); height: calc(var(--h) * var(--tp)); }
+.fn-sub { width: calc(var(--w) * var(--sp, 2px)); height: calc(var(--h) * var(--sp, 2px)); }
+.fn.show .fn-card, .fn.show .fn-crest { animation: fn-in 0.2s steps(3, end) both; }
+.fn.show .fn-rays { animation: fn-rays 0.3s steps(1, end) 0.2s 4 both; }
+@keyframes fn-in { 0% { transform: scale(1.5); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes fn-rays { 0% { visibility: visible; } 50% { visibility: hidden; } 100% { visibility: visible; } }
+@keyframes fn-life { 0%, 92% { opacity: 1; } 96% { opacity: 0.5; } 100% { opacity: 0; } }
+.ef-touch .fn { --p: 2px; --tp: 4px; --cp: 2px; top: 7%; }
+.ef-touch .fn-card { border-image-source: var(--fn-frame2); border-image-slice: 10 fill; }
+/* Während des Kapitelendes: Hinweise und Systemzeilen aus, Meldungen hält ui/Toasts.js zurück */
+.ef-finale .ef-guide-layer, .ef-finale .net-line.sys { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .fn.show .fn-card, .fn.show .fn-crest, .fn.show .fn-rays { animation: none; visibility: visible; } }
+
+/* Mehrere Erfolge auf einmal: eine Sammelzeile in der Meldungsspalte, deckend */
+.ef-toasts > .ef-toast.k-achievement { background: #1e1408; border: 2px solid #8a6420; border-top-color: #e8c25a; border-left-color: #e8c25a; border-radius: 0; color: #ffe08a; }
+.ef-toasts > .ef-toast.held { display: none; }

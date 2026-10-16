@@ -46,7 +46,7 @@ export const QUESTS = {
     summary: 'Steige in die Katakomben hinab und zerschlage die erwachten Skelette.',
     offer: 'Die Toten unter dem Dorf sind erwacht. Der alte Eingang liegt am Rand der Senke. Geh hinab und bring sie zur Ruhe – acht Skelettkrieger, dann können wir wieder schlafen.',
     progressText: 'Ich höre sie nachts an den Grabsteinen kratzen. Bitte beeil dich.',
-    completeText: 'Du bist zurück, und die Erde ist still. Aber da unten ist noch etwas Größeres …',
+    completeText: 'Du bist zurück, und die Erde ist still. Heute Nacht schläft das Dorf.',
     objectives: [
       { id: 'gate', text: 'Katakomben betreten', count: 1, kind: 'reach', target: ['catacombs_gate', 'zone:catacombs'], zone: 'emberhollow' },
       { id: 'skeletons', text: 'Skelettkrieger zerschlagen', count: 8, kind: 'kill', target: 'skeleton', zone: 'catacombs' },
@@ -63,7 +63,7 @@ export const QUESTS = {
     rewards: { xp: Q(3, 0.45), gold: 20, items: [{ itemId: 'brom_ring', qty: 1 }] },
   },
   q_bonelord: {
-    title: 'Der Knochenfürst', giver: 'elder_maren', main: true, level: 5, requires: ['q_into_catacombs'],
+    title: 'Der Knochenfürst', giver: 'elder_maren', main: true, level: 5, requires: ['q_ashen_wolves'], // zusammen mit „Unter der Glutsenke“: ein Gang hinab statt zwei
     summary: 'Besiege Varkhul, den Knochenfürsten, in der Tiefe der Katakomben.',
     offer: 'Varkhul. So hieß der Fürst, der hier vor dreihundert Jahren begraben wurde. Er ruft die Toten. Solange er steht, finden sie keine Ruhe. Bring mir sein Siegel.',
     progressText: 'Varkhul wartet in der großen Halle. Geh nicht unvorbereitet.',
@@ -110,7 +110,7 @@ export const QUESTS = {
     title: 'Rask, der Brandschatzer', giver: 'warden_ilsa', main: true, level: 9, requires: ['q_bandit_camp'],
     summary: 'Stelle den Anführer der Banditen.',
     offer: 'Rask hat drei Dörfer niedergebrannt, bevor der Berg es tat. Er versteckt sich in seinem Lager. Beende das.',
-    progressText: 'Rask ist gefährlich. Achte auf seine Feuerbomben.',
+    progressText: 'Rask ist gefährlich. Weich seinem Ansturm aus.',
     completeText: 'Rask ist tot? Dann schulde ich dir mehr als Gold. In seinem Zelt lag ein Brief mit einer Flammenkrone als Siegel: Er hat die Dörfer für jemanden am Berg geräumt. Nimm das – es war seine beste Beute.',
     objectives: [{ id: 'chief', text: 'Rask besiegt', count: 1, kind: 'kill', target: 'bandit_chief', zone: 'ashwood' }],
     rewards: { xp: Q(9, 0.7), gold: 60, gear: [{ ilvl: 9, rarity: 'rare', slot: 'weapon' }] },
@@ -258,6 +258,8 @@ export const QUESTS = {
       { id: 'crown', text: 'Krone des Tyrannen', count: 1, kind: 'collect', target: 'tyrant_crown', from: ['ember_tyrant'], zone: 'molten_forge' },
     ],
     rewards: { xp: Q(19, 1.3), gold: 400, reachLevel: 20, gear: [{ ilvl: 20, rarity: 'epic', slot: 'weapon' }] },
+    // Höhepunkt Stufe 20: großes Banner und Feuerwerk bei der Abgabe (ui/Hud.js, systems/Feedback.js)
+    finale: { title: 'Emberwrath ist gerettet', sub: 'Reiten, Glutprüfungen und die Aschensteppe warten' },
   },
 
   // --- Ysolde (Nebenquests)

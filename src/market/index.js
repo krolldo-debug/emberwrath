@@ -86,7 +86,7 @@ class Auctioneer extends Npc {
     const font = this.world.session.font;
     if (!near || !font) return;
     const x = Math.round(this.x - cx), top = Math.round(this.y - cy - 46);
-    font.draw(ctx, this.def.name.toUpperCase(), x, top - 8, { color: '#e8c25a', align: 'center', shadow: true });
+    font.draw(ctx, this.def.name.toUpperCase(), x, top - 8 - Math.min(1, font.ascent(this.def.title)), { color: '#e8c25a', align: 'center', shadow: true });
     font.draw(ctx, this.def.title.toUpperCase(), x, top - 1, { color: '#a89ab8', align: 'center', shadow: true });
   }
   interact(world) {

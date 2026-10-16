@@ -10,6 +10,7 @@ import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { HeroStage, statGlyph } from './heroStage.js';
 import { fmtNum } from '../i18n/index.js';
+import { FINDER_CONFIG } from '../finder/config.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
 // neu (EV.STATE_CHANGED) und löst Spielaktionen nur über Commands aus.
@@ -426,7 +427,7 @@ const TALK = '__talk';
 function groupBossHint(c, def, objectives) {
   const open = objectives.some((o) => o.kind === 'boss' && !o.done);
   const zone = c.find('zone', def.objectives.find((o) => o.kind === 'boss')?.zone);
-  if (!open || !zone?.instanced || zone.kind !== 'dungeon' || zone.trial) return null;
+  if (!open || !zone?.instanced || zone.kind !== 'dungeon' || zone.trial || FINDER_CONFIG.solo?.[zone.id]) return null;
   return h('p.pg-hint', 'Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.');
 }
 function questDialogView(s, { npcId } = {}) {

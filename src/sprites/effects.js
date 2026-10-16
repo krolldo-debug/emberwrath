@@ -305,13 +305,21 @@ export function createGuideSprites() {
     c = makeCanvas(11, 11);
     const ctx = c.getContext('2d');
     const a = (di / 16) * TAU, ca = Math.cos(a), sa = Math.sin(a);
+    const on = new Uint8Array(121);
     for (let y = 0; y < 11; y++) for (let x = 0; x < 11; x++) {
       const px = x + 0.5 - 5.5, py = (y + 0.5 - 5.5) * 2; // Boden-Perspektive: y gestaucht
       const u = px * ca + py * sa, v = -px * sa + py * ca;
       const chev = Math.abs(u + Math.abs(v) * 0.9 - 1) < 1.1 && Math.abs(v) < 4.2 && u > -4;
       if (!chev) continue;
+      on[y * 11 + x] = 1;
       ctx.fillStyle = Math.abs(v) < 1 ? '#fff0b0' : Math.abs(v) < 2.5 ? '#ffb640' : '#f07a1c';
       ctx.fillRect(x, y, 1, 1);
+    }
+    // Harte 1-px-Kontur in Dunkelorange (transparenter Grund, kein Schein)
+    ctx.fillStyle = '#8a2c06';
+    for (let y = 0; y < 11; y++) for (let x = 0; x < 11; x++) {
+      if (on[y * 11 + x]) continue;
+      if ((x > 0 && on[y * 11 + x - 1]) || (x < 10 && on[y * 11 + x + 1]) || (y > 0 && on[(y - 1) * 11 + x]) || (y < 10 && on[(y + 1) * 11 + x])) ctx.fillRect(x, y, 1, 1);
     }
     arrows.set(di, c);
     return c;

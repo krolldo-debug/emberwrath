@@ -20,7 +20,7 @@ import { loginReward, firstWinReward, challengeReward, STREAK_DAYS } from '../da
 export const SEC_PER_KILL = 60 / PACE.killsPerMinute;
 export const SEC_PER_QUEST = 30;
 // Ab 20 nimmt der Spieler Quests bis GAP Stufen über sich an; sonst macht er Kopfgelder.
-export const GAP = 2;
+export const GAP = Number(globalThis.process?.env?.GAP ?? 2);
 
 export const ENEMY_LEVELS = {
   // Durchschnitt der echten Weltdaten (Thread B, Stand 2026-09-30)
@@ -36,7 +36,7 @@ export const ENEMY_LEVELS = {
   sporeling: 30, fungal_brute: 31, spore_caster: 31, rot_mother: 32,
   frost_wolf: 32, ice_troll: 34, rime_witch: 35, snow_stalker: 34, ice_troll_chief: 35,
   ice_elemental: 36, crystal_spider: 36, frozen_knight: 37, frost_wyrm: 37,
-  ash_wraith: 37, cinder_knight: 39, magma_serpent: 39, ember_cultist_adept: 38, waste_colossus: 40,
+  ash_wraith: 37, cinder_knight: 39, magma_serpent: 39, ember_cultist_adept: 38, waste_colossus: 39,
   throne_guard: 39, ash_priest: 39, ember_hellhound: 40, throne_sentinel: 40, ash_sovereign: 40,
 };
 const ELITE = new Set(['wolf_alpha', 'bandit_chief', 'magma_behemoth', 'forge_warden', 'steppe_warlord', 'bog_horror', 'ice_troll_chief', 'waste_colossus', 'throne_sentinel']);

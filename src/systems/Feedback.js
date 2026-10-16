@@ -130,7 +130,7 @@ export class FeedbackSystem {
     // Fortschritt und Ablauf (bereichsübergreifende Events)
     bus.on(EV.XP_GAINED, (e) => {
       const h = this.game.world.hero;
-      if (!(e.amount > 0)) return;
+      if (!(e.amount > 0) || performance.now() - (this.finaleAt ?? -1e9) < 4000) return;
       // Mehrere Kills kurz hintereinander: eine wachsende Zahl statt eines Stapels „+13 EP“
       const t = this.epText;
       if (t && !t.removed && t.max - t.life < 0.7) {
@@ -146,9 +146,19 @@ export class FeedbackSystem {
     bus.on(EV.ITEM_EQUIPPED, () => this.#sfx('ui'));
     bus.on(EV.QUEST_ACCEPTED, () => this.#sfx('quest'));
     bus.on(EV.QUEST_READY, () => this.#sfx('quest'));
-    bus.on(EV.QUEST_COMPLETED, () => {
+    bus.on(EV.QUEST_COMPLETED, (e) => {
       const w = this.game.world, h = w.hero;
       this.#sfx('questDone');
+      // Kapitelende (quest.finale, q_ignaroth auf Stufe 20): eine harte Lichtsäule und Fanfare statt Goldregen; die Ansage
+      // (ui/Finale.js) trägt den Moment, die EP-Zahl entfällt
+      if (this.game.content?.find('quest', e?.questId)?.finale) {
+        this.finaleAt = performance.now();
+        this.#shake(4);
+        // Säule steht über dem Kopf (deckend, würde sonst den Helden verdecken), kein Ring
+        w.addEffect(new LightPillar(h.x, h.y - (h.bodyHeight ?? 16) - 8, { color: '#ffd66a', life: 1.4, height: 80, hard: true }));
+        this.#sfx('victory');
+        return;
+      }
       this.#aura({ actor: h, element: 'holy' });
       w.addEffect(new CoinFountain(h.x, h.y, { count: 16 }));
     });

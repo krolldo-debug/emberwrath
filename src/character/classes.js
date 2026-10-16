@@ -108,15 +108,15 @@ export const ABILITIES = {
   flame_nova: { name: 'Flammenring', icon: 'gem', cost: 30, cooldown: 6, mult: 2.1, desc: 'Ein Glutring bricht aus dem Boden, verbrennt und schleudert nahe Gegner weg.' },
   blink: { name: 'Blinzeln', icon: 'scroll', cost: 20, cooldown: 5, desc: 'Teleportiert ein Stück in Zielrichtung – Rettung aus jeder Umzingelung.' },
 
-  // Ab Stufe 4 (skill3) und Stufe 12 (skill4)
+  // Ab Stufe 4 (skill3) und Stufe 8 (skill4, zusammen mit der ersten Passiven: großer Moment im Aschenwald)
   charge: { name: 'Sturmangriff', icon: 'skill_charge', level: 4, cost: 0, cooldown: 9, mult: 1.3, desc: 'Stürmt mit dem Schild voran, rammt alle Gegner auf dem Weg zur Seite und erzeugt 20 Wut.' },
-  earthshatter: { name: 'Erdspalter', icon: 'skill_nova', level: 12, cost: 50, cooldown: 12, mult: 4.0, desc: 'Ein Hieb, der den Boden spaltet: drei Erdstöße laufen in Zielrichtung und schleudern alles davon.' },
+  earthshatter: { name: 'Erdspalter', icon: 'skill_nova', level: 8, cost: 50, cooldown: 12, mult: 4.0, desc: 'Ein Hieb, der den Boden spaltet: drei Erdstöße laufen in Zielrichtung und schleudern alles davon.' },
   poison_blades: { name: 'Giftklingen', icon: 'skill_poison', level: 4, cost: 25, cooldown: 14, mult: 0.35, desc: '8 Sekunden lang vergiften deine Treffer die Gegner: vier Giftschläge über zwei Sekunden.' },
-  assassinate: { name: 'Todesstoß', icon: 'skill_slash', level: 12, cost: 45, cooldown: 10, mult: 4, desc: 'Springt hinter den nächsten Gegner in Zielrichtung und sticht zu – mit 50 % höherer Chance auf einen kritischen Treffer.' },
+  assassinate: { name: 'Todesstoß', icon: 'skill_slash', level: 8, cost: 45, cooldown: 10, mult: 4, desc: 'Springt hinter den nächsten Gegner in Zielrichtung und sticht zu – mit 50 % höherer Chance auf einen kritischen Treffer.' },
   fire_trap: { name: 'Sprengfalle', icon: 'skill_nova', level: 4, cost: 25, cooldown: 10, mult: 2.4, desc: 'Legt eine Glutfalle, die explodiert, sobald ein Gegner sie betritt (spätestens nach 8 Sekunden).' },
-  arrow_rain: { name: 'Pfeilhagel', icon: 'skill_arrows', level: 12, cost: 50, cooldown: 14, mult: 0.75, desc: 'Ein Schwarm Pfeile regnet anderthalb Sekunden lang auf das Zielgebiet.' },
+  arrow_rain: { name: 'Pfeilhagel', icon: 'skill_arrows', level: 8, cost: 50, cooldown: 14, mult: 0.75, desc: 'Ein Schwarm Pfeile regnet anderthalb Sekunden lang auf das Zielgebiet.' },
   fireball: { name: 'Feuerball', icon: 'skill_fireball', level: 4, cost: 25, cooldown: 6, mult: 3.1, desc: 'Eine schwere Glutkugel, die beim Aufprall explodiert und alle Gegner in der Nähe trifft.' },
-  meteor: { name: 'Meteor', icon: 'skill_fireball', level: 12, cost: 60, cooldown: 16, mult: 6.4, desc: 'Ruft nach kurzem Zögern einen brennenden Felsbrocken auf das Ziel herab. Riesiger Schaden im Einschlagsbereich.' },
+  meteor: { name: 'Meteor', icon: 'skill_fireball', level: 8, cost: 60, cooldown: 16, mult: 6.4, desc: 'Ruft nach kurzem Zögern einen brennenden Felsbrocken auf das Ziel herab. Riesiger Schaden im Einschlagsbereich.' },
 };
 
 export const DEFAULT_CLASS = 'warrior';

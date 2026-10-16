@@ -6,6 +6,7 @@ import { trackedQuestId, questFilterHere } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
 import { tr, fmtNum } from '../i18n/index.js';
 import { DeathScreen } from './DeathScreen.js';
+import { Finale, FINALE_SHOW } from './Finale.js';
 
 // HTML-HUD der Spielsitzung (liest nur Zustand, Held und Inhalte; schreibt nie).
 // Aufbau:
@@ -39,7 +40,7 @@ function bar(cls, label) {
 const SKILL_INDEX = { skill1: 0, skill2: 1, skill3: 2, skill4: 3 };
 // Rang der Banner in der Warteschlange; Freischalt-Karten (Unlocks) warten immer auf Banner,
 // ab Rang 2 räumt ein Banner eine gerade gezeigte Karte (sie kommt danach wieder)
-const BANNER_PRIO = { level: 3, boss: 2, legendary: 2, trial: 2, quest: 1, info: 1 };
+const BANNER_PRIO = { finale: 4, level: 3, boss: 2, legendary: 2, trial: 2, quest: 1, info: 1 };
 
 export class Hud {
   constructor(session) {
@@ -125,7 +126,8 @@ export class Hud {
     this.castFill = el('div.hud-cast-fill');
     this.castText = el('span.hud-cast-text', 'Aufsitzen');
     this.castEl = el('div.hud-cast', el('div.hud-cast-bar', this.castFill), this.castText);
-    this.viewEl = el('div.hud-view', this.bossEl, this.champEl, this.trialEl, this.bannerEl, this.promptEl, this.castEl, this.deadEl);
+    this.finale = new Finale(this.s);   // Kapitelende (quest.finale): eigene Ansage, läuft über die Banner-Warteschlange
+    this.viewEl = el('div.hud-view', this.bossEl, this.champEl, this.trialEl, this.bannerEl, this.finale.el, this.promptEl, this.castEl, this.deadEl);
 
     // Aktionsleiste
     this.slots = [
@@ -266,7 +268,11 @@ export class Hud {
     bus.on('trial:boss', () => this.#queueBanner('Der Wächter erscheint', 'Besiege ihn, um die Prüfung abzuschließen', '#ff5a40', 'trial'));
     bus.on('trial:completed', (e) => this.#queueBanner('Prüfung bestanden!', e?.tier ? `Stufe ${e.tier} gemeistert` : 'Belohnung erhalten', '#ffd66a', 'trial'));
     bus.on('trial:failed', () => this.#queueBanner('Prüfung gescheitert', 'Die Zeit ist abgelaufen – versuch es erneut', '#c04040', 'trial'));
-    bus.on(EV.QUEST_COMPLETED, (e) => this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest'));
+    bus.on(EV.QUEST_COMPLETED, (e) => {
+      const fin = this.s.content.find('quest', e.questId)?.finale;   // Kapitelende (q_ignaroth): großes Banner statt „Quest abgeschlossen“
+      if (fin) this.#queueBanner(fin.title, fin.sub, '#ffd66a', 'finale');
+      else this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest');
+    });
     bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });
     bus.on(EV.BOSS_RESET, () => { this.boss = null; });
     bus.on(EV.BOSS_DEFEATED, () => { this.#queueBanner('Sieg!', `${this.boss?.actor?.def?.name ?? 'Der Boss'} ist besiegt`, '#ffd66a', 'boss'); this.boss = null; });
@@ -287,6 +293,9 @@ export class Hud {
   get bannerBusy() { return !!this.banner || this.bannerQueue.length > 0; }
 
   #queueBanner(title, sub, color, kind = 'info') {
+    // Das Kapitelende ersetzt das Stufen-Banner derselben Abgabe (Stufe 20 steht in der Leiste)
+    if (kind === 'level' && (this.banner?.kind === 'finale' || this.bannerQueue.some((b) => b.kind === 'finale'))) return;
+    if (kind === 'finale') this.bannerQueue = this.bannerQueue.filter((b) => b.kind !== 'level');
     // Gleichartige Banner ersetzen sich (z. B. zwei Zonenwechsel kurz nacheinander).
     this.bannerQueue = this.bannerQueue.filter((b) => b.kind !== kind);
     // Große Ansagen nacheinander, wichtigste zuerst: Stufe > Boss/Legendär/Prüfung > Rest
@@ -380,6 +389,7 @@ export class Hud {
     this.#updateChampion(dt, hero);
     this.#updateTrial(dt);
     this.#updateBanner(dt);
+    this.finale.update(dt);
     this.#updatePrompt();
     this.#updateSlots(hero);
     this.#updateCast(hero);
@@ -515,6 +525,7 @@ export class Hud {
     }
     if (!this.banner && this.bannerQueue.length) {
       const b = this.bannerQueue.shift();
+      if (b.kind === 'finale') { this.banner = { ...b, t: 0, dur: FINALE_SHOW }; this.finale.show(b); return; }
       this.banner = { ...b, t: 0, dur: b.kind === 'zone' ? 3.2 : 2.6 };
       setText(this.bTitle, b.title);
       setText(this.bSub, b.sub);
@@ -646,5 +657,5 @@ export class Hud {
     this.stickKnob.style.transform = `translate(${kx}px, ${ky}px)`;
   }
 
-  dispose() { document.removeEventListener('pointerdown', this.outside, true); this.root.remove(); }
+  dispose() { document.removeEventListener('pointerdown', this.outside, true); this.finale.dispose(); this.root.remove(); }
 }

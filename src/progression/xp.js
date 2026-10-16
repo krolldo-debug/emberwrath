@@ -54,8 +54,12 @@ export function killXp(baseXp, enemyLevel, playerLevel) {
 }
 
 // Quest-Erfahrung: Anteil an der Stufe, auf der die Quest liegt.
+// QUEST_XP_BOOST: Steppe, Hügelgrab und Faulmarsch (Quests 21–30) geben mehr, sonst liegt man dort rund zwei Stufen
+// unter dem Questgebiet (Rundgang 21–30; test/pacing.mjs mit GAP=99: ohne Kopfgelder 1–3 statt 2–4 Stufen darunter).
+export const QUEST_XP_BOOST = { from: 21, to: 30, mult: 1.4 };
 export function questXp(questLevel, weight) {
-  return Math.round((xpToNext(Math.min(questLevel, LEVEL_CAP - 1)) * weight * 0.75) / 5) * 5;
+  const b = QUEST_XP_BOOST, boost = questLevel >= b.from && questLevel <= b.to ? b.mult : 1;
+  return Math.round((xpToNext(Math.min(questLevel, LEVEL_CAP - 1)) * weight * 0.75 * boost) / 5) * 5;
 }
 
 // Vorschlag für den Werteanstieg je Stufe (computeStats von Thread A hat eigene Klassenwerte).

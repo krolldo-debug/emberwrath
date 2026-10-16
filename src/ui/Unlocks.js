@@ -100,7 +100,10 @@ export class Unlocks {
     this.queue = this.queue.filter((q) => !more.includes(q));
     const all = [c, ...more];
     const pts = all.reduce((n, q) => n + (q.points ?? 0), 0);
-    return { kind: 'achievements', name: all.map((q) => q.name).join(' · '), icon: c.icon, sub: pts ? `${fmtNum(pts)} Punkte` : '' };
+    // Viele auf einmal (Stufensprung, Kapitelende): eine Sammelzeile in der Meldungsspalte statt einer großen Karte
+    this.s.bus.emit(EV.UI_TOAST, { text: `${fmtNum(all.length)} Erfolge (+${fmtNum(pts)})`, kind: 'achievement', icon: 'ui_achievements' });
+    this.s.sfx?.play?.('achievement');
+    return null;
   }
 
   #show(c) {
@@ -131,7 +134,8 @@ export class Unlocks {
     // nicht gleichzeitig mit einem Banner (Stufe, Quest) und nicht unter einem offenen Fenster
     if (!this.queue.length || this.calm < 0.4 || this.s.panels?.openId) return;
     const next = this.queue.shift();
-    if (next) this.#show(this.#merge(next));
+    const card = next && this.#merge(next);
+    if (card) this.#show(card);
   }
 
   dispose() { this.el.remove(); }
