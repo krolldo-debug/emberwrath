@@ -137,7 +137,7 @@ export const MOUNT_REASON_TEXT = {
   none: 'Du besitzt noch kein Reittier',
   combat: 'Im Kampf kannst du nicht aufsitzen',
   zone: 'Hier kannst du nicht reiten',
-  area: 'Hier kannst du nicht reiten',
+  area: 'Im Lager wird nicht geritten. Erst draußen aufsitzen',
 };
 
 export function installMounts(game) {

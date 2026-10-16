@@ -2254,6 +2254,7 @@ export const EN = {
   "Hier gibt es noch keine Erfolge.": "No achievements here yet.",
   "Hier ist der Schrein. Die Krone flüstert. Hörst du sie? Entscheide.": "Here is the shrine. The Crown whispers. Do you hear it? Decide.",
   "Hier kannst du nicht reiten": "You can't ride here",
+  "Im Lager wird nicht geritten. Erst draußen aufsitzen": "No riding in camp. Mount up outside",
   "Hier sichern": "Save Here",
   "Hier steht es … Ignaroths Herz ist verwundbar, wenn er sich verwandelt. Merk dir das.": "Here it is… Ignaroth's heart is vulnerable when he transforms. Remember that.",
   "Hier ziehen zum Laufen": "Drag here to move",

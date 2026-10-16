@@ -2277,6 +2277,7 @@ export const FR = {
   "Hier gibt es noch keine Erfolge.": "Aucun succès ici pour l'instant.",
   "Hier ist der Schrein. Die Krone flüstert. Hörst du sie? Entscheide.": "Voici le sanctuaire. La Couronne murmure. Tu l'entends ? Décide.",
   "Hier kannst du nicht reiten": "Tu ne peux pas monter ici",
+  "Im Lager wird nicht geritten. Erst draußen aufsitzen": "Pas de monture au camp. Monte dehors",
   "Hier sichern": "Sauvegarder ici",
   "Hier steht es … Ignaroths Herz ist verwundbar, wenn er sich verwandelt. Merk dir das.": "C'est écrit là… Le cœur d'Ignaroth est vulnérable quand il se transforme. Retiens-le.",
   "Hier ziehen zum Laufen": "Glisse ici pour te déplacer",
