@@ -545,11 +545,11 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
 }
 @media (max-width: 600px) {
   .hero { display: block; min-height: 100svh; }
-  .hero-bg { position: relative; inset: auto; height: 58svh; min-height: 360px; max-height: 560px; z-index: -3; }
+  .hero-bg { position: relative; inset: auto; height: 58svh; min-height: 360px; max-height: 560px; margin-top: 58px; z-index: -3; }   /* unter der Kopfleiste (58 px), Krone frei */
   .titel-bild { --p: 2.6667; left: calc(42% - 330px * var(--p)); top: calc(78% - 212px * var(--p)); }   /* wie titel.js: 4 Gerätepixel je Feinpixel bei 3× */
   .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 87%, rgba(5, 2, 10, 0.7) 94%, var(--bg) 100%); }
   .hero::before { background: linear-gradient(180deg, rgba(5, 2, 10, 0.55) 0%, rgba(5, 2, 10, 0) 14%); }
-  .hero-content { padding-top: 0; margin-top: -60px; padding-bottom: 56px; }
+  .hero-content { padding-top: 0; margin-top: 10px; padding-bottom: 56px; }   /* Überschrift unter dem Boden, nicht darüber */
   .hero-cta .btn { width: 100%; }
   .hero-cta { justify-content: center; }
   .cls-tabs { flex-wrap: nowrap; gap: 14px; overflow-x: auto; scrollbar-width: none; }
