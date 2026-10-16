@@ -1,5 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
+import { lift } from './ground/kit.js';
 import { mk, poly, pal32, shade, stepOf, lump, fpoly, groundPatch, DecoCanvas } from './decor_ashwood.js';
 import { shadeLump, dustPatch, blade, bayer } from './decor_steppe.js';
 import { PixelCanvas, outlineCanvas } from '../gfx/PixelCanvas.js';
@@ -12,20 +13,20 @@ import { fineRes, canvasPixels, pixelsToCanvas } from '../gfx/Fine.js';
 
 // Bodenpalette (Format wie BIOME_GROUND in sprites/outdoor.js); water = Sumpfwasser
 export const GROUND_MARSH = {
-  grass: ['#0c120e', '#111912', '#162117', '#1c291b', '#233220', '#2c3d26'],
-  dirt: ['#100e0b', '#17140f', '#1f1b14', '#28221a', '#312a20', '#3c3327'],
-  water: ['#0a1012', '#142426', '#1d3433', '#2f4b46', '#46685a'],
+  grass: lift(['#0c120e', '#111912', '#162117', '#1c291b', '#233220', '#2c3d26'], 1.25),
+  dirt: lift(['#100e0b', '#17140f', '#1f1b14', '#28221a', '#312a20', '#3c3327'], 1.25),
+  water: lift(['#0a1012', '#142426', '#1d3433', '#2f4b46', '#46685a'], 1.25),
   tufts: true,
 };
 
-const MOSS = ['#0d140f', '#142017', '#1c2c1e', '#263a25', '#32492c', '#415a34', '#56703f'];
-const BEARD = ['#1a221d', '#27322a', '#374536', '#4b5a46', '#627058', '#7e8a6a'];
-const ROT = ['#0f0c0b', '#191412', '#231c18', '#30261f', '#3e3127', '#4f3f31', '#645140'];
-const MUD = ['#100e0b', '#18140f', '#211c15', '#2b241b', '#362d22'];
-const SW = ['#060a08', '#0b130e', '#112017', '#1a2e1f', '#284330', '#3d5e42'];
-const MST = ['#101312', '#171b19', '#1f2522', '#29302c', '#353d37', '#434c44', '#566055', '#6c7768'];
+const MOSS = lift(['#0d140f', '#142017', '#1c2c1e', '#263a25', '#32492c', '#415a34', '#56703f'], 1.2);
+const BEARD = lift(['#1a221d', '#27322a', '#374536', '#4b5a46', '#627058', '#7e8a6a'], 1.2);
+const ROT = lift(['#0f0c0b', '#191412', '#231c18', '#30261f', '#3e3127', '#4f3f31', '#645140'], 1.2);
+const MUD = lift(['#100e0b', '#18140f', '#211c15', '#2b241b', '#362d22'], 1.2);
+const SW = lift(['#060a08', '#0b130e', '#112017', '#1a2e1f', '#284330', '#3d5e42'], 1.2);
+const MST = lift(['#101312', '#171b19', '#1f2522', '#29302c', '#353d37', '#434c44', '#566055', '#6c7768'], 1.2);
 const THATCH = ['#16140d', '#221e13', '#302a19', '#403820', '#51482a', '#665b35', '#7e7045'];
-const REED = ['#141a0f', '#1f2815', '#2d381c', '#3e4a24', '#53602f', '#6c763c'];
+const REED = lift(['#141a0f', '#1f2815', '#2d381c', '#3e4a24', '#53602f', '#6c763c'], 1.2);
 const CATT = ['#1e120c', '#341e12', '#4c2c1a', '#6a4024'];
 const GLG = ['#0a2416', '#12563a', '#24a060', '#6ee89a', '#d4ffe0'];
 const GLV = ['#1a0c28', '#44196a', '#8034b8', '#c27ef0', '#f2d8ff'];
@@ -1363,7 +1364,7 @@ function lanternPost() {
 // Bohlenreihe stammt von einer festen Trägerzelle im Wasser darüber
 // ('deckCarrier*', mit Geländerpfosten). Flache Teile ohne Umriss (flat()).
 
-const PLANK = ['#0e0d0b', '#191713', '#25221b', '#322d23', '#40392c', '#4f4635', '#615643', '#776a52'];
+const PLANK = lift(['#0e0d0b', '#191713', '#25221b', '#322d23', '#40392c', '#4f4635', '#615643', '#776a52'], 1.2);
 const SILT = ['#2a2c20', '#3a3c2a', '#4e4e36'];
 
 // Flaches Sprite ohne Umriss; Leuchtebene in Sprite-Größe (Anker gleich). Mit up (oder fine) im Feinraster ×2 mit Scale2x

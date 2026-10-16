@@ -25,8 +25,47 @@ export function blob(m, rng, cx, cy, rx, ry, ch, only = null, n = 4) {
 // die Streudeko einen Rand frei lässt.
 export function roadNet(m) {
   const mask = new MapBuilder(m.w, m.h, ' ');
-  const road = (pts, w = 2, ch = '.', only = [',', '~']) => { m.path(pts, w, ch, only); mask.path(pts, w + 1.2, 'R'); };
-  return { road, mask, onRoad: (x, y) => mask.get(x, y) === 'R' };
+  const lines = [];
+  const road = (pts, w = 2, ch = '.', only = [',', '~']) => { m.path(pts, w, ch, only); mask.path(pts, w + 1.2, 'R'); lines.push({ pts, w }); };
+  return { road, mask, lines, onRoad: (x, y) => mask.get(x, y) === 'R' };
+}
+
+// Wegelichter: setzt `ch` etwa alle `every` Kacheln neben die Wege (abwechselnd links/rechts) auf freien Boden,
+// damit Wege als Lichterkette durch dunkle Gebiete führen. Meidet Sperrflächen (keep) und hält `gap` Kacheln
+// Abstand zu vorhandenen Lichtzeichen (`lit`) und zueinander. Aufruf nach der Streudeko.
+export function trailLights(m, net, { ch, every = 12, gap = 6, lit = '', keep = () => false, minW = 0 }) {
+  const L = new Set(lit + ch);
+  const free = (x, y) => GROUND.has(m.get(x, y)) && GROUND.has(m.get(x - 1, y)) && GROUND.has(m.get(x + 1, y)) && GROUND.has(m.get(x, y + 1)) && GROUND.has(m.get(x, y - 1));
+  const lonely = (x, y) => {
+    for (let j = -gap; j <= gap; j++) for (let i = -gap; i <= gap; i++) if (i * i + j * j <= gap * gap && L.has(m.get(x + i, y + j))) return false;
+    return true;
+  };
+  let side = 1, n = 0;
+  for (const { pts, w } of net.lines) {
+    if (w < minW) continue;
+    let carry = every / 2;
+    for (let k = 0; k < pts.length - 1; k++) {
+      const [ax, ay] = pts[k], [bx, by] = pts[k + 1], len = Math.hypot(bx - ax, by - ay);
+      if (len < 1e-6) continue;
+      const ux = (bx - ax) / len, uy = (by - ay) / len;
+      let s = carry;
+      for (; s < len; s += every) {
+        const px = ax + ux * s, py = ay + uy * s;
+        let done = false;
+        for (const sd of [side, -side]) {
+          for (let d = w / 2 + 1; d <= w / 2 + 4 && !done; d += 1) {
+            const x = Math.round(px - uy * d * sd), y = Math.round(py + ux * d * sd);
+            if (!free(x, y) || net.onRoad(x, y) || keep(x, y) || !lonely(x, y)) continue;
+            m.set(x, y, ch); done = true; n++;
+          }
+          if (done) break;
+        }
+        side = -side;
+      }
+      carry = s - len;
+    }
+  }
+  return n;
 }
 
 // Prüfhilfe: Marken, für die kein freier Boden gefunden wurde (sollte leer sein)

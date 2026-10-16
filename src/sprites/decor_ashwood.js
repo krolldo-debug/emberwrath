@@ -3,6 +3,7 @@ import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, blitFrame, SpriteFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, scale2x, finishPixels, outlinePixels, pixelsToCanvas, canvasPixels, col32 } from '../gfx/Fine.js';
 import { createRng, hash2 } from '../core/math.js';
+import { lift } from './ground/kit.js';
 import { OUT } from './outdoor.js';
 
 // Aschenwald: verbrannter Wald, Asche, Glutreste; Lager der Wächter,
@@ -14,7 +15,7 @@ const ASH = ['#141216', '#1f1c21', '#2c282d', '#3b363a', '#4f494b', '#67605f', '
 const CHAR = ['#0a0708', '#130e0f', '#1c1516', '#281e1f', '#352929', '#44363a'];
 const BIRCH = ['#231f22', '#433d3e', '#676061', '#8e8683', '#b3aba3', '#d0c8bc'];
 const CANVAS = ['#231f1a', '#383127', '#4e4535', '#665b45', '#807257', '#9a8c6c'];
-const GREEN = ['#0d1712', '#15261b', '#1f3824', '#2c4c30', '#3e643e', '#5a8250'];
+const GREEN = lift(['#0d1712', '#15261b', '#1f3824', '#2c4c30', '#3e643e', '#5a8250'], 1.2);
 const CRIM = PAL.crimson, GOLD = PAL.gold, EMB = PAL.ember, LEA = PAL.leather, IRON = PAL.steel;
 const WOOD = OUT.wood;
 const TSTONE = ['#11171b', '#1a2327', '#243034', '#303e41', '#3e4d4e', '#52625f', '#687a73'];
@@ -1425,7 +1426,7 @@ function reeds(v) {
 // ====================================================================== Runde 5: neuer Aschenwald
 // Dichter Wald (feste Waldmassen), Hängebrücke über die Aschenschlucht, Knüppelbrücke
 // über den Aschbach, Furt, Burgruine der Banditen, verwunschener Hain.
-const FIR = ['#0b0f0d', '#111815', '#18211c', '#202b24', '#2a362d', '#364337'];
+const FIR = lift(['#0b0f0d', '#111815', '#18211c', '#202b24', '#2a362d', '#364337'], 1.2);
 const RSTONE = ['#121014', '#1c181d', '#272227', '#342e33', '#443c41', '#574e51', '#6c6262'];
 const GHOST = ['#1a2a24', '#2e4a3e', '#4e7e66', '#86c8a0', '#d4ffe4'];
 const SHROOM = ['#1a1030', '#3a2066', '#6a3cb0', '#a070f0', '#e0c8ff'];
@@ -1987,9 +1988,9 @@ function ancientOak() {
 }
 
 // ------------------------------------------------------------ Runde 5b: Waldvielfalt, Baumlager, Köhlerei
-const AUT = ['#130b09', '#22120d', '#371d12', '#512a16', '#6e3d1c', '#8c5525', '#a97236'];
-const OLIVE = ['#0f130b', '#192011', '#262f17', '#36411e', '#4a5627', '#626c33'];
-const LEAFY = ['#0d140f', '#152017', '#1f2e1f', '#2b3e28', '#3b5233', '#506a40'];
+const AUT = lift(['#130b09', '#22120d', '#371d12', '#512a16', '#6e3d1c', '#8c5525', '#a97236'], 1.2);
+const OLIVE = lift(['#0f130b', '#192011', '#262f17', '#36411e', '#4a5627', '#626c33'], 1.2);
+const LEAFY = lift(['#0d140f', '#152017', '#1f2e1f', '#2b3e28', '#3b5233', '#506a40'], 1.2);
 
 // Laubballen (sortiert nach y), Licht von links oben. Im Feinraster aus Blattbüscheln (canopy).
 function leafBlobs(p, blobs, pal, seed, W) {

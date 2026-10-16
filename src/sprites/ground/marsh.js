@@ -1,5 +1,5 @@
 import { hash2 } from '../../core/math.js';
-import { FK, ramp, D4, clampI, band, darken, vnoise, chunkCtx, awayFrom, pebble, blade, waterPrep, waterStamps, waterFine } from './kit.js';
+import { FK, ramp, lift, D4, clampI, band, darken, vnoise, chunkCtx, awayFrom, pebble, blade, waterPrep, waterStamps, waterFine } from './kit.js';
 
 // Feinraster-Boden des Faulmarschs (Palette GROUND_MARSH in sprites/decor_marsh.js, hier nachgebaut).
 // Moor: Moospolster mit Licht oben links, Seggenbüschel mit fahlen Spitzen, nasse Torfflecken mit Pfützen;
@@ -12,26 +12,26 @@ const GR = FK.GRASS, DI = FK.DIRT, WA = FK.WATER;
 
 const P = {
   // Moorgras (Grundton)
-  floor: ramp(['#090f0b', '#0c120e', '#101811', '#141f16', '#19261a', '#1f2e1f', '#283a26']),
+  floor: ramp(lift(['#090f0b', '#0c120e', '#101811', '#141f16', '#19261a', '#1f2e1f', '#283a26'], 1.25)),
   // Moospolster (Rampe für pebble: dunkel → hell)
-  moss: ramp(['#0a110c', '#111a12', '#172418', '#1e2f1e', '#273b25', '#33492d', '#425a36']),
+  moss: ramp(lift(['#0a110c', '#111a12', '#172418', '#1e2f1e', '#273b25', '#33492d', '#425a36'], 1.25)),
   // nasser Torf
-  peat: ramp(['#11120d', '#171711', '#1d1c15', '#24221a']),
+  peat: ramp(lift(['#11120d', '#171711', '#1d1c15', '#24221a'], 1.25)),
   // Segge (Fuß dunkel → Spitze fahl)
-  sedge: ramp(['#0f140c', '#17200f', '#202a14', '#2a3519', '#3a4521', '#4f592b']),
+  sedge: ramp(lift(['#0f140c', '#17200f', '#202a14', '#2a3519', '#3a4521', '#4f592b'], 1.25)),
   // Schlamm/Lehm der Dämme
-  mud: ramp(['#0c0a08', '#110f0b', '#17140f', '#1f1b14', '#28221a', '#312a20', '#3c3327', '#4a3f30']),
+  mud: ramp(lift(['#110f0b', '#17140f', '#1f1b14', '#28221a', '#312a20', '#3c3327', '#4a3f30', '#584b39'], 1.25)),
   root: ramp(['#120d0a', '#1f1610', '#2e2118', '#3e2e21']),
   stone: ramp(['#0c0e0c', '#1b1f1b', '#252a25', '#30362f', '#3d443b', '#4d5549', '#636b5c']),
   // Sumpfwasser (0 Schatten … 4 Glanz), wie GROUND_MARSH.water
-  water: ramp(['#060b0c', '#0a1012', '#0f1a1b', '#142426', '#1d3433', '#2f4b46', '#46685a']),
+  water: ramp(lift(['#060b0c', '#0a1012', '#0f1a1b', '#142426', '#1d3433', '#2f4b46', '#46685a'], 1.25)),
   // Uferböschung (Schlamm, oben im Licht)
-  bank: ramp(['#0d0b09', '#16120e', '#211b15', '#2a221a']),
+  bank: ramp(lift(['#0d0b09', '#16120e', '#211b15', '#2a221a'], 1.25)),
   // Pfützen: Spiegel heller als der Schlamm (Himmel/Licht gespiegelt), Glanz in harter Stufe
   pool: ramp(['#16201e', '#1e2b29', '#283a37', '#3a524c', '#58756a']),
   rim: 0x6f6149,   // nasser Uferrand im Licht (oben links)
   // Entengrütze
-  weed: ramp(['#13211a', '#1a2e1f', '#223b24', '#2d4a2a']),
+  weed: ramp(lift(['#13211a', '#1a2e1f', '#223b24', '#2d4a2a'], 1.25)),
 };
 
 const WP = { water: P.water, bank: P.bank, weed: P.weed, bubbles: true };

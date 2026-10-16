@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
-import { near, box, each, blob, roadNet, foe, strew, circle } from '../mapkit.js';
+import { near, box, each, blob, roadNet, foe, strew, circle, trailLights } from '../mapkit.js';
 import { noise2, rimRock, forestFill, bridgeH, waterSpan, sealPockets } from './emberhollow.js';
 
 // ---------------------------------------------------------------- Der Aschenwald (Stufe 6–12)
@@ -292,6 +292,7 @@ export function buildAshwood() {
       const sp = species(x, y);
       return sp === 'Z' ? 't' : sp === 'D' ? 'd' : 'W';                // vorgelagerte Einzelbäume
     }
+    if ((near(m, x, y, 'U', 1) || near(m, x, y, 'D', 1)) && hash2(x, y, 771) < 0.05) return 'm';   // Leuchtpilze am Waldsaum
     if (near(m, x, y, 'U', 1) || near(m, x, y, 'Z', 1)) return rng.chance(0.06) ? (rng.chance(0.6) ? 'u' : 'o') : null;
     if (free && rng.chance(0.035)) return north(x, y) ? 't' : rng.chance(0.7) ? 'W' : 'd';
     if (rng.chance(0.015)) return 'r';
@@ -299,6 +300,8 @@ export function buildAshwood() {
     return null;
   }, ',.');
   for (let y = r0 - 1; y < r1; y++) put(bx, y, y === r0 - 1 ? 'A' : y === r1 - 1 ? 'E' : 'h');
+  // Laternen der Wächter säumen die Wege: Lichtinseln führen durch den dunklen Wald (die Rabenruine bleibt finster)
+  trailLights(m, net, { ch: 'S', every: 13, gap: 7, lit: 'FC', keep: box(ruin, 2), minW: 1.8 });
 
   // ---------------------------------------------------------------- Eskorte: Vesks Karren zum Aufstieg
   const routeLine = [[38, 45], [39, 42], [44, 41.5], [49, 41.5], [53, 40.5], [55, 36], [59, 33], [65, 31.5], [71, 32.5], [76.5, 31.5],

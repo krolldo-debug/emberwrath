@@ -18,6 +18,8 @@ import { hash2 } from '../../core/math.js';
 export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4 };
 export const hxi = (c) => parseInt(c.slice(1), 16);
 export const ramp = (list) => list.map(hxi);
+// Hebt eine Farbrampe an (dunkle Gebiete aufhellen, Stufenabstände bleiben): c·k + a je Kanal, gekappt bei 255
+export const lift = (list, k = 1.2, a = 3) => list.map((c) => '#' + [1, 3, 5].map((i) => Math.min(255, Math.round(parseInt(c.slice(i, i + 2), 16) * k + a)).toString(16).padStart(2, '0')).join(''));
 // 4×4-Bayer-Matrix (0..15)
 export const D4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 export const dith = (F, G) => D4[(G & 3) * 4 + (F & 3)] / 16;
