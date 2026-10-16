@@ -1,7 +1,7 @@
 // Gold-Pakete des Shops. Gilt für Spiel (Anzeige) und Worker (Preis an Stripe) gleichermaßen:
 // Der Worker nimmt Preis und Goldmenge ausschließlich von hier, nie aus der Anfrage des Spiels.
 // Preise in Cent, inklusive Mehrwertsteuer. Änderungen gelten für neue Käufe; bezahlte Bestellungen behalten ihre Werte.
-// Zum Vergleich (src/progression): Glutross bei Orla 150.000 Gold, Reittiere ab Stufe 20 75.000 Gold.
+// Zum Vergleich (src/progression): Glutross bei Orla 150.000 Gold, Steppenpferd ab Stufe 20 10.000 Gold, Aschenwolf 75.000 Gold.
 export const SHOP_CURRENCY = 'eur';
 
 // Umsatzsteuer: 'ust' = Preise enthalten Umsatzsteuer, 'kleinunternehmer' = § 19 UStG (keine Umsatzsteuer).

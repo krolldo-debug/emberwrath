@@ -96,7 +96,7 @@ Weltsimulation 1–20: rund 10 blaue und 1 lila Teil pro Durchlauf.
   9 Reittier-Gegenstände `mount_<id>` (`type: 'mount'`, `mountId`, `price` bei Orla). Icons nach D's Schema `_t5…_t8`.
 - `quests40.js`: 55 Quests (Hauptkette Hale → Varra → Thane → Eskil → Corvane → `q_ash_sovereign`), `q_first_ride` bei Orla,
   4 Kopfgelder, Gesprächszeilen und Händler (`stablemaster_orla` mit `gear: false`: nur Reittiere).
-- Reittiere: Stallpreise 75 000 (selten) und 150 000 (Glutross, ab Stufe 40). Drops: Hügelkönig/Mutter Fäulnis/Frostwurm/Moorgrauen 1 %,
+- Reittiere: Stallpreise 10 000 (Steppenpferd, damit man ab Stufe 20 reitet), 75 000 (Aschenwolf) und 150 000 (Glutross, ab Stufe 40). Drops: Hügelkönig/Mutter Fäulnis/Frostwurm/Moorgrauen 1 %,
   Aschenfürst 0,5 %, Glutprüfung ab Prüfungsstufe 20 0,3 %. `inventory:use` auf einen Reittier-Gegenstand committet `mount:learn`
   (Thread A); bekannt → `{ reason: 'known' }`, Gegenstand bleibt. Beritten kein Trank (`reason: 'riding'`, Toast „Nicht beritten“).
 - Charakter-Panel hat den Reiter „Reittiere“ (Daten von A). Glutprüfungen: Stufe, Boss-Leben (+5 %/Stufe über 20), Gold und
