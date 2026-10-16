@@ -166,27 +166,36 @@ export class QuestGuide {
     return portal ? { x: portal.x, y: portal.y + 6, near: 18, label: 'portal', portal } : null;
   }
 
-  // Kacheln, die ein hohes Objekt (Zelt, Baumkrone, Turm) oberhalb seiner Kollisionsbox verdeckt. Die Spur meidet sie
-  // (Mehrkosten im A*, Glättung schneidet nicht hindurch) und zeichnet dort keine Glutpunkte: sonst liefe sie sichtbar
-  // über das Objekt. Einmal je Welt, Deko steht fest.
+  // Kacheln, die ein Objekt (Zelt, Baum, Baumhaus, Wegstein) oder eine Figur samt Questmarker überdeckt. Die Spur meidet
+  // sie (Mehrkosten im A*, Glättung schneidet nicht hindurch) und zeichnet dort keine Glutpfeile – sie liegt nur auf
+  // freiem Boden. Einmal je Welt: Deko, NPCs und Wegsteine stehen fest.
   #cover() {
     const f = this.world.flow;
     if (this.coverGrid?.length === f.w * f.h) return this.coverGrid;
     const c = new Uint8Array(f.w * f.h);
-    for (const o of this.world.props ?? []) {
-      const s = o.sprite, b = o.box;
-      if (!s?.canvas || !b) continue;
-      const r = s.res ?? 1, w = s.canvas.width / r, ax = (o.flip ? s.canvas.width - s.ax : s.ax) / r;
-      const x0 = o.x - ax, x1 = x0 + w, y0 = o.y - s.ay / r, y1 = b.y0;
-      if (y1 - y0 < 10) continue;   // flache Dinge (Kisten, Steine) verdecken nichts
+    const mark = (x0, y0, x1, y1) => {
+      x0 -= 3; x1 += 3; y0 -= 3; y1 += 2;   // Rand: ein Pfeil ist 11 px breit
       for (let ty = Math.max(0, Math.floor(y0 / T)); ty <= Math.min(f.h - 1, Math.floor(y1 / T)); ty++) {
-        const cy = ty * T + T / 2;
-        if (cy < y0 || cy >= y1) continue;
-        for (let tx = Math.max(0, Math.floor(x0 / T)); tx <= Math.min(f.w - 1, Math.floor(x1 / T)); tx++) {
-          const cx = tx * T + T / 2;
-          if (cx > x0 + 2 && cx < x1 - 2) c[ty * f.w + tx] = 1;
-        }
+        for (let tx = Math.max(0, Math.floor(x0 / T)); tx <= Math.min(f.w - 1, Math.floor(x1 / T)); tx++) c[ty * f.w + tx] = 1;
       }
+    };
+    const frameRect = (o, s) => {
+      const r = s.res ?? 1, w = s.canvas.width / r, ax = (o.flip || o.facing < 0 ? s.canvas.width - s.ax : s.ax) / r;
+      return [o.x - ax, o.y - s.ay / r, o.x - ax + w, o.y];
+    };
+    for (const o of this.world.props ?? []) {
+      if (!o.sprite?.canvas) continue;
+      const [x0, y0, x1, y1] = frameRect(o, o.sprite);
+      if (y1 - y0 >= 10) mark(x0 + 2, y0 + 2, x1 - 2, y1);   // flache Dinge (Steine, Laub) verdecken nichts
+    }
+    for (const o of new Set([...(this.world.interactables ?? []), ...(this.world.npcs ?? [])])) {
+      if (o === this.world.hero || !Number.isFinite(o.x)) continue;
+      const fr = o.sprite?.canvas ? o.sprite : o.animator?.anims?.idle?.frames?.[0];
+      let rect = fr?.canvas ? frameRect(o, fr) : null;
+      if (!rect && o.promptAnchor) { const a = o.promptAnchor(); if (o.y - a.y > 12) rect = [o.x - 10, a.y, o.x + 10, o.y]; }
+      if (!rect) continue;
+      if (o.npcId) rect[1] = Math.min(rect[1], o.y - (o.markerY ?? 48) - 10);   // Questmarker „!“/„?“ über dem Kopf
+      mark(...rect);
     }
     return (this.coverGrid = c);
   }
@@ -238,7 +247,7 @@ export class QuestGuide {
         const nx = x + dx, ny = y + dy;
         if (this.#blocked(nx, ny)) continue;
         if (dx && dy && (this.#blocked(x + dx, y) || this.#blocked(x, y + dy))) continue;
-        const ni = ny * W + nx, ng = g[i] + c + cover[ni] * 3;
+        const ni = ny * W + nx, ng = g[i] + c + cover[ni] * 6;
         if (ng < g[ni]) { g[ni] = ng; from[ni] = i; push([ng + hfn(ni), ni]); }
       }
     }
@@ -293,20 +302,8 @@ export class QuestGuide {
     return out;
   }
 
-  // Lit-Pass: dunkle Brandspur auf dem Boden (unter Figuren)
-  render(ctx, cx, cy) {
-    if (this.fade <= 0 || this.path.length < 2) return;
-    const off = (this.time * 26) % 16;
-    ctx.save();
-    for (const p of this.#samples(16, off)) {
-      const a = this.#alpha(p) * this.fade;
-      if (a <= 0.02) continue;
-      ctx.globalAlpha = a * 0.85;
-      ctx.fillStyle = '#1a0a04';
-      ctx.fillRect(Math.round(p.x - cx - 3), Math.round(p.y - cy - 1), 7, 3);
-    }
-    ctx.restore();
-  }
+  // Lit-Pass: nichts (früher dunkle Brandflecken unter den Pfeilen, wirkten wie Kästen)
+  render() {}
 
   #alpha(p) {
     const head = Math.min(1, (p.d - 10) / 24);          // nahe am Helden ausblenden

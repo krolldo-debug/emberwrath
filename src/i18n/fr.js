@@ -4704,6 +4704,7 @@ export const FR = {
   "Ilsa: „Die Glutarena sucht neue Kämpfer. Melde dich in der Dungeonsuche im Menü.“": "Ilsa : « L'Arène des Braises cherche de nouveaux combattants. Inscris-toi dans la recherche de donjon du menu. »",
   "Emberwrath ist gerettet": "Emberwrath est sauvé",
   "Reiten, Glutprüfungen und die Aschensteppe warten": "L'équitation, les Épreuves des Braises et la Steppe cendrée t'attendent",
+  "{0} Erfolge (+{1})": "{0} succès (+{1})",
   "Söldner anheuern": "Engager des mercenaires",
   "Anheuern · {0} Gold": "Engager · {0} or",
   "Betreten · {0} Gold": "Entrer · {0} or",

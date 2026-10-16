@@ -130,7 +130,7 @@ export class FeedbackSystem {
     // Fortschritt und Ablauf (bereichsübergreifende Events)
     bus.on(EV.XP_GAINED, (e) => {
       const h = this.game.world.hero;
-      if (!(e.amount > 0)) return;
+      if (!(e.amount > 0) || performance.now() - (this.finaleAt ?? -1e9) < 4000) return;
       // Mehrere Kills kurz hintereinander: eine wachsende Zahl statt eines Stapels „+13 EP“
       const t = this.epText;
       if (t && !t.removed && t.max - t.life < 0.7) {
@@ -149,17 +149,18 @@ export class FeedbackSystem {
     bus.on(EV.QUEST_COMPLETED, (e) => {
       const w = this.game.world, h = w.hero;
       this.#sfx('questDone');
+      // Kapitelende (quest.finale, q_ignaroth auf Stufe 20): eine Lichtsäule und Fanfare statt Goldregen; die Ansage
+      // (ui/Finale.js) trägt den Moment, die EP-Zahl entfällt
+      if (this.game.content?.find('quest', e?.questId)?.finale) {
+        this.finaleAt = performance.now();
+        this.#shake(4);
+        w.addEffect(new LightPillar(h.x, h.y, { color: '#ffd66a', life: 1.4 }));
+        w.addEffect(new Shockwave(h.x, h.y - 8, { radius: 56, color: '#ffd66a', life: 0.6 }));
+        this.#sfx('victory');
+        return;
+      }
       this.#aura({ actor: h, element: 'holy' });
       w.addEffect(new CoinFountain(h.x, h.y, { count: 16 }));
-      // Kapitelende (quest.finale, q_ignaroth auf Stufe 20): Lichtsäule, Schockwelle und Siegesfanfare am Helden
-      if (!this.game.content?.find('quest', e?.questId)?.finale) return;
-      this.#shake(5);
-      w.lighting.ambientBoost = 1;
-      w.addEffect(new Shockwave(h.x, h.y - 8, { radius: 80, color: '#ffd66a', life: 1 }));
-      w.addEffect(new LightPillar(h.x, h.y, { color: '#ffd66a', life: 2 }));
-      w.addEffect(new CoinFountain(h.x, h.y, { count: 30, life: 1.6, spread: 1.8 }));
-      w.particles.element(h.x, h.y - 10, 'holy', 70, 44);
-      this.#sfx('victory');
     });
     bus.on(EV.LOOT_DROPPED, (e) => this.#lootDropped(e));
     bus.on(EV.BOSS_ENGAGED, () => {

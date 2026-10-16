@@ -4704,6 +4704,7 @@ export const ES = {
   "Ilsa: „Die Glutarena sucht neue Kämpfer. Melde dich in der Dungeonsuche im Menü.“": "Ilsa: «La Arena de Ascuas busca nuevos luchadores. Apúntate en el buscador de mazmorras del menú.»",
   "Emberwrath ist gerettet": "Emberwrath está a salvo",
   "Reiten, Glutprüfungen und die Aschensteppe warten": "Te esperan la montura, las Pruebas de Ascuas y la Estepa Cenicienta",
+  "{0} Erfolge (+{1})": "{0} logros (+{1})",
   "Söldner anheuern": "Contratar mercenarios",
   "Anheuern · {0} Gold": "Contratar · {0} de oro",
   "Betreten · {0} Gold": "Entrar · {0} de oro",

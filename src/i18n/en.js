@@ -4704,6 +4704,7 @@ export const EN = {
   "Ilsa: „Die Glutarena sucht neue Kämpfer. Melde dich in der Dungeonsuche im Menü.“": "Ilsa: “The Ember Arena is looking for new fighters. Sign up in the Dungeon Finder in the menu.”",
   "Emberwrath ist gerettet": "Emberwrath is saved",
   "Reiten, Glutprüfungen und die Aschensteppe warten": "Riding, the Ember Trials and the Ashen Steppe await",
+  "{0} Erfolge (+{1})": "{0} achievements (+{1})",
   "Söldner anheuern": "Hire Mercenaries",
   "Anheuern · {0} Gold": "Hire · {0} Gold",
   "Betreten · {0} Gold": "Enter · {0} Gold",

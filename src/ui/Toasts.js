@@ -1,6 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, itemIconEl } from '../gfx/Icons.js';
+import { FINALE_SHOW } from './Finale.js';
 import { fmtNum } from '../i18n/index.js';
 
 // Meldungen am Bildschirmrand: Beute, Gold, Quest-Fortschritt, Hinweise.
@@ -56,6 +57,13 @@ export class Toasts {
       this.push(`+${fmtNum(e.delta)} Gold`, 'gold', 'gold');
       this.gold = this.items[this.items.length - 1]; this.gold.sum = e.delta;
     });
+    // Kapitelende (quest.finale): Meldungen derselben Abgabe und alles, was währenddessen kommt, erst nach der Ansage
+    // nacheinander zeigen (ui/Finale.js)
+    bus.on(EV.QUEST_COMPLETED, (e) => {
+      if (!c.find('quest', e.questId)?.finale) return;
+      this.hold = FINALE_SHOW;
+      for (const it of this.items) if (it.age < 0.05) { it.held = true; it.el.classList.add('held'); }
+    });
     bus.on(EV.QUEST_ACCEPTED, (e) => this.push(`Neue Quest: ${qTitle(e.questId)}`, 'quest', 'scroll'));
     bus.on(EV.QUEST_PROGRESS, (e) => {
       const def = c.find('quest', e.questId);
@@ -106,18 +114,25 @@ export class Toasts {
       icon ? h('img.ef-icon', { src: iconUrl(icon), alt: '', width: 16, height: 16 }) : null,
       h('span.ef-toast-text', text));
     this.root.append(el);
-    const item = { el, age: 0, text, full: kind, kind: kind.split('.')[0] };
+    const item = { el, age: 0, text, full: kind, kind: kind.split('.')[0], held: this.hold > 0 };
+    if (item.held) el.classList.add('held');
     this.items.push(item);
     while (this.items.length > MAX) this.items.shift().el.remove();
     return el;
   }
 
   update(dt) {
+    if (this.hold > 0) this.hold -= dt;
+    else if ((this.gap = (this.gap ?? 0) - dt) <= 0) {
+      const next = this.items.find((it) => it.held);
+      if (next) { next.held = false; next.age = 0; next.el.classList.remove('held'); this.gap = 0.4; }
+    }
     for (const it of this.items) {
+      if (it.held) continue;
       it.age += dt;
       if (it.age > life(it) && !it.el.classList.contains('out')) it.el.classList.add('out');
     }
-    this.items = this.items.filter((it) => { if (it.age > life(it) + 0.3) { it.el.remove(); return false; } return true; });
+    this.items = this.items.filter((it) => { if (!it.held && it.age > life(it) + 0.3) { it.el.remove(); return false; } return true; });
   }
 
   dispose() { this.root.remove(); }
