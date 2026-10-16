@@ -9,16 +9,17 @@ import { EV } from '../core/events.js';
 //
 // game.finder (FinderService) für andere Bereiche:
 //   state ('idle' | 'offer' | 'queued' | 'proposal' | 'accepted' | 'active'), group, queue({ dungeonId, role }), cancel(), leave()
-// Command 'finder:hire' { dungeonId }: Söldnergruppe am Dungeon-Portal anheuern (Preis aus hire.js, nur Gold-Abgang;
+// Command 'finder:hire' { dungeonId, mercs }: Söldner bezahlen, am Portal oder in der Dungeonsuche (Preis aus hire.js, nur Gold-Abgang;
 // das Fortschrittsbuch bucht Ausgaben ohne eigene Regel).
 // Panel 'finder' (Taste O, Knopf in der HUD-Menüreihe), Sitzungssystem 'finder' (Party, HUD, Chat).
 export function installFinder(game) {
   const finder = new FinderService(game);
   game.finder = finder;
-  game.state.defineCommand('finder:hire', (s, { dungeonId }, ctx) => {
+  game.state.defineCommand('finder:hire', (s, { dungeonId, mercs = 2 }, ctx) => {
     const zone = ctx.content.find('zone', dungeonId);
     if (!hireable(zone)) return { ok: false, reason: 'zone' };
-    const cost = hireCost(zone), w = s.get('wallet');
+    const cost = hireCost(zone, mercs), w = s.get('wallet');
+    if (!cost) return { ok: true, cost: 0 };
     if (w.gold < cost) return { ok: false, reason: 'gold', cost };
     w.gold -= cost;
     ctx.bus.emit(EV.GOLD_CHANGED, { delta: -cost, total: w.gold, source: `hire:${zone.id}` });

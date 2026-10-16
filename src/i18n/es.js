@@ -4718,6 +4718,8 @@ export const ES = {
   "Die Glutarena ist offen: Dungeonsuche im Menü.": "La Arena de Ascuas está abierta: buscador de mazmorras en el menú.",
   "Söldner anheuern": "Contratar mercenarios",
   "Anheuern · {0} Gold": "Contratar · {0} de oro",
+  "Betreten · {0} Gold": "Entrar · {0} de oro",
+  "Kostenlos anheuern": "Contratar gratis",
   "Allein": "Solo",
   "Instanz": "Instancia"
 };

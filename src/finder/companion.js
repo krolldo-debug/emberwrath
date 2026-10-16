@@ -5,6 +5,7 @@ import { spriteStyle } from '../character/cosmetics.js';
 import { talentsFor } from '../character/talents.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { makeRng } from './rng.js';
+import { FINDER_CONFIG } from './config.js';
 
 // Gruppenmitglied im Dungeon (Söldner): ein echter Hero derselben Klasse wie ein Spieler – gleiche Figuren,
 // gleiche Grundangriffe, Fähigkeiten, Abklingzeiten und Ressourcen. Gesteuert wird er von BotBrain über
@@ -30,7 +31,7 @@ export function mercGear(content, classId, level, seed) {
     }
     // Gelegentlich fehlt ein Teil (wie bei echten Spielern mit halbem Set), nie die Waffe
     if (!pool.length || (slot !== 'weapon' && rng.chance(0.06))) continue;
-    const weight = (d) => ({ common: 8, uncommon: 34, rare: 40, epic: level >= 10 ? 14 : 2 }[d.rarity] ?? 4) * (1 + Math.max(0, (d.reqLevel ?? 1) - level + 6) * 0.25);
+    const weight = (d) => ({ common: 14, uncommon: 50, rare: 22, epic: level >= 20 ? 4 : 0 }[d.rarity] ?? 4) * (1 + Math.max(0, (d.reqLevel ?? 1) - level + 6) * 0.25);
     eq[slot] = rng.weighted(pool.map((d) => [d.id, weight(d)]));
   }
   return eq;
@@ -51,6 +52,7 @@ export function createCompanion(session, member, x, y) {
   const equipment = mercGear(content, cls.id, member.level, member.gearSeed ?? 1);
   const talents = mercTalents(cls.id, rng);
   const stats = deriveStats({ raceId, classId: cls.id, level: member.level, equipment, talents }, content);
+  stats.power *= FINDER_CONFIG.mercPower ?? 1; // etwas schwächer als ein Spieler (config.js)
   const look = member.look ?? {};
   const gear = resolveGear(equipment, content);
   const anims = getHeroSprites(raceId, cls.id, look.variant ?? 0, gear, spriteStyle(look));
