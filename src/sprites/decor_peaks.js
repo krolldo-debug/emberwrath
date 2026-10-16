@@ -1,5 +1,6 @@
 import { PAL } from '../gfx/Palette.js';
 import { createRng, hash2 } from '../core/math.js';
+import { lift } from './ground/kit.js';
 import { OUT, groundPixel, vnoise } from './outdoor.js';
 import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame } from '../gfx/Sprite.js';
@@ -11,21 +12,21 @@ import { mk, poly, ashPatch, drawTent, shade, stepOf, fpoly, emberDot, emberCrac
 // Leuchtende zusätzlich auf der Glow-Ebene ((W+2)×(H+2), 1 px Versatz).
 
 // Schiefer statt Basalt: kühles Grau mit einem Hauch Ocker (Runde 2: weg vom Schwarz-Lava-Bild der Glutöde)
-const BAS = ['#0d0d10', '#17171a', '#222225', '#2e2d30', '#3b3a3c', '#4b4848', '#5f5a56'];
+const BAS = lift(['#0d0d10', '#17171a', '#222225', '#2e2d30', '#3b3a3c', '#4b4848', '#5f5a56'], 1.2);
 
 // ------------------------------------------------------------ Boden der Schlackenhöhen
 // Grundton: graues Geröll (','), rostige Erzerde auf Wegen ('.'), Rostwasser ('~', keine Lava).
 // level.soil (Zeilen wie die Karte) färbt Flächen um: o Erzader, s Schlacke, y Schwefel, g heller Kies.
-const PK_SCREE = ['#131519', '#1a1c21', '#22252a', '#2b2e34', '#35383e', '#41444a'];
-const PK_ORE = ['#1c100b', '#2a170f', '#3a1f13', '#4b2817', '#5e331c', '#723f22'];
-const PK_SLAG = ['#0b0b0e', '#111116', '#17181e', '#1f2028', '#282a34', '#343846'];
+const PK_SCREE = lift(['#131519', '#1a1c21', '#22252a', '#2b2e34', '#35383e', '#41444a'], 1.3);
+const PK_ORE = lift(['#1c100b', '#2a170f', '#3a1f13', '#4b2817', '#5e331c', '#723f22'], 1.3);
+const PK_SLAG = lift(['#0b0b0e', '#111116', '#17181e', '#1f2028', '#282a34', '#343846'], 1.3);
 const PK_SULF = ['#1d1a0e', '#2a2512', '#3a3216', '#4c411a', '#5f511f', '#776726'];
-const PK_GRAV = ['#1d1d1f', '#262628', '#303032', '#3b3a3b', '#474545', '#555251'];
+const PK_GRAV = lift(['#1d1d1f', '#262628', '#303032', '#3b3a3b', '#474545', '#555251'], 1.3);
 const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 // Runde 6: Höhenstufen mit eigenem Boden – Süden dunkler Basalt (Grundton), Mitte (u) helle Asche,
 // Norden (v) rostige, ockerne Schlacke. So liest sich jede Stufe auch auf der Karte als eigene Ebene.
-const PK_UP1 = ['#24221f', '#2d2b27', '#383530', '#44403a', '#514c45', '#615b52'];
-const PK_UP2 = ['#28190f', '#332014', '#40281a', '#4e3120', '#5d3a25', '#6f462c'];
+const PK_UP1 = lift(['#24221f', '#2d2b27', '#383530', '#44403a', '#514c45', '#615b52'], 1.3);
+const PK_UP2 = lift(['#28190f', '#332014', '#40281a', '#4e3120', '#5d3a25', '#6f462c'], 1.3);
 const PK_RGB = { o: PK_ORE.map(hexRgb), s: PK_SLAG.map(hexRgb), y: PK_SULF.map(hexRgb), g: PK_GRAV.map(hexRgb), u: PK_UP1.map(hexRgb), v: PK_UP2.map(hexRgb) };
 // Wertrauschen wie vnoise(x, y, seed), merkt sich die vier Gitterwerte der letzten Zelle: Bodenpixel kommen
 // zeilenweise, die meisten Nachbarpixel liegen in derselben Zelle (gleiches Ergebnis, viel weniger Hashes)
@@ -48,7 +49,7 @@ export function soilAt(level, px, py, seed = 301) {
   return S[Math.floor(jy / 16)]?.[Math.floor(jx / 16)] ?? ' ';
 }
 // Runde 6: Geröll am Wandfuß ('r' dicht, 'p' locker) und Hangwege ('h', Geröllhang mit Höhenlinien)
-const PK_RUB = ['#141518', '#1b1c1f', '#232427', '#2c2d30', '#36363a', '#434245', '#545150'].map(hexRgb);
+const PK_RUB = lift(['#141518', '#1b1c1f', '#232427', '#2c2d30', '#36363a', '#434245', '#545150'], 1.3).map(hexRgb)
 // Kiesel im Raster 6×5 px (Licht von links oben, Schatten darunter); -1 = kein Kiesel
 function pebble(px, py, prob, seed) {
   const cx = Math.floor(px / 6), cy = Math.floor(py / 5);

@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
-import { near, box, each, blob, roadNet, foe, strew, circle } from '../mapkit.js';
+import { near, box, each, blob, roadNet, foe, strew, circle, trailLights, levelSpots, clearAround } from '../mapkit.js';
 import { noise2, rimRock, forestFill, bridgeH, waterSpan, sealPockets } from './emberhollow.js';
 
 // ---------------------------------------------------------------- Der Aschenwald (Stufe 6–12)
@@ -299,6 +299,8 @@ export function buildAshwood() {
     return null;
   }, ',.');
   for (let y = r0 - 1; y < r1; y++) put(bx, y, y === r0 - 1 ? 'A' : y === r1 - 1 ? 'E' : 'h');
+  // Laternen der Wächter säumen die Wege: Lichtinseln führen durch den dunklen Wald (die Rabenruine bleibt finster)
+  trailLights(m, net, { ch: 'S', every: 13, gap: 7, lit: 'FC', keep: box(ruin, 2), minW: 1.8 });
 
   // ---------------------------------------------------------------- Eskorte: Vesks Karren zum Aufstieg
   const routeLine = [[38, 45], [39, 42], [44, 41.5], [49, 41.5], [53, 40.5], [55, 36], [59, 33], [65, 31.5], [71, 32.5], [76.5, 31.5],
@@ -323,7 +325,7 @@ export function buildAshwood() {
   const SOLID = new Set(['#', '~', '=', 'H', 'f', 'Z', 'z', 'U', 'D', 'N', 'C', 'a', 'w', 'v', 'M', 'B', '<', '>', 'k', 'Y', 'G']);
   sealPockets(m, [29, 45], SOLID, 'Z');
 
-  return {
+  const out = {
     name: 'Der Aschenwald',
     kind: 'outdoor',
     biome: 'ashwood',
@@ -392,4 +394,8 @@ export function buildAshwood() {
         to: { zoneId: 'cinder_peaks', spawnId: 'from_ashwood' }, prompt: 'Aufstieg zu den Schlackenhöhen' },
     ],
   };
+  // Streudeko verdeckt keine Gegner, NPCs, Objekte oder Portale
+  clearAround(m, levelSpots(m, out), 'tdW');
+  out.map = m.rows();
+  return out;
 }

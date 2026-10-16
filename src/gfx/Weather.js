@@ -203,7 +203,7 @@ export class Weather {
     if (this.blizzard) { ctx.fillStyle = `rgba(220,235,255,${0.12 * this.mix})`; ctx.fillRect(0, 0, W, H); }
     if (this.fogs?.length && this.fogSprites) {
       const a = R.fog.a * (this.state === 'fog' ? 0.6 + 0.4 * this.mix : 0.6);
-      for (const f of this.fogs) { ctx.globalAlpha = a * (0.7 + 0.3 * Math.sin(t * 0.3 + f.ph)); ctx.drawImage(this.fogSprites[f.k], f.x | 0, (f.y + Math.sin(t * 0.21 + f.ph) * 2) | 0); }
+      for (const f of this.fogs) { ctx.globalAlpha = a * 0.85; ctx.drawImage(this.fogSprites[f.k], f.x | 0, (f.y + Math.sin(t * 0.21 + f.ph) * 2) | 0); }
       ctx.globalAlpha = 1;
     }
 
@@ -295,7 +295,6 @@ export class Weather {
       blobs.push({ x: u * w, y: h * (0.42 + (rand() - 0.5) * 0.3), rx: w * (0.1 + rand() * 0.14) * (1 - Math.abs(u - 0.5)), ry: h * (0.16 + rand() * 0.14), a: 0.55 + rand() * 0.45 });
     }
     const ph1 = rand() * 6.28, ph2 = rand() * 6.28;
-    const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
     for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
       let dens = 0;
       for (const o of blobs) { const dx = (px - o.x) / o.rx, dy = (py - o.y) / o.ry; dens += o.a * Math.exp(-(dx * dx + dy * dy)); }
@@ -304,11 +303,11 @@ export class Weather {
       const ex = Math.min(px, w - 1 - px) / (w * 0.18), ey = Math.min(py, h - 1 - py) / (h * 0.3);
       const edge = Math.min(1, ex) * Math.min(1, ey);
       dens = Math.min(1, dens) * edge * edge * (3 - 2 * edge);
-      const lv = dens * 4 + B[(py & 3) * 4 + (px & 3)] / 16 - 0.5;
-      const q = Math.max(0, Math.min(4, Math.round(lv)));
+      // Feinraster: zwei harte Dichtestufen mit klarer Kante statt gerastertem Verlauf
+      const q = dens > 0.6 ? 2 : dens > 0.28 ? 1 : 0;
       if (!q) continue;
       const i = (py * w + px) * 4;
-      d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = [0, 46, 92, 140, 190][q];
+      d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = [0, 70, 125][q];
     }
     x.putImageData(img, 0, 0);
     return c;

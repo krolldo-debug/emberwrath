@@ -116,6 +116,8 @@ export function questStatus(state, content, questId) {
   const def = content.find('quest', questId);
   if (!def) return 'locked';
   if (!def.repeatable && q.completed.includes(questId)) return 'completed';
+  // Aufgelöst (in eine andere Quest übernommen): nur wer sie schon angenommen hat, bringt sie noch zu Ende
+  if (def.retired) return 'locked';
   if ((def.requires ?? []).some((r) => !q.completed.includes(r))) return 'locked';
   // Folgequest nur für eine bestimmte Entscheidung: requiresChoice = [questId, choiceId]
   if (def.requiresChoice && q.choices?.[def.requiresChoice[0]] !== def.requiresChoice[1]) return 'locked';
@@ -186,17 +188,44 @@ export function questFilterHere(state, content) {
   return (questId) => (content.find('quest', questId)?.objectives ?? []).some((o) => o.zone === zoneId || (Array.isArray(o.target) ? o.target.includes(enter) : o.target === enter));
 }
 
-// Verfolgte Quest: gewählte, sonst die erste aktive Hauptquest, sonst irgendeine aktive.
+// Verfolgte Quest: gewählte, sonst die nächste nach autoQuestId.
 // here: nur Quests, die in der aktuellen Instanz zählen (questFilterHere); die gewählte bleibt gespeichert.
 export function trackedQuestId(state, content, { here = false } = {}) {
   const q = state.slices.quests;
   const ok = (here && questFilterHere(state, content)) || (() => true);
   if (q.tracked && q.active[q.tracked] && ok(q.tracked)) return q.tracked;
-  const ids = Object.keys(q.active).filter(ok);
-  if (!ids.length) return null;
-  const main = ids.filter((id) => content.find('quest', id)?.main);
-  const pick = (main.length ? main : ids).sort((a, b) => (content.find('quest', a)?.level ?? 0) - (content.find('quest', b)?.level ?? 0));
-  return pick[0];
+  return autoQuestId(state, content, Object.keys(q.active).filter(ok));
+}
+
+// Automatisch verfolgte Quest: zuerst, was in der aktuellen Zone zu tun ist, dann nach Stufe, bei gleicher Stufe die
+// Hauptquest; Kopfgelder zuletzt. So wechseln sich Haupt- und Nebenquests ab, wie ihre Stufen es vorsehen.
+export function autoQuestId(state, content, ids = Object.keys(state.slices.quests.active)) {
+  const zoneId = state.slices.world?.zoneId ?? null;
+  const score = (id) => {
+    const def = content.find('quest', id);
+    if (!def) return Infinity;
+    const a = state.slices.quests.active[id];
+    const zone = a?.status === 'ready' ? content.find('npc', turnInOf(def))?.zoneId : def.objectives.find((o) => (a?.progress[o.id] ?? 0) < o.count)?.zone;
+    return (def.repeatable ? 1000 : 0) + (zoneId && zone !== zoneId ? 100 : 0) + (def.level ?? 1) + (def.main ? 0 : 0.5);
+  };
+  let best = null, bestScore = Infinity;
+  for (const id of ids) { const sc = score(id); if (sc < bestScore) { best = id; bestScore = sc; } }
+  return best;
+}
+
+// Abstecher der Glutspur: Nebenquest eines Gebers in dieser Zone, deren Angebot man noch nicht gesehen hat und die
+// höchstens auf der Stufe der verfolgten Hauptquest liegt. Wer den Geber einmal angesprochen hat, wird nicht mehr hingeführt.
+function sideOffer(state, content, maxLevel) {
+  const q = state.slices.quests;
+  const zoneId = state.slices.world?.zoneId;
+  if (!zoneId) return null;
+  let best = null;
+  for (const def of content.all('quest')) {
+    if (def.main || def.repeatable || (def.level ?? 1) > maxLevel || q.offered?.includes(def.id)) continue;
+    if (content.find('npc', def.giver)?.zoneId !== zoneId || questStatus(state, content, def.id) !== 'available') continue;
+    if (!best || def.level < best.level) best = def;
+  }
+  return best;
 }
 
 // Ziel für den Questpfad (INTEGRATION.md §11.6):
@@ -230,6 +259,10 @@ export function questTarget(state, content) {
   }
   const def = content.get('quest', questId);
   const a = q.active[questId];
+  // Abstecher nur, solange die Hauptquest selbst hier zu tun ist (nicht auf der Durchreise durch alte Gebiete)
+  const here = def.objectives.find((x) => (a.progress[x.id] ?? 0) < x.count)?.zone === state.slices.world?.zoneId;
+  const side = def.main && here && a.status !== 'ready' && !questFilterHere(state, content) ? sideOffer(state, content, def.level ?? 1) : null;
+  if (side) return mk({ questId: side.id, objectiveId: null, title: side.title, text: `Neue Quest bei ${npcShortName(content, side.giver)}`, zoneId: npcZone(side.giver), kind: 'npc', id: side.giver, ready: false, offer: true });
   if (a.status === 'ready') {
     const npc = turnInOf(def);
     return mk({ questId, objectiveId: null, title: def.title, text: `Abgeben bei ${npcShortName(content, npc)}`, zoneId: npcZone(npc), kind: 'npc', id: npc, ready: true });

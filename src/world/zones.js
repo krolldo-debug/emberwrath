@@ -45,7 +45,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['emberhollow', 'sunken_temple', 'cinder_peaks'],
     enemies: ['ash_boar', 'bandit', 'bandit_archer', 'thorn_crawler', 'bandit_chief', 'ember_beetle', 'bandit_shieldbearer'],
-    ambient: [90, 96, 132], // dunkler und kühler: Lichtinseln (Feuer, Laternen) und helle Wege stehen davor (Boden dafür heller, sprites/outdoor.js)
+    ambient: [126, 118, 128], // gedämpft warm: Lichtinseln (Feuer, Laternen) und helle Wege stehen davor (Boden dafür heller, sprites/outdoor.js)
   },
   sunken_temple: {
     name: 'Der Versunkene Tempel',
@@ -73,7 +73,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['ashwood', 'molten_forge', 'ashen_steppe'],
     enemies: ['fire_imp', 'magma_hound', 'ash_golem', 'cinder_cultist', 'magma_behemoth', 'cinder_sapper', 'cliff_harpy'],
-    ambient: [118, 114, 110],
+    ambient: [136, 126, 118],
   },
   molten_forge: {
     name: 'Die Glutschmiede',
@@ -153,7 +153,7 @@ export const ZONES = {
     respawnSpawn: 'respawn',
     links: ['ashen_steppe', 'spore_hollow', 'frostspire'],
     enemies: ['bog_lurker', 'rot_shaman', 'swamp_leech', 'plague_toad', 'bog_slime', 'marsh_hag', 'bog_horror'],
-    ambient: [132, 150, 136],
+    ambient: [144, 152, 146],
   },
   spore_hollow: {
     name: 'Der Sporenschlund',

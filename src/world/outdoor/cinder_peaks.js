@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { MapBuilder } from '../levels.js';
-import { near, each, blob, roadNet, MISPLACED, foe, strew } from '../mapkit.js';
+import { near, each, blob, roadNet, MISPLACED, foe, strew, trailLights, levelSpots, clearAround } from '../mapkit.js';
 
 // ---------------------------------------------------------------- Schlackenhöhen (12–20)
 // Ein Erzgebirge in drei Höhenstufen. Runde 6: Die Stufen entstehen aus einem Höhenfeld (LV) statt aus
@@ -548,6 +548,8 @@ export function buildCinderPeaks() {
     if (g !== ',') return null;
     if (wet) return rng.chance(0.06) ? 'a' : null;
     if (inRift(x, y)) return free && rng.chance(0.07) ? 's' : null;
+    // Glutakzente: Schlackebrocken mit glühenden Rissen in Gruppen, vereinzelt Lavaschlote
+    if (free && grove(x, y, 46) && hash2(x, y, 461) < 0.05) return hash2(x, y, 462) < 0.2 ? 'e' : 'r';
     if (L2(x, y) && x < 40) return free && grove(x, y, 41) && rng.chance(0.06) ? (rng.chance(0.5) ? 'K' : 'j') : null;   // Minen: Abraum, Stützen
     if (L2(x, y)) return free && grove(x, y, 42) && rng.chance(0.08) ? 'k' : null;                                      // Basaltgruppen
     if (L0(x, y)) {                                                                                                       // Hänge: tote Haine, Halden
@@ -556,8 +558,10 @@ export function buildCinderPeaks() {
     }
     return free && grove(x, y, 45) && rng.chance(0.07) ? (rng.chance(0.6) ? 'k' : 't') : null;
   }, ',:.');
+  // Glutbecken an den Wegen, wo noch keine Lampe brennt
+  trailLights(m, net, { ch: 'b', every: 14, gap: 7, lit: 'nlFeT', keep, minW: 2 });
 
-  return {
+  const out = {
     name: 'Die Schlackenhöhen',
     kind: 'outdoor',
     biome: 'peaks',
@@ -627,4 +631,8 @@ export function buildCinderPeaks() {
         to: { zoneId: 'ashen_steppe', spawnId: 'from_cinder_peaks' }, prompt: 'Ostwärts in die Aschensteppe' },
     ],
   };
+  // Streudeko verdeckt keine Gegner, NPCs, Objekte oder Portale
+  clearAround(m, levelSpots(m, out), 'ktKjr');
+  out.map = m.rows();
+  return out;
 }

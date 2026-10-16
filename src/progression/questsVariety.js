@@ -86,13 +86,13 @@ export const QUESTS_VARIETY = {
 
   // ------------------------------------------------------------------ Schlackenhöhen (12–20)
   q_lava_sluices: {
-    title: 'Die Lavaschleusen', giver: 'commander_hale', level: 14, requires: ['q_hound_pack'],
+    title: 'Die Lavaschleusen', giver: 'commander_hale', main: true, level: 14, requires: ['q_imp_plague'],
     summary: 'Öffne die drei Schleusen am Lavafluss in der richtigen Reihenfolge.',
     offer: 'Der Lavafluss steigt. Die Zwerge haben vor langer Zeit drei Schleusen gebaut, um ihn umzuleiten. Die Inschrift an der Feste sagt: unten beginnen, oben enden. Die untere Schleuse liegt am Damm, die mittlere an der Brücke, die obere am Wasserfall. Falsch herum, und die Lava sucht sich unseren Weg.',
     progressText: 'Unten am Damm, dann an der Brücke, zuletzt oben am Wasserfall.',
     completeText: 'Der Fluss biegt ab. Zum ersten Mal seit Wochen ist die Straße kühl genug zum Gehen.',
     objectives: [{ id: 'sluices', text: 'Schleusen geöffnet (Damm, Brücke, Wasserfall)', count: 3, kind: 'sequence', target: ['sluice_dam', 'sluice_bridge', 'sluice_falls'], zone: 'cinder_peaks', failText: 'Die Schleusen schlagen zu. Von unten nach oben: Damm, Brücke, Wasserfall.' }],
-    rewards: { xp: Q(14, W.early), gold: 70, gear: [{ ilvl: 15, rarity: 'uncommon', slot: 'head' }] },
+    rewards: { xp: Q(14, 0.5), gold: 70, gear: [{ ilvl: 15, rarity: 'uncommon', slot: 'head' }] },
   },
   q_harpy_nests: {
     title: 'Nester an der Klippe', giver: 'quartermaster_dunn', level: 15, requires: ['q_imp_plague'],
@@ -118,13 +118,13 @@ export const QUESTS_VARIETY = {
 
   // ------------------------------------------------------------------ Aschensteppe (20–25)
   q_steppe_scouting: {
-    title: 'Weites Land', giver: 'captain_varra', level: 20, requires: ['q_new_horizons'],
+    title: 'Weites Land', giver: 'captain_varra', main: true, level: 20, requires: ['q_new_horizons'],
     summary: 'Erkunde die vier Landmarken der Steppe für Varras Karte.',
     offer: 'Meine Karte der Steppe ist dreißig Jahre alt und zur Hälfte falsch. Reite die vier Landmarken ab: den Knochenbogen, den Salzsee, den Rabenfels und die zerbrochene Brücke. Sag mir, was noch steht.',
     progressText: 'Knochenbogen, Salzsee, Rabenfels, zerbrochene Brücke.',
     completeText: 'Der Salzsee ist halb verschwunden? Gut zu wissen, bevor wir dort Pferde tränken wollen.',
     objectives: [{ id: 'marks', text: 'Landmarken erkundet', count: 4, kind: 'reach', target: ['steppe_bone_arch', 'steppe_salt_lake', 'steppe_raven_rock', 'steppe_broken_bridge'], zone: 'ashen_steppe' }],
-    rewards: { xp: Q(20, W.side), gold: 150, gear: [{ ilvl: 21, rarity: 'uncommon', slot: 'feet' }] },
+    rewards: { xp: Q(20, 0.18), gold: 150, gear: [{ ilvl: 21, rarity: 'uncommon', slot: 'feet' }] },
   },
   q_ancestor_stones: {
     title: 'Wasser für die Ahnen', giver: 'nomad_kesh', level: 22, requires: ['q_steppe_hyenas'],
@@ -151,13 +151,13 @@ export const QUESTS_VARIETY = {
 
   // ------------------------------------------------------------------ Faulmarsch und Sporenschlund (25–31)
   q_marsh_lanterns: {
-    title: 'Irrlichter', giver: 'warden_thane', level: 27, requires: ['q_marsh_totems'],
+    title: 'Irrlichter', giver: 'warden_thane', main: true, level: 27, requires: ['q_marsh_totems'],
     summary: 'Entzünde die vier Sumpflaternen in der Folge des alten Fährmannsliedes.',
     offer: 'Die Fährleute haben ein Lied: Rot am Steg, Grün am Baum, Blau am Stein und Weiß am Grab. So zündeten sie die Laternen, damit die Irrlichter dem Weg folgen statt den Lebenden. Seit die Fährleute weg sind, folgen sie uns.',
     progressText: 'Rot am Steg, Grün am Baum, Blau am Stein, Weiß am Grab.',
     completeText: 'Die Irrlichter tanzen über dem Weg, nicht über unseren Köpfen. Ich hätte nie gedacht, dass mich ein Kinderlied rettet.',
     objectives: [{ id: 'lanterns', text: 'Laternen nach dem Fährmannslied entzündet', count: 4, kind: 'sequence', target: ['lantern_red', 'lantern_green', 'lantern_blue', 'lantern_white'], zone: 'blighted_marsh', failText: 'Die Laternen verlöschen. Rot am Steg, Grün am Baum, Blau am Stein, Weiß am Grab.' }],
-    rewards: { xp: Q(27, W.side), gold: 230, gear: [{ ilvl: 28, rarity: 'uncommon', slot: 'head' }] },
+    rewards: { xp: Q(27, 0.18), gold: 230, gear: [{ ilvl: 28, rarity: 'uncommon', slot: 'head' }] },
   },
   q_hag_cauldron: {
     title: 'Der Kessel der Moorhexe', giver: 'trader_moll', level: 28, requires: ['q_moll_crates'],

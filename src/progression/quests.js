@@ -181,15 +181,20 @@ export const QUESTS = {
   // ================================================================ Schlackenhöhen & Glutschmiede (12–20)
   q_imp_plague: {
     title: 'Funkenplage', giver: 'commander_hale', main: true, level: 12, requires: ['q_to_the_peaks'],
-    summary: 'Vernichte die Feuerkobolde, die Rauhwacht belagern.',
-    offer: 'Feuerkobolde. Klein, flink, und sie zünden alles an, was nicht aus Stein ist. Zwölf davon, und meine Leute können wieder schlafen.',
-    progressText: 'Die Kobolde schwärmen. Lass dich nicht umzingeln.',
-    completeText: 'Gute Arbeit. Das Lager qualmt nur noch halb so viel.',
-    objectives: [{ id: 'imps', text: 'Feuerkobolde vernichtet', count: 12, kind: 'kill', target: 'fire_imp', zone: 'cinder_peaks' }],
-    rewards: { xp: Q(12, 0.6), gold: 70, gear: [{ ilvl: 13, rarity: 'uncommon', slot: 'feet' }] },
+    summary: 'Vernichte die Feuerkobolde und Magmahunde, die Rauhwacht belagern.',
+    offer: 'Feuerkobolde. Klein, flink, und sie zünden alles an, was nicht aus Stein ist. Hinter ihnen kommen die Magmahunde, die jedem Späher folgen, den ich losschicke. Zehn Kobolde und sechs Hunde, dann können meine Leute wieder schlafen.',
+    progressText: 'Die Kobolde schwärmen, die Hunde folgen ihnen. Lass dich nicht umzingeln.',
+    completeText: 'Das Lager qualmt nur noch halb so viel, und meine Späher kommen lebend zurück. Gute Arbeit.',
+    // Runde 16.10. (Spielspaß): Kobolde und Magmahunde in einer Quest, q_hound_pack ist aufgelöst
+    objectives: [
+      { id: 'imps', text: 'Feuerkobolde vernichtet', count: 10, kind: 'kill', target: 'fire_imp', zone: 'cinder_peaks' },
+      { id: 'hounds', text: 'Magmahunde erlegt', count: 6, kind: 'kill', target: 'magma_hound', zone: 'cinder_peaks' },
+    ],
+    rewards: { xp: Q(12, 1.0), gold: 120, gear: [{ ilvl: 13, rarity: 'uncommon', slot: 'feet' }, { ilvl: 14, rarity: 'uncommon', slot: 'hands' }] },
   },
   q_hound_pack: {
-    title: 'Glutspuren', giver: 'commander_hale', main: true, level: 13, requires: ['q_imp_plague'],
+    // Aufgelöst (16.10.): steckt jetzt in q_imp_plague. Bleibt für Spielstände, die sie schon angenommen haben.
+    title: 'Glutspuren', giver: 'commander_hale', main: true, retired: true, level: 13, requires: ['q_imp_plague'],
     summary: 'Jage das Rudel der Magmahunde.',
     offer: 'Die Magmahunde folgen jedem Späher, den ich losschicke. Acht Bestien, dann sind unsere Wege wieder sicher.',
     progressText: 'Folge den glühenden Pfotenabdrücken.',
@@ -198,7 +203,7 @@ export const QUESTS = {
     rewards: { xp: Q(13, 0.6), gold: 80, gear: [{ ilvl: 14, rarity: 'uncommon', slot: 'hands' }] },
   },
   q_behemoth: {
-    title: 'Der Schlackenkoloss', giver: 'commander_hale', main: true, level: 15, requires: ['q_hound_pack'],
+    title: 'Der Schlackenkoloss', giver: 'commander_hale', main: true, level: 15, requires: ['q_imp_plague'],
     summary: 'Fälle den Schlackenkoloss, der die Obsidianspalte bewacht.',
     offer: 'In der Obsidianspalte haust ein Koloss aus Schlacke und Zorn. Er zerquetscht jeden Trupp, den ich schicke. Du bist kein Trupp. Du bist unsere letzte Hoffnung.',
     progressText: 'Der Koloss ist langsam, aber jeder Schlag lässt die Erde beben.',
