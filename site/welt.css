@@ -150,8 +150,12 @@
 }
 /* Handy quer: jedes Bild passt unter die Kopfleiste */
 @media (min-width: 821px) and (max-height: 500px) {
-  .auftakt-bild { height: calc(100svh - 66px); min-height: 0; --f: 1.5; }
-  .auftakt-bild .shot { --ay: 0.6; }
   .et-bild, .band, .auftritt-bild { height: calc(100svh - 110px); min-height: 0; --f: 1; }
   .stufe { top: 76px; }
+}
+/* Einstieg auf dem Handy quer (auch unter 821 px Breite, z. B. 740 × 360): Faktor 1, damit Gruppe und Truhe (Bildpunkte
+   y 165–350) ganz in den Teil unter der Kopfleiste passen; --ay setzt die Gruppe in dessen Mitte */
+@media (orientation: landscape) and (max-height: 500px) {
+  .auftakt-bild { height: calc(100svh - 66px); min-height: 0; --f: 1; }
+  .auftakt-bild .shot { --ay: 0.6; }
 }
