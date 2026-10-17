@@ -2,6 +2,7 @@ import { h } from '../core/dom.js';
 import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { renderZoneMap, renderLabels } from './MapArt.js';
+import { tr } from '../i18n/index.js';
 
 // Minimap (HUD) und Zonenkarte (Panel 'map') – Thread D.
 // Liest nur: session.world (Hintergrund, Raster, NPCs, Portale, Gegner), session.zone,
@@ -229,7 +230,7 @@ function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, bi
     if (e.dead || e.rise < 1) continue;
     const p = map(e.x, e.y); if (!inside(p)) continue;
     if (e.def?.boss || e.boss || e === w.boss) glyph(ctx, p[0], p[1], 'boss', t, big);
-    else if (big) { const el = e.def?.elite || e.elite || e.champion; dot(ctx, p[0], p[1], '#1a0408', el ? 7 : 5); dot(ctx, p[0], p[1], '#f4e6c4', el ? 5 : 4); dot(ctx, p[0], p[1], el ? C.elite : '#d02020', el ? 3 : 2); }
+    else if (big) foeMark(ctx, p[0], p[1], !!(e.def?.elite || e.elite || e.champion));
     else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, e.def?.elite || e.elite ? 2 : 1);
   }
   // NPCs mit Questmarkierung
@@ -237,6 +238,18 @@ function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, bi
     const p = map(n.x, n.y); if (!inside(p)) continue;
     const m = prog?.npcMarker?.(n.npcId);
     glyph(ctx, p[0], p[1], m === 'available' || m === 'repeatable' ? 'offer' : m === 'ready' ? 'ready' : 'npc', t, big);
+  }
+}
+
+// Gegner auf der großen Karte: kleine Raute mit dunkler Kontur, Elite größer und orange
+function foeMark(ctx, x, y, elite) {
+  x = Math.round(x); y = Math.round(y);
+  const r = elite ? 3 : 2;
+  for (let v = -r; v <= r; v++) for (let u = -r; u <= r; u++) {
+    const m = Math.abs(u) + Math.abs(v);
+    if (m > r) continue;
+    ctx.fillStyle = m === r ? '#1a0408' : u + v < 0 ? (elite ? '#ffb060' : '#ff5a4a') : (elite ? C.elite : '#b81818');
+    ctx.fillRect(x + u, y + v, 1, 1);
   }
 }
 
@@ -345,9 +358,11 @@ export function createMapPanel(session) {
       base = zoneBaseImage(w, scale);
       const T0 = T, avoid = [];
       for (const n of w.npcs) avoid.push([(n.x / T0) * scale, (n.y / T0) * scale - 3, 6]);
-      avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 14]);
+      avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 18, 600]);
+      const tgt = resolveTarget(session, session.game?.progression?.questTarget?.() ?? null);
+      if (tgt) avoid.push([(tgt.x / T0) * scale, (tgt.y / T0) * scale, 10, 600]);
       for (const e of w.entities) if (e.to?.zoneId) avoid.push([(e.x / T0) * scale, (e.y / T0) * scale, 6]);
-      labels = renderLabels(w, content, scale, zoom, avoid);
+      labels = renderLabels(w, content, scale, zoom, avoid, tr);
       canvas.width = base.width; canvas.height = base.height;
       acc = 1;
     }
@@ -393,21 +408,15 @@ export function createMapPanel(session) {
   };
 }
 
-// Pulsierender Ring um den Helden (dunkel mit hellem Kern), damit er auf jeder Fläche sofort auffällt
+// Pulsierender Ring um den Helden (dunkel mit hellem Kern, hart gepixelt), damit er auf jeder Fläche sofort auffällt
 function heroPulse(ctx, x, y, t) {
-  // fester Ring: dunkel außen, hell innen
-  for (let i = 0; i < 40; i++) {
-    const a = (i / 40) * Math.PI * 2;
-    ctx.fillStyle = '#1a1020'; ctx.fillRect(Math.round(x + Math.cos(a) * 8), Math.round(y + Math.sin(a) * 8), 1, 1);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x + Math.cos(a) * 7), Math.round(y + Math.sin(a) * 7), 1, 1);
-  }
-  const p = (t * 1.2) % 1, r = 8 + p * 7;
-  const n = Math.round(r * 5);
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2, px = Math.round(x + Math.cos(a) * r), py = Math.round(y + Math.sin(a) * r);
-    ctx.fillStyle = p < 0.6 ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'; ctx.fillRect(px, py, 1, 1);
-    ctx.fillStyle = 'rgba(26,16,32,0.6)'; ctx.fillRect(px, py + 1, 1, 1);
-  }
+  const ring = (r, col, n) => {
+    ctx.fillStyle = col;
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 1, 1); }
+  };
+  ring(8, '#1a1020', 48); ring(7, '#ffffff', 44);
+  const p = (t * 1.2) % 1;
+  if (p < 0.75) { const r = 9 + Math.round(p * 8); ring(r + 1, '#1a1020', r * 7); ring(r, p < 0.45 ? '#ffffff' : '#ffe9a8', r * 7); }
 }
 
 function legendItem(kind, text) {
