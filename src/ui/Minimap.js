@@ -358,7 +358,9 @@ export function createMapPanel(session) {
       base = zoneBaseImage(w, scale);
       const T0 = T, avoid = [];
       for (const n of w.npcs) avoid.push([(n.x / T0) * scale, (n.y / T0) * scale - 3, 6]);
-      avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 14]);
+      avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 18, 600]);
+      const tgt = resolveTarget(session, session.game?.progression?.questTarget?.() ?? null);
+      if (tgt) avoid.push([(tgt.x / T0) * scale, (tgt.y / T0) * scale, 10, 600]);
       for (const e of w.entities) if (e.to?.zoneId) avoid.push([(e.x / T0) * scale, (e.y / T0) * scale, 6]);
       labels = renderLabels(w, content, scale, zoom, avoid, tr);
       canvas.width = base.width; canvas.height = base.height;

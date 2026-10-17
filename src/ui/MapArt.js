@@ -856,8 +856,9 @@ export function mapLabels(world, content) {
 const FONT = new PixelFont();
 const LABEL = { town: ['#ffd98a', '#1c0c04'], area: ['#f4e8cc', '#1a100a'], portal: ['#e2ccff', '#1a0a2a'] };
 const PENALTY = { [HOUSE]: 4, [WALL]: 4, [ROCK]: 0.3, [LIQ]: 0.4, [TOP]: 0.5, [FACE]: 1 };
-const NEAR = [[0, 0], [0, -1.2], [0, 1.2], [-0.55, 0], [0.55, 0], [-0.55, -1.2], [0.55, -1.2], [-0.55, 1.2], [0.55, 1.2]];
-const WIDE = [...NEAR, [0, -2.4], [0, 2.4], [-1.1, -2.4], [1.1, -2.4], [-1.1, 2.4], [1.1, 2.4], [0, -3.8], [0, 3.8]];
+// Lagen in Kacheln um den Anker: Namen bleiben an ihrem Ort, egal wie groß die Schrift im Verhältnis zur Karte ist
+const NEAR = [[0, 0], [0, -1.5], [0, 1.5], [-2, 0], [2, 0], [-2, -1.5], [2, -1.5], [-2, 1.5], [2, 1.5], [0, -3], [0, 3]];
+const WIDE = [...NEAR, [0, -3], [0, 3], [-4, 0], [4, 0], [-3, -3], [3, -3], [-3, 3], [3, 3], [0, -5], [0, 5], [0, -7], [0, 7]];
 
 export function renderLabels(world, content, scale, z, avoid = [], translate = (t) => t) {
   const d = world.dungeon, W = d.w * scale, H = d.h * scale;
@@ -873,17 +874,19 @@ export function renderLabels(world, content, scale, z, avoid = [], translate = (
     const ax = l.anchorX * scale, ay = l.anchorY * scale;
     let best = null;
     for (const [ox, oy] of l.kind === 'portal' ? NEAR : WIDE) {
-      const cx = ax + ox * tw, cy = ay + oy * th;
+      const cx = ax + ox * scale, cy = ay + oy * scale;
       const x0 = Math.round(cx - tw / 2), y0 = Math.round(cy - th / 2), x1 = x0 + tw, y1 = y0 + th;
-      let score = Math.hypot(cx - ax, cy - ay) * 0.03;
+      let score = Math.hypot(ox, oy) * 3;
       if (x0 < 6 || y0 < 6 || x1 > W - 6 || y1 > H - 6) score += 400;
       for (let ty = Math.max(0, Math.floor(y0 / scale)); ty <= Math.min(d.h - 1, Math.floor(y1 / scale)); ty++) {
         for (let tx = Math.max(0, Math.floor(x0 / scale)); tx <= Math.min(d.w - 1, Math.floor(x1 / scale)); tx++) score += PENALTY[cls[ty * d.w + tx]] ?? 0;
       }
-      for (const [mx, my, r] of avoid) if (mx + r > x0 && mx - r < x1 && my + r > y0 && my - r < y1) score += 60;
-      for (const p of placed) if (p[0] < x1 + 3 && p[2] + 3 > x0 && p[1] < y1 + 2 && p[3] + 2 > y0) score += 1000;
+      for (const [mx, my, r, wgt = 60] of avoid) if (mx + r > x0 && mx - r < x1 && my + r > y0 && my - r < y1) score += wgt;
+      for (const p of placed) if (p[0] < x1 + 6 && p[2] + 6 > x0 && p[1] < y1 + 3 && p[3] + 3 > y0) score += 1000;
       if (!best || score < best.score) best = { score, x0, y0, x1, y1 };
     }
+    // Kein freier Platz (kleine Karte, viele Namen): Gebietsname weglassen statt über andere zu schreiben
+    if (best.score >= 1000 && l.kind === 'area') continue;
     // nie aus dem Bild schieben
     const x0 = Math.max(4, Math.min(W - tw - 4, best.x0)), y0 = Math.max(4, Math.min(H - th - 4, best.y0));
     placed.push([x0, y0, x0 + tw, y0 + th]);
