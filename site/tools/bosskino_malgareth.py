@@ -888,12 +888,12 @@ def scene():
             for j in range(min(4, h - 3)):
                 if pat[j][u]: F[y + 2 + j, x] = (*hexc(col[1]), 255)
     frieze(24, 8); frieze(150, 7)
-    # Glutsonne: Ringe in harten Stufen mit Bayer-Kante, Strahlen
+    # Glutsonne: Ringe in harten Stufen, Strahlen
     cx, cy, R = SUN
     Y, X = np.mgrid[0:SH, 0:SWX]; X = X - PAD
     d = np.hypot(X + 0.5 - cx, (Y + 0.5 - cy) * 1.0)
     SUNC = ['#2a0a06', '#4a1008', '#7a1e08', '#b8380c', '#e86418', '#ffa040', '#ffd890']
-    dd = d / R + (BAYER4[Y % 4, X % 4] - 0.5) * 0.06
+    dd = d / R                      # ohne Raster: harte Ringkanten
     lvl = np.select([dd < 0.42, dd < 0.6, dd < 0.74, dd < 0.86, dd < 0.95, dd < 1.0, dd < 1.25], [6, 5, 4, 3, 2, 1, 0], -1)
     ang = np.arctan2(Y + 0.5 - cy, X + 0.5 - cx)
     ray = (np.cos(ang * 16) > 0.86) & (dd >= 1.0) & (dd < 1.55)
@@ -936,7 +936,7 @@ def scene():
             if hash2(k, ph, 2) < 0.6:
                 F[y:y + 2, xx + (k % 2)] = (*hexc('#3a1208'), 255); G[y:y + 2, xx + (k % 2)] = (*hexc(EMB[1]), 255)
     L['fern'] = dict(img=F, f=0.15)
-    L['fern-glut'] = dict(img=G, f=0.15, glow=dict(per=3.6, lo=0.55, steps=3))
+    L['fern-glut'] = dict(img=G, f=0.15)          # deckend, ohne Pulsieren (kein Überblenden, harte Stufen)
     # ---- Mitte: Säulen, Banner, Feuerschalen, hinterer Boden (Tiefe 0,45)
     M = np.zeros((SH, SWX, 4), np.uint8); MG = np.zeros((SH, SWX, 4), np.uint8)
     back_floor, bseam, _ = floor(168, SH, [3, 3, 4, 4, 5, 5, 6, 7, 8, 9], FLOORC, vx=cx, vy=40, tile=30, seed=7, w=SWX, ox=-PAD)

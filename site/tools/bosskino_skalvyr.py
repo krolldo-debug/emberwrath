@@ -942,7 +942,7 @@ def chunks_plan():
     out = []
     for i, (x, y, sz, at) in enumerate(SALVE):
         w, h = ZAP[sz]
-        n = {'l': 7, 'm': 5, 's': 4}[sz]
+        n = {'l': 3, 'm': 2, 's': 1}[sz]          # wenige, gut lesbare Brocken
         for j in range(n):
             hy = y - h * (0.12 + 0.7 * j / n)
             side = 1 if x + rng.uniform(-8, 8) > SAL_X else -1
@@ -1004,7 +1004,7 @@ def kranz():
             rng = np.random.default_rng(500)
             t = (k - 0.5) * EXMS / 1000
             for (x, y, sz, at) in SALVE:
-                for j in range({'l': 12, 'm': 8, 's': 6}[sz]):
+                for j in range({'l': 4, 'm': 2, 's': 1}[sz]):
                     vx = rng.uniform(-150, 150); vy = -rng.uniform(60, 220); y0 = T(y) - rng.uniform(2, 30)
                     px, py = L(x) + vx * t, y0 + vy * t + 300 * t * t
                     if py > T(y) + 2: continue
@@ -1037,7 +1037,8 @@ def kranz():
                 chunk(im, L(x), T(y) - c['r'] * 0.5, c['r'], c['seed'], rot)
         # Lichtblitz (Bild 0): flacher Lichtstern am Boden (drei Stufen), Blitzrauten an jedem Einschlag
         if k == 0:
-            for sc, c in ((1.0, FROST[2]), (0.78, FROST[3]), (0.52, WHITE)):
+            # harte Stufen: dunkles Eisblau außen, helles Band, kleiner weißer Kern (kein großer weißer Schein)
+            for sc, c in ((0.72, FROST[1]), (0.5, FROST[2]), (0.3, FROST[3]), (0.14, WHITE)):
                 pts = []
                 for i in range(16):
                     a_ = math.pi * i / 8
@@ -1049,11 +1050,12 @@ def kranz():
                 im[m_] = (*hexc(c), 255)
             for (x, y, sz, at) in SALVE:
                 for d in range(7):
+                    if sz != 'l' and d > 3: break
                     for (ex, ey) in ((d, 0), (-d, 0), (0, -d * 2), (0, d * 0.5)):
-                        put(im, L(x) + ex, T(y) + ey, WHITE if d < 4 else FROST[3])
+                        put(im, L(x) + ex, T(y) + ey, WHITE if d < 3 else FROST[3])
         # Glitzer
         if 1 <= k <= 4:
-            for j in range(10 + 4 * k):
+            for j in range(3 + k):
                 x = cxl + (hash2(j, k, 41) - 0.5) * 200; y = gc - hash2(j, k, 42) * (40 + 12 * k)
                 put(im, x, y, WHITE if j % 2 else FROST[3])
         frames.append(im)

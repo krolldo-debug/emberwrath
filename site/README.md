@@ -46,7 +46,8 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   die echte Spielfigur (Krieger im Ritterharnisch, `tools/bosskino-held.mjs` rendert sie mit getHeroSprites, RES 2, nach
   `tools/bosskino-held.png`/`.json`; Server im Repo-Ordner, danach bosskino.mjs neu), 1 Weltpixel = 1 Szenenpixel wie die
   Reittier-Parade, dem Boss gegenüber (Fußpunkt je Boss in `HELD` in bosskino.py, im Bildausschnitt auch am Handy). Er zeigt nur
-  die Kampfhaltung des Spiels, beim Treffer einen harten Blitz und die Trefferbilder (kurz zurück), kein Sterben, keine Zahlen
+  die Kampfhaltung des Spiels, beim Treffer einen harten Blitz in den Glutstufen des Bosses und die Trefferbilder (kurz zurück; in der
+  Handy-Bühne mit 1 Gerätepixel je Feinpixel nur der Held ganzzahlig ×2, Fußpunkt gleich), kein Sterben, keine Zahlen
   oder Leisten; Feuer- und Wasserwand rollen über ihn, ihre Spur brennt hinter ihm, Skalvyrs großer Zapfen schlägt bei ihm ein. Je Boss ein verlustfreier Atlas
   `bosskino-<boss>.webp`; Rechtecke, Bildfolgen und Zeiten schreibt das Werkzeug in den Block `<bosskino.mjs>` in `bosskino.js`
   (ein Teillauf ersetzt nur die genannten Bosse). `bosskino.webp` ist das Standbild (Malgareth, ohne JS und bei reduzierter
