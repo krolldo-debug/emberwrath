@@ -100,7 +100,10 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
 - **Hochformat:** In `play` ist das interne Bild auf hohen Schirmen 270 × 360–480 (INTEGRATION.md §11.9). `<html class="ef-portrait">`
   schaltet das HUD um: Infos oben, Steuerung unten, Minimap rechts unter Zone/Gold. Größen immer live aus `CONFIG.viewWidth/viewHeight`.
 - **Minimap / Zonenkarte:** `ui/Minimap.js`. Minimap im HUD (Taste M oder Antippen → Panel `map`). Karte = verkleinerter
-  `world.background`, Wände dunkel, Wandkanten hell. Marker: Held (Pfeil), Portal (lila Raute), Gegner (rot), Elite (orange),
+  farbige 16-Bit-Karte aus `ui/MapArt.js` (Kartenwerk 17.10.): feste Farbrampen je Biom (`OUTDOOR`/`DUNGEON`), Fels mit Relief
+  (Licht oben links, Schlagschatten unten rechts), Wälder aus Kronen, Wasser/Eis/Lava mit Tiefe, Deko-Namen → Symbol über `GLYPHS`
+  (neue Deko mit unbekanntem Namen bleibt einfach weg). Dungeons in Draufsicht wie `wallKind` (Platten, Mauerfront, Krone, Leere).
+  Namen in Pixelschrift mit 1 px harter Kontur als eigene Ebene (`renderLabels`), Ausgänge dicht am Portal. Marker: Held (Pfeil), Portal (lila Raute), Gegner (rot), Elite (orange),
   Boss (Schädel), NPC `!`/`?` (aus `npcMarker`), Questziel (goldener Ring; außerhalb: Pfeil am Rand). `resolveTarget(session, questTarget)`
   ist exportiert (Portal zur Zielzone über `zone.links`).
 - **Glutprüfung:** HUD liest `game.progression.trialInfo()` → Timer, Fortschritt, Phase; Banner bei `trial:*`.

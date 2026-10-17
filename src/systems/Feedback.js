@@ -163,8 +163,8 @@ export class FeedbackSystem {
       w.addEffect(new CoinFountain(h.x, h.y, { count: 16 }));
     });
     bus.on(EV.LOOT_DROPPED, (e) => this.#lootDropped(e));
-    bus.on(EV.BOSS_ENGAGED, () => {
-      this.#sfx('bossRoar');
+    bus.on(EV.BOSS_ENGAGED, (e) => {
+      this.#sfx('bossRoar', { boss: this.#bossId(e ?? {}) });
       this.#shake(6);
     });
     bus.on(EV.BOSS_DEFEATED, (e) => {

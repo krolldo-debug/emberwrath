@@ -1,0 +1,471 @@
+{
+ "greet_elder_maren": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.3
+ },
+ "greet_smith_brom": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.93
+ },
+ "greet_warden_ilsa": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.67
+ },
+ "greet_herbalist_oona": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.39
+ },
+ "greet_trader_vesk": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.52
+ },
+ "greet_commander_hale": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 1.19
+ },
+ "greet_seer_ysolde": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.49
+ },
+ "greet_quartermaster_dunn": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.83
+ },
+ "greet_captain_varra": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.72
+ },
+ "greet_stablemaster_orla": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.44
+ },
+ "greet_nomad_kesh": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.58
+ },
+ "greet_trader_imra": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.48
+ },
+ "greet_warden_thane": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.67
+ },
+ "greet_alchemist_brisa": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 1.5
+ },
+ "greet_trader_moll": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.88
+ },
+ "greet_jarl_eskil": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 1.1
+ },
+ "greet_hunter_sigrun": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.84
+ },
+ "greet_trader_fenn": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.92
+ },
+ "greet_marshal_corvane": {
+  "takes": [
+   1
+  ],
+  "group": "greet",
+  "gain": 0.75
+ },
+ "greet_pilgrim_aldo": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.53
+ },
+ "greet_quartermaster_ryn": {
+  "takes": [
+   2
+  ],
+  "group": "greet",
+  "gain": 0.44
+ },
+ "swing": {
+  "takes": [
+   1,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.3,
+  "vary": true
+ },
+ "swingHeavy": {
+  "takes": [
+   1,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.38,
+  "vary": true
+ },
+ "hit": {
+  "takes": [
+   1,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.5,
+  "vary": true
+ },
+ "crit": {
+  "takes": [
+   1,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.92,
+  "vary": true
+ },
+ "hurt": {
+  "takes": [
+   2,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.86,
+  "vary": true
+ },
+ "heroDeath": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.46,
+  "vary": true
+ },
+ "enemySwing": {
+  "takes": [
+   2,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.32,
+  "vary": true
+ },
+ "shoot": {
+  "takes": [
+   2,
+   3
+  ],
+  "group": "fx",
+  "gain": 0.72,
+  "vary": true
+ },
+ "thunk": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.42,
+  "vary": true
+ },
+ "roll": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.75,
+  "vary": true
+ },
+ "deflect": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 1.09,
+  "vary": true
+ },
+ "fire": {
+  "takes": [
+   1,
+   2
+  ],
+  "group": "fx",
+  "gain": 0.46,
+  "vary": true
+ },
+ "frost": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.84,
+  "vary": true
+ },
+ "magic": {
+  "takes": [
+   1,
+   2
+  ],
+  "group": "fx",
+  "gain": 0.73,
+  "vary": true
+ },
+ "shadow": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.33,
+  "vary": true
+ },
+ "whoosh": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.43,
+  "vary": true
+ },
+ "quake": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.5,
+  "vary": true
+ },
+ "meteorFall": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.43,
+  "vary": true
+ },
+ "blink": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.81,
+  "vary": true
+ },
+ "fleshDeath": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.3,
+  "vary": true
+ },
+ "boneDeath": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 1.17,
+  "vary": true
+ },
+ "stoneDeath": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.39,
+  "vary": true
+ },
+ "growl": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.38,
+  "vary": true
+ },
+ "coin": {
+  "takes": [
+   1,
+   2
+  ],
+  "group": "fx",
+  "gain": 1.23,
+  "vary": true
+ },
+ "pickup": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 1.09,
+  "vary": true
+ },
+ "levelUp": {
+  "takes": [
+   2
+  ],
+  "group": "fx",
+  "gain": 0.73,
+  "vary": false
+ },
+ "quest": {
+  "takes": [
+   2
+  ],
+  "group": "fx",
+  "gain": 0.78,
+  "vary": false
+ },
+ "questDone": {
+  "takes": [
+   3
+  ],
+  "group": "fx",
+  "gain": 0.72,
+  "vary": false
+ },
+ "rareLoot": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.71,
+  "vary": false
+ },
+ "ui": {
+  "takes": [
+   2
+  ],
+  "group": "fx",
+  "gain": 0.74,
+  "vary": false
+ },
+ "heal": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.48,
+  "vary": true
+ },
+ "victory": {
+  "takes": [
+   1
+  ],
+  "group": "fx",
+  "gain": 0.6,
+  "vary": false
+ },
+ "bossRoar_bonelord": {
+  "takes": [
+   3
+  ],
+  "group": "boss",
+  "gain": 0.83,
+  "vary": false
+ },
+ "bossRoar_drowned_priestess": {
+  "takes": [
+   1
+  ],
+  "group": "boss",
+  "gain": 0.6,
+  "vary": false
+ },
+ "bossRoar_ember_tyrant": {
+  "takes": [
+   2
+  ],
+  "group": "boss",
+  "gain": 0.46,
+  "vary": false
+ },
+ "bossRoar_barrow_king": {
+  "takes": [
+   2
+  ],
+  "group": "boss",
+  "gain": 0.53,
+  "vary": false
+ },
+ "bossRoar_rot_mother": {
+  "takes": [
+   1
+  ],
+  "group": "boss",
+  "gain": 0.74,
+  "vary": false
+ },
+ "bossRoar_frost_wyrm": {
+  "takes": [
+   3
+  ],
+  "group": "boss",
+  "gain": 0.63,
+  "vary": false
+ },
+ "bossRoar_ash_sovereign": {
+  "takes": [
+   1
+  ],
+  "group": "boss",
+  "gain": 0.33,
+  "vary": false
+ }
+}
