@@ -133,6 +133,10 @@ const siteGame = html
 writeFileSync(resolve(site, 'spielen/index.html'), siteGame);
 // Web-App vom Home-Bildschirm (src/ui/Fullscreen.js): Manifest und App-Symbole liegen neben dem Spiel.
 for (const f of ['manifest.webmanifest', 'app-icon-180.png', 'app-icon-192.png', 'app-icon-512.png']) copyFileSync(resolve(root, 'src/ui/pwa', f), resolve(site, 'spielen', f));
+// Echte Klänge (src/audio/Samples.js) lädt das Spiel nach dem Start aus spielen/klang/.
+rmSync(resolve(site, 'spielen/klang'), { recursive: true, force: true });
+mkdirSync(resolve(site, 'spielen/klang'), { recursive: true });
+for (const f of readdirSync(resolve(root, 'src/audio/klang'))) if (f.endsWith('.mp3')) copyFileSync(resolve(root, 'src/audio/klang', f), resolve(site, 'spielen/klang', f));
 // Browser und iOS fragen diese Adressen ohne Verweis im HTML ab: /apple-touch-icon.png und /favicon.ico (ICO mit eingebettetem PNG).
 copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-touch-icon.png'));
 {
@@ -208,6 +212,8 @@ writeFileSync(resolve(site, '_headers'), [
   '  Cache-Control: public, max-age=31536000, immutable',
   '/spielen/sprache-*',
   '  Cache-Control: public, max-age=31536000, immutable',
+  '/spielen/klang/*',
+  '  Cache-Control: public, max-age=86400',
   '',
 ].join('\n'));
 writeFileSync(resolve(site, 'version.json'), JSON.stringify(build) + '\n');
