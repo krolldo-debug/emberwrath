@@ -188,10 +188,20 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     }
     // Ruheschleife: ganzzahlige Zahl von Atemzügen des Helden (4 Bilder bei 6 fps) und des Gegners
     settle();
-    const cyc = (an) => Math.max(1, Math.round((an?.current?.duration ?? 0) * FPS));
+    // Der Gegner läuft ohne seine KI (dummy.update oben), die ihn nach einem Treffer aus 'hurt' wieder in 'idle' bringt:
+    // er bliebe im letzten Bild der (nicht schleifenden) Trefferanimation stehen. Für die Ruhe zurück in seine Atemschleife,
+    // Zeit um einen halben Simulationsschritt versetzt, damit kein Bildwechsel genau auf einen Abtastzeitpunkt fällt.
+    if (c.foe) { dummy.setState('idle'); dummy.animator.play('idle', true); dummy.animator.time = 1 / 120; }
+    // Zyklus in Bildern: kleinste Zahl von Bildern (bei FPS), die ganze Durchläufe der Animation ergibt
+    const cyc = (an) => {
+      const d = (an?.current?.loop ? an.current.duration : 0) * FPS;
+      if (!(d > 0)) return 1;
+      for (let m = 1; m <= 12; m++) if (Math.abs(d * m - Math.round(d * m)) < 1e-6) return Math.round(d * m);
+      return Math.round(d);
+    };
     const hc = cyc(h.animator), dc = c.foe ? cyc(dummy.animator) : 1;
     const lcm = (a, b2) => { let x = a, y = b2; while (y) [x, y] = [y, x % y]; return (a * b2) / x; };
-    let N = lcm(hc, dc); if (N > 48) N = 24; while (N < 18) N *= 2;
+    let N = lcm(hc, dc); while (N < 18) N *= 2;
     for (let i = 0; i < N; i++) { for (let k = 0; k < STEPS; k++) step(); h.x = x0; h.y = y0; h.facing = 1; still(); }
     const idle = frames.splice(0);
     // Fester Rahmen um den Standpunkt (box: links, oben, rechts, unten relativ zu den Füßen)
