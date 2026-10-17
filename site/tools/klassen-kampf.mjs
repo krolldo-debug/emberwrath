@@ -17,7 +17,7 @@ const FPS = 12, STEPS = 60 / FPS;
 const CLASSES = {
   warrior: { foeType: 'ash_golem', foe: true, dist: 36, box: BOX, race: 'human', gear: [...SOV, 'kingsbane'], frames: 32, plan: [[0, 'attack'], [4, 'attack'], [8, 'attack'], [14, 'skill1'], [24, 'skill4']] },
   rogue: { foeType: 'cinder_cultist', foe: true, dist: 28, box: BOX, race: 'emberborn', gear: ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'], frames: 30, plan: [[0, 'attack'], [3, 'attack'], [6, 'attack'], [11, 'skill2'], [20, 'attack'], [23, 'attack']] },
-  ranger: { foeType: 'skeleton', foe: true, dist: 52, box: BOX, race: 'elf', gear: ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], frames: 30, plan: [[0, 'attack'], [4, 'skill2'], [12, 'skill1'], [20, 'skill4']] },
+  ranger: { foeType: 'skeleton', foe: true, foeIdle: [0, 0, 2, 0], foeIdleFps: 4, dist: 52, box: BOX, race: 'elf', gear: ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], frames: 30, plan: [[0, 'attack'], [4, 'skill2'], [12, 'skill1'], [20, 'skill4']] },
   mage: { foeType: 'temple_guardian', foe: true, dist: 50, box: BOX, race: 'elf', gear: ['staff_of_last_ash', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], frames: 30, plan: [[0, 'attack'], [5, 'attack'], [10, 'skill3'], [18, 'skill4']] },
 };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -192,6 +192,12 @@ for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.spl
     // er bliebe im letzten Bild der (nicht schleifenden) Trefferanimation stehen. Für die Ruhe zurück in seine Atemschleife,
     // Zeit um einen halben Simulationsschritt versetzt, damit kein Bildwechsel genau auf einen Abtastzeitpunkt fällt.
     if (c.foe) { dummy.setState('idle'); dummy.animator.play('idle', true); dummy.animator.time = 1 / 120; }
+    // foeIdle: ruhigere Teilfolge der Ruhebilder aus dem Spiel (Indizes, eigenes Tempo), z. B. das Skelett nur mit den
+    // Bildern gleicher Schwerthaltung (Spielbilder 1 und 3 heben den Schwertarm an). Es wird nichts neu gezeichnet.
+    if (c.foe && c.foeIdle) {
+      const A0 = dummy.animator.current;
+      dummy.animator.current = new A0.constructor(c.foeIdle.map((i) => A0.frames[i]), c.foeIdleFps ?? A0.fps);
+    }
     // Zyklus in Bildern: kleinste Zahl von Bildern (bei FPS), die ganze Durchläufe der Animation ergibt
     const cyc = (an) => {
       const d = (an?.current?.loop ? an.current.duration : 0) * FPS;
