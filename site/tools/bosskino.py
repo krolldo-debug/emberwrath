@@ -6,7 +6,8 @@
 # Farben nach den Boss-Sprites des Spiels (src/sprites/ash_sovereign.js, barrow_king.js, rot_mother.js, frost_wyrm.js).
 # Aufbau: dieses Modul hält Werkzeuge (Figur, Formen, Flammen, Szenenpuffer, Fugenwelle, Atlas); je Boss ein Modul
 # bosskino_<boss>.py mit build() -> dict(Ebenen, Figur, Attacke). main() packt je Boss einen Atlas (bosskino-<boss>.webp),
-# das Standbild (bosskino.webp) und gibt die Maße als JSON aus.
+# das Standbild (bosskino.webp) und gibt die Maße als JSON aus. Jede Attacke zielt auf einen Helden (echte Spielfigur aus
+# bosskino-held.png, siehe add_held), der dem Boss gegenübersteht.
 import math, sys, os, json, hashlib, importlib
 import numpy as np
 from PIL import Image
@@ -781,9 +782,63 @@ def compose(B, t_ms=0, wide=False):
             for x, y in B['meta'].get('schalen', []):
                 put(B['fx']['schale'][:, :sw_], x * K, y * K)
         if L['name'] == B.get('figure_after', 'boden'):
+            hd = B['meta'].get('held')
+            if hd:      # Held in Ruhe (Bild 0) vor dem Boss
+                put(B['fx']['held'][:, :hd['w'] * K], hd['x'] * K, hd['y'] * K)
             F = B['figure']
             put(F['poster'], F['x'] * K, F['y'] * K)
     return img
+
+
+# ------------------------------------------------------------------------------------------- Held (Gegner des Bosses)
+# Die echte Heldenfigur des Spiels (tools/bosskino-held.mjs: getHeroSprites, RES 2 = 2 Feinpixel je Weltpixel), 1 Weltpixel =
+# 1 Szenenpixel wie bei der Reittier-Parade, also deutlich kleiner als die Bosse. Er steht dem Boss gegenüber (Blick rechts),
+# Kampfhaltung des Spiels in Ruhe; trifft ihn die Attacke, blitzt er hart auf (deckende Mischfarben, Umriss bleibt) und
+# weicht mit den Trefferbildern des Spiels kurz zurück. Kein Sterben, keine Zahlen, keine Leisten.
+# x = Fußpunkt (Szene); at = Treffer am Helden in ms nach dem Einschlag (ohne Angabe: wenn die Feuer-/Wasserwand ihn erreicht).
+HELD = {'nerith': dict(x=118), 'skalvyr': dict(x=188, at=40), 'malgareth': dict(x=140, blitz=['#a8300a', '#e8641a', '#ffb648'])}
+HELD_MS = 167              # Ruhe: 4 Bilder des Spiels (6 fps)
+
+
+def add_held(B, name):
+    cfg = HELD.get(name)
+    if not cfg: return
+    here = os.path.dirname(os.path.abspath(__file__))
+    meta = json.load(open(os.path.join(here, 'bosskino-held.json')))
+    assert meta['res'] == K, 'Heldenbilder nicht im Feinraster des Bosskinos'
+    src = np.array(Image.open(os.path.join(here, 'bosskino-held.png')).convert('RGBA'))
+    fw, fh = meta['w'], meta['h']
+    raw = [src[:, i * fw:(i + 1) * fw].copy() for i in range(meta['n'])]
+    for im in raw: im[:, :, 3] = np.where(im[:, :, 3] >= 128, 255, 0)
+    ruhe = [raw[i] for i in meta['seq']['ruhe']]
+    hurt = [raw[i] for i in meta['seq']['treffer']]
+    ramp = [hexc(c) for c in cfg.get('blitz') or reversed(B['meta']['glut'])]      # dunkel -> hell (Malgareth: Rot, Orange, Gold)
+
+    def blitz(im, mix):
+        """Trefferblitz hart: deckende Bildpunkte (ohne Umriss) nach Helligkeit auf die Glutstufen des Bosses gesetzt
+        (drei harte Stufen), mix < 1 mischt sie deckend mit der Figur (abklingend). Umriss bleibt."""
+        a = im[:, :, 3] > 0
+        p = np.pad(a, 1)
+        inner = a & p[:-2, 1:-1] & p[2:, 1:-1] & p[1:-1, :-2] & p[1:-1, 2:]
+        lum = im[:, :, :3].astype(int) @ np.array([30, 59, 11]) / 100
+        lv = np.select([lum < 70, lum < 140], [0, 1], 2)
+        C = np.array(ramp)[lv]
+        o = im.copy()
+        o[inner, :3] = np.round(im[inner, :3] * (1 - mix) + C[inner] * mix).astype(np.uint8)
+        return o
+    frames = ruhe + hurt + [blitz(hurt[0], 1.0), blitz(hurt[0], 0.55)]
+    nr = len(ruhe); h0, h1, b0, b1 = nr, nr + 1, nr + 2, nr + 3
+    # Treffer: [Bild, ms, Versatz x] – Blitz, Zurückweichen (Trefferbilder des Spiels, 1–2 Szenenpixel zurück), wieder Ruhe
+    seq = [[b0, 70, -1], [b1, 70, -2], [h0, 110, -2], [h1, 160, -2], [h0, 90, -2], [h1, 170, -2], [h1, 130, -1]]
+    at = cfg.get('at')
+    if at is None:
+        w = next(e for e in B['meta']['ereignisse'] if e.get('k') == 'wand')
+        right = cfg['x'] + (fw - meta['fx']) // K - 2          # Vorderkante des Helden (Schwertspitze)
+        at = int(round(w['at'] + max(0, w['x'] - (w['w'] >> 1) - right) / w['v'] * 1000))
+    B['fx']['held'] = strip(frames)
+    B.setdefault('fein', set()).add('held')
+    B['meta']['held'] = {'x': int(cfg['x'] - meta['fx'] // K), 'y': int(FY - meta['fy'] // K), 'w': fw // K, 'h': fh // K, 'fx': meta['fx'] // K,
+                         'ruhe': {'n': nr, 'ms': HELD_MS}, 'treffer': {'at': at, 'f': seq}}
 
 
 def finish(name, FXo, FYo, BX, parts, moment, hit_idx, imp_px, Ld, order, fx, meta, poster_parts=None, nach=None):
@@ -842,6 +897,7 @@ def main():
             print(f'bosskino_{name}.py fehlt, {name} übersprungen', file=sys.stderr); continue
         mod = importlib.import_module('bosskino_' + name)
         B = mod.build()
+        add_held(B, name)
         fein = B.get('fein', set())
         # Ebenen und Effekte im Szenenraster -> Feinraster (Scale2x), Figur und feine Effekte sind es schon
         for L in B['layers']:
@@ -865,6 +921,7 @@ def main():
             if e.get('k') == 'wand': fw.update({'X:' + e['r']: e['w'], 'X:' + e['r2']: e['w2'], 'X:' + e['r3']: e['w3']})
             if e.get('k') == 'zapfen': fw['X:' + e['r2']] = e['sw']
         if m0.get('schale'): fw['X:schale'] = m0['schale']['w']
+        if m0.get('held'): fw['X:held'] = m0['held']['w']
         for k in B['figure']['sheets']: fw['F:' + k] = offs[k][2]
         items = {'L:' + L['name']: L['img'] for L in B['layers']}
         F = B['figure']
