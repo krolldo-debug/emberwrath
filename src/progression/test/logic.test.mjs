@@ -452,13 +452,16 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () =>
   const per = Object.values(x.full.minutesPerLevel);
   console.log(`    20→40 ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, je Stufe ${Math.min(...per).toFixed(0)}–${Math.max(...per).toFixed(0)} min, ${x.full.bounties} Kopfgelder`);
   assert.equal(x.full.level, 40);
-  // 16.10.: Quests 21–30 geben 40 % mehr (xp.js QUEST_XP_BOOST), weniger Kopfgeld-Pflicht → rund 4,1 statt 4,9 h
-  assert.ok(x.hours20to40 >= 4 && x.hours20to40 <= 6.5, `${x.hours20to40} h`);
-  assert.ok(x.questShare >= 0.62 && x.questShare <= 0.75, `Quest-Anteil ${x.questShare}`);
-  // Die Geschichte endet kurz vor 40, nicht mit zwei Stufen Kopfgeld
-  assert.ok(x.full.milestones.q_homecoming >= 39, `Heimkehr auf Stufe ${x.full.milestones.q_homecoming}`);
+  // 17.10.: Quests ab 21 geben 70–80 % mehr (xp.js QUEST_XP_BOOST), man liegt wie bis 20 etwa eine Stufe unter dem
+  // Questgebiet und braucht kaum Kopfgelder → rund 2,1 statt 4,9 h (Simulation; echte Spieler brauchen länger)
+  assert.ok(x.hours20to40 >= 1.8 && x.hours20to40 <= 3.5, `${x.hours20to40} h`);
+  assert.ok(x.questShare >= 0.62 && x.questShare <= 0.9, `Quest-Anteil ${x.questShare}`);
+  // Die Geschichte endet um 40 (Malgareth oder Heimkehr), nicht mit zwei Stufen Kopfgeld, und 40 kommt nicht vor dem Thron
+  const end = x.full.milestones.q_homecoming ?? x.full.milestones.q_ash_sovereign;
+  assert.ok(end >= 39, `Ende der Geschichte auf Stufe ${end}`);
+  assert.ok(x.full.milestones.q_throne_gate < 40, `Thronpforte schon auf Stufe ${x.full.milestones.q_throne_gate}`);
   const avg = per.reduce((a, b) => a + b, 0) / per.length;
-  assert.ok(avg >= 11 && avg <= 22, `Schnitt ${avg} min je Stufe`);
+  assert.ok(avg >= 5 && avg <= 22, `Schnitt ${avg} min je Stufe`);
   assert.ok(Math.max(...per) <= 32, 'keine extremen Ausreißer');
   // Reittier-Preise: Steppenpferd als erstes Tier bald nach 20 (16.10., Nutzer: 10.000 Gold), Aschenwolf ≈ 3–4 h
   // bei 75 % des verkauften Beutewerts, episch erst gegen 40
@@ -467,7 +470,8 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () =>
   assert.ok(first / realistic <= 0.6, `Steppenpferd ${first} = ${(first / realistic).toFixed(1)} h`);
   assert.ok(rare / realistic >= 3 && rare / realistic <= 4, `seltenes Reittier ${rare} = ${(rare / realistic).toFixed(1)} h`);
   // Glutross: Prestige nach Malgareth, braucht auch nach 40 noch Gold aus Prüfungen und Kopfgeldern
-  assert.ok(x.goldAt(40) * 0.75 < epic && x.goldAt(40) >= epic * 0.8, 'episches Reittier erst nach 40');
+  // 17.10.: kürzerer Weg 20→40 bringt bis 40 knapp die Hälfte (vorher ~80 %), der Rest kommt nach 40
+  assert.ok(x.goldAt(40) * 0.75 < epic && x.goldAt(40) >= epic * 0.4, 'episches Reittier erst nach 40');
   assert.equal(ITEMS.mount_ember_charger.reqQuest, 'q_ash_sovereign');
   assert.equal(ITEMS.mount_steppe_horse.reqQuest, 'q_first_ride');
   assert.equal(ITEMS.mount_ember_charger.reqLevel, 40);
