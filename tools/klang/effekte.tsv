@@ -1,0 +1,39 @@
+swing	0.5	single quick sword swing whoosh through the air, crisp blade swish, no impact, dry, video game sound effect
+swingHeavy	0.7	heavy two-handed greatsword swing, deep powerful whoosh, no impact, dry, video game sound effect
+hit	0.5	punchy sword hit on a monster, meaty thud with short slash, tight and dry, action RPG combat sound effect
+crit	0.8	critical sword strike, very heavy meaty impact with bright metallic ring, powerful, action RPG sound effect
+hurt	0.5	player takes damage, dull heavy body blow on leather armor, short, no voice, game sound effect
+heroDeath	1.5	hero falls in battle, armor and weapon collapsing to the ground, dark low boom tail, no voice, game sound effect
+enemySwing	0.5	monster claw swipe whoosh, short rough air swish, no impact, game sound effect
+shoot	0.5	bow string release twang with short arrow whoosh, crisp, game sound effect
+thunk	0.5	arrow thudding into wood, short sharp thunk, game sound effect
+roll	0.5	quick dodge roll on dirt, cloth rustle and short scuff, game sound effect
+deflect	0.5	sword parry, sharp metal clang with short ring, game sound effect
+fire	0.8	fireball spell launch, fiery whoosh with crackling burst, fantasy magic sound effect
+frost	0.8	frost nova spell, icy crystalline crackle and shimmering freeze burst, fantasy magic sound effect
+magic	0.7	arcane spell cast, short sparkling magical shimmer with soft whoosh, fantasy sound effect
+shadow	0.6	shadow step teleport, dark breathy whoosh with low eerie swell, fantasy sound effect
+whoosh	0.6	whirlwind spin attack, fast circular blade whoosh, game sound effect
+quake	1.2	ground slam earthquake, deep rumbling impact with rocks cracking, game sound effect
+meteorFall	1.5	meteor falling from the sky, rising fiery roar ending in an explosive impact, fantasy game sound effect
+blink	0.5	short magical teleport zap, airy sparkle pop, fantasy sound effect
+fleshDeath	0.8	monster beast dies, short pained snarl and body thud on the ground, game sound effect
+boneDeath	0.8	skeleton collapses, dry bones clattering and scattering on stone floor, game sound effect
+stoneDeath	1.0	stone golem crumbles, heavy rocks breaking apart and falling, game sound effect
+growl	0.8	wolf growl, short aggressive snarl, game sound effect
+coin	0.5	a few gold coins clinking, bright and short, game pickup sound effect
+pickup	0.5	picking up an item, soft leather bag rustle with tiny clink, game sound effect
+levelUp	2.0	level up, bright magical ascending shimmer with warm triumphant chime swell, fantasy RPG sound effect
+quest	0.8	quest accepted, parchment unrolling with a soft magical chime, fantasy RPG UI sound
+questDone	1.5	quest completed, satisfying warm bell chime with gentle sparkle, fantasy RPG UI sound
+rareLoot	1.5	rare legendary item drops, deep magical shimmer with golden chime and sparkle, fantasy RPG sound effect
+ui	0.5	soft short wooden UI click, subtle, menu button sound
+heal	1.0	healing spell, warm soft holy shimmer rising, fantasy sound effect
+victory	2.5	boss defeated, triumphant heroic brass and drum stinger with shimmering tail, dark fantasy game
+bossRoar_bonelord	3.0	undead skeleton king lets out a hollow rattling roar, bones clattering, echoing in a crypt, dark fantasy boss
+bossRoar_drowned_priestess	3.0	drowned sea priestess screams a gurgling watery wail, eerie and echoing, dark fantasy boss
+bossRoar_ember_tyrant	3.0	huge fire dragon roars, deep rumbling roar with roaring flames, dark fantasy boss
+bossRoar_barrow_king	3.0	ancient mummy king awakens with a deep dusty groaning roar, echoing tomb, dark fantasy boss
+bossRoar_rot_mother	3.0	giant fungus queen monster lets out a wet bubbling shriek with squelching spores, dark fantasy boss
+bossRoar_frost_wyrm	3.0	giant ice wyrm roars, cold hissing roar with cracking ice, dark fantasy boss
+bossRoar_ash_sovereign	3.0	demonic ash king roars with a deep distorted demonic voice and roaring fire, dark fantasy final boss

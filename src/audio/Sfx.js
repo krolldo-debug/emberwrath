@@ -1,5 +1,7 @@
-// Prozedurale Soundeffekte über WebAudio – keine Asset-Dateien nötig.
-// Später austauschbar gegen Samples, die API (play(name)) bleibt gleich.
+import { Samples } from './Samples.js';
+
+// Prozedurale Soundeffekte über WebAudio. Wo es echte Klänge gibt (Samples.js, audio/klang/),
+// ersetzen sie den prozeduralen Effekt, sobald sie geladen sind; die API (play(name)) bleibt gleich.
 export class Sfx {
   constructor() {
     this.ctx = null;
@@ -26,6 +28,8 @@ export class Sfx {
     this.fx = this.ctx.createGain();
     this.fx.gain.value = this.fxVolume;
     this.fx.connect(this.master);
+    this.samples = new Samples(this.ctx, this.fx);
+    this.samples.preload();
     // Kurzer Raumhall für Treffer und Zauber (Parameter wet in #noise/#tone)
     this.room = this.ctx.createConvolver();
     const rl = Math.floor(this.ctx.sampleRate * 0.7), rb = this.ctx.createBuffer(2, rl, this.ctx.sampleRate);
@@ -213,6 +217,7 @@ export class Sfx {
   play(name, opts = {}) {
     if (!this.ctx || this.muted || this.quiet) return;
     const t = this.ctx.currentTime + 0.001;
+    if (this.samples.play(name, opts, t)) return;
     const p = opts.pitch ?? (0.92 + Math.random() * 0.16);
     switch (name) {
       case 'swing':

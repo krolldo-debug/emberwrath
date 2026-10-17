@@ -20,7 +20,7 @@ export function installDialogPortraits(game) {
   const wrapped = (session, params = {}) => {
     const panel = inner(session, params);
     if (!params.npcId || panel.root?.querySelector?.('.dlg-portrait')) return panel;
-    session.sfx?.play?.('dialog');
+    session.sfx?.play?.('dialog', { npc: params.npcId });
     const root = h('div.dlg-wrap', dialogPortraitEl(session, params.npcId), panel.root);
     return { ...panel, root };
   };

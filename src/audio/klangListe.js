@@ -1,0 +1,25 @@
+// Erzeugt von tools/klang/verarbeiten.py aus tools/klang/auswahl.json – nicht von Hand ändern.
+// group: fx | boss | greet (Ladereihenfolge), gain: Lautstärke, vary: leicht verstimmen je Wiedergabe.
+export const KLANG = {
+  greet_alchemist_brisa: { group: 'greet', gain: 0.8, vary: false, files: ["greet_alchemist_brisa.mp3"] },
+  greet_captain_varra: { group: 'greet', gain: 0.8, vary: false, files: ["greet_captain_varra.mp3"] },
+  greet_commander_hale: { group: 'greet', gain: 0.8, vary: false, files: ["greet_commander_hale.mp3"] },
+  greet_elder_maren: { group: 'greet', gain: 0.8, vary: false, files: ["greet_elder_maren.mp3"] },
+  greet_herbalist_oona: { group: 'greet', gain: 0.8, vary: false, files: ["greet_herbalist_oona.mp3"] },
+  greet_hunter_sigrun: { group: 'greet', gain: 0.8, vary: false, files: ["greet_hunter_sigrun.mp3"] },
+  greet_jarl_eskil: { group: 'greet', gain: 0.8, vary: false, files: ["greet_jarl_eskil.mp3"] },
+  greet_marshal_corvane: { group: 'greet', gain: 0.8, vary: false, files: ["greet_marshal_corvane.mp3"] },
+  greet_nomad_kesh: { group: 'greet', gain: 0.8, vary: false, files: ["greet_nomad_kesh.mp3"] },
+  greet_pilgrim_aldo: { group: 'greet', gain: 0.8, vary: false, files: ["greet_pilgrim_aldo.mp3"] },
+  greet_quartermaster_dunn: { group: 'greet', gain: 0.8, vary: false, files: ["greet_quartermaster_dunn.mp3"] },
+  greet_quartermaster_ryn: { group: 'greet', gain: 0.8, vary: false, files: ["greet_quartermaster_ryn.mp3"] },
+  greet_seer_ysolde: { group: 'greet', gain: 0.8, vary: false, files: ["greet_seer_ysolde.mp3"] },
+  greet_smith_brom: { group: 'greet', gain: 0.8, vary: false, files: ["greet_smith_brom.mp3"] },
+  greet_stablemaster_orla: { group: 'greet', gain: 0.8, vary: false, files: ["greet_stablemaster_orla.mp3"] },
+  greet_trader_fenn: { group: 'greet', gain: 0.8, vary: false, files: ["greet_trader_fenn.mp3"] },
+  greet_trader_imra: { group: 'greet', gain: 0.8, vary: false, files: ["greet_trader_imra.mp3"] },
+  greet_trader_moll: { group: 'greet', gain: 0.8, vary: false, files: ["greet_trader_moll.mp3"] },
+  greet_trader_vesk: { group: 'greet', gain: 0.8, vary: false, files: ["greet_trader_vesk.mp3"] },
+  greet_warden_ilsa: { group: 'greet', gain: 0.8, vary: false, files: ["greet_warden_ilsa.mp3"] },
+  greet_warden_thane: { group: 'greet', gain: 0.8, vary: false, files: ["greet_warden_thane.mp3"] },
+};

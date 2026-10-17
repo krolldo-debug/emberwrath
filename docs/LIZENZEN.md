@@ -8,7 +8,7 @@ Stand 10.10.2026 (Urheberrechts-Check). Bei jedem neuen Bestandteil, der nicht i
 |---|---|
 | Spielgrafik (Figuren, Gegner, Bosse, Reittiere, Kacheln, Icons, Effekte) | prozedural aus `src/sprites/`, `src/gfx/`, `src/character/gearLook.js` |
 | Musik | `src/audio/Music.js`, Stücke aus Tonleiter, Akkordfolge und zufälligen Motiven zur Laufzeit erzeugt; keine Audiodateien, keine fremden Melodien |
-| Soundeffekte, Stimmen, Umgebung | `src/audio/Sfx.js`, `voices.js`, `Soundscape.js`, per WebAudio synthetisiert |
+| Soundeffekte, Stimmen, Umgebung | `src/audio/Sfx.js`, `voices.js`, `Soundscape.js`, per WebAudio synthetisiert (wo es eine Datei in `src/audio/klang/` gibt, ersetzt sie den Effekt, siehe unten) |
 | Website-Bilder (`site/img/`), Logo, Favicon, App-Icons | aus dem Spielcode gerendert mit `site/tools/*.mjs` |
 | Texte, Namen von Orten, Bossen, Gegenständen | eigene Erfindungen; Allgemeinbegriffe wie Phönix, Höllenhund, Sternenfall sind frei |
 
@@ -20,6 +20,7 @@ Stand 10.10.2026 (Urheberrechts-Check). Bei jedem neuen Bestandteil, der nicht i
 | Schrift Inter 400/600/700 | `site/fonts/` (Website) | SIL OFL 1.1, kein reservierter Name | Lizenztext liegt bei (`OFL-Inter.txt`), wird mit ausgeliefert |
 | Google-„G“ im Knopf „Weiter mit Google“ | `src/online/LoginScene.js` | Marke von Google, Nutzung nach den Sign-in-Branding-Richtlinien erlaubt | Logo nicht verändern, Knopf hell (weiß, Rand #dadce0), Text „Weiter mit Google“ |
 | Symbole TikTok, Instagram, Discord, YouTube | `site/site.js` | Marken der Anbieter, als Link zum eigenen Profil erlaubt | nur als Verweis auf unser Profil, nicht verfremden |
+| Echte Klänge: NPC-Laute, Effekte, Bossschreie | `src/audio/klang/` (Werkzeug `tools/klang/`) | mit ElevenLabs erzeugt im bezahlten Creator-Tarif: gewerbliche Nutzung erlaubt, keine Nennung nötig (Stimmen aus der ElevenLabs-Stimmbibliothek eingeschlossen) | Tarif muss beim Erzeugen bezahlt sein; Rohdateien und Abruf-Liste in `/mnt/project-files/klang/` |
 | Systemschriften im Spiel (Trebuchet MS, Georgia, Segoe UI) | `src/ui/theme.css` | auf dem Gerät des Spielers installiert, nichts wird ausgeliefert | keine |
 
 Im ausgelieferten Spiel und auf der Website steckt kein fremder Programmcode (keine Bibliotheken, kein CDN).
