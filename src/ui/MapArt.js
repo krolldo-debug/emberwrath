@@ -1,5 +1,6 @@
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { hash2 } from '../core/math.js';
+import { PixelFont } from './PixelFont.js';
 
 // Gezeichnete Zonenkarte im Pixelstil – Thread D, Neufassung „Kartenwerk“ (17.10.).
 // Aus dem Zeichenraster der Zone (level.map), den Deko-Platzierungen und den Flächen entsteht eine farbige
@@ -47,10 +48,10 @@ const OUTDOOR = {
     roof: R('#4a1e12', '#84381e', '#ac5430'), crop: R('#a88a44', '#c8aa5a'),
   },
   marsh: {
-    ground: R('#3a4630', '#455438', '#516242'), forest: R('#2a3422', '#323e28', '#3c4a30'), speck: hex('#6a7c4a'),
-    path: R('#4a3e2c', '#5e5036', '#706242'), pave: R('#3a362c', '#7a7462', '#908a76'),
+    ground: R('#4e6238', '#5a7040', '#677e4a'), forest: R('#3c4c2c', '#465834', '#50643c'), speck: hex('#82985a'),
+    path: R('#5a4a32', '#6e5c3e', '#82704c'), pave: R('#3a362c', '#7a7462', '#908a76'),
     rock: R('#1a1e18', '#2e342c', '#444c3e', '#5a6450', '#747e66', '#8e987e'),
-    water: R('#1e322c', '#283f37', '#344f44', '#7e9a7c'), calm: true, tree: R('#0e140c', '#20301b', '#2e4225', '#425a30'),
+    water: R('#14262a', '#1c3338', '#264448', '#86aaa0'), calm: true, tree: R('#0e140c', '#20301b', '#2e4225', '#425a30'),
     roof: R('#2e2418', '#54442e', '#6e5c3e'), crop: R('#5a6a3a', '#6e7e46'),
   },
   frost: {
@@ -61,9 +62,9 @@ const OUTDOOR = {
     roof: R('#3e1c14', '#6e3420', '#8e4a2e'), crop: R('#9aa8b8', '#b0bcca'), ice: true, snow: true,
   },
   wastes: {
-    ground: R('#4c2820', '#5a3026', '#68382c'), forest: R('#3e2018', '#48261c', '#522c22'), speck: hex('#7c4834'),
-    path: R('#3c2018', '#4a2a20', '#5a3428'), pave: R('#38241e', '#6c4e46', '#846056'),
-    rock: R('#120a0a', '#241414', '#361e1a', '#4a2a24', '#62382e', '#7c4a3c'),
+    ground: R('#40221c', '#4c2a22', '#58322a'), forest: R('#38201a', '#42261e', '#4c2c22'), speck: hex('#6e3e2e'),
+    path: R('#2e1814', '#3a201a', '#462820'), pave: R('#3e302a', '#8a7266', '#a08678'),
+    rock: R('#120a0a', '#2a1816', '#42261f', '#5c3628', '#7a4a38', '#9a644c'), ruin: R('#1a0e0c', '#7c6a5e', '#a08a7a', '#c4ac98'),
     water: LAVA, tree: R('#100808', '#281410', '#381e16', '#4a2a1e'), roof: R('#3a140c', '#6a2414', '#8e3a20'), crop: R('#5a3428', '#6c4030'),
   },
 };
@@ -105,7 +106,8 @@ const GLYPHS = [
   [/pine|conifer/, 'pine'],
   [/oak|broad|deepwood|clump|leaf|tree(?!platform)/, 'tree'],
   [/field|furrow|wheat|cabbage/, 'field'],
-  [/walk|boardwalk|bridge(?!stub|rail)|dambank|platform/, 'planks'],
+  [/dambank/, 'bank'],
+  [/walk|boardwalk|bridge(?!stub|rail)|platform/, 'planks'],
   [/palisade|fence|barricade|damstakes|minerail/, 'fence'],
   [/watchtower|tower|lookout/, 'tower'],
   [/cottage|house|hut|longhouse|lodge|stable|mill|mausoleum|kiln|facade|forge$|^forge|stall|den$/, 'house'],
@@ -187,6 +189,7 @@ class Paint {
 }
 
 // ------------------------------------------------------------------ Gelände je Kachel
+const TERR = 1.05; // Terrassen je Höhenstufe (Fels)
 const G = 0, DIRT = 1, PAVE = 2, ROCK = 3, LIQ = 4, FISS = 5, HOUSE = 6, WALL = 7;
 const FLOOR = 0, FACE = 8, TOP = 9;
 
@@ -288,7 +291,7 @@ function paintOutdoor(P, d, cls, fill, biome, s, fine) {
     if (pc[y * W + x] !== ROCK) continue;
     const base = bilin(rockD, w, h, (x + 0.5) / s - 0.5, (y + 0.5) / s - 0.5);
     const ridge = 1 - Math.abs(vn(x * rq, y * rq, 61) * 2 - 1);
-    hp[y * W + x] = Math.min(base, 5) * 0.55 + ridge * Math.min(base, 2.5) * 0.42 + vn(x * dq, y * dq, 62) * 0.1 * Math.min(base, 1.2);
+    hp[y * W + x] = Math.min(base, 5) * 0.55 + ridge * Math.min(base, 2.5) * 0.45 + vn(x * dq, y * dq, 62) * 0.06 * Math.min(base, 1.2);
   }
 
   const gq = 1 / (s * 4.5), gq2 = 1 / (s * 1.2), sh = Math.max(1, Math.round(s * 0.45));
@@ -301,10 +304,15 @@ function paintOutdoor(P, d, cls, fill, biome, s, fine) {
       if (nb) col = pal.rock[0];
       else if (nt) col = pal.rock[1];
       else {
-        const gx = (hp[i + 1] - hp[i - 1]) * s * 0.5, gy = (hp[i + W] - hp[i - W]) * s * 0.5;
-        const v = 0.5 + (gx + gy) * 0.32 + (hp[i] - 1.4) * 0.07;
-        const t = Math.max(0, Math.min(4, Math.floor(v * 5 + bay(x, y) * 0.9)));
-        col = pal.rock[1 + t];
+        // Harte Stufen: Höhe in Terrassen, Kante nach unten rechts dunkel, nach oben links hell, Flächen in 3 Tönen
+        const lv = Math.floor(hp[i] * TERR), lr = Math.floor(hp[i + 1] * TERR), ld = Math.floor(hp[i + W] * TERR);
+        const ll = Math.floor(hp[i - 1] * TERR), lu = Math.floor(hp[i - W] * TERR);
+        if (lr < lv || ld < lv) col = pal.rock[1];
+        else if (ll < lv || lu < lv) col = pal.rock[lv >= 3 ? 5 : 4];
+        else {
+          const g = (hp[i + 1] - hp[i - 1] + hp[i + W] - hp[i - W]) * s * 0.5;
+          col = pal.rock[g > 0.22 ? (lv >= 3 && pal.snow ? 5 : 4) : g < -0.3 ? 2 : 3];
+        }
       }
     } else if (k === LIQ) {
       col = liquid(pal, lava, x, y, s, bilin(liqD, w, h, (x + 0.5) / s - 0.5, (y + 0.5) / s - 0.5), at);
@@ -341,7 +349,6 @@ function paintOutdoor(P, d, cls, fill, biome, s, fine) {
     P.set(x, y, col);
   }
 
-  if (d.level.crevasses?.length) drawCrevasses(P, d.level.crevasses, s, pal);
   drawHouses(P, d, cls, s, pal);
   if (fine) drawPlacements(P, d, fill, s, pal, biome);
   else if (s >= 2) {
@@ -385,19 +392,6 @@ function liquid(pal, lava, x, y, s, depth, at) {
     if ((v === 0 && (u === 0 || u === 3)) || (v === -1 && (u === 1 || u === 2))) return r[3];
   }
   return pick([r[0], r[1], r[2]], 1 - Math.min(depth, 3.2) / 3.2 + (vn(x / (s * 2), y / (s * 2), 89) - 0.5) * 0.3, x, y);
-}
-
-// Gletscherspalten (level.crevasses: Polylinien in Kacheln, w = halbe Breite in Weltpixeln)
-function drawCrevasses(P, lines, s, pal) {
-  for (const line of lines) for (let i = 0; i < line.length - 1; i++) {
-    const a = line[i], b = line[i + 1];
-    const len = Math.hypot(b.x - a.x, b.y - a.y) * s, steps = Math.max(1, Math.ceil(len * 2));
-    for (let k = 0; k <= steps; k++) {
-      const t = k / steps, x = Math.round((a.x + (b.x - a.x) * t) * s), y = Math.round((a.y + (b.y - a.y) * t) * s);
-      const ww = Math.max(0, Math.round(((a.w + (b.w - a.w) * t) * s) / 16 - 0.4));
-      for (let u = -ww; u <= ww; u++) { P.set(x + u, y - 1, pal.rock[3]); P.set(x + u, y, pal.rock[0]); P.set(x + u, y + 1, pal.rock[1]); }
-    }
-  }
 }
 
 // Häuser aus 'H'-Flächen: Satteldach mit First, Schindeln, Kontur und Traufschatten
@@ -456,11 +450,12 @@ function drawPlacements(P, d, fill, s, pal, biome) {
     const kind = glyphKind(pl.type === 'bdecor' ? pl.name : pl.type);
     if (kind === 'field') field(P, pl.tx * s, pl.ty * s, s, pal, pl.name ?? '');
     else if (kind === 'planks') planks(P, pl.tx * s, pl.ty * s, s);
+    else if (kind === 'bank') bank(P, pl.tx * s, pl.ty * s, s, pal);
     else if (kind === 'lily') { const x = pl.tx * s + (s >> 1), y = pl.ty * s + (s >> 1); P.set(x, y, [70, 120, 60]); P.set(x + 1, y, [96, 150, 74]); }
   }
   for (const pl of list) {
     const kind = glyphKind(pl.type === 'bdecor' ? pl.name : pl.type);
-    if (!kind || kind === 'field' || kind === 'planks' || kind === 'lily') continue;
+    if (!kind || kind === 'field' || kind === 'planks' || kind === 'bank' || kind === 'lily') continue;
     const seed = pl.tx * 31 + pl.ty * 17 + (pl.x | 0);
     // Bäume leicht versetzt, damit gesetzte Wälder kein Raster zeigen
     const jx = TREES.has(kind) ? Math.round((hash2(seed, 6, 77) - 0.5) * s * 0.8) : 0, jy = TREES.has(kind) ? Math.round((hash2(seed, 7, 78) - 0.5) * s * 0.6) : 0;
@@ -589,16 +584,16 @@ function tower(P, x, y, big, pal) {
   P.sprite(x, y, rows, pp);
 }
 function ruin(P, x0, y0, s, pal, seed) {
-  // Mauerstück: Steinblock auf der Kachel, oben zerbrochen
-  const st = pal.rock, top = Math.round(s * (0.25 + hash2(seed, 1, 69) * 0.3));
+  // Mauerstück: heller Steinblock auf der Kachel, oben zerbrochen, Kontur dunkel
+  const st = pal.ruin ?? [pal.rock[0], pal.pave[1], pal.pave[2], mul(pal.pave[2], 1.15)];
+  const top = Math.round(s * (0.2 + hash2(seed, 1, 69) * 0.3));
   for (let yy = top; yy < s; yy++) for (let xx = 0; xx < s; xx++) {
-    const brk = yy === top && hash2(seed + xx, 2, 70) < 0.4;
-    if (brk) continue;
+    if (yy === top && hash2(seed + xx, 2, 70) < 0.4) continue;
     const edge = xx === 0 || xx === s - 1 || yy === s - 1 || yy === top;
     const mortar = yy % 2 === 0 && (xx + (yy % 4 === 0 ? 1 : 0)) % 3 === 0;
-    P.set(x0 + xx, y0 + yy, edge ? st[0] : mortar ? st[2] : yy < top + 2 ? st[5] : st[4]);
+    P.set(x0 + xx, y0 + yy, edge ? st[0] : yy <= top + 1 ? st[3] : mortar ? st[1] : st[2]);
   }
-  for (let yy = top + 1; yy <= s; yy++) P.shade(x0 + s, y0 + yy, 0.72);
+  for (let yy = top + 1; yy <= s; yy++) P.shade(x0 + s, y0 + yy, 0.7);
 }
 function fence(P, x0, y0, s, vertical) {
   const post = [126, 88, 54], dark = [70, 46, 28], ink = [30, 20, 12];
@@ -615,8 +610,12 @@ function fence(P, x0, y0, s, vertical) {
   }
 }
 function planks(P, x0, y0, s) {
-  const a = [128, 92, 56], b = [102, 72, 42], ink = [44, 28, 16];
-  for (let yy = 0; yy < s; yy++) for (let xx = 0; xx < s; xx++) P.set(x0 + xx, y0 + yy, yy % 2 === 1 ? ink : (xx + yy * 3) % 7 === 0 ? b : a);
+  // Steg: ruhige Bretter, nur jede dritte Reihe eine Fuge
+  const a = [132, 96, 58], b = [108, 78, 46];
+  for (let yy = 0; yy < s; yy++) for (let xx = 0; xx < s; xx++) P.set(x0 + xx, y0 + yy, (y0 + yy) % 3 === 2 ? b : a);
+}
+function bank(P, x0, y0, s, pal) {
+  for (let yy = 0; yy < s; yy++) for (let xx = 0; xx < s; xx++) P.set(x0 + xx, y0 + yy, yy === 0 ? pal.path[2] : pal.path[1]);
 }
 function field(P, x0, y0, s, pal, name) {
   const furrow = /furrow/i.test(name), cab = /cabbage/i.test(name);
@@ -843,41 +842,65 @@ export function mapLabels(world, content) {
     // Anker etwas zur Kartenmitte hin, damit der Name neben und nicht auf dem Portal steht
     let x = e.x / T, y = e.y / T;
     const dx = d.w / 2 - x, dy = d.h / 2 - y, len = Math.hypot(dx, dy) || 1;
-    x += (dx / len) * 4; y += (dy / len) * 3;
+    x += (dx / len) * 1.5; y += (dy / len) * 1.5;
     x = Math.min(d.w - 6, Math.max(6, x)); y = Math.min(d.h - 4, Math.max(4, y));
     out.push({ text: z.name, anchorX: x, anchorY: y, kind: 'portal' });
   }
   return out;
 }
 
-// Lagen der Beschriftungen in Bildschirmpixeln der Karte (Maßstab scale × zoom). measure(text, kind) -> { w, h }.
-// Jede Beschriftung sucht sich unter mehreren Lagen die mit den wenigsten Hindernissen: Häuser, Mauern, Marker
-// (avoid: [[x, y, r]] in Kartenpixeln), Rand und andere Namen. Fels und Wasser stören kaum (Schrift hat Kontur).
-const PENALTY = { [HOUSE]: 4, [WALL]: 4, [ROCK]: 0.25, [LIQ]: 0.35, [TOP]: 0.5, [FACE]: 1 };
-export function layoutLabels(world, content, scale, zoom, avoid, measure, translate = (t) => t) {
-  const d = world.dungeon, k = scale * zoom, W = d.w * k, H = d.h * k;
+// Beschriftung im Pixelstil: Bitmap-Schrift (PixelFont, Umlaute mit Punkten darüber) mit 1 px harter Kontur und
+// Fußschatten, in eine eigene Ebene so groß wie das Kartenbild. Jede Beschriftung sucht sich unter mehreren Lagen die
+// mit den wenigsten Hindernissen: Häuser, Mauern, Marker (avoid: [[x, y, r]] in Kartenpixeln), Rand und andere Namen.
+// Ausgänge bleiben dicht an ihrem Portal. z = Bildschirmzoom: auf kleinen Schirmen wird die Schrift größer gezeichnet.
+const FONT = new PixelFont();
+const LABEL = { town: ['#ffd98a', '#1c0c04'], area: ['#f4e8cc', '#1a100a'], portal: ['#e2ccff', '#1a0a2a'] };
+const PENALTY = { [HOUSE]: 4, [WALL]: 4, [ROCK]: 0.3, [LIQ]: 0.4, [TOP]: 0.5, [FACE]: 1 };
+const NEAR = [[0, 0], [0, -1.2], [0, 1.2], [-0.55, 0], [0.55, 0], [-0.55, -1.2], [0.55, -1.2], [-0.55, 1.2], [0.55, 1.2]];
+const WIDE = [...NEAR, [0, -2.4], [0, 2.4], [-1.1, -2.4], [1.1, -2.4], [-1.1, 2.4], [1.1, 2.4], [0, -3.8], [0, 3.8]];
+
+export function renderLabels(world, content, scale, z, avoid = [], translate = (t) => t) {
+  const d = world.dungeon, W = d.w * scale, H = d.h * scale;
   const { cls } = classify(d);
+  const c = makeCanvas(W, H), ctx = c.getContext('2d');
   const order = { town: 0, area: 1, portal: 2 };
-  const placed = [], out = [];
+  const placed = [];
   for (const l of mapLabels(world, content).sort((a, b) => order[a.kind] - order[b.kind])) {
+    const f = l.kind === 'town' ? Math.max(2, Math.round(3 / z)) : Math.max(1, Math.round(2 / z));
     const text = translate(l.text);
-    const { w: tw, h: th } = measure(text, l.kind);
-    const ax = l.anchorX * k, ay = l.anchorY * k;
+    const up = FONT.ascent(text, true);
+    const tw = labelWidth(text, f) + 2, th = (5 + up) * f + 3;
+    const ax = l.anchorX * scale, ay = l.anchorY * scale;
     let best = null;
-    for (const [ox, oy] of [[0, 0], [0, -1.3], [0, 1.3], [0, -2.6], [0, 2.6], [-0.6, 0], [0.6, 0], [-0.6, -1.5], [0.6, -1.5], [-0.6, 1.5], [0.6, 1.5], [0, -4], [0, 4], [-1.1, -2.6], [1.1, -2.6], [-1.1, 2.6], [1.1, 2.6], [0, -5.5], [0, 5.5]]) {
+    for (const [ox, oy] of l.kind === 'portal' ? NEAR : WIDE) {
       const cx = ax + ox * tw, cy = ay + oy * th;
       const x0 = Math.round(cx - tw / 2), y0 = Math.round(cy - th / 2), x1 = x0 + tw, y1 = y0 + th;
       let score = Math.hypot(cx - ax, cy - ay) * 0.03;
       if (x0 < 6 || y0 < 6 || x1 > W - 6 || y1 > H - 6) score += 400;
-      for (let ty = Math.max(0, Math.floor(y0 / k)); ty <= Math.min(d.h - 1, Math.floor(y1 / k)); ty++) {
-        for (let tx = Math.max(0, Math.floor(x0 / k)); tx <= Math.min(d.w - 1, Math.floor(x1 / k)); tx++) score += PENALTY[cls[ty * d.w + tx]] ?? 0;
+      for (let ty = Math.max(0, Math.floor(y0 / scale)); ty <= Math.min(d.h - 1, Math.floor(y1 / scale)); ty++) {
+        for (let tx = Math.max(0, Math.floor(x0 / scale)); tx <= Math.min(d.w - 1, Math.floor(x1 / scale)); tx++) score += PENALTY[cls[ty * d.w + tx]] ?? 0;
       }
-      for (const [mx, my, r] of avoid) { const X = mx * zoom, Y = my * zoom, Rr = r * zoom; if (X + Rr > x0 && X - Rr < x1 && Y + Rr > y0 && Y - Rr < y1) score += 60; }
-      for (const p of placed) if (p[0] < x1 + 4 && p[2] + 4 > x0 && p[1] < y1 + 2 && p[3] + 2 > y0) score += 1000;
+      for (const [mx, my, r] of avoid) if (mx + r > x0 && mx - r < x1 && my + r > y0 && my - r < y1) score += 60;
+      for (const p of placed) if (p[0] < x1 + 3 && p[2] + 3 > x0 && p[1] < y1 + 2 && p[3] + 2 > y0) score += 1000;
       if (!best || score < best.score) best = { score, x0, y0, x1, y1 };
     }
-    placed.push([best.x0, best.y0, best.x1, best.y1]);
-    out.push({ text, kind: l.kind, x: best.x0, y: best.y0 });
+    // nie aus dem Bild schieben
+    const x0 = Math.max(4, Math.min(W - tw - 4, best.x0)), y0 = Math.max(4, Math.min(H - th - 4, best.y0));
+    placed.push([x0, y0, x0 + tw, y0 + th]);
+    const [col, ink] = LABEL[l.kind], tx = x0 + 1, ty = y0 + 1 + up * f;
+    drawLabel(ctx, text, tx, ty, f, col, ink);
   }
-  return out;
+  return c;
+}
+// Buchstaben einzeln mit 1 px Extra-Abstand, damit die Kontur zwischen ihnen frei bleibt
+const labelWidth = (text, f) => [...text].reduce((w, ch) => w + FONT.measure(ch, f, true) + f + 1, -f - 1);
+function drawLabel(ctx, text, x, y, f, col, ink) {
+  for (const pass of [ink, col]) {
+    let cx = x;
+    for (const ch of text) {
+      if (pass === ink) for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, 2], [1, 2], [-1, 2]]) FONT.draw(ctx, ch, cx + ox, y + oy, { color: ink, scale: f, raw: true });
+      else FONT.draw(ctx, ch, cx, y, { color: col, scale: f, raw: true });
+      cx += FONT.measure(ch, f, true) + f + 1;
+    }
+  }
 }

@@ -103,7 +103,7 @@ cobwebL/R, rune, barrel, crate, urns[3], sarcophagus, chest[geschlossen, offen]`
   farbige 16-Bit-Karte aus `ui/MapArt.js` (Kartenwerk 17.10.): feste Farbrampen je Biom (`OUTDOOR`/`DUNGEON`), Fels mit Relief
   (Licht oben links, Schlagschatten unten rechts), Wälder aus Kronen, Wasser/Eis/Lava mit Tiefe, Deko-Namen → Symbol über `GLYPHS`
   (neue Deko mit unbekanntem Namen bleibt einfach weg). Dungeons in Draufsicht wie `wallKind` (Platten, Mauerfront, Krone, Leere).
-  Namen liegen als HTML-Text über der Karte (`layoutLabels`, `.map-label`). Marker: Held (Pfeil), Portal (lila Raute), Gegner (rot), Elite (orange),
+  Namen in Pixelschrift mit 1 px harter Kontur als eigene Ebene (`renderLabels`), Ausgänge dicht am Portal. Marker: Held (Pfeil), Portal (lila Raute), Gegner (rot), Elite (orange),
   Boss (Schädel), NPC `!`/`?` (aus `npcMarker`), Questziel (goldener Ring; außerhalb: Pfeil am Rand). `resolveTarget(session, questTarget)`
   ist exportiert (Portal zur Zielzone über `zone.links`).
 - **Glutprüfung:** HUD liest `game.progression.trialInfo()` → Timer, Fortschritt, Phase; Banner bei `trial:*`.

@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
-import { renderZoneMap, layoutLabels } from './MapArt.js';
+import { renderZoneMap, renderLabels } from './MapArt.js';
 import { tr } from '../i18n/index.js';
 
 // Minimap (HUD) und Zonenkarte (Panel 'map') – Thread D.
@@ -322,8 +322,7 @@ export function createMapPanel(session) {
   const zoneDef = session.zone?.def ?? content.find('zone', session.state.slices.world?.zoneId);
   const canvas = h('canvas.map-canvas', { width: 1, height: 1 });
   const ctx = canvas.getContext('2d');
-  const labelsEl = h('div.map-labels', { translate: 'no' });
-  const sheet = h('div.map-sheet', canvas, labelsEl);
+  const sheet = h('div.map-sheet', canvas);
   const tgtInfo = h('div.map-target');
   const legend = h('ul.map-legend',
     legendItem('hero', 'Du'), legendItem('target', 'Questziel'), legendItem('offer', 'Quest'),
@@ -339,7 +338,7 @@ export function createMapPanel(session) {
   // Maßstab: Kartenpixel je Tile (3–8) × ganzzahliger Zoom, so groß wie der Rahmen erlaubt – alles im selben
   // Pixelraster. Ist die Karte dann deutlich schmaler als der Rahmen (Handy quer), füllt sie die Breite und
   // lässt sich senkrecht verschieben; sie startet auf dem Helden.
-  let scale = 0, zoom = 1, base = null, k = 1, centered = false;
+  let scale = 0, zoom = 1, base = null, labels = null, k = 1, centered = false;
   const choose = (aw, ah, widthOnly) => {
     let best = null;
     for (let z = 1; z <= 4; z++) {
@@ -361,7 +360,7 @@ export function createMapPanel(session) {
       for (const n of w.npcs) avoid.push([(n.x / T0) * scale, (n.y / T0) * scale - 3, 6]);
       avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 14]);
       for (const e of w.entities) if (e.to?.zoneId) avoid.push([(e.x / T0) * scale, (e.y / T0) * scale, 6]);
-      placeLabels(labelsEl, w, content, scale, zoom, avoid, base.height * zoom < 420);
+      labels = renderLabels(w, content, scale, zoom, avoid, tr);
       canvas.width = base.width; canvas.height = base.height;
       acc = 1;
     }
@@ -387,6 +386,7 @@ export function createMapPanel(session) {
       if (acc < 1 / 15) return;
       acc = 0;
       ctx.drawImage(base, 0, 0);
+      ctx.drawImage(labels, 0, 0);
       const W = base.width, H = base.height;
       drawMarkers(ctx, session, map, t, { enemies: true, big: true, clamp: [6, 6, W - 6, H - 6] });
       const target = session.game?.progression?.questTarget?.() ?? null;
@@ -415,23 +415,6 @@ function heroPulse(ctx, x, y, t) {
   ring(8, '#1a1020', 48); ring(7, '#ffffff', 44);
   const p = (t * 1.2) % 1;
   if (p < 0.75) { const r = 9 + Math.round(p * 8); ring(r + 1, '#1a1020', r * 7); ring(r, p < 0.45 ? '#ffffff' : '#ffe9a8', r * 7); }
-}
-
-// Namen der Gebiete, Städte und Ausgänge als Text über der Karte: gestochen scharf bei jeder Pixeldichte,
-// Kontur hart (CSS), Lage wie bisher mit Ausweichen um Häuser, Marker und andere Namen (MapArt.layoutLabels).
-const LABEL_PX = { town: [17, 13], area: [12, 10], portal: [12, 10] };
-let measureCtx = null;
-function placeLabels(el, world, content, scale, zoom, avoid, small) {
-  measureCtx ??= document.createElement('canvas').getContext('2d');
-  const font = getComputedStyle(document.documentElement).getPropertyValue('--ef-font-title').trim() || 'Georgia, serif';
-  const fs = (kind) => LABEL_PX[kind][small ? 1 : 0];
-  const measure = (text, kind) => {
-    measureCtx.font = `700 ${fs(kind)}px ${font}`;
-    const sp = kind === 'town' ? 0.1 : 0.07;
-    return { w: Math.ceil(measureCtx.measureText(text.toUpperCase()).width * (1 + sp)) + 6, h: Math.ceil(fs(kind) * 1.3) + 2 };
-  };
-  const list = layoutLabels(world, content, scale, zoom, avoid, measure, tr);
-  el.replaceChildren(...list.map((l) => h(`span.map-label.${l.kind}`, { style: `left:${l.x}px;top:${l.y}px;font-size:${fs(l.kind)}px` }, l.text)));
 }
 
 function legendItem(kind, text) {
