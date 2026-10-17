@@ -494,11 +494,12 @@ export class Hud {
     toggle(this.bossEl, 'enraged', !!a.enraged || a.phase > 1);
   }
 
-  // Nächster lebender Champion in Reichweite (angegriffen oder nah); Leiste blendet sich sonst aus
+  // Nächster lebender Champion in Reichweite (angegriffen oder nah); Leiste blendet sich sonst aus.
+  // Im Bosskampf nicht: unter der Boss-Leiste verdeckte sie am Handy quer Malgareths Kopf, Name und Leben stehen ohnehin am Champion.
   #updateChampion(dt, hero) {
     const w = this.s.world;
     let best = null, bd = Infinity;
-    if (w?.enemies && hero && !hero.dead) for (const e of w.enemies) {
+    if (w?.enemies && hero && !hero.dead && !this.boss) for (const e of w.enemies) {
       if (!e.champion || e.dead || e.removed) continue;
       const d = Math.hypot(e.x - hero.x, e.y - hero.y);
       const range = e.aggroed || e.hp < e.maxHp ? 300 : 170;

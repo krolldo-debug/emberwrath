@@ -28,10 +28,10 @@ export const QUESTS_40 = {
     // Aufgelöst (16.10.): Plünderer fallen im Kriegslager (q_steppe_warcamp). Bleibt für angenommene Spielstände.
     title: 'Staub und Klingen', giver: 'captain_varra', main: true, retired: true, level: 20, requires: ['q_new_horizons'],
     summary: 'Treibe die Plünderer zurück, die den Außenposten belagern.',
-    offer: 'Seit Wochen reiten Plünderer bis an unsere Palisade. Sie tragen Khars Farben, und Khar trägt die Flammenkrone. Erschlag fünfzehn von ihnen, egal ob mit Klinge oder Bogen. Dann wissen sie, dass hier wieder jemand kämpft.',
-    progressText: 'Die Plünderer streifen rund um den Außenposten. Fünfzehn müssen fallen.',
+    offer: 'Seit Wochen reiten Plünderer bis an unsere Palisade. Sie tragen Khars Farben, und Khar trägt die Flammenkrone. Erschlag zehn von ihnen, egal ob mit Klinge oder Bogen. Dann wissen sie, dass hier wieder jemand kämpft.',
+    progressText: 'Die Plünderer streifen rund um den Außenposten. Zehn müssen fallen.',
     completeText: 'Heute Nacht schläft der Außenposten zum ersten Mal seit Wochen. Hier, nimm das. Du brauchst es dringender als unsere Toten.',
-    objectives: [{ id: 'raiders', text: 'Steppenplünderer besiegt', count: 15, kind: 'kill', target: ['steppe_raider', 'raider_archer'], zone: 'ashen_steppe' }],
+    objectives: [{ id: 'raiders', text: 'Steppenplünderer besiegt', count: 10, kind: 'kill', target: ['steppe_raider', 'raider_archer'], zone: 'ashen_steppe' }],
     rewards: { xp: Q(20, W.kill), gold: 140, gear: [{ ilvl: 21, rarity: 'uncommon', slot: 'weapon' }] },
   },
   q_steppe_banners: {
@@ -47,12 +47,12 @@ export const QUESTS_40 = {
   q_steppe_warcamp: {
     title: 'Das Lager des Fürsten', giver: 'captain_varra', main: true, level: 22, requires: ['q_steppe_banners'],
     summary: 'Dringe zu Khars Kriegslager vor und dünne seine Krieger aus.',
-    offer: 'Khar weiß jetzt, dass es dich gibt. Er zieht seine Leute im Kriegslager zusammen. Bevor er zu uns kommt, gehen wir zu ihm. Schlag dich bis zum Lager durch und erschlag fünfzehn seiner Krieger.',
+    offer: 'Khar weiß jetzt, dass es dich gibt. Er zieht seine Leute im Kriegslager zusammen. Bevor er zu uns kommt, gehen wir zu ihm. Schlag dich bis zum Lager durch und erschlag zehn seiner Krieger.',
     progressText: 'Das Kriegslager liegt im Nordosten der Steppe, hinter den Hügeln.',
     completeText: 'Du hast Khars Zelt gesehen? Dann weißt du, wo er schläft. Das ändert alles.',
     objectives: [
       { id: 'camp', text: 'Khars Kriegslager erreicht', count: 1, kind: 'reach', target: ['warlord_camp'], zone: 'ashen_steppe' },
-      { id: 'raiders', text: 'Krieger im Lager besiegt', count: 15, kind: 'kill', target: ['steppe_raider', 'raider_archer', 'dust_hyena'], zone: 'ashen_steppe' },
+      { id: 'raiders', text: 'Krieger im Lager besiegt', count: 10, kind: 'kill', target: ['steppe_raider', 'raider_archer', 'dust_hyena'], zone: 'ashen_steppe' },
     ],
     rewards: { xp: Q(22, W.main), gold: 180, gear: [{ ilvl: 23, rarity: 'uncommon', slot: 'head' }] },
   },
@@ -165,10 +165,10 @@ export const QUESTS_40 = {
     // Aufgelöst (16.10.): zu viele Tötungsquests am Stück. Bleibt für angenommene Spielstände.
     title: 'Was im Wasser lauert', giver: 'warden_thane', main: true, retired: true, level: 25, requires: ['q_into_the_marsh'],
     summary: 'Säubere die Wege rund um die Mirefeste von Moorlauerern.',
-    offer: 'Die Moorlauerer ziehen meine Späher ins Wasser, einen nach dem anderen. Wenn du hier nützlich sein willst, erschlag fünfzehn von ihnen. Dann reden wir über alles andere.',
+    offer: 'Die Moorlauerer ziehen meine Späher ins Wasser, einen nach dem anderen. Wenn du hier nützlich sein willst, erschlag zehn von ihnen. Dann reden wir über alles andere.',
     progressText: 'Die Moorlauerer warten im flachen Wasser neben den Stegen.',
-    completeText: 'Fünfzehn. Nicht schlecht für jemanden aus dem Süden. Vielleicht bleibst du doch länger als eine Woche am Leben.',
-    objectives: [{ id: 'lurkers', text: 'Moorlauerer erschlagen', count: 15, kind: 'kill', target: 'bog_lurker', zone: 'blighted_marsh' }],
+    completeText: 'Zehn. Nicht schlecht für jemanden aus dem Süden. Vielleicht bleibst du doch länger als eine Woche am Leben.',
+    objectives: [{ id: 'lurkers', text: 'Moorlauerer erschlagen', count: 10, kind: 'kill', target: 'bog_lurker', zone: 'blighted_marsh' }],
     rewards: { xp: Q(25, W.kill), gold: 190, gear: [{ ilvl: 26, rarity: 'uncommon', slot: 'weapon' }] },
   },
   q_marsh_totems: {
@@ -195,12 +195,12 @@ export const QUESTS_40 = {
   q_sunken_village: {
     title: 'Das versunkene Dorf', giver: 'warden_thane', main: true, level: 28, requires: ['q_marsh_shamans'],
     summary: 'Durchsuche das versunkene Dorf und vernichte die Seuchenkröten und Egel.',
-    offer: 'Weiter im Norden lag ein Dorf. Dann kam die Fäulnis und das Dorf sank. Die Kröten dort speien Gift, die Egel saugen alles aus, was noch lebt. Geh hin und räum auf. Fünfzehn von dem Viehzeug.',
+    offer: 'Weiter im Norden lag ein Dorf. Dann kam die Fäulnis und das Dorf sank. Die Kröten dort speien Gift, die Egel saugen alles aus, was noch lebt. Geh hin und räum auf. Zehn von dem Viehzeug.',
     progressText: 'Das versunkene Dorf liegt nördlich der Mirefeste. Halte Abstand zu den Giftwolken.',
     completeText: 'Du hast das Dorf gesehen. Ich war dort, als es noch Kinder hatte. Danke, dass du es ihnen zurückgegeben hast, auch wenn niemand mehr dort wohnt.',
     objectives: [
       { id: 'village', text: 'Versunkenes Dorf erreicht', count: 1, kind: 'reach', target: ['sunken_village'], zone: 'blighted_marsh' },
-      { id: 'pests', text: 'Seuchenkröten und Sumpfegel vernichtet', count: 15, kind: 'kill', target: ['plague_toad', 'swamp_leech'], zone: 'blighted_marsh' },
+      { id: 'pests', text: 'Seuchenkröten und Sumpfegel vernichtet', count: 10, kind: 'kill', target: ['plague_toad', 'swamp_leech'], zone: 'blighted_marsh' },
     ],
     rewards: { xp: Q(28, W.main), gold: 250, gear: [{ ilvl: 29, rarity: 'uncommon', slot: 'feet' }] },
   },
@@ -301,10 +301,10 @@ export const QUESTS_40 = {
   q_frost_wolves: {
     title: 'Das Rudel der Zinnen', giver: 'jarl_eskil', main: true, level: 31, requires: ['q_frost_pass'],
     summary: 'Erlege die Frostwölfe, die die Wege nach Frosthold unsicher machen.',
-    offer: 'Die Frostwölfe jagen seit dem letzten Mond auf meinen Straßen. Sonst halten sie sich an die Berge. Jemand treibt sie herunter. Erlege fünfzehn, dann glaube ich dir, dass Thane dich nicht umsonst geschickt hat.',
+    offer: 'Die Frostwölfe jagen seit dem letzten Mond auf meinen Straßen. Sonst halten sie sich an die Berge. Jemand treibt sie herunter. Erlege zehn, dann glaube ich dir, dass Thane dich nicht umsonst geschickt hat.',
     progressText: 'Die Frostwölfe jagen im Rudel auf den Straßen unterhalb von Frosthold.',
-    completeText: 'Fünfzehn Felle. Die Skalden werden davon singen. Kurz. Hier oben singen sie nur kurz, sonst frieren ihnen die Lippen fest.',
-    objectives: [{ id: 'wolves', text: 'Frostwölfe erlegt', count: 15, kind: 'kill', target: 'frost_wolf', zone: 'frostspire' }],
+    completeText: 'Zehn Felle. Die Skalden werden davon singen. Kurz. Hier oben singen sie nur kurz, sonst frieren ihnen die Lippen fest.',
+    objectives: [{ id: 'wolves', text: 'Frostwölfe erlegt', count: 10, kind: 'kill', target: 'frost_wolf', zone: 'frostspire' }],
     rewards: { xp: Q(31, W.kill), gold: 240, gear: [{ ilvl: 32, rarity: 'uncommon', slot: 'weapon' }] },
   },
   q_frost_beacons: {
@@ -320,12 +320,12 @@ export const QUESTS_40 = {
   q_troll_caves: {
     title: 'Die Trollhöhlen', giver: 'jarl_eskil', main: true, level: 33, requires: ['q_frost_beacons'],
     summary: 'Dringe in die Trollhöhlen vor und erschlage die Eistrolle.',
-    offer: 'Die Feuer halten die Trolle vom Tal fern, aber nicht aus ihren Höhlen. Dort sammeln sie sich, dutzende. Geh hinein und erschlag fünfzehn, bevor sie genug sind, um Frosthold zu stürmen.',
+    offer: 'Die Feuer halten die Trolle vom Tal fern, aber nicht aus ihren Höhlen. Dort sammeln sie sich, dutzende. Geh hinein und erschlag zehn, bevor sie genug sind, um Frosthold zu stürmen.',
     progressText: 'Die Trollhöhlen liegen im Osten der Frostzinnen.',
-    completeText: 'Fünfzehn Trolle. Ich habe in meinem Leben drei erschlagen und darauf ein Fass geleert. Für dich rolle ich zwei heraus.',
+    completeText: 'Zehn Trolle. Ich habe in meinem Leben drei erschlagen und darauf ein Fass geleert. Für dich rolle ich zwei heraus.',
     objectives: [
       { id: 'caves', text: 'Trollhöhlen erreicht', count: 1, kind: 'reach', target: ['troll_caves'], zone: 'frostspire' },
-      { id: 'trolls', text: 'Eistrolle erschlagen', count: 15, kind: 'kill', target: 'ice_troll', zone: 'frostspire' },
+      { id: 'trolls', text: 'Eistrolle erschlagen', count: 10, kind: 'kill', target: 'ice_troll', zone: 'frostspire' },
     ],
     rewards: { xp: Q(33, W.main), gold: 280, gear: [{ ilvl: 34, rarity: 'uncommon', slot: 'head' }] },
   },
@@ -435,10 +435,10 @@ export const QUESTS_40 = {
   q_wastes_wraiths: {
     title: 'Geister aus Asche', giver: 'marshal_corvane', main: true, level: 36, requires: ['q_the_wastes'],
     summary: 'Vernichte die Aschengeister, die die Bastion umkreisen.',
-    offer: 'Die Aschengeister sind die Toten der letzten Schlacht. Sie wandern um unsere Mauern und rufen die Namen derer, die noch drinnen sind. Das zermürbt meine Leute mehr als jeder Angriff. Vernichte fünfzehn.',
+    offer: 'Die Aschengeister sind die Toten der letzten Schlacht. Sie wandern um unsere Mauern und rufen die Namen derer, die noch drinnen sind. Das zermürbt meine Leute mehr als jeder Angriff. Vernichte zehn.',
     progressText: 'Die Aschengeister umkreisen die letzte Bastion.',
     completeText: 'Es ist ruhiger. Meine Wachen schauen wieder nach draußen statt auf ihre Füße. Das ist viel wert.',
-    objectives: [{ id: 'wraiths', text: 'Aschengeister vernichtet', count: 15, kind: 'kill', target: 'ash_wraith', zone: 'ember_wastes' }],
+    objectives: [{ id: 'wraiths', text: 'Aschengeister vernichtet', count: 10, kind: 'kill', target: 'ash_wraith', zone: 'ember_wastes' }],
     rewards: { xp: Q(36, W.kill), gold: 300, gear: [{ ilvl: 37, rarity: 'uncommon', slot: 'weapon' }] },
   },
   q_wastes_obelisks: {
@@ -585,12 +585,13 @@ export const QUESTS_40 = {
     rewards: { xp: Q(23, W.side), gold: 220, gear: [{ ilvl: 24, rarity: 'uncommon', slot: 'amulet' }] },
   },
   q_scattered_riders: {
+    // 17.10. (Bewertungen 21–30): Spurensuche statt der dritten Plündererjagd in der Steppe
     title: 'Versprengte Reiter', giver: 'captain_varra', level: 24, requires: ['q_steppe_warlord'],
-    summary: 'Treib die Reiter auseinander, die sich nach Khars Fall neu sammeln.',
-    offer: 'Khar ist tot, aber seine Reiter sind es nicht. Sie sammeln sich in kleinen Gruppen und suchen einen neuen Anführer. Lass sie keinen finden. Fünfzehn weniger, und die Stämme wissen, wohin der Wind weht.',
-    progressText: 'Die versprengten Reiter lagern verstreut in der Steppe.',
+    summary: 'Spür die Sammelplätze der versprengten Reiter auf, bevor sie einen neuen Anführer finden.',
+    offer: 'Khar ist tot, aber seine Reiter sind es nicht. Sie treffen sich heimlich und suchen einen neuen Anführer. Kesh sagt, sie lagern an der verbrannten Karawane, an der Wachturm-Ruine und unten im trockenen Flussbett. Reite hin. Wenn sie sehen, dass wir ihre Plätze kennen, zerstreuen sie sich von selbst.',
+    progressText: 'Verbrannte Karawane, Wachturm-Ruine, trockenes Flussbett.',
     completeText: 'Die letzten sind nach Süden geflohen. Ohne Horn, ohne Banner, ohne Fürst. Die Steppe gehört wieder den Nomaden.',
-    objectives: [{ id: 'riders', text: 'Versprengte Reiter besiegt', count: 15, kind: 'kill', target: ['steppe_raider', 'raider_archer'], zone: 'ashen_steppe' }],
+    objectives: [{ id: 'camps', text: 'Sammelplätze der Reiter aufgespürt', count: 3, kind: 'reach', target: ['burnt_caravan', 'old_watch', 'dry_river'], zone: 'ashen_steppe' }],
     rewards: { xp: Q(24, W.side), gold: 200, gear: [{ ilvl: 25, rarity: 'uncommon', slot: 'feet' }] },
   },
 
@@ -623,12 +624,13 @@ export const QUESTS_40 = {
     rewards: { xp: Q(28, W.side), gold: 260, gear: [{ ilvl: 29, rarity: 'rare', slot: 'amulet' }] },
   },
   q_deep_mist: {
+    // 17.10. (Bewertungen 21–30): Weg durch den Nebel erkunden statt 20 Kreaturen
     title: 'Tiefer in den Nebel', giver: 'trader_moll', level: 29, requires: ['q_sunken_village'],
-    summary: 'Halte die Stege zum Sporenschlund frei, damit Molls Träger durchkommen.',
-    offer: 'Am Sporenschlund wachsen Pilze, für die man im Süden in Gold bezahlt. Meine Träger kämen hin, aber auf den Stegen wimmelt es von Getier. Lauerer, Egel, Kröten, alles, was beißt. Mach zwanzig davon unschädlich, dann teilen wir.',
-    progressText: 'Die Stege zum Sporenschlund führen durch den tiefsten Nebel der Marsch.',
+    summary: 'Finde für Molls Träger einen sicheren Weg durch den Nebel.',
+    offer: 'Am Sporenschlund wachsen Pilze, für die man im Süden in Gold bezahlt. Meine Träger kämen hin, wenn sie den Weg fänden. Im Nebel laufen sie im Kreis und landen im Maul von irgendwas. Geh voraus: über die Schilfinseln, durch die Nebelinseln, bis zum Pfahlsumpf. Wo du durchkommst, kommen sie auch durch.',
+    progressText: 'Schilfinseln, Nebelinseln, Pfahlsumpf.',
     completeText: 'Meine Träger sind durch. Sie sagen, aus dem Schlund steigt ein Leuchten, das nicht von dieser Welt ist. Die Pilze haben sie trotzdem mitgebracht.',
-    objectives: [{ id: 'beasts', text: 'Kreaturen auf den Stegen besiegt', count: 20, kind: 'kill', target: ['bog_lurker', 'swamp_leech', 'plague_toad'], zone: 'blighted_marsh' }],
+    objectives: [{ id: 'route', text: 'Weg durch den Nebel erkundet', count: 3, kind: 'reach', target: ['reed_isles', 'mist_isles', 'stilt_marsh'], zone: 'blighted_marsh' }],
     rewards: { xp: Q(29, W.side), gold: 280, gear: [{ ilvl: 30, rarity: 'uncommon', slot: 'head' }] },
   },
 
