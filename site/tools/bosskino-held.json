@@ -1,0 +1,35 @@
+{
+ "res": 2,
+ "w": 54,
+ "h": 66,
+ "fx": 24,
+ "fy": 64,
+ "n": 6,
+ "seq": {
+  "ruhe": [
+   0,
+   1,
+   2,
+   3
+  ],
+  "treffer": [
+   4,
+   5
+  ]
+ },
+ "fps": {
+  "ruhe": 6,
+  "treffer": 10
+ },
+ "look": {
+  "raceId": "human",
+  "classId": "warrior",
+  "gear": [
+   "knight_plate",
+   "iron_helm",
+   "borderwatch_gauntlets",
+   "ironshod_boots",
+   "crown_of_embers_blade"
+  ]
+ }
+}

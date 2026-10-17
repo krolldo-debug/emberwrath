@@ -42,7 +42,12 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   Szenenpixeln. Jeder Boss ist eigene Pixel-Art (Farben nach den Boss-Sprites des Spiels in `src/sprites/`), gezeichnet aus Teilen
   mit 4-Ton-Rampen, Umriss und Randlicht, Blick nach links. Ruhe als Teile mit eigenen Zyklen (Atem, Flammen, Umhang …), die Attacke
   als ganze Bilder (Ausholen, Halten, Einschlag mit 1-px-Erschütterung, Nachklang); Warnfläche, Fugenwelle, Feuerwand, Geisterflammen,
-  Wurzeldornen, Sporenwolken und Eiszapfen als Bildfolgen und Ereignisse relativ zum Einschlag. Je Boss ein verlustfreier Atlas
+  Wurzeldornen, Sporenwolken und Eiszapfen als Bildfolgen und Ereignisse relativ zum Einschlag. Ziel der Attacke ist ein Held:
+  die echte Spielfigur (Krieger im Ritterharnisch, `tools/bosskino-held.mjs` rendert sie mit getHeroSprites, RES 2, nach
+  `tools/bosskino-held.png`/`.json`; Server im Repo-Ordner, danach bosskino.mjs neu), 1 Weltpixel = 1 Szenenpixel wie die
+  Reittier-Parade, dem Boss gegenüber (Fußpunkt je Boss in `HELD` in bosskino.py, im Bildausschnitt auch am Handy). Er zeigt nur
+  die Kampfhaltung des Spiels, beim Treffer einen harten Blitz und die Trefferbilder (kurz zurück), kein Sterben, keine Zahlen
+  oder Leisten; Feuer- und Wasserwand rollen über ihn, ihre Spur brennt hinter ihm, Skalvyrs großer Zapfen schlägt bei ihm ein. Je Boss ein verlustfreier Atlas
   `bosskino-<boss>.webp`; Rechtecke, Bildfolgen und Zeiten schreibt das Werkzeug in den Block `<bosskino.mjs>` in `bosskino.js`
   (ein Teillauf ersetzt nur die genannten Bosse). `bosskino.webp` ist das Standbild (Malgareth, ohne JS und bei reduzierter
   Bewegung; dort wechselt ein Klick das Standbild). bosskino.js wechselt alle 9–10 s den Boss (Blöcke zerfallen von unten mit

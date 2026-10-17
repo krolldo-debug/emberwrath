@@ -711,8 +711,9 @@ def outline(im, col=OUT, only_empty=True):
 
 # Salve: (x, Boden-y, Größe, Einschlag-Zeit relativ zum Treffer). Tiefe über y (kleineres y = weiter hinten).
 ZAP = {'l': (30, 104), 'm': (24, 82), 's': (18, 62)}
-SALVE = [(252, 194, 's', -130), (160, 190, 'm', -110), (208, 197, 's', -90), (226, 188, 'm', -70),
-         (138, 196, 's', -40), (174, 187, 's', -20), (190, 195, 'l', 0)]
+# Der große Zapfen (Haupteinschlag) trifft den Helden (bosskino.py HELD, Fuß bei x 188), die übrigen fallen um ihn herum
+SALVE = [(252, 194, 's', -130), (150, 190, 'm', -110), (214, 197, 's', -90), (230, 188, 'm', -70),
+         (134, 196, 's', -40), (166, 187, 's', -20), (190, 195, 'l', 0)]
 SAL_X = 192                              # Mitte des Feldes (Szene)
 
 
@@ -974,6 +975,7 @@ def crown_plan():
         big = {'l': 1.0, 'm': 0.8, 's': 0.62}[sz]
         side = -1 if x < SAL_X else 1
         for j, (da, dl) in enumerate(((-34, 0.75), (8, 1.0), (40, 0.7), (-62, 0.42), (66, 0.4))):
+            if sz == 'l' and j < 3: continue     # am Helden nur die flachen Dornen links und rechts, keiner durch ihn
             ang = da + side * 12 + 6 * hash2(i, j, 3)
             ox = [-6, 0, 6, -11, 11][j]
             out.append((x + ox, y + (1 if j == 1 else 0), ang, 60 * big * dl, (12 * big + 3) * (0.7 if j > 2 else 1)))
