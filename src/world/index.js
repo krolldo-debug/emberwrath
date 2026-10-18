@@ -42,6 +42,7 @@ import { createFrostDecor } from '../sprites/decor_frost.js';
 import { createWastesDecor } from '../sprites/decor_wastes.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createVillageProps } from '../sprites/village.js';
+import { spawnTownsfolk } from './townlife.js';
 import { createWaystoneSprites } from '../sprites/waystone.js';
 import { createBoardSprites } from '../sprites/board.js';
 import { createCaravanSprites } from '../sprites/caravan.js';
@@ -190,13 +191,22 @@ export function installWorld(game) {
       if (!w || !e?.zoneId) return;
       if (w.waystone) w.waystone.depart(w, e.zoneId);
     });
+    // Stadtbewohner (townlife.js) erst im nächsten Bild: dann stehen Briefkästen, Auktionator und Gewandmeisterin schon
+    let folkFor = null;
+    session.bus.on(EV.ZONE_ENTER, () => { folkFor = session.world; });
     session.bus.on(EV.ZONE_ENTER, (e) => {
       if (e?.spawnId !== 'waystone') return;
       const w = session.world;
       if (w?.waystone) { w.waystone.unlock(w); w.waystone.arrive(w); }
     });
     return {
-      update(dt, s) { if (s.paused && s.world?.waystone?.departing) s.world.waystone.tickPaused(dt, s.world); },
+      update(dt, s) {
+        if (s.paused && s.world?.waystone?.departing) s.world.waystone.tickPaused(dt, s.world);
+        if (folkFor && folkFor === s.world && !folkFor.zone?.instanced) {
+          try { spawnTownsfolk(folkFor); } catch (err) { console.error('Stadtbewohner', err); }
+          folkFor = null;
+        }
+      },
       dispose() { if (live.session === session) live.session = null; },
     };
   }, 5);

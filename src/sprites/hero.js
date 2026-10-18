@@ -609,7 +609,7 @@ function drawHero(R, G, L, pose) {
     const armN = ik(sk.shN.x, sk.shN.y, hand.x, hand.y, B.arm[0], B.arm[1], -1);
     const behind = L.weapon.family === 'staff';
     if (P.smear) drawSmear(R, L, armN.ex, armN.ey, P.smear[0], P.smear[1]);
-    const back = (P.wBack && L.weapon.great) || (L.portrait && !behind && L.weapon.family !== 'wand');
+    const back = L.weapon.family === 'none' || (P.wBack && L.weapon.great) || (L.portrait && !behind && L.weapon.family !== 'wand');
     if (behind && !back) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
     if (!behind && !back) drawWeapon(R, G, L.weapon, armN.ex, armN.ey, P.wM, P, false, P.reach);
     drawArm(R, L, sk.shN, armN, false);
@@ -2421,6 +2421,8 @@ function rotateFrame(ang, px, py) {
 // --- Posen je Klasse -------------------------------------------------------------------------
 function stanceFor(L) {
   const k = L.classId, f = L.weapon.family;
+  if (L.folk) return f === 'staff' ? { handM: [3, 4.5], wM: -1.5, handO: [0.5, 6.5], footN: [1.5, 0], footF: [-2, 0] }
+    : { handM: [0.8, 6.8], handO: [0.6, 6.8], footN: [1.5, 0], footF: [-2, 0] };
   if (k === 'ranger') return { handO: [4, 5], wO: 0.5, handM: [3, 3], footN: [2, 0], footF: [-2.5, 0] };
   if (k === 'mage') {
     return f === 'wand'
@@ -2847,6 +2849,92 @@ export function getHeroSprites(raceId = 'human', classId = 'warrior', variant = 
     if (cache.size > (res >= 3 ? 10 : res >= 2 ? 20 : 40)) cache.delete(cache.keys().next().value);   // feine Sätze sind 4–9× so groß
   }
   return set;
+}
+
+// --- Bewohner der Städte (world/townlife.js, entities/Townsfolk.js) ---------------------------------------------
+// Dieselbe Skelettfigur in Alltagskleidung: ohne Klassenschmuck, ohne Waffe (oder mit Wanderstab), Wachen mit
+// Schwert und Schild. outfit = { chest: { style, ramp, trim? }, cloth?, trim?, boots?, gloves?, head?, back?, hood?,
+// tool?: Waffen-Aussehen (Stab), guard?: true, style?: { hairStyle } }. key: eindeutiger Name des Aussehens.
+// Animationen: idle, walk (ruhiger Schritt), talk (Handbewegung beim Sprechen).
+const NO_WEAPON = { family: 'none', rarity: 'common' };
+const folkCache = new Map();
+export function getFolkSprites(raceId = 'human', variant = 0, outfit = {}, key = '', resWanted = null) {
+  const rl = RACE_LOOK[raceId] ?? RACE_LOOK.human;
+  const v = Math.max(0, Math.min(rl.variants.length - 1, variant | 0));
+  const res = resOverride ?? Math.min(resWanted ?? heroRes(), HERO_MAX_RES);
+  const id = `${res}|${raceId}|${v}|${key || JSON.stringify(outfit)}`;
+  let set = folkCache.get(id);
+  if (set) return set;
+  const guard = !!outfit.guard;
+  const L0 = resolveLook(raceId, 'warrior', v, { head: outfit.head ?? null }, outfit.style ?? null);
+  const L = {
+    ...L0, res, classId: guard ? 'warrior' : 'folk', folk: !guard,
+    chest: { ...outfit.chest }, chestWorn: true,
+    cloth: outfit.cloth ?? outfit.chest?.ramp ?? L0.cloth, trim: outfit.trim ?? (guard ? L0.trim : M.leather),
+    weapon: outfit.tool ?? (guard ? L0.weapon : NO_WEAPON), off: null, sideArm: null,
+    offKind: guard ? 'shield' : 'hand', back: outfit.back ?? null, quiver: false,
+    hood: !!outfit.hood && !L0.head, cowl: false, circlet: false,
+    gloves: outfit.gloves ?? null, glovesMetal: false, boots: outfit.boots ?? M.leather, bootsMetal: false,
+    anySet: false, setHead: null, setHands: null, setFeet: null,
+  };
+  const stance = stanceFor(L);
+  const frame = (o) => makeFrame(L, { ...stance, ...o });
+  const makers = {
+    idle: () => new Animation(idleFrames(L, stance, frame, 'folk'), 4),
+    walk: () => new Animation(walkFrames(L, stance, frame), 9),
+    talk: () => new Animation(talkFrames(L, stance, frame), 5),
+  };
+  set = {};
+  for (const [name, make] of Object.entries(makers)) {
+    Object.defineProperty(set, name, {
+      enumerable: true, configurable: true,
+      get() { const a = make(); Object.defineProperty(set, name, { value: a, enumerable: true }); return a; },
+    });
+  }
+  folkCache.set(id, set);
+  if (folkCache.size > 48) folkCache.delete(folkCache.keys().next().value);
+  return set;
+}
+
+// Ruhiger Schritt: kürzer als der Laufzyklus, aufrecht, Arme pendeln locker
+function walkFrames(L, stance, frame) {
+  const B = L.body, legLen = B.thigh + B.shin;
+  const stride = legLen * 0.3, lift = Math.max(1.6, legLen * 0.2);
+  const hm = stance.handM ?? BASE_POSE.handM, ho = stance.handO ?? BASE_POSE.handO;
+  const shield = L.offKind === 'shield', staff = L.weapon.family === 'staff';
+  const foot = (ph) => {
+    const q = ((ph % TAU) + TAU) % TAU;
+    if (q < Math.PI) return [Math.cos(q) * stride, 0];
+    const w = q - Math.PI;
+    return [-Math.cos(w) * stride, lift * Math.sin(w)];
+  };
+  const out = [];
+  for (let i = 0; i < 8; i++) {
+    const ph = (i / 8) * TAU;
+    const c = Math.cos(ph), s2 = Math.abs(Math.sin(ph));
+    const [nx, nl] = foot(ph), [fx, fl] = foot(ph + Math.PI);
+    const bob = s2 > 0.7 ? 0 : 1;
+    out.push(frame({
+      hipY: (stance.hipY ?? 0) + bob, lean: 1, breath: 0, head: [0, 0],
+      footN: [nx + 0.5, nl], footF: [fx - 0.5, fl],
+      handM: staff || shield ? [hm[0] - c * 0.6, hm[1]] : [hm[0] - c * 1.6, hm[1] - Math.abs(c) * 0.4],
+      handO: shield ? [ho[0] + c * 0.5, ho[1]] : [ho[0] + c * 1.6, ho[1] - Math.abs(c) * 0.4],
+      wM: (stance.wM ?? BASE_POSE.wM) - c * 0.08,
+      cape: 0.3 + 0.1 * s2, wave: ph * 2, glow: 0.3,
+    }));
+  }
+  return out;
+}
+
+// Sprechen: die nahe Hand hebt sich zur Geste, der Kopf nickt
+function talkFrames(L, stance, frame) {
+  const hm = stance.handM ?? BASE_POSE.handM;
+  const raise = L.offKind === 'shield' || L.weapon.family === 'staff' ? 0 : 1;
+  return [0, 1, 2, 3].map((i) => frame({
+    breath: i === 1 || i === 2 ? 1 : 0, head: [0, i === 2 ? 0.5 : 0],
+    handM: raise ? [hm[0] + 2.5 + (i % 2) * 0.5, hm[1] - 3.5 - (i === 1 ? 1 : 0)] : hm,
+    cape: 0.15, wave: i * 1.57, glow: 0.3,
+  }));
 }
 
 // Rückwärtskompatibel für Assets.js (Standardfigur: menschlicher Krieger).
