@@ -383,7 +383,7 @@ export class World {
     this.particles.drawLit(ctx, cx, cy);
 
     // Figurenlicht draußen: Held, Mitspieler und lebende Gegner heben sich vom dunklen Boden ab (ohne Lichtkreis)
-    const figs = this.figureLight ? drawables.filter((d) => d === this.hero || d.team === 'remote' || (d.team === 'enemy' && d.animator && !d.dead && vis(d))) : null;
+    const figs = this.figureLight ? drawables.filter((d) => d === this.hero || d.team === 'remote' || (d.team === 'folk' && d.alpha > 0.5 && vis(d)) || (d.team === 'enemy' && d.animator && !d.dead && vis(d))) : null;
     this.lighting.apply(ctx, cx, cy, this.lights, figs?.length ? { ...this.figureLight, paint: (g) => paintFigures(g, figs, cx, cy) } : null);
 
     // Emissive-Pass: alles, was selbst leuchtet
