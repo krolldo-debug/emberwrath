@@ -191,7 +191,7 @@ export class Townsfolk extends Entity {
   #greet(world) {
     const h = world.hero, font = world.session?.font;
     if (!h || h.dead || !font || this.greetT > 0 || this.alpha < 1 || this.state === 'greet' || this.state === 'fadeOut') return;
-    if (Math.hypot(h.x - this.x, (h.y - this.y) * 1.3) > GREET_RANGE) return;
+    if (Math.hypot(h.x - this.x, (h.y - this.y) * 1.3) > GREET_RANGE || this.town.crowded(this.x, this.y)) return;
     const T = this.town;
     if (world.time - (T.lastLine ?? -99) < TOWN_GAP) return;
     const text = T.pickLine(this.spec.say ?? [], world.state, this.lines);
