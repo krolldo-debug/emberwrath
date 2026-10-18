@@ -13,6 +13,7 @@ const GREET_EVERY = 45;     // Sekunden, bis derselbe Bewohner wieder etwas sagt
 const TOWN_GAP = 6;         // Sekunden zwischen zwei Sprüchen im selben Ort
 const SAY_TIME = 4.2;
 const FADE = 0.45;
+const BUBBLE_UP = 29;      // Zipfelspitze über dem Fußpunkt (knapp über dem Kopf)
 
 export class Townsfolk extends Entity {
   constructor(x, y, { town, spec, home, anims, seed }) {
@@ -56,7 +57,7 @@ export class Townsfolk extends Entity {
       this.alpha = Math.max(0, this.alpha - dt / FADE);
       this.y -= dt * 8;
       if (this.alpha <= 0) {
-        this.state = 'inside'; this.alpha = 0;
+        this.state = 'inside'; this.alpha = 0; this.target = null;
         this.timer = this.guard ? 18 + this.#rnd(1) * 20 : 7 + this.#rnd(1) * 16;
       }
     } else if (this.state === 'greet') {
@@ -100,9 +101,13 @@ export class Townsfolk extends Entity {
   #goSpot(spot) {
     if (!spot.mate) { spot.by = this; this.spot = spot; }
     const jx = (this.#rnd(5) - 0.5) * 12, jy = (this.#rnd(6) - 0.5) * 6;
-    const p = spot.mate ? this.town.free(spot.x, spot.y) : this.town.free(spot.x + jx, spot.y + jy);
+    let p = spot.mate ? this.town.free(spot.x, spot.y) : this.town.free(spot.x + jx, spot.y + jy);
+    if (!p.ok) p = spot;
+    // Nicht auf denselben Punkt wie ein anderer Bewohner (zwei Plätze können aufs selbe freie Feld fallen)
+    const taken = (q) => this.town.folk.some((f) => f !== this && f.target && Math.hypot(f.target.x - q.x, f.target.y - q.y) < 12);
+    if (taken(p)) p = [[18, 0], [-18, 0], [0, 12], [18, 10], [-18, 10]].map(([dx, dy]) => this.town.free(p.x + dx, p.y + dy)).find((q) => q.ok && !taken(q)) ?? p;
     this.goal = { kind: 'spot', spot };
-    this.#route(p.ok ? p : spot);
+    this.#route(p);
   }
 
   #goHouse(h) {
@@ -113,7 +118,7 @@ export class Townsfolk extends Entity {
   #route(p) {
     const path = this.town.path(this.x, this.y, p.x, p.y);
     if (!path) { this.state = 'stand'; this.timer = 2 + this.#rnd(7) * 3; this.goal = null; return; }
-    this.path = path; this.state = 'walk';
+    this.path = path; this.state = 'walk'; this.target = p;
   }
 
   #walk(dt) {
@@ -164,6 +169,8 @@ export class Townsfolk extends Entity {
 
   #leave(world) {
     const h = this.in ?? this.home;
+    // Steht schon jemand an der Tür (geteiltes Haus), noch etwas drinnen bleiben
+    if (this.town.folk.some((f) => f !== this && f.alpha > 0 && Math.hypot(f.x - h.x, f.y - h.y) < 16)) { this.timer = 2 + this.#rnd(13) * 3; this.n++; return; }
     this.in = null;
     this.x = h.x; this.y = h.y - 4;
     this.facing = this.#rnd(11) < 0.5 ? 1 : -1;
@@ -182,19 +189,38 @@ export class Townsfolk extends Entity {
 
   // ---------------------------------------------------------------- Ansprechen
   #greet(world) {
-    const h = world.hero;
-    if (!h || h.dead || this.greetT > 0 || this.alpha < 1 || this.state === 'greet' || this.state === 'fadeOut') return;
+    const h = world.hero, font = world.session?.font;
+    if (!h || h.dead || !font || this.greetT > 0 || this.alpha < 1 || this.state === 'greet' || this.state === 'fadeOut') return;
     if (Math.hypot(h.x - this.x, (h.y - this.y) * 1.3) > GREET_RANGE) return;
-    // Neben einem Questgeber mit Namensschild schweigen, sonst liegt die Blase über dem Schild
-    if (world.npcs.some((n) => n.nearHero && Math.abs(n.x - this.x) < 64 && Math.abs(n.y - this.y) < 34)) return;
     const T = this.town;
     if (world.time - (T.lastLine ?? -99) < TOWN_GAP) return;
-    const text = T.pickLine(this.spec.say ?? [], world.state, this.lines++);
+    const text = T.pickLine(this.spec.say ?? [], world.state, this.lines);
     if (!text) return;
+    // Nur sprechen, wenn die Blase frei über dem Sprecher steht: nicht über dem Helden, nicht über einem Namensschild
+    const ox = this.#place(world, bubble(font, text));
+    if (ox == null) return;
+    this.lines++;
     T.lastLine = world.time;
     this.greetT = GREET_EVERY + this.#rnd(12) * 20;
-    this.line = text; this.lineT = SAY_TIME;
+    this.line = text; this.lineT = SAY_TIME; this.ox = ox;
     this.state = 'greet'; this.timer = SAY_TIME;
+  }
+
+  // Waagrechter Versatz der Blase (Zipfel bleibt über dem Sprecher) oder null, wenn kein freier Platz ist
+  #place(world, b) {
+    const h = world.hero, top = this.y - BUBBLE_UP - 3 - b.h, bot = this.y - BUBBLE_UP + 1;
+    const hit = (ox, r) => this.x + ox - b.w / 2 < r.x1 && this.x + ox + b.w / 2 > r.x0 && top < r.y1 && bot > r.y0;
+    const hero = { x0: h.x - 8, x1: h.x + 8, y0: h.y - 30, y1: h.y + 2 };
+    const room = b.w / 2 - 6;
+    let ox = 0;
+    if (hit(0, hero)) ox = h.x >= this.x ? hero.x0 - (this.x + b.w / 2) - 1 : hero.x1 - (this.x - b.w / 2) + 1;
+    if (Math.abs(ox) > room || hit(ox, hero)) return null;
+    for (const n of world.npcs) {
+      if (!n.nearHero) continue;
+      const font = world.session.font, hw = Math.max(font.measure(n.def.name.toUpperCase()), font.measure((n.def.title ?? '').toUpperCase())) / 2 + 3;
+      if (hit(ox, { x0: n.x - hw, x1: n.x + hw, y0: n.y - 47, y1: n.y - 27 })) return null;
+    }
+    return ox;
   }
 
   // ---------------------------------------------------------------- Zeichnen
@@ -215,40 +241,49 @@ export class Townsfolk extends Entity {
     if (this.lineT <= 0 || !this.line) return;
     const font = this.town.world.session?.font;
     if (!font) return;
-    drawBubble(ctx, font, this.line, this.x - cx, this.y - cy - 40, Math.min(1, this.lineT / 0.4, (SAY_TIME - this.lineT) / 0.15));
+    const b = bubble(font, this.line);
+    this.ox = this.#place(this.town.world, b) ?? this.ox ?? 0;   // dem Helden ausweichen, solange er sich bewegt
+    drawBubble(ctx, b, this.x - cx, this.y - cy - BUBBLE_UP, this.ox, Math.min(1, this.lineT / 0.4, (SAY_TIME - this.lineT) / 0.15));
   }
 }
 
-// Sprechblase: dunkle Tafel mit hellem Rand, Zipfel zum Sprecher, Text in der Pixelschrift, höchstens drei Zeilen
+// Sprechblase: dunkle Tafel mit hellem Rand, Text in der Pixelschrift, höchstens drei Zeilen. Der Zipfel wird
+// eigens über dem Sprecher gezeichnet, damit die Tafel seitlich ausweichen kann.
 const bubbleCache = new Map();
-function drawBubble(ctx, font, text, x, y, alpha) {
+function bubble(font, text) {
   const t = tr(text).toUpperCase();
-  let c = bubbleCache.get(t);
-  if (!c) {
-    const words = t.split(/\s+/), lines = [];
-    let cur = '';
-    for (const w of words) {
-      const next = cur ? `${cur} ${w}` : w;
-      if (cur && font.measure(next, 1, true) > 104) { lines.push(cur); cur = w; } else cur = next;
-    }
-    if (cur) lines.push(cur);
-    const up = Math.max(...lines.map((l) => font.ascent(l, true)));
-    const lh = 7 + up, W = Math.max(...lines.map((l) => font.measure(l, 1, true))) + 8, H = lines.length * lh + 5;
-    c = document.createElement('canvas');
-    c.width = W; c.height = H + 3;
-    const g = c.getContext('2d');
-    g.fillStyle = '#5a4636'; g.fillRect(1, 0, W - 2, H); g.fillRect(0, 1, W, H - 2);
-    g.fillStyle = '#16100e'; g.fillRect(1, 1, W - 2, H - 2);
-    g.fillStyle = '#241a16'; g.fillRect(2, 2, W - 4, 1);
-    // Zipfel unten mittig
-    const m = Math.floor(W / 2);
-    g.fillStyle = '#5a4636'; g.fillRect(m - 2, H - 1, 5, 1); g.fillRect(m - 1, H, 3, 1); g.fillRect(m, H + 1, 1, 1);
-    g.fillStyle = '#16100e'; g.fillRect(m - 1, H - 1, 3, 1); g.fillRect(m, H, 1, 1);
-    lines.forEach((l, i) => font.draw(g, l, m, 3 + up + i * lh, { color: '#e8dcc0', align: 'center', raw: true }));
-    bubbleCache.set(t, c);
-    if (bubbleCache.size > 40) bubbleCache.delete(bubbleCache.keys().next().value);
+  let b = bubbleCache.get(t);
+  if (b) return b;
+  const words = t.split(/\s+/), lines = [];
+  let cur = '';
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (cur && font.measure(next, 1, true) > 92) { lines.push(cur); cur = w; } else cur = next;
   }
+  if (cur) lines.push(cur);
+  const up = Math.max(...lines.map((l) => font.ascent(l, true)));
+  const lh = 7 + up, W = Math.max(...lines.map((l) => font.measure(l, 1, true))) + 8, H = lines.length * lh + 5;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#5a4636'; g.fillRect(1, 0, W - 2, H); g.fillRect(0, 1, W, H - 2);
+  g.fillStyle = '#16100e'; g.fillRect(1, 1, W - 2, H - 2);
+  g.fillStyle = '#241a16'; g.fillRect(2, 2, W - 4, 1);
+  lines.forEach((l, i) => font.draw(g, l, Math.floor(W / 2), 3 + up + i * lh, { color: '#e8dcc0', align: 'center', raw: true }));
+  b = { c, w: W, h: H };
+  bubbleCache.set(t, b);
+  if (bubbleCache.size > 40) bubbleCache.delete(bubbleCache.keys().next().value);
+  return b;
+}
+
+// x, y: Spitze des Zipfels (über dem Kopf des Sprechers); ox: Versatz der Tafel
+function drawBubble(ctx, b, x, y, ox, alpha) {
   if (alpha < 1) ctx.globalAlpha = Math.max(0, alpha);
-  ctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height));
+  const m = Math.round(x), bot = Math.round(y) - 3;   // unterste Zeile der Tafel; Zipfel 4 Zeilen bis zur Spitze
+  ctx.drawImage(b.c, Math.round(x + ox - b.w / 2), bot - b.h + 1);
+  ctx.fillStyle = '#5a4636';
+  for (let r = 0; r < 4; r++) ctx.fillRect(m - 3 + r, bot + r, 7 - r * 2, 1);
+  ctx.fillStyle = '#16100e';
+  for (let r = 0; r < 3; r++) ctx.fillRect(m - 2 + r, bot + r - 1, 5 - r * 2, 1);
   ctx.globalAlpha = 1;
 }

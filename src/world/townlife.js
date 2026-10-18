@@ -136,6 +136,14 @@ export function spawnTownsfolk(world) {
   }
 }
 
+// Sichtfläche eines Sprites in Weltpixeln (SpriteFrame: canvas, ax, ay in Texeln; Prop: Sprite je Art)
+function spriteRect(o) {
+  const s = o.kind && o.props ? o.props[o.kind] : o.sprite ?? o.look?.sprite ?? o.looks?.sprite;
+  if (!s?.canvas || s.ax == null) return null;
+  const r = s.res ?? 1, ax = (o.flip ? s.canvas.width - s.ax : s.ax) / r, x0 = o.x - ax, y0 = o.y - s.ay / r;
+  return { x0, y0, x1: x0 + s.canvas.width / r, y1: y0 + s.canvas.height / r };
+}
+
 // Figuren in Leerlaufpausen vorab rastern (je Animation ein Schritt), damit das erste Losgehen am Handy nicht ruckelt
 function warmFolk(getters) {
   const jobs = getters.flatMap((get) => ['idle', 'walk', 'talk'].map((k) => () => get()[k]));
@@ -171,13 +179,16 @@ class Town {
         this.spots.push({ x: pl.x + (fire ? side * 22 : 0), y: pl.y + (fire ? 4 : 12), kind: pl.name });
       }
     }
-    for (const n of w.npcs ?? []) if (this.inside(n.x, n.y)) this.spots.push({ x: n.x + (hash2(n.x, n.y, 3) < 0.5 ? -26 : 26), y: n.y + 5, npc: n });
+    for (const n of w.npcs ?? []) if (this.inside(n.x, n.y)) this.spots.push({ x: n.x + (hash2(n.x, n.y, 3) < 0.5 ? -30 : 30), y: n.y + 6, npc: n });
     this.#buildGrid();
     // Stehplätze: mit etwas Abstand zu allem, was eine Kollisionsbox hat (Spiegel, Stand, Questgeber), sonst aufs nächste freie Feld
-    this.spots = this.spots.map((s) => ({ ...s, ...this.#roomy(s.x, s.y) })).filter((s) => s.ok);
+    // Fallen zwei Plätze aufs selbe freie Feld, bleibt nur einer (sonst stehen Bewohner übereinander)
+    this.spots = this.spots.map((s) => ({ ...s, ...this.#roomy(s.x, s.y) }))
+      .filter((s, i, all) => s.ok && !all.slice(0, i).some((o) => o.ok && Math.hypot(o.x - s.x, o.y - s.y) < 14));
     for (const h of [...this.houses, ...this.towers]) Object.assign(h, { step: this.free(h.x, h.y + 6) });
-    this.houses = this.houses.filter((h) => h.step.ok);
-    this.towers = this.towers.filter((h) => h.step.ok);
+    // Haus direkt hinter einem Questgeber: Tür läge unter seinem Namensschild, also kein Zuhause
+    this.houses = this.houses.filter((h) => h.step.ok && !this.#kept(h.x, h.y));
+    this.towers = this.towers.filter((h) => h.step.ok && !this.#kept(h.x, h.y));
     const cx = (this.area.x + this.area.w / 2) * T, cy = (this.area.y + this.area.h / 2) * T;
     this.houses.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
     // Ohne Plätze: ein paar freie Punkte im Ort
@@ -186,6 +197,12 @@ class Town {
       if (p.ok) this.spots.push({ x: p.x, y: p.y, kind: 'open' });
     }
     if (!this.spots.length) return;
+    // Nur, was mit dem Ortskern verbunden ist (Häuser hinter Feuer oder Ständen können eingeschlossen sein)
+    const hub = this.spots.reduce((a, s) => (Math.hypot(s.x - cx, s.y - cy) < Math.hypot(a.x - cx, a.y - cy) ? s : a));
+    const linked = (p) => p === hub || !!this.path(p.x, p.y, hub.x, hub.y);
+    this.spots = this.spots.filter(linked);
+    this.houses = this.houses.filter((h) => linked(h.step));
+    this.towers = this.towers.filter((h) => linked(h.step));
     let hi = 0;
     this.def.folk.forEach((f, i) => {
       const spec = f.cloth ? { ...f, cloth: CLOTH[f.cloth], clothKey: f.cloth } : f;
@@ -203,11 +220,42 @@ class Town {
     const tx0 = Math.max(0, Math.floor(b.x0 / T)), ty0 = Math.max(0, Math.floor(b.y0 / T));
     const tx1 = Math.min(d.w - 1, Math.floor(b.x1 / T)), ty1 = Math.min(d.h - 1, Math.floor(b.y1 / T));
     const w = tx1 - tx0 + 1, h = ty1 - ty0 + 1, blocked = new Uint8Array(w * h);
+    const hide = this.#hidden(), keep = this.#npcZones();
+    const inZone = (z, px, py) => px > z.x0 && px < z.x1 && py > z.y0 && py < z.y1;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const px = (tx0 + x) * T + T / 2, py = (ty0 + y) * T + T / 2;
-      blocked[y * w + x] = d.isWall(tx0 + x, ty0 + y) || d.collidesRect(px - 5, py - 4, px + 5, py + 3) ? 1 : 0;
+      blocked[y * w + x] = d.isWall(tx0 + x, ty0 + y) || d.collidesRect(px - 5, py - 4, px + 5, py + 3)
+        || hide.some((z) => inZone(z, px, py)) || keep.some((z) => inZone(z, px, py)) ? 1 : 0;
     }
     this.grid = { tx0, ty0, w, h, blocked };
+    this.keep = keep;
+  }
+
+  // Fußpunkte, an denen eine Figur hinter einem Haus, Turm, Obelisken oder Feuer stünde: dort ragte sie über das Dach
+  // hinaus bzw. stünde in den Flammen (Flammen liegen im Leuchtpass über allem). Feld: Sprite-Fläche bis zur Grundlinie.
+  #hidden() {
+    const w = this.world, b = this.box, out = [];
+    for (const o of [...w.props, ...w.entities]) {
+      if (o.animator || o.x < b.x0 - 80 || o.x > b.x1 + 80 || o.y < b.y0 - 20 || o.y > b.y1 + 120) continue;
+      const r = spriteRect(o);
+      const fire = (o.o?.flames ?? o.flames)?.length > 0;
+      if (!r || (r.y1 - r.y0 < 28 && !fire)) continue;   // niedriger als eine Figur (Kisten, Fässer, Zäune): dahinter wirkt natürlich
+      out.push({ x0: r.x0 - 3, x1: r.x1 + 3, y0: r.y0 + 3 - (fire ? 12 : 0), y1: (o.sortY ?? o.y) + 2 });
+    }
+    return out;
+  }
+
+  // Abstand zu Questgebern: Körper und Namensschild (Npc.renderEmissive, Schild 29–45 px über dem Fußpunkt) bleiben frei
+  #npcZones() {
+    const font = this.world.session?.font, out = [];
+    const wide = (t) => (t ? (font?.measure?.(t.toUpperCase()) ?? t.length * 4) : 0);
+    for (const n of this.world.npcs ?? []) {
+      if (!this.inside(n.x, n.y)) continue;
+      const hw = Math.max(24, Math.max(wide(n.def?.name), wide(n.def?.title)) / 2 + 6);
+      out.push({ x0: n.x - hw, x1: n.x + hw, y0: n.y - 50, y1: n.y - 2, npc: n });
+      out.push({ x0: n.x - 20, x1: n.x + 20, y0: n.y - 4, y1: n.y + 12, npc: n });
+    }
+    return out;
   }
 
   #cell(x, y) {
@@ -219,10 +267,12 @@ class Town {
     const d = this.world.dungeon;
     for (const [dx, dy] of [[0, 0], [8, 0], [-8, 0], [0, 6], [12, 4], [-12, 4], [0, 12], [16, 0], [-16, 0]]) {
       const px = x + dx, py = y + dy, c = this.#cell(px, py);
-      if (c >= 0 && !this.grid.blocked[c] && !d.collidesRect(px - 9, py - 7, px + 9, py + 3)) return { x: px, y: py, ok: true };
+      if (c >= 0 && !this.grid.blocked[c] && !d.collidesRect(px - 9, py - 7, px + 9, py + 3) && !this.#kept(px, py)) return { x: px, y: py, ok: true };
     }
     return this.free(x, y);
   }
+
+  #kept(x, y) { return this.keep.some((z) => x > z.x0 && x < z.x1 && y > z.y0 && y < z.y1); }
 
   // Nächster freier Punkt um (x, y) innerhalb von 2 Kacheln
   free(x, y) {
@@ -230,7 +280,10 @@ class Town {
     for (let r = 0; r <= 2; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       const px = x + dx * T, py = y + dy * T, c = this.#cell(px, py);
-      if (c >= 0 && !g.blocked[c]) return r === 0 ? { x, y, ok: true } : { x: (Math.floor(px / T) + 0.5) * T, y: (Math.floor(py / T) + 0.5) * T, ok: true };
+      if (c < 0 || g.blocked[c]) continue;
+      if (r === 0 && !this.#kept(x, y)) return { x, y, ok: true };
+      const qx = (Math.floor(px / T) + 0.5) * T, qy = (Math.floor(py / T) + 0.5) * T;
+      if (!this.#kept(qx, qy)) return { x: qx, y: qy, ok: true };
     }
     return { x, y, ok: false };
   }

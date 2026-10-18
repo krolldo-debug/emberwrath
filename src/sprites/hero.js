@@ -2423,6 +2423,8 @@ function stanceFor(L) {
   const k = L.classId, f = L.weapon.family;
   if (L.folk) return f === 'staff' ? { handM: [3, 4.5], wM: -1.5, handO: [0.5, 6.5], footN: [1.5, 0], footF: [-2, 0] }
     : { handM: [0.8, 6.8], handO: [0.6, 6.8], footN: [1.5, 0], footF: [-2, 0] };
+  // Stadtwache: Schwert gesenkt an der Seite, Schild vor dem Körper (nicht kampfbereit)
+  if (L.guardRest) return { handM: [1.5, 6.5], wM: 1.3, handO: [4.5, 3], footN: [1.5, 0], footF: [-2, 0] };
   if (k === 'ranger') return { handO: [4, 5], wO: 0.5, handM: [3, 3], footN: [2, 0], footF: [-2.5, 0] };
   if (k === 'mage') {
     return f === 'wand'
@@ -2868,7 +2870,7 @@ export function getFolkSprites(raceId = 'human', variant = 0, outfit = {}, key =
   const guard = !!outfit.guard;
   const L0 = resolveLook(raceId, 'warrior', v, { head: outfit.head ?? null }, outfit.style ?? null);
   const L = {
-    ...L0, res, classId: guard ? 'warrior' : 'folk', folk: !guard,
+    ...L0, res, classId: guard ? 'warrior' : 'folk', folk: !guard, guardRest: guard,
     chest: { ...outfit.chest }, chestWorn: true,
     cloth: outfit.cloth ?? outfit.chest?.ramp ?? L0.cloth, trim: outfit.trim ?? (guard ? L0.trim : M.leather),
     weapon: outfit.tool ?? (guard ? L0.weapon : NO_WEAPON), off: null, sideArm: null,
