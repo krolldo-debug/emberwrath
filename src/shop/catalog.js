@@ -1,13 +1,13 @@
 // Gold-Pakete des Shops. Gilt für Spiel (Anzeige) und Worker (Preis an Stripe) gleichermaßen:
 // Der Worker nimmt Preis und Goldmenge ausschließlich von hier, nie aus der Anfrage des Spiels.
-// Preise in Cent, inklusive Mehrwertsteuer. Änderungen gelten für neue Käufe; bezahlte Bestellungen behalten ihre Werte.
+// Preise in Cent, Endpreise (Umsatzsteuer siehe TAX_MODE). Änderungen gelten für neue Käufe; bezahlte Bestellungen behalten ihre Werte.
 // Zum Vergleich (src/progression): Glutross bei Orla 150.000 Gold, Steppenpferd ab Stufe 20 10.000 Gold, Aschenwolf 75.000 Gold.
 export const SHOP_CURRENCY = 'eur';
 
 // Umsatzsteuer: 'ust' = Preise enthalten Umsatzsteuer, 'kleinunternehmer' = § 19 UStG (keine Umsatzsteuer).
-// Entscheidung des Betreibers (Steuerberater). Gilt für Spiel, /shop, Bestellbestätigung; Abschnitt 4 der Kaufbedingungen
+// Entscheidung des Betreibers im Fragebogen zur steuerlichen Erfassung. Gilt für Spiel, /shop, Bestellbestätigung; Abschnitt 4 der Kaufbedingungen
 // (site/kaufbedingungen.html) muss dazu passen.
-export const TAX_MODE = 'ust';
+export const TAX_MODE = 'kleinunternehmer';
 export const PRICE_NOTES = {
   ust: 'Alle Preise sind Endpreise inklusive Umsatzsteuer.',
   kleinunternehmer: 'Alle Preise sind Endpreise. Nach § 19 UStG wird keine Umsatzsteuer berechnet.',
@@ -15,7 +15,7 @@ export const PRICE_NOTES = {
 export const PRICE_NOTE = PRICE_NOTES[TAX_MODE];
 
 // Kaufbedingungen: Fassung, die bei jeder Bestellung gespeichert wird (gold_orders.terms_version). Bei Änderungen erhöhen.
-export const TERMS_VERSION = '2026-10-05';
+export const TERMS_VERSION = '2026-10-20';
 export const TERMS_PATH = '/kaufbedingungen';
 // Häkchen vor jedem Kauf (nie vorausgewählt), gleichlautend im Spiel und auf /shop.
 export const WAIVER_TEXT = 'Ich stimme zu, dass mein Kauf sofort und damit vor Ablauf der Widerrufsfrist ausgeführt wird. Mir ist bekannt, dass ich dadurch mein Widerrufsrecht verliere.';
