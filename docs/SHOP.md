@@ -41,6 +41,13 @@ Bilder für die Website: `site/tools/render-shop.mjs` (Bildstreifen der Laufanim
    auch wenn das Spiel den Erhalt nie bestätigt hat (D4). Kaufsperren hängen zusätzlich an einem Hash der normalisierten
    E-Mail-Adresse (`shop_block_marks`) und überleben das Löschen des Kontos (D5); `admin_shop_unblock` hebt beides auf.
    Höchstens 10 Bezahlseiten je Konto in 10 Minuten (429 `rate_limited`, S13).
+   **Vor dem Live-Start 20.10.** (Migration `20261020090000_shop_live.sql`): Die Prüfwerte sind HMACs mit einem Geheimnis
+   (`SHOP_HASH_SECRET`, sonst das Service-Secret; D15). Eine Rückbuchung sperrt zusätzlich das Zahlungsmittel
+   (Kartenfingerabdruck von Stripe, PayPal-Konto; D5). Zahlt ein neues Konto mit einem gesperrten Zahlungsmittel, erstattet
+   der Webhook sofort (Stripe-Grund `fraudulent`) und sperrt das Konto, nichts wird freigeschaltet. Prüfwerte an Bestellungen
+   werden 180 Tage nach der Zahlung gelöscht (`cleanup_shop`). **Test und Live getrennt (S25):** Nur Ereignisse aus dem Modus
+   des Schlüssels zählen (mit `sk_live_…` nie Testzahlungen), und mit `sk_test_…` kaufen nur Admins, auch mit `SHOP_ENABLED`.
+   Exklusive Designs sehen andere Spieler (Welt, Glutarena) nur, wenn das Konto sie besitzt (`worker/designs.js`).
 7. **Bestellbestätigung** (Rechtsprüfung 05.10., `worker/shop-mail.js`): Beim Webhook „bezahlt“ geht zuerst per Resend
    eine Mail an die Käuferadresse (Angebot, Preis, Zahlungsart, Anbieter, Verzichtserklärung mit Zeitpunkt und der volle
    Text der Kaufbedingungen von `/kaufbedingungen`, bei englischer Oberfläche zusätzlich `/en/kaufbedingungen`), danach
@@ -101,4 +108,4 @@ Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (mit 
 
 `node worker/test/shop.test.mjs` – Worker ohne Netz (Stripe und Supabase nachgestellt): Checkout, Rechte, Signatur,
 Betragsprüfung, Erstattung, Rückbuchung mit Kaufsperre, doppelte Webhooks, Designs (Kauf ohne Charakter, schon gekauft,
-Erstattung). Die SQL-Funktionen wurden gegen ein lokales Postgres 16 geprüft (Rechte, Abzug im Spielstand, Trigger).
+Erstattung, Test/Live, gesperrte Karte). `node worker/test/designs.test.mjs` – Designs im Aussehen für andere. Die SQL-Funktionen wurden gegen ein lokales Postgres 16 geprüft (Rechte, Abzug im Spielstand, Trigger).

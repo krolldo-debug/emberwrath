@@ -11,14 +11,17 @@ import { sendConfirmation } from './shop-mail.js';
 //   POST /net/shop/webhook    Stripe-Webhook (Signatur im Header Stripe-Signature)
 //
 // Variablen und Secrets (Cloudflare › Settings › Variables and Secrets):
-//   SHOP_ENABLED              Variable 'true' schaltet den Shop für alle frei. Ohne sie können nur Admins kaufen
-//                             (zum Testen, z. B. mit Stripe-Testschlüsseln sk_test_…).
+//   SHOP_ENABLED              Variable 'true' schaltet den Shop für alle frei. Ohne sie können nur Admins kaufen.
+//                             Mit Testschlüsseln (sk_test_…) kaufen immer nur Admins, auch mit SHOP_ENABLED (S25).
 //   STRIPE_SECRET_KEY         Secret, sk_live_… bzw. sk_test_… (Stripe › Entwickler › API-Schlüssel).
 //   STRIPE_WEBHOOK_SECRET     Secret, whsec_… des Webhook-Endpunkts https://www.emberwrath.com/net/shop/webhook.
 //   STRIPE_REQUIRE_TOS        Variable 'true': Stripe verlangt beim Bezahlen die Zustimmung zu den AGB
 //                             (AGB-Adresse vorher in Stripe › Einstellungen › Öffentliche Details eintragen).
 //   SUPABASE_SERVICE_ROLE_KEY Secret (wie für den Newsletter), Bestellungen in public.gold_orders.
 //   RESEND_API_KEY            Secret (wie für den Newsletter): Bestellbestätigung mit Kaufbedingungen (worker/shop-mail.js).
+//   SHOP_HASH_SECRET          optionales Secret für die Prüfwerte der Kaufsperren (E-Mail, Karte). Ohne: das Service-Secret.
+//                             Wird das Service-Secret je ausgetauscht, vorher SHOP_HASH_SECRET = alter Wert setzen,
+//                             sonst greifen bestehende Kaufsperren nicht mehr.
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 const SIGNATURE_TOLERANCE_S = 300;
@@ -26,15 +29,35 @@ const CHARACTER_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const CHECKOUT_LIMIT = 10;              // Bezahlseiten je Konto …
 const CHECKOUT_WINDOW_MS = 10 * 60_000; // … in 10 Minuten
 
-// Kaufsperre nach Rückbuchung soll das Löschen des Kontos überleben: Hash der normalisierten E-Mail-Adresse
-// (Kleinschreibung, ohne +Zusatz; bei Gmail ohne Punkte, googlemail = gmail). Nur der Hash wird gespeichert.
-export async function emailHash(email) {
+// Kaufsperre nach Rückbuchung soll das Löschen des Kontos überleben: Prüfwerte der normalisierten E-Mail-Adresse
+// (Kleinschreibung, ohne +Zusatz; bei Gmail ohne Punkte, googlemail = gmail) und des Zahlungsmittels (Kartenfingerabdruck
+// von Stripe, PayPal-Konto). Gespeichert wird nur ein HMAC mit einem Geheimnis des Servers (D15): ohne das Geheimnis lässt
+// sich aus einer bekannten Adresse nicht prüfen, ob sie gesperrt ist.
+let hashKey = null, hashFor = null;
+async function shopHmac(env, text) {
+  const secret = String(env.SHOP_HASH_SECRET || env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (!secret) return null;
+  if (hashFor !== secret) {
+    hashKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    hashFor = secret;
+  }
+  return hex(await crypto.subtle.sign('HMAC', hashKey, new TextEncoder().encode(text)));
+}
+
+export async function emailHash(env, email) {
   let [local = '', domain = ''] = String(email ?? '').trim().toLowerCase().split('@');
   if (!local || !domain) return null;
   local = local.split('+')[0];
   if (domain === 'googlemail.com') domain = 'gmail.com';
   if (domain === 'gmail.com') local = local.replace(/\./g, '');
-  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${local}@${domain}`)));
+  return shopHmac(env, `mail:${local}@${domain}`);
+}
+
+// Zahlungsmittel aus payment_method_details einer Stripe-Zahlung (Charge). Wallets (Apple/Google Pay) zählen als Karte.
+export async function payHash(env, details) {
+  const fp = details?.card?.fingerprint ?? details?.sepa_debit?.fingerprint ?? null;
+  const key = fp ? `${details.sepa_debit ? 'sepa' : 'card'}:${fp}` : details?.paypal?.payer_id ? `paypal:${details.paypal.payer_id}` : null;
+  return key ? shopHmac(env, `pay:${key}`) : null;
 }
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -45,6 +68,10 @@ const flag = (v) => String(v ?? '').trim().toLowerCase() === 'true';
 
 export const shopConfigured = (env) => !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.SUPABASE_SERVICE_ROLE_KEY);
 export const shopEnabled = (env) => shopConfigured(env) && flag(env.SHOP_ENABLED);
+// Live-Schlüssel? Nur dann ist der Shop für alle offen und nur Live-Ereignisse zählen (S25): Testzahlungen werden im
+// Live-Betrieb nie gutgeschrieben, und mit Testschlüsseln kauft niemand außer Admins.
+export const stripeLive = (env) => /^(sk|rk)_live_/.test(String(env.STRIPE_SECRET_KEY ?? '').trim());
+const shopOpen = (env) => shopEnabled(env) && stripeLive(env);
 
 function originOk(request, url, env) {
   const origin = request.headers.get('Origin');
@@ -140,7 +167,7 @@ export async function verifyStripeSignature(payload, header, secret, now = Date.
 // ------------------------------------------------------------------ Endpunkte
 function status(env) {
   return json({
-    enabled: shopEnabled(env),
+    enabled: shopOpen(env),
     configured: shopConfigured(env),
     products: GOLD_PACKS.map((p) => ({ id: p.id, gold: p.gold, bonus: p.bonus, total: packTotal(p), priceCents: p.priceCents, tag: p.tag ?? null })),
     designs: DESIGNS.map((d) => ({ id: d.id, name: d.name, items: d.items, priceCents: d.priceCents, tag: d.tag ?? null, classId: d.classId ?? null })),
@@ -156,10 +183,10 @@ async function checkout(request, env, url) {
   const token = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
   const user = await verifyToken(token, { supabaseUrl: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY });
   if (!user) return json({ error: 'auth' }, 401);
-  if (!shopEnabled(env) && !(await isAdmin(env, token))) return json({ error: 'closed' }, 403);
+  if (!shopOpen(env) && !(await isAdmin(env, token))) return json({ error: 'closed' }, 403);
   // Gesperrt nach Rückbuchung (Konto oder E-Mail), erstattetes Gold noch nicht abgezogen, zu viele Bezahlseiten.
   const uid = encodeURIComponent(user.uid);
-  const mailHash = await emailHash(user.email);
+  const mailHash = await emailHash(env, user.email);
   const since = new Date(Date.now() - CHECKOUT_WINDOW_MS).toISOString();
   const [blocked, marked, owed, recent] = await Promise.all([
     db(env, `shop_blocks?user_id=eq.${uid}&select=user_id`),
@@ -238,7 +265,7 @@ async function setOrder(env, filter, from, patch) {
 }
 
 // -> true, wenn die Bestätigung verschickt ist (oder schon war)
-async function confirm(env, byOrder, session, pi) {
+async function confirm(env, byOrder, session, details) {
   const [order] = await db(env, `gold_orders?${byOrder}&select=*`);
   if (!order || order.confirmation_sent_at || ['refunded', 'disputed'].includes(order.status)) return true;
   try {
@@ -247,12 +274,7 @@ async function confirm(env, byOrder, session, pi) {
       const [ch] = await db(env, `characters?user_id=eq.${encodeURIComponent(order.user_id)}&id=eq.${encodeURIComponent(order.character_id)}&select=name`).catch(() => []);
       characterName = ch?.name ?? null;
     }
-    let paymentMethod = null;
-    if (pi) {
-      const intent = await stripeGet(env, `/payment_intents/${encodeURIComponent(pi)}?expand[]=payment_method`).catch(() => null);
-      const pm = intent?.payment_method;
-      paymentMethod = pm?.card?.wallet?.type ?? pm?.type ?? null;
-    }
+    const paymentMethod = details?.card?.wallet?.type ?? details?.type ?? null;
     const to = session.customer_details?.email ?? session.customer_email;
     await sendConfirmation(env, { order, to, characterName, paymentMethod, site: site(env) });
     await db(env, `gold_orders?${byOrder}`, { method: 'PATCH', prefer: 'return=minimal', body: { confirmation_sent_at: new Date().toISOString(), confirmation_error: null } });
@@ -265,6 +287,16 @@ async function confirm(env, byOrder, session, pi) {
 }
 
 const byPi = (pi) => `stripe_payment_intent=eq.${encodeURIComponent(pi)}`;
+
+// Kaufsperre vermerken (überlebt die Kontolöschung). user_id hilft admin_shop_unblock; fehlt die Spalte noch
+// (Migration 20261020090000 nicht ausgeführt), ohne sie.
+async function mark(env, hash, reason, userId) {
+  if (!hash) return;
+  const post = (body) => db(env, 'shop_block_marks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body });
+  await post({ email_hash: hash, reason, ...(userId ? { user_id: userId } : {}) })
+    .catch(() => post({ email_hash: hash, reason }))
+    .catch((e) => console.error('shop mark', e?.message));
+}
 
 // Erstattete/zurückgebuchte Bestellungen serverseitig abziehen (Gold im Spielstand, Designs aus allen Charakteren).
 // Fehlt die Funktion noch (Migration 20261005120000 nicht ausgeführt), zieht das Spiel das Gold beim nächsten Start ab.
@@ -284,6 +316,8 @@ async function webhook(request, env) {
   }
   let event;
   try { event = JSON.parse(payload); } catch { return json({ error: 'bad_request' }, 400); }
+  // Nur Ereignisse aus dem Modus des Schlüssels (S25): Mit sk_live zählen nie Testzahlungen und umgekehrt.
+  if (event?.livemode !== stripeLive(env)) return json({ received: true, ignored: 'mode' });
   const obj = event?.data?.object ?? {};
   const orderId = obj.metadata?.order_id ?? obj.client_reference_id;
   const byOrder = orderId && /^[0-9a-f-]{36}$/i.test(orderId) ? `id=eq.${orderId}` : null;
@@ -293,12 +327,31 @@ async function webhook(request, env) {
     case 'checkout.session.completed':
     case 'checkout.session.async_payment_succeeded': {
       if (!byOrder || obj.payment_status !== 'paid') break; // z. B. Überweisung: kommt später als async_payment_succeeded
-      const [order] = await db(env, `gold_orders?${byOrder}&select=amount_cents,currency`);
-      // Betrag und Währung müssen zur Bestellung passen, sonst wird nichts gutgeschrieben.
-      if (!order || obj.amount_total !== order.amount_cents || String(obj.currency).toLowerCase() !== order.currency) break;
+      const [order] = await db(env, `gold_orders?${byOrder}&select=user_id,status,amount_cents,currency,livemode`);
+      // Betrag, Währung und Modus müssen zur Bestellung passen, sonst wird nichts gutgeschrieben.
+      if (!order || obj.amount_total !== order.amount_cents || String(obj.currency).toLowerCase() !== order.currency
+        || !!order.livemode !== !!obj.livemode) break;
+      const intent = pi ? await stripeGet(env, `/payment_intents/${encodeURIComponent(pi)}?expand[]=latest_charge`).catch(() => null) : null;
+      const details = intent?.latest_charge?.payment_method_details ?? null;
+      // Zahlungsmittel nach Rückbuchung gesperrt (D5, auch mit neuem Konto und neuer Adresse): sofort erstatten, nichts freigeben.
+      const card = await payHash(env, details);
+      if (card && ['pending', 'failed', 'expired'].includes(order.status)) {
+        const [hit] = await db(env, `shop_block_marks?email_hash=eq.${card}&select=email_hash`).catch(() => []);
+        if (hit) {
+          await stripe(env, '/refunds', { payment_intent: pi, reason: 'fraudulent', metadata: { order_id: orderId } }, `blocked-${orderId}`);
+          await setOrder(env, byOrder, ['pending', 'failed', 'expired'], {
+            status: 'refunded', paid_at: new Date().toISOString(), stripe_payment_intent: pi, stripe_session_id: obj.id, livemode: !!obj.livemode,
+          });
+          if (order.user_id) {
+            await db(env, 'shop_blocks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal',
+              body: { user_id: order.user_id, reason: 'Zahlungsmittel nach Rückbuchung gesperrt' } }).catch(() => {});
+          }
+          break;
+        }
+      }
       // Erst die Bestellbestätigung (Pflicht für das Erlöschen des Widerrufsrechts), dann freigeben. Schlägt sie fehl, wird die
       // Bestellung trotzdem bezahlt (der Kunde hat gezahlt), der Fehler vermerkt und Stripe wiederholt den Webhook (Antwort 500).
-      const sent = await confirm(env, byOrder, obj, pi);
+      const sent = await confirm(env, byOrder, obj, details);
       await setOrder(env, byOrder, ['pending', 'failed', 'expired'], {
         status: 'paid', paid_at: new Date().toISOString(), stripe_payment_intent: pi, stripe_session_id: obj.id, livemode: !!obj.livemode,
       });
@@ -327,10 +380,11 @@ async function webhook(request, env) {
       if (order?.user_id) {
         await db(env, 'shop_blocks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { user_id: order.user_id, reason } });
       }
-      if (order?.email_hash) {
-        await db(env, 'shop_block_marks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { email_hash: order.email_hash, reason } })
-          .catch((e) => console.error('shop mark', e?.message));
-      }
+      await mark(env, order?.email_hash, reason, order?.user_id);
+      // Zahlungsmittel dazu (Kartenfingerabdruck bzw. PayPal-Konto), damit auch ein neues Konto mit neuer Adresse nicht weiterkauft
+      const charge = typeof obj.charge === 'string' ? obj.charge : obj.charge?.id;
+      const ch = charge ? await stripeGet(env, `/charges/${encodeURIComponent(charge)}`).catch(() => null) : null;
+      await mark(env, await payHash(env, ch?.payment_method_details), reason, order?.user_id);
       await serverRevoke(env, pi);
       break;
     }

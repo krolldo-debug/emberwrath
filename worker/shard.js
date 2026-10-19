@@ -4,6 +4,7 @@ import { ONLINE_CONFIG } from '../src/online/config.js';
 import { filterChat } from '../src/net/chatFilter.js';
 import { REPORT_REASONS, saveReport, activeMutes, loadCharacter, NEW_LEVEL_MAX } from './moderation.js';
 import { nameProblem } from '../src/net/names.js';
+import { ownedDesigns, stripDesigns, missingDesigns } from './designs.js';
 import { ITEMS } from '../src/progression/items.js';
 import {
   NET_VERSION, BROADCAST_MS, LOOK_MIN_MS, FX_MAX, cleanState, cleanFx, cleanLook, cleanChat, cleanLevel, cleanText, shardName,
@@ -32,6 +33,7 @@ const GONE_MAX = 200, LIMITS_MAX = 2000;
 // bei 40 laufenden Spielern sonst bis zu 800 Schreibvorgänge pro Sekunde (Lasttest 10.10.). Nach dem Aufwachen ist die
 // Position dadurch höchstens 2 s alt; der nächste Zustand des Spielers ersetzt sie ohnehin.
 const ATTACH_MS = 2000;
+const DESIGNS_RELOAD_MS = 30_000; // Shop-Designs eines Spielers höchstens so oft neu laden (worker/designs.js)
 // Laufzeitkosten: Cloudflare berechnet ein Durable Object nur, solange es arbeitet oder ein Zeitgeber wartet. Gebündelt
 // (BROADCAST_MS) wartet bei laufenden Spielern fast immer ein Zeitgeber, das Objekt läuft also durch. In kleinen Runden
 // (höchstens IMMEDIATE_MAX andere Spieler, allein ohnehin) geht jeder Zustand sofort an die anderen: kein Zeitgeber,
@@ -75,7 +77,7 @@ export class ZoneShard extends DurableObject {
       if (a.zone) { this.zone = a.zone; this.world = a.world; }
       if (a.id) {
         this.seq = Math.max(this.seq, a.id);
-        this.players.set(ws, { ...a, look: null, needLook: true, tokens: RATE_BURST, last: Date.now(), drops: 0, chat: [] });
+        this.players.set(ws, { ...a, look: null, needLook: true, designs: null, designsAt: 0, tokens: RATE_BURST, last: Date.now(), drops: 0, chat: [] });
         if (a.mute) this.mutes.set(a.uid, a.mute);
       } else this.players.set(ws, { pending: true, since: a.since ?? Date.now(), ip: a.ip ?? '', zone: a.zone, world: a.world });
     }
@@ -127,7 +129,14 @@ export class ZoneShard extends DurableObject {
         // Nur bei Änderung weitergeben und höchstens alle LOOK_MIN_MS; eine spätere Änderung kommt nach (#flushLooks)
         const look = cleanLook(m.look, isItem);
         p.level = Math.min(cleanLevel(m.level ?? p.level), p.levelMax ?? LEVEL_MAX);
-        if (look) p.look = look;
+        // Exklusives Design, das der Server (noch) nicht kennt: höchstens alle DESIGNS_RELOAD_MS neu laden (gerade gekauft)
+        if (look && missingDesigns(look, p.designs) && Date.now() - (p.designsAt ?? 0) > DESIGNS_RELOAD_MS) {
+          p.designsAt = Date.now();
+          const d = await ownedDesigns(this.env, p.uid);
+          if (this.players.get(ws) !== p) break;
+          if (d !== null || p.designs === undefined) p.designs = d;
+        }
+        if (look) p.look = stripDesigns(look, p.designs);
         p.needLook = false;
         this.#attach(ws, p);
         const key = JSON.stringify([p.level, p.look]);
@@ -267,7 +276,8 @@ export class ZoneShard extends DurableObject {
     p.reserved = true;
 
     const ch = m.char && typeof m.char === 'object' ? m.char : {};
-    const [k, mutes, found] = await Promise.all([ignoreKey(this.env, user.uid), activeMutes(this.env, [user.uid]), loadCharacter(this.env, user.uid, ch.id)]);
+    const [k, mutes, found, designs] = await Promise.all([ignoreKey(this.env, user.uid), activeMutes(this.env, [user.uid]),
+      loadCharacter(this.env, user.uid, ch.id), ownedDesigns(this.env, user.uid)]);
     const stored = found?.missing ? null : found;
     if (this.players.get(ws) !== p) return; // inzwischen getrennt oder ersetzt
     if (mutes) { const mm = mutes.get(user.uid); if (mm) this.mutes.set(user.uid, mm); else this.mutes.delete(user.uid); }
@@ -283,7 +293,7 @@ export class ZoneShard extends DurableObject {
     const level = Math.max(stored?.level ?? 1, Math.min(cleanLevel(ch.level), levelMax));
     const player = {
       id: ++this.seq, uid: user.uid, k, mute, msgs: [], name, level, levelMax,
-      look: cleanLook(m.look, isItem), s: cleanState(m.s) ?? [0, 0, 1, 'idle', 0, 0, 0],
+      designs, designsAt: Date.now(), look: stripDesigns(cleanLook(m.look, isItem), designs), s: cleanState(m.s) ?? [0, 0, 1, 'idle', 0, 0, 0],
       zone: this.zone, world: this.world,
       tokens: RATE_BURST, last: Date.now(), drops: 0, chat: [],
     };

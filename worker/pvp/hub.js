@@ -6,6 +6,7 @@ import { PVP_VERSION, cleanHit, cleanBotResult, cleanMatchId } from '../../src/p
 import { arenaStats, arenaClass, arenaRace, maxHitDamage } from '../../src/pvp/arenaStats.js';
 import { cleanState, cleanFx, cleanLook, cleanName, LEVEL_MAX } from '../../src/net/protocol.js';
 import { nameProblem } from '../../src/net/names.js';
+import { stripDesigns } from '../designs.js';
 import { makeMerc } from '../../src/finder/mercs.js';
 import { makeRng } from '../../src/finder/rng.js';
 import { CLASSES, ABILITIES } from '../../src/character/classes.js';
@@ -61,9 +62,10 @@ const id = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,48}$/.test(v) ? v : nu
 const int = (v, lo, hi, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
 
 export class ArenaHub {
-  constructor({ verify, profile = null, store, now = () => Date.now(), rnd = Math.random, timing = TIMING } = {}) {
+  constructor({ verify, profile = null, designs = null, store, now = () => Date.now(), rnd = Math.random, timing = TIMING } = {}) {
     this.verify = verify;
     this.profile = profile;
+    this.designs = designs; // (uid) → Set der Shop-Designs (worker/designs.js), sonst ungeprüft
     this.store = store;
     this.now = now;
     this.rnd = rnd;
@@ -192,7 +194,10 @@ export class ArenaHub {
     for (const o of [...this.conns.values()]) if (o !== c && o.uid === user.uid) this.#bye(o, 'replaced');
     c.uid = user.uid;
     c.char = char;
-    c.look = cleanLook(m.look);
+    // Exklusive Shop-Designs nur, wenn bezahlt (sonst sähe der Gegner sie trotzdem)
+    const owned = this.designs ? await this.designs(user.uid).catch(() => null) : undefined;
+    if (!this.conns.has(c.socket)) return;
+    c.look = stripDesigns(cleanLook(m.look), owned);
     if (c.look) { c.look.classId = char.classId; c.look.raceId = char.raceId; }
     c.rec = await this.#loadRec(c.uid, char);
     if (!this.conns.has(c.socket)) return;
