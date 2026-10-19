@@ -121,7 +121,7 @@ ok(order.stripe_session_id === 'cs_test_1', 'Session-ID an Bestellung gespeicher
 ok(!form.has('consent_collection[terms_of_service]'), 'AGB-Zustimmung nur mit STRIPE_REQUIRE_TOS');
 ok(form.get('submit_type') === 'pay' && form.get('custom_text[submit][message]').includes('www.emberwrath.com/kaufbedingungen'), 'Stripe: Knopf „Bezahlen“, Kaufbedingungen genannt');
 ok(form.get('line_items[0][price_data][product_data][description]') === '35.000 Gold für Kael in Emberwrath, sofort gutgeschrieben', 'Stripe-Beschreibung mit Menge und Charakter');
-ok(order.terms_version === '2026-10-05' && order.lang === 'de', 'Bestellung speichert Fassung der Kaufbedingungen und Sprache');
+ok(order.terms_version === '2026-10-20' && order.lang === 'de', 'Bestellung speichert Fassung der Kaufbedingungen und Sprache');
 const open = { ...env, SHOP_ENABLED: 'true' };
 r = await call(open, '/shop/checkout', { method: 'POST', token: 'tok_player', body: { ...buy, waiver: false } });
 ok(r.status === 400 && r.body.error === 'waiver', 'Ohne Verzicht auf Widerruf kein Kauf');
