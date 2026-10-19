@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { verifyToken } from '../auth.js';
 import { ONLINE_CONFIG } from '../../src/online/config.js';
 import { ArenaHub } from './hub.js';
+import { ownedDesigns } from '../designs.js';
 
 // Durable Object der Glutarena: eine Instanz ('main') für Suche, Kämpfe und Wertung (src/pvp/README.md).
 // Die Logik steckt in hub.js; hier nur Verbindungen, Takt, Speicher und die öffentliche Bestenliste.
@@ -27,6 +28,7 @@ export class PvpArena extends DurableObject {
         anonKey: env.SUPABASE_ANON_KEY || ONLINE_CONFIG.supabaseAnonKey,
       }),
       profile: (uid, charId) => loadArenaChar(env, uid, charId),
+      designs: (uid) => ownedDesigns(env, uid),
       store: { get: (k) => storage.get(k), put: (k, v) => storage.put(k, v) },
     });
     this.timer = null;
