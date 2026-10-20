@@ -25,6 +25,9 @@
       "launchAutoHide": true,
       "backgroundColor": "#05020a",
       "showSpinner": false
+    },
+    "SystemBars": {
+      "hidden": true
     }
   }
 }

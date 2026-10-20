@@ -7,7 +7,7 @@ brauchen also keine neue App-Version. Nur Änderungen in `app/` (Symbol, Startbi
 - `capacitor.config.json`: Adresse, User-Agent-Zusatz `EmberwrathApp/ios|android`, Startbild.
 - `www/offline.html`: wird gezeigt, wenn die Website nicht erreichbar ist (eigene kleine Übersetzung de/en/es/fr).
 - `ios/`: Xcode-Projekt (Swift Package Manager, kein CocoaPods). Nur Querformat, Statusleiste und Home-Strich aus
-  (`SceneDelegate.swift`, `GameViewController`), `ITSAppUsesNonExemptEncryption = false` (nur HTTPS).
+  (SystemBars in `capacitor.config.json`, Randgesten in `SceneDelegate.swift`), `ITSAppUsesNonExemptEncryption = false` (nur HTTPS).
 - `tools/icons.py`: erzeugt App-Symbol und Startbild aus `src/ui/pwa/app-icon-512.png` und `site/img/logo.png`.
 
 Im Spiel erkennt `src/app/native.js` die App. Dort gilt: kein Gold-Shop (Apple Richtlinie 3.1.1), keine

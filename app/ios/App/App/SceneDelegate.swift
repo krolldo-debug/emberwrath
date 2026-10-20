@@ -23,10 +23,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-// Spielansicht: Home-Strich ausblenden und Wischgesten vom Rand erst beim zweiten Wischen an das System geben,
-// damit beim Kämpfen am Bildschirmrand nicht versehentlich die App verlassen wird.
+// Spielansicht: Wischgesten vom Rand erst beim zweiten Wischen an das System geben, damit beim Kämpfen am
+// Bildschirmrand nicht versehentlich die App verlassen wird. Statusleiste und Home-Strich blendet SystemBars aus
+// (capacitor.config.json).
 class GameViewController: CAPBridgeViewController {
-    override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
-    override var prefersStatusBarHidden: Bool { true }
 }
