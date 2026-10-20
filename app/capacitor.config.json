@@ -1,0 +1,33 @@
+{
+  "appId": "com.emberwrath.game",
+  "appName": "Emberwrath",
+  "webDir": "www",
+  "backgroundColor": "#05020a",
+  "server": {
+    "url": "https://www.emberwrath.com/spielen/",
+    "errorPath": "offline.html",
+    "allowNavigation": [
+      "www.emberwrath.com"
+    ]
+  },
+  "ios": {
+    "appendUserAgent": "EmberwrathApp/ios",
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "appendUserAgent": "EmberwrathApp/android"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#05020a",
+      "showSpinner": false
+    },
+    "SystemBars": {
+      "hidden": true
+    }
+  }
+}

@@ -6,6 +6,7 @@
 
 import { EV } from '../core/events.js';
 import { backButton, websiteUrl } from '../account/ui.js';
+import { inApp } from '../app/native.js';
 
 const DEVICE_MQ = '(hover: none) and (pointer: coarse)';
 
@@ -38,7 +39,7 @@ export function installRotateGate(game) {
   const back = backButton(() => location.assign(websiteUrl()), 'Zurück zur Website');
   back.classList.add('ef-rotate-back');
   gate.prepend(back);
-  const pregame = () => { back.hidden = game?.scenes?.currentId === 'play'; };
+  const pregame = () => { back.hidden = inApp() || game?.scenes?.currentId === 'play'; };
   game?.bus?.on(EV.SCENE_CHANGE, pregame);
   pregame();
   document.body.append(gate);

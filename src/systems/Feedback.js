@@ -185,7 +185,9 @@ export class FeedbackSystem {
     bus.on('heal', (e) => {
       const w = this.game.world;
       w.particles.ring(e.actor.x, e.actor.y - 6, 8, 16, ['#fff0b0', '#ffb640', '#f07a1c']);
-      this.#text(e.actor.x, e.actor.y - 26, `+${e.amount}`, '#9cff8a', 1);
+      // Heilung bei vollem Leben (z. B. Lebensraub) ergibt 0: keine „+0“ über dem Kopf
+      const amount = Math.round(e.amount ?? 0);
+      if (amount > 0) this.#text(e.actor.x, e.actor.y - 26, `+${fmtNum(amount)}`, '#9cff8a', 1);
       this.#sfx('heal');
     });
   }

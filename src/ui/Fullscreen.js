@@ -6,6 +6,8 @@
 // Die Dateien in src/ui/pwa/ (Manifest, App-Symbole) legt der Build neben die Spielseite.
 // <html> bekommt .ef-standalone (als App gestartet) und .ef-fullscreen (Vollbild aktiv).
 
+import { inApp } from '../app/native.js';
+
 const HINT_KEY = 'ef.fullscreenHint';
 
 function meta(name, content) {
@@ -23,7 +25,7 @@ function link(rel, href, extra = {}) {
 }
 
 export function isStandalone() {
-  return window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
+  return inApp() || window.matchMedia?.('(display-mode: standalone)').matches || window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
 }
 export function canFullscreen() {
   const el = document.documentElement;

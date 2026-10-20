@@ -7,6 +7,7 @@ import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM
 import { SET_ITEMS, ownedSetLooks, findSkinSet } from '../character/skinSets.js';
 import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
 import { fmtNum } from '../i18n/index.js';
+import { inApp } from '../app/native.js';
 
 // Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
 //
@@ -109,9 +110,10 @@ export function installShop(game) {
   const shop = {
     status: null,
     returned,
-    get visible() { return !!this.status && (this.status.enabled || admin); },
+    // In der Store-App gibt es keinen Shop (dort wären nur Apple-/Google-Käufe erlaubt). Gekauftes kommt trotzdem an.
+    get visible() { return !inApp() && !!this.status && (this.status.enabled || admin); },
     get admin() { return admin; },
-    get canBuy() { return !!this.status && isOnlineChar() && (this.status.enabled || (admin && this.status.configured)); },
+    get canBuy() { return !inApp() && !!this.status && isOnlineChar() && (this.status.enabled || (admin && this.status.configured)); },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     owns(designId) {
       const d = DESIGNS.find((x) => x.id === designId);

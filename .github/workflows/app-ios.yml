@@ -1,0 +1,65 @@
+# iOS-App (app/): prüft bei jeder Änderung, dass sie baut. „Run workflow“ mit upload=true lädt sie zu App Store Connect hoch.
+# Für den Upload braucht das Repo diese Secrets (Anleitung: app/README.md):
+#   APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei)
+name: iOS-App
+
+on:
+  push:
+    paths: ['app/**', '.github/workflows/app-ios.yml']
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Zu App Store Connect hochladen'
+        type: boolean
+        default: true
+
+concurrency:
+  group: app-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npx cap sync ios
+      - run: xcodebuild -version
+
+      - name: Bauen (ohne Signatur, Prüfung)
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.upload) }}
+        run: >
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release
+          -destination 'generic/platform=iOS' -derivedDataPath build/dd
+          CODE_SIGNING_ALLOWED=NO build
+
+      - name: Archivieren und hochladen
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload }}
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          for v in TEAM_ID KEY_ID ISSUER_ID KEY_P8; do [ -n "${!v}" ] || { echo "::error::Secret fehlt: $v (siehe app/README.md)"; exit 1; }; done
+          KEY="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$KEY_P8" > "$KEY"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID")
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/App.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            "${AUTH[@]}" archive
+          sed "s/TEAM_ID/$TEAM_ID/" ios/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive -archivePath build/App.xcarchive -exportPath build/export \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" "${AUTH[@]}"
+          rm -f "$KEY"
+          echo "Hochgeladen: Build ${{ github.run_number }}. Er erscheint nach der Verarbeitung in App Store Connect unter TestFlight." >> "$GITHUB_STEP_SUMMARY"

@@ -4,6 +4,7 @@ import { savedLook, backButton, websiteUrl } from './ui.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { snapInfo, storeSlot } from './backups.js';
 import { langSwitch } from '../i18n/index.js';
+import { inApp } from '../app/native.js';
 
 // Basis der Menü-Bildschirme: animierter Hintergrund + DOM-Oberfläche.
 // Unterklassen setzen this.root in enter() und können back() überschreiben
@@ -75,8 +76,9 @@ export class TitleScene extends MenuScene {
     }
 
     // Unterste Ebene: Der Zurück-Pfeil führt auf die Website. Bewusst nicht auf Esc gelegt (kein versehentliches Verlassen).
+    // In der Store-App gibt es keine Website dahinter.
     this.root = h('div.ef-screen.acc-screen.acc-title',
-      h('div.acc-title-back', backButton(() => location.assign(websiteUrl()), 'Zurück zur Website')),
+      inApp() ? null : h('div.acc-title-back', backButton(() => location.assign(websiteUrl()), 'Zurück zur Website')),
       h('div.acc-title-inner',
         h('div.acc-logo',
           h('h1.ef-title', 'EMBERWRATH'),

@@ -3,6 +3,7 @@ import { EV } from '../core/events.js';
 import { MenuScene } from '../account/TitleScene.js';
 import { focusIfDesktop, characterLine, backButton } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
+import { inApp } from '../app/native.js';
 import { fmtDate, tr, onLangChange } from '../i18n/index.js';
 
 // Anmeldeseite (Szene 'login'). params.mode:
@@ -140,7 +141,9 @@ export class LoginScene extends MenuScene {
     // Kein Kleingedrucktes: Neue Google-Konten bestätigen Nutzungsbedingungen und Alter danach auf der Seite 'consent'.
     const box = h('div.on-providers', google,
       h('div.on-or', h('span', 'oder mit E-Mail')));
-    const set = (on) => { box.hidden = !on; };
+    // In der Store-App nur E-Mail: Google sperrt die Anmeldung in eingebetteten Ansichten, und mit nur eigener
+    // Anmeldung verlangt Apple kein „Mit Apple anmelden“ (Richtlinie 4.8).
+    const set = (on) => { box.hidden = !on || inApp(); };
     set(!!o.providers.google);
     // Aktive Anbieter kommen aus den Supabase-Einstellungen (freigeschaltet ohne neue Version)
     o.loadProviders?.().then((p) => set(!!p.google));
@@ -425,7 +428,7 @@ export class LoginScene extends MenuScene {
         h('p.acc-meta', 'Deine Anmeldung ist bestätigt.'),
         this.#messageBox(),
         h('button.ef-btn.danger.on-submit', { type: 'submit' }, 'Konto endgültig löschen'));
-    } else if (providers.includes('email')) {
+    } else if (providers.includes('email') || inApp()) { // in der App immer mit Passwort angemeldet
       const pw = this.#password('Dein Passwort', 'current-password');
       step = h('form.on-form', { onsubmit: (e) => {
         e.preventDefault();

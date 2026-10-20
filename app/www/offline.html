@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Emberwrath</title>
+<!-- Zeigt die App, wenn https://www.emberwrath.com/spielen/ nicht erreichbar ist (capacitor.config.json server.errorPath).
+     Liegt in der App selbst, daher eigene kleine Übersetzung statt src/i18n. -->
+<style>
+  @font-face { font-family: Cinzel; font-weight: 700; src: url(fonts/cinzel-latin-700-normal.woff2) format('woff2'); }
+  html, body { margin: 0; height: 100%; background: #05020a; color: #f4eedd; font: 16px/1.4 system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+  body { display: grid; place-items: center; background: radial-gradient(ellipse at 50% 70%, #3a1206 0%, #05020a 65%); }
+  main { text-align: center; padding: 24px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left)); }
+  img { width: 292px; height: 60px; image-rendering: pixelated; }
+  h1 { font: 700 1.4em Cinzel, serif; color: #ff8a2a; letter-spacing: 0.04em; margin: 18px 0 6px; }
+  p { margin: 0 0 22px; color: #cbbfa8; }
+  button { font: 700 1em Cinzel, serif; color: #fff4e0; background: linear-gradient(180deg, #7a3212, #4a1a0a); border: 2px solid #ff8a2a; padding: 12px 28px; cursor: pointer; }
+  button:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+<main>
+  <img src="logo.png" alt="Emberwrath">
+  <h1 id="t">Keine Verbindung</h1>
+  <p id="s">Emberwrath ist ein Online-Spiel. Prüfe dein Internet und versuch es noch einmal.</p>
+  <button id="b" type="button">Erneut versuchen</button>
+</main>
+<script>
+  const T = {
+    en: ['No connection', 'Emberwrath is an online game. Check your internet connection and try again.', 'Try again'],
+    es: ['Sin conexión', 'Emberwrath es un juego en línea. Comprueba tu conexión a internet y vuelve a intentarlo.', 'Reintentar'],
+    fr: ['Pas de connexion', 'Emberwrath est un jeu en ligne. Vérifie ta connexion internet et réessaie.', 'Réessayer'],
+  };
+  const lang = (navigator.language || 'de').slice(0, 2);
+  const t = lang === 'de' ? null : T[lang] || T.en;
+  if (t) {
+    document.documentElement.lang = T[lang] ? lang : 'en';
+    ['t', 's', 'b'].forEach((id, i) => { document.getElementById(id).textContent = t[i]; });
+  }
+  const go = () => location.replace('https://www.emberwrath.com/spielen/');
+  document.getElementById('b').addEventListener('click', go);
+  window.addEventListener('online', go);
+</script>
+</body>
+</html>
