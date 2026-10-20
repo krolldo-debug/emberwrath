@@ -198,7 +198,7 @@
 /* Boss */
 .hud-boss { position: absolute; left: 50%; top: var(--hud-gap); transform: translateX(-50%); width: min(40%, 380px); text-align: center; opacity: 0; transition: opacity 0.3s; }
 .hud-boss.show { opacity: 1; }
-.hud-boss-name { color: #ff9080; font-family: var(--ef-font-title); font-size: 1.1em; letter-spacing: 0.06em; margin-bottom: 3px; text-shadow: 0 1px 0 #000, 0 0 10px rgba(200, 30, 30, 0.8); }
+.hud-boss-name { color: #ff9080; font-family: var(--ef-font-title); font-size: 1.1em; letter-spacing: 0.06em; margin-bottom: 3px; text-shadow: 0 1px 0 #000, 0 0 10px rgba(200, 30, 30, 0.8); background: rgba(8, 3, 12, 0.72); } /* Grund: Welt (Rohre, Feuer) scheint sonst durch den Namen */
 .hud-boss.enraged .hud-meter { animation: hud-pulse 0.6s infinite; }
 /* Champion: kleinere Leiste unter dem Boss-Platz, Name in Championfarbe, Kräfte darunter */
 .hud-champ { --champ: #ff8a3a; position: absolute; left: 50%; top: var(--hud-gap); transform: translateX(-50%); width: min(30%, 280px); text-align: center; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
