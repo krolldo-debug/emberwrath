@@ -5,6 +5,7 @@ import { HeroPortrait } from '../account/ui.js';
 import { resolveGear } from './gearLook.js';
 import { DYES, HAIR_STYLES, HAIR_PRICE, HAIR_COLOR_PRICE, hairStylesFor, restylePrice, spriteStyle, ownsDesign, earnedDye, sameLook } from './cosmetics.js';
 import { fmtNum } from '../i18n/index.js';
+import { inApp } from '../app/native.js';
 
 const fmt = (n) => fmtNum(Number(n));
 
@@ -49,7 +50,7 @@ function appearancePanel(session) {
         const shopOnly = d.exclusive && !ownsDesign(state.slices, `dye:${id}`);
         const earned = earnedDye(state.slices, id);
         const locked = level < (d.level ?? 1) || shopOnly || !earned;
-        const sub = cur.dye === id ? 'aktuell' : shopOnly ? 'im Shop' : d.exclusive ? 'Exklusiv' : d.achievement ? (earned ? 'Erfolg' : 'über Erfolg') : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
+        const sub = cur.dye === id ? 'aktuell' : shopOnly ? (inApp() ? 'Exklusiv' : 'im Shop') : d.exclusive ? 'Exklusiv' : d.achievement ? (earned ? 'Erfolg' : 'über Erfolg') : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
         return choice(pick.dye === id, locked, d.name, sub, swatch(d.ramp), () => { pick.dye = id; });
       }),
     ];

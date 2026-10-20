@@ -1,0 +1,20 @@
+{
+  "name": "emberwrath-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Store-App (iOS, Android) für Emberwrath: Capacitor-Hülle um https://www.emberwrath.com/spielen/",
+  "type": "module",
+  "scripts": {
+    "sync": "cap sync",
+    "icons": "python3 tools/icons.py"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/splash-screen": "8.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}
