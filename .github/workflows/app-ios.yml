@@ -1,11 +1,9 @@
-# iOS-App (app/): prüft bei jeder Änderung, dass sie baut. „Run workflow“ mit upload=true lädt sie zu App Store Connect hoch.
+# iOS-App (app/): nur von Hand („Run workflow“), macOS-Läufe sind teuer. upload=false prüft nur den Build, upload=true lädt zu App Store Connect hoch.
 # Für den Upload braucht das Repo diese Secrets (Anleitung: app/README.md):
 #   APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (Inhalt der .p8-Datei)
 name: iOS-App
 
 on:
-  push:
-    paths: ['app/**', '.github/workflows/app-ios.yml']
   workflow_dispatch:
     inputs:
       upload:
