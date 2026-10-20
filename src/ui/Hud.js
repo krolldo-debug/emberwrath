@@ -343,12 +343,12 @@ export class Hud {
     toggle(this.root, 'touch', touch);
 
     // Leben (mit nachlaufendem Schadensbalken), Ressource, Ausdauer
-    this.#meter(this.hp, hero.hp, hero.maxHp, dt, `${Math.max(0, Math.ceil(hero.hp))} / ${Math.round(hero.maxHp)}`);
+    this.#meter(this.hp, hero.hp, hero.maxHp, dt, `${num(Math.max(0, Math.ceil(hero.hp)))} / ${num(hero.maxHp)}`);
     const hasRes = (hero.maxResource ?? 0) > 0;
     toggle(this.res.el, 'hidden', !hasRes);
     if (hasRes) {
       this.res.el.dataset.kind = hero.resourceType ?? 'mana';
-      this.#meter(this.res, hero.resource, hero.maxResource, dt, `${Math.floor(hero.resource)} ${RES_NAMES[hero.resourceType] ?? ''}`);
+      this.#meter(this.res, hero.resource, hero.maxResource, dt, `${num(Math.floor(hero.resource))} ${RES_NAMES[hero.resourceType] ?? ''}`);
     }
     this.#meter(this.sta, hero.stamina ?? 0, hero.maxStamina ?? 100, dt, '');
     toggle(this.root, 'low-hp', !hero.dead && hero.hp / hero.maxHp < 0.3);
@@ -490,7 +490,7 @@ export class Hud {
       setText(this.bossName, b.actor.def?.name ?? b.actor.name ?? 'Boss');
     }
     const a = b.actor;
-    this.#meter(this.bossBar, Math.max(0, a.hp), a.maxHp, dt, `${Math.max(0, Math.ceil(a.hp))} / ${a.maxHp}`);
+    this.#meter(this.bossBar, Math.max(0, a.hp), a.maxHp, dt, `${num(Math.max(0, Math.ceil(a.hp)))} / ${num(a.maxHp)}`);
     toggle(this.bossEl, 'enraged', !!a.enraged || a.phase > 1);
   }
 
