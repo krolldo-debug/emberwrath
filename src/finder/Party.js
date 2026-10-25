@@ -357,11 +357,14 @@ export class Party {
   #gatherInArena() {
     const a = this.world.arena, h = this.player;
     if (!a) return;
+    // Ein Stück weiter in die Arena hinein als der Held: Liegt die Arena über dem Tor (Aschethron, Heulendes
+    // Hügelgrab), wäre „unter dem Helden“ genau der Torbogen, und das Tor schlösse sich um die Söldner.
+    const inward = Math.sign((a.y0 + a.y1) / 2 - h.y) || 1;
     for (const b of this.bots) {
       if (b.dead) continue;
       const inside = b.x > a.x0 && b.x < a.x1 && b.y > a.y0 + 4 && b.y < a.y1;
       if (inside || Math.hypot(b.x - h.x, b.y - h.y) > 260) continue;
-      const p = this.world.dungeon.nearestFree(h.x + (Math.random() - 0.5) * 24, h.y + 10, 6);
+      const p = this.world.dungeon.nearestFree(h.x + (Math.random() - 0.5) * 24, h.y + inward * 18, 6);
       b.x = p.x; b.y = p.y; b.vx = b.vy = 0;
     }
     this.hooks.event?.('bossPull');
