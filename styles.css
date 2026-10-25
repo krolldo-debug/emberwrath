@@ -24,8 +24,13 @@ html, body {
   overflow: hidden;
   touch-action: none;
   -webkit-user-select: none; user-select: none;
+  /* iPhone: langes Drücken (Fähigkeiten halten) öffnet sonst das Bildmenü „Teilen / In Fotos sichern“ */
+  -webkit-touch-callout: none;
   font-family: var(--ef-font); color: var(--ef-text);
 }
+img { -webkit-user-drag: none; }
+/* Eingabefelder (Chat, Anmeldung, Briefe) behalten Markieren und Einsetzen */
+input, textarea, [contenteditable="true"] { -webkit-touch-callout: default; -webkit-user-select: text; user-select: text; }
 body { display: flex; align-items: center; justify-content: center; }
 #game {
   display: block;
