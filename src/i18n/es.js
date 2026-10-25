@@ -1670,6 +1670,7 @@ export const ES = {
   "Färbung „{0}“": "Tinte «{0}»",
   "Fast geschafft: Bitte bestätige die Anmeldung über den Link in der E‑Mail, die wir dir gerade geschickt haben.": "Casi listo: confirma tu suscripción con el enlace del correo electrónico que te acabamos de enviar.",
   "Fast geschafft: Wir haben eine E-Mail an {0} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.": "Casi listo: hemos enviado un correo electrónico a {0}. Abre el enlace en este navegador para confirmar tu cuenta.",
+  "Fast geschafft: Wir haben eine E-Mail an {0} geschickt. Bestätige dein Konto über den Link darin und melde dich danach hier an.": "Casi listo: hemos enviado un correo electrónico a {0}. Confirma tu cuenta con el enlace que contiene y después inicia sesión aquí.",
   "Faulbann": "Rompeplaga",
   "Faulbann-Kettenhandschuhe": "Mitones de malla rompeplaga",
   "Faulbannamulett": "Amuleto rompeplaga",

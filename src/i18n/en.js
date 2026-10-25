@@ -1664,6 +1664,7 @@ export const EN = {
   "Färbung": "Dye",
   "Fast geschafft: Bitte bestätige die Anmeldung über den Link in der E‑Mail, die wir dir gerade geschickt haben.": "Almost done: please confirm your subscription with the link in the email we just sent you.",
   "Fast geschafft: Wir haben eine E-Mail an {0} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.": "Almost there: we've sent an email to {0}. Open the link in it in this browser to confirm your account.",
+  "Fast geschafft: Wir haben eine E-Mail an {0} geschickt. Bestätige dein Konto über den Link darin und melde dich danach hier an.": "Almost there: we've sent an email to {0}. Confirm your account with the link in it, then sign in here.",
   "Faulbann": "Blightbane",
   "Faulbann-Kettenhandschuhe": "Blightbane Chain Mitts",
   "Faulbannamulett": "Blightbane Amulet",
