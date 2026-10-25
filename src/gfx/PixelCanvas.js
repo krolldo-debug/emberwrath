@@ -1,18 +1,21 @@
 import { PAL } from './Palette.js';
 
-export function makeCanvas(w, h) {
+// opts = Kontext-Optionen; { willReadFrequently: true } für Bau-Leinwände, die zurückgelesen werden (getImageData):
+// sie gelten nur beim ersten getContext, ein späteres getContext('2d', { willReadFrequently }) ändert nichts mehr.
+export function makeCanvas(w, h, opts) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', opts);
   ctx.imageSmoothingEnabled = false;
   return c;
 }
 
 // Zeichenhilfe für pixelgenaue Sprite-Erzeugung.
 export class PixelCanvas {
-  constructor(w, h) {
+  // read = true: Bau-Leinwand, die als Pixelpuffer zurückgelesen wird (nicht selbst als Sprite gezeichnet)
+  constructor(w, h, { read = false } = {}) {
     this.w = w; this.h = h;
-    this.canvas = makeCanvas(w, h);
+    this.canvas = makeCanvas(w, h, read ? { willReadFrequently: true } : undefined);
     this.ctx = this.canvas.getContext('2d');
   }
   px(x, y, c) {

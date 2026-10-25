@@ -115,7 +115,10 @@ export class LoginScene extends MenuScene {
   }
 
   #field(label, attrs) {
-    const input = h('input.ef-input', attrs);
+    // E-Mail und Passwort: iOS darf nichts großschreiben oder „korrigieren“ (sonst passt das Passwort bei der
+    // Anmeldung nicht mehr, v. a. wenn es beim Registrieren über „Zeigen“ als normaler Text eingetippt wurde)
+    const raw = attrs.type === 'email' || attrs.type === 'password' ? { autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', ...attrs } : attrs;
+    const input = h('input.ef-input', raw);
     return { input, el: h('label.on-field', h('span.acc-label', label), input) };
   }
 
@@ -267,7 +270,11 @@ export class LoginScene extends MenuScene {
         // Zustimmung im Konto vermerken (Nachweis, welche Fassung wann akzeptiert wurde)
         const r = await this.online.client.signUp(mail, pw.input.value, n, consentMeta());
         if (r.needsConfirmation) {
-          this.#go('login', { kind: 'ok', text: `Fast geschafft: Wir haben eine E-Mail an ${mail} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.` });
+          // In der App öffnet sich der Link im Browser des Geräts: dort bestätigen, dann hier anmelden.
+          const text = inApp()
+            ? `Fast geschafft: Wir haben eine E-Mail an ${mail} geschickt. Bestätige dein Konto über den Link darin und melde dich danach hier an.`
+            : `Fast geschafft: Wir haben eine E-Mail an ${mail} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.`;
+          this.#go('login', { kind: 'ok', text });
         } else {
           this.online.notice = { kind: 'ok', text: `Willkommen, ${this.online.displayName}!` };
           this.game.scenes.go('title');

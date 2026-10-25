@@ -3,6 +3,7 @@ import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand } from '../core/math.js';
 import { drawGlowLayer } from '../gfx/Sprite.js';
+import { footprint } from '../systems/Physics.js';
 
 // Interaktive Weltobjekte. Gemeinsame Form (siehe world/Interactions.js):
 //   interactRange, canInteract(world), prompt(world) -> Text, promptAnchor() -> {x,y},
@@ -133,10 +134,27 @@ export class Gate extends Entity {
     if (this.closed === on) return;
     this.closed = on;
     this.box.off = !on;
+    if (on) this.#evict(world);
     world.flow.rebuildBlocked();
     world.bus.emit('gate', { closed: on, x: this.x, y: this.y });
     world.particles.dust(this.x, this.y, 16, '#6e6450');
     world.session.camera?.shake(3);
+  }
+  // Wer beim Schließen im Torbogen steht, säße in der Kollisionsbox fest (jeder Schritt kollidiert).
+  // Gruppe (Held, Söldner, Begleiter) kommt auf die Arenaseite, alle anderen auf die nähere Seite.
+  #evict(world) {
+    const b = this.box, a = world.arena;
+    const inward = a ? Math.sign((a.y0 + a.y1) / 2 - this.y) || 1 : 1;
+    for (const e of world.actors) {
+      if (e.removed || !e.radius) continue;
+      const [x0, y0, x1, y1] = footprint(e);
+      if (x0 >= b.x1 || x1 <= b.x0 || y0 >= b.y1 || y1 <= b.y0) continue;
+      const party = e === world.hero || e.companion || e.partyMember;
+      const side = party ? inward : (e.y < (b.y0 + b.y1) / 2 ? -1 : 1);
+      const ty = side > 0 ? b.y1 + e.radius + 8 : b.y0 - e.radius - 8;
+      const p = world.dungeon.nearestFree(Math.min(b.x1 - 6, Math.max(b.x0 + 6, e.x)), ty, e.radius);
+      e.x = p.x; e.y = p.y; e.vx = e.vy = 0;
+    }
   }
   update(dt) {
     const target = this.closed ? 1 : 0;

@@ -1670,6 +1670,7 @@ export const FR = {
   "Färbung „{0}“": "Teinture « {0} »",
   "Fast geschafft: Bitte bestätige die Anmeldung über den Link in der E‑Mail, die wir dir gerade geschickt haben.": "Presque fini : confirme ton inscription grâce au lien dans l'e‑mail que nous venons de t'envoyer.",
   "Fast geschafft: Wir haben eine E-Mail an {0} geschickt. Öffne den Link darin in diesem Browser, um dein Konto zu bestätigen.": "Presque fini : nous avons envoyé un e-mail à {0}. Ouvre le lien qu'il contient dans ce navigateur pour confirmer ton compte.",
+  "Fast geschafft: Wir haben eine E-Mail an {0} geschickt. Bestätige dein Konto über den Link darin und melde dich danach hier an.": "Presque fini : nous avons envoyé un e-mail à {0}. Confirme ton compte grâce au lien qu'il contient, puis connecte-toi ici.",
   "Faulbann": "Brise-Pourriture",
   "Faulbann-Kettenhandschuhe": "Mitons de mailles Brise-Pourriture",
   "Faulbannamulett": "Amulette Brise-Pourriture",

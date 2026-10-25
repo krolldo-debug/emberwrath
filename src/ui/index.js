@@ -28,6 +28,11 @@ export function installUi(game) {
   installPrefs(game); // Lautstärke, Touch-Größe, Minimap aus game.prefs
   installFullscreen(game); // Vollbild (Android/iPad) bzw. Web-App vom Home-Bildschirm (iPhone)
   installSafeEdges(); // Handy quer: HUD bis an den Rand, nur auf der Kameraseite Abstand
+  // Langes Drücken auf Knöpfe, Symbole und Taschen öffnet kein Kontextmenü (Android: Bild speichern),
+  // Eingabefelder und Links behalten ihr Menü. iPhone regelt styles.css (-webkit-touch-callout).
+  document.addEventListener('contextmenu', (e) => {
+    if (!e.target.closest?.('input, textarea, [contenteditable="true"], a[href]')) e.preventDefault();
+  });
   // Effekt-Sprites für andere Bereiche: assets.effects.guide (Questpfad, Thread B)
   game.assets.effects ??= {};
   game.assets.effects.guide = createGuideSprites();

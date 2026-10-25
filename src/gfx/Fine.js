@@ -24,7 +24,7 @@ export function col32(c) {
     const n = parseInt(h, 16);
     v = (0xff000000 | ((n & 255) << 16) | (n & 0xff00) | ((n >> 16) & 255)) >>> 0;
   } else {
-    probe ??= makeCanvas(1, 1).getContext('2d', { willReadFrequently: true });
+    probe ??= makeCanvas(1, 1, { willReadFrequently: true }).getContext('2d');
     probe.clearRect(0, 0, 1, 1); probe.fillStyle = c; probe.fillRect(0, 0, 1, 1);
     const d = probe.getImageData(0, 0, 1, 1).data;
     v = ((d[3] << 24) | (d[2] << 16) | (d[1] << 8) | d[0]) >>> 0;
@@ -52,8 +52,9 @@ export class FineCanvas {
   get canvas() { this.#flush(); return this._canvas; }
   #ensure() {
     if (this._canvas) return;
-    this._canvas = makeCanvas(this.W, this.H);
-    this._ctx = this._canvas.getContext('2d', { willReadFrequently: true });
+    // Bau-Leinwand: wird bei jedem Abschluss zurückgelesen (ohne willReadFrequently ein Rücklesen aus der Grafikkarte)
+    this._canvas = makeCanvas(this.W, this.H, { willReadFrequently: true });
+    this._ctx = this._canvas.getContext('2d');
     this._ctx.setTransform(this.res, 0, 0, this.res, this.ox * this.res, this.oy * this.res);
   }
   #flush() {

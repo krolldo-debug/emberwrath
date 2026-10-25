@@ -3223,13 +3223,11 @@ export function drawLoot(ctx, def, x, y, t = 0, { bob = 0, emissive = false } = 
   ctx.drawImage(fxCanvas, ox, oy, FX_W, FX_H);
 }
 
-// Säule, Bodenringe, Funken; s = Rasterschritt in Weltpixeln (0,5 im Feinraster)
-function lootGlow(ctx, rarity, order, x, y, t, s) {
+// Säule (Raster je Feinpixel) mit Fußpunkt (x, y); phase = Lage des Rasters (0–3), wandert nach oben (Säule steigt)
+function pillarRows(ctx, rarity, order, x, y, phase, strong, s) {
   const pal = LOOT_PAL[rarity], n = 1 / s;
   const [tall, core, mid] = LOOT_PILLAR[rarity];
-  const strong = Math.sin(t * 3) > -0.2; // zwei feste Helligkeitsstufen statt weichem Pulsieren
-  const rise = Math.floor(t * 10 * n);
-  // Säule: Breiten in Feinpixeln, Raster je Feinpixel
+  // Breiten in Feinpixeln, Raster je Feinpixel
   const cw = (core + 0.5) * n, mw = (mid + 0.5) * n, ew = mw + (order ? n : 0);
   for (let j = 0; j < tall * n; j++) {
     const row = y - 3 - (j + 1) * s, f = 1 - j / (tall * n);
@@ -3238,11 +3236,36 @@ function lootGlow(ctx, rarity, order, x, y, t, s) {
       const a = Math.abs(i + 0.5);
       if (a > ew) continue;
       const edge = a > mw, k = a <= cw ? 2 : a <= mw - n || mid === 0 ? 1 : 0;
-      if (!lit(i, j + rise, edge ? d * 0.35 : a <= cw ? Math.min(1, d + 0.2) : d)) continue;
+      if (!lit(i, j + phase, edge ? d * 0.35 : a <= cw ? Math.min(1, d + 0.2) : d)) continue;
       ctx.fillStyle = pal[edge ? 0 : k];
       ctx.fillRect(x + i * s, row, s, s);
     }
   }
+}
+// Fertige Säulen: je Seltenheit 4 Rasterlagen × 2 Helligkeiten, in der Größe der Leuchtfläche (Fußpunkt FX_W/2, FX_UP)
+const pillars = new Map();
+function lootPillar(rarity, order, phase, strong, s) {
+  const key = `${rarity}|${phase}|${strong ? 1 : 0}|${s}`;
+  let c = pillars.get(key);
+  if (!c) {
+    const n = 1 / s;
+    c = makeCanvas(FX_W * n, FX_H * n);
+    const g = c.getContext('2d');
+    g.setTransform(n, 0, 0, n, 0, 0);
+    pillarRows(g, rarity, order, FX_W / 2, FX_UP, phase, strong, s);
+    pillars.set(key, c);
+  }
+  return c;
+}
+
+// Säule, Bodenringe, Funken; s = Rasterschritt in Weltpixeln (0,5 im Feinraster)
+function lootGlow(ctx, rarity, order, x, y, t, s) {
+  const pal = LOOT_PAL[rarity], n = 1 / s;
+  const [tall, , mid] = LOOT_PILLAR[rarity];
+  const strong = Math.sin(t * 3) > -0.2; // zwei feste Helligkeitsstufen statt weichem Pulsieren
+  // Säule aus dem Vorrat: sie hängt nur von Seltenheit, Rasterlage (das Raster wiederholt sich alle 4 Feinzeilen) und
+  // Helligkeitsstufe ab. Früher Pixel für Pixel je Bild gezeichnet: viele Beutestücke kosteten tausende Zeichenbefehle.
+  ctx.drawImage(lootPillar(rarity, order, Math.floor(t * 10 * n) & 3, strong, s), x - FX_W / 2, y - FX_UP, FX_W, FX_H);
   const q = (v) => Math.round(v / s) * s;
   // Bodenring aus kreisenden Funken; ab episch ein zweiter, gegenläufiger Ring
   const rings = order >= 2 ? [[7, 2.5, 1], [11, 4, -0.7]] : [[7, 2.5, 1]];
@@ -3267,11 +3290,18 @@ function lootGlow(ctx, rarity, order, x, y, t, s) {
   if (order === 3) legendaryCrown(ctx, pal, x, y, t, s);
 }
 
-// Legendär hebt sich deutlich von Episch ab: Flammenzungen im Kreis hinter und neben der Beute (in festen Stufen
-// flackernd) und vier Runen, die auf dem Außenring wandern. Im Feinraster mit Feinpixeln, sonst ganze Weltpixel.
-function legendaryCrown(ctx, pal, x, y, t, s) {
-  const q = (v) => Math.round(v / s) * s;
-  const step = Math.floor(t * 9);
+// Flammenzungen der Krone je Flackerschritt (9 je Sekunde) einmal gerastert. Nach CROWN_LOOP Schritten (4 s) beginnt
+// der Lauf von vorn (die Flackerstufen wiederholen sich alle 4 Schritte, das Wiegen fast genau nach 36).
+const CROWN = { x: 12, y: 15, w: 24, h: 18 }, CROWN_LOOP = 36;
+const crowns = new Map();
+function crownFlames(pal, step, s) {
+  const key = `${pal[0]}|${step}|${s}`;
+  let c = crowns.get(key);
+  if (c) return c;
+  const n = 1 / s, x = CROWN.x, y = CROWN.y, q = (v) => Math.round(v / s) * s;
+  c = makeCanvas(CROWN.w * n, CROWN.h * n);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(n, 0, 0, n, 0, 0);
   for (let i = 0; i < 9; i++) {
     const a = Math.PI * 0.92 + i / 8 * Math.PI * 1.16;          // hintere Hälfte des Rings, etwas um die Seiten herum
     const fx = x + Math.cos(a) * 8, fy = y + Math.sin(a) * 3;
@@ -3283,6 +3313,16 @@ function legendaryCrown(ctx, pal, x, y, t, s) {
       if (w > 1.2 && u < 0.6) { ctx.fillStyle = pal[0]; ctx.fillRect(q(fx + sway + w / 2 - s), q(fy - j - s), s, s); }   // Schattenkante rechts
     }
   }
+  crowns.set(key, c);
+  return c;
+}
+
+// Legendär hebt sich deutlich von Episch ab: Flammenzungen im Kreis hinter und neben der Beute (in festen Stufen
+// flackernd) und vier Runen, die auf dem Außenring wandern. Im Feinraster mit Feinpixeln, sonst ganze Weltpixel.
+function legendaryCrown(ctx, pal, x, y, t, s) {
+  const q = (v) => Math.round(v / s) * s;
+  const step = Math.floor(t * 9);
+  ctx.drawImage(crownFlames(pal, step % CROWN_LOOP, s), x - CROWN.x, y - CROWN.y, CROWN.w, CROWN.h);
   // Runen auf dem Außenring
   for (let i = 0; i < 4; i++) {
     const a = t * 0.6 + i * Math.PI / 2, rx = x + Math.cos(a) * 12, ry = y + Math.sin(a) * 4.5;
