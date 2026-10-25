@@ -40,9 +40,11 @@ export function buildFrame(w, h, anchorX, anchorY, drawFn, { outline = true, fin
     drawFn(fc);
     d = fc.pixels(); W = fc.W; H = fc.H;
   } else {
-    const pc = new PixelCanvas(w, h);
+    // pc wird nur zurückgelesen (Pixelpuffer, Umriss), außer er ist selbst das fertige Bild (direkt, ohne Umriss)
+    const direct = res === 1 && !finish;
+    const pc = new PixelCanvas(w, h, { read: !direct || outline });
     drawFn(pc);
-    if (res === 1 && !finish) {
+    if (direct) {
       const canvas = outline ? outlineCanvas(pc.canvas) : pc.canvas;
       const pad = outline ? 1 : 0;
       return new SpriteFrame(canvas, anchorX + pad, anchorY + pad);

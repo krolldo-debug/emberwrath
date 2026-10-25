@@ -5,6 +5,7 @@ import { Light } from '../gfx/Lighting.js';
 import { getShadow } from '../entities/Entity.js';
 import { RARITIES } from './items.js';
 import { EV } from '../core/events.js';
+import { CONFIG } from '../config.js';
 
 const MAGNET_RANGE = 34;
 
@@ -83,7 +84,14 @@ export class LootDrop {
 
   #bob() { return this.z > 0 ? this.z : Math.sin(this.t * 3 + this.seed) * 1.5 + 1.5; }
 
+  // Im Bild (mit Rand für Säule, Ringe und Funken)? Liegengebliebene Beute außerhalb kostet sonst jedes Bild mit.
+  #onScreen(cx, cy) {
+    const x = this.x - cx, y = this.y - cy;
+    return x > -24 && x < CONFIG.viewWidth + 24 && y > -16 && y < CONFIG.viewHeight + 76;
+  }
+
   render(ctx, cx, cy) {
+    if (!this.#onScreen(cx, cy)) return;
     const sh = getShadow(10);
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     ctx.drawImage(sh, x - (sh.width >> 1), y - (sh.height >> 1));
@@ -94,6 +102,7 @@ export class LootDrop {
   // Die Säule leuchtet nach der Beleuchtung, bleibt aber hinter Figuren und Aufbauten, die vor der Beute stehen:
   // sie wird dann auf einer Hilfsleinwand gezeichnet und deren Umriss dort ausgestanzt.
   renderEmissive(ctx, cx, cy) {
+    if (!this.#onScreen(cx, cy)) return;
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
     const opts = { bob: this.#bob(), emissive: true };
     const w = this.session.world;
