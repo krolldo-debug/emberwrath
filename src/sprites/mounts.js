@@ -97,6 +97,9 @@ const COAT = {
   scarab: ['#2a1606', '#5a3410', '#9a6418', '#d8a030', '#ffe080'],
   // Erfolgsbelohnung (Goldhirsch): warmes Rotbraun
   stag: ['#24120a', '#462412', '#6e3c1e', '#9a5e30', '#c8884a'],
+  // Sternenglut: Kristallwidder (bläuliche Wolle), Mondluchs (silbernes Fell)
+  crystal: ['#1e2638', '#3a4862', '#62748e', '#98aac4', '#d4e2f2'],
+  moon: ['#232236', '#3e3e5a', '#64668a', '#9698ba', '#d0d4ec'],
 };
 const MANE = {
   dark: ['#120a08', '#24140e', '#3a2418', '#50341e'],
@@ -109,6 +112,8 @@ const MANE = {
   shadow: ['#1a0a2e', '#3a1466', '#6a2cb0', '#a060f0', '#e0b8ff'],
   starlight: ['#2a3c9a', '#4e72d8', '#8eb0ff', '#d0e0ff', '#ffffff'],
   soul: ['#0e5a4c', '#1e9878', '#40d8a4', '#9cf8d4', '#effff8'],
+  wool: ['#4a5a7a', '#7a8eae', '#b4c6de', '#eef6ff'],
+  moonfur: ['#3e3e5a', '#64668a', '#9698ba', '#e0e4f6'],
 };
 const TACK = {
   leather: { strap: ['#1e120c', '#3a2416', '#5a3a22', '#7a5230'], metal: ['#4a4a52', '#7a7a86', '#b0b0bc'], cloth: ['#3a1414', '#6a2020', '#9a3028'] },
@@ -119,8 +124,10 @@ const TACK = {
   astral: { strap: ['#0e1028', '#1c2248', '#2c3668', '#40508c'], metal: ['#8a9ac8', '#d0dcff', '#ffffff'], cloth: ['#24104a', '#3e1c7a', '#6030b0'] },
   hell: { strap: ['#0c0808', '#1c1212', '#2e1e1c', '#46302a'], metal: ['#3a2622', '#7a4a32', '#e08a3c'], cloth: ['#220404', '#440a08', '#741410'] },
   spirit: { strap: ['#101a1a', '#1e2e2e', '#2e4444', '#425e5c'], metal: ['#4a8a7a', '#8ad8c0', '#e0fff4'], cloth: ['#0c2a2a', '#16484a', '#22706c'] },
+  // Sternenglut: Morgenschimmer (Petrol und Roségold)
+  dawn: { strap: ['#14202a', '#22384a', '#345468', '#4a7088'], metal: ['#8a5a4a', '#d89a7a', '#ffd8c0'], cloth: ['#3a1a34', '#5e2a52', '#8a3e72'] },
 };
-const EYES = { ghost: '#8affb0', spore: '#e0a0ff', frost: '#c0f0ff', fire: '#ffb640', shadow: '#c07aff', star: '#e8f2ff', soul: '#7affd4' };
+const EYES = { ghost: '#8affb0', spore: '#e0a0ff', frost: '#c0f0ff', fire: '#ffb640', shadow: '#c07aff', star: '#e8f2ff', soul: '#7affd4', moon: '#fff0a8', ray: '#9af8f0' };
 
 const MANE_GLOW = { fire: '#ff8a30', starlight: '#8eb0ff', soul: '#40d8a4' };
 const HOOF_GLOW = { ghost: '#8affb0', starlight: '#c4d8ff', soul: '#7affd4' };
@@ -164,6 +171,14 @@ const grow = (b, k) => {
 };
 // Kurzer, kräftiger Nacken nach vorne und ein breiter, stumpfer Hundekopf (kein Pferdeprofil)
 BODY.hound = { ...grow(BODY.wolf, 1.2), neck: [[9, -13.6], [12, -15.8]], neckR: [5, 4.2], head: [[13.4, -16.6], [18.8, -15.4]], headR: [3.4, 2.2], jaw: true };
+
+// Sternenglut: Kristallwidder (gedrungen, kurzer Hals, Schneckenhörner), Mondluchs (runder Kopf, Pinselohren,
+// Stummelschwanz, große Pfoten), Himmelsrochen (schwebt, eigener Bauplan drawRay)
+BODY.ram = { legs: 4, rump: [-7.5, -12.5], chest: [6.5, -12.8], rB: 5.6, rC: 6, hip: [-7, -10.5], sh: [6, -10.5], up: 5, low: 5.6, legR: [1.9, 1.15], hoof: 'hoof',
+  neck: [[8, -14.5], [11, -19]], neckR: [3.8, 2.6], head: [[11.4, -20], [15.4, -17.4]], headR: [2.6, 1.7], ear: 'ram', tail: 'stub', horns: 'ram', stride: 3.2, lift: 2.2, seat: [-0.5, -18.4] };
+BODY.lynx = { legs: 4, rump: [-7, -12.4], chest: [6, -11.6], rB: 4.8, rC: 5.2, hip: [-6.5, -10.6], sh: [6, -9.8], up: 5, low: 5.4, legR: [2.1, 1.35], hoof: 'paw',
+  neck: [[7.5, -13], [10, -14.8]], neckR: [4, 3.4], head: [[11.2, -15.6], [14.2, -14.6]], headR: [3.7, 2.3], ear: 'lynx', tail: 'bob', stride: 3.6, lift: 2.6, seat: [-0.5, -16.6] };
+BODY.ray = { plan: 'ray', legs: 0, seat: [-0.5, -16.2] };
 
 // Beinposition im Gang (wie die Helden): Stand vorne -> hinten, Schwung angehoben nach vorne
 function footAt(ph, stride, lift) {
@@ -463,8 +478,91 @@ function drawDrake(R, G, B, look, pose) {
   for (const L of legs) if (L.near) drawLeg(L);
 }
 
+// Himmelsrochen (Sternenglut): schwebt statt zu laufen. Schräg von oben gesehen wie die Welt: die Schwingen spannen
+// sich in die Tiefe (ferne nach oben, nahe nach unten), beim Schlag heben sich beide Spitzen. Langer Peitschenschwanz,
+// Kopflappen vorn. Rücken petrol mit leuchtenden Punkten, roségoldene Vorderkanten, Perlmuttbauch.
+const RAY = {
+  back: ['#08141e', '#102434', '#1a3a4e', '#28566a', '#3c7686', '#5a98a4'],
+  belly: ['#4e4256', '#806e84', '#b09eae', '#d8c8d0', '#f6ecee'],
+  edge: ['#7a3e4e', '#c07480', '#eeaaaa', '#ffe0d6'],
+  spot: ['#2ab8b8', '#7af0e8', '#e0fffa'],
+};
+function drawRay(R, G, B, look, pose) {
+  const T = TACK[look.tack] ?? TACK.dawn, ec = EYES[look.eyes] ?? EYES.ray;
+  const bob = pose.bob, ph = pose.ph, fine = R.s >= 2;
+  const flap = Math.sin(ph - 0.6), cy = -14 + bob, lift = flap * 3.2;
+  const inPoly = (pts, x, y) => {
+    let c = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i], [xj, yj] = pts[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  };
+  // Schwinge s = -1 fern (oben), +1 nah (unten): Vorderkante geschwungen bis zur Spitze, Hinterkante zum Schwanz
+  const wing = (s) => {
+    const tipY = cy + s * 10.5 - lift, k = (t) => cy + s * (1 + (10.5 - 1) * t) - lift * t;
+    const lead = [[8.5, cy + s], [5.5, k(0.35)], [1.5, k(0.7)], [-3, tipY]];
+    const trail = [[-6, cy + s * 8.6 - lift * 0.85], [-9.5, cy + s * 4 - lift * 0.4], [-13, cy + s * 0.6]];
+    const pts = [...lead, ...trail];
+    const base = s < 0 ? 2.5 - flap * 0.5 : 2.1 + flap * 0.6;
+    R.each(-14, Math.min(cy, tipY) - 1, 10, Math.max(cy, tipY) + 1, (x, y, F, Gi) => {
+      if (!inPoly(pts, x, y)) return;
+      const out = Math.abs(y - cy) / 10.5;   // 0 am Körper, 1 an der Spitze
+      R.put(F, Gi, band(RAY.back, base + 0.6 - out * 1.1 + (x > 0 ? 0.3 : 0)));
+    });
+    for (let i = 0; i < lead.length - 1; i++) { R.line(lead[i][0], lead[i][1], lead[i + 1][0], lead[i + 1][1], 0.8, RAY.edge[s < 0 ? 2 : 1]); if (fine) R.line(lead[i][0] - 0.4, lead[i][1] - s * 0.4, lead[i + 1][0] - 0.4, lead[i + 1][1] - s * 0.4, 0.3, RAY.edge[0]); }
+    R.line(-3, tipY, trail[0][0], trail[0][1], 0.6, RAY.edge[0]);
+    for (let i = 0; i < trail.length - 1; i++) R.line(trail[i][0], trail[i][1], trail[i + 1][0], trail[i + 1][1], 0.4, RAY.back[0]);
+    // Leuchtpunkte parallel zur Vorderkante
+    [0.3, 0.55, 0.8].forEach((t, i) => {
+      const x = 5 - t * 9, y = cy + s * (1 + 8.8 * t) - lift * t - s * 1, p = (Math.sin(ph * 2 + i * 1.4 + s) + 1) / 2;
+      R.ellipse(x, y, 0.6, 0.5, () => (p > 0.5 ? RAY.spot[2] : RAY.spot[1]));
+      if (i !== 1) G.push({ x: Math.round(x), y: Math.round(y), color: RAY.spot[1], r: 1 + p * 0.8 });
+    });
+  };
+  // Peitschenschwanz
+  let px = -12, py = cy;
+  for (let i = 1; i <= 10; i++) {
+    const t = i / 10, x = -12 - t * 16, y = cy + t * 1.4 + Math.sin(ph * 1.5 + t * 4) * t * 1.8;
+    R.capsule(px, py, x, y, 1 * (1 - (i - 1) / 11) + 0.2, 1 * (1 - i / 11) + 0.2, (l) => band(RAY.back, 2 + l * 1.4));
+    px = x; py = y;
+  }
+  wing(-1);
+  wing(1);
+  // Rumpf: flacher Rückenwulst, Bauch als schmaler heller Saum unten
+  R.ellipse(0, cy + 0.4, 13.5, 2.5, (l, d, x, y, nx, ny) => (ny > 0.55 ? band(RAY.belly, 2 + l) : null));
+  R.ellipse(0, cy - 0.2, 13, 2.6, (l, d) => band(RAY.back, 2.9 + l * 1.5 - (d > 0.9 ? 0.7 : 0)));
+  if (fine) for (let x = -10; x <= 9; x += 0.5) R.dot(x, cy - 1.3 - Math.cos(x / 13 * 1.5) * 0.4, RAY.back[5]);
+  [[-8, -1], [-4.5, -1.6], [4.5, -1.4]].forEach(([x, y], i) => R.ellipse(x, cy + y, 0.55, 0.45, () => RAY.spot[i % 2 ? 1 : 2]));
+  // Kopf: Lappen vorn, Augen an den Seiten
+  R.capsule(12, cy - 1.4, 16, cy - 2.4, 1.1, 0.6, (l) => band(RAY.back, 2.4 + l * 1.2));
+  R.capsule(12, cy + 1.2, 16, cy + 1.9, 1.2, 0.6, (l) => band(RAY.back, 2.8 + l * 1.2));
+  R.dot(16.1, cy - 2.4, RAY.edge[2]); R.dot(16.1, cy + 2, RAY.edge[2]);
+  R.line(13.2, cy - 0.2, 14.4, cy - 0.1, 0.4, RAY.back[0]);
+  for (const ey of [-1.6, 1.1]) { R.dot(11.2, cy + ey, ec); if (fine) R.dot(11.7, cy + ey, '#ffffff'); }
+  G.push({ x: 11, y: Math.round(cy - 1), color: ec, r: 1.5 });
+
+  // Sattel auf dem Rücken
+  const sx = B.seat[0], sy = B.seat[1] + bob, by0 = sy + 1.2;
+  R.each(sx - 4.5, by0 - 0.5, sx + 4, by0 + 4, (x, y, F, Gi) => {
+    if (R.buf[Gi * R.fw + F] === 0) return;
+    const nx = (x - (sx - 0.25)) / 4.2, bottom = by0 + 2.8 - nx * nx * 1.2;
+    if (y > bottom || Math.abs(nx) > 1) return;
+    R.put(F, Gi, y > bottom - 0.7 ? T.metal[1] : band(T.cloth, 1.2 + (nx < 0 ? 0.8 : 0) - (y > by0 + 2 ? 0.5 : 0)));
+  });
+  R.capsule(sx - 3, sy + 0.6, sx + 2.6, sy + 0.8, 1.3, 1.4, (l) => band(T.strap, 2 + l));
+  R.line(sx - 3.4, sy - 1, sx - 3.1, sy + 0.6, 0.9, T.strap[3]);
+  R.line(sx + 2.8, sy - 1.2, sx + 3.2, sy + 0.6, 0.9, T.strap[3]);
+  if (fine) tackDetail(R, T, sx, sy, by0, 2.8, 1.2);
+  R.line(12.4, cy - 0.4, sx + 3, sy - 0.2, 0.5, T.strap[3]);
+  R.dot(12.4, cy - 0.4, T.metal[2]);
+  G.push({ x: 0, y: Math.round(cy + 4), color: '#4ad0d0', r: 5 });
+}
+
 function drawMount(R, G, B, look, pose) {
   if (B.plan === 'drake') return drawDrake(R, G, B, look, pose);
+  if (B.plan === 'ray') return drawRay(R, G, B, look, pose);
   const C = COAT[look.coat] ?? COAT.bay, Mn = MANE[look.mane] ?? MANE.dark, T = TACK[look.tack] ?? TACK.leather;
   const fire = look.mane === 'fire', ghost = ['ghost', 'shadow', 'starlight', 'soul'].includes(look.mane);
   // Lodernde Mähne und Schweif (Feuer, Sternenlicht, Seelenlicht): nach oben wehend, helle Spitzen, leuchtet
@@ -475,6 +573,7 @@ function drawMount(R, G, B, look, pose) {
   const fine = R.s >= 2;
   const bodyShade = fine ? sheenOf(C, 2.1, 1.35) : shadeOf(C, 2.1, 1.35);
   const legShade = (near) => shadeOf(near ? C : dim(C), 2, 1.2);
+  const furry = B.ear === 'wolf' || B.ear === 'lynx';
 
   // Beine: ferne zuerst (dunkler), nahe nach dem Rumpf
   const legs = [];
@@ -542,6 +641,9 @@ function drawMount(R, G, B, look, pose) {
     if (ghost) for (let i = 0; i < 3; i++) R.line(tailRoot[0] - 4.5, tailRoot[1] + 2.5 + sw, tailRoot[0] - 7 - i * 0.8, tailRoot[1] - 1.5 + i * 1.6 + sw * 0.6, 0.8, (t) => band(Mn, 2.6 - t * 1.6));
   } else if (B.tail === 'stub') {
     R.ellipse(tailRoot[0] - 0.5, tailRoot[1] - 0.5, 1.4, 1.1, (l) => band(C, 3 + l));
+  } else if (B.tail === 'bob') {
+    // Luchs: kurzer, aufgestellter Stummelschwanz mit dunkler Spitze
+    R.capsule(tailRoot[0], tailRoot[1], tailRoot[0] - 3, tailRoot[1] - 1.4 + sw * 0.3, 1.5, 1.2, (l, t) => (t > 0.75 ? C[0] : band(C, 2 + l * 1.3)));
   } else if (B.tail === 'plume') {
     for (let i = 0; i < 4; i++) R.line(tailRoot[0] + 1, tailRoot[1], tailRoot[0] - 5 - i * 0.6, tailRoot[1] - 5 + i * 2.2 + sw * 0.4, 1.1, (t) => band(Mn, 3 - t * 2 + (i === 0 ? 0.5 : 0)));
   } else if (B.tail === 'lizard') {
@@ -618,6 +720,27 @@ function drawMount(R, G, B, look, pose) {
     });
     for (const [a, b] of [[0, 2], [2, 4], [4, 5], [1, 3]]) R.line(stars[a][0], stars[a][1] + bob, stars[b][0], stars[b][1] + bob, 0.3, '#4a64c8');
     G.push({ x: -1, y: Math.round(-13 + bob), color: '#4a64d0', r: 6 });
+  }
+  if (look.glow === 'moon') {
+    // Mondluchs: dunkle Tupfen auf Keule und Flanke, leuchtende Mondsichel auf der Schulter
+    for (const [x, y, r] of [[-9, -12.5, 0.7], [-7, -9.8, 0.6], [-5, -13.6, 0.55], [-3.2, -10.8, 0.6], [-1, -14, 0.5], [1, -9.6, 0.5], [-8.4, -15, 0.45]]) {
+      R.ellipse(x, y + bob, r + 0.25, r, () => C[1]);
+      if (fine) R.dot(x, y + bob, C[2]);
+    }
+    const mx = chest[0] - 1.4, my = chest[1] - 1.2, glowP = (Math.sin(pose.ph * 1.5) + 1) / 2;
+    for (let a = 0.9; a < 4.1; a += 0.25) R.dot(mx + Math.cos(a) * 1.9, my + Math.sin(a) * 2.2, a > 1.6 && a < 3.4 ? '#fff6c8' : '#e8d890');
+    if (fine) for (let a = 1.3; a < 3.7; a += 0.3) R.dot(mx + Math.cos(a) * 1.4, my + Math.sin(a) * 1.7, '#fff6c8');
+    G.push({ x: Math.round(mx - 1), y: Math.round(my), color: '#f4e8a0', r: 2 + glowP });
+  }
+  if (look.glow === 'crystal') {
+    // Kristallwidder: Kristalle wachsen aus der Wolle (Kruppe und Widerrist), leuchten von innen
+    const CR = ['#1c4468', '#3c80b4', '#86c8ec', '#e4f8ff'];
+    for (const [x, h, lean, w] of [[-9.5, 4.2, -1.4, 1.2], [-7.4, 5.6, -0.6, 1.4], [-5.6, 3.4, 0.4, 1], [5.2, 3.6, -0.8, 1.1], [6.8, 2.6, 0.2, 0.9]]) {
+      const by = (x < 0 ? rump[1] - B.rB * 0.86 : chest[1] - B.rC * 0.86) + 0.6;
+      R.tri(x - w, by, x + w, by, x + lean, by - h, (u, v) => (v > 0.6 ? CR[3] : u > 0.5 ? CR[2] : CR[1]));
+      if (fine) R.line(x, by - 0.2, x + lean * 0.8, by - h * 0.8, 0.3, CR[3]);
+    }
+    G.push({ x: -7, y: Math.round(rump[1] - B.rB - 2), color: '#7ad0ff', r: 3 }, { x: 6, y: Math.round(chest[1] - B.rC - 1), color: '#7ad0ff', r: 2 });
   }
   if (fine && (look.glow === 'magma' || look.glow === 'soul')) {
     // Rückenkamm: Fellbüschel vom Widerrist zur Kruppe, nach hinten gekämmt. Höllenhund: Spitzen glühen;
@@ -713,12 +836,12 @@ function drawMount(R, G, B, look, pose) {
         const n = 7;
         for (let i = 0; i <= n; i++) {
           const t = i / n, x = n0[0] + (n1[0] - n0[0]) * t - 1.8, y = n0[1] + (n1[1] - n0[1]) * t - (B.neckR[0] + (B.neckR[1] - B.neckR[0]) * t) * 0.7;
-          const len = B.ear === 'wolf' ? 1.6 : 2.6 + Math.sin(t * 5 + pose.ph) * 0.5;
-          const wl = B.ear === 'wolf' && flame ? len + 1.6 : len;
-          R.line(x + 1, y, x - wl * 0.7, y + wl * 0.5 + (flame ? -wl : 0), 1.1, (u) => flame ? Mn[clamp(Math.round(3 + u * 1.4 - (i % 2)), 0, 4)] : B.ear === 'wolf' ? band(C, 1.3 + u) : Mn[clamp(Math.round(2.5 - u * 2 + (i % 2) * 0.5), 0, Mn.length - 1)]);
+          const len = furry ? 1.6 : 2.6 + Math.sin(t * 5 + pose.ph) * 0.5;
+          const wl = furry && flame ? len + 1.6 : len;
+          R.line(x + 1, y, x - wl * 0.7, y + wl * 0.5 + (flame ? -wl : 0), 1.1, (u) => flame ? Mn[clamp(Math.round(3 + u * 1.4 - (i % 2)), 0, 4)] : furry ? band(C, 1.3 + u) : Mn[clamp(Math.round(2.5 - u * 2 + (i % 2) * 0.5), 0, Mn.length - 1)]);
           // Stufe B: Flammenzungen mit heißem Kern, Fellbüschel mit heller Spitze
           if (fine && flame) R.line(x + 0.6, y - 0.2, x - wl * 0.55, y + wl * 0.4 - wl * 0.85, 0.3, (u) => (u > 0.3 && u < 0.85 ? Mn[4] : null));
-          else if (fine && B.ear === 'wolf') R.dot(x - wl * 0.6, y + wl * 0.42, C[4]);
+          else if (fine && furry) R.dot(x - wl * 0.6, y + wl * 0.42, C[4]);
         }
         if (fine && look.mane === 'starlight') {
           for (let i = 0; i < 3; i++) {
@@ -761,6 +884,34 @@ function drawMount(R, G, B, look, pose) {
     // spitze Ohren, innen glühend
     for (const [ox, h, far] of [[-0.6, 4.6, true], [1.2, 4.2, false]]) { const bx = h0[0] + ox, by = h0[1] - 2; R.tri(bx - 1.3, by + 0.4, bx + 1.1, by + 0.4, bx - 0.6, by - h, (u) => (far ? C[2] : u > 0.55 ? C[4] : C[3])); if (!far) R.line(bx - 0.3, by - 0.2, bx - 0.5, by - h + 1.4, 0.4, '#c8420c'); }
   } else if (B.ear === 'wolf') { R.line(h0[0] - 0.5, h0[1] - 2.2, h0[0] - 0.9, h0[1] - 5, 1.4, (t) => band(C, 2.5 - t)); R.line(h0[0] + 1.2, h0[1] - 2.2, h0[0] + 1.4, h0[1] - 4.6, 1.1, C[3]); }
+  else if (B.ear === 'lynx') {
+    // Pinselohren: spitze Dreiecke mit schwarzem Haarpinsel, Backenbart nach hinten unten
+    for (const [ox, far] of [[-1, true], [1, false]]) {
+      const bx = h0[0] + ox, by = h0[1] - 2.4;
+      R.tri(bx - 1.6, by + 1, bx + 1.3, by + 1, bx - 0.9, by - 3, (u) => (far ? C[1] : u > 0.55 ? C[3] : C[2]));
+      if (!far) R.line(bx - 0.3, by + 0.4, bx - 0.7, by - 1.6, 0.5, C[0]);
+      R.line(bx - 0.9, by - 2.8, bx - 1.3, by - 4.6, 0.45, '#0a0810');
+    }
+    for (let i = 0; i < 4; i++) R.line(h0[0] + 0.2, h0[1] + 0.4 + i * 0.8, h0[0] - 2.2, h0[1] + 2.2 + i * 1, 0.7, i % 2 ? C[4] : C[3]);
+    R.ellipse(h1[0] - 0.2, h1[1] + 0.5, 1.7, 1.2, (l) => band(C, 3.2 + l));   // helle Schnauze
+    if (fine) { R.line(h0[0] + 1.4, h0[1] - 0.2, h1[0] - 0.6, h1[1] - 1, 0.3, C[4]); R.line(h1[0] - 0.8, h1[1] + 0.9, h1[0] + 0.8, h1[1] + 0.8, 0.3, C[0]); }
+  }
+  if (B.horns === 'ram') {
+    // Schneckenhörner aus Kristall: Spirale nach hinten unten um das Ohr, Ringe, leuchtende Spitze
+    const HR = look.coat === 'crystal' ? ['#24507a', '#4c90c4', '#96d4f2', '#e8faff'] : ['#3a2c1e', '#6a5236', '#9a7c58', '#d0b48a'];
+    const horn = (dx, far) => {
+      const cx = h0[0] - 2 + dx, cy2 = h0[1] - 0.4, pts = [[h0[0] + 0.6 + dx, h0[1] - 2.2]];
+      for (let i = 0; i <= 12; i++) { const t = i / 12, a = -Math.PI / 2 - t * 4.3, r = 3.4 - t * 1.9; pts.push([cx + Math.cos(a) * r, cy2 + Math.sin(a) * r]); }
+      for (let i = 0; i < pts.length - 1; i++) {
+        const t = i / (pts.length - 1), w0 = 1.35 - t * 0.85, w1 = 1.35 - (i + 1) / (pts.length - 1) * 0.85;
+        R.capsule(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w0, w1, (l) => band(HR, (far ? 0.8 : 1.6) + l * 1.4 - (i % 3 === 2 ? 0.8 : 0)));
+      }
+      return pts[pts.length - 1];
+    };
+    horn(1.2, true);
+    const tip = horn(0, false);
+    if (look.coat === 'crystal') { R.dot(tip[0], tip[1], '#ffffff'); G.push({ x: Math.round(tip[0]), y: Math.round(tip[1]), color: '#9ae4ff', r: 1.5 }); }
+  }
   if (look.glow === 'magma' && B.neck) {
     // Gebogene Hörner und ein Stachelhalsband
     const HN = ['#2a1c16', '#5a4232', '#8e6c4c', '#d0aa7c'];
@@ -821,8 +972,8 @@ function drawMount(R, G, B, look, pose) {
     if (fine) R.dot(eye[0] + 0.5, eye[1] + 0.5, '#3a2a24');   // Iris unten im Auge
   }
   // Nüstern und Zaumzeug
-  if (!B.beak && B.ear !== 'wolf' && !B.shell) R.dot(h1[0] + 0.4, h1[1] - 0.2, C[0]);
-  if (B.ear === 'wolf') R.dot(h1[0] + 1, h1[1] - 0.4, '#0a0608');
+  if (!B.beak && !furry && !B.shell) R.dot(h1[0] + 0.4, h1[1] - 0.2, C[0]);
+  if (furry) R.dot(h1[0] + (B.ear === 'lynx' ? 1.4 : 1), h1[1] - 0.4, '#0a0608');
   if (!B.shell) {
     const bit = [h1[0] - 1.2, h1[1] + 0.2];
     R.line(h0[0] - 0.4, h0[1] - 1.2, bit[0], bit[1], 0.5, T.strap[2]);              // Backenstück
@@ -846,10 +997,12 @@ function makeFrame(B, look, pose, res) {
 }
 
 function buildSet(B, look, res) {
-  const stand = [0, 1, 2, 3].map((i) => makeFrame(B, look, { walk: false, ph: i * (TAU / 4), bob: i === 1 || i === 2 ? 0.35 : 0, nod: i === 2 ? 0.5 : 0 }, res));
+  // Schwebende Reittiere (Himmelsrochen) heben und senken sich mit dem Flügelschlag statt mit den Schritten
+  const hover = B.plan === 'ray';
+  const stand = [0, 1, 2, 3].map((i) => makeFrame(B, look, { walk: false, ph: i * (TAU / 4), bob: hover ? [0, -0.5, -1, -0.5][i] : i === 1 || i === 2 ? 0.35 : 0, nod: i === 2 ? 0.5 : 0 }, res));
   const walk = [0, 1, 2, 3, 4, 5].map((i) => {
     const ph = (i / 6) * TAU;
-    return makeFrame(B, look, { walk: true, ph, bob: Math.round(Math.abs(Math.sin(ph * 2)) * 2) / 2 - 0.5, nod: Math.sin(ph * 2) * 0.8 }, res);
+    return makeFrame(B, look, { walk: true, ph, bob: hover ? Math.round(Math.sin(ph) * 2) / 2 - 0.5 : Math.round(Math.abs(Math.sin(ph * 2)) * 2) / 2 - 0.5, nod: Math.sin(ph * 2) * 0.8 }, res);
   });
   return { stand: new Animation(stand, 5), walk: new Animation(walk, 11) };
 }

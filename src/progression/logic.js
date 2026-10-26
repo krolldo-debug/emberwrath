@@ -6,7 +6,7 @@
 // Quest-Abschluss, Kauf/Verkauf, Verbrauch, Herstellen). Ein späterer ServerAuthority
 // berechnet diese Commands selbst; der Client schickt dann nur noch die Absicht.
 import { EV } from '../core/events.js';
-import { LEVEL_CAP, totalXpForLevel, killXp, mobXp } from './xp.js';
+import { LEVEL_CAP, PACE_NEW, totalXpForLevel, killXp, mobXp, paceXp, levelCap, isStarsOpen } from './xp.js';
 import { ITEMS, EQUIP_SLOTS, RARITIES, stackSize, buyPrice, equipSlotFor, canUseClass, itemScore } from './items.js';
 import { QUESTS, NPC_LINES, VENDORS } from './quests.js';
 import { rollLoot, BOSS_QUEST_GRANTS, pickEquipment } from './loot.js';
@@ -172,17 +172,20 @@ function addGold(s, ctx, delta, source) {
   ctx.bus.emit(EV.GOLD_CHANGED, { delta, total: w.gold, source });
 }
 
-function grantXp(s, ctx, amount, source) {
+// exact: genau diese Menge (reachLevel), sonst gilt das Tempo des Charakters (xp.js paceXp, Bestandsschutz)
+function grantXp(s, ctx, amount, source, exact = false) {
   const p = s.get('progress');
-  if (amount <= 0 || p.level >= LEVEL_CAP) return 0;
+  const cap = levelCap();
+  if (amount <= 0 || p.level >= cap) return 0;
+  if (!exact) amount = paceXp(p, amount);
   p.xp += amount;
   ctx.bus.emit(EV.XP_GAINED, { amount, total: p.xp, source });
-  while (p.level < LEVEL_CAP && p.xp >= totalXpForLevel(p.level + 1)) {
+  while (p.level < cap && p.xp >= totalXpForLevel(p.level + 1)) {
     p.level++;
-    p.xpNext = totalXpForLevel(Math.min(LEVEL_CAP, p.level + 1));
+    p.xpNext = totalXpForLevel(Math.min(cap, p.level + 1));
     ctx.bus.emit(EV.LEVEL_UP, { level: p.level });
   }
-  if (p.level >= LEVEL_CAP) { p.xp = totalXpForLevel(LEVEL_CAP); p.xpNext = p.xp; }
+  if (p.level >= cap) { p.xp = totalXpForLevel(cap); p.xpNext = p.xp; }
   return amount;
 }
 
@@ -361,11 +364,14 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
   const emptyStats = () => ({ kills: 0, bossKills: 0, eliteKills: 0, questsCompleted: 0, goldEarned: 0, itemsLooted: 0, crafted: 0, epicFound: 0, legendaryFound: 0, byType: {} });
 
   state.defineSlice('progress', {
-    create: () => ({ level: 1, xp: 0, xpNext: totalXpForLevel(2), stats: emptyStats() }),
+    // pace: Tempo der Kurve (xp.js). Neue Charaktere PACE_NEW; Spielstände von vor Sternenglut haben keins (altes Tempo).
+    // Solange Sternenglut geschlossen ist (xp.js isStarsOpen), entstehen Charaktere mit dem alten Tempo.
+    create: () => ({ level: 1, xp: 0, xpNext: totalXpForLevel(2), ...(isStarsOpen() ? { pace: PACE_NEW } : {}), stats: emptyStats() }),
     deserialize: (raw) => {
       const level = Math.max(1, Math.min(LEVEL_CAP, raw.level | 0 || 1));
       const xp = Math.max(totalXpForLevel(level), raw.xp | 0);
-      return { level, xp, xpNext: totalXpForLevel(Math.min(LEVEL_CAP, level + 1)), stats: { ...emptyStats(), ...raw.stats } };
+      const pace = raw.pace === PACE_NEW ? { pace: PACE_NEW } : {};
+      return { level, xp, xpNext: totalXpForLevel(Math.min(LEVEL_CAP, level + 1)), ...pace, stats: { ...emptyStats(), ...raw.stats } };
     },
   });
 
@@ -591,7 +597,7 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
     ctx.bus.emit(EV.QUEST_COMPLETED, { questId, rewards: { ...rewards, items } });
     if (rewards.xp) grantXp(s, ctx, rewards.xp, `quest:${questId}`);
     // reachLevel: das Ende der Geschichte hebt garantiert auf diese Stufe (Glutprüfungen ab 20)
-    if (rewards.reachLevel && s.get('progress').level < rewards.reachLevel) grantXp(s, ctx, totalXpForLevel(rewards.reachLevel) - s.get('progress').xp, `quest:${questId}`);
+    if (rewards.reachLevel && s.get('progress').level < rewards.reachLevel) grantXp(s, ctx, totalXpForLevel(rewards.reachLevel) - s.get('progress').xp, `quest:${questId}`, true);
     refreshQuests(s, ctx);
     // Neu freigeschaltete Quests ansagen (Nebenquests und Kopfgelder sollen auffallen)
     if (!quest.repeatable) {

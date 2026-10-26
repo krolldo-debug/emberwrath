@@ -249,6 +249,22 @@ const g3 = [];
 for (const it of EP3) g3.push(await rpc(G, 'market_list', { p_character: 'cg', p_item: it, p_qty: 1, p_start_bid: 100, p_buyout: null, p_hours: 12 }));
 ok(g3[0].ok && g3[1].ok && g3[2].error === 'budget', `Neues Konto: Vorschuss zählt nicht fürs Kontingent (${g3.map((x) => x.ok || x.error).join(', ')})`);
 
+// Zählt das Fortschrittsbuch die Beute (Übergang vorbei, Kappen an, Buch vorhanden), kostet eigene Beute kein Kontingent
+await pool.query("update public.ledger_config set strict_after = now() - interval '1 minute', enforce = true where id = 1");
+r = await rpc(G, 'market_list', { p_character: 'cg', p_item: EP3[2], p_qty: 1, p_start_bid: 100, p_buyout: null, p_hours: 12 });
+ok(r.ok && await freshUsed(G) === 20, `Mit Fortschrittsbuch: Einstellen ohne Kontingent (${r.ok || r.error}, ${await freshUsed(G)})`);
+await put(G, 'cg2', snapshot({ slots: LEG.slice(0, 2).map((itemId) => ({ itemId, qty: 1 })) }));
+r = await rpc(G, 'market_list', { p_character: 'cg2', p_item: LEG[0], p_qty: 1, p_start_bid: 100, p_buyout: null, p_hours: 12 });
+ok(r.ok, `Mit Fortschrittsbuch: legendäre Beute am ersten Handelstag (${r.ok || r.error})`);
+await pool.query('update public.ledger_config set enforce = false where id = 1');
+r = await rpc(G, 'market_list', { p_character: 'cg2', p_item: LEG[1], p_qty: 1, p_start_bid: 100, p_buyout: null, p_hours: 12 });
+ok(!r.ok && r.error === 'budget', 'Notbremse des Fortschrittsbuchs: Kontingent gilt wieder');
+await pool.query('update public.ledger_config set enforce = true where id = 1');
+await pool.query("delete from public.character_ledger where user_id = $1 and character_id = 'cg2'", [G]);
+r = await rpc(G, 'market_list', { p_character: 'cg2', p_item: LEG[1], p_qty: 1, p_start_bid: 100, p_buyout: null, p_hours: 12 });
+ok(!r.ok && r.error === 'budget', 'Charakter ohne Buch: Kontingent gilt');
+await pool.query('update public.ledger_config set strict_after = null, enforce = true where id = 1');
+
 // ---------------------------------------------------------------- Tempo beim Ansehen
 let look = null;
 for (let i = 0; i < 121; i++) look = await rpc(G, 'market_browse', { p_character: 'cg' });

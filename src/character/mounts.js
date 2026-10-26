@@ -3,12 +3,13 @@ import { CONFIG } from '../config.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { getMountSprites, composeRide } from '../sprites/mounts.js';
 import { spriteStyle } from './cosmetics.js';
+import { isStarsOpen } from '../progression/xp.js';
 
 // Reittiere (Thread A, INTEGRATION §12.6). Reine Daten + Regeln, ohne DOM (serverfähig).
 //
 // content 'mount': { id, name, rarity, speed, sprite, source, desc }
 //   speed  = Tempo-Bonus als Anteil (rare 0.6, epic 0.8, legendary 1.0), gilt zusätzlich zur Ausrüstungs-Obergrenze.
-//   sprite = Körperbau in sprites/mounts.js (horse, wolf, hound, strider, beetle, elk, drake) + Farben (look).
+//   sprite = Körperbau in sprites/mounts.js (horse, wolf, hound, strider, beetle, elk, drake, ray, lynx, ram) + Farben (look).
 // Slice character.mounts = { owned: [mountId], active: mountId|null, riding: bool }
 // Commands: mount:learn { mountId }, mount:select { mountId }, mount:toggle { riding? }
 //   mount:toggle prüft nur den Spielstand (Stufe, Lektion, Besitz). Kampf, Zone und Fläche prüft der Held
@@ -66,6 +67,17 @@ export const MOUNTS = {
     { coat: 'scarab', mane: 'ember', tack: 'gold', eyes: 'fire', glow: 'fire' },
     'Erfolg „Glutfürst“: Glutprüfung 20 bestehen', 'Ein Skarabäus aus der ersten Esse. Sein Panzer ist poliertes Gold, und in den Fugen glüht Feuer, das nie erlischt.'),
     speed: MOUNT_SPEED.epic, achievement: 'trial_20' },
+  // Sternenglut Teil 1 (Stufe 40–50): neue Körperbauten (sprites/mounts.js ray, lynx, ram). Wie man sie erhält
+  // (Händler, Beute), regelt die Technik; Tempo nach Seltenheit wie bisher.
+  sky_ray: { ...M('Himmelsrochen', 'rare', 'ray',
+    { tack: 'dawn', eyes: 'ray' },
+    'Stallmeister Corvin, Sternhafen, ab Stufe 40', 'Ein Rochen, der zwischen den treibenden Inseln durch die Luft gleitet. Auf seinem Rücken leuchten Punkte wie Morgentau.'), expansion: true },
+  moon_lynx: { ...M('Mondluchs', 'rare', 'lynx',
+    { coat: 'moon', mane: 'moonfur', tack: 'dawn', eyes: 'moon', glow: 'moon' },
+    'Stallmeister Corvin, Sternhafen, ab Stufe 50', 'Ein silberner Luchs aus den Gärten der Sternwarte. Auf seiner Schulter schimmert eine Mondsichel.'), expansion: true },
+  crystal_ram: { ...M('Kristallwidder', 'epic', 'ram',
+    { coat: 'crystal', mane: 'wool', tack: 'silver', eyes: 'frost', glow: 'crystal' },
+    'Selten von Kaldris in den Gläsernen Hallen', 'Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.'), expansion: true },
   // Exklusive Designs aus dem Shop (src/shop/catalog.js): nicht erspielbar, Besitz führt der Server (shop_entitlements).
   // Tempo wie epische Reittiere (kein Vorteil durch Echtgeld), Aussehen über allem, was es im Spiel gibt.
   phoenix_wing: { ...M('Phönixschwinge', 'legendary', 'drake',
@@ -91,7 +103,7 @@ export function mountCollection(slices, content) {
   const m = slices.character?.mounts ?? { owned: [], active: null };
   const owned = new Set(m.owned ?? []);
   return content.all('mount')
-    .filter((d) => !d.exclusive || owned.has(d.id))
+    .filter((d) => (!d.exclusive && !(d.expansion && !isStarsOpen())) || owned.has(d.id))
     .map((d, i) => ({ id: d.id, name: d.name, rarity: d.rarity, speed: d.speed ?? 0, source: d.source ?? '', owned: owned.has(d.id), active: m.active === d.id, i }))
     .sort((a, b) => (RARITY_RANK[a.rarity] ?? 9) - (RARITY_RANK[b.rarity] ?? 9) || a.i - b.i);
 }

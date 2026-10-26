@@ -43,6 +43,13 @@ export const THEMES = {
   frost: { bpm: 70, root: 47, scale: 'aeolian', chords: [0, 5, 2, 6], chordsB: [3, 0, 4, 4], bars: 2, pad: 'ice', arp: 'celesta', arpEvery: 2, melody: 'flute', melodyDensity: 0.22, bass: [0], bells: 0.06, drums: { t: 'x.........x.....' }, drumGain: 0.3, intro: 2, gain: 0.5 },
   rime: { bpm: 54, root: 44, scale: 'dorian', chords: [0, 3, 0, 6], bars: 4, pad: 'ice', arp: null, melody: 'celesta', melodyDensity: 0.12, motif: false, bass: [0], bells: 0.09, drums: null, gain: 0.55 },
   wastes: { bpm: 108, root: 38, scale: 'hijaz', chords: [0, 1, 0, 5], chordsB: [0, 6, 5, 1], bars: 2, pad: 'horn', arp: 'saw', arpEvery: 2, melody: 'horn', melodyDensity: 0.2, bass: [0, 3, 8, 10, 11], bells: 0, drums: { t: 'x.....x...x.....', n: '....x.......x...', a: '..............x.' }, drumGain: 0.6, intro: 1, gain: 0.5 },
+  // Sternenscherben: schwebend und hell (Lydisch), Stadt wärmer mit Harfe, Weiten gläsern
+  stars: { bpm: 66, root: 50, scale: 'lydian', chords: [0, 4, 5, 3], chordsB: [0, 1, 5, 4], bars: 2, pad: 'glass', arp: 'celesta', arpEvery: 2, melody: 'flute', melodyDensity: 0.2, bass: [0], bells: 0.07, drums: null, intro: 2, gain: 0.5 },
+  starcity: { bpm: 76, root: 52, scale: 'lydian', chords: [0, 3, 4, 0], chordsB: [5, 3, 1, 4], bars: 2, pad: 'warm', arp: 'harp', arpEvery: 2, melody: 'flute', melodyDensity: 0.26, bass: [0, 7], bells: 0.04, drums: { t: 'x.......x.......' }, drumGain: 0.25, gain: 0.5 },
+  shards: { bpm: 58, root: 47, scale: 'dorian', chords: [0, 3, 6, 4], bars: 4, pad: 'ice', arp: 'celesta', arpEvery: 3, melody: 'bell', melodyDensity: 0.12, bass: [0], bells: 0.09, drums: { t: 'x...............' }, drumGain: 0.25, gain: 0.5 },
+  thorncrypt: { bpm: 58, root: 45, scale: 'dorian', chords: [0, 5, 3, 1], bars: 4, pad: 'choir', arp: 'harp', arpEvery: 4, melody: 'flute', melodyDensity: 0.1, motif: false, bass: [0], bells: 0.05, drums: null, gain: 0.55 },
+  glasshalls: { bpm: 52, root: 49, scale: 'lydian', chords: [0, 1, 0, 4], bars: 4, pad: 'glass', arp: 'celesta', arpEvery: 3, melody: 'bell', melodyDensity: 0.1, motif: false, bass: [0], bells: 0.1, drums: null, gain: 0.5 },
+  observatory: { bpm: 62, root: 46, scale: 'aeolian', chords: [0, 6, 5, 3], bars: 2, pad: 'organ', arp: 'harp', arpEvery: 2, melody: 'celesta', melodyDensity: 0.14, bass: [0, 7], bells: 0.06, drums: { t: 'x...............' }, drumGain: 0.25, gain: 0.5 },
   throne: { bpm: 80, root: 37, scale: 'harmonic', chords: [0, 5, 3, 4], chordsB: [0, 1, 5, 4], bars: 2, pad: 'organ', arp: 'saw', arpEvery: 4, melody: 'choir', melodyDensity: 0.2, bass: [0, 8], bells: 0.02, drums: { t: 'x.......x.......', n: '............x...' }, drumGain: 0.5, intro: 2, gain: 0.5 },
   // ---- eigene Bossmusik (Soundscape wählt nach bossId, sonst 'boss')
   boss_bones: { bpm: 128, root: 41, scale: 'phrygian', chords: [0, 1, 0, 6], bars: 1, pad: 'choir', arp: 'pluck', arpEvery: 1, melody: 'bell', melodyDensity: 0.2, bass: [0, 3, 6, 10], bells: 0.03, drums: { k: 'x...x...x...x...', n: '....x.......x...', s: 'x.x.x.x.x.x.x.x.' }, drumGain: 0.65, gain: 0.55 },
@@ -51,14 +58,20 @@ export const THEMES = {
   boss_rot: { bpm: 104, root: 40, scale: 'hijaz', chords: [0, 1, 0, 3], bars: 1, pad: 'murk', arp: 'pluck', arpEvery: 1, melody: 'reed', melodyDensity: 0.24, bass: [0, 3, 6, 8, 11], bells: 0, drums: { t: 'x...x..x..x.x...', f: '..x.......x.....' }, drumGain: 0.6, wobble: 0.6, gain: 0.55 },
   boss_frost: { bpm: 132, root: 42, scale: 'aeolian', chords: [0, 5, 6, 4], bars: 1, pad: 'ice', arp: 'celesta', arpEvery: 1, melody: 'horn', melodyDensity: 0.2, bass: [0, 3, 6, 8, 11, 14], bells: 0.05, drums: { k: 'x..x..x.x..x..x.', n: '....x.......x...', s: '..x...x...x...x.' }, drumGain: 0.65, gain: 0.55 },
   boss_sovereign: { bpm: 140, root: 38, scale: 'harmonic', chords: [0, 0, 5, 4, 0, 1, 6, 4], bars: 1, pad: 'organ', arp: 'saw', arpEvery: 1, melody: 'choir', melodyDensity: 0.26, bass: [0, 3, 6, 8, 11, 14], bells: 0, drums: { k: 'x..x..x.x..x..x.', t: 'x.......x.......', n: '....x.......x...', a: '..x...x...x...x.' }, drumGain: 0.7, gain: 0.5 },
+  boss_ysgarn: { bpm: 112, root: 45, scale: 'dorian', chords: [0, 5, 3, 4], bars: 1, pad: 'choir', arp: 'harp', arpEvery: 1, melody: 'reed', melodyDensity: 0.22, bass: [0, 3, 7, 10], bells: 0.03, drums: { t: 'x..x..x...x..x..', n: '....x.......x...' }, drumGain: 0.6, gain: 0.55 },
+  boss_kaldris: { bpm: 128, root: 44, scale: 'lydian', chords: [0, 1, 4, 1], bars: 1, pad: 'glass', arp: 'celesta', arpEvery: 1, melody: 'horn', melodyDensity: 0.2, bass: [0, 4, 7, 11], bells: 0.06, drums: { k: 'x...x...x...x...', n: '....x.......x...', s: '..x...x...x...x.' }, drumGain: 0.65, gain: 0.55 },
+  boss_ysmeine: { bpm: 120, root: 46, scale: 'harmonic', chords: [0, 6, 5, 4], bars: 1, pad: 'organ', arp: 'harp', arpEvery: 1, melody: 'choir', melodyDensity: 0.24, bass: [0, 3, 7, 10, 14], bells: 0.04, drums: { k: 'x..x..x.x..x..x.', t: 'x.......x.......', n: '....x.......x...' }, drumGain: 0.65, gain: 0.55 },
   trial: { bpm: 124, root: 43, scale: 'phrygian', chords: [0, 1, 0, 6], bars: 1, pad: 'horn', arp: 'saw', arpEvery: 2, melody: null, melodyDensity: 0, bass: [0, 4, 8, 12], bells: 0, drums: { k: 'x...x...x...x...', h: '..x...x...x...x.' }, drumGain: 0.6, gain: 0.5 },
 };
 
 // Zone -> Stück (feste IDs aus INTEGRATION.md §11, sonst nach Art der Zone)
 const ZONE_THEMES = { emberhollow: 'village', catacombs: 'crypt', ashwood: 'forest', sunken_temple: 'temple', cinder_peaks: 'peaks', molten_forge: 'forge', ember_trial: 'trial',
-  ashen_steppe: 'steppe', howling_barrow: 'barrow', blighted_marsh: 'marsh', spore_hollow: 'spores', frostspire: 'frost', rime_caverns: 'rime', ember_wastes: 'wastes', ashen_throne: 'throne' };
+  ashen_steppe: 'steppe', howling_barrow: 'barrow', blighted_marsh: 'marsh', spore_hollow: 'spores', frostspire: 'frost', rime_caverns: 'rime', ember_wastes: 'wastes', ashen_throne: 'throne',
+  drifting_gardens: 'stars', sternhafen: 'starcity', splitterweiten: 'shards',
+  rankengruft: 'thorncrypt', glass_halls: 'glasshalls', observatory: 'observatory' };
 // Boss -> eigenes Stück (Varkhul behält das klassische 'boss')
-const BOSS_THEMES = { bonelord: 'boss_bones', drowned_priestess: 'boss_drowned', barrow_king: 'boss_barrow', rot_mother: 'boss_rot', frost_wyrm: 'boss_frost', ash_sovereign: 'boss_sovereign' };
+const BOSS_THEMES = { bonelord: 'boss_bones', drowned_priestess: 'boss_drowned', barrow_king: 'boss_barrow', rot_mother: 'boss_rot', frost_wyrm: 'boss_frost', ash_sovereign: 'boss_sovereign',
+  ysgarn: 'boss_ysgarn', kaldris: 'boss_kaldris', ysmeine: 'boss_ysmeine' };
 export function themeForBoss(bossId) { return BOSS_THEMES[bossId] ?? 'boss'; }
 export function themeForZone(def) {
   if (!def) return 'village';

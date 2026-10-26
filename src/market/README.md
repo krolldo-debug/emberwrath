@@ -37,8 +37,10 @@ zusätzliches Gold machen kann, bucht **nur der Server**: `supabase/migrations/2
   Handelstag also nur der Grundbetrag) und darf höchstens
   `LEVEL_SLACK` Stufen über dem Charakter liegen. Legendäre Reittiere, Shop- und Erfolgs-Reittiere sind nicht handelbar
   (der Generator bricht ab, falls doch eines im Katalog landet).
-  Ganz beweisen lässt sich die Herkunft eigener Beute erst, wenn Beute auf dem Server entsteht (D3); bis dahin begrenzt
-  das Kontingent, wie viel ein manipulierter Browser in Umlauf bringen kann.
+  Seit dem Fortschrittsbuch (`src/ledger`, D3) zählt der Server jede Beute und kappt Uploads darauf. Solange es das tut
+  (`ledger_config.enforce`, Übergang vorbei, Charakter hat ein Buch), entfällt das Kontingent (`market_loot_checked`,
+  Migration `20261026090000_handelskontingent.sql`); mit Notbremse gilt es wieder. Vorher bekam jedes Konto am ersten
+  Handelstag nur den Grundbetrag (zwei epische, kein legendärer Gegenstand), egal wie lange es schon spielte.
 - Handeln ab Stufe 10 und 1 Stunde geprüfter Spielzeit (`TRADE_MIN_LEVEL`, `TRADE_MIN_PLAY`). Konten mit Vermerk
   `stufe`/`gold`/`grenze` der letzten 7 Tage dürfen nicht handeln (ein Vermerk `handel` verdrängt diese Vermerke nicht).
   Höchstens 40 Aktionen je Minute; Suche und Übersicht höchstens 120 je Minute.

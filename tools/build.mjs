@@ -18,12 +18,14 @@ function load(abs) {
   const id = relative(root, abs).replace(/\\/g, '/');
   modules.set(abs, null);
   let src = readFileSync(abs, 'utf8');
-  const exported = [];
+  const exported = [], imported = [];
   src = src.replace(/^import\s*\{([^}]*)\}\s*from\s*['"](.+?)['"];?\s*$/gm, (_, names, spec) => {
     const dep = resolve(dirname(abs), spec);
     load(dep);
     const depId = relative(root, dep).replace(/\\/g, '/');
-    const binds = names.split(',').map((s) => s.trim()).filter(Boolean).map((s) => s.replace(/\s+as\s+/, ': ')).join(', ');
+    const list = names.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const n of list) imported.push([dep, n.split(/\s+as\s+/)[0]]);
+    const binds = list.map((s) => s.replace(/\s+as\s+/, ': ')).join(', ');
     return `const { ${binds} } = __require(${JSON.stringify(depId)});`;
   });
   src = src.replace(/^import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s+from\s*['"](.+?)['"];?\s*$/gm, (_, name, spec) => {
@@ -31,12 +33,35 @@ function load(abs) {
     load(dep);
     return `const ${name} = __require(${JSON.stringify(relative(root, dep).replace(/\\/g, '/'))});`;
   });
-  src = src.replace(/^export\s+(class|function|async function|const|let)\s+([A-Za-z_$][\w$]*)/gm, (_, kind, name) => {
+  src = src.replace(/^export\s+(class|function|async function|const|let)\s+([A-Za-z_$][\w$]*)/gm, (m, kind, name, at, all) => {
     exported.push(name);
+    if (kind === 'const' || kind === 'let') exported.push(...moreDeclarators(all, at + m.length));
     return `${kind} ${name}`;
   });
   if (/^\s*(import|export)\s/m.test(src)) throw new Error(`Nicht unterstützte import/export-Form in ${id}`);
-  modules.set(abs, { id, code: `${src}\nreturn { ${exported.join(', ')} };` });
+  modules.set(abs, { id, code: `${src}\nreturn { ${exported.join(', ')} };`, exported, imported });
+}
+
+// Weitere Namen einer Deklaration mit mehreren Bindungen (export const W = 1, H = 2;): Kommas auf oberster Ebene bis
+// zum Semikolon. Fehlten sie, wären die Importe still undefined (so geschehen mit AX/AY aus sprites/bonelord.js).
+function moreDeclarators(src, i) {
+  const names = [];
+  let depth = 0, q = null;
+  for (; i < src.length; i++) {
+    const c = src[i];
+    if (q) { if (c === '\\') i++; else if (c === q) q = null; continue; }
+    if (c === "'" || c === '"' || c === '`') q = c;
+    else if (c === '/' && src[i + 1] === '/') i = src.indexOf('\n', i) - 1;
+    else if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) depth--;
+    else if (depth === 0 && c === ';') break;
+    else if (depth === 0 && c === '\n' && !/^\s*[,.?:+\-*/|&]/.test(src.slice(i + 1, i + 40)) && !/[,=(\[{+\-*/|&?:]\s*$/.test(src.slice(Math.max(0, i - 40), i))) break;
+    else if (depth === 0 && c === ',') {
+      const m = /^\s*([A-Za-z_$][\w$]*)\s*=/.exec(src.slice(i + 1, i + 80));
+      if (m) names.push(m[1]);
+    }
+  }
+  return names;
 }
 
 const entry = resolve(root, 'src/main.js');
@@ -57,6 +82,10 @@ const build = { version: pkgVersion, commit: commit ? commit.slice(0, 7) : 'dev'
 let defs = `globalThis.EMBERWRATH_BUILD = ${JSON.stringify(build)};\n`;
 defs += 'const __defs = {}, __cache = {};\n';
 defs += 'function __require(id) { if (!(id in __cache)) __cache[id] = __defs[id](); return __cache[id]; }\n';
+// Jeder benannte Import muss in der Quelle exportiert sein (sonst wäre er im Spiel still undefined)
+for (const m of modules.values()) for (const [dep, name] of m.imported) {
+  if (!modules.get(dep).exported.includes(name)) throw new Error(`${m.id}: „${name}“ wird von ${modules.get(dep).id} nicht exportiert`);
+}
 for (const m of modules.values()) defs += `__defs[${JSON.stringify(m.id)}] = function () {\n${m.code}\n};\n`;
 const start = `__require(${JSON.stringify(relative(root, entry))});\n`;
 

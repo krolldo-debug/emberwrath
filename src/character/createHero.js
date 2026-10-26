@@ -5,7 +5,7 @@ import { DEFAULT_RACE } from './races.js';
 import { DEFAULT_CLASS } from './classes.js';
 import { getHeroSprites, heroRes } from '../sprites/hero.js';
 import { resolveGear, gearKey, shownEquipment } from './gearLook.js';
-import { PASSIVES, TALENT_TIERS } from './talents.js';
+import { PASSIVES, TALENT_TIERS, TALENT_LEVEL_MAX } from './talents.js';
 import { spriteStyle } from './cosmetics.js';
 
 // VERTRAG (Thread A): erzeugt den Spieler-Actor für die aktuelle Sitzung
@@ -84,7 +84,7 @@ function announceUnlocks(session, level) {
   if (tier > 0) say('talents', `tier${tier}`, TALENT_TIERS[tier].name, `Neue Talentreihe: ${TALENT_TIERS[tier].name}`);
   // Mehrere Stufen auf einmal: den Talentpunkt-Hinweis nur einmal zeigen
   const now = performance.now();
-  if (level >= 2 && !said && now - (lastPointToast.get(session) ?? -1e9) > 1500) {
+  if (level >= 2 && level <= TALENT_LEVEL_MAX && !said && now - (lastPointToast.get(session) ?? -1e9) > 1500) {
     lastPointToast.set(session, now);
     bus.emit(EV.UI_TOAST, { text: 'Neuer Talentpunkt verfügbar', kind: 'info' });
   }

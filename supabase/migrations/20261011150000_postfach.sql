@@ -372,8 +372,9 @@ begin
     if use_ < p_qty then
       lvl := coalesce(floor((c.snapshot #>> '{slices,progress,level}')::numeric), 1)::int;
       if it.req_level > lvl + 5 then return public.market_err('level'); end if;
-      cost := (array[1, 1, 3, 10, 25])[it.rarity + 1] * greatest(1, ceil((p_qty - use_)::numeric / case when it.rarity >= 2 then 5 else 10 end))::int;
-      if acc.fresh + cost > 20 + 40 * floor(public.market_trade_time(acc, false) / 3600) then
+      cost := case when public.market_loot_checked(uid, p_character) then 0
+        else (array[1, 1, 3, 10, 25])[it.rarity + 1] * greatest(1, ceil((p_qty - use_)::numeric / case when it.rarity >= 2 then 5 else 10 end))::int end;
+      if cost > 0 and acc.fresh + cost > 20 + 40 * floor(public.market_trade_time(acc, false) / 3600) then
         return public.market_err('budget');
       end if;
     end if;

@@ -3,6 +3,7 @@ import { createRng, hash2 } from '../core/math.js';
 import { OUT, groundPixel, vnoise } from './outdoor.js';
 import { mk, poly, drawTent, fpoly, shade, stepOf, lump, trunk, pal32, groundPatch, emberCrack as emberCrackF } from './decor_ashwood.js';
 import { createFlameFrames } from './props.js';
+import { createSkyRift } from './decor_starcity.js';
 
 // Glutöde: verbrannte Ebene unter Glutregen, schwarze Asche und Obsidian;
 // die letzte Bastion der Lebenden und das Tor zum Aschethron.
@@ -3054,6 +3055,7 @@ function towerStump() {
 
 export function createWastesDecor() {
   return {
+    skyRift: createSkyRift(),
     charredRuins: [0, 1, 2].map(charredRuin),
     obsidianShards: [0, 1, 2].map(obsidianShards),
     ashDunes: [0, 1].map(ashDune),

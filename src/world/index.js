@@ -3,10 +3,12 @@ import { ZONES, NPCS } from './zones.js';
 import { LEVELS } from './levels.js';
 import { LEVELS2 } from './levels2.js';
 import { LEVELS3 } from './levels3.js';
+import { LEVELS_STARS } from './stars/levels.js';
 import { warmCharacter } from './warmup.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
 import { createWolfSprites } from '../sprites/wolf.js';
 import { createBonelordSprites } from '../sprites/bonelord.js';
+import { createYsgarnSprites, createKaldrisSprites, createYsmeineSprites } from '../sprites/star_bosses.js';
 import { createNpcSprites } from '../sprites/npcs.js';
 import { createCryptSprites } from '../sprites/crypt.js';
 import { createOutdoorSprites } from '../sprites/outdoor.js';
@@ -32,6 +34,7 @@ import { createSkalvyrSprites } from '../sprites/frost_wyrm.js';
 import { createRotMotherSprites } from '../sprites/rot_mother.js';
 import { createMalgarethSprites } from '../sprites/ash_sovereign.js';
 import { createNpcSprites3 } from '../sprites/npcs3.js';
+import { createStarNpcSprites } from '../sprites/npcs_stars.js';
 import { createAshwoodDecor } from '../sprites/decor_ashwood.js';
 import { createPeaksDecor } from '../sprites/decor_peaks.js';
 import { createBiomeTiles } from '../sprites/biomes.js';
@@ -40,7 +43,11 @@ import { createSteppeDecor } from '../sprites/decor_steppe.js';
 import { createMarshDecor } from '../sprites/decor_marsh.js';
 import { createFrostDecor } from '../sprites/decor_frost.js';
 import { createWastesDecor } from '../sprites/decor_wastes.js';
+import { createAstralDecor } from '../sprites/decor_astral.js';
+import { createShardSet } from '../sprites/decor_shards.js';
+import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
+import { createStarBiomeTiles } from '../sprites/biomes_stars.js';
 import { createVillageProps } from '../sprites/village.js';
 import { spawnTownsfolk } from './townlife.js';
 import { createWaystoneSprites } from '../sprites/waystone.js';
@@ -94,7 +101,7 @@ export function installWorld(game) {
   for (const [id, def] of Object.entries(ZONES)) content.define('zone', id, def);
   for (const [id, def] of Object.entries(NPCS)) content.define('npc', id, def);
   // Karten als Inhalt (Minimap, Wegführung über Zonengrenzen); gebaut erst beim ersten Lesen
-  for (const src of [LEVELS, LEVELS2, LEVELS3]) for (const id of Object.keys(src)) content.defineLazy('level', id, () => src[id]);
+  for (const src of [LEVELS, LEVELS2, LEVELS3, LEVELS_STARS]) for (const id of Object.keys(src)) content.defineLazy('level', id, () => src[id]);
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     content.define('enemy', id, { name: def.name, level: def.level ?? def.levels?.[0] ?? 1, levels: def.levels ?? null, xp: def.xp, family: def.family, boss: !!def.boss, bossId: def.bossId ?? null, elite: !!def.elite });
   }
@@ -102,6 +109,9 @@ export function installWorld(game) {
   assets.define('wolf', () => createWolfSprites('wolf'));
   assets.define('wolf_alpha', () => createWolfSprites('alpha'));
   assets.define('bonelord', createBonelordSprites);
+  assets.define('ysgarn', createYsgarnSprites);
+  assets.define('kaldris', createKaldrisSprites);
+  assets.define('ysmeine', createYsmeineSprites);
   assets.define('npcs', createNpcSprites);
   assets.define('crypt', createCryptSprites);
   assets.define('outdoor', createOutdoorSprites);
@@ -117,6 +127,7 @@ export function installWorld(game) {
   lazyAsset(assets, 'ash_sovereign', createMalgarethSprites);
   lazyAsset(assets, 'npcs2', createNpcSprites2);
   lazyAsset(assets, 'npcs3', createNpcSprites3);
+  lazyAsset(assets, 'npcs_stars', createStarNpcSprites);
   lazyAsset(assets, 'village', createVillageProps);
   lazyAsset(assets, 'waystone', createWaystoneSprites);
   lazyAsset(assets, 'quest_board', createBoardSprites);
@@ -128,16 +139,19 @@ export function installWorld(game) {
 
   // Runde 3: Platzhalter, solange eigene Grafik fehlt (Gegner -> Vorbild, Deko/Biom -> verwandter Satz)
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
-    if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, () => assets.sprites[def.spriteBase]);
+    if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, def.recolor ? () => recolorSet(assets.sprites[def.spriteBase], def.recolor) : () => assets.sprites[def.spriteBase]);
   }
   lazyAsset(assets, 'decor_steppe', createSteppeDecor);
   lazyAsset(assets, 'decor_marsh', createMarshDecor);
   lazyAsset(assets, 'decor_frost', createFrostDecor);
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
+  lazyAsset(assets, 'decor_astral', createAstralDecor);
+  lazyAsset(assets, 'decor_shards', createShardSet);
   lazyAsset(assets, 'biome_barrow', () => createBiomesBarrowSpore('barrow'));
   lazyAsset(assets, 'biome_spore', () => createBiomesBarrowSpore('spore'));
   lazyAsset(assets, 'biome_rime', () => createBiomesRimeThrone('rime'));
   lazyAsset(assets, 'biome_throne', () => createBiomesRimeThrone('throne'));
+  for (const b of ['thorn', 'glass', 'vault']) lazyAsset(assets, 'biome_' + b, () => createStarBiomeTiles(b));
 
   const startZone = Object.keys(ZONES).find((k) => ZONES[k].start);
   // Zone vorab vorbereiten, solange der Spieler noch Helden erstellt/auswählt (world/warmup.js)

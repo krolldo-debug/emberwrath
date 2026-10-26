@@ -208,12 +208,18 @@ export function marketPanel(session, game, market) {
 
   function offerBox(l, now, gold) {
     const need = minBid(l);
-    const canBid = l.startBid != null && !l.mine;
+    // Unter Stufe 10 und bei Angeboten des eigenen Kontos (auch anderer Helden) lehnt der Server ab: gleich sagen, keine Knöpfe
+    const young = (st().progress?.level ?? 1) < TRADE_MIN_LEVEL;
+    const canBuy = !l.mine && !young;
+    const canBid = l.startBid != null && canBuy;
     const amount = num(bidText) ?? need;
     const bidLine = l.bid != null ? `Höchstgebot ${fmtNum(l.bid)} · ${fmtNum(l.bids)} Gebote` : l.startBid != null ? `Startgebot ${fmtNum(l.startBid)}` : 'Nur Sofortkauf';
+    const otherHero = l.mine && market.loaded && !market.mine.some((x) => x.id === l.id);
     return h('div.mk-offer',
       h('div.mk-offer-line', h('span', bidLine), h('span.mk-time', timeLeft(l.endsAt, now))),
-      l.mine ? h('p.mk-note', 'Dein Angebot.') : l.top ? h('p.mk-note.good', 'Du hast das Höchstgebot.') : null,
+      otherHero ? h('p.mk-note', 'Das hast du mit einem anderen Helden eingestellt. Eigene Angebote kannst du nicht kaufen.')
+        : l.mine ? h('p.mk-note', 'Dein Angebot.') : young ? h('p.mk-note', `Handeln geht ab Stufe ${TRADE_MIN_LEVEL} und nach einer Stunde Spielzeit.`)
+          : l.top ? h('p.mk-note.good', 'Du hast das Höchstgebot.') : null,
       canBid ? h('div.mk-bid',
         h('input.ef-input.mk-num', {
           type: 'text', inputmode: 'numeric', value: bidText || String(need), 'aria-label': 'Dein Gebot', 'data-k': `bid${l.id}`,
@@ -221,7 +227,7 @@ export function marketPanel(session, game, market) {
         }),
         actionBtn('Bieten', () => run(() => market.bid(l.id, num(bidText) ?? need), () => { bidText = ''; refreshSoon(); return 'Gebot abgegeben.'; }),
           { disabled: working || gold < amount - (l.top ? l.bid : 0) })) : null,
-      l.buyout != null && !l.mine ? actionBtn(`Sofort kaufen · ${fmtNum(l.buyout)}`, () => run(() => market.buyout(l.id), () => {
+      l.buyout != null && canBuy ? actionBtn(`Sofort kaufen · ${fmtNum(l.buyout)}`, () => run(() => market.buyout(l.id), () => {
         sel = null; refreshSoon();
         return 'Gekauft. Es liegt in deinem Postfach.';
       }), { primary: true, disabled: working || gold < l.buyout - (l.top ? l.bid : 0) }) : null);

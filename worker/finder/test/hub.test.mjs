@@ -1,5 +1,6 @@
 // node worker/finder/test/hub.test.mjs – Server-Kern der Dungeonsuche mit nachgebauten Verbindungen und Uhr
 import { FinderHub } from '../hub.js';
+import { LEVEL_MAX } from '../../../src/net/protocol.js';
 
 let fails = 0;
 const ok = (c, m) => { console.log(c ? '✓' : '✗', m); if (!c) fails++; };
@@ -106,7 +107,7 @@ async function join(hub, name, uid, { classId = 'mage', role = 'dps', dungeonId 
   await hub.message(s2, JSON.stringify({ t: 'queue', dungeonId: 'catacombs', role: 'dps' }));
   await p2; await wait();
   const t2 = [...hub.mm.tickets.values()].find((t) => t.id !== t1.id);
-  ok(t2?.name === 'Abenteurer' && t2.level === 40, `ohne Speicherstand: Name „${t2?.name}“, Stufe ${t2?.level}`);
+  ok(t2?.name === 'Abenteurer' && t2.level === LEVEL_MAX, `ohne Speicherstand: Name „${t2?.name}“, Stufe ${t2?.level}`);
 }
 {
   // Cloud kennt den Charakter nicht: höchstens Stufe 3; gespeicherte Klasse entscheidet über Tank

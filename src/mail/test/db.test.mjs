@@ -177,6 +177,11 @@ await put(D, 'cd', snapshot({ name: 'Dorn', gold: 40000, slots: LEG.slice(0, 3).
 const legs = [];
 for (const it of LEG.slice(0, 3)) legs.push(await send(D, 'cd', 'Cora', { item: it, qty: 1 }));
 ok(legs[0].ok && legs[1].ok && !legs[2].ok && legs[2].error === 'budget', `Kontingent gilt auch für die Post (${legs.map((x) => x.ok || x.error).join(', ')})`);
+// Zählt das Fortschrittsbuch die Beute, entfällt das Kontingent auch für die Post
+await pool.query("update public.ledger_config set strict_after = now() - interval '1 minute', enforce = true where id = 1");
+r = await send(D, 'cd', 'Cora', { item: LEG[2], qty: 1 });
+ok(r.ok, `Mit Fortschrittsbuch: Brief ohne Kontingent (${r.ok || r.error})`);
+await pool.query('update public.ledger_config set strict_after = null where id = 1');
 // Neues Konto, eine Stunde geprüfte Spielzeit: Goldrahmen 150 × 3600 = 540.000
 await put(F, 'cf', snapshot({ name: 'Fenja', gold: 600000, slots: [{ itemId: RARE, qty: 1 }] }), 3600);
 r = await send(F, 'cf', 'Cora', { item: RARE, qty: 1, gold: 600000 });
