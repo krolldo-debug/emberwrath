@@ -5330,5 +5330,14 @@ export const ES = {
   "Splitterweiten": "Confines Astillados",
   "Sternenscherben": "Esquirlas Estelares",
   "Welkende Gärten": "Jardines Marchitos",
-  "Splitterhallen": "Salas de Astillas"
+  "Splitterhallen": "Salas de Astillas",
+  "Himmelsrochen": "Raya celeste",
+  "Mondluchs": "Lince lunar",
+  "Kristallwidder": "Carnero de cristal",
+  "Stallmeister Corvin, Sternhafen, ab Stufe 40": "Maestro de establos Corvin, Puerto Estelar, desde el nivel 40",
+  "Stallmeister Corvin, Sternhafen, ab Stufe 50": "Maestro de establos Corvin, Puerto Estelar, desde el nivel 50",
+  "Selten von Kaldris in den Gläsernen Hallen": "Botín raro de Kaldris en las Salas de Cristal",
+  "Ein Rochen, der zwischen den treibenden Inseln durch die Luft gleitet. Auf seinem Rücken leuchten Punkte wie Morgentau.": "Una raya que se desliza por el aire entre las islas flotantes. En su lomo brillan puntos como el rocío de la mañana.",
+  "Ein silberner Luchs aus den Gärten der Sternwarte. Auf seiner Schulter schimmert eine Mondsichel.": "Un lince plateado de los jardines del Observatorio. En su hombro reluce una luna creciente.",
+  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "Un carnero de los Confines Astillados. De su lana brotan cristales y sus cuernos cantan suavemente con el viento."
 };

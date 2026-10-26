@@ -20,10 +20,10 @@ const xpAt = (L) => Math.round(130 * 1.1 ** (L - 20));   // wie enemyTypes3.js
 
 export function createStarEnemies(T) {
   const d = (base, id, name, L, o = {}) => derive(T, base, id, name, L, o);
-  // Dungeonbosse: vorerst mit Varkhuls Kampflogik (entities/Boss.js) auf umgefärbten Figuren mit vollem Bewegungssatz
-  // (Varkhul, Ignaroth); Leben absolut, Schaden über dmgMult, Beschwörung (summon) aus dem eigenen Dungeon
-  const boss = (base, id, name, level, hp, over) => ({
-    ...T[base], name, level, xp: Math.round(xpAt(level) * 22), boss: true, bossId: id, sprites: id, spriteBase: T[base].sprites, hp, ...over,
+  // Dungeonbosse: vorerst mit Varkhuls Kampflogik (entities/Boss.js) auf eigenen Figuren mit Varkhuls Rig
+  // (sprites/star_bosses.js); Leben absolut, Schaden über dmgMult, Beschwörung (summon) aus dem eigenen Dungeon
+  const boss = (id, name, level, hp, over) => ({
+    ...T.bonelord, name, level, xp: Math.round(xpAt(level) * 22), boss: true, bossId: id, sprites: id, hp, ...over,
   });
   return {
     // --- Treibende Gärten (40–45)
@@ -48,8 +48,8 @@ export function createStarEnemies(T) {
     shadow_ranger: d('raider_archer', 'shadow_ranger', 'Schattenelfen-Späherin', [49, 50], { family: 'human', recolor: { ramp: VOID, accent: CYAN } }),
     star_seer: d('ash_priest', 'star_seer', 'Sternseherin', [49, 50], { family: 'human', recolor: { ramp: MOTH, accent: GOLDEN } }),
     // --- Bosse
-    ysgarn: boss('bonelord', 'ysgarn', 'Ysgarn, der Alte Gärtner', 44, 145000, { dmgMult: 6.5, family: 'plant', material: 'wood', summon: 'void_wisp', recolor: { ramp: BARK, accent: MAGENTA, gamma: 0.8 } }),
-    kaldris: boss('ember_tyrant', 'kaldris', 'Kaldris, der Splitterfürst', 48, 160000, { dmgMult: 7, family: 'construct', material: 'stone', summon: 'shard_crawler', recolor: { ramp: GLASS, accent: MAGENTA, gamma: 0.5 } }),
-    ysmeine: boss('bonelord', 'ysmeine', 'Königin Ysmeine', 50, 175000, { dmgMult: 7.5, family: 'human', material: 'flesh', summon: 'void_hound', recolor: { ramp: VOID, accent: GOLDEN, gamma: 0.7 } }),
+    ysgarn: boss('ysgarn', 'Ysgarn, der Alte Gärtner', 44, 145000, { dmgMult: 6.5, family: 'plant', material: 'wood', summon: 'void_wisp' }),
+    kaldris: boss('kaldris', 'Kaldris, der Splitterfürst', 48, 160000, { dmgMult: 7, family: 'construct', material: 'stone', summon: 'shard_crawler', spawnStyle: 'fade' }),
+    ysmeine: boss('ysmeine', 'Königin Ysmeine', 50, 175000, { dmgMult: 7.5, family: 'human', material: 'flesh', summon: 'void_hound', spawnStyle: 'fade' }),
   };
 }
