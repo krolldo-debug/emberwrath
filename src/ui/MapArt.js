@@ -78,6 +78,7 @@ OUTDOOR.astral = {
   sky: R('#151638', '#22245a', '#3a3478', '#62458a', '#985a92', '#c87488'), cliff: R('#1c1834', '#352d5e', '#584a88'),
   bridge: R('#5a5878', '#c4c2dc'),
 };
+OUTDOOR.shards = { ...OUTDOOR.astral, ground: R('#324658', '#40596c', '#587686'), forest: R('#263446', '#324658', '#384a58'), speck: hex('#8cd8f0') };
 OUTDOOR.cinder = OUTDOOR.peaks;
 const LAVA_BIOMES = new Set(['cinder', 'peaks', 'wastes', 'forge', 'throne']);
 

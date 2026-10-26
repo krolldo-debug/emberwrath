@@ -70,4 +70,16 @@ export const STAR_TOWNS = {
       { outfit: 'starguard', race: 'human', variant: 1, role: 'guard', say: ['Veyra hat hier das Sagen. Nicht die Sternwacht.', 'Blütenpirscher kommen bis an die Beete.'] },
     ],
   },
+  funkenruh: {
+    folk: [
+      { outfit: 'laborer', race: 'dwarf', variant: 2, say: ['Drei Tage geschürft, ein Splitter gefunden. Ein guter Tag.', 'Dagna zahlt pünktlich. Das ist hier oben selten.'] },
+      { outfit: 'laborer', race: 'human', variant: 1, say: ['Halt dich vom Kran fern, wenn er schwingt.', 'Die Lore klemmt schon wieder.'] },
+      { outfit: 'hunter', race: 'elf', variant: 0, cloth: 'slate', say: ['Die Leerenhunde kommen vom Spiegelsee herauf.', 'Nachts singen die Grate. Man gewöhnt sich nicht daran.'] },
+      { outfit: 'laborer', race: 'emberborn', variant: 1, say: ['Glutländer graben besser. Wir sind die Hitze gewohnt.', 'Ein Splitter hat mir den Daumen gekostet. Er war es wert.'] },
+      { outfit: 'farmwife', race: 'human', variant: 1, cloth: 'teal', say: ['Ich koche für dreißig Schürfer. Jeden Tag.', 'Die Suppe schmeckt nach Kristallstaub. Alles schmeckt danach.'] },
+      { outfit: 'apprentice', race: 'dwarf', variant: 0, say: ['Mira hat mir eine Karte geschenkt. Sie stimmt schon nicht mehr.', 'Ich will einmal bis zur Sternwarte.'] },
+      { outfit: 'nomad', race: 'human', variant: 2, say: ['Wer zur Sternwarte geht, nimmt besser Freunde mit.', say('Die Sternwarte schweigt? Dann schlafe ich heute ruhig.', { level: 50 })] },
+      { outfit: 'starguard', race: 'human', variant: 2, role: 'guard', say: ['Die Sternwacht hält das Lager. Mehr nicht.', 'Irre Schürfer im Scherbenfeld. Bleib wachsam.'] },
+    ],
+  },
 };

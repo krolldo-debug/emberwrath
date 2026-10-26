@@ -19,7 +19,7 @@ const T = CONFIG.tileSize;
 export const HOUSE_DOORS = {
   cottage: [-1, 3], cottageB: [-1, 3], tent: [0, 3], yurt: [0, 3], yurtSmall: [0, 3],
   stiltHut: [12, 3], longhouse: [0, 3], sodHut: [-3, 3], treePlatform: [-19, 3],
-  starHouses: [0, 3], starInn: [0, 3], gardenHut: [0, 3],
+  starHouses: [0, 3], starInn: [0, 3], gardenHut: [0, 3], prospectorTents: [0, 3],
 };
 const TOWERS = { watchtower: [0, 3], fortTower: [0, 3], starTower: [0, 3], bridgeGate: [-36, 3] };
 // Dinge, an denen man stehen bleibt (Feuer, Brunnen, Marktstand …)

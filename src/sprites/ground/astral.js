@@ -24,14 +24,21 @@ const P_ASTRAL = {
   water: ramp(['#141838', '#1c2450', '#243064', '#2c3c78', '#3a4e92', '#5068ae', '#7088c8']),
   bank: ramp(['#2a2838', '#343044', '#3e3a50', '#48445c']),
 };
-const BASE = outdoorGround(P_ASTRAL);
-const GRASS = P_ASTRAL.floor, PETAL = [hxi('#c86a98'), hxi('#eca0c0'), hxi('#ffd8ea')];
-const EDGE = hxi('#100c1c'), RIM = GRASS[5], RIM2 = GRASS[4];
+// Splitterweiten (level.biome 'shards'): Glasmoos statt Gras (kühles Silberblau), Blüten werden Glassplitter
+const P_SHARDS = {
+  ...P_ASTRAL,
+  floor: ramp(['#1c2434', '#263446', '#324658', '#40596c', '#587686', '#7e9ca8', '#a8c4cc']),
+  lush: ramp(['#1c2434', '#222c3e', '#283648', '#30404e', '#384a58']),
+  blade: ramp(['#263446', '#324658', '#40596c', '#587686', '#7e9ca8', '#c4dce4']),
+  moss: ramp(['#263446', '#324658', '#3a5060', '#40596c']),
+};
+const EDGE = hxi('#100c1c');
 // Trittsteine der Lichtbrücken: Perlstein, Oberkante hell, Unterseite dunkel mit kleinem Kiel
 const SLAB = ramp(['#1e1c30', '#34324c', '#5a5878', '#8a88a8', '#c4c2dc', '#f0eefc']);
 const V = FK.VOID, B = FK.BRIDGE, G0 = FK.GRASS, DI = FK.DIRT;
-// Blüten im Gras: [Schatten, Blatt, Kern]
+// Blüten im Gras: [Schatten, Blatt, Kern]; in den Splitterweiten Glassplitter (blau, weiß, flieder)
 const BLOOM = [ramp(['#9a4474', '#eca0c0', '#ffd8ea']), ramp(['#2484a8', '#8cd8f0', '#e8fbff']), ramp(['#a08840', '#f0dc90', '#fff8d8'])];
+const SHARD_BLOOM = [ramp(['#164660', '#5ccbea', '#e8fbff']), ramp(['#5a6a8a', '#c8d4ec', '#ffffff']), ramp(['#4a3a78', '#a890e0', '#ece4ff'])];
 // Sternsand (Wege): hell, feinkörnig, Rand eine Stufe dunkler, einzelne funkelnde Körner
 const SAND = ramp(['#4e4864', '#625c7a', '#78728e', '#8c86a2', '#a09ab6', '#b8b2cc']);
 const GLINT = hxi('#f0eefc');
@@ -53,14 +60,14 @@ function sandFine(F, G, K, ki, KW, S) {
   return SAND[Math.max(1, Math.min(4, Math.floor(t * 5 + D4[(G & 3) * 4 + (F & 3)] / 16)))];
 }
 
-function* astralSetup(x0, y0, cw, ch, K, KW, M, world) {
+function makeSetup(BASE) { return function* astralSetup(x0, y0, cw, ch, K, KW, M, world) {
   const S = yield* BASE.fineSetup(x0, y0, cw, ch, K, KW, M, world);
   // weiche Flecken im Gras (wie im Entwurf: groß und flach, darüber eine feinere Lage)
   S.mot = S.noise([[4, 22, 14, 901, 0.6], [2, 7, 4.5, 902, 0.4]]);
   // Blumeninseln im Gras (rosa, himmelblau, blassgelb je Fleck)
   S.flo = S.noise([[4, 26, 20, 907, 0.75], [2, 6, 6, 908, 0.25]]);
   return S;
-}
+}; }
 
 // Lichtbrücke: je Kachel (32 Feinpixel) ein Trittstein 26 × 18 Feinpixel, leicht versetzt, Ecken abgeschrägt, darunter
 // eine dunkle Seite mit spitz zulaufendem Kiel. Rückgabe -2 = durchsichtig (der Abgrund darunter).
@@ -86,7 +93,9 @@ function bridgeFine(F, G) {
   return -2;
 }
 
-function astralFine(kind, F, G, K, ki, KW, S) {
+function makeFine(P, bloom, petal, bloomAt) {
+  const BASE = outdoorGround(P), GRASS = P.floor, PETAL = petal.map(hxi), RIM = GRASS[5], RIM2 = GRASS[4];
+  return { BASE, fine: function astralFine(kind, F, G, K, ki, KW, S) {
   if (kind === B) return bridgeFine(F, G);
   if (kind === V) return -2;
   // Rand zum Abgrund: eine Feinzeile dunkle Kante, an der Oberkante zwei Zeilen Licht (Gras im Gegenlicht)
@@ -104,27 +113,30 @@ function astralFine(kind, F, G, K, ki, KW, S) {
   const x = F >> 1, y = G >> 1;
   // Blüten: in Blumeninseln je 4 × 4-Feinzelle höchstens eine (Kreuz aus hellem Kern und Blättern)
   const fl = S.flo[wi];
-  if (fl > 0.74) {
+  if (fl > bloomAt) {
     const cx = F >> 2, cy = G >> 2, hc = hash2(cx, cy, 909);
-    if (hc < (fl - 0.74) * 2.6) {
+    if (hc < (fl - bloomAt) * 2.6) {
       const bx = (cx << 2) + 1 + ((hc * 97) & 1), by = (cy << 2) + 1 + ((hc * 53) & 1), dx = F - bx, dy = G - by;
-      const kind3 = Math.floor(hash2(Math.floor(F / 40), Math.floor(G / 40), 910) * 3), BL = BLOOM[kind3];
+      const kind3 = Math.floor(hash2(Math.floor(F / 40), Math.floor(G / 40), 910) * 3), BL = bloom[kind3];
       if (dx === 0 && dy === 0) return BL[2];
       if (Math.abs(dx) + Math.abs(dy) === 1) return dy === 1 ? BL[0] : BL[1];
       if (dx === 0 && dy === 2) return GRASS[2];
     }
   }
   return GRASS[Math.max(0, Math.min(5, Math.floor(t * 5 + D4[(y & 3) * 4 + (x & 3)] / 16)))];
+} };
 }
 
+const ASTRAL = makeFine(P_ASTRAL, BLOOM, ['#c86a98', '#eca0c0', '#ffd8ea'], 0.74);
+const SHARDS = makeFine(P_SHARDS, SHARD_BLOOM, ['#5ccbea', '#b8f2ff', '#ffffff'], 0.7);
 export const FINE_ASTRAL = {
   // Weltpixel-Paletten (Qualität „Niedrig“, Übersichtskarte)
   grass: ['#2e434c', '#3d5a5a', '#507468', '#6c927c', '#6c927c', '#97b896'],
   dirt: ['#3a3450', '#48425e', '#56506c', '#666080', '#787292', '#8c86a4'],
   water: ['#1c2450', '#243064', '#2c3c78', '#3a4e92', '#5068ae'],
   tufts: false,
-  finePixel: astralFine,
-  fineSetup: astralSetup,
+  finePixel: ASTRAL.fine,
+  fineSetup: makeSetup(ASTRAL.BASE),
   fineTufts: false,
   // Felswände unter den Inseln (world/Outdoor.js #islandPixel): Wand oben hell (Morgenlicht von unten rosa),
   // Kiel dunkel, Kristalle leuchten
@@ -135,5 +147,18 @@ export const FINE_ASTRAL = {
     root: hxi('#342640'),
     crystal: [[22, 132, 168], [92, 203, 234], [184, 242, 255], [255, 255, 255]],
     edge: EDGE,
+  },
+};
+
+// Splitterweiten: gleiche Inselkanten und Brücken, Boden kühl und gläsern, Felswände mit mehr Kristall
+export const FINE_SHARDS = {
+  ...FINE_ASTRAL,
+  grass: ['#263446', '#324658', '#40596c', '#587686', '#587686', '#7e9ca8'],
+  finePixel: SHARDS.fine,
+  fineSetup: makeSetup(SHARDS.BASE),
+  island: {
+    ...FINE_ASTRAL.island,
+    face: ramp(['#161a30', '#1e2444', '#283056', '#343e6a', '#444e80', '#586296']),
+    rim: hxi('#8cc8e8'),
   },
 };

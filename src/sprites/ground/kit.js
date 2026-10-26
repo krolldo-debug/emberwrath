@@ -314,7 +314,8 @@ export function waterPrep(S, x0, y0, cw, ch, K, KW, WP) {
   let water = false;
   for (let i = 0; i < K.length; i++) if (K[i] === FK.WATER) { water = true; break; }
   if (!water) return;
-  S.ld = distField(K, KW, WATER_LAND);
+  // Chunk ganz im Wasser (Seemitte): kein Ufer in Reichweite, also überall tiefes Wasser statt des schlichten Ersatztons
+  S.ld = distField(K, KW, WATER_LAND) ?? new Uint8Array((KW >> 1) * ((K.length / KW) >> 1)).fill(127);
   S.gl = waterGlints(x0, y0, cw, ch);
   S.gw = cw + 2;
   // Wasserton: Tonfeld des Bioms (S.tone, sonst eigenes); Grütze-Feld

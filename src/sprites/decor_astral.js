@@ -20,7 +20,7 @@ const CRY_LIGHT = [130, 230, 255], LAMP_LIGHT = [255, 210, 150];
 
 // Prisma (Sternkristall) vom Fuß (bx, by) zur Spitze (tx, ty), halbe Breite hw: Lichtfläche links, Schattenfläche
 // rechts, Grat hell, auf der Leuchtebene Saum und Kern
-function prism(p, g, bx, by, tx, ty, hw, pal = CRY) {
+export function prism(p, g, bx, by, tx, ty, hw, pal = CRY) {
   const L = by - ty;
   const ridge = (y) => tx + (bx - tx) * Math.max(0, (y - ty) / L);
   fpoly(p, [[tx, ty], [bx - hw, by - Math.min(2, hw)], [bx - hw * 0.7, by + 0.5], [bx, by + 1], [ridge(ty + 2.5), ty + 2.5]], (x, y) => {
@@ -349,7 +349,8 @@ function voidRift(sealed) {
   }, { ax: cx, ay: H - 2, b: true, light: sealed ? null : { dx: 0, dy: -6, radius: 56, color: [170, 110, 255], intensity: 0.75 } });
 }
 
-export function createAstralDecor() {
+// Natur und Ruinen (alle Inselgebiete); die Hauptstadt mischt ihre Gebäude dazu, die Splitterweiten ihre Deko
+export function createAstralNature() {
   return {
     blossomTrees: [0, 1, 2].map(blossomTree),
     bushes: [0, 1, 2].map(bush),
@@ -370,6 +371,7 @@ export function createAstralDecor() {
     vineGate: vineGate(),
     moonAltar: { off: moonAltar(false), on: moonAltar(true) },
     voidRift: { off: voidRift(false), on: voidRift(true) },
-    ...createStarCityDecor(),
   };
 }
+
+export function createAstralDecor() { return { ...createAstralNature(), ...createStarCityDecor() }; }

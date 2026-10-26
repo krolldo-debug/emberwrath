@@ -43,6 +43,7 @@ import { createMarshDecor } from '../sprites/decor_marsh.js';
 import { createFrostDecor } from '../sprites/decor_frost.js';
 import { createWastesDecor } from '../sprites/decor_wastes.js';
 import { createAstralDecor } from '../sprites/decor_astral.js';
+import { createShardSet } from '../sprites/decor_shards.js';
 import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createVillageProps } from '../sprites/village.js';
@@ -140,6 +141,7 @@ export function installWorld(game) {
   lazyAsset(assets, 'decor_frost', createFrostDecor);
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
   lazyAsset(assets, 'decor_astral', createAstralDecor);
+  lazyAsset(assets, 'decor_shards', createShardSet);
   lazyAsset(assets, 'biome_barrow', () => createBiomesBarrowSpore('barrow'));
   lazyAsset(assets, 'biome_spore', () => createBiomesBarrowSpore('spore'));
   lazyAsset(assets, 'biome_rime', () => createBiomesRimeThrone('rime'));

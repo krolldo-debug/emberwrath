@@ -37,6 +37,14 @@ const LOOKS = {
   jeweler_ysolde: ['elf', 0, { chest: { style: 'robe', ramp: SKY, trim: M.gold }, back: 'cloak', cloth: PEARL, boots: M.darkleather, style: { hairStyle: 'long' } }],
   quartermaster_tamsin: ['dwarf', 0, { guard: true, chest: { style: 'chain', ramp: M.silver, tabard: SKY }, cloth: SKY, boots: M.darkleather, gloves: M.leather }],
   herald_fenn: ['human', 2, { chest: { style: 'padded', ramp: PEARL, trim: M.gold }, back: 'cape', cloth: SKY, boots: M.leather, head: { style: 'cap', ramp: SKY } }],
+  // Splitterweiten
+  foreman_dagna: ['dwarf', 1, { chest: { style: 'leather', ramp: M.darkleather }, boots: M.darkleather, gloves: M.leather, head: { style: 'cap', ramp: SKY }, back: 'cloak', cloth: RUST }],
+  trader_bosk: ['human', 1, { chest: { style: 'padded', ramp: LINEN }, boots: M.leather, gloves: M.leather, back: 'cloak', cloth: SKY }],
+  prospector_kel: ['emberborn', 2, { chest: { style: 'leather', ramp: M.leather }, boots: M.leather, gloves: M.darkleather, head: { style: 'cap', ramp: M.leather } }],
+  cartographer_mira: ['elf', 2, { chest: { style: 'padded', ramp: TEAL }, back: 'cloak', cloth: LINEN, boots: M.leather, gloves: M.leather, style: { hairStyle: 'tail' } }],
+  echo_sage_lun: ['elf', 1, { chest: { style: 'robe', ramp: PLUM, trim: M.silver }, hood: true, cloth: PLUM, boots: M.darkleather, tool: staff(M.holy) }],
+  mirror_keeper_ilse: ['human', 0, { chest: { style: 'robe', ramp: PEARL, trim: M.silver }, hood: true, cloth: SKY, boots: M.darkleather }],
+  astronomer_tovan: ['human', 2, { chest: { style: 'robe', ramp: SKY, trim: M.gold }, back: 'cloak', cloth: BLUSH, boots: M.darkleather, gloves: M.leather, tool: staff(M.frost) }],
 };
 
 export function createStarNpcSprites() {

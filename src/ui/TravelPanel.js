@@ -20,6 +20,7 @@ const STONE = {
   ember_wastes: ['#2a1410', '#a85a3a', '#ff7a2a'],
   sternhafen: ['#2a2840', '#c2bed8', '#fff0c8'],
   drifting_gardens: ['#2a1426', '#c86a98', '#ffd8ea'],
+  splitterweiten: ['#0e2a40', '#5ccbea', '#e8fbff'],
 };
 const DEFAULT_STONE = ['#2a2030', '#8a7aa0', '#e0c0ff'];
 
