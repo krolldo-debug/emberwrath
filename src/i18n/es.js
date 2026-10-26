@@ -5339,5 +5339,9 @@ export const ES = {
   "Selten von Kaldris in den Gläsernen Hallen": "Botín raro de Kaldris en las Salas de Cristal",
   "Ein Rochen, der zwischen den treibenden Inseln durch die Luft gleitet. Auf seinem Rücken leuchten Punkte wie Morgentau.": "Una raya que se desliza por el aire entre las islas flotantes. En su lomo brillan puntos como el rocío de la mañana.",
   "Ein silberner Luchs aus den Gärten der Sternwarte. Auf seiner Schulter schimmert eine Mondsichel.": "Un lince plateado de los jardines del Observatorio. En su hombro reluce una luna creciente.",
-  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "Un carnero de los Confines Astillados. De su lana brotan cristales y sus cuernos cantan suavemente con el viento."
+  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "Un carnero de los Confines Astillados. De su lana brotan cristales y sus cuernos cantan suavemente con el viento.",
+  "Muschelpfeife: Himmelsrochen": "Silbato de concha: raya celeste",
+  "Silberglöckchen: Mondluchs": "Campanilla de plata: lince lunar",
+  "Kristallhorn: Kristallwidder": "Cuerno de cristal: carnero de cristal",
+  "Corvins Stall": "Establo de Corvin"
 };

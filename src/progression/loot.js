@@ -39,7 +39,7 @@ const BOSSES = {
   ash_sovereign: { weights: { rare: 92, epic: 8 }, drops: 3, gold: 20, set: { chance: 0.12, pieces: ['sovereign_helm', 'sovereign_gauntlets', 'sovereign_sabatons'] }, legendary: { chance: 0.018, pool: SOVEREIGN_LEGENDARIES }, quest: [['q_ash_sovereign', 'sovereign_crown']], questOnDefeat: true, mount: ['mount_cinder_drake', 0.005] },
   // Sternenglut Teil 1 (items50.js). Reittiere folgen mit den Figuren (Thread „Neue Welt“).
   ysgarn: { weights: { uncommon: 40, rare: 54, epic: 6 }, drops: 2, gold: 18, named: [['ysgarn_staff', 0.15], ['ysgarn_bough', 0.15]], set: { chance: 0.35, pieces: ['gardener_cap', 'gardener_jerkin', 'gardener_grips', 'gardener_boots'] } },
-  kaldris: { weights: { uncommon: 30, rare: 62, epic: 8 }, drops: 2, gold: 20, named: [['kaldris_edge', 0.15], ['kaldris_shard', 0.15]], set: { chance: 0.35, pieces: ['kaldris_helm', 'kaldris_cuirass', 'kaldris_gauntlets', 'kaldris_sabatons'] } },
+  kaldris: { weights: { uncommon: 30, rare: 62, epic: 8 }, drops: 2, gold: 20, named: [['kaldris_edge', 0.15], ['kaldris_shard', 0.15]], set: { chance: 0.35, pieces: ['kaldris_helm', 'kaldris_cuirass', 'kaldris_gauntlets', 'kaldris_sabatons'] }, mount: ['mount_crystal_ram', 0.01] },
   ysmeine: { weights: { rare: 90, epic: 10 }, drops: 3, gold: 24, set: { chance: 0.15, pieces: ['ysmeine_circlet', 'ysmeine_gown', 'ysmeine_gloves', 'ysmeine_slippers'] }, legendary: { chance: 0.018, pool: YSMEINE_LEGENDARIES } },
 };
 // Benannte Eliten (Außengebiete ab 20): Set-Teil mit `set.chance`, Questgegenstand, evtl. Reittier.

@@ -1759,7 +1759,7 @@ SWORDS.greatsword_t8 = { blade: M.ashsteel, guard: M.gold, gemRamp: M.ember, gri
 // ---------------------------------------------------------------- Reittiere (mount_<id>, §12.6)
 // Kopf und Hals im Profil (Blick nach rechts), aus Ellipsen und Kapseln zusammengesetzt.
 // spec: { hide, mane, maneStyle ('hair'|'ruff'|'fire'), kind ('horse'|'wolf'|'bird'|'drake'), eye, ears, antlers, horns,
-//         spikes, bone, bridle, mouthGlow, beak }
+//         spikes, bone, bridle, mouthGlow, beak, ramHorn }
 const inEll = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
 function inCapsule(x, y, x0, y0, r0, x1, y1, r1) {
   const dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
@@ -1822,6 +1822,15 @@ function mountHead(p, o) {
     p.line(11, 5, 7, 0, A[3]); p.line(9, 3, 5, 3, A[2]); p.line(8, 1, 6, -1, A[4]);
     p.line(13, 4, 17, 0, A[3]); p.line(15, 2, 19, 2, A[2]); p.line(16, 1, 15, -1, A[4]);
   }
+  // Widderhorn: dicker, nach hinten gerollter Ring um das Ohr, Rillen in der Rundung
+  if (o.ramHorn) {
+    const Hn = o.ramHorn;
+    for (let y = 0; y < 13; y++) for (let x = 3; x < 15; x++) {
+      const dx = x + 0.5 - 9, dy = y + 0.5 - 6.5, r = Math.hypot(dx, dy * 1.1);
+      if (r < 2.4 || r > 5.2 || (dx > 0.8 && dy > 0.5)) continue;
+      p.px(x, y, (x + y) % 3 === 0 ? Hn[1] : r < 3.4 ? Hn[2] : dy < 0 ? Hn[4] : Hn[3]);
+    }
+  }
   if (o.horns) { const Hn = o.horns; p.line(11, 6, 6, 2, Hn[3]); p.line(11, 7, 6, 3, Hn[1]); p.px(5, 1, Hn[4]); p.line(13, 5, 11, 1, Hn[2]); p.px(11, 0, Hn[4]); }
   if (o.spikes) for (let i = 0; i < 5; i++) { const x = K.neck[0] - K.neck[2] + 1 + i * 1.3, y = 21 - i * 3; p.px(Math.round(x - 1), Math.round(y), o.spikes[3]); p.px(Math.round(x - 2), Math.round(y - 1), o.spikes[4]); }
   // Auge (mit Glühen bei magischen Reittieren)
@@ -1872,6 +1881,10 @@ const MOUNTS = {
   // Seltenste Bossbeute (Runde 07.10.)
   mount_hellhound: { kind: 'wolf', hide: ['#080405', '#140a0a', '#261210', '#3e1c16', '#5e2a1c'], mane: M.ember, maneStyle: 'fire', ears: 'tall', horns: M.bone, eye: EYE_GLOW(M.ember), mouthGlow: M.ember, belly: ['#3a0e05', '#7a2208', '#c8420c', '#f07a1c', '#ffd890'] },
   mount_rime_drake: { kind: 'drake', hide: ['#1a2c4a', '#3a6290', '#7eaad0', '#c4e2f6', '#ffffff'], horns: M.silver, spikes: M.frost, eye: ['#0a1838', '#ffffff'], mouthGlow: M.frost, belly: M.frost },
+  // Sternenglut (Stufe 40–50), Farben wie sprites/mounts.js
+  mount_sky_ray: { kind: 'drake', hide: ['#08141e', '#1a3a4e', '#28566a', '#3c7686', '#5a98a4'], belly: ['#806e84', '#b09eae', '#d8c8d0', '#f6ecee', '#ffffff'], spikes: ['#14706e', '#2ab8b8', '#7af0e8', '#b8fff6', '#e0fffa'], eye: ['#04141a', '#9af8f0'] },
+  mount_moon_lynx: { kind: 'wolf', hide: ['#232236', '#3e3e5a', '#64668a', '#9698ba', '#d0d4ec'], mane: ['#3e3e5a', '#64668a', '#9698ba', '#e0e4f6', '#ffffff'], maneStyle: 'ruff', ears: 'tall', eye: ['#141020', '#fff0a8'], belly: M.paper },
+  mount_crystal_ram: { kind: 'horse', hide: ['#4a5a7a', '#7a8eae', '#b4c6de', '#eef6ff', '#ffffff'], mane: ['#1e2638', '#3a4862', '#62748e', '#98aac4', '#d4e2f2'], maneStyle: 'ruff', ramHorn: ['#10141f', '#222a3c', '#3a4862', '#5e7090', '#a4b8d4'], eye: ['#0a1838', '#c0f0ff'] },
   // Exklusive Shop-Designs (character/mounts.js)
   mount_phoenix_wing: { kind: 'drake', hide: ['#5a1208', '#8c220c', '#c04412', '#e8822a', '#ffc85a'], horns: M.gold, spikes: ['#86180a', '#c4340e', '#ec6416', '#ffa22e', '#ffe48a'], eye: ['#3a0804', '#fff0b0'], mouthGlow: M.gold, belly: M.gold },
   mount_astral_stallion: { kind: 'horse', hide: ['#08081e', '#12163a', '#1c265e', '#2a3a8a', '#4660bc'], mane: ['#3a58c0', '#7c9cf0', '#c4d8ff', '#e8f0ff', '#ffffff'], maneStyle: 'fire', ears: true, bridle: M.silver, eye: ['#0a1030', '#ffffff'] },
@@ -2620,6 +2633,18 @@ function mountHeadFine(p, o) {
     const A = o.antlers;
     const bar = (x0, y0, x1, y1) => { fl(p, x0, y0, x1, y1, A[3]); fl(p, x0 + 0.5, y0 + 0.5, x1 + 0.5, y1 + 0.5, A[1]); fdot(p, Math.floor(x1 * 2), Math.floor(y1 * 2), A[4]); };
     bar(11, 5, 7, 0.2); bar(9.2, 2.8, 5, 2.6); bar(8, 1.3, 6.3, -0.5); bar(13, 4.2, 17, 0.2); bar(15, 2.2, 19.4, 2); bar(16, 1.2, 15.2, -0.5);
+  }
+  if (o.ramHorn) {
+    // Widderhorn: nach hinten gerollter Ring um das Ohr, außen hell, innen dunkel, Rillen quer zur Rundung
+    const Hn = o.ramHorn, cx = 9, cy = 7.4;
+    fgrid(p, 3, 1.5, 14.5, 13, (x, y) => {
+      const dx = x - cx, dy = (y - cy) * 1.05, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+      // Spirale: Ansatz an der Stirn (vorn oben), nach hinten, unten herum, Spitze zeigt nach vorn zur Wange
+      const t = ((a + Math.PI * 0.35) / (Math.PI * 2) + 1) % 1, inner = 2.6 - t * 1.4, outer = 4.6 - t * 1.6;
+      if (r < inner || r > outer || (dx > 0.2 && dy < -0.4 && t > 0.85)) return null;
+      if ((a * 4.2 + 10) % 1 < 0.16) return Hn[1];
+      return r > 4.2 ? (dy < 0 ? Hn[4] : Hn[2]) : r < 2.8 ? Hn[1] : Hn[3];
+    });
   }
   if (o.horns) {
     const Hn = o.horns;

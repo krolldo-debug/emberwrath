@@ -213,7 +213,7 @@ export const ARMOR_40 = merge(...TIERS.map((t) => t.armor), EPIC_ARMOR, SET_ARMO
 export const JEWELRY_40 = merge(...TIERS.map((t) => t.jewelry), EPIC_JEWELRY, SET_JEWELRY, LEGENDARY_JEWELRY);
 
 // ---------------------------------------------------------------- Verbrauch, Material, Quest, Reittiere
-const MOUNT_ITEM = (mountId, name, rarity, value, extra = {}) => ({
+export const MOUNT_ITEM = (mountId, name, rarity, value, extra = {}) => ({
   name, type: 'mount', mountId, rarity, ilvl: 20, reqLevel: 20, icon: `mount_${mountId}`, stack: 1, value,
   desc: 'Benutzen, um das Reittier zu erlernen. Aufsitzen mit V oder dem Reittier-Knopf.', ...extra,
 });

@@ -5339,5 +5339,9 @@ export const EN = {
   "Selten von Kaldris in den Gläsernen Hallen": "Rare drop from Kaldris in the Glass Halls",
   "Ein Rochen, der zwischen den treibenden Inseln durch die Luft gleitet. Auf seinem Rücken leuchten Punkte wie Morgentau.": "A ray that glides through the air between the drifting islands. Spots like morning dew glow on its back.",
   "Ein silberner Luchs aus den Gärten der Sternwarte. Auf seiner Schulter schimmert eine Mondsichel.": "A silver lynx from the gardens of the Observatory. A crescent moon shimmers on its shoulder.",
-  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "A ram from the Splinter Reaches. Crystals grow from its wool, and its horns sing softly in the wind."
+  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "A ram from the Splinter Reaches. Crystals grow from its wool, and its horns sing softly in the wind.",
+  "Muschelpfeife: Himmelsrochen": "Shell Whistle: Sky Ray",
+  "Silberglöckchen: Mondluchs": "Silver Bell: Moon Lynx",
+  "Kristallhorn: Kristallwidder": "Crystal Horn: Crystal Ram",
+  "Corvins Stall": "Corvin's Stable"
 };

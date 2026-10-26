@@ -4,7 +4,7 @@
 // Grundausrüstung erzeugt gear() aus items40.js (TIER_STYLES 9 und 10); epische Teile, Dungeon-Sets, benannte
 // Bosswaffen und der legendäre Pool von Königin Ysmeine sind von Hand geschrieben.
 // Icons: <visual>_t9 / _t10 (gfx/Icons.js ICON_TIERS, Farben character/gearLook.js TIER_LOOK).
-import { gear } from './items40.js';
+import { gear, MOUNT_ITEM } from './items40.js';
 
 const E = (id, name, ilvl, rarity, icon, desc = '', extra = {}) => ({ id, name, ilvl, rarity, icon, desc, ...extra });
 
@@ -94,4 +94,8 @@ export const OTHER_50 = {
   star_shard: { name: 'Sternsplitter', type: 'material', rarity: 'common', icon: 'gem_starglass', stack: 50, value: 22, desc: 'Ein Splitter aus den Kristallebenen. Er summt leise.' },
   prism_dust: { name: 'Prismenstaub', type: 'material', rarity: 'common', icon: 'dust', stack: 50, value: 22, desc: 'Feiner Staub, der in allen Farben glitzert.' },
   void_glass: { name: 'Leerenglas', type: 'material', rarity: 'uncommon', icon: 'gem_void', stack: 50, value: 52, desc: 'Schwarzes Glas mit einem violetten Kern. Es ist nie ganz still.' },
+  // Reittiere (character/mounts.js): zwei beim Stallmeister in Sternhafen, eins selten von Kaldris (loot.js)
+  mount_sky_ray: MOUNT_ITEM('sky_ray', 'Muschelpfeife: Himmelsrochen', 'rare', 5000, { source: 'vendor', reqLevel: 40, price: 120000 }),
+  mount_moon_lynx: MOUNT_ITEM('moon_lynx', 'Silberglöckchen: Mondluchs', 'rare', 5000, { source: 'vendor', reqLevel: 50, price: 250000 }),
+  mount_crystal_ram: MOUNT_ITEM('crystal_ram', 'Kristallhorn: Kristallwidder', 'epic', 12000, { source: 'boss', reqLevel: 40 }),
 };

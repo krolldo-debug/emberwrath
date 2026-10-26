@@ -602,8 +602,12 @@ test('Reittiere: Kauf bei Orla, Lernen per Gegenstand, Drops nur von Bossen', ()
   // Beritten kein Trank
   state.slices.character.mounts.riding = true;
   assert.equal(c('inventory:use', { slot: slotOf(state, 'minor_potion') }).reason, 'riding');
-  // Drops: fünf Dungeonbosse und das Moorgrauen, 1 % bzw. 0,5 %; Höllenhund und Reifschwinge je 0,4 %
-  assert.deepEqual(Object.keys(MOUNT_DROPS).sort(), ['ash_sovereign', 'barrow_king', 'bog_horror', 'ember_tyrant', 'frost_wyrm', 'rot_mother']);
+  // Drops: fünf Dungeonbosse, das Moorgrauen und Kaldris, 1 % bzw. 0,5 %; Höllenhund und Reifschwinge je 0,4 %
+  assert.deepEqual(Object.keys(MOUNT_DROPS).sort(), ['ash_sovereign', 'barrow_king', 'bog_horror', 'ember_tyrant', 'frost_wyrm', 'kaldris', 'rot_mother']);
+  // Sternhafen: Corvin verkauft Himmelsrochen ab 40 und Mondluchs ab 50
+  assert.deepEqual(vendorStock(content, 'stablemaster_corvin'), ['mount_sky_ray', 'mount_moon_lynx']);
+  assert.equal(content.find('item', 'mount_moon_lynx').reqLevel, 50);
+  assert.equal(content.find('item', 'mount_crystal_ram').mountId, 'crystal_ram');
   assert.equal(MOUNT_DROPS.ash_sovereign[1], 0.005);
   let n = 0;
   for (let i = 0; i < 20000; i++) if (rollLoot({ type: 'barrow_king', level: 26, boss: true, bossId: 'barrow_king' }, { rng }).some((d) => d.itemId === 'mount_bone_stallion')) n++;
