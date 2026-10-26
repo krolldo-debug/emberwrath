@@ -8,6 +8,7 @@ import { warmCharacter } from './warmup.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
 import { createWolfSprites } from '../sprites/wolf.js';
 import { createBonelordSprites } from '../sprites/bonelord.js';
+import { createYsgarnSprites, createKaldrisSprites, createYsmeineSprites } from '../sprites/star_bosses.js';
 import { createNpcSprites } from '../sprites/npcs.js';
 import { createCryptSprites } from '../sprites/crypt.js';
 import { createOutdoorSprites } from '../sprites/outdoor.js';
@@ -108,6 +109,9 @@ export function installWorld(game) {
   assets.define('wolf', () => createWolfSprites('wolf'));
   assets.define('wolf_alpha', () => createWolfSprites('alpha'));
   assets.define('bonelord', createBonelordSprites);
+  assets.define('ysgarn', createYsgarnSprites);
+  assets.define('kaldris', createKaldrisSprites);
+  assets.define('ysmeine', createYsmeineSprites);
   assets.define('npcs', createNpcSprites);
   assets.define('crypt', createCryptSprites);
   assets.define('outdoor', createOutdoorSprites);
