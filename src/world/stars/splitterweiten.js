@@ -31,7 +31,7 @@ export function buildSplitterweiten() {
   // Scherbenfeld: Ankunftsinseln und Scherben verschiedener Größe
   isle(m, 46, 16, 12, 8, 11, { wob: 0.2 });                 // Ankunft aus den Gärten
   isle(m, 118, 15, 13, 8, 12, { wob: 0.2 });                // Ankunft aus Sternhafen
-  const shards = [[74, 18, 9, 6], [92, 26, 8, 5], [64, 32, 7, 5], [140, 22, 8, 6], [106, 36, 9, 6], [30, 34, 8, 6], [82, 40, 6, 4], [128, 38, 7, 5]];
+  const shards = [[74, 18, 9, 6], [92, 26, 8, 5], [64, 32, 7, 5], [140, 22, 8, 6], [106, 36, 9, 6], [30, 34, 8, 6], [78, 41, 6, 4], [128, 38, 7, 5]];
   shards.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 20 + i, { wob: 0.3 }));
   // Funkenruh
   isle(m, 58, 58, 17, 11, 31, { wob: 0.12 });
@@ -48,37 +48,43 @@ export function buildSplitterweiten() {
   isle(m, 146, 108, 22, 15, 71, { wob: 0.12 });
   isle(m, 118, 98, 8, 5, 72);
   isle(m, 112, 72, 9, 7, 73);                               // Zwischeninsel (Grate ↔ Berg ↔ Funkenruh)
+  // Landzungen zu den Ausgängen (kurze Brücken zum Kartenrand)
+  isle(m, 46, 6, 4.5, 3.5, 74, { wob: 0.1 });
+  isle(m, 118, 6, 4.5, 3.5, 75, { wob: 0.1 });
   // Treibsteine (Tiefe)
   const drift = [[10, 12, 4, 3], [190, 8, 4, 2], [196, 110, 3, 2], [100, 124, 5, 2], [8, 120, 4, 3], [132, 60, 3, 2], [90, 80, 4, 2], [20, 64, 3, 2], [176, 122, 4, 2], [62, 6, 3, 2]];
   drift.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 90 + i, { wob: 0.35 }));
 
   // ------------------------------------------------------------ Brücken
-  bridge(m, [[46, 0], [46, 9]], 3);                         // aus den Gärten
-  bridge(m, [[118, 0], [118, 8]], 3);                       // aus Sternhafen
-  bridge(m, [[57, 17], [66, 18]], 2);
-  bridge(m, [[82, 20], [86, 23]], 2);
-  bridge(m, [[100, 26], [106, 20]], 2);
-  bridge(m, [[131, 18], [133, 20]], 2);
-  bridge(m, [[95, 31], [101, 33]], 2);
-  bridge(m, [[114, 36], [122, 37]], 2);
-  bridge(m, [[66, 37], [64, 47]], 2);                       // Scherbenfeld → Funkenruh
-  bridge(m, [[36, 40], [38, 50]], 2);
-  bridge(m, [[42, 22], [34, 29]], 2);
-  bridge(m, [[82, 44], [72, 52]], 2);
-  bridge(m, [[146, 27], [152, 32]], 2);                     // Scherbenfeld → Grate
-  bridge(m, [[134, 41], [140, 44]], 2);
-  bridge(m, [[168, 33], [178, 30]], 2);                     // zur Torinsel
-  bridge(m, [[164, 49], [166, 55]], 2);                     // Grate untereinander
-  bridge(m, [[160, 61], [156, 67]], 2);
-  bridge(m, [[162, 73], [166, 81]], 2);
-  bridge(m, [[75, 60], [104, 70]], 2);                      // Funkenruh → Zwischeninsel
-  bridge(m, [[120, 72], [138, 70]], 2);                     // Zwischeninsel → Grate
-  bridge(m, [[112, 79], [116, 93]], 2);                     // Zwischeninsel → Berg
-  bridge(m, [[125, 99], [130, 102]], 2);
-  bridge(m, [[54, 69], [52, 84]], 3);                       // Funkenruh → Spiegelsee
-  bridge(m, [[77, 106], [80, 109]], 2);
-  bridge(m, [[26, 88], [28, 92]], 2);
-  bridge(m, [[94, 113], [126, 110]], 2);                    // Spiegelsee → Berg (lange Brücke)
+  // Scherbenfeld Hängebrücken, Funkenruh und Spiegelsee Holz, zu Toren und Berg Stein
+  bridge(m, [[46, 0], [46, 3]], 3, 'wood');                 // aus den Gärten
+  bridge(m, [[118, 0], [118, 3]], 3, 'stone');              // aus Sternhafen
+  bridge(m, [[57, 17], [66, 18]], 2, 'rope');
+  bridge(m, [[82, 20], [86, 23]], 2, 'rope');
+  bridge(m, [[100, 26], [106, 20]], 2, 'rope');
+  bridge(m, [[131, 18], [133, 20]], 2, 'wood');
+  bridge(m, [[95, 31], [101, 33]], 2, 'rope');
+  bridge(m, [[114, 36], [122, 37]], 2, 'rope');
+  bridge(m, [[66, 37], [64, 47]], 2, 'wood');               // Scherbenfeld → Funkenruh
+  bridge(m, [[36, 40], [38, 50]], 2, 'wood');
+  bridge(m, [[42, 22], [34, 29]], 2, 'rope');
+  bridge(m, [[75, 44], [75, 54]], 2, 'rope');
+  bridge(m, [[146, 27], [152, 32]], 2, 'stone');            // Scherbenfeld → Grate
+  bridge(m, [[134, 41], [140, 44]], 2, 'rope');
+  bridge(m, [[168, 33], [178, 30]], 2, 'stone');            // zur Torinsel
+  bridge(m, [[164, 49], [166, 55]], 2, 'rope');             // Grate untereinander
+  bridge(m, [[160, 61], [156, 67]], 2, 'rope');
+  bridge(m, [[162, 73], [166, 81]], 2, 'rope');
+  isle(m, 89, 67, 4, 3, 76, { wob: 0.2 });                 // Pfeilerinsel auf halbem Weg
+  bridge(m, [[70, 67], [85, 67]], 2, 'wood');               // Funkenruh → Zwischeninsel
+  bridge(m, [[93, 67], [104, 67]], 2, 'wood');
+  bridge(m, [[120, 72], [138, 70]], 2, 'wood');             // Zwischeninsel → Grate
+  bridge(m, [[112, 79], [116, 93]], 2, 'stone');            // Zwischeninsel → Berg
+  bridge(m, [[125, 99], [130, 102]], 2, 'stone');
+  bridge(m, [[54, 69], [52, 84]], 3, 'wood');               // Funkenruh → Spiegelsee
+  bridge(m, [[77, 106], [80, 109]], 2, 'wood');
+  bridge(m, [[26, 88], [28, 92]], 2, 'rope');
+  bridge(m, [[94, 113], [126, 110]], 2, 'stone');           // Spiegelsee → Berg (lange Brücke)
 
   // ------------------------------------------------------------ Wege
   const net = paths(m);
@@ -221,6 +227,7 @@ export function buildSplitterweiten() {
     island: ISLAND,
     decorSet: 'decor_shards',
     map: m.rows(),
+    bridges: m.bridges ?? [],
     solid: SOLID,
     decor: {
       K: 'shardSpire', S: 'singingSpires', G: 'glassGate', O: 'observatory', T: 'prospectorTents', x: 'crateStack', o: 'oreHeaps',

@@ -36,15 +36,19 @@ export function buildSternhafen() {
   isle(m, 100, 36, 7, 4, 54, { wob: 0.1 });            // Brückenkopf Nordost
   isle(m, 40, 81, 7, 4, 55, { wob: 0.1 });             // Brückenkopf Süd
   isle(m, 18, 50, 5, 4, 56, { wob: 0.1 });             // Brückenkopf West
+  isle(m, 11, 50, 7, 3.5, 57, { wob: 0.1 });           // Landzunge West (kurze Lichtbrücke zum Kartenrand)
+  isle(m, 40, 90, 5, 5.5, 58, { wob: 0.1 });           // Landzunge Süd
+  isle(m, 100, 15, 6, 10, 59, { wob: 0.12 });          // Wachtfels vor der versiegelten Brücke
   // Treibsteine mit Gärten (Tiefe, ohne Weg)
   const drift = [[112, 18, 5, 3], [10, 30, 4, 3], [116, 84, 6, 3], [12, 78, 5, 3], [86, 92, 4, 2], [92, 8, 3, 2], [8, 8, 3, 2], [120, 60, 3, 2]];
   drift.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 80 + i, { wob: 0.3 }));
 
   // ------------------------------------------------------------ Brücken
-  bridge(m, [[0, 50], [14, 50]], 3);                   // aus den Gärten
-  bridge(m, [[31, 25], [33, 33]], 2);                  // zum Sternturm
-  bridge(m, [[100, 33], [100, 0]], 3);                 // versiegelte Brücke (Teil 2)
-  bridge(m, [[40, 84], [40, 100]], 3);                 // in die Splitterweiten
+  bridge(m, [[0, 50], [6, 50]], 3, 'light');          // Lichtbrücke aus den Gärten
+  bridge(m, [[32, 25], [32, 33]], 2, 'stone');         // zum Sternturm
+  bridge(m, [[100, 25], [100, 33]], 3, 'light');       // versiegelte Lichtbrücke (Teil 2) zum Wachtfels, dahinter weiter
+  bridge(m, [[100, 0], [100, 6]], 3, 'light');
+  bridge(m, [[40, 95], [40, 100]], 3, 'stone');        // in die Splitterweiten
 
   // ------------------------------------------------------------ Straßen
   const net = paths(m);
@@ -56,10 +60,10 @@ export function buildSternhafen() {
   pave([[64, 43], [64, 18]], 5);
   m.ellipse(64, 15, 12, 3, ':', [',', '.']);
   // Hauptstraßen
-  pave([[16, 50], [52, 50]], 3);                       // Westtor → Platz
+  pave([[5, 50], [52, 50]], 3);                        // Westtor → Platz
   pave([[76, 50], [92, 50]], 3);                       // Platz → Ställe
   pave([[64, 57], [64, 74]], 4);                       // Platz → Gasthaus
-  pave([[40, 68], [40, 84]], 3);                       // Südtor
+  pave([[40, 68], [40, 95]], 3);                       // Südtor
   // Gassen im Raster (Häuserzeilen entstehen unten an ihren Nordseiten)
   pave([[34, 31], [94, 31]], 2);                       // Nordgasse (quer über die Prachtstraße)
   pave([[28, 40], [61, 40]], 2);                       // Nordwest
@@ -140,10 +144,10 @@ export function buildSternhafen() {
 
   // ------------------------------------------------------------ Tore und Brückenköpfe
   put(40, 82, 'U');                                    // Südtor
-  put(40, 86, '4');
+  put(40, 91, '4');
   put(100, 37, 'X');                                   // versiegelte Brücke
   for (const [x, y] of [[96, 37], [104, 37]]) put(x, y, 'Y');
-  put(16, 50, '3');                                    // aus den Gärten
+  put(9, 50, '3');                                     // aus den Gärten
   for (const [x, y] of [[18, 47], [18, 53]]) put(x, y, 'Y');
   for (const [x, y] of [[23, 48], [23, 52], [37, 83], [43, 83]]) put(x, y, 'L');
 
@@ -182,7 +186,7 @@ export function buildSternhafen() {
   drift.forEach(([x, y], i) => put(x, y, i % 2 ? 'C' : 'e'));
 
   // Freiraum vor Türen, Toren und Questgebern
-  const spots = [[64, 51], [55, 47], [55, 48], [64, 56], [73, 49], [16, 50], [40, 86], [40, 83], [64, 75], [58, 77], [66, 17], [55, 17], [33, 24], [92, 48], [84, 65], [49, 61], [100, 38], [24, 22],
+  const spots = [[64, 51], [55, 47], [55, 48], [64, 56], [73, 49], [9, 50], [40, 91], [40, 83], [64, 75], [58, 77], [66, 17], [55, 17], [33, 24], [92, 48], [84, 65], [49, 61], [100, 38], [24, 22],
     ...houses.map(([x, y]) => [x, y + 1])];
   clearAround(m, spots, 'eBkbnC', { r: 2, south: 2 });
 
@@ -194,6 +198,7 @@ export function buildSternhafen() {
     island: ISLAND,
     decorSet: 'decor_astral',
     map: m.rows(),
+    bridges: m.bridges ?? [],
     solid: 'AIKZFSOURXmYTBCLJQkfjbne',
     decor: {
       A: 'starHouses', I: 'starInn', K: 'starPalace', Z: 'starTower', F: 'starForge', S: 'starStable', O: 'anchorWell',

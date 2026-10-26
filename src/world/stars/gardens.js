@@ -46,32 +46,36 @@ export function buildDriftingGardens() {
   isle(m, 78, 102, 10, 8, 42);
   isle(m, 36, 114, 10, 6, 43);
   isle(m, 22, 82, 8, 7, 44);
+  // Landzungen zu den Ausgängen (kurze Brücken zum Kartenrand)
+  isle(m, 191, 62, 5, 3.5, 45, { wob: 0.1 });
+  isle(m, 36, 123, 4.5, 3.5, 46, { wob: 0.1 });
   // Treibsteine ohne Weg (Tiefe; einige tragen Kristalle oder einen Baum)
   const drift = [[140, 20, 4, 3], [186, 22, 5, 3], [190, 104, 4, 3], [150, 112, 6, 3], [70, 62, 4, 3], [10, 50, 4, 3], [12, 120, 5, 3], [100, 120, 4, 2], [160, 96, 3, 2], [80, 6, 4, 2], [130, 40, 3, 2], [196, 76, 3, 2]];
   drift.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 60 + i, { wob: 0.35 }));
 
   // ------------------------------------------------------------ Brücken (Trittsteine)
-  bridge(m, [[200, 62], [186, 62]], 3);                       // aus Sternhafen
-  bridge(m, [[133, 62], [127, 62]], 2);                       // Ankerhain → Wurzelbruch
-  bridge(m, [[110, 66], [107, 69]], 2);
-  bridge(m, [[110, 78], [117, 80]], 2);
-  bridge(m, [[121, 88], [115, 90]], 2);
-  bridge(m, [[100, 70], [95, 64]], 2);
-  bridge(m, [[124, 90], [128, 94]], 2);
-  bridge(m, [[112, 99], [116, 104]], 2);
-  bridge(m, [[98, 90], [94, 87]], 2);
-  bridge(m, [[95, 56], [96, 42]], 2);                         // Wurzelbruch → Terrassen
-  bridge(m, [[150, 52], [148, 52]], 2);
-  bridge(m, [[110, 24], [114, 20]], 2);
-  bridge(m, [[80, 27], [83, 28]], 3);                         // Terrassen untereinander (zur Treppe s. u.)
-  bridge(m, [[48, 22], [51, 23]], 3);
-  bridge(m, [[56, 34], [53, 39]], 2);
-  bridge(m, [[51, 45], [50, 74]], 2);                         // Terrassen → Mondweiher (lange Brücke)
-  bridge(m, [[86, 86], [77, 88]], 2);                         // Wurzelbruch → Mondweiher
-  bridge(m, [[76, 96], [77, 95]], 2);
-  bridge(m, [[42, 108], [40, 110]], 2);
-  bridge(m, [[29, 86], [31, 88]], 2);
-  bridge(m, [[36, 119], [36, 130]], 3);                       // in die Splitterweiten
+  // Ankerhain und Ausgänge Holz und Stein, im Wurzelbruch Hängebrücken, zu den Terrassen Perlstein
+  bridge(m, [[200, 62], [195, 62]], 3, 'light');              // Lichtbrücke aus Sternhafen
+  bridge(m, [[133, 62], [127, 62]], 2, 'wood');               // Ankerhain → Wurzelbruch
+  bridge(m, [[110, 66], [107, 69]], 2, 'rope');
+  bridge(m, [[110, 78], [117, 80]], 2, 'rope');
+  bridge(m, [[121, 88], [115, 90]], 2, 'rope');
+  bridge(m, [[100, 70], [95, 64]], 2, 'rope');
+  bridge(m, [[124, 90], [128, 94]], 2, 'rope');
+  bridge(m, [[112, 99], [116, 104]], 2, 'wood');
+  bridge(m, [[98, 90], [94, 87]], 2, 'rope');
+  bridge(m, [[95, 56], [96, 42]], 2, 'stone');                // Wurzelbruch → Terrassen
+  bridge(m, [[150, 52], [148, 52]], 2, 'wood');
+  bridge(m, [[110, 24], [114, 20]], 2, 'stone');
+  bridge(m, [[80, 27], [83, 28]], 3, 'stone');                // Terrassen untereinander (zur Treppe s. u.)
+  bridge(m, [[48, 22], [51, 23]], 3, 'stone');
+  bridge(m, [[56, 34], [53, 39]], 2, 'wood');
+  bridge(m, [[51, 45], [50, 74]], 2, 'rope');                 // Terrassen → Mondweiher (lange Hängebrücke)
+  bridge(m, [[84, 85], [76, 85]], 2, 'wood');                 // Wurzelbruch → Mondweiher
+  bridge(m, [[76, 96], [77, 95]], 2, 'wood');
+  bridge(m, [[42, 108], [40, 110]], 2, 'wood');
+  bridge(m, [[29, 86], [31, 88]], 2, 'rope');
+  bridge(m, [[36, 126], [36, 130]], 3, 'wood');               // in die Splitterweiten
   // Wurzelbrücken: dünne Erdstege (Sand), wo Wurzeln die Brocken verbinden
   m.path([[112, 58], [111, 57]], 2, ',', [VOID]);
 
@@ -79,7 +83,7 @@ export function buildDriftingGardens() {
   const net = paths(m);
   const { sand, pave } = net;
   // Ankerhain: Pflaster vom Brückenkopf zum Dorfplatz, Sandwege zu den Brücken
-  pave(wobble([[187, 62], [176, 61], [168, 60]], 1, 4402), 3);
+  pave(wobble([[195, 62], [187, 62], [176, 61], [168, 60]], 1, 4402), 3);
   sand(wobble([[160, 60], [146, 62], [134, 62]], 1.2, 4403), 2);
   sand(wobble([[162, 64], [168, 74], [174, 82]], 1.5, 4404), 2);
   sand(wobble([[166, 56], [176, 48]], 1, 4405), 2);
@@ -100,7 +104,7 @@ export function buildDriftingGardens() {
   sand(wobble([[50, 76], [48, 84], [40, 92], [42, 102], [52, 106], [64, 100], [66, 90], [58, 82], [50, 76]], 1.2, 4431), 2);
   sand(wobble([[66, 92], [76, 92], [78, 88]], 1, 4432), 2);
   sand(wobble([[40, 92], [30, 88]], 1, 4433), 2);
-  pave(wobble([[44, 106], [38, 112], [36, 119]], 0.6, 4434), 3);
+  pave(wobble([[44, 106], [38, 112], [36, 126]], 0.6, 4434), 3);
 
   // ------------------------------------------------------------ Gärtnerdorf Morgentau (Ankerhain)
   const village = rect(150, 50, 30, 22);
@@ -122,7 +126,7 @@ export function buildDriftingGardens() {
   for (const [x, y] of [[154, 64], [178, 66], [180, 58], [152, 58]]) put(x, y, 'V');
   for (const [x, y] of [[156, 68], [162, 69], [176, 70], [182, 62]]) put(x, y, 'B');
   put(166, 61, '1'); put(166, 66, '2');
-  put(185, 62, '3');             // aus Sternhafen
+  put(190, 62, '3');             // aus Sternhafen
   keep(inRect(village));
 
   // ------------------------------------------------------------ Hängende Terrassen
@@ -211,7 +215,7 @@ export function buildDriftingGardens() {
   const seal = [120, 81];
 
   // Freiraum um Marken und Portale
-  const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [199, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts, ...wardStones, ...lightMoss, ...fallenStars, seal].filter(Boolean);
+  const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [36, 125], [190, 62], [196, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts, ...wardStones, ...lightMoss, ...fallenStars, seal].filter(Boolean);
   clearAround(m, spots, 'TBKRPWJX', { r: 2, south: 3 });
 
   // ------------------------------------------------------------ Questziele (progression/questsStars.js)
@@ -231,6 +235,7 @@ export function buildDriftingGardens() {
     island: ISLAND,
     decorSet: 'decor_astral',
     map: m.rows(),
+    bridges: m.bridges ?? [],
     solid: SOLID,
     decor: {
       T: 'blossomTrees', B: 'bushes', K: 'crystals', L: 'lantern', J: 'starLamp', P: 'ruinPillars', R: 'roseRocks',

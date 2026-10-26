@@ -5,7 +5,7 @@ import { outdoorGround } from './outdoor.js';
 // Feinraster-Boden der Sternenscherben (level.biome 'astral', Grundstimmung „Morgenschimmer“). Gras ruhig und hell
 // (salbeigrün, weich gefleckt, vereinzelte Halme und Blütenblätter wie im Look-Entwurf), Wege aus lavendelgrauem
 // Sternsand und Pflaster aus hellem Perlstein zeichnet der Shader der Glutsenke (ground/outdoor.js) mit eigener Palette.
-// Neu: der Rand zum Abgrund (dunkle Kante, darüber eine Lichtkante) und die Lichtbrücken (schwebende Trittsteine,
+// Neu: der Rand zum Abgrund (dunkle Kante, darüber eine Lichtkante) und die alten Lichtbrücken (schwebende Trittsteine,
 // dazwischen der Himmel). Den Abgrund selbst und die Felswände unter den Inseln zeichnet world/Outdoor.js (#islandPixel).
 
 const P_ASTRAL = {
