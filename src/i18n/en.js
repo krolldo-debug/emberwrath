@@ -5017,5 +5017,14 @@ export const EN = {
   "Wer über die Brücke geht, kommt nicht immer zurück.": "Not everyone who crosses the bridge comes back.",
   "Werkzeug für Schürfer! Hacken, Seile, Laternen!": "Tools for prospectors! Picks, ropes, lanterns!",
   "Wir schneiden die Ranken jeden Tag. Sie wachsen jede Nacht.": "We cut the vines every day. They grow back every night.",
-  "Ysolde hat Steine, die singen, wenn man sie hält.": "Ysolde has stones that sing when you hold them."
+  "Ysolde hat Steine, die singen, wenn man sie hält.": "Ysolde has stones that sing when you hold them.",
+  "Himmelsrochen": "Sky Ray",
+  "Mondluchs": "Moon Lynx",
+  "Kristallwidder": "Crystal Ram",
+  "Stallmeister Corvin, Sternhafen, ab Stufe 40": "Stablemaster Corvin, Starhaven, from level 40",
+  "Stallmeister Corvin, Sternhafen, ab Stufe 50": "Stablemaster Corvin, Starhaven, from level 50",
+  "Selten von Kaldris in den Gläsernen Hallen": "Rare drop from Kaldris in the Glass Halls",
+  "Ein Rochen, der zwischen den treibenden Inseln durch die Luft gleitet. Auf seinem Rücken leuchten Punkte wie Morgentau.": "A ray that glides through the air between the drifting islands. Spots like morning dew glow on its back.",
+  "Ein silberner Luchs aus den Gärten der Sternwarte. Auf seiner Schulter schimmert eine Mondsichel.": "A silver lynx from the gardens of the Observatory. A crescent moon shimmers on its shoulder.",
+  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "A ram from the Splinter Reaches. Crystals grow from its wool, and its horns sing softly in the wind."
 };

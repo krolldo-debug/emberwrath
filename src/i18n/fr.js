@@ -5017,5 +5017,14 @@ export const FR = {
   "Wer über die Brücke geht, kommt nicht immer zurück.": "Ceux qui traversent le pont ne reviennent pas toujours.",
   "Werkzeug für Schürfer! Hacken, Seile, Laternen!": "Des outils pour prospecteurs ! Pioches, cordes, lanternes !",
   "Wir schneiden die Ranken jeden Tag. Sie wachsen jede Nacht.": "On taille les ronces chaque jour. Elles repoussent chaque nuit.",
-  "Ysolde hat Steine, die singen, wenn man sie hält.": "Ysolde a des pierres qui chantent quand on les tient."
+  "Ysolde hat Steine, die singen, wenn man sie hält.": "Ysolde a des pierres qui chantent quand on les tient.",
+  "Himmelsrochen": "Raie céleste",
+  "Mondluchs": "Lynx lunaire",
+  "Kristallwidder": "Bélier de cristal",
+  "Stallmeister Corvin, Sternhafen, ab Stufe 40": "Maître d'écurie Corvin, Havre-Étoile, dès le niveau 40",
+  "Stallmeister Corvin, Sternhafen, ab Stufe 50": "Maître d'écurie Corvin, Havre-Étoile, dès le niveau 50",
+  "Selten von Kaldris in den Gläsernen Hallen": "Butin rare de Kaldris dans les Salles de Verre",
+  "Ein Rochen, der zwischen den treibenden Inseln durch die Luft gleitet. Auf seinem Rücken leuchten Punkte wie Morgentau.": "Une raie qui glisse dans les airs entre les îles flottantes. Sur son dos brillent des points comme la rosée du matin.",
+  "Ein silberner Luchs aus den Gärten der Sternwarte. Auf seiner Schulter schimmert eine Mondsichel.": "Un lynx argenté des jardins de l'Observatoire. Un croissant de lune scintille sur son épaule.",
+  "Ein Widder aus den Splitterweiten. Aus seiner Wolle wachsen Kristalle, und seine Hörner singen leise im Wind.": "Un bélier des Étendues Éclatées. Des cristaux poussent dans sa laine, et ses cornes chantent doucement dans le vent."
 };
