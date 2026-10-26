@@ -176,11 +176,15 @@ export function buildSplitterweiten() {
     const d = vd(x, y), h = hash2(x, y, 6190), n = hash2(Math.floor(x / 6), Math.floor(y / 5), 6191);
     if (d < 2) { if (h < 0.05) put(x, y, 'k'); continue; }
     const inLake = x < 90 && y > 76, inRidge = x > 132 && y < 92, inMount = x > 112 && y > 90;
-    if (n > 0.6 && h < 0.13 && d >= 3) put(x, y, 'g');                      // Glashaine
-    else if (h < 0.025) put(x, y, inRidge ? 's' : 'c');
-    else if (h < 0.045) put(x, y, 'k');
+    const inCamp = Math.hypot((x - 58) / 20, (y - 58) / 14) < 1;
+    // Haine je Teilgebiet: Glasbäume im Scherbenfeld, Mondbäume am Spiegelsee, Heide am Sternwartenberg, verdorrte
+    // Bäume um das Schürferlager, auf den Graten nur Kristall
+    const grove = inLake ? (hash2(x, y, 6192) < 0.5 ? 'm' : 'g') : inMount ? 'v' : inCamp ? 'd' : inRidge ? 's' : 'g';
+    if (n > 0.6 && h < (inMount ? 0.2 : 0.13) && d >= 3) put(x, y, grove);
+    else if (h < 0.025) put(x, y, inRidge ? 's' : inMount ? 'v' : 'c');
+    else if (h < 0.045) put(x, y, inLake ? 'u' : 'k');
     else if (inLake && h < 0.055) put(x, y, 'R');
-    else if (inMount && h < 0.052) put(x, y, 'k');
+    else if (inMount && h < 0.06) put(x, y, hash2(x, y, 6193) < 0.6 ? 'v' : 'k');
   }
 
   // ------------------------------------------------------------ Gegner
@@ -213,9 +217,9 @@ export function buildSplitterweiten() {
 
   // Freiraum um Marken und Portale
   const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses, ...crates, ...nests, ...echoStones, claimStake, harrikCamp];
-  clearAround(m, spots, 'gckRsabefhwrtz', { r: 2, south: 3 });
+  clearAround(m, spots, 'gckRsabefhwrtzmvdu', { r: 2, south: 3 });
   // Eskorte „Miras Messgang“: von Funkenruh über die Westbrücken zur Westscherbe
-  const SOLID = 'KSGOTxoDlLJYgcksRQF';
+  const SOLID = 'KSGOTxoDlLJYgcksRQFmd';
   const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
   const amb = (f) => Math.round((miraPath.length - 1) * f);
 
@@ -228,11 +232,14 @@ export function buildSplitterweiten() {
     decorSet: 'decor_shards',
     map: m.rows(),
     bridges: m.bridges ?? [],
+    // Teilgebiete mit eigenem Boden (ground/astral.js): Schürferlager Bernstein, Grate Reifglas, Sternwartenberg Heide
+    groundZones: [{ x: 58, y: 58, rx: 20, ry: 13, pal: 'amber' }, { x: 160, y: 60, rx: 30, ry: 32, pal: 'frost' }, { x: 146, y: 108, rx: 27, ry: 18, pal: 'heather' }, { x: 50, y: 100, rx: 30, ry: 18, pal: 'moon' }],
     solid: SOLID,
     decor: {
       K: 'shardSpire', S: 'singingSpires', G: 'glassGate', O: 'observatory', T: 'prospectorTents', x: 'crateStack', o: 'oreHeaps',
       D: 'derrick', l: 'mineCart', L: 'lantern', J: 'starLamp', Y: 'lensStand', g: 'glassTrees', c: 'crystals', k: 'shardRocks',
       s: 'singingSpires', R: 'mirrorStones', Q: 'signpost', F: 'shardCampfire',
+      m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_sternhafen', 5: 'waystone', 6: 'from_glass_halls', 7: 'from_observatory' },
     waystone,

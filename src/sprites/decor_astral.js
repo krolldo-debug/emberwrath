@@ -10,6 +10,12 @@ import { createStarCityDecor2 } from './decor_starcity2.js';
 
 const LEAF = ['#4a1e3c', '#6e2c56', '#9a4474', '#c86a98', '#eca0c0', '#ffd8ea'];
 const BARK = ['#1a1220', '#241a2c', '#342640', '#463654', '#5c4a6a'];
+const LEAF0 = LEAF, BARK0 = BARK;
+// Laub der Teilgebiete: Goldbäume (Terrassen), Mondbäume (Mondweiher), Heide (Sternwartenberg)
+const LEAF_GOLD = ['#4a2c10', '#7a4a18', '#a8701e', '#d8a440', '#f6d888', '#fff4c8'];
+const LEAF_MOON = ['#16203a', '#283c58', '#46667e', '#7aa0c0', '#b8d8f0', '#f0fbff'];
+const BARK_PALE = ['#1c1c2c', '#2a2a3e', '#3e3e56', '#56566e', '#74748c'];
+const HEATH = ['#2a1a30', '#4a2448', '#6e3466', '#a0508a', '#d07ab0', '#f0b0d4'];
 const PEARL = ['#2a2840', '#4a4466', '#605a80', '#7c769c', '#9c97ba', '#c2bed8', '#ecebf8'];
 const CRY = ['#0e2a40', '#164660', '#2484a8', '#5ccbea', '#b8f2ff', '#ffffff'];
 const LAMP = ['#3a2614', '#5a3a20', '#d8984a', '#f6c87a', '#fff0c8', '#ffffff'];
@@ -37,9 +43,9 @@ export function prism(p, g, bx, by, tx, ty, hw, pal = CRY) {
 }
 
 // ---------------------------------------------------------------- Bäume und Pflanzen
-function blossomTree(v) {
+function blossomTree(v, LEAF = LEAF0, BARK = BARK0, salt = 0) {
   const W = [50, 42, 56][v], H = [56, 48, 64][v], cx = W / 2, base = H - 3;
-  const top = [14, 12, 15][v], seed = 900 + v * 7;
+  const top = [14, 12, 15][v], seed = 900 + v * 7 + salt;
   const rng = createRng(seed);
   return mk(W, H, (p) => {
     // Blütenteppich unter der Krone
@@ -107,6 +113,69 @@ export function roots(v) {
       p.dot(x0 + (x1 - x0) * 0.5, y - h - 0.5, BUSH[4]);
     }
   }, { ax: W / 2, ay: H - 2, box: [-12, -4, 12, 1], b: true, extra: { low: true } });
+}
+
+
+// Verdorrter Baum (Wurzelbruch): kahle, verdrehte Äste, wenige violette Blätter, Leerenfunken (Leuchtebene)
+function witheredTree(v) {
+  const W = [46, 40][v], H = [58, 50][v], cx = W / 2, base = H - 3, seed = 1500 + v, rng = createRng(seed);
+  return mk(W, H, (p, g) => {
+    const top = 16;
+    trunk(p, top + 10, base + 1, (y) => cx + Math.sin(y / 7 + v) * 1.6, (y) => 2.6 + ((y - top) / (base - top)) * 2.8, BARK, seed);
+    const branch = (x0, y0, a, len, w, d) => {
+      const x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len;
+      p.fline(x0, y0, x1, y1, d > 0 ? BARK[2] : BARK[3], w);
+      p.fline(x0 - 0.5, y0, x1 - 0.5, y1, BARK[4], 0.3);
+      if (d < 2) { branch(x1, y1, a - 0.5 - rng.next() * 0.3, len * 0.62, Math.max(0.5, w * 0.6), d + 1); branch(x1, y1, a + 0.45 + rng.next() * 0.3, len * 0.58, Math.max(0.5, w * 0.6), d + 1); }
+      else if (rng.next() < 0.6) { p.dot(x1, y1, '#9a6ad8'); p.dot(x1 + 0.5, y1 + 0.5, '#6a3aa8'); }
+    };
+    branch(cx, top + 12, -Math.PI / 2 - 0.5, 11, 1.6, 0);
+    branch(cx, top + 10, -Math.PI / 2 + 0.55, 12, 1.5, 0);
+    branch(cx + 0.5, top + 16, -0.2, 8, 1.1, 1);
+    for (let i = 0; i < 6; i++) { const x = cx + rng.range(-W * 0.4, W * 0.4), y = rng.range(6, top + 14); g.dot(x, y, '#c8a0ff'); p.dot(x, y, '#e8d4ff'); }
+    for (let i = 0; i < 10; i++) p.dot(cx + rng.range(-W * 0.35, W * 0.35), base + rng.range(0, 2), '#4a2a78');
+  }, { ax: Math.round(cx), ay: H - 2, box: [-3, -3, 3, 1], b: true, extra: { shadow: 18 } });
+}
+
+// Leuchtpilze (Mondweiher, Wurzelbruch): Gruppe aus Hüten in Cyan oder Violett, Kappen leuchten
+function glowShrooms(v) {
+  const W = 26, H = 20, seed = 1520 + v, rng = createRng(seed);
+  const C = v ? ['#2a1640', '#6a3aa8', '#9a6ad8', '#c8a0ff', '#f0e4ff'] : ['#0e2a40', '#2484a8', '#5ccbea', '#b8f2ff', '#ffffff'];
+  return mk(W, H, (p, g) => {
+    const caps = [[W / 2 - 4, 7, 4.2], [W / 2 + 5, 10, 3.2], [W / 2 - 9, 12, 2.4], [W / 2 + 1, 13, 2], [W / 2 + 9, 14, 1.8]];
+    for (const [x, top, r] of caps.sort((a, b) => a[1] - b[1])) {
+      p.fline(x, top + r * 0.4, x + 0.3, H - 2.5, PEARL[5], Math.max(0.6, r * 0.32));
+      p.fline(x + r * 0.2, top + r * 0.4, x + r * 0.2 + 0.3, H - 2.5, PEARL[3], 0.4);
+      p.scan(x - r, top - r * 0.7, x + r, top + r * 0.45, (xx, yy) => {
+        const nx = (xx - x) / r, ny = (yy - top) / (r * 0.7);
+        if (yy > top + r * 0.45 || nx * nx + ny * ny > 1) return 0;
+        return col32(yy > top + r * 0.2 ? C[1] : nx < -0.2 && ny < -0.2 ? C[4] : nx < 0.35 ? C[3] : C[2]);
+      });
+      for (let i = 0; i < 3; i++) p.dot(x + rng.range(-r * 0.6, r * 0.5), top - rng.range(0, r * 0.4), C[4]);
+      g.each(x - r, top - r * 0.7, x + r, top + r * 0.2, (xx, yy) => (((xx - x) / r) ** 2 + ((yy - top) / (r * 0.7)) ** 2 < 1 ? C[3] : null));
+    }
+    for (let i = 0; i < 5; i++) p.dot(rng.range(3, W - 3), H - 2 + rng.range(-0.5, 0.5), BUSH[3]);
+  }, { ax: W / 2, ay: H - 2, b: true, extra: { low: true }, light: { dx: 0, dy: -8, radius: 34, color: v ? [190, 140, 255] : CRY_LIGHT, intensity: 0.5 } });
+}
+
+// Formschnitt (Terrassen): rund geschnittener Buchs auf Perlsteinkübel
+function topiary(v) {
+  const W = 22, H = [30, 38][v], cx = W / 2, base = H - 2, seed = 1540 + v;
+  return mk(W, H, (p) => {
+    p.scan(cx - 6, base - 7, cx + 6, base, (x, y) => (y < base - 6.5 ? col32(PEARL[6]) : x > cx + 4 ? col32(PEARL[2]) : col32(y > base - 1 ? PEARL[2] : PEARL[4])));
+    p.scan(cx - 7, base - 8, cx + 7, base - 6.5, (x, y) => col32(y < base - 7.5 ? GOLD[3] : GOLD[1]));
+    if (v === 0) canopy(p, [[cx, base - 15, 7.5]], BUSH, seed, { lo: 1, hi: 5, tuft: 0.4, bias: -0.1 });
+    else { canopy(p, [[cx, base - 13, 6.2]], BUSH, seed, { lo: 1, hi: 5, tuft: 0.4 }); canopy(p, [[cx, base - 25, 4.6]], BUSH, seed + 1, { lo: 1, hi: 5, tuft: 0.4 }); p.fline(cx, base - 21, cx, base - 19, BARK[3], 0.8); }
+  }, { ax: cx, ay: H - 2, box: [-6, -4, 6, 1], b: true });
+}
+
+// Sternheide (Sternwartenberg): niedrige Büsche voller violetter Blütenrispen
+function heather(v) {
+  const W = [24, 18][v], H = [14, 12][v], cx = W / 2, seed = 1560 + v, rng = createRng(seed);
+  return mk(W, H, (p) => {
+    canopy(p, [[cx, H - 6, W * 0.3], [cx - W * 0.24, H - 4.5, W * 0.2, -0.3], [cx + W * 0.25, H - 4.5, W * 0.19, -0.4]], ['#1c2430', '#2a3440', '#3a4650', '#4e5c60', '#647470', '#80907e'], seed, { lo: 1, hi: 4, tuft: 0.9 });
+    for (let i = 0; i < 16; i++) { const x = cx + rng.range(-W * 0.42, W * 0.42), y = H - rng.range(4, 11); p.fline(x, y, x, y + 1.5, HEATH[rng.next() < 0.5 ? 4 : 3], 0.5); p.dot(x, y - 0.5, HEATH[5]); }
+  }, { ax: Math.round(cx), ay: H - 2, box: [-W * 0.35, -4, W * 0.35, 1], b: true, extra: { low: true } });
 }
 
 // ---------------------------------------------------------------- Kristalle
@@ -353,7 +422,13 @@ function voidRift(sealed) {
 // Natur und Ruinen (alle Inselgebiete); die Hauptstadt mischt ihre Gebäude dazu, die Splitterweiten ihre Deko
 export function createAstralNature() {
   return {
-    blossomTrees: [0, 1, 2].map(blossomTree),
+    blossomTrees: [0, 1, 2].map((v) => blossomTree(v)),
+    goldTrees: [0, 1, 2].map((v) => blossomTree(v, LEAF_GOLD, BARK, 31)),
+    moonTrees: [0, 1, 2].map((v) => blossomTree(v, LEAF_MOON, BARK_PALE, 57)),
+    witheredTrees: [0, 1].map(witheredTree),
+    glowShrooms: [0, 1].map(glowShrooms),
+    topiary: [0, 1].map(topiary),
+    heather: [0, 1].map(heather),
     bushes: [0, 1, 2].map(bush),
     roseRocks: [0, 1, 2].map(roseRocks),
     roots: [0, 1].map(roots),
