@@ -25,6 +25,8 @@ export const FRAME_SLICE = 5; // Bildpunkte der Vorlage je Ecke
 
 const PALETTES = {
   ember: { k: '#14060a', r: '#7a1e1c', R: '#c8382e', i: '#3a0f12', f: '#150b10', e: '#a8301a', E: '#ff6a2a', w: '#ffd890' },
+  // Morgenschimmer (Sternenglut): violetter Rand mit Rosé-Licht, Kristall in den Ecken
+  dawn: { k: '#0e0b1e', r: '#3a3478', R: '#985a92', i: '#1c1834', f: '#141230', e: '#2484a8', E: '#5ccbea', w: '#b8f2ff' },
 };
 
 const cache = new Map();

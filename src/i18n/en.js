@@ -6043,5 +6043,14 @@ export const EN = {
   "Ysmeine ruft die Sterne": "Ysmeine calls the stars",
   "Rette dich auf die Lichtbrücke": "Get onto the bridge of light",
   "Ysmeine greift nach dem Himmel": "Ysmeine reaches for the sky",
-  "Die Sternbilder brennen schneller": "The constellations burn faster"
+  "Die Sternbilder brennen schneller": "The constellations burn faster",
+  "Über der Glutöde reißt der Himmel auf. Dahinter treiben Inseln im Morgenlicht, und über Sternhafen brennt ein Stern, der nie erlischt.": "Above the Ember Wastes the sky is tearing open. Beyond it, islands drift in the light of dawn, and above Starhaven burns a star that never goes out.",
+  "Beim Anmelden nicht mehr zeigen": "Don't show again at login",
+  "Zwei neue Gebiete": "Two new regions",
+  "Drei neue Bosse": "Three new bosses",
+  "Drei neue Reittiere": "Three new mounts",
+  "Bis Stufe 50": "Up to level 50",
+  "Bald": "Soon",
+  "Weiter spielen": "Keep playing",
+  "Sternentafel lesen": "Read the star tablet"
 };
