@@ -1,7 +1,7 @@
 import { hash2 } from '../core/math.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 
-// Bilder für die Ankündigung „Sternenglut“: Morgenschimmer-Himmel, treibende Inseln, Sternhafen, Schriftzug.
+// Bilder für die Ankündigung „Sternenglut“: Morgenschimmer-Himmel, treibende Inseln, Sternhafen in der Ferne, Schriftzug.
 // Alles prozedural im Weltraster (1 Weltpixel = R×R Bildpunkte), damit Figuren aus dem Spiel (Feinraster, res 2)
 // ohne Umrechnung darauf stehen. Anzeige per CSS ganzzahlig und image-rendering: pixelated.
 export const R = 2;
@@ -49,7 +49,6 @@ class Buf {
     const v = typeof c === 'string' ? hex(c) : c;
     this.d[i] = v[0]; this.d[i + 1] = v[1]; this.d[i + 2] = v[2]; this.d[i + 3] = 255;
   }
-  rect(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.put(x + i, y + j, c); }
   toCanvas() {
     const c = makeCanvas(this.w * R, this.h * R), ctx = c.getContext('2d');
     const img = ctx.createImageData(this.w * R, this.h * R);
@@ -141,22 +140,6 @@ function tree(b, x, y, s, seed) {
   }
 }
 
-// Haus mit blauem Satteldach (wie Sternhafen im Spiel); tower = Rundturm mit Kegeldach
-function house(b, x, y, w, hgt, tower = false) {
-  const S = DAWN.stone, Rf = DAWN.roof;
-  for (let j = 0; j < hgt; j++) for (let i = 0; i < w; i++) b.put(x + i, y - j, i === 0 ? S[4] : i === w - 1 ? S[1] : S[3 - ((j & 3) === 3 ? 1 : 0)]);
-  // Fenster warm
-  for (let i = 2; i < w - 2; i += 3) { b.put(x + i, y - Math.floor(hgt / 2), DAWN.lantern[2]); if (hgt > 7) b.put(x + i, y - hgt + 3, DAWN.lantern[1]); }
-  const rh = tower ? Math.ceil(w * 1.3) : Math.ceil(w / 2);
-  for (let j = 0; j < rh; j++) {
-    const half = tower ? Math.round((w / 2 + 0.5) * (1 - j / rh)) : Math.ceil(w / 2) + 1 - j;
-    const mid = x + (w - 1) / 2;
-    for (let i = Math.round(mid - half); i <= Math.round(mid + half); i++) b.put(i, y - hgt - j, i < mid ? Rf[3 - (j === 0 ? 1 : 0)] : Rf[1]);
-  }
-  if (tower) b.put(Math.round(x + (w - 1) / 2), y - hgt - rh, DAWN.lantern[3]);
-  else for (let i = 0; i < w + 2; i++) b.put(x - 1 + i, y - hgt, Rf[0]);
-}
-
 // Leuchtender Stern mit Strahlenkreuz (Sternhafens Turmspitze, Logo-Raute)
 function star(b, x, y, r) {
   const L = DAWN.lantern;
@@ -164,53 +147,7 @@ function star(b, x, y, r) {
   for (let i = 1; i <= Math.floor(r / 2); i++) { b.put(x + i, y + i, L[2]); b.put(x - i, y - i, L[2]); b.put(x + i, y - i, L[2]); b.put(x - i, y + i, L[2]); }
 }
 
-// Sternhafen: Häuser, Türme und der Sternturm in der Mitte auf der Oberkante topAt
-function city(b, topAt, cx, spread) {
-  const at = (x) => topAt.get(Math.round(x)) ?? null;
-  const parts = [
-    [-spread, 6, 6], [-spread + 7, 5, 9, true], [-spread + 13, 8, 7], [-8, 6, 10, true],
-    [5, 7, 8], [12, 5, 11, true], [spread - 12, 8, 6], [spread - 5, 6, 8],
-  ];
-  for (const [dx, w, hgt, tw] of parts) {
-    const x = Math.round(cx + dx), y = at(x + w / 2);
-    if (y != null) house(b, x, y + 2, w, hgt, !!tw);
-  }
-  // Sternturm
-  const y = (at(cx) ?? 0) + 2, S = DAWN.stone;
-  for (let j = 0; j < 30; j++) {
-    const half = j < 22 ? 2 : 1;
-    for (let i = -half; i <= half; i++) b.put(cx + i, y - j, i === -half ? S[5] : i === half ? S[1] : S[3]);
-  }
-  for (let i = -3; i <= 3; i++) b.put(cx + i, y - 22, S[4]);
-  star(b, cx, y - 35, 5);
-}
-
-// Hauptbild: Sternhafen auf der großen Insel, links die Gärten, rechts Splitter mit Kristallen, ferne Inseln.
-// Liefert { canvas, w, h, spots } (spots = Weltpixel, an denen Figuren stehen können).
-export function vistaHarbor(w = 320, h = 120, seed = 3) {
-  const b = new Buf(w, h);
-  sky(b, seed, { clouds: 0.58 });
-  island(b, w * 0.1, h * 0.42, 14, 3, 7, seed + 40, { far: true });
-  island(b, w * 0.92, h * 0.34, 10, 2, 6, seed + 41, { far: true });
-  island(b, w * 0.72, h * 0.22, 6, 1.5, 4, seed + 42, { far: true });
-  // Gärten links
-  const g = island(b, w * 0.17, h * 0.7, 34, 6, 18, seed + 50);
-  for (let i = 0; i < 6; i++) { const x = Math.round(w * 0.17 - 28 + i * 11 + hash2(i, 1, seed) * 4); const y = g.get(x); if (y != null) tree(b, x, y + 3, (i & 1) + 1, seed + i); }
-  // Splitterweiten rechts: Kristallspitzen
-  const s = island(b, w * 0.84, h * 0.66, 30, 5, 16, seed + 60);
-  for (let i = 0; i < 5; i++) {
-    const x = Math.round(w * 0.84 - 22 + i * 10 + hash2(i, 2, seed) * 4), y = (s.get(x) ?? 0) + 3, hh = 6 + Math.floor(hash2(i, 3, seed) * 8);
-    for (let j = 0; j < hh; j++) { const hw = Math.max(0, Math.round((1 - j / hh) * 2)); for (let k = -hw; k <= hw; k++) b.put(x + k, y - j, DAWN.crystal[k < 0 ? 3 : k > 0 ? 1 : 2 + (j > hh - 3 ? 2 : 0)]); }
-  }
-  // Sternhafen in der Mitte
-  const m = island(b, w * 0.5, h * 0.6, 54, 8, 30, seed + 70);
-  city(b, m, Math.round(w * 0.5), 44);
-  // Kristallstufen als Brücken
-  for (let i = 0; i < 6; i++) { b.rect(Math.round(w * 0.3 + i * 3), Math.round(h * 0.64 - i * 0.4), 2, 1, DAWN.crystal[3]); b.rect(Math.round(w * 0.66 + i * 3), Math.round(h * 0.6 + i * 0.6), 2, 1, DAWN.crystal[3]); }
-  return { canvas: b.toCanvas(), w, h, ground: (x) => m.get(Math.round(x)) ?? null };
-}
-
-// Bühne für Draft B: eine breite Felsinsel im Vordergrund (Figuren stehen auf groundY), Sternhafen klein in der Ferne
+// Bühne des Fensters: eine breite Felsinsel im Vordergrund (Figuren stehen auf groundY), Sternhafen klein in der Ferne
 export function vistaStage(w = 360, h = 150, seed = 9) {
   const b = new Buf(w, h);
   sky(b, seed, { clouds: 0.5 });
@@ -224,54 +161,6 @@ export function vistaStage(w = 360, h = 150, seed = 9) {
   tree(b, Math.round(w * 0.06), (g.get(Math.round(w * 0.06)) ?? h) + 4, 2, seed);
   tree(b, Math.round(w * 0.95), (g.get(Math.round(w * 0.95)) ?? h) + 4, 1, seed + 1);
   return { canvas: b.toCanvas(), w, h, groundY: Math.round(h * 0.8) };
-}
-
-// Karte für Draft C: Draufsicht der Inselkette im Wolkenmeer (Teil 1 sichtbar, zwei Inseln im Nebel)
-export function vistaMap(w = 200, h = 150, seed = 21) {
-  const b = new Buf(w, h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    // Wolkenmeer: tiefes Violett, darüber helle Wolkenzüge (Morgenlicht von unten rechts)
-    const n = fbm(x / 30, y / 14, seed) * 0.8 + vn(x / 5, y / 4, seed + 1) * 0.2;
-    const t = n * 0.9 + (x + y) / (w + h) * 0.25;
-    b.put(x, y, t > 0.8 ? step(DAWN.clouds, (t - 0.8) * 3, x, y) : step(DAWN.sky.slice(1, 5), t / 0.8, x, y));
-  }
-  const blob = (cx, cy, r, seed2, look) => {
-    const pts = [];
-    for (let y = -r - 2; y <= r + 2; y++) for (let x = -r - 3; x <= r + 3; x++) {
-      const a = Math.atan2(y, x), rr = r * (0.82 + vn(Math.cos(a) * 2 + 5, Math.sin(a) * 2 + 5, seed2) * 0.36);
-      if (x * x / 1.2 + y * y > rr * rr) continue;
-      pts.push([cx + x, cy + y, Math.sqrt(x * x / 1.2 + y * y) / rr, x, y]);
-    }
-    // Schlagschatten unten rechts (Insel schwebt)
-    for (const [x, y] of pts) b.put(x + 3, y + 4, DAWN.sky[2]);
-    for (const [x, y, d, dx, dy] of pts) {
-      let c;
-      if (look === 'fog') c = step(DAWN.far, 0.6 - dy / r * 0.3 + (hash2(x, y, 3) - 0.5) * 0.3, x, y);
-      else if (d > 0.86) c = dy > 0 ? DAWN.cliff[2] : DAWN.cliff[4];
-      else if (look === 'city') c = step(DAWN.stone, 0.55 - (dx + dy) / r * 0.2 + (fbm(x / 3, y / 3, 4) - 0.5) * 0.4, x, y);
-      else if (look === 'crystal') c = step(DAWN.cliff, 0.7 - (dx + dy) / r * 0.2 + (fbm(x / 3, y / 3, 5) - 0.5) * 0.5, x, y);
-      else c = step(DAWN.grass, 0.55 - (dx + dy) / r * 0.25 + (fbm(x / 4, y / 4, 6) - 0.5) * 0.5, x, y);
-      b.put(x, y, c);
-    }
-    return pts;
-  };
-  const places = {
-    sternhafen: [100, 74, 18, 'city'], gardens: [42, 58, 20, 'garden'], splitter: [150, 108, 19, 'crystal'],
-    fog1: [162, 30, 12, 'fog'], fog2: [36, 124, 10, 'fog'],
-  };
-  for (const [id, [x, y, r, look]] of Object.entries(places)) {
-    const pts = blob(x, y, r, seed + x, look);
-    if (look === 'garden') for (const [px, py, d] of pts) if (d < 0.75 && hash2(px, py, 7) > 0.93) tree(b, px, py + 3, 0, seed + px);
-    if (look === 'crystal') for (const [px, py, d] of pts) if (d < 0.7 && hash2(px, py, 8) > 0.95) { b.put(px, py, DAWN.crystal[4]); b.put(px, py + 1, DAWN.crystal[2]); b.put(px + 1, py + 1, DAWN.crystal[1]); }
-    if (look === 'city') {
-      for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; house(b, Math.round(x + Math.cos(a) * 10) - 2, Math.round(y + Math.sin(a) * 7) + 3, 4, 3); }
-      star(b, x, y - 2, 3);
-    }
-  }
-  // Wege: Kristallstufen zwischen den Inseln
-  const path = (a, c) => { for (let t = 0.18; t < 0.84; t += 0.06) b.rect(Math.round(a[0] + (c[0] - a[0]) * t), Math.round(a[1] + (c[1] - a[1]) * t), 2, 1, DAWN.crystal[3]); };
-  path(places.sternhafen, places.gardens); path(places.sternhafen, places.splitter);
-  return { canvas: b.toCanvas(), w, h, places };
 }
 
 // Figur aus dem Spiel (SpriteFrame, Feinraster) auf ein Bild stellen: Fußpunkt (x, y) in Weltpixeln

@@ -6043,5 +6043,14 @@ export const ES = {
   "Ysmeine ruft die Sterne": "Ysmeine invoca a las estrellas",
   "Rette dich auf die Lichtbrücke": "Ponte a salvo en el puente de luz",
   "Ysmeine greift nach dem Himmel": "Ysmeine alcanza el cielo",
-  "Die Sternbilder brennen schneller": "Las constelaciones arden más rápido"
+  "Die Sternbilder brennen schneller": "Las constelaciones arden más rápido",
+  "Über der Glutöde reißt der Himmel auf. Dahinter treiben Inseln im Morgenlicht, und über Sternhafen brennt ein Stern, der nie erlischt.": "Sobre el Páramo de Ascuas, el cielo se desgarra. Al otro lado flotan islas bajo la luz del alba, y sobre Puerto Estelar arde una estrella que nunca se apaga.",
+  "Beim Anmelden nicht mehr zeigen": "No volver a mostrar al iniciar sesión",
+  "Zwei neue Gebiete": "Dos regiones nuevas",
+  "Drei neue Bosse": "Tres jefes nuevos",
+  "Drei neue Reittiere": "Tres monturas nuevas",
+  "Bis Stufe 50": "Hasta el nivel 50",
+  "Bald": "Pronto",
+  "Weiter spielen": "Seguir jugando",
+  "Sternentafel lesen": "Leer la tablilla estelar"
 };

@@ -6043,5 +6043,14 @@ export const FR = {
   "Ysmeine ruft die Sterne": "Ysmeine appelle les étoiles",
   "Rette dich auf die Lichtbrücke": "Réfugie-toi sur le pont de lumière",
   "Ysmeine greift nach dem Himmel": "Ysmeine tend la main vers le ciel",
-  "Die Sternbilder brennen schneller": "Les constellations brûlent plus vite"
+  "Die Sternbilder brennen schneller": "Les constellations brûlent plus vite",
+  "Über der Glutöde reißt der Himmel auf. Dahinter treiben Inseln im Morgenlicht, und über Sternhafen brennt ein Stern, der nie erlischt.": "Au-dessus des Landes de Braise, le ciel se déchire. Au-delà dérivent des îles dans la lumière de l'aube, et au-dessus de Havre-Étoile brûle une étoile qui ne s'éteint jamais.",
+  "Beim Anmelden nicht mehr zeigen": "Ne plus afficher à la connexion",
+  "Zwei neue Gebiete": "Deux nouvelles régions",
+  "Drei neue Bosse": "Trois nouveaux boss",
+  "Drei neue Reittiere": "Trois nouvelles montures",
+  "Bis Stufe 50": "Jusqu'au niveau 50",
+  "Bald": "Bientôt",
+  "Weiter spielen": "Continuer à jouer",
+  "Sternentafel lesen": "Lire la stèle étoilée"
 };
