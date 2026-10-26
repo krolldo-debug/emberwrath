@@ -4,6 +4,8 @@
 // Instanzen braucht: instanced (jede Gruppe bekommt eine eigene Kopie) und
 // maxPlayers (Kanal-/Instanzgröße). Lokal gibt es immer genau einen Spieler;
 // LocalAuthority.joinZone() liefert eine lokale Instanz.
+import { STAR_ZONES, STAR_NPCS } from './stars/zones.js';
+
 export const ZONES = {
   emberhollow: {
     name: 'Glutsenke',
@@ -211,7 +213,7 @@ export const ZONES = {
     mountable: true,
     recommendedLevel: '36–40',
     respawnSpawn: 'respawn',
-    links: ['frostspire', 'ashen_throne'],
+    links: ['frostspire', 'ashen_throne', 'sternhafen'],
     enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus', 'cinder_bombardier', 'phase_wraith'],
     ambient: [148, 120, 98],
   },
@@ -231,6 +233,8 @@ export const ZONES = {
     enemies: ['throne_guard', 'ash_priest', 'ember_hellhound', 'throne_sentinel', 'ash_sovereign'],
     ambient: [86, 58, 58],
   },
+  // Sternenscherben (Erweiterung „Sternenglut“, world/stars/)
+  ...STAR_ZONES,
 };
 
 export const NPCS = {
@@ -304,4 +308,5 @@ export const NPCS = {
   marshal_corvane: { name: 'Corvane', title: 'Marschall der letzten Bastion', zoneId: 'ember_wastes', greeting: 'Hinter diesen Mauern endet die Welt. Vor ihnen beginnt der Thron.' },
   pilgrim_aldo: { name: 'Aldo', title: 'Pilger', zoneId: 'ember_wastes', greeting: 'Ich suche das Ende der Asche. Bisher fand ich nur mehr Asche.', light: { dx: 5, dy: -16, radius: 44, color: [255, 200, 130] } },
   quartermaster_ryn: { name: 'Ryn', title: 'Quartiermeisterin', zoneId: 'ember_wastes', greeting: 'Jeder Pfeil zählt. Jeder Trank auch. Unterschreib.' },
+  ...STAR_NPCS,
 };

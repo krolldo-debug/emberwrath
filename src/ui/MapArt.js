@@ -68,6 +68,17 @@ const OUTDOOR = {
     water: LAVA, tree: R('#100808', '#281410', '#381e16', '#4a2a1e'), roof: R('#3a140c', '#6a2414', '#8e3a20'), crop: R('#5a3428', '#6c4030'),
   },
 };
+// Sternenscherben: Inseln über dem Himmel (void = Himmel von Nacht oben bis Morgenrot unten, cliff = Felswand unter der Kante)
+OUTDOOR.astral = {
+  ground: R('#3d5a5a', '#507468', '#6c927c'), forest: R('#2e434c', '#3d5a5a', '#466660'), speck: hex('#eca0c0'),
+  path: R('#56506c', '#666080', '#787292'), pave: R('#625f86', '#a4a2c6', '#cbc9e2'),
+  rock: R('#1c1834', '#28224a', '#352d5e', '#443a72', '#584a88', '#6e5c9e'),
+  water: R('#1c2450', '#2c3c78', '#3a4e92', '#a4b8e8'), tree: R('#241a2c', '#6e2c56', '#9a4474', '#c86a98'),
+  roof: R('#2a2848', '#4a4870', '#6a6896'), crop: R('#6c927c', '#97b896'),
+  sky: R('#151638', '#22245a', '#3a3478', '#62458a', '#985a92', '#c87488'), cliff: R('#1c1834', '#352d5e', '#584a88'),
+  bridge: R('#5a5878', '#c4c2dc'),
+};
+OUTDOOR.shards = { ...OUTDOOR.astral, ground: R('#324658', '#40596c', '#587686'), forest: R('#263446', '#324658', '#384a58'), speck: hex('#8cd8f0') };
 OUTDOOR.cinder = OUTDOOR.peaks;
 const LAVA_BIOMES = new Set(['cinder', 'peaks', 'wastes', 'forge', 'throne']);
 
@@ -190,7 +201,7 @@ class Paint {
 
 // ------------------------------------------------------------------ Gelände je Kachel
 const TERR = 1.05; // Terrassen je Höhenstufe (Fels)
-const G = 0, DIRT = 1, PAVE = 2, ROCK = 3, LIQ = 4, FISS = 5, HOUSE = 6, WALL = 7;
+const G = 0, DIRT = 1, PAVE = 2, ROCK = 3, LIQ = 4, FISS = 5, HOUSE = 6, WALL = 7, VOID = 10, BRIDGE = 11;
 const FLOOR = 0, FACE = 8, TOP = 9;
 
 function classify(d) {
@@ -210,7 +221,8 @@ function classify(d) {
   for (const p of d.placements) if (p.tx >= 0 && p.ty >= 0 && p.tx < d.w && p.ty < d.h) placed[p.ty * d.w + p.tx] = 1;
   for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
     const ch = d.rows[y][x], i = y * d.w + x;
-    if (ch === '#' || rockChars.has(ch)) cls[i] = ROCK;
+    if (L.island && (d.terrain[y][x] === L.island.void || d.terrain[y][x] === L.island.bridge)) cls[i] = d.terrain[y][x] === L.island.void ? VOID : BRIDGE;
+    else if (ch === '#' || rockChars.has(ch)) cls[i] = ROCK;
     else if (ch === '~') cls[i] = LIQ;
     else if (ch === '=') cls[i] = FISS;
     else if (ch === 'H') cls[i] = HOUSE;
@@ -299,6 +311,19 @@ function paintOutdoor(P, d, cls, fill, biome, s, fine) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x, k = pc[i];
     let col;
+    if (k === VOID) {
+      // Himmel; unter einer Inselkante die Felswand (Höhe ~ 1 Kachel), mit Kristallfunken
+      let wall = 0;
+      for (let j = 1; j <= Math.max(2, s); j++) { const n = at(x, y - j); if (n !== VOID && n !== BRIDGE && n !== 255) { wall = j; break; } }
+      if (wall) col = pal.cliff[wall === 1 ? 2 : wall <= s * 0.5 ? 1 : 0];
+      else {
+        col = pick(pal.sky, Math.pow(y / H, 0.85), x, y);
+        if (hash2(x, y, 71) < 0.012 && y < H * 0.55) col = hex('#e8e8ff');
+      }
+      P.set(x, y, col);
+      continue;
+    }
+    if (k === BRIDGE) { P.set(x, y, (x + y) % 3 ? pal.bridge[1] : pal.bridge[0]); continue; }
     if (k === ROCK) {
       const nb = (at(x + 1, y) !== ROCK) || (at(x, y + 1) !== ROCK), nt = (at(x - 1, y) !== ROCK) || (at(x, y - 1) !== ROCK);
       if (nb) col = pal.rock[0];

@@ -57,6 +57,31 @@ export const RUN_CAST = {
     title: 'Sigruns Jagdhütte', start: 'Halte die Jagdhütte mit Sigrun, bis der Sturm vorüber ist.', foe: 'frost_revenant',
     members: [{ npc: 'hunter_sigrun', name: 'Sigrun', hits: 70 }],
   },
+  // Sternenglut Teil 1 (progression/questsStars.js)
+  defend_star_rift: {
+    title: 'Wache am Sternenriss', start: 'Halte das Wachfeuer mit Corvanes Rittern, bis der Riss sich beruhigt.', foe: 'void_wisp', circle: true,
+    members: [0, 1, 2].map((i) => ({ npc: 'marshal_corvane', name: i ? 'Ritter' : 'Corvane', hits: i ? 40 : 70, hue: [0, 200, 320][i] })),
+  },
+  defend_ridge_song: {
+    title: 'Das Lied der Grate', start: 'Schütze Lun, bis das Lied der Grate zu Ende gesungen ist.', foe: 'prism_elemental', circle: true,
+    members: [{ npc: 'echo_sage_lun', name: 'Lun', hits: 75 }],
+  },
+  escort_bren_cutting: {
+    title: 'Brens Ableger', start: 'Eskorte: Begleite Bren mit dem Ableger in den Wurzelbruch.', speed: 26, foe: 'void_wisp',
+    members: [{ npc: 'gardener_bren', name: 'Bren', hits: 26 }],
+  },
+  defend_root_scar: {
+    title: 'Die letzte Narbe', start: 'Schütze Veyra, bis das Siegel über der letzten Narbe hält.', foe: 'rootbound', circle: true,
+    members: [{ npc: 'warden_veyra', name: 'Veyra', hits: 75 }],
+  },
+  defend_kel_claim: {
+    title: 'Kels Claim', start: 'Halte Kels Claim, bis die Schürfer aufgeben.', foe: 'mad_prospector', circle: true,
+    members: [{ npc: 'prospector_kel', name: 'Kel', hits: 70 }],
+  },
+  escort_mira_survey: {
+    title: 'Miras Messgang', start: 'Eskorte: Begleite Mira mit ihren Messgeräten zur Westscherbe.', speed: 26, foe: 'shard_crawler',
+    members: [{ npc: 'cartographer_mira', name: 'Mira', hits: 28 }],
+  },
 };
 
 // Neue Gegnertypen anderer Bereiche, solange sie fehlen: nächstverwandter vorhandener Typ.
@@ -343,7 +368,7 @@ class QuestRun {
         ? { wagon: true, radius: 8, mass: 6, hurtRadius: 12, bodyHeight: 22, shadowW: 40, labelY: 34 }
         : { wagon: true, radius: 10, mass: 8, hurtRadius: 15, bodyHeight: 30, shadowW: 56, labelY: 46 });
     } else {
-      const base = A.npcs?.[spec.npc] ?? A.npcs2?.[spec.npc] ?? A.npcs3?.[spec.npc] ?? A.npcs2?.trader_vesk;
+      const base = A.npcs?.[spec.npc] ?? A.npcs2?.[spec.npc] ?? A.npcs3?.[spec.npc] ?? A.npcs_stars?.[spec.npc] ?? A.npcs2?.trader_vesk;
       anims = tintAnims(base, spec.hue ?? 0);
     }
     const p = w.dungeon.nearestFree(x, y, o.radius ?? 5);

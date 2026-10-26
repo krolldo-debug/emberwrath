@@ -9,4 +9,5 @@ export const PLACES = {
   blighted_marsh: [{ dx: 80, dy: 14 }],
   frostspire: [{ dx: -112, dy: -98 }],
   ember_wastes: [{ dx: -80, dy: 110 }, { dx: 64, dy: -2 }],
+  sternhafen: [{ dx: -64, dy: -16 }, { dx: 112, dy: 448 }],
 };

@@ -13,6 +13,7 @@
 //   howl             ruft beim Entdecken das Rudel (und beschleunigt es)
 //   family           grobe Art für Feedback/Sound: 'undead' | 'beast' | 'spider'
 import { createRound3Enemies } from './enemyTypes3.js';
+import { createStarEnemies } from './defs_stars.js';
 
 export const ENEMY_TYPES = {
   wolf: {
@@ -252,3 +253,5 @@ export const ENEMY_TYPES = {
 
 // Runde 3: Stufe 20–40 (entities/enemyTypes3.js)
 Object.assign(ENEMY_TYPES, createRound3Enemies(ENEMY_TYPES));
+// Sternenscherben Teil 1: Stufe 40–50 (entities/defs_stars.js)
+Object.assign(ENEMY_TYPES, createStarEnemies(ENEMY_TYPES));

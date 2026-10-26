@@ -26,6 +26,13 @@ export const ZONE_WEATHER = {
   rime_caverns: { layers: [{ type: 'glint', n: 26 }, { type: 'snow', n: 14 }, { type: 'drip', n: 4 }], glow: [110, 170, 255], tint: [120, 170, 240, 0.06] },
   ember_wastes: { layers: [{ type: 'emberrain', n: 22 }, { type: 'ember', n: 28 }, { type: 'ash', n: 26 }], shimmer: 0.45, glow: [255, 90, 30], weather: ['ash', 'emberstorm', 'ash'] },
   ashen_throne: { layers: [{ type: 'ember', n: 50 }, { type: 'emberrain', n: 10 }], shimmer: 0.35, glow: [255, 70, 40] },
+  // Sternenscherben: Sternstaub (Funkeln) und treibende Blütenblätter
+  drifting_gardens: { layers: [{ type: 'petal', n: 26 }, { type: 'glint', n: 22 }, { type: 'firefly', n: 6 }] },
+  sternhafen: { layers: [{ type: 'petal', n: 14 }, { type: 'glint', n: 18 }] },
+  splitterweiten: { layers: [{ type: 'glint', n: 40 }, { type: 'dust', n: 16 }], glow: [130, 210, 255] },
+  rankengruft: { layers: [{ type: 'petal', n: 10 }, { type: 'firefly', n: 8 }, { type: 'drip', n: 2 }], glow: [240, 140, 210] },
+  glass_halls: { layers: [{ type: 'glint', n: 34 }, { type: 'dust', n: 8 }], glow: [120, 200, 255], tint: [140, 180, 240, 0.05] },
+  observatory: { layers: [{ type: 'glint', n: 26 }, { type: 'dust', n: 10 }], glow: [160, 170, 255] },
 };
 const DEFAULT = { outdoor: { layers: [{ type: 'firefly', n: 10 }] }, dungeon: { layers: [{ type: 'dust', n: 30 }] } };
 
@@ -93,6 +100,7 @@ export class Weather {
       case 'spore': p.vx = rnd(-2, 2); p.vy = rnd(-5, -1.5); p.a = rnd(0.4, 0.85); p.c = Math.random() < 0.5 ? '#c8f070' : Math.random() < 0.5 ? '#90e060' : '#f0e890'; if (!anywhere) p.y = H + 2; break;
       case 'emberrain': p.vx = rnd(-8, -3); p.vy = rnd(38, 60); p.a = rnd(0.55, 0.95); p.c = Math.random() < 0.35 ? '#fff0b0' : '#ff9a30'; if (!anywhere) p.y = -3; break;
       case 'glint': p.a = rnd(0.5, 1); p.c = Math.random() < 0.5 ? '#e8f6ff' : '#9ad0ff'; break;
+      case 'petal': p.vx = rnd(4, 10); p.vy = rnd(5, 10); p.a = rnd(0.6, 0.95); p.c = Math.random() < 0.6 ? '#eca0c0' : '#ffd8ea'; if (!anywhere) p.y = -2; break;
     }
     return p;
   }
@@ -143,6 +151,7 @@ export class Weather {
         case 'spore': p.x += (p.vx + Math.sin(this.t * 0.6 + p.ph) * 5) * dt; p.y += p.vy * dt; break;
         case 'emberrain': p.x += (p.vx - wind * 0.6) * dt; p.y += p.vy * (this.state === 'emberstorm' ? 1.5 : 1) * dt; break;
         case 'glint': break;
+        case 'petal': p.x += (p.vx + Math.sin(this.t * 1.3 + p.ph) * 8 - wind) * dt; p.y += (p.vy + Math.cos(this.t * 0.9 + p.ph) * 3) * dt; break;
         case 'drip':
           p.life -= dt;
           if (!p.fall && p.life <= 0) { p.fall = true; p.vy = 0; p.y0 = p.y; }
@@ -152,7 +161,7 @@ export class Weather {
       // Umlauf am Rand (so bleibt die Dichte konstant)
       if (p.x < -4) p.x += W + 8; else if (p.x > W + 4) p.x -= W + 8;
       if (p.y < -4) { if (p.type === 'ember' || p.type === 'bubble' || p.type === 'spore') Object.assign(p, this.#make(p.type, W, H, false)); else p.y += H + 8; }
-      else if (p.y > H + 4) { if (p.type === 'ash' || p.type === 'snow' || p.type === 'emberrain') Object.assign(p, this.#make(p.type, W, H, false)); else p.y -= H + 8; }
+      else if (p.y > H + 4) { if (p.type === 'ash' || p.type === 'snow' || p.type === 'emberrain' || p.type === 'petal') Object.assign(p, this.#make(p.type, W, H, false)); else p.y -= H + 8; }
     }
 
     // Regen: eigene Tropfen, Menge je Zustand
@@ -234,6 +243,12 @@ export class Weather {
           if (p.s > 1) { ctx.fillRect(x + 1, y, 1, 1); ctx.fillRect(x, y + 1, 1, 1); ctx.fillRect(x + 2, y + 1, 1, 1); ctx.fillRect(x + 1, y + 2, 1, 1); ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 1, y, 1, 1); }
           else ctx.fillRect(x, y, 1, 1);
           break;
+        case 'petal': {
+          // Blütenblatt: zwei Pixel, die sich beim Taumeln quer und längs drehen
+          const flip = Math.sin(t * 2.2 + p.ph) > 0;
+          ctx.globalAlpha = p.a; ctx.fillStyle = p.c; ctx.fillRect(x, y, flip ? 2 : 1, flip ? 1 : 2);
+          break;
+        }
         case 'snow':
           ctx.globalAlpha = p.a; ctx.fillStyle = '#f4f8ff'; ctx.fillRect(x, y, p.s, p.s);
           if (p.s > 1) { ctx.globalAlpha = p.a * 0.4; ctx.fillRect(x - 1, y, 1, 1); }
