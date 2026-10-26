@@ -1,6 +1,7 @@
 import { createRng, hash2 } from '../core/math.js';
 import { mk, fpoly, lump, canopy, trunk, pal32 } from './decor_ashwood.js';
 import { col32 } from '../gfx/Fine.js';
+import { createStarCityDecor } from './decor_starcity.js';
 
 // Sternenscherben (Grundstimmung „Morgenschimmer“, Look-Entwurf C): Blütenbäume der Treibenden Gärten, leuchtende
 // Sternkristalle, Ruinen aus hellem Perlstein (König Aurels Gartenterrassen), Laternen mit warmem Licht.
@@ -369,5 +370,6 @@ export function createAstralDecor() {
     vineGate: vineGate(),
     moonAltar: { off: moonAltar(false), on: moonAltar(true) },
     voidRift: { off: voidRift(false), on: voidRift(true) },
+    ...createStarCityDecor(),
   };
 }

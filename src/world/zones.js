@@ -213,7 +213,7 @@ export const ZONES = {
     mountable: true,
     recommendedLevel: '36–40',
     respawnSpawn: 'respawn',
-    links: ['frostspire', 'ashen_throne'],
+    links: ['frostspire', 'ashen_throne', 'sternhafen'],
     enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus', 'cinder_bombardier', 'phase_wraith'],
     ambient: [148, 120, 98],
   },

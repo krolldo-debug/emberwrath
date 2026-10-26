@@ -751,6 +751,8 @@ export function buildEmberWastes() {
   m.ellipse(154, 15.6, 2.2, 1.2, '.');
   put(151, 16, '.'); put(150, 16, '.'); put(149, 16, '.');
   chests.push({ x: 154, y: 15 });
+  // Sternenriss (Erweiterung „Sternenglut“): Spalt im Himmel neben dem Throntor, öffnet sich nach der Heimkehr
+  put(146, 12, '8');
 
   // ------------------------------------------------------------ Schlackenlager der Kultisten und Geysirfeld
   // Lager: Zelte um ein Glutfeuer zwischen Schlackenhalden, Kisten, Bannerstangen
@@ -991,7 +993,7 @@ export function buildEmberWastes() {
       O: 'cairns', V: 'barricades', Y: 'steles',
       6: 'rubbleHeaps', t: 'fallenColumns', 7: 'towerStump',
     },
-    points: { 1: 'start', 2: 'respawn', 3: 'from_frostspire', 4: 'from_ashen_throne', 5: 'waystone' },
+    points: { 1: 'start', 2: 'respawn', 3: 'from_frostspire', 4: 'from_ashen_throne', 5: 'waystone', 8: 'from_sternhafen' },
     waystone,
     chests,
     npcs: { A: 'marshal_corvane', B: 'pilgrim_aldo', M: 'quartermaster_ryn' },
@@ -1044,6 +1046,9 @@ export function buildEmberWastes() {
         to: { zoneId: 'frostspire', spawnId: 'from_ember_wastes' }, prompt: 'Hinauf in die Frostzinnen' },
       { id: 'to_ashen_throne', x: 138, y: 5.2, range: 26, requires: { level: 38 },
         to: { zoneId: 'ashen_throne', spawnId: 'start' }, prompt: 'Den Aschethron betreten' },
+      { id: 'to_sternhafen', x: 147, y: 9.6, range: 30, decor: 'skyRift', requires: { quest: 'q_homecoming', level: 40 },
+        locked: 'Der Riss ist noch verschlossen. Beende zuerst die Geschichte des Glutlands.',
+        to: { zoneId: 'sternhafen', spawnId: 'start' }, prompt: 'Durch den Sternenriss nach Sternhafen' },
     ],
     signText: 'Ost: Flammenweg durch Altglut zum Aschethron · Süd: Obsidianfeld · West: Pilgerpfad in die Frostzinnen',
   };

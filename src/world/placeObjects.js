@@ -249,7 +249,9 @@ export function placeObjects(world) {
     const minLevel = p.requires?.minLevel ?? (zone?.instanced && p.requires?.level ? Math.max(1, p.requires.level - 3) : null);
     if (p.requires?.level) subs.push(`Empfohlen ab Stufe ${p.requires.level}`);
     const sub = subs.length ? subs.join(' · ') : null;
-    const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir, minLevel }));
+    const looks = p.decor ? decoSet?.[p.decor] ?? null : null;
+    const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir, minLevel, quest: p.requires?.quest ?? null, locked: p.locked ?? null, looks }));
+    if (looks?.off?.box ?? looks?.box) { const [a, b, c, dd] = looks.off?.box ?? looks.box; d.boxes.push({ x0: portal.x + a, y0: portal.y + b, x1: portal.x + c, y1: portal.y + dd, low: true }); }
     world.interactables.push(portal);
   }
 
@@ -262,7 +264,7 @@ export function placeObjects(world) {
   for (const m of d.npcMarks) {
     const def = world.session.content.find('npc', m.npcId);
     if (!def) continue;
-    const anims = A.sprites.npcs[m.npcId] ?? A.sprites.npcs2?.[m.npcId] ?? A.sprites.npcs3?.[m.npcId] ?? A.sprites.npcs2?.trader_vesk;
+    const anims = A.sprites.npcs[m.npcId] ?? A.sprites.npcs2?.[m.npcId] ?? A.sprites.npcs3?.[m.npcId] ?? A.sprites.npcs_stars?.[m.npcId] ?? A.sprites.npcs2?.trader_vesk;
     if (!anims?.idle) continue;
     const npc = world.spawn(new Npc(m.npcId, m.x, m.y, def, anims, world));
     world.interactables.push(npc);

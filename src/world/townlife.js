@@ -2,6 +2,7 @@ import { CONFIG } from '../config.js';
 import { hash2 } from '../core/math.js';
 import { Townsfolk } from '../entities/Townsfolk.js';
 import { folkAnims } from '../sprites/folk.js';
+import { STAR_TOWNS } from './stars/towns.js';
 
 // Leben in den Städten: Bewohner mit eigenem Haus, die umhergehen, plaudern, ihre Häuser betreten und den Helden
 // ansprechen. Rein auf dem Gerät gerechnet und ohne Spielstand: keine Quests, keine Beute, kein Kampf.
@@ -18,10 +19,11 @@ const T = CONFIG.tileSize;
 export const HOUSE_DOORS = {
   cottage: [-1, 3], cottageB: [-1, 3], tent: [0, 3], yurt: [0, 3], yurtSmall: [0, 3],
   stiltHut: [12, 3], longhouse: [0, 3], sodHut: [-3, 3], treePlatform: [-19, 3],
+  starHouses: [0, 3], starInn: [0, 3], gardenHut: [0, 3],
 };
-const TOWERS = { watchtower: [0, 3], fortTower: [0, 3] };
+const TOWERS = { watchtower: [0, 3], fortTower: [0, 3], starTower: [0, 3], bridgeGate: [-36, 3] };
 // Dinge, an denen man stehen bleibt (Feuer, Brunnen, Marktstand …)
-const SPOT = /campfire|fire|brazier|well|market|stall|crate|barrel|woodpile|cart|sign|rack|anvil|totem|banner|stable|templeFacade|shrine|pyre|drying|hay/i;
+const SPOT = /campfire|fire|brazier|well|market|stall|crate|barrel|woodpile|cart|sign|rack|anvil|totem|banner|stable|templeFacade|shrine|pyre|drying|hay|forge|bench|planter/i;
 
 const say = (text, cond) => ({ text, ...cond });
 
@@ -104,6 +106,7 @@ export const TOWNS = {
       { outfit: 'guard', race: 'dwarf', variant: 2, role: 'guard', say: ['Die letzte Bastion. Und sie hält.', 'Corvane hat seit Tagen nicht geschlafen.', say('Malgareth ist gefallen? Dann war es nicht umsonst.', { boss: 'ash_sovereign' })] },
     ],
   },
+  ...STAR_TOWNS,
 };
 
 // Zusätzliche Stoffe für Bewohner, die sich vom Grundtyp abheben sollen

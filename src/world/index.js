@@ -33,6 +33,7 @@ import { createSkalvyrSprites } from '../sprites/frost_wyrm.js';
 import { createRotMotherSprites } from '../sprites/rot_mother.js';
 import { createMalgarethSprites } from '../sprites/ash_sovereign.js';
 import { createNpcSprites3 } from '../sprites/npcs3.js';
+import { createStarNpcSprites } from '../sprites/npcs_stars.js';
 import { createAshwoodDecor } from '../sprites/decor_ashwood.js';
 import { createPeaksDecor } from '../sprites/decor_peaks.js';
 import { createBiomeTiles } from '../sprites/biomes.js';
@@ -120,6 +121,7 @@ export function installWorld(game) {
   lazyAsset(assets, 'ash_sovereign', createMalgarethSprites);
   lazyAsset(assets, 'npcs2', createNpcSprites2);
   lazyAsset(assets, 'npcs3', createNpcSprites3);
+  lazyAsset(assets, 'npcs_stars', createStarNpcSprites);
   lazyAsset(assets, 'village', createVillageProps);
   lazyAsset(assets, 'waystone', createWaystoneSprites);
   lazyAsset(assets, 'quest_board', createBoardSprites);
