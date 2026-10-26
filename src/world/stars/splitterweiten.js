@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { clearAround } from '../mapkit.js';
-import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, ISLAND } from './kit.js';
+import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
 
 // ---------------------------------------------------------------- Die Splitterweiten (45–50)
 // 200 × 130 Kacheln. Wo Aurels Himmelsreich zerbrach: ein Feld aus Kristallscherben, kühles Glasmoos statt Gras.
@@ -198,9 +198,20 @@ export function buildSplitterweiten() {
   // Sternwartenberg (49–50): Sternseher, Splitterkolosse
   for (const [x, y] of [[130, 108], [160, 114], [166, 104], [150, 118], [134, 116], [118, 98], [112, 72]]) group(x, y, ['t', 't', 'z'], 4);
 
+  // Questziele der zweiten Runde: Bosks Kisten und die Krabblernester im Scherbenfeld, Luns Echosteine auf den Graten,
+  // Kels Claimpfahl (Verteidigung) auf der Insel nördlich von Funkenruh, Harriks letztes Lager an der Ostkante
+  const crates = [[42, 10], [96, 24], [126, 11], [116, 14]];
+  const nests = [[53, 11], [69, 20], [110, 10], [35, 14]];
+  const echoStones = [[149, 67], [166, 55], [182, 58]];
+  const claimStake = [62, 30], harrikCamp = [133, 36];
+
   // Freiraum um Marken und Portale
-  const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses];
+  const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses, ...crates, ...nests, ...echoStones, claimStake, harrikCamp];
   clearAround(m, spots, 'gckRsabefhwrtz', { r: 2, south: 3 });
+  // Eskorte „Miras Messgang“: von Funkenruh über die Westbrücken zur Westscherbe
+  const SOLID = 'KSGOTxoDlLJYgcksRQF';
+  const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
+  const amb = (f) => Math.round((miraPath.length - 1) * f);
 
   return {
     name: 'Die Splitterweiten',
@@ -210,7 +221,7 @@ export function buildSplitterweiten() {
     island: ISLAND,
     decorSet: 'decor_shards',
     map: m.rows(),
-    solid: 'KSGOTxoDlLJYgcksRQF',
+    solid: SOLID,
     decor: {
       K: 'shardSpire', S: 'singingSpires', G: 'glassGate', O: 'observatory', T: 'prospectorTents', x: 'crateStack', o: 'oreHeaps',
       D: 'derrick', l: 'mineCart', L: 'lantern', J: 'starLamp', Y: 'lensStand', g: 'glassTrees', c: 'crystals', k: 'shardRocks',
@@ -236,16 +247,31 @@ export function buildSplitterweiten() {
       { id: 'survey_west', name: 'Westscherbe', x: 22, y: 30, w: 10, h: 8 },
       { id: 'survey_arch', name: 'Gläserner Bogen', x: 98, y: 32, w: 12, h: 8 },
       { id: 'survey_east', name: 'Ostklippe', x: 134, y: 18, w: 12, h: 7 },
+      { id: 'harrik_camp', name: 'Harriks Lager', x: harrikCamp[0] - 4, y: harrikCamp[1] - 4, w: 9, h: 8 },
     ],
     objects: [
       ...mirrorStones.map(([x, y], i) => ({ id: `mirror_stone_${i + 1}`, kind: 'shrine', decor: 'mirrorStones', name: 'Spiegelstein', prompt: 'Den Spiegelstein ausrichten', x, y })),
       ...lenses.map(([x, y], i) => ({ id: `star_lens_${i + 1}`, kind: 'shrine', decor: 'lensStand', name: 'Sternlinse', prompt: 'Die Linse ausrichten', x, y })),
       // Kels Schürferbeutel auf den Scherbeninseln
       ...[[67, 14], [88, 28], [63, 35], [124, 38]].map(([x, y], i) => ({ id: `prospector_pack_${i + 1}`, kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Schürferbeutel', prompt: 'Schürferbeutel aufheben', x, y })),
+      ...crates.map(([x, y], i) => ({ id: `supply_crate_${i + 1}`, kind: 'item', decor: 'crateStack', name: 'Bosks Kiste', prompt: 'Die Kiste bergen', x, y })),
+      ...nests.map(([x, y], i) => ({ id: `crawler_nest_${i + 1}`, kind: 'shrine', decor: 'oreHeaps', name: 'Krabblernest', prompt: 'Das Nest zerschlagen', x, y })),
+      ...echoStones.map(([x, y], i) => ({ id: `echo_stone_${i + 1}`, kind: 'shrine', decor: 'singingSpires', name: 'Echostein', prompt: 'Den Echostein anschlagen', x, y })),
+      { id: 'kel_claim_stake', kind: 'shrine', decor: 'mineCart', name: 'Kels Claimpfahl', prompt: 'Den Claim verteidigen', x: claimStake[0], y: claimStake[1] },
+      { id: 'harrik_journal', kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Harriks Tagebuch', prompt: 'Das Tagebuch aufheben', x: harrikCamp[0], y: harrikCamp[1] },
     ],
     questRoutes: {
       // Kapitel 11 (q_ridge_song): Lun singt das Lied der Grate, Prismenelementare kommen über den Grat
       defend_ridge_song: { kind: 'defend', at: [152, 46], spawns: [[140, 45], [163, 46], [146, 43], [158, 43]], foe: 'prism_elemental', seconds: 90 },
+      // q_kel_rival: Kel hält seinen Claim gegen die wahnsinnigen Schürfer
+      defend_kel_claim: { kind: 'defend', at: [63, 32], spawns: [[59, 30], [69, 30], [60, 34], [68, 34]], foe: 'mad_prospector', seconds: 90 },
+      // q_mira_escort: Mira vermisst die Westscherbe, Krabbler und Schürfer lauern auf den Scherben
+      escort_mira_survey: {
+        kind: 'escort',
+        path: miraPath,
+        clearPath: 5,
+        ambush: [{ at: amb(0.35), type: 'shard_crawler', n: 2 }, { at: amb(0.65), type: 'mad_prospector', n: 2 }, { at: amb(0.9), type: 'shard_crawler', n: 3 }],
+      },
     },
     portals: [
       { id: 'to_gardens', x: 46, y: 0.6, range: 26, visual: 'road', dir: [0, -1],

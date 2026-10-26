@@ -14,13 +14,13 @@
 // Spiegelsee, Sternwartenberg + Sternwarte) → Sternhafen (Lichtbrücke). Dungeon-Hauptquests und Dungeon-Nebenquests
 // werden gleichzeitig frei, damit ein Lauf reicht.
 // Quests ab Stufe 41: questXp(40) rechnet wie 39 (xp.js). Ab 41 gibt es keinen Quest-Bonus mehr (QUEST_XP_BOOST),
-// darum sind die Gewichte höher als in quests40.js. Abgestimmt mit test/pacing.mjs (Ziel: 40→50 rund 11 echte Stunden).
+// darum sind die Gewichte höher als in quests40.js. Abgestimmt mit test/pacing.mjs (40→50 rund 7 echte Stunden).
 import { questXp } from './xp.js';
 
 const Q = (level, weight) => questXp(level, weight);
 const W = {
-  travel: 0.08, main: 0.22, kill: 0.2, elite: 0.27, boss: 0.38, side: 0.17, dungeonSide: 0.21, choice: 0.18,
-  lesson: 0.07, bounty: 0.13, hunt: 0.09, finale: 0.8,
+  travel: 0.06, main: 0.165, kill: 0.15, elite: 0.2, boss: 0.285, side: 0.128, dungeonSide: 0.158, choice: 0.135,
+  lesson: 0.053, bounty: 0.098, hunt: 0.068, finale: 0.6,
 };
 // Gold je Quest: 360 auf Stufe 41 bis 560 auf Stufe 50 (Faktor k: Reise 0,6, Boss 2,5, Finale 5)
 const G = (level, k = 1) => Math.round((((level - 40) * 22 + 340) * k) / 10) * 10;
@@ -599,6 +599,267 @@ export const QUESTS_STARS = {
     objectives: [{ id: 'archive', text: 'Sternenarchiv gefunden', count: 1, kind: 'reach', target: ['star_archive'], zone: 'observatory' }],
     rewards: { xp: Q(50, W.dungeonSide), gold: G(50, 1.2), gear: [gear(50, 'amulet', 'rare')] },
   },
+  // ================================================================ Zweite Runde: mehr zu tun auf dem Weg von 41 nach 50
+  // Sternhafen: Aufträge für unterwegs, abgegeben beim nächsten Besuch in der Stadt (45 und 50)
+  q_tamsin_muster: {
+    title: 'Die Musterung', giver: 'quartermaster_tamsin', level: 41, requires: ['q_star_audience'],
+    summary: 'Lass dich von Hauptmann Halvard und Arenameisterin Sora für die Sternwacht mustern.',
+    offer: 'Die Fürstin sagt, du gehörst jetzt zu uns. Schön. Ich sage, ich rüste niemanden aus, den ich nicht gemustert habe. Halvard prüft, ob du die Wege kennst, Sora prüft, ob du einen Schlag einstecken kannst. Komm mit beiden Unterschriften zurück, dann bekommst du etwas Anständiges zum Anziehen.',
+    progressText: 'Halvard steht auf dem Ankerplatz, Sora im Vorhof des Palasts.',
+    completeText: 'Zwei Unterschriften. Halvard schreibt „brauchbar“, Sora schreibt „endlich“. Von beiden ist das ein Lob. Hier, Sternwachenleder, frisch aus dem Lager.',
+    objectives: [
+      { id: 'halvard', text: 'Bei Hauptmann Halvard gemustert', count: 1, kind: 'talk', target: 'captain_halvard', zone: 'sternhafen' },
+      { id: 'sora', text: 'Bei Arenameisterin Sora gemustert', count: 1, kind: 'talk', target: 'arena_master_sora', zone: 'sternhafen' },
+    ],
+    rewards: { xp: Q(41, W.travel), gold: G(41, 0.6), gear: [gear(41, 'feet')] },
+  },
+  q_seraphe_falling_stars: {
+    title: 'Fallende Sterne', giver: 'seer_seraphe', level: 43, requires: ['q_anchor_fading'],
+    summary: 'Sammle in den Treibenden Gärten vier Sternschnuppen für Seraphe ein.',
+    offer: 'Jede Nacht fällt ein Stern weniger, als ich zähle, und jede Nacht landet einer in den Gärten. Sie sind noch warm, wenn man sie findet, aber nicht lange. Bring mir vier, zwei von den Terrassen, zwei vom Mondweiher. Ich will wissen, ob sie freiwillig fallen oder ob sie jemand pflückt.',
+    progressText: 'Die Sternschnuppen liegen auf den Hängenden Terrassen und am Mondweiher.',
+    completeText: 'Kalt. Alle vier, ganz kalt. Ein Stern, der freiwillig fällt, glüht noch Tage nach. Diese hier hat etwas ausgetrunken, bevor sie fielen. Ich werde Fürstin Amarys davon erzählen müssen.',
+    objectives: [{ id: 'stars', text: 'Sternschnuppen gefunden', count: 4, kind: 'interact', target: ['fallen_star_1', 'fallen_star_2', 'fallen_star_3', 'fallen_star_4'], zone: 'drifting_gardens' }],
+    rewards: { xp: Q(43, W.side), gold: G(43), gear: [gear(44, 'ring')] },
+  },
+  q_halvard_patrol: {
+    title: 'Irrlichter über den Brücken', giver: 'captain_halvard', level: 42, requires: ['q_anchor_fading'],
+    summary: 'Vertreibe die Leerenirrlichter, die in den Treibenden Gärten über die Brücken ziehen.',
+    offer: 'Meine Wachen auf den Gartenbrücken melden Lichter. Kalte Lichter, die über die Bretter schweben und meine Leute vergessen lassen, warum sie dort stehen. Zwei habe ich schon heimschicken müssen, sie wussten ihren eigenen Namen nicht mehr. Du gehst ohnehin in die Gärten. Zwölf Irrlichter weniger, und ich kann die Posten wieder besetzen.',
+    progressText: 'Die Leerenirrlichter schweben über dem Wurzelbruch in den Treibenden Gärten.',
+    completeText: 'Die Posten sind wieder besetzt. Einer meiner Heimgeschickten hat sich heute Morgen an seinen Namen erinnert. Er hieß anders, als wir dachten, aber er ist zufrieden.',
+    objectives: [{ id: 'wisps', text: 'Leerenirrlichter vertrieben', count: 12, kind: 'kill', target: 'void_wisp', zone: 'drifting_gardens' }],
+    rewards: { xp: Q(43, W.side), gold: G(43, 1.2), gear: [gear(43, 'head')] },
+  },
+  q_lio_courier: {
+    title: 'Eine Kiste für Bosk', giver: 'trader_lio', turnInNpc: 'trader_bosk', level: 45, requires: ['q_seed_to_anchor'],
+    summary: 'Bring Lios Kiste zu Bosk nach Funkenruh in den Splitterweiten.',
+    offer: 'Du gehst in die Splitterweiten? Wunderbar! Dann nimm die hier mit. Bosk in Funkenruh wartet seit drei Wochen darauf. Laternendochte, Seife und ein Glas Honig, das er bei mir bestellt hat und nie zugeben wird. Frag nicht nach dem Honig.',
+    progressText: 'Bosk handelt in Funkenruh, dem Lager der Schürfer.',
+    completeText: 'Endlich! Lio, die alte Schnecke. Dochte, Seife und, äh, das andere. Nein, das ist kein Honig. Das ist Lampenfett. Sehr goldenes Lampenfett. Hier, für deine Mühe.',
+    startItems: [{ itemId: 'lio_parcel', qty: 1 }],
+    objectives: [{ id: 'bosk', text: 'Kiste bei Bosk abgegeben', count: 1, kind: 'talk', target: 'trader_bosk', zone: 'splitterweiten' }],
+    rewards: { xp: Q(45, W.travel), gold: G(45, 0.8), items: [{ itemId: 'starlight_potion', qty: 3 }] },
+  },
+  q_sora_trial: {
+    title: 'Die Prüfung der Sternwacht', giver: 'arena_master_sora', level: 47, minLevel: 45, requires: ['q_seed_to_anchor', 'q_tamsin_muster'],
+    summary: 'Bestehe Soras Prüfung in den Splitterweiten: Leerenhunde und Gläserne Gefangene am Spiegelsee.',
+    offer: 'Tamsin hat dich gemustert, ich habe dich unterschrieben. Jetzt will ich sehen, ob ich mich geirrt habe. In der Arena kann jeder kämpfen, da weiß man, wo der Gegner steht. Am Spiegelsee nicht. Zehn Leerenhunde und acht Gläserne Gefangene, und keiner davon kommt von vorn. Komm zurück, wenn du fertig bist, und erzähl mir, wie es war.',
+    progressText: 'Leerenhunde und Gläserne Gefangene streifen um den Spiegelsee im Süden der Splitterweiten.',
+    completeText: 'Du hast keinen Kratzer, den du nicht verdient hast. Das ist die höchste Note, die ich vergebe. Willkommen in der Sternwacht. Diesmal richtig.',
+    objectives: [
+      { id: 'hounds', text: 'Leerenhunde besiegt', count: 10, kind: 'kill', target: 'void_hound', zone: 'splitterweiten' },
+      { id: 'wraiths', text: 'Gläserne Gefangene erlöst', count: 8, kind: 'kill', target: 'statue_wraith', zone: 'splitterweiten' },
+    ],
+    rewards: { xp: Q(47, W.kill), gold: G(47, 1.2), gear: [gear(48, 'weapon', 'rare')] },
+  },
+  q_fenn_news: {
+    title: 'Was man in den Weiten erzählt', giver: 'herald_fenn', turnInNpc: 'trader_bosk', level: 46, minLevel: 45, requires: ['q_seed_to_anchor', 'q_herald_errands'],
+    summary: 'Hör dir an, was Dagna, Mira und Lun aus den Splitterweiten zu erzählen haben, und gib es Bosks Tauben mit.',
+    offer: 'Hört, hört! Nichts! Seit Wochen nichts aus den Splitterweiten! Die Leute fragen mich, und ich muss mir etwas ausdenken. Das tue ich ungern. Na ja, nicht sehr ungern. Aber diesmal will ich die Wahrheit. Frag Dagna, Mira und Lun, was es Neues gibt. Bosk schickt jeden Abend Tauben nach Sternhafen. Gib ihm alles mit.',
+    progressText: 'Dagna und Mira sind in Funkenruh, Lun auf den Singenden Graten. Danach zu Bosk.',
+    completeText: 'Drei Neuigkeiten für Fenn? Gib her. Die Tauben fliegen bei Sonnenuntergang. Lass mich raten, er wird alles doppelt so laut ausrufen, wie es ist. Hier, Fenn zahlt im Voraus. Das tut er immer, wenn er nervös ist.',
+    objectives: [
+      { id: 'dagna', text: 'Dagna befragt', count: 1, kind: 'talk', target: 'foreman_dagna', zone: 'splitterweiten' },
+      { id: 'mira', text: 'Mira befragt', count: 1, kind: 'talk', target: 'cartographer_mira', zone: 'splitterweiten' },
+      { id: 'lun', text: 'Lun befragt', count: 1, kind: 'talk', target: 'echo_sage_lun', zone: 'splitterweiten' },
+    ],
+    rewards: { xp: Q(46, W.travel), gold: G(46, 0.8), items: [{ itemId: 'starlight_mana', qty: 3 }] },
+  },
+  q_tobin_pages: {
+    title: 'Aurels lose Seiten', giver: 'scholar_tobin', level: 49, minLevel: 45, requires: ['q_marens_answer', 'q_seed_to_anchor'],
+    summary: 'Nimm den Schattenelfen-Späherinnen am Spiegelsee die Seiten aus Aurels Büchern ab.',
+    offer: 'In Aurels Büchern fehlen Seiten. Nicht herausgerissen, herausgeschnitten, ganz sauber, mit einer Klinge, die man nur in den Zwielichtwäldern schmiedet. Ysmeines Leute waren hier, lange bevor ich kam. Mira sagt, ihre Späherinnen tragen Lederrollen bei sich. Bring mir fünf Seiten zurück, wenn du am Spiegelsee bist. Ich will wissen, was Ysmeine vor uns versteckt.',
+    progressText: 'Die Schattenelfen-Späherinnen lauern am Spiegelsee im Süden der Splitterweiten.',
+    completeText: 'Das ist Aurels Hand. Er schreibt über einen Stern, der Feuer trinkt, und über einen Namen, den er nicht aufschreiben will. Er umschreibt ihn nur. „Der Durstige im Osten.“ Ich glaube, Seraphe muss das sehen.',
+    objectives: [{ id: 'pages', text: 'Aurels Seiten geborgen', count: 5, kind: 'collect', target: 'aurel_page', from: ['shadow_ranger'], zone: 'splitterweiten' }],
+    rewards: { xp: Q(49, W.side), gold: G(49), gear: [gear(50, 'head')] },
+  },
+  q_tobin_diary: {
+    title: 'Der Durstige im Osten', giver: 'scholar_tobin', turnInNpc: 'seer_seraphe', level: 50, requires: ['q_tobin_pages', 'q_ysmeine'],
+    summary: 'Bring Aurels Seiten zu Seraphe in den Sternturm.',
+    offer: 'Ich habe die Seiten geordnet. Aurel beschreibt den Stern, den Seraphe jede Nacht beobachtet, und er beschreibt ihn, bevor er ihn gesehen haben kann. Als hätte ihm jemand davon erzählt. Seraphe muss das lesen. Ich traue mich nicht in den Sternturm, sie schaut mich immer an, als wüsste sie, wie ich sterbe.',
+    progressText: 'Seraphe wohnt im Sternturm auf der Scherbe nordwestlich der Palasthöhe.',
+    completeText: 'Azhuron. Aurel hat den Namen nicht geschrieben, aber er hat ihn gemeint. Ysmeine hat ihn ausgesprochen, als sie starb. Und jetzt halte ich die Seiten, die sie aus seinen Büchern geschnitten hat. Sie wollte nicht, dass wir ihn kennen. Ich frage mich, ob sie uns damit schützen wollte.',
+    objectives: [{ id: 'seraphe', text: 'Seraphe die Seiten gebracht', count: 1, kind: 'talk', target: 'seer_seraphe', zone: 'sternhafen' }],
+    rewards: { xp: Q(50, W.travel), gold: G(50, 0.8), gear: [gear(50, 'ring', 'rare')] },
+  },
+
+  // Treibende Gärten
+  q_isell_lightmoss: {
+    title: 'Lichtmoos', giver: 'herbalist_isell', level: 43, requires: ['q_isell_void_ash'],
+    summary: 'Ernte für Isell das Lichtmoos, das an den alten Wurzeln im Wurzelbruch wächst.',
+    offer: 'Die Salbe gegen die Kälte wirkt, aber sie macht müde. Lichtmoos hält wach. Es wächst nur an den Wurzeln, die Aurel selbst gepflanzt hat, und die stehen jetzt alle im Wurzelbruch, direkt am Rand der Leere. Fünf Büschel. Und schau nicht zu lange hinunter.',
+    progressText: 'Das Lichtmoos wächst an alten Wurzeln im Wurzelbruch, zwischen den Leerenrissen.',
+    completeText: 'Riech mal. Wie Regen auf warmem Stein. Ich rühre es heute Abend unter. Morgen sind die Gärtner wach und warm, und das in einer Welt, die gerade auseinanderfällt.',
+    objectives: [{ id: 'moss', text: 'Lichtmoos geerntet', count: 5, kind: 'interact', target: ['light_moss_1', 'light_moss_2', 'light_moss_3', 'light_moss_4', 'light_moss_5'], zone: 'drifting_gardens' }],
+    rewards: { xp: Q(43, W.side), gold: G(43), items: [{ itemId: 'starlight_potion', qty: 4 }] },
+  },
+  q_veyra_wardstones: {
+    title: 'Die Schutzsteine', giver: 'warden_veyra', level: 43, requires: ['q_root_break'],
+    summary: 'Erneuere die Schutzzeichen auf den drei Steinen rund um den Ankerhain und vertreibe die Pirscher dort.',
+    offer: 'Um den Ankerhain stehen drei alte Steine mit Schutzzeichen. Aurel hat sie gesetzt, damit nichts aus der Leere den Hain betritt. Die Zeichen sind verblasst, und seitdem schleichen die Blütenpirscher bis an die Hütten. Leg deine Hand auf jeden Stein, die Zeichen erkennen Glut. Und wenn dir Pirscher begegnen, sorg dafür, dass sie nicht wiederkommen.',
+    progressText: 'Die Schutzsteine stehen im Norden, Westen und Süden des Ankerhains.',
+    completeText: 'Ich habe es von hier gesehen. Drei Lichter, eins nach dem anderen. Die Pirscher bleiben jetzt am Rand. Sie wissen, wo die Grenze ist, und sie hassen es.',
+    objectives: [
+      { id: 'stones', text: 'Schutzsteine erneuert', count: 3, kind: 'interact', target: ['ward_stone_1', 'ward_stone_2', 'ward_stone_3'], zone: 'drifting_gardens' },
+      { id: 'stalkers', text: 'Blütenpirscher vertrieben', count: 8, kind: 'kill', target: 'bloom_stalker', zone: 'drifting_gardens' },
+    ],
+    rewards: { xp: Q(43, W.side), gold: G(43, 1.2), gear: [gear(44, 'hands')] },
+  },
+  q_bren_bark: {
+    title: 'Lebende Rinde', giver: 'gardener_bren', level: 44, requires: ['q_bren_cutting'],
+    summary: 'Bring Bren lebende Rinde von den Wurzelgebundenen, damit er den Ableger veredeln kann.',
+    offer: 'Mein Ableger im Bruch wächst, aber er friert. Er braucht einen Mantel aus lebender Rinde, sonst kriecht die Kälte in sein Herz. Die Wurzelgebundenen tragen solche Rinde. Sie waren einmal Bäume wie er, bevor die Leere sie gerufen hat. Sechs Stücke. Es ist das Beste, was mit ihnen noch geschehen kann.',
+    progressText: 'Die Wurzelgebundenen streifen durch den Wurzelbruch.',
+    completeText: 'Die Rinde ist noch warm. Ich lege sie heute Nacht um den Ableger. Weißt du, ich glaube, er erkennt sie. Ein Baum kennt einen Baum.',
+    objectives: [{ id: 'bark', text: 'Lebende Rinde gesammelt', count: 6, kind: 'collect', target: 'living_bark', from: ['rootbound'], zone: 'drifting_gardens' }],
+    rewards: { xp: Q(44, W.side), gold: G(44), gear: [gear(45, 'feet')] },
+  },
+  q_pell_basket: {
+    title: 'Ein Korb für Odda', giver: 'trader_pell', turnInNpc: 'hermit_odda', level: 44, requires: ['q_ysgarn'],
+    summary: 'Bring Odda am Mondweiher Pells Korb mit Vorräten.',
+    offer: 'Odda kommt seit einem Monat nicht mehr nach Morgentau. Sie sagt, ihre Knie, aber ich glaube, sie will den Weiher nicht allein lassen. Hier, Brot, Kerzen und Tee. Bring ihr das. Und wenn sie fragt, sag, es ist bezahlt. Sie wird fragen.',
+    progressText: 'Odda wohnt am Westufer des Mondweihers im Südwesten der Gärten.',
+    completeText: 'Pell. Natürlich Pell. Bezahlt, sagst du? Lüg nicht, du kannst es nicht. Danke. Sag ihr, ich komme, wenn der Weiher ruhig ist. Sie weiß, was das heißt.',
+    startItems: [{ itemId: 'pell_basket', qty: 1 }],
+    objectives: [{ id: 'odda', text: 'Korb bei Odda abgegeben', count: 1, kind: 'talk', target: 'hermit_odda', zone: 'drifting_gardens' }],
+    rewards: { xp: Q(44, W.travel), gold: G(44, 0.8), items: [{ itemId: 'starlight_mana', qty: 3 }] },
+  },
+  q_veyra_last_seal: {
+    title: 'Die letzte Narbe', giver: 'warden_veyra', level: 44, requires: ['q_ysgarn'], needs: 'defend',
+    summary: 'Schütze Veyra im Wurzelbruch, während sie das Siegel über der letzten Narbe setzt.',
+    offer: 'Die Risse sind zu, aber eine Narbe im Bruch blutet noch. Ich kann sie versiegeln, seit Ysgarn ruht. Aber das Siegel braucht Zeit, und die Wurzelgebundenen spüren, was ich tue. Sie werden kommen. Triff mich an der Narbe, mein Siegelstab steht dort schon. Berühr ihn, wenn du bereit bist.',
+    progressText: 'Veyras Siegelstab steht an der letzten Narbe im Wurzelbruch. Berühr ihn, wenn du bereit bist.',
+    completeText: 'Es hält. Zum ersten Mal seit Jahren ist der ganze Bruch still. Ich höre die Bäume atmen. Danke, dass du geblieben bist.',
+    objectives: [{ id: 'seal', text: 'Veyra beschützt, bis das Siegel hält', count: 1, kind: 'defend', target: 'defend_root_scar', start: { kind: 'object', id: 'veyra_seal' }, zone: 'drifting_gardens', failText: 'Veyra muss sich zurückziehen. Am Siegelstab kann sie neu beginnen.' }],
+    rewards: { xp: Q(44, W.side), gold: G(44, 1.2), gear: [gear(45, 'chest')] },
+  },
+  q_old_gardeners: {
+    title: 'Die alten Gärtner', giver: 'gardener_bren', level: 44, requires: ['q_hanging_terraces'],
+    summary: 'Such in der Rankengruft den Teich und die Grabreihen der alten Gärtner.',
+    offer: 'Die Gärtner, die Aurel dienten, liegen in der Gruft. Mein Urgroßvater auch. Früher sind wir jedes Jahr hinunter und haben Blumen an den Teich gelegt. Seit die Ranken kamen, geht keiner mehr. Wenn du in der Gruft bist, schau nach dem Teich und nach den Grabreihen. Sag mir nur, ob sie noch da sind.',
+    progressText: 'Der Teich und die Grabreihen liegen tief in der Rankengruft.',
+    completeText: 'Noch da. Alle beide. Und die Ranken haben die Namen nicht überwachsen? Dann gehe ich im Frühling hinunter. Mit Blumen und mit dir, wenn du Zeit hast.',
+    objectives: [
+      { id: 'pond', text: 'Teich der Gruft gefunden', count: 1, kind: 'reach', target: ['gruft_teich'], zone: 'rankengruft' },
+      { id: 'rows', text: 'Grabreihen gefunden', count: 1, kind: 'reach', target: ['gruft_reihen'], zone: 'rankengruft' },
+    ],
+    rewards: { xp: Q(44, W.dungeonSide), gold: G(44, 1.2), gear: [gear(45, 'amulet', 'rare')] },
+  },
+
+  // Splitterweiten
+  q_mira_maps: {
+    title: 'Zerrissene Karten', giver: 'cartographer_mira', level: 46, requires: ['q_mira_survey'],
+    summary: 'Nimm den wahnsinnigen Schürfern Miras zerrissene Karten ab.',
+    offer: 'Deine Messungen sind gut, aber mir fehlen die alten Karten zum Vergleich. Die Irren im Scherbenfeld haben sie. Sie zerreißen sie und legen die Fetzen zu Mustern, die sie für Wege halten. Bring mir fünf Fetzen. Ich setze sie wieder zusammen, das ist mein Beruf.',
+    progressText: 'Die wahnsinnigen Schürfer streifen durch das Scherbenfeld nördlich von Funkenruh.',
+    completeText: 'Hier ist der alte Bogen, und hier die Ostklippe. Siehst du? Vor zwanzig Jahren lagen sie eine Tagesreise weiter westlich. Die Weiten treiben, und sie treiben schneller. Ich muss neu messen. Mit dir.',
+    objectives: [{ id: 'maps', text: 'Kartenfetzen geborgen', count: 5, kind: 'collect', target: 'torn_map', from: ['mad_prospector'], zone: 'splitterweiten' }],
+    rewards: { xp: Q(46, W.side), gold: G(46), gear: [gear(47, 'hands')] },
+  },
+  q_mira_escort: {
+    title: 'Miras Messgang', giver: 'cartographer_mira', level: 47, requires: ['q_mira_maps'], needs: 'escort',
+    summary: 'Begleite Mira mit ihren Messgeräten von Funkenruh zur Westscherbe.',
+    offer: 'Ich will die Westscherbe selbst vermessen. Mit dem großen Gerät, das man nicht tragen und gleichzeitig kämpfen kann. Du gehst vorn, ich trage. Die Krabbler mögen mein Messing, und die Schürfer mögen mich nicht. Sprich mich an, wenn du losgehen willst.',
+    progressText: 'Mira wartet in Funkenruh. Bleib nah bei ihr.',
+    completeText: 'Sie hat sich bewegt. Drei Schritte nach Osten seit deiner Messung. Drei Schritte in einer Woche. Ich schicke das heute noch an die Fürstin, und dann trinke ich etwas Starkes.',
+    objectives: [{ id: 'escort', text: 'Mira zur Westscherbe gebracht', count: 1, kind: 'escort', target: 'escort_mira_survey', start: { kind: 'npc', id: 'cartographer_mira' }, zone: 'splitterweiten', failText: 'Mira ist gestürzt. Sie wartet in Funkenruh auf einen neuen Versuch.' }],
+    rewards: { xp: Q(47, W.side), gold: G(47, 1.2), gear: [gear(48, 'chest')] },
+  },
+  q_bosk_crates: {
+    title: 'Bosks Kisten', giver: 'trader_bosk', level: 45, requires: ['q_splinter_reaches'],
+    summary: 'Birg die vier Kisten, die von Bosks Lastkarren ins Scherbenfeld gefallen sind.',
+    offer: 'Mein Karren hat auf der Brücke ein Rad verloren und dabei vier Kisten. Sie liegen irgendwo draußen auf den Scherben. Tränke, Seile, Laternen. Ohne die Kisten kann ich bald nur noch Ratschläge verkaufen, und die gibt es hier umsonst. Holst du sie?',
+    progressText: 'Die Kisten liegen verstreut auf den Inseln des Scherbenfelds.',
+    completeText: 'Alle vier, und kaum zerkratzt. Ich ziehe dir das nicht von irgendwas ab, versprochen. Diesmal nicht.',
+    objectives: [{ id: 'crates', text: 'Kisten geborgen', count: 4, kind: 'interact', target: ['supply_crate_1', 'supply_crate_2', 'supply_crate_3', 'supply_crate_4'], zone: 'splitterweiten' }],
+    rewards: { xp: Q(45, W.side), gold: G(45, 1.2), items: [{ itemId: 'starlight_potion', qty: 4 }] },
+  },
+  q_bosk_nests: {
+    title: 'Nester im Scherbenfeld', giver: 'trader_bosk', level: 46, requires: ['q_bosk_crates'],
+    summary: 'Zerschlage vier Krabblernester im Scherbenfeld und vertreibe die Krabbler, die sie bewachen.',
+    offer: 'Ich habe beim Kistensuchen Nester gesehen. Die Krabbler legen ihre Eier zwischen das Erz, und wenn sie schlüpfen, fressen sie zuerst die Seile von meinen Kunden. Vier Nester habe ich gezählt. Zerschlag sie, und schlag auch die Eltern, wenn sie dich anschauen.',
+    progressText: 'Die Krabblernester liegen auf den Erzhaufen im Scherbenfeld.',
+    completeText: 'Vier Nester weniger. Und die Seile der Schürfer bleiben ganz. Weißt du, was das für mein Geschäft heißt? Weniger Seile verkaufen. Ach, egal. Danke.',
+    objectives: [
+      { id: 'nests', text: 'Nester zerschlagen', count: 4, kind: 'interact', target: ['crawler_nest_1', 'crawler_nest_2', 'crawler_nest_3', 'crawler_nest_4'], zone: 'splitterweiten' },
+      { id: 'crawlers', text: 'Splitterkrabbler besiegt', count: 8, kind: 'kill', target: 'shard_crawler', zone: 'splitterweiten' },
+    ],
+    rewards: { xp: Q(46, W.side), gold: G(46, 1.2), gear: [gear(47, 'feet')] },
+  },
+  q_dagna_sentinels: {
+    title: 'Die Wächter am Grat', giver: 'foreman_dagna', level: 46, requires: ['q_same_fire'],
+    summary: 'Bring zwölf Glaswächter auf den Singenden Graten zu Fall, damit Dagnas Leute dort schürfen können.',
+    offer: 'Die Grate sind voll mit dem besten Sternglas der Weiten. Und mit Glaswächtern, die es bewachen, als wäre es ihres. Vielleicht ist es das sogar. Ist mir egal. Meine Leute haben Hunger, und Glas macht satt, wenn man es verkauft. Zwölf Wächter.',
+    progressText: 'Die Glaswächter stehen auf den Singenden Graten im Osten.',
+    completeText: 'Zwölf. Meine Leute sind schon unterwegs. Ich habe ihnen gesagt, sie sollen leise sein. Lun mag es nicht, wenn man auf seinen Graten laut ist.',
+    objectives: [{ id: 'sentinels', text: 'Glaswächter zerschlagen', count: 12, kind: 'kill', target: 'glass_sentinel', zone: 'splitterweiten' }],
+    rewards: { xp: Q(46, W.kill), gold: G(46, 1.2), gear: [gear(47, 'head')] },
+  },
+  q_lun_echoes: {
+    title: 'Die drei Echos', giver: 'echo_sage_lun', level: 47, requires: ['q_ridge_song'],
+    summary: 'Schlag die drei Echosteine auf den Graten in der richtigen Reihenfolge an.',
+    offer: 'Der Grat singt wieder richtig. Aber unter dem Lied liegt ein zweites, ganz leise. Drei Echosteine tragen es. Wer sie in der richtigen Reihenfolge anschlägt, hört, was die Grate sich erzählen, wenn keiner zuhört. Zuerst den Stein am Westhang, dann den auf dem Nordkamm, zuletzt den am Osthang. Falsch angeschlagen, und sie schweigen eine Weile beleidigt.',
+    progressText: 'Westhang, Nordkamm, Osthang. Die Echosteine stehen auf den Singenden Graten.',
+    completeText: 'Hast du es gehört? Sie singen von einem Fürsten aus Feuer und einem Stern, der ihn rief. Die Grate erinnern sich an den Anfang. Wir sind die Ersten seit tausend Jahren, die ihnen zuhören.',
+    objectives: [{ id: 'echoes', text: 'Echosteine angeschlagen (West, Nord, Ost)', count: 3, kind: 'sequence', target: ['echo_stone_1', 'echo_stone_2', 'echo_stone_3'], zone: 'splitterweiten', failText: 'Die Steine schweigen beleidigt. Von vorn: zuerst West, dann Nord, zuletzt Ost.' }],
+    rewards: { xp: Q(47, W.side), gold: G(47), gear: [gear(48, 'amulet')] },
+  },
+  q_lun_prisms: {
+    title: 'Falsche Töne', giver: 'echo_sage_lun', level: 47, requires: ['q_ridge_song'],
+    summary: 'Zerschlage zwölf Prismengeister, die noch Kaldris\' Lied auf den Graten singen.',
+    offer: 'Die meisten Prismengeister haben aufgehört, Kaldris\' Lied zu singen. Nicht alle. Ein paar wandern noch über die Grate und singen es weiter, falsch und laut, und der Grat hört ihnen zu. Zwölf sind genug, damit er sie vergisst.',
+    progressText: 'Die Prismengeister wandern über die Singenden Grate.',
+    completeText: 'Still. Nur noch das richtige Lied. Ich habe nicht gewusst, wie sehr mir die falschen Töne in den Ohren wehgetan haben, bis sie weg waren.',
+    objectives: [{ id: 'prisms', text: 'Prismengeister zerschlagen', count: 12, kind: 'kill', target: 'prism_elemental', zone: 'splitterweiten' }],
+    rewards: { xp: Q(47, W.kill), gold: G(47, 1.2), gear: [gear(48, 'hands')] },
+  },
+  q_kel_rival: {
+    title: 'Der Claim gehört Kel', giver: 'prospector_kel', level: 47, requires: ['q_kel_packs'], needs: 'defend',
+    summary: 'Halte Kels Claim auf der Scherbeninsel nördlich von Funkenruh gegen die wahnsinnigen Schürfer.',
+    offer: 'Die Irren haben gemerkt, dass mein Claim wieder läuft. Sie wollen ihn zurück, sagen sie. Er gehört ihnen, sagen sie. Er hat ihnen nie gehört. Ich gehe heute raus und stecke den Pfahl neu ein, und sie werden kommen. Komm mit. Berühr den Pfahl, wenn du bereit bist.',
+    progressText: 'Kels Claimpfahl steht auf der Scherbeninsel nördlich von Funkenruh. Berühr ihn, wenn du bereit bist.',
+    completeText: 'Sie sind weg. Und diesmal kommen sie nicht wieder, glaube ich. Einer hat sich umgedreht und mir zugewinkt, bevor er ging. Das war Harriks Winken. Ich weiß nicht, was ich damit machen soll.',
+    objectives: [{ id: 'claim', text: 'Kels Claim gehalten', count: 1, kind: 'defend', target: 'defend_kel_claim', start: { kind: 'object', id: 'kel_claim_stake' }, zone: 'splitterweiten', failText: 'Kel muss weichen. Am Claimpfahl kann er neu beginnen.' }],
+    rewards: { xp: Q(47, W.side), gold: G(47, 1.2), gear: [gear(48, 'weapon')] },
+  },
+  q_harrik_fate: {
+    title: 'Harriks letztes Lager', giver: 'prospector_kel', level: 47, requires: ['q_harrik_shard', 'q_kel_rival'],
+    summary: 'Finde Harriks letztes Lager an der Ostkante des Scherbenfelds und bring Kel sein Tagebuch.',
+    offer: 'Dieses Winken geht mir nicht aus dem Kopf. Harrik hatte ein Lager an der Ostkante, bevor er verschwand. Ich war nie dort, ich hatte Angst vor dem, was ich finde. Jetzt habe ich mehr Angst vor dem, was ich nicht weiß. Er hat Tagebuch geführt. Bring es mir.',
+    progressText: 'Harriks Lager liegt an der Ostkante des Scherbenfelds, wo es an die Singenden Grate stößt.',
+    completeText: 'Die letzte Seite. „Der Splitter sagt, dass es weh tut, aber dass es bald aufhört. Er sagt, ich soll Kel grüßen.“ Er hat mich gegrüßt. Mit dem Winken. Er war noch da drin. Danke, dass du mir das gebracht hast. Ich glaube, ich muss jetzt eine Weile allein sein.',
+    objectives: [
+      { id: 'camp', text: 'Harriks Lager gefunden', count: 1, kind: 'reach', target: ['harrik_camp'], zone: 'splitterweiten' },
+      { id: 'journal', text: 'Harriks Tagebuch geborgen', count: 1, kind: 'interact', target: ['harrik_journal'], zone: 'splitterweiten' },
+    ],
+    rewards: { xp: Q(47, W.side), gold: G(47), gear: [gear(48, 'ring')] },
+  },
+  q_dagna_lost_crew: {
+    title: 'Die verschwundene Schicht', giver: 'foreman_dagna', level: 47, requires: ['q_same_fire'],
+    summary: 'Such in den Gläsernen Hallen nach Spuren von Dagnas verschwundener Schicht.',
+    offer: 'Vor einem Jahr ist eine ganze Schicht in die Gläsernen Hallen gegangen, sechs Leute. Zurück kam keiner. Lun sagt, Kaldris macht Statuen aus allem, was zu lange in sein Glas schaut. Ich will es nicht glauben, bevor es jemand gesehen hat. Schau dich in den Hallen um. In den Gefangenengängen und im Spiegelsaal.',
+    progressText: 'Die Gefangenengänge und der Spiegelsaal liegen in den Gläsernen Hallen.',
+    completeText: 'Sechs Statuen, mit den Gesichtern nach draußen. Dann ist es wahr. Ich lasse ihre Namen in den Kranofen schlagen, damit jeder sie liest, der hier arbeitet. Danke, dass du es mir gesagt hast und nicht Fenn.',
+    objectives: [
+      { id: 'prisoners', text: 'Gefangenengänge durchsucht', count: 1, kind: 'reach', target: ['hall_prisoners'], zone: 'glass_halls' },
+      { id: 'mirrors', text: 'Spiegelsaal durchsucht', count: 1, kind: 'reach', target: ['hall_mirrors'], zone: 'glass_halls' },
+    ],
+    rewards: { xp: Q(47, W.dungeonSide), gold: G(47, 1.2), gear: [gear(48, 'feet', 'rare')] },
+  },
+  q_tovan_library: {
+    title: 'Die Bibliothek der Sternwarte', giver: 'astronomer_tovan', level: 50, requires: ['q_star_seers'],
+    summary: 'Durchsuche die Bibliothek und das Planetarium der Sternwarte.',
+    offer: 'Aurel hat die Sternwarte nicht für sich allein gebaut. Unten war eine Bibliothek für jeden, der lesen wollte, darüber ein Planetarium, in dem sich der ganze Himmel drehte. Ich will wissen, ob davon noch etwas übrig ist. Wenn du drinnen bist, schau dir beides an.',
+    progressText: 'Die Bibliothek und das Planetarium liegen in der Sternwarte.',
+    completeText: 'Das Planetarium dreht sich noch? Nach tausend Jahren? Dann hat Aurel es besser gebaut als alles, was ich je gebaut habe. Ich will es sehen, bevor ich sterbe. Am besten bald, aber nicht zu bald.',
+    objectives: [
+      { id: 'library', text: 'Bibliothek durchsucht', count: 1, kind: 'reach', target: ['obs_library'], zone: 'observatory' },
+      { id: 'planetarium', text: 'Planetarium durchsucht', count: 1, kind: 'reach', target: ['obs_planetarium'], zone: 'observatory' },
+    ],
+    rewards: { xp: Q(50, W.dungeonSide), gold: G(50, 1.2), gear: [gear(50, 'weapon', 'rare')] },
+  },
 
   // ================================================================ Kopfgelder und Jagdaufträge (wiederholbar)
   q_bounty_gardens: {
@@ -659,25 +920,31 @@ export const QUEST_ITEMS_STARS = {
   harrik_shard: { name: 'Harriks Splitter', type: 'quest', rarity: 'rare', icon: 'gem_amethyst', stack: 1, value: 0, desc: 'So groß wie eine Faust. Er flüstert, auch wenn niemand zuhört.' },
   sentinel_glass: { name: 'Sternglas', type: 'quest', rarity: 'uncommon', icon: 'gem_sapphire', stack: 10, value: 0, desc: 'Klares Glas aus der Brust eines Glaswächters.' },
   mirror_shard: { name: 'Spiegelscherbe', type: 'quest', rarity: 'common', icon: 'gem_sapphire', stack: 10, value: 0, desc: 'In der Scherbe ist ein Gesicht zu sehen, das nicht deines ist.' },
+  living_bark: { name: 'Lebende Rinde', type: 'quest', rarity: 'common', icon: 'ore_moss', stack: 10, value: 0, desc: 'Sie ist warm und bewegt sich ganz leicht, wenn man nicht hinsieht.' },
+  torn_map: { name: 'Kartenfetzen', type: 'quest', rarity: 'common', icon: 'map', stack: 10, value: 0, desc: 'Ein Stück von Miras alten Karten. Jemand hat Linien darübergekritzelt, die nirgendwohin führen.' },
+  aurel_page: { name: 'Aurels Seite', type: 'quest', rarity: 'uncommon', icon: 'scroll', stack: 10, value: 0, desc: 'Sauber aus einem Buch geschnitten. Die Schrift ist klein und eilig.' },
+  lio_parcel: { name: 'Lios Kiste', type: 'quest', rarity: 'common', icon: 'bag', stack: 1, value: 0, desc: 'Dochte, Seife und ein Glas, das verdächtig nach Honig riecht.' },
+  pell_basket: { name: 'Pells Korb', type: 'quest', rarity: 'common', icon: 'food_bread', stack: 1, value: 0, desc: 'Brot, Kerzen und Tee für Odda am Mondweiher.' },
 };
 
 // Questgegenstände, die nur während der Quest fallen: { Gegnertyp: [[questId, itemId, Chance]] }
 // Dungeons haben keinen Respawn: Chancen dort so, dass ein Lauf reicht (Rankengruft 4+ Priesterinnen, Bosse immer).
 export const QUEST_DROPS_STARS = {
-  rootbound: [['q_gardener_tokens', 'gardener_token', 0.75]],
+  rootbound: [['q_gardener_tokens', 'gardener_token', 0.75], ['q_bren_bark', 'living_bark', 0.6]],
   bloom_stalker: [['q_star_soup', 'bloom_haunch', 0.6]],
   garden_golem: [['q_brunna_pearlstone', 'golem_core', 0.6]],
   star_moth: [['q_corvin_moths', 'moth_dust', 0.6]],
   void_wisp: [['q_isell_void_ash', 'void_ash', 0.6]],
   thorn_priest: [['q_grave_seeds', 'grave_seed', 0.9]],
   ysgarn: [['q_ysgarn', 'light_seed', 1]],
-  mad_prospector: [['q_splinter_madness', 'raw_starshard', 0.8], ['q_harrik_shard', 'harrik_shard', 0.35]],
+  mad_prospector: [['q_splinter_madness', 'raw_starshard', 0.8], ['q_harrik_shard', 'harrik_shard', 0.35], ['q_mira_maps', 'torn_map', 0.5]],
   shard_crawler: [['q_splinter_madness', 'raw_starshard', 0.25]],
   prism_elemental: [['q_ysolde_prisms', 'prism_heart', 0.55]],
   glass_sentinel: [['q_dagna_starglass', 'sentinel_glass', 0.55]],
   kaldris: [['q_kaldris', 'kaldris_splinter', 1]],
   statue_wraith: [['q_ilse_mirror_shards', 'mirror_shard', 0.55]],
   star_seer: [['q_star_seers', 'star_chart', 0.6]],
+  shadow_ranger: [['q_tobin_pages', 'aurel_page', 0.55]],
 };
 
 // Gesprächszeilen (npcIdleLine: es gilt die letzte Zeile, deren Quest abgeschlossen ist). Bestehende Einträge
@@ -705,6 +972,7 @@ export const NPC_LINES_STARS = {
       ['q_three_kings', 'Gestern Nacht habe ich zweitausendvierhundertneun Sterne gezählt. Vor zehn Jahren waren es dreitausend.'],
       ['q_seed_to_anchor', 'Seit der Samen im Ankerstein leuchtet, zähle ich jede Nacht dieselbe Zahl. Keiner fehlt mehr. Fürs Erste.'],
       ['q_ysmeine', 'Azhuron. Ich habe den Namen auf Ysmeines Karten gesucht und ihn in meinen eigenen gefunden. Er stand dort die ganze Zeit.'],
+      ['q_tobin_diary', 'Aurel wusste von Azhuron, bevor er ihn sah. Jemand hat es ihm erzählt. Ich will wissen, wer.'],
     ],
   },
   captain_halvard: {
@@ -712,6 +980,7 @@ export const NPC_LINES_STARS = {
     lines: [
       [null, 'Noch einer durchs Tor? Willkommen in Sternhafen. Bleib auf den Brücken.'],
       ['q_star_audience', 'Die Fürstin hat dich empfangen? Dann gehörst du jetzt zu uns, ob du willst oder nicht.'],
+      ['q_halvard_patrol', 'Die Gartenbrücken sind wieder besetzt. Meine Leute wissen ihre Namen. Das ist hier oben schon viel.'],
       ['q_kaldris', 'Meine Leute erzählen, du hättest die Gläsernen Hallen geleert. Einige der Statuen waren Sternwachen. Danke.'],
     ],
   },
@@ -739,7 +1008,12 @@ export const NPC_LINES_STARS = {
       ['q_stranded_scholar', 'Ich schreibe gerade den Brief. Den richtigen diesmal. Er wird kurz. Das Wichtige ist immer kurz.'],
       ['q_letter_for_maren', 'Sie hat ihn gelesen? Sie hat ihn wirklich gelesen? Ich kann nicht arbeiten, ich lese dieselbe Zeile seit einer Stunde.'],
       ['q_marens_answer', 'In Aurels Büchern steht viel über den Stern. Aber nichts darüber, wie man ihn aufhält. Noch nicht. Ich suche weiter.'],
+      ['q_tobin_diary', 'Seraphe hat mich angesehen und gelächelt. Ich weiß nicht, ob das gut ist. Ich schreibe es Mutter trotzdem.'],
     ],
+  },
+  trader_lio: {
+    name: 'Lio', idle: 'Tränke, Verbände, Reiseproviant. Und gute Laune gibt es umsonst.',
+    lines: [[null, 'Tränke, Verbände, Reiseproviant. Und gute Laune gibt es umsonst.'], ['q_lio_courier', 'Bosk hat sich bedankt? Schriftlich? Dann war es doch Honig.']],
   },
   smith_brunna: { name: 'Brunna', idle: 'Sternstahl ist störrisch. Wie ich. Darum verstehen wir uns.', lines: [['q_brunna_pearlstone', 'Der Perlstein brennt gut. Wenn du eine Klinge brauchst, weißt du, wo die Esse steht.']] },
   stablemaster_corvin: { name: 'Corvin', idle: 'Sternrösser laufen über Licht. Man muss ihnen nur das Fallen abgewöhnen.', lines: [['q_corvin_moths', 'Die Rochen kreisen wieder hoch über der Koppel. Einer folgt dir mit den Augen, wenn du vorbeigehst.']] },
@@ -751,6 +1025,7 @@ export const NPC_LINES_STARS = {
       [null, 'Die Wurzeln halten noch. Aber sie zittern.'],
       ['q_gardener_tokens', 'Wir haben die Marken an den Ankerbaum gehängt. Wenn der Wind geht, klappern sie. Es klingt wie Lachen.'],
       ['q_ysgarn', 'Seit Ysgarn ruht, wachsen die Ranken langsamer. Ich glaube, er hat sie zurückgehalten, solange er konnte.'],
+      ['q_veyra_last_seal', 'Der Bruch ist still. Manchmal gehe ich nur hin, um zuzuhören, wie still er ist.'],
       ['q_seed_to_anchor', 'Ich habe das Licht vom Ankerstein bis hierher gesehen. Die Gärten atmen wieder.'],
     ],
   },
@@ -759,6 +1034,7 @@ export const NPC_LINES_STARS = {
     lines: [
       [null, 'König Aurel hat jeden dieser Bäume selbst gepflanzt, sagt man.'],
       ['q_bren_cutting', 'Der Ableger im Bruch hat drei neue Blätter. Drei! Ich gehe jeden Morgen hin und zähle sie.'],
+      ['q_old_gardeners', 'Im Frühling gehen wir hinunter zum Teich. Ich habe schon die Blumen ausgesucht.'],
     ],
   },
   herbalist_isell: {
@@ -766,6 +1042,7 @@ export const NPC_LINES_STARS = {
     lines: [
       [null, 'Das Lichtmoos heilt fast alles. Fast.'],
       ['q_isell_void_ash', 'Die Salbe wirkt. Die alten Gärtner frieren nicht mehr, und einer hat mir sogar einen Kuchen gebacken.'],
+      ['q_isell_lightmoss', 'Mit dem Lichtmoos schlafen die Gärtner nicht mehr bei der Arbeit ein. Sie reden jetzt mehr. Viel mehr.'],
       ['q_isell_seed_chamber', 'Aurels Samen sind sicher. Was auch immer kommt, diese Welt kann wieder wachsen.'],
     ],
   },
@@ -773,6 +1050,7 @@ export const NPC_LINES_STARS = {
     name: 'Odda', idle: 'Im Weiher spiegelt sich ein Himmel, den es nicht mehr gibt.',
     lines: [
       [null, 'Im Weiher spiegelt sich ein Himmel, den es nicht mehr gibt.'],
+      ['q_pell_basket', 'Pells Tee ist zu süß. Ich trinke ihn trotzdem. Sag ihr das nicht.'],
       ['q_moon_altar', 'Der Altar leuchtet noch nach. Die Falter halten Abstand. Sie wissen, wer gewonnen hat.'],
     ],
   },
@@ -792,15 +1070,17 @@ export const NPC_LINES_STARS = {
       [null, 'Die Scherben singen, wenn man sie anschlägt. Manche schreien.'],
       ['q_kel_claim', 'Mein Claim läuft. Heute drei Splitter, gestern vier. Die Krabbler kommen, aber ich bin schneller geworden.'],
       ['q_harrik_shard', 'Harriks Splitter ist fort. Ich schlafe besser, egal wohin er gegangen ist.'],
+      ['q_harrik_fate', 'Ich lese jeden Abend eine Seite aus Harriks Tagebuch. Er schreibt furchtbar. Ich vermisse ihn.'],
     ],
   },
-  cartographer_mira: { name: 'Mira', idle: 'Jede Woche zeichne ich die Weiten neu. Sie bleiben nicht, wo sie sind.', lines: [['q_mira_survey', 'Deine Messungen stimmen. Die ganzen Weiten treiben langsam nach Osten. Wie alles hier.']] },
+  cartographer_mira: { name: 'Mira', idle: 'Jede Woche zeichne ich die Weiten neu. Sie bleiben nicht, wo sie sind.', lines: [['q_mira_survey', 'Deine Messungen stimmen. Die ganzen Weiten treiben langsam nach Osten. Wie alles hier.'], ['q_mira_escort', 'Drei Schritte in einer Woche. Ich messe jetzt jeden Morgen. Es werden nicht weniger.']] },
   echo_sage_lun: {
     name: 'Lun', idle: 'Hör hin. Die Grate erzählen, wie der Himmel zerbrach.',
     lines: [
       [null, 'Hör hin. Die Grate erzählen, wie der Himmel zerbrach.'],
       ['q_ridge_song', 'Der Grat singt wieder seinen eigenen Ton. Hell und ein bisschen traurig. So, wie er sein soll.'],
       ['q_kaldris', 'Die Hallen sind still. Ich habe nie gedacht, dass Stille so laut sein kann.'],
+      ['q_lun_echoes', 'Die Echos erzählen jede Nacht ein Stück mehr. Gestern ging es um einen Zwergenkönig, der nicht zurückkam.'],
     ],
   },
   mirror_keeper_ilse: {
@@ -817,6 +1097,17 @@ export const NPC_LINES_STARS = {
       ['q_ysmeine', 'Die Kuppel ist dunkel. Ysmeine ruht. Ich gehe morgen hinauf und öffne die Fenster. Sie hätte es so gewollt, glaube ich.'],
     ],
   },
-  trader_bosk: { name: 'Bosk', idle: 'Seile, Laternen, Tränke. Alles doppelt so teuer wie in Sternhafen. Und doppelt so nötig.', lines: [] },
+  trader_bosk: {
+    name: 'Bosk', idle: 'Seile, Laternen, Tränke. Alles doppelt so teuer wie in Sternhafen. Und doppelt so nötig.',
+    lines: [['q_bosk_crates', 'Alle Kisten da, alle Regale voll. Nur der Honig, äh, das Lampenfett ist schon wieder alle.'], ['q_bosk_nests', 'Keine neuen Nester. Die Schürfer kaufen weniger Seile. Ich bin hin- und hergerissen.']],
+  },
+  quartermaster_tamsin: {
+    name: 'Tamsin', idle: 'Die Sternwacht rüstet jeden aus, der die Brücken verteidigt.',
+    lines: [[null, 'Die Sternwacht rüstet jeden aus, der die Brücken verteidigt.'], ['q_tamsin_muster', 'Gemustert und ausgerüstet. Wenn etwas reißt, bring es mir, nicht Brunna. Sie flickt mit Hammer.']],
+  },
+  arena_master_sora: {
+    name: 'Sora', idle: 'Auch hier oben misst man sich. Die Glutarena kennt keine Grenzen.',
+    lines: [[null, 'Auch hier oben misst man sich. Die Glutarena kennt keine Grenzen.'], ['q_sora_trial', 'Meine Rekruten fragen nach dir. Ich sage ihnen, sie sollen erst den Spiegelsee überleben.']],
+  },
 };
 

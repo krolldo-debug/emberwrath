@@ -203,8 +203,15 @@ export function buildDriftingGardens() {
   // Mondweiher (44–45): Sternfalter, Blütenpirscher
   for (const [x, y] of [[40, 84], [62, 84], [68, 96], [56, 108], [38, 104], [48, 110], [74, 102], [32, 92]]) group(x, y, ['m', 'm', 'a'], 4);
 
+  // Questziele der zweiten Runde: Veyras Schutzsteine im Ankerhain, Isells Lichtmoos im Wurzelbruch, Seraphes
+  // Sternschnuppen auf Terrassen und am Weiher, Veyras Siegel an der letzten Narbe im Wurzelbruch (Verteidigung)
+  const wardStones = [[148, 44], [136, 68], [171, 79]];
+  const lightMoss = [[94, 57], [99, 71], [113, 91], [103, 95], [84, 97]];
+  const fallenStars = [[27, 12], [45, 19], [56, 76], [34, 89]];
+  const seal = [120, 81];
+
   // Freiraum um Marken und Portale
-  const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [199, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts].filter(Boolean);
+  const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [199, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts, ...wardStones, ...lightMoss, ...fallenStars, seal].filter(Boolean);
   clearAround(m, spots, 'TBKRPWJX', { r: 2, south: 3 });
 
   // ------------------------------------------------------------ Questziele (progression/questsStars.js)
@@ -251,6 +258,10 @@ export function buildDriftingGardens() {
       ...rifts.map(([x, y], i) => ({ id: `void_rift_${i + 1}`, kind: 'shrine', decor: 'voidRift', name: 'Leerenriss', prompt: 'Den Leerenriss versiegeln', x, y })),
       ...seedBags.map(([x, y], i) => ({ id: `seed_bag_${i + 1}`, kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Saatbeutel', prompt: 'Saatbeutel aufheben', x, y })),
       ...moonCrystals.map(([x, y], i) => ({ id: `moon_crystal_${i + 1}`, kind: 'item', decor: 'crystals', name: 'Mondkristall', prompt: 'Mondkristall abbrechen', x, y })),
+      ...wardStones.map(([x, y], i) => ({ id: `ward_stone_${i + 1}`, kind: 'shrine', set: 'decor_ashwood', decor: 'runeStone', name: 'Schutzstein', prompt: 'Das Schutzzeichen erneuern', x, y })),
+      ...lightMoss.map(([x, y], i) => ({ id: `light_moss_${i + 1}`, kind: 'item', decor: 'bushes', name: 'Lichtmoos', prompt: 'Lichtmoos ernten', x, y })),
+      ...fallenStars.map(([x, y], i) => ({ id: `fallen_star_${i + 1}`, kind: 'item', set: 'decor_shards', decor: 'shardRocks', name: 'Sternschnuppe', prompt: 'Die Sternschnuppe aufheben', x, y })),
+      { id: 'veyra_seal', kind: 'shrine', set: 'decor_ashwood', decor: 'wardTotem', name: 'Veyras Siegel', prompt: 'Das Siegel setzen', x: seal[0], y: seal[1] },
     ],
     questRoutes: {
       escort_bren_cutting: {
@@ -259,6 +270,8 @@ export function buildDriftingGardens() {
         clearPath: 5,
         ambush: [{ at: amb(0.4), type: 'bloom_stalker', n: 2 }, { at: amb(0.7), type: 'void_wisp', n: 2 }, { at: amb(0.9), type: 'rootbound', n: 2 }],
       },
+      // q_veyra_last_seal: Veyra schließt die letzte Narbe im Wurzelbruch, Wurzelgebundene drängen aus der Leere
+      defend_root_scar: { kind: 'defend', at: [119, 83], spawns: [[115, 80], [126, 79], [127, 86], [114, 86]], foe: 'rootbound', seconds: 90 },
     },
     portals: [
       { id: 'to_sternhafen', x: 199.4, y: 62, range: 26, visual: 'road', dir: [1, 0],

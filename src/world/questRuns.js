@@ -70,6 +70,18 @@ export const RUN_CAST = {
     title: 'Brens Ableger', start: 'Eskorte: Begleite Bren mit dem Ableger in den Wurzelbruch.', speed: 26, foe: 'void_wisp',
     members: [{ npc: 'gardener_bren', name: 'Bren', hits: 26 }],
   },
+  defend_root_scar: {
+    title: 'Die letzte Narbe', start: 'Schütze Veyra, bis das Siegel über der letzten Narbe hält.', foe: 'rootbound', circle: true,
+    members: [{ npc: 'warden_veyra', name: 'Veyra', hits: 75 }],
+  },
+  defend_kel_claim: {
+    title: 'Kels Claim', start: 'Halte Kels Claim, bis die Schürfer aufgeben.', foe: 'mad_prospector', circle: true,
+    members: [{ npc: 'prospector_kel', name: 'Kel', hits: 70 }],
+  },
+  escort_mira_survey: {
+    title: 'Miras Messgang', start: 'Eskorte: Begleite Mira mit ihren Messgeräten zur Westscherbe.', speed: 26, foe: 'shard_crawler',
+    members: [{ npc: 'cartographer_mira', name: 'Mira', hits: 28 }],
+  },
 };
 
 // Neue Gegnertypen anderer Bereiche, solange sie fehlen: nächstverwandter vorhandener Typ.
