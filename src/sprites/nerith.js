@@ -3,6 +3,8 @@ import { FineCanvas, fineRes, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 
 // Nerith, die Ertrunkene Priesterin – Boss des Versunkenen Tempels.
+// Gestalt „Tiefseepriesterin“: Quallenglocke als Kopfschmuck mit Nesselfäden, Robe in Tiefseeblau mit Perlmutt,
+// Hirtenstab aus Treibholz, dessen Schnecke die Perle hält.
 //
 // Rig wie beim Knochenfürsten: Taille, Wirbelsäule, Kopf, zwei Arme (IK),
 // dazu ein Haar-Simulator (Strähnen, die wie unter Wasser treiben), zerfetzte
@@ -17,13 +19,13 @@ import { hash2 } from '../core/math.js';
 const W = 156, H = 124, AX = 72, AY = 114;
 
 // Materialrampen (dunkel -> hell)
-const SKIN = ['#1c2630', '#33434e', '#546873', '#7f959e', '#aabfc2', '#d6e6e4'];
-const ROBE = ['#071a1e', '#0d2d32', '#15474a', '#1f655e', '#32877a', '#54a996'];
-const GOLD = ['#2c2412', '#5a4a24', '#8c7a42', '#bea866', '#e4d49a'];
-const HAIR = ['#060d10', '#0d1c20', '#15302f', '#204542', '#306058', '#508a7c'];
+const SKIN = ['#1c1e2e', '#343850', '#565c78', '#8088a4', '#acb4cc', '#dadfec'];
+const ROBE = ['#07081a', '#0f1434', '#192352', '#253571', '#354c92', '#4f6ab2'];
+const GOLD = ['#262636', '#4c5068', '#7c86a2', '#b6c0d6', '#e8eef8'];   // Perlmutt
+const HAIR = ['#04050c', '#090d1a', '#10172c', '#1a2440', '#273658', '#3b5078'];
 const WATER = ['#0a192a', '#113352', '#1c5882', '#3886b2', '#76bcdc', '#c6eaf6'];
-const CORAL = ['#3a1018', '#6c2228', '#a43c38', '#d4664e', '#f4a07e'];
-const BRONZE = ['#0f1b19', '#1d332f', '#2f4f48', '#4a7266', '#78a292'];
+const JELLY = ['#141c3c', '#243466', '#3e5c96', '#6c94c4', '#a8d0ea', '#e4f6ff'];   // Quallenglocke
+const BRONZE = ['#0b0c14', '#191b28', '#2a2d40', '#424760', '#666d8c'];   // Treibholz, dunkel
 const ALGAE = ['#09150d', '#132719', '#203e25', '#315831', '#4a783f'];
 const PEARL = ['#5e7e8e', '#a2c4ce', '#dcf2f2', '#ffffff'];
 const GLOW = {
@@ -319,70 +321,48 @@ function skirt(p, g, glow, wx, wy, P) {
 // ---------------------------------------------------------------- Dreizack
 
 function trident(p, g, glow, hx, hy, a, P) {
+  // Hirtenstab: Treibholzschaft mit Perlmuttringen, oben eine Schnecke nach vorn, die Perle hängt in ihrer Mitte.
   const dx = Math.cos(a), dy = Math.sin(a);
   let nx = -dy, ny = dx;
   if (nx + ny > 0) { nx = -nx; ny = -ny; } // n zeigt zum Licht
+  const mx = -nx, my = -ny;               // nach vorn
   const bx = hx - dx * 17, by = hy - dy * 17;
-  const tx = hx + dx * 29, ty = hy + dy * 29;
-  const fine = p.fine, q = p.step;
-  limb(p, bx, by, tx, ty, 2, 2, [BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4]]);
+  const tx = hx + dx * 25, ty = hy + dy * 25;
+  const fine = p.fine;
+  limb(p, bx, by, tx, ty, 2.3, 2.1, [BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4]]);
   if (fine) {
-    // Schaft: Glanzlinie (1 Feinpixel) und Glanzpunkt, dunkle Unterkante
-    hair(p, hx + dx * -15 + nx * 0.6, hy + dy * -15 + ny * 0.6, hx + dx * 22 + nx * 0.6, hy + dy * 22 + ny * 0.6, BRONZE[4]);
-    hair(p, hx + dx * -4 + nx * 0.6, hy + dy * -4 + ny * 0.6, hx + dx * 3 + nx * 0.6, hy + dy * 3 + ny * 0.6, '#c4e4d6');
-    pt(p, hx + dx * -1 + nx * 0.6, hy + dy * -1 + ny * 0.6, '#ffffff');
+    hair(p, hx + dx * -15 + nx * 0.6, hy + dy * -15 + ny * 0.6, hx + dx * 23 + nx * 0.6, hy + dy * 23 + ny * 0.6, BRONZE[4]);
+    for (const s of [-9, 4, 15]) { pt(p, hx + dx * s, hy + dy * s, BRONZE[0]); pt(p, hx + dx * (s + 0.5) + nx * 0.5, hy + dy * (s + 0.5) + ny * 0.5, BRONZE[1]); }
   }
-  // Schaftspitze und Ringe
   p.px(bx - dx, by - dy, GOLD[2]); p.px(bx - dx * 2, by - dy * 2, GOLD[3]);
-  if (fine) { pt(p, bx - dx * 2.5, by - dy * 2.5, GOLD[3]); pt(p, bx - dx * 2 + nx * 0.5, by - dy * 2 + ny * 0.5, GOLD[4]); }
-  for (const r of [-13, 9, 25]) {
+  for (const r of [-13, 9, 22]) {
     p.px(hx + dx * r + nx, hy + dy * r + ny, GOLD[4]);
     p.px(hx + dx * r, hy + dy * r, GOLD[3]);
     p.px(hx + dx * r - nx, hy + dy * r - ny, GOLD[1]);
-    if (fine) { pt(p, hx + dx * r + nx * 1.2, hy + dy * r + ny * 1.2, '#fff4c8'); pt(p, hx + dx * (r + 0.6), hy + dy * (r + 0.6), GOLD[1]); pt(p, hx + dx * (r + 0.6) + nx, hy + dy * (r + 0.6) + ny, GOLD[2]); }
+    if (fine) { pt(p, hx + dx * r + nx * 1.2, hy + dy * r + ny * 1.2, '#ffffff'); pt(p, hx + dx * (r + 0.6), hy + dy * (r + 0.6), GOLD[1]); }
   }
-  // Wickelband mit Algen am Schaft
-  for (let s = 12; s < 22; s += 2) p.px(hx + dx * s - nx * 0.5, hy + dy * s - ny * 0.5, ALGAE[3]);
-  p.px(hx + dx * 17 - nx * 2, hy + dy * 17 - ny * 2 + 1, ALGAE[2]); p.px(hx + dx * 17 - nx * 2, hy + dy * 17 - ny * 2 + 2, ALGAE[1]);
-  // Querbalken, leicht nach vorn gebogen
-  for (let k = -6.5; k <= 6.5; k += 0.5 * q) {
-    const bend = k * k * 0.05;
-    const x = tx + nx * k + dx * bend, y = ty + ny * k + dy * bend;
-    pt(p, x, y, k > 4 ? GOLD[4] : k < -4 ? GOLD[1] : GOLD[2]);
-    pt(p, x - dx, y - dy, k > 0 ? GOLD[2] : GOLD[1]);
-    if (fine) { pt(p, x + dx * 0.5, y + dy * 0.5, k > 2 ? GOLD[4] : k < -4 ? GOLD[2] : GOLD[3]); pt(p, x - dx * 0.5, y - dy * 0.5, k > 0 ? GOLD[2] : GOLD[1]); pt(p, x - dx * 1.5, y - dy * 1.5, GOLD[0]); }
+  // Seetang um den Schaft
+  for (let s = 11; s < 20; s += 1.5) p.px(hx + dx * s - nx * 0.5, hy + dy * s - ny * 0.5, ALGAE[3]);
+  for (let s = 0; s < 6; s += 1) p.px(hx + dx * (15 - s * 0.2) - nx * (1.5 + s * 0.2), hy + dy * (15 - s * 0.2) - ny * (1.5 + s * 0.2) + s, ALGAE[s < 3 ? 2 : 1]);
+  // Schnecke
+  const R0 = 6.5, cx = tx + mx * R0, cy = ty + my * R0, T1 = Math.PI * 1.75;
+  const at = (t) => { const r = R0 - t * 0.95; return [cx + r * (Math.cos(t) * -mx + Math.sin(t) * dx), cy + r * (Math.cos(t) * -my + Math.sin(t) * dy)]; };
+  let [qx, qy] = at(0), top = { x: qx, y: qy, d: 1e9 };
+  for (let t = 0.12; t <= T1 + 0.001; t += 0.12) {
+    const [x, y] = at(t), w = 3.4 - t * 0.33;
+    limb(p, qx, qy, x, y, w, w - 0.1, [GOLD[1], GOLD[2], GOLD[3], GOLD[4]]);
+    if (fine && Math.round(t / 0.12) % 3 === 0) { const ox = (x - qx), oy = (y - qy), l = Math.hypot(ox, oy) || 1; hair(p, x - oy / l * w * 0.5, y + ox / l * w * 0.5, x + oy / l * w * 0.5, y - ox / l * w * 0.5, GOLD[1]); }
+    const d = x * dx + y * dy; if (d < top.d) top = { x, y, d };
+    qx = x; qy = y;
   }
-  // Zinken
-  const prong = (k, len, w) => {
-    const bend = k * k * 0.05;
-    const x0 = tx + nx * k + dx * bend, y0 = ty + ny * k + dy * bend;
-    const inward = -Math.sign(k) * 0.12;
-    const ex = x0 + dx * len + nx * len * inward, ey = y0 + dy * len + ny * len * inward;
-    limb(p, x0, y0, ex, ey, w, 1, [GOLD[1], GOLD[2], GOLD[3], GOLD[4]]);
-    // Widerhaken
-    p.px(ex - dx * 2 + nx * Math.sign(k || 1) * 1.5, ey - dy * 2 + ny * Math.sign(k || 1) * 1.5, GOLD[3]);
-    if (fine) {
-      // Zinke: Glanzlinie auf der Lichtkante, scharfe helle Spitze, Widerhaken mit Schattenkante
-      hair(p, x0 + nx * (w / 2 - 0.25), y0 + ny * (w / 2 - 0.25), ex - dx * 1.5 + nx * 0.2, ey - dy * 1.5 + ny * 0.2, '#fff0b8');
-      pt(p, ex + dx * 0.6, ey + dy * 0.6, '#ffffff'); pt(p, ex, ey, GOLD[4]);
-      pt(p, ex - dx * 2.5 + nx * Math.sign(k || 1) * 1.5, ey - dy * 2.5 + ny * Math.sign(k || 1) * 1.5, GOLD[1]);
-    } else p.px(ex + dx * 0.6, ey + dy * 0.6, GOLD[4]);
-    return { x: ex, y: ey };
-  };
-  prong(-6, 8, 2); prong(6, 8, 2);
-  const tip = prong(0, 13, 2.5);
-  // Perle in der Gabel
+  // Perle in der Schnecke
   const pr = 1.8 + P.pearl * 0.4 + P.cast * 0.8;
-  const px = tx + dx * 2.5, py = ty + dy * 2.5;
+  const px = cx + dx * 0.6, py = cy + dy * 0.6;
   ell(p, px, py, pr, pr, PEARL[1]);
   ell(p, px - 0.4, py - 0.4, Math.max(0.6, pr - 0.8), Math.max(0.6, pr - 0.8), PEARL[2]);
   p.px(px - pr * 0.5, py - pr * 0.5, PEARL[3]);
-  if (fine) {
-    // Perle: Glanzpunkt, kühle Spiegelung unten rechts
-    pt(p, px - pr * 0.5, py - pr * 0.5, '#ffffff'); pt(p, px + pr * 0.45, py + pr * 0.45, PEARL[0]); pt(p, px + pr * 0.2, py + pr * 0.55, PEARL[1]);
-    for (let a = 0.2; a < 1.4; a += 0.3) pt(p, px + Math.cos(a) * (pr - 0.3), py + Math.sin(a) * (pr - 0.3), PEARL[1]);
-  }
-  const gr = pr + 0.8 + P.pearl * 0.6;
+  if (fine) { pt(p, px - pr * 0.5, py - pr * 0.5, '#ffffff'); pt(p, px + pr * 0.45, py + pr * 0.45, PEARL[0]); }
+  const gr = pr + 0.8 + P.pearl * 0.6, q = p.step;
   ell(g, px, py, gr + 1.5, gr + 1.5, glow[0]);
   ell(g, px, py, gr + 0.5, gr + 0.5, glow[1]);
   ell(g, px, py, gr - 0.5, gr - 0.5, glow[2]);
@@ -390,7 +370,6 @@ function trident(p, g, glow, hx, hy, a, P) {
   g.px(px, py, glow[4]);
   if (fine) ell(g, px - 0.25, py - 0.25, Math.max(0.5, pr - 1.2), Math.max(0.5, pr - 1.2), glow[4]);
   if (P.cast > 0.25) {
-    // Lodern: Strahlenstern (fein: Strahlen 1 Feinpixel mit hellem Kern innen)
     const r = 3 + P.cast * 7;
     for (let s = 2; s < r; s += q) {
       const c = s < r * 0.5 ? (fine && s < r * 0.3 ? glow[4] : glow[3]) : glow[2];
@@ -398,7 +377,7 @@ function trident(p, g, glow, hx, hy, a, P) {
       if (s < r * 0.6) { pt(g, px + s * 0.6, py - s * 0.6, glow[1]); pt(g, px - s * 0.6, py - s * 0.6, glow[1]); pt(g, px + s * 0.6, py + s * 0.5, glow[1]); pt(g, px - s * 0.6, py + s * 0.5, glow[1]); }
     }
   }
-  return { tipX: tip.x, tipY: tip.y, pearlX: px, pearlY: py };
+  return { tipX: top.x, tipY: top.y, pearlX: px, pearlY: py };
 }
 
 // Schwung-Schleier: Gischtbogen hinter dem Dreizack.
@@ -475,6 +454,64 @@ function faceFine(p, g, fx0, fy0, lit, eye, jaw, glow) {
 
 // ---------------------------------------------------------------- Figur
 
+// Quallenglocke als Kopfschmuck: durchscheinende Kuppel mit Leuchtkanälen, gewellter Saum. (bx, by) = Mitte des Saums.
+function jellyBell(p, g, glow, bx, by, P, flood) {
+  const H = 8.5, Wd = 10, q = p.step, fine = p.fine;
+  const pulse = Math.sin(P.hairT * 1.3) * 0.5;
+  for (let y = by - H; y <= by + 0.01; y += q) {
+    const t = (y - (by - H)) / H, w = (Wd + pulse) * Math.sqrt(Math.max(0, 1 - (1 - t) * (1 - t)));
+    for (let x = bx - w; x <= bx + w + 0.01; x += q) {
+      const u = (x - bx) / (w || 1);
+      let i = u < -0.7 ? 4 : u < -0.2 ? 3 : u < 0.55 ? 2 : 1;
+      if (t < 0.18 && u < 0.3) i = Math.min(5, i + 1);
+      if (Math.abs(u) > 0.9 || t < 0.06) i = u < 0 ? 5 : 1;    // Rand: Licht links, Schatten rechts
+      pt(p, x, y, JELLY[i]);
+      if (i >= 2 && i <= 3) pt(g, x, y, glow[0]);
+    }
+  }
+  // Durchscheinend: der Kopf zeichnet sich in der Glocke ab
+  ell(p, bx - 0.5, by - 2, 5, 3.6, JELLY[1]); ell(p, bx - 1.5, by - 3, 3, 2, JELLY[2]);
+  // Leuchtkanäle vom Scheitel zum Saum
+  for (const k of [-0.45, 0.35]) {
+    let qx = bx, qy = by - H + 1;
+    for (let t = 0.1; t <= 1.001; t += 0.1) {
+      const y = by - H + 1 + (H - 1.5) * t, w = Wd * Math.sqrt(Math.max(0, 1 - (1 - t) * (1 - t))), x = bx + k * w;
+      if (fine) hair(p, qx, qy, x, y, JELLY[k < 0 ? 4 : 3]); else ln(p, qx, qy, x, y, JELLY[3]);
+      if (fine) hair(g, qx, qy, x, y, glow[t > 0.5 ? 2 : 1]); else g.px(x, y, glow[1]);
+      qx = x; qy = y;
+    }
+  }
+  // gewellter Saum mit Leuchtpunkten
+  for (let x = bx - Wd - pulse; x <= bx + Wd + pulse; x += 1) {
+    const k = Math.round(x - bx), dn = 1 + Math.sin(k * 1.4 + P.hairT * 2) * 1;
+    ln(p, x, by, x, by + dn, JELLY[x < bx ? 4 : 2]);
+    if (fine) pt(p, x, by + dn + 0.5, JELLY[x < bx ? 5 : 3]);
+    if (k % 3 === 0) { g.px(x, by + dn, glow[flood ? 3 : 2]); if (fine) pt(p, x, by + dn, JELLY[5]); }
+  }
+  if (fine) {
+    // Glanz auf der Kuppel
+    hair(p, bx - 5, by - H + 3, bx - 3, by - H + 1.5, JELLY[5]); pt(p, bx - 5.5, by - H + 4, JELLY[5]);
+    pt(p, bx - 1, by - H + 0.5, '#ffffff');
+  }
+}
+
+// Nesselfäden: hängen vom hinteren Saum der Glocke und treiben wie das Haar nach hinten.
+function jellyTendrils(p, g, glow, bx, by, P) {
+  const fine = p.fine;
+  for (let j = 0; j < 7; j++) {
+    let x = bx - 7.5 + j * 1.6, y = by + 1;
+    const L = 16 + hash2(j, 1, 131) * 14 - j * 1.2;
+    const dir = Math.PI / 2 + 0.55 + P.hairLift * 0.9 - j * 0.06;
+    for (let s = 0; s < L; s += 0.6) {
+      const f = s / L, a = dir + Math.sin(P.hairT * 1.2 + s * 0.2 + j * 1.3) * (0.12 + 0.4 * f);
+      x += Math.cos(a) * 0.6; y += Math.sin(a) * 0.6;
+      pt(p, x, y, JELLY[f < 0.5 ? (j < 3 ? 4 : 3) : 2]);
+      if (fine && j % 2 === 0) pt(p, x + 0.5, y, JELLY[1]);
+      if (Math.floor(s / 0.6) % 13 === 6) pt(g, x, y, glow[f < 0.6 ? 2 : 1]);
+    }
+  }
+}
+
 function drawFigure(p, g, P, glow, ex, flood) {
   const meta = {};
   const fine = p.fine, q = p.step;
@@ -503,7 +540,7 @@ function drawFigure(p, g, P, glow, ex, flood) {
     const cu = Math.min(3.999, u * 4), clump = Math.floor(cu), cl = cu - clump;
     // Büschel laufen spitz zu: die Mitte jedes Büschels ist am längsten
     const L = 32 + [10, 4, 12, 6][clump] + (1 - Math.abs(cl - 0.5) * 2) * 9 - lift * 4 + P.hairWild * 6;
-    strand(p, g, glow, ox, oy, dir, L, 7 - u * 1.6, j, P, { u, shade: u < 0.3 ? 4 : u < 0.65 ? 3 : 2, sheen: j === 3 || j === 8 || j === 13, edge: cl < 0.2, glowy: flood ? 0.04 : 0 });
+    strand(p, g, glow, ox, oy, dir, L, 7 - u * 1.6, j, P, { u, shade: u < 0.3 ? 4 : u < 0.65 ? 3 : 2, sheen: j === 3 || j === 8 || j === 13, edge: cl < 0.2, glowy: flood ? 0.04 : 0.004 });
   }
   if (fine) {
     // Haarmasse gliedern: je Büschel 2–3 helle Strähnen mit harter Lichtkante und dunkle Mulden dazwischen
@@ -529,6 +566,8 @@ function drawFigure(p, g, P, glow, ex, flood) {
       }
     }
   }
+
+  jellyTendrils(p, g, glow, hcx - 0.5, hcy - 3.5, P);
 
   // --- 2. Hinterer Arm (dunkler)
   const skinD = [SKIN[0], SKIN[1], SKIN[2], SKIN[3]];
@@ -689,52 +728,8 @@ function drawFigure(p, g, P, glow, ex, flood) {
     hair(p, hcx - 2.5, hcy - 5, hcx + 1, hcy - 5, HAIR[5]); pt(p, hcx - 1, hcy - 4.5, HAIR[2]); pt(p, hcx + 1.5, hcy - 4.5, HAIR[2]);
     hair(p, hcx - 3, hcy - 2, hcx - 3, hcy + 4, HAIR[3]); pt(p, hcx - 3, hcy - 1, HAIR[5]); pt(p, hcx - 2.5, hcy + 5.5, HAIR[1]);
   }
-  // Korallenkrone: Goldreif mit verzweigten Korallen
-  for (let k = -4; k <= 4; k++) {
-    const y = hcy - 5 + Math.round(k * k * 0.06);
-    p.px(hcx + k, y - 1, k < -1 ? GOLD[3] : k > 2 ? GOLD[1] : GOLD[2]);
-    if (fine) { pt(p, hcx + k, y - 1, k < -1 ? GOLD[4] : k > 2 ? GOLD[2] : GOLD[3]); pt(p, hcx + k + 0.5, y - 0.5, k > 0 ? GOLD[0] : GOLD[1]); }
-  }
-  p.px(hcx, hcy - 7, GOLD[4]); p.px(hcx + 1, hcy - 7, PEARL[2]); g.px(hcx + 1, hcy - 7, glow[3]);
-  if (fine) { pt(p, hcx + 1, hcy - 7, '#ffffff'); pt(p, hcx + 1.5, hcy - 6.5, PEARL[0]); pt(p, hcx + 0.5, hcy - 6.5, GOLD[1]); pt(g, hcx + 1, hcy - 7, glow[4]); }
-  const coral = [[-4, 4, -0.7], [-2, 7, -0.3], [0, 9, 0.05], [2, 6, 0.35], [4, 4, 0.7]];
-  for (let i = 0; i < coral.length; i++) {
-    const [cx, h, sp] = coral[i];
-    const bx = hcx + cx, by = hcy - 7;
-    let x = bx, y = by;
-    for (let s = 0; s < h; s++) {
-      const x0 = x, y0 = y;
-      x += sp * 0.6 + Math.sin(s * 1.3 + i) * 0.35; y -= 1;
-      if (fine) {
-        // Fein: Ast 2 Feinpixel breit (Lichtseite links), Zwischenzeile glättet die Biegung, Poren, helle Spitze
-        const ci = s > h - 2 ? 4 : s > h * 0.5 ? 3 : 2;
-        for (const t of [0.5, 1]) {
-          const xx = x0 + (x - x0) * t, yy = y0 + (y - y0) * t;
-          pt(p, xx, yy, CORAL[Math.min(4, ci + 1)]); pt(p, xx + 0.5, yy, CORAL[ci - 1]);
-          if (s < h * 0.4 && cx <= 0) { pt(p, xx - 1, yy, CORAL[4]); pt(p, xx - 0.5, yy, CORAL[3]); }
-          else if (s < h * 0.4) { pt(p, xx + 1, yy, CORAL[2]); pt(p, xx + 1.5, yy, CORAL[1]); }
-        }
-        if (s % 2 === 1 && s < h - 2) pt(p, x + 0.5, y + 0.5, CORAL[1]);
-        if (s === h - 1) { pt(p, x, y - 0.5, '#ffd8c0'); pt(p, x, y, CORAL[4]); }
-        if (s === Math.floor(h * 0.5)) {
-          const side = i < 2 ? -1 : 1;
-          hair(p, x + side * 0.5 + (side > 0 ? 0.5 : 0), y - 0.5, x + side * 2 + (side > 0 ? 0.5 : 0), y - 2, CORAL[3]);
-          pt(p, x + side * 2 + (side > 0 ? 0.5 : 0), y - 2.5, '#ffd8c0'); pt(p, x + side + (side > 0 ? 0.5 : 0), y - 0.5, CORAL[2]);
-        }
-        continue;
-      }
-      p.px(x, y, s > h - 2 ? CORAL[4] : s > h * 0.5 ? CORAL[3] : CORAL[2]);
-      if (s < h * 0.4 && cx <= 0) p.px(x - 1, y, CORAL[3]);
-      else if (s < h * 0.4) p.px(x + 1, y, CORAL[1]);
-      // Seitenzweige
-      if (s === Math.floor(h * 0.5)) {
-        const side = i < 2 ? -1 : 1;
-        p.px(x + side, y - 1, CORAL[3]); p.px(x + side * 2, y - 2, CORAL[4]);
-      }
-    }
-    if (flood && i % 2 === 0) g.px(x, y, glow[2]);
-  }
-  meta.head = { x: hcx, y: hcy - 8 };
+  jellyBell(p, g, glow, hcx - 0.5, hcy - 3.5, P, flood);
+  meta.head = { x: hcx, y: hcy - 13 };
   meta.mouth = { x: hcx + 3, y: hcy + 4 };
 
   // --- 6. Vorderes Haar über der Schulter
@@ -919,11 +914,13 @@ function drawRemains(p, g, k, glow) {
       p.px(x, y, j % 3 === 0 ? HAIR[3] : ALGAE[1 + (s % 3 === 0 ? 2 : 1)]);
     }
   }
-  // Dreizack quer
+  // Hirtenstab quer, Schnecke am Ende
   const tx = cx - 26, ty = gy - 5;
-  limb(p, tx, ty, tx + 44, ty - 2, 2, 2, [BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4]]);
-  for (const [dy, len] of [[-4, 7], [0, 10], [3, 7]]) limb(p, tx + 44, ty - 2 + dy, tx + 44 + len, ty - 2 + dy - 0.5, 2, 1, [GOLD[1], GOLD[2], GOLD[3], GOLD[4]]);
-  ln(p, tx + 44, ty - 6, tx + 44, ty + 1, GOLD[2]); p.px(tx + 44, ty - 6, GOLD[4]);
+  limb(p, tx, ty, tx + 40, ty - 2, 2, 2, [BRONZE[1], BRONZE[2], BRONZE[3], BRONZE[4]]);
+  for (let t = 0; t < Math.PI * 1.6; t += 0.15) {
+    const r = 4.5 - t * 0.7, x = tx + 44 + Math.cos(t + Math.PI) * r, y = ty - 2 - Math.sin(t + Math.PI) * r * -1 - 4;
+    ell(p, x, y, 1.1, 1.1, GOLD[t < 2 ? 3 : 2]);
+  }
   // Perle erlischt
   ell(p, tx + 42, ty - 2, 1.8, 1.8, PEARL[1]); p.px(tx + 41, ty - 3, PEARL[3]);
   if (p.fine) { pt(p, tx + 41, ty - 3, '#ffffff'); pt(p, tx + 42.5, ty - 1.5, PEARL[0]); hair(p, tx + 2, ty - 0.5, tx + 40, ty - 2.3, BRONZE[4]); }
@@ -932,10 +929,11 @@ function drawRemains(p, g, k, glow) {
     ell(g, tx + 42, ty - 2, r + 1, r + 1, glow[k > 0.5 ? 0 : 1]);
     ell(g, tx + 42, ty - 2, Math.max(0.6, r * 0.6), Math.max(0.6, r * 0.6), glow[k > 0.5 ? 1 : 2]);
   }
-  // Korallenkrone (zerbrochen)
-  const kx = cx - 38 - k * 3;
-  p.rect(kx, gy - 4, 8, 1, GOLD[2]); p.px(kx, gy - 4, GOLD[4]);
-  for (let i = 0; i < 4; i++) limb(p, kx + i * 2 + 1, gy - 4, kx + i * 2 + 1 + (i - 1.5) * 0.8, gy - 6 - [3, 5, 4, 2][i], 1.5, 1, [CORAL[1], CORAL[2], CORAL[3], CORAL[4]]);
+  // Quallenglocke sinkt in sich zusammen
+  const kx = cx - 36 - k * 3;
+  ell(p, kx, gy - 3, 6, 2.5 * (1 - k * 0.5) + 0.5, JELLY[2]); ell(p, kx - 1.5, gy - 3.5, 3, 1.2, JELLY[4]);
+  for (let i = 0; i < 4; i++) ln(p, kx - 4 + i * 2.5, gy - 2, kx - 6 + i * 2.5, gy, JELLY[3]);
+  if (k < 0.7) g.px(kx, gy - 3, glow[1]);
   // Glitzern im Wasser
   for (let i = 0; i < 8; i++) if (hash2(i, Math.round(k * 4), 113) < 0.6 - k * 0.4) g.px(cx - 16 + hash2(i, 1, 113) * 32, gy - 3 + hash2(i, 2, 113) * 3, glow[2]);
 }
