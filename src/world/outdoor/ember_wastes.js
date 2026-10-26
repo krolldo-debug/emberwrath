@@ -1042,7 +1042,7 @@ export function buildEmberWastes() {
       { id: 'ember_obelisk_3', kind: 'shrine', decor: 'emberObelisk', name: 'Obelisk am Thronweg', prompt: 'Obelisk am Thronweg löschen', x: obelisks[2][0], y: obelisks[2][1] },
       ...anchors.map(([x, y], i) => ({ id: `phase_anchor_${i + 1}`, kind: 'shrine', decor: 'phaseAnchor', name: 'Phasenanker', prompt: 'Phasenanker zerschlagen', x, y })),
       { id: 'crown_shrine', kind: 'shrine', decor: 'crownShrine', name: 'Kronschrein', prompt: 'Am Kronschrein beten', ...crownShrine },
-      { id: 'rift_watchfire', expansion: true, kind: 'shrine', decor: 'brazier', name: 'Wachfeuer am Riss', prompt: 'Das Wachfeuer entzünden', x: 143, y: 11 },
+      { id: 'rift_watchfire', expansion: true, kind: 'shrine', decor: 'brazier', name: 'Wachfeuer am Riss', prompt: 'Das Wachfeuer entzünden', x: 142, y: 11 },
     ],
     portals: [
       { id: 'to_frostspire', x: 0.6, y: 20, range: 26, visual: 'road', dir: [-1, 0],

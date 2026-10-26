@@ -625,72 +625,119 @@ function bridgeGate(sealed) {
     lights: [{ dx: -24, dy: -42, radius: 54, color: LAMP_LIGHT, intensity: 0.6 }, { dx: 24, dy: -42, radius: 54, color: LAMP_LIGHT, intensity: 0.6 }, ...(sealed ? [{ dx: 0, dy: -26, radius: 70, color: [180, 120, 255], intensity: 0.7 }] : [])] } });
 }
 
-// Sternentor (Ankerplatz, zurück in die Glutöde): Perlsteinring auf Podest, innen ein Wirbel aus Glut, der an
-// die Heimat erinnert; Goldrunen auf dem Ring
-function starGate() {
-  const W = 84, H = 104, cx = 42, bot = H - 2;
-  return mk(W, H, (p, g) => {
-    footShade(p, cx, bot, 38, 4);
-    // Podest (zwei Stufen)
-    p.scan(cx - 36, bot - 8, cx + 36, bot, (x, y) => (y < bot - 7.5 ? P[6] : y < bot - 4 ? (x > cx + 32 ? P[3] : P[5]) : y < bot - 3.5 ? P[6] : x > cx + 33 ? P[2] : P[4]));
-    const ry = bot - 46, R = 34, r = 26;
-    // Glutwirbel innen
-    p.scan(cx - r, ry - r, cx + r, ry + r, (x, y) => {
-      const dx = x - cx, dy = y - ry, d = Math.hypot(dx, dy);
-      if (d > r) return 0;
-      const a = Math.atan2(dy, dx), s = Math.sin(a * 3 + d * 0.35);
-      const k = 1 - d / r;
-      return col32(EMBER[s > 0.55 ? (k > 0.5 ? 5 : 4) : s > -0.2 ? 3 : k > 0.6 ? 2 : 1]);
-    });
-    g.each(cx - r, ry - r, cx + r, ry + r, (x, y) => {
-      const dx = x - cx, dy = y - ry, d = Math.hypot(dx, dy);
-      if (d > r) return null;
-      return Math.sin(Math.atan2(dy, dx) * 3 + d * 0.35) > 0.4 ? EMBER[4] : d < 8 ? EMBER[5] : null;
-    });
-    // Ring
-    p.scan(cx - R, ry - R, cx + R, ry + R, (x, y) => {
-      const dx = x - cx, dy = y - ry, d = Math.hypot(dx, dy);
-      if (d > R || d < r) return 0;
-      const a = Math.atan2(dy, dx), seg = Math.abs(((a / (Math.PI * 2)) * 16 + 16) % 1) < 0.05;
-      const l = -(dx + dy) / (R * 1.4);
-      let i = l > 0.3 ? 6 : l > -0.1 ? 5 : l > -0.45 ? 4 : 3;
-      if (d < r + 1) i = 2; else if (d > R - 1) i = Math.min(i, 3);
-      if (seg) i -= 2;
-      return P[Math.max(0, i)];
-    });
-    // Goldrunen auf dem Ring
-    for (let k = 0; k < 16; k++) {
-      const a = (k + 0.5) / 16 * Math.PI * 2, x = cx + Math.cos(a) * (R + r) / 2, y = ry + Math.sin(a) * (R + r) / 2;
-      p.dot(x, y, GOLD[4]); p.dot(x + 0.5, y + 0.5, GOLD[3]); g.dot(x, y, GOLD[4]);
-    }
-    // Füße des Rings
-    for (const s of [-1, 1]) p.scan(cx + s * 26 - 5, bot - 18, cx + s * 26 + 5, bot - 8, (x, y) => P[y < bot - 17.5 ? 6 : x < cx + s * 26 ? 5 : 3]);
-    p.oval(cx, ry - R - 1.5, 2.2, 2.2, GOLD[4]); p.dot(cx - 0.7, ry - R - 2.2, GOLD[5]);
-  }, { ax: cx, ay: bot, b: true, extra: { boxes: [[-38, -10, -18, 1], [18, -10, 38, 1]] }, light: { dx: 0, dy: -46, radius: 110, color: [255, 160, 80], intensity: 0.85 } });
+// Zwillingsbogen: die beiden Tore zwischen Glutöde und Sternhafen. Gleicher Spitzbogen auf beiden Seiten; durch das Tor
+// sieht man jeweils die andere Welt. Glutöde: Basalt, rechte Schulter gesprengt (die Steine schweben, vom Tor gehalten),
+// Glutfugen; Sternhafen: heiler Perlstein mit Goldnähten und Kristallleuchten. open = false: Schleier dunkel (vor q_homecoming).
+const BASALT = ['#0c090c', '#171115', '#22181c', '#2e2024', '#3c2a2c', '#4e3836', '#644a44'];
+const NEB = ['#080a20', '#10163a', '#1a2050', '#2a2a6a', '#43308a', '#5e44aa', '#3c6ab8'];
+const FIRE = ['#1e0806', '#3e100a', '#6e1c0c', '#a83212', '#dc5a1c', '#f8963a', '#ffd27a'];
+const SHUT = ['#0e0a12', '#160f1a', '#1e1422', '#2a1a24'];
+const Ba = pal32(BASALT), Nb = pal32(NEB), Fi = pal32(FIRE), Em = pal32(EMBER), Sh = pal32(SHUT);
+const STAR_W = col32('#ffffff'), STAR_B = col32('#cfe6ff'), ISLE_FAR = col32('#8c86c4'), ISLE_NEAR = col32('#5e5896');
+const RIDGE_FAR = col32('#2a0e0c'), RIDGE_NEAR = col32('#120608');
+
+// Blick in die Sternenwelt: Nebelhimmel mit Sternen, unten schwebende Inseln mit Perltürmen als Schattenriss
+function starView(x, y, x0, y0, x1, y1) {
+  const t = (y - y0) / (y1 - y0);
+  const far = y1 - (y1 - y0) * 0.3 + Math.sin(x * 0.35) * 1.5, far2 = far + 5 - Math.abs(Math.sin(x * 0.21 + 1)) * 6;
+  const tower = Math.abs(((x - x0) % 17) - 8) < 1.2 && y > far - 9 && (x - x0) % 34 < 17;
+  if ((y > far && y < far2) || tower) return ISLE_FAR;
+  const near = y1 - (y1 - y0) * 0.12 + Math.sin(x * 0.5 + 2) * 1.2, near2 = near + 6 - Math.abs(Math.sin(x * 0.3)) * 7;
+  if (y > near && y < near2) return ISLE_NEAR;
+  const F = Math.floor(x * 2), G = Math.floor(y * 2);
+  if (hash2(F, G, 3170) < 0.018) return hash2(F, G, 3171) < 0.5 ? STAR_W : STAR_B;
+  const n = Math.sin(x * 0.19 + y * 0.06 + 63) + Math.sin(y * 0.11 - x * 0.13) * 0.8 + (hash2(Math.floor(x / 3), Math.floor(y / 3), 3172) - 0.5) * 0.6;
+  return Nb[(t < 0.25 ? 1 : t < 0.55 ? 2 : 3) + (n > 1 ? 2 : n > 0.3 ? 1 : 0)];
 }
 
-// Glutriss (Glutöde, hinter dem Throntor): ein Spalt im Himmel über der Asche, Sternenlicht fällt heraus.
-// off = geschlossen (vor q_homecoming nur ein schwach glimmender Sprung), on = offen
-function skyRift(open) {
-  const W = 56, H = 90, cx = 28, bot = H - 3;
+// Blick in die Glutöde: glühender Horizont, schwarze Zackenberge, Funken
+function emberView(x, y, x0, y0, x1, y1) {
+  const t = (y - y0) / (y1 - y0);
+  if (y > y1 - (y1 - y0) * 0.12 - Math.abs(((x * 1.3 + 5) % 10) - 5)) return RIDGE_NEAR;
+  if (y > y1 - (y1 - y0) * 0.28 - Math.abs(((x * 0.9 + 64) % 14) - 7) * 1.1 - Math.sin(x * 0.17) * 3) return RIDGE_FAR;
+  if (hash2(Math.floor(x * 2), Math.floor(y * 2), 3173) < 0.014) return Em[hash2(Math.floor(x), Math.floor(y), 3174) < 0.5 ? 4 : 5];
+  const n = Math.sin(x * 0.23 + y * 0.09) + Math.sin(y * 0.17 - x * 0.07) * 0.6;
+  const i = t > 0.62 ? 5 : t > 0.45 ? 4 : t > 0.28 ? 3 : t > 0.12 ? 2 : 1;
+  return Fi[Math.min(6, Math.max(0, i + (n > 1.1 ? 1 : n < -1.1 ? -1 : 0)))];
+}
+
+function twinArch(glut, open = true) {
+  const W = 92, H = 128, cx = 46, bot = H - 2, foot = bot - 9;
+  const w = 23, spring = bot - 60, Ro = 2 * w + 11, wo = w + 11, apex = spring - Math.sqrt(Ro * Ro - w * w);
+  const S = glut ? Ba : P;
+  const inner = (x, y) => (y >= spring ? Math.abs(x - cx) < w && y < foot : Math.hypot(x - cx - w, y - spring) < 2 * w && Math.hypot(x - cx + w, y - spring) < 2 * w);
+  const outer = (x, y) => (y >= spring ? Math.abs(x - cx) < wo && y < foot : Math.hypot(x - cx - w, y - spring) < Ro && Math.hypot(x - cx + w, y - spring) < Ro);
+  const broken = (x, y) => glut && y < spring + 4 && x > cx + 4 + (spring - y) * 0.05 + Math.sin(y * 0.9) * 1.5;
+  const BX = 4, BY = 7;   // Versatz der schwebenden Steine
+  const src = (x, y) => (broken(x, y) ? [x - BX, y + BY] : [x, y]);
+  const stone = (x, y) => { const [bx, by] = src(x, y); return outer(bx, by) && !inner(bx, by) && !inner(x, y); };
+  const joint = (bx, by) => {
+    if (by < spring) { const s = (Math.atan2(by - spring, bx - cx) / Math.PI) * 20; return s - Math.floor(s) < 0.06; }
+    const row = Math.floor((foot - by) / 8), ly = (foot - by) % 8, lx = (Math.abs(bx - cx) + (row & 1) * 5) % 10;
+    return ly < 0.5 || lx < 0.5;
+  };
+  const rim = glut ? CRY[4] : EMBER[4], shim = glut ? CRY[3] : EMBER[3];
   return mk(W, H, (p, g) => {
-    // Bodennarbe
-    p.scan(cx - 22, bot - 5, cx + 22, bot + 1, (x, y) => (((x - cx) / 22) ** 2 + ((y - bot + 2) / 3) ** 2 > 1 ? 0 : col32(open ? '#3a3050' : '#2a1a14')));
-    const top = 6, w = open ? 9 : 2.2;
-    for (let y = top; y < bot - 2; y += 0.5) {
-      const t = (y - top) / (bot - 2 - top), hw = Math.sin(t * Math.PI) ** 0.7 * w, x = cx + Math.sin(y * 0.16) * 4 * (1 - t * 0.5);
-      if (open) {
-        p.fline(x - hw, y, x + hw, y, '#1a1a3a', 0);
-        for (let xx = x - hw + 1; xx < x + hw - 1; xx += 0.5) if (hash2(Math.floor(xx * 2), Math.floor(y * 2), 3100) < 0.05) p.dot(xx, y, '#ffffff');
-        p.dot(x - hw, y, CRY[4]); p.dot(x + hw, y, '#d8a4ff');
-        g.dot(x - hw, y, CRY[3]); g.dot(x + hw, y, '#b48aff');
-        if (hash2(1, Math.floor(y * 2), 3101) < 0.3) g.dot(x, y, '#e8f4ff');
-      } else {
-        p.fline(x - hw, y, x + hw, y, EMBER[2], 0);
-        g.dot(x, y, EMBER[3]);
+    footShade(p, cx, bot, 42, 4);
+    // Stufen
+    p.scan(cx - 42, foot, cx + 42, bot, (x, y) => {
+      const up = y < bot - 4.5, hw = up ? 36 : 42;
+      if (Math.abs(x - cx) > hw) return 0;
+      if (y < foot + 0.5 || (y > bot - 5 && y < bot - 4.5)) return S[6];
+      if (glut && hash2(Math.floor(x / 6), up ? 1 : 2, 3175) < 0.25) return S[2];
+      return x > cx + hw - 4 ? S[3] : S[up ? 5 : 4];
+    });
+    // Durchblick in die andere Welt (geschlossen: dunkler Schleier mit schwach glimmenden Funken)
+    p.scan(cx - w, apex, cx + w, foot, (x, y) => {
+      if (!inner(x, y)) return 0;
+      if (open) return glut ? starView(x, y, cx - w, spring - 40, cx + w, foot) : emberView(x, y, cx - w, spring - 40, cx + w, foot);
+      if (hash2(Math.floor(x * 2), Math.floor(y * 2), 3176) < 0.01) return Em[2];
+      return Sh[Math.sin(x * 0.42 + Math.sin(y * 0.12) * 1.6) > 0.9 ? 3 : (y - apex) / (foot - apex) > 0.6 ? 2 : 1];
+    });
+    if (open) g.each(cx - w, apex, cx + w, foot, (x, y) => (inner(x, y) && Math.sin(x * 0.42 + Math.sin(y * 0.12) * 1.6) > 0.985 && hash2(1, Math.floor(y / 5), Math.floor(x)) < 0.6 ? shim : null));
+    // Mauerwerk
+    p.scan(cx - wo - 1, apex - 1, cx + wo + 1, foot, (x, y) => {
+      if (!stone(x, y)) return 0;
+      const [bx, by] = src(x, y);
+      if (joint(bx, by)) return glut ? Em[2] : G[2];
+      const l = -(bx - cx) / wo * 0.6 - (by - apex) / (bot - apex) * 0.5;
+      let i = (l > 0.15 ? 5 : l > -0.25 ? 4 : 3) - (by >= spring && (foot - by) % 8 > 6.5 ? 1 : 0);
+      if (inner(bx + 1, by) || inner(bx - 1, by) || inner(bx, by + 1)) i = 2;
+      if (bx > cx && !outer(bx + 1, by)) i = Math.min(i, 2);
+      if (!outer(bx, by - 1)) i = 6;
+      if (glut && hash2(Math.floor(bx * 2), Math.floor(by * 2), 3177) < 0.06) i = Math.max(1, i - 2);
+      return S[Math.max(0, Math.min(6, i))];
+    });
+    // Glutfugen leuchten (nur Glutöde)
+    if (glut) g.each(cx - wo, apex, cx + wo, foot, (x, y) => {
+      if (!stone(x, y)) return null;
+      const [bx, by] = src(x, y);
+      return joint(bx, by) ? (by < spring ? EMBER[3] : EMBER[2]) : null;
+    });
+    // Innenkante leuchtet, wenn offen
+    if (open) g.each(cx - w - 1, apex, cx + w + 1, foot, (x, y) => (inner(x, y) && (!inner(x + 1, y) || !inner(x - 1, y) || !inner(x, y - 1)) ? rim : null));
+    // Schlussstein mit Kristall (Glutöde: mit der gesprengten Schulter versetzt)
+    const kx = cx + (glut ? BX : 0), ky = apex + 7 - (glut ? BY : 0);
+    fpoly(p, [[kx - 6, ky - 7], [kx + 6, ky - 7], [kx + 4, ky + 6], [kx - 4, ky + 6]], (x) => (glut ? (x < kx ? BASALT[5] : BASALT[3]) : x < kx ? GOLD[4] : GOLD[3]));
+    const lit = open || !glut;
+    fpoly(p, [[kx, ky - 5], [kx - 3, ky], [kx, ky + 4], [kx + 3, ky]], (x) => (!lit ? (x < kx ? '#3a3050' : '#241c34') : glut ? (x < kx ? CRY[4] : '#9a6ad8') : x < kx ? EMBER[5] : EMBER[3]));
+    if (lit) g.oval(kx, ky, 3, 4, glut ? CRY[4] : EMBER[4]);
+    if (glut) {
+      // Trümmer am Fuß
+      for (const [rx, ry, rw] of [[cx + 30, bot - 11, 5], [cx + 37, bot - 7, 4], [cx - 38, bot - 8, 3], [cx + 24, bot - 6, 3]])
+        p.scan(rx - rw, ry - rw * 0.6, rx + rw, ry + 1, (x, y) => (((x - rx) / rw) ** 2 + ((y - ry) / (rw * 0.7)) ** 2 > 1 ? 0 : y < ry - rw * 0.25 ? Ba[5] : x > rx ? Ba[2] : Ba[3]));
+    } else {
+      // Kristallleuchten auf den Stufenecken
+      for (const s of [-1, 1]) {
+        const lx = cx + s * 39;
+        p.scan(lx - 1.5, bot - 22, lx + 1.5, foot, (x) => P[x < lx ? 5 : 3]);
+        fpoly(p, [[lx, bot - 29], [lx - 2.5, bot - 24.5], [lx, bot - 21], [lx + 2.5, bot - 24.5]], (x) => (x < lx ? CRY[4] : CRY[3]));
+        g.oval(lx, bot - 25, 2.5, 3.5, CRY[4]);
       }
     }
-  }, { ax: cx, ay: bot, b: true, box: [-10, -4, 10, 1], light: open ? { dx: 0, dy: -44, radius: 120, color: [180, 200, 255], intensity: 0.9 } : { dx: 0, dy: -40, radius: 50, color: [255, 140, 60], intensity: 0.4 } });
+  }, { ax: cx, ay: bot, b: true, extra: { boxes: [[-42, -10, -22, 1], [22, -10, 42, 1]] },
+    light: !open ? { dx: 0, dy: -40, radius: 60, color: [255, 120, 60], intensity: 0.35 }
+      : glut ? { dx: 0, dy: -50, radius: 120, color: [150, 190, 255], intensity: 0.85 } : { dx: 0, dy: -50, radius: 120, color: [255, 150, 70], intensity: 0.85 } });
 }
 
 // Tresor der Sternbank (Bankobjekt): Perlsteinschrein mit Goldbeschlägen und Sternglasschloss
@@ -739,11 +786,11 @@ export function createStarCityDecor() {
     flowerBoxes: [0, 1].map(flowerBox),
     bridgeGate: bridgeGate(false),
     sealedGate: bridgeGate(true),
-    starGate: starGate(),
+    starGate: twinArch(false),
     starVault: starVault(),
     treePlanter: treePlanter(),
   };
 }
 
-// Glutriss als Questobjekt für die Glutöde (eigener Satz, damit die Glutöde nicht den ganzen Stadtsatz lädt)
-export function createSkyRift() { return { off: skyRift(false), on: skyRift(true) }; }
+// Zwillingsbogen der Glutöde als Questobjekt (eigener Satz, damit die Glutöde nicht den ganzen Stadtsatz lädt)
+export function createSkyRift() { return { off: twinArch(true, false), on: twinArch(true, true) }; }
