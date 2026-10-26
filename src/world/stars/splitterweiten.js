@@ -147,7 +147,9 @@ export function buildSplitterweiten() {
   // ------------------------------------------------------------ Spiegelsee
   m.ellipse(50, 100, 13, 7, '~', [',']);
   m.ellipse(38, 104, 4, 2.5, '~', [',']);
-  for (const [x, y] of [[40, 95], [62, 96], [58, 107], [44, 108], [50, 92]]) put(x, y, 'R');
+  for (const [x, y] of [[58, 107], [44, 108]]) put(x, y, 'R');
+  // Drei Spiegelsteine am Ufer sind Questobjekte (Kapitel 12): West, Ost, Nord
+  const mirrorStones = [[40, 95], [62, 96], [50, 92]];
   put(30, 100, 'I');                                        // Spiegelhüterin Ilse
   for (const [x, y] of [[34, 98], [64, 104]]) put(x, y, 'J');
   chests.push({ x: 86, y: 112 }, { x: 20, y: 86 });
@@ -156,7 +158,8 @@ export function buildSplitterweiten() {
   put(148, 98, 'O');                                        // Sternwarte (Dungeon)
   put(148, 102, '7');
   put(140, 103, 'A');                                       // Astronom Tovan
-  for (const [x, y] of [[136, 104], [158, 104], [140, 112]]) put(x, y, 'Y');
+  // Aurels Linsen (Questobjekte, Reihenfolge West, Ost, Süd)
+  const lenses = [[136, 104], [158, 104], [140, 112]];
   for (const [x, y] of [[144, 104], [152, 104]]) put(x, y, 'J');
   keep(inRect(rect(136, 88, 26, 16)));
 
@@ -196,7 +199,7 @@ export function buildSplitterweiten() {
   for (const [x, y] of [[130, 108], [160, 114], [166, 104], [150, 118], [134, 116], [118, 98], [112, 72]]) group(x, y, ['t', 't', 'z'], 4);
 
   // Freiraum um Marken und Portale
-  const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62]];
+  const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses];
   clearAround(m, spots, 'gckRsabefhwrtz', { r: 2, south: 3 });
 
   return {
@@ -229,7 +232,21 @@ export function buildSplitterweiten() {
       { id: 'singing_ridges', name: 'Singende Grate', x: 132, y: 22, w: 66, h: 70 },
       { id: 'mirror_lake', name: 'Spiegelsee', x: 12, y: 78, w: 86, h: 46 },
       { id: 'observatory_hill', name: 'Sternwartenberg', x: 108, y: 88, w: 64, h: 38 },
+      // Miras Vermessungspunkte (Nebenquest)
+      { id: 'survey_west', name: 'Westscherbe', x: 22, y: 30, w: 10, h: 8 },
+      { id: 'survey_arch', name: 'Gläserner Bogen', x: 98, y: 32, w: 12, h: 8 },
+      { id: 'survey_east', name: 'Ostklippe', x: 134, y: 18, w: 12, h: 7 },
     ],
+    objects: [
+      ...mirrorStones.map(([x, y], i) => ({ id: `mirror_stone_${i + 1}`, kind: 'shrine', decor: 'mirrorStones', name: 'Spiegelstein', prompt: 'Den Spiegelstein ausrichten', x, y })),
+      ...lenses.map(([x, y], i) => ({ id: `star_lens_${i + 1}`, kind: 'shrine', decor: 'lensStand', name: 'Sternlinse', prompt: 'Die Linse ausrichten', x, y })),
+      // Kels Schürferbeutel auf den Scherbeninseln
+      ...[[70, 14], [88, 28], [63, 35], [124, 38]].map(([x, y], i) => ({ id: `prospector_pack_${i + 1}`, kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Schürferbeutel', prompt: 'Schürferbeutel aufheben', x, y })),
+    ],
+    questRoutes: {
+      // Kapitel 11 (q_ridge_song): Lun singt das Lied der Grate, Prismenelementare kommen über den Grat
+      defend_ridge_song: { kind: 'defend', at: [152, 46], spawns: [[140, 45], [163, 46], [146, 43], [158, 43]], foe: 'prism_elemental', seconds: 90 },
+    },
     portals: [
       { id: 'to_gardens', x: 46, y: 0.6, range: 26, visual: 'road', dir: [0, -1],
         to: { zoneId: 'drifting_gardens', spawnId: 'from_splitterweiten' }, prompt: 'Über die Brücke in die Treibenden Gärten' },

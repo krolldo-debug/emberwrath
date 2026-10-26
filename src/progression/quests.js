@@ -18,6 +18,7 @@
 import { questXp } from './xp.js';
 import { QUESTS_40, NPC_LINES_40, VENDORS_40 } from './quests40.js';
 import { QUESTS_VARIETY, NPC_LINES_VARIETY } from './questsVariety.js';
+import { QUESTS_STARS, NPC_LINES_STARS } from './questsStars.js';
 
 const Q = (level, weight) => questXp(level, weight);
 
@@ -413,3 +414,9 @@ Object.assign(VENDORS, {
 // Questvielfalt (questsVariety.js): neue Zielarten in allen Gebieten
 for (const [id, q] of Object.entries(QUESTS_VARIETY)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
 for (const [npc, lines] of Object.entries(NPC_LINES_VARIETY)) if (NPC_LINES[npc]) NPC_LINES[npc].lines = [...NPC_LINES[npc].lines, ...lines];
+// Sternenglut Teil 1 (questsStars.js): Kapitel 8–12 und Nebenquests der neuen Welt. Zeilen bestehender NPCs werden angehängt.
+for (const [id, q] of Object.entries(QUESTS_STARS)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
+for (const [npc, line] of Object.entries(NPC_LINES_STARS)) {
+  if (NPC_LINES[npc]) NPC_LINES[npc].lines = [...NPC_LINES[npc].lines, ...line.lines];
+  else NPC_LINES[npc] = line;
+}

@@ -28,6 +28,10 @@ import { trialSpec, trialChances, trialRewards, trialThemesFor } from '../trials
 import { MOUNT_DROPS } from '../loot.js';
 import { SOVEREIGN_LEGENDARIES } from '../items40.js';
 import { ACHIEVEMENTS } from '../achievements.js';
+import { QUESTS_STARS } from '../questsStars.js';
+import { ZONES } from '../../world/zones.js';
+import { LEVELS_STARS } from '../../world/stars/levels.js';
+import { LEVELS3 } from '../../world/levels3.js';
 import { RARE_ENEMIES, rareSpawnsFor } from '../rares.js';
 
 let seed = 7;
@@ -537,7 +541,7 @@ test('Erweiterung: Quests, Kette und Inhalte bis 40', () => {
   assert.equal(QUESTS.q_first_ride.minLevel, 20);
   assert.ok(!QUESTS.q_first_ride.rewards.items?.some((it) => ITEMS[it.itemId].type === 'mount'), 'kein Gratis-Reittier');
   const byGiver = {};
-  for (const q of Object.values(QUESTS)) if (q.level >= 20 && !q.repeatable) (byGiver[q.giver] ??= []).push(q);
+  for (const q of Object.values(QUESTS)) if (q.level >= 20 && q.level <= 40 && !q.repeatable) (byGiver[q.giver] ??= []).push(q);
   for (const giver of ['captain_varra', 'warden_thane', 'jarl_eskil', 'marshal_corvane']) {
     const n = byGiver[giver].filter((q) => q.main && !q.retired).length;
     assert.ok(n >= 6 && n <= 8, `${giver}: ${n} Hauptquests`);
@@ -551,6 +555,39 @@ test('Erweiterung: Quests, Kette und Inhalte bis 40', () => {
   assert.equal(SOVEREIGN_LEGENDARIES.length, 6);
   for (const id of SOVEREIGN_LEGENDARIES) { assert.equal(ITEMS[id].rarity, 'legendary'); assert.equal(ITEMS[id].ilvl, 40); }
   for (const id of ['superior_potion', 'supreme_potion', 'greater_mana', 'supreme_mana']) assert.ok(ITEMS[id]);
+});
+
+test('Sternenglut Teil 1: Kette 41–50, Ziele in der Welt, Tempo', () => {
+  assert.deepEqual(QUESTS.q_star_in_crown.requires, ['q_homecoming']);
+  assert.equal(QUESTS.q_star_in_crown.minLevel, 40);
+  for (const q of Object.values(QUESTS_STARS)) assert.ok(q.level >= 41 && q.level <= 50, `${q.title}: Stufe ${q.level}`);
+  // Questziele gibt es in der Welt: Objekte, Bereiche, Eskorte/Verteidigen, NPCs
+  const levels = { ...LEVELS3, ...LEVELS_STARS };
+  const objs = new Set(), areas = new Set(), routes = new Set();
+  for (const z of Object.values(ZONES)) {
+    const L = levels[z.level];
+    for (const o of L?.objects ?? []) objs.add(o.id);
+    for (const a of L?.areas ?? []) areas.add(a.id);
+    for (const k of Object.keys(L?.questRoutes ?? {})) routes.add(k);
+  }
+  for (const [id, q] of Object.entries(QUESTS_STARS)) {
+    for (const npc of [q.giver, q.turnInNpc].filter(Boolean)) assert.ok(WORLD_NPCS[npc], `${id}: ${npc}`);
+    for (const o of q.objectives) {
+      const t = [].concat(o.target);
+      if (['interact', 'use', 'sequence'].includes(o.kind)) for (const x of t) assert.ok(objs.has(x), `${id}: Objekt ${x}`);
+      if (o.kind === 'reach') for (const x of t) assert.ok(x.startsWith('zone:') ? ZONES[x.slice(5)] : areas.has(x), `${id}: Bereich ${x}`);
+      if (o.kind === 'escort' || o.kind === 'defend') assert.ok(routes.has(o.target), `${id}: ${o.target}`);
+      if (o.kind === 'kill' || o.kind === 'boss') for (const x of t) assert.ok(ENEMY_TYPES[x], `${id}: ${x}`);
+      if (o.kind === 'collect' || o.kind === 'use') assert.ok(ITEMS[o.item ?? o.target], `${id}: ${o.item ?? o.target}`);
+    }
+  }
+  // Tempo (test/pacing.mjs): die Geschichte endet kurz vor 50, kaum Kopfgeld am Ende
+  const r = runCampaign({ cap: 50 });
+  const h = (r.levelAt[50] - r.levelAt[40]) / 3600;
+  console.log(`    40→50 ${h.toFixed(2)} h Simulation, Lichtbrücke auf Stufe ${r.milestones.q_bridge_east}`);
+  assert.equal(r.level, 50);
+  assert.ok(r.milestones.q_bridge_east >= 48, `Ende der Geschichte auf Stufe ${r.milestones.q_bridge_east}`);
+  assert.ok(h >= 1.4 && h <= 2.8, `${h} h`);
 });
 
 test('Erweiterung: volle Stufe-20-Stände steigen nach dem Update weiter', () => {

@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { GROUND, clearAround } from '../mapkit.js';
-import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, ISLAND, VOID } from './kit.js';
+import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND, VOID } from './kit.js';
 
 // ---------------------------------------------------------------- Die Treibenden Gärten (40–45)
 // 200 × 130 Kacheln. König Aurels verwilderte Gartenterrassen treiben als Inseln über dem Morgenhimmel; die Leere
@@ -207,6 +207,15 @@ export function buildDriftingGardens() {
   const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [199, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts].filter(Boolean);
   clearAround(m, spots, 'TBKRPWJX', { r: 2, south: 3 });
 
+  // ------------------------------------------------------------ Questziele (progression/questsStars.js)
+  const SOLID = 'TBKLJPRWUuOQYXVZ';
+  // Pells Saatbeutel: Ankerhain und Rand zum Wurzelbruch; Oddas Mondkristalle: Ufer, Weiherinsel, Landzunge
+  const seedBags = [[138, 53], [150, 41], [182, 76], [132, 58]];
+  const moonCrystals = [[45, 90], [59, 93], [52, 98], [80, 96]];
+  // Eskorte „Brens Ableger“: vom Dorfplatz über die Wurzelbrücke zum ersten Leerenriss
+  const escortPath = walkPath(m, SOLID, [175, 57], [118, 62]);
+  const amb = (f) => Math.round((escortPath.length - 1) * f);
+
   return {
     name: 'Die Treibenden Gärten',
     kind: 'outdoor',
@@ -215,7 +224,7 @@ export function buildDriftingGardens() {
     island: ISLAND,
     decorSet: 'decor_astral',
     map: m.rows(),
-    solid: 'TBKLJPRWUuOQYXVZ',
+    solid: SOLID,
     decor: {
       T: 'blossomTrees', B: 'bushes', K: 'crystals', L: 'lantern', J: 'starLamp', P: 'ruinPillars', R: 'roseRocks',
       W: 'ruinWalls', U: 'ruinArch', u: 'ruinArchBroken', O: 'aurelStatue', Q: 'signpost', Y: 'anchorTree', X: 'roots',
@@ -240,7 +249,17 @@ export function buildDriftingGardens() {
     objects: [
       { id: 'moon_altar', kind: 'shrine', decor: 'moonAltar', name: 'Mondaltar', prompt: 'Den Mondaltar berühren', ...moonAltar },
       ...rifts.map(([x, y], i) => ({ id: `void_rift_${i + 1}`, kind: 'shrine', decor: 'voidRift', name: 'Leerenriss', prompt: 'Den Leerenriss versiegeln', x, y })),
+      ...seedBags.map(([x, y], i) => ({ id: `seed_bag_${i + 1}`, kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Saatbeutel', prompt: 'Saatbeutel aufheben', x, y })),
+      ...moonCrystals.map(([x, y], i) => ({ id: `moon_crystal_${i + 1}`, kind: 'item', decor: 'crystals', name: 'Mondkristall', prompt: 'Mondkristall abbrechen', x, y })),
     ],
+    questRoutes: {
+      escort_bren_cutting: {
+        kind: 'escort',
+        path: escortPath,
+        clearPath: 5,
+        ambush: [{ at: amb(0.4), type: 'bloom_stalker', n: 2 }, { at: amb(0.7), type: 'void_wisp', n: 2 }, { at: amb(0.9), type: 'rootbound', n: 2 }],
+      },
+    },
     portals: [
       { id: 'to_sternhafen', x: 199.4, y: 62, range: 26, visual: 'road', dir: [1, 0],
         to: { zoneId: 'sternhafen', spawnId: 'from_gardens' }, prompt: 'Über die Lichtbrücke nach Sternhafen' },

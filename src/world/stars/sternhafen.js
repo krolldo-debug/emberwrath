@@ -76,7 +76,7 @@ export function buildSternhafen() {
   m.ellipse(64, 76, 9, 3, ':', [',', '.']);            // vor dem Gasthaus
 
   // ------------------------------------------------------------ Ankerplatz
-  put(64, 50, 'O');                                    // Ankerbrunnen
+  put(64, 50, 'O');                                    // Ankerbrunnen (Questziel: Objekt anchor_stone davor)
   put(55, 46, 'R');                                    // Sternentor (Glutöde)
   const waystone = { x: 73, y: 47 };
   put(73, 49, '5');
@@ -100,6 +100,7 @@ export function buildSternhafen() {
   // Sternturm
   put(30, 20, 'Z');
   put(33, 23, 'E');                                    // Seraphe
+  put(24, 21, 's');                                    // Tobin, Marens Sohn (Nebenquest „Ein Brief für Maren“)
   put(27, 23, 'J');
   keep(inRect(rect(24, 14, 13, 12)));
 
@@ -181,7 +182,7 @@ export function buildSternhafen() {
   drift.forEach(([x, y], i) => put(x, y, i % 2 ? 'C' : 'e'));
 
   // Freiraum vor Türen, Toren und Questgebern
-  const spots = [[64, 51], [55, 47], [55, 48], [64, 56], [73, 49], [16, 50], [40, 86], [40, 83], [64, 75], [58, 77], [66, 17], [55, 17], [33, 24], [92, 48], [84, 65], [49, 61], [100, 38],
+  const spots = [[64, 51], [55, 47], [55, 48], [64, 56], [73, 49], [16, 50], [40, 86], [40, 83], [64, 75], [58, 77], [66, 17], [55, 17], [33, 24], [92, 48], [84, 65], [49, 61], [100, 38], [24, 22],
     ...houses.map(([x, y]) => [x, y + 1])];
   clearAround(m, spots, 'eBkbnC', { r: 2, south: 2 });
 
@@ -205,7 +206,7 @@ export function buildSternhafen() {
     board,
     npcs: {
       N: 'lady_amarys', E: 'seer_seraphe', H: 'captain_halvard', D: 'arena_master_sora', G: 'smith_brunna', V: 'stablemaster_corvin',
-      W: 'innkeeper_mirela', M: 'trader_lio', p: 'jeweler_ysolde', q: 'quartermaster_tamsin', r: 'herald_fenn',
+      W: 'innkeeper_mirela', M: 'trader_lio', p: 'jeweler_ysolde', q: 'quartermaster_tamsin', r: 'herald_fenn', s: 'scholar_tobin',
     },
     enemies: {},
     areas: [
@@ -215,9 +216,12 @@ export function buildSternhafen() {
       { id: 'palace_heights', name: 'Palasthöhe', x: 40, y: 0, w: 48, h: 26, noMount: true },
       { id: 'star_tower', name: 'Sternturm', x: 20, y: 12, w: 20, h: 16, noMount: true },
       { id: 'star_stables', name: 'Sternställe', x: 90, y: 38, w: 18, h: 18 },
+      { id: 'sealed_bridge', name: 'Versiegelte Brücke', x: 95, y: 30, w: 11, h: 9 },
     ],
     objects: [
       { id: 'sternhafen_vault', kind: 'bank', decor: 'starVault', prompt: 'Sternbank öffnen', ...vault },
+      // Am Ankerbrunnen (Deko „O“): ohne eigenes Bild, nur der Punkt zum Berühren (Kapitel 9 und 10)
+      { id: 'anchor_stone', kind: 'shrine', over: true, name: 'Ankerstein', prompt: 'Den Ankerstein berühren', x: 64, y: 51 },
     ],
     portals: [
       { id: 'to_ember_wastes', x: 55, y: 43.6, range: 26,

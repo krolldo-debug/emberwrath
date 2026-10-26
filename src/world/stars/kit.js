@@ -83,3 +83,38 @@ export function voidDist(m, max = 6) {
 // Gebiet als Rechteck (Kacheln) für areas/keep
 export const rect = (x, y, w, h) => ({ x, y, w, h });
 export const inRect = (r, pad = 0) => (x, y) => x >= r.x - pad && y >= r.y - pad && x < r.x + r.w + pad && y < r.y + r.h + pad;
+
+// Eskortenweg (questRoutes): kürzester begehbarer Weg von `from` nach `to` über die fertige Karte, Pflaster, Sand
+// und Brücken bevorzugt; jede `step`-te Kachel als Wegpunkt. `solid`: Zeichen, die nicht betreten werden können.
+export function walkPath(m, solid, from, to, step = 3) {
+  const cost = (x, y) => {
+    const c = m.get(x, y);
+    if (c === VOID || c === '~' || c === '#' || solid.includes(c)) return 0;
+    return c === ':' || c === '.' || c === BRIDGE ? 1 : 3;
+  };
+  const W = m.w, idx = (x, y) => y * W + x;
+  const dist = new Float64Array(W * m.h).fill(Infinity), prev = new Int32Array(W * m.h).fill(-1);
+  const heap = [[0, idx(...from)]];
+  dist[heap[0][1]] = 0;
+  const goal = idx(...to);
+  while (heap.length) {
+    let bi = 0;
+    for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[bi][0]) bi = i;
+    const [d, k] = heap[bi];
+    heap[bi] = heap[heap.length - 1]; heap.pop();
+    if (d > dist[k]) continue;
+    if (k === goal) break;
+    const x = k % W, y = (k - x) / W;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const c = cost(x + dx, y + dy);
+      if (!c) continue;
+      const n = idx(x + dx, y + dy), nd = d + c;
+      if (nd < dist[n]) { dist[n] = nd; prev[n] = k; heap.push([nd, n]); }
+    }
+  }
+  if (!Number.isFinite(dist[goal])) throw new Error(`Eskortenweg ${from} → ${to} nicht begehbar`);
+  const tiles = [];
+  for (let k = goal; k !== -1; k = prev[k]) tiles.push([k % W, Math.floor(k / W)]);
+  tiles.reverse();
+  return tiles.filter((_, i) => i % step === 0 || i === tiles.length - 1);
+}
