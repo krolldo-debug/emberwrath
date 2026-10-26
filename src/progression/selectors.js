@@ -1,7 +1,7 @@
 // Lesende Abfragen auf die Slices von Thread C (progress, inventory, wallet, quests).
 // Reine Funktionen ohne Seiteneffekte und ohne DOM – für HUD, Panels, Held, Welt (Questpfad)
 // und später den Server. Schreiben geht nur über die Commands in logic.js.
-import { LEVEL_CAP, xpToNext, totalXpForLevel, paceXp } from './xp.js';
+import { xpToNext, totalXpForLevel, paceXp, levelCap, isStarsOpen } from './xp.js';
 import { EQUIP_SLOTS, RARITIES, itemScore } from './items.js';
 import { pickRewardGear } from './loot.js';
 
@@ -11,7 +11,7 @@ export function xpInfo(state) {
   const p = state.slices.progress;
   const base = totalXpForLevel(p.level);
   const need = xpToNext(p.level);
-  const capped = p.level >= LEVEL_CAP;
+  const capped = p.level >= levelCap();
   const into = p.xp - base;
   return { level: p.level, xp: p.xp, into, need: capped ? 0 : need, frac: capped ? 1 : Math.max(0, Math.min(1, into / need)), capped };
 }
@@ -118,6 +118,8 @@ export function questStatus(state, content, questId) {
   if (!def.repeatable && q.completed.includes(questId)) return 'completed';
   // Aufgelöst (in eine andere Quest übernommen): nur wer sie schon angenommen hat, bringt sie noch zu Ende
   if (def.retired) return 'locked';
+  // Sternenglut-Quests erst, wenn die Erweiterung offen ist (xp.js isStarsOpen)
+  if (def.expansion && !isStarsOpen()) return 'locked';
   if ((def.requires ?? []).some((r) => !q.completed.includes(r))) return 'locked';
   // Folgequest nur für eine bestimmte Entscheidung: requiresChoice = [questId, choiceId]
   if (def.requiresChoice && q.choices?.[def.requiresChoice[0]] !== def.requiresChoice[1]) return 'locked';

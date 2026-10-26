@@ -4,6 +4,7 @@ import { Matchmaker } from './matchmaker.js';
 import { ROLES, roleAllowed } from './protocol.js';
 import { FINDER_CONFIG } from './config.js';
 import { hireCost, hireable, hireGroup, mercCount } from './hire.js';
+import { isStarsOpen } from '../progression/xp.js';
 
 // Dungeon-Gruppensuche über die ganze Spielsitzung (auch über Zonenwechsel): game.finder.
 //
@@ -55,6 +56,7 @@ export class FinderService {
     const out = [];
     for (const z of this.game.content.all('zone')) {
       if (!z.instanced || z.kind !== 'dungeon' || !z.bossId || z.trial) continue;
+      if (z.expansion && !isStarsOpen()) continue; // Sternenglut noch geschlossen
       const m = String(z.recommendedLevel ?? '').match(/(\d+)\D+(\d+)/);
       const min = m ? +m[1] : 1, max = m ? +m[2] : min;
       out.push({ id: z.id, name: z.name, min, max, open: level >= Math.max(1, min - 2), bossId: z.bossId });

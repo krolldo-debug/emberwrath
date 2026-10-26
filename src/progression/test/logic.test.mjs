@@ -7,6 +7,8 @@ import { LocalAuthority } from '../../core/Authority.js';
 import { EV } from '../../core/events.js';
 import { registerProgressionContent, registerProgressionState, BAG_SIZE } from '../logic.js';
 import { xpInfo, questStatus, npcMarker, trackedQuests, trackedQuestId, questTarget, countItem, findPotionSlot, isUpgrade, vendorStock, questRewardItems, junkSlots, npcIdleLine, sellableSlots } from '../selectors.js';
+import { setStarsOpen, LEGACY_CAP } from '../xp.js';
+import { mountCollection, MOUNTS } from '../../character/mounts.js';
 import { xpToNext, totalXpForLevel, killXp, mobXp, LEVEL_CAP, PACE_NEW, xpPaceFactor, questXp } from '../xp.js';
 import { LEVEL_MAX } from '../../net/protocol.js';
 import { talentPointsTotal } from '../../character/talents.js';
@@ -1376,6 +1378,23 @@ test('Aufgeräumte Tasche: Tränke stapeln bis 100, alte Stapel werden zusammeng
       if (id) assert.ok(!ITEMS[id].classes || ITEMS[id].classes.includes(cls), `${cls}: ${id}`);
     }
   }
+});
+
+test('Sternenglut zu (nur Admins): Stufe bleibt bei 40, Erweiterungsquests gesperrt, neue Reittiere unsichtbar', () => {
+  setStarsOpen(false);
+  try {
+    const { state, content, c } = setup();
+    assert.equal(state.slices.progress.pace, undefined);
+    c('progress:grantXp', { amount: 100_000_000 });
+    assert.equal(state.slices.progress.level, LEGACY_CAP);
+    const star = Object.keys(QUESTS_STARS)[0];
+    assert.equal(questStatus(state, content, star), 'locked');
+    const ids = mountCollection({}, { all: () => Object.values(MOUNTS) }).map((m) => m.id);
+    assert.ok(!ids.includes('sky_ray') && !ids.includes('crystal_ram'));
+  } finally { setStarsOpen(true); }
+  const { state, c } = setup();
+  c('progress:grantXp', { amount: 100_000_000 });
+  assert.equal(state.slices.progress.level, LEVEL_CAP);
 });
 
 for (const [name, fn] of tests) {

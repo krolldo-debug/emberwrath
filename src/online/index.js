@@ -4,6 +4,7 @@ import { AuthClient, describeError } from './AuthClient.js';
 import { CloudSync, accountIdFor, displayNameOf, ONLINE_ACCOUNT_PREFIX } from './CloudSync.js';
 import { LoginScene, needsConsent } from './LoginScene.js';
 import { AdminScene } from './AdminScene.js';
+import { setStarsOpen, STARS_PUBLIC } from '../progression/xp.js';
 
 // Online-Konten (Supabase): Anmeldung, Cloud-Spielstände, Admin-Übersicht. Siehe docs/ONLINE.md.
 //
@@ -216,6 +217,20 @@ export function installOnline(game) {
   game.online = online;
   game.scenes.register('login', (g) => new LoginScene(g));
   game.scenes.register('admin', (g) => new AdminScene(g));
+
+  // Erweiterung „Sternenglut“: solange STARS_PUBLIC aus ist, sehen sie nur Admin-Konten (Recht prüft der Server).
+  // Nur bei Kontowechsel neu prüfen, nicht bei jedem Sync-Status (sonst wäre sie kurz zu).
+  let gatedFor;
+  const gateStars = () => {
+    const uid = online.user?.id ?? null;
+    if (uid === gatedFor) return;
+    gatedFor = uid;
+    setStarsOpen(STARS_PUBLIC);
+    if (!STARS_PUBLIC && uid) online.isAdmin().then((yes) => { if (yes && online.user?.id === uid) setStarsOpen(true); });
+  };
+  gateStars();
+  game.bus.on(EV.ONLINE_CHANGED, gateStars);
+  game.bus.on(EV.ACCOUNT_LOGIN, gateStars);
 
   // Jedes lokale Speichern/Löschen eines Online-Charakters landet in der Upload-Warteschlange
   // (Events von SaveStore; Löschungen aus dem Abgleich tragen fromSync und werden nicht zurückgeschickt).

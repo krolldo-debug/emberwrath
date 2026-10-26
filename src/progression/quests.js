@@ -416,7 +416,7 @@ Object.assign(VENDORS, {
 for (const [id, q] of Object.entries(QUESTS_VARIETY)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
 for (const [npc, lines] of Object.entries(NPC_LINES_VARIETY)) if (NPC_LINES[npc]) NPC_LINES[npc].lines = [...NPC_LINES[npc].lines, ...lines];
 // Sternenglut Teil 1 (questsStars.js): Kapitel 8–12 und Nebenquests der neuen Welt. Zeilen bestehender NPCs werden angehängt.
-for (const [id, q] of Object.entries(QUESTS_STARS)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
+for (const [id, q] of Object.entries(QUESTS_STARS)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = { ...q, expansion: true }; }
 for (const [npc, line] of Object.entries(NPC_LINES_STARS)) {
   if (NPC_LINES[npc]) NPC_LINES[npc].lines = [...NPC_LINES[npc].lines, ...line.lines];
   else NPC_LINES[npc] = line;

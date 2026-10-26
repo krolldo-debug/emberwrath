@@ -6,7 +6,7 @@
 // Quest-Abschluss, Kauf/Verkauf, Verbrauch, Herstellen). Ein späterer ServerAuthority
 // berechnet diese Commands selbst; der Client schickt dann nur noch die Absicht.
 import { EV } from '../core/events.js';
-import { LEVEL_CAP, PACE_NEW, totalXpForLevel, killXp, mobXp, paceXp } from './xp.js';
+import { LEVEL_CAP, PACE_NEW, totalXpForLevel, killXp, mobXp, paceXp, levelCap, isStarsOpen } from './xp.js';
 import { ITEMS, EQUIP_SLOTS, RARITIES, stackSize, buyPrice, equipSlotFor, canUseClass, itemScore } from './items.js';
 import { QUESTS, NPC_LINES, VENDORS } from './quests.js';
 import { rollLoot, BOSS_QUEST_GRANTS, pickEquipment } from './loot.js';
@@ -175,16 +175,17 @@ function addGold(s, ctx, delta, source) {
 // exact: genau diese Menge (reachLevel), sonst gilt das Tempo des Charakters (xp.js paceXp, Bestandsschutz)
 function grantXp(s, ctx, amount, source, exact = false) {
   const p = s.get('progress');
-  if (amount <= 0 || p.level >= LEVEL_CAP) return 0;
+  const cap = levelCap();
+  if (amount <= 0 || p.level >= cap) return 0;
   if (!exact) amount = paceXp(p, amount);
   p.xp += amount;
   ctx.bus.emit(EV.XP_GAINED, { amount, total: p.xp, source });
-  while (p.level < LEVEL_CAP && p.xp >= totalXpForLevel(p.level + 1)) {
+  while (p.level < cap && p.xp >= totalXpForLevel(p.level + 1)) {
     p.level++;
-    p.xpNext = totalXpForLevel(Math.min(LEVEL_CAP, p.level + 1));
+    p.xpNext = totalXpForLevel(Math.min(cap, p.level + 1));
     ctx.bus.emit(EV.LEVEL_UP, { level: p.level });
   }
-  if (p.level >= LEVEL_CAP) { p.xp = totalXpForLevel(LEVEL_CAP); p.xpNext = p.xp; }
+  if (p.level >= cap) { p.xp = totalXpForLevel(cap); p.xpNext = p.xp; }
   return amount;
 }
 
@@ -364,7 +365,8 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
 
   state.defineSlice('progress', {
     // pace: Tempo der Kurve (xp.js). Neue Charaktere PACE_NEW; Spielstände von vor Sternenglut haben keins (altes Tempo).
-    create: () => ({ level: 1, xp: 0, xpNext: totalXpForLevel(2), pace: PACE_NEW, stats: emptyStats() }),
+    // Solange Sternenglut geschlossen ist (xp.js isStarsOpen), entstehen Charaktere mit dem alten Tempo.
+    create: () => ({ level: 1, xp: 0, xpNext: totalXpForLevel(2), ...(isStarsOpen() ? { pace: PACE_NEW } : {}), stats: emptyStats() }),
     deserialize: (raw) => {
       const level = Math.max(1, Math.min(LEVEL_CAP, raw.level | 0 || 1));
       const xp = Math.max(totalXpForLevel(level), raw.xp | 0);

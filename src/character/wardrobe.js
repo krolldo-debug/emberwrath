@@ -1,6 +1,7 @@
 import { EV } from '../core/events.js';
 import { resolveGear, shownEquipment, lookAllowed, lookShapeKey, LOOK_SLOTS, HIDE_LOOK } from './gearLook.js';
 import { SET_ITEMS, ownedSetLooks, setOfItem } from './skinSets.js';
+import { isStarsOpen, LEGACY_CAP } from '../progression/xp.js';
 
 // Sammlung (früher Garderobe, Thread A, Runde 08.10.): jedes gefundene Aussehen bleibt gesammelt und lässt sich über die
 // getragene Ausrüstung legen. Alte Teile dürfen danach verkauft werden, das Aussehen bleibt.
@@ -107,6 +108,7 @@ export function wardrobeCatalog(slices, content, slot) {
   if (!list) allLooks.set(content, (list = content.all('item').filter((d) => d && hasLook(d))));
   for (const def of list) {
     if (slotOf(def) !== slot || !lookAllowed(def, slot, ch.classId)) continue;
+    if (def.ilvl > LEGACY_CAP && !isStarsOpen()) continue; // Sternenglut-Aussehen erst nach der Freigabe
     const key = lookKeyOf(content, slot, def.id);
     const prev = groups.get(key);
     if (prev && (prev.owned || (RARITY_ORDER[prev.rarity] ?? 9) <= (RARITY_ORDER[def.rarity] ?? 9))) continue;

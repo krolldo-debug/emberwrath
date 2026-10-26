@@ -9,6 +9,7 @@ import { SpikeTrap, JetTrap, Lever } from '../entities/Traps.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { hash2, pick } from '../core/math.js';
+import { isStarsOpen } from '../progression/xp.js';
 
 const T = CONFIG.tileSize;
 const pickH = (arr, p, seed = 1) => arr[Math.floor(hash2(p.tx, p.ty, seed) * arr.length)];
@@ -170,6 +171,7 @@ export function placeObjects(world) {
 
   // Schreine und aufhebbare Objekte (level.objects)
   for (const o of L.objects ?? []) {
+    if (o.expansion && !isStarsOpen()) continue; // Sternenglut noch geschlossen (progression/xp.js)
     // Truhe als Objekt ({ id, kind: 'chest', x, y }): einmal öffnen, bleibt für den Charakter offen
     if (o.kind === 'chest') {
       const x = o.x * T + T / 2, y = o.y * T + 14;
@@ -245,6 +247,7 @@ export function placeObjects(world) {
 
   // Portale
   for (const p of L.portals ?? []) {
+    if (p.expansion && !isStarsOpen()) continue;
     const zone = world.session.content.find('zone', p.to.zoneId);
     const subs = [];
     if (zone?.instanced) subs.push(`Instanz · bis ${zone.maxPlayers} Spieler`);

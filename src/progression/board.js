@@ -12,7 +12,7 @@
 // B: Brett-Objekt `quest_board` in den Städten → EV 'board:open' { zoneId, boardId } (ProgressionSystem öffnet das Panel),
 //    Leucht-Hinweis über game.progression.boardHasOffers(zoneId).
 import { EV } from '../core/events.js';
-import { questXp, LEVEL_CAP } from './xp.js';
+import { questXp, LEVEL_CAP, levelCap } from './xp.js';
 
 export const BOARD_OFFERS = 3;
 export const WEEK_GOAL = 10;
@@ -81,7 +81,7 @@ export function boardOffers(day, level) {
 
 // Belohnung je Auftrag. Bis 39 Erfahrung (klein, das Brett ist eine Zugabe), ab 40 mehr Gold und Material.
 export function offerRewards(offer, level) {
-  const cap = level >= LEVEL_CAP;
+  const cap = level >= levelCap();
   const heavy = offer.kind === 'boss' || offer.kind === 'trial' || offer.kind === 'champion' ? 1.6 : offer.kind === 'elite' ? 1.3 : 1;
   const gold = Math.round((20 + level * 9) * heavy * (cap ? 2.5 : 1));
   const region = BOARD_REGIONS.find((r) => r.id === offer.region) ?? boardRegion(level);

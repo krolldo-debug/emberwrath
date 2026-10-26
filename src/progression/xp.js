@@ -16,6 +16,16 @@ import { clamp } from '../core/math.js';
 export const LEVEL_CAP = 50;
 export const CLASSIC_CAP = 20;          // Stufe 1–19 bleibt bitgenau wie vor der Erweiterung
 export const LEGACY_CAP = 40;           // Höchststufe vor Sternenglut: bis hier gelten die alten Zielminuten
+
+// Erweiterung Sternenglut bis zur Freigabe nur für Admins (der Nutzer testet zuerst). Geschlossen bleibt alles bei
+// Stufe 40, neue Charaktere behalten das alte Tempo, und Riss, Quests, Dungeons, Reittiere und Aussehen der neuen Welt
+// bleiben verborgen. Tests und Server sehen sie offen; das Spiel schließt sie beim Start (online/index.js) und öffnet
+// sie für Admin-Konten. Freigabe für alle: STARS_PUBLIC = true.
+export const STARS_PUBLIC = false;
+let starsOpen = true;
+export function setStarsOpen(open) { starsOpen = !!open; }
+export function isStarsOpen() { return starsOpen; }
+export function levelCap() { return starsOpen ? LEVEL_CAP : LEGACY_CAP; }
 export const PACE_NEW = 2;              // progress.pace neuer Charaktere; fehlt es, gilt das alte Tempo bis 40
 // Annahmen der Tempo-Rechnung ab Stufe 20 (dieselben wie in test/pacing.mjs)
 // efficiency: Anteil der XP je Kill auf Spielerstufe, der im Schnitt wirklich ankommt (Wege, schwächere Gegner,
