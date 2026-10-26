@@ -5331,7 +5331,6 @@ export const ES = {
   "Sternenscherben": "Esquirlas Estelares",
   "Welkende Gärten": "Jardines Marchitos",
   "Splitterhallen": "Salas de Astillas",
-  // Sternenglut Teil 1: Quests, Questgegenstände und Gespräche (progression/questsStars.js), Questziele auf den Karten
   "Ein Stern im kalten Feuer": "Una estrella en el fuego frío",
   "Erzähl Kommandant Hale, was Ysolde im kalten Feuer der Krone gesehen hat.": "Cuéntale al comandante Hale lo que Ysolde vio en el fuego frío de la corona.",
   "Seit du zurück bist, sehe ich jede Nacht dasselbe Bild. Die Krone ist kalt, aber in ihrer kalten Glut brennt noch etwas. Kein Thron diesmal. Ein Stern, weit hinter dem Aschethron, und er hat Hunger. Hale hört mir nicht mehr zu, seit der Krieg vorbei ist. Dir hört er zu.": "Desde que volviste, veo la misma imagen cada noche. La corona está fría, pero en sus ascuas frías todavía arde algo. Esta vez no es un trono. Es una estrella, muy lejos, más allá del Trono de Ceniza, y tiene hambre. Hale dejó de escucharme cuando terminó la guerra. A ti sí te escucha.",

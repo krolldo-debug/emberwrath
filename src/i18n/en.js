@@ -5331,7 +5331,6 @@ export const EN = {
   "Sternenscherben": "Star Shards",
   "Welkende Gärten": "Withering Gardens",
   "Splitterhallen": "Splinter Halls",
-  // Sternenglut Teil 1: Quests, Questgegenstände und Gespräche (progression/questsStars.js), Questziele auf den Karten
   "Ein Stern im kalten Feuer": "A Star in the Cold Fire",
   "Erzähl Kommandant Hale, was Ysolde im kalten Feuer der Krone gesehen hat.": "Tell Commander Hale what Ysolde saw in the cold fire of the crown.",
   "Seit du zurück bist, sehe ich jede Nacht dasselbe Bild. Die Krone ist kalt, aber in ihrer kalten Glut brennt noch etwas. Kein Thron diesmal. Ein Stern, weit hinter dem Aschethron, und er hat Hunger. Hale hört mir nicht mehr zu, seit der Krieg vorbei ist. Dir hört er zu.": "Ever since you came back, I see the same image every night. The crown is cold, but something still burns in its cold embers. No throne this time. A star, far beyond the Ashen Throne, and it is hungry. Hale stopped listening to me when the war ended. He listens to you.",

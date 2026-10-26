@@ -5331,7 +5331,6 @@ export const FR = {
   "Sternenscherben": "Éclats d'Étoiles",
   "Welkende Gärten": "Jardins Flétris",
   "Splitterhallen": "Salles d'Éclats",
-  // Sternenglut Teil 1: Quests, Questgegenstände und Gespräche (progression/questsStars.js), Questziele auf den Karten
   "Ein Stern im kalten Feuer": "Une étoile dans le feu froid",
   "Erzähl Kommandant Hale, was Ysolde im kalten Feuer der Krone gesehen hat.": "Raconte au commandant Hale ce qu'Ysolde a vu dans le feu froid de la couronne.",
   "Seit du zurück bist, sehe ich jede Nacht dasselbe Bild. Die Krone ist kalt, aber in ihrer kalten Glut brennt noch etwas. Kein Thron diesmal. Ein Stern, weit hinter dem Aschethron, und er hat Hunger. Hale hört mir nicht mehr zu, seit der Krieg vorbei ist. Dir hört er zu.": "Depuis ton retour, je vois la même image chaque nuit. La couronne est froide, mais quelque chose brûle encore dans ses braises froides. Pas de trône cette fois. Une étoile, loin au-delà du Trône de Cendre, et elle a faim. Hale ne m'écoute plus depuis la fin de la guerre. Toi, il t'écoute.",
