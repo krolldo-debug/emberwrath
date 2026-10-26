@@ -334,133 +334,257 @@ export function bonelordRig(P0) {
   return { P, gy, hipX, hipY, lean, chX, chY, perpX, perpY, legF, legB, shF, shB, hF, hB, sa, armF, armB, neckX, neckY, hx, hy };
 }
 
+// ---------------------------------------------------------------- Gestalt „Grabfürst“
+// Leichentuch statt Purpurumhang, Kapuze über dem Schädel, Totenkrone als Strahlenkranz hinter dem Kopf,
+// Schulterkragen aus Leichentuch, Richtbeil aus geschwärztem Eisen. Rig, Posen und Seelenfeuer bleiben.
+const SH = ['#0d100e', '#1b201c', '#2b322b', '#3f483d', '#566253', '#77836f'];   // Leichentuch: modriges Graugrün
+const K = ['#0b0a0e', '#19171e', '#29262f', '#3e3a46', '#5c5768', '#878199'];     // geschwärztes Eisen, kalter Glanz
+const GOLD = ['#2c1f08', '#5a4214', '#8f6c2a', '#c49e4e', '#ecd38c'];
+const BONE4 = [B[0], B[1], B[2], B[3]];
+
+// Totenkrone: Eisenreif als Halbkreis hinter dem Kopf, Knochenstrahlen nach außen, Seelenstein im Scheitel.
+function deathHalo(p, g, cx, cy, glow) {
+  const R0 = 12.5, A0 = Math.PI * 0.94, A1 = Math.PI * 2.06, fine = p.fine;
+  // Strahlen zuerst (hinter dem Reif)
+  const N = 11;
+  for (let i = 0; i < N; i++) {
+    const a = A0 + 0.12 + (A1 - A0 - 0.24) * (i / (N - 1));
+    const long = i % 2 === 0, L = long ? 9 - Math.abs(i - 5) * 0.55 : 4.5;
+    const x0 = cx + Math.cos(a) * (R0 + 0.5), y0 = cy + Math.sin(a) * (R0 + 0.5);
+    const x1 = cx + Math.cos(a) * (R0 + L), y1 = cy + Math.sin(a) * (R0 + L);
+    limb(p, x0, y0, x1, y1, long ? 2.6 : 2, 0.7, BONE4);
+    if (fine) {
+      pt(p, x1, y1, B[4]);
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      hair(p, mx - Math.sin(a) * 0.8, my + Math.cos(a) * 0.8, mx + Math.sin(a) * 0.6, my - Math.cos(a) * 0.6, B[0]);
+    } else p.px(x1, y1, B[4]);
+  }
+  // Reif: dicker Eisenbogen, Goldrand innen
+  let qx = cx + Math.cos(A0) * R0, qy = cy + Math.sin(A0) * R0;
+  for (let a = A0 + 0.14; a <= A1 + 0.001; a += 0.14) {
+    const x = cx + Math.cos(a) * R0, y = cy + Math.sin(a) * R0;
+    limb(p, qx, qy, x, y, 2.6, 2.6, [K[0], K[2], K[3], K[4]]);
+    qx = x; qy = y;
+  }
+  for (let a = A0 + 0.05; a <= A1 - 0.05; a += fine ? 0.04 : 0.08) pt(p, cx + Math.cos(a) * (R0 - 1.3), cy + Math.sin(a) * (R0 - 1.3), a > Math.PI * 1.2 && a < Math.PI * 1.6 ? GOLD[3] : GOLD[2]);
+  if (fine) for (let a = A0 + 0.3; a < A1 - 0.2; a += 0.55) { const x = cx + Math.cos(a) * R0, y = cy + Math.sin(a) * R0; pt(p, x, y, GOLD[4]); pt(p, x + 0.5, y + 0.5, GOLD[1]); }
+  // Seelenstein im Scheitel
+  const sx = cx, sy = cy - R0;
+  ell(p, sx, sy, 2, 2.2, K[0]); ell(p, sx, sy, 1.3, 1.5, glow[1]);
+  ell(g, sx, sy, 1.8, 2, glow[1]); ell(g, sx, sy, 1, 1.2, glow[3]);
+  if (fine) { pt(p, sx - 0.5, sy - 0.5, glow[3]); pt(p, sx - 0.5, sy - 1, '#ffffff'); pt(g, sx, sy, glow[4]); }
+  else g.px(sx, sy, glow[4]);
+}
+
+// Kapuze: großer Tuchkopf, aus dem vorn das Gesicht schaut. back = Rückseite (vor dem Schädel gezeichnet),
+// sonst die Vorderkante, die den Oberkopf verdeckt und Schatten wirft.
+function hood(p, hx, hy, back) {
+  const cx = hx + 5.5, cy = hy + 5, rx = 11, ry = 12;
+  const ox = hx + 11, oy = hy + 10, orx = 8.5, ory = 9.6;   // Gesichtsöffnung
+  const q = p.step;
+  for (let y = cy - ry - 1; y <= cy + ry; y += q) for (let x = cx - rx - 1; x <= cx + rx; x += q) {
+    const u = (x - cx) / rx, v = (y - cy) / ry, d = u * u + v * v;
+    if (d > 1) continue;
+    const ou = (x - ox) / orx, ov = (y - oy) / ory, od = ou * ou + ov * ov;
+    if (back) {
+      // Innenseite der Kapuze hinter dem Kopf: tiefer Schatten
+      pt(p, x, y, od < 1 ? SH[0] : d > 0.8 ? SH[2] : SH[1]);
+      continue;
+    }
+    if (od < 1) continue;
+    let c;
+    if (od < 1.16) c = SH[0];               // Schattenkante an der Öffnung
+    else if (od < 1.3) c = SH[1];
+    else {
+      const l = -(u * 0.55 + v * 0.85);
+      c = d > 0.86 && l > 0.25 ? SH[5] : l > 0.35 ? SH[4] : l > -0.15 ? SH[3] : l > -0.6 ? SH[2] : SH[1];
+    }
+    pt(p, x, y, c);
+  }
+  if (back || !p.fine) return;
+  // Falten: zwei Bögen über dem Scheitel, Saumnaht an der Öffnung
+  for (let a = 3.6; a < 4.7; a += 0.06) {
+    pt(p, cx + Math.cos(a) * (rx - 3.5), cy + 1 + Math.sin(a) * (ry - 3.5), SH[2]);
+    pt(p, cx - 1 + Math.cos(a + 0.2) * (rx - 6), cy + 3 + Math.sin(a + 0.2) * (ry - 6.5), SH[2]);
+  }
+  for (let a = 3.3; a < 5.6; a += 0.09) pt(p, ox + Math.cos(a) * orx * 1.2, oy + Math.sin(a) * ory * 1.2, SH[4]);
+}
+
+// Schulterkragen aus Leichentuch: gewölbt, Saum in Zipfeln, Knochenschließe vorn.
+function mantle(p, x, y, rx, ry, sway, dark) {
+  const o = dark ? 1 : 0, fine = p.fine;
+  // Zipfel unter dem Kragen
+  for (let i = 0; i < 6; i++) {
+    const zx = x - rx + 1.5 + i * (rx * 2 - 3) / 5, zl = 3 + hash2(i, 3, 41) * 4 + (i % 2 ? 0 : 2);
+    limb(p, zx, y + ry - 2, zx - sway * 0.5 + (i - 2.5) * 0.3, y + ry - 1 + zl, 3, 1, [SH[0], SH[1 - o + 1], SH[3 - o], SH[4 - o]]);
+  }
+  ell(p, x, y, rx, ry, SH[1]);
+  ell(p, x - 0.5, y - 0.5, rx - 1, ry - 1, SH[3 - o]);
+  ell(p, x - 1.5, y - 1.5, rx - 3, ry - 3, SH[4 - o]);
+  if (fine) {
+    for (let a = 3.4; a < 4.9; a += 0.06) pt(p, x - 0.5 + Math.cos(a) * (rx - 1.4), y - 0.5 + Math.sin(a) * (ry - 1.4), SH[5 - o]);
+    for (const t of [-0.35, 0.15, 0.6]) hair(p, x + rx * t, y - ry * 0.4, x + rx * t + 1, y + ry - 1.5, SH[2 - o + (dark ? 0 : 0)]);
+  }
+}
+
+// Kleine Eisenkuppel für die hintere Schulter
+function ironDome(p, x, y, rx, ry) {
+  ell(p, x, y, rx, ry, K[0]); ell(p, x - 0.5, y - 0.5, rx - 1, ry - 1, K[1]); ell(p, x - 1.5, y - 1.5, rx - 3, ry - 2.5, K[2]);
+  for (let l = 1; l <= 2; l++) ln(p, x - rx + 1 + l, y + ry - 1 + l * 2, x + rx - 1 - l, y + ry - 1 + l * 2, l === 1 ? K[2] : K[1]);
+  if (p.fine) for (let a = 3.5; a < 4.9; a += 0.08) pt(p, x - 0.5 + Math.cos(a) * (rx - 1.3), y - 0.5 + Math.sin(a) * (ry - 1.3), K[3]);
+}
+
+// Richtbeil: Knochengriff mit Lederwicklung, Eisenzwinge, breites Blatt mit Loch, heller Schneide und Runen im Rücken.
+// Das Blatt wächst zur Unterseite des Schwungs (-k), der Rücken (+k) bleibt gerade.
+function cleaver(p, g, hx, hy, a, glow) {
+  const dx = Math.cos(a), dy = Math.sin(a);
+  let nx = -dy, ny = dx; if (nx + ny > 0) { nx = -nx; ny = -ny; }
+  const q = p.step, fine = p.fine, e = Math.max(q, 0.5);
+  limb(p, hx - dx * 8, hy - dy * 8, hx + dx * 2, hy + dy * 2, 2.3, 2.3, BONE4);
+  if (fine) for (let s = -6.5; s <= 1; s += 1.5) hair(p, hx + dx * s - nx * 0.9, hy + dy * s - ny * 0.9, hx + dx * (s + 0.7) + nx * 0.9, hy + dy * (s + 0.7) + ny * 0.9, PAL.leather[1]);
+  ell(p, hx - dx * 9, hy - dy * 9, 1.8, 1.8, K[1]); pt(p, hx - dx * 9 - 0.5, hy - dy * 9 - 0.5, K[4]);
+  limb(p, hx + dx * 2, hy + dy * 2, hx + dx * 4.5, hy + dy * 4.5, 5, 5, [K[0], K[2], K[3], K[4]]);
+  if (fine) { pt(p, hx + dx * 3 + nx * 1.5, hy + dy * 3 + ny * 1.5, GOLD[4]); pt(p, hx + dx * 3.5 - nx * 1.5, hy + dy * 3.5 - ny * 1.5, GOLD[2]); }
+  const S0 = 4.5, L = BLADE, sp = 1.8;
+  const hole = { s: L - 9, k: -4.2, r: 1.9 };
+  const nicks = [14, 24, 33];
+  for (let s = S0; s <= L + 1; s += 0.5 * q) {
+    const f = (s - S0) / (L - S0), sm = Math.min(1, f / 0.5);
+    const w = 2.4 + 6.4 * sm * sm * (3 - 2 * sm);
+    const nick = nicks.some((n) => s > n && s < n + 1.6) ? 1 : 0;
+    for (let k = -w + nick; k <= sp; k += 0.5 * q) {
+      if (s > L - 1.2 + k * 0.32) continue;                       // schräges Blattende
+      const hd = Math.hypot(s - hole.s, k - hole.k);
+      if (hd < hole.r) continue;
+      let c;
+      if (k > sp - 0.9) c = k > sp - e ? K[1] : K[0];                // Rücken
+      else if (k < -w + nick + e) c = St[4];                      // Schneide
+      else if (k < -w + nick + 1.2) c = St[2];
+      else if (hd < hole.r + 0.7) c = hole.k < k ? K[4] : K[0];   // Lochrand
+      else if (s > L - 2 + k * 0.32) c = K[4];                    // Stirnkante im Licht
+      else c = k > -w * 0.45 ? K[3] : K[2];
+      if ((c === K[2] || c === K[3]) && hash2(Math.round(s * 2), Math.round(k * 2), 21) < 0.06) c = c === K[2] ? K[1] : K[4];
+      pt(p, hx + dx * s + nx * k, hy + dy * s + ny * k, c);
+    }
+  }
+  if (fine) {
+    // Glanzlinie auf der Schneide, Schmiedekante entlang des Rückens
+    for (let s = S0 + 6; s < L * 0.7; s += 0.25) {
+      const f = (s - S0) / (L - S0), sm = Math.min(1, f / 0.5), w = 2.4 + 6.4 * sm * sm * (3 - 2 * sm);
+      pt(p, hx + dx * s + nx * (-w + 0.75), hy + dy * s + ny * (-w + 0.75), s > L * 0.35 && s < L * 0.5 ? '#ffffff' : St[3]);
+    }
+    hair(p, hx + dx * (S0 + 1) + nx * (sp - 1.2), hy + dy * (S0 + 1) + ny * (sp - 1.2), hx + dx * (L - 3) + nx * (sp - 1.2), hy + dy * (L - 3) + ny * (sp - 1.2), K[4]);
+  }
+  // Runen im Rücken (Leucht-Ebene)
+  for (let s = S0 + 5; s < L - 6; s += 6) {
+    const x = hx + dx * s + nx * -0.6, y = hy + dy * s + ny * -0.6;
+    p.px(x, y, K[0]); g.px(x, y, glow[2]);
+    if (fine) {
+      hair(p, x, y, x + dx * 1.5 - nx, y + dy * 1.5 - ny, glow[2]);
+      hair(g, x, y, x + dx * 1.5 - nx, y + dy * 1.5 - ny, glow[4]);
+      pt(g, x - nx, y - ny, glow[3]);
+    }
+  }
+  return { tipX: hx + dx * (L - 1) - nx * 3, tipY: hy + dy * (L - 1) - ny * 3 };
+}
+
 function drawBonelord(p, g, P0, glow, extra = {}) {
   const { P, gy, hipX, hipY, lean, chX, chY, perpX, perpY, legF, legB, shF, shB, hF, sa, armF, armB, hx, hy } = bonelordRig(P0);
   const meta = {};
   const fine = p.fine;
 
-  // --- 1. Umhang hinten (breit, schwer), mit hohem Kragen
-  const capeTopX = chX - perpX * 2, capeTopY = chY - 3;
-  const capeLen = 47 - P.kneel * 12;
-  const NC = 22;
+  // --- 1. Totenkrone hinter dem Kopf
+  deathHalo(p, g, hx + 6, hy + 3, glow);
+
+  // --- 2. Leichentuch hinten: lang, zerrissen, ausgefranster Saum
+  const capeTopX = chX - perpX * 2, capeTopY = chY - 5;
+  const capeLen = 50 - P.kneel * 12;
+  const NC = 24;
   for (let i = 0; i < NC; i++) {
     const u = i / (NC - 1);
-    const sx = capeTopX - 11 + i * 0.95;
+    const sx = capeTopX - 12 + i * 0.95;
     const top = capeTopY + Math.abs(u - 0.4) * 3;
-    const len = capeLen - Math.abs(u - 0.5) * 9 + Math.sin(P.capeT + i * 0.9) * 2.2 + (hash2(i, 1, 3) * 4 | 0);
-    if (fine) {
-      // Fein: Bahn je Feinpixelzeile; Falten zweifarbig (Grat mit heller Kante links, Tal dunkel rechts)
-      for (let j = 0; j < len; j += 0.5) {
-        const v = j / len;
-        const x = sx - P.cape * 18 * v * v - (1 - u) * 5 * v + Math.sin(P.capeT * 1.3 + v * 4 + i * 0.4) * 1.4 * v;
-        const fold = Math.sin(i * 1.15 + v * 1.5);
-        let shade = u < 0.12 ? 4 : u > 0.88 ? 0 : fold > 0.45 ? 3 : fold < -0.45 ? 1 : 2;
-        if (v > 0.86 && shade > 0) shade--;
-        if (v < 0.08 && shade > 1) shade = Math.min(4, shade + 1);
-        const hi = fold > 0.45 && v < 0.86 ? Math.min(4, shade + 1) : shade, lo = fold < -0.1 ? Math.max(0, shade - 1) : shade;
-        pt(p, x, top + j, CAPE[hi]); pt(p, x + 0.5, top + j, CAPE[shade]);
-        if (i < NC - 1) { pt(p, x + 1, top + j, CAPE[shade]); pt(p, x + 1.5, top + j, CAPE[lo]); }
-      }
-      if (i % 4 === 1) { const x = sx - P.cape * 18 - (1 - u) * 5; pt(p, x, top + len, CAPE[0]); pt(p, x + 0.5, top + len, CAPE[0]); pt(p, x, top + len + 0.5, CAPE[0]); pt(p, x + 0.5, top + len + 1, CAPE[0]); }
-      continue;
-    }
-    for (let j = 0; j < len; j++) {
+    const rag = hash2(i, 1, 9);
+    const len = capeLen - Math.abs(u - 0.5) * 10 + Math.sin(P.capeT + i * 0.9) * 2.2 + (rag * 9 | 0) - (i % 5 === 2 ? 6 : 0);
+    const st = fine ? 0.5 : 1;
+    for (let j = 0; j < len; j += st) {
       const v = j / len;
       const x = sx - P.cape * 18 * v * v - (1 - u) * 5 * v + Math.sin(P.capeT * 1.3 + v * 4 + i * 0.4) * 1.4 * v;
-      // Faltenwurf: helle Grate, dunkle Täler, Saum dunkler
-      const fold = Math.sin(i * 1.15 + v * 1.5);
-      let shade = u < 0.12 ? 4 : u > 0.88 ? 0 : fold > 0.45 ? 3 : fold < -0.45 ? 1 : 2;
-      if (v > 0.86 && shade > 0) shade--;
-      if (v < 0.08 && shade > 1) shade = Math.min(4, shade + 1);
-      p.px(x, top + j, CAPE[shade]);
-      if (i < NC - 1) p.px(x + 1, top + j, CAPE[shade]);
+      const fold = Math.sin(i * 0.9 + v * 1.2);
+      let shade = u < 0.1 ? 4 : u > 0.9 ? 1 : fold > 0.5 ? 4 : fold < -0.4 ? 2 : 3;
+      if (v > 0.8) shade = Math.max(1, shade - 1);
+      if (v > 0.93) shade = Math.max(1, shade - 1);
+      if (fine) {
+        const hi = fold > 0.5 && v < 0.8 ? Math.min(5, shade + 1) : shade;
+        pt(p, x, top + j, SH[hi]); pt(p, x + 0.5, top + j, SH[shade]);
+        if (i < NC - 1) { pt(p, x + 1, top + j, SH[shade]); pt(p, x + 1.5, top + j, SH[fold < 0 ? Math.max(1, shade - 1) : shade]); }
+      } else { p.px(x, top + j, SH[shade]); if (i < NC - 1) p.px(x + 1, top + j, SH[shade]); }
     }
-    if (i % 4 === 1) { const x = sx - P.cape * 18 - (1 - u) * 5; p.px(x, top + len, CAPE[0]); p.px(x, top + len + 1, CAPE[0]); }
-  }
-  // Hoher Kragen hinter dem Schädel (gezackt)
-  for (let i = 0; i < 12; i++) {
-    const x = hx - 4 + i * 0.8, top = hy - 2 + Math.abs(i - 1.5) * 0.7 - (i % 3 === 0 ? 2 : 0);
-    p.rect(x, top, 1, chY - top + 2, CAPE[i < 2 ? 4 : i < 6 ? 3 : 2]);
-    if (fine && i < 11) { pt(p, x, top, CAPE[i < 6 ? 4 : 3]); hair(p, x + 0.5, top + 1.5, x + 0.5, top + 4 + (i % 3), CAPE[i < 2 ? 3 : i < 6 ? 2 : 1]); }
+    // Fransen am Saum
+    if (i % 3 === 0) {
+      const x = sx - P.cape * 18 - (1 - u) * 5 + Math.sin(P.capeT * 1.3 + 4 + i * 0.4) * 1.4;
+      ln(p, x, top + len, x - 0.5 - P.cape, top + len + 2 + rag * 2, SH[1]);
+    }
   }
 
-  // --- 2. Hinteres Bein und Arm (dunkler)
+  // --- 3. Hinteres Bein und Arm
   const darkB = [VOID, B[0], B[1], B[2]];
   limb(p, hipX - 2, hipY, legB.jx, legB.jy, 5, 4, darkB);
-  limb(p, legB.jx, legB.jy, legB.ex, legB.ey - 2, 6.5, 6, [R[0], R[0], R[1], R[2]]);
-  p.rect(legB.ex - 3, legB.ey - 4, 10, 4, R[0]); p.rect(legB.ex - 3, legB.ey - 4, 10, 1, R[1]);
-  if (fine) { hair(p, legB.ex - 2.5, legB.ey - 4, legB.ex + 3, legB.ey - 4, R[2]); rivet(p, legB.ex + 4, legB.ey - 2.5, VOID, R[2]); }
-  knob(p, legB.jx, legB.jy, 2.5, [R[0], R[1], R[1], R[2]]);
+  limb(p, legB.jx, legB.jy, legB.ex, legB.ey - 2, 6.5, 6, [K[0], K[0], K[1], K[2]]);
+  p.rect(legB.ex - 3, legB.ey - 4, 10, 4, K[0]); p.rect(legB.ex - 3, legB.ey - 4, 10, 1, K[2]);
+  knob(p, legB.jx, legB.jy, 2.5, [K[0], K[1], K[1], K[2]]);
   limb(p, shB.x, shB.y, armB.jx, armB.jy, 3.5, 3.5, darkB);
-  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 4, 3.5, [R[0], R[0], R[1], R[2]]);
-  // Zauberhand
+  limb(p, armB.jx, armB.jy, armB.ex, armB.ey, 4, 3.5, [K[0], K[0], K[1], K[2]]);
   const clawOpen = P.cast > 0.3 || P.grip > 0.5 ? 1 : 0;
   p.rect(armB.ex - 2, armB.ey - 1, 4, 3, B[1]);
-  if (clawOpen) for (let k = -2; k <= 2; k += 2) ln(p, armB.ex + k * 0.6, armB.ey - 1, armB.ex + k * 1.3, armB.ey - 4, B[2]);
-  if (fine) {
-    // Fingerknöchel und Krallenspitzen
-    for (let k = -1.5; k <= 1.5; k += 1) pt(p, armB.ex + k, armB.ey - 1, B[2]);
-    if (clawOpen) for (let k = -2; k <= 2; k += 2) { pt(p, armB.ex + k * 1.3, armB.ey - 4, B[3]); pt(p, armB.ex + k * 1.3 + 0.5, armB.ey - 4.5, B[4]); }
-  }
+  for (let k = -2; k <= 2; k += 2) ln(p, armB.ex + k * 0.6, armB.ey - 1, armB.ex + k * (clawOpen ? 1.4 : 0.8), armB.ey - (clawOpen ? 5 : 3), B[2]);
+  if (fine) for (let k = -2; k <= 2; k += 2) pt(p, armB.ex + k * (clawOpen ? 1.4 : 0.8), armB.ey - (clawOpen ? 5 : 3), B[4]);
   meta.cast = { x: armB.ex, y: armB.ey - 3 };
 
-  // --- 3. Becken, Tassetten, Wirbelsäule, Brustkorb
-  ell(p, hipX, hipY, 8, 3.5, B[1]); ell(p, hipX, hipY - 1, 7, 2.5, B[2]); p.px(hipX - 4, hipY - 2, B[4]);
-  for (let i = 0; i < 5; i++) {
-    const tx = hipX - 8 + i * 4, ty = hipY + 1;
-    const sw = Math.sin(P.capeT + i) * 0.8 + P.lean * 4;
-    const tl = 10 - Math.abs(i - 2) * 1.2;
-    p.rect(tx + sw * 0.3, ty, 4, tl, R[i % 2 ? 1 : 2]);
-    p.rect(tx + sw * 0.3, ty, 4, 1, R[3]);
-    p.rect(tx + sw * 0.3 + 3, ty + 1, 1, tl - 1, R[0]);
-    if (!fine) { p.px(tx + sw * 0.3 + 1, ty + 3, RUST[2]); p.px(tx + sw * 0.3 + 2, ty + tl - 2, RUST[1]); continue; }
-    // Fein: Glanzlinie oben, Niete mit Glanz, Kratzer, Rostfleck klein
-    const x0 = tx + sw * 0.3;
-    hair(p, x0, ty, x0 + 2, ty, i % 2 ? St[3] : St[4]);
-    rivet(p, x0 + 1, ty + 2, R[0], i % 2 ? St[3] : St[4]);
-    hair(p, x0 + 0.5, ty + 4.5 + (i % 2), x0 + 2, ty + 5.5 + (i % 2), R[0]); pt(p, x0 + 1, ty + 4.5 + (i % 2), R[3]);
-    pt(p, x0 + 2, ty + tl - 2, RUST[1]); pt(p, x0 + 2.5, ty + tl - 2, RUST[2]); pt(p, x0 + 2, ty + tl - 1.5, RUST[0]);
-    hair(p, x0, ty + tl - 0.5, x0 + 3.5, ty + tl - 0.5, R[0]);
+  // --- 4. Becken, Leinenstreifen, Wirbelsäule, Brustkorb
+  ell(p, hipX, hipY, 8, 3.5, B[1]); ell(p, hipX, hipY - 1, 7, 2.5, B[2]);
+  for (let i = 0; i < 6; i++) {
+    const tx = hipX - 9 + i * 3.4, ty = hipY;
+    const sw = Math.sin(P.capeT + i * 1.3) * 0.9 + P.lean * 5;
+    const tl = 13 - Math.abs(i - 2.5) * 1.4 + (hash2(i, 5, 9) * 3 | 0);
+    for (let j = 0; j < tl; j += fine ? 0.5 : 1) {
+      const v = j / tl, x = tx + sw * v;
+      const c = i === 0 ? SH[4] : i === 5 ? SH[1] : (i % 2 ? SH[2] : SH[3]);
+      p.rect(x, ty + j, 3, fine ? 0.5 : 1, v > 0.85 ? SH[1] : c);
+      pt(p, x + 3, ty + j, SH[0]);
+    }
+    if (fine) { const x = tx + sw; hair(p, x, ty + tl, x + 1, ty + tl + 1.5, SH[2]); hair(p, x + 2, ty + tl, x + 2.5, ty + tl + 1, SH[1]); }
   }
-  // Gürtel mit Schädelschnalle
-  p.rect(hipX - 9, hipY - 3, 18, 3, PAL.leather[1]); p.rect(hipX - 9, hipY - 3, 18, 1, PAL.leather[3]);
-  if (fine) {
-    // Leder: Naht als Punktlinie, Kerben
-    for (let x = hipX - 8.5; x < hipX + 8.5; x += 1) if (x < hipX - 1.5 || x > hipX + 4) pt(p, x, hipY - 1.5, PAL.leather[2]);
-    pt(p, hipX - 6, hipY - 2.5, PAL.leather[0]); pt(p, hipX + 6, hipY - 2, PAL.leather[0]);
+  // Knochenanhänger an Schnüren
+  for (const [ox, len] of [[-6, 9], [5, 7]]) {
+    const sw = Math.sin(P.capeT + ox) * 0.8 + P.lean * 4;
+    ln(p, hipX + ox, hipY - 1, hipX + ox + sw, hipY + len, SH[0]);
+    const bx = hipX + ox + sw, by = hipY + len;
+    p.rect(bx - 1, by, 3, 2, B[2]); p.px(bx - 1, by, B[4]); p.px(bx + 1, by + 1, B[1]);
+    if (fine) { pt(p, bx - 0.5, by + 1, VOID); pt(p, bx + 0.5, by + 1, VOID); }
   }
-  p.rect(hipX - 1, hipY - 5, 5, 5, B[3]); p.px(hipX - 1, hipY - 5, B[4]); p.px(hipX, hipY - 3, VOID); p.px(hipX + 2, hipY - 3, VOID); p.px(hipX + 1, hipY - 1, B[1]);
-  if (fine) {
-    // Schädelschnalle: runde Kalotte, Augen mit Glimmen, spitze Zähnchen
-    pt(p, hipX - 1, hipY - 5, VOID); pt(p, hipX + 3.5, hipY - 5, VOID); pt(p, hipX - 0.5, hipY - 5, B[4]); pt(p, hipX, hipY - 5, '#ffffff');
-    pt(p, hipX + 0.5, hipY - 3, glow[1]); pt(p, hipX + 2, hipY - 3, glow[1]);
-    for (let k = 0; k < 6; k++) { pt(p, hipX + k * 0.5, hipY - 1, k % 2 ? B[1] : B[4]); pt(p, hipX + k * 0.5, hipY - 0.5, k % 2 ? VOID : B[2]); }
-    pt(p, hipX - 1, hipY - 0.5, VOID); pt(p, hipX + 3.5, hipY - 0.5, VOID);
-  }
-  // Wirbel
+  // Gürtel: dunkles Leder mit Eisenschnalle
+  p.rect(hipX - 9, hipY - 3, 18, 3, K[1]); p.rect(hipX - 9, hipY - 3, 18, 1, K[3]);
+  p.rect(hipX - 1, hipY - 4, 5, 5, K[3]); p.rect(hipX, hipY - 3, 3, 3, K[0]); p.px(hipX - 1, hipY - 4, K[5]);
+  if (fine) { pt(p, hipX + 1, hipY - 2, GOLD[3]); pt(p, hipX + 1.5, hipY - 2, GOLD[2]); hair(p, hipX - 8.5, hipY - 3, hipX - 2, hipY - 3, K[4]); }
   for (let s = 2; s < SPINE - 9; s += 2) {
     const x = hipX + Math.sin(lean) * s, y = hipY - Math.cos(lean) * s;
     p.rect(x - 1, y - 1, 3, 2, B[2]); p.px(x - 1, y - 1, B[3]);
-    if (fine) { hair(p, x - 1, y + 0.5, x + 1.5, y + 0.5, B[1]); pt(p, x - 1, y - 1, B[4]); pt(p, x + 1.5, y - 0.5, B[1]); }
+    if (fine) { hair(p, x - 1, y + 0.5, x + 1.5, y + 0.5, B[1]); pt(p, x - 1, y - 1, B[4]); }
   }
-  // Brustkorb: dunkles Inneres, Rippen quer zur Wirbelsäule
   const rcx = hipX + Math.sin(lean) * 16, rcy = hipY - Math.cos(lean) * 16;
   ell(p, rcx, rcy - 1, 9.5, 8.5, VOID);
-  // Seelenfeuer
   const soulR = 2.4 + P.soul * 1.4;
   ell(p, rcx, rcy, soulR, soulR + 1, glow[1]);
   ell(g, rcx, rcy, soulR + 0.5, soulR + 1.5, glow[1]);
   ell(g, rcx, rcy, soulR - 0.5, soulR, glow[2]);
   ell(g, rcx, rcy - 0.5, Math.max(0.6, soulR - 1.6), Math.max(0.6, soulR - 1.2), glow[3]);
   if (fine) {
-    // Heißer Kern im farbigen Saum (Grundbild und Leuchtebene), züngelnde Flamme
     ell(p, rcx, rcy - 0.5, Math.max(0.6, soulR - 1.2), Math.max(0.6, soulR - 0.6), glow[2]);
     ell(p, rcx - 0.25, rcy - 0.75, Math.max(0.5, soulR - 2.4), Math.max(0.5, soulR - 1.8), glow[3]);
     ell(g, rcx - 0.25, rcy - 0.75, Math.max(0.5, soulR - 2.4), Math.max(0.5, soulR - 1.8), glow[4]);
-    pt(g, rcx, rcy - soulR - 1, glow[3]); pt(g, rcx + 0.5, rcy - soulR - 2.5, glow[2]); pt(g, rcx - 0.5, rcy - soulR - 1.5, glow[2]);
-    pt(g, rcx + 1, rcy - soulR - 3.5, glow[1]); pt(p, rcx, rcy - soulR - 0.5, glow[2]);
+    pt(g, rcx, rcy - soulR - 1, glow[3]); pt(g, rcx + 0.5, rcy - soulR - 2.5, glow[2]);
   }
-  g.px(rcx, rcy - soulR - 2, glow[2]); g.px(rcx + 1, rcy - soulR - 3, glow[1]);
   meta.chest = { x: rcx, y: rcy };
   for (let r = 0; r < 6; r++) {
     const off = -7.5 + r * 3;
@@ -469,102 +593,39 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
     const ax = cx - perpX * hw, ay = cy - perpY * hw + 1.5, bx = cx + perpX * hw, by = cy + perpY * hw + 1.5;
     ln(p, ax, ay, cx, cy, B[2]); ln(p, cx, cy, bx, by, B[3]);
     ln(p, cx, cy + 1, bx - perpX, by + 1 - perpY, B[1]);
-    if (fine) {
-      // Rippen: Glanzlinie an der Oberkante, dunkle Unterkante, Riss in jeder zweiten
-      hair(p, cx + perpX * 1.5, cy + perpY * 1.5 + 0.2, bx - perpX * 1.5, by - perpY * 1.5 - 0.2, B[4]);
-      hair(p, ax + perpX * 1, ay + perpY - 0.2, cx - perpX, cy - perpY, B[3]);
-      if (r % 2) { const m = 0.55; pt(p, cx + perpX * hw * m, cy + perpY * hw * m + 1.5 * m, B[0]); pt(p, cx + perpX * hw * m + 0.5, cy + perpY * hw * m + 1.5 * m + 0.5, B[1]); }
-      pt(p, bx, by, B[4]); pt(p, bx + 0.5, by, B[3]); pt(p, bx, by + 0.5, B[3]); pt(p, ax, ay + 1, B[1]);
-    } else { p.px(bx, by, B[4]); p.px(ax, ay + 1, B[1]); }
+    if (fine) { hair(p, cx + perpX * 1.5, cy + perpY * 1.5 + 0.2, bx - perpX * 1.5, by - perpY * 1.5 - 0.2, B[4]); pt(p, bx, by, B[4]); }
   }
-  // Brustbein
-  limb(p, rcx + Math.sin(lean) * 8, rcy - Math.cos(lean) * 8, rcx - Math.sin(lean) * 5, rcy + Math.cos(lean) * 5, 2.5, 2, [B[1], B[2], B[3], B[4]]);
-  // Halsberge: eiserner Kragen über den Schlüsselbeinen
+  limb(p, rcx + Math.sin(lean) * 8, rcy - Math.cos(lean) * 8, rcx - Math.sin(lean) * 5, rcy + Math.cos(lean) * 5, 2.5, 2, BONE4);
+  // Schärpe aus Leichentuch: von der vorderen Schulter quer zur hinteren Hüfte
   {
-    const nx0 = chX + Math.sin(lean) * 1, ny0 = chY - Math.cos(lean) * 1;
-    ell(p, nx0, ny0, 7, 3, R[0]); ell(p, nx0 - 0.5, ny0 - 0.5, 6, 2, R[2]); ln(p, nx0 - 5, ny0 - 2, nx0 + 4, ny0 - 2, R[3]);
-    p.px(nx0 + 3, ny0, RUST[2]); p.px(nx0 - 3, ny0 + 1, RUST[1]);
-    if (fine) { hair(p, nx0 - 4.5, ny0 - 2, nx0 + 0.5, ny0 - 2, St[4]); pt(p, nx0 - 3.5, ny0 - 2, St[5]); rivet(p, nx0 + 4.5, ny0 - 0.5); rivet(p, nx0 - 5.5, ny0); hair(p, nx0 - 1, ny0 + 0.5, nx0 + 1.5, ny0 - 0.5, R[0]); }
+    const x0 = shF.x - 1, y0 = shF.y - 1, x1 = hipX - 7, y1 = hipY - 1;
+    limb(p, x0, y0, x1, y1, 5.5, 4.5, [SH[1], SH[3], SH[4], SH[5]]);
+    if (fine) {
+      for (const t of [0.25, 0.55, 0.8]) { const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t; hair(p, x - 1.5, y - 1.5, x + 1.2, y + 1.8, SH[2]); }
+      hair(p, x0 - 1.8, y0 + 1.6, x1 - 1.4, y1 + 1.4, SH[1]);
+    }
   }
 
-  // --- 4. Vorderes Bein
-  const lightB = [B[1], B[2], B[3], B[4]];
+  // --- 5. Vorderes Bein
+  const lightB = BONE4;
   limb(p, hipX + 2, hipY, legF.jx, legF.jy, 5.5, 4.5, lightB);
-  limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 2, 7, 6, [R[0], R[1], R[2], R[3]]);
-  // Beinschiene: Mittelgrat
+  limb(p, legF.jx, legF.jy, legF.ex, legF.ey - 2, 7, 6, [K[0], K[2], K[3], K[4]]);
   {
-    const mx = legF.jx + (legF.ex - legF.jx) * 0.5, my = legF.jy + (legF.ey - legF.jy) * 0.5; ln(p, legF.jx, legF.jy + 2, mx, my, R[3]); p.px(mx + 1, my + 1, RUST[2]);
-    if (fine) {
-      // Beinschiene: Glanzlinie auf dem Grat, Glanzpunkt, Kratzer, Niete
-      hair(p, legF.jx, legF.jy + 2, legF.jx + (mx - legF.jx) * 0.75, legF.jy + 2 + (my - legF.jy - 2) * 0.75, St[4]);
-      pt(p, legF.jx, legF.jy + 2.5, St[5]);
-      hair(p, mx - 2, my + 2, mx - 0.5, my + 3, R[0]); hair(p, mx + 1.5, my - 3, mx + 2.5, my - 2, R[0]);
-      rivet(p, legF.ex - 2.5, legF.ey - 6); rivet(p, legF.ex + 2, legF.ey - 6.5);
-    }
+    const mx = legF.jx + (legF.ex - legF.jx) * 0.5, my = legF.jy + (legF.ey - legF.jy) * 0.5;
+    ln(p, legF.jx, legF.jy + 2, mx, my, K[4]);
+    if (fine) { hair(p, legF.jx, legF.jy + 2, legF.jx + (mx - legF.jx) * 0.7, legF.jy + 2 + (my - legF.jy - 2) * 0.7, K[5]); pt(p, mx + 1, my + 2, GOLD[3]); }
   }
-  // Sabaton mit Zehendorn
-  p.rect(legF.ex - 3, legF.ey - 4, 11, 4, R[1]); p.rect(legF.ex - 3, legF.ey - 4, 11, 1, R[3]); p.rect(legF.ex - 3, legF.ey - 1, 11, 1, R[0]); p.px(legF.ex, legF.ey - 2, RUST[2]);
-  p.px(legF.ex + 8, legF.ey - 2, B[3]); p.px(legF.ex + 9, legF.ey - 1, B[4]);
-  if (fine) {
-    // Sabaton: Glanzlinie oben, Glanzpunkt vorn, Lamellenfuge, Niete, scharfer Zehendorn
-    hair(p, legF.ex - 2.5, legF.ey - 4, legF.ex + 5, legF.ey - 4, St[4]); pt(p, legF.ex + 6, legF.ey - 4, St[5]);
-    hair(p, legF.ex + 2, legF.ey - 3.5, legF.ex + 2, legF.ey - 1.5, R[0]); hair(p, legF.ex + 2.5, legF.ey - 3.5, legF.ex + 2.5, legF.ey - 2, R[3]);
-    rivet(p, legF.ex - 2, legF.ey - 3); rivet(p, legF.ex + 5, legF.ey - 3);
-    pt(p, legF.ex + 9.5, legF.ey - 1, B[3]); pt(p, legF.ex + 10, legF.ey - 0.5, B[4]); pt(p, legF.ex + 8, legF.ey - 2, B[4]);
-  }
-  knob(p, legF.jx, legF.jy, 3, [R[0], R[1], R[2], R[3]]); p.px(legF.jx + 1, legF.jy + 1, RUST[2]);
-  limb(p, legF.jx + 1, legF.jy - 2, legF.jx + 4, legF.jy - 5, 2, 1, lightB);
+  p.rect(legF.ex - 3, legF.ey - 4, 11, 4, K[2]); p.rect(legF.ex - 3, legF.ey - 4, 11, 1, K[4]); p.rect(legF.ex - 3, legF.ey - 1, 11, 1, K[0]);
+  p.px(legF.ex + 8, legF.ey - 2, K[3]); p.px(legF.ex + 9, legF.ey - 1, K[4]);
+  if (fine) { hair(p, legF.ex - 2.5, legF.ey - 4, legF.ex + 5, legF.ey - 4, K[5]); hair(p, legF.ex + 2, legF.ey - 3.5, legF.ex + 2, legF.ey - 1.5, K[0]); }
+  knob(p, legF.jx, legF.jy, 3, [K[0], K[2], K[3], K[4]]);
+  if (fine) { pt(p, legF.jx + 0.5, legF.jy + 0.5, GOLD[3]); pt(p, legF.jx + 1, legF.jy + 1, GOLD[1]); }
 
-  // --- 5. Hintere Schulterplatte
-  const pauldron = (x, y, rx, ry, ramp, spikes) => {
-    ell(p, x, y, rx, ry, ramp[0]);
-    ell(p, x - 0.5, y - 0.5, rx - 1, ry - 1, ramp[1]);
-    ell(p, x - 1.5, y - 1.5, rx - 3, ry - 2.5, ramp[2]);
-    const front = ramp[2] === R[3];
-    p.px(x - rx * 0.45, y - ry * 0.6, front ? St[4] : R[3]);
-    if (fine) {
-      // Glanzlinie als Lichtsichel oben links, Glanzpunkt, Kratzer
-      for (let a = 3.5; a < 4.95; a += 0.08) pt(p, x - 1.5 + Math.cos(a) * (rx - 3.6), y - 1.5 + Math.sin(a) * (ry - 3), front ? St[4] : R[3]);
-      // harte Glanzlinie oben links auf der Plattenkante: durchgehend, Mitte am hellsten, darunter Mittelton
-      const arc = (rx2, ry2, a0, a1, cOf) => {
-        let qx = x - 0.5 + Math.cos(a0) * rx2, qy = y - 0.5 + Math.sin(a0) * ry2;
-        for (let a = a0 + 0.1; a <= a1 + 0.001; a += 0.1) {
-          const nx2 = x - 0.5 + Math.cos(a) * rx2, ny2 = y - 0.5 + Math.sin(a) * ry2;
-          hair(p, qx, qy, nx2, ny2, cOf(a)); qx = nx2; qy = ny2;
-        }
-      };
-      for (let a = 3.2; a < 5.3; a += 0.08) pt(p, x - 0.5 + Math.cos(a) * (rx - 1.3), y - 0.5 + Math.sin(a) * (ry - 1.3), ramp[2]);
-      arc(rx - 1.3, ry - 1.3, 3.35, 5.0, (a) => (a > 3.85 && a < 4.6 ? (front ? '#ffffff' : St[4]) : front ? St[5] : St[3]));
-      arc(rx - 1.8, ry - 1.8, 3.5, 4.8, () => (front ? St[4] : R[3]));
-      pt(p, x - rx * 0.45, y - ry * 0.6, front ? St[5] : St[3]); pt(p, x - rx * 0.45 + 0.5, y - ry * 0.6, front ? St[4] : R[3]);
-      hair(p, x + rx * 0.15, y - ry * 0.05, x + rx * 0.5, y + ry * 0.3, ramp[0]);
-      hair(p, x - rx * 0.35, y + ry * 0.15, x - rx * 0.1, y + ry * 0.35, ramp[0]); pt(p, x - rx * 0.35, y + ry * 0.15 - 0.5, front ? St[3] : R[3]);
-    }
-    // gestaffelte Lamellen darunter
-    for (let l = 1; l <= 2; l++) {
-      ln(p, x - rx + 1 + l, y + ry - 1 + l * 2, x + rx - 1 - l * 0.5, y + ry - 1 + l * 2, ramp[0]);
-      ln(p, x - rx + 1 + l, y + ry - 2 + l * 2, x + rx - 1 - l * 0.5, y + ry - 2 + l * 2, l === 1 ? ramp[1] : ramp[0]);
-      if (fine) hair(p, x - rx + 1.5 + l, y + ry - 2 + l * 2, x + rx * 0.2, y + ry - 2 + l * 2, l === 1 ? ramp[2] : ramp[1]);
-    }
-    ln(p, x - rx + 1, y + ry - 1, x + rx - 1, y + ry - 1, ramp[0]);
-    for (let k = -rx + 2; k < rx - 1; k += 3) {
-      if (fine) rivet(p, x + k, y + ry - 2, RUST[0], front ? St[4] : St[3]);
-      else p.px(x + k, y + ry - 2, RUST[3]);
-    }
-    ln(p, x - rx + 2, y + ry - 1, x + rx - 2, y + ry - 1, RUST[1]);
-    // Dornen: gebogen, spitz zulaufend (Knochen mit dunkler Unterseite)
-    for (const [sx, h, lean2] of spikes) {
-      const bx0 = x + sx, by0 = y - ry + 1.5;
-      const mx = bx0 + lean2 * 0.3, my = by0 - h * 0.6;
-      limb(p, bx0, by0, mx, my, 3, 2, [St[0], St[1], St[2], St[3]]);
-      limb(p, mx, my, bx0 + lean2, by0 - h, 2, 1, [St[1], St[2], St[3], St[4]]);
-      if (fine) { pt(p, bx0 + lean2, by0 - h, St[5]); hair(p, mx - 0.6, my + 0.3, mx + 0.6, my - 0.1, St[0]); hair(p, bx0 - 0.6, by0 - h * 0.3, bx0 + 0.4, by0 - h * 0.3 - 0.3, St[1]); }
-      else p.px(bx0 + lean2, by0 - h, St[5]);
-    }
-  };
-  pauldron(shB.x - 2, shB.y, 7, 5.5, [R[0], R[1], R[2]], [[-2, 7, -4]]);
+  // --- 6. Hintere Schulter
+  mantle(p, shB.x - 2, shB.y, 7, 5.5, P.cape * 3, true);
 
-  // --- 6. Schädel mit Krone
+  // --- 7. Kapuze, Schädel, Gesichtsschatten
+  hood(p, hx, hy, true);
   const jaw = Math.round(P.jaw * 3);
   const put = (rows, ox, oy) => {
     for (let y = 0; y < rows.length; y++) for (let x = 0; x < rows[y].length; x++) {
@@ -576,86 +637,56 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
     }
   };
   put(SKULL, hx, hy);
-  if (jaw) {
-    p.rect(hx + 5, hy + 12, 10, jaw, VOID);
-    // Fangzähne ragen in den offenen Rachen
-    p.px(hx + 8, hy + 12, B[3]); p.px(hx + 12, hy + 12, B[3]);
-    if (jaw > 1) { p.px(hx + 12, hy + 13, B[2]); g.px(hx + 10, hy + 13, glow[1]); }
-  }
+  if (jaw) { p.rect(hx + 5, hy + 12, 10, jaw, VOID); p.px(hx + 8, hy + 12, B[3]); p.px(hx + 12, hy + 12, B[3]); }
   put(SKULL_JAW, hx, hy + 12 + jaw);
-  if (jaw) { p.px(hx + 7, hy + 11 + jaw, B[3]); p.px(hx + 11, hy + 11 + jaw, B[3]); }
-  // Augen: Seelenfeuer in den Höhlen
   if (P.eye > 0.2) {
-    // kleiner, heißer Kern – die dunkle Höhle bleibt drumherum sichtbar
     g.px(hx + 6, hy + 6, glow[4]); g.px(hx + 7, hy + 6, glow[3]); g.px(hx + 7, hy + 7, glow[2]);
     g.px(hx + 13, hy + 6, glow[3]); g.px(hx + 13, hy + 7, glow[1]);
-    if (P.eye > 0.8) {
-      g.px(hx + 6, hy + 7, glow[1]); g.px(hx + 6, hy + 5, glow[1]); g.px(hx + 14, hy + 6, glow[1]);
-    }
+    if (P.eye > 0.8) { g.px(hx + 6, hy + 7, glow[1]); g.px(hx + 6, hy + 5, glow[1]); g.px(hx + 14, hy + 6, glow[1]); }
   }
   if (fine) skullFine(p, g, hx, hy, jaw, P.eye, glow);
+  // Schatten der Kapuze auf der Stirn
+  for (let x = hx + 2; x < hx + 16; x += fine ? 0.5 : 1) { const y = hy + 1.5 + Math.max(0, (hx + 8 - x)) * 0.35; pt(p, x, y, B[0]); if (fine) pt(p, x, y + 0.5, B[1]); }
+  hood(p, hx, hy, false);
   meta.eye = { x: hx + 6, y: hy + 6 };
-  // Eisenreif mit Knochendornen
-  p.rect(hx, hy - 1, 16, 3, St[1]); p.rect(hx, hy - 1, 16, 1, St[3]); p.rect(hx, hy + 1, 16, 1, St[0]);
-  for (let x = hx + 2; x < hx + 16; x += 4) {
-    if (fine) { pt(p, x, hy, St[5]); pt(p, x + 0.5, hy, St[4]); pt(p, x, hy + 0.5, St[3]); pt(p, x + 0.5, hy + 0.5, St[0]); }
-    else p.px(x, hy, St[4]);
-  }
-  if (fine) { hair(p, hx + 0.5, hy - 1, hx + 6, hy - 1, St[4]); pt(p, hx + 2.5, hy - 1, St[5]); hair(p, hx + 11.5, hy - 0.5, hx + 13, hy, St[0]); }
-  const crown = [[1, 6, -1.2], [4.5, 9, -0.6], [8, 13, 0], [11.5, 9, 0.6], [15, 6, 1.2]];
-  for (const [cx, h, lean2] of crown) {
-    const bx0 = hx + cx, by0 = hy - 1;
-    const mx = bx0 + lean2 * 0.4, my = by0 - h * 0.55;
-    limb(p, bx0, by0, mx, my, 3, 2.2, [B[0], B[0], B[1], B[2]]);
-    limb(p, mx, my, bx0 + lean2 * 1.5, by0 - h, 2.2, 1, [B[0], B[1], B[2], B[3]]);
-    if (!fine) { p.px(bx0 + lean2 * 1.5, by0 - h, B[4]); continue; }
-    // Hornringe: dunkle Ringfurchen mit heller Kante darüber, Spitze mit Glanz
-    for (const t of [0.45, 0.95]) {
-      const sx = bx0 + (mx - bx0) * t, sy = by0 + (my - by0) * t, w = 1.3 - t * 0.3;
-      hair(p, sx - w, sy, sx + w - 0.5, sy, B[1]); pt(p, sx - w + 0.5, sy - 0.5, B[3]);
-    }
-    pt(p, bx0 + lean2 * 1.5, by0 - h, B[4]); pt(p, bx0 + lean2 * 1.5, by0 - h + 0.5, B[3]); pt(p, bx0 + lean2 * 1.3 - 0.5, by0 - h + 1.5, '#ffffff');
-  }
-  // Seelenstein im Reif
-  ell(p, hx + 8, hy, 1.5, 1.5, VOID); p.px(hx + 8, hy, glow[1]);
-  g.px(hx + 8, hy, glow[4]); g.px(hx + 7, hy, glow[2]); g.px(hx + 9, hy, glow[2]); g.px(hx + 8, hy - 1, glow[2]);
-  if (fine) { pt(p, hx + 8, hy, glow[3]); pt(p, hx + 8.5, hy + 0.5, glow[0]); pt(p, hx + 8, hy - 0.5, '#ffffff'); pt(g, hx + 7.5, hy, glow[3]); pt(g, hx + 9, hy, glow[3]); pt(g, hx + 8, hy - 0.5, glow[3]); }
-  meta.head = { x: hx + 8, y: hy - 6 };
+  meta.head = { x: hx + 6, y: hy - 9 };
 
-  // --- 7. Schwung-Schleier
+  // --- 8. Schwung-Schleier
   if (extra.smear) {
     const s = extra.smear;
-    smear(p, g, shF.x, shF.y, s[0], s[1], 14, 14 + FORE + BLADE * 0.95, glow);
+    smear(p, g, shF.x, shF.y, s[0], s[1], 14, 14 + FORE + BLADE * 0.95, glow, [St[5], St[3], '#b8a8d8', '#5e4a80']);
   }
 
-  // --- 8. Vordere Schulterplatte, Arm, Schwert
+  // --- 9. Vorderer Arm, Beil, Widderschädel
   const drawArm = () => {
     limb(p, shF.x, shF.y, armF.jx, armF.jy, 4, 3.5, lightB);
-    limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 5, 5, [R[0], R[1], R[2], R[3]]);
-    knob(p, armF.jx, armF.jy, 2.5, [R[0], R[1], R[2], R[3]]); p.px(armF.jx - 1, armF.jy - 1, St[4]);
-    p.rect(armF.ex - 2, armF.ey - 2, 5, 5, R[1]); p.px(armF.ex - 2, armF.ey - 2, R[3]);
+    limb(p, armF.jx, armF.jy, armF.ex, armF.ey, 5, 5, [K[0], K[2], K[3], K[4]]);
+    knob(p, armF.jx, armF.jy, 2.5, [K[0], K[2], K[3], K[4]]);
+    p.rect(armF.ex - 2, armF.ey - 2, 5, 5, K[2]); p.px(armF.ex - 2, armF.ey - 2, K[4]);
     if (fine) {
-      // Armschiene: Glanzlinie, Kratzer; Panzerhandschuh mit Fingerplatten und Niete
       const ax0 = armF.jx + (armF.ex - armF.jx) * 0.3, ay0 = armF.jy + (armF.ey - armF.jy) * 0.3;
-      hair(p, ax0 - 1.2, ay0 - 0.6, armF.ex - 1.6, armF.ey - 2.6, St[4]); pt(p, ax0 - 1.2, ay0 - 0.6, St[5]);
-      hair(p, ax0 + 0.5, ay0 + 1.5, ax0 + 1.5, ay0 + 2, R[0]);
-      pt(p, armF.jx - 1, armF.jy - 1, St[5]);
-      hair(p, armF.ex - 2, armF.ey - 2, armF.ex + 2.5, armF.ey - 2, R[3]); pt(p, armF.ex - 2, armF.ey - 2, St[4]);
-      for (let k = 0; k < 3; k++) hair(p, armF.ex - 1.5, armF.ey - 0.5 + k * 1, armF.ex + 2.5, armF.ey - 0.5 + k * 1, R[0]);
-      rivet(p, armF.ex + 1.5, armF.ey - 1.5);
+      hair(p, ax0 - 1.2, ay0 - 0.6, armF.ex - 1.6, armF.ey - 2.6, K[5]);
+      for (let k = 0; k < 3; k++) hair(p, armF.ex - 1.5, armF.ey - 0.5 + k, armF.ex + 2.5, armF.ey - 0.5 + k, K[0]);
     }
   };
-  const swordBehind = extra.swordBehind;
   let tip;
-  if (swordBehind) { tip = greatsword(p, g, hF.x, hF.y, sa, glow); drawArm(); }
-  else { drawArm(); tip = greatsword(p, g, hF.x, hF.y, sa, glow); p.rect(hF.x - 2, hF.y - 2, 4, 4, R[2]); p.px(hF.x - 2, hF.y - 2, R[3]);
-    if (fine) { pt(p, hF.x - 2, hF.y - 2, St[4]); hair(p, hF.x - 1.5, hF.y - 0.5, hF.x + 1.5, hF.y - 0.5, R[0]); hair(p, hF.x - 1.5, hF.y + 1, hF.x + 1.5, hF.y + 1, R[0]); pt(p, hF.x - 1.5, hF.y - 1.5, R[3]); }
+  if (extra.swordBehind) { tip = cleaver(p, g, hF.x, hF.y, sa, glow); drawArm(); }
+  else {
+    drawArm(); tip = cleaver(p, g, hF.x, hF.y, sa, glow);
+    p.rect(hF.x - 2, hF.y - 2, 4, 4, K[3]); p.px(hF.x - 2, hF.y - 2, K[5]);
+    if (fine) { hair(p, hF.x - 1.5, hF.y - 0.5, hF.x + 1.5, hF.y - 0.5, K[0]); hair(p, hF.x - 1.5, hF.y + 1, hF.x + 1.5, hF.y + 1, K[0]); }
   }
-  pauldron(shF.x + 2, shF.y, 8.5, 6.5, [R[1], R[2], R[3]], [[1, 8, 3], [5, 5, 4]]);
+  mantle(p, shF.x + 1, shF.y, 8, 6.5, P.cape * 3, false);
+  // Knochenschließe: kleiner Schädel am Kragen
+  {
+    const cx = shF.x - 2, cy = shF.y + 3;
+    ell(p, cx, cy, 2, 1.8, B[2]); p.px(cx - 1, cy - 1, B[4]);
+    pt(p, cx - 0.5, cy, VOID); pt(p, cx + 1, cy, VOID); g.px(cx, cy, glow[1]);
+    if (fine) { pt(p, cx - 0.5, cy + 1.5, B[3]); pt(p, cx + 0.5, cy + 1.5, B[3]); pt(p, cx, cy + 1.5, VOID); pt(g, cx - 0.5, cy, glow[3]); pt(g, cx + 1, cy, glow[2]); }
+  }
   meta.hand = { x: hF.x, y: hF.y };
   meta.tip = { x: tip.tipX, y: tip.tipY };
 
-  // Zauberglut an der Hand
   if (P.cast > 0.05) {
     const r = 1 + P.cast * 3;
     ell(g, meta.cast.x, meta.cast.y, r + 1, r + 1, glow[1]);
@@ -666,34 +697,33 @@ function drawBonelord(p, g, P0, glow, extra = {}) {
   return meta;
 }
 
-// Zerfall: Knochenhaufen, umgestürzte Rüstung, Schwert und weggerollte Krone.
+// Zerfall: Leichentuch sinkt zusammen, Knochen, Beil liegt quer, Totenkrone kippt weg.
 function drawCollapse(p, g, k, glow) {
   const gy = AY;
   const cx = AX + 2;
-  ell(p, cx - 2, gy - 2, 16 + k * 6, 3.5, CAPE[1]);
-  ell(p, cx - 4, gy - 3, 12 + k * 4, 2.5, CAPE[2]);
-  for (let i = 0; i < 22; i++) {
+  ell(p, cx - 2, gy - 2, 17 + k * 6, 3.5, SH[1]);
+  ell(p, cx - 4, gy - 3, 13 + k * 4, 2.5, SH[3]);
+  ell(p, cx - 6, gy - 4, 7 + k * 2, 1.5, SH[4]);
+  for (let i = 0; i < 20; i++) {
     const a = hash2(i, 2, 5) * Math.PI, r = 4 + hash2(i, 3, 5) * (12 + k * 8);
     const x = cx + Math.cos(a) * r - 4, y = gy - 3 - hash2(i, 4, 5) * (6 * (1 - k * 0.6));
     const l = 3 + hash2(i, 6, 5) * 4, ang = hash2(i, 7, 5) * Math.PI;
     limb(p, x, y, x + Math.cos(ang) * l, y + Math.sin(ang) * l * 0.5, 2, 1.5, [B[1], B[1], B[2], B[3]]);
   }
-  // Brustkorb
   ell(p, cx - 6, gy - 6 + k * 2, 6, 4 - k, VOID);
   for (let r = 0; r < 4; r++) ln(p, cx - 11 + r * 3, gy - 8 + k * 2, cx - 9 + r * 3, gy - 3, B[3]);
-  // Schädel liegt
   p.rect(cx + 6, gy - 9 + k * 3, 11, 7, B[3]); p.rect(cx + 6, gy - 9 + k * 3, 11, 1, B[4]);
   p.rect(cx + 10, gy - 7 + k * 3, 3, 2, VOID); p.rect(cx + 14, gy - 7 + k * 3, 2, 2, VOID);
   if (k < 0.5) g.px(cx + 11, gy - 7 + k * 3, glow[2]);
-  // Schulterplatten
-  ell(p, cx - 14, gy - 3, 5, 3, R[1]); ell(p, cx - 15, gy - 4, 3, 2, R[2]);
-  ell(p, cx + 1, gy - 2, 6, 3, R[2]); ell(p, cx, gy - 3, 4, 2, R[3]);
-  // Schwert liegt quer
-  greatsword(p, g, cx - 22, gy - 4, -0.05, glow);
-  // Krone rollt weg
-  const kx = cx + 26 + k * 10;
-  p.rect(kx, gy - 3, 12, 2, St[1]); p.rect(kx, gy - 3, 12, 1, St[3]);
-  for (let i = 0; i < 5; i++) limb(p, kx + i * 3, gy - 3, kx + i * 3 + 1, gy - 5 - [3, 5, 7, 5, 3][i], 2, 1, [B[1], B[2], B[3], B[4]]);
+  ironDome(p, cx - 14, gy - 3, 5, 3);
+  cleaver(p, g, cx - 24, gy - 5, -0.05, glow);
+  // Totenkrone liegt schräg auf dem Boden
+  const kx = cx + 30 + k * 8, ky = gy - 2;
+  for (let a = Math.PI; a <= Math.PI * 2.001; a += 0.2) {
+    const x0 = kx + Math.cos(a) * 9, y0 = ky + Math.sin(a) * 3, x1 = kx + Math.cos(a + 0.2) * 9, y1 = ky + Math.sin(a + 0.2) * 3;
+    limb(p, x0, y0, x1, y1, 2, 2, [K[0], K[2], K[3], K[4]]);
+  }
+  for (let i = 0; i < 5; i++) { const x = kx - 7 + i * 3.5; limb(p, x, ky - 2, x + (i - 2) * 0.8, ky - 5 - (i % 2 ? 2 : 4), 2, 0.8, BONE4); }
 }
 
 // ---------------------------------------------------------------- Frames
