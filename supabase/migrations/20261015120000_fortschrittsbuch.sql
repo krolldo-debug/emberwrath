@@ -267,7 +267,8 @@ insert into public.ledger_levels (level, xp) values
 (1,0),(2,100),(3,370),(4,845),(5,1560),(6,2545),(7,3820),(8,5405),(9,7320),(10,9585),
 (11,12215),(12,15225),(13,18635),(14,22455),(15,26695),(16,31375),(17,36500),(18,42090),(19,48150),(20,54695),
 (21,96695),(22,142395),(23,191495),(24,244595),(25,301295),(26,362295),(27,427095),(28,496495),(29,569995),(30,648395),
-(31,731195),(32,819095),(33,911695),(34,1009695),(35,1112595),(36,1221195),(37,1334995),(38,1454695),(39,1579895),(40,1711295);
+(31,731195),(32,819095),(33,911695),(34,1009695),(35,1112595),(36,1221195),(37,1334995),(38,1454695),(39,1579895),(40,1711295),
+(41,1979895),(42,2273995),(43,2592995),(44,2939295),(45,3312095),(46,3713995),(47,4143995),(48,4604995),(49,5095695),(50,5619095);
 
 -- ------------------------------------------------------------------ Bausteine
 create or replace function public.ledger_arr(j jsonb) returns jsonb
@@ -343,8 +344,8 @@ begin
     + (select least(coalesce(sum(public.ledger_qty(l -> 'gold')), 0), 1e15)
                 from jsonb_array_elements(public.ledger_arr(public.ledger_obj(sl -> 'mail') -> 'loot')) l);
   v_lvl := case when pr -> 'level' is null or jsonb_typeof(pr -> 'level') = 'null' then 1
-                when jsonb_typeof(pr -> 'level') = 'number' then greatest(1, least(40, trunc((pr -> 'level')::numeric)))::int
-                else 40 end;
+                when jsonb_typeof(pr -> 'level') = 'number' then greatest(1, least(50, trunc((pr -> 'level')::numeric)))::int
+                else 50 end;
   v_xp := greatest(case when jsonb_typeof(pr -> 'xp') = 'number' and (pr -> 'xp')::numeric > 0 then least(floor((pr -> 'xp')::numeric), 1e15) else 0 end,
                    coalesce((select lv.xp from public.ledger_levels lv where lv.level = v_lvl), 0));
   return jsonb_build_object('xp', v_xp::bigint, 'gold', v_gold::bigint, 'items', v_items);
@@ -355,7 +356,7 @@ end $$;
 -- Datenbank zählt nur echte Zahlen und Texte. Deshalb bleibt nur die Form, die das Spiel selbst speichert:
 --   Platz       null oder { itemId: Text, qty: ganze Zahl 1…1e6 }   (Tasche, Bank, Questbeutel)
 --   Ausrüstung  Text, null oder { itemId: Text }                  Material  { id: ganze Zahl 0…1e6 }
---   Gold        ganze Zahl -1e9…2^31-1   Erfahrung 0…2^31-1   Stufe 1…40
+--   Gold        ganze Zahl -1e9…2^31-1   Erfahrung 0…2^31-1   Stufe 1…50
 --   Verstärkung ganze Zahl 0…15   Verzauberung Text   Bankgröße eine der Stufen   Tasche immer vorhanden
 -- Ehrliche Spielstände ändert das nie.
 create or replace function public.ledger_fix_slot(e jsonb) returns jsonb
@@ -444,7 +445,7 @@ begin
     b := public.ledger_fix_int(a, 0, 2147483647, 0);
     if a is not null and b is distinct from a then s := jsonb_set(s, '{slices,progress,xp}', b); end if;
     a := s #> '{slices,progress,level}';
-    b := public.ledger_fix_int(a, 1, 40, 1);
+    b := public.ledger_fix_int(a, 1, 50, 1);
     if a is not null and b is distinct from a then s := jsonb_set(s, '{slices,progress,level}', b); end if;
   end if;
   return s;

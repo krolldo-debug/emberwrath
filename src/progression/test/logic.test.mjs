@@ -7,7 +7,9 @@ import { LocalAuthority } from '../../core/Authority.js';
 import { EV } from '../../core/events.js';
 import { registerProgressionContent, registerProgressionState, BAG_SIZE } from '../logic.js';
 import { xpInfo, questStatus, npcMarker, trackedQuests, trackedQuestId, questTarget, countItem, findPotionSlot, isUpgrade, vendorStock, questRewardItems, junkSlots, npcIdleLine, sellableSlots } from '../selectors.js';
-import { xpToNext, totalXpForLevel, killXp, mobXp, LEVEL_CAP } from '../xp.js';
+import { xpToNext, totalXpForLevel, killXp, mobXp, LEVEL_CAP, PACE_NEW, xpPaceFactor, questXp } from '../xp.js';
+import { LEVEL_MAX } from '../../net/protocol.js';
+import { talentPointsTotal } from '../../character/talents.js';
 import { rollLoot, pickRewardGear, rarityWeights, pickEquipment } from '../loot.js';
 import { ITEMS, EQUIP_SLOTS, RARITY_ORDER, WEAPON_CLASSES, attrFit } from '../items.js';
 import { QUESTS, VENDORS, NPC_LINES } from '../quests.js';
@@ -50,8 +52,12 @@ const slotOf = (state, itemId) => state.slices.inventory.slots.findIndex((s) => 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 
-test('Levelkurve bis 40 ist monoton, 1–19 unverändert, Kills skalieren mit dem Stufenabstand', () => {
-  assert.equal(LEVEL_CAP, 40);
+test('Levelkurve bis 50 ist monoton, 1–19 unverändert, Kills skalieren mit dem Stufenabstand', () => {
+  assert.equal(LEVEL_CAP, 50);
+  assert.equal(LEVEL_MAX, LEVEL_CAP, 'net/protocol.js LEVEL_MAX zieht mit');
+  // Sternenglut: Schwellen bis 40 wie vor der Erweiterung (Bestandsschutz: Stufe und Erfahrung bleiben genau)
+  assert.equal(totalXpForLevel(40), 1711295);
+  assert.equal(xpToNext(39), 131400);
   assert.equal(xpToNext(1), 100);
   for (let l = 1; l < 20; l++) assert.equal(xpToNext(l), Math.round((100 * Math.pow(l, 1.42)) / 5) * 5, `Stufe ${l} bitgenau`);
   assert.equal(totalXpForLevel(20), 54695);
@@ -63,14 +69,48 @@ test('Levelkurve bis 40 ist monoton, 1–19 unverändert, Kills skalieren mit de
   assert.ok(killXp(100, 9, 7) > 100);
 });
 
-test('XP führt zu Levelaufstieg mit Events und endet bei 40', () => {
+test('Bestandsschutz: alte Spielstände behalten Tempo und Stufe, neue Charaktere leveln 20–39 langsamer', () => {
+  const { c, state, content } = setup();
+  assert.equal(state.slices.progress.pace, PACE_NEW, 'neuer Charakter');
+  // Alter Spielstand (ohne pace): Stufe 40 auf den Punkt, danach geht es weiter Richtung 50; pace übersteht Speichern/Laden
+  const s2 = setup(), snap = s2.state.snapshot();
+  snap.slices.progress = { level: 40, xp: totalXpForLevel(40), xpNext: totalXpForLevel(40), stats: {} };
+  s2.state.load(snap);
+  assert.equal(s2.state.slices.progress.level, 40);
+  assert.equal(s2.state.slices.progress.xp, totalXpForLevel(40));
+  assert.equal(s2.state.slices.progress.pace, undefined);
+  assert.equal(xpInfo(s2.state).capped, false);
+  s2.c('progress:grantXp', { amount: xpToNext(40) });
+  assert.equal(s2.state.slices.progress.level, 41);
+  const s3 = setup(); s3.state.load(state.snapshot());
+  assert.equal(s3.state.slices.progress.pace, PACE_NEW);
+  assert.equal(xpPaceFactor(30), 1, 'ohne pace: altes Tempo');
+  assert.equal(xpPaceFactor(30, PACE_NEW) < 0.85 && xpPaceFactor(30, PACE_NEW) > 0.65, true);
+  assert.equal(xpPaceFactor(19, PACE_NEW), 1, '1–19 unverändert');
+  assert.equal(xpPaceFactor(40, PACE_NEW), 1, 'ab 40 für alle gleich');
+  // Quests der Stufe 40 geben so viel wie vorher (Basis Stufe 39)
+  assert.equal(questXp(40, 1), Math.round((xpToNext(39) * 0.75 * 1.8) / 5) * 5);
+  // Neuer Charakter auf 30: Kill gibt weniger, reachLevel bleibt genau
+  state.slices.progress.level = 30; state.slices.progress.xp = totalXpForLevel(30);
+  const r = c('progress:kill', { type: 'plague_toad', level: 30 });
+  assert.equal(r.xp, Math.max(1, Math.round(killXp(mobXp(30), 30, 30) * xpPaceFactor(30, PACE_NEW))));
+  delete state.slices.progress.pace;
+  const r2 = c('progress:kill', { type: 'plague_toad', level: 30 });
+  assert.equal(r2.xp, killXp(mobXp(30), 30, 30), 'Bestandscharakter: volle Erfahrung');
+  // Talente bleiben, wie sie sind: keine Punkte über Stufe 40 hinaus
+  assert.equal(talentPointsTotal(40), 39);
+  assert.equal(talentPointsTotal(50), 39);
+  void content;
+});
+
+test('XP führt zu Levelaufstieg mit Events und endet bei 50', () => {
   const { c, state, events } = setup();
   c('progress:grantXp', { amount: 400, source: 't' });
   assert.equal(state.slices.progress.level, 3); // 100 + 270 = 370 <= 400
   assert.equal(events.filter(([e]) => e === EV.LEVEL_UP).length, 2);
   assert.equal(xpInfo(state).into, 30);
   c('progress:grantXp', { amount: 100_000_000 });
-  assert.equal(state.slices.progress.level, 40);
+  assert.equal(state.slices.progress.level, LEVEL_CAP);
   assert.equal(xpInfo(state).capped, true);
 });
 
@@ -447,8 +487,18 @@ test('Kampagne: Tempo-Richtwerte aus §11.4', () => {
   assert.ok(r.questShare >= 0.5 && r.questShare <= 0.72);
 });
 
-test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6)', () => {
-  const x = expansionReport();
+test('Sternenglut: neue Charaktere brauchen für 20–40 etwa 1,7-mal so lange, ohne Kopfgeld-Grind', () => {
+  const neu = expansionReport(), alt = expansionReport({ legacy: true });
+  const k = neu.hours20to40 / alt.hours20to40;
+  console.log(`    20→40 neu ${neu.hours20to40.toFixed(1)} h, alt ${alt.hours20to40.toFixed(1)} h (×${k.toFixed(2)}), ${neu.full.bounties} Kopfgelder`);
+  assert.ok(k >= 1.5 && k <= 2, `Faktor ${k}`);
+  assert.equal(neu.base.minutes, alt.base.minutes, '1–20 unverändert');
+  assert.ok(neu.full.bounties <= 35, `${neu.full.bounties} Kopfgelder`);
+  assert.ok(neu.questShare >= 0.7, `Quest-Anteil ${neu.questShare}`);
+});
+
+test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6) – Charakter von vor Sternenglut', () => {
+  const x = expansionReport({ legacy: true });
   const per = Object.values(x.full.minutesPerLevel);
   console.log(`    20→40 ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, je Stufe ${Math.min(...per).toFixed(0)}–${Math.max(...per).toFixed(0)} min, ${x.full.bounties} Kopfgelder`);
   assert.equal(x.full.level, 40);
@@ -795,7 +845,8 @@ test('Auftragsbrett: Tagesrotation fest, Fortschritt, Belohnung, Wochentruhe', (
   }
   assert.ok(elites > 100, 'Kopfgeld bleibt häufig');
   assert.ok(!boardOffers(day, 25).concat(...Array.from({ length: 60 }, (_, i) => boardOffers(day + i, 25))).some((o) => o.target[0] === 'bog_horror'), 'Held 25: kein Moorgrauen');
-  assert.ok(offerRewards(boardOffers(day, 40)[0], 40).xp === 0, 'auf 40 Gold statt Erfahrung');
+  assert.ok(offerRewards(boardOffers(day, 40)[0], 40).xp > 0, 'auf 40 noch Erfahrung (Stufe 50 möglich)');
+  assert.ok(offerRewards(boardOffers(day, LEVEL_CAP)[0], LEVEL_CAP).xp === 0, 'auf der Höchststufe Gold statt Erfahrung');
   assert.equal(boardWeek(Date.UTC(2026, 9, 5)), boardWeek(Date.UTC(2026, 9, 11, 23)), 'Montag bis Sonntag');
   assert.notEqual(boardWeek(Date.UTC(2026, 9, 11, 23)), boardWeek(Date.UTC(2026, 9, 12, 1)));
 
@@ -1218,7 +1269,7 @@ test('Tagesbelohnung, erster Sieg, Wochenherausforderung', () => {
   assert.equal(events.filter(([ev]) => ev === 'daily:firstWin').length, 1);
   c('progress:kill', { type: 'bandit_chief', level: 10, elite: true, now: now + DAY });
   assert.equal(events.filter(([ev]) => ev === 'daily:firstWin').length, 2);
-  assert.ok(firstWinReward(40).items.length && !firstWinReward(40).xp, 'auf 40 Gold und Splitter');
+  assert.ok(firstWinReward(LEVEL_CAP).items.length && !firstWinReward(LEVEL_CAP).xp, 'auf der Höchststufe Gold und Splitter');
 
   // Wochenherausforderung: für alle gleich, erreichbarer Boss, Regel zählt
   assert.deepEqual(weeklyChallenge(100, 15), weeklyChallenge(100, 15));

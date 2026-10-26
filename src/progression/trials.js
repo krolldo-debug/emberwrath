@@ -3,6 +3,7 @@
 import { ITEMS } from './items.js';
 import { pickEquipment, potionFor } from './loot.js';
 import { SOVEREIGN_LEGENDARIES } from './items40.js';
+import { LEVEL_CAP } from './xp.js';
 
 export const TRIAL_ZONE = 'ember_trial';
 export const TRIAL_REQUIRES = { level: 20, quest: 'q_ignaroth' };
@@ -12,7 +13,7 @@ export const LEGENDARIES = ['tyrant_plate', 'crown_of_embers_blade', 'nightwhisp
 // Ab Stufe 20 skalieren Gegnerstufe, Boss-Leben, Gold und Beute-ilvl mit der Spielerstufe (§12.1); die Prüfungsstufen bleiben.
 // Ab Spielerstufe 38 kommt der legendäre Pool des Aschenfürsten dazu. Albtraumross ab Prüfungsstufe 20: 0,3 % je Abschluss.
 export const TRIAL_MOUNT = { itemId: 'mount_nightmare_steed', minTier: 20, chance: 0.003 };
-export function trialLevel(level) { return Math.max(20, Math.min(40, level | 0 || 20)); }
+export function trialLevel(level) { return Math.max(20, Math.min(LEVEL_CAP, level | 0 || 20)); }
 export function trialLevelScale(level) { return 1 + (trialLevel(level) - 20) * 0.05; }
 
 // Themen: Gegnertypen von Thread B (§11.3); der letzte ist der Boss.

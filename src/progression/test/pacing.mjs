@@ -58,7 +58,8 @@ function mulberry(seed) {
 }
 
 // until: Quest-ID, nach deren Abgabe die Simulation endet (z. B. 'q_ignaroth' für den Teil bis 20)
-export function runCampaign({ trash = 2, sideQuests = true, until = null, log = null, seed = 7 } = {}) {
+// legacy: Charakter von vor Sternenglut (ohne progress.pace, altes Tempo bis 40); sonst ein neuer Charakter
+export function runCampaign({ trash = 2, sideQuests = true, until = null, log = null, seed = 7, legacy = false } = {}) {
   const bus = new EventBus(), content = new Content();
   const state = new GameState(bus, new LocalAuthority(content), content);
   state.defineSlice('world', { create: () => ({ zoneId: 'emberhollow', bossesDefeated: [] }) });
@@ -66,6 +67,7 @@ export function runCampaign({ trash = 2, sideQuests = true, until = null, log = 
   registerProgressionContent(content);
   registerProgressionState(state, { rng: () => 0.5 });
   setWorldFeatures(['escort', 'defend']);
+  if (legacy) delete state.slices.progress.pace;
   const rng = mulberry(seed);
   const c = (t, p) => state.commit(t, p);
   const P = () => state.slices.progress;
@@ -164,8 +166,9 @@ export function dailyGoldPerWeek(level) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const r = runCampaign({ log: console.log });
-  const x = expansionReport();
+  const legacy = process.env.LEGACY === '1'; // LEGACY=1: Bestandscharakter (altes Tempo)
+  const r = runCampaign({ log: console.log, legacy });
+  const x = expansionReport({ legacy });
   console.log(`\nStufe 1–20: ${x.base.minutes.toFixed(0)} min, ${x.base.kills} Kills, Quest-Anteil ${(x.base.questShare * 100).toFixed(0)} %`);
   console.log(`Stufe 20–40: ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, ${r.bounties} Kopfgelder, ${r.kills - x.base.kills} Kills`);
   console.log('Minuten je Stufe: ' + Object.entries(r.minutesPerLevel).map(([l, m]) => `${l}:${m.toFixed(0)}`).join(' '));
