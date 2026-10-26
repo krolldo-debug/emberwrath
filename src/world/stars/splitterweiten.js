@@ -241,7 +241,7 @@ export function buildSplitterweiten() {
       ...mirrorStones.map(([x, y], i) => ({ id: `mirror_stone_${i + 1}`, kind: 'shrine', decor: 'mirrorStones', name: 'Spiegelstein', prompt: 'Den Spiegelstein ausrichten', x, y })),
       ...lenses.map(([x, y], i) => ({ id: `star_lens_${i + 1}`, kind: 'shrine', decor: 'lensStand', name: 'Sternlinse', prompt: 'Die Linse ausrichten', x, y })),
       // Kels Schürferbeutel auf den Scherbeninseln
-      ...[[70, 14], [88, 28], [63, 35], [124, 38]].map(([x, y], i) => ({ id: `prospector_pack_${i + 1}`, kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Schürferbeutel', prompt: 'Schürferbeutel aufheben', x, y })),
+      ...[[67, 14], [88, 28], [63, 35], [124, 38]].map(([x, y], i) => ({ id: `prospector_pack_${i + 1}`, kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Schürferbeutel', prompt: 'Schürferbeutel aufheben', x, y })),
     ],
     questRoutes: {
       // Kapitel 11 (q_ridge_song): Lun singt das Lied der Grate, Prismenelementare kommen über den Grat

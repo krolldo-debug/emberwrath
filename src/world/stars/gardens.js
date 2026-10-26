@@ -210,7 +210,7 @@ export function buildDriftingGardens() {
   // ------------------------------------------------------------ Questziele (progression/questsStars.js)
   const SOLID = 'TBKLJPRWUuOQYXVZ';
   // Pells Saatbeutel: Ankerhain und Rand zum Wurzelbruch; Oddas Mondkristalle: Ufer, Weiherinsel, Landzunge
-  const seedBags = [[138, 53], [150, 41], [182, 76], [132, 58]];
+  const seedBags = [[141, 52], [150, 41], [182, 76], [132, 58]];
   const moonCrystals = [[45, 90], [59, 93], [52, 98], [80, 96]];
   // Eskorte „Brens Ableger“: vom Dorfplatz über die Wurzelbrücke zum ersten Leerenriss
   const escortPath = walkPath(m, SOLID, [175, 57], [118, 62]);

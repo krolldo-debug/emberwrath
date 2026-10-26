@@ -1011,7 +1011,7 @@ export function buildEmberWastes() {
         ambush: [{ at: amb(0.3), type: 'cinder_bombardier', n: 2 }, { at: amb(0.62), type: 'cinder_bombardier', n: 2 }, { at: amb(0.85), type: 'cinder_bombardier', n: 2 }],
       },
       // Sternenglut Kapitel 8 (q_rift_watch): Corvanes Ritter halten das Wachfeuer am Sternenriss, Irrlichter quellen heraus
-      defend_star_rift: { kind: 'defend', at: [150, 12], spawns: [[148, 9], [154, 12], [145, 14], [152, 16]], foe: 'void_wisp', seconds: 90 },
+      defend_star_rift: { kind: 'defend', at: [143, 12], spawns: [[147, 10], [146, 14], [138, 9], [139, 14]], foe: 'void_wisp', seconds: 90 },
     },
     respawn: 45,
     areas: [
@@ -1042,7 +1042,7 @@ export function buildEmberWastes() {
       { id: 'ember_obelisk_3', kind: 'shrine', decor: 'emberObelisk', name: 'Obelisk am Thronweg', prompt: 'Obelisk am Thronweg löschen', x: obelisks[2][0], y: obelisks[2][1] },
       ...anchors.map(([x, y], i) => ({ id: `phase_anchor_${i + 1}`, kind: 'shrine', decor: 'phaseAnchor', name: 'Phasenanker', prompt: 'Phasenanker zerschlagen', x, y })),
       { id: 'crown_shrine', kind: 'shrine', decor: 'crownShrine', name: 'Kronschrein', prompt: 'Am Kronschrein beten', ...crownShrine },
-      { id: 'rift_watchfire', kind: 'shrine', decor: 'brazier', name: 'Wachfeuer am Riss', prompt: 'Das Wachfeuer entzünden', x: 150, y: 11 },
+      { id: 'rift_watchfire', kind: 'shrine', decor: 'brazier', name: 'Wachfeuer am Riss', prompt: 'Das Wachfeuer entzünden', x: 143, y: 11 },
     ],
     portals: [
       { id: 'to_frostspire', x: 0.6, y: 20, range: 26, visual: 'road', dir: [-1, 0],
