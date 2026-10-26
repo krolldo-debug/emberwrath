@@ -13,7 +13,7 @@ import { hash2 } from '../core/math.js';
 // (Augen, Seelenfeuer, Runen) in Violett und – für Phase 3 – in Glutrot, sowie
 // Metadaten (Kopf, Hand, Klingenspitze) für Partikel und Effekte.
 // Blickrichtung rechts, Anker = Mitte zwischen den Füßen.
-export const W = 176, H = 136, AX = 66, AY = 128;
+const W = 176, H = 136, AX = 66, AY = 128;
 const B = PAL.bone, St = PAL.steel;
 // Rüstung: dunkles, angelaufenes Eisen mit Rostkanten
 const R = ['#141620', '#262a38', '#3c4052', '#5c5f70'];
@@ -25,7 +25,7 @@ const GLOW = {
   ember: ['#4a0e06', '#a8280c', '#f0602a', '#ffb070', '#fff4d8'],
 };
 
-export const THIGH = 15, SHIN = 15, SPINE = 22, UPPER = 12.5, FORE = 12.5, BLADE = 45;
+const THIGH = 15, SHIN = 15, SPINE = 22, UPPER = 12.5, FORE = 12.5, BLADE = 45;
 // Posenwerte sind für das ursprüngliche (kleinere) Rig gesetzt; Abstände werden mit SK skaliert.
 const SK = 1.16;
 const SCALED = ['hipX', 'hipY', 'fFx', 'fFy', 'fBx', 'fBy', 'hFx', 'hFy', 'hBx', 'hBy'];
@@ -55,22 +55,22 @@ const SKULL_JAW = [
 
 // ---------------------------------------------------------------- Pose
 
-export const REST = {
+const REST = {
   hipX: 0, hipY: 0, lean: 0.06, head: 0, jaw: 0,
   fFx: 7, fFy: 0, fBx: -8, fBy: 0,
   hFx: 9, hFy: 15, hBx: -5, hBy: 16,
   sword: 0.55, grip: 0, cape: 0.2, capeT: 0,
   cast: 0, eye: 1, soul: 1, kneel: 0,
 };
-export const pose = (o = {}) => ({ ...REST, ...o });
+const pose = (o = {}) => ({ ...REST, ...o });
 const ease = (t) => t * t * (3 - 2 * t);
-export const mix = (a, b, t) => {
+const mix = (a, b, t) => {
   const o = {};
   for (const k in REST) o[k] = a[k] + (b[k] - a[k]) * t;
   return o;
 };
 // Tastet eine Keyframe-Spur ab: keys = [[t 0..1, pose, easing?], ...]
-export function sample(keys, t) {
+function sample(keys, t) {
   if (t <= keys[0][0]) return keys[0][1];
   for (let i = 0; i < keys.length - 1; i++) {
     const [t0, p0] = keys[i], [t1, p1, e = ease] = keys[i + 1];
@@ -78,12 +78,12 @@ export function sample(keys, t) {
   }
   return keys[keys.length - 1][1];
 }
-export const linear = (t) => t;
-export const snap = (t) => 1 - (1 - t) * (1 - t) * (1 - t); // schnell rein, weich aus
+const linear = (t) => t;
+const snap = (t) => 1 - (1 - t) * (1 - t) * (1 - t); // schnell rein, weich aus
 
 // ---------------------------------------------------------------- Geometrie
 
-export function ik(ax, ay, tx, ty, l1, l2, bend) {
+function ik(ax, ay, tx, ty, l1, l2, bend) {
   let dx = tx - ax, dy = ty - ay;
   let d = Math.hypot(dx, dy) || 0.001;
   const max = l1 + l2 - 0.05;
@@ -99,9 +99,9 @@ export function ik(ax, ay, tx, ty, l1, l2, bend) {
 // früher PixelCanvas (Bildvergleich bei „Niedrig“); fein tasten sie Feinpixel ab. Handfeine Zusätze in `if (p.fine)`.
 
 // Punkt in Weltkoordinaten: res 1 = gerundeter Weltpixel, fein = nächstgelegenes Feinpixel
-export const pt = (p, x, y, c) => (p.res === 1 ? p.px(x, y, c) : p.dot(x + p.step / 2, y + p.step / 2, c));
+const pt = (p, x, y, c) => (p.res === 1 ? p.px(x, y, c) : p.dot(x + p.step / 2, y + p.step / 2, c));
 // Gefüllte Ellipse wie PixelCanvas.ellipse, aber im Feinraster gerechnet (bei res 1 identisch)
-export function ell(p, cx, cy, rx, ry, c) {
+function ell(p, cx, cy, rx, ry, c) {
   if (!c) return;
   // fein: Radius um ein halbes Feinpixel größer, damit die Fläche so breit bleibt wie früher (2·hw+1 Weltpixel)
   const r = p.res, v = col32(c), X = (cx + p.ox) * r, Y = (cy + p.oy) * r, RX = rx * r + (r - 1) / 2, RY = ry * r + (r - 1) / 2, n = Math.ceil(RY);
@@ -113,15 +113,15 @@ export function ell(p, cx, cy, rx, ry, c) {
   }
 }
 // Linie 1 Weltpixel stark: res 1 Bresenham in Weltpixeln, fein im Feinraster (glattere Schrägen)
-export function ln(p, x0, y0, x1, y1, c) {
+function ln(p, x0, y0, x1, y1, c) {
   if (p.res === 1) p.line(x0, y0, x1, y1, c);
   else { const h = p.step / 2; p.fline(x0 + h, y0 + h, x1 + h, y1 + h, c, 1); }
 }
 // Feine Linie 1 Feinpixel (nur fein benutzt), gleiche Lage wie ln/pt
-export const hair = (p, x0, y0, x1, y1, c) => { const h = p.step / 2; p.fline(x0 + h, y0 + h, x1 + h, y1 + h, c); };
+const hair = (p, x0, y0, x1, y1, c) => { const h = p.step / 2; p.fline(x0 + h, y0 + h, x1 + h, y1 + h, c); };
 
 // Dicker Knochen/Rüstteil mit Licht von links oben (fein: Kanten 1 Feinpixel).
-export function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
+function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
   const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; } // Normale zeigt nach links oben
@@ -137,7 +137,7 @@ export function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
   }
 }
 // Gelenkkugel; fein mit Glanzpunkt und Lichtsichel
-export function knob(p, x, y, r, ramp) {
+function knob(p, x, y, r, ramp) {
   ell(p, x, y, r, r, ramp[1]);
   if (!p.fine) { p.px(x - r * 0.4, y - r * 0.4, ramp[3]); return; }
   for (let a = 3.3; a < 4.9; a += 0.25) pt(p, x + Math.cos(a) * (r - 0.4), y + Math.sin(a) * (r - 0.4), ramp[2]);
@@ -223,7 +223,7 @@ function greatsword(p, g, hx, hy, a, glow) {
 
 // Schwung-Schleier (Smear) zwischen zwei Klingenwinkeln um einen Drehpunkt.
 // Fein: Form und Farben je Feinpixel, die Dichte (Zufall) je Weltpixel – sonst flimmert es.
-export function smear(p, g, cx, cy, a0, a1, r0, r1, glow, cols = [B[4], B[3], '#c8bce0', '#8a7aa8']) {
+function smear(p, g, cx, cy, a0, a1, r0, r1, glow) {
   const lo = Math.min(a0, a1), hi = Math.max(a0, a1), span = hi - lo || 1;
   const R1 = Math.ceil(r1), q = p.step;
   for (let y = -R1; y <= R1; y += q) for (let x = -R1; x <= R1; x += q) {
@@ -239,7 +239,7 @@ export function smear(p, g, cx, cy, a0, a1, r0, r1, glow, cols = [B[4], B[3], '#
     const band = Math.max(0, 1 - (1 - radial) * 2.2);
     const dens = fresh * fresh * 0.4 + band * (0.25 + 0.75 * fresh);
     if (hash2(Math.floor(x) + 99, Math.floor(y) + 99, 13) > dens + (p.fine && radial > 0.86 ? 0.3 : 0)) continue;
-    const c = radial > 0.86 ? cols[0] : radial > 0.7 ? cols[1] : fresh > 0.7 ? cols[2] : cols[3];
+    const c = radial > 0.86 ? B[4] : radial > 0.7 ? B[3] : fresh > 0.7 ? '#c8bce0' : '#8a7aa8';
     pt(p, cx + x, cy + y, c);
     if (fresh > 0.45 && radial > 0.55) pt(g, cx + x, cy + y, radial > 0.85 ? glow[3] : glow[1]);
   }
@@ -293,9 +293,7 @@ function skullFine(p, g, hx, hy, jaw, eye, glow) {
 
 // ---------------------------------------------------------------- Zeichnen
 
-// Geometrie des Rigs aus einer Pose (Weltpixel): Hüfte, Brust, Beine/Arme (IK), Schultern, Hände, Kopfecke.
-// Auch für die Sternenglut-Bosse (sprites/star_bosses.js), die auf demselben Rig andere Gestalten zeichnen.
-export function bonelordRig(P0) {
+function drawBonelord(p, g, P0, glow, extra = {}) {
   const P = { ...P0 };
   for (const k of SCALED) P[k] *= SK;
   const gy = AY;
@@ -303,6 +301,8 @@ export function bonelordRig(P0) {
   const lean = P.lean;
   const chX = hipX + Math.sin(lean) * SPINE, chY = hipY - Math.cos(lean) * SPINE;
   const perpX = Math.cos(lean), perpY = Math.sin(lean); // "nach vorn" quer zum Rumpf
+  const meta = {};
+  const fine = p.fine;
 
   // Füße / Knie (IK), Knie beugen nach vorn
   const fF = { x: AX + P.fFx, y: gy - P.fFy };
@@ -330,14 +330,6 @@ export function bonelordRig(P0) {
   // Kopf
   const neckX = chX + Math.sin(lean) * 3, neckY = chY - Math.cos(lean) * 3;
   const hx = Math.round(neckX + P.head - 6), hy = Math.round(neckY - 17);
-
-  return { P, gy, hipX, hipY, lean, chX, chY, perpX, perpY, legF, legB, shF, shB, hF, hB, sa, armF, armB, neckX, neckY, hx, hy };
-}
-
-function drawBonelord(p, g, P0, glow, extra = {}) {
-  const { P, gy, hipX, hipY, lean, chX, chY, perpX, perpY, legF, legB, shF, shB, hF, sa, armF, armB, hx, hy } = bonelordRig(P0);
-  const meta = {};
-  const fine = p.fine;
 
   // --- 1. Umhang hinten (breit, schwer), mit hohem Kragen
   const capeTopX = chX - perpX * 2, capeTopY = chY - 3;
@@ -698,58 +690,52 @@ function drawCollapse(p, g, k, glow) {
 
 // ---------------------------------------------------------------- Frames
 
-// Bausatz der Frames für einen Rig-Boss: draw(p, g, P, glow, extra) zeichnet eine Pose und gibt die Metadaten zurück,
-// collapse(p, g, k, glow) den Zerfall. Phase-3-Leuchtebene: dieselbe Zeichnung mit der zweiten Rampe. Die Leuchtebene
-// nutzt nur Farben der Rampe und keine davon abhängige Form, darum genügt ein Umfärben je Feinpixel (exakt wie ein
-// zweiter Zeichendurchgang); Farben außerhalb der Rampe bleiben.
-export function rigBossSprites(draw, collapse, glow, enraged) {
-  const ENRAGE = new Map(glow.map((c, i) => [col32(c), col32(enraged[i])]));
-  function glowFrames(base, g, res) {
-    const d = g.pixels(), e = new Uint32Array(d.length);
-    for (let i = 0; i < d.length; i++) { const v = d[i]; if (v) e[i] = ENRAGE.get(v) ?? v; }
-    base.glow = new SpriteFrame(pixelsToCanvas(d, g.W, g.H), AX * res, AY * res, res);
-    base.glowEnraged = new SpriteFrame(pixelsToCanvas(e, g.W, g.H), AX * res, AY * res, res);
+// Phase-3-Leuchtebene: dieselbe Zeichnung mit der Glut-Rampe. Die Leuchtebene nutzt nur Farben der Rampe und
+// keine davon abhängige Form, darum genügt ein Umfärben je Feinpixel (exakt wie ein zweiter Zeichendurchgang).
+const ENRAGE = new Map(GLOW.violet.map((c, i) => [col32(c), col32(GLOW.ember[i])]));
+function glowFrames(base, g, res) {
+  const d = g.pixels(), e = new Uint32Array(d.length);
+  for (let i = 0; i < d.length; i++) { const v = d[i]; if (v) e[i] = ENRAGE.get(v) ?? v; }
+  base.glow = new SpriteFrame(pixelsToCanvas(d, g.W, g.H), AX * res, AY * res, res);
+  base.glowEnraged = new SpriteFrame(pixelsToCanvas(e, g.W, g.H), AX * res, AY * res, res);
+}
+
+// Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
+// baut den Boss nicht mehr am Stück.
+function frame(...a) { return lazyFrame(() => frameNow(...a)); }
+function frameNow(P, extra) {
+  const res = fineRes(), g = new FineCanvas(W, H, res);
+  let meta;
+  const base = buildFrame(W, H, AX, AY, (p) => { meta = drawBonelord(p, g, P, GLOW.violet, extra); }, { fine: true, res });
+  // Leucht-Ebenen (kein Umriss, fein wie das Sprite): violett und, für Phase 3, glutrot
+  glowFrames(base, g, res);
+  base.meta = {};
+  for (const k in meta) base.meta[k] = { dx: meta[k].x - AX, dy: meta[k].y - AY };
+  base.fx = extra.fx ?? null; // Ereignis-Marke, z. B. 'step' oder 'impact'
+  return base;
+}
+
+function collapseFrame(...a) { return lazyFrame(() => collapseFrameNow(...a)); }
+function collapseFrameNow(k) {
+  const res = fineRes(), g = new FineCanvas(W, H, res);
+  const base = buildFrame(W, H, AX, AY, (p) => drawCollapse(p, g, k, GLOW.violet), { fine: true, res });
+  glowFrames(base, g, res);
+  base.meta = { head: { dx: 12, dy: -10 }, chest: { dx: -4, dy: -6 }, hand: { dx: -20, dy: -4 }, tip: { dx: 20, dy: -4 }, eye: { dx: 12, dy: -8 }, cast: { dx: 0, dy: -6 } };
+  base.fx = null;
+  return base;
+}
+
+// n Frames aus einer Keyframe-Spur; loop = letzter Frame ≠ erster
+function track(keys, n, { loop = false, extras = {} } = {}) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const t = loop ? i / n : n === 1 ? 1 : i / (n - 1);
+    out.push(frame(sample(keys, t), extras[i] ?? {}));
   }
-  // Aufgeschoben (gfx/Sprite.js LazyFrame): gezeichnet wird erst, wenn die Animation den Frame braucht – der Zonenaufbau
-  // baut den Boss nicht mehr am Stück.
-  const frame = (P, extra) => lazyFrame(() => {
-    const res = fineRes(), g = new FineCanvas(W, H, res);
-    let meta;
-    const base = buildFrame(W, H, AX, AY, (p) => { meta = draw(p, g, P, glow, extra); }, { fine: true, res });
-    // Leucht-Ebenen (kein Umriss, fein wie das Sprite): Grundrampe und, für Phase 3, die zweite Rampe
-    glowFrames(base, g, res);
-    base.meta = {};
-    for (const k in meta) base.meta[k] = { dx: meta[k].x - AX, dy: meta[k].y - AY };
-    base.fx = extra.fx ?? null; // Ereignis-Marke, z. B. 'step' oder 'impact'
-    return base;
-  });
-  const collapseFrame = (k) => lazyFrame(() => {
-    const res = fineRes(), g = new FineCanvas(W, H, res);
-    const base = buildFrame(W, H, AX, AY, (p) => collapse(p, g, k, glow), { fine: true, res });
-    glowFrames(base, g, res);
-    base.meta = { head: { dx: 12, dy: -10 }, chest: { dx: -4, dy: -6 }, hand: { dx: -20, dy: -4 }, tip: { dx: 20, dy: -4 }, eye: { dx: 12, dy: -8 }, cast: { dx: 0, dy: -6 } };
-    base.fx = null;
-    return base;
-  });
-  return bossAnimations(frame, collapseFrame);
+  return out;
 }
 
 export function createBonelordSprites() {
-  return rigBossSprites(drawBonelord, drawCollapse, GLOW.violet, GLOW.ember);
-}
-
-// Vollständiger Bewegungssatz für entities/Boss.js aus den Schlüsselposen des Rigs.
-function bossAnimations(frame, collapseFrame) {
-  // n Frames aus einer Keyframe-Spur; loop = letzter Frame ≠ erster
-  function track(keys, n, { loop = false, extras = {} } = {}) {
-    const out = [];
-    for (let i = 0; i < n; i++) {
-      const t = loop ? i / n : n === 1 ? 1 : i / (n - 1);
-      out.push(frame(sample(keys, t), extras[i] ?? {}));
-    }
-    return out;
-  }
-
   // --- Grundposen
   const idleA = pose({ capeT: 0 });
   const idleB = pose({ hipY: 1, lean: 0.09, hFy: 16, hBy: 17, sword: 0.58, capeT: Math.PI, jaw: 0.3, soul: 1.3 });

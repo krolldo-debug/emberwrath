@@ -36,7 +36,7 @@ ok(b.msgs.filter((m) => m.t === 'look').at(-1)?.level === 13, 'Sprung auf 30 wir
 // 3) Ohne Speicherstand: Client-Angaben, Stufe höchstens 40
 const c = await conn(await tok(uid(3)), { id: 'c_x', name: 'Cara', level: 999 });
 const seenC = a.msgs.filter((m) => m.t === 'join').map((m) => m.p).find((p) => p.name === 'Cara');
-ok(seenC?.level === 50, 'ohne Speicherstand: Stufe auf 50 begrenzt: ' + seenC?.level);
+ok(seenC?.level === 40, 'ohne Speicherstand: Stufe auf 40 begrenzt: ' + seenC?.level);
 c.ws.close();
 // 4) Reservierter Name
 const d = await conn(await tok(uid(4)), { id: 'c_y', name: 'GameMaster Thor', level: 5 });

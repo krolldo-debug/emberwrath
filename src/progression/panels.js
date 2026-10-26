@@ -4,7 +4,7 @@ import { iconEl, itemIconEl } from '../gfx/Icons.js';
 import { computeStats } from '../character/stats.js';
 import { EQUIP_SLOTS, EQUIP_SLOT_NAMES, STAT_NAMES, RARITIES, buyPrice, equipSlotFor, canUseClass, typeLabel, itemScore } from './items.js';
 import { RECIPE_GROUPS } from './crafting.js';
-import { xpInfo, trackedQuests, trackedQuestId, questStatus, questsForNpc, npcName, npcShortName, freeSlots, isUpgrade, countItem, turnInOf, questRewards, questRewardItems, vendorStock, npcIdleLine, sellableSlots, sellValue, materialList } from './selectors.js';
+import { xpInfo, trackedQuests, trackedQuestId, questStatus, questsForNpc, npcName, npcShortName, freeSlots, isUpgrade, countItem, turnInOf, questRewardItems, vendorStock, npcIdleLine, sellableSlots, sellValue, materialList } from './selectors.js';
 import { panelFrame, goldEl, itemSlot, itemDetail, actionBtn, rewardsEl, barEl, objectivesEl, attachTip, hideTip, reactive, tapper } from './widgets.js';
 import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
@@ -395,7 +395,7 @@ function questlogView(s) {
           h('p', q.summary),
           objectivesEl(q.objectives),
           q.hint ? h('p.pg-hint', q.hint) : h('p.ef-note', `Auftraggeber: ${npcName(c, def.giver)}${where ? ` · Ort: ${where}` : ''}`),
-          rewardsEl(c, questRewards(st, def), questRewardItems(st, c, q.id)),
+          rewardsEl(c, def.rewards, questRewardItems(st, c, q.id)),
           h('div.pg-actions',
             isTracked ? h('span.pg-tracked-note', '➤ Wird verfolgt') : actionBtn('Verfolgen', () => { commit(s, 'quest:track', { questId: q.id }); }, { primary: true }),
             confirmAbandon === q.id
@@ -470,7 +470,7 @@ function questDialogView(s, { npcId } = {}) {
         status === 'ready' && def.choices && turnInOf(def) === npcId ? h('p.pg-hint', 'Deine Entscheidung bestimmt, wie es weitergeht.') : null,
         def.objectives.length ? h('div', h('h3', 'Ziele'), objectivesEl(objectives)) : null,
         groupBossHint(c, def, objectives),
-        rewardsEl(c, questRewards(st, def), questRewardItems(st, c, def.id)),
+        rewardsEl(c, def.rewards, questRewardItems(st, c, def.id)),
         a?.status === 'ready' && turnInOf(def) !== npcId ? h('p.pg-hint', `Abgeben bei ${npcShortName(c, turnInOf(def))}`) : null,
         msg && !primary ? h('p.pg-msg', msg) : null,
         actions.length ? h('div.pg-actions', actions) : null);

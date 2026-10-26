@@ -19,9 +19,6 @@ let crackDecal = null;
 //               und ist danach kurz benommen (Gelegenheit für freie Treffer)
 // Phasen: 1 (>60 % LP), 2 (60–30 %), 3 (<30 %, rasend).
 // Für Anzeige und Tests: hp, maxHp, phase, def.name, def.bossId, world.boss.
-// Unterklassen (StarBosses.js) nutzen Rig, Bewegung und Grundangriffe und hängen sich über drei Haken ein:
-//   phaseText(phase) → [Titel, Untertitel] des Banners, special(world, dist) → true, wenn ein eigener Angriff
-//   beginnt (dann mit beginAttack/endAttack), updateSpecial(dt, world) für eigene Zustände.
 export class Boss extends Actor {
   constructor(x, y, assets, type = 'bonelord') {
     const def = ENEMY_TYPES[type] ?? ENEMY_TYPES.bonelord;
@@ -184,10 +181,6 @@ export class Boss extends Actor {
         this.vx *= 0.85; this.vy *= 0.85;
         if (Math.random() < 0.5 && this.stateTime < 1.6) world.particles.magic(this.x + rand(-10, 10), this.y - rand(10, 50), 1, 4);
         break;
-
-      default:
-        this.vx *= 0.8; this.vy *= 0.8;
-        this.updateSpecial(dt, world);
     }
     this.integrate(dt, world);
   }
@@ -197,38 +190,23 @@ export class Boss extends Actor {
     const f = this.hp / this.maxHp;
     if (this.phase === 1 && f <= 0.6) {
       this.phase = 2;
-      bossBanner(world, ...this.phaseText(2));
+      bossBanner(world, 'Varkhul ruft die Toten', 'Die Gebeine im Saal erheben sich');
       this.summonTimer = 0;
       this.#roar(world);
       world.bus.emit('bossPhase', { bossId: this.bossId, phase: 2 });
     } else if (this.phase === 2 && f <= 0.3) {
       this.phase = 3;
-      bossBanner(world, ...this.phaseText(3));
+      bossBanner(world, 'Varkhul rast vor Zorn', 'Weiche seinem Ansturm aus');
       this.chargeTimer = 0.5;
       this.#roar(world);
       world.bus.emit('bossPhase', { bossId: this.bossId, phase: 3 });
     }
   }
 
-  phaseText(phase) {
-    return phase === 2 ? ['Varkhul ruft die Toten', 'Die Gebeine im Saal erheben sich'] : ['Varkhul rast vor Zorn', 'Weiche seinem Ansturm aus'];
-  }
-
-  special() { return false; }
-  updateSpecial() {}
-
-  // Eigener Angriff einer Unterklasse: Zustand und Animation setzen, nach `recover` s zurück zur Verfolgung
-  beginAttack(world, state, anim, windup) { this.#begin(world, state, anim, windup); }
-  endAttack(anim, recover = 0.6) {
-    this.setState('strike'); this.recover = recover;
-    if (anim) this.animator.play(anim, true);
-  }
-
   #chooseAttack(world, dist) {
     const hero = world.hero;
     const ang = Math.atan2(hero.y - this.y, hero.x - this.x);
     this.aim = ang;
-    if (this.special(world, dist)) return;
     if (this.phase >= 2 && this.summonTimer <= 0 && this.adds.length < 3) return this.#begin(world, 'castWindup', 'cast', 1.0, { summon: true });
     if (this.phase >= 3 && this.chargeTimer <= 0 && dist > 60) {
       this.chargeTimer = rand(7, 10);
@@ -316,7 +294,7 @@ export class Boss extends Actor {
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + rand(-0.4, 0.4);
         const p = world.dungeon.nearestFree(this.home.x + Math.cos(a) * 70, this.home.y + Math.sin(a) * 45);
-        const e = world.spawnEnemy(this.def.summon ?? 'skeleton', p.x, p.y, { respawned: true, home: { ...this.home } });
+        const e = world.spawnEnemy('skeleton', p.x, p.y, { respawned: true, home: { ...this.home } });
         e.aggroed = true; e.summoned = true; e.xpOverride = 5;
         this.adds.push(e);
         world.particles.magic(p.x, p.y, 14, 10);

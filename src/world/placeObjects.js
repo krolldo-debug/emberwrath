@@ -30,7 +30,6 @@ export function placeObjects(world) {
     const s = e.sprite, r = s.res ?? 1, h = s.canvas.height / r, w = s.canvas.width / r;   // Weltpixel (Feinraster)
     const opts = { sprite: s, glow: e.glow ?? null, box: e.box ?? null, low: e.low ?? (e.box ? e.box[1] > -8 : false), light: e.light ?? null, shadow: e.shadow ?? null };
     if (h > 36) opts.occlude = [-w / 2 + 2, -h + 4, w / 2 - 2, -8];
-    if (e.sortOffset) opts.sortOffset = e.sortOffset;
     if (e.smoke) opts.smoke = e.smoke;
     if (e.embers) opts.embers = e.embers;
     if (e.flames && e.flameAt) {
@@ -184,8 +183,6 @@ export function placeObjects(world) {
     // Fehlt das Bild im Deko-Satz der Zone: Eskorte-/Ritual-Bilder (decor 'cart' | 'caravan' | 'riftCircle')
     let looks = (o.set ? A.sprites[o.set] : decoSet)?.[o.decor] ?? A.sprites.caravan?.[o.decor];
     if (Array.isArray(looks)) looks = looks[0];
-    // over: Ziel an einer Deko der Karte (z. B. Ankerbrunnen in Sternhafen), ohne eigenes Bild
-    if (!looks && o.over) looks = {};
     if (!looks) continue;
     const obj = world.spawn(new WorldObject(o.x * T + T / 2, o.y * T + T - 2, { id: o.id, kind: o.kind, looks, prompt: o.prompt, pickup: o.kind === 'item' }));
     const s = (looks.off ?? looks).sprite;
@@ -252,9 +249,7 @@ export function placeObjects(world) {
     const minLevel = p.requires?.minLevel ?? (zone?.instanced && p.requires?.level ? Math.max(1, p.requires.level - 3) : null);
     if (p.requires?.level) subs.push(`Empfohlen ab Stufe ${p.requires.level}`);
     const sub = subs.length ? subs.join(' · ') : null;
-    const looks = p.decor ? decoSet?.[p.decor] ?? null : null;
-    const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir, minLevel, quest: p.requires?.quest ?? null, locked: p.locked ?? null, looks }));
-    if (looks?.off?.box ?? looks?.box) { const [a, b, c, dd] = looks.off?.box ?? looks.box; d.boxes.push({ x0: portal.x + a, y0: portal.y + b, x1: portal.x + c, y1: portal.y + dd, low: true }); }
+    const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir, minLevel }));
     world.interactables.push(portal);
   }
 
@@ -267,7 +262,7 @@ export function placeObjects(world) {
   for (const m of d.npcMarks) {
     const def = world.session.content.find('npc', m.npcId);
     if (!def) continue;
-    const anims = A.sprites.npcs[m.npcId] ?? A.sprites.npcs2?.[m.npcId] ?? A.sprites.npcs3?.[m.npcId] ?? A.sprites.npcs_stars?.[m.npcId] ?? A.sprites.npcs2?.trader_vesk;
+    const anims = A.sprites.npcs[m.npcId] ?? A.sprites.npcs2?.[m.npcId] ?? A.sprites.npcs3?.[m.npcId] ?? A.sprites.npcs2?.trader_vesk;
     if (!anims?.idle) continue;
     const npc = world.spawn(new Npc(m.npcId, m.x, m.y, def, anims, world));
     world.interactables.push(npc);

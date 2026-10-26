@@ -12,31 +12,15 @@ import { footprint } from '../systems/Physics.js';
 
 // Übergang in eine andere Zone (Dungeon-Eingang, Treppe, Rückkehr-Portal).
 export class Portal extends Entity {
-  constructor(x, y, { id, to, prompt, range = 24, sub = null, visual = null, dir = null, minLevel = null, quest = null, locked = null, looks = null }) {
+  constructor(x, y, { id, to, prompt, range = 24, sub = null, visual = null, dir = null, minLevel = null }) {
     super(x, y);
     this.portalId = id; this.to = to; this.promptText = prompt; this.interactRange = range; this.sub = sub;
     this.minLevel = minLevel; // harte Sperre (Dungeons ab empfohlener Stufe − 3)
-    // Questsperre (Sternentor in der Glutöde): erst offen, wenn die Quest abgeschlossen ist; looks = { off, on }
-    // aus dem Deko-Satz zeigt den Zustand (Licht und Leuchtebene inklusive)
-    this.quest = quest; this.locked = locked; this.looks = looks;
     // visual 'road': Wegausgang am Kartenrand – glimmende Pfeile am Boden zeigen hinaus
     this.visual = visual; this.dir = dir ?? [0, -1]; this.t = 0;
     if (visual === 'road') this.sortOffset = -9000;
   }
-  isOpen(world) { return !this.quest || !!world.state.slices.quests?.completed?.includes(this.quest); }
   update(dt, world) {
-    if (this.looks) {
-      this.t += dt;
-      this.look = (this.isOpen(world) && this.looks.on) || this.looks.off || this.looks;
-      const L = this.look.light ?? null;
-      if (L !== this.lightDef) {
-        if (this.light) this.light.dead = true;
-        this.light = L ? world.addLight(new Light({ x: this.x + (L.dx ?? 0), y: this.y + (L.dy ?? 0), radius: L.radius, color: L.color, intensity: L.intensity ?? 0.9, flicker: 0.15, bloom: 0.4 })) : null;
-        this.lightDef = L;
-      }
-      if (this.look === this.looks.on && Math.random() < dt * 5) world.particles.magic(this.x + (Math.random() - 0.5) * 16, this.y - 10 - Math.random() * 60, 1, 6);
-      return;
-    }
     if (this.visual !== 'road') return;
     this.t += dt;
     const near = Math.hypot(world.hero.x - this.x, world.hero.y - this.y) < 160;
@@ -45,14 +29,7 @@ export class Portal extends Entity {
       world.particles.embers?.(this.x - dx * 20 + (Math.random() - 0.5) * 18 * Math.abs(dy), this.y - dy * 20 + (Math.random() - 0.5) * 18 * Math.abs(dx), 1);
     }
   }
-  render(ctx, cx, cy) { this.look?.sprite?.draw(ctx, this.x - cx, this.y - cy); }
   renderEmissive(ctx, cx, cy) {
-    if (this.look?.glow) {
-      ctx.globalAlpha = 0.75 + 0.25 * Math.sin(this.t * 2.4);
-      drawGlowLayer(ctx, this.look.sprite, this.look.glow, this.x - cx, this.y - cy);
-      ctx.globalAlpha = 1;
-      return;
-    }
     if (this.visual !== 'road') return;
     const [dx, dy] = this.dir;
     const px = -dy, py = dx; // quer zur Richtung
@@ -73,10 +50,6 @@ export class Portal extends Entity {
   prompt() { return this.sub ? `${this.promptText} (${this.sub})` : this.promptText; }
   promptAnchor() { return { x: this.x, y: this.y - 26 }; }
   interact(world) {
-    if (!this.isOpen(world)) {
-      world.bus.emit(EV.UI_TOAST, { text: this.locked ?? 'Der Weg ist noch verschlossen.', kind: 'warn' });
-      return;
-    }
     if (this.minLevel && (world.hero.level ?? 1) < this.minLevel) {
       world.bus.emit(EV.UI_TOAST, { text: `Zu gefährlich – erst ab Stufe ${this.minLevel}.`, kind: 'warn' });
       return;

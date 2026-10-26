@@ -87,8 +87,8 @@ export const cleanName = (s) => cleanText(s, NAME_MAX) || 'Unbekannt';
 export const cleanChat = (s) => cleanText(s, CHAT_MAX);
 
 const int = (v, lo, hi, d = 0) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
-// Höchststufe des Spiels (progression/xp.js LEVEL_CAP). Steigt sie, hier mitziehen (Test prüft das).
-export const LEVEL_MAX = 50;
+// Höchststufe des Spiels (INTEGRATION.md §12). Steigt sie, hier mitziehen.
+export const LEVEL_MAX = 40;
 export const cleanLevel = (v) => int(v, 1, LEVEL_MAX, 1);
 
 // Zustand prüfen und normalisieren (Server bei Empfang, Client beim Senden). -> Array oder null

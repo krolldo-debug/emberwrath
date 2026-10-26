@@ -33,7 +33,7 @@ function scaleAttack(a, k) {
 }
 
 // base: Vorbild aus ENEMY_TYPES; L: [min, max] oder Zahl; hp/dmg/xp: Rollen-Faktoren relativ zum Vorbild
-export function derive(T, baseId, id, name, L, { hp = 1, dmg = 1, xp = 1, sprites = id, ...over } = {}) {
+function derive(T, baseId, id, name, L, { hp = 1, dmg = 1, xp = 1, sprites = id, ...over } = {}) {
   const b = T[baseId];
   const bL = b.levels?.[0] ?? b.level ?? 1;
   const nL = Array.isArray(L) ? L[0] : L;

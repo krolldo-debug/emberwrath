@@ -1,7 +1,7 @@
 // Lesende Abfragen auf die Slices von Thread C (progress, inventory, wallet, quests).
 // Reine Funktionen ohne Seiteneffekte und ohne DOM – für HUD, Panels, Held, Welt (Questpfad)
 // und später den Server. Schreiben geht nur über die Commands in logic.js.
-import { LEVEL_CAP, xpToNext, totalXpForLevel, paceXp } from './xp.js';
+import { LEVEL_CAP, xpToNext, totalXpForLevel } from './xp.js';
 import { EQUIP_SLOTS, RARITIES, itemScore } from './items.js';
 import { pickRewardGear } from './loot.js';
 
@@ -303,12 +303,6 @@ export function questTarget(state, content) {
 }
 
 // Belohnungsgegenstände einer Quest, inkl. aufgelöster Klassen-Ausrüstung (deterministisch).
-// Belohnung einer Quest, wie dieser Charakter sie bekommt (Erfahrung nach seinem Tempo)
-export function questRewards(state, def) {
-  const r = def?.rewards ?? {};
-  return r.xp ? { ...r, xp: paceXp(state.slices.progress, r.xp) } : r;
-}
-
 export function questRewardItems(state, content, questId) {
   const def = content.find('quest', questId);
   if (!def) return [];

@@ -12,7 +12,7 @@
 // B: Brett-Objekt `quest_board` in den Städten → EV 'board:open' { zoneId, boardId } (ProgressionSystem öffnet das Panel),
 //    Leucht-Hinweis über game.progression.boardHasOffers(zoneId).
 import { EV } from '../core/events.js';
-import { questXp, LEVEL_CAP } from './xp.js';
+import { questXp } from './xp.js';
 
 export const BOARD_OFFERS = 3;
 export const WEEK_GOAL = 10;
@@ -33,15 +33,11 @@ export const BOARD_REGIONS = [
   { id: 'frost', min: 31, max: 35, name: 'Frostzinnen', enemies: ['frost_wolf', 'snow_stalker', 'ice_troll', 'frost_revenant', 'snow_burrower'], elites: ['ice_troll_chief'], mats: ['frost_pelt', 'troll_fat', 'rime_crystal'], bosses: ['rot_mother', 'frost_wyrm'] },
   { id: 'wastes', min: 36, max: 39, name: 'Glutöde', enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'cinder_bombardier', 'phase_wraith'], elites: ['waste_colossus'], mats: ['pilgrim_relic', 'magma_scale'], bosses: ['frost_wyrm', 'ash_sovereign'] },
   { id: 'endgame', min: 40, max: 40, name: 'Ganz Emberwrath', enemies: ['ash_wraith', 'cinder_knight', 'phase_wraith', 'frost_revenant', 'marsh_hag', 'cinder_bombardier'], elites: ['waste_colossus', 'ice_troll_chief', 'bog_horror', 'steppe_warlord'], mats: ['magma_scale', 'rime_crystal', 'bog_iron'], bosses: ['barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign'], trials: true },
-  // Sternenglut Teil 1 (Stufe 40 bleibt in der alten Welt: wer „Heimkehr“ noch nicht hat, kommt nicht durch den Riss)
-  { id: 'gardens', min: 41, max: 45, name: 'Treibende Gärten', enemies: ['bloom_stalker', 'void_wisp', 'rootbound', 'vine_horror', 'garden_golem', 'star_moth'], elites: ['withered_warden'], mats: ['lichtmoss', 'heartwood_sap'], bosses: ['ysgarn'] },
-  { id: 'shards', min: 46, max: LEVEL_CAP - 1, name: 'Splitterweiten', enemies: ['shard_crawler', 'mad_prospector', 'glass_sentinel', 'prism_elemental', 'void_hound', 'statue_wraith'], elites: ['splinter_colossus'], mats: ['star_shard', 'prism_dust'], bosses: ['ysgarn', 'kaldris', 'ysmeine'] },
-  { id: 'starfall', min: LEVEL_CAP, max: LEVEL_CAP, name: 'Sternenscherben', enemies: ['rootbound', 'vine_horror', 'glass_sentinel', 'prism_elemental', 'void_hound', 'star_seer', 'shadow_ranger'], elites: ['withered_warden', 'splinter_colossus'], mats: ['void_glass', 'void_bloom', 'star_shard'], bosses: ['ysgarn', 'kaldris', 'ysmeine'], trials: true },
 ];
 // Stufen der Brett-Eliten (wie entities/enemyTypes*.js, der Test prüft das). Kopfgeld gibt es erst, wenn der Held
 // höchstens ELITE_REACH Stufen darunter liegt: Eliten ab 20 kämpfen 2 Stufen höher (levelGap.js), am unteren Rand
 // einer Region wären sie sonst kaum zu schaffen.
-export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 39, withered_warden: 44, splinter_colossus: 49 };
+export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 39 };
 export const ELITE_REACH = 3;
 export function boardElites(region, level) { return region.elites.filter((id) => (ELITE_LEVEL[id] ?? 0) <= level + ELITE_REACH); }
 
@@ -81,7 +77,7 @@ export function boardOffers(day, level) {
 
 // Belohnung je Auftrag. Bis 39 Erfahrung (klein, das Brett ist eine Zugabe), ab 40 mehr Gold und Material.
 export function offerRewards(offer, level) {
-  const cap = level >= LEVEL_CAP;
+  const cap = level >= 40;
   const heavy = offer.kind === 'boss' || offer.kind === 'trial' || offer.kind === 'champion' ? 1.6 : offer.kind === 'elite' ? 1.3 : 1;
   const gold = Math.round((20 + level * 9) * heavy * (cap ? 2.5 : 1));
   const region = BOARD_REGIONS.find((r) => r.id === offer.region) ?? boardRegion(level);
@@ -119,7 +115,7 @@ export function registerBoardState(state, h) {
   state.defineSlice('board', {
     create: () => fresh(Date.now()),
     deserialize: (raw) => ({
-      day: raw.day | 0, level: Math.max(1, Math.min(LEVEL_CAP, raw.level | 0 || 1)), week: raw.week | 0,
+      day: raw.day | 0, level: Math.max(1, Math.min(40, raw.level | 0 || 1)), week: raw.week | 0,
       taken: Object.fromEntries(Object.entries(raw.taken ?? {}).filter(([, v]) => Number.isFinite(v) && v >= 0)),
       done: Array.isArray(raw.done) ? raw.done.filter((x) => typeof x === 'string') : [],
       weekDone: Math.max(0, raw.weekDone | 0), weekClaimed: !!raw.weekClaimed,
@@ -155,7 +151,7 @@ export function registerBoardState(state, h) {
     b.weekDone++;
     h.addGold(s, ctx, r.gold, `board:${offer.kind}`);
     for (const it of r.items) h.addItem(s, ctx, it.itemId, it.qty, 'quest', { overflow: true });
-    if (r.xp) r.xp = h.grantXp(s, ctx, r.xp, `board:${offer.kind}`); // tatsächlich gutgeschrieben
+    if (r.xp) h.grantXp(s, ctx, r.xp, `board:${offer.kind}`);
     ctx.bus.emit('board:changed', { offerId, claimed: true });
     return { ok: true, rewards: r };
   }, auth);

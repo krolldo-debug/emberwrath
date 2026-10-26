@@ -1,5 +1,4 @@
 import { makeRng } from './rng.js';
-import { LEVEL_CAP } from '../progression/xp.js';
 import { RACE_HAIR, DYES } from '../character/cosmetics.js';
 
 // Söldner: Mitspieler, die die Gruppensuche stellt, wenn keine echten Spieler passen.
@@ -51,7 +50,7 @@ export function makeMerc(rng, { role = 'dps', level = 1, takenNames = new Set(),
   const name = mercName(rng, takenNames);
   takenNames.add(name.toLowerCase());
   // Söldner haben immer genau die Stufe des Helden (Nutzer 16.10.)
-  const lv = Math.max(1, Math.min(LEVEL_CAP, level));
+  const lv = Math.max(1, Math.min(40, level));
   return {
     kind: 'merc',
     id: `m${(rng() * 0xffffffff) >>> 0}`,

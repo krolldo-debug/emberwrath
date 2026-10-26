@@ -11,5 +11,4 @@ export const PLACES = {
   blighted_marsh: { dx: 144, dy: 30, lectern: -1 }, // Marktplattform östlich des Hügels
   frostspire: { dx: 48, dy: -66, lectern: -1 },    // vor dem Langhaus, rechts des Wegsteins
   ember_wastes: { dx: 112, dy: 30, lectern: -1 },  // Ostseite des Bastionshofs
-  sternhafen: { dx: 256, dy: 224, lectern: -1 },    // Sternmarkt, Ostrand des Platzes
 };

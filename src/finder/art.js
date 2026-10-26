@@ -13,14 +13,11 @@ const THEMES = {
   spore_hollow: { sky: ['#0c0a10', '#161424', '#22182e'], ground: ['#2a3a1a', '#18220e'], stone: ['#2a2a22', '#4a4a36', '#6e6e4e'], glow: ['#2a3a0a', '#8ab020', '#e8ff7a'], accent: '#c890f0' },
   rime_caverns: { sky: ['#0a1426', '#142a46', '#1e4262'], ground: ['#c8dcec', '#7a9ab8'], stone: ['#2a3e5a', '#4a6a8e', '#8ab0d0'], glow: ['#1a3a5a', '#5ab0e0', '#e0f8ff'], accent: '#ffffff' },
   ashen_throne: { sky: ['#1a0408', '#3a0a0c', '#5a1a10'], ground: ['#2a1a18', '#140c0c'], stone: ['#1e1418', '#3a2a2e', '#5e4a4a'], glow: ['#5a1a08', '#e8742c', '#fff0a0'], accent: '#e8c25a' },
-  rankengruft: { sky: ['#0e0a16', '#1a1226', '#281a34'], ground: ['#325236', '#1a2e22'], stone: ['#2f293b', '#544a63', '#8a83a2'], glow: ['#3a1630', '#c86a98', '#ffd8ea'], accent: '#eca0c0' },
-  glass_halls: { sky: ['#060a16', '#0e1830', '#18284a'], ground: ['#2c3f66', '#17223c'], stone: ['#2a3044', '#6e7a98', '#cad4ea'], glow: ['#164660', '#5ccbea', '#e8faff'], accent: '#ffffff' },
-  observatory: { sky: ['#04050e', '#0a0e22', '#141a36'], ground: ['#263154', '#141a32'], stone: ['#1c2442', '#3c4878', '#8a96c8'], glow: ['#3a2810', '#ecc862', '#fff4c8'], accent: '#ecc862' },
   random: { sky: ['#0a0612', '#140c22', '#201434'], ground: ['#24182e', '#140c1c'], stone: ['#2a2234', '#463a54', '#6a5c7a'], glow: ['#2a0c4a', '#7a3ad0', '#e0b8ff'], accent: '#e8c25a' },
 };
 
 // ------------------------------------------------------------------ Wappen (16×16)
-const EP = { P: '#c86a98', Q: '#eca0c0', M: '#456a42', o: O, w: '#e2e8f2', s: '#9ea9bf', t: '#454c5e', g: '#e8c25a', d: '#8a5a18', h: '#fff4c0', b: '#2a8aa0', c: '#a0f0f0', n: '#145a6a', e: '#f07a1c', y: '#ffd27a', r: '#98182a', m: '#c890f0', p: '#6a3aa0', l: '#8ab020', k: '#4a3a2a', i: '#e0f8ff', u: '#5ab0e0', v: '#2a5a8e', f: '#3a2a2e' };
+const EP = { o: O, w: '#e2e8f2', s: '#9ea9bf', t: '#454c5e', g: '#e8c25a', d: '#8a5a18', h: '#fff4c0', b: '#2a8aa0', c: '#a0f0f0', n: '#145a6a', e: '#f07a1c', y: '#ffd27a', r: '#98182a', m: '#c890f0', p: '#6a3aa0', l: '#8ab020', k: '#4a3a2a', i: '#e0f8ff', u: '#5ab0e0', v: '#2a5a8e', f: '#3a2a2e' };
 const EMBLEMS = {
   // Schädel über gekreuzten Knochen
   catacombs: [
@@ -65,25 +62,6 @@ const EMBLEMS = {
     '..ofo......ofo..', '..ofo......ofo..', '..ooo......ooo..', '................',
   ],
 };
-
-// Sternenscherben: Blüte am Dornenstiel, Kristallgruppe, Kuppel der Sternwarte mit Fernrohr
-Object.assign(EMBLEMS, {
-  rankengruft: [
-    '................', '.....oo..oo.....', '....oQPooQPo....', '...oQPPPPPPPo...', '...oPPPhhPPPo...', '..ooPPhyyhPPoo..',
-    '.oQPPPPyyPPPPPo.', '.oPPPPPPPPPPPo..', '..ooPPPPPPPoo...', '....oooMoooo....', '..oo...oMo.oo...', '.oMMo.oMo.oMMo..',
-    '..oMMooMooMMo...', '...ooMMMMMoo....', '......oMo.......', '.....ooMoo......',
-  ],
-  glass_halls: [
-    '.......oo.......', '......oiuo......', '......oiuo......', '.....oiiuvo.....', '..oo.oiiuvo.oo..', '.oiuooiiuvoouvo.',
-    '.oiuvoiiuvoiuvo.', '.oiuvoiiuvoiuvo.', '.oiuvoiiuvoiuvo.', '.oiuvoiiuvoiuvo.', '..oiuoiiuvoiuo..', '...ooiiiuvvoo...',
-    '...osssssssso...', '..ossssssssssso.', '..otttttttttto..', '...oooooooooo...',
-  ],
-  observatory: [
-    '..h.............', '.hgh........oo..', '..h........oso..', '.....oooooosso..', '...oovvvvvsso...', '..ovvvvvvssovo..',
-    '.ovvvvvvssvvvvo.', '.ovvvvvvovvvvvo.', 'oooooooooooooooo', 'ogggggggggggggdo', 'osssssssssssssto', 'osstoossstoossto',
-    'osstoossstoossto', 'osssssssssssssto', 'otttttttttttttto', 'oooooooooooooooo',
-  ],
-});
 
 export function dungeonEmblem(id, scale = 2) {
   const art = EMBLEMS[id];
@@ -224,33 +202,6 @@ const SCENES = {
     for (const [cx, h] of [[8, 34], [20, 24], [92, 26], [104, 36]]) { p.rect(cx - 4, 46 - h, 8, h, '#140608'); for (let i = 0; i < 4; i++) p.px(cx - 3 + i * 2, 45 - h, '#140608'); p.px(cx, 40 - h + 8, '#e8742c'); }
     for (const bx of [GX - 26, GX + 22]) { p.rect(bx, 16, 4, 22, '#98182a'); p.rect(bx, 16, 1, 22, '#c8303a'); p.px(bx + 1, 38, '#98182a'); p.px(bx + 2, 38, '#98182a'); p.rect(bx + 1, 22, 2, 2, t.accent); p.rect(bx - 1, 15, 6, 1, t.stone[2]); }
     for (let i = 0; i < 30; i++) p.px(Math.floor(r() * W), Math.floor(r() * 46), r() < 0.35 ? '#e8742c' : '#6a5050');
-  },
-  rankengruft(p, t, r) {
-    // Ranken hängen von oben, Blütenbäume links und rechts, verwehte Blütenblätter
-    for (let x = 2; x < W; x += 5) { const h = 4 + Math.floor(r() * 14); for (let y = 0; y < h; y++) p.px(x + (y % 4 === 3 ? 1 : 0), y, y % 3 ? '#325236' : '#456a42'); if (r() < 0.5) p.px(x, h, '#c86a98'); }
-    for (const [cx, w] of [[14, 12], [100, 13]]) {
-      p.rect(cx - 1, 26, 3, 22, '#2c1e24'); p.rect(cx - 1, 26, 1, 22, '#452e30');
-      for (let y = -6; y <= 6; y++) for (let x = -w; x <= w; x++) if ((x * x) / (w * w) + (y * y) / 36 <= 1) p.px(cx + x, 22 + y, (x + y) % 5 === 0 ? '#eca0c0' : y < -2 ? '#c86a98' : '#8a3a6a');
-    }
-    for (let i = 0; i < 22; i++) p.px(Math.floor(r() * W), 10 + Math.floor(r() * 40), r() < 0.5 ? '#eca0c0' : '#ffd8ea');
-  },
-  glass_halls(p, t, r) {
-    // Sterne, Kristalltürme, Glanzpunkte
-    for (let i = 0; i < 26; i++) p.px(Math.floor(r() * W), Math.floor(r() * 30), r() < 0.3 ? '#ffffff' : '#4a62a0');
-    for (const [cx, h, w] of [[10, 34, 4], [22, 22, 3], [90, 26, 3], [103, 38, 5]]) for (let y = 0; y < h; y++) {
-      const hw = Math.max(1, Math.round(w * Math.min(1, (y + 1) / 6)));
-      p.rect(cx - hw, 46 - h + y, hw, 1, '#74a4c0'); p.rect(cx, 46 - h + y, hw, 1, '#2a4a66'); if (y === 0) p.px(cx, 46 - h, '#ffffff');
-    }
-    for (let i = 0; i < 12; i++) p.px(Math.floor(r() * W), 30 + Math.floor(r() * 16), '#b8f2ff');
-  },
-  observatory(p, t, r) {
-    // Sternhimmel mit Sichel, Sternbild, Säulen mit Goldkapitell
-    for (let i = 0; i < 40; i++) p.px(Math.floor(r() * W), Math.floor(r() * 40), r() < 0.25 ? '#ffffff' : r() < 0.5 ? '#a8b8ec' : '#3a4670');
-    for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (x * x + y * y <= 36 && (x - 3) ** 2 + (y - 2) ** 2 > 25) p.px(18 + x, 12 + y, '#fff0b0');
-    const st = [[80, 8], [88, 14], [97, 10], [104, 18]];
-    for (let i = 1; i < st.length; i++) { const [ax, ay] = st[i - 1], [bx, by] = st[i]; for (let k = 0; k <= 8; k++) if (k % 2 === 0) p.px(Math.round(ax + (bx - ax) * k / 8), Math.round(ay + (by - ay) * k / 8), '#344268'); }
-    for (const [x, y] of st) { p.px(x, y, '#ffffff'); p.px(x - 1, y, '#a8b8ec'); p.px(x + 1, y, '#a8b8ec'); }
-    for (const cx of [GX - 30, GX + 30]) { p.rect(cx - 3, 20, 6, 28, t.stone[1]); p.rect(cx - 3, 20, 1, 28, t.stone[2]); p.rect(cx + 2, 20, 1, 28, t.stone[0]); p.rect(cx - 5, 17, 10, 3, '#cc9c3c'); p.rect(cx - 5, 17, 10, 1, '#ecc862'); }
   },
   random(p, t, r) {
     // Halle der Portale: Säulen mit violetten Feuerschalen, schwebende Funken, Runenkreis am Boden

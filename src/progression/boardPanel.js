@@ -9,7 +9,6 @@ import { iconEl, itemIconId } from '../gfx/Icons.js';
 import { RARITIES } from './items.js';
 import { serverNow } from './clock.js';
 import { fmtNum } from '../i18n/index.js';
-import { paceXp } from './xp.js';
 
 const commit = (s, type, payload) => s.state.commit(type, payload);
 
@@ -82,7 +81,7 @@ function dailySection(s, today, view) {
   });
   // Antippen (Handy) zeigt den Inhalt eines Tages unter der Leiste; Maus hat den Tooltip
   const pick = view.day ? h('div.pg-daily-pick', h('b', `Tag ${view.day}`), dayTip(c, loginReward(view.day, level))) : null;
-  const win0 = firstWinReward(level), win = { ...win0, xp: paceXp(s.state.slices.progress, win0.xp) }, winDone = d.winDay === today;
+  const win = firstWinReward(level), winDone = d.winDay === today;
   return section('Tagesbelohnung', d.streak ? `Tag ${d.streak} von ${STREAK_DAYS}` : 'Ab morgen',
     h('ol.pg-daily-days', days),
     pick,
@@ -105,7 +104,7 @@ export function boardView(s) {
     const now = serverNow(), today = boardDay(now);
 
     const offers = boardOffers(b.day, b.level).map((o) => {
-      const t = offerText(o, c), r0 = offerRewards(o, level), r = { ...r0, xp: paceXp(st.slices.progress, r0.xp) };
+      const t = offerText(o, c), r = offerRewards(o, level);
       const done = b.done.includes(o.id), taken = b.taken[o.id];
       const ready = taken != null && taken >= o.count;
       const act = done ? doneTag()

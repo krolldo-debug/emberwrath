@@ -11,7 +11,7 @@
 // Zeit: `now` kommt als Parameter (Serverzeit aus clock.js). Tage und Wochen gehen nie rückwärts.
 import { EV } from '../core/events.js';
 import { boardDay, boardWeek, boardRegion, mulberry } from './board.js';
-import { questXp, LEVEL_CAP } from './xp.js';
+import { questXp } from './xp.js';
 import { potionFor } from './loot.js';
 import { TRIAL_MAX_TIER } from './trials.js';
 
@@ -43,7 +43,7 @@ export function loginReward(n, level) {
 
 // Erster Sieg des Tages: etwas Erfahrung und Gold, auf Stufe 40 Gold und Glutsplitter
 export function firstWinReward(level) {
-  const cap = level >= LEVEL_CAP;
+  const cap = level >= 40;
   return { xp: cap ? 0 : questXp(level, 0.1), gold: unit(level) * (cap ? 3 : 1), items: cap ? [{ itemId: 'ember_shard', qty: 2 }] : [] };
 }
 
@@ -174,7 +174,7 @@ export function dailyWin(s, ctx, h, e) {
     d.winDay = today;
     const r = firstWinReward(level);
     if (r.gold) h.addGold(s, ctx, r.gold, 'daily:win');
-    if (r.xp) r.xp = h.grantXp(s, ctx, r.xp, 'daily:win'); // tatsächlich gutgeschrieben (Tempo des Charakters)
+    if (r.xp) h.grantXp(s, ctx, r.xp, 'daily:win');
     for (const it of r.items) h.addItem(s, ctx, it.itemId, it.qty, 'quest', { overflow: true });
     ctx.bus.emit('daily:firstWin', r);
   }

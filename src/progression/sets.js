@@ -101,29 +101,4 @@ export const SETS = {
       { count: 5, stats: { critChance: 0.08, moveSpeed: 0.06, power: 36 } },
     ],
   },
-  // ------------------------------------------------ Sternenglut Teil 1 (items50.js): Dungeon-Sets vom Boss
-  gardener: {
-    name: 'Rinde des Alten Gärtners', source: 'Ysgarn, der Alte Gärtner (Rankengruft)',
-    pieces: ['gardener_cap', 'gardener_jerkin', 'gardener_grips', 'gardener_boots'],
-    bonuses: [
-      { count: 2, stats: { agi: 22, critChance: 0.03 } },
-      { count: 4, stats: { power: 32, maxHp: 260, moveSpeed: 0.03 } },
-    ],
-  },
-  splinterlord: {
-    name: 'Spiegelrüstung des Splitterfürsten', source: 'Kaldris, der Splitterfürst (Gläserne Hallen)',
-    pieces: ['kaldris_helm', 'kaldris_cuirass', 'kaldris_gauntlets', 'kaldris_sabatons'],
-    bonuses: [
-      { count: 2, stats: { str: 24, armor: 48 } },
-      { count: 4, stats: { maxHp: 440, power: 34 } },
-    ],
-  },
-  nightqueen: {
-    name: 'Sternenkleid der Schattenkönigin', source: 'Königin Ysmeine (Sternwarte)',
-    pieces: ['ysmeine_circlet', 'ysmeine_gown', 'ysmeine_gloves', 'ysmeine_slippers'],
-    bonuses: [
-      { count: 2, stats: { int: 26, maxResource: 70 } },
-      { count: 4, stats: { critChance: 0.06, power: 40, maxHp: 280 } },
-    ],
-  },
 };

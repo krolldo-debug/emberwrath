@@ -1723,7 +1723,7 @@ export function abilityIcon(abilityId, def) {
 // helm_tN / hood_tN, gloves_<stil>_tN, boots_<stil>_tN (stil: cloth, leather, mail, plate), ring_tN, amulet_tN.
 // Fehlt eine Stufe (z. B. _t9), nimmt resolve() die nächstniedrigere (§12.7).
 // Farben je Stufe: character/gearLook.js TIER_LOOK (dieselbe Quelle wie am Helden).
-export const ICON_TIERS = Object.freeze([5, 6, 7, 8, 9, 10]);
+export const ICON_TIERS = Object.freeze([5, 6, 7, 8]);
 for (const n of ICON_TIERS) {
   const T = TIER_LOOK[n], t = `_t${n}`;
   const blade = { blade: T.metal, guard: T.trim, gemRamp: T.gem, grip: T.grip, fuller: !T.jag, jag: !!T.jag, glow: T.glow, width: 2.4 };
@@ -1733,7 +1733,7 @@ for (const n of ICON_TIERS) {
   AXES[`axe${t}`] = { head: T.metal, haft: T.wood, double: n >= 7, bearded: n === 5, spike: n >= 6, glow: T.glow };
   MACES[`mace${t}`] = { head: T.metal, haft: T.wood, flanged: n === 5 || n === 7, spikes: n === 6 || n === 8, r: 4 };
   STAFFS[`staff${t}`] = { wood: T.wood, top: T.top, ramp: n === 6 ? M.green : n === 7 ? M.frost : T.gem, bands: n >= 7, gnarled: n === 6 };
-  WANDS[`wand${t}`] = { wood: T.wood, top: n === 7 || n >= 9 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
+  WANDS[`wand${t}`] = { wood: T.wood, top: n === 7 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
   BOWS[`bow${t}`] = { wood: T.wood, recurve: n >= 6, long: n === 7, tips: T.trim[3], grip: T.gem[3], string: n === 7 ? '#e8f0ff' : undefined };
   ARMORS[`cloth${t}`] = { ramp: T.cloth, style: 'robe', trim: T.trim, long: n >= 7, emblem: T.gem, glow: T.glow };
   ARMORS[`leather${t}`] = { ramp: T.leather, style: 'leather', shoulder: T.fur, emblem: n >= 7 ? T.gem : undefined };
@@ -1759,7 +1759,7 @@ SWORDS.greatsword_t8 = { blade: M.ashsteel, guard: M.gold, gemRamp: M.ember, gri
 // ---------------------------------------------------------------- Reittiere (mount_<id>, §12.6)
 // Kopf und Hals im Profil (Blick nach rechts), aus Ellipsen und Kapseln zusammengesetzt.
 // spec: { hide, mane, maneStyle ('hair'|'ruff'|'fire'), kind ('horse'|'wolf'|'bird'|'drake'), eye, ears, antlers, horns,
-//         spikes, bone, bridle, mouthGlow, beak, ramHorn }
+//         spikes, bone, bridle, mouthGlow, beak }
 const inEll = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
 function inCapsule(x, y, x0, y0, r0, x1, y1, r1) {
   const dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy;
@@ -1822,15 +1822,6 @@ function mountHead(p, o) {
     p.line(11, 5, 7, 0, A[3]); p.line(9, 3, 5, 3, A[2]); p.line(8, 1, 6, -1, A[4]);
     p.line(13, 4, 17, 0, A[3]); p.line(15, 2, 19, 2, A[2]); p.line(16, 1, 15, -1, A[4]);
   }
-  // Widderhorn: dicker, nach hinten gerollter Ring um das Ohr, Rillen in der Rundung
-  if (o.ramHorn) {
-    const Hn = o.ramHorn;
-    for (let y = 0; y < 13; y++) for (let x = 3; x < 15; x++) {
-      const dx = x + 0.5 - 9, dy = y + 0.5 - 6.5, r = Math.hypot(dx, dy * 1.1);
-      if (r < 2.4 || r > 5.2 || (dx > 0.8 && dy > 0.5)) continue;
-      p.px(x, y, (x + y) % 3 === 0 ? Hn[1] : r < 3.4 ? Hn[2] : dy < 0 ? Hn[4] : Hn[3]);
-    }
-  }
   if (o.horns) { const Hn = o.horns; p.line(11, 6, 6, 2, Hn[3]); p.line(11, 7, 6, 3, Hn[1]); p.px(5, 1, Hn[4]); p.line(13, 5, 11, 1, Hn[2]); p.px(11, 0, Hn[4]); }
   if (o.spikes) for (let i = 0; i < 5; i++) { const x = K.neck[0] - K.neck[2] + 1 + i * 1.3, y = 21 - i * 3; p.px(Math.round(x - 1), Math.round(y), o.spikes[3]); p.px(Math.round(x - 2), Math.round(y - 1), o.spikes[4]); }
   // Auge (mit Glühen bei magischen Reittieren)
@@ -1881,10 +1872,6 @@ const MOUNTS = {
   // Seltenste Bossbeute (Runde 07.10.)
   mount_hellhound: { kind: 'wolf', hide: ['#080405', '#140a0a', '#261210', '#3e1c16', '#5e2a1c'], mane: M.ember, maneStyle: 'fire', ears: 'tall', horns: M.bone, eye: EYE_GLOW(M.ember), mouthGlow: M.ember, belly: ['#3a0e05', '#7a2208', '#c8420c', '#f07a1c', '#ffd890'] },
   mount_rime_drake: { kind: 'drake', hide: ['#1a2c4a', '#3a6290', '#7eaad0', '#c4e2f6', '#ffffff'], horns: M.silver, spikes: M.frost, eye: ['#0a1838', '#ffffff'], mouthGlow: M.frost, belly: M.frost },
-  // Sternenglut (Stufe 40–50), Farben wie sprites/mounts.js
-  mount_sky_ray: { kind: 'drake', hide: ['#08141e', '#1a3a4e', '#28566a', '#3c7686', '#5a98a4'], belly: ['#806e84', '#b09eae', '#d8c8d0', '#f6ecee', '#ffffff'], spikes: ['#14706e', '#2ab8b8', '#7af0e8', '#b8fff6', '#e0fffa'], eye: ['#04141a', '#9af8f0'] },
-  mount_moon_lynx: { kind: 'wolf', hide: ['#232236', '#3e3e5a', '#64668a', '#9698ba', '#d0d4ec'], mane: ['#3e3e5a', '#64668a', '#9698ba', '#e0e4f6', '#ffffff'], maneStyle: 'ruff', ears: 'tall', eye: ['#141020', '#fff0a8'], belly: M.paper },
-  mount_crystal_ram: { kind: 'horse', hide: ['#4a5a7a', '#7a8eae', '#b4c6de', '#eef6ff', '#ffffff'], mane: ['#1e2638', '#3a4862', '#62748e', '#98aac4', '#d4e2f2'], maneStyle: 'ruff', ramHorn: ['#10141f', '#222a3c', '#3a4862', '#5e7090', '#a4b8d4'], eye: ['#0a1838', '#c0f0ff'] },
   // Exklusive Shop-Designs (character/mounts.js)
   mount_phoenix_wing: { kind: 'drake', hide: ['#5a1208', '#8c220c', '#c04412', '#e8822a', '#ffc85a'], horns: M.gold, spikes: ['#86180a', '#c4340e', '#ec6416', '#ffa22e', '#ffe48a'], eye: ['#3a0804', '#fff0b0'], mouthGlow: M.gold, belly: M.gold },
   mount_astral_stallion: { kind: 'horse', hide: ['#08081e', '#12163a', '#1c265e', '#2a3a8a', '#4660bc'], mane: ['#3a58c0', '#7c9cf0', '#c4d8ff', '#e8f0ff', '#ffffff'], maneStyle: 'fire', ears: true, bridle: M.silver, eye: ['#0a1030', '#ffffff'] },
@@ -2634,18 +2621,6 @@ function mountHeadFine(p, o) {
     const bar = (x0, y0, x1, y1) => { fl(p, x0, y0, x1, y1, A[3]); fl(p, x0 + 0.5, y0 + 0.5, x1 + 0.5, y1 + 0.5, A[1]); fdot(p, Math.floor(x1 * 2), Math.floor(y1 * 2), A[4]); };
     bar(11, 5, 7, 0.2); bar(9.2, 2.8, 5, 2.6); bar(8, 1.3, 6.3, -0.5); bar(13, 4.2, 17, 0.2); bar(15, 2.2, 19.4, 2); bar(16, 1.2, 15.2, -0.5);
   }
-  if (o.ramHorn) {
-    // Widderhorn: nach hinten gerollter Ring um das Ohr, außen hell, innen dunkel, Rillen quer zur Rundung
-    const Hn = o.ramHorn, cx = 9, cy = 7.4;
-    fgrid(p, 3, 1.5, 14.5, 13, (x, y) => {
-      const dx = x - cx, dy = (y - cy) * 1.05, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
-      // Spirale: Ansatz an der Stirn (vorn oben), nach hinten, unten herum, Spitze zeigt nach vorn zur Wange
-      const t = ((a + Math.PI * 0.35) / (Math.PI * 2) + 1) % 1, inner = 2.6 - t * 1.4, outer = 4.6 - t * 1.6;
-      if (r < inner || r > outer || (dx > 0.2 && dy < -0.4 && t > 0.85)) return null;
-      if ((a * 4.2 + 10) % 1 < 0.16) return Hn[1];
-      return r > 4.2 ? (dy < 0 ? Hn[4] : Hn[2]) : r < 2.8 ? Hn[1] : Hn[3];
-    });
-  }
   if (o.horns) {
     const Hn = o.horns;
     fgrid(p, 4.5, 0, 14, 8, (x, y) => {
@@ -2751,10 +2726,6 @@ Object.assign(REG_FINE, Object.fromEntries(Object.entries({
   ore_iron: (p) => oreFine(p, ['#1a1622', '#252030', '#312a3d', '#4d4459', '#6f667c'], M.iron),
   ore_ember: (p) => oreFine(p, ['#140a0c', '#241418', '#342024', '#4a3034', '#6a4a4a'], true, M.ember),
   gem_ruby: (p) => bigGemFine(p, M.red), gem_sapphire: (p) => bigGemFine(p, M.blue), gem_amethyst: (p) => bigGemFine(p, M.purple),
-  // Sternenglut-Material (items50.js): Harz, Sternsplitter, Leerenglas, Lichtmoos
-  gem_amber: (p) => bigGemFine(p, M.gold), gem_starglass: (p) => bigGemFine(p, ['#123040', '#2a6078', '#5ca4c0', '#a8e2f0', '#ffffff']),
-  gem_void: (p) => bigGemFine(p, ['#260a22', '#52144a', '#902a80', '#d258b8', '#ffb8ec']),
-  ore_moss: (p) => oreFine(p, ['#0c140c', '#16221a', '#22322a', '#34483a', '#4c6450'], ['#12302a', '#1e5a48', '#3a9a78', '#7ee0b0', '#d8fff0']),
   key_iron: (p) => keyFine(p, M.iron), key_bone: (p) => keyFine(p, M.bone, true),
 }).map(([id, fn]) => [id, fineIcon(fn)])));
 for (const [alias, target] of Object.entries({ food: 'food_bread', ore: 'ore_iron', gem: 'gem_ruby', key: 'key_iron', ui_map: 'map' })) REG_FINE[alias] ??= REG_FINE[target];

@@ -16,7 +16,6 @@ import { rollLoot } from '../loot.js';
 import { ITEMS } from '../items.js';
 import { PACE } from '../xp.js';
 import { loginReward, firstWinReward, challengeReward, STREAK_DAYS } from '../daily.js';
-import { STAR_NPCS } from '../../world/stars/zones.js';
 
 export const SEC_PER_KILL = 60 / PACE.killsPerMinute;
 export const SEC_PER_QUEST = 30;
@@ -39,25 +38,18 @@ export const ENEMY_LEVELS = {
   ice_elemental: 36, crystal_spider: 36, frozen_knight: 37, frost_wyrm: 37,
   ash_wraith: 37, cinder_knight: 39, magma_serpent: 39, ember_cultist_adept: 38, waste_colossus: 39,
   throne_guard: 39, ash_priest: 39, ember_hellhound: 40, throne_sentinel: 40, ash_sovereign: 40,
-  // Sternenglut Teil 1: Mitte der Stufenspannen aus entities/defs_stars.js
-  bloom_stalker: 41.5, void_wisp: 42, rootbound: 42.5, vine_horror: 42.5, garden_golem: 43, star_moth: 44, thorn_priest: 43, withered_warden: 44, ysgarn: 44,
-  shard_crawler: 46.5, mad_prospector: 46.5, glass_sentinel: 47.5, prism_elemental: 47.5, void_hound: 48.5, statue_wraith: 47, shadow_ranger: 49.5, star_seer: 49.5,
-  splinter_colossus: 49, kaldris: 48, ysmeine: 50,
 };
-const ELITE = new Set(['wolf_alpha', 'bandit_chief', 'magma_behemoth', 'forge_warden', 'steppe_warlord', 'bog_horror', 'ice_troll_chief', 'waste_colossus', 'throne_sentinel', 'withered_warden', 'splinter_colossus']);
-const BOSS = new Set(['bonelord', 'drowned_priestess', 'ember_tyrant', 'barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign', 'ysgarn', 'kaldris', 'ysmeine']);
+const ELITE = new Set(['wolf_alpha', 'bandit_chief', 'magma_behemoth', 'forge_warden', 'steppe_warlord', 'bog_horror', 'ice_troll_chief', 'waste_colossus', 'throne_sentinel']);
+const BOSS = new Set(['bonelord', 'drowned_priestess', 'ember_tyrant', 'barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign']);
 const TRASH = {
   emberhollow: ['wolf'], catacombs: ['skeleton', 'archer'], ashwood: ['bandit', 'ash_boar'], sunken_temple: ['drowned', 'tide_cultist'], cinder_peaks: ['fire_imp', 'magma_hound'], molten_forge: ['forge_golem', 'flame_acolyte'],
   ashen_steppe: ['steppe_raider', 'dust_hyena'], howling_barrow: ['barrow_wight', 'grave_hound'], blighted_marsh: ['bog_lurker', 'swamp_leech'], spore_hollow: ['sporeling', 'fungal_brute'],
   frostspire: ['frost_wolf', 'ice_troll'], rime_caverns: ['ice_elemental', 'crystal_spider'], ember_wastes: ['ash_wraith', 'cinder_knight'], ashen_throne: ['throne_guard', 'ash_priest'],
-  sternhafen: ['bloom_stalker', 'void_wisp'], drifting_gardens: ['bloom_stalker', 'rootbound'], rankengruft: ['rootbound', 'vine_horror'],
-  splitterweiten: ['shard_crawler', 'glass_sentinel'], glass_halls: ['statue_wraith', 'glass_sentinel'], observatory: ['shadow_ranger', 'star_seer'],
 };
 const NPC_ZONE = {
   elder_maren: 'emberhollow', smith_brom: 'emberhollow', warden_ilsa: 'ashwood', herbalist_oona: 'ashwood', trader_vesk: 'ashwood', commander_hale: 'cinder_peaks', seer_ysolde: 'cinder_peaks', quartermaster_dunn: 'cinder_peaks',
   captain_varra: 'ashen_steppe', stablemaster_orla: 'ashen_steppe', nomad_kesh: 'ashen_steppe', trader_imra: 'ashen_steppe', warden_thane: 'blighted_marsh', alchemist_brisa: 'blighted_marsh', trader_moll: 'blighted_marsh',
   jarl_eskil: 'frostspire', hunter_sigrun: 'frostspire', trader_fenn: 'frostspire', marshal_corvane: 'ember_wastes', pilgrim_aldo: 'ember_wastes', quartermaster_ryn: 'ember_wastes',
-  ...Object.fromEntries(Object.entries(STAR_NPCS).map(([id, n]) => [id, n.zoneId])),
 };
 
 function mulberry(seed) {
@@ -66,9 +58,7 @@ function mulberry(seed) {
 }
 
 // until: Quest-ID, nach deren Abgabe die Simulation endet (z. B. 'q_ignaroth' für den Teil bis 20)
-// legacy: Charakter von vor Sternenglut (ohne progress.pace, altes Tempo bis 40); sonst ein neuer Charakter
-// cap: Stufe, bei der die Simulation endet (40: Glutland, 50: Sternenglut Teil 1)
-export function runCampaign({ trash = 2, sideQuests = true, until = null, log = null, seed = 7, legacy = false, cap = 40 } = {}) {
+export function runCampaign({ trash = 2, sideQuests = true, until = null, log = null, seed = 7 } = {}) {
   const bus = new EventBus(), content = new Content();
   const state = new GameState(bus, new LocalAuthority(content), content);
   state.defineSlice('world', { create: () => ({ zoneId: 'emberhollow', bossesDefeated: [] }) });
@@ -76,7 +66,6 @@ export function runCampaign({ trash = 2, sideQuests = true, until = null, log = 
   registerProgressionContent(content);
   registerProgressionState(state, { rng: () => 0.5 });
   setWorldFeatures(['escort', 'defend']);
-  if (legacy) delete state.slices.progress.pace;
   const rng = mulberry(seed);
   const c = (t, p) => state.commit(t, p);
   const P = () => state.slices.progress;
@@ -124,7 +113,7 @@ export function runCampaign({ trash = 2, sideQuests = true, until = null, log = 
     stamp();
   };
 
-  for (let guard = 0; guard < 3000 && P().level < cap; guard++) {
+  for (let guard = 0; guard < 2000 && P().level < 40; guard++) {
     const avail = content.all('quest').filter((q) => (sideQuests || q.main || q.id === 'q_first_ride') && questStatus(state, content, q.id) === 'available');
     const next = avail.filter((q) => !q.repeatable).sort((a, b) => a.level - b.level || (b.main ? 1 : 0) - (a.main ? 1 : 0))[0];
     if (!next) {
@@ -144,7 +133,7 @@ export function runCampaign({ trash = 2, sideQuests = true, until = null, log = 
     if (until && next.id === until) break;
   }
   const minutesPerLevel = {};
-  for (let l = 20; l < cap; l++) if (levelAt[l] != null && levelAt[l + 1] != null) minutesPerLevel[l] = (levelAt[l + 1] - levelAt[l]) / 60;
+  for (let l = 20; l < 40; l++) if (levelAt[l] != null && levelAt[l + 1] != null) minutesPerLevel[l] = (levelAt[l + 1] - levelAt[l]) / 60;
   return {
     milestones, level: P().level, kills, killXp, questXp, questShare: questXp / (questXp + killXp), quests, bounties,
     minutes: seconds / 60, levelAt, goldAt, minutesPerLevel, lootGold, questGold,
@@ -175,21 +164,12 @@ export function dailyGoldPerWeek(level) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const legacy = process.env.LEGACY === '1'; // LEGACY=1: Bestandscharakter (altes Tempo)
-  const r = runCampaign({ log: console.log, legacy });
-  const x = expansionReport({ legacy });
+  const r = runCampaign({ log: console.log });
+  const x = expansionReport();
   console.log(`\nStufe 1–20: ${x.base.minutes.toFixed(0)} min, ${x.base.kills} Kills, Quest-Anteil ${(x.base.questShare * 100).toFixed(0)} %`);
   console.log(`Stufe 20–40: ${x.hours20to40.toFixed(1)} h, Quest-Anteil ${(x.questShare * 100).toFixed(0)} %, ${r.bounties} Kopfgelder, ${r.kills - x.base.kills} Kills`);
   console.log('Minuten je Stufe: ' + Object.entries(r.minutesPerLevel).map(([l, m]) => `${l}:${m.toFixed(0)}`).join(' '));
   console.log(`Gold 20→40: ${Math.round(x.gold20to40)} (Beute komplett verkauft), 25–35: ${Math.round(x.goldPerHour25to35)} Gold/h, bis 30: ${Math.round(x.goldAt(30))}, bis 38: ${Math.round(x.goldAt(38))}`);
   const w = dailyGoldPerWeek(30);
   console.log(`Tagesbelohnung, erster Sieg, Wochenherausforderung auf Stufe 30: ${w} Gold/Woche ≈ ${Math.round(w / x.goldPerHour25to35 * 60)} min Spiel (Gold-Shop: 5.000 Gold = 1,99 €)`);
-  // Sternenglut Teil 1: 40→50 (STAR=1)
-  if (process.env.STAR === '1') {
-    const st = runCampaign({ cap: 50, log: (l) => /^q_(star|last|rift|through|three|anchor|light|roots|root_|gard|hanging|vine|ysgarn|moon|seed|splinter|same|ridge|glass|kaldris|mirror|lake|obs|into|ysmeine|bridge|herald|strand|letter|maren|pell|bren|isell|grave|odda|kel|harrik|mira|dagna|ilse|shadow|tovan|bounty_g|bounty_s|hunt_g|hunt_s|brunna|corvin|ysolde)/.test(l) && console.log(l) });
-    const h = (a, b) => ((st.levelAt[b] ?? NaN) - (st.levelAt[a] ?? NaN)) / 3600;
-    const q = Object.keys(st.milestones).filter((id) => /_star|q_last_errand|q_rift_watch|q_through_the_rift/.test(id) || /^q_/.test(id));
-    console.log(`\nStufe 40–50: ${h(40, 50).toFixed(2)} h Simulation (×3,3 ≈ ${(h(40, 50) * 3.3).toFixed(1)} h echt), Stufe am Ende ${st.level}, ${st.bounties} Kopfgelder insgesamt`);
-    console.log('Minuten je Stufe 40–49: ' + Object.entries(st.minutesPerLevel).filter(([l]) => l >= 40).map(([l, m]) => `${l}:${m.toFixed(0)}`).join(' '));
-  }
 }

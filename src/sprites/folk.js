@@ -12,10 +12,6 @@ const SLATE = ['#16181e', '#262a34', '#3a404e', '#545c6c', '#727c8e'];
 const PLUM = ['#1c1018', '#30192a', '#48263e', '#623654', '#7e4a6c'];
 const TEAL = ['#0e1a1c', '#18302f', '#244644', '#346260', '#4c807c'];
 const FUR = M.fur;
-// Sternhafen (Morgenschimmer): helle Perlstoffe, Schieferblau, Rosé, Gold – etwas festlicher als im Glutland
-const PEARLC = ['#3a3850', '#5a5672', '#7c7896', '#a29eba', '#c8c4da'];
-const SKY = ['#141c2c', '#22304a', '#34486a', '#4a6488', '#6a84a8'];
-const BLUSH = ['#2a1424', '#46223a', '#663452', '#844a6a', '#a46a88'];
 
 // Grundtypen. chest.style: padded = Wams/Kittel, robe = langes Kleid/Kutte, leather = Lederweste, chain = Kettenhemd.
 export const OUTFITS = {
@@ -32,13 +28,6 @@ export const OUTFITS = {
   pilgrim: { chest: { style: 'robe', ramp: LINEN }, boots: M.leather, hood: true, cloth: LINEN, tool: { family: 'staff', wood: M.darkwood, top: 'curl', rarity: 'common' } },
   marsh: { chest: { style: 'leather', ramp: OLIVE }, boots: M.darkleather, back: 'cloak', cloth: TEAL },
   guard: { guard: true, chest: { style: 'chain', ramp: M.iron, tabard: RUST }, cloth: RUST, back: 'cape', boots: M.leather, gloves: M.leather, head: { style: 'nasal', ramp: M.iron } },
-  // Sternhafen
-  citizen: { chest: { style: 'robe', ramp: PEARLC, trim: M.gold }, boots: M.darkleather, style: { hairStyle: 'short' } },
-  noble: { chest: { style: 'robe', ramp: BLUSH, trim: M.gold }, boots: M.darkleather, gloves: M.leather, back: 'cloak', cloth: PEARLC, style: { hairStyle: 'long' } },
-  courier: { chest: { style: 'padded', ramp: SKY }, boots: M.leather, gloves: M.leather, back: 'cloak', cloth: SKY },
-  scholar: { chest: { style: 'robe', ramp: SKY, trim: M.silver }, boots: M.darkleather, hood: true, cloth: SKY, tool: { family: 'staff', wood: M.darkwood, top: 'orb', ramp: M.frost, rarity: 'common' } },
-  gardener: { chest: { style: 'padded', ramp: OLIVE }, boots: M.leather, gloves: M.leather, head: { style: 'cap', ramp: BLUSH } },
-  starguard: { guard: true, chest: { style: 'chain', ramp: M.silver, tabard: SKY }, cloth: SKY, back: 'cape', boots: M.darkleather, gloves: M.leather, head: { style: 'nasal', ramp: M.silver } },
 };
 
 // Figur eines Bewohners: { race, variant, outfit, cloth? } → Animationen idle, walk, talk

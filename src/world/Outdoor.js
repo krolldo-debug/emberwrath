@@ -12,7 +12,7 @@ import { GROUND_PEAKS } from '../sprites/decor_peaks.js';
 
 // Wertrauschen mit gemerkter Gitterzelle je Aufrufstelle (Formel wie vnoise, bitgleich): benachbarte
 // Pixel liegen fast immer in derselben Zelle, dann entfallen die vier Hashes
-const VNC = new Float64Array(14 * 7).fill(NaN);
+const VNC = new Float64Array(12 * 7).fill(NaN);
 function vnc(s, x, y, seed) {
   const x0 = Math.floor(x), y0 = Math.floor(y), o = s * 7;
   if (VNC[o] !== x0 || VNC[o + 1] !== y0 || VNC[o + 6] !== seed) {
@@ -174,17 +174,7 @@ function applyOverlay(d, { A, B }, cw, ch, r) {
 export class Outdoor extends TileMap {
   constructor(level) {
     // level.solid: zusätzliche feste Deko-Zeichen (Palisaden, Mauern); Boden darunter wie Nachbarn
-    // level.island (Sternenscherben): { void, bridge, cliff, keel } – Zeichen für Abgrund (fest) und Lichtbrücke (begehbar),
-    // Höhe der Felswand unter den Inselkanten und Tiefe des Kiels darunter in Weltpixeln
-    const isl = level.island ?? null;
-    const solid = new Set([...SOLID, ...(level.solid ?? ''), ...(isl ? isl.void : '')]);
-    super(level, {
-      solidChars: solid,
-      floorChars: isl?.bridge ? new Set([...FLOOR, isl.bridge]) : FLOOR,
-      terrainChars: isl ? new Set([...TERRAIN, isl.void, ...(isl.bridge ?? '')]) : TERRAIN,
-    });
-    this.isl = isl;
-    this.kcode = isl ? { ...KCODE, [isl.void]: FK.VOID, ...(isl.bridge ? { [isl.bridge]: FK.BRIDGE } : {}) } : KCODE;
+    super(level, { solidChars: level.solid ? new Set([...SOLID, ...level.solid]) : SOLID, floorChars: FLOOR, terrainChars: TERRAIN });
     this.biome = 'outdoor';
     this.pal = GROUNDS[level.biome ?? 'outdoor'] ?? OUT;
     this.groundBiome = level.biome;
@@ -343,7 +333,6 @@ export class Outdoor extends TileMap {
     // level.paintedCliffs: das Biom malt seine Felsen selbst (pal.paintCliffs je Chunk), keine Kachelklippen
     this.painter = this.level.paintedCliffs && typeof this.pal.paintCliffs === 'function' ? this.pal.paintCliffs : null;
     this.fiss = (this.level.fissures ?? []).map((line) => this.#fissureGeom(line));
-    if (this.isl) this.#prepareIslands();
     this.rockMask = new Uint8Array(this.w * this.h);
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (this.rows[y][x] === '#') this.rockMask[y * this.w + x] = 1;
     // Deko, die auf dem Fels steht (level.rockDecor, Frost: Gipfel): Hochfläche darunter, keine Wand, kein Wasser
@@ -463,130 +452,6 @@ export class Outdoor extends TileMap {
         if (this.rows[y]?.[x + 1] === '#') { ctx.fillStyle = 'rgba(4,3,10,0.2)'; ctx.fillRect(px + T - 3, py, 3, T); }
       }
     }
-  }
-
-  // Sternenscherben: voidT = Abgrund oder Lichtbrücke je Kachel (Grundlage der geglätteten Inselkante), nearVoid = Kacheln
-  // mit Land und Abgrund in der 3 × 3-Nachbarschaft (nur dort entscheidet #voidAt je Feinpixel). islUp: je Abgrundkachel die
-  // nächste Inselkachel darüber (Weltpixel-Weg), islWide: je Kantenkachel, wie breit die Insel dort ist – schmale Spitzen
-  // bekommen eine niedrige Wand und einen flachen Kiel, breite Stellen den vollen.
-  #prepareIslands() {
-    const w = this.w, h = this.h, I = this.isl;
-    const vt = this.voidT = new Uint8Array(w * h), nv = this.nearVoid = new Uint8Array(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const t = this.terrain[y][x]; vt[y * w + x] = t === I.void || t === I.bridge ? 1 : 0; }
-    const isVoid = (x, y) => x < 0 || y < 0 || x >= w || y >= h || vt[y * w + x] === 1;
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      let a = 0, b = 0, br = 0;
-      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
-        if (isVoid(x + i, y + j)) a++; else b++;
-        if (this.terrain[y + j]?.[x + i] === I.bridge) br++;
-      }
-      if ((a && b) || br) nv[y * w + x] = 1;
-    }
-    this.islReach = Math.ceil((I.cliff ?? 24) + (I.keel ?? 64)) + 2 * T;
-    const reach = Math.ceil(this.islReach / T);
-    const up = new Int16Array(w * h).fill(-1), wide = new Float32Array(w * h);
-    for (let x = 0; x < w; x++) {
-      let g = -1;
-      for (let y = 0; y < h; y++) {
-        if (!isVoid(x, y)) { g = y; continue; }
-        if (g >= 0 && y - g <= reach) up[y * w + x] = g;
-      }
-    }
-    const land = (x, g) => !isVoid(x, g) || !isVoid(x, g - 1);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      if (isVoid(x, y) || !isVoid(x, y + 1)) continue;
-      let l = 0, r = 0;
-      while (l < 12 && land(x - l - 1, y)) l++;
-      while (r < 12 && land(x + r + 1, y)) r++;
-      wide[y * w + x] = Math.min(1, (Math.min(l, r) + 0.5) / 6);
-    }
-    this.islUp = up; this.islWide = wide;
-  }
-
-  // Abgrundfeld an einem Weltpunkt (voidT bilinear zwischen den Kachelmitten, außerhalb der Karte Abgrund)
-  #voidField(x, y) {
-    const w = this.w, fx = x / T - 0.5, fy = y / T - 0.5, tx = Math.floor(fx), ty = Math.floor(fy), ax = fx - tx, ay = fy - ty;
-    const at = (i, j) => (i < 0 || j < 0 || i >= w || j >= this.h ? 1 : this.voidT[j * w + i]);
-    return (at(tx, ty) * (1 - ax) + at(tx + 1, ty) * ax) * (1 - ay) + (at(tx, ty + 1) * (1 - ax) + at(tx + 1, ty + 1) * ax) * ay;
-  }
-  // Liegt der Weltpunkt im Abgrund? Geglättetes Feld plus Rauschen: runde, unregelmäßige Inselkanten statt Kachelstufen
-  #voidAt(x, y) {
-    return this.#voidField(x, y) + (vnc(11, x / 6, y / 6, 91) - 0.5) * 0.55 + (vnc(12, x / 2, y / 2, 92) - 0.5) * 0.12 >= 0.5;
-  }
-  // Boden einer Kantenkachel, wo das Feld Land ergibt: Kachel selbst, sonst die erste Nachbarkachel mit Boden
-  #besideVoid(tx, ty) {
-    const w = this.w, kg = this.kgrid;
-    for (const [i, j] of [[0, 0], [0, -1], [0, 1], [1, 0], [-1, 0], [1, -1], [-1, -1], [1, 1], [-1, 1]]) {
-      const x = tx + i, y = ty + j;
-      if (x >= 0 && y >= 0 && x < w && y < this.h && kg[y * w + x] < FK.VOID && kg[y * w + x] !== FK.WATER) return kg[y * w + x];
-    }
-    return FK.GRASS;
-  }
-  // Unterste Inselzeile (Feinzeile, Welt × 2) über der Feinzeile G in Feinspalte F, -1e9 = keine in Reichweite.
-  // Gleiche Entscheidung wie #fineKinds (Lichtbrücken zählen als Abgrund: unter ihnen hängt keine Wand).
-  #coastAbove(F, G) {
-    const w = this.w, tx = Math.floor(F / 2 / T), x = F / 2 + 0.25;
-    if (tx < 0 || tx >= w) return -1e9;
-    for (let g = G, end = G - this.islReach * 2; g > end; g--) {
-      const ty = Math.floor(g / 2 / T);
-      if (ty < 0) return -1e9;
-      if (ty >= this.h) { g = this.h * T * 2; continue; }
-      const i = ty * w + tx;
-      if (!this.nearVoid[i]) { if (!this.voidT[i]) return g; g = ty * T * 2; continue; }
-      if (this.voidT[i] && this.kgrid[i] === FK.BRIDGE) continue;
-      if (!this.#voidAt(x, g / 2 + 0.25)) return g;
-    }
-    return -1e9;
-  }
-
-  // Farbe eines Abgrund-Feinpixels (F, G = Welt × 2): Felswand und Kiel unter der Insel darüber, hängende Wurzeln und
-  // leuchtende Kristalle (Leuchtebene ed, Index ei), sonst -2 = durchsichtig. Die Inselkante verläuft wie das Randrauschen
-  // des Bodens (#fineKinds), damit Wand und Grasrand ohne Lücke aneinanderstoßen.
-  #islandPixel(F, G, cg, ed, ei) {
-    if (cg < -1e8) return -2;
-    const px = F / 2, py = G / 2, tx = Math.floor(px / T), g = Math.floor(cg / 2 / T), w = this.w;
-    if (tx < 0 || tx >= w || g < 0) return -2;
-    const P = this.pal.island, I = this.isl, Wd = this.islWide;
-    const depth = py - (cg + 1) / 2;
-    if (depth > this.islReach) return -2;
-    // Inselbreite weich zwischen den Kachelspalten (sonst springen Wand und Kiel an jeder Kachelgrenze)
-    const wAt = (t) => { if (t < 0 || t >= w) return 0; for (const j of [0, -1, 1, -2, 2]) { const v = Wd[(g + j) * w + t]; if (v) return v; } return 0; };
-    const fx = px / T - 0.5, ta = Math.floor(fx), a = fx - ta;
-    const wd = Math.max(0.15, wAt(ta) * (1 - a) + wAt(ta + 1) * a);
-    const face = (I.cliff ?? 24) * (0.45 + 0.55 * Math.sqrt(wd)) * (0.85 + 0.3 * vnoise(px / 9, 3.5, 71));
-    const keel = (I.keel ?? 64) * Math.pow(wd, 0.8) * (0.55 + 0.45 * vnoise(px / 6, 5.5, 73)) + 7 * (vnoise(px / 2.2, 7.5, 75) - 0.5) * wd;
-    const dt = DITH[(G & 3) * 4 + (F & 3)] / 16;
-    if (depth <= face) {
-      if (depth < 0.6) return P.face[5];
-      // Felsbänder, helle und dunkle Flanken, Risse; ganz unten der rosa Widerschein des Morgens
-      const strata = ((G + Math.floor(vnoise(F / 24, G / 60, 77) * 10)) % 12) < 2;
-      const flank = vnoise(F / 12, G / 22, 78);
-      const crack = hash2(F >> 1, G >> 4, 79) > 0.95;
-      let t = 0.95 - (depth / face) * 0.5 + (flank > 0.55 ? 0.14 : flank < 0.35 ? -0.08 : 0) - (strata ? 0.28 : 0) - (crack ? 0.4 : 0);
-      if (depth > face - 1.5 && dt < 0.5) return P.rim;
-      return P.face[Math.max(0, Math.min(5, Math.floor(t * 5 + dt)))];
-    }
-    const kd = depth - face;
-    if (kd <= keel) {
-      // Kristall, der aus dem Kiel wächst (Zellen 6 Feinpixel breit)
-      const cc = Math.floor(F / 6), hc = hash2(cc, g, 81);
-      if (hc > 0.9 && keel > 10) {
-        const top = keel * (0.3 + hash2(cc, g, 82) * 0.4), len = 6 + hash2(cc, g, 83) * 10, lx = F - cc * 6 - 3, ly = kd * 2 - top * 2;
-        if (ly >= 0 && ly < len * 2 && Math.abs(lx) <= (ly < len * 2 - 4 ? 1 : 0)) {
-          const c = P.crystal[lx < 0 ? 2 : lx > 0 ? 0 : 1];
-          if (ed) { ed[ei] = c[0]; ed[ei + 1] = c[1]; ed[ei + 2] = c[2]; ed[ei + 3] = 255; }
-          return (c[0] << 16) | (c[1] << 8) | c[2];
-        }
-      }
-      if (keel - kd < 0.6) return P.edge;
-      const strata = ((G + Math.floor(vnoise(F / 20, G / 40, 84) * 10)) % 16) < 2;
-      const t = 0.85 - (kd / (keel + 1)) * 0.8 - (strata ? 0.2 : 0) + (vnoise(F / 10, G / 14, 85) > 0.6 ? 0.12 : 0);
-      return P.keel[Math.max(0, Math.min(3, Math.floor(t * 3 + dt)))];
-    }
-    // Wurzeln hängen über den Kiel hinaus
-    const rc = hash2(F, g, 86);
-    if (rc > 0.985 && kd - keel < 4 + hash2(F, g, 87) * 16) return P.root;
-    return -2;
   }
 
   #drawBuildingShadows(ctx, rx0, ry0, rx1, ry1) {
@@ -726,18 +591,6 @@ export class Outdoor extends TileMap {
         if (fv === 1 && (!skipRock || vnc(2, (x0 + lx) / 13, py / 11, 300) > 0.037 || this.#maskAt(x0 + lx, py))) { d[i + 3] = 255; continue; }
         if (fv === 2 && skipRock && !ed && this.#maskAt(x0 + lx, py)) { d[i + 3] = 255; continue; }
         if (pm && pm[ly * cw + lx]) { d[i + 3] = 255; continue; }
-        if (this.isl) {
-          // Abgrund: Felswand/Kiel unter der Insel oder durchsichtig (Himmel der World); Lichtbrücke grob
-          const kind = this.#jitterTerrain(x0 + lx, py);
-          if (kind === this.isl.void || kind === this.isl.bridge) {
-            const g = this.islUp[Math.floor(py / T) * this.w + Math.floor((x0 + lx) / T)] ?? -1;
-            const cg = g < 0 ? -1e9 : ((g + 1) * T - (vnoise((x0 + lx) / 7, g, 22) - 0.5) * 9) * 2;
-            const v = kind === this.isl.bridge && (((x0 + lx) % 7) && (py % 5)) ? 0x8a88a8 : this.#islandPixel((x0 + lx) * 2, py * 2, cg, ed, i);
-            if (v < 0) { d[i + 3] = 0; continue; }
-            d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; d[i + 3] = 255;
-            continue;
-          }
-        }
         const col = this.#groundAt(x0 + lx, py, ed, i);
         d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
       }
@@ -756,7 +609,7 @@ export class Outdoor extends TileMap {
     if (!this.kgrid) {
       const w = this.w;
       this.kgrid = new Uint8Array(w * this.h);
-      for (let y = 0; y < this.h; y++) for (let x = 0; x < w; x++) this.kgrid[y * w + x] = this.kcode[this.terrain[y][x]] ?? FK.GRASS;
+      for (let y = 0; y < this.h; y++) for (let x = 0; x < w; x++) this.kgrid[y * w + x] = KCODE[this.terrain[y][x]] ?? FK.GRASS;
       // Pflasterkacheln (einzelne Bodenkacheln mitten im Platz zählen mit: keine Löcher) und Kacheln mit Pflaster in der
       // 3 × 3-Nachbarschaft: dort entscheidet das geglättete Pflasterfeld, #fineKinds
       const h = this.h, kg = this.kgrid, pt = this.paveT = new Uint8Array(w * h), np = this.nearPave = new Uint8Array(w * h);
@@ -779,9 +632,7 @@ export class Outdoor extends TileMap {
     const pal = this.pal;
     // pal.fineSetup: Generator (Vorarbeit in Scheiben), liefert die Chunk-Daten für pal.finePixel
     const S = pal.fineSetup ? yield* pal.fineSetup(x0, y0, cw, ch, K, KW, M, this) : null;
-    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, cover, fp: pal.finePixel, tmp: ed ? new Uint8ClampedArray(4) : null, ckey: new Int32Array(cw), ccol: new Uint32Array(cw), cem: new Uint32Array(cw), coast: null };
-    // Inselwände: unterste Inselzeile je Feinspalte über dem Chunk (danach führt #fineRows sie Zeile für Zeile fort)
-    if (this.isl) { c.coast = new Float64Array(cw * 2); for (let F = 0; F < cw * 2; F++) c.coast[F] = this.#coastAbove(x0 * 2 + F, y0 * 2 - 1); yield; }
+    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, cover, fp: pal.finePixel, tmp: ed ? new Uint8ClampedArray(4) : null, ckey: new Int32Array(cw), ccol: new Uint32Array(cw), cem: new Uint32Array(cw) };
     for (let G = 0; G < ch * 2; G += 16) {
       this.#fineRows(c, G, Math.min(G + 16, ch * 2));
       yield;
@@ -809,16 +660,6 @@ export class Outdoor extends TileMap {
             const e = b + (q & 1) + (q >> 1) * KW, want = this.#paveField(px + 0.25 + (q & 1) * 0.5, py + 0.25 + (q >> 1) * 0.5) >= 0.5;
             if (want) K[e] = FK.PAVE;
             else if (K[e] === FK.PAVE) K[e] = this.#besidePave(ptx, pty);
-          }
-        }
-        // Inselkante: geglättetes Abgrundfeld statt Kachelstufen; Lichtbrücken bleiben gerade (Platten)
-        if (this.isl && ptx >= 0 && pty >= 0 && ptx < w && pty < h && this.nearVoid[pty * w + ptx]) {
-          const tk = kg[pty * w + ptx];
-          for (let q = 0; q < 4; q++) {
-            const e = b + (q & 1) + (q >> 1) * KW;
-            if (tk === FK.BRIDGE) K[e] = FK.BRIDGE;
-            else if (this.#voidAt(px + 0.25 + (q & 1) * 0.5, py + 0.25 + (q >> 1) * 0.5)) K[e] = FK.VOID;
-            else if (K[e] === FK.VOID || K[e] === FK.BRIDGE) K[e] = this.#besideVoid(ptx, pty);
           }
         }
       }
@@ -849,13 +690,7 @@ export class Outdoor extends TileMap {
       for (let F = 0; F < W2; F++) {
         const ki = row + F, kind = K[ki], o = G * W2 + F;
         if (cover && cover[crow + (F >> 1)]) { d32[o] = 0xff000000; continue; }   // Felsmaler deckt (Ebene folgt)
-        if (c.coast && kind !== FK.VOID && kind !== FK.BRIDGE) c.coast[F] = G0 + G;
-        let v = kind === FK.VOID && this.isl ? -2 : fp(kind, F0 + F, G0 + G, K, ki, KW, S);
-        // Abgrund (und Spalten zwischen den Brückenplatten): Felswand unter der Insel oder durchsichtig
-        if (v === -2) {
-          v = c.coast ? this.#islandPixel(F0 + F, G0 + G, c.coast[F], ed, o * 4) : -2;
-          if (v < 0) { d32[o] = 0; continue; }
-        }
+        let v = fp(kind, F0 + F, G0 + G, K, ki, KW, S);
         // Randsteine: äußerste Feinzeile dunkle Kante, die nächsten zwei eine Stufe dunkler
         if (kind === FK.PAVE && v >= 0) {
           const P = FK.PAVE;
@@ -883,8 +718,7 @@ export class Outdoor extends TileMap {
   // Kann im Weltrechteck etwas auf der Leuchtebene entstehen? (Wasser/Lava ± 1 Kachel Randrauschen)
   #emitsIn(x0, y0, cw, ch) {
     const tx0 = Math.floor(x0 / T) - 1, ty0 = Math.floor(y0 / T) - 1, tx1 = Math.floor((x0 + cw - 1) / T) + 1, ty1 = Math.floor((y0 + ch - 1) / T) + 1;
-    const v = this.isl?.void;
-    for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) { const t = this.terrainAt(x, y); if (t === '~' || (v && t === v)) return true; }
+    for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) if (this.terrainAt(x, y) === '~') return true;
     return false;
   }
 

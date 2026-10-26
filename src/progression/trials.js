@@ -3,8 +3,6 @@
 import { ITEMS } from './items.js';
 import { pickEquipment, potionFor } from './loot.js';
 import { SOVEREIGN_LEGENDARIES } from './items40.js';
-import { LEVEL_CAP } from './xp.js';
-import { YSMEINE_LEGENDARIES } from './items50.js';
 
 export const TRIAL_ZONE = 'ember_trial';
 export const TRIAL_REQUIRES = { level: 20, quest: 'q_ignaroth' };
@@ -14,7 +12,7 @@ export const LEGENDARIES = ['tyrant_plate', 'crown_of_embers_blade', 'nightwhisp
 // Ab Stufe 20 skalieren Gegnerstufe, Boss-Leben, Gold und Beute-ilvl mit der Spielerstufe (§12.1); die Prüfungsstufen bleiben.
 // Ab Spielerstufe 38 kommt der legendäre Pool des Aschenfürsten dazu. Albtraumross ab Prüfungsstufe 20: 0,3 % je Abschluss.
 export const TRIAL_MOUNT = { itemId: 'mount_nightmare_steed', minTier: 20, chance: 0.003 };
-export function trialLevel(level) { return Math.max(20, Math.min(LEVEL_CAP, level | 0 || 20)); }
+export function trialLevel(level) { return Math.max(20, Math.min(40, level | 0 || 20)); }
 export function trialLevelScale(level) { return 1 + (trialLevel(level) - 20) * 0.05; }
 
 // Themen: Gegnertypen von Thread B (§11.3); der letzte ist der Boss.
@@ -26,9 +24,6 @@ export const TRIAL_THEMES = {
   barrow: { name: 'Heulendes Grab', minLevel: 22, after: 'q_barrow_king', pool: ['steppe_raider', 'raider_archer', 'dust_hyena', 'barrow_wight', 'grave_hound', 'bone_archer'], elites: ['steppe_warlord'], bossId: 'barrow_king', bossHp: 1, bossDmg: 1.6 },
   blight: { name: 'Faulender Schlund', minLevel: 27, after: 'q_rot_mother', pool: ['bog_lurker', 'swamp_leech', 'plague_toad', 'rot_shaman', 'sporeling', 'spore_caster'], elites: ['bog_horror', 'fungal_brute'], bossId: 'rot_mother', bossHp: 1.05, bossDmg: 0.9 },
   rime: { name: 'Reifgewölbe', minLevel: 32, after: 'q_frost_wyrm', pool: ['frost_wolf', 'snow_stalker', 'rime_witch', 'ice_elemental', 'crystal_spider', 'frozen_knight'], elites: ['ice_troll_chief'], bossId: 'frost_wyrm', bossHp: 1.1, bossDmg: 2.2 },
-  // Sternenglut Teil 1: Bossfiguren mit Varkhuls (Ysgarn) bzw. Ignaroths (Kaldris) Kampflogik, Schaden wie deren Themen
-  gardens: { name: 'Welkende Gärten', minLevel: 42, after: 'q_ysgarn', pool: ['bloom_stalker', 'void_wisp', 'rootbound', 'vine_horror', 'garden_golem', 'thorn_priest'], elites: ['withered_warden'], bossId: 'ysgarn', bossHp: 1.1, bossDmg: 2.8 },
-  shards: { name: 'Splitterhallen', minLevel: 47, after: 'q_kaldris', pool: ['shard_crawler', 'glass_sentinel', 'prism_elemental', 'void_hound', 'statue_wraith', 'star_seer'], elites: ['splinter_colossus'], bossId: 'kaldris', bossHp: 1.2, bossDmg: 2.8 },
   ashen: { name: 'Thron der Asche', minLevel: 37, after: 'q_ash_sovereign', pool: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'throne_guard', 'ember_hellhound'], elites: ['waste_colossus'], bossId: 'ash_sovereign', bossHp: 1.2, bossDmg: 0.9 },
 };
 // Themen, die eine Spielerstufe sehen kann
@@ -96,7 +91,7 @@ export function trialRewards(tier, { rng = Math.random, classId = null, firstCle
   for (let i = 0; i < pieces; i++) {
     const roll = rng();
     if (roll < legendary) {
-      const all = [...LEGENDARIES, ...(lvl >= 38 ? SOVEREIGN_LEGENDARIES : []), ...(lvl >= 48 ? YSMEINE_LEGENDARIES : [])];
+      const all = lvl >= 38 ? [...LEGENDARIES, ...SOVEREIGN_LEGENDARIES] : LEGENDARIES;
       const fit = all.filter((id) => !ITEMS[id].classes || !classId || ITEMS[id].classes.includes(classId));
       const pool = fit.length ? fit : all;
       items.push({ itemId: pool[Math.floor(rng() * pool.length)], qty: 1 });

@@ -18,7 +18,7 @@ export const TALENT_TIERS = [
   { level: 28, name: 'Veredelung' },
   { level: 34, name: 'Legende' },
 ];
-// Höchste Stufe, bis zu der Talentpunkte vergeben werden (Formprüfung beim Laden; darüber, ab Sternenglut, keine neuen Punkte)
+// Höchste Stufe, bis zu der Talentpunkte vergeben werden (nur zur Formprüfung beim Laden)
 export const TALENT_LEVEL_MAX = 40;
 
 const T = (tier, name, icon, max, effect, desc) => ({ tier, name, icon, max, effect, desc });
@@ -102,8 +102,7 @@ export const PASSIVES = {
   ],
 };
 
-// Ab Stufe 41 (Sternenglut) keine weiteren Punkte: Talente bleiben, wie sie sind; Stufen 41+ bringen Werte und Inhalt.
-export function talentPointsTotal(level) { return Math.max(0, Math.min(level | 0, TALENT_LEVEL_MAX) - 1); }
+export function talentPointsTotal(level) { return Math.max(0, (level | 0) - 1); }
 
 export function talentsFor(classId) { return TALENTS[classId] ?? {}; }
 

@@ -15,8 +15,7 @@ import { hash2 } from '../../core/math.js';
 // Nachbarchunks gleich gesetzt (Anker im Rand des Terrainrasters).
 
 // Terrain-Codes im Feinraster (world/Outdoor.js KCODE): Fels '#' zählt als GRASS (Untergrund des Plateaus)
-// VOID/BRIDGE: Abgrund und Lichtbrücke der Sternenscherben (level.island, world/Outdoor.js)
-export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4, VOID: 5, BRIDGE: 6 };
+export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4 };
 export const hxi = (c) => parseInt(c.slice(1), 16);
 export const ramp = (list) => list.map(hxi);
 // Hebt eine Farbrampe an (dunkle Gebiete aufhellen, Stufenabstände bleiben): c·k + a je Kanal, gekappt bei 255
@@ -314,8 +313,7 @@ export function waterPrep(S, x0, y0, cw, ch, K, KW, WP) {
   let water = false;
   for (let i = 0; i < K.length; i++) if (K[i] === FK.WATER) { water = true; break; }
   if (!water) return;
-  // Chunk ganz im Wasser (Seemitte): kein Ufer in Reichweite, also überall tiefes Wasser statt des schlichten Ersatztons
-  S.ld = distField(K, KW, WATER_LAND) ?? new Uint8Array((KW >> 1) * ((K.length / KW) >> 1)).fill(127);
+  S.ld = distField(K, KW, WATER_LAND);
   S.gl = waterGlints(x0, y0, cw, ch);
   S.gw = cw + 2;
   // Wasserton: Tonfeld des Bioms (S.tone, sonst eigenes); Grütze-Feld

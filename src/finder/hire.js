@@ -1,6 +1,5 @@
 import { fillWithMercs } from './mercs.js';
 import { FINDER_CONFIG } from './config.js';
-import { LEVEL_CAP } from '../progression/xp.js';
 
 // Söldner anheuern: Wer allein (ohne Dungeonsuche) durch das Portal eines Gruppen-Dungeons geht, bekommt eine
 // Söldnergruppe gegen Gold angeboten (Nutzerwunsch 15.10.). Ablehnen = allein hinein wie bisher.
@@ -13,7 +12,7 @@ import { LEVEL_CAP } from '../progression/xp.js';
 export function hireCost(zone, mercs = 2) {
   if (!zone || (FINDER_CONFIG.hireFree ?? []).includes(zone.id)) return 0;
   const m = String(zone.recommendedLevel ?? '').match(/\d+/);
-  const lv = Math.max(1, Math.min(LEVEL_CAP, m ? +m[0] : 1));
+  const lv = Math.max(1, Math.min(40, m ? +m[0] : 1));
   const n = Math.max(0, Math.min(2, mercs | 0));
   return Math.round((3 * lv * lv * n / 2) / 50) * 50;
 }

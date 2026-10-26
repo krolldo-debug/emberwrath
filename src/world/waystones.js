@@ -10,9 +10,6 @@ export const WAYSTONES = [
   { zoneId: 'blighted_marsh', spawnId: 'waystone', name: 'Mirefeste', region: 'Die Faulmarsch', levels: '25–31' },
   { zoneId: 'frostspire', spawnId: 'waystone', name: 'Frosthold', region: 'Die Frostzinnen', levels: '31–36' },
   { zoneId: 'ember_wastes', spawnId: 'waystone', name: 'Letzte Bastion', region: 'Die Glutöde', levels: '36–40' },
-  { zoneId: 'sternhafen', spawnId: 'waystone', name: 'Ankerplatz', region: 'Sternhafen', levels: '40–60' },
-  { zoneId: 'drifting_gardens', spawnId: 'waystone', name: 'Morgentau', region: 'Die Treibenden Gärten', levels: '40–45' },
-  { zoneId: 'splitterweiten', spawnId: 'waystone', name: 'Funkenruh', region: 'Die Splitterweiten', levels: '45–50' },
 ];
 
 export const waystoneFlag = (zoneId) => `waystone:${zoneId}`;

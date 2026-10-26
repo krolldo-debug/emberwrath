@@ -10,5 +10,4 @@ export const PLACES = {
   blighted_marsh: { dx: -48, dy: 94, mirror: -1 }, // Südhang des Lehmhügels
   frostspire: { dx: -48, dy: -66, mirror: 1 },     // vor dem Langhaus, links des Wegsteins
   ember_wastes: { dx: 64, dy: 206, mirror: 1 },    // Südseite des Bastionshofs
-  sternhafen: { dx: -48, dy: 192, mirror: 1 },     // Marktgasse am Ankerplatz
 };
