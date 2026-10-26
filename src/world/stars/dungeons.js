@@ -80,7 +80,7 @@ export function buildRankengruft() {
       9: { type: 'ysgarn', boss: true },
     },
     respawn: Infinity,
-    areas: [{ id: 'gruft_teich', x: 24, y: 3, w: 24, h: 14 }, { id: 'gruft_reihen', x: 34, y: 24, w: 27, h: 10 }],
+    areas: [{ id: 'gruft_teich', x: 24, y: 3, w: 24, h: 14 }, { id: 'gruft_reihen', x: 34, y: 24, w: 27, h: 10 }, { id: 'seed_chamber', x: 21, y: 25, w: 7, h: 5 }],
     arena: { x: 14, y: 39, w: 32, h: 14, gateRow: 38 },
     secrets: [{ id: 'seed_chamber', lever: { x: 14, y: 22 } }],
     portals: [{
@@ -160,7 +160,7 @@ export function buildGlassHalls() {
       9: { type: 'kaldris', boss: true },
     },
     respawn: Infinity,
-    areas: [{ id: 'hall_prisoners', x: 22, y: 3, w: 20, h: 13 }, { id: 'hall_mirrors', x: 46, y: 3, w: 16, h: 24 }],
+    areas: [{ id: 'hall_prisoners', x: 22, y: 3, w: 20, h: 13 }, { id: 'hall_mirrors', x: 46, y: 3, w: 16, h: 24 }, { id: 'shard_vault', x: 43, y: 48, w: 10, h: 5 }],
     arena: { x: 6, y: 45, w: 34, h: 12, gateRow: 44 },
     secrets: [{ id: 'shard_vault', lever: { x: 60, y: 43 } }],
     portals: [{
@@ -237,7 +237,7 @@ export function buildObservatory() {
       9: { type: 'ysmeine', boss: true },
     },
     respawn: Infinity,
-    areas: [{ id: 'obs_library', x: 21, y: 3, w: 22, h: 12 }, { id: 'obs_planetarium', x: 40, y: 21, w: 20, h: 14 }],
+    areas: [{ id: 'obs_library', x: 21, y: 3, w: 22, h: 12 }, { id: 'obs_planetarium', x: 40, y: 21, w: 20, h: 14 }, { id: 'star_archive', x: 30, y: 19, w: 8, h: 4 }],
     arena: { x: 4, y: 39, w: 36, h: 16, gateRow: 38 },
     secrets: [{ id: 'star_archive', lever: { x: 42, y: 12 } }],
     portals: [{

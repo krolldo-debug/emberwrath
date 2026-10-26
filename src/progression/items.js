@@ -17,6 +17,7 @@
 // Stufe 21–40: items40.js (Tier 5–8, Sets, Reittier-Gegenstände).
 import { WEAPONS_40, ARMOR_40, JEWELRY_40, OTHER_40 } from './items40.js';
 import { WEAPONS_50, ARMOR_50, JEWELRY_50, OTHER_50 } from './items50.js';
+import { QUEST_ITEMS_STARS } from './questsStars.js';
 import { CLASSES } from '../character/classes.js';
 import { SET_ITEMS } from '../character/skinSets.js';
 
@@ -517,6 +518,8 @@ for (const d of Object.values(LOOK_ITEMS)) Object.assign(d, { source: 'achieveme
 const EQUIPMENT = buildEquipment();
 for (const id of Object.keys(OTHER_40)) if (EQUIPMENT[id] || OTHER[id]) throw new Error(`Item-ID ${id} doppelt`);
 for (const id of Object.keys(OTHER_50)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id]) throw new Error(`Item-ID ${id} doppelt`);
+for (const id of Object.keys(QUEST_ITEMS_STARS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || OTHER_50[id]) throw new Error(`Item-ID ${id} doppelt`);
+Object.assign(OTHER_50, QUEST_ITEMS_STARS);
 for (const id of Object.keys(LOOK_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || OTHER_50[id]) throw new Error(`Item-ID ${id} doppelt`);
 // Klassen-Skinsets aus dem Shop (character/skinSets.js): reines Aussehen, source 'shop'
 for (const id of Object.keys(SET_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || OTHER_50[id] || LOOK_ITEMS[id]) throw new Error(`Item-ID ${id} doppelt`);

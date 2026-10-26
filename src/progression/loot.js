@@ -14,6 +14,7 @@ import { ITEMS, RARITY_ORDER, WEAPON_CLASSES, itemScore, attrFit } from './items
 import { RARE_ENEMIES, RARE_GOLD_MULT, RARE_WEIGHTS } from './rares.js';
 import { SOVEREIGN_LEGENDARIES } from './items40.js';
 import { YSMEINE_LEGENDARIES } from './items50.js';
+import { QUEST_DROPS_STARS } from './questsStars.js';
 
 // Gewichte je Quelle. Summe beliebig; Grenzen werden in rarityWeights() erzwungen.
 const RARITY_TABLE = {
@@ -144,6 +145,8 @@ const QUEST_DROPS = {
   rime_witch: [['q_witch_charms', 'witch_charm', 0.5]],
   ash_wraith: [['q_bastion_supplies', 'bastion_supplies', 0.45]],
 };
+// Sternenglut Teil 1 (questsStars.js)
+for (const [type, list] of Object.entries(QUEST_DROPS_STARS)) QUEST_DROPS[type] = [...(QUEST_DROPS[type] ?? []), ...list];
 
 // ---------------------------------------------------------------- Hilfen
 function pickWeighted(entries, rng) {

@@ -36,6 +36,7 @@ const LOOKS = {
   trader_lio: ['elf', 1, { chest: { style: 'robe', ramp: PLUM, trim: M.gold }, boots: M.darkleather, gloves: M.leather }],
   jeweler_ysolde: ['elf', 0, { chest: { style: 'robe', ramp: SKY, trim: M.gold }, back: 'cloak', cloth: PEARL, boots: M.darkleather, style: { hairStyle: 'long' } }],
   quartermaster_tamsin: ['dwarf', 0, { guard: true, chest: { style: 'chain', ramp: M.silver, tabard: SKY }, cloth: SKY, boots: M.darkleather, gloves: M.leather }],
+  scholar_tobin: ['human', 0, { chest: { style: 'robe', ramp: LINEN, trim: M.silver }, back: 'cloak', cloth: RUST, boots: M.leather, gloves: M.leather }],
   herald_fenn: ['human', 2, { chest: { style: 'padded', ramp: PEARL, trim: M.gold }, back: 'cape', cloth: SKY, boots: M.leather, head: { style: 'cap', ramp: SKY } }],
   // Splitterweiten
   foreman_dagna: ['dwarf', 1, { chest: { style: 'leather', ramp: M.darkleather }, boots: M.darkleather, gloves: M.leather, head: { style: 'cap', ramp: SKY }, back: 'cloak', cloth: RUST }],

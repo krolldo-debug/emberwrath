@@ -184,6 +184,8 @@ export function placeObjects(world) {
     // Fehlt das Bild im Deko-Satz der Zone: Eskorte-/Ritual-Bilder (decor 'cart' | 'caravan' | 'riftCircle')
     let looks = (o.set ? A.sprites[o.set] : decoSet)?.[o.decor] ?? A.sprites.caravan?.[o.decor];
     if (Array.isArray(looks)) looks = looks[0];
+    // over: Ziel an einer Deko der Karte (z. B. Ankerbrunnen in Sternhafen), ohne eigenes Bild
+    if (!looks && o.over) looks = {};
     if (!looks) continue;
     const obj = world.spawn(new WorldObject(o.x * T + T / 2, o.y * T + T - 2, { id: o.id, kind: o.kind, looks, prompt: o.prompt, pickup: o.kind === 'item' }));
     const s = (looks.off ?? looks).sprite;

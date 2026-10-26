@@ -108,6 +108,7 @@ export const STAR_NPCS = {
   jeweler_ysolde: { name: 'Ysolde', title: 'Juwelierin', zoneId: 'sternhafen', greeting: 'Sternglas schneidet man nicht. Man überredet es.' },
   quartermaster_tamsin: { name: 'Tamsin', title: 'Rüstmeister', zoneId: 'sternhafen', greeting: 'Die Sternwacht rüstet jeden aus, der die Brücken verteidigt.' },
   herald_fenn: { name: 'Fenn', title: 'Ausrufer', zoneId: 'sternhafen', greeting: 'Hört, hört! Neues aus den Gärten und den Splitterweiten!' },
+  scholar_tobin: { name: 'Tobin', title: 'Gelehrter', zoneId: 'sternhafen', greeting: 'Bücher sind hier oben das Einzige, das nicht davontreibt.' },
   // Splitterweiten
   foreman_dagna: { name: 'Dagna', title: 'Vorarbeiterin von Funkenruh', zoneId: 'splitterweiten', greeting: 'Wer hier schürft, gräbt im Himmel. Pass auf, wohin du trittst.' },
   trader_bosk: { name: 'Bosk', title: 'Händler', zoneId: 'splitterweiten', greeting: 'Seile, Laternen, Tränke. Alles doppelt so teuer wie in Sternhafen. Und doppelt so nötig.' },
