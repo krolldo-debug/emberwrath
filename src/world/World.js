@@ -12,6 +12,7 @@ import { placeObjects } from './placeObjects.js';
 import { Decals } from '../gfx/Decals.js';
 import { ParticleSystem } from '../gfx/Particles.js';
 import { LightingSystem, Light } from '../gfx/Lighting.js';
+import { StarSky } from '../gfx/Sky.js';
 import { CombatSystem } from '../systems/Combat.js';
 import { separateActors } from '../systems/Physics.js';
 import { createHero } from '../character/createHero.js';
@@ -71,6 +72,8 @@ export class World {
     this.particles = new ParticleSystem(this.decals);
     this.lighting = new LightingSystem(CONFIG.viewWidth, CONFIG.viewHeight, zone.ambient ?? CONFIG.lighting.ambient);
     if (this.dungeon.voidTiles) this.lighting.setVoid(this.dungeon.voidTiles(), this.dungeon.w, this.dungeon.h);
+    // Sternenscherben: Himmel unter dem Abgrund (level.sky = Stimmung aus gfx/Sky.js)
+    this.sky = level.sky ? new StarSky(level.sky, zone.ambient ?? CONFIG.lighting.ambient) : null;
     this.combat = new CombatSystem(this.bus);
 
     this.lights = [];
@@ -364,8 +367,8 @@ export class World {
   render(ctx, cx, cy, debug = false) {
     const W = CONFIG.viewWidth, H = CONFIG.viewHeight;
     this.view.x = cx; this.view.y = cy;
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
+    if (this.sky) this.sky.render(ctx, cx, cy, this.time);
+    else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); }
     // Außenkarten (Outdoor.chunked) zeichnen ihren Boden kachelweise in renderLiquid; background ist dort nur das Übersichtsbild
     // Dungeon-Hintergrund in Texeln (background.res, Feinraster 2): Ausschnitt in Texeln, Ziel in Weltpixeln
     if (!this.dungeon.chunked) { const q = this.background.res ?? 1; ctx.drawImage(this.background, cx * q, cy * q, W * q, H * q, 0, 0, W, H); }

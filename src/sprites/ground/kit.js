@@ -15,7 +15,8 @@ import { hash2 } from '../../core/math.js';
 // Nachbarchunks gleich gesetzt (Anker im Rand des Terrainrasters).
 
 // Terrain-Codes im Feinraster (world/Outdoor.js KCODE): Fels '#' zählt als GRASS (Untergrund des Plateaus)
-export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4 };
+// VOID/BRIDGE: Abgrund und Lichtbrücke der Sternenscherben (level.island, world/Outdoor.js)
+export const FK = { GRASS: 0, DIRT: 1, PAVE: 2, WATER: 3, FISS: 4, VOID: 5, BRIDGE: 6 };
 export const hxi = (c) => parseInt(c.slice(1), 16);
 export const ramp = (list) => list.map(hxi);
 // Hebt eine Farbrampe an (dunkle Gebiete aufhellen, Stufenabstände bleiben): c·k + a je Kanal, gekappt bei 255
