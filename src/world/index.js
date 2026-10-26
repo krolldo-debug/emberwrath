@@ -3,6 +3,7 @@ import { ZONES, NPCS } from './zones.js';
 import { LEVELS } from './levels.js';
 import { LEVELS2 } from './levels2.js';
 import { LEVELS3 } from './levels3.js';
+import { LEVELS_STARS } from './stars/levels.js';
 import { warmCharacter } from './warmup.js';
 import { ENEMY_TYPES } from '../entities/enemyTypes.js';
 import { createWolfSprites } from '../sprites/wolf.js';
@@ -40,6 +41,8 @@ import { createSteppeDecor } from '../sprites/decor_steppe.js';
 import { createMarshDecor } from '../sprites/decor_marsh.js';
 import { createFrostDecor } from '../sprites/decor_frost.js';
 import { createWastesDecor } from '../sprites/decor_wastes.js';
+import { createAstralDecor } from '../sprites/decor_astral.js';
+import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createVillageProps } from '../sprites/village.js';
 import { spawnTownsfolk } from './townlife.js';
@@ -94,7 +97,7 @@ export function installWorld(game) {
   for (const [id, def] of Object.entries(ZONES)) content.define('zone', id, def);
   for (const [id, def] of Object.entries(NPCS)) content.define('npc', id, def);
   // Karten als Inhalt (Minimap, Wegführung über Zonengrenzen); gebaut erst beim ersten Lesen
-  for (const src of [LEVELS, LEVELS2, LEVELS3]) for (const id of Object.keys(src)) content.defineLazy('level', id, () => src[id]);
+  for (const src of [LEVELS, LEVELS2, LEVELS3, LEVELS_STARS]) for (const id of Object.keys(src)) content.defineLazy('level', id, () => src[id]);
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     content.define('enemy', id, { name: def.name, level: def.level ?? def.levels?.[0] ?? 1, levels: def.levels ?? null, xp: def.xp, family: def.family, boss: !!def.boss, bossId: def.bossId ?? null, elite: !!def.elite });
   }
@@ -128,12 +131,13 @@ export function installWorld(game) {
 
   // Runde 3: Platzhalter, solange eigene Grafik fehlt (Gegner -> Vorbild, Deko/Biom -> verwandter Satz)
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
-    if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, () => assets.sprites[def.spriteBase]);
+    if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, def.recolor ? () => recolorSet(assets.sprites[def.spriteBase], def.recolor) : () => assets.sprites[def.spriteBase]);
   }
   lazyAsset(assets, 'decor_steppe', createSteppeDecor);
   lazyAsset(assets, 'decor_marsh', createMarshDecor);
   lazyAsset(assets, 'decor_frost', createFrostDecor);
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
+  lazyAsset(assets, 'decor_astral', createAstralDecor);
   lazyAsset(assets, 'biome_barrow', () => createBiomesBarrowSpore('barrow'));
   lazyAsset(assets, 'biome_spore', () => createBiomesBarrowSpore('spore'));
   lazyAsset(assets, 'biome_rime', () => createBiomesRimeThrone('rime'));
