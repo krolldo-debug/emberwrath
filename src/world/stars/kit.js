@@ -57,7 +57,7 @@ export function bridge(m, [[ax, ay], [bx, by]], width = 2, kind = 'wood') {
     if (f && (h !== prim ? (f.cost += 4) : 0, !best || f.cost < best.cost)) best = f;
     if (best && h === prim && off === 0) break;
   }
-  if (!best) throw new Error(`Brücke ${ax},${ay} → ${bx},${by}: kein Land`);
+  if (!best) throw new Error(`bridge ${ax},${ay} → ${bx},${by}: no land in reach`);
   const { h, a0, a1, c0, c1, at } = best;
   for (let a = a0; a <= a1; a++) for (let c = c0; c < c1; c++) if (at(a, c) === VOID) (h ? m.set(a, c, BRIDGE) : m.set(c, a, BRIDGE));
   (m.bridges ??= []).push({ h, a0, a1: a1 + 1, c0, c1, kind });
