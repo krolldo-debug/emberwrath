@@ -409,6 +409,7 @@ Object.assign(VENDORS, {
   trader_pell: { name: 'Pells Stand', levels: [40, 45], goods: ['starlight_potion', 'starlight_mana', 'steppe_jerky'], craft: true },
   trader_lio: { name: 'Lios Laden', levels: [40, 50], goods: ['starlight_potion', 'starlight_mana', 'steppe_jerky'], craft: true },
   quartermaster_tamsin: { name: 'Tamsins Rüstkammer', levels: [44, 50], goods: ['starlight_potion', 'starlight_mana'], craft: true },
+  stablemaster_corvin: { name: 'Corvins Stall', gear: false, goods: ['mount_sky_ray', 'mount_moon_lynx'] },
   trader_bosk: { name: 'Bosks Vorräte', levels: [45, 50], goods: ['starlight_potion', 'starlight_mana', 'steppe_jerky'], craft: true },
 });
 // Questvielfalt (questsVariety.js): neue Zielarten in allen Gebieten
