@@ -76,7 +76,7 @@ OUTDOOR.astral = {
   water: R('#1c2450', '#2c3c78', '#3a4e92', '#a4b8e8'), tree: R('#241a2c', '#6e2c56', '#9a4474', '#c86a98'),
   roof: R('#2a2848', '#4a4870', '#6a6896'), crop: R('#6c927c', '#97b896'),
   sky: R('#151638', '#22245a', '#3a3478', '#62458a', '#985a92', '#c87488'), cliff: R('#1c1834', '#352d5e', '#584a88'),
-  bridge: R('#5a5878', '#c4c2dc'),
+  bridge: R('#6e4c34', '#c49c70'),
 };
 OUTDOOR.shards = { ...OUTDOOR.astral, ground: R('#324658', '#40596c', '#587686'), forest: R('#263446', '#324658', '#384a58'), speck: hex('#8cd8f0') };
 OUTDOOR.cinder = OUTDOOR.peaks;
@@ -121,7 +121,7 @@ const GLYPHS = [
   [/walk|boardwalk|bridge(?!stub|rail)|platform/, 'planks'],
   [/palisade|fence|barricade|damstakes|minerail/, 'fence'],
   [/watchtower|tower|lookout/, 'tower'],
-  [/cottage|house|hut|longhouse|lodge|stable|mill|mausoleum|kiln|facade|forge$|^forge|stall|den$/, 'house'],
+  [/cottage|house|hut|longhouse|lodge|stable|mill|mausoleum|kiln|facade|forge$|^forge|stall|den$|shop|temple|library/, 'house'],
   [/tent|yurt/, 'tent'],
   [/needle|spike|spire|basalt|icepillar|obsidianpillar/, 'spire'],
   [/cave|grotto|mineentrance|gate|arch/, 'cave'],

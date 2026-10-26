@@ -257,7 +257,9 @@ export function placeObjects(world) {
     const sub = subs.length ? subs.join(' · ') : null;
     const looks = p.decor ? decoSet?.[p.decor] ?? null : null;
     const portal = world.spawn(new Portal(p.x * T + T / 2, p.y * T + T / 2, { id: p.id, to: p.to, prompt: p.prompt, range: p.range, sub, visual: p.visual, dir: p.dir, minLevel, quest: p.requires?.quest ?? null, locked: p.locked ?? null, looks }));
-    if (looks?.off?.box ?? looks?.box) { const [a, b, c, dd] = looks.off?.box ?? looks.box; d.boxes.push({ x0: portal.x + a, y0: portal.y + b, x1: portal.x + c, y1: portal.y + dd, low: true }); }
+    const lk = looks?.off ?? looks;
+    if (lk?.box) { const [a, b, c, dd] = lk.box; d.boxes.push({ x0: portal.x + a, y0: portal.y + b, x1: portal.x + c, y1: portal.y + dd, low: true }); }
+    for (const [a, b, c, dd] of lk?.boxes ?? []) d.boxes.push({ x0: portal.x + a, y0: portal.y + b, x1: portal.x + c, y1: portal.y + dd, low: false });
     world.interactables.push(portal);
   }
 

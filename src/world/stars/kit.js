@@ -3,7 +3,7 @@ import { MapBuilder } from '../levels.js';
 import { roadNet, GROUND } from '../mapkit.js';
 
 // Werkzeugkasten der Sternenscherben (Inselkarten, level.island). Bodenzeichen:
-// '_' Abgrund (Himmel, fest), '+' Lichtbrücke (Trittsteine, begehbar), ',' Gras, '.' Sternsand (Weg),
+// '_' Abgrund (Himmel, fest), '+' Brücke (begehbar), ',' Gras, '.' Sternsand (Weg),
 // ':' Perlsteinpflaster, '~' Weiher (fest). Die Karte beginnt ganz als Abgrund; Inseln werden hineingesetzt.
 
 export const VOID = '_', BRIDGE = '+';
@@ -33,8 +33,47 @@ export function isle(m, cx, cy, rx, ry, seed, { ch = ',', wob = 0.22, only = nul
   return inside;
 }
 
-// Lichtbrücke über den Abgrund (überschreibt nur Abgrund), width in Kacheln (2–3)
-export function bridge(m, pts, width = 2) { m.path(pts, width, BRIDGE, [VOID]); }
+// Brücke über den Abgrund (überschreibt nur Abgrund): gerade, waagrecht oder senkrecht, width Kacheln breit. Liegen a und
+// b schräg zueinander, wird die kürzeste gerade Brücke nahe der Verbindungslinie gesucht. Die Enden laufen weiter, bis die
+// ganze Brückenbreite auf Land steht (oder am Kartenrand endet). kind: 'rope' Hängebrücke, 'wood' Holzbrücke mit Geländer,
+// 'stone' Steinbrücke mit Bögen (ground/bridges.js zeichnet sie aus m.bridges → level.bridges).
+export function bridge(m, [[ax, ay], [bx, by]], width = 2, kind = 'wood') {
+  const prim = Math.abs(bx - ax) >= Math.abs(by - ay);
+  const fit = (h, off) => {
+    const lim = h ? m.w : m.h, c0 = Math.round((h ? ay + by : ax + bx) / 2 - (width - 1) / 2) + off, c1 = c0 + width;
+    let a0 = Math.max(0, Math.round(Math.min(h ? ax : ay, h ? bx : by))), a1 = Math.min(lim - 1, Math.round(Math.max(h ? ax : ay, h ? bx : by)));
+    const at = (a, c) => (h ? m.get(a, c) : m.get(c, a));
+    const open = (a) => { for (let c = c0; c < c1; c++) if (at(a, c) === VOID) return true; return false; };
+    let n0 = 0, n1 = 0, gap = 0;
+    for (; a0 > 0 && open(a0); a0--) if (++n0 > 14) return null;
+    for (; a1 < lim - 1 && open(a1); a1++) if (++n1 > 14) return null;
+    for (let a = a0; a <= a1; a++) if (open(a)) gap++;
+    return gap ? { h, a0, a1, c0, c1, at, cost: a1 - a0 + Math.abs(off) * 1.5 } : off || h !== prim ? null : { none: true };
+  };
+  let best = null;
+  for (const h of [prim, !prim]) for (const off of [0, -1, 1, -2, 2, -3, 3]) {
+    const f = fit(h, off);
+    if (f?.none) return;   // liegt schon ganz auf Land
+    if (f && (h !== prim ? (f.cost += 4) : 0, !best || f.cost < best.cost)) best = f;
+    if (best && h === prim && off === 0) break;
+  }
+  if (!best) throw new Error(`bridge ${ax},${ay} → ${bx},${by}: no land in reach`);
+  const { h, a0, a1, c0, c1, at } = best;
+  for (let a = a0; a <= a1; a++) for (let c = c0; c < c1; c++) if (at(a, c) === VOID) (h ? m.set(a, c, BRIDGE) : m.set(c, a, BRIDGE));
+  (m.bridges ??= []).push({ h, a0, a1: a1 + 1, c0, c1, kind });
+}
+
+// Anleger: Holzsteg von der Inselkante (x, y = erste Abgrundkachel) len Kacheln in Richtung dir ([1,0], [0,1] …)
+export function pier(m, x, y, len, [dx, dy], width = 2, kind = 'wood') {
+  const h = dx !== 0, s = dx + dy;
+  for (let k = 0; k < len; k++) for (let c = 0; c < width; c++) {
+    const tx = h ? x + k * s : x + c, ty = h ? y + c : y + k * s;
+    if (m.get(tx, ty) === VOID) m.set(tx, ty, BRIDGE);
+  }
+  const a = h ? x : y, end = a + (len - 1) * s;
+  (m.bridges ??= []).push({ h, a0: Math.min(a - s, end), a1: Math.max(a - s, end) + 1, c0: h ? y : x, c1: (h ? y : x) + width, kind });
+  return h ? [x + (len - 1) * s, y] : [x, y + (len - 1) * s];
+}
 
 // Wege: Sternsand bzw. Pflaster nur auf Gras/Sand (nicht über den Abgrund); Maske für Streudeko wie roadNet
 export function paths(m) {
