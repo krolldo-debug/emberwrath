@@ -16,6 +16,7 @@
 //  price   fester Kaufpreis (Reittiere bei Orla), sonst value × BUY_FACTOR
 // Stufe 21–40: items40.js (Tier 5–8, Sets, Reittier-Gegenstände).
 import { WEAPONS_40, ARMOR_40, JEWELRY_40, OTHER_40 } from './items40.js';
+import { WEAPONS_50, ARMOR_50, JEWELRY_50, OTHER_50 } from './items50.js';
 import { CLASSES } from '../character/classes.js';
 import { SET_ITEMS } from '../character/skinSets.js';
 
@@ -427,7 +428,7 @@ function addVariants(out) {
 
 function buildEquipment() {
   const out = {};
-  const weapons = withLists(WEAPONS, WEAPONS_40), armor = withLists(ARMOR, ARMOR_40), jewelry = withLists(JEWELRY, JEWELRY_40, REWARD_JEWELRY);
+  const weapons = withLists(WEAPONS, WEAPONS_40, WEAPONS_50), armor = withLists(ARMOR, ARMOR_40, ARMOR_50), jewelry = withLists(JEWELRY, JEWELRY_40, JEWELRY_50, REWARD_JEWELRY);
   for (const [family, list] of Object.entries(weapons)) {
     for (const e of list) {
       out[e.id] = {
@@ -515,11 +516,12 @@ for (const d of Object.values(LOOK_ITEMS)) Object.assign(d, { source: 'achieveme
 
 const EQUIPMENT = buildEquipment();
 for (const id of Object.keys(OTHER_40)) if (EQUIPMENT[id] || OTHER[id]) throw new Error(`Item-ID ${id} doppelt`);
-for (const id of Object.keys(LOOK_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id]) throw new Error(`Item-ID ${id} doppelt`);
+for (const id of Object.keys(OTHER_50)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id]) throw new Error(`Item-ID ${id} doppelt`);
+for (const id of Object.keys(LOOK_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || OTHER_50[id]) throw new Error(`Item-ID ${id} doppelt`);
 // Klassen-Skinsets aus dem Shop (character/skinSets.js): reines Aussehen, source 'shop'
-for (const id of Object.keys(SET_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || LOOK_ITEMS[id]) throw new Error(`Item-ID ${id} doppelt`);
-export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40, ...LOOK_ITEMS, ...SET_ITEMS };
-for (const d of [...Object.values(OTHER), ...Object.values(OTHER_40)]) { d.ilvl = d.ilvl ?? 1; d.reqLevel = d.reqLevel ?? 1; d.tier = tierOf(d.ilvl); }
+for (const id of Object.keys(SET_ITEMS)) if (EQUIPMENT[id] || OTHER[id] || OTHER_40[id] || OTHER_50[id] || LOOK_ITEMS[id]) throw new Error(`Item-ID ${id} doppelt`);
+export const ITEMS = { ...EQUIPMENT, ...OTHER, ...OTHER_40, ...OTHER_50, ...LOOK_ITEMS, ...SET_ITEMS };
+for (const d of [...Object.values(OTHER), ...Object.values(OTHER_40), ...Object.values(OTHER_50)]) { d.ilvl = d.ilvl ?? 1; d.reqLevel = d.reqLevel ?? 1; d.tier = tierOf(d.ilvl); }
 
 export function stackSize(def) { return Math.max(1, def?.stack ?? 1); }
 export function buyPrice(def) { return def.price ?? Math.max(1, Math.round((def.value || 1) * BUY_FACTOR)); }

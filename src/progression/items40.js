@@ -13,6 +13,9 @@ export const TIER_STYLES = {
   6: { common: ['bog', 'Moor'], uncommon: ['mirewarden', 'Sumpfwächter'], rare: ['blightbane', 'Faulbann'] },
   7: { common: ['rimeforged', 'Reif'], uncommon: ['rimehunter', 'Reifjäger'], rare: ['jarl', 'Jarls'] },
   8: { common: ['waste', 'Ödland'], uncommon: ['bastion', 'Bastions'], rare: ['emberknight', 'Glutritter'] },
+  // Sternenglut (items50.js): 9 Treibende Gärten 41–45, 10 Splitterweiten 46–50
+  9: { common: ['grove', 'Hain'], uncommon: ['terrace', 'Terrassen'], rare: ['moonward', 'Mondwacht'] },
+  10: { common: ['shard', 'Splitter'], uncommon: ['skyglass', 'Himmelsglas'], rare: ['starsteel', 'Sternenstahl'] },
 };
 export function tierBase(tier) { return 21 + (tier - 5) * 5; }
 
@@ -49,7 +52,8 @@ export function armorIcon(slot, family, tier) {
 }
 
 // Grundausrüstung eines Tiers. Stufen verteilen sich über das Tier, damit es unterwegs laufend Verbesserungen gibt.
-function gear(tier) {
+// Auch für Tier 9–10 (items50.js).
+export function gear(tier) {
   const b = tierBase(tier), styles = TIER_STYLES[tier];
   const weapons = {}, armor = { chest: [], head: [], hands: [], feet: [] }, jewelry = { ring: [], amulet: [] };
   const shift = { common: 0, uncommon: 2, rare: 4 };

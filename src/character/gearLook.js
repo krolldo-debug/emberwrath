@@ -40,6 +40,11 @@ export const MAT = {
   holy: ['#4a3208', '#9a7018', '#e0b030', '#fff080', '#fffbe0'],
   ashsteel: ['#1c1a24', '#3c3848', '#666076', '#aaa4ba', '#f4f0fa'],
   copper: ['#3a1a10', '#6e3420', '#a85a34', '#d88a58', '#f8c49a'],
+  // Sternenglut: Perlmutt der Gärten, Sternenstahl (Nachtblau), Sternenglas, Leerenmagenta
+  pearl: ['#24302e', '#465c58', '#7a968e', '#b6d2c6', '#eefcf4'],
+  starsteel: ['#080c22', '#141c46', '#26367a', '#4c68b8', '#9cb8f0'],
+  starglass: ['#123040', '#2a6078', '#5ca4c0', '#a8e2f0', '#ffffff'],
+  magenta: ['#260a22', '#52144a', '#902a80', '#d258b8', '#ffb8ec'],
 };
 const M = MAT;
 
@@ -51,8 +56,11 @@ export const TIER_LOOK = {
   6: { metal: M.iron, trim: M.bone, gem: M.green, wood: M.darkwood, cloth: M.moss, leather: M.darkleather, fur: M.moss, top: 'skull', grip: M.darkleather, jag: true },
   7: { metal: M.frost, trim: M.silver, gem: M.blue, wood: M.silver, cloth: M.blue, leather: M.fur, fur: M.silver, top: 'crystal', grip: M.blue },
   8: { metal: M.obsidian, trim: M.gold, gem: M.ember, wood: M.darkwood, cloth: M.red, leather: M.darkleather, fur: M.obsidian, top: 'flame', grip: M.darkleather, glow: M.ember },
+  // Sternenglut: 9 Treibende Gärten (Perlmutt, Moos, Sternenglas), 10 Splitterweiten „Sternenstahl“ (Nachtblau, Goldkanten)
+  9: { metal: M.pearl, trim: M.silver, gem: M.starglass, wood: M.wood, cloth: M.moss, leather: M.leather, fur: M.moss, top: 'crystal', grip: M.moss },
+  10: { metal: M.starsteel, trim: M.gold, gem: M.starglass, wood: M.darkwood, cloth: M.starsteel, leather: M.darkleather, fur: M.starsteel, top: 'crystal', grip: M.darkleather, glow: M.starglass },
 };
-export const LOOK_TIERS = [5, 6, 7, 8];
+export const LOOK_TIERS = [5, 6, 7, 8, 9, 10];
 
 // Seltenheit -> Ersatzmaterial und Leuchten, wenn ein Icon unbekannt ist.
 const RARITY_LOOK = {
@@ -160,6 +168,8 @@ const TIER_HEAD = {
   helm_t6: { mail: { style: 'nasal', ramp: M.iron, trim: M.bone }, plate: { style: 'great', ramp: M.iron, trim: M.bone } },
   helm_t7: { mail: { style: 'nasal', ramp: M.steel, trim: M.silver, crest: M.blue }, plate: { style: 'great', ramp: M.steel, trim: M.silver, crest: M.blue } },
   helm_t8: { mail: { style: 'horned', ramp: M.obsidian, trim: M.gold }, plate: { style: 'great', ramp: M.obsidian, trim: M.gold, glow: M.ember } },
+  helm_t9: { mail: { style: 'nasal', ramp: M.pearl, trim: M.silver }, plate: { style: 'great', ramp: M.pearl, trim: M.silver, crest: M.moss } },
+  helm_t10: { mail: { style: 'nasal', ramp: M.starsteel, trim: M.gold }, plate: { style: 'great', ramp: M.starsteel, trim: M.gold, glow: M.starglass } },
 };
 function tierHead(tier, def) {
   const base = tier[def.family];
@@ -204,7 +214,7 @@ for (const n of LOOK_TIERS) {
   WEAPONS[`axe${t}`] = { head: T.metal, haft: T.wood, double: n >= 7, bearded: n === 5, spike: n >= 6, glow: T.glow };
   WEAPONS[`mace${t}`] = { head: T.metal, haft: T.wood, kind: n === 5 || n === 7 ? 'flanged' : 'spiked' };
   WEAPONS[`staff${t}`] = { wood: T.wood, top: T.top, ramp: n === 6 ? M.green : n === 7 ? M.frost : T.gem, bands: n >= 7 ? T.trim : null, gnarled: n === 6 };
-  WEAPONS[`wand${t}`] = { wood: T.wood, top: n === 7 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
+  WEAPONS[`wand${t}`] = { wood: T.wood, top: n === 7 || n >= 9 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
   WEAPONS[`bow${t}`] = { wood: T.wood, recurve: n >= 6, long: n === 7, tips: T.trim, grip: T.gem, string: n === 7 ? '#e8f0ff' : undefined };
   CHESTS[`cloth${t}`] = { style: 'robe', ramp: T.cloth, trim: T.trim, emblem: T.gem, glow: T.glow };
   CHESTS[`leather${t}`] = { style: 'leather', ramp: T.leather, fur: T.fur, emblem: n >= 7 ? T.gem : undefined };

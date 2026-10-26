@@ -13,6 +13,7 @@
 import { ITEMS, RARITY_ORDER, WEAPON_CLASSES, itemScore, attrFit } from './items.js';
 import { RARE_ENEMIES, RARE_GOLD_MULT, RARE_WEIGHTS } from './rares.js';
 import { SOVEREIGN_LEGENDARIES } from './items40.js';
+import { YSMEINE_LEGENDARIES } from './items50.js';
 
 // Gewichte je Quelle. Summe beliebig; Grenzen werden in rarityWeights() erzwungen.
 const RARITY_TABLE = {
@@ -36,6 +37,10 @@ const BOSSES = {
   rot_mother: { weights: { uncommon: 50, rare: 45, epic: 5 }, drops: 2, gold: 15, named: [['rotmother_staff', 0.2]], set: { chance: 0.35, pieces: ['rotmother_hood', 'rotmother_robe', 'rotmother_gloves', 'rotmother_amulet'] }, mount: ['mount_spore_beetle', 0.01] },
   frost_wyrm: { weights: { uncommon: 34, rare: 60, epic: 6 }, drops: 2, gold: 16, named: [['skalvyr_fang', 0.12], ['skalvyr_rib_bow', 0.12]], set: { chance: 0.35, pieces: ['wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'] }, quest: [['q_frost_wyrm', 'wyrm_heart']], mount: [['mount_frost_elk', 0.01], ['mount_rime_drake', 0.004]] },
   ash_sovereign: { weights: { rare: 92, epic: 8 }, drops: 3, gold: 20, set: { chance: 0.12, pieces: ['sovereign_helm', 'sovereign_gauntlets', 'sovereign_sabatons'] }, legendary: { chance: 0.018, pool: SOVEREIGN_LEGENDARIES }, quest: [['q_ash_sovereign', 'sovereign_crown']], questOnDefeat: true, mount: ['mount_cinder_drake', 0.005] },
+  // Sternenglut Teil 1 (items50.js). Reittiere folgen mit den Figuren (Thread „Neue Welt“).
+  ysgarn: { weights: { uncommon: 40, rare: 54, epic: 6 }, drops: 2, gold: 18, named: [['ysgarn_staff', 0.15], ['ysgarn_bough', 0.15]], set: { chance: 0.35, pieces: ['gardener_cap', 'gardener_jerkin', 'gardener_grips', 'gardener_boots'] } },
+  kaldris: { weights: { uncommon: 30, rare: 62, epic: 8 }, drops: 2, gold: 20, named: [['kaldris_edge', 0.15], ['kaldris_shard', 0.15]], set: { chance: 0.35, pieces: ['kaldris_helm', 'kaldris_cuirass', 'kaldris_gauntlets', 'kaldris_sabatons'] } },
+  ysmeine: { weights: { rare: 90, epic: 10 }, drops: 3, gold: 24, set: { chance: 0.15, pieces: ['ysmeine_circlet', 'ysmeine_gown', 'ysmeine_gloves', 'ysmeine_slippers'] }, legendary: { chance: 0.018, pool: YSMEINE_LEGENDARIES } },
 };
 // Benannte Eliten (Außengebiete ab 20): Set-Teil mit `set.chance`, Questgegenstand, evtl. Reittier.
 // Seltenheit der normalen Beute bleibt Elite (§11.5).
@@ -104,6 +109,24 @@ const TYPE_MATS = {
   throne_guard: [['ember_ore', 0.3], ['magma_scale', 0.08]],
   ash_priest: [['adept_sigil', 0.3], ['cultist_tome', 0.25]],
   ember_hellhound: [['magma_scale', 0.1], ['wolf_fang', 0.2]],
+  // Sternenglut Teil 1: Treibende Gärten und Rankengruft (41–45), Splitterweiten und ihre Dungeons (45–50)
+  bloom_stalker: [['lichtmoss', 0.3]],
+  void_wisp: [['void_bloom', 0.08], ['shadow_essence', 0.05]],
+  rootbound: [['heartwood_sap', 0.35], ['lichtmoss', 0.15]],
+  vine_horror: [['heartwood_sap', 0.25], ['void_bloom', 0.06]],
+  garden_golem: [['lichtmoss', 0.3], ['heartwood_sap', 0.1]],
+  star_moth: [['lichtmoss', 0.25], ['prism_dust', 0.1]],
+  thorn_priest: [['void_bloom', 0.12], ['heartwood_sap', 0.2]],
+  withered_warden: [['heartwood_sap', 1], ['void_bloom', 0.5]],
+  shard_crawler: [['star_shard', 0.3]],
+  mad_prospector: [['star_shard', 0.3], ['linen', 0.2]],
+  glass_sentinel: [['star_shard', 0.25], ['void_glass', 0.06]],
+  prism_elemental: [['prism_dust', 0.4]],
+  void_hound: [['void_glass', 0.1], ['prism_dust', 0.15]],
+  statue_wraith: [['prism_dust', 0.3], ['star_shard', 0.1]],
+  shadow_ranger: [['void_glass', 0.08], ['linen', 0.2]],
+  star_seer: [['prism_dust', 0.25], ['void_glass', 0.08]],
+  splinter_colossus: [['star_shard', 1], ['void_glass', 0.5]],
 };
 const FAMILY_MATS = {
   beast: [['wolf_pelt', 0.35]], undead: [['bone_dust', 0.4]], spider: [['linen', 0.15]], humanoid: [['linen', 0.3]],
@@ -168,10 +191,10 @@ export function pickEquipment({ level, rarity, classId, rng = Math.random }) {
   return null;
 }
 
-export function potionFor(level) { return level >= 31 ? 'supreme_potion' : level >= 21 ? 'superior_potion' : level >= 12 ? 'greater_potion' : level >= 6 ? 'healing_potion' : 'minor_potion'; }
-export function manaFor(level) { return level >= 31 ? 'supreme_mana' : level >= 21 ? 'greater_mana' : level >= 8 ? 'mana_potion' : 'minor_mana'; }
+export function potionFor(level) { return level >= 41 ? 'starlight_potion' : level >= 31 ? 'supreme_potion' : level >= 21 ? 'superior_potion' : level >= 12 ? 'greater_potion' : level >= 6 ? 'healing_potion' : 'minor_potion'; }
+export function manaFor(level) { return level >= 41 ? 'starlight_mana' : level >= 31 ? 'supreme_mana' : level >= 21 ? 'greater_mana' : level >= 8 ? 'mana_potion' : 'minor_mana'; }
 // Truhenmaterial nach Stufe
-function chestMaterial(level) { return level >= 36 ? 'magma_scale' : level >= 31 ? 'rime_crystal' : level >= 21 ? 'bog_iron' : level >= 12 ? 'ember_ore' : 'grave_iron'; }
+function chestMaterial(level) { return level >= 46 ? 'star_shard' : level >= 41 ? 'heartwood_sap' : level >= 36 ? 'magma_scale' : level >= 31 ? 'rime_crystal' : level >= 21 ? 'bog_iron' : level >= 12 ? 'ember_ore' : 'grave_iron'; }
 
 function addJunkGold(drops, value) {
   const g = drops.find((d) => d.gold != null);

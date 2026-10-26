@@ -403,6 +403,13 @@ export const VENDORS = {
 for (const [id, q] of Object.entries(QUESTS_40)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
 Object.assign(NPC_LINES, NPC_LINES_40);
 Object.assign(VENDORS, VENDORS_40);
+// Sternenglut Teil 1: Händler der neuen Welt (NPCs aus world/stars/zones.js)
+Object.assign(VENDORS, {
+  trader_pell: { name: 'Pells Stand', levels: [40, 45], goods: ['starlight_potion', 'starlight_mana', 'steppe_jerky'], craft: true },
+  trader_lio: { name: 'Lios Laden', levels: [40, 50], goods: ['starlight_potion', 'starlight_mana', 'steppe_jerky'], craft: true },
+  quartermaster_tamsin: { name: 'Tamsins Rüstkammer', levels: [44, 50], goods: ['starlight_potion', 'starlight_mana'], craft: true },
+  trader_bosk: { name: 'Bosks Vorräte', levels: [45, 50], goods: ['starlight_potion', 'starlight_mana', 'steppe_jerky'], craft: true },
+});
 // Questvielfalt (questsVariety.js): neue Zielarten in allen Gebieten
 for (const [id, q] of Object.entries(QUESTS_VARIETY)) { if (QUESTS[id]) throw new Error(`Quest ${id} doppelt`); QUESTS[id] = q; }
 for (const [npc, lines] of Object.entries(NPC_LINES_VARIETY)) if (NPC_LINES[npc]) NPC_LINES[npc].lines = [...NPC_LINES[npc].lines, ...lines];

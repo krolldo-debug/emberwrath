@@ -2,11 +2,13 @@
 //
 //   node src/ledger/stufenSql.mjs > supabase/migrations/20261026120000_stufe_50.sql
 //
-// Enthält nur, was an der Höchststufe hängt: die Stufengrenze der Spielstandprüfung (characters_plausible) und aus dem
-// Fortschrittsbuch (ledgerSql.mjs) die Erfahrung je Stufe, ledger_values und ledger_normalize. Alles andere bleibt, wie
-// die bisherigen Migrationen es angelegt haben. Mehrfach ausführbar.
+// Enthält nur, was an der Höchststufe und den neuen Gegenständen hängt: die Stufengrenze der Spielstandprüfung
+// (characters_plausible), aus dem Fortschrittsbuch (ledgerSql.mjs) gezählte Gegenstände, Reittiere, Erfahrung je Stufe,
+// ledger_values und ledger_normalize, aus dem Auktionshaus (marketSql.mjs) den Katalog. Alles andere bleibt, wie die
+// bisherigen Migrationen es angelegt haben. Mehrfach ausführbar.
 import { LEVEL_CAP, LEGACY_CAP } from '../progression/xp.js';
 import { ledgerSql } from './ledgerSql.mjs';
+import { marketSql } from '../market/marketSql.mjs';
 
 // Ein Abschnitt aus der Fortschrittsbuch-Migration, von `start` bis einschließlich `end`
 function part(sql, start, end) {
@@ -18,7 +20,9 @@ function part(sql, start, end) {
 
 export function stufenSql() {
   const sql = ledgerSql();
+  const items = part(sql, 'delete from public.ledger_items;', 'delete from public.ledger_levels;').replace(/delete from public\.ledger_levels;$/, '').trimEnd();
   const levels = part(sql, 'delete from public.ledger_levels;', ';\n\n');
+  const catalog = part(marketSql(), 'delete from public.market_items;', 'end $$;');
   const values = part(sql, 'create or replace function public.ledger_values(', 'end $$;');
   const normalize = part(sql, 'create or replace function public.ledger_normalize(', 'end $$;');
   return `-- Emberwrath: Höchststufe ${LEVEL_CAP} (Erweiterung Sternenglut, Teil 1).
@@ -28,7 +32,9 @@ export function stufenSql() {
 --
 --  - Spielstandprüfung (characters_plausible): Stufe 1–${LEVEL_CAP} statt 1–${LEGACY_CAP}. Die übrige Funktion bleibt genau, wie sie ist
 --    (sie wird aus der Datenbank gelesen und nur an dieser Stelle geändert).
---  - Fortschrittsbuch: Erfahrung je Stufe bis ${LEVEL_CAP} (bis ${LEGACY_CAP} unverändert), Stufe beim Zählen und Bereinigen bis ${LEVEL_CAP}.
+--  - Fortschrittsbuch: Erfahrung je Stufe bis ${LEVEL_CAP} (bis ${LEGACY_CAP} unverändert), Stufe beim Zählen und Bereinigen bis ${LEVEL_CAP},
+--    gezählte Gegenstände und Reittiere mit der Beute der neuen Welt.
+--  - Auktionshaus: Katalog mit den handelbaren Gegenständen der neuen Welt.
 --  - Bestehende Charaktere: Stufe, Erfahrung und alles andere bleiben genau, wie sie sind.
 
 -- ------------------------------------------------------------------ Spielstandprüfung
@@ -45,6 +51,7 @@ end $stufe$;
 revoke execute on function public.characters_plausible() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------ Fortschrittsbuch
+${items}
 ${levels.trimEnd()}
 
 ${values}
@@ -52,6 +59,9 @@ ${values}
 ${normalize}
 revoke execute on function public.ledger_values(jsonb) from public, anon, authenticated;
 revoke execute on function public.ledger_normalize(jsonb) from public, anon, authenticated;
+
+-- ------------------------------------------------------------------ Auktionshaus
+${catalog}
 `;
 }
 

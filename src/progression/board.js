@@ -32,12 +32,16 @@ export const BOARD_REGIONS = [
   { id: 'marsh', min: 25, max: 30, name: 'Faulmarsch', enemies: ['bog_lurker', 'swamp_leech', 'plague_toad', 'bog_slime', 'marsh_hag'], elites: ['bog_horror'], mats: ['leech_ichor', 'toad_gland', 'bog_iron'], bosses: ['barrow_king', 'rot_mother'] },
   { id: 'frost', min: 31, max: 35, name: 'Frostzinnen', enemies: ['frost_wolf', 'snow_stalker', 'ice_troll', 'frost_revenant', 'snow_burrower'], elites: ['ice_troll_chief'], mats: ['frost_pelt', 'troll_fat', 'rime_crystal'], bosses: ['rot_mother', 'frost_wyrm'] },
   { id: 'wastes', min: 36, max: 39, name: 'Glutöde', enemies: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'cinder_bombardier', 'phase_wraith'], elites: ['waste_colossus'], mats: ['pilgrim_relic', 'magma_scale'], bosses: ['frost_wyrm', 'ash_sovereign'] },
-  { id: 'endgame', min: 40, max: LEVEL_CAP, name: 'Ganz Emberwrath', enemies: ['ash_wraith', 'cinder_knight', 'phase_wraith', 'frost_revenant', 'marsh_hag', 'cinder_bombardier'], elites: ['waste_colossus', 'ice_troll_chief', 'bog_horror', 'steppe_warlord'], mats: ['magma_scale', 'rime_crystal', 'bog_iron'], bosses: ['barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign'], trials: true },
+  { id: 'endgame', min: 40, max: 40, name: 'Ganz Emberwrath', enemies: ['ash_wraith', 'cinder_knight', 'phase_wraith', 'frost_revenant', 'marsh_hag', 'cinder_bombardier'], elites: ['waste_colossus', 'ice_troll_chief', 'bog_horror', 'steppe_warlord'], mats: ['magma_scale', 'rime_crystal', 'bog_iron'], bosses: ['barrow_king', 'rot_mother', 'frost_wyrm', 'ash_sovereign'], trials: true },
+  // Sternenglut Teil 1 (Stufe 40 bleibt in der alten Welt: wer „Heimkehr“ noch nicht hat, kommt nicht durch den Riss)
+  { id: 'gardens', min: 41, max: 45, name: 'Treibende Gärten', enemies: ['bloom_stalker', 'void_wisp', 'rootbound', 'vine_horror', 'garden_golem', 'star_moth'], elites: ['withered_warden'], mats: ['lichtmoss', 'heartwood_sap'], bosses: ['ysgarn'] },
+  { id: 'shards', min: 46, max: LEVEL_CAP - 1, name: 'Splitterweiten', enemies: ['shard_crawler', 'mad_prospector', 'glass_sentinel', 'prism_elemental', 'void_hound', 'statue_wraith'], elites: ['splinter_colossus'], mats: ['star_shard', 'prism_dust'], bosses: ['ysgarn', 'kaldris', 'ysmeine'] },
+  { id: 'starfall', min: LEVEL_CAP, max: LEVEL_CAP, name: 'Sternenscherben', enemies: ['rootbound', 'vine_horror', 'glass_sentinel', 'prism_elemental', 'void_hound', 'star_seer', 'shadow_ranger'], elites: ['withered_warden', 'splinter_colossus'], mats: ['void_glass', 'void_bloom', 'star_shard'], bosses: ['ysgarn', 'kaldris', 'ysmeine'], trials: true },
 ];
 // Stufen der Brett-Eliten (wie entities/enemyTypes*.js, der Test prüft das). Kopfgeld gibt es erst, wenn der Held
 // höchstens ELITE_REACH Stufen darunter liegt: Eliten ab 20 kämpfen 2 Stufen höher (levelGap.js), am unteren Rand
 // einer Region wären sie sonst kaum zu schaffen.
-export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 39 };
+export const ELITE_LEVEL = { wolf_alpha: 3, bandit_chief: 10, magma_behemoth: 16, forge_warden: 19, steppe_warlord: 25, bog_horror: 30, ice_troll_chief: 35, waste_colossus: 39, withered_warden: 44, splinter_colossus: 49 };
 export const ELITE_REACH = 3;
 export function boardElites(region, level) { return region.elites.filter((id) => (ELITE_LEVEL[id] ?? 0) <= level + ELITE_REACH); }
 

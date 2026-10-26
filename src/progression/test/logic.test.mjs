@@ -34,6 +34,7 @@ let seed = 7;
 const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 const CLASSES = ['warrior', 'rogue', 'ranger', 'mage'];
 const NPCS = Object.keys(NPC_LINES);
+import { STAR_NPCS } from '../../world/stars/zones.js';
 
 function setup(classId = 'warrior') {
   const bus = new EventBus(), content = new Content();
@@ -463,7 +464,7 @@ test('Inhalte: Quests, NPCs, Händler und Items sind konsistent', () => {
     }
     assert.ok(q.rewards.xp > 0, q.id);
   }
-  for (const v of Object.keys(VENDORS)) assert.ok(NPCS.includes(v));
+  for (const v of Object.keys(VENDORS)) assert.ok(NPCS.includes(v) || STAR_NPCS[v], v); // Sternenglut: Gruß aus world/stars/zones.js
   for (const [id, d] of Object.entries(ITEMS)) {
     assert.ok(d.name && d.icon && d.rarity && d.type, id);
     if (d.slot) { assert.ok(EQUIP_SLOTS.includes(d.slot), id); assert.ok(d.ilvl >= 1 && d.ilvl <= LEVEL_CAP, id); assert.ok(d.reqLevel <= d.ilvl, id); }
@@ -545,7 +546,8 @@ test('Erweiterung: Quests, Kette und Inhalte bis 40', () => {
   for (const b of ['q_bounty_steppe', 'q_bounty_marsh', 'q_bounty_frost', 'q_bounty_wastes']) assert.ok(QUESTS[b].repeatable);
   // Tiers 5–8 nach §12.7, reqLevel = ilvl − 1 wie bisher
   assert.equal(ITEMS.nomad_sword.tier, 5); assert.equal(ITEMS.bog_sword.tier, 6); assert.equal(ITEMS.jarl_sword.tier, 7); assert.equal(ITEMS.waste_sword.tier, 8);
-  for (const d of Object.values(ITEMS)) if (d.slot && d.ilvl > 20) assert.ok(/_t[5-8]$/.test(d.icon), `${d.name}: ${d.icon}`);
+  for (const d of Object.values(ITEMS)) if (d.slot && d.ilvl > 20) assert.ok(d.ilvl > 40 ? /_t(9|10)$/.test(d.icon) : /_t[5-8]$/.test(d.icon), `${d.name}: ${d.icon}`);
+  assert.equal(ITEMS.grove_sword.tier, 9); assert.equal(ITEMS.starsteel_sword.tier, 10);
   assert.equal(SOVEREIGN_LEGENDARIES.length, 6);
   for (const id of SOVEREIGN_LEGENDARIES) { assert.equal(ITEMS[id].rarity, 'legendary'); assert.equal(ITEMS[id].ilvl, 40); }
   for (const id of ['superior_potion', 'supreme_potion', 'greater_mana', 'supreme_mana']) assert.ok(ITEMS[id]);

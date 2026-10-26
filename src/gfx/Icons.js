@@ -1723,7 +1723,7 @@ export function abilityIcon(abilityId, def) {
 // helm_tN / hood_tN, gloves_<stil>_tN, boots_<stil>_tN (stil: cloth, leather, mail, plate), ring_tN, amulet_tN.
 // Fehlt eine Stufe (z. B. _t9), nimmt resolve() die nächstniedrigere (§12.7).
 // Farben je Stufe: character/gearLook.js TIER_LOOK (dieselbe Quelle wie am Helden).
-export const ICON_TIERS = Object.freeze([5, 6, 7, 8]);
+export const ICON_TIERS = Object.freeze([5, 6, 7, 8, 9, 10]);
 for (const n of ICON_TIERS) {
   const T = TIER_LOOK[n], t = `_t${n}`;
   const blade = { blade: T.metal, guard: T.trim, gemRamp: T.gem, grip: T.grip, fuller: !T.jag, jag: !!T.jag, glow: T.glow, width: 2.4 };
@@ -1733,7 +1733,7 @@ for (const n of ICON_TIERS) {
   AXES[`axe${t}`] = { head: T.metal, haft: T.wood, double: n >= 7, bearded: n === 5, spike: n >= 6, glow: T.glow };
   MACES[`mace${t}`] = { head: T.metal, haft: T.wood, flanged: n === 5 || n === 7, spikes: n === 6 || n === 8, r: 4 };
   STAFFS[`staff${t}`] = { wood: T.wood, top: T.top, ramp: n === 6 ? M.green : n === 7 ? M.frost : T.gem, bands: n >= 7, gnarled: n === 6 };
-  WANDS[`wand${t}`] = { wood: T.wood, top: n === 7 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
+  WANDS[`wand${t}`] = { wood: T.wood, top: n === 7 || n >= 9 ? 'gem' : n === 6 ? 'orb' : 'flame', ramp: T.gem };
   BOWS[`bow${t}`] = { wood: T.wood, recurve: n >= 6, long: n === 7, tips: T.trim[3], grip: T.gem[3], string: n === 7 ? '#e8f0ff' : undefined };
   ARMORS[`cloth${t}`] = { ramp: T.cloth, style: 'robe', trim: T.trim, long: n >= 7, emblem: T.gem, glow: T.glow };
   ARMORS[`leather${t}`] = { ramp: T.leather, style: 'leather', shoulder: T.fur, emblem: n >= 7 ? T.gem : undefined };
@@ -2726,6 +2726,10 @@ Object.assign(REG_FINE, Object.fromEntries(Object.entries({
   ore_iron: (p) => oreFine(p, ['#1a1622', '#252030', '#312a3d', '#4d4459', '#6f667c'], M.iron),
   ore_ember: (p) => oreFine(p, ['#140a0c', '#241418', '#342024', '#4a3034', '#6a4a4a'], true, M.ember),
   gem_ruby: (p) => bigGemFine(p, M.red), gem_sapphire: (p) => bigGemFine(p, M.blue), gem_amethyst: (p) => bigGemFine(p, M.purple),
+  // Sternenglut-Material (items50.js): Harz, Sternsplitter, Leerenglas, Lichtmoos
+  gem_amber: (p) => bigGemFine(p, M.gold), gem_starglass: (p) => bigGemFine(p, ['#123040', '#2a6078', '#5ca4c0', '#a8e2f0', '#ffffff']),
+  gem_void: (p) => bigGemFine(p, ['#260a22', '#52144a', '#902a80', '#d258b8', '#ffb8ec']),
+  ore_moss: (p) => oreFine(p, ['#0c140c', '#16221a', '#22322a', '#34483a', '#4c6450'], ['#12302a', '#1e5a48', '#3a9a78', '#7ee0b0', '#d8fff0']),
   key_iron: (p) => keyFine(p, M.iron), key_bone: (p) => keyFine(p, M.bone, true),
 }).map(([id, fn]) => [id, fineIcon(fn)])));
 for (const [alias, target] of Object.entries({ food: 'food_bread', ore: 'ore_iron', gem: 'gem_ruby', key: 'key_iron', ui_map: 'map' })) REG_FINE[alias] ??= REG_FINE[target];
