@@ -100,6 +100,7 @@ export const FR = {
   "Das ist dein eigenes Angebot.": "C'est ta propre offre.",
   "Das ist nicht mehr in deinem Besitz.": "Tu ne possèdes plus cet objet.",
   "Das lässt sich nicht handeln.": "Cet objet ne peut pas être échangé.",
+  "Das hast du mit einem anderen Helden eingestellt. Eigene Angebote kannst du nicht kaufen.": "Mis en vente par un autre de tes héros. Tu ne peux pas acheter tes propres offres.",
   "Dein Angebot.": "Ton offre.",
   "Dein Charakter ist noch nicht gesichert. Bitte versuch es gleich noch einmal.": "Ton personnage n'est pas encore sauvegardé. Réessaie dans un instant.",
   "Dein Gebot": "Ton enchère",

@@ -89,6 +89,7 @@ export const EN = {
   "Das ist dein eigenes Angebot.": "This is your own listing.",
   "Das ist nicht mehr in deinem Besitz.": "You no longer have this.",
   "Das lässt sich nicht handeln.": "This can't be traded.",
+  "Das hast du mit einem anderen Helden eingestellt. Eigene Angebote kannst du nicht kaufen.": "Listed by one of your other heroes. You can't buy your own listings.",
   "Dein Angebot.": "Your listing.",
   "Dein Charakter ist noch nicht gesichert. Bitte versuch es gleich noch einmal.": "Your character hasn't been saved yet. Please try again in a moment.",
   "Dein Gebot": "Your bid",

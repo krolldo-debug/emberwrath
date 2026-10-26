@@ -66,8 +66,9 @@ export function marketSql() {
 --        Gold-Obergrenze der Spielstandprüfung; der Rest bleibt im Postfach. characters_plausible bleibt unverändert.
 --      * Was das Auktionshaus geliefert hat, führt der Server als Bestand (market_owned) und lässt es frei wieder
 --        einstellen. Eigene Beute kostet Handelskontingent des Kontos nach Seltenheit und Menge (wächst mit der
---        Handelszeit) und darf höchstens ${LEVEL_SLACK} Stufen über dem Charakter liegen. Legendäre Reittiere sind nicht
---        handelbar, bis Beute auf dem Server entsteht.
+--        Handelszeit) und darf höchstens ${LEVEL_SLACK} Stufen über dem Charakter liegen. Zählt das Fortschrittsbuch die Beute
+--        (market_loot_checked), entfällt das Kontingent. Legendäre Reittiere sind nicht handelbar, bis Beute auf dem
+--        Server entsteht.
 --  - Ein Upload, den das Auktionshaus ablehnt ('handel'), verbraucht nicht die Vermerk-Sperre für Gold/Stufe/Grenze.
 --  - Konten mit Schummel-Vermerk (Stufe/Gold/Grenze, letzte 7 Tage) dürfen nicht handeln.
 --  - Handelbar sind nur Gegenstände aus public.market_items (aus dem Spiel erzeugt): keine Questgegenstände, keine
@@ -440,6 +441,21 @@ language sql stable set search_path = '' as $$
     + coalesce((select sum(public.market_shop_gold(c.user_id, c.id)) from public.characters c where c.user_id = a.user_id), 0)::bigint;
 $$;
 
+-- Zählt das Fortschrittsbuch (20261015120000_fortschrittsbuch.sql) die Beute dieses Charakters? Dann liegt im
+-- gespeicherten Spielstand nichts, was der Server nicht bestätigt hat (Uploads werden aufs Buch gekappt), und eigene
+-- Beute braucht kein Handelskontingent. Nicht im Übergang, nicht mit Notbremse (enforce = false), nicht ohne Buch.
+create or replace function public.market_loot_checked(p_user uuid, p_char text) returns boolean
+language plpgsql stable set search_path = '' as $$
+declare r boolean;
+begin
+  if to_regclass('public.ledger_config') is null or to_regclass('public.character_ledger') is null then return false; end if;
+  execute 'select exists (select 1 from public.ledger_config c where c.id = 1 and c.enforce
+             and c.strict_after is not null and now() >= c.strict_after)
+           and exists (select 1 from public.character_ledger l where l.user_id = $1 and l.character_id = $2)'
+    into r using p_user, p_char;
+  return coalesce(r, false);
+end $$;
+
 -- Darf das Konto noch need Gold ausgeben? Ausgaben minus Einnahmen (net, auch negativ) bleiben im Rahmen.
 create or replace function public.market_can_spend(p_user uuid, p_need bigint) returns boolean
 language plpgsql set search_path = '' as $$
@@ -557,11 +573,13 @@ begin
     lvl := coalesce(floor((c.snapshot #>> '{slices,progress,level}')::numeric), 1)::int;
     if it.req_level > lvl + ${LEVEL_SLACK} then return public.market_err('level'); end if;
     -- Kontingent nach Seltenheit und Menge (Stapel ab selten je angefangene 5 Stück, darunter je angefangene 10)
-    cost := (array[${freshCost.join(', ')}])[it.rarity + 1] * greatest(1, ceil((p_qty - use_)::numeric / case when it.rarity >= 2 then 5 else 10 end))::int;
-    if acc.fresh + cost > ${FRESH_BASE} + ${FRESH_PER_HOUR} * floor(public.market_trade_time(acc, false) / 3600) then
+    -- (entfällt, solange das Fortschrittsbuch die Beute zählt: market_loot_checked)
+    cost := case when public.market_loot_checked(uid, p_character) then 0
+      else (array[${freshCost.join(', ')}])[it.rarity + 1] * greatest(1, ceil((p_qty - use_)::numeric / case when it.rarity >= 2 then 5 else 10 end))::int end;
+    if cost > 0 and acc.fresh + cost > ${FRESH_BASE} + ${FRESH_PER_HOUR} * floor(public.market_trade_time(acc, false) / 3600) then
       return public.market_err('budget');
     end if;
-    update public.market_accounts set fresh = fresh + cost where user_id = uid;
+    if cost > 0 then update public.market_accounts set fresh = fresh + cost where user_id = uid; end if;
   end if;
   if use_ > 0 then
     update public.market_owned set qty = qty - use_ where user_id = uid and character_id = p_character and item_id = p_item;
@@ -787,6 +805,7 @@ revoke execute on function public.market_account(uuid) from public, anon, authen
 revoke execute on function public.market_trade_time(public.market_accounts, boolean) from public, anon, authenticated;
 revoke execute on function public.market_account_frame(public.market_accounts) from public, anon, authenticated;
 revoke execute on function public.market_can_spend(uuid, bigint) from public, anon, authenticated;
+revoke execute on function public.market_loot_checked(uuid, text) from public, anon, authenticated;
 revoke execute on function public.market_own_add(uuid, text, text, int) from public, anon, authenticated;
 revoke execute on function public.market_settle(int, uuid) from public, anon, authenticated;
 revoke execute on function public.market_err(text) from public, anon, authenticated;

@@ -100,6 +100,7 @@ export const ES = {
   "Das ist dein eigenes Angebot.": "Esta es tu propia oferta.",
   "Das ist nicht mehr in deinem Besitz.": "Ya no tienes esto.",
   "Das lässt sich nicht handeln.": "Esto no se puede comerciar.",
+  "Das hast du mit einem anderen Helden eingestellt. Eigene Angebote kannst du nicht kaufen.": "Lo publicaste con otro de tus héroes. No puedes comprar tus propias ofertas.",
   "Dein Angebot.": "Tu oferta.",
   "Dein Charakter ist noch nicht gesichert. Bitte versuch es gleich noch einmal.": "Tu personaje aún no se ha guardado. Inténtalo de nuevo en un momento.",
   "Dein Gebot": "Tu puja",
