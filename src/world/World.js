@@ -25,9 +25,10 @@ import { Ulgrim } from '../entities/Ulgrim.js';
 import { Skalvyr } from '../entities/Skalvyr.js';
 import { RotMother } from '../entities/RotMother.js';
 import { Malgareth } from '../entities/Malgareth.js';
+import { Ysgarn, Kaldris, Ysmeine } from '../entities/StarBosses.js';
 
 // Bossklasse je Gegnertyp (Marker im Level)
-const BOSS_CLASSES = { bonelord: Boss, drowned_priestess: Nerith, ember_tyrant: Ignaroth, barrow_king: Ulgrim, rot_mother: RotMother, frost_wyrm: Skalvyr, ash_sovereign: Malgareth };
+const BOSS_CLASSES = { bonelord: Boss, drowned_priestess: Nerith, ember_tyrant: Ignaroth, barrow_king: Ulgrim, rot_mother: RotMother, frost_wyrm: Skalvyr, ash_sovereign: Malgareth, ysgarn: Ysgarn, kaldris: Kaldris, ysmeine: Ysmeine };
 import { Chest, ExitPortal } from '../entities/Interactive.js';
 import { FlowField } from './FlowField.js';
 import { QuestGuide } from './QuestGuide.js';

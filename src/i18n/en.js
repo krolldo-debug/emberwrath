@@ -5343,5 +5343,17 @@ export const EN = {
   "Muschelpfeife: Himmelsrochen": "Shell Whistle: Sky Ray",
   "Silberglöckchen: Mondluchs": "Silver Bell: Moon Lynx",
   "Kristallhorn: Kristallwidder": "Crystal Horn: Crystal Ram",
-  "Corvins Stall": "Corvin's Stable"
+  "Corvins Stall": "Corvin's Stable",
+  "Ysgarn lässt die Gärten blühen": "Ysgarn makes the gardens bloom",
+  "Meide den Blütenstaub": "Avoid the pollen",
+  "Ysgarn wuchert vor Zorn": "Ysgarn grows wild with rage",
+  "Die Ranken greifen schneller": "The vines strike faster",
+  "Kaldris zersplittert": "Kaldris shatters",
+  "Seine Spiegelbilder greifen an": "His mirror images attack",
+  "Kaldris zerbricht vor Zorn": "Kaldris breaks with rage",
+  "Der Splitterregen wird dichter": "The shard rain grows heavier",
+  "Ysmeine ruft die Sterne": "Ysmeine calls the stars",
+  "Rette dich auf die Lichtbrücke": "Get onto the bridge of light",
+  "Ysmeine greift nach dem Himmel": "Ysmeine reaches for the sky",
+  "Die Sternbilder brennen schneller": "The constellations burn faster"
 };

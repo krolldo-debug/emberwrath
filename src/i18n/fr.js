@@ -5343,5 +5343,17 @@ export const FR = {
   "Muschelpfeife: Himmelsrochen": "Sifflet de coquillage : Raie céleste",
   "Silberglöckchen: Mondluchs": "Clochette d'argent : Lynx lunaire",
   "Kristallhorn: Kristallwidder": "Corne de cristal : Bélier de cristal",
-  "Corvins Stall": "Écurie de Corvin"
+  "Corvins Stall": "Écurie de Corvin",
+  "Ysgarn lässt die Gärten blühen": "Ysgarn fait fleurir les jardins",
+  "Meide den Blütenstaub": "Évite le pollen",
+  "Ysgarn wuchert vor Zorn": "Ysgarn prolifère de rage",
+  "Die Ranken greifen schneller": "Les lianes frappent plus vite",
+  "Kaldris zersplittert": "Kaldris vole en éclats",
+  "Seine Spiegelbilder greifen an": "Ses reflets attaquent",
+  "Kaldris zerbricht vor Zorn": "Kaldris se brise de rage",
+  "Der Splitterregen wird dichter": "La pluie d'éclats s'intensifie",
+  "Ysmeine ruft die Sterne": "Ysmeine appelle les étoiles",
+  "Rette dich auf die Lichtbrücke": "Réfugie-toi sur le pont de lumière",
+  "Ysmeine greift nach dem Himmel": "Ysmeine tend la main vers le ciel",
+  "Die Sternbilder brennen schneller": "Les constellations brûlent plus vite"
 };

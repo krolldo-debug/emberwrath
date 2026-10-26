@@ -28,7 +28,7 @@ export const TRIAL_THEMES = {
   rime: { name: 'Reifgewölbe', minLevel: 32, after: 'q_frost_wyrm', pool: ['frost_wolf', 'snow_stalker', 'rime_witch', 'ice_elemental', 'crystal_spider', 'frozen_knight'], elites: ['ice_troll_chief'], bossId: 'frost_wyrm', bossHp: 1.1, bossDmg: 2.2 },
   // Sternenglut Teil 1: Bossfiguren mit Varkhuls (Ysgarn) bzw. Ignaroths (Kaldris) Kampflogik, Schaden wie deren Themen
   gardens: { name: 'Welkende Gärten', minLevel: 42, pool: ['bloom_stalker', 'void_wisp', 'rootbound', 'vine_horror', 'garden_golem', 'thorn_priest'], elites: ['withered_warden'], bossId: 'ysgarn', bossHp: 1.1, bossDmg: 2.8 },
-  shards: { name: 'Splitterhallen', minLevel: 47, pool: ['shard_crawler', 'glass_sentinel', 'prism_elemental', 'void_hound', 'statue_wraith', 'star_seer'], elites: ['splinter_colossus'], bossId: 'kaldris', bossHp: 1.2, bossDmg: 0.7 },
+  shards: { name: 'Splitterhallen', minLevel: 47, pool: ['shard_crawler', 'glass_sentinel', 'prism_elemental', 'void_hound', 'statue_wraith', 'star_seer'], elites: ['splinter_colossus'], bossId: 'kaldris', bossHp: 1.2, bossDmg: 2.8 },
   ashen: { name: 'Thron der Asche', minLevel: 37, after: 'q_ash_sovereign', pool: ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'throne_guard', 'ember_hellhound'], elites: ['waste_colossus'], bossId: 'ash_sovereign', bossHp: 1.2, bossDmg: 0.9 },
 };
 // Themen, die eine Spielerstufe sehen kann

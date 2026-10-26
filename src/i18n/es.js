@@ -5343,5 +5343,17 @@ export const ES = {
   "Muschelpfeife: Himmelsrochen": "Silbato de concha: raya celeste",
   "Silberglöckchen: Mondluchs": "Campanilla de plata: lince lunar",
   "Kristallhorn: Kristallwidder": "Cuerno de cristal: carnero de cristal",
-  "Corvins Stall": "Establo de Corvin"
+  "Corvins Stall": "Establo de Corvin",
+  "Ysgarn lässt die Gärten blühen": "Ysgarn hace florecer los jardines",
+  "Meide den Blütenstaub": "Evita el polen",
+  "Ysgarn wuchert vor Zorn": "Ysgarn crece salvaje de ira",
+  "Die Ranken greifen schneller": "Las enredaderas atacan más rápido",
+  "Kaldris zersplittert": "Kaldris se hace añicos",
+  "Seine Spiegelbilder greifen an": "Sus reflejos atacan",
+  "Kaldris zerbricht vor Zorn": "Kaldris se quiebra de ira",
+  "Der Splitterregen wird dichter": "La lluvia de astillas se intensifica",
+  "Ysmeine ruft die Sterne": "Ysmeine invoca a las estrellas",
+  "Rette dich auf die Lichtbrücke": "Ponte a salvo en el puente de luz",
+  "Ysmeine greift nach dem Himmel": "Ysmeine alcanza el cielo",
+  "Die Sternbilder brennen schneller": "Las constelaciones arden más rápido"
 };

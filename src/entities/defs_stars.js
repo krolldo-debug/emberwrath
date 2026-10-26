@@ -20,8 +20,9 @@ const xpAt = (L) => Math.round(130 * 1.1 ** (L - 20));   // wie enemyTypes3.js
 
 export function createStarEnemies(T) {
   const d = (base, id, name, L, o = {}) => derive(T, base, id, name, L, o);
-  // Dungeonbosse: vorerst mit Varkhuls Kampflogik (entities/Boss.js) auf eigenen Figuren mit Varkhuls Rig
-  // (sprites/star_bosses.js); Leben absolut, Schaden über dmgMult, Beschwörung (summon) aus dem eigenen Dungeon
+  // Dungeonbosse: eigene Klassen (entities/StarBosses.js) auf Varkhuls Kampflogik und Rig (sprites/star_bosses.js);
+  // Leben absolut, Schaden über dmgMult (Hieb ≈ 22 % der Lebenspunkte eines Kriegers mit seltener Ausrüstung
+  // derselben Stufe, wie Skalvyr/Fäulnismutter), Beschwörung (summon) aus dem eigenen Dungeon
   const boss = (id, name, level, hp, over) => ({
     ...T.bonelord, name, level, xp: Math.round(xpAt(level) * 22), boss: true, bossId: id, sprites: id, hp, ...over,
   });
@@ -48,8 +49,8 @@ export function createStarEnemies(T) {
     shadow_ranger: d('raider_archer', 'shadow_ranger', 'Schattenelfen-Späherin', [49, 50], { family: 'human', recolor: { ramp: VOID, accent: CYAN } }),
     star_seer: d('ash_priest', 'star_seer', 'Sternseherin', [49, 50], { family: 'human', recolor: { ramp: MOTH, accent: GOLDEN } }),
     // --- Bosse
-    ysgarn: boss('ysgarn', 'Ysgarn, der Alte Gärtner', 44, 145000, { dmgMult: 6.5, family: 'plant', material: 'wood', summon: 'void_wisp' }),
-    kaldris: boss('kaldris', 'Kaldris, der Splitterfürst', 48, 160000, { dmgMult: 7, family: 'construct', material: 'stone', summon: 'shard_crawler', spawnStyle: 'fade' }),
-    ysmeine: boss('ysmeine', 'Königin Ysmeine', 50, 175000, { dmgMult: 7.5, family: 'human', material: 'flesh', summon: 'void_hound', spawnStyle: 'fade' }),
+    ysgarn: boss('ysgarn', 'Ysgarn, der Alte Gärtner', 44, 145000, { dmgMult: 15, family: 'plant', material: 'wood', summon: 'void_wisp' }),
+    kaldris: boss('kaldris', 'Kaldris, der Splitterfürst', 48, 160000, { dmgMult: 17, family: 'construct', material: 'stone', summon: 'shard_crawler', spawnStyle: 'fade' }),
+    ysmeine: boss('ysmeine', 'Königin Ysmeine', 50, 175000, { dmgMult: 18, family: 'human', material: 'flesh', summon: 'void_hound', spawnStyle: 'fade' }),
   };
 }
