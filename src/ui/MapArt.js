@@ -121,7 +121,7 @@ const GLYPHS = [
   [/walk|boardwalk|bridge(?!stub|rail)|platform/, 'planks'],
   [/palisade|fence|barricade|damstakes|minerail/, 'fence'],
   [/watchtower|tower|lookout/, 'tower'],
-  [/cottage|house|hut|longhouse|lodge|stable|mill|mausoleum|kiln|facade|forge$|^forge|stall|den$/, 'house'],
+  [/cottage|house|hut|longhouse|lodge|stable|mill|mausoleum|kiln|facade|forge$|^forge|stall|den$|shop|temple|library/, 'house'],
   [/tent|yurt/, 'tent'],
   [/needle|spike|spire|basalt|icepillar|obsidianpillar/, 'spire'],
   [/cave|grotto|mineentrance|gate|arch/, 'cave'],

@@ -63,6 +63,18 @@ export function bridge(m, [[ax, ay], [bx, by]], width = 2, kind = 'wood') {
   (m.bridges ??= []).push({ h, a0, a1: a1 + 1, c0, c1, kind });
 }
 
+// Anleger: Holzsteg von der Inselkante (x, y = erste Abgrundkachel) len Kacheln in Richtung dir ([1,0], [0,1] …)
+export function pier(m, x, y, len, [dx, dy], width = 2, kind = 'wood') {
+  const h = dx !== 0, s = dx + dy;
+  for (let k = 0; k < len; k++) for (let c = 0; c < width; c++) {
+    const tx = h ? x + k * s : x + c, ty = h ? y + c : y + k * s;
+    if (m.get(tx, ty) === VOID) m.set(tx, ty, BRIDGE);
+  }
+  const a = h ? x : y, end = a + (len - 1) * s;
+  (m.bridges ??= []).push({ h, a0: Math.min(a - s, end), a1: Math.max(a - s, end) + 1, c0: h ? y : x, c1: (h ? y : x) + width, kind });
+  return h ? [x + (len - 1) * s, y] : [x, y + (len - 1) * s];
+}
+
 // Wege: Sternsand bzw. Pflaster nur auf Gras/Sand (nicht über den Abgrund); Maske für Streudeko wie roadNet
 export function paths(m) {
   const net = roadNet(m);
