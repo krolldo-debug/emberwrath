@@ -142,7 +142,7 @@ export const QUESTS_STARS = {
     summary: 'Steig zu den Hängenden Terrassen hinauf und brich die Gartenwächter.',
     offer: 'Über dem Bruch hängen die Terrassen, Aurels Lieblingsort. Er ließ Wächter aus Perlstein bauen, die seine Gärten pflegten. Jetzt bewachen sie das Tor zur Rankengruft und lassen niemanden durch, nicht einmal mich. Die Leere ist in den Stein gekrochen. Zerbrich vierzehn von ihnen.',
     progressText: 'Die Gartenwächter stehen auf den drei Terrassen im Nordwesten.',
-    completeText: 'Zehn Wächter. Aurel hätte geweint. Und dann hätte er dir gedankt.',
+    completeText: 'Vierzehn Wächter. Aurel hätte geweint. Und dann hätte er dir gedankt.',
     objectives: [
       { id: 'terraces', text: 'Hängende Terrassen erreicht', count: 1, kind: 'reach', target: ['hanging_terraces'], zone: 'drifting_gardens' },
       { id: 'golems', text: 'Gartenwächter zerbrochen', count: 14, kind: 'kill', target: 'garden_golem', zone: 'drifting_gardens' },
@@ -586,7 +586,7 @@ export const QUESTS_STARS = {
     summary: 'Bring vier Splitterkolosse am Sternwartenberg zu Fall.',
     offer: 'Die Kolosse am Berg sind aus Splittern gewachsen, so wie Kaldris. Sie stehen um die Sternwarte wie Wachen um einen Thron. Solange sie stehen, kommt kein Schürfer und kein Gelehrter mehr den Berg hinauf. Bring vier von ihnen zu Fall. Allein ist das kein Spaß.',
     progressText: 'Die Splitterkolosse stapfen über die Hänge des Sternwartenbergs.',
-    completeText: 'Drei Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.',
+    completeText: 'Vier Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.',
     objectives: [{ id: 'colossi', text: 'Splitterkolosse gefällt', count: 4, kind: 'kill', target: 'splinter_colossus', zone: 'splitterweiten' }],
     rewards: { xp: Q(49, W.elite), gold: G(49, 1.5), gear: [gear(50, 'chest', 'rare')] },
   },

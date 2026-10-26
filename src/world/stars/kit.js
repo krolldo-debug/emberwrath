@@ -112,7 +112,7 @@ export function walkPath(m, solid, from, to, step = 3) {
       if (nd < dist[n]) { dist[n] = nd; prev[n] = k; heap.push([nd, n]); }
     }
   }
-  if (!Number.isFinite(dist[goal])) throw new Error(`Eskortenweg ${from} → ${to} nicht begehbar`);
+  if (!Number.isFinite(dist[goal])) throw new Error(`Eskortenweg ${from} → ${to}: Sackgasse`);
   const tiles = [];
   for (let k = goal; k !== -1; k = prev[k]) tiles.push([k % W, Math.floor(k / W)]);
   tiles.reverse();
