@@ -30,6 +30,9 @@ export const ZONE_WEATHER = {
   drifting_gardens: { layers: [{ type: 'petal', n: 26 }, { type: 'glint', n: 22 }, { type: 'firefly', n: 6 }] },
   sternhafen: { layers: [{ type: 'petal', n: 14 }, { type: 'glint', n: 18 }] },
   splitterweiten: { layers: [{ type: 'glint', n: 40 }, { type: 'dust', n: 16 }], glow: [130, 210, 255] },
+  rankengruft: { layers: [{ type: 'petal', n: 10 }, { type: 'firefly', n: 8 }, { type: 'drip', n: 2 }], glow: [240, 140, 210] },
+  glass_halls: { layers: [{ type: 'glint', n: 34 }, { type: 'dust', n: 8 }], glow: [120, 200, 255], tint: [140, 180, 240, 0.05] },
+  observatory: { layers: [{ type: 'glint', n: 26 }, { type: 'dust', n: 10 }], glow: [160, 170, 255] },
 };
 const DEFAULT = { outdoor: { layers: [{ type: 'firefly', n: 10 }] }, dungeon: { layers: [{ type: 'dust', n: 30 }] } };
 

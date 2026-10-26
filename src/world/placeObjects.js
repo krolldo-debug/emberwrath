@@ -30,6 +30,7 @@ export function placeObjects(world) {
     const s = e.sprite, r = s.res ?? 1, h = s.canvas.height / r, w = s.canvas.width / r;   // Weltpixel (Feinraster)
     const opts = { sprite: s, glow: e.glow ?? null, box: e.box ?? null, low: e.low ?? (e.box ? e.box[1] > -8 : false), light: e.light ?? null, shadow: e.shadow ?? null };
     if (h > 36) opts.occlude = [-w / 2 + 2, -h + 4, w / 2 - 2, -8];
+    if (e.sortOffset) opts.sortOffset = e.sortOffset;
     if (e.smoke) opts.smoke = e.smoke;
     if (e.embers) opts.embers = e.embers;
     if (e.flames && e.flameAt) {

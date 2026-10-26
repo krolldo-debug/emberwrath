@@ -7,7 +7,8 @@ import { themeForZone, themeForBoss } from './Music.js';
 const ZONE_AMB = { emberhollow: 'outdoor', ashwood: 'forest', sunken_temple: 'water', cinder_peaks: 'fire', molten_forge: 'fire', ember_trial: 'fire',
   // Stufe 20–40 (§12.2)
   ashen_steppe: 'wind', howling_barrow: 'dungeon', blighted_marsh: 'marsh', spore_hollow: 'water', frostspire: 'wind', rime_caverns: 'water', ember_wastes: 'fire', ashen_throne: 'fire',
-  drifting_gardens: 'forest', sternhafen: 'outdoor', splitterweiten: 'wind' };
+  drifting_gardens: 'forest', sternhafen: 'outdoor', splitterweiten: 'wind',
+  rankengruft: 'water', observatory: 'wind' };
 
 export function ambienceForZone(def) {
   if (!def) return 'outdoor';

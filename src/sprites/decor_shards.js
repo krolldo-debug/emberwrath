@@ -60,7 +60,7 @@ function glassTree(v) {
 }
 
 // Bruchstein der Weiten: kühler Fels mit Kristalladern
-function shardRock(v) {
+export function shardRock(v) {
   const W = [20, 14, 28][v], H = [14, 10, 18][v], seed = 3320 + v;
   return mk(W, H, (p, g) => {
     const rocks = [[[W / 2, H - 6, W * 0.38, H * 0.42]], [[W / 2, H - 4.5, W * 0.4, H * 0.42]], [[W * 0.38, H - 7, W * 0.3, H * 0.4], [W * 0.72, H - 5, W * 0.22, H * 0.3]]][v];
@@ -86,7 +86,7 @@ function singingSpire(v) {
 }
 
 // Spiegelstein (Spiegelsee): hohe glatte Platte, die den Himmel spiegelt
-function mirrorStone(v) {
+export function mirrorStone(v) {
   const W = 28, H = [48, 38][v], cx = W / 2, base = H - 3;
   return mk(W, H, (p, g) => {
     lump(p, cx, base, 11, 3, STONE, { lo: 1, hi: 4 });
@@ -155,7 +155,7 @@ function oreHeap(v) {
   }, { ax: Math.round(cx), ay: base, b: true, box: [-W * 0.38, -4, W * 0.38, 1], extra: { low: true }, light: { dx: 0, dy: -6, radius: 34, color: CRY_LIGHT, intensity: 0.4 } });
 }
 
-function crateStack() {
+export function crateStack() {
   const W = 30, H = 26, cx = 15, base = H - 2;
   return mk(W, H, (p) => {
     const crate = (x, y, w, h) => {
@@ -272,7 +272,7 @@ function glassGate() {
 }
 
 // Messinglinse auf dem Dreibein (Sternwartenberg)
-function lensStand() {
+export function lensStand() {
   const W = 26, H = 40, cx = 13, base = H - 2;
   return mk(W, H, (p, g) => {
     for (const dx of [-8, 0, 8]) p.fline(cx, 14, cx + dx, base, dx < 0 ? BRASS[3] : BRASS[2], 0.8);

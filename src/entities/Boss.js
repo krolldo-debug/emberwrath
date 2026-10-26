@@ -294,7 +294,7 @@ export class Boss extends Actor {
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + rand(-0.4, 0.4);
         const p = world.dungeon.nearestFree(this.home.x + Math.cos(a) * 70, this.home.y + Math.sin(a) * 45);
-        const e = world.spawnEnemy('skeleton', p.x, p.y, { respawned: true, home: { ...this.home } });
+        const e = world.spawnEnemy(this.def.summon ?? 'skeleton', p.x, p.y, { respawned: true, home: { ...this.home } });
         e.aggroed = true; e.summoned = true; e.xpOverride = 5;
         this.adds.push(e);
         world.particles.magic(p.x, p.y, 14, 10);

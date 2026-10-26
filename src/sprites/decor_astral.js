@@ -82,7 +82,7 @@ function flowers(v) {
   }, { ax: W / 2, ay: H - 1, b: true });
 }
 
-function roseRocks(v) {
+export function roseRocks(v) {
   const W = [16, 12, 20][v], H = [10, 8, 12][v], seed = 970 + v;
   return mk(W, H, (p) => {
     const rocks = [[[W / 2, H - 4.5, W * 0.33, H * 0.38]], [[W / 2, H - 3.5, W * 0.36, H * 0.4]], [[W * 0.4, H - 5, W * 0.28, H * 0.38], [W * 0.72, H - 3.4, W * 0.18, H * 0.26]]][v];
@@ -92,7 +92,7 @@ function roseRocks(v) {
 }
 
 // Wurzeln, die aus dem Boden brechen (Wurzelbruch): dunkle Bögen mit Lichtkante, Moos
-function roots(v) {
+export function roots(v) {
   const W = 34, H = 14, seed = 980 + v, rng = createRng(seed);
   return mk(W, H, (p) => {
     const n = 3 + v;
@@ -109,7 +109,7 @@ function roots(v) {
 }
 
 // ---------------------------------------------------------------- Kristalle
-function crystals(v) {
+export function crystals(v) {
   const W = [24, 18, 30][v], H = [30, 22, 40][v], base = H - 3, cx = W / 2;
   const sets = [
     [[0, 3, 3.6, 0.5], [-6, 11, 2.6, -2.5], [6, 10, 3, 2.5], [-2, 17, 2, -1]],
@@ -125,7 +125,7 @@ function crystals(v) {
 }
 
 // Splitterturm: hoher Kristall als Wahrzeichen (Splitterweiten)
-function shardSpire(v) {
+export function shardSpire(v) {
   const W = 40, H = [92, 76][v], base = H - 4, cx = W / 2;
   return mk(W, H, (p, g) => {
     lump(p, cx, base + 0.5, 15, 3.4, PEARL, { lo: 1, hi: 4 });
@@ -170,7 +170,7 @@ function ruinArch(v) {
     for (let y = 6; y < base - 3; y += 1.5) { const x = 6 + Math.sin(y * 0.6) * 2.5; p.dot(x, y, BUSH[3]); if (hash2(Math.floor(y), 3, 41) < 0.3) p.dot(x + 0.5, y, ROSE[4]); }
   }, { ax: 23, ay: H - 2, b: true, extra: { boxes: [[-18, -4, -10, 1], [10, -4, 18, 1]], shadow: 0 } });
 }
-function ruinPillar(v) {
+export function ruinPillar(v) {
   const W = 14, H = [40, 26][v];
   return mk(W, H, (p) => {
     column(p, 7, 3, H - 3, 6, v === 1, v * 3);
@@ -196,7 +196,7 @@ function ruinWall(v) {
 }
 
 // Statue König Aurels (Wahrzeichen der Gärten und Sternhafens): Sockel, Figur mit erhobener Laterne
-function aurelStatue() {
+export function aurelStatue() {
   const W = 30, H = 64, cx = 15;
   return mk(W, H, (p, g) => {
     const P = pal32(PEARL);
@@ -216,7 +216,7 @@ function aurelStatue() {
 }
 
 // ---------------------------------------------------------------- Licht und Wege
-function lantern(v) {
+export function lantern(v) {
   const W = 12, H = 30, cx = 6;
   return mk(W, H, (p, g) => {
     const I = pal32(IRON);

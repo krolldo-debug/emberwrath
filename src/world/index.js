@@ -46,6 +46,7 @@ import { createAstralDecor } from '../sprites/decor_astral.js';
 import { createShardSet } from '../sprites/decor_shards.js';
 import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
+import { createStarBiomeTiles } from '../sprites/biomes_stars.js';
 import { createVillageProps } from '../sprites/village.js';
 import { spawnTownsfolk } from './townlife.js';
 import { createWaystoneSprites } from '../sprites/waystone.js';
@@ -146,6 +147,7 @@ export function installWorld(game) {
   lazyAsset(assets, 'biome_spore', () => createBiomesBarrowSpore('spore'));
   lazyAsset(assets, 'biome_rime', () => createBiomesRimeThrone('rime'));
   lazyAsset(assets, 'biome_throne', () => createBiomesRimeThrone('throne'));
+  for (const b of ['thorn', 'glass', 'vault']) lazyAsset(assets, 'biome_' + b, () => createStarBiomeTiles(b));
 
   const startZone = Object.keys(ZONES).find((k) => ZONES[k].start);
   // Zone vorab vorbereiten, solange der Spieler noch Helden erstellt/auswählt (world/warmup.js)
