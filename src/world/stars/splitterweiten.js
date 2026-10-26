@@ -31,7 +31,7 @@ export function buildSplitterweiten() {
   // Scherbenfeld: Ankunftsinseln und Scherben verschiedener Größe
   isle(m, 46, 16, 12, 8, 11, { wob: 0.2 });                 // Ankunft aus den Gärten
   isle(m, 118, 15, 13, 8, 12, { wob: 0.2 });                // Ankunft aus Sternhafen
-  const shards = [[74, 18, 9, 6], [92, 26, 8, 5], [64, 32, 7, 5], [140, 22, 8, 6], [106, 36, 9, 6], [30, 34, 8, 6], [82, 40, 6, 4], [128, 38, 7, 5]];
+  const shards = [[74, 18, 9, 6], [92, 26, 8, 5], [64, 32, 7, 5], [140, 22, 8, 6], [106, 36, 9, 6], [30, 34, 8, 6], [78, 41, 6, 4], [128, 38, 7, 5]];
   shards.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 20 + i, { wob: 0.3 }));
   // Funkenruh
   isle(m, 58, 58, 17, 11, 31, { wob: 0.12 });
@@ -48,37 +48,43 @@ export function buildSplitterweiten() {
   isle(m, 146, 108, 22, 15, 71, { wob: 0.12 });
   isle(m, 118, 98, 8, 5, 72);
   isle(m, 112, 72, 9, 7, 73);                               // Zwischeninsel (Grate ↔ Berg ↔ Funkenruh)
+  // Landzungen zu den Ausgängen (kurze Brücken zum Kartenrand)
+  isle(m, 46, 6, 4.5, 3.5, 74, { wob: 0.1 });
+  isle(m, 118, 6, 4.5, 3.5, 75, { wob: 0.1 });
   // Treibsteine (Tiefe)
   const drift = [[10, 12, 4, 3], [190, 8, 4, 2], [196, 110, 3, 2], [100, 124, 5, 2], [8, 120, 4, 3], [132, 60, 3, 2], [90, 80, 4, 2], [20, 64, 3, 2], [176, 122, 4, 2], [62, 6, 3, 2]];
   drift.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 90 + i, { wob: 0.35 }));
 
   // ------------------------------------------------------------ Brücken
-  bridge(m, [[46, 0], [46, 9]], 3);                         // aus den Gärten
-  bridge(m, [[118, 0], [118, 8]], 3);                       // aus Sternhafen
-  bridge(m, [[57, 17], [66, 18]], 2);
-  bridge(m, [[82, 20], [86, 23]], 2);
-  bridge(m, [[100, 26], [106, 20]], 2);
-  bridge(m, [[131, 18], [133, 20]], 2);
-  bridge(m, [[95, 31], [101, 33]], 2);
-  bridge(m, [[114, 36], [122, 37]], 2);
-  bridge(m, [[66, 37], [64, 47]], 2);                       // Scherbenfeld → Funkenruh
-  bridge(m, [[36, 40], [38, 50]], 2);
-  bridge(m, [[42, 22], [34, 29]], 2);
-  bridge(m, [[82, 44], [72, 52]], 2);
-  bridge(m, [[146, 27], [152, 32]], 2);                     // Scherbenfeld → Grate
-  bridge(m, [[134, 41], [140, 44]], 2);
-  bridge(m, [[168, 33], [178, 30]], 2);                     // zur Torinsel
-  bridge(m, [[164, 49], [166, 55]], 2);                     // Grate untereinander
-  bridge(m, [[160, 61], [156, 67]], 2);
-  bridge(m, [[162, 73], [166, 81]], 2);
-  bridge(m, [[75, 60], [104, 70]], 2);                      // Funkenruh → Zwischeninsel
-  bridge(m, [[120, 72], [138, 70]], 2);                     // Zwischeninsel → Grate
-  bridge(m, [[112, 79], [116, 93]], 2);                     // Zwischeninsel → Berg
-  bridge(m, [[125, 99], [130, 102]], 2);
-  bridge(m, [[54, 69], [52, 84]], 3);                       // Funkenruh → Spiegelsee
-  bridge(m, [[77, 106], [80, 109]], 2);
-  bridge(m, [[26, 88], [28, 92]], 2);
-  bridge(m, [[94, 113], [126, 110]], 2);                    // Spiegelsee → Berg (lange Brücke)
+  // Scherbenfeld Hängebrücken, Funkenruh und Spiegelsee Holz, zu Toren und Berg Stein
+  bridge(m, [[46, 0], [46, 3]], 3, 'wood');                 // aus den Gärten
+  bridge(m, [[118, 0], [118, 3]], 3, 'stone');              // aus Sternhafen
+  bridge(m, [[57, 17], [66, 18]], 2, 'rope');
+  bridge(m, [[82, 20], [86, 23]], 2, 'rope');
+  bridge(m, [[100, 26], [106, 20]], 2, 'rope');
+  bridge(m, [[131, 18], [133, 20]], 2, 'wood');
+  bridge(m, [[95, 31], [101, 33]], 2, 'rope');
+  bridge(m, [[114, 36], [122, 37]], 2, 'rope');
+  bridge(m, [[66, 37], [64, 47]], 2, 'wood');               // Scherbenfeld → Funkenruh
+  bridge(m, [[36, 40], [38, 50]], 2, 'wood');
+  bridge(m, [[42, 22], [34, 29]], 2, 'rope');
+  bridge(m, [[75, 44], [75, 54]], 2, 'rope');
+  bridge(m, [[146, 27], [152, 32]], 2, 'stone');            // Scherbenfeld → Grate
+  bridge(m, [[134, 41], [140, 44]], 2, 'rope');
+  bridge(m, [[168, 33], [178, 30]], 2, 'stone');            // zur Torinsel
+  bridge(m, [[164, 49], [166, 55]], 2, 'rope');             // Grate untereinander
+  bridge(m, [[160, 61], [156, 67]], 2, 'rope');
+  bridge(m, [[162, 73], [166, 81]], 2, 'rope');
+  isle(m, 89, 67, 4, 3, 76, { wob: 0.2 });                 // Pfeilerinsel auf halbem Weg
+  bridge(m, [[70, 67], [85, 67]], 2, 'wood');               // Funkenruh → Zwischeninsel
+  bridge(m, [[93, 67], [104, 67]], 2, 'wood');
+  bridge(m, [[120, 72], [138, 70]], 2, 'wood');             // Zwischeninsel → Grate
+  bridge(m, [[112, 79], [116, 93]], 2, 'stone');            // Zwischeninsel → Berg
+  bridge(m, [[125, 99], [130, 102]], 2, 'stone');
+  bridge(m, [[54, 69], [52, 84]], 3, 'wood');               // Funkenruh → Spiegelsee
+  bridge(m, [[77, 106], [80, 109]], 2, 'wood');
+  bridge(m, [[26, 88], [28, 92]], 2, 'rope');
+  bridge(m, [[94, 113], [126, 110]], 2, 'stone');           // Spiegelsee → Berg (lange Brücke)
 
   // ------------------------------------------------------------ Wege
   const net = paths(m);
@@ -170,11 +176,15 @@ export function buildSplitterweiten() {
     const d = vd(x, y), h = hash2(x, y, 6190), n = hash2(Math.floor(x / 6), Math.floor(y / 5), 6191);
     if (d < 2) { if (h < 0.05) put(x, y, 'k'); continue; }
     const inLake = x < 90 && y > 76, inRidge = x > 132 && y < 92, inMount = x > 112 && y > 90;
-    if (n > 0.6 && h < 0.13 && d >= 3) put(x, y, 'g');                      // Glashaine
-    else if (h < 0.025) put(x, y, inRidge ? 's' : 'c');
-    else if (h < 0.045) put(x, y, 'k');
+    const inCamp = Math.hypot((x - 58) / 20, (y - 58) / 14) < 1;
+    // Haine je Teilgebiet: Glasbäume im Scherbenfeld, Mondbäume am Spiegelsee, Heide am Sternwartenberg, verdorrte
+    // Bäume um das Schürferlager, auf den Graten nur Kristall
+    const grove = inLake ? (hash2(x, y, 6192) < 0.5 ? 'm' : 'g') : inMount ? 'v' : inCamp ? 'd' : inRidge ? 's' : 'g';
+    if (n > 0.6 && h < (inMount ? 0.2 : 0.13) && d >= 3) put(x, y, grove);
+    else if (h < 0.025) put(x, y, inRidge ? 's' : inMount ? 'v' : 'c');
+    else if (h < 0.045) put(x, y, inLake ? 'u' : 'k');
     else if (inLake && h < 0.055) put(x, y, 'R');
-    else if (inMount && h < 0.052) put(x, y, 'k');
+    else if (inMount && h < 0.06) put(x, y, hash2(x, y, 6193) < 0.6 ? 'v' : 'k');
   }
 
   // ------------------------------------------------------------ Gegner
@@ -207,9 +217,9 @@ export function buildSplitterweiten() {
 
   // Freiraum um Marken und Portale
   const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses, ...crates, ...nests, ...echoStones, claimStake, harrikCamp];
-  clearAround(m, spots, 'gckRsabefhwrtz', { r: 2, south: 3 });
+  clearAround(m, spots, 'gckRsabefhwrtzmvdu', { r: 2, south: 3 });
   // Eskorte „Miras Messgang“: von Funkenruh über die Westbrücken zur Westscherbe
-  const SOLID = 'KSGOTxoDlLJYgcksRQF';
+  const SOLID = 'KSGOTxoDlLJYgcksRQFmd';
   const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
   const amb = (f) => Math.round((miraPath.length - 1) * f);
 
@@ -221,11 +231,15 @@ export function buildSplitterweiten() {
     island: ISLAND,
     decorSet: 'decor_shards',
     map: m.rows(),
+    bridges: m.bridges ?? [],
+    // Teilgebiete mit eigenem Boden (ground/astral.js): Schürferlager Bernstein, Grate Reifglas, Sternwartenberg Heide
+    groundZones: [{ x: 58, y: 58, rx: 20, ry: 13, pal: 'amber' }, { x: 160, y: 60, rx: 30, ry: 32, pal: 'frost' }, { x: 146, y: 108, rx: 27, ry: 18, pal: 'heather' }, { x: 50, y: 100, rx: 30, ry: 18, pal: 'moon' }],
     solid: SOLID,
     decor: {
       K: 'shardSpire', S: 'singingSpires', G: 'glassGate', O: 'observatory', T: 'prospectorTents', x: 'crateStack', o: 'oreHeaps',
       D: 'derrick', l: 'mineCart', L: 'lantern', J: 'starLamp', Y: 'lensStand', g: 'glassTrees', c: 'crystals', k: 'shardRocks',
       s: 'singingSpires', R: 'mirrorStones', Q: 'signpost', F: 'shardCampfire',
+      m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_sternhafen', 5: 'waystone', 6: 'from_glass_halls', 7: 'from_observatory' },
     waystone,

@@ -6,28 +6,28 @@ import { col32 } from '../gfx/Fine.js';
 // schieferblauen oder rosa Schuppendächern und Goldkanten, warm erleuchtete Bogenfenster. Licht von links oben;
 // Fassaden frontal mit schmaler Schattenseite rechts (3/4-Ansicht wie die Dorfhäuser). Alles Stufe B (fein).
 
-const PEARL = ['#2a2840', '#4a4466', '#605a80', '#7c769c', '#9c97ba', '#c2bed8', '#ecebf8'];
-const SLATE = ['#121828', '#1c2840', '#283a5a', '#364e74', '#48658e', '#6482a8', '#8ea6c6'];
-const ROSE = ['#2a1426', '#4a1e3c', '#6e2c56', '#8a3a68', '#aa5682', '#c87ca0', '#e6a6c2'];
-const GOLD = ['#3a2410', '#5a3a14', '#9a6a24', '#d8a440', '#f6d888', '#fff4c8'];
-const WOOD = ['#160e16', '#26181e', '#3a2428', '#523430', '#6c4638', '#8a5c44'];
-const LAMP = ['#3a2614', '#5a3a20', '#d8984a', '#f6c87a', '#fff0c8', '#ffffff'];
-const CRY = ['#0e2a40', '#164660', '#2484a8', '#5ccbea', '#b8f2ff', '#ffffff'];
-const LEAF = ['#4a1e3c', '#6e2c56', '#9a4474', '#c86a98', '#eca0c0', '#ffd8ea'];
-const BUSH = ['#1c2834', '#2e434c', '#3d5a5a', '#507468', '#6c927c', '#97b896'];
-const WATER = ['#16304a', '#20486a', '#2e6890', '#4a92b8', '#86c4e0', '#d4f0ff'];
-const VOIDC = ['#140a24', '#2a1640', '#4a2a78', '#6a3aa8', '#9a6ad8', '#c8a0ff'];
+export const PEARL = ['#2a2840', '#4a4466', '#605a80', '#7c769c', '#9c97ba', '#c2bed8', '#ecebf8'];
+export const SLATE = ['#121828', '#1c2840', '#283a5a', '#364e74', '#48658e', '#6482a8', '#8ea6c6'];
+export const ROSE = ['#2a1426', '#4a1e3c', '#6e2c56', '#8a3a68', '#aa5682', '#c87ca0', '#e6a6c2'];
+export const GOLD = ['#3a2410', '#5a3a14', '#9a6a24', '#d8a440', '#f6d888', '#fff4c8'];
+export const WOOD = ['#160e16', '#26181e', '#3a2428', '#523430', '#6c4638', '#8a5c44'];
+export const LAMP = ['#3a2614', '#5a3a20', '#d8984a', '#f6c87a', '#fff0c8', '#ffffff'];
+export const CRY = ['#0e2a40', '#164660', '#2484a8', '#5ccbea', '#b8f2ff', '#ffffff'];
+export const LEAF = ['#4a1e3c', '#6e2c56', '#9a4474', '#c86a98', '#eca0c0', '#ffd8ea'];
+export const BUSH = ['#1c2834', '#2e434c', '#3d5a5a', '#507468', '#6c927c', '#97b896'];
+export const WATER = ['#16304a', '#20486a', '#2e6890', '#4a92b8', '#86c4e0', '#d4f0ff'];
+export const VOIDC = ['#140a24', '#2a1640', '#4a2a78', '#6a3aa8', '#9a6ad8', '#c8a0ff'];
 const EMBER = ['#3a1408', '#7a2a0c', '#c4501a', '#f08a2c', '#ffc060', '#fff0c0'];
-const LAMP_LIGHT = [255, 210, 150], CRY_LIGHT = [130, 230, 255];
+export const LAMP_LIGHT = [255, 210, 150], CRY_LIGHT = [130, 230, 255];
 const ROOFS = [SLATE, ROSE, SLATE];
 
-const P = pal32(PEARL), G = pal32(GOLD), Wd = pal32(WOOD);
+export const P = pal32(PEARL), G = pal32(GOLD), Wd = pal32(WOOD);
 
 // ---------------------------------------------------------------- Bauteile
 
 // Perlstein-Quaderwand (x0..x1, y0..y1): Fugen dunkel, Oberkante jedes Quaders hell, rechts ein Schattenstreifen
 // der Seitenwand (side px). Traufschatten unter dem Dach in harten Stufen.
-function pearlWall(p, x0, x1, y0, y1, seed, { side = 5, bh = 4, bw = 9 } = {}) {
+export function pearlWall(p, x0, x1, y0, y1, seed, { side = 5, bh = 4, bw = 9 } = {}) {
   const xs = x1 - side;
   p.scan(x0, y0, x1, y1, (x, y) => {
     const row = Math.floor((y - y0) / bh), ly = (y - y0) - row * bh;
@@ -45,18 +45,18 @@ function pearlWall(p, x0, x1, y0, y1, seed, { side = 5, bh = 4, bw = 9 } = {}) {
 }
 
 // Sockel: dunklere Perlsteinbank mit Goldleiste oben
-function plinth(p, x0, x1, y0, y1) {
+export function plinth(p, x0, x1, y0, y1) {
   p.scan(x0, y0, x1, y1, (x, y) => (y < y0 + 0.5 ? G[3] : y < y0 + 1 ? G[2] : y > y1 - 0.5 ? P[1] : x > x1 - 5 ? P[2] : P[3]));
 }
 
 // Goldgesims (Band unter der Traufe)
-function cornice(p, x0, x1, y) {
+export function cornice(p, x0, x1, y) {
   p.scan(x0, y, x1, y + 2, (x, yy) => (yy < y + 0.5 ? G[4] : yy < y + 1.5 ? G[3] : G[1]));
 }
 
 // Schuppendach als Walmdach: Trapez von der Traufe (x0..x1, bot) zum First (top, Einzug ins). Linke Walmfläche
 // hell, Front mittel, rechte Walmfläche dunkel; Schuppenreihen gerundet, Goldfirst mit Knäufen.
-function roof(p, x0, x1, top, bot, R, seed, ins = 10) {
+export function roof(p, x0, x1, top, bot, R, seed, ins = 10) {
   const C = pal32(R), H = bot - top;
   const left = (y) => x0 + ins * (1 - (y - top) / H), right = (y) => x1 - ins * (1 - (y - top) / H);
   p.scan(x0, top, x1, bot, (x, y) => {
@@ -80,7 +80,7 @@ function roof(p, x0, x1, top, bot, R, seed, ins = 10) {
 }
 
 // Spitzhelm (Turm) von der Basis (base, halbe Breite hw) zur Spitze; links hell, rechts dunkel
-function spire(p, cx, base, tip, hw, R) {
+export function spire(p, cx, base, tip, hw, R) {
   const C = pal32(R), H = base - tip;
   p.scan(cx - hw, tip, cx + hw, base, (x, y) => {
     const w = hw * ((y - tip) / H);
@@ -96,7 +96,7 @@ function spire(p, cx, base, tip, hw, R) {
 }
 
 // Rundturm (Zylinder) mit Quaderreihen, Licht links
-function towerBody(p, cx, hw, top, bot, seed) {
+export function towerBody(p, cx, hw, top, bot, seed) {
   p.scan(cx - hw, top, cx + hw, bot, (x, y) => {
     const rel = (x - cx) / hw, row = Math.floor((y - top) / 4), ly = (y - top) - row * 4;
     const seg = Math.floor((Math.asin(Math.max(-1, Math.min(1, rel))) * 3) + (row & 1) * 0.5);
@@ -110,7 +110,7 @@ function towerBody(p, cx, hw, top, bot, seed) {
 }
 
 // Bogenfenster (x, y = linke obere Ecke des Rechteckteils, w × h), warm erleuchtet; Leuchtebene g
-function archWin(p, g, x, y, w, h, { box = true, lit = true } = {}) {
+export function archWin(p, g, x, y, w, h, { box = true, lit = true } = {}) {
   const r = w / 2, cx = x + r;
   const inside = (xx, yy, pad) => (yy >= y ? xx >= x - pad && xx <= x + w + pad && yy <= y + h + pad : Math.hypot(xx - cx, yy - y) <= r + pad);
   // Rahmen
@@ -140,7 +140,7 @@ function archWin(p, g, x, y, w, h, { box = true, lit = true } = {}) {
 }
 
 // Bogentür (Mitte cx, Unterkante bot), Holzbretter mit Goldnieten, leuchtendes Oberlicht
-function archDoor(p, g, cx, bot, w, h) {
+export function archDoor(p, g, cx, bot, w, h) {
   const r = w / 2, x = cx - r, y = bot - h + r;
   const inside = (xx, yy, pad) => (yy >= y ? xx >= x - pad && xx <= x + w + pad : Math.hypot(xx - cx, yy - y) <= r + pad);
   p.scan(x - 2, y - r - 2, x + w + 2, bot, (xx, yy) => {
@@ -163,7 +163,7 @@ function archDoor(p, g, cx, bot, w, h) {
 }
 
 // Fußschatten (weiche Ellipse in harten Stufen, nur auf dem Boden unter dem Bau)
-function footShade(p, cx, cy, rx, ry) {
+export function footShade(p, cx, cy, rx, ry) {
   const S = [col32('#14102a'), col32('#1e1a38')];
   p.scan(cx - rx, cy - ry, cx + rx, cy + ry, (x, y) => {
     const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;

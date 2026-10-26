@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { clearAround } from '../mapkit.js';
-import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, ISLAND } from './kit.js';
+import { skyMap, isle, bridge, pier, paths, wobble, freeAt, voidDist, rect, inRect, ISLAND } from './kit.js';
 
 // ---------------------------------------------------------------- Sternhafen (Hauptstadt der Sternenscherben)
 // 128 × 100 Kacheln. Weiße Perlsteinstadt auf der größten Scherbe, um den schwebenden Ankerstein gebaut. Kein
@@ -36,15 +36,21 @@ export function buildSternhafen() {
   isle(m, 100, 36, 7, 4, 54, { wob: 0.1 });            // Brückenkopf Nordost
   isle(m, 40, 81, 7, 4, 55, { wob: 0.1 });             // Brückenkopf Süd
   isle(m, 18, 50, 5, 4, 56, { wob: 0.1 });             // Brückenkopf West
+  isle(m, 11, 50, 7, 3.5, 57, { wob: 0.1 });           // Landzunge West (kurze Lichtbrücke zum Kartenrand)
+  isle(m, 40, 90, 5, 5.5, 58, { wob: 0.1 });           // Landzunge Süd
+  isle(m, 100, 15, 6, 10, 59, { wob: 0.12 });          // Wachtfels vor der versiegelten Brücke
   // Treibsteine mit Gärten (Tiefe, ohne Weg)
-  const drift = [[112, 18, 5, 3], [10, 30, 4, 3], [116, 84, 6, 3], [12, 78, 5, 3], [86, 92, 4, 2], [92, 8, 3, 2], [8, 8, 3, 2], [120, 60, 3, 2]];
+  const drift = [[112, 18, 5, 3], [10, 30, 4, 3], [116, 84, 6, 3], [12, 78, 5, 3], [86, 92, 4, 2], [92, 8, 3, 2], [8, 8, 3, 2], [122, 40, 3, 2]];
   drift.forEach(([x, y, rx, ry], i) => isle(m, x, y, rx, ry, 80 + i, { wob: 0.3 }));
 
   // ------------------------------------------------------------ Brücken
-  bridge(m, [[0, 50], [14, 50]], 3);                   // aus den Gärten
-  bridge(m, [[31, 25], [33, 33]], 2);                  // zum Sternturm
-  bridge(m, [[100, 33], [100, 0]], 3);                 // versiegelte Brücke (Teil 2)
-  bridge(m, [[40, 84], [40, 100]], 3);                 // in die Splitterweiten
+  bridge(m, [[0, 50], [6, 50]], 3, 'light');          // Lichtbrücke aus den Gärten
+  bridge(m, [[32, 25], [32, 33]], 2, 'stone');         // zum Sternturm
+  bridge(m, [[100, 25], [100, 33]], 3, 'light');       // versiegelte Lichtbrücke (Teil 2) zum Wachtfels, dahinter weiter
+  bridge(m, [[100, 0], [100, 6]], 3, 'light');
+  bridge(m, [[40, 95], [40, 100]], 3, 'stone');        // in die Splitterweiten
+  // Luftschiffanleger (Holzstege über den Abgrund, an der Spitze je ein Luftschiff)
+  const docks = [pier(m, 110, 63, 7, [1, 0]), pier(m, 74, 81, 9, [0, 1])];
 
   // ------------------------------------------------------------ Straßen
   const net = paths(m);
@@ -56,24 +62,31 @@ export function buildSternhafen() {
   pave([[64, 43], [64, 18]], 5);
   m.ellipse(64, 15, 12, 3, ':', [',', '.']);
   // Hauptstraßen
-  pave([[16, 50], [52, 50]], 3);                       // Westtor → Platz
+  pave([[5, 50], [52, 50]], 3);                        // Westtor → Platz
   pave([[76, 50], [92, 50]], 3);                       // Platz → Ställe
   pave([[64, 57], [64, 74]], 4);                       // Platz → Gasthaus
-  pave([[40, 68], [40, 84]], 3);                       // Südtor
+  pave([[40, 68], [40, 95]], 3);                       // Südtor
   // Gassen im Raster (Häuserzeilen entstehen unten an ihren Nordseiten)
-  pave([[34, 31], [94, 31]], 2);                       // Nordgasse (quer über die Prachtstraße)
-  pave([[28, 40], [61, 40]], 2);                       // Nordwest
-  pave([[67, 40], [100, 40]], 2);                      // Nordost
+  pave([[34, 31], [61, 31]], 2);  // Nordgasse (bis zur Prachtstraße und weiter)
+  pave([[67, 31], [94, 31]], 2);
+  pave([[28, 40], [61, 40]], 2);  // Nordwest (Bibliotheksplatz)
+  pave([[67, 40], [100, 40]], 2); // Nordost (Kapellenplatz)
   pave([[100, 40], [100, 35]], 3);                     // zur versiegelten Brücke
-  pave([[24, 59], [61, 59]], 2);                       // Schmiedegasse
-  pave([[26, 68], [61, 68]], 2);                       // Untere Gasse
-  pave([[67, 59], [100, 59]], 2);                      // Marktgasse
-  pave([[68, 77], [94, 77]], 2);                       // Südostgasse
+  pave([[24, 59], [61, 59]], 2);  // Schmiedegasse
+  pave(wobble([[26, 68], [61, 68]], 1, 5116, 6), 2);    // Untere Gasse
+  pave([[67, 59], [100, 59]], 2); // Marktgasse
+  pave(wobble([[68, 77], [94, 77]], 0.8, 5118, 6), 2);  // Südostgasse
+  pave([[74, 77], [74, 81]], 2);                       // zum Südanleger
+  pave(wobble([[100, 59], [104, 62], [109, 63]], 0.5, 5119), 2); // zum Ostanleger
   pave([[28, 40], [28, 50]], 2); pave([[86, 59], [86, 77]], 2);
+  pave(wobble([[27, 76], [39, 76]], 0.6, 5120, 4), 2);  // Gartengasse (Südwest)
+  pave(wobble([[86, 71], [101, 70]], 0.6, 5121, 4), 2); // Hafengasse (Ost)
   // Plätze der Viertel
   m.ellipse(84, 63, 8, 3.5, ':', [',', '.']);          // Markt
   m.ellipse(44, 60, 6, 2.5, ':', [',', '.']);          // Schmiedeplatz
   m.ellipse(64, 76, 9, 3, ':', [',', '.']);            // vor dem Gasthaus
+  m.ellipse(42, 40, 7, 1.6, ':', [',', '.']);          // Bibliotheksplatz
+  m.ellipse(84, 40, 7, 1.6, ':', [',', '.']);          // Kapellenplatz
 
   // ------------------------------------------------------------ Ankerplatz
   put(64, 50, 'O');                                    // Ankerbrunnen (Questziel: Objekt anchor_stone davor)
@@ -103,6 +116,26 @@ export function buildSternhafen() {
   put(24, 21, 's');                                    // Tobin, Marens Sohn (Nebenquest „Ein Brief für Maren“)
   put(27, 23, 'J');
   keep(inRect(rect(24, 14, 13, 12)));
+
+  // ------------------------------------------------------------ Wahrzeichen der Viertel
+  // Gelehrtenviertel (Nordwest): Kuppelbibliothek am Bibliotheksplatz, Brunnen davor
+  put(42, 38, 'l');
+  put(49, 41, 'w');
+  keep(inRect(rect(35, 29, 15, 10)));
+  // Kapellenviertel (Nordost): Sternkapelle mit Glockenturm, Pflanzinseln am Platz
+  put(83, 38, 'P');
+  for (const [x, y] of [[76, 41], [92, 41]]) put(x, y, 'T');
+  keep(inRect(rect(76, 27, 16, 12)));
+  // Uhrturm an der Ostseite des Ankerplatzes, Glashaus im Westen bei der Schmiedegasse
+  put(80, 47, 'c');
+  keep(inRect(rect(78, 43, 5, 5)));
+  put(31, 57, 'g');
+  keep(inRect(rect(26, 52, 11, 6)));
+  // Schmiedeplatz-Brunnen
+  put(44, 61, 'w');
+  // Luftschiffanleger: Luftschiff an der Stegspitze, Laternen am Stegkopf
+  docks.forEach(([x, y], i) => put(x, y, 'd'));
+  for (const [x, y] of [[108, 62], [108, 65], [73, 79], [76, 79]]) put(x, y, 'L');
 
   // ------------------------------------------------------------ Wohnviertel Nord (Bürgerhäuser an den Straßen)
 
@@ -140,31 +173,62 @@ export function buildSternhafen() {
 
   // ------------------------------------------------------------ Tore und Brückenköpfe
   put(40, 82, 'U');                                    // Südtor
-  put(40, 86, '4');
+  put(40, 91, '4');
   put(100, 37, 'X');                                   // versiegelte Brücke
   for (const [x, y] of [[96, 37], [104, 37]]) put(x, y, 'Y');
-  put(16, 50, '3');                                    // aus den Gärten
+  put(9, 50, '3');                                     // aus den Gärten
   for (const [x, y] of [[18, 47], [18, 53]]) put(x, y, 'Y');
   for (const [x, y] of [[23, 48], [23, 52], [37, 83], [43, 83]]) put(x, y, 'L');
 
   // ------------------------------------------------------------ Häuserzeilen
-  // Bürgerhäuser an den Nordseiten der Straßen: Tür zur Straße, Fläche darüber frei (das Haus ragt ~5 Kacheln
-  // hoch), Abstand zur Inselkante und zueinander. Nicht auf Palasthöhe und Sternturm.
+  // Gemischte Zeilen an den Nordseiten der Straßen: schmale Stadthäuser (a), Bürgerhäuser (A) und Läden mit Markise
+  // (h, am Markt häufiger). Tür zur Straße, Fläche darüber frei (die Häuser ragen 5–8 Kacheln hoch), Abstand zur
+  // Inselkante. Nicht auf Palasthöhe, Sternturm, Ställen, Plätzen und Wahrzeichen.
   const vd0 = voidDist(m, 4);
   const houses = [];
-  const noHouse = [inRect(rect(44, 0, 40, 27)), inRect(rect(20, 10, 20, 18)), inRect(rect(91, 41, 17, 18)), inRect(rect(50, 42, 28, 16)), inRect(rect(56, 69, 16, 10)), inRect(rect(38, 51, 12, 7))];
-  const lot = (x, y) => {
-    if (noHouse.some((f) => f(x, y))) return false;
-    for (let j = -5; j <= 0; j++) for (let i = -2; i <= 2; i++) if (get(x + i, y + j) !== ',') return false;
+  const noHouse = [inRect(rect(44, 0, 40, 27)), inRect(rect(20, 10, 20, 18)), inRect(rect(91, 41, 17, 18)), inRect(rect(50, 42, 28, 16)), inRect(rect(56, 69, 16, 10)), inRect(rect(38, 51, 12, 7)),
+    inRect(rect(35, 29, 15, 10)), inRect(rect(76, 27, 16, 12)), inRect(rect(78, 43, 5, 5)), inRect(rect(26, 52, 11, 6))];
+  const lot = (x, y, hw) => {
+    if (noHouse.some((f) => f(x, y - 2) || f(x - hw, y) || f(x + hw, y))) return false;
+    for (let j = -4; j <= 0; j++) for (let i = -hw; i <= hw; i++) if (get(x + i, y + j) !== ',') return false;
     if (vd0(x, y - 3) < 2 || vd0(x, y) < 2) return false;
     // Tür zur Straße: direkt davor Pflaster, oder ein Vorgarten (eine Grasreihe) und dann Pflaster
     const front = (k) => [-1, 0, 1].every((i) => get(x + i, y + k) === ':');
-    return front(1) || (front(2) && [-1, 0, 1].every((i) => get(x + i, y + 1) === ','));
+    if (front(1) || (front(2) && [-1, 0, 1].every((i) => get(x + i, y + 1) === ','))) return true;
+    // sonst ein Pfad von der Tür bis zur nächsten Straße darunter (höchstens 6 Kacheln)
+    return stub(x, y) > 0;
   };
+  const stub = (x, y) => {
+    for (let k = 1; k <= 6; k++) {
+      const c = get(x, y + k);
+      if (c === ':') return k > 2 ? k : 0;
+      if (c !== ',' || kept(x, y + k)) return 0;
+    }
+    return 0;
+  };
+  const HW = { a: 2, A: 2, h: 3 }, LOT = { a: 2, A: 2, h: 2 };
   for (let y = 28; y < H - 8; y++) for (let x = 20; x < W - 16; x++) {
-    if (!lot(x, y) || houses.some(([a, b]) => Math.abs(a - x) < 6 && Math.abs(b - y) < 6)) continue;
-    put(x, y, 'A'); houses.push([x, y]);
-    keep(inRect(rect(x - 2, y - 5, 5, 6)));
+    // jedes dritte Haus ein Laden (wo er Platz hat), sonst Stadt- oder Bürgerhaus nach Zufall
+    const r = hash2(x, y, 5177), want = houses.length % 3 === 2 ? 'h' : r < 0.6 ? 'a' : 'A';
+    const t = [want, 'h', 'a'].find((k) => lot(x, y, LOT[k]) && !houses.some(([a, b, w]) => Math.abs(a - x) < w + HW[k] + 1 && Math.abs(b - y) < 6));
+    if (!t) continue;
+    const k = stub(x, y);
+    if (k && !(get(x, y + 1) === ':' || get(x, y + 2) === ':')) for (let j = 1; j < k; j++) put(x, y + j, ':');
+    put(x, y, t); houses.push([x, y, HW[t]]);
+    keep(inRect(rect(x - HW[t], y - 5, HW[t] * 2 + 1, 6)));
+  }
+
+  // Zweiter Durchgang: freie Grasflächen zwischen den Straßen bekommen weitere Häuser (Pfad zur Straße darunter, wo
+  // eine in Reichweite ist), damit die Stadt dichter wirkt
+  for (let y = 30; y < H - 8; y++) for (let x = 20; x < W - 16; x++) {
+    const t = hash2(x, y, 5178) < 0.6 ? 'a' : 'A';
+    let ok = vd0(x, y) >= 2 && vd0(x, y - 4) >= 2 && !noHouse.some((f) => f(x, y)) && !houses.some(([a, b, w]) => Math.abs(a - x) < w + HW[t] + 1 && Math.abs(b - y) < 6);
+    for (let j = -4; j <= 1 && ok; j++) for (let i = -LOT[t]; i <= LOT[t]; i++) if (get(x + i, y + j) !== ',' || kept(x + i, y + j)) ok = false;
+    if (!ok) continue;
+    const k = stub(x, y);
+    for (let j = 1; j < k; j++) put(x, y + j, ':');
+    put(x, y, t); houses.push([x, y, HW[t]]);
+    keep(inRect(rect(x - HW[t], y - 5, HW[t] * 2 + 1, 7)));
   }
 
   // ------------------------------------------------------------ Grün: Blütenbäume, Büsche, Balustraden am Rand
@@ -182,7 +246,7 @@ export function buildSternhafen() {
   drift.forEach(([x, y], i) => put(x, y, i % 2 ? 'C' : 'e'));
 
   // Freiraum vor Türen, Toren und Questgebern
-  const spots = [[64, 51], [55, 47], [55, 48], [64, 56], [73, 49], [16, 50], [40, 86], [40, 83], [64, 75], [58, 77], [66, 17], [55, 17], [33, 24], [92, 48], [84, 65], [49, 61], [100, 38], [24, 22],
+  const spots = [[64, 51], [55, 47], [55, 48], [64, 56], [73, 49], [9, 50], [40, 91], [40, 83], [64, 75], [58, 77], [66, 17], [55, 17], [33, 24], [92, 48], [84, 65], [49, 61], [100, 38], [24, 22],
     ...houses.map(([x, y]) => [x, y + 1])];
   clearAround(m, spots, 'eBkbnC', { r: 2, south: 2 });
 
@@ -194,12 +258,14 @@ export function buildSternhafen() {
     island: ISLAND,
     decorSet: 'decor_astral',
     map: m.rows(),
-    solid: 'AIKZFSOURXmYTBCLJQkfjbne',
+    bridges: m.bridges ?? [],
+    solid: 'AIKZFSOURXmYTBCLJQkfjbneahPlgcwd',
     decor: {
       A: 'starHouses', I: 'starInn', K: 'starPalace', Z: 'starTower', F: 'starForge', S: 'starStable', O: 'anchorWell',
       U: 'bridgeGate', X: 'sealedGate', R: 'starGate', m: 'starStalls', Y: 'starBanner', T: 'treePlanter', B: 'bushes',
       C: 'crystals', e: 'blossomTrees', L: 'lantern', J: 'starLamp', Q: 'signpost', k: 'flowerBoxes', f: 'paddockH', j: 'paddockV',
       b: 'balustrade', n: 'parkBench',
+      a: 'starTownhouses', h: 'starShops', P: 'starTemple', l: 'starLibrary', g: 'starGreenhouse', c: 'clockTower', w: 'starFountain', d: 'airships',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_splitterweiten', 5: 'waystone' },
     waystone,

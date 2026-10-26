@@ -4,6 +4,7 @@ import { hash2 } from '../core/math.js';
 import { TileMap } from './TileMap.js';
 import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, FINE_GROUND, createCliffTiles, FK } from '../sprites/outdoor.js';
 import { fineRes } from '../gfx/Fine.js';
+import { bridgePainter } from '../sprites/ground/bridges.js';
 import { GROUND_STEPPE } from '../sprites/decor_steppe.js';
 import { GROUND_MARSH } from '../sprites/decor_marsh.js';
 import { GROUND_FROST } from '../sprites/decor_frost.js';
@@ -174,7 +175,7 @@ function applyOverlay(d, { A, B }, cw, ch, r) {
 export class Outdoor extends TileMap {
   constructor(level) {
     // level.solid: zusätzliche feste Deko-Zeichen (Palisaden, Mauern); Boden darunter wie Nachbarn
-    // level.island (Sternenscherben): { void, bridge, cliff, keel } – Zeichen für Abgrund (fest) und Lichtbrücke (begehbar),
+    // level.island (Sternenscherben): { void, bridge, cliff, keel } – Zeichen für Abgrund (fest) und Brücke (begehbar),
     // Höhe der Felswand unter den Inselkanten und Tiefe des Kiels darunter in Weltpixeln
     const isl = level.island ?? null;
     const solid = new Set([...SOLID, ...(level.solid ?? ''), ...(isl ? isl.void : '')]);
@@ -465,7 +466,7 @@ export class Outdoor extends TileMap {
     }
   }
 
-  // Sternenscherben: voidT = Abgrund oder Lichtbrücke je Kachel (Grundlage der geglätteten Inselkante), nearVoid = Kacheln
+  // Sternenscherben: voidT = Abgrund oder Brücke je Kachel (Grundlage der geglätteten Inselkante), nearVoid = Kacheln
   // mit Land und Abgrund in der 3 × 3-Nachbarschaft (nur dort entscheidet #voidAt je Feinpixel). islUp: je Abgrundkachel die
   // nächste Inselkachel darüber (Weltpixel-Weg), islWide: je Kantenkachel, wie breit die Insel dort ist – schmale Spitzen
   // bekommen eine niedrige Wand und einen flachen Kiel, breite Stellen den vollen.
@@ -523,7 +524,7 @@ export class Outdoor extends TileMap {
     return FK.GRASS;
   }
   // Unterste Inselzeile (Feinzeile, Welt × 2) über der Feinzeile G in Feinspalte F, -1e9 = keine in Reichweite.
-  // Gleiche Entscheidung wie #fineKinds (Lichtbrücken zählen als Abgrund: unter ihnen hängt keine Wand).
+  // Gleiche Entscheidung wie #fineKinds (Brücken zählen als Abgrund: unter ihnen hängt keine Wand).
   #coastAbove(F, G) {
     const w = this.w, tx = Math.floor(F / 2 / T), x = F / 2 + 0.25;
     if (tx < 0 || tx >= w) return -1e9;
@@ -727,12 +728,13 @@ export class Outdoor extends TileMap {
         if (fv === 2 && skipRock && !ed && this.#maskAt(x0 + lx, py)) { d[i + 3] = 255; continue; }
         if (pm && pm[ly * cw + lx]) { d[i + 3] = 255; continue; }
         if (this.isl) {
-          // Abgrund: Felswand/Kiel unter der Insel oder durchsichtig (Himmel der World); Lichtbrücke grob
+          // Abgrund: Felswand/Kiel unter der Insel oder durchsichtig (Himmel der World); Brücke grob
           const kind = this.#jitterTerrain(x0 + lx, py);
           if (kind === this.isl.void || kind === this.isl.bridge) {
             const g = this.islUp[Math.floor(py / T) * this.w + Math.floor((x0 + lx) / T)] ?? -1;
             const cg = g < 0 ? -1e9 : ((g + 1) * T - (vnoise((x0 + lx) / 7, g, 22) - 0.5) * 9) * 2;
-            const v = kind === this.isl.bridge && (((x0 + lx) % 7) && (py % 5)) ? 0x8a88a8 : this.#islandPixel((x0 + lx) * 2, py * 2, cg, ed, i);
+            const bp = bridgePainter(this), b = bp ? bp((x0 + lx) * 2, py * 2) : -2;
+            const v = b >= 0 ? b : kind === this.isl.bridge && !bp && (((x0 + lx) % 7) && (py % 5)) ? 0x8a88a8 : this.#islandPixel((x0 + lx) * 2, py * 2, cg, ed, i);
             if (v < 0) { d[i + 3] = 0; continue; }
             d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255; d[i + 3] = 255;
             continue;
@@ -779,7 +781,7 @@ export class Outdoor extends TileMap {
     const pal = this.pal;
     // pal.fineSetup: Generator (Vorarbeit in Scheiben), liefert die Chunk-Daten für pal.finePixel
     const S = pal.fineSetup ? yield* pal.fineSetup(x0, y0, cw, ch, K, KW, M, this) : null;
-    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, cover, fp: pal.finePixel, tmp: ed ? new Uint8ClampedArray(4) : null, ckey: new Int32Array(cw), ccol: new Uint32Array(cw), cem: new Uint32Array(cw), coast: null };
+    const c = { x0, y0, cw, K, KW, M, d32: new Uint32Array(d.buffer), ed, S, cover, fp: pal.finePixel, bp: this.isl ? bridgePainter(this) : null, tmp: ed ? new Uint8ClampedArray(4) : null, ckey: new Int32Array(cw), ccol: new Uint32Array(cw), cem: new Uint32Array(cw), coast: null };
     // Inselwände: unterste Inselzeile je Feinspalte über dem Chunk (danach führt #fineRows sie Zeile für Zeile fort)
     if (this.isl) { c.coast = new Float64Array(cw * 2); for (let F = 0; F < cw * 2; F++) c.coast[F] = this.#coastAbove(x0 * 2 + F, y0 * 2 - 1); yield; }
     for (let G = 0; G < ch * 2; G += 16) {
@@ -811,7 +813,7 @@ export class Outdoor extends TileMap {
             else if (K[e] === FK.PAVE) K[e] = this.#besidePave(ptx, pty);
           }
         }
-        // Inselkante: geglättetes Abgrundfeld statt Kachelstufen; Lichtbrücken bleiben gerade (Platten)
+        // Inselkante: geglättetes Abgrundfeld statt Kachelstufen; Brücken bleiben gerade (Platten)
         if (this.isl && ptx >= 0 && pty >= 0 && ptx < w && pty < h && this.nearVoid[pty * w + ptx]) {
           const tk = kg[pty * w + ptx];
           for (let q = 0; q < 4; q++) {
@@ -850,7 +852,8 @@ export class Outdoor extends TileMap {
         const ki = row + F, kind = K[ki], o = G * W2 + F;
         if (cover && cover[crow + (F >> 1)]) { d32[o] = 0xff000000; continue; }   // Felsmaler deckt (Ebene folgt)
         if (c.coast && kind !== FK.VOID && kind !== FK.BRIDGE) c.coast[F] = G0 + G;
-        let v = kind === FK.VOID && this.isl ? -2 : fp(kind, F0 + F, G0 + G, K, ki, KW, S);
+        // Brücken (level.bridges): Deck auf den Brückenkacheln, Geländer und Unterseite im Abgrund daneben
+        let v = c.bp && (kind === FK.VOID || kind === FK.BRIDGE) ? c.bp(F0 + F, G0 + G) : kind === FK.VOID && this.isl ? -2 : fp(kind, F0 + F, G0 + G, K, ki, KW, S);
         // Abgrund (und Spalten zwischen den Brückenplatten): Felswand unter der Insel oder durchsichtig
         if (v === -2) {
           v = c.coast ? this.#islandPixel(F0 + F, G0 + G, c.coast[F], ed, o * 4) : -2;
