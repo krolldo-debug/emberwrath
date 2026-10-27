@@ -30,8 +30,9 @@ const CLIP_Y = AY + 1; // unter dem Boden wird nichts gezeichnet (Schwert steckt
 let RS = 1, TW = W, TH = H, YC = CLIP_Y + 1;
 function setRes(r) { RS = r; TW = W * r; TH = H * r; YC = (CLIP_Y + 1) * r; }
 
+// Gestalt „Wolfskönig“: Wolfsfell als Haube und Schulterkragen, Bronze unter Grünspan, Eisenreif.
 // Bronze, alt und nachgedunkelt
-const BRZ = ['#170f08', '#3a2710', '#634520', '#93702f', '#c49a4a', '#f0d48e'];
+const BRZ = ['#0d0e0c', '#1c211c', '#2e3a30', '#45584a', '#65806a', '#9ab49a'];   // Bronze unter Grünspan
 // Grünspan
 const VER = ['#15302c', '#22504a', '#337564', '#56a088', '#8cc8a8'];
 // Ausgedörrte Haut
@@ -41,7 +42,7 @@ const ANT = ['#2e261e', '#5a4c3c', '#8a7a62', '#b8a888', '#e2d6b8'];
 // Bart und Haar (fahl)
 const BEARD = ['#3a3a3a', '#66645e', '#95928a', '#c4c0b4', '#e8e4da'];
 // Umhang: modriges Wolltuch, grünlich-grau
-const CAPE = ['#0a1014', '#142028', '#1f3440', '#2d4a54', '#45686a'];
+const CAPE = ['#0d0b0a', '#1b1714', '#2b2420', '#3c332c', '#52463c'];   // Wolltuch, rußbraun
 // Stoff unter der Rüstung
 const CLOTH = ['#120e10', '#221a1c', '#342628', '#48363a'];
 const LEATHER = ['#1a0d0b', '#3a1a12', '#5e2e1c', '#8a4828'];
@@ -601,6 +602,7 @@ function drawUlgrim(p, g, P0, extra = {}) {
   hand(p, hF.x, hF.y, false, false);
   if (P.grip > 0.5) hand(p, hB.x, hB.y, false, false);
   pauldron(p, g, shF.x, shF.y, 7.4, 6, litB, true);
+  furMantle(p, g, neckX, neckY, shF, shB, P);
   beard();
   // Hände liegen vor dem Bart
   hand(p, hF.x, hF.y, false, false);
@@ -862,7 +864,7 @@ function head(p, g, hx, hy, P, meta, gy) {
   const t = P.capeT;
   const lit = P.eye > 0.1;
   // Hinteres Geweih (dunkler)
-  if (P.crown < 0.02) antler(p, g, hx + 3, hy + 1, -1, P, false);
+  if (P.crown < 0.02) wolfPelt(p, g, hx, hy, P, true);
   // Haar: drei weiche Strähnenbüschel hinter dem Kopf, gebogen und verjüngt
   const hairC = [
     { x: hx + 1.5, y: hy + 4, len: 17, w: 2.2, bend: -5 - P.cape * 3, ph: 0.3 },
@@ -913,7 +915,7 @@ function head(p, g, hx, hy, P, meta, gy) {
   // Bronzereif mit Geweih
   if (P.crown < 0.02) {
     crownBand(p, g, hx, hy + 1, 0);
-    antler(p, g, hx + 8, hy + 1, 1, P, true);
+    wolfPelt(p, g, hx, hy, P, false);
   } else {
     const cx = hx + P.crown * 10, cy = hy + 1 + (gy - 3 - hy - 1) * Math.min(1, P.crown * P.crown);
     crownBand(p, g, cx, cy, P.crown);
@@ -1047,7 +1049,7 @@ function clumpFine(p, c, t, sway, ramp, outline) {
 }
 
 // Krone: Bronzereif mit hellem Goldglanz und dunkler Unterkante, drei hohe Zacken.
-const GOLD = ['#2a1a08', '#6e4c18', '#b48a3a', '#e2c070', '#fff0c0'];
+const GOLD = ['#141416', '#2c2c32', '#4a4a54', '#727480', '#a8acb8'];   // Eisenreif
 function crownBand(p, g, x, y, fall) {
   const tilt = fall * 0.45;
   for (let i = -1; i < 14; i++) {
@@ -1083,9 +1085,64 @@ function crownBand(p, g, x, y, fall) {
     p.sub(gx - 1, gyy, 1, 0, GOLD[4]); p.sub(gx - 1, gyy - 1, 1, 1, GOLD[3]);
     if (fall <= 0.9) g.sub(gx, gyy - 1, 0, 0, 4);
   }
-  if (fall > 0.3) {
+  if (fall > 0.3 && false) {
     // gefallene Krone: Geweihstümpfe
     for (const [dx, h] of [[2, 5], [9, 7]]) for (let k = 1; k <= h; k++) { p.px(x + dx - k * 0.4, y - 2 + Math.round(dx * tilt) - k, ANT[k === h ? 4 : 2]); p.px(x + dx + 1 - k * 0.4, y - 2 + Math.round(dx * tilt) - k, ANT[0]); }
+  }
+}
+
+// Wolfsfell: Wolfskopf als Haube (Schnauze über der Stirn, Ohren, Reißzähne), Fell hängt hinten herab.
+// back = Fellbahn hinter dem Kopf, sonst der Wolfskopf über dem Schädel.
+const FUR = ['#0e0c0b', '#1f1a16', '#33291f', '#4a3c2c', '#66533c', '#8f7955'];
+function wolfPelt(p, g, hx, hy, P, back) {
+  if (back) {
+    // Fellbahn hinter Kopf und Nacken
+    for (let i = 0; i < 9; i++) {
+      const x0 = hx - 1 + i * 0.9, len = 14 + hash2(i, 2, 91) * 6 - i * 0.6;
+      const sw = Math.sin(P.capeT + i * 0.7) * 1.2 - P.cape * 3;
+      limb(p, x0, hy - 1, x0 - 3 + sw, hy - 1 + len, 3.4, 1.4, i < 3 ? [FUR[0], FUR[2], FUR[3], FUR[4]] : [FUR[0], FUR[1], FUR[2], FUR[3]]);
+    }
+    return;
+  }
+  // Schädeldecke des Wolfs
+  p.ellipse(hx + 6, hy + 1, 9, 5.5, FUR[0]);
+  p.ellipse(hx + 5.8, hy + 0.6, 8.1, 4.7, FUR[2]);
+  p.ellipse(hx + 5, hy - 0.5, 6, 3.2, FUR[3]);
+  p.ellipse(hx + 4, hy - 1.5, 3.4, 1.6, FUR[4]);
+  // Ohren
+  for (const [ox, h, c] of [[1, 6, 2], [6.5, 7.5, 3]]) {
+    limb(p, hx + ox, hy - 2, hx + ox + 1.6, hy - 2 - h, 4.6, 0.8, [FUR[0], FUR[c - 1], FUR[c], FUR[c + 1]]);
+    if (RS > 1) p.fline(hx + ox + 0.4, hy - 3, hx + ox + 1, hy - 1 - h, FUR[0]);
+  }
+  // Schnauze nach vorn über die Stirn
+  limb(p, hx + 9, hy + 1, hx + 20, hy + 3.2, 6.5, 3.4, [FUR[0], FUR[2], FUR[4], FUR[5]]);
+  p.line(hx + 11, hy + 3.5, hx + 19.5, hy + 4.2, FUR[1]);
+  p.ellipse(hx + 20.2, hy + 2.6, 1.3, 1, VOID);                        // Nase
+  if (RS > 1) p.dot(hx + 18.4, hy + 2, FUR[4]);
+  // Oberkiefer mit Reißzähnen über den Brauen
+  p.line(hx + 9, hy + 4.5, hx + 19.5, hy + 5, FUR[0]);
+  for (const [fx, l] of [[10.5, 2.5], [13.5, 1.6], [16.5, 2.4], [18.5, 1.5]]) { p.line(hx + fx, hy + 4.5, hx + fx + 0.3, hy + 4.5 + l, ANT[4]); if (RS > 1) p.dot(hx + fx + 0.3, hy + 4.5 + l, ANT[2]); }
+  // Wolfsauge: leere Höhle mit Geisterglimmen
+  p.ellipse(hx + 11, hy + 0.5, 1.2, 0.9, VOID); g.px(hx + 11, hy + 0.5, 2); g.epx(hx + 11, hy + 0.5, 3);
+  if (RS > 1) {
+    // Fellstrich: kurze Haarlinien auf der Kopfdecke, Lichtkante auf der Schnauze
+    for (let i = 0; i < 9; i++) { const x = hx + 1 + i * 1.3, y = hy - 2 + Math.abs(i - 4) * 0.4; p.fline(x, y, x - 0.8, y + 2, i % 2 ? FUR[1] : FUR[4]); }
+    p.fline(hx + 10, hy - 0.8, hx + 19, hy + 1.6, FUR[5]);
+  }
+}
+
+// Schulterkragen aus Wolfsfell: dichte Büschel rund um den Nacken, über beiden Schultern.
+function furMantle(p, g, nx, ny, shF, shB, P) {
+  const tufts = 15;
+  for (let i = 0; i < tufts; i++) {
+    const u = i / (tufts - 1);
+    const x0 = shB.x - 3 + (shF.x + 6 - (shB.x - 3)) * u;
+    const y0 = ny - 1 + Math.sin(u * Math.PI) * -3 + (u > 0.75 ? (u - 0.75) * 14 : 0);
+    const len = 7 + hash2(i, 4, 93) * 4 + (u > 0.3 && u < 0.7 ? 2 : 0);
+    const sw = Math.sin(P.capeT + i * 0.9) * 0.8 - P.cape * 1.5;
+    const ramp = u < 0.35 ? [FUR[0], FUR[1], FUR[2], FUR[3]] : [FUR[0], FUR[2], FUR[3], FUR[4]];
+    limb(p, x0, y0, x0 + sw - 0.5, y0 + len, 4.4, 1.2, ramp);
+    if (RS > 1 && i % 2 === 0) p.fline(x0 - 0.6, y0 + 1, x0 + sw - 0.8, y0 + len - 1.5, u < 0.35 ? FUR[3] : FUR[5]);
   }
 }
 
