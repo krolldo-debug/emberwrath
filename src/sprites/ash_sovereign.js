@@ -28,8 +28,8 @@ const W = 340, H = 262, AX = 166, AY = 248;
 
 // Leitfarbe: Aschweiß/Knochengrau (Plattenrüstung aus gebleichtem Knochen und Asche) – bewusst
 // anders als das Violett/Gold seiner Thronwachen; hebt sich hell vom dunklen Thronboden ab.
-const OBS = ['#1e1918', '#3b3330', '#665b55', '#978b81', '#c6bcb0', '#ede6da'];
-const SPEC = '#fffcf2';
+const OBS = ['#0b0a0d', '#18161b', '#27242b', '#3c3842', '#5a5462', '#88808e'];   // Gestalt „Schwarzer König“: verkohlter Stahl
+const SPEC = '#d8d0dc';
 const ASH = ['#241e1e', '#3e3634', '#5e5450', '#857a72', '#b0a69a', '#ddd4c6'];
 const HAIR = ['#141114', '#262024', '#3c3438', '#6e6670', '#a8a0ac'];
 // Haut: aschfahl, leicht warm – hebt sich deutlich von Haar, Krone und Rüstung ab
@@ -40,7 +40,7 @@ const GOLD = ['#140d0b', '#2e201a', '#54392b', '#c4652a', '#f6a457'];
 const CROWNC = ['#160c09', '#33190f', '#5e2a14', '#c4561c', '#ffab52'];
 // Klinge: schwarzes Glas (Kontrast zur hellen Rüstung)
 const BLK = ['#0b0909', '#1a1615', '#2c2624', '#463d3a', '#6c625c', '#a0958c'];
-const ROBE = ['#1e070c', '#3c0d15', '#5e141d', '#851f25', '#ae3330', '#d0523c'];
+const ROBE = ['#2a2422', '#4a403c', '#6e625a', '#968a7e', '#bcb2a4', '#e2dacb'];   // Aschmantel, gebleicht
 const SMOKE = ['#100d0c', '#1e1a18', '#2f2926', '#433b37', '#5b524c', '#776c64'];
 const MAG = ['#2a0804', '#5a1206', '#8e2408', '#d8501a', '#ffb048'];
 const LEATHER = PAL.leather;
@@ -1147,11 +1147,11 @@ function crown(p, g, x, y, tilt, P, lit = true) {
       p.px(px, py, r < 0 ? (i < 6 ? CROWNC[4] : CROWNC[3]) : r < 1 ? (i < 4 ? CROWNC[3] : CROWNC[2]) : CROWNC[1]);
     }
   }
-  const spikes = [[1, 6], [4.5, 9], [8, 13], [11.5, 9.5], [15, 6.5]];
+  const spikes = [[1, 7], [4.5, 11], [8, 16], [11.5, 11.5], [15, 7.5]];
   const flames = [];
   for (const [dx, h] of spikes) {
     for (let k = 1; k <= h; k += 0.5) {
-      const w = k < h - 1.5 ? 1 : k < h - 0.5 ? 0.5 : 0;
+      const w = Math.round(2.2 * (1 - k / h) * 2) / 2;   // Zacken: breiter Fuß, spitz zulaufend
       for (let q = -w; q <= w; q += 0.5) {
         const [px, py] = pt(dx + q, -k);
         p.px(px, py, k >= h - 0.5 ? CROWNC[4] : q < 0 ? CROWNC[4] : q > 0.4 ? CROWNC[2] : CROWNC[3]);
