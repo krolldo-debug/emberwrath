@@ -32,10 +32,10 @@ export const ANCHOR_DX = -16;
 
 // ---------------------------------------------------------------- Farben
 
-const SCALE = ['#0a1424', '#12263e', '#1b3a58', '#275674', '#3a7892', '#5a9eb4', '#86c4d2'];
-const BELLY = ['#26445c', '#40687e', '#6a94aa', '#9cc2d2', '#d2eaf2'];
+const SCALE = ['#07080f', '#0f1122', '#181c36', '#232a4c', '#333d66', '#4a5884', '#6c7ea6'];   // Nachteis: Schiefer-Indigo
+const BELLY = ['#4c6276', '#7a92a6', '#a9c0cf', '#d6e8f0', '#f7fdff'];   // Reifweiß
 const CRYS = ['#153a62', '#25649c', '#3f9ccf', '#88d4ef', '#dcf8ff'];
-const HORN = ['#1a2638', '#2e4258', '#4c6882', '#7c9cb2', '#bcd6e2'];
+const HORN = ['#2a2a34', '#4c4c58', '#7a7a86', '#acacb4', '#e2e2e6'];   // Horn, ausgeblichen
 const MOUTH = ['#0a0614', '#1e0c26', '#381434', '#5a2046', '#7e3058'];
 const TONGUE = ['#4a1636', '#86305a', '#bc4e7c', '#e684a6'];
 const MAW = ['#05040a', '#0e0a1c', '#1c1028', '#341634', '#56203e', '#7c3252'];
@@ -554,9 +554,14 @@ function bodyTexel(L, q, r, P, heart, gy, xs, ys, dx, dy, a, i, row, dith) {
 }
 
 // Kristallstachel am Rücken eines Leibstücks
+// Kristallbüschel: ein großer Splitter, zwei kleinere seitlich daneben.
 function spike(p, g, q, r, P, sz, o) {
+  if (sz > 0.55) { spikeOne(p, g, q, r, P, sz * 0.62, o, -0.5, -1); spikeOne(p, g, q, r, P, sz * 0.5, o, 0.42, 1); }
+  spikeOne(p, g, q, r, P, sz * 1.25, o, 0, 0);
+}
+function spikeOne(p, g, q, r, P, sz, o, rot, off) {
   const hs = hash2(Math.round(q.u), 3, 91);
-  const lean = 0.6 + (hs - 0.5) * 0.25;
+  const lean = 0.6 + (hs - 0.5) * 0.25 + rot;
   let dx = -q.nx * Math.cos(lean) - q.tx * Math.sin(lean);
   let dy = -q.ny * Math.cos(lean) - q.ty * Math.sin(lean);
   const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
@@ -564,7 +569,7 @@ function spike(p, g, q, r, P, sz, o) {
   const len = (2.2 + r * 0.95) * (0.78 + hs * 0.45) * flare * sz;
   if (len < 2) return;
   const bw = (1.1 + r * 0.2) * sz;
-  const bx = q.sx - q.nx * r * 0.8, by = q.sy - q.ny * r * 0.8;
+  const bx = q.sx - q.nx * r * 0.8 + q.tx * off * 1.6, by = q.sy - q.ny * r * 0.8 + q.ty * off * 1.6;
   const tipx = bx + dx * len, tipy = by + dy * len;
   const b1 = [bx + q.tx * bw, by + q.ty * bw], b2 = [bx - q.tx * bw, by - q.ty * bw];
   // Welche Flanke zeigt zum Licht?
@@ -691,7 +696,7 @@ function drawHead(p, g, bx, by, P, o) {
   const LIP = 2.5; // Oberkante des Unterkiefers / Unterkante des Oberkiefers (v)
 
   // Hintere Hörner (ferne Seite, dunkler)
-  hornCurve(p, g, T, [[3, -6], [-5, -12], [-16, -11]], 4, 1, true, P, frozen);
+  hornCurve(p, g, T, [[3, -6], [-7, -14], [-21, -13]], 4.6, 1, true, P, frozen);
 
   // Unterkiefer: kräftiger Knochen mit Kinn, Unterseite dunkel, Kieferkante hell
   const jaw = [[-4, 1.2], [4, LIP], [12, LIP], [19, LIP - 0.1], [23.5, LIP - 0.2], [24.5, 3.6], [23, 5.4], [18, 6.4], [10, 7.4], [3, 7.7], [-3, 6.5], [-5, 4]];
@@ -907,8 +912,8 @@ function drawHead(p, g, bx, by, P, o) {
   // Nüsterfrost
   if (!frozen) { const [nx, ny] = T(24, -2.4); g.apx(nx, ny, P.breath > 0.3 ? 2 : 0); g.epx(nx, ny, 1); }
   // Vordere Hörner: langes, zurückgeschwungenes Kristallhorn + kürzeres oberes
-  hornCurve(p, g, T, [[1, -7], [-8, -14.5], [-22, -13.5]], 5.4, 1.2, false, P, frozen);
-  hornCurve(p, g, T, [[4.5, -8.5], [0, -15.5], [-6, -20]], 3.8, 1, false, P, frozen);
+  hornCurve(p, g, T, [[1, -7], [-10, -17], [-28, -15]], 6.2, 1.2, false, P, frozen);
+  hornCurve(p, g, T, [[4.5, -8.5], [-1, -18], [-9, -25]], 4.4, 1, false, P, frozen);
   // Brauenwulst vor den Hornansätzen: zwei helle Linien, darunter harte Schattenkante
   tl(4, -9.5, 15, -7.9, SCALE[6]);
   tl(4.5, -8.7, 15.5, -7.1, SCALE[5]);
@@ -921,6 +926,11 @@ function drawHead(p, g, bx, by, P, o) {
   }
   // Wangendorn nach hinten unten
   hornCurve(p, g, T, [[-1, 2], [-5, 5], [-8, 9]], 2.6, 1, false, P, frozen, true);
+  // Eiskamm auf dem Schädel und Eisbart am Unterkiefer (Gestalt „Gletscherwurm“)
+  hornCurve(p, g, T, [[9, -9], [8.5, -14], [6, -19]], 3, 0.8, false, P, frozen);
+  hornCurve(p, g, T, [[13, -8], [13, -12], [11.5, -15.5]], 2.4, 0.8, false, P, frozen);
+  const TJ = (u, v) => T(...J(u, v));
+  for (const [u, l, d] of [[6, 7, -1.5], [10, 9, -1], [14, 7, -0.5], [18, 5, 0]]) hornCurve(p, g, TJ, [[u, 5.5], [u + d * 0.5, 5.5 + l * 0.5], [u + d, 5.5 + l]], 2.2, 0.7, false, P, frozen, true);
 
   const mouth = T(24 + P.jaw * 1, 2.5 + P.jaw * 5);
   return {
