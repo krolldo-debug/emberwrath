@@ -614,7 +614,9 @@
   .pg-inventory .pg-bag { grid-template-columns: repeat(6, var(--pg-cell)); }
   .pg-inventory .pg-inv-foot, .pg-inventory .pg-quicksell.multi { margin-top: auto; }
   /* Gewählter Gegenstand: Karte über dem ganzen Inhalt, Werte links, Knöpfe untereinander rechts, × darüber */
-  .pg-inventory .pg-sheet.open { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 176px; grid-template-rows: minmax(0, 1fr); }
+  /* Karte über dem ganzen Fenster samt Titelleiste (Bezug ist das Fenster, nicht die Tasche): ihr × steht dort, wo sonst das Fenster-× steht */
+  .pg-inventory .pg-scroll.pg-inv { position: static; }
+  .pg-inventory .pg-sheet.open { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 176px; grid-template-rows: minmax(0, 1fr); border: 0; box-shadow: none; }
   .pg-inventory .pg-sheet.open .pg-sheet-body { grid-column: 1; grid-row: 1; min-height: 0; }
   .pg-inventory .pg-sheet-body .pg-detail-head { padding-right: 0; }
   .pg-inventory .pg-sheet-bar {
