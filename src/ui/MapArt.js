@@ -898,22 +898,26 @@ export function renderLabels(world, content, scale, z, avoid = [], translate = (
     const tw = labelWidth(text, f) + 2, th = (5 + up) * f + 3;
     const ax = l.anchorX * scale, ay = l.anchorY * scale;
     let best = null;
-    for (const [ox, oy] of l.kind === 'portal' ? NEAR : WIDE) {
+    const tryAt = (ox, oy) => {
       const cx = ax + ox * scale, cy = ay + oy * scale;
-      const x0 = Math.round(cx - tw / 2), y0 = Math.round(cy - th / 2), x1 = x0 + tw, y1 = y0 + th;
+      const rx = Math.round(cx - tw / 2), ry = Math.round(cy - th / 2);
       let score = Math.hypot(ox, oy) * 3;
-      if (x0 < 6 || y0 < 6 || x1 > W - 6 || y1 > H - 6) score += 400;
+      if (rx < 6 || ry < 6 || rx + tw > W - 6 || ry + th > H - 6) score += 400;
+      // gewertet wird, wo der Name nach dem Zurückschieben ins Bild wirklich steht
+      const x0 = Math.max(4, Math.min(W - tw - 4, rx)), y0 = Math.max(4, Math.min(H - th - 4, ry)), x1 = x0 + tw, y1 = y0 + th;
       for (let ty = Math.max(0, Math.floor(y0 / scale)); ty <= Math.min(d.h - 1, Math.floor(y1 / scale)); ty++) {
         for (let tx = Math.max(0, Math.floor(x0 / scale)); tx <= Math.min(d.w - 1, Math.floor(x1 / scale)); tx++) score += PENALTY[cls[ty * d.w + tx]] ?? 0;
       }
       for (const [mx, my, r, wgt = 60] of avoid) if (mx + r > x0 && mx - r < x1 && my + r > y0 && my - r < y1) score += wgt;
       for (const p of placed) if (p[0] < x1 + 6 && p[2] + 6 > x0 && p[1] < y1 + 3 && p[3] + 3 > y0) score += 1000;
       if (!best || score < best.score) best = { score, x0, y0, x1, y1 };
-    }
+    };
+    for (const [ox, oy] of l.kind === 'portal' ? NEAR : WIDE) tryAt(ox, oy);
+    // Ausgang ohne freien Platz dicht am Tor (kleine Karte im Handyfenster): weiter weg suchen statt über andere zu schreiben
+    if (l.kind === 'portal' && best.score >= 1000) for (const [ox, oy] of WIDE) tryAt(ox, oy);
     // Kein freier Platz (kleine Karte, viele Namen): Gebietsname weglassen statt über andere zu schreiben
     if (best.score >= 1000 && l.kind === 'area') continue;
-    // nie aus dem Bild schieben
-    const x0 = Math.max(4, Math.min(W - tw - 4, best.x0)), y0 = Math.max(4, Math.min(H - th - 4, best.y0));
+    const { x0, y0 } = best;
     placed.push([x0, y0, x0 + tw, y0 + th]);
     const [col, ink] = LABEL[l.kind], tx = x0 + 1, ty = y0 + 1 + up * f;
     drawLabel(ctx, text, tx, ty, f, col, ink);
