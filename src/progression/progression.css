@@ -592,8 +592,8 @@
   .pg-inventory .pg-inv .pg-stage-canvas { width: 364px; height: 350px; }
 }
 /* Handy quer: Fenster in der gemeinsamen Handygröße (--win-w/--win-h, ui/theme.css), links und rechts bleibt Welt sichtbar.
-   Tasche 6 Spalten mit festen 52-px-Plätzen (26-px-Icons doppelt und ganz), rollt senkrecht. Ausrüstung in drei Spalten
-   ohne Figur, Name und Werte darunter; flache Kopfzeile. */
+   Tasche 6 Spalten mit festen 52-px-Plätzen (26-px-Icons doppelt und ganz), rollt senkrecht. Ausrüstung in zwei Spalten
+   (Rüstung links, Schmuck und Waffe rechts) ohne Figur, darunter Name, Stufe und Klasse; die Werte zeigt das Charakterfenster. */
 @media (min-width: 641px) and (max-height: 520px) {
   .pg-panel.pg-inventory { width: var(--win-w); max-width: var(--win-w); height: var(--win-h); max-height: var(--win-h); }
   .pg-inventory .pg-head { padding: 0 4px 0 14px; min-height: 36px; height: 36px; }
@@ -604,8 +604,8 @@
     grid-template-columns: minmax(0, 1fr) calc(6 * var(--pg-cell) + 5 * var(--pg-gap));
   }
   .pg-inventory .pg-inv .pg-doll {
-    grid-template-columns: repeat(3, var(--pg-cell)); grid-template-rows: repeat(3, var(--pg-cell)) auto; justify-content: center;
-    grid-template-areas: "head chest hands" "feet amulet ring" ". weapon ." "info info info"; gap: 4px; padding: 6px 4px; align-content: center;
+    grid-template-columns: repeat(2, var(--pg-cell)); grid-template-rows: repeat(4, var(--pg-cell)) auto; justify-content: center;
+    grid-template-areas: "head amulet" "chest ring" "hands weapon" "feet ." "info info"; gap: 4px; padding: 6px 4px; align-content: center;
   }
   .pg-inventory .pg-inv .pg-doll .pg-doll-slot { align-self: center; }
   .pg-inventory .pg-inv .pg-stage { display: none; }
@@ -628,9 +628,7 @@
   .pg-inventory .pg-doll-info { flex-direction: column; padding-top: 4px; }
   .pg-inventory .pg-doll-name { font-size: 14px; }
   .pg-inventory .pg-doll-sub { font-size: 11.5px; }
-  .pg-inventory .pg-doll-stats { gap: 1px 6px; font-size: 11px; }
-  .pg-inventory .pg-doll-stats li { gap: 3px; }
-  .pg-inventory .pg-doll-stats img { width: 12px; height: 12px; }
+  .pg-inventory .pg-doll-stats { display: none; }
   .pg-inventory .pg-filters .pg-chip { padding: 0 6px; font-size: 12px; }
   .pg-inventory .pg-qty { font-size: 11px; }
   /* Schmale Tasche: Fußzeile enger, damit Gold, beide Knöpfe und Plätze nebeneinander passen */
