@@ -3,13 +3,17 @@ import { EV } from '../core/events.js';
 import { iconEl } from '../gfx/Icons.js';
 import { panelFrame, goldEl } from '../progression/widgets.js';
 import { resolveGear } from '../character/gearLook.js';
-import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE, isSetDesign, SET_CLASS_NAMES } from './catalog.js';
+import { GOLD_PACKS, DESIGNS, DESIGN_ITEMS, packTotal, formatPrice, RETURN_PARAM, PRICE_NOTE, TERMS_PATH, WAIVER_TEXT, MINOR_NOTE, isSetDesign, SET_CLASS_NAMES, appleProductId, fromAppleProductId } from './catalog.js';
 import { SET_ITEMS, ownedSetLooks, findSkinSet } from '../character/skinSets.js';
 import { drawSetGlow, drawSetEmit } from '../sprites/heroSets.js';
 import { fmtNum } from '../i18n/index.js';
 import { inApp } from '../app/native.js';
+import { hasAppStore, appStore } from '../app/store.js';
 
 // Shop: Gold-Pakete und exklusive Designs für Echtgeld (Bezahlung über Stripe, Worker worker/shop.js, Einrichtung docs/SHOP.md).
+// In der iOS-App bezahlt man stattdessen über den App Store (src/app/store.js): Kauf bei Apple → Worker prüft die Signatur
+// und trägt die Bestellung als bezahlt ein (/net/shop/apple) → Kauf bei Apple abschließen → Gutschrift wie bei Stripe.
+// Ohne App-Store-Baustein (App 1.0) oder ohne freigegebene Produkte bleibt der Shop in der App verborgen.
 //
 // game.shop
 //   status        { enabled, configured, products } vom Server oder null (noch nicht geladen / nicht erreichbar)
@@ -19,6 +23,7 @@ import { inApp } from '../app/native.js';
 //   claim()       bezahlte Bestellungen des aktuellen Charakters gutschreiben, erstattete/zurückgebuchte wieder
 //                 abziehen, gekaufte Designs übernehmen → Promise<Gold> (Saldo der Gutschriften)
 //   owns(designId) true, wenn das Design zum Konto gehört (laut Spielstand, vom Server abgeglichen)
+//   appStore      true in der App: Preise von Apple (applePrice(id)), Käufe über Apple, restore() für „Käufe wiederherstellen“
 // Panel 'goldshop' (Menü-Knopf „Shop“, Klick auf den Goldbetrag im HUD).
 // Slice 'shop' { credited: [orderId], revoked: [orderId], owned: ['mount:<id>'|'dye:<id>'|'look:<setId>'] }: credited/revoked verhindern
 // doppelte Gutschrift und doppelten Abzug; owned sind die bezahlten Designs des Kontos (Server: shop_designs()).
@@ -99,6 +104,8 @@ export function installShop(game) {
 
   let session = null;
   let admin = false;
+  let applePrices = null; // App: Katalog-ID → Preis laut App Store (nur Produkte, die Apple freigegeben hat)
+  let appleSyncing = null;
   let loading = null;
   let claiming = null;
   const listeners = new Set();
@@ -107,13 +114,44 @@ export function installShop(game) {
   const online = () => game.online;
   const isOnlineChar = () => !!online()?.user && online().isOnlineAccount(state.meta.accountId) && !!state.meta.characterId;
 
+  // App Store: bezahlte Käufe dem Server melden; was er bestätigt (oder dauerhaft ablehnt), bei Apple abschließen.
+  // → Zahl der gutgeschriebenen Käufe. Nicht bestätigte bleiben bei Apple offen und kommen beim nächsten Abgleich wieder.
+  const appleSubmit = async (entries) => {
+    if (!entries.length || !isOnlineChar()) return 0;
+    const token = await online().client.getAccessToken();
+    let credited = 0;
+    for (let i = 0; i < entries.length; i += 20) {
+      const part = entries.slice(i, i + 20);
+      const r = await fetch('/net/shop/apple', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ transactions: part.map((e) => e.jws), characterId: state.meta.characterId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !Array.isArray(d.results)) throw new Error(d.error ?? 'server');
+      for (const [k, res] of d.results.entries()) {
+        if (res?.done && part[k]) await appStore.finish(part[k].transactionId).catch(() => {});
+        if (res?.ok) credited++;
+      }
+    }
+    return credited;
+  };
+
   const shop = {
     status: null,
     returned,
-    // In der Store-App gibt es keinen Shop (dort wären nur Apple-/Google-Käufe erlaubt). Gekauftes kommt trotzdem an.
-    get visible() { return !inApp() && !!this.status && (this.status.enabled || admin); },
+    get appStore() { return inApp(); },
+    // In der App nur über den App Store (Apple-Richtlinie 3.1.1), sonst über Stripe.
+    get visible() {
+      if (inApp()) return !!applePrices?.size && !!this.status && (this.status.apple || admin);
+      return !!this.status && (this.status.enabled || admin);
+    },
     get admin() { return admin; },
-    get canBuy() { return !inApp() && !!this.status && isOnlineChar() && (this.status.enabled || (admin && this.status.configured)); },
+    get canBuy() {
+      if (inApp()) return this.visible && isOnlineChar();
+      return !!this.status && isOnlineChar() && (this.status.enabled || (admin && this.status.configured));
+    },
+    applePrice(id) { return applePrices?.get(id) ?? null; },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     owns(designId) {
       const d = DESIGNS.find((x) => x.id === designId);
@@ -127,6 +165,11 @@ export function installShop(game) {
           shop.status = r.ok ? await r.json() : null;
         } catch { shop.status = null; }
         admin = online()?.user ? await online().isAdmin().catch(() => false) : false;
+        if (hasAppStore() && !applePrices?.size) {
+          const ids = [...GOLD_PACKS, ...DESIGNS].map((p) => appleProductId(p.id));
+          const list = await appStore.products(ids).catch(() => []);
+          applePrices = new Map(list.map((p) => [fromAppleProductId(p.id)?.id, p.displayPrice]).filter(([k, v]) => k && v));
+        }
         changed();
         return shop.visible;
       })().finally(() => { loading = null; });
@@ -135,8 +178,48 @@ export function installShop(game) {
 
     open() { session?.panels.open('goldshop'); },
 
+    // Kauf über den App Store. → 'ok' | 'pending' | 'cancel'
+    async appleBuy(productId) {
+      if (!isOnlineChar()) throw new Error('Kaufen geht nur mit einem Charakter in deinem Konto.');
+      game.saveNow('shop');
+      let r;
+      try { r = await appStore.purchase(appleProductId(productId), online().user?.id); } catch { r = null; }
+      if (r?.status === 'cancel') return 'cancel';
+      if (r?.status === 'pending') {
+        game.bus.emit(EV.UI_TOAST, { text: 'Dein Kauf wartet noch auf eine Bestätigung, zum Beispiel durch deine Eltern. Danach wird er automatisch freigeschaltet.', kind: 'info' });
+        return 'pending';
+      }
+      if (r?.status !== 'ok' || !r.jws) throw new Error('Der Kauf konnte nicht abgeschlossen werden. Bitte versuch es gleich noch einmal.');
+      const n = await appleSubmit([{ jws: r.jws, transactionId: r.transactionId }]).catch(() => 0);
+      if (!n) {
+        game.bus.emit(EV.UI_TOAST, { text: 'Kauf erhalten. Die Freischaltung wird beim nächsten Start nachgeholt.', kind: 'info', icon: 'gold' });
+        return 'ok';
+      }
+      await shop.claim();
+      return 'ok';
+    },
+
+    // App: bezahlte, noch nicht bestätigte Käufe nachreichen (Absturz, Funkloch, Erlaubnis der Eltern kam später).
+    appleSync() {
+      if (!hasAppStore() || !isOnlineChar()) return Promise.resolve(0);
+      appleSyncing ??= appStore.unfinished().then(appleSubmit)
+        .then(async (n) => { if (n) await shop.claim(); return n; })
+        .catch(() => 0).finally(() => { appleSyncing = null; });
+      return appleSyncing;
+    },
+
+    // App: „Käufe wiederherstellen“ (Designs, die mit dieser Apple-ID für dieses Konto gekauft wurden).
+    async restore() {
+      const list = await appStore.restore().catch(() => null);
+      if (!list) throw new Error('Der App Store ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.');
+      await appleSubmit(list).catch(() => 0);
+      await shop.claim();
+      game.bus.emit(EV.UI_TOAST, { text: list.length ? 'Deine Käufe sind wiederhergestellt.' : 'Für diese Apple-ID wurden keine Käufe gefunden.', kind: 'info' });
+    },
+
     // Weiter zur Bezahlseite. Vorher speichern, damit beim Zurückkommen nichts fehlt.
     async checkout(productId) {
+      if (inApp()) return this.appleBuy(productId);
       if (!isOnlineChar()) throw new Error('Kaufen geht nur mit einem Charakter in deinem Konto.');
       const token = await online().client.getAccessToken();
       game.saveNow('shop');
@@ -236,6 +319,10 @@ export function installShop(game) {
     const timers = [];
     shop.refresh();
     shop.claim();
+    shop.appleSync();
+    // App kommt aus dem Hintergrund (z. B. nach der Erlaubnis der Eltern): offene App-Store-Käufe nachreichen.
+    const onVisible = () => { if (document.visibilityState === 'visible') shop.appleSync(); };
+    if (hasAppStore()) document.addEventListener('visibilitychange', onVisible);
     if (shop.returned === 'ok') {
       sess.bus.emit(EV.UI_TOAST, { text: 'Zahlung erhalten. Dein Kauf wird gleich freigeschaltet.', kind: 'info', icon: 'gold' });
       for (const sec of RETRY_AFTER_RETURN_S) timers.push(setTimeout(() => { if (shop.returned === 'ok') shop.claim(); }, sec * 1000));
@@ -243,7 +330,11 @@ export function installShop(game) {
       sess.bus.emit(EV.UI_TOAST, { text: 'Kauf abgebrochen. Es wurde nichts abgebucht.', kind: 'info' });
       shop.returned = null;
     }
-    return { dispose: () => { timers.forEach(clearTimeout); if (session === sess) session = null; } };
+    return { dispose: () => {
+      timers.forEach(clearTimeout);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (session === sess) session = null;
+    } };
   }, 20);
 
   game.bus.on(EV.ONLINE_CHANGED, () => { if (session) shop.refresh(); });
@@ -269,19 +360,33 @@ function shopPanel(session, game, shop) {
 
   let nudge = false; // Kauf ohne Häkchen versucht → Hinweis hervorheben
 
+  // Preis: in der App laut App Store (Landeswährung), sonst aus dem Katalog
+  const price = (id, cents) => (shop.appStore ? shop.applePrice(id) : formatPrice(cents));
   const buyButton = (id, label) => h('button.ef-btn.primary.sh-buy', {
     type: 'button',
     disabled: !(shop.canBuy && !busy),
     onclick: async () => {
-      if (!waiver) {
+      if (!waiver && !shop.appStore) { // im App Store gelten Apples Bedingungen, Apple fragt selbst nach
         nudge = true; draw();
         root.querySelector('.sh-waiver')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         return;
       }
       busy = id; error = null; draw();
-      try { await shop.checkout(id); } catch (e) { busy = null; error = e.message; draw(); }
+      try {
+        await shop.checkout(id);
+        if (shop.appStore) { busy = null; draw(); } // Stripe: Seite wechselt zur Bezahlseite
+      } catch (e) { busy = null; error = e.message; draw(); }
     },
   }, busy === id ? 'Weiter …' : label);
+  const restoreButton = () => h('button.ef-btn.sh-restore', {
+    type: 'button',
+    disabled: !!busy || !shop.canBuy,
+    onclick: async () => {
+      busy = 'restore'; error = null; draw();
+      try { await shop.restore(); } catch (e) { error = e.message; }
+      busy = null; draw();
+    },
+  }, busy === 'restore' ? 'Einen Moment …' : 'Käufe wiederherstellen');
 
   const preview = (d) => {
     if (!previews.has(d.id)) previews.set(d.id, designPreview(game, session, d));
@@ -292,11 +397,14 @@ function shopPanel(session, game, shop) {
     const st = shop.status;
     const gold = session.state.slices.wallet?.gold ?? 0;
     const charName = session.state.slices.character?.name ?? 'deinen Charakter';
-    const products = st?.products ?? GOLD_PACKS.map((p) => ({ ...p, total: packTotal(p) }));
+    const products = (st?.products ?? GOLD_PACKS.map((p) => ({ ...p, total: packTotal(p) })))
+      .filter((p) => !shop.appStore || shop.applePrice(p.id));
 
     let notice = null;
     if (!st) notice = h('p.sh-notice', 'Der Shop lädt …');
     else if (!game.online?.user) notice = h('p.sh-notice', 'Melde dich mit deinem Konto an, um im Shop zu kaufen.');
+    else if (shop.appStore && !st.apple && shop.admin) notice = h('p.sh-notice.sh-admin', 'Admin-Vorschau: Für Spieler noch geschlossen.');
+    else if (shop.appStore) notice = null;
     else if (!st.enabled && shop.admin) notice = h('p.sh-notice.sh-admin', st.configured
       ? 'Admin-Vorschau: Für Spieler noch geschlossen.'
       : 'Admin-Vorschau: Stripe ist noch nicht eingerichtet.');
@@ -304,14 +412,14 @@ function shopPanel(session, game, shop) {
 
     // Skinset nur der eigenen Klasse (die anderen zeigt die Website)
     const myClass = session.state.slices.character?.classId;
-    const designs = DESIGNS.filter((d) => !isSetDesign(d) || d.classId === myClass).map((d) => {
+    const designs = DESIGNS.filter((d) => (!isSetDesign(d) || d.classId === myClass) && (!shop.appStore || shop.applePrice(d.id) || shop.owns(d.id))).map((d) => {
       const owned = shop.owns(d.id);
       return h(`div.sh-design${d.tag ? '.tagged' : ''}${owned ? '.owned' : ''}`,
         d.tag ? h('span.sh-tag', d.tag) : null,
         h('div.sh-stage', preview(d)),
         h('div.sh-dname', d.name),
         isSetDesign(d) ? h('div.sh-dkind', `Skinset · ${SET_CLASS_NAMES[d.classId] ?? ''}`) : null,
-        owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, `Kaufen · ${formatPrice(d.priceCents)}`));
+        owned ? h('div.sh-owned', 'Gehört dir') : buyButton(d.id, `Kaufen · ${price(d.id, d.priceCents)}`));
     });
 
     const cards = products.map((p) => h(`div.sh-pack${p.tag ? '.tagged' : ''}`,
@@ -320,7 +428,7 @@ function shopPanel(session, game, shop) {
       h('div.sh-amount', fmtNum(p.total)),
       h('div.sh-unit', 'Gold'),
       p.bonus ? h('div.sh-bonus', `inkl. ${fmtNum(p.bonus)} Bonus`) : h('div.sh-bonus.none', ' '),
-      buyButton(p.id, `Kaufen · ${formatPrice(p.priceCents)}`),
+      buyButton(p.id, `Kaufen · ${price(p.id, p.priceCents)}`),
     ));
 
     return panelFrame(session, 'goldshop', 'Shop', h('div.pg-scroll.sh-body',
@@ -333,11 +441,17 @@ function shopPanel(session, game, shop) {
       h('p.sh-sub', `Für ${charName}.`),
       h('div.sh-grid', cards),
       error ? h('p.sh-error', { role: 'alert' }, error) : null,
-      h(`label.sh-waiver${nudge && !waiver ? '.nudge' : ''}`,
+      shop.appStore ? h('div.sh-restore-row', restoreButton()) : null,
+      shop.appStore ? h('p.ef-note.sh-legal',
+        'Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.', ' · ', MINOR_NOTE, ' · ',
+        h('a', { href: '/impressum', target: '_blank', rel: 'noopener' }, 'Impressum'), ' · ',
+        h('a', { href: '/support', target: '_blank', rel: 'noopener' }, 'Hilfe zu Käufen'),
+      ) : null,
+      shop.appStore ? null : h(`label.sh-waiver${nudge && !waiver ? '.nudge' : ''}`,
         h('input', { type: 'checkbox', checked: waiver, onchange: (e) => { waiver = e.target.checked; nudge = false; draw(); } }),
         h('span', WAIVER_TEXT),
       ),
-      h('p.ef-note.sh-legal',
+      shop.appStore ? null : h('p.ef-note.sh-legal',
         h('a', { href: TERMS_PATH, target: '_blank', rel: 'noopener' }, 'Kaufbedingungen'), ' · ',
         MINOR_NOTE, ' · ', PRICE_NOTE, ' · ',
         h('a', { href: '/impressum', target: '_blank', rel: 'noopener' }, 'Impressum'), ' · ',
@@ -351,6 +465,7 @@ function shopPanel(session, game, shop) {
   draw();
   shop.refresh();
   shop.claim();
+  shop.appleSync();
   return {
     root,
     update: (dt) => { for (const p of previews.values()) p.update(dt); },

@@ -3,7 +3,36 @@ import { EV } from '../core/events.js';
 import { questTarget } from '../progression/selectors.js';
 
 const T = CONFIG.tileSize;
+const C = 4;                     // Feinraster der Abdeckung (Weltpixel)
+const SUB = T / C;               // Feinzellen je Kachelkante
 const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+
+// Deckende Pixel eines Frames in Weltpixeln (ein Texelblock zählt, sobald ein Texel deckt), je Canvas einmal und
+// als Spannen je Zeile: [y, x0, x1, …] mit x1 exklusiv
+const OPAQUE = new WeakMap();
+function opaque(s) {
+  const cv = s.canvas;
+  if (OPAQUE.has(cv)) return OPAQUE.get(cv);
+  let m = null;
+  try {
+    const r = s.res ?? 1, W = cv.width, H = cv.height, w = Math.ceil(W / r), h = Math.ceil(H / r);
+    const d = cv.getContext('2d').getImageData(0, 0, W, H).data;
+    const a = new Uint8Array(w * h);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] >= 128) a[((y / r) | 0) * w + ((x / r) | 0)] = 1;
+    const spans = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!a[y * w + x]) continue;
+        const x0 = x;
+        while (x < w && a[y * w + x]) x++;
+        spans.push(y, x0, x);
+      }
+    }
+    m = { w, spans };
+  } catch { m = null; }
+  OPAQUE.set(cv, m);
+  return m;
+}
 
 // Questpfad am Boden (INTEGRATION.md §11.6).
 // Fragt das Ziel der verfolgten Quest ab (C: game.progression.questTarget()),
@@ -166,43 +195,71 @@ export class QuestGuide {
     return portal ? { x: portal.x, y: portal.y + 6, near: 18, label: 'portal', portal } : null;
   }
 
-  // Kacheln, die ein Objekt (Zelt, Baum, Baumhaus, Wegstein) oder eine Figur samt Questmarker überdeckt. Die Spur meidet
-  // sie (Mehrkosten im A*, Glättung schneidet nicht hindurch) und zeichnet dort keine Glutpfeile – sie liegt nur auf
-  // freiem Boden. Einmal je Welt: Deko, NPCs und Wegsteine stehen fest.
+  // Wo ein Objekt (Zelt, Baumkrone, Wegstein) oder eine Figur samt Questmarker den Boden verdeckt. Die Spur meidet
+  // diese Stellen (Mehrkosten im A*, Glättung schneidet nicht hindurch) und zeichnet dort keine Glutpfeile – sie liegt
+  // nur auf freiem Boden. Gemessen an den deckenden Pixeln der Grafik in einem 4-px-Feinraster: Das Bildrechteck samt
+  // durchsichtigem Rand (Baumkronen-Sprites sind deutlich größer als die Krone) ließ auf freiem Weg ganze Stücke der
+  // Spur verschwinden. Einmal je Welt: Deko, NPCs und Wegsteine stehen fest.
   #cover() {
     const f = this.world.flow;
     if (this.coverGrid?.length === f.w * f.h) return this.coverGrid;
-    const c = new Uint8Array(f.w * f.h);
-    const mark = (x0, y0, x1, y1) => {
-      x0 -= 3; x1 += 3; y0 -= 3; y1 += 2;   // Rand: ein Pfeil ist 11 px breit
-      for (let ty = Math.max(0, Math.floor(y0 / T)); ty <= Math.min(f.h - 1, Math.floor(y1 / T)); ty++) {
-        for (let tx = Math.max(0, Math.floor(x0 / T)); tx <= Math.min(f.w - 1, Math.floor(x1 / T)); tx++) c[ty * f.w + tx] = 1;
+    const fw = f.w * SUB, fh = f.h * SUB;
+    const fine = new Uint8Array(fw * fh);
+    const set = (wx, wy) => {
+      const cx = Math.floor(wx / C), cy = Math.floor(wy / C);
+      if (cx >= 0 && cy >= 0 && cx < fw && cy < fh) fine[cy * fw + cx] = 1;
+    };
+    const rect = (x0, y0, x1, y1) => {
+      for (let cy = Math.floor(y0 / C); cy * C < y1; cy++) for (let cx = Math.floor(x0 / C); cx * C < x1; cx++) set(cx * C, cy * C);
+    };
+    // Deckende Pixel eines Frames, gezeichnet wie SpriteFrame.draw (Fußpunkt o.x/o.y, gespiegelt bei flip)
+    const sprite = (o, s, flip) => {
+      const r = s.res ?? 1, ax = (flip ? s.canvas.width - s.ax : s.ax) / r;
+      const x0 = o.x - ax, y0 = o.y - s.ay / r, m = opaque(s);
+      if (!m) { rect(x0, y0, x0 + s.canvas.width / r, o.y); return; }   // nicht lesbar: ganzes Bild
+      const sp = m.spans;
+      for (let i = 0; i < sp.length; i += 3) {
+        const a = flip ? m.w - sp[i + 2] : sp[i + 1], b = flip ? m.w - sp[i + 1] : sp[i + 2];
+        rect(x0 + a, y0 + sp[i], x0 + b, y0 + sp[i] + 1);
       }
     };
-    const frameRect = (o, s) => {
-      const r = s.res ?? 1, w = s.canvas.width / r, ax = (o.flip || o.facing < 0 ? s.canvas.width - s.ax : s.ax) / r;
-      return [o.x - ax, o.y - s.ay / r, o.x - ax + w, o.y];
-    };
     for (const o of this.world.props ?? []) {
-      if (!o.sprite?.canvas) continue;
-      const [x0, y0, x1, y1] = frameRect(o, o.sprite);
-      if (y1 - y0 >= 10) mark(x0 + 2, y0 + 2, x1 - 2, y1);   // flache Dinge (Steine, Laub) verdecken nichts
+      const s = o.sprite;
+      if (!s?.canvas || s.canvas.height / (s.res ?? 1) < 10) continue;   // flache Dinge (Steine, Laub) verdecken nichts
+      sprite(o, s, !!(o.flip || o.facing < 0));
     }
     for (const o of new Set([...(this.world.interactables ?? []), ...(this.world.npcs ?? [])])) {
       if (o === this.world.hero || !Number.isFinite(o.x)) continue;
       const fr = o.sprite?.canvas ? o.sprite : o.animator?.anims?.idle?.frames?.[0];
-      let rect = fr?.canvas ? frameRect(o, fr) : null;
-      if (!rect && o.promptAnchor) { const a = o.promptAnchor(); if (o.y - a.y > 12) rect = [o.x - 10, a.y, o.x + 10, o.y]; }
-      if (!rect) continue;
-      if (o.npcId) rect[1] = Math.min(rect[1], o.y - (o.markerY ?? 48) - 10);   // Questmarker „!“/„?“ über dem Kopf
-      mark(...rect);
+      if (fr?.canvas) sprite(o, fr, !!(o.flip || o.facing < 0));
+      else if (o.promptAnchor) { const a = o.promptAnchor(); if (o.y - a.y > 12) rect(o.x - 10, a.y, o.x + 10, o.y); }
+      if (o.npcId) { const top = o.y - (o.markerY ?? 48); rect(o.x - 6, top - 10, o.x + 6, top + 2); }   // Questmarker „!“/„?“
     }
+    // Rand von einer Feinzelle: ein Pfeil ist 11 px breit und soll nicht halb auf einer Krone liegen
+    const pad = new Uint8Array(fw * fh);
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      if (!fine[y * fw + x]) continue;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < fw && ny < fh) pad[ny * fw + nx] = 1;
+      }
+    }
+    // Kachelraster für den A*: verdeckt, wenn mindestens die Hälfte der Kachel unter einer Grafik liegt
+    const c = new Uint8Array(f.w * f.h);
+    for (let ty = 0; ty < f.h; ty++) for (let tx = 0; tx < f.w; tx++) {
+      let n = 0;
+      for (let sy = 0; sy < SUB; sy++) for (let sx = 0; sx < SUB; sx++) n += fine[(ty * SUB + sy) * fw + tx * SUB + sx];
+      c[ty * f.w + tx] = n * 2 >= SUB * SUB ? 1 : 0;
+    }
+    this.coverFine = pad;
     return (this.coverGrid = c);
   }
 
   #covered(px, py) {
-    const f = this.world.flow, x = Math.floor(px / T), y = Math.floor(py / T);
-    return x >= 0 && y >= 0 && x < f.w && y < f.h && this.#cover()[y * f.w + x] === 1;
+    const f = this.world.flow, fw = f.w * SUB, x = Math.floor(px / C), y = Math.floor(py / C);
+    if (x < 0 || y < 0 || x >= fw || y >= f.h * SUB) return false;
+    this.#cover();
+    return this.coverFine[y * fw + x] === 1;
   }
 
   #blocked(x, y) {

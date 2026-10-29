@@ -51,9 +51,29 @@ Ablauf im Spiel (`index.js`): speichern → `CloudSync.exclusive()` lädt Ausste
 RPC → Command `market:apply` übernimmt genau die gemeldete Änderung → `CloudSync.acknowledge()` merkt den neuen
 Cloud-Zeitstempel → speichern und hochladen. Geht die Antwort verloren, holt der Abgleich den Stand des Servers.
 
+## Angebote der Gilde
+Damit das Auktionshaus nie leer wirkt, stellt die Gilde der Glutwaage selbst Ware ein (`stockSql.mjs`, Migration
+`supabase/migrations/20261030090000_auktionshaus_angebote.sql`, erzeugt mit
+`node src/market/stockSql.mjs > supabase/migrations/20261030090000_auktionshaus_angebote.sql`).
+- Ware: Ausrüstung der Stufen 6–40 (ungewöhnlich bis episch, Weltbeute ohne Bossbeute, Sets, Prüfungs- oder
+  Questbelohnungen), Tränke und Materialien. Keine Reittiere, nichts Legendäres, nichts aus Sternenglut.
+- Faire Preise (`fairPrice`): Ausrüstung kostet so viel Gold, wie man auf ihrer Stufe in 1,5 (ungewöhnlich), 4 (selten)
+  bzw. 12 Minuten (episch) verdient (vorsichtig, rund die Hälfte von `test/pacing.mjs`), mindestens das 3-, 4- bzw.
+  8-Fache des Händlerwerts. Tränke das 3-Fache (Händler: 4-Fache), Materialien das 3,5- bis 5-Fache. Jedes Angebot
+  streut ±10 % und wird wie von Spielern gerundet (1.450, 1.499); nie unter dem doppelten Händlerwert.
+- Angebote sind normale Zeilen in `market_listings` mit `seller_user = null`, `seller_char = 'glutwaage'`. Kaufen,
+  Bieten, Ablauf und Postfach laufen über die bestehenden Funktionen; das Gold geht aus dem Spiel (wie die Gebühr),
+  abgelaufene Angebote verschwinden ohne Post. Verkäufer zeigt das Auktionshaus ohnehin nicht an.
+- `market_restock()` (pg_cron alle 10 Minuten) hält etwa 48 Angebote: je 1–3 neue pro Lauf (nachts seltener),
+  höchstens eines je Gegenstand, nichts, was gerade ein Spieler anbietet, gut ein Drittel passend zu Stufe und Klasse
+  aktiver Charaktere. Notbremse: `update public.market_stock_config set target = 0`; sofort entfernen (ohne Gebot):
+  `select public.market_stock_clear()`.
+
 ## Tests
 - `src/market/test/db.test.mjs`: gegen echte Postgres 16 mit allen Migrationen (Doppelverkauf, gleichzeitige Käufe
   und Gebote, alter und erfundener Zähler, Ablauf, Postfach, Reittiere, Rechte, Gold-Obergrenze, Handelsfreigabe,
   Bestand, Kontingent je Stück, Goldrahmen je Konto, Rückzahlungsgrenze, `updated_at`, Vermerke, Katalog).
   Braucht das npm-Paket `pg` und die Postfach-Migration.
+- `src/market/test/stock.test.mjs`: Angebote der Gilde (Befüllen, gültige Ware, Preise, Kaufen und Bieten mit Postfach
+  und Fortschrittsbuch, Ablauf ohne Post, keine Konkurrenz zu Spielern, Nachfüllen, Notbremse, Rechte).
 - Browser: zwei Konten verkaufen, kaufen, bieten und holen am Briefkasten ab, ohne Neuladen; alter Spielstand wird abgelehnt.

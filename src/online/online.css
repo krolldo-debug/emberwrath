@@ -70,6 +70,9 @@
 
 /* Verwaltung */
 .ef-panel.on-admin-panel { width: min(1100px, 100%); }
+/* Die Tafel rollt als Ganzes; ohne flex-shrink: 0 drückt die Spaltenanordnung bei wenig Höhe (Handy quer)
+   den eigenständig rollenden Listenbereich auf 0 px zusammen, Konten und Charaktere wären unsichtbar. */
+.on-admin-panel > * { flex-shrink: 0; }
 .on-admin .acc-head > div { flex: 1; }
 .on-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .on-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: #150d1d; border: 1px solid #3a2a3a; border-radius: 3px; }
@@ -93,6 +96,8 @@
 .on-tab.active { color: var(--ef-text); border-color: var(--ef-gold); background: #22142a; }
 .ef-input.on-search { flex: 1 1 200px; min-height: 36px; }
 .on-table-wrap { overflow: auto; max-height: 50vh; border: 1px solid #3a2a3a; border-radius: 3px; }
+/* Handy quer: Liste füllt nach dem Herunterrollen fast die ganze Tafel (50vh wären nur ~4 Zeilen) */
+@media (max-height: 520px) { .on-table-wrap { max-height: calc(100dvh - 120px); } }
 .on-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .on-table th { position: sticky; top: 0; background: #1c1224; color: var(--ef-gold); text-align: left; font-weight: 600; padding: 8px 10px; white-space: nowrap; }
 .on-table td { padding: 7px 10px; border-top: 1px solid #2a1e30; white-space: nowrap; }

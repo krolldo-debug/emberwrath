@@ -7,7 +7,7 @@ import { teaserPanel } from './panel.js';
 
 // Ankündigung der Erweiterung „Sternenglut“: in jeder der sieben alten Städte eine Sternentafel, die das Fenster
 // 'teaser' öffnet (panel.js). Dasselbe Fenster erscheint einmal nach dem Anmelden, bis der Spieler „Beim Anmelden nicht
-// mehr zeigen“ anhakt (Gerät, game.prefs 'teaserHidden'). Neue Helden sehen es beim allerersten Start nicht (Einführung).
+// mehr zeigen“ anhakt (Gerät, game.prefs 'teaserHidden'). Ein neuer Held sieht es erst ab seiner zweiten Anmeldung.
 // Wenn die Erweiterung für alle offen ist (STARS_PUBLIC): installTeaser aus main.js nehmen oder Texte auf „Jetzt da“ ändern.
 //
 // Plätze: Abstand zum Wegstein in Spielpixeln. Neben dem Weg, nicht auf Questpfaden, nicht dicht an Händlern,
@@ -22,6 +22,27 @@ const PLACES = {
   ember_wastes: { dx: -112, dy: 142 },   // Westseite des Bastionshofs
 };
 const PREF = 'teaserHidden';
+
+// Anmeldung = Sitzung dieses Tabs bzw. der App. sessionStorage übersteht location.reload(), so zählen das Neuladen
+// bei einer neuen Version, das Nachladen eines Cloud-Stands und „Zum Titel“ nicht als neue Anmeldung:
+// fresh = in dieser Anmeldung erschaffene Helden, shown = Helden, denen das Fenster in dieser Anmeldung schon kam.
+const SESSION_KEY = 'emberwrath:teaser';
+const memory = { fresh: [], shown: [] };
+function loginState() {
+  try { const v = JSON.parse(sessionStorage.getItem(SESSION_KEY)); if (Array.isArray(v?.fresh) && Array.isArray(v?.shown)) return v; } catch { /* Speicher gesperrt */ }
+  return memory;
+}
+function remember(list, characterId) {
+  const v = loginState();
+  if (!characterId || v[list].includes(characterId)) return;
+  v[list].push(characterId);
+  memory[list] = v[list];
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(v)); } catch { /* reicht im Speicher */ }
+}
+function forgetLogin() {
+  memory.fresh = []; memory.shown = [];
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* egal */ }
+}
 
 class StarBoard extends Decor {
   constructor(x, y, sp, world) {
@@ -50,17 +71,27 @@ export function installTeaser(game) {
     return p;
   }, { title: 'Sternenglut' });
 
-  // einmal je Anmeldung; nicht beim allerersten Start eines neuen Helden
-  let pending = false;
-  game.bus.on(EV.GAME_STARTED, ({ isNew }) => { pending = !isNew; });
+  // Einmal je Anmeldung; ein neuer Held erst ab seiner zweiten (auch über Neuladen der Seite hinweg)
+  let pending = null;
+  game.bus.on(EV.GAME_STARTED, ({ characterId, isNew }) => {
+    if (isNew) remember('fresh', characterId);
+    const v = loginState();
+    pending = characterId && !v.fresh.includes(characterId) && !v.shown.includes(characterId) ? characterId : null;
+  });
+  game.bus.on(EV.ACCOUNT_LOGOUT, forgetLogin);
   game.addSessionSystem('teaser', (sess) => {
     let timer = 0;
     const offs = [
       sess.bus.on(EV.ZONE_ENTER, () => {
         try { placeBoard(sess.world); } catch (err) { console.error('Sternentafel', err); }
         if (!pending || prefs.hidden()) return;
-        pending = false;
-        timer = setTimeout(() => { if (!sess.panels.openId && !sess.world?.hero?.dead) sess.panels.open('teaser'); }, 1200);
+        const characterId = pending;
+        pending = null;
+        timer = setTimeout(() => {
+          if (sess.panels.openId || sess.world?.hero?.dead) return;
+          sess.panels.open('teaser');
+          remember('shown', characterId);
+        }, 1200);
       }),
     ];
     return { dispose: () => { clearTimeout(timer); offs.forEach((off) => off?.()); } };

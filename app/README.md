@@ -10,7 +10,11 @@ brauchen also keine neue App-Version. Nur Änderungen in `app/` (Symbol, Startbi
   (SystemBars in `capacitor.config.json`, Randgesten in `SceneDelegate.swift`), `ITSAppUsesNonExemptEncryption = false` (nur HTTPS).
 - `tools/icons.py`: erzeugt App-Symbol und Startbild aus `src/ui/pwa/app-icon-512.png` und `site/img/logo.png`.
 
-Im Spiel erkennt `src/app/native.js` die App. Dort gilt: kein Gold-Shop (Apple Richtlinie 3.1.1), keine
+Ab Version 1.1: `ios/App/App/StorePlugin.swift` (In-App-Käufe mit StoreKit 2 und Apples Bewertungsfrage), im Spiel
+über `Capacitor.nativePromise('EmberStore', …)` aus `src/app/store.js` angesprochen (Shop siehe `docs/SHOP.md`,
+Abschnitt „App Store“; Bewertungsfrage einmal nach einem Bosssieg, `src/app/review.js`).
+
+Im Spiel erkennt `src/app/native.js` die App. Dort gilt: Shop nur über den App Store (Apple Richtlinie 3.1.1), keine
 Google-Anmeldung (Google sperrt eingebettete Ansichten; ohne fremde Anmeldung entfällt auch „Mit Apple anmelden“,
 Richtlinie 4.8), kein „Zurück zur Website“, kein Vollbild-/Home-Bildschirm-Hinweis. Wer sich mit Google
 registriert hat, setzt einmal über „Passwort vergessen“ ein Passwort.

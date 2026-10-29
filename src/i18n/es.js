@@ -6052,5 +6052,14 @@ export const ES = {
   "Bis Stufe 50": "Hasta el nivel 50",
   "Bald": "Pronto",
   "Weiter spielen": "Seguir jugando",
-  "Sternentafel lesen": "Leer la tablilla estelar"
+  "Sternentafel lesen": "Leer la tablilla estelar",
+  "Dein Kauf wartet noch auf eine Bestätigung, zum Beispiel durch deine Eltern. Danach wird er automatisch freigeschaltet.": "Tu compra aún está esperando una confirmación, por ejemplo de tus padres. Después se desbloqueará automáticamente.",
+  "Der Kauf konnte nicht abgeschlossen werden. Bitte versuch es gleich noch einmal.": "No se pudo completar la compra. Inténtalo de nuevo en un momento.",
+  "Kauf erhalten. Die Freischaltung wird beim nächsten Start nachgeholt.": "Compra recibida. Se desbloqueará la próxima vez que inicies el juego.",
+  "Der App Store ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.": "El App Store no está disponible en este momento. Inténtalo de nuevo en un momento.",
+  "Deine Käufe sind wiederhergestellt.": "Tus compras se han restaurado.",
+  "Für diese Apple-ID wurden keine Käufe gefunden.": "No se encontraron compras para este ID de Apple.",
+  "Käufe wiederherstellen": "Restaurar compras",
+  "Einen Moment …": "Un momento …",
+  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "El pago se realiza a través de tu cuenta de Apple. Se aplican las condiciones del App Store."
 };

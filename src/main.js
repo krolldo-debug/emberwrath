@@ -19,6 +19,7 @@ import { installTransmog } from './transmog/index.js';
 import { installTeaser } from './teaser/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
 import { installVersionCheck } from './core/Version.js';
+import { installReviewPrompt } from './app/review.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
@@ -36,7 +37,7 @@ game
   .use(installNet)         // Mehrspieler: Welten, andere Spieler, Chat (src/net, worker/)
   .use(installFinder)      // Dungeonsuche: 3er-Gruppen, Söldner füllen freie Plätze (src/finder, worker/finder)
   .use(installPvp)         // Glutarena: gewertete Kämpfe 1 gegen 1 (src/pvp, worker/pvp)
-  .use(installShop)        // Gold-Shop mit Stripe (src/shop, worker/shop.js, docs/SHOP.md)
+  .use(installShop)        // Shop: Stripe, in der iOS-App App Store (src/shop, worker/shop.js, docs/SHOP.md)
   .use(installMarket)      // Auktionshaus in jeder Stadt (src/market, Buchungen nur in der Datenbank)
   .use(installMail)        // Postfach in jeder Stadt (src/mail): Auktionshaus, Briefe von Spielern, Bossbeute
   .use(installTransmog)    // Gewandmeisterin in jeder Stadt (src/transmog): Aussehen aus der Sammlung gegen Gold
@@ -51,5 +52,6 @@ else game.bus.on(EV.ONLINE_CHANGED, ({ user }) => {
 });
 installRotateGate(game); // Handy/Tablet: nur Querformat
 installVersionCheck(game); // Alter Tab nach einem Release: nicht mehr hochladen, einmal neu laden (src/core/Version.js)
+installReviewPrompt(game); // iOS-App: Bewertungsfrage von Apple einmal nach einem Bosssieg (src/app/review.js)
 game.start('title');
 document.getElementById('boot')?.remove();

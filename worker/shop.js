@@ -1,6 +1,7 @@
 import { verifyToken } from './auth.js';
-import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, packName, RETURN_PARAM, PRICE_NOTE, TERMS_VERSION, TERMS_PATH, productDescription } from '../src/shop/catalog.js';
+import { GOLD_PACKS, DESIGNS, SHOP_CURRENCY, findPack, findDesign, packTotal, packName, RETURN_PARAM, PRICE_NOTE, TERMS_VERSION, TERMS_PATH, productDescription, fromAppleProductId } from '../src/shop/catalog.js';
 import { sendConfirmation } from './shop-mail.js';
+import { verifyAppleJws, AppleJwsError } from './apple.js';
 
 // Shop: Gold und exklusive Designs für Echtgeld über Stripe Checkout. Gutgeschrieben wird nur nach einer von Stripe signierten
 // Zahlungsbestätigung (Webhook), nie auf Zuruf des Spiels. Einrichtung und Freischalten: docs/SHOP.md.
@@ -9,6 +10,10 @@ import { sendConfirmation } from './shop-mail.js';
 //                             Gold-Pakete brauchen characterId, Designs gelten fürs ganze Konto (characterId entfällt).
 //                             from 'web': Rückkehr auf die Shop-Seite der Website (/shop), sonst ins Spiel (/spielen/).
 //   POST /net/shop/webhook    Stripe-Webhook (Signatur im Header Stripe-Signature)
+//   POST /net/shop/apple      { transactions: [JWS], characterId }, Authorization: Bearer <Supabase-Token> → { results }
+//                             Käufe aus der iOS-App (StoreKit 2): von Apple signiert, hier geprüft und als bezahlte Bestellung
+//                             eingetragen. Das Spiel schließt den Kauf bei Apple erst ab, wenn ein Ergebnis done meldet.
+//   POST /net/shop/apple/notify App Store Server Notifications V2 (Erstattungen), in App Store Connect eingetragen.
 //
 // Variablen und Secrets (Cloudflare › Settings › Variables and Secrets):
 //   SHOP_ENABLED              Variable 'true' schaltet den Shop für alle frei. Ohne sie können nur Admins kaufen.
@@ -72,6 +77,11 @@ export const shopEnabled = (env) => shopConfigured(env) && flag(env.SHOP_ENABLED
 // Live-Betrieb nie gutgeschrieben, und mit Testschlüsseln kauft niemand außer Admins.
 export const stripeLive = (env) => /^(sk|rk)_live_/.test(String(env.STRIPE_SECRET_KEY ?? '').trim());
 const shopOpen = (env) => shopEnabled(env) && stripeLive(env);
+// App Store: braucht nur die Datenbank, Apple rechnet ab. SHOP_ENABLED schaltet auch diesen Weg für alle frei.
+export const APPLE_BUNDLE_ID = 'com.emberwrath.game';
+const appleConfigured = (env) => !!env.SUPABASE_SERVICE_ROLE_KEY;
+const appleOpen = (env) => appleConfigured(env) && flag(env.SHOP_ENABLED);
+const APPLE_BATCH = 20;
 
 function originOk(request, url, env) {
   const origin = request.headers.get('Origin');
@@ -169,6 +179,7 @@ function status(env) {
   return json({
     enabled: shopOpen(env),
     configured: shopConfigured(env),
+    apple: appleOpen(env),
     products: GOLD_PACKS.map((p) => ({ id: p.id, gold: p.gold, bonus: p.bonus, total: packTotal(p), priceCents: p.priceCents, tag: p.tag ?? null })),
     designs: DESIGNS.map((d) => ({ id: d.id, name: d.name, items: d.items, priceCents: d.priceCents, tag: d.tag ?? null, classId: d.classId ?? null })),
     currency: SHOP_CURRENCY,
@@ -300,9 +311,9 @@ async function mark(env, hash, reason, userId) {
 
 // Erstattete/zurückgebuchte Bestellungen serverseitig abziehen (Gold im Spielstand, Designs aus allen Charakteren).
 // Fehlt die Funktion noch (Migration 20261005120000 nicht ausgeführt), zieht das Spiel das Gold beim nächsten Start ab.
-async function serverRevoke(env, pi) {
+async function serverRevoke(env, pi, filter = byPi(pi)) {
   try {
-    const orders = await db(env, `gold_orders?${byPi(pi)}&status=in.(refunded,disputed)&revoked_at=is.null&select=id`);
+    const orders = await db(env, `gold_orders?${filter}&status=in.(refunded,disputed)&revoked_at=is.null&select=id`);
     for (const o of orders ?? []) await db(env, 'rpc/shop_server_revoke', { method: 'POST', body: { p_order: o.id } });
   } catch (e) { console.error('shop revoke', e?.message); }
 }
@@ -401,8 +412,114 @@ async function webhook(request, env) {
   return json({ received: true });
 }
 
+// ------------------------------------------------------------------ App Store (iOS-App)
+const byApple = (txId) => `apple_transaction_id=eq.${encodeURIComponent(txId)}`;
+const TX_ID_RE = /^\d{1,24}$/;
+
+// Eine signierte Transaktion prüfen und als bezahlte Bestellung eintragen.
+// → { transactionId, ok, done, error? }; done = bei Apple abschließen (gutgeschrieben, schon bekannt oder dauerhaft ungültig).
+async function appleTransaction(env, user, jws, characterId) {
+  let tx;
+  try { tx = await verifyAppleJws(jws); } catch (e) {
+    if (e instanceof AppleJwsError) return { transactionId: null, ok: false, done: false, error: 'signature' };
+    throw e;
+  }
+  const transactionId = String(tx.transactionId ?? '');
+  const res = (ok, done, error) => ({ transactionId, ok, done, ...(error ? { error } : {}) });
+  if (!TX_ID_RE.test(transactionId)) return res(false, false, 'signature');
+  if (tx.bundleId !== APPLE_BUNDLE_ID) return res(false, true, 'bundle');
+  const product = fromAppleProductId(tx.productId);
+  if (!product) return res(false, true, 'product');
+  if (tx.revocationDate) return res(false, true, 'revoked');
+  // Jeder Kauf trägt die Konto-ID (appAccountToken). Gehört er einem anderen Konto, bleibt er für dessen Anmeldung offen.
+  if (tx.appAccountToken && String(tx.appAccountToken).toLowerCase() !== String(user.uid).toLowerCase()) return res(false, false, 'account');
+
+  const [known] = await db(env, `gold_orders?${byApple(transactionId)}&select=user_id`);
+  if (known) return known.user_id === user.uid ? res(true, true) : res(false, true, 'account');
+
+  const pack = product.gold != null ? product : null;
+  const uid = encodeURIComponent(user.uid);
+  if (pack) {
+    if (!CHARACTER_RE.test(String(characterId ?? ''))) return res(false, false, 'character');
+    const [ch] = await db(env, `characters?user_id=eq.${uid}&id=eq.${encodeURIComponent(characterId)}&select=id`);
+    if (!ch) return res(false, false, 'character');
+  }
+  // Preis laut Apple (Tausendstel der Währung des App-Store-Landes), sonst Katalogpreis.
+  const milli = Number(tx.price);
+  const currency = /^[a-z]{3}$/i.test(String(tx.currency ?? '')) ? String(tx.currency).toLowerCase() : SHOP_CURRENCY;
+  const amountCents = milli > 0 ? Math.max(1, Math.round(milli / 10)) : product.priceCents;
+  const paidAt = Number(tx.purchaseDate) > 0 ? new Date(Number(tx.purchaseDate)).toISOString() : new Date().toISOString();
+  const rows = await db(env, 'gold_orders?on_conflict=apple_transaction_id', {
+    method: 'POST', prefer: 'resolution=ignore-duplicates,return=representation',
+    body: {
+      id: crypto.randomUUID(), user_id: user.uid, character_id: pack ? characterId : null, product_id: product.id,
+      kind: pack ? 'gold' : 'design', items: pack ? [] : product.items, gold: pack ? packTotal(pack) : 0,
+      amount_cents: amountCents, currency, status: 'paid', paid_at: paidAt, livemode: tx.environment === 'Production',
+      provider: 'apple', apple_transaction_id: transactionId,
+      apple_original_transaction_id: TX_ID_RE.test(String(tx.originalTransactionId ?? '')) ? String(tx.originalTransactionId) : null,
+      terms_version: TERMS_VERSION,
+    },
+  });
+  if (!rows?.length) { // gleichzeitig schon eingetragen
+    const [again] = await db(env, `gold_orders?${byApple(transactionId)}&select=user_id`);
+    return again?.user_id === user.uid ? res(true, true) : res(false, true, 'account');
+  }
+  return res(true, true);
+}
+
+async function apple(request, env, url) {
+  if (!appleConfigured(env)) return json({ error: 'unavailable' }, 503);
+  if (!originOk(request, url, env)) return json({ error: 'origin' }, 403);
+  const token = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const user = await verifyToken(token, { supabaseUrl: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY });
+  if (!user) return json({ error: 'auth' }, 401);
+  let b = null;
+  try { b = await request.json(); } catch { /* unten abgelehnt */ }
+  const list = Array.isArray(b?.transactions) ? b.transactions.filter((t) => typeof t === 'string') : [];
+  if (!list.length || list.length > APPLE_BATCH) return json({ error: 'bad_request' }, 400);
+  // Bezahlt ist bezahlt: Auch bei geschlossenem Shop oder Kaufsperre wird ein Kauf bei Apple noch gutgeschrieben.
+  const results = [];
+  for (const jws of list) results.push(await appleTransaction(env, user, jws, b.characterId));
+  return json({ results });
+}
+
+// App Store Server Notifications V2: Erstattung (REFUND), Entzug (REVOKE) und zurückgenommene Erstattung (REFUND_REVERSED).
+async function appleNotify(request, env) {
+  if (!appleConfigured(env)) return json({ error: 'unavailable' }, 503);
+  const body = await request.text();
+  if (body.length > 64000) return json({ error: 'too_large' }, 413);
+  let note, tx;
+  try {
+    note = await verifyAppleJws(JSON.parse(body)?.signedPayload);
+    if (note?.data?.bundleId !== APPLE_BUNDLE_ID) return json({ received: true, ignored: 'bundle' });
+    if (!note.data.signedTransactionInfo) return json({ received: true });
+    tx = await verifyAppleJws(note.data.signedTransactionInfo);
+  } catch (e) {
+    if (e instanceof AppleJwsError || e instanceof SyntaxError) return json({ error: 'signature' }, 400);
+    throw e;
+  }
+  const txId = String(tx?.transactionId ?? '');
+  if (tx?.bundleId !== APPLE_BUNDLE_ID || !TX_ID_RE.test(txId)) return json({ received: true, ignored: 'transaction' });
+  switch (note.notificationType) {
+    case 'REFUND':
+    case 'REVOKE':
+      await setOrder(env, byApple(txId), ['paid', 'credited'], { status: 'refunded' });
+      await serverRevoke(env, null, byApple(txId));
+      break;
+    case 'REFUND_REVERSED':
+      // Wie eine gewonnene Rückbuchung: gilt wieder, solange noch nichts abgezogen wurde.
+      await setOrder(env, `${byApple(txId)}&revoked_at=is.null&credited_at=not.is.null`, ['refunded'], { status: 'credited' });
+      await setOrder(env, `${byApple(txId)}&credited_at=is.null`, ['refunded'], { status: 'paid' });
+      break;
+    default: break; // TEST, CONSUMPTION_REQUEST usw.: nichts zu tun
+  }
+  return json({ received: true });
+}
+
 export async function handleShop(request, env, url, route) {
   if (route === '/shop/status' && request.method === 'GET') return status(env);
+  if (route === '/shop/apple' && request.method === 'POST') return apple(request, env, url);
+  if (route === '/shop/apple/notify' && request.method === 'POST') return appleNotify(request, env);
   if (route === '/shop/checkout' && request.method === 'POST') return checkout(request, env, url);
   if (route === '/shop/webhook' && request.method === 'POST') return webhook(request, env);
   return null;
