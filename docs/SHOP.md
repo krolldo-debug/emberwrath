@@ -121,7 +121,7 @@ Gold-Pakete sind Verbrauchsartikel, Designs dauerhafte Käufe, Produkt-ID `com.e
 6. **Käufe wiederherstellen** (Knopf im Shop): dauerhafte Käufe dieser Apple-ID für dieses Konto erneut melden.
 
 Schalter: wie die Website über `SHOP_ENABLED` (Admins sehen den Shop in der App immer). Braucht nur
-`SUPABASE_SERVICE_ROLE_KEY`, keine Apple-Schlüssel. Migration `20261030090000_app_store_kaeufe.sql`.
+`SUPABASE_SERVICE_ROLE_KEY`, keine Apple-Schlüssel. Migration `20261030100000_app_store_kaeufe.sql`.
 Auswertung: `select * from admin_apple_orders();`
 
 **Produkte anlegen:** GitHub → Actions → „App-Store-Produkte“ → Run workflow (`tools/appstore-produkte.mjs`, mehrfach
