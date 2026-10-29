@@ -25,7 +25,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 // Spielansicht: Wischgesten vom Rand erst beim zweiten Wischen an das System geben, damit beim Kämpfen am
 // Bildschirmrand nicht versehentlich die App verlassen wird. Statusleiste und Home-Strich blendet SystemBars aus
-// (capacitor.config.json).
+// (capacitor.config.json). Käufe und Bewertungsfrage: StorePlugin.swift.
 class GameViewController: CAPBridgeViewController {
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(EmberStorePlugin())
+    }
 }

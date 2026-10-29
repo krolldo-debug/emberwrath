@@ -6052,5 +6052,14 @@ export const FR = {
   "Bis Stufe 50": "Jusqu'au niveau 50",
   "Bald": "Bientôt",
   "Weiter spielen": "Continuer à jouer",
-  "Sternentafel lesen": "Lire la stèle étoilée"
+  "Sternentafel lesen": "Lire la stèle étoilée",
+  "Dein Kauf wartet noch auf eine Bestätigung, zum Beispiel durch deine Eltern. Danach wird er automatisch freigeschaltet.": "Ton achat attend encore une confirmation, par exemple de tes parents. Il sera ensuite débloqué automatiquement.",
+  "Der Kauf konnte nicht abgeschlossen werden. Bitte versuch es gleich noch einmal.": "L'achat n'a pas pu être finalisé. Réessaie dans un instant.",
+  "Kauf erhalten. Die Freischaltung wird beim nächsten Start nachgeholt.": "Achat reçu. Il sera débloqué au prochain lancement du jeu.",
+  "Der App Store ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.": "L'App Store est injoignable pour le moment. Réessaie dans un instant.",
+  "Deine Käufe sind wiederhergestellt.": "Tes achats ont été restaurés.",
+  "Für diese Apple-ID wurden keine Käufe gefunden.": "Aucun achat n'a été trouvé pour cet identifiant Apple.",
+  "Käufe wiederherstellen": "Restaurer les achats",
+  "Einen Moment …": "Un instant …",
+  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "Le paiement s'effectue via ton compte Apple. Les conditions de l'App Store s'appliquent."
 };

@@ -100,12 +100,46 @@ Auswertung für Admins: `select * from admin_gold_orders();` im SQL-Editor (mit 
 - **Minderjährige:** Käufe Minderjähriger sind ohne Zustimmung der Eltern schwebend unwirksam; Erstattungen über Stripe
   zurückgeben (Bestellung wird automatisch `refunded`).
 
+## App Store (iOS-App ab Version 1.1)
+
+In der App ist Stripe nicht erlaubt (Apple-Richtlinie 3.1.1), dort läuft derselbe Shop über In-App-Käufe von Apple.
+Gold-Pakete sind Verbrauchsartikel, Designs dauerhafte Käufe, Produkt-ID `com.emberwrath.game.<Katalog-ID>`
+(`appleProductId` in `src/shop/catalog.js`). Apple rechnet ab, kümmert sich um Umsatzsteuer, Widerruf und Erstattung.
+
+1. **App** (`app/ios/App/App/StorePlugin.swift`, StoreKit 2, im Spiel `src/app/store.js`): Kauf mit der Konto-ID als
+   `appAccountToken`. Ältere App-Versionen haben den Baustein nicht, dort bleibt der Shop verborgen.
+2. **Prüfen** (`POST /net/shop/apple`, `worker/apple.js`): Die von Apple signierte Transaktion (JWS) wird ohne Netz geprüft:
+   Kette bis zur fest eingetragenen Apple Root CA - G3, Apple-OIDs, Signatur, Bundle-ID, Produkt im Katalog, Konto-ID.
+   Dann Bestellung `paid` mit `provider = 'apple'` und `apple_transaction_id` (eindeutig, nichts doppelt). Gold und Inhalt
+   nur aus dem Katalog, Preis laut Apple (sonst Katalog). Testkäufe (Sandbox: TestFlight, App-Prüfung) zählen mit
+   `livemode = false`.
+3. **Abschließen:** Erst wenn der Server einen Kauf als erledigt meldet, schließt die App ihn bei Apple ab (`finish`).
+   Bis dahin liefert StoreKit ihn bei jedem Start erneut (`unfinished`), z. B. nach Absturz, Funkloch oder Erlaubnis der Eltern.
+4. **Gutschrift** wie bei Stripe (`shop_pending_credits`, Designs über `shop_owned_items`).
+5. **Erstattung:** Apple meldet sie an `POST /net/shop/apple/notify` (App Store Server Notifications V2, signiert).
+   `REFUND`/`REVOKE` → `refunded` und `shop_server_revoke`, `REFUND_REVERSED` → gilt wieder, solange nichts abgezogen ist.
+6. **Käufe wiederherstellen** (Knopf im Shop): dauerhafte Käufe dieser Apple-ID für dieses Konto erneut melden.
+
+Schalter: wie die Website über `SHOP_ENABLED` (Admins sehen den Shop in der App immer). Braucht nur
+`SUPABASE_SERVICE_ROLE_KEY`, keine Apple-Schlüssel. Migration `20261030090000_app_store_kaeufe.sql`.
+Auswertung: `select * from admin_apple_orders();`
+
+**Produkte anlegen:** GitHub → Actions → „App-Store-Produkte“ → Run workflow (`tools/appstore-produkte.mjs`, mehrfach
+ausführbar): legt alle Produkte mit Texten (de/en/es/fr), Preis (Basis Deutschland), Verfügbarkeit, Prüf-Bildschirmfoto
+(`app/store/iap-*.png`) und die Adresse für Apples Benachrichtigungen an. Vorher in App Store Connect den Vertrag
+„Bezahlte Apps“ mit Bank- und Steuerdaten abschließen. Die ersten Käufe reicht man zusammen mit einer App-Version ein.
+Neue Pakete oder Designs: Eintrag im Katalog, Workflow erneut ausführen, mit der nächsten App-Version einreichen
+(eine neue App-Version ist dafür nicht nötig, nur die Prüfung der neuen Produkte).
+
 ## Pakete ändern
 
 `src/shop/catalog.js` (`GOLD_PACKS`): Goldmenge, Bonus, Preis in Cent. Gilt nach dem nächsten Deploy für neue Käufe.
+Im App Store ändert sich der Preis nicht von selbst (in App Store Connect anpassen); die Goldmenge kommt immer aus dem Katalog.
 
 ## Tests
 
 `node worker/test/shop.test.mjs` – Worker ohne Netz (Stripe und Supabase nachgestellt): Checkout, Rechte, Signatur,
 Betragsprüfung, Erstattung, Rückbuchung mit Kaufsperre, doppelte Webhooks, Designs (Kauf ohne Charakter, schon gekauft,
-Erstattung, Test/Live, gesperrte Karte). `node worker/test/designs.test.mjs` – Designs im Aussehen für andere. Die SQL-Funktionen wurden gegen ein lokales Postgres 16 geprüft (Rechte, Abzug im Spielstand, Trigger).
+Erstattung, Test/Live, gesperrte Karte). `node worker/test/designs.test.mjs` – Designs im Aussehen für andere.
+`node worker/test/apple.test.mjs` – App-Store-Käufe: echte Apple-Kette, Signaturen einer Test-Kette (`fixtures/apple`),
+Gutschrift, doppelte Käufe, fremdes Konto, Erstattung per Benachrichtigung. Die SQL-Funktionen wurden gegen ein lokales Postgres 16 geprüft (Rechte, Abzug im Spielstand, Trigger).

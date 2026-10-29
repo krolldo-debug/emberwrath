@@ -83,5 +83,15 @@ export function productDescription(product, characterName) {
   if (isSetDesign(product)) return `${DESIGN_DETAILS[product.id] ?? product.name}, für alle passenden Charaktere deines Emberwrath-Kontos, reines Aussehen ohne Werte`;
   return `${DESIGN_DETAILS[product.id] ?? product.name} für alle Charaktere deines Emberwrath-Kontos, Reiten ab Stufe 20`;
 }
+// App Store (iOS-App): jedes Paket und Design ist dort ein In-App-Kauf mit dieser Produkt-ID (Gold = Verbrauchsartikel,
+// Designs = dauerhaft). Goldmenge und Inhalt nimmt der Server auch hier nur aus diesem Katalog; den Preis legt Apple fest
+// (in App Store Connect, gleiche Preisstufe wie priceCents). Angelegt werden sie mit tools/appstore-produkte.mjs.
+export const APPLE_PRODUCT_PREFIX = 'com.emberwrath.game.';
+export const appleProductId = (id) => `${APPLE_PRODUCT_PREFIX}${id}`;
+export const fromAppleProductId = (pid) => {
+  const id = String(pid ?? '').startsWith(APPLE_PRODUCT_PREFIX) ? String(pid).slice(APPLE_PRODUCT_PREFIX.length) : null;
+  return (id && (findPack(id) ?? findDesign(id))) || null;
+};
+
 // Alle Schlüssel, die nur über den Shop zu haben sind.
 export const DESIGN_ITEMS = DESIGNS.flatMap((d) => d.items);

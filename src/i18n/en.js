@@ -6052,5 +6052,14 @@ export const EN = {
   "Bis Stufe 50": "Up to level 50",
   "Bald": "Soon",
   "Weiter spielen": "Keep playing",
-  "Sternentafel lesen": "Read the star tablet"
+  "Sternentafel lesen": "Read the star tablet",
+  "Dein Kauf wartet noch auf eine Bestätigung, zum Beispiel durch deine Eltern. Danach wird er automatisch freigeschaltet.": "Your purchase is still waiting for approval, for example from your parents. It will unlock automatically afterwards.",
+  "Der Kauf konnte nicht abgeschlossen werden. Bitte versuch es gleich noch einmal.": "The purchase could not be completed. Please try again in a moment.",
+  "Kauf erhalten. Die Freischaltung wird beim nächsten Start nachgeholt.": "Purchase received. It will be unlocked the next time you start the game.",
+  "Der App Store ist gerade nicht erreichbar. Bitte versuch es gleich noch einmal.": "The App Store can't be reached right now. Please try again in a moment.",
+  "Deine Käufe sind wiederhergestellt.": "Your purchases have been restored.",
+  "Für diese Apple-ID wurden keine Käufe gefunden.": "No purchases were found for this Apple ID.",
+  "Käufe wiederherstellen": "Restore purchases",
+  "Einen Moment …": "One moment …",
+  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "Payment is made through your Apple Account. The App Store terms apply."
 };

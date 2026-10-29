@@ -1,0 +1,21 @@
+# In-App-Käufe der iOS-App in App Store Connect anlegen (tools/appstore-produkte.mjs). Nur von Hand („Run workflow“),
+# mehrfach ausführbar. Läuft auf Linux (günstig) und braucht dieselben Secrets wie der iOS-Build: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8.
+name: App-Store-Produkte
+
+on:
+  workflow_dispatch:
+
+jobs:
+  produkte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/appstore-produkte.mjs
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
