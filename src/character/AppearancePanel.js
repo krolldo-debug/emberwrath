@@ -13,10 +13,10 @@ const fmt = (n) => fmtNum(Number(n));
 // Geöffnet vom Spiegel im Dorf: bus.emit(EV.UI_OPEN_PANEL, { id: 'appearance' }).
 // Auswahl wird zuerst nur in der Vorschau gezeigt; bezahlt wird mit „Übernehmen“ (character:restyle).
 export function registerAppearancePanel(game) {
-  game.panels.register('appearance', (session) => appearancePanel(session), { title: 'Aussehen' });
+  game.panels.register('appearance', (session) => appearancePanel(session, game), { title: 'Aussehen' });
 }
 
-function appearancePanel(session) {
+function appearancePanel(session, game) {
   const { state, content, bus } = session;
   const root = h('div.ef-panel.tal-panel.app-panel', { role: 'dialog', 'aria-label': 'Aussehen ändern' });
   const ch0 = state.slices.character;
@@ -50,7 +50,7 @@ function appearancePanel(session) {
         const shopOnly = d.exclusive && !ownsDesign(state.slices, `dye:${id}`);
         const earned = earnedDye(state.slices, id);
         const locked = level < (d.level ?? 1) || shopOnly || !earned;
-        const sub = cur.dye === id ? 'aktuell' : shopOnly ? (inApp() ? 'Exklusiv' : 'im Shop') : d.exclusive ? 'Exklusiv' : d.achievement ? (earned ? 'Erfolg' : 'über Erfolg') : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
+        const sub = cur.dye === id ? 'aktuell' : shopOnly ? (inApp() && !game.shop?.visible ? 'Exklusiv' : 'im Shop') : d.exclusive ? 'Exklusiv' : d.achievement ? (earned ? 'Erfolg' : 'über Erfolg') : locked ? `ab Stufe ${d.level}` : `${fmt(d.price)} Gold`;
         return choice(pick.dye === id, locked, d.name, sub, swatch(d.ramp), () => { pick.dye = id; });
       }),
     ];

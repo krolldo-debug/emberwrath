@@ -18,7 +18,7 @@ import { pageHeaders } from './headers.js';
 //   /net/finder                                      WebSocket zur Dungeonsuche (worker/finder/, src/finder/README.md)
 //   /net/arena, /net/arena/top                       WebSocket zur Glutarena (PvP) und Bestenliste (worker/pvp/, src/pvp/README.md)
 //   /net/forms/support, /net/newsletter/*            Support-Formular und Newsletter der Website (worker/forms.js)
-//   /net/shop/status|checkout|webhook                Gold-Shop mit Stripe (worker/shop.js, docs/SHOP.md)
+//   /net/shop/status|checkout|webhook|apple|apple/notify  Shop mit Stripe und App Store (worker/shop.js, docs/SHOP.md)
 //   /net/bug                                         Fehlermeldung aus dem Spiel (worker/bugreport.js)
 //   /net/buch                                        Fortschrittsbuch: Server bestätigt Erfahrung, Gold, Beute (worker/ledger.js)
 // Alles andere: statische Dateien (env.ASSETS). Existierende Dateien liefert Cloudflare direkt, ohne den Worker,
@@ -181,7 +181,7 @@ export default {
       }
       if (route.startsWith('/shop/')) {
         // Bezahlseite: vor Token-Prüfung und Datenbank begrenzen (jedes gefälschte HS256-Token fragt sonst Supabase Auth)
-        if (route === '/shop/checkout' && await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
+        if ((route === '/shop/checkout' || route === '/shop/apple') && await limited(request, env, route)) return json({ error: 'rate_limited' }, 429);
         try { return (await handleShop(request, config(env), url, route)) ?? json({ error: 'not_found' }, 404); } catch (e) { console.error('shop', e?.message); return json({ error: 'server' }, 500); }
       }
       if (!env.ZONE_SHARD || !env.DIRECTORY) return json({ error: 'unavailable' }, 503);
