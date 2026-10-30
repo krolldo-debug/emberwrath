@@ -6061,5 +6061,18 @@ export const FR = {
   "Für diese Apple-ID wurden keine Käufe gefunden.": "Aucun achat n'a été trouvé pour cet identifiant Apple.",
   "Käufe wiederherstellen": "Restaurer les achats",
   "Einen Moment …": "Un instant …",
-  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "Le paiement s'effectue via ton compte Apple. Les conditions de l'App Store s'appliquent."
+  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "Le paiement s'effectue via ton compte Apple. Les conditions de l'App Store s'appliquent.",
+  "Weiter mit Apple": "Continuer avec Apple",
+  "Mit Apple bestätigen": "Confirmer avec Apple",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Apple.": "Confirme la suppression en te reconnectant avec Apple.",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Apple. Danach kommst du hierher zurück.": "Confirme la suppression en te reconnectant avec Apple. Tu reviendras ensuite ici.",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Google.": "Confirme la suppression en te reconnectant avec Google.",
+  "Die Anmeldung mit Apple ist abgelaufen. Bitte versuche es erneut.": "La connexion avec Apple a expiré. Réessaie.",
+  "Das war ein anderes Konto. Bitte bestätige mit dem Konto, das du löschen willst.": "C'était un autre compte. Confirme avec le compte que tu veux supprimer.",
+  "Erinnerung": "Rappel",
+  "Sollen wir dir Bescheid geben, wenn deine nächste Tagesbelohnung bereitliegt? Höchstens einmal am Tag.": "On te prévient quand ta prochaine récompense quotidienne est prête ? Au plus une fois par jour.",
+  "Ja, erinnere mich": "Oui, préviens-moi",
+  "Nein danke": "Non merci",
+  "Deine Tagesbelohnung wartet": "Ta récompense quotidienne t'attend",
+  "Schau in Emberwrath vorbei und hol sie dir ab.": "Passe sur Emberwrath pour la récupérer."
 };

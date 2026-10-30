@@ -14,10 +14,19 @@ Ab Version 1.1: `ios/App/App/StorePlugin.swift` (In-App-Käufe mit StoreKit 2 un
 über `Capacitor.nativePromise('EmberStore', …)` aus `src/app/store.js` angesprochen (Shop siehe `docs/SHOP.md`,
 Abschnitt „App Store“; Bewertungsfrage einmal nach einem Bosssieg, `src/app/review.js`).
 
-Im Spiel erkennt `src/app/native.js` die App. Dort gilt: Shop nur über den App Store (Apple Richtlinie 3.1.1), keine
-Google-Anmeldung (Google sperrt eingebettete Ansichten; ohne fremde Anmeldung entfällt auch „Mit Apple anmelden“,
-Richtlinie 4.8), kein „Zurück zur Website“, kein Vollbild-/Home-Bildschirm-Hinweis. Wer sich mit Google
-registriert hat, setzt einmal über „Passwort vergessen“ ein Passwort.
+Ab Version 1.1 außerdem:
+- `ios/App/App/AuthPlugin.swift`: „Weiter mit Apple“ (natives Fenster), Google im Anmeldefenster des Systems
+  (ASWebAuthenticationSession, Rückkehr über `emberwrath://auth`) und die Sitzung im Schlüsselbund, damit man angemeldet
+  bleibt (`src/app/auth.js`, `docs/ONLINE.md`). Mit Google in der App ist „Mit Apple anmelden“ Pflicht (Richtlinie 4.8).
+- `ios/App/App/PushPlugin.swift`: Mitteilungen. Das Spiel fragt am zweiten Spieltag nach der Tagesbelohnung (erst eine
+  eigene Frage, dann Apples Abfrage) und plant eine Erinnerung um 18 Uhr, wenn die nächste Tagesbelohnung bereitliegt
+  (`src/app/notify.js`). Für Mitteilungen vom Server meldet sich die App bei APNs an; gesendet wird noch nichts.
+- `ios/App/App/App.entitlements`: Sign in with Apple, `aps-environment`. Der Build schaltet die Fähigkeiten an der App-ID
+  ein (`tools/appstore-faehigkeiten.mjs`) und bettet die Berechtigungen vor dem Export ein (unsigniertes Archiv).
+- User-Agent-Zusatz `EmberwrathNative/2`: daran erkennt das Spiel, dass die Plugins da sind. In App 1.0 bleibt es bei E-Mail.
+
+Im Spiel erkennt `src/app/native.js` die App. Dort gilt: Shop nur über den App Store (Apple Richtlinie 3.1.1), kein
+„Zurück zur Website“, kein Vollbild-/Home-Bildschirm-Hinweis.
 
 ## Bauen
 

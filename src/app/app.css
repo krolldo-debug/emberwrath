@@ -1,0 +1,5 @@
+/* Kleine Fenster der iOS-App (src/app): Frage nach Mitteilungen */
+.nt-win { max-width: min(92vw, 420px); gap: 10px; }
+.nt-win .ef-note { margin: 0; }
+.nt-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.nt-actions .ef-btn { min-height: 44px; }

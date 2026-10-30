@@ -20,6 +20,7 @@ import { installTeaser } from './teaser/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
 import { installVersionCheck } from './core/Version.js';
 import { installReviewPrompt } from './app/review.js';
+import { installNotify } from './app/notify.js';
 
 // Einstiegspunkt. Reihenfolge der Bereiche = Reihenfolge ihrer Registrierung.
 // Das Game-Objekt ist für Debugging und Tests unter window.emberfall erreichbar (nur lokal und für Admins).
@@ -53,5 +54,6 @@ else game.bus.on(EV.ONLINE_CHANGED, ({ user }) => {
 installRotateGate(game); // Handy/Tablet: nur Querformat
 installVersionCheck(game); // Alter Tab nach einem Release: nicht mehr hochladen, einmal neu laden (src/core/Version.js)
 installReviewPrompt(game); // iOS-App: Bewertungsfrage von Apple einmal nach einem Bosssieg (src/app/review.js)
+installNotify(game); // iOS-App: Frage nach Mitteilungen am zweiten Spieltag, Erinnerung an die Tagesbelohnung (src/app/notify.js)
 game.start('title');
 document.getElementById('boot')?.remove();

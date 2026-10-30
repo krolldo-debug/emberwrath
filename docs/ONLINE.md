@@ -5,7 +5,11 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
 ## Was es gibt
 
 - **Registrierung und Anmeldung** mit E-Mail und Passwort (Bestätigungslink, „Passwort vergessen“, Passwort ändern),
-  Schnellanmeldung mit **Google**.
+  Schnellanmeldung mit **Google** und **Apple** (Website und iOS-App ab 1.1; in App 1.0 nur E-Mail).
+- **Angemeldet bleiben:** Die Sitzung bleibt auf dem Gerät, bis man sich abmeldet. Das Zugriffstoken wird erneuert, solange
+  die Seite sichtbar ist (nicht erst im Hintergrund, wo iOS die Anfrage oft einfriert und das neue Token verloren ginge).
+  Lehnt der Server ein Token ab, sucht das Spiel erst nach einem neueren (anderer Tab, Schlüsselbund der App), bevor es
+  abmeldet. In der iOS-App liegt die Sitzung zusätzlich im Schlüsselbund (`src/app/auth.js`, `AuthPlugin.swift`).
 - **Cloud-Spielstände:** Charaktere eines Kontos liegen in der Datenbank und sind auf jedem Gerät verfügbar. Gespielt wird
   weiter lokal (schnell, auch kurz ohne Netz); nach jedem Speichern lädt das Spiel den Stand hoch. Neuerer Stand gewinnt.
 - Gespielt wird nur mit Konto. Ältere lokale Charaktere eines Geräts lassen sich als Kopie ins Konto übernehmen.
@@ -65,6 +69,19 @@ Stand 2026-09-30. Code: `src/online/`, Datenbank: `supabase/migrations/`. Dienst
       *Enable*, beide Werte eintragen → *Save*. Das Secret nur dort eintragen, nicht weitergeben.
    Mehr ist nicht nötig: Das Spiel fragt die aktiven Anbieter bei Supabase ab (`/auth/v1/settings`) und schaltet den
    Knopf „Weiter mit Google“ beim nächsten Öffnen der Anmeldeseite von selbst frei.
+   In der iOS-App (ab 1.1) läuft Google im Anmeldefenster des Systems und kehrt über `emberwrath://auth` zurück. Diese
+   Adresse muss in Supabase unter *Authentication → URL Configuration → Redirect URLs* stehen.
+8. **Apple-Anmeldung** (ohne Schlüssel und ohne Secret, das alle sechs Monate abliefe: Apple liefert ein ID-Token, das
+   Supabase direkt prüft, `grant_type=id_token`):
+   1. [developer.apple.com](https://developer.apple.com/account/resources/identifiers/list/serviceId) → *Identifiers* →
+      *+* → *Services IDs*: Beschreibung „Emberwrath Web“, Identifier `com.emberwrath.web` (= `appleServicesId` in
+      `src/online/config.js`). Danach öffnen, *Sign in with Apple* anhaken → *Configure*: Primary App ID
+      `com.emberwrath.game`, Domain `www.emberwrath.com`, Return URL `https://www.emberwrath.com/net/auth/apple`.
+   2. Supabase: *Authentication → Sign In / Providers → Apple* → *Enable*, *Client IDs*
+      `com.emberwrath.game,com.emberwrath.web`, Secret leer lassen → *Save*.
+   Die Fähigkeit „Sign in with Apple“ (und Mitteilungen) an der App-ID `com.emberwrath.game` schaltet der iOS-Build selbst
+   ein (`tools/appstore-faehigkeiten.mjs`). Website: Apple schickt das Ergebnis per POST an `/net/auth/apple`
+   (`worker/login.js`), der Worker leitet mit dem Token im Anker ins Spiel zurück.
 
 ## Einbau (Architektur)
 
