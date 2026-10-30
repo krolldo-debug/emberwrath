@@ -12,5 +12,9 @@ export const ONLINE_CONFIG = {
   // falls die Einstellungen nicht abrufbar sind. Einrichtung: docs/ONLINE.md Schritt 7 und 8.
   providers: {
     google: false,
+    apple: false,
   },
+  // „Weiter mit Apple“ auf der Website: Services-ID aus developer.apple.com (Identifiers → Services IDs), Return URL
+  // https://www.emberwrath.com/net/auth/apple. In der iOS-App meldet Apple nativ an (Bundle-ID). Einrichtung: docs/ONLINE.md.
+  appleServicesId: 'com.emberwrath.web',
 };

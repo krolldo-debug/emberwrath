@@ -6061,5 +6061,18 @@ export const EN = {
   "Für diese Apple-ID wurden keine Käufe gefunden.": "No purchases were found for this Apple ID.",
   "Käufe wiederherstellen": "Restore purchases",
   "Einen Moment …": "One moment …",
-  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "Payment is made through your Apple Account. The App Store terms apply."
+  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "Payment is made through your Apple Account. The App Store terms apply.",
+  "Weiter mit Apple": "Continue with Apple",
+  "Mit Apple bestätigen": "Confirm with Apple",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Apple.": "Confirm the deletion by signing in with Apple again.",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Apple. Danach kommst du hierher zurück.": "Confirm the deletion by signing in with Apple again. You will then return here.",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Google.": "Confirm the deletion by signing in with Google again.",
+  "Die Anmeldung mit Apple ist abgelaufen. Bitte versuche es erneut.": "Signing in with Apple has expired. Please try again.",
+  "Das war ein anderes Konto. Bitte bestätige mit dem Konto, das du löschen willst.": "That was a different account. Please confirm with the account you want to delete.",
+  "Erinnerung": "Reminder",
+  "Sollen wir dir Bescheid geben, wenn deine nächste Tagesbelohnung bereitliegt? Höchstens einmal am Tag.": "Should we let you know when your next daily reward is ready? At most once a day.",
+  "Ja, erinnere mich": "Yes, remind me",
+  "Nein danke": "No thanks",
+  "Deine Tagesbelohnung wartet": "Your daily reward is waiting",
+  "Schau in Emberwrath vorbei und hol sie dir ab.": "Drop by Emberwrath and claim it."
 };

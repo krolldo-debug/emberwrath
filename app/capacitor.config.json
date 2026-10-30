@@ -11,7 +11,7 @@
     ]
   },
   "ios": {
-    "appendUserAgent": "EmberwrathApp/ios",
+    "appendUserAgent": "EmberwrathApp/ios EmberwrathNative/2",
     "contentInset": "never",
     "scrollEnabled": false,
     "limitsNavigationsToAppBoundDomains": false

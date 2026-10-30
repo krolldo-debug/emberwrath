@@ -6061,5 +6061,18 @@ export const ES = {
   "Für diese Apple-ID wurden keine Käufe gefunden.": "No se encontraron compras para este ID de Apple.",
   "Käufe wiederherstellen": "Restaurar compras",
   "Einen Moment …": "Un momento …",
-  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "El pago se realiza a través de tu cuenta de Apple. Se aplican las condiciones del App Store."
+  "Bezahlt wird über deinen Apple-Account. Es gelten die Bedingungen des App Store.": "El pago se realiza a través de tu cuenta de Apple. Se aplican las condiciones del App Store.",
+  "Weiter mit Apple": "Continuar con Apple",
+  "Mit Apple bestätigen": "Confirmar con Apple",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Apple.": "Confirma la eliminación iniciando sesión de nuevo con Apple.",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Apple. Danach kommst du hierher zurück.": "Confirma la eliminación iniciando sesión de nuevo con Apple. Después volverás aquí.",
+  "Bestätige das Löschen mit einer erneuten Anmeldung bei Google.": "Confirma la eliminación iniciando sesión de nuevo con Google.",
+  "Die Anmeldung mit Apple ist abgelaufen. Bitte versuche es erneut.": "El inicio de sesión con Apple ha caducado. Inténtalo de nuevo.",
+  "Das war ein anderes Konto. Bitte bestätige mit dem Konto, das du löschen willst.": "Esa era otra cuenta. Confirma con la cuenta que quieres eliminar.",
+  "Erinnerung": "Recordatorio",
+  "Sollen wir dir Bescheid geben, wenn deine nächste Tagesbelohnung bereitliegt? Höchstens einmal am Tag.": "¿Te avisamos cuando tu próxima recompensa diaria esté lista? Como mucho una vez al día.",
+  "Ja, erinnere mich": "Sí, avísame",
+  "Nein danke": "No, gracias",
+  "Deine Tagesbelohnung wartet": "Tu recompensa diaria te espera",
+  "Schau in Emberwrath vorbei und hol sie dir ab.": "Pásate por Emberwrath y recógela."
 };
