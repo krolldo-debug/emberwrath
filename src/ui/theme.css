@@ -156,7 +156,7 @@
 .hud-meter.sta { --c: #5a9ad0; --hi: #b8dcff; --lo: #2a4a70; height: 5px; border-width: 1px; }
 .hud-meter.xp { --c: var(--ef-xp); --hi: #d8c0ff; --lo: #4a2a90; height: 11px; }
 /* Ruhebonus: kühles Blau hinter der Füllung, so weit doppelte Erfahrung reicht (Hud.js) */
-.hud-bar-rest { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(var(--f, 0)); background: linear-gradient(180deg, #9cc4ff 0 2px, #3f6cc8 2px 70%, #22407e 70%); opacity: 0.8; }
+.hud-bar-rest { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(var(--f, 0)); background: linear-gradient(180deg, #6e8ccc 0 2px, #2f4c8e 2px 70%, #1c2f5c 70%); }
 .hud-meter.boss { --c: #a01830; --hi: #ff6a60; --lo: #500a14; height: 14px; }
 .hud-meter.res .hud-bar-text, .hud-meter.xp .hud-bar-text { font-size: 0.72em; }
 .hud-meter.sta .hud-bar-text { display: none; }
@@ -1404,7 +1404,8 @@ html.ef-touch.ef-portrait #ui .net-chat { top: auto; bottom: calc(env(safe-area-
 .ef-touch:not(.ef-portrait) .hud-banner { padding: 4px 0; }
 .ef-touch:not(.ef-portrait) .hud-banner-title { font-size: 20px; display: inline; }
 .ef-touch:not(.ef-portrait) .hud-banner-sub { display: inline; margin-left: 10px; font-size: 12px; }
-.ef-touch:not(.ef-portrait) .hud-banner[data-kind="level"] .hud-banner-sub { display: none; }
+/* Stufe: nächstes Ziel klein unter dem Titel (character/nextGoal.js) */
+.ef-touch:not(.ef-portrait) .hud-banner[data-kind="level"] .hud-banner-sub { display: block; margin: 1px 0 0; font-size: 11px; text-align: center; letter-spacing: 0.04em; }
 .ef-touch:not(.ef-portrait) .hud-banner[data-kind="level"], .ef-touch:not(.ef-portrait) .hud-banner[data-kind="boss"],
 .ef-touch:not(.ef-portrait) .hud-banner[data-kind="legendary"] { padding: 4px 18px 5px; }
 

@@ -18,7 +18,7 @@ export const FINDER_CONFIG = {
   // Versunkener Tempel (01.11.): Viele hörten bei Nerith auf (Stufe 11, Hauptquest). Allein in etwa 5 Minuten zu schaffen.
   solo: {
     catacombs: { bossHp: 0.7, bossDmg: 0.1, furyStart: 420 },
-    sunken_temple: { bossHp: 1, bossDmg: 0.55, furyStart: 420 },
+    sunken_temple: { bossHp: 0.85, bossDmg: 0.3, furyStart: 420 },
   },
 
   // Gefallene Gruppenmitglieder stehen so viele Sekunden nach Kampfende wieder auf (mit 40 % Leben).
