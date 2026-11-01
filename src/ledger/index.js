@@ -14,6 +14,7 @@
 import { EV } from '../core/events.js';
 import { serverNow } from '../progression/clock.js';
 import { LedgerTap } from './client.js';
+import { clientPool } from '../progression/rested.js';
 
 const URL_BUCH = '/net/buch';
 const CHUNK = 200;
@@ -84,6 +85,8 @@ export function installLedger(game) {
       if (r.nochar || r.fresh) { mode = 'wait'; uploadSoon(); return; }
       tap.open({ sid: r.sid, seed: r.seed, baseU: base });
       mode = 'open'; tries = 0;
+      // Ruhebonus dieser Sitzung (progression/rested.js); ältere Server schicken keinen
+      if (r.rested > 0) state.commit('progress:rested', { pool: clientPool(r.rested) });
       release();
     } catch { if (charId === cid) { mode = 'idle'; retry(); } }
   }

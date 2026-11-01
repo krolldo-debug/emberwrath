@@ -6074,5 +6074,13 @@ export const EN = {
   "Ja, erinnere mich": "Yes, remind me",
   "Nein danke": "No thanks",
   "Deine Tagesbelohnung wartet": "Your daily reward is waiting",
-  "Schau in Emberwrath vorbei und hol sie dir ab.": "Drop by Emberwrath and claim it."
+  "Schau in Emberwrath vorbei und hol sie dir ab.": "Drop by Emberwrath and claim it.",
+  "Für diesen Auftrag begleiten dich Söldner am Eingang kostenlos.": "For this quest, mercenaries join you at the entrance for free.",
+  "Als Nächstes auf Stufe {0}: Fähigkeit {1}": "Next at level {0}: ability {1}",
+  "Als Nächstes auf Stufe {0}: Passive {1}": "Next at level {0}: passive {1}",
+  "Als Nächstes auf Stufe {0}: Talentreihe {1}": "Next at level {0}: talent tier {1}",
+  "Als Nächstes auf Stufe {0}: eigenes Reittier": "Next at level {0}: your own mount",
+  "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "You are rested: enemies give double experience.",
+  "Dein Ruhebonus ist aufgebraucht.": "Your rested bonus is used up.",
+  "Stufe {0} · {1} / {2} EP · ausgeruht": "Level {0} · {1} / {2} XP · rested"
 };

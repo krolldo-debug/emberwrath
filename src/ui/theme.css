@@ -155,6 +155,8 @@
 .hud-meter.res[data-kind="energy"] { --c: var(--ef-energy); --hi: #fff0a0; --lo: #806010; }
 .hud-meter.sta { --c: #5a9ad0; --hi: #b8dcff; --lo: #2a4a70; height: 5px; border-width: 1px; }
 .hud-meter.xp { --c: var(--ef-xp); --hi: #d8c0ff; --lo: #4a2a90; height: 11px; }
+/* Ruhebonus: kühles Blau hinter der Füllung, so weit doppelte Erfahrung reicht (Hud.js) */
+.hud-bar-rest { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(var(--f, 0)); background: linear-gradient(180deg, #9cc4ff 0 2px, #3f6cc8 2px 70%, #22407e 70%); opacity: 0.8; }
 .hud-meter.boss { --c: #a01830; --hi: #ff6a60; --lo: #500a14; height: 14px; }
 .hud-meter.res .hud-bar-text, .hud-meter.xp .hud-bar-text { font-size: 0.72em; }
 .hud-meter.sta .hud-bar-text { display: none; }

@@ -28,6 +28,7 @@ import { EQUIP_SLOTS } from '../progression/items.js';
 import { UPGRADE_MAX, upgradeCost, ENCHANTS } from '../progression/smithing.js';
 import { BANK_SIZES, BANK_COSTS } from '../progression/endgame.js';
 import { TRIAL_ZONE } from '../progression/trials.js';
+import { restedPool, restedBonus } from '../progression/rested.js';
 
 export const LEDGER_VERSION = 1;
 
@@ -93,8 +94,14 @@ export function freshState(snapshot) {
 }
 
 // ---------------------------------------------------------------- Sitzungen
-export function openSession(st, { sid, seed, at }) {
-  st.sessions[sid] = { seed, k: 0, n: {}, at };
+// level: Stufe laut Buch, für den Ruhebonus (progression/rested.js). Der Vorrat der Sitzung (rb) = Rest der letzten
+// Sitzung + Pause seit dem letzten Eintrag; das Spiel bekommt ihn in der Antwort (worker/ledger.js).
+export function openSession(st, { sid, seed, at, level = 1 }) {
+  const prev = Object.values(st.sessions).reduce((m, x) => (!m || x.at > m.at ? x : m), null);
+  const since = Math.max(st.last || 0, st.restAt || 0);
+  const rb = restedPool(prev?.rb ?? 0, since ? at - since : 0, level);
+  st.restAt = Math.max(at, st.restAt || 0);
+  st.sessions[sid] = { seed, k: 0, n: {}, at, rb };
   const ids = Object.keys(st.sessions).sort((a, b) => st.sessions[a].at - st.sessions[b].at);
   while (ids.length > LIMITS.sessions) delete st.sessions[ids.shift()];
   return st.sessions[sid];
@@ -290,6 +297,9 @@ function ruleKill(env) {
   if (st.bucket.xp < cost) return;
   st.bucket.xp -= cost;
   allow.xp += lv >= LEVEL_CAP ? 0 : xp;
+  // Ruhebonus: Vorrat dieser Sitzung (openSession), zählt nicht gegen das Tempo
+  const rest = lv >= LEVEL_CAP ? 0 : restedBonus(env.ses.rb, xp);
+  if (rest) { env.ses.rb -= rest; allow.xp += rest; }
   if (en.boss && !en.summoned && !en.trial) st.bosses[en.bossId] = ctx.at;
   if (en.rareId) st.rares[en.rareId] = ctx.at;
   if (!en.summoned) {

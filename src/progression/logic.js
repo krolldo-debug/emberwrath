@@ -19,6 +19,7 @@ import { registerEndgameState, checkAchievements, trialKill, recomputeBonus } fr
 import { TRIAL_ZONE } from './trials.js';
 import { registerBoardState, boardProgress } from './board.js';
 import { registerDailyState, dailyWin } from './daily.js';
+import { restedBonus, restedCap } from './rested.js';
 import { START_ITEMS, STARTER_GEAR } from '../character/startKit.js';
 
 const inTrial = (s) => s.slices.world?.zoneId === TRIAL_ZONE;
@@ -459,6 +460,13 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
 
   // --- Erfahrung
   def('progress:grantXp', (s, { amount, source }, ctx) => grantXp(s, ctx, amount | 0, source), auth);
+  // Ruhebonus-Vorrat beim Spielstart vom Fortschrittsbuch (ledger/index.js); wird nicht gespeichert (deserialize)
+  def('progress:rested', (s, { pool }, ctx) => {
+    const p = s.get('progress');
+    p.rested = Math.max(0, pool | 0);
+    if (p.rested > 0 && p.rested >= restedCap(p.level) * 0.2) ctx.bus.emit(EV.UI_TOAST, { text: 'Du bist ausgeruht: Gegner geben doppelte Erfahrung.', kind: 'info' });
+    return { ok: true, pool: p.rested };
+  }, auth);
 
   // Ein besiegter Gegner: XP (nach Stufe/Elite/Boss), Statistik, Quest-Fortschritt.
   // summoned: beschworene Diener (Boss-Adds) geben nur 20 % Erfahrung, zählen aber für Quests.
@@ -484,7 +492,11 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
     const champ = !!champion && !boss && !rare;
     if (champ) p.stats.championKills = (p.stats.championKills ?? 0) + 1;
     const base = rare ? mobXp(lvl) * RARE_XP_MULT : mobXp(lvl, { elite: isElite, boss }) * (summoned ? 0.2 : 1) * (champ ? CHAMPION_XP_MULT : 1);
-    const gained = grantXp(s, ctx, killXp(base, lvl, p.level), `kill:${type}`);
+    // Ruhebonus (rested.js): doppelte Erfahrung, solange der Vorrat reicht
+    const xp = killXp(base, lvl, p.level);
+    const rest = p.level < levelCap() ? restedBonus(p.rested, xp) : 0;
+    if (rest) { p.rested -= rest; if (p.rested <= 0) ctx.bus.emit(EV.UI_TOAST, { text: 'Dein Ruhebonus ist aufgebraucht.', kind: 'info' }); }
+    const gained = grantXp(s, ctx, xp + rest, `kill:${type}`);
     recordQuestEvent(s, ctx, 'kill', type);
     const phaseBefore = s.slices.trials?.run?.phase;
     trialKill(s, ctx, { type, elite: isElite, isBoss: boss, bossId: bossId ?? enemy?.bossId ?? (boss ? type : undefined), trialTime }, helpers);

@@ -12,7 +12,7 @@
 //     → 409 session        Sitzung unbekannt (zu alt): Spiel öffnet eine neue
 //   401 auth | 403 origin | 413 size | 422 invalid | 429 rate_limited
 import { verifyToken } from './auth.js';
-import { applyEntries, freshState, openSession, ordersNeeded, LIMITS } from '../src/ledger/rules.js';
+import { applyEntries, freshState, openSession, ordersNeeded, levelForXp, LIMITS } from '../src/ledger/rules.js';
 import { valuesOf } from '../src/ledger/values.js';
 
 const BODY_MAX = 400_000;
@@ -128,8 +128,9 @@ export async function handleLedger(request, env, url, { now = () => Date.now() }
       if (body.open) {
         const sid = hexId(8), seed = hexId(16);
         const st = structuredClone(book.state);
-        openSession(st, { sid, seed, at });
-        if (await store(env, uid, cid, row.ver, { ...book, state: st })) return json({ sid, seed });
+        openSession(st, { sid, seed, at, level: levelForXp(book.xp) });
+        // rested: Ruhebonus-Vorrat dieser Sitzung (src/progression/rested.js)
+        if (await store(env, uid, cid, row.ver, { ...book, state: st })) return json({ sid, seed, rested: st.sessions[sid].rb | 0 });
         continue;
       }
       const sid = body.s;

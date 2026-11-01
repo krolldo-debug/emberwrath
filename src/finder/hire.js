@@ -1,6 +1,7 @@
 import { fillWithMercs } from './mercs.js';
 import { FINDER_CONFIG } from './config.js';
 import { LEVEL_CAP } from '../progression/xp.js';
+import { QUESTS } from '../progression/quests.js';
 
 // Söldner anheuern: Wer allein (ohne Dungeonsuche) durch das Portal eines Gruppen-Dungeons geht, bekommt eine
 // Söldnergruppe gegen Gold angeboten (Nutzerwunsch 15.10.). Ablehnen = allein hinein wie bisher.
@@ -10,12 +11,24 @@ import { LEVEL_CAP } from '../progression/xp.js';
 // Preis für zwei Söldner: steigt mit der Einstiegsstufe des Dungeons, etwa 10 Minuten Spiel auf dieser Stufe (16.10.:
 // Söldner sollen nicht zu günstig sein). Katakomben kostenlos (erster Dungeon), Tempel 300, Schmiede 850,
 // Hügelgrab 1.750, Sporenschlund 2.700, Reifhöhlen 3.700, Aschethron 4.350. Ein Söldner kostet die Hälfte.
-export function hireCost(zone, mercs = 2) {
-  if (!zone || (FINDER_CONFIG.hireFree ?? []).includes(zone.id)) return 0;
+// Kostenlos, solange eine angenommene Hauptquest den Boss dieses Dungeons noch verlangt (01.11.: Spieler blieben bei
+// Nerith hängen, Gold soll die Geschichte nicht aufhalten). quests = Slice 'quests' (ohne: Normalpreis).
+export function hireCost(zone, mercs = 2, quests = null) {
+  if (!zone || (FINDER_CONFIG.hireFree ?? []).includes(zone.id) || storyBossOpen(quests, zone)) return 0;
   const m = String(zone.recommendedLevel ?? '').match(/\d+/);
   const lv = Math.max(1, Math.min(LEVEL_CAP, m ? +m[0] : 1));
   const n = Math.max(0, Math.min(2, mercs | 0));
   return Math.round((3 * lv * lv * n / 2) / 50) * 50;
+}
+
+// Verlangt eine angenommene Hauptquest noch den Boss dieses Dungeons?
+export function storyBossOpen(quests, zone) {
+  if (!zone?.bossId) return false;
+  for (const [id, a] of Object.entries(quests?.active ?? {})) {
+    const def = QUESTS[id];
+    if (def?.main && def.objectives.some((o) => o.kind === 'boss' && o.zone === zone.id && (a?.progress?.[o.id] ?? 0) < o.count)) return true;
+  }
+  return false;
 }
 
 // Söldner einer Gruppe (Dungeonsuche oder Portal)

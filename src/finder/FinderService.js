@@ -146,7 +146,7 @@ export class FinderService {
     if (!here) return false; // Treppen innerhalb eines Dungeons: kein Angebot
     this.offerTo = { zoneId: zone.id, spawnId: go.spawnId ?? 'start', x: here.x, y: here.y };
     this.group = hireGroup(this.char(), zone.id);
-    this.hireCost = hireCost(zone, mercCount(this.group));
+    this.hireCost = hireCost(zone, mercCount(this.group), this.game.state.slices.quests);
     this.state = 'offer';
     this.game.sfx?.play?.('ui');
     this.#changed();

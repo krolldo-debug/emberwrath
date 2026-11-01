@@ -6074,5 +6074,13 @@ export const FR = {
   "Ja, erinnere mich": "Oui, préviens-moi",
   "Nein danke": "Non merci",
   "Deine Tagesbelohnung wartet": "Ta récompense quotidienne t'attend",
-  "Schau in Emberwrath vorbei und hol sie dir ab.": "Passe sur Emberwrath pour la récupérer."
+  "Schau in Emberwrath vorbei und hol sie dir ab.": "Passe sur Emberwrath pour la récupérer.",
+  "Für diesen Auftrag begleiten dich Söldner am Eingang kostenlos.": "Pour cette quête, des mercenaires t'accompagnent gratuitement dès l'entrée.",
+  "Als Nächstes auf Stufe {0}: Fähigkeit {1}": "Prochainement au niveau {0} : compétence {1}",
+  "Als Nächstes auf Stufe {0}: Passive {1}": "Prochainement au niveau {0} : passif {1}",
+  "Als Nächstes auf Stufe {0}: Talentreihe {1}": "Prochainement au niveau {0} : palier de talents {1}",
+  "Als Nächstes auf Stufe {0}: eigenes Reittier": "Prochainement au niveau {0} : ta propre monture",
+  "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "Tu es reposé : les ennemis donnent le double d'expérience.",
+  "Dein Ruhebonus ist aufgebraucht.": "Ton bonus de repos est épuisé.",
+  "Stufe {0} · {1} / {2} EP · ausgeruht": "Niveau {0} · {1} / {2} XP · reposé"
 };
