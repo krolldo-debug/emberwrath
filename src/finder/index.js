@@ -18,7 +18,7 @@ export function installFinder(game) {
   game.state.defineCommand('finder:hire', (s, { dungeonId, mercs = 2 }, ctx) => {
     const zone = ctx.content.find('zone', dungeonId);
     if (!hireable(zone)) return { ok: false, reason: 'zone' };
-    const cost = hireCost(zone, mercs), w = s.get('wallet');
+    const cost = hireCost(zone, mercs, s.get('quests')), w = s.get('wallet');
     if (!cost) return { ok: true, cost: 0 };
     if (w.gold < cost) return { ok: false, reason: 'gold', cost };
     w.gold -= cost;

@@ -3,26 +3,28 @@ import { EV } from '../core/events.js';
 import { MenuScene } from '../account/TitleScene.js';
 import { focusIfDesktop, characterLine, backButton } from '../account/ui.js';
 import { describeError } from './AuthClient.js';
-import { inApp } from '../app/native.js';
+import { inApp, appPlatform } from '../app/native.js';
 import { fmtDate, tr, onLangChange } from '../i18n/index.js';
 
 // Anmeldeseite (Szene 'login'). params.mode:
-//   'login'        E-Mail + Passwort, Google
+//   'login'        E-Mail + Passwort, Google, Apple
 //   'register'     Konto anlegen
 //   'forgot'       Link zum Zurücksetzen anfordern
 //   'newPassword'  neues Passwort setzen (nach Link aus der E-Mail oder im Konto)
-//   'consent'      angemeldet, aber Nutzungsbedingungen (aktuelle Fassung) noch nicht bestätigt, z. B. nach erster Google-Anmeldung
-//   'deleteAccount' Konto löschen nach erneuter Anmeldung (Passwort bzw. Google; der Server verlangt eine frische Anmeldung)
+//   'consent'      angemeldet, aber Nutzungsbedingungen (aktuelle Fassung) noch nicht bestätigt, z. B. nach erster Google-/Apple-Anmeldung
+//   'deleteAccount' Konto löschen nach erneuter Anmeldung (Passwort, Google oder Apple; der Server verlangt eine frische Anmeldung)
 //   'account'      angemeldet: Verwaltung, lokale Charaktere übernehmen, Kontoeinstellungen (Spielen liegt auf dem Titel)
 //   'rename'       Kontonamen ändern, höchstens alle 30 Tage (Sperre im Server: change_display_name)
 // Offizielles „G“ aus Googles Sign-in-Branding-Richtlinien (developers.google.com/identity/branding-guidelines).
 const GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+// Apple-Logo für „Weiter mit Apple“ (weiß auf Schwarz, wie in Apples Human Interface Guidelines verlangt).
+const APPLE_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#fff" d="M16.37 1.43c0 1.14-.49 2.27-1.18 3.08-.74.9-1.99 1.57-2.99 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.57-2.27 1.21-2.98.8-.94 2.14-1.64 3.25-1.68.03.13.05.28.05.43zm4.56 15.71c-.03.07-.46 1.58-1.52 3.12-.94 1.34-1.94 2.71-3.43 2.71-1.52 0-1.9-.88-3.63-.88-1.7 0-2.3.91-3.67.91-1.38 0-2.33-1.26-3.43-2.8-1.29-1.82-2.32-4.63-2.32-7.28 0-4.28 2.8-6.55 5.55-6.55 1.45 0 2.68.95 3.6.95.87 0 2.22-1.01 3.9-1.01.61 0 2.89.06 4.37 2.19-.13.09-2.38 1.37-2.38 4.19 0 3.26 2.85 4.42 2.96 4.45z"/></svg>';
 // Rechtstexte der Website (site/). Das Spiel liegt unter /spielen/, die Seiten im Wurzelverzeichnis.
 export const LEGAL = { terms: '/nutzungsbedingungen', privacy: '/datenschutz', minAge: 12, adultAge: 18, termsVersion: '2026-10-05' };
 // Altersklausel wie in den Nutzungsbedingungen: ab 12 Jahren, unter 18 nur mit Zustimmung der Eltern.
 const AGE_CLAUSE = `Spielen ab ${LEGAL.minAge} Jahren; unter ${LEGAL.adultAge} nur mit Zustimmung der Eltern.`;
 const consentMeta = () => ({ terms_version: LEGAL.termsVersion, terms_accepted_at: new Date().toISOString() });
-// Hat das Konto die aktuelle Fassung der Nutzungsbedingungen bestätigt? (Google-Konten kommen ohne Häkchen an.)
+// Hat das Konto die aktuelle Fassung der Nutzungsbedingungen bestätigt? (Google- und Apple-Konten kommen ohne Häkchen an.)
 export const needsConsent = (user) => !!user && user.user_metadata?.terms_version !== LEGAL.termsVersion;
 const legalLink = (text, href) => h('a.on-legal-link', { href, target: '_blank', rel: 'noopener' }, text);
 // Leise Fußzeile unter dem Anmeldeformular (Datenschutz muss beim Anmelden erreichbar bleiben).
@@ -138,18 +140,24 @@ export class LoginScene extends MenuScene {
   #providers() {
     const o = this.online;
     // Nicht freigeschaltete Anbieter bleiben unsichtbar (kein „bald“-Knopf).
-    const google = h('button.ef-btn.on-provider.on-google', {
-      type: 'button', onclick: () => this.#run(() => o.client.signInWithProvider('google')),
-    }, svgIcon(GOOGLE_SVG), h('span', 'Weiter mit Google'));
-    // Kein Kleingedrucktes: Neue Google-Konten bestätigen Nutzungsbedingungen und Alter danach auf der Seite 'consent'.
-    const box = h('div.on-providers', google,
+    const button = (provider, label, icon) => h(`button.ef-btn.on-provider.on-${provider}`, {
+      type: 'button', onclick: () => this.#run(async () => { if (await o.signInWith(provider)) this.game.scenes.go('title'); }),
+    }, svgIcon(icon), h('span', label));
+    const google = button('google', 'Weiter mit Google', GOOGLE_SVG);
+    const apple = button('apple', 'Weiter mit Apple', APPLE_SVG);
+    // Kein Kleingedrucktes: Neue Google- und Apple-Konten bestätigen Nutzungsbedingungen und Alter danach auf der Seite 'consent'.
+    // Auf dem iPhone steht Apple oben (Richtlinie 4.8: mindestens so sichtbar wie Google).
+    const box = h('div.on-providers', ...(appPlatform() === 'ios' ? [apple, google] : [google, apple]),
       h('div.on-or', h('span', 'oder mit E-Mail')));
-    // In der Store-App nur E-Mail: Google sperrt die Anmeldung in eingebetteten Ansichten, und mit nur eigener
-    // Anmeldung verlangt Apple kein „Mit Apple anmelden“ (Richtlinie 4.8).
-    const set = (on) => { box.hidden = !on || inApp(); };
-    set(!!o.providers.google);
+    // App 1.0 kann nur E-Mail (Google sperrt eingebettete Ansichten); App 1.1 meldet Google und Apple nativ an.
+    const set = (p) => {
+      const use = o.usableProviders(p);
+      google.hidden = !use.google; apple.hidden = !use.apple;
+      box.hidden = !use.google && !use.apple;
+    };
+    set(o.providers);
     // Aktive Anbieter kommen aus den Supabase-Einstellungen (freigeschaltet ohne neue Version)
-    o.loadProviders?.().then((p) => set(!!p.google));
+    o.loadProviders?.().then(set);
     return box;
   }
 
@@ -234,7 +242,7 @@ export class LoginScene extends MenuScene {
     return { consent, consentEl: h('div.on-consent', consentEl, inline ? null : legalFoot()) };
   }
 
-  // Nach der ersten Google-Anmeldung (oder neuer Fassung der Bedingungen): Zustimmung einmal nachholen und im Konto vermerken.
+  // Nach der ersten Google- oder Apple-Anmeldung (oder neuer Fassung der Bedingungen): Zustimmung einmal nachholen und im Konto vermerken.
   #consent() {
     const o = this.online;
     const { consent, consentEl } = this.#consentBox();
@@ -435,7 +443,7 @@ export class LoginScene extends MenuScene {
         h('p.acc-meta', 'Deine Anmeldung ist bestätigt.'),
         this.#messageBox(),
         h('button.ef-btn.danger.on-submit', { type: 'submit' }, 'Konto endgültig löschen'));
-    } else if (providers.includes('email') || inApp()) { // in der App immer mit Passwort angemeldet
+    } else if (providers.includes('email') || (inApp() && !o.native)) { // App 1.0: Google-Konten haben dort ein Passwort
       const pw = this.#password('Dein Passwort', 'current-password');
       step = h('form.on-form', { onsubmit: (e) => {
         e.preventDefault();
@@ -447,10 +455,17 @@ export class LoginScene extends MenuScene {
         this.#messageBox(),
         h('button.ef-btn.danger.on-submit', { type: 'submit' }, 'Konto endgültig löschen'));
     } else {
+      const provider = providers.includes('apple') && (o.usableProviders().apple || !providers.includes('google')) ? 'apple' : 'google';
+      // In der App bleibt man auf dieser Seite, auf der Website geht es zum Anbieter und zurück.
+      const hint = provider === 'apple'
+        ? (o.native ? 'Bestätige das Löschen mit einer erneuten Anmeldung bei Apple.' : 'Bestätige das Löschen mit einer erneuten Anmeldung bei Apple. Danach kommst du hierher zurück.')
+        : (o.native ? 'Bestätige das Löschen mit einer erneuten Anmeldung bei Google.' : 'Bestätige das Löschen mit einer erneuten Anmeldung bei Google. Danach kommst du hierher zurück.');
       step = h('div.on-form',
-        h('p.acc-meta', 'Bestätige das Löschen mit einer erneuten Anmeldung bei Google. Danach kommst du hierher zurück.'),
+        h('p.acc-meta', hint),
         this.#messageBox(),
-        h('button.ef-btn.danger.on-submit', { type: 'button', onclick: () => this.#run(() => o.reauthenticate()) }, 'Mit Google bestätigen'));
+        h('button.ef-btn.danger.on-submit', { type: 'button', onclick: () => this.#run(async () => {
+          if (await o.reauthenticate({ provider })) this.#render();
+        }) }, provider === 'apple' ? 'Mit Apple bestätigen' : 'Mit Google bestätigen'));
     }
     return h('div.on-body', intro, step, cancel);
   }

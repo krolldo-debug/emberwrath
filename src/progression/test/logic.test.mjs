@@ -35,6 +35,8 @@ import { ZONES } from '../../world/zones.js';
 import { LEVELS_STARS } from '../../world/stars/levels.js';
 import { LEVELS3 } from '../../world/levels3.js';
 import { RARE_ENEMIES, rareSpawnsFor } from '../rares.js';
+import { hireCost } from '../../finder/hire.js';
+import { nextGoalText } from '../../character/nextGoal.js';
 
 let seed = 7;
 const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -1395,6 +1397,30 @@ test('Sternenglut zu (nur Admins): Stufe bleibt bei 40, Erweiterungsquests gespe
   const { state, c } = setup();
   c('progress:grantXp', { amount: 100_000_000 });
   assert.equal(state.slices.progress.level, LEVEL_CAP);
+});
+
+test('Stufe 9–12 (01.11.): Söldner für den Story-Boss gratis, Schlackenhöhen nach den Ufertotems, nächstes Ziel', () => {
+  const { state, content, c } = setup('mage');
+  const temple = { ...ZONES.sunken_temple, id: 'sunken_temple' };
+  assert.equal(hireCost(temple, 2, state.slices.quests), 300);
+  state.slices.quests.completed.push('q_ashen_wolves', 'q_road_east', 'q_bandit_camp', 'q_bandit_chief', 'q_temple_shore');
+  assert.equal(questStatus(state, content, 'q_to_the_peaks'), 'available');
+  state.slices.quests.active.q_nerith = { status: 'active', progress: {} };
+  assert.equal(hireCost(temple, 2, state.slices.quests), 0);
+  assert.equal(hireCost({ ...ZONES.molten_forge, id: 'molten_forge' }, 2, state.slices.quests), 850);
+  state.slices.quests.active.q_nerith.progress.boss = 1;
+  assert.equal(hireCost(temple, 2, state.slices.quests), 300);
+  c('progress:grantXp', { amount: totalXpForLevel(11) });
+  assert.equal(state.slices.progress.level, 11);
+  assert.equal(nextGoalText(state), 'Als Nächstes auf Stufe 13: Talentreihe Meisterschaft');
+  c('progress:grantXp', { amount: totalXpForLevel(17) - state.slices.progress.xp });
+  assert.equal(nextGoalText(state), 'Als Nächstes auf Stufe 20: eigenes Reittier');
+  // Ruhebonus nur, solange der Vorrat reicht
+  c('progress:rested', { pool: 30 });
+  const x0 = state.slices.progress.xp;
+  c('progress:kill', { type: 'wolf', level: 17 });
+  assert.equal(state.slices.progress.rested, 0);
+  assert.equal(state.slices.progress.xp - x0, killXp(mobXp(17), 17, 17) + 30);
 });
 
 for (const [name, fn] of tests) {

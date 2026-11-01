@@ -5,6 +5,8 @@ import { tr } from '../i18n/index.js';
 
 // HUD des Mehrspielers: Welt und Spielerzahl unter dem Zonennamen (Klick: Welt wechseln) und der Zonen-Chat.
 // Chat: Enter öffnet/sendet, Escape schließt; auf Touch-Geräten über den Sprechblasen-Knopf.
+// Der Chat schließt auch, wenn die Eingabe den Fokus verliert (iOS-Tastatur „Fertig“) oder außerhalb getippt wird
+// (Spielwelt: Input.js verhindert dort den Standard, die Eingabe behielte sonst Fokus und Tastatur).
 // Bei offenem Chat öffnet ein Klick auf einen Namen „Melden“ / „Ignorieren“ (Moderation.js); dasselbe über die
 // Spielerliste im Weltfenster (auch für Spieler, die nichts geschrieben haben, z. B. wegen ihres Namens).
 const LOG_MAX = 60;
@@ -58,6 +60,19 @@ export class NetHud {
     window.addEventListener('keydown', this.onKey);
     this.onDocClick = (e) => { if (!this.popup.hidden && !this.popup.contains(e.target) && e.target !== this.badge) this.popup.hidden = true; };
     document.addEventListener('pointerdown', this.onDocClick);
+    // Antippen von Verlauf, Namen, Namensmenü oder Chat-Knopf lässt den Chat offen (der Fokus wandert dabei weg)
+    this.onDocDown = (e) => {
+      const t = e.target;
+      const inside = t instanceof Node && [this.chatEl, this.chatBtn, this.mod.menu, this.mod.dialog].some((el) => el?.contains(t));
+      this.keepOpen = inside && t !== this.input;
+      if (this.open && !inside) this.close();
+    };
+    window.addEventListener('pointerdown', this.onDocDown, true);
+    this.input.addEventListener('blur', () => {
+      if (!this.open) return;
+      if (this.keepOpen) { this.keepOpen = false; return; }
+      this.close();
+    });
   }
 
   // Badge sitzt unter „Offenes Gebiet“ im Zonenblock des HUD (Bereich D); sobald der da ist, einhängen.
@@ -185,6 +200,7 @@ export class NetHud {
   dispose() {
     window.removeEventListener('keydown', this.onKey);
     document.removeEventListener('pointerdown', this.onDocClick);
+    window.removeEventListener('pointerdown', this.onDocDown, true);
     this.mod.dispose();
     this.badge.remove(); this.chatEl.remove(); this.chatBtn.remove(); this.popup.remove();
   }

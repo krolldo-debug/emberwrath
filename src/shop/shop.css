@@ -36,6 +36,8 @@
 .sh-waiver.nudge { border-color: var(--ef-ember); background: rgba(255, 110, 40, 0.1); color: var(--ef-text); }
 .sh-legal { margin-top: 8px !important; font-size: 11px; color: var(--ef-muted); }
 .sh-legal a { color: var(--ef-muted); }
+.sh-restore-row { display: flex; justify-content: center; margin: 14px 0 0; }
+.sh-restore { font-size: 12px; }
 @media (max-width: 520px) {
   .sh-designs { grid-template-columns: 1fr; }
   .sh-preview { width: 272px; height: 200px; }

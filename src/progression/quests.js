@@ -141,7 +141,8 @@ export const QUESTS = {
     rewards: { xp: Q(11, 1.0), gold: 110, gear: [{ ilvl: 12, rarity: 'rare', slot: 'chest' }] },
   },
   q_to_the_peaks: {
-    title: 'Zu den Schlackenhöhen', giver: 'warden_ilsa', turnInNpc: 'commander_hale', main: true, level: 12, requires: ['q_nerith'],
+    // 01.11.: schon nach den Ufertotems, Nerith läuft nebenher (viele blieben im Tempel hängen und hörten auf)
+    title: 'Zu den Schlackenhöhen', giver: 'warden_ilsa', turnInNpc: 'commander_hale', main: true, level: 12, requires: ['q_temple_shore'],
     summary: 'Steige zu den Schlackenhöhen auf und melde dich bei Kommandant Hale.',
     offer: 'Der Berg ist die Quelle von allem. Kommandant Hale hält die Feste Rauhwacht am Aufstieg. Er hat nach jemandem wie dir gefragt.',
     progressText: 'Folge der Straße im Nordosten des Aschenwalds bergauf zu den Schlackenhöhen.',

@@ -1,0 +1,68 @@
+/* Ankündigung „Sternenglut“ (src/teaser): Morgenschimmer statt Glut. Gezeichneter Rahmen (pixelFrame 'dawn'),
+   deckende Flächen, harte Kanten, keine Verläufe in HTML. Bilder im Weltraster: --px = Bildschirmpixel je Weltpixel
+   (panel.js setzt es so, dass ein Feinpixel auf ganze Gerätepixel fällt). Handy quer: Fenster nie vollflächig. */
+.ts-win {
+  --k: #0e0b1e; --edge: #3a3478; --edge-hi: #62458a; --fill: #141230; --row: #1c1834; --rose: #e89a88; --peach: #f6c294;
+  --text: #ece8f8; --muted: #b4acd0; --px: 2;
+  position: relative; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; width: min-content;
+  max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+  border: 10px solid transparent; border-image: var(--ts-frame) 10 fill / 10px stretch;
+  background: var(--fill); background-clip: padding-box; color: var(--text); font: 14px/1.45 var(--ef-font);
+}
+.ts-art { display: block; width: calc(var(--w) * var(--px) * 1px); height: calc(var(--h) * var(--px) * 1px); image-rendering: pixelated; image-rendering: crisp-edges; }
+.ts-mark { display: block; width: calc(var(--w) * var(--px) * var(--ms, 1) * 1px); height: calc(var(--h) * var(--px) * var(--ms, 1) * 1px); image-rendering: pixelated; image-rendering: crisp-edges; }
+.ts-close {
+  position: absolute; top: 6px; right: 6px; z-index: 3; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 0;
+  font: 700 18px/1 var(--ef-font); color: var(--muted); background: var(--row);
+  box-shadow: inset 0 0 0 2px var(--k), inset 0 0 0 4px var(--edge); cursor: pointer;
+}
+.ts-close:hover, .ts-close:focus-visible { color: #fff; box-shadow: inset 0 0 0 2px var(--k), inset 0 0 0 4px var(--edge-hi); outline: none; }
+.ts-soon {
+  display: inline-block; padding: 4px 10px 3px; font: 700 12px/1 var(--ef-font); letter-spacing: 0.14em; text-transform: uppercase;
+  color: #1a1030; background: var(--peach); box-shadow: inset 0 0 0 2px var(--k), inset 0 -4px 0 var(--rose);
+}
+
+/* Bühne: Bild, Schriftzug oben links, Bossnamen mit harter 1-px-Kontur (kein Weichzeichner) */
+.ts-stage { position: relative; flex: 0 0 auto; overflow: hidden; }
+.ts-markwrap { position: absolute; left: calc(8 * var(--px) * 1px); top: calc(6 * var(--px) * 1px); --ms: 2; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ts-markwrap .ts-soon { margin-left: calc(8 * var(--px) * 1px); }
+.ts-name {
+  position: absolute; left: calc(var(--x) * var(--px) * 1px); top: calc(var(--y) * var(--px) * 1px); transform: translateX(-50%);
+  font: 700 12px/1 var(--ef-font); letter-spacing: 0.06em; white-space: nowrap; color: var(--peach);
+  text-shadow: 1px 0 var(--k), -1px 0 var(--k), 0 1px var(--k), 0 -1px var(--k), 1px 1px var(--k), 2px 2px var(--k);
+}
+
+/* Band: Text und die fünf Punkte */
+.ts-band { padding: 8px 6px; border-top: 4px solid var(--edge); background: var(--row); display: grid; gap: 8px; overflow-y: auto; min-height: 0; }
+.ts-lead { margin: 0; }
+.ts-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.ts-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; font: 600 13px/1.2 var(--ef-font); color: var(--peach); background: var(--fill); box-shadow: inset 0 0 0 2px var(--k); }
+
+/* Fußzeile: Häkchen „nicht mehr zeigen“ links, Knopf rechts */
+.ts-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px 2px; border-top: 4px solid var(--edge); flex: 0 0 auto; }
+.ts-check { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+.ts-check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ts-box { position: relative; width: 20px; height: 20px; flex: 0 0 20px; background: var(--k); box-shadow: inset 0 0 0 2px var(--edge-hi); }
+.ts-check input:checked + .ts-box::after { content: ''; position: absolute; left: 6px; top: 6px; width: 8px; height: 8px; background: #5ccbea; }
+.ts-check input:focus-visible + .ts-box { outline: 2px solid var(--peach); outline-offset: 2px; }
+.ts-go {
+  min-height: 44px; padding: 0 20px; border: 0; border-radius: 0; cursor: pointer; white-space: nowrap;
+  font: 700 14px/1 var(--ef-font); color: var(--peach); background: var(--edge);
+  box-shadow: inset 0 0 0 2px var(--k), inset 0 4px 0 var(--edge-hi), inset 0 -4px 0 #241e52;
+}
+.ts-go:hover, .ts-go:focus-visible { color: #fff; background: var(--edge-hi); outline: none; }
+
+/* Handy quer / niedrige Fenster: Bühne oben und unten beschnitten, Schriftzug kleiner, Text weg (Punkte bleiben) */
+@media (max-height: 520px) {
+  .ts-win { font-size: 13px; border-width: 8px; max-height: calc(100dvh - 40px); }
+  .ts-close { top: 4px; right: 4px; }
+  .ts-stage { height: calc(124 * var(--px) * 1px); }
+  .ts-stage .ts-art { margin-top: calc(-18 * var(--px) * 1px); }
+  .ts-name { margin-top: calc(-18 * var(--px) * 1px); }
+  .ts-markwrap { --ms: 1; flex-direction: row; align-items: center; }
+  .ts-markwrap .ts-soon { margin-left: 0; }
+  .ts-band { padding: 6px 4px; gap: 6px; }
+  .ts-lead { display: none; }
+  .ts-chips li { font-size: 12px; }
+  .ts-foot { padding-top: 4px; }
+}

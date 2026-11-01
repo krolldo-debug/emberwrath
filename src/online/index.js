@@ -1,6 +1,8 @@
 import { EV } from '../core/events.js';
 import { ONLINE_CONFIG } from './config.js';
-import { AuthClient, describeError } from './AuthClient.js';
+import { AuthClient, AuthError, describeError, noncePair } from './AuthClient.js';
+import { hasNativeAuth, nativeAuth, nativeVault, isCancel, APP_AUTH_REDIRECT } from '../app/auth.js';
+import { inApp } from '../app/native.js';
 import { CloudSync, accountIdFor, displayNameOf, ONLINE_ACCOUNT_PREFIX } from './CloudSync.js';
 import { LoginScene, needsConsent } from './LoginScene.js';
 import { AdminScene } from './AdminScene.js';
@@ -22,13 +24,24 @@ import { setStarsOpen, STARS_PUBLIC } from '../progression/xp.js';
 // Bus-Event EV.ONLINE_CHANGED ('online:changed') { user, status } bei An-/Abmeldung und Sync-Status.
 // Adressen: …#anmelden, …#registrieren, …#konto, …#admin öffnen die jeweilige Seite (Startseite verlinkt dorthin).
 const REAUTH_MS = 9 * 60 * 1000; // etwas unter der Server-Grenze (10 Minuten)
+const FRESH_CHECK_MS = 60 * 1000; // so oft prüfen, ob das Zugriffstoken bald abläuft (nur bei sichtbarer Seite)
 const ROUTES = { anmelden: ['login', { mode: 'login' }], registrieren: ['login', { mode: 'register' }], konto: ['login', { mode: 'account' }], admin: ['admin', {}] };
 
 export class Online {
   constructor(game, config = ONLINE_CONFIG) {
     this.game = game;
     this.config = config;
-    this.client = new AuthClient({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey });
+    // App ab 1.1: Sitzung zusätzlich im Schlüsselbund, Google im Systembrowser-Fenster, Apple im eigenen Fenster von iOS.
+    const native = hasNativeAuth();
+    this.native = native;
+    this.client = new AuthClient({
+      url: config.supabaseUrl, anonKey: config.supabaseAnonKey,
+      // Google startet über /net/auth/start (worker/login.js), damit iOS „emberwrath.com“ nennt statt supabase.co
+      ...(native ? {
+        vault: nativeVault, webAuthRedirect: APP_AUTH_REDIRECT,
+        webAuth: (url) => nativeAuth.web(url.replace(`${config.supabaseUrl}/auth/v1/authorize`, `${window.location.origin}/net/auth/start`)),
+      } : {}),
+    });
     this.sync = new CloudSync(this.client, game.save, { onStatus: () => this.#changed(), onRemote: (ids, rejected) => this.#remoteUpdated(ids, rejected) });
     this.notice = null; // einmalige Meldung für die Anmeldeseite { kind, text }
     this.#admin = null;
@@ -58,17 +71,58 @@ export class Online {
   // Aktive Schnellanmeldungen: Server-Einstellung (sobald geladen), sonst config.providers.
   get providers() { return this.#providers ?? this.config.providers ?? {}; }
 
-  // Fragt einmal beim Server nach, welche Anbieter aktiv sind. Promise<{ google }>.
+  // Fragt einmal beim Server nach, welche Anbieter aktiv sind. Promise<{ google, apple }>.
+  // Apple braucht auf der Website zusätzlich die Services-ID (config.appleServicesId), in der App das native Plugin.
   loadProviders() {
     this.#providersLoad ??= this.client.fetchSettings()
       .then((s) => {
         const ext = s?.external;
-        if (ext && typeof ext === 'object') this.#providers = { google: ext.google === true };
+        if (ext && typeof ext === 'object') this.#providers = { google: ext.google === true, apple: ext.apple === true };
         return this.providers;
       })
       .catch(() => { this.#providersLoad = null; return this.providers; });
     return this.#providersLoad;
   }
+  // Welche Schnellanmeldungen auf diesem Gerät gehen: Website alles Eingerichtete, App 1.1 Google und Apple, App 1.0 keine.
+  usableProviders(p = this.providers) {
+    if (inApp() && !this.native) return { google: false, apple: false };
+    return { google: !!p.google, apple: !!p.apple && (this.native || !!this.config.appleServicesId) };
+  }
+
+  // Anmelden mit Google oder Apple. Website: Seitenwechsel zum Anbieter (Rückkehr in boot()).
+  // App: eigenes Fenster, danach sofort angemeldet. → true, wenn hier schon angemeldet (App), false bei Seitenwechsel,
+  // null, wenn der Spieler das Fenster geschlossen hat.
+  async signInWith(provider, intent = 'oauth') {
+    try {
+      if (provider === 'apple') {
+        if (!this.native) {
+          await this.client.signInWithAppleWeb({ clientId: this.config.appleServicesId, redirectUri: `${window.location.origin}/net/auth/apple` }, intent);
+          return false;
+        }
+        const { raw, hashed } = await noncePair();
+        const r = await nativeAuth.apple(hashed);
+        await this.client.signInWithIdToken('apple', r.idToken, raw);
+        await this.#adoptName(r.name);
+      } else {
+        const r = await this.client.signInWithProvider(provider, intent);
+        if (!r) return false;
+      }
+    } catch (e) {
+      if (isCancel(e)) return null; // Fenster geschlossen: einfach auf der Seite bleiben
+      throw e;
+    }
+    if (intent !== 'reauth') this.afterSignIn();
+    return true;
+  }
+
+  // Apple nennt den Namen nur bei der ersten Anmeldung (und nur, wenn der Spieler ihn teilt). Wie bei Google als full_name
+  // ablegen; der Kontoname (display_name) bleibt dem Server vorbehalten (change_display_name).
+  async #adoptName(name) {
+    const n = String(name ?? '').trim().slice(0, 24), m = this.user?.user_metadata ?? {};
+    if (!n || m.display_name || m.full_name || m.name) return;
+    try { await this.client.updateUser({ data: { full_name: n } }); } catch { /* Name ist Kür */ }
+  }
+
   isOnlineAccount(id) { return typeof id === 'string' && id.startsWith(ONLINE_ACCOUNT_PREFIX); }
 
   #changed() { this.game.bus.emit(EV.ONLINE_CHANGED, { user: this.user, status: this.sync.status }); }
@@ -138,11 +192,14 @@ export class Online {
   // Löschen eine Anmeldung der letzten 10 Minuten (delete_my_account prüft den amr-Zeitstempel im Token).
   freshSignIn() { return this.signedInAt && Date.now() - this.signedInAt < REAUTH_MS; }
 
-  // Erneut anmelden, um das Löschen zu bestätigen: mit Passwort sofort, mit Google über die Rückleitung.
-  async reauthenticate({ password } = {}) {
+  // Erneut anmelden, um das Löschen zu bestätigen: mit Passwort sofort, mit Google oder Apple im Fenster (App) bzw. über
+  // die Rückleitung (Website). → true, wenn die Bestätigung schon da ist; false, wenn die Seite zum Anbieter wechselt.
+  async reauthenticate({ password, provider = 'google' } = {}) {
     if (password != null) { await this.client.signIn(this.user.email, password); return true; }
-    await this.client.signInWithProvider('google', 'reauth');
-    return false; // Seite wechselt zu Google
+    const uid = this.user?.id;
+    const done = await this.signInWith(provider, 'reauth');
+    if (done && this.user?.id !== uid) { this.afterSignIn(); throw new AuthError('reauth_other', ''); }
+    return done;
   }
 
   // Konto endgültig löschen (Server löscht Konto + Charaktere), danach lokale Kopie entfernen.
@@ -183,6 +240,7 @@ export class Online {
   // Beim Start: gespeicherte Sitzung fortsetzen, Rückleitungen auswerten, Adress-Anker öffnen.
   async boot() {
     if (!this.configured) { this.#route(); return; }
+    await this.client.restore().catch(() => {});
     let result = null;
     try { result = await this.client.handleRedirect(); } catch (e) { result = { error: e }; }
     if (result?.error) {
@@ -191,6 +249,7 @@ export class Online {
       return;
     }
     if (result?.session) {
+      if (result.name) await this.#adoptName(result.name);
       if (result.intent === 'reauth') { this.game.scenes.go('login', { mode: 'deleteAccount' }); this.afterSignIn(); return; }
       if (result.intent === 'recovery') { this.game.scenes.go('login', { mode: 'newPassword' }); this.afterSignIn(); return; }
       if (result.intent === 'signup') this.notice = { kind: 'ok', text: 'E-Mail bestätigt. Willkommen in Emberwrath!' };
@@ -242,6 +301,9 @@ export function installOnline(game) {
   });
 
   window.addEventListener('online', () => { if (online.user) online.sync.syncAll().catch(() => {}); });
+  // Angemeldet bleiben: Zugriffstoken erneuern, solange die Seite sichtbar ist, statt im Hintergrund (dort friert iOS die
+  // App oft mitten in der Anfrage ein, und das neue Erneuerungstoken ginge verloren; AuthClient.js).
+  setInterval(() => { if (document.visibilityState === 'visible') online.client.ensureFresh(); }, FRESH_CHECK_MS);
   // Beim Verstecken/Schließen erst speichern, dann sofort senden (der verzögerte Upload läuft im Hintergrund oft nicht mehr).
   // Beim Zurückkehren abgleichen: ein anderes Gerät kann inzwischen weitergespielt haben.
   const saveAndFlush = (reason) => {
@@ -251,7 +313,7 @@ export function installOnline(game) {
   };
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveAndFlush('hidden');
-    else if (online.sync.userId) online.sync.syncAll().catch(() => {});
+    else if (online.sync.userId) online.client.ensureFresh().then(() => online.sync.syncAll()).catch(() => {});
   });
   window.addEventListener('pagehide', () => saveAndFlush('pagehide'));
   window.addEventListener('storage', (e) => { if (e.key === 'emberwrath:online:session') online.client.syncFromStorage(); });
