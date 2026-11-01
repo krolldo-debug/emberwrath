@@ -13,6 +13,7 @@ import { freshState, openSession, applyEntries, levelForXp, RATE, _test, ACH_CHE
 import { buyPrice, ITEMS as ALL_ITEMS } from '../../progression/items.js';
 import { totalXpForLevel as xpFor } from '../../progression/xp.js';
 import { ledgerRng } from '../rng.js';
+import { restedCap, clientPool } from '../../progression/rested.js';
 import { ENCHANTS } from '../../progression/smithing.js';
 import { ACHIEVEMENTS } from '../../progression/achievements.js';
 import { CLASSES } from '../../character/classes.js';
@@ -227,6 +228,43 @@ test('Neue Sitzung: Einträge vor dem Öffnen bekommen die Sitzung, frühere Sit
   }
   assert.equal(g.tap.queue.length, 0);
   assert.equal(g.server.book.xp, g.state.slices.progress.xp);
+});
+
+test('Ruhebonus: Pause füllt den Vorrat, Kills geben doppelte Erfahrung, Buch = Spielstand', () => {
+  const g = makeGame();
+  for (let i = 0; i < 40; i++) kill(g, 'wolf');
+  g.flush();
+  const st = g.server.book.state;
+  // Ohne Pause kein Vorrat
+  openSession(st, { sid: 'S2', seed: 'seed-2', at: g.clock.t + 1000, level: levelForXp(g.server.book.xp) });
+  assert.equal(st.sessions.S2.rb, 0);
+  // 16 Stunden später: voller Vorrat (eine Stufe), das Spiel bekommt 90 %
+  g.tap.close();
+  g.clock.t += 16 * 3600 * 1000 + 1000;
+  const lv = levelForXp(g.server.book.xp);
+  openSession(st, { sid: 'S3', seed: 'seed-3', at: g.clock.t, level: lv });
+  assert.equal(st.sessions.S3.rb, restedCap(lv));
+  g.tap.open({ sid: 'S3', seed: 'seed-3' });
+  g.c('progress:rested', { pool: clientPool(st.sessions.S3.rb) });
+  const pool0 = g.state.slices.progress.rested, xp0 = g.state.slices.progress.xp;
+  assert.ok(pool0 > 0);
+  kill(g, 'wolf');
+  const gain = g.state.slices.progress.xp - xp0;
+  assert.equal(gain, 2 * (pool0 - g.state.slices.progress.rested), 'Kill gibt doppelt');
+  for (let i = 0; i < 400 && g.state.slices.progress.rested > 0; i++) kill(g, 'wolf');
+  assert.equal(g.state.slices.progress.rested, 0);
+  for (const sid of ['S1', 'S3']) {
+    const r = applyEntries(g.server.book, g.tap.queue.filter((e) => e.s === sid), { classId: g.classId, now: g.clock.t + 1000, sid, orders: new Map() });
+    assert.deepEqual(r.miss, [], sid);
+    g.server.book = r.book;
+    g.tap.confirm(sid, r.accepted);
+  }
+  assert.equal(g.server.book.xp, g.state.slices.progress.xp);
+  // Rest des Servers (10 %) bleibt für die nächste Sitzung, Spielstand speichert den Vorrat nicht
+  assert.ok(g.server.book.state.sessions.S3.rb > 0);
+  const snap = g.state.snapshot();
+  g.state.load(snap);
+  assert.equal(g.state.slices.progress.rested ?? 0, 0);
 });
 
 test('Gegnerstufen: höchste Stufe je Typ deckt alle Varianten ab', () => {

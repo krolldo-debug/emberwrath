@@ -423,11 +423,14 @@ function questlogView(s) {
 // ---------------------------------------------------------------- Questdialog
 const TALK = '__talk';
 
-// Dungeon-Bosse sind auf drei Helden ausgelegt (finder/groupScale.js) – der Questdialog sagt, wo es Gefährten gibt
+// Dungeon-Bosse sind auf drei Helden ausgelegt (finder/groupScale.js) – der Questdialog sagt, wo es Gefährten gibt.
+// Hauptquests: Söldner am Eingang kostenlos (finder/hire.js storyBossOpen).
 function groupBossHint(c, def, objectives) {
   const open = objectives.some((o) => o.kind === 'boss' && !o.done);
   const zone = c.find('zone', def.objectives.find((o) => o.kind === 'boss')?.zone);
-  if (!open || !zone?.instanced || zone.kind !== 'dungeon' || zone.trial || FINDER_CONFIG.solo?.[zone.id]) return null;
+  if (!open || !zone?.instanced || zone.kind !== 'dungeon' || zone.trial) return null;
+  if (def.main) return h('p.pg-hint', 'Für diesen Auftrag begleiten dich Söldner am Eingang kostenlos.');
+  if (FINDER_CONFIG.solo?.[zone.id]) return null;
   return h('p.pg-hint', 'Für drei Helden gedacht. Gefährten findest du in der Dungeonsuche.');
 }
 function questDialogView(s, { npcId } = {}) {

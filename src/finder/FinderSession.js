@@ -27,7 +27,7 @@ export class FinderSession {
       this.party.update(dt);
       this.#situations(dt);
     } else if (w && isGroupDungeon(w.zone)) {
-      // Allein durchs Portal: dieselben Gegnerwerte wie für eine Dreiergruppe – außer im ersten Dungeon (FINDER_CONFIG.solo)
+      // Allein durchs Portal: dieselben Gegnerwerte wie für eine Dreiergruppe – außer in Dungeons mit Allein-Werten (FINDER_CONFIG.solo)
       const solo = FINDER_CONFIG.solo?.[w.zone.id];
       for (const e of w.enemies) { if (solo) scaleForSolo(e, w, solo); else scaleForGroup(e, w); }
     }

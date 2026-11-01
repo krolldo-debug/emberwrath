@@ -6074,5 +6074,13 @@ export const ES = {
   "Ja, erinnere mich": "Sí, avísame",
   "Nein danke": "No, gracias",
   "Deine Tagesbelohnung wartet": "Tu recompensa diaria te espera",
-  "Schau in Emberwrath vorbei und hol sie dir ab.": "Pásate por Emberwrath y recógela."
+  "Schau in Emberwrath vorbei und hol sie dir ab.": "Pásate por Emberwrath y recógela.",
+  "Für diesen Auftrag begleiten dich Söldner am Eingang kostenlos.": "Para esta misión, los mercenarios te acompañan gratis desde la entrada.",
+  "Als Nächstes auf Stufe {0}: Fähigkeit {1}": "Próximamente en el nivel {0}: habilidad {1}",
+  "Als Nächstes auf Stufe {0}: Passive {1}": "Próximamente en el nivel {0}: pasiva {1}",
+  "Als Nächstes auf Stufe {0}: Talentreihe {1}": "Próximamente en el nivel {0}: fila de talentos {1}",
+  "Als Nächstes auf Stufe {0}: eigenes Reittier": "Próximamente en el nivel {0}: tu propia montura",
+  "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "Estás descansado: los enemigos dan el doble de experiencia.",
+  "Dein Ruhebonus ist aufgebraucht.": "Tu bonificación de descanso se ha agotado.",
+  "Stufe {0} · {1} / {2} EP · ausgeruht": "Nivel {0} · {1} / {2} EXP · descansado"
 };

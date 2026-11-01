@@ -103,7 +103,7 @@ export class FinderHud {
       const list = this.#memberList(g);
       this.propBar = h('i');
       // Söldner in der Gruppe kosten Gold (hire.js); der Preis steht auf dem Knopf
-      this.propCost = hireCost(d, mercCount(g));
+      this.propCost = hireCost(d, mercCount(g), this.s.state.slices.quests);
       this.propShort = null;
       this.enterLabel = h('span', 'Betreten');
       this.enterBtn = h('button.ef-btn.primary', { type: 'button', onclick: () => this.finder.respond(true) }, this.enterLabel);

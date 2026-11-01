@@ -2,6 +2,7 @@ import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, itemIconId, abilityIcon } from '../gfx/Icons.js';
 import { xpToNext } from '../progression/xp.js';
+import { nextGoalText } from '../character/nextGoal.js';
 import { trackedQuestId, questFilterHere } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
 import { tr, fmtNum } from '../i18n/index.js';
@@ -69,6 +70,9 @@ export class Hud {
     this.res = bar('res', 'Ressource');
     this.sta = bar('sta', 'Ausdauer');
     this.xp = bar('xp', 'Erfahrung');
+    // Ruhebonus (progression/rested.js): Abschnitt hinter der Füllung, so weit doppelte Erfahrung reicht
+    this.xp.rest = h('div.hud-bar-rest');
+    this.xp.el.insertBefore(this.xp.rest, this.xp.fill);
     const player = el('div.hud-player.ef-panel-lite',
       el('div.hud-portrait-wrap', this.portrait, this.pLevel),
       el('div.hud-player-main', this.pName, this.hp.el, this.res.el, this.sta.el),
@@ -263,7 +267,8 @@ export class Hud {
       this.boss = null;
       this.prompt = null;
     });
-    bus.on(EV.LEVEL_UP, (e) => { this.#queueBanner(`Stufe ${e.level}`, 'Deine Werte sind gestiegen', '#ffd66a', 'level'); this.xpLevelFlash = 0.2; this.#refreshStatic(); });
+    // Unterzeile: nächste Freischaltung (character/nextGoal.js), sonst Werte
+    bus.on(EV.LEVEL_UP, (e) => { this.#queueBanner(`Stufe ${e.level}`, nextGoalText(this.s.state) ?? 'Deine Werte sind gestiegen', '#ffd66a', 'level'); this.xpLevelFlash = 0.2; this.#refreshStatic(); });
     bus.on('trial:started', (e) => this.#queueBanner(`Glutprüfung ${e?.tier ?? ''}`.trim(), 'Säubere die Instanz, bevor die Zeit abläuft', '#ff9a4a', 'trial'));
     bus.on('trial:boss', () => this.#queueBanner('Der Wächter erscheint', 'Besiege ihn, um die Prüfung abzuschließen', '#ff5a40', 'trial'));
     bus.on('trial:completed', (e) => this.#queueBanner('Prüfung bestanden!', e?.tier ? `Stufe ${e.tier} gemeistert` : 'Belohnung erhalten', '#ffd66a', 'trial'));
@@ -359,8 +364,12 @@ export class Hud {
     const xi = this.game.progression?.xpInfo?.() ?? { level: prog.level, into: prog.xp, need: xpToNext(prog.level), capped: false };
     setText(this.pLevel, xi.level ?? prog.level);
     const capped = xi.capped || !Number.isFinite(xi.need);
+    const rested = capped ? 0 : Math.max(0, prog.rested ?? 0);
     this.#meter(this.xp, capped ? 1 : xi.into, capped ? 1 : xi.need, dt,
-      capped ? `Stufe ${xi.level} · Höchststufe` : `Stufe ${xi.level} · ${num(xi.into)} / ${num(xi.need)} EP`);
+      capped ? `Stufe ${xi.level} · Höchststufe`
+        : rested ? `Stufe ${xi.level} · ${num(xi.into)} / ${num(xi.need)} EP · ausgeruht`
+          : `Stufe ${xi.level} · ${num(xi.into)} / ${num(xi.need)} EP`);
+    setVar(this.xp.rest, '--f', rested ? frac(xi.into + rested, xi.need).toFixed(4) : '0');
     // Stufenaufstieg: Leiste kurz voll, dann von 0 neu füllen (statt rückwärts zu laufen)
     if (this.xpLevelFlash > 0) {
       this.xpLevelFlash -= dt;
