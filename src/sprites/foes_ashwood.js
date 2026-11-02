@@ -738,7 +738,7 @@ const BARK = ['#120e0e', '#201815', '#30251d', '#433428', '#5a4735', '#735e46'];
 const THORN = ['#3a3024', '#6a5c44', '#a0906a', '#d0c49a'];
 const MOSS = ['#1e2a1a', '#34502a', '#527a34', '#7aa648', '#a0c860'];
 // Panzerplatten: hellere, wärmere Borke als Beine/Ranke, damit der Rumpf trägt
-const PLATE = ['#1e1612', '#34261c', '#4e3a28', '#6a5236', '#88704a', '#a88e62'];
+const PLATE = ['#1a1310', '#2e2119', '#433226', '#5b4632', '#755d40', '#927852'];
 const SAP = ['#2e3a06', '#5a7a10', '#96c41c', '#d4f850', '#f6ffc0'];
 const C_REST = { t: 0, amp: 0, bob: 0, crouch: 0, ta: -1.95, tc: 0.24, tl: 9, sway: 0, jaw: 0, lunge: 0, dead: 0, sap: 1, curl: 0 };
 const cpose = (o = {}) => ({ ...C_REST, ...o });
@@ -815,27 +815,42 @@ function drawCrawler(p, g, P, X) {
   plates.forEach(([px_, rx, ry], i) => {
     vol(p, px_, cy - 1, rx, ry - dead * 0.4, PLATE, 0.04);
     // Moospolster obenauf: ein geschlossenes Kissen, Licht nur an der linken Kante
+    // Moos als unregelmäßige Büschel (verschieden hohe Halme), kein Rechteck
     const mx = px_ - 1 + (i === 1 ? 1 : 0), my = Math.round(cy - ry - 0.5 + 0.5);
-    p.rect(mx - 2, my, 4, 1, MOSS[3]); p.px(mx - 2, my, MOSS[4]);
-    p.rect(mx - 2, my + 1, 5, 1, MOSS[2]);
+    const tuft = [[-2, 0, 2], [-1, -1, 3], [0, 0, 3], [1, -1, 4], [2, 0, 2]];
+    for (const [dx, dy, c] of tuft) {
+      if (i === 2 && dx === 2) continue;
+      p.px(mx + dx, my + 1, MOSS[2]);
+      p.px(mx + dx, my + dy, MOSS[c]);
+    }
+    if (p.dot) { p.dot(mx - 1.5, my - 1.5, MOSS[4]); p.dot(mx + 1, my - 1.5, MOSS[3]); p.dot(mx + 0.5, my - 2, MOSS[4]); }
   });
   // Fugen zwischen den Platten: gerader dunkler Spalt, darin ein kurzer Saftstreifen
+  // Fugen: dunkle, leicht gebogene Spalte zwischen den Platten; Saft glimmt nur tief unten in der Fuge
+  // (kleiner harter Punkt statt durchgehendem Leuchtbalken)
   for (const sx of [cxI - 3, cxI + 3]) {
-    for (let k = -3; k <= 2; k++) {
-      const y = cyI + k, sapK = sapOn && k >= -2 && k <= 1;
-      p.px(sx - 1, y, BARK[0]);
-      p.px(sx, y, sapK ? (k === -1 ? SAP[3] : SAP[2]) : BARK[1]);
-      if (sapK) g.px(sx, y, k === -1 && P.sap > 0.8 ? SAP[3] : SAP[2]);
+    // Plattenrand folgt der Wölbung: oben und unten nach hinten gebogen, vorn eine helle Kante (überlappende Platte)
+    for (let k = -3.5; k <= 2.5; k += 0.5) {
+      const y = cyI + k, x = sx - 0.5 - (k * k) * 0.09;
+      p.dot(x - 0.5, y, BARK[0]); p.dot(x, y, BARK[1]);
+      p.dot(x + 0.5, y, k <= -0.5 ? PLATE[5] : PLATE[4]);
+    }
+    // Borkenmaserung: kurze dunkle Längsrisse auf der Platte dahinter
+    p.fline(sx - 3.5, cyI - 1.5, sx - 2, cyI - 1.5, PLATE[2]); p.fline(sx - 3, cyI + 0.5, sx - 1.5, cyI + 0.5, PLATE[2]);
+    if (sapOn) {
+      p.dot(sx - 1, cyI + 1.5, SAP[2]); p.dot(sx - 1, cyI + 2, SAP[3]);
+      g.px(sx - 1, cyI + 2, P.sap > 0.8 ? SAP[3] : SAP[2]);
     }
   }
   // Dornen auf dem Rücken: breiter Fuß, knochenhelle Spitze
-  const spikes = [[-8, 3, -0.5], [-5, 4, -0.3], [-2, 3, 0], [1, 5, 0.2], [4, 3, 0.1], [7, 4, 0.4]];
-  for (const [dx, h, l] of spikes) {
+  // Dornen: dunkle, nach hinten gekrümmte Haken mit breitem Fuß; nur die Spitze ist knochenhell
+  const spikes = [[-8, 3], [-5, 4], [-2, 3], [1, 5], [4, 3.5], [7, 4]];
+  for (const [dx, h] of spikes) {
     const bx = cx + dx, by = cy - 4.5 - Math.cos(dx / 11 * 1.4) * 1;
-    const tx = bx + l * h - 1, ty = by - h * (1 - dead * 0.4);
-    poly(p, [[bx - 1.2, by + 0.5], [tx, ty], [bx + 1.2, by + 0.5]], THORN[1]);
-    p.line(bx - 0.6, by, tx, ty, THORN[2]);
-    p.px(tx, ty, THORN[3]);
+    const hh = h * (1 - dead * 0.4), tx = bx - h * 0.55, ty = by - hh;
+    poly(p, [[bx - 1.3, by + 0.5], [bx - 0.2, by - hh * 0.55], [tx, ty], [bx + 1.3, by + 0.5]], BARK[2]);
+    p.line(bx - 0.8, by, bx - 0.4, by - hh * 0.5, BARK[4]);
+    p.px(tx, ty, THORN[3]); p.px(tx + 0.6, ty + 1, THORN[1]);
   }
   // Saftperlen, die heraustropfen
   if (sapOn) { p.px(cxI + 3, cyI + 3, SAP[2]); g.px(cxI + 3, cyI + 3, SAP[3]); }

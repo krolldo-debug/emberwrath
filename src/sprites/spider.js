@@ -11,7 +11,10 @@ import { TAU } from '../core/math.js';
 // Feinpixel ab. Bei p.fine kommen Beinglieder als schattierte Kapseln mit Glanzkante und feinen Borsten,
 // Chitin-Glanzkanten, Augenkranz mit Glanzpunkten und die Sanduhr in Feinpixeln dazu.
 const W = 46, H = 34, AX = 22, AY = 27;
-const S = PAL.spider, M = PAL.spiderMark, E = PAL.eye;
+// Eigene, gedeckte Chitinfarben (rauchiges Schwarzviolett) statt PAL.spider: die Spinne soll bedrohlich wirken,
+// nicht bonbonfarben. Zeichnung = glimmende Glutwinkel statt roter Sanduhr.
+const S = ['#0e0a12', '#251d2c', '#3a2f42', '#55475e', '#7d6a86'];
+const M = ['#6a1e10', '#c4501e', '#ffa040'], E = PAL.eye;
 const FANG = PAL.bone[3], VOID = '#0a0610';
 const LX = -0.55, LY = -0.7, LZ = 0.45;
 const RAMP = [S[0], S[1], S[2], S[3], S[4]], FAR = [VOID, S[0], S[1], S[2]];
@@ -80,11 +83,14 @@ function bristles(p, x0, y0, x1, y1, r, c, n = 3) {
 }
 
 // Gegliedertes Bein: Hüfte → Knie (hoch über dem Körper) → Fußspitze.
-function drawLeg(p, bx, by, dir, phase, lift, near, reach = 1) {
-  const fx = bx + dir * (10 + Math.sin(phase) * 2.5) * reach;
-  const fy = AY - Math.max(0, Math.cos(phase)) * lift;
-  const kx = (bx + fx) / 2 + dir * 1;
-  const ky = Math.min(by, fy) - 8 - lift * 0.4;
+// off = Fußabstand zur Hüfte (vorn +, hinten −), kh = Kniehöhe über Hüfte/Fuß: die Knie ragen als spitze Bögen
+// über den Körper, so liest sich die Spinne schon an der Silhouette.
+function drawLeg(p, bx, by, off, phase, lift, near, kh = 11) {
+  const dir = Math.sign(off);
+  const fx = bx + off + dir * Math.sin(phase) * 2;
+  const fy = AY - (near ? 0 : 2) - Math.max(0, Math.cos(phase)) * lift;
+  const kx = bx + off * 0.42;
+  const ky = Math.min(by, fy) - kh - lift * 0.4;
   const c0 = near ? S[3] : S[1], c1 = near ? S[2] : S[0], hi = near ? S[4] : S[2];
   const mx = kx + (fx - kx) * 0.5, my = ky + (fy - ky) * 0.5;
   if (p.fine) {
@@ -168,54 +174,49 @@ function drawSpider(p, o = {}) {
   const { t = 0, bob = 0, rear = 0, lunge = 0, fangs = 0, hurt = false, legAmp = 1 } = o;
   const cy = 20 + bob - rear;
   const ax = 16 - lunge, hx = 25 + lunge;
-  // Beine hinten (dunkler)
+  // Hüften am Kopfbruststück; ferne Seite dunkel und etwas höher (weiter hinten im Bild)
+  const hipX = hx - 1.5, hipY = cy + 1;
+  const FAR_OFF = [11.5, 5, -5.5, -11], NEAR_OFF = [13.5, 7, -6.5, -12.5], KH = [11, 12.5, 12.5, 10.5];
   for (let i = 0; i < 4; i++) {
-    const dir = i < 2 ? 1 : -1;
     const ph = t * TAU + i * 1.7 + Math.PI;
-    drawLeg(p, 21 + i * 0.5, cy + 1, dir, ph * legAmp, 2 * legAmp, false, i === 0 ? 1.1 + rear * 0.08 : 1);
+    drawLeg(p, hipX - 1 + i * 0.3, hipY - 1, FAR_OFF[i] * (i === 0 ? 1 + rear * 0.06 : 1), ph * legAmp, 2 * legAmp, false, KH[i] - 1);
   }
-  const nearLegs = (fwd) => {
-    // Beine vorne (heller). nearPass: Rückwärtsbeine liegen unter dem Hinterleib,
-    // Vorwärtsbeine unter dem Kopfbruststück – Augen und Zeichnung bleiben frei.
+  const nearLegs = () => {
     for (let i = 0; i < 4; i++) {
-      if ((i < 2) !== fwd) continue;
-      const dir = i < 2 ? 1 : -1;
       const ph = t * TAU + i * 1.7;
-      const isFront = i === 0;
-      if (isFront && rear > 0) {
-        // Vorderbeine drohend erhoben, Spitzen nach vorn gekrümmt
+      if (i === 0 && rear > 0) {
+        // Vorderbein drohend erhoben, Spitze nach vorn gekrümmt
         if (p.fine) {
-          const kx = hx + 4, ky = cy - 8.5 - rear, tx = hx + 9.5 + lunge, ty = cy - 3.5 - rear;
-          seg(p, hx - 1, cy - 0.5, kx, ky, 0.95, 0.7, RAMP, GLINT);
+          const kx = hx + 4, ky = cy - 9.5 - rear, tx = hx + 9.5 + lunge, ty = cy - 3.5 - rear;
+          seg(p, hipX, hipY - 0.5, kx, ky, 0.95, 0.7, RAMP, GLINT);
           seg(p, kx, ky, tx, ty, 0.6, 0.3, RAMP, null);
           bristles(p, kx, ky, tx, ty, 0.45, S[2], 3);
           p.dot(kx - 0.25, ky - 0.75, S[4]); p.dot(kx + 0.25, ky - 0.75, GLINT);
-          p.dot(tx + 0.5, ty + 0.5, S[1]); p.dot(tx + 0.5, ty + 1, VOID);   // Kralle zeigt nach vorn unten
+          p.dot(tx + 0.5, ty + 0.5, S[1]); p.dot(tx + 0.5, ty + 1, VOID);
           continue;
         }
-        p.line(hx - 1, cy, hx + 4, cy - 8 - rear, S[2]);
-        p.line(hx - 1, cy - 1, hx + 4, cy - 9 - rear, S[3]);
-        p.line(hx + 4, cy - 8 - rear, hx + 9 + lunge, cy - 4 - rear, S[3]);
-        p.px(hx + 4, cy - 9 - rear, S[4]);
+        p.line(hipX, hipY, hx + 4, cy - 9 - rear, S[2]);
+        p.line(hipX, hipY - 1, hx + 4, cy - 10 - rear, S[3]);
+        p.line(hx + 4, cy - 9 - rear, hx + 9 + lunge, cy - 4 - rear, S[3]);
+        p.px(hx + 4, cy - 10 - rear, S[4]);
         p.px(hx + 10 + lunge, cy - 3 - rear, S[1]);
         continue;
       }
-      drawLeg(p, 22 + i * 0.5, cy + 2, dir, ph * legAmp, 2.5 * legAmp, true, isFront ? 1.15 : 1);
+      drawLeg(p, hipX + i * 0.3, hipY, NEAR_OFF[i], ph * legAmp, 2.5 * legAmp, true, KH[i]);
     }
   };
-  nearLegs(false);
   // Hinterleib: Chitinkugel mit Glanzpunkt
   const ay = cy - 2.5;
-  vol(p, ax, ay, 8, 6.5, RAMP);
+  vol(p, ax, ay, 7, 5.6, RAMP);
   if (p.fine) {
     // Handfein: Glanzkante oben links, harter Glanzpunkt mit weißem Kern
-    rimArc(p, ax, ay, 8, 6.5, 3.55, 4.35, GLINT, 0.86);
-    rimArc(p, ax, ay, 8, 6.5, 3.35, 4.6, S[4], 0.93);
+    rimArc(p, ax, ay, 7, 5.6, 3.55, 4.35, GLINT, 0.86);
+    rimArc(p, ax, ay, 7, 5.6, 3.35, 4.6, S[4], 0.93);
     p.rect(ax - 3.5, cy - 6, 1, 0.5, GLINT); p.dot(ax - 3.5, cy - 5.5, S[4]); p.dot(ax - 3, cy - 6, SHINE);
-    p.dot(ax - 2, cy - 6.5, S[4]); p.dot(ax - 4, cy - 5, S[4]);
+    p.dot(ax - 4, cy - 5, S[4]);
     // Segmentrillen: zweifarbig (Rille dunkel, Wulst davor hell)
-    for (const dx of [-4, 3]) {
-      for (let k = -2; k < 2; k += 0.5) {
+    for (const dx of [-4, 2.5]) {
+      for (let k = -1.5; k < 1.5; k += 0.5) {
         const xa = ax + dx + Math.abs(k) * 0.3 * Math.sign(dx), ya = ay + k * 1.6;
         const xb = ax + dx + Math.abs(k + 0.5) * 0.3 * Math.sign(dx), yb = ay + (k + 0.5) * 1.6;
         p.fline(xa, ya, xb, yb, S[1]);
@@ -227,47 +228,43 @@ function drawSpider(p, o = {}) {
     // Segmentringe (Querrillen)
     for (const dx of [-4, 3]) for (let k = -2; k <= 2; k++) p.px(ax + dx + Math.abs(k) * 0.3 * Math.sign(dx), cy - 2.5 + k * 1.6, S[1]);
   }
-  // Rote Sanduhr-Zeichnung (oben breit, schmale Taille, unten breit)
+  // Glutzeichnung: drei Winkel auf dem Rücken, nach hinten kleiner werdend (harte Kante, heller Kern vorn)
   if (p.fine) {
-    // fein: zwei Keile mit schmaler Taille, Lichtkante oben links, Schatten unten rechts
-    const x0 = ax - 1, x1 = ax + 3, mxw = ax + 1;
-    p.each(x0, cy - 5, x1, cy, (x, y) => {
-      const f = Math.abs(y - (cy - 2.75)) / 2.25, hw = 0.35 + f * 1.65;
-      if (y < cy - 5 || y > cy || Math.abs(x - mxw) > hw) return null;
-      const edgeR = x - mxw > hw - 0.5, edgeL = mxw - x > hw - 0.5;
-      if (y < cy - 4.5) return edgeR ? M[1] : '#e0504a';
-      if (y > cy - 0.5) return M[0];
-      return edgeR ? M[0] : edgeL && y < cy - 2.75 ? '#e0504a' : M[1];
-    });
-    p.dot(ax - 0.75, cy - 4.75, '#ff8a70');
-    p.dot(ax + 0.75, cy - 3.25, M[0]);
+    for (let i = 0; i < 3; i++) {
+      const vx = ax + 1.5 - i * 2.6, vy = ay - 2.5 + i * 0.25, w = 2.8 - i * 0.6;
+      for (let k = 0; k <= w * 2; k++) {
+        const d = k / 2;
+        p.dot(vx - d * 0.6, vy - 0.5 + d, M[i === 0 ? 1 : 0]);
+        p.dot(vx - d * 0.6, vy + 0.5 + d * 0.4 + 0.5, M[0]);
+        if (d < w - 0.4) p.dot(vx - d * 0.6 + 0.5, vy + d * 0.7, i === 0 && d < 1 ? M[2] : M[1]);
+      }
+    }
+    p.dot(ax + 2, ay - 2, M[2]);
   } else {
-    p.rect(ax - 1, cy - 5, 4, 1, M[1]); p.rect(ax, cy - 4, 2, 1, M[1]);
-    p.px(ax, cy - 3, M[0]); p.px(ax + 1, cy - 3, M[1]);
-    p.rect(ax, cy - 2, 2, 1, M[1]); p.rect(ax - 1, cy - 1, 4, 1, M[0]);
-    p.px(ax - 1, cy - 5, '#e0504a');
+    p.px(ax + 3, ay - 2, M[1]); p.px(ax + 2, ay - 1, M[1]); p.px(ax + 2, ay + 1, M[0]);
+    p.px(ax, ay - 1, M[0]); p.px(ax - 1, ay, M[0]);
   }
   // Borsten auf der Silhouette
   if (p.fine) {
     // fein: viele dünne Borsten rund um die Oberseite, nach hinten gekämmt, Spitze hell
     for (let i = 0; i < 13; i++) {
       const a = 2.75 + i * 0.25, l = i % 3 === 1 ? 1.5 : 1;
-      const x = ax + Math.cos(a) * 7.7, y = ay + Math.sin(a) * 6.2;
+      const x = ax + Math.cos(a) * 6.7, y = ay + Math.sin(a) * 5.3;
       const ox = Math.cos(a) * 0.6 - 0.45, oy = Math.sin(a) * 0.75 - 0.2;
       p.fline(x, y, x + ox * l, y + oy * l, i % 2 ? S[2] : S[3]);
       p.dot(x + ox * l, y + oy * l, i % 3 === 1 ? S[4] : S[3]);
     }
-    p.dot(ax - 8.25, cy - 1.5, S[2]); p.dot(ax - 8.25, cy - 1, S[1]); p.dot(ax - 8.25, cy - 0.5, S[0]);   // Spinnwarzen
+    p.dot(ax - 7.25, cy - 1.5, S[2]); p.dot(ax - 7.25, cy - 1, S[1]); p.dot(ax - 7.25, cy - 0.5, S[0]);   // Spinnwarzen
   } else {
     for (const [bx, by, l] of [[-7, -5, 1], [-5, -8, 1], [-2, -9, 1], [2, -8.5, 1], [5, -6.5, 1], [-8, -1, 1]]) {
       p.line(ax + bx, cy + by, ax + bx - l, cy + by - 1, S[3]);
     }
   }
-  p.px(ax + 7, cy - 1, S[1]); p.px(ax - 6, cy + 2, S[0]); // Spinnwarzen-Schatten
+  p.px(ax - 5, cy + 1, S[0]); // Spinnwarzen-Schatten
   // Taille
-  p.rect(ax + 7, cy - 1, 2, 2, S[1]);
-  if (p.fine) { p.dot(ax + 7.25, cy - 1, S[2]); p.dot(ax + 7.75, cy - 1, S[3]); p.dot(ax + 8.5, cy + 0.5, S[0]); }
-  nearLegs(true);
+  p.rect(ax + 6.5, cy - 1, 2.5, 2, S[1]);
+  if (p.fine) { p.dot(ax + 7, cy - 1, S[2]); p.dot(ax + 7.5, cy - 1, S[3]); p.dot(ax + 8.5, cy + 0.5, S[0]); }
+  nearLegs();
   // Kopfbruststück
   const hy = cy + 0.5 - rear * 0.5;
   vol(p, hx, hy, 4.8, 3.6, RAMP, 0.04);
@@ -288,16 +285,17 @@ function drawSpider(p, o = {}) {
   if (p.fine) {
     // fein: gerundeter dunkler Kranz, Hauptaugen rund (3×3 Feinpixel) mit Glanzpunkt und dunklem Unterrand,
     // Nebenaugen als glimmende Punkte mit hellem Kern
-    p.rect(hx + 1.5, ey - 2, 4, 3, VOID); p.rect(hx + 1, ey - 1.5, 5, 2, VOID);
+    p.rect(hx + 2, ey - 2, 4, 2.5, VOID); p.rect(hx + 1.5, ey - 1.5, 5, 1.5, VOID);
     const eye = (x, y) => {
       p.rect(x, y, 1.5, 1.5, ec);
       p.dot(x + 1, y + 1, hurt ? '#ffffff' : '#a01818'); p.dot(x + 0.5, y + 1, hurt ? '#ffffff' : '#d02a20');
       p.dot(x + 0.5, y, hurt ? '#ffffff' : E[1]); p.dot(x, y, hurt ? '#ffffff' : '#ffe8d0');
     };
-    eye(hx + 2.5, ey - 1.5); eye(hx + 4.5, ey - 1);
-    for (const [x, y] of [[hx + 1.5, ey - 1], [hx + 2.5, ey - 2], [hx + 4.5, ey - 2], [hx + 5.5, ey + 0.5]]) {
-      p.dot(x, y, M[1]); p.dot(x + 0.5, y, hurt ? '#ffffff' : '#ff6a50');
-    }
+    // Augenkranz: zwei Hauptaugen (2×2 Feinpixel) eng beieinander, dazu sechs glimmende Punktaugen
+    const small = (x, y) => { p.dot(x, y, hurt ? '#ffffff' : '#ff6a50'); };
+    const main = (x, y) => { p.rect(x, y, 1, 1, ec); p.dot(x, y, hurt ? '#ffffff' : '#ffe0c0'); p.dot(x + 0.5, y + 0.5, hurt ? '#ffffff' : '#a01818'); };
+    main(hx + 3.5, ey - 1); main(hx + 4.75, ey - 0.75);
+    for (const [x, y] of [[hx + 2, ey - 1], [hx + 2.5, ey - 2], [hx + 3.5, ey - 2], [hx + 4.75, ey - 1.75], [hx + 5.75, ey - 1], [hx + 5.75, ey + 0.25]]) small(x, y);
   } else {
     p.rect(hx + 1, ey - 2, 5, 3, VOID);
     p.rect(hx + 3, ey - 1, 2, 2, ec); p.px(hx + 3, ey - 1, hurt ? '#ffffff' : E[1]);   // Hauptaugen

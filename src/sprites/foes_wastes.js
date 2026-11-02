@@ -1268,9 +1268,10 @@ function serpentSpine(P, gy, AX) {
   // Schwanzspitze läuft nach hinten links aus. d = Tiefe (+1 vorn).
   for (let i = N; i >= 0; i--) {
     const v = i / N;
-    const th = v * Math.PI * 2.25 + P.coil;
+    // gut anderthalb Windungen: die innere Lage füllt die Mitte (vorher ein Ring mit Loch, las sich als Reifen)
+    const th = v * Math.PI * 3.1 + P.coil;
     const rip = Math.sin(P.wave + v * 9) * P.amp * 0.5;
-    let rx = 17 - v * 5 + rip, ry = 6 - v * 1.5;
+    let rx = 17 - v * 9 + rip, ry = 6 - v * 2.6;
     let x = cx + Math.cos(th) * rx, y = cy + Math.sin(th) * ry - v * 5;
     // Schwanzspitze: löst sich aus der Windung nach links
     if (v > 0.78) { const k = (v - 0.78) / 0.22; x -= k * k * 10; y += k * 3; }
