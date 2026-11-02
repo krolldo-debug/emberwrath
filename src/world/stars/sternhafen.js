@@ -120,10 +120,10 @@ export function buildSternhafen() {
 
   // ------------------------------------------------------------ Ankerplatz
   put(50, 43, 'o');                                    // Ankerbrunnen
-  put(40, 41, 'g');                                    // Sternentor (Glutöde)
+  put(40, 43, 'g');                                    // Sternentor (Glutöde)
   const waystone = { x: 60, y: 41 };
   put(60, 43, '5');
-  put(41, 44, '1'); put(50, 47, '2'); put(13, 35, '3'); put(50, 66, '4');
+  put(41, 46, '1'); put(50, 47, '2'); put(13, 35, '3'); put(50, 66, '4');
   const board = { x: 45, y: 38 };
   const vault = { x: 57, y: 38 };
   for (const [x, y] of [[44, 47], [56, 47]]) put(x, y, '$');
@@ -149,7 +149,7 @@ export function buildSternhafen() {
   put(90, 72, '<');
 
   // ------------------------------------------------------------ Figuren draußen
-  put(42, 43, ']');                                    // Hauptmann Halvard am Sternentor
+  put(43, 45, ']');                                    // Hauptmann Halvard am Sternentor
   put(53, 46, '/');                                    // Ausrufer Fenn
   put(45, 19, '{');                                    // Arenameisterin Sora vor der Burg
   put(86, 65, '}');                                    // Stallmeister Corvin
@@ -167,21 +167,21 @@ export function buildSternhafen() {
   // Möbel: a Tisch, b Bett, c Kamin, e Schrank, f Fässer, h Hocker, i Säcke, j Truhe, k Pflanze, l Theke, m Zapffässer,
   // n Amboss, p Esse, q Waffenständer, r Thron, s Banner, t Fernrohr, u Bücherregal, v Schreibpult, w Vitrine, x Rüstung
   room('thronsaal', 'Thronsaal', { x: 50, y: 16 }, 132, 2, 21, 12, 'B', [3, 17],
-    [[10, 3, 'r'], [7, 3, 's'], [13, 3, 's'], [2, 4, 'x'], [18, 4, 'x'], [1, 9, 'k'], [19, 9, 'k'], [10, 5, '6']], [9, 4, 3, 7]);
+    [[10, 3, 'r'], [7, 3, 's'], [13, 3, 's'], [2, 4, 'x'], [18, 4, 'x'], [1, 9, 'k'], [19, 9, 'k'], [4, 3, 'O'], [16, 3, 'O'], [4, 8, '!'], [16, 8, '!'], [5, 3, '`'], [15, 3, '`'], [10, 5, '6']], [9, 4, 3, 7]);
   room('gasthaus', 'Zum Fallenden Stern', doors.hInn, 132, 23, 19, 10, 'A', [3, 15],
-    [[6, 4, 'l'], [15, 3, 'm'], [11, 3, 'c'], [5, 8, 'a'], [13, 8, 'a'], [7, 6, 'h'], [17, 7, 'f'], [1, 8, 'i'], [3, 3, 'e'], [6, 3, '7']]);
+    [[6, 4, 'l'], [15, 3, 'm'], [11, 3, 'c'], [5, 8, 'a'], [13, 8, 'a'], [7, 6, 'h'], [17, 7, 'f'], [1, 8, 'i'], [3, 3, 'e'], [9, 3, '`'], [17, 3, ';'], [7, 8, 'h'], [11, 8, 'h'], [15, 8, 'h'], [6, 3, '7']], [8, 5, 6, 2]);
   room('bibliothek', 'Bibliothek', doors.hLibrary, 132, 44, 13, 10, 'C', [6],
-    [[1, 3, 'u'], [3, 3, 'u'], [9, 3, 'u'], [11, 3, 'u'], [6, 6, 'v'], [11, 8, 'k'], [1, 8, 'j'], [6, 5, ')']]);
+    [[1, 3, 'u'], [3, 3, 'u'], [9, 3, 'u'], [11, 3, 'u'], [6, 6, 'v'], [11, 8, 'k'], [1, 8, 'j'], [5, 3, '`'], [7, 3, '`'], [6, 5, ')']], [3, 5, 7, 3]);
   room('sternturm', 'Sternturm', { x: 5, y: 16 }, 132, 65, 11, 10, 'B', [5],
-    [[5, 4, 't'], [8, 3, 'u'], [2, 7, 'v'], [9, 8, 'j'], [1, 3, 'k'], [3, 6, '[']]);
+    [[5, 4, 't'], [8, 3, 'u'], [2, 7, 'v'], [9, 8, 'j'], [1, 3, 'k'], [3, 3, "'"], [3, 6, '[']], [3, 5, 5, 3]);
   room('schmiede', 'Schmiede', doors.hSmithy, 172, 2, 13, 10, 'A', [3, 9],
-    [[6, 3, 'p'], [6, 7, 'n'], [10, 3, 'q'], [2, 4, 'f'], [10, 8, 'i'], [1, 8, 'j'], [4, 7, '(']]);
+    [[6, 3, 'p'], [6, 7, 'n'], [10, 3, 'q'], [2, 4, 'f'], [10, 8, 'i'], [1, 8, 'j'], [3, 3, '@'], [4, 7, '(']]);
   room('kraemer', 'Krämerladen', doors.hShop, 172, 23, 13, 9, 'A', [6],
-    [[6, 4, 'l'], [2, 3, 'e'], [10, 3, 'e'], [11, 7, 'f'], [1, 7, 'i'], [8, 7, 'm'], [6, 3, '8']]);
+    [[6, 4, 'l'], [2, 3, 'e'], [10, 3, 'e'], [11, 7, 'f'], [1, 7, 'i'], [1, 5, 'm'], [4, 3, ';'], [8, 3, ';'], [6, 3, '8']], [4, 5, 5, 2]);
   room('juwelier', 'Juwelierstube', doors.hJewel, 172, 44, 11, 9, 'C', [5],
-    [[3, 5, 'w'], [7, 5, 'w'], [5, 3, 'e'], [9, 7, 'j'], [1, 7, 'k'], [5, 4, '9']]);
+    [[3, 5, 'w'], [7, 5, 'w'], [5, 3, 'e'], [9, 7, 'j'], [1, 7, 'k'], [2, 3, '>'], [8, 3, '`'], [5, 4, '9']], [3, 6, 5, 1]);
   room('ruestkammer', 'Rüstkammer', doors.hArmory, 172, 65, 13, 9, 'B', [6],
-    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [6, 5, '0']]);
+    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [9, 3, '`'], [2, 6, 'a'], [3, 6, 'h'], [10, 6, 'f'], [6, 5, '0']]);
 
   const decor = {
     V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'starGate', d: 'airships',
@@ -189,7 +189,10 @@ export function buildSternhafen() {
     m: 'fKegs', n: 'fAnvil', p: 'fForge', q: 'fRack', r: 'fThrone', s: 'fBanner', t: 'fTelescope', u: 'fBooks', v: 'fDesk', w: 'fCase', x: 'fArmor',
     y: 'planters', '!': 'bench', '%': 'lamp', '&': 'crates', $: 'marketStall', '*': 'farmCart', '^': 'woodpile', '?': 'signpost', '<': 'haystack',
     '-': 'paddockH', '|': 'paddockV',
+    // Wandschmuck (begehbar, hängt an der Rückwand)
+    '@': 'wShield', ';': 'wShelf', '>': 'wPicture', "'": 'wStarmap', '`': 'wSconce', O: 'wTapestry',
   };
+  const WALLDECO = '@;>\'`O';
   GEN.forEach((g, i) => { decor[g.ch] = 'fw' + i; });
   for (const [k, ch] of Object.entries(SP)) decor[ch] = k;
 
@@ -205,7 +208,7 @@ export function buildSternhafen() {
     paintedCliffs: true,
     ramparts: { floors, rooms, dark, roofs, quays: true, stone: 'rubble' },
     interiors,
-    solid: Object.keys(decor).join(''),
+    solid: Object.keys(decor).filter((c) => !WALLDECO.includes(c)).join(''),
     decor,
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_splitterweiten', 5: 'waystone' },
     waystone,
@@ -230,7 +233,7 @@ export function buildSternhafen() {
       { id: 'anchor_stone', kind: 'shrine', over: true, name: 'Ankerstein', prompt: 'Den Ankerstein berühren', x: 50, y: 44 },
     ],
     portals: [
-      { id: 'to_ember_wastes', x: 40, y: 38.6, range: 26,
+      { id: 'to_ember_wastes', x: 40, y: 40.6, range: 26,
         to: { zoneId: 'ember_wastes', spawnId: 'from_sternhafen' }, prompt: 'Durch das Sternentor zurück in die Glutöde' },
       { id: 'to_gardens', x: 0.6, y: 35, range: 26, visual: 'road', dir: [-1, 0],
         to: { zoneId: 'drifting_gardens', spawnId: 'from_sternhafen' }, prompt: 'Über die Lichtbrücke in die Treibenden Gärten' },

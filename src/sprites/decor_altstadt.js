@@ -917,6 +917,7 @@ export function createAltstadtDecor() {
     fBanner: bannerStand(), fTelescope: telescope(), fBooks: bookshelf(), fDesk: desk(), fCase: displayCase(), fArmor: armorStand(),
     planters: [planter(1), planter(2)], bench: bench(),
     portalA: portalA(), portalB: portalB(), portalC: portalC(),
+    wShield: wallShield(), wShelf: [wallShelf(1), wallShelf(2)], wPicture: wallPicture(0), wStarmap: wallPicture(1), wSconce: sconce(), wTapestry: [wallTapestry(0), wallTapestry(1)],
   };
   FW.forEach((o, i) => { D['fw' + i] = fwHouse(o); });
   for (const [k, o] of Object.entries(SPECIAL)) D[k] = fwHouse(o);
@@ -1060,4 +1061,64 @@ export function portalC() {
       g.each(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => (Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 < 0.9 ? '#ff9a40' : null));
     }
   }, { ax: cx, ay: bot, b: true, box: [-48, -10, 48, 1], light: { dx: 0, dy: -30, radius: 80, color: [255, 140, 70], intensity: 0.65 } });
+}
+
+// ------------------------------------------------------------------ Wandschmuck für Innenräume
+// Stehen auf der vordersten Bodenreihe vor der Rückwand und hängen optisch an der Wand: kein Kasten, begehbar, sortiert
+// hinter allem in derselben Reihe.
+const WALL = { sortOffset: -40, low: true };
+function wallItem(W, draw, light = null) { return mk(W, 48, draw, { ax: Math.floor(W / 2), ay: 47, b: true, light, extra: WALL }); }
+export function wallShield() {
+  return wallItem(28, (p) => {
+    for (const s of [-1, 1]) for (let t = 0; t < 22; t += 0.5) { const x = 14 + s * (t - 11) * 0.9, y = 8 + t; p.scan(x - 0.8, y - 0.6, x + 0.8, y + 0.6, () => (t < 4 ? col32('#8a5a36') : IRON.c[t < 6 ? 2 : s < 0 ? 6 : 5])); }
+    p.scan(7, 9, 21, 27, (x, y) => (Math.abs(x - 14) > 7 - Math.max(0, y - 19) * 0.85 ? 0 : x < 7.6 || y < 9.6 ? col32('#e0c070') : Math.abs(x - 14) < 1 ? col32('#e0c070') : col32(x < 14 ? '#2a3a6a' : '#1c2a50')));
+  });
+}
+export function wallShelf(seed = 1) {
+  return wallItem(30, (p) => {
+    for (const sy of [14, 26]) {
+      p.scan(2, sy, 28, sy + 2, (x, y) => OAK.c[y < sy + 1 ? 6 : 2]);
+      for (let k = 0, x = 4; x < 26; k++) {
+        const t = hash2(k, sy, seed), w = t < 0.5 ? 2 : 4, h = 5 + Math.floor(hash2(k, sy + 1, seed) * 4);
+        const C = t < 0.5 ? ['#7a2a22', '#2a4a6a', '#3a5a2a', '#8a6a2a'][k % 4] : ['#c8b890', '#6a8aa0', '#a06a4a'][k % 3];
+        p.scan(x, sy - h, x + w, sy, (xx, yy) => (t >= 0.5 && yy < sy - h + 1.5 && Math.abs(xx - x - w / 2) > 0.8 ? 0 : col32(C)));
+        x += w + (hash2(k, 9, seed) < 0.3 ? 2 : 1);
+      }
+    }
+    for (const bx of [4, 25]) p.scan(bx, 14, bx + 1, 30, () => IRON.c[2]);
+  });
+}
+export function wallPicture(kind = 0) {
+  return wallItem(30, (p) => {
+    p.scan(3, 8, 27, 28, (x, y) => {
+      if (x < 4 || x > 26 || y < 9 || y > 27) return col32(x < 5 || y < 10 ? '#e0c070' : '#a87830');
+      if (kind === 1) { // Sternkarte
+        if (hash2(Math.floor(x), Math.floor(y), 77) < 0.05) return col32('#f0e8c0');
+        return Math.abs(Math.hypot(x - 15, y - 18) - 6) < 0.5 ? col32('#c49a4a') : col32('#1a2040');
+      }
+      const hz = 20 + Math.sin(x * 0.5) * 1.5;   // Landschaft mit Burg
+      if (y < hz) return Math.abs(x - 18) < 2.5 && y > 13 ? col32('#6a6a78') : col32(y < 14 ? '#e8a868' : '#c87850');
+      return col32(y < 24 ? '#3a5a2a' : '#2a4020');
+    });
+  });
+}
+export function sconce() {
+  return wallItem(14, (p, g) => {
+    p.scan(5, 20, 9, 30, (x, y) => (y > 28 ? IRON.c[2] : IRON.c[x < 7 ? 4 : 2]));
+    p.scan(6, 13, 8, 20, (x) => col32(x < 7 ? '#f0e8d0' : '#c8bca0'));
+    p.scan(6.4, 9, 7.6, 13, (x, y) => (y < 10.5 ? col32('#fff0c0') : col32('#f6a040')));
+    g.each(5, 8, 9, 13, () => '#ffb050');
+  }, { dx: 0, dy: -30, radius: 48, color: [255, 190, 120], intensity: 0.5 });
+}
+export function wallTapestry(seed = 0) {
+  return wallItem(26, (p) => {
+    p.scan(2, 4, 24, 6, () => OAK.c[4]);
+    p.scan(4, 6, 22, 32, (x, y) => {
+      if (y > 30 && Math.floor(x) % 3 === 0) return 0;
+      const base = seed % 2 ? ['#2a3a6a', '#1c2a50'] : ['#6e2228', '#4a1820'];
+      if (x < 5 || x > 21) return col32('#c49a4a');
+      if (Math.abs(x - 13) + Math.abs(y - 17) < 5 && Math.abs(x - 13) + Math.abs(y - 17) > 3) return col32('#e0c070');
+      return col32(x < 13 ? base[0] : base[1]);
+    });
+  });
 }
