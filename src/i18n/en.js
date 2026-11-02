@@ -6083,6 +6083,7 @@ export const EN = {
   "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "You are rested: enemies give double experience.",
   "Dein Ruhebonus ist aufgebraucht.": "Your rested bonus is used up.",
   "Stufe {0} · {1} / {2} EP · ausgeruht": "Level {0} · {1} / {2} XP · rested",
+  "Eintreten: {0}": "Enter: {0}",
   "Thronsaal": "Throne Hall",
   "Zum Fallenden Stern": "The Falling Star",
   "Bibliothek": "Library",

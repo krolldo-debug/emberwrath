@@ -6083,6 +6083,7 @@ export const ES = {
   "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "Estás descansado: los enemigos dan el doble de experiencia.",
   "Dein Ruhebonus ist aufgebraucht.": "Tu bonificación de descanso se ha agotado.",
   "Stufe {0} · {1} / {2} EP · ausgeruht": "Nivel {0} · {1} / {2} EXP · descansado",
+  "Eintreten: {0}": "Entrar: {0}",
   "Thronsaal": "Salón del trono",
   "Zum Fallenden Stern": "La Estrella Fugaz",
   "Bibliothek": "Biblioteca",

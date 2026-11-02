@@ -6083,6 +6083,7 @@ export const FR = {
   "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "Tu es reposé : les ennemis donnent le double d'expérience.",
   "Dein Ruhebonus ist aufgebraucht.": "Ton bonus de repos est épuisé.",
   "Stufe {0} · {1} / {2} EP · ausgeruht": "Niveau {0} · {1} / {2} XP · reposé",
+  "Eintreten: {0}": "Entrer : {0}",
   "Thronsaal": "Salle du trône",
   "Zum Fallenden Stern": "À l'Étoile Filante",
   "Bibliothek": "Bibliothèque",
