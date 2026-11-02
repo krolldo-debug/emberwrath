@@ -1,6 +1,7 @@
 // Sternenscherben Teil 1 (Stufe 40–50): Gegner der Treibenden Gärten, der Splitterweiten und ihrer Dungeons.
 // Abgeleitet wie Runde 3 (enemyTypes3.js derive: Verhalten und Maße vom Vorbild, Leben/Schaden auf die Stufe
-// skaliert). Figuren: umgefärbte Sätze der Vorbilder (recolor, sprites/recolor.js), bis eigene Figuren kommen.
+// skaliert). Figuren: umgefärbte Sätze der Vorbilder (recolor, sprites/recolor.js); die häufigsten mit Leerenbefall
+// (recolor.infest) bzw. eigener Figur (Blütenpirscher, sprites/foes_stars.js).
 import { derive } from './enemyTypes3.js';
 
 // Farbrampen der Umfärbung (dunkel → hell); accent färbt kräftige Farben (Augen, Glut) in eine eigene Rampe
@@ -12,6 +13,12 @@ const PEARL = ['#1c1a2c', '#2a2840', '#4a4466', '#7c769c', '#9c97ba', '#c2bed8',
 const MOTH = ['#1a1630', '#2c2650', '#4a4078', '#6e64a4', '#9c94cc', '#cdc8ec', '#ffffff'];
 const GLASS = ['#0a1c2a', '#123248', '#1e5274', '#3a84a8', '#6cbcd8', '#b0e8f4', '#f4feff'];
 const SAND = ['#1e1a24', '#342c3a', '#4e4252', '#6e5e6a', '#94807e', '#bea89a', '#e8d8c4'];
+// Stil B „Leerenbefall“ (02.11., Nutzerwahl): helle, ausgeblichene Körper, aus denen violette Leerenkristalle
+// brechen; magentafarbene Risse und Augen (sprites/recolor.js infestFrame). Bleiche Rampen je Gegner:
+const MOSS_PALE = ['#1a1c22', '#2c3236', '#46524e', '#66746a', '#8a9a88', '#b4c0aa', '#dae0cc', '#f4f6ea'];
+const GLASS_PALE = ['#1a1a2c', '#2c2c44', '#4a4a66', '#6e6e8e', '#9696b4', '#bcbcd6', '#e0e0f0', '#fafaff'];
+const MOTH_PALE = ['#201a2a', '#3a2e44', '#5e4c68', '#86708e', '#ae98b4', '#d2c0d6', '#eee2f0', '#fffaff'];
+const CHITIN_PALE = ['#16121e', '#2a2232', '#463a4e', '#6a5a6e', '#90808e', '#b8a8b0', '#ddd0d0', '#f8f0ea'];
 const CYAN = { ramp: ['#1c6c8c', '#3ab4d8', '#9cf0ff', '#ffffff'] };
 const MAGENTA = { ramp: ['#7a2a8a', '#c25ad8', '#f0a8ff', '#ffffff'] };
 const GOLDEN = { ramp: ['#8a5a1a', '#d8a440', '#f6d888', '#ffffff'] };
@@ -31,21 +38,21 @@ export function createStarEnemies(T) {
     bloom_stalker: d('frost_wolf', 'bloom_stalker', 'Blütenpirscher', [40, 43], { family: 'beast', howl: true, recolor: { ramp: PINK_FUR, accent: CYAN } }),
     void_wisp: d('phase_wraith', 'void_wisp', 'Leerenirrlicht', [41, 43], { family: 'undead', spawnStyle: 'fade', hp: 0.85, recolor: { ramp: VOID, accent: MAGENTA } }),
     rootbound: d('fungal_brute', 'rootbound', 'Wurzelgebundener', [41, 44], { family: 'plant', material: 'wood', recolor: { ramp: BARK, accent: MAGENTA } }),
-    vine_horror: d('plague_toad', 'vine_horror', 'Rankenschrecken', [41, 44], { family: 'plant', recolor: { ramp: THORN, accent: MAGENTA } }),
+    vine_horror: d('plague_toad', 'vine_horror', 'Rankenschrecken', [41, 44], { family: 'plant', recolor: { ramp: MOSS_PALE, accent: MAGENTA, gamma: 0.6, infest: { span: [0.08, 0.7], at: [[0.15, 4, 1.4, 0.5], [0.45, 7, 2, 0.25], [0.75, 5, 1.6, 0.1]], veins: [[0.2, 0.5, 0.45, 0.35], [0.5, 0.45, 0.7, 0.6]] } } }),
     garden_golem: d('cinder_knight', 'garden_golem', 'Gartenwächter', [42, 44], { family: 'construct', material: 'stone', recolor: { ramp: PEARL, accent: CYAN, gamma: 0.6 } }),
-    star_moth: d('ash_vulture', 'star_moth', 'Sternfalter', [43, 45], { family: 'beast', recolor: { ramp: MOTH, accent: CYAN } }),
+    star_moth: d('ash_vulture', 'star_moth', 'Sternfalter', [43, 45], { family: 'beast', recolor: { ramp: MOTH_PALE, accent: MAGENTA, gamma: 0.75, infest: { span: [0.35, 0.65], at: [[0.3, 3, 1, 0.4], [0.7, 4, 1.2, -0.2]], veins: [[0.1, 0.4, 0.35, 0.6], [0.65, 0.6, 0.9, 0.4]] } } }),
     withered_warden: d('waste_colossus', 'withered_warden', 'Der Verdorrte Hüter', 44, { family: 'plant', material: 'wood', recolor: { ramp: BARK, accent: MAGENTA } }),
     // --- Rankengruft (42–44)
     thorn_priest: d('rime_witch', 'thorn_priest', 'Dornenpriesterin', [42, 44], { family: 'plant', recolor: { ramp: THORN, accent: MAGENTA } }),
     // --- Splitterweiten (45–50)
-    shard_crawler: d('crystal_spider', 'shard_crawler', 'Splitterkrabbler', [45, 48], { family: 'spider', material: 'chitin', recolor: { ramp: GLASS, accent: MAGENTA } }),
+    shard_crawler: d('crystal_spider', 'shard_crawler', 'Splitterkrabbler', [45, 48], { family: 'spider', material: 'chitin', recolor: { ramp: CHITIN_PALE, accent: MAGENTA, gamma: 0.55, infest: { span: [0.2, 0.75], at: [[0.5, 8, 2.2, 0.2]], veins: [[0.25, 0.4, 0.6, 0.55]] } } }),
     mad_prospector: d('steppe_raider', 'mad_prospector', 'Wahnsinniger Schürfer', [45, 48], { family: 'human', recolor: { ramp: SAND, accent: CYAN } }),
-    glass_sentinel: d('frozen_knight', 'glass_sentinel', 'Glaswächter', [46, 49], { family: 'construct', material: 'stone', recolor: { ramp: GLASS, accent: GOLDEN, gamma: 0.75 } }),
+    glass_sentinel: d('frozen_knight', 'glass_sentinel', 'Glaswächter', [46, 49], { family: 'construct', material: 'stone', recolor: { ramp: GLASS_PALE, accent: MAGENTA, gamma: 0.8, infest: { ceil: 36, span: [0.1, 0.6], at: [[0.1, 6, 1.8, 0.5], [0.35, 8, 2, 0.35], [0.6, 4, 1.3, 0.2]], veins: [[0.3, 0.6, 0.55, 0.9], [0.45, 0.3, 0.6, 0.5]] } } }),
     prism_elemental: d('ice_elemental', 'prism_elemental', 'Prismengeist', [46, 49], { family: 'construct', material: 'stone', recolor: { ramp: GLASS, accent: MAGENTA } }),
     void_hound: d('ember_hellhound', 'void_hound', 'Leerenhund', [47, 50], { family: 'demon', recolor: { ramp: VOID, accent: MAGENTA } }),
     splinter_colossus: d('waste_colossus', 'splinter_colossus', 'Der Splitterkoloss', 49, { family: 'construct', material: 'stone', recolor: { ramp: GLASS, accent: MAGENTA } }),
     // --- Gläserne Hallen (46–48) und Sternwarte (49–50)
-    statue_wraith: d('ash_wraith', 'statue_wraith', 'Gläserner Gefangener', [46, 48], { family: 'undead', spawnStyle: 'rise', recolor: { ramp: GLASS, accent: CYAN } }),
+    statue_wraith: d('ash_wraith', 'statue_wraith', 'Gläserner Gefangener', [46, 48], { family: 'undead', spawnStyle: 'rise', recolor: { ramp: GLASS_PALE, accent: MAGENTA, gamma: 0.55, infest: { span: [0.15, 0.85], at: [[0.1, 5, 1.5, 0.6], [0.9, 4, 1.3, -0.6]], veins: [[0.35, 0.5, 0.5, 0.9], [0.55, 0.4, 0.65, 0.8]] } } }),
     shadow_ranger: d('raider_archer', 'shadow_ranger', 'Schattenelfen-Späherin', [49, 50], { family: 'human', recolor: { ramp: VOID, accent: CYAN } }),
     star_seer: d('ash_priest', 'star_seer', 'Sternseherin', [49, 50], { family: 'human', recolor: { ramp: MOTH, accent: GOLDEN } }),
     // --- Bosse
