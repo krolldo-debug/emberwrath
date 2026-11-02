@@ -36,6 +36,7 @@ import { takePrebuilt } from './warmup.js';
 import { SpriteWarmer } from './spriteWarm.js';
 import { updateBossFury } from './bossFury.js';
 import { rand, pick } from '../core/math.js';
+import { roomAt } from './interiors.js';
 
 const T = CONFIG.tileSize;
 
@@ -146,7 +147,8 @@ export class World {
     const home = d.spawns.start ?? d.heroStart ?? fallback;
     const p = d.nearestFree(pos.x, pos.y);
     const free = !d.collidesRect(p.x - 5, p.y - 5, p.x + 5, p.y + 2.5);
-    if (free && (!home || d.reachable(p.x, p.y, home.x, home.y))) return p;
+    // In einem Haus (level.interiors) ist der Raum nur über die Tür verbunden: dort bleiben
+    if (free && (!home || roomAt(this, p.x, p.y) || d.reachable(p.x, p.y, home.x, home.y))) return p;
     const stone = d.spawns.waystone;
     const back = stone && (!home || d.reachable(stone.x, stone.y, home.x, home.y)) ? stone : fallback;
     console.warn(`Gespeicherte Position (${Math.round(pos.x)}, ${Math.round(pos.y)}) in ${this.zone.id} nicht erreichbar, Held an ${stone && back === stone ? 'den Wegstein' : 'den Startpunkt'} gesetzt`);
