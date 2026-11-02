@@ -8,13 +8,16 @@ import { hash2 } from '../../core/math.js';
 // Figuren davor verdecken die Wand, Figuren dahinter stehen ganz darüber – keine Sortierfehler.
 // level.ramparts (Kacheln): stairs [[x, y, w, h]] begehbare Treppen nach Norden hinauf,
 //   floors [{ r: [x, y, w, h], k: 'flag' | 'walk' | 'herring' | 'rose' }] Beläge auf Pflaster/Sand (Gras bleibt),
-//   quays: true = Steineinfassung an Wasserbecken ('~').
+//   quays: true = Steineinfassung an Wasserbecken ('~'), stone: 'rubble' = grauer Bruchstein statt Sternkalk.
 // Licht von oben links: Wandflächen im Halbschatten, Kronen und Gesimse hell, Schlagschatten unter und rechts
 // der Mauern (nur abdunkeln, damit die Ebene im Feinraster affin bleibt). Deterministisch aus Weltkoordinaten.
 
 const rgb = (h) => (parseInt(h.slice(1), 16));
 // Sternkalk: heller, warmer Kalkstein im Morgenlicht (hebt sich vom kühlen Pflaster ab): 0 dunkel … 8 hell
-const ST = ['#221a28', '#33283a', '#4a3a4e', '#625064', '#7e687a', '#9c8692', '#baa4aa', '#d6c2c2', '#f0e2da'].map(rgb);
+const ST_KALK = ['#221a28', '#33283a', '#4a3a4e', '#625064', '#7e687a', '#9c8692', '#baa4aa', '#d6c2c2', '#f0e2da'].map(rgb);
+// Grauer Bruchstein der Fachwerk-Altstadt (level.ramparts.stone = 'rubble'); ST ist die Palette der gerade gemalten Karte
+const ST_RUB = ['#16131a', '#1e1a1e', '#2e292c', '#423b3c', '#58504e', '#706662', '#8a7e76', '#a69a8e', '#c0b4a6'].map(rgb);
+let ST = ST_KALK;
 const MOSS = ['#22362e', '#34503c', '#4c6c4a', '#6e8e5a'].map(rgb);
 const IVY = ['#1c3026', '#2c4a32', '#44683e', '#668e4c', '#8eb262'].map(rgb);
 const GOLD = ['#5a3a14', '#9a6a24', '#d8a440', '#f6d888'].map(rgb);
@@ -79,7 +82,7 @@ function prep(map) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (x + dx >= 0 && y + dy >= 0 && x + dx < w && y + dy < h) n += soil(rows[y + dy][x + dx]);
     pave[y * w + x] = n >= 0 ? 1 : 0;
   }
-  R = { w, h, rows, wall, top, bot, water, need, pave, stairs, floors, rooms, darks, roofs, quays: !!cfg.quays };
+  R = { w, h, rows, wall, top, bot, water, need, pave, stairs, floors, rooms, darks, roofs, quays: !!cfg.quays, stone: cfg.stone === 'rubble' ? ST_RUB : ST_KALK };
   PREP.set(map, R);
   return R;
 }
@@ -495,6 +498,7 @@ export function* paintRamparts(ctx, x0, y0, cw, ch, map) {
   const img = ctx.getImageData(0, 0, cw, ch), d = img.data;
   for (let ly = 0; ly < ch; ly++) {
     const py = y0 + ly, ty = py >> 4;
+    ST = R.stone;                                     // je Zeile neu (Chunks verschiedener Karten wechseln sich ab)
     if (ty < 0 || ty >= h) continue;
     for (let lx = 0; lx < cw; lx++) {
       const px = x0 + lx, tx = px >> 4;

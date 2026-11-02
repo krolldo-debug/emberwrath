@@ -200,7 +200,7 @@ export function buildSternhafen() {
     map: m.rows(),
     bridges: m.bridges ?? [],
     paintedCliffs: true,
-    ramparts: { floors, rooms, dark, roofs, quays: true },
+    ramparts: { floors, rooms, dark, roofs, quays: true, stone: 'rubble' },
     interiors,
     solid: Object.keys(decor).join(''),
     decor,
