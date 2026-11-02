@@ -44,6 +44,7 @@ import { createMarshDecor } from '../sprites/decor_marsh.js';
 import { createFrostDecor } from '../sprites/decor_frost.js';
 import { createWastesDecor } from '../sprites/decor_wastes.js';
 import { createAstralDecor } from '../sprites/decor_astral.js';
+import { createAltstadtDecor } from '../sprites/decor_altstadt.js';
 import { createShardSet } from '../sprites/decor_shards.js';
 import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
@@ -146,6 +147,17 @@ export function installWorld(game) {
   lazyAsset(assets, 'decor_frost', createFrostDecor);
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
   lazyAsset(assets, 'decor_astral', createAstralDecor);
+  // Sternhafen (Fachwerk-Altstadt): eigene Häuser, Burg und Möbel, dazu Sternbauten (Tor, Brunnen, Luftschiff, Bank)
+  // und Dorfdeko (Laternen, Stände, Kisten, Karren) aus den vorhandenen Sätzen
+  lazyAsset(assets, 'decor_altstadt', () => {
+    const S = assets.sprites.decor_astral, V = assets.sprites.village;
+    const pickKeys = (src, keys) => Object.fromEntries(keys.filter((k) => k in src).map((k) => [k, src[k]]));
+    return {
+      ...pickKeys(S, ['anchorWell', 'starGate', 'airships', 'starVault', 'paddockH', 'paddockV']),
+      ...pickKeys(V, ['lamp', 'crates', 'marketStall', 'farmCart', 'woodpile', 'signpost', 'haystack']),
+      ...createAltstadtDecor(),
+    };
+  });
   lazyAsset(assets, 'decor_shards', createShardSet);
   lazyAsset(assets, 'biome_barrow', () => createBiomesBarrowSpore('barrow'));
   lazyAsset(assets, 'biome_spore', () => createBiomesBarrowSpore('spore'));

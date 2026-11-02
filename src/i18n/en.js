@@ -6082,5 +6082,11 @@ export const EN = {
   "Als Nächstes auf Stufe {0}: eigenes Reittier": "Next at level {0}: your own mount",
   "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "You are rested: enemies give double experience.",
   "Dein Ruhebonus ist aufgebraucht.": "Your rested bonus is used up.",
-  "Stufe {0} · {1} / {2} EP · ausgeruht": "Level {0} · {1} / {2} XP · rested"
+  "Stufe {0} · {1} / {2} EP · ausgeruht": "Level {0} · {1} / {2} XP · rested",
+  "Thronsaal": "Throne Hall",
+  "Zum Fallenden Stern": "The Falling Star",
+  "Bibliothek": "Library",
+  "Krämerladen": "General Store",
+  "Juwelierstube": "Jeweler's Parlor",
+  "Rüstkammer": "Armory"
 };

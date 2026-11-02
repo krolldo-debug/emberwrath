@@ -6082,5 +6082,11 @@ export const ES = {
   "Als Nächstes auf Stufe {0}: eigenes Reittier": "Próximamente en el nivel {0}: tu propia montura",
   "Du bist ausgeruht: Gegner geben doppelte Erfahrung.": "Estás descansado: los enemigos dan el doble de experiencia.",
   "Dein Ruhebonus ist aufgebraucht.": "Tu bonificación de descanso se ha agotado.",
-  "Stufe {0} · {1} / {2} EP · ausgeruht": "Nivel {0} · {1} / {2} EXP · descansado"
+  "Stufe {0} · {1} / {2} EP · ausgeruht": "Nivel {0} · {1} / {2} EXP · descansado",
+  "Thronsaal": "Salón del trono",
+  "Zum Fallenden Stern": "La Estrella Fugaz",
+  "Bibliothek": "Biblioteca",
+  "Krämerladen": "Tienda de abastos",
+  "Juwelierstube": "Joyería",
+  "Rüstkammer": "Armería"
 };
