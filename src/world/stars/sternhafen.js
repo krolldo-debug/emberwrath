@@ -29,7 +29,8 @@ export function buildSternhafen() {
   const m = skyMap(W, H0);
   const put = (x, y, ch) => m.set(x, y, ch);
   const floors = [], rooms = [], dark = [], roofs = [], interiors = [];
-  const lane = (x, y, w, h, k = 'cobble') => { m.rect(x, y, w, h, ':'); floors.push({ r: [x, y, w, h], k }); };
+  // Gassen: Weg mit Grasrand (earth/gravel/worn, pw = Wegbreite in Kacheln), Pflaster nur am Ankerplatz und unter Toren
+  const lane = (x, y, w, h, k = 'cobble', pw) => { m.rect(x, y, w, h, ':'); floors.push({ r: [x, y, w, h], k, pw }); };
   const block = (x, y, w, h) => { m.rect(x, y, w, h, '#'); roofs.push([x, y, w, h]); };
 
   // ------------------------------------------------------------ Inseln
@@ -49,20 +50,22 @@ export function buildSternhafen() {
   roofs.push([12, 16, 85, 1], [12, 33, 85, 1], [12, 49, 85, 1], [12, 63, 85, 1]);
   m.rect(39, 13, 23, 4, ',');                          // Burggrund (unzugänglich, die Burg steht darauf)
   m.rect(81, 16, 7, 1, '#'); m.rect(87, 16, 1, 1, '#');
-  lane(12, 17, 85, 4);                                 // Burggasse
-  lane(12, 34, 85, 3);                                 // Mittelgasse
+  lane(12, 17, 85, 4, 'gravel', 2.4);                  // Burggasse (Kies zur Burg)
+  lane(12, 34, 85, 3, 'earth', 1.7);                   // Mittelgasse
   lane(38, 37, 25, 13);                                // Ankerplatz
-  lane(12, 50, 85, 3);                                 // Schmiedegasse
-  lane(12, 64, 85, 3);                                 // Torplatz
-  for (const [x, w] of [[22, 2], [48, 5], [77, 2]]) { lane(x, 21, w, 12); lane(x, 53, w, 10); }   // Durchgänge
-  for (const [x, w] of [[22, 2], [77, 2]]) lane(x, 37, w, 12);
+  lane(12, 50, 85, 3, 'earth', 2.1);                   // Schmiedegasse
+  lane(12, 64, 85, 3, 'worn', 2.3);                    // Torplatz (altes Pflaster)
+  // Durchgänge: Weg über die ganze Breite, je eine Kachel in die Gassen hinein (liegt über deren Grasrand)
+  const pass = (x, y, w, h, k) => { m.rect(x, y, w, h, ':'); floors.push({ r: [x, y - 1, w, h + 2], k, pw: w }); };
+  for (const [x, w] of [[22, 2], [48, 5], [77, 2]]) { pass(x, 21, w, 12, w > 2 ? 'gravel' : 'earth'); pass(x, 53, w, 10, w > 2 ? 'worn' : 'earth'); }
+  for (const [x, w] of [[22, 2], [77, 2]]) pass(x, 37, w, 12, 'earth');
   for (const x of [22, 23, 48, 49, 50, 51, 52, 77, 78]) { put(x, 33, ':'); put(x, 63, ':'); }
   for (const x of [22, 23, 77, 78]) put(x, 49, ':');
-  lane(83, 8, 3, 8); put(83, 16, ':'); put(84, 16, ':'); put(85, 16, ':');   // hinter dem Siegeltor
+  lane(83, 8, 3, 8, 'gravel', 2); put(83, 16, ':'); put(84, 16, ':'); put(85, 16, ':');   // hinter dem Siegeltor
   // Stadtmauer: Ost- und Westmauer von oben (Krone mit Zinnen), Südmauer mit Außenseite; Durchlässe für Brücken,
   // Südtor, Luftschiffsteg und Koppel
   m.rect(10, 5, 2, 64, '#'); m.rect(97, 5, 2, 64, '#'); m.rect(10, 67, 89, 2, '#');
-  lane(10, 34, 2, 3); lane(10, 17, 2, 3); lane(48, 67, 4, 2); lane(26, 67, 2, 2); lane(85, 67, 2, 2);
+  lane(10, 34, 2, 3, 'earth', 1.7); lane(10, 17, 2, 3, 'gravel', 2.4); lane(48, 67, 4, 2); lane(26, 67, 2, 2, 'earth', 2); lane(85, 67, 2, 2, 'earth', 2);
 
   // ------------------------------------------------------------ Brücken und Steg
   bridge(m, [[0, 35], [10, 35]], 3, 'light');         // Lichtbrücke aus den Gärten
@@ -78,7 +81,7 @@ export function buildSternhafen() {
   const doors = {};
   const place = (ch, o, s, y, jog = false) => {
     const tx = houseAnchor(o, s), n = o.w / 16;
-    if (jog) { for (let x = s; x < s + n; x++) put(x, y, ':'); put(tx, y - 1, ch); } else put(tx, y, ch);
+    if (jog) { for (let x = s; x < s + n; x++) put(x, y, ':'); floors.push({ r: [s, y, n, 1], k: 'cobble' }); put(tx, y - 1, ch); } else put(tx, y, ch);
     return { x: houseDoor(o, s), y: jog ? y - 1 : y };
   };
   const fill = (y, x0, x1) => {
