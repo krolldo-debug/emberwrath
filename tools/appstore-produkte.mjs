@@ -185,6 +185,8 @@ for (const p of PRODUCTS) {
   await step('Bildschirmfoto', async () => {
     const shot = await api(`/v2/inAppPurchases/${id}/appStoreReviewScreenshot`, { ok404: true });
     if (shot?.data?.attributes?.assetDeliveryState?.state === 'COMPLETE') { console.log('  · Bildschirmfoto schon da'); return; }
+    // Angefangen, aber nicht fertig hochgeladen (abgebrochener Lauf): entfernen und neu hochladen.
+    if (shot?.data?.id) await api(`/v1/inAppPurchaseAppStoreReviewScreenshots/${shot.data.id}`, { method: 'DELETE' });
     const file = readFileSync(SHOTS[p.kind]);
     const res = (await api('/v1/inAppPurchaseAppStoreReviewScreenshots', { method: 'POST', body: { data: {
       type: 'inAppPurchaseAppStoreReviewScreenshots', attributes: { fileName: `iap-${p.kind}.png`, fileSize: file.length },
