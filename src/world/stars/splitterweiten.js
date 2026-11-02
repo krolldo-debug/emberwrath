@@ -205,8 +205,23 @@ export function buildSplitterweiten() {
   group(182, 32, ['e', 'f'], 3);
   // Spiegelsee (47–48): Leerenhunde, Statuengeister, Schattenläufer
   for (const [x, y] of [[36, 92], [66, 92], [70, 106], [56, 114], [36, 110], [26, 100], [44, 88], [82, 112]]) group(x, y, ['h', 'w', 'r'], 4);
-  // Sternwartenberg (49–50): Sternseher, Splitterkolosse
-  for (const [x, y] of [[130, 108], [160, 114], [166, 104], [150, 118], [134, 116], [118, 98], [112, 72]]) group(x, y, ['t', 't', 'z'], 4);
+  // Sternwartenberg (49–50): Sternseher an den Wegen, Splitterkolosse (Elite, Stufe 49) abseits. Ein Koloss sieht
+  // 130 px (≈ 8 Kacheln) weit und kommt mit seiner Gruppe: darum stehen drei einzeln (je eigene Gruppe, ≥ 6,5
+  // Kacheln auseinander, GROUP_LINK in Spawner.js ist 5) in der Senke im Süden des Bergs, mindestens 9 Kacheln von
+  // jedem Weg und jedem Sternseher. Wer zur Sternwarte reitet, zieht keinen mehr an; für den Auftrag (4 Kolosse)
+  // reichen drei mit 45 s Wiederkehr.
+  for (const [x, y] of [[130, 108], [160, 112], [166, 104], [118, 98], [140, 100]]) group(x, y, ['t', 't'], 4);
+  const roadNear = (x, y, r) => {
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r && net.onRoad(x + i, y + j)) return true;
+    return false;
+  };
+  const seers = foes.slice(-10);
+  const colossi = [];
+  for (let x = 128; x <= 158 && colossi.length < 3; x++) for (let y = 112; y <= 126 && colossi.length < 3; y++) {
+    if (!freeAt(m, net, x, y) || kept(x, y) || roadNear(x, y, 9) || seers.some(([a, b]) => Math.hypot(a - x, b - y) < 9)) continue;
+    if (foes.some(([a, b]) => Math.hypot(a - x, b - y) < 6.5)) continue;
+    put(x, y, 'z'); foes.push([x, y]); colossi.push([x, y]);
+  }
 
   // Questziele der zweiten Runde: Bosks Kisten und die Krabblernester im Scherbenfeld, Luns Echosteine auf den Graten,
   // Kels Claimpfahl (Verteidigung) auf der Insel nördlich von Funkenruh, Harriks letztes Lager an der Ostkante

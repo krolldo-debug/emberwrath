@@ -5676,7 +5676,7 @@ export const EN = {
   "Die Splitterkolosse": "The Splinter Colossi",
   "Bring vier Splitterkolosse am Sternwartenberg zu Fall.": "Bring down four Splinter Colossi on Observatory Hill.",
   "Die Kolosse am Berg sind aus Splittern gewachsen, so wie Kaldris. Sie stehen um die Sternwarte wie Wachen um einen Thron. Solange sie stehen, kommt kein Schürfer und kein Gelehrter mehr den Berg hinauf. Bring vier von ihnen zu Fall. Allein ist das kein Spaß.": "The colossi on the hill grew out of shards, just like Kaldris. They stand around the Observatory like guards around a throne. As long as they stand, no prospector and no scholar can climb the hill anymore. Bring down four of them. It's no fun alone.",
-  "Die Splitterkolosse stapfen über die Hänge des Sternwartenbergs.": "The Splinter Colossi stomp across the slopes of Observatory Hill.",
+  "Die Splitterkolosse stapfen durch die Senke im Süden des Sternwartenbergs, abseits der Wege.": "The Splinter Colossi stomp through the hollow south of Observatory Hill, away from the paths.",
   "Vier Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.": "Four colossi. I watched from the window and held my breath the whole time. Here, I was saving this for a special day.",
   "Splitterkolosse gefällt": "Splinter Colossi felled",
   "Aurels Archiv": "Aurel's Archive",

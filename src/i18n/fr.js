@@ -5676,7 +5676,7 @@ export const FR = {
   "Die Splitterkolosse": "Les colosses d'éclats",
   "Bring vier Splitterkolosse am Sternwartenberg zu Fall.": "Abats quatre colosses d'éclats sur le Mont de l'Observatoire.",
   "Die Kolosse am Berg sind aus Splittern gewachsen, so wie Kaldris. Sie stehen um die Sternwarte wie Wachen um einen Thron. Solange sie stehen, kommt kein Schürfer und kein Gelehrter mehr den Berg hinauf. Bring vier von ihnen zu Fall. Allein ist das kein Spaß.": "Les colosses du mont sont nés d'éclats, comme Kaldris. Ils entourent l'Observatoire comme des gardes autour d'un trône. Tant qu'ils tiennent debout, aucun prospecteur ni aucun savant ne peut plus gravir le mont. Abats-en quatre. Seul, ce n'est pas une partie de plaisir.",
-  "Die Splitterkolosse stapfen über die Hänge des Sternwartenbergs.": "Les colosses d'éclats arpentent lourdement les pentes du Mont de l'Observatoire.",
+  "Die Splitterkolosse stapfen durch die Senke im Süden des Sternwartenbergs, abseits der Wege.": "Les colosses d'éclats arpentent lourdement le creux au sud du Mont de l'Observatoire, loin des chemins.",
   "Vier Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.": "Quatre colosses. J'ai regardé depuis la fenêtre en retenant mon souffle tout du long. Tiens, je gardais ça pour un jour spécial.",
   "Splitterkolosse gefällt": "Colosses d'éclats abattus",
   "Aurels Archiv": "Les archives d'Aurel",

@@ -5676,7 +5676,7 @@ export const ES = {
   "Die Splitterkolosse": "Los colosos de astillas",
   "Bring vier Splitterkolosse am Sternwartenberg zu Fall.": "Derriba a cuatro colosos de astillas en el Monte del Observatorio.",
   "Die Kolosse am Berg sind aus Splittern gewachsen, so wie Kaldris. Sie stehen um die Sternwarte wie Wachen um einen Thron. Solange sie stehen, kommt kein Schürfer und kein Gelehrter mehr den Berg hinauf. Bring vier von ihnen zu Fall. Allein ist das kein Spaß.": "Los colosos del monte crecieron a partir de astillas, igual que Kaldris. Rodean el Observatorio como guardias alrededor de un trono. Mientras sigan en pie, ningún buscador ni ningún erudito podrá subir al monte. Derriba a cuatro de ellos. Solo no tiene ninguna gracia.",
-  "Die Splitterkolosse stapfen über die Hänge des Sternwartenbergs.": "Los colosos de astillas pisotean las laderas del Monte del Observatorio.",
+  "Die Splitterkolosse stapfen durch die Senke im Süden des Sternwartenbergs, abseits der Wege.": "Los colosos de astillas pisotean la hondonada al sur del Monte del Observatorio, lejos de los caminos.",
   "Vier Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.": "Cuatro colosos. Lo he visto desde la ventana y he contenido la respiración todo el rato. Toma, lo guardaba para un día especial.",
   "Splitterkolosse gefällt": "Colosos de astillas derribados",
   "Aurels Archiv": "El archivo de Aurel",

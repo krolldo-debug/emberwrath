@@ -9,6 +9,8 @@
 // Herz der Glut; Kaldris' Splitter spricht mit Malgareths Stimme. Ysmeine nennt im Sterben den Namen Azhuron und
 // öffnet die Lichtbrücke nach Osten (Teil 2). Nebenstrang „Ein Brief für Maren“: Tobin, Marens Sohn, lebt in Sternhafen.
 //
+// Tobins Briefe (Nebenstrang Maren) werden erst frei, wenn man nach dem Lichtsamen ohnehin in Sternhafen steht: der
+// Heimweg in die Glutsenke ist dann ein bewusster Abstecher und kein offener Auftrag mitten in den Gärten.
 // Ablauf ohne Zurücklaufen: Glutöde → Sternhafen → Gärten (Ankerhain, Wurzelbruch, Terrassen + Rankengruft, Mondweiher)
 // → einmal zurück nach Sternhafen (Ankerstein) → Splitterweiten (Funkenruh, Scherbenfeld, Grate + Gläserne Hallen,
 // Spiegelsee, Sternwartenberg + Sternwarte) → Sternhafen (Lichtbrücke). Dungeon-Hauptquests und Dungeon-Nebenquests
@@ -365,33 +367,33 @@ export const QUESTS_STARS = {
     rewards: { xp: Q(41, W.side), gold: G(41), items: [{ itemId: 'starlight_potion', qty: 2 }] },
   },
   q_stranded_scholar: {
-    title: 'Ein Gelehrter aus der Glut', giver: 'innkeeper_mirela', turnInNpc: 'scholar_tobin', level: 41, requires: ['q_star_audience'],
+    title: 'Ein Gelehrter aus der Glut', giver: 'innkeeper_mirela', turnInNpc: 'scholar_tobin', level: 45, requires: ['q_seed_to_anchor'],
     summary: 'Such den Gelehrten im Sternturm, der jeden Neuankömmling nach dem Glutland fragt.',
     offer: 'Du kommst aus dem Glutland? Dann musst du Tobin kennenlernen. Er sitzt im Sternturm über Aurels Büchern und fragt jeden, der durchs Tor kommt, nach einem Dorf namens Glutsenke. Seit zehn Jahren. Bisher konnte ihm keiner etwas sagen. Vielleicht kannst du es.',
     progressText: 'Tobin arbeitet am Sternturm nordwestlich des Ankerplatzes.',
     completeText: 'Die Glutsenke? Du kennst sie? Du warst dort? Bei allen Sternen. Setz dich. Nein, steh. Ich weiß nicht, was ich sagen soll. Ich heiße Tobin. Meine Mutter heißt Maren. Lebt sie noch?',
     objectives: [{ id: 'tobin', text: 'Tobin gefunden', count: 1, kind: 'talk', target: 'scholar_tobin', zone: 'sternhafen' }],
-    rewards: { xp: Q(41, W.side), gold: G(41), gear: [gear(41, 'ring')] },
+    rewards: { xp: Q(45, W.side), gold: G(45), gear: [gear(45, 'ring')] },
   },
   q_letter_for_maren: {
-    title: 'Ein Brief für Maren', giver: 'scholar_tobin', turnInNpc: 'elder_maren', level: 42, requires: ['q_stranded_scholar'],
+    title: 'Ein Brief für Maren', giver: 'scholar_tobin', turnInNpc: 'elder_maren', level: 45, requires: ['q_stranded_scholar'],
     summary: 'Bring Tobins Brief durch das Sternentor zu Maren in die Glutsenke.',
     offer: 'Vor zehn Jahren ritt ich mit Corvane nach Norden. Als das Siegel brach, riss der Feuerregen einen Spalt in den Himmel, und ich fiel hindurch. Seitdem bin ich hier. Ich habe tausend Briefe an meine Mutter geschrieben und keinen abgeschickt. Diesen hier schon. Bring ihn ihr, bitte. Das Sternentor auf dem Ankerplatz führt zurück in die Glutöde.',
     progressText: 'Maren lebt in der Glutsenke, ganz im Süden des Glutlands.',
     completeText: 'Tobins Schrift. Das ist Tobins Schrift. Er lebt. Ich habe sein Erbstück einem Fremden geschenkt, weil ich dachte, er kommt nie zurück. Und jetzt bringt mir derselbe Fremde seinen Brief. Gib mir einen Moment. Nur einen Moment.',
     startItems: [{ itemId: 'tobin_letter', qty: 1 }],
     objectives: [{ id: 'maren', text: 'Brief an Maren übergeben', count: 1, kind: 'talk', target: 'elder_maren', zone: 'emberhollow' }],
-    rewards: { xp: Q(42, W.side), gold: G(42), items: [{ itemId: 'starlight_potion', qty: 2 }] },
+    rewards: { xp: Q(45, W.side), gold: G(45), items: [{ itemId: 'starlight_potion', qty: 2 }] },
   },
   q_marens_answer: {
-    title: 'Marens Antwort', giver: 'elder_maren', turnInNpc: 'scholar_tobin', level: 42, requires: ['q_letter_for_maren'],
+    title: 'Marens Antwort', giver: 'elder_maren', turnInNpc: 'scholar_tobin', level: 45, requires: ['q_letter_for_maren'],
     summary: 'Bring Marens Antwort zurück nach Sternhafen zu Tobin.',
     offer: 'Ich habe die ganze Nacht geschrieben. Es ist kein langer Brief geworden. Manche Dinge passen nicht auf Papier. Bring ihn zu meinem Sohn. Und sag ihm, dass die Laterne noch brennt, jeden Abend, an der Tür. Er weiß, was das heißt.',
     progressText: 'Tobin wartet am Sternturm in Sternhafen.',
     completeText: 'Die Laterne brennt noch. Natürlich brennt sie. Danke. Ich kann nicht zurück, nicht, solange der Stern hier draußen hungert. Aber jetzt weiß sie es. Nimm das. Es hat mich durch zehn Jahre gebracht, jetzt soll es dich durch den Rest bringen.',
     startItems: [{ itemId: 'maren_letter', qty: 1 }],
     objectives: [{ id: 'tobin', text: 'Marens Antwort an Tobin übergeben', count: 1, kind: 'talk', target: 'scholar_tobin', zone: 'sternhafen' }],
-    rewards: { xp: Q(42, W.side), gold: G(42), gear: [gear(43, 'amulet', 'rare')] },
+    rewards: { xp: Q(45, W.side), gold: G(45), gear: [gear(46, 'amulet', 'rare')] },
   },
   q_star_soup: {
     title: 'Sternsuppe', giver: 'innkeeper_mirela', level: 43, requires: ['q_light_bridge_gardens'],
@@ -477,7 +479,7 @@ export const QUESTS_STARS = {
     rewards: { xp: Q(44, W.dungeonSide), gold: G(44, 1.2), gear: [gear(45, 'head', 'rare')] },
   },
   q_grave_seeds: {
-    title: 'Samen der Gruft', giver: 'gardener_bren', level: 44, requires: ['q_bren_vines', 'q_hanging_terraces'],
+    title: 'Samen der Gruft', giver: 'gardener_bren', level: 44, requires: ['q_hanging_terraces'],
     summary: 'Nimm den Dornenpriesterinnen in der Rankengruft die Dornsamen ab.',
     offer: 'In der Gruft beten Dornenpriesterinnen zu Ysgarn. Sie tragen Dornsamen bei sich und säen sie überall, wo die Leere schon war. Daraus wachsen die Ranken mit Zähnen. Nimm ihnen vier Samen ab, damit ich weiß, wie man die Brut wieder ausreißt.',
     progressText: 'Die Dornenpriesterinnen halten sich in der Rankengruft auf.',
@@ -585,7 +587,7 @@ export const QUESTS_STARS = {
     title: 'Die Splitterkolosse', giver: 'astronomer_tovan', level: 49, requires: ['q_observatory_hill'],
     summary: 'Bring vier Splitterkolosse am Sternwartenberg zu Fall.',
     offer: 'Die Kolosse am Berg sind aus Splittern gewachsen, so wie Kaldris. Sie stehen um die Sternwarte wie Wachen um einen Thron. Solange sie stehen, kommt kein Schürfer und kein Gelehrter mehr den Berg hinauf. Bring vier von ihnen zu Fall. Allein ist das kein Spaß.',
-    progressText: 'Die Splitterkolosse stapfen über die Hänge des Sternwartenbergs.',
+    progressText: 'Die Splitterkolosse stapfen durch die Senke im Süden des Sternwartenbergs, abseits der Wege.',
     completeText: 'Vier Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.',
     objectives: [{ id: 'colossi', text: 'Splitterkolosse gefällt', count: 4, kind: 'kill', target: 'splinter_colossus', zone: 'splitterweiten' }],
     rewards: { xp: Q(49, W.elite), gold: G(49, 1.5), gear: [gear(50, 'chest', 'rare')] },
