@@ -204,7 +204,9 @@ export class Game {
     this.#ensureView(k);
     // Touch-Geräte und „Niedrig“: Zeichenfläche = internes Bild, der Browser vergrößert pixelgenau per CSS
     // (image-rendering: pixelated). Das Spiel zeichnet dann direkt hinein, der Blit über den ganzen Schirm entfällt.
-    const out = coarse || this.#quality === 'low' ? k : backing;
+    // Ebenso am Rechner, wenn die Vergrößerung ganzzahlig ist (Retina-Mac Vollbild: 6-fach bei k = 2 → 3-fach per CSS):
+    // sonst kopiert jedes Bild ~6 Mio. Bildpunkte in eine riesige Zeichenfläche, das kostet am Mac spürbar Bildrate.
+    const out = coarse || this.#quality === 'low' || Number.isInteger(scale / k) ? k : backing;
     this.canvas.width = Math.round(CONFIG.viewWidth * out);
     this.canvas.height = Math.round(CONFIG.viewHeight * out);
     this.#direct = this.canvas.width === this.view.width && this.canvas.height === this.view.height;
@@ -212,6 +214,7 @@ export class Game {
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
     this.displayCtx.imageSmoothingEnabled = false;
+    if (this.loop) this.loop.redraw = true; // neue Größe leert die Zeichenfläche: im nächsten Bild sicher zeichnen
     const rs = document.documentElement.style;
     rs.setProperty('--view-w', `${cssW}px`);
     rs.setProperty('--view-h', `${cssH}px`);
