@@ -126,12 +126,20 @@ for (const p of PRODUCTS) {
   console.log(`\n${productId} (${p.ref})`);
   let iap = existing.get(productId);
   if (!iap) {
-    iap = (await api('/v2/inAppPurchases', { method: 'POST', body: { data: {
-      type: 'inAppPurchases',
-      attributes: { name: p.ref, productId, inAppPurchaseType: p.type, reviewNote: REVIEW_NOTE[p.kind], familySharable: false },
-      relationships: { app: rel('apps', app.id) },
-    } } })).data;
-    console.log('  ✓ angelegt');
+    try {
+      iap = (await api('/v2/inAppPurchases', { method: 'POST', body: { data: {
+        type: 'inAppPurchases',
+        attributes: { name: p.ref, productId, inAppPurchaseType: p.type, reviewNote: REVIEW_NOTE[p.kind], familySharable: false },
+        relationships: { app: rel('apps', app.id) },
+      } } })).data;
+      console.log('  ✓ angelegt');
+    } catch (e) {
+      // Schon vergeben (z. B. von Hand angelegt oder von der Liste oben nicht erfasst): vorhandenes Produkt übernehmen.
+      iap = (await all(`/v1/apps/${app.id}/inAppPurchasesV2?filter[productId]=${encodeURIComponent(productId)}&limit=200`))
+        .find((x) => x.attributes.productId === productId);
+      if (!iap) { problems++; console.log(`  ✗ anlegen: ${e.message}`); continue; }
+      console.log(`  · schon da (${iap.attributes.state}, ${iap.attributes.name})`);
+    }
   } else console.log(`  · schon da (${iap.attributes.state})`);
   const id = iap.id;
 
