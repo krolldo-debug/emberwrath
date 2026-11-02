@@ -196,16 +196,23 @@ export class Gate extends Entity {
   }
 }
 
-// Unsichtbare Fläche: meldet EV.AREA_REACHED einmal pro Betreten der Zone.
+// Unsichtbare Fläche: meldet EV.AREA_REACHED beim Betreten der Fläche. Wieder scharf, sobald der Held sie verlässt
+// oder eine Quest annimmt: Wer eine Fläche vor der Quest durchquert hat (Harriks Lager), muss nicht erst die Zone
+// verlassen (Durchlauf 02.11.).
 export class AreaTrigger extends Entity {
   constructor(rect, areaId) {
     super(rect.x0, rect.y0);
-    this.rect = rect; this.areaId = areaId; this.fired = false;
+    this.rect = rect; this.areaId = areaId; this.fired = false; this.nActive = -1;
   }
   contains(x, y) { const r = this.rect; return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
   update(dt, world) {
     const h = world.hero;
-    if (this.fired || h.dead || !this.contains(h.x, h.y)) return;
+    const n = Object.keys(world.state.slices.quests?.active ?? {}).length;
+    if (n > this.nActive && this.nActive >= 0) this.fired = false;
+    this.nActive = n;
+    if (h.dead) return;
+    if (!this.contains(h.x, h.y)) { this.fired = false; return; }
+    if (this.fired) return;
     this.fired = true;
     if (!world.state.slices.world?.flags?.[`area:${this.areaId}`]) world.state.commit('world:setFlag', { key: `area:${this.areaId}` });
     world.bus.emit(EV.AREA_REACHED, { areaId: this.areaId, zoneId: world.zone.id });

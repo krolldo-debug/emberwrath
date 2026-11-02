@@ -64,7 +64,7 @@ export const RUN_CAST = {
   },
   defend_ridge_song: {
     title: 'Das Lied der Grate', start: 'Schütze Lun, bis das Lied der Grate zu Ende gesungen ist.', foe: 'prism_elemental', circle: true,
-    members: [{ npc: 'echo_sage_lun', name: 'Lun', hits: 75 }],
+    members: [{ npc: 'echo_sage_lun', name: 'Lun', hits: 110 }], // Prismengeister treffen aus der Ferne: mehr Puffer als bei Nahkämpfern (Durchlauf 02.11.)
   },
   escort_bren_cutting: {
     title: 'Brens Ableger', start: 'Eskorte: Begleite Bren mit dem Ableger in den Wurzelbruch.', speed: 26, foe: 'void_wisp',

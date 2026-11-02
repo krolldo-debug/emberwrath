@@ -149,8 +149,10 @@ export class World {
     const free = !d.collidesRect(p.x - 5, p.y - 5, p.x + 5, p.y + 2.5);
     // In einem Haus (level.interiors) ist der Raum nur über die Tür verbunden: dort bleiben
     if (free && (!home || roomAt(this, p.x, p.y) || d.reachable(p.x, p.y, home.x, home.y))) return p;
+    // Rückfall: zuerst der Ankunftspunkt des Zonenwechsels (Dungeon-Ausgang), dann der Wegstein
     const stone = d.spawns.waystone;
-    const back = stone && (!home || d.reachable(stone.x, stone.y, home.x, home.y)) ? stone : fallback;
+    const fb = fallback && fallback !== home && (!home || d.reachable(fallback.x, fallback.y, home.x, home.y)) ? fallback : null;
+    const back = fb ?? (stone && (!home || d.reachable(stone.x, stone.y, home.x, home.y)) ? stone : fallback);
     console.warn(`Gespeicherte Position (${Math.round(pos.x)}, ${Math.round(pos.y)}) in ${this.zone.id} nicht erreichbar, Held an ${stone && back === stone ? 'den Wegstein' : 'den Startpunkt'} gesetzt`);
     return back;
   }
