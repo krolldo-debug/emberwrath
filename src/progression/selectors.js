@@ -297,7 +297,9 @@ export function questTarget(state, content) {
       return mk({ ...base, kind: 'object', id: open[0] ?? list[0], ids: open, itemId: o.item ?? null });
     }
     // Reihenfolge: zum nächsten richtigen Objekt führen
-    case 'sequence': return mk({ ...base, kind: 'object', id: list[Math.min(a.progress[o.id] ?? 0, list.length - 1)], ids: list });
+    // ids nur das nächste Objekt: die Glutspur nimmt sonst das nächstgelegene der Liste (Sternlinsen, Echosteine –
+    // falsche Reihenfolge, Durchlauf 02.11.)
+    case 'sequence': { const next = list[Math.min(a.progress[o.id] ?? 0, list.length - 1)]; return mk({ ...base, kind: 'object', id: next, ids: [next] }); }
     // Eskorte/Verteidigen: Startpunkt ist ein NPC oder Objekt (o.start = { kind: 'npc'|'object', id })
     case 'escort': case 'defend': return mk({ ...base, kind: o.start?.kind ?? 'object', id: o.start?.id ?? o.target });
     default: return null;
