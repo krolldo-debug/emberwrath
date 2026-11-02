@@ -181,7 +181,7 @@ export function buildSternhafen() {
   room('juwelier', 'Juwelierstube', doors.hJewel, 172, 44, 11, 9, 'C', [5],
     [[3, 5, 'w'], [7, 5, 'w'], [5, 3, 'e'], [9, 7, 'j'], [1, 7, 'k'], [2, 3, '>'], [8, 3, '`'], [5, 4, '9']], [3, 6, 5, 1]);
   room('ruestkammer', 'Rüstkammer', doors.hArmory, 172, 65, 13, 9, 'B', [6],
-    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [9, 3, '`'], [2, 6, 'a'], [3, 6, 'h'], [10, 6, 'f'], [6, 5, '0']]);
+    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [9, 3, '`'], [10, 6, 'f'], [3, 6, 'j'], [6, 5, '0']]);
 
   const decor = {
     V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'starGate', d: 'airships',
