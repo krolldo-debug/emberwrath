@@ -1,6 +1,7 @@
 import { hash2 } from '../../core/math.js';
 import { FK, ramp, hxi, D4 } from './kit.js';
 import { outdoorGround } from './outdoor.js';
+import { paintRamparts } from './ramparts.js';
 
 // Feinraster-Boden der Sternenscherben (level.biome 'astral', Grundstimmung „Morgenschimmer“). Gras ruhig und hell
 // (salbeigrün, weich gefleckt, vereinzelte Halme und Blütenblätter wie im Look-Entwurf), Wege aus lavendelgrauem
@@ -172,6 +173,8 @@ export const FINE_ASTRAL = {
   finePixel: ASTRAL.fine,
   fineSetup: makeSetup(ASTRAL.BASE),
   fineTufts: false,
+  // Stadtmauern, Terrassen und Treppen (nur mit level.paintedCliffs, siehe ramparts.js)
+  paintCliffs: paintRamparts,
   // Felswände unter den Inseln (world/Outdoor.js #islandPixel): Wand oben hell (Morgenlicht von unten rosa),
   // Kiel dunkel, Kristalle leuchten
   island: {

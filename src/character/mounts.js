@@ -1,5 +1,6 @@
 import { EV } from '../core/events.js';
 import { CONFIG } from '../config.js';
+import { roomAt } from '../world/interiors.js';
 import { getHeroSprites } from '../sprites/hero.js';
 import { getMountSprites, composeRide } from '../sprites/mounts.js';
 import { spriteStyle } from './cosmetics.js';
@@ -126,6 +127,7 @@ export function mountStateReason(slices, content) {
 // Zone und Fläche. mountable fehlt -> Außengebiete ja, sonst nein (§12.2).
 export function zoneMountable(zoneDef) { return zoneDef ? zoneDef.mountable ?? zoneDef.kind === 'outdoor' : false; }
 export function noMountAt(world, x, y) {
+  if (roomAt(world, x, y)) return true; // in Häusern (level.interiors)
   const areas = world?.dungeon?.level?.areas;
   if (!areas) return false;
   const ts = CONFIG.tileSize;
