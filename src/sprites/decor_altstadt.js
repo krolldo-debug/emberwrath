@@ -916,8 +916,135 @@ export function createAltstadtDecor() {
     fPlant: plant(), fCounter: counter(), fKegs: kegs(), fAnvil: anvil(), fForge: forge(), fRack: weaponRack(), fThrone: throne(),
     fBanner: bannerStand(), fTelescope: telescope(), fBooks: bookshelf(), fDesk: desk(), fCase: displayCase(), fArmor: armorStand(),
     planters: [planter(1), planter(2)], bench: bench(),
+    glutbogen: glutbogen(),
+    wShield: wallShield(), wShelf: [wallShelf(1), wallShelf(2)], wPicture: wallPicture(0), wStarmap: wallPicture(1), wSconce: sconce(), wTapestry: [wallTapestry(0), wallTapestry(1)],
   };
   FW.forEach((o, i) => { D['fw' + i] = fwHouse(o); });
   for (const [k, o] of Object.entries(SPECIAL)) D[k] = fwHouse(o);
   return D;
+}
+
+// ------------------------------------------------------------------ Sternentor (Portal in die Glutöde)
+// In der Öffnung wabert ein Glutschleier: unten hell wie ein Glutschein am Horizont, oben dunkel, mit Funken.
+// inside(x,y) = Öffnung, [y0, y1] = Höhe der Öffnung.
+const FIRE = R(['#1a0806', '#3a0e0a', '#661a0c', '#9a2c10', '#cc4a18', '#ee7a2a', '#ffb050', '#ffe0a0']);
+function emberVeil(p, g, x0, x1, y0, y1, inside, seed) {
+  const val = (x, y) => {
+    const v = (y - y0) / (y1 - y0);
+    const sw = Math.sin(x * 0.21 + Math.sin(y * 0.09 + seed) * 2.4 + y * 0.04) * 0.5 + Math.sin(x * 0.07 - y * 0.13 + seed) * 0.5;
+    return v * 0.85 + sw * 0.22 - 0.05;
+  };
+  p.scan(x0, y0, x1, y1, (x, y) => {
+    if (!inside(x, y)) return 0;
+    if (hash2(Math.floor(x), Math.floor(y), seed + 7) < 0.012) return FIRE.c[7];
+    const i = Math.floor(val(x, y) * 7.5 + (((Math.floor(x) + Math.floor(y)) & 1) ? 0.3 : -0.3));
+    return FIRE.c[cl(i, 7)];
+  });
+  g.each(x0, y0, x1, y1, (x, y) => (inside(x, y) && (val(x, y) > 0.72 || hash2(Math.floor(x), Math.floor(y), seed + 7) < 0.012) ? '#ff9a40' : null));
+}
+
+// Glutbogen: frei stehender gotischer Spitzbogen aus Quadern mit Maßwerk-Dreipass, Stufensockel, Eisenbecken
+export function glutbogen() {
+  const W = 112, H = 150, cx = 56, bot = H - 4, foot = bot - 8;
+  return mk(W, H, (p, g) => {
+    PL = DAUB; TB = OAK;
+    footShade(p, cx, bot, 50, 4);
+    // Stufen
+    p.scan(cx - 46, foot, cx + 46, bot, (x, y) => { const up = y < bot - 4, hw = up ? 38 : 46; if (Math.abs(x - cx) > hw) return 0; return y < foot + 0.7 || Math.abs(y - (bot - 4)) < 0.5 ? RUB.c[7] : x > cx + hw - 3 ? RUB.c[3] : RUB.c[up ? 5 : 4]; });
+    const aw = 22, wo = 33, sy = foot - 50;
+    const arc = (x, y, w) => (y >= sy ? Math.abs(x - cx) < w && y < foot : Math.hypot(x - cx - (w - 2 * aw) * 0 + aw - (aw * 2 - w) * 0, 0) >= 0 && Math.hypot(x - (cx - aw * 0.55), y - sy) < w + aw * 0.55 && Math.hypot(x - (cx + aw * 0.55), y - sy) < w + aw * 0.55);
+    const inner = (x, y) => arc(x, y, aw), outer = (x, y) => arc(x, y, wo);
+    emberVeil(p, g, cx - aw, cx + aw, sy - 60, foot, inner, 9);
+    // Quader mit Fugen (Lagen 7 px, im Bogen radial)
+    p.scan(cx - wo - 1, sy - 70, cx + wo + 1, foot, (x, y) => {
+      if (!outer(x, y) || inner(x, y)) return 0;
+      let jnt;
+      if (y < sy) { const s = (Math.atan2(y - sy, x - cx) / Math.PI) * 18; jnt = s - Math.floor(s) < 0.07; } else { const r = Math.floor((foot - y) / 7), ly = (foot - y) % 7, lx = (Math.abs(x - cx) + (r & 1) * 4) % 9; jnt = ly < 0.6 || lx < 0.6; }
+      if (jnt) return RUB.c[2];
+      let i = x < cx ? 5 : 4;
+      if (inner(x + 1.5, y) || inner(x - 1.5, y) || inner(x, y + 1.5)) i = x < cx ? 3 : 2;
+      if (!outer(x, y - 1.2)) i = 7;
+      if (!outer(x + 1.2, y) && x > cx) i = 2;
+      if (hash2(Math.floor(x / 3), Math.floor(y / 3), 991) < 0.08) i--;
+      return RUB.c[cl(i, 7)];
+    });
+    // Maßwerk: Dreipass oben in der Öffnung
+    const tc = sy - 22;
+    p.scan(cx - 12, tc - 12, cx + 12, tc + 10, (x, y) => {
+      const lobes = [[cx, tc - 5], [cx - 6, tc + 3], [cx + 6, tc + 3]];
+      const d = Math.min(...lobes.map(([a, b]) => Math.hypot(x - a, y - b)));
+      return d > 5 && d < 7 && inner(x, y) ? RUB.c[x < cx ? 6 : 4] : 0;
+    });
+    // Schlussstein, Krabben
+    p.scan(cx - 5, sy - 48, cx + 5, sy - 36, (x, y) => (Math.abs(x - cx) > 5 - (y - (sy - 48)) * 0.15 ? 0 : y > sy - 37 ? RUB.c[1] : RUB.c[x < cx ? 7 : 4]));
+    // Eisenbecken mit Feuer links und rechts
+    for (const bx of [cx - 44, cx + 44]) {
+      p.scan(bx - 1, foot - 26, bx + 1, bot, () => IRON.c[3]);
+      p.scan(bx - 5, bot - 2, bx + 5, bot, () => IRON.c[2]);
+      p.scan(bx - 6, foot - 30, bx + 6, foot - 24, (x, y) => (y < foot - 29 ? IRON.c[5] : IRON.c[x < bx ? 3 : 2]));
+      p.scan(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => { const f = Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 + Math.sin(y * 0.8 + x) * 0.15; return f > 1 ? 0 : FIRE.c[f < 0.35 ? 7 : f < 0.6 ? 6 : 5]; });
+      g.each(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => (Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 < 0.9 ? '#ff9a40' : null));
+    }
+  // Kollision nur an Pfeilern und Becken: durch die Öffnung kann man hineingehen
+  }, { ax: cx, ay: bot, b: true, extra: { boxes: [[-50, -10, -21, 1], [21, -10, 50, 1]] }, light: { dx: 0, dy: -30, radius: 80, color: [255, 140, 70], intensity: 0.65 } });
+}
+
+// ------------------------------------------------------------------ Wandschmuck für Innenräume
+// Stehen auf der vordersten Bodenreihe vor der Rückwand und hängen optisch an der Wand: kein Kasten, begehbar, sortiert
+// hinter allem in derselben Reihe.
+const WALL = { sortOffset: -40, low: true };
+function wallItem(W, draw, light = null) { return mk(W, 48, draw, { ax: Math.floor(W / 2), ay: 47, b: true, light, extra: WALL }); }
+export function wallShield() {
+  return wallItem(28, (p) => {
+    for (const s of [-1, 1]) for (let t = 0; t < 22; t += 0.5) { const x = 14 + s * (t - 11) * 0.9, y = 8 + t; p.scan(x - 0.8, y - 0.6, x + 0.8, y + 0.6, () => (t < 4 ? col32('#8a5a36') : IRON.c[t < 6 ? 2 : s < 0 ? 6 : 5])); }
+    p.scan(7, 9, 21, 27, (x, y) => (Math.abs(x - 14) > 7 - Math.max(0, y - 19) * 0.85 ? 0 : x < 7.6 || y < 9.6 ? col32('#e0c070') : Math.abs(x - 14) < 1 ? col32('#e0c070') : col32(x < 14 ? '#2a3a6a' : '#1c2a50')));
+  });
+}
+export function wallShelf(seed = 1) {
+  return wallItem(30, (p) => {
+    for (const sy of [14, 26]) {
+      p.scan(2, sy, 28, sy + 2, (x, y) => OAK.c[y < sy + 1 ? 6 : 2]);
+      for (let k = 0, x = 4; x < 26; k++) {
+        const t = hash2(k, sy, seed), w = t < 0.5 ? 2 : 4, h = 5 + Math.floor(hash2(k, sy + 1, seed) * 4);
+        const C = t < 0.5 ? ['#7a2a22', '#2a4a6a', '#3a5a2a', '#8a6a2a'][k % 4] : ['#c8b890', '#6a8aa0', '#a06a4a'][k % 3];
+        p.scan(x, sy - h, x + w, sy, (xx, yy) => (t >= 0.5 && yy < sy - h + 1.5 && Math.abs(xx - x - w / 2) > 0.8 ? 0 : col32(C)));
+        x += w + (hash2(k, 9, seed) < 0.3 ? 2 : 1);
+      }
+    }
+    for (const bx of [4, 25]) p.scan(bx, 14, bx + 1, 30, () => IRON.c[2]);
+  });
+}
+export function wallPicture(kind = 0) {
+  return wallItem(30, (p) => {
+    p.scan(3, 8, 27, 28, (x, y) => {
+      if (x < 4 || x > 26 || y < 9 || y > 27) return col32(x < 5 || y < 10 ? '#e0c070' : '#a87830');
+      if (kind === 1) { // Sternkarte
+        if (hash2(Math.floor(x), Math.floor(y), 77) < 0.05) return col32('#f0e8c0');
+        return Math.abs(Math.hypot(x - 15, y - 18) - 6) < 0.5 ? col32('#c49a4a') : col32('#1a2040');
+      }
+      const hz = 20 + Math.sin(x * 0.5) * 1.5;   // Landschaft mit Burg
+      if (y < hz) return Math.abs(x - 18) < 2.5 && y > 13 ? col32('#6a6a78') : col32(y < 14 ? '#e8a868' : '#c87850');
+      return col32(y < 24 ? '#3a5a2a' : '#2a4020');
+    });
+  });
+}
+export function sconce() {
+  return wallItem(14, (p, g) => {
+    p.scan(5, 20, 9, 30, (x, y) => (y > 28 ? IRON.c[2] : IRON.c[x < 7 ? 4 : 2]));
+    p.scan(6, 13, 8, 20, (x) => col32(x < 7 ? '#f0e8d0' : '#c8bca0'));
+    p.scan(6.4, 9, 7.6, 13, (x, y) => (y < 10.5 ? col32('#fff0c0') : col32('#f6a040')));
+    g.each(5, 8, 9, 13, () => '#ffb050');
+  }, { dx: 0, dy: -30, radius: 48, color: [255, 190, 120], intensity: 0.5 });
+}
+export function wallTapestry(seed = 0) {
+  return wallItem(26, (p) => {
+    p.scan(2, 4, 24, 6, () => OAK.c[4]);
+    p.scan(4, 6, 22, 32, (x, y) => {
+      if (y > 30 && Math.floor(x) % 3 === 0) return 0;
+      const base = seed % 2 ? ['#2a3a6a', '#1c2a50'] : ['#6e2228', '#4a1820'];
+      if (x < 5 || x > 21) return col32('#c49a4a');
+      if (Math.abs(x - 13) + Math.abs(y - 17) < 5 && Math.abs(x - 13) + Math.abs(y - 17) > 3) return col32('#e0c070');
+      return col32(x < 13 ? base[0] : base[1]);
+    });
+  });
 }

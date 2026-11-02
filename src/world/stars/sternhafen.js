@@ -29,7 +29,8 @@ export function buildSternhafen() {
   const m = skyMap(W, H0);
   const put = (x, y, ch) => m.set(x, y, ch);
   const floors = [], rooms = [], dark = [], roofs = [], interiors = [];
-  const lane = (x, y, w, h, k = 'cobble') => { m.rect(x, y, w, h, ':'); floors.push({ r: [x, y, w, h], k }); };
+  // Gassen: Weg mit Grasrand (earth/gravel/worn, pw = Wegbreite in Kacheln), Pflaster nur am Ankerplatz und unter Toren
+  const lane = (x, y, w, h, k = 'cobble', pw) => { m.rect(x, y, w, h, ':'); floors.push({ r: [x, y, w, h], k, pw }); };
   const block = (x, y, w, h) => { m.rect(x, y, w, h, '#'); roofs.push([x, y, w, h]); };
 
   // ------------------------------------------------------------ Inseln
@@ -49,20 +50,22 @@ export function buildSternhafen() {
   roofs.push([12, 16, 85, 1], [12, 33, 85, 1], [12, 49, 85, 1], [12, 63, 85, 1]);
   m.rect(39, 13, 23, 4, ',');                          // Burggrund (unzugänglich, die Burg steht darauf)
   m.rect(81, 16, 7, 1, '#'); m.rect(87, 16, 1, 1, '#');
-  lane(12, 17, 85, 4);                                 // Burggasse
-  lane(12, 34, 85, 3);                                 // Mittelgasse
+  lane(12, 17, 85, 4, 'gravel', 2.4);                  // Burggasse (Kies zur Burg)
+  lane(12, 34, 85, 3, 'earth', 1.7);                   // Mittelgasse
   lane(38, 37, 25, 13);                                // Ankerplatz
-  lane(12, 50, 85, 3);                                 // Schmiedegasse
-  lane(12, 64, 85, 3);                                 // Torplatz
-  for (const [x, w] of [[22, 2], [48, 5], [77, 2]]) { lane(x, 21, w, 12); lane(x, 53, w, 10); }   // Durchgänge
-  for (const [x, w] of [[22, 2], [77, 2]]) lane(x, 37, w, 12);
+  lane(12, 50, 85, 3, 'earth', 2.1);                   // Schmiedegasse
+  lane(12, 64, 85, 3, 'worn', 2.3);                    // Torplatz (altes Pflaster)
+  // Durchgänge: Weg über die ganze Breite, je eine Kachel in die Gassen hinein (liegt über deren Grasrand)
+  const pass = (x, y, w, h, k) => { m.rect(x, y, w, h, ':'); floors.push({ r: [x, y - 1, w, h + 2], k, pw: w }); };
+  for (const [x, w] of [[22, 2], [48, 5], [77, 2]]) { pass(x, 21, w, 12, w > 2 ? 'gravel' : 'earth'); pass(x, 53, w, 10, w > 2 ? 'worn' : 'earth'); }
+  for (const [x, w] of [[22, 2], [77, 2]]) pass(x, 37, w, 12, 'earth');
   for (const x of [22, 23, 48, 49, 50, 51, 52, 77, 78]) { put(x, 33, ':'); put(x, 63, ':'); }
   for (const x of [22, 23, 77, 78]) put(x, 49, ':');
-  lane(83, 8, 3, 8); put(83, 16, ':'); put(84, 16, ':'); put(85, 16, ':');   // hinter dem Siegeltor
+  lane(83, 8, 3, 8, 'gravel', 2); put(83, 16, ':'); put(84, 16, ':'); put(85, 16, ':');   // hinter dem Siegeltor
   // Stadtmauer: Ost- und Westmauer von oben (Krone mit Zinnen), Südmauer mit Außenseite; Durchlässe für Brücken,
   // Südtor, Luftschiffsteg und Koppel
   m.rect(10, 5, 2, 64, '#'); m.rect(97, 5, 2, 64, '#'); m.rect(10, 67, 89, 2, '#');
-  lane(10, 34, 2, 3); lane(10, 17, 2, 3); lane(48, 67, 4, 2); lane(26, 67, 2, 2); lane(85, 67, 2, 2);
+  lane(10, 34, 2, 3, 'earth', 1.7); lane(10, 17, 2, 3, 'gravel', 2.4); lane(48, 67, 4, 2); lane(26, 67, 2, 2, 'earth', 2); lane(85, 67, 2, 2, 'earth', 2);
 
   // ------------------------------------------------------------ Brücken und Steg
   bridge(m, [[0, 35], [10, 35]], 3, 'light');         // Lichtbrücke aus den Gärten
@@ -78,7 +81,7 @@ export function buildSternhafen() {
   const doors = {};
   const place = (ch, o, s, y, jog = false) => {
     const tx = houseAnchor(o, s), n = o.w / 16;
-    if (jog) { for (let x = s; x < s + n; x++) put(x, y, ':'); put(tx, y - 1, ch); } else put(tx, y, ch);
+    if (jog) { for (let x = s; x < s + n; x++) put(x, y, ':'); floors.push({ r: [s, y, n, 1], k: 'cobble' }); put(tx, y - 1, ch); } else put(tx, y, ch);
     return { x: houseDoor(o, s), y: jog ? y - 1 : y };
   };
   const fill = (y, x0, x1) => {
@@ -117,10 +120,11 @@ export function buildSternhafen() {
 
   // ------------------------------------------------------------ Ankerplatz
   put(50, 43, 'o');                                    // Ankerbrunnen
-  put(40, 41, 'g');                                    // Sternentor (Glutöde)
+  // Sternentor (Glutbogen) in der Achse Südtor – Ankerplatz – Burg, am Kopf des Durchgangs vom Torplatz
+  put(50, 52, 'g'); put(40, 44, '!'); put(40, 42, 'y');
   const waystone = { x: 60, y: 41 };
   put(60, 43, '5');
-  put(41, 44, '1'); put(50, 47, '2'); put(13, 35, '3'); put(50, 66, '4');
+  put(50, 54, '1'); put(50, 47, '2'); put(13, 35, '3'); put(50, 66, '4');
   const board = { x: 45, y: 38 };
   const vault = { x: 57, y: 38 };
   for (const [x, y] of [[44, 47], [56, 47]]) put(x, y, '$');
@@ -146,7 +150,7 @@ export function buildSternhafen() {
   put(90, 72, '<');
 
   // ------------------------------------------------------------ Figuren draußen
-  put(42, 43, ']');                                    // Hauptmann Halvard am Sternentor
+  put(52, 54, ']');                                    // Hauptmann Halvard am Sternentor
   put(53, 46, '/');                                    // Ausrufer Fenn
   put(45, 19, '{');                                    // Arenameisterin Sora vor der Burg
   put(86, 65, '}');                                    // Stallmeister Corvin
@@ -164,29 +168,32 @@ export function buildSternhafen() {
   // Möbel: a Tisch, b Bett, c Kamin, e Schrank, f Fässer, h Hocker, i Säcke, j Truhe, k Pflanze, l Theke, m Zapffässer,
   // n Amboss, p Esse, q Waffenständer, r Thron, s Banner, t Fernrohr, u Bücherregal, v Schreibpult, w Vitrine, x Rüstung
   room('thronsaal', 'Thronsaal', { x: 50, y: 16 }, 132, 2, 21, 12, 'B', [3, 17],
-    [[10, 3, 'r'], [7, 3, 's'], [13, 3, 's'], [2, 4, 'x'], [18, 4, 'x'], [1, 9, 'k'], [19, 9, 'k'], [10, 5, '6']], [9, 4, 3, 7]);
+    [[10, 3, 'r'], [7, 3, 's'], [13, 3, 's'], [2, 4, 'x'], [18, 4, 'x'], [1, 9, 'k'], [19, 9, 'k'], [4, 3, 'O'], [16, 3, 'O'], [4, 8, '!'], [16, 8, '!'], [10, 5, '6']], [9, 4, 3, 7]);
   room('gasthaus', 'Zum Fallenden Stern', doors.hInn, 132, 23, 19, 10, 'A', [3, 15],
-    [[6, 4, 'l'], [15, 3, 'm'], [11, 3, 'c'], [5, 8, 'a'], [13, 8, 'a'], [7, 6, 'h'], [17, 7, 'f'], [1, 8, 'i'], [3, 3, 'e'], [6, 3, '7']]);
+    [[6, 4, 'l'], [15, 3, 'm'], [11, 3, 'c'], [5, 8, 'a'], [13, 8, 'a'], [7, 6, 'h'], [17, 7, 'f'], [1, 8, 'i'], [3, 3, 'e'], [9, 3, '`'], [17, 3, ';'], [7, 8, 'h'], [11, 8, 'h'], [15, 8, 'h'], [6, 3, '7']], [8, 5, 6, 2]);
   room('bibliothek', 'Bibliothek', doors.hLibrary, 132, 44, 13, 10, 'C', [6],
-    [[1, 3, 'u'], [3, 3, 'u'], [9, 3, 'u'], [11, 3, 'u'], [6, 6, 'v'], [11, 8, 'k'], [1, 8, 'j'], [6, 5, ')']]);
+    [[1, 3, 'u'], [3, 3, 'u'], [9, 3, 'u'], [11, 3, 'u'], [6, 6, 'v'], [11, 8, 'k'], [1, 8, 'j'], [7, 3, '`'], [6, 5, ')']], [3, 5, 7, 3]);
   room('sternturm', 'Sternturm', { x: 5, y: 16 }, 132, 65, 11, 10, 'B', [5],
-    [[5, 4, 't'], [8, 3, 'u'], [2, 7, 'v'], [9, 8, 'j'], [1, 3, 'k'], [3, 6, '[']]);
+    [[5, 4, 't'], [8, 3, 'u'], [2, 7, 'v'], [9, 8, 'j'], [1, 3, 'k'], [3, 3, "'"], [3, 6, '[']], [3, 5, 5, 3]);
   room('schmiede', 'Schmiede', doors.hSmithy, 172, 2, 13, 10, 'A', [3, 9],
-    [[6, 3, 'p'], [6, 7, 'n'], [10, 3, 'q'], [2, 4, 'f'], [10, 8, 'i'], [1, 8, 'j'], [4, 7, '(']]);
+    [[6, 3, 'p'], [6, 7, 'n'], [10, 3, 'q'], [2, 4, 'f'], [10, 8, 'i'], [1, 8, 'j'], [3, 3, '@'], [4, 7, '(']]);
   room('kraemer', 'Krämerladen', doors.hShop, 172, 23, 13, 9, 'A', [6],
-    [[6, 4, 'l'], [2, 3, 'e'], [10, 3, 'e'], [11, 7, 'f'], [1, 7, 'i'], [8, 7, 'm'], [6, 3, '8']]);
+    [[6, 4, 'l'], [2, 3, 'e'], [10, 3, 'e'], [11, 7, 'f'], [1, 7, 'i'], [1, 5, 'm'], [4, 3, ';'], [8, 3, ';'], [6, 3, '8']], [4, 5, 5, 2]);
   room('juwelier', 'Juwelierstube', doors.hJewel, 172, 44, 11, 9, 'C', [5],
-    [[3, 5, 'w'], [7, 5, 'w'], [5, 3, 'e'], [9, 7, 'j'], [1, 7, 'k'], [5, 4, '9']]);
+    [[3, 5, 'w'], [7, 5, 'w'], [5, 3, 'e'], [9, 7, 'j'], [1, 7, 'k'], [2, 3, '>'], [8, 3, '`'], [5, 4, '9']], [3, 6, 5, 1]);
   room('ruestkammer', 'Rüstkammer', doors.hArmory, 172, 65, 13, 9, 'B', [6],
-    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [6, 5, '0']]);
+    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [10, 6, 'f'], [3, 6, 'j'], [6, 5, '0']]);
 
   const decor = {
-    V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'starGate', d: 'airships',
+    V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'glutbogen', d: 'airships',
     a: 'fTable', b: 'fBed', c: 'fHearth', e: 'fCupboard', f: 'fBarrels', h: 'fStool', i: 'fSacks', j: 'fChest', k: 'fPlant', l: 'fCounter',
     m: 'fKegs', n: 'fAnvil', p: 'fForge', q: 'fRack', r: 'fThrone', s: 'fBanner', t: 'fTelescope', u: 'fBooks', v: 'fDesk', w: 'fCase', x: 'fArmor',
     y: 'planters', '!': 'bench', '%': 'lamp', '&': 'crates', $: 'marketStall', '*': 'farmCart', '^': 'woodpile', '?': 'signpost', '<': 'haystack',
     '-': 'paddockH', '|': 'paddockV',
+    // Wandschmuck (begehbar, hängt an der Rückwand)
+    '@': 'wShield', ';': 'wShelf', '>': 'wPicture', "'": 'wStarmap', '`': 'wSconce', O: 'wTapestry',
   };
+  const WALLDECO = '@;>\'`O';
   GEN.forEach((g, i) => { decor[g.ch] = 'fw' + i; });
   for (const [k, ch] of Object.entries(SP)) decor[ch] = k;
 
@@ -202,7 +209,7 @@ export function buildSternhafen() {
     paintedCliffs: true,
     ramparts: { floors, rooms, dark, roofs, quays: true, stone: 'rubble' },
     interiors,
-    solid: Object.keys(decor).join(''),
+    solid: Object.keys(decor).filter((c) => !WALLDECO.includes(c) && c !== 'g').join(''),   // Glutbogen: nur Pfeiler fest
     decor,
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_splitterweiten', 5: 'waystone' },
     waystone,
@@ -227,7 +234,7 @@ export function buildSternhafen() {
       { id: 'anchor_stone', kind: 'shrine', over: true, name: 'Ankerstein', prompt: 'Den Ankerstein berühren', x: 50, y: 44 },
     ],
     portals: [
-      { id: 'to_ember_wastes', x: 40, y: 38.6, range: 26,
+      { id: 'to_ember_wastes', x: 50, y: 51.4, range: 26,
         to: { zoneId: 'ember_wastes', spawnId: 'from_sternhafen' }, prompt: 'Durch das Sternentor zurück in die Glutöde' },
       { id: 'to_gardens', x: 0.6, y: 35, range: 26, visual: 'road', dir: [-1, 0],
         to: { zoneId: 'drifting_gardens', spawnId: 'from_sternhafen' }, prompt: 'Über die Lichtbrücke in die Treibenden Gärten' },

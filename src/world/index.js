@@ -153,7 +153,7 @@ export function installWorld(game) {
     const S = assets.sprites.decor_astral, V = assets.sprites.village;
     const pickKeys = (src, keys) => Object.fromEntries(keys.filter((k) => k in src).map((k) => [k, src[k]]));
     return {
-      ...pickKeys(S, ['anchorWell', 'starGate', 'airships', 'starVault', 'paddockH', 'paddockV']),
+      ...pickKeys(S, ['anchorWell', 'airships', 'starVault', 'paddockH', 'paddockV']),
       ...pickKeys(V, ['lamp', 'crates', 'marketStall', 'farmCart', 'woodpile', 'signpost', 'haystack']),
       ...createAltstadtDecor(),
     };
