@@ -916,7 +916,7 @@ export function createAltstadtDecor() {
     fPlant: plant(), fCounter: counter(), fKegs: kegs(), fAnvil: anvil(), fForge: forge(), fRack: weaponRack(), fThrone: throne(),
     fBanner: bannerStand(), fTelescope: telescope(), fBooks: bookshelf(), fDesk: desk(), fCase: displayCase(), fArmor: armorStand(),
     planters: [planter(1), planter(2)], bench: bench(),
-    portalA: portalA(), portalB: portalB(), portalC: portalC(),
+    glutbogen: glutbogen(),
     wShield: wallShield(), wShelf: [wallShelf(1), wallShelf(2)], wPicture: wallPicture(0), wStarmap: wallPicture(1), wSconce: sconce(), wTapestry: [wallTapestry(0), wallTapestry(1)],
   };
   FW.forEach((o, i) => { D['fw' + i] = fwHouse(o); });
@@ -924,9 +924,9 @@ export function createAltstadtDecor() {
   return D;
 }
 
-// ------------------------------------------------------------------ Sternentor (Portal in die Glutöde), Entwürfe
-// Alle drei zeigen statt eines Bildes einen wabernden Glutschleier: unten hell wie ein Glutschein am Horizont, oben
-// dunkel, mit Funken. inside(x,y) = Öffnung, [y0, y1] = Höhe der Öffnung.
+// ------------------------------------------------------------------ Sternentor (Portal in die Glutöde)
+// In der Öffnung wabert ein Glutschleier: unten hell wie ein Glutschein am Horizont, oben dunkel, mit Funken.
+// inside(x,y) = Öffnung, [y0, y1] = Höhe der Öffnung.
 const FIRE = R(['#1a0806', '#3a0e0a', '#661a0c', '#9a2c10', '#cc4a18', '#ee7a2a', '#ffb050', '#ffe0a0']);
 function emberVeil(p, g, x0, x1, y0, y1, inside, seed) {
   const val = (x, y) => {
@@ -942,84 +942,9 @@ function emberVeil(p, g, x0, x1, y0, y1, inside, seed) {
   });
   g.each(x0, y0, x1, y1, (x, y) => (inside(x, y) && (val(x, y) > 0.72 || hash2(Math.floor(x), Math.floor(y), seed + 7) < 0.012) ? '#ff9a40' : null));
 }
-// Rauer Stein mit Licht oben links (für Findlinge): d = Abstand zum Rand (0 = Rand)
-function roughStone(nx, ny, x, y, seed) {
-  let i = 4 + (nx < -0.2 ? 1 : nx > 0.35 ? -1 : 0) + (ny < -0.6 ? 1 : 0);
-  const h = hash2(Math.floor(x / 3), Math.floor(y / 4), seed);
-  if (h < 0.18) i--; else if (h > 0.85) i++;
-  if (hash2(Math.floor(x * 2), Math.floor(y * 2), seed + 1) < 0.05) i -= 2;
-  return RUB.c[cl(i, 7)];
-}
 
-// A Hünentor: zwei Findlinge mit Deckstein, glimmende Runen, Moos und kleine Steine am Fuß
-export function portalA() {
-  const W = 104, H = 136, cx = 52, bot = H - 4;
-  return mk(W, H, (p, g) => {
-    PL = DAUB; TB = OAK;
-    footShade(p, cx, bot, 46, 4);
-    const lx0 = 14, lx1 = 34, rx0 = 70, rx1 = 90, top = bot - 92, lin0 = bot - 104, lin1 = bot - 86;
-    emberVeil(p, g, lx1 - 1, rx0 + 1, lin1, bot - 2, (x, y) => x > lx1 - 2 && x < rx0 + 2 && y > lin1 && y < bot - 1, 3);
-    const menhir = (a, b, t, seed) => p.scan(a - 2, t - 2, b + 2, bot, (x, y) => {
-      const m = (a + b) / 2, hw = (b - a) / 2 + Math.sin(y * 0.15 + seed) * 1.2 - Math.max(0, (t + 10 - y) * 0.35);
-      if (Math.abs(x - m) > hw || y < t + Math.abs(x - m) * 0.3) return 0;
-      const nx = (x - m) / hw, ny = (y - t) / (bot - t) * 2 - 1;
-      if (Math.abs(x - m) > hw - 1 || y < t + Math.abs(x - m) * 0.3 + 1) return RUB.c[x < m ? 6 : 1];
-      return roughStone(nx, ny, x, y, seed);
-    });
-    menhir(lx0, lx1, top, 971); menhir(rx0, rx1, top, 972);
-    // Deckstein
-    p.scan(lx0 - 4, lin0, rx1 + 4, lin1, (x, y) => {
-      const e = Math.sin(x * 0.2) * 1.2;
-      if (y < lin0 + 2 + e * 0.5 || x < lx0 - 3 + Math.abs(y - lin0 - 9) * 0.3 || x > rx1 + 3 - Math.abs(y - lin0 - 9) * 0.3) return 0;
-      if (y > lin1 - 1) return RUB.c[1];
-      if (y < lin0 + 3.5 + e * 0.5) return RUB.c[7];
-      return roughStone((x - cx) / 50, (y - lin0) / 9 - 1, x, y, 973);
-    });
-    // Runen (glühen)
-    // Sternzeichen: kleiner Vierstrahl-Stern oder Ring, eingemeißelt und glimmend
-    const rune = (x, y, k) => {
-      const on = k % 2 ? (u, v) => Math.abs(Math.hypot(u, v) - 2.4) < 0.7 : (u, v) => (Math.abs(u) < 0.6 && Math.abs(v) < 3.2) || (Math.abs(v) < 0.6 && Math.abs(u) < 3.2) || (Math.abs(u) < 1.2 && Math.abs(v) < 1.2);
-      p.scan(x - 4, y - 4, x + 4, y + 4, (px, py) => (on(px - x, py - y) ? FIRE.c[6] : on(px - x - 0.8, py - y - 0.8) ? RUB.c[1] : 0));
-      g.each(x - 4, y - 4, x + 4, y + 4, (px, py) => (on(px - x, py - y) ? '#ff8a30' : null));
-    };
-    [[lx0 + 10, top + 24], [lx0 + 10, top + 50], [rx0 + 10, top + 34], [rx0 + 10, top + 60], [cx, lin0 + 9]].forEach(([x, y], k) => rune(x, y, k));
-    // Moos und Gras am Fuß, kleine Steine
-    p.scan(lx0 - 6, bot - 8, rx1 + 6, bot, (x, y) => (hash2(Math.floor(x), Math.floor(y / 2), 974) < 0.25 && (x < lx1 + 2 || x > rx0 - 2) ? MOSS.c[2 + (hash2(Math.floor(x), 0, 975) < 0.5 ? 1 : 0)] : 0));
-    for (const [sx, sw] of [[6, 7], [96, 6]]) p.scan(sx - sw / 2, bot - 6, sx + sw / 2, bot, (x, y) => (Math.hypot((x - sx) / (sw / 2), (y - bot + 3) / 3) > 1 ? 0 : RUB.c[x < sx ? 6 : 3]));
-  }, { ax: cx, ay: bot, b: true, box: [-40, -14, 40, 1], light: { dx: 0, dy: -30, radius: 70, color: [255, 140, 70], intensity: 0.6 } });
-}
-
-// B Torhaus: Bruchsteintor mit Spitzbogen, Fachwerk-Obergeschoss und Walmdach, offene Torflügel, Laternen, Wappen
-export function portalB() {
-  const W = 112, H = 168, cx = 56, bot = H - 4, x0 = 16, x1 = 96, gtop = bot - 64;
-  return mk(W, H, (p, g) => {
-    PL = PLASTERS.ocker; TB = OAK;
-    footShade(p, cx, bot, 46, 4);
-    sideWall(p, x1, 4, gtop, bot, RUB);
-    rubble(p, x0, x1, gtop, bot, RUB, 981);
-    quoins(p, x0, gtop, bot, RUB); quoins(p, x1, gtop, bot, RUB, true);
-    // Spitzbogen-Öffnung
-    const aw = 24, abot = bot, sy = bot - 34, apx = bot - 54;
-    const inA = (x, y, e = 0) => y <= abot && (y >= sy ? Math.abs(x - cx) <= aw + e : Math.abs(x - cx) <= (aw + e) * (1 - ((sy - y) / (sy - apx + e)) ** 2 * 0.95) && y >= apx - e);
-    p.scan(cx - aw - 6, apx - 6, cx + aw + 6, abot, (x, y) => (inA(x, y, 4) && !inA(x, y) ? (inA(x, y, 2) ? RUB.c[x < cx ? 7 : 2] : RUB.c[x < cx ? 6 : 3]) : 0));
-    emberVeil(p, g, cx - aw, cx + aw, apx, abot - 1, (x, y) => inA(x, y), 5);
-    // offene Torflügel (seitlich, schräg)
-    for (const s of [-1, 1]) p.scan(cx + s * aw - (s < 0 ? 0 : 6), sy - 2, cx + s * aw + (s < 0 ? 6 : 0), abot, (x, y) => (Math.floor(y) % 5 < 0.7 ? OAK.c[2] : Math.abs(y - sy - 6) < 0.8 || Math.abs(y - abot + 6) < 0.8 ? IRON.c[3] : OAK.c[s < 0 ? 5 : 3]));
-    for (const lx of [x0 + 8, x1 - 10]) lantern(p, g, lx, sy - 10);
-    // Fachwerk-Obergeschoss
-    const f0 = gtop - 30;
-    timberFloor(p, x0 - 2, x1 + 2, f0, gtop, 982, [x0 + 10, cx - 4, x1 - 18]);
-    for (const wx of [x0 + 10, x1 - 18]) lead(p, g, wx, f0 + 7, 8, 10, TB, { shut: SHUT.rot, seed: wx });
-    jetty(p, x0, x1, gtop, 2);
-    sideWall(p, x1 + 2, 3, f0, gtop, TB);
-    // Wappen über dem Tor
-    p.scan(cx - 7, f0 + 6, cx + 7, f0 + 24, (x, y) => (Math.abs(x - cx) > 7 - Math.max(0, y - f0 - 16) * 0.9 ? 0 : x < cx - 6.4 || y < f0 + 6.6 ? col32('#e0c070') : Math.abs(x - cx) < 1.1 || Math.abs(y - f0 - 13) < 1.1 ? col32('#e0c070') : col32(x < cx ? '#a83a30' : '#7a2420')));
-    roofEave(p, x0 - 8, x1 + 9, f0 - 42, f0 + 1, SLATE, 'slate', 983, { hip: 14 });
-  }, { ax: cx, ay: bot, b: true, box: [-42, -14, 42, 1], light: { dx: 0, dy: -24, radius: 70, color: [255, 140, 70], intensity: 0.6 } });
-}
-
-// C Glutbogen: frei stehender gotischer Spitzbogen aus Quadern mit Maßwerk-Dreipass, Stufensockel, Eisenbecken
-export function portalC() {
+// Glutbogen: frei stehender gotischer Spitzbogen aus Quadern mit Maßwerk-Dreipass, Stufensockel, Eisenbecken
+export function glutbogen() {
   const W = 112, H = 150, cx = 56, bot = H - 4, foot = bot - 8;
   return mk(W, H, (p, g) => {
     PL = DAUB; TB = OAK;
@@ -1060,7 +985,8 @@ export function portalC() {
       p.scan(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => { const f = Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 + Math.sin(y * 0.8 + x) * 0.15; return f > 1 ? 0 : FIRE.c[f < 0.35 ? 7 : f < 0.6 ? 6 : 5]; });
       g.each(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => (Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 < 0.9 ? '#ff9a40' : null));
     }
-  }, { ax: cx, ay: bot, b: true, box: [-48, -10, 48, 1], light: { dx: 0, dy: -30, radius: 80, color: [255, 140, 70], intensity: 0.65 } });
+  // Kollision nur an Pfeilern und Becken: durch die Öffnung kann man hineingehen
+  }, { ax: cx, ay: bot, b: true, extra: { boxes: [[-50, -10, -21, 1], [21, -10, 50, 1]] }, light: { dx: 0, dy: -30, radius: 80, color: [255, 140, 70], intensity: 0.65 } });
 }
 
 // ------------------------------------------------------------------ Wandschmuck für Innenräume

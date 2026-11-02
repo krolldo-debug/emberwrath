@@ -120,10 +120,11 @@ export function buildSternhafen() {
 
   // ------------------------------------------------------------ Ankerplatz
   put(50, 43, 'o');                                    // Ankerbrunnen
-  put(40, 43, 'g');                                    // Sternentor (Glutöde)
+  // Sternentor (Glutbogen) in der Achse Südtor – Ankerplatz – Burg, am Kopf des Durchgangs vom Torplatz
+  put(50, 52, 'g'); put(40, 44, '!'); put(40, 42, 'y');
   const waystone = { x: 60, y: 41 };
   put(60, 43, '5');
-  put(41, 46, '1'); put(50, 47, '2'); put(13, 35, '3'); put(50, 66, '4');
+  put(50, 54, '1'); put(50, 47, '2'); put(13, 35, '3'); put(50, 66, '4');
   const board = { x: 45, y: 38 };
   const vault = { x: 57, y: 38 };
   for (const [x, y] of [[44, 47], [56, 47]]) put(x, y, '$');
@@ -149,7 +150,7 @@ export function buildSternhafen() {
   put(90, 72, '<');
 
   // ------------------------------------------------------------ Figuren draußen
-  put(43, 45, ']');                                    // Hauptmann Halvard am Sternentor
+  put(52, 54, ']');                                    // Hauptmann Halvard am Sternentor
   put(53, 46, '/');                                    // Ausrufer Fenn
   put(45, 19, '{');                                    // Arenameisterin Sora vor der Burg
   put(86, 65, '}');                                    // Stallmeister Corvin
@@ -184,7 +185,7 @@ export function buildSternhafen() {
     [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [10, 6, 'f'], [3, 6, 'j'], [6, 5, '0']]);
 
   const decor = {
-    V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'starGate', d: 'airships',
+    V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'glutbogen', d: 'airships',
     a: 'fTable', b: 'fBed', c: 'fHearth', e: 'fCupboard', f: 'fBarrels', h: 'fStool', i: 'fSacks', j: 'fChest', k: 'fPlant', l: 'fCounter',
     m: 'fKegs', n: 'fAnvil', p: 'fForge', q: 'fRack', r: 'fThrone', s: 'fBanner', t: 'fTelescope', u: 'fBooks', v: 'fDesk', w: 'fCase', x: 'fArmor',
     y: 'planters', '!': 'bench', '%': 'lamp', '&': 'crates', $: 'marketStall', '*': 'farmCart', '^': 'woodpile', '?': 'signpost', '<': 'haystack',
@@ -208,7 +209,7 @@ export function buildSternhafen() {
     paintedCliffs: true,
     ramparts: { floors, rooms, dark, roofs, quays: true, stone: 'rubble' },
     interiors,
-    solid: Object.keys(decor).filter((c) => !WALLDECO.includes(c)).join(''),
+    solid: Object.keys(decor).filter((c) => !WALLDECO.includes(c) && c !== 'g').join(''),   // Glutbogen: nur Pfeiler fest
     decor,
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_splitterweiten', 5: 'waystone' },
     waystone,
@@ -233,7 +234,7 @@ export function buildSternhafen() {
       { id: 'anchor_stone', kind: 'shrine', over: true, name: 'Ankerstein', prompt: 'Den Ankerstein berühren', x: 50, y: 44 },
     ],
     portals: [
-      { id: 'to_ember_wastes', x: 40, y: 40.6, range: 26,
+      { id: 'to_ember_wastes', x: 50, y: 51.4, range: 26,
         to: { zoneId: 'ember_wastes', spawnId: 'from_sternhafen' }, prompt: 'Durch das Sternentor zurück in die Glutöde' },
       { id: 'to_gardens', x: 0.6, y: 35, range: 26, visual: 'road', dir: [-1, 0],
         to: { zoneId: 'drifting_gardens', spawnId: 'from_sternhafen' }, prompt: 'Über die Lichtbrücke in die Treibenden Gärten' },
