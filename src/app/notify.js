@@ -16,6 +16,11 @@ import { tr } from '../i18n/index.js';
 // Wer vorher spielt, bekommt sie nicht: jeder Spielstart plant sie neu (gleiche Kennung ersetzt die alte).
 // Mitteilungen vom Server (APNs) sind vorbereitet: die App meldet sich nach der Erlaubnis bei Apple an, token() liefert
 // das Geräte-Token. Gesendet wird noch nichts.
+//
+// Abgeschaltet (Nutzer 02.11.): App 1.1 erscheint ohne Mitteilungen, Frage und Erinnerung bleiben aus. Die Technik ist da
+// (PushPlugin.swift in App 1.1); einschalten ohne neue App-Version: NOTIFY_ENABLED = true und den Abschnitt
+// „Mitteilungen in der iOS-App“ wieder in site/datenschutz.html aufnehmen (Übersetzungen stehen noch in site/i18n/*.json).
+export const NOTIFY_ENABLED = false;
 const PLUGIN = 'EmberPush';
 const ASKED = 'notifyAsked';
 const REMIND_ID = 'daily';
@@ -58,7 +63,7 @@ function askPanel(session, done) {
 }
 
 export function installNotify(game) {
-  if (!hasPush()) return;
+  if (!NOTIFY_ENABLED || !hasPush()) return;
   const answer = async (yes) => {
     game.prefs.set(ASKED, true);
     if (!yes) return;
