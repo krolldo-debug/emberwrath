@@ -167,11 +167,11 @@ export function buildSternhafen() {
   // Möbel: a Tisch, b Bett, c Kamin, e Schrank, f Fässer, h Hocker, i Säcke, j Truhe, k Pflanze, l Theke, m Zapffässer,
   // n Amboss, p Esse, q Waffenständer, r Thron, s Banner, t Fernrohr, u Bücherregal, v Schreibpult, w Vitrine, x Rüstung
   room('thronsaal', 'Thronsaal', { x: 50, y: 16 }, 132, 2, 21, 12, 'B', [3, 17],
-    [[10, 3, 'r'], [7, 3, 's'], [13, 3, 's'], [2, 4, 'x'], [18, 4, 'x'], [1, 9, 'k'], [19, 9, 'k'], [4, 3, 'O'], [16, 3, 'O'], [4, 8, '!'], [16, 8, '!'], [5, 3, '`'], [15, 3, '`'], [10, 5, '6']], [9, 4, 3, 7]);
+    [[10, 3, 'r'], [7, 3, 's'], [13, 3, 's'], [2, 4, 'x'], [18, 4, 'x'], [1, 9, 'k'], [19, 9, 'k'], [4, 3, 'O'], [16, 3, 'O'], [4, 8, '!'], [16, 8, '!'], [10, 5, '6']], [9, 4, 3, 7]);
   room('gasthaus', 'Zum Fallenden Stern', doors.hInn, 132, 23, 19, 10, 'A', [3, 15],
     [[6, 4, 'l'], [15, 3, 'm'], [11, 3, 'c'], [5, 8, 'a'], [13, 8, 'a'], [7, 6, 'h'], [17, 7, 'f'], [1, 8, 'i'], [3, 3, 'e'], [9, 3, '`'], [17, 3, ';'], [7, 8, 'h'], [11, 8, 'h'], [15, 8, 'h'], [6, 3, '7']], [8, 5, 6, 2]);
   room('bibliothek', 'Bibliothek', doors.hLibrary, 132, 44, 13, 10, 'C', [6],
-    [[1, 3, 'u'], [3, 3, 'u'], [9, 3, 'u'], [11, 3, 'u'], [6, 6, 'v'], [11, 8, 'k'], [1, 8, 'j'], [5, 3, '`'], [7, 3, '`'], [6, 5, ')']], [3, 5, 7, 3]);
+    [[1, 3, 'u'], [3, 3, 'u'], [9, 3, 'u'], [11, 3, 'u'], [6, 6, 'v'], [11, 8, 'k'], [1, 8, 'j'], [7, 3, '`'], [6, 5, ')']], [3, 5, 7, 3]);
   room('sternturm', 'Sternturm', { x: 5, y: 16 }, 132, 65, 11, 10, 'B', [5],
     [[5, 4, 't'], [8, 3, 'u'], [2, 7, 'v'], [9, 8, 'j'], [1, 3, 'k'], [3, 3, "'"], [3, 6, '[']], [3, 5, 5, 3]);
   room('schmiede', 'Schmiede', doors.hSmithy, 172, 2, 13, 10, 'A', [3, 9],
@@ -181,7 +181,7 @@ export function buildSternhafen() {
   room('juwelier', 'Juwelierstube', doors.hJewel, 172, 44, 11, 9, 'C', [5],
     [[3, 5, 'w'], [7, 5, 'w'], [5, 3, 'e'], [9, 7, 'j'], [1, 7, 'k'], [2, 3, '>'], [8, 3, '`'], [5, 4, '9']], [3, 6, 5, 1]);
   room('ruestkammer', 'Rüstkammer', doors.hArmory, 172, 65, 13, 9, 'B', [6],
-    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [9, 3, '`'], [10, 6, 'f'], [3, 6, 'j'], [6, 5, '0']]);
+    [[2, 3, 'q'], [10, 3, 'q'], [5, 3, 'x'], [7, 3, 'x'], [11, 7, 'j'], [1, 7, 'f'], [4, 3, '@'], [10, 6, 'f'], [3, 6, 'j'], [6, 5, '0']]);
 
   const decor = {
     V: 'castle', W: 'starTowerM', X: 'stableM', Y: 'gateL', Z: 'gateR', z: 'gateSealed', o: 'anchorWell', g: 'starGate', d: 'airships',
