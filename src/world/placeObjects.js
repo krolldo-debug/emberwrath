@@ -10,6 +10,7 @@ import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { hash2, pick } from '../core/math.js';
 import { isStarsOpen } from '../progression/xp.js';
+import { placeInteriors } from './interiors.js';
 
 const T = CONFIG.tileSize;
 const pickH = (arr, p, seed = 1) => arr[Math.floor(hash2(p.tx, p.ty, seed) * arr.length)];
@@ -244,6 +245,9 @@ export function placeObjects(world) {
     const lever = world.spawn(new Lever(sc.lever.x * T + T / 2, sc.lever.y * T + T / 2 + 2, sc.id));
     world.interactables.push(lever);
   }
+
+  // Begehbare Häuser (level.interiors, world/interiors.js)
+  placeInteriors(world, L);
 
   // Portale
   for (const p of L.portals ?? []) {

@@ -33,7 +33,7 @@ function load(abs) {
     load(dep);
     return `const ${name} = __require(${JSON.stringify(relative(root, dep).replace(/\\/g, '/'))});`;
   });
-  src = src.replace(/^export\s+(class|function|async function|const|let)\s+([A-Za-z_$][\w$]*)/gm, (m, kind, name, at, all) => {
+  src = src.replace(/^export\s+(class|function\*?|async function\*?|const|let)\s*([A-Za-z_$][\w$]*)/gm, (m, kind, name, at, all) => {
     exported.push(name);
     if (kind === 'const' || kind === 'let') exported.push(...moreDeclarators(all, at + m.length));
     return `${kind} ${name}`;

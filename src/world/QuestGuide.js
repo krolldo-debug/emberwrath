@@ -1,6 +1,7 @@
 import { CONFIG } from '../config.js';
 import { EV } from '../core/events.js';
 import { questTarget } from '../progression/selectors.js';
+import { guideVia } from './interiors.js';
 
 const T = CONFIG.tileSize;
 const C = 4;                     // Feinraster der Abdeckung (Weltpixel)
@@ -95,7 +96,7 @@ export class QuestGuide {
     const w = this.world;
     const t = this.#readTarget();
     this.target = t;
-    this.goal = t ? this.#resolve(t) : null;
+    this.goal = t ? guideVia(w, this.#resolve(t)) : null; // durch Haustüren (world/interiors.js)
     if (!this.goal) { this.path = []; w.guidePath = this.path; return; }
     const h = w.hero;
     const d = Math.hypot(this.goal.x - h.x, this.goal.y - h.y);

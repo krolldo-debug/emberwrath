@@ -1,6 +1,7 @@
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { hash2 } from '../core/math.js';
 import { PixelFont } from './PixelFont.js';
+import { mapColumns } from '../world/interiors.js';
 
 // Gezeichnete Zonenkarte im Pixelstil – Thread D, Neufassung „Kartenwerk“ (17.10.).
 // Aus dem Zeichenraster der Zone (level.map), den Deko-Platzierungen und den Flächen entsteht eine farbige
@@ -262,12 +263,19 @@ export function renderZoneMap(world, scale, { detail = true, frame = detail } = 
   const d = world.dungeon;
   const { cls, biome, outdoor, fill } = classify(d);
   const W = d.w * scale, H = d.h * scale;
-  const P = new Paint(W, H);
+  let P = new Paint(W, H);
   const fine = detail && scale >= 3;
   if (outdoor) paintOutdoor(P, d, cls, fill, biome, scale, fine);
   else paintDungeon(P, d, cls, biome, scale, fine);
+  // Innenräume (world/interiors.js) gehören nicht auf die Karte: rechts abschneiden
+  const Wc = mapColumns(d) * scale;
+  if (Wc < W) {
+    const Q = new Paint(Wc, H);
+    for (let y = 0; y < H; y++) Q.px.set(P.px.subarray(y * W * 4, (y * W + Wc) * 4), y * Wc * 4);
+    P = Q;
+  }
   if (frame) drawFrame(P, scale);
-  const c = makeCanvas(W, H);
+  const c = makeCanvas(P.W, H);
   c.getContext('2d').putImageData(P.img, 0, 0);
   entry[key] = c;
   return c;
@@ -886,7 +894,7 @@ const NEAR = [[0, 0], [0, -1.5], [0, 1.5], [-2, 0], [2, 0], [-2, -1.5], [2, -1.5
 const WIDE = [...NEAR, [0, -3], [0, 3], [-4, 0], [4, 0], [-3, -3], [3, -3], [-3, 3], [3, 3], [0, -5], [0, 5], [0, -7], [0, 7]];
 
 export function renderLabels(world, content, scale, z, avoid = [], translate = (t) => t) {
-  const d = world.dungeon, W = d.w * scale, H = d.h * scale;
+  const d = world.dungeon, W = mapColumns(d) * scale, H = d.h * scale;
   const { cls } = classify(d);
   const c = makeCanvas(W, H), ctx = c.getContext('2d');
   const order = { town: 0, area: 1, portal: 2 };

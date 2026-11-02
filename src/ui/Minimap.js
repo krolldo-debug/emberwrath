@@ -3,6 +3,7 @@ import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { renderZoneMap, renderLabels } from './MapArt.js';
 import { tr } from '../i18n/index.js';
+import { mapPoint, mapColumns } from '../world/interiors.js';
 
 // Minimap (HUD) und Zonenkarte (Panel 'map') – Thread D.
 // Liest nur: session.world (Hintergrund, Raster, NPCs, Portale, Gegner), session.zone,
@@ -285,10 +286,12 @@ export class Minimap {
     const base = zoneBaseImage(w, MM_SCALE);
     const ctx = this.ctx, hero = w.hero;
     const k = MM_SCALE / T;
-    const cx = hero.x * k - MM / 2, cy = hero.y * k - MM / 2;
+    // In einem Haus (world/interiors.js) zeigt die Minimap die Stadt um die Haustür
+    const hp = mapPoint(w, hero.x, hero.y);
+    const cx = hp.x * k - MM / 2, cy = hp.y * k - MM / 2;
     ctx.fillStyle = '#2a2016'; ctx.fillRect(0, 0, MM, MM);
     ctx.drawImage(base, Math.round(cx), Math.round(cy), MM, MM, 0, 0, MM, MM);
-    const map = (x, y) => [x * k - Math.round(cx), y * k - Math.round(cy)];
+    const map = (x, y) => { const p = mapPoint(w, x, y); return [p.x * k - Math.round(cx), p.y * k - Math.round(cy)]; };
     drawMarkers(ctx, s, map, this.t, { clipRect: [1, 1, MM - 1, MM - 1] });
     // Questziel: im Bild als Ring, sonst Pfeil am Rand
     const tgt = resolveTarget(s, s.game?.progression?.questTarget?.() ?? null);
@@ -339,10 +342,12 @@ export function createMapPanel(session) {
   // Pixelraster. Ist die Karte dann deutlich schmaler als der Rahmen (Handy quer), füllt sie die Breite und
   // lässt sich senkrecht verschieben; sie startet auf dem Helden.
   let scale = 0, zoom = 1, base = null, labels = null, k = 1, centered = false;
+  const cols = mapColumns(d); // ohne Innenräume (world/interiors.js)
+  const at = (x, y) => mapPoint(w, x, y);
   const choose = (aw, ah, widthOnly) => {
     let best = null;
     for (let z = 1; z <= 4; z++) {
-      const sc = Math.min(8, Math.floor(widthOnly ? aw / (d.w * z) : Math.min(aw / (d.w * z), ah / (d.h * z))));
+      const sc = Math.min(8, Math.floor(widthOnly ? aw / (cols * z) : Math.min(aw / (cols * z), ah / (d.h * z))));
       if (sc < 3) continue;
       if (!best || sc * z > best.s * best.z || (sc * z === best.s * best.z && sc > best.s)) best = { s: sc, z };
     }
@@ -351,16 +356,17 @@ export function createMapPanel(session) {
   const fit = () => {
     const aw = (frameEl.clientWidth || window.innerWidth * 0.9) - 8, ah = (frameEl.clientHeight || window.innerHeight * 0.6) - 8;
     let best = choose(aw, ah, false), scroll = false;
-    if (!best || (ah < 380 && best.s * best.z * d.w < aw * 0.7)) { const wide = choose(aw, ah, true); if (wide) { best = wide; scroll = best.s * best.z * d.h > ah; } }
+    if (!best || (ah < 380 && best.s * best.z * cols < aw * 0.7)) { const wide = choose(aw, ah, true); if (wide) { best = wide; scroll = best.s * best.z * d.h > ah; } }
     best ??= { s: 3, z: 1 };
     if (best.s !== scale || best.z !== zoom) {
       scale = best.s; zoom = best.z; k = scale / T;
       base = zoneBaseImage(w, scale);
       const T0 = T, avoid = [];
-      for (const n of w.npcs) avoid.push([(n.x / T0) * scale, (n.y / T0) * scale - 3, 6]);
-      avoid.push([(w.hero.x / T0) * scale, (w.hero.y / T0) * scale, 18, 600]);
+      for (const n of w.npcs) { const p = at(n.x, n.y); avoid.push([(p.x / T0) * scale, (p.y / T0) * scale - 3, 6]); }
+      const hp0 = at(w.hero.x, w.hero.y);
+      avoid.push([(hp0.x / T0) * scale, (hp0.y / T0) * scale, 18, 600]);
       const tgt = resolveTarget(session, session.game?.progression?.questTarget?.() ?? null);
-      if (tgt) avoid.push([(tgt.x / T0) * scale, (tgt.y / T0) * scale, 10, 600]);
+      if (tgt) { const p = at(tgt.x, tgt.y); avoid.push([(p.x / T0) * scale, (p.y / T0) * scale, 10, 600]); }
       for (const e of w.entities) if (e.to?.zoneId) avoid.push([(e.x / T0) * scale, (e.y / T0) * scale, 6]);
       labels = renderLabels(w, content, scale, zoom, avoid, tr);
       canvas.width = base.width; canvas.height = base.height;
@@ -370,7 +376,7 @@ export function createMapPanel(session) {
     frameEl.classList.toggle('scroll', scroll);
     if (scroll && !centered) {
       centered = true;
-      requestAnimationFrame(() => { frameEl.scrollTop = Math.max(0, w.hero.y * k * zoom - frameEl.clientHeight / 2); });
+      requestAnimationFrame(() => { frameEl.scrollTop = Math.max(0, at(w.hero.x, w.hero.y).y * k * zoom - frameEl.clientHeight / 2); });
     }
   };
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
@@ -378,7 +384,7 @@ export function createMapPanel(session) {
   requestAnimationFrame(fit);
   window.addEventListener('resize', fit);
   let t = 0, acc = 1, lastTarget = '';
-  const map = (x, y) => [x * k, y * k];
+  const map = (x, y) => { const p = at(x, y); return [p.x * k, p.y * k]; };
   return {
     root,
     dispose() { window.removeEventListener('resize', fit); ro?.disconnect(); },
