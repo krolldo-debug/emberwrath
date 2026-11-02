@@ -161,6 +161,8 @@ function pickWeighted(entries, rng) {
 export function rarityWeights(kind, level, bossId) {
   if (kind === 'boss') return { ...(BOSSES[bossId]?.weights ?? { uncommon: 45, rare: 45, epic: 10 }) };
   if (kind === 'rare') return { ...RARE_WEIGHTS };
+  // Sternenherz (Weltereignis Sternenfall, world/starfall.js): besser als eine Truhe, schlechter als ein Boss
+  if (kind === 'chest_star') return { uncommon: 55, rare: 40, epic: 5 };
   const w = { ...(RARITY_TABLE[kind] ?? RARITY_TABLE.normal) };
   if (kind === 'normal') { delete w.epic; delete w.legendary; if (level < 6) delete w.rare; }
   if (kind === 'chest' || kind === 'chest_boss' || kind === 'elite' || kind === 'champion') delete w.legendary;
@@ -213,13 +215,14 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   const lvl = Math.max(1, enemy.level ?? 1);
   const isChest = !!enemy.chest;
   const bossChest = isChest && String(enemy.chest).startsWith('boss');
+  const starChest = isChest && String(enemy.chest).startsWith('starfall');
   const rare = !isChest && !enemy.boss ? RARE_ENEMIES[enemy.rareId] : null;
-  const kind = isChest ? (bossChest ? 'chest_boss' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.champion ? 'champion' : enemy.elite ? 'elite' : 'normal';
+  const kind = isChest ? (bossChest ? 'chest_boss' : starChest ? 'chest_star' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.champion ? 'champion' : enemy.elite ? 'elite' : 'normal';
   const boss = kind === 'boss' ? BOSSES[enemy.bossId ?? enemy.type] : null;
   const named = kind === 'elite' ? ELITES[enemy.type] : null;
 
   // Gold
-  const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'champion' ? 5 : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest' ? 3 : 1;
+  const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'champion' ? 5 : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest_star' ? 6 : kind === 'chest' ? 3 : 1;
   if (kind !== 'normal' || rng() < 0.65) {
     const lo = 1 + lvl * 0.6, hi = 3 + lvl * 1.3;
     drops.push({ gold: Math.max(1, Math.round((lo + rng() * (hi - lo)) * goldMult)) });
@@ -266,6 +269,9 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
       if (rng() < c) drops.push({ itemId: id, qty: 1 });
     }
     if (kind !== 'normal') for (const [id, chance] of ELITE_MATS) if (rng() < chance) drops.push({ itemId: id, qty: 1 });
+  } else if (starChest) {
+    drops.push({ itemId: chestMaterial(lvl), qty: 2 + Math.floor(rng() * 2) });
+    if (rng() < 0.35) drops.push({ itemId: lvl >= 46 ? 'void_glass' : 'void_bloom', qty: 1 });
   } else if (rng() < 0.5) {
     drops.push({ itemId: chestMaterial(lvl), qty: 1 + Math.floor(rng() * 2) });
   }

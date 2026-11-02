@@ -6089,5 +6089,14 @@ export const FR = {
   "Bibliothek": "Bibliothèque",
   "Krämerladen": "Bazar",
   "Juwelierstube": "Joaillerie",
-  "Rüstkammer": "Armurerie"
+  "Rüstkammer": "Armurerie",
+  "Ein Stern stürzt bald herab, {0}.": "Une étoile va bientôt tomber, {0}.",
+  "Ein Stern stürzt gleich herab, {0}.": "Une étoile tombe d'un instant à l'autre, {0}.",
+  "Hier ist gerade ein Stern gefallen, {0}.": "Une étoile vient de tomber ici, {0}.",
+  "Leerenwesen kriechen aus dem Krater!": "Des créatures du Néant rampent hors du cratère !",
+  "Eine neue Welle bricht aus dem Stern.": "Une nouvelle vague jaillit de l'étoile.",
+  "Die letzte Welle bricht aus dem Stern.": "La dernière vague jaillit de l'étoile.",
+  "Sternenfall überstanden": "Chute d'étoile surmontée",
+  "Das Sternenherz ist aufgebrochen": "Le Cœur d'étoile s'est ouvert",
+  "Das Sternenherz nehmen": "Prendre le Cœur d'étoile"
 };

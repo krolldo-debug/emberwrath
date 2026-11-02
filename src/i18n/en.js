@@ -6089,5 +6089,14 @@ export const EN = {
   "Bibliothek": "Library",
   "Krämerladen": "General Store",
   "Juwelierstube": "Jeweler's Parlor",
-  "Rüstkammer": "Armory"
+  "Rüstkammer": "Armory",
+  "Ein Stern stürzt bald herab, {0}.": "A star is about to fall, {0}.",
+  "Ein Stern stürzt gleich herab, {0}.": "A star is falling any moment now, {0}.",
+  "Hier ist gerade ein Stern gefallen, {0}.": "A star has just fallen here, {0}.",
+  "Leerenwesen kriechen aus dem Krater!": "Void creatures crawl out of the crater!",
+  "Eine neue Welle bricht aus dem Stern.": "A new wave bursts from the star.",
+  "Die letzte Welle bricht aus dem Stern.": "The last wave bursts from the star.",
+  "Sternenfall überstanden": "Starfall survived",
+  "Das Sternenherz ist aufgebrochen": "The Star Heart has cracked open",
+  "Das Sternenherz nehmen": "Take the Star Heart"
 };

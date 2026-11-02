@@ -157,3 +157,24 @@ export function walkPath(m, solid, from, to, step = 3) {
   tiles.reverse();
   return tiles.filter((_, i) => i % step === 0 || i === tiles.length - 1);
 }
+
+// Freie Plätze für das Weltereignis „Sternenfall“ (world/starfall.js): je Anker die nächste Kachel, um die im Umkreis r
+// nur Boden liegt (keine Deko, kein Gegner, kein Abgrund; lim = r² des Kreises). Ergebnis in Kacheln, Reihenfolge wie die Anker.
+export function openSites(m, anchors, r = 3, reach = 8, lim = r * r + 1) {
+  const out = [];
+  const free = (x, y) => {
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= lim && !GROUND.has(m.get(x + i, y + j))) return false;
+    return true;
+  };
+  for (const [ax, ay] of anchors) {
+    let best = null;
+    for (let d = 0; d <= reach && !best; d++) {
+      for (let j = -d; j <= d && !best; j++) for (let i = -d; i <= d; i++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== d) continue;
+        if (free(ax + i, ay + j)) { best = [ax + i, ay + j]; break; }
+      }
+    }
+    if (best) out.push(best);
+  }
+  return out;
+}

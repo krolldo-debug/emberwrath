@@ -2382,3 +2382,6 @@ export function createFrostFoes() {
     ice_troll_chief: chiefAnims(),
   };
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars.js: Sternenglut-Gegner)
+export const FROST_KIT = { TAU, ease, mixP, sample, ik, put, ell, volEll, fd, fl, shard, limb, makeFrame, track, qLeg, dirOf, hash2 };

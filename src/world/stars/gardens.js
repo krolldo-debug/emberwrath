@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { GROUND, clearAround } from '../mapkit.js';
-import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND, VOID } from './kit.js';
+import { openSites, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND, VOID } from './kit.js';
 
 // ---------------------------------------------------------------- Die Treibenden Gärten (40–45)
 // 200 × 130 Kacheln. König Aurels verwilderte Gartenterrassen treiben als Inseln über dem Morgenhimmel; die Leere
@@ -231,12 +231,16 @@ export function buildDriftingGardens() {
   const escortPath = walkPath(m, SOLID, [175, 57], [118, 62]);
   const amb = (f) => Math.round((escortPath.length - 1) * f);
 
+  // Weltereignis „Sternenfall“ (world/starfall.js): mögliche Einschlagorte, je Teilgebiet einer
+  const starfallSites = openSites(m, [[152, 70], [106, 86], [62, 28], [42, 96], [94, 34]]);
+
   return {
     name: 'Die Treibenden Gärten',
     kind: 'outdoor',
     biome: 'astral',
     sky: 'morgen',
     island: ISLAND,
+    starfallSites,
     decorSet: 'decor_astral',
     map: m.rows(),
     bridges: m.bridges ?? [],

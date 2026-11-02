@@ -55,6 +55,7 @@ import { createWaystoneSprites } from '../sprites/waystone.js';
 import { createBoardSprites } from '../sprites/board.js';
 import { createCaravanSprites } from '../sprites/caravan.js';
 import { installQuestRuns } from './questRuns.js';
+import { installStarfall } from './starfall.js';
 
 // Grafik erst beim ersten Zugriff erzeugen (spart Ladezeit: jede Zone
 // braucht nur ihre eigenen Gegner und Deko).
@@ -239,4 +240,6 @@ export function installWorld(game) {
 
   // Eskorte und Verteidigen (questRuns.js, Vertrag C §4); meldet game.progression.setWorldFeatures beim Weltstart.
   installQuestRuns(game);
+  // Weltereignis Sternenfall in den offenen Gebieten der Sternenscherben (starfall.js)
+  installStarfall(game);
 }

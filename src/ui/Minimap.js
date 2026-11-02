@@ -234,12 +234,31 @@ function drawMarkers(ctx, session, map, t, { clipRect = null, enemies = true, bi
     else if (big) foeMark(ctx, p[0], p[1], !!(e.def?.elite || e.elite || e.champion));
     else dot(ctx, p[0], p[1], e.def?.elite || e.elite ? C.elite : C.enemy, e.def?.elite || e.elite ? 2 : 1);
   }
+  // Sternenfall (world/starfall.js): goldener Stern, am Rand festgehalten, damit man ihn auch von weitem findet
+  for (const e of w.entities) {
+    if (!e.mapStar || e.removed) continue;
+    let p = map(e.x, e.y);
+    if (clamp) p = cl(p);
+    else if (clipRect) p = [Math.min(clipRect[2] - 3, Math.max(clipRect[0] + 2, p[0])), Math.min(clipRect[3] - 3, Math.max(clipRect[1] + 2, p[1]))];
+    starMark(ctx, p[0], p[1], t, big);
+  }
   // NPCs mit Questmarkierung
   for (const n of w.npcs) {
     const p = map(n.x, n.y); if (!inside(p)) continue;
     const m = prog?.npcMarker?.(n.npcId);
     glyph(ctx, p[0], p[1], m === 'available' || m === 'repeatable' ? 'offer' : m === 'ready' ? 'ready' : 'npc', t, big);
   }
+}
+
+// Sternenfall: vierzackiger Stern, pulsiert
+function starMark(ctx, x, y, t, big) {
+  x = Math.round(x); y = Math.round(y);
+  const r = (big ? 4 : 2) + (Math.sin(t * 5) > 0 ? 1 : 0);
+  ctx.fillStyle = '#2a1040';
+  ctx.fillRect(x - r - 1, y - 1, r * 2 + 3, 3); ctx.fillRect(x - 1, y - r - 1, 3, r * 2 + 3);
+  ctx.fillStyle = '#f6d888';
+  ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, 1, 1);
 }
 
 // Gegner auf der großen Karte: kleine Raute mit dunkler Kontur, Elite größer und orange

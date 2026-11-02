@@ -1,6 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { clearAround } from '../mapkit.js';
-import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
+import { openSites, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
 
 // ---------------------------------------------------------------- Die Splitterweiten (45–50)
 // 200 × 130 Kacheln. Wo Aurels Himmelsreich zerbrach: ein Feld aus Kristallscherben, kühles Glasmoos statt Gras.
@@ -238,12 +238,16 @@ export function buildSplitterweiten() {
   const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
   const amb = (f) => Math.round((miraPath.length - 1) * f);
 
+  // Weltereignis „Sternenfall“ (world/starfall.js): mögliche Einschlagorte, je Teilgebiet einer
+  const starfallSites = openSites(m, [[86, 30], [164, 62], [50, 100], [120, 26], [70, 96], [40, 30]], 3, 14, 6);
+
   return {
     name: 'Die Splitterweiten',
     kind: 'outdoor',
     biome: 'shards',
     sky: 'morgen',
     island: ISLAND,
+    starfallSites,
     decorSet: 'decor_shards',
     map: m.rows(),
     bridges: m.bridges ?? [],

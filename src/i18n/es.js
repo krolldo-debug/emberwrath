@@ -6089,5 +6089,14 @@ export const ES = {
   "Bibliothek": "Biblioteca",
   "Krämerladen": "Tienda de abastos",
   "Juwelierstube": "Joyería",
-  "Rüstkammer": "Armería"
+  "Rüstkammer": "Armería",
+  "Ein Stern stürzt bald herab, {0}.": "Una estrella caerá pronto, {0}.",
+  "Ein Stern stürzt gleich herab, {0}.": "Una estrella está a punto de caer, {0}.",
+  "Hier ist gerade ein Stern gefallen, {0}.": "Aquí acaba de caer una estrella, {0}.",
+  "Leerenwesen kriechen aus dem Krater!": "¡Criaturas del vacío salen del cráter!",
+  "Eine neue Welle bricht aus dem Stern.": "Una nueva oleada surge de la estrella.",
+  "Die letzte Welle bricht aus dem Stern.": "La última oleada surge de la estrella.",
+  "Sternenfall überstanden": "Lluvia de estrellas superada",
+  "Das Sternenherz ist aufgebrochen": "El Corazón Estelar se ha abierto",
+  "Das Sternenherz nehmen": "Tomar el Corazón Estelar"
 };
