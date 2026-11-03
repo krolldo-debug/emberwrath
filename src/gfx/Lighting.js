@@ -5,8 +5,10 @@ import { fineRes } from './Fine.js';
 
 // Punktlicht. Kann einer Entity folgen, flackern und zeitlich begrenzt sein.
 export class Light {
-  constructor({ x = 0, y = 0, radius = 60, color = [255, 180, 110], intensity = 1, flicker = 0, follow = null, offsetX = 0, offsetY = 0, ttl = Infinity, bloom = 0.25 }) {
-    Object.assign(this, { x, y, radius, color, intensity, flicker, follow, offsetX, offsetY, ttl, bloom });
+  // shape (optional): { cone: { len, spread } } = Lichtkegel nach unten (Wandfackel, Spitze am Licht), sonst rund;
+  // in Dungeons legt LightingSystem.flatten runde Lichter als flache Ellipse auf den Boden (3/4-Ansicht).
+  constructor({ x = 0, y = 0, radius = 60, color = [255, 180, 110], intensity = 1, flicker = 0, follow = null, offsetX = 0, offsetY = 0, ttl = Infinity, bloom = 0.25, shape = null }) {
+    Object.assign(this, { x, y, radius, color, intensity, flicker, follow, offsetX, offsetY, ttl, bloom, shape });
     this.maxTtl = ttl;
     this.seed = Math.random() * 100;
     this.value = intensity;
@@ -45,6 +47,8 @@ export class LightingSystem {
     this.ambient = ambient;
     this.ambientBoost = 0; // für Blitz-Effekte (z. B. Kills)
     this.voidMask = null;   // 1 Pixel je Kachel, deckend = Leere (kein Licht)
+    this.dodge = 0;         // Dungeon: Stärke des Glanzes (color-dodge der Lichter, 0 = aus)
+    this.flatten = 1;       // Dungeon: < 1 = runde Lichter als Ellipse (Höhe × flatten), Boden in der 3/4-Ansicht
   }
 
   // Leere der Karte (Uint8Array je Kachel, 1 = Leere) als Maske; null = keine
@@ -79,13 +83,37 @@ export class LightingSystem {
     l.globalCompositeOperation = 'lighter';
     const stepped = fineRes() > 1;
     l.imageSmoothingEnabled = !stepped;
+    const flat = this.flatten;
+    // Glanz (Dungeon, this.dodge > 0): dieselben Lichter ohne Umgebungsdunkel auf eigener Fläche; per „color-dodge“
+    // über die Szene hellt das Licht den Boden über seine Grundfarbe hinaus auf (Textur bleibt), das Dunkle bleibt dunkel
+    const dodge = this.dodge > 0 && this.bloomScale !== 0;
+    let gl = null;
+    if (dodge) {
+      if (!this.glowCanvas || this.glowCanvas.width !== this.canvas.width || this.glowCanvas.height !== this.canvas.height) this.glowCanvas = makeCanvas(this.canvas.width, this.canvas.height);
+      gl = this.glowCanvas.getContext('2d');
+      gl.setTransform(1, 0, 0, 1, 0, 0);
+      gl.globalCompositeOperation = 'source-over';
+      gl.globalAlpha = 1;
+      gl.clearRect(0, 0, this.glowCanvas.width, this.glowCanvas.height);
+      gl.setTransform(LM, 0, 0, LM, 0, 0);
+      gl.globalCompositeOperation = 'lighter';
+      gl.imageSmoothingEnabled = !stepped;
+    }
     for (const li of lights) {
       const r = stepped ? Math.max(4, Math.round(li.radius / 4) * 4) : li.radius;
       const sx = li.x - camX, sy = li.y - camY;
       if (sx + r < 0 || sy + r < 0 || sx - r > this.w || sy - r > this.h) continue;
-      l.globalAlpha = Math.max(0, Math.min(1, li.value));
-      if (stepped) l.drawImage(steppedLight(r, li.color), Math.round((sx - r) * LM) / LM, Math.round((sy - r) * LM) / LM, r * 2, r * 2);
-      else l.drawImage(getLightSprite(64, li.color), sx - r, sy - r, r * 2, r * 2);
+      const a = Math.max(0, Math.min(1, li.value));
+      let img, x, y, w, h;
+      if (li.shape?.cone || flat < 1) {
+        // Kegel bzw. flache Lichtteiche: eigene Stufenform (auch bei „Niedrig“, Größe in Lightmap-Pixeln)
+        img = shapedLight(li.shape?.cone ? li.shape : { ry: flat }, r, li.color);
+        x = Math.round((sx - img.ax) * LM) / LM; y = Math.round((sy - img.ay) * LM) / LM; w = img.width / LM; h = img.height / LM;
+      } else if (stepped) { img = steppedLight(r, li.color); x = Math.round((sx - r) * LM) / LM; y = Math.round((sy - r) * LM) / LM; w = h = r * 2; }
+      else { img = getLightSprite(64, li.color); x = sx - r; y = sy - r; w = h = r * 2; }
+      l.globalAlpha = a;
+      l.drawImage(img, x, y, w, h);
+      if (gl && !li.follow) { gl.globalAlpha = a * this.dodge; gl.drawImage(img, x, y, w, h); }
     }
     l.globalAlpha = 1;
     if (figure) this.#figureLight(figure);
@@ -103,6 +131,16 @@ export class LightingSystem {
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(this.canvas, 0, 0, this.canvas.width / LM, this.canvas.height / LM);
+    if (gl) {
+      if (this.voidMask) {
+        gl.imageSmoothingEnabled = false;
+        gl.globalAlpha = 1;
+        gl.globalCompositeOperation = 'destination-out';
+        gl.drawImage(this.voidMask, camX / 16, camY / 16, this.w / 16, this.h / 16, 0, 0, this.w, this.h);
+      }
+      ctx.globalCompositeOperation = 'color-dodge';
+      ctx.drawImage(this.glowCanvas, 0, 0, this.glowCanvas.width / LM, this.glowCanvas.height / LM);
+    }
     ctx.imageSmoothingEnabled = smooth;
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -153,6 +191,15 @@ export class LightingSystem {
     g.imageSmoothingEnabled = !fine;
     let any = false;
     for (const li of lights) {
+      if (li.shape?.cone) {
+        // Lichtkegel als sichtbarer Schein in der Luft (Staub im Licht): dieselbe Stufenform, schwach additiv
+        const sx = li.x - camX, sy = li.y - camY, s = shapedLight(li.shape, li.radius, li.color);
+        if (sx + s.ax < 0 || sx - s.ax > this.w || sy > this.h || sy + s.height / LM < 0) continue;
+        g.globalAlpha = Math.max(0, Math.min(1, li.value * (li.shape.haze ?? 0.09)));
+        g.drawImage(s, Math.round((sx - s.ax) * LM) / LM, Math.round((sy - s.ay) * LM) / LM, s.width / LM, s.height / LM);
+        any = true;
+        continue;
+      }
       if (!li.bloom) continue;
       const r = fine ? Math.max(4, Math.round(li.radius * 0.45 / 4) * 4) : li.radius * 0.45;
       const sx = li.x - camX, sy = li.y - camY;
@@ -223,5 +270,55 @@ function steppedLight(r, rgb, steps = STEPS) {
   x.putImageData(img, 0, 0);
   stepCache.set(key, c);
   if (stepCache.size > 64) stepCache.delete(stepCache.keys().next().value);
+  return c;
+}
+
+// Geformtes Stufenlicht (Lightmap-Pixel, Anker ax/ay in Weltpixeln): Ellipse ({ ry }) oder Kegel nach unten
+// ({ cone: { len, spread } }, Spitze am Licht, spread = halber Öffnungswinkel im Bogenmaß). Helligkeit wie STEPS
+// (weicher Abfall, in Zwölfteln gerastert) – harte Pixelkanten, kleine Sprünge.
+const shapeCache = new Map();
+const softAt = (q) => {
+  if (q >= 1) return 0;
+  for (let i = 1; i < SOFT.length; i++) if (q <= SOFT[i][0]) {
+    const [t0, a0] = SOFT[i - 1], [t1, a1] = SOFT[i];
+    return a0 + (a1 - a0) * (q - t0) / (t1 - t0);
+  }
+  return 0;
+};
+function shapedLight(shape, r, rgb) {
+  const cone = shape.cone;
+  const key = cone ? `c${cone.len}|${cone.spread}|${rgb.join(',')}` : `e${r}|${shape.ry}|${rgb.join(',')}`;
+  let c = shapeCache.get(key);
+  if (c) return c;
+  let w, h, ax, ay, f;
+  if (cone) {
+    // Kegel als Trapez: gedachte Spitze `top` Weltpixel über dem Licht, oben schmal abgeschnitten; fast gleichmäßig
+    // hell über die Breite, nach unten weich auslaufend, Flanken in 2–3 Stufen (keine Lichtspitze an der Wand)
+    const L = cone.len, sp = cone.spread, top = cone.top ?? 14, half = Math.ceil(Math.tan(sp) * (L + top));
+    w = Math.ceil(half * 2 * LM); h = Math.ceil(L * LM); ax = half; ay = 0;
+    f = (x, y) => {
+      if (y <= 0) return 0;
+      const yy = y + top, ang = Math.atan2(Math.abs(x), yy), d = y / L;
+      const edge = Math.max(0, Math.min(1, (sp - ang) / (sp * 0.5)));
+      const fall = d < 0.25 ? 0.55 + d * 1.8 : Math.max(0, 1 - (d - 0.25) / 0.75) ** 1.4;
+      return 0.85 * fall * edge;
+    };
+  } else {
+    const ry = shape.ry;
+    w = Math.ceil(r * 2 * LM); h = Math.ceil(r * 2 * ry * LM); ax = r; ay = r * ry;
+    f = (x, y) => softAt(Math.hypot(x, y / ry) / r);
+  }
+  c = makeCanvas(Math.max(1, w), Math.max(1, h));
+  const g = c.getContext('2d'), img = g.createImageData(c.width, c.height), d = img.data, [cr, cg, cb] = rgb;
+  for (let j = 0; j < c.height; j++) for (let i = 0; i < c.width; i++) {
+    const a = Math.round(f((i + 0.5) / LM - ax, (j + 0.5) / LM - ay) * 12) / 12;
+    if (a <= 0) continue;
+    const o = (j * c.width + i) * 4;
+    d[o] = cr; d[o + 1] = cg; d[o + 2] = cb; d[o + 3] = Math.round(a * 255);
+  }
+  g.putImageData(img, 0, 0);
+  c.ax = ax; c.ay = ay;
+  shapeCache.set(key, c);
+  if (shapeCache.size > 96) shapeCache.delete(shapeCache.keys().next().value);
   return c;
 }

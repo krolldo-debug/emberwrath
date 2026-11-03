@@ -14,7 +14,11 @@ export class Prop extends Entity {
       case 'torch':
         this.sortOffset = -10000; // hängt an der Wand, immer hinten
         this.flames.push({ frames: this.props.torchFlame, dx: 0, dy: -1, fps: 12 });
-        world.addLight(new Light({ x, y: y + 4, radius: 92, color: [255, 150, 70], intensity: 0.95, flicker: 0.25, bloom: 0.35 }));
+        // Dungeon: Schein an der Wand + Lichtkegel nach unten auf den Boden (gfx/Lighting.js shape.cone)
+        if (world.dungeon?.biome === 'dungeon') {
+          world.addLight(new Light({ x, y: y + 2, radius: 48, color: [255, 150, 70], intensity: 0.85, flicker: 0.22, bloom: 0.35 }));
+          world.addLight(new Light({ x, y: y - 2, radius: 120, color: [255, 156, 80], intensity: 0.6, flicker: 0.18, bloom: 0, shape: { cone: { len: 112, spread: 0.52 } } }));
+        } else world.addLight(new Light({ x, y: y + 4, radius: 92, color: [255, 150, 70], intensity: 0.95, flicker: 0.25, bloom: 0.35 }));
         this.emberRate = 1.5;
         break;
       case 'brazier':
