@@ -374,10 +374,15 @@ function axis(x0, y0, x1, y1) {
 function ember(p, g, pts, hot = 1, back = false) {
   for (let k = 0; k < pts.length - 1; k++) {
     const [x0, y0] = pts[k], [x1, y1] = pts[k + 1];
-    hair(p, x0 + 0.4, y0 + 0.4, x1 + 0.4, y1 + 0.4, MAG[0]);
-    hair(p, x0, y0, x1, y1, back ? MAG[1] : k === 0 && hot > 1 ? MAG[3] : MAG[2]);
-    g.fline(x0, y0, x1, y1, back ? 0 : Math.min(4, hot + (k === 0 ? 1 : 0)));
-    g.efline(x0, y0, x1, y1, back ? 1 : Math.min(4, hot + 2));
+    thick(p, x0 + 0.3, y0 + 0.35, x1 + 0.3, y1 + 0.35, back ? 1.2 : 1.9, MAG[0]);
+    thick(p, x0, y0, x1, y1, back ? 0.8 : 1.4, back ? MAG[1] : MAG[2]);
+    thick(p, x0, y0, x1, y1, back ? 0.4 : 0.8, back ? MAG[2] : hot > 1 ? MAG[3] : MAG[2]);
+    hair(p, x0, y0, x1, y1, back ? MAG[2] : hot > 1 ? HOT : MAG[3]);
+    // breiter Schein (Weltpixel) und heller Kern (Texel); Phase 3 noch heller
+    g.line(x0, y0, x1, y1, back ? 0 : Math.min(4, hot));
+    g.fline(x0, y0, x1, y1, back ? 1 : Math.min(4, hot + 1 + (k === 0 ? 1 : 0)));
+    g.eline(x0, y0, x1, y1, back ? 1 : Math.min(4, hot + 1));
+    g.efline(x0, y0, x1, y1, back ? 2 : Math.min(4, hot + 2));
   }
 }
 // Horn mit Wachstumsringen, glühende Spitze (Phase 3)
@@ -652,7 +657,8 @@ function torso(p, g, along, P, meta) {
   // Kratzer
   for (const [s0, k0, s1, k1] of [[25.5, -5, 24, -2.5], [22.5, 7, 21.6, 9.4], [23.6, -8, 22.2, -6.4]]) hair(p, ...along(s0, k0), ...along(s1, k1), OB6[5]);
   // Glutrisse vom Kern durch die Platten (Phase 3 weißglühend)
-  for (const c of [[[22, -4], [24.6, -5.4], [26.2, -7.6], [27.6, -9.4]], [[22, -4], [19.4, -6.4], [16.8, -7.4], [14.6, -5.6]]]) ember(p, g, M(c), 2);
+  for (const c of [[[22, -4], [24.6, -5.4], [26.2, -7.6], [27.6, -9.4]], [[22, -4], [19.4, -6.4], [16.8, -7.4], [14.6, -5.6]], [[22, -4], [19.6, -1.6], [17.4, 0.8], [15.4, 0.2]]]) ember(p, g, M(c), 3);
+  ember(p, g, M([[22, -4], [23.4, -0.6], [22.6, 2.6], [24, 5.4]]), 2);
   ember(p, g, M([[0.72 * SPINE, -9], [0.82 * SPINE, -7.2], [0.95 * SPINE, -9]]), 1);
   // Glutkern in Messingfassung
   const [cx, cy] = along(22, -4);
@@ -662,6 +668,7 @@ function torso(p, g, along, P, meta) {
   orb(p, cx, cy, r + 1, r + 1, [VOID, VOID, OB6[0], OB6[1], OB6[1], OB6[2]], { glint: false });
   orb(p, cx, cy, r, r, MGR, { line: false });
   dotp(p, cx - r * 0.45, cy - r * 0.5, '#fffbea'); dotp(p, cx - r * 0.45 + 0.4, cy - r * 0.5, '#fffbea');
+  g.ellipse(cx, cy, r + 2.6, r + 2.4, 0);
   g.ellipse(cx, cy, r + 0.5, r + 0.5, 1);
   g.ellipse(cx, cy, r - 0.3, r - 0.3, 2);
   g.ellipse(cx, cy - 0.3, Math.max(0.6, r - 1.4), Math.max(0.6, r - 1.4), 3);
@@ -716,6 +723,12 @@ function leg(p, g, hx, hy, L, back, P) {
   plate(p, [Q(0.8, 0.5), Q(0.6, 3.9), Q(len * 0.3, 4.3), Q(len - 0.3, 3.3), Q(len - 0.3, 0.4)], pl, { edge: 0.3, lift: -1, line: 0, core: 1.2 });
   hair(p, ...Q(1.2, 0.1), ...Q(len - 0.6, 0.1), pl[5]);
   ember(p, g, [Q(len * 0.6, -3.4), Q(len * 0.63, 0.2), Q(len * 0.58, 3.8)], 2, back);
+  ember(p, g, [Q(len * 0.18, 1.6), Q(len * 0.36, 2.4), Q(len * 0.5, 1.8)], 1, back);
+  {
+    // Glutader im verkohlten Oberschenkel
+    const a = axis(hx, hy, L.jx, L.jy);
+    ember(p, g, [a.Q(a.len * 0.25, 1.2), a.Q(a.len * 0.5, 0.2), a.Q(a.len * 0.75, 1.4)], 1, back);
+  }
   // Sabaton
   const ex = Math.round(L.ex), ey = Math.round(L.ey);
   gem(p, ex + 6.6, ey - 1.8, ex + 9.8, ey - 0.4, 2, hn);
@@ -765,7 +778,8 @@ function pauldron(p, g, x, y, rx, ry, front, P) {
   groove(p, [[x - rx * 0.6, y - ry * 0.35], [x + rx * 0.1, y - ry * 0.2], [x + rx * 0.85, y + ry * 0.2]], pl[1], pl[5]);
   for (const t of [0.15, 0.5, 0.85]) rivet(p, ins[7][0] + (ins[5][0] - ins[7][0]) * t, ins[7][1] + (ins[5][1] - ins[7][1]) * t - 0.9, br);
   if (front) {
-    ember(p, g, [[x - 2, y - 2], [x + 2, y + 0.6], [x + 1.2, y + 3.4]], 2);
+    ember(p, g, [[x - 2.4, y - 2.4], [x + 1.6, y + 0.4], [x + 0.8, y + 3.6]], 3);
+    ember(p, g, [[x + 1.6, y + 0.4], [x + 4.6, y - 1.6]], 2);
     dotp(p, x - rx * 0.62, y - ry * 0.42, '#fff0d8'); hair(p, x - rx * 0.6, y - ry * 0.44, x - rx * 0.1, y - ry * 0.82, SPEC);
   } else ember(p, g, [[x - 1, y - 1], [x + 2, y + 2]], 1, true);
 }
@@ -775,9 +789,9 @@ function pauldron(p, g, x, y, rx, ry, front, P) {
 function flameMane(p, g, hx, hy, P) {
   const n = 5;
   for (let f = 0; f < n; f++) {
-    const rx = hx + 6 - f * 1.8, ry = hy + 2 + f * 1.7;
-    const a = -1.95 - f * 0.22 - P.cape * 0.15;
-    const L = (13 - Math.abs(f - 1.5) * 1.8 + Math.sin(P.capeT * 1.7 + f * 1.9) * 1.8) * (P.crown > 0.5 ? 0.4 : 1);
+    const rx = hx + 3.5 - f * 1.9, ry = hy + 3 + f * 1.8;
+    const a = -2.05 - f * 0.24 - P.cape * 0.15;
+    const L = (17 - Math.abs(f - 1.5) * 2 + Math.sin(P.capeT * 1.7 + f * 1.9) * 1.8) * (P.crown > 0.5 ? 0.4 : 1);
     for (let d = 0; d < L; d += 0.5) {
       const t = d / L;
       const wob = Math.sin(d * 0.45 + P.capeT * 2 + f * 1.3) * t * 2.2;
