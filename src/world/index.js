@@ -89,7 +89,7 @@ const FOE_GROUPS = {
   foes_new1: [createNew1Foes, ['ember_beetle', 'bandit_shieldbearer', 'cinder_sapper', 'cliff_harpy']],
   // Sternenglut Teil 1: eigene Figuren (sonst Umfärbung des Vorbilds, defs_stars.js recolor)
   foes_stars: [createStarFoes, ['bloom_stalker']],
-  foes_stars2: [createStarFoes2, ['void_hound', 'rootbound', 'splinter_colossus', 'withered_warden', 'void_wisp']],
+  foes_stars2: [createStarFoes2, ['void_hound', 'rootbound', 'splinter_colossus', 'withered_warden', 'void_wisp', 'mad_prospector', 'shadow_ranger', 'statue_wraith', 'star_seer', 'thorn_priest']],
   foes_new2: [createNew2Foes, ['dust_shaman', 'dust_totem', 'gnoll_trapper', 'bog_slime', 'bog_slime_small', 'marsh_hag', 'frost_revenant', 'snow_burrower', 'cinder_bombardier', 'phase_wraith']],
 };
 

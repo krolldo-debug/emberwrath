@@ -1378,8 +1378,10 @@ function drawPriestCorpse(p, g, k) {
   return { eye: { x: AX + 12, y: gy - 3 }, hand: { x: AX + 8, y: gy - 2 }, head: { x: AX + 12, y: gy - 6 } };
 }
 
-function createAshPriest() {
-  const S = spec(AP, drawAshPriest, RIM_GOLD, BACK_EMBER);
+// look (optional, sprites/foes_stars2.js): { draw, corpse(p, g, k), rim, back } – eigene Figur auf denselben Posen
+function createAshPriest(look = {}) {
+  const RK = look.rim ?? RIM_GOLD, RB = look.back ?? BACK_EMBER, corpse = look.corpse ?? drawPriestCorpse;
+  const S = spec(AP, look.draw ?? drawAshPriest, RK, RB);
   const idle = [];
   for (let i = 0; i <= 6; i++) {
     const ph = (i / 6) * TAU, sn = Math.sin(ph);
@@ -1414,9 +1416,9 @@ function createAshPriest() {
     hurt: new Animation(track(S, [[0, hurtP], [1, app({ lean: -0.2 })]], 2, { extras: { 0: { hurt: true } } }), 10, false),
     death: new Animation([
       ...track(S, [[0, hurtP], [0.4, d1], [1, d2]], 3, { extras: { 0: { hurt: true } } }),
-      stillR(S, (p, g) => drawPriestCorpse(p, g, 0), 'impact', RIM_GOLD, BACK_EMBER),
-      stillR(S, (p, g) => drawPriestCorpse(p, g, 0.45), null, RIM_GOLD, BACK_EMBER),
-      stillR(S, (p, g) => drawPriestCorpse(p, g, 1), null, RIM_GOLD, BACK_EMBER),
+      stillR(S, (p, g) => corpse(p, g, 0), 'impact', RK, RB),
+      stillR(S, (p, g) => corpse(p, g, 0.45), null, RK, RB),
+      stillR(S, (p, g) => corpse(p, g, 1), null, RK, RB),
     ], 8, false),
   };
 }
@@ -1993,4 +1995,4 @@ export function createThroneFoes(only) {
 }
 
 // Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
-export const THRONE_KIT = { TAU, ik, ell, cap, poly, oval, dot, L, smearArc, furStrands, createHellhound, HH };
+export const THRONE_KIT = { TAU, ik, ell, cap, poly, oval, dot, L, GL, smearArc, furStrands, robe, createHellhound, createAshPriest, HH, AP };

@@ -502,9 +502,10 @@ function cycle(f, n) {
   return keys;
 }
 
+const DIS_HOT = [LAVA[4], LAVA[3], GLOW[3], GLOW[2]];   // Glutflocken (Farbe hell/dunkel, Leuchten hell/dunkel)
 // Pixel der Farbebene zerfallen lassen (Aschegeist-Tod, Auflösung von oben). Arbeitet in Texeln, entscheidet
 // aber je Weltpixel (ruhige Löcher statt Feinpixel-Sprenkel); fallende Flocken fein.
-function dissolve(p, g, k, seed, top, bottom, ash) {
+function dissolve(p, g, k, seed, top, bottom, ash, hot = DIS_HOT) {
   const W = p.W, H = p.H, r = p.res, d = p.buf, gd = g.buf;
   const fall = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -525,8 +526,8 @@ function dissolve(p, g, k, seed, top, bottom, ash) {
     const dy = 2 + hash2(x, y, seed + 2) * 5 * k, dx = (hash2(x, y, seed + 3) - 0.7) * 4;
     const X = x + dx - ox, Y = y + dy - oy;
     if (hash2(x, y, seed + 4) < 0.3) {
-      if (p.fine) { dotc(p, X, Y, LAVA[4]); dotc(p, X + 0.5, Y, LAVA[3]); g.dot(X + 0.5, Y + 0.5, GLOW[3]); g.dot(X + 1, Y + 0.5, GLOW[2]); }
-      else { p.px(X, Y, LAVA[3]); g.px(X, Y, GLOW[2]); }
+      if (p.fine) { dotc(p, X, Y, hot[0]); dotc(p, X + 0.5, Y, hot[1]); g.dot(X + 0.5, Y + 0.5, hot[2]); g.dot(X + 1, Y + 0.5, hot[3]); }
+      else { p.px(X, Y, hot[1]); g.px(X, Y, hot[3]); }
     } else {
       const c = ash[1 + Math.floor(hash2(x, y, seed + 5) * (ash.length - 1))];
       if (p.fine) { dotc(p, X, Y, c); dotc(p, X + 0.5, Y + 0.5, c); }
@@ -852,8 +853,10 @@ function drawWraithAsh(p, g, k) {
   return { eye: { x: AX + 7, y: gy - 3 }, head: { x: AX + 7, y: gy - 6 }, hand: { x: AX - 6, y: gy - 2 }, chest: { x: AX, y: gy - 3 } };
 }
 
-function createWraith() {
-  const S = { ...AW, draw: drawWraith };
+// look (optional, sprites/foes_stars2.js): { draw, remains(p, g, k), dust, hot, rim } – eigener Körper auf denselben Posen
+function createWraith(look = {}) {
+  const draw = look.draw ?? drawWraith, remains = look.remains ?? drawWraithAsh;
+  const S = { ...AW, rim: look.rim ?? AW.rim, draw };
   const idle = cycle((ph) => {
     const s = Math.sin(ph), c = Math.cos(ph);
     return awp({ bob: s * 1.4, tail: ph, smoke: ph, hFy: 12 + s, hBy: 13 + s, hFx: 8 + c * 0.5, claw: 0.3 + Math.max(0, c) * 0.4, heat: 0.9 + s * 0.15, headY: -Math.max(0, s) * 0.6 });
@@ -873,7 +876,9 @@ function createWraith() {
   const hurtP = awp({ bob: 2, lean: -0.35, x: -3, drift: 0.1, head: -1.5, headY: -1, hFx: 2, hFy: 4, hBx: -6, hBy: 5, claw: 1, jaw: 0.8, heat: 1.6, tail: 2 });
   const d1 = awp({ bob: 3, lean: -0.4, x: -3, drift: 0, head: -1.5, headY: -1, hFx: 0, hFy: -3, hBx: -7, hBy: -1, claw: 1, jaw: 1, heat: 1.8, eye: 1.6, tail: 3 });
   const d2 = awp({ bob: -4, hover: 7, lean: 0.2, x: -1, drift: 0.1, head: 0.5, headY: 2, hFx: 5, hFy: 12, hBx: 0, hBy: 12, claw: 0.2, jaw: 1, heat: 1.2, tail: 4 });
-  const SD = { ...AW, draw: drawWraithDeath };
+  const SD = look.draw ? {
+    ...S, draw: (p, g, P, ex) => { const m = draw(p, g, P, ex); dissolve(p, g, ex.dis, 41, 0, AW.AY + (AW.pad ?? 8) - 2, look.dust ?? ASHW, look.hot); return m; },
+  } : { ...AW, draw: drawWraithDeath };
   return {
     idle: new Animation(track(S, idle, 6, { loop: true }), 6),
     walk: new Animation(track(S, walk, 6, { loop: true }), 10),
@@ -885,9 +890,9 @@ function createWraith() {
     death: new Animation([
       ...track(S, [[0, hurtP], [1, d1]], 2, { extras: { 0: { hurt: true } } }),
       ...track(SD, [[0, d1], [1, d2]], 4, { extras: { 0: { dis: 0.12 }, 1: { dis: 0.35 }, 2: { dis: 0.6 }, 3: { dis: 0.85 } } }),
-      still(S, (p, g) => drawWraithAsh(p, g, 0), 'impact'),
-      still(S, (p, g) => drawWraithAsh(p, g, 0.5)),
-      still(S, (p, g) => drawWraithAsh(p, g, 1)),
+      still(S, (p, g) => remains(p, g, 0), 'impact'),
+      still(S, (p, g) => remains(p, g, 0.5)),
+      still(S, (p, g) => remains(p, g, 1)),
     ], 8, false),
   };
 }
@@ -2372,4 +2377,4 @@ export function createWastesFoes(only) {
 }
 
 // Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
-export const WASTES_KIT = { ell, cap, poly, ln, hotLine, fillEll, createColossus, CO };
+export const WASTES_KIT = { ell, cap, poly, ln, hotLine, fillEll, ik, arcSmear, occlude, createColossus, createWraith, CO, AW };

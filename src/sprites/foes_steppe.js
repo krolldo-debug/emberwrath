@@ -889,8 +889,9 @@ function drawRaider(p, g, P, X, archer) {
   return meta;
 }
 
-function raiderAnims(archer) {
-  const mk = (P, X) => makeFrame(RS, (p, g, PP, XX) => drawRaider(p, g, PP, XX, archer), P, X);
+// draw (optional): eigene Figur auf diesem Rig (sprites/foes_stars2.js: Sternenglut-Gegner)
+function raiderAnims(archer, draw = drawRaider) {
+  const mk = (P, X) => makeFrame(RS, (p, g, PP, XX) => draw(p, g, PP, XX, archer), P, X);
   const idleA = archer
     ? rpose({ hFx: 5, hFy: 6, hBx: -1, hBy: 7, bowA: 0.5, lean: 0.04 })
     : rpose({ hFx: 6, hFy: 6, wa: -1.05, hBx: 3, hBy: 6, fFx: 3.5, fBx: -3.5 });
@@ -2110,3 +2111,6 @@ export function createSteppeFoes() {
   }
   return out;
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
+export const STEPPE_KIT = { TAU, ell, cap, oval, poly, smearArc, dust, rig, strokes, stitch, mantle, raiderAnims, RS, RD };
