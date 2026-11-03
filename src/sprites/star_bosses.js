@@ -11,7 +11,7 @@ const HOLE = '#0a060c';
 // ---------------------------------------------------------------- Werkzeuge
 
 // Gefülltes Vieleck (Weltkoordinaten); c = Farbe oder fn(x, y) -> Farbe
-function poly(p, pts, c) {
+export function poly(p, pts, c) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
   p.each(x0, y0, x1, y1, (x, y) => {
@@ -25,7 +25,7 @@ function poly(p, pts, c) {
 }
 
 // Spitzer Splitter/Dorn von (x0, y0) nach (x1, y1), Basisbreite w; ramp = [Schatten, Mitte, Licht, Grat, Kante]
-function spike(p, x0, y0, x1, y1, w, ramp) {
+export function spike(p, x0, y0, x1, y1, w, ramp) {
   const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
   let nx = -dy / len, ny = dx / len;
   if (nx + ny > 0) { nx = -nx; ny = -ny; }   // Normale nach links oben = Lichtseite
@@ -39,14 +39,14 @@ function spike(p, x0, y0, x1, y1, w, ramp) {
 }
 
 // Fünfzackiger Stern
-function star(p, cx, cy, r, c, rot = -Math.PI / 2) {
+export function star(p, cx, cy, r, c, rot = -Math.PI / 2) {
   const pts = [];
   for (let i = 0; i < 10; i++) { const a = rot + (i * Math.PI) / 5, q = i % 2 ? r * 0.42 : r; pts.push([cx + Math.cos(a) * q, cy + Math.sin(a) * q]); }
   poly(p, pts, c);
 }
 
 // Kleine Blüte: vier Blätter um eine helle Mitte (ramp = Blütenrampe)
-function blossom(p, x, y, ramp, big = false) {
+export function blossom(p, x, y, ramp, big = false) {
   const s = big ? 1 : 0.5;
   for (const [ox, oy, k] of [[-s, 0, 2], [s, 0, 2], [0, -s, 3], [0, s, 1]]) { pt(p, x + ox, y + oy, ramp[k]); if (big) pt(p, x + ox * 0.5, y + oy * 0.5, ramp[k]); }
   pt(p, x, y, ramp[4]);
@@ -54,7 +54,7 @@ function blossom(p, x, y, ramp, big = false) {
 }
 
 // Schwerer Umhang aus Bahnen (wie Varkhuls Umhang, Rampe mit 5 Stufen). Gibt at(i, v) zurück (Lage auf Bahn i).
-function drape(p, P, x0, top0, NC, len0, ramp, { sway = 18, w = 0.95, speckle = 0, seed = 3 } = {}) {
+export function drape(p, P, x0, top0, NC, len0, ramp, { sway = 18, w = 0.95, speckle = 0, seed = 3 } = {}) {
   const q = p.step;
   const geo = (i) => {
     const u = i / (NC - 1), sx = x0 + i * w, top = top0 + Math.abs(u - 0.4) * 3;
@@ -81,7 +81,7 @@ function drape(p, P, x0, top0, NC, len0, ramp, { sway = 18, w = 0.95, speckle = 
 const along = (r, s, o) => ({ x: r.hipX + Math.sin(r.lean) * s + r.perpX * o, y: r.hipY - Math.cos(r.lean) * s + r.perpY * o });
 
 // Zauberglut an der freien Hand
-function castGlow(p, g, meta, P, glow) {
+export function castGlow(p, g, meta, P, glow) {
   if (P.cast <= 0.05) return;
   const r = 1 + P.cast * 3, { x, y } = meta.cast;
   ell(g, x, y, r + 1, r + 1, glow[1]); ell(g, x, y, r, r, glow[2]);
@@ -90,7 +90,7 @@ function castGlow(p, g, meta, P, glow) {
 }
 
 // Leuchtkern (Herz/Splitter/Brosche) mit Puls
-function core(p, g, x, y, soul, glow, size = 1) {
+export function core(p, g, x, y, soul, glow, size = 1) {
   const R = (1.6 + soul * 1.1) * size;
   ell(p, x, y, R, R + 0.6, glow[1]);
   ell(g, x, y, R + 0.8, R + 1.4, glow[1]); ell(g, x, y, R - 0.3, R + 0.2, glow[2]);
