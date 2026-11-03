@@ -3,6 +3,7 @@ import { HazardCloud } from './Hazards.js';
 import { fineRes } from '../gfx/Fine.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { createArrowSprite } from '../sprites/effects.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Feinraster (docs/STYLE.md „Feinraster“): Geschosse zeichnen auf Feinpixel gerundet (q = fineRes(), bei „Niedrig“ 1
 // wie früher). Licht von oben links, harte Stufen; Zauberkugeln als vorgerechnete Bilder je Element (Frost mit
@@ -128,8 +129,9 @@ export class BoneSpear extends Entity {
     const dx = Math.cos(this.angle), dy = Math.sin(this.angle), nx = -dy, ny = dx;
     ctx.fillStyle = 'rgba(160,96,240,0.66)';
     for (let i = 2; i < 11 * q; i += 2) for (const s of [-1.5, 1.5]) ctx.fillRect(sn(x - dx * i * P + nx * s * P, q), sn(y - dy * i * P + ny * s * P, q), P, P);
-    ctx.fillStyle = '#f0e0ff';
-    ctx.fillRect(sn(x, q) - P, sn(y, q), 3 * P, P); ctx.fillRect(sn(x, q), sn(y, q) - P, P, 3 * P);
+    // violetter Glutschweif hinter dem Schaft, Funkenstern an der Spitze
+    FX.orbFrame(this.angle, 1.5, 'violet', 7).draw(ctx, Math.round(x - dx * 4), Math.round(y - dy * 4), { alpha: 0.75 });
+    FX.starFrame(2 + (Math.floor(this.life * 20) % 2), 'violet').draw(ctx, Math.round(x), Math.round(y));
   }
 }
 

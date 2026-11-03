@@ -4,6 +4,7 @@ import { EV } from '../core/events.js';
 import { fineRes } from '../gfx/Fine.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { ellipsePts, pixelRuns, drawRuns } from './Effects.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Bodenwarnungen für Boss-Angriffe: zeigen VOR dem Treffer, wo es gefährlich
 // wird. Die Innenfläche füllt sich bis zum Zeitpunkt des Schlags.
@@ -611,6 +612,17 @@ export class DamageWave extends Entity {
       } else if (h.dodgedTimer > 0) this.hitDone = true;
     }
   }
+  // Feinraster: Kamm aus Energieballen läuft mit dem Ring (unter dem lesbaren Band), Funken am Anfang
+  #crest(ctx, X, Y, R, k) {
+    const pal = (this.pal ??= palOf(this.color)), seq = FX.puffSeq(4, pal, 8);
+    const n = Math.max(10, Math.round(R * 0.9)), age = Math.min(7, Math.floor(k * 8));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + (i % 2) * 0.1, j = (i * 0.618) % 1;
+      const rr = R + (j - 0.5) * 3;
+      seq[Math.min(7, age + (j > 0.6 ? 1 : 0))].draw(ctx, Math.round(X + Math.cos(a) * rr), Math.round(Y + Math.sin(a) * rr * 0.6 - 2), { alpha: 0.75 * (1 - k * 0.7) });
+      if (k < 0.45 && i % 6 === 0) FX.starFrame(2, pal).draw(ctx, Math.round(X + Math.cos(a) * (R + 2)), Math.round(Y + Math.sin(a) * (R + 2) * 0.6 - 4), { alpha: 1 - k * 2 });
+    }
+  }
   // Feinraster: Ring aus Feinpixeln – außen ein heller Saum, zwei Feinpixel in der Farbe, innen eine dunkle Kante
   // (lesbar auf hellem wie dunklem Boden); Ausblenden in drei Stufen. Bei „Niedrig“ wie früher in Weltpixeln.
   renderEmissive(ctx, cx, cy) {
@@ -621,6 +633,7 @@ export class DamageWave extends Entity {
     const X = Math.round((this.x - cx) * q) / q, Y = Math.round((this.y - cy) * q) / q;
     const R = this.r, pts = (rr) => ellipsePts(rr, rr * 0.6, q);
     const draw = (e, col) => { ctx.fillStyle = col; drawRuns(ctx, X, Y, e.runs, P); };
+    if (q > 1) this.#crest(ctx, X, Y, R, k);
     ctx.save();
     ctx.globalAlpha = A;
     if (q > 1) {
@@ -645,6 +658,14 @@ export class DamageWave extends Entity {
     }
     ctx.restore();
   }
+}
+
+// Farbwelt einer Druckwelle → nächstliegende fxPaint-Palette (über die mittlere Leuchtstufe)
+const PAL_RGB = Object.entries(FX.PAL).map(([k, v]) => [k, parseInt(v[3].slice(1, 3), 16), parseInt(v[3].slice(3, 5), 16), parseInt(v[3].slice(5, 7), 16)]);
+function palOf([r, g, b]) {
+  let best = 'violet', bd = 1e9;
+  for (const [k, R, G, B] of PAL_RGB) { const d = (r - R) ** 2 + (g - G) ** 2 + (b - B) ** 2; if (d < bd) { bd = d; best = k; } }
+  return best;
 }
 
 // Ellipsenring als Zeilen-Spannen zwischen Außen- (ro) und Innenradius (ri), Höhe × ratio, in Feinpixeln
