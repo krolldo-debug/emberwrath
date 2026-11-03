@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from './pixelFrame.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 
 // Reisemenü am Wegstein (Panel 'travel') – Thread D.
@@ -83,6 +84,7 @@ export function createTravelPanel(session, params = {}) {
       h('button.pg-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: () => session.panels?.close?.() }, '✕')),
     blocked ? h('p.tv-blocked', blocked) : null,
     h('ul.tv-list', rows));
+  pixelWindow(root, session.font, 'Wegstein', root.querySelector('.tv-title'));
   return { root };
 }
 

@@ -1,4 +1,5 @@
 import { h, clear } from '../core/dom.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 import { iconUrl } from '../gfx/Icons.js';
 import { ROLES } from './protocol.js';
 import { finderIcon } from './icons.js';
@@ -31,6 +32,7 @@ export class FinderHud {
 
     this.propEl = h('div.fd-prop.ef-panel', { role: 'dialog', 'aria-label': 'Gruppe gefunden' });
     this.propEl.hidden = true;
+    pixelWindow(this.propEl); // Glutrahmen wie alle Fenster (ui/pixelFrame.js)
 
     this.partyEl = h('div.fd-party', { 'aria-label': 'Gruppe' });
     this.partyEl.hidden = true;

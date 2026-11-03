@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from './pixelFrame.js';
 import { CONFIG } from '../config.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { renderZoneMap, renderLabels } from './MapArt.js';
@@ -357,6 +358,7 @@ export function createMapPanel(session) {
     frameEl,
     h('footer.map-foot', tgtInfo, legend),
   );
+  pixelWindow(root, session.font, zoneDef?.name ?? 'Karte', root.querySelector('.map-title'));
   // Maßstab: Kartenpixel je Tile (3–8) × ganzzahliger Zoom, so groß wie der Rahmen erlaubt – alles im selben
   // Pixelraster. Ist die Karte dann deutlich schmaler als der Rahmen (Handy quer), füllt sie die Breite und
   // lässt sich senkrecht verschieben; sie startet auf dem Helden.
