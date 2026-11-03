@@ -2,6 +2,7 @@ import { outlineCanvas } from '../gfx/PixelCanvas.js';
 import { SpriteFrame, Animation, lazyFrame as deferFrame } from '../gfx/Sprite.js';
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
+import { orb, hornQ, plate, hair, dotp } from './bossPaint.js';
 
 // Mutter Fäulnis – Boss des Sporenschlunds (Stufe 32). „Leuchtpilz-Königin“.
 //
@@ -1124,6 +1125,19 @@ function hyphae(pt, P, cg) {
 // Unterarm mit Rinne, Handgelenk dünner als die Hand. Modelliert nur über harte Hell-Dunkel-Stufen (Lichtkante,
 // Mittelton, Schatten, Kernschatten) statt Linienkontur. Krallenhand: breiter Handrücken, vier klar getrennte,
 // gegliederte Finger mit hellen Krallen.
+// Malwerkzeug (bossPaint.js) auf dem Painter: Weltkoordinaten pixelzentriert wie dot
+function bp(pt) {
+  return {
+    step: 1 / RS,
+    each(x0, y0, x1, y1, fn) {
+      for (let G = TX(y0) - 1; G <= TX(y1) + 1; G++) for (let F = TX(x0) - 1; F <= TX(x1) + 1; F++) { const c = fn(tc(F), tc(G)); if (c) pt.tex(F, G, c); }
+    },
+    pdot(x, y, c) { pt.tex(TX(x), TX(y), c); },
+  };
+}
+const BONE6 = [hex('#141a22'), ...BONE, hex('#eef6fa')];
+const CAP6 = [CAP[0], CAP[2], CAP[3], CAP[4], CAP[5], CAP[6]];
+const CAPD = [CAP[0], CAP[1], CAP[2], CAP[3], CAP[4], CAP[5]];
 const bump = (t, c, w, a) => { const u = (t - c) / w; return u > -1 && u < 1 ? a * (1 - u * u) : 0; };
 const skinStep = (v) => SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
 function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
@@ -1141,8 +1155,8 @@ function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
   if (clipping) pt.clip = GY - 1;
   const sh = back ? -0.18 : 0;
   // Breite: Schulterkugel, dünner Oberarm, Ellbogen, kurzer Muskelansatz, eingefallener Unterarm, schmales Handgelenk
-  const wf = (t) => (t < 0.5 ? 3.9 - t * 1.4 : 3.4 - (t - 0.5) * 2.8) + bump(t, 0.03, 0.09, 2.6) + bump(t, 0.5, 0.06, 1.4)
-    + bump(t, 0.6, 0.07, 1.1) - bump(t, 0.76, 0.12, 0.4);
+  const wf = (t) => ((t < 0.5 ? 3.9 - t * 1.4 : 3.4 - (t - 0.5) * 2.8) + bump(t, 0.03, 0.09, 2.6) + bump(t, 0.5, 0.06, 1.4)
+    + bump(t, 0.6, 0.07, 1.1) - bump(t, 0.76, 0.12, 0.4)) * 1.35;
   const fine = RS > 1;
   tube(pt, pts, wf, fine ? (e, t) => {
     let v = e > 0.55 ? 0.82 : e > 0.05 ? 0.64 : e > -0.55 ? 0.44 : 0.22;          // harte Stufen
@@ -1162,17 +1176,38 @@ function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
     pt.dot(kx + 0.75, ky + 1.25, SKIN[1]); pt.dot(kx + 1.25, ky + 0.75, SKIN[1]);
     for (const k of [-1.2, 1.2]) pt.dot(M.x - ux * 1.5 + uy * k * 0.4, M.y - uy * 1.5 - ux * k * 0.4, SKIN[1]);
   }
+  // Pilzbefall am Oberarm: zwei Konsolenpilze mit leuchtenden Lamellen, Moospolster, Leuchtader im Unterarm
+  {
+    const w = bp(pt), sl = Math.hypot(M.x - S.x, M.y - S.y) || 1;
+    let nx = -(M.y - S.y) / sl, ny = (M.x - S.x) / sl;
+    if (ny > 0) { nx = -nx; ny = -ny; }
+    for (const [t, r] of [[0.2, 3.6], [0.34, 2.7], [0.44, 1.9]]) {
+      const bx = S.x + (M.x - S.x) * t + nx * (wf(t * 0.5) * 0.45), by = S.y + (M.y - S.y) * t + ny * (wf(t * 0.5) * 0.45);
+      orb(w, bx + nx * 0.6, by + ny * 0.6 - 0.4, r, r * 0.55, back ? CAPD : CAP6);
+      hair(w, bx - r * 0.8 + nx * 0.4, by + ny * 0.4 + 0.3, bx + r * 0.8 + nx * 0.4, by + ny * 0.4 + 0.3, GILL[back ? 2 : 4]);
+      if (!back) { pt.gdot(bx + nx * 0.4, by + ny * 0.4 + 0.3, K_GILL, 2); pt.gdot(bx - r * 0.5 + nx * 0.4, by + ny * 0.4 + 0.3, K_GILL, 1); }
+    }
+    for (let i = 0; i < 7; i++) {
+      const t = 0.08 + hash2(i, seed, 311) * 0.36, k = 0.3 + hash2(i, seed, 313) * 0.5;
+      dotp(w, S.x + (M.x - S.x) * t + nx * wf(t * 0.5) * k * 0.5, S.y + (M.y - S.y) * t + ny * wf(t * 0.5) * k * 0.5, MOSS[2 + (i % 3)]);
+    }
+    if (!back) {
+      const v0 = { x: M.x + (E.x - M.x) * 0.12, y: M.y + (E.y - M.y) * 0.12 }, v1 = { x: M.x + (E.x - M.x) * 0.55 + 0.6, y: M.y + (E.y - M.y) * 0.55 }, v2 = { x: M.x + (E.x - M.x) * 0.9, y: M.y + (E.y - M.y) * 0.9 };
+      hair(w, v0.x, v0.y, v1.x, v1.y, VEIN_LIT[0]); hair(w, v1.x, v1.y, v2.x, v2.y, VEIN_LIT[0]);
+      pt.gfline(v0.x, v0.y, v1.x, v1.y, K_VEIN, 1.6); pt.gfline(v1.x, v1.y, v2.x, v2.y, K_VEIN, 1);
+    }
+  }
   // Krallenhand: Handrücken breiter als das Handgelenk, vier getrennte Finger aus der Knöchelreihe
   const a = pts[pts.length - 3], b = pts[pts.length - 1];
   const base = Math.atan2(b.y - a.y, b.x - a.x), bc = Math.cos(base), bs = Math.sin(base);
   const hx = b.x + bc * 1.6, hy = b.y + bs * 1.6;
-  pt.ellipse(hx, hy, 3.4, 2.9, SKIN[back ? 2 : 3]);
-  pt.ellipse(hx - 0.7, hy - 0.8, 1.9, 1.3, SKIN[back ? 3 : 4]);
+  pt.ellipse(hx, hy, 4, 3.4, SKIN[back ? 2 : 3]);
+  pt.ellipse(hx - 0.8, hy - 0.9, 2.3, 1.6, SKIN[back ? 3 : 4]);
   if (fine) pt.dot(hx - 1.5, hy - 1.5, SKIN[back ? 4 : 5]);
   for (let f = 0; f < 4; f++) {
-    const off = (f - 1.5) * 1.75;
+    const off = (f - 1.5) * 2;
     const fa = base + (f - 1.5) * (0.16 + claw * 0.22);
-    const fl = 6.2 + hash2(f, seed, 285) * 1.2 - (f === 0 ? 1.4 : 0);
+    const fl = 7.4 + hash2(f, seed, 285) * 1.4 - (f === 0 ? 1.6 : 0);
     let x = hx + bc * 2.2 - bs * off, y = hy + bs * 2.2 + bc * off, ang = fa;
     const fp = [];
     for (let s2 = 0; s2 <= fl; s2 += 0.5) {
@@ -1187,7 +1222,11 @@ function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
       if (fine && e < -0.75) v = 0.14 + sh;   // dunkle Kante trennt die Finger   // Knöchel im Licht
       return fine ? skinStep(v) : shade(SKIN, v, X, Y);
     });
-    if (fine && !back) { const q = fp[fp.length - 1]; pt.dot(q.x, q.y, HAIR[5]); pt.gdot(q.x, q.y, K_GILL, 2); }
+    { // lange, gebogene Knochenkralle
+      const q = fp[fp.length - 1], qa = fp[fp.length - 3] ?? fp[0], ca = Math.atan2(q.y - qa.y, q.x - qa.x), cl = 3.4 + claw * 0.8;
+      hornQ(bp(pt), q.x, q.y, q.x + Math.cos(ca) * cl * 0.6, q.y + Math.sin(ca) * cl * 0.6, q.x + Math.cos(ca + 0.7) * cl, q.y + Math.sin(ca + 0.7) * cl, 1.4, 0.4, back ? BONE6.slice(0, 5) : BONE6, { n: 3, line: 0.35 });
+      if (fine && !back) pt.gdot(q.x, q.y, K_GILL, 1);
+    }
   }
   meta[key] = { x: b.x, y: b.y };
   pt.clip = H;
