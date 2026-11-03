@@ -319,10 +319,165 @@ function workbench() {
   }, { ax: cx, ay: bot, b: true, box: [-15, -5, 15, 1], extra: { low: true }, light: { dx: 0, dy: -14, radius: 30, color: CRY_LIGHT, intensity: 0.35 } });
 }
 
+// ---------------------------------------------------------------- Einrichtung der Häuser (Innenräume)
+const Gs = pal32(GOLD), Rs = pal32(ROSE), Ir = pal32(IRON);
+const LEAFG = ['#1e2e1a', '#2e4a26', '#44683a', '#5e8a48', '#82ae5e', '#a8cc7a'], Lf = pal32(LEAFG);
+const SOIL = ['#140c0a', '#24160e', '#3a2416'].map(col32);
+const GLASS = { herb: ['#2c4a2a', '#4e7a3c', '#86b05a'], honey: ['#5a2c0a', '#a8601a', '#e8a440'], rose: ['#4a1e3c', '#8a3a68', '#c87ca0'],
+  star: ['#164660', '#2484a8', '#5ccbea'], seed: ['#3a2a1a', '#6a4a2a', '#9c7444'] };
+// Glas mit Inhalt (Füllhöhe f 0…1), Korken, Glanzkante links
+function jar(p, x, bot, w, h, kind, f = 0.7) {
+  const C = GLASS[kind].map(col32), top = bot - h, fill = bot - h * f;
+  p.scan(x, top + 2, x + w, bot, (xx, y) => {
+    if (xx < x + 0.6) return col32('#d8e4e8');
+    if (xx > x + w - 0.6 || y > bot - 0.6) return col32('#3a4450');
+    if (y < fill) return xx < x + 1.6 ? col32('#a8b8c0') : col32('#5a6a74');
+    return C[y < fill + 1 ? 2 : xx < x + w * 0.4 ? 1 : 0];
+  });
+  p.scan(x + 1, top, x + w - 1, top + 2, (xx, y) => col32(y < top + 0.6 ? '#c8a070' : '#7a5434'));
+}
+// Topf mit Setzling bzw. Blume
+function pot(p, cx, bot, r, leaf, bloom) {
+  p.scan(cx - r, bot - r * 1.4, cx + r, bot, (x, y) => (Math.abs(x - cx) > r - (y - bot + r * 1.4) * 0.18 ? 0 : col32(y < bot - r * 1.4 + 0.8 ? '#c47a4a' : x < cx ? '#a65a34' : '#743a22')));
+  p.scan(cx - r + 0.6, bot - r * 1.4 - 0.6, cx + r - 0.6, bot - r * 1.4 + 0.4, () => SOIL[1]);
+  if (leaf) for (let k = -1; k <= 1; k++) p.fline(cx, bot - r * 1.4, cx + k * r * 0.7, bot - r * 1.4 - 3 - (k ? 0 : 2), LEAFG[k < 0 ? 4 : k > 0 ? 2 : 3], 1);
+  if (bloom) { p.dot(cx - 1, bot - r * 1.4 - 4, bloom[1]); p.dot(cx + 1, bot - r * 1.4 - 5, bloom[2]); p.dot(cx, bot - r * 1.4 - 6, bloom[2]); }
+}
+// Regal mit Gläsern (Kräuterstube): Trockenkräuter, Honig, Rosenblätter, Sternsalz
+function jarShelf() {
+  const W = 36, H = 50;
+  return mk(W, H, (p, g) => {
+    p.scan(2, 2, 34, 48, (x, y) => (x < 3 || x > 33 || y > 46.5 ? Pk[x < 3 ? 5 : 1] : y < 3 ? Pk[6] : Pk[2]));
+    const kinds = ['herb', 'honey', 'rose', 'star', 'seed', 'herb', 'rose', 'honey'];
+    let k = 0;
+    for (const sy of [14, 26, 38]) {
+      p.scan(3, sy, 33, sy + 2, (x, y) => (y < sy + 1 ? Pk[6] : Pk[1]));
+      for (let x = 5; x < 30; x += 7, k++) jar(p, x, sy, 5 + (k % 2), 8 + (k % 3), kinds[k % kinds.length], 0.5 + (k % 3) * 0.2);
+    }
+    g.oval(26, 32, 3, 3, CRY[2]);
+    p.scan(4, 40, 32, 46, (x) => (Math.floor(x) % 9 === 0 ? Pk[1] : Pk[3]));
+  }, { ax: 18, ay: 48, b: true, box: [-16, -10, 16, 1] });
+}
+// Arbeitstisch der Kräuterfrau: Mörser, Waage, Bündel, Gläser
+function herbTable() {
+  const W = 44, H = 30, bot = H - 3;
+  return mk(W, H, (p) => {
+    footShade(p, 22, bot + 1, 20, 2.5);
+    for (const lx of [5, W - 7]) p.scan(lx, bot - 9, lx + 2, bot + 1, (x) => Pk[x < lx + 1 ? 5 : 2]);
+    p.scan(2, bot - 14, W - 2, bot - 9, (x, y) => (y < bot - 13.4 ? Pk[6] : y > bot - 9.6 ? Pk[1] : Pk[4]));
+    // Mörser mit Stößel
+    p.scan(6, bot - 19, 13, bot - 14, (x, y) => (Math.abs(x - 9.5) > 3.5 - (y - bot + 19) * 0.25 ? 0 : col32(x < 9 ? '#a8a0a0' : '#6a6064')));
+    p.fline(11, bot - 18, 14, bot - 22, PLANK[5], 1);
+    // Waage
+    p.fline(22, bot - 14, 22, bot - 22, IRON[3], 0.6); p.fline(17, bot - 22, 27, bot - 22, IRON[3], 0.6);
+    for (const sx of [17, 27]) p.scan(sx - 2.5, bot - 17, sx + 2.5, bot - 15.5, () => Gs[3]);
+    jar(p, 31, bot - 14, 4, 7, 'herb', 0.6); jar(p, 36, bot - 14, 4, 6, 'rose', 0.8);
+    // Kräuterbündel auf dem Tisch
+    for (let k = 0; k < 5; k++) p.fline(14 + k, bot - 14, 18 + k * 0.6, bot - 16, LEAFG[2 + (k & 1)], 1);
+  }, { ax: 22, ay: bot, b: true, box: [-19, -6, 19, 1] });
+}
+// Setzlingstisch des Gärtners: Reihen kleiner Töpfe, Saatschale
+function seedlings() {
+  const W = 44, H = 30, bot = H - 3;
+  return mk(W, H, (p) => {
+    footShade(p, 22, bot + 1, 20, 2.5);
+    for (const lx of [4, W - 6]) p.scan(lx, bot - 8, lx + 2, bot + 1, (x) => Pk[x < lx + 1 ? 5 : 2]);
+    p.scan(2, bot - 12, W - 2, bot - 8, (x, y) => (y < bot - 11.4 ? Pk[6] : y > bot - 8.6 ? Pk[1] : Pk[4]));
+    p.scan(4, bot - 7, W - 4, bot - 5, (x, y) => (y < bot - 6.4 ? Pk[5] : Pk[2]));
+    for (let k = 0; k < 6; k++) pot(p, 7 + k * 6, bot - 12, 2.3, true, null);
+    for (let k = 0; k < 4; k++) pot(p, 9 + k * 8, bot - 5, 2, true, null);
+  }, { ax: 22, ay: bot, b: true, box: [-19, -6, 19, 1] });
+}
+// Werkzeuggestell: Rechen, Spaten, Hacke, Gießkanne
+function gardenTools() {
+  const W = 30, H = 46, bot = H - 2;
+  return mk(W, H, (p) => {
+    footShade(p, 15, bot, 12, 2);
+    p.scan(3, 10, 27, 13, (x, y) => (y < 11 ? Pk[6] : Pk[2]));
+    for (const lx of [4, 25]) p.scan(lx, 10, lx + 1.6, bot, (x) => Pk[x < lx + 0.8 ? 5 : 2]);
+    // Stiele
+    for (const tx of [9, 15, 21]) p.scan(tx, 6, tx + 1.2, bot - 3, (x) => Pk[x < tx + 0.6 ? 6 : 3]);
+    // Rechen
+    p.scan(6, 4, 13, 6, () => Ir[3]); for (let k = 0; k < 4; k++) p.scan(6.5 + k * 2, 6, 7.3 + k * 2, 8, () => Ir[2]);
+    // Spaten
+    p.scan(13, bot - 9, 18, bot - 2, (x, y) => (x < 14 ? Ir[4] : y > bot - 3 ? Ir[1] : Ir[3]));
+    // Hacke
+    p.scan(19, 5, 25, 7.5, (x) => (x < 20 ? Ir[4] : Ir[2]));
+    // Gießkanne davor
+    p.scan(19, bot - 7, 27, bot, (x, y) => (y < bot - 6.4 ? Gs[4] : x < 21 ? Gs[3] : x > 26 ? Gs[1] : Gs[2]));
+    p.fline(19, bot - 4, 15.5, bot - 8, GOLD[2], 1);
+  }, { ax: 15, ay: bot, b: true, box: [-12, -6, 12, 1] });
+}
+// Blumenkübel (Rosenhäuschen): Holzkübel mit Rosen bzw. Sternlilien
+function flowerTub(v) {
+  const W = 24, H = 32, bot = H - 2, B = v ? pal32(['#4a3a6a', '#8a7ac8', '#d8d0ff']) : Rs.slice(3);
+  return mk(W, H, (p) => {
+    footShade(p, 12, bot, 9, 2);
+    p.scan(4, bot - 9, 20, bot, (x, y) => (y < bot - 8.4 ? Pk[6] : (x - 4) % 4 < 0.6 ? Pk[1] : x < 8 ? Pk[5] : x > 17 ? Pk[2] : Pk[4]));
+    for (const yy of [bot - 7, bot - 2]) p.scan(4, yy, 20, yy + 1, () => Ir[2]);
+    p.scan(2, bot - 22, 22, bot - 8, (x, y) => {
+      const d = Math.hypot((x - 12) / 10, (y - bot + 14) / 7.5);
+      if (d > 1) return 0;
+      const n = hash2(Math.floor(x), Math.floor(y), 77 + v);
+      if (n < 0.18) return 0;
+      if (n > 0.66) return B[n > 0.86 ? 2 : 1];
+      return Lf[d < 0.5 && x < 12 ? 4 : n > 0.5 ? 3 : 2];
+    });
+  }, { ax: 12, ay: bot, b: true, box: [-8, -5, 8, 1] });
+}
+// Tisch mit Vasen und Schnittblumen
+function flowerTable() {
+  const W = 40, H = 34, bot = H - 3;
+  return mk(W, H, (p) => {
+    footShade(p, 20, bot + 1, 17, 2.5);
+    for (const lx of [5, W - 7]) p.scan(lx, bot - 9, lx + 2, bot + 1, (x) => Pk[x < lx + 1 ? 5 : 2]);
+    p.scan(2, bot - 13, W - 2, bot - 9, (x, y) => (y < bot - 12.4 ? Pk[6] : y > bot - 9.6 ? Pk[1] : Pk[4]));
+    p.scan(4, bot - 14, W - 4, bot - 13, () => col32('#e8dccc'));
+    const vase = (cx, h, c, bl) => {
+      p.scan(cx - 2.5, bot - 13 - h, cx + 2.5, bot - 13, (x, y) => (Math.abs(x - cx) > 2.5 - Math.abs(y - (bot - 13 - h * 0.45)) * 0.25 ? 0 : col32(x < cx ? c[1] : c[0])));
+      for (let k = -2; k <= 2; k++) { p.fline(cx, bot - 13 - h, cx + k * 1.6, bot - 17 - h - Math.abs(k), LEAFG[2], 0.8); p.dot(cx + k * 1.6, bot - 18 - h - (2 - Math.abs(k)), bl[(k + 2) % 2]); }
+    };
+    vase(10, 7, ['#2a6860', '#58a890'], [ROSE[5], ROSE[6]]);
+    vase(21, 9, ['#8a3a68', '#c87ca0'], [GOLD[4], GOLD[5]]);
+    vase(31, 6, ['#3a3250', '#7a7290'], [ROSE[4], '#fff0f4']);
+  }, { ax: 20, ay: bot, b: true, box: [-17, -6, 17, 1] });
+}
+// Rosengirlande an der Rückwand
+function wallGarland() {
+  return mk(40, 48, (p) => {
+    p.scan(2, 8, 38, 20, (x, y) => {
+      const sag = 8 + Math.sin(((x - 2) / 36) * Math.PI) * 7;
+      if (Math.abs(y - sag) > 2.2) return 0;
+      const n = hash2(Math.floor(x), Math.floor(y), 91);
+      return n > 0.58 ? Rs[n > 0.82 ? 6 : 5] : Lf[n < 0.3 ? 2 : 3];
+    });
+    for (const x of [2, 38]) p.scan(x - 1, 6, x + 1, 9, () => Gs[3]);
+  }, { ax: 20, ay: 47, b: true, extra: { sortOffset: -40, low: true } });
+}
+// Kartentisch der Hüterin: Karte der Scherben, Kerze, Kompass
+function mapTable() {
+  const W = 44, H = 30, bot = H - 3;
+  return mk(W, H, (p) => {
+    footShade(p, 22, bot + 1, 20, 2.5);
+    for (const lx of [5, W - 7]) p.scan(lx, bot - 9, lx + 2, bot + 1, (x) => Pk[x < lx + 1 ? 5 : 2]);
+    p.scan(2, bot - 14, W - 2, bot - 9, (x, y) => (y < bot - 13.4 ? Pk[6] : y > bot - 9.6 ? Pk[1] : Pk[4]));
+    p.scan(7, bot - 16, 35, bot - 11, (x, y) => {
+      const n = hash2(Math.floor(x / 2), Math.floor(y), 401);
+      return y < bot - 15.4 ? col32('#f0e2c0') : n < 0.2 ? col32('#7a6a8a') : n < 0.32 ? col32('#5a8a6a') : col32(x < 20 ? '#d8c8a0' : '#c4b28a');
+    });
+    p.scan(34, bot - 22, 36, bot - 14, (x, y) => (y < bot - 20 ? col32(LAMP[4]) : col32('#e8e0c8')));
+    p.scan(11, bot - 17, 15, bot - 14, () => Gs[3]);
+  }, { ax: 22, ay: bot, b: true, box: [-19, -6, 19, 1] });
+}
+
 // Morgentau (Satz decor_astral) und Funkenruh (Satz decor_shards) getrennt, damit jedes Gebiet nur seine Bauten baut
 export function createGardenVillageDecor() {
   const c = [0, 1, 2].map(gardenCottage);
-  return { gardenCottages: c, cottageRose: c[0], cottageVerd: c[1], cottageThatch: c[2], gardenBeds: [0, 1, 2].map(gardenBed), villageWell: villageWell() };
+  return {
+    gardenCottages: c, cottageRose: c[0], cottageVerd: c[1], cottageThatch: c[2], gardenBeds: [0, 1, 2].map(gardenBed), villageWell: villageWell(),
+    fJars: jarShelf(), fHerbTable: herbTable(), fSeedlings: seedlings(), fTools: gardenTools(), fFlowerTub: [flowerTub(0), flowerTub(1)], fFlowerTable: flowerTable(),
+    wGarland: wallGarland(), fMapTable: mapTable(),
+  };
 }
 export function createMinerCampDecor() {
   const h = [0, 1].map(minerHut);

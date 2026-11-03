@@ -303,22 +303,38 @@ export function buildDriftingGardens() {
     ],
     signText: 'Ost: Lichtbrücke nach Sternhafen · Nordwest: Hängende Terrassen und Rankengruft · Südwest: Mondweiher und Splitterweiten',
   };
-  // Begehbare Gärtnerhäuser (world/houses.js): Tür = Kachel unter dem Bogen (Anker V/I 1 links, A 1 rechts)
-  return addInteriors(L, [
-    { id: 'huterhaus', name: 'Haus der Hüterin', door: { x: 151, y: 58 }, plan: 'home' },
+  // Begehbare Gärtnerhäuser (world/houses.js): Tür = Kachel unter dem Bogen (Anker V/I 1 links, A 1 rechts).
+  // Jedes Haus mit eigenem Thema: Hüterin (Kartentisch, Waffen), Kräuterstube (Gläser, Trockenkräuter),
+  // Gärtnerhaus (Setzlinge, Werkzeug), Rosenhäuschen (Blumen)
+  addInteriors(L, [
+    { id: 'huterhaus', name: 'Haus der Hüterin', door: { x: 151, y: 58 }, plan: WARDEN },
     { id: 'kraeuterstube', name: 'Isells Kräuterstube', door: { x: 155, y: 64 }, plan: HERBS },
     { id: 'gaertnerhaus', name: 'Brens Gärtnerhaus', door: { x: 179, y: 58 }, plan: GARDENER },
-    { id: 'rosenhaus', name: 'Rosenhäuschen', door: { x: 177, y: 66 }, plan: 'homeB' },
+    { id: 'rosenhaus', name: 'Rosenhäuschen', door: { x: 177, y: 66 }, plan: ROSES },
   ], { ambient: [150, 132, 128] });
+  // Rosengirlande hängt an der Rückwand: begehbar wie der übrige Wandschmuck
+  const garland = Object.keys(L.decor).find((c) => L.decor[c] === 'wGarland');
+  if (garland) L.solid = L.solid.replace(garland, '');
+  return L;
 }
 
-// Kräuterstube: Bücher, Schreibpult, Kräuterbündel, viele Pflanzen
-const HERBS = {
+// Hüterin Veyra: Kartentisch, Waffenständer, Rüstung, Feldbett, Banner
+const WARDEN = {
   w: 13, h: 9, s: 'A', win: [3, 9], rug: [4, 5, 5, 2], light: [6, 4],
-  furn: [[2, 3, 'fBooks'], [6, 5, 'fDesk'], [10, 3, 'fCupboard'], [11, 7, 'fKegs'], [1, 7, 'fPlant'], [5, 3, 'wHerbs'], [7, 3, 'wHerbs'], [9, 7, 'fPlant'], [3, 7, 'fSacks']],
+  furn: [[6, 5, 'fMapTable'], [2, 3, 'fRack'], [10, 3, 'fArmor'], [11, 7, 'fBed'], [1, 7, 'fChest'], [5, 3, 'wShield'], [8, 3, 'fBanner'], [3, 7, 'fStool']],
 };
-// Gärtnerhaus: Herd, Bett, Saatsäcke, Pflanzen am Fenster
+// Kräuterstube: Gläserregale, Arbeitstisch mit Mörser und Waage, Trockenkräuter an der Wand
+const HERBS = {
+  w: 13, h: 9, s: 'A', win: [6], rug: [4, 6, 5, 1], light: [6, 4],
+  furn: [[2, 3, 'fJars'], [10, 3, 'fJars'], [6, 5, 'fHerbTable'], [4, 3, 'wHerbs'], [8, 3, 'wHerbs'], [1, 7, 'fSacks'], [11, 7, 'fPlant'], [9, 7, 'fKegs'], [3, 7, 'fPlant']],
+};
+// Gärtnerhaus: Setzlingstische, Werkzeuggestell, Saatsäcke, Gießkannen
 const GARDENER = {
-  w: 13, h: 9, s: 'A', win: [3, 9], rug: [4, 5, 5, 2], light: [6, 4],
-  furn: [[6, 3, 'fHearth'], [10, 4, 'fBed'], [5, 6, 'fTable'], [3, 6, 'fStool'], [1, 7, 'fSacks'], [2, 3, 'fPlant'], [11, 7, 'fPlant'], [8, 3, 'wHerbs'], [4, 3, 'wShelf']],
+  w: 13, h: 9, s: 'A', win: [3, 9], light: [6, 4],
+  furn: [[3, 5, 'fSeedlings'], [9, 5, 'fSeedlings'], [11, 3, 'fTools'], [1, 3, 'fTools'], [6, 3, 'wHerbs'], [1, 7, 'fSacks'], [3, 7, 'fSacks'], [11, 7, 'fBarrels'], [8, 7, 'fFlowerTub']],
+};
+// Rosenhäuschen: Blumentisch, Kübel mit Rosen und Sternlilien, Girlanden, Bett unter dem Fenster
+const ROSES = {
+  w: 11, h: 9, s: 'A', win: [5], rug: [3, 5, 5, 2], light: [5, 4],
+  furn: [[5, 5, 'fFlowerTable'], [8, 4, 'fBed'], [1, 3, 'fFlowerTub'], [2, 7, 'fFlowerTub'], [9, 7, 'fFlowerTub'], [3, 3, 'wGarland'], [7, 3, 'wGarland'], [1, 5, 'fPlant']],
 };
