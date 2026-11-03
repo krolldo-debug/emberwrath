@@ -5,7 +5,7 @@
 // kommen aus sprites/decor_altstadt.js (createFurniture, in jeden Deko-Satz gemischt, world/index.js).
 //
 // addInteriors(L, rooms, opts) – L: fertiges Level, rooms: [{ id, name, door: {x,y}, plan }] mit plan aus ROOMS
-// (oder eigenem { w, h, s, win, rug, furn: [[dx, dy, 'fTable'], …], light: [dx, dy] }).
+// (oder eigenem { w, h, s, win, rug, furn: [[dx, dy, 'fTable'], …], light: [dx, dy] }); spec.s ersetzt den Stil der Vorlage.
 //   door = Türkachel des Hauses (fest), davor (door.y + 1) steht man beim Eintreten. Räume: s = Stil der Wände und
 //   Böden (A Dielen/Fachwerk, B Stein, C Backstein/Fliesen, L Blockhaus, F Filz der Jurte), win = Fensterspalten.
 
@@ -54,9 +54,9 @@ export const ROOMS = {
   },
   // Methalle des Jarls
   mead: {
-    w: 21, h: 11, s: 'L', win: [4, 16], rug: [7, 5, 7, 4], light: [10, 6],
+    w: 21, h: 11, s: 'L', win: [4, 16], light: [10, 6],
     furn: [[10, 3, 'fThrone'], [7, 3, 'fBanner'], [13, 3, 'fBanner'], [3, 9, 'fTable'], [17, 9, 'fTable'], [1, 9, 'fStool'], [5, 9, 'fStool'], [15, 9, 'fStool'], [19, 9, 'fStool'],
-      [10, 9, 'fHearth'], [2, 3, 'fRack'], [18, 3, 'fKegs'], [19, 7, 'fBarrels'], [1, 6, 'fChest'], [5, 3, 'wShield'], [15, 3, 'wShield'], [9, 3, 'wAntlers']],
+      [10, 6, 'fFirepit'], [2, 3, 'fRack'], [18, 3, 'fKegs'], [19, 7, 'fBarrels'], [1, 6, 'fChest'], [5, 3, 'wShield'], [15, 3, 'wShield'], [9, 3, 'wAntlers']],
   },
   // Jurte: Filzwände, Teppiche, Feuerstelle in der Mitte
   yurt: {
@@ -89,7 +89,7 @@ export function addInteriors(L, rooms, { ambient = [150, 128, 112], light = [255
   const charOf = (key) => {
     if (!chars.has(key)) {
       const ch = pool.shift();
-      if (!ch) throw new Error('houses.js: keine freien Zeichen mehr');
+      if (!ch) throw new Error('houses.js: no free map chars left');
       chars.set(key, ch); L.decor[ch] = key;
       if (!WALL_ITEMS.has(key)) solid += ch;
     }
@@ -106,7 +106,7 @@ export function addInteriors(L, rooms, { ambient = [150, 128, 112], light = [255
     const ex = x + Math.floor(P.w / 2);
     put(ex, y + P.h - 1, ':');
     for (const [dx, dy, key] of P.furn) put(x + dx, y + dy, charOf(key));
-    ram.rooms.push({ r: [x, y, P.w, P.h], s: P.s, win: (P.win ?? []).map((k) => x + k), rug: P.rug ? [x + P.rug[0], y + P.rug[1], P.rug[2], P.rug[3]] : null });
+    ram.rooms.push({ r: [x, y, P.w, P.h], s: spec.s ?? P.s, win: (P.win ?? []).map((k) => x + k), rug: P.rug ? [x + P.rug[0], y + P.rug[1], P.rug[2], P.rug[3]] : null });
     const li = P.light ? { x: x + P.light[0], y: y + P.light[1], radius: Math.max(P.w, P.h) * 9, color: spec.lightColor ?? light, intensity: 0.85 } : null;
     L.interiors.push({ id: spec.id, name: spec.name, door: { ...spec.door }, room: { x, y, w: P.w, h: P.h }, spawn: { x: ex, y: y + P.h - 2 }, exit: { x: ex, y: y + P.h - 1 }, light: li });
   });
@@ -121,7 +121,7 @@ export function checkDoors(L) {
   const solid = new Set(['#', '~', '=', 'H', 'f', ...(L.solid ?? '')]), bad = [];
   for (const it of L.interiors ?? []) {
     const f = L.map[it.door.y + 1]?.[it.door.x];
-    if (f === undefined || solid.has(f)) bad.push(`${it.id}: vor der Tür ${it.door.x},${it.door.y + 1} steht '${f}'`);
+    if (f === undefined || solid.has(f)) bad.push(`${it.id} @${it.door.x},${it.door.y + 1}: '${f}'`);
   }
   return bad;
 }
