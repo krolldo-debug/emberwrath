@@ -28,10 +28,11 @@ const AL = (r, list) => list.map(([s, o]) => { const q = along(r, s, o); return 
 // ---------------------------------------------------------------- Werkzeuge
 const LX = -0.6, LY = -0.8;
 
-// Platte: Stufen nach Lage zum Licht, Kanten zum Licht hell, abgewandte Kanten dunkel.
-// ramp: dunkel → hell (≥ 4). o.edge = Kantenbreite, o.flat = schwächerer Verlauf
+// Platte: dunkle Innenkontur rundum (trennt überlappende Teile), Lichtkante innen hell, zur Schattenkante hin eine
+// Stufe dunkler (Körperschatten), dazu Verlauf nach Lage zum Licht. ramp: dunkel → hell (≥ 5).
+// o.edge = Breite der Lichtkante, o.flat = schwächerer Verlauf, o.line = false ohne Innenkontur, o.glint = Glanzfleck
 export function plate(p, pts, ramp, o = {}) {
-  const n = ramp.length, edge = o.edge ?? 0.9, k = o.flat ?? 1;
+  const n = ramp.length, edge = o.edge ?? 0.9, k = o.flat ?? 1, line = o.line ?? 0.5;
   let cx = 0, cy = 0;
   for (const [x, y] of pts) { cx += x; cy += y; }
   cx /= pts.length; cy /= pts.length;
@@ -43,27 +44,47 @@ export function plate(p, pts, ramp, o = {}) {
     if (nx * ((a[0] + b[0]) / 2 - cx) + ny * ((a[1] + b[1]) / 2 - cy) < 0) { nx = -nx; ny = -ny; }
     return { a, dx, dy, L, f: nx * LX + ny * LY };
   });
-  const hiA = o.hi ?? 0.74, loA = o.lo ?? 0.44;
+  const hiA = o.hi ?? 0.7, loA = o.lo ?? 0.42, core = o.core ?? Math.min(2.4, R * 0.28);
   poly(p, pts, (x, y) => {
-    let best = Infinity, f = 0;
+    let best = Infinity, f = 0, dS = Infinity, dL = Infinity;
     for (const s of segs) {
       const t = Math.max(0, Math.min(1, ((x - s.a[0]) * s.dx + (y - s.a[1]) * s.dy) / (s.L * s.L)));
       const d = Math.hypot(x - s.a[0] - s.dx * t, y - s.a[1] - s.dy * t);
       if (d < best) { best = d; f = s.f; }
+      if (s.f > 0.3) dL = Math.min(dL, d); else if (s.f < -0.2) dS = Math.min(dS, d);
     }
-    // Innenkontur: abgewandte und seitliche Kanten 1 Feinpixel dunkel, Lichtkante 2 Feinpixel hell
-    if (f > 0.3 && best < edge) return ramp[n - 1];
-    if (f <= 0.3 && best < 0.55) return ramp[0];
-    const t = (((x - cx) * LX + (y - cy) * LY) / R) * 0.5 * k + 0.5;
-    if (t > 0.86 && o.glint !== false) return ramp[n - 1];
-    return t > hiA ? ramp[n - 2] : t < loA ? ramp[1] : ramp[Math.max(1, n - 3)];
+    if (line && best < line) return ramp[0];
+    if (f > 0.3 && best < line + edge * 0.6) return ramp[n - 1];
+    const t = (((x - cx) * LX + (y - cy) * LY) / R) * 0.62 * k + 0.5;
+    if (t > 0.9 && o.glint !== false) return ramp[n - 1];
+    // Stufen 1 … n-2 nach Lage zum Licht (hiA/loA verschieben die Mitte)
+    const m = n - 2, sh = (hiA + loA) / 2 - 0.56;
+    let i = 1 + Math.max(0, Math.min(m - 1, Math.floor((t - sh) * m)));
+    if (dS < core + line) i = Math.max(1, i - 1);
+    else if (dL < 1.6 + line && i < n - 2) i++;
+    return ramp[i];
   });
 }
 
-// Plattenstreifen entlang einer Strecke (Arm, Bein, Schaft): Breite w0 → w1
-export function bar(p, x0, y0, x1, y1, w0, w1, ramp, o) {
-  const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
-  plate(p, [[x0 + nx * w0 / 2, y0 + ny * w0 / 2], [x1 + nx * w1 / 2, y1 + ny * w1 / 2], [x1 - nx * w1 / 2, y1 - ny * w1 / 2], [x0 - nx * w0 / 2, y0 - ny * w0 / 2]], ramp, o);
+// Runder Strang (Arm, Bein, Schaft, Ast): Breite w0 → w1, quer schattiert wie ein Zylinder mit Glanzstreifen
+// auf der Lichtseite und Kernschatten auf der abgewandten Seite, Enden und Ränder mit dunkler Kontur.
+export function bar(p, x0, y0, x1, y1, w0, w1, ramp, o = {}) {
+  const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
+  let nx = -dy / L, ny = dx / L;
+  const pts = [[x0 + nx * w0 / 2, y0 + ny * w0 / 2], [x1 + nx * w1 / 2, y1 + ny * w1 / 2], [x1 - nx * w1 / 2, y1 - ny * w1 / 2], [x0 - nx * w0 / 2, y0 - ny * w0 / 2]];
+  if (o.flatShade) return plate(p, pts, ramp, o);
+  if (nx * LX + ny * LY < 0) { nx = -nx; ny = -ny; }       // n zeigt zur Lichtseite
+  const n = ramp.length, line = o.line ?? 0.5;
+  poly(p, pts, (x, y) => {
+    const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / (L * L)));
+    const hw = (w0 + (w1 - w0) * t) / 2, u = ((x - x0) * nx + (y - y0) * ny) / Math.max(0.5, hw);   // -1 Schatten … 1 Licht
+    const along = t * L;
+    if (line && (hw - Math.abs(u) * hw < line || (o.caps !== false && (along < line || L - along < line)))) return ramp[0];
+    if (u > 0.5 && hw > 1.6) return ramp[n - 1 - (u > 0.82 ? 1 : 0)];
+    if (u > 0.05) return ramp[n - 3];
+    if (u > -0.55) return ramp[Math.max(1, n - 4)];
+    return ramp[1];
+  });
 }
 
 // Kugel/Buckel mit Licht von links oben und dunklem Rand unten rechts
@@ -95,6 +116,25 @@ export function gem(p, x0, y0, x1, y1, w, ramp) {
     return o > h * (1 - ((x - x0) * dx + (y - y0) * dy) / (L * L)) - 0.6 ? ramp[0] : ramp[1];
   });
 }
+
+// Polygon zur Mitte hin um d einrücken (für Zierränder auf Platten, gut genug für konvexe Formen)
+function inset(pts, d) {
+  let cx = 0, cy = 0;
+  for (const [x, y] of pts) { cx += x; cy += y; }
+  cx /= pts.length; cy /= pts.length;
+  return pts.map(([x, y]) => { const L = Math.hypot(x - cx, y - cy) || 1; return [x + (cx - x) / L * d, y + (cy - y) / L * d]; });
+}
+// Linienzug (offen oder geschlossen) in einer Farbe; c2 = Schattenlinie 0,5 darunter (Prägung)
+function trace(p, pts, c, closed = true, c2 = null) {
+  const m = closed ? pts.length : pts.length - 1;
+  for (let i = 0; i < m; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[(i + 1) % pts.length];
+    if (c2) hair(p, x0, y0 + 0.5, x1, y1 + 0.5, c2);
+    hair(p, x0, y0, x1, y1, c);
+  }
+}
+// Niet: dunkler Punkt mit Glanzpunkt links oben
+function rivet(p, x, y, ramp) { pt(p, x + 0.5, y + 0.5, ramp[0]); pt(p, x, y, ramp[ramp.length - 1]); }
 
 // Glühende Fuge (Leuchtebene + Malfläche)
 function seam(p, g, pts, glow, k = 2) {
@@ -147,7 +187,7 @@ const KAL = {
     plate: ['#0a1224', '#142444', '#1e3662', '#2e5288', '#4c7cb4', '#b4dcf6'],
     dark: ['#080e1e', '#101c38', '#1a2c54', '#26406e', '#36588c', '#5a80aa'],
     trim: ['#3a2208', '#7a4a12', '#b8801e', '#e8b840', '#fff0a0'],
-    cape: ['#14040c', '#2a0a18', '#44122a', '#601c3a', '#7c2a4c'],
+    cape: ['#16040c', '#34091c', '#5a1230', '#842046', '#b0365e'],
     capeIn: ['#0a0208', '#14060e', '#200a16', '#2c0e1e', '#381426'],
     crystal: ['#103050', '#1c5c8c', '#3498c8', '#80d8f0', '#e8ffff'],
     core: ['#4a1004', '#a83208', '#f07a1c', '#ffc860', '#fff6d8'],
@@ -183,7 +223,7 @@ function kaldrisSword(p, g, hx, hy, a, V, glow) {
   gem(p, ...P(-12, 0), ...P(-17, 0), 5, V.crystal);
   plate(p, [P(2, -10), P(4, -11), P(6, -3), P(6, 3), P(4, 11), P(2, 10), P(3.5, 0)], V.trim, { edge: 0.7 });
   // Klinge: zwei Facetten, Grat, helle Schneiden, Spitze
-  const Lb = 74;
+  const Lb = 60;
   plate(p, [P(5, 0), P(5, -5.2), P(Lb * 0.86, -3.4), P(Lb, 0)], [V.crystal[1], V.crystal[2], V.crystal[3], V.crystal[3], V.crystal[4]], { edge: 0.8 });
   plate(p, [P(5, 0), P(Lb, 0), P(Lb * 0.86, 3.4), P(5, 5.2)], [V.crystal[0], V.crystal[1], V.crystal[1], V.crystal[2], V.crystal[3]], { edge: 0.8 });
   // Kern der Klinge: Glutader (Leuchtebene)
@@ -204,6 +244,7 @@ function pauldron(p, x, y, r, V, back, shards) {
     const yy = y + i * r * 0.32, rr = r * (1 - i * 0.12);
     plate(p, [[x - rr, yy + 2], [x - rr * 0.8, yy - rr * 0.55], [x, yy - rr * 0.8], [x + rr * 0.85, yy - rr * 0.5], [x + rr, yy + 2], [x + rr * 0.6, yy + rr * 0.42], [x - rr * 0.6, yy + rr * 0.42]], pl, { edge: 0.8 });
     for (let t = -0.8; t <= 0.8; t += 0.04) pt(p, x + t * rr * 0.75, yy + rr * 0.38 - Math.abs(t) * 2, V.trim[back ? 1 : 2]);
+    if (!back) for (const t of [-0.55, 0, 0.55]) rivet(p, x + t * rr * 0.75, yy + rr * 0.2 - Math.abs(t) * 2, V.trim);
   }
   if (shards) for (const [ox, len, a] of shards) gem(p, x + ox, y - r * 0.5, x + ox + Math.cos(a) * len, y - r * 0.5 + Math.sin(a) * len, len * 0.32, V.crystal);
 }
@@ -240,8 +281,9 @@ function drawKaldris(V) {
 
     // --- 1. Umhang hinten
     if (V.cape_on) {
-      const at = drape(p, P, chX - perpX * 4 - 20, chY - 3, 32, 92 - P.kneel * 18, V.cape, { w: 1, sway: 26 });
-      for (let i = 0; i < 32; i++) { const b = at(i, 1); pt(p, b.x, b.y, V.trim[2]); pt(p, b.x, b.y - 0.5, V.trim[1]); }
+      const at = drape(p, P, shB.x - 9, shB.y - 2, 26, 90 - P.kneel * 18, V.cape, { w: 1, sway: 26 });
+      for (let i = 0; i < 26; i++) { const b = at(i, 1); pt(p, b.x, b.y, V.trim[2]); pt(p, b.x, b.y - 0.5, V.trim[1]); pt(p, b.x, b.y - 1, V.cape[0]); }
+      for (let i = 0; i < 26; i++) { const b = at(i, 0); pt(p, b.x, b.y, V.cape[0]); }
     }
 
     const SP = { back: [[33, -10, -0.7, 16], [26, -13, -1.1, 12], [16, -12, -1.4, 9]], cracks: [[[28, 2], [22, 6], [17, 4], [10, 7]], [[30, 12], [24, 9]], [[12, -8], [7, -4], [4, -6]]] };
@@ -258,10 +300,15 @@ function drawKaldris(V) {
       const a = along(r, s - 5.6, -w - 1), b = along(r, s - 4.6, w + 2);
       hair(p, a.x, a.y, b.x, b.y, V.trim[2]);
     }
-    plate(p, AL(r, [[3, -9], [3, 9], [12, 12], [24, 17.5], [33, 15], [37, 6], [36, -10], [27, -14], [12, -11]]), V.plate);
-    // Mittelgrat und Goldborte
-    { const q = AL(r, [[5, 3], [20, 5], [33, 4]]); hair(p, ...q[0], ...q[1], V.plate[1]); hair(p, ...q[1], ...q[2], V.plate[1]); }
-    for (let s = 4; s < 34; s += 0.5) { const q = along(r, s, 12.6 + Math.sin(s / 34 * Math.PI) * 3); pt(p, q.x, q.y, V.trim[3]); }
+    // Bauchreifen (unten) und gewölbter Brustpanzer (oben) als getrennte Platten, Goldrand, Nieten, Mittelgrat
+    const belly = AL(r, [[3, -9], [3, 9], [12, 12], [20, 13.5], [20, -12], [12, -11]]);
+    plate(p, belly, V.plate);
+    for (const s0 of [8.5, 14.5]) { const a = along(r, s0, -11), b = along(r, s0, 12.5); hair(p, a.x, a.y, b.x, b.y, V.plate[0]); hair(p, a.x, a.y - 0.5, b.x, b.y - 0.5, V.plate[4]); }
+    const breast = AL(r, [[17, -12.5], [17, 13], [24, 17.5], [33, 15], [37, 6], [36, -10], [27, -14]]);
+    plate(p, breast, V.plate, { core: 3 });
+    trace(p, inset(breast, 1.8), V.trim[3], true, V.trim[1]);
+    { const q = AL(r, [[18, 4], [27, 5.5], [35, 4.5]]); hair(p, ...q[0], ...q[1], V.plate[5]); hair(p, ...q[1], ...q[2], V.plate[5]); const q2 = AL(r, [[18, 3.3], [27, 4.8], [35, 3.8]]); hair(p, ...q2[0], ...q2[1], V.plate[1]); hair(p, ...q2[1], ...q2[2], V.plate[1]); }
+    for (const [s0, o0] of [[19, -10], [19, 10.5], [34, -8], [35, 12], [27, -12]]) { const q = along(r, s0, o0); rivet(p, q.x, q.y, V.trim); }
     const wb = along(r, 3.5, -10), we = along(r, 3.5, 10.5);
     hair(p, wb.x, wb.y, we.x, we.y, V.trim[2]); hair(p, wb.x, wb.y + 0.5, we.x, we.y + 0.5, V.trim[1]);
     // Glutsplitter in der Brust: Fassung, Splitter, Risse
@@ -314,7 +361,7 @@ function drawKaldris(V) {
     let tip;
     if (extra.swordBehind) { tip = kaldrisSword(p, g, hF.x, hF.y, sa, V, glow); kaldrisArm(p, armF, shF, V, false); }
     else { kaldrisArm(p, armF, shF, V, false); tip = kaldrisSword(p, g, hF.x, hF.y, sa, V, glow); orb(p, hF.x, hF.y, 4.2, 3.8, V.plate); }
-    pauldron(p, shF.x, shF.y - 1.5, 10.5, V, false, [[-7, 12, -2.25], [-2, 14, -1.95], [4, 9, -1.15]]);
+    pauldron(p, shF.x - 1, shF.y + 1.5, 9.5, V, false, [[-7, 10, -2.35], [-2, 12, -2.0], [4, 8, -1.2]]);
     meta.hand = { x: hF.x, y: hF.y }; meta.tip = tip;
     // Zauberglut an der freien Hand
     meta.cast = { x: armB.ex, y: armB.ey - 6 };
@@ -344,6 +391,7 @@ const YSG = {
     barkB: ['#0c0708', '#1c1210', '#2c1e18', '#3e2a20', '#523a28', '#6e5034'],
     moss: ['#0e1a14', '#1a3022', '#2a4a2c', '#3e6a36', '#5a8c44', '#8ab45a'],
     hat: ['#1a1408', '#3a2c12', '#5e4a1e', '#86702e', '#b09a46', '#e0cc7a'],
+    leaf: ['#08160e', '#123020', '#1e4a2a', '#2e6a34', '#4c9040', '#86c25a'],
     bloom: ['#5a1e46', '#a03a7a', '#d866a6', '#f8a8d0', '#ffe8f4'],
     blade: ['#1a2a28', '#3a5a52', '#6a9a86', '#a8d8c0', '#eefff6'],
     lamp: ['#4a1238', '#9a2a6a', '#e060a8', '#ffb8dc', '#ffffff'],
@@ -353,6 +401,7 @@ const YSG = {
     barkB: ['#1a1622', '#2e2838', '#463e50', '#625868', '#80748a', '#a094a8'],
     moss: ['#1a1a24', '#2e3040', '#4a4c60', '#6a6c86', '#9294b0', '#c4c4dc'],
     hat: ['#1c1426', '#36284a', '#54406e', '#76609a', '#9e88c0', '#d0c0ec'],
+    leaf: ['#140a22', '#26143c', '#3a2058', '#563478', '#7a50a0', '#b48ad8'],
     bloom: ['#4a0a3a', '#9a1a7a', '#e040b8', '#ffb0e8', '#ffffff'],
     blade: ['#24083e', '#4a1474', '#8a3ac8', '#d29cff', '#fbeeff'],
     lamp: ['#4a0a3a', '#9a1a7a', '#e040b8', '#ffb0e8', '#ffffff'], fx: 'void',
@@ -362,6 +411,7 @@ const YSG = {
     barkB: ['#050404', '#0c0a0a', '#161210', '#221a16', '#30241c', '#463426'],
     moss: ['#0c0a0a', '#1a1414', '#2a2020', '#3e3030', '#584444', '#7a625c'],
     hat: ['#100a08', '#22160e', '#3a2614', '#56381c', '#7a5028', '#a8743a'],
+    leaf: ['#0a0606', '#1a0e0a', '#2e140c', '#4a1e0e', '#7a3010', '#c45a1c'],
     bloom: ['#4a0e06', '#a8280c', '#f0602a', '#ffb070', '#fff4d8'],
     blade: ['#1a0604', '#4a1006', '#9a300c', '#ff8a2a', '#fff0b0'],
     lamp: ['#4a0e06', '#a8280c', '#f0602a', '#ffb070', '#fff4d8'], fx: 'ember',
@@ -424,6 +474,37 @@ function blossom2(p, x, y, ramp, big) {
   pt(p, x, y, ramp[4]);
 }
 
+// Laubbüschel: einzelne Blätter (dunkler Rand, Licht von links oben), hinten dunkler, vorn heller
+function leaves(p, x, y, r, ramp, seed, n = 12) {
+  const L = [];
+  for (let i = 0; i < n; i++) {
+    const a = hash2(i, 1, seed) * Math.PI * 2, d = Math.sqrt(hash2(i, 2, seed)) * r;
+    L.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, a: hash2(i, 3, seed) * Math.PI, z: hash2(i, 4, seed) });
+  }
+  L.sort((u, v) => u.z - v.z);
+  for (const l of L) {
+    const lit = -((l.x - x) * LX + (l.y - y) * LY) / Math.max(1, r) * -1, ca = Math.cos(l.a), sa2 = Math.sin(l.a);
+    const k = Math.max(1, Math.min(ramp.length - 2, Math.round(2 + lit * 1.6 + l.z * 1.2)));
+    const tip = [l.x + ca * 3, l.y + sa2 * 3], base = [l.x - ca * 3, l.y - sa2 * 3];
+    const side = (s0) => [l.x - sa2 * 1.6 * s0, l.y + ca * 1.6 * s0];
+    poly(p, [base, side(1.25), tip, side(-1.25)], ramp[0]);
+    poly(p, [[base[0] + ca * 0.6, base[1] + sa2 * 0.6], side(0.8), [tip[0] - ca * 0.6, tip[1] - sa2 * 0.6], side(-0.8)], (px, py) => ((px - l.x) * -sa2 + (py - l.y) * ca) * (LX * -sa2 + LY * ca) > 0 ? ramp[k + 1] : ramp[k]);
+  }
+}
+
+// Rindenfurchen auf einer Fläche: gewellte dunkle Rillen mit heller Kante links
+function barkLines(p, r, list, V) {
+  for (const [s0, s1, o, seed] of list) {
+    let prev = null, prevH = null;
+    for (let s = s0; s <= s1; s += 1.5) {
+      const w = Math.sin(s * 0.35 + seed) * 1.2 + (hash2(Math.round(s), seed, 5) - 0.5) * 0.8;
+      const q = along(r, s, o + w), qh = along(r, s, o + w - 0.6);
+      if (prev) { hair(p, prevH.x, prevH.y, qh.x, qh.y, V.bark[4]); hair(p, prev.x, prev.y, q.x, q.y, V.bark[0]); }
+      prev = q; prevH = qh;
+    }
+  }
+}
+
 function drawYsgarn(V) {
   return (p, g, P0, glow, extra = {}) => {
     const r = bigRig(P0, 1.5);
@@ -431,11 +512,19 @@ function drawYsgarn(V) {
     const meta = {};
     const ux = Math.sin(lean), uy = -Math.cos(lean);
 
-    // --- 1. Moosmantel hinten, mit Blüten
-    const at = drape(p, P, chX - perpX * 4 - 22, chY - 6, 34, 74 - P.kneel * 16, V.moss, { w: 1, sway: 22, speckle: 0.14, seed: 41 });
-    for (const [i, v] of [[4, 0.3], [9, 0.62], [14, 0.22], [19, 0.5], [25, 0.35], [30, 0.7], [7, 0.85], [22, 0.88]]) { const b = at(i, v); blossom2(p, b.x, b.y, V.bloom, v < 0.6); }
-    for (let i = 1; i < 34; i += 2) { const b = at(i, 1); hair(p, b.x, b.y, b.x - 1, b.y + 3 + hash2(i, 1, 9) * 4, V.moss[2]); }
-
+    // --- 1. Hängendes Moos und Laub hinten (Weide), mit Blüten
+    for (let i = 0; i < 16; i++) {
+      const u = i / 15, bx = shB.x - 14 + u * 22, by = shB.y - 4 + Math.abs(u - 0.5) * 6, len = 44 + hash2(i, 1, 41) * 26 - P.kneel * 14;
+      let px = bx, py = by;
+      for (let j = 1; j <= 8; j++) {
+        const v = j / 8, x = bx - P.cape * 18 * v * v - (1 - u) * 6 * v + Math.sin(P.capeT * 1.3 + v * 4 + i) * 1.4 * v, y = by + len * v;
+        hair(p, px, py, x, y, V.leaf[i % 2 ? 1 : 2]); hair(p, px + 0.5, py, x + 0.5, y, V.leaf[i % 3 ? 3 : 2]);
+        if (j % 3 === (i % 3) && j < 8) leaves(p, x, y, 2.2, V.leaf, i * 13 + j, 2);
+        px = x; py = y;
+      }
+      if (i % 3 === 0) blossom2(p, px, py - 2, V.bloom, false);
+    }
+    leaves(p, shB.x - 4, shB.y - 4, 11, V.leaf, 41, 18);
     const SP = { back: [[34, -12, -0.6, 18], [24, -15, -1.0, 14], [12, -14, -1.4, 10]], cracks: [[[34, 4], [26, 1], [20, 3], [12, -1], [4, 2]], [[30, 12], [24, 14], [18, 12]], [[10, 10], [4, 13]]] };
     taint(p, g, r, V, glow, SP, 'back');
     // --- 2. Hinteres Bein und Arm
@@ -445,7 +534,8 @@ function drawYsgarn(V) {
     // --- 3. Rumpf: knorriger Stamm, Bauch nach vorn, Astloch mit Lichtsamen
     const trunk = AL(r, [[-6, -11], [-6, 12], [8, 16], [22, 17], [34, 13], [40, 4], [38, -10], [26, -15], [10, -14]]);
     plate(p, trunk, V.bark, { lo: 0.5 });
-    for (let k = -10; k <= 14; k += 3) { const a0 = along(r, -4, k), a1 = along(r, 36 - Math.abs(k - 2) * 0.6, k * 0.8); hair(p, a0.x, a0.y, a1.x, a1.y, V.bark[1]); if (k % 2 === 0) hair(p, a0.x + 0.5, a0.y, a1.x + 0.5, a1.y, V.bark[4]); }
+    barkLines(p, r, [[-4, 34, -8, 1], [-3, 37, -3, 2], [0, 30, 2, 3], [-4, 26, 9, 4], [6, 33, 13, 5], [-2, 14, 15, 6]], V);
+    for (const [s0, o0] of [[30, -6], [8, 12]]) { const q = along(r, s0, o0); orb(p, q.x, q.y, 2.6, 2.2, [V.bark[0], V.bark[1], V.bark[2], V.bark[1], V.bark[0]]); pt(p, q.x - 1, q.y - 1, V.bark[4]); }
     const hole = along(r, 18, 7);
     orb(p, hole.x, hole.y, 5, 6, [V.bark[0], V.bark[0], V.bark[1], V.bark[1], V.bark[2]]);
     const seed = { x: hole.x + 0.5, y: hole.y + 0.5 };
@@ -466,40 +556,42 @@ function drawYsgarn(V) {
     // --- 5. Kopf: Rindengesicht unter dem Hut aus Flechtwerk, Moosbart, Geweih aus Ästen
     const hx = neckX + ux * 9 + perpX * 4 + P.head, hy = neckY + uy * 9;
     const H = (s, o) => [hx + ux * s + perpX * o, hy + uy * s + perpY * o];
-    // Äste hinter dem Hut
-    for (const [o, len, tilt, kinks] of [[-6, 24, -0.55, 2], [-1, 28, -0.2, 3], [4, 22, 0.3, 2]]) {
+    // Krone aus Ästen mit Laub hinter dem Kopf
+    for (const [o, len, tilt, kinks] of [[-7, 26, -0.75, 2], [-2, 30, -0.3, 3], [3, 26, 0.12, 2], [7, 18, 0.55, 2]]) {
       let [x, y] = H(6, o), a = Math.atan2(uy, ux) + tilt;
       for (let k = 0; k < kinks; k++) {
         const l = len / kinks, x2 = x + Math.cos(a) * l, y2 = y + Math.sin(a) * l;
         bar(p, x, y, x2, y2, 4.4 - k * 1.2, 3.2 - k * 1.1, V.bark, { edge: 0.5 });
         const sa2 = a + (k % 2 ? 0.7 : -0.7); bar(p, x2, y2, x2 + Math.cos(sa2) * 6, y2 + Math.sin(sa2) * 6, 2, 0.8, V.bark, { edge: 0.5 });
-        blossom2(p, x2 + Math.cos(sa2) * 6, y2 + Math.sin(sa2) * 6, V.bloom, k === kinks - 1);
+        leaves(p, x2 + Math.cos(sa2) * 6, y2 + Math.sin(sa2) * 6, 4.5, V.leaf, Math.round(o * 7 + k * 3 + 50), 6);
         x = x2; y = y2; a += k % 2 ? -0.35 : 0.35;
       }
-      blossom2(p, x, y, V.bloom, true);
+      leaves(p, x, y, 7, V.leaf, Math.round(o * 5 + 90), 10);
+      blossom2(p, x + 1, y - 1, V.bloom, true);
     }
+    // Kopf: oberes Stammende, zur Krone hin rissig gespalten
+    plate(p, [H(-8, -7), H(4, -8), H(13, -6), H(15, -1), H(12, 6), H(9, 4), H(7, 10), H(4, 11), H(-6, 10)], V.bark, { lo: 0.5 });
+    for (const [o0, s0, s1] of [[-5, -4, 12], [-1.5, -6, 14], [6, 3, 11]]) { const [x0, y0] = H(s0, o0), [x1, y1] = H(s1, o0 + 0.8); hair(p, x0 - 0.5, y0, x1 - 0.5, y1, V.bark[4]); hair(p, x0, y0, x1, y1, V.bark[0]); }
     // Gesicht: breite Rindenmaske, tiefe Augenhöhlen unter der Krempe, Aststumpf als Nase
     plate(p, [H(-8, -6), H(-9, 4), H(-6, 10), H(0, 11), H(4, 9.5), H(4, -6), H(-2, -8)], V.bark, { lo: 0.5 });
     for (const o of [-3, 0.5]) { const [x0, y0] = H(-7.5, o), [x1, y1] = H(2.5, o + 0.6); hair(p, x0, y0, x1, y1, V.bark[1]); }
     plate(p, [H(2.6, 1), H(3.6, 11), H(1.4, 11), H(0.6, 2)], V.bark, { edge: 0.6, glint: false });
     bar(p, ...H(-1.5, 8.5), ...H(-4, 14), 3.8, 2.2, V.bark, { edge: 0.5 });
     const eyeOn = P.eye > 0.2;
-    for (const [s0, o0] of [[0.4, 3.2], [0.4, 8]]) {
-      const [x, y] = H(s0, o0); ell(p, x, y, 2.2, 1.6, V.bark[0]);
+    for (const [s0, o0] of [[0.4, 2.6], [0.4, 8.4]]) {
+      const [x, y] = H(s0, o0); ell(p, x, y, 1.6, 1.3, V.bark[0]);
       if (eyeOn) { pt(p, x, y, glow[3]); pt(p, x + 0.5, y, glow[4]); pt(g, x, y, glow[4]); pt(g, x + 0.5, y, glow[3]); pt(g, x - 0.5, y, glow[2]); }
     }
-    meta.eye = { x: H(0.4, 8)[0], y: H(0.4, 8)[1] };
+    meta.eye = { x: H(0.4, 8.4)[0], y: H(0.4, 8.4)[1] };
     // Moosbart in Strähnen
     for (let o = -6; o <= 10; o += 0.8) {
       const [x, y] = H(-6.5 - Math.abs(o - 3) * 0.25, o), len = 8 + (1 - Math.abs(o - 3) / 9) * 13 + hash2(Math.round(o * 2) + 20, 3, 13) * 4;
       hair(p, x, y, x - ux * len - perpX * 2, y - uy * len + 1, V.moss[2 + (Math.round(o * 2) % 3)]);
     }
     if (P.jaw > 0.4) { const [x, y] = H(-6, 5.5); ell(p, x, y, 2.6, 1.4, V.bark[0]); }
-    // Hut: breite Krempe aus Flechtwerk, Kuppe, Blütenband
-    plate(p, [H(3, -14), H(7.5, -12), H(9, 0), H(8, 14), H(4, 18), H(2.5, 10), H(3, -4)], V.hat, { edge: 0.8 });
-    plate(p, [H(7, -8), H(14, -6), H(17, 0), H(15, 5), H(8, 7)], V.hat, { edge: 0.8 });
-    for (let o = -12; o < 16; o += 2) { const [x, y] = H(5.5, o), [x2, y2] = H(4, o + 1.5); hair(p, x, y, x2, y2, V.hat[1]); }
-    for (let o = -7; o <= 6; o += 2.5) { const [x, y] = H(8.2, o); blossom2(p, x, y, V.bloom, false); }
+    // Brauenwulst aus Rinde über den Augen, Laub an der Schläfe
+    for (const [o0, o1] of [[0.6, 5.2], [5.8, 10.6]]) plate(p, [H(1.8, o0), H(3.6, o0 - 0.4), H(4, o1), H(2.4, o1 + 0.2)], V.bark, { edge: 0.6 });
+    leaves(p, ...H(9, -6), 5, V.leaf, 77, 7);
     meta.head = { x: hx, y: hy - 24 };
 
     // --- 6. Schwung, vorderer Arm mit Sense
@@ -509,8 +601,8 @@ function drawYsgarn(V) {
     else { ysgarnArm(p, armF, shF, V, false); tip = ysgarnScythe(p, g, hF.x, hF.y, sa, V, glow); orb(p, hF.x, hF.y, 3.6, 3.2, V.bark); }
     // Schulterwulst mit Moos
     orb(p, shF.x, shF.y - 1, 8, 6.5, V.bark);
-    plate(p, [[shF.x - 8, shF.y - 3], [shF.x - 3, shF.y - 8], [shF.x + 5, shF.y - 7.5], [shF.x + 8.5, shF.y - 2], [shF.x + 3, shF.y - 1]], V.moss, { edge: 0.6 });
-    for (let k = -7; k < 8; k += 2) hair(p, shF.x + k, shF.y - 2, shF.x + k - 0.5, shF.y + 2 + hash2(k + 9, 1, 3) * 3, V.moss[2]);
+    leaves(p, shF.x - 1, shF.y - 5, 7, V.leaf, 23, 11);
+    for (let k = -6; k < 7; k += 2.5) hair(p, shF.x + k, shF.y, shF.x + k - 0.5, shF.y + 3 + hash2(k + 9, 1, 3) * 4, V.leaf[3]);
     blossom2(p, shF.x - 2, shF.y - 6, V.bloom, true); blossom2(p, shF.x + 4, shF.y - 5, V.bloom, false);
     meta.hand = { x: hF.x, y: hF.y }; meta.tip = tip;
     meta.cast = { x: armB.ex, y: armB.ey - 6 };
@@ -534,8 +626,8 @@ const YSM = {
   B: {
     gown: ['#06081a', '#0c1230', '#141c48', '#1e2a64', '#2c3c84', '#4a5ca8'],
     cape: ['#05060f', '#0a0e22', '#121836', '#1a224a', '#26305e'],
-    skin: ['#2a2048', '#463a6e', '#6a5a96', '#9282bc', '#bcb0e0', '#e2dcf8'],
-    hair: ['#3a3a5a', '#6a6a90', '#a4a6c8', '#d4d8ee', '#f8faff'],
+    skin: ['#2e2c4c', '#5c5a84', '#8e90b8', '#bcc0de', '#dfe2f4', '#f8f8ff'],
+    hair: ['#080a1e', '#121a40', '#1e2c62', '#30448c', '#5a74bc'],
     trim: ['#3a2208', '#7a4a12', '#b8801e', '#e8b840', '#fff0a0'],
     steel: ['#1e2236', '#3a4060', '#646c94', '#a0a8cc', '#e4e8fa'],
   },
@@ -560,18 +652,19 @@ const YSM = {
 function ysmeineGlaive(p, g, hx, hy, a, V, glow) {
   const dx = Math.cos(a), dy = Math.sin(a), nx = -dy, ny = dx;
   const P = (s, o) => [hx + dx * s + nx * o, hy + dy * s + ny * o];
-  bar(p, ...P(-26, 0), ...P(46, 0), 3, 3, V.steel, { edge: 0.5 });
-  for (const s of [-22, -4, 30]) bar(p, ...P(s, 0), ...P(s + 3, 0), 4.4, 4.4, V.trim, { edge: 0.5 });
-  gem(p, ...P(-26, 0), ...P(-32, 0), 4, [V.trim[1], V.trim[2], V.trim[3], V.trim[4], V.trim[4]]);
+  const S = 34;
+  bar(p, ...P(-20, 0), ...P(S, 0), 3, 3, V.steel, { edge: 0.5 });
+  for (const s of [-17, -4, 22]) bar(p, ...P(s, 0), ...P(s + 3, 0), 4.4, 4.4, V.trim, { edge: 0.5 });
+  gem(p, ...P(-20, 0), ...P(-26, 0), 4, [V.trim[1], V.trim[2], V.trim[3], V.trim[4], V.trim[4]]);
   // Blattklinge, leicht geschwungen, und Mondsichel als Parier
-  const [bx, by] = P(46, 0);
+  const [bx, by] = P(S, 0);
   const top = [], bot = [];
-  for (let u = 0; u <= 1.0001; u += 0.05) { const uu = Math.min(1, u); top.push(P(46 + uu * 30, -3.4 * (1 - uu) - Math.sin(uu * Math.PI) * 1.6)); bot.push(P(46 + uu * 30, 3 * (1 - uu) * (1 - uu) + Math.sin(uu * Math.PI) * 0.8)); }
+  for (let u = 0; u <= 1.0001; u += 0.05) { const uu = Math.min(1, u); top.push(P(S + uu * 28, -3.6 * (1 - uu) - Math.sin(uu * Math.PI) * 1.8)); bot.push(P(S + uu * 28, 3.2 * (1 - uu) * (1 - uu) + Math.sin(uu * Math.PI) * 0.8)); }
   plate(p, [...top, ...bot.reverse()], V.steel, { edge: 0.9 });
-  for (let u = 0.1; u < 0.8; u += 0.1) { const [x, y] = P(46 + u * 30, -0.6); pt(p, x, y, glow[2]); pt(g, x, y, glow[3]); }
-  for (let t = -1; t <= 1; t += 0.04) { const a2 = t * 1.35, [x, y] = P(44 + Math.cos(a2) * -3, Math.sin(a2) * 8); pt(p, x, y, V.trim[3]); const [x2, y2] = P(44.6 + Math.cos(a2) * -3.6, Math.sin(a2) * 8.6); pt(p, x2, y2, V.trim[1]); }
+  for (let u = 0.1; u < 0.8; u += 0.1) { const [x, y] = P(S + u * 28, -0.6); pt(p, x, y, glow[2]); pt(g, x, y, glow[3]); }
+  for (let t = -1; t <= 1; t += 0.04) { const a2 = t * 1.35, [x, y] = P(S - 2 + Math.cos(a2) * -3, Math.sin(a2) * 8); pt(p, x, y, V.trim[3]); const [x2, y2] = P(S - 1.4 + Math.cos(a2) * -3.6, Math.sin(a2) * 8.6); pt(p, x2, y2, V.trim[1]); }
   star(p, bx - 1, by, 3.4, V.trim[3]); star(p, bx - 1.3, by - 0.3, 1.7, V.trim[4]); star(g, bx - 1, by, 2.6, glow[2]); pt(g, bx - 1, by, glow[4]);
-  const [tx, ty] = P(76, -0.5);
+  const [tx, ty] = P(S + 28, -0.5);
   return { x: tx, y: ty };
 }
 
@@ -605,18 +698,32 @@ function drawYsmeine(V) {
     // --- 4. Kleid: weite Glocke bis zum Boden, die Füße treten vorn darunter hervor
     const back = Math.min(legB.ex, legF.ex) - 16, front = Math.max(legF.ex, legB.ex) + 14, sw = Math.sin(P.capeT) * 2;
     plate(p, [[legF.ex + 2, gy - 3], [legF.ex + 12, gy - 3], [legF.ex + 12, gy], [legF.ex + 1, gy]], V.steel, { edge: 0.5 });
-    const gown = [...AL(r, [[2, -9], [2, 10]]), [front + sw, gy - 1], [(front + back) / 2, gy + 1], [back + sw, gy]];
-    plate(p, gown, V.gown, { lo: 0.5, hi: 0.8 });
-    { const f0 = along(r, 2, 2), f1 = along(r, 2, 10); plate(p, [[f0.x, f0.y], [f1.x, f1.y], [front + sw - 2, gy - 2], [legF.ex - 6 + sw, gy - 2]], [V.gown[1], V.gown[3], V.gown[4], V.gown[4], V.gown[5]], { edge: 0.6, glint: false }); }
-    // Falten
-    for (let k = 0; k < 6; k++) { const t = (k + 0.5) / 6, top = along(r, 1, -8 + t * 18), bx = back + (front - back) * t + sw; hair(p, top.x, top.y + 3, bx, gy - 2, V.gown[k % 2 ? 1 : 4]); }
-    // Saum und Sternbild
-    for (let x = back + sw; x <= front + sw; x += 0.5) { pt(p, x, gy - 1.5, V.trim[3]); pt(p, x, gy - 2, V.trim[2]); }
+    // Rock aus sechs Bahnen: jede Bahn eine eigene Platte, Mulden dunkel, Grate hell (Falten)
+    const w0 = along(r, 2, -9), w1 = along(r, 2, 10), NB = 6;
+    const hemY = (t) => gy - 0.5 + Math.sin(t * Math.PI) * 1.5 + Math.sin(P.capeT + t * 5) * 0.6;
+    for (let k = 0; k < NB; k++) {
+      const t0 = k / NB, t1 = (k + 1) / NB, ramp = k % 2 ? [V.gown[0], V.gown[1], V.gown[2], V.gown[3], V.gown[4], V.gown[5]] : [V.gown[0], V.gown[1], V.gown[1], V.gown[2], V.gown[3], V.gown[4]];
+      const tx0 = w0.x + (w1.x - w0.x) * t0, ty0 = w0.y + (w1.y - w0.y) * t0, tx1 = w0.x + (w1.x - w0.x) * t1, ty1 = w0.y + (w1.y - w0.y) * t1;
+      const bx0 = back + sw + (front - back) * t0, bx1 = back + sw + (front - back) * t1;
+      plate(p, [[tx0, ty0], [tx1, ty1], [bx1, hemY(t1)], [(bx0 + bx1) / 2, hemY((t0 + t1) / 2) + 1.2], [bx0, hemY(t0)]], ramp, { edge: 0.6, glint: false, line: k === 0 || k === NB - 1 ? 0.5 : 0.35 });
+    }
+    // Saum: breite Goldborte mit eingestickten Sternen
+    for (let x = back + sw; x <= front + sw; x += 0.5) {
+      const t = (x - back - sw) / (front - back), y = hemY(t);
+      pt(p, x, y - 0.5, V.trim[1]); pt(p, x, y - 1, V.trim[3]); pt(p, x, y - 1.5, V.trim[2]); pt(p, x, y - 4.5, V.trim[3]); pt(p, x, y - 5, V.trim[1]);
+    }
+    for (let x = back + sw + 3; x < front + sw - 2; x += 5.5) { const t = (x - back - sw) / (front - back); star(p, x, hemY(t) - 3, 1.6, V.trim[4]); }
+    // Sternstickerei über den Rock gestreut (goldene Punkte und kleine Sterne), Sternbild vorn
+    for (let i = 0; i < 26; i++) {
+      const t = 0.05 + hash2(i, 1, 61) * 0.9, v = 0.25 + hash2(i, 2, 61) * 0.6;
+      const x = w0.x + (w1.x - w0.x) * t + (back + sw + (front - back) * t - (w0.x + (w1.x - w0.x) * t)) * v, y = w0.y + (gy - 6 - w0.y) * v;
+      if (i % 4 === 0) star(p, x, y, 1.3, V.trim[3]); else pt(p, x, y, i % 3 ? V.trim[2] : V.hair[4]);
+    }
     const cons = [[0.25, 0.55], [0.38, 0.4], [0.52, 0.48], [0.6, 0.66], [0.75, 0.6]];
     let prev = null;
     for (const [tx, ty] of cons) {
       const x = back + (front - back) * tx + sw * ty, y = hipY + (gy - hipY) * ty;
-      if (prev) hair(p, prev[0], prev[1], x, y, V.gown[5]);
+      if (prev) hair(p, prev[0], prev[1], x, y, V.trim[2]);
       star(p, x, y, 1.8, V.trim[4]); pt(g, x, y, glow[3]); prev = [x, y];
     }
 
@@ -632,7 +739,7 @@ function drawYsmeine(V) {
 
     taint(p, g, r, V, glow, SP, 'body');
     // --- 6. Kopf: Profil, langes Silberhaar, spitzes Ohr, Sternenkrone
-    const hx = neckX + ux * 10 + perpX * 3 + P.head, hy = neckY + uy * 10, HK = 1.22;
+    const hx = neckX + ux * 11 + perpX * 3 + P.head, hy = neckY + uy * 11, HK = 1.36;
     const H = (s, o) => [hx + (ux * s + perpX * o) * HK, hy + (uy * s + perpY * o) * HK];
     // Haar: lange Silbermähne fällt über den Rücken, weht mit dem Mantel
     const hs = P.cape * 8 + Math.sin(P.capeT) * 2;
@@ -642,16 +749,21 @@ function drawYsmeine(V) {
     // Ohr: lang und spitz nach hinten oben
     gem(p, ...H(0.5, 0.5), ...H(6, -12), 3.6, V.skin);
     // Gesicht im Profil: Stirn, Nase, Lippen, Kinn
-    plate(p, [H(7, 0), H(6, 5.5), H(3.5, 7.2), H(1, 7.4), H(-1.2, 9.6), H(-2.2, 8.2), H(-3.4, 8.5), H(-4.4, 7.7), H(-5.2, 8), H(-6.8, 7.6), H(-8.4, 4.5), H(-7, 0.5), H(-1, -1.5)], V.skin, { lo: 0.42, hi: 0.66 });
-    for (const [s0, o0] of [[-3.8, 7.4], [-3.8, 6.9]]) pt(p, ...H(s0, o0), '#5a2a5a');
-    pt(p, ...H(-1.8, 8.4), V.skin[1]);
+    plate(p, [H(7, 0), H(6, 5.5), H(3.5, 7.2), H(1.5, 7.4), H(-2.8, 9.6), H(-3.6, 8.2), H(-4.8, 8.4), H(-5.6, 7.6), H(-6.2, 7.9), H(-7.6, 7.2), H(-8.6, 4.5), H(-7, 0.5), H(-1, -1.5)], V.skin, { lo: 0.42, hi: 0.66 });
+    for (const [s0, o0] of [[-5.2, 7.6], [-5.2, 7.1], [-5.5, 7.4]]) pt(p, ...H(s0, o0), '#6a3a6e');
+    pt(p, ...H(-3.2, 8.4), V.skin[1]);
     const eyeOn = P.eye > 0.2;
-    for (let k = 0; k <= 2; k += 0.5) { const [x, y] = H(2.3 - k * 0.1, 3.6 + k); pt(p, x, y, eyeOn ? (k > 0.8 ? glow[4] : glow[3]) : V.skin[1]); if (eyeOn) pt(g, x, y, glow[3]); }
-    for (let k = -0.5; k <= 3; k += 0.5) pt(p, ...H(3.4 + k * 0.12, 3.2 + k), V.hair[0]);
-    const [ex, ey] = H(2.3, 4.6);
+    // Auge: kräftige Lidlinie mit Wimpernschwung, Weiß, leuchtende Iris, Unterlid
+    for (let o = 3.4; o <= 6.8; o += 0.3) { pt(p, ...H(1.9 + (o > 6 ? 0.4 : 0), o), V.hair[0]); pt(p, ...H(1.5, o), V.hair[0]); }
+    for (let o = 3.8; o <= 6.3; o += 0.3) { const iris = o > 4.7 && o < 5.9; pt(p, ...H(1, o), iris ? (eyeOn ? glow[3] : V.skin[0]) : V.skin[5]); pt(p, ...H(0.6, o), iris ? (eyeOn ? glow[2] : V.skin[0]) : V.skin[4]); if (iris && eyeOn) pt(g, ...H(1, o), glow[3]); }
+    for (let o = 4; o <= 6; o += 0.3) pt(p, ...H(0.1, o), V.skin[2]);
+    // Braue und Wangenschatten unter dem Jochbein
+    for (let o = 3.6; o <= 6.6; o += 0.3) pt(p, ...H(3.2 + Math.sin((o - 3.6) / 3 * Math.PI) * 0.4, o), V.hair[1]);
+    for (let k = 0; k < 6; k++) pt(p, ...H(-2.5 - k * 0.5, 2.2 + k * 0.35), V.skin[2]);
+    const [ex, ey] = H(0.8, 5.3);
     meta.eye = { x: ex, y: ey };
     // Stirnhaar: Scheitel und Strähne bis zur Wange
-    plate(p, [H(10, -2), H(9.5, 4), H(7.4, 6.8), H(5.2, 6.2), H(6.4, 2.6), H(3, -0.5), H(-3, -1.5), H(4, -6)], V.hair, { edge: 0.8 });
+    plate(p, [H(10, -2), H(9.2, 5), H(7.2, 7.6), H(5, 7.3), H(5.2, 4.6), H(4.2, 2.4), H(1.5, -0.5), H(-3, -1.5), H(4, -6)], V.hair, { edge: 0.8 });
     // Krone: Reif mit drei hohen Sternspitzen
     for (let o = -5; o <= 7; o += 0.5) { const [x, y] = H(6.6 + Math.sin((o + 5) / 12 * Math.PI) * 0.8, o); pt(p, x, y, V.trim[3]); const [x2, y2] = H(6, o); pt(p, x2, y2, V.trim[1]); }
     for (const [o, len] of [[-3, 9], [1.5, 14], [5.5, 9]]) {
