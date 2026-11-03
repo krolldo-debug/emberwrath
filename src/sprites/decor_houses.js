@@ -299,7 +299,7 @@ export function createAshwoodHouses() {
 const FELTP = R(['#2a2018', '#4a3a2c', '#6a5640', '#8a7456', '#a8906c', '#c2aa84', '#d8c29c']);
 const FELTG = R(['#221c18', '#3a3028', '#544638', '#6e5c48', '#887258', '#a08a6c', '#b8a282']);     // verrußt, älter
 const PAINT = { rot: ['#5a1a16', '#8a2a20', '#b84030'], blau: ['#1a2440', '#2a3a66', '#4a62a0'], ocker: ['#5a3a12', '#9a6a24', '#d0a040'] };
-const DOORW = R(['#1a0c08', '#3a1a10', '#5e2a16', '#8a3e1c', '#b45a26', '#d47a34', '#e8a048']);
+const DOORW = R(['#180c08', '#321810', '#4e2414', '#6e3418', '#8c4620', '#a85c2a', '#c27a3a']);
 // o: { r Halbbreite, wall Wandhöhe, dome Dachhöhe, band Farbe, felt 'hell'|'alt', seed }
 export const YURTS = {
   sYurt: { r: 52, wall: 30, dome: 34, band: 'rot', seed: 301 },
@@ -388,8 +388,9 @@ const STILT = R(['#0c0e0c', '#161a16', '#20261e', '#2c3228', '#3a4032', '#4a503e
 export const STILTS = {
   mStilt0: { w: 80, hh: 34, legs: 26, roof: 'gable', seed: 401, door: 'm' },
   mStilt1: { w: 96, hh: 32, legs: 24, roof: 'hip', seed: 402, door: 'l' },
-  mStilt2: { w: 72, hh: 30, legs: 28, roof: 'gable', seed: 403, door: 'r', net: true },
-  mHall: { w: 128, hh: 38, legs: 24, roof: 'hip', seed: 404, door: 'm', banner: true },
+  mStilt2: { w: 64, hh: 30, legs: 28, roof: 'gable', seed: 403, door: 'm', net: true },
+  mStilt3: { w: 64, hh: 30, legs: 26, roof: 'hip', seed: 405, door: 'm' },
+  mHall: { w: 96, hh: 38, legs: 24, roof: 'hip', seed: 404, door: 'm', banner: true },
 };
 const stiltDoorX = (o) => (o.door === 'l' ? -o.w / 2 + 16 : o.door === 'r' ? o.w / 2 - 16 : 0);
 export function stiltHouse(o) {
@@ -564,5 +565,14 @@ export function frostHouse(o) {
     for (const fx of [x1 + 9, x1 + 14]) p.scan(fx - 1.5, wt - 4, fx + 1.5, wt + 6, (x, y) => col32(y < wt - 2 ? '#8a8a90' : x < fx ? '#b8c0c8' : '#7a8088'));
   }, { ax: cx, ay: bot, b: true, box: [-wallW / 2 - 2, -20, wallW / 2 + 2, 1], light: { dx: -8, dy: -12, radius: 50, color: [255, 180, 110], intensity: 0.4 } });
 }
-export const FROST_DOORS = { fLong: 0, fLongS: 0, fLodge: 1, fSod: 1, fFish: -1 };
+export const FROST_DOORS = { fLong: 0, fLongS: 0, fLodge: 1, fSod: 1, fFish: 0 };
 export function createFrostHouses() { return Object.fromEntries(Object.entries(FROST).map(([k, o]) => [k, frostHouse(o)])); }
+
+// Türen in Weltpixeln relativ zum Fußpunkt (Bewohner gehen dorthin, bevor sie verschwinden, world/townlife.js)
+export const HOUSE_DOOR_PX = {
+  ...Object.fromEntries(Object.entries(VILLAGE).map(([k, o]) => [k, [doorOffset(o), 3]])),
+  aTree0: [-22, 3], aTree1: [22, 3],
+  ...Object.fromEntries(Object.keys(YURTS).map((k) => [k, [0, 3]])),
+  ...Object.fromEntries(Object.entries(STILTS).map(([k, o]) => [k, [stiltDoorX(o), 3]])),
+  fLong: [0, 3], fLongS: [0, 3], fLodge: [18, 3], fSod: [10, 3], fFish: [-8, 3],
+};

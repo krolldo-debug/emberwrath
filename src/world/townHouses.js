@@ -98,7 +98,7 @@ const YR = (id, name = 'Jurte', plan = 'yurt') => ({ id, name, plan });
 export function housesSteppe(L) {
   const old = [[34, 36], [29, 38], [44, 38], [46, 44], [32, 48], [38, 48], [39, 36], [27, 41], [43, 47], [64, 75], [53, 67], [66, 67], [52, 75]];
   return build(L, [
-    yurt('sYurtL', 34, 36, YR('steppe_jurte_wacht', 'Wachjurte', 'guard')),
+    yurt('sYurtL', 34, 36, { ...YR('steppe_jurte_wacht', 'Wachjurte', 'guard'), s: 'F' }),
     yurt('sYurt', 29, 39, YR('steppe_jurte1')),
     yurt('sYurtB', 44, 38, YR('steppe_jurte2')),
     yurt('sYurt', 46, 44, YR('steppe_jurte3')),
@@ -117,11 +117,11 @@ const stilt = (key, x, y, room, fit = 3) => ({ at: [x, y], key, span: spanOf(STI
 export function housesMarsh(L) {
   return build(L, [
     stilt('mStilt0', 69, 43, { id: 'marsch_haus1', name: 'Pfahlhaus', plan: 'stilt' }),
-    stilt('mHall', 49, 46, { id: 'marsch_halle', name: 'Pfahlhalle', plan: 'guard' }),
+    stilt('mHall', 60, 47, { id: 'marsch_halle', name: 'Pfahlhalle', plan: 'guard', s: 'L' }, 1),
     stilt('mStilt1', 77, 49, { id: 'marsch_haus2', name: 'Pfahlhaus', plan: 'stilt' }),
-    stilt('mStilt2', 46, 60, { id: 'marsch_haus3', name: 'Pfahlhaus', plan: 'stilt' }),
-    stilt('mStilt0', 53, 60, { id: 'marsch_kraeuter', name: 'Kräuterstube', plan: 'alchemist' }),
-    stilt('mStilt1', 71, 61, { id: 'marsch_haus4', name: 'Pfahlhaus', plan: 'stilt' }),
+    stilt('mStilt2', 48, 54, { id: 'marsch_kraeuter', name: 'Kräuterstube', plan: 'alchemist' }, 1),
+    stilt('mStilt3', 41, 56, { id: 'marsch_haus3', name: 'Pfahlhaus', plan: 'stilt' }, 1),
+    stilt('mStilt0', 81, 48, { id: 'marsch_haus4', name: 'Pfahlhaus', plan: 'stilt' }, 1),
   ], { clear: [[69, 43, '~'], [49, 46, '~'], [77, 49, '~'], [46, 60, '~'], [53, 60, '~'], [71, 61, '~']], ambient: [128, 132, 112] });
 }
 

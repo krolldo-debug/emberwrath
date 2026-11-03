@@ -294,7 +294,7 @@ function roomFloor(O, s, px, py, fy) {
     const n = hash2(px >> 1, py >> 1, 1201), m = hash2(px >> 3, py >> 3, 1202);
     let i = m < 0.3 ? 2 : 3;
     if (n < 0.08) i--; else if (n > 0.95) i++;
-    if (((px * 3 + py * 7) % 23) === 0 && n > 0.5) return FELT[5];
+    if (((px * 3 + py * 7) % 61) === 0 && n > 0.7) return FELT[4];
     return LOAM[i];
   }
   if (s === 'A' || s === 'L') {                                                  // Dielen

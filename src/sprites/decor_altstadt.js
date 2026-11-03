@@ -405,18 +405,17 @@ export function plant() {
 }
 
 // ================================================================== Runde 6: Fachwerk-Altstadt (dicht, Wand an Wand)
-const PLASTERS = {
+export const PLASTERS = {
   creme: DAUB,
   ocker: R(['#3a2a1a', '#5a4024', '#7c5a30', '#9c763c', '#b8904a', '#ccaa62', '#dcc282']),
   rose: R(['#3a2428', '#5a3a3a', '#7c524e', '#9c6c64', '#b8867a', '#cc9e8e', '#dcb6a4']),
   salbei: R(['#262c26', '#3a4436', '#525e4a', '#6c7a60', '#869478', '#a0ac90', '#b8c2a8']),
   kalk: LIME,
 };
-const TIMBERS = { eiche: OAK, ochsenblut: R(['#140808', '#240c0c', '#381412', '#4e1c18', '#642620', '#7a3228', '#904032', '#a8523e']) };
+export const TIMBERS = { eiche: OAK, ochsenblut: R(['#140808', '#240c0c', '#381412', '#4e1c18', '#642620', '#7a3228', '#904032', '#a8523e']) };
 const THATCH = R(['#1e160c', '#2e2212', '#46341a', '#5e4622', '#7a5c2c', '#94723a', '#ae8a4a']);
-const ROOFP = { shingle: SHING, slate: SLATE, clay: CLAY, thatch: THATCH };
-export { PLASTERS, TIMBERS, ROOFP, SHUT };
-const SHUT = { gruen: GREEN, rot: RED, blau: R(['#10141e', '#1a2232', '#263246', '#34445c']), braun: R(['#1a100c', '#2a1a12', '#3c261a', '#523422']) };
+export const ROOFP = { shingle: SHING, slate: SLATE, clay: CLAY, thatch: THATCH };
+export const SHUT = { gruen: GREEN, rot: RED, blau: R(['#10141e', '#1a2232', '#263246', '#34445c']), braun: R(['#1a100c', '#2a1a12', '#3c261a', '#523422']) };
 
 // Erker: vorspringender Kasten mit Fenstern und eigenem Dächlein
 function oriel(p, g, cx, y0, y1, F, seed) {
