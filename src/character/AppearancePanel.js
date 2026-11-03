@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 import { EV } from '../core/events.js';
 import { RACE_LOOK } from '../sprites/hero.js';
 import { HeroPortrait } from '../account/ui.js';
@@ -92,6 +93,7 @@ function appearancePanel(session, game) {
           h('section', h('h3.tal-h', 'Färbung'), h('div.app-grid', dyes)),
           h('section', h('h3.tal-h', 'Frisur'), h('div.app-grid', hair)),
           h('section', h('h3.tal-h', 'Haarfarbe'), h('div.app-grid', colors)))));
+    pixelWindow(root, session.font, 'Aussehen ändern', root.querySelector('.tal-title'));
   };
 
   let queued = false;

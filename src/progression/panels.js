@@ -10,7 +10,6 @@ import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { HeroStage, statGlyph } from './heroStage.js';
 import { fmtNum } from '../i18n/index.js';
-import { pixelWindow } from '../ui/pixelFrame.js';
 import { FINDER_CONFIG } from '../finder/config.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
@@ -34,11 +33,6 @@ export function registerPanels(game) {
 }
 
 const commit = (s, type, payload) => s.state.commit(type, payload);
-// Fenster im Pixelrahmen mit Pixeltitel (ui/pixelFrame.js), wie Auktionshaus und Postfach
-const pxFrame = (s, id, title, ...body) => {
-  const el = panelFrame(s, id, title, ...body);
-  return pixelWindow(el, s.font, title, el.querySelector('.pg-title'));
-};
 const zoneName = (c, id) => (id ? c.find('zone', id)?.name ?? null : null);
 const classOf = (s) => s.state.slices.character?.classId ?? null;
 const levelOf = (s) => s.state.slices.progress.level;
@@ -298,7 +292,7 @@ function inventoryView(s) {
       return el;
     });
 
-    return pxFrame(s, 'inventory', 'Inventar',
+    return panelFrame(s, 'inventory', 'Inventar',
       h('div.pg-scroll.pg-keep-scroll.pg-inv',
         doll,
         h('section.pg-bagwrap',
@@ -365,7 +359,7 @@ function characterView(s) {
       h('span.pg-cattr-l', ATTR[k]), h('b.pg-cattr-v', fmt(Math.round(at[k]))),
       h('span.pg-cattr-bar', h('i', { style: { width: `${Math.max(4, Math.round((at[k] / top) * 100))}%` } })))) : [];
     const chron = (id, label, value) => h('li', { title: label }, glyph(id), h('span', label), h('b', String(value)));
-    return pxFrame(s, 'character', 'Charakter',
+    return panelFrame(s, 'character', 'Charakter',
       h('div.pg-scroll.pg-keep-scroll.pg-char.pg-char2',
         h('section.pg-cid',
           h('div.pg-clv', { title: `Stufe ${xp.level}` }, h('b', String(xp.level))),

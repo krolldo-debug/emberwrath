@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 import { EV } from '../core/events.js';
 import { appPlatform, appNativeLevel } from './native.js';
 import { serverNow } from '../progression/clock.js';
@@ -59,6 +60,7 @@ function askPanel(session, done) {
     h('div.nt-actions',
       h('button.ef-btn.primary', { type: 'button', onclick: () => answer(true) }, 'Ja, erinnere mich'),
       h('button.ef-btn', { type: 'button', onclick: () => answer(false) }, 'Nein danke')));
+  pixelWindow(root, session.font, 'Erinnerung', root.querySelector('h2'));
   return { root };
 }
 

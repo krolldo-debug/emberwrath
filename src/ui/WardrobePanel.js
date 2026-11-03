@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from './pixelFrame.js';
 import { EV } from '../core/events.js';
 import { iconEl, iconCanvas, itemIconId, RARITY_COLORS } from '../gfx/Icons.js';
 import { spriteStyle } from '../character/cosmetics.js';
@@ -130,8 +131,10 @@ function createWardrobePanel(session, params = {}) {
   const filter = () => h('label.wd-filter',
     h('input', { type: 'checkbox', checked: showMissing, onchange: (e) => { showMissing = e.target.checked; if (!showMissing) { picked = {}; preview = {}; } cardK = null; msg = ''; refreshStage(); render(); } }),
     h('span.wd-filter-box', { 'aria-hidden': 'true' }), 'Nicht gesammelt');
+  // Titel in Pixelschrift, Fenster im gemeinsamen Pixelrahmen (ui/pixelFrame.js)
+  const pxTitle = () => { const t = h('h2.wd-title', title); pixelWindow(root, session.font, title, t); return t; };
   const head = () => h('header.wd-head',
-    h('h2.wd-title', title),
+    pxTitle(),
     shop ? null : filter(),
     h('button.pg-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: () => session.panels.close() }, '✕'));
   const tabs = () => h('div.pg-tabs.wd-tabs', { role: 'tablist' }, [...slots, ...(hasMounts ? [MOUNTS_TAB] : [])].map((k) => h(`button.pg-tabbtn${k === slot ? '.on' : ''}`, {
