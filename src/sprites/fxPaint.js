@@ -634,6 +634,87 @@ export function radialCrack(L, n = 5, pal = 'ghost', seed = 0) {
   });
 }
 
+// ---------------------------------------------------------------- Aasmutter (Gift, Chitin)
+const CHIT = ['#07040c', '#140c1e', '#22142e', '#321e42', '#46295a', '#5e3876', '#7e4e96'];
+const BONE = ['#1a1a1c', '#4a4850', '#9a9496', '#c6bebc', '#ece4de'];
+const SLIME = ['#06080e', '#0a1420', '#10202e', '#183444', '#24485a'];
+
+// Weiches Wertrauschen (für organische Flecken)
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash2(xi, yi, s), b = hash2(xi + 1, yi, s), c = hash2(xi, yi + 1, s), d = hash2(xi + 1, yi + 1, s);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+
+// Schimmelbett (Bodenellipse r × 0,6r): dunkler Schleim mit leuchtenden Schimmelflecken (heller Kern, Saum),
+// Sporenpunkte, ausgefranster Rand mit dunkler Kante. Anker = Mitte
+export function moldBed(r, seed = 0, pal = 'poison') {
+  r = Math.max(4, Math.round(r));
+  return cached(`mold:${r}:${seed}:${pal}`, () => {
+    const P = PAL[pal], W = r * 2 + 4, H = r * 1.2 + 4, cx = W / 2, cy = H / 2;
+    return frame(W, H, cx, cy, (p) => p.each(0, 0, W, H, (x, y) => {
+      const X = x - cx, Y = y - cy, e = Math.hypot(X / r, Y / (r * 0.6));
+      const ragged = 0.84 + vnoise(Math.atan2(Y, X) * 3 + 10, seed, seed + 11) * 0.16;
+      if (e > ragged) return null;
+      if (e > ragged - 0.07) return SLIME[0];
+      const n = vnoise(x * 0.16, y * 0.26, seed + 3) * 0.65 + vnoise(x * 0.42, y * 0.6, seed + 5) * 0.35 - e * 0.18;
+      if (n > 0.63) return n > 0.7 ? P[3] : P[2];
+      if (n > 0.58) return P[1];
+      if (hash2(Math.floor(x * 1.6), Math.floor(y * 1.6), seed + 9) > 0.965) return P[4];
+      const g = vnoise((x - 0.6) * 0.42, (y - 0.6) * 0.6, seed + 5) - vnoise(x * 0.42, y * 0.6, seed + 5);
+      return g > 0.04 ? SLIME[4] : g > -0.03 ? SLIME[3] : SLIME[2];
+    }));
+  });
+}
+
+// Chitinglied, quer zur Bildrichtung a (16 Richtungen): gewölbte Platte, Licht von links oben, leuchtende Fuge
+// am Hinterrand, bleicher Dorn auf dem Rücken. r = halbe Breite. Anker = Mitte
+export function plateFrame(a, r, pal = 'poison') {
+  const q = Math.round(((a % TAU) + TAU) % TAU / TAU * 16) % 16;
+  r = Math.max(2, Math.round(r));
+  return cached(`plate:${q}:${r}:${pal}`, () => {
+    const P = PAL[pal], A = q / 16 * TAU, ux = Math.cos(A), uy = Math.sin(A), S = r + 5;
+    return frame(S * 2, S * 2, S, S, (p) => {
+      p.each(0, 0, S * 2, S * 2, (x, y) => {
+        const X = x - S, Y = y - S, al = X * ux + Y * uy, pe = -X * uy + Y * ux;
+        const u = al / (r * 0.62), v = pe / r, d = u * u + v * v;
+        if (d >= 1) return null;
+        if (d > 0.8) return al < 0 ? P[2] : CHIT[0];               // Hinterrand leuchtet, sonst Kontur
+        const nz = Math.sqrt(1 - d), l = (u * ux * -0.5 + v * -uy * -0.5) * 0 + (-(X / r) * 0.5 - (Y / r) * 0.62 + nz * 0.6);
+        const k = Math.max(1, Math.min(6, Math.floor((0.2 + l * 0.8) * 6)));
+        return CHIT[k];
+      });
+      // Dorn auf der Oberkante (zeigt nach hinten oben)
+      const bx = S - uy * -r * 0.85, by = S + ux * -r * 0.85;
+      for (let t = 0; t <= 1; t += 0.12) {
+        const x = bx + (-ux * 3 - uy * -2.5) * t, y = by + (-uy * 3 + ux * -2.5) * t;
+        p.each(x - 1, y - 1, x + 1, y + 1, (xx, yy) => (Math.hypot(xx - x, yy - y) < 1.1 * (1 - t) + 0.3 ? (t > 0.5 ? BONE[3] : BONE[1]) : undefined));
+      }
+    });
+  });
+}
+
+// Giftstachel aus dem Boden: Chitinschaft, links Licht, leuchtende Ader, bleiche Spitze. Anker = Fußmitte
+export function thornFrame(h, w, lean = 0, pal = 'poison') {
+  h = Math.max(4, Math.round(h)); w = Math.max(2, Math.round(w * 2) / 2); lean = Math.round(lean * 10) / 10;
+  return cached(`thorn:${h}:${w}:${lean}:${pal}`, () => {
+    const P = PAL[pal], W = w * 2 + Math.abs(lean) * h + 6, cx = W / 2 - lean * h / 2, H = h + 3;
+    return frame(W, H, cx, h + 1, (p) => p.each(0, 0, W, H, (x, y) => {
+      const yy = h + 1 - y, f = yy / h;
+      if (f < 0 || f > 1) return null;
+      const x0 = cx + lean * yy + Math.sin(f * 4 + h) * 0.5, hw = w * Math.pow(1 - f, 0.8) + 0.35, e = (x - x0) / hw;
+      if (Math.abs(e) >= 1) return null;
+      if (f > 0.8) return e < 0 ? BONE[4] : BONE[2];
+      if (Math.abs(e) > 0.82) return CHIT[0];
+      if (Math.abs(e + 0.15) < 0.16 && f < 0.7 && f > 0.08) return f < 0.4 ? P[3] : P[2];
+      // Ringe (Glieder) quer über den Schaft
+      if (((yy + h) % 5) < 0.6 && f < 0.75) return CHIT[1];
+      return e < -0.35 ? CHIT[6] : e < 0.1 ? CHIT[5] : e < 0.5 ? CHIT[3] : CHIT[2];
+    }));
+  });
+}
+
 // Vorwärmen: erzeugt die Folgen eines Bosses in Leerlaufzeit, eine nach der anderen, damit der erste Angriff
 // nicht ruckelt. fns = Liste von () => FX.xyz(...)
 export function prewarm(fns) {

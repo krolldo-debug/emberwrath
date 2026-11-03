@@ -7,6 +7,7 @@ import { Shockwave, SpawnMarker } from './Effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, pick, angleDiff } from '../core/math.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Mutter Fäulnis – Boss des Sporenschlunds (Stufe 32).
 // Riesige Brutmutter, kriecht nur langsam. Angriffe (jeder mit Bodenwarnung):
@@ -27,6 +28,7 @@ const PALE = ['#ffffff', '#b4fae8', '#4cd2c4', '#1a7a7a'];
 const RAGE = ['#ffffff', '#eaa8ff', '#c048ec', '#7a1a9a'];
 const SLIME = ['#0a1420', '#10202e', '#183444'];
 const CYAN_RGB = [60, 225, 205], PALE_RGB = [130, 240, 228], RAGE_RGB = [192, 72, 236];
+const fxPal = (o) => (o.enraged ? 'violet' : 'poison');
 const WARN_POISON = [90, 235, 215], WARN_ROOT = [255, 90, 60];
 
 // Schaden (Magier-HP Stufe 32 ≈ 591): normal 8–12 %, groß 20–30 %
@@ -101,17 +103,9 @@ export class SporeBolt extends Entity {
   renderEmissive(ctx, cx, cy) {
     if (this.t < this.delay) return;
     const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
-    const c = this.owner.enraged ? RAGE : CYAN;
-    for (let i = 1; i <= 5; i++) {
-      ctx.globalAlpha = 0.7 - i * 0.12;
-      ctx.fillStyle = i < 3 ? c[2] : c[3];
-      ctx.fillRect(Math.round(x - Math.cos(this.angle) * i * 2), Math.round(y - Math.sin(this.angle) * i * 2 + Math.sin(this.t * 20 + i) * 0.6), 1, 1);
-    }
-    ctx.globalAlpha = 1;
-    const p = Math.sin(this.t * 16) > 0;
-    ctx.fillStyle = c[3]; ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
-    ctx.fillStyle = c[2]; ctx.fillRect(x - 1, y - 1, 3, 3);
-    ctx.fillStyle = p ? c[0] : c[1]; ctx.fillRect(x, y - (p ? 1 : 0), 1, 1);
+    // leuchtende Spore mit Schweif, Kern blinkt
+    FX.orbFrame(this.angle, 3, fxPal(this.owner), 3).draw(ctx, x, y);
+    if (Math.sin(this.t * 16) > 0.3) FX.starFrame(2, fxPal(this.owner)).draw(ctx, x - 1, y - 1, { alpha: 0.8 });
   }
 }
 
@@ -160,24 +154,14 @@ export class ToxicCloud extends Entity {
     const fade = Math.min(1, life * 3, (this.duration - life) * 1.2);
     if (fade <= 0) return;
     const c = this.owner.enraged ? ['#3a0a4a', '#7a1a9a', '#c048ec', '#eaa8ff'] : ['#04383a', '#0a726e', '#1cc0ae', '#7cf0dc'];
-    // Bodenschleier: ringförmige Schwaden, die langsam kreisen
-    const n = Math.round(this.r * 3.2);
+    const pal = fxPal(this.owner), ex0 = Math.round(this.x - cx), ey0 = Math.round(this.y - cy);
+    // Schimmelbett mit leuchtenden Fugen, darüber aufsteigende Giftballen
+    FX.moldBed(this.r, Math.floor(this.seed) % 4, pal).draw(ctx, ex0, ey0, { alpha: 0.85 * fade });
+    const seq = FX.puffSeq(4, pal, 8), n = Math.max(3, Math.round(this.r / 5));
     for (let i = 0; i < n; i++) {
-      const k = ((i * 0.618 + this.seed) % 1);
-      const rr = Math.sqrt(k) * this.r * (0.92 + 0.08 * Math.sin(this.t * 2 + i));
-      const a = i * 2.39996 + this.t * (0.4 + (i % 3) * 0.15) * (i % 2 ? 1 : -1);
-      const x = Math.round(this.x - cx + Math.cos(a) * rr), y = Math.round(this.y - cy + Math.sin(a) * rr * 0.6);
-      const edge = rr / this.r;
-      const ci = edge > 0.85 ? 1 : (Math.sin(this.t * 3 + i) > 0.6 ? 3 : 2);
-      ctx.globalAlpha = (0.55 - edge * 0.25) * fade;
-      ctx.fillStyle = c[ci];
-      ctx.fillRect(x, y, i % 4 === 0 ? 2 : 1, 1);
-      // aufsteigende Schwaden
-      if (i % 5 === 0) {
-        const hgt = ((this.t * 6 + i * 3) % 10);
-        ctx.globalAlpha = 0.45 * fade * (1 - hgt / 10);
-        ctx.fillRect(x, y - Math.round(hgt), 1, 1);
-      }
+      const k = (this.t * 0.55 + i * 0.618 + this.seed) % 1, a = i * 2.39996 + this.seed, rr = Math.sqrt(((i * 0.37 + this.seed * 0.1) % 1)) * this.r * 0.8;
+      const px = ex0 + Math.round(Math.cos(a) * rr), py = ey0 + Math.round(Math.sin(a) * rr * 0.6 - k * 16);
+      seq[Math.min(7, Math.floor(k * 8))].draw(ctx, px, py, { alpha: 0.9 * fade * (1 - k * 0.5) });
     }
     // Rand: dunkle Kontur + heller Saum, damit das Giftfeld auf jedem Boden (auch violett auf violett) lesbar ist
     ctx.save();
@@ -227,13 +211,13 @@ export class SporeLob extends Entity {
     ctx.fillRect(Math.round(this.x - cx - s), Math.round(this.y - cy), s * 2 + 1, 1);
   }
   renderEmissive(ctx, cx, cy) {
-    const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
-    const c = this.owner.enraged ? RAGE : CYAN;
-    const w = Math.sin(this.t * 14) > 0 ? 1 : 0;
-    ctx.fillStyle = '#313b5b'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
-    ctx.fillStyle = c[3]; ctx.fillRect(x - 2, y - 2, 5 + w, 5);
-    ctx.fillStyle = c[2]; ctx.fillRect(x - 1, y - 1, 3, 3);
-    ctx.fillStyle = c[0]; ctx.fillRect(x - 1, y - 2, 1, 1);
+    const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy), pal = fxPal(this.owner);
+    // geschleudertes Gelege: drei leuchtende Eier, die sich im Flug drehen
+    const a = this.t * 7;
+    for (const [i, r] of [[2, 2], [1, 2.5], [0, 3]]) {
+      const b = a + i * 2.1;
+      FX.orbFrame(0, r, pal, 0).draw(ctx, x + Math.round(Math.cos(b) * 2.4), y + Math.round(Math.sin(b) * 1.6));
+    }
   }
 }
 
@@ -278,49 +262,29 @@ export class VineLash extends Entity {
       else if (h.dodgedTimer > 0) this.hitDone = true;
     }
   }
-  // Ranke liegt auf dem Boden (Lit-Pass, wird beleuchtet), Dornen und Knoten zusätzlich im Emissive-Pass
+  #wob(s) {
+    const f = s / this.len;
+    return Math.sin(s * 0.22 - this.t * 30) * 2.2 * (1 - f * 0.5) * (this.t < this.out + 0.1 ? 1 : 0.4);
+  }
+  // Chitinpeitsche: Glieder mit Dornen liegen auf dem Boden (Lit-Pass), Fugen leuchten zusätzlich im Emissive-Pass
   render(ctx, cx, cy) {
     const L = this.len * this.ext;
     if (L < 2) return;
-    const cols = ['#121218', '#2a3040', '#3e485c', '#56647a', '#7a8ea2'];
-    for (let s = 0; s <= L; s += 1) {
-      const f = s / this.len;
-      const wob = Math.sin(s * 0.22 - this.t * 30) * 2.2 * (1 - f * 0.5) * (this.t < this.out + 0.1 ? 1 : 0.4);
-      const w = 5.5 - f * 3 + (Math.abs((s % 16) - 8) < 1.5 ? 1 : 0);
-      for (let k = -w; k <= w; k += 1) {
-        const p = this.#pt(s, k + wob);
-        const e = (k + w) / (2 * w);
-        ctx.fillStyle = e < 0.2 ? cols[4] : e < 0.45 ? cols[3] : e < 0.8 ? cols[2] : cols[0];
-        ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 2), 1, 1);
-      }
-      if (s % 7 === 3) {
-        const side = (s % 14 === 3) ? 1 : -1, p = this.#pt(s, (w + 2) * side + wob);
-        ctx.fillStyle = '#c8d6e2'; ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 2), 1, 1);
-      }
+    const a = Math.atan2(this.sin * 0.75, this.cos), pal = fxPal(this.owner);
+    for (let s = 0; s <= L; s += 4.5) {
+      const f = s / this.len, p = this.#pt(s, this.#wob(s));
+      FX.plateFrame(a, 6 - f * 3.4, pal).draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy - 3));
     }
-    // Wurzelkralle an der Spitze
-    const tip = this.#pt(L);
-    ctx.fillStyle = '#6a7a90';
-    for (let i = -1; i <= 1; i++) { const q = this.#pt(L + 4, i * 3); ctx.fillRect(Math.round(q.x - cx), Math.round(q.y - cy - 2), 1, 1); }
-    ctx.fillStyle = '#3e3e50'; ctx.fillRect(Math.round(tip.x - cx) - 1, Math.round(tip.y - cy) - 3, 3, 3);
   }
   renderEmissive(ctx, cx, cy) {
-    const L = this.len * this.ext;
-    // leuchtende Ader entlang der Ranke (liest sich auch im Dunkeln)
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = this.owner.enraged ? '#7a1a9a' : '#0a726e';
-    for (let s = 2; s < L; s += 1) {
-      const f = s / this.len;
-      const wob = Math.sin(s * 0.22 - this.t * 30) * 2.2 * (1 - f * 0.5) * (this.t < this.out + 0.1 ? 1 : 0.4);
-      const p = this.#pt(s, wob - 1);
-      ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 3), 1, 1);
+    const L = this.len * this.ext, pal = fxPal(this.owner);
+    for (let s = 9, i = 0; s < L; s += 9, i++) {
+      const p = this.#pt(s, this.#wob(s));
+      FX.starFrame(1 + (Math.floor(this.t * 12 + i) % 2), pal).draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy - 3), { alpha: 0.7 });
     }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = this.owner.enraged ? '#c048ec' : '#1cc0ae';
-    for (let s = 10; s < L; s += 16) { const p = this.#pt(s); ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 3), 1, 1); }
-    if (this.t < this.out + 0.08) {
-      const p = this.#pt(L);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(p.x - cx) - 1, Math.round(p.y - cy) - 3, 2, 2);
+    if (this.t < this.out + 0.1) {
+      const p = this.#pt(L, this.#wob(L));
+      FX.starFrame(4, pal).draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy - 3));
     }
   }
 }
@@ -335,7 +299,9 @@ export class RootSpikes extends Entity {
     const n = 7;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + rand(-0.3, 0.3), rr = i === 0 ? 0 : rand(0.35, 0.85) * r;
-      this.spikes.push({ dx: Math.cos(a) * rr, dy: Math.sin(a) * rr * 0.6, h: i === 0 ? rand(30, 36) : rand(14, 24), lean: rand(-0.3, 0.3) + Math.cos(a) * 0.3 * (rr / r), w: i === 0 ? 6 : rand(3.5, 4.8) });
+      // Maße gerastert: wenige vorgerenderte Stachelformen reichen (fxPaint-Cache)
+      const h = i === 0 ? 34 : 14 + Math.floor(rand(0, 3)) * 4, lean = Math.round((rand(-0.3, 0.3) + Math.cos(a) * 0.3 * (rr / r)) * 5) / 5;
+      this.spikes.push({ dx: Math.cos(a) * rr, dy: Math.sin(a) * rr * 0.6, h, lean, w: i === 0 ? 5 : 3.5 });
     }
     this.spikes.sort((a, b) => a.dy - b.dy);
   }
@@ -367,50 +333,31 @@ export class RootSpikes extends Entity {
   render(ctx, cx, cy) {
     const g = this.#grow();
     if (g <= 0) return;
-    const cols = ['#08080c', '#121218', '#2c2c3a', '#3e3e50', '#545468', '#6a7a90'];
+    const pal = fxPal(this.owner);
     for (const s of this.spikes) {
-      const bx = this.x + s.dx - cx, by = this.y + s.dy - cy;
-      const H = s.h * g;
-      for (let y = 0; y < H; y++) {
-        const f = y / s.h;
-        const w = s.w * (1 - f) + 0.6;
-        const x0 = bx + s.lean * y + Math.sin(f * 5 + s.dx) * 0.8;
-        for (let k = -w; k <= w; k += 1) {
-          const e = (k + w) / (2 * w);
-          ctx.fillStyle = e < 0.25 ? cols[5] : e < 0.5 ? cols[4] : e < 0.8 ? cols[3] : cols[1];
-          if (f > 0.82) ctx.fillStyle = e < 0.5 ? '#c8d6e2' : '#8ea0b4';
-          ctx.fillRect(Math.round(x0 + k), Math.round(by - y), 1, 1);
-        }
-        // Seitentriebe
-        if (Math.abs(y - s.h * 0.45) < 0.5 && H > s.h * 0.5) {
-          ctx.fillStyle = cols[4];
-          ctx.fillRect(Math.round(x0 + w + 1), Math.round(by - y - 1), 2, 1); ctx.fillRect(Math.round(x0 + w + 3), Math.round(by - y - 2), 1, 1);
-        }
-      }
+      const bx = Math.round(this.x + s.dx - cx), by = Math.round(this.y + s.dy - cy);
+      // Stachel schiebt sich aus dem Boden: ganzer Stachel, unterhalb der Erdkante abgeschnitten
+      ctx.save();
+      ctx.beginPath(); ctx.rect(bx - 40, by - 60, 80, 61); ctx.clip();
+      FX.thornFrame(s.h, s.w, s.lean, pal).draw(ctx, bx, by + Math.round(s.h * (1 - g)));
+      ctx.restore();
       // aufgeworfene Erde
-      ctx.fillStyle = cols[2]; ctx.fillRect(Math.round(bx - s.w - 2), Math.round(by - 1), Math.round(s.w * 2 + 5), 2);
-      ctx.fillStyle = cols[4]; ctx.fillRect(Math.round(bx - s.w - 1), Math.round(by - 1), 2, 1);
+      ctx.fillStyle = '#2c2c3a'; ctx.fillRect(Math.round(bx - s.w - 2), by - 1, Math.round(s.w * 2 + 5), 2);
+      ctx.fillStyle = '#545468'; ctx.fillRect(Math.round(bx - s.w - 1), by - 1, 2, 1);
     }
   }
   renderEmissive(ctx, cx, cy) {
-    const g = this.#grow();
+    const g = this.#grow(), pal = fxPal(this.owner);
     if (!this.burst) {
-      // Leuchtende Risse vor dem Ausbruch
-      const k = Math.min(1, this.t / this.delay);
-      ctx.fillStyle = this.owner.enraged ? '#c048ec' : '#1cc0ae';
-      for (let i = 0; i < 12; i++) {
-        const a = i * 0.52 + this.seed, rr = (0.2 + ((i * 0.37) % 0.8)) * this.r * k;
-        ctx.globalAlpha = 0.4 + 0.5 * k;
-        ctx.fillRect(Math.round(this.x - cx + Math.cos(a) * rr), Math.round(this.y - cy + Math.sin(a) * rr * 0.6), 1, 1);
-      }
-      ctx.globalAlpha = 1;
+      // leuchtender Sternriss wächst bis zum Ausbruch
+      const k = Math.min(1, this.t / this.delay), L = Math.max(3, Math.round(this.r * k / 3) * 3);
+      FX.radialCrack(L, 6, pal, this.seed % 3).draw(ctx, Math.round(this.x - cx), Math.round(this.y - cy), { alpha: 0.45 + 0.55 * k });
       return;
     }
     if (g <= 0) return;
-    ctx.fillStyle = this.owner.enraged ? '#eaa8ff' : '#7cf0dc';
     for (const s of this.spikes) {
-      const H = s.h * g * 0.55;
-      ctx.fillRect(Math.round(this.x + s.dx + s.lean * H - cx), Math.round(this.y + s.dy - H - cy), 1, 1);
+      const H = s.h * g;
+      FX.starFrame(2, pal).draw(ctx, Math.round(this.x + s.dx + s.lean * H - cx), Math.round(this.y + s.dy - H - cy), { alpha: g });
     }
   }
 }
@@ -459,19 +406,20 @@ export class ToxicRing extends Entity {
     ctx.fillStyle = '#6a2a8a';
     ctx.beginPath(); ctx.rect(-10, -10, W + 20, H + 20); ctx.ellipse(x, y, this.rx, this.ry, 0, 0, Math.PI * 2); ctx.fill('evenodd');
     ctx.restore();
-    // Rand: dichte, wabernde Nebelkante
-    const n = Math.round((this.rx + this.ry) * 1.6);
+    // Rand: Nebelballen kriechen die Kante entlang, dazwischen helle Saumpunkte (bleibt auf jedem Boden lesbar)
+    const seq = FX.puffSeq(4, 'violet', 8), n = Math.round((this.rx + this.ry) * 0.26);
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const wob = Math.sin(a * 9 + this.t * 2.2) * 2.5 + Math.sin(a * 23 - this.t * 3.1) * 1.5;
-      const px = Math.round(x + Math.cos(a) * (this.rx + wob)), py = Math.round(y + Math.sin(a) * (this.ry + wob * 0.6));
-      ctx.globalAlpha = (0.55 + 0.3 * Math.sin(this.t * 5 + i)) * fade;
-      ctx.fillStyle = i % 3 === 0 ? '#eaa8ff' : '#c048ec';
-      ctx.fillRect(px, py, 1, 1);
-      ctx.globalAlpha = 0.3 * fade;
-      ctx.fillStyle = '#7a1a9a';
-      ctx.fillRect(Math.round(px + Math.cos(a) * 3), Math.round(py + Math.sin(a) * 2), 2, 1);
-      if (i % 4 === 0) { const hh = (this.t * 7 + i) % 8; ctx.globalAlpha = 0.4 * fade * (1 - hh / 8); ctx.fillStyle = '#eaa8ff'; ctx.fillRect(px, Math.round(py - hh), 1, 1); }
+      const a = (i / n) * Math.PI * 2 + this.t * 0.05, k = (this.t * 0.7 + i * 0.618) % 1;
+      const wob = Math.sin(a * 9 + this.t * 2.2) * 2.5;
+      const px = Math.round(x + Math.cos(a) * (this.rx + wob)), py = Math.round(y + Math.sin(a) * (this.ry + wob * 0.6) - k * 8);
+      seq[Math.min(7, Math.floor(k * 8))].draw(ctx, px, py, { alpha: 0.7 * fade * (1 - k * 0.5) });
+    }
+    const m = Math.round((this.rx + this.ry) * 1.2);
+    ctx.fillStyle = '#eaa8ff';
+    for (let i = 0; i < m; i += 3) {
+      const a = (i / m) * Math.PI * 2, wob = Math.sin(a * 9 + this.t * 2.2) * 2.5 + Math.sin(a * 23 - this.t * 3.1) * 1.5;
+      ctx.globalAlpha = (0.5 + 0.3 * Math.sin(this.t * 5 + i)) * fade;
+      ctx.fillRect(Math.round(x + Math.cos(a) * (this.rx + wob)), Math.round(y + Math.sin(a) * (this.ry + wob * 0.6)), 1, 1);
     }
     ctx.globalAlpha = 1;
   }
@@ -487,6 +435,11 @@ export class RotMother extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => [0, 1, 2, 3].forEach((i) => FX.moldBed(26, i, 'poison')), () => FX.puffSeq(4, 'poison', 8), () => FX.puffSeq(4, 'violet', 8),
+      () => [6, 5, 4, 3].forEach((r) => FX.plateFrame(0, r, 'poison')), () => [14, 18, 22, 34].forEach((h) => FX.thornFrame(h, 3.5, 0, 'poison')),
+      () => [3, 6, 9, 12, 15, 18, 21].forEach((L) => FX.radialCrack(L, 6, 'poison', 0)), () => [3, 5, 8].forEach((r) => FX.starFrame(r, 'poison')),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
@@ -1077,11 +1030,7 @@ export class RotMother extends Actor {
       const key = this.state === 'castWindup' ? (this.castKind === 'lob' || this.castKind === 'burst' ? 'sac' : this.castKind === 'roots' ? 'hand' : 'mouth') : 'hand';
       const t = this.#meta(key);
       const k = (this.stateTime - this.windup * 0.55) / (this.windup * 0.45);
-      const r = Math.round(2 + k * 5), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#eaa8ff' : '#7cf0dc';
-      ctx.fillRect(x - 1, y - 1, 3, 3);
+      FX.starFrame(Math.round(3 + k * 5), fxPal(this)).draw(ctx, Math.round(t.x - cx), Math.round(t.y - cy));
     }
   }
 }
