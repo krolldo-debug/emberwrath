@@ -7,6 +7,7 @@ import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
 import { DYES } from '../character/cosmetics.js';
 import { TIER_LOOK, itemLook } from '../character/gearLook.js';
 import { drawWeaponIcon } from '../sprites/hero.js';
+import { drawGear } from './gearIcons.js';
 
 // Item-, Fähigkeits- und UI-Icons als prozedurale 24×24-Pixel-Art (mit Umriss 26×26).
 // Gemeinsam genutzt von HUD (D), Inventar/Beute/Händler (C) und Charaktererstellung (A).
@@ -2810,6 +2811,13 @@ const FINE_LOOK = {
   armor: (o) => fineIcon(armorFine, o), helm: (o) => fineIcon(helmFine, o), gloves: (o) => fineIcon(glovesFine, o), boots: (o) => fineIcon(bootsFine, o),
 };
 const lookIds = new Map();   // JSON der Zeichenoptionen -> 'look:<n>'
+// Entwurfsweiche (wird nach der Abnahme entfernt): 'A' kräftig (24er-Raster ×2), 'B' fein (48er), 'C' fein + Seltenheitskante; null = bisher
+let GEAR_STYLE = 'B';
+const GEAR_IDS = new Map();  // Icon-ID -> Seltenheit (eigene Inventar-Zeichnung, ohne Feinschliff)
+export function setGearIconStyle(st) {
+  GEAR_STYLE = st;
+  defIds.clear(); canvasCache.clear(); urlCache.clear();
+}
 const defIds = new Map();    // id|icon|rarity -> Icon-ID
 export function itemIconId(def) {
   if (!def) return 'bag';
@@ -2818,6 +2826,21 @@ export function itemIconId(def) {
   if (id) return id;
   id = def.icon;
   const r = def.type === 'weapon' || def.type === 'armor' ? itemLook(def) : null;
+  // Waffen und Rüstung: eigene Inventar-Zeichnung (gfx/gearIcons.js), Materialien aus dem getragenen Aussehen
+  if (r && GEAR_STYLE) {
+    const key = `gear|${GEAR_STYLE}|${r.slot}|${JSON.stringify(r.look)}`;
+    id = lookIds.get(key);
+    if (!id) {
+      id = `look:${lookIds.size}`;
+      lookIds.set(key, id);
+      const slot = r.slot, look = r.look;
+      REG[id] = (p) => p.ctx.drawImage(drawGear(slot, look, 1), 0, 0);
+      REG_FINE[id] = () => drawGear(slot, look, 2);
+      GEAR_IDS.set(id, look.rarity ?? 'common');
+    }
+    defIds.set(k, id);
+    return id;
+  }
   const spec = r && LOOK_ICON[r.slot]?.(r.look);
   if (spec) {
     const key = JSON.stringify(spec);
@@ -2845,6 +2868,22 @@ export function iconRes() { return (window.devicePixelRatio || 1) >= 1.5 ? 2 : 1
 
 // 48er-Bild mit Umriss (50×50) mittig auf 52×52: genau 2 Feinpixel je Bildpunkt der 26er-Fassung, damit es im Platz
 // (26 × --fpx CSS-px) ganzzahlig skaliert wird wie Rahmen und Effektstreifen (sonst ungleich breite Feinpixel).
+// Entwurf C: 1 Feinpixel Kante in der Seltenheitsfarbe um den Umriss (oben links hell, unten rechts dunkel)
+const RIM = { uncommon: ['#7ad870', '#2e7a2c'], rare: ['#7ab0ff', '#2a5ab0'], epic: ['#c888ff', '#6a2ab0'], legendary: ['#ffb040', '#c85a0c'] };
+function rarityRim(c, rarity) {
+  const col = RIM[rarity];
+  if (!col) return;
+  const w = c.width, h = c.height, ctx = c.getContext('2d'), img = ctx.getImageData(0, 0, w, h), d = img.data;
+  const op = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
+  const set = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (op(x, y)) continue;
+    const lit = op(x + 1, y) || op(x, y + 1), dark = op(x - 1, y) || op(x, y - 1);
+    if (lit || dark) set.push([x, y, lit ? col[0] : col[1]]);
+  }
+  for (const [x, y, cc] of set) { const v = parseInt(cc.slice(1), 16), o = (y * w + x) * 4; d[o] = v >> 16; d[o + 1] = (v >> 8) & 255; d[o + 2] = v & 255; d[o + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+}
 function padFine(c) {
   const o = makeCanvas(c.width + 2, c.height + 2);
   o.getContext('2d').drawImage(c, 1, 1);
@@ -2861,6 +2900,18 @@ export function iconCanvas(id, res = iconRes()) {
       const p = new PixelCanvas(SKILL_ART_SIZE, SKILL_ART_SIZE);
       SKILL_ART[key](p);
       c = p.canvas;
+    } else if (res > 1 && GEAR_IDS.has(key)) {
+      if (GEAR_STYLE === 'A') {
+        // kräftig: 24er-Zeichnung mit Umriss, ganzzahlig verdoppelt
+        const p = new PixelCanvas(S, S);
+        REG[key](p);
+        const o = outlineCanvas(p.canvas);
+        c = makeCanvas(52, 52);
+        const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(o, 0, 0, 52, 52);
+      } else {
+        c = padFine(outlineCanvas(REG_FINE[key]()));
+        if (GEAR_STYLE === 'C') rarityRim(c, GEAR_IDS.get(key));
+      }
     } else if (res > 1 && REG_FINE[key]) {
       c = padFine(outlineCanvas(finishFine(REG_FINE[key](), { rim: 0.22, shade: 0.2 })));
     } else if (res > 1) {
