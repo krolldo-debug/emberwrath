@@ -9,7 +9,7 @@ const HEROES = {
   mage: ['elf', ['staff_of_last_ash', 'colossus_robe', 'colossus_gloves', 'colossus_slippers']],
 };
 const POSES = { idle: [0], atk1: [2, 3], atk2: [3], spin: [1], cast: [2, 3], slam: [3], lunge: [3], hurl: [3], rainshot: [2] };
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.goto(`${process.env.EW_URL ?? 'http://localhost:8102'}/index.html`);   // EW_URL für einen anderen Stand

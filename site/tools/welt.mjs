@@ -57,7 +57,7 @@ export const SCENES = [
   W('leben-gruppe', { lightMode: 'flat', flat: [180, 178, 200], cls: 'warrior', zone: 'frostspire', target: 'npc:jarl_eskil', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], hero: [-30, 26], comps: [[-68, 12, 1], [-56, 40, 1]], foes: [], click: false, keys: [], cam: [-22, -6], density: 0.6 }),
 ];
 const env = (k, d) => (process.env[k] ? JSON.parse(process.env[k]) : d);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const meta = {};
 const run = async (sc0) => {
   const sc = { ...sc0, ...env('OVR', {})[sc0.id] };
@@ -282,7 +282,7 @@ const run = async (sc0) => {
       for (let q = 0; q < 400; q++, T += 0.013) if (hs.every((a) => [1.6, 2.4].every((per) => ((T + (a.id ?? 0) * 0.37) % per) / 0.4 >= 1.05))) break;
       const pn = performance.now; performance.now = () => T * 1000;
       try { g.render(0); } finally { performance.now = pn; for (const u of undo.reverse()) u(); }
-      const v = g.view;
+      const v = g.canvas.width === g.view.width && g.canvas.height === g.view.height ? g.canvas : g.view;   // Spiel zeichnet bei gleicher Größe direkt in die Anzeige
       const c = document.createElement('canvas'); c.width = v.width; c.height = v.height;
       const cx = c.getContext('2d'); cx.filter = sc.grade; cx.drawImage(v, 0, 0);
       const out = c.toDataURL('image/png');

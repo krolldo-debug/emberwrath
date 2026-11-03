@@ -19,7 +19,7 @@ const LOOKS = {
   ranger: ['human', ['trackers_hood', 'hunter_leather', 'suede_grips', 'hunters_boots', 'longbow'], SET('set_hirschkoenig'), null],
   mage: ['human', ['wanderer_hood', 'mage_robe', 'linen_gloves', 'linen_shoes', 'crystal_staff'], SET('set_sternenfeuer'), null],
 };
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.goto(`${BASE}/index.html`);

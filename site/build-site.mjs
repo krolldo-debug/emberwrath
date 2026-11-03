@@ -41,7 +41,7 @@ export function buildSite(root, outDir) {
   mkdirSync(imgOut, { recursive: true });
   let bytes = 0;
   for (const f of readdirSync(join(src, 'img'))) {
-    if (!['.png', '.webp', '.jpg', '.svg'].includes(extname(f))) continue;
+    if (!['.png', '.webp', '.jpg', '.svg', '.mp4', '.webm'].includes(extname(f))) continue;   // .mp4/.webm: Bosskino (tools/bossfilm.py)
     copyFileSync(join(src, 'img', f), join(imgOut, f));
     bytes += statSync(join(src, 'img', f)).size;
   }

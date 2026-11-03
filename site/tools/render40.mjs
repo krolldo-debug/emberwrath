@@ -15,7 +15,7 @@ const RIDERS = {
   hellhound: ['emberborn', 'warrior', ['tyrant_helm', 'tyrant_plate', 'tyrant_gauntlets', 'tyrant_sabatons', 'crown_of_embers_blade']],
   rime_drake: ['elf', 'ranger', ['skalvyr_rib_bow', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
 };
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.goto(`${process.env.EW_URL ?? 'http://localhost:8102'}/index.html`);   // EW_URL für einen anderen Stand

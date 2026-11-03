@@ -19,7 +19,7 @@ const RIDERS = {
   spore_beetle: ['elf', 'mage', ['staff_of_last_ash', 'rotmother_hood', 'rotmother_robe', 'rotmother_gloves']],
 };
 const ONLY = process.argv[3]?.split(',');
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.goto(`${BASE}/index.html`);

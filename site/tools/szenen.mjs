@@ -42,7 +42,7 @@ export const SCENES = [
   S('welt-gluetoede', 'mage', 'ember_wastes', 'few', 70, [['g', 300], ['t', 0]]),
   S('welt-aschethron', 'warrior', 'ashen_throne', 'boss', 40, [['g', 250], ['q', 0]]),
 ];
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const meta = {};
 for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) {
   const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
@@ -123,7 +123,7 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id))) 
       for (const a of [...(w.actors ?? []), ...(w.enemies ?? [])]) { a.flash = 0; a.hpBarTimer = 0; }
       s.hurtFlash = 0;
       g.render(0);
-      const v = g.view, k = v.width / 480;
+      const v = g.canvas.width === g.view.width && g.canvas.height === g.view.height ? g.canvas : g.view, k = v.width / 480;
       const t = window.__target && !window.__target.dead ? window.__target : w.boss && !w.boss.dead ? w.boss : h;
       const toV = (o) => ({ x: Math.round((o.x - cam.rx) * k), y: Math.round((o.y - 14 - cam.ry) * k) });
       const c = document.createElement('canvas'); c.width = v.width; c.height = v.height;

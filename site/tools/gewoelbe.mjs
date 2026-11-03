@@ -3,7 +3,7 @@
 // danach um 50 % aufgehellt (Pillow ImageEnhance.Brightness 1.5) verlustfrei als img/gewoelbe.webp bzw. img/gewoelbe-breit.webp speichern. Server :8103 = Ordner emberfall/.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const [out, w = 1920, h = 1080] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: +w, height: +h } });
 await p.goto('http://localhost:8103/index.html');
 await p.waitForFunction(() => window.emberfall?.scenes.currentId === 'title');
