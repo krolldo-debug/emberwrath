@@ -433,6 +433,13 @@ export function buildFrostspire() {
   F([[104, 96], [110, 101], [112, 95]], 'b'); F([[120, 99], [127, 93], [126, 99]], 'b'); F([[134, 95], [141, 97], [139, 92]], 'b');
   F([[118, 90], [98, 84]], 'j');
   F([[78, 30], [84, 23]], 'e'); F([[117, 97]], 's');
+  // Durchlauf 03.11.: Frostzinnen waren das dünnste späte Gebiet (70 Gegner, Faulmarsch 90, Glutöde 107). Für 10
+  // Hexen, 10 Pirscher, 10 Trolle plus Beute standen nur 7 Hexen, 11 Pirscher und 9 Trolle über die ganze Karte
+  // verteilt; man ritt 25–30 Minuten je Stufe meist zwischen Einzelgegnern hin und her. Jetzt mehr davon, mit
+  // Abstand (≥ 8 Kacheln), damit man sie einzeln zieht: Paare kosteten einen Stufe-30-Waldläufer viermal so viele Tode.
+  F([[22, 58], [70, 6], [92, 6], [128, 40], [112, 16]], 'h');
+  F([[16, 80], [90, 62], [132, 82], [30, 74]], 's'); // nicht an die Passstraße: Pirscher lauern im Schnee
+  F([[86, 52], [114, 56], [130, 58]], 'i');
 
   // ------------------------------------------------ Gletscherspalten: Fächer quer zur Fließrichtung
   // Das Eis fließt von der Nordkante talwärts (zwischen den Graten nach Süden und Südwesten). Die

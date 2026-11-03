@@ -75,7 +75,8 @@ export function createRound3Enemies(T) {
     raider_archer: d('bandit_archer', 'raider_archer', 'Räuberschützin', [20, 23], { family: 'human' }),
     dust_hyena: d('wolf', 'dust_hyena', 'Staubhyäne', [21, 24], { family: 'beast', hp: 0.9, howl: true }),
     ash_vulture: d('fire_imp', 'ash_vulture', 'Aschegeier', [22, 25], { family: 'beast', hitAndRun: 0.9, strafe: true, spawnStyle: 'fade' }),
-    steppe_warlord: d('bandit_chief', 'steppe_warlord', 'Khar, der Steppenfürst', 25, { family: 'human', hp: 1.1 }),
+    // Khar (Hauptquest Stufe 23): war Stufe 25, als Elite also 27 – Durchlauf 03.11.: Magier auf 22 starb 35 Mal.
+    steppe_warlord: d('bandit_chief', 'steppe_warlord', 'Khar, der Steppenfürst', 23, { family: 'human', hp: 1.1 }),
     // --- Heulendes Hügelgrab (24–26)
     barrow_wight: d('skeleton', 'barrow_wight', 'Grabunhold', [24, 26], { family: 'undead' }),
     grave_hound: d('wolf', 'grave_hound', 'Grabhund', [24, 26], { family: 'undead' }),

@@ -6122,5 +6122,15 @@ export const ES = {
   "Brens Gärtnerhaus": "Casa del jardinero Bren",
   "Rosenhäuschen": "Casita de las rosas",
   "Schürferhütte": "Cabaña del buscador",
-  "Erzschuppen": "Cobertizo del mineral"
+  "Erzschuppen": "Cobertizo del mineral",
+  "Ein Söldner hilft dir gleich wieder auf.": "Un mercenario te ayudará a levantarte en un momento.",
+  "Ein Glutbrocken stürzt bald vom Berg herab.": "Un trozo de brasas está a punto de caer de la montaña.",
+  "Ein Glutbrocken schlägt gleich ein!": "¡Un trozo de brasas está a punto de impactar!",
+  "Hier ist gerade ein Glutbrocken eingeschlagen.": "Aquí acaba de caer un trozo de brasas.",
+  "Die Glut lockt Kreaturen an!": "¡Las brasas atraen a las criaturas!",
+  "Eine neue Welle stürmt heran.": "Una nueva oleada se abalanza.",
+  "Die letzte Welle stürmt heran.": "La última oleada se abalanza.",
+  "Glutsturz überstanden": "Lluvia de brasas superada",
+  "Das Glutherz ist aufgebrochen": "El Corazón de Brasa se ha abierto",
+  "Das Glutherz nehmen": "Tomar el Corazón de Brasa"
 };

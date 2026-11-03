@@ -6122,5 +6122,15 @@ export const EN = {
   "Brens Gärtnerhaus": "Bren's Gardener's Cottage",
   "Rosenhäuschen": "Rose Cottage",
   "Schürferhütte": "Prospector's Hut",
-  "Erzschuppen": "Ore Shed"
+  "Erzschuppen": "Ore Shed",
+  "Ein Söldner hilft dir gleich wieder auf.": "A mercenary will help you back up in a moment.",
+  "Ein Glutbrocken stürzt bald vom Berg herab.": "A chunk of embers is about to fall from the mountain.",
+  "Ein Glutbrocken schlägt gleich ein!": "A chunk of embers is about to hit!",
+  "Hier ist gerade ein Glutbrocken eingeschlagen.": "A chunk of embers just crashed down here.",
+  "Die Glut lockt Kreaturen an!": "The embers draw in creatures!",
+  "Eine neue Welle stürmt heran.": "A new wave charges in.",
+  "Die letzte Welle stürmt heran.": "The last wave charges in.",
+  "Glutsturz überstanden": "Ember Crash survived",
+  "Das Glutherz ist aufgebrochen": "The Ember Heart has cracked open",
+  "Das Glutherz nehmen": "Take the Ember Heart"
 };

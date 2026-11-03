@@ -6122,5 +6122,15 @@ export const FR = {
   "Brens Gärtnerhaus": "Maisonnette du jardinier Bren",
   "Rosenhäuschen": "Maisonnette aux roses",
   "Schürferhütte": "Cabane du prospecteur",
-  "Erzschuppen": "Remise à minerai"
+  "Erzschuppen": "Remise à minerai",
+  "Ein Söldner hilft dir gleich wieder auf.": "Un mercenaire va t'aider à te relever dans un instant.",
+  "Ein Glutbrocken stürzt bald vom Berg herab.": "Un bloc de braises va bientôt tomber de la montagne.",
+  "Ein Glutbrocken schlägt gleich ein!": "Un bloc de braises va s'écraser !",
+  "Hier ist gerade ein Glutbrocken eingeschlagen.": "Un bloc de braises vient de s'écraser ici.",
+  "Die Glut lockt Kreaturen an!": "Les braises attirent des créatures !",
+  "Eine neue Welle stürmt heran.": "Une nouvelle vague déferle.",
+  "Die letzte Welle stürmt heran.": "La dernière vague déferle.",
+  "Glutsturz überstanden": "Chute de braises surmontée",
+  "Das Glutherz ist aufgebrochen": "Le Cœur de braise s'est ouvert",
+  "Das Glutherz nehmen": "Prendre le Cœur de braise"
 };

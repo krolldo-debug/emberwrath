@@ -201,14 +201,25 @@ export function trackedQuestId(state, content, { here = false } = {}) {
 
 // Automatisch verfolgte Quest: zuerst, was in der aktuellen Zone zu tun ist, dann nach Stufe, bei gleicher Stufe die
 // Hauptquest; Kopfgelder zuletzt. So wechseln sich Haupt- und Nebenquests ab, wie ihre Stufen es vorsehen.
+// Durchlauf 03.11.: Ein Dungeon zählt zum Gebiet seines Eingangs (sonst schickte die Glutspur Stufe-10-Helden an Nerith
+// vorbei in die Schlackenhöhen zu Gegnern der Stufe 14–16), und fertige Quests kommen erst nach den offenen Zielen im
+// selben Gebiet an die Reihe (sonst lief man für jede Quest einzeln quer durch den Aschenwald zum Lager und zurück).
 export function autoQuestId(state, content, ids = Object.keys(state.slices.quests.active)) {
   const zoneId = state.slices.world?.zoneId ?? null;
+  const outer = (z) => { const d = z && content.find('zone', z); return d?.instanced && d.respawnZone ? d.respawnZone : z; };
+  const here = outer(zoneId);
   const score = (id) => {
     const def = content.find('quest', id);
     if (!def) return Infinity;
     const a = state.slices.quests.active[id];
-    const zone = a?.status === 'ready' ? content.find('npc', turnInOf(def))?.zoneId : def.objectives.find((o) => (a?.progress[o.id] ?? 0) < o.count)?.zone;
-    return (def.repeatable ? 1000 : 0) + (zoneId && zone !== zoneId ? 100 : 0) + (def.level ?? 1) + (def.main ? 0 : 0.5);
+    const ready = a?.status === 'ready';
+    const open = ready ? null : def.objectives.find((o) => (a?.progress[o.id] ?? 0) < o.count);
+    const zone = ready ? content.find('npc', turnInOf(def))?.zoneId : open?.zone;
+    // Ein Ziel „Gebiet X betreten“ führt hinaus, auch wenn es hier erfüllt wird (Durchlauf 03.11.: „In die Faulmarsch“
+    // zog Stufe-24-Helden weiter, während Imras fertige Quest in der Steppe liegen blieb).
+    const leaves = [].concat(open?.target ?? []).some((t) => typeof t === 'string' && t.startsWith('zone:') && outer(t.slice(5)) !== here);
+    const away = zoneId && ((zone !== zoneId && outer(zone) !== here) || leaves);
+    return (def.repeatable ? 1000 : 0) + (away ? 100 : 0) + (ready ? 50 : 0) + (def.level ?? 1) + (def.main ? 0 : 0.5);
   };
   let best = null, bestScore = Infinity;
   for (const id of ids) { const sc = score(id); if (sc < bestScore) { best = id; bestScore = sc; } }

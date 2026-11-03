@@ -215,7 +215,7 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   const lvl = Math.max(1, enemy.level ?? 1);
   const isChest = !!enemy.chest;
   const bossChest = isChest && String(enemy.chest).startsWith('boss');
-  const starChest = isChest && String(enemy.chest).startsWith('starfall');
+  const starChest = isChest && /^(starfall|glutsturz)/.test(String(enemy.chest)); // Weltereignisse (world/starfall.js)
   const rare = !isChest && !enemy.boss ? RARE_ENEMIES[enemy.rareId] : null;
   const kind = isChest ? (bossChest ? 'chest_boss' : starChest ? 'chest_star' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.champion ? 'champion' : enemy.elite ? 'elite' : 'normal';
   const boss = kind === 'boss' ? BOSSES[enemy.bossId ?? enemy.type] : null;

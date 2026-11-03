@@ -687,6 +687,13 @@ class EscortRun extends QuestRun {
           lead.x = p.x; lead.y = p.y;
           this.nudges = (this.nudges ?? 0) + 1;
           this.prog = { best: Math.hypot(goal.x - p.x, goal.y - p.y), t: 0, tries: jump ? 0 : 1 };
+          // Liegt der Wegpunkt selbst auf blockierter Kachel, ist der nächste freie Platz das Ziel. Durchlauf 03.11.:
+          // Imras Karawane stand sonst 14 px vor dem letzten Wegpunkt für immer still, die Quest war nicht zu schaffen.
+          if (jump && this.prog.best < 1.5 * T) {
+            this.idx++;
+            this.prog = null;
+            if (this.idx >= this.path.length) { this.succeed(); return; }
+          }
         }
       }
     }

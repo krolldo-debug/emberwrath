@@ -38,6 +38,7 @@ export class Toasts {
       // Freischaltungen zeigt ui/Unlocks.js als Karte; A's Begleit-Toasts nicht doppeln
       if (typeof e.text === 'string' && UNLOCK_TEXT.test(e.text)) return;
       this.push(e.text, e.kind ?? 'info', e.icon);
+      if (e.questId) this.items[this.items.length - 1].questId = e.questId;
     });
     bus.on(EV.ITEM_ADDED, (e) => {
       if (QUIET_SOURCES.has(e.source)) return;
@@ -64,7 +65,12 @@ export class Toasts {
       this.hold = FINALE_SHOW;
       for (const it of this.items) if (it.age < 0.05) { it.held = true; it.el.classList.add('held'); }
     });
-    bus.on(EV.QUEST_ACCEPTED, (e) => this.push(`Neue Quest: ${qTitle(e.questId)}`, 'quest', 'scroll'));
+    // Gerade erst als „Neue Quest: … – Maren“ angesagt (progression/logic.js)? Dann diese Meldung stehen lassen statt doppeln.
+    bus.on(EV.QUEST_ACCEPTED, (e) => {
+      const shown = this.items.find((it) => it.questId === e.questId && !it.el.classList.contains('out'));
+      if (shown) { shown.age = 0; return; }
+      this.push(`Neue Quest: ${qTitle(e.questId)}`, 'quest', 'scroll');
+    });
     bus.on(EV.QUEST_PROGRESS, (e) => {
       const def = c.find('quest', e.questId);
       const obj = def?.objectives?.find((o) => o.id === e.objectiveId);

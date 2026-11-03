@@ -9,10 +9,22 @@ import { hash2 } from '../core/math.js';
 //   heartSpent     geleert: matte Splitter im Krater
 // Anker = Fußpunkt (Kratermitte bzw. Boden unter dem Herz). Feinraster wie sprites/caravan.js.
 
-const ROCK = ['#120e1a', '#1e1828', '#2c2438', '#3e3450', '#56496a', '#76688c'];
-const GLASS = ['#1a1238', '#2e2060', '#4a3696', '#7058c8', '#a48ae8', '#d8ccff', '#ffffff'];
-const CORE = ['#8a5a1a', '#d8a440', '#f6d888', '#fff6d8', '#ffffff'];
-const VOIDC = ['#3a1060', '#7a3ac8', '#b070ff', '#e8c8ff'];
+// Farbsätze: 'star' (Sternenfall, violettes Glas) und 'ember' (Glutsturz in den alten Gebieten: Obsidian mit Lava)
+const PALETTES = {
+  star: {
+    ROCK: ['#120e1a', '#1e1828', '#2c2438', '#3e3450', '#56496a', '#76688c'],
+    GLASS: ['#1a1238', '#2e2060', '#4a3696', '#7058c8', '#a48ae8', '#d8ccff', '#ffffff'],
+    CORE: ['#8a5a1a', '#d8a440', '#f6d888', '#fff6d8', '#ffffff'],
+    VOIDC: ['#3a1060', '#7a3ac8', '#b070ff', '#e8c8ff'],
+  },
+  ember: {
+    ROCK: ['#140c0a', '#221410', '#33201a', '#4a3026', '#634236', '#80594a'],
+    GLASS: ['#1a0c0c', '#2e1210', '#4a1a12', '#7a2a14', '#b84a1c', '#ff8a3a', '#ffe0b0'],
+    CORE: ['#8a2a0a', '#e0601a', '#ffb040', '#fff0c0', '#ffffff'],
+    VOIDC: ['#4a1006', '#a8300c', '#ff6a1a', '#ffc080'],
+  },
+};
+let ROCK, GLASS, CORE, VOIDC, KIND;
 
 function frame(W, H, ax, ay, draw) {
   const res = fineRes(), b = 1 / res;
@@ -44,6 +56,15 @@ function crater() {
       const s = 1.4 + hash2(i, 3, 801) * 1.3;
       ell(p, x, y, s * 1.3, s, Math.sin(a) < 0 ? ROCK[4] : ROCK[2]);
       p.dot(x - s * 0.6, y - s * 0.6, Math.sin(a) < 0 ? ROCK[5] : ROCK[3]);
+    }
+    // Glutsturz: glühender Innenrand, damit sich der Krater auf dunklem Schlacke- und Ascheboden klar abhebt
+    if (KIND === 'ember') {
+      for (let i = 0; i < 64; i++) {
+        const a = (i / 64) * Math.PI * 2, x = cx + Math.cos(a) * 24.5, y = cy + 0.5 + Math.sin(a) * 8.4;
+        if (hash2(i, 5, 803) < 0.18) continue;
+        p.dot(x, y, i % 3 ? VOIDC[2] : CORE[2]);
+        if (i % 2) g.dot(x, y, VOIDC[3]);
+      }
     }
     // Mulde: verglaster, dunkler Boden
     ell(p, cx, cy + 0.5, 23, 7.5, ROCK[1]);
@@ -121,7 +142,8 @@ function heart(bob, state = 'whole', t = 0) {
   });
 }
 
-export function createStarfallSprites() {
+export function createStarfallSprites(kind = 'star') {
+  ({ ROCK, GLASS, CORE, VOIDC } = PALETTES[kind] ?? PALETTES.star); KIND = kind;
   return {
     crater: crater(),
     heart: [0, 1, 2, 1].map((b) => heart(b)),
