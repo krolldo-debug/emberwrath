@@ -6168,5 +6168,5 @@ export const ES = {
   "Brens Gärtnerhaus": "Casa del jardinero Bren",
   "Rosenhäuschen": "Casita de las rosas",
   "Schürferhütte": "Cabaña del buscador",
-  "Erzschuppen": "Cobertizo del mineral",
+  "Erzschuppen": "Cobertizo del mineral"
 };

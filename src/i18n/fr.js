@@ -6168,5 +6168,5 @@ export const FR = {
   "Brens Gärtnerhaus": "Maisonnette du jardinier Bren",
   "Rosenhäuschen": "Maisonnette aux roses",
   "Schürferhütte": "Cabane du prospecteur",
-  "Erzschuppen": "Remise à minerai",
+  "Erzschuppen": "Remise à minerai"
 };

@@ -6168,5 +6168,5 @@ export const EN = {
   "Brens Gärtnerhaus": "Bren's Gardener's Cottage",
   "Rosenhäuschen": "Rose Cottage",
   "Schürferhütte": "Prospector's Hut",
-  "Erzschuppen": "Ore Shed",
+  "Erzschuppen": "Ore Shed"
 };
