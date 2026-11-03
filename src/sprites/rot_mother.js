@@ -361,7 +361,7 @@ export function createRotMotherSprites() {
   }));
   // --- Schlafend: Vorderleib zum Bogen gekrümmt, Kopf am Boden, Gelege glimmen matt
   const dormKeys = cycle(8, (ph) => ({
-    hx: 52, hy: -20, ha: 0.45, c1x: 12, c1y: -66, c2x: -10, c2y: -62, sink: 3, legA: 0.05, legT: ph, legCurl: 0.45,
+    hx: 52, hy: -32, ha: 0.45, c1x: 12, c1y: -66, c2x: -10, c2y: -62, sink: 3, legA: 0.05, legT: ph, legCurl: 0.45,
     jaw: 0, fang: 0, eye: 0, glow: 0.7, sacGlow: 0.45 + 0.12 * S(ph), spore: 0.15, spT: ph, ant: ph, antA: 0.05,
   }));
   const dorm = dormKeys[0][1];
@@ -374,8 +374,8 @@ export function createRotMotherSprites() {
   const lw = pose({ hx: 22, hy: -122, ha: -0.35, c1x: 22, c1y: -8, c2x: -2, c2y: 40, jaw: 0.6, fang: 1, eye: 1.3, sacGlow: 1.2, legA: 0.4, legT: 1, antA: 0.25, spT: 1 });
   const lwEnd = { ...lw, hx: 20, hy: -124, legT: 1.6, spT: 1.5 };
   const l1 = pose({ hx: 70, hy: -84, ha: 0.55, c1x: 30, c1y: -24, c2x: -26, c2y: 6, jaw: 0.8, fang: 0.9, eye: 1.3, legA: 0.6, legT: 2, spT: 1.8 });
-  const l2 = pose({ hx: 98, hy: -24, ha: 0.95, c1x: 30, c1y: -30, c2x: -30, c2y: -36, jaw: 1, fang: -0.2, eye: 1.3, bx: 2, legA: 0.6, legT: 2.6, spT: 2.1 });
-  const l3 = pose({ hx: 92, hy: -28, ha: 0.85, c1x: 30, c1y: -30, c2x: -30, c2y: -34, jaw: 0.6, fang: 0, bx: 1, legT: 3, spT: 2.6 });
+  const l2 = pose({ hx: 96, hy: -36, ha: 0.95, c1x: 30, c1y: -30, c2x: -30, c2y: -36, jaw: 1, fang: -0.2, eye: 1.3, bx: 2, legA: 0.6, legT: 2.6, spT: 2.1 });
+  const l3 = pose({ hx: 90, hy: -40, ha: 0.85, c1x: 30, c1y: -30, c2x: -30, c2y: -34, jaw: 0.6, fang: 0, bx: 1, legT: 3, spT: 2.6 });
   const lEnd = pose({ legT: 3.6, spT: 3.2 });
   // --- Sporen spucken
   const sw = pose({ hx: 28, hy: -118, ha: -0.15, c2x: -6, c2y: 38, jaw: 0.75, fang: 0.7, eye: 1.3, sacGlow: 1.5, swell: 0.2, legT: 1, spT: 1 });
@@ -392,14 +392,14 @@ export function createRotMotherSprites() {
   // --- Brut ausspeien: Kopf zum Boden, Schlund weit
   const bw = pose({ hx: 30, hy: -120, ha: -0.2, jaw: 0.4, fang: 0.6, eye: 1.2, sacGlow: 1.3, swell: 0.3, legT: 1, spT: 1 });
   const bwEnd = { ...bw, swell: 0.35, legT: 1.4, spT: 1.4 };
-  const br1 = pose({ hx: 68, hy: -42, ha: 1.05, c1x: 30, c1y: -26, c2x: -24, c2y: -26, jaw: 1, fang: 1, eye: 1.3, bx: 3, legT: 2, spT: 1.8, swell: 0 });
-  const br2 = pose({ hx: 70, hy: -38, ha: 1.1, c1x: 30, c1y: -26, c2x: -24, c2y: -28, jaw: 1, fang: 1, bx: 3, sacGlow: 1.2, legT: 2.4, spT: 2.2 });
+  const br1 = pose({ hx: 68, hy: -50, ha: 1.05, c1x: 30, c1y: -26, c2x: -24, c2y: -26, jaw: 1, fang: 1, eye: 1.3, bx: 3, legT: 2, spT: 1.8, swell: 0 });
+  const br2 = pose({ hx: 70, hy: -48, ha: 1.1, c1x: 30, c1y: -26, c2x: -24, c2y: -28, jaw: 1, fang: 1, bx: 3, sacGlow: 1.2, legT: 2.4, spT: 2.2 });
   const br3 = pose({ hx: 58, hy: -76, ha: 0.6, c1x: 30, c1y: -16, c2x: -22, c2y: 10, jaw: 0.6, bx: 1, legT: 3, spT: 2.6 });
   const brEnd = pose({ legT: 3.6, spT: 3.2 });
   // --- Wurzeln rufen (Phase 2): hoch aufbäumen, dann Kopf und Schwanz in den Boden schlagen
   const pl0 = pose({ hx: 30, hy: -130, ha: -0.3, c2x: -4, c2y: 42, jaw: 0.8, fang: 1, eye: 1.3, sacGlow: 1.3, tailY: -10, tailX: 6, legA: 0.6, legT: 1, spT: 1 });
   const pl0End = { ...pl0, hy: -132, tailY: -12, legT: 1.5, spT: 1.4 };
-  const plA = pose({ hx: 76, hy: -20, ha: 1.2, c1x: 26, c1y: -40, c2x: -20, c2y: -46, jaw: 1, fang: 1, eye: 1.4, tailY: 2, bx: 2, legA: 0.8, legT: 2, sacGlow: 1.4, spT: 1.8, shake: 1 });
+  const plA = pose({ hx: 76, hy: -34, ha: 1.2, c1x: 26, c1y: -40, c2x: -20, c2y: -46, jaw: 1, fang: 1, eye: 1.4, tailY: 2, bx: 2, legA: 0.8, legT: 2, sacGlow: 1.4, spT: 1.8, shake: 1 });
   const plB = { ...plA, jaw: 0.85, legT: 2.8, spT: 2.2, bx: 1.5, shake: 2 };
   const plC = { ...plA, jaw: 1, legT: 3.6, spT: 2.6, bx: 2.2, shake: 3 };
   const plOut = pose({ hx: 54, hy: -84, ha: 0.5, c2x: -24, c2y: 18, jaw: 0.4, legT: 4.4, spT: 3 });
@@ -419,7 +419,7 @@ export function createRotMotherSprites() {
   const d1 = pose({ hx: 28, hy: -128, ha: -0.5, c2x: -2, c2y: 42, jaw: 1, fang: 1, eye: 1.5, sacGlow: 2, swell: 0.45, legA: 1, legT: 2, spore: 1, spT: 1, shake: 2 });
   const d2 = pose({ hx: 46, hy: -104, ha: 0.2, torn: 1, swell: 0, sacGlow: 0.9, jaw: 0.8, fang: 0.6, eye: 0.8, legA: 0.8, legT: 3, legCurl: 0.2, spore: 1, spT: 1.8 });
   const d3 = pose({ hx: 70, hy: -52, ha: 0.75, c1x: 28, c1y: -30, c2x: -22, c2y: -12, torn: 1, jaw: 0.5, fang: 0.2, eye: 0.3, legCurl: 0.6, legA: 0.4, legT: 3.6, sacs: 0.6, sacGlow: 0.4, glow: 0.85, spore: 0.7, spT: 2.6, sink: 1 });
-  const d4 = pose({ hx: 84, hy: -16, ha: 0.25, c1x: 26, c1y: -26, c2x: -26, c2y: -22, torn: 1, jaw: 0.25, fang: 0, eye: 0, legCurl: 1, legA: 0, sacs: 0.5, sacGlow: 0.2, glow: 0.65, spore: 0.45, spT: 3.4, sink: 3, antA: 0 });
+  const d4 = pose({ hx: 84, hy: -28, ha: 0.25, c1x: 26, c1y: -26, c2x: -26, c2y: -22, torn: 1, jaw: 0.25, fang: 0, eye: 0, legCurl: 1, legA: 0, sacs: 0.5, sacGlow: 0.2, glow: 0.65, spore: 0.45, spT: 3.4, sink: 3, antA: 0 });
   const remains = (k) => frame({ ...d4, glow: 0.65 - 0.5 * k, spore: 0.45 * (1 - k), spT: 3.4 + k * 3, sacGlow: 0.2 * (1 - k) }, {});
 
   return {
