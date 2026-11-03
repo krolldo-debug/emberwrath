@@ -11,6 +11,9 @@ export class Camera {
     this.shakeX = 0; this.shakeY = 0;
     this.kickX = 0; this.kickY = 0;
     this.enabled = true; // Geräte-Einstellung screenShake (PlayScene setzt sie)
+    // Sichtbarer Bereich (Weltpixel { x0, y0, x1, y1 }) statt der ganzen Welt, z. B. ohne die Innenräume der Häuser
+    // (world/interiors.js). Ist er kleiner als das Bild, steht er in der Bildmitte.
+    this.bounds = null;
   }
   snapTo(tx, ty) {
     this.x = tx - CONFIG.viewWidth / 2;
@@ -32,8 +35,14 @@ export class Camera {
     this.kickX *= Math.exp(-dt * 20); this.kickY *= Math.exp(-dt * 20);
   }
   #clamp() {
-    this.x = clamp(this.x, 0, Math.max(0, this.worldW - CONFIG.viewWidth));
-    this.y = clamp(this.y, 0, Math.max(0, this.worldH - CONFIG.viewHeight));
+    const b = this.bounds, W = CONFIG.viewWidth, H = CONFIG.viewHeight;
+    if (!b) {
+      this.x = clamp(this.x, 0, Math.max(0, this.worldW - W));
+      this.y = clamp(this.y, 0, Math.max(0, this.worldH - H));
+      return;
+    }
+    this.x = b.x1 - b.x0 < W ? (b.x0 + b.x1 - W) / 2 : clamp(this.x, b.x0, b.x1 - W);
+    this.y = b.y1 - b.y0 < H ? (b.y0 + b.y1 - H) / 2 : clamp(this.y, b.y0, b.y1 - H);
   }
   // Pixelgenaue Render-Position (inkl. Shake).
   get rx() { return Math.round(this.x + this.shakeX + this.kickX); }

@@ -37,6 +37,9 @@ const LIME = ['#3a3436', '#5a5254', '#7a7272', '#9a9290', '#b8b0aa', '#d2cac0', 
 const TERRA = ['#2a140e', '#442016', '#5e2e1e', '#783c26', '#904c30', '#a8603c', '#bc7448'].map(rgb);
 const WOOL = ['#2a0e14', '#4a1820', '#6e2228', '#923232', '#2a2a4a', '#3c3c66', '#c49a4a', '#e0c070'].map(rgb);
 const SKY = ['#2a3448', '#4a6080', '#7a98b8', '#b4cce0'].map(rgb);
+// Jurte: Filz (warmes Wollweiß), Bemalung, Lehmboden
+const FELT = ['#2e2420', '#4a3a30', '#6a5644', '#8a745c', '#a89074', '#c2aa8a', '#d8c4a4'].map(rgb);
+const LOAM = ['#1c1410', '#2a1e16', '#3a2a1e', '#4a3626', '#5a4430', '#6a523a'].map(rgb);
 const VOID = rgb('#0b0910');
 const RSH = ['#120e14', '#1c1720', '#28212c', '#363040', '#463e4e', '#585060', '#6c6474'].map(rgb);
 const RCL = ['#2a0e0a', '#441812', '#5e2418', '#7a3220', '#94422a', '#ac5838', '#c4724a'].map(rgb);
@@ -269,7 +272,7 @@ function roomColor(O, px, py, tx, ty) {
     // Mauerkrone von oben: außen dunkel, innen helle Kante
     const ex = tx === O.tx ? 15 - (px & 15) : tx === O.tx + O.tw - 1 ? px & 15 : 99, ey = front ? 15 - (py & 15) : 99;
     const e = Math.min(ex, ey);
-    const P = s === 'B' ? RUB : s === 'C' ? BRK : OAK;
+    const P = s === 'B' ? RUB : s === 'C' ? BRK : s === 'F' ? FELT : OAK;
     const inner = front ? (py & 15) : (tx === O.tx ? px & 15 : 15 - (px & 15));
     if (inner > 12 && !(front && side)) return P[inner > 14 ? 6 : 5];
     if (e < 2) return P[1];
@@ -287,7 +290,14 @@ function lift(c) {
 }
 function roomFloor(O, s, px, py, fy) {
   if (O.rug && inR(O.rug, px, py)) return rugColor(O.rug, px, py);
-  if (s === 'A') {                                                  // Dielen
+  if (s === 'F') {                                                  // gestampfter Lehm mit Strohhalmen
+    const n = hash2(px >> 1, py >> 1, 1201), m = hash2(px >> 3, py >> 3, 1202);
+    let i = m < 0.3 ? 2 : 3;
+    if (n < 0.08) i--; else if (n > 0.95) i++;
+    if (((px * 3 + py * 7) % 23) === 0 && n > 0.5) return FELT[5];
+    return LOAM[i];
+  }
+  if (s === 'A' || s === 'L') {                                                  // Dielen
     const r = Math.floor((py - fy) / 5), lv = (py - fy) - r * 5, u = px + hash2(r, 0, 941) * 40 | 0, b = Math.floor(u / 34), lu = u - b * 34;
     if (lv === 0 || lu === 0) return OAK[1];
     let i = hash2(b, r, 942) < 0.3 ? 3 : hash2(b, r, 943) > 0.75 ? 5 : 4;
@@ -331,17 +341,46 @@ function backWall(O, px, py, t, lx) {
   for (const wx of O.win) {
     const cx = wx * 16 + 8, dx = px - cx;
     if (Math.abs(dx) <= 7 && t >= 17 && t <= 37) {
-      if (Math.abs(dx) >= 6 || t === 17 || t === 37) return s === 'A' ? OAK[2] : s === 'B' ? RUB[2] : LIME[2];
-      if (t === 18) return s === 'A' ? OAK[5] : LIME[5];
+      if (Math.abs(dx) >= 6 || t === 17 || t === 37) return s === 'A' || s === 'L' ? OAK[2] : s === 'B' ? RUB[2] : LIME[2];
+      if (t === 18) return s === 'A' || s === 'L' ? OAK[5] : LIME[5];
       if (s === 'B' && t > 32 && Math.abs(dx) > 5 - (37 - t)) return RUB[3];
       if (dx === 0 || t === 27) return OAK[1];                     // Sprossen
-      if (s !== 'A' && ((dx + t) & 3) === 0 && t > 18) return OAK[2];
+      if (s !== 'A' && s !== 'L' && ((dx + t) & 3) === 0 && t > 18) return OAK[2];
       return t > 31 ? SKY[3] : t > 24 ? SKY[2] : SKY[1];
     }
   }
   if (t < 2) return s === 'C' ? LIME[1] : OAK[2];                  // Fußleiste
   if (t >= 43) return t >= 46 ? OAK[1] : t >= 44 ? OAK[3] : OAK[4]; // Deckenbalken
   if (t >= 40 && (lx % 32) < 6) return OAK[2];                       // Balkenköpfe
+  if (s === 'L') {                                                  // Blockwand: liegende Rundhölzer, Ecken mit Köpfen
+    const r = Math.floor(t / 6), lv = t - r * 6, post = lx % 64;
+    if (post < 5) return post === 0 ? OAK[1] : OAK[post === 1 ? 6 : post === 4 ? 2 : 4];
+    if (lv === 0) return OAK[0];
+    if (lv === 1) return OAK[2];
+    const k = hash2((lx + r * 13) >> 4, r, 1211);
+    let i = lv < 3 ? 6 : lv < 5 ? 5 : 3;
+    if (k < 0.25) i--;
+    if (hash2(px >> 1, py, 1212) < 0.05) i--;
+    return OAK[i];
+  }
+  if (s === 'F') {                                                  // Filzwand mit Scherengitter oben und gemaltem Band
+    if (t > 34) {
+      const u = (lx + (t >> 1)) % 8, v = (lx - (t >> 1) + 64) % 8;
+      if (u === 0 || v === 0) return OAK[4];
+      return FELT[t > 40 ? 1 : 2];
+    }
+    if (t > 22 && t < 30) {
+      if (t === 23 || t === 29) return WOOL[6];
+      const m = (lx % 16) - 8, dd = Math.abs(m) + Math.abs(t - 26);
+      return dd < 3 ? WOOL[7] : dd < 4 ? WOOL[6] : (lx >> 4) & 1 ? WOOL[3] : WOOL[5];
+    }
+    const n = hash2(px >> 1, py >> 1, 1221);
+    let i = 5;
+    if ((lx % 40) < 2) i = 3;
+    if (n < 0.08) i--;
+    if (t < 3) i = 2;
+    return FELT[i];
+  }
   if (s === 'A') {
     if (t < 14) {                                                   // Täfelung
       const b = lx % 12;
@@ -591,6 +630,41 @@ export function* paintRamparts(ctx, x0, y0, cw, ch, map) {
       if (k > 0) dark(d, i, k);
     }
     if ((ly & 31) === 31) yield;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// Nur Innenräume und dunkler Bereich (gewöhnliche Außengebiete mit level.interiors, world/houses.js): malt deckend
+// über den fertigen Chunk (r = Feinraster-Faktor, je Weltpixel r × r Texel). Felsen und Boden darunter bleiben sonst
+// unberührt.
+export function* paintInteriors(ctx, x0, y0, cw, ch, map, r = 1) {
+  const R = prep(map), x1 = x0 + cw, y1 = y0 + ch;
+  const hit = (A) => A.x0 < x1 && A.x1 > x0 && A.y0 < y1 && A.y1 > y0;
+  const darks = R.darks.filter(hit);
+  if (!darks.length && !R.rooms.some(hit)) return;
+  const CW = cw * r, img = ctx.getImageData(0, 0, CW, ch * r), d = img.data;
+  for (const A of darks) {
+    const ax0 = Math.max(A.x0, x0), ax1 = Math.min(A.x1, x1), ay0 = Math.max(A.y0, y0), ay1 = Math.min(A.y1, y1);
+    for (let py = ay0; py < ay1; py++) {
+      const ty = py >> 4;
+      ST = R.stone;
+      for (let px = ax0; px < ax1; px++) {
+        const tx = px >> 4;
+        let room = null;
+        for (const O of R.rooms) if (inR(O, px, py)) { room = O; break; }
+        let c = VOID, k = 0;
+        if (room) {
+          c = roomColor(room, px, py, tx, ty);
+          if (c < 0) c = VOID;
+          if (!R.wall[ty * R.w + tx]) k = shadeAt(R, px, tx, ty, px & 15, py & 15);
+        }
+        for (let j = 0; j < r; j++) {
+          let i = (((py - y0) * r + j) * CW + (px - x0) * r) * 4;
+          for (let q = 0; q < r; q++, i += 4) { put(d, i, c); d[i + 3] = 255; if (k > 0) dark(d, i, k); }
+        }
+      }
+      if ((py & 31) === 31) yield;
+    }
   }
   ctx.putImageData(img, 0, 0);
 }
