@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from './pixelFrame.js';
 import { createSettingsSection } from './Settings.js';
 import { canFullscreen, isStandalone, isFullscreen, toggleFullscreen } from './Fullscreen.js';
 import { iconUrl } from '../gfx/Icons.js';
@@ -147,10 +148,11 @@ export function createMenuPanel(session) {
     help,
     report,
   );
+  pixelWindow(root, session.font, 'Menü', title);
   const TITLES = { main: 'Menü', settings: 'Einstellungen', help: 'Steuerung', report: 'Fehler melden' };
   function page(id) {
     root.dataset.page = id;
-    title.textContent = TITLES[id];
+    pixelWindow(root, session.font, TITLES[id], title);
     settings.classList.toggle('open', id === 'settings');
     help.classList.toggle('open', id === 'help');
     report.classList.toggle('open', id === 'report');

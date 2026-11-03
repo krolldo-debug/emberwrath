@@ -17,10 +17,12 @@ const FEATS = [
   { icon: 'gem_sapphire', title: 'Bis Stufe 50' },
 ];
 const BOSSES = [
-  { name: 'Ysgarn', make: createYsgarnSprites, x: 92 },
-  { name: 'Kaldris', make: createKaldrisSprites, x: 180 },
-  { name: 'Königin Ysmeine', make: createYsmeineSprites, x: 268, flip: true },
+  { name: 'Ysgarn', make: createYsgarnSprites, x: 214 },
+  { name: 'Kaldris', make: createKaldrisSprites, x: 286 },
+  { name: 'Königin Ysmeine', make: createYsmeineSprites, x: 372, flip: true },
 ];
+// Bühne: links oben der Schriftzug über den Reittieren, rechts die drei Bosse (Malgareth-Größe, Köpfe frei vom Schriftzug)
+const STAGE_W = 420, STAGE_H = 150;
 
 const bossFrame = (b) => { try { return b.make().idle.frames[0]; } catch { return null; } };
 const mountFrame = (content, id) => {
@@ -33,7 +35,8 @@ const at = (el, x, y) => { el.style.setProperty('--x', String(x)); el.style.setP
 // Bildschirmpixel je Weltpixel: ein Feinpixel (halber Weltpixel) fällt auf ganze Gerätepixel.
 // Groß etwa 2 CSS-Pixel je Weltpixel, niedrige Fenster (Handy quer) etwa 1,4.
 function artScale() {
-  const dpr = window.devicePixelRatio || 1, want = window.innerHeight < 520 ? 1.4 : 2;
+  const dpr = window.devicePixelRatio || 1;
+  const want = Math.min(window.innerHeight < 520 ? 1.4 : 2, (window.innerWidth - 48) / STAGE_W);
   const k = Math.max(1, Math.round((want * dpr) / R));
   return (R * k) / dpr;
 }
@@ -42,11 +45,11 @@ function artScale() {
 let stage = null;
 function stageCanvas(content) {
   if (stage) return stage;
-  const v = vistaStage(360, 150);
-  BOSSES.forEach((b) => drawFigure(v.canvas, bossFrame(b), b.x, v.groundY + 2, { flip: !!b.flip }));
-  drawFigure(v.canvas, mountFrame(content, 'sky_ray'), 318, 58, { flip: true });
-  drawFigure(v.canvas, mountFrame(content, 'moon_lynx'), 26, v.groundY + 6);
-  drawFigure(v.canvas, mountFrame(content, 'crystal_ram'), 336, v.groundY + 6, { flip: true });
+  const v = vistaStage(STAGE_W, STAGE_H);
+  drawFigure(v.canvas, mountFrame(content, 'sky_ray'), 128, 84);
+  drawFigure(v.canvas, mountFrame(content, 'moon_lynx'), 40, v.groundY + 6);
+  drawFigure(v.canvas, mountFrame(content, 'crystal_ram'), 112, v.groundY + 6, { flip: true });
+  BOSSES.forEach((b) => drawFigure(v.canvas, bossFrame(b), b.x, v.groundY + 5, { flip: !!b.flip }));
   stage = v;
   return v;
 }
@@ -75,7 +78,7 @@ export function teaserPanel(session, prefs) {
     h('button.ts-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: close }, '✕'),
     h('div.ts-stage', pic,
       h('div.ts-markwrap', word, h('span.ts-soon', 'Bald')),
-      BOSSES.map((b) => at(h('span.ts-name', b.name), b.x, v.groundY + 6))),
+      BOSSES.map((b) => at(h('span.ts-name', b.name), b.x, v.groundY + 7))),
     h('div.ts-band',
       h('p.ts-lead', 'Über der Glutöde reißt der Himmel auf. Dahinter treiben Inseln im Morgenlicht, und über Sternhafen brennt ein Stern, der nie erlischt.'),
       h('ul.ts-chips', FEATS.map((f) => h('li', iconEl(f.icon, 20), h('span', f.title))))),

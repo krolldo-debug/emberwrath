@@ -5,17 +5,20 @@ import { SETS } from './sets.js';
 import { RARITIES, ITEMS, EQUIP_SLOTS, EQUIP_SLOT_NAMES, STAT_ORDER, STAT_NAMES, formatStat, formatStatDelta, equipSlotFor, canUseClass, typeLabel, itemScore } from './items.js';
 import { RARE_ENEMIES } from './rares.js';
 import { fmtNum } from '../i18n/index.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 
 // Bausteine für die HTML-Panels von Thread C (Inventar, Charakter, Quests, Händler, Schmiede).
 // Nur Darstellung: Aktionen laufen als Commands über den Aufrufer.
 
+// Alle Fenster im einheitlichen Pixelrahmen mit Pixeltitel (ui/pixelFrame.js, 03.11.)
 export function panelFrame(session, id, title, ...body) {
-  return h(`div.ef-panel.pg-panel.pg-${id}`, { role: 'dialog', 'aria-label': title },
+  const el = h(`div.ef-panel.pg-panel.pg-${id}`, { role: 'dialog', 'aria-label': title },
     h('header.pg-head',
       h('h2.pg-title', title),
       h('button.pg-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: () => session.panels.close() }, '✕'),
     ),
     ...body);
+  return pixelWindow(el, session.font, title, el.querySelector('.pg-title'));
 }
 
 export function goldEl(amount, cls = '') {

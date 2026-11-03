@@ -47,14 +47,16 @@ export function buildRankengruft() {
   // C Gruftreihen: zwei Reihen Särge, Dornenpriesterinnen
   each([[37, 26], [43, 26], [49, 26], [55, 26], [37, 31], [43, 31], [49, 31], [55, 31]], (x, y) => put(x, y, 'K'));
   put(35, 28, 'H'); put(60, 30, 'H'); put(59, 25, 'y');
-  each([[40, 28], [46, 29], [52, 28], [58, 28]], (x, y, i) => put(x, y, i % 2 ? 'p' : 'r'));
+  // Vier Dornenpriesterinnen in den Gruftreihen, zwei weitere in Wurzel- und Samenkammer: „Samen der Gruft“ (4 Samen,
+  // 90 %) muss in einem Lauf klappen, Gegner kommen im Dungeon nicht wieder
+  each([[40, 28], [46, 29], [52, 28], [58, 28]], (x, y) => put(x, y, 'p'));
   put(46, 25, 'v'); put(52, 32, 'w');
   for (let x = 40; x <= 42; x++) put(x, 38, 'G');
   // D Wurzelkammer
   put(4, 22, 'o'); put(14, 31, 'o'); put(5, 30, 'H'); put(13, 23, 'X'); put(8, 26, 'L');
-  put(6, 24, 'r'); put(12, 28, 'r'); put(9, 30, 'v');
+  put(6, 24, 'r'); put(12, 28, 'p'); put(9, 30, 'v');
   // Samenkammer: Truhe, Statue, Leuchtblüten, eingeschlafener Wächter
-  put(27, 25, 'C'); put(21, 25, 'S'); put(24, 29, 'L'); put(28, 29, 'X'); put(23, 27, 'g');
+  put(27, 25, 'C'); put(21, 25, 'S'); put(24, 29, 'L'); put(28, 29, 'X'); put(23, 27, 'g'); put(25, 27, 'p');
   // G Herzgarten: Herzknospe im Norden, Säulenkranz, Dornendickicht
   put(30, 41, 'Q');
   each([[16, 41], [43, 41], [16, 51], [43, 51]], (x, y) => put(x, y, 'I'));
@@ -119,12 +121,13 @@ export function buildGlassHalls() {
   put(5, 5, 'I'); put(16, 5, 'I'); put(5, 11, 'L'); put(16, 11, 'L'); put(8, 10, 'o');
   // B Halle der Gefangenen: zwei Reihen Gläserner Gefangener, einige erwachen
   each([[24, 5], [29, 5], [34, 5], [39, 5], [24, 13], [29, 13], [34, 13], [39, 13]], (x, y) => put(x, y, 'F'));
-  each([[27, 9], [32, 8], [37, 10]], (x, y) => put(x, y, 's'));
+  // Neun Statuengeister im Dungeon (5 hier, je 2 in Galerie und Abgrundsaal): „Gläserne Gefangene“ verlangt 8 in einem Lauf
+  each([[27, 9], [32, 8], [37, 10], [25, 9], [30, 10]], (x, y) => put(x, y, 's'));
   put(32, 11, 'e'); put(41, 9, 'X'); put(23, 9, 'X');
   // C Spiegelgalerie
   each([[50, 6], [57, 6], [50, 12], [57, 12], [50, 18], [57, 18]], (x, y) => put(x, y, 'M'));
   each([[53, 9], [54, 15], [53, 21]], (x, y, i) => put(x, y, i % 2 ? 'e' : 'f'));
-  put(55, 24, 'a'); put(52, 24, 'a'); put(54, 4, 'L'); put(61, 25, 'C');
+  put(55, 24, 'a'); put(52, 24, 'a'); put(54, 4, 'L'); put(61, 25, 'C'); put(57, 9, 's'); put(52, 15, 's');
   // D Prismensaal: Prismenlampen ums Becken
   each([[45, 35], [57, 35], [45, 41], [57, 41]], (x, y) => put(x, y, 'L'));
   put(41, 33, 'I'); put(60, 33, 'I'); put(41, 42, 'V'); put(60, 42, 'V');
@@ -132,7 +135,7 @@ export function buildGlassHalls() {
   put(58, 38, 'a');
   // E Abgrundsaal: Brücke mit Krabblern, Kristalle am Rand
   each([[11, 31], [17, 31], [23, 31]], (x, y) => put(x, y, 'a'));
-  put(5, 25, 'o'); put(28, 25, 'o'); put(5, 37, 'X'); put(28, 37, 'V'); put(26, 36, 's'); put(8, 36, 'f');
+  put(5, 25, 'o'); put(28, 25, 'o'); put(5, 37, 'X'); put(28, 37, 'V'); put(26, 36, 's'); put(8, 36, 'f'); put(6, 27, 's');
   put(7, 26, 'F'); put(25, 26, 'F');
   for (let x = 16; x <= 18; x++) put(x, 44, 'G');
   // Schatzkammer

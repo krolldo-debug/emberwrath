@@ -36,43 +36,49 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   `kampf-<klasse>-1…4.webp` (je eine Fähigkeit, Reihenfolge wie auf der Seite). site.js spielt Kampf → Ruhe → reihum eine Fähigkeit
   (oder die angeklickte); die Bildzahlen stehen in `data-n` an `.fight` (Ausgabe des Skripts). Erdspalter bekommt einen
   glühenden Bodenriss (das Spiel brennt ihn nur in die Bodenebene, die hier nicht mitgezeichnet wird).
-- Bosskino (`tools/bosskino.mjs` ruft `tools/bosskino.py`, je Boss ein Modul `tools/bosskino_<boss>.py`; gezeichnet von
-  `bosskino.js`): eine breite Bühne im Stil des Titelbilds, Szene 560 × 216 Szenenpixel, Figur und Ebenen 1:1, ganzzahlig in
-  Gerätepixeln vergrößert, Ebenen (fern, mitte, boden, vorn, je mit Leuchtebene in harten Stufen) verschieben sich nur in ganzen
-  Szenenpixeln. Jeder Boss ist eigene Pixel-Art (Farben nach den Boss-Sprites des Spiels in `src/sprites/`), gezeichnet aus Teilen
-  mit 4-Ton-Rampen, Umriss und Randlicht, Blick nach links. Ruhe als Teile mit eigenen Zyklen (Atem, Flammen, Umhang …), die Attacke
-  als ganze Bilder (Ausholen, Halten, Einschlag mit 1-px-Erschütterung, Nachklang); Warnfläche, Fugenwelle, Feuerwand, Geisterflammen,
-  Wurzeldornen, Sporenwolken und Eiszapfen als Bildfolgen und Ereignisse relativ zum Einschlag. Ziel der Attacke ist ein Held:
-  die echte Spielfigur (Krieger im Ritterharnisch, `tools/bosskino-held.mjs` rendert sie mit getHeroSprites, RES 2, nach
-  `tools/bosskino-held.png`/`.json`; Server im Repo-Ordner, danach bosskino.mjs neu), 1 Weltpixel = 1 Szenenpixel wie die
-  Reittier-Parade, dem Boss gegenüber (Fußpunkt je Boss in `HELD` in bosskino.py, im Bildausschnitt auch am Handy). Er zeigt nur
-  die Kampfhaltung des Spiels, beim Treffer einen harten Blitz in den Glutstufen des Bosses und die Trefferbilder (kurz zurück; in der
-  Handy-Bühne mit 1 Gerätepixel je Feinpixel nur der Held ganzzahlig ×2, Fußpunkt gleich), kein Sterben, keine Zahlen
-  oder Leisten; Feuer- und Wasserwand rollen über ihn, ihre Spur brennt hinter ihm, Skalvyrs großer Zapfen schlägt bei ihm ein. Je Boss ein verlustfreier Atlas
-  `bosskino-<boss>.webp`; Rechtecke, Bildfolgen und Zeiten schreibt das Werkzeug in den Block `<bosskino.mjs>` in `bosskino.js`
-  (ein Teillauf ersetzt nur die genannten Bosse). `bosskino.webp` ist das Standbild (Malgareth, ohne JS und bei reduzierter
-  Bewegung; dort wechselt ein Klick das Standbild). bosskino.js wechselt alle 9–10 s den Boss (Blöcke zerfallen von unten mit
-  glühender Kante), Auswahl als ARIA-Tabs (Klick, Pfeiltasten, Pos1/Ende), Fortschrittslinie unter dem aktiven Boss; lädt die
-  Atlanten erst kurz vor Sichtbarkeit, läuft nur, solange sichtbar, nicht bei Datensparmodus.
+- Bosskino (Abschnitt #bosse, `bosskino.js`): echte Bosskämpfe aus dem Spiel als Film, fünf Bosse (Nerith, Ignaroth, Mutter
+  Fäulnis, Skalvyr, Malgareth). `tools/bossfilm.mjs` nimmt je Boss 40 s auf (Server im Repo-Ordner mit dem Spielstand, der gezeigt
+  werden soll): Held (Krieger), Waldläuferin und Zwergenkrieger fest vor dem Boss, die Spielschleife steht, je Bild genau 60/15
+  Logikschritte, ruhiges Licht (kein Flackern), Warnflächen, Schadenszahlen, Namensschilder, Lebensbalken, Pfeilregen-Ring und
+  Nachbilder ausgeblendet, Bosseffekte bleiben. `tools/bossfilm.py` wählt je Boss die 7 s mit den meisten Bosseffekten
+  (oder `boss=startbild`), schneidet 704 × 352 Feinpixel zwischen Gruppe und Boss und schreibt `bosskampf-<boss>.mp4`
+  (H.264, ×2 nächster Nachbar, 4:2:0, also ein Farbwert je Feinpixel), `bosskampf-<boss>.webm` (VP9, für Browser ohne H.264)
+  und das verlustfreie Standbild `bosskampf-<boss>.webp` (ohne JS, reduzierte Bewegung, Datensparmodus) sowie den Block
+  `<bossfilm.py>` in `bosskino.js` (Maße, Reihenfolge, Version für `?v=`). bosskino.js zeigt den Film in ganzen Gerätepixeln
+  je Feinpixel (nach der Breite; höher als 85 % des Fensters wird oben und unten bis zu einem Fünftel beschnitten, Handy hoch
+  ×2 und seitlich beschnitten), lädt ihn erst kurz vor Sichtbarkeit, spielt nur sichtbar und wechselt nach jedem Film zum
+  nächsten Boss; Auswahl als ARIA-Tabs (Klick, Pfeiltasten, Pos1/Ende), Fortschrittslinie über dem aktiven Boss.
 - Reittier-Parade (`tools/reittiere-gang.mjs`, Maße in `tools/reittiere-gang.json`): `gang-<reittier>.webp` je Gangart (Galopp, Sprung,
   Trab, Flug …), Sprunghöhe je Bild in `data-l`; Boden aus Steppenkacheln in zwei Ebenen `parade-nah.webp` und `parade-fern.webp`
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
   der Namensliste (Breite, Höhe, Fuß x/y, Bilder, fps, Flughöhe, Tempo); site.js zeichnet die Parade in ganzen Bildschirmpunkten,
   die Kamera zieht mit, unter der Bühne steht der Name des Tiers in der Mitte.
-- Titelbild „Aufbruch zum Aschethron“ (`tools/titel-held.mjs` mit `tools/titel-held.py`, gezeichnet von `titel.js`): eine
-  Pixelgröße für alles – Szene 640 × 272 Szenenpixel, jede Ebene und der Held 1:1, ganzzahlig vergrößert, keine Ebene skaliert
-  oder verzerrt. Held als eigene Pixel-Art (Rüstung des Aschenfürsten und Zweihänder Königsfall, Farben aus `character/gearLook.js`),
-  Kruste und Lavastrom aus den Lava-Generatoren des Spiels, Aschethron als gezeichneter Schattenriss. Ebenen
-  `titel-fern/-strom/-mitte/-nah` (je mit `-glut`), Held in Ruhe aus `titel-held-umhang` (8 Bilder), `-koerper` (Atem, 6),
-  `-flamme` (6) und `-klinge`, Momente als ganze Bilder in `titel-held-momente`, Glutwelle des Erdspalters `titel-welle` (Bildfolge über
-  die Fugen der Kruste). Bildfolgen, Dauern, Treffer und Maße schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
-  `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter Bewegung). titel.js legt es pixelgenau
-  aus, verschiebt Ebenen nur in ganzen Szenenpixeln (Schweben, Maus) und zeigt alle 6–8 s abwechselnd Erdspalter (Ausholen,
-  Halten, Einschlag mit Erschütterung, Glutwelle über die Fugen, Staub, Funken) und Schlachtruf (Klinge hoch, Kopf in den
-  Nacken, Umhang weht auf, Funkenring, Feuerschalen lodern);
+- Titelbild „Der Himmel reißt auf“ (`tools/titel-riss.mjs` mit `tools/titel-riss.py` und `tools/titel_kit.py`, gezeichnet von
+  `titel.js`): Nacht über der Glutöde, über dem Aschethron reißt der Himmel auf und zeigt die Inseln der Sternenglut im
+  Morgenlicht, die vier Klassen stehen auf einer Felsnase davor. Eine Pixelgröße für alles – Szene 640 × 272 Szenenpixel
+  (×2 Feinraster), Ebenen ganzzahlig vergrößert, keine Ebene skaliert oder verzerrt, harte Rampen mit Bayer-Raster.
+  Die Helden sind die echten Spielfiguren (getHeroSprites, Feinraster, Endgame-Ausrüstung) mit Ruhe und je einem Moment.
+  Ebenen `titel-himmel`, `titel-riss` (8 Bilder: Wolken ziehen, Sterne funkeln, Inseln schweben, Rand pulsiert),
+  `titel-fern` (+`-glut`, Aschethron mit Fenstern), `titel-ebene` (4 Bilder, Lavastrom fließt), `titel-fels` (+`-glut`),
+  `titel-helden` (Streifen je Held). Maße, Bildzahlen und die Kante der Felsnase schreibt das Werkzeug in den Block
+  `<titel-riss.mjs>` in `titel.js`. `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter
+  Bewegung). titel.js legt es pixelgenau aus, verschiebt Ebenen nur in ganzen Feinpixeln (Tiefenstaffelung), lässt den Riss
+  alle ~13 s aufflammen (Sternenstaub fällt) und zeigt reihum alle 5–7 s einen Moment: Erdspalter des Kriegers (Glutwelle die
+  Kante entlang, Erschütterung), Feuerball der Magierin zum Riss, Pfeilhagel der Waldläuferin, Ausfall des Schurken;
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
-- Vorschaubild beim Teilen (`og-teilen.png`, 1200 × 630, auf allen Seiten und Sprachfassungen als og:image und twitter:image): `tools/og.py`
-  aus den Paradestreifen. Neues Motiv = neuer Dateiname, sonst zeigen Messenger das alte Bild aus ihrem Zwischenspeicher.
+- „Bald“-Abschnitt Sternenglut auf der Startseite (`tools/sterne.mjs` mit `tools/sterne.py`, gezeichnet von `sterne.js`):
+  Bühne aus der Ankündigung im Spiel (src/teaser/art.js, Morgenschimmer), davor Ysgarn, Kaldris und Königin Ysmeine als
+  Schattenrisse mit Randlicht; reihum enthüllt ein Lichtstreif einen Boss (Name darunter hebt sich), Sterne funkeln,
+  Blüten treiben. `teaser-bosse` hat je Boss drei Zeilen (hell, Schatten, Lichtkante), `teaser.webp` ist das Standbild.
+  Schriftzug STERNENGLUT in allen Sprachen gleich. Wenn die Erweiterung offen ist (STARS_PUBLIC), Abschnitt umstellen.
+- Karte der Seite Welt (`tools/atlas.mjs` mit `tools/atlas.py`, gezeichnet von `atlas.js`): die echten Gebietskarten des
+  Spiels (ui/MapArt.js, 3 Bildpunkte je Kachel) als Blätter in Reiseordnung, verbunden durch einen Glutpfad; unter dem
+  Aschethron ein Riss, dahinter die Sternenglut hinter einem Schleier („Bald“). `atlas.webp` (1000 Bildpunkte breit) wird
+  in ganzen Gerätepixeln je Bildpunkt gezeigt. atlas.js lässt den Pfad beim Scrollen aufglühen, setzt Glutrahmen um erreichte
+  Gebiete und lässt Sterne funkeln; die Beschriftungen (Links zu den Etappen) schreibt das Werkzeug in den Block
+  `<atlas.mjs>` in `welt.html`, Maße und Pfad in den Block `<atlas.mjs>` in `atlas.js`.
+- Vorschaubild beim Teilen (`og-riss.png`, 1200 × 630, auf allen Seiten und Sprachfassungen als og:image und twitter:image): `tools/og.py`
+  aus dem Titelbild (Riss, Aschethron, Gruppe am Glutpfad, Feinraster ×2, Logo ×3). Neues Motiv = neuer Dateiname, sonst zeigen Messenger das alte Bild aus ihrem Zwischenspeicher.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
 - Seite /welt („Von der Glutsenke zum Aschethron“, `welt.html`, `welt.css`, `welt.js`): ein Weg von Stufe 1 bis 40 mit
   Stufenschildern (welt.js füllt die Spur und schaltet erreichte Schilder um), sechs Etappen abwechselnd links und rechts,
@@ -108,10 +114,13 @@ node site/tools/keyart.mjs ka [ids]              # Streifen (kampf-*.webp): fest
                                                    # ausgeblendet, Gegenlicht, Farbgebung eingerechnet
 node site/tools/render-assets.mjs /tmp/assets       # Posen auswählen und nach site/img kopieren
 node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähigkeiten (Bildzahlen → data-n in index.html)
-node site/tools/bosskino.mjs [malgareth,faeulnis,skalvyr]  # Bosskino: Atlanten, Standbild, Block in bosskino.js (Pillow, numpy)
+node site/tools/bossfilm.mjs bf [bosse] http://localhost:8103/index.html   # Bosskino: Aufnahmen (PNG je Bild, meta.json)
+python3 site/tools/bossfilm.py bf [boss=startbild …]                       # Bosskino: Schnitt, Filme, Standbilder, Block in bosskino.js (ffmpeg)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
-node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)
+node site/tools/titel-riss.mjs                     # Titelbild (Server im Repo-Ordner auf :8102; ruft titel-riss.py)
+node site/tools/atlas.mjs                          # Karte auf /welt (Server im Repo-Ordner auf :8102; ruft atlas.py)
+node site/tools/sterne.mjs                         # „Bald“-Abschnitt Sternenglut (Server auf :8102; ruft sterne.py)
 node site/tools/welt.mjs wl aufbruch,arena,ignaroth # Szenen auf /welt (Ids ohne „welt-“)
 node site/tools/bossfiguren.mjs site/img          # Bossfiguren der Dungeon-Marken auf /welt
 ```

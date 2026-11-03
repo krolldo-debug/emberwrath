@@ -555,6 +555,8 @@ const CHIT = ['#08060a', '#100c12', '#19141c', '#241c28', '#332836', '#46384a', 
 const CHIT_D = ['#060508', '#0d0a0f', '#151118', '#1e1822', '#2a222e'];
 const BELLY_B = ['#2a0c06', '#4a160a', '#72240c', '#9c3a12', '#c4561a'];
 const MAND = ['#1a100a', '#3a2412', '#5e3c1e', '#8a5e30', '#b08048'];
+// nahe Beine: Chitin wie der Panzer (vorher Mandibelbraun, las sich als helles Strichgewirr unter dem Körper)
+const NL = ['#0b080d', '#1c1520', '#2c2232', '#463848', '#76647e'];
 const B_REST = {
   t: 0, amp: 0, bob: 0, pitch: 0, lunge: 0, jaw: 0.15, wing: 0, heat: 0.5, ant: 0, sink: 0,
   eye: 1, crouch: 0, reach: 0, scrab: 0, shake: 0,
@@ -562,10 +564,11 @@ const B_REST = {
 const bpose = (o = {}) => ({ ...B_REST, ...o });
 
 // Risse auf den Deckflügeln (lokale Koordinaten, Mitte = 0/0)
+// Ein durchgehender Längsriss mit kurzen Verästelungen (vorher drei Zickzackhaken, lasen sich als Zeichen)
 const B_CRACKS = [
-  [[-5, -1], [-3, 0], [-1, -1]],
-  [[0, 1], [2, 0], [3, 1]],
-  [[-2, -3], [0, -2]],
+  [[2.8, -2.6], [1.2, -1.4], [-0.6, -1.1], [-2.4, 0.2], [-4.6, 0.8]],
+  [[-0.6, -1.1], [-1.6, -2.6]],
+  [[-2.4, 0.2], [-2.1, 1.9]],
 ];
 
 function drawBeetle(p, g, P, X) {
@@ -594,22 +597,22 @@ function drawBeetle(p, g, P, X) {
     fy = Math.min(fy, gy);
     const kx = hip.x + (fx - hip.x) * 0.5 + (i === 0 ? -0.8 : i === 2 ? 0.8 : 0);
     const ky = Math.min(hip.y, fy) - 1.4 + (near ? 0 : 0.5);
-    const c1 = near ? MAND[2] : CHIT[3], c2 = near ? MAND[1] : CHIT[2];
+    const c1 = near ? NL[2] : CHIT[3], c2 = near ? NL[1] : CHIT[2];
     p.line(hip.x, hip.y, kx, ky, c2);
     p.line(kx, ky, fx, fy, c1);
-    p.px(kx, ky, near ? MAND[3] : CHIT[4]);
-    p.px(fx + (i === 0 ? -1 : 1), fy, near ? MAND[1] : CHIT[1]);
+    p.px(kx, ky, near ? NL[3] : CHIT[4]);
+    p.px(fx + (i === 0 ? -1 : 1), fy, near ? NL[1] : CHIT[1]);
     if (p.fine) {
       // Handfein: Glanzkante auf Schenkel und Schiene, Gelenkpunkt, Dornen an der Schiene, Klaue
       const kxc = Math.round(kx) + 0.5, kyc = Math.round(ky) + 0.5;
-      if (near) p.fline(hip.x + (kxc - hip.x) * 0.35, hip.y + (kyc - hip.y) * 0.35 - 0.3, kxc - 0.2, kyc - 0.4, MAND[3]);
-      p.fline(kxc + 0.2, kyc - 0.1, kxc + (fx - kxc) * 0.4 + 0.2, kyc + (fy - kyc) * 0.4, near ? MAND[4] : CHIT[4]);
-      p.dot(kxc - 0.2, kyc - 0.2, near ? MAND[4] : CHIT[6]);
+      if (near) p.fline(hip.x + (kxc - hip.x) * 0.35, hip.y + (kyc - hip.y) * 0.35 - 0.3, kxc - 0.2, kyc - 0.4, NL[3]);
+      p.fline(kxc + 0.2, kyc - 0.1, kxc + (fx - kxc) * 0.4 + 0.2, kyc + (fy - kyc) * 0.4, near ? NL[4] : CHIT[4]);
+      p.dot(kxc - 0.2, kyc - 0.2, near ? NL[4] : CHIT[6]);
       for (const t of [0.35, 0.65]) {
         const sx = kxc + (fx + 0.5 - kxc) * t, sy = kyc + (fy + 0.5 - kyc) * t;
-        p.dot(sx + (i === 0 ? -0.5 : 0.5), sy - 0.2, near ? MAND[1] : CHIT[1]);
+        p.dot(sx + (i === 0 ? -0.5 : 0.5), sy - 0.2, near ? NL[1] : CHIT[1]);
       }
-      p.dot(Math.round(fx + (i === 0 ? -1 : 1)) + (i === 0 ? 0.2 : 0.8), Math.round(fy) + 0.8, near ? MAND[0] : CHIT[0]);
+      p.dot(Math.round(fx + (i === 0 ? -1 : 1)) + (i === 0 ? 0.2 : 0.8), Math.round(fy) + 0.8, near ? NL[0] : CHIT[0]);
     }
   };
   for (let i = 0; i < 3; i++) leg(i, false);

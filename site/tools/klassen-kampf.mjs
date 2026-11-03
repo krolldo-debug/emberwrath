@@ -20,7 +20,7 @@ const CLASSES = {
   ranger: { foeType: 'skeleton', foe: true, foeIdle: [0, 0, 2, 0], foeIdleFps: 4, dist: 52, box: BOX, race: 'elf', gear: ['dawnstring', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], frames: 30, plan: [[0, 'attack'], [4, 'skill2'], [12, 'skill1'], [20, 'skill4']] },
   mage: { foeType: 'temple_guardian', foe: true, dist: 50, box: BOX, race: 'elf', gear: ['staff_of_last_ash', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], frames: 30, plan: [[0, 'attack'], [5, 'attack'], [10, 'skill3'], [18, 'skill4']] },
 };
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const meta = {};
 for (const [cls, c] of Object.entries(CLASSES).filter(([k]) => !only || only.split(',').includes(k))) {
   const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 } });

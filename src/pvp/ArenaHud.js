@@ -1,4 +1,5 @@
 import { h, clear } from '../core/dom.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 import { fmtNum } from '../i18n/index.js';
 import { TIMING, tierOf } from './rules.js';
 import { tierEmblem } from './art.js';
@@ -44,6 +45,7 @@ export class ArenaHud {
 
     this.card = h('div.pv-result.ef-panel', { role: 'dialog', 'aria-label': 'Ergebnis' });
     this.card.hidden = true;
+    pixelWindow(this.card); // Glutrahmen wie alle Fenster (ui/pixelFrame.js)
 
     root.append(this.pill, this.top, this.count, this.card);
     this.offs = [pvp.game.bus.on('pvp:changed', () => this.#state())];
@@ -134,7 +136,7 @@ export class ArenaHud {
     } else if (e.pending) rows.push(h('div.pv-rating.pending', '…'));
     if (e.gold > 0) rows.push(h('div.pv-gold', `+${fmtNum(e.gold)} Gold`));
     const why = REASON[e.reason];
-    this.card.className = `pv-result ef-panel ${res}`;
+    this.card.className = `pv-result ef-panel ef-pxwin ${res}`;
     this.card.append(...[
       h('h2.pv-title', TITLE[res] ?? TITLE.void),
       why && res !== 'loss' ? h('p.pv-why', why) : null,

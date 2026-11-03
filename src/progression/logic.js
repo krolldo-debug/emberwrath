@@ -221,7 +221,14 @@ function refreshQuests(s, ctx) {
       setProgress(ctx, questId, a, o, v);
     }
     const done = def.objectives.every((o) => (a.progress[o.id] ?? 0) >= o.count);
-    if (done && a.status === 'active') { a.status = 'ready'; ctx.bus.emit(EV.QUEST_READY, { questId }); }
+    if (done && a.status === 'active') {
+      a.status = 'ready'; ctx.bus.emit(EV.QUEST_READY, { questId });
+      // Glutspur: erst die offenen Ziele in der Nähe, dann zurück zum Questgeber (autoQuestId), außer selbst gewählt.
+      // Nicht im Dungeon: Dort führt die fertige Quest wie bisher hinaus (sonst schickte die Glutspur Stufe-4-Helden
+      // nach „Unter der Glutsenke“ gleich weiter zu Varkhul, Stufe 6).
+      const inside = !!ctx.content.find('zone', s.slices.world?.zoneId)?.instanced;
+      if (q.tracked === questId && !q.pinned && !inside) setTracked(s, ctx, autoQuestId(s, ctx.content));
+    }
     else if (!done && a.status === 'ready') a.status = 'active';
   }
 }
@@ -614,7 +621,7 @@ export function registerProgressionState(state, { rng = Math.random, roll = null
     // Neu freigeschaltete Quests ansagen (Nebenquests und Kopfgelder sollen auffallen)
     if (!quest.repeatable) {
       const fresh = ctx.content.all('quest').filter((x) => !availBefore.has(x.id) && questStatus(s, ctx.content, x.id) === 'available');
-      for (const x of fresh.slice(0, 3)) ctx.bus.emit(EV.UI_TOAST, { text: `Neue ${x.repeatable ? 'Kopfgeldquest' : x.main ? 'Quest' : 'Nebenquest'}: ${x.title} – ${npcShortName(ctx.content, x.giver)}`, kind: 'quest', icon: x.repeatable ? 'letter' : 'scroll' });
+      for (const x of fresh.slice(0, 3)) ctx.bus.emit(EV.UI_TOAST, { text: `Neue ${x.repeatable ? 'Kopfgeldquest' : x.main ? 'Quest' : 'Nebenquest'}: ${x.title} – ${npcShortName(ctx.content, x.giver)}`, kind: 'quest', icon: x.repeatable ? 'letter' : 'scroll', questId: x.id });
     }
     return { ok: true, rewards: { ...rewards, items }, overflow };
   }, auth);

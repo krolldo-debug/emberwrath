@@ -313,18 +313,25 @@ export class Party {
   }
 
   // Tod und Wiederaufstehen: Wer fällt, steht nach dem Kampf wieder auf. Solange ein Söldner noch kämpft,
-  // wartet der eigene Held auf das Kampfende statt am Eingang neu zu erscheinen. Fallen alle, gilt die normale
-  // Wiederbelebung (am Friedhof außerhalb), und die Gruppe löst sich auf.
+  // wartet der eigene Held auf das Kampfende statt am Eingang neu zu erscheinen – mitten im Kampf hilft ihm ein
+  // Söldner nach FINDER_CONFIG.combatRevive.after Sekunden wieder auf (höchstens alle cooldown Sekunden), damit
+  // niemand minutenlang zuschaut, wie die Gruppe ohne ihn verliert. Fallen alle, gilt die normale Wiederbelebung
+  // (am Eingang bzw. Friedhof), und der Boss setzt sich zurück.
   #lifeAndDeath(dt) {
     const s = this.session, h = this.player;
     const botsAlive = this.bots.some((b) => !b.dead);
-    const after = FINDER_CONFIG.reviveAfter;
+    const after = FINDER_CONFIG.reviveAfter, rez = FINDER_CONFIG.combatRevive;
+    h.partyRezSoon = false;
     if (h.dead && botsAlive) {
       s.deadTime = Math.min(s.deadTime ?? 0, 1);
       h.partyDown = (h.partyDown ?? 0) + dt;
-      if (this.ooc > after && h.partyDown > after) {
+      const rezReady = !!rez && this.inCombat && this.t - (this.lastRez ?? -1e9) > rez.cooldown;
+      h.partyRezSoon = rezReady;
+      if ((this.ooc > after && h.partyDown > after) || (rezReady && h.partyDown > rez.after)) {
+        if (this.inCombat) this.lastRez = this.t;
         h.partyDown = 0;
-        h.revive(FINDER_CONFIG.reviveHp);
+        h.revive(this.inCombat ? rez.hp : FINDER_CONFIG.reviveHp);
+        if (this.inCombat) h.invuln = Math.max(h.invuln ?? 0, rez.invuln ?? 2);
         s.deadTime = 0;
         this.world.bus.emit('aura', { actor: h, element: 'holy' });
         this.world.bus.emit(EV.PLAYER_RESPAWNED, { zoneId: this.world.zone.id, spawnId: null, inPlace: true });

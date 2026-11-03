@@ -25,7 +25,7 @@ const TMP = join(process.env.ZWISCHEN ?? '/tmp', 'parade-boden');
 mkdirSync(TMP, { recursive: true });
 const RES = 2, W = 512, NH = 40, FH = 28, LAUF = 10, UEBERLAPP = 4;
 
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage();
 p.on('pageerror', (e) => console.log('ERR', e.message));
 await p.route(`${BASE}/__leer`, (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><meta charset="utf-8">' }));

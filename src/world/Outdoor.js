@@ -5,6 +5,7 @@ import { TileMap } from './TileMap.js';
 import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, FINE_GROUND, createCliffTiles, FK } from '../sprites/outdoor.js';
 import { fineRes } from '../gfx/Fine.js';
 import { bridgePainter } from '../sprites/ground/bridges.js';
+import { paintInteriors } from '../sprites/ground/ramparts.js';
 import { GROUND_STEPPE } from '../sprites/decor_steppe.js';
 import { GROUND_MARSH } from '../sprites/decor_marsh.js';
 import { GROUND_FROST } from '../sprites/decor_frost.js';
@@ -343,6 +344,8 @@ export class Outdoor extends TileMap {
     this.organic = ORGANIC_CLIFFS.has(biome) || this.basalt;
     // level.paintedCliffs: das Biom malt seine Felsen selbst (pal.paintCliffs je Chunk), keine Kachelklippen
     this.painter = this.level.paintedCliffs && typeof this.pal.paintCliffs === 'function' ? this.pal.paintCliffs : null;
+    // Begehbare Häuser in gewöhnlichen Außengebieten (world/houses.js): Innenräume deckend über den fertigen Chunk
+    this.roomPainter = !this.painter && this.level.interiors?.length ? paintInteriors : null;
     this.fiss = (this.level.fissures ?? []).map((line) => this.#fissureGeom(line));
     if (this.isl) this.#prepareIslands();
     this.rockMask = new Uint8Array(this.w * this.h);
@@ -474,6 +477,8 @@ export class Outdoor extends TileMap {
     const w = this.w, h = this.h, I = this.isl;
     const vt = this.voidT = new Uint8Array(w * h), nv = this.nearVoid = new Uint8Array(w * h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const t = this.terrain[y][x]; vt[y * w + x] = t === I.void || t === I.bridge ? 1 : 0; }
+    // Dunkler Streifen der Innenräume (world/houses.js) zählt als Himmel: keine Inselkante am Kartenrand davor
+    if (this.roomPainter) for (const [dx, dy, dw, dh] of this.level.ramparts?.dark ?? []) for (let y = dy; y < Math.min(h, dy + dh); y++) vt.fill(1, y * w + dx, y * w + Math.min(w, dx + dw));
     const isVoid = (x, y) => x < 0 || y < 0 || x >= w || y >= h || vt[y * w + x] === 1;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       let a = 0, b = 0, br = 0;
@@ -557,6 +562,27 @@ export class Outdoor extends TileMap {
     const face = (I.cliff ?? 24) * (0.45 + 0.55 * Math.sqrt(wd)) * (0.85 + 0.3 * vnoise(px / 9, 3.5, 71));
     const keel = (I.keel ?? 64) * Math.pow(wd, 0.8) * (0.55 + 0.45 * vnoise(px / 6, 5.5, 73)) + 7 * (vnoise(px / 2.2, 7.5, 75) - 0.5) * wd;
     const dt = DITH[(G & 3) * 4 + (F & 3)] / 16;
+    // Hängeranken (pal.island.vine): von der Grasnarbe über Wand und Kiel, leicht schwingend, Blätter abwechselnd
+    // links und rechts, vereinzelt Blüten; Spalten 5 Feinpixel breit, jede vierte trägt eine Ranke
+    const V = P.vine;
+    if (V && depth > 0.6) {
+      // Grasnarbe hängt über die Kante (unregelmäßiger Saum)
+      const lip = 1.2 + vnoise(F / 3.5, 9.5, 94) * 3.2 * (hash2(F >> 3, g, 95) < 0.6 ? 1 : 0.3);
+      if (depth < lip) return depth > lip - 0.6 ? V[0] : depth < 1.1 ? V[3] : V[2];
+      const cc = Math.floor(F / 5), hv = hash2(cc, g, 91) * 0.6 + vnoise(F / 26, 3.5, 96) * 0.4;
+      if (hv > 0.7) {
+        const L = (face + keel) * (0.22 + hash2(cc, g, 92) * 0.6);
+        if (depth < L) {
+          const lx = F - cc * 5 - 2 - Math.round(Math.sin(depth * 0.32 + cc * 1.7) * 1.2), gi = Math.floor(depth * 2) + cc;
+          if (lx === 0) return depth > L - 1.5 ? V[2] : V[1];
+          if (lx === -1 || lx === 1) {
+            const ph = (gi + (lx > 0 ? 2 : 0)) % 4;
+            if (ph === 0) return V.bloom && hash2(cc, gi, 93) < 0.25 ? V.bloom : V[3];
+            if (ph === 1) return V[2];
+          }
+        }
+      }
+    }
     if (depth <= face) {
       if (depth < 0.6) return P.face[5];
       // Felsbänder, helle und dunkle Flanken, Risse; ganz unten der rosa Widerschein des Morgens
@@ -596,6 +622,14 @@ export class Outdoor extends TileMap {
       if (x > rx1 || x + b.w * T < rx0 || y > ry1 || y + 9 < ry0) continue;
       ctx.fillStyle = 'rgba(4,3,10,0.45)';
       ctx.fillRect(x, y, b.w * T, 9);
+    }
+  }
+
+  // Leuchtebene im dunklen Bereich der Innenräume leeren (Wasser-/Lavaschein am Kartenrand)
+  *#clearRooms(ectx, x0, y0, cw, ch, r) {
+    for (const [dx, dy, dw, dh] of this.level.ramparts?.dark ?? []) {
+      const a = Math.max(dx * T, x0), b = Math.min((dx + dw) * T, x0 + cw), c = Math.max(dy * T, y0), e = Math.min((dy + dh) * T, y0 + ch);
+      if (a < b && c < e) ectx.clearRect((a - x0) * r, (c - y0) * r, (b - a) * r, (e - c) * r);
     }
   }
 
@@ -644,6 +678,12 @@ export class Outdoor extends TileMap {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       yield* this.painter(ctx, x0, y0, cw, ch, this);
       ctx.translate(-x0, -y0);
+    }
+    if (this.roomPainter) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      yield* this.roomPainter(ctx, x0, y0, cw, ch, this, r);
+      if (e) { ectx.setTransform(1, 0, 0, 1, 0, 0); yield* this.#clearRooms(ectx, x0, y0, cw, ch, r); }
+      ctx.setTransform(r, 0, 0, r, -x0 * r, -y0 * r);
     }
     this.#drawBuildingShadows(ctx, x0, y0, rx1, ry1);
     ctx.setTransform(1, 0, 0, 1, 0, 0);

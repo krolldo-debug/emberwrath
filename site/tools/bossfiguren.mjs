@@ -11,7 +11,7 @@ const BOSSE = [
   ['skalvyr', '/src/sprites/frost_wyrm.js', 'createSkalvyrSprites'],
 ];
 
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.log('Fehler:', e.message));
 await p.goto(URL);

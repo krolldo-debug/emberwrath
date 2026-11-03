@@ -7,7 +7,8 @@ import { hash2 } from '../../core/math.js';
 // Mauerkrone von oben (Nord-Süd-Mauern, Zinnen an den freien Rändern). Alles Gemalte liegt in den festen Kacheln:
 // Figuren davor verdecken die Wand, Figuren dahinter stehen ganz darüber – keine Sortierfehler.
 // level.ramparts (Kacheln): stairs [[x, y, w, h]] begehbare Treppen nach Norden hinauf,
-//   floors [{ r: [x, y, w, h], k: 'flag' | 'walk' | 'herring' | 'rose' }] Beläge auf Pflaster/Sand (Gras bleibt),
+//   floors [{ r: [x, y, w, h], k: 'flag' | 'walk' | 'herring' | 'rose' | 'cobble' | 'earth' | 'gravel' | 'worn', pw? }] Beläge auf
+//   Pflaster/Sand (Gras bleibt); earth/gravel/worn = Weg mit Grasrand, pw = Wegbreite in Kacheln,
 //   quays: true = Steineinfassung an Wasserbecken ('~'), stone: 'rubble' = grauer Bruchstein statt Sternkalk.
 // Licht von oben links: Wandflächen im Halbschatten, Kronen und Gesimse hell, Schlagschatten unter und rechts
 // der Mauern (nur abdunkeln, damit die Ebene im Feinraster affin bleibt). Deterministisch aus Weltkoordinaten.
@@ -36,12 +37,19 @@ const LIME = ['#3a3436', '#5a5254', '#7a7272', '#9a9290', '#b8b0aa', '#d2cac0', 
 const TERRA = ['#2a140e', '#442016', '#5e2e1e', '#783c26', '#904c30', '#a8603c', '#bc7448'].map(rgb);
 const WOOL = ['#2a0e14', '#4a1820', '#6e2228', '#923232', '#2a2a4a', '#3c3c66', '#c49a4a', '#e0c070'].map(rgb);
 const SKY = ['#2a3448', '#4a6080', '#7a98b8', '#b4cce0'].map(rgb);
+// Jurte: Filz (warmes Wollweiß), Bemalung, Lehmboden
+const FELT = ['#2e2420', '#4a3a30', '#6a5644', '#8a745c', '#a89074', '#c2aa8a', '#d8c4a4'].map(rgb);
+const LOAM = ['#1c1410', '#2a1e16', '#3a2a1e', '#4a3626', '#5a4430', '#6a523a'].map(rgb);
 const VOID = rgb('#0b0910');
 const RSH = ['#120e14', '#1c1720', '#28212c', '#363040', '#463e4e', '#585060', '#6c6474'].map(rgb);
 const RCL = ['#2a0e0a', '#441812', '#5e2418', '#7a3220', '#94422a', '#ac5838', '#c4724a'].map(rgb);
 const RSL = ['#0e1016', '#161a24', '#202634', '#2c3444', '#3a4456', '#4c566a', '#626c80'].map(rgb);
 const LAMPW = ['#3a2614', '#d8984a', '#f6c87a'].map(rgb);
 const RDB = ['#3a2c2a', '#5a4638', '#7c6450', '#9c826a', '#b8a084'].map(rgb);
+// Wege der Altstadt: Gras am Rand, festgetretene Erde, Kies
+const GRS = ['#141c14', '#1c2a1a', '#263820', '#304628', '#3c5630', '#4a683a', '#5c7c46'].map(rgb);
+const DIRT = ['#1a1310', '#261c16', '#33261c', '#423224', '#52402e', '#64503a', '#786248'].map(rgb);
+const GRAV = ['#201c20', '#2e2a2c', '#3e3a3a', '#504a48', '#625a56', '#766c66', '#8c827a'].map(rgb);
 
 const PREP = new WeakMap();
 function prep(map) {
@@ -68,7 +76,7 @@ function prep(map) {
   }
   const rect = ([x, y, rw, rh]) => { for (let j = y; j < y + rh; j++) for (let k = x; k < x + rw; k++) mark(k, j); return { x0: x * 16, y0: y * 16, x1: (x + rw) * 16, y1: (y + rh) * 16 }; };
   const stairs = (cfg.stairs ?? []).map(rect);
-  const floors = (cfg.floors ?? []).map((f) => ({ ...rect(f.r), k: f.k }));
+  const floors = (cfg.floors ?? []).map((f) => ({ ...rect(f.r), k: f.k, pw: f.pw }));
   // Innenräume: r = Raum samt Mauern (Rückwand 3 Kacheln hoch), s = Stil, win = Fensterspalten der Rückwand, rug = Teppich
   const rooms = (cfg.rooms ?? []).map((o) => ({ ...rect(o.r), rows, tx: o.r[0], ty: o.r[1], tw: o.r[2], th: o.r[3], s: o.s ?? 'A', win: o.win ?? [], rug: o.rug ? rect(o.rug) : null }));
   const darks = (cfg.dark ?? []).map(rect);
@@ -264,7 +272,7 @@ function roomColor(O, px, py, tx, ty) {
     // Mauerkrone von oben: außen dunkel, innen helle Kante
     const ex = tx === O.tx ? 15 - (px & 15) : tx === O.tx + O.tw - 1 ? px & 15 : 99, ey = front ? 15 - (py & 15) : 99;
     const e = Math.min(ex, ey);
-    const P = s === 'B' ? RUB : s === 'C' ? BRK : OAK;
+    const P = s === 'B' ? RUB : s === 'C' ? BRK : s === 'F' ? FELT : OAK;
     const inner = front ? (py & 15) : (tx === O.tx ? px & 15 : 15 - (px & 15));
     if (inner > 12 && !(front && side)) return P[inner > 14 ? 6 : 5];
     if (e < 2) return P[1];
@@ -282,7 +290,14 @@ function lift(c) {
 }
 function roomFloor(O, s, px, py, fy) {
   if (O.rug && inR(O.rug, px, py)) return rugColor(O.rug, px, py);
-  if (s === 'A') {                                                  // Dielen
+  if (s === 'F') {                                                  // gestampfter Lehm mit Strohhalmen
+    const n = hash2(px >> 1, py >> 1, 1201), m = hash2(px >> 3, py >> 3, 1202);
+    let i = m < 0.3 ? 2 : 3;
+    if (n < 0.08) i--; else if (n > 0.95) i++;
+    if (((px * 3 + py * 7) % 61) === 0 && n > 0.7) return FELT[4];
+    return LOAM[i];
+  }
+  if (s === 'A' || s === 'L') {                                                  // Dielen
     const r = Math.floor((py - fy) / 5), lv = (py - fy) - r * 5, u = px + hash2(r, 0, 941) * 40 | 0, b = Math.floor(u / 34), lu = u - b * 34;
     if (lv === 0 || lu === 0) return OAK[1];
     let i = hash2(b, r, 942) < 0.3 ? 3 : hash2(b, r, 943) > 0.75 ? 5 : 4;
@@ -326,17 +341,46 @@ function backWall(O, px, py, t, lx) {
   for (const wx of O.win) {
     const cx = wx * 16 + 8, dx = px - cx;
     if (Math.abs(dx) <= 7 && t >= 17 && t <= 37) {
-      if (Math.abs(dx) >= 6 || t === 17 || t === 37) return s === 'A' ? OAK[2] : s === 'B' ? RUB[2] : LIME[2];
-      if (t === 18) return s === 'A' ? OAK[5] : LIME[5];
+      if (Math.abs(dx) >= 6 || t === 17 || t === 37) return s === 'A' || s === 'L' ? OAK[2] : s === 'B' ? RUB[2] : LIME[2];
+      if (t === 18) return s === 'A' || s === 'L' ? OAK[5] : LIME[5];
       if (s === 'B' && t > 32 && Math.abs(dx) > 5 - (37 - t)) return RUB[3];
       if (dx === 0 || t === 27) return OAK[1];                     // Sprossen
-      if (s !== 'A' && ((dx + t) & 3) === 0 && t > 18) return OAK[2];
+      if (s !== 'A' && s !== 'L' && ((dx + t) & 3) === 0 && t > 18) return OAK[2];
       return t > 31 ? SKY[3] : t > 24 ? SKY[2] : SKY[1];
     }
   }
   if (t < 2) return s === 'C' ? LIME[1] : OAK[2];                  // Fußleiste
   if (t >= 43) return t >= 46 ? OAK[1] : t >= 44 ? OAK[3] : OAK[4]; // Deckenbalken
   if (t >= 40 && (lx % 32) < 6) return OAK[2];                       // Balkenköpfe
+  if (s === 'L') {                                                  // Blockwand: liegende Rundhölzer, Ecken mit Köpfen
+    const r = Math.floor(t / 6), lv = t - r * 6, post = lx % 64;
+    if (post < 5) return post === 0 ? OAK[1] : OAK[post === 1 ? 6 : post === 4 ? 2 : 4];
+    if (lv === 0) return OAK[0];
+    if (lv === 1) return OAK[2];
+    const k = hash2((lx + r * 13) >> 4, r, 1211);
+    let i = lv < 3 ? 6 : lv < 5 ? 5 : 3;
+    if (k < 0.25) i--;
+    if (hash2(px >> 1, py, 1212) < 0.05) i--;
+    return OAK[i];
+  }
+  if (s === 'F') {                                                  // Filzwand mit Scherengitter oben und gemaltem Band
+    if (t > 34) {
+      const u = (lx + (t >> 1)) % 8, v = (lx - (t >> 1) + 64) % 8;
+      if (u === 0 || v === 0) return OAK[4];
+      return FELT[t > 40 ? 1 : 2];
+    }
+    if (t > 22 && t < 30) {
+      if (t === 23 || t === 29) return WOOL[6];
+      const m = (lx % 16) - 8, dd = Math.abs(m) + Math.abs(t - 26);
+      return dd < 3 ? WOOL[7] : dd < 4 ? WOOL[6] : (lx >> 4) & 1 ? WOOL[3] : WOOL[5];
+    }
+    const n = hash2(px >> 1, py >> 1, 1221);
+    let i = 5;
+    if ((lx % 40) < 2) i = 3;
+    if (n < 0.08) i--;
+    if (t < 3) i = 2;
+    return FELT[i];
+  }
   if (s === 'A') {
     if (t < 14) {                                                   // Täfelung
       const b = lx % 12;
@@ -428,8 +472,61 @@ function cobble(px, py) {
   return COB[Math.max(1, Math.min(6, i))];
 }
 
+// Weicher Wertrausch (bilinear zwischen Gitterpunkten im Abstand sc), 0…1
+function vnoise(x, y, sc, seed) {
+  const gx = x / sc, gy = y / sc, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
+  return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+}
+// Gras mit Halmen (Licht oben links), fein gesprenkelt
+function grassAt(px, py) {
+  const h = hash2(px, py, 1101), b = vnoise(px, py, 10, 1102) + (((px + py) & 1) ? 0.05 : -0.05);
+  let i = b < 0.3 ? 3 : b > 0.8 ? 5 : 4;
+  if (h < 0.12) i += 1; else if (h > 0.9) i -= 1;
+  if (hash2(px, py >> 1, 1103) < 0.05) i = 6;
+  return GRS[Math.max(1, Math.min(6, i))];
+}
+// Festgetretene Erde mit Kieseln und Spurrillen
+function dirtAt(px, py, ruts) {
+  const h = hash2(px >> 1, py >> 1, 1111), n = vnoise(px, py, 14, 1112) + (((px + py) & 1) ? 0.04 : -0.04);
+  let i = n < 0.35 ? 3 : n > 0.68 ? 5 : 4;
+  if (ruts && ruts(px, py)) i -= 1;
+  if (h < 0.06) return GRAV[hash2(px, py, 1113) < 0.5 ? 5 : 3];
+  if (h > 0.96) i -= 1;
+  return DIRT[Math.max(1, Math.min(6, i))];
+}
+// Kies: kleine Steinchen in drei Tönen
+function gravelAt(px, py) {
+  const h = hash2(px, py, 1121), q = hash2(px >> 1, py >> 1, 1122);
+  let i = q < 0.25 ? 3 : q > 0.8 ? 5 : 4;
+  if (h < 0.15) i -= 1; else if (h > 0.88) i += 1;
+  return GRAV[Math.max(1, Math.min(6, i))];
+}
+// Weg in einer Gasse (Rechteck F): Mitte k ('earth' | 'gravel' | 'worn'), zum Rand hin Gras (unregelmäßig, dezent).
+// Die Wegmitte schlängelt sich leicht; Breite F.pw Kacheln (Standard: Gassenbreite − 1).
+function laneColor(F, px, py) {
+  const hor = F.x1 - F.x0 >= F.y1 - F.y0, u = hor ? px : py, v = hor ? py : px, a = hor ? F.y0 : F.x0, b = hor ? F.y1 : F.x1;
+  const mid = (a + b) / 2 + Math.sin(u * 0.035 + a) * 3 + Math.sin(u * 0.11) * 1.2;
+  const half = ((F.pw ?? (b - a) / 16 - 1) * 16) / 2;
+  const edge = half + (hash2(u >> 2, a, 1131) - 0.5) * 5 + Math.sin(u * 0.2) * 1.5, d = Math.abs(v - mid);
+  if (d > edge + 2) return grassAt(px, py);
+  if (d > edge) return hash2(px, py, 1132) < (d - edge) / 2 ? grassAt(px, py) : (F.k === 'gravel' ? gravelAt(px, py) : dirtAt(px, py));
+  if (F.k === 'gravel') return gravelAt(px, py);
+  if (F.k === 'worn') {
+    // altes Pflaster, in der Mitte ausgetreten zu Erde, Gras in den Fugen
+    const c = cobble(px, py);
+    const wn = vnoise(px, py, 18, 1133) + (((px + py) & 1) ? 0.03 : -0.03) - (d / half) * 0.35;
+    if (wn > 0.42) return dirtAt(px, py);
+    return c === EARTH[0] || c === EARTH[1] ? (hash2(px, py, 1134) < 0.5 ? GRS[3] : c) : c;
+  }
+  const rut = (x, y) => { const w = hor ? y : x; return Math.abs(Math.abs(w - mid) - half * 0.5) < 1.2; };
+  return dirtAt(px, py, rut);
+}
+
 function floorColor(F, px, py) {
   if (F.k === 'cobble') return cobble(px, py);
+  if (F.k === 'earth' || F.k === 'gravel' || F.k === 'worn') return laneColor(F, px, py);
   if (F.k === 'herring') {
     // Korbgeflecht aus Ziegeln (8×8: zwei liegende bzw. zwei stehende Ziegel im Wechsel)
     const bx = px >> 3, by = py >> 3, ux = px & 7, uy = py & 7, hor = ((bx + by) & 1) === 0;
@@ -533,6 +630,41 @@ export function* paintRamparts(ctx, x0, y0, cw, ch, map) {
       if (k > 0) dark(d, i, k);
     }
     if ((ly & 31) === 31) yield;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// Nur Innenräume und dunkler Bereich (gewöhnliche Außengebiete mit level.interiors, world/houses.js): malt deckend
+// über den fertigen Chunk (r = Feinraster-Faktor, je Weltpixel r × r Texel). Felsen und Boden darunter bleiben sonst
+// unberührt.
+export function* paintInteriors(ctx, x0, y0, cw, ch, map, r = 1) {
+  const R = prep(map), x1 = x0 + cw, y1 = y0 + ch;
+  const hit = (A) => A.x0 < x1 && A.x1 > x0 && A.y0 < y1 && A.y1 > y0;
+  const darks = R.darks.filter(hit);
+  if (!darks.length && !R.rooms.some(hit)) return;
+  const CW = cw * r, img = ctx.getImageData(0, 0, CW, ch * r), d = img.data;
+  for (const A of darks) {
+    const ax0 = Math.max(A.x0, x0), ax1 = Math.min(A.x1, x1), ay0 = Math.max(A.y0, y0), ay1 = Math.min(A.y1, y1);
+    for (let py = ay0; py < ay1; py++) {
+      const ty = py >> 4;
+      ST = R.stone;
+      for (let px = ax0; px < ax1; px++) {
+        const tx = px >> 4;
+        let room = null;
+        for (const O of R.rooms) if (inR(O, px, py)) { room = O; break; }
+        let c = VOID, k = 0;
+        if (room) {
+          c = roomColor(room, px, py, tx, ty);
+          if (c < 0) c = VOID;
+          if (!R.wall[ty * R.w + tx]) k = shadeAt(R, px, tx, ty, px & 15, py & 15);
+        }
+        for (let j = 0; j < r; j++) {
+          let i = (((py - y0) * r + j) * CW + (px - x0) * r) * 4;
+          for (let q = 0; q < r; q++, i += 4) { put(d, i, c); d[i + 3] = 255; if (k > 0) dark(d, i, k); }
+        }
+      }
+      if ((py & 31) === 31) yield;
+    }
   }
   ctx.putImageData(img, 0, 0);
 }

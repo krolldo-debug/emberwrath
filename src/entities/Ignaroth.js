@@ -6,6 +6,7 @@ import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, angleDiff } from '../core/math.js';
 import { createSlamCrack } from '../sprites/bonelord.js';
+import * as FX from '../sprites/fxPaint.js';
 
 let crackDecal = null;
 const FIRE = ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c', '#7a2208'];
@@ -32,6 +33,11 @@ export class Ignaroth extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => [3, 5, 7, 9, 11].forEach((r) => FX.puffSeq(r, 'fire', 8)), () => FX.meteorLoop(4), () => FX.meteorLoop(5),
+      () => FX.flameLoop(9, 20, 'fire', { seed: 1 }), () => FX.flameLoop(8, 14, 'fire', { seed: 2 }), () => FX.coalBed(16, 0),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
@@ -610,32 +616,24 @@ export class Ignaroth extends Actor {
 
   // Flammenstrahl aus dem Maul: vom Maul schräg zum Boden, fächert auf, flackert
   #drawBreath(ctx, cx, cy) {
+    // Feueratem: ein Strom aus Feuerballen, die aus dem Maul schießen, im Kegel auffächern, abkühlen und zerfasern
     const m = this.#meta('mouth');
-    const ca = Math.cos(this.aim), sa = Math.sin(this.aim);
-    const grow = Math.min(1, this.stateTime * 6), fade = Math.min(1, (this.breathDur - this.stateTime) * 4);
-    const L = 112 * grow;
-    const ex = this.x + ca * L, ey = this.y + sa * L * 0.6;
-    let nx = -sa * 0.6, ny = ca; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
-    const cols = this.enraged ? ['#ffffff', '#fff4c8', '#ffc048', '#ff6a14', '#8a2a08'] : ['#fff0b0', '#ffb640', '#f07a1c', '#c8420c', '#7a2208'];
-    const t = Math.floor(this.stateTime * 20);
-    for (let s = 0; s <= L; s += 1.5) {
-      const k = s / 112;
-      const kk = Math.min(1, s / (L || 1));
-      // Mittellinie: Maul -> Boden, leicht durchhängend
-      const x = m.x + (ex - m.x) * kk, y = m.y + (ey - m.y) * kk + Math.sin(kk * Math.PI) * 4;
-      const w = 2 + k * 36;
-      for (let j = -w; j <= w; j += 1.4) {
-        const e = Math.abs(j) / w;
-        const h = ((Math.round(s * 3.1) * 73856093) ^ (Math.round(j * 5) * 19349663) ^ (t * 83492791)) >>> 0;
-        const rnd = (h % 1000) / 1000;
-        if (rnd < e * e * 0.95 + k * 0.3) continue;
-        const ci = Math.min(4, Math.floor(e * 2.2 + k * 2.2 + rnd * 0.8));
-        ctx.globalAlpha = (0.95 - k * 0.35) * fade;
-        ctx.fillStyle = cols[ci];
-        ctx.fillRect(Math.round(x + nx * j - cx), Math.round(y + ny * j * 0.6 - cy), k > 0.5 && rnd > 0.8 ? 2 : 1, 1);
-      }
+    const grow = Math.min(1, this.stateTime * 6), fade = Math.max(0, Math.min(1, (this.breathDur - this.stateTime) * 4));
+    const pal = this.enraged ? 'white' : 'fire', N = 42, puffs = [];
+    for (let i = 0; i < N; i++) {
+      const u = (this.stateTime * 1.7 + i / N + ((i * 0.618) % 1) * 0.05) % 1;
+      if (u > grow) continue;
+      const off = (((i * 0.7548776) % 1) - 0.5) * 0.78, a = this.aim + off * Math.min(1, u * 1.6);
+      // vom Maul schräg hinab zum Boden (wie der Warnkegel), leicht durchhängend
+      const ex = this.x + Math.cos(a) * 112, ey = this.y + Math.sin(a) * 112 * 0.6;
+      const x = m.x + (ex - m.x) * u, y = m.y + (ey - m.y) * u + Math.sin(u * Math.PI) * 4;
+      puffs.push([x, y, this.y + Math.sin(a) * u * 112 * 0.6, u, i]);
     }
-    ctx.globalAlpha = 1;
+    puffs.sort((p, q) => p[2] - q[2]);
+    for (const [x, y, , u, i] of puffs) {
+      const r = [3, 5, 7, 9, 11][Math.min(4, Math.floor(u * 5))], seq = FX.puffSeq(r, pal, 8);
+      seq[Math.min(7, Math.floor(u * 8))].draw(ctx, Math.round(x - cx), Math.round(y - cy), { alpha: fade * (i % 4 ? 1 : 0.85) });
+    }
   }
 
   #glowFrame() {
@@ -660,29 +658,21 @@ export class Ignaroth extends Actor {
     // Glanz an der Axt kurz vor dem Schlag
     if (/Windup$/.test(this.state) && this.state !== 'breathWindup' && this.stateTime > this.windup * 0.6) {
       const t = this.#meta('tip'), k = (this.stateTime - this.windup * 0.6) / (this.windup * 0.4);
-      const r = Math.round(2 + k * 5), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#fff4c8' : '#ffb048';
-      ctx.fillRect(x - 1, y - 1, 3, 3);
+      FX.starFrame(3 + k * 5, this.enraged ? 'white' : 'fire').draw(ctx, Math.round(t.x - cx), Math.round(t.y - cy));
     }
     if (this.state === 'breath') this.#drawBreath(ctx, cx, cy);
-    // Maulglut vor dem Feuerstoß
+    // Maulglut vor dem Feuerstoß: ein Feuerball sammelt sich im Maul
     if (this.state === 'breathWindup' || this.state === 'breath') {
-      const m = this.#meta('mouth');
-      const r = this.state === 'breath' ? 3 : Math.round(1 + (this.stateTime / this.windup) * 2);
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = this.enraged ? '#fff4c8' : '#ffb048';
-      ctx.fillRect(Math.round(m.x - cx - r / 2), Math.round(m.y - cy - r / 2), r, r);
-      ctx.globalAlpha = 1;
+      const m = this.#meta('mouth'), k = this.state === 'breath' ? 1 : Math.min(1, this.stateTime / this.windup);
+      const seq = FX.puffSeq(2 + Math.round(k * 2), this.enraged ? 'white' : 'fire', 8);
+      seq[Math.floor(this.stateTime * 20) % 2].draw(ctx, Math.round(m.x - cx), Math.round(m.y - cy));
     }
     // Benommen: kreisende Funken über dem Kopf
     if (this.state === 'stagger') {
       const h = this.#meta('head');
-      ctx.fillStyle = '#ffe070';
       for (let i = 0; i < 3; i++) {
         const a = this.stateTime * 6 + (i * Math.PI * 2) / 3;
-        ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * 12), Math.round(h.y - cy - 8 + Math.sin(a) * 3), 2, 1);
+        FX.starFrame(2 + (Math.floor(this.stateTime * 8 + i) % 2), 'gold').draw(ctx, Math.round(h.x - cx + Math.cos(a) * 12), Math.round(h.y - cy - 8 + Math.sin(a) * 3));
       }
     }
   }
@@ -742,22 +732,20 @@ export class FireField extends Entity {
   renderEmissive(ctx, cx, cy) {
     if (this.t < this.delay) return;
     const life = this.t - this.delay, rem = this.duration - life;
-    const fade = Math.min(1, life * 6, rem * 1.5);
-    const n = this.line ? Math.round(this.len / 3) : Math.round(this.r * 1.6);
-    const tt = this.t * 9;
+    const fade = Math.max(0, Math.min(1, life * 6, rem * 1.5));
+    // Kreis: Glutbett mit Flammen; Linie: Flammenspur mit glühenden Kohlen
+    if (!this.line) FX.coalBed(Math.round(this.r), Math.floor(this.seed) % 4).draw(ctx, Math.round(this.x - cx), Math.round(this.y - cy), { alpha: 0.9 * fade });
+    const n = this.line ? Math.round(this.len / 7) : Math.max(3, Math.round(this.r * 0.45)), pts = [];
     for (let i = 0; i < n; i++) {
-      const k = i / n;
-      let [x, y] = this.#point(k);
-      if (this.line) { const off = (((i * 7919) % 11) / 11 - 0.5) * this.width * 0.8; x += -Math.sin(this.angle) * off; y += Math.cos(this.angle) * off * 0.6; }
-      const fl = Math.sin(tt + i * 1.7 + this.seed) * 0.5 + 0.5;
-      const hgt = Math.round((2 + fl * 5) * fade);
-      const px = Math.round(x - cx), py = Math.round(y - cy);
-      ctx.globalAlpha = 0.9 * fade;
-      ctx.fillStyle = '#c8420c'; ctx.fillRect(px, py - hgt, 1, hgt);
-      ctx.fillStyle = '#ffb640'; ctx.fillRect(px, py - Math.round(hgt * 0.6), 1, Math.max(1, Math.round(hgt * 0.4)));
-      if (fl > 0.8) { ctx.fillStyle = '#fff0b0'; ctx.fillRect(px, py - 1, 1, 1); }
+      let [x, y] = this.#point(this.line ? (i + 0.5) / n : i / n);
+      if (this.line) { const off = (((i * 7919) % 11) / 11 - 0.5) * this.width * 0.7; x += -Math.sin(this.angle) * off; y += Math.cos(this.angle) * off * 0.6; }
+      pts.push([Math.round(x - cx), Math.round(y - cy), i]);
     }
-    ctx.globalAlpha = 1;
+    pts.sort((p, q) => p[1] - q[1]);
+    for (const [x, y, i] of pts) {
+      if (this.line) FX.coalBed(4, i % 4).draw(ctx, x, y, { alpha: 0.8 * fade });
+      FX.seqAt(FX.flameLoop(6, 9 + (i % 3) * 3, 'fire', { seed: i % 3 }), this.t + i * 0.13, 12).draw(ctx, x, y, { alpha: fade });
+    }
   }
 }
 
@@ -798,17 +786,7 @@ export class Meteor extends Entity {
     const k = (this.t - (this.delay - this.fall)) / this.fall;
     if (k <= 0 || k >= 1) return;
     const [mx, my] = this.#pos(k);
-    const x = Math.round(mx - cx), y = Math.round(my - cy);
-    // Schweif
-    for (let i = 1; i < 14; i++) {
-      ctx.globalAlpha = 0.8 * (1 - i / 14);
-      ctx.fillStyle = i < 4 ? '#ffb640' : i < 8 ? '#f07a1c' : '#7a2208';
-      ctx.fillRect(Math.round(x - i * 0.45 * 2), Math.round(y - i * 2), i < 5 ? 3 : 2, 2);
-    }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#382a42'; ctx.fillRect(x - 2, y - 2, 5, 5);
-    ctx.fillStyle = '#fff0b0'; ctx.fillRect(x - 1, y - 1, 3, 3);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y - 1, 1, 1);
+    FX.seqAt(FX.meteorLoop(this.big ? 5 : 4), this.t, 16).draw(ctx, Math.round(mx - cx), Math.round(my - cy), { flip: true });
   }
 }
 
@@ -849,38 +827,27 @@ export class FlameRing extends Entity {
     const world = this.owner.world;
     const T = 16;
     if (this.t < this.delay) {
-      // Warnung: pulsierender Ring am Startradius, Lücke dunkel, Pfeil in die Lücke
-      const k = this.t / this.delay;
-      const n = 48, r0 = 18 + k * 10;
-      ctx.fillStyle = '#ff6a28';
-      ctx.globalAlpha = 0.5 + 0.4 * Math.sin(this.t * 24);
+      // Warnung: Ring aus kleinen Flämmchen am Startradius, Lücke frei, Lichtpunkte weisen in die Lücke
+      const k = this.t / this.delay, n = 24, r0 = 18 + k * 10, seq = FX.flameLoop(4, 5 + Math.round(k * 3), 'fire');
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2;
         if (this.inGap(a)) continue;
-        ctx.fillRect(Math.round(this.x - cx + Math.cos(a) * r0), Math.round(this.y - cy + Math.sin(a) * r0 * 0.6), 2, 1);
+        FX.seqAt(seq, this.t + i * 0.1, 12).draw(ctx, Math.round(this.x - cx + Math.cos(a) * r0), Math.round(this.y - cy + Math.sin(a) * r0 * 0.6), { alpha: 0.6 + 0.4 * k });
       }
-      ctx.fillStyle = '#ffe0a0';
-      for (let s = 20; s < 60; s += 4) ctx.fillRect(Math.round(this.x - cx + Math.cos(this.gap) * s), Math.round(this.y - cy + Math.sin(this.gap) * s * 0.6), 1, 1);
-      ctx.globalAlpha = 1;
+      for (let s = 22; s < 60; s += 7) FX.starFrame(2, 'gold').draw(ctx, Math.round(this.x - cx + Math.cos(this.gap) * s), Math.round(this.y - cy + Math.sin(this.gap) * s * 0.6), { alpha: 0.5 + 0.5 * Math.sin(this.t * 14 - s * 0.2) ** 2 });
       return;
     }
-    const r = this.r;
-    const n = Math.max(16, Math.round((r * Math.PI * 2 * 0.8) / 7));
+    // Flammenwand, die sich ausbreitet: Flammenzungen dicht an dicht, hinten zuerst gezeichnet
+    const r = this.r, n = Math.max(16, Math.round((r * Math.PI * 2 * 0.8) / 6)), pts = [];
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       if (this.inGap(a)) continue;
       const x = this.x + Math.cos(a) * r, y = this.y + Math.sin(a) * r * 0.6;
       if (world && world.dungeon.isWall(Math.floor(x / T), Math.floor((y - 2) / T))) continue;
-      const fl = Math.sin(this.t * 14 + i * 2.3) * 0.5 + 0.5;
-      const hgt = Math.round(9 + fl * 9);
-      const px = Math.round(x - cx), py = Math.round(y - cy);
-      ctx.globalAlpha = 0.95;
-      ctx.fillStyle = '#7a2208'; ctx.fillRect(px - 1, py - hgt, 3, hgt);
-      ctx.fillStyle = '#f07a1c'; ctx.fillRect(px - 1, py - Math.round(hgt * 0.8), 3, Math.round(hgt * 0.8));
-      ctx.fillStyle = '#ffb640'; ctx.fillRect(px, py - Math.round(hgt * 0.7), 1, Math.round(hgt * 0.7));
-      ctx.fillStyle = '#fff0b0'; ctx.fillRect(px, py - 3, 1, 3);
-      if (fl > 0.7) { ctx.fillStyle = '#ffb640'; ctx.fillRect(px, py - hgt - 2, 1, 1); }
+      pts.push([Math.round(x - cx), Math.round(y - cy), i]);
     }
-    ctx.globalAlpha = 1;
+    pts.sort((p, q) => p[1] - q[1]);
+    const tall = FX.flameLoop(9, 20, 'fire', { seed: 1 }), low = FX.flameLoop(8, 14, 'fire', { seed: 2 });
+    for (const [x, y, i] of pts) FX.seqAt(i % 2 ? tall : low, this.t + i * 0.17, 14).draw(ctx, x, y);
   }
 }

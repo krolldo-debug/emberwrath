@@ -285,3 +285,18 @@ und geht den älteren Regeln oben vor.
   `sprites/foes_new2.js` (rimGlow), `sprites/foes_cinder.js`, `sprites/foes_marsh.js` (sink), `sprites/decor_frost.js` (Bergfuß),
   `sprites/nerith.js`/`bonelord.js` (glowEnraged), `account/CreateStage.js`, `ui/Stable.js`, `shop/index.js` (Vorschau).
 
+
+## Dungeon-Atmosphäre (Grafik-Patch, 03.11.)
+
+Gilt für alle Karten aus `world/Dungeon.js` (alle Dungeons, auch Sternenglut). Code: `world/dungeonAtmo.js`, `gfx/Lighting.js`.
+- **Mauertiefe** (gebacken, `paintWallDepth`): Kronenlippe 4 Weltpixel mit Lichtkante, Überhangschatten oben an der Front, Sockel mit
+  Lichtkante unten, Mauerenden links hell/rechts dunkel, Schlagschatten nach rechts/unten länger (Licht oben links). Farben aus
+  `biome.topEdge/topEdgeLight`. **Bodendetails** (`paintFloorDetail`): Geröll am Mauerfuß, Risse, Steinchen, Biom-Akzent je `MOOD`.
+- **Licht**: `LightingSystem.flatten` (Dungeon 0,74) legt runde Lichter als flache Ellipse auf den Boden. `Light({ shape: { cone } })`
+  = Lichtkegel nach unten (Wandfackeln `Prop` 'torch', Deko-Leuchten auf Mauerkacheln). `LightingSystem.dodge` (Dungeon 0,26):
+  Lichter ohne Umgebungsdunkel per `color-dodge` – hellt den Boden im Licht über seine Grundfarbe, das Dunkle bleibt.
+  Kegel zusätzlich als schwacher Schein in der Luft (Bloom-Pass, `shape.haze`). Grundhelligkeit: `liftAmbient` (+ `MOOD.lift`).
+- **Dunst/Staub**: `DungeonAtmo` – Nebelfläche im Lightmap-Raster, nur im Licht sichtbar (ausgestanzt mit dem Glanz), Staubfleckchen
+  in Lichtkegeln. Glanz, Dunst und Kegelschein entfallen bei Qualität „Niedrig“.
+- Neue Biome: Eintrag in `MOOD` (Nebelfarbe, Akzentfarben, Art). Neue Wandleuchten brauchen nur `light` bzw. `lights` und einen
+  Platz auf einer Mauerkachel – den Kegel setzt `placeObjects` selbst.

@@ -93,19 +93,20 @@ test('Bestandsschutz: alte Spielstände behalten Tempo und Stufe, neue Charakter
   assert.equal(s2.state.slices.progress.level, 41);
   const s3 = setup(); s3.state.load(state.snapshot());
   assert.equal(s3.state.slices.progress.pace, PACE_NEW);
-  assert.equal(xpPaceFactor(30), 1, 'ohne pace: altes Tempo');
-  assert.equal(xpPaceFactor(30, PACE_NEW) < 0.85 && xpPaceFactor(30, PACE_NEW) > 0.65, true);
+  // Durchlauf 03.11.: Stufe 20–39 für alle schneller (12 → 16 Minuten je Stufe), pace spielt keine Rolle mehr
+  assert.equal(xpPaceFactor(30), xpPaceFactor(30, PACE_NEW), 'gleiches Tempo für alle');
+  assert.equal(xpPaceFactor(20) > 1.1 && xpPaceFactor(39) < 1.2 && xpPaceFactor(30) > 1.1, true);
   assert.equal(xpPaceFactor(19, PACE_NEW), 1, '1–19 unverändert');
   assert.equal(xpPaceFactor(40, PACE_NEW), 1, 'ab 40 für alle gleich');
   // Quests der Stufe 40 geben so viel wie vorher (Basis Stufe 39)
   assert.equal(questXp(40, 1), Math.round((xpToNext(39) * 0.75 * 1.8) / 5) * 5);
-  // Neuer Charakter auf 30: Kill gibt weniger, reachLevel bleibt genau
+  // Charakter auf 30: Kill gibt mehr, reachLevel bleibt genau
   state.slices.progress.level = 30; state.slices.progress.xp = totalXpForLevel(30);
   const r = c('progress:kill', { type: 'plague_toad', level: 30 });
   assert.equal(r.xp, Math.max(1, Math.round(killXp(mobXp(30), 30, 30) * xpPaceFactor(30, PACE_NEW))));
   delete state.slices.progress.pace;
   const r2 = c('progress:kill', { type: 'plague_toad', level: 30 });
-  assert.equal(r2.xp, killXp(mobXp(30), 30, 30), 'Bestandscharakter: volle Erfahrung');
+  assert.equal(r2.xp, r.xp, 'Bestandscharakter: dasselbe Tempo');
   // Talente bleiben, wie sie sind: keine Punkte über Stufe 40 hinaus
   assert.equal(talentPointsTotal(40), 39);
   assert.equal(talentPointsTotal(50), 39);
@@ -496,11 +497,11 @@ test('Kampagne: Tempo-Richtwerte aus §11.4', () => {
   assert.ok(r.questShare >= 0.5 && r.questShare <= 0.72);
 });
 
-test('Sternenglut: neue Charaktere brauchen für 20–40 etwa 1,7-mal so lange, ohne Kopfgeld-Grind', () => {
+test('20–40: neue und alte Charaktere gleich schnell, ohne Kopfgeld-Grind (Durchlauf 03.11.)', () => {
   const neu = expansionReport(), alt = expansionReport({ legacy: true });
   const k = neu.hours20to40 / alt.hours20to40;
   console.log(`    20→40 neu ${neu.hours20to40.toFixed(1)} h, alt ${alt.hours20to40.toFixed(1)} h (×${k.toFixed(2)}), ${neu.full.bounties} Kopfgelder`);
-  assert.ok(k >= 1.5 && k <= 2, `Faktor ${k}`);
+  assert.ok(k >= 0.95 && k <= 1.05, `Faktor ${k}`);
   assert.equal(neu.base.minutes, alt.base.minutes, '1–20 unverändert');
   assert.ok(neu.full.bounties <= 35, `${neu.full.bounties} Kopfgelder`);
   assert.ok(neu.questShare >= 0.7, `Quest-Anteil ${neu.questShare}`);
@@ -513,11 +514,14 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6) – Cha
   assert.equal(x.full.level, 40);
   // 17.10.: Quests ab 21 geben 70–80 % mehr (xp.js QUEST_XP_BOOST), man liegt wie bis 20 etwa eine Stufe unter dem
   // Questgebiet und braucht kaum Kopfgelder → rund 2,1 statt 4,9 h (Simulation; echte Spieler brauchen länger)
-  assert.ok(x.hours20to40 >= 1.8 && x.hours20to40 <= 3.5, `${x.hours20to40} h`);
+  // 03.11. (Durchlauf 1–40): ab 20 rund 15 % mehr Erfahrung (xp.js PACE_NEW_MINUTES) → 1,8 statt 2,1 h
+  assert.ok(x.hours20to40 >= 1.6 && x.hours20to40 <= 3.5, `${x.hours20to40} h`);
   assert.ok(x.questShare >= 0.62 && x.questShare <= 0.9, `Quest-Anteil ${x.questShare}`);
-  // Die Geschichte endet um 40 (Malgareth oder Heimkehr), nicht mit zwei Stufen Kopfgeld, und 40 kommt nicht vor dem Thron
-  const end = x.full.milestones.q_homecoming ?? x.full.milestones.q_ash_sovereign;
-  assert.ok(end >= 39, `Ende der Geschichte auf Stufe ${end}`);
+  // Wer alles spielt, erreicht 40 an der Thronpforte (nicht früher); nur mit Hauptquests endet die Geschichte ab 36,
+  // ohne Kopfgeld-Grind dazwischen
+  assert.ok(x.full.milestones.q_throne_gate >= 38, `Thronpforte auf Stufe ${x.full.milestones.q_throne_gate}`);
+  const main = runCampaign({ legacy: true, sideQuests: false });
+  assert.ok(main.milestones.q_homecoming >= 36, `nur Hauptquests: Heimkehr auf Stufe ${main.milestones.q_homecoming}`);
   assert.ok(x.full.milestones.q_throne_gate < 40, `Thronpforte schon auf Stufe ${x.full.milestones.q_throne_gate}`);
   const avg = per.reduce((a, b) => a + b, 0) / per.length;
   assert.ok(avg >= 5 && avg <= 22, `Schnitt ${avg} min je Stufe`);
@@ -530,7 +534,8 @@ test('Erweiterung 20–40: Tempo, Quest-Anteil und Gold (§12.1, §12.6) – Cha
   assert.ok(rare / realistic >= 3 && rare / realistic <= 4, `seltenes Reittier ${rare} = ${(rare / realistic).toFixed(1)} h`);
   // Glutross: Prestige nach Malgareth, braucht auch nach 40 noch Gold aus Prüfungen und Kopfgeldern
   // 17.10.: kürzerer Weg 20→40 bringt bis 40 knapp die Hälfte (vorher ~80 %), der Rest kommt nach 40
-  assert.ok(x.goldAt(40) * 0.75 < epic && x.goldAt(40) >= epic * 0.4, 'episches Reittier erst nach 40');
+  // 03.11.: 20→40 nochmals etwas kürzer (Durchlauf 1–40), bis 40 gut ein Drittel
+  assert.ok(x.goldAt(40) * 0.75 < epic && x.goldAt(40) >= epic * 0.35, 'episches Reittier erst nach 40');
   assert.equal(ITEMS.mount_ember_charger.reqQuest, 'q_ash_sovereign');
   assert.equal(ITEMS.mount_steppe_horse.reqQuest, 'q_first_ride');
   assert.equal(ITEMS.mount_ember_charger.reqLevel, 40);
@@ -578,7 +583,8 @@ test('Sternenglut Teil 1: Kette 41–50, Ziele in der Welt, Tempo', () => {
     for (const npc of [q.giver, q.turnInNpc].filter(Boolean)) assert.ok(WORLD_NPCS[npc], `${id}: ${npc}`);
     for (const o of q.objectives) {
       const t = [].concat(o.target);
-      if (['interact', 'use', 'sequence'].includes(o.kind)) for (const x of t) assert.ok(objs.has(x), `${id}: Objekt ${x}`);
+      // starfall_<zone>: Sternenherz des Weltereignisses (world/starfall.js), kein festes Objekt
+      if (['interact', 'use', 'sequence'].includes(o.kind)) for (const x of t) assert.ok(objs.has(x) || (x.startsWith('starfall_') && levels[ZONES[x.slice(9)]?.level]?.starfallSites?.length), `${id}: Objekt ${x}`);
       if (o.kind === 'reach') for (const x of t) assert.ok(x.startsWith('zone:') ? ZONES[x.slice(5)] : areas.has(x), `${id}: Bereich ${x}`);
       if (o.kind === 'escort' || o.kind === 'defend') assert.ok(routes.has(o.target), `${id}: ${o.target}`);
       if (o.kind === 'kill' || o.kind === 'boss') for (const x of t) assert.ok(ENEMY_TYPES[x], `${id}: ${x}`);

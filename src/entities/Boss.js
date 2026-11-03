@@ -6,6 +6,7 @@ import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, pick, angleDiff } from '../core/math.js';
 import { createSlamCrack } from '../sprites/bonelord.js';
+import * as FX from '../sprites/fxPaint.js';
 
 let crackDecal = null;
 
@@ -35,6 +36,8 @@ export class Boss extends Actor {
     this.radius = def.radius; this.mass = def.mass;
     this.hurtRadius = def.hurtRadius; this.bodyHeight = def.bodyHeight;
     this.shadowW = def.shadowW; this.material = def.material;
+    // Reichweite von Hieb und Stampfer für größere Gestalten auf demselben Rig (Sternenglut-Bosse 1,5×: def.reach)
+    this.reach = def.reach ?? 1;
     this.home = { x, y };
     this.facing = 1;
     this.phase = 1;
@@ -236,9 +239,9 @@ export class Boss extends Actor {
       world.spawn(new Telegraph(this.x, this.y, { shape: 'line', screen: true, angle: ang, len, width: 32, duration: 0.95 }));
       return this.#begin(world, 'chargeWindup', 'chargeWindup', 0.95);
     }
-    if (dist < 50) {
+    if (dist < 50 * this.reach) {
       if (Math.random() < 0.6) {
-        this.tele = world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 50, angle: ang, arc: 2.6, duration: this.enraged ? 0.6 : 0.8, follow: this }));
+        this.tele = world.spawn(new Telegraph(this.x, this.y - 4, { shape: 'arc', r: 50 * this.reach, angle: ang, arc: 2.6, duration: this.enraged ? 0.6 : 0.8, follow: this }));
         return this.#begin(world, 'cleaveWindup', 'cleaveWindup', this.enraged ? 0.6 : 0.8);
       }
       return this.#beginSlam(world);
@@ -249,7 +252,7 @@ export class Boss extends Actor {
   }
 
   #beginSlam(world) {
-    const ix = this.x + this.facing * 22, iy = this.y + 2;
+    const ix = this.x + this.facing * 22 * this.reach, iy = this.y + 2;
     this.impact = { x: ix, y: iy };
     world.spawn(new Telegraph(ix, iy, { shape: 'circle', r: 44, duration: this.enraged ? 0.75 : 1.0 }));
     this.#begin(world, 'slamWindup', 'slamWindup', this.enraged ? 0.75 : 1.0);
@@ -277,7 +280,7 @@ export class Boss extends Actor {
   #cleave(world) {
     this.setState('strike'); this.recover = this.enraged ? 0.45 : 0.7;
     this.animator.play('cleave', true);
-    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 50, angle: this.aim, arc: 2.6, damage: 20, knockback: 240, heavy: true, ttl: 0.14 });
+    world.combat.add({ owner: this, team: 'enemy', shape: 'arc', follow: false, x: this.x, y: this.y - 10, r: 50 * this.reach, angle: this.aim, arc: 2.6, damage: 20, knockback: 240, heavy: true, ttl: 0.14 });
     this.kbx += Math.cos(this.aim) * 90; this.kby += Math.sin(this.aim) * 90;
     for (let i = 0; i < 7; i++) {
       const a = this.aim - 1.2 + i * 0.4;
@@ -439,19 +442,14 @@ export class Boss extends Actor {
     // Glanz an der Klingenspitze kurz vor dem Schlag
     if (/Windup$/.test(this.state) && this.stateTime > this.windup * 0.6) {
       const t = this.#meta('tip'), k = (this.stateTime - this.windup * 0.6) / (this.windup * 0.4);
-      const r = Math.round(2 + k * 4), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#ffb070' : '#e0b8ff';
-      ctx.fillRect(x - 1, y - 1, 3, 3);
+      FX.starFrame(3 + k * 4, this.enraged ? 'fire' : 'violet').draw(ctx, Math.round(t.x - cx), Math.round(t.y - cy));
     }
     // Benommen: kreisende Funken über dem Kopf
     if (this.state === 'stagger') {
       const h = this.#meta('head');
-      ctx.fillStyle = '#ffe070';
       for (let i = 0; i < 3; i++) {
         const a = this.stateTime * 6 + (i * Math.PI * 2) / 3;
-        ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * 9), Math.round(h.y - cy - 6 + Math.sin(a) * 3), 2, 1);
+        FX.starFrame(2 + (Math.floor(this.stateTime * 8 + i) % 2), 'gold').draw(ctx, Math.round(h.x - cx + Math.cos(a) * 9), Math.round(h.y - cy - 6 + Math.sin(a) * 3));
       }
     }
   }

@@ -1332,7 +1332,8 @@ function shamanAnims() {
 // Kriecht in Wellen (Buckel läuft von hinten nach vorn), bäumt sich zum
 // Sprung auf und schnellt mit offener Scheibe vor.
 const LE = { W: 48, H: 30, AX: 22, AY: 24, pad: 8, rim: '#d0c8c0', back: '#8a90b0', rimK: 0.3, backK: 0.22, draw: drawLeech };
-const LEECH = ['#0a0708', '#170f12', '#26181b', '#382226', '#4e3032', '#6a4442', '#8a6058'];
+// nass glänzendes Schwarzbraun mit hartem Glanz statt mattem Mauve: Flankenlinie und Glanzpunkte tragen die Figur
+const LEECH = ['#070506', '#0f0a0c', '#181013', '#22171a', '#2e1f22', '#43302f', '#7a6258'];
 const STRIPE = ['#4a120e', '#7e2416', '#b44a24', '#e07a3a'];
 const E_REST = { t: 0, amp: 0, rear: 0, reach: 0, open: 0, curl: 0, shrivel: 0, glow: 1, lunge: 0, air: 0, head: 0, twitch: 0 };
 const epose = (o = {}) => ({ ...E_REST, ...o });
@@ -1356,15 +1357,14 @@ function leechFine(p, g, pts, P) {
     // nasser Glanz: Strich längs der Oberseite, heller Kern
     if (i % 2 === 1) {
       const hx = a.x - nx * a.r * 0.62, hy = a.y - ny * a.r * 0.62;
-      p.fline(hx, hy, hx + tx * 1.2, hy + ty * 1.2, LEECH[6]); p.dot(hx, hy, i % 4 === 1 ? '#f0c8b8' : '#c4948a');
+      p.fline(hx, hy, hx + tx * 1.2, hy + ty * 1.2, LEECH[6]); p.dot(hx, hy, i % 4 === 1 ? '#f4dcc8' : '#b49484');
     } else p.dot(a.x - nx * a.r * 0.55, a.y - ny * a.r * 0.55, LEECH[5]);
-    // Leuchtpunkte auf dem Rücken mit dunklem Hof
-    if (i % 2 === 0 && i < N - 2 && P.glow > 0.1) {
-      const gx = p.snap(a.x - nx * a.r * 0.2), gy = p.snap(a.y - ny * a.r * 0.2);
-      p.rect(gx - 0.5, gy - 0.5, 1.5, 1.5, LEECH[1]);
-      p.rect(gx - 0.5, gy - 0.5, 1, 1, WISP[P.glow > 0.6 ? 3 : 2]); p.dot(gx - 0.5, gy - 0.5, P.glow > 0.6 ? WISP[4] : WISP[3]);
-      g.rect(gx - 0.5, gy - 0.5, 1, 1, WISP[P.glow > 0.6 ? 2 : 1]); g.dot(gx - 0.5, gy - 0.5, WISP[P.glow > 0.6 ? 4 : 2]);
-      if (P.glow > 0.6) { g.dot(gx - 1, gy - 0.5, WISP[1]); g.dot(gx + 0.5, gy - 0.5, WISP[1]); }
+    // Rückenzeichnung: gesprenkelte Rostflecken je Ring (statt leuchtender Punkte), schwach glimmender Kern
+    if (i % 2 === 0 && i < N - 1) {
+      const gx = a.x - nx * a.r * 0.3, gy = a.y - ny * a.r * 0.3;
+      p.dot(gx - 0.5, gy, STRIPE[0]); p.dot(gx, gy, STRIPE[1]); p.dot(gx + 0.5, gy, STRIPE[1]); p.dot(gx, gy + 0.5, STRIPE[0]);
+      p.dot(gx, gy - 0.5, P.glow > 0.6 ? STRIPE[3] : STRIPE[2]);
+      if (P.glow > 0.6) g.dot(gx, gy - 0.5, STRIPE[1]);
     }
   }
   // Flankenlinie als durchgehendes Band: oben glühendes Orange, unten Rostrot
@@ -1384,7 +1384,8 @@ function drawLeech(p, g, P) {
   const pts = [];
   for (let i = 0; i < N; i++) {
     const f = i / (N - 1);
-    let r = (1.5 + 2.3 * Math.sin(Math.PI * (0.12 + 0.8 * f))) * (1 - P.shrivel * 0.35) * (1 - P.reach * 0.15);
+    // fetter, nach vorn spitz zulaufender Leib; jeder zweite Ring wulstet etwas (gewellte Silhouette)
+    let r = (1.5 + 3 * Math.sin(Math.PI * (0.16 + 0.74 * f))) * (i % 2 ? 1.07 : 0.96) * (1 - P.shrivel * 0.35) * (1 - P.reach * 0.15);
     const hump = P.amp * 3.4 * Math.max(0, Math.sin(P.t * TAU - f * TAU * 1.1));
     let x = AX - 11 + P.lunge + i * sp - P.amp * Math.max(0, Math.sin(P.t * TAU - f * TAU * 1.1)) * 0.6 * f;
     let y = AY - 1 - r - hump - P.air * (0.3 + f * 0.7);
@@ -1419,14 +1420,12 @@ function drawLeech(p, g, P) {
     // nasser Glanz: kurze, harte Lichtflecken je Ring statt durchgehender Linie
     if (i % 2 === 1) {
       const hx0 = a.x - nx * a.r * 0.62, hy0 = a.y - ny * a.r * 0.62;
-      p.px(hx0, hy0, LEECH[6]); p.px(hx0 + dx / l, hy0 + dy / l, i % 4 === 1 ? '#c4948a' : LEECH[6]);
+      p.px(hx0, hy0, LEECH[6]); p.px(hx0 + dx / l, hy0 + dy / l, i % 4 === 1 ? '#b49484' : LEECH[6]);
     } else p.px(a.x - nx * a.r * 0.55, a.y - ny * a.r * 0.55, LEECH[5]);
     // Leuchtpunkte auf dem Rücken mit dunklem Hof
-    if (i % 2 === 0 && i < N - 2 && P.glow > 0.1) {
-      const gx = a.x - nx * a.r * 0.2, gy = a.y - ny * a.r * 0.2;
-      p.px(gx + 1, gy, LEECH[1]); p.px(gx, gy + 1, LEECH[1]);
-      p.px(gx, gy, WISP[P.glow > 0.6 ? 3 : 2]); g.px(gx, gy, WISP[P.glow > 0.6 ? 3 : 1]);
-      if (P.glow > 0.6) { p.px(gx - 0.6, gy, WISP[2]); g.px(gx - 1, gy, WISP[1]); }
+    if (i % 2 === 0 && i < N - 1) {
+      const gx = a.x - nx * a.r * 0.3, gy = a.y - ny * a.r * 0.3;
+      p.px(gx, gy, P.glow > 0.6 ? STRIPE[2] : STRIPE[1]); p.px(gx, gy + 1, STRIPE[0]);
     }
   }
   // Bauch dunkler

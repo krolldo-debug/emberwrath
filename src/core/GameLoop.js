@@ -9,6 +9,17 @@ import { CONFIG } from '../config.js';
 // Zeitgeber in denselben festen Schritten weiter. Je Aufruf höchstens CONFIG.backgroundCatchUp Sekunden, der Rest verfällt:
 // friert das Handy die App ein oder löst der Browser Zeitgeber nur noch selten aus, soll beim Aufwachen kein langer
 // Nachhol-Stau entstehen. onBackground(true/false) rahmt die Hintergrundschritte ein (Game schaltet dort die Klänge stumm).
+// Bildtakt-Abgleich: Die Zeitstempel der Browser schwanken (Safari rundet auf 1 ms, dazu kleine Unruhe). Ohne Abgleich
+// pendelt der Akkumulator genau an der Schrittgrenze, und bei 60 Hz wechseln sich Bilder mit 0 und 2 Logikschritten ab,
+// bei 120 Hz (ProMotion) halten Bilder mal 1, mal 3 Bildwechsel lang – das Bild ruckelt, obwohl die Bildrate stimmt.
+// Liegt ein Abstand nah an einem Vielfachen von 1/120 s, zählt er genau so viel. Andere Bildraten (75, 144 Hz …) bleiben roh.
+// Bilder ohne neuen Logikschritt (bei 120 Hz jedes zweite) werden nicht neu gezeichnet: das Bild wäre gleich,
+// die halbe Zeichenarbeit fällt weg. Game setzt redraw nach einer Größenänderung (die leert die Zeichenfläche).
+const VSYNC = 1 / 120, VSYNC_TOL = 0.0009;
+const snapFrame = (dt) => {
+  const n = Math.round(dt / VSYNC);
+  return n >= 1 && Math.abs(dt - n * VSYNC) <= VSYNC_TOL ? n * VSYNC : dt;
+};
 export class GameLoop {
   constructor({ update, render, onFatal = () => {}, onBackground = () => {} }) {
     this.update = update;
@@ -25,6 +36,7 @@ export class GameLoop {
     this.bgLast = null;    // Hintergrund-Takt aktiv: Zeitpunkt des letzten Hintergrund-Schritts
     this.bgAcc = 0;
     this.watch = null;
+    this.redraw = true;
   }
   start() {
     this.running = true;
@@ -39,21 +51,24 @@ export class GameLoop {
     this.drawnAt = performance.now();
     // Zurück aus dem Hintergrund: die Zeit dazwischen hat der Hintergrund-Takt schon gerechnet
     if (this.bgLast != null) { this.bgLast = null; this.bgAcc = 0; this.last = now; }
-    let dt = (now - this.last) / 1000;
+    let dt = snapFrame((now - this.last) / 1000);
     this.last = now;
     if (dt > CONFIG.maxFrameTime) dt = CONFIG.maxFrameTime;
     this.acc += dt;
     const step = CONFIG.fixedStep;
-    let ok = true;
+    let ok = true, steps = 0;
     // Logik und Zeichnen getrennt absichern: ein Fehler in der Logik friert nicht auch das Bild ein.
     try {
-      let steps = 0;
-      while (this.acc >= step) {
-        if (steps++ >= CONFIG.maxStepsPerFrame) { this.acc = 0; break; }
-        this.acc -= step;
+      // Kleine Toleranz: Rundungsreste der Gleitkommazahlen sollen keinen Schritt ins nächste Bild schieben
+      while (this.acc >= step - 1e-6) {
+        if (steps >= CONFIG.maxStepsPerFrame) { this.acc = 0; break; }
+        steps++;
+        this.acc = Math.max(0, this.acc - step);
         this.update(step);
       }
     } catch (err) { ok = false; this.acc = 0; this.#report(err); }
+    if (!steps && !this.redraw && !this.failing) return;
+    this.redraw = false;
     try { this.render(this.acc / step); } catch (err) { ok = false; this.#report(err); }
     if (ok) { this.failing = 0; return; }
     // Etwa zwei Sekunden lang nur Fehler: Hinweis anzeigen statt stumm hängen zu bleiben.

@@ -19,10 +19,18 @@ export function renderArena(session, body) {
     const me = pvp.rating();
     const t = tierOf(me.rating), next = TIERS[TIERS.indexOf(t) + 1];
     const season = pvp.season;
+    // Fortschritt bis zur nächsten Liga als Balken in Pixelstufen (Ligafarbe)
+    const frac = next ? Math.max(0, Math.min(1, (me.rating - t.min) / Math.max(1, next.min - t.min))) : 1;
+    const bar = h('span.pv-bar', { 'aria-hidden': 'true' }, h('i'));
+    bar.firstChild.style.width = `${Math.round(frac * 100)}%`;
+    bar.style.setProperty('--league', t.color);
+    const league = h('b.pv-league', t.name);
+    league.style.color = t.color;
     return h('div.pv-me',
-      h('img.pv-crest', { src: tierEmblem(t.id, 4), alt: '', width: 64, height: 64, title: RULES }),
-      h('b.pv-league', { style: { color: t.color } }, t.name),
+      h('span.pv-medal', h('img.pv-crest', { src: tierEmblem(t.id, 4), alt: '', width: 64, height: 64, title: RULES })),
+      league,
       h('span.pv-big', fmtNum(me.rating)),
+      bar,
       next ? h('span.pv-next', `${next.name} ab ${fmtNum(next.min)}`) : null,
       h('span.pv-wl', `${fmtNum(me.wins ?? 0)} Siege · ${fmtNum(me.losses ?? 0)} Niederlagen`),
       h('span.pv-season', `Saison ${season.n} · bis ${fmtDate(season.end - 1, { day: 'numeric', month: 'long' })}`),
@@ -37,9 +45,9 @@ export function renderArena(session, body) {
   };
   const fill = (rows) => {
     clear(list);
-    if (!rows.length) { list.append(h('li.pv-empty', 'Noch keine Kämpfe in dieser Saison.')); return; }
+    if (!rows.length) { list.append(h('li.pv-empty', h('span.pv-empty-art', { 'aria-hidden': 'true' }), 'Noch keine Kämpfe in dieser Saison.')); return; }
     const myName = pvp.char().name;
-    rows.slice(0, 8).forEach((r, i) => list.append(h(`li${r.name === myName ? '.me' : ''}`,
+    rows.slice(0, 8).forEach((r, i) => list.append(h(`li${r.name === myName ? '.me' : ''}${i < 3 ? `.top${i + 1}` : ''}`,
       h('span.pv-rank', String(i + 1)),
       h('img.pv-emblem', { src: tierEmblem(tierOf(r.rating).id, 1), alt: '', width: 16, height: 16 }),
       h('span.pv-who', { translate: 'no', title: CLASS[r.classId] ?? '' }, r.name),

@@ -1,3 +1,5 @@
+import { lang } from '../i18n/index.js';
+
 // Gezeichnete Pixelrahmen und Pixelschrift-Titel für HTML-Tafeln (Todesbildschirm, Gruppenleiste).
 // Rahmen als 9-Slice (CSS border-image), schon in der Zielgröße gezeichnet: jede Stufe ein ganzer Bildpunkt,
 // nichts wird vom Browser weichgezeichnet.
@@ -70,4 +72,35 @@ export function pixelTitle(font, text, { color = '#ff5a3c', light = '#ffb27a', o
     }
   }
   return c;
+}
+
+// Spielfenster im Pixelrahmen (wie Auktionshaus und Postfach): gezeichneter 9-Slice-Rahmen (2-fach) und Titel in
+// der Pixelschrift. Für Fenster, die ihr DOM bei jeder Änderung neu bauen, genügt ein Aufruf je Aufbau.
+//   pixelWindow(root, session.font, 'Inventar', root.querySelector('.pg-title'))
+// root bekommt .ef-pxwin (Rahmen und Fläche, ui/theme.css), der Titel ein Canvas .ef-pxtitle (2-fach, ganzzahlig)
+// und den Text unsichtbar für Vorleseprogramme. Ohne Schrift (Tests) bleibt der Texttitel stehen.
+const titleCache = new Map();
+// Pixelschrift-Beschriftung als Canvas .ef-pxtitle (Anzeige 2-fach per CSS); colors wie pixelTitle (z. B. gedämpft für Reiter)
+export function pixelLabel(font, text, colors = undefined) {
+  const key = `${lang()}:${text}:${colors ? Object.values(colors).join(',') : ''}`;
+  let tc = titleCache.get(key);
+  if (!tc) { tc = pixelTitle(font, text, colors); titleCache.set(key, tc); }
+  const c = document.createElement('canvas');
+  c.className = 'ef-pxtitle';
+  c.width = tc.width; c.height = tc.height;
+  c.setAttribute('aria-hidden', 'true');
+  c.getContext('2d').drawImage(tc, 0, 0);
+  c.style.setProperty('--tw', String(tc.width)); c.style.setProperty('--th', String(tc.height));
+  return c;
+}
+export const PX_MUTED = { color: '#8a6a70', light: '#a88a90' };
+export function pixelWindow(root, font, title, titleEl = null, palette = 'ember') {
+  root.classList.add('ef-pxwin');
+  root.style.setProperty('--pxw-frame', `url(${frameUrl(2, palette)})`);
+  if (!titleEl || !font) return root;
+  const sr = document.createElement('span');
+  sr.className = 'ef-sr';
+  sr.textContent = title;
+  titleEl.replaceChildren(pixelLabel(font, title), sr);
+  return root;
 }

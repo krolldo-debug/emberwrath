@@ -53,7 +53,9 @@ jobs:
           printf '%s\n' "$KEY_P8" > "$KEY"
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID")
           # Fähigkeiten der App-ID („Mit Apple anmelden“, Mitteilungen) einschalten, sonst passt App.entitlements nicht zum Profil
-          ASC_KEY_ID="$KEY_ID" ASC_ISSUER_ID="$ISSUER_ID" ASC_KEY_P8="$KEY_P8" node ../tools/appstore-faehigkeiten.mjs
+          # (Schlägt die API fehl, weiter: die Fähigkeiten lassen sich auch von Hand einschalten, der Export meldet es sonst.)
+          ASC_KEY_ID="$KEY_ID" ASC_ISSUER_ID="$ISSUER_ID" ASC_KEY_P8="$KEY_P8" node ../tools/appstore-faehigkeiten.mjs \
+            || echo "::warning::Fähigkeiten der App-ID nicht per API geprüft (siehe Log)"
           # Unsigniert archivieren: Signieren mit Entwicklerprofil bräuchte registrierte Geräte.
           # Der Export signiert danach für den App Store (Cloud-Signatur über den API-Schlüssel).
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \

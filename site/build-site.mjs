@@ -10,7 +10,7 @@ import { FOREIGN, loadDict, ownKeys, newTranslator, decorateGerman, buildLang, b
 // 404.html liefert Cloudflare bei unbekannten Pfaden aus (not_found_handling); <base href="/"> hält die Links heil.
 const PAGES = ['index.html', 'welt.html', 'support.html', 'impressum.html', 'datenschutz.html', 'nutzungsbedingungen.html', 'newsletter.html', '404.html', 'shop.html', 'kaufbedingungen.html'];
 // robots.txt und sitemap.xml nennen https://www.emberwrath.com (canonical in den Seitenköpfen ebenso).
-const STATIC = ['site.css', 'site.js', 'titel.js', 'bosskino.js', 'welt.css', 'welt.js', 'shop.css', 'shop.js', 'config.js', 'lang.js', 'favicon.svg', 'robots.txt'];
+const STATIC = ['site.css', 'site.js', 'titel.js', 'bosskino.js', 'sterne.js', 'welt.css', 'welt.js', 'atlas.js', 'shop.css', 'shop.js', 'config.js', 'lang.js', 'favicon.svg', 'robots.txt'];
 
 export function buildSite(root, outDir) {
   const src = resolve(root, 'site');
@@ -41,7 +41,7 @@ export function buildSite(root, outDir) {
   mkdirSync(imgOut, { recursive: true });
   let bytes = 0;
   for (const f of readdirSync(join(src, 'img'))) {
-    if (!['.png', '.webp', '.jpg', '.svg'].includes(extname(f))) continue;
+    if (!['.png', '.webp', '.jpg', '.svg', '.mp4', '.webm'].includes(extname(f))) continue;   // .mp4/.webm: Bosskino (tools/bossfilm.py)
     copyFileSync(join(src, 'img', f), join(imgOut, f));
     bytes += statSync(join(src, 'img', f)).size;
   }

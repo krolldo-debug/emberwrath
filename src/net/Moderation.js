@@ -1,4 +1,5 @@
 import { h } from '../core/dom.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 import { REPORT_REASON_LABELS, REPORT_NOTE_MAX } from './protocol.js';
 import { locale } from '../i18n/index.js';
 
@@ -133,6 +134,7 @@ export class ModerationUi {
     h('label.net-report-faith', faith, h('span', 'Ich bin überzeugt, dass meine Angaben richtig und vollständig sind.')),
     err,
     h('div.net-report-actions', h('button.ef-btn', { type: 'button', onclick: () => this.closeReport() }, 'Abbrechen'), send));
+    pixelWindow(form); // Glutrahmen wie alle Fenster (ui/pixelFrame.js)
     form.addEventListener('input', () => { err.textContent = ''; });
     stopKeys(form, () => this.closeReport());
     this.dialog = h('div.net-report-wrap', form);

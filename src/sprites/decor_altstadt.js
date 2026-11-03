@@ -24,11 +24,14 @@ const WOOL = R(['#2a0e14', '#4a1820', '#6e2228', '#923232', '#2a2a4a', '#3c3c66'
 const Lm = pal32(LAMP), INK = col32('#120c10');
 // aktuelle Putz- und Balkenfarbe (je Haus gesetzt)
 let PL = DAUB, TB = OAK;
+// Für andere Hausbaukästen (sprites/decor_houses.js)
+export const PAL = { R, OAK, DAUB, RUB, SHING, SLATE, BRK, CLAY, LIME, IRON, MOSS, GREEN, RED, WOOL, Lm, INK };
+export function setWood(pl, tb) { if (pl) PL = pl; if (tb) TB = tb; }
 const cl = (i, n = 6) => (i < 0 ? 0 : i > n ? n : i);
 
 // ------------------------------------------------------------------ Mauerwerk und Flächen
 // Bruchstein in unregelmäßigen Lagen: Steine 5–14 px breit, Lagen 4–7 px hoch, gewölbt (Licht oben links)
-function rubble(p, x0, x1, y0, y1, P, seed, big = 1) {
+export function rubble(p, x0, x1, y0, y1, P, seed, big = 1) {
   const rows = [];
   for (let y = y1, r = 0; y > y0 - 8; r++) { const h = Math.round((4 + hash2(r, 0, seed) * 3) * big); rows.push([y - h, y, r]); y -= h; }
   p.scan(x0, y0, x1, y1, (x, y) => {
@@ -46,14 +49,14 @@ function rubble(p, x0, x1, y0, y1, P, seed, big = 1) {
   });
 }
 // Eckquader (lang/kurz im Wechsel)
-function quoins(p, x, y0, y1, P, right = false) {
+export function quoins(p, x, y0, y1, P, right = false) {
   for (let y = y1, k = 0; y > y0 + 0.5; y -= 6, k++) {
     const w = k & 1 ? 5 : 9, a = right ? x - w : x, b = right ? x : x + w, top = Math.max(y0, y - 6);
     p.scan(a, top, b, y, (xx, yy) => (yy > y - 0.75 || (right ? xx < a + 0.6 : xx > b - 0.6) ? P.c[1] : yy < top + 1 ? P.c[6] : P.c[(right ? xx > b - 1.5 : xx < a + 1.5) ? 6 : 5]));
   }
 }
 // Backstein im Kreuzverband, 7×3, Kalkfugen
-function bricks(p, x0, x1, y0, y1, P, seed, J = LIME) {
+export function bricks(p, x0, x1, y0, y1, P, seed, J = LIME) {
   p.scan(x0, y0, x1, y1, (x, y) => {
     const r = Math.floor((y1 - y) / 3), ly = (y1 - y) - r * 3, u = x - x0 + (r & 1) * 3.5, b = Math.floor(u / 7), lu = u - b * 7;
     if (ly < 0.6 || lu < 0.6) return J.c[2];
@@ -65,7 +68,7 @@ function bricks(p, x0, x1, y0, y1, P, seed, J = LIME) {
   });
 }
 // Lehmputz zwischen den Balken
-function daub(p, x0, x1, y0, y1, seed) {
+export function daub(p, x0, x1, y0, y1, seed) {
   p.scan(x0, y0, x1, y1, (x, y) => {
     const n = hash2(Math.floor(x * 2), Math.floor(y * 2), seed);
     let i = 5;
@@ -75,9 +78,9 @@ function daub(p, x0, x1, y0, y1, seed) {
   });
 }
 // Balken: waagerecht, senkrecht, schräg (Holz mit Licht oben links)
-function beamH(p, x0, x1, y, t = 3) { p.scan(x0, y, x1, y + t, (x, yy) => TB.c[yy < y + 0.6 ? 5 : yy > y + t - 0.6 ? 1 : hash2(Math.floor(x / 6), 0, 5) < 0.3 ? 3 : 4]); }
-function beamV(p, x, y0, y1, t = 3) { p.scan(x, y0, x + t, y1, (xx) => TB.c[xx < x + 0.6 ? 5 : xx > x + t - 0.6 ? 2 : 4]); }
-function beamD(p, xa, ya, xb, yb, t = 2.6) {
+export function beamH(p, x0, x1, y, t = 3) { p.scan(x0, y, x1, y + t, (x, yy) => TB.c[yy < y + 0.6 ? 5 : yy > y + t - 0.6 ? 1 : hash2(Math.floor(x / 6), 0, 5) < 0.3 ? 3 : 4]); }
+export function beamV(p, x, y0, y1, t = 3) { p.scan(x, y0, x + t, y1, (xx) => TB.c[xx < x + 0.6 ? 5 : xx > x + t - 0.6 ? 2 : 4]); }
+export function beamD(p, xa, ya, xb, yb, t = 2.6) {
   const L = Math.hypot(xb - xa, yb - ya), nx = -(yb - ya) / L, ny = (xb - xa) / L;
   p.scan(Math.min(xa, xb) - t, Math.min(ya, yb) - t, Math.max(xa, xb) + t, Math.max(ya, yb) + t, (x, y) => {
     const s = ((x - xa) * (xb - xa) + (y - ya) * (yb - ya)) / (L * L);
@@ -88,7 +91,7 @@ function beamD(p, xa, ya, xb, yb, t = 2.6) {
   });
 }
 // Fachwerkgeschoss: Schwelle, Rähm, Ständer, Streben (K-Strebe außen, Andreaskreuz unter Fenstern)
-function timberFloor(p, x0, x1, y0, y1, seed, wins) {
+export function timberFloor(p, x0, x1, y0, y1, seed, wins) {
   daub(p, x0, x1, y0, y1, seed);
   const posts = [x0, ...wins.flatMap((w) => [w - 4, w + 9]), x1 - 3].sort((a, b) => a - b);
   for (let k = 0; k < posts.length - 1; k++) {
@@ -110,15 +113,15 @@ function timberFloor(p, x0, x1, y0, y1, seed, wins) {
   beamH(p, x0 - 1, x1 + 1, y0, 3); beamH(p, x0 - 1, x1 + 1, y1 - 3, 3);
 }
 // Vorkragung: Balkenköpfe und Schatten unter dem überstehenden Geschoss
-function jetty(p, x0, x1, y, ov) {
+export function jetty(p, x0, x1, y, ov) {
   p.scan(x0 - ov, y, x1 + ov, y + 2.5, (x, yy) => (yy < y + 1 ? TB.c[2] : INK));
   for (let x = x0 - ov + 2; x < x1 + ov - 2; x += 7) p.scan(x, y - 1, x + 3, y + 2, (xx, yy) => TB.c[yy < y ? 6 : xx < x + 1 ? 5 : 3]);
 }
-function sideWall(p, x1, d, y0, y1, P) { p.scan(x1, y0, x1 + d, y1, (x, y) => P.c[x < x1 + 1 ? 2 : 1]); }
+export function sideWall(p, x1, d, y0, y1, P) { p.scan(x1, y0, x1 + d, y1, (x, y) => P.c[x < x1 + 1 ? 2 : 1]); }
 
 // ------------------------------------------------------------------ Fenster und Türen
 // Bleiglasfenster: Rauten, warm erleuchtet; Läden optional; spitz = Spitzbogen
-function lead(p, g, x, y, w, h, F, { lit = true, shut = null, pointed = false, stone = false, seed = 0 } = {}) {
+export function lead(p, g, x, y, w, h, F, { lit = true, shut = null, pointed = false, stone = false, seed = 0 } = {}) {
   const cx = x + w / 2, arc = pointed ? w * 0.75 : 0;
   const inside = (xx, yy, e = 0) => {
     if (xx < x - e || xx > x + w + e || yy > y + h + e) return false;
@@ -149,7 +152,7 @@ function lead(p, g, x, y, w, h, F, { lit = true, shut = null, pointed = false, s
   }
 }
 // Plankentür in Rund- oder Spitzbogen mit Eisenbändern, Steinlaibung
-function door(p, g, cx, bot, w, h, F, { pointed = false, lamp = true, step = true } = {}) {
+export function door(p, g, cx, bot, w, h, F, { pointed = false, lamp = true, step = true } = {}) {
   const x0 = cx - w / 2, x1 = cx + w / 2, top = bot - h, arc = pointed ? w * 0.7 : w * 0.5;
   const inA = (x, y, e = 0) => {
     if (x < x0 - e || x > x1 + e || y > bot) return false;
@@ -173,13 +176,13 @@ function door(p, g, cx, bot, w, h, F, { pointed = false, lamp = true, step = tru
   if (lamp) lantern(p, g, x1 + 5, top + 2);
 }
 // Eiserne Wandlaterne
-function lantern(p, g, x, y) {
+export function lantern(p, g, x, y) {
   p.scan(x - 3, y - 2, x + 0.6, y - 1.2, () => IRON.c[2]);
   p.scan(x - 1.6, y - 1, x + 2.2, y + 5, (xx, yy) => (yy < y || yy > y + 4.2 || xx < x - 1 || xx > x + 1.6 ? IRON.c[1] : Lm[yy < y + 2 ? 4 : 3]));
   g.each(x - 1, y, x + 1.6, y + 4.2, () => LAMP[3]);
 }
 // Hängeschild am Eisenarm (Krug, Stiefel, Brot …)
-function sign(p, g, x, y, kind, seed) {
+export function sign(p, g, x, y, kind, seed) {
   p.scan(x, y - 1, x + 13, y, (xx) => IRON.c[xx < x + 1 ? 4 : 2]);
   p.scan(x + 12, y - 2, x + 13, y + 1, () => IRON.c[2]);
   p.scan(x + 3, y + 1, x + 13, y + 11, (xx, yy) => (xx < x + 3.6 || yy > y + 10.4 || xx > x + 12.4 ? OAK.c[1] : OAK.c[yy < y + 1.6 ? 6 : 4]));
@@ -198,7 +201,7 @@ function sign(p, g, x, y, kind, seed) {
 
 // ------------------------------------------------------------------ Dächer
 // Dachfläche über einer Fläche inside(x,y); tex(u,v) in Dachkoordinaten (u entlang der Traufe, v von der Traufe aufwärts)
-function roofTex(kind, P, u, v, seed) {
+export function roofTex(kind, P, u, v, seed) {
   if (kind === 'shingle') {                       // Holzschindeln, gestaffelt, runde Unterkante
     const r = Math.floor(v / 3.2), lv = v - r * 3.2, uu = u + (r & 1) * 2.4 + hash2(r, 0, seed) * 3, b = Math.floor(uu / 4.6), lu = uu - b * 4.6;
     if (lv < 0.6) return P.c[1];
@@ -233,7 +236,7 @@ function roofTex(kind, P, u, v, seed) {
   return P.c[cl(i)];
 }
 // Traufseitiges Satteldach: Fläche von der Traufe (eave) bis zum First (ridge), Ortgang links/rechts
-function roofEave(p, x0, x1, ridge, eave, P, kind, seed, { hip = 0 } = {}) {
+export function roofEave(p, x0, x1, ridge, eave, P, kind, seed, { hip = 0 } = {}) {
   p.scan(x0, ridge, x1, eave + 2, (x, y) => {
     const v = eave - y, k = (y - ridge) / (eave - ridge), ins = hip * (1 - k);
     if (x < x0 + ins || x > x1 - ins) return 0;
@@ -245,7 +248,7 @@ function roofEave(p, x0, x1, ridge, eave, P, kind, seed, { hip = 0 } = {}) {
   });
 }
 // Giebelständiges Dach: von vorn sichtbare Dachflächen hinter dem Giebel (links hell, rechts dunkel)
-function roofGable(p, a, b, apex, base, depth, P, kind, seed, ov = 4) {
+export function roofGable(p, a, b, apex, base, depth, P, kind, seed, ov = 4) {
   const cx = (a + b) / 2, hw = (b - a) / 2 + ov;
   p.scan(cx - hw - 1, apex - depth - 1, cx + hw + 1, base + 2, (x, y) => {
     const dx = x - cx, edgeY = apex + (Math.abs(dx) / hw) * (base - apex);   // Giebelkante (vorn)
@@ -259,12 +262,12 @@ function roofGable(p, a, b, apex, base, depth, P, kind, seed, ov = 4) {
     return c;
   });
 }
-function chimney(p, x, top, h, P = RUB) {
+export function chimney(p, x, top, h, P = RUB) {
   rubble(p, x, x + 9, top, top + h, P, 77);
   p.scan(x - 1, top - 2, x + 10, top, (xx, y) => (y < top - 1.2 ? P.c[6] : P.c[2]));
   p.scan(x + 2, top - 3, x + 7, top - 2, () => INK);
 }
-function dormer(p, g, cx, eaveY, R0, kind, seed, F) {
+export function dormer(p, g, cx, eaveY, R0, kind, seed, F) {
   const w = 14, x0 = cx - w / 2, top = eaveY - 16;
   p.scan(x0, top + 5, x0 + w, eaveY, (x, y) => (x > x0 + w - 1 ? DAUB.c[2] : DAUB.c[5]));
   lead(p, g, cx - 3, top + 7, 6, 7, F, { seed });
@@ -402,16 +405,17 @@ export function plant() {
 }
 
 // ================================================================== Runde 6: Fachwerk-Altstadt (dicht, Wand an Wand)
-const PLASTERS = {
+export const PLASTERS = {
   creme: DAUB,
   ocker: R(['#3a2a1a', '#5a4024', '#7c5a30', '#9c763c', '#b8904a', '#ccaa62', '#dcc282']),
   rose: R(['#3a2428', '#5a3a3a', '#7c524e', '#9c6c64', '#b8867a', '#cc9e8e', '#dcb6a4']),
   salbei: R(['#262c26', '#3a4436', '#525e4a', '#6c7a60', '#869478', '#a0ac90', '#b8c2a8']),
   kalk: LIME,
 };
-const TIMBERS = { eiche: OAK, ochsenblut: R(['#140808', '#240c0c', '#381412', '#4e1c18', '#642620', '#7a3228', '#904032', '#a8523e']) };
-const ROOFP = { shingle: SHING, slate: SLATE, clay: CLAY };
-const SHUT = { gruen: GREEN, rot: RED, blau: R(['#10141e', '#1a2232', '#263246', '#34445c']), braun: R(['#1a100c', '#2a1a12', '#3c261a', '#523422']) };
+export const TIMBERS = { eiche: OAK, ochsenblut: R(['#140808', '#240c0c', '#381412', '#4e1c18', '#642620', '#7a3228', '#904032', '#a8523e']) };
+const THATCH = R(['#1e160c', '#2e2212', '#46341a', '#5e4622', '#7a5c2c', '#94723a', '#ae8a4a']);
+export const ROOFP = { shingle: SHING, slate: SLATE, clay: CLAY, thatch: THATCH };
+export const SHUT = { gruen: GREEN, rot: RED, blau: R(['#10141e', '#1a2232', '#263246', '#34445c']), braun: R(['#1a100c', '#2a1a12', '#3c261a', '#523422']) };
 
 // Erker: vorspringender Kasten mit Fenstern und eigenem Dächlein
 function oriel(p, g, cx, y0, y1, F, seed) {
@@ -442,7 +446,7 @@ function shopFront(p, g, sx0, sx1, top, bot, seed, goods) {
 export function fwHouse(o) {
   const ov = 2, fh = o.fh ?? 25, gfh = 28, fl = o.fl ?? 2;
   const wallW = o.w, side = 4, mrg = 10 + ov * fl;
-  const roofH = (o.gable ? Math.round(wallW * 0.7) + 6 : 60) + (o.tall ?? 0);
+  const roofH = o.roofH ?? (o.gable ? Math.round(wallW * 0.7) + 6 : 60) + (o.tall ?? 0);
   const W = wallW + 2 * mrg + side, H = gfh + fl * fh + roofH + 24, bot = H - 4, x0 = mrg, x1 = mrg + wallW, cx = (x0 + x1) / 2;
   const RP = ROOFP[o.roof ?? 'shingle'], kind = o.roof ?? 'shingle', sh = o.shut ? SHUT[o.shut] : null, seed = o.seed ?? 1;
   // Anker auf einer Kachelmitte: bei gerader Kachelzahl eine halbe Kachel links der Mitte (Häuser stehen so lückenlos Wand an Wand)
@@ -512,10 +516,10 @@ export function fwHouse(o) {
       roofGable(p, a - ov, b + ov, apex, gb, 14 + (o.tall ?? 0), RP, kind, seed + 50, 4);
       if (hash2(seed, 7, 7) < 0.7) chimney(p, gm + (b - a) * 0.18, apex + 4, 12, hash2(seed, 8, 8) < 0.5 ? RUB : BRK);
     } else {
-      roofEave(p, a - 6, b + 7, top - roofH, top + 1, RP, kind, seed + 60);
+      roofEave(p, a - 6, b + 7, top - roofH, top + 1, RP, kind, seed + 60, { hip: o.hip ?? 0 });
       const nd = o.dormers ?? 1;
       for (let k = 0; k < nd; k++) dormer(p, g, a + (b - a) * (k + 0.5) / nd, top - 10, RP, kind, seed + 70 + k, TB);
-      chimney(p, a + 10 + hash2(seed, 1, 1) * (b - a - 30), top - roofH - 10, 16, hash2(seed, 8, 8) < 0.5 ? RUB : BRK);
+      if (o.chimney !== false) chimney(p, a + 10 + (o.hip ?? 0) + hash2(seed, 1, 1) * (b - a - 30 - 2 * (o.hip ?? 0)), top - roofH - 10 + (o.hip ? 8 : 0), 16, hash2(seed, 8, 8) < 0.5 ? RUB : BRK);
     }
     if (o.sign) sign(p, g, dx + 9, t1 - 2, o.sign, seed);
   }, { ax: ax0, ay: bot, b: true, box: [-(ax0 - x0), -28, x1 - ax0, 1], light: LIGHT });
@@ -916,8 +920,135 @@ export function createAltstadtDecor() {
     fPlant: plant(), fCounter: counter(), fKegs: kegs(), fAnvil: anvil(), fForge: forge(), fRack: weaponRack(), fThrone: throne(),
     fBanner: bannerStand(), fTelescope: telescope(), fBooks: bookshelf(), fDesk: desk(), fCase: displayCase(), fArmor: armorStand(),
     planters: [planter(1), planter(2)], bench: bench(),
+    glutbogen: glutbogen(),
+    wShield: wallShield(), wShelf: [wallShelf(1), wallShelf(2)], wPicture: wallPicture(0), wStarmap: wallPicture(1), wSconce: sconce(), wTapestry: [wallTapestry(0), wallTapestry(1)],
   };
   FW.forEach((o, i) => { D['fw' + i] = fwHouse(o); });
   for (const [k, o] of Object.entries(SPECIAL)) D[k] = fwHouse(o);
   return D;
+}
+
+// ------------------------------------------------------------------ Sternentor (Portal in die Glutöde)
+// In der Öffnung wabert ein Glutschleier: unten hell wie ein Glutschein am Horizont, oben dunkel, mit Funken.
+// inside(x,y) = Öffnung, [y0, y1] = Höhe der Öffnung.
+const FIRE = R(['#1a0806', '#3a0e0a', '#661a0c', '#9a2c10', '#cc4a18', '#ee7a2a', '#ffb050', '#ffe0a0']);
+function emberVeil(p, g, x0, x1, y0, y1, inside, seed) {
+  const val = (x, y) => {
+    const v = (y - y0) / (y1 - y0);
+    const sw = Math.sin(x * 0.21 + Math.sin(y * 0.09 + seed) * 2.4 + y * 0.04) * 0.5 + Math.sin(x * 0.07 - y * 0.13 + seed) * 0.5;
+    return v * 0.85 + sw * 0.22 - 0.05;
+  };
+  p.scan(x0, y0, x1, y1, (x, y) => {
+    if (!inside(x, y)) return 0;
+    if (hash2(Math.floor(x), Math.floor(y), seed + 7) < 0.012) return FIRE.c[7];
+    const i = Math.floor(val(x, y) * 7.5 + (((Math.floor(x) + Math.floor(y)) & 1) ? 0.3 : -0.3));
+    return FIRE.c[cl(i, 7)];
+  });
+  g.each(x0, y0, x1, y1, (x, y) => (inside(x, y) && (val(x, y) > 0.72 || hash2(Math.floor(x), Math.floor(y), seed + 7) < 0.012) ? '#ff9a40' : null));
+}
+
+// Glutbogen: frei stehender gotischer Spitzbogen aus Quadern mit Maßwerk-Dreipass, Stufensockel, Eisenbecken
+export function glutbogen() {
+  const W = 112, H = 150, cx = 56, bot = H - 4, foot = bot - 8;
+  return mk(W, H, (p, g) => {
+    PL = DAUB; TB = OAK;
+    footShade(p, cx, bot, 50, 4);
+    // Stufen
+    p.scan(cx - 46, foot, cx + 46, bot, (x, y) => { const up = y < bot - 4, hw = up ? 38 : 46; if (Math.abs(x - cx) > hw) return 0; return y < foot + 0.7 || Math.abs(y - (bot - 4)) < 0.5 ? RUB.c[7] : x > cx + hw - 3 ? RUB.c[3] : RUB.c[up ? 5 : 4]; });
+    const aw = 22, wo = 33, sy = foot - 50;
+    const arc = (x, y, w) => (y >= sy ? Math.abs(x - cx) < w && y < foot : Math.hypot(x - cx - (w - 2 * aw) * 0 + aw - (aw * 2 - w) * 0, 0) >= 0 && Math.hypot(x - (cx - aw * 0.55), y - sy) < w + aw * 0.55 && Math.hypot(x - (cx + aw * 0.55), y - sy) < w + aw * 0.55);
+    const inner = (x, y) => arc(x, y, aw), outer = (x, y) => arc(x, y, wo);
+    emberVeil(p, g, cx - aw, cx + aw, sy - 60, foot, inner, 9);
+    // Quader mit Fugen (Lagen 7 px, im Bogen radial)
+    p.scan(cx - wo - 1, sy - 70, cx + wo + 1, foot, (x, y) => {
+      if (!outer(x, y) || inner(x, y)) return 0;
+      let jnt;
+      if (y < sy) { const s = (Math.atan2(y - sy, x - cx) / Math.PI) * 18; jnt = s - Math.floor(s) < 0.07; } else { const r = Math.floor((foot - y) / 7), ly = (foot - y) % 7, lx = (Math.abs(x - cx) + (r & 1) * 4) % 9; jnt = ly < 0.6 || lx < 0.6; }
+      if (jnt) return RUB.c[2];
+      let i = x < cx ? 5 : 4;
+      if (inner(x + 1.5, y) || inner(x - 1.5, y) || inner(x, y + 1.5)) i = x < cx ? 3 : 2;
+      if (!outer(x, y - 1.2)) i = 7;
+      if (!outer(x + 1.2, y) && x > cx) i = 2;
+      if (hash2(Math.floor(x / 3), Math.floor(y / 3), 991) < 0.08) i--;
+      return RUB.c[cl(i, 7)];
+    });
+    // Maßwerk: Dreipass oben in der Öffnung
+    const tc = sy - 22;
+    p.scan(cx - 12, tc - 12, cx + 12, tc + 10, (x, y) => {
+      const lobes = [[cx, tc - 5], [cx - 6, tc + 3], [cx + 6, tc + 3]];
+      const d = Math.min(...lobes.map(([a, b]) => Math.hypot(x - a, y - b)));
+      return d > 5 && d < 7 && inner(x, y) ? RUB.c[x < cx ? 6 : 4] : 0;
+    });
+    // Schlussstein, Krabben
+    p.scan(cx - 5, sy - 48, cx + 5, sy - 36, (x, y) => (Math.abs(x - cx) > 5 - (y - (sy - 48)) * 0.15 ? 0 : y > sy - 37 ? RUB.c[1] : RUB.c[x < cx ? 7 : 4]));
+    // Eisenbecken mit Feuer links und rechts
+    for (const bx of [cx - 44, cx + 44]) {
+      p.scan(bx - 1, foot - 26, bx + 1, bot, () => IRON.c[3]);
+      p.scan(bx - 5, bot - 2, bx + 5, bot, () => IRON.c[2]);
+      p.scan(bx - 6, foot - 30, bx + 6, foot - 24, (x, y) => (y < foot - 29 ? IRON.c[5] : IRON.c[x < bx ? 3 : 2]));
+      p.scan(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => { const f = Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 + Math.sin(y * 0.8 + x) * 0.15; return f > 1 ? 0 : FIRE.c[f < 0.35 ? 7 : f < 0.6 ? 6 : 5]; });
+      g.each(bx - 5, foot - 42, bx + 5, foot - 30, (x, y) => (Math.abs(x - bx) / 5 + (foot - 30 - y) / 12 < 0.9 ? '#ff9a40' : null));
+    }
+  // Kollision nur an Pfeilern und Becken: durch die Öffnung kann man hineingehen
+  }, { ax: cx, ay: bot, b: true, extra: { boxes: [[-50, -10, -21, 1], [21, -10, 50, 1]] }, light: { dx: 0, dy: -30, radius: 80, color: [255, 140, 70], intensity: 0.65 } });
+}
+
+// ------------------------------------------------------------------ Wandschmuck für Innenräume
+// Stehen auf der vordersten Bodenreihe vor der Rückwand und hängen optisch an der Wand: kein Kasten, begehbar, sortiert
+// hinter allem in derselben Reihe.
+const WALL = { sortOffset: -40, low: true };
+function wallItem(W, draw, light = null) { return mk(W, 48, draw, { ax: Math.floor(W / 2), ay: 47, b: true, light, extra: WALL }); }
+export function wallShield() {
+  return wallItem(28, (p) => {
+    for (const s of [-1, 1]) for (let t = 0; t < 22; t += 0.5) { const x = 14 + s * (t - 11) * 0.9, y = 8 + t; p.scan(x - 0.8, y - 0.6, x + 0.8, y + 0.6, () => (t < 4 ? col32('#8a5a36') : IRON.c[t < 6 ? 2 : s < 0 ? 6 : 5])); }
+    p.scan(7, 9, 21, 27, (x, y) => (Math.abs(x - 14) > 7 - Math.max(0, y - 19) * 0.85 ? 0 : x < 7.6 || y < 9.6 ? col32('#e0c070') : Math.abs(x - 14) < 1 ? col32('#e0c070') : col32(x < 14 ? '#2a3a6a' : '#1c2a50')));
+  });
+}
+export function wallShelf(seed = 1) {
+  return wallItem(30, (p) => {
+    for (const sy of [14, 26]) {
+      p.scan(2, sy, 28, sy + 2, (x, y) => OAK.c[y < sy + 1 ? 6 : 2]);
+      for (let k = 0, x = 4; x < 26; k++) {
+        const t = hash2(k, sy, seed), w = t < 0.5 ? 2 : 4, h = 5 + Math.floor(hash2(k, sy + 1, seed) * 4);
+        const C = t < 0.5 ? ['#7a2a22', '#2a4a6a', '#3a5a2a', '#8a6a2a'][k % 4] : ['#c8b890', '#6a8aa0', '#a06a4a'][k % 3];
+        p.scan(x, sy - h, x + w, sy, (xx, yy) => (t >= 0.5 && yy < sy - h + 1.5 && Math.abs(xx - x - w / 2) > 0.8 ? 0 : col32(C)));
+        x += w + (hash2(k, 9, seed) < 0.3 ? 2 : 1);
+      }
+    }
+    for (const bx of [4, 25]) p.scan(bx, 14, bx + 1, 30, () => IRON.c[2]);
+  });
+}
+export function wallPicture(kind = 0) {
+  return wallItem(30, (p) => {
+    p.scan(3, 8, 27, 28, (x, y) => {
+      if (x < 4 || x > 26 || y < 9 || y > 27) return col32(x < 5 || y < 10 ? '#e0c070' : '#a87830');
+      if (kind === 1) { // Sternkarte
+        if (hash2(Math.floor(x), Math.floor(y), 77) < 0.05) return col32('#f0e8c0');
+        return Math.abs(Math.hypot(x - 15, y - 18) - 6) < 0.5 ? col32('#c49a4a') : col32('#1a2040');
+      }
+      const hz = 20 + Math.sin(x * 0.5) * 1.5;   // Landschaft mit Burg
+      if (y < hz) return Math.abs(x - 18) < 2.5 && y > 13 ? col32('#6a6a78') : col32(y < 14 ? '#e8a868' : '#c87850');
+      return col32(y < 24 ? '#3a5a2a' : '#2a4020');
+    });
+  });
+}
+export function sconce() {
+  return wallItem(14, (p, g) => {
+    p.scan(5, 20, 9, 30, (x, y) => (y > 28 ? IRON.c[2] : IRON.c[x < 7 ? 4 : 2]));
+    p.scan(6, 13, 8, 20, (x) => col32(x < 7 ? '#f0e8d0' : '#c8bca0'));
+    p.scan(6.4, 9, 7.6, 13, (x, y) => (y < 10.5 ? col32('#fff0c0') : col32('#f6a040')));
+    g.each(5, 8, 9, 13, () => '#ffb050');
+  }, { dx: 0, dy: -30, radius: 48, color: [255, 190, 120], intensity: 0.5 });
+}
+export function wallTapestry(seed = 0) {
+  return wallItem(26, (p) => {
+    p.scan(2, 4, 24, 6, () => OAK.c[4]);
+    p.scan(4, 6, 22, 32, (x, y) => {
+      if (y > 30 && Math.floor(x) % 3 === 0) return 0;
+      const base = seed % 2 ? ['#2a3a6a', '#1c2a50'] : ['#6e2228', '#4a1820'];
+      if (x < 5 || x > 21) return col32('#c49a4a');
+      if (Math.abs(x - 13) + Math.abs(y - 17) < 5 && Math.abs(x - 13) + Math.abs(y - 17) > 3) return col32('#e0c070');
+      return col32(x < 13 ? base[0] : base[1]);
+    });
+  });
 }

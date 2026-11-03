@@ -1,6 +1,7 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { clearAround } from '../mapkit.js';
-import { skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
+import { addInteriors } from '../houses.js';
+import { openSites, placeNear, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
 
 // ---------------------------------------------------------------- Die Splitterweiten (45–50)
 // 200 × 130 Kacheln. Wo Aurels Himmelsreich zerbrach: ein Feld aus Kristallscherben, kühles Glasmoos statt Gras.
@@ -126,10 +127,13 @@ export function buildSplitterweiten() {
   put(65, 60, 'P');                                         // Schürfer Kel
   put(50, 55, 'C');                                         // Kartografin Mira
   const board = { x: 60, y: 61 };
-  for (const [x, y] of [[48, 52], [54, 50], [68, 52], [70, 58], [48, 62], [62, 65]]) put(x, y, 'T');
-  for (const [x, y] of [[52, 52], [66, 63], [46, 58]]) put(x, y, 'x');
-  for (const [x, y] of [[72, 55], [50, 65]]) put(x, y, 'o');
-  put(68, 56, 'l');                                         // Lore
+  // Schürferhütten (Bretter, Teerpappe, Vordach bzw. Anbau mit Erzsäcken), dazwischen die alten Zelte
+  put(50, 52, 'H'); put(70, 58, 'U');
+  for (const [x, y] of [[66, 51], [48, 62], [62, 65]]) put(x, y, 'T');
+  for (const [x, y] of [[66, 63], [46, 58]]) put(x, y, 'x');
+  for (const [x, y] of [[73, 54], [50, 65]]) put(x, y, 'o');
+  put(56, 64, 'W');                                         // Werkbank
+  put(61, 51, 'l');                                         // Lore
   put(74, 62, 'D');                                         // Förderkran am Rand
   for (const [x, y] of [[57, 52], [61, 52], [55, 62]]) put(x, y, 'L');
   put(58, 60, '1'); put(60, 59, '2');
@@ -169,6 +173,14 @@ export function buildSplitterweiten() {
   for (const [x, y] of [[144, 104], [152, 104]]) put(x, y, 'J');
   keep(inRect(rect(136, 88, 26, 16)));
 
+  // ------------------------------------------------------------ Setzstücke (Kartendetails 03.11.)
+  // Sternwartenberg: Armillarsphären, Sternkartenpulte und umgestürzte Fernrohre erzählen von Aurels Sternwarte.
+  // Abseits der Sternsteine (q_queens_constellation, Westhang) und der Linsen.
+  const avoid = [[148, 98], [148, 102], [140, 103], ...lenses, [134, 98], [142, 108], [134, 117], [129, 108]];
+  placeNear(m, net, [[157, 97], [126, 103]], 'p', { avoid, gap: 4 });
+  placeNear(m, net, [[138, 99], [154, 109], [166, 109]], 'q', { avoid, gap: 4 });
+  placeNear(m, net, [[163, 115], [122, 109]], 'n', { r: 2, reach: 8, avoid, gap: 4 });
+
   // ------------------------------------------------------------ Streudeko
   const vd = voidDist(m, 4);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
@@ -185,6 +197,8 @@ export function buildSplitterweiten() {
     else if (h < 0.045) put(x, y, inLake ? 'u' : 'k');
     else if (inLake && h < 0.055) put(x, y, 'R');
     else if (inMount && h < 0.06) put(x, y, hash2(x, y, 6193) < 0.6 ? 'v' : 'k');
+    // Grafik-Patch: dichter bewachsen – Glasmoosbüsche und kleine Kristallgruppen in Nestern (nicht auf den Graten)
+    else if (!inRidge && n > 0.45 && h < 0.08) put(x, y, hash2(x, y, 6194) < 0.55 ? 'B' : 'c');
   }
 
   // ------------------------------------------------------------ Gegner
@@ -205,30 +219,54 @@ export function buildSplitterweiten() {
   group(182, 32, ['e', 'f'], 3);
   // Spiegelsee (47–48): Leerenhunde, Statuengeister, Schattenläufer
   for (const [x, y] of [[36, 92], [66, 92], [70, 106], [56, 114], [36, 110], [26, 100], [44, 88], [82, 112]]) group(x, y, ['h', 'w', 'r'], 4);
-  // Sternwartenberg (49–50): Sternseher, Splitterkolosse
-  for (const [x, y] of [[130, 108], [160, 114], [166, 104], [150, 118], [134, 116], [118, 98], [112, 72]]) group(x, y, ['t', 't', 'z'], 4);
+  // Sternwartenberg (49–50): Sternseher an den Wegen, Splitterkolosse (Elite, Stufe 49) abseits. Ein Koloss sieht
+  // 130 px (≈ 8 Kacheln) weit und kommt mit seiner Gruppe: darum stehen drei einzeln (je eigene Gruppe, ≥ 6,5
+  // Kacheln auseinander, GROUP_LINK in Spawner.js ist 5) in der Senke im Süden des Bergs, mindestens 9 Kacheln von
+  // jedem Weg und jedem Sternseher. Wer zur Sternwarte reitet, zieht keinen mehr an; für den Auftrag (4 Kolosse)
+  // reichen drei mit 45 s Wiederkehr.
+  for (const [x, y] of [[130, 108], [160, 112], [166, 104], [118, 98], [140, 100]]) group(x, y, ['t', 't'], 4);
+  const roadNear = (x, y, r) => {
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r && net.onRoad(x + i, y + j)) return true;
+    return false;
+  };
+  const seers = foes.slice(-10);
+  const colossi = [];
+  for (let x = 128; x <= 158 && colossi.length < 3; x++) for (let y = 112; y <= 126 && colossi.length < 3; y++) {
+    if (!freeAt(m, net, x, y) || kept(x, y) || roadNear(x, y, 9) || seers.some(([a, b]) => Math.hypot(a - x, b - y) < 9)) continue;
+    if (foes.some(([a, b]) => Math.hypot(a - x, b - y) < 6.5)) continue;
+    put(x, y, 'z'); foes.push([x, y]); colossi.push([x, y]);
+  }
 
   // Questziele der zweiten Runde: Bosks Kisten und die Krabblernester im Scherbenfeld, Luns Echosteine auf den Graten,
   // Kels Claimpfahl (Verteidigung) auf der Insel nördlich von Funkenruh, Harriks letztes Lager an der Ostkante
   const crates = [[42, 10], [96, 24], [126, 11], [116, 14]];
   const nests = [[53, 11], [69, 20], [110, 10], [35, 14]];
   const echoStones = [[149, 67], [166, 55], [182, 58]];
+  // Miras Wegleuchten (q_mira_lamps): entlang des Wegs von Funkenruh zu den Singenden Graten, neben dem Weg
+  const lampPath = walkPath(m, 'KSGOTxoDlLJYgcksRQFmdHUWBpqn', [60, 50], [150, 46]);
+  const lamps = openSites(m, [0.2, 0.42, 0.64, 0.86].map((f) => { const q = lampPath[Math.round((lampPath.length - 1) * f)] ?? [60, 50]; return [q[0], q[1] + 2]; }), 1, 5);
+  // Sternbild der Königin (q_queens_constellation): vier Sternsteine auf dem Sternwartenberg
+  const starStones = openSites(m, [[134, 98], [142, 108], [134, 117], [129, 108]], 1, 4);
   const claimStake = [62, 30], harrikCamp = [133, 36];
 
   // Freiraum um Marken und Portale
   const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses, ...crates, ...nests, ...echoStones, claimStake, harrikCamp];
   clearAround(m, spots, 'gckRsabefhwrtzmvdu', { r: 2, south: 3 });
   // Eskorte „Miras Messgang“: von Funkenruh über die Westbrücken zur Westscherbe
-  const SOLID = 'KSGOTxoDlLJYgcksRQFmd';
+  const SOLID = 'KSGOTxoDlLJYgcksRQFmdHUWBpqn';
   const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
   const amb = (f) => Math.round((miraPath.length - 1) * f);
 
-  return {
+  // Weltereignis „Sternenfall“ (world/starfall.js): mögliche Einschlagorte, je Teilgebiet einer
+  const starfallSites = openSites(m, [[86, 30], [164, 62], [50, 100], [120, 26], [70, 96], [40, 30]], 3, 14, 6);
+
+  const L = {
     name: 'Die Splitterweiten',
     kind: 'outdoor',
     biome: 'shards',
     sky: 'morgen',
     island: ISLAND,
+    starfallSites,
     decorSet: 'decor_shards',
     map: m.rows(),
     bridges: m.bridges ?? [],
@@ -239,7 +277,8 @@ export function buildSplitterweiten() {
       K: 'shardSpire', S: 'singingSpires', G: 'glassGate', O: 'observatory', T: 'prospectorTents', x: 'crateStack', o: 'oreHeaps',
       D: 'derrick', l: 'mineCart', L: 'lantern', J: 'starLamp', Y: 'lensStand', g: 'glassTrees', c: 'crystals', k: 'shardRocks',
       s: 'singingSpires', R: 'mirrorStones', Q: 'signpost', F: 'shardCampfire',
-      m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms',
+      m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms', B: 'bushes', H: 'minerHutA', U: 'minerHutB', W: 'workbench',
+      p: 'armillary', q: 'starChart', n: 'fallenTelescope',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_sternhafen', 5: 'waystone', 6: 'from_glass_halls', 7: 'from_observatory' },
     waystone,
@@ -271,6 +310,8 @@ export function buildSplitterweiten() {
       ...crates.map(([x, y], i) => ({ id: `supply_crate_${i + 1}`, kind: 'item', decor: 'crateStack', name: 'Bosks Kiste', prompt: 'Die Kiste bergen', x, y })),
       ...nests.map(([x, y], i) => ({ id: `crawler_nest_${i + 1}`, kind: 'shrine', decor: 'oreHeaps', name: 'Krabblernest', prompt: 'Das Nest zerschlagen', x, y })),
       ...echoStones.map(([x, y], i) => ({ id: `echo_stone_${i + 1}`, kind: 'shrine', decor: 'singingSpires', name: 'Echostein', prompt: 'Den Echostein anschlagen', x, y })),
+      ...lamps.map(([x, y], i) => ({ id: `mira_lamp_${i + 1}`, kind: 'shrine', set: 'decor_astral', decor: 'signalLamp', name: 'Wegleuchte', prompt: 'Die Wegleuchte mit Sternöl füllen', x, y })),
+      ...starStones.map(([x, y], i) => ({ id: `star_stone_${i + 1}`, kind: 'shrine', set: 'decor_astral', decor: 'starStones', name: 'Sternstein', prompt: 'Den Sternstein berühren', x, y })),
       { id: 'kel_claim_stake', kind: 'shrine', decor: 'mineCart', name: 'Kels Claimpfahl', prompt: 'Den Claim verteidigen', x: claimStake[0], y: claimStake[1] },
       { id: 'harrik_journal', kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Harriks Tagebuch', prompt: 'Das Tagebuch aufheben', x: harrikCamp[0], y: harrikCamp[1] },
     ],
@@ -299,4 +340,15 @@ export function buildSplitterweiten() {
     ],
     signText: 'Nord: Brücken nach Sternhafen und in die Gärten · Ost: Singende Grate · Süd: Spiegelsee · Südost: Sternwartenberg',
   };
+  // Begehbare Schürferhütten in Funkenruh (world/houses.js): Tür H 1 links vom Anker, U 1 rechts
+  return addInteriors(L, [
+    { id: 'schuerferhuette', name: 'Schürferhütte', door: { x: 49, y: 52 }, plan: 'lodgeB' },
+    { id: 'erzschuppen', name: 'Erzschuppen', door: { x: 71, y: 58 }, plan: ORE },
+  ], { ambient: [140, 134, 150], light: [190, 220, 255] });
 }
+
+// Erzschuppen: Säcke, Fässer, Kisten, Werkzeug an der Wand
+const ORE = {
+  w: 11, h: 9, s: 'L', win: [5], light: [5, 4],
+  furn: [[2, 3, 'fRack'], [8, 3, 'fCupboard'], [1, 7, 'fSacks'], [3, 7, 'fSacks'], [9, 7, 'fBarrels'], [5, 6, 'fTable'], [7, 6, 'fStool'], [5, 3, 'wShelf'], [9, 5, 'fChest']],
+};

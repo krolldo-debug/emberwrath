@@ -133,6 +133,51 @@
   .fd-go { margin-top: 10px; }
 }
 
+/* ------------------------------------------------------------ Pixelfenster (03.11., ui/pixelFrame.js)
+   Wie Auktionshaus und Postfach: Glutrahmen, Reiter in Pixelschrift, deckende warme Zeilen mit 2-px-Kanten.
+   Gewählter Dungeon mit Glutleiste links, passende Dungeons mit kleinem Glutstein rechts. */
+#ui .ef-panel.fd-panel.ef-pxwin { padding: 2px 8px 8px; }
+.ef-pxwin .fd-head { margin-bottom: 10px; padding: 0 0 6px; gap: 8px; }
+.ef-pxwin .fd-tabs { gap: 4px; align-items: stretch; }
+.ef-pxwin .fd-tab.fd-pxtab {
+  display: grid; place-items: center; min-height: 44px; padding: 0 14px; border: 0; border-radius: 0;
+  background: #1a0c12; box-shadow: inset 0 0 0 2px var(--px-k);
+}
+.ef-pxwin .fd-tab.fd-pxtab[aria-selected="true"] { background: var(--px-edge); box-shadow: inset 0 0 0 2px var(--px-k), inset 0 4px 0 var(--px-ember); }
+.ef-pxwin .fd-tab.fd-pxtab:hover { background: #241018; }
+.ef-pxwin .fd-tab.fd-pxtab:focus-visible { outline: 2px solid var(--px-gold); outline-offset: -2px; }
+.ef-pxwin .fd-title.fd-pxt { flex: 1; padding-left: 4px; }
+.ef-pxwin .fd-close { margin-left: auto; }
+.ef-pxwin .fd-h { color: var(--px-muted); }
+.ef-pxwin .fd-dungeon { position: relative; background: var(--px-row); border: 0; box-shadow: inset 0 0 0 2px var(--px-k); }
+.ef-pxwin .fd-dungeon:hover:not(:disabled) { background: var(--px-row-hi); }
+.ef-pxwin .fd-dungeon.selected { background: #2e141a; box-shadow: inset 0 0 0 2px var(--px-k), inset 6px 0 0 var(--px-ember), inset 0 0 0 4px var(--px-edge-hi); }
+.ef-pxwin .fd-dungeon.selected .fd-dlv { color: var(--px-gold); }
+.ef-pxwin .fd-dungeon.locked { background: var(--px-sunk); }
+.ef-pxwin .fd-dungeon.fit, .ef-touch .ef-pxwin .fd-dungeon.fit { padding-right: 22px; }
+.ef-pxwin .fd-dungeon.fit::after {
+  content: ""; position: absolute; right: 8px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+  background: #ff8a3a; box-shadow: 0 0 0 2px #5a1608, -2px -2px 0 0 #ffd890 inset;
+}
+.ef-pxwin .fd-scene { border: 0; box-shadow: 0 0 0 2px var(--px-k), 0 0 0 4px var(--px-edge-hi), 0 0 0 6px var(--px-k); }
+.ef-pxwin .fd-preview { margin-top: 6px; }
+.ef-touch .ef-pxwin .fd-pick .fd-preview figcaption { left: 0; right: 0; bottom: 0; background: rgba(14, 7, 11, 0.92); box-shadow: 0 -2px 0 var(--px-k); }
+.ef-pxwin .fd-pname { color: var(--px-gold); }
+.ef-pxwin .fd-role { background: var(--px-row); border: 0; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-line); }
+.ef-pxwin .fd-role:hover:not(:disabled) { background: var(--px-row-hi); }
+.ef-pxwin .fd-role.selected { background: #2e141a; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-ember); color: #fff4e0; }
+.ef-pxwin .fd-role:disabled { background: var(--px-sunk); }
+.ef-pxwin .fd-slot { background: var(--px-sunk); border: 0; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-line); }
+.ef-pxwin .fd-slot.me, .ef-pxwin .fd-slot.full { background: #2e141a; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-ember); }
+.ef-pxwin .fd-slot:not(.me):not(.full) { animation-name: fd-slot-px; }
+@keyframes fd-slot-px { 50% { box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge-hi); } }
+.ef-pxwin .fd-time { color: var(--px-gold); }
+@media (min-width: 641px) and (max-height: 520px) {
+  .ef-pxwin .fd-head { margin-bottom: 8px; padding-bottom: 4px; }
+  .ef-pxwin .fd-tab.fd-pxtab { min-height: 40px; padding: 0 12px; }
+  .ef-touch .ef-pxwin .fd-pick { grid-template-columns: minmax(0, 1fr) 230px; }
+}
+
 /* ------------------------------------------------------------ Menüknopf (HUD-Knopfreihe) */
 .fd-menu-btn.fd-busy::after {
   content: ""; position: absolute; left: 4px; top: 4px; width: 7px; height: 7px; background: var(--ef-ember);

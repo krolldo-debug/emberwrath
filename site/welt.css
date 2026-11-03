@@ -161,3 +161,34 @@
   .auftakt-bild .shot { --ay: 0.583; }
 }
 @media (orientation: landscape) and (max-height: 379px) { .auftakt-bild { --f: 1.334; } }
+
+/* ---------- Die Karte (atlas.js, site/tools/atlas.mjs): echte Gebietskarten als Blätter, ganzzahlig vergrößert.
+   atlas.js setzt die Breite auf ganze Gerätepixel je Bildpunkt; ohne JavaScript gilt die Näherung unten. Leinwand
+   .atlas-live liegt im selben Raster darüber (Glutpfad, Rahmen, Sternenfunkeln). */
+.atlas { padding: clamp(56px, 7vw, 96px) var(--gutter) clamp(64px, 8vw, 110px); background: #07040a; }
+.atlas-kopf { padding: 0; margin-bottom: 64px; text-align: center; }
+.atlas-kopf h2 { margin: 0; font: 700 clamp(28px, 3.4vw, 44px)/1.1 var(--font-title); color: #fff1d6; }
+.atlas-satz { margin: 14px auto 0; max-width: 34em; color: var(--soft); }
+.atlas-karte { position: relative; width: min(1000px, 100%); margin: 0 auto; aspect-ratio: 1000 / 2590; }
+.atlas-bild, .atlas-live { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.atlas-karte.weich .atlas-bild, .atlas-karte.weich .atlas-live { image-rendering: auto; }
+.atlas-karte.zeigt { cursor: pointer; }
+.atlas-orte { position: absolute; inset: 0; pointer-events: none; }
+/* Beschriftung über der linken oberen Ecke des Blatts: Name auf festem Grund, Stufen als Schild wie am Weg */
+.ort { position: absolute; pointer-events: auto; display: flex; align-items: center; gap: 8px; transform: translate(-4px, calc(-100% - 10px));
+  padding: 5px 6px 5px 10px; background: #0b0610; border: 1px solid #5a200c; color: #fff1d6; text-decoration: none; white-space: nowrap; }
+/* rechte Spalte: rechte Kante bündig mit dem Blatt */
+.ort.rechts { transform: translate(4px, calc(-100% - 10px)); }
+.ort b { font: 700 15px/1.2 var(--font-title); letter-spacing: 0.02em; }
+.ort .schild { font: 700 12px/1 var(--font); padding: 4px 6px; color: #fff6e6; background: linear-gradient(180deg, #a8481a 0 50%, #86320f 50% 100%); border: 1px solid #ffb050; }
+a.ort:hover, a.ort:focus-visible, .ort.an { border-color: #ffb050; outline: none; }
+a.ort:hover b, a.ort:focus-visible b, .ort.an b { color: #ffd27a; }
+.ort.bald { border-color: #3a2460; }
+.ort.bald .schild { background: linear-gradient(180deg, #5a36a0 0 50%, #43277e 50% 100%); border-color: #b088f8; text-transform: uppercase; letter-spacing: 0.1em; }
+@media (max-width: 600px) {
+  .atlas-kopf { margin-bottom: 40px; text-align: left; }
+  .ort { gap: 5px; padding: 3px 4px 3px 6px; transform: translate(-2px, calc(-100% - 5px)); }
+  .ort.rechts { transform: translate(2px, calc(-100% - 5px)); }
+  .ort b { font-size: 11px; }
+  .ort .schild { font-size: 9px; padding: 2px 4px; }
+}

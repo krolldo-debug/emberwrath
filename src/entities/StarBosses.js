@@ -5,6 +5,7 @@ import { HazardCloud } from './Hazards.js';
 import { Light } from '../gfx/Lighting.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 import { rand } from '../core/math.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Bosse der Sternenscherben (Erweiterung „Sternenglut“, Teil 1). Alle drei stehen auf Varkhuls Rig
 // (sprites/star_bosses.js) und erben aus Boss.js Bewegung, Hieb, Beben, Speere, Beschwörung (def.summon) und den
@@ -54,7 +55,7 @@ const VINE = ['#1a2410', '#2e4a1a', '#4a7a2a', '#7ab048', '#c8f090'];
 const BLOOM = [220, 90, 200];
 
 // Ranken um die Füße des Helden, solange er festgehalten wird
-class VineSnare extends Entity {
+export class VineSnare extends Entity {
   constructor(target, duration) { super(target.x, target.y); Object.assign(this, { target, duration }); this.t = 0; this.sortOffset = 2; }
   update(dt) {
     this.t += dt; this.x = this.target.x; this.y = this.target.y;
@@ -65,16 +66,50 @@ class VineSnare extends Entity {
     const grow = Math.min(1, this.t * 6);
     ctx.save();
     ctx.globalAlpha = k > 0.8 ? (1 - k) * 5 : 1;
+    ctx.beginPath(); ctx.rect(x - 20, y - 30, 40, 31); ctx.clip();
+    // vier Ranken winden sich um die Füße und schieben sich aus dem Boden
     for (let i = 0; i < 4; i++) {
-      const side = i % 2 ? 1 : -1, base = x + side * (3 + (i >> 1) * 4), h = Math.round((10 + (i >> 1) * 4) * grow);
-      for (let j = 0; j < h; j++) {
-        const px = base + Math.round(Math.sin(j * 0.55 + i) * 2) - side * Math.round(j * 0.25);
-        ctx.fillStyle = VINE[0]; ctx.fillRect(px + 1, y - j, 1, 1);
-        ctx.fillStyle = VINE[j % 4 === 0 ? 4 : j % 2 ? 2 : 3]; ctx.fillRect(px, y - j, 1, 1);
-      }
-      if (h > 6) { ctx.fillStyle = `rgb(${BLOOM})`; ctx.fillRect(base - side * Math.round(h * 0.25) - 1, y - h, 2, 2); }
+      const side = i % 2 ? 1 : -1, h = 10 + (i >> 1) * 4;
+      FX.vineFrame(h, side, i).draw(ctx, x + side * (4 + (i >> 1) * 4), y + Math.round(h * (1 - grow)));
     }
     ctx.restore();
+  }
+}
+
+// Ausbrechende Ranken an einer Wurzelstelle: schießen hoch, halten kurz, ziehen sich zurück
+export class RootBurst extends Entity {
+  constructor(x, y) { super(x, y); this.t = 0; this.seed = Math.floor(Math.random() * 3); }
+  update(dt) { this.t += dt; if (this.t > 0.75) this.removed = true; }
+  render(ctx, cx, cy) {
+    const t = this.t, g = t < 0.1 ? 1 - (1 - t / 0.1) ** 3 : t < 0.4 ? 1 : Math.max(0, 1 - (t - 0.4) / 0.35);
+    if (g <= 0) return;
+    const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x - 30, y - 40, 60, 41); ctx.clip();
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.26 + this.seed, d = i === 0 ? 0 : 9, h = i === 0 ? 22 : 14 + (i % 2) * 4;
+      FX.vineFrame(h, i % 2 ? 1 : -1, (i + this.seed) % 3).draw(ctx, x + Math.round(Math.cos(a) * d), y + Math.round(Math.sin(a) * d * 0.5 + h * (1 - g)));
+    }
+    ctx.restore();
+  }
+}
+
+// Fallender Sternsplitter: stürzt in den letzten Augenblicken auf seinen Warnkreis, Funkenstern und Riss beim Einschlag
+export class ShardFall extends Entity {
+  constructor(x, y, delay) { super(x, y); this.delay = delay; this.t = 0; this.sortOffset = 4000; }
+  update(dt) { this.t += dt; if (this.t > this.delay + 0.3) this.removed = true; }
+  renderEmissive(ctx, cx, cy) {
+    const x = Math.round(this.x - cx), y = Math.round(this.y - cy), fall = 0.32, k = (this.t - (this.delay - fall)) / fall;
+    if (k < 0) return;
+    if (k < 1) {
+      const z = Math.round((1 - k) * 130);
+      FX.orbFrame(Math.PI / 2, 2.5, 'frost', 6).draw(ctx, x, y - 4 - z);
+      if (k > 0.5) FX.starFrame(2, 'frost').draw(ctx, x, y - 4 - z, { alpha: 0.8 });
+      return;
+    }
+    const j = (this.t - this.delay) / 0.3;
+    FX.radialCrack(9, 5, 'frost', Math.floor(this.x) % 3).draw(ctx, x, y, { alpha: 1 - j });
+    FX.starFrame(Math.round(6 - j * 3), 'frost').draw(ctx, x, y - 3, { alpha: 1 - j * 0.8 });
   }
 }
 
@@ -130,6 +165,7 @@ export class Ysgarn extends Boss {
     const h = world.hero;
     let held = false;
     for (const p of this.roots) {
+      world.spawn(new RootBurst(p.x, p.y));
       world.particles.dust(p.x, p.y, 12, '#3a2e24');
       world.particles.sparks(p.x, p.y - 4, -Math.PI / 2, 6, VINE.slice(2));
       world.decals.scorch(p.x, p.y, 8);
@@ -160,7 +196,37 @@ export class Ysgarn extends Boss {
 const GLASS = ['#ffffff', '#d8f4ff', '#8ad0ff', '#c070ff'];
 
 // Gläsernes Abbild des Bosses: erscheint, zielt (Warnbahn) und stößt über die Bahn
-class MirrorImage extends Entity {
+// Glasabbild eines Boss-Frames: Eiskante hell, Inneres kühl mit schrägen Glanzbändern (gecacht je Frame)
+const GHOSTS = new WeakMap();
+function glassGhost(f, flip) {
+  let g = GHOSTS.get(f);
+  if (!g) {
+    const src = f.canvas, w = src.width, h = src.height;
+    const d = src.getContext('2d').getImageData(0, 0, w, h).data;
+    const c = makeCanvas(w, h), x2 = c.getContext('2d'), img = x2.createImageData(w, h), o = img.data;
+    const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 40;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!on(x, y)) continue;
+      const edge = !on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1);
+      const band = ((x + y) >> 1) % 9 === 0;
+      const [r, gg, b, a] = edge ? [225, 245, 255, 255] : band ? [150, 205, 245, 190] : [70, 120, 185, 120];
+      const i = (y * w + x) * 4; o[i] = r; o[i + 1] = gg; o[i + 2] = b; o[i + 3] = a;
+    }
+    x2.putImageData(img, 0, 0);
+    const fl = makeCanvas(w, h), fx = fl.getContext('2d');
+    fx.translate(w, 0); fx.scale(-1, 1); fx.drawImage(c, 0, 0);
+    GHOSTS.set(f, g = { img: c, fl });
+  }
+  return flip ? g.fl : g.img;
+}
+function drawGhost(ctx, f, x, y, flip, alpha) {
+  const img = glassGhost(f, flip), r = f.res || 1, ax = flip ? f.canvas.width - f.ax : f.ax;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, Math.round(x * r - ax) / r, Math.round(y * r - f.ay) / r, img.width / r, img.height / r);
+  ctx.globalAlpha = 1;
+}
+
+export class MirrorImage extends Entity {
   constructor(boss, x, y, target, delay) {
     super(x, y);
     this.boss = boss; this.from = { x, y }; this.delay = delay;
@@ -194,7 +260,17 @@ class MirrorImage extends Entity {
     if (!f?.draw) return;
     const go = 0.3 + this.delay;
     const a = this.t < 0.3 ? this.t / 0.3 : this.t > go + 0.2 ? Math.max(0, 1 - (this.t - go - 0.2) / 0.25) : 1;
-    f.draw(ctx, this.x - cx, this.y - cy, { flip: this.facing < 0, flash: true, alpha: 0.42 * a });
+    // Glasschleier: beim Stoß bleiben zwei verblassende Abbilder auf der Bahn zurück, Glanzsterne blitzen
+    if (this.t >= go) {
+      const k = Math.min(1, (this.t - go) / 0.16);
+      for (const [b, al] of [[0.45, 0.16], [0.75, 0.26]]) {
+        const kk = k * b, gx = this.from.x + (this.to.x - this.from.x) * kk, gy = this.from.y + (this.to.y - this.from.y) * kk;
+        drawGhost(ctx, f, gx - cx, gy - cy, this.facing < 0, al * 1.6 * a);
+      }
+    }
+    drawGhost(ctx, f, this.x - cx, this.y - cy, this.facing < 0, 0.8 * a);
+    const s = Math.floor(this.t * 10) % 3;
+    FX.starFrame(3 + (s === 0 ? 1 : 0), 'frost').draw(ctx, Math.round(this.x - cx + (s - 1) * 6), Math.round(this.y - cy - 24 - s * 8), { alpha: 0.85 * a });
   }
 }
 
@@ -243,6 +319,7 @@ export class Kaldris extends Boss {
       const p = i === 0 ? { x: h.x, y: h.y } : freeNear(world, h.x + Math.cos(a) * d, h.y + Math.sin(a) * d * 0.6);
       const dur = 1.0 + i * 0.12;
       world.spawn(new Telegraph(p.x, p.y, { shape: 'circle', r: 15, duration: dur, color: [140, 200, 255] }));
+      world.spawn(new ShardFall(p.x, p.y, dur));
       later(world, this, dur, (w) => {
         w.combat.add({ owner: this, team: 'enemy', shape: 'circle', follow: false, x: p.x, y: p.y - 3, lift: 3, r: 15, damage: 9, knockback: 80, ttl: 0.1 });
         w.particles.sparks(p.x, p.y - 2, -Math.PI / 2, 5, GLASS);
@@ -272,7 +349,7 @@ const STAR = ['#fffbe8', '#ffe8a0', '#ffc850', '#c08a2a'];
 const STAR_RGB = [255, 214, 120];
 
 // Sterne eines Sternbilds und, nach der Warnung, der kurze Lichtschlag entlang der Linien
-class Constellation extends Entity {
+export class Constellation extends Entity {
   constructor(owner, pts, delay) {
     super(pts[0].x, pts[0].y);
     Object.assign(this, { owner, pts, delay });
@@ -295,32 +372,37 @@ class Constellation extends Entity {
     if (this.t >= this.delay + 0.3) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
-    const twinkle = (i) => (Math.sin(this.t * 9 + i * 1.7) > 0 ? 1 : 0);
     if (this.fired) {
-      // Lichtschlag: helle, zwei Pixel breite Linien, die ausblenden
       ctx.save();
-      ctx.globalAlpha = Math.max(0, 1 - (this.t - this.delay) / 0.3);
-      for (let i = 0; i + 1 < this.pts.length; i++) line(ctx, this.pts[i], this.pts[i + 1], cx, cy, STAR[0], STAR[2]);
+      const k = Math.max(0, 1 - (this.t - this.delay) / 0.3);
+      ctx.globalAlpha = k;
+      for (let i = 0; i + 1 < this.pts.length; i++) line(ctx, this.pts[i], this.pts[i + 1], cx, cy);
+      ctx.restore();
+    } else {
+      // dünne Vorahnung der Linien, die mit der Warnzeit heller wird
+      ctx.save();
+      ctx.globalAlpha = 0.15 + 0.35 * Math.min(1, this.t / this.delay);
+      for (let i = 0; i + 1 < this.pts.length; i++) line(ctx, this.pts[i], this.pts[i + 1], cx, cy, true);
       ctx.restore();
     }
     this.pts.forEach((p, i) => {
-      const x = Math.round(p.x - cx), y = Math.round(p.y - cy) - 6, r = 1 + twinkle(i);
-      ctx.fillStyle = STAR[2]; ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = STAR[0]; ctx.fillRect(x, y, 1, 1);
+      const r = 3 + (Math.sin(this.t * 9 + i * 1.7) > 0 ? 1 : 0) + (this.fired ? 2 : 0);
+      FX.starFrame(r, 'gold').draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy) - 6);
     });
   }
 }
-function line(ctx, a, b, cx, cy, core, rim) {
-  const x0 = a.x - cx, y0 = a.y - cy - 2, dx = b.x - a.x, dy = b.y - a.y, n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)));
+// Sternlinie: glühender Kern mit Goldsaum (thin = nur Kern, schwach)
+function line(ctx, a, b, cx, cy, thin = false) {
+  const x0 = a.x - cx, y0 = a.y - cy - 4, dx = b.x - a.x, dy = b.y - a.y, n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)));
   for (let i = 0; i <= n; i++) {
     const x = Math.round(x0 + (dx * i) / n), y = Math.round(y0 + (dy * i) / n);
-    ctx.fillStyle = rim; ctx.fillRect(x, y + 1, 1, 1);
-    ctx.fillStyle = core; ctx.fillRect(x, y, 1, 1);
+    if (!thin) { ctx.fillStyle = STAR[3]; ctx.fillRect(x, y - 1, 1, 3); ctx.fillStyle = STAR[1]; ctx.fillRect(x, y, 1, 1); }
+    else { ctx.fillStyle = STAR[2]; ctx.fillRect(x, y, 1, 1); }
   }
+  if (!thin) for (let i = 1; i < 4; i++) FX.starFrame(2, 'gold').draw(ctx, Math.round(x0 + dx * i / 4), Math.round(y0 + dy * i / 4));
 }
 
-// Goldene Lichtbrücke am Boden (einmal in eine Leinwand gezeichnet); wer darauf steht, ist sicher
-class LightBridge extends Entity {
+export class LightBridge extends Entity {
   constructor(owner, x, y, angle, len, width, duration) {
     super(x, y);
     Object.assign(this, { owner, angle, len, width, duration });
@@ -341,9 +423,12 @@ class LightBridge extends Entity {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const d = segDist(x0 + x + 0.5, y0 + y + 0.5, this.a.x, this.a.y, this.b.x, this.b.y), e = this.width / 2 - d;
       if (e < 0) continue;
-      const rgb = e < 1 ? [255, 250, 230] : e < 2 ? [255, 200, 90] : (x + y) % 6 === 0 ? [255, 236, 170] : [214, 150, 50];
+      // Längslage entlang der Brücke: Runenzeichen, Mittelstrahl, Goldsaum
+      const px = x0 + x + 0.5 - this.a.x, py = y0 + y + 0.5 - this.a.y, al = px * Math.cos(this.angle) + py * Math.sin(this.angle);
+      const mid = Math.abs(d) < 1.5, rune = ((al % 20) + 20) % 20 > 8 && ((al % 20) + 20) % 20 < 12 && Math.abs(d - this.width * 0.3) < 1;
+      const rgb = e < 1 ? [255, 250, 230] : e < 2.5 ? [255, 200, 90] : mid ? [255, 248, 220] : rune ? [255, 224, 138] : e < 4 ? [168, 118, 30] : [214, 150, 50];
       const i = (y * w + x) * 4;
-      img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = e < 2 ? 255 : 150;
+      img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = e < 2.5 || mid ? 255 : rune ? 210 : 140;
     }
     g.putImageData(img, 0, 0);
     this.img = { c, x0, y0 };
@@ -354,6 +439,11 @@ class LightBridge extends Entity {
     ctx.save();
     ctx.globalAlpha = Math.min(fadeIn, fadeOut) * (0.75 + 0.25 * Math.sin(this.t * 10));
     ctx.drawImage(this.img.c, Math.round(this.img.x0 - cx), Math.round(this.img.y0 - cy));
+    // Lichtfunken wandern die Brücke entlang
+    for (let i = 0; i < 6; i++) {
+      const u = (this.t * 0.35 + i / 6) % 1, x = this.a.x + (this.b.x - this.a.x) * u, y = this.a.y + (this.b.y - this.a.y) * u;
+      FX.starFrame(2 + (i % 2), 'gold').draw(ctx, Math.round(x - cx), Math.round(y - cy) - 2);
+    }
     ctx.restore();
   }
 }

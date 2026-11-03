@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { Entity } from '../entities/Entity.js';
+import { Light } from '../gfx/Lighting.js';
 
 // Begehbare Häuser (level.interiors). Die Innenräume liegen als abgeschirmte Kammern in derselben Zone (Sternhafen:
 // dunkler Bereich östlich der Stadt). Haustür außen = Versetzen in den Raum, Türlücke unten im Raum = zurück vor die
@@ -9,6 +10,9 @@ import { Entity } from '../entities/Entity.js';
 //   door = Haustür (feste Kachel), davor steht man auf door.y + 1; exit = Türlücke in der untersten Raumzeile.
 // Karte und Minikarte zeigen nur die Stadt (mapColumns); alles in einem Raum erscheint an seiner Haustür (mapPoint).
 // Reiten geht in Räumen nicht (character/mounts.js noMountAt), die Questspur führt über die Türen (guideVia).
+// Kamera: draußen nur bis zum dunklen Bereich, drinnen steht der Raum in der Bildmitte (Camera.bounds).
+// Gewöhnliche Außengebiete hängen ihre Räume mit world/houses.js (addInteriors) rechts an die Karte; dort gelten
+// level.indoorAmbient (Grundhelligkeit drinnen, Wetter aus) und it.light (Lichtschein je Raum).
 const T = CONFIG.tileSize;
 const FADE_MS = 380;
 
@@ -106,10 +110,39 @@ class RoomExit extends Entity {
   }
 }
 
+// Kamera und Licht je nach Aufenthalt: draußen bis zum Rand der Stadt, drinnen der Raum (ohne Nachbarräume)
+class InteriorView extends Entity {
+  constructor(L) {
+    super(0, 0);
+    this.L = L; this.cur = undefined; this.outside = null; this.ambient = null;
+  }
+  update(dt, world) {
+    const cam = world.session?.camera, h = world.hero;
+    if (!h) return;
+    const it = roomAt(world, h.x, h.y);
+    if (!this.outside) {
+      const d = world.dungeon;
+      this.outside = { x0: 0, y0: 0, x1: mapColumns(d) * T, y1: d.h * T };
+    }
+    if (cam) cam.bounds = it ? { x0: it.room.x * T, y0: it.room.y * T, x1: (it.room.x + it.room.w) * T, y1: (it.room.y + it.room.h) * T } : this.outside;
+    if (it === this.cur) return;
+    this.cur = it;
+    const lit = world.lighting, inA = this.L.indoorAmbient;
+    if (!lit || !inA) return;
+    if (it) { this.ambient ??= lit.ambient; lit.ambient = inA; } else if (this.ambient) lit.ambient = this.ambient;
+  }
+}
+
 export function placeInteriors(world, L) {
-  for (const it of L.interiors ?? []) {
+  if (!L.interiors?.length) return;
+  for (const it of L.interiors) {
+    if (it.light) world.addLight(new Light({ x: (it.light.x + 0.5) * T, y: (it.light.y + 0.5) * T, radius: it.light.radius ?? 90, color: it.light.color ?? [255, 180, 110], intensity: it.light.intensity ?? 0.8, flicker: 0.12, bloom: 0.2 }));
     if (it.locked) continue;
     world.interactables.push(world.spawn(new HouseDoor(it)));
     world.spawn(new RoomExit(it));
   }
+  world.spawn(new InteriorView(L));
 }
+
+// Drinnen? (Wetter, Geräusche)
+export function indoors(world) { const h = world?.hero; return !!(h && roomAt(world, h.x, h.y)); }

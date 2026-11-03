@@ -10,6 +10,6 @@ export const DEFS = {
     bodyHeight: 64,
     shadowW: 76,
     material: 'flesh',
-    eye: { x: 20, y: -86 },
+    eye: { x: 48, y: -116 },
   },
 };

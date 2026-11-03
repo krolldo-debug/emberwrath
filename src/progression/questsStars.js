@@ -9,6 +9,8 @@
 // Herz der Glut; Kaldris' Splitter spricht mit Malgareths Stimme. Ysmeine nennt im Sterben den Namen Azhuron und
 // öffnet die Lichtbrücke nach Osten (Teil 2). Nebenstrang „Ein Brief für Maren“: Tobin, Marens Sohn, lebt in Sternhafen.
 //
+// Tobins Briefe (Nebenstrang Maren) werden erst frei, wenn man nach dem Lichtsamen ohnehin in Sternhafen steht: der
+// Heimweg in die Glutsenke ist dann ein bewusster Abstecher und kein offener Auftrag mitten in den Gärten.
 // Ablauf ohne Zurücklaufen: Glutöde → Sternhafen → Gärten (Ankerhain, Wurzelbruch, Terrassen + Rankengruft, Mondweiher)
 // → einmal zurück nach Sternhafen (Ankerstein) → Splitterweiten (Funkenruh, Scherbenfeld, Grate + Gläserne Hallen,
 // Spiegelsee, Sternwartenberg + Sternwarte) → Sternhafen (Lichtbrücke). Dungeon-Hauptquests und Dungeon-Nebenquests
@@ -29,7 +31,9 @@ const gear = (level, slot, rarity = 'uncommon') => ({ ilvl: Math.min(level + 1, 
 export const QUESTS_STARS = {
   // ================================================================ Kapitel 8: Der Riss hinter dem Thron (Glutland)
   q_star_in_crown: {
-    title: 'Ein Stern im kalten Feuer', giver: 'seer_ysolde', turnInNpc: 'commander_hale', main: true, level: 41, minLevel: 40, requires: ['q_homecoming'],
+    // beckon: die Glutspur führt zu Ysolde, solange die Quest offen ist und keine Hauptquest läuft (selectors.js) –
+    // auch für alle, die das Glutland schon vor der Erweiterung befreit haben und noch alte Nebenquests tragen.
+    title: 'Ein Stern im kalten Feuer', giver: 'seer_ysolde', turnInNpc: 'commander_hale', main: true, level: 41, minLevel: 40, requires: ['q_homecoming'], beckon: true,
     summary: 'Erzähl Kommandant Hale, was Ysolde im kalten Feuer der Krone gesehen hat.',
     offer: 'Seit du zurück bist, sehe ich jede Nacht dasselbe Bild. Die Krone ist kalt, aber in ihrer kalten Glut brennt noch etwas. Kein Thron diesmal. Ein Stern, weit hinter dem Aschethron, und er hat Hunger. Hale hört mir nicht mehr zu, seit der Krieg vorbei ist. Dir hört er zu.',
     progressText: 'Hale steht auf dem Wall der Rauhwacht.',
@@ -365,33 +369,33 @@ export const QUESTS_STARS = {
     rewards: { xp: Q(41, W.side), gold: G(41), items: [{ itemId: 'starlight_potion', qty: 2 }] },
   },
   q_stranded_scholar: {
-    title: 'Ein Gelehrter aus der Glut', giver: 'innkeeper_mirela', turnInNpc: 'scholar_tobin', level: 41, requires: ['q_star_audience'],
+    title: 'Ein Gelehrter aus der Glut', giver: 'innkeeper_mirela', turnInNpc: 'scholar_tobin', level: 45, requires: ['q_seed_to_anchor'],
     summary: 'Such den Gelehrten im Sternturm, der jeden Neuankömmling nach dem Glutland fragt.',
     offer: 'Du kommst aus dem Glutland? Dann musst du Tobin kennenlernen. Er sitzt im Sternturm über Aurels Büchern und fragt jeden, der durchs Tor kommt, nach einem Dorf namens Glutsenke. Seit zehn Jahren. Bisher konnte ihm keiner etwas sagen. Vielleicht kannst du es.',
     progressText: 'Tobin arbeitet am Sternturm nordwestlich des Ankerplatzes.',
     completeText: 'Die Glutsenke? Du kennst sie? Du warst dort? Bei allen Sternen. Setz dich. Nein, steh. Ich weiß nicht, was ich sagen soll. Ich heiße Tobin. Meine Mutter heißt Maren. Lebt sie noch?',
     objectives: [{ id: 'tobin', text: 'Tobin gefunden', count: 1, kind: 'talk', target: 'scholar_tobin', zone: 'sternhafen' }],
-    rewards: { xp: Q(41, W.side), gold: G(41), gear: [gear(41, 'ring')] },
+    rewards: { xp: Q(45, W.side), gold: G(45), gear: [gear(45, 'ring')] },
   },
   q_letter_for_maren: {
-    title: 'Ein Brief für Maren', giver: 'scholar_tobin', turnInNpc: 'elder_maren', level: 42, requires: ['q_stranded_scholar'],
+    title: 'Ein Brief für Maren', giver: 'scholar_tobin', turnInNpc: 'elder_maren', level: 45, requires: ['q_stranded_scholar'],
     summary: 'Bring Tobins Brief durch das Sternentor zu Maren in die Glutsenke.',
     offer: 'Vor zehn Jahren ritt ich mit Corvane nach Norden. Als das Siegel brach, riss der Feuerregen einen Spalt in den Himmel, und ich fiel hindurch. Seitdem bin ich hier. Ich habe tausend Briefe an meine Mutter geschrieben und keinen abgeschickt. Diesen hier schon. Bring ihn ihr, bitte. Das Sternentor auf dem Ankerplatz führt zurück in die Glutöde.',
     progressText: 'Maren lebt in der Glutsenke, ganz im Süden des Glutlands.',
     completeText: 'Tobins Schrift. Das ist Tobins Schrift. Er lebt. Ich habe sein Erbstück einem Fremden geschenkt, weil ich dachte, er kommt nie zurück. Und jetzt bringt mir derselbe Fremde seinen Brief. Gib mir einen Moment. Nur einen Moment.',
     startItems: [{ itemId: 'tobin_letter', qty: 1 }],
     objectives: [{ id: 'maren', text: 'Brief an Maren übergeben', count: 1, kind: 'talk', target: 'elder_maren', zone: 'emberhollow' }],
-    rewards: { xp: Q(42, W.side), gold: G(42), items: [{ itemId: 'starlight_potion', qty: 2 }] },
+    rewards: { xp: Q(45, W.side), gold: G(45), items: [{ itemId: 'starlight_potion', qty: 2 }] },
   },
   q_marens_answer: {
-    title: 'Marens Antwort', giver: 'elder_maren', turnInNpc: 'scholar_tobin', level: 42, requires: ['q_letter_for_maren'],
+    title: 'Marens Antwort', giver: 'elder_maren', turnInNpc: 'scholar_tobin', level: 45, requires: ['q_letter_for_maren'],
     summary: 'Bring Marens Antwort zurück nach Sternhafen zu Tobin.',
     offer: 'Ich habe die ganze Nacht geschrieben. Es ist kein langer Brief geworden. Manche Dinge passen nicht auf Papier. Bring ihn zu meinem Sohn. Und sag ihm, dass die Laterne noch brennt, jeden Abend, an der Tür. Er weiß, was das heißt.',
     progressText: 'Tobin wartet am Sternturm in Sternhafen.',
     completeText: 'Die Laterne brennt noch. Natürlich brennt sie. Danke. Ich kann nicht zurück, nicht, solange der Stern hier draußen hungert. Aber jetzt weiß sie es. Nimm das. Es hat mich durch zehn Jahre gebracht, jetzt soll es dich durch den Rest bringen.',
     startItems: [{ itemId: 'maren_letter', qty: 1 }],
     objectives: [{ id: 'tobin', text: 'Marens Antwort an Tobin übergeben', count: 1, kind: 'talk', target: 'scholar_tobin', zone: 'sternhafen' }],
-    rewards: { xp: Q(42, W.side), gold: G(42), gear: [gear(43, 'amulet', 'rare')] },
+    rewards: { xp: Q(45, W.side), gold: G(45), gear: [gear(46, 'amulet', 'rare')] },
   },
   q_star_soup: {
     title: 'Sternsuppe', giver: 'innkeeper_mirela', level: 43, requires: ['q_light_bridge_gardens'],
@@ -477,7 +481,7 @@ export const QUESTS_STARS = {
     rewards: { xp: Q(44, W.dungeonSide), gold: G(44, 1.2), gear: [gear(45, 'head', 'rare')] },
   },
   q_grave_seeds: {
-    title: 'Samen der Gruft', giver: 'gardener_bren', level: 44, requires: ['q_bren_vines', 'q_hanging_terraces'],
+    title: 'Samen der Gruft', giver: 'gardener_bren', level: 44, requires: ['q_hanging_terraces'],
     summary: 'Nimm den Dornenpriesterinnen in der Rankengruft die Dornsamen ab.',
     offer: 'In der Gruft beten Dornenpriesterinnen zu Ysgarn. Sie tragen Dornsamen bei sich und säen sie überall, wo die Leere schon war. Daraus wachsen die Ranken mit Zähnen. Nimm ihnen vier Samen ab, damit ich weiß, wie man die Brut wieder ausreißt.',
     progressText: 'Die Dornenpriesterinnen halten sich in der Rankengruft auf.',
@@ -585,7 +589,7 @@ export const QUESTS_STARS = {
     title: 'Die Splitterkolosse', giver: 'astronomer_tovan', level: 49, requires: ['q_observatory_hill'],
     summary: 'Bring vier Splitterkolosse am Sternwartenberg zu Fall.',
     offer: 'Die Kolosse am Berg sind aus Splittern gewachsen, so wie Kaldris. Sie stehen um die Sternwarte wie Wachen um einen Thron. Solange sie stehen, kommt kein Schürfer und kein Gelehrter mehr den Berg hinauf. Bring vier von ihnen zu Fall. Allein ist das kein Spaß.',
-    progressText: 'Die Splitterkolosse stapfen über die Hänge des Sternwartenbergs.',
+    progressText: 'Die Splitterkolosse stapfen durch die Senke im Süden des Sternwartenbergs, abseits der Wege.',
     completeText: 'Vier Kolosse. Ich habe vom Fenster aus zugesehen und die ganze Zeit die Luft angehalten. Hier, das hatte ich für einen besonderen Tag aufgehoben.',
     objectives: [{ id: 'colossi', text: 'Splitterkolosse gefällt', count: 4, kind: 'kill', target: 'splinter_colossus', zone: 'splitterweiten' }],
     rewards: { xp: Q(49, W.elite), gold: G(49, 1.5), gear: [gear(50, 'chest', 'rare')] },
@@ -862,6 +866,44 @@ export const QUESTS_STARS = {
   },
 
   // ================================================================ Kopfgelder und Jagdaufträge (wiederholbar)
+  // --- Neue Nebenquests (03.11.): Weltereignis, Wrack, Wegleuchten, Sternbild
+  q_warm_star: {
+    title: 'Ein Stern, der noch glüht', giver: 'seer_seraphe', level: 44, requires: ['q_seraphe_falling_stars'],
+    summary: 'Öffne das Sternenherz eines frisch gefallenen Sterns in den Gärten oder in den Splitterweiten.',
+    offer: 'Die Sternschnuppen, die du mir gebracht hast, waren kalt. Ich muss wissen, wie ein Stern aussieht, der von selbst fällt. Alle halbe Stunde stürzt einer in die Gärten und eine Viertelstunde später einer in die Splitterweiten. Wenn du den Lichtschein am Himmel siehst, lauf hin. Was aus dem Krater kriecht, will das Herz für sich. Lass es ihm nicht.',
+    progressText: 'Alle 30 Minuten fällt ein Stern in die Treibenden Gärten, um 15 Minuten versetzt in die Splitterweiten. Die Meldung am Himmel zeigt, wo.',
+    completeText: 'Warm. Er glüht noch, sieh nur. Dieser Stern ist von selbst gefallen. Also pflückt jemand nur manche, nämlich die, die er braucht. Das ist schlimmer, als ich dachte.',
+    objectives: [{ id: 'heart', text: 'Sternenherz eines frischen Sterns geöffnet', count: 1, kind: 'interact', target: ['starfall_drifting_gardens', 'starfall_splitterweiten'], zone: 'drifting_gardens' }],
+    rewards: { xp: Q(44, W.side), gold: G(44, 1.3), gear: [gear(45, 'amulet')] },
+  },
+  q_morgenroete: {
+    title: 'Das Wrack der Morgenröte', giver: 'trader_pell', turnInNpc: 'captain_halvard', level: 43, requires: ['q_light_bridge_gardens'],
+    summary: 'Durchsuche das Wrack an der Nordostspitze der Hängenden Terrassen und bring Halvard, was du findest.',
+    offer: 'Vor einem Jahr ist die Morgenröte aus Sternhafen aufgebrochen, mit Saatgut für uns. Angekommen ist sie nie. Gestern haben Gärtner an der Spitze der Terrassen Planken gesehen, die in die Erde gebohrt sind. Schau nach, ob es sie ist. Hauptmann Halvard hat die Mannschaft gekannt. Er soll erfahren, was passiert ist.',
+    progressText: 'Das Wrack liegt an der Nordostspitze der Hängenden Terrassen. Logbuch, Schiffsglocke und Kapitänskiste gehören nach Sternhafen zu Halvard.',
+    completeText: 'Die Glocke der Morgenröte. Ich habe sie zum letzten Mal gehört, als sie ablegte. Hier steht es im Logbuch: Der Schwebestein ist gesprungen, mitten über der Leere. Sie haben es noch bis zu den Gärten geschafft. Ich hänge die Glocke ans Tor, damit jeder sie sieht, der hinausfährt.',
+    objectives: [{ id: 'wreck', text: 'Logbuch, Glocke und Kapitänskiste geborgen', count: 3, kind: 'interact', target: ['wreck_hull', 'wreck_bell', 'wreck_chest'], zone: 'drifting_gardens' }],
+    rewards: { xp: Q(43, W.side), gold: G(43, 1.2), gear: [gear(44, 'feet')] },
+  },
+  q_mira_lamps: {
+    title: 'Lichter für die Weiten', giver: 'cartographer_mira', level: 46, requires: ['q_mira_survey'],
+    startItems: [{ itemId: 'star_oil', qty: 4 }],
+    summary: 'Füll die vier Wegleuchten zwischen Funkenruh und den Singenden Graten mit Sternöl.',
+    offer: 'Die Wegleuchten zu den Graten sind aus. Nachts verlaufen sich die Schürfer, und am Morgen finden wir sie am Rand der Scherben, einen Schritt vor der Leere. Hier ist Sternöl, eine Flasche für jede Leuchte. Sie stehen am Weg nach Osten. Füll sie, und die Weiten haben wieder einen Weg.',
+    progressText: 'Die vier Wegleuchten stehen am Weg von Funkenruh nach Osten zu den Singenden Graten.',
+    completeText: 'Ich habe sie von hier aus angehen sehen, eine nach der anderen. Heute Nacht findet jeder heim. Das trage ich in die Karte ein, mit deinem Namen daneben.',
+    objectives: [{ id: 'lamps', text: 'Wegleuchten mit Sternöl gefüllt', count: 4, kind: 'use', item: 'star_oil', target: ['mira_lamp_1', 'mira_lamp_2', 'mira_lamp_3', 'mira_lamp_4'], zone: 'splitterweiten' }],
+    rewards: { xp: Q(46, W.side), gold: G(46), gear: [gear(47, 'ring')] },
+  },
+  q_queens_constellation: {
+    title: 'Das Sternbild der Königin', giver: 'astronomer_tovan', level: 49, requires: ['q_tovan_lenses'],
+    summary: 'Berühre die vier Sternsteine am Sternwartenberg in der Reihenfolge des Sternbilds der Königin.',
+    offer: 'Durch die Linsen habe ich gesehen, was Ysmeine auf dem Kleid trägt: ein Sternbild, Krone, Herz, Hand und Saum. Dasselbe Sternbild liegt hier auf dem Berg, in vier Steinen. Aurel hat es so gebaut. Wer es nachzeichnet, sagt er in seinen Notizen, sieht, was sie sieht. Zuerst der Stein im Norden, dann der im Osten, dann der im Süden, zuletzt der im Westen.',
+    progressText: 'Norden, Osten, Süden, Westen. Die Sternsteine liegen auf dem Sternwartenberg westlich der Sternwarte.',
+    completeText: 'Du hast es auch gesehen? Den Osten, ganz hell, und dahinter etwas Dunkles, das zurückschaut. Ysmeine hält nicht Wache gegen uns. Sie hält Wache gegen das da. Ich weiß nicht, ob ich sie noch bekämpfen will.',
+    objectives: [{ id: 'stones', text: 'Sternsteine berührt (Nord, Ost, Süd, West)', count: 4, kind: 'sequence', target: ['star_stone_1', 'star_stone_2', 'star_stone_3', 'star_stone_4'], zone: 'splitterweiten', failText: 'Das Sternbild erlischt. Von vorn: Norden, Osten, Süden, zuletzt Westen.' }],
+    rewards: { xp: Q(49, W.side), gold: G(49, 1.2), gear: [gear(50, 'amulet')] },
+  },
   q_bounty_gardens: {
     title: 'Kopfgeld: Treibende Gärten', giver: 'trader_pell', repeatable: true, level: 43, requires: ['q_roots_tremble'],
     summary: 'Pell zahlt für jedes Ungeheuer weniger in den Gärten.',
@@ -902,6 +944,7 @@ export const QUESTS_STARS = {
 
 // Questgegenstände (type 'quest': zählen nicht im Fortschrittsbuch, verschwinden bei der Abgabe)
 export const QUEST_ITEMS_STARS = {
+  star_oil: { name: 'Sternöl', type: 'quest', rarity: 'common', icon: 'potion_mana', stack: 5, value: 0, desc: 'Ein Fläschchen, das im Dunkeln schwach blau leuchtet. Mira hat es selbst abgefüllt.' },
   gardener_token: { name: 'Gärtnermarke', type: 'quest', rarity: 'common', icon: 'seal', stack: 10, value: 0, desc: 'Eine kleine Holzmarke mit einem eingeritzten Namen. Die Wurzeln haben sie nicht losgelassen.' },
   light_seed: { name: 'Schlafender Lichtsamen', type: 'quest', rarity: 'epic', icon: 'gem_sapphire', stack: 1, value: 0, desc: 'Aus Ysgarns Herz gefallen. Er ist warm und leuchtet ganz schwach, wie im Schlaf.' },
   awakened_seed: { name: 'Erwachter Lichtsamen', type: 'quest', rarity: 'legendary', icon: 'gem_sapphire', stack: 1, value: 0, desc: 'Am Mondaltar geweckt. Er leuchtet so hell, dass man nicht lange hinsehen kann.' },
@@ -973,6 +1016,7 @@ export const NPC_LINES_STARS = {
       ['q_seed_to_anchor', 'Seit der Samen im Ankerstein leuchtet, zähle ich jede Nacht dieselbe Zahl. Keiner fehlt mehr. Fürs Erste.'],
       ['q_ysmeine', 'Azhuron. Ich habe den Namen auf Ysmeines Karten gesucht und ihn in meinen eigenen gefunden. Er stand dort die ganze Zeit.'],
       ['q_tobin_diary', 'Aurel wusste von Azhuron, bevor er ihn sah. Jemand hat es ihm erzählt. Ich will wissen, wer.'],
+      ['q_warm_star', 'Ich zähle jetzt zweimal: die Sterne, die fallen, und die, die fehlen. Die Zahlen sind nicht gleich.'],
     ],
   },
   captain_halvard: {
@@ -982,6 +1026,7 @@ export const NPC_LINES_STARS = {
       ['q_star_audience', 'Die Fürstin hat dich empfangen? Dann gehörst du jetzt zu uns, ob du willst oder nicht.'],
       ['q_halvard_patrol', 'Die Gartenbrücken sind wieder besetzt. Meine Leute wissen ihre Namen. Das ist hier oben schon viel.'],
       ['q_kaldris', 'Meine Leute erzählen, du hättest die Gläsernen Hallen geleert. Einige der Statuen waren Sternwachen. Danke.'],
+      ['q_morgenroete', 'Die Glocke hängt am Tor. Wenn der Wind richtig steht, schlägt sie von selbst.'],
     ],
   },
   herald_fenn: {
@@ -1073,7 +1118,7 @@ export const NPC_LINES_STARS = {
       ['q_harrik_fate', 'Ich lese jeden Abend eine Seite aus Harriks Tagebuch. Er schreibt furchtbar. Ich vermisse ihn.'],
     ],
   },
-  cartographer_mira: { name: 'Mira', idle: 'Jede Woche zeichne ich die Weiten neu. Sie bleiben nicht, wo sie sind.', lines: [['q_mira_survey', 'Deine Messungen stimmen. Die ganzen Weiten treiben langsam nach Osten. Wie alles hier.'], ['q_mira_escort', 'Drei Schritte in einer Woche. Ich messe jetzt jeden Morgen. Es werden nicht weniger.']] },
+  cartographer_mira: { name: 'Mira', idle: 'Jede Woche zeichne ich die Weiten neu. Sie bleiben nicht, wo sie sind.', lines: [['q_mira_survey', 'Deine Messungen stimmen. Die ganzen Weiten treiben langsam nach Osten. Wie alles hier.'], ['q_mira_escort', 'Drei Schritte in einer Woche. Ich messe jetzt jeden Morgen. Es werden nicht weniger.'], ['q_mira_lamps', 'Die Leuchten brennen. Seit drei Nächten hat sich keiner mehr verlaufen.']] },
   echo_sage_lun: {
     name: 'Lun', idle: 'Hör hin. Die Grate erzählen, wie der Himmel zerbrach.',
     lines: [
@@ -1094,6 +1139,7 @@ export const NPC_LINES_STARS = {
     name: 'Tovan', idle: 'Die Sternwarte war Aurels Auge. Jetzt sieht dort etwas anderes hinaus.',
     lines: [
       [null, 'Die Sternwarte war Aurels Auge. Jetzt sieht dort etwas anderes hinaus.'],
+      ['q_queens_constellation', 'Das Sternbild schaut nach Osten. Seit du es nachgezeichnet hast, schaue ich auch dorthin.'],
       ['q_ysmeine', 'Die Kuppel ist dunkel. Ysmeine ruht. Ich gehe morgen hinauf und öffne die Fenster. Sie hätte es so gewollt, glaube ich.'],
     ],
   },

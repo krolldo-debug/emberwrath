@@ -33,7 +33,7 @@ const SCENES = [
   K('faeulnis', { lightMode: 'soft', noPools: true, cls: 'warrior', zone: 'spore_hollow', target: 'boss', party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], density: 0.25, hideFx: 'ImpactStar|Shockwave',
     grade: 'brightness(1.4) contrast(1.18) saturate(1.1)', amb: 2.2, hero: [-50, 10], comps: [[-78, -2], [-74, 24]], cam: [-30, -16], light: [[-70, 0, 80, [255, 190, 140], 0.6], [-62, 8, 60, [255, 210, 170], 0.8]], keys: [['r', 900], ['g', 2600]] }),
 ];
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const meta = {};
 // OVR (JSON {id: {…}}) überschreibt Szenenwerte zum Ausprobieren
 for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id)).map((s) => ({ ...s, ...(process.env.OVR ? JSON.parse(process.env.OVR)[s.id] : null) }))) {
@@ -243,7 +243,7 @@ for (const sc of SCENES.filter((s) => !only || only.split(',').includes(s.id)).m
       try { g.render(0); } finally { for (const u of undo.reverse()) u(); }
       for (const [o, fn, gl] of ems) { if (gl) o.glows = gl; else delete o.renderEmissive; }
       performance.now = pn;
-      const v = g.view;
+      const v = g.canvas.width === g.view.width && g.canvas.height === g.view.height ? g.canvas : g.view;   // Spiel zeichnet bei gleicher Größe direkt in die Anzeige
       const c = document.createElement('canvas'); c.width = v.width; c.height = v.height;
       const cx = c.getContext('2d'); cx.filter = grade; cx.drawImage(v, 0, 0);
       const out = c.toDataURL('image/png');

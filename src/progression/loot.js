@@ -80,33 +80,34 @@ const TYPE_MATS = {
   flame_acolyte: [['cultist_tome', 0.35, 0.6], ['ember_ore', 0.08]],
   forge_golem: [['ember_ore', 0.2], ['obsidian_shard', 0.2], ['ember_core', 0.04, 0.6]],
   ember_drake: [['ember_core', 0.1, 0.7], ['ember_ore', 0.2]],
-  // Stufe 20–40 (Gegner-IDs aus §12.4)
+  // Stufe 20–40 (Gegner-IDs aus §12.4). Durchlauf 03.11.: Sammelquests ab 21 dauerten bis 40 Minuten (Frostwolfsfelle,
+  // Pirscherkrallen) – Chance während der Quest (dritter Wert) jetzt 0,75–0,8 statt 0,4–0,65.
   steppe_raider: [['linen', 0.25]],
-  raider_archer: [['raider_arrowhead', 0.35, 0.6]],
+  raider_archer: [['raider_arrowhead', 0.35, 0.8]],
   dust_hyena: [['hyena_hide', 0.4, 0.65], ['wolf_fang', 0.2]],
-  ash_vulture: [['vulture_feather', 0.4, 0.6]],
+  ash_vulture: [['vulture_feather', 0.4, 0.8]],
   barrow_wight: [['barrow_bone', 0.35, 0.8], ['bone_dust', 0.3]],
   grave_hound: [['bone_dust', 0.3], ['wolf_fang', 0.15]],
   bone_archer: [['barrow_bone', 0.35, 0.8]],
   wight_caller: [['barrow_bone', 0.5], ['shadow_essence', 0.05]],
-  bog_lurker: [['bog_iron', 0.08, 0.4], ['leech_ichor', 0.15]],
+  bog_lurker: [['bog_iron', 0.08, 0.6], ['leech_ichor', 0.15]],
   rot_shaman: [['toad_gland', 0.1], ['bog_iron', 0.05]],
-  swamp_leech: [['leech_ichor', 0.4, 0.65]],
-  plague_toad: [['toad_gland', 0.35, 0.6]],
+  swamp_leech: [['leech_ichor', 0.4, 0.8]],
+  plague_toad: [['toad_gland', 0.35, 0.8]],
   sporeling: [['spore_cap', 0.3, 0.75]],
   fungal_brute: [['spore_cap', 0.5], ['bog_iron', 0.1]],
   spore_caster: [['spore_cap', 0.4, 0.85]],
-  ice_troll: [['troll_fat', 0.4, 0.65], ['frost_pelt', 0.1]],
-  frost_wolf: [['frost_pelt', 0.4, 0.65], ['wolf_fang', 0.2]],
+  ice_troll: [['troll_fat', 0.4, 0.8], ['frost_pelt', 0.1]],
+  frost_wolf: [['frost_pelt', 0.4, 0.8], ['wolf_fang', 0.2]],
   rime_witch: [['rime_crystal', 0.06], ['linen', 0.2]],
   snow_stalker: [['frost_pelt', 0.25]],
   ice_elemental: [['rime_crystal', 0.15]],
   crystal_spider: [['crystal_silk', 0.25, 0.9]],   // Reifhöhlen: 6 Spinnen, kein Respawn
   frozen_knight: [['grave_iron', 0.3], ['rime_crystal', 0.1]],
-  ash_wraith: [['pilgrim_relic', 0.3, 0.55]],
+  ash_wraith: [['pilgrim_relic', 0.3, 0.75]],
   cinder_knight: [['ember_ore', 0.3], ['magma_scale', 0.05]],
-  magma_serpent: [['magma_scale', 0.15, 0.55]],
-  ember_cultist_adept: [['adept_sigil', 0.4, 0.65], ['cultist_tome', 0.2]],
+  magma_serpent: [['magma_scale', 0.15, 0.75]],
+  ember_cultist_adept: [['adept_sigil', 0.4, 0.8], ['cultist_tome', 0.2]],
   throne_guard: [['ember_ore', 0.3], ['magma_scale', 0.08]],
   ash_priest: [['adept_sigil', 0.3], ['cultist_tome', 0.25]],
   ember_hellhound: [['magma_scale', 0.1], ['wolf_fang', 0.2]],
@@ -134,16 +135,16 @@ const FAMILY_MATS = {
   plant: [['spore_cap', 0.3]], dragon: [['ember_core', 0.1], ['rime_crystal', 0.15]],
 };
 const ELITE_MATS = [['ember_core', 0.15], ['shadow_essence', 0.08], ['ruby', 0.06], ['sapphire', 0.06], ['amethyst', 0.015]];
-// Questgegenstände, die nur während der Quest fallen: [questId, itemId, Chance]
+// Questgegenstände, die nur während der Quest fallen: [questId, itemId, Chance] (ab 21 seit 03.11. 0,75 statt 0,45–0,5)
 const QUEST_DROPS = {
   spider: [['q_spider_silk', 'spider_silk', 0.85]],  // Katakomben: 5 Spinnen, kein Respawn
   rot_shaman: [['q_marsh_shamans', 'rot_idol', 0.6]],
   ash_priest: [['q_ash_prayers', 'ash_prayer', 0.9]],   // Aschethron: 4 Priester, kein Respawn
-  steppe_raider: [['q_imra_cargo', 'spice_bale', 0.45]],
-  bog_lurker: [['q_moll_crates', 'moll_crate', 0.45]],
-  snow_stalker: [['q_fenn_claws', 'stalker_claw', 0.5]],
-  rime_witch: [['q_witch_charms', 'witch_charm', 0.5]],
-  ash_wraith: [['q_bastion_supplies', 'bastion_supplies', 0.45]],
+  steppe_raider: [['q_imra_cargo', 'spice_bale', 0.75]],
+  bog_lurker: [['q_moll_crates', 'moll_crate', 0.75]],
+  snow_stalker: [['q_fenn_claws', 'stalker_claw', 0.75]],
+  rime_witch: [['q_witch_charms', 'witch_charm', 0.75]],
+  ash_wraith: [['q_bastion_supplies', 'bastion_supplies', 0.75]],
 };
 // Sternenglut Teil 1 (questsStars.js)
 for (const [type, list] of Object.entries(QUEST_DROPS_STARS)) QUEST_DROPS[type] = [...(QUEST_DROPS[type] ?? []), ...list];
@@ -161,6 +162,8 @@ function pickWeighted(entries, rng) {
 export function rarityWeights(kind, level, bossId) {
   if (kind === 'boss') return { ...(BOSSES[bossId]?.weights ?? { uncommon: 45, rare: 45, epic: 10 }) };
   if (kind === 'rare') return { ...RARE_WEIGHTS };
+  // Sternenherz (Weltereignis Sternenfall, world/starfall.js): besser als eine Truhe, schlechter als ein Boss
+  if (kind === 'chest_star') return { uncommon: 55, rare: 40, epic: 5 };
   const w = { ...(RARITY_TABLE[kind] ?? RARITY_TABLE.normal) };
   if (kind === 'normal') { delete w.epic; delete w.legendary; if (level < 6) delete w.rare; }
   if (kind === 'chest' || kind === 'chest_boss' || kind === 'elite' || kind === 'champion') delete w.legendary;
@@ -213,13 +216,14 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
   const lvl = Math.max(1, enemy.level ?? 1);
   const isChest = !!enemy.chest;
   const bossChest = isChest && String(enemy.chest).startsWith('boss');
+  const starChest = isChest && /^(starfall|glutsturz)/.test(String(enemy.chest)); // Weltereignisse (world/starfall.js)
   const rare = !isChest && !enemy.boss ? RARE_ENEMIES[enemy.rareId] : null;
-  const kind = isChest ? (bossChest ? 'chest_boss' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.champion ? 'champion' : enemy.elite ? 'elite' : 'normal';
+  const kind = isChest ? (bossChest ? 'chest_boss' : starChest ? 'chest_star' : 'chest') : enemy.boss ? 'boss' : rare ? 'rare' : enemy.champion ? 'champion' : enemy.elite ? 'elite' : 'normal';
   const boss = kind === 'boss' ? BOSSES[enemy.bossId ?? enemy.type] : null;
   const named = kind === 'elite' ? ELITES[enemy.type] : null;
 
   // Gold
-  const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'champion' ? 5 : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest' ? 3 : 1;
+  const goldMult = kind === 'boss' ? boss?.gold ?? 12 : kind === 'rare' ? RARE_GOLD_MULT : kind === 'champion' ? 5 : kind === 'elite' ? 4 : kind === 'chest_boss' ? 8 : kind === 'chest_star' ? 6 : kind === 'chest' ? 3 : 1;
   if (kind !== 'normal' || rng() < 0.65) {
     const lo = 1 + lvl * 0.6, hi = 3 + lvl * 1.3;
     drops.push({ gold: Math.max(1, Math.round((lo + rng() * (hi - lo)) * goldMult)) });
@@ -266,6 +270,9 @@ export function rollLoot(enemy, { rng = Math.random, classId = null, questNeed =
       if (rng() < c) drops.push({ itemId: id, qty: 1 });
     }
     if (kind !== 'normal') for (const [id, chance] of ELITE_MATS) if (rng() < chance) drops.push({ itemId: id, qty: 1 });
+  } else if (starChest) {
+    drops.push({ itemId: chestMaterial(lvl), qty: 2 + Math.floor(rng() * 2) });
+    if (rng() < 0.35) drops.push({ itemId: lvl >= 46 ? 'void_glass' : 'void_bloom', qty: 1 });
   } else if (rng() < 0.5) {
     drops.push({ itemId: chestMaterial(lvl), qty: 1 + Math.floor(rng() * 2) });
   }

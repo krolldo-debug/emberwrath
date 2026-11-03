@@ -13,7 +13,7 @@ import { QUESTS, VENDORS } from '../progression/quests.js';
 import { RECIPES } from '../progression/crafting.js';
 import { ACHIEVEMENTS, rewardItemId } from '../progression/achievements.js';
 import { RARE_ENEMIES, RARE_XP_MULT } from '../progression/rares.js';
-import { LEVEL_CAP, totalXpForLevel, killXp, mobXp } from '../progression/xp.js';
+import { LEVEL_CAP, totalXpForLevel, killXp, mobXp, xpPaceFactor } from '../progression/xp.js';
 import { rollLoot, pickEquipment, pickRewardGear } from '../progression/loot.js';
 import { trialRewards, trialSpec, TRIAL_REQUIRES, TRIAL_MAX_TIER } from '../progression/trials.js';
 import { loginReward, firstWinReward, challengeReward, STREAK_DAYS } from '../progression/daily.js';
@@ -184,9 +184,10 @@ function applyOne(b, st, ses, e, ctx) {
 }
 
 // Gemeldete Änderung gegen erlaubte Zugänge buchen
-function book({ b, d, allow, e }) {
+function book({ b, d, allow, e, lv }) {
   const over = {};
-  const xpIn = Math.max(0, Math.min(d.xp, allow.xp));
+  // Stufe 20–39: das Spiel gibt mehr Erfahrung je Kill und Quest (xp.js xpPaceFactor), der Server erlaubt dasselbe
+  const xpIn = Math.max(0, Math.min(d.xp, Math.ceil(allow.xp * xpPaceFactor(lv))));
   if (d.xp > 0) { b.xp += xpIn; if (d.xp > xpIn) over.x = d.xp - xpIn; } else b.xp += d.xp;
   if (b.xp > totalXpForLevel(LEVEL_CAP)) b.xp = totalXpForLevel(LEVEL_CAP);
   if (d.gold > 0) { const g = Math.min(d.gold, allow.gold); b.gold += g; if (d.gold > g) over.g = d.gold - g; } else b.gold += d.gold;

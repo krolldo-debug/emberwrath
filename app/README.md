@@ -18,9 +18,8 @@ Ab Version 1.1 außerdem:
 - `ios/App/App/AuthPlugin.swift`: „Weiter mit Apple“ (natives Fenster), Google im Anmeldefenster des Systems
   (ASWebAuthenticationSession, Rückkehr über `emberwrath://auth`) und die Sitzung im Schlüsselbund, damit man angemeldet
   bleibt (`src/app/auth.js`, `docs/ONLINE.md`). Mit Google in der App ist „Mit Apple anmelden“ Pflicht (Richtlinie 4.8).
-- `ios/App/App/PushPlugin.swift`: Mitteilungen. Das Spiel fragt am zweiten Spieltag nach der Tagesbelohnung (erst eine
-  eigene Frage, dann Apples Abfrage) und plant eine Erinnerung um 18 Uhr, wenn die nächste Tagesbelohnung bereitliegt
-  (`src/app/notify.js`). Für Mitteilungen vom Server meldet sich die App bei APNs an; gesendet wird noch nichts.
+- `ios/App/App/PushPlugin.swift`: Mitteilungen (Erlaubnis, lokale Erinnerungen, APNs-Token). Im Spiel zurzeit aus
+  (`NOTIFY_ENABLED` in `src/app/notify.js`); einschalten geht ohne neue App-Version.
 - `ios/App/App/App.entitlements`: Sign in with Apple, `aps-environment`. Der Build schaltet die Fähigkeiten an der App-ID
   ein (`tools/appstore-faehigkeiten.mjs`) und bettet die Berechtigungen vor dem Export ein (unsigniertes Archiv).
 - User-Agent-Zusatz `EmberwrathNative/2`: daran erkennt das Spiel, dass die Plugins da sind. In App 1.0 bleibt es bei E-Mail.

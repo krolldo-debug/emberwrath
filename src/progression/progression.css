@@ -481,6 +481,24 @@
 .pg-inventory .pg-doll-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; }
 .pg-doll-stats li { display: inline-flex; align-items: center; gap: 5px; color: var(--ef-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-doll-stats img, .pg-tool img, .pg-price img { image-rendering: pixelated; }
+.pg-doll-gold { display: none; }
+.pg-cap-short { display: none; }
+
+/* Inventar im Pixelfenster (ui/pixelFrame.js): warme, deckende Flächen statt Violett, Ränder in 2-px-Stufen */
+.ef-pxwin.pg-inventory .pg-doll { background: var(--px-sunk); border: 0; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-line); }
+.ef-pxwin.pg-inventory .pg-doll-info { border-top: 0; box-shadow: 0 -2px 0 var(--px-line); }
+.ef-pxwin.pg-inventory .pg-slot.empty { background: var(--px-sunk); box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px #1e0f16; }
+.ef-pxwin.pg-inventory .pg-tool { background: #241018; border: 0; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge); }
+.ef-pxwin.pg-inventory .pg-tool:hover, .ef-pxwin.pg-inventory .pg-tool.on { background: #2e141e; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge-hi); }
+.ef-pxwin.pg-inventory .pg-bagbar { border-bottom: 0; box-shadow: 0 2px 0 var(--px-line); }
+.ef-pxwin.pg-inventory .pg-filters .pg-chip { color: var(--px-muted); }
+.ef-pxwin.pg-inventory .pg-filters .pg-chip.on { color: var(--px-gold); border-bottom: 4px solid var(--px-ember); }
+.ef-pxwin.pg-inventory .pg-btn { background: #241018; border: 0; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge); }
+.ef-pxwin.pg-inventory .pg-btn.primary { background: #8a2a10; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 4px 0 0 #c8501c, inset 0 -4px 0 0 #5a1608; }
+.ef-pxwin.pg-inventory .pg-btn.danger { background: #3a0c12; }
+.ef-pxwin.pg-inventory .pg-auto.on { box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge-hi); }
+.ef-pxwin.pg-inventory .pg-sheet.open, .ef-pxwin.pg-inventory .pg-sheet-bar { background: var(--px-fill); }
+.ef-pxwin.pg-inventory .pg-sheet-bar { border-color: var(--px-line); }
 .pg-inventory .pg-slot { border-radius: 0; }
 .pg-inventory .pg-slot.empty { background: #110a16; box-shadow: inset 0 0 0 1px #2a1d30, inset 2px 2px 0 0 #07040a; }
 .pg-inventory .pg-doll .pg-slot-ph { opacity: 0.22; }
@@ -601,17 +619,20 @@
   .pg-inventory { --pg-cell: 52px; --pg-gap: 4px; --pg-fpx: 2px; }
   .pg-inventory .pg-scroll.pg-inv {
     flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 6px 8px; gap: 8px;
-    grid-template-columns: minmax(0, 1fr) calc(6 * var(--pg-cell) + 5 * var(--pg-gap));
+    grid-template-columns: minmax(0, 1fr) calc(5 * var(--pg-cell) + 4 * var(--pg-gap));
   }
+  /* Ausrüstung links (Rüstung) und rechts (Schmuck, Waffe), dazwischen die Figur in voller Größe (4× Weltpixel).
+     Die Bühne liegt hinter den Plätzen über die ganze Breite, so wird nichts an der Figur abgeschnitten. */
   .pg-inventory .pg-inv .pg-doll {
-    grid-template-columns: repeat(2, var(--pg-cell)); grid-template-rows: repeat(4, var(--pg-cell)) auto; justify-content: center;
-    grid-template-areas: "head amulet" "chest ring" "hands weapon" "feet ." "info info"; gap: 4px; padding: 6px 4px; align-content: center;
+    grid-template-columns: var(--pg-cell) minmax(0, 1fr) var(--pg-cell); grid-template-rows: repeat(4, var(--pg-cell)) auto;
+    grid-template-areas: "head stage amulet" "chest stage ring" "hands stage weapon" "feet stage ." "info info info"; gap: 2px 0; padding: 4px; align-content: center;
   }
-  .pg-inventory .pg-inv .pg-doll .pg-doll-slot { align-self: center; }
-  .pg-inventory .pg-inv .pg-stage { display: none; }
+  .pg-inventory .pg-inv .pg-doll .pg-doll-slot { align-self: center; position: relative; z-index: 1; }
+  .pg-inventory .pg-inv .pg-stage { grid-column: 1 / -1; grid-row: 1 / 5; z-index: 0; align-items: flex-end; }
+  .pg-inventory .pg-inv .pg-stage-canvas { width: 208px; height: 200px; }
   .pg-inventory .pg-bagwrap { grid-row: 1 / -1; align-self: stretch; height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .pg-inventory .pg-bagbar { margin-bottom: 6px; }
-  .pg-inventory .pg-bag { grid-template-columns: repeat(6, var(--pg-cell)); }
+  .pg-inventory .pg-bag { grid-template-columns: repeat(5, var(--pg-cell)); }
   .pg-inventory .pg-inv-foot, .pg-inventory .pg-quicksell.multi { margin-top: auto; }
   /* Gewählter Gegenstand: Karte über dem ganzen Inhalt, Werte links, Knöpfe untereinander rechts, × darüber */
   /* Karte über dem ganzen Fenster samt Titelleiste (Bezug ist das Fenster, nicht die Tasche): ihr × steht dort, wo sonst das Fenster-× steht */
@@ -627,9 +648,18 @@
   .pg-inventory .pg-sheet-bar .pg-trash { flex: 0 0 44px; width: 100%; height: 44px; }
   /* Offene Karte hat ihr eigenes ×: das Fenster-× weicht, damit nicht zwei übereinander liegen */
   .pg-inventory:has(.pg-sheet.open) .pg-head .pg-close { visibility: hidden; }
-  .pg-inventory .pg-doll-info { flex-direction: column; padding-top: 4px; }
-  .pg-inventory .pg-doll-name { font-size: 14px; }
-  .pg-inventory .pg-doll-sub { font-size: 11.5px; }
+  /* Unter der Figur: Name, Stufe · Klasse und das Gold (die Fußzeile der Tasche bleibt den Verkaufsknöpfen) */
+  .pg-inventory .pg-doll-info { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name gold" "sub gold"; align-items: center; column-gap: 6px; row-gap: 0; padding: 4px 2px 0; text-align: left; }
+  .pg-inventory .pg-doll-name { grid-area: name; font-size: 14px; }
+  .pg-inventory .pg-doll-title { display: none; }
+  .pg-inventory .pg-doll-sub { grid-area: sub; font-size: 11.5px; }
+  .pg-inventory .pg-doll-gold { display: inline-flex; grid-area: gold; font-size: 12.5px; }
+  .pg-inventory .pg-inv-foot > .pg-gold { display: none; }
+  .pg-inventory .pg-cap-long { display: none; }
+  .pg-inventory .pg-cap-short { display: inline; }
+  .pg-inventory .pg-inv-foot .pg-cap { min-width: 0; }
+  .pg-inventory .pg-inv-foot { grid-template-columns: minmax(0, 1fr) auto; }
+  .pg-inventory .pg-foot-sell { justify-content: flex-start; }
   .pg-inventory .pg-doll-stats { display: none; }
   .pg-inventory .pg-filters .pg-chip { padding: 0 6px; font-size: 12px; }
   .pg-inventory .pg-qty { font-size: 11px; }
@@ -707,4 +737,85 @@
   .pg-blist-win .pg-brow { grid-template-columns: minmax(0, 1fr) auto; }
   .pg-blist-win .pg-brow .pg-rw { grid-column: 2; grid-row: 1; }
   .pg-blist-win .pg-brow-act:empty { display: none; }
+}
+
+/* ------------------------------------------------------------ Charakter (03.11.): Steckbrief, Wertekacheln, Chronik
+   Links Steckbrief und Chronik, rechts Werte als Kacheln (Symbol, große Zahl, Beschriftung) und Attribute als Balken.
+   Pixel-Look wie das Inventar: deckende warme Flächen, Ränder in 2-px-Stufen, Symbole 2-fach. */
+.pg-panel.pg-character { width: min(94vw, 600px); }
+.pg-char2 {
+  display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr); grid-template-areas: "id stats" "chron stats" "bonus bonus";
+  grid-template-rows: auto 1fr auto; gap: 10px 12px; align-items: start;
+}
+.pg-char2 > .pg-cid { grid-area: id; } .pg-char2 > .pg-cstats { grid-area: stats; } .pg-char2 > .pg-cchron { grid-area: chron; }
+.pg-char2 > section:last-child:not(.pg-cchron) { grid-area: bonus; }
+.pg-panel .pg-char2 h3 { margin: 0 0 6px; font-size: 11px; color: var(--px-muted, var(--ef-muted)); }
+.pg-cg { display: block; flex: none; width: 14px; height: 14px; image-rendering: pixelated; image-rendering: crisp-edges; }
+/* Steckbrief: Stufe als Siegel, Name, Volk · Klasse, Erfahrung, Gold */
+.pg-cid {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px 8px; align-items: center;
+  padding: 8px; background: var(--px-sunk, #0e070b); box-shadow: inset 0 0 0 2px var(--px-k, #14060a), inset 0 0 0 4px var(--px-line, #2a1620);
+}
+.pg-clv {
+  width: 40px; height: 40px; display: grid; place-items: center; background: #3a1206;
+  box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #c8501c, inset 4px 4px 0 2px #f07a2c;
+}
+.pg-clv b { font: 700 18px/1 var(--ef-font-title); color: #fff4e0; text-shadow: 2px 2px 0 #14060a; }
+.pg-cid-text { min-width: 0; }
+.pg-char2 .pg-char-name { font: 700 17px/1.15 var(--ef-font-title); color: var(--ef-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-char2 .pg-char-title { margin: 0; font-size: 12px; }
+.pg-char2 .pg-char-sub { margin: 1px 0 0; font-size: 12px; color: var(--ef-gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-char2 .pg-xpbar { grid-column: 1 / -1; height: 14px; border: 0; border-radius: 0; background: #0a0508; box-shadow: inset 0 0 0 2px var(--px-k, #14060a); }
+.pg-char2 .pg-xpbar .pg-bar-fill { background: #6a2cb0; box-shadow: inset 0 2px 0 #a060f0; }
+.pg-char2 .pg-xpbar .pg-bar-text { font-size: 10.5px; line-height: 14px; }
+.pg-char2 .pg-char-gold { grid-column: 1 / -1; margin: 0; }
+/* Wertekacheln */
+.pg-ctiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.pg-ctile {
+  position: relative; min-width: 0; display: grid; grid-template-columns: 14px minmax(0, 1fr); grid-template-areas: "g v" "l l" "s s";
+  gap: 1px 6px; align-items: center; padding: 6px 8px 6px; background: var(--px-row, #1c0e15);
+  box-shadow: inset 0 0 0 2px var(--px-k, #14060a), inset 0 2px 0 2px var(--px-line, #2a1620);
+}
+.pg-ctile::before { content: ""; position: absolute; left: 2px; top: 2px; bottom: 2px; width: 2px; background: var(--tint, #6a4526); }
+.pg-ctile.t-hp { --tint: #c8323c; } .pg-ctile.t-power { --tint: #c8d0e0; } .pg-ctile.t-armor { --tint: #6a82b0; }
+.pg-ctile.t-crit { --tint: #ffd66a; } .pg-ctile.t-speed { --tint: #9aa4b6; }
+.pg-ctile .pg-cg { grid-area: g; }
+.pg-ctile-v { grid-area: v; font: 700 17px/1.1 var(--ef-font); color: #fff4e0; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-ctile-l { grid-area: l; font-size: 11.5px; color: var(--px-muted, var(--ef-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-ctile-s { grid-area: s; font-size: 10.5px; color: #8ab0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Attribute als Balken in Pixelstufen */
+.pg-cattrs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin-top: 8px; }
+.pg-cattr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l v" "bar bar"; gap: 2px 6px; min-width: 0; }
+.pg-cattr-l { grid-area: l; font-size: 12px; color: var(--px-muted, var(--ef-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-cattr-v { grid-area: v; font: 700 13px/1.2 var(--ef-font); color: var(--ef-text); font-variant-numeric: tabular-nums; }
+.pg-cattr-bar { grid-area: bar; display: block; height: 8px; background: #0a0508; box-shadow: inset 0 0 0 2px var(--px-k, #14060a); }
+.pg-cattr-bar i { display: block; height: 100%; background: var(--ac); box-shadow: inset 0 2px 0 var(--ach), inset 0 0 0 2px var(--px-k, #14060a); }
+.pg-cattr.a-str { --ac: #a8301a; --ach: #e0582a; } .pg-cattr.a-agi { --ac: #2a7a34; --ach: #56b850; }
+.pg-cattr.a-int { --ac: #2a58b8; --ach: #5a98f0; } .pg-cattr.a-vit { --ac: #a86a1a; --ach: #e8b04a; }
+/* Chronik: kurze Zeilen mit Symbol */
+.pg-chron { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.pg-chron li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 2px 4px; font-size: 12px; }
+.pg-chron li:nth-child(odd) { background: var(--px-row, #1c0e15); }
+.pg-chron li span { color: var(--px-muted, var(--ef-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-chron li b { font-weight: 600; color: var(--ef-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Handy quer: gemeinsame Fenstergröße, Kopf flach; Chronik und Werte rollen bei Bedarf mit dem Fenster */
+@media (min-width: 641px) and (max-height: 520px) {
+  .pg-panel.pg-character { width: var(--win-w); max-width: var(--win-w); height: var(--win-h); max-height: var(--win-h); }
+  .pg-character .pg-head { padding: 0 4px 0 14px; min-height: 36px; height: 36px; }
+  .pg-char2.pg-scroll { flex: 1 1 auto; min-height: 0; padding: 8px 8px 8px; grid-template-columns: minmax(0, 176px) minmax(0, 1fr); gap: 8px 10px; }
+  .pg-char2 .pg-cid { padding: 6px; gap: 4px 6px; grid-template-columns: 32px minmax(0, 1fr); }
+  .pg-char2 .pg-clv { width: 32px; height: 32px; } .pg-char2 .pg-clv b { font-size: 15px; }
+  .pg-char2 .pg-char-name { font-size: 15px; }
+  .pg-char2 .pg-char-sub { font-size: 11.5px; }
+  .pg-panel .pg-char2 h3 { margin: 0 0 4px; font-size: 10.5px; }
+  .pg-ctile { padding: 4px 6px 4px 8px; }
+  .pg-ctile-v { font-size: 15px; }
+  .pg-ctile-l { font-size: 11px; }
+  .pg-cattrs { margin-top: 6px; gap: 4px 8px; }
+  .pg-chron li { font-size: 11.5px; line-height: 16px; padding: 1px 4px; }
+  .pg-char2 .pg-cid { gap: 2px 6px; }
+  .pg-char2 .pg-char-gold .pg-gold { font-size: 14px; }
+}
+@media (max-width: 640px) {
+  .pg-char2 { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "stats" "chron" "bonus"; }
 }

@@ -30,7 +30,7 @@ async function api(path, { method = 'GET', body } = {}) {
 const ids = (await api(`/v1/bundleIds?filter[identifier]=${BUNDLE_ID}&limit=20`)).data ?? [];
 const bundle = ids.find((b) => b.attributes.identifier === BUNDLE_ID);
 if (!bundle) throw new Error(`App-ID ${BUNDLE_ID} nicht gefunden`);
-const have = new Set(((await api(`/v1/bundleIds/${bundle.id}/bundleIdCapabilities?limit=200`)).data ?? []).map((c) => c.attributes.capabilityType));
+const have = new Set(((await api(`/v1/bundleIds/${bundle.id}/bundleIdCapabilities`)).data ?? []).map((c) => c.attributes.capabilityType));
 for (const cap of WANTED) {
   if (have.has(cap.capabilityType)) { console.log(`· ${cap.capabilityType} ist schon an`); continue; }
   await api('/v1/bundleIdCapabilities', { method: 'POST', body: { data: {

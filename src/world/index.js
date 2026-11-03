@@ -22,6 +22,8 @@ import { createNpcSprites2 } from '../sprites/npcs2.js';
 import { createSteppeFoes } from '../sprites/foes_steppe.js';
 import { createMarshFoes } from '../sprites/foes_marsh.js';
 import { createFrostFoes } from '../sprites/foes_frost.js';
+import { createStarFoes } from '../sprites/foes_stars.js';
+import { createStarFoes2 } from '../sprites/foes_stars2.js';
 import { createRimeFoes } from '../sprites/foes_rime.js';
 import { createThroneFoes } from '../sprites/foes_throne.js';
 import { createBarrowFoes } from '../sprites/foes_barrow.js';
@@ -50,11 +52,13 @@ import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createStarBiomeTiles } from '../sprites/biomes_stars.js';
 import { createVillageProps } from '../sprites/village.js';
+import { createFurniture, createVillageHouses, createAshwoodHouses, createSteppeHouses, createMarshHouses, createFrostHouses } from '../sprites/decor_houses.js';
 import { spawnTownsfolk } from './townlife.js';
 import { createWaystoneSprites } from '../sprites/waystone.js';
 import { createBoardSprites } from '../sprites/board.js';
 import { createCaravanSprites } from '../sprites/caravan.js';
 import { installQuestRuns } from './questRuns.js';
+import { installStarfall } from './starfall.js';
 
 // Grafik erst beim ersten Zugriff erzeugen (spart Ladezeit: jede Zone
 // braucht nur ihre eigenen Gegner und Deko).
@@ -83,6 +87,9 @@ const FOE_GROUPS = {
   foes_spore: [createSporeFoes, ['sporeling', 'fungal_brute', 'spore_caster']],
   foes_wastes: [createWastesFoes, ['ash_wraith', 'cinder_knight', 'magma_serpent', 'ember_cultist_adept', 'waste_colossus']],
   foes_new1: [createNew1Foes, ['ember_beetle', 'bandit_shieldbearer', 'cinder_sapper', 'cliff_harpy']],
+  // Sternenglut Teil 1: eigene Figuren (sonst Umfärbung des Vorbilds, defs_stars.js recolor)
+  foes_stars: [createStarFoes, ['bloom_stalker']],
+  foes_stars2: [createStarFoes2, ['void_hound', 'rootbound', 'splinter_colossus', 'withered_warden', 'void_wisp', 'mad_prospector', 'shadow_ranger', 'statue_wraith', 'star_seer', 'thorn_priest']],
   foes_new2: [createNew2Foes, ['dust_shaman', 'dust_totem', 'gnoll_trapper', 'bog_slime', 'bog_slime_small', 'marsh_hag', 'frost_revenant', 'snow_burrower', 'cinder_bombardier', 'phase_wraith']],
 };
 
@@ -129,11 +136,13 @@ export function installWorld(game) {
   lazyAsset(assets, 'npcs2', createNpcSprites2);
   lazyAsset(assets, 'npcs3', createNpcSprites3);
   lazyAsset(assets, 'npcs_stars', createStarNpcSprites);
-  lazyAsset(assets, 'village', createVillageProps);
+  // Häuser der Welt 1–40 (sprites/decor_houses.js) samt Möbeln der Innenräume in den Deko-Sätzen ihrer Gebiete
+  const withHouses = (base, houses) => () => ({ ...base(), ...houses(), ...createFurniture() });
+  lazyAsset(assets, 'village', withHouses(createVillageProps, createVillageHouses));
   lazyAsset(assets, 'waystone', createWaystoneSprites);
   lazyAsset(assets, 'quest_board', createBoardSprites);
   lazyAsset(assets, 'caravan', createCaravanSprites); // Eskorte/Verteidigen: Karren, Planwagen, Ritualkreis
-  lazyAsset(assets, 'decor_ashwood', createAshwoodDecor);
+  lazyAsset(assets, 'decor_ashwood', withHouses(createAshwoodDecor, createAshwoodHouses));
   lazyAsset(assets, 'decor_peaks', createPeaksDecor);
   lazyAsset(assets, 'biome_temple', () => createBiomeTiles('temple'));
   lazyAsset(assets, 'biome_forge', () => createBiomeTiles('forge'));
@@ -142,9 +151,9 @@ export function installWorld(game) {
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, def.recolor ? () => recolorSet(assets.sprites[def.spriteBase], def.recolor) : () => assets.sprites[def.spriteBase]);
   }
-  lazyAsset(assets, 'decor_steppe', createSteppeDecor);
-  lazyAsset(assets, 'decor_marsh', createMarshDecor);
-  lazyAsset(assets, 'decor_frost', createFrostDecor);
+  lazyAsset(assets, 'decor_steppe', withHouses(createSteppeDecor, createSteppeHouses));
+  lazyAsset(assets, 'decor_marsh', withHouses(createMarshDecor, createMarshHouses));
+  lazyAsset(assets, 'decor_frost', withHouses(createFrostDecor, createFrostHouses));
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
   lazyAsset(assets, 'decor_astral', createAstralDecor);
   // Sternhafen (Fachwerk-Altstadt): eigene Häuser, Burg und Möbel, dazu Sternbauten (Tor, Brunnen, Luftschiff, Bank)
@@ -153,7 +162,7 @@ export function installWorld(game) {
     const S = assets.sprites.decor_astral, V = assets.sprites.village;
     const pickKeys = (src, keys) => Object.fromEntries(keys.filter((k) => k in src).map((k) => [k, src[k]]));
     return {
-      ...pickKeys(S, ['anchorWell', 'starGate', 'airships', 'starVault', 'paddockH', 'paddockV']),
+      ...pickKeys(S, ['anchorWell', 'airships', 'starVault', 'paddockH', 'paddockV']),
       ...pickKeys(V, ['lamp', 'crates', 'marketStall', 'farmCart', 'woodpile', 'signpost', 'haystack']),
       ...createAltstadtDecor(),
     };
@@ -239,4 +248,6 @@ export function installWorld(game) {
 
   // Eskorte und Verteidigen (questRuns.js, Vertrag C §4); meldet game.progression.setWorldFeatures beim Weltstart.
   installQuestRuns(game);
+  // Weltereignis Sternenfall in den offenen Gebieten der Sternenscherben (starfall.js)
+  installStarfall(game);
 }

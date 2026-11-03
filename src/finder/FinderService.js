@@ -210,8 +210,10 @@ export class FinderService {
     const o = this.origin;
     if (this.state !== 'active' || !o?.zoneId || !this.group || p.fromZoneId !== this.group.dungeonId) return;
     if (this.game.content.find('zone', p.zoneId)?.instanced || !this.game.content.find('zone', o.zoneId)) return;
+    // Zurück in dasselbe Gebiet: Ausgangspunkt des Dungeons als Rückfall, falls die Beitrittsstelle (direkt am Tor)
+    // nicht frei ist; sonst landete man am Wegstein (Durchlauf 02.11., Gläserne Hallen)
+    if (p.zoneId !== o.zoneId || !p.spawnId) p.spawnId = 'respawn';
     p.zoneId = o.zoneId;
-    p.spawnId = 'respawn';
     p.pos = posOf(o);
   }
 

@@ -45,7 +45,10 @@ export class DeathScreen {
     const barLbl = h('span.dz-lbl', 'Verlassen');
     const barLeave = h('button.dz-btn.dz-leave', { type: 'button' }, barLbl);
     this.disarm.push(confirmTap(barLeave, barLbl, { onConfirm: () => bus.emit(EV.RESPAWN_REQUEST, { leave: true }) }));
-    this.bar = h('div.dz-bar', barSkull, h('span.dz-bar-text', 'Deine Gruppe kämpft weiter.'), barLeave);
+    this.barText = h('span.dz-bar-text', 'Deine Gruppe kämpft weiter.');
+    this.barRez = h('span.dz-bar-text', 'Ein Söldner hilft dir gleich wieder auf.');
+    this.bar = h('div.dz-bar', barSkull, this.barText, this.barRez, barLeave);
+    this.rezSoon = null;
 
     this.el = h('div.dz', { role: 'alertdialog', 'aria-label': 'Du bist gefallen' }, this.card, this.bar);
     // Rahmen in der Pixelstufe des Geräts (death.css: Computer 4, Handy 3)
@@ -68,6 +71,8 @@ export class DeathScreen {
     }
     if (!dead) return;
     const mode = waiting ? 'group' : canReviveInInstance(s.zone?.def) ? 'instance' : 'solo';
+    const rezSoon = waiting && !!hero.partyRezSoon;
+    if (rezSoon !== this.rezSoon) { this.rezSoon = rezSoon; this.barText.hidden = rezSoon; this.barRez.hidden = !rezSoon; }
     if (mode !== this.mode) { this.mode = mode; this.el.dataset.mode = mode; }
     // Bereit nach 2 s; bis dahin füllt sich der Knopf in vier deckenden Stufen
     const rdy = waiting ? 0 : Math.min(4, Math.max(0, Math.floor(((s.deadTime - 1.2) / 0.8) * 4)));

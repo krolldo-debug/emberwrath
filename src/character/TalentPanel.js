@@ -5,6 +5,7 @@ import { TALENT_TIERS, PASSIVES, talentsFor, canLearn } from './talents.js';
 import { computeStats } from './stats.js';
 import { attachTip, hideTip } from '../progression/widgets.js';
 import { fmtNum } from '../i18n/index.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 
 // Panel 'talents' (Thread A): Fähigkeiten mit Freischaltstufe, Passive und Talentbaum.
 // Öffnen: Aktion 'talents' oder bus.emit(EV.UI_OPEN_PANEL, { id: 'talents' }).
@@ -22,6 +23,7 @@ function talentPanel(session, game) {
   const root = h('div.ef-panel.tal-panel', { role: 'dialog', 'aria-label': 'Fähigkeiten und Talente' });
   let armedReset = false;
   let opened = null; // Touch: aufgeklappte Fähigkeit
+  let sel = null; // gewähltes Talent im Baum (Karte darunter)
 
   const render = () => {
     const ch = state.slices.character;
@@ -62,37 +64,52 @@ function talentPanel(session, game) {
       return skillRow(p.id, p.icon, p.name, null, ['Passiv', lock ? `ab Stufe ${p.level}` : null], p.desc, lock);
     });
 
+    // Talentbaum (03.11.): sechs Stufen als Spalten von links nach rechts, je zwei Talente als Knoten, verbunden durch
+    // eine Glutlinie, die bis zur höchsten offenen Stufe leuchtet. Darunter die Karte des gewählten Talents mit „Lernen“.
     const defs = talentsFor(cls.id);
-    const tiers = TALENT_TIERS.map((tier, ti) => {
+    const ids = Object.keys(defs);
+    if (!sel || !defs[sel]) {
+      sel = ids.find((id) => !canLearn(cls.id, talents, level, id))
+        ?? ids.find((id) => level >= TALENT_TIERS[defs[id].tier].level && (talents[id] ?? 0) < defs[id].max) ?? ids[0];
+    }
+    const learnOne = (id) => {
+      const r = state.commit('character:learnTalent', { id });
+      if (!r?.ok && r?.error) bus.emit(EV.UI_TOAST, { text: r.error, kind: 'warn' });
+      else game.sfx?.play?.('ui');
+    };
+    const openTiers = TALENT_TIERS.filter((t) => level >= t.level).length;
+    const cols = TALENT_TIERS.map((tier, ti) => {
       const open = level >= tier.level;
-      const cards = Object.entries(defs).filter(([, d]) => d.tier === ti).map(([id, d]) => {
-        const rank = talents[id] ?? 0;
-        const err = canLearn(cls.id, talents, level, id);
-        const learn = err ? null : h('button.ef-btn.tal-learn', {
-          type: 'button', title: `${d.name} lernen`, 'aria-label': `${d.name} lernen`,
-          onclick: () => {
-            const r = state.commit('character:learnTalent', { id });
-            if (!r?.ok && r?.error) bus.emit(EV.UI_TOAST, { text: r.error, kind: 'warn' });
-          },
-        }, '+');
-        const tOpen = touch && opened === id;
-        const tile = h(`div.tal-talent${rank ? '.has' : ''}${rank >= d.max ? '.max' : ''}${learn ? '.can' : ''}${tOpen ? '.open' : ''}`, {
-          onclick: touch ? (e) => { if (e.target.closest('.tal-learn')) return; opened = tOpen ? null : id; render(); } : null,
-        },
-          h('span.tal-icon.small', iconEl(d.icon, 28)),
-          h('div.tal-body',
-            h('div.tal-name', h('span.tal-tname', d.name)),
-            h('p.tal-desc', d.desc)),
-          h('div.tal-side',
-            h('span.tal-pips', { role: 'img', 'aria-label': `Rang ${rank} von ${d.max}` },
-              Array.from({ length: d.max }, (_, i) => h(`span.tal-pip${i < rank ? '.on' : ''}`))),
-            learn));
-        return attachTip(tile, () => h('div.pg-detail.tal-tip', h('b', d.name), h('p', d.desc)));
+      const nodes = ids.filter((id) => defs[id].tier === ti).map((id) => {
+        const d = defs[id], rank = talents[id] ?? 0;
+        const can = !canLearn(cls.id, talents, level, id);
+        const node = h(`button.tal-node${rank ? '.has' : ''}${rank >= d.max ? '.max' : ''}${can ? '.can' : ''}${sel === id ? '.sel' : ''}${open ? '' : '.locked'}`, {
+          type: 'button', 'aria-label': d.name, 'aria-pressed': String(sel === id),
+          onclick: () => { if (sel === id && can && !touch) { learnOne(id); return; } sel = id; render(); },
+        }, iconEl(d.icon, 32), h('span.tal-rank', { 'aria-label': `Rang ${rank} von ${d.max}` }, `${rank}/${d.max}`));
+        return attachTip(node, () => h('div.pg-detail.tal-tip', h('b', d.name), h('p', d.desc)));
       });
-      return h(`section.tal-tier${open ? '' : '.locked'}`,
-        h('div.tal-tierlabel', h('b', tier.name), h('span', `Stufe ${tier.level}`)),
-        cards);
+      return h(`div.tal-col${open ? '' : '.locked'}`, { title: tier.name },
+        h('span.tal-lv', String(tier.level)), nodes);
     });
+    const sd = defs[sel], srank = talents[sel] ?? 0, stier = TALENT_TIERS[sd.tier];
+    const why = canLearn(cls.id, talents, level, sel);
+    const card = h(`div.tal-card${srank ? '.has' : ''}${srank >= sd.max ? '.max' : ''}`,
+      h('span.tal-card-icon', iconEl(sd.icon, 32)),
+      h('div.tal-card-body',
+        h('div.tal-card-head', h('b.tal-card-name', sd.name),
+          h('span.tal-pips', { role: 'img', 'aria-label': `Rang ${srank} von ${sd.max}` },
+            Array.from({ length: sd.max }, (_, i) => h(`span.tal-pip${i < srank ? '.on' : ''}`)))),
+        h('p.tal-card-tier', h('span', stier.name), h('span', `ab Stufe ${stier.level}`)),
+        h('p.tal-desc', sd.desc)),
+      h('div.tal-card-act',
+        why
+          ? h('span.tal-why', why)
+          : h('button.ef-btn.primary.tal-learn', { type: 'button', 'aria-label': `${sd.name} lernen`, onclick: () => learnOne(sel) }, 'Lernen')));
+    const tree = h('div.tal-tree2',
+      h('span.tal-line.l1', { 'aria-hidden': 'true' }, h('i')), h('span.tal-line.l2', { 'aria-hidden': 'true' }, h('i')),
+      cols);
+    tree.style.setProperty('--open', String(Math.max(0, openTiers - 1)));
 
     const reset = h('button.tal-reset', {
       type: 'button', disabled: pts.spent === 0,
@@ -113,7 +130,8 @@ function talentPanel(session, game) {
         h('button.tal-close', { type: 'button', 'aria-label': 'Schließen', onclick: () => session.panels.close() }, '×')),
       h('div.tal-scroll',
         h('section.tal-abilities', h('h3.tal-h', 'Fähigkeiten'), h('div.tal-list', abilities, passives)),
-        h('section.tal-tree', h('h3.tal-h', 'Talente'), tiers)));
+        h('section.tal-tree', h('h3.tal-h', 'Talente'), tree, card)));
+    pixelWindow(root, session.font, 'Fähigkeiten & Talente', root.querySelector('.tal-title'));
   };
 
   let queued = false;
