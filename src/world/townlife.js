@@ -3,6 +3,7 @@ import { hash2 } from '../core/math.js';
 import { Townsfolk } from '../entities/Townsfolk.js';
 import { folkAnims } from '../sprites/folk.js';
 import { STAR_TOWNS } from './stars/towns.js';
+import { HOUSE_DOOR_PX } from '../sprites/decor_houses.js';
 
 // Leben in den Städten: Bewohner mit eigenem Haus, die umhergehen, plaudern, ihre Häuser betreten und den Helden
 // ansprechen. Rein auf dem Gerät gerechnet und ohne Spielstand: keine Quests, keine Beute, kein Kampf.
@@ -21,6 +22,7 @@ export const HOUSE_DOORS = {
   stiltHut: [12, 3], longhouse: [0, 3], sodHut: [-3, 3], treePlatform: [-19, 3],
   starHouses: [0, 3], starInn: [0, 3], gardenHut: [0, 3], prospectorTents: [0, 3],
   starTownhouses: [-9, 3], starShops: [21, 3], starTemple: [-8, 3], starLibrary: [0, 3], starGreenhouse: [0, 3],
+  ...HOUSE_DOOR_PX,   // Häuser der Welt 1–40 (sprites/decor_houses.js)
 };
 const TOWERS = { watchtower: [0, 3], fortTower: [0, 3], starTower: [0, 3], bridgeGate: [-36, 3] };
 // Dinge, an denen man stehen bleibt (Feuer, Brunnen, Marktstand …)

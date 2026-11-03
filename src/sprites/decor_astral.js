@@ -5,6 +5,7 @@ import { createStarCityDecor } from './decor_starcity.js';
 import { createStarCityDecor2 } from './decor_starcity2.js';
 import { createGardenVillageDecor } from './decor_stars_village.js';
 import { createStarQuestDecor } from './decor_stars_quests.js';
+import { createFurniture } from './decor_houses.js';
 
 // Sternenscherben (Grundstimmung „Morgenschimmer“, Look-Entwurf C): Blütenbäume der Treibenden Gärten, leuchtende
 // Sternkristalle, Ruinen aus hellem Perlstein (König Aurels Gartenterrassen), Laternen mit warmem Licht.
@@ -453,4 +454,4 @@ export function createAstralNature() {
   };
 }
 
-export function createAstralDecor() { return { ...createAstralNature(), ...createStarCityDecor(), ...createStarCityDecor2(), ...createGardenVillageDecor() }; }
+export function createAstralDecor() { return { ...createAstralNature(), ...createStarCityDecor(), ...createStarCityDecor2(), ...createGardenVillageDecor(), ...createFurniture() }; }

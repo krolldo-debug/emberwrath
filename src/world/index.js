@@ -51,6 +51,7 @@ import { recolorSet } from '../sprites/recolor.js';
 import { createBiomeTiles3 as createBiomesRimeThrone } from '../sprites/biomes_rime_throne.js';
 import { createStarBiomeTiles } from '../sprites/biomes_stars.js';
 import { createVillageProps } from '../sprites/village.js';
+import { createFurniture, createVillageHouses, createAshwoodHouses, createSteppeHouses, createMarshHouses, createFrostHouses } from '../sprites/decor_houses.js';
 import { spawnTownsfolk } from './townlife.js';
 import { createWaystoneSprites } from '../sprites/waystone.js';
 import { createBoardSprites } from '../sprites/board.js';
@@ -133,11 +134,13 @@ export function installWorld(game) {
   lazyAsset(assets, 'npcs2', createNpcSprites2);
   lazyAsset(assets, 'npcs3', createNpcSprites3);
   lazyAsset(assets, 'npcs_stars', createStarNpcSprites);
-  lazyAsset(assets, 'village', createVillageProps);
+  // Häuser der Welt 1–40 (sprites/decor_houses.js) samt Möbeln der Innenräume in den Deko-Sätzen ihrer Gebiete
+  const withHouses = (base, houses) => () => ({ ...base(), ...houses(), ...createFurniture() });
+  lazyAsset(assets, 'village', withHouses(createVillageProps, createVillageHouses));
   lazyAsset(assets, 'waystone', createWaystoneSprites);
   lazyAsset(assets, 'quest_board', createBoardSprites);
   lazyAsset(assets, 'caravan', createCaravanSprites); // Eskorte/Verteidigen: Karren, Planwagen, Ritualkreis
-  lazyAsset(assets, 'decor_ashwood', createAshwoodDecor);
+  lazyAsset(assets, 'decor_ashwood', withHouses(createAshwoodDecor, createAshwoodHouses));
   lazyAsset(assets, 'decor_peaks', createPeaksDecor);
   lazyAsset(assets, 'biome_temple', () => createBiomeTiles('temple'));
   lazyAsset(assets, 'biome_forge', () => createBiomeTiles('forge'));
@@ -146,9 +149,9 @@ export function installWorld(game) {
   for (const [id, def] of Object.entries(ENEMY_TYPES)) {
     if (def.spriteBase && !(def.sprites in assets.sprites)) lazyAsset(assets, def.sprites, def.recolor ? () => recolorSet(assets.sprites[def.spriteBase], def.recolor) : () => assets.sprites[def.spriteBase]);
   }
-  lazyAsset(assets, 'decor_steppe', createSteppeDecor);
-  lazyAsset(assets, 'decor_marsh', createMarshDecor);
-  lazyAsset(assets, 'decor_frost', createFrostDecor);
+  lazyAsset(assets, 'decor_steppe', withHouses(createSteppeDecor, createSteppeHouses));
+  lazyAsset(assets, 'decor_marsh', withHouses(createMarshDecor, createMarshHouses));
+  lazyAsset(assets, 'decor_frost', withHouses(createFrostDecor, createFrostHouses));
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
   lazyAsset(assets, 'decor_astral', createAstralDecor);
   // Sternhafen (Fachwerk-Altstadt): eigene Häuser, Burg und Möbel, dazu Sternbauten (Tor, Brunnen, Luftschiff, Bank)

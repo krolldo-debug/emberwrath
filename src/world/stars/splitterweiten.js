@@ -1,5 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { clearAround } from '../mapkit.js';
+import { addInteriors } from '../houses.js';
 import { openSites, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
 
 // ---------------------------------------------------------------- Die Splitterweiten (45–50)
@@ -251,7 +252,7 @@ export function buildSplitterweiten() {
   // Weltereignis „Sternenfall“ (world/starfall.js): mögliche Einschlagorte, je Teilgebiet einer
   const starfallSites = openSites(m, [[86, 30], [164, 62], [50, 100], [120, 26], [70, 96], [40, 30]], 3, 14, 6);
 
-  return {
+  const L = {
     name: 'Die Splitterweiten',
     kind: 'outdoor',
     biome: 'shards',
@@ -330,4 +331,15 @@ export function buildSplitterweiten() {
     ],
     signText: 'Nord: Brücken nach Sternhafen und in die Gärten · Ost: Singende Grate · Süd: Spiegelsee · Südost: Sternwartenberg',
   };
+  // Begehbare Schürferhütten in Funkenruh (world/houses.js): Tür H 1 links vom Anker, U 1 rechts
+  return addInteriors(L, [
+    { id: 'schuerferhuette', name: 'Schürferhütte', door: { x: 49, y: 52 }, plan: 'lodgeB' },
+    { id: 'erzschuppen', name: 'Erzschuppen', door: { x: 71, y: 58 }, plan: ORE },
+  ], { ambient: [140, 134, 150], light: [190, 220, 255] });
 }
+
+// Erzschuppen: Säcke, Fässer, Kisten, Werkzeug an der Wand
+const ORE = {
+  w: 11, h: 9, s: 'L', win: [5], light: [5, 4],
+  furn: [[2, 3, 'fRack'], [8, 3, 'fCupboard'], [1, 7, 'fSacks'], [3, 7, 'fSacks'], [9, 7, 'fBarrels'], [5, 6, 'fTable'], [7, 6, 'fStool'], [5, 3, 'wShelf'], [9, 5, 'fChest']],
+};
