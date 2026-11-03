@@ -1,7 +1,7 @@
 import { buildFrame, SpriteFrame, Animation, lazyFrame } from '../gfx/Sprite.js';
 import { FineCanvas, fineRes, col32 } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
-import { plate, bar, orb, gem, hornQ, poly, hair as fl, thick, trace, cloth, strands, dotp } from './bossPaint.js';
+import { plate, bar, orb, gem, hornQ, poly, hair as fl, thick, trace, cloth, strands, dotp, LX, LY } from './bossPaint.js';
 
 // Nerith, die Ertrunkene Priesterin – Boss des Versunkenen Tempels.
 //
@@ -15,7 +15,9 @@ import { plate, bar, orb, gem, hornQ, poly, hair as fl, thick, trace, cloth, str
 // Versinken/Auftauchen: Pose-Parameter `sink` schneidet die Figur an der
 // Wasserlinie ab und zeichnet Wellenringe bzw. eine Spritzkrone.
 // Blickrichtung rechts, Anker = Wasserpunkt unter der schwebenden Figur.
-const W = 156, H = 124, AX = 72, AY = 114;
+// Seit der Neuzeichnung (03.11.) um SCN größer: das Rig rechnet in den alten Maßen, der Stift skaliert um den Anker.
+const SCN = 1.35;
+const W = 212, H = 178, AX = 98, AY = 164;
 
 // Materialrampen (dunkel -> hell)
 const SKIN = ['#1c2630', '#33434e', '#546873', '#7f959e', '#aabfc2', '#d6e6e4'];
@@ -36,7 +38,8 @@ const NE_SOCKET = '#101820', NE_MOUTH = '#1e1824';
 const NE_EYE = ['#b4fff4', '#34d2d6'];
 
 const SPINE = 16, UPPER = 9, FORE = 9;
-const WL = AY - 3; // Wasserlinie im Canvas
+const WLR = AY - 3; // Wasserlinie im Rig
+const WL = Math.round(AY - 3 * SCN); // Wasserlinie im Canvas
 
 // ---------------------------------------------------------------- Pose
 
@@ -87,13 +90,8 @@ const pt = (p, x, y, c) => (p.res === 1 ? p.px(x, y, c) : p.dot(x + p.step / 2, 
 // damit die Fläche so groß bleibt wie früher)
 function ell(p, cx, cy, rx, ry, c) {
   if (!c || p.isNull) return;
-  const r = p.res, v = col32(c), X = (cx + p.ox) * r, Y = (cy + p.oy) * r, RX = rx * r + (r - 1) / 2, RY = ry * r + (r - 1) / 2, n = Math.ceil(RY);
-  for (let y = -n; y <= n; y++) {
-    const t = 1 - (y * y) / (RY * RY);
-    if (t < 0) continue;
-    const hw = Math.round(RX * Math.sqrt(t) - 0.15), F = Math.round(X - hw), G = Math.round(Y + y);
-    for (let i = 0; i <= hw * 2; i++) p.put(F + i, G, v);
-  }
+  const h = p.step / 2, RX = rx + h, RY = ry + h, X = cx + h, Y = cy + h;
+  p.each(X - RX - 1, Y - RY - 1, X + RX + 1, Y + RY + 1, (x, y) => (((x - X) / RX) ** 2 + ((y - Y) / RY) ** 2 <= 1 ? c : null));
 }
 // Linie 1 Weltpixel stark: res 1 Bresenham in Weltpixeln, fein im Feinraster
 function ln(p, x0, y0, x1, y1, c) {
@@ -102,7 +100,6 @@ function ln(p, x0, y0, x1, y1, c) {
 }
 // Linie 1 Feinpixel (nur fein), gleiche Lage wie pt
 const hair = (p, x0, y0, x1, y1, c) => { const h = p.step / 2; p.fline(x0 + h, y0 + h, x1 + h, y1 + h, c); };
-const clamp5 = (v) => Math.max(0, Math.min(5, v));
 
 // Zeichenfläche, die nichts zeichnet: für den zweiten Durchlauf, der nur die
 // Phase-2-Leuchtebene braucht (spart die Hälfte der Ladezeit).
@@ -135,133 +132,188 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp) {
   }
 }
 
-// ---------------------------------------------------------------- Haar
-
-// Eine Strähne: treibt wie unter Wasser. Benachbarte Strähnen teilen sich die
-// Strömung (Phase hängt stetig von u ab), dadurch verschmelzen sie zu einer
-// geschlossenen Haarmasse. Licht nur als wenige durchgehende Glanzbänder.
-function strand(p, g, glow, ox, oy, dir, L, w0, j, P, { shade = 1, sheen = false, edge = false, u = 0, glowy = 0 } = {}) {
-  let x = ox, y = oy;
-  const wild = 1 + P.hairWild * 1.4;
-  for (let s = 0; s < L; s += 0.6) {
-    const f = s / L;
-    const a = dir + Math.sin(P.hairT + s * 0.13 + u * 1.6) * (0.06 + 0.42 * f) * wild
-      + Math.sin(P.hairT * 2 + u * 3.1 + s * 0.29) * 0.12 * f * P.hairWild;
-    x += Math.cos(a) * 0.6; y += Math.sin(a) * 0.6;
-    const hw = Math.max(0.5, w0 * (1 - f * f * 0.9)) / 2;
-    const nx = -Math.sin(a), ny = Math.cos(a);
-    const sgn = nx + ny > 0 ? -1 : 1; // Kante zum Licht (links oben)
-    if (p.fine) {
-      // Fein: zwei Abtastreihen je Schritt (lückenlos), Unterlocken mit dunklen Fugen (Strähnen),
-      // Glanzband als Glanzlinie 1 Feinpixel mit hellem Saum
-      const H = hw + 0.4;   // fein etwas voller (Figur kräftiger)
-      for (const b of [0.3, 0]) {
-        const cx = x - Math.cos(a) * b, cy = y - Math.sin(a) * b;
-        for (let k = -H; k <= H + 0.01; k += 0.25) {
-          const ks = k * sgn, ak = Math.abs(k);
-          let sh = shade - (f > 0.7 ? 1 : 0);
-          if (sheen && f > 0.08 && f < 0.6) { const dd = Math.abs(ks - hw * 0.3); if (dd < 0.13) sh = shade + 2; else if (dd < 0.38) sh = shade + 1; }
-          if (edge && ks < -H + 0.4 && f > 0.15) sh = 0;
-          pt(p, cx + nx * k, cy + ny * k, HAIR[clamp5(sh)]);
-        }
-      }
-      if (glowy && hash2(j, Math.floor(s * 1.5), 17) < glowy) { g.px(x, y, glow[2]); if (hash2(j, Math.floor(s), 19) < 0.3) pt(g, x, y, glow[3]); }
-      continue;
-    }
-    for (let k = -hw; k <= hw + 0.01; k += 0.5) {
-      let sh = shade - (f > 0.7 ? 1 : 0);
-      if (sheen && Math.abs(k * sgn - hw * 0.3) < 0.5 && f > 0.08 && f < 0.6) sh = shade + 2;
-      if (edge && k * sgn < -hw + 0.6 && f > 0.15) sh = 0; // dunkle Fuge zwischen den Büscheln
-      p.px(x + nx * k, y + ny * k, HAIR[Math.max(0, Math.min(5, sh))]);
-    }
-    if (glowy && hash2(j, Math.floor(s * 1.5), 17) < glowy) g.px(x, y, glow[hash2(j, Math.floor(s), 19) < 0.3 ? 3 : 2]);
-  }
-  return { x, y };
+// ---------------------------------------------------------------- Maßstab
+// Neuzeichnung 03.11.: Nerith ist um SCN größer. Das Rig rechnet weiter in den alten Maßen; gezeichnet wird über einen
+// Stift, der um den Anker skaliert und dabei in voller Feinauflösung neu abtastet (keine Hochskalierung).
+function scaled(p, s, cx, cy) {
+  const fx = (x) => cx + (x - cx) * s, fy = (y) => cy + (y - cy) * s;
+  const ix = (X) => cx + (X - cx) / s, iy = (Y) => cy + (Y - cy) / s;
+  const w = {
+    res: p.res, fine: p.fine, step: p.step / s, isNull: !!p.isNull,
+    each(x0, y0, x1, y1, fn) { p.each(fx(x0), fy(y0), fx(x1), fy(y1), (X, Y) => fn(ix(X), iy(Y))); },
+    dot(x, y, c) { if (c) p.dot(fx(x), fy(y), c); },
+    pdot(x, y, c) { if (c) p.dot(fx(x), fy(y), c); },
+    px(x, y, c) { if (c) w.each(x, y, x + 1, y + 1, (u, v) => (u >= x && u < x + 1 && v >= y && v < y + 1 ? c : null)); },
+    rect(x, y, ww, hh, c) { if (c) w.each(x, y, x + ww, y + hh, (u, v) => (u >= x && u < x + ww && v >= y && v < y + hh ? c : null)); },
+    line(x0, y0, x1, y1, c) { if (c) thick(w, x0 + 0.5, y0 + 0.5, x1 + 0.5, y1 + 0.5, 1, c); },
+    fline(x0, y0, x1, y1, c, lw = 0) { if (!c) return; if (lw) thick(w, x0, y0, x1, y1, lw, c); else fl(w, x0, y0, x1, y1, c); },
+  };
+  return w;
 }
 
-// Fein: Strähnenlinien über der fertigen Haarmasse (gleicher Pfad wie strand): helle Strähne mit harter Lichtkante
-// (1 Feinpixel Glanz, daneben ein Mittelton) oder dunkle Mulde. off = Lage quer zur Strähne (-1 Schatten … +1 Licht).
-function hairLine(p, ox, oy, dir, L, w0, P, u, shade, off, lit) {
+// ---------------------------------------------------------------- Bänder (Haarlocken, Wasserschleier, Tentakel)
+
+// Pfad einer treibenden Locke: Strömung wie unter Wasser, benachbarte Locken teilen sich die Phase (u).
+function flow(ox, oy, dir, L, P, u, { n = 16, amp = 0.42, curl = 0 } = {}) {
+  const pts = [[ox, oy, dir]];
   let x = ox, y = oy;
-  const wild = 1 + P.hairWild * 1.4;
-  for (let s = 0; s < L; s += 0.6) {
-    const f = s / L;
-    const a = dir + Math.sin(P.hairT + s * 0.13 + u * 1.6) * (0.06 + 0.42 * f) * wild
-      + Math.sin(P.hairT * 2 + u * 3.1 + s * 0.29) * 0.12 * f * P.hairWild;
-    const px0 = x, py0 = y;
-    x += Math.cos(a) * 0.6; y += Math.sin(a) * 0.6;
-    if (f < 0.06 || f > (lit ? 0.82 : 0.68)) continue;
-    const hw = Math.max(0.5, w0 * (1 - f * f * 0.9)) / 2;
-    const nx = -Math.sin(a), ny = Math.cos(a), sgn = nx + ny > 0 ? -1 : 1;
-    const k = off * hw * sgn, kx = nx * k, ky = ny * k;
-    if (lit) {
-      const top = f < 0.55 ? Math.min(5, shade + 2) : Math.min(5, shade + 1);
-      hair(p, px0 + kx, py0 + ky, x + kx, y + ky, HAIR[top]);
-      hair(p, px0 + kx - nx * sgn * 0.5, py0 + ky - ny * sgn * 0.5, x + kx - nx * sgn * 0.5, y + ky - ny * sgn * 0.5, HAIR[Math.min(5, shade + 1)]);
-    } else {
-      hair(p, px0 + kx, py0 + ky, x + kx, y + ky, HAIR[Math.max(0, shade - 2)]);
-      hair(p, px0 + kx + nx * sgn * 0.5, py0 + ky + ny * sgn * 0.5, x + kx + nx * sgn * 0.5, y + ky + ny * sgn * 0.5, HAIR[Math.max(1, shade - 1)]);
+  const wild = 1 + P.hairWild * 1.4, ds = L / n;
+  for (let i = 1; i <= n; i++) {
+    const s = i * ds, f = s / L;
+    const a = dir + Math.sin(P.hairT + s * 0.13 + u * 1.6) * (0.06 + amp * f) * wild
+      + Math.sin(P.hairT * 2 + u * 3.1 + s * 0.29) * 0.12 * f * P.hairWild + curl * f * f * f;
+    x += Math.cos(a) * ds; y += Math.sin(a) * ds;
+    pts.push([x, y, a]);
+  }
+  pts[0][2] = pts[1][2];
+  return pts;
+}
+
+// Band entlang eines Pfads [[x, y, Winkel], …]: Breite wf(f), schattiert wie eine Platte, dazu eine harte Glanzlinie
+// auf der Lichtseite und eine dunkle Fuge auf der Schattenseite.
+function ribbon(p, path, wf, ramp, { line = 0.45, sheen = [0.08, 0.6], groove = true, edge = 0.5 } = {}) {
+  const n = path.length - 1, A = [], B = [];
+  path.forEach(([x, y, a], i) => {
+    const hw = wf(i / n) / 2, nx = -Math.sin(a), ny = Math.cos(a);
+    A.push([x + nx * hw, y + ny * hw]); B.push([x - nx * hw, y - ny * hw]);
+  });
+  plate(p, [...A, ...B.slice().reverse()], ramp, { edge, core: 0.8, line, flat: 0.7, glint: false });
+  const m = ramp.length;
+  for (let i = 0; i < n; i++) {
+    const f = i / n, [x0, y0, a] = path[i], [x1, y1] = path[i + 1];
+    const nx = -Math.sin(a), ny = Math.cos(a), s = nx * LX + ny * LY > 0 ? 1 : -1, hw = wf(f) / 2;
+    if (sheen && f >= sheen[0] && f <= sheen[1] && hw > 0.9) {
+      const k = hw * 0.4 * s;
+      fl(p, x0 + nx * k, y0 + ny * k, x1 + nx * k, y1 + ny * k, ramp[m - 1]);
+      const k2 = k - 0.45 * s;
+      fl(p, x0 + nx * k2, y0 + ny * k2, x1 + nx * k2, y1 + ny * k2, ramp[m - 2]);
     }
+    if (groove && f > 0.12 && f < 0.85 && hw > 1.3) {
+      const k = -hw * 0.35 * s;
+      fl(p, x0 + nx * k, y0 + ny * k, x1 + nx * k, y1 + ny * k, ramp[1]);
+    }
+  }
+  return { A, B };
+}
+
+// Wasserleib: ein geschlossener Geisterschweif, der sich unten nach hinten einrollt, mit Strömungslinien, Leuchtkern,
+// Schaum und nachschleppenden Wasserfäden. back = nur die Fäden hinter dem Leib.
+function waterBody(p, g, glow, wx, wy, P, flood, back) {
+  const L = AY + 1 - wy, N = 18;
+  const sway = (v) => Math.sin(P.clothT + v * 3.2) * 1.6 * v;
+  const C = [];
+  for (let i = 0; i <= N; i++) {
+    const v = i / N;
+    C.push([wx + 0.5 + sway(v) - P.trail * 10 * v * v - v * v * v * (9 + P.veil * 4), wy + 1 + v * L - v ** 4 * 4]);
+  }
+  const ang = (i) => { const a = C[Math.min(N, i + 1)], b = C[Math.max(0, i - 1)]; return Math.atan2(a[1] - b[1], a[0] - b[0]); };
+  const hw = (v) => (6.6 + P.veil * 2) * Math.pow(1 - v, 0.75) + Math.sin(v * Math.PI) * 2.2 + 0.4;
+  const path = C.map(([x, y], i) => [x, y, ang(i)]);
+  if (back) {
+    // Wasserfäden, die hinter dem Schweif nachschleppen
+    for (const [v0, len, w, k] of [[0.45, 16, 2.6, 0], [0.7, 13, 2.2, 1], [0.88, 11, 1.8, 2]]) {
+      const i0 = Math.round(v0 * N), [x, y, a] = path[i0], h = hw(v0);
+      const nx = -Math.sin(a), ny = Math.cos(a), s = nx < 0 ? 1 : -1;   // Seite nach hinten (links)
+      const fp = flow(x + nx * h * 0.7 * s, y + ny * h * 0.7 * s, Math.PI * 0.72 + k * 0.08, len, P, 0.3 + k * 0.2, { n: 10, amp: 0.3, curl: 0.6 });
+      ribbon(p, fp, (f) => w * (1 - f * 0.85), WATERD, { sheen: [0.05, 0.6], groove: false });
+      fl(g, fp[2][0], fp[2][1], fp[6][0], fp[6][1], glow[0]);
+    }
+    return;
+  }
+  ribbon(p, path, (f) => hw(f) * 2, WATER7, { sheen: [0.06, 0.8], groove: false, edge: 0.6 });
+  // Strömungslinien quer verteilt: Lichtseite hell, Schattenseite dunkel; Leuchtkern in der Mitte
+  for (const [off, c, gl] of [[-0.62, 6, 0], [-0.3, 5, 1], [0.02, 4, 2], [0.36, 2, 0], [0.66, 1, 0]]) {
+    for (let i = 1; i < N - 1; i++) {
+      const v = i / N;
+      if (v < 0.08 || v > 0.92 - Math.abs(off) * 0.25) continue;
+      const [x0, y0, a0] = path[i], [x1, y1, a1] = path[i + 1];
+      const w = Math.sin((v * 6 + off * 3) + P.clothT) * 0.35;
+      const k0 = (off + w) * hw(v), k1 = (off + w) * hw((i + 1) / N);
+      const ax = x0 - Math.sin(a0) * k0, ay = y0 + Math.cos(a0) * k0, bx = x1 - Math.sin(a1) * k1, by = y1 + Math.cos(a1) * k1;
+      if ((i + Math.round(off * 10)) % 5 === 0) continue;   // Linien abreißen lassen
+      fl(p, ax, ay, bx, by, WATER7[c]);
+      if (gl) fl(g, ax, ay, bx, by, glow[gl === 2 && v < 0.7 ? 1 : 0]);
+    }
+  }
+  // Glitzern und Luftblasen
+  for (let i = 0; i < 14; i++) {
+    const v = hash2(i, 3, 51), k = (hash2(i, 4, 51) - 0.5) * 1.4;
+    if (hash2(i, Math.floor(P.clothT * 3), 53) > (flood ? 0.7 : 0.45)) continue;
+    const j = Math.min(N, Math.round(v * N)), [x, y, a] = path[j], r = k * hw(v);
+    const bx = x - Math.sin(a) * r, by = y + Math.cos(a) * r;
+    if (i % 3 === 0) { orb(p, bx, by, 0.7, 0.7, WATER7, { line: false }); dotp(p, bx - 0.3, by - 0.3, '#ffffff'); }
+    dotp(g, bx, by, glow[i % 2 ? 3 : 2]);
+  }
+  // Schaumkrause an der eingerollten Spitze
+  const [tx, ty] = path[N];
+  for (let i = 0; i < 5; i++) dotp(p, tx + Math.cos(i * 1.3) * 1.2, ty + Math.sin(i * 1.3) * 0.8, i % 2 ? WATER7[6] : '#ffffff');
+  dotp(g, tx, ty, glow[2]);
+  if (hash2(3, Math.floor(P.clothT * 2), 59) < 0.6) {
+    const dy = (P.clothT * 3) % 6;
+    orb(p, path[N - 3][0] + 1, AY - 2 + dy * 0.3 - 4, 0.6, 0.8, WATER7, { line: false });
   }
 }
 
-// ---------------------------------------------------------------- Unterleib
+// Tentakel: rollt sich nach außen ein, Saugnäpfe auf der Unterseite.
+function tentacle(p, g, glow, x, y, side, L, P, flood) {
+  const N = 16, path = [[x, y, 0]];
+  let a = Math.PI / 2 - side * 0.55, px = x, py = y;
+  for (let i = 1; i <= N; i++) {
+    const f = i / N;
+    a += -side * (0.03 + f * f * 0.5) + Math.sin(P.clothT + f * 3 + side) * 0.05;
+    px += Math.cos(a) * L / N - P.trail * 0.5 * f; py += Math.sin(a) * L / N;
+    path.push([px, py, a]);
+  }
+  path[0][2] = path[1][2];
+  ribbon(p, path, (f) => 4.6 * (1 - f * 0.8), TENT, { sheen: [0.05, 0.75], groove: false });
+  for (let i = 2; i < N - 2; i += 2) {
+    const [sx, sy, sa] = path[i], f = i / N, hw = 4.6 * (1 - f * 0.8) / 2;
+    const nx = -Math.sin(sa), ny = Math.cos(sa), s = nx * LX + ny * LY > 0 ? -1 : 1;   // Schattenseite
+    const ux = sx + nx * hw * 0.55 * s, uy = sy + ny * hw * 0.55 * s;
+    dotp(p, ux, uy, TENT[5]); dotp(p, ux + 0.4, uy + 0.4, TENT[1]);
+    if (flood) dotp(g, ux, uy, glow[1]);
+  }
+  const [tx, ty] = path[N];
+  dotp(g, tx, ty, glow[flood ? 2 : 1]);
+}
 
-function veils(p, g, glow, wx, wy, P, flood) {
-  const n = 12;
-  const bottom = AY - 2;
-  for (let j = 0; j < n; j++) {
-    const u = j / (n - 1);
-    const tent = j === 2 || j === 8;
-    const x0 = wx - 7 + u * 13;
-    const L = bottom - wy - 1 + Math.sin(u * 9) * 2 - (tent ? 2 : 0);
-    const w0 = tent ? 4 : 4.4;
-    const q = p.step, fine = p.fine, grow = (1 - q) / 2;
-    for (let s = 0; s < L; s += 0.5 * q) {
-      const v = s / L;
-      const curl = tent ? Math.pow(v, 3) * (2.2 + Math.sin(P.clothT + j) * 0.6) * (j === 8 ? 1 : -1) : 0;
-      let x = x0 - P.trail * 12 * v * v + Math.sin(P.clothT + u * 2.4 + v * 3.5) * 2.6 * v + (u - 0.5) * 10 * v * P.veil;
-      let y = wy + 2 + s;
-      if (curl) { x += Math.sin(curl) * 3 * v; y -= (1 - Math.cos(curl)) * 2 * v; }
-      // Spitzen laufen spitz zu statt zu zerfasern
-      const hw = w0 * (1 - v * v * 0.88) / 2 * (fine ? 1.15 : 1) + grow;
-      for (let k = -hw; k <= hw + 0.01; k += 0.5 * q) {
-        // Licht über die ganze Breite des Wasserleibs (links hell), unten heller Schaum
-        const gx = u + (k / 14);
-        let i = gx < 0.18 ? 4 : gx < 0.45 ? 3 : gx < 0.78 ? 2 : 1;
-        if (v > 0.8) i = Math.min(5, i + 1);
-        if (k > hw - 0.6 * q && j % 3 === 2) i = Math.max(1, i - 1); // Faltenkante
-        if (fine && v > 0.16 && !tent) {
-          // fein: Geisterleib mit hellem Kern je Bahn und harten Kanten (links Licht, rechts dunkle Fuge)
-          const ak = Math.abs(k + hw * 0.15);
-          if (ak < 0.13 && j >= 3 && j <= 8 && v > 0.2 && v < 0.88) i = 5;
-          else if (ak < hw * 0.2 && u < 0.75) i = Math.min(5, i + 1);
-          if (k < -hw + 0.3 && j % 2 === 0) i = Math.min(5, i + 1);
-          else if (k > hw - 0.3) i = Math.max(0, i - 2);
-        }
-        let c = WATER[i];
-        if (v < 0.16) c = ROBE[gx < 0.3 ? 4 : gx < 0.7 ? 3 : 2];
-        else if (tent) c = k * 2 < -hw ? WATER[4] : k > hw - 0.6 * q ? ROBE[1] : WATER[2];
-        pt(p, x + k, y, c);
-      }
-      if (fine && !tent && j >= 3 && j <= 8 && v > 0.2 && v < 0.88) pt(g, x - hw * 0.15, y, glow[j >= 4 && j <= 7 && v < 0.7 ? 1 : 0]); // Geisterkern (Leuchtebene)
-      if (tent && Math.floor(s) % 4 === 2 && v > 0.25 && v < 0.85) {
-        if (fine) { if (s % 1 < 0.3) { pt(p, x + hw * 0.3, y, WATER[5]); pt(p, x + hw * 0.3 + 0.5, y + 0.5, ROBE[1]); pt(p, x + hw * 0.3, y + 0.5, WATER[3]); } }
-        else p.px(x + hw * 0.3, y, WATER[5]); // Saugnäpfe
-      }
-      // Wasserglitzern (nur Leucht-Ebene)
-      if ((!fine || (s * 2) % 1 === 0) && hash2(j * 7 + Math.floor(s), Math.floor(P.clothT * 3), 53) < (flood ? 0.05 : 0.025)) {
-        if (fine) { pt(g, x - hw * 0.4, y, glow[v > 0.7 ? 3 : 2]); pt(g, x - hw * 0.4 + 0.5, y, glow[1]); pt(g, x - hw * 0.4, y + 0.5, glow[1]); }
-        else g.px(x - hw * 0.4, y, glow[v > 0.7 ? 3 : 2]);
-      }
-    }
-    // fallende Tropfen unter den Spitzen (nur jede dritte Bahn)
-    if (j % 3 === 1 && hash2(j, Math.floor(P.clothT * 2), 59) < 0.5) {
-      const dy = (hash2(j, 9, 61) * 6 + P.clothT * 3) % 6;
-      const dx = x0 - P.trail * 12 + (u - 0.5) * 10 * P.veil;
-      p.px(dx, bottom + 2 + dy * 0.3, WATER[4]);
-      g.px(dx, bottom + 2 + dy * 0.3, glow[2]);
-    }
+// Muschel-Nimbus hinter dem Kopf: Fächer aus gerippten Perlmutt-Rippen mit Goldsaum, wellige Außenkante.
+function nimbus(p, g, glow, hx, hy, R, ang, flood) {
+  const ribs = 8, span = 2.1, a0 = ang - span / 2, hinge = 2.4;
+  const shape = (x, y) => {
+    const dx = x - hx, dy = y - hy, r = Math.hypot(dx, dy);
+    let a = Math.atan2(dy, dx) - a0;
+    while (a < 0) a += Math.PI * 2;
+    while (a >= Math.PI * 2) a -= Math.PI * 2;
+    if (a > span || r < hinge) return null;
+    const t = (a / span) * ribs, c = t - Math.floor(t), Rr = R * (0.95 + 0.05 * Math.sin(c * Math.PI));
+    if (r > Rr) return null;
+    return { r, c, Rr, th: a + a0 };
+  };
+  p.each(hx - R - 1, hy - R - 1, hx + R + 1, hy + R + 1, (x, y) => {
+    const s = shape(x, y);
+    if (!s) return null;
+    const { r, c, Rr, th } = s;
+    const f = -Math.sin(th) * LX + Math.cos(th) * LY;          // > 0: Seite mit größerem Winkel liegt zum Licht
+    const side = (c - 0.5) * (f > 0 ? 1 : -1), rr = r / Rr;
+    if (r > Rr - 0.45) return GOLD6[0];
+    if (r > Rr - 1.5) return side > 0.15 ? GOLD6[5] : side > -0.2 ? GOLD6[3] : GOLD6[2];
+    if (c < 0.04 || c > 0.96) return NACRE[2];
+    if (Math.abs(side - 0.22) < 0.05 && rr > 0.3 && rr < 0.9) return NACRE[6];
+    let i = 2 + Math.max(0, Math.min(3, Math.floor((0.5 + side * 0.6 + (rr - 0.55) * 0.5) * 4)));
+    if (r % 3.1 < 0.4 && rr > 0.3 && rr < 0.9) i = Math.max(1, i - 1);   // Wachstumsringe
+    return NACRE[i];
+  });
+  // Scharnier
+  orb(p, hx, hy, hinge + 0.6, hinge * 0.8, GOLD6);
+  // Leuchtsaum: schwach, in Phase 2 kräftiger; Perlen an den Rippenspitzen
+  g.each(hx - R - 1, hy - R - 1, hx + R + 1, hy + R + 1, (x, y) => {
+    const s = shape(x, y);
+    return s && s.r > s.Rr - 1.4 && s.r < s.Rr - 0.4 ? glow[flood ? 1 : 0] : null;
+  });
+  for (let k = 0; k < ribs; k++) {
+    const th = a0 + ((k + 0.5) / ribs) * span, rx = hx + Math.cos(th) * (R - 0.9), ry = hy + Math.sin(th) * (R - 0.9);
+    if (k % 2 === 1) dotp(g, rx, ry, glow[flood ? 3 : 2]);
   }
 }
 
@@ -273,15 +325,22 @@ const PEARL6 = ['#22323c', '#3e5a68', ...PEARL];
 const SKIND = ['#121a22', '#24323c', '#3c4e58', '#5a6e78', '#7a9098', '#9cb0b4'];
 const ROBED = ['#040f12', '#081c20', '#0d2d32', '#15474a', '#1f655e', '#2a7568'];
 const LIP = ['#2a1c30', '#4a3652', '#6c5878', '#8e7c98'];
+const HAIR7 = ['#04090b', '#0d1c20', '#15302f', '#204542', '#306058', '#4a8474', '#7cb8a0'];
+const HAIRB = ['#030709', '#0a1518', '#112524', '#1a3836', '#26504a', '#3a6c60'];
+const WATER7 = ['#06101e', ...WATER];
+const WATERD = ['#040a14', '#081626', '#0e2a46', '#16466c', '#2a6a94', '#5096bc'];
+const TENT = ['#0a0816', '#1c1832', '#30294e', '#4a3f70', '#6c6096', '#9c90c2'];
+const FIN = ['#06141a', '#0e2e36', '#18505a', '#2a7a80', '#4aa8a6', '#8adcc8'];
+const NACRE = ['#0e171c', '#22343a', '#385256', '#56787a', '#7ea49e', '#b2d4c6', '#e8fff2'];
 
 // Zerfetzte Robenbahnen über dem Wasserleib: eine Stoffbahn mit zackigem Saum, Goldborte, leuchtenden Runen.
 function skirt(p, g, glow, wx, wy, P) {
   const N = 14, top = [], bot = [];
   for (let i = 0; i <= N; i++) {
     const u = i / N, x0 = wx - 7.5 + u * 16;
-    const tongue = i % 2 ? 0 : 3 + Math.sin(u * 7) * 1.5;
-    const len = 11 + Math.sin(u * 7) * 2 - Math.abs(u - 0.45) * 5 + tongue;
-    const X = (v) => x0 - P.trail * 7 * v * v + Math.sin(P.clothT * 1.2 + u * 2.2 + v * 3) * 1.2 * v + (u - 0.5) * 6 * v * P.veil;
+    const tongue = i % 2 ? 0 : 3.5 + Math.sin(u * 9) * 2;
+    const len = 6 + Math.sin(u * 5) * 1.5 + tongue + (1 - Math.abs(u - 0.5) * 2) * 2.5;
+    const X = (v) => x0 - P.trail * 7 * v * v + Math.sin(P.clothT * 1.2 + u * 2.2 + v * 3) * 1.2 * v + (u - 0.5) * (7 + 6 * P.veil) * v;
     top.push([X(0), wy - 0.5]); bot.push([X(1), wy + len]);
   }
   cloth(p, [...top, ...bot.slice().reverse()], ROBE, { fold: 2.6, phase: P.clothT * 0.4, hem: 2.5, seed: 3, line: 0.5 });
@@ -389,7 +448,7 @@ function smear(p, g, cx, cy, a0, a1, r0, r1, glow) {
 
 function drawFigure(p, g, P, glow, ex, flood) {
   const meta = {};
-  const fine = p.fine, q = p.step;
+  const fine = p.fine;
   const wx = AX + P.wx, wy = AY - 28 - P.float + P.wy;
   const lean = P.lean, sl = Math.sin(lean), cl = Math.cos(lean);
   const fx = Math.cos(lean), fy = Math.sin(lean); // "nach vorn" quer zum Rumpf
@@ -401,83 +460,100 @@ function drawFigure(p, g, P, glow, ex, flood) {
   const armF = ik(shF.x, shF.y, hF.x, hF.y, UPPER, FORE, 1);
   const armB = ik(shB.x, shB.y, hB.x, hB.y, UPPER, FORE, 1);
   const hcx = Math.round(nx + sl * 3 + P.head + 1), hcy = Math.round(ny - cl * 3 - 6 + P.headY);
-
-  // --- 1. Haar hinten: breite, treibende Masse
-  const nH = 18;
+  const HZ = 1.22;
+  const J = (u, v) => [hcx - 0.2 + u * HZ, hcy + 7 + (v - 7) * HZ];
+  const Jm = (list) => list.map(([u, v]) => J(u, v));
   const lift = P.hairLift;
-  // von hinten (dunkel, außen) nach vorn (heller) zeichnen, damit die Masse geschlossen bleibt
-  for (let jj = nH - 1; jj >= 0; jj--) {
-    const j = jj, u = j / (nH - 1);
-    const th = -Math.PI / 2 - u * 1.5 - 0.1;
-    const ox = hcx - 1 + Math.cos(th) * 4.5, oy = hcy - 1 + Math.sin(th) * 4.5;
-    const dir = Math.PI / 2 + 0.35 + u * 0.35 + lift * (0.95 + u * 0.3);
-    // vier Strähnenbüschel mit eigener Länge, darin nur kleine Unterschiede
-    const cu = Math.min(3.999, u * 4), clump = Math.floor(cu), cl = cu - clump;
-    // Büschel laufen spitz zu: die Mitte jedes Büschels ist am längsten
-    const L = 32 + [10, 4, 12, 6][clump] + (1 - Math.abs(cl - 0.5) * 2) * 9 - lift * 4 + P.hairWild * 6;
-    strand(p, g, glow, ox, oy, dir, L, 7 - u * 1.6, j, P, { u, shade: u < 0.3 ? 4 : u < 0.65 ? 3 : 2, sheen: j === 3 || j === 8 || j === 13, edge: cl < 0.2, glowy: flood ? 0.04 : 0 });
+
+  // --- 1. Haar hinten: sieben treibende Locken, von hinten (dunkel) nach vorn
+  const NL = 7;
+  for (let j = NL - 1; j >= 0; j--) {
+    const u = j / (NL - 1), th = -Math.PI / 2 - u * 1.55 - 0.05;
+    const ox = hcx - 1.5 + Math.cos(th) * 5, oy = hcy - 1 + Math.sin(th) * 5;
+    const dir = Math.PI / 2 + 0.22 + u * 0.4 + lift * (0.95 + u * 0.3);
+    const L = 27 + [12, 6, 14, 8, 15, 9, 11][j] - lift * 4 + P.hairWild * 6;
+    const path = flow(ox, oy, dir, L, P, u, { curl: j % 2 ? 0.9 : -0.7 });
+    const w0 = 8.6 - u * 2.2;
+    ribbon(p, path, (f) => w0 * (1 - f * f * 0.9), u > 0.6 ? HAIRB : HAIR7, { sheen: [0.06, 0.62] });
+    if (flood) for (let i = 2; i < path.length; i++) if (hash2(j, i, 17) < 0.22) dotp(g, path[i][0], path[i][1], glow[hash2(j, i, 19) < 0.3 ? 3 : 2]);
   }
-  if (fine) {
-    // Haarmasse gliedern: je Büschel 2–3 helle Strähnen mit harter Lichtkante und dunkle Mulden dazwischen
-    for (const [j, off, lit] of [[1, 0.45, true], [3, -0.2, false], [4, 0.5, true], [6, 0.3, true], [9, 0.45, true], [11, -0.2, false],
-      [12, 0.4, true], [14, 0.35, true], [16, 0.5, true]]) {
-      const u = j / (nH - 1), th = -Math.PI / 2 - u * 1.5 - 0.1;
-      const ox = hcx - 1 + Math.cos(th) * 4.5, oy = hcy - 1 + Math.sin(th) * 4.5;
-      const dir = Math.PI / 2 + 0.35 + u * 0.35 + lift * (0.95 + u * 0.3);
-      const cu = Math.min(3.999, u * 4), clump = Math.floor(cu), cl = cu - clump;
-      const L = 32 + [10, 4, 12, 6][clump] + (1 - Math.abs(cl - 0.5) * 2) * 9 - lift * 4 + P.hairWild * 6;
-      hairLine(p, ox, oy, dir, L, 7 - u * 1.6, P, u, u < 0.3 ? 4 : u < 0.65 ? 3 : 2, off, lit);
-    }
-  }
-  // Zusätzliche, wild peitschende Leuchtsträhnen (nur Leucht-Ebene, Phase 2)
+  // wild peitschende Leuchtsträhnen (nur Leucht-Ebene, Phase 2)
   if (flood) {
     for (let j = 0; j < 4; j++) {
       let x = hcx - 3, y = hcy - 3;
       const dir = Math.PI + 0.4 - j * 0.35 + P.hairWild * 0.3;
-      for (let s = 0; s < 26 + j * 5; s += 0.8) {
+      for (let s = 0; s < 26 + j * 5; s += 0.6) {
         const a = dir + Math.sin(P.hairT * 1.7 + s * 0.22 + j * 1.9) * 0.55;
-        x += Math.cos(a) * 0.8; y += Math.sin(a) * 0.8;
-        if (hash2(j, Math.floor(s * 2), 91) < 0.7) g.px(x, y, glow[s < 8 ? 2 : 1]);
+        x += Math.cos(a) * 0.6; y += Math.sin(a) * 0.6;
+        if (hash2(j, Math.floor(s * 2), 91) < 0.7) dotp(g, x, y, glow[s < 8 ? 2 : 1]);
       }
     }
   }
 
-  // --- 2. Hinterer Arm (dunkler): Ärmel, Unterarm, Hand
+  // --- 2. Muschel-Nimbus hinter dem Kopf, über dem Haar (eigene Silhouette)
+  nimbus(p, g, glow, ...J(-1.8, 1.4), 18.5, -Math.PI / 2 - 0.42 - lean * 0.6 + P.head * 0.03, flood);
+
+  // --- 3. Hinterer Arm (dunkler): Ärmel, Unterarm, Schwimmhand
   bar(p, shB.x, shB.y, armB.jx, armB.jy, 3.8, 3.2, ROBED);
   bar(p, armB.jx, armB.jy, armB.ex, armB.ey, 2.6, 2.1, SKIND);
   if (P.open > 0.3) {
     for (let k = -1; k <= 1; k++) bar(p, armB.ex + k * 0.8, armB.ey - 0.6, armB.ex + k * 1.6, armB.ey - 3.6, 1, 0.7, SKIND, { line: 0.3 });
+    poly(p, [[armB.ex - 0.8, armB.ey - 1], [armB.ex - 1.6, armB.ey - 3.2], [armB.ex + 1.6, armB.ey - 3.2], [armB.ex + 0.8, armB.ey - 1]], FIN[2]);
   }
   orb(p, armB.ex + 0.3, armB.ey, 1.5, 1.3, SKIND);
   meta.cast = { x: armB.ex, y: armB.ey - 3 };
-  // zerfetzter Ärmel am hinteren Ellbogen
   {
     const sw = -P.trail * 2, w = Math.sin(P.clothT) * 0.7;
     cloth(p, [[armB.jx - 2, armB.jy - 0.5], [armB.jx + 2, armB.jy], [armB.jx + 1.6 + sw + w, armB.jy + 5.5], [armB.jx + 0.4 + sw, armB.jy + 3.6], [armB.jx - 0.6 + sw + w, armB.jy + 7.5], [armB.jx - 1.6 + sw, armB.jy + 4]], ROBED, { fold: 1.6, phase: P.clothT, line: 0.4 });
   }
 
-  // --- 3. Unterleib aus Wasser, Robenbahnen
-  veils(p, g, glow, wx, wy, P, flood);
+  // --- 4. Unterleib: hintere Schleier, Tentakel, vordere Schleier, Robenbahnen
+  waterBody(p, g, glow, wx, wy, P, flood, true);
+  tentacle(p, g, glow, wx - 4.5, wy + 5, -1, 24, P, flood);
+  tentacle(p, g, glow, wx + 5, wy + 6, 1, 21, P, flood);
+  waterBody(p, g, glow, wx, wy, P, flood, false);
   skirt(p, g, glow, wx, wy, P);
 
-  // --- 4. Rumpf in Robe: Mieder mit Goldborte, V-Ausschnitt, Schärpe, Gürtel mit Muschel
+  // --- 5. Rumpf in Robe: Mieder aus Schuppen mit Goldborte, V-Ausschnitt, Perlenkette, Schärpe, Muschelgürtel
   const along = (s, k) => [wx + 0.5 + sl * s + fx * k, wy - cl * s + fy * k];
   const M = (list) => list.map(([s, k]) => along(s, k));
   const body = [[-1, -5.2], [6, -5.4], [11, -6.6], [14.2, -7.4], [16, -6.8], [17, -4.2], [17, 3.6], [15.6, 6.8], [13.2, 7.6], [10.6, 6.6], [7, 5.4], [2, 5.2], [-1, 5.6]];
   cloth(p, M(body), ROBE, { fold: 3, phase: P.clothT * 0.3, line: 0.5, seed: 1 });
-  // Mieder (vorn, heller), Brustwölbung
   const bod = [[0.4, -3.6], [8, -4.2], [13.6, -3.2], [15.6, 1.2], [15.2, 5.8], [13.2, 7.4], [10.6, 6.4], [7, 5.2], [0.4, 5.2]];
   plate(p, M(bod), ROBE, { edge: 0.6, core: 1.6, flat: 0.8 });
+  // Schuppenmuster auf dem Mieder (versetzte Reihen, Licht oben, Schatten im Bogen)
+  for (let r = 0; r < 4; r++) {
+    for (let k = -3 + (r % 2) * 1.1; k <= 4.2; k += 2.2) {
+      const s = 2.2 + r * 2.5;
+      if (s > 11.5 && k > 0.5) continue;   // Ausschnitt
+      const [x, y] = along(s, k);
+      for (let t = 0; t <= 1; t += 0.25) {
+        const a = Math.PI * (0.15 + t * 0.7);
+        dotp(p, x + Math.cos(a) * 1.1, y - Math.sin(a) * 1.1 + 1.6, ROBE[1]);
+      }
+      dotp(p, x - 0.4, y + 0.1, ROBE[4]);
+    }
+  }
   fl(p, ...along(12.4, 4.4), ...along(11.2, 6.6), ROBE[1]);
   fl(p, ...along(13.2, 0.4), ...along(12.2, 3.8), ROBE[5]);
   trace(p, M([[0.6, -3.4], [8, -4], [13.4, -3]]), GOLD6[4], false, GOLD6[1]);
   for (const s of [3, 6, 9]) dotp(p, ...along(s, 4.6), GOLD6[3]);
   // Ausschnitt: fahle Haut, Schlüsselbeine, Goldsaum
-  const vee = [[17.2, -3.4], [17.2, 4], [11.4, 1.2]];
-  plate(p, M(vee), SKIN, { edge: 0.6, core: 0.8, line: 0 });
+  plate(p, M([[17.2, -3.4], [17.2, 4], [11.4, 1.2]]), SKIN, { edge: 0.6, core: 0.8, line: 0 });
   fl(p, ...along(16, -2.6), ...along(15.4, -0.4), SKIN[5]); fl(p, ...along(15.4, 1.2), ...along(16, 3), SKIN[4]);
   fl(p, ...along(14.2, 0.8), ...along(12.8, 1), SKIN[2]);
   trace(p, M([[17.2, -3.6], [11.2, 1.2], [17.2, 4.2]]), GOLD6[4], false, GOLD6[1]);
+  // Perlenkette mit Tropfen-Anhänger
+  for (let k = -3.6; k <= 4.01; k += 1.25) {
+    const [x, y] = along(16.6 - 2 * (1 - (k / 4.2) ** 2), k);
+    orb(p, x, y, 0.75, 0.75, PEARL6, { line: true });
+  }
+  {
+    const [x, y] = along(13.6, 0.4);
+    gem(p, x, y - 0.6, x + 0.2, y + 2.4, 1.8, CORAL6);
+    orb(p, x, y - 0.4, 0.9, 0.9, GOLD6);
+    dotp(g, x + 0.1, y + 1, glow[2]);
+  }
   // Schärpe (hintere Schulter -> vordere Hüfte)
   thick(p, shB.x + 1, shB.y + 2.4, wx + 5.5, wy - 0.6, 1.8, GOLD6[3]);
   fl(p, shB.x + 1, shB.y + 1.8, wx + 5.5, wy - 1.2, GOLD6[5]);
@@ -488,34 +564,41 @@ function drawFigure(p, g, P, glow, ex, flood) {
   orb(p, mx, my + 0.6, 2, 1.8, GOLD6);
   for (const t of [-2.4, -1.57, -0.7]) fl(p, mx + Math.cos(t) * 0.4, my + 1.6 + Math.sin(t) * 0.4, mx + Math.cos(t) * 1.7, my + 1.6 + Math.sin(t) * 1.9, GOLD6[1]);
   orb(p, mx, my + 3.4, 0.9, 0.9, PEARL6, { line: false });
-  g.px(mx - 0.5, my + 2.9, glow[2]); dotp(g, mx, my + 3.2, glow[4]);
+  dotp(g, mx - 0.5, my + 2.9, glow[2]); dotp(g, mx, my + 3.2, glow[4]);
   // Runen auf der Robe
-  for (const [k, s] of [[-2, 4], [2, 7], [-1, 10]]) {
+  for (const [k, s] of [[-2, 4], [-1, 10]]) {
     const [x, y] = along(s, k);
     fl(p, x, y - 0.5, x, y + 1.5, ROBE[4]); fl(p, x + 0.5, y - 0.5, x + 1.5, y - 1, ROBE[4]); dotp(p, x, y, ROBE[5]);
-    fl(g, x, y - 0.5, x, y + 1.5, glow[1]); fl(g, x + 0.5, y - 0.5, x + 1.5, y - 1, glow[flood ? 2 : 1]); dotp(g, x, y, glow[3]); dotp(g, x, y + 0.5, glow[2]);
+    fl(g, x, y - 0.5, x, y + 1.5, glow[1]); fl(g, x + 0.5, y - 0.5, x + 1.5, y - 1, glow[flood ? 2 : 1]); dotp(g, x, y, glow[3]);
   }
   meta.chest = { x: wx + sl * 10, y: wy - cl * 10 };
 
-  // --- 5. Kopf (größer als früher): fahles Gesicht in Dreiviertelansicht, nasses Haar, Korallenkrone
-  const HZ = 1.22;
-  const J = (u, v) => [hcx - 0.2 + u * HZ, hcy + 7 + (v - 7) * HZ];
-  const Jm = (list) => list.map(([u, v]) => J(u, v));
+  // --- 6. Kopf: fahles Gesicht in Dreiviertelansicht, Flossenohr, nasses Haar, Korallenkrone
   bar(p, ...J(0.6, 9), ...J(1, 3), 3.6, 3.2, SKIN);
   fl(p, ...J(-0.2, 8.6), ...J(0.2, 4), SKIN[5]);
-  // Hinterkopf (nasses Haar)
-  orb(p, ...J(-1.6, -0.6), 5.2 * HZ, 5.6 * HZ, HAIR, { glint: false });
-  strands(p, [0, 1, 2, 3, 4].map((i) => ({ x: J(-0.5 - i * 1.1, -5 + i * 0.6)[0], y: J(-0.5 - i * 1.1, -5 + i * 0.6)[1], len: (7 + i) * HZ, a: 1.95 + i * 0.12, w: 2.2, bend: 0.5, lit: i < 2 ? 0.8 : 0.45 })), HAIR);
+  orb(p, ...J(-1.6, -0.6), 5.2 * HZ, 5.6 * HZ, HAIR7, { glint: false });
+  strands(p, [0, 1, 2, 3, 4].map((i) => ({ x: J(-0.5 - i * 1.1, -5 + i * 0.6)[0], y: J(-0.5 - i * 1.1, -5 + i * 0.6)[1], len: (7 + i) * HZ, a: 1.95 + i * 0.12, w: 2.2, bend: 0.5, lit: i < 2 ? 0.8 : 0.45 })), HAIR7);
+  // Flossenohr: Membran mit Strahlen, nach hinten gelegt
+  {
+    const fin = [[0.8, 0.6], [-2.6, -3.4], [-3.4, -2.2], [-4.8, -0.4], [-4.2, 0.8], [-4.9, 2.6], [-3.6, 3.4], [-2.6, 5], [0.6, 3.4]];
+    plate(p, Jm(fin), FIN, { edge: 0.5, core: 0.7, line: 0.4, flat: 0.8 });
+    for (const [u, v] of [[-2.8, -3], [-4.5, -0.3], [-4.6, 2.6], [-2.8, 4.6]]) {
+      fl(p, ...J(0.4, 1.8), ...J(u, v), FIN[5]);
+      fl(p, ...J(0.4, 2.3), ...J(u + 0.3, v + 0.5), FIN[1]);
+    }
+    if (flood) dotp(g, ...J(-4.5, -0.3), glow[2]);
+  }
   // Gesicht
   const face = [[-1, -4.4], [2.6, -5.2], [5.6, -4.4], [6.8, -2.2], [6.7, -0.6], [8, 2.3], [6.9, 2.9], [7.2, 3.8], [6.7, 4.5], [7, 5.1], [5.8, 6.7], [3.4, 7], [0.8, 5.4], [-0.6, 2.4]];
   plate(p, Jm(face), SKIN, { edge: 0.8, core: 1.4, flat: 0.8 });
-  // Augenhöhlen (Schatten), Wangenknochen
   poly(p, Jm([[3, -0.8], [6.5, -1.3], [6.8, 0.9], [5, 1.4], [3.4, 1]]), SKIN[2]);
   fl(p, ...J(2.2, 2.4), ...J(4.8, 1.9), SKIN[5]); fl(p, ...J(2.4, 3), ...J(4.6, 2.6), SKIN[4]);
   fl(p, ...J(1.6, 4.4), ...J(3.6, 6.4), SKIN[2]);
+  // Kiemenschlitze am Hals
+  for (const k of [0, 1, 2]) fl(p, ...J(0.4 + k * 0.7, 7.4 + k * 0.2), ...J(1 + k * 0.7, 8.8 + k * 0.2), SKIN[1]);
   // Brauen
-  thick(p, ...J(3, -1.5), ...J(6.6, -1.9), 0.7 * HZ, HAIR[1]);
-  thick(p, ...J(6.9, -1.4), ...J(7.5, -1.6), 0.6 * HZ, HAIR[1]);
+  thick(p, ...J(3, -1.5), ...J(6.6, -1.9), 0.7 * HZ, HAIR7[1]);
+  thick(p, ...J(6.9, -1.4), ...J(7.5, -1.6), 0.6 * HZ, HAIR7[1]);
   // Augen
   const lit = P.eye > 0.15;
   if (lit) {
@@ -524,8 +607,8 @@ function drawFigure(p, g, P, glow, ex, flood) {
     dotp(p, ...J(4.8, -0.2), '#ffffff');
     poly(p, Jm([[6.9, -0.2], [7.4, -0.5], [7.5, 0.3]]), NE_EYE[1]);
     for (const [u, v, i] of [[5, 0, 4], [4.4, 0, 3], [5.7, 0, 3], [7.2, -0.1, 3]]) dotp(g, ...J(u, v), glow[i]);
-    for (const [u, v] of [[3.8, 0.2], [6.2, 0.1]]) g.px(...J(u, v).map((c) => c - 0.5), glow[1]);
-    if (P.eye > 0.7) { fl(g, ...J(4.4, 1.2), ...J(4.2, flood ? 4.4 : 3.4), glow[1]); }
+    for (const [u, v] of [[3.8, 0.2], [6.2, 0.1]]) dotp(g, ...J(u, v), glow[1]);
+    if (P.eye > 0.7) { fl(g, ...J(4.4, 1.2), ...J(4.2, flood ? 4.4 : 3.4), glow[1]); dotp(g, ...J(4.2, 2.2), glow[1]); }
   } else {
     fl(p, ...J(3.6, 0.3), ...J(6.2, 0.1), SKIN[0]);
     fl(p, ...J(4, 0.7), ...J(5.8, 0.6), SKIN[1]);
@@ -547,25 +630,26 @@ function drawFigure(p, g, P, glow, ex, flood) {
     dotp(p, ...J(6, 4.9), LIP[3]);
   }
   meta.mouth = { x: J(6.8, 4.4)[0], y: J(6.8, 4.4)[1] };
-  // nasse Strähnen an Schläfe und Stirn (rahmen das Gesicht)
+  // nasse Strähnen an Schläfe und Stirn
   strands(p, [
     { x: J(1.2, -5)[0], y: J(1.2, -5)[1], len: 9 * HZ, a: 1.75, w: 1.8, bend: 0.25, lit: 0.7 },
     { x: J(-0.2, -4.6)[0], y: J(-0.2, -4.6)[1], len: 11 * HZ, a: 1.85, w: 2.2, bend: 0.2, lit: 0.55 },
     { x: J(3.4, -5.2)[0], y: J(3.4, -5.2)[1], len: 3.4 * HZ, a: 0.9, w: 1.4, bend: 0.5, lit: 0.8 },
-  ], HAIR);
-  if (lit && P.eye > 0.7) dotp(g, ...J(4.2, 2.2), glow[1]);
-  // Goldreif mit Perle
+  ], HAIR7);
+  // Goldreif mit Perlenschnur am Hinterkopf
   plate(p, Jm([[-2.6, -4.2], [2.6, -5.6], [6.2, -4.8], [6.4, -3.9], [2.6, -4.5], [-2.4, -3.1]]), GOLD6, { edge: 0.5, core: 0.6, line: 0.4 });
+  for (let i = 0; i < 4; i++) orb(p, ...J(-2.6 - i * 0.35, -2.4 + i * 1.5), 0.6 * HZ, 0.6 * HZ, PEARL6, { line: true });
   // Korallenkrone: verzweigte Äste mit hellen Spitzen
   const coral = [
-    [[-2, -4.4], [-4.2, -8.6], [-5.6, -10.6], 1.7, [[0.5, -1, -1.6]]],
-    [[0.2, -4.9], [-0.8, -9.6], [0.2, -13.4], 2, [[0.45, -1.8, -1.2], [0.7, 1.4, -1.4]]],
-    [[2.8, -5.3], [3.2, -10], [4.8, -12.6], 1.9, [[0.5, 1.8, -0.8]]],
-    [[5.2, -5], [6.8, -7.8], [8.2, -9.4], 1.4, []],
+    [[-2.6, -4], [-5.6, -6.6], [-8, -7.2], 1.4, [[0.6, -0.6, -1.4]]],
+    [[-1.4, -4.6], [-3.8, -9], [-5.2, -11.6], 1.8, [[0.5, -1.2, -1.6]]],
+    [[0.4, -5], [-0.6, -10.4], [0.6, -14.6], 2.1, [[0.45, -1.8, -1.2], [0.7, 1.6, -1.6]]],
+    [[2.8, -5.3], [3.4, -10.4], [5.2, -13], 1.9, [[0.5, 1.8, -0.8]]],
+    [[5.2, -5], [7, -7.8], [8.6, -9.2], 1.4, [[0.6, 0.6, -1.2]]],
   ];
   for (const [a, c, b, w, br] of coral) {
     for (const [t, ox, oy] of br) {
-      const u = 1 - t, sx = u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], sy = u * u * a[1] + 2 * u * t * c[1] + t * t * b[1];
+      const v = 1 - t, sx = v * v * a[0] + 2 * v * t * c[0] + t * t * b[0], sy = v * v * a[1] + 2 * v * t * c[1] + t * t * b[1];
       hornQ(p, ...J(sx, sy), ...J(sx + ox * 0.5, sy + oy * 0.7), ...J(sx + ox, sy + oy - 1.2), 1.3 * HZ, 0.7, CORAL6, { n: 3, line: 0.3 });
       dotp(p, ...J(sx + ox, sy + oy - 1.2), '#ffd8c0');
     }
@@ -574,30 +658,37 @@ function drawFigure(p, g, P, glow, ex, flood) {
     if (flood) dotp(g, ...J(...b), glow[2]);
   }
   orb(p, ...J(2.6, -5.4), 1.1 * HZ, 1.1 * HZ, PEARL6, { line: true });
-  dotp(g, ...J(2.6, -5.4), glow[4]); g.px(...J(2.6, -5.4).map((c) => c - 0.5), glow[2]);
+  dotp(g, ...J(2.6, -5.4), glow[4]); dotp(g, ...J(2.3, -5.7), glow[2]);
   meta.head = { x: J(1, -9)[0], y: J(1, -9)[1] };
 
-  // --- 6. Vorderes Haar über der Schulter
-  for (let j = 0; j < 3; j++) {
-    const ox = hcx - 3 + j * 0.8, oy = hcy - 1 + j * 1.5;
-    const dir = Math.PI / 2 + 0.1 - j * 0.1 + lift * 0.7;
-    strand(p, g, glow, ox, oy, dir, 18 + j * 5, 3, 40 + j, P, { u: 0.2 + j * 0.1, shade: 3 - (j > 1 ? 1 : 0), sheen: j === 0 });
+  // --- 7. Vorderes Haar: zwei Locken über der Schulter
+  for (let j = 1; j >= 0; j--) {
+    const ox = hcx - 2.6 + j * 1.2, oy = hcy - 0.5 + j * 1.6;
+    const path = flow(ox, oy, Math.PI / 2 + 0.12 - j * 0.12 + lift * 0.7, 19 + j * 6, P, 0.2 + j * 0.15, { n: 10, curl: j ? 0.8 : -0.6 });
+    ribbon(p, path, (f) => (3.8 - j * 0.4) * (1 - f * f * 0.88), HAIR7, { sheen: [0.05, 0.7], groove: false });
   }
 
-  // --- 7. Schwung-Schleier
+  // --- 8. Schwung-Schleier
   if (ex.smear) smear(p, g, shF.x, shF.y, ex.smear[0], ex.smear[1], 12, 12 + FORE + 38, glow);
 
-  // --- 8. Vorderer Arm, Dreizack
+  // --- 9. Vorderer Arm, Dreizack
   const drawArm = () => {
     bar(p, shF.x, shF.y, armF.jx, armF.jy, 4.2, 3.6, ROBE);
-    // weiter Ärmel, zerfetzt
     {
       const sw = -P.trail * 2, w = Math.sin(P.clothT * 1.3) * 0.8;
       cloth(p, [[armF.jx - 2.4, armF.jy - 1], [armF.jx + 2.2, armF.jy - 0.2], [armF.jx + 2 + sw + w, armF.jy + 4.5], [armF.jx + 0.8 + sw, armF.jy + 3.2], [armF.jx - 0.2 + sw + w, armF.jy + 7.5], [armF.jx - 1.4 + sw, armF.jy + 4.6], [armF.jx - 2.6 + sw, armF.jy + 6]], ROBE, { fold: 1.8, phase: P.clothT, line: 0.4 });
       fl(p, armF.jx - 2.2, armF.jy + 0.2, armF.jx + 2, armF.jy + 0.8, GOLD6[4]);
     }
     bar(p, armF.jx, armF.jy, armF.ex, armF.ey, 3, 2.5, SKIN);
-    // Armreif
+    // Unterarmflosse
+    {
+      const dx = armF.ex - armF.jx, dy = armF.ey - armF.jy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+      let ox = -uy, oy = ux;
+      if (oy < 0) { ox = -ox; oy = -oy; }
+      const at = (t, k) => [armF.jx + dx * t + ox * k, armF.jy + dy * t + oy * k];
+      plate(p, [at(0.15, 1.2), at(0.2, 3.4), at(0.38, 2.6), at(0.5, 3.6), at(0.68, 1.3)], FIN, { edge: 0.4, core: 0.5, line: 0.35 });
+      fl(p, ...at(0.22, 1.3), ...at(0.2, 3.2), FIN[5]); fl(p, ...at(0.42, 1.3), ...at(0.5, 3.4), FIN[5]);
+    }
     const bx = armF.jx + (armF.ex - armF.jx) * 0.7, by = armF.jy + (armF.ey - armF.jy) * 0.7;
     const bx2 = armF.jx + (armF.ex - armF.jx) * 0.82, by2 = armF.jy + (armF.ey - armF.jy) * 0.82;
     bar(p, bx, by, bx2, by2, 3.4, 3.2, GOLD6, { line: 0.4 });
@@ -623,7 +714,7 @@ function drawFigure(p, g, P, glow, ex, flood) {
     ell(g, meta.cast.x, meta.cast.y, r + 1, r + 1, glow[1]);
     ell(g, meta.cast.x, meta.cast.y, r, r, glow[2]);
     ell(g, meta.cast.x, meta.cast.y, Math.max(0.5, r - 1.2), Math.max(0.5, r - 1.2), glow[3]);
-    if (fine) { ell(g, meta.cast.x - 0.25, meta.cast.y - 0.25, Math.max(0.5, r - 2.2), Math.max(0.5, r - 2.2), glow[4]); pt(p, meta.cast.x, meta.cast.y, glow[3]); }
+    if (fine) { ell(g, meta.cast.x - 0.25, meta.cast.y - 0.25, Math.max(0.5, r - 2.2), Math.max(0.5, r - 2.2), glow[4]); dotp(p, meta.cast.x, meta.cast.y, glow[3]); }
   }
   return meta;
 }
@@ -664,7 +755,7 @@ function surface(p, g, P, glow) {
   for (let r = 0; r < rings; r++) {
     const rx = 11 + r * 7 + P.ripple * 8 + P.splash * 6, ry = rx * 0.32;
     for (let a = 0; a < Math.PI * 2; a += 0.04 * q) {
-      const x = cx + Math.cos(a) * rx, y = WL + Math.sin(a) * ry;
+      const x = cx + Math.cos(a) * rx, y = WLR + Math.sin(a) * ry;
       if (hash2(Math.round(a * 20), r, 101) < 0.25 * r) continue;
       const top = Math.sin(a) < 0;
       if (fine) {
@@ -679,11 +770,11 @@ function surface(p, g, P, glow) {
   }
   if (P.sink > 0.02) {
     // dunkle Öffnung, wo sie eintaucht
-    ell(p, cx, WL + 1, 9, 2.4, WATER[1]);
-    ell(p, cx - 1, WL + 1, 6, 1.4, WATER[2]);
+    ell(p, cx, WLR + 1, 9, 2.4, WATER[1]);
+    ell(p, cx - 1, WLR + 1, 6, 1.4, WATER[2]);
     for (let i = 0; i < 6; i++) {
-      p.px(cx - 7 + i * 2.6, WL + 1 + (i % 2), WATER[4]);
-      if (fine) pt(p, cx - 7 + i * 2.6, WL + 1 + (i % 2), WATER[5]);
+      p.px(cx - 7 + i * 2.6, WLR + 1 + (i % 2), WATER[4]);
+      if (fine) pt(p, cx - 7 + i * 2.6, WLR + 1 + (i % 2), WATER[5]);
     }
   }
   if (P.splash > 0.02) {
@@ -692,7 +783,7 @@ function surface(p, g, P, glow) {
       const a = (i / 22) * Math.PI * 2;
       const rr = 7 + k * 10 + hash2(i, 3, 103) * 4;
       const h = Math.sin(Math.min(1, k * 1.2) * Math.PI) * (10 + hash2(i, 4, 103) * 16) * (Math.sin(a) > 0 ? 0.7 : 1);
-      const x = cx + Math.cos(a) * rr, y0 = WL + Math.sin(a) * rr * 0.32;
+      const x = cx + Math.cos(a) * rr, y0 = WLR + Math.sin(a) * rr * 0.32;
       for (let s = 0; s < h; s += q) {
         if (s > h * 0.55 && hash2(i, Math.floor(s), 105) < 0.5) continue;
         const c = s > h - 3 ? WATER[5] : WATER[s > h * 0.5 ? 4 : 3];
@@ -708,16 +799,15 @@ function surface(p, g, P, glow) {
 }
 
 function drawNerith(p, g, P, glow, ex = {}, flood = false) {
-  const off = Math.round(P.sink * 72);
-  const clip = off > 0;
+  const off = Math.round(P.sink * 72 * SCN);
   // Figur um off nach unten versetzt zeichnen und an der Wasserlinie abschneiden
   p.translate(0, off); g.translate(0, off);
-  const meta = drawFigure(p, g, P, glow, ex, flood);
+  const meta = drawFigure(scaled(p, SCN, AX, AY), scaled(g, SCN, AX, AY), P, glow, ex, flood);
   p.resetTranslate(); g.resetTranslate();
-  if (clip) { clipBelow(p, WL); clipBelow(g, WL); }
+  if (off > 0) { clipBelow(p, WL); clipBelow(g, WL); }
   if (P.melt > 0) { meltPass(p, P.melt, true); meltPass(g, P.melt, false); }
-  if (P.sink > 0.02 || P.splash > 0.02 || P.ripple > 0.02) surface(p, g, P, glow);
-  for (const k in meta) meta[k].y += off;
+  if (P.sink > 0.02 || P.splash > 0.02 || P.ripple > 0.02) surface(scaled(p, SCN, AX, AY), scaled(g, SCN, AX, AY), P, glow);
+  for (const k in meta) meta[k] = { x: AX + (meta[k].x - AX) * SCN, y: AY + (meta[k].y - AY) * SCN + off };
   return meta;
 }
 
@@ -796,11 +886,11 @@ function frameNow(P, extra = {}) {
 function remainsFrame(...a) { return lazyFrame(() => remainsFrameNow(...a)); }
 function remainsFrameNow(k) {
   const res = fineRes(), g = new FineCanvas(W, H, res), g2 = new FineCanvas(W, H, res);
-  const base = buildFrame(W, H, AX, AY, (p) => drawRemains(p, g, k, GLOW.tide), { fine: true, res });
-  drawRemains(new NullCanvas(res), g2, k, GLOW.flood);
+  const base = buildFrame(W, H, AX, AY, (p) => drawRemains(scaled(p, SCN, AX, AY), scaled(g, SCN, AX, AY), k, GLOW.tide), { fine: true, res });
+  drawRemains(scaled(new NullCanvas(res), SCN, AX, AY), scaled(g2, SCN, AX, AY), k, GLOW.flood);
   base.glow = glowFrame(g, res);
   base.glowEnraged = glowFrame(g2, res);
-  const m = (dx, dy) => ({ dx, dy });
+  const m = (dx, dy) => ({ dx: dx * SCN, dy: dy * SCN });
   base.meta = { head: m(14, -8), eye: m(12, -6), chest: m(-4, -6), hand: m(-10, -5), tip: m(30, -7), pearl: m(20, -7), cast: m(0, -6), mouth: m(12, -5) };
   base.fx = null;
   return base;

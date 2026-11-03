@@ -240,8 +240,8 @@ export const ENEMY_TYPES = {
   drowned_priestess: {
     name: 'Nerith, die Ertrunkene Priesterin', family: 'undead', level: 12, xp: 900, boss: true, bossId: 'drowned_priestess',
     sprites: 'nerith',
-    hp: 31000, dmgMult: 3, speed: 46, radius: 10, mass: 6, hurtRadius: 13, bodyHeight: 52, shadowW: 30,
-    material: 'flesh', hurtTime: 0.2, eye: { x: 4, y: -55 },
+    hp: 31000, dmgMult: 3, speed: 46, radius: 10, mass: 6, hurtRadius: 16, bodyHeight: 70, shadowW: 40,
+    material: 'flesh', hurtTime: 0.2, eye: { x: 6, y: -74 },
   },
   ember_tyrant: {
     name: 'Ignaroth, der Glut-Tyrann', family: 'demon', level: 20, xp: 2600, boss: true, bossId: 'ember_tyrant',
