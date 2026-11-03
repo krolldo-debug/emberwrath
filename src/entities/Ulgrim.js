@@ -7,6 +7,7 @@ import { Shockwave } from './Effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, pick, angleDiff } from '../core/math.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Ulgrim, der Hügelkönig – Boss des Heulenden Hügelgrabs (Stufe 26).
 // Angriffe (jeder mit Bodenwarnung):
@@ -88,18 +89,11 @@ export class GraveMarker extends Entity {
     ctx.fillRect(x - r + 2, y - 2, r * 2 - 3, 1);
   }
   renderEmissive(ctx, cx, cy) {
+    // Geisterlicht bricht sternförmig durch die Erde, kurz vor dem Ausbruch züngeln Geisterflammen
     const k = Math.min(1, this.t / this.duration);
     const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
-    ctx.globalAlpha = 0.35 + k * 0.6;
-    ctx.fillStyle = k > 0.7 ? '#7ef0d6' : '#22b0a4';
-    // Risse strahlen aus
-    for (let i = 0; i < 5; i++) {
-      const a = i * 1.26 + 0.3, L = 2 + k * 8;
-      for (let s = 1; s < L; s++) ctx.fillRect(Math.round(x + Math.cos(a) * s), Math.round(y + Math.sin(a) * s * 0.5 + (s % 3 === 0 ? 1 : 0)), 1, 1);
-    }
-    ctx.fillStyle = '#e8fff8';
-    ctx.fillRect(x - 1, y - 1, 3, 1);
-    ctx.globalAlpha = 1;
+    FX.radialCrack(3 + Math.round(k * 4) * 2, 5, 'ghost', Math.round(this.x) % 7).draw(ctx, x, y, { alpha: 0.4 + k * 0.6 });
+    if (k > 0.5) FX.seqAt(FX.flameLoop(5, 6 + Math.round((k - 0.5) * 12), 'ghost'), this.t, 12).draw(ctx, x, y + 1, { alpha: (k - 0.5) * 2 });
   }
 }
 
@@ -150,33 +144,28 @@ export class GraveRift extends Entity {
   }
   renderEmissive(ctx, cx, cy) {
     const fade = Math.max(0, 1 - Math.max(0, this.t - this.len / this.speed) / 0.7);
+    if (fade <= 0) return;
     const hi = this.owner.phase >= 2;
-    for (let s = 0; s < this.s; s += 1) {
-      const w = Math.sin(s * 0.45 + this.seed) * 2.2 + Math.sin(s * 0.13) * 1.5;
-      const p = this.#pt(s, w);
-      const age = (this.s - s) / 40;
-      ctx.globalAlpha = Math.max(0, 1 - age) * fade;
-      ctx.fillStyle = age < 0.15 ? '#ffffff' : age < 0.4 ? (hi ? '#baffee' : '#7ef0d6') : '#22b0a4';
-      const x = Math.round(p.x - cx), y = Math.round(p.y - cy);
-      ctx.fillRect(x, y, 1, 1);
-      // Geisterflammen züngeln aus dem Riss
-      const hgt = Math.max(0, Math.round((1 - age * 1.5) * (4 + 5 * Math.abs(Math.sin(s * 0.7 + this.t * 14)))));
-      if (hgt > 0 && s % 2 === 0) {
-        ctx.globalAlpha *= 0.8;
-        ctx.fillStyle = hi ? '#4ae6d8' : '#22b0a4';
-        ctx.fillRect(x, y - hgt, 1, hgt);
-        ctx.fillStyle = '#e8fff8';
-        ctx.fillRect(x, y - hgt, 1, 1);
-      }
+    // leuchtender Riss (einmal gezeichnet), wird bis zur Front freigelegt
+    if (!this.crack) this.crack = FX.crackFrame([this.#pt(0, 0), this.#pt(this.len * 0.35, 2), this.#pt(this.len * 0.7, -2), this.#pt(this.len, 0)], Math.round(this.seed), hi, 'ghost');
+    const A = this.#pt(0, -9), B = this.#pt(this.s, -9), C = this.#pt(this.s, 9), D = this.#pt(0, 9);
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(A.x - cx, A.y - cy); ctx.lineTo(B.x - cx, B.y - cy); ctx.lineTo(C.x - cx, C.y - cy); ctx.lineTo(D.x - cx, D.y - cy); ctx.closePath(); ctx.clip();
+    this.crack.frame.draw(ctx, Math.round(this.crack.x0 - cx), Math.round(this.crack.y0 - cy), { alpha: fade });
+    ctx.restore();
+    // Geisterflammen züngeln aus dem frischen Teil des Risses
+    const pts = [];
+    for (let s = Math.max(0, this.s - 44); s < this.s; s += 6) {
+      const age = (this.s - s) / 44, p = this.#pt(s, Math.sin(s * 0.45 + this.seed) * 1.5);
+      pts.push([Math.round(p.x - cx), Math.round(p.y - cy), age, Math.round(s)]);
     }
-    // Front
-    if (this.s < this.len) {
-      const p = this.#pt(this.s, 0);
-      ctx.globalAlpha = 0.9 * fade;
-      ctx.fillStyle = '#e8fff8';
-      ctx.fillRect(Math.round(p.x - cx) - 1, Math.round(p.y - cy) - 5, 3, 6);
+    pts.sort((u, v) => u[1] - v[1]);
+    for (const [x, y, age, s] of pts) {
+      const seq = age < 0.35 ? FX.flameLoop(6, 13, 'ghost', { seed: 1 }) : age < 0.7 ? FX.flameLoop(5, 9, 'ghost', { seed: 2 }) : FX.flameLoop(4, 5, 'ghost');
+      FX.seqAt(seq, this.t + s * 0.03, 14).draw(ctx, x, y, { alpha: fade * (1 - age * 0.5) });
     }
-    ctx.globalAlpha = 1;
+    // Front: Lichtstern
+    if (this.s < this.len) { const p = this.#pt(this.s, 0); FX.starFrame(4, 'ghost').draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy - 3), { alpha: fade }); }
   }
 }
 
@@ -270,6 +259,10 @@ export class Ulgrim extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => FX.flameLoop(6, 13, 'ghost', { seed: 1 }), () => FX.flameLoop(5, 9, 'ghost', { seed: 2 }), () => FX.flameLoop(4, 5, 'ghost'),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
@@ -855,11 +848,7 @@ export class Ulgrim extends Actor {
     // Glanz an der Klingenspitze kurz vor dem Schlag
     if (/Windup$/.test(this.state) && this.state !== 'castWindup' && this.stateTime > this.windup * 0.55) {
       const t = this.#meta(this.state === 'howlWindup' ? 'mouth' : 'tip'), k = (this.stateTime - this.windup * 0.55) / (this.windup * 0.45);
-      const r = Math.round(2 + k * 5), px = Math.round(t.x - cx), py = Math.round(t.y - cy);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(px - r, py, r * 2 + 1, 1); ctx.fillRect(px, py - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#baffee' : '#7ef0d6';
-      ctx.fillRect(px - 1, py - 1, 3, 3);
+      FX.starFrame(3 + k * 5, 'ghost').draw(ctx, Math.round(t.x - cx), Math.round(t.y - cy));
     }
   }
 }

@@ -7,6 +7,7 @@ import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, pick, angleDiff } from '../core/math.js';
 import { DEFS } from './defs_ash_sovereign.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Malgareth, der Aschenfürst – Endboss des Aschethrons (Stufe 40), stärkster Kampf des Spiels.
 // Jeder gefährliche Angriff hat eine Bodenwarnung (Telegraph) oder eine eigene, deutliche Warnung.
@@ -113,6 +114,13 @@ export class Malgareth extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => FX.pillarSeq(14, 70, 'fire', 10), () => FX.pillarSeq(14, 70, 'white', 10), () => FX.meteorLoop(5), () => FX.meteorLoop(6),
+      () => FX.smokeSeq(6), () => FX.smokeSeq(7), () => FX.flameLoop(10, 22, 'fire', { seed: 0 }), () => FX.flameLoop(8, 14, 'fire', { seed: 0 }),
+      () => FX.coalBed(14, 0), () => FX.flameLoop(6, 9, 'fire'), () => FX.runeRing(30), () => FX.beamLoop(9, 96, 'white'),
+      () => FX.flameLoop(12, 30, 'fire', { seed: 3 }), () => FX.flameLoop(9, 18, 'white', { seed: 4 }),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
@@ -916,25 +924,20 @@ export class Malgareth extends Actor {
     if (fade <= 0) return;
     const heat = this.state === 'channel' || this.state === 'transform' ? 1 : 0.84 + 0.16 * Math.sin(this.stateTime * (this.enraged ? 9 : 5));
     glow.draw(ctx, this.x - cx, this.y - cy, { flip: this.facing < 0, alpha: (this.state === 'sleep' ? 0.5 : heat) * fade });
-    // Glanz an der Klinge kurz vor dem Schlag
+    // Glanz an der Klinge kurz vor dem Schlag: wachsender Lichtstern an der Spitze
     if (this.state === 'windup' && this.stateTime > this.windup * 0.55) {
       const t = this.#meta('tip'), k = (this.stateTime - this.windup * 0.55) / (this.windup * 0.45);
-      const r = Math.round(2 + k * 6), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#fff4c8' : '#ffb048';
-      ctx.fillRect(x - 1, y - 1, 3, 3);
+      FX.starFrame(3 + k * 6, this.enraged ? 'white' : 'fire').draw(ctx, Math.round(t.x - cx), Math.round(t.y - cy));
     }
-    // Kanal: Glutsäule aus der Schwertspitze in den Himmel
+    // Kanal: Glutsäule aus der Schwertspitze in den Himmel (wächst von der Spitze nach oben)
     if (this.state === 'channel') {
       const t = this.#meta('tip'), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
-      const k = Math.min(1, this.stateTime * 2);
-      for (let i = 0; i < 90 * k; i += 1) {
-        const w = 1 + Math.round(Math.sin(i * 0.5 + this.stateTime * 20) + 1);
-        ctx.globalAlpha = 0.9 * (1 - i / 95);
-        ctx.fillStyle = i < 6 ? '#ffffff' : i < 30 ? '#fff4c8' : '#ffb048';
-        ctx.fillRect(x - Math.floor(w / 2), y - i, w, 1);
-      }
+      const k = Math.min(1, this.stateTime * 2), H = 96;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x - 12, y - H * k, 24, H * k + 2); ctx.clip();
+      FX.seqAt(FX.beamLoop(9, H, 'white'), this.stateTime, 14).draw(ctx, x, y + 1, { alpha: 0.95 });
+      ctx.restore();
+      FX.starFrame(5 + Math.round(Math.sin(this.stateTime * 18)), 'white').draw(ctx, x, y);
       ctx.globalAlpha = 1;
     }
   }
@@ -943,20 +946,14 @@ export class Malgareth extends Actor {
 // ------------------------------------------------------------------ Gefahren
 
 // Glutstoß: kurzer Feuerstrahl entlang der Linie (nur Optik; Treffer prüft der Boss)
-class ThrustFlare extends Entity {
+export class ThrustFlare extends Entity {
   constructor(x, y, angle, len, owner) { super(x, y); Object.assign(this, { angle, len, owner }); this.t = 0; }
   update(dt) { this.t += dt; if (this.t > 0.3) this.removed = true; }
   renderEmissive(ctx, cx, cy) {
-    const k = this.t / 0.3, ca = Math.cos(this.angle), sa = Math.sin(this.angle) * 0.75;
-    const L = this.len * Math.min(1, this.t * 12);
-    ctx.globalAlpha = 1 - k;
-    for (let s = 14; s < L; s += 1) {
-      const x = Math.round(this.x + ca * s - cx), y = Math.round(this.y + sa * s - cy - 12 + (s / this.len) * 8);
-      const w = s > L - 6 ? 1 : 3;
-      ctx.fillStyle = '#ff6a14'; ctx.fillRect(x, y - 1, 1, w);
-      ctx.fillStyle = s % 3 ? '#ffc048' : '#fff4c8'; ctx.fillRect(x, y, 1, 1);
-    }
-    ctx.globalAlpha = 1;
+    // Flammenstrahl in Bildrichtung (Boden gestaucht), setzt 12 px vor dem Fürsten an
+    const ca = Math.cos(this.angle), sa = Math.sin(this.angle) * 0.75, a = Math.atan2(sa, ca), n = Math.hypot(ca, sa);
+    const f = FX.seqAt(FX.jetSeq(a, this.len - 10, 'fire', 6), this.t, 6 / 0.3, false);
+    f.draw(ctx, Math.round(this.x + (ca / n) * 12 - cx), Math.round(this.y + (sa / n) * 12 - cy - 10));
   }
 }
 
@@ -1000,22 +997,19 @@ export class AshWave extends Entity {
     }
   }
   renderEmissive(ctx, cx, cy) {
-    const hw = this.width / 2, hot = this.owner.phase >= 3;
-    const grow = Math.min(1, this.t * 6);
-    for (let d = 7; d >= 0; d--) {
-      ctx.globalAlpha = 0.95 - d * 0.09;
-      for (let k = -hw; k <= hw; k += 1) {
-        const p = this.#pt(this.s - d * 1.6, k);
-        const edge = 1 - Math.abs(k) / (hw + 1);
-        const h = Math.round((9 + 9 * Math.sqrt(edge)) * (0.8 + 0.2 * Math.sin(k * 1.3 + this.t * 26)) * grow * (1 - d * 0.1));
-        const x = Math.round(p.x - cx), y = Math.round(p.y - cy);
-        ctx.fillStyle = '#3a3034'; ctx.fillRect(x, y - Math.round(h * 0.55), 1, Math.round(h * 0.55));
-        ctx.fillStyle = d < 3 ? '#8a8279' : '#5a524c'; ctx.fillRect(x, y - Math.round(h * 0.9), 1, Math.round(h * 0.35));
-        ctx.fillStyle = d === 0 ? (hot ? '#fff4c8' : '#ffb048') : '#f07a1c'; ctx.fillRect(x, y - h, 1, d < 2 ? 2 : 1);
-        if (d === 0 && (k + Math.floor(this.t * 20)) % 4 === 0) { ctx.fillStyle = '#ff6a14'; ctx.fillRect(x, y - 2, 1, 2); }
-      }
+    // Front: Reihe aus Flammenzungen, dahinter aufquellende Aschewolken mit Glut von unten
+    const hw = this.width / 2, hot = this.owner.phase >= 3, grow = Math.min(1, this.t * 6), pal = hot ? 'white' : 'fire';
+    const parts = [];
+    for (let j = 0; j <= 6; j++) {
+      const k = -hw + (j / 6) * this.width, edge = 1 - Math.abs(k) / (hw + 2);
+      const back = this.#pt(this.s - 9, k * 0.9), front = this.#pt(this.s, k);
+      const smoke = FX.seqAt(FX.smokeSeq(6 + (j % 2)), 0.25 + (j % 3) * 0.12 + Math.min(0.4, this.t * 0.4), 8, false);
+      parts.push({ y: back.y, draw: () => smoke.draw(ctx, Math.round(back.x - cx), Math.round(back.y - cy), { alpha: grow }) });
+      const seq = edge > 0.6 ? FX.flameLoop(10, 22, pal, { seed: j % 3 }) : FX.flameLoop(8, 14, pal, { seed: j % 3 });
+      const flame = FX.seqAt(seq, this.t + j * 0.07, 14);
+      parts.push({ y: front.y + 0.5, draw: () => flame.draw(ctx, Math.round(front.x - cx), Math.round(front.y - cy), { alpha: grow }) });
     }
-    ctx.globalAlpha = 1;
+    parts.sort((u, v) => u.y - v.y).forEach((q) => q.draw());
   }
 }
 
@@ -1063,32 +1057,16 @@ export class EmberSpear extends Entity {
   }
   renderEmissive(ctx, cx, cy) {
     const flying = this.t >= this.delay;
-    const grow = Math.min(1, this.t / 0.25);
-    const ca = Math.cos(this.angle), sa = Math.sin(this.angle) * 0.75;
+    const ca = Math.cos(this.angle), sa = Math.sin(this.angle) * 0.75, a = Math.atan2(sa, ca);
     const n = Math.hypot(ca, sa) || 1, ux = ca / n, uy = sa / n;
-    const L = Math.round(16 * grow);
-    const bx = this.x - cx, by = this.y - this.z - cy;
-    const fade = this.stuck > 0 ? this.stuck / 0.6 : 1;
-    // Schweif
-    if (flying && this.stuck <= 0) for (let i = 1; i < 10; i++) {
-      ctx.globalAlpha = 0.6 * (1 - i / 10);
-      ctx.fillStyle = i < 4 ? '#ffb048' : '#c8420c';
-      ctx.fillRect(Math.round(bx - ux * (L / 2 + i * 2)), Math.round(by - uy * (L / 2 + i * 2)), 1, 1);
-    }
-    ctx.globalAlpha = fade;
-    for (let i = -L / 2; i <= L / 2; i += 0.5) {
-      const x = Math.round(bx + ux * i), y = Math.round(by + uy * i);
-      const tip = i > L / 2 - 4;
-      ctx.fillStyle = tip ? '#fff4c8' : i < -L / 2 + 3 ? '#8a2a08' : '#ff6a14';
-      ctx.fillRect(x, y, 1, 1);
-      if (!tip && i > -L / 2 + 2) { ctx.fillStyle = '#ffc048'; ctx.fillRect(x, y - 1, 1, 1); }
-    }
-    // Glühender Kern kurz vor dem Abflug
+    const bx = Math.round(this.x - cx), by = Math.round(this.y - this.z - cy);
+    const fade = this.stuck > 0 ? this.stuck / 0.6 : Math.min(1, this.t / 0.25);
+    FX.spearFrame(a, 22, flying || this.t > this.delay - 0.3).draw(ctx, bx, by, { alpha: fade });
+    // Funkeln an der Spitze kurz vor dem Abflug
     if (!flying && this.t > this.delay - 0.3) {
-      const x = Math.round(bx + ux * L / 2), y = Math.round(by + uy * L / 2);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x, y - 2, 1, 5);
+      const k = (this.t - (this.delay - 0.3)) / 0.3;
+      FX.starFrame(3 + k * 4, 'white').draw(ctx, Math.round(bx + ux * 11), Math.round(by + uy * 11));
     }
-    ctx.globalAlpha = 1;
   }
 }
 
@@ -1129,23 +1107,12 @@ export class ObsidianMeteor extends Entity {
     const k = (this.t - (this.delay - this.fall)) / this.fall;
     if (k <= 0 || k >= 1) return;
     const [mx, my] = this.#pos(k);
-    const x = Math.round(mx - cx), y = Math.round(my - cy);
-    for (let i = 1; i < 16; i++) {
-      ctx.globalAlpha = 0.85 * (1 - i / 16);
-      ctx.fillStyle = i < 4 ? '#fff0b0' : i < 8 ? '#ffb640' : i < 12 ? '#f07a1c' : '#7a2208';
-      ctx.fillRect(Math.round(x + i * 0.8), Math.round(y - i * 2), i < 6 ? 4 : 2, 2);
-    }
-    ctx.globalAlpha = 1;
-    const s = this.big ? 4 : 3;
-    ctx.fillStyle = '#1a1622'; ctx.fillRect(x - s, y - s, s * 2 + 1, s * 2 + 1);
-    ctx.fillStyle = '#40384e'; ctx.fillRect(x - s, y - s, s, s);
-    ctx.fillStyle = '#ffb048'; ctx.fillRect(x - s, y + s, s * 2 + 1, 1); ctx.fillRect(x + s, y - s, 1, s * 2 + 1);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + s - 1, y + s - 1, 2, 2);
+    FX.seqAt(FX.meteorLoop(this.big ? 6 : 5), this.t, 16).draw(ctx, Math.round(mx - cx), Math.round(my - cy));
   }
 }
 
 // Glutfleck (brennender Boden): schadet im Takt, solange man darin steht
-class EmberPatch extends Entity {
+export class EmberPatch extends Entity {
   constructor(x, y, owner, { r = 14, duration = 4, damage = 40, tick = 0.5 }) {
     super(x, y);
     Object.assign(this, { owner, r, duration, damage, tick });
@@ -1160,17 +1127,17 @@ class EmberPatch extends Entity {
     if (this.cool <= 0 && !h.dead && Math.hypot(h.x - this.x, (h.y - this.y) / 0.6) < this.r) if (hurtHero(world, this.owner, this.damage, 0, -1, 30, false, true)) this.cool = this.tick;
   }
   renderEmissive(ctx, cx, cy) {
-    const fade = Math.min(1, this.t * 5, (this.duration - this.t) * 1.5);
-    const n = Math.round(this.r * 1.8);
+    // Glutbett mit niedrigen Flammen, die über die Fläche verteilt flackern
+    const fade = Math.max(0, Math.min(1, this.t * 5, (this.duration - this.t) * 1.5));
+    const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+    FX.coalBed(this.r, Math.floor(this.seed) % 4).draw(ctx, x, y, { alpha: 0.9 * fade });
+    const n = Math.max(3, Math.round(this.r * 0.4)), fl = [];
     for (let i = 0; i < n; i++) {
-      const a = i * 2.39 + this.seed, r = ((i * 0.618 + this.seed) % 1) * this.r;
-      const fl = Math.sin(this.t * 9 + i * 1.7) * 0.5 + 0.5, hgt = Math.round((2 + fl * 4) * fade);
-      const px = Math.round(this.x + Math.cos(a) * r - cx), py = Math.round(this.y + Math.sin(a) * r * 0.6 - cy);
-      ctx.globalAlpha = 0.9 * fade;
-      ctx.fillStyle = '#c8420c'; ctx.fillRect(px, py - hgt, 1, hgt);
-      ctx.fillStyle = '#ffb640'; ctx.fillRect(px, py - Math.round(hgt * 0.5), 1, Math.max(1, Math.round(hgt * 0.4)));
+      const a = i * 2.39 + this.seed, r = (((i * 0.618 + this.seed) % 1) * 0.75 + 0.1) * this.r;
+      fl.push([Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.6), i]);
     }
-    ctx.globalAlpha = 1;
+    fl.sort((u, v) => u[1] - v[1]);
+    for (const [px, py, i] of fl) FX.seqAt(FX.flameLoop(6, 9 + (i % 3) * 2, 'fire', { seed: i % 3 }), this.t + i * 0.13, 12).draw(ctx, px, py, { alpha: fade });
   }
 }
 
@@ -1197,20 +1164,8 @@ export class FirePillar extends Entity {
   }
   renderEmissive(ctx, cx, cy) {
     if (!this.burst) return;
-    const k = (this.t - this.delay) / 0.55;
-    const H = Math.round(70 * Math.sin(Math.min(1, k * 2.2) * Math.PI / 2) * (1 - k * 0.5));
-    const x = this.x - cx, y = this.y - cy;
-    const hot = this.owner.phase >= 3;
-    ctx.globalAlpha = Math.min(1, (1 - k) * 2);
-    for (let i = -6; i <= 6; i++) {
-      const hh = Math.round(H * (1 - (i * i) / 49) * (0.85 + 0.15 * Math.sin(i * 2 + this.t * 30)));
-      if (hh <= 0) continue;
-      const e = Math.abs(i);
-      ctx.fillStyle = e > 4 ? '#8a2a08' : e > 2 ? '#f07a1c' : '#ffb640';
-      ctx.fillRect(Math.round(x + i), Math.round(y - hh), 1, hh);
-      if (e < 2) { ctx.fillStyle = hot ? '#ffffff' : '#fff0b0'; ctx.fillRect(Math.round(x + i), Math.round(y - hh * 0.8), 1, Math.round(hh * 0.8)); }
-    }
-    ctx.globalAlpha = 1;
+    const k = (this.t - this.delay) / 0.55, seq = FX.pillarSeq(14, 70, this.owner.phase >= 3 ? 'white' : 'fire', 10);
+    seq[Math.max(0, Math.min(seq.length - 1, Math.floor(k * seq.length)))].draw(ctx, Math.round(this.x - cx), Math.round(this.y - cy));
   }
 }
 
@@ -1280,24 +1235,23 @@ export class EmberFissure extends Entity {
     const c = this.t < 0 ? 0 : this.t % this.period;
     const warn = this.phaseState === 'warn', erupt = this.phaseState === 'erupt';
     const ek = erupt ? Math.max(0, 1 - (c - (this.period - 0.5)) / 0.5) : 0;
-    for (let i = 0; i < this.points.length - 1; i++) {
-      const a = this.points[i], b = this.points[i + 1];
-      const L = Math.hypot(b.x - a.x, b.y - a.y), n = Math.ceil(L);
-      for (let s = 0; s <= n * this.open; s++) {
-        const k = s / n;
-        const jit = ((s * 7919 + i * 31) % 5) - 2;
-        const x = Math.round(a.x + (b.x - a.x) * k - cx), y = Math.round(a.y + (b.y - a.y) * k - cy + jit * 0.4);
-        const pulse = warn ? 0.5 + 0.5 * Math.sin(this.t * 24) : 0;
-        ctx.fillStyle = '#5a1406'; ctx.fillRect(x, y - 1, 1, 3);
-        ctx.fillStyle = warn && pulse > 0.5 ? '#ffc048' : '#f0661a'; ctx.fillRect(x, y, 1, 1);
-        if ((s + i) % 4 === 0) { ctx.fillStyle = '#ffb048'; ctx.fillRect(x, y, 1, 1); }
-        if (erupt) {
-          const hh = Math.round((6 + 14 * Math.abs(Math.sin(s * 0.9 + this.t * 20))) * ek);
-          ctx.fillStyle = '#f07a1c'; ctx.fillRect(x, y - hh, 1, hh);
-          ctx.fillStyle = '#fff0b0'; ctx.fillRect(x, y - Math.round(hh * 0.5), 1, Math.round(hh * 0.4));
-        }
-      }
+    // Riss einmal gezeichnet (glimmend und heiß), die Warnung pulst zwischen beiden
+    if (!this.crack) {
+      const seed = this.points.length * 7 + Math.round(this.points[0].x);
+      this.crack = FX.crackFrame(this.points, seed, false); this.crackHot = FX.crackFrame(this.points, seed, true);
     }
+    const C = (warn && Math.sin(this.t * 24) > 0) || erupt ? this.crackHot : this.crack;
+    C.frame.draw(ctx, Math.round(C.x0 - cx), Math.round(C.y0 - cy), { alpha: this.open });
+    if (ek <= 0) return;
+    // Ausbruch: Flammenwand entlang des Risses, sinkt in sich zusammen
+    const seq = ek > 0.6 ? FX.flameLoop(10, 24, 'fire', { seed: 1 }) : ek > 0.3 ? FX.flameLoop(9, 16, 'fire', { seed: 1 }) : FX.flameLoop(7, 9, 'fire', { seed: 1 });
+    const pts = [];
+    for (let i = 0; i < this.points.length - 1; i++) {
+      const a = this.points[i], b = this.points[i + 1], n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 7));
+      for (let s = 0; s < n; s++) pts.push([a.x + (b.x - a.x) * s / n, a.y + (b.y - a.y) * s / n, i * 5 + s]);
+    }
+    pts.sort((u, v) => u[1] - v[1]);
+    for (const [x, y, j] of pts) FX.seqAt(seq, this.t + j * 0.11, 16).draw(ctx, Math.round(x - cx), Math.round(y - cy));
   }
 }
 
@@ -1370,24 +1324,26 @@ export class Cataclysm extends Entity {
   }
   // Emissive: pulsierender Goldkreis mit Strahlen, beim Ausbruch Flammenmeer
   renderEmissive(ctx, cx, cy) {
-    const x = this.x - cx, y = this.y - cy;
-    const k = Math.min(1, this.t / this.fireAt);
+    const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+    const k = Math.min(1, this.t / this.fireAt), A = this.arena;
+    // Flammenpunkte über der Arena (fest verteilt, Kreis ausgespart), von hinten nach vorn
+    const spots = (n, fy) => {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const gx = A.x0 + ((i * 0.6180339) % 1) * (A.x1 - A.x0), gy = A.y0 + ((i * fy) % 1) * (A.y1 - A.y0);
+        if (!this.#inside(gx, gy)) out.push([Math.round(gx - cx), Math.round(gy - cy), i]);
+      }
+      return out.sort((u, v) => u[1] - v[1]);
+    };
     ctx.save();
     if (!this.fired) {
       const pulse = 0.6 + 0.4 * Math.sin(this.t * (8 + k * 16));
-      ctx.globalAlpha = 0.7 + 0.3 * pulse;
-      ctx.strokeStyle = '#fff0a8'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(x, y, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.lineWidth = 1; ctx.strokeStyle = '#e8c25a'; ctx.globalAlpha = pulse;
-      ctx.beginPath(); ctx.ellipse(x, y, this.r - 4, (this.r - 4) * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
-      // Runen-Zacken auf dem Ring
-      ctx.fillStyle = '#ffffff';
-      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + this.t * 0.8; ctx.fillRect(Math.round(x + Math.cos(a) * (this.r + 2)), Math.round(y + Math.sin(a) * (this.r + 2) * 0.6), 1, 1); }
-      // Lichtsäule über dem Kreis
-      for (let i = 0; i < 60; i++) {
-        ctx.globalAlpha = 0.25 * (1 - i / 60) * pulse;
-        ctx.fillStyle = '#fff0a8';
-        ctx.fillRect(Math.round(x - 6), Math.round(y - i), 13, 1);
+      // Lichtsäule und Runenkreis
+      FX.seqAt(FX.beamLoop(2 * Math.round(this.r * 0.4), 64, 'gold'), this.t, 10).draw(ctx, x, y + 2, { alpha: 0.55 + 0.3 * pulse });
+      FX.runeRing(this.r).draw(ctx, x, y, { alpha: 0.7 + 0.3 * pulse });
+      for (let i = 0; i < 4; i++) {
+        const a = i / 4 * Math.PI * 2 + this.t * 0.8;
+        FX.starFrame(2 + Math.round(pulse * 2), 'gold').draw(ctx, Math.round(x + Math.cos(a) * (this.r + 1)), Math.round(y + Math.sin(a) * (this.r + 1) * 0.6));
       }
       // Pfeile vom Rand der Arena zeigen zum Kreis (wenn der Held weit weg ist)
       const h = this.owner.world?.hero;
@@ -1395,31 +1351,17 @@ export class Cataclysm extends Entity {
         const a = Math.atan2(this.y - h.y, this.x - h.x);
         ctx.globalAlpha = 0.9; ctx.fillStyle = '#fff0a8';
         for (let s = 12; s < 34; s += 4) ctx.fillRect(Math.round(h.x - cx + Math.cos(a) * s), Math.round(h.y - cy - 6 + Math.sin(a) * s * 0.6), 2, 1);
+        ctx.globalAlpha = 1;
       }
       // Glutzungen, die mit der Zeit höher werden
-      const A = this.arena;
-      for (let i = 0; i < 48; i++) {
-        const gx = A.x0 + ((i * 0.6180339) % 1) * (A.x1 - A.x0);
-        const gy = A.y0 + ((i * 0.4142135) % 1) * (A.y1 - A.y0);
-        if (this.#inside(gx, gy)) continue;
-        const fl = 0.5 + 0.5 * Math.sin(this.t * 11 + i * 2.1);
-        const hh = Math.round((1 + 3 * k) * fl);
-        const px = Math.round(gx - cx), py = Math.round(gy - cy);
-        ctx.globalAlpha = (0.35 + 0.5 * k) * (0.5 + fl * 0.5);
-        ctx.fillStyle = '#c8420c'; ctx.fillRect(px - 1, py - 1, 3, 1);
-        ctx.fillStyle = k > 0.75 ? '#ffb048' : '#f0661a'; ctx.fillRect(px, py - 1 - hh, 1, hh + 1);
-      }
+      const seq = k < 0.4 ? FX.flameLoop(4, 5, 'fire') : k < 0.75 ? FX.flameLoop(5, 8, 'fire', { seed: 1 }) : FX.flameLoop(6, 12, 'fire', { seed: 2 });
+      for (const [px, py, i] of spots(48, 0.4142135)) FX.seqAt(seq, this.t + i * 0.09, 12).draw(ctx, px, py, { alpha: 0.5 + 0.5 * k });
     } else {
+      // Ausbruch: Flammenmeer, das in 0,7 s verglüht
       const b = Math.max(0, 1 - (this.t - this.fireAt) / 0.7);
-      const A = this.arena;
-      ctx.globalAlpha = 0.8 * b;
-      for (let i = 0; i < 160; i++) {
-        const gx = A.x0 + ((i * 0.6180339) % 1) * (A.x1 - A.x0), gy = A.y0 + ((i * 0.7548776) % 1) * (A.y1 - A.y0);
-        if (this.#inside(gx, gy)) continue;
-        const hh = Math.round(10 + 16 * Math.abs(Math.sin(i * 1.7 + this.t * 20)));
-        ctx.fillStyle = '#f07a1c'; ctx.fillRect(Math.round(gx - cx), Math.round(gy - cy - hh), 2, hh);
-        ctx.fillStyle = '#fff0b0'; ctx.fillRect(Math.round(gx - cx), Math.round(gy - cy - hh * 0.5), 1, Math.round(hh * 0.4));
-      }
+      const tall = b > 0.5 ? FX.flameLoop(12, 30, 'fire', { seed: 3 }) : FX.flameLoop(9, 16, 'fire', { seed: 3 });
+      const low = b > 0.5 ? FX.flameLoop(9, 18, 'white', { seed: 4 }) : FX.flameLoop(7, 9, 'fire', { seed: 4 });
+      for (const [px, py, i] of spots(110, 0.7548776)) FX.seqAt(i % 3 ? tall : low, this.t + i * 0.07, 16).draw(ctx, px, py, { alpha: Math.min(1, b * 1.6) });
     }
     ctx.restore();
   }
