@@ -21,7 +21,7 @@ export const PAL = {
   teal: ['#063a40', '#0e7888', '#2ec8cc', '#a0fff0', '#e0fffa', '#ffffff'],
   flood: ['#0a1a5a', '#2050d0', '#4a80f0', '#8ac0ff', '#d6ecff', '#ffffff'],
   mist: ['#1a3450', '#4a7aa0', '#8ab8d4', '#c8e4f0', '#eef8ff', '#ffffff'],
-  ghost: ['#0a2a2a', '#2a6a5a', '#4ab89a', '#9af0d0', '#e0fff0', '#ffffff'],
+  ghost: ['#06302c', '#127068', '#22b0a4', '#7ef0d6', '#e8fff8', '#ffffff'],
 };
 const ASH = ['#0c0a0e', '#1e1a20', '#36302e', '#524a44', '#7a7068', '#a69c90', '#cec4b6'];
 const OBS = ['#050407', '#0e0b12', '#1a1622', '#2a2434', '#40384e', '#5e5470', '#8a80a0'];
@@ -296,7 +296,8 @@ export function runeRing(r, pal = 'gold') {
 
 // Glutriss entlang einer Punktliste (Weltkoordinaten): zackige Spalte mit glühendem Kern, gebrochenem Rand.
 // Ergibt { frame, x0, y0 } (Frame mit Anker 0/0, gezeichnet an x0/y0). open = 0..1 (Länge), hot = Warnglühen
-export function crackFrame(points, seed = 0, hot = false) {
+export function crackFrame(points, seed = 0, hot = false, pal = 'fire') {
+  const P = PAL[pal];
   const xs = points.map((q) => q.x), ys = points.map((q) => q.y);
   const x0 = Math.floor(Math.min(...xs)) - 6, y0 = Math.floor(Math.min(...ys)) - 6, x1 = Math.ceil(Math.max(...xs)) + 6, y1 = Math.ceil(Math.max(...ys)) + 6;
   // gezackte Mittellinie
@@ -320,10 +321,10 @@ export function crackFrame(points, seed = 0, hot = false) {
         if (d < best) { best = d; bt = i + t; }
       }
       const w = 1.3 + Math.sin(bt * 1.7 + seed) * 0.5;
-      if (best < w * 0.4) return hot ? '#fffbe8' : '#ffe08a';
-      if (best < w * 0.75) return hot ? '#ffe08a' : '#ffa83a';
-      if (best < w) return '#e8601a';
-      if (best < w + 0.8) return '#7a2208';
+      if (best < w * 0.4) return hot ? P[5] : P[4];
+      if (best < w * 0.75) return hot ? P[4] : P[3];
+      if (best < w) return P[2];
+      if (best < w + 0.8) return pal === 'fire' ? '#7a2208' : P[1];
       if (best < w + 1.6 && hash2(Math.floor(x * 2), Math.floor(y * 2), seed + 3) < 0.55) return '#2a1410';   // Bruchkante
       return null;
     });
@@ -589,6 +590,35 @@ export function rimeBed(r, seed = 0) {
       const l = ((X - best[0]) * -0.6 + (Y - best[1]) * -0.8) / 3;
       if (gap < 1.2 && l > 0) return P[3];
       return l > 0.5 ? P[3] : l > -0.3 ? P[2] : P[1];
+    }));
+  });
+}
+
+// Sternförmiger Bodenriss: n zackige Strahlen der Länge L aus einem Punkt (Bodenebene, y × 0,5). Anker = Mitte
+export function radialCrack(L, n = 5, pal = 'ghost', seed = 0) {
+  L = Math.max(2, Math.round(L));
+  return cached(`rcrack:${L}:${n}:${pal}:${seed}`, () => {
+    const P = PAL[pal], S = L + 3, rays = [];
+    for (let i = 0; i < n; i++) {
+      const a = i * (TAU / n) + 0.3 + (hash2(i, seed, 3) - 0.5) * 0.6, pts = [[S, S]];
+      for (let j = 1; j <= 3; j++) {
+        const r = L * j / 3, aa = a + (hash2(i, j + seed, 5) - 0.5) * 0.5;
+        pts.push([S + Math.cos(aa) * r, S + Math.sin(aa) * r * 0.5]);
+      }
+      rays.push(pts);
+    }
+    return frame(S * 2, S * 2, S, S, (p) => p.each(0, 0, S * 2, S * 2, (x, y) => {
+      let best = 1e9, along = 0;
+      for (const pts of rays) for (let i = 0; i < pts.length - 1; i++) {
+        const [ax, ay] = pts[i], [bx, by] = pts[i + 1], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)), d = Math.hypot(x - ax - dx * t, y - ay - dy * t);
+        if (d < best) { best = d; along = (i + t) / (pts.length - 1); }
+      }
+      const w = 1.1 * (1 - along * 0.6) + 0.3;
+      if (best < w * 0.45) return along < 0.4 ? P[5] : P[4];
+      if (best < w) return P[3];
+      if (best < w + 0.7) return P[1];
+      return null;
     }));
   });
 }
