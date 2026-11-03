@@ -5,6 +5,7 @@ import { TileMap } from './TileMap.js';
 import { groundPixel, vnoise, OUT, FISSURE, BIOME_GROUND, FINE_GROUND, createCliffTiles, FK } from '../sprites/outdoor.js';
 import { fineRes } from '../gfx/Fine.js';
 import { bridgePainter } from '../sprites/ground/bridges.js';
+import { paintInteriors } from '../sprites/ground/ramparts.js';
 import { GROUND_STEPPE } from '../sprites/decor_steppe.js';
 import { GROUND_MARSH } from '../sprites/decor_marsh.js';
 import { GROUND_FROST } from '../sprites/decor_frost.js';
@@ -343,6 +344,8 @@ export class Outdoor extends TileMap {
     this.organic = ORGANIC_CLIFFS.has(biome) || this.basalt;
     // level.paintedCliffs: das Biom malt seine Felsen selbst (pal.paintCliffs je Chunk), keine Kachelklippen
     this.painter = this.level.paintedCliffs && typeof this.pal.paintCliffs === 'function' ? this.pal.paintCliffs : null;
+    // Begehbare Häuser in gewöhnlichen Außengebieten (world/houses.js): Innenräume deckend über den fertigen Chunk
+    this.roomPainter = !this.painter && this.level.interiors?.length ? paintInteriors : null;
     this.fiss = (this.level.fissures ?? []).map((line) => this.#fissureGeom(line));
     if (this.isl) this.#prepareIslands();
     this.rockMask = new Uint8Array(this.w * this.h);
@@ -599,6 +602,14 @@ export class Outdoor extends TileMap {
     }
   }
 
+  // Leuchtebene im dunklen Bereich der Innenräume leeren (Wasser-/Lavaschein am Kartenrand)
+  *#clearRooms(ectx, x0, y0, cw, ch, r) {
+    for (const [dx, dy, dw, dh] of this.level.ramparts?.dark ?? []) {
+      const a = Math.max(dx * T, x0), b = Math.min((dx + dw) * T, x0 + cw), c = Math.max(dy * T, y0), e = Math.min((dy + dh) * T, y0 + ch);
+      if (a < b && c < e) ectx.clearRect((a - x0) * r, (c - y0) * r, (b - a) * r, (e - c) * r);
+    }
+  }
+
   // ------------------------------------------------------------------ Chunks
   // Ein Chunk entsteht als Generator in Zeitscheiben (yield = Pause möglich); #finish rechnet ihn zu Ende.
   *#chunkJob(k) {
@@ -644,6 +655,12 @@ export class Outdoor extends TileMap {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       yield* this.painter(ctx, x0, y0, cw, ch, this);
       ctx.translate(-x0, -y0);
+    }
+    if (this.roomPainter) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      yield* this.roomPainter(ctx, x0, y0, cw, ch, this, r);
+      if (e) { ectx.setTransform(1, 0, 0, 1, 0, 0); yield* this.#clearRooms(ectx, x0, y0, cw, ch, r); }
+      ctx.setTransform(r, 0, 0, r, -x0 * r, -y0 * r);
     }
     this.#drawBuildingShadows(ctx, x0, y0, rx1, ry1);
     ctx.setTransform(1, 0, 0, 1, 0, 0);

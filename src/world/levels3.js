@@ -8,6 +8,7 @@ import { buildEmberhollow as buildEmberhollowR5 } from './outdoor/emberhollow.js
 import { buildAshwood as buildAshwoodR5 } from './outdoor/ashwood.js';
 import { buildBlightedMarsh as buildBlightedMarshR5 } from './outdoor/blighted_marsh.js';
 import { buildFrostspire as buildFrostspireR5 } from './outdoor/frostspire.js';
+import { housesEmberhollow, housesAshwood, housesSteppe, housesMarsh, housesFrost } from './townHouses.js';
 
 // Runde-3-Gebiete (INTEGRATION.md §12.2), Stufe 20–40: Aschensteppe,
 // Heulendes Hügelgrab, Faulmarsch, Sporenschlund, Frostzinnen, Reifhöhlen,
@@ -1094,15 +1095,15 @@ export function calmArrivals(id, level, r = 12) {
 }
 
 const RAW3 = {
-  ashen_steppe: buildAshenSteppeNew,
+  ashen_steppe: () => housesSteppe(buildAshenSteppeNew()),
   howling_barrow: () => shiftLevelDown(buildHowlingBarrow(), 8),
-  blighted_marsh: buildBlightedMarshR5,
+  blighted_marsh: () => housesMarsh(buildBlightedMarshR5()),
   spore_hollow: buildSporeHollow,
-  frostspire: buildFrostspireR5,
+  frostspire: () => housesFrost(buildFrostspireR5()),
   rime_caverns: buildRimeCaverns,
   ember_wastes: buildEmberWastesR5,
-  emberhollow: buildEmberhollowR5,
-  ashwood: buildAshwoodR5,
+  emberhollow: () => housesEmberhollow(buildEmberhollowR5()),
+  ashwood: () => housesAshwood(buildAshwoodR5()),
   ashen_throne: () => shiftLevelDown(buildAshenThrone(), 3),
 };
 // Gebaut wird erst beim ersten Zugriff (lazyLevels in levels.js); CALMED/MISPLACED füllen sich entsprechend später.

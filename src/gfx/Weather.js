@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { ambienceForZone } from '../audio/Soundscape.js';
+import { indoors } from '../world/interiors.js';
 
 // Umgebungseffekte je Zone (Thread D): fallende Asche, Regen, aufsteigende Glut,
 // Glühwürmchen, Staub, Blasen, Wasserlicht (Kaustik) und Hitzeflimmern.
@@ -193,7 +194,7 @@ export class Weather {
 
   draw(ctx) {
     const W = CONFIG.viewWidth, H = CONFIG.viewHeight, R = this.recipe;
-    if (!R) return;
+    if (!R || indoors(this.s.world)) return;   // in Häusern (world/interiors.js) kein Wetter
     const t = this.t;
     // Hitzeflimmern: Bildstreifen leicht seitlich versetzt (vor den Partikeln)
     if (R.shimmer && this.shimmerOn) this.#shimmer(ctx, W, H, R.shimmer);
