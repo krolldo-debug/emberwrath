@@ -136,6 +136,10 @@ function trace(p, pts, c, closed = true, c2 = null) {
 // Niet: dunkler Punkt mit Glanzpunkt links oben
 function rivet(p, x, y, ramp) { pt(p, x + 0.5, y + 0.5, ramp[0]); pt(p, x, y, ramp[ramp.length - 1]); }
 
+// Ruhehaltung: Waffe in Ruhe- und Gehposen (Rig-Winkel um 0,58) stärker zum Boden gesenkt, damit sie nicht weit
+// nach vorn ragt; Hieb- und Zauberposen bleiben unverändert.
+const restA = (a) => a + 0.45 * Math.max(0, 1 - Math.abs(a - 0.58) / 0.3);
+
 // Glühende Fuge (Leuchtebene + Malfläche)
 function seam(p, g, pts, glow, k = 2) {
   for (let i = 0; i < pts.length - 1; i++) {
@@ -359,8 +363,8 @@ function drawKaldris(V) {
     // --- 6. Schwung, vorderer Arm, Schwert, vordere Schulter
     if (extra.smear) smear(p, g, shF.x, shF.y, extra.smear[0], extra.smear[1], 26, 26 + 82, glow, [V.crystal[4], V.crystal[3], '#c8e8ff', '#5a8ab8']);
     let tip;
-    if (extra.swordBehind) { tip = kaldrisSword(p, g, hF.x, hF.y, sa, V, glow); kaldrisArm(p, armF, shF, V, false); }
-    else { kaldrisArm(p, armF, shF, V, false); tip = kaldrisSword(p, g, hF.x, hF.y, sa, V, glow); orb(p, hF.x, hF.y, 4.2, 3.8, V.plate); }
+    if (extra.swordBehind) { tip = kaldrisSword(p, g, hF.x, hF.y, restA(sa), V, glow); kaldrisArm(p, armF, shF, V, false); }
+    else { kaldrisArm(p, armF, shF, V, false); tip = kaldrisSword(p, g, hF.x, hF.y, restA(sa), V, glow); orb(p, hF.x, hF.y, 4.2, 3.8, V.plate); }
     pauldron(p, shF.x - 1, shF.y + 1.5, 9.5, V, false, [[-7, 10, -2.35], [-2, 12, -2.0], [4, 8, -1.2]]);
     meta.hand = { x: hF.x, y: hF.y }; meta.tip = tip;
     // Zauberglut an der freien Hand
@@ -597,8 +601,8 @@ function drawYsgarn(V) {
     // --- 6. Schwung, vorderer Arm mit Sense
     if (extra.smear) smear(p, g, shF.x, shF.y, extra.smear[0], extra.smear[1], 26, 26 + 80, glow, [V.blade[4], V.blade[3], '#f8d0e8', '#7a9a8a']);
     let tip;
-    if (extra.swordBehind) { tip = ysgarnScythe(p, g, hF.x, hF.y, sa, V, glow); ysgarnArm(p, armF, shF, V, false); }
-    else { ysgarnArm(p, armF, shF, V, false); tip = ysgarnScythe(p, g, hF.x, hF.y, sa, V, glow); orb(p, hF.x, hF.y, 3.6, 3.2, V.bark); }
+    if (extra.swordBehind) { tip = ysgarnScythe(p, g, hF.x, hF.y, restA(sa), V, glow); ysgarnArm(p, armF, shF, V, false); }
+    else { ysgarnArm(p, armF, shF, V, false); tip = ysgarnScythe(p, g, hF.x, hF.y, restA(sa), V, glow); orb(p, hF.x, hF.y, 3.6, 3.2, V.bark); }
     // Schulterwulst mit Moos
     orb(p, shF.x, shF.y - 1, 8, 6.5, V.bark);
     leaves(p, shF.x - 1, shF.y - 5, 7, V.leaf, 23, 11);
@@ -626,7 +630,7 @@ const YSM = {
   B: {
     gown: ['#06081a', '#0c1230', '#141c48', '#1e2a64', '#2c3c84', '#4a5ca8'],
     cape: ['#05060f', '#0a0e22', '#121836', '#1a224a', '#26305e'],
-    skin: ['#2e2c4c', '#5c5a84', '#8e90b8', '#bcc0de', '#dfe2f4', '#f8f8ff'],
+    skin: ['#2a2444', '#6a668e', '#aaaad0', '#d8daf2', '#f0f2fe', '#ffffff'],
     hair: ['#080a1e', '#121a40', '#1e2c62', '#30448c', '#5a74bc'],
     trim: ['#3a2208', '#7a4a12', '#b8801e', '#e8b840', '#fff0a0'],
     steel: ['#1e2236', '#3a4060', '#646c94', '#a0a8cc', '#e4e8fa'],
@@ -749,12 +753,13 @@ function drawYsmeine(V) {
     // Ohr: lang und spitz nach hinten oben
     gem(p, ...H(0.5, 0.5), ...H(6, -12), 3.6, V.skin);
     // Gesicht im Profil: Stirn, Nase, Lippen, Kinn
-    plate(p, [H(7, 0), H(6, 5.5), H(3.5, 7.2), H(1.5, 7.4), H(-2.8, 9.6), H(-3.6, 8.2), H(-4.8, 8.4), H(-5.6, 7.6), H(-6.2, 7.9), H(-7.6, 7.2), H(-8.6, 4.5), H(-7, 0.5), H(-1, -1.5)], V.skin, { lo: 0.42, hi: 0.66 });
-    for (const [s0, o0] of [[-5.2, 7.6], [-5.2, 7.1], [-5.5, 7.4]]) pt(p, ...H(s0, o0), '#6a3a6e');
+    plate(p, [H(7, 0), H(6, 5.5), H(3.5, 7.2), H(1.5, 7.4), H(-2.8, 9.6), H(-3.6, 8.2), H(-4.8, 8.4), H(-5.6, 7.6), H(-6.2, 7.9), H(-7.6, 7.2), H(-8.6, 4.5), H(-7, 0.5), H(-1, -1.5)], V.skin, { lo: 0.26, hi: 0.5 });
+    for (let o = 5.6; o <= 8; o += 0.3) pt(p, ...H(-5.2 + (o - 5.6) * 0.05, o), '#4a1e4e');
+    for (let o = 6.4; o <= 7.8; o += 0.3) pt(p, ...H(-5.7, o), '#a05078');
     pt(p, ...H(-3.2, 8.4), V.skin[1]);
     const eyeOn = P.eye > 0.2;
     // Auge: kräftige Lidlinie mit Wimpernschwung, Weiß, leuchtende Iris, Unterlid
-    for (let o = 3.4; o <= 6.8; o += 0.3) { pt(p, ...H(1.9 + (o > 6 ? 0.4 : 0), o), V.hair[0]); pt(p, ...H(1.5, o), V.hair[0]); }
+    for (let o = 3.2; o <= 6.8; o += 0.3) { pt(p, ...H(2.3 + (o > 6 ? 0.4 : 0), o), V.hair[0]); pt(p, ...H(1.9, o), V.hair[0]); pt(p, ...H(1.5, o), V.hair[0]); }
     for (let o = 3.8; o <= 6.3; o += 0.3) { const iris = o > 4.7 && o < 5.9; pt(p, ...H(1, o), iris ? (eyeOn ? glow[3] : V.skin[0]) : V.skin[5]); pt(p, ...H(0.6, o), iris ? (eyeOn ? glow[2] : V.skin[0]) : V.skin[4]); if (iris && eyeOn) pt(g, ...H(1, o), glow[3]); }
     for (let o = 4; o <= 6; o += 0.3) pt(p, ...H(0.1, o), V.skin[2]);
     // Braue und Wangenschatten unter dem Jochbein
@@ -780,8 +785,8 @@ function drawYsmeine(V) {
       for (let t = 0.7; t <= 1; t += 0.05) pt(p, armF.jx + (armF.ex - armF.jx) * t, armF.jy + (armF.ey - armF.jy) * t + 3, V.trim[3]);
     };
     let tip;
-    if (extra.swordBehind) { tip = ysmeineGlaive(p, g, hF.x, hF.y, sa, V, glow); arm(); }
-    else { arm(); tip = ysmeineGlaive(p, g, hF.x, hF.y, sa, V, glow); orb(p, hF.x, hF.y, 2.6, 2.4, V.skin); }
+    if (extra.swordBehind) { tip = ysmeineGlaive(p, g, hF.x, hF.y, restA(sa), V, glow); arm(); }
+    else { arm(); tip = ysmeineGlaive(p, g, hF.x, hF.y, restA(sa), V, glow); orb(p, hF.x, hF.y, 2.6, 2.4, V.skin); }
     plate(p, [[shF.x - 6, shF.y + 2], [shF.x - 3, shF.y - 4], [shF.x + 4, shF.y - 4.5], [shF.x + 7, shF.y + 1], [shF.x + 3, shF.y + 4]], V.steel, { edge: 0.8 });
     for (let x = -5; x <= 6; x += 0.5) pt(p, shF.x + x, shF.y + 3 - Math.abs(x) * 0.15, V.trim[3]);
     meta.hand = { x: hF.x, y: hF.y }; meta.tip = tip;
