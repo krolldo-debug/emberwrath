@@ -690,6 +690,70 @@ function foreleg(p, sx, sy, fx, fy, near, lift) {
   hair(w, ex + 0.6, ey - 1.6, ex + 1.2, ey + 1.8, SCALE[0]);
 }
 
+// ---------------------------------------------------------------- Eisschwingen (Neuzeichnung 03.11.)
+// Angelegte Flughäute aus Reifeis: Armknochen mit Eisdornen an der Vorderkante, drei Fingerknochen, dazwischen
+// gefächerte Hautbahnen mit gezacktem Hinterrand und Adern. Beim Brüllen und Aufbäumen spreizen sie sich.
+const MEM = ['#08182a', '#123048', '#1c4866', '#2a6486', '#3e86a8', '#66b2cc', '#a8e2f0'];
+const MEMD = ['#06121f', '#0c2236', '#14344e', '#1e4a68', '#2c6484', '#4a88a6'];
+const HND6 = ['#080e18', HORN[0], HORN[0], HORN[1], HORN[2], HORN[3]];
+function wing(p, g, A, B, P, near) {
+  const wm = wpen(p, M_CRYS), wb = wpen(p, M_HORN), wk = wpen(p, M_CRYS);
+  const s = Math.max(0, Math.min(1, 0.15 + P.crest * 0.6)) + Math.sin(P.wph * 0.5) * 0.04 + (near ? 0 : 0.28);
+  const k = near ? 1.9 : 1.75, ramp = near ? MEM : MEMD, bone = near ? HN6 : HND6;
+  const at = (o, a, l) => [o[0] + Math.cos(a) * l * k, o[1] + Math.sin(a) * l * k];
+  const E = at(A, -2.05 - s * 0.35 - (near ? 0 : 0.35), 13), Wr = at(E, -2.85 + s * 0.3 + (near ? 0 : 0.5), 11);
+  const fa = [Math.PI * 0.98 - s * 0.35, Math.PI * 0.8 - s * 0.3, Math.PI * 0.64 - s * 0.2];
+  const T = [at(Wr, fa[0], 20), at(Wr, fa[1], 19), at(Wr, fa[2], 16)];
+  const notch = (a, b, d = 0.24) => { const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; return [m[0] + (Wr[0] - m[0]) * d, m[1] + (Wr[1] - m[1]) * d]; };
+  const q01 = notch(T[0], T[1]), q12 = notch(T[1], T[2]), q2B = notch(T[2], B, 0.38);
+  // Hautbahnen (hinten zuerst), abwechselnd heller
+  plate(wm, [Wr, T[2], q2B, B, A, E], ramp, { edge: 0.5, core: 1.6, line: 0.5, lift: -0.6, flat: 1.5, glint: false });
+  plate(wm, [Wr, T[1], q12, T[2]], ramp, { edge: 0.5, core: 1.2, line: 0.5, lift: 0.2, flat: 1.5, glint: false });
+  plate(wm, [Wr, T[0], q01, T[1]], ramp, { edge: 0.6, core: 1.2, line: 0.5, lift: 0.7, flat: 1.5, glint: false });
+  // Spannfalten in der Haut: feine Linien vom Handgelenk zum Rand, Licht- und Schattenseite
+  const fold = (a, b, n) => {
+    for (let i = 1; i <= n; i++) {
+      const t = i / (n + 1), x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+      const ex = Wr[0] + (x - Wr[0]) * 0.92, ey = Wr[1] + (y - Wr[1]) * 0.92;
+      hair(wm, Wr[0] + (x - Wr[0]) * 0.18, Wr[1] + (y - Wr[1]) * 0.18, ex, ey, ramp[1]);
+      hair(wm, Wr[0] + (x - Wr[0]) * 0.18 - 0.5, Wr[1] + (y - Wr[1]) * 0.18 - 0.5, ex - 0.5, ey - 0.5, ramp[5]);
+    }
+  };
+  fold(T[0], T[1], 2); fold(T[1], T[2], 2); fold(T[2], q2B, 1); fold(q2B, B, 2);
+  // Reifglitzer
+  for (let i = 0; i < 10; i++) {
+    const a = hash2(i, near ? 1 : 2, 41), b = hash2(i, 3, 41), j = Math.min(2, Math.floor(a * 3));
+    const x = Wr[0] + (T[j][0] - Wr[0]) * (0.3 + b * 0.6) + (hash2(i, 5, 41) - 0.5) * 4, y = Wr[1] + (T[j][1] - Wr[1]) * (0.3 + b * 0.6) + (hash2(i, 6, 41) - 0.5) * 4;
+    wm.pdot(x, y, ramp[ramp.length - 1]);
+    if (near && i % 3 === 0) g.dot(x, y, 1);
+  }
+  // Adern zu den Kerben, Reifkristalle am Hinterrand
+  for (const q of [q01, q12, q2B]) {
+    hair(wm, Wr[0], Wr[1] + 0.5, q[0], q[1], ramp[1]);
+    hair(wm, Wr[0] + 0.5, Wr[1], q[0] + 0.4, q[1] - 0.3, ramp[ramp.length - 2]);
+    gem(wk, q[0], q[1], q[0] + (q[0] - Wr[0]) * 0.08, q[1] + (q[1] - Wr[1]) * 0.08 + 1.2, 1.4, near ? CR6 : CRD);
+  }
+  // Fingerknochen und Armknochen
+  for (let i = 2; i >= 0; i--) {
+    bar(wb, Wr[0], Wr[1], T[i][0], T[i][1], 2.2, 0.8, bone, { line: 0.4 });
+    g.fline(Wr[0], Wr[1], (Wr[0] + T[i][0]) / 2, (Wr[1] + T[i][1]) / 2, near ? 1 : 0);
+    g.dot(T[i][0], T[i][1], near ? 2 : 1);
+  }
+  bar(wb, A[0], A[1], E[0], E[1], 4.2, 3.2, bone, { line: 0.45 });
+  bar(wb, E[0], E[1], Wr[0], Wr[1], 3.2, 2.4, bone, { line: 0.45 });
+  orb(wb, E[0], E[1], 2, 2, bone);
+  orb(wb, Wr[0], Wr[1], 1.7, 1.7, bone);
+  // Daumenkralle und Eisdornen an der Vorderkante
+  hornQ(wb, Wr[0], Wr[1], Wr[0] - 1, Wr[1] - 3, Wr[0] + 1.6, Wr[1] - 4.6, 1.8, 0.5, bone, { n: 4, line: 0.4 });
+  for (const t of [0.3, 0.6, 0.9]) {
+    const x = E[0] + (Wr[0] - E[0]) * t, y = E[1] + (Wr[1] - E[1]) * t;
+    gem(wk, x, y - 0.8, x + 1.4 - t, y - 4.2 + t * 1.2, 2, near ? CR6 : CRD);
+    if (near) g.dot(x + 1.4 - t, y - 4.2 + t * 1.2, 2);
+  }
+  for (const t of [0.35, 0.75]) { const x = A[0] + (E[0] - A[0]) * t, y = A[1] + (E[1] - A[1]) * t; gem(wk, x, y, x + 2.4, y - 3.2, 2.2, near ? CR6 : CRD); }
+  if (near) g.efline(E[0], E[1], Wr[0], Wr[1], 2);
+}
+
 // ---------------------------------------------------------------- Kopf
 
 // Kopf in lokalen Koordinaten (u nach vorn, v nach unten), gedreht um ha.
@@ -1059,8 +1123,13 @@ function drawWyrm(L, P, pts, o = {}) {
   // Schulterpunkt für die Klauen
   const sh = S.find((q) => q.k >= 5.85) ?? S[0];
   const showLegs = !o.noLegs && sh.h > 2;
+  // Flügelansatz oben auf den Schultern, Hinterkante läuft am Rücken aus
+  const back = (q, f) => { const r = radAt(q.k, P.bulk); return [q.sx - q.nx * r * f, q.sy - q.ny * r * f]; };
+  const wq = S.find((q) => q.k >= 5.7) ?? sh, bq = S.find((q) => q.k >= 4.1) ?? S[0];
+  if (showLegs) wing(p, g, (([x, y]) => [x + 3, y - 3])(back(wq, 0.6)), (([x, y]) => [x - 1, y - 1])(back(bq, 0.7)), P, false);
   if (showLegs) foreleg(p, sh.sx - 1, sh.sy + 1, AX + P.fFx + P.ox * 0.5, AY - 2 - P.fFy, false, P.fFy);
   drawBody(p, g, S, P, o);
+  if (showLegs) wing(p, g, back(wq, 0.35), back(bq, 0.45), P, true);
   if (showLegs) foreleg(p, sh.sx + 2, sh.sy + 3, AX + P.fNx + P.ox * 0.5, AY + 2 - P.fNy, true, P.fNy);
   const end = S[S.length - 1];
   let meta = {};
