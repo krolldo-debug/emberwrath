@@ -250,6 +250,8 @@ export const FINE_ASTRAL = {
     keel: ramp(['#141028', '#1e1838', '#2a2048', '#3a2c5c']),
     rim: hxi('#d8909a'),
     root: hxi('#342640'),
+    // Hängeranken: [Schatten, Stängel, Blatt, Blatt im Licht] + Blüte
+    vine: Object.assign(ramp(['#1c2834', '#2e434c', '#507468', '#6c927c']), { bloom: hxi('#eca0c0') }),
     crystal: [[22, 132, 168], [92, 203, 234], [184, 242, 255], [255, 255, 255]],
     edge: EDGE,
   },
@@ -265,5 +267,7 @@ export const FINE_SHARDS = {
     ...FINE_ASTRAL.island,
     face: ramp(['#161a30', '#1e2444', '#283056', '#343e6a', '#444e80', '#586296']),
     rim: hxi('#8cc8e8'),
+    // Splitterweiten: Glasmoos-Ranken, blass, mit Kristallknospen
+    vine: Object.assign(ramp(['#1c2434', '#324658', '#587686', '#7e9ca8']), { bloom: hxi('#b8f2ff') }),
   },
 };
