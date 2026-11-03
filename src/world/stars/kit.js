@@ -160,6 +160,25 @@ export function walkPath(m, solid, from, to, step = 3) {
 
 // Freie Plätze für das Weltereignis „Sternenfall“ (world/starfall.js): je Anker die nächste Kachel, um die im Umkreis r
 // nur Boden liegt (keine Deko, kein Gegner, kein Abgrund; lim = r² des Kreises). Ergebnis in Kacheln, Reihenfolge wie die Anker.
+// Setzstücke (Kartendetails) nahe den Ankern auf freies Gelände stellen: Umkreis r ganz Boden, nicht auf dem Weg,
+// mindestens gap Kacheln von den Punkten in avoid (Questziele, Portale, andere Setzstücke). Liefert die Orte.
+export function placeNear(m, net, anchors, ch, { r = 1, reach = 5, gap = 3, avoid = [] } = {}) {
+  const out = [];
+  const ok = (x, y) => freeAt(m, net, x, y, r) && avoid.every(([a, b]) => Math.hypot(a - x, b - y) >= gap);
+  for (const [ax, ay] of anchors) {
+    let best = null;
+    for (let d = 0; d <= reach && !best; d++) {
+      for (let j = -d; j <= d && !best; j++) for (let i = -d; i <= d; i++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== d) continue;
+        const x = Math.round(ax) + i, y = Math.round(ay) + j;
+        if (ok(x, y)) { best = [x, y]; break; }
+      }
+    }
+    if (best) { m.set(best[0], best[1], ch); out.push(best); avoid.push(best); }
+  }
+  return out;
+}
+
 export function openSites(m, anchors, r = 3, reach = 8, lim = r * r + 1) {
   const out = [];
   const free = (x, y) => {
