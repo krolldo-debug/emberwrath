@@ -1,7 +1,7 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { GROUND, clearAround } from '../mapkit.js';
 import { addInteriors } from '../houses.js';
-import { openSites, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND, VOID } from './kit.js';
+import { openSites, placeNear, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND, VOID } from './kit.js';
 
 // ---------------------------------------------------------------- Die Treibenden Gärten (40–45)
 // 200 × 130 Kacheln. König Aurels verwilderte Gartenterrassen treiben als Inseln über dem Morgenhimmel; die Leere
@@ -176,11 +176,36 @@ export function buildDriftingGardens() {
   for (const [x, y] of [[116, 60], [104, 72], [126, 84], [110, 94], [92, 82], [128, 98], [120, 107]]) put(x, y, 'X');
   const rifts = [[120, 64], [106, 90], [130, 99]];
 
+  // Pells Saatbeutel: Ankerhain und Rand zum Wurzelbruch; Oddas Mondkristalle: Ufer, Weiherinsel, Landzunge
+  const seedBags = [[141, 52], [150, 41], [182, 76], [132, 58]];
+  const moonCrystals = [[45, 90], [59, 93], [52, 98], [80, 96]];
+  // Questziele der zweiten Runde: Veyras Schutzsteine im Ankerhain, Isells Lichtmoos im Wurzelbruch, Seraphes
+  // Sternschnuppen auf Terrassen und am Weiher, Veyras Siegel an der letzten Narbe im Wurzelbruch (Verteidigung)
+  const wardStones = [[148, 44], [136, 68], [171, 79]];
+  const lightMoss = [[94, 57], [99, 71], [113, 91], [103, 95], [84, 97]];
+  const fallenStars = [[27, 12], [45, 19], [56, 76], [34, 89]];
+  const seal = [120, 81];
+
+  // ------------------------------------------------------------ Setzstücke (Kartendetails 03.11.)
+  // Terrassen: Urnen an Treppen und Plätzen, Rosenlauben mit Bank, Brunnen auf der unteren Terrasse.
+  // Wurzelbruch: eingestürzte Lauben, umgestürzte Urnen, Leerenrisse im Boden (flach). Mondweiher: Kahn am Ufer.
+  const avoid = [[22, 15], [36, 122], [52, 85], [117, 17], [52, 42], [80, 104], [113, 19], [118, 17], [117, 21], ...rifts, ...seedBags, ...moonCrystals, ...wardStones, ...lightMoss, ...fallenStars, seal];
+  placeNear(m, net, [[102, 29]], 'o', { r: 2, avoid });
+  placeNear(m, net, [[85, 24], [85, 31], [46, 19], [46, 25], [28, 20], [18, 20], [98, 39], [93, 39], [63, 28], [69, 28]], 'h', { avoid, gap: 2.5 });
+  placeNear(m, net, [[40, 28], [74, 33], [106, 36], [60, 17]], 'b', { r: 2, avoid });
+  placeNear(m, net, [[112, 59], [124, 86], [96, 63], [110, 96]], 'x', { r: 2, avoid });
+  placeNear(m, net, [[107, 77], [119, 93], [127, 96], [103, 88], [89, 85], [114, 63], [96, 59], [120, 106]], 'y', { avoid });
+  placeNear(m, net, [[116, 67], [102, 77], [122, 80], [110, 89], [93, 62], [132, 97], [91, 83], [119, 107], [126, 65], [106, 72], [121, 59], [100, 72], [128, 84], [113, 95], [89, 60], [115, 110], [104, 94], [126, 101]], 'z', { r: 0, gap: 2.5, avoid });
+  // Kahn am Südufer des großen Weihers: erste Uferkachel unter dem Wasser (Bäume davor weichen)
+  let jetty = null;
+  for (let y = 92; y < 102; y++) if (get(55, y) !== '~' && get(55, y - 1) === '~') { if (get(55, y) === ',') { put(55, y, 'j'); jetty = [55, y]; } break; }
+
   // ------------------------------------------------------------ Streudeko
+  const noScatter = (x, y) => jetty && Math.abs(x - jetty[0]) <= 3 && y >= jetty[1] && y <= jetty[1] + 4;
   const vd = voidDist(m, 4);
   const towns = [inRect(village, 2)];
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-    if (get(x, y) !== ',' || kept(x, y) || towns.some((f) => f(x, y)) || !freeAt(m, net, x, y)) continue;
+    if (get(x, y) !== ',' || kept(x, y) || noScatter(x, y) || towns.some((f) => f(x, y)) || !freeAt(m, net, x, y)) continue;
     const d = vd(x, y), h = hash2(x, y, 4490), n = hash2(Math.floor(x / 6), Math.floor(y / 5), 4491);
     if (d < 2) { if (h < 0.05) put(x, y, 'B'); continue; }
     const inTerr = inRect(tLow)(x, y) || inRect(tMid)(x, y) || inRect(tHigh)(x, y);
@@ -188,7 +213,7 @@ export function buildDriftingGardens() {
     // Haine je Teilgebiet: Ankerhain Blütenbäume, Terrassen Goldbäume und Formschnitt, Mondweiher Mondbäume und
     // Leuchtpilze, Wurzelbruch verdorrte Bäume, Wurzeln und violette Leuchtpilze
     const grove = inTerr ? 'F' : inMoon ? 'S' : inRoot ? 'D' : 'T';
-    if (n > (inRoot ? 0.7 : 0.62) && h < 0.16 && d >= 3) put(x, y, grove);
+    if (n > (inRoot ? 0.64 : 0.62) && h < 0.16 && d >= 3) put(x, y, grove);
     else if (h < 0.025) put(x, y, inMoon ? 'K' : inRoot ? 'X' : inTerr ? 't' : 'B');
     else if (h < 0.037) put(x, y, inMoon || inRoot ? 'c' : 'R');
     else if (inTerr && h < 0.047) put(x, y, hash2(x, y, 4492) < 0.5 ? 'P' : 'W');
@@ -216,22 +241,16 @@ export function buildDriftingGardens() {
   // Mondweiher (44–45): Sternfalter, Blütenpirscher
   for (const [x, y] of [[40, 84], [62, 84], [68, 96], [56, 108], [38, 104], [48, 110], [74, 102], [32, 92]]) group(x, y, ['m', 'm', 'a'], 4);
 
-  // Questziele der zweiten Runde: Veyras Schutzsteine im Ankerhain, Isells Lichtmoos im Wurzelbruch, Seraphes
-  // Sternschnuppen auf Terrassen und am Weiher, Veyras Siegel an der letzten Narbe im Wurzelbruch (Verteidigung)
-  const wardStones = [[148, 44], [136, 68], [171, 79]];
-  const lightMoss = [[94, 57], [99, 71], [113, 91], [103, 95], [84, 97]];
-  const fallenStars = [[27, 12], [45, 19], [56, 76], [34, 89]];
-  const seal = [120, 81];
+  // Wrack der „Morgenröte“ (q_morgenroete): an der Nordostspitze der Terrassen, Glocke und Kapitänskiste daneben
+  const wreck = [113, 19], wreckBell = [118, 17], wreckChest = [117, 21];
+  clearAround(m, [wreck, [111, 19], [115, 19], wreckBell, wreckChest], 'TBKRPWJXFSDct', { r: 2, south: 2 });
 
   // Freiraum um Marken und Portale
   const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [36, 125], [190, 62], [196, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts, ...wardStones, ...lightMoss, ...fallenStars, seal].filter(Boolean);
   clearAround(m, spots, 'TBKRPWJXFSDct', { r: 2, south: 3 });
 
   // ------------------------------------------------------------ Questziele (progression/questsStars.js)
-  const SOLID = 'TBKLJPRWUuOQYXVZFSDtAIqenf';
-  // Pells Saatbeutel: Ankerhain und Rand zum Wurzelbruch; Oddas Mondkristalle: Ufer, Weiherinsel, Landzunge
-  const seedBags = [[141, 52], [150, 41], [182, 76], [132, 58]];
-  const moonCrystals = [[45, 90], [59, 93], [52, 98], [80, 96]];
+  const SOLID = 'TBKLJPRWUuOQYXVZFSDtAIqenfhboxyj';
   // Eskorte „Brens Ableger“: vom Dorfplatz über die Wurzelbrücke zum ersten Leerenriss
   const escortPath = walkPath(m, SOLID, [175, 57], [118, 62]);
   const amb = (f) => Math.round((escortPath.length - 1) * f);
@@ -256,6 +275,7 @@ export function buildDriftingGardens() {
       T: 'blossomTrees', B: 'bushes', K: 'crystals', L: 'lantern', J: 'starLamp', P: 'ruinPillars', R: 'roseRocks',
       W: 'ruinWalls', U: 'ruinArch', u: 'ruinArchBroken', O: 'aurelStatue', Q: 'signpost', Y: 'anchorTree', X: 'roots',
       V: 'cottageRose', A: 'cottageVerd', I: 'cottageThatch', e: 'gardenBeds', q: 'villageWell', n: 'parkBench', f: 'flowerBoxes', Z: 'vineGate', F: 'goldTrees', S: 'moonTrees', D: 'witheredTrees', c: 'glowShrooms', t: 'topiary',
+      h: 'urnPlanters', b: 'pergolaBench', o: 'terraceFountain', x: 'brokenPergola', y: 'toppledUrn', z: 'voidCracks', j: 'shoreBoat',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_sternhafen', 4: 'from_rankengruft', 5: 'waystone', 6: 'from_splitterweiten' },
     waystone,
@@ -281,6 +301,9 @@ export function buildDriftingGardens() {
       ...wardStones.map(([x, y], i) => ({ id: `ward_stone_${i + 1}`, kind: 'shrine', set: 'decor_ashwood', decor: 'runeStone', name: 'Schutzstein', prompt: 'Das Schutzzeichen erneuern', x, y })),
       ...lightMoss.map(([x, y], i) => ({ id: `light_moss_${i + 1}`, kind: 'item', decor: 'bushes', name: 'Lichtmoos', prompt: 'Lichtmoos ernten', x, y })),
       ...fallenStars.map(([x, y], i) => ({ id: `fallen_star_${i + 1}`, kind: 'item', set: 'decor_shards', decor: 'shardRocks', name: 'Sternschnuppe', prompt: 'Die Sternschnuppe aufheben', x, y })),
+      { id: 'wreck_hull', kind: 'shrine', set: 'decor_astral', decor: 'skyWreck', name: 'Wrack der Morgenröte', prompt: 'Im Wrack nach dem Logbuch suchen', x: wreck[0], y: wreck[1] },
+      { id: 'wreck_bell', kind: 'item', set: 'decor_astral', decor: 'shipBell', name: 'Schiffsglocke', prompt: 'Die Schiffsglocke abnehmen', x: wreckBell[0], y: wreckBell[1] },
+      { id: 'wreck_chest', kind: 'item', set: 'decor_shards', decor: 'crateStack', name: 'Kapitänskiste', prompt: 'Die Kapitänskiste öffnen', x: wreckChest[0], y: wreckChest[1] },
       { id: 'veyra_seal', kind: 'shrine', set: 'decor_ashwood', decor: 'wardTotem', name: 'Veyras Siegel', prompt: 'Das Siegel setzen', x: seal[0], y: seal[1] },
     ],
     questRoutes: {

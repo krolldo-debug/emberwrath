@@ -556,6 +556,9 @@ export const QUESTS_40 = {
   // ================================================================ Nachspiel
   q_homecoming: {
     title: 'Heimkehr', giver: 'marshal_corvane', turnInNpc: 'commander_hale', main: true, level: 40, requires: ['q_ash_sovereign'],
+    // Ende der Geschichte des Glutlands: großes Banner (ui/Hud.js). Mit offener Sternenglut nennt es den nächsten Schritt,
+    // sonst (subClosed) das Spiel auf Stufe 40.
+    finale: { title: 'Das Glutland ist frei', sub: 'Ysolde in der Rauhwacht hat eine neue Vision', subClosed: 'Glutprüfungen und das Auftragsbrett warten' },
     summary: 'Bring die Nachricht vom Fall des Aschenfürsten zu Kommandant Hale in die Rauhwacht.',
     offer: 'Hale hat dich losgeschickt, also soll er es von dir hören, nicht von einem Boten. Nimm den langen Weg zurück: durch die Zinnen, die Marsch, die Steppe. Sieh dir an, was du verändert hast. Dann sag ihm, dass es vorbei ist.',
     progressText: 'Der Weg zurück zur Rauhwacht führt durch alle Lande, die du befreit hast.',

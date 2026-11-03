@@ -14,6 +14,7 @@ import { hash2 } from '../core/math.js';
 // Metadaten (Kopf, Hand, Klingenspitze) für Partikel und Effekte.
 // Blickrichtung rechts, Anker = Mitte zwischen den Füßen.
 export const W = 176, H = 136, AX = 66, AY = 128;
+const FRAME = { W, H, AX, AY };
 const B = PAL.bone, St = PAL.steel;
 // Rüstung: dunkles, angelaufenes Eisen mit Rostkanten
 const R = ['#141620', '#262a38', '#3c4052', '#5c5f70'];
@@ -702,7 +703,9 @@ function drawCollapse(p, g, k, glow) {
 // collapse(p, g, k, glow) den Zerfall. Phase-3-Leuchtebene: dieselbe Zeichnung mit der zweiten Rampe. Die Leuchtebene
 // nutzt nur Farben der Rampe und keine davon abhängige Form, darum genügt ein Umfärben je Feinpixel (exakt wie ein
 // zweiter Zeichendurchgang); Farben außerhalb der Rampe bleiben.
-export function rigBossSprites(draw, collapse, glow, enraged) {
+// dims: eigener Rahmen für größere Gestalten auf demselben Rig (sprites/star_bosses.js, bigRig); collapseMeta dazu.
+export function rigBossSprites(draw, collapse, glow, enraged, dims = null) {
+  const { W, H, AX, AY } = dims ?? FRAME;
   const ENRAGE = new Map(glow.map((c, i) => [col32(c), col32(enraged[i])]));
   function glowFrames(base, g, res) {
     const d = g.pixels(), e = new Uint32Array(d.length);
@@ -727,7 +730,7 @@ export function rigBossSprites(draw, collapse, glow, enraged) {
     const res = fineRes(), g = new FineCanvas(W, H, res);
     const base = buildFrame(W, H, AX, AY, (p) => collapse(p, g, k, glow), { fine: true, res });
     glowFrames(base, g, res);
-    base.meta = { head: { dx: 12, dy: -10 }, chest: { dx: -4, dy: -6 }, hand: { dx: -20, dy: -4 }, tip: { dx: 20, dy: -4 }, eye: { dx: 12, dy: -8 }, cast: { dx: 0, dy: -6 } };
+    base.meta = dims?.collapseMeta ?? { head: { dx: 12, dy: -10 }, chest: { dx: -4, dy: -6 }, hand: { dx: -20, dy: -4 }, tip: { dx: 20, dy: -4 }, eye: { dx: 12, dy: -8 }, cast: { dx: 0, dy: -6 } };
     base.fx = null;
     return base;
   });

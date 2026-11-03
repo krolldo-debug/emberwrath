@@ -24,8 +24,10 @@ export function createStarEnemies(T) {
   // Dungeonbosse: eigene Klassen (entities/StarBosses.js) auf Varkhuls Kampflogik und Rig (sprites/star_bosses.js);
   // Leben absolut, Schaden über dmgMult (Hieb ≈ 22 % der Lebenspunkte eines Kriegers mit seltener Ausrüstung
   // derselben Stufe, wie Skalvyr/Fäulnismutter), Beschwörung (summon) aus dem eigenen Dungeon
+  // Gestalt 1,5× Varkhul (sprites/star_bosses.js bigRig): Körper, Trefferfläche, Schatten und Reichweite mitwachsen
   const boss = (id, name, level, hp, over) => ({
-    ...T.bonelord, name, level, xp: Math.round(xpAt(level) * 22), boss: true, bossId: id, sprites: id, hp, ...over,
+    ...T.bonelord, name, level, xp: Math.round(xpAt(level) * 22), boss: true, bossId: id, sprites: id, hp,
+    radius: 15, hurtRadius: 20, bodyHeight: 78, shadowW: 50, mass: 9, eye: { x: 5, y: -94 }, reach: 1.25, ...over,
   });
   return {
     // --- Treibende Gärten (40–45)

@@ -4,6 +4,8 @@ import { col32 } from '../gfx/Fine.js';
 import { createStarCityDecor } from './decor_starcity.js';
 import { createStarCityDecor2 } from './decor_starcity2.js';
 import { createGardenVillageDecor } from './decor_stars_village.js';
+import { createStarQuestDecor } from './decor_stars_quests.js';
+import { createStarDetailDecor } from './decor_stars_details.js';
 import { createFurniture } from './decor_houses.js';
 
 // Sternenscherben (Grundstimmung „Morgenschimmer“, Look-Entwurf C): Blütenbäume der Treibenden Gärten, leuchtende
@@ -449,6 +451,8 @@ export function createAstralNature() {
     vineGate: vineGate(),
     moonAltar: { off: moonAltar(false), on: moonAltar(true) },
     voidRift: { off: voidRift(false), on: voidRift(true) },
+    ...createStarDetailDecor(),
+    ...createStarQuestDecor(),   // Questobjekte (Wrack, Glocke, Wegleuchten, Sternsteine)
   };
 }
 
