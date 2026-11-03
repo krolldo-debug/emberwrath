@@ -3,6 +3,7 @@ import { mk, fpoly, lump, pal32 } from './decor_ashwood.js';
 import { col32 } from '../gfx/Fine.js';
 import { prism, createAstralNature } from './decor_astral.js';
 import { createMinerCampDecor } from './decor_stars_village.js';
+import { createFurniture } from './decor_houses.js';
 
 // Splitterweiten (45–50): Glasbäume, singende Kristalltürme, das Schürferlager Funkenruh (Zelte, Loren, Erzhaufen,
 // Förderkran am Inselrand), Spiegelsteine am Spiegelsee, die Ruine der Sternwarte und das Tor der Gläsernen Hallen.
@@ -302,4 +303,4 @@ export function createShardDecor() {
 }
 
 // Deko-Satz der Splitterweiten (level.decorSet 'decor_shards')
-export function createShardSet() { return { ...createAstralNature(), ...createShardDecor(), ...createMinerCampDecor() }; }
+export function createShardSet() { return { ...createAstralNature(), ...createShardDecor(), ...createMinerCampDecor(), ...createFurniture() }; }

@@ -6116,5 +6116,11 @@ export const ES = {
   "Passt zu deiner Stufe": "Adecuado para tu nivel",
   "Lernen": "Aprender",
   "−{0} % Schaden": "−{0} % de daño",
-  "{0} / {1} EP bis Stufe {2}": "{0} / {1} EXP hasta el nivel {2}"
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} EXP hasta el nivel {2}",
+  "Haus der Hüterin": "Casa de la guardiana",
+  "Isells Kräuterstube": "Herbolario de Isell",
+  "Brens Gärtnerhaus": "Casa del jardinero Bren",
+  "Rosenhäuschen": "Casita de las rosas",
+  "Schürferhütte": "Cabaña del buscador",
+  "Erzschuppen": "Cobertizo del mineral"
 };

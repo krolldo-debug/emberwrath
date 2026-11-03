@@ -6116,5 +6116,11 @@ export const FR = {
   "Passt zu deiner Stufe": "Adapté à ton niveau",
   "Lernen": "Apprendre",
   "−{0} % Schaden": "−{0} % de dégâts",
-  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP jusqu’au niveau {2}"
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP jusqu’au niveau {2}",
+  "Haus der Hüterin": "Maison de la gardienne",
+  "Isells Kräuterstube": "Herboristerie d'Isell",
+  "Brens Gärtnerhaus": "Maisonnette du jardinier Bren",
+  "Rosenhäuschen": "Maisonnette aux roses",
+  "Schürferhütte": "Cabane du prospecteur",
+  "Erzschuppen": "Remise à minerai"
 };
