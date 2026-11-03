@@ -1994,7 +1994,10 @@ function shard(p, g, bx, by, a, h, w, heat) {
   if (heat > 0.5) { p.px(bx, by, LAVA[3]); g.px(bx, by, GLOW[2]); }
 }
 
-function drawColossus(p, g, P, ex) {
+// skin (optional, Sternenglut-Gegner auf diesem Rig, sprites/foes_stars2.js): ersetzt Materialien und Formen
+// { ROCK, ROCK_D, LAVA, GLOW, VOID, boulder, shard, glowDot, head? (p, g, hx, hy, P, ex) -> meta-Teil }
+function drawColossus(p, g, P, ex, skin = CO_SKIN) {
+  const { ROCK, ROCK_D, LAVA, GLOW, VOID, boulder, shard, glowDot } = skin;
   const { AX, AY } = CO;
   const meta = {};
   const gy = AY;
@@ -2147,6 +2150,8 @@ function drawColossus(p, g, P, ex) {
   shard(p, g, shF.x + 5, shF.y - 4, -1.2, 5, 1.5, heat);
   // --- Kopf: klein, tief zwischen den Schultern, schwerer Stirnwulst
   const hx = ch.x + px * 5 + py * 8 + P.head, hy = ch.y - 16 + py * 5 + P.headY;
+  if (skin.head) Object.assign(meta, skin.head(p, g, hx, hy, P, ex));
+  else {
   boulder(p, g, hx, hy, 6.5, 5.5, ROCK, 150, heat * 0.7, 1, { rim: 1 });
   // Stirnwulst mit Obsidianhörnern
   p.rect(hx - 5, hy - 3, 11, 2, ROCK[4]); p.rect(hx - 4, hy - 3, 9, 1, ROCK[5]);
@@ -2190,6 +2195,7 @@ function drawColossus(p, g, P, ex) {
   meta.eye = { x: hx + 3, y: hy - 1 };
   meta.head = { x: hx, y: hy - 10 };
   meta.mouth = { x: hx + 5, y: hy + 3 };
+  }
 
   meta.hand = { x: fA.fx, y: fA.fy };
   meta.tip = { x: fA.fx + fA.fr, y: fA.fy };
@@ -2237,7 +2243,8 @@ function drawColossus(p, g, P, ex) {
 }
 
 // Trümmerhaufen: Felsen, Kristalle, erkaltender Kern
-function drawColossusRubble(p, g, k) {
+function drawColossusRubble(p, g, k, skin = CO_SKIN) {
+  const { ROCK, ROCK_D, LAVA, VOID, boulder, shard, glowDot } = skin;
   const { AX, AY } = CO;
   const gy = AY;
   const heat = 1.1 * (1 - k);
@@ -2261,8 +2268,9 @@ function drawColossusRubble(p, g, k) {
   return { eye: { x: hx + 2, y: hy - 1 }, head: { x: hx, y: hy - 6 }, chest: { x: kx, y: ky }, hand: { x: AX + 20, y: gy - 6 }, handB: { x: AX - 20, y: gy - 6 }, mouth: { x: hx + 4, y: hy + 1 }, tip: { x: AX + 26, y: gy - 6 } };
 }
 
-function createColossus() {
-  const S = { ...CO, draw: (p, g, P, ex, t) => drawColossus(p, g, P, { ...ex, t }) };
+const CO_SKIN = { ROCK, ROCK_D, LAVA, GLOW, VOID, boulder, shard, glowDot };
+function createColossus(skin = CO_SKIN, rim = CO.rim) {
+  const S = { ...CO, rim, draw: (p, g, P, ex, t) => drawColossus(p, g, P, { ...ex, t }, skin) };
   const idle = cycle((ph) => {
     const s = Math.sin(ph);
     return cop({ hipY: Math.max(0, s) * 1.2, lean: 0.12 + s * 0.015, hFy: 22 + Math.max(0, s) * 1.5, hBy: 21 + Math.max(0, s) * 1.5, headY: Math.max(0, s), core: 0.95 + s * 0.2, vent: ph / 3 });
@@ -2326,9 +2334,9 @@ function createColossus() {
     hurt: new Animation(track(S, [[0, hurtP], [1, cop({ lean: 0.08 })]], 2, { extras: { 0: { hurt: true } } }), 8, false),
     death: new Animation([
       ...track(S, [[0, hurtP], [0.3, d1], [0.65, d2, snap], [1, d3]], 4, { extras: { 0: { hurt: true }, 2: { fx: 'impact' } } }),
-      still(S, (p, g) => drawColossusRubble(p, g, 0), 'impact'),
-      still(S, (p, g) => drawColossusRubble(p, g, 0.4)),
-      still(S, (p, g) => drawColossusRubble(p, g, 1)),
+      still(S, (p, g) => drawColossusRubble(p, g, 0, skin), 'impact'),
+      still(S, (p, g) => drawColossusRubble(p, g, 0.4, skin)),
+      still(S, (p, g) => drawColossusRubble(p, g, 1, skin)),
     ], 6, false),
   };
 }
@@ -2360,3 +2368,6 @@ export function createWastesFoes(only) {
   }
   return out;
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
+export const WASTES_KIT = { ell, cap, poly, ln, hotLine, fillEll, createColossus, CO };

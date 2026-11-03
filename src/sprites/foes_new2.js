@@ -3511,10 +3511,11 @@ function drawPhase(p, g, P, X) {
 
 // Flimmerrand + Zeilenversatz (Phasenverschiebung) als Nachbearbeitung.
 // Versatz je Weltzeile (fein: in Texeln; die zweite Feinzeile springt einen Texel weiter → feine Sägekante).
-function phaseFlicker(k, seed, dis = 0) {
+// tint (optional): { dis: [4 Farben Zerfall], left, right: [r, g, b] Farbsaum } für Figuren auf diesem Rig
+function phaseFlicker(k, seed, dis = 0, tint = null) {
   return (p, g) => {
     const r = p.res ?? 1, W = p.w * r, H = p.h * r;
-    if (dis > 0) dissolve(p, g, dis, seed + 7, 0, p.h - 14, [PHASE[2], VOIDC[5], MAGE[2], PHASE[1]]);
+    if (dis > 0) dissolve(p, g, dis, seed + 7, 0, p.h - 14, tint?.dis ?? [PHASE[2], VOIDC[5], MAGE[2], PHASE[1]]);
     const d = getPix(p);
     // Zeilen versetzen. Fein nur bei starkem Flimmern (Verschwinden, Treffer, Tod): bei schwachem Flimmern (Ruhe,
     // Ausholen, Hieb) zerschnitt der Versatz Körper und Klingenschleier in waagerechte Streifen – dort bleibt nur
@@ -3535,7 +3536,8 @@ function phaseFlicker(k, seed, dis = 0) {
     // Farbsaum: links Cyan, rechts Magenta (Leuchtebene); Auswahl je Weltpixel, fein 1 Texel breit
     const op = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (d[y * W + x] >>> 24) > 40;
     const gd = getPix(g);
-    const cy = (0xff000000 | (190 << 16) | (150 << 8) | 40) >>> 0, mg = (0xff000000 | (170 << 16) | (40 << 8) | 130) >>> 0;
+    const [lr, lg, lb] = tint?.left ?? [40, 150, 190], [rr2, rg, rb] = tint?.right ?? [130, 40, 170];
+    const cy = (0xff000000 | (lb << 16) | (lg << 8) | lr) >>> 0, mg = (0xff000000 | (rb << 16) | (rg << 8) | rr2) >>> 0;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       if (!op(x, y)) continue;
       if (hash2(Math.floor(x / r), Math.floor(y / r), seed + 9) > 0.35 + k * 0.6) continue;
@@ -3546,8 +3548,9 @@ function phaseFlicker(k, seed, dis = 0) {
   };
 }
 
-function phaseAnims() {
-  const mk = (P, X = {}) => makeFrame(PWS, drawPhase, P, { ...X, after: phaseFlicker(X.flick ?? P.flick, X.seed ?? Math.round(P.t * 10 + P.hFx * 3), X.dis ?? 0) });
+// draw/tint (optional): eigene Figur auf diesem Rig (sprites/foes_stars2.js: Sternenglut-Gegner)
+function phaseAnims(draw = drawPhase, tint = null, bladeFn = phaseBlade) {
+  const mk = (P, X = {}) => makeFrame(PWS, draw, P, { ...X, after: phaseFlicker(X.flick ?? P.flick, X.seed ?? Math.round(P.t * 10 + P.hFx * 3), X.dis ?? 0, tint) });
   const idleK = cycle((ph) => {
     const s = Math.sin(ph);
     return pwp({ bob: s * 1.4, t: ph, hFy: 6 + s, hBy: 7 + s, aF: 0.55 + s * 0.08, aB: 0.75 - s * 0.06, headY: -Math.max(0, s) * 0.5, flick: 0.15 + Math.max(0, Math.sin(ph * 3)) * 0.2 });
@@ -3586,8 +3589,8 @@ function phaseAnims() {
   const hurt = [mk(hurtP, { flick: 1.2 }), mk(mixP(hurtP, idleK[0][1], 0.5), { flick: 0.5 })];
   // Tod: zerreißt, Klingen fallen klirrend zu Boden
   const blades = (p, g) => {
-    phaseBlade(p, g, PWS.AX - 9, PWS.AY - 2, 0.05, 11, false, 0);
-    phaseBlade(p, g, PWS.AX + 2, PWS.AY - 1, -0.1, 10, true, 0);
+    bladeFn(p, g, PWS.AX - 9, PWS.AY - 2, 0.05, 11, false, 0);
+    bladeFn(p, g, PWS.AX + 2, PWS.AY - 1, -0.1, 10, true, 0);
     return {};
   };
   const d1 = pwp({ ...hurtP, eye: 2, flick: 1.4 });
@@ -3721,3 +3724,6 @@ export function createNew2Foes() {
   }
   return out;
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
+export const NEW2_KIT = { ik, ell, cap, poly, clamp, smearArc, rimGlow, phaseAnims, PWS };

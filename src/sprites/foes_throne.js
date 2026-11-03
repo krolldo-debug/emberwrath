@@ -1102,8 +1102,11 @@ function drawHellhoundCorpse(p, g, k) {
   return { eye: { x: cx + 13, y: cy }, mouth: { x: cx + 19, y: cy + 2 }, head: { x: cx + 12, y: cy - 3 } };
 }
 
-function createHellhound() {
-  const S = spec(HH, drawHellhound, RIM_GOLD, BACK_EMBER);
+// look (optional, Sternenglut-Gegner auf diesem Rig, sprites/foes_stars2.js): { draw, corpse, rim, back }
+function createHellhound(look = {}) {
+  const draw = look.draw ?? drawHellhound, corpse = look.corpse ?? drawHellhoundCorpse;
+  const RK = look.rim ?? RIM_GOLD, RB = look.back ?? BACK_EMBER;
+  const S = spec(HH, draw, RK, RB);
   const idle = [];
   for (let i = 0; i <= 6; i++) {
     const ph = (i / 6) * TAU, sn = Math.sin(ph);
@@ -1142,9 +1145,9 @@ function createHellhound() {
     hurt: new Animation(track(S, [[0, hurtP], [1, hhp({ bx: -1, head: -0.2, jaw: 0.5 })]], 2, { extras: { 0: { hurt: true } } }), 10, false),
     death: new Animation([
       ...track(S, [[0, hurtP], [0.5, d1], [1, d2]], 3, { extras: { 0: { hurt: true } } }),
-      stillR(S, (p, g) => drawHellhoundCorpse(p, g, 0), 'impact', RIM_GOLD, BACK_EMBER),
-      stillR(S, (p, g) => drawHellhoundCorpse(p, g, 0.45), null, RIM_GOLD, BACK_EMBER),
-      stillR(S, (p, g) => drawHellhoundCorpse(p, g, 1), null, RIM_GOLD, BACK_EMBER),
+      stillR(S, (p, g) => corpse(p, g, 0), 'impact', RK, RB),
+      stillR(S, (p, g) => corpse(p, g, 0.45), null, RK, RB),
+      stillR(S, (p, g) => corpse(p, g, 1), null, RK, RB),
     ], 8, false),
   };
 }
@@ -1988,3 +1991,6 @@ export function createThroneFoes(only) {
   }
   return out;
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
+export const THRONE_KIT = { TAU, ik, ell, cap, poly, oval, dot, L, smearArc, furStrands, createHellhound, HH };

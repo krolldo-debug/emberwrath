@@ -23,6 +23,7 @@ import { createSteppeFoes } from '../sprites/foes_steppe.js';
 import { createMarshFoes } from '../sprites/foes_marsh.js';
 import { createFrostFoes } from '../sprites/foes_frost.js';
 import { createStarFoes } from '../sprites/foes_stars.js';
+import { createStarFoes2 } from '../sprites/foes_stars2.js';
 import { createRimeFoes } from '../sprites/foes_rime.js';
 import { createThroneFoes } from '../sprites/foes_throne.js';
 import { createBarrowFoes } from '../sprites/foes_barrow.js';
@@ -88,6 +89,7 @@ const FOE_GROUPS = {
   foes_new1: [createNew1Foes, ['ember_beetle', 'bandit_shieldbearer', 'cinder_sapper', 'cliff_harpy']],
   // Sternenglut Teil 1: eigene Figuren (sonst Umfärbung des Vorbilds, defs_stars.js recolor)
   foes_stars: [createStarFoes, ['bloom_stalker']],
+  foes_stars2: [createStarFoes2, ['void_hound', 'rootbound', 'splinter_colossus', 'withered_warden', 'void_wisp']],
   foes_new2: [createNew2Foes, ['dust_shaman', 'dust_totem', 'gnoll_trapper', 'bog_slime', 'bog_slime_small', 'marsh_hag', 'frost_revenant', 'snow_burrower', 'cinder_bombardier', 'phase_wraith']],
 };
 

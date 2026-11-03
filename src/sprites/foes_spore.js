@@ -998,8 +998,9 @@ function drawBrute(p, g, P, X) {
   return meta;
 }
 
-function bruteAnims() {
-  const mk = (P, X) => makeFrame(FW, FH, FAX, FAY, drawBrute, P, X);
+// draw (optional): eigene Figur auf diesem Rig (sprites/foes_stars2.js: Sternenglut-Gegner)
+function bruteAnims(draw = drawBrute) {
+  const mk = (P, X) => makeFrame(FW, FH, FAX, FAY, draw, P, X);
   const idleA = fpose();
   const idleB = fpose({ hipY: 1.5, lean: 0.26, hFy: 23, hBy: 24, head: 0.5, capT: Math.PI, glow: 1, jaw: 0.3 });
   const idle = [];
@@ -1423,3 +1424,6 @@ export function createSporeFoes() {
     spore_caster: casterAnims(),
   };
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
+export const SPORE_KIT = { TAU, ell, pell, capsule, rig, axis, bruteAnims, FD, FAX, FAY, FW, FH };

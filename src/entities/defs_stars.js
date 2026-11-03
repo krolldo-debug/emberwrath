@@ -1,7 +1,7 @@
 // Sternenscherben Teil 1 (Stufe 40–50): Gegner der Treibenden Gärten, der Splitterweiten und ihrer Dungeons.
 // Abgeleitet wie Runde 3 (enemyTypes3.js derive: Verhalten und Maße vom Vorbild, Leben/Schaden auf die Stufe
-// skaliert). Figuren: umgefärbte Sätze der Vorbilder (recolor, sprites/recolor.js); die häufigsten mit Leerenbefall
-// (recolor.infest) bzw. eigener Figur (Blütenpirscher, sprites/foes_stars.js).
+// skaliert). Figuren: eigene Zeichnungen auf den Rigs der Vorbilder (sprites/foes_stars.js, foes_stars2.js; ohne
+// recolor), sonst umgefärbte Sätze der Vorbilder (recolor, sprites/recolor.js), teils mit Leerenbefall (recolor.infest).
 import { derive } from './enemyTypes3.js';
 
 // Farbrampen der Umfärbung (dunkel → hell); accent färbt kräftige Farben (Augen, Glut) in eine eigene Rampe
@@ -36,12 +36,12 @@ export function createStarEnemies(T) {
   return {
     // --- Treibende Gärten (40–45)
     bloom_stalker: d('frost_wolf', 'bloom_stalker', 'Blütenpirscher', [40, 43], { family: 'beast', howl: true, recolor: { ramp: PINK_FUR, accent: CYAN } }),
-    void_wisp: d('phase_wraith', 'void_wisp', 'Leerenirrlicht', [41, 43], { family: 'undead', spawnStyle: 'fade', hp: 0.85, recolor: { ramp: VOID, accent: MAGENTA } }),
-    rootbound: d('fungal_brute', 'rootbound', 'Wurzelgebundener', [41, 44], { family: 'plant', material: 'wood', recolor: { ramp: BARK, accent: MAGENTA } }),
+    void_wisp: d('phase_wraith', 'void_wisp', 'Leerenirrlicht', [41, 43], { family: 'undead', spawnStyle: 'fade', hp: 0.85 }),
+    rootbound: d('fungal_brute', 'rootbound', 'Wurzelgebundener', [41, 44], { family: 'plant', material: 'wood' }),
     vine_horror: d('plague_toad', 'vine_horror', 'Rankenschrecken', [41, 44], { family: 'plant', recolor: { ramp: MOSS_PALE, accent: MAGENTA, gamma: 0.6, infest: { span: [0.08, 0.7], at: [[0.15, 4, 1.4, 0.5], [0.45, 7, 2, 0.25], [0.75, 5, 1.6, 0.1]], veins: [[0.2, 0.5, 0.45, 0.35], [0.5, 0.45, 0.7, 0.6]] } } }),
     garden_golem: d('cinder_knight', 'garden_golem', 'Gartenwächter', [42, 44], { family: 'construct', material: 'stone', recolor: { ramp: PEARL, accent: CYAN, gamma: 0.6 } }),
     star_moth: d('ash_vulture', 'star_moth', 'Sternfalter', [43, 45], { family: 'beast', recolor: { ramp: MOTH_PALE, accent: MAGENTA, gamma: 0.75, infest: { span: [0.35, 0.65], at: [[0.3, 3, 1, 0.4], [0.7, 4, 1.2, -0.2]], veins: [[0.1, 0.4, 0.35, 0.6], [0.65, 0.6, 0.9, 0.4]] } } }),
-    withered_warden: d('waste_colossus', 'withered_warden', 'Der Verdorrte Hüter', 44, { family: 'plant', material: 'wood', recolor: { ramp: BARK, accent: MAGENTA } }),
+    withered_warden: d('waste_colossus', 'withered_warden', 'Der Verdorrte Hüter', 44, { family: 'plant', material: 'wood' }),
     // --- Rankengruft (42–44)
     thorn_priest: d('rime_witch', 'thorn_priest', 'Dornenpriesterin', [42, 44], { family: 'plant', recolor: { ramp: THORN, accent: MAGENTA } }),
     // --- Splitterweiten (45–50)
@@ -49,8 +49,8 @@ export function createStarEnemies(T) {
     mad_prospector: d('steppe_raider', 'mad_prospector', 'Wahnsinniger Schürfer', [45, 48], { family: 'human', recolor: { ramp: SAND, accent: CYAN } }),
     glass_sentinel: d('frozen_knight', 'glass_sentinel', 'Glaswächter', [46, 49], { family: 'construct', material: 'stone', recolor: { ramp: GLASS_PALE, accent: MAGENTA, gamma: 0.8, infest: { ceil: 36, span: [0.1, 0.6], at: [[0.1, 6, 1.8, 0.5], [0.35, 8, 2, 0.35], [0.6, 4, 1.3, 0.2]], veins: [[0.3, 0.6, 0.55, 0.9], [0.45, 0.3, 0.6, 0.5]] } } }),
     prism_elemental: d('ice_elemental', 'prism_elemental', 'Prismengeist', [46, 49], { family: 'construct', material: 'stone', recolor: { ramp: GLASS, accent: MAGENTA } }),
-    void_hound: d('ember_hellhound', 'void_hound', 'Leerenhund', [47, 50], { family: 'demon', recolor: { ramp: VOID, accent: MAGENTA } }),
-    splinter_colossus: d('waste_colossus', 'splinter_colossus', 'Der Splitterkoloss', 49, { family: 'construct', material: 'stone', recolor: { ramp: GLASS, accent: MAGENTA } }),
+    void_hound: d('ember_hellhound', 'void_hound', 'Leerenhund', [47, 50], { family: 'demon' }),
+    splinter_colossus: d('waste_colossus', 'splinter_colossus', 'Der Splitterkoloss', 49, { family: 'construct', material: 'stone' }),
     // --- Gläserne Hallen (46–48) und Sternwarte (49–50)
     statue_wraith: d('ash_wraith', 'statue_wraith', 'Gläserner Gefangener', [46, 48], { family: 'undead', spawnStyle: 'rise', recolor: { ramp: GLASS_PALE, accent: MAGENTA, gamma: 0.55, infest: { span: [0.15, 0.85], at: [[0.1, 5, 1.5, 0.6], [0.9, 4, 1.3, -0.6]], veins: [[0.35, 0.5, 0.5, 0.9], [0.55, 0.4, 0.65, 0.8]] } } }),
     shadow_ranger: d('raider_archer', 'shadow_ranger', 'Schattenelfen-Späherin', [49, 50], { family: 'human', recolor: { ramp: VOID, accent: CYAN } }),
