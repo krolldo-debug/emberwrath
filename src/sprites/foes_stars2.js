@@ -228,7 +228,7 @@ function drawVoidHoundCorpse(p, g, k) {
 // Gebückter Hüne aus gebleichtem Birkenholz, mit dunklen Wurzelsträngen gefesselt; aus den Schultern bricht ein
 // Kranz großer Leerenkristalle, dahinter tote, gegabelte Äste. Knorrengesicht mit zwei glühenden Astlöchern.
 
-const BIRCH = ['#120d12', '#271e24', '#41353a', '#5f5250', '#827264', '#a6957e', '#cbbb9c'];
+const BIRCH = ['#0a080c', '#171117', '#271e25', '#3b3135', '#544846', '#74665a', '#9a8a70'];
 const KNOT = ['#0e0a10', '#1e1620', '#33283a', '#4a3c50'];
 const CORD = ['#0e0a12', '#1e1626', '#302438', '#46364e', '#5e4a66'];
 
@@ -283,7 +283,6 @@ function woodFist(p, g, x, y, r, near) {
       const fx = x - 3 + i * 1.5, fy = y + r * 0.7, l = 2 + hash2(i, near ? 1 : 2, 87) * 2.5;
       p.fline(fx, fy, fx - 0.3 + i * 0.2, fy + l, i & 1 ? CORD[2] : CORD[3]); p.dot(fx - 0.3 + i * 0.2, fy + l + 0.5, CORD[0]);
     }
-    if (near) rift(p, g, [[x - 1.5, y - r * 0.6], [x - 0.5, y - 0.5], [x + 1.5, y + 0.5]], 0.7);
   }
 }
 
@@ -478,7 +477,7 @@ function glassChunk(p, g, x, y, rx, ry, ramp, seed, heat, cracks = 2, o = {}) {
     poly(p, [[cx, cy], [cx - rx * 0.35, cy - ry * 0.1], [cx - rx * 0.05, cy - ry * 0.45]], ramp[m - 1]);
     p.dot(cx - rx * 0.2, cy - ry * 0.25, '#ffffff');
   }
-  if (cracks && rx > 3) chunkRifts(p, g, x, y, rx, ry, seed + 7, Math.min(2, cracks), heat);
+  if (cracks && rx > 10) chunkRifts(p, g, x, y, rx, ry, seed + 7, 1, heat);
 }
 function glassHead(p, g, hx, hy, P, ex) {
   glassChunk(p, g, hx, hy, 6.5, 5.5, QUARTZ, 150, 0.6, 0, { rim: 1 });
@@ -494,7 +493,7 @@ function glassHead(p, g, hx, hy, P, ex) {
   return { eye: { x: hx + 3, y: hy - 1 }, head: { x: hx, y: hy - 12 }, mouth: { x: hx + 5, y: hy + 3 } };
 }
 const SPLINTER_SKIN = {
-  ROCK: QUARTZ, ROCK_D: QUARTZ_D, LAVA: VLAVA, GLOW: VG, VOID: '#05040c', glowDot: vGlowDot,
+  ROCK: QUARTZ, ROCK_D: QUARTZ_D, LAVA: VLAVA, GLOW: VG, VOID: '#05040c', glowDot: vGlowDot, cap: (...a) => WASTES_KIT.cap(...a),
   boulder: glassChunk,
   shard: (p, g, bx, by, a, h, w, heat) => crystal(p, g, bx, by, a, h * 1.2, w * 1.05, { lit: heat }),
   head: glassHead,
@@ -556,9 +555,33 @@ function wardenHead(p, g, hx, hy, P, ex) {
   if (p.fine) for (let i = 0; i < 6; i++) { const bx = hx - 1 + i * 1.3, l = 2 + hash2(i, 4, 151) * 3; p.fline(bx, hy + 3.5, bx - 0.4, hy + 3.5 + l, LICHEN[i & 1 ? 0 : 1]); p.dot(bx, hy + 3.5, LICHEN[2]); }
   return { eye: { x: hx + 3, y: hy - 1 }, head: { x: hx, y: hy - 12 }, mouth: { x: hx + 5, y: hy + 3 } };
 }
+// Schlanker, gebeugter Baumkörper: Glieder als dünne Äste mit Maserung, Brocken auf gut die Hälfte verkleinert,
+// lange Astarme mit Zweigkrallen statt Fäusten, Wurzelfüße
+function woodCap(p, x0, y0, x1, y1, r0, r1, ramp, o = {}) {
+  const { cap } = WASTES_KIT;
+  const k = 0.5, R0 = r0 * k, R1 = r1 * k;
+  cap(p, x0, y0, x1, y1, R0, R1, ramp, { ...o, rim: o.rim ? 0.6 : 0 });
+  if (!p.fine) return;
+  const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, n = Math.ceil(L * 2);
+  for (const [o2, c] of [[-0.45, ramp[ramp.length - 1]], [0.1, ramp[1]], [0.55, ramp[0]]]) for (let i = 1; i < n; i++) {
+    if (hash2(i >> 2, Math.round(o2 * 10), 17) < 0.2) continue;
+    const t = i / n, r = R0 + (R1 - R0) * t;
+    p.dot(x0 + dx * t + nx * o2 * r, y0 + dy * t + ny * o2 * r, c);
+  }
+}
+const wardenKnot = (p, g, x, y, rx, ry, ramp, seed, heat, cracks, o) => woodKnot(p, g, x, y, rx * 0.55, ry * 0.75, ramp, seed, heat, cracks, o);
+function wardenClaw(p, g, x, y, r, ry, ramp, seed) {
+  const { ell } = WASTES_KIT;
+  ell(p, x, y - 1, 2.6, 2.2, ramp);
+  for (let i = 0; i < 4; i++) {
+    const a = 0.3 + i * 0.42, l = 6 + (i === 1 ? 2 : 0) - (i === 3 ? 1.5 : 0);
+    deadBranch(p, g, x + Math.cos(a) * 1.5, y - 1 + Math.sin(a) * 1.5, a, l, 1.5);
+  }
+  if (p.fine) p.dot(x - 1, y - 2, ramp[ramp.length - 1]);
+}
 const WARDEN_SKIN = {
   ROCK: DEAD, ROCK_D: DEAD_D, LAVA: VLAVA, GLOW: VG, VOID: '#07050a', glowDot: vGlowDot,
-  boulder: woodKnot,
+  boulder: wardenKnot, cap: woodCap, fist: wardenClaw, lift: 5, spine: 4, arm: 4,
   // Rücken und Schultern: abwechselnd Kristallwucher und tote Äste
   shard: (p, g, bx, by, a, h, w, heat) => ((Math.round(bx * 3 + by) & 1) ? crystal(p, g, bx, by, a, h * 1.1, w, { lit: heat }) : deadBranch(p, g, bx, by, a, h * 1.15, w * 1.2)),
   head: wardenHead,
