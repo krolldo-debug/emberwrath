@@ -9,6 +9,7 @@ import { PixelCanvas } from '../gfx/PixelCanvas.js';
 import { EV } from '../core/events.js';
 import { rand, pick, angleDiff } from '../core/math.js';
 import { moveAndCollide } from '../systems/Physics.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Skalvyr, der Frostwurm – Boss der Reifhöhlen (Stufe 37, 3 Phasen: 66 % / 33 %).
 // Angriffe (jeder mit Bodenwarnung):
@@ -196,9 +197,8 @@ export class FallingIcicle extends Entity {
     if (this.done || this.delay - this.t > 0.42) return;
     const z = this.#fallY();
     this.fx.icicle.glow?.draw(ctx, this.x - cx, this.y - cy - z);
-    // Fallstreifen
-    ctx.fillStyle = 'rgba(200,240,255,0.35)';
-    ctx.fillRect(Math.round(this.x - cx), Math.round(this.y - cy - z - 26), 1, 12);
+    // Fallstreifen über dem Zapfen
+    FX.streakFrame(18, 3, 'frost').draw(ctx, Math.round(this.x - cx), Math.round(this.y - cy - z - 14), { alpha: 0.7 });
   }
 }
 
@@ -226,26 +226,16 @@ export class FrostField extends Entity {
   renderEmissive(ctx, cx, cy) {
     const k = Math.min(1, this.t / 0.3) * Math.min(1, (this.duration - this.t) / 0.6);
     if (k <= 0) return;
-    const x = this.x - cx, y = this.y - cy;
-    ctx.save();
-    ctx.globalAlpha = 0.28 * k;
-    ctx.fillStyle = '#6ac8f0';
-    ctx.beginPath(); ctx.ellipse(x, y, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.8 * k;
-    // Reifkristalle: kleine Sterne im Feld
-    for (let i = 0; i < 14; i++) {
-      const a = (i * 2.4 + this.seed) % (Math.PI * 2), rr = ((i * 37 + this.seed) % 100) / 100 * this.r * 0.9;
-      const px = Math.round(x + Math.cos(a) * rr), py = Math.round(y + Math.sin(a) * rr * 0.6);
-      const tw = Math.sin(this.t * 5 + i) > 0.3;
-      ctx.fillStyle = tw ? '#ffffff' : '#9ae4f8';
-      ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3);
+    const x = Math.round(this.x - cx), y = Math.round(this.y - cy);
+    // Reifplatte mit Kristallstrahlen; dunkler Rand und heller Saum bleiben auch auf Eisboden lesbar
+    FX.rimeBed(Math.round(this.r), Math.round(this.seed) % 5).draw(ctx, x, y, { alpha: 0.75 * k });
+    // Reifkristalle funkeln
+    for (let i = 0; i < 9; i++) {
+      const a = (i * 2.4 + this.seed) % (Math.PI * 2), rr = ((i * 37 + this.seed) % 100) / 100 * this.r * 0.85;
+      const tw = Math.sin(this.t * 5 + i);
+      if (tw < -0.2) continue;
+      FX.starFrame(tw > 0.6 ? 3 : 2, 'frost').draw(ctx, Math.round(x + Math.cos(a) * rr), Math.round(y + Math.sin(a) * rr * 0.6), { alpha: k });
     }
-    // Rand: dunkle Kontur + heller Saum, lesbar auch auf blauem Eisboden
-    ctx.strokeStyle = '#06080e'; ctx.lineWidth = 3; ctx.globalAlpha = 0.75 * k;
-    ctx.beginPath(); ctx.ellipse(x, y, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = '#e8fbff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.85 * k;
-    ctx.beginPath(); ctx.ellipse(x, y, this.r, this.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
   }
 }
 
@@ -1030,31 +1020,22 @@ export class Skalvyr extends Actor {
 
   // Frostatem: vom Maul schräg zum Boden, fächert auf, Kristallfunkeln
   #drawBreath(ctx, cx, cy) {
+    // Frostatem: Strom aus Eisnebel-Ballen vom Maul schräg zum Boden, fächert auf, Kristalle funkeln darin
     const m = this.#meta('mouth'), o = this.#breathOrigin();
-    const ca = Math.cos(this.aim), sa = Math.sin(this.aim);
-    const grow = Math.min(1, this.stateTime * 5), fade = Math.min(1, (this.breathDur - this.stateTime) * 4);
-    const R = 124, L = R * grow;
-    const ex = o.x + ca * L, ey = o.y + sa * L * 0.6;
-    let nx = -sa * 0.6, ny = ca; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
-    const cols = this.enraged ? ['#ffffff', '#e8f8ff', '#b4dcff', '#7ab4f0', '#3a6cc0'] : ['#ffffff', '#dcf8ff', '#9ae4f8', '#4aa6d8', '#25649c'];
-    const t = Math.floor(this.stateTime * 18);
-    for (let s = 0; s <= L; s += 1.5) {
-      const k = s / R, kk = Math.min(1, s / (L || 1));
-      const x = m.x + (ex - m.x) * kk, y = m.y + (ey - m.y) * kk + Math.sin(kk * Math.PI) * 5;
-      const w = 2 + k * 40;
-      for (let j = -w; j <= w; j += 1.5) {
-        const e = Math.abs(j) / w;
-        const hsh = ((Math.round(s * 3.1) * 73856093) ^ (Math.round(j * 5) * 19349663) ^ (t * 83492791)) >>> 0;
-        const rnd = (hsh % 1000) / 1000;
-        if (rnd < e * e * 0.9 + k * 0.35) continue;
-        const ci = Math.min(4, Math.floor(e * 2 + k * 2.4 + rnd * 0.8));
-        ctx.globalAlpha = (0.9 - k * 0.4) * fade;
-        ctx.fillStyle = cols[ci];
-        const px = Math.round(x + nx * j - cx), py = Math.round(y + ny * j * 0.6 - cy);
-        if (rnd > 0.965) { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); } // Kristallfunkeln
-        else ctx.fillRect(px, py, k > 0.5 && rnd > 0.8 ? 2 : 1, 1);
-      }
+    const grow = Math.min(1, this.stateTime * 5), fade = Math.max(0, Math.min(1, (this.breathDur - this.stateTime) * 4));
+    const R = 124, N = 44, puffs = [];
+    for (let i = 0; i < N; i++) {
+      const u = (this.stateTime * 1.6 + i / N + ((i * 0.618) % 1) * 0.05) % 1;
+      if (u > grow) continue;
+      const off = (((i * 0.7548776) % 1) - 0.5) * 0.8, a = this.aim + off * Math.min(1, u * 1.6);
+      const ex = o.x + Math.cos(a) * R, ey = o.y + Math.sin(a) * R * 0.6;
+      puffs.push([m.x + (ex - m.x) * u, m.y + (ey - m.y) * u + Math.sin(u * Math.PI) * 5, o.y + Math.sin(a) * u * R * 0.6, u, i]);
     }
-    ctx.globalAlpha = 1;
+    puffs.sort((p, q) => p[2] - q[2]);
+    for (const [x, y, , u, i] of puffs) {
+      const r = [3, 5, 7, 9, 11][Math.min(4, Math.floor(u * 5))], seq = FX.puffSeq(r, this.enraged ? 'frost' : 'mist', 8);
+      seq[Math.min(7, Math.floor(u * 8))].draw(ctx, Math.round(x - cx), Math.round(y - cy), { alpha: fade * 0.85 });
+      if (i % 5 === 0 && u > 0.2) FX.starFrame(2 + (i % 2), 'frost').draw(ctx, Math.round(x - cx + ((i * 7) % 5) - 2), Math.round(y - cy - 2), { alpha: fade });
+    }
   }
 }

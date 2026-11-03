@@ -20,6 +20,7 @@ export const PAL = {
   water: ['#0a2a44', '#1c5882', '#3886b2', '#76bcdc', '#c6eaf6', '#ffffff'],
   teal: ['#063a40', '#0e7888', '#2ec8cc', '#a0fff0', '#e0fffa', '#ffffff'],
   flood: ['#0a1a5a', '#2050d0', '#4a80f0', '#8ac0ff', '#d6ecff', '#ffffff'],
+  mist: ['#1a3450', '#4a7aa0', '#8ab8d4', '#c8e4f0', '#eef8ff', '#ffffff'],
   ghost: ['#0a2a2a', '#2a6a5a', '#4ab89a', '#9af0d0', '#e0fff0', '#ffffff'],
 };
 const ASH = ['#0c0a0e', '#1e1a20', '#36302e', '#524a44', '#7a7068', '#a69c90', '#cec4b6'];
@@ -551,6 +552,44 @@ export function fountainSeq(w, h, pal = 'water', n = 8) {
       }));
     }
     return out;
+  });
+}
+
+// Fallstreifen (senkrecht, spitz nach oben auslaufend). Anker unten mittig
+export function streakFrame(len, w = 2, pal = 'frost') {
+  return cached(`streak:${len}:${w}:${pal}`, () => {
+    const P = PAL[pal], W = w + 2, H = len + 1;
+    return frame(W, H, W / 2, H - 1, (p) => p.each(0, 0, W, H, (x, y) => {
+      const X = Math.abs(x - W / 2), u = (H - 1 - y) / len, hw = (w / 2) * (1 - u * 0.8);
+      if (u < 0 || u > 1 || X >= hw) return null;
+      return band(P, (1 - X / hw) * (1 - u) * 1.1 + 0.15);
+    }));
+  });
+}
+
+// Reiffeld (Bodenellipse r × 0,6r): Eisplatten mit hellen Bruchfugen, Lichtkante oben links,
+// dunkler Rand und heller Saum
+export function rimeBed(r, seed = 0) {
+  return cached(`rime:${r}:${seed}`, () => {
+    const P = PAL.frost, W = r * 2 + 4, H = r * 1.2 + 4, cx = W / 2, cy = H / 2;
+    const cell = (i, j) => [i * 7 + hash2(i, j, seed + 1) * 5, j * 4.6 + hash2(i, j, seed + 2) * 3.2];
+    return frame(W, H, cx, cy, (p) => p.each(0, 0, W, H, (x, y) => {
+      const X = x - cx, Y = y - cy, e = Math.hypot(X / r, Y / (r * 0.6));
+      if (e > 1) return null;
+      if (e > 0.94) return '#06080e';
+      if (e > 0.88) return P[4];
+      const gi = Math.floor(X / 7), gj = Math.floor(Y / 4.6);
+      let d1 = 1e9, d2 = 1e9, best = null;
+      for (let i = gi - 1; i <= gi + 1; i++) for (let j = gj - 1; j <= gj + 1; j++) {
+        const [px, py] = cell(i, j), d = Math.hypot(X - px, (Y - py) * 1.4);
+        if (d < d1) { d2 = d1; d1 = d; best = [px, py]; } else if (d < d2) d2 = d;
+      }
+      const gap = d2 - d1;
+      if (gap < 0.55) return P[4];
+      const l = ((X - best[0]) * -0.6 + (Y - best[1]) * -0.8) / 3;
+      if (gap < 1.2 && l > 0) return P[3];
+      return l > 0.5 ? P[3] : l > -0.3 ? P[2] : P[1];
+    }));
   });
 }
 
