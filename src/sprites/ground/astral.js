@@ -1,5 +1,5 @@
 import { hash2 } from '../../core/math.js';
-import { FK, ramp, hxi, D4 } from './kit.js';
+import { FK, ramp, hxi, D4, pebble, band } from './kit.js';
 import { outdoorGround } from './outdoor.js';
 import { paintRamparts } from './ramparts.js';
 
@@ -34,6 +34,8 @@ const P_SHARDS = {
   moss: ramp(['#263446', '#324658', '#3a5060', '#40596c']),
 };
 const EDGE = hxi('#100c1c');
+// Kiesel im Gras: Perlstein (unabhängig vom Teilgebiet)
+const STONE = ramp(['#1e1c30', '#2e2c44', '#4a4466', '#605a80', '#7c769c', '#9c97ba', '#c2bed8']);
 // Trittsteine der Lichtbrücken: Perlstein, Oberkante hell, Unterseite dunkel mit kleinem Kiel
 const SLAB = ramp(['#1e1c30', '#34324c', '#5a5878', '#8a88a8', '#c4c2dc', '#f0eefc']);
 const V = FK.VOID, B = FK.BRIDGE, G0 = FK.GRASS, DI = FK.DIRT;
@@ -80,8 +82,70 @@ const ZONE = {
 
 function makeSetup(BASE) { return function* astralSetup(x0, y0, cw, ch, K, KW, M, world) {
   const S = yield* BASE.fineSetup(x0, y0, cw, ch, K, KW, M, world);
-  // weiche Flecken im Gras (wie im Entwurf: groß und flach, darüber eine feinere Lage)
+  // Grundton im Gras: große, flache Lage (nur leicht) und eine feinere, die Polster und Mulden zeichnet
   S.mot = S.noise([[4, 22, 14, 901, 0.6], [2, 7, 4.5, 902, 0.4]]);
+  S.tn = S.noise([[4, 15, 10, 931, 0.72], [2, 5, 3.5, 932, 0.28]]);
+  yield;
+  // Stempel im Gras als Stufen der Grasrampe (Farbe erst je Teilgebiet): -1 frei, 0..6 Rampe, 7..9 Blütenblatt
+  const gi = (S.gi = new Int8Array(S.W2 * S.H2).fill(-1));
+  const putI = (F, G, i) => { const f = F - S.F0, g = G - S.G0; if (f >= 0 && g >= 0 && f < S.W2 && g < S.H2) gi[g * S.W2 + f] = i; };
+  const minI = (F, G, i) => { const f = F - S.F0, g = G - S.G0; if (f >= 0 && g >= 0 && f < S.W2 && g < S.H2 && gi[g * S.W2 + f] < 0) gi[g * S.W2 + f] = i; };
+  const grassAt = (F, G) => S.kAt(F, G) === G0 && S.kAt(F, G + 2) === G0 && S.kAt(F, G - 6) === G0;
+  const bladeI = (F, G, hh, lean) => {
+    for (let r = 0; r < hh; r++) {
+      const top = r === hh - 1;
+      putI(F + (top && hh > 2 ? lean : 0), G - r, top ? (hh > 4 ? 6 : 5) : r === hh - 2 ? 5 : r === 0 ? 1 : r === 1 ? 2 : 3);
+    }
+    minI(F + 1, G, 1); minI(F - 1, G + 1, 1);
+  };
+  // Büschel: 3–6 Halme gefächert, Fuß im Schatten; dicht in den Polstern, selten auf hellen Flächen
+  S.cells(8, 7, 6, (cx, cy) => {
+    const h = hash2(cx, cy, 940);
+    if (h >= 0.5) return;
+    const F = cx * 8 + 2 + Math.floor(hash2(cx, cy, 941) * 4), G = cy * 7 + 4 + Math.floor(hash2(cx, cy, 942) * 3);
+    if (!grassAt(F, G) || !grassAt(F - 3, G) || !grassAt(F + 3, G)) return;
+    const p = S.tn[S.wi(F, G)];
+    if (h >= (p < 0.36 ? 0.5 : p < 0.46 ? 0.16 : p > 0.6 ? 0 : 0.03)) return;
+    const n = 3 + Math.floor(hash2(cx, cy, 943) * 4), hh = 4 + Math.floor(hash2(cx, cy, 944) * 3);
+    for (let i = 0; i < n; i++) {
+      const dx = i - (n >> 1), lean = dx < 0 ? -1 : dx > 0 ? 1 : 0;
+      bladeI(F + dx, G, Math.max(2, hh - Math.abs(dx) - (hash2(cx + i, cy, 945) < 0.4 ? 1 : 0)), lean);
+    }
+    for (let i = -(n >> 1) - 1; i <= (n >> 1) + 1; i++) minI(F + i, G + 1, 0);
+  });
+  yield;
+  // Klee: drei runde Blättchen (je 2 × 2, Lichtkante oben), in kleinen Gruppen
+  S.cells(14, 12, 4, (cx, cy) => {
+    if (hash2(cx, cy, 950) >= 0.16) return;
+    const n = 2 + Math.floor(hash2(cx, cy, 951) * 3);
+    for (let k = 0; k < n; k++) {
+      const F = cx * 14 + 2 + Math.floor(hash2(cx + k, cy, 952) * 10), G = cy * 12 + 2 + Math.floor(hash2(cx, cy + k, 953) * 8);
+      if (!grassAt(F, G)) continue;
+      for (const [ox, oy] of [[-2, -1], [1, -1], [-1, 1]]) {
+        putI(F + ox, G + oy, 5); putI(F + ox + 1, G + oy, 4); putI(F + ox, G + oy + 1, 4); putI(F + ox + 1, G + oy + 1, 3);
+      }
+      putI(F, G, 6); minI(F + 2, G + 2, 1); minI(F, G + 3, 1);
+    }
+  });
+  // einzelne Halme: Zellen 3 × 7, nur in Polstern und am Saum zum Weg
+  S.cells(3, 7, 6, (cx, cy) => {
+    const h = hash2(cx, cy, 960);
+    if (h >= 0.4) return;
+    const F = cx * 3 + Math.floor(hash2(cx, cy, 961) * 3), G = cy * 7 + 6;
+    if (S.kAt(F, G) !== G0) return;
+    const p = S.tn[S.wi(F, G)], edge = S.kAt(F, G + 2) !== G0 || S.kAt(F, G + 3) !== G0;
+    if (h >= (edge ? 0.4 : p < 0.36 ? 0.3 : p < 0.46 ? 0.06 : 0.008)) return;
+    const l = hash2(cx, cy, 962);
+    bladeI(F, G, 2 + Math.floor(hash2(cx, cy, 963) * 3), l < 0.2 ? -1 : l < 0.4 ? 1 : 0);
+  });
+  // Kiesel (selten, Perlstein) als feste Farbe
+  S.cells(18, 14, 6, (cx, cy) => {
+    if (hash2(cx, cy, 970) >= 0.08) return;
+    const rx = 1.2 + hash2(cx, cy, 971) * 1.6, ry = rx * 0.7;
+    const px = cx * 18 + 4 + hash2(cx, cy, 972) * 10, py = cy * 14 + 4 + hash2(cx, cy, 973) * 6;
+    if (!grassAt(Math.floor(px), Math.floor(py))) return;
+    pebble(S, px, py, rx, ry, STONE);
+  });
   // Blumeninseln im Gras (rosa, himmelblau, blassgelb je Fleck)
   S.flo = S.noise([[4, 26, 20, 907, 0.75], [2, 6, 6, 908, 0.25]]);
   // Teilgebiet je Weltpixel (0 = Grundgras)
@@ -140,12 +204,16 @@ function makeFine(P, bloom0, petal, bloomAt0) {
   if (kind !== G0) return BASE.finePixel(kind, F, G, K, ki, KW, S);
   if (K[ki - 2 * KW] === V) return RIM;
   if (K[ki - 3 * KW] === V) return RIM2;
-  // Gras: weich gefleckt, Dither auf Weltpixeln (ruhig wie im Entwurf), Halme und Blütenblätter vereinzelt
+  // Gras: Stempel (Halme, Klee, Kiesel) vor dem Grundton; Grundton in vier Stufen, Dither auf Weltpixeln (ruhig)
+  const o = (G - S.G0) * S.W2 + (F - S.F0), si = S.gi[o];
+  if (si >= 0) return si > 6 ? (Z ? Z.PETAL : PETAL0)[si - 7] : GRASS[si];
+  const ab = S.abs[o];
+  if (ab >= 0 && STONE.includes(ab)) return ab;
   const h = hash2(F, G, 905);
   if (h > 0.9986) return (Z ? Z.PETAL : PETAL0)[(F + G) % 3];
-  if (h > 0.996 || hash2(F, G + 1, 905) > 0.996) return GRASS[5];
-  const wi = S.wiFast(F, G), t = 0.2 + S.mot[wi] * 0.72;
-  const x = F >> 1, y = G >> 1;
+  const wi = S.wiFast(F, G), tn = S.tn[wi], dw = D4[(G & 3) * 4 + (F & 3)] / 16;
+  // Polster (dunkel, dicht bewachsen) – Wiese – Lichtung (hell); Stufen mit schmalem Dither-Saum
+  const t = tn * 0.7 + S.mot[wi] * 0.3;
   // Blüten: in Blumeninseln je 4 × 4-Feinzelle höchstens eine (Kreuz aus hellem Kern und Blättern)
   const fl = S.flo[wi], bloomAt = Z ? Z.at : bloomAt0, bloom = Z ? Z.bloom : bloom0;
   if (fl > bloomAt) {
@@ -158,7 +226,7 @@ function makeFine(P, bloom0, petal, bloomAt0) {
       if (dx === 0 && dy === 2) return GRASS[2];
     }
   }
-  return GRASS[Math.max(0, Math.min(5, Math.floor(t * 5 + D4[(y & 3) * 4 + (x & 3)] / 16)))];
+  return GRASS[Math.max(2, Math.min(4, 1 + band(t * 0.9 + 0.12, 3.4, dw)))];
 } };
 }
 
