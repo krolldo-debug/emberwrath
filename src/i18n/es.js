@@ -6102,5 +6102,10 @@ export const ES = {
   "Passt zu deiner Stufe": "Adecuado para tu nivel",
   "Lernen": "Aprender",
   "−{0} % Schaden": "−{0} % de daño",
-  "{0} / {1} EP bis Stufe {2}": "{0} / {1} EXP hasta el nivel {2}"
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} EXP hasta el nivel {2}",
+  "Das Glutland ist frei": "Las Tierras de Ascuas son libres",
+  "Ysolde in der Rauhwacht hat eine neue Vision": "Ysolde, en la Atalaya Agreste, ha tenido una nueva visión",
+  "Glutprüfungen und das Auftragsbrett warten": "Te esperan las Pruebas de Ascuas y el Tablón de contratos",
+  "Als Nächstes: Beende die Hauptquest, dann öffnet sich der Sternenriss": "Lo siguiente: termina la misión principal y se abrirá la Grieta Estelar",
+  "Als Nächstes: Ysolde in der Rauhwacht hat eine Vision": "Lo siguiente: Ysolde, en la Atalaya Agreste, ha tenido una visión"
 };

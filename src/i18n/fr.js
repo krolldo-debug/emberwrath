@@ -6102,5 +6102,10 @@ export const FR = {
   "Passt zu deiner Stufe": "Adapté à ton niveau",
   "Lernen": "Apprendre",
   "−{0} % Schaden": "−{0} % de dégâts",
-  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP jusqu’au niveau {2}"
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP jusqu’au niveau {2}",
+  "Das Glutland ist frei": "Les Terres de Braise sont libres",
+  "Ysolde in der Rauhwacht hat eine neue Vision": "Ysolde, au Guet-des-Freux, a eu une nouvelle vision",
+  "Glutprüfungen und das Auftragsbrett warten": "Les Épreuves des braises et le Tableau des contrats t’attendent",
+  "Als Nächstes: Beende die Hauptquest, dann öffnet sich der Sternenriss": "Prochaine étape : termine la quête principale, puis la Faille Stellaire s’ouvrira",
+  "Als Nächstes: Ysolde in der Rauhwacht hat eine Vision": "Prochaine étape : Ysolde, au Guet-des-Freux, a eu une vision"
 };

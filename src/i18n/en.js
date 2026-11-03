@@ -6102,5 +6102,10 @@ export const EN = {
   "Passt zu deiner Stufe": "Matches your level",
   "Lernen": "Learn",
   "−{0} % Schaden": "−{0}% damage",
-  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP to level {2}"
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP to level {2}",
+  "Das Glutland ist frei": "The Emberlands are free",
+  "Ysolde in der Rauhwacht hat eine neue Vision": "Ysolde in Rookwatch has had a new vision",
+  "Glutprüfungen und das Auftragsbrett warten": "Ember Trials and the Bounty Board await",
+  "Als Nächstes: Beende die Hauptquest, dann öffnet sich der Sternenriss": "Next: finish the main quest, then the Star Rift opens",
+  "Als Nächstes: Ysolde in der Rauhwacht hat eine Vision": "Next: Ysolde in Rookwatch has had a vision"
 };

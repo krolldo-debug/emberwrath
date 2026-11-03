@@ -31,7 +31,9 @@ const gear = (level, slot, rarity = 'uncommon') => ({ ilvl: Math.min(level + 1, 
 export const QUESTS_STARS = {
   // ================================================================ Kapitel 8: Der Riss hinter dem Thron (Glutland)
   q_star_in_crown: {
-    title: 'Ein Stern im kalten Feuer', giver: 'seer_ysolde', turnInNpc: 'commander_hale', main: true, level: 41, minLevel: 40, requires: ['q_homecoming'],
+    // beckon: die Glutspur führt zu Ysolde, solange die Quest offen ist und keine Hauptquest läuft (selectors.js) –
+    // auch für alle, die das Glutland schon vor der Erweiterung befreit haben und noch alte Nebenquests tragen.
+    title: 'Ein Stern im kalten Feuer', giver: 'seer_ysolde', turnInNpc: 'commander_hale', main: true, level: 41, minLevel: 40, requires: ['q_homecoming'], beckon: true,
     summary: 'Erzähl Kommandant Hale, was Ysolde im kalten Feuer der Krone gesehen hat.',
     offer: 'Seit du zurück bist, sehe ich jede Nacht dasselbe Bild. Die Krone ist kalt, aber in ihrer kalten Glut brennt noch etwas. Kein Thron diesmal. Ein Stern, weit hinter dem Aschethron, und er hat Hunger. Hale hört mir nicht mehr zu, seit der Krieg vorbei ist. Dir hört er zu.',
     progressText: 'Hale steht auf dem Wall der Rauhwacht.',
