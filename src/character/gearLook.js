@@ -183,6 +183,10 @@ const HEAD_NAMED = {
   hillking_helm: { crown: M.iron, crownDim: true, crest: null },        // eiserne Krone
   gorm_helm: { style: 'horned', crest: null },
   sovereign_helm: { crown: M.ember, crest: null },
+  // „Kronen“ der Bosse, die bisher wie schlichte Helme aussahen (Nutzer 03.11.2026): Krone auf dem Helm
+  varkhul_helm: { crown: M.bone, crownDim: true, crest: null },        // Krone des Knochenfürsten: Knochenkrone zwischen den Hörnern
+  cryptlord_crown: { crown: M.gold, crest: null },                     // Krone des Gruftfürsten
+  kaldris_helm: { crown: M.starglass, crest: null },                   // Splitterkrone des Kaldris: Sternenglas-Zacken
   // Erfolgsbelohnung „Die Sieben Gefallenen“ (Garderobe): heller Königshelm mit weißgoldener Krone
   tide_circlet: { style: 'circlet', ramp: M.silver, gem: M.blue, trim: null, crest: null, crown: null, coif: false },   // Stirnreif statt Kapuze
   fallen_crown: { style: 'crown', ramp: M.gold, crown: M.ember, glow: M.ember, trim: null, crest: null, coif: false },   // offene Goldkrone (sprites/hero.js drawCrownHi)

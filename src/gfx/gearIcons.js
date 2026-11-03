@@ -672,7 +672,7 @@ function headIcon(A, L) {
   if (st === 'hat') return hatIcon(A, L, D);
   if (st === 'cap') return capIcon(A, L, D);
   if (st === 'circlet') return circletIcon(A, L, D);
-  if (st === 'crown') return crownIcon(A, L.ramp ?? GOLD, L.crown ?? M.ember, D, 24, 30, 1.25);
+  if (st === 'crown') return crownIcon(A, L.ramp ?? GOLD, L.crown ?? M.ember, D, 24, 33, 1.55);
   const cx = 24, cy = 23, rx = st === 'great' ? 12.5 : 13.5, ry = 14.5;
   const great = st === 'great';
   const bottom = great ? 42 : 38;
@@ -727,7 +727,11 @@ function headIcon(A, L) {
   }, { ramp: L.crest });
   if (L.tail) A.shape((x, y) => (x > cx + 2 && x < cx + 7 + (y - 6) * 0.3 && y > 6 && y < 30 && x > cx + 2 + (y - 6) * 0.45 ? { k: 2.6 - (y - 6) / 18 } : null), { ramp: L.crest ?? M.darkleather });
   // Krone auf dem Helm
-  if (L.crown) crownIcon(A, L.crownDim ? L.crown : GOLD, L.crownDim ? null : L.crown, D, cx, 10.5, 0.8);
+  // Glutkrone: Goldreif mit Glutsteinen; sonst Reif in der Kronenfarbe, ohne Leuchten (crownDim) ohne Steine
+  if (L.crown) {
+    const ember = L.crown === M.ember;
+    crownIcon(A, ember ? GOLD : L.crown, L.crownDim ? null : ember ? M.ember : D.gem ?? M.ember, D, cx, 10.5, 0.8);
+  }
   // Stein über der Stirn
   const g = L.gem ?? (D.r >= 3 ? D.gem : null);
   if (g && !L.crown) gem(A, cx, 17, 2.4, g, { glow: D.r >= 3 });
