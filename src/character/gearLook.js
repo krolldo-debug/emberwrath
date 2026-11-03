@@ -183,6 +183,10 @@ const HEAD_NAMED = {
   hillking_helm: { crown: M.iron, crownDim: true, crest: null },        // eiserne Krone
   gorm_helm: { style: 'horned', crest: null },
   sovereign_helm: { crown: M.ember, crest: null },
+  // „Kronen“ der Bosse, die bisher wie schlichte Helme aussahen (Nutzer 03.11.2026): Krone auf dem Helm
+  varkhul_helm: { crown: M.bone, crownDim: true, crest: null },        // Krone des Knochenfürsten: Knochenkrone zwischen den Hörnern
+  cryptlord_crown: { crown: M.gold, crest: null },                     // Krone des Gruftfürsten
+  kaldris_helm: { crown: M.starglass, crest: null },                   // Splitterkrone des Kaldris: Sternenglas-Zacken
   // Erfolgsbelohnung „Die Sieben Gefallenen“ (Garderobe): heller Königshelm mit weißgoldener Krone
   tide_circlet: { style: 'circlet', ramp: M.silver, gem: M.blue, trim: null, crest: null, crown: null, coif: false },   // Stirnreif statt Kapuze
   fallen_crown: { style: 'crown', ramp: M.gold, crown: M.ember, glow: M.ember, trim: null, crest: null, coif: false },   // offene Goldkrone (sprites/hero.js drawCrownHi)
@@ -299,8 +303,8 @@ function weaponLook(def) {
   const base = WEAPONS[def.icon] ?? WEAPONS[family] ?? {};
   // Skinset: eigene harte Leuchtebene (sprites/heroSets.js), kein weicher Seltenheits-Schein
   if (base.set) return { family: base.family ?? family, icon: def.icon, rarity, ...base, shine: 0, tier: 0 };
-  const known = !!WEAPONS[def.icon] || !!WEAPON_NAMED[def.id];
-  const look = { family, icon: def.icon, rarity, ...base, ...cutOf(def, base), ...WEAPON_NAMED[def.id] };
+  const known = !!WEAPONS[def.icon] || !!(WEAPON_NAMED[def.id] ?? WEAPON_NAMED[def.base]);
+  const look = { family, icon: def.icon, rarity, ...base, ...cutOf(def, base), ...(WEAPON_NAMED[def.id] ?? WEAPON_NAMED[def.base]) };
   // Unbekanntes Icon: Material nach Seltenheit, damit „lila“ auch lila aussieht.
   if (!known) {
     if (family === 'sword' || family === 'dagger') { look.blade = R.metal; look.guard = rarity === 'legendary' ? M.gold : R.metal; }
@@ -385,7 +389,7 @@ function headLook(h) {
     if (hd.rarity === 'epic' && !hd.crest && !hd.crown) hd.crest = M.purple;
     if (hd.rarity === 'legendary') hd.crown = M.ember;
   }
-  return Object.assign(hd, HEAD_NAMED[h.id]);
+  return Object.assign(hd, HEAD_NAMED[h.id] ?? HEAD_NAMED[h.base]);   // Varianten (…_owl) wie ihr Grundteil
 }
 // Hände und Füße: ab selten ein Zierband an Stulpe und Knöcheln (Silber, ab episch Gold), ab episch ein Leuchtstein
 const LIMB_TRIM = { rare: M.silver, epic: M.gold, legendary: M.gold };
