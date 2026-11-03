@@ -6102,5 +6102,11 @@ export const EN = {
   "Passt zu deiner Stufe": "Matches your level",
   "Lernen": "Learn",
   "−{0} % Schaden": "−{0}% damage",
-  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP to level {2}"
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP to level {2}",
+  "Haus der Hüterin": "The Warden's House",
+  "Isells Kräuterstube": "Isell's Herb Room",
+  "Brens Gärtnerhaus": "Bren's Gardener's Cottage",
+  "Rosenhäuschen": "Rose Cottage",
+  "Schürferhütte": "Prospector's Hut",
+  "Erzschuppen": "Ore Shed"
 };

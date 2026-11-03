@@ -1,5 +1,6 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { GROUND, clearAround } from '../mapkit.js';
+import { addInteriors } from '../houses.js';
 import { openSites, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND, VOID } from './kit.js';
 
 // ---------------------------------------------------------------- Die Treibenden Gärten (40–45)
@@ -238,7 +239,7 @@ export function buildDriftingGardens() {
   // Weltereignis „Sternenfall“ (world/starfall.js): mögliche Einschlagorte, je Teilgebiet einer
   const starfallSites = openSites(m, [[152, 70], [106, 86], [62, 28], [42, 96], [94, 34]]);
 
-  return {
+  const L = {
     name: 'Die Treibenden Gärten',
     kind: 'outdoor',
     biome: 'astral',
@@ -302,4 +303,22 @@ export function buildDriftingGardens() {
     ],
     signText: 'Ost: Lichtbrücke nach Sternhafen · Nordwest: Hängende Terrassen und Rankengruft · Südwest: Mondweiher und Splitterweiten',
   };
+  // Begehbare Gärtnerhäuser (world/houses.js): Tür = Kachel unter dem Bogen (Anker V/I 1 links, A 1 rechts)
+  return addInteriors(L, [
+    { id: 'huterhaus', name: 'Haus der Hüterin', door: { x: 151, y: 58 }, plan: 'home' },
+    { id: 'kraeuterstube', name: 'Isells Kräuterstube', door: { x: 155, y: 64 }, plan: HERBS },
+    { id: 'gaertnerhaus', name: 'Brens Gärtnerhaus', door: { x: 179, y: 58 }, plan: GARDENER },
+    { id: 'rosenhaus', name: 'Rosenhäuschen', door: { x: 177, y: 66 }, plan: 'homeB' },
+  ], { ambient: [150, 132, 128] });
 }
+
+// Kräuterstube: Bücher, Schreibpult, Kräuterbündel, viele Pflanzen
+const HERBS = {
+  w: 13, h: 9, s: 'A', win: [3, 9], rug: [4, 5, 5, 2], light: [6, 4],
+  furn: [[2, 3, 'fBooks'], [6, 5, 'fDesk'], [10, 3, 'fCupboard'], [11, 7, 'fKegs'], [1, 7, 'fPlant'], [5, 3, 'wHerbs'], [7, 3, 'wHerbs'], [9, 7, 'fPlant'], [3, 7, 'fSacks']],
+};
+// Gärtnerhaus: Herd, Bett, Saatsäcke, Pflanzen am Fenster
+const GARDENER = {
+  w: 13, h: 9, s: 'A', win: [3, 9], rug: [4, 5, 5, 2], light: [6, 4],
+  furn: [[6, 3, 'fHearth'], [10, 4, 'fBed'], [5, 6, 'fTable'], [3, 6, 'fStool'], [1, 7, 'fSacks'], [2, 3, 'fPlant'], [11, 7, 'fPlant'], [8, 3, 'wHerbs'], [4, 3, 'wShelf']],
+};

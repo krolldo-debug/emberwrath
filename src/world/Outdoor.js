@@ -477,6 +477,8 @@ export class Outdoor extends TileMap {
     const w = this.w, h = this.h, I = this.isl;
     const vt = this.voidT = new Uint8Array(w * h), nv = this.nearVoid = new Uint8Array(w * h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const t = this.terrain[y][x]; vt[y * w + x] = t === I.void || t === I.bridge ? 1 : 0; }
+    // Dunkler Streifen der Innenräume (world/houses.js) zählt als Himmel: keine Inselkante am Kartenrand davor
+    if (this.roomPainter) for (const [dx, dy, dw, dh] of this.level.ramparts?.dark ?? []) for (let y = dy; y < Math.min(h, dy + dh); y++) vt.fill(1, y * w + dx, y * w + Math.min(w, dx + dw));
     const isVoid = (x, y) => x < 0 || y < 0 || x >= w || y >= h || vt[y * w + x] === 1;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       let a = 0, b = 0, br = 0;
