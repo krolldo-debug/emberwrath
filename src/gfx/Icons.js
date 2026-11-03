@@ -6,7 +6,6 @@ import { installRarityFrames } from './RarityFrame.js';
 import { SKILL_ART, SKILL_ART_SIZE } from './SkillArt.js';
 import { DYES } from '../character/cosmetics.js';
 import { TIER_LOOK, itemLook } from '../character/gearLook.js';
-import { drawWeaponIcon } from '../sprites/hero.js';
 import { drawGear } from './gearIcons.js';
 
 // Item-, Fähigkeits- und UI-Icons als prozedurale 24×24-Pixel-Art (mit Umriss 26×26).
@@ -2781,43 +2780,14 @@ function resolve(id) {
 }
 
 // ---------------------------------------------------------------- Item-Bild = getragenes Aussehen
-// Ausrüstung (Waffe, Brust, Kopf, Hände, Füße) wird aus character/gearLook.js itemLook(def) gezeichnet: Form aus der
-// Icon-Tabelle oben, Materialien, Steine, Leuchten, Zierrand, Kamm und Krone wie am Helden. Gleiches Aussehen am
-// Helden ergibt dasselbe Bild, unterschiedliches Aussehen ein unterschiedliches. Seltenheit zeigt zusätzlich der Rahmen.
+// Ausrüstung (Waffe, Brust, Kopf, Hände, Füße) wird aus character/gearLook.js itemLook(def) gezeichnet: Materialien, Steine,
+// Leuchten, Zierrand, Kamm und Krone wie am Helden, die Form aber eigens fürs Inventar (gfx/gearIcons.js). Gleiches
+// Aussehen ergibt dasselbe Bild. Die Seltenheit zeigen Rahmen und Zier im Bild (Stein, Runen, Gold, Glutkante).
 //   itemIconId(def) -> Icon-ID für iconEl/iconUrl/iconCanvas (Ausrüstung: 'look:<n>', sonst def.icon)
-const tone = (R, k = 3) => (R ? R[k] : undefined);
-function shapeOf(table, look, family) {
-  const id = resolve(look.icon);
-  return table[id] ?? table[family] ?? Object.values(table)[0];
-}
-// Waffen: dieselbe Zeichenfunktion wie in der Hand des Helden (sprites/hero.js drawWeaponIcon)
-function weaponIcon(L) {
-  return ['heroWeapon', L];
-}
-const LOOK_ICON = {
-  weapon: weaponIcon,
-  chest: (L) => ['armor', { long: shapeOf(ARMORS, L, L.style === 'robe' ? 'robe_mage' : `armor_${L.style}`).long, style: L.style, ramp: L.ramp, trim: L.trim ?? M.gold,
-    shoulder: L.shoulder ?? null, fur: L.fur ?? null, tabard: L.tabard ?? null, emblem: L.emblem ?? null, glow: L.glow ?? null, spikes: !!L.spikes }],
-  head: (L) => ['helm', { ramp: L.ramp, style: L.style === 'horned' ? 'nasal' : L.style, horns: L.style === 'horned', trim: L.trim ?? null, crest: L.crest ?? null,
-    crown: L.crown ?? null, crownDim: !!L.crownDim, coif: !!L.coif, tail: !!L.tail, glow: L.glow ?? null, gem: L.gem ?? null }],
-  hands: (L) => ['gloves', { ...shapeOf(GLOVES, L, `gloves_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
-  feet: (L) => ['boots', { ...shapeOf(BOOTS, L, `boots_${L.style}`), style: L.style, ramp: L.ramp, cuff: L.trim ?? L.ramp, trim: L.trim ?? null, glow: L.glow ?? null }],
-};
-const DRAW_FN = { heroWeapon: (p, L) => drawWeaponIcon((x, y, c) => p.px(x, y, c), L, p.w), armor, helm, gloves, boots };
-// Feinraster: Familien, die ihre 48er-Fassung selbst zeichnen (sonst 24er-Bild ×2 hochskaliert, gfx/Fine.js).
-// Waffen über dieselbe Quelle wie am Helden (48er-PixelCanvas), Brust/Kopf/Hände/Füße über die Feinfassung oben.
-const FINE_LOOK = {
-  heroWeapon: (o) => () => { const p = new PixelCanvas(S * 2, S * 2); DRAW_FN.heroWeapon(p, o); return p.canvas; },
-  armor: (o) => fineIcon(armorFine, o), helm: (o) => fineIcon(helmFine, o), gloves: (o) => fineIcon(glovesFine, o), boots: (o) => fineIcon(bootsFine, o),
-};
 const lookIds = new Map();   // JSON der Zeichenoptionen -> 'look:<n>'
-// Entwurfsweiche (wird nach der Abnahme entfernt): 'A' kräftig (24er-Raster ×2), 'B' fein (48er), 'C' fein + Seltenheitskante; null = bisher
-let GEAR_STYLE = 'B';
-const GEAR_IDS = new Map();  // Icon-ID -> Seltenheit (eigene Inventar-Zeichnung, ohne Feinschliff)
-export function setGearIconStyle(st) {
-  GEAR_STYLE = st;
-  defIds.clear(); canvasCache.clear(); urlCache.clear();
-}
+// Waffen und Rüstung mit eigener Inventar-Zeichnung (gfx/gearIcons.js, 03.11.2026): im 24er-Raster gezeichnet; die
+// 52er-Fassung ist dieselbe Zeichnung mit Umriss ganzzahlig verdoppelt (vom Nutzer gewählter kräftiger Stil).
+const GEAR_IDS = new Set();  // Icon-IDs der eigenen Inventar-Zeichnung
 const defIds = new Map();    // id|icon|rarity -> Icon-ID
 export function itemIconId(def) {
   if (!def) return 'bag';
@@ -2827,31 +2797,19 @@ export function itemIconId(def) {
   id = def.icon;
   const r = def.type === 'weapon' || def.type === 'armor' ? itemLook(def) : null;
   // Waffen und Rüstung: eigene Inventar-Zeichnung (gfx/gearIcons.js), Materialien aus dem getragenen Aussehen
-  if (r && GEAR_STYLE) {
-    const key = `gear|${GEAR_STYLE}|${r.slot}|${JSON.stringify(r.look)}`;
+  if (r) {
+    const key = `gear|${r.slot}|${JSON.stringify(r.look)}`;
     id = lookIds.get(key);
     if (!id) {
       id = `look:${lookIds.size}`;
       lookIds.set(key, id);
       const slot = r.slot, look = r.look;
       REG[id] = (p) => p.ctx.drawImage(drawGear(slot, look, 1), 0, 0);
-      REG_FINE[id] = () => drawGear(slot, look, 2);
-      GEAR_IDS.set(id, look.rarity ?? 'common');
+      REG_FINE[id] = REG[id];   // Merker: hat eine 52er-Fassung (iconEl/fitIcon wählen sie)
+      GEAR_IDS.add(id);
     }
     defIds.set(k, id);
     return id;
-  }
-  const spec = r && LOOK_ICON[r.slot]?.(r.look);
-  if (spec) {
-    const key = JSON.stringify(spec);
-    id = lookIds.get(key);
-    if (!id) {
-      id = `look:${lookIds.size}`;
-      lookIds.set(key, id);
-      const [f, o] = spec;
-      REG[id] = (p) => DRAW_FN[f](p, o);
-      if (FINE_LOOK[f]) REG_FINE[id] = FINE_LOOK[f](o);
-    }
   }
   defIds.set(k, id);
   return id;
@@ -2868,22 +2826,6 @@ export function iconRes() { return (window.devicePixelRatio || 1) >= 1.5 ? 2 : 1
 
 // 48er-Bild mit Umriss (50×50) mittig auf 52×52: genau 2 Feinpixel je Bildpunkt der 26er-Fassung, damit es im Platz
 // (26 × --fpx CSS-px) ganzzahlig skaliert wird wie Rahmen und Effektstreifen (sonst ungleich breite Feinpixel).
-// Entwurf C: 1 Feinpixel Kante in der Seltenheitsfarbe um den Umriss (oben links hell, unten rechts dunkel)
-const RIM = { uncommon: ['#7ad870', '#2e7a2c'], rare: ['#7ab0ff', '#2a5ab0'], epic: ['#c888ff', '#6a2ab0'], legendary: ['#ffb040', '#c85a0c'] };
-function rarityRim(c, rarity) {
-  const col = RIM[rarity];
-  if (!col) return;
-  const w = c.width, h = c.height, ctx = c.getContext('2d'), img = ctx.getImageData(0, 0, w, h), d = img.data;
-  const op = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
-  const set = [];
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (op(x, y)) continue;
-    const lit = op(x + 1, y) || op(x, y + 1), dark = op(x - 1, y) || op(x, y - 1);
-    if (lit || dark) set.push([x, y, lit ? col[0] : col[1]]);
-  }
-  for (const [x, y, cc] of set) { const v = parseInt(cc.slice(1), 16), o = (y * w + x) * 4; d[o] = v >> 16; d[o + 1] = (v >> 8) & 255; d[o + 2] = v & 255; d[o + 3] = 255; }
-  ctx.putImageData(img, 0, 0);
-}
 function padFine(c) {
   const o = makeCanvas(c.width + 2, c.height + 2);
   o.getContext('2d').drawImage(c, 1, 1);
@@ -2901,17 +2843,12 @@ export function iconCanvas(id, res = iconRes()) {
       SKILL_ART[key](p);
       c = p.canvas;
     } else if (res > 1 && GEAR_IDS.has(key)) {
-      if (GEAR_STYLE === 'A') {
-        // kräftig: 24er-Zeichnung mit Umriss, ganzzahlig verdoppelt
-        const p = new PixelCanvas(S, S);
-        REG[key](p);
-        const o = outlineCanvas(p.canvas);
-        c = makeCanvas(52, 52);
-        const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(o, 0, 0, 52, 52);
-      } else {
-        c = padFine(outlineCanvas(REG_FINE[key]()));
-        if (GEAR_STYLE === 'C') rarityRim(c, GEAR_IDS.get(key));
-      }
+      // 24er-Zeichnung mit Umriss, ganzzahlig verdoppelt (kräftige Bildpunkte)
+      const p = new PixelCanvas(S, S);
+      REG[key](p);
+      const o = outlineCanvas(p.canvas);
+      c = makeCanvas(52, 52);
+      const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(o, 0, 0, 52, 52);
     } else if (res > 1 && REG_FINE[key]) {
       c = padFine(outlineCanvas(finishFine(REG_FINE[key](), { rim: 0.22, shade: 0.2 })));
     } else if (res > 1) {

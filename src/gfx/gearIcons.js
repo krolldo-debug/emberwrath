@@ -48,7 +48,7 @@ class Art {
       const r = fn(24 + ((i + 0.5) * s - 24) / z, 24 + ((j + 0.5) * s - 24) / z, i, j);
       if (r == null || r === false) continue;
       const o = typeof r === 'object' ? r : { k: r };
-      this.cell[at] = { id: o.id ?? id, ramp: o.ramp ?? opt.ramp, k: o.k ?? 2, c: o.c, bevel: o.flat ? false : opt.bevel ?? true, glow: o.glow ?? opt.glow };
+      this.cell[at] = { id: o.id ?? id, ramp: o.ramp ?? opt.ramp, k: o.k ?? 2, c: o.c, bevel: o.flat ? false : opt.bevel ?? true, glow: o.glow ?? opt.glow, keep: o.keep };
     }
     return id;
   }
@@ -61,7 +61,7 @@ class Art {
   }
   get(i, j) { return i < 0 || j < 0 || i >= this.n || j >= this.n ? null : this.cell[j * this.n + i]; }
   render() {
-    const n = this.n, cv = makeCanvas(n, n), ctx = cv.getContext('2d'), img = ctx.createImageData(n, n), d = img.data;
+    const n = this.n, cols = new Array(n * n).fill(null);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const c = this.cell[j * n + i];
       if (!c) continue;
@@ -77,7 +77,30 @@ class Art {
         }
         col = c.ramp[clamp(Math.round(k), 0, c.ramp.length - 1)];
       }
-      const v = parseInt(col.slice(1), 16), o = (j * n + i) * 4;
+      cols[j * n + i] = col;
+    }
+    // Grobes Raster: einzelne Ausreißer-Bildpunkte innerhalb eines Bauteils glätten (kein Schachbrett auf Klingen)
+    if (!this.fine) {
+      const fix = [];
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const at = j * n + i, c = this.cell[at];
+        if (!c || c.c || c.glow || c.keep) continue;
+        const same = (a, b) => {
+          const ca = this.get(a[0], a[1]), cb = this.get(b[0], b[1]);
+          if (!ca || !cb || ca.id !== c.id || cb.id !== c.id) return null;
+          const x = cols[a[1] * n + a[0]], y = cols[b[1] * n + b[0]];
+          return x === y && x !== cols[at] ? x : null;
+        };
+        const v = same([i - 1, j], [i + 1, j]) ?? same([i, j - 1], [i, j + 1]);
+        if (v) fix.push([at, v]);
+      }
+      for (const [at, v] of fix) cols[at] = v;
+    }
+    const cv = makeCanvas(n, n), ctx = cv.getContext('2d'), img = ctx.createImageData(n, n), d = img.data;
+    for (let at = 0; at < n * n; at++) {
+      const col = cols[at];
+      if (!col) continue;
+      const v = parseInt(col.slice(1), 16), o = at * 4;
       d[o] = v >> 16; d[o + 1] = (v >> 8) & 255; d[o + 2] = v & 255; d[o + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
@@ -153,14 +176,14 @@ function blade(A, L) {
     const [u, v] = ax(x, y);
     if (u < guardE || u > len) return null;
     const t = (u - guardE) / bladeLen;
-    let w = half * (1 - t * 0.18);
+    let w = half * (A.fine ? 1 - t * 0.18 : 1);
     const tip = L.curve ? 0.7 : 0.8;
     if (t > tip) w *= Math.max(0, (1 - t) / (1 - tip));
     if (L.flame) w *= 0.86 + 0.2 * Math.sin(t * 20);
     const vv = v + curve * t * t * 6;   // Säbel krümmt sich zur Schattenseite
     if (vv < -w || vv > w) return null;
     if (L.jag && vv > w - 1.4 && Math.floor(u / 2.4) % 2 === 0) return null;
-    const ew = A.fine ? 1.1 : 2.1;
+    const ew = A.fine ? 1.1 : 1.45;
     if (vv < -w + ew) return { k: 4 };                                       // Lichtschneide
     if (vv > w - ew) return D.edge ? { k: 3, ramp: D.edge, glow: true } : { k: 1.2 };   // Schattenschneide / Glutkante
     if (L.fuller !== false && (L.fuller || great) && Math.abs(vv + 0.2) < (A.fine ? 0.75 : 1) && t < 0.72) {
@@ -322,10 +345,9 @@ function topper(A, kind, cx, cy, s, R, D, metal, ax) {
     case 'crystal': {
       // langer Kristall entlang der Achse, zwei Facettenhälften und Mittelgrat
       const k = axis(...ax.at(-6 * s, 0), ...ax.at(6 * s, 0));
-      const c0 = ax;   // unbenutzt, Lesbarkeit
-      void c0;
+      const [ox, oy] = ax.at(0);   // Kristall sitzt an der Aufsatz-Mitte statt am Schaftende
       A.shape((x, y) => {
-        const [u, v] = k(x - (cx - ax.at(0)[0]), y - (cy - ax.at(0)[1]));
+        const [u, v] = k(x - (cx - ox), y - (cy - oy));
         if (u < 0 || u > k.L) return null;
         const w = 3.6 * s * (1 - Math.abs(u - k.L * 0.42) / (k.L * 0.58));
         if (Math.abs(v) > w) return null;
@@ -369,6 +391,8 @@ function topper(A, kind, cx, cy, s, R, D, metal, ax) {
       const r = 5.2 * s;
       A.shape((x, y) => {
         const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy);
+        const a = Math.atan2(dy, dx);
+        if (a > 0.5 && a < 1.9) return null;   // offen nach unten rechts: Krummstab statt Ring
         return d <= r + 1.5 && d > r - 1.5 ? { k: roundK(-(dx + dy) / 1.4, r, 2.3) } : null;
       }, { ramp: metal });
       A.shape((x, y) => (Math.hypot(x - cx, y - cy) <= r - 2.2 ? { k: sphereK(x, y, cx, cy, r - 2) } : null), { ramp: R, bevel: false, glow });
@@ -506,10 +530,10 @@ function bowIcon(A, L) {
   };
   // Sehne (unter dem Holz)
   const sAx = axis(...pts[L.recurve ? 6 : 2].slice(0, 2), ...pts[L.recurve ? 90 : 94].slice(0, 2));
-  A.shape((x, y) => { const [u, v] = sAx(x, y); return u >= 0 && u <= sAx.L && Math.abs(v) <= (A.fine ? 0.5 : 0.75) ? { c: L.string ?? STRING, flat: true } : null; });
+  for (let u = 0; u <= sAx.L; u += A.s * 0.5) { const [x, y] = sAx.at(u, 0); A.dot(x, y, L.string ?? STRING); }
   A.shape((x, y) => {
     const [d, t, side] = near(x, y);
-    const w = 2.3 + 1.6 * Math.sin(Math.PI * t);
+    const w = 1.6 + 2.3 * Math.sin(Math.PI * t);
     if (d > w) return null;
     const lit = side > 0;   // Außenseite oben links
     if (t > 0.42 && t < 0.58) return { k: (Math.floor(t * 120) % 2 ? 2.8 : 1.9) + (lit ? 0.4 : -0.3), ramp: grip, id: 900 };
@@ -544,7 +568,13 @@ function chestIcon(A, L) {
   };
   // Stoffstruktur je Bauart
   const tex = (x, y) => {
-    if (!A.fine) return 0;
+    if (!A.fine) {
+      // grobes Raster: Kettenringe als versetzte Punktreihen, Schuppen als Bögen
+      const i = Math.floor(x / 2), j = Math.floor(y / 2);
+      if (st === 'chain') return j % 2 === 0 && (i + (j >> 1)) % 2 === 0 ? { d: -1 } : 0;
+      if (st === 'scale') return j % 2 === 1 && (i + (j >> 1)) % 2 === 0 ? { d: -1.1 } : j % 2 === 0 && (i + (j >> 1)) % 2 === 1 ? { d: 0.5 } : 0;
+      return 0;
+    }
     if (st === 'chain') { const row = Math.floor(y / 1.5), j = Math.floor(y * 2) % 3, i = (Math.floor(x * 2) + (row % 2) * 2) % 4; return j === 0 ? (i === 0 ? -0.9 : 0.6) : j === 1 ? (i === 3 ? -0.7 : 0) : -0.4; }
     if (st === 'scale') { const row = Math.floor(y / 3), off = (row % 2) * 1.5, cx = Math.floor((x + off) / 3) * 3 + 1.5 - off, d = Math.hypot(x - cx, (y - row * 3) * 1.1); return d > 1.6 ? -1 : d < 0.7 ? 0.6 : 0; }
     if (robe) return Math.abs(Math.sin((x - 24) * 0.55 + y * 0.05)) > 0.96 && y > 24 ? -0.8 : 0;
@@ -552,7 +582,8 @@ function chestIcon(A, L) {
   };
   const base = (x, y) => 2.7 - (x - 24) / 16 - (y - 20) / 40;
   // Ärmel
-  A.shape((x, y) => (sleeve(x, y) ? { k: base(x, y) - 0.25 + tex(x, y) } : null), { ramp: R });
+  const tk = (x, y, k) => { const t = tex(x, y); return typeof t === 'object' ? { k: k + t.d, keep: true } : { k: k + t }; };
+  A.shape((x, y) => (sleeve(x, y) ? tk(x, y, base(x, y) - 0.25) : null), { ramp: R });
   // Rumpf
   A.shape((x, y) => {
     if (!body(x, y)) return null;
@@ -568,7 +599,7 @@ function chestIcon(A, L) {
       if (ax2 < 1.2 && y > 10 && y < 30) return Math.floor(y / 2.5) % 2 ? { k: 1 } : { k: 3, ramp: M.bone };
       if (A.fine && Math.abs(ax2 - 7.5) < 0.3 && y > 9 && y < 27 && Math.floor(y) % 2 === 0) return { k: 3.6 };
     }
-    return { k: base(x, y) + tex(x, y) };
+    return tk(x, y, base(x, y));
   }, { ramp: R });
   // Gürtel (nicht bei Platte)
   if (!plate) {
@@ -596,7 +627,7 @@ function chestIcon(A, L) {
   }
   // Schulterstücke (Platte groß, Kette/Schuppe klein); legendär Gold, ab episch Dornen
   if (sh) {
-    const big = plate ? 1 : 0.72;
+    const big = plate ? (A.fine ? 1 : 0.9) : 0.72;
     const shR = L.rarity === 'legendary' && !L.set ? GOLD : sh;
     for (const side of [-1, 1]) {
       const cx = 24 + side * 14 * (plate ? 1 : 0.95), cy = 10.5;
@@ -621,7 +652,7 @@ function chestIcon(A, L) {
     gem(A, 24, ey, D.r >= 3 ? 2.8 : 2.2, em, { glow: D.r >= 3 });
   }
   // Glutnähte (legendär)
-  if (D.edge) {
+  if (D.edge && A.fine) {
     A.shape((x, y) => {
       if (!body(x, y)) return null;
       const ax2 = Math.abs(x - 24);
@@ -729,7 +760,7 @@ function hoodIcon(A, L, D) {
   }, { ramp: R });
   if (D.trim) A.shape((x, y) => {
     if (!outer(x, y) || face(x, y)) return null;
-    const dx = (x - 24) / 8, dy = (y - 28) / 10.7;
+    const dx = (x - 24) / (A.fine ? 8 : 9), dy = (y - 28) / (A.fine ? 10.7 : 11.8);
     return dx * dx + dy * dy <= 1 && y < 37 ? { k: 2.8 - (x - 24) / 10 } : y > 43.5 ? { k: 2.6 - (x - 24) / 14 } : null;
   }, { ramp: D.trim });
   // Spange vorn (ab selten mit Stein)
@@ -857,7 +888,7 @@ function handsIcon(A, L) {
     if (!f) return null;
     const [a, b] = fingers[f - 1];
     let k = base(x, y) + (x < (a + b) / 2 - 0.3 ? 0.3 : -0.2);
-    if (plate && Math.floor((y - 6) / 3.4) % 2 === 1) k -= 0.9;                      // Fingerschienen
+    if (plate && (A.fine ? Math.floor((y - 6) / 3.4) % 2 === 1 : (y + 40) % 6 < 2 && y > 10)) k -= 0.9;   // Fingerschienen
     if (mail && A.fine && (Math.floor(y * 2) % 3 === 0)) k -= 0.6;
     if (cloth && A.fine && Math.floor((y + x * 0.5) / 2.2) % 2 === 0) k -= 0.5;     // Wickelbinden
     return { k, id: 100 + f };
@@ -869,6 +900,7 @@ function handsIcon(A, L) {
     if (y < 21.5) k += 0.6;   // Knöchel
     if (plate && (Math.abs(y - 24) < (A.fine ? 0.5 : 1) || Math.abs(y - 29) < (A.fine ? 0.5 : 1))) k -= 1.3;
     if (mail && A.fine) { const row = Math.floor(y / 1.5), i = (Math.floor(x * 2) + (row % 2) * 2) % 4; k += Math.floor(y * 2) % 3 === 0 ? (i === 0 ? -0.9 : 0.5) : -0.3; }
+    if (mail && !A.fine) { const i = Math.floor(x / 2), j = Math.floor(y / 2); if (j % 2 === 0 && (i + (j >> 1)) % 2 === 0) return { k: k - 1, keep: true }; }
     if (st === 'leather' && A.fine && Math.abs(x - 15.6) < 0.4 && Math.floor(y) % 2 === 0) k += 1;   // Naht
     if (cloth && A.fine && Math.floor((y + x * 0.5) / 2.2) % 2 === 0) k -= 0.5;
     return { k };
@@ -917,7 +949,7 @@ function feetIcon(A, L) {
     if (!foot(x, y)) return null;
     let k = base(x, y);
     if (x > 37.5 && y < 39) k += 0.5;                                // Kappe
-    if (plate && x > 29 && Math.floor((x - 29 + y * 0.5) / 3.6) % 2 === 1) k -= 0.8;   // Zehenschienen
+    if (plate && x > 29 && (A.fine ? Math.floor((x - 29 + y * 0.5) / 3.6) % 2 === 1 : (x - 29 + y * 0.5 + 40) % 6 < 1.6)) k -= 0.8;   // Zehenschienen
     if (mail && A.fine && Math.floor(y * 2) % 3 === 0 && Math.floor(x * 2 + y) % 4 === 0) k -= 0.8;
     if (st === 'leather' && A.fine && Math.abs(y - 39.6) < 0.35 && Math.floor(x) % 2 === 0) k += 1;   // Rahmennaht
     return { k };
@@ -926,7 +958,7 @@ function feetIcon(A, L) {
   A.shape((x, y) => {
     if (!shaft(x, y)) return null;
     let k = base(x, y) + 0.1;
-    if (plate && Math.floor((y - 6) / 4) % 2 === 1) k -= 0.8;          // Beinschienen-Reifen
+    if (plate && (A.fine ? Math.floor((y - 6) / 4) % 2 === 1 : (y - 6) % 6 < 2 && y > 12)) k -= 0.8;          // Beinschienen-Reifen
     if (mail && A.fine) { const row = Math.floor(y / 1.5), i = (Math.floor(x * 2) + (row % 2) * 2) % 4; k += Math.floor(y * 2) % 3 === 0 ? (i === 0 ? -0.9 : 0.5) : -0.3; }
     if (cloth && Math.floor((y - x * 0.4) / (A.fine ? 2.6 : 3)) % 2 === 0) k -= 0.6;   // Wickelbinden
     if (st === 'leather' && x > 21 && x < 27 && y > 22 && y < 34 && A.fine && Math.floor(y / 2.4) % 2 === 0 && Math.abs(x - 24.5) < 1.2) return { k: 3, ramp: M.bone };   // Schnürung
