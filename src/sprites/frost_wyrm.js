@@ -1,6 +1,7 @@
 import { makeCanvas, flipCanvas } from '../gfx/PixelCanvas.js';
 import { buildFrame, SpriteFrame, Animation, lazyFrame, lazyFrames } from '../gfx/Sprite.js';
 import { fineRes, outlinePixels, pixelsToCanvas } from '../gfx/Fine.js';
+import { plate, bar, orb, gem, hornQ, poly as bpoly, hair, dotp } from './bossPaint.js';
 import { hash2 } from '../core/math.js';
 
 // Skalvyr, der Frostwurm – Boss der Reifhöhlen (Stufe 37).
@@ -598,6 +599,40 @@ function spike(p, g, q, r, P, sz, o) {
   if (!frozen) { (RS > 1 ? g.dot : g.px).call(g, tipx, tipy, P.crest > 0.3 || P.glint > 0 ? 4 : 3); if (P.crest > 0.8) g.px(tipx + dx, tipy + dy, 2); }
 }
 
+// ---------------------------------------------------------------- Malwerkzeug (bossPaint.js)
+// Weltmaler: Weltkoordinaten pixelzentriert wie Pen.dot (ganze Zahl = Pixelmitte); m = Material
+function wpen(p, m) {
+  return {
+    step: 1 / RS,
+    each(x0, y0, x1, y1, fn) {
+      const F0 = Math.max(0, Math.floor((x0 + 0.5) * RS)), F1 = Math.min(TW - 1, Math.ceil((x1 + 0.5) * RS));
+      const G0 = Math.max(0, Math.floor((y0 + 0.5) * RS)), G1 = Math.min(TH - 1, Math.ceil((y1 + 0.5) * RS));
+      for (let G = G0; G <= G1; G++) for (let F = F0; F <= F1; F++) { const c = fn((F + 0.5) / RS - 0.5, (G + 0.5) / RS - 0.5); if (c) p.setv(F, G, col(c), m); }
+    },
+    pdot(x, y, c) { p.setv(TX(x), TX(y), col(c), m); },
+  };
+}
+// Kopfmaler: lokale Kopfkoordinaten (u nach vorn, v nach unten) über T = Drehung + Maßstab hs um (bx, by)
+function hpen(p, T, bx, by, ca, sa, hs, m) {
+  const w = wpen(p, m);
+  return {
+    step: 1 / (RS * hs),
+    each(u0, v0, u1, v1, fn) {
+      const cs = [T(u0, v0), T(u1, v0), T(u0, v1), T(u1, v1)];
+      const xs = cs.map((c) => c[0]), ys = cs.map((c) => c[1]);
+      w.each(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys), (x, y) => {
+        const dx = (x - bx) / hs, dy = (y - by) / hs;
+        return fn(ca * dx + sa * dy, -sa * dx + ca * dy);
+      });
+    },
+    pdot(u, v, c) { const [x, y] = T(u, v); w.pdot(x, y, c); },
+  };
+}
+const SC6 = [SCALE[0], SCALE[1], SCALE[2], SCALE[3], SCALE[4], SCALE[5], SCALE[6]];
+const CR6 = ['#0c2440', CRYS[0], CRYS[1], CRYS[2], CRYS[3], CRYS[4]];
+const CRD = ['#081a30', '#0f2c4c', CRYS[0], CRYS[1], CRYS[2], CRYS[3]];
+const HN6 = ['#0e1622', HORN[0], HORN[1], HORN[2], HORN[3], HORN[4]];
+
 // ---------------------------------------------------------------- Klauen
 
 function ik(ax, ay, tx, ty, l1, l2, bend) {
@@ -637,32 +672,22 @@ function limb(p, x0, y0, x1, y1, w0, w1, ramp, m = M_SCALE) {
     }
   }
 }
+// Vorderklaue: geschuppter Arm (Zylinder mit Schuppenplatten), Eisdorn am Ellbogen, Fuß mit drei gebogenen Krallen
 function foreleg(p, sx, sy, fx, fy, near, lift) {
-  const ramp = near ? [SCALE[1], SCALE[3], SCALE[4], SCALE[5]] : [SCALE[0], SCALE[1], SCALE[2], SCALE[3]];
+  const w = wpen(p, M_SCALE), wc = wpen(p, M_CLAW), wk = wpen(p, M_CRYS);
+  const lf = near ? 0 : -2;
   const j = ik(sx, sy, fx, fy - 2, 8.5, 8, -1);
-  limb(p, sx, sy, j.jx, j.jy, 8, 6.5, ramp);
-  limb(p, j.jx, j.jy, j.ex, j.ey, 6.5, 4.5, ramp);
-  // Ellbogen-Stachel
-  const cr = near ? CRYS : [CRYS[0], CRYS[0], CRYS[1], CRYS[2], CRYS[3]];
-  p.line(j.jx - 1, j.jy, j.jx - 4, j.jy - 2, cr[2]); p.px(j.jx - 4, j.jy - 2, cr[3]);
-  if (RS > 1) { p.fline(j.jx - 1, j.jy - 0.5, j.jx - 4, j.jy - 2.5, cr[3]); p.dot(j.jx - 4.5, j.jy - 2.5, cr[4], M_CRYS); }
+  bar(w, sx, sy, j.jx, j.jy, 8, 6.6, SC6, { lift: lf });
+  bar(w, j.jx, j.jy, j.ex, j.ey, 6.4, 4.6, SC6, { lift: lf });
+  // Ellbogen-Eisdorn
+  gem(wk, j.jx - 1, j.jy - 0.5, j.jx - 5.5, j.jy - 3.6, 2.6, near ? CR6 : CRD);
   // Fuß mit drei Krallen
-  const fxr = Math.round(j.ex), fyr = Math.round(j.ey);
-  p.rect(fxr - 2, fyr, 5, 2, ramp[1]); p.rect(fxr - 2, fyr, 4, 1, ramp[2]);
-  const cl = near ? HORN : [HORN[0], HORN[0], HORN[1], HORN[2], HORN[3]];
-  const claws = lift > 2 ? [[3, 0], [4, 2], [2, 3]] : [[3, 1], [4, 2], [1, 2]];
-  for (const [cx, cy] of claws) { p.px(fxr + cx - 1, fyr + cy, cl[2], M_CLAW); p.px(fxr + cx, fyr + cy, cl[3], M_CLAW); p.px(fxr + cx + 1, fyr + cy + (lift > 2 ? 1 : 0), cl[4], M_CLAW); }
-  if (RS > 1) {
-    // fein (Texel): Zehenfugen, Krallen oben mit Glanzkante, unten Schatten, Spitze spitz
-    const t = (X, Y, c, m) => p.setv(X, Y, c ? col(c) : 0, c ? m : 0);
-    for (const X of [2 * fxr - 1, 2 * fxr + 2]) for (let k = 2; k <= 3; k++) t(X, 2 * fyr + k, ramp[0], M_SCALE);
-    for (const [cx, cy] of claws) {
-      const X = 2 * (fxr + cx - 1), Y = 2 * (fyr + cy);
-      for (let k = 1; k <= 3; k++) { t(X + k, Y, cl[4], M_CLAW); t(X + k, Y + 1, cl[1], M_CLAW); }
-      const TXp = 2 * (fxr + cx + 1), TYp = 2 * (fyr + cy + (lift > 2 ? 1 : 0));
-      t(TXp, TYp, cl[4], M_CLAW); t(TXp + 1, TYp, cl[3], M_CLAW); t(TXp, TYp + 1, cl[2], M_CLAW); t(TXp + 1, TYp + 1, null);
-    }
-  }
+  const ex = j.ex, ey = j.ey + 0.5;
+  const hn = near ? HN6 : ['#080e18', HORN[0], HORN[0], HORN[1], HORN[2], HORN[3]];
+  const curl = lift > 2 ? 1.2 : 0;
+  for (const [oy, len] of [[-0.8, 5.4], [0.8, 6.2], [2.2, 4.4]]) hornQ(wc, ex + 2, ey + oy, ex + 2 + len * 0.7, ey + oy - 0.8 - curl, ex + 2 + len, ey + oy + 1.8 + curl, 2.2, 0.5, hn, { n: 5, line: 0.4 });
+  plate(w, [[ex - 3.2, ey - 2], [ex + 2.4, ey - 2.6], [ex + 4.2, ey - 0.2], [ex + 3.6, ey + 2.2], [ex - 3.2, ey + 2.2]], SC6, { edge: 0.6, lift: lf + 0.5, core: 0.8 });
+  hair(w, ex + 0.6, ey - 1.6, ex + 1.2, ey + 1.8, SCALE[0]);
 }
 
 // ---------------------------------------------------------------- Kopf
@@ -692,6 +717,9 @@ function drawHead(p, g, bx, by, P, o) {
 
   // Hintere Hörner (ferne Seite, dunkler)
   hornCurve(p, g, T, [[3, -6], [-5, -12], [-16, -11]], 4, 1, true, P, frozen);
+  const HP = hpen(p, T, bx, by, ca, sa, HS, M_CRYS), HH = hpen(p, T, bx, by, ca, sa, HS, M_HEAD);
+  // Eiskamm hinter der Wange: facettierte Kristalle fächern nach hinten
+  for (const [u0, v0, u1, v1, w] of [[-3, -4.5, -12, -9, 3.4], [-4, -1.2, -14.5, -2.6, 3.8], [-4.5, 2, -13.5, 4.6, 3.4], [-4, 4.6, -10, 9.4, 2.6]]) gem(HP, u0, v0, u1, v1, w, frozen ? CRD : CR6);
 
   // Unterkiefer: kräftiger Knochen mit Kinn, Unterseite dunkel, Kieferkante hell
   const jaw = [[-4, 1.2], [4, LIP], [12, LIP], [19, LIP - 0.1], [23.5, LIP - 0.2], [24.5, 3.6], [23, 5.4], [18, 6.4], [10, 7.4], [3, 7.7], [-3, 6.5], [-5, 4]];
@@ -703,6 +731,11 @@ function drawHead(p, g, bx, by, P, o) {
     if (RS > 1) return SCALE[jv > LIP + 4.4 ? 0 : jv > LIP + 3.2 ? 1 : jv > LIP + 1.4 ? 2 : idx];
     return SCALE[idx];
   }, M_HEAD);
+  // Schuppenplatten an der Kieferseite
+  if (RS > 1) for (let u = 0; u < 22; u += 2.4) for (const [dv, k] of [[2.4, 3], [4, 2]]) {
+    const [a1, b1] = J(u - 0.9, LIP + dv - 0.2), [a2, b2] = J(u, LIP + dv + 0.45), [a3, b3] = J(u + 0.9, LIP + dv - 0.2);
+    hair(HH, a1, b1, a2, b2, SCALE[k - 1]); hair(HH, a2, b2, a3, b3, SCALE[k - 1]);
+  }
   // Kinnbart aus Eiszapfen
   for (const [u, len] of [[5, 3.2], [10, 4.2], [15, 2.6]]) {
     const [a0, b0] = J(u, 6.2 - u * 0.03), [a1, b1] = J(u - 1.3, 6.6 + len);
@@ -827,6 +860,15 @@ function drawHead(p, g, bx, by, P, o) {
     }
     return SCALE[idx];
   }, M_HEAD);
+  // Schuppenzeichnung auf Schädel und Wange: kleine Bögen in versetzten Reihen (fein), Licht oben
+  if (RS > 1) for (let r = 0; r < 4; r++) for (let u = -3.6 + (r % 2) * 1.2; u < 23; u += 2.4) {
+    const v = topV(u) + 2.4 + r * 1.7;
+    if (v > LIP - 1.6 || (Math.abs(u - 9.6) < 4.6 && Math.abs(v + 5.1) < 2.6) || u > 26 - r * 1.5) continue;
+    hair(HH, u - 0.9, v - 0.2, u, v + 0.45, SCALE[r < 2 ? 3 : 2]); hair(HH, u, v + 0.45, u + 0.9, v - 0.2, SCALE[r < 2 ? 3 : 2]);
+    dotp(HH, u, v - 0.35, SCALE[r < 1 ? 6 : 5]);
+  }
+  // Eisdornen auf dem Nasenrücken
+  for (const u of [15, 18, 21]) gem(HP, u, topV(u) + 0.4, u - 2, topV(u) - 2.2, 1.7, frozen ? CRD : CR6);
   // Brauenwulst: kräftiger Knochenbogen über dem Auge, vorn tiefer (finsterer Blick):
   // zwei helle Linien, darunter eine harte Schattenkante zur Augenhöhle
   const tl = (u0, v0, u1, v1, c) => { const [x0, y0] = T(u0, v0), [x1, y1] = T(u1, v1); p.line(x0, y0, x1, y1, c, M_HEAD); };
@@ -910,14 +952,12 @@ function drawHead(p, g, bx, by, P, o) {
   hornCurve(p, g, T, [[1, -7], [-8, -14.5], [-22, -13.5]], 5.4, 1.2, false, P, frozen);
   hornCurve(p, g, T, [[4.5, -8.5], [0, -15.5], [-6, -20]], 3.8, 1, false, P, frozen);
   // Brauenwulst vor den Hornansätzen: zwei helle Linien, darunter harte Schattenkante
-  tl(4, -9.5, 15, -7.9, SCALE[6]);
-  tl(4.5, -8.7, 15.5, -7.1, SCALE[5]);
-  tl(5.5, -7.9, 15.2, -6.4, SCALE[0]);
+  plate(HH, [[3.4, -10.4], [10.6, -9.8], [16.2, -7.9], [15.8, -6.1], [10, -6.9], [5.2, -7.5]], SC6, { edge: 0.8, core: 0.8, line: 0.4, lift: 1.5 });
+  tl(5.5, -7.3, 15.2, -5.8, SCALE[0]);
   if (RS > 1) {
     // fein: Brauenkante – Glanzlinie oben auf dem Wulst, harte Schattenkante darunter
     const fl = (u0, v0, u1, v1, c) => { const [x0, y0] = T(u0, v0), [x1, y1] = T(u1, v1); p.fline(x0, y0, x1, y1, c, M_HEAD); };
-    fl(4.2, -9.85, 14.8, -8.25, '#c4eef6');
-    fl(5.6, -7.45, 15.1, -5.95, '#04080e');
+    fl(5.6, -6.85, 15.1, -5.35, '#04080e');
   }
   // Wangendorn nach hinten unten
   hornCurve(p, g, T, [[-1, 2], [-5, 5], [-8, 9]], 2.6, 1, false, P, frozen, true);
