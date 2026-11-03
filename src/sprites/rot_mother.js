@@ -383,7 +383,8 @@ function slimeFine(pt, P, cx, cy, rx, ry) {
 
 // Kleine Leuchtglocken auf dem Rücken des Leibs
 function backShrooms(pt, P, L) {
-  const list = [[-0.78, -0.5, 7, -0.5], [-0.48, -0.86, 9, -0.2], [-0.98, -0.02, 5, -0.9], [-0.15, -0.98, 5, 0.15]];
+  // Neuzeichnung 03.11.: schlanke, hohe Pilztürme auf dem Rücken (eigene Silhouette), dazwischen kleine Knöpfe
+  const list = [[-0.62, -0.72, 24, -0.42], [-0.36, -0.9, 31, -0.16], [-0.86, -0.38, 15, -0.75], [-0.98, 0.02, 8, -1.05], [-0.14, -0.98, 13, 0.1], [-0.5, -0.8, 9, -0.6]];
   list.forEach(([u, v, h, tilt], i) => {
     const sx = L.cx + u * L.rx * (1 + 0.2 * v), sy = L.cy + v * L.ry;
     const sw = Math.sin(P.hyT + i * 1.9) * 0.08;
@@ -392,9 +393,15 @@ function backShrooms(pt, P, L) {
     const ex = sx + Math.cos(a) * hh, ey = sy + Math.sin(a) * hh;
     // Stiel
     const pts = qbez({ x: sx, y: sy }, { x: sx + Math.cos(a) * hh * 0.5 - tilt * 2, y: sy + Math.sin(a) * hh * 0.5 }, { x: ex, y: ey }, 10);
-    tube(pt, pts, (t) => 2.6 - t * 0.6, (e, t, px, py) => shade(SPOT, 0.35 + e * 0.35, px, py));
-    // Hut (klein, gedreht)
-    const r = 3 + h * 0.28, ca = Math.cos(a + Math.PI / 2), sa = Math.sin(a + Math.PI / 2);
+    tube(pt, pts, (t) => (h > 12 ? 3.4 : 2.6) - t * (h > 12 ? 1.6 : 0.6), (e, t, px, py) => shade(SPOT, 0.3 + e * 0.4 + t * 0.1, px, py));
+    // Ring (Manschette) am Stiel der hohen Türme
+    if (h > 12 && RS > 1) {
+      const m = pts[Math.round(pts.length * 0.62)], w = 2.4;
+      const bpp = bp(pt);
+      plate(bpp, [[m.x - w, m.y - 0.6], [m.x + w, m.y - 0.8], [m.x + w + 0.8, m.y + 1.2], [m.x - w - 0.8, m.y + 1.4]], SPOT6, { edge: 0.4, core: 0.6, line: 0.35 });
+    }
+    // Hut (gedreht): niedrige Knöpfe breit, hohe Türme spitze Glocken
+    const r = h > 12 ? 3.4 + h * 0.12 : 3 + h * 0.28, ca = Math.cos(a + Math.PI / 2), sa = Math.sin(a + Math.PI / 2);
     if (RS > 1) { shroomCapFine(pt, P, i, ex, ey, r, ca, sa); return; }
     for (let yy = -r - 2; yy <= r + 2; yy++) {
       for (let xx = -r - 2; xx <= r + 2; xx++) {
@@ -1138,6 +1145,7 @@ function bp(pt) {
 const BONE6 = [hex('#141a22'), ...BONE, hex('#eef6fa')];
 const CAP6 = [CAP[0], CAP[2], CAP[3], CAP[4], CAP[5], CAP[6]];
 const CAPD = [CAP[0], CAP[1], CAP[2], CAP[3], CAP[4], CAP[5]];
+const SPOT6 = [hex('#141a22'), ...SPOT, hex('#f8fcff')];
 const bump = (t, c, w, a) => { const u = (t - c) / w; return u > -1 && u < 1 ? a * (1 - u * u) : 0; };
 const skinStep = (v) => SKIN[v <= 0 ? 0 : v >= 1 ? 6 : (v * 6 + 0.5) | 0];
 function vineArm(pt, P, S, E, curl, claw, back, seed, meta, key) {
@@ -1274,6 +1282,16 @@ function spores(pt, P, L) {
   }
 }
 
+// Neuzeichnung 03.11.: Warzen auf dem Hut (fahle Schuppenreste)
+function capSpots(pt, P, cg) {
+  if (RS === 1) return;
+  const { bell } = capGeom(P), w = bp(pt);
+  for (let i = 0; i < 9; i++) {
+    const q = -0.82 + hash2(i, 1, 331) * 1.5, f = 0.2 + hash2(i, 2, 331) * 0.6, lx = q * cg.Rr;
+    const c = cg.toW(lx, cg.rimY(lx) - bell(lx) * f), r = 0.9 + hash2(i, 3, 331) * 1.3 * (1 - f * 0.4);
+    orb(w, c.x, c.y, r * 1.25, r, SPOT6, { line: true });
+  }
+}
 // ---------------------------------------------------------------- Figur
 
 function drawMother(pt, P, ex) {
@@ -1313,6 +1331,7 @@ function drawMother(pt, P, ex) {
   capPass(pt, P, K, 'gills');
   head(pt, P, L, meta);
   const cg = capPass(pt, P, K, 'dome');
+  capSpots(pt, P, cg);
   hyphae(pt, P, cg);
   const top = cg.toW(0, cg.rimY(0) - cg.Hd);
   meta.head = { x: top.x, y: top.y };
