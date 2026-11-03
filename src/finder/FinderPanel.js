@@ -3,6 +3,7 @@ import { ROLES, roleAllowed } from './protocol.js';
 import { finderIcon } from './icons.js';
 import { dungeonEmblem, dungeonScene } from './art.js';
 import { renderArena, arenaOpen } from '../pvp/ArenaPanel.js';
+import { pixelWindow, pixelLabel, PX_MUTED } from '../ui/pixelFrame.js';
 
 // Panel 'finder': Dungeon und Rolle wählen, Suche starten/beenden, Suchstand. Wenig Text: Name, Stufe,
 // Symbole; Erklärungen der Rollen stehen im Tooltip. Jeder Dungeon hat ein eigenes Wappen und ein kleines
@@ -21,17 +22,28 @@ export function createFinderPanel(session, params = {}) {
 
   const body = h('div.fd-body');
   const error = h('p.fd-error', { role: 'alert' });
+  // Kopf im Pixelfenster (ui/pixelFrame.js): Reiter als Pixelschrift, der gewählte in Glut, die anderen gedämpft.
+  // Ohne Arena (unter Stufe 10) steht dort nur der Titel „Dungeonsuche“.
+  const TABS = [['dungeon', 'Dungeons'], ['arena', 'Glutarena']];
+  const tabBtn = ([id, label]) => h('button.fd-tab.fd-pxtab', { type: 'button', role: 'tab', 'data-tab': id, 'aria-label': label, onclick: () => setTab(id) });
   const root = h('div.ef-panel.fd-panel', { role: 'dialog', 'aria-label': 'Dungeonsuche' },
     h('header.fd-head',
-      h('img.fd-head-icon', { src: finderIcon('group', 2), alt: '', width: 32, height: 32 }),
       arena
-        ? h('div.fd-tabs', { role: 'tablist' }, ...[['dungeon', 'Dungeons'], ['arena', 'Glutarena']].map(([id, label]) =>
-          h('button.ef-sub.fd-title.fd-tab', { type: 'button', role: 'tab', 'data-tab': id, onclick: () => setTab(id) }, label)))
-        : h('h2.ef-sub.fd-title', 'Dungeonsuche'),
+        ? h('div.fd-tabs', { role: 'tablist' }, ...TABS.map(tabBtn))
+        : h('h2.ef-sub.fd-title.fd-pxt', 'Dungeonsuche'),
       h('button.fd-close', { type: 'button', 'aria-label': 'Schließen', onclick: () => session.panels.close() }, '×'),
     ),
     body, error,
   );
+  pixelWindow(root, session.font, 'Dungeonsuche', arena ? null : root.querySelector('.fd-title'));
+  const paintTabs = () => {
+    for (const b of root.querySelectorAll('.fd-tab')) {
+      const on = b.dataset.tab === tab, label = TABS.find(([id]) => id === b.dataset.tab)[1];
+      b.setAttribute('aria-selected', String(on));
+      if (session.font) b.replaceChildren(pixelLabel(session.font, label, on ? undefined : PX_MUTED), h('span.ef-sr', label));
+      else b.textContent = label;
+    }
+  };
 
   const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   const icon = (id, size = 32) => h('img.fd-ico', { src: finderIcon(id, size / 16), alt: '', width: size, height: size });
@@ -47,12 +59,14 @@ export function createFinderPanel(session, params = {}) {
     clear(body);
     const rows = h('div.fd-dungeons', { role: 'radiogroup', 'aria-label': 'Dungeon' });
     const rnd = finder.randomFor(c.level);
-    const row = (id, ico, name, lv, open) => h('button', {
-      type: 'button', role: 'radio', 'aria-checked': String(pick === id), class: `fd-dungeon${pick === id ? ' selected' : ''}${open ? '' : ' locked'}`,
+    // fit: Dungeon passt zur eigenen Stufe (kleiner Glutstein am Rand, Erklärung im Tooltip)
+    const row = (id, ico, name, lv, open, fit = false) => h('button', {
+      type: 'button', role: 'radio', 'aria-checked': String(pick === id), class: `fd-dungeon${pick === id ? ' selected' : ''}${open ? '' : ' locked'}${fit ? ' fit' : ''}`,
+      title: fit ? 'Passt zu deiner Stufe' : null,
       disabled: !open, onclick: () => { pick = id; renderPick(); },
     }, h('img.fd-ico', { src: ico, alt: '', width: 32, height: 32 }), h('span.fd-dname', name), lv ? h('span.fd-dlv', lv) : null);
     rows.append(row('random', finderIcon('random', 2), 'Zufälliger Dungeon', null, !!rnd));
-    for (const d of list) rows.append(row(d.id, dungeonEmblem(d.id, 2) ?? finderIcon('skull', 2), d.name, d.open ? `Stufe ${d.min}–${d.max}` : `ab Stufe ${Math.max(1, d.min - 2)}`, d.open));
+    for (const d of list) rows.append(row(d.id, dungeonEmblem(d.id, 2) ?? finderIcon('skull', 2), d.name, d.open ? `Stufe ${d.min}–${d.max}` : `ab Stufe ${Math.max(1, d.min - 2)}`, d.open, d.open && c.level >= d.min && c.level <= d.max));
     const sel = pick === 'random' ? null : list.find((d) => d.id === pick);
     const boss = sel ? bossName(sel.id) : null;
     // Niedrige Handy-Schirme: kleinere Rollensymbole (ganzzahlig 2× statt 3×), damit Bild, Rollen und Start passen
@@ -138,7 +152,7 @@ export function createFinderPanel(session, params = {}) {
   function setTab(id) {
     tab = id;
     if (g.pvp) g.pvp.lastTab = id;
-    for (const b of root.querySelectorAll('.fd-tab')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+    paintTabs();
     arenaView?.dispose();
     arenaView = null;
     shown = null;

@@ -112,8 +112,25 @@ const GLYPHS = {
   gear: ['ggggggg', 'gGGgGGg', 'gGHgGHg', 'ggggggg', 'gGGgGGg', 'gGHgGHg', 'ggggggg'],
   trash: ['...sss...', '.sSSSSSs.', '.........', '..sSsSs..', '..sSsSs..', '..sSsSs..', '..sSsSs..', '..sssss..', '.........'],
   auto: ['...ggg...', '..gGGGg..', '.gGHHGGg.', '.gGHGGGg.', '.gGGGGGg.', '..gGGGg..', '...ggg...', '.........', '.........'],
+  // Charakterfenster: Ressourcen, Tempo und Chronik
+  rage: ['R..R..R', 'R..R..R', '.R..R..', '.R..R..', '..R..R.', '..R..R.', '...R..R'],
+  mana: ['...u...', '..uUu..', '.uUUUu.', 'uUWUUUu', 'uUWUUUu', '.uUUUu.', '..uuu..'],
+  energy: ['....Yy.', '...Yy..', '..Yy...', '.YYYYY.', '...yY..', '..yY...', '.yY....'],
+  focus: ['..eee..', '.eEEEe.', 'eE.e.Ee', 'eEeEeEe', 'eE.e.Ee', '.eEEEe.', '..eee..'],
+  speed: ['..sss..', '..sSs..', '..sSs..', '..sSs..', '.sSSs..', 'sSSSSSs', 'sssssss'],
+  kills: ['.sSSSs.', 'sSSSSSs', 'SkkSkkS', 'SkkSkkS', 'sSSkSSs', '.sSSSs.', '.S.S.S.'],
+  elite: ['s.....s', 'Ss...sS', '.SSSSS.', 'SkkSkkS', 'SSSkSSS', '.SSSSS.', '..S.S..'],
+  boss: ['g..g..g', 'gG.G.Gg', 'gGGGGGg', 'gGRGRGg', 'gGGGGGg', 'ggggggg', '.......'],
+  quest: ['pPPPPp.', '.PkkkP.', '.PPPPP.', '.PkkkP.', '.PPPPP.', '.PkkPP.', '.pPPPPp'],
+  loot: ['..ggg..', '...b...', '.bBBBb.', 'bBBBBBb', 'bBBBBBb', 'bBBBBBb', '.bbbbb.'],
+  craft: ['ssssss.', 'SSSSSSS', '.sSSSs.', '..sSs..', '..sSs..', '.sSSSs.', 'sssssss'],
+  coin: ['..ggg..', '.gGGGg.', 'gGHGGGg', 'gGHGGGg', 'gGGGGGg', '.gGGGg.', '..ggg..'],
+  time: ['bbbbbbb', '.PPPPP.', '..PPP..', '...P...', '..PgP..', '.PgggP.', 'bbbbbbb'],
 };
-const GLYPH_PAL = { r: '#8a1a22', R: '#e0484a', s: '#6a7488', S: '#c8d0e0', g: '#8a5a18', G: '#e8c25a', H: '#fff4c0', b: '#5a3626', y: '#c8922a', Y: '#ffd66a', w: '#ffffff' };
+const GLYPH_PAL = {
+  r: '#8a1a22', R: '#e0484a', s: '#6a7488', S: '#c8d0e0', g: '#8a5a18', G: '#e8c25a', H: '#fff4c0', b: '#5a3626', B: '#946038', y: '#c8922a', Y: '#ffd66a', w: '#ffffff',
+  k: '#1a0e14', u: '#2a58b8', U: '#5a98f0', W: '#c0e0ff', e: '#2a7a34', E: '#6ee06a', p: '#8a7450', P: '#e2d4ac',
+};
 const glyphCache = new Map();
 export function statGlyph(id) {
   if (glyphCache.has(id)) return glyphCache.get(id);

@@ -6098,5 +6098,9 @@ export const FR = {
   "Die letzte Welle bricht aus dem Stern.": "La dernière vague jaillit de l'étoile.",
   "Sternenfall überstanden": "Chute d'étoile surmontée",
   "Das Sternenherz ist aufgebrochen": "Le Cœur d'étoile s'est ouvert",
-  "Das Sternenherz nehmen": "Prendre le Cœur d'étoile"
+  "Das Sternenherz nehmen": "Prendre le Cœur d'étoile",
+  "Passt zu deiner Stufe": "Adapté à ton niveau",
+  "Lernen": "Apprendre",
+  "−{0} % Schaden": "−{0} % de dégâts",
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP jusqu’au niveau {2}"
 };

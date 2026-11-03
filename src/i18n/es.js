@@ -6098,5 +6098,9 @@ export const ES = {
   "Die letzte Welle bricht aus dem Stern.": "La última oleada surge de la estrella.",
   "Sternenfall überstanden": "Lluvia de estrellas superada",
   "Das Sternenherz ist aufgebrochen": "El Corazón Estelar se ha abierto",
-  "Das Sternenherz nehmen": "Tomar el Corazón Estelar"
+  "Das Sternenherz nehmen": "Tomar el Corazón Estelar",
+  "Passt zu deiner Stufe": "Adecuado para tu nivel",
+  "Lernen": "Aprender",
+  "−{0} % Schaden": "−{0} % de daño",
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} EXP hasta el nivel {2}"
 };

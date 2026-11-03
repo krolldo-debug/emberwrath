@@ -6098,5 +6098,9 @@ export const EN = {
   "Die letzte Welle bricht aus dem Stern.": "The last wave bursts from the star.",
   "Sternenfall überstanden": "Starfall survived",
   "Das Sternenherz ist aufgebrochen": "The Star Heart has cracked open",
-  "Das Sternenherz nehmen": "Take the Star Heart"
+  "Das Sternenherz nehmen": "Take the Star Heart",
+  "Passt zu deiner Stufe": "Matches your level",
+  "Lernen": "Learn",
+  "−{0} % Schaden": "−{0}% damage",
+  "{0} / {1} EP bis Stufe {2}": "{0} / {1} XP to level {2}"
 };

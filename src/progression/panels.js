@@ -10,6 +10,7 @@ import { registerEndgamePanels, bonusSectionEl } from './endgamePanels.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { HeroStage, statGlyph } from './heroStage.js';
 import { fmtNum } from '../i18n/index.js';
+import { pixelWindow } from '../ui/pixelFrame.js';
 import { FINDER_CONFIG } from '../finder/config.js';
 
 // HTML-Panels von Thread C. Jedes Panel zeichnet sich bei jeder Zustandsänderung
@@ -33,6 +34,11 @@ export function registerPanels(game) {
 }
 
 const commit = (s, type, payload) => s.state.commit(type, payload);
+// Fenster im Pixelrahmen mit Pixeltitel (ui/pixelFrame.js), wie Auktionshaus und Postfach
+const pxFrame = (s, id, title, ...body) => {
+  const el = panelFrame(s, id, title, ...body);
+  return pixelWindow(el, s.font, title, el.querySelector('.pg-title'));
+};
 const zoneName = (c, id) => (id ? c.find('zone', id)?.name ?? null : null);
 const classOf = (s) => s.state.slices.character?.classId ?? null;
 const levelOf = (s) => s.state.slices.progress.level;
@@ -174,6 +180,7 @@ function inventoryView(s) {
         h('div.pg-doll-name', { translate: 'no' }, st.slices.character?.name ?? 'Held'),
         titleOf(st) ? h('div.pg-doll-title', titleOf(st)) : null,
         h('div.pg-doll-sub', h('span', `Stufe ${level}`), cls ? h('span', cls.name) : null),
+        goldEl(st.slices.wallet.gold, '.pg-doll-gold'),
         h('ul.pg-doll-stats',
           stat('hp', 'Leben', String(stats.maxHp ?? 0)),
           stat('power', STAT_NAMES.power, String(Math.round(stats.power ?? 0))),
@@ -259,7 +266,9 @@ function inventoryView(s) {
           return b;
         })() : null),
         // Im Materialreiter ohne Platzzahl (Materialien belegen keine Plätze); unsichtbar statt entfernt, damit nichts springt
-        h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}${filter === 'mat' ? '.off' : ''}`, `${used}/${inv.slots.length} Plätze`));
+        // Handy quer: nur die Zahl (Beschriftung als Tooltip/Vorlesetext), damit beide Verkaufsknöpfe Platz haben
+        h(`span.pg-cap${used >= inv.slots.length - 2 ? '.full' : ''}${filter === 'mat' ? '.off' : ''}`, { title: `${used}/${inv.slots.length} Plätze` },
+          h('span.pg-cap-long', `${used}/${inv.slots.length} Plätze`), h('span.pg-cap-short', { 'aria-hidden': 'true' }, `${used}/${inv.slots.length}`)));
     }
     // Auto-Verkauf als Umschalter in der Reiterzeile; das kleine Farbquadrat zeigt die Stufe (weiß / grün)
     const auto = inv.autoSell ?? null;
@@ -289,7 +298,7 @@ function inventoryView(s) {
       return el;
     });
 
-    return panelFrame(s, 'inventory', 'Inventar',
+    return pxFrame(s, 'inventory', 'Inventar',
       h('div.pg-scroll.pg-keep-scroll.pg-inv',
         doll,
         h('section.pg-bagwrap',
@@ -320,8 +329,11 @@ function fmtTime(sec) {
 const RES = { rage: 'Wut', mana: 'Mana', energy: 'Energie' };
 const ATTR = { str: 'Stärke', agi: 'Geschick', int: 'Intellekt', vit: 'Ausdauer' };
 
-// Aufgeräumt (11.10.): keine Ausrüstung (steht im Inventar), keine Knöpfe zu Talenten/Erfolgen/Reittieren
-// (eigene Tasten und Menü), damit das Fenster ohne Bildlauf auskommt. Werte und Chronik nebeneinander.
+// Neu (03.11.): Werte als Kacheln mit Pixelsymbol, großer Zahl und kleiner Beschriftung statt einer Zahlenliste.
+// Links Steckbrief (Name, Stufe, Volk, Klasse, Erfahrung, Gold) und Chronik, rechts Werte und Attribute als Balken.
+// Keine Ausrüstung (steht im Inventar), keine Knöpfe zu Talenten/Erfolgen/Reittieren (eigene Tasten und Menü).
+const RES_GLYPH = { rage: 'rage', mana: 'mana', energy: 'energy' };
+const ATTR_ORDER = ['str', 'agi', 'int', 'vit'];
 function characterView(s) {
   return () => {
     const st = s.state, c = s.content, ch = st.slices.character ?? {};
@@ -330,31 +342,49 @@ function characterView(s) {
     const race = ch.raceId ? c.find('race', ch.raceId) : null;
     const cls = ch.classId ? c.find('class', ch.classId) : null;
     const pst = st.slices.progress.stats;
-    const row = (k, v) => h('div.pg-kv', h('dt', String(k)), h('dd', String(v)));
-    const statRows = [
-      row('Leben', stats.maxHp),
-      stats.maxResource ? row(stats.resourceName ?? RES[stats.resourceType] ?? STAT_NAMES.maxResource, stats.maxResource) : null,
-      row(STAT_NAMES.power, Math.round(stats.power ?? 0)),
-      row(STAT_NAMES.armor, stats.damageReduction != null ? `${Math.round(stats.armor ?? 0)} (−${Math.round(stats.damageReduction * 100)} %)` : Math.round(stats.armor ?? 0)),
-      row(STAT_NAMES.critChance, `${Math.round((stats.critChance ?? 0) * 100)} %`),
-      stats.moveSpeed ? row(STAT_NAMES.moveSpeed, typeof stats.moveSpeed === 'number' && stats.moveSpeed < 1 ? `+${Math.round(stats.moveSpeed * 100)} %` : stats.moveSpeed) : null,
+    const glyph = (id) => h('img.pg-cg', { src: statGlyph(id), alt: '', width: 14, height: 14 });
+    const tile = (id, label, value, sub = null, tint = null) => {
+      const el = h(`div.pg-ctile.t-${id}`, { title: label },
+        glyph(id), h('b.pg-ctile-v', String(value)), h('span.pg-ctile-l', label), sub ? h('span.pg-ctile-s', sub) : null);
+      if (tint) el.style.setProperty('--tint', tint);
+      return el;
+    };
+    const resGlyph = ch.classId === 'ranger' ? 'focus' : RES_GLYPH[stats.resourceType] ?? 'energy';
+    const tiles = [
+      tile('hp', 'Leben', fmt(stats.maxHp ?? 0)),
+      stats.maxResource ? tile(resGlyph, stats.resourceName ?? RES[stats.resourceType] ?? STAT_NAMES.maxResource, fmt(stats.maxResource), null, stats.resourceColor) : null,
+      tile('power', STAT_NAMES.power, fmt(Math.round(stats.power ?? 0))),
+      tile('armor', STAT_NAMES.armor, fmt(Math.round(stats.armor ?? 0)), stats.damageReduction != null ? `−${Math.round(stats.damageReduction * 100)} % Schaden` : null),
+      tile('crit', STAT_NAMES.critChance, `${fmtNum(Math.round((stats.critChance ?? 0) * 100))} %`),
+      stats.moveSpeed ? tile('speed', STAT_NAMES.moveSpeed, typeof stats.moveSpeed === 'number' && stats.moveSpeed < 1 ? `+${Math.round(stats.moveSpeed * 100)} %` : fmt(stats.moveSpeed)) : null,
     ];
-    const attrs = stats.attributes ? Object.entries(stats.attributes).map(([k, v]) => row(ATTR[k] ?? k, Math.round(v))) : [];
-    return panelFrame(s, 'character', 'Charakter',
-      h('div.pg-scroll.pg-keep-scroll.pg-char',
-        h('section.pg-char-id',
-          h('div.pg-char-top',
+    // Attribute als Balken: Länge im Verhältnis zum stärksten Attribut, Farbe je Attribut
+    const at = stats.attributes ?? null;
+    const top = at ? Math.max(1, ...ATTR_ORDER.map((k) => at[k] ?? 0)) : 1;
+    const attrs = at ? ATTR_ORDER.filter((k) => k in at).map((k) => h(`div.pg-cattr.a-${k}`, { title: ATTR[k] },
+      h('span.pg-cattr-l', ATTR[k]), h('b.pg-cattr-v', fmt(Math.round(at[k]))),
+      h('span.pg-cattr-bar', h('i', { style: { width: `${Math.max(4, Math.round((at[k] / top) * 100))}%` } })))) : [];
+    const chron = (id, label, value) => h('li', { title: label }, glyph(id), h('span', label), h('b', String(value)));
+    return pxFrame(s, 'character', 'Charakter',
+      h('div.pg-scroll.pg-keep-scroll.pg-char.pg-char2',
+        h('section.pg-cid',
+          h('div.pg-clv', { title: `Stufe ${xp.level}` }, h('b', String(xp.level))),
+          h('div.pg-cid-text',
             h('div.pg-char-name', { translate: 'no' }, ch.name ?? 'Unbekannt'),
             titleOf(st) ? h('div.pg-char-title', titleOf(st)) : null,
-            h('div.pg-char-gold', goldEl(st.slices.wallet.gold))),
-          h('div.pg-char-sub', `Stufe ${xp.level}${race ? ` · ${race.name}` : ''}${cls ? ` · ${cls.name}` : ''}`),
-          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${fmt(xp.into)} / ${fmt(xp.need)} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar')),
-        h('div.pg-char-cols',
-          h('section', h('h3', 'Werte'), h('dl.pg-kvs', statRows), attrs.length ? h('dl.pg-kvs.pg-attrs', attrs) : null),
-          h('section', h('h3', 'Chronik'), h('dl.pg-kvs',
-            row('Besiegte Gegner', fmt(pst.kills)), row('Elite', fmt(pst.eliteKills ?? 0)), row('Bosse', fmt(pst.bossKills)),
-            row('Quests erfüllt', fmt(pst.questsCompleted)), row('Gegenstände gefunden', fmt(pst.itemsLooted ?? 0)),
-            row('Geschmiedet', fmt(pst.crafted ?? 0)), row('Gold verdient', fmt(pst.goldEarned)), row('Spielzeit', fmtTime(st.meta.playTime ?? 0))))),
+            h('div.pg-char-sub', [race?.name, cls?.name].filter(Boolean).join(' · '))),
+          barEl(xp.frac, xp.capped ? 'Höchststufe erreicht' : `${fmt(xp.into)} / ${fmt(xp.need)} EP bis Stufe ${xp.level + 1}`, '.pg-xpbar'),
+          h('div.pg-char-gold', goldEl(st.slices.wallet.gold))),
+        h('section.pg-cstats',
+          h('h3', 'Werte'),
+          h('div.pg-ctiles', tiles),
+          attrs.length ? h('div.pg-cattrs', attrs) : null),
+        h('section.pg-cchron',
+          h('h3', 'Chronik'),
+          h('ul.pg-chron',
+            chron('kills', 'Besiegte Gegner', fmt(pst.kills)), chron('elite', 'Elite', fmt(pst.eliteKills ?? 0)), chron('boss', 'Bosse', fmt(pst.bossKills)),
+            chron('quest', 'Quests erfüllt', fmt(pst.questsCompleted)), chron('loot', 'Gegenstände gefunden', fmt(pst.itemsLooted ?? 0)),
+            chron('craft', 'Geschmiedet', fmt(pst.crafted ?? 0)), chron('coin', 'Gold verdient', fmt(pst.goldEarned)), chron('time', 'Spielzeit', fmtTime(st.meta.playTime ?? 0)))),
         bonusSectionEl(st)));
   };
 }

@@ -1610,3 +1610,39 @@ html.ef-touch:not(.ef-portrait) #ui .net-chat.open { left: calc(var(--ef-safe-l)
 /* Mehrere Erfolge auf einmal: eine Sammelzeile in der Meldungsspalte, deckend */
 .ef-toasts > .ef-toast.k-achievement { background: #1e1408; border: 2px solid #8a6420; border-top-color: #e8c25a; border-left-color: #e8c25a; border-radius: 0; color: #ffe08a; }
 .ef-toasts > .ef-toast.held { display: none; }
+
+/* ------------------------------------------------------------ Pixelfenster (ui/pixelFrame.js pixelWindow)
+   Gemeinsamer Look für Inventar, Charakter, Talente und Dungeonsuche, wie Auktionshaus und Postfach: gezeichneter
+   Glutrahmen als 9-Slice (2-fach), Titel in der Pixelschrift, deckende warme Flächen, Kanten in 2-px-Stufen.
+   Die Farben stehen als Variablen bereit, damit die Fenster innen dieselben Töne nutzen. */
+.ef-pxwin {
+  --px-k: #14060a; --px-edge: #3a1a22; --px-edge-hi: #7a1e1c; --px-ember: #e0582a; --px-gold: #ffd890; --px-fill: #150b10;
+  --px-row: #1c0e15; --px-row-hi: #26131c; --px-line: #2a1620; --px-sunk: #0e070b; --px-muted: #a8949c;
+}
+#ui .ef-panel.ef-pxwin {
+  border: 10px solid transparent; border-radius: 0; border-image: var(--pxw-frame) 10 fill / 10px stretch;
+  background: var(--px-fill); background-clip: padding-box; box-shadow: none; backdrop-filter: none; box-sizing: border-box;
+}
+.ef-pxwin::before, .ef-pxwin::after { display: none; }
+.ef-pxtitle { display: block; width: calc(var(--tw) * 2px); height: calc(var(--th) * 2px); image-rendering: pixelated; image-rendering: crisp-edges; }
+/* Großer Bildschirm: Fenstertitel 3-fach (Reiter bleiben 2-fach) */
+@media (min-width: 641px) and (min-height: 521px) {
+  .ef-pxwin :is(.pg-title, .tal-title, .fd-title) > .ef-pxtitle { width: calc(var(--tw) * 3px); height: calc(var(--th) * 3px); }
+}
+.ef-pxwin :is(.pg-title, .tal-title, .fd-title.fd-pxt) { line-height: 0; text-shadow: none; letter-spacing: 0; }
+.ef-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Kopfzeile: Linie in Pixelstufen statt Haarlinie, Schließen als eingelassenes Feld */
+.ef-pxwin :is(.pg-head, .tal-head, .fd-head) { background: none; border-bottom: 0; box-shadow: 0 2px 0 var(--px-k), 0 4px 0 var(--px-edge); }
+.ef-pxwin :is(.pg-close, .tal-close, .fd-close) {
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 0; display: grid; place-items: center;
+  font: 700 18px/1 var(--ef-font); color: #c8a898; background: #241018;
+  box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge);
+}
+.ef-pxwin :is(.pg-close, .tal-close, .fd-close):is(:hover, :focus-visible) { color: #fff4e0; outline: none; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge-hi); }
+/* Knöpfe im Pixelfenster: flache Flächen, harte Kanten statt Verlauf */
+.ef-pxwin .ef-btn { background: #241018; border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge); }
+.ef-pxwin .ef-btn:hover:not(:disabled) { filter: none; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 0 0 4px var(--px-edge-hi); }
+.ef-pxwin .ef-btn.primary { color: #fff4e0; background: #8a2a10; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 4px 0 0 #c8501c, inset 0 -4px 0 0 #5a1608; }
+.ef-pxwin .ef-btn.primary:hover:not(:disabled) { background: #a03414; box-shadow: inset 0 0 0 2px var(--px-k), inset 0 4px 0 0 #f07a2c, inset 0 -4px 0 0 #5a1608; }
+.ef-pxwin .ef-btn.danger { background: #2a0c10; }
+.ef-pxwin .ef-btn:disabled { opacity: 0.5; }

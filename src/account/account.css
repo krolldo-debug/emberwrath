@@ -244,19 +244,19 @@
   width: min(96vw, 1000px); max-width: min(96vw, 1000px); max-height: min(94vh, 780px); display: flex; flex-direction: column;
   padding: 12px 16px 14px; gap: 10px; text-align: left; background: #120a18; box-sizing: border-box;
 }
-.tal-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #3a2530; }
+.tal-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid #3a2530; }
 .tal-head > div:first-child { flex: 1; min-width: 0; }
 .tal-title { margin: 0; font: 700 20px/1.1 var(--ef-font-title); color: var(--ef-gold); letter-spacing: 0.04em; }
 .tal-step { margin: 3px 0 0; font-size: 13px; color: var(--ef-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tal-points { display: flex; align-items: center; gap: 6px; height: 36px; box-sizing: border-box; padding: 6px 10px; border: 1px solid #3a2a3a; background: #0e0814; color: var(--ef-muted); font-size: 13px; white-space: nowrap; }
+.tal-points { display: flex; align-items: center; gap: 6px; height: 36px; box-sizing: border-box; padding: 6px 10px; border: 0; background: #0e070b; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #3a1a22; color: var(--ef-muted); font-size: 13px; white-space: nowrap; }
 .tal-points strong { font: 700 18px/1 var(--ef-font-title); color: #d8d0c0; }
-.tal-points.free { border-color: var(--ef-gold); color: #ffe7a8; }
+.tal-points.free { background: #2a1408; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #e8c25a; color: #ffe7a8; }
 .tal-points.free strong { color: var(--ef-gold); }
 .tal-reset {
   height: 36px; padding: 0 12px; font: 600 12.5px var(--ef-font); color: var(--ef-muted); white-space: nowrap; cursor: pointer;
-  background: transparent; border: 1px solid #3a2a3a; border-radius: 0;
+  background: #241018; border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #3a1a22;
 }
-.tal-reset:hover:not(:disabled) { color: var(--ef-text); border-color: #6a4a5a; }
+.tal-reset:hover:not(:disabled) { color: var(--ef-text); box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #7a1e1c; }
 .tal-reset:disabled { opacity: 0.4; cursor: default; }
 .tal-close { width: 36px; height: 36px; font: 400 24px/1 var(--ef-font); color: var(--ef-muted); background: transparent; border: 1px solid transparent; cursor: pointer; }
 .tal-close:hover { color: var(--ef-text); border-color: var(--ef-panel-edge); }
@@ -279,43 +279,69 @@
 
 .tal-ability {
   display: flex; gap: 10px; align-items: center; min-height: 46px; padding: 5px 8px; box-sizing: border-box;
-  border: 1px solid #2e2036; background: #170e20;
+  border: 0; background: #1c0e15; box-shadow: inset 0 0 0 2px #14060a, inset 0 2px 0 2px #2a1620;
 }
-.tal-ability:hover { border-color: #4a3450; }
+.tal-ability:hover { background: #26131c; }
 .ef-touch .tal-ability { cursor: pointer; }
-.tal-ability.open { align-items: flex-start; background: #20142a; border-color: #4a3450; }
+.tal-ability.open { align-items: flex-start; background: #26131c; }
 .tal-ability.locked .tal-icon, .tal-ability.locked .tal-name { opacity: 0.5; filter: saturate(0.4); }
 .tal-tip { padding: 8px 10px; border: 1px solid var(--ef-panel-edge); }
 .tal-tip b { color: var(--ef-gold); font-size: 13px; }
 .tal-tip p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ef-text); }
 
-.tal-tier { display: grid; grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; margin-bottom: 4px; }
-.tal-tierlabel { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding-left: 8px; border-left: 2px solid #6a4526; }
-.tal-tierlabel b { font: 600 13px/1.15 var(--ef-font-title); color: var(--ef-gold); }
-.tal-tierlabel span { font-size: 11.5px; color: var(--ef-muted); }
-.tal-tier.locked .tal-tierlabel { border-left-color: #2e2036; }
-.tal-tier.locked .tal-tierlabel b { color: #8a7a6a; }
-.tal-tier.locked .tal-talent { opacity: 0.45; filter: saturate(0.3); }
-.tal-talent {
-  display: flex; gap: 8px; align-items: center; min-height: 58px; padding: 6px 8px; box-sizing: border-box;
-  border: 1px solid #2e2036; background: #170e20;
+/* Talentbaum (03.11.): Stufen als Spalten, je zwei Knoten; eine Glutlinie verbindet die Knoten und leuchtet bis zur
+   höchsten offenen Stufe (--open). Knoten 44 px mit Symbol 32 px, Rang unten rechts. Zustände nur über Rahmenfarben:
+   gesperrt grau, lernbar Glut, gelernt warm, voll Gold, gewählt hell. Darunter die Karte des gewählten Talents. */
+.tal-tree2 { position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0 0 2px; }
+.tal-col { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.tal-lv {
+  min-width: 26px; height: 18px; box-sizing: border-box; padding: 0 4px; display: grid; place-items: center; margin-bottom: -2px;
+  font: 700 11px/1 var(--ef-font); color: #ffd890; background: #3a1206; box-shadow: inset 0 0 0 2px #14060a;
 }
-.tal-talent.has { border-color: #5a3c24; background: #1d1120; }
-.tal-talent.max { border-color: #8a6a2a; }
-.tal-talent.can { border-color: #6a4a5a; }
-.tal-talent .tal-name { font-size: 13.5px; }
-.tal-side { flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 4px; padding-top: 3px; }
-.tal-tname { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tal-talent .tal-desc { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-html:not(.ef-touch) .tal-talent .tal-desc { -webkit-line-clamp: 3; }
-.tal-talent.open { background: #20142a; }
-.tal-talent.open .tal-desc { display: block; }
-.ef-touch .tal-talent { cursor: pointer; }
+.tal-col.locked .tal-lv { color: #8a7a80; background: #1c0e15; }
+.tal-line { position: absolute; z-index: 0; left: calc(100% / 12); right: calc(100% / 12); height: 4px; background: #14060a; box-shadow: inset 0 -2px 0 #2a1620; }
+.tal-line.l1 { top: 46px; } .tal-line.l2 { top: 98px; }
+.tal-line i { display: block; height: 100%; width: calc(var(--open, 0) * 20%); background: #a8301a; box-shadow: inset 0 2px 0 #e0582a; }
+.tal-node {
+  position: relative; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; cursor: pointer;
+  background: #1c0e15; border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #3a2a34;
+}
+.tal-node img { image-rendering: pixelated; }
+.tal-node.locked { cursor: pointer; }
+.tal-node.locked img { opacity: 0.35; filter: grayscale(1); }
+.tal-node.can { box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #c8501c; }
+.tal-node.has { background: #2a1208; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #8a4a1c; }
+.tal-node.has.can { box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #e0582a; }
+.tal-node.max { background: #2a1c08; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #e8c25a; }
+.tal-node.sel { outline: 2px solid #fff4e0; outline-offset: 0; }
+.tal-node:focus-visible { outline: 2px solid var(--ef-gold); }
+.tal-node:not(.has):not(.locked) img { opacity: 0.7; }
+.tal-rank {
+  position: absolute; right: -4px; bottom: -6px; padding: 0 3px; font: 700 10px/14px var(--ef-font); color: #d8ccb8;
+  background: #14060a; box-shadow: 0 0 0 1px #3a2a34; font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.tal-node.has .tal-rank { color: #ffb070; } .tal-node.max .tal-rank { color: #ffd890; box-shadow: 0 0 0 1px #8a6420; }
+.tal-node.locked .tal-rank { display: none; }
+/* Karte des gewählten Talents */
+.tal-card {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; margin-top: 12px; padding: 8px 10px;
+  background: #1c0e15; box-shadow: inset 0 0 0 2px #14060a, inset 0 0 0 4px #2a1620;
+}
+.tal-card-icon { width: 44px; height: 44px; display: grid; place-items: center; background: #0e070b; box-shadow: inset 0 0 0 2px #14060a; }
+.tal-card-icon img { image-rendering: pixelated; }
+.tal-card-body { min-width: 0; }
+.tal-card-head { display: flex; align-items: center; gap: 8px; }
+.tal-card-name { font: 700 14px/1.2 var(--ef-font-title); color: #fff4e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tal-card.max .tal-card-name { color: var(--ef-gold); }
+.tal-card-tier { margin: 1px 0 0; display: flex; gap: 6px; font-size: 11.5px; color: #a8949c; }
+.tal-card-tier span:first-child { color: #e0a060; }
+.tal-card .tal-desc { margin-top: 2px; }
+.tal-card-act { display: flex; align-items: center; justify-content: flex-end; }
+.tal-why { max-width: 120px; font-size: 11.5px; line-height: 1.3; color: #a8949c; text-align: right; }
 .tal-pips { flex: none; display: flex; align-items: center; gap: 2px; }
-.tal-pip { width: 7px; height: 7px; border: 1px solid #5a4460; background: #0e0814; }
-.tal-pip.on { background: var(--ef-gold); border-color: #fff0a8; }
-.tal-learn { flex: none; width: 30px; min-width: 0 !important; height: 30px; min-height: 0 !important; padding: 0 !important; font-size: 18px; line-height: 1; }
-.ef-touch .tal-learn { width: 44px; height: 44px; }
+.tal-pip { width: 6px; height: 6px; background: #0e0814; box-shadow: 0 0 0 1px #5a4460; }
+.tal-pip.on { background: var(--ef-gold); box-shadow: 0 0 0 1px #8a6420; }
+.tal-learn { min-width: 96px; min-height: 44px; padding: 0 14px; font: 700 13.5px var(--ef-font); }
 
 /* Handy quer: gemeinsame Handygröße (--win-w/--win-h, ui/theme.css), Welt bleibt links und rechts sichtbar.
    Eine Spalte: Talentbaum zuerst (Talente zu zweit lesbar breit), Fähigkeiten darunter. */
@@ -327,9 +353,9 @@ html:not(.ef-touch) .tal-talent .tal-desc { -webkit-line-clamp: 3; }
   .tal-points span { display: none; }
   .tal-scroll { grid-template-columns: minmax(0, 1fr); gap: 10px; padding-right: 4px; }
   .tal-tree { order: -1; }
-  /* Stufe als schmale Zeile über ihren zwei Talenten, damit die Talente die volle Breite haben */
-  .tal-tier { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .tal-tierlabel { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; align-items: baseline; gap: 8px; padding: 2px 0 0 6px; }
+  .tal-tree > .tal-h { display: none; }
+  .tal-card { margin-top: 10px; padding: 6px 8px; gap: 2px 8px; }
+  .tal-card .tal-desc { font-size: 12px; line-height: 1.3; }
   /* Aussehen: Figur kleiner (doppelte Größe), damit Figur und Zurücksetzen ohne Rollen ins Fenster passen */
   .app-panel .app-body { grid-template-columns: 172px minmax(0, 1fr); gap: 10px; }
   .app-panel .app-stage { padding: 4px; gap: 6px; }
@@ -337,13 +363,9 @@ html:not(.ef-touch) .tal-talent .tal-desc { -webkit-line-clamp: 3; }
   .app-panel .app-actions { gap: 4px; }
   .app-panel .app-actions .ef-btn { min-height: 40px; }
   .app-panel .app-note:empty { display: none; }
-  .tal-talent .tal-desc { -webkit-line-clamp: 3; }
   .tal-ability .tal-name { font-size: 13px; }
   .tal-bonus, .tal-sep:has(+ .tal-bonus) { display: none; }
-  .tal-tierlabel b { font-size: 12px; }
   .tal-ability { min-height: 44px; padding: 4px 6px; gap: 8px; }
-  .tal-talent { padding: 4px 6px; gap: 6px; min-height: 54px; }
-  .tal-talent .tal-name { font-size: 13px; }
 }
 @media (max-width: 720px) {
   .tal-scroll { grid-template-columns: 1fr; }
