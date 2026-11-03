@@ -12,8 +12,9 @@
     // Unbekannte Adressen: nächstgelegene 404.html (eigene Fehlerseite baut site/), Status bleibt 404.
     "not_found_handling": "404-page",
     // Nur Seitenaufrufe laufen zuerst durch den Worker (Umleitung alter Adressen, worker/index.js);
-    // Bilder, Schriften usw. liefert Cloudflare weiter direkt und ohne Worker-Aufruf.
-    "run_worker_first": ["/", "/index.html", "/welt*", "/support*", "/datenschutz*", "/impressum*", "/newsletter*", "/nutzungsbedingungen*", "/kaufbedingungen*", "/shop*", "/spielen*", "/net/*"]
+    // Bilder, Schriften usw. liefert Cloudflare weiter direkt und ohne Worker-Aufruf. Filme (Bosskino) laufen durch den
+    // Worker, damit Range-Anfragen sicher mit 206 beantwortet werden (Safari, worker/index.js videoRange).
+    "run_worker_first": ["/", "/index.html", "/welt*", "/support*", "/datenschutz*", "/impressum*", "/newsletter*", "/nutzungsbedingungen*", "/kaufbedingungen*", "/shop*", "/spielen*", "/net/*", "/img/*.mp4", "/img/*.webm"]
   },
   // CANONICAL_HOST: Hauptadresse der Seite. Alte Adressen (REDIRECT_HOSTS) leiten mit 301 dorthin um (nicht /net/*).
   // MAIL_FROM, SITE_URL: Absender und Links der Formular-Mails (worker/forms.js).

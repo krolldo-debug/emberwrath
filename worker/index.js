@@ -148,8 +148,32 @@ function canonicalRedirect(request, url, env) {
 // Inhalt, dürfen ein Jahr im Browser bleiben, auch
 // falls die _headers-Regel auf diesem Weg nicht greift.
 const GAME_FILE_RE = /^\/spielen\/(spiel|sprache-[a-z]{2})\.[0-9a-f]+\.js$/;
+// Filme der Website (Bosskino, /img/*.mp4|webm, über run_worker_first): Safari spielt Video nur mit Range-Antworten
+// (206). Antwortet die Dateiablage auf eine Range-Anfrage mit der ganzen Datei, schneidet der Worker den Teil aus.
+const VIDEO_RE = /^\/img\/[^/]+\.(mp4|webm)$/;
+async function videoRange(request, res) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get('range') ?? '');
+  if (!m || res.status !== 200 || (!m[1] && !m[2])) return res;
+  const buf = await res.arrayBuffer(), size = buf.byteLength;
+  let start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+  let end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+  const headers = new Headers(res.headers);
+  headers.set('accept-ranges', 'bytes');
+  if (start >= size || start > end) {
+    headers.set('content-range', `bytes */${size}`); headers.delete('content-length');
+    return new Response(null, { status: 416, headers });
+  }
+  headers.set('content-range', `bytes ${start}-${end}/${size}`);
+  headers.set('content-length', String(end - start + 1));
+  return new Response(buf.slice(start, end + 1), { status: 206, headers });
+}
 async function assetWithHeaders(request, env) {
   const res = await env.ASSETS.fetch(request);
+  if (VIDEO_RE.test(new URL(request.url).pathname)) {
+    const out = await videoRange(request, res);
+    if (out !== res || !out.headers.has('accept-ranges')) { const r = new Response(out.body, out); r.headers.set('accept-ranges', 'bytes'); return r; }
+    return out;
+  }
   if (GAME_FILE_RE.test(new URL(request.url).pathname)) {
     // Fehlt die Datei (alter Verweis), darf das 404 nicht ein Jahr hängen bleiben
     const out = new Response(res.body, res);
