@@ -110,6 +110,10 @@ const RIDERS = {
   ash_wolf: ['dwarf', 'mage', ['staff_of_last_ash', 'colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], 'bound'],
   marsh_strider: ['elf', 'rogue', ['veilpiercer', 'bogdread_hood', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], 'stalk'],
   steppe_horse: ['human', 'ranger', ['dawnstring', 'jarl_cap', 'bogdread_jerkin', 'bogdread_grips', 'bogdread_boots'], 'gallop'],
+  // Sternenglut Teil 1: Rochen gleitet mit Flügelschlag (Flughöhe wie die Drachen), Luchs springt, Widder trabt
+  sky_ray: ['elf', 'mage', ['staff_of_last_ash', 'colossus_hood', 'colossus_robe', 'colossus_gloves', 'colossus_slippers'], 'fly'],
+  moon_lynx: ['emberborn', 'rogue', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots'], 'bound'],
+  crystal_ram: ['dwarf', 'warrior', ['rimeforged_coif', 'hillking_cuirass', 'hillking_gauntlets', 'kingsbane'], 'trot'],
   // Exklusive Shop-Reittiere (site/shop.html), Reiter mit der Färbung des Designs (5. Wert). Für die große Shop-Bühne
   // im Raster des Reiters (Reittier in Weltpixeln, je 2 × 2 Bildpunkte) und mit harten Leuchtpunkten ohne Halbtransparenz.
   phoenix_wing: ['human', 'warrior', [...SOV, 'kingsbane'], 'fly', 'phoenix'],
@@ -118,7 +122,7 @@ const RIDERS = {
 };
 const HARD = ['phoenix_wing', 'astral_stallion', 'soul_wolf'];
 const BOXES = { rime_drake: [65, 44, 30, 42], hellhound: [47, 50, 24, 47], ember_charger: [41, 47, 20, 44] };
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 p.on('pageerror', (e) => console.log('ERR', e.message));
 // Stellschrauben in sprites/mounts.js (nur für diese Aufnahme)

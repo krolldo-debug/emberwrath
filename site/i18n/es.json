@@ -907,5 +907,9 @@
  "Bald · Stufe 40–50": "Pronto · Nivel 40–50",
  "Über der Glutöde reißt der Himmel auf. Dahinter warten Sternhafen, zwei neue Gebiete, drei Bosse und drei Reittiere.": "Sobre el Páramo de Ascuas, el cielo se desgarra. Más allá esperan Puerto Estelar, dos nuevas zonas, tres jefes y tres monturas.",
  "Drei Schattenrisse vor dem Morgenhimmel über schwebenden Inseln, einer von ihnen tritt ins Licht: die drei Bosse der Sternenglut": "Tres siluetas ante el cielo del alba sobre islas flotantes, una de ellas sale a la luz: los tres jefes de Sternenglut",
- "Sternenglut": "Sternenglut"
+ "Sternenglut": "Sternenglut",
+ "Bald": "Pronto",
+ "Himmelsrochen<span class=\"p-bald\">Bald</span>": "Raya celeste<span class=\"p-bald\">Pronto</span>",
+ "Mondluchs<span class=\"p-bald\">Bald</span>": "Lince lunar<span class=\"p-bald\">Pronto</span>",
+ "Kristallwidder<span class=\"p-bald\">Bald</span>": "Carnero de cristal<span class=\"p-bald\">Pronto</span>"
 }
