@@ -6,6 +6,7 @@ import { Shockwave, SpawnMarker } from './Effects.js';
 import { Light } from '../gfx/Lighting.js';
 import { EV } from '../core/events.js';
 import { rand, pick, angleDiff } from '../core/math.js';
+import * as FX from '../sprites/fxPaint.js';
 
 // Nerith, die Ertrunkene Priesterin – Boss des Versunkenen Tempels (Stufe 12).
 // Angriffsmuster (jedes mit Bodenwarnung):
@@ -83,19 +84,9 @@ export class PearlOrb extends Entity {
   renderEmissive(ctx, cx, cy) {
     if (this.t < this.delay) return;
     const x = Math.round(this.x - cx), y = Math.round(this.y - this.z - cy);
-    const flood = this.owner.phase >= 2;
-    const pulse = Math.sin(this.t * 18) > 0;
-    // Schweif
-    for (let i = 1; i <= 4; i++) {
-      ctx.fillStyle = i < 3 ? (flood ? 'rgba(96,168,255,0.6)' : 'rgba(46,200,204,0.6)') : 'rgba(30,90,140,0.4)';
-      ctx.fillRect(Math.round(x - Math.cos(this.angle) * i * 2), Math.round(y - Math.sin(this.angle) * i * 2), 1, 1);
-    }
-    ctx.fillStyle = flood ? '#2050d0' : '#0e7888';
-    ctx.fillRect(x - 2, y - 1, 5, 3); ctx.fillRect(x - 1, y - 2, 3, 5);
-    ctx.fillStyle = flood ? '#c8e6ff' : '#a0fff0';
-    ctx.fillRect(x - 1, y - 1, 3, 3);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x - (pulse ? 1 : 0), y - 1, 1, 1);
+    const pal = this.owner.phase >= 2 ? 'flood' : 'teal';
+    FX.orbFrame(this.angle, 3, pal, 3.2).draw(ctx, x, y);
+    if (Math.sin(this.t * 18) > 0.4) FX.starFrame(2, pal).draw(ctx, x - 1, y - 1);
   }
 }
 
@@ -148,43 +139,24 @@ export class TideWave extends Entity {
     }
   }
   renderEmissive(ctx, cx, cy) {
-    const hw = this.width / 2;
-    const flood = this.owner.phase >= 2;
-    // Wasserkörper hinter der Front
-    for (let b = 1; b <= 16; b += 1) {
-      const s = this.s - b;
-      if (s < 0) break;
-      ctx.globalAlpha = 0.45 * (1 - b / 17);
-      ctx.fillStyle = b < 4 ? '#3886b2' : '#1c5882';
-      for (let k = -hw; k <= hw; k += 1) {
-        const p = this.#pt(s, k);
-        ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy - 1), 1, 1);
-      }
+    const hw = this.width / 2, pal = this.owner.phase >= 2 ? 'flood' : 'water', grow = Math.min(1, this.t * 6);
+    const parts = [];
+    // Gischt hinter der Front: Wasserballen, die zurückbleiben und zerstieben
+    for (let j = 0; j < 8; j++) {
+      const age = ((this.t * 2.2 + j * 0.37) % 1), k = (((j * 0.618) % 1) - 0.5) * this.width * 0.9;
+      const p = this.#pt(this.s - 4 - age * 18, k);
+      if (this.s - 4 - age * 18 < 0) continue;
+      const seq = FX.puffSeq(4, pal, 8);
+      parts.push({ y: p.y - 1, draw: () => seq[Math.min(7, Math.floor(age * 8))].draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy - 4), { alpha: 0.6 * grow }) });
     }
-    // Kamm: mehrere Säulenreihen (dick), vorn überschlagende Schaumkrone
-    for (let d = 5; d >= 0; d--) {
-      ctx.globalAlpha = 0.95 - d * 0.08;
-      for (let k = -hw; k <= hw; k += 1) {
-        const p = this.#pt(this.s - d * 1.5, k);
-        const edge = 1 - Math.abs(k) / (hw + 1);
-        const h = Math.round((8 + 7 * Math.sqrt(edge)) * (0.85 + 0.15 * Math.sin(k * 0.9 + this.t * 24)) * Math.min(1, this.t * 6) * (1 - d * 0.12));
-        const x = Math.round(p.x - cx), y = Math.round(p.y - cy);
-        ctx.fillStyle = flood ? '#2050d0' : '#1c5882'; ctx.fillRect(x, y - Math.round(h * 0.5), 1, Math.round(h * 0.5));
-        ctx.fillStyle = flood ? '#60a8ff' : '#3886b2'; ctx.fillRect(x, y - Math.round(h * 0.85), 1, Math.round(h * 0.35));
-        ctx.fillStyle = d === 0 ? '#ffffff' : '#c6eaf6'; ctx.fillRect(x, y - h, 1, d < 2 ? 2 : 1);
-      }
+    // Front: Wasserwall aus überlappenden Kammstücken, außen niedriger
+    for (let k = -hw; k <= hw + 0.01; k += 5) {
+      const p = this.#pt(this.s, k), edge = 1 - Math.abs(k) / (hw + 1);
+      const seq = edge > 0.55 ? FX.waveLoop(13, 15, pal) : edge > 0.25 ? FX.waveLoop(12, 12, pal) : FX.waveLoop(10, 8, pal);
+      const f = FX.seqAt(seq, this.t + k * 0.05, 14);
+      parts.push({ y: p.y, draw: () => f.draw(ctx, Math.round(p.x - cx), Math.round(p.y - cy), { alpha: grow }) });
     }
-    // Überschlag: Schaumkante vor der Front
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = '#ffffff';
-    for (let k = -hw + 1; k < hw; k += 1) {
-      if ((k + Math.floor(this.t * 20)) % 3 === 0) continue;
-      const p = this.#pt(this.s + 1.5, k);
-      const edge = 1 - Math.abs(k) / (hw + 1);
-      const h = Math.round((8 + 7 * Math.sqrt(edge)) * Math.min(1, this.t * 6));
-      ctx.fillRect(Math.round(p.x - cx), Math.round(p.y - cy) - h + 1, 1, 1);
-    }
-    ctx.globalAlpha = 1;
+    parts.sort((u, v) => u.y - v.y).forEach((q) => q.draw());
   }
 }
 
@@ -217,38 +189,17 @@ export class Whirlpool extends Entity {
     if (this.t >= this.delay + 0.5) this.removed = true;
   }
   renderEmissive(ctx, cx, cy) {
-    const x = this.x - cx, y = this.y - cy;
+    const x = Math.round(this.x - cx), y = Math.round(this.y - cy), flood = this.owner.phase >= 2;
     if (this.burst) {
-      // Fontäne
-      const k = (this.t - this.delay) / 0.5;
-      const h = Math.round(34 * Math.sin(Math.min(1, k * 1.6) * Math.PI * 0.5) * (1 - k * 0.6));
-      ctx.globalAlpha = 1 - k;
-      for (let i = -4; i <= 4; i++) {
-        const hh = h - Math.abs(i) * 3;
-        if (hh <= 0) continue;
-        ctx.fillStyle = Math.abs(i) > 2 ? '#3886b2' : '#76bcdc';
-        ctx.fillRect(Math.round(x + i), Math.round(y - hh), 1, hh);
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x + i), Math.round(y - hh), 1, 1);
-      }
-      ctx.globalAlpha = 1;
+      // Fontäne: Säule schießt hoch, Krone fächert auf, Tropfen fallen
+      const k = (this.t - this.delay) / 0.5, seq = FX.fountainSeq(8, 34, flood ? 'flood' : 'water', 8);
+      seq[Math.max(0, Math.min(7, Math.floor(k * 8)))].draw(ctx, x, y);
       return;
     }
-    // Spiralarme
-    const k = Math.min(1, this.t / this.delay);
-    const flood = this.owner.phase >= 2;
-    ctx.fillStyle = flood ? '#60a8ff' : '#2ec8cc';
-    for (let arm = 0; arm < 3; arm++) {
-      for (let s = 0; s < 1; s += 0.04) {
-        const a = arm * 2.094 + s * 4.2 - this.t * (4 + k * 8);
-        const rr = (1 - s) * this.r * (0.95 - 0.2 * (1 - k));
-        ctx.globalAlpha = (0.25 + 0.6 * k) * (1 - s * 0.6);
-        ctx.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y + Math.sin(a) * rr * 0.6), 1, 1);
-      }
-    }
-    ctx.globalAlpha = 0.5 + 0.5 * k;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
-    ctx.globalAlpha = 1;
+    // Strudel: dreht sich immer schneller, wird deutlicher
+    const k = Math.min(1, this.t / this.delay), rr = Math.max(6, Math.round(this.r * (0.95 - 0.2 * (1 - k))));
+    FX.seqAt(FX.whirlLoop(rr, flood ? 'flood' : 'teal', 8), this.t * (4 + k * 8) / (Math.PI * 2 / 24), 1).draw(ctx, x, y, { alpha: 0.3 + 0.65 * k });
+    if (k > 0.6) FX.starFrame(2 + Math.round((k - 0.6) * 5), flood ? 'flood' : 'teal').draw(ctx, x, y);
   }
 }
 
@@ -791,11 +742,7 @@ export class Nerith extends Actor {
     if (/Windup$/.test(this.state) && this.stateTime > this.windup * 0.55) {
       const t = this.#meta(this.state === 'sweepWindup' ? 'tip' : 'pearl');
       const k = (this.stateTime - this.windup * 0.55) / (this.windup * 0.45);
-      const r = Math.round(2 + k * 5), x = Math.round(t.x - cx), y = Math.round(t.y - cy);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
-      ctx.fillStyle = this.enraged ? '#c8e6ff' : '#a0fff0';
-      ctx.fillRect(x - 1, y - 1, 3, 3);
+      FX.starFrame(3 + k * 5, this.enraged ? 'flood' : 'teal').draw(ctx, Math.round(t.x - cx), Math.round(t.y - cy));
     }
   }
 }

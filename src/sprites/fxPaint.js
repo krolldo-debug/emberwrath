@@ -17,6 +17,10 @@ export const PAL = {
   frost: ['#0a2a4a', '#16609a', '#34a8dc', '#8ae4f8', '#d8faff', '#ffffff'],
   poison: ['#062a26', '#0e6a5e', '#1cb4a0', '#6ce8d4', '#c8fff2', '#ffffff'],
   violet: ['#2a0a3a', '#6a1a8a', '#b048e0', '#e0a0ff', '#f6deff', '#ffffff'],
+  water: ['#0a2a44', '#1c5882', '#3886b2', '#76bcdc', '#c6eaf6', '#ffffff'],
+  teal: ['#063a40', '#0e7888', '#2ec8cc', '#a0fff0', '#e0fffa', '#ffffff'],
+  flood: ['#0a1a5a', '#2050d0', '#4a80f0', '#8ac0ff', '#d6ecff', '#ffffff'],
+  ghost: ['#0a2a2a', '#2a6a5a', '#4ab89a', '#9af0d0', '#e0fff0', '#ffffff'],
 };
 const ASH = ['#0c0a0e', '#1e1a20', '#36302e', '#524a44', '#7a7068', '#a69c90', '#cec4b6'];
 const OBS = ['#050407', '#0e0b12', '#1a1622', '#2a2434', '#40384e', '#5e5470', '#8a80a0'];
@@ -428,6 +432,123 @@ export function puffSeq(r, pal = 'fire', n = 8) {
         const l = (X * -0.5 + Y * -0.7) / rr * 0.18;
         return band(P, ((1 - d * d) * heat + l + 0.12) * 0.95);
       })));
+    }
+    return out;
+  });
+}
+
+// Leuchtkugel mit Schweif in Bildrichtung a (16 Richtungen): Glanzkugel (Rand, Körper, Lichtfleck oben links),
+// dahinter ein spitz zulaufender Schweif. Für Perlen, Sporen, Frostsplitter. Anker = Kugelmitte
+export function orbFrame(a, r, pal = 'teal', tail = 3) {
+  const q = Math.round(((a % TAU) + TAU) % TAU / TAU * 16) % 16;
+  return cached(`orb:${q}:${r}:${pal}:${tail}`, () => {
+    const P = PAL[pal], A = q / 16 * TAU, ux = Math.cos(A), uy = Math.sin(A), L = r * tail, S = Math.ceil(L + r + 3);
+    return frame(S * 2, S * 2, S, S, (p) => p.each(0, 0, S * 2, S * 2, (x, y) => {
+      const X = x - S, Y = y - S, d = Math.hypot(X, Y) / r;
+      if (d < 1) {
+        if (d > 0.82) return P[1];
+        const l = (X * -0.6 + Y * -0.8) / r;
+        if (l > 0.35 && d < 0.6) return P[5];
+        return l > 0.05 ? P[4] : l > -0.45 ? P[3] : P[2];
+      }
+      const al = -(X * ux + Y * uy), pe = Math.abs(-X * uy + Y * ux);
+      if (al <= 0 || al > L) return null;
+      const hw = r * 0.85 * (1 - al / L);
+      if (pe >= hw) return null;
+      return band(P, (1 - pe / hw) * (1 - al / L) * 0.95 + 0.1);
+    }));
+  });
+}
+
+// Wasserwall-Stück (Schleife): Hügel aus Wasser mit Glanzlinien und Schaumkrone, Gischt über dem Kamm.
+// Viele nebeneinander ergeben eine Welle. Anker unten mittig
+export function waveLoop(w, h, pal = 'water', n = 6) {
+  return cached(`wave:${w}:${h}:${pal}:${n}`, () => {
+    const P = PAL[pal], W = w + 4, H = h + 6, out = [];
+    for (let i = 0; i < n; i++) {
+      const ph = i / n * TAU;
+      out.push(frame(W, H, W / 2, H - 1, (p) => {
+        p.each(0, 0, W, H, (x, y) => {
+          const X = x - W / 2, Y = H - 1 - y, e = Math.abs(X) / (w / 2);
+          if (e >= 1) return null;
+          const top = h * Math.pow(1 - e ** 4, 0.5) * (0.9 + 0.1 * Math.sin(X * 0.7 + ph));
+          if (Y > top || Y < 0) return null;
+          if (Y > top - 1.6) return Math.sin(X * 2.3 + ph * 2) > -0.3 ? P[5] : P[4];          // Schaumkrone
+          if (Y > top - 3) return P[4];
+          const u = Y / top;
+          if (Math.abs(Math.sin(Y * 0.7 - X * 0.25 + ph)) < 0.12 && u > 0.25) return P[4];   // Glanzlinien
+          return u > 0.6 ? P[3] : u > 0.25 ? P[2] : P[1];
+        });
+        // Gischt über dem Kamm
+        for (let j = 0; j < 4; j++) {
+          const sx = W / 2 + (hash2(j, i, 31) - 0.5) * w * 0.8, sy = H - 1 - h - 1.5 - hash2(j, i, 37) * 3.5;
+          dotp(p, sx, sy, j % 2 ? P[5] : P[4]);
+        }
+      }));
+    }
+    return out;
+  });
+}
+
+// Strudel (Schleife, dreht sich): Spiralarme mit Schaumkante um ein dunkles Auge, Bodenellipse r × 0,6r
+export function whirlLoop(r, pal = 'teal', n = 8) {
+  return cached(`whirl:${r}:${pal}:${n}`, () => {
+    const P = PAL[pal], W = r * 2 + 4, H = r * 1.2 + 4, out = [];
+    for (let i = 0; i < n; i++) {
+      const rot = i / n * TAU / 3;      // drei Arme → nach 1/3 Umdrehung deckungsgleich
+      out.push(frame(W, H, W / 2, H / 2, (p) => p.each(0, 0, W, H, (x, y) => {
+        const X = x - W / 2, Y = (y - H / 2) / 0.6, d = Math.hypot(X, Y) / r;
+        if (d >= 1) return null;
+        if (d < 0.14) return P[0];
+        const a = Math.atan2(Y, X) + rot, sp = (a + d * 4.4) * 3 / TAU;
+        const f = sp - Math.floor(sp);                     // Lage im Arm 0..1
+        const arm = Math.abs(f - 0.5) * 2;                 // 0 = Armmitte
+        const fade = 1 - d;
+        if (arm < 0.16) return fade > 0.35 ? P[5] : P[4];
+        if (arm < 0.4) return fade > 0.2 ? P[3] : P[2];
+        if (arm < 0.6 && d < 0.8) return P[1];
+        return d < 0.5 ? P[0] : null;
+      })));
+    }
+    return out;
+  });
+}
+
+// Fontäne (keine Schleife): Wassersäule schießt hoch, oben bricht eine Krone aus Tropfen auf, die im Bogen
+// nach außen fallen; Spritzring am Boden. Anker unten mittig
+export function fountainSeq(w, h, pal = 'water', n = 8) {
+  return cached(`fount:${w}:${h}:${pal}:${n}`, () => {
+    const P = PAL[pal], W = w * 4 + 8, H = h + 12, out = [];
+    for (let i = 0; i < n; i++) {
+      const k = i / (n - 1), grow = Math.sin(Math.min(1, k * 2.4) * Math.PI / 2), sink = Math.max(0, (k - 0.45) / 0.55);
+      const hh = h * grow * (1 - sink * 0.85), ww = w * (1 - sink * 0.5);
+      out.push(frame(W, H, W / 2, H - 2, (p) => {
+        // Säule mit gezacktem, schäumendem Kopf
+        p.each(0, 0, W, H, (x, y) => {
+          const X = x - W / 2, Y = H - 2 - y, hw = (ww / 2) * (0.7 + 0.3 * Math.min(1, Y / Math.max(1, hh)));
+          const top = hh * (0.92 + 0.08 * Math.sin(X * 1.6 + k * 7));
+          if (Y < 0 || Y > top || Math.abs(X) >= hw) return null;
+          if (Y > top - 2) return P[5];
+          if (Math.abs(X - Math.sin(Y * 0.45 + k * 6) * hw * 0.35) < 0.55) return P[5];   // Glanzfaden
+          const e = Math.abs(X) / hw;
+          return e < 0.35 ? P[4] : e < 0.75 ? P[3] : P[2];
+        });
+        // Krone: Tropfen im Bogen nach außen
+        const q = Math.max(0, k - 0.12) * 1.3, tx = W / 2, ty = H - 2 - h * Math.min(1, grow);
+        for (let j = 0; j < 10; j++) {
+          const v = ((j + 0.5) / 10 - 0.5) * 2, vx = v * w * 1.2, vy = (1 - Math.abs(v) * 0.6) * h * 0.55;
+          const dx = vx * q, dy = -vy * q + h * 1.3 * q * q;
+          if (q <= 0 || ty + dy > H - 3) continue;
+          const sz = j % 3 ? 0.9 : 1.3;
+          orb(p, tx + dx, ty + dy, sz, sz * 1.2, P, { line: false });
+          dotp(p, tx + dx - 0.3, ty + dy - 0.4, P[5]);
+        }
+        // Spritzring am Boden
+        p.each(0, H - 7, W, H, (x, y) => {
+          const X = x - W / 2, Y = (y - (H - 2)) / 0.6, d = Math.hypot(X, Y), R = ww * 0.7 + k * w * 1.3;
+          return Math.abs(d - R) < 0.8 * (1 - k * 0.5) ? (Y < 0 ? P[3] : P[4]) : null;
+        });
+      }));
     }
     return out;
   });
