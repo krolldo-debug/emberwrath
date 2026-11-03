@@ -715,6 +715,47 @@ export function thornFrame(h, w, lean = 0, pal = 'poison') {
   });
 }
 
+// ---------------------------------------------------------------- Sternenglut
+const LEAF = ['#0e160a', '#1a2410', '#2e4a1a', '#4a7a2a', '#7ab048', '#c8f090'];
+const PETAL = ['#3a0a34', '#7a1a6a', '#c048a8', '#ec8ad6', '#ffd8f4', '#ffffff'];
+
+// Ranke aus dem Boden (Höhe h): gewundener Stängel mit Licht links, Blättchen im Wechsel, Dorn, oben eine
+// Leerenblüte. side = Neigung (-1 / 1). Anker = Fußmitte
+export function vineFrame(h, side = 1, seed = 0) {
+  h = Math.max(4, Math.round(h));
+  return cached(`vine:${h}:${side}:${seed}`, () => {
+    const W = 16, H = h + 6, cx = W / 2, by = h + 3;
+    const path = (u) => cx + Math.sin(u * 5.5 + seed) * 2.2 * (0.3 + u) - side * u * h * 0.22;
+    return frame(W, H, cx, by, (p) => {
+      p.each(0, 0, W, H, (x, y) => {
+        const u = (by - y) / h;
+        if (u < 0 || u > 1) return null;
+        const x0 = path(u), hw = 1.3 * (1 - u * 0.55) + 0.3, e = (x - x0) / hw;
+        if (Math.abs(e) >= 1) return null;
+        if (Math.abs(e) > 0.75) return LEAF[0];
+        return e < -0.2 ? LEAF[4] : e < 0.35 ? LEAF[3] : LEAF[2];
+      });
+      // Blättchen
+      for (let i = 1; i < 4; i++) {
+        const u = i / 4.2, lx = path(u), ly = by - u * h, sd = i % 2 ? 1 : -1;
+        p.each(lx - 4, ly - 3, lx + 4, ly + 3, (x, y) => {
+          const X = (x - (lx + sd * 2.2)) / 2.2, Y = (y - (ly - 0.6) + X * sd * 0.6) / 1.1, d = X * X + Y * Y;
+          if (d >= 1) return undefined;
+          return d > 0.7 ? LEAF[1] : Y < 0 ? LEAF[5] : LEAF[3];
+        });
+      }
+      // Blüte
+      const tx = path(1), ty = by - h;
+      p.each(tx - 4, ty - 4, tx + 4, ty + 4, (x, y) => {
+        const X = x - tx, Y = y - ty, a = Math.atan2(Y, X), r = Math.hypot(X, Y), pr = 2.6 * (0.75 + 0.25 * Math.cos(a * 5 + seed));
+        if (r > pr) return undefined;
+        if (r < 0.9) return '#fffbe8';
+        return r > pr - 0.6 ? PETAL[1] : Y < 0 ? PETAL[4] : PETAL[3];
+      });
+    });
+  });
+}
+
 // Vorwärmen: erzeugt die Folgen eines Bosses in Leerlaufzeit, eine nach der anderen, damit der erste Angriff
 // nicht ruckelt. fns = Liste von () => FX.xyz(...)
 export function prewarm(fns) {
