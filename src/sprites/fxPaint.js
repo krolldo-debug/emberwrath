@@ -411,6 +411,28 @@ export function coalBed(r, seed = 0) {
   });
 }
 
+// Feuer-/Dampfballen, der altert (keine Schleife, k = Alter 0..1): heller, praller Kern → kühler, größer, zerfasert.
+// Baustein für Atemkegel und Ströme: viele Ballen nacheinander ausgestoßen. Anker in der Mitte
+export function puffSeq(r, pal = 'fire', n = 8) {
+  return cached(`puff:${r}:${pal}:${n}`, () => {
+    const P = PAL[pal], S = Math.ceil(r * 1.5) + 3, out = [];
+    for (let i = 0; i < n; i++) {
+      const k = i / (n - 1), R = r * (0.7 + 0.6 * k), heat = 1.2 - k * 0.85;
+      out.push(frame(S * 2, S * 2, S, S, (p) => p.each(0, 0, S * 2, S * 2, (x, y) => {
+        const X = x - S, Y = y - S, a = Math.atan2(Y, X);
+        const rr = R * (1 + Math.sin(a * 5 + r + k * 4) * 0.1 + Math.sin(a * 3 - k * 3) * 0.08 + (Y < 0 ? -Y / R * 0.12 : 0));
+        const d = Math.hypot(X, Y) / rr;
+        if (d >= 1) return null;
+        if (k > 0.5 && d > 0.45 && hash2(Math.floor(x * 1.4), Math.floor(y * 1.4), r + i) < (k - 0.5) * 1.5 * d) return null;
+        // Licht von oben links, heißer Kern leicht versetzt
+        const l = (X * -0.5 + Y * -0.7) / rr * 0.18;
+        return band(P, ((1 - d * d) * heat + l + 0.12) * 0.95);
+      })));
+    }
+    return out;
+  });
+}
+
 // Hilfsfunktion: Frame einer Folge zu Zeit t (Sekunden) bei fps; loop = Schleife, sonst letzter Frame bleibt
 export function seqAt(seq, t, fps, loop = true) {
   const i = Math.floor(t * fps);
