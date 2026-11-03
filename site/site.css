@@ -622,3 +622,24 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
   .kino-wahl span { margin-top: 2px; font-size: 11px; line-height: 1.2; }
 }
 @media (max-height: 380px) and (orientation: landscape) { .kino-wahl span + span { display: none; } }
+
+/* ---------- Bald: Sternenglut (sterne.js, site/tools/sterne.mjs). Bühne randlos im Morgenschimmer, ganzzahlig
+   vergrößert; ohne JavaScript das Standbild in voller Breite. Schriftzug STERNENGLUT in allen Sprachen gleich. */
+.sterne { padding: clamp(64px, 8vw, 110px) 0 clamp(56px, 7vw, 96px); background: linear-gradient(180deg, var(--bg), #0c0a22 30%, #151638 100%); }
+.sterne-kopf { text-align: center; margin-bottom: clamp(28px, 4vw, 44px); }
+.sterne-bald { display: inline-block; margin: 0 0 18px; padding: 6px 12px; font: 700 12px/1 var(--font); letter-spacing: 0.22em; text-transform: uppercase;
+  color: #fff6e6; background: linear-gradient(180deg, #5a36a0 0 50%, #43277e 50% 100%); border: 1px solid #b088f8; }
+.sterne h2 { margin: 0; line-height: 0; }
+.sterne-schrift { display: block; margin: 0 auto; width: calc(139px * var(--s, 3)); height: calc(24px * var(--s, 3)); image-rendering: pixelated; max-width: none; }
+@media (max-width: 600px) { .sterne-schrift { --s: 2; } }
+@media (min-width: 1700px) { .sterne-schrift { --s: 4; } }
+.sterne .sec-line { margin: 18px auto 0; color: #d8cfe8; }
+.sterne-buehne { position: relative; overflow: hidden; max-width: 1280px; margin: 0 auto; aspect-ratio: 1280 / 440; background: #151638; }
+.sterne-buehne[style] { aspect-ratio: auto; }
+.sterne-bild { position: absolute; left: 0; top: 0; width: 100%; height: auto; max-width: none; image-rendering: pixelated; }
+.sterne-live { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.sterne-namen { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 28px; margin: 22px auto 0; padding: 0 var(--gutter); list-style: none;
+  font: 700 clamp(14px, 1.4vw, 17px)/1.3 var(--font-title); color: #6e5c9e; }
+.sterne-namen li { transition: color 0.2s steps(2); }
+.sterne-namen li.an { color: #f6c294; }
+@media (max-width: 600px) { .sterne-namen { flex-direction: column; align-items: center; gap: 6px; } }

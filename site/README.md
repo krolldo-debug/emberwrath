@@ -72,6 +72,11 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   alle ~13 s aufflammen (Sternenstaub fällt) und zeigt reihum alle 5–7 s einen Moment: Erdspalter des Kriegers (Glutwelle die
   Kante entlang, Erschütterung), Feuerball der Magierin zum Riss, Pfeilhagel der Waldläuferin, Ausfall des Schurken;
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
+- „Bald“-Abschnitt Sternenglut auf der Startseite (`tools/sterne.mjs` mit `tools/sterne.py`, gezeichnet von `sterne.js`):
+  Bühne aus der Ankündigung im Spiel (src/teaser/art.js, Morgenschimmer), davor Ysgarn, Kaldris und Königin Ysmeine als
+  Schattenrisse mit Randlicht; reihum enthüllt ein Lichtstreif einen Boss (Name darunter hebt sich), Sterne funkeln,
+  Blüten treiben. `teaser-bosse` hat je Boss drei Zeilen (hell, Schatten, Lichtkante), `teaser.webp` ist das Standbild.
+  Schriftzug STERNENGLUT in allen Sprachen gleich. Wenn die Erweiterung offen ist (STARS_PUBLIC), Abschnitt umstellen.
 - Karte der Seite Welt (`tools/atlas.mjs` mit `tools/atlas.py`, gezeichnet von `atlas.js`): die echten Gebietskarten des
   Spiels (ui/MapArt.js, 3 Bildpunkte je Kachel) als Blätter in Reiseordnung, verbunden durch einen Glutpfad; unter dem
   Aschethron ein Riss, dahinter die Sternenglut hinter einem Schleier („Bald“). `atlas.webp` (1000 Bildpunkte breit) wird
@@ -120,6 +125,7 @@ node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Ganga
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
 node site/tools/titel-riss.mjs                     # Titelbild (Server im Repo-Ordner auf :8102; ruft titel-riss.py)
 node site/tools/atlas.mjs                          # Karte auf /welt (Server im Repo-Ordner auf :8102; ruft atlas.py)
+node site/tools/sterne.mjs                         # „Bald“-Abschnitt Sternenglut (Server auf :8102; ruft sterne.py)
 node site/tools/welt.mjs wl aufbruch,arena,ignaroth # Szenen auf /welt (Ids ohne „welt-“)
 node site/tools/bossfiguren.mjs site/img          # Bossfiguren der Dungeon-Marken auf /welt
 ```
