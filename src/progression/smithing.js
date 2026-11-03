@@ -13,7 +13,7 @@ const UPGRADE_MAIN = { weapon: ['power', 1.2], head: ['armor', 1.5], chest: ['ar
 
 // Stufen +11 bis +15 (Stufe 20–40): Materialien der neuen Gebiete, damit Gold allein (auch gekauftes) nicht reicht.
 const HIGH_UPGRADES = [
-  { gold: 5000, mat: 'bog_iron', qty: 3, reqLevel: 22 },
+  { gold: 5000, mat: 'bog_iron', qty: 3, reqLevel: 25 }, // Sumpfeisen erst im Faulmarsch (25), vorher 22
   { gold: 6500, mat: 'bog_iron', qty: 5, reqLevel: 26 },
   { gold: 8500, mat: 'rime_crystal', qty: 3, reqLevel: 30 },
   { gold: 11000, mat: 'rime_crystal', qty: 5, reqLevel: 34 },
@@ -29,7 +29,10 @@ export function upgradeCost(current) {
   const gold = Math.round((60 * Math.pow(1.6, current)) / 10) * 10;
   const mat = current < 3 ? 'grave_iron' : current < 6 ? 'ember_ore' : current < 9 ? 'ember_core' : 'ember_shard';
   const qty = current < 3 ? 2 + current : current < 6 ? current - 1 : current < 9 ? current - 5 : 5;
-  return { gold, mats: [{ itemId: mat, qty }], reqLevel: 5 + current * 1.5 | 0 };
+  // Logik-Check 03.11.: nicht anbieten, bevor es das Material gibt – Glutenerz ab den Schlackenhöhen (12),
+  // Glutsplitter erst aus den Glutprüfungen (20)
+  const matLevel = mat === 'ember_shard' ? 20 : mat === 'grave_iron' ? 0 : 12;
+  return { gold, mats: [{ itemId: mat, qty }], reqLevel: Math.max(5 + current * 1.5 | 0, matLevel) };
 }
 
 // Verzauberungen: je Platz eine aktive; Neuverzaubern ersetzt sie.
@@ -48,10 +51,10 @@ export const ENCHANTS = {
   steppe_might: { name: 'Kraft der Steppe', slots: ['hands', 'ring', 'amulet'], stats: { str: 12 }, gold: 1500, mats: [{ itemId: 'hyena_hide', qty: 10 }], level: 24 },
   ancestor_vigor: { name: 'Ahnenkraft', slots: ['chest', 'head', 'amulet'], stats: { maxHp: 110, vit: 6 }, gold: 1800, mats: [{ itemId: 'barrow_bone', qty: 10 }], level: 25 },
   marsh_grace: { name: 'Sumpfgewandtheit', slots: ['hands', 'ring', 'amulet'], stats: { agi: 12 }, gold: 1500, mats: [{ itemId: 'leech_ichor', qty: 10 }], level: 26 },
-  spore_insight: { name: 'Sporenweisheit', slots: ['head', 'ring', 'amulet'], stats: { int: 12, maxResource: 30 }, gold: 1500, mats: [{ itemId: 'spore_cap', qty: 8 }], level: 28 },
+  spore_insight: { name: 'Sporenweisheit', slots: ['head', 'ring', 'amulet'], stats: { int: 12, maxResource: 30 }, gold: 1500, mats: [{ itemId: 'spore_cap', qty: 8 }], level: 30 },
   rime_bite: { name: 'Reifbiss', slots: ['weapon'], stats: { power: 18, critChance: 0.02 }, gold: 2500, mats: [{ itemId: 'rime_crystal', qty: 4 }], level: 30 },
   troll_hide: { name: 'Trollhaut', slots: ['chest', 'head'], stats: { armor: 28, maxHp: 90 }, gold: 2000, mats: [{ itemId: 'troll_fat', qty: 10 }], level: 31 },
-  stalker_step: { name: 'Pirscherschritt', slots: ['feet'], stats: { moveSpeed: 0.07 }, gold: 3000, mats: [{ itemId: 'frost_pelt', qty: 12 }, { itemId: 'crystal_silk', qty: 2 }], level: 33 },
+  stalker_step: { name: 'Pirscherschritt', slots: ['feet'], stats: { moveSpeed: 0.07 }, gold: 3000, mats: [{ itemId: 'frost_pelt', qty: 12 }, { itemId: 'crystal_silk', qty: 2 }], level: 35 },
   magma_edge: { name: 'Magmaglut', slots: ['weapon'], stats: { power: 26, critChance: 0.03 }, gold: 5000, mats: [{ itemId: 'magma_scale', qty: 6 }, { itemId: 'adept_sigil', qty: 6 }], level: 37 },
   pilgrim_ward: { name: 'Pilgersegen', slots: ['chest', 'feet', 'hands'], stats: { armor: 34, maxHp: 140 }, gold: 4500, mats: [{ itemId: 'pilgrim_relic', qty: 10 }], level: 38 },
 };
