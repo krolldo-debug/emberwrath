@@ -72,6 +72,12 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   alle ~13 s aufflammen (Sternenstaub fällt) und zeigt reihum alle 5–7 s einen Moment: Erdspalter des Kriegers (Glutwelle die
   Kante entlang, Erschütterung), Feuerball der Magierin zum Riss, Pfeilhagel der Waldläuferin, Ausfall des Schurken;
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
+- Karte der Seite Welt (`tools/atlas.mjs` mit `tools/atlas.py`, gezeichnet von `atlas.js`): die echten Gebietskarten des
+  Spiels (ui/MapArt.js, 3 Bildpunkte je Kachel) als Blätter in Reiseordnung, verbunden durch einen Glutpfad; unter dem
+  Aschethron ein Riss, dahinter die Sternenglut hinter einem Schleier („Bald“). `atlas.webp` (1000 Bildpunkte breit) wird
+  in ganzen Gerätepixeln je Bildpunkt gezeigt. atlas.js lässt den Pfad beim Scrollen aufglühen, setzt Glutrahmen um erreichte
+  Gebiete und lässt Sterne funkeln; die Beschriftungen (Links zu den Etappen) schreibt das Werkzeug in den Block
+  `<atlas.mjs>` in `welt.html`, Maße und Pfad in den Block `<atlas.mjs>` in `atlas.js`.
 - Vorschaubild beim Teilen (`og-teilen.png`, 1200 × 630, auf allen Seiten und Sprachfassungen als og:image und twitter:image): `tools/og.py`
   aus den Paradestreifen. Neues Motiv = neuer Dateiname, sonst zeigen Messenger das alte Bild aus ihrem Zwischenspeicher.
 - Die Skripte schreiben PNG; für die Seite verlustfrei nach WebP wandeln (Pillow: `Image.open(f).save(o, lossless=True, method=6)`).
@@ -113,6 +119,7 @@ node site/tools/bosskino.mjs [malgareth,faeulnis,skalvyr]  # Bosskino: Atlanten,
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
 node site/tools/titel-riss.mjs                     # Titelbild (Server im Repo-Ordner auf :8102; ruft titel-riss.py)
+node site/tools/atlas.mjs                          # Karte auf /welt (Server im Repo-Ordner auf :8102; ruft atlas.py)
 node site/tools/welt.mjs wl aufbruch,arena,ignaroth # Szenen auf /welt (Ids ohne „welt-“)
 node site/tools/bossfiguren.mjs site/img          # Bossfiguren der Dungeon-Marken auf /welt
 ```
