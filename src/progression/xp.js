@@ -7,10 +7,9 @@
 // Ab Stufe 20 (§12.1) wird die Kurve aus der Zielzeit berechnet: 15 Minuten für 20→21, dann linear
 // bis 25 Minuten für 39→40, bei gleichem Kampftempo (Kills je Minute) und Quest-Anteil wie bis 20.
 // Sternenglut (Plan 26.10.): 50 → 80 Minuten für 40→50, 70 → 95 für 50→60 (Teil 2). Die Schwellen bis 40 bleiben für
-// alle Charaktere gleich (Stufe und Erfahrung bestehender Spielstände bleiben auf den Punkt genau). Neue Charaktere
-// (progress.pace = PACE_NEW) bekommen in 20–39 rund ein Viertel weniger Erfahrung, damit 20→40 etwa 1,7-mal so lange
-// dauert (Plan: 6–7 → rund 12 echte Stunden; Simulation test/pacing.mjs 2,1 → 3,5 h). Bestehende Charaktere (ohne pace)
-// behalten das bisherige Tempo (Bestandsschutz, xpPaceFactor). Mehr kürzen hieße Kopfgelder statt Quests (Grind).
+// alle Charaktere gleich (Stufe und Erfahrung bestehender Spielstände bleiben auf den Punkt genau). In 20–39 bekommen
+// seit dem Durchlauf 03.11. alle Charaktere rund 15 % mehr Erfahrung (xpPaceFactor, PACE_NEW_MINUTES); die frühere
+// Verlangsamung neuer Charaktere (1,7-mal so lange) entfällt. Mehr hieße: Stufe 40 lange vor dem Ende der Geschichte.
 import { clamp } from '../core/math.js';
 
 export const LEVEL_CAP = 50;
@@ -34,8 +33,11 @@ export const PACE = { killsPerMinute: 15, killShare: 0.42, efficiency: 0.8, minu
 
 // Zielminuten je Stufe ab 40: [von Stufe, bis Stufe, Minuten am Anfang, Minuten am Ende]
 export const PACE_STAR = [[40, 49, 50, 80], [50, 59, 70, 95]];
-// Zielminuten neuer Charaktere für 20–39 (statt PACE.minutesFirst/minutesLast), an test/pacing.mjs geeicht
-export const PACE_NEW_MINUTES = [20, 32];
+// Zielminuten aller Charaktere für 20–39 (statt PACE.minutesFirst/minutesLast). Durchlauf 03.11.: 20–30 Minuten je Stufe
+// ab 21 waren die zäheste Strecke des Spiels (Laufwege in Steppe und Frostzinnen, kaum Neues). Jetzt mehr Erfahrung je
+// Kill und Quest bei gleichen Schwellen: 13 → 22 Minuten statt 15 → 25 (bisher neue Charaktere sogar 20 → 32). Wer das
+// Gebiet nicht leer spielt, steigt trotzdem mit der Hauptquest mit. Der Server (ledger/rules.js) erlaubt denselben Faktor.
+export const PACE_NEW_MINUTES = [13, 22];
 const lerp = (lo, hi, a, b, level) => a + (b - a) * Math.max(0, Math.min(1, (level - lo) / (hi - lo)));
 
 // Zielminuten für die Stufe `level` → `level + 1` (nur ab 20)
@@ -45,10 +47,11 @@ export function minutesForLevel(level) {
   return lerp(CLASSIC_CAP, LEGACY_CAP - 1, PACE.minutesFirst, PACE.minutesLast, level);
 }
 
-// Anteil der Erfahrung, den ein Charakter auf `level` bekommt: 1, außer neue Charaktere (pace = PACE_NEW) in 20–39.
-// Dort gleiche Schwellen, aber weniger Erfahrung je Kill und Quest, sodass die Stufe die neuen Zielminuten dauert.
-export function xpPaceFactor(level, pace) {
-  if (pace !== PACE_NEW || level < CLASSIC_CAP || level >= LEGACY_CAP) return 1;
+// Anteil der Erfahrung, den ein Charakter auf `level` bekommt: 1, außer in 20–39 (für alle Charaktere gleich, pace spielt
+// keine Rolle mehr). Dort gleiche Schwellen, aber mehr Erfahrung je Kill und Quest, sodass die Stufe die Zielminuten
+// PACE_NEW_MINUTES dauert (Faktor rund 1,15).
+export function xpPaceFactor(level, pace) { // eslint-disable-line no-unused-vars
+  if (level < CLASSIC_CAP || level >= LEGACY_CAP) return 1;
   return minutesForLevel(level) / lerp(CLASSIC_CAP, LEGACY_CAP - 1, ...PACE_NEW_MINUTES, level);
 }
 

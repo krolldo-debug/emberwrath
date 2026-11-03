@@ -84,10 +84,12 @@ export function createRound3Enemies(T) {
     wight_caller: d('tide_cultist', 'wight_caller', 'Totenrufer', [25, 26], { family: 'undead' }),
     barrow_king: boss('barrow_king', 'Ulgrim, der Hügelkönig', 26, 85000, { dmgMult: 3, family: 'undead', material: 'bone' }),
     // --- Faulmarsch (25–31)
+    // Faulmarsch: Durchlauf 03.11. – man kommt mit 24–25 aus der Steppe, Schamanen/Kröten/Hexen lagen bei 26–31 und
+    // töteten einen Magier 40-mal in einer Stunde. Jetzt eine Stufe tiefer (Ende der Marsch bleibt 29–30).
     bog_lurker: d('drowned', 'bog_lurker', 'Moorlauerer', [25, 28], { family: 'beast' }),
-    rot_shaman: d('tide_cultist', 'rot_shaman', 'Fäulnisschamane', [26, 30], { family: 'human' }),
-    swamp_leech: d('spider', 'swamp_leech', 'Sumpfegel', [26, 29], { family: 'beast', hp: 0.6, xp: 0.5 }),
-    plague_toad: d('thorn_crawler', 'plague_toad', 'Pestkröte', [27, 31], { family: 'beast' }),
+    rot_shaman: d('tide_cultist', 'rot_shaman', 'Fäulnisschamane', [25, 29], { family: 'human' }),
+    swamp_leech: d('spider', 'swamp_leech', 'Sumpfegel', [25, 29], { family: 'beast', hp: 0.6, xp: 0.5 }),
+    plague_toad: d('thorn_crawler', 'plague_toad', 'Pestkröte', [26, 30], { family: 'beast' }),
     bog_horror: d('magma_behemoth', 'bog_horror', 'Das Moorgrauen', 30, { family: 'beast', material: 'flesh' }),
     // --- Sporenschlund (30–32)
     sporeling: d('spider', 'sporeling', 'Sporling', [30, 31], { family: 'plant', hp: 0.55, xp: 0.45 }),
@@ -126,7 +128,7 @@ export function createRound3Enemies(T) {
     gnoll_trapper: d('bandit_archer', 'gnoll_trapper', 'Fallensteller', [21, 24], { family: 'beast', kite: true, spriteBase: 'raider_archer' }),
     bog_slime: d('temple_guardian', 'bog_slime', 'Moorschleim', [25, 29], { family: 'beast', material: 'flesh', hp: 0.75, spriteBase: 'plague_toad' }),
     bog_slime_small: d('spider', 'bog_slime_small', 'Kleiner Moorschleim', [25, 29], { family: 'beast', material: 'flesh', hp: 0.4, xp: 0.25, spriteBase: 'swamp_leech' }),
-    marsh_hag: d('tide_cultist', 'marsh_hag', 'Sumpfhexe', [26, 30], { family: 'human', spriteBase: 'rot_shaman' }),
+    marsh_hag: d('tide_cultist', 'marsh_hag', 'Sumpfhexe', [25, 29], { family: 'human', spriteBase: 'rot_shaman' }),
     frost_revenant: d('bandit', 'frost_revenant', 'Frostwiedergänger', [31, 35], { family: 'undead', material: 'ice', spriteBase: 'frozen_knight' }),
     snow_burrower: d('ash_boar', 'snow_burrower', 'Schneewurm', [32, 35], { family: 'beast', material: 'flesh' }),
     cinder_bombardier: d('flame_acolyte', 'cinder_bombardier', 'Aschebombardier', [36, 39], { family: 'human', kite: true, dmg: 1.6, spriteBase: 'ember_cultist_adept' }),
