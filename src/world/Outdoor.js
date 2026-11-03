@@ -557,6 +557,27 @@ export class Outdoor extends TileMap {
     const face = (I.cliff ?? 24) * (0.45 + 0.55 * Math.sqrt(wd)) * (0.85 + 0.3 * vnoise(px / 9, 3.5, 71));
     const keel = (I.keel ?? 64) * Math.pow(wd, 0.8) * (0.55 + 0.45 * vnoise(px / 6, 5.5, 73)) + 7 * (vnoise(px / 2.2, 7.5, 75) - 0.5) * wd;
     const dt = DITH[(G & 3) * 4 + (F & 3)] / 16;
+    // Hängeranken (pal.island.vine): von der Grasnarbe über Wand und Kiel, leicht schwingend, Blätter abwechselnd
+    // links und rechts, vereinzelt Blüten; Spalten 5 Feinpixel breit, jede vierte trägt eine Ranke
+    const V = P.vine;
+    if (V && depth > 0.6) {
+      // Grasnarbe hängt über die Kante (unregelmäßiger Saum)
+      const lip = 1.2 + vnoise(F / 3.5, 9.5, 94) * 3.2 * (hash2(F >> 3, g, 95) < 0.6 ? 1 : 0.3);
+      if (depth < lip) return depth > lip - 0.6 ? V[0] : depth < 1.1 ? V[3] : V[2];
+      const cc = Math.floor(F / 5), hv = hash2(cc, g, 91) * 0.6 + vnoise(F / 26, 3.5, 96) * 0.4;
+      if (hv > 0.7) {
+        const L = (face + keel) * (0.22 + hash2(cc, g, 92) * 0.6);
+        if (depth < L) {
+          const lx = F - cc * 5 - 2 - Math.round(Math.sin(depth * 0.32 + cc * 1.7) * 1.2), gi = Math.floor(depth * 2) + cc;
+          if (lx === 0) return depth > L - 1.5 ? V[2] : V[1];
+          if (lx === -1 || lx === 1) {
+            const ph = (gi + (lx > 0 ? 2 : 0)) % 4;
+            if (ph === 0) return V.bloom && hash2(cc, gi, 93) < 0.25 ? V.bloom : V[3];
+            if (ph === 1) return V[2];
+          }
+        }
+      }
+    }
     if (depth <= face) {
       if (depth < 0.6) return P.face[5];
       // Felsbänder, helle und dunkle Flanken, Risse; ganz unten der rosa Widerschein des Morgens

@@ -126,10 +126,13 @@ export function buildSplitterweiten() {
   put(65, 60, 'P');                                         // Schürfer Kel
   put(50, 55, 'C');                                         // Kartografin Mira
   const board = { x: 60, y: 61 };
-  for (const [x, y] of [[48, 52], [54, 50], [68, 52], [70, 58], [48, 62], [62, 65]]) put(x, y, 'T');
-  for (const [x, y] of [[52, 52], [66, 63], [46, 58]]) put(x, y, 'x');
-  for (const [x, y] of [[72, 55], [50, 65]]) put(x, y, 'o');
-  put(68, 56, 'l');                                         // Lore
+  // Schürferhütten (Bretter, Teerpappe, Vordach bzw. Anbau mit Erzsäcken), dazwischen die alten Zelte
+  put(50, 52, 'H'); put(70, 58, 'U');
+  for (const [x, y] of [[66, 51], [48, 62], [62, 65]]) put(x, y, 'T');
+  for (const [x, y] of [[66, 63], [46, 58]]) put(x, y, 'x');
+  for (const [x, y] of [[73, 54], [50, 65]]) put(x, y, 'o');
+  put(56, 64, 'W');                                         // Werkbank
+  put(61, 51, 'l');                                         // Lore
   put(74, 62, 'D');                                         // Förderkran am Rand
   for (const [x, y] of [[57, 52], [61, 52], [55, 62]]) put(x, y, 'L');
   put(58, 60, '1'); put(60, 59, '2');
@@ -185,6 +188,8 @@ export function buildSplitterweiten() {
     else if (h < 0.045) put(x, y, inLake ? 'u' : 'k');
     else if (inLake && h < 0.055) put(x, y, 'R');
     else if (inMount && h < 0.06) put(x, y, hash2(x, y, 6193) < 0.6 ? 'v' : 'k');
+    // Grafik-Patch: dichter bewachsen – Glasmoosbüsche und kleine Kristallgruppen in Nestern (nicht auf den Graten)
+    else if (!inRidge && n > 0.45 && h < 0.08) put(x, y, hash2(x, y, 6194) < 0.55 ? 'B' : 'c');
   }
 
   // ------------------------------------------------------------ Gegner
@@ -234,7 +239,7 @@ export function buildSplitterweiten() {
   const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses, ...crates, ...nests, ...echoStones, claimStake, harrikCamp];
   clearAround(m, spots, 'gckRsabefhwrtzmvdu', { r: 2, south: 3 });
   // Eskorte „Miras Messgang“: von Funkenruh über die Westbrücken zur Westscherbe
-  const SOLID = 'KSGOTxoDlLJYgcksRQFmd';
+  const SOLID = 'KSGOTxoDlLJYgcksRQFmdHUWB';
   const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
   const amb = (f) => Math.round((miraPath.length - 1) * f);
 
@@ -258,7 +263,7 @@ export function buildSplitterweiten() {
       K: 'shardSpire', S: 'singingSpires', G: 'glassGate', O: 'observatory', T: 'prospectorTents', x: 'crateStack', o: 'oreHeaps',
       D: 'derrick', l: 'mineCart', L: 'lantern', J: 'starLamp', Y: 'lensStand', g: 'glassTrees', c: 'crystals', k: 'shardRocks',
       s: 'singingSpires', R: 'mirrorStones', Q: 'signpost', F: 'shardCampfire',
-      m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms',
+      m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms', B: 'bushes', H: 'minerHutA', U: 'minerHutB', W: 'workbench',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_sternhafen', 5: 'waystone', 6: 'from_glass_halls', 7: 'from_observatory' },
     waystone,

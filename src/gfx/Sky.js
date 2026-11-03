@@ -32,9 +32,12 @@ export const SKY_LOOKS = {
     sky: ramp(['#151638', '#22245a', '#3a3478', '#62458a', '#985a92', '#c87488', '#e89a88', '#f6c294']),
     neb: ramp(['#3c3a82', '#4e4a96']), neb2: ramp(['#7a5aa0', '#9466a8']),
     star: ramp(['#b8b8e8', '#e8e8ff', '#ffffff', '#ffe8d0']),
-    far: ramp(['#5a4a8a', '#7a5c96', '#a06e9a']), farLit: hex('#c88aa0'),
+    far: ramp(['#4a3c7a', '#5e4a8a', '#72589a']), farLit: hex('#d2a0b4'), farTop: ramp(['#6a6aa0', '#8482b4']),
+    farWarm: hex('#d88a8e'), farTree: ramp(['#4e3e7c', '#8a6a9e', '#c48ab0']),
+    haze: ramp(['#6e5294', '#7c5c9c', '#8a66a2']), hazeLit: hex('#c48aa4'), hazeTop: ramp(['#8a72aa', '#9a80b2']),
+    hazeWarm: hex('#c47c92'), hazeTree: ramp(['#7a5c9c', '#9a74a8', '#b88aae']),
     crystal: ramp(['#5ccbea', '#b8f2ff']),
-    clouds: ramp(['#c87488', '#e0948e', '#f2b49a', '#fad2b4']),
+    clouds: ramp(['#b86c86', '#dc8e8e', '#f2b49a', '#ffe0c4']),
     starLine: 0.5,
   },
 };
@@ -50,7 +53,7 @@ export class StarSky {
     const comp = (c) => [0, 1, 2].map((i) => Math.min(255, Math.round(c[i] * k[i])));
     const deep = (v) => (Array.isArray(v[0]) ? v.map(comp) : comp(v));
     this.L = Object.fromEntries(Object.entries(L).map(([key, v]) => [key, Array.isArray(v) ? deep(v) : v]));
-    this.base = null; this.far = null; this.clouds = null;
+    this.base = null; this.far = null; this.haze = null; this.clouds = null;
     this.key = '';
   }
 
@@ -58,18 +61,20 @@ export class StarSky {
   render(ctx, cx, cy, time) {
     const W = CONFIG.viewWidth, H = CONFIG.viewHeight, r = fineRes();
     const key = `${W}x${H}@${r}`;
-    if (key !== this.key) { this.key = key; this.base = this.#bake(W, H, r); this.far ??= {}; this.clouds ??= {}; }
+    if (key !== this.key) { this.key = key; this.base = this.#bake(W, H, r); this.far ??= {}; this.haze ??= {}; this.clouds ??= {}; }
     ctx.drawImage(this.base, 0, 0, W, H);
-    // ferne Inseln: nahtlose Kachel, Parallaxe 0,35, ganzzahlig im Feinraster
-    const far = (this.far[r] ??= this.#farTile(r));
-    const ox = Math.round(cx * 0.35 * r) / r, oy = Math.round(cy * 0.35 * r) / r;
-    const fx0 = -(((ox % TILE_W) + TILE_W) % TILE_W), fy0 = -(((oy % TILE_H) + TILE_H) % TILE_H);
-    for (let y = fy0; y < H; y += TILE_H) for (let x = fx0; x < W; x += TILE_W) ctx.drawImage(far, x, y, TILE_W, TILE_H);
-    // Wolkenband
+    // ferne Inseln: zwei nahtlose Ebenen (Dunst 0,18, näher 0,38), dazwischen das Wolkenband; ganzzahlig im Feinraster
+    const layer = (img, k, ox0 = 0, oy0 = 0) => {
+      const ox = Math.round((cx * k + ox0) * r) / r, oy = Math.round((cy * k + oy0) * r) / r;
+      const fx0 = -(((ox % TILE_W) + TILE_W) % TILE_W), fy0 = -(((oy % TILE_H) + TILE_H) % TILE_H);
+      for (let y = fy0; y < H; y += TILE_H) for (let x = fx0; x < W; x += TILE_W) ctx.drawImage(img, x, y, TILE_W, TILE_H);
+    };
+    layer((this.haze[r] ??= this.#farTile(r, 0)), 0.18, 170, 60);
     const cl = (this.clouds[r] ??= this.#cloudTile(r));
     const wx = Math.round((cx * 0.2 + time * 2.5) * r) / r;
     const cx0 = -(((wx % CLOUD_W) + CLOUD_W) % CLOUD_W), cy0 = H - CLOUD_H;
     for (let x = cx0; x < W; x += CLOUD_W) ctx.drawImage(cl, x, cy0, CLOUD_W, CLOUD_H);
+    layer((this.far[r] ??= this.#farTile(r, 1)), 0.38);
     // funkelnde Sterne (wenige, je 1 Feinpixel Kreuz)
     const tw = Math.floor(time * 3);
     for (let s = 0; s < 14; s++) {
@@ -88,14 +93,18 @@ export class StarSky {
     const img = g.createImageData(W * r, H * r), d = img.data, FW = W * r;
     const put = (X, Y, col) => { if (X < 0 || Y < 0 || X >= FW || Y >= H * r) return; const i = (Y * FW + X) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; };
     const step = (rm, t, x, y) => rm[Math.max(0, Math.min(rm.length - 1, Math.floor(t * (rm.length - 1) + bay(x, y))))];
-    // Nebel wie der Verlauf in Weltpixeln (gröber, ruhiger), Sterne in Feinpixeln
+    // Schleier wie der Verlauf in Weltpixeln: lange, flache Bänder (Zirren), Rand als geordneter Dither-Saum über zwei
+    // Stufen statt harter Flecken; oben kühl (Nacht), zum Morgenrot hin warm.
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const t = y / H;
+      const t = y / H, b = bay(x, y);
       let col = step(L.sky, Math.pow(t, 0.85), x, y);
-      const n = fbm(x / 90, y / 30, 11) * 0.8 + vnoise(x / 9, y / 7, 12) * 0.2;
-      if (n > 0.66 - bay(x, y) * 0.05 && t < 0.8) col = step(L.neb, (n - 0.62) / 0.3, x, y);
-      const n2 = fbm(x / 60 + 30, y / 70, 23) * 0.8 + vnoise(x / 8, y / 8, 24) * 0.2;
-      if (n2 > 0.7 - bay(x, y) * 0.05 && t < 0.7) col = step(L.neb2, (n2 - 0.67) / 0.25, x, y);
+      const sh = y * 0.18;   // Bänder leicht schräg
+      const n = fbm((x + sh) / 170, y / 16, 11) * 0.75 + fbm((x + sh) / 40, y / 6, 12) * 0.25;
+      const a = (n - 0.6) / 0.09 - Math.max(0, t - 0.42) * 7;
+      if (a > b) col = step(L.neb, Math.min(1, (a - 1) * 0.5), x, y);
+      const n2 = fbm((x - sh) / 130 + 30, y / 12, 23) * 0.7 + fbm(x / 30, y / 5, 24) * 0.3;
+      const a2 = (n2 - 0.63) / 0.08 - Math.max(0, t - 0.55) * 6;
+      if (t > 0.18 && a2 > b) col = step(L.neb2, Math.min(1, (a2 - 1) * 0.5), x, y);
       for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) put(x * r + i, y * r + j, col);
     }
     const count = Math.round(W * H / 310);
@@ -112,45 +121,101 @@ export class StarSky {
     return c;
   }
 
-  // ferne Inseln: Silhouetten mit heller Oberkante, Kiel nach unten, vereinzelt ein Kristallfunke
-  #farTile(r) {
+  // ferne Inseln (depth 0 = ganz fern im Dunst, 1 = näher): Oberfläche leicht von oben gesehen (helle Grasnarbe, darauf
+  // Baumkronen und hier und da eine Säule), darunter Felswand mit Bändern und ein spitzer Kiel; die Unterseite fängt das
+  // Morgenrot (warme Kante links unten), am Kiel vereinzelt ein Kristallfunke. Weltpixel, nahtlos in x und y.
+  #farTile(r, depth = 1) {
     const L = this.L, FW = TILE_W * r, FH = TILE_H * r, c = makeCanvas(FW, FH), g = c.getContext('2d');
     const img = g.createImageData(FW, FH), d = img.data;
     const putW = (x, y, col) => {
       x = ((x % TILE_W) + TILE_W) % TILE_W; y = ((y % TILE_H) + TILE_H) % TILE_H;
       for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) { const o = ((y * r + j) * FW + x * r + i) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255; }
     };
-    const isles = [[90, 60, 34, 9], [380, 150, 22, 6], [560, 300, 40, 10], [200, 320, 14, 4], [500, 40, 12, 3], [300, 250, 9, 3]];
-    isles.forEach(([cx, cy, rx, ry], s) => {
-      for (let x = Math.floor(cx - rx * 1.3); x < cx + rx * 1.3; x++) {
-        let b = -1, top = -1;
-        for (let y = Math.floor(cy - ry * 1.3); y < cy + ry * 1.3; y++) {
-          const dx = (x - cx) / rx, dy = (y - cy) / ry, a = Math.atan2(dy, dx);
-          const wob = 0.12 * Math.sin(a * 3 + s) + 0.07 * Math.sin(a * 7 + s * 2);
-          if (dx * dx + dy * dy < (1 + wob) * (1 + wob)) { if (top < 0) top = y; b = y; }
+    const P = depth ? { top: L.farTop, lit: L.farLit, body: L.far, warm: L.farWarm, tree: L.farTree } : { top: L.hazeTop, lit: L.hazeLit, body: L.haze, warm: L.hazeWarm, tree: L.hazeTree };
+    const isles = depth
+      ? [[96, 70, 40, 7, 3], [392, 168, 26, 5, 2], [566, 318, 46, 8, 4], [214, 330, 15, 3, 1], [508, 46, 13, 3, 1], [300, 262, 10, 2, 0]]
+      : [[40, 140, 22, 4, 2], [250, 40, 30, 5, 3], [450, 230, 18, 3, 1], [610, 110, 12, 2, 1], [150, 270, 9, 2, 0], [350, 350, 26, 4, 2]];
+    isles.forEach(([cx, cy, rx, ry, trees], s) => {
+      const sd = s + depth * 20;
+      // Umriss je Spalte: Oberkante (Ellipse, flach) und Wandhöhe
+      for (let x = Math.floor(cx - rx * 1.2); x < cx + rx * 1.2; x++) {
+        const e = (x - cx) / rx, wob = 0.1 * Math.sin(e * 5 + sd) + 0.06 * Math.sin(e * 11 + sd * 2);
+        const q = 1 - e * e;
+        if (q + wob <= 0) continue;
+        const hh = Math.max(1, Math.round(ry * Math.sqrt(Math.max(0, q + wob)))), top = cy - hh, bot = cy + Math.round(hh * 0.45);
+        for (let y = top; y <= bot; y++) putW(x, y, y === top ? P.lit : y < top + 2 ? P.top[1] : P.top[0]);
+        // Wand (Bänder) und Kiel
+        const wall = Math.round(ry * 0.9 + 1), kd = Math.round(ry * (depth ? 3.2 : 2.6) * Math.pow(Math.max(0, q), 0.7) * (0.6 + 0.4 * vnoise(x / 4, 1, sd)));
+        for (let j = 1; j <= wall + kd; j++) {
+          const y = bot + j, inWall = j <= wall;
+          let col = inWall ? (((j + Math.round(vnoise(x / 6, 2, sd) * 3)) % 4 === 0) ? P.body[1] : P.body[2]) : (j - wall < 3 ? P.body[1] : P.body[0]);
+          // Morgenrot von unten: warme Kante an der linken Unterseite des Kiels
+          if (!inWall && (j === wall + kd || (e < -0.2 && j > wall + kd - 2))) col = P.warm;
+          putW(x, y, col);
         }
-        if (b < 0) continue;
-        for (let y = top; y <= b; y++) putW(x, y, y === top ? L.farLit : L.far[2]);
-        const e = Math.abs((x - cx) / rx), kd = Math.round(ry * 2.4 * Math.max(0, 1 - e * e) * (0.6 + 0.4 * vnoise(x / 4, 1, s)));
-        for (let j = 1; j <= kd; j++) putW(x, b + j, j < 3 ? L.far[1] : L.far[0]);
-        if (kd > 6 && hash2(x, 3, s + 50) > 0.9) putW(x, b + Math.floor(kd * 0.6), L.crystal[hash2(x, 4, s) > 0.5 ? 1 : 0]);
+        if (depth && kd > 6 && hash2(x, 3, sd + 50) > 0.9) putW(x, bot + wall + Math.floor(kd * 0.6), L.crystal[hash2(x, 4, sd) > 0.5 ? 1 : 0]);
+      }
+      // Baumkronen und Säulen auf der Oberfläche (Silhouetten mit Lichtkante oben)
+      for (let k = 0; k < trees; k++) {
+        const tx = Math.round(cx + (hash2(k, sd, 61) - 0.5) * rx * 1.3), ty = cy - Math.round(ry * 0.6), tr = depth ? 3 + Math.floor(hash2(k, sd, 62) * 3) : 2 + Math.floor(hash2(k, sd, 62) * 2);
+        if (hash2(k, sd, 63) < 0.25) {   // Säule
+          for (let j = 0; j < tr * 2 + 2; j++) { putW(tx, ty - j, P.tree[0]); putW(tx + 1, ty - j, P.tree[1]); }
+          putW(tx - 1, ty - tr * 2 - 2, P.tree[1]); putW(tx + 2, ty - tr * 2 - 2, P.tree[1]);
+          continue;
+        }
+        for (let j = 0; j < tr; j++) putW(tx, ty - j, P.tree[0]);
+        for (let y = -tr; y <= tr; y++) for (let x = -tr - 1; x <= tr + 1; x++) {
+          const q = (x * x) / ((tr + 1) * (tr + 1)) + (y * y) / (tr * tr);
+          if (q > 1 + (hash2(tx + x, y, sd) - 0.5) * 0.35) continue;
+          putW(tx + x, ty - tr - 1 + y, y < -tr * 0.4 && x < tr * 0.5 ? P.tree[2] : P.tree[1]);
+        }
       }
     });
     g.putImageData(img, 0, 0);
     return c;
   }
 
-  // Wolken: nach unten dichter, oben ausgefranst; waagerecht nahtlos (Periode CLOUD_W)
+  // Wolken: Haufenwolken im Morgenrot – Ballen aus überlappenden Bögen (Oberkante hell, darunter zwei Schattenstufen),
+  // unten zu einer dichten Bank verschmolzen; waagerecht nahtlos (Periode CLOUD_W)
   #cloudTile(r) {
     const L = this.L, FW = CLOUD_W * r, FH = CLOUD_H * r, c = makeCanvas(FW, FH), g = c.getContext('2d');
     const img = g.createImageData(FW, FH), d = img.data, P = CLOUD_W / 60;
+    // Ballen: x, Grundlinie, Radius (Weltpixel); von hinten (oben) nach vorn (unten) gemalt, jeder Ballen deckt die
+    // hinteren ab und bringt seine eigene Lichtkante mit – so entstehen gestaffelte Haufenwolken statt einer Fläche.
+    const puffs = [];
+    // in Haufen: je Haufen ein großer Ballen in der Mitte, kleinere seitlich und davor
+    for (let c = 0; c < 9; c++) {
+      const hx = (c + hash2(c, 5, 71) * 0.6) * (CLOUD_W / 9), big = 10 + hash2(c, 6, 71) * 9, n = 5 + Math.floor(hash2(c, 7, 71) * 4);
+      for (let k = 0; k < n; k++) {
+        const u = (hash2(c, k, 72) - 0.5) * 2, rr = big * (1 - Math.abs(u) * 0.55) * (0.75 + hash2(c, k, 73) * 0.3);
+        puffs.push([Math.floor(hx + u * big * 1.6), CLOUD_H - 10 - (1 - Math.abs(u)) * big * 0.9 + hash2(c, k, 74) * 8, rr, c * 10 + k]);
+      }
+    }
+    puffs.sort((u, v) => u[1] - v[1]);
+    const buf = new Int8Array(CLOUD_W * CLOUD_H).fill(-1);
+    for (const [px, py, rr, k] of puffs) {
+      for (let dx = -Math.ceil(rr); dx <= Math.ceil(rr); dx++) {
+        const x = (((px + dx) % CLOUD_W) + CLOUD_W) % CLOUD_W, top = Math.round(py - Math.sqrt(Math.max(0, rr * rr - dx * dx)));
+        const bot = Math.min(CLOUD_H, Math.round(py + Math.sqrt(Math.max(0, rr * rr - dx * dx)) * 0.45));
+        for (let y = Math.max(0, top); y < bot; y++) {
+          const dy = y - top, side = dx / rr, b = bay(x, y);
+          // Lichtkante oben (links breiter, Licht von links oben), dann Mittelton, Schatten zur Unterseite und rechts
+          let i = dy < 1 ? 3 : dy < 2 + (side < 0 ? 2 : 0) ? (side > 0.75 ? 2 : 3) : dy < rr * 0.55 + (side < 0 ? 2 : -1) ? 2 : dy < rr * 0.55 + 2 && b < 0.5 ? 2 : 1;
+          if (i === 1 && dy > rr * 1.15 + pnoise(x / 10, k, P * 6, 9) * 4) i = 0;
+          buf[y * CLOUD_W + x] = i;
+        }
+      }
+    }
+    // vorderste Wolkenbank am unteren Rand (deckt die Unterseiten der Ballen)
+    for (let x = 0; x < CLOUD_W; x++) {
+      const top = Math.round(CLOUD_H - 9 - pnoise(x / 22, 0.5, P * 2.7, 8) * 9);
+      for (let y = top; y < CLOUD_H; y++) buf[y * CLOUD_W + x] = y - top < 1 ? 3 : y - top < 3 ? 2 : y - top < 6 ? 1 : 0;
+    }
     for (let y = 0; y < CLOUD_H; y++) for (let x = 0; x < CLOUD_W; x++) {
-      const t = y / CLOUD_H;
-      const band = Math.sin((x / CLOUD_W) * Math.PI * 2 * 6 + y / 9) * 0.5 + pnoise(x / 60, y / 14, P, 5) * 0.55 + pnoise(x / 30, y / 7, P * 2, 6) * 0.45;
-      if (band <= 1.05 - t * 0.75) continue;
-      const tt = Math.max(0, Math.min(1, t * 0.8 + (band - 0.8) * 0.5));
-      const col = L.clouds[Math.max(0, Math.min(L.clouds.length - 1, Math.floor(tt * (L.clouds.length - 1) + bay(x, y))))];
-      for (let j = 0; j < r; j++) for (let i = 0; i < r; i++) { const o = ((y * r + j) * FW + x * r + i) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255; }
+      const i = buf[y * CLOUD_W + x];
+      if (i < 0) continue;
+      const col = L.clouds[i];
+      for (let j = 0; j < r; j++) for (let ii = 0; ii < r; ii++) { const o = ((y * r + j) * FW + x * r + ii) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255; }
     }
     g.putImageData(img, 0, 0);
     return c;

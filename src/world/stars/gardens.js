@@ -123,8 +123,12 @@ export function buildDriftingGardens() {
   put(158, 66, 'H');            // Kräuterkundige
   put(174, 64, 'Q');            // Wegweiser
   // Gärtnerhäuschen (Lauben) und Beete rings um den Platz
-  for (const [x, y] of [[154, 64], [178, 66], [180, 58], [152, 58]]) put(x, y, 'V');
-  for (const [x, y] of [[156, 68], [162, 69], [176, 70], [182, 62]]) put(x, y, 'B');
+  // Gärtnerhäuser (Fachwerk mit Rosadach, Perlstein mit Grünspandach und Schuppen, Strohdach mit Bienenkörben)
+  put(152, 58, 'V'); put(154, 64, 'A'); put(180, 58, 'I'); put(178, 66, 'V');
+  for (const [x, y] of [[156, 68], [182, 62]]) put(x, y, 'B');
+  for (const [x, y] of [[162, 69], [175, 70], [186, 66]]) put(x, y, 'e');   // Beete
+  put(161, 60, 'q');            // Ziehbrunnen am Platz
+  put(157, 61, 'n'); put(175, 61, 'f');
   put(166, 61, '1'); put(166, 66, '2');
   put(190, 62, '3');             // aus Sternhafen
   keep(inRect(village));
@@ -223,7 +227,7 @@ export function buildDriftingGardens() {
   clearAround(m, spots, 'TBKRPWJXFSDct', { r: 2, south: 3 });
 
   // ------------------------------------------------------------ Questziele (progression/questsStars.js)
-  const SOLID = 'TBKLJPRWUuOQYXVZFSDt';
+  const SOLID = 'TBKLJPRWUuOQYXVZFSDtAIqenf';
   // Pells Saatbeutel: Ankerhain und Rand zum Wurzelbruch; Oddas Mondkristalle: Ufer, Weiherinsel, Landzunge
   const seedBags = [[141, 52], [150, 41], [182, 76], [132, 58]];
   const moonCrystals = [[45, 90], [59, 93], [52, 98], [80, 96]];
@@ -250,7 +254,7 @@ export function buildDriftingGardens() {
     decor: {
       T: 'blossomTrees', B: 'bushes', K: 'crystals', L: 'lantern', J: 'starLamp', P: 'ruinPillars', R: 'roseRocks',
       W: 'ruinWalls', U: 'ruinArch', u: 'ruinArchBroken', O: 'aurelStatue', Q: 'signpost', Y: 'anchorTree', X: 'roots',
-      V: 'gardenHut', Z: 'vineGate', F: 'goldTrees', S: 'moonTrees', D: 'witheredTrees', c: 'glowShrooms', t: 'topiary',
+      V: 'cottageRose', A: 'cottageVerd', I: 'cottageThatch', e: 'gardenBeds', q: 'villageWell', n: 'parkBench', f: 'flowerBoxes', Z: 'vineGate', F: 'goldTrees', S: 'moonTrees', D: 'witheredTrees', c: 'glowShrooms', t: 'topiary',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_sternhafen', 4: 'from_rankengruft', 5: 'waystone', 6: 'from_splitterweiten' },
     waystone,
