@@ -269,14 +269,18 @@ function kaldrisSword(p, g, hx, hy, a, V, glow) {
 
 function pauldron(p, x, y, r, V, back, shards) {
   const pl = back ? V.dark : V.plate;
-  // drei Schienen übereinander, die oberste am größten
-  for (let i = 2; i >= 0; i--) {
-    const yy = y + i * r * 0.32, rr = r * (1 - i * 0.12);
-    plate(p, [[x - rr, yy + 2], [x - rr * 0.8, yy - rr * 0.55], [x, yy - rr * 0.8], [x + rr * 0.85, yy - rr * 0.5], [x + rr, yy + 2], [x + rr * 0.6, yy + rr * 0.42], [x - rr * 0.6, yy + rr * 0.42]], pl, { edge: 0.8 });
-    for (let t = -0.8; t <= 0.8; t += 0.04) pt(p, x + t * rr * 0.75, yy + rr * 0.38 - Math.abs(t) * 2, V.trim[back ? 1 : 2]);
-    if (!back) for (const t of [-0.55, 0, 0.55]) rivet(p, x + t * rr * 0.75, yy + rr * 0.2 - Math.abs(t) * 2, V.trim);
+  // flache Schulterplatte (breit, kaum gewölbt), darunter zwei schmale Schienen: liest sich als Schulter, nicht als Helm
+  const y0 = y + 2;
+  for (let i = 2; i >= 1; i--) {
+    const yy = y0 + i * r * 0.3, rr = r * (1.05 - i * 0.1);
+    plate(p, [[x - rr, yy + 1.5], [x - rr * 0.7, yy - rr * 0.22], [x + rr * 0.8, yy - rr * 0.2], [x + rr, yy + 1.5], [x + rr * 0.6, yy + rr * 0.3], [x - rr * 0.6, yy + rr * 0.3]], pl, { edge: 0.7 });
   }
-  if (shards) for (const [ox, len, a] of shards) gem(p, x + ox, y - r * 0.5, x + ox + Math.cos(a) * len, y - r * 0.5 + Math.sin(a) * len, len * 0.32, V.crystal);
+  const rr = r * 1.12;
+  plate(p, [[x - rr, y0 + 1], [x - rr * 0.85, y0 - rr * 0.3], [x - rr * 0.2, y0 - rr * 0.42], [x + rr * 0.7, y0 - rr * 0.34], [x + rr, y0 + 1], [x + rr * 0.5, y0 + rr * 0.3], [x - rr * 0.6, y0 + rr * 0.3]], pl, { edge: 0.8 });
+  for (let t = -0.85; t <= 0.85; t += 0.04) pt(p, x + t * rr * 0.9, y0 + rr * 0.24 - Math.abs(t) * 0.8, V.trim[back ? 1 : 2]);
+  if (!back) for (const t of [-0.6, 0.6]) rivet(p, x + t * rr * 0.7, y0 - rr * 0.05, V.trim);
+  // Glutsplitter kurz und schräg nach hinten außen (nicht wie die Helmzacken nach oben)
+  if (shards) for (const [ox, len, a] of shards) { const l = len * 0.55, b = a - 0.6; gem(p, x + ox, y0 - rr * 0.3, x + ox + Math.cos(b) * l, y0 - rr * 0.3 + Math.sin(b) * l, l * 0.36, V.crystal); }
 }
 
 function kaldrisLeg(p, hx, hy, L, V, back, step) {
