@@ -4,6 +4,7 @@ import { createFloorTiles, createFloorTilesFine, createWallFaceTiles, createWall
 import { fineRes } from '../gfx/Fine.js';
 import { hash2 } from '../core/math.js';
 import { TileMap } from './TileMap.js';
+import { paintWallDepth, paintFloorDetail } from './dungeonAtmo.js';
 
 const T = CONFIG.tileSize;
 const SOLID = new Set(['#', 'T', 'b', 'k', 'D', '~', '$']); // $ = verborgener Durchgang (öffnet per Hebel)
@@ -102,7 +103,6 @@ export class Dungeon extends TileMap {
     const quarter = (mt, sx, sy, px, py) => { const q = mt.res ?? 1; ctx.drawImage(mt, sx * q, sy * q, T * q, T * q, px, py, T, T); };
     const faces = biome?.faces ?? createWallFaceTiles();
     const top = biome?.top ?? createWallTopTile();
-    const edge = biome?.topEdge ?? '#3a3346', edgeLight = biome?.topEdgeLight ?? '#4b4259';
     this.biomeTiles = biome;
     const c = makeCanvas(this.pixelW * r, this.pixelH * r);
     c.res = r;
@@ -140,40 +140,15 @@ export class Dungeon extends TileMap {
 
     biome?.decorate?.(ctx, this); // biomeigene Bodenzier/Ufer mit Kartenwissen
 
-    // Kanten der Wandkronen + Schlagschatten/AO auf dem Boden
-    const organic = !!biome?.liquid?.tile;
-    const open = (tx, ty) => { const k = this.wallKind(tx, ty); return k === 'floor' || k === 'faceLower' || k === 'faceUpper' || k === 'liquid'; };
-    for (let y = 0; y < this.h; y++) {
-      for (let x = 0; x < this.w; x++) {
+    // Mauertiefe (Krone, Überhang, Sockel, Schlagschatten) und Bodendetails: world/dungeonAtmo.js
+    paintFloorDetail(ctx, this, biome, floor[0], r);
+    paintWallDepth(ctx, this, biome, r);
+    if (!biome) {
+      for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+        if (this.wallKind(x, y) !== 'floor') continue;
         const px = x * T, py = y * T;
-        const kind = this.wallKind(x, y);
-        if (kind === 'top') {
-          ctx.fillStyle = edge;
-          if (open(x, y + 1)) ctx.fillRect(px, py + T - 2, T, 2);
-          if (open(x - 1, y)) ctx.fillRect(px, py, 1, T);
-          if (open(x + 1, y)) ctx.fillRect(px + T - 1, py, 1, T);
-          if (open(x, y - 1)) ctx.fillRect(px, py, T, 1);
-          ctx.fillStyle = edgeLight;
-          if (open(x, y + 1)) ctx.fillRect(px, py + T - 2, T, 1);
-        }
-        if (kind === 'faceUpper' && !this.isWall(x, y - 1)) {
-          ctx.fillStyle = edge; ctx.fillRect(px, py, T, 2);
-        }
-        if (kind !== 'floor') continue;
-        // Schlagschatten nur von echten Mauern – Becken mit organischem Ufer (Lava) sind fest,
-        // werfen aber keinen Schatten (sonst entsteht um jedes Becken ein dunkler Kachelrahmen)
-        const hw = (tx, ty) => this.isWall(tx, ty) && !(organic && this.isLiquid(tx, ty));
-        if (hw(x, y - 1)) {
-          for (let i = 0; i < 7; i++) {
-            ctx.fillStyle = `rgba(6,4,12,${0.6 * (1 - i / 7)})`;
-            ctx.fillRect(px, py + i, T, 1);
-          }
-        }
-        if (hw(x - 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + 3, py, 2, T); }
-        if (hw(x + 1, y)) { ctx.fillStyle = 'rgba(6,4,12,0.45)'; ctx.fillRect(px + T - 3, py, 3, T); ctx.fillStyle = 'rgba(6,4,12,0.2)'; ctx.fillRect(px + T - 5, py, 2, T); }
-        if (hw(x, y + 1)) { ctx.fillStyle = 'rgba(6,4,12,0.3)'; ctx.fillRect(px, py + T - 2, T, 2); }
-        if (!biome && this.isWall(x - 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebL, px, py);
-        if (!biome && this.isWall(x + 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebR, px + T - 14, py);
+        if (this.isWall(x - 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebL, px, py);
+        if (this.isWall(x + 1, y) && this.isWall(x, y - 1) && hash2(x, y, 9) < 0.7) ctx.drawImage(props.cobwebR, px + T - 14, py);
       }
     }
 

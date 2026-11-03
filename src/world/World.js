@@ -11,6 +11,7 @@ import { Spawner } from './Spawner.js';
 import { placeObjects } from './placeObjects.js';
 import { Decals } from '../gfx/Decals.js';
 import { ParticleSystem } from '../gfx/Particles.js';
+import { DungeonAtmo, liftAmbient } from './dungeonAtmo.js';
 import { LightingSystem, Light } from '../gfx/Lighting.js';
 import { StarSky } from '../gfx/Sky.js';
 import { CombatSystem } from '../systems/Combat.js';
@@ -72,7 +73,10 @@ export class World {
     this.dungeon = level.kind === 'outdoor' ? (takePrebuilt(level) ?? new Outdoor(level)) : new Dungeon(level);
     this.decals = new Decals(this.dungeon.pixelW, this.dungeon.pixelH);
     this.particles = new ParticleSystem(this.decals);
-    this.lighting = new LightingSystem(CONFIG.viewWidth, CONFIG.viewHeight, zone.ambient ?? CONFIG.lighting.ambient);
+    const dungeonLike = level.kind !== 'outdoor';
+    this.lighting = new LightingSystem(CONFIG.viewWidth, CONFIG.viewHeight, dungeonLike ? liftAmbient(zone.ambient ?? CONFIG.lighting.ambient, level.biome ?? null) : zone.ambient ?? CONFIG.lighting.ambient);
+    // Dungeon: Lichter liegen als flache Teiche auf dem Boden (3/4-Ansicht), Fackeln werfen Kegel (world/dungeonAtmo.js)
+    if (dungeonLike) { this.lighting.flatten = 0.74; this.lighting.dodge = 0.26; }
     if (this.dungeon.voidTiles) this.lighting.setVoid(this.dungeon.voidTiles(), this.dungeon.w, this.dungeon.h);
     // Sternenscherben: Himmel unter dem Abgrund (level.sky = Stimmung aus gfx/Sky.js)
     this.sky = level.sky ? new StarSky(level.sky, zone.ambient ?? CONFIG.lighting.ambient) : null;
@@ -122,9 +126,11 @@ export class World {
     // Heldenlicht nur in Dungeons (dort sonst zu dunkel); draußen lag es als heller Kreis um den Helden. Dort hellt
     // stattdessen das Figurenlicht nur Held und Mitspieler auf, der Boden bleibt dunkel.
     this.figureLight = level.kind === 'outdoor' ? FIGURE_LIGHT : 0;
-    if (level.kind !== 'outdoor') this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: L.heroLightRadius, color: L.heroLightColor, intensity: 0.85, flicker: 0.05, bloom: 0 }));
+    if (level.kind !== 'outdoor') this.addLight(new Light({ follow: this.hero, offsetY: -10, radius: Math.round(L.heroLightRadius / this.lighting.flatten ** 0.5), color: L.heroLightColor, intensity: 0.85, flicker: 0.05, bloom: 0 }));
     // Figuren-Frames entstehen aufgeschoben (gfx/Sprite.js LazyFrame); der Rest wird nach dem Betreten in Häppchen gebaut
     this.spriteWarm = new SpriteWarmer(this);
+    // Bodennebel und Staub im Licht (nach den Lichtern, die placeObjects gesetzt hat)
+    this.atmo = dungeonLike ? new DungeonAtmo(this, level.biome ?? null) : null;
   }
 
   // Verstreute Knochen & Blutflecken im Dungeon, Laub und Steinchen draußen
@@ -360,7 +366,8 @@ export class World {
       }
       return;
     }
-    if (Math.random() < dt * 14) {
+    this.atmo?.update(dt);
+    if (Math.random() < dt * 8) {
       this.particles.spawn({
         x: v.x + rand(0, W), y: v.y + rand(0, H),
         vx: rand(-4, 4), vy: rand(-2, 2), rise: rand(1, 4), wobble: 6,
@@ -393,6 +400,7 @@ export class World {
     // Figurenlicht draußen: Held, Mitspieler und lebende Gegner heben sich vom dunklen Boden ab (ohne Lichtkreis)
     const figs = this.figureLight ? drawables.filter((d) => d === this.hero || d.team === 'remote' || (d.team === 'folk' && d.alpha > 0.5 && vis(d)) || (d.team === 'enemy' && d.animator && !d.dead && vis(d))) : null;
     this.lighting.apply(ctx, cx, cy, this.lights, figs?.length ? { ...this.figureLight, paint: (g) => paintFigures(g, figs, cx, cy) } : null);
+    this.atmo?.render(ctx, cx, cy, this.time, this.lighting);   // Dunst im Licht
 
     // Emissive-Pass: alles, was selbst leuchtet
     this.dungeon.renderEmissive?.(ctx, cx, cy, this.time);

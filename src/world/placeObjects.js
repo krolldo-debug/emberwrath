@@ -44,7 +44,14 @@ export function placeObjects(world) {
     if (e.steam) opts.smoke = { dx: e.steam.dx, dy: e.steam.dy, rate: 5 };
     // Mehrteilige Kollision (Tore, Ruinen): einzelne Pfeiler statt eines Kastens
     for (const [a, b, c, dd] of e.boxes ?? []) d.boxes.push({ x0: pl.x + a, y0: pl.y + b, x1: pl.x + c, y1: pl.y + dd, low: false });
-    for (const l of e.lights ?? []) world.addLight(new Light({ x: pl.x + l.dx, y: pl.y + l.dy, radius: l.radius, color: l.color, intensity: l.intensity ?? 0.9, flicker: 0.2, bloom: 0.3 }));
+    // Wandleuchten (Deko auf einer Mauerkachel) im Dungeon: zusätzlich ein Lichtkegel auf den Boden davor
+    const onWall = d.biome === 'dungeon' && d.isWall(pl.tx, pl.ty) && !d.isLiquid?.(pl.tx, pl.ty);
+    const cone = (l) => world.addLight(new Light({ x: pl.x + l.dx, y: pl.y + l.dy - 2, radius: 110, color: l.color, intensity: (l.intensity ?? 0.9) * 0.6, flicker: 0.15, bloom: 0, shape: { cone: { len: 104, spread: 0.5 } } }));
+    for (const l of e.lights ?? []) {
+      world.addLight(new Light({ x: pl.x + l.dx, y: pl.y + l.dy, radius: onWall ? Math.min(l.radius, 52) : l.radius, color: l.color, intensity: l.intensity ?? 0.9, flicker: 0.2, bloom: 0.3 }));
+      if (onWall) cone(l);
+    }
+    if (onWall && e.light) cone(e.light);   // Einzellicht (Decor setzt den runden Schein selbst)
     const o = add(pl.x, pl.y, opts);
     // Wegweiser im Deko-Satz (extra.sign): liest level.signText vor
     if (e.sign) {
