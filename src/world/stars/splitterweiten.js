@@ -1,7 +1,7 @@
 import { createRng, hash2 } from '../../core/math.js';
 import { clearAround } from '../mapkit.js';
 import { addInteriors } from '../houses.js';
-import { openSites, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
+import { openSites, placeNear, skyMap, isle, bridge, paths, wobble, freeAt, voidDist, rect, inRect, walkPath, ISLAND } from './kit.js';
 
 // ---------------------------------------------------------------- Die Splitterweiten (45–50)
 // 200 × 130 Kacheln. Wo Aurels Himmelsreich zerbrach: ein Feld aus Kristallscherben, kühles Glasmoos statt Gras.
@@ -173,6 +173,14 @@ export function buildSplitterweiten() {
   for (const [x, y] of [[144, 104], [152, 104]]) put(x, y, 'J');
   keep(inRect(rect(136, 88, 26, 16)));
 
+  // ------------------------------------------------------------ Setzstücke (Kartendetails 03.11.)
+  // Sternwartenberg: Armillarsphären, Sternkartenpulte und umgestürzte Fernrohre erzählen von Aurels Sternwarte.
+  // Abseits der Sternsteine (q_queens_constellation, Westhang) und der Linsen.
+  const avoid = [[148, 98], [148, 102], [140, 103], ...lenses, [134, 98], [142, 108], [134, 117], [129, 108]];
+  placeNear(m, net, [[157, 97], [126, 103]], 'p', { avoid, gap: 4 });
+  placeNear(m, net, [[138, 99], [154, 109], [166, 109]], 'q', { avoid, gap: 4 });
+  placeNear(m, net, [[163, 115], [122, 109]], 'n', { r: 2, reach: 8, avoid, gap: 4 });
+
   // ------------------------------------------------------------ Streudeko
   const vd = voidDist(m, 4);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
@@ -234,13 +242,18 @@ export function buildSplitterweiten() {
   const crates = [[42, 10], [96, 24], [126, 11], [116, 14]];
   const nests = [[53, 11], [69, 20], [110, 10], [35, 14]];
   const echoStones = [[149, 67], [166, 55], [182, 58]];
+  // Miras Wegleuchten (q_mira_lamps): entlang des Wegs von Funkenruh zu den Singenden Graten, neben dem Weg
+  const lampPath = walkPath(m, 'KSGOTxoDlLJYgcksRQFmdHUWBpqn', [60, 50], [150, 46]);
+  const lamps = openSites(m, [0.2, 0.42, 0.64, 0.86].map((f) => { const q = lampPath[Math.round((lampPath.length - 1) * f)] ?? [60, 50]; return [q[0], q[1] + 2]; }), 1, 5);
+  // Sternbild der Königin (q_queens_constellation): vier Sternsteine auf dem Sternwartenberg
+  const starStones = openSites(m, [[134, 98], [142, 108], [134, 117], [129, 108]], 1, 4);
   const claimStake = [62, 30], harrikCamp = [133, 36];
 
   // Freiraum um Marken und Portale
   const spots = [[46, 12], [118, 11], [58, 60], [60, 59], [62, 57], [184, 30], [148, 102], [56, 56], [53, 60], [65, 61], [50, 56], [152, 45], [30, 101], [140, 104], [60, 62], ...mirrorStones, ...lenses, ...crates, ...nests, ...echoStones, claimStake, harrikCamp];
   clearAround(m, spots, 'gckRsabefhwrtzmvdu', { r: 2, south: 3 });
   // Eskorte „Miras Messgang“: von Funkenruh über die Westbrücken zur Westscherbe
-  const SOLID = 'KSGOTxoDlLJYgcksRQFmdHUWB';
+  const SOLID = 'KSGOTxoDlLJYgcksRQFmdHUWBpqn';
   const miraPath = walkPath(m, SOLID, [50, 57], [27, 34]);
   const amb = (f) => Math.round((miraPath.length - 1) * f);
 
@@ -265,6 +278,7 @@ export function buildSplitterweiten() {
       D: 'derrick', l: 'mineCart', L: 'lantern', J: 'starLamp', Y: 'lensStand', g: 'glassTrees', c: 'crystals', k: 'shardRocks',
       s: 'singingSpires', R: 'mirrorStones', Q: 'signpost', F: 'shardCampfire',
       m: 'moonTrees', v: 'heather', d: 'witheredTrees', u: 'glowShrooms', B: 'bushes', H: 'minerHutA', U: 'minerHutB', W: 'workbench',
+      p: 'armillary', q: 'starChart', n: 'fallenTelescope',
     },
     points: { 1: 'start', 2: 'respawn', 3: 'from_gardens', 4: 'from_sternhafen', 5: 'waystone', 6: 'from_glass_halls', 7: 'from_observatory' },
     waystone,
@@ -296,6 +310,8 @@ export function buildSplitterweiten() {
       ...crates.map(([x, y], i) => ({ id: `supply_crate_${i + 1}`, kind: 'item', decor: 'crateStack', name: 'Bosks Kiste', prompt: 'Die Kiste bergen', x, y })),
       ...nests.map(([x, y], i) => ({ id: `crawler_nest_${i + 1}`, kind: 'shrine', decor: 'oreHeaps', name: 'Krabblernest', prompt: 'Das Nest zerschlagen', x, y })),
       ...echoStones.map(([x, y], i) => ({ id: `echo_stone_${i + 1}`, kind: 'shrine', decor: 'singingSpires', name: 'Echostein', prompt: 'Den Echostein anschlagen', x, y })),
+      ...lamps.map(([x, y], i) => ({ id: `mira_lamp_${i + 1}`, kind: 'shrine', set: 'decor_astral', decor: 'signalLamp', name: 'Wegleuchte', prompt: 'Die Wegleuchte mit Sternöl füllen', x, y })),
+      ...starStones.map(([x, y], i) => ({ id: `star_stone_${i + 1}`, kind: 'shrine', set: 'decor_astral', decor: 'starStones', name: 'Sternstein', prompt: 'Den Sternstein berühren', x, y })),
       { id: 'kel_claim_stake', kind: 'shrine', decor: 'mineCart', name: 'Kels Claimpfahl', prompt: 'Den Claim verteidigen', x: claimStake[0], y: claimStake[1] },
       { id: 'harrik_journal', kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Harriks Tagebuch', prompt: 'Das Tagebuch aufheben', x: harrikCamp[0], y: harrikCamp[1] },
     ],

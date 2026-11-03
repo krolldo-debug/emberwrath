@@ -1,7 +1,7 @@
 import { h } from '../core/dom.js';
 import { EV } from '../core/events.js';
 import { iconUrl, itemIconId, abilityIcon } from '../gfx/Icons.js';
-import { xpToNext } from '../progression/xp.js';
+import { xpToNext, isStarsOpen } from '../progression/xp.js';
 import { nextGoalText } from '../character/nextGoal.js';
 import { trackedQuestId, questFilterHere } from '../progression/selectors.js';
 import { talentPointsTotal, spentPoints } from '../character/talents.js';
@@ -275,7 +275,7 @@ export class Hud {
     bus.on('trial:failed', () => this.#queueBanner('Prüfung gescheitert', 'Die Zeit ist abgelaufen – versuch es erneut', '#c04040', 'trial'));
     bus.on(EV.QUEST_COMPLETED, (e) => {
       const fin = this.s.content.find('quest', e.questId)?.finale;   // Kapitelende (q_ignaroth): großes Banner statt „Quest abgeschlossen“
-      if (fin) this.#queueBanner(fin.title, fin.sub, '#ffd66a', 'finale');
+      if (fin) this.#queueBanner(fin.title, fin.subClosed && !isStarsOpen() ? fin.subClosed : fin.sub, '#ffd66a', 'finale');
       else this.#queueBanner('Quest abgeschlossen', this.#questTitle(e.questId), '#9cff8a', 'quest');
     });
     bus.on(EV.BOSS_ENGAGED, (e) => { this.boss = { id: e.bossId, actor: null }; });

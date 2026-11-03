@@ -256,6 +256,12 @@ export function questTarget(state, content) {
   if (g && questStatus(state, content, g.id) === 'available') {
     return mk({ questId: g.id, objectiveId: null, title: g.title, text: `Neue Quest bei ${npcShortName(content, g.giver)}`, zoneId: npcZone(g.giver), kind: 'npc', id: g.giver, ready: false, offer: true });
   }
+  // Kapitelanfang (quest.beckon, z. B. der Weg in die Sternenglut): solange keine Hauptquest läuft, führt die Glutspur
+  // zum Geber, auch wenn noch Nebenquests offen sind – bis die Quest angenommen ist.
+  if (!questFilterHere(state, content) && !Object.keys(q.active).some((id) => content.find('quest', id)?.main)) {
+    const b = content.all('quest').find((d) => d.beckon && questStatus(state, content, d.id) === 'available');
+    if (b) return mk({ questId: b.id, objectiveId: null, title: b.title, text: `Neue Quest bei ${npcShortName(content, b.giver)}`, zoneId: npcZone(b.giver), kind: 'npc', id: b.giver, ready: false, offer: true });
+  }
   if (!questId) {
     // Im Dungeon ohne passende Quest: kein Weg nach draußen zu Questgebern
     if (questFilterHere(state, content)) return null;

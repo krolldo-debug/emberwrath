@@ -578,7 +578,8 @@ test('Sternenglut Teil 1: Kette 41–50, Ziele in der Welt, Tempo', () => {
     for (const npc of [q.giver, q.turnInNpc].filter(Boolean)) assert.ok(WORLD_NPCS[npc], `${id}: ${npc}`);
     for (const o of q.objectives) {
       const t = [].concat(o.target);
-      if (['interact', 'use', 'sequence'].includes(o.kind)) for (const x of t) assert.ok(objs.has(x), `${id}: Objekt ${x}`);
+      // starfall_<zone>: Sternenherz des Weltereignisses (world/starfall.js), kein festes Objekt
+      if (['interact', 'use', 'sequence'].includes(o.kind)) for (const x of t) assert.ok(objs.has(x) || (x.startsWith('starfall_') && levels[ZONES[x.slice(9)]?.level]?.starfallSites?.length), `${id}: Objekt ${x}`);
       if (o.kind === 'reach') for (const x of t) assert.ok(x.startsWith('zone:') ? ZONES[x.slice(5)] : areas.has(x), `${id}: Bereich ${x}`);
       if (o.kind === 'escort' || o.kind === 'defend') assert.ok(routes.has(o.target), `${id}: ${o.target}`);
       if (o.kind === 'kill' || o.kind === 'boss') for (const x of t) assert.ok(ENEMY_TYPES[x], `${id}: ${x}`);

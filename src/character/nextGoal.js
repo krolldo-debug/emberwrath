@@ -1,5 +1,6 @@
 import { CLASSES, ABILITIES } from './classes.js';
 import { PASSIVES, TALENT_TIERS } from './talents.js';
+import { isStarsOpen } from '../progression/xp.js';
 
 // Nächstes Ziel beim Stufenaufstieg (01.11.): Zwischen Stufe 9 und 12 kam nichts Neues, viele hörten dort auf.
 // Das Stufen-Banner (ui/Hud.js) nennt statt „Deine Werte sind gestiegen“ die nächste Freischaltung.
@@ -27,11 +28,21 @@ export function nextGoalText(state) {
   const level = sl.progress?.level ?? 1;
   const riding = (sl.quests?.completed ?? []).includes('q_first_ride') || (sl.character?.mounts?.owned?.length ?? 0) > 0;
   const n = upcoming(sl.character?.classId, level, { riding })[0];
-  if (!n) return null;
+  if (!n) return level >= 40 ? starsGoal(sl) : null;
   switch (n.kind) {
     case 'ability': return `Als Nächstes auf Stufe ${n.level}: Fähigkeit ${n.name}`;
     case 'passive': return `Als Nächstes auf Stufe ${n.level}: Passive ${n.name}`;
     case 'talents': return `Als Nächstes auf Stufe ${n.level}: Talentreihe ${n.name}`;
     default: return `Als Nächstes auf Stufe ${n.level}: eigenes Reittier`;
   }
+}
+
+// Ab Stufe 40 gibt es keine Freischaltungen mehr: dann nennt das Banner den Weg in die Sternenglut (Durchsicht 03.11.:
+// „jeder soll wissen, wie es nach Stufe 40 weitergeht“), solange er noch nicht begangen ist.
+function starsGoal(sl) {
+  if (!isStarsOpen()) return null;
+  const done = sl.quests?.completed ?? [], active = sl.quests?.active ?? {};
+  if (!done.includes('q_homecoming')) return 'Als Nächstes: Beende die Hauptquest, dann öffnet sich der Sternenriss';
+  if (!done.includes('q_star_in_crown') && !active.q_star_in_crown) return 'Als Nächstes: Ysolde in der Rauhwacht hat eine Vision';
+  return null;
 }

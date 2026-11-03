@@ -2308,8 +2308,10 @@ function frostRing(p, g, cx, cy, r, s) {
   }
 }
 
-function rimeWitchAnims() {
-  const mk = (P, X) => makeFrame(HW, HH, HAX, HAY, drawWitch, P, X);
+// look (optional, sprites/foes_stars2.js): { draw, staff (liegender Stab), ring (Bodenfeld) } – eigene Figur auf denselben Posen
+function rimeWitchAnims(look = {}) {
+  const draw = look.draw ?? drawWitch, staff = look.staff ?? drawRimeStaff, fieldRing = look.ring ?? frostRing;
+  const mk = (P, X) => makeFrame(HW, HH, HAX, HAY, draw, P, X);
   const idleA = hpose();
   const idleB = hpose({ hipY: 1, lean: 0.17, hFx: 8.5, hFy: 5.5, hBy: 6.5, headY: 0.5, hem: 0.4, cast: 0.35 });
   const idle = [];
@@ -2337,7 +2339,7 @@ function rimeWitchAnims() {
   // Frostfeld (Spezial 'cloud'): Stab hoch – und mit dem Fuß in den Schnee gerammt
   const f1 = hpose({ lean: 0, hFx: 7, hFy: -7, sa: -1.57, hBx: 5, hBy: -2, claw: 1, cast: 0.9, jaw: 1, headY: -1, hairT: 1 });
   const f2 = hpose({ lean: 0.34, hipY: 2, hFx: 10, hFy: 4, sa: -1.57, hBx: -3, hBy: 4, claw: 1, cast: 1.3, jaw: 1, hem: -0.5, hairT: 2 });
-  const ring = (r, s) => (p, g) => { frostRing(p, g, HAX + 12, HAY - 1, r, s); return {}; };
+  const ring = (r, s) => (p, g) => { fieldRing(p, g, HAX + 12, HAY - 1, r, s); return {}; };
   const field = [
     ...track(mk, [[0, idleA], [0.6, f1], [1, { ...f1, cast: 1.2, orbit: 2 }]], 5),
     mk(f2, { fx: 'impact', post: ring(5, 1) }),
@@ -2351,7 +2353,7 @@ function rimeWitchAnims() {
   const d1 = hpose({ ...hurtP, lean: -0.22, hipX: -1.5, cast: 0.2 });
   const d2 = hpose({ kneel: 1, lean: 0.2, head: 0.5, headY: 1, hFx: 8, hFy: 7, sa: -1.1, hBx: 3, hBy: 8, cast: 0.1, jaw: 1, hem: 0.2, eye: 0.6, hairT: 3 });
   const d3 = hpose({ kneel: 1, lean: -0.05, head: -0.5, headY: 0, hFx: 4, hFy: 8, hBx: 2, hBy: 8, cast: 0, eye: 0.3, jaw: 1, hairT: 3.5 });
-  const lyingStaff = (c) => (p, g) => { drawRimeStaff(p, g, HAX + 10, HAY - 2, -0.05, c, 1); return {}; };
+  const lyingStaff = (c) => (p, g) => { staff(p, g, HAX + 10, HAY - 2, -0.05, c, 1); return {}; };
   const piv = [HAX - 3, HAY - 1];
   const death = [
     mk(d1), mk(d2),
@@ -2384,4 +2386,4 @@ export function createFrostFoes() {
 }
 
 // Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars.js: Sternenglut-Gegner)
-export const FROST_KIT = { TAU, ease, mixP, sample, ik, put, ell, volEll, fd, fl, shard, limb, makeFrame, track, qLeg, dirOf, hash2 };
+export const FROST_KIT = { TAU, ease, mixP, sample, ik, put, ell, volEll, fd, fl, shard, limb, makeFrame, track, qLeg, dirOf, hash2, rig, rimeWitchAnims, HD, HAX, HAY };

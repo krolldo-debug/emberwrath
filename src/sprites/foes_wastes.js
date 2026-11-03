@@ -502,9 +502,10 @@ function cycle(f, n) {
   return keys;
 }
 
+const DIS_HOT = [LAVA[4], LAVA[3], GLOW[3], GLOW[2]];   // Glutflocken (Farbe hell/dunkel, Leuchten hell/dunkel)
 // Pixel der Farbebene zerfallen lassen (Aschegeist-Tod, Auflösung von oben). Arbeitet in Texeln, entscheidet
 // aber je Weltpixel (ruhige Löcher statt Feinpixel-Sprenkel); fallende Flocken fein.
-function dissolve(p, g, k, seed, top, bottom, ash) {
+function dissolve(p, g, k, seed, top, bottom, ash, hot = DIS_HOT) {
   const W = p.W, H = p.H, r = p.res, d = p.buf, gd = g.buf;
   const fall = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -525,8 +526,8 @@ function dissolve(p, g, k, seed, top, bottom, ash) {
     const dy = 2 + hash2(x, y, seed + 2) * 5 * k, dx = (hash2(x, y, seed + 3) - 0.7) * 4;
     const X = x + dx - ox, Y = y + dy - oy;
     if (hash2(x, y, seed + 4) < 0.3) {
-      if (p.fine) { dotc(p, X, Y, LAVA[4]); dotc(p, X + 0.5, Y, LAVA[3]); g.dot(X + 0.5, Y + 0.5, GLOW[3]); g.dot(X + 1, Y + 0.5, GLOW[2]); }
-      else { p.px(X, Y, LAVA[3]); g.px(X, Y, GLOW[2]); }
+      if (p.fine) { dotc(p, X, Y, hot[0]); dotc(p, X + 0.5, Y, hot[1]); g.dot(X + 0.5, Y + 0.5, hot[2]); g.dot(X + 1, Y + 0.5, hot[3]); }
+      else { p.px(X, Y, hot[1]); g.px(X, Y, hot[3]); }
     } else {
       const c = ash[1 + Math.floor(hash2(x, y, seed + 5) * (ash.length - 1))];
       if (p.fine) { dotc(p, X, Y, c); dotc(p, X + 0.5, Y + 0.5, c); }
@@ -852,8 +853,10 @@ function drawWraithAsh(p, g, k) {
   return { eye: { x: AX + 7, y: gy - 3 }, head: { x: AX + 7, y: gy - 6 }, hand: { x: AX - 6, y: gy - 2 }, chest: { x: AX, y: gy - 3 } };
 }
 
-function createWraith() {
-  const S = { ...AW, draw: drawWraith };
+// look (optional, sprites/foes_stars2.js): { draw, remains(p, g, k), dust, hot, rim } – eigener Körper auf denselben Posen
+function createWraith(look = {}) {
+  const draw = look.draw ?? drawWraith, remains = look.remains ?? drawWraithAsh;
+  const S = { ...AW, rim: look.rim ?? AW.rim, draw };
   const idle = cycle((ph) => {
     const s = Math.sin(ph), c = Math.cos(ph);
     return awp({ bob: s * 1.4, tail: ph, smoke: ph, hFy: 12 + s, hBy: 13 + s, hFx: 8 + c * 0.5, claw: 0.3 + Math.max(0, c) * 0.4, heat: 0.9 + s * 0.15, headY: -Math.max(0, s) * 0.6 });
@@ -873,7 +876,9 @@ function createWraith() {
   const hurtP = awp({ bob: 2, lean: -0.35, x: -3, drift: 0.1, head: -1.5, headY: -1, hFx: 2, hFy: 4, hBx: -6, hBy: 5, claw: 1, jaw: 0.8, heat: 1.6, tail: 2 });
   const d1 = awp({ bob: 3, lean: -0.4, x: -3, drift: 0, head: -1.5, headY: -1, hFx: 0, hFy: -3, hBx: -7, hBy: -1, claw: 1, jaw: 1, heat: 1.8, eye: 1.6, tail: 3 });
   const d2 = awp({ bob: -4, hover: 7, lean: 0.2, x: -1, drift: 0.1, head: 0.5, headY: 2, hFx: 5, hFy: 12, hBx: 0, hBy: 12, claw: 0.2, jaw: 1, heat: 1.2, tail: 4 });
-  const SD = { ...AW, draw: drawWraithDeath };
+  const SD = look.draw ? {
+    ...S, draw: (p, g, P, ex) => { const m = draw(p, g, P, ex); dissolve(p, g, ex.dis, 41, 0, AW.AY + (AW.pad ?? 8) - 2, look.dust ?? ASHW, look.hot); return m; },
+  } : { ...AW, draw: drawWraithDeath };
   return {
     idle: new Animation(track(S, idle, 6, { loop: true }), 6),
     walk: new Animation(track(S, walk, 6, { loop: true }), 10),
@@ -885,9 +890,9 @@ function createWraith() {
     death: new Animation([
       ...track(S, [[0, hurtP], [1, d1]], 2, { extras: { 0: { hurt: true } } }),
       ...track(SD, [[0, d1], [1, d2]], 4, { extras: { 0: { dis: 0.12 }, 1: { dis: 0.35 }, 2: { dis: 0.6 }, 3: { dis: 0.85 } } }),
-      still(S, (p, g) => drawWraithAsh(p, g, 0), 'impact'),
-      still(S, (p, g) => drawWraithAsh(p, g, 0.5)),
-      still(S, (p, g) => drawWraithAsh(p, g, 1)),
+      still(S, (p, g) => remains(p, g, 0), 'impact'),
+      still(S, (p, g) => remains(p, g, 0.5)),
+      still(S, (p, g) => remains(p, g, 1)),
     ], 8, false),
   };
 }
@@ -1994,20 +1999,25 @@ function shard(p, g, bx, by, a, h, w, heat) {
   if (heat > 0.5) { p.px(bx, by, LAVA[3]); g.px(bx, by, GLOW[2]); }
 }
 
-function drawColossus(p, g, P, ex) {
+// skin (optional, Sternenglut-Gegner auf diesem Rig, sprites/foes_stars2.js): ersetzt Materialien und Formen
+// { ROCK, ROCK_D, LAVA, GLOW, VOID, boulder, shard, glowDot, cap, head? (p, g, hx, hy, P, ex) -> meta-Teil,
+//   fist? (wie boulder), lift/spine/arm? = längere Beine/Rumpf/Arme in Weltpixeln }
+function drawColossus(p, g, P, ex, skin = CO_SKIN) {
+  const { ROCK, ROCK_D, LAVA, GLOW, VOID, boulder, shard, glowDot, cap } = skin;
+  const LIFT = skin.lift ?? 0, SPN = 22 + (skin.spine ?? 0), ARM = skin.arm ?? 0, fist = skin.fist ?? boulder;
   const { AX, AY } = CO;
   const meta = {};
   const gy = AY;
   const core = P.core;
   const heat = 0.55 + core * 0.3;
-  const hip = { x: AX + P.hipX, y: gy - 26 + P.hipY + P.kneel * 9 };
+  const hip = { x: AX + P.hipX, y: gy - 26 - LIFT + P.hipY + P.kneel * 9 };
   const lean = P.lean;
-  const ch = { x: hip.x + Math.sin(lean) * 22, y: hip.y - Math.cos(lean) * 22 };
+  const ch = { x: hip.x + Math.sin(lean) * SPN, y: hip.y - Math.cos(lean) * SPN };
   const px = Math.cos(lean), py = Math.sin(lean);
   const shF = { x: ch.x + px * 13, y: ch.y + py * 13 - 7 }, shB = { x: ch.x - px * 12, y: ch.y - py * 12 - 9 };
 
   const leg = (hx, hy, fx, fy, ramp, back, seed) => {
-    let k = ik(hx, hy, fx, fy, 12, 12, -1);
+    let k = ik(hx, hy, fx, fy, 12 + LIFT / 2, 12 + LIFT / 2, -1);
     if (P.kneel > 0.01 && !back) {
       const kx = hx + 6, ky = gy - 3;
       k = { jx: k.jx + (kx - k.jx) * P.kneel, jy: k.jy + (ky - k.jy) * P.kneel, ex: k.ex + (kx - 12 - k.ex) * P.kneel, ey: k.ey };
@@ -2020,7 +2030,7 @@ function drawColossus(p, g, P, ex) {
     if (!back) { p.px(k.ex + 10, k.ey - 2, OBS[4]); p.px(k.ex + 11, k.ey - 1, OBS[3]); }
   };
   const arm = (sh, tx, ty, ramp, back, seed) => {
-    const k = ik(sh.x, sh.y, tx, ty, 15, 16, 1);
+    const k = ik(sh.x, sh.y, tx, ty, 15 + ARM, 16 + ARM, 1);
     cap(p, sh.x, sh.y, k.jx, k.jy, 6, 5, ramp, { noise: 0.08, seed, rim: back ? 0 : 1 });
     boulder(p, g, (sh.x + k.jx) / 2, (sh.y + k.jy) / 2, 5.5, 5, ramp, seed + 1, heat * (back ? 0.4 : 0.9), back ? 0 : 1);
     cap(p, k.jx, k.jy, k.ex, k.ey, 5.2, 6.2, ramp, { noise: 0.08, seed: seed + 2, rim: back ? 0 : 1 });
@@ -2028,17 +2038,17 @@ function drawColossus(p, g, P, ex) {
     // Faust
     const fr = 7.5 + P.fist * 0.8;
     const fx = k.ex + (back ? 0 : 1), fy = k.ey + 2;
-    boulder(p, g, fx, fy, fr, fr * 0.88, ramp, seed + 4, heat * (back ? 0.7 : 1.15), back ? 1 : 3, { rim: back ? 0 : 1 });
-    // glühende Knöchel
+    fist(p, g, fx, fy, fr, fr * 0.88, ramp, seed + 4, heat * (back ? 0.7 : 1.15), back ? 1 : 3, { rim: back ? 0 : 1 });
+    // glühende Knöchel (nicht bei eigener Hand, skin.fist)
     const a = Math.atan2(k.ey - k.jy, k.ex - k.jx);
-    for (let i = -1; i <= 1; i++) {
+    if (!skin.fist) for (let i = -1; i <= 1; i++) {
       const qx = fx + Math.cos(a + i * 0.5) * (fr - 1.5), qy = fy + Math.sin(a + i * 0.5) * (fr - 1.5);
       const c = heat > 1.2 ? 4 : 3;
       p.px(qx, qy, LAVA[back ? c - 1 : c]); g.px(qx, qy, GLOW[back ? 1 : c - 1]);
       if (p.fine && !back) { p.dot(qx + 0.25, qy + 0.25, LAVA[5]); p.dot(qx + 0.75, qy + 0.75, LAVA[2]); g.dot(qx + 0.25, qy + 0.25, GLOW[4]); }
     }
     // Magma tropft von der Faust
-    if (!back && heat > 0.9) {
+    if (!back && heat > 0.9 && !skin.fist) {
       const L = 1 + Math.floor(((ex.t ?? 0) * 3 + seed) % 3);
       if (p.fine) for (let j = 0; j < L; j += 0.5) { const yy = fy + fr * 0.85 + j; p.dot(fx + 1.25, yy + 0.25, j + 0.5 >= L ? LAVA[5] : LAVA[4]); p.dot(fx + 1.75, yy + 0.25, LAVA[2]); g.dot(fx + 1.25, yy + 0.25, GLOW[3]); }
       else for (let j = 0; j < L; j++) { p.px(fx + 1, fy + fr * 0.85 + j, LAVA[j === L - 1 ? 4 : 3]); g.px(fx + 1, fy + fr * 0.85 + j, GLOW[2]); }
@@ -2133,12 +2143,12 @@ function drawColossus(p, g, P, ex) {
   const fA = arm(shF, ch.x + P.hFx, ch.y + P.hFy, ROCK, false, 170);
   occlude(null);
   // Glut der Faust nach dem Verdecken wieder aufsetzen
-  for (let i = -1; i <= 1; i++) {
+  if (!skin.fist) for (let i = -1; i <= 1; i++) {
     const a = Math.atan2(fA.k.ey - fA.k.jy, fA.k.ex - fA.k.jx);
     const qx = fA.fx + Math.cos(a + i * 0.5) * (fA.fr - 1.5), qy = fA.fy + Math.sin(a + i * 0.5) * (fA.fr - 1.5);
     g.px(qx, qy, GLOW[heat > 1.2 ? 3 : 2]);
   }
-  if (heat > 1.1) glowDot(g, fA.fx + 1, fA.fy + 1, 1 + (heat - 1.1) * 3);
+  if (heat > 1.1 && !skin.fist) glowDot(g, fA.fx + 1, fA.fy + 1, 1 + (heat - 1.1) * 3);
   occlude(g);
   boulder(p, g, shF.x, shF.y, 9, 7.5, ROCK, 180, heat, 2, { rim: 1, bias: 0.05 });
   occlude(null);
@@ -2147,6 +2157,8 @@ function drawColossus(p, g, P, ex) {
   shard(p, g, shF.x + 5, shF.y - 4, -1.2, 5, 1.5, heat);
   // --- Kopf: klein, tief zwischen den Schultern, schwerer Stirnwulst
   const hx = ch.x + px * 5 + py * 8 + P.head, hy = ch.y - 16 + py * 5 + P.headY;
+  if (skin.head) Object.assign(meta, skin.head(p, g, hx, hy, P, ex));
+  else {
   boulder(p, g, hx, hy, 6.5, 5.5, ROCK, 150, heat * 0.7, 1, { rim: 1 });
   // Stirnwulst mit Obsidianhörnern
   p.rect(hx - 5, hy - 3, 11, 2, ROCK[4]); p.rect(hx - 4, hy - 3, 9, 1, ROCK[5]);
@@ -2190,6 +2202,7 @@ function drawColossus(p, g, P, ex) {
   meta.eye = { x: hx + 3, y: hy - 1 };
   meta.head = { x: hx, y: hy - 10 };
   meta.mouth = { x: hx + 5, y: hy + 3 };
+  }
 
   meta.hand = { x: fA.fx, y: fA.fy };
   meta.tip = { x: fA.fx + fA.fr, y: fA.fy };
@@ -2237,7 +2250,8 @@ function drawColossus(p, g, P, ex) {
 }
 
 // Trümmerhaufen: Felsen, Kristalle, erkaltender Kern
-function drawColossusRubble(p, g, k) {
+function drawColossusRubble(p, g, k, skin = CO_SKIN) {
+  const { ROCK, ROCK_D, LAVA, VOID, boulder, shard, glowDot, cap } = skin;
   const { AX, AY } = CO;
   const gy = AY;
   const heat = 1.1 * (1 - k);
@@ -2261,8 +2275,9 @@ function drawColossusRubble(p, g, k) {
   return { eye: { x: hx + 2, y: hy - 1 }, head: { x: hx, y: hy - 6 }, chest: { x: kx, y: ky }, hand: { x: AX + 20, y: gy - 6 }, handB: { x: AX - 20, y: gy - 6 }, mouth: { x: hx + 4, y: hy + 1 }, tip: { x: AX + 26, y: gy - 6 } };
 }
 
-function createColossus() {
-  const S = { ...CO, draw: (p, g, P, ex, t) => drawColossus(p, g, P, { ...ex, t }) };
+const CO_SKIN = { ROCK, ROCK_D, LAVA, GLOW, VOID, boulder, shard, glowDot, cap };
+function createColossus(skin = CO_SKIN, rim = CO.rim) {
+  const S = { ...CO, rim, draw: (p, g, P, ex, t) => drawColossus(p, g, P, { ...ex, t }, skin) };
   const idle = cycle((ph) => {
     const s = Math.sin(ph);
     return cop({ hipY: Math.max(0, s) * 1.2, lean: 0.12 + s * 0.015, hFy: 22 + Math.max(0, s) * 1.5, hBy: 21 + Math.max(0, s) * 1.5, headY: Math.max(0, s), core: 0.95 + s * 0.2, vent: ph / 3 });
@@ -2326,9 +2341,9 @@ function createColossus() {
     hurt: new Animation(track(S, [[0, hurtP], [1, cop({ lean: 0.08 })]], 2, { extras: { 0: { hurt: true } } }), 8, false),
     death: new Animation([
       ...track(S, [[0, hurtP], [0.3, d1], [0.65, d2, snap], [1, d3]], 4, { extras: { 0: { hurt: true }, 2: { fx: 'impact' } } }),
-      still(S, (p, g) => drawColossusRubble(p, g, 0), 'impact'),
-      still(S, (p, g) => drawColossusRubble(p, g, 0.4)),
-      still(S, (p, g) => drawColossusRubble(p, g, 1)),
+      still(S, (p, g) => drawColossusRubble(p, g, 0, skin), 'impact'),
+      still(S, (p, g) => drawColossusRubble(p, g, 0.4, skin)),
+      still(S, (p, g) => drawColossusRubble(p, g, 1, skin)),
     ], 6, false),
   };
 }
@@ -2360,3 +2375,6 @@ export function createWastesFoes(only) {
   }
   return out;
 }
+
+// Werkzeug für Figuren, die auf denselben Rigs aufbauen (sprites/foes_stars2.js: Sternenglut-Gegner)
+export const WASTES_KIT = { ell, cap, poly, ln, hotLine, fillEll, ik, arcSmear, occlude, createColossus, createWraith, CO, AW };
