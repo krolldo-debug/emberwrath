@@ -41,11 +41,38 @@
     </div>
   </section>
 
+  <!-- Die Karte: echte Gebietskarten des Spiels als Blätter (site/tools/atlas.mjs), Glutpfad und Sternenfunkeln
+       zeichnet atlas.js darüber. Jedes Gebiet springt zu seiner Etappe; die Sternenglut ist noch nicht offen. -->
+  <section class="atlas" aria-labelledby="h-atlas">
+    <div class="wrap atlas-kopf">
+      <p class="kicker">Die Karte</p>
+      <h2 id="h-atlas">Ein Weg durch die ganze Welt</h2>
+      <p class="atlas-satz">Jedes Blatt ist die echte Karte aus dem Spiel. Tippe ein Gebiet an, um dorthin zu springen.</p>
+    </div>
+    <div class="atlas-karte" data-atlas>
+      <img class="atlas-bild" src="img/atlas.webp" alt="Die Karten aller Gebiete von der Glutsenke bis zum Aschethron, durch einen Glutpfad verbunden, darunter hinter einem Riss die schwebenden Inseln der Sternenglut" width="1000" height="2590" loading="lazy">
+      <div class="atlas-orte">
+        <!-- <atlas.mjs> von tools/atlas.mjs geschrieben -->
+        <a class="ort" style="left:7%;top:1.931%" href="#glutsenke" data-i="0"><b>Glutsenke</b><span class="schild">1–5</span></a>
+        <a class="ort rechts" style="right:7.6%;top:1.544%" href="#aschenwald" data-i="1"><b>Der Aschenwald</b><span class="schild">6–11</span></a>
+        <a class="ort rechts" style="right:4%;top:18.533%" href="#schlackenhoehen" data-i="2"><b>Die Schlackenhöhen</b><span class="schild">12–17</span></a>
+        <a class="ort" style="left:4%;top:16.216%" href="#aschensteppe" data-i="3"><b>Die Aschensteppe</b><span class="schild">20–25</span></a>
+        <a class="ort" style="left:4%;top:32.819%" href="#faulmarsch" data-i="4"><b>Die Faulmarsch</b><span class="schild">25–31</span></a>
+        <a class="ort rechts" style="right:2.8%;top:32.819%" href="#frostzinnen" data-i="5"><b>Die Frostzinnen</b><span class="schild">31–36</span></a>
+        <a class="ort rechts" style="right:4%;top:48.263%" href="#gluetoede" data-i="6"><b>Die Glutöde</b><span class="schild">36–40</span></a>
+        <a class="ort" style="left:13%;top:48.649%" href="#aschethron" data-i="7"><b>Der Aschethron</b><span class="schild">40</span></a>
+        <span class="ort bald" style="left:4%;top:66.409%" data-i="8"><b>Die Splitterweiten</b><span class="schild">Bald</span></span>
+        <span class="ort bald rechts" style="right:4%;top:83.784%" data-i="9"><b>Die Treibenden Gärten</b><span class="schild">Bald</span></span>
+        <!-- </atlas.mjs> -->
+      </div>
+    </div>
+  </section>
+
   <!-- Die Reise: links der Weg (füllt sich beim Scrollen, welt.js), Etappen abwechselnd Bild links und rechts -->
   <section class="reise" aria-label="Die Reise von Stufe 1 bis 40">
     <ol class="weg" data-weg>
 
-      <li class="etappe" style="--ton: 255, 170, 90">
+      <li id="glutsenke" class="etappe" style="--ton: 255, 170, 90">
         <span class="stufe">1–5</span>
         <div class="et-inhalt">
           <figure class="et-bild rahmen"><img style="--fx:0.51;--fy:0.52" class="px shot" src="img/reise-glutsenke.webp" alt="Ein Krieger kämpft nachts in der Glutsenke gegen ein Wolfsrudel" width="960" height="540" loading="lazy"></figure>
@@ -58,7 +85,7 @@
         </div>
       </li>
 
-      <li class="etappe r" style="--ton: 230, 140, 60">
+      <li id="aschenwald" class="etappe r" style="--ton: 230, 140, 60">
         <span class="stufe">6–11</span>
         <div class="et-inhalt">
           <figure class="et-bild rahmen"><img style="--fx:0.46;--fy:0.51" class="px shot" src="img/reise-aschenwald.webp" alt="Eine Waldläuferin schießt im Aschenwald auf Aschekeiler, daneben ein Lager mit Zelten und ein Wachturm" width="960" height="540" loading="lazy"></figure>
@@ -81,7 +108,7 @@
         <figure class="voll band nah"><img style="--fx:0.49;--fy:0.47;--mx:0.49;--my:0.47" class="px shot" src="img/reise-arena.webp" alt="Ein Krieger und ein Schurke kreuzen in der Glutarena vor Schmelztiegeln und Kohlebecken die Klingen" width="960" height="540" loading="lazy"></figure>
       </li>
 
-      <li class="etappe" style="--ton: 255, 110, 40">
+      <li id="schlackenhoehen" class="etappe" style="--ton: 255, 110, 40">
         <span class="stufe">12–17</span>
         <div class="et-inhalt">
           <figure class="et-bild rahmen"><img style="--fx:0.5;--fy:0.53" class="px shot" src="img/reise-schlacke.webp" alt="Eine Glutmagierin schleudert in den Schlackenhöhen Glutbolzen auf Feuerkobolde" width="960" height="540" loading="lazy"></figure>
@@ -122,7 +149,7 @@
         </div>
       </li>
 
-      <li class="etappe r" style="--ton: 230, 170, 100">
+      <li id="aschensteppe" class="etappe r" style="--ton: 230, 170, 100">
         <span class="stufe">20–25</span>
         <div class="et-inhalt">
           <figure class="et-bild rahmen"><img style="--fx:0.58;--fy:0.57" class="px shot" src="img/reise-steppe.webp" alt="Ein Krieger kämpft in der Aschensteppe gegen Steppenräuber, daneben ein Tierskelett" width="960" height="540" loading="lazy"></figure>
@@ -135,7 +162,7 @@
         </div>
       </li>
 
-      <li class="etappe" style="--ton: 120, 230, 220">
+      <li id="faulmarsch" class="etappe" style="--ton: 120, 230, 220">
         <span class="stufe">25–31</span>
         <div class="et-inhalt">
           <figure class="et-bild rahmen"><img style="--fx:0.44;--fy:0.5" class="px shot" src="img/reise-marsch.webp" alt="Eine Waldläuferin kämpft in der Faulmarsch zwischen leuchtenden Riesenpilzen gegen Moorschleime" width="960" height="540" loading="lazy"></figure>
@@ -147,7 +174,7 @@
         </div>
       </li>
 
-      <li class="etappe r" style="--ton: 170, 220, 255">
+      <li id="frostzinnen" class="etappe r" style="--ton: 170, 220, 255">
         <span class="stufe">31–36</span>
         <div class="et-inhalt">
           <figure class="et-bild rahmen"><img style="--fx:0.52;--fy:0.56" class="px shot" src="img/reise-frostzinnen.webp" alt="Ein Krieger kämpft in den verschneiten Frostzinnen gegen Frostwölfe" width="960" height="540" loading="lazy"></figure>
@@ -171,7 +198,7 @@
       </li>
 
       <!-- Die Glutöde führt zum Thron -->
-      <li class="band-stop vorspann" style="--ton: 255, 110, 40">
+      <li id="gluetoede" class="band-stop vorspann" style="--ton: 255, 110, 40">
         <span class="stufe">36–40</span>
         <div class="band-kopf">
           <p class="et-art">Wildnis</p>
@@ -183,7 +210,7 @@
   </section>
 
   <!-- Ende der Reise: der Aschethron -->
-  <section class="thron auftritt" aria-labelledby="h-thron">
+  <section id="aschethron" class="thron auftritt" aria-labelledby="h-thron">
     <div class="auftritt-bild"><img style="--fx:0.5;--fy:0.4;--mx:0.52" class="px shot" src="img/reise-aschethron.webp" alt="Ein Krieger stellt sich im Thronsaal Malgareth, dem Aschenfürsten" width="960" height="540" loading="lazy"></div>
     <div class="wrap auftritt-text">
       <span class="stufe stufe-ziel">40</span>
@@ -196,5 +223,6 @@
 
 <!--#include footer-->
 <script src="welt.js"></script>
+<script src="atlas.js"></script>
 </body>
 </html>
