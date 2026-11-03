@@ -221,6 +221,9 @@ export function buildDriftingGardens() {
   const lightMoss = [[94, 57], [99, 71], [113, 91], [103, 95], [84, 97]];
   const fallenStars = [[27, 12], [45, 19], [56, 76], [34, 89]];
   const seal = [120, 81];
+  // Wrack der „Morgenröte“ (q_morgenroete): an der Nordostspitze der Terrassen, Glocke und Kapitänskiste daneben
+  const wreck = [113, 19], wreckBell = [118, 17], wreckChest = [117, 21];
+  clearAround(m, [wreck, [111, 19], [115, 19], wreckBell, wreckChest], 'TBKRPWJXFSDct', { r: 2, south: 2 });
 
   // Freiraum um Marken und Portale
   const spots = [[166, 61], [166, 66], [185, 62], [164, 58], [168, 64], [176, 55], [158, 66], [22, 15], [36, 122], [36, 125], [190, 62], [196, 62], moonAltar.x ? [moonAltar.x, moonAltar.y] : null, ...rifts, ...wardStones, ...lightMoss, ...fallenStars, seal].filter(Boolean);
@@ -280,6 +283,9 @@ export function buildDriftingGardens() {
       ...wardStones.map(([x, y], i) => ({ id: `ward_stone_${i + 1}`, kind: 'shrine', set: 'decor_ashwood', decor: 'runeStone', name: 'Schutzstein', prompt: 'Das Schutzzeichen erneuern', x, y })),
       ...lightMoss.map(([x, y], i) => ({ id: `light_moss_${i + 1}`, kind: 'item', decor: 'bushes', name: 'Lichtmoos', prompt: 'Lichtmoos ernten', x, y })),
       ...fallenStars.map(([x, y], i) => ({ id: `fallen_star_${i + 1}`, kind: 'item', set: 'decor_shards', decor: 'shardRocks', name: 'Sternschnuppe', prompt: 'Die Sternschnuppe aufheben', x, y })),
+      { id: 'wreck_hull', kind: 'shrine', set: 'decor_astral', decor: 'skyWreck', name: 'Wrack der Morgenröte', prompt: 'Im Wrack nach dem Logbuch suchen', x: wreck[0], y: wreck[1] },
+      { id: 'wreck_bell', kind: 'item', set: 'decor_astral', decor: 'shipBell', name: 'Schiffsglocke', prompt: 'Die Schiffsglocke abnehmen', x: wreckBell[0], y: wreckBell[1] },
+      { id: 'wreck_chest', kind: 'item', set: 'decor_shards', decor: 'crateStack', name: 'Kapitänskiste', prompt: 'Die Kapitänskiste öffnen', x: wreckChest[0], y: wreckChest[1] },
       { id: 'veyra_seal', kind: 'shrine', set: 'decor_ashwood', decor: 'wardTotem', name: 'Veyras Siegel', prompt: 'Das Siegel setzen', x: seal[0], y: seal[1] },
     ],
     questRoutes: {

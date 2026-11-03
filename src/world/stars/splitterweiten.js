@@ -233,6 +233,11 @@ export function buildSplitterweiten() {
   const crates = [[42, 10], [96, 24], [126, 11], [116, 14]];
   const nests = [[53, 11], [69, 20], [110, 10], [35, 14]];
   const echoStones = [[149, 67], [166, 55], [182, 58]];
+  // Miras Wegleuchten (q_mira_lamps): entlang des Wegs von Funkenruh zu den Singenden Graten, neben dem Weg
+  const lampPath = walkPath(m, 'KSGOTxoDlLJYgcksRQFmdHUWB', [60, 50], [150, 46]);
+  const lamps = openSites(m, [0.2, 0.42, 0.64, 0.86].map((f) => { const q = lampPath[Math.round((lampPath.length - 1) * f)] ?? [60, 50]; return [q[0], q[1] + 2]; }), 1, 5);
+  // Sternbild der Königin (q_queens_constellation): vier Sternsteine auf dem Sternwartenberg
+  const starStones = openSites(m, [[134, 98], [142, 108], [134, 117], [129, 108]], 1, 4);
   const claimStake = [62, 30], harrikCamp = [133, 36];
 
   // Freiraum um Marken und Portale
@@ -295,6 +300,8 @@ export function buildSplitterweiten() {
       ...crates.map(([x, y], i) => ({ id: `supply_crate_${i + 1}`, kind: 'item', decor: 'crateStack', name: 'Bosks Kiste', prompt: 'Die Kiste bergen', x, y })),
       ...nests.map(([x, y], i) => ({ id: `crawler_nest_${i + 1}`, kind: 'shrine', decor: 'oreHeaps', name: 'Krabblernest', prompt: 'Das Nest zerschlagen', x, y })),
       ...echoStones.map(([x, y], i) => ({ id: `echo_stone_${i + 1}`, kind: 'shrine', decor: 'singingSpires', name: 'Echostein', prompt: 'Den Echostein anschlagen', x, y })),
+      ...lamps.map(([x, y], i) => ({ id: `mira_lamp_${i + 1}`, kind: 'shrine', set: 'decor_astral', decor: 'signalLamp', name: 'Wegleuchte', prompt: 'Die Wegleuchte mit Sternöl füllen', x, y })),
+      ...starStones.map(([x, y], i) => ({ id: `star_stone_${i + 1}`, kind: 'shrine', set: 'decor_astral', decor: 'starStones', name: 'Sternstein', prompt: 'Den Sternstein berühren', x, y })),
       { id: 'kel_claim_stake', kind: 'shrine', decor: 'mineCart', name: 'Kels Claimpfahl', prompt: 'Den Claim verteidigen', x: claimStake[0], y: claimStake[1] },
       { id: 'harrik_journal', kind: 'item', set: 'decor_ashwood', decor: 'satchel', name: 'Harriks Tagebuch', prompt: 'Das Tagebuch aufheben', x: harrikCamp[0], y: harrikCamp[1] },
     ],

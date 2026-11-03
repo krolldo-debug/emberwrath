@@ -58,7 +58,8 @@ export class ProgressionSystem {
     // Eskorte/Verteidigen (B): { kind: 'escort'|'defend'|'escortFailed'|'defendFailed', target }
     bus.on(EV.QUEST_OBJECTIVE ?? 'quest:objective', (e) => commit('quest:event', { kind: e.kind, target: e.target }));
     bus.on(EV.OBJECT_INTERACT, (e) => {
-      if (e.kind === 'chest') this.#rollLoot({ source: 'chest', id: e.objectId, level: e.level }, e.x, e.y);
+      // Truhen zählen auch für Quests (Sternenherz des Sternenfalls: q_warm_star)
+      if (e.kind === 'chest') { this.#rollLoot({ source: 'chest', id: e.objectId, level: e.level }, e.x, e.y); commit('quest:event', { kind: 'interact', target: e.objectId }); }
       else if (e.kind === 'bank') session.panels.open('bank');
       else if (e.kind === 'trial') session.panels.open('trials');
       else commit('quest:event', { kind: 'interact', target: e.objectId });
