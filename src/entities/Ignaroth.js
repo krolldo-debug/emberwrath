@@ -33,6 +33,11 @@ export class Ignaroth extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => [3, 5, 7, 9, 11].forEach((r) => FX.puffSeq(r, 'fire', 8)), () => FX.meteorLoop(4), () => FX.meteorLoop(5),
+      () => FX.flameLoop(9, 20, 'fire', { seed: 1 }), () => FX.flameLoop(8, 14, 'fire', { seed: 2 }), () => FX.coalBed(16, 0),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;

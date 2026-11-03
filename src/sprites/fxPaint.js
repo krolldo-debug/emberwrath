@@ -311,15 +311,24 @@ export function crackFrame(points, seed = 0, hot = false, pal = 'fire') {
     }
   }
   const last = points[points.length - 1]; line.push([last.x - x0, last.y - y0]);
+  // Abstandsfeld nur in der Nähe jedes Teilstücks berechnen (statt jedes Pixel gegen alle Stücke)
+  const r = fineRes(), BW = Math.ceil((x1 - x0) * r) + 2, BH = Math.ceil((y1 - y0) * r) + 2;
+  const D = new Float32Array(BW * BH).fill(1e9), T = new Float32Array(BW * BH);
+  for (let i = 0; i < line.length - 1; i++) {
+    const [ax, ay] = line[i], [bx, by] = line[i + 1], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+    const F0 = Math.max(0, Math.floor((Math.min(ax, bx) - 4) * r)), F1 = Math.min(BW - 1, Math.ceil((Math.max(ax, bx) + 4) * r));
+    const G0 = Math.max(0, Math.floor((Math.min(ay, by) - 4) * r)), G1 = Math.min(BH - 1, Math.ceil((Math.max(ay, by) + 4) * r));
+    for (let G = G0; G <= G1; G++) for (let F = F0; F <= F1; F++) {
+      const x = (F + 0.5) / r, y = (G + 0.5) / r;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2));
+      const d = Math.hypot(x - ax - dx * t, (y - ay - dy * t) / 0.75), j = G * BW + F;
+      if (d < D[j]) { D[j] = d; T[j] = i + t; }
+    }
+  }
   const f = frame(x1 - x0, y1 - y0, 0, 0, (p) => {
     p.each(0, 0, x1 - x0, y1 - y0, (x, y) => {
-      let best = 1e9, bt = 0;
-      for (let i = 0; i < line.length - 1; i++) {
-        const [ax, ay] = line[i], [bx, by] = line[i + 1], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
-        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2));
-        const d = Math.hypot(x - ax - dx * t, (y - ay - dy * t) / 0.75);
-        if (d < best) { best = d; bt = i + t; }
-      }
+      const j = Math.min(BH - 1, Math.floor(y * r)) * BW + Math.min(BW - 1, Math.floor(x * r)), best = D[j], bt = T[j];
+      if (best > 4) return null;
       const w = 1.3 + Math.sin(bt * 1.7 + seed) * 0.5;
       if (best < w * 0.4) return hot ? P[5] : P[4];
       if (best < w * 0.75) return hot ? P[4] : P[3];
@@ -380,7 +389,9 @@ export function jetSeq(a, len, pal = 'fire', n = 6) {
     const P = PAL[pal], A = q / 32 * TAU, ux = Math.cos(A), uy = Math.sin(A), S = len + 10, out = [];
     for (let i = 0; i < n; i++) {
       const k = i / (n - 1), head = len * Math.min(1, 0.35 + k * 1.6), tail = len * Math.max(0, (k - 0.45) * 1.5), fade = k > 0.55 ? 1 - (k - 0.55) * 1.6 : 1;
-      out.push(frame(S * 2, S * 2, S, S, (p) => p.each(0, 0, S * 2, S * 2, (x, y) => {
+      // nur das gedrehte Rechteck um den Strahl abtasten
+      const bx = [tail - 1, head + 3].flatMap((a) => [-9, 9].map((k) => S + ux * a - uy * k)), by = [tail - 1, head + 3].flatMap((a) => [-9, 9].map((k) => S + uy * a + ux * k));
+      out.push(frame(S * 2, S * 2, S, S, (p) => p.each(Math.max(0, Math.min(...bx)), Math.max(0, Math.min(...by)), Math.min(S * 2, Math.max(...bx)), Math.min(S * 2, Math.max(...by)), (x, y) => {
         const X = x - S, Y = y - S, al = X * ux + Y * uy, pe = -X * uy + Y * ux;
         if (al < tail - 1 || al > head + 3) return null;
         const f = al / len, hw = (2.2 + f * 6) * (0.85 + 0.2 * Math.sin(al * 0.7 - k * 9)) * (al > head - 4 ? Math.max(0.2, (head + 3 - al) / 7) : 1);
@@ -621,6 +632,15 @@ export function radialCrack(L, n = 5, pal = 'ghost', seed = 0) {
       return null;
     }));
   });
+}
+
+// Vorwärmen: erzeugt die Folgen eines Bosses in Leerlaufzeit, eine nach der anderen, damit der erste Angriff
+// nicht ruckelt. fns = Liste von () => FX.xyz(...)
+export function prewarm(fns) {
+  const list = fns.slice();
+  const idle = typeof requestIdleCallback === 'function' ? (cb) => requestIdleCallback(cb, { timeout: 500 }) : (cb) => setTimeout(cb, 16);
+  const next = () => { const fn = list.shift(); if (!fn) return; try { fn(); } catch { /* nur Optik */ } idle(next); };
+  idle(next);
 }
 
 // Hilfsfunktion: Frame einer Folge zu Zeit t (Sekunden) bei fps; loop = Schleife, sonst letzter Frame bleibt

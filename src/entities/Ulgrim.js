@@ -259,6 +259,10 @@ export class Ulgrim extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => FX.flameLoop(6, 13, 'ghost', { seed: 1 }), () => FX.flameLoop(5, 9, 'ghost', { seed: 2 }), () => FX.flameLoop(4, 5, 'ghost'),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;

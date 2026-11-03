@@ -213,6 +213,11 @@ export class Nerith extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => FX.waveLoop(13, 15, 'water'), () => FX.waveLoop(12, 12, 'water'), () => FX.waveLoop(10, 8, 'water'), () => FX.puffSeq(4, 'water', 8),
+      () => FX.whirlLoop(24, 'teal', 8), () => FX.fountainSeq(8, 34, 'water', 8),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;

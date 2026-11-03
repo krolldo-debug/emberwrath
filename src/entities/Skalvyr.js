@@ -252,6 +252,10 @@ export class Skalvyr extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => [3, 5, 7, 9, 11].forEach((r) => FX.puffSeq(r, 'mist', 8)), () => FX.rimeBed(22, 0), () => FX.streakFrame(18, 3, 'frost'),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;

@@ -114,6 +114,13 @@ export class Malgareth extends Actor {
     this.def = def;
     this.bossId = def.bossId;
     this.team = 'enemy';
+    // Angriffseffekte vorab in Leerlaufzeit zeichnen (erster Angriff ohne Ruckler)
+    if (typeof document !== 'undefined') FX.prewarm([
+      () => FX.pillarSeq(14, 70, 'fire', 10), () => FX.pillarSeq(14, 70, 'white', 10), () => FX.meteorLoop(5), () => FX.meteorLoop(6),
+      () => FX.smokeSeq(6), () => FX.smokeSeq(7), () => FX.flameLoop(10, 22, 'fire', { seed: 0 }), () => FX.flameLoop(8, 14, 'fire', { seed: 0 }),
+      () => FX.coalBed(14, 0), () => FX.flameLoop(6, 9, 'fire'), () => FX.runeRing(30), () => FX.beamLoop(9, 96, 'white'),
+      () => FX.flameLoop(12, 30, 'fire', { seed: 3 }), () => FX.flameLoop(9, 18, 'white', { seed: 4 }),
+    ]);
     this.level = def.level;
     this.maxHp = this.hp = def.hp;
     this.radius = def.radius; this.mass = def.mass;
