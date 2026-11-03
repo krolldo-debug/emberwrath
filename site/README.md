@@ -59,17 +59,18 @@ Alles in `img/` stammt aus dem Spiel, nichts ist nachgemalt:
   (`tools/parade-boden.mjs`, nahtlos kachelbar, Lauflinie und Versatz in `data-near-y`/`data-far-y` an `.parade`). Werte in `data-f`
   der Namensliste (Breite, Höhe, Fuß x/y, Bilder, fps, Flughöhe, Tempo); site.js zeichnet die Parade in ganzen Bildschirmpunkten,
   die Kamera zieht mit, unter der Bühne steht der Name des Tiers in der Mitte.
-- Titelbild „Aufbruch zum Aschethron“ (`tools/titel-held.mjs` mit `tools/titel-held.py`, gezeichnet von `titel.js`): eine
-  Pixelgröße für alles – Szene 640 × 272 Szenenpixel, jede Ebene und der Held 1:1, ganzzahlig vergrößert, keine Ebene skaliert
-  oder verzerrt. Held als eigene Pixel-Art (Rüstung des Aschenfürsten und Zweihänder Königsfall, Farben aus `character/gearLook.js`),
-  Kruste und Lavastrom aus den Lava-Generatoren des Spiels, Aschethron als gezeichneter Schattenriss. Ebenen
-  `titel-fern/-strom/-mitte/-nah` (je mit `-glut`), Held in Ruhe aus `titel-held-umhang` (8 Bilder), `-koerper` (Atem, 6),
-  `-flamme` (6) und `-klinge`, Momente als ganze Bilder in `titel-held-momente`, Glutwelle des Erdspalters `titel-welle` (Bildfolge über
-  die Fugen der Kruste). Bildfolgen, Dauern, Treffer und Maße schreibt das Werkzeug in den Block `<titel-held.mjs>` in `titel.js`.
-  `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter Bewegung). titel.js legt es pixelgenau
-  aus, verschiebt Ebenen nur in ganzen Szenenpixeln (Schweben, Maus) und zeigt alle 6–8 s abwechselnd Erdspalter (Ausholen,
-  Halten, Einschlag mit Erschütterung, Glutwelle über die Fugen, Staub, Funken) und Schlachtruf (Klinge hoch, Kopf in den
-  Nacken, Umhang weht auf, Funkenring, Feuerschalen lodern);
+- Titelbild „Der Himmel reißt auf“ (`tools/titel-riss.mjs` mit `tools/titel-riss.py` und `tools/titel_kit.py`, gezeichnet von
+  `titel.js`): Nacht über der Glutöde, über dem Aschethron reißt der Himmel auf und zeigt die Inseln der Sternenglut im
+  Morgenlicht, die vier Klassen stehen auf einer Felsnase davor. Eine Pixelgröße für alles – Szene 640 × 272 Szenenpixel
+  (×2 Feinraster), Ebenen ganzzahlig vergrößert, keine Ebene skaliert oder verzerrt, harte Rampen mit Bayer-Raster.
+  Die Helden sind die echten Spielfiguren (getHeroSprites, Feinraster, Endgame-Ausrüstung) mit Ruhe und je einem Moment.
+  Ebenen `titel-himmel`, `titel-riss` (8 Bilder: Wolken ziehen, Sterne funkeln, Inseln schweben, Rand pulsiert),
+  `titel-fern` (+`-glut`, Aschethron mit Fenstern), `titel-ebene` (4 Bilder, Lavastrom fließt), `titel-fels` (+`-glut`),
+  `titel-helden` (Streifen je Held). Maße, Bildzahlen und die Kante der Felsnase schreibt das Werkzeug in den Block
+  `<titel-riss.mjs>` in `titel.js`. `titel.webp` ist das Standbild (LCP, vorgeladen; auch ohne JS und bei reduzierter
+  Bewegung). titel.js legt es pixelgenau aus, verschiebt Ebenen nur in ganzen Feinpixeln (Tiefenstaffelung), lässt den Riss
+  alle ~13 s aufflammen (Sternenstaub fällt) und zeigt reihum alle 5–7 s einen Moment: Erdspalter des Kriegers (Glutwelle die
+  Kante entlang, Erschütterung), Feuerball der Magierin zum Riss, Pfeilhagel der Waldläuferin, Ausfall des Schurken;
   läuft nur, solange sichtbar, nicht bei Datensparmodus.
 - Vorschaubild beim Teilen (`og-teilen.png`, 1200 × 630, auf allen Seiten und Sprachfassungen als og:image und twitter:image): `tools/og.py`
   aus den Paradestreifen. Neues Motiv = neuer Dateiname, sonst zeigen Messenger das alte Bild aus ihrem Zwischenspeicher.
@@ -111,7 +112,7 @@ node site/tools/klassen-kampf.mjs out              # Klassen: Kampf, Ruhe, Fähi
 node site/tools/bosskino.mjs [malgareth,faeulnis,skalvyr]  # Bosskino: Atlanten, Standbild, Block in bosskino.js (Pillow, numpy)
 node site/tools/reittiere-gang.mjs out              # Reittiere in eigener Gangart
 node site/tools/parade-boden.mjs site/img          # Steppenkacheln der Parade (nah, fern)
-node site/tools/titel-held.mjs                     # Titelbild (Server im Repo-Ordner auf :8123; ruft titel-held.py)
+node site/tools/titel-riss.mjs                     # Titelbild (Server im Repo-Ordner auf :8102; ruft titel-riss.py)
 node site/tools/welt.mjs wl aufbruch,arena,ignaroth # Szenen auf /welt (Ids ohne „welt-“)
 node site/tools/bossfiguren.mjs site/img          # Bossfiguren der Dungeon-Marken auf /welt
 ```

@@ -1,6 +1,6 @@
 # Bosskino der Startseite, Teil 2 (aufgerufen von bosskino.mjs): die Bosse als eigene Pixel-Art in Seitenansicht, je in
 # seinem Gebiet mit Parallaxebenen, Ruhe in Ebenen mit eigenen Zyklen und einer Signatur-Attacke als ganze Bilder.
-# Gleiches Prinzip wie das Titelbild (titel-held.py): ein Szenenraster je Bühne (SW × SH Szenenpixel), alles 1:1 darin,
+# Gleiches Prinzip wie das Titelbild (titel-riss.py): ein Szenenraster je Bühne (SW × SH Szenenpixel), alles 1:1 darin,
 # Teile aus Vielecken in ganzen Pixeln, gerichtetes Licht in 4 Tönen je Material, dunkle Innenkanten, Außenkontur,
 # harte Glutstufen statt Alpha-Schein. Nichts wird zur Laufzeit gedreht oder skaliert.
 # Farben nach den Boss-Sprites des Spiels (src/sprites/ash_sovereign.js, barrow_king.js, rot_mother.js, frost_wyrm.js).
