@@ -3,13 +3,13 @@ import { Decor } from '../entities/Decor.js';
 import { drawGlowLayer } from '../gfx/Sprite.js';
 import { frameUrl } from '../ui/pixelFrame.js';
 import { createBoardSprites } from './sprite.js';
-import { teaserPanel } from './panel.js';
-import { riftPanel, decreePanel, showcasePanel } from './launch.js';
+import { launchPanel } from './launch.js';
 
 // Ankündigung der Erweiterung „Sternenglut“: in jeder der sieben alten Städte eine Sternentafel, die das Fenster
-// 'teaser' öffnet (panel.js). Dasselbe Fenster erscheint einmal nach dem Anmelden, bis der Spieler „Beim Anmelden nicht
-// mehr zeigen“ anhakt (Gerät, game.prefs 'teaserHidden'). Ein neuer Held sieht es erst ab seiner zweiten Anmeldung.
-// Seit der Freigabe für alle (STARS_PUBLIC, 04.11.) zeigt das Fenster „Neu“ und den Weg hinein (panel.js).
+// 'teaser' öffnet. Dasselbe Fenster erscheint einmal nach dem Anmelden, bis der Spieler „Beim Anmelden nicht mehr
+// zeigen“ anhakt (Gerät, game.prefs 'launchHidden'). Ein neuer Held sieht es erst ab seiner zweiten Anmeldung.
+// Seit der Freigabe für alle (04.11.) ist es das Fenster „Sternenglut ist da“ (launch.js) statt der Vorschau „Bald“.
+// Eigene Einstellung statt 'teaserHidden', damit auch wer die Vorschau weggeklickt hat, die Freigabe einmal sieht.
 //
 // Plätze: Abstand zum Wegstein in Spielpixeln. Neben dem Weg, nicht auf Questpfaden, nicht dicht an Händlern,
 // Auktionator, Gewandmeisterin oder Briefkasten (Screenshots je Stadt geprüft).
@@ -22,12 +22,12 @@ const PLACES = {
   frostspire: { dx: 112, dy: 14 },       // östlich des Wegsteins am Waldrand, neben dem Banner
   ember_wastes: { dx: -112, dy: 142 },   // Westseite des Bastionshofs
 };
-const PREF = 'teaserHidden';
+const PREF = 'launchHidden';
 
 // Anmeldung = Sitzung dieses Tabs bzw. der App. sessionStorage übersteht location.reload(), so zählen das Neuladen
 // bei einer neuen Version, das Nachladen eines Cloud-Stands und „Zum Titel“ nicht als neue Anmeldung:
 // fresh = in dieser Anmeldung erschaffene Helden, shown = Helden, denen das Fenster in dieser Anmeldung schon kam.
-const SESSION_KEY = 'emberwrath:teaser';
+const SESSION_KEY = 'emberwrath:launch';
 const memory = { fresh: [], shown: [] };
 function loginState() {
   try { const v = JSON.parse(sessionStorage.getItem(SESSION_KEY)); if (Array.isArray(v?.fresh) && Array.isArray(v?.shown)) return v; } catch { /* Speicher gesperrt */ }
@@ -67,13 +67,10 @@ export function installTeaser(game) {
     setHidden: (on) => game.prefs.set(PREF, !!on),
   };
   game.panels.register('teaser', (s) => {
-    // Entwurfsvorschau: window.__tsVariant = 'A' | 'B' | 'C'
-    const v = globalThis.__tsVariant;
-    const p = v === 'A' ? riftPanel(s, prefs) : v === 'B' ? decreePanel(s, prefs) : v === 'C' ? showcasePanel(s, prefs) : teaserPanel(s, prefs);
-    if (v) globalThis.__tsPanel = p;
+    const p = launchPanel(s, prefs);
     p.root.style.setProperty('--ts-frame', `url(${frameUrl(2, 'dawn')})`);
     return p;
-  }, { title: 'Sternenglut' });
+  }, { title: 'Sternenglut ist da' });
 
   // Einmal je Anmeldung; ein neuer Held erst ab seiner zweiten (auch über Neuladen der Seite hinweg)
   let pending = null;

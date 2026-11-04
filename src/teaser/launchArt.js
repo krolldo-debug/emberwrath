@@ -1,9 +1,9 @@
 import { hash2 } from '../core/math.js';
-import { makeCanvas } from '../gfx/PixelCanvas.js';
-import { R, DAWN, Buf, sky, island, tree, star, step, fbm, vn, bay, ramp } from './art.js';
+import { DAWN, Buf, sky, island, tree, star, step, fbm, vn, bay, ramp } from './art.js';
 
-// Bilder für die Ankündigung „Sternenglut ist da“ (launch.js). Wie art.js prozedural im Weltraster (R Bildpunkte je
-// Weltpixel), harte Kanten, Dither nur auf Weltpixeln.
+// Bild für die Ankündigung „Sternenglut ist da“ (launch.js): der Himmel über der Glutöde reißt auf, dahinter der
+// Morgenschimmer der Sternenglut mit Sternhafen. Wie art.js prozedural im Weltraster (R Bildpunkte je Weltpixel),
+// harte Kanten, Dither nur auf Weltpixeln.
 
 // Glutöde: Nachthimmel aus Rauch und Glut, Aschenboden mit Lavarissen
 const EMBER = {
@@ -171,113 +171,4 @@ export function riftFrame(s, open, spark = 0) {
     if (k % 3 === 0) { b.put(x, y - 1, DAWN.star[0]); b.put(x, y - 2, DAWN.star[0]); }
   }
   return b.toCanvas();
-}
-
-// ------------------------------------------------------------------------------------------------ B: Kundmachung
-// Hochformat: Sternhafen auf seiner Insel, der Turm mit dem Stern, davor ein Balkon für die Fürstin.
-export function harborPortrait(w = 132, h = 196, seed = 33) {
-  const b = new Buf(w, h);
-  sky(b, seed, { clouds: 0.58 });
-  island(b, w * 0.15, 40, 9, 2, 6, seed + 1, { far: true });
-  island(b, w * 0.88, 64, 11, 2, 7, seed + 2, { far: true });
-  const g = island(b, w * 0.5, h * 0.74, w * 0.54, 6, 34, seed + 3);
-  const ground = (x) => g.get(Math.round(x)) ?? Math.round(h * 0.74);
-  const S = DAWN.stone, RF = DAWN.roof, L = DAWN.lantern;
-  // Haus: Wand mit Lichtkante links, Fensterreihe, spitzes Dach
-  const house = (x0, ww, hh, roofH) => {
-    const base = ground(x0 + ww / 2) + 2;
-    for (let y = 0; y < hh; y++) for (let x = 0; x < ww; x++) {
-      let c = S[x === 0 ? 4 : x === ww - 1 ? 1 : y % 6 === 5 ? 1 : 2];
-      if (y % 6 >= 2 && y % 6 <= 3 && x % 4 === 2 && x < ww - 1) c = L[(x + y) % 8 === 0 ? 1 : 2];
-      b.put(x0 + x, base - y, c);
-    }
-    for (let j = 0; j < roofH; j++) {
-      const half = Math.round((ww / 2 + 1) * (1 - j / roofH));
-      for (let i = -half; i <= half; i++) b.put(Math.round(x0 + ww / 2 + i), base - hh - j, RF[i <= -half + 1 ? 4 : i < 0 ? 3 : 1]);
-    }
-    return base;
-  };
-  house(10, 18, 18, 9); house(28, 14, 26, 8); house(84, 16, 22, 9); house(100, 20, 14, 8);
-  // Turm in der Mitte mit Galerie und Stern
-  const tx = Math.round(w * 0.5), tw = 16, tb = ground(tx) + 2, th = 96;
-  for (let y = 0; y < th; y++) for (let x = -tw / 2; x < tw / 2; x++) {
-    const narrow = y > th - 22 ? 3 : 0;
-    if (x < -tw / 2 + narrow || x >= tw / 2 - narrow) continue;
-    let c = S[x === -tw / 2 + narrow ? 5 : x >= tw / 2 - narrow - 1 ? 1 : (y % 10 === 9 ? 1 : 3)];
-    if (y % 18 >= 6 && y % 18 <= 10 && Math.abs(x + 0.5) < 2) c = L[y % 18 === 6 ? 4 : 2];
-    b.put(tx + x, tb - y, c);
-  }
-  for (let x = -tw / 2 - 3; x < tw / 2 + 3; x++) { b.put(tx + x, tb - th + 30, S[4]); b.put(tx + x, tb - th + 29, S[5]); b.put(tx + x, tb - th + 31, DAWN.keel[2]); }
-  for (let j = 0; j < 14; j++) { const half = Math.round(6 * (1 - j / 14)); for (let i = -half; i <= half; i++) b.put(tx + i, tb - th - j, RF[i < 0 ? 4 : 2]); }
-  star(b, tx, tb - th - 22, 6);
-  // Lichtkranz des Sterns: harte Ringe
-  for (let a = 0; a < 64; a++) { const r = 11; b.put(Math.round(tx + Math.cos(a / 10.2) * r), Math.round(tb - th - 22 + Math.sin(a / 10.2) * r), a % 2 ? DAWN.lantern[2] : null); }
-  // Balkon vorn (die Fürstin steht darauf)
-  const by = ground(tx) + 3;
-  for (let x = -26; x <= 26; x++) { b.put(tx + x, by, S[5]); b.put(tx + x, by + 1, S[3]); b.put(tx + x, by + 2, DAWN.keel[1]); if (x % 4 === 0) for (let j = 1; j <= 5; j++) b.put(tx + x, by - j, S[4]); }
-  for (let x = -26; x <= 26; x++) b.put(tx + x, by - 6, S[5]);
-  return { canvas: b.toCanvas(), w, h, floor: by };
-}
-
-// Siegel Sternhafens: blaues Wachs mit goldenem Stern (Weltpixel, d Durchmesser)
-export function sealCanvas(d = 30) {
-  const b = new Buf(d + 2, d + 2), c = (d + 1) / 2, r = d / 2;
-  for (let y = 0; y < d + 2; y++) for (let x = 0; x < d + 2; x++) {
-    const a = Math.atan2(y - c, x - c), rr = r - 1 + Math.round(Math.sin(a * 7) * 1.2);
-    const dist = Math.hypot(x - c, y - c);
-    if (dist > rr + 1) continue;
-    let col = dist > rr ? '#0e0b1e' : step(DAWN.roof, 0.75 - (x + y - 2 * c) / (2 * d) - (dist > r - 4 && dist < r - 2 ? 0.25 : 0), x, y);
-    if (dist <= r - 3 && dist > r - 4) col = DAWN.lantern[1];
-    b.put(x, y, col);
-  }
-  // achtstrahliger Stern
-  const sr = Math.round(r * 0.55), ci = Math.round(c);
-  for (let i = -sr; i <= sr; i++) { b.put(ci + i, ci, DAWN.lantern[Math.abs(i) < 2 ? 4 : 2]); b.put(ci, ci + i, DAWN.lantern[Math.abs(i) < 2 ? 4 : 2]); }
-  for (let i = 1; i <= Math.round(sr * 0.6); i++) for (const [sx, sy] of [[1, 1], [-1, -1], [1, -1], [-1, 1]]) b.put(ci + sx * i, ci + sy * i, DAWN.lantern[1]);
-  b.put(ci - 1, ci - 1, DAWN.lantern[3]); b.put(ci + 1, ci + 1, DAWN.lantern[3]);
-  return b.toCanvas();
-}
-
-// Pergament: kleine, kachelbare Fläche (Weltpixel) mit Fasern, als Hintergrundbild mit image-rendering: pixelated
-export function vellumTile(n = 48, seed = 3) {
-  const P = ramp(['#d9cdd6', '#e3d8de', '#ece3e6', '#f3ece9']);
-  const c = makeCanvas(n, n), ctx = c.getContext('2d');
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const t = 0.55 + (vn(x / 7, y / 2.5, seed) - 0.5) * 0.7 + (hash2(x, y, seed) - 0.5) * 0.2;
-    const v = step(P, t, x, y);
-    ctx.fillStyle = `rgb(${v[0]},${v[1]},${v[2]})`;
-    ctx.fillRect(x, y, 1, 1);
-  }
-  return c;
-}
-
-// ------------------------------------------------------------------------------------------------ C: Schaukasten
-// Bühne je Reiter: Morgenschimmer, eine flache Steinplattform auf einer Insel mit drei Sockeln.
-export function showStage(w, h, seed, { garden = false, shards = false } = {}) {
-  const b = new Buf(w, h);
-  sky(b, seed, { clouds: 0.5 });
-  island(b, w * 0.12, h * 0.26, 10, 2, 6, seed + 1, { far: true });
-  island(b, w * 0.9, h * 0.2, 12, 2, 7, seed + 2, { far: true });
-  const groundY = Math.round(h * 0.8);
-  const g = island(b, w * 0.5, groundY - 2, w * 0.58, 6, Math.round(h * 0.18), seed + 4);
-  if (garden) for (let i = 0; i < (shards ? 5 : 9); i++) { const x = Math.round(w * (0.04 + i * (shards ? 0.095 : 0.115))); tree(b, x, (g.get(x) ?? groundY) + 3, i % 3, seed + i); }
-  if (shards) for (let i = 0; i < (garden ? 6 : 12); i++) {
-    const x = Math.round(w * (garden ? 0.56 + i * 0.075 : 0.03 + i * 0.085)), y0 = (g.get(x) ?? groundY) + 2, hh = 4 + Math.round(hash2(i, 1, seed) * 12);
-    for (let j = 0; j < hh; j++) { const half = Math.max(0, Math.round(2 * (1 - j / hh))); for (let k = -half; k <= half; k++) b.put(x + k, y0 - j, DAWN.crystal[k < 0 ? 3 : k === 0 ? 2 : 1]); }
-    b.put(x, y0 - hh, DAWN.crystal[4]);
-  }
-  return { b, groundY, ground: (x) => g.get(Math.round(x)) ?? groundY };
-}
-
-// Steinsockel (für Bosse und Reittiere), Oberkante bei y
-export function plinth(b, x, y, half) {
-  const S = DAWN.stone;
-  for (let j = 0; j < 5; j++) for (let i = -half - (j > 2 ? 1 : 0); i <= half + (j > 2 ? 1 : 0); i++) {
-    let c = S[j === 0 ? 5 : j === 1 ? 3 : j === 4 ? 0 : 2];
-    if (i === -half - (j > 2 ? 1 : 0) && j > 0) c = S[4];
-    if (j === 2 && (i % 6 === 0)) c = S[1];
-    b.put(x + i, y + j, c);
-  }
-  // Leuchtrune vorn
-  b.put(x, y + 2, DAWN.crystal[3]); b.put(x - 1, y + 2, DAWN.crystal[2]); b.put(x + 1, y + 2, DAWN.crystal[2]);
 }

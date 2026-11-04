@@ -1,7 +1,7 @@
 import { hash2 } from '../core/math.js';
 import { makeCanvas } from '../gfx/PixelCanvas.js';
 
-// Bilder für die Ankündigung „Sternenglut“: Morgenschimmer-Himmel, treibende Inseln, Sternhafen in der Ferne, Schriftzug.
+// Bausteine für die Ankündigung „Sternenglut“: Morgenschimmer-Himmel, treibende Inseln, Bäume, Stern, Schriftzug.
 // Alles prozedural im Weltraster (1 Weltpixel = R×R Bildpunkte), damit Figuren aus dem Spiel (Feinraster, res 2)
 // ohne Umrechnung darauf stehen. Anzeige per CSS ganzzahlig und image-rendering: pixelated.
 export const R = 2;
@@ -145,22 +145,6 @@ export function star(b, x, y, r) {
   const L = DAWN.lantern;
   for (let i = -r; i <= r; i++) { b.put(x + i, y, L[Math.abs(i) < r / 2 ? 4 : 3]); b.put(x, y + i, L[Math.abs(i) < r / 2 ? 4 : 3]); }
   for (let i = 1; i <= Math.floor(r / 2); i++) { b.put(x + i, y + i, L[2]); b.put(x - i, y - i, L[2]); b.put(x + i, y - i, L[2]); b.put(x - i, y + i, L[2]); }
-}
-
-// Bühne des Fensters: eine breite Felsinsel im Vordergrund (Figuren stehen auf groundY), Sternhafen klein in der Ferne
-export function vistaStage(w = 360, h = 150, seed = 9) {
-  const b = new Buf(w, h);
-  sky(b, seed, { clouds: 0.5 });
-  island(b, w * 0.18, h * 0.3, 10, 2, 6, seed + 1, { far: true });
-  island(b, w * 0.86, h * 0.22, 14, 2, 8, seed + 2, { far: true });
-  const far = island(b, w * 0.62, h * 0.42, 26, 3, 12, seed + 3, { far: true });
-  // ferne Stadt als Silhouette mit Stern
-  for (let i = -18; i <= 18; i += 6) { const x = Math.round(w * 0.62 + i), y = far.get(x); if (y != null) for (let j = 0; j < 4 + (i === 0 ? 8 : (i & 4) ? 3 : 0); j++) for (let k = 0; k < 3; k++) b.put(x + k - 1, y - j, DAWN.far[1]); }
-  star(b, Math.round(w * 0.62), Math.round(h * 0.42) - 18, 3);
-  const g = island(b, w * 0.5, h * 0.8, w * 0.56, 10, 26, seed + 4);
-  tree(b, Math.round(w * 0.06), (g.get(Math.round(w * 0.06)) ?? h) + 4, 2, seed);
-  tree(b, Math.round(w * 0.95), (g.get(Math.round(w * 0.95)) ?? h) + 4, 1, seed + 1);
-  return { canvas: b.toCanvas(), w, h, groundY: Math.round(h * 0.8) };
 }
 
 // Figur aus dem Spiel (SpriteFrame, Feinraster) auf ein Bild stellen: Fußpunkt (x, y) in Weltpixeln
