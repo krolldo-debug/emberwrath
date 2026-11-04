@@ -47,6 +47,7 @@ export function installUi(game) {
     return {
       update: (dt) => { game.quality.update(dt, session, weather); weather.update(dt); },
       draw: (ctx) => weather.draw(ctx),
+      screen: true, // bildschirmfest (scenes/PlayScene.js render)
     };
   }, 50);
   game.addSessionSystem('feedback', (session) => new FeedbackSystem(session), 0);
@@ -65,6 +66,7 @@ export function installUi(game) {
     return {
       update: (dt) => { fx.update(dt); hud.update(dt); rewards.update(dt); toasts.update(dt); minimap.update(dt); zt.update(dt); unlocks.update(dt); guide.update(dt); },
       draw: (ctx) => fx.draw(ctx),
+      screen: true, // bildschirmfest (scenes/PlayScene.js render)
       dispose: () => { guide.dispose(); rewards.dispose(); unlocks.dispose(); zt.dispose(); minimap.dispose(); hud.dispose(); toasts.dispose(); },
     };
   }, 100);

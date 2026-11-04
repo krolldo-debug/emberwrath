@@ -180,7 +180,10 @@ export class QuestRunSystem {
     const run = this.run;
     if (!run || run.world !== session.world) return;
     run.drawLabels(ctx, cam.rx, cam.ry, font);
+    // Die Tafel ist bildschirmfest: Feinversatz der Kamera aufheben (scenes/PlayScene.js render)
+    ctx.translate(cam.fx, cam.fy);
     run.drawPanel(ctx, font);
+    ctx.translate(-cam.fx, -cam.fy);
   }
 
   dispose() {
