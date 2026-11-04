@@ -8,7 +8,7 @@ import { teaserPanel } from './panel.js';
 // Ankündigung der Erweiterung „Sternenglut“: in jeder der sieben alten Städte eine Sternentafel, die das Fenster
 // 'teaser' öffnet (panel.js). Dasselbe Fenster erscheint einmal nach dem Anmelden, bis der Spieler „Beim Anmelden nicht
 // mehr zeigen“ anhakt (Gerät, game.prefs 'teaserHidden'). Ein neuer Held sieht es erst ab seiner zweiten Anmeldung.
-// Wenn die Erweiterung für alle offen ist (STARS_PUBLIC): installTeaser aus main.js nehmen oder Texte auf „Jetzt da“ ändern.
+// Seit der Freigabe für alle (STARS_PUBLIC, 04.11.) zeigt das Fenster „Neu“ und den Weg hinein (panel.js).
 //
 // Plätze: Abstand zum Wegstein in Spielpixeln. Neben dem Weg, nicht auf Questpfaden, nicht dicht an Händlern,
 // Auktionator, Gewandmeisterin oder Briefkasten (Screenshots je Stadt geprüft).

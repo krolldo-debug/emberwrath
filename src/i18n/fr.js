@@ -6219,5 +6219,9 @@ export const FR = {
   "„Wohin willst du? Ich zeig dir den Weg.“": "« Où veux-tu aller ? Je te montre le chemin. »",
   "Auf dem Wegweiser stehen alle Wege im Ort.": "Le panneau indique tous les chemins du village.",
   "Hier gibt es nichts, wohin der Weg führt.": "Il n'y a ici aucun endroit où te mener.",
-  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maître de l'arène : « Reviens quand tu auras atteint le niveau {0}. »"
+  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maître de l'arène : « Reviens quand tu auras atteint le niveau {0}. »",
+  "Ab Stufe 40, nach der Hauptquest: Ysolde in der Rauhwacht zeigt dir den Weg.": "Dès le niveau 40, après la quête principale : Ysolde à Guet-des-Freux te montrera le chemin.",
+  "Sternenkraft": "Vigueur stellaire",
+  "Prismenanmut": "Grâce prismatique",
+  "Leerenschliff": "Fil-du-Vide"
 };

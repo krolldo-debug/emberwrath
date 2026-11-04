@@ -7,7 +7,7 @@ import { R, vistaStage, drawFigure, wordmark } from './art.js';
 
 // Fenster „Sternenglut“: Vorschau auf die Erweiterung. Öffnet an der Sternentafel in jeder Stadt und einmal nach dem
 // Anmelden. Oben die Bühne (drei Bosse auf einer Insel im Morgenrot, Reittiere, Sternhafen fern), darunter Text und
-// fünf Punkte, unten das Häkchen „Beim Anmelden nicht mehr zeigen“. Kein Datum, nur „Bald“.
+// fünf Punkte und der Weg hinein, unten das Häkchen „Beim Anmelden nicht mehr zeigen“. Seit der Freigabe (04.11.) „Neu“.
 // Bilder sind Canvas im Weltraster (art.js), CSS zeigt sie mit --px Bildschirmpixeln je Weltpixel.
 const FEATS = [
   { icon: 'crown_fallen', title: 'Sternhafen' },
@@ -77,11 +77,12 @@ export function teaserPanel(session, prefs) {
   const root = h('div.ts-win', { role: 'dialog', 'aria-label': 'Sternenglut' },
     h('button.ts-close', { type: 'button', 'aria-label': 'Schließen', title: 'Schließen (Esc)', onclick: close }, '✕'),
     h('div.ts-stage', pic,
-      h('div.ts-markwrap', word, h('span.ts-soon', 'Bald')),
+      h('div.ts-markwrap', word, h('span.ts-soon', 'Neu')),
       BOSSES.map((b) => at(h('span.ts-name', b.name), b.x, v.groundY + 7))),
     h('div.ts-band',
       h('p.ts-lead', 'Über der Glutöde reißt der Himmel auf. Dahinter treiben Inseln im Morgenlicht, und über Sternhafen brennt ein Stern, der nie erlischt.'),
-      h('ul.ts-chips', FEATS.map((f) => h('li', iconEl(f.icon, 20), h('span', f.title))))),
+      h('ul.ts-chips', FEATS.map((f) => h('li', iconEl(f.icon, 20), h('span', f.title)))),
+      h('p.ts-how', 'Ab Stufe 40, nach der Hauptquest: Ysolde in der Rauhwacht zeigt dir den Weg.')),
     h('div.ts-foot',
       h('label.ts-check', box, h('span.ts-box', { 'aria-hidden': 'true' }), h('span', 'Beim Anmelden nicht mehr zeigen')),
       h('button.ts-go', { type: 'button', onclick: close }, 'Weiter spielen')));

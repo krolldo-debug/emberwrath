@@ -6219,5 +6219,9 @@ export const EN = {
   "„Wohin willst du? Ich zeig dir den Weg.“": "“Where do you want to go? I'll show you the way.”",
   "Auf dem Wegweiser stehen alle Wege im Ort.": "The signpost shows every way through town.",
   "Hier gibt es nichts, wohin der Weg führt.": "There is nowhere here to lead you.",
-  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Arena Master: “Come back when you have reached level {0}.”"
+  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Arena Master: “Come back when you have reached level {0}.”",
+  "Ab Stufe 40, nach der Hauptquest: Ysolde in der Rauhwacht zeigt dir den Weg.": "From level 40, after the main quest: Ysolde in Rookwatch will show you the way.",
+  "Sternenkraft": "Starlight Vigor",
+  "Prismenanmut": "Prismatic Grace",
+  "Leerenschliff": "Void Edge"
 };

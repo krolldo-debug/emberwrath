@@ -6219,5 +6219,9 @@ export const ES = {
   "„Wohin willst du? Ich zeig dir den Weg.“": "«¿Adónde quieres ir? Te enseño el camino.»",
   "Auf dem Wegweiser stehen alle Wege im Ort.": "El poste indica todos los caminos del lugar.",
   "Hier gibt es nichts, wohin der Weg führt.": "Aquí no hay ningún lugar al que llevarte.",
-  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maestro de la arena: «Vuelve cuando hayas alcanzado el nivel {0}.»"
+  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maestro de la arena: «Vuelve cuando hayas alcanzado el nivel {0}.»",
+  "Ab Stufe 40, nach der Hauptquest: Ysolde in der Rauhwacht zeigt dir den Weg.": "A partir del nivel 40, tras la misión principal: Ysolde en Atalaya Agreste te mostrará el camino.",
+  "Sternenkraft": "Vigor estelar",
+  "Prismenanmut": "Gracia prismática",
+  "Leerenschliff": "Filo del vacío"
 };

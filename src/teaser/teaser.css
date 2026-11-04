@@ -34,6 +34,7 @@
 /* Band: Text und die fünf Punkte */
 .ts-band { padding: 8px 6px; border-top: 4px solid var(--edge); background: var(--row); display: grid; gap: 8px; overflow-y: auto; min-height: 0; }
 .ts-lead { margin: 0; }
+.ts-how { margin: 0; font-weight: 700; color: var(--peach); }
 .ts-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 .ts-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; font: 600 13px/1.2 var(--ef-font); color: var(--peach); background: var(--fill); box-shadow: inset 0 0 0 2px var(--k); }
 
