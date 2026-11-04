@@ -3,6 +3,7 @@ import { Npc } from '../entities/Npc.js';
 import { Decor } from '../entities/Decor.js';
 import { mountItemId, MAX_ACTIVE, TRADE_MIN_LEVEL } from './rules.js';
 import { PLACES } from './places.js';
+import { roomSpot } from '../world/interiors.js';
 import { createAuctioneerSprites } from './sprite.js';
 import { marketPanel } from './panel.js';
 import { checkVersion } from '../core/Version.js';
@@ -243,13 +244,14 @@ export function installMarket(game) {
   }, 25);
 }
 
-// Auktionator mit Pult neben dem Wegstein der Stadt
+// Auktionator mit Pult neben dem Wegstein der Stadt oder im Auktionshaus (places.js room)
 function placeAuctioneer(world) {
   const place = world && !world.zone?.instanced && PLACES[world.zone?.id];
   const stone = world?.waystone;
   if (!place || !stone || world.npcs.some((n) => n.npcId === 'auctioneer')) return;
   const sp = auctioneerSprites();
-  const p = world.dungeon.nearestFree(stone.x + place.dx, stone.y + place.dy, 7);
+  const p = place.room ? roomSpot(world, place.room, ...place.at) : world.dungeon.nearestFree(stone.x + place.dx, stone.y + place.dy, 7);
+  if (!p) return;
   const side = place.lectern ?? -1;
   const lectern = new Decor(p.x + side * 16, p.y + 2, {
     sprite: sp.lectern, glow: sp.lecternGlow, shadow: 14, box: [-8, -5, 8, 1],

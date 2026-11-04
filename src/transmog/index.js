@@ -2,6 +2,7 @@ import { EV } from '../core/events.js';
 import { Npc } from '../entities/Npc.js';
 import { Decor } from '../entities/Decor.js';
 import { PLACES } from './places.js';
+import { roomSpot } from '../world/interiors.js';
 import { createTransmogSprites } from './sprite.js';
 
 // Gewandmeisterin (wie der Transmogrifizierer in WoW): steht in jeder Wegstein-Stadt nahe Auktionator und Rabenpost.
@@ -51,7 +52,8 @@ function placeMistress(world) {
   const stone = world?.waystone;
   if (!place || !stone || world.npcs.some((n) => n.npcId === 'transmog')) return;
   const sp = transmogSprites();
-  const p = world.dungeon.nearestFree(stone.x + place.dx, stone.y + place.dy, 7);
+  const p = place.room ? roomSpot(world, place.room, ...place.at) : world.dungeon.nearestFree(stone.x + place.dx, stone.y + place.dy, 7);
+  if (!p) return;
   const side = place.mirror ?? -1;
   const mirror = new Decor(p.x + side * 15, p.y + 1, {
     sprite: sp.mirror, glow: sp.mirrorGlow, shadow: 10, box: [-6, -4, 6, 1],

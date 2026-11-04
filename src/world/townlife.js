@@ -7,6 +7,7 @@ import { HOUSE_DOOR_PX } from '../sprites/decor_houses.js';
 
 // Leben in den Städten: Bewohner mit eigenem Haus, die umhergehen, plaudern, ihre Häuser betreten und den Helden
 // ansprechen. Rein auf dem Gerät gerechnet und ohne Spielstand: keine Quests, keine Beute, kein Kampf.
+// Wachen kann man nach dem Weg fragen (world/townServices.js).
 // Die Häuser, Plätze und NPCs liest spawnTownsfolk aus der fertig platzierten Karte (placeObjects).
 //
 // Bewohner: { outfit (sprites/folk.js), race, variant, role: 'home' | 'guard', say: [Sprüche] }
@@ -246,6 +247,7 @@ class Town {
       const start = home?.step ?? this.spots[i % this.spots.length];
       const folk = new Townsfolk(start.x, start.y, { town: this, spec, home, anims: () => folkAnims(spec), seed: i * 7 + this.area.x });
       this.folk.push(this.world.spawn(folk));
+      if (folk.guard) { folk.interactRange = 22; this.world.interactables.push(folk); }   // Wachen kennen den Weg
     });
     warmFolk(this.folk.map((f) => f.getAnims));
   }
