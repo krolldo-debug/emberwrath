@@ -4,7 +4,8 @@
 // den Raum. Gemalt werden Räume und Dunkelheit von sprites/ground/ramparts.js (paintInteriors), Möbel und Wandschmuck
 // kommen aus sprites/decor_altstadt.js (createFurniture, in jeden Deko-Satz gemischt, world/index.js).
 //
-// addInteriors(L, rooms, opts) – L: fertiges Level, rooms: [{ id, name, door: {x,y}, plan }] mit plan aus ROOMS
+// addInteriors(L, rooms, opts) – L: fertiges Level, rooms: [{ id, name, door: {x,y}, plan, service? }] mit plan aus ROOMS
+// (service: Dienst im Haus, z. B. 'auction' – Schild vor der Tür und Wegbeschreibung, world/townServices.js)
 // (oder eigenem { w, h, s, win, rug, furn: [[dx, dy, 'fTable'], …], light: [dx, dy] }); spec.s ersetzt den Stil der Vorlage.
 //   door = Türkachel des Hauses (fest), davor (door.y + 1) steht man beim Eintreten. Räume: s = Stil der Wände und
 //   Böden (A Dielen/Fachwerk, B Stein, C Backstein/Fliesen, L Blockhaus, F Filz der Jurte), win = Fensterspalten.
@@ -68,6 +69,22 @@ export const ROOMS = {
     w: 11, h: 9, s: 'L', win: [5], light: [5, 4],
     furn: [[2, 3, 'fHearth'], [8, 4, 'fBed'], [5, 6, 'fTable'], [3, 6, 'fStool'], [1, 7, 'fBarrels'], [9, 7, 'fSacks'], [5, 3, 'wNet'], [7, 3, 'wHerbs']],
   },
+  // Auktionshaus: Pult des Auktionators vor dem Kamin (market/places.js), Vitrinen, Schränke, Waren
+  auction: {
+    w: 19, h: 10, s: 'A', win: [3, 15], rug: [6, 5, 7, 3], light: [9, 5],
+    furn: [[9, 3, 'fHearth'], [5, 3, 'fBanner'], [13, 3, 'fBanner'], [2, 3, 'fCupboard'], [16, 3, 'fCupboard'], [3, 7, 'fCase'], [15, 7, 'fCase'],
+      [1, 8, 'fKegs'], [17, 8, 'fSacks'], [17, 5, 'fBarrels'], [1, 5, 'fChest'], [7, 3, 'wSconce'], [11, 3, 'wSconce']],
+  },
+  // Haus der Glutarena: Waffenständer, Rüstungen, Banner; der Arenameister steht in der Mitte (world/townServices.js)
+  arena: {
+    w: 13, h: 9, s: 'B', win: [6], light: [6, 4],
+    furn: [[2, 3, 'fRack'], [10, 3, 'fRack'], [4, 3, 'fArmor'], [8, 3, 'fArmor'], [6, 3, 'fBanner'], [1, 7, 'fBarrels'], [11, 7, 'fChest'], [3, 3, 'wShield'], [9, 3, 'wShield']],
+  },
+  // Schneiderei: Gewandmeisterin mit Standspiegel (transmog/places.js), Kleiderschränke, Gewand auf dem Ständer
+  tailor: {
+    w: 13, h: 9, s: 'A', win: [9], rug: [4, 5, 5, 2], light: [6, 4],
+    furn: [[2, 3, 'fCupboard'], [10, 3, 'fCupboard'], [1, 6, 'fArmor'], [11, 6, 'fTable'], [1, 8, 'fSacks'], [11, 8, 'fChest'], [6, 3, 'wTapestry'], [4, 3, 'wPicture'], [8, 3, 'wShelf']],
+  },
   alchemist: {
     w: 13, h: 9, s: 'L', win: [9], light: [6, 4],
     furn: [[3, 3, 'fBooks'], [6, 5, 'fDesk'], [10, 3, 'fCupboard'], [11, 7, 'fKegs'], [1, 7, 'fPlant'], [6, 3, 'wHerbs'], [8, 3, 'wShelf'], [2, 7, 'fBarrels']],
@@ -108,7 +125,7 @@ export function addInteriors(L, rooms, { ambient = [150, 128, 112], light = [255
     for (const [dx, dy, key] of P.furn) put(x + dx, y + dy, charOf(key));
     ram.rooms.push({ r: [x, y, P.w, P.h], s: spec.s ?? P.s, win: (P.win ?? []).map((k) => x + k), rug: P.rug ? [x + P.rug[0], y + P.rug[1], P.rug[2], P.rug[3]] : null });
     const li = P.light ? { x: x + P.light[0], y: y + P.light[1], radius: Math.max(P.w, P.h) * 9, color: spec.lightColor ?? light, intensity: 0.85 } : null;
-    L.interiors.push({ id: spec.id, name: spec.name, door: { ...spec.door }, room: { x, y, w: P.w, h: P.h }, spawn: { x: ex, y: y + P.h - 2 }, exit: { x: ex, y: y + P.h - 1 }, light: li });
+    L.interiors.push({ id: spec.id, name: spec.name, service: spec.service ?? null, sign: spec.sign, door: { ...spec.door }, room: { x, y, w: P.w, h: P.h }, spawn: { x: ex, y: y + P.h - 2 }, exit: { x: ex, y: y + P.h - 1 }, light: li });
   });
   L.map = rows.map((r) => r.join(''));
   L.solid = solid;

@@ -102,6 +102,7 @@ export class PlayScene {
     this.camera = new Camera(this.world.pixelW, this.world.pixelH);
     this.camera.enabled = this.game.prefs.get('screenShake', true) !== false;
     this.camera.snapTo(hero.x, hero.y);
+    this.camera.anchor = hero;
     this.deadTime = 0;
     this.boss = null;
     if (this.state.commands.has('world:enterZone')) this.state.commit('world:enterZone', { zoneId: def.id, spawnId });
@@ -218,8 +219,22 @@ export class PlayScene {
     this.authority.sendIntent({ type: 'pos', x: hero.x, y: hero.y });
   }
 
+  // Feinversatz der Kamera (core/Camera.js fx/fy, Vielfache von 1/renderScale): Welt und an ihr hängende Overlays
+  // (Namen, Marker, Schadenszahlen) werden gemeinsam verschoben, sodass das Pixelraster untereinander gleich bleibt.
+  // Bildschirmfeste Overlays (system.screen, z. B. Vignette, Wetter) zeichnen unverschoben.
+  // Damit rechts und unten kein Spalt bleibt, zeichnet die Welt dabei 2 Weltpixel breiter und höher: gerade Maße, weil die
+  // Lightmap 2 Weltpixel je Texel hat (gfx/Lighting.js). Bei Feinraster immer, damit Lightmap und Himmel nicht zwischen
+  // zwei Größen wechseln.
   render(ctx) {
-    this.world.render(ctx, this.camera.rx, this.camera.ry, this.debug);
-    for (const s of this.systems) s.draw?.(ctx, this);
+    const cam = this.camera, fx = cam.fx, fy = cam.fy, pad = CONFIG.renderScale > 1 ? 2 : 0;
+    ctx.save();
+    ctx.translate(-fx, -fy);
+    CONFIG.viewWidth += pad; CONFIG.viewHeight += pad;
+    try { this.world.render(ctx, cam.rx, cam.ry, this.debug); } finally { CONFIG.viewWidth -= pad; CONFIG.viewHeight -= pad; }
+    for (const s of this.systems) {
+      if (!s.draw) continue;
+      if (s.screen && (fx || fy)) { ctx.translate(fx, fy); s.draw(ctx, this); ctx.translate(-fx, -fy); } else s.draw(ctx, this);
+    }
+    ctx.restore();
   }
 }

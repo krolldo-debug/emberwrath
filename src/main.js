@@ -16,6 +16,7 @@ import { installShop } from './shop/index.js';
 import { installMarket } from './market/index.js';
 import { installMail } from './mail/index.js';
 import { installTransmog } from './transmog/index.js';
+import { installTownServices } from './world/townServices.js';
 import { installTeaser } from './teaser/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
 import { installVersionCheck } from './core/Version.js';
@@ -42,6 +43,7 @@ game
   .use(installMarket)      // Auktionshaus in jeder Stadt (src/market, Buchungen nur in der Datenbank)
   .use(installMail)        // Postfach in jeder Stadt (src/mail): Auktionshaus, Briefe von Spielern, Bossbeute
   .use(installTransmog)    // Gewandmeisterin in jeder Stadt (src/transmog): Aussehen aus der Sammlung gegen Gold
+  .use(installTownServices) // Häuser mit Dienst (Schilder, Arenameister) und Wegbeschreibung (src/world/townServices.js)
   .use(installTeaser);     // Ankündigung „Sternenglut“: Tafel in jeder Stadt, Fenster nach dem Anmelden (src/teaser)
 game.scenes.register('play', (g) => new PlayScene(g));
 // Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.

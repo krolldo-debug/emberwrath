@@ -32,7 +32,8 @@ export const RECIPES = {
   forge_bonebreaker: R('weapon', 15, 180, 'bonebreaker_longsword', [m('ember_ore', 4), m('obsidian_shard', 4), m('ruby', 1)]),
   forge_cinder_knife: R('weapon', 16, 200, 'cinder_knife', [m('ember_ore', 4), m('obsidian_shard', 3), m('wolf_fang', 4)]),
   forge_forge_longbow: R('weapon', 18, 260, 'forge_longbow', [m('ember_core', 2), m('ember_ore', 4), m('obsidian_shard', 3)]),
-  forge_forge_wand: R('weapon', 18, 260, 'forge_wand', [m('ember_core', 2), m('cultist_tome', 4), m('amethyst', 1)]),
+  // Amethyst (1,5 % bei Eliten) machte den Magierstab unerreichbar – jetzt Rubin wie die Glutaxt (Logik-Check 03.11.)
+  forge_forge_wand: R('weapon', 18, 260, 'forge_wand', [m('ember_core', 2), m('cultist_tome', 4), m('ruby', 1)]),
   forge_forge_axe: R('weapon', 18, 260, 'forge_axe', [m('ember_core', 2), m('ember_ore', 5), m('ruby', 1)]),
 
   // --- Rüstung
@@ -65,17 +66,19 @@ export const RECIPES = {
   // --- Stufe 20–40: Alchemie aus den Materialien der neuen Gebiete
   cure_steppe_jerky: R('alchemy', 20, 4, 'steppe_jerky', [m('hyena_hide', 1)], 3),
   brew_superior_potion: R('alchemy', 24, 12, 'superior_potion', [m('leech_ichor', 2), m('toad_gland', 1)], 2),
-  brew_greater_mana: R('alchemy', 24, 12, 'greater_mana', [m('leech_ichor', 1), m('spore_cap', 1)], 2),
+  // Zutaten aus dem eigenen Gebiet (Logik-Check 03.11.: Sporenkappe gab es erst ab 30, Adeptensiegel erst ab 38)
+  brew_greater_mana: R('alchemy', 24, 12, 'greater_mana', [m('leech_ichor', 1), m('toad_gland', 1)], 2),
   brew_supreme_potion: R('alchemy', 31, 20, 'supreme_potion', [m('troll_fat', 2), m('spore_cap', 1)], 2),
-  brew_supreme_mana: R('alchemy', 31, 20, 'supreme_mana', [m('troll_fat', 1), m('adept_sigil', 1)], 2),
+  brew_supreme_mana: R('alchemy', 31, 20, 'supreme_mana', [m('troll_fat', 1), m('frost_pelt', 1)], 2),
 };
 
 // --- Stufe 20–40: seltene Waffen und Brustteile je Tier (Stil „rare“ aus items40.js), aus den Materialien
 // der Region. Rezeptstufe = Anlegestufe des Ergebnisses. Je Klasse mindestens zwei Waffen, je Machart ein Brustteil.
 const TIER_CRAFT = {
-  5: { gold: 600, weapon: [m('raider_arrowhead', 6), m('barrow_bone', 4)], armor: [m('hyena_hide', 6), m('barrow_bone', 4)] },
+  // Logik-Check 03.11.: Tier 5 brauchte Hügelknochen (Dungeon ab 24) schon ab Stufe 20, Tier 7 Kristallseide (Dungeon ab 35) ab 30
+  5: { gold: 600, weapon: [m('raider_arrowhead', 6), m('vulture_feather', 4)], armor: [m('hyena_hide', 6), m('vulture_feather', 4)] },
   6: { gold: 1200, weapon: [m('bog_iron', 4), m('toad_gland', 6)], armor: [m('leech_ichor', 6), m('bog_iron', 3)] },
-  7: { gold: 2000, weapon: [m('rime_crystal', 3), m('troll_fat', 6)], armor: [m('frost_pelt', 8), m('crystal_silk', 2)] },
+  7: { gold: 2000, weapon: [m('rime_crystal', 3), m('troll_fat', 6)], armor: [m('frost_pelt', 8), m('troll_fat', 3)] },
   8: { gold: 3200, weapon: [m('magma_scale', 4), m('adept_sigil', 6)], armor: [m('pilgrim_relic', 6), m('magma_scale', 3)] },
 };
 const CRAFT_WEAPONS = ['blade', 'claymore', 'stiletto', 'longbow', 'quarterstaff', 'rod'];

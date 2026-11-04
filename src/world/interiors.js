@@ -29,6 +29,12 @@ export function roomAt(world, x, y) {
   return list.find((it) => inRoom(it, tx, ty)) ?? null;
 }
 
+// Standplatz in einem Raum (Fußpunkt in Weltpixeln, wie NPC-Markierungen der Karte): Raum-ID, Kachel im Raum
+export function roomSpot(world, id, dx, dy) {
+  const it = interiorsOf(world)?.find((r) => r.id === id);
+  return it ? { x: (it.room.x + dx + 0.5) * T, y: (it.room.y + dy + 0.5) * T + 4, it } : null;
+}
+
 // Position für Karte und Minikarte: Was in einem Raum ist, steht an der Haustür.
 export function mapPoint(world, x, y) {
   const it = roomAt(world, x, y);

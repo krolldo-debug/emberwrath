@@ -240,6 +240,8 @@ export function buildDriftingGardens() {
   for (const [x, y] of [[100, 26], [92, 34], [104, 32], [72, 18], [60, 18], [76, 30], [58, 30], [40, 26], [30, 26], [36, 16], [44, 18]]) group(x, y, ['g', 'v', 'v'], 4);
   // Mondweiher (44–45): Sternfalter, Blütenpirscher
   for (const [x, y] of [[40, 84], [62, 84], [68, 96], [56, 108], [38, 104], [48, 110], [74, 102], [32, 92]]) group(x, y, ['m', 'm', 'a'], 4);
+  // Der Verdorrte Hüter (Elite 44): stand nur auf dem Auftragsbrett, nie in der Welt (Logik-Check 03.11.). Westende der Terrassen.
+  group(46, 30, ['k'], 4);
 
   // Wrack der „Morgenröte“ (q_morgenroete): an der Nordostspitze der Terrassen, Glocke und Kapitänskiste daneben
   const wreck = [113, 19], wreckBell = [118, 17], wreckChest = [117, 21];
@@ -283,7 +285,7 @@ export function buildDriftingGardens() {
     npcs: { N: 'warden_veyra', M: 'trader_pell', G: 'gardener_bren', H: 'herbalist_isell', E: 'hermit_odda' },
     enemies: {
       a: { type: 'bloom_stalker' }, w: { type: 'void_wisp' }, r: { type: 'rootbound' }, v: { type: 'vine_horror' },
-      g: { type: 'garden_golem' }, m: { type: 'star_moth' },
+      g: { type: 'garden_golem' }, m: { type: 'star_moth' }, k: { type: 'withered_warden' },
     },
     respawn: 45,
     areas: [

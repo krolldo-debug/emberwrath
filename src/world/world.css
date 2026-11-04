@@ -1,1 +1,9 @@
 /* Eigentümer: siehe docs/INTEGRATION.md */
+
+/* Wegbeschreibung (world/townServices.js): Ziele als Knöpfe, zwei Spalten */
+.tw-dests { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin-top: 10px; }
+.pg-tab.tw-dest { border-radius: 10px; display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'name dir' 'sub in'; gap: 0 10px; padding: 6px 12px; text-align: left; }
+.tw-dest b { grid-area: name; color: var(--ef-gold); font-weight: 600; }
+.tw-dest small { grid-area: sub; color: var(--ef-muted); font-size: 12px; }
+.tw-dest small.tw-dir { grid-area: dir; color: #e8dcc4; text-align: right; }
+.tw-dest small.tw-in { grid-area: in; text-align: right; }
