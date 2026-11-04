@@ -31,17 +31,22 @@
 .la-stage { position: relative; flex: 0 0 auto; overflow: hidden; }
 .la-title { position: absolute; left: calc(14 * var(--px) * 1px); top: calc(10 * var(--px) * 1px); display: grid; justify-items: start; gap: calc(3 * var(--px) * 1px); }
 .la-title .ts-mark { --ms: 2; }
+/* Band „Das Update ist da“: deckend dunkel mit Goldkante, Glutschrift mit harter 1-px-Kontur (wie der Schriftzug),
+   damit es auch vor hellem Himmel und während des Blitzes lesbar bleibt */
+.la-title { z-index: 2; }
 .la-ribbon {
-  margin-left: calc(4 * var(--px) * 1px); padding: 6px 14px 5px; font: 700 15px/1 var(--ef-font); letter-spacing: 0.16em; text-transform: uppercase;
-  color: #1a1030; background: var(--peach); box-shadow: inset 0 0 0 2px var(--k), inset 0 -4px 0 var(--rose), 4px 4px 0 var(--k);
+  margin-left: calc(4 * var(--px) * 1px); padding: 7px 14px 6px; font: 700 15px/1 var(--ef-font); letter-spacing: 0.16em; text-transform: uppercase;
+  color: #ffd27a; background: #1a0c10;
+  box-shadow: inset 0 0 0 2px #0a0406, inset 0 0 0 4px #c8822e, inset 0 0 0 6px #4a1c14, inset 0 -8px 0 #2a1014, 4px 4px 0 #0a0406;
+  text-shadow: 1px 0 #3a0e06, -1px 0 #3a0e06, 0 1px #3a0e06, 0 -1px #3a0e06, 0 2px #b4380e;
 }
 /* Auftakt: Schriftzug erst, wenn der Riss offen ist; ein harter Blitz in drei Stufen, das Band rückt in vier Stufen ein */
-.la-flash { position: absolute; inset: 0; background: #fff6ea; opacity: 0; pointer-events: none; }
+.la-flash { position: absolute; inset: 0; z-index: 1; background: #fff6ea; opacity: 0; pointer-events: none; }
 .la-win:not(.la-done) .la-title { visibility: hidden; }
 .la-win.la-done .la-flash { animation: la-flash 0.36s steps(3, end) 1; }
 .la-win.la-done .la-ribbon { animation: la-slide 0.32s steps(4, end) 0.18s 1 both; }
 @keyframes la-flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
-@keyframes la-slide { 0% { transform: translateX(-24px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes la-slide { 0% { transform: translateX(-24px); } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .la-win.la-done .la-flash, .la-win.la-done .la-ribbon { animation: none; } }
 
 /* Band: Überschrift und ein Satz */
