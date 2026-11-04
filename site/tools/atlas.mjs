@@ -1,7 +1,7 @@
 // Weltkarte „Atlas“ der Seite Welt (welt.html, Abschnitt .atlas; atlas.js zeichnet Glutpfad und Funkeln live darüber).
 // Die echten Gebietskarten des Spiels (ui/MapArt.js, 3 Bildpunkte je Kachel, wie auf der großen Karte im Spiel) liegen
 // als Blätter untereinander, ein Glutpfad verbindet sie von der Glutsenke bis zum Aschethron; unter dem Thron reißt der
-// Grund auf, dahinter liegen hinter einem Sternenschleier die Gebiete der Sternenglut (noch nicht offen: „Bald“).
+// Grund auf, dahinter liegen hinter einem Sternenschleier die Gebiete der Sternenglut (seit 04.11.2026 offen, ohne eigene Etappe).
 //   1. Browser: Gebietskarten (renderZoneMap) als PNG nach $ZWISCHEN/atlas
 //   2. Python (atlas.py): Blätter, Rahmen, Schleier, Pfad → site/img/atlas.webp + Maße
 //   3. Maße und Pfad in den Block META von site/atlas.js, die Beschriftungen in den Block <atlas.mjs> von welt.html
@@ -60,6 +60,6 @@ const lab = out.meta.zonen.map((z) => {
   const [x, y, w] = z.box, rechts = x + w / 2 > out.meta.W / 2;
   const pos = `${rechts ? `right:${pct(out.meta.W - x - w, out.meta.W)}` : `left:${pct(x, out.meta.W)}`};top:${pct(y, out.meta.H)}`;
   const inner = `<b>${z.name}</b><span class="schild">${z.stufe}</span>`;
-  return z.ziel ? `        <a class="ort${rechts ? ' rechts' : ''}" style="${pos}" href="#${z.ziel}" data-i="${z.i}">${inner}</a>` : `        <span class="ort bald${rechts ? ' rechts' : ''}" style="${pos}" data-i="${z.i}">${inner}</span>`;
+  return z.ziel ? `        <a class="ort${rechts ? ' rechts' : ''}" style="${pos}" href="#${z.ziel}" data-i="${z.i}">${inner}</a>` : `        <span class="ort sterne${rechts ? ' rechts' : ''}" style="${pos}" data-i="${z.i}">${inner}</span>`;
 }).join('\n');
 put(HTML, /        <!-- <atlas\.mjs>[\s\S]*?<!-- <\/atlas\.mjs> -->/, `        <!-- <atlas.mjs> von tools/atlas.mjs geschrieben -->\n${lab}\n        <!-- </atlas.mjs> -->`);

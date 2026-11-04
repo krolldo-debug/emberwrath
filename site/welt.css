@@ -183,8 +183,8 @@
 .ort .schild { font: 700 12px/1 var(--font); padding: 4px 6px; color: #fff6e6; background: linear-gradient(180deg, #a8481a 0 50%, #86320f 50% 100%); border: 1px solid #ffb050; }
 a.ort:hover, a.ort:focus-visible, .ort.an { border-color: #ffb050; outline: none; }
 a.ort:hover b, a.ort:focus-visible b, .ort.an b { color: #ffd27a; }
-.ort.bald { border-color: #3a2460; }
-.ort.bald .schild { background: linear-gradient(180deg, #5a36a0 0 50%, #43277e 50% 100%); border-color: #b088f8; text-transform: uppercase; letter-spacing: 0.1em; }
+.ort.sterne { border-color: #3a2460; }
+.ort.sterne .schild { background: linear-gradient(180deg, #5a36a0 0 50%, #43277e 50% 100%); border-color: #b088f8; }
 @media (max-width: 600px) {
   .atlas-kopf { margin-bottom: 40px; text-align: left; }
   .ort { gap: 5px; padding: 3px 4px 3px 6px; transform: translate(-2px, calc(-100% - 5px)); }

@@ -223,7 +223,7 @@ section { position: relative; }
   font: 700 clamp(16px, 1.5vw, 20px)/1.4 var(--font-title); letter-spacing: 0.08em; color: #f6e8cc; }
 .parade-names li.on { opacity: 1; transform: none; transition: opacity 0.5s ease 0.22s, transform 0.6s cubic-bezier(.2, .7, .2, 1) 0.22s; }
 .parade-names li[style*="--glow"] { color: color-mix(in srgb, rgb(var(--glow)) 40%, #fff6e4); }
-.parade-names .p-bald { margin-left: 10px; padding: 3px 7px; vertical-align: 2px; font: 700 10px/1 var(--font); letter-spacing: 0.2em; text-transform: uppercase; color: #fff6e6; background: #4d2e8e; border: 1px solid #b088f8; }
+.parade-names .p-neu { margin-left: 10px; padding: 3px 7px; vertical-align: 2px; font: 700 10px/1 var(--font); letter-spacing: 0.2em; text-transform: uppercase; color: #fff6e6; background: #4d2e8e; border: 1px solid #b088f8; }
 @media (max-width: 600px) { .parade-names li { font-size: 15px; } }
 .no-js .parade-names { height: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 24px; padding: 0 var(--gutter); }
 .no-js .parade-names li { position: static; translate: none; opacity: 1; transform: none; }
@@ -624,7 +624,7 @@ kbd { display: inline-block; min-width: 1.7em; padding: 1px 6px; font: 600 13px/
    vergrößert; ohne JavaScript das Standbild in voller Breite. Schriftzug STERNENGLUT in allen Sprachen gleich. */
 .sterne { padding: clamp(64px, 8vw, 110px) 0 clamp(56px, 7vw, 96px); background: linear-gradient(180deg, var(--bg), #0c0a22 30%, #151638 100%); }
 .sterne-kopf { text-align: center; margin-bottom: clamp(28px, 4vw, 44px); }
-.sterne-bald { display: inline-block; margin: 0 0 18px; padding: 6px 12px; font: 700 12px/1 var(--font); letter-spacing: 0.22em; text-transform: uppercase;
+.sterne-marke { display: inline-block; margin: 0 0 18px; padding: 6px 12px; font: 700 12px/1 var(--font); letter-spacing: 0.22em; text-transform: uppercase;
   color: #fff6e6; background: linear-gradient(180deg, #5a36a0 0 50%, #43277e 50% 100%); border: 1px solid #b088f8; }
 .sterne h2 { margin: 0; line-height: 0; }
 .sterne-schrift { display: block; margin: 0 auto; width: calc(139px * var(--s, 3)); height: calc(24px * var(--s, 3)); image-rendering: pixelated; max-width: none; }

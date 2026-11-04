@@ -1,4 +1,4 @@
-// Emberwrath – Startseite, Abschnitt „Bald“ (index.html .sterne): Sternenglut, Stufe 40–50.
+// Emberwrath – Startseite, Abschnitt „Jetzt da“ (index.html .sterne): Sternenglut, Stufe 40–50.
 // Bühne und Bosse aus site/tools/sterne.mjs. Die drei neuen Bosse stehen als Schattenrisse im Morgenschimmer, reihum
 // enthüllt ein Lichtstreif einen von ihnen (Name darunter hebt sich), Sterne funkeln, Blütenblätter treiben vorbei.
 // Ausschnitt und Vergrößerung in ganzen Gerätepixeln je Feinpixel wie beim Titelbild; ohne JavaScript oder bei

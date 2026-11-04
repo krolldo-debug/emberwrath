@@ -904,11 +904,9 @@
  "Ein Weg durch die ganze Welt": "Un camino a través de todo el mundo",
  "Jedes Blatt ist die echte Karte aus dem Spiel. Tippe ein Gebiet an, um dorthin zu springen.": "Cada hoja es el mapa real del juego. Toca una zona para saltar a ella.",
  "Die Karten aller Gebiete von der Glutsenke bis zum Aschethron, durch einen Glutpfad verbunden, darunter hinter einem Riss die schwebenden Inseln der Sternenglut": "Los mapas de todas las zonas, desde La Hondonada de Ascuas hasta el Trono de Ceniza, unidos por un sendero de brasas, y debajo, tras una grieta, las islas flotantes de Sternenglut",
- "Bald · Stufe 40–50": "Pronto · Nivel 40–50",
  "Über der Glutöde reißt der Himmel auf. Dahinter warten Sternhafen, zwei neue Gebiete, drei Bosse und drei Reittiere.": "Sobre el Páramo de Ascuas, el cielo se desgarra. Más allá esperan Puerto Estelar, dos nuevas zonas, tres jefes y tres monturas.",
  "Drei Schattenrisse vor dem Morgenhimmel über schwebenden Inseln, einer von ihnen tritt ins Licht: die drei Bosse der Sternenglut": "Tres siluetas ante el cielo del alba sobre islas flotantes, una de ellas sale a la luz: los tres jefes de Sternenglut",
  "Sternenglut": "Sternenglut",
- "Bald": "Pronto",
  "Himmelsrochen<span class=\"p-bald\">Bald</span>": "Raya celeste<span class=\"p-bald\">Pronto</span>",
  "Mondluchs<span class=\"p-bald\">Bald</span>": "Lince lunar<span class=\"p-bald\">Pronto</span>",
  "Kristallwidder<span class=\"p-bald\">Bald</span>": "Carnero de cristal<span class=\"p-bald\">Pronto</span>",
@@ -916,5 +914,10 @@
  "Ignaroth, der Glut-Tyrann, kämpft in der Glutschmiede gegen drei Helden. Er lässt Meteore fallen und zieht einen Ring aus Flammen um sich.": "Ignaroth, el Tirano de Ascuas, lucha contra tres héroes en la Forja de Ascuas. Hace caer meteoros y se rodea de un anillo de llamas.",
  "Mutter Fäulnis, ein riesiger Tausendfüßler, kämpft im Sporenschlund gegen drei Helden. Sie schlägt mit Ranken zu und überzieht den Boden mit giftigen Sporen.": "Madre Podredumbre, un ciempiés gigante, lucha contra tres héroes en la Sima de las Esporas. Ataca con zarcillos y cubre el suelo de esporas venenosas.",
  "Skalvyr, der Frostwurm, kämpft in den Reifhöhlen gegen drei Helden. Er speit eisigen Atem und lässt Eiszapfen auf die Gruppe stürzen.": "Skalvyr, la Sierpe de Escarcha, lucha contra tres héroes en las Cuevas de la Helada. Escupe un aliento helado y hace caer carámbanos sobre el grupo.",
- "Malgareth, der Aschenfürst, kämpft vor dem Aschethron gegen drei Helden. Er schwingt die Flammenklinge und schleudert brennende Glutspeere durch den Saal.": "Malgareth, el Soberano de Ceniza, lucha contra tres héroes ante el Trono de Ceniza. Blande su espada llameante y lanza lanzas de ascuas ardientes por la sala."
+ "Malgareth, der Aschenfürst, kämpft vor dem Aschethron gegen drei Helden. Er schwingt die Flammenklinge und schleudert brennende Glutspeere durch den Saal.": "Malgareth, el Soberano de Ceniza, lucha contra tres héroes ante el Trono de Ceniza. Blande su espada llameante y lanza lanzas de ascuas ardientes por la sala.",
+ "Jetzt da · Stufe 40–50": "Ya disponible · Nivel 40–50",
+ "Neu": "Nuevo",
+ "November 2026": "Noviembre de 2026",
+ "Sternenglut ist da": "Sternenglut ya está aquí",
+ "Stufe 40 bis 50: Sternhafen über den Wolken, die Treibenden Gärten und die Splitterweiten, drei Dungeons mit neuen Bossen und drei neue Reittiere.": "Niveles 40 a 50: Puerto Estelar sobre las nubes, los Jardines Flotantes y los Confines Astillados, tres mazmorras con nuevos jefes y tres monturas nuevas."
 }
