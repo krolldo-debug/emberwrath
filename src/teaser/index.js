@@ -4,6 +4,7 @@ import { drawGlowLayer } from '../gfx/Sprite.js';
 import { frameUrl } from '../ui/pixelFrame.js';
 import { createBoardSprites } from './sprite.js';
 import { teaserPanel } from './panel.js';
+import { riftPanel, decreePanel, showcasePanel } from './launch.js';
 
 // Ankündigung der Erweiterung „Sternenglut“: in jeder der sieben alten Städte eine Sternentafel, die das Fenster
 // 'teaser' öffnet (panel.js). Dasselbe Fenster erscheint einmal nach dem Anmelden, bis der Spieler „Beim Anmelden nicht
@@ -66,7 +67,10 @@ export function installTeaser(game) {
     setHidden: (on) => game.prefs.set(PREF, !!on),
   };
   game.panels.register('teaser', (s) => {
-    const p = teaserPanel(s, prefs);
+    // Entwurfsvorschau: window.__tsVariant = 'A' | 'B' | 'C'
+    const v = globalThis.__tsVariant;
+    const p = v === 'A' ? riftPanel(s, prefs) : v === 'B' ? decreePanel(s, prefs) : v === 'C' ? showcasePanel(s, prefs) : teaserPanel(s, prefs);
+    if (v) globalThis.__tsPanel = p;
     p.root.style.setProperty('--ts-frame', `url(${frameUrl(2, 'dawn')})`);
     return p;
   }, { title: 'Sternenglut' });

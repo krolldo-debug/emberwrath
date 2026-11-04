@@ -6,8 +6,8 @@ import { makeCanvas } from '../gfx/PixelCanvas.js';
 // ohne Umrechnung darauf stehen. Anzeige per CSS ganzzahlig und image-rendering: pixelated.
 export const R = 2;
 
-const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-const ramp = (a) => a.map(hex);
+export const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+export const ramp = (a) => a.map(hex);
 // Farben wie der freigegebene Look C „Morgenschimmer“ (sternenglut/entwuerfe/szene.mjs)
 export const DAWN = {
   sky: ramp(['#151638', '#22245a', '#3a3478', '#62458a', '#985a92', '#c87488', '#e89a88', '#f6c294']),
@@ -28,19 +28,19 @@ export const DAWN = {
 };
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
-const bay = (x, y) => BAYER[(y & 3) * 4 + (x & 3)];
-function vn(x, y, s) {
+export const bay = (x, y) => BAYER[(y & 3) * 4 + (x & 3)];
+export function vn(x, y, s) {
   const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
   const a = hash2(x0, y0, s), b = hash2(x0 + 1, y0, s), c = hash2(x0, y0 + 1, s), d = hash2(x0 + 1, y0 + 1, s);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
-const fbm = (x, y, s) => vn(x, y, s) * 0.55 + vn(x * 2.1, y * 2.1, s + 7) * 0.3 + vn(x * 4.3, y * 4.3, s + 13) * 0.15;
+export const fbm = (x, y, s) => vn(x, y, s) * 0.55 + vn(x * 2.1, y * 2.1, s + 7) * 0.3 + vn(x * 4.3, y * 4.3, s + 13) * 0.15;
 // gerasterte Stufe aus einer Rampe (t 0..1), Dither auf Weltpixeln
-const step = (r, t, x, y) => r[Math.max(0, Math.min(r.length - 1, Math.floor(t * (r.length - 1) + bay(x, y))))];
+export const step = (r, t, x, y) => r[Math.max(0, Math.min(r.length - 1, Math.floor(t * (r.length - 1) + bay(x, y))))];
 
 // Weltpixel-Puffer: put(x, y, rgb) setzt einen Weltpixel, toCanvas() vergrößert auf R×R.
-class Buf {
+export class Buf {
   constructor(w, h) { this.w = w; this.h = h; this.d = new Uint8ClampedArray(w * h * 4); }
   put(x, y, c) {
     x = Math.round(x); y = Math.round(y);
@@ -62,7 +62,7 @@ class Buf {
 }
 
 // Himmel: Verlauf Nacht oben → Pfirsich am Horizont, zwei Nebelschleier, Sterne nur im dunklen Teil, Wolkenbank unten
-function sky(b, seed, { clouds = 0.55 } = {}) {
+export function sky(b, seed, { clouds = 0.55 } = {}) {
   const { w, h } = b;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const t = y / h;
@@ -90,7 +90,7 @@ function sky(b, seed, { clouds = 0.55 } = {}) {
 
 // Schwebende Insel: Grasdecke (Ellipse mit gezacktem Rand), Felskiel nach unten spitz, Kristalltropfen.
 // far = Silhouette in Himmelsfarbe (Ferne). Liefert die Oberkante je Spalte, damit Gebäude darauf stehen.
-function island(b, cx, cy, rx, ry, depth, seed, { far = false, crystals = true } = {}) {
+export function island(b, cx, cy, rx, ry, depth, seed, { far = false, crystals = true } = {}) {
   const topAt = new Map();
   for (let x = Math.floor(cx - rx - 2); x <= cx + rx + 2; x++) {
     const u = (x - cx) / rx;
@@ -128,7 +128,7 @@ function island(b, cx, cy, rx, ry, depth, seed, { far = false, crystals = true }
   return topAt;
 }
 
-function tree(b, x, y, s, seed) {
+export function tree(b, x, y, s, seed) {
   for (let i = 0; i < 4 + s; i++) b.put(x, y - i, DAWN.trunk[i < 2 ? 1 : 2]);
   b.put(x - 1, y - 2 - s, DAWN.trunk[1]);
   const r = 3 + s, cy = y - 4 - s - r * 0.5;
@@ -141,7 +141,7 @@ function tree(b, x, y, s, seed) {
 }
 
 // Leuchtender Stern mit Strahlenkreuz (Sternhafens Turmspitze, Logo-Raute)
-function star(b, x, y, r) {
+export function star(b, x, y, r) {
   const L = DAWN.lantern;
   for (let i = -r; i <= r; i++) { b.put(x + i, y, L[Math.abs(i) < r / 2 ? 4 : 3]); b.put(x, y + i, L[Math.abs(i) < r / 2 ? 4 : 3]); }
   for (let i = 1; i <= Math.floor(r / 2); i++) { b.put(x + i, y + i, L[2]); b.put(x - i, y - i, L[2]); b.put(x + i, y - i, L[2]); b.put(x - i, y + i, L[2]); }
