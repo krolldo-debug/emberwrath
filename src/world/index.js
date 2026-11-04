@@ -157,12 +157,13 @@ export function installWorld(game) {
   lazyAsset(assets, 'decor_wastes', createWastesDecor);
   lazyAsset(assets, 'decor_astral', createAstralDecor);
   // Sternhafen (Fachwerk-Altstadt): eigene Häuser, Burg und Möbel, dazu Sternbauten (Tor, Brunnen, Luftschiff, Bank)
-  // und Dorfdeko (Laternen, Stände, Kisten, Karren) aus den vorhandenen Sätzen
+  // und Dorfdeko (Laternen, Stände, Kisten, Karren) aus den vorhandenen Sätzen, für den Inselrand Kristalle, Felsen
+  // und Büsche
   lazyAsset(assets, 'decor_altstadt', () => {
     const S = assets.sprites.decor_astral, V = assets.sprites.village;
     const pickKeys = (src, keys) => Object.fromEntries(keys.filter((k) => k in src).map((k) => [k, src[k]]));
     return {
-      ...pickKeys(S, ['anchorWell', 'airships', 'starVault', 'paddockH', 'paddockV']),
+      ...pickKeys(S, ['anchorWell', 'airships', 'starVault', 'paddockH', 'paddockV', 'crystals', 'roseRocks', 'bushes']),
       ...pickKeys(V, ['lamp', 'crates', 'marketStall', 'farmCart', 'woodpile', 'signpost', 'haystack']),
       ...createAltstadtDecor(),
     };
