@@ -187,6 +187,26 @@ export class Townsfolk extends Entity {
 
   #face(x) { if (Math.abs(x - this.x) > 2) this.facing = x > this.x ? 1 : -1; }
 
+  // ---------------------------------------------------------------- Nach dem Weg fragen (nur Wachen)
+  // Wachen stehen in world.interactables (townlife.js); das Fenster mit den Zielen öffnet world/townServices.js.
+  canInteract(world) { return this.guard && this.alpha >= 1 && (this.state === 'stand' || this.state === 'walk' || this.state === 'greet') && !world.hero.dead; }
+  prompt() { return 'Nach dem Weg fragen'; }
+  promptAnchor() { return { x: this.x, y: this.y - 34 }; }
+  interact(world) {
+    this.#face(world.hero.x);
+    this.state = 'greet'; this.timer = SAY_TIME;
+    world.bus.emit('town:askWay', { asker: this });
+  }
+  // Antwort als Sprechblase (Wegbeschreibung)
+  sayNow(world, text) {
+    const font = world.session?.font;
+    if (!font) return;
+    this.#face(world.hero.x);
+    this.line = text; this.lineT = SAY_TIME; this.ox = this.#place(world, bubble(font, text)) ?? 0;
+    this.state = 'greet'; this.timer = SAY_TIME;
+    this.greetT = GREET_EVERY;
+  }
+
   // ---------------------------------------------------------------- Ansprechen
   #greet(world) {
     const h = world.hero, font = world.session?.font;

@@ -1,7 +1,7 @@
 // Häuser der Welt Stufe 1–40: neue Häuser (sprites/decor_houses.js) an die Stelle der alten Hütten, Zelte und
 // Gebäude setzen und begehbar machen (world/houses.js). Je Gebiet eine Liste:
 //   { at: [x, y] Ankerkachel (unten Mitte), key Deko, span: [links, rechts] Kacheln ab Anker, door: Türversatz in Kacheln,
-//     room: { id, name, plan } }
+//     room: { id, name, plan, service?, npc?: [Kartenzeichen, dx, dy] – NPC zieht ins Haus] }
 // Der Fuß des Hauses (zwei Zeilen) wird fest (FILL, ohne Deko), der Anker trägt das Haus. clear: alte Deko/Gebäude, die weichen.
 // Läuft nach dem Bau der Karte (levels3.js), vor calmArrivals.
 import { addInteriors, ROOMS } from './houses.js';
@@ -58,7 +58,29 @@ function build(L, houses, { clear = [], ground = ',', ambient, depth = 2 } = {})
   }
   L.map = rows.map((r) => r.join(''));
   L.solid = solid;
-  return addInteriors(L, rooms, { ambient });
+  addInteriors(L, rooms, { ambient });
+  return moveNpcsInside(L, rooms);
+}
+
+// NPC ins Haus (room.npc = [Zeichen der Karte, dx, dy] im Raum): draußen bleibt der Boden der Nachbarn
+function moveNpcsInside(L, rooms) {
+  const want = rooms.filter((r) => r.npc);
+  if (!want.length) return L;
+  const rows = L.map.map((r) => [...r]), S = new Set([...BASE_SOLID, ...(L.solid ?? '')]);
+  for (const r of want) {
+    const [ch, dx, dy] = r.npc, it = L.interiors.find((i) => i.id === r.id);
+    const y = rows.findIndex((row) => row.includes(ch));
+    if (y < 0 || !it) continue;
+    const x = rows[y].indexOf(ch), count = {};
+    for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const c = rows[y + oy]?.[x + ox];
+      if (c && !S.has(c) && !L.npcs?.[c] && !L.decor?.[c]) count[c] = (count[c] ?? 0) + 1;
+    }
+    rows[y][x] = Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] ?? L.baseFloor ?? '.';
+    rows[it.room.y + dy][it.room.x + dx] = ch;
+  }
+  L.map = rows.map((r) => r.join(''));
+  return L;
 }
 // Spannweite in Kacheln aus der halben Kollisionsbreite (px, Anker in der Kachelmitte)
 const spanOf = (half) => [-Math.floor((8 - half) / 16), Math.floor((8 + half - 0.01) / 16)];
@@ -69,13 +91,13 @@ export function housesEmberhollow(L) {
   const clear = [{ rect: [47, 24, 7, 3] }, { rect: [59, 25, 6, 3] }, [68, 25], [70, 31], [66, 39], [47, 39], [64, 44], [18, 30, '.']];
   clear.buildings = true;
   return build(L, [
-    v('vHall', 50, 26, { id: 'glut_halle', name: 'Dorfhalle', plan: 'hall' }),
-    v('vSmithy', 62, 27, { id: 'glut_schmiede', name: 'Schmiede', plan: 'smithy' }),
+    v('vHall', 50, 26, { id: 'glut_halle', name: 'Auktionshaus', plan: 'auction', service: 'auction' }),
+    v('vSmithy', 62, 27, { id: 'glut_schmiede', name: 'Schmiede', plan: 'smithy', service: 'smith', npc: ['N', 9, 6] }),
     v('vHouse0', 69, 24, { id: 'glut_haus1', name: 'Wohnhaus', plan: 'home' }),
-    v('vHouse2', 71, 31, { id: 'glut_haus2', name: 'Wohnhaus', plan: 'homeB' }),
+    v('vHouse2', 71, 31, { id: 'glut_haus2', name: 'Haus der Glutarena', plan: 'arena', service: 'arena' }),
     v('vHouse1', 66, 39, { id: 'glut_haus3', name: 'Wohnhaus', plan: 'home' }),
     v('vHouse3', 47, 39, { id: 'glut_haus4', name: 'Wohnhaus', plan: 'homeB' }),
-    v('vHouse0', 64, 44, { id: 'glut_haus5', name: 'Wohnhaus', plan: 'store' }),
+    v('vHouse0', 64, 44, { id: 'glut_haus5', name: 'Schneiderei', plan: 'tailor', service: 'tailor' }),
     v('vHouse1', 18, 30, { id: 'glut_hof', name: 'Bauernhof', plan: 'homeB' }),
   ], { clear });
 }
@@ -85,7 +107,7 @@ export function housesEmberhollow(L) {
 const tree = (key, x, y, room) => ({ at: [x, y], key, span: [3, 3], door: key === 'aTree1' ? 1 : -1, room });
 export function housesAshwood(L) {
   return build(L, [
-    tree('aTree0', 20, 37, { id: 'wald_baumhaus1', name: 'Baumhaus', plan: 'lodge' }),
+    tree('aTree0', 20, 37, { id: 'wald_baumhaus1', name: 'Auktionshaus', plan: 'auction', s: 'L', service: 'auction' }),
     tree('aTree1', 38, 36, { id: 'wald_baumhaus2', name: 'Baumhaus', plan: 'lodgeB' }),
     tree('aTree0', 19, 47, { id: 'wald_baumhaus3', name: 'Baumhaus', plan: 'lodgeB' }),
     tree('aTree1', 37, 49, { id: 'wald_baumhaus4', name: 'Baumhaus', plan: 'lodge' }),
@@ -98,9 +120,9 @@ const YR = (id, name = 'Jurte', plan = 'yurt') => ({ id, name, plan });
 export function housesSteppe(L) {
   const old = [[34, 36], [29, 38], [44, 38], [46, 44], [32, 48], [38, 48], [39, 36], [27, 41], [43, 47], [64, 75], [53, 67], [66, 67], [52, 75]];
   return build(L, [
-    yurt('sYurtL', 34, 36, { ...YR('steppe_jurte_wacht', 'Wachjurte', 'guard'), s: 'F' }),
-    yurt('sYurt', 29, 39, YR('steppe_jurte1')),
-    yurt('sYurtB', 44, 38, YR('steppe_jurte2')),
+    yurt('sYurtL', 34, 36, { ...YR('steppe_jurte_wacht', 'Haus der Glutarena', 'arena'), s: 'F', service: 'arena' }),
+    yurt('sYurt', 29, 39, { ...YR('steppe_jurte1', 'Schneiderei', 'tailor'), s: 'F', service: 'tailor' }),
+    yurt('sYurtB', 44, 38, { ...YR('steppe_jurte2', 'Auktionshaus', 'auction'), s: 'F', service: 'auction', sign: -1 }),
     yurt('sYurt', 46, 44, YR('steppe_jurte3')),
     yurt('sYurtB', 31, 48, YR('steppe_jurte4')),
     yurt('sYurt', 39, 48, YR('steppe_jurte5')),
@@ -117,9 +139,9 @@ const stilt = (key, x, y, room, fit = 3) => ({ at: [x, y], key, span: spanOf(STI
 export function housesMarsh(L) {
   return build(L, [
     stilt('mStilt0', 69, 43, { id: 'marsch_haus1', name: 'Pfahlhaus', plan: 'stilt' }),
-    stilt('mHall', 60, 47, { id: 'marsch_halle', name: 'Pfahlhalle', plan: 'guard', s: 'L' }, 1),
+    stilt('mHall', 60, 47, { id: 'marsch_halle', name: 'Auktionshaus', plan: 'auction', s: 'L', service: 'auction' }, 1),
     stilt('mStilt1', 77, 49, { id: 'marsch_haus2', name: 'Pfahlhaus', plan: 'stilt' }),
-    stilt('mStilt2', 48, 54, { id: 'marsch_kraeuter', name: 'Kräuterstube', plan: 'alchemist' }, 1),
+    stilt('mStilt2', 48, 54, { id: 'marsch_kraeuter', name: 'Kräuterstube', plan: 'alchemist', service: 'herbs', npc: ['B', 4, 6] }, 1),
     stilt('mStilt3', 41, 56, { id: 'marsch_haus3', name: 'Pfahlhaus', plan: 'stilt' }, 1),
     stilt('mStilt0', 81, 48, { id: 'marsch_haus4', name: 'Pfahlhaus', plan: 'stilt' }, 1),
   ], { clear: [[69, 43, '~'], [49, 46, '~'], [77, 49, '~'], [46, 60, '~'], [53, 60, '~'], [71, 61, '~']], ambient: [128, 132, 112] });
@@ -131,9 +153,9 @@ const frost = (key, x, y, room) => ({ at: [x, y], key, span: spanOf(FROST_HALF[k
 export function housesFrost(L) {
   return build(L, [
     frost('fLong', 58, 76, { id: 'frost_methalle', name: 'Methalle', plan: 'mead' }),
-    frost('fLongS', 46, 79, { id: 'frost_langhaus1', name: 'Langhaus', plan: 'lodge' }),
-    frost('fLongS', 70, 79, { id: 'frost_langhaus2', name: 'Langhaus', plan: 'lodge' }),
-    frost('fSod', 46, 91, { id: 'frost_sode1', name: 'Sodenhütte', plan: 'lodgeB' }),
+    frost('fLongS', 46, 79, { id: 'frost_langhaus1', name: 'Auktionshaus', plan: 'auction', s: 'L', service: 'auction' }),
+    frost('fLongS', 70, 79, { id: 'frost_langhaus2', name: 'Haus der Glutarena', plan: 'arena', s: 'L', service: 'arena' }),
+    frost('fSod', 46, 91, { id: 'frost_sode1', name: 'Schneiderei', plan: 'tailor', s: 'L', service: 'tailor' }),
     frost('fSod', 68, 91, { id: 'frost_sode2', name: 'Sodenhütte', plan: 'lodgeB' }),
     frost('fLodge', 14, 76, { id: 'frost_jagdhuette', name: 'Jagdhütte', plan: 'lodge' }),
     frost('fFish', 119, 70, { id: 'frost_fischer1', name: 'Fischerhütte', plan: 'stilt' }),

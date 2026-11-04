@@ -72,15 +72,20 @@ export class QuestGuide {
 
   dispose() { for (const off of this.offs) if (typeof off === 'function') off(); }
 
+  // Wegbeschreibung (world/townServices.js): Spur zu einem Ziel in dieser Zone statt zur Quest, bis man dort ist
+  // (höchstens zwei Minuten). target: { x, y, near } in Weltpixeln oder { npc } (Figur); null beendet sie.
+  lead(target) { this.leadTo = target ? { ...target, until: this.time + 120 } : null; this.dirty = true; }
+  get leading() { return !!this.leadTo && this.time < this.leadTo.until; }
+
   update(dt) {
     this.time += dt;
-    const on = this.enabled && !this.world.hero.dead && this.path.length > 1;
+    const on = (this.enabled || this.leading) && !this.world.hero.dead && this.path.length > 1;
     this.fade = Math.max(0, Math.min(1, this.fade + (on ? dt * 2 : -dt * 3)));
     this.timer -= dt;
     if (!this.dirty && this.timer > 0) return;
     this.dirty = false;
     this.timer = 0.5;
-    if (!this.enabled) { this.path = []; this.world.guidePath = this.path; return; }
+    if (!this.enabled && !this.leading) { this.path = []; this.world.guidePath = this.path; return; }
     this.#recompute();
   }
 
@@ -94,15 +99,20 @@ export class QuestGuide {
 
   #recompute() {
     const w = this.world;
-    const t = this.#readTarget();
+    if (this.leadTo && !this.leading) this.leadTo = null;
+    const L = this.leadTo, t = L ? null : this.#readTarget();
     this.target = t;
-    this.goal = t ? guideVia(w, this.#resolve(t)) : null; // durch Haustüren (world/interiors.js)
+    const raw = L ? (L.npc ? { x: L.npc.x, y: L.npc.y + 8, near: 0, npc: L.npc, label: 'npc' } : { x: L.x, y: L.y, near: L.near ?? 22, label: 'lead' }) : t ? this.#resolve(t) : null;
+    this.goal = raw ? guideVia(w, raw) : null; // durch Haustüren (world/interiors.js)
     if (!this.goal) { this.path = []; w.guidePath = this.path; return; }
     const h = w.hero;
     const d = Math.hypot(this.goal.x - h.x, this.goal.y - h.y);
     const npc = this.goal.npc;
     const inRange = npc ? Math.hypot(npc.x - h.x, (npc.y - h.y) * 1.3) <= (npc.interactRange ?? 26) - 4 : d < (this.goal.near ?? 20);
-    if (inRange) { this.path = []; w.guidePath = this.path; return; }
+    if (inRange) {
+      if (L && this.goal.label !== 'door') { this.leadTo = null; this.dirty = true; }   // angekommen: wieder die Quest
+      this.path = []; w.guidePath = this.path; return;
+    }
     this.path = this.#findPath(h.x, h.y - 2, this.goal.x, this.goal.y) ?? [];
     w.guidePath = this.path;
   }
