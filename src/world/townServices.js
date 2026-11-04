@@ -17,12 +17,11 @@ import { roomAt } from './interiors.js';
 //   tailor   Schneiderei – Gewandmeisterin mit Spiegel (transmog/places.js room)
 //   smith    Schmiede – der Schmied des Ortes zieht hinein (townHouses.js npc)
 //   herbs    Kräuterstube – die Alchemistin zieht hinein
-// Vor jeder dieser Türen steht ein Zunftschild (sprites/decor_signs.js), damit man dem Haus ansieht, was drin ist.
+// Vor jeder dieser Türen steht ein Zunftschild (sprites/decor_signs.js), damit man dem Haus ansieht, was drin ist;
+// den Namen nennt die Tür („Eintreten: Auktionshaus“).
 // Wegbeschreibung: Wachen (townlife.js) und der Wegweiser am Wegstein öffnen das Fenster 'directions'. Ein Ziel dort
 // legt die Glutspur (QuestGuide.lead) dorthin; die Wache sagt dazu, in welche Richtung es geht.
 const T = CONFIG.tileSize;
-
-export const SERVICE_NAMES = { auction: 'Auktionshaus', arena: 'Glutarena', tailor: 'Schneiderei', smith: 'Schmiede', herbs: 'Kräuterstube' };
 
 // Wegweiser neben dem Wegstein (Abstand in Spielpixeln, wie market/places.js); Städte der Stufen 1–40
 export const WAY_SIGNS = {
@@ -50,17 +49,6 @@ class ArenaMaster extends Npc {
     const level = world.state.slices.progress?.level ?? 1;
     if (level < PVP_MIN_LEVEL) world.bus.emit(EV.UI_TOAST, { text: `Arenameister: „Komm wieder, wenn du Stufe ${PVP_MIN_LEVEL} erreicht hast.“`, kind: 'info' });
     else world.session.panels?.open('finder', { tab: 'arena' });
-  }
-}
-
-// Zunftschild vor der Tür: Name des Dienstes in der Nähe
-class ServiceSign extends Decor {
-  constructor(x, y, opts, world, label) { super(x, y, opts, world); this.label = label; }
-  renderEmissive(ctx, cx, cy) {
-    super.renderEmissive?.(ctx, cx, cy);
-    const hero = this.world.hero, font = this.world.session.font;
-    if (!font || !hero || Math.hypot(hero.x - this.x, hero.y - this.y) > 80 || roomAt(this.world, hero.x, hero.y)) return;
-    font.draw(ctx, this.label.toUpperCase(), Math.round(this.x - cx + (this.flip ? -17 : 17)), Math.round(this.y - cy - 58), { color: '#e8c25a', align: 'center', shadow: true });
   }
 }
 
@@ -92,7 +80,7 @@ function placeServices(world) {
     if (it.service === 'arena') placeArenaMaster(world, it);
     const at = signSpot(world, it);
     if (!at) continue;
-    const sign = new ServiceSign(at.x, at.y, { sprite: signs[it.service].sprite, flip: at.flip }, world, SERVICE_NAMES[it.service]);
+    const sign = new Decor(at.x, at.y, { sprite: signs[it.service].sprite, flip: at.flip }, world);
     sign.serviceSign = it.service;
     world.props.push(sign);
   }
