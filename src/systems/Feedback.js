@@ -7,6 +7,7 @@ import { EV } from '../core/events.js';
 import { ELEMENTS } from '../gfx/Particles.js';
 import { voiceFor } from '../audio/voices.js';
 import { fmtNum } from '../i18n/index.js';
+import { BOSS_FOCUS, isBoss, overBoss } from './bossFocus.js';
 
 const F = CONFIG.feedback;
 // Eigener Klang je Fähigkeit (zusätzlich zu swing/shoot/cast, die A schon sendet)
@@ -41,7 +42,7 @@ export class FeedbackSystem {
     this.multiDone = 0;     // bis wann der aktuelle Mehrfach-Kill schon gefeiert wurde
     this.orbChain = 0; this.orbAt = 0; // Tonleiter der eingesammelten Seelenfunken
     this.nums = new WeakMap();          // Ziel -> sichtbare Schadenszahlen
-    this.hitAt = new WeakMap();         // Ziel -> Zeitpunkt des letzten Treffers (Umriss bei Mehrfachtreffern aus)
+    this.flashAt = new WeakMap();       // Boss -> Zeitpunkt des letzten sichtbaren Treffer-Umrisses
     this.burstAt = 0; this.burstN = 0;  // Treffer im selben Moment (Flächenangriffe)
     const bus = game.bus;
     bus.on('hit', (e) => this.#onHit(e));
@@ -399,10 +400,11 @@ export class FeedbackSystem {
     const el = ELEMENTS[e.element] ?? ELEMENTS.arcane, w = this.game.world;
     const r = e.radius ?? 16;
     w.addEffect(new Shockwave(e.x, e.y, { radius: r, color: el.colors[1], life: e.big ? 0.5 : 0.3 }));
-    w.particles.element(e.x, e.y, e.element, e.big ? 36 : 16, r * 0.5);
+    const calm = overBoss(w, e.x, e.y) ? BOSS_FOCUS.sparks : 1;   // über dem Boss: weniger Funken (Licht dämpft World.addLight)
+    w.particles.element(e.x, e.y, e.element, Math.round((e.big ? 36 : 16) * calm), r * 0.5);
     w.addLight(new Light({ x: e.x, y: e.y, radius: r * 3 + 30, color: el.light, intensity: 1.1, ttl: e.big ? 0.4 : 0.22, bloom: 0.7 }));
     if (e.element === 'fire') w.decals.scorch(e.x, e.y, Math.round(r * 0.7));
-    if (e.big) { this.#shake(4); this.game.hitstop(0.05); }
+    if (e.big) { this.#shake(3); this.game.hitstop(0.05); }
     this.#sfx(el.sound, { pitch: el.pitch });
   }
 
@@ -417,6 +419,8 @@ export class FeedbackSystem {
     const g = this.game, w = g.world, t = e.target;
     const ang = Math.atan2(e.dirY, e.dirX);
     const byHero = e.attacker.team === 'hero';
+    const boss = isBoss(t);
+    this.#hitFlash(t, e, boss);
 
     if (byHero && e.dot) {
       // Gift-Ticks (Thread A, hit.dot): nur Zahl und ein paar Tropfen, kein Hitstop/Wackeln
@@ -427,50 +431,49 @@ export class FeedbackSystem {
     }
     if (byHero && e.attacker.companion) {
       // Mitspieler aus der Dungeonsuche (src/finder/): Treffer sichtbar, aber ohne Hitstop/Wackeln fürs eigene Bild
-      w.particles.sparks(e.x, e.y, ang, e.heavy ? 6 : 3);
-      this.#material(t, e, ang, e.killed ? 1.4 : 0.5);
-      this.#text(e.x, e.y - 10, e.damage, e.crit ? '#e8cf7a' : '#c8c8d0', 1, 0.5);
+      // Am Boss ohne eigene Zahlen der Mitspieler: drei Zahlenströme verdeckten ihn (wie in MMOs: nur der eigene Schaden)
+      w.particles.sparks(e.x, e.y, ang, boss ? 2 : e.heavy ? 6 : 3);
+      this.#material(t, e, ang, e.killed ? 1.4 : boss ? 0.25 : 0.5);
+      if (!boss) this.#text(e.x, e.y - 10, e.damage, e.crit ? '#e8cf7a' : '#c8c8d0', 1, 0.5);
       if (e.killed) this.#onKill(e, ang);
       return;
     }
     if (!byHero && t.companion) {
+      // Mitspieler am Boss (Verteidiger steht im Boss): ohne weißes Aufblitzen und ohne Zahlen, sonst liegt ein
+      // heller Schemen samt Zahlenstrom genau über dem Boss
+      if (overBoss(w, t.x, t.y)) { t.flash = 0; w.particles.gore(t.x, t.y, 10, ang, 2, PAL.blood); return; }
       w.particles.gore(t.x, t.y, 10, ang, 5, PAL.blood);
       this.#text(t.x, t.y - 24, `-${e.damage}`, '#d0706a', 1, 0.5);
       return;
     }
     if (byHero) {
-      g.hitstop(e.killed ? F.hitstopKill : e.heavy ? F.hitstopHeavy : F.hitstopLight);
-      this.#shake(e.heavy ? F.shakeHeavy : F.shakeLight);
-      this.#kick(e.dirX * (e.heavy ? 3 : 1.5), e.dirY * (e.heavy ? 3 : 1.5));
+      // Wackeln nur bei schweren Treffern; normale Treffer geben einen kleinen Ruck in Schlagrichtung (am Boss keinen).
+      // Am Boss (lange Kämpfe, Dauerfeuer) ohne Hitstop bei normalen Treffern: das ständige Anhalten las sich als Ruckeln.
+      g.hitstop(e.killed ? F.hitstopKill : e.heavy ? F.hitstopHeavy : boss ? 0 : F.hitstopLight);
+      if (e.heavy) this.#shake(boss ? F.shakeLight : F.shakeHeavy);
+      const kick = e.heavy ? 2 : boss ? 0 : 0.8;
+      if (kick) this.#kick(e.dirX * kick, e.dirY * kick);
       // Flächentreffer (Wirbelsturm, Fächer …) treffen viele Ziele im selben Moment: Lichter, Sterne und Funken
       // nur für die ersten zwei, sonst addieren sie sich zu einer weißen Fläche
       const now = performance.now();
       if (now - this.burstAt > 70) { this.burstAt = now; this.burstN = 0; }
       const full = this.burstN++ < 2;
-      w.particles.sparks(e.x, e.y, ang, full ? (e.heavy ? 14 : 8) : 3);
+      const calm = boss ? BOSS_FOCUS.sparks : 1;
+      w.particles.sparks(e.x, e.y, ang, Math.round((full ? (e.heavy ? 14 : 8) : 3) * calm));
       if (full) {
         w.addEffect(new ImpactStar(e.x, e.y, { size: e.crit ? 10 : e.heavy ? 8 : 6, color: e.crit ? '#ffe070' : '#ffc890', rays: e.crit ? 8 : 4, angle: ang, life: e.crit ? 0.16 : 0.13 }));
         w.addLight(new Light({ x: e.x, y: e.y, radius: e.heavy ? 60 : 38, color: [255, 200, 130], intensity: 1, ttl: 0.12, bloom: 0.5 }));
       }
       if (e.crit && full) w.addEffect(new Shockwave(e.x, e.y + 4, { radius: 14, color: '#ffe070', life: 0.25 }));
-      this.#material(t, e, ang, e.killed ? 2.2 : 1);
-      // Weißer Treffer-Umriss nur kurz: bei Kills mit Zeitlupe/Hitstop würde er sonst als weiße Fläche stehen bleiben
-      // Weißer Treffer-Umriss nur noch bei Bossen (gedämpft, nicht bei schnellen Mehrfachtreffern).
-      // Bei normalen Gegnern stand er durch Hitstop/Zeitlupe als weiße Silhouette über Held und Gegner;
-      // Treffer lesen sich dort über Zahl, Funken und Rückstoß.
-      const prev = this.hitAt.get(t) ?? -1e9; this.hitAt.set(t, now);
-      if (t.flash > 0) {
-        if (!(t.def?.boss || t.boss) || e.killed || now - prev < 150 || !full) t.flash = 0;
-        else { t.flash = Math.min(t.flash, 0.05); t.flashMax = Math.min(t.flashMax ?? 1, 0.55); }
-      }
+      this.#material(t, e, ang, e.killed ? 2.2 : calm);
       this.#number(t, e);
-      if (e.crit) { this.#kick(e.dirX * 2, e.dirY * 2); w.particles.sparks(e.x, e.y, ang, full ? 8 : 2, ['#ffe070', '#ffb640', '#ff8a2a']); }
+      if (e.crit) w.particles.sparks(e.x, e.y, ang, Math.round((full ? 8 : 2) * calm), ['#ffe070', '#ffb640', '#ff8a2a']);
       this.#sfx(e.crit ? 'crit' : 'hit');
       if (e.killed) this.#onKill(e, ang);
     } else {
       // Held getroffen
       g.hitstop(0.07);
-      this.#shake(5);
+      this.#shake(e.heavy ? 4 : 2.5);
       g.hurtFlash = 1;
       w.particles.gore(t.x, t.y, 10, ang, 10, PAL.blood);
       w.decals.splat(t.x + e.dirX * 4, t.y + 1, PAL.blood, 4);
@@ -478,6 +481,22 @@ export class FeedbackSystem {
       this.#sfx('hurt');
       if (t.dead) { this.#sfx('heroDeath'); g.slowmo(0.35, 1.2); }
     }
+  }
+
+  // Weißer Treffer-Umriss (Actor.flash) nur noch bei Bossen, gedämpft und höchstens alle BOSS_FOCUS.flashGap ms –
+  // egal ob Held, Mitspieler oder Gift trifft. Vorher hielten die Treffer der Gruppe den Boss fast dauerhaft weiß.
+  // Normale Gegner: kein Umriss (stand durch Hitstop/Zeitlupe als weiße Silhouette über Held und Gegner;
+  // Treffer lesen sich dort über Zahl, Funken und Rückstoß).
+  #hitFlash(t, e, boss) {
+    if (!(t?.flash > 0) || t.team !== 'enemy') return;   // Held/Mitspieler behalten ihr Aufblitzen beim Getroffenwerden
+    const now = performance.now();
+    if (!boss || e.killed || e.dot) { t.flash = 0; return; }
+    const since = now - (this.flashAt.get(t) ?? -1e9);
+    // innerhalb der Pause: den laufenden Umriss nur zu Ende laufen lassen, nicht neu zünden
+    if (since < BOSS_FOCUS.flashGap) { t.flash = Math.max(0, 0.06 - since / 1000); return; }
+    this.flashAt.set(t, now);
+    t.flash = Math.min(t.flash, 0.06);
+    t.flashMax = BOSS_FOCUS.flashMax;
   }
 
   #material(t, e, ang, mult) {
@@ -507,7 +526,7 @@ export class FeedbackSystem {
 
   #onKill(e, ang) {
     const g = this.game, w = g.world, t = e.target;
-    this.#shake(3.5);
+    this.#shake(2.5);
     this.#orbs(t);
     if (!e.attacker?.companion) this.#multiKill();
     w.lighting.ambientBoost = 0.35;

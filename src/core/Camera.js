@@ -1,8 +1,20 @@
 import { CONFIG } from '../config.js';
 import { clamp, rand } from './math.js';
 
+const SHAKE = {
+  min: 1.5,      // kleinere Anstöße (Schritte, leichte Treffer, Fallen) wackeln nicht
+  max: 5.5,      // Obergrenze des Traumas
+  stack: 0.15,   // Anteil eines weiteren Anstoßes, der auf ein laufendes Wackeln aufschlägt
+  gain: 0.08,    // Weltpixel je Trauma² (vorher 0,12)
+  kick: 3,       // größter Ruck in Schlagrichtung (Weltpixel)
+};
+
 // Folgt einem Ziel mit Dämpfung und Blick-Vorlauf, begrenzt auf die Welt,
 // und liefert Screenshake (trauma-basiert, klingt quadratisch ab).
+// Wackeln maßvoll (SHAKE): Kleine Anstöße unter SHAKE.min wackeln gar nicht. Weitere Anstöße während eines Wackelns
+// addieren sich nicht mehr auf, sondern heben es nur auf den stärkeren Wert (plus einen kleinen Rest) – in Bosskämpfen
+// schaukelten sich Treffer, Bossangriffe und Einschläge sonst zu Dauerwackeln mit bis zu 8 Weltpixeln auf.
+// Größtes Wackeln jetzt etwa 2,4 Weltpixel.
 // Render-Position: gerastert auf das Feinraster der Zeichenfläche (1/CONFIG.renderScale Weltpixel), aufgeteilt in den
 // ganzzahligen Teil rx/ry (Weltpixel, wie alle Zeichner ihn erwarten) und den Feinversatz fx/fy (0 ≤ f < 1), um den
 // PlayScene die ganze Welt verschiebt. So rollt der Boden bei 2-facher Zeichenfläche in halben statt ganzen Weltpixeln.
@@ -28,8 +40,15 @@ export class Camera {
     this.y = ty - CONFIG.viewHeight / 2;
     this.#clamp();
   }
-  shake(amount) { if (!this.enabled) return; this.trauma = Math.min(this.trauma + amount, 8); }
-  kick(dx, dy) { if (!this.enabled) return; this.kickX += dx; this.kickY += dy; }
+  shake(amount) {
+    if (!this.enabled || !(amount >= SHAKE.min)) return;
+    this.trauma = Math.min(SHAKE.max, Math.max(this.trauma, amount) + Math.min(this.trauma, amount) * SHAKE.stack);
+  }
+  kick(dx, dy) {
+    if (!this.enabled) return;
+    this.kickX = clamp(this.kickX + dx, -SHAKE.kick, SHAKE.kick);
+    this.kickY = clamp(this.kickY + dy, -SHAKE.kick, SHAKE.kick);
+  }
 
   update(dt, tx, ty) {
     const gx = tx - CONFIG.viewWidth / 2, gy = ty - CONFIG.viewHeight / 2;
@@ -38,7 +57,7 @@ export class Camera {
     this.y += (gy - this.y) * k;
     this.#clamp();
     this.trauma = Math.max(0, this.trauma - dt * 18);
-    const s = this.trauma * this.trauma * 0.12;
+    const s = this.trauma * this.trauma * SHAKE.gain;
     this.shakeX = rand(-s, s); this.shakeY = rand(-s, s);
     this.kickX *= Math.exp(-dt * 20); this.kickY *= Math.exp(-dt * 20);
   }
