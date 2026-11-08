@@ -113,7 +113,8 @@ export class LightingSystem {
       else { img = getLightSprite(64, li.color); x = sx - r; y = sy - r; w = h = r * 2; }
       l.globalAlpha = a;
       l.drawImage(img, x, y, w, h);
-      if (gl && !li.follow) { gl.globalAlpha = a * this.dodge; gl.drawImage(img, x, y, w, h); }
+      // noGlow: kurzes Licht über dem kämpfenden Boss (World.addLight) – kein color-dodge, das bleicht den Boss weiß
+      if (gl && !li.follow && !li.noGlow) { gl.globalAlpha = a * this.dodge; gl.drawImage(img, x, y, w, h); }
     }
     l.globalAlpha = 1;
     if (figure) this.#figureLight(figure);

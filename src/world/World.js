@@ -15,6 +15,7 @@ import { DungeonAtmo, liftAmbient } from './dungeonAtmo.js';
 import { LightingSystem, Light } from '../gfx/Lighting.js';
 import { StarSky } from '../gfx/Sky.js';
 import { CombatSystem } from '../systems/Combat.js';
+import { BOSS_FOCUS, overBoss } from '../systems/bossFocus.js';
 import { separateActors } from '../systems/Physics.js';
 import { createHero } from '../character/createHero.js';
 import { EV } from '../core/events.js';
@@ -222,7 +223,14 @@ export class World {
   get pixelH() { return this.dungeon.pixelH; }
 
   spawn(entity) { this.entities.push(entity); return entity; }
-  addLight(l) { this.lights.push(l); return l; }
+  addLight(l) {
+    // Boss-Fokus (systems/bossFocus.js): kurze Treffer-/Zauberlichter über dem kämpfenden Boss ohne Glanz und mit wenig
+    // Schein, sonst überstrahlen sie ihn zu einer weißen Fläche. Dauerlichter (Fackeln, Aura) bleiben unverändert.
+    if (l.ttl !== Infinity && overBoss(this, l.follow?.x ?? l.x, l.follow?.y ?? l.y)) {
+      l.bloom *= BOSS_FOCUS.lightBloom; l.intensity *= BOSS_FOCUS.lightLevel; l.value = l.intensity; l.noGlow = true;
+    }
+    this.lights.push(l); return l;
+  }
   addEffect(e) { this.effects.push(e); return e; }
   addProjectile(p) { this.projectiles.push(p); return p; }
 
