@@ -33,7 +33,6 @@ export class IntroPlayer {
     cv.className = 'intro-cv';
     cv.width = this.film.width; cv.height = this.film.height;
     this.g = cv.getContext('2d');
-    this.g.imageSmoothingEnabled = false;
     const sub = this.sub = document.createElement('div');
     sub.className = 'intro-sub';
     sub.setAttribute('aria-live', 'polite');
@@ -119,11 +118,11 @@ export class IntroPlayer {
     frame();
   }
 
-  // Abblende in harten Stufen auf Schwarz
+  // Abblende auf Schwarz
   #fade() {
     const over = this.t - this.film.duration;
     if (over <= 0) return;
-    const k = Math.min(1, Math.floor((over / FADE) * 5) / 4);
+    const k = Math.min(1, over / FADE);
     this.g.fillStyle = `rgba(0,0,0,${k})`;
     this.g.fillRect(0, 0, this.cv.width, this.cv.height);
   }

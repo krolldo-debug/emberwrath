@@ -22,7 +22,8 @@ const total = await p.evaluate(async ({ BASE, LANG }) => {
   if (LANG !== 'de') { const m = await import(`/src/i18n/${LANG}.js`); dict = Object.values(m)[0]; }
   const A = await FILM.load(new URL('/src/intro/media/', BASE), null);
   FILM.prepareAll(A);
-  const c = document.createElement('canvas'); c.width = FILM.width; c.height = FILM.height + 120;
+  const c = document.createElement('canvas'); c.width = FILM.width; c.height = FILM.height + Math.round(120 * (FILM.width / 1280) / 2) * 2;
+  const K = FILM.width / 1280;
   const g = c.getContext('2d');
   const cues = FILM.timing(LANG);
   const film = document.createElement('canvas'); film.width = FILM.width; film.height = FILM.height;
@@ -31,18 +32,18 @@ const total = await p.evaluate(async ({ BASE, LANG }) => {
     fg.setTransform(1, 0, 0, 1, 0, 0);
     FILM.draw(fg, Math.min(t, FILM.duration), A);
     const over = t - FILM.duration;
-    if (over > 0) { fg.fillStyle = `rgba(0,0,0,${Math.min(1, Math.floor((over / 0.9) * 5) / 4)})`; fg.fillRect(0, 0, film.width, film.height); }
+    if (over > 0) { fg.fillStyle = `rgba(0,0,0,${Math.min(1, over / 0.9)})`; fg.fillRect(0, 0, film.width, film.height); }
     g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
-    g.drawImage(film, 0, 60);
+    g.drawImage(film, 0, Math.round(60 * K));
     const cue = cues.find((q) => t >= q.t0 && t < q.t1);
     if (cue) {
       const line = dict[cue.text] ?? cue.text;
       g.textAlign = 'center';
-      g.font = '15px Georgia, serif'; g.fillStyle = '#e8782a';
-      g.fillText(cue.who.toUpperCase().split('').join(' '), c.width / 2, c.height - 70);
-      g.font = '600 26px Inter, sans-serif';
-      for (const [dx, dy] of [[0, 2], [2, 0], [-2, 0], [0, -1]]) { g.fillStyle = '#000'; g.fillText(line, c.width / 2 + dx, c.height - 36 + dy); }
-      g.fillStyle = '#f4e2c8'; g.fillText(line, c.width / 2, c.height - 36);
+      g.font = `${Math.round(15 * K)}px Georgia, serif`; g.fillStyle = '#e8782a';
+      g.fillText(cue.who.toUpperCase().split('').join(' '), c.width / 2, c.height - 70 * K);
+      g.font = `600 ${Math.round(26 * K)}px Inter, sans-serif`;
+      for (const [dx, dy] of [[0, 2], [2, 0], [-2, 0], [0, -1]]) { g.fillStyle = '#000'; g.fillText(line, c.width / 2 + dx, c.height - 36 * K + dy); }
+      g.fillStyle = '#f4e2c8'; g.fillText(line, c.width / 2, c.height - 36 * K);
     }
     return c.toDataURL('image/jpeg', 0.92);
   };

@@ -4,7 +4,7 @@
   display: grid; place-items: center; overflow: hidden;
   user-select: none; -webkit-user-select: none; touch-action: none;
 }
-.intro-cv { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.intro-cv { display: block; }
 
 .intro-sub {
   position: absolute; left: 50%; transform: translateX(-50%);
