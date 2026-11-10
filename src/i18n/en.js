@@ -6219,5 +6219,17 @@ export const EN = {
   "„Wohin willst du? Ich zeig dir den Weg.“": "“Where do you want to go? I'll show you the way.”",
   "Auf dem Wegweiser stehen alle Wege im Ort.": "The signpost shows every way through town.",
   "Hier gibt es nichts, wohin der Weg führt.": "There is nowhere here to lead you.",
-  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Arena Master: “Come back when you have reached level {0}.”"
+  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Arena Master: “Come back when you have reached level {0}.”",
+  "Überspringen": "Skip",
+  "Prolog": "Prologue",
+  "Man nennt mich ein Ungeheuer.": "They call me a monster.",
+  "Dabei wollte ich nur, was jeder will.": "Yet all I wanted was what everyone wants.",
+  "Nicht sterben.": "Not to die.",
+  "Fünf Könige kamen mit Stahl und Schwüren.": "Five kings came with steel and oaths.",
+  "Töten konnten sie mich nicht. Also sperrten sie mich ein.": "They could not kill me. So they locked me away.",
+  "Tausend Jahre lang hielt der Stein.": "For a thousand years, the stone held.",
+  "Ich bin nicht zornig.": "I am not angry.",
+  "Nur geduldig.": "Only patient.",
+  "Und du, Wanderer …": "And you, wanderer…",
+  "Komm zu mir. Ich warte.": "Come to me. I am waiting."
 };

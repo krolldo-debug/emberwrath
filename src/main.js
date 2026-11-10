@@ -18,6 +18,7 @@ import { installMail } from './mail/index.js';
 import { installTransmog } from './transmog/index.js';
 import { installTownServices } from './world/townServices.js';
 import { installTeaser } from './teaser/index.js';
+import { installIntro } from './intro/index.js';
 import { installRotateGate } from './ui/RotateGate.js';
 import { installVersionCheck } from './core/Version.js';
 import { installReviewPrompt } from './app/review.js';
@@ -44,7 +45,8 @@ game
   .use(installMail)        // Postfach in jeder Stadt (src/mail): Auktionshaus, Briefe von Spielern, Bossbeute
   .use(installTransmog)    // Gewandmeisterin in jeder Stadt (src/transmog): Aussehen aus der Sammlung gegen Gold
   .use(installTownServices) // Häuser mit Dienst (Schilder, Arenameister) und Wegbeschreibung (src/world/townServices.js)
-  .use(installTeaser);     // Ankündigung „Sternenglut“: Tafel in jeder Stadt, Fenster nach dem Anmelden (src/teaser)
+  .use(installTeaser)      // Ankündigung „Sternenglut“: Tafel in jeder Stadt, Fenster nach dem Anmelden (src/teaser)
+  .use(installIntro);      // Intro-Film beim ersten Betreten der Welt, einmal je Charakter (src/intro)
 game.scenes.register('play', (g) => new PlayScene(g));
 // Nur lokal (Entwicklung, Tests) und für Admins: in der Konsole frei erreichbar wäre es ein Schummel-Werkzeug.
 // (Der Server prüft Spielstände zusätzlich, siehe supabase/migrations/20261003130000_spielstand_pruefung.sql.)

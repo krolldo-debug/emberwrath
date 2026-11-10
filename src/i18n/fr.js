@@ -6219,5 +6219,17 @@ export const FR = {
   "„Wohin willst du? Ich zeig dir den Weg.“": "« Où veux-tu aller ? Je te montre le chemin. »",
   "Auf dem Wegweiser stehen alle Wege im Ort.": "Le panneau indique tous les chemins du village.",
   "Hier gibt es nichts, wohin der Weg führt.": "Il n'y a ici aucun endroit où te mener.",
-  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maître de l'arène : « Reviens quand tu auras atteint le niveau {0}. »"
+  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maître de l'arène : « Reviens quand tu auras atteint le niveau {0}. »",
+  "Überspringen": "Passer",
+  "Prolog": "Prologue",
+  "Man nennt mich ein Ungeheuer.": "On me dit monstre.",
+  "Dabei wollte ich nur, was jeder will.": "Je ne voulais pourtant que ce que chacun veut.",
+  "Nicht sterben.": "Ne pas mourir.",
+  "Fünf Könige kamen mit Stahl und Schwüren.": "Cinq rois vinrent, armés d'acier et de serments.",
+  "Töten konnten sie mich nicht. Also sperrten sie mich ein.": "Ils ne pouvaient pas me tuer. Alors ils m'ont enfermé.",
+  "Tausend Jahre lang hielt der Stein.": "Pendant mille ans, la pierre a tenu.",
+  "Ich bin nicht zornig.": "Je ne suis pas en colère.",
+  "Nur geduldig.": "Seulement patient.",
+  "Und du, Wanderer …": "Et toi, voyageur…",
+  "Komm zu mir. Ich warte.": "Viens à moi. Je t'attends."
 };
