@@ -2,12 +2,15 @@ import { logoCanvas } from '../gfx/Logo.js';
 
 // Intro-Film „Die Stimme im Thron“: Malgareth spricht zum neuen Helden. Kein Gameplay, nur die Geschichte.
 // Bild 1792 × 762 (Kinoformat 2,35:1). Die Szenen sind gemalte Standbilder (src/intro/media, Entstehung und Prompts in
-// tools/intro/bilder.py); bewegt werden sie hier: Kamerafahrten, fliegende Glut, flackerndes Licht, Risse, Blitze.
+// tools/intro/bilder.py); bewegt werden sie hier: Kamerafahrten, ziehender Rauch, Glut, Feuer, Hitzeflimmern,
+// fliegende Brandgeschosse, Blitze, ein kreisender Runenring, wachsende Risse, ein Vulkanausbruch.
+// Bewusst keine Nahaufnahmen von Personen: Standbilder von Gesichtern wirken tot, Weiten und Dinge leben von Licht und Luft.
 // Zeiten in Sekunden. Die Tonspur (Stimme, Musik, Geräusche) ist je Sprache fertig gemischt (tools/intro/ton.py);
 // ihre Sprechzeiten stehen im Block TIMING (vom Werkzeug geschrieben).
 //
-// Einstellungen: 1 Funke im Dunkel · 2 Thronsaal · 3 Aufwärts zum Gesicht · 4 Antlitz · 5 Erinnerung: die fünf Könige,
-// an der Treppe, der Bann · 6 Das Siegel bricht · 7 Das Steingesicht erwacht · 8 Die Glutsenke · 9 Der Wanderer · 10 Titel
+// Einstellungen: 1 Funke im Dunkel · 2 Die Zitadelle · 3 Der Thronsaal · 4 Die Krone in der Glut · 5 Die fünf Könige ·
+// 6 Die Schlacht · 7 Die Lichtsäule (der Bann) · 8 Das Siegel bricht · 9 Die Halle nach tausend Jahren · 10 Der Ausbruch ·
+// 11 Die Glutsenke · 12 Der Wanderer · 13 Titel
 const W = 1792, H = 762;
 
 // Sprechtexte: Schlüssel = deutscher Text (Übersetzung über die Wörterbücher, src/i18n)
@@ -28,26 +31,26 @@ const LINES = [
 const TIMING = {"de": [2.88, 4.55, 1.54, 5.69, 6.74, 4.21, 1.95, 1.52, 2.68, 3.14], "en": [1.87, 4.56, 1.38, 3.96, 4.46, 4.31, 1.8, 1.62, 1.83, 3.16], "es": [2.25, 4.12, 1.15, 6.09, 5.68, 5.45, 2.09, 1.56, 2.25, 2.87], "fr": [1.75, 5.25, 1.99, 4.25, 5.36, 4.12, 2.17, 1.83, 2.46, 2.37]};
 // </ton.mjs>
 
-// Feste Punkte der Tonspur (tools/intro/ton.py): Funke landet, Siegel bricht, Brüllen
+// Feste Punkte der Tonspur (tools/intro/ton.py): Funke landet, Siegel bricht, Ausbruch (Brüllen)
 const LAND = 3.35, BREAK = 37.9, ROAR = 43.3;
 
 const SHOTS = [
   { t0: 0, t1: 3.4, draw: shotSpark },
-  { t0: 3.4, t1: 8.2, draw: shotHall },
-  { t0: 8.2, t1: 14.0, draw: shotRise },
-  { t0: 14.0, t1: 18.4, draw: shotFace },
+  { t0: 3.4, t1: 8.2, draw: shotCitadel },
+  { t0: 8.2, t1: 14.0, draw: shotHall },
+  { t0: 14.0, t1: 18.4, draw: shotCrown },
   { t0: 18.4, t1: 22.4, draw: shotKings },
-  { t0: 22.4, t1: 25.1, draw: shotStairs },
-  { t0: 25.1, t1: 31.8, draw: shotBind },
+  { t0: 22.4, t1: 25.1, draw: shotBattle },
+  { t0: 25.1, t1: 31.8, draw: shotPillar },
   { t0: 31.8, t1: 39.0, draw: shotSeal },
-  { t0: 39.0, t1: ROAR - 0.1, draw: shotStone },
-  { t0: ROAR - 0.1, t1: 49.8, draw: shotAwaken },
+  { t0: 39.0, t1: ROAR - 0.15, draw: shotDust },
+  { t0: ROAR - 0.15, t1: 49.8, draw: shotEruption },
   { t0: 49.8, t1: 53.6, draw: shotHollow },
   { t0: 53.6, t1: 57.6, draw: shotWanderer },
   { t0: 57.6, t1: 62.0, draw: shotTitle },
 ];
 
-const IMAGES = ['thron', 'antlitz', 'antlitz-stein', 'koenige', 'treppe', 'bann', 'siegel', 'erwachen', 'glutsenke', 'wanderer'];
+const IMAGES = ['zitadelle', 'halle', 'krone', 'koenige', 'schlacht', 'lichtsaeule', 'siegel', 'halle-staub', 'glutsenke', 'wanderer'];
 
 export const FILM = {
   width: W, height: H, duration: 62.0,
@@ -66,7 +69,8 @@ export const FILM = {
     const images = Object.fromEntries(await Promise.all(IMAGES.map(img)));
     // Bilder vorab dekodieren, damit der erste Schnitt auf ein Bild nicht ruckelt
     await Promise.all(Object.values(images).map((i) => i.decode?.().catch(() => {})));
-    return { images, logo: logoCanvas(), vignette: vignette(), cracks: crackPaths() };
+    const buf = document.createElement('canvas'); buf.width = W; buf.height = H;
+    return { images, logo: logoCanvas(), vignette: vignette(), cracks: crackPaths(), fog: fogTexture(), buf };
   },
   prepareAll() {},
   draw(g, t, A) {
@@ -199,6 +203,97 @@ function drawCracks(g, m, paths, k, heat) {
   g.globalCompositeOperation = 'source-over';
 }
 
+// Ziehender Rauch/Nebel: eine weiche Rauschtextur (einmal berechnet), die langsam durchs Bild treibt
+function fogTexture() {
+  const w = 320, h = 136, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), img = g.createImageData(w, h);
+  const grid = (s, seed) => (x, y) => {
+    const xi = Math.floor(x / s), yi = Math.floor(y / s), fx = x / s - xi, fy = y / s - yi;
+    const cols = Math.ceil(w / s);
+    const v = (a, b) => hash(((a % cols) + cols) % cols + b * 977, seed);
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    return lerp(lerp(v(xi, yi), v(xi + 1, yi), sx), lerp(v(xi, yi + 1), v(xi + 1, yi + 1), sx), sy);
+  };
+  const oct = [[40, 0.5], [20, 0.27], [10, 0.15], [5, 0.08]].map(([s, a], i) => [grid(s, 50 + i), a]);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let v = 0; for (const [f, a] of oct) v += f(x, y) * a;
+    v = clamp((v - 0.42) * 2.4);
+    const o = (y * w + x) * 4;
+    img.data[o] = 255; img.data[o + 1] = 255; img.data[o + 2] = 255; img.data[o + 3] = Math.round(v * 255);
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+// Nebel in einer Farbe: zwei Lagen, verschieden schnell (Tiefe). y0..y1 = Band im Bild, a = Deckkraft
+function fog(g, A, t, { col = '#8a7a9a', a = 0.18, speed = 18, y0 = 0, y1 = H, mode = 'source-over' } = {}) {
+  const c = A.fogTint ??= new Map();
+  let tex = c.get(col);
+  if (!tex) {
+    tex = document.createElement('canvas'); tex.width = A.fog.width; tex.height = A.fog.height;
+    const tg = tex.getContext('2d');
+    tg.drawImage(A.fog, 0, 0); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, tex.width, tex.height);
+    c.set(col, tex);
+  }
+  g.globalCompositeOperation = mode;
+  for (const [k, sp, al] of [[1.0, speed, a], [1.6, speed * 1.8, a * 0.7]]) {
+    const tw = W * 1.2 * k, th = (y1 - y0) * k;
+    let x = -((t * sp) % tw);
+    g.globalAlpha = al;
+    for (; x < W; x += tw) g.drawImage(tex, x, y0 - (th - (y1 - y0)) / 2, tw + 1, th);
+  }
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'source-over';
+}
+// Hitzeflimmern: die Szene wird in einen Puffer gemalt und in waagerechten Streifen leicht versetzt übertragen
+function shimmer(g, A, t, y0, y1, amp, paint) {
+  const b = A.buf.getContext('2d');
+  b.save(); b.imageSmoothingEnabled = true; b.imageSmoothingQuality = 'high';
+  paint(b); b.restore();
+  g.drawImage(A.buf, 0, 0);
+  const band = 6;
+  for (let y = Math.max(0, y0); y < Math.min(H, y1); y += band) {
+    const k = Math.sin(((y - y0) / (y1 - y0)) * Math.PI);
+    const dx = Math.sin(y * 0.045 + t * 7) * amp * k + Math.sin(y * 0.11 - t * 11) * amp * 0.4 * k;
+    g.drawImage(A.buf, 0, y, W, band, dx, y, W, band);
+  }
+}
+// Brandgeschoss: Bogen von a nach b (Leinwandpixel), Kopf glüht, Rauchschweif dahinter
+function fireball(g, t, t0, dur, a, b, arc) {
+  const k = (t - t0) / dur;
+  if (k < 0 || k > 1.15) return;
+  const at = (q) => [lerp(a[0], b[0], q), lerp(a[1], b[1], q) - arc * 4 * q * (1 - q)];
+  for (let i = 22; i >= 1; i--) {
+    const q = k - i * 0.012;
+    if (q < 0 || q > 1) continue;
+    const [x, y] = at(q), s = 4 + i * 0.7;
+    g.globalAlpha = 0.5 * (1 - i / 23);
+    g.fillStyle = i < 5 ? '#ff8a2a' : '#4a3e48';
+    g.fillRect(Math.round(x - s / 2 + Math.sin(i * 1.7) * 3), Math.round(y - s / 2), Math.round(s), Math.round(s));
+  }
+  g.globalAlpha = 1;
+  if (k > 1) { const [x, y] = at(1); glowAt(g, x, y, 140 * (1.15 - k) / 0.15, 'rgba(255,140,40,1)', 0.8); return; }
+  const [x, y] = at(k);
+  glowAt(g, x, y, 46, 'rgba(255,150,50,1)', 0.9);
+  g.fillStyle = '#ffe2a0'; g.fillRect(Math.round(x - 4), Math.round(y - 4), 8, 8);
+}
+// Lichtschein an einer Leinwandstelle
+function glowAt(g, x, y, r, col, a) {
+  if (a <= 0 || r <= 0) return;
+  const gr = g.createRadialGradient(x, y, 0, x, y, r);
+  gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = clamp(a);
+  g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
+// Blitz im Gewölk: kurzes doppeltes Aufleuchten
+function lightning(g, m, t, at, x, y) {
+  const k = t - at;
+  if (k < 0 || k > 0.5) return;
+  const a = (k < 0.08 ? 1 : k < 0.16 ? 0.25 : k < 0.24 ? 0.8 : 1 - (k - 0.24) / 0.26) * 0.9;
+  glow(g, m, x, y, 520, 'rgba(190,200,255,1)', a * 0.55);
+  veil(g, '#c8d0ff', a * 0.1);
+}
+
 // ------------------------------------------------------------------------------------------------ Einstellungen
 // 1 – Schwärze. Ein einzelner Funke sinkt und landet.
 function shotSpark(g, t) {
@@ -206,82 +301,117 @@ function shotSpark(g, t) {
   const k = clamp(t / LAND);
   const x = W * 0.5 + Math.sin(t * 2.2) * 26 * (1 - k), y = lerp(-20, H * 0.62, ease(k));
   const r = 3 + 2 * Math.sin(t * 13);
-  const gr = g.createRadialGradient(x, y, 0, x, y, 60);
-  gr.addColorStop(0, 'rgba(255,150,50,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = gr; g.fillRect(x - 60, y - 60, 120, 120);
+  glowAt(g, x, y, 60, 'rgba(255,150,50,1)', 0.55);
   g.fillStyle = '#ffd27a'; g.fillRect(Math.round(x - r / 2), Math.round(y - r / 2), Math.round(r), Math.round(r));
 }
 
-// 2 – Der Thronsaal, aus der Dunkelheit. Langsam auf den Thron zu.
-const THRON_LIGHTS = [[75, 455, 120], [272, 525, 90], [1745, 470, 120], [1515, 600, 80]];
-function thronLights(g, m, t, a = 1) {
-  THRON_LIGHTS.forEach(([x, y, r], i) => glow(g, m, x, y, r, 'rgba(255,120,40,0.9)', 0.35 * flick(t, i) * a));
-  glow(g, m, 760, 170, 330, 'rgba(255,90,20,0.8)', (0.16 + 0.08 * Math.sin(t * 1.3)) * a);   // Siegel hinter dem Thron atmet
-  glow(g, m, 897, 163, 16, 'rgba(255,170,60,1)', (0.3 + 0.12 * Math.sin(t * 2.1)) * a);      // Augen
+// 2 – Die Zitadelle auf dem Vulkan, Sturm darüber. Langsam heran. „Man nennt mich ein Ungeheuer.“
+const PEAK = [940, 120];
+function citadelLife(g, m, t, A, boost = 0) {
+  glow(g, m, PEAK[0], PEAK[1] + 100, 260, 'rgba(255,90,20,1)', (0.22 + boost) * flick(t, 1));
+  glow(g, m, 960, 540, 260, 'rgba(255,90,20,1)', (0.16 + boost * 0.5) * flick(t, 2));
+  glow(g, m, 1040, 470, 120, 'rgba(255,120,30,1)', 0.2 * flick(t, 3));
 }
+function shotCitadel(g, t, dur, A, T) {
+  const m = shot(g, A.images.zitadelle, { cx: 896, cy: 400, z: 1.0 }, { cx: 930, cy: 330, z: 1.22 }, glide(t / dur));
+  citadelLife(g, m, t, A);
+  fog(g, A, t, { col: '#5a3a3a', a: 0.22, speed: 30, y0: 0, y1: H * 0.45 });
+  fog(g, A, t + 9, { col: '#2a2232', a: 0.3, speed: 55, y0: H * 0.55, y1: H });
+  lightning(g, m, t, 2.6, 1500, 120);
+  embers(g, t, 40, 20, { rise: 40, drift: 70, big: 1.0 });
+  flash(g, t, 0, 0.5, '#ff9a40', 0.3);
+  veil(g, '#000', 1 - ease((t - 0.1) / 2.0));
+}
+
+// 3 – Der Thronsaal, vom Eingang aus. Feuer in allen Schalen, ganz hinten eine kleine Gestalt auf dem Thron.
+const HALL_FIRES = [[170, 330, 150], [445, 440, 110], [1615, 330, 150], [1340, 440, 110], [600, 485, 80], [1190, 485, 80],
+  [680, 505, 60], [1110, 505, 60], [780, 425, 50], [1012, 425, 50], [20, 480, 90], [1772, 480, 90]];
 function shotHall(g, t, dur, A) {
-  const m = shot(g, A.images.thron, { cx: 896, cy: 430, z: 1.0 }, { cx: 880, cy: 360, z: 1.2 }, glide(t / dur));
-  thronLights(g, m, t);
-  embers(g, t, 46, 1, { rise: 40, drift: 24 });
-  flash(g, t, 0, 0.5, '#ff9a40', 0.35);
-  veil(g, '#000', 1 - ease((t - 0.1) / 2.2));
+  const m = shot(g, A.images.halle, { cx: 896, cy: 384, z: 1.0 }, { cx: 896, cy: 380, z: 1.55 }, glide(t / dur));
+  HALL_FIRES.forEach(([x, y, r], i) => glow(g, m, x, y - 20, r, 'rgba(255,130,40,1)', 0.38 * flick(t, i)));
+  glow(g, m, 896, 195, 200, 'rgba(255,120,30,1)', 0.18 + 0.1 * Math.sin(t * 1.4));      // Rundfenster atmet
+  glow(g, m, 896, 680, 240, 'rgba(255,110,30,1)', 0.12 * flick(t, 9));                 // Spiegelung im Boden
+  fog(g, A, t, { col: '#ff7a30', a: 0.08, speed: 16, y0: H * 0.2, y1: H * 0.8, mode: 'lighter' });
+  fog(g, A, t + 5, { col: '#2a1414', a: 0.16, speed: 10, y0: H * 0.3, y1: H * 0.75 });
+  embers(g, t, 60, 21, { rise: 50, drift: 20, big: 0.9 });
 }
 
-// 3 – Nah: vom Schwert auf seinen Knien hinauf zum Gesicht
-function shotRise(g, t, dur, A) {
-  const m = shot(g, A.images.thron, { cx: 900, cy: 470, z: 2.0 }, { cx: 875, cy: 230, z: 2.25 }, glide(t / dur));
-  thronLights(g, m, t);
-  dust(g, t, 26, 4);
-  embers(g, t, 22, 5, { rise: 50, big: 1.3 });
-}
-
-// 4 – Antlitz: „Nicht sterben.“ Ganz langsam an die Augen heran.
-const FACE_EYES = [[1152, 262], [1360, 262]];
-function shotFace(g, t, dur, A) {
-  const m = shot(g, A.images.antlitz, { cx: 1050, cy: 384, z: 1.0 }, { cx: 1240, cy: 300, z: 1.35 }, glide(t / dur));
-  glow(g, m, 620, 230, 380, 'rgba(255,90,20,0.8)', 0.12 + 0.06 * Math.sin(t * 1.6));
-  FACE_EYES.forEach(([x, y], i) => glow(g, m, x, y, 46, 'rgba(255,160,50,1)', 0.3 + 0.12 * Math.sin(t * 3 + i)));
-  embers(g, t, 34, 6, { rise: 46, drift: 30, big: 1.2 });
-}
-
-// 5a – Erinnerung: die fünf Könige ziehen zur Zitadelle
-function shotKings(g, t, dur, A) {
+// 4 – Die Krone auf dem Amboss im Herz der Glut. „Nicht sterben.“ Flammen, Funken, Hitzeflimmern.
+function shotCrown(g, t, dur, A) {
   const k = glide(t / dur);
-  const m = shot(g, A.images.koenige, { cx: 780, cy: 400, z: 1.18 }, { cx: 1010, cy: 380, z: 1.08 }, k);
+  let m;
+  shimmer(g, A, t, 0, H * 0.62, 3.2, (b) => {
+    m = shot(b, A.images.krone, { cx: 896, cy: 380, z: 1.05 }, { cx: 886, cy: 290, z: 1.5 }, k);
+    glow(b, m, 880, 250, 260, 'rgba(255,140,40,1)', 0.3 * flick(t, 4));
+    glow(b, m, 870, 290, 70, 'rgba(255,60,40,1)', 0.35 + 0.2 * Math.sin(t * 3));       // Stein der Krone pulsiert
+    glow(b, m, 1270, 250, 200, 'rgba(255,170,60,1)', 0.18 * flick(t, 5));               // Lavafall
+    glow(b, m, 900, 560, 600, 'rgba(255,90,20,1)', 0.12 * flick(t, 6));
+  });
+  embers(g, t, 90, 22, { rise: 130, drift: 40, big: 1.2 });
+  embers(g, t, 30, 23, { rise: 220, drift: 25, big: 2.0, x0: W * 0.3, x1: W * 0.7 });
+  veil(g, '#000', 1 - ease(t / 0.4));
+}
+
+// 5 – Erinnerung: die fünf Könige ziehen zur Zitadelle
+function shotKings(g, t, dur, A) {
+  const m = shot(g, A.images.koenige, { cx: 780, cy: 400, z: 1.18 }, { cx: 1010, cy: 380, z: 1.08 }, glide(t / dur));
   glow(g, m, 1350, 230, 260, 'rgba(255,80,20,0.8)', 0.18 * flick(t, 3));
+  glow(g, m, 900, 560, 700, 'rgba(255,80,20,0.8)', 0.08 * flick(t, 7));
+  fog(g, A, t, { col: '#3a2626', a: 0.22, speed: 70, y0: H * 0.55, y1: H });
   embers(g, t, 60, 7, { rise: 70, drift: 60, big: 1.1 });
-  veil(g, '#1a0804', 0.18);                                         // Erinnerung: leicht gedämpft und warm
+  veil(g, '#1a0804', 0.14);                                         // Erinnerung: leicht gedämpft und warm
   veil(g, '#000', 1 - ease(t / 0.45));
 }
 
-// 5b – An der Treppe: Malgareth über ihnen, Feuer in der Hand
-function shotStairs(g, t, dur, A) {
-  const m = shot(g, A.images.treppe, { cx: 896, cy: 430, z: 1.02 }, { cx: 900, cy: 300, z: 1.3 }, glide(t / dur), quake(t, 0, 0.6, 6));
-  glow(g, m, 1030, 95, 120, 'rgba(255,140,40,1)', 0.45 * flick(t, 1));
-  glow(g, m, 896, 200, 420, 'rgba(255,90,20,0.7)', 0.18 * flick(t, 2));
-  embers(g, t, 70, 8, { rise: 90, drift: 40, big: 1.2 });
-  veil(g, '#1a0804', 0.12);
-  flash(g, t, 0, 0.35, '#ffb060', 0.5);
+// 6 – Die Schlacht am Vulkan, von einem fernen Hügel. Brandgeschosse fliegen, Einschläge.
+const SHOTS_FIRE = [[0.0, 1.5, [-40, 300], [1150, 330], 220], [0.5, 1.4, [180, 360], [1300, 300], 180], [0.9, 1.6, [1850, 200], [700, 470], 160],
+  [1.3, 1.2, [-30, 240], [980, 430], 200], [1.7, 1.3, [1880, 300], [1050, 520], 140]];
+function shotBattle(g, t, dur, A) {
+  const m = shot(g, A.images.schlacht, { cx: 980, cy: 400, z: 1.12 }, { cx: 1080, cy: 360, z: 1.3 }, glide(t / dur), quake(t, 1.55, 0.6, 7));
+  glow(g, m, 1310, 60, 300, 'rgba(255,100,30,1)', 0.25 * flick(t, 8));
+  [[660, 360], [940, 400], [800, 520], [1220, 470], [1520, 330]].forEach(([x, y], i) => glow(g, m, x, y, 90, 'rgba(255,130,40,1)', 0.4 * flick(t, i + 10)));
+  fog(g, A, t, { col: '#3a2e36', a: 0.25, speed: 60, y0: H * 0.25, y1: H * 0.75 });
+  SHOTS_FIRE.forEach(([t0, d, a, b, arc]) => fireball(g, t, t0, d, a, b, arc));
+  embers(g, t, 70, 24, { rise: 90, drift: 80, big: 1.1 });
+  veil(g, '#1a0804', 0.1);
+  flash(g, t, 0, 0.3, '#ffb060', 0.4);
 }
 
-// 5c – Der Bann: Lichtschwerter, Malgareth wird zu Stein. Am Ende weißes Licht.
-function shotBind(g, t, dur, A) {
-  const m = shot(g, A.images.bann, { cx: 896, cy: 360, z: 1.32 }, { cx: 896, cy: 380, z: 1.04 }, glide(t / dur), quake(t, 0, 0.8, 5));
-  const pulse = 0.5 + 0.5 * Math.sin(t * 5.5);
-  glow(g, m, 905, 380, 300, 'rgba(255,230,160,1)', 0.18 + 0.14 * pulse);
-  glow(g, m, 905, 640, 520, 'rgba(255,210,120,0.8)', 0.1 + 0.06 * pulse);
-  dust(g, t, 40, 9, { rise: -10, drift: 30 });
-  embers(g, t, 30, 10, { rise: 40, big: 0.9 });
-  flash(g, t, 0, 0.4, '#fff4dc', 0.7);
+// 7 – Der Bann: eine Säule aus Licht schießt aus der Zitadelle, ein Runenring kreist am Himmel. Am Ende weiß.
+const RING = { x: 895, y: 122, rx: 375, ry: 104 };
+function runeRing(g, m, t, a) {
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 64; i++) {
+    const ang = (i / 64) * Math.PI * 2 + t * 0.35;
+    const [x, y] = m.at(RING.x + Math.cos(ang) * RING.rx, RING.y + Math.sin(ang) * RING.ry);
+    const front = 0.55 + 0.45 * Math.sin(ang);                     // vordere Hälfte heller
+    g.globalAlpha = clamp(a * front * (0.5 + 0.5 * Math.sin(t * 6 + i)));
+    g.fillStyle = i % 4 ? '#ffd890' : '#fff6dc';
+    const s = Math.round((i % 4 ? 4 : 7) * m.s);
+    g.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), s, s);
+  }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
+function shotPillar(g, t, dur, A) {
+  const m = shot(g, A.images.lichtsaeule, { cx: 896, cy: 470, z: 1.3 }, { cx: 896, cy: 384, z: 1.02 }, glide(t / dur), quake(t, 0, 1.0, 8));
+  const grow = ease(t / 1.6), pulse = 0.5 + 0.5 * Math.sin(t * 4.2);
+  glow(g, m, 896, 200, 280, 'rgba(255,240,190,1)', (0.25 + 0.15 * pulse) * grow);
+  glow(g, m, 896, 60, 520, 'rgba(255,220,140,1)', (0.12 + 0.06 * pulse) * grow);
+  runeRing(g, m, t, 0.7 * grow);
+  fog(g, A, t, { col: '#ffe6b0', a: 0.1 * grow, speed: 40, y0: 0, y1: H * 0.5, mode: 'lighter' });
+  embers(g, t, 50, 25, { rise: 110, drift: 30, big: 1.0 });
+  flash(g, t, 0, 0.5, '#fff4dc', 0.85);
   const end = dur - t;
-  if (end < 1.2) veil(g, '#fff8e8', ease(1 - end / 1.2));
+  if (end < 1.3) veil(g, '#fff8e8', ease(1 - end / 1.3));
 }
 
-// 6 – Das Siegel. Tausend Jahre Staub, dann reißt es auf.
+// 8 – Das Siegel. Tausend Jahre Staub, dann reißt es auf.
 function shotSeal(g, t, dur, A, T) {
   const k = glide(t / dur);
   const m = shot(g, A.images.siegel, { cx: 896, cy: 380, z: 1.0 }, { cx: SEAL.x, cy: SEAL.y, z: 1.55 }, k, quake(T, BREAK - 0.5, 1.4, 14));
-  dust(g, t, 50, 11, { x0: W * 0.55, rise: 4 });
+  glow(g, m, 1330, 40, 360, 'rgba(150,160,230,1)', 0.1 + 0.04 * Math.sin(t * 0.9));     // Lichtspalt in der Decke
+  fog(g, A, t, { col: '#6a6a90', a: 0.1, speed: 8, y0: H * 0.1, y1: H * 0.9 });
+  dust(g, t, 60, 11, { x0: W * 0.5, rise: 4 });
   const crack = clamp((T - (BREAK - 3.2)) / 3.2);
   const heat = 1 + clamp((T - BREAK) / 0.4) * 0.6;
   glow(g, m, SEAL.x, SEAL.y, 100 + 300 * crack, 'rgba(255,110,30,1)', 0.1 + 0.3 * crack ** 2);
@@ -295,44 +425,58 @@ function shotSeal(g, t, dur, A, T) {
   if (dur - t < 0.45) veil(g, '#000', ease(1 - (dur - t) / 0.45));
 }
 
-// 7a – Stille. Das Gesicht aus Stein, dunkel. Dann glühen die Augen auf.
-function shotStone(g, t, dur, A) {
-  const m = shot(g, A.images['antlitz-stein'], { cx: 1255, cy: 310, z: 1.55 }, { cx: 1258, cy: 280, z: 1.8 }, glide(t / dur));
-  dust(g, t, 30, 13, { rise: -8 });
-  const lit = clamp((t - 2.4) / 1.2);
-  FACE_EYES.forEach(([x, y]) => { glow(g, m, x, y, 34, 'rgba(255,190,80,1)', 0.95 * lit); glow(g, m, x, y, 120, 'rgba(255,90,20,1)', 0.4 * lit); });
+// 9 – Die Halle nach tausend Jahren: kalt, verstaubt, Mondlicht auf der steinernen Gestalt. „Ich bin nicht zornig.“
+// Dann glimmt es in den Bodenrissen und in den Augen der Statue.
+function shotDust(g, t, dur, A) {
+  const m = shot(g, A.images['halle-staub'], { cx: 896, cy: 400, z: 1.05 }, { cx: 898, cy: 420, z: 1.6 }, glide(t / dur));
+  glow(g, m, 900, 250, 260, 'rgba(170,185,255,1)', 0.14 + 0.04 * Math.sin(t * 1.1));      // Mondstrahl
+  dust(g, t, 70, 26, { x0: W * 0.36, x1: W * 0.64, rise: -5, drift: 10 });
+  fog(g, A, t, { col: '#7a80a8', a: 0.1, speed: 6, y0: H * 0.45, y1: H });
+  const wake = clamp((t - 2.0) / 1.6);
+  [[1060, 650], [1240, 730], [760, 700]].forEach(([x, y], i) => glow(g, m, x, y, 90, 'rgba(255,90,20,1)', wake * 0.5 * flick(t, i)));
+  [[892, 412], [904, 412]].forEach(([x, y]) => glow(g, m, x, y, 5, 'rgba(255,170,60,1)', wake * 0.8));
   veil(g, '#000', 1 - ease(t / 0.9));
 }
 
-// 7b – Der Stein platzt. Brüllen, Erschütterung, Glut. Dann langsam heran: „Nur geduldig.“
-const WAKE_EYES = [[765, 297], [1035, 297]];
-function shotAwaken(g, t, dur, A, T) {
-  const m = shot(g, A.images.erwachen, { cx: 896, cy: 384, z: 1.0 }, { cx: 892, cy: 300, z: 1.38 }, glide(t / dur), quake(T, ROAR, 1.6, 18));
-  WAKE_EYES.forEach(([x, y], i) => glow(g, m, x, y, 70, 'rgba(255,170,60,1)', 0.45 + 0.2 * Math.sin(t * 4 + i)));
-  glow(g, m, 896, 160, 500, 'rgba(255,90,20,0.8)', 0.1 + 0.25 * (1 - clamp((T - ROAR) / 2)));
-  embers(g, t, 70, 14, { rise: 80 + 160 * (1 - clamp((T - ROAR) / 2.5)), drift: 70, big: 1.4 });
-  flash(g, T, ROAR - 0.1, 0.6, '#ffe0b0', 0.95);
+// 10 – Der Ausbruch: zurück bei der Zitadelle. Der Berg reißt auf, Glut schießt in den Himmel. „Nur geduldig.“
+function shotEruption(g, t, dur, A, T) {
+  const m = shot(g, A.images.zitadelle, { cx: 930, cy: 330, z: 1.4 }, { cx: 920, cy: 300, z: 1.15 }, glide(t / dur), quake(T, ROAR, 2.2, 22));
+  const burst = 1 - clamp((T - ROAR) / 3.5);
+  citadelLife(g, m, t, A, 0.1 + 0.2 * burst);
+  glow(g, m, PEAK[0], PEAK[1], 200 + 160 * burst, 'rgba(255,150,50,1)', 0.2 + 0.3 * burst);
+  glow(g, m, PEAK[0], PEAK[1] - 30, 70, 'rgba(255,230,160,1)', 0.5 * burst + 0.15);
+  fog(g, A, t, { col: '#ff6a20', a: 0.06, speed: 45, y0: 0, y1: H * 0.45, mode: 'lighter' });
+  fog(g, A, t + 3, { col: '#1a1218', a: 0.28, speed: 70, y0: 0, y1: H * 0.4 });
+  const [px, py] = m.at(PEAK[0], PEAK[1]);
+  embers(g, T - ROAR + 3, 140, 27, { rise: 300 * (0.4 + burst), drift: 90, big: 1.5, x0: px - 260, x1: px + 260, y1: py + 80 });
+  embers(g, t, 40, 28, { rise: 60, drift: 60, big: 1.0 });
+  lightning(g, m, t, 2.4, 1450, 140);
+  lightning(g, m, t, 4.6, 330, 100);
+  flash(g, T, ROAR - 0.15, 0.7, '#ffe0b0', 0.95);
   if (dur - t < 0.5) veil(g, '#000', ease(1 - (dur - t) / 0.5));
 }
 
-// 8 – Die Glutsenke bei Nacht. Ein einsamer Wanderer auf dem Hügel.
+// 11 – Die Glutsenke bei Nacht. Ein einsamer Wanderer auf dem Hügel.
 function shotHollow(g, t, dur, A) {
   const m = shot(g, A.images.glutsenke, { cx: 760, cy: 400, z: 1.22 }, { cx: 1120, cy: 384, z: 1.1 }, glide(t / dur));
   glow(g, m, 1075, 215, 140, 'rgba(255,100,30,1)', 0.25 * flick(t, 5));
   glow(g, m, 980, 590, 160, 'rgba(255,90,20,0.9)', 0.15 * flick(t, 6));
+  fog(g, A, t, { col: '#46506e', a: 0.16, speed: 22, y0: H * 0.35, y1: H * 0.8 });
   embers(g, t, 30, 15, { rise: 26, drift: 40, big: 0.9 });
   veil(g, '#000', 1 - ease(t / 1.0));
 }
 
-// 9 – Über die Schulter des Wanderers: die Zitadelle glüht.
+// 12 – Über die Schulter des Wanderers: die Zitadelle glüht.
 function shotWanderer(g, t, dur, A) {
   const m = shot(g, A.images.wanderer, { cx: 760, cy: 400, z: 1.0 }, { cx: 1080, cy: 320, z: 1.28 }, glide(t / dur));
   glow(g, m, 1370, 230, 220, 'rgba(255,100,30,1)', 0.22 + 0.12 * Math.sin(t * 1.8));
+  fog(g, A, t, { col: '#3a3e5e', a: 0.18, speed: 28, y0: H * 0.4, y1: H * 0.85 });
+  fog(g, A, t + 4, { col: '#5a2a1a', a: 0.14, speed: 14, y0: 0, y1: H * 0.35 });
   embers(g, t, 46, 16, { rise: 30, drift: 70, big: 1.3 });
   if (dur - t < 0.6) veil(g, '#000', ease(1 - (dur - t) / 0.6));
 }
 
-// 10 – Schriftzug EMBERWRATH, Glut steigt
+// 13 – Schriftzug EMBERWRATH, Glut steigt
 function shotTitle(g, t, dur, A) {
   black(g);
   const L = A.logo, s = Math.floor((W * 0.5) / L.width);
@@ -342,12 +486,7 @@ function shotTitle(g, t, dur, A) {
   g.globalAlpha = ease(t / 0.8);
   g.drawImage(L, x, y, w, h);
   g.globalAlpha = 1;
-  const gr = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.4);
-  gr.addColorStop(0, 'rgba(224,74,18,0.16)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-  g.globalCompositeOperation = 'lighter';
-  g.globalAlpha = ease(t / 1.2) * (0.8 + 0.2 * Math.sin(t * 2));
-  g.fillStyle = gr; g.fillRect(0, 0, W, H);
-  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  glowAt(g, W / 2, H / 2, W * 0.4, 'rgba(224,74,18,0.16)', ease(t / 1.2) * (0.8 + 0.2 * Math.sin(t * 2)));
   embers(g, t, 50, 17, { rise: 50, drift: 20, x0: W * 0.2, x1: W * 0.8 });
   flash(g, t, 0, 0.4, '#ffb060', 0.5);
 }

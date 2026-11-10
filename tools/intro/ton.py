@@ -74,7 +74,7 @@ SFX = [
     (24.9, 'siegel', 'Massive magical seal closing, deep stone grinding and a resonant chime of runes locking, then silence', 4.0, -6),
     (31.8, 'stein', 'Heavy stone floor slowly cracking under pressure, deep creaks and small crumbling pieces, tension', 6.0, -6),
     (37.9, 'bruch', 'Huge stone seal shatters with an explosive crack and a deep magical boom, debris', 2.5, -2),
-    (42.9, 'schwert', 'A heavy greatsword slowly drawn from stone with a metallic scrape and ember sparks', 2.0, -6),
+    (43.1, 'bruch', 'Huge stone seal shatters with an explosive crack and a deep magical boom, debris', 2.5, -5),
     (27.6, 'drone', 'Very deep ominous sub-bass drone in a vast dark stone hall, slow swell, no music', 6.0, -12),
     (45.6, 'drone', 'Very deep ominous sub-bass drone in a vast dark stone hall, slow swell, no music', 6.0, -7),
     (46.2, 'krone', 'Close crackling embers and a low magical hum, fire breathing slowly', 4.5, -10),
