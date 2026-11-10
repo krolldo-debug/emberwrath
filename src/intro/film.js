@@ -1,15 +1,13 @@
-import { logoCanvas } from '../gfx/Logo.js';
-
 // Intro-Film „Die Stimme im Thron“: Malgareth spricht zum neuen Helden. Kein Gameplay, nur die Geschichte.
 // Bild 1792 × 762 (Kinoformat 2,35:1). Die Szenen sind gemalte Standbilder (src/intro/media, Entstehung und Prompts in
-// tools/intro/bilder.py); bewegt werden sie hier: Kamerafahrten, ziehender Rauch, Glut, Feuer, Hitzeflimmern,
-// fliegende Brandgeschosse, Blitze, ein kreisender Runenring, wachsende Risse, ein Vulkanausbruch.
-// Bewusst keine Nahaufnahmen von Personen: Standbilder von Gesichtern wirken tot, Weiten und Dinge leben von Licht und Luft.
+// tools/intro/bilder.py); bewegt werden sie hier: Kamerafahrten, ziehender Rauch, Glut, Feuer,
+// Blitze, ein kreisender Runenring, wachsende Risse, ein Vulkanausbruch. Personen nur von hinten oder klein im Bild:
+// Standbilder von Gesichtern wirken tot.
 // Zeiten in Sekunden. Die Tonspur (Stimme, Musik, Geräusche) ist je Sprache fertig gemischt (tools/intro/ton.py);
 // ihre Sprechzeiten stehen im Block TIMING (vom Werkzeug geschrieben).
 //
-// Einstellungen: 1 Funke im Dunkel · 2 Die Zitadelle · 3 Der Thronsaal · 4 Die Krone in der Glut · 5 Die fünf Könige ·
-// 6 Die Schlacht · 7 Die Lichtsäule (der Bann) · 8 Das Siegel bricht · 9 Die Halle nach tausend Jahren · 10 Der Ausbruch ·
+// Einstellungen: 1 Funke im Dunkel · 2 Die Zitadelle · 3 Der Thronsaal · 4 Der König auf dem Balkon · 5 Die fünf Könige ·
+// 6 Vor dem Tor · 7 Die Lichtsäule (der Bann) · 8 Das Siegel bricht · 9 Die Halle nach tausend Jahren · 10 Der Ausbruch ·
 // 11 Die Glutsenke · 12 Der Wanderer · 13 Titel
 const W = 1792, H = 762;
 
@@ -38,9 +36,9 @@ const SHOTS = [
   { t0: 0, t1: 3.4, draw: shotSpark },
   { t0: 3.4, t1: 8.2, draw: shotCitadel },
   { t0: 8.2, t1: 14.0, draw: shotHall },
-  { t0: 14.0, t1: 18.4, draw: shotCrown },
+  { t0: 14.0, t1: 18.4, draw: shotBalcony },
   { t0: 18.4, t1: 22.4, draw: shotKings },
-  { t0: 22.4, t1: 25.1, draw: shotBattle },
+  { t0: 22.4, t1: 25.1, draw: shotGate },
   { t0: 25.1, t1: 31.8, draw: shotPillar },
   { t0: 31.8, t1: 39.0, draw: shotSeal },
   { t0: 39.0, t1: ROAR - 0.15, draw: shotDust },
@@ -50,7 +48,7 @@ const SHOTS = [
   { t0: 57.6, t1: 62.0, draw: shotTitle },
 ];
 
-const IMAGES = ['zitadelle', 'halle', 'krone', 'koenige', 'schlacht', 'lichtsaeule', 'siegel', 'halle-staub', 'glutsenke', 'wanderer'];
+const IMAGES = ['zitadelle', 'halle', 'balkon', 'koenige', 'tor', 'lichtsaeule', 'siegel', 'halle-staub', 'glutsenke', 'wanderer'];
 
 export const FILM = {
   width: W, height: H, duration: 62.0,
@@ -69,8 +67,7 @@ export const FILM = {
     const images = Object.fromEntries(await Promise.all(IMAGES.map(img)));
     // Bilder vorab dekodieren, damit der erste Schnitt auf ein Bild nicht ruckelt
     await Promise.all(Object.values(images).map((i) => i.decode?.().catch(() => {})));
-    const buf = document.createElement('canvas'); buf.width = W; buf.height = H;
-    return { images, logo: logoCanvas(), vignette: vignette(), cracks: crackPaths(), fog: fogTexture(), buf };
+    return { images, font: await titleFont(), vignette: vignette(), cracks: crackPaths(), fog: fogTexture() };
   },
   prepareAll() {},
   draw(g, t, A) {
@@ -244,38 +241,6 @@ function fog(g, A, t, { col = '#8a7a9a', a = 0.18, speed = 18, y0 = 0, y1 = H, m
   g.globalAlpha = 1;
   g.globalCompositeOperation = 'source-over';
 }
-// Hitzeflimmern: die Szene wird in einen Puffer gemalt und in waagerechten Streifen leicht versetzt übertragen
-function shimmer(g, A, t, y0, y1, amp, paint) {
-  const b = A.buf.getContext('2d');
-  b.save(); b.imageSmoothingEnabled = true; b.imageSmoothingQuality = 'high';
-  paint(b); b.restore();
-  g.drawImage(A.buf, 0, 0);
-  const band = 6;
-  for (let y = Math.max(0, y0); y < Math.min(H, y1); y += band) {
-    const k = Math.sin(((y - y0) / (y1 - y0)) * Math.PI);
-    const dx = Math.sin(y * 0.045 + t * 7) * amp * k + Math.sin(y * 0.11 - t * 11) * amp * 0.4 * k;
-    g.drawImage(A.buf, 0, y, W, band, dx, y, W, band);
-  }
-}
-// Brandgeschoss: Bogen von a nach b (Leinwandpixel), Kopf glüht, Rauchschweif dahinter
-function fireball(g, t, t0, dur, a, b, arc) {
-  const k = (t - t0) / dur;
-  if (k < 0 || k > 1.15) return;
-  const at = (q) => [lerp(a[0], b[0], q), lerp(a[1], b[1], q) - arc * 4 * q * (1 - q)];
-  for (let i = 22; i >= 1; i--) {
-    const q = k - i * 0.012;
-    if (q < 0 || q > 1) continue;
-    const [x, y] = at(q), s = 4 + i * 0.7;
-    g.globalAlpha = 0.5 * (1 - i / 23);
-    g.fillStyle = i < 5 ? '#ff8a2a' : '#4a3e48';
-    g.fillRect(Math.round(x - s / 2 + Math.sin(i * 1.7) * 3), Math.round(y - s / 2), Math.round(s), Math.round(s));
-  }
-  g.globalAlpha = 1;
-  if (k > 1) { const [x, y] = at(1); glowAt(g, x, y, 140 * (1.15 - k) / 0.15, 'rgba(255,140,40,1)', 0.8); return; }
-  const [x, y] = at(k);
-  glowAt(g, x, y, 46, 'rgba(255,150,50,1)', 0.9);
-  g.fillStyle = '#ffe2a0'; g.fillRect(Math.round(x - 4), Math.round(y - 4), 8, 8);
-}
 // Lichtschein an einer Leinwandstelle
 function glowAt(g, x, y, r, col, a) {
   if (a <= 0 || r <= 0) return;
@@ -336,20 +301,16 @@ function shotHall(g, t, dur, A) {
   embers(g, t, 60, 21, { rise: 50, drift: 20, big: 0.9 });
 }
 
-// 4 – Die Krone auf dem Amboss im Herz der Glut. „Nicht sterben.“ Flammen, Funken, Hitzeflimmern.
-function shotCrown(g, t, dur, A) {
-  const k = glide(t / dur);
-  let m;
-  shimmer(g, A, t, 0, H * 0.62, 3.2, (b) => {
-    m = shot(b, A.images.krone, { cx: 896, cy: 380, z: 1.05 }, { cx: 886, cy: 290, z: 1.5 }, k);
-    glow(b, m, 880, 250, 260, 'rgba(255,140,40,1)', 0.3 * flick(t, 4));
-    glow(b, m, 870, 290, 70, 'rgba(255,60,40,1)', 0.35 + 0.2 * Math.sin(t * 3));       // Stein der Krone pulsiert
-    glow(b, m, 1270, 250, 200, 'rgba(255,170,60,1)', 0.18 * flick(t, 5));               // Lavafall
-    glow(b, m, 900, 560, 600, 'rgba(255,90,20,1)', 0.12 * flick(t, 6));
-  });
-  embers(g, t, 90, 22, { rise: 130, drift: 40, big: 1.2 });
-  embers(g, t, 30, 23, { rise: 220, drift: 25, big: 2.0, x0: W * 0.3, x1: W * 0.7 });
-  veil(g, '#000', 1 - ease(t / 0.4));
+// 4 – Malgareth auf dem Balkon seiner Zitadelle, von hinten, über seinem Land. „Nicht sterben.“
+function shotBalcony(g, t, dur, A) {
+  const m = shot(g, A.images.balkon, { cx: 820, cy: 400, z: 1.0 }, { cx: 760, cy: 380, z: 1.18 }, glide(t / dur));
+  glow(g, m, 20, 330, 90, 'rgba(255,130,40,1)', 0.4 * flick(t, 1));
+  glow(g, m, 245, 315, 60, 'rgba(255,130,40,1)', 0.35 * flick(t, 2));
+  glow(g, m, 1250, 560, 300, 'rgba(255,90,20,1)', 0.12 * flick(t, 3));
+  fog(g, A, t, { col: '#454a6e', a: 0.2, speed: 34, y0: H * 0.45, y1: H });
+  fog(g, A, t + 6, { col: '#6a3a2a', a: 0.1, speed: 20, y0: H * 0.15, y1: H * 0.45 });
+  embers(g, t, 34, 22, { rise: 30, drift: 90, big: 1.1 });
+  veil(g, '#000', 1 - ease(t / 0.5));
 }
 
 // 5 – Erinnerung: die fünf Könige ziehen zur Zitadelle
@@ -363,18 +324,18 @@ function shotKings(g, t, dur, A) {
   veil(g, '#000', 1 - ease(t / 0.45));
 }
 
-// 6 – Die Schlacht am Vulkan, von einem fernen Hügel. Brandgeschosse fliegen, Einschläge.
-const SHOTS_FIRE = [[0.0, 1.5, [-40, 300], [1150, 330], 220], [0.5, 1.4, [180, 360], [1300, 300], 180], [0.9, 1.6, [1850, 200], [700, 470], 160],
-  [1.3, 1.2, [-30, 240], [980, 430], 200], [1.7, 1.3, [1880, 300], [1050, 520], 140]];
-function shotBattle(g, t, dur, A) {
-  const m = shot(g, A.images.schlacht, { cx: 980, cy: 400, z: 1.12 }, { cx: 1080, cy: 360, z: 1.3 }, glide(t / dur), quake(t, 1.55, 0.6, 7));
-  glow(g, m, 1310, 60, 300, 'rgba(255,100,30,1)', 0.25 * flick(t, 8));
-  [[660, 360], [940, 400], [800, 520], [1220, 470], [1520, 330]].forEach(([x, y], i) => glow(g, m, x, y, 90, 'rgba(255,130,40,1)', 0.4 * flick(t, i + 10)));
-  fog(g, A, t, { col: '#3a2e36', a: 0.25, speed: 60, y0: H * 0.25, y1: H * 0.75 });
-  SHOTS_FIRE.forEach(([t0, d, a, b, arc]) => fireball(g, t, t0, d, a, b, arc));
-  embers(g, t, 70, 24, { rise: 90, drift: 80, big: 1.1 });
-  veil(g, '#1a0804', 0.1);
-  flash(g, t, 0, 0.3, '#ffb060', 0.4);
+// 6 – Die fünf Könige vor dem Tor der Zitadelle. Hinter dem Spalt glüht es, die Glut drückt nach außen.
+function shotGate(g, t, dur, A) {
+  const m = shot(g, A.images.tor, { cx: 896, cy: 430, z: 1.02 }, { cx: 896, cy: 380, z: 1.22 }, glide(t / dur), quake(t, 1.9, 0.6, 5));
+  const surge = 0.5 + 0.5 * Math.sin(t * 3.2);
+  glow(g, m, 893, 250, 60, 'rgba(255,150,50,1)', 0.3 + 0.25 * surge);
+  glow(g, m, 893, 80, 60, 'rgba(255,150,50,1)', 0.2 + 0.2 * surge);
+  [[318, 470], [578, 300], [1212, 300], [1478, 470]].forEach(([x, y], i) => glow(g, m, x, y, 70, 'rgba(255,130,40,1)', 0.35 * flick(t, i)));
+  fog(g, A, t, { col: '#3a3e5a', a: 0.22, speed: 26, y0: H * 0.55, y1: H });
+  embers(g, t, 36, 24, { rise: -24, drift: 30, big: 0.8, warm: 0 });   // Asche fällt
+  embers(g, t, 20, 29, { rise: 40, drift: 20, big: 0.9 });
+  veil(g, '#1a0804', 0.08);
+  flash(g, t, 1.9, 0.25, '#ffb060', 0.25);
 }
 
 // 7 – Der Bann: eine Säule aus Licht schießt aus der Zitadelle, ein Runenring kreist am Himmel. Am Ende weiß.
@@ -476,17 +437,62 @@ function shotWanderer(g, t, dur, A) {
   if (dur - t < 0.6) veil(g, '#000', ease(1 - (dur - t) / 0.6));
 }
 
-// 13 – Schriftzug EMBERWRATH, Glut steigt
+// Titelschrift (Cinzel, wie auf der Website). Fehlt sie, eine Serifenschrift des Systems.
+async function titleFont() {
+  for (const u of ['/fonts/cinzel-latin-700-normal.woff2', '/site/fonts/cinzel-latin-700-normal.woff2']) {
+    try {
+      const f = new FontFace('IntroTitel', `url(${new URL(u, location.href).href})`, { weight: '700' });
+      await f.load();
+      document.fonts.add(f);
+      return '"IntroTitel"';
+    } catch { /* nächster Ort */ }
+  }
+  return 'Georgia, "Times New Roman", serif';
+}
+
+// 13 – Titel: EMBERWRATH über der dunklen Zitadelle. Ein Lichtstreif läuft über die Buchstaben, Glut steigt.
 function shotTitle(g, t, dur, A) {
-  black(g);
-  const L = A.logo, s = Math.floor((W * 0.5) / L.width);
-  const w = L.width * s, h = L.height * s;
-  const x = Math.round((W - w) / 2), y = Math.round((H - h) / 2 - 24);
-  g.imageSmoothingEnabled = false;
-  g.globalAlpha = ease(t / 0.8);
-  g.drawImage(L, x, y, w, h);
-  g.globalAlpha = 1;
-  glowAt(g, W / 2, H / 2, W * 0.4, 'rgba(224,74,18,0.16)', ease(t / 1.2) * (0.8 + 0.2 * Math.sin(t * 2)));
-  embers(g, t, 50, 17, { rise: 50, drift: 20, x0: W * 0.2, x1: W * 0.8 });
-  flash(g, t, 0, 0.4, '#ffb060', 0.5);
+  const m = shot(g, A.images.zitadelle, { cx: 930, cy: 300, z: 1.25 }, { cx: 930, cy: 290, z: 1.32 }, t / dur);
+  citadelLife(g, m, t, A);
+  veil(g, '#000', 0.72);
+  fog(g, A, t, { col: '#2a1c22', a: 0.35, speed: 30, y0: H * 0.3, y1: H });
+  const text = 'EMBERWRATH', size = Math.round(W * 0.072), track = size * 0.16;
+  g.font = `700 ${size}px ${A.font}`;
+  g.textBaseline = 'middle';
+  const widths = [...text].map((c) => g.measureText(c).width);
+  const total = widths.reduce((a, b) => a + b, 0) + track * (text.length - 1);
+  const x0 = (W - total) / 2, y = H * 0.46;
+  const show = ease(t / 1.4);
+  // Schrift: Verlauf von hellem Gold zu Glut, weicher Glutschein dahinter
+  const grad = g.createLinearGradient(0, y - size * 0.5, 0, y + size * 0.5);
+  grad.addColorStop(0, '#fff0c8'); grad.addColorStop(0.45, '#ffb04a'); grad.addColorStop(1, '#c2410e');
+  g.save();
+  g.globalAlpha = show;
+  g.shadowColor = 'rgba(255,100,20,0.85)'; g.shadowBlur = size * 0.35;
+  g.fillStyle = grad;
+  let x = x0;
+  [...text].forEach((c, i) => { g.fillText(c, x, y); x += widths[i] + track; });
+  g.restore();
+  // Lichtstreif von links nach rechts
+  const sweep = lerp(x0 - 200, x0 + total + 200, clamp((t - 0.6) / 1.6));
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const sg = g.createLinearGradient(sweep - 140, 0, sweep + 140, 0);
+  sg.addColorStop(0, 'rgba(255,220,160,0)'); sg.addColorStop(0.5, 'rgba(255,236,200,0.85)'); sg.addColorStop(1, 'rgba(255,220,160,0)');
+  g.fillStyle = sg;
+  x = x0;
+  [...text].forEach((c, i) => { g.fillText(c, x, y); x += widths[i] + track; });
+  g.restore();
+  // Zierlinie, wächst aus der Mitte
+  const line = ease((t - 1.0) / 1.2) * total * 0.5;
+  if (line > 0) {
+    const ly = y + size * 0.62;
+    const lg = g.createLinearGradient(W / 2 - line, 0, W / 2 + line, 0);
+    lg.addColorStop(0, 'rgba(232,120,42,0)'); lg.addColorStop(0.5, 'rgba(255,190,110,0.9)'); lg.addColorStop(1, 'rgba(232,120,42,0)');
+    g.fillStyle = lg; g.fillRect(W / 2 - line, ly, line * 2, 2);
+    g.fillStyle = '#ffd890'; g.fillRect(W / 2 - 4, ly - 3, 8, 8);
+  }
+  embers(g, t, 60, 17, { rise: 50, drift: 30 });
+  flash(g, t, 0, 0.5, '#ff9a40', 0.3);
+  veil(g, '#000', 1 - ease(t / 0.6));
 }

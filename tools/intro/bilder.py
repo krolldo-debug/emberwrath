@@ -7,7 +7,7 @@ in WebP um.
 
 Neu malen: Prompt unten nehmen, Bild als PNG mit gleichem Namen in QUELLE legen, dann
     python3 tools/intro/bilder.py
-Wichtig: Bildstellen, an denen film.js Lichter setzt (Feuerschalen, Vulkangipfel, Siegelmitte, Runenring), stehen dort als Koordinaten
+Wichtig: Bildstellen, an denen film.js Lichter setzt (Feuerschalen, Vulkangipfel, Torspalt, Siegelmitte, Runenring), stehen dort als Koordinaten
 (Bildpixel bei 1792 Breite) und müssen beim Austausch eines Bildes nachgezogen werden.
 """
 import os
@@ -31,17 +31,19 @@ PROMPTS = {
              'recede toward a far-away stepped dais and a tall dark throne with a tiny crowned figure, only a small '
              'silhouette. Behind the throne a huge circular rune window glows orange. Tattered red banners, smoke, '
              'polished obsidian floor reflecting the fire. One-point perspective, epic scale.',
-    'krone': 'Deep inside a volcano, the Heart of the Ember: a tall jagged black iron crown with ember-red gems rests on a '
-             'massive ancient anvil, wreathed in living flames; behind it a lava lake and a pillar of molten rock, '
-             'rusted forge chains and a giant hammer. Sparks swirl upward, heat haze. No people.',
+    'balkon': 'Over-the-shoulder from behind: a tall dark king alone on the high stone balcony of a black citadel, left '
+              'third, jagged spiked crown in silhouette, long tattered dark-red cloak in the wind, face hidden, looking out '
+              'over a vast dark land with thin glowing lava rivers, distant mountains, a starry indigo sky. Calm, lonely, '
+              'ominous, restrained colours, not oversaturated.',
     'koenige': 'Five armoured kings march side by side across a scorched volcanic plain toward a black citadel on a '
                'distant smoking volcano, seen from behind: a bearded king with a great hammer and fur mantle, a knight-king '
                'in silver plate with a winged helm, a slender queen in bronze scale armour with a spear, an elder king in '
                'dark green armour with a horned helm and axe, a young king in white and gold with a tower shield. Banners, '
                'an army of torches far behind.',
-    'schlacht': 'Wide battle panorama, night: two vast armies clash at the foot of a black volcano with a burning citadel; '
-                'thousands of tiny soldiers with torches and banners in blue, green, white and bronze surge against a dark '
-                'horde, siege towers burn, catapult fireballs arc across the stormy sky. Seen from a distant hill.',
+    'tor': 'Five small armoured kings seen from behind stand side by side on a stone bridge before a colossal black '
+           'citadel gate, a thin line of ember-orange light glowing through the crack of the closed doors, banners, '
+           'swords drawn and lowered, the torches of their army far below, ash falling. Calm, tense, symmetrical, '
+           'restrained colours.',
     'lichtsaeule': 'Establishing shot, night: from the black citadel on the volcano a blinding pillar of golden-white light '
                    'shoots up into the storm clouds, a gigantic golden rune circle hangs in the sky above it, rays fan out, '
                    'tiny armies with torches look up from the foot of the mountain.',
