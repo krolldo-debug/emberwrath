@@ -3,7 +3,7 @@
 
 Die Bilder sind mit einer Bild-KI gemalt (Figma „generate_image“, Modell gpt-image-2.5-flare, 2048 x 872 angefragt,
 geliefert 1792 x 768). Die Originale (PNG) liegen in /mnt/project-files/intro/ki-probe/. Dieses Werkzeug wandelt sie
-in WebP um.
+in WebP um und bringt sie auf eine feste Palette.
 
 Neu malen: Prompt unten nehmen, Bild als PNG mit gleichem Namen in QUELLE legen, dann
     python3 tools/intro/bilder.py
@@ -67,8 +67,12 @@ def main():
     total = 0
     for name in PROMPTS:
         im = Image.open(os.path.join(QUELLE, f'{name}.png')).convert('RGB')
+        # Auf eine feste Palette (64 Farben) bringen: so wirken die Bilder nach dem Herunterrechnen im Film
+        # (film.js zeichnet auf 600 × 256) wie handgesetzte Pixelkunst statt wie ein glattes Gemälde
+        im = im.resize((1200, round(im.height * 1200 / im.width)), Image.LANCZOS)   # Film zeichnet 600 breit, Zoom bis ~1,6
+        im = im.quantize(colors=64, method=Image.Quantize.FASTOCTREE, kmeans=4, dither=Image.Dither.NONE).convert('RGB')
         out = os.path.join(ZIEL, f'{name}.webp')
-        im.save(out, 'WEBP', quality=80, method=6)
+        im.save(out, 'WEBP', quality=88, method=6)
         total += os.path.getsize(out)
     print(f'{len(PROMPTS)} Bilder, {total / 1e6:.2f} MB')
 

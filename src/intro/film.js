@@ -1,5 +1,5 @@
 // Intro-Film „Die Stimme im Thron“: Malgareth spricht zum neuen Helden. Kein Gameplay, nur die Geschichte.
-// Bild 1792 × 762 (Kinoformat 2,35:1). Die Szenen sind gemalte Standbilder (src/intro/media, Entstehung und Prompts in
+// Kinoformat 2,35:1. Die Szenen sind gemalte Standbilder (src/intro/media, Entstehung und Prompts in
 // tools/intro/bilder.py); bewegt werden sie hier: Kamerafahrten, ziehender Rauch, Glut, Feuer,
 // Blitze, ein kreisender Runenring, wachsende Risse, ein Vulkanausbruch. Personen nur von hinten oder klein im Bild:
 // Standbilder von Gesichtern wirken tot.
@@ -9,7 +9,10 @@
 // Einstellungen: 1 Funke im Dunkel · 2 Die Zitadelle · 3 Der Thronsaal · 4 Der König auf dem Balkon · 5 Die fünf Könige ·
 // 6 Vor dem Tor · 7 Die Lichtsäule (der Bann) · 8 Das Siegel bricht · 9 Die Halle nach tausend Jahren · 10 Der Ausbruch ·
 // 11 Die Glutsenke · 12 Der Wanderer · 13 Titel
-const W = 1792, H = 762;
+// Gerendert wird in kleiner Auflösung (600 × 256) und pixelgenau hochskaliert: so liegt alles – Bilder, Glut, Licht,
+// Schrift – auf demselben festen Pixelraster wie das Spiel. Maße in Bildpunkten der Vorlagen (1792 breit) rechnet
+// die Kamera um; feste Leinwandmaße (Glutgröße, Geschwindigkeiten, Erschütterung) sind für 1792 gedacht und mit K skaliert.
+const W = 600, H = 256, K = W / 1792;
 
 // Sprechtexte: Schlüssel = deutscher Text (Übersetzung über die Wörterbücher, src/i18n)
 const WHO = 'Malgareth';
@@ -97,23 +100,24 @@ function veil(g, col, a) {
 }
 const flash = (g, t, at, dur, col = '#fff4dc', peak = 1) => { const k = t - at; if (k >= 0 && k < dur) veil(g, col, peak * (1 - k / dur) ** 1.5); };
 
-// Kamera über einem Standbild: Mittelpunkt (cx, cy) in Bildpixeln, z = Vergrößerung über „bildfüllend“.
+// Kamera über einem Standbild: Mittelpunkt (cx, cy) in Bildpixeln der Vorlage (1792 breit), z = Vergrößerung über „bildfüllend“.
 // Der Ausschnitt bleibt immer im Bild. Gibt die Abbildung Bild → Leinwand zurück (für Lichter an Bildstellen).
 function shot(g, img, a, b, k, sh = null) {
+  const f = img.width / 1792;                                       // Bilder liegen kleiner vor als die Vorlagen
   const z = lerp(a.z, b.z, k);
   const s = Math.max(W / img.width, H / img.height) * z;
   const vw = W / s, vh = H / s;
-  const cx = clamp(lerp(a.cx, b.cx, k), vw / 2, img.width - vw / 2);
-  const cy = clamp(lerp(a.cy, b.cy, k), vh / 2, img.height - vh / 2);
+  const cx = clamp(lerp(a.cx, b.cx, k) * f, vw / 2, img.width - vw / 2);
+  const cy = clamp(lerp(a.cy, b.cy, k) * f, vh / 2, img.height - vh / 2);
   const x0 = cx - vw / 2 + (sh?.x ?? 0) / s, y0 = cy - vh / 2 + (sh?.y ?? 0) / s;
   g.drawImage(img, x0, y0, vw, vh, 0, 0, W, H);
-  return { s, x0, y0, at: (x, y) => [(x - x0) * s, (y - y0) * s] };
+  return { s: s * f, x0, y0, at: (x, y) => [(x * f - x0) * s, (y * f - y0) * s] };
 }
 // Erschütterung (klingt ab), als Versatz in Leinwandpixeln
 function quake(t, at, dur, amp) {
   const k = t - at;
   if (k < 0 || k > dur) return null;
-  const a = amp * (1 - k / dur) ** 2;
+  const a = amp * K * (1 - k / dur) ** 2;
   return { x: (hash(Math.floor(t * 45), 7) - 0.5) * 2 * a, y: (hash(Math.floor(t * 45), 8) - 0.5) * 2 * a };
 }
 // Lichtschein (additiv) an einer Bildstelle
@@ -136,16 +140,16 @@ function embers(g, t, n, seed, { rise = 60, drift = 30, x0 = 0, x1 = W, y0 = 0, 
   g.globalCompositeOperation = 'lighter';
   for (let i = 0; i < n; i++) {
     const depth = 0.35 + hash(i, seed) * 0.65;
-    const sz = Math.max(2, Math.round((2 + depth * 4) * big));
-    const sp = rise * (0.5 + depth);
-    const span = y1 - y0 + 40;
+    const sz = Math.max(1, Math.round((2 + depth * 4) * big * K * 1.2));
+    const sp = rise * K * (0.5 + depth);
+    const span = y1 - y0 + 40 * K;
     let y = (hash(i, seed + 2) * span + dir * sp * t) % span; if (y < 0) y += span;
     const xw = x1 - x0;
-    const x = x0 + (((hash(i, seed + 3) * xw + Math.sin(t * (0.6 + depth) + i) * drift * depth + t * drift * 0.5 * depth) % xw) + xw) % xw;
+    const x = x0 + (((hash(i, seed + 3) * xw + Math.sin(t * (0.6 + depth) + i) * drift * K * depth + t * drift * K * 0.5 * depth) % xw) + xw) % xw;
     const life = 0.5 + 0.5 * Math.sin(t * (2 + hash(i, seed + 4) * 3) + i * 7);
     g.globalAlpha = clamp(life * (0.35 + depth * 0.65));
     g.fillStyle = warm ? (hash(i, seed + 5) < 0.3 ? '#ffd27a' : hash(i, seed + 5) < 0.7 ? '#ff8a2a' : '#e04a12') : '#c8c0d8';
-    g.fillRect(Math.round(x), Math.round(y0 - 20 + y), sz, sz);
+    g.fillRect(Math.round(x), Math.round(y0 - 20 * K + y), sz, sz);
   }
   g.globalAlpha = 1;
   g.globalCompositeOperation = 'source-over';
@@ -186,7 +190,7 @@ function drawCracks(g, m, paths, k, heat) {
   g.globalCompositeOperation = 'lighter';
   g.lineCap = 'round'; g.lineJoin = 'round';
   for (const pass of [[6, 'rgba(224,74,18,0.18)'], [2.2, 'rgba(255,128,36,0.8)'], [0.9, 'rgba(255,226,170,0.95)']]) {
-    g.lineWidth = pass[0] * m.s * heat;
+    g.lineWidth = Math.max(pass[0] < 2 ? 1 : 1.5, pass[0] * m.s * heat);
     g.strokeStyle = pass[1];
     for (const p of paths) {
       const local = clamp((k - p.start) / (1 - p.start));
@@ -234,7 +238,7 @@ function fog(g, A, t, { col = '#8a7a9a', a = 0.18, speed = 18, y0 = 0, y1 = H, m
   g.globalCompositeOperation = mode;
   for (const [k, sp, al] of [[1.0, speed, a], [1.6, speed * 1.8, a * 0.7]]) {
     const tw = W * 1.2 * k, th = (y1 - y0) * k;
-    let x = -((t * sp) % tw);
+    let x = -((t * sp * K) % tw);
     g.globalAlpha = al;
     for (; x < W; x += tw) g.drawImage(tex, x, y0 - (th - (y1 - y0)) / 2, tw + 1, th);
   }
@@ -264,10 +268,10 @@ function lightning(g, m, t, at, x, y) {
 function shotSpark(g, t) {
   black(g);
   const k = clamp(t / LAND);
-  const x = W * 0.5 + Math.sin(t * 2.2) * 26 * (1 - k), y = lerp(-20, H * 0.62, ease(k));
+  const x = W * 0.5 + Math.sin(t * 2.2) * 26 * K * (1 - k), y = lerp(-6, H * 0.62, ease(k));
   const r = 3 + 2 * Math.sin(t * 13);
-  glowAt(g, x, y, 60, 'rgba(255,150,50,1)', 0.55);
-  g.fillStyle = '#ffd27a'; g.fillRect(Math.round(x - r / 2), Math.round(y - r / 2), Math.round(r), Math.round(r));
+  glowAt(g, x, y, 60 * K, 'rgba(255,150,50,1)', 0.55);
+  g.fillStyle = '#ffd27a'; g.fillRect(Math.round(x - 1), Math.round(y - 1), r > 3.5 ? 3 : 2, r > 3.5 ? 3 : 2);
 }
 
 // 2 – Die Zitadelle auf dem Vulkan, Sturm darüber. Langsam heran. „Man nennt mich ein Ungeheuer.“
@@ -348,7 +352,7 @@ function runeRing(g, m, t, a) {
     const front = 0.55 + 0.45 * Math.sin(ang);                     // vordere Hälfte heller
     g.globalAlpha = clamp(a * front * (0.5 + 0.5 * Math.sin(t * 6 + i)));
     g.fillStyle = i % 4 ? '#ffd890' : '#fff6dc';
-    const s = Math.round((i % 4 ? 4 : 7) * m.s);
+    const s = Math.max(1, Math.round((i % 4 ? 4 : 7) * m.s));
     g.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), s, s);
   }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
@@ -409,7 +413,7 @@ function shotEruption(g, t, dur, A, T) {
   fog(g, A, t, { col: '#ff6a20', a: 0.06, speed: 45, y0: 0, y1: H * 0.45, mode: 'lighter' });
   fog(g, A, t + 3, { col: '#1a1218', a: 0.28, speed: 70, y0: 0, y1: H * 0.4 });
   const [px, py] = m.at(PEAK[0], PEAK[1]);
-  embers(g, T - ROAR + 3, 140, 27, { rise: 300 * (0.4 + burst), drift: 90, big: 1.5, x0: px - 260, x1: px + 260, y1: py + 80 });
+  embers(g, T - ROAR + 3, 140, 27, { rise: 300 * (0.4 + burst), drift: 90, big: 1.5, x0: px - 260 * K, x1: px + 260 * K, y1: py + 80 * K });
   embers(g, t, 40, 28, { rise: 60, drift: 60, big: 1.0 });
   lightning(g, m, t, 2.4, 1450, 140);
   lightning(g, m, t, 4.6, 330, 100);
@@ -474,10 +478,10 @@ function shotTitle(g, t, dur, A) {
   [...text].forEach((c, i) => { g.fillText(c, x, y); x += widths[i] + track; });
   g.restore();
   // Lichtstreif von links nach rechts
-  const sweep = lerp(x0 - 200, x0 + total + 200, clamp((t - 0.6) / 1.6));
+  const sweep = lerp(x0 - 200 * K, x0 + total + 200 * K, clamp((t - 0.6) / 1.6));
   g.save();
   g.globalCompositeOperation = 'lighter';
-  const sg = g.createLinearGradient(sweep - 140, 0, sweep + 140, 0);
+  const sg = g.createLinearGradient(sweep - 140 * K, 0, sweep + 140 * K, 0);
   sg.addColorStop(0, 'rgba(255,220,160,0)'); sg.addColorStop(0.5, 'rgba(255,236,200,0.85)'); sg.addColorStop(1, 'rgba(255,220,160,0)');
   g.fillStyle = sg;
   x = x0;
@@ -489,8 +493,8 @@ function shotTitle(g, t, dur, A) {
     const ly = y + size * 0.62;
     const lg = g.createLinearGradient(W / 2 - line, 0, W / 2 + line, 0);
     lg.addColorStop(0, 'rgba(232,120,42,0)'); lg.addColorStop(0.5, 'rgba(255,190,110,0.9)'); lg.addColorStop(1, 'rgba(232,120,42,0)');
-    g.fillStyle = lg; g.fillRect(W / 2 - line, ly, line * 2, 2);
-    g.fillStyle = '#ffd890'; g.fillRect(W / 2 - 4, ly - 3, 8, 8);
+    g.fillStyle = lg; g.fillRect(Math.round(W / 2 - line), Math.round(ly), Math.round(line * 2), 1);
+    g.fillStyle = '#ffd890'; g.fillRect(Math.round(W / 2 - 1), Math.round(ly - 1), 3, 3);
   }
   embers(g, t, 60, 17, { rise: 50, drift: 30 });
   flash(g, t, 0, 0.5, '#ff9a40', 0.3);

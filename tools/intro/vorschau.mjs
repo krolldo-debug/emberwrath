@@ -22,8 +22,9 @@ const total = await p.evaluate(async ({ BASE, LANG }) => {
   if (LANG !== 'de') { const m = await import(`/src/i18n/${LANG}.js`); dict = Object.values(m)[0]; }
   const A = await FILM.load(new URL('/src/intro/media/', BASE), null);
   FILM.prepareAll(A);
-  const c = document.createElement('canvas'); c.width = FILM.width; c.height = FILM.height + Math.round(120 * (FILM.width / 1280) / 2) * 2;
-  const K = FILM.width / 1280;
+  const UP = Math.max(1, Math.round(1800 / FILM.width));          // Film ist klein gerendert: pixelgenau hochskalieren
+  const c = document.createElement('canvas'); c.width = FILM.width * UP; c.height = FILM.height * UP + Math.round(120 * (c.width / 1280) / 2) * 2;
+  const K = c.width / 1280;
   const g = c.getContext('2d');
   const cues = FILM.timing(LANG);
   const film = document.createElement('canvas'); film.width = FILM.width; film.height = FILM.height;
@@ -34,7 +35,8 @@ const total = await p.evaluate(async ({ BASE, LANG }) => {
     const over = t - FILM.duration;
     if (over > 0) { fg.fillStyle = `rgba(0,0,0,${Math.min(1, over / 0.9)})`; fg.fillRect(0, 0, film.width, film.height); }
     g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
-    g.drawImage(film, 0, Math.round(60 * K));
+    g.imageSmoothingEnabled = false;
+    g.drawImage(film, 0, Math.round(60 * K), film.width * UP, film.height * UP);
     const cue = cues.find((q) => t >= q.t0 && t < q.t1);
     if (cue) {
       const line = dict[cue.text] ?? cue.text;
