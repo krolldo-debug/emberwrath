@@ -40,6 +40,17 @@ Alles über den Bus der Sitzung (`session.bus.emit(...)`), das Feedback-System e
 (Farben/Licht/Ton in `ELEMENTS`, `gfx/Particles.js`). Direkt nutzbar: `world.particles.element(x, y, element, count, radius)`,
 `new Shockwave(x, y, { radius, color, life })` und `new LightPillar(x, y, {...})` aus `entities/Effects.js`.
 
+### Bosskämpfe: Boss bleibt sichtbar, Wackeln maßvoll (08.11.)
+
+- **Boss-Fokus** (`systems/bossFocus.js`): Solange ein Boss kämpft, bekommen kurze Lichter über ihm (`World.addLight`)
+  keinen Glanz (`noGlow`, kein color-dodge) und nur 30 % Schein; Funken an ihm halb so viele. Weißer Treffer-Umriss
+  des Bosses höchstens 28 % deckend und höchstens alle 450 ms, egal wer trifft. Mitspieler zeigen am Boss keine
+  eigenen Schadenszahlen. Neue Bosseffekte: telegrafierte Angriffe dürfen leuchten, Treffer am Boss nicht.
+- **Wackeln** (`core/Camera.js`, `SHAKE`): Anstöße unter 1,5 wackeln nicht, laufendes Wackeln schaukelt sich nicht
+  auf (der stärkere Wert zählt, plus 15 %), Obergrenze ≈ 2,4 Weltpixel, Ruck höchstens 3. Normale Heldentreffer
+  wackeln nicht mehr, nur schwere; am Boss auch kein Ruck und kein Hitstop bei normalen Treffern.
+  Werte für `camera.shake(n)`: 2–3 spürbar, 4–5 großer Treffer, ab 5,5 ist alles gleich (Obergrenze).
+
 Fortschritt (XP, Stufe, Beute, Gold, Quests, Boss) zeigt D automatisch aus den C-/B-Events an –
 dafür keine eigenen Toasts oder Banner senden. `ui:toast`/`ui:banner` nur für Sonderfälle.
 

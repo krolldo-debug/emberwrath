@@ -6225,5 +6225,17 @@ export const ES = {
   "Ab Stufe 40 und nach der Hauptquest öffnet sich der Riss auch für dich.": "A partir del nivel 40 y tras la misión principal, la grieta también se abre para ti.",
   "Später": "Más tarde",
   "Weg zeigen": "Mostrar el camino",
-  "Folge der Glutspur am Boden.": "Sigue el rastro de ascuas en el suelo."
+  "Folge der Glutspur am Boden.": "Sigue el rastro de ascuas en el suelo.",
+  "Überspringen": "Saltar",
+  "Prolog": "Prólogo",
+  "Man nennt mich ein Ungeheuer.": "Me llaman monstruo.",
+  "Dabei wollte ich nur, was jeder will.": "Y solo quería lo que todos quieren.",
+  "Nicht sterben.": "No morir.",
+  "Fünf Könige kamen mit Stahl und Schwüren.": "Cinco reyes vinieron con acero y juramentos.",
+  "Töten konnten sie mich nicht. Also sperrten sie mich ein.": "No pudieron matarme. Así que me encerraron.",
+  "Tausend Jahre lang hielt der Stein.": "Durante mil años, la piedra resistió.",
+  "Ich bin nicht zornig.": "No estoy furioso.",
+  "Nur geduldig.": "Solo paciente.",
+  "Und du, Wanderer …": "Y tú, caminante…",
+  "Komm zu mir. Ich warte.": "Ven a mí. Te espero."
 };

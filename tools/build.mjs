@@ -166,6 +166,10 @@ for (const f of ['manifest.webmanifest', 'app-icon-180.png', 'app-icon-192.png',
 rmSync(resolve(site, 'spielen/klang'), { recursive: true, force: true });
 mkdirSync(resolve(site, 'spielen/klang'), { recursive: true });
 for (const f of readdirSync(resolve(root, 'src/audio/klang'))) if (f.endsWith('.mp3')) copyFileSync(resolve(root, 'src/audio/klang', f), resolve(site, 'spielen/klang', f));
+// Intro-Film (src/intro): Hintergründe und Tonspuren je Sprache lädt das Spiel erst, wenn der Film läuft.
+rmSync(resolve(site, 'spielen/intro'), { recursive: true, force: true });
+mkdirSync(resolve(site, 'spielen/intro'), { recursive: true });
+for (const f of readdirSync(resolve(root, 'src/intro/media'))) if (/\.(webp|mp3)$/.test(f)) copyFileSync(resolve(root, 'src/intro/media', f), resolve(site, 'spielen/intro', f));
 // Browser und iOS fragen diese Adressen ohne Verweis im HTML ab: /apple-touch-icon.png und /favicon.ico (ICO mit eingebettetem PNG).
 copyFileSync(resolve(root, 'src/ui/pwa/app-icon-180.png'), resolve(site, 'apple-touch-icon.png'));
 {
@@ -246,6 +250,8 @@ writeFileSync(resolve(site, '_headers'), [
   '/spielen/sprache-*',
   '  Cache-Control: public, max-age=31536000, immutable',
   '/spielen/klang/*',
+  '  Cache-Control: public, max-age=86400',
+  '/spielen/intro/*',
   '  Cache-Control: public, max-age=86400',
   '',
 ].join('\n'));

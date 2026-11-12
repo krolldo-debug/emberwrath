@@ -6225,5 +6225,17 @@ export const FR = {
   "Ab Stufe 40 und nach der Hauptquest öffnet sich der Riss auch für dich.": "Dès le niveau 40, une fois la quête principale terminée, la faille s'ouvre aussi pour toi.",
   "Später": "Plus tard",
   "Weg zeigen": "Montrer le chemin",
-  "Folge der Glutspur am Boden.": "Suis la traînée de braise au sol."
+  "Folge der Glutspur am Boden.": "Suis la traînée de braise au sol.",
+  "Überspringen": "Passer",
+  "Prolog": "Prologue",
+  "Man nennt mich ein Ungeheuer.": "On me dit monstre.",
+  "Dabei wollte ich nur, was jeder will.": "Je ne voulais pourtant que ce que chacun veut.",
+  "Nicht sterben.": "Ne pas mourir.",
+  "Fünf Könige kamen mit Stahl und Schwüren.": "Cinq rois vinrent, armés d'acier et de serments.",
+  "Töten konnten sie mich nicht. Also sperrten sie mich ein.": "Ils ne pouvaient pas me tuer. Alors ils m'ont enfermé.",
+  "Tausend Jahre lang hielt der Stein.": "Pendant mille ans, la pierre a tenu.",
+  "Ich bin nicht zornig.": "Je ne suis pas en colère.",
+  "Nur geduldig.": "Seulement patient.",
+  "Und du, Wanderer …": "Et toi, voyageur…",
+  "Komm zu mir. Ich warte.": "Viens à moi. Je t'attends."
 };

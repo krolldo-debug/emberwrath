@@ -6225,5 +6225,17 @@ export const EN = {
   "Ab Stufe 40 und nach der Hauptquest öffnet sich der Riss auch für dich.": "From level 40, once you finish the main quest, the rift opens for you too.",
   "Später": "Later",
   "Weg zeigen": "Show the way",
-  "Folge der Glutspur am Boden.": "Follow the ember trail on the ground."
+  "Folge der Glutspur am Boden.": "Follow the ember trail on the ground.",
+  "Überspringen": "Skip",
+  "Prolog": "Prologue",
+  "Man nennt mich ein Ungeheuer.": "They call me a monster.",
+  "Dabei wollte ich nur, was jeder will.": "Yet all I wanted was what everyone wants.",
+  "Nicht sterben.": "Not to die.",
+  "Fünf Könige kamen mit Stahl und Schwüren.": "Five kings came with steel and oaths.",
+  "Töten konnten sie mich nicht. Also sperrten sie mich ein.": "They could not kill me. So they locked me away.",
+  "Tausend Jahre lang hielt der Stein.": "For a thousand years, the stone held.",
+  "Ich bin nicht zornig.": "I am not angry.",
+  "Nur geduldig.": "Only patient.",
+  "Und du, Wanderer …": "And you, wanderer…",
+  "Komm zu mir. Ich warte.": "Come to me. I am waiting."
 };

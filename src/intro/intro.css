@@ -1,0 +1,43 @@
+/* Intro-Film (src/intro): schwarzes Kino über allem außer dem Dreh-Hinweis (#ef-rotate, 9000) */
+.intro {
+  position: fixed; inset: 0; z-index: 8500; background: #000;
+  display: grid; place-items: center; overflow: hidden;
+  user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.intro-cv { display: block; }
+/* Zeichenfläche kleiner als der Schirm (ganzzahliger Bruchteil): pixelgenau vergrößern */
+.intro-cv-scaled { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+.intro-sub {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) + 14px), 4.5vh);
+  width: min(88vw, 980px); text-align: center; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  opacity: 0;
+}
+.intro-sub.show { opacity: 1; }
+/* Breite Balken (Desktop, Tablet): Untertitel im Balken unter dem Bild */
+.intro-wide-bars .intro-sub { bottom: max(8px, calc(var(--intro-bar) / 2 - 26px)); }
+.intro-who {
+  font-family: var(--ef-font-title, serif); font-size: clamp(11px, 1.6vw, 15px); letter-spacing: 0.18em;
+  color: #e8782a; text-shadow: 0 1px 0 #000, 0 0 6px #000;
+}
+.intro-who:empty { display: none; }
+.intro-line {
+  font-family: var(--ef-font, sans-serif); font-weight: 600; font-size: clamp(14px, 2.3vw, 24px); line-height: 1.35;
+  color: #f4e2c8; text-shadow: 0 2px 0 #000, 2px 0 0 #000, -2px 0 0 #000, 0 -1px 0 #000, 0 0 10px rgba(0, 0, 0, 0.9);
+}
+
+.intro-skip {
+  position: absolute;
+  right: max(calc(env(safe-area-inset-right, 0px) + 14px), 2vw); top: max(calc(env(safe-area-inset-top, 0px) + 12px), 2.5vh);
+  font-family: var(--ef-font-title, serif); font-size: clamp(11px, 1.4vw, 14px); letter-spacing: 0.12em;
+  color: #c8b8a0; background: rgba(8, 4, 6, 0.72); border: 2px solid #4a2a1a; border-radius: 0;
+  padding: 7px 14px; cursor: pointer; opacity: 0; pointer-events: none;
+}
+.intro-can-skip .intro-skip { pointer-events: auto; }
+/* Der Knopf ist immer da, aber blass; deutlich wird er beim Bewegen der Maus bzw. nach dem ersten Tippen */
+.intro-can-skip .intro-skip { opacity: 0.45; transition: opacity 0.4s; }
+@media (hover: hover) { .intro-can-skip:hover .intro-skip { opacity: 1; } }
+.intro-can-skip.intro-touched .intro-skip { opacity: 1; }
+.intro-skip:hover, .intro-skip:focus-visible { color: #ffd27a; border-color: #e8782a; outline: none; }
