@@ -6219,5 +6219,17 @@ export const ES = {
   "„Wohin willst du? Ich zeig dir den Weg.“": "«¿Adónde quieres ir? Te enseño el camino.»",
   "Auf dem Wegweiser stehen alle Wege im Ort.": "El poste indica todos los caminos del lugar.",
   "Hier gibt es nichts, wohin der Weg führt.": "Aquí no hay ningún lugar al que llevarte.",
-  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maestro de la arena: «Vuelve cuando hayas alcanzado el nivel {0}.»"
+  "Arenameister: „Komm wieder, wenn du Stufe {0} erreicht hast.“": "Maestro de la arena: «Vuelve cuando hayas alcanzado el nivel {0}.»",
+  "Überspringen": "Saltar",
+  "Prolog": "Prólogo",
+  "Man nennt mich ein Ungeheuer.": "Me llaman monstruo.",
+  "Dabei wollte ich nur, was jeder will.": "Y solo quería lo que todos quieren.",
+  "Nicht sterben.": "No morir.",
+  "Fünf Könige kamen mit Stahl und Schwüren.": "Cinco reyes vinieron con acero y juramentos.",
+  "Töten konnten sie mich nicht. Also sperrten sie mich ein.": "No pudieron matarme. Así que me encerraron.",
+  "Tausend Jahre lang hielt der Stein.": "Durante mil años, la piedra resistió.",
+  "Ich bin nicht zornig.": "No estoy furioso.",
+  "Nur geduldig.": "Solo paciente.",
+  "Und du, Wanderer …": "Y tú, caminante…",
+  "Komm zu mir. Ich warte.": "Ven a mí. Te espero."
 };
