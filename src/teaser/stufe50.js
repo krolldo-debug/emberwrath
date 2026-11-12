@@ -3,7 +3,7 @@ import { seal, SEAL_FRAMES } from './stufe50Art.js';
 
 // Einblendung „Stufe 50 ist da“ (vom Nutzer am 12.11. gewählter Entwurf A „Siegel“, ohne Knopf „Weg zeigen“).
 // Klein oben in der Mitte, kein Fenster: Siegel mit glühender 50, Band, ein Satz, Schließen. Blendet sich nach LIFE
-// Sekunden von selbst aus. Wem und wann sie erscheint, steuert index.js (einmal je Bestandscharakter).
+// Sekunden von selbst aus. Wem und wann sie erscheint, steuert index.js (7 Tage lang bei jeder Anmeldung).
 // Auftakt in harten Stufen: Siegel fällt ein, Lichtblitz, Band rückt ein, Satz erscheint; danach funkeln die Sterne.
 
 const LIFE = 12;          // s bis zum Ausblenden
