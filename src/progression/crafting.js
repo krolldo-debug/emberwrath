@@ -70,9 +70,13 @@ export const RECIPES = {
   brew_greater_mana: R('alchemy', 24, 12, 'greater_mana', [m('leech_ichor', 1), m('toad_gland', 1)], 2),
   brew_supreme_potion: R('alchemy', 31, 20, 'supreme_potion', [m('troll_fat', 2), m('spore_cap', 1)], 2),
   brew_supreme_mana: R('alchemy', 31, 20, 'supreme_mana', [m('troll_fat', 1), m('frost_pelt', 1)], 2),
+
+  // --- Sternenglut (40–50): Tränke aus dem Moos und Harz der Treibenden Gärten
+  brew_starlight_potion: R('alchemy', 41, 30, 'starlight_potion', [m('lichtmoss', 2), m('heartwood_sap', 1)], 2),
+  brew_starlight_mana: R('alchemy', 41, 28, 'starlight_mana', [m('lichtmoss', 1), m('heartwood_sap', 1)], 2),
 };
 
-// --- Stufe 20–40: seltene Waffen und Brustteile je Tier (Stil „rare“ aus items40.js), aus den Materialien
+// --- Stufe 20–50: seltene Waffen und Brustteile je Tier (Stil „rare“ aus items40.js), aus den Materialien
 // der Region. Rezeptstufe = Anlegestufe des Ergebnisses. Je Klasse mindestens zwei Waffen, je Machart ein Brustteil.
 const TIER_CRAFT = {
   // Logik-Check 03.11.: Tier 5 brauchte Hügelknochen (Dungeon ab 24) schon ab Stufe 20, Tier 7 Kristallseide (Dungeon ab 35) ab 30
@@ -80,6 +84,9 @@ const TIER_CRAFT = {
   6: { gold: 1200, weapon: [m('bog_iron', 4), m('toad_gland', 6)], armor: [m('leech_ichor', 6), m('bog_iron', 3)] },
   7: { gold: 2000, weapon: [m('rime_crystal', 3), m('troll_fat', 6)], armor: [m('frost_pelt', 8), m('troll_fat', 3)] },
   8: { gold: 3200, weapon: [m('magma_scale', 4), m('adept_sigil', 6)], armor: [m('pilgrim_relic', 6), m('magma_scale', 3)] },
+  // Sternenglut: Tier 9 (Mondwacht) aus den Treibenden Gärten, Tier 10 (Sternenstahl) aus den Splitterweiten
+  9: { gold: 5000, weapon: [m('heartwood_sap', 6), m('void_bloom', 2)], armor: [m('lichtmoss', 8), m('void_bloom', 2)] },
+  10: { gold: 8000, weapon: [m('star_shard', 6), m('void_glass', 2)], armor: [m('prism_dust', 8), m('void_glass', 2)] },
 };
 const CRAFT_WEAPONS = ['blade', 'claymore', 'stiletto', 'longbow', 'quarterstaff', 'rod'];
 const CRAFT_CHESTS = ['robe', 'jerkin', 'hauberk', 'cuirass'];

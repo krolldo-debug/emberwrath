@@ -904,11 +904,9 @@
  "Ein Weg durch die ganze Welt": "Un chemin à travers le monde entier",
  "Jedes Blatt ist die echte Karte aus dem Spiel. Tippe ein Gebiet an, um dorthin zu springen.": "Chaque feuille est la vraie carte du jeu. Touche une zone pour y aller.",
  "Die Karten aller Gebiete von der Glutsenke bis zum Aschethron, durch einen Glutpfad verbunden, darunter hinter einem Riss die schwebenden Inseln der Sternenglut": "Les cartes de toutes les zones, de Creux-des-Braises au Trône de Cendre, reliées par un sentier de braises, et en dessous, derrière une faille, les îles flottantes de Sternenglut",
- "Bald · Stufe 40–50": "Bientôt · Niveau 40–50",
  "Über der Glutöde reißt der Himmel auf. Dahinter warten Sternhafen, zwei neue Gebiete, drei Bosse und drei Reittiere.": "Au-dessus des Landes de Braise, le ciel se déchire. Au-delà attendent Havre-Étoile, deux nouvelles zones, trois boss et trois montures.",
  "Drei Schattenrisse vor dem Morgenhimmel über schwebenden Inseln, einer von ihnen tritt ins Licht: die drei Bosse der Sternenglut": "Trois silhouettes devant le ciel de l'aube au-dessus d'îles flottantes, l'une d'elles entre dans la lumière : les trois boss de Sternenglut",
  "Sternenglut": "Sternenglut",
- "Bald": "Bientôt",
  "Himmelsrochen<span class=\"p-bald\">Bald</span>": "Raie céleste<span class=\"p-bald\">Bientôt</span>",
  "Mondluchs<span class=\"p-bald\">Bald</span>": "Lynx lunaire<span class=\"p-bald\">Bientôt</span>",
  "Kristallwidder<span class=\"p-bald\">Bald</span>": "Bélier de cristal<span class=\"p-bald\">Bientôt</span>",
@@ -916,5 +914,10 @@
  "Ignaroth, der Glut-Tyrann, kämpft in der Glutschmiede gegen drei Helden. Er lässt Meteore fallen und zieht einen Ring aus Flammen um sich.": "Ignaroth, le Tyran des Braises, affronte trois héros dans la Forge Ardente. Il fait pleuvoir des météores et s’entoure d’un anneau de flammes.",
  "Mutter Fäulnis, ein riesiger Tausendfüßler, kämpft im Sporenschlund gegen drei Helden. Sie schlägt mit Ranken zu und überzieht den Boden mit giftigen Sporen.": "Mère Pourriture, un mille-pattes géant, affronte trois héros dans le Gouffre des Spores. Elle frappe avec des lianes et couvre le sol de spores empoisonnées.",
  "Skalvyr, der Frostwurm, kämpft in den Reifhöhlen gegen drei Helden. Er speit eisigen Atem und lässt Eiszapfen auf die Gruppe stürzen.": "Skalvyr, la Guivre du Givre, affronte trois héros dans les Cavernes de Frimas. Elle crache un souffle glacé et fait s’abattre des stalactites sur le groupe.",
- "Malgareth, der Aschenfürst, kämpft vor dem Aschethron gegen drei Helden. Er schwingt die Flammenklinge und schleudert brennende Glutspeere durch den Saal.": "Malgareth, le Souverain de Cendre, affronte trois héros devant le Trône de Cendre. Il brandit sa lame enflammée et projette des lances de braise à travers la salle."
+ "Malgareth, der Aschenfürst, kämpft vor dem Aschethron gegen drei Helden. Er schwingt die Flammenklinge und schleudert brennende Glutspeere durch den Saal.": "Malgareth, le Souverain de Cendre, affronte trois héros devant le Trône de Cendre. Il brandit sa lame enflammée et projette des lances de braise à travers la salle.",
+ "Jetzt da · Stufe 40–50": "Disponible · Niveau 40–50",
+ "Neu": "Nouveau",
+ "November 2026": "Novembre 2026",
+ "Sternenglut ist da": "Sternenglut est arrivé",
+ "Stufe 40 bis 50: Sternhafen über den Wolken, die Treibenden Gärten und die Splitterweiten, drei Dungeons mit neuen Bossen und drei neue Reittiere.": "Niveaux 40 à 50 : Havre-Étoile au-dessus des nuages, les Jardins Dérivants et les Étendues Éclatées, trois donjons avec de nouveaux boss et trois nouvelles montures."
 }

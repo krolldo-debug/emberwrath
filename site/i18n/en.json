@@ -902,11 +902,9 @@
  "Ein Weg durch die ganze Welt": "One road through the whole world",
  "Jedes Blatt ist die echte Karte aus dem Spiel. Tippe ein Gebiet an, um dorthin zu springen.": "Every sheet is the real map from the game. Tap a zone to jump there.",
  "Die Karten aller Gebiete von der Glutsenke bis zum Aschethron, durch einen Glutpfad verbunden, darunter hinter einem Riss die schwebenden Inseln der Sternenglut": "The maps of every zone from Emberhollow to the Ashen Throne, linked by a trail of embers, and below them, beyond a rift, the floating islands of Sternenglut",
- "Bald · Stufe 40–50": "Soon · Level 40–50",
  "Über der Glutöde reißt der Himmel auf. Dahinter warten Sternhafen, zwei neue Gebiete, drei Bosse und drei Reittiere.": "Above the Ember Wastes the sky tears open. Beyond it wait Starhaven, two new zones, three bosses and three mounts.",
  "Drei Schattenrisse vor dem Morgenhimmel über schwebenden Inseln, einer von ihnen tritt ins Licht: die drei Bosse der Sternenglut": "Three silhouettes against the dawn sky above floating islands, one of them stepping into the light: the three bosses of Sternenglut",
  "Sternenglut": "Sternenglut",
- "Bald": "Soon",
  "Himmelsrochen<span class=\"p-bald\">Bald</span>": "Sky Ray<span class=\"p-bald\">Soon</span>",
  "Mondluchs<span class=\"p-bald\">Bald</span>": "Moon Lynx<span class=\"p-bald\">Soon</span>",
  "Kristallwidder<span class=\"p-bald\">Bald</span>": "Crystal Ram<span class=\"p-bald\">Soon</span>",
@@ -914,5 +912,10 @@
  "Ignaroth, der Glut-Tyrann, kämpft in der Glutschmiede gegen drei Helden. Er lässt Meteore fallen und zieht einen Ring aus Flammen um sich.": "Ignaroth, the Ember Tyrant, fights three heroes in the Molten Forge. He calls down meteors and draws a ring of flames around himself.",
  "Mutter Fäulnis, ein riesiger Tausendfüßler, kämpft im Sporenschlund gegen drei Helden. Sie schlägt mit Ranken zu und überzieht den Boden mit giftigen Sporen.": "Mother Rot, a giant centipede, fights three heroes in the Spore Hollow. She lashes out with vines and covers the floor in poisonous spores.",
  "Skalvyr, der Frostwurm, kämpft in den Reifhöhlen gegen drei Helden. Er speit eisigen Atem und lässt Eiszapfen auf die Gruppe stürzen.": "Skalvyr, the Frost Wyrm, fights three heroes in the Rime Caverns. He breathes icy frost and sends icicles crashing down on the group.",
- "Malgareth, der Aschenfürst, kämpft vor dem Aschethron gegen drei Helden. Er schwingt die Flammenklinge und schleudert brennende Glutspeere durch den Saal.": "Malgareth, the Ash Sovereign, fights three heroes before the Ashen Throne. He swings his flaming blade and hurls burning ember spears across the hall."
+ "Malgareth, der Aschenfürst, kämpft vor dem Aschethron gegen drei Helden. Er schwingt die Flammenklinge und schleudert brennende Glutspeere durch den Saal.": "Malgareth, the Ash Sovereign, fights three heroes before the Ashen Throne. He swings his flaming blade and hurls burning ember spears across the hall.",
+ "Jetzt da · Stufe 40–50": "Out now · Level 40–50",
+ "Neu": "New",
+ "November 2026": "November 2026",
+ "Sternenglut ist da": "Sternenglut is here",
+ "Stufe 40 bis 50: Sternhafen über den Wolken, die Treibenden Gärten und die Splitterweiten, drei Dungeons mit neuen Bossen und drei neue Reittiere.": "Levels 40 to 50: Starhaven above the clouds, the Drifting Gardens and the Splinter Reaches, three dungeons with new bosses and three new mounts."
 }

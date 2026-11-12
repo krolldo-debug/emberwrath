@@ -57,6 +57,10 @@ export const ENCHANTS = {
   stalker_step: { name: 'Pirscherschritt', slots: ['feet'], stats: { moveSpeed: 0.07 }, gold: 3000, mats: [{ itemId: 'frost_pelt', qty: 12 }, { itemId: 'crystal_silk', qty: 2 }], level: 35 },
   magma_edge: { name: 'Magmaglut', slots: ['weapon'], stats: { power: 26, critChance: 0.03 }, gold: 5000, mats: [{ itemId: 'magma_scale', qty: 6 }, { itemId: 'adept_sigil', qty: 6 }], level: 37 },
   pilgrim_ward: { name: 'Pilgersegen', slots: ['chest', 'feet', 'hands'], stats: { armor: 34, maxHp: 140 }, gold: 4500, mats: [{ itemId: 'pilgrim_relic', qty: 10 }], level: 38 },
+  // Sternenglut (40–50): aus den Materialien der Gärten und Splitterweiten
+  star_vigor: { name: 'Sternenkraft', slots: ['chest', 'head', 'amulet'], stats: { maxHp: 200, vit: 9 }, gold: 7000, mats: [{ itemId: 'lichtmoss', qty: 10 }, { itemId: 'void_bloom', qty: 4 }], level: 42 },
+  prism_grace: { name: 'Prismenanmut', slots: ['hands', 'ring', 'amulet'], stats: { agi: 16, int: 16 }, gold: 8000, mats: [{ itemId: 'prism_dust', qty: 12 }], level: 46 },
+  void_edge: { name: 'Leerenschliff', slots: ['weapon'], stats: { power: 36, critChance: 0.04 }, gold: 10000, mats: [{ itemId: 'star_shard', qty: 8 }, { itemId: 'void_glass', qty: 4 }], level: 47 },
 };
 
 // Aktive Setboni: [{ setId, name, count, total, bonuses: [{ count, stats, active }] }]

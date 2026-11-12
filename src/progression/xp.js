@@ -16,11 +16,10 @@ export const LEVEL_CAP = 50;
 export const CLASSIC_CAP = 20;          // Stufe 1–19 bleibt bitgenau wie vor der Erweiterung
 export const LEGACY_CAP = 40;           // Höchststufe vor Sternenglut: bis hier gelten die alten Zielminuten
 
-// Erweiterung Sternenglut bis zur Freigabe nur für Admins (der Nutzer testet zuerst). Geschlossen bleibt alles bei
-// Stufe 40, neue Charaktere behalten das alte Tempo, und Riss, Quests, Dungeons, Reittiere und Aussehen der neuen Welt
-// bleiben verborgen. Tests und Server sehen sie offen; das Spiel schließt sie beim Start (online/index.js) und öffnet
-// sie für Admin-Konten. Freigabe für alle: STARS_PUBLIC = true.
-export const STARS_PUBLIC = false;
+// Erweiterung Sternenglut: seit 04.11. für alle offen (STARS_PUBLIC). Mit false wäre sie wieder nur für Admins (der
+// Nutzer testete so zuerst): dann bleibt alles bei Stufe 40, und Riss, Quests, Dungeons, Reittiere und Aussehen der
+// neuen Welt bleiben verborgen. Das Spiel setzt den Schalter beim Start (online/index.js), Tests und Server sehen sie offen.
+export const STARS_PUBLIC = true;
 let starsOpen = true;
 export function setStarsOpen(open) { starsOpen = !!open; }
 export function isStarsOpen() { return starsOpen; }

@@ -1,6 +1,6 @@
-/* Ankündigung „Sternenglut“ (src/teaser): Morgenschimmer statt Glut. Gezeichneter Rahmen (pixelFrame 'dawn'),
-   deckende Flächen, harte Kanten, keine Verläufe in HTML. Bilder im Weltraster: --px = Bildschirmpixel je Weltpixel
-   (panel.js setzt es so, dass ein Feinpixel auf ganze Gerätepixel fällt). Handy quer: Fenster nie vollflächig. */
+/* Ankündigung „Sternenglut ist da“ (src/teaser/launch.js, Entwurf A „Der Riss“). Gezeichneter Rahmen (pixelFrame
+   'dawn'), deckende Flächen, harte Kanten, keine Verläufe in HTML. Bilder im Weltraster: --px = Bildschirmpixel je
+   Weltpixel (launch.js setzt es so, dass ein Feinpixel auf ganze Gerätepixel fällt). Handy quer: nie vollflächig. */
 .ts-win {
   --k: #0e0b1e; --edge: #3a3478; --edge-hi: #62458a; --fill: #141230; --row: #1c1834; --rose: #e89a88; --peach: #f6c294;
   --text: #ece8f8; --muted: #b4acd0; --px: 2;
@@ -17,25 +17,6 @@
   box-shadow: inset 0 0 0 2px var(--k), inset 0 0 0 4px var(--edge); cursor: pointer;
 }
 .ts-close:hover, .ts-close:focus-visible { color: #fff; box-shadow: inset 0 0 0 2px var(--k), inset 0 0 0 4px var(--edge-hi); outline: none; }
-.ts-soon {
-  display: inline-block; padding: 4px 10px 3px; font: 700 12px/1 var(--ef-font); letter-spacing: 0.14em; text-transform: uppercase;
-  color: #1a1030; background: var(--peach); box-shadow: inset 0 0 0 2px var(--k), inset 0 -4px 0 var(--rose);
-}
-
-/* Bühne: Bild, Schriftzug oben links, Bossnamen mit harter 1-px-Kontur (kein Weichzeichner) */
-.ts-stage { position: relative; flex: 0 0 auto; overflow: hidden; }
-.ts-markwrap { position: absolute; left: calc(8 * var(--px) * 1px); top: calc(6 * var(--px) * 1px); --ms: 1; display: flex; align-items: center; gap: 6px; }
-.ts-name {
-  position: absolute; left: calc(var(--x) * var(--px) * 1px); top: calc(var(--y) * var(--px) * 1px); transform: translateX(-50%);
-  font: 700 12px/1 var(--ef-font); letter-spacing: 0.06em; white-space: nowrap; color: var(--peach);
-  text-shadow: 1px 0 var(--k), -1px 0 var(--k), 0 1px var(--k), 0 -1px var(--k), 1px 1px var(--k), 2px 2px var(--k);
-}
-
-/* Band: Text und die fünf Punkte */
-.ts-band { padding: 8px 6px; border-top: 4px solid var(--edge); background: var(--row); display: grid; gap: 8px; overflow-y: auto; min-height: 0; }
-.ts-lead { margin: 0; }
-.ts-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.ts-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; font: 600 13px/1.2 var(--ef-font); color: var(--peach); background: var(--fill); box-shadow: inset 0 0 0 2px var(--k); }
 
 /* Fußzeile: Häkchen „nicht mehr zeigen“ links, Knopf rechts */
 .ts-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px 2px; border-top: 4px solid var(--edge); flex: 0 0 auto; }
@@ -44,22 +25,58 @@
 .ts-box { position: relative; width: 20px; height: 20px; flex: 0 0 20px; background: var(--k); box-shadow: inset 0 0 0 2px var(--edge-hi); }
 .ts-check input:checked + .ts-box::after { content: ''; position: absolute; left: 6px; top: 6px; width: 8px; height: 8px; background: #5ccbea; }
 .ts-check input:focus-visible + .ts-box { outline: 2px solid var(--peach); outline-offset: 2px; }
-.ts-go {
-  min-height: 44px; padding: 0 20px; border: 0; border-radius: 0; cursor: pointer; white-space: nowrap;
-  font: 700 14px/1 var(--ef-font); color: var(--peach); background: var(--edge);
-  box-shadow: inset 0 0 0 2px var(--k), inset 0 4px 0 var(--edge-hi), inset 0 -4px 0 #241e52;
-}
-.ts-go:hover, .ts-go:focus-visible { color: #fff; background: var(--edge-hi); outline: none; }
 
-/* Handy quer / niedrige Fenster: Bühne oben und unten beschnitten, Schriftzug kleiner, Text weg (Punkte bleiben) */
+/* Bühne: der Riss über der Glutöde. Schriftzug doppelt so groß wie ein Weltpixel (bleibt im Raster). */
+.la-win { --k: #0a0608; --fill: #120a10; --row: #1a0f16; --edge: #4a2034; --edge-hi: #7a3450; }
+.la-stage { position: relative; flex: 0 0 auto; overflow: hidden; }
+.la-title { position: absolute; left: calc(14 * var(--px) * 1px); top: calc(10 * var(--px) * 1px); display: grid; justify-items: start; gap: calc(3 * var(--px) * 1px); }
+.la-title .ts-mark { --ms: 2; }
+/* Band „Das Update ist da“: deckend dunkel mit Goldkante, Glutschrift mit harter 1-px-Kontur (wie der Schriftzug),
+   damit es auch vor hellem Himmel und während des Blitzes lesbar bleibt */
+.la-title { z-index: 2; }
+.la-ribbon {
+  margin-left: calc(4 * var(--px) * 1px); padding: 7px 14px 6px; font: 700 15px/1 var(--ef-font); letter-spacing: 0.16em; text-transform: uppercase;
+  color: #ffd27a; background: #1a0c10;
+  box-shadow: inset 0 0 0 2px #0a0406, inset 0 0 0 4px #c8822e, inset 0 0 0 6px #4a1c14, inset 0 -8px 0 #2a1014, 4px 4px 0 #0a0406;
+  text-shadow: 1px 0 #3a0e06, -1px 0 #3a0e06, 0 1px #3a0e06, 0 -1px #3a0e06, 0 2px #b4380e;
+}
+/* Auftakt: Schriftzug erst, wenn der Riss offen ist; ein harter Blitz in drei Stufen, das Band rückt in vier Stufen ein */
+.la-flash { position: absolute; inset: 0; z-index: 1; background: #fff6ea; opacity: 0; pointer-events: none; }
+.la-win:not(.la-done) .la-title { visibility: hidden; }
+.la-win.la-done .la-flash { animation: la-flash 0.36s steps(3, end) 1; }
+.la-win.la-done .la-ribbon { animation: la-slide 0.32s steps(4, end) 0.18s 1 both; }
+@keyframes la-flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+@keyframes la-slide { 0% { transform: translateX(-24px); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .la-win.la-done .la-flash, .la-win.la-done .la-ribbon { animation: none; } }
+
+/* Band: Überschrift und ein Satz */
+.la-band { padding: 10px 8px 6px; border-top: 4px solid var(--edge); background: var(--row); display: grid; gap: 4px; }
+.la-head { margin: 0; font: 700 22px/1.15 var(--ef-font); color: var(--peach); letter-spacing: 0.02em; }
+.la-sub { margin: 0; color: var(--text); }
+.la-sub.la-wait { color: var(--muted); }
+
+/* Knöpfe: „Später“ leise, „Weg zeigen“ hell */
+.la-acts { display: flex; gap: 8px; align-items: center; }
+.la-later, .la-go {
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: 0; cursor: pointer; white-space: nowrap;
+  font: 700 14px/1 var(--ef-font); display: inline-flex; align-items: center; gap: 8px;
+}
+.la-later { color: var(--muted); background: var(--row); box-shadow: inset 0 0 0 2px var(--k), inset 0 0 0 4px var(--edge); }
+.la-go { color: #1a1030; background: var(--peach); box-shadow: inset 0 0 0 2px var(--k), inset 0 4px 0 #fff0d8, inset 0 -4px 0 var(--rose); }
+.la-later:hover, .la-later:focus-visible { color: #fff; outline: none; }
+.la-go:hover, .la-go:focus-visible { background: #ffd8ac; outline: none; }
+
+/* Handy quer / niedrige Fenster: Bühne oben und unten beschnitten, Schriftzug kleiner, nur die Überschrift */
 @media (max-height: 520px) {
   .ts-win { font-size: 13px; border-width: 8px; max-height: calc(100dvh - 40px); }
   .ts-close { top: 4px; right: 4px; }
-  .ts-stage { height: calc(128 * var(--px) * 1px); }
-  .ts-stage .ts-art { margin-top: calc(-12 * var(--px) * 1px); }
-  .ts-name { margin-top: calc(-12 * var(--px) * 1px); }
-  .ts-band { padding: 6px 4px; gap: 6px; }
-  .ts-lead { display: none; }
-  .ts-chips li { font-size: 12px; }
+  .la-stage { height: calc(132 * var(--px) * 1px); }
+  .la-stage .ts-art { margin-top: calc(-16 * var(--px) * 1px); }
+  .la-title { top: calc(4 * var(--px) * 1px); }
+  .la-title .ts-mark { --ms: 1.5; }
+  .la-head { font-size: 17px; }
+  .la-sub { display: none; }
+  .la-sub.la-wait { display: block; }
   .ts-foot { padding-top: 4px; }
+  .la-later, .la-go { padding: 0 14px; }
 }

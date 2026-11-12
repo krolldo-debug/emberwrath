@@ -22,8 +22,8 @@ ZONEN = [
     ('frostspire', 516, 850, 'Die Frostzinnen', '31–36', 'frostzinnen', False),
     ('ember_wastes', 480, 1250, 'Die Glutöde', '36–40', 'gluetoede', False),
     ('ashen_throne', 130, 1260, 'Der Aschethron', '40', 'aschethron', False),
-    ('splitterweiten', 40, 1720, 'Die Splitterweiten', 'Bald', None, True),
-    ('drifting_gardens', 360, 2170, 'Die Treibenden Gärten', 'Bald', None, True),
+    ('splitterweiten', 40, 1720, 'Die Splitterweiten', '45–50', None, True),
+    ('drifting_gardens', 360, 2170, 'Die Treibenden Gärten', '40–45', None, True),
 ]
 # Verbindungen: (von, Seite, nach, Seite) in Reiseordnung
 WEG = [(0, 'r', 1, 'l'), (1, 'b', 2, 't'), (2, 'l', 3, 'r'), (3, 'b', 4, 't'), (4, 'r', 5, 'l'), (5, 'b', 6, 't'),
