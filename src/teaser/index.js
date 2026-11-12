@@ -26,32 +26,25 @@ const PLACES = {
 };
 const PREF = 'launchHidden';
 
-// Einblendung „Stufe 50 ist da“ (stufe50.js): einmal je Bestandscharakter, also jedem Helden, der vor dem Wunsch des
-// Nutzers (12.11.2026, 10:09 Uhr) angelegt wurde; spätere Helden sehen sie nie. Gemerkt im Spielstand (world.flags),
-// damit sie auch auf einem zweiten Gerät nicht noch einmal kommt. In dieser Anmeldung ersetzt sie das Fenster
-// „Sternenglut ist da“ (keine doppelte Ansage); danach gilt für das Fenster wieder das Übliche.
-// Sie wartet einen ruhigen Moment ab: NOTICE_DELAY s nach dem Betreten, keine Ansage in der Bildmitte (Tagesbelohnung),
-// kein Fenster offen, Held am Leben. Solange sie steht, wartet die Tagesbelohnung (.ef-notice in ProgressionSystem).
-const NOTICE_FLAG = 'notice:stufe50';
-const NOTICE_BEFORE = Date.parse('2026-11-12T09:09:00Z');
+// Einblendung „Stufe 50 ist da“ (stufe50.js): 7 Tage lang (bis NOTICE_UNTIL, Wunsch des Nutzers vom 12.11.2026) bei
+// jeder Anmeldung jedes Helden einmal, auch bei neuen Helden (dort nach dem Intro-Film). In einer Anmeldung mit der
+// Einblendung kommt das Fenster „Sternenglut ist da“ nicht von selbst (keine doppelte Ansage); die Sternentafeln bleiben.
+// Sie wartet einen ruhigen Moment ab: NOTICE_DELAY s nach dem Betreten, kein Film (Sitzung angehalten), keine Ansage in
+// der Bildmitte (Tagesbelohnung), kein Einstiegshinweis, kein Fenster offen, Held am Leben. Solange sie steht, wartet die
+// Tagesbelohnung (.ef-notice in ProgressionSystem).
+const NOTICE_UNTIL = Date.parse('2026-11-19T11:37:00Z');
 const NOTICE_DELAY = 7;
-// Anlagezeit: meta.createdAt, sonst aus der Kennung (chr_<Zeit base36><4 Zeichen>); ganz alte Stände ohne beides zählen mit
-function createdAt(meta) {
-  if (meta?.createdAt > 0) return meta.createdAt;
-  const m = /^chr_([0-9a-z]+)[0-9a-z]{4}$/.exec(String(meta?.characterId ?? ''));
-  return m ? parseInt(m[1], 36) : 0;
-}
-function noticeDue(state, isNew) {
-  return !isNew && isStarsOpen() && createdAt(state.meta) < NOTICE_BEFORE && !state.slices.world?.flags?.[NOTICE_FLAG];
-}
 
 // Anmeldung = Sitzung dieses Tabs bzw. der App. sessionStorage übersteht location.reload(), so zählen das Neuladen
 // bei einer neuen Version, das Nachladen eines Cloud-Stands und „Zum Titel“ nicht als neue Anmeldung:
 // fresh = in dieser Anmeldung erschaffene Helden, shown = Helden, denen das Fenster in dieser Anmeldung schon kam.
 const SESSION_KEY = 'emberwrath:launch';
-const memory = { fresh: [], shown: [] };
+const memory = { fresh: [], shown: [], notice: [] };
 function loginState() {
-  try { const v = JSON.parse(sessionStorage.getItem(SESSION_KEY)); if (Array.isArray(v?.fresh) && Array.isArray(v?.shown)) return v; } catch { /* Speicher gesperrt */ }
+  try {
+    const v = JSON.parse(sessionStorage.getItem(SESSION_KEY));
+    if (Array.isArray(v?.fresh) && Array.isArray(v?.shown)) { if (!Array.isArray(v.notice)) v.notice = []; return v; }
+  } catch { /* Speicher gesperrt */ }
   return memory;
 }
 function remember(list, characterId) {
@@ -62,7 +55,7 @@ function remember(list, characterId) {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(v)); } catch { /* reicht im Speicher */ }
 }
 function forgetLogin() {
-  memory.fresh = []; memory.shown = [];
+  memory.fresh = []; memory.shown = []; memory.notice = [];
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* egal */ }
 }
 
@@ -94,10 +87,10 @@ export function installTeaser(game) {
   }, { title: 'Sternenglut ist da' });
 
   // Einmal je Anmeldung; ein neuer Held erst ab seiner zweiten (auch über Neuladen der Seite hinweg)
-  let pending = null, notice = false;
+  let pending = null, notice = null;
   game.bus.on(EV.GAME_STARTED, ({ characterId, isNew }) => {
     if (isNew) remember('fresh', characterId);
-    notice = noticeDue(game.state, isNew);
+    notice = characterId && isStarsOpen() && Date.now() < NOTICE_UNTIL && !loginState().notice.includes(characterId) ? characterId : null;
     if (notice) remember('shown', characterId);
     const v = loginState();
     pending = characterId && !v.fresh.includes(characterId) && !v.shown.includes(characterId) ? characterId : null;
@@ -119,16 +112,17 @@ export function installTeaser(game) {
         }, 1200);
       }),
     ];
-    const quiet = () => !sess.panels.openId && !sess.world?.hero?.dead && !document.querySelector('.hud-banner.show');
+    const quiet = () => !sess.paused && !sess.panels.openId && !sess.world?.hero?.dead
+      && !document.querySelector('.hud-banner.show, .ef-guide.show');
     return {
       update(dt) {
         if (banner?.open) { if (sess.panels.openId) banner.close(); else banner.update(dt); }
         if (wait < 0 || (wait -= dt) > 0) return;
         if (!notice) { wait = -1; return; }
         if (!quiet()) { wait = 1; return; }
-        wait = -1; notice = false;
+        remember('notice', notice);
+        wait = -1; notice = null;
         banner = stufe50Notice(sess, { level: sess.state.slices.progress?.level ?? 1 });
-        sess.state.commit('world:setFlag', { key: NOTICE_FLAG });
       },
       dispose: () => { clearTimeout(timer); banner?.root.remove(); offs.forEach((off) => off?.()); },
     };
