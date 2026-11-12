@@ -36,7 +36,8 @@
   padding: 7px 14px; cursor: pointer; opacity: 0; pointer-events: none;
 }
 .intro-can-skip .intro-skip { pointer-events: auto; }
-/* Maus: Knopf erscheint beim Bewegen; Touch: nach dem ersten Tippen */
+/* Der Knopf ist immer da, aber blass; deutlich wird er beim Bewegen der Maus bzw. nach dem ersten Tippen */
+.intro-can-skip .intro-skip { opacity: 0.45; transition: opacity 0.4s; }
 @media (hover: hover) { .intro-can-skip:hover .intro-skip { opacity: 1; } }
 .intro-can-skip.intro-touched .intro-skip { opacity: 1; }
 .intro-skip:hover, .intro-skip:focus-visible { color: #ffd27a; border-color: #e8782a; outline: none; }

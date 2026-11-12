@@ -28,8 +28,8 @@ export function installIntro(game) {
     const due = () => {
       const st = game.state;
       if (st.slices.story?.intro) return false;
-      if (isNew) return true;
-      return (st.slices.progress?.level ?? 1) <= 1 && (st.meta.playTime ?? 0) < FRESH_SECONDS;
+      if ((st.slices.progress?.level ?? 1) > 1) return false;       // nur ganz am Anfang, auf Stufe 1
+      return isNew || (st.meta.playTime ?? 0) < FRESH_SECONDS;
     };
     const finish = (how) => {
       if (done) return;
