@@ -1,7 +1,8 @@
 import { hash2 } from '../core/math.js';
 import { hex } from './art.js';
 
-// Bilder für die Einblendung „Stufe 50 ist da“: Glutziffern „50“, Siegel, Wimpel, Bandzeichen.
+// Bild für die Einblendung „Stufe 50 ist da“ (vom Nutzer gewählter Entwurf A „Siegel“): Plakette mit Spitzen links und
+// rechts, Goldglutrand, Kristalle an den Spitzen, Nachthimmel, darin die glühende „50“ mit einem Stern in der Null.
 // 1 Bildpunkt = 1 Kunstpixel; die Anzeige vergrößert ganzzahlig auf Gerätepixel (stufe50.js, --u).
 
 // Ziffern 13×16, Strich 4 breit, Querbalken 2 hoch, abgeschrägte Ecken
@@ -35,7 +36,7 @@ function painter(c) {
 }
 
 // „50“ als Maske; Kontur, harter Schatten nach unten, Glutverlauf, Stern im Innern der Null
-export function numeral(text = '50', { shadow = '#0a0612', star = true } = {}) {
+function numeral(text = '50', { shadow = '#0a0612', star = true, twinkle = 0 } = {}) {
   const gap = 2, pad = 3;
   const gl = [...text].map((d) => DIGITS[d]);
   const W = gl.reduce((s, g) => s + g[0].length, 0) + gap * (gl.length - 1) + pad * 2, H = DH + pad * 2 + 2;
@@ -68,9 +69,11 @@ export function numeral(text = '50', { shadow = '#0a0612', star = true } = {}) {
   }
   // Stern in der Null
   if (star && zero) {
-    const { x, y } = zero;
-    for (let i = -2; i <= 2; i++) { px(x + i, y, Math.abs(i) < 2 ? CRYSTAL[3] : CRYSTAL[1]); px(x, y + i, Math.abs(i) < 2 ? CRYSTAL[3] : CRYSTAL[1]); }
-    px(x, y + 3, CRYSTAL[0]); px(x, y - 3, CRYSTAL[0]);
+    // twinkle 0..2: Strahlen kurz, mittel, lang (Funkeln in der Ruhe-Animation)
+    const { x, y } = zero, arm = [1, 2, 2][twinkle], tail = twinkle === 2;
+    for (let i = -arm; i <= arm; i++) { px(x + i, y, Math.abs(i) < 2 ? CRYSTAL[3] : CRYSTAL[1]); px(x, y + i, Math.abs(i) < 2 ? CRYSTAL[3] : CRYSTAL[1]); }
+    if (arm > 1 || tail) { px(x, y + 3, CRYSTAL[0]); px(x, y - 3, CRYSTAL[0]); }
+    if (tail) { px(x, y + 4, CRYSTAL[0]); px(x, y - 4, CRYSTAL[0]); }
   }
   return c;
 }
@@ -94,9 +97,10 @@ function night(x, y, t) {
   return rgb(NIGHT[i]);
 }
 
-// Entwurf A „Siegel“: Plakette mit Spitzen links und rechts, Glutgoldrand, Kristalle an den Spitzen, „50“ in der Mitte
-export function seal() {
-  const num = numeral();
+// Siegel; frame 0..3 = Bilder der Ruhe-Animation (Sterne im Himmel und der Stern in der Null funkeln)
+export const SEAL_FRAMES = 4;
+export function seal(frame = 0) {
+  const num = numeral('50', { twinkle: [1, 2, 1, 0][frame % SEAL_FRAMES] });
   const W = num.width + 56, H = 44, cy = H / 2 - 0.5, tip = 14;
   const c = canvas(W, H), px = painter(c), ctx = c.getContext('2d');
   // Form: Rechteck mit spitzen Enden (Sechseck), Abstand d zum Rand
@@ -115,99 +119,15 @@ export function seal() {
     if (!inside(x, y, 4)) { px(x, y, '#3a3478'); continue; }                          // Innenlinie violett
     const t = (y - 4) / (H - 8);
     px(x, y, night(x, y, 0.15 + t * 0.85));
-    if (hash2(x, y, 31) < 0.012 && t < 0.6) px(x, y, '#e8e8ff');
+    // Sterne: ein Teil leuchtet je Bild heller oder verlischt kurz
+    const st = hash2(x, y, 31);
+    if (st < 0.012 && t < 0.6) {
+      const ph = Math.floor(hash2(x, y, 32) * SEAL_FRAMES);
+      px(x, y, ph === frame % SEAL_FRAMES ? '#ffffff' : (ph + 2) % SEAL_FRAMES === frame % SEAL_FRAMES ? '#62458a' : '#b8b8e8');
+    }
   }
   gem(px, 6, Math.round(cy), 3);
   gem(px, W - 7, Math.round(cy), 3);
   ctx.drawImage(num, Math.round((W - num.width) / 2), Math.round((H - num.height) / 2) + 1);
-  return c;
-}
-
-// Entwurf B „Wimpel“: Stange mit Glutknäufen, Tuch mit Schwalbenschwanz, Goldborte, Sternsiegel, „50“, Quasten
-export function pennant() {
-  const num = numeral();
-  const W = num.width + 26, H = 100, cx = W / 2 - 0.5;
-  const cl = 6, cr = W - 7, top = 5, notch = 82, point = 93;
-  const c = canvas(W, H), px = painter(c), ctx = c.getContext('2d');
-  const bottom = (x) => notch + (point - notch) * Math.min(1, Math.abs(x - cx) / ((cr - cl) / 2));
-  const cloth = (x, y) => x >= cl && x <= cr && y >= top && y <= bottom(x);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (!cloth(x, y)) {
-      if (cloth(x - 1, y) || cloth(x + 1, y) || cloth(x, y - 1)) px(x, y, INK);
-      continue;
-    }
-    const e = Math.min(x - cl, cr - x, bottom(x) - y);
-    if (e < 1) { px(x, y, INK); continue; }
-    if (e < 2) { px(x, y, x - cl < 2 ? '#ffd27a' : '#c8822e'); continue; }        // Goldborte
-    if (e < 3) { px(x, y, '#7a3a14'); continue; }
-    if (e < 4) { px(x, y, INK); continue; }
-    // Faltenwurf: senkrechte Bahnen, unten dunkler
-    const fold = 0.5 + 0.5 * Math.sin((x - cl) * 0.5 + 0.6) * (0.6 + 0.4 * (y / H));
-    const t = Math.max(0, Math.min(1, fold * 0.8 + (1 - y / H) * 0.25));
-    px(x, y, night(x, y, 0.02 + t * 0.98));
-    // Glut am Saum: harte Funkenpixel, je näher am unteren Rand desto dichter
-    const near = bottom(x) - y;
-    if (near >= 4 && near < 5) px(x, y, '#ff8a32');
-    else if (near >= 5 && near < 6) px(x, y, '#c83414');
-    else if (near >= 6 && near < 9 && hash2(x, y, 17) < 0.5 - (near - 6) * 0.15 && ((x + y) & 1)) px(x, y, '#5e150c');
-  }
-  // Saum oben über der Stange
-  for (let x = cl; x <= cr; x++) { px(x, top, '#4e3c80'); px(x, top + 1, '#3a3478'); px(x, top + 2, INK); }
-  // Stange und Glutknäufe
-  for (let x = 1; x < W - 1; x++) { px(x, 2, '#5c3a3a'); px(x, 3, '#3a2226'); px(x, 4, '#22141a'); px(x, 1, INK); px(x, 5, INK); }
-  for (const kx of [2, W - 3]) {
-    for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
-      const d = Math.abs(x) + Math.abs(y);
-      if (d > 3) continue;
-      px(kx + x, 3 + y, d === 3 ? INK : d === 0 ? '#ffffff' : (x < 0 || y < 0) ? '#ffbc56' : '#dc4418');
-    }
-  }
-  // Schnüre zur Aufhängung (oben aus dem Bild heraus)
-  for (let y = 0; y < 1; y++) { px(Math.round(cx) - 10, y, '#3a2226'); px(Math.round(cx) + 10, y, '#3a2226'); }
-  // Sternsiegel oben
-  const sy = 14, scx = Math.round(cx);
-  for (let i = -6; i <= 6; i++) { const a = Math.abs(i); px(scx + i, sy, a < 2 ? '#ffffff' : a < 4 ? CRYSTAL[2] : CRYSTAL[1]); px(scx, sy + i, a < 2 ? '#ffffff' : a < 4 ? CRYSTAL[2] : CRYSTAL[1]); }
-  for (let i = 1; i <= 2; i++) { px(scx + i, sy + i, CRYSTAL[1]); px(scx - i, sy - i, CRYSTAL[1]); px(scx + i, sy - i, CRYSTAL[1]); px(scx - i, sy + i, CRYSTAL[1]); }
-  // Zierlinie unter dem Stern
-  for (let x = cl + 6; x <= cr - 6; x++) if (Math.abs(x - cx) > 8) { px(x, sy, '#c87488'); px(x, sy + 1, INK); }
-  ctx.drawImage(num, Math.round((W - num.width) / 2), 21);
-  // Gestickte Zackenborte unter dem Band
-  for (let x = cl + 4; x <= cr - 4; x++) {
-    const zy = 73 + Math.abs(((x - cl) % 6) - 3) - 1;
-    px(x, zy, '#ffd27a'); px(x, zy + 1, '#7a3a14');
-  }
-  // Quasten an den Spitzen
-  for (const qx of [cl + 1, cr - 1]) {
-    for (let y = 0; y < 6; y++) { px(qx - 1, point + y - 1, y < 2 ? '#ffd27a' : '#c8822e'); px(qx, point + y - 1, y < 2 ? '#ffe6a8' : '#c8822e'); px(qx + 1, point + y - 1, '#7a3a14'); }
-    px(qx, point + 5, '#7a3a14');
-  }
-  return c;
-}
-
-// Entwurf C „Glutband“: kleines Zeichen links im Band – „50“ auf einem Stern-Kristall
-export function badge() {
-  const num = numeral('50', { star: true });
-  const W = num.width + 16, H = num.height + 12;
-  const c = canvas(W, H), px = painter(c), ctx = c.getContext('2d');
-  // Raute hinter der Zahl, oben und unten über die Zahl hinaus
-  const cx = W / 2 - 0.5, cy = H / 2 - 0.5;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const d = Math.abs(x - cx) / (W / 2) + Math.abs(y - cy) / (H / 2);
-    if (d > 1) continue;
-    px(x, y, d > 0.93 ? INK : d > 0.84 ? (y < cy ? '#5ccbea' : '#2484a8') : d > 0.78 ? INK : night(x, y, 0.2 + (y / H) * 0.7));
-  }
-  ctx.drawImage(num, Math.round((W - num.width) / 2), Math.round((H - num.height) / 2) + 1);
-  return c;
-}
-
-// Glutfunken für die Ruhe-Animation: n Bilder, jeweils ein paar harte Pixel, die nach oben steigen
-export function embers(w, h, frame, seed = 1) {
-  const c = canvas(w, h), px = painter(c);
-  for (let i = 0; i < 14; i++) {
-    const x = Math.floor(hash2(i, seed, 2) * w), speed = 1 + Math.floor(hash2(i, seed, 3) * 2);
-    const y = h - 1 - ((Math.floor(hash2(i, seed, 4) * h) + frame * speed) % h);
-    px(x, y, hash2(i, seed, 5) < 0.35 ? '#ffe6a8' : '#ff8a32');
-    if (hash2(i, seed, 6) < 0.4) px(x, y + 1, '#c83414');
-  }
   return c;
 }

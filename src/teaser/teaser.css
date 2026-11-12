@@ -80,3 +80,55 @@
   .ts-foot { padding-top: 4px; }
   .la-later, .la-go { padding: 0 14px; }
 }
+
+/* Einblendung „Stufe 50 ist da“ (src/teaser/stufe50.js, Entwurf A „Siegel“): klein oben in der Mitte des Spielbilds,
+   kein Fenster. Siegel als Bild im Kunstpixelraster (--u = CSS-Pixel je Kunstpixel, ganze Gerätepixel), Band und
+   Karte deckend mit harten Kanten. Auftakt in Stufen (steps), bei reduzierter Bewegung gleich das Endbild. */
+.ef-notice.s50 {
+  --u: 2; --gold: #ffd27a; --gold-d: #c8822e; --text: #ece8f8;
+  position: absolute; left: 50%; top: calc(50% - var(--view-h, 100vh) / 2 + max(6px, env(safe-area-inset-top, 0px)));
+  transform: translateX(-50%); display: grid; justify-items: center; pointer-events: none;
+  font: 13px/1.35 var(--ef-font); color: var(--text);
+}
+.s50-top { position: relative; }
+.s50-seal { display: block; width: calc(var(--w) * var(--u) * 1px); height: calc(var(--h) * var(--u) * 1px); image-rendering: pixelated; image-rendering: crisp-edges; }
+.s50-flash { position: absolute; inset: 0; background: #fff6ea; opacity: 0; pointer-events: none;
+  clip-path: polygon(20% 7%, 80% 7%, 95% 50%, 80% 93%, 20% 93%, 5% 50%); }
+.s50-ribbon {
+  position: relative; margin-top: calc(-7 * var(--u) * 1px); padding: 6px 14px 5px; white-space: nowrap;
+  font: 700 14px/1 var(--ef-font); letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); background: #1a0c10;
+  box-shadow: inset 0 0 0 2px #0a0406, inset 0 0 0 4px var(--gold-d), inset 0 0 0 6px #4a1c14, inset 0 -6px 0 #2a1014, 4px 4px 0 #0a0406;
+  text-shadow: 1px 0 #3a0e06, -1px 0 #3a0e06, 0 1px #3a0e06, 0 -1px #3a0e06, 0 2px #b4380e;
+}
+.s50-card {
+  margin-top: 6px; display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 12px; pointer-events: auto;
+  background: #120a10; box-shadow: inset 0 0 0 2px #0a0608, inset 0 0 0 4px #4a2034, 4px 4px 0 rgba(10, 4, 6, 0.6);
+}
+.s50-sub { margin: 0; max-width: 280px; text-wrap: balance; }
+.s50-x {
+  flex: 0 0 auto; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 0; cursor: pointer;
+  font: 700 15px/1 var(--ef-font); color: #b4acd0; background: #1a0f16; box-shadow: inset 0 0 0 2px #0a0608, inset 0 0 0 4px #4a2034;
+}
+.s50-x:hover, .s50-x:focus-visible { color: #fff; box-shadow: inset 0 0 0 2px #0a0608, inset 0 0 0 4px #7a3450; outline: none; }
+
+/* Auftakt: Siegel fällt in vier Stufen ein, harter Blitz in drei, Band rückt ein, dann die Karte */
+.ef-notice.s50:not(.show) { visibility: hidden; }
+.s50.show .s50-top { animation: s50-drop 0.28s steps(4, end) both; }
+.s50.show .s50-flash { animation: s50-flash 0.36s steps(3, end) 0.28s both; }
+.s50.show .s50-ribbon { animation: s50-slide 0.3s steps(4, end) 0.42s both; }
+.s50.show .s50-card { animation: s50-in 0.24s steps(3, end) 0.66s both; }
+.s50.s50-out { animation: s50-out 0.3s steps(3, end) both; }
+@keyframes s50-drop { 0% { transform: translateY(-32px); opacity: 0; } 25% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes s50-flash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
+@keyframes s50-slide { 0% { transform: translateX(-24px); opacity: 0; } 25% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes s50-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes s50-out { 0% { opacity: 1; } 100% { opacity: 0; } }
+.s50.s50-still .s50-top, .s50.s50-still .s50-flash, .s50.s50-still .s50-ribbon, .s50.s50-still .s50-card { animation: none; }
+.s50.s50-still.s50-out { animation: none; opacity: 0; }
+
+/* Handy quer: Band und Satz etwas kleiner */
+@media (max-height: 520px) {
+  .s50-ribbon { font-size: 13px; padding: 5px 12px 4px; }
+  .s50-sub { font-size: 12px; max-width: 260px; }
+  .s50-x { width: 36px; height: 36px; }
+}
