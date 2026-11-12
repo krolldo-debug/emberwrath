@@ -2,13 +2,15 @@ import { lang, onLangChange } from '../i18n/index.js';
 import { themeForZone } from '../audio/Music.js';
 import { ambienceForZone } from '../audio/Soundscape.js';
 
-// Spielt einen Film aus film.js über der Welt ab: Bild (Canvas im Feinraster, Kinoformat), Tonspur der gewählten
+// Spielt einen Film aus film.js über der Welt ab: Bild (Canvas in Gerätepixeln, Kinoformat), Tonspur der gewählten
 // Sprache (Stimme, Musik und Geräusche fertig gemischt), Untertitel. Überspringen: Knopf, Esc, Enter oder Leertaste.
 // Die Zeit kommt aus der Tonspur (AudioContext), damit Bild und Stimme auch nach Rucklern zusammenbleiben; ohne Ton
 // (stumm geschaltet, Datei fehlt) läuft sie nach der Uhr. Fehlen Bilder, endet der Film sofort und das Spiel beginnt.
 const LOAD_TIMEOUT = 9000;   // ms: länger wartet niemand vor schwarzem Bild
 const SKIP_DELAY = 1.2;      // s: so lange ist „Überspringen“ verborgen (kein versehentliches Wegtippen beim Start)
-const FADE = 0.9;            // s: Abblende am Ende (in harten Stufen)
+const FADE = 0.9;            // s: Abblende am Ende
+const MAX_W = 2600;          // Bildpunkte: breiter wird die Zeichenfläche nicht (größere Schirme: ganzzahlig geteilt)
+const SLOW_MS = 40;          // ms je Bild: darüber kommt das Gerät nicht mit (30 Bilder/s im Stromsparmodus sind in Ordnung)
 
 export function introBase() {
   // Website: neben dem Spiel-Skript (/spielen/intro/), Entwicklung: im Quellordner
@@ -22,6 +24,8 @@ export class IntroPlayer {
     this.base = introBase();
     this.t = 0; this.ended = false; this.raf = 0; this.src = null; this.offs = [];
     this.cue = -1;
+    this.div = 1;              // Teiler der Zeichenfläche (1 = Gerätepixel); steigt, wenn das Gerät nicht mitkommt
+    this.frames = 0; this.slow = 0; this.last = 0;
   }
 
   start() {
@@ -31,7 +35,6 @@ export class IntroPlayer {
     root.setAttribute('aria-label', 'Prolog');
     const cv = this.cv = document.createElement('canvas');
     cv.className = 'intro-cv';
-    cv.width = this.film.width; cv.height = this.film.height;
     this.g = cv.getContext('2d');
     const sub = this.sub = document.createElement('div');
     sub.className = 'intro-sub';
@@ -62,7 +65,6 @@ export class IntroPlayer {
     this.game.music?.stop();
     this.game.sfx?.setAmbience?.('fire');
 
-    this.g.fillStyle = '#000'; this.g.fillRect(0, 0, this.cv.width, this.cv.height);
     const timeout = new Promise((ok) => setTimeout(() => ok('timeout'), LOAD_TIMEOUT));
     Promise.race([Promise.all([this.film.load(this.base, this.s), this.#loadAudio()]), timeout]).then((r) => {
       if (this.ended) return;
@@ -103,9 +105,10 @@ export class IntroPlayer {
       const p0 = performance.now() + 50;
       this.clock = () => (performance.now() - p0) / 1000;
     }
-    const frame = () => {
+    const frame = (now) => {
       if (this.ended) return;
       this.raf = requestAnimationFrame(frame);
+      this.#pace(now);
       this.t = Math.max(0, this.clock());
       this.root.classList.toggle('intro-can-skip', this.t >= SKIP_DELAY);
       if (this.t >= this.film.duration + FADE) { this.end('end'); return; }
@@ -116,6 +119,20 @@ export class IntroPlayer {
       this.#subtitle();
     };
     frame();
+  }
+
+  // Kommt das Gerät nicht mit (über mehrere Sekunden weniger als 25 Bilder je Sekunde), wird die Zeichenfläche
+  // halbiert bzw. gedrittelt: gleiche Bildpunkte, etwas weichere Kanten, dafür flüssig. Höchstens zweimal.
+  #pace(now) {
+    if (!now || !this.last) { this.last = now ?? 0; return; }
+    const dt = now - this.last;
+    this.last = now;
+    if (dt > 250) return;                          // Tab war verdeckt o. Ä.: zählt nicht
+    this.frames++;
+    if (dt > SLOW_MS) this.slow++;
+    if (this.frames < 90) return;
+    if (this.slow > 45 && this.div < 3) { this.div++; this.fit(); }
+    this.frames = 0; this.slow = 0;
   }
 
   // Abblende auf Schwarz
@@ -144,6 +161,17 @@ export class IntroPlayer {
     const W = window.innerWidth, H = window.innerHeight, ar = this.film.width / this.film.height;
     const w = Math.min(W, H * ar), h = w / ar;
     Object.assign(this.cv.style, { width: `${Math.round(w)}px`, height: `${Math.round(h)}px` });
+    // Zeichenfläche in Gerätepixeln: so bleiben die Bildpunkte des Films scharfe Quadrate. Sehr große Schirme (und
+    // Geräte, die nicht mitkommen) bekommen einen ganzzahligen Bruchteil, den der Browser pixelgenau vergrößert.
+    const px = Math.round(w) * (window.devicePixelRatio || 1);
+    let n = this.div;
+    while (px / n > MAX_W) n++;
+    const cw = Math.max(this.film.width, Math.round(px / n)), ch = Math.round(cw / ar);
+    if (this.cv.width !== cw || this.cv.height !== ch) {
+      this.cv.width = cw; this.cv.height = ch;
+      this.g.fillStyle = '#000'; this.g.fillRect(0, 0, cw, ch);
+    }
+    this.cv.classList.toggle('intro-cv-scaled', n > 1);
     const bar = (H - h) / 2;
     this.root.style.setProperty('--intro-bar', `${Math.max(0, Math.round(bar))}px`);
     this.root.classList.toggle('intro-wide-bars', bar >= 56);

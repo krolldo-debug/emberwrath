@@ -19,12 +19,11 @@ const shots = await p.evaluate(async ({ times, BASE }) => {
   const { FILM } = await import('/src/intro/film.js');
   const A = await FILM.load(new URL('/src/intro/media/', BASE), null);
   FILM.prepareAll(A);
-  const c = document.createElement('canvas'); c.width = FILM.width; c.height = FILM.height;
+  // Der Film zeichnet in jeder Größe; hier dreifach (2016 × 864), wie auf einem Full-HD-Schirm
+  const UP = 3;
+  const c = document.createElement('canvas'); c.width = FILM.width * UP; c.height = FILM.height * UP;
   const g = c.getContext('2d');
-  const UP = Math.max(1, Math.round(1800 / FILM.width));
-  const o = document.createElement('canvas'); o.width = c.width * UP; o.height = c.height * UP;
-  const og = o.getContext('2d'); og.imageSmoothingEnabled = false;
-  return times.map((t) => { g.setTransform(1, 0, 0, 1, 0, 0); FILM.draw(g, t, A); og.drawImage(c, 0, 0, o.width, o.height); return [t, o.toDataURL('image/png')]; });
+  return times.map((t) => { FILM.draw(g, t, A); return [t, c.toDataURL('image/png')]; });
 }, { times, BASE });
 for (const [t, url] of shots) writeFileSync(`${OUT}/t${String(t.toFixed(1)).padStart(5, '0')}.png`, Buffer.from(url.split(',')[1], 'base64'));
 console.log(shots.length, 'Bilder in', OUT);
