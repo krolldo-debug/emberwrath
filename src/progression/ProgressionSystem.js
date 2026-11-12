@@ -124,8 +124,9 @@ export class ProgressionSystem {
     if (session.game?.ledger && !session.game.ledger.ready) { this.dailyT = 2; return; } // Würfel des Servers (src/ledger) abwarten
     const d = session.state.slices.daily, now = serverNow();
     if (!d || boardDay(now) <= d.day) return;
-    // Ruhiger Moment für die Ansage: kein Fenster offen, kein Einstiegshinweis sichtbar, Held am Leben
-    if (this.hero?.dead || session.panels?.openId || globalThis.document?.querySelector('.ef-guide.show')) { this.dailyT = 2; return; }
+    // Ruhiger Moment für die Ansage: kein Fenster offen, kein Einstiegshinweis und keine Einblendung (teaser/stufe50.js)
+    // sichtbar, Held am Leben
+    if (this.hero?.dead || session.panels?.openId || globalThis.document?.querySelector('.ef-guide.show, .ef-notice')) { this.dailyT = 2; return; }
     session.state.commit('daily:login', { now, isNew: this.dailyNew });
     this.dailyNew = false;
   }
