@@ -1,94 +1,139 @@
-# Werbevideo C „Von 1 auf 50“: echtes Spiel bildfüllend, großer Stufenzähler, schnelle Schnitte auf den Takt.
-#   python3 tools/werbung/video_c.py ROH-ORDNER ZIEL.mp4 [ton.mp3] | ... ZIELORDNER bilder 1,4,9
-import sys, os, math
-from PIL import Image, ImageDraw, ImageFilter
+# Werbevideo C „Von 1 auf 50“ (Fassung 2): nur Kämpfe und Bosssiege aus dem echten Spiel, Stufenzähler oben,
+# Schnitt auf die Trailermusik, Untertitel Wort für Wort, Abspann mit Logo und Aufruf.
+#   python3 tools/werbung/video_c.py ROH-ORDNER ZIEL.mp4 [ton.wav] | ... ZIELORDNER bilder 1,4,9
+import sys, os, math, json, random
+from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(__file__))
 from lib import *
+from c_plan import *
 
 ROH, OUT = sys.argv[1], sys.argv[2]
-DUR = 18.5
-# t0, Ordner, erstes Bild, Schritt (Bilder je Ausgabebild: 4 = Echtzeit, 3 = etwas langsamer), Stufe, Ort, Boss, Vergrößerung
-CUT = [
-    (0.00, 'e-weg-ashwood', 200, 4, 1, 'DER ASCHENWALD', None, 1.25),
-    (1.50, 'f-war-whirl', 200, 4, 8, 'DIE FAULMARSCH', None, 1.1),
-    (2.50, 'e-b-var', 220, 3, 15, 'DIE KATAKOMBEN', 'VARKHUL', 1.0),
-    (3.50, 'h-ritt-pferd', 300, 4, 20, 'DIE ASCHENSTEPPE', None, 1.55),
-    (4.50, 'e-b-ign', 250, 3, 26, 'DIE GLUTSCHMIEDE', 'IGNAROTH', 1.0),
-    (5.50, 'e-b-rot', 250, 3, 29, 'DER SPORENSCHLUND', 'MUTTER FÄULNIS', 1.1),
-    (6.50, 'e-weg-frost', 250, 4, 31, 'DIE FROSTZINNEN', None, 1.5),
-    (7.50, 'e-b-sk-dodge', 200, 3, 34, 'DIE REIFHÖHLEN', 'SKALVYR', 1.0),
-    (8.50, 'e-ride-drake-up', 330, 4, 36, 'DIE GLUTÖDE', None, 1.4),
-    (9.50, 'e-b-mal-dodge', 260, 3, 40, 'DER ASCHETHRON', 'MALGARETH', 1.0),
-    (10.75, 'sg-riss', 300, 4, 41, 'DER RISS', None, 1.25),
-    (11.75, 'sg-hafen', 200, 4, 43, 'STERNHAFEN', None, 1.3),
-    (12.50, 'sg-rochen', 250, 4, 45, 'DIE TREIBENDEN GÄRTEN', None, 1.5),
-    (13.25, 'h-ysgarn-r', 250, 3, 47, 'DIE RANKENGRUFT', 'YSGARN', 1.0),
-    (14.00, 'h-kaldris-r', 250, 3, 49, 'DIE GLÄSERNEN HALLEN', 'KALDRIS', 1.0),
-    (14.75, 'sg-ysmeine-m', 300, 3, 50, 'DIE STERNWARTE', 'KÖNIGIN YSMEINE', 1.0),
-]
-ENDE = 15.9
-embers = Embers(50, 11)
-LOGO = logo(820)
-BADGE = badge(300)
-URL = text_layer('www.emberwrath.com', NU(36), (255, 179, 90), 3)
-SLOGAN = text_layer('Wie weit kommst du?', AN(96), BONE, 5)
-STUFE = text_layer('STUFE', AN(76), BONE, 5)
-ZIFFERN = {n: text_layer(str(n), AN(300), EMBER, 9) for n in range(1, 51)}
-ORTE = {}
-for *_, ort, boss, _z in CUT:
-    ORTE.setdefault(ort, text_layer(ort, fit(ort, CZ, 56, 900), BONE, 4))
-    if boss: ORTE.setdefault(boss, text_layer(boss, fit(boss, CZ, 56, 900), (255, 190, 120), 4))
+GELB = (255, 214, 64)
+embers = Embers(60, 11)
+LOGO = logo(900)
+BADGE = badge(400)
+URL = text_layer('www.emberwrath.com', NU(54), (255, 196, 120), 4)
+KNOPF_T = text_layer('JETZT KOSTENLOS SPIELEN', AN(66), (24, 12, 6), 0)
+FRAGE = text_layer('Wie weit kommst du?', CZ(50), BONE, 4)
+STUFE = text_layer('STUFE', AN(70), BONE, 5)
+ZIFFERN = {n: text_layer(str(n), AN(280), EMBER, 9) for n in range(1, 51)}
+TITEL = {}
+for c in CUT:
+    tit, unter, boss = c[8], c[9], c[10]
+    TITEL.setdefault(tit, text_layer(tit, fit(tit, CZ, 60, 940), (255, 190, 120) if boss else BONE, 4))
+    if unter: TITEL.setdefault(unter, text_layer(unter, fit(unter, NU, 32, 900), (224, 208, 186), 3))
 
-def cut_at(t):
-    k = 0
-    for i, c in enumerate(CUT):
-        if t >= c[0]: k = i
-    return k
+# Untertitel: Wortzeiten der Sprecheraufnahme, auf die Videozeit umgerechnet
+_w = json.load(open('/tmp/tage/t901/woerter.json'))
+SAETZE = []
+for si, at in STIMME:
+    s = _w['saetze'][si]
+    ws = [(w['wort'], at + w['start'] - s['start'], at + w['ende'] - s['start']) for w in _w['woerter'] if w['satz'] == si]
+    SAETZE.append((at, at + s['ende'] - s['start'], ws))
+UF = AN(74)
+_wl = {}
+def wort(text, farbe):
+    if (text, farbe) not in _wl: _wl[(text, farbe)] = text_layer(text, UF, farbe, 6)
+    return _wl[(text, farbe)]
+
+def untertitel(im, t):
+    for a, e, ws in SAETZE:
+        if not (a - 0.05 <= t < e + 0.3): continue
+        # Zeilen bis 880 px Breite
+        zeilen, z, b = [], [], 0
+        for w in ws:
+            wb = tw(w[0], UF) + 22
+            if z and b + wb > 960: zeilen.append((z, b)); z, b = [], 0
+            z.append(w); b += wb
+        zeilen.append((z, b))
+        y = 1400 - (len(zeilen) - 1) * 48
+        jetzt = ([w[0] for w in ws if t >= w[1] - 0.04] or [None])[-1] if t < e + 0.1 else None
+        for z, b in zeilen:
+            x = W / 2 - b / 2
+            for text, wa, we in z:
+                wb = tw(text, UF) + 22
+                if t >= wa - 0.04:                       # Wörter erscheinen, sobald sie gesprochen werden
+                    aktiv = text == jetzt
+                    paste_c(im, wort(text, GELB if aktiv else BONE), x + wb / 2, y, 1.0 + 0.1 * math.exp(-(t - wa + 0.04) * 16), 1)
+                x += wb
+            y += 96
 
 def level_at(t):
-    """Zähler läuft weich zwischen den Schnitten hoch und rastet kurz vor dem nächsten ein."""
-    k = cut_at(t); lv = CUT[k][4]
+    """Zähler läuft kurz vor dem nächsten Schnitt hoch und rastet auf dem Schnitt ein."""
+    k = cut_at(t); lv = CUT[k][7]
+    if k == 0: return 50
     if k + 1 < len(CUT):
-        t0, t1 = CUT[k][0], CUT[k + 1][0]
-        p = clamp((t - t0 - (t1 - t0) * 0.55) / max(0.01, (t1 - t0) * 0.4))
-        lv = lv + (CUT[k + 1][4] - lv) * ease(p)
-    return max(1, min(50, int(round(lv))))
+        t1 = CUT[k + 1][0]; p = clamp((t - (t1 - 0.3)) / 0.3)
+        lv = lv + (CUT[k + 1][7] - 1 - lv) * p
+    return max(1, min(50, int(lv)))
+
+_verlauf = {}
+def verlauf(y0, y1, a0, a1):
+    key = (y0, y1, a0, a1)
+    if key not in _verlauf:
+        g = Image.new('RGBA', (1, y1 - y0)); gd = ImageDraw.Draw(g)
+        for y in range(y1 - y0): gd.point((0, y), fill=(0, 0, 0, int(a0 + (a1 - a0) * y / (y1 - y0))))
+        _verlauf[key] = g.resize((W, y1 - y0))
+    return _verlauf[key]
+
+def szene(t):
+    """Spielbild: ganzzahlig vergrößert, Ausschnitt um (dx, dy) versetzt, auf Akzenten kurzes Wackeln."""
+    k, nr = bild_nr(t); c = CUT[k]; name, ms, dx, dy = c[1], c[4], c[5], c[6]
+    d = f'{ROH}/{name}'; n = len([f for f in os.listdir(d) if f[0] == 'f' and f.endswith('.png')]) if d not in _n else _n[d]
+    _n[d] = n
+    im = Image.open(f'{d}/f{max(0, min(n - 1, nr)):05d}.png').convert('RGB')
+    cw, ch = -(-W // ms), -(-H // ms)
+    dt = t - c[0]
+    if c[0] in AKZENT and dt < 0.22:
+        r = random.Random(int(t * 30)); a = 3 * (1 - dt / 0.22)
+        dx += round(r.uniform(-a, a)); dy += round(r.uniform(-a, a))
+    x = max(0, min(im.width - cw, (im.width - cw) // 2 + dx)); y = max(0, min(im.height - ch, (im.height - ch) // 2 + dy))
+    im = im.crop((x, y, x + cw, y + ch)).resize((cw * ms, ch * ms), Image.NEAREST)
+    return im.crop(((im.width - W) // 2, (im.height - H) // 2, (im.width - W) // 2 + W, (im.height - H) // 2 + H))
+_n = {}
 
 def frame(t):
-    k = cut_at(t); t0, name, f0, step, _, ort, boss, zoom = CUT[k]
-    im = clip_frame(f'{ROH}/{name}', f0 + int((t - t0) * FPS) * step, zoom).convert('RGBA')
+    k = cut_at(t); c = CUT[k]; t0, tit, unter, boss = c[0], c[8], c[9], c[10]
+    im = szene(t)
+    if t >= TH:                                 # Abspann: Spiel läuft abgedunkelt in Zeitlupe weiter
+        im = Image.blend(im, Image.new('RGB', (W, H), (8, 5, 9)), 0.72 * ease((t - TH) / 0.35))
+    im = im.convert('RGBA')
+    im.alpha_composite(verlauf(0, 760, 225, 0), (0, 0))
+    im.alpha_composite(verlauf(1150, H, 0, 235), (0, 1150))
+    embers.draw(im, t, amount=0.5 if t < TH else 0.9)
     d = ImageDraw.Draw(im, 'RGBA')
-    # dunkle Verläufe oben und unten, damit Schrift überall lesbar bleibt
-    for y0, y1, a0, a1 in [(0, 620, 215, 0), (1330, H, 0, 230)]:
-        g = Image.new('RGBA', (1, y1 - y0), (0, 0, 0, 0)); gd = ImageDraw.Draw(g)
-        for y in range(y1 - y0): gd.point((0, y), fill=(0, 0, 0, int(a0 + (a1 - a0) * y / (y1 - y0))))
-        im.alpha_composite(g.resize((W, y1 - y0)), (0, y0))
-    embers.draw(im, t, amount=0.55)
-    end = t >= ENDE
-    if not end:
+    aus = 1 - ease((t - TH) / 0.2)
+    if aus > 0.003:
         lv = level_at(t)
-        # Stufenzähler: bei jedem Schnitt kurz größer
-        pop = 1 + 0.12 * math.exp(-(t - t0) * 9)
-        paste_c(im, STUFE, W / 2, 140, 1, ease(t / 0.3))
-        paste_c(im, ZIFFERN[lv], W / 2, 330, pop, 1)
-        # Fortschrittsbalken 1 … 50
-        x0, x1, y = 120, 960, 548
-        d.rounded_rectangle((x0, y, x1, y + 24), 12, fill=(30, 22, 22, 220), outline=(8, 5, 5, 255), width=2)
-        d.rounded_rectangle((x0, y, x0 + (x1 - x0) * (lv - 1) / 49 + 1, y + 24), 12, fill=EMBER + (255,))
-        d.text((x0, y + 40), '1', font=NU(30), fill=(224, 208, 186, 230)); d.text((x1 - 32, y + 40), '50', font=NU(30), fill=(224, 208, 186, 230))
-        # Ort und Boss unten
-        a = ease((t - t0) / 0.18)
-        paste_c(im, ORTE[ort], W / 2, 1640 if not boss else 1600, 1, a)
-        if boss: paste_c(im, ORTE[boss], W / 2, 1690, 1, a)
-    else:
-        p = (t - ENDE)
-        paste_c(im, LOGO, W / 2, 300, 1.08 - 0.08 * ease(p / 0.4), ease(p / 0.3))
-        paste_c(im, SLOGAN, W / 2, 1330, 1, ease((p - 0.15) / 0.3))
-        a = ease((p - 0.4) / 0.3)
-        paste_c(im, BADGE, W / 2, 1560, 1, a); paste_c(im, URL, W / 2, 1660, 1, a)
-    # harter Weißblitz auf dem Schnitt
-    fl = 1 - (t - t0) / 0.1
-    if k and fl > 0: im.alpha_composite(Image.new('RGBA', (W, H), (255, 240, 210, int(80 * fl))))
+        pop = 1 + (0.45 if t0 in AKZENT else 0.14) * math.exp(-(t - t0) * 9)
+        paste_c(im, STUFE, W / 2, 132, 1, ease(t / 0.25) * aus)
+        paste_c(im, ZIFFERN[lv], W / 2, 312, pop, aus)
+        x0, x1, y = 120, 960, 512; al = int(255 * aus)
+        d.rectangle((x0, y, x1, y + 22), fill=(30, 22, 22, int(220 * aus)), outline=(8, 5, 5, al), width=3)
+        d.rectangle((x0 + 3, y + 3, x0 + 3 + (x1 - x0 - 6) * (lv - 1) / 49, y + 19), fill=EMBER + (al,))
+        a = ease((t - t0) / 0.12) * aus
+        paste_c(im, TITEL[tit], W / 2, 606, 1, a)
+        if unter: paste_c(im, TITEL[unter], W / 2, 672, 1, a)
+        untertitel(im, t)
+    if t >= TH:
+        p = t - TH
+        paste_c(im, LOGO, W / 2, 560, 1 + 0.35 * (1 - back(p / 0.4)), ease(p / 0.12))
+        paste_c(im, FRAGE, W / 2, 830, 1, ease((p - 0.5) / 0.4))
+        q = t - TE
+        if q > 0:
+            a = ease(q / 0.3); s = 0.9 + 0.1 * back(q / 0.35)
+            bw, bh = 880 * s, 132 * s; cx, cy = W / 2, 1060
+            d.rectangle((cx - bw / 2 - 6, cy - bh / 2 - 6, cx + bw / 2 + 6, cy + bh / 2 + 6), fill=(60, 22, 6, int(255 * a)))
+            d.rectangle((cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2), fill=EMBER + (int(255 * a),))
+            d.rectangle((cx - bw / 2, cy - bh / 2, cx + bw / 2, cy - bh / 2 + 9), fill=(255, 196, 110, int(255 * a)))
+            paste_c(im, KNOPF_T, cx, cy + 2, s, a)
+            paste_c(im, URL, W / 2, 1192, 1, ease((q - 0.25) / 0.3))
+            qa = q - 0.7
+            paste_c(im, BADGE, W / 2, 1380, 0.9 + 0.1 * back(qa / 0.35), ease(qa / 0.25))
+    # Lichtblitz auf dem Schnitt, stärker auf den Akzenten und dem Logo
+    for tb, st, da in [(t0, 150 if t0 in AKZENT else 70, 0.14 if t0 in AKZENT else 0.09)] * (k > 0) + [(TH, 170, 0.16)]:
+        fl = 1 - (t - tb) / da
+        if t >= tb and fl > 0: im.alpha_composite(Image.new('RGBA', (W, H), (255, 240, 210, int(st * fl))))
     return im.convert('RGB')
 
 if len(sys.argv) > 3 and sys.argv[3] == 'bilder':
