@@ -31,15 +31,17 @@ def envelope(x, attack=0.03, release=0.35):
     return np.repeat(out, hop)
 
 def mix(out, dur, music=None, voices=(), sfx=(), duck_db=12.0, music_db=-24.0, fade_out=0.5, lufs=-14.0):
-    """music: (Datei, Anfang in der Datei, [dB]); voices: [(Datei, Zeit, [dB])]; sfx: [(Datei, Zeit, dB)]."""
+    """music: (Datei, Stelle in der Datei, [Zeit im Video], [dB]) oder eine Liste davon; voices: [(Datei, Zeit, [dB])]; sfx: [(Datei, Zeit, dB)]."""
     n = int(dur * SR); V = np.zeros((n, 2)); M = np.zeros((n, 2)); F = np.zeros((n, 2)); spans = []
     for path, t, *g in voices:
         x = load(path); x = x * speech_gain(x) * db(g[0] if g else 0)
         e = np.sqrt((x ** 2).mean(1)); idx = np.where(e > e.max() * 0.05)[0]
         spans.append((path.split('/')[-1], t + idx[0] / SR, t + idx[-1] / SR)); place(V, x, t)
-    if music:
-        x = load(music[0], music[1]); x = x * db(music_db - rms_db(x[:int(min(len(x), n))])) * db(music[2] if len(music) > 2 else 0)
-        place(M, x, 0, fade=0.02)
+    for m in ([music] if music and isinstance(music[0], str) else (music or [])):
+        path, ab = m[0], m[1]                       # Datei und Stelle in der Datei
+        at, g = (m[2] if len(m) > 2 else 0.0), (m[3] if len(m) > 3 else 0.0)
+        x = load(path, ab); x = x * db(music_db - rms_db(x[:int(min(len(x), n))])) * db(g)
+        place(M, x, at, fade=0.25 if at else 0.02)
     for path, t, g in sfx: place(F, load(path), t, db(g))
     env = envelope(V); env = np.pad(env, (0, n - len(env)))[:n]
     M *= db(-duck_db * env)[:, None]; F *= db(-duck_db * 0.75 * env)[:, None]

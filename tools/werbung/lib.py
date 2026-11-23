@@ -89,3 +89,26 @@ def writer(out, audio=None, dur=None, crf=18):
     cmd += ['-c:v', 'libx264', '-preset', 'slow', '-crf', str(crf), '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
     if dur: cmd += ['-t', str(dur)]
     return subprocess.Popen(cmd + [out], stdin=subprocess.PIPE)
+
+
+def clip_frame(dir_, i, zoom=1.0):
+    """Bild aus einer Hochformat-Aufnahme (tage-record.mjs): ganzzahlig vergrößern, dann mittig beschneiden."""
+    import os
+    n = _clip_len(dir_); i = max(0, min(n - 1, i))
+    im = Image.open(f'{dir_}/f{i:05d}.png').convert('RGB')
+    k = max(1, -(-W // im.width), -(-H // im.height))
+    if zoom > 1.01:                      # näher heran: erst beschneiden, dann vergrößern (Held wird größer)
+        cw, ch = round(im.width / zoom), round(im.height / zoom)
+        im = im.crop(((im.width - cw) // 2, (im.height - ch) // 2, (im.width - cw) // 2 + cw, (im.height - ch) // 2 + ch))
+        k = max(1, -(-W // im.width), -(-H // im.height))
+    im = im.resize((im.width * k, im.height * k), Image.NEAREST)
+    if im.width > W or im.height > H:
+        x, y = (im.width - W) // 2, (im.height - H) // 2
+        im = im.crop((x, y, x + W, y + H))
+    return im
+
+_lens = {}
+def _clip_len(dir_):
+    import os
+    if dir_ not in _lens: _lens[dir_] = len([f for f in os.listdir(dir_) if f.startswith('f') and f.endswith('.png')])
+    return _lens[dir_]
