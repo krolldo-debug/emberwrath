@@ -8,6 +8,8 @@ import { startServer, launch } from '/mnt/project-files/videos/rohmaterial/werkz
 import { mkdirSync, writeFileSync } from 'node:fs';
 const [OUT = '/tmp/hud', ONLY = '', SEK = '8'] = process.argv.slice(2);
 const PORT = process.env.PORT ?? 8811;
+// VIEW=BREITExHÖHE: andere Fenstergröße als das Handy quer (z. B. 600x450: das Spiel füllt im Hochformat-Video mehr Fläche); BILDER=n: nur n Bilder (Probe)
+const [VW, VH] = (process.env.VIEW ?? '956x440').split('x').map(Number);
 const GEAR = {
   warrior: ['human', ['rimeforged_coif', 'sovereign_plate', 'sovereign_gauntlets', 'sovereign_sabatons', 'sovereign_signet', 'kingsbane']],
   rogue: ['emberborn', ['veilpiercer', 'wyrmscale_cap', 'wyrmscale_jerkin', 'wyrmscale_grips', 'wyrmscale_boots']],
@@ -30,8 +32,8 @@ const SC = [
   // Leben des Bosses (gleiche Sekunde zweimal = Sprung), kill = Sekunde des Sieges, dodge = [Sekunde, Richtung] Ausweichrolle
   { name: 'k-skalvyr', sek: 19.5, cls: 'warrior', zone: 'rime_caverns', boss: true, party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], skills: ['skill2', 'skill1'], pos: [[-50, 60], [70, 75], [-5, 110]],
     hp: [[0, 0.64], [4.6, 0.6], [14.0, 0.05]], kill: 14.15, dodge: [[8.75, 'left']] },
-  { name: 'm-malgareth', sek: 26.6, cls: 'mage', zone: 'ashen_throne', boss: true, party: [['warrior', 'tank', 'human'], ['ranger', 'dps', 'elf']], skills: ['skill1', 'skill2', 'skill3'], pos: [[-70, 80], [70, 70], [10, 105]],
-    hp: [[0, 0.92], [8, 0.8], [21.6, 0.04]], kill: 21.85 },
+  { name: 'm-malgareth', sek: 22.9, cls: 'mage', zone: 'ashen_throne', boss: true, party: [['warrior', 'tank', 'human'], ['ranger', 'dps', 'elf']], skills: ['skill1', 'skill2', 'skill3'], pos: [[-70, 80], [70, 70], [10, 105]],
+    hp: [[0, 0.92], [8, 0.8], [17.7, 0.04]], kill: 17.95 },
   { name: 'b-ignaroth', sek: 17.5, cls: 'warrior', zone: 'molten_forge', boss: true, party: [['mage', 'dps', 'elf'], ['ranger', 'dps', 'elf']], skills: ['skill2', 'skill1'], pos: [[-50, 60], [70, 75], [-5, 110]],
     hp: [[0, 0.98], [4.0, 0.88], [4.0, 0.52], [7.6, 0.43], [7.6, 0.1], [12.6, 0.02]], kill: 12.85 },
 ];
@@ -39,7 +41,7 @@ const srv = await startServer();
 const b = await launch();
 for (const sc of SC) {
   if (ONLY && !ONLY.split(',').includes(sc.name)) continue;
-  const ctx = await b.newContext({ viewport: { width: 956, height: 440 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'de-DE',
+  const ctx = await b.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'de-DE',
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 EmberwrathApp/ios' });
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.log('ERR', e.message));
@@ -154,7 +156,7 @@ for (const sc of SC) {
     return { zone: sc.zone, target: target?.def?.name ?? target?.name ?? null, hero: [Math.round(h.x), Math.round(h.y)] };
   }, { sc, race, gear, GEAR });
   const dir = `${OUT}/${sc.name}`; mkdirSync(dir, { recursive: true });
-  const frames = Math.round((sc.sek ?? +SEK) * 30);
+  const frames = +(process.env.BILDER ?? 0) || Math.round((sc.sek ?? +SEK) * 30);
   let blocked = -1; const log = [];
   for (let i = 0; i < frames; i++) {
     const s = await p.evaluate(() => window.__bild()); log.push(s);

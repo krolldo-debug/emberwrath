@@ -1,21 +1,13 @@
-# Gemeinsame Bausteine der Werbevideos im Handy-Stil (wie Video B): Handy quer mit laufendem Spiel samt Oberfläche,
-# Untertitel Wort für Wort, Knopf, App-Store-Marke, Lebensleiste des Bosses.
+# Gemeinsame Bausteine der Werbevideos mit großem Spielbild: das echte Spiel samt Oberfläche in voller Breite,
+# Untertitel Wort für Wort, Lebensleiste des Bosses; Knopf, App-Store-Marke und Adresse erst im Abspann
+# (Rückmeldung 24.11.: ein Knopf von Anfang an wirkt sofort wie Werbung, das Spiel im Handy war zu klein).
 import json, math, os
 from PIL import Image, ImageDraw, ImageFilter, ImageChops
 from lib import *
 from plan2 import ST
 
-PX, PY, PW, PH = 20, 700, 1040, 502            # Handy außen
-SX, SY, SW, SH = 40, 720, 1000, 462            # Bildschirm
+GY, GH = 560, 840                              # Spielbild: volle Breite, 840 hoch (Aufnahme mit VIEW=720x560)
 GELB = (255, 214, 64)
-
-_phone = Image.new('RGBA', (PW, PH), (0, 0, 0, 0)); _pd = ImageDraw.Draw(_phone)
-_pd.rounded_rectangle((0, 0, PW - 1, PH - 1), 48, fill=(58, 55, 62)); _pd.rounded_rectangle((3, 3, PW - 4, PH - 4), 46, fill=(9, 9, 12))
-_pd.rounded_rectangle((16, 16, PW - 17, PH - 17), 34, outline=(30, 29, 34), width=2)
-MASK = Image.new('L', (SW, SH), 0); ImageDraw.Draw(MASK).rounded_rectangle((0, 0, SW - 1, SH - 1), 30, fill=255)
-_shadow = Image.new('RGBA', (PW + 200, PH + 200), (0, 0, 0, 0))
-ImageDraw.Draw(_shadow).rounded_rectangle((106, 126, PW + 94, PH + 134), 54, fill=(0, 0, 0, 190))
-_shadow = _shadow.filter(ImageFilter.GaussianBlur(28))
 
 
 class Aufnahme:
@@ -27,25 +19,26 @@ class Aufnahme:
         i = max(0, min(self.n - 1, int(round(t * FPS))))
         if i not in self._c:
             if len(self._c) > 4: self._c.clear()
-            self._c[i] = Image.open(f'{self.d}/f{i:04d}.png').convert('RGB').resize((SW, SH), Image.LANCZOS)
+            self._c[i] = Image.open(f'{self.d}/f{i:04d}.png').convert('RGB').resize((W, GH), Image.LANCZOS)
         return self._c[i]
     def leben(self, t):
         e = self.log[max(0, min(len(self.log) - 1, int(round(t * FPS))))]
         return 0.0 if e['tot'] else e['hp']
 
 
-def handy(im, scr, dx=0, dy=0, blitz=0.0):
-    """Handy mit Bildschirminhalt zeichnen; dx/dy verschieben es (z. B. Ruckeln in der Bahn), blitz hellt den Schirm auf."""
-    im.alpha_composite(_shadow, (PX - 100 + dx, PY - 100 + dy))
-    im.alpha_composite(_phone, (PX + dx, PY + dy))
-    im.paste(scr, (SX + dx, SY + dy), MASK)
-    if blitz > 0.01:
-        im.alpha_composite(Image.merge('RGBA', (*Image.new('RGB', (SW, SH), (255, 236, 200)).split(), MASK.point(lambda v: int(v * min(1, blitz))))), (SX + dx, SY + dy))
+def spiel(im, scr, dx=0, dy=0, blitz=0.0, dunkel=0.0):
+    """Spielbild in voller Breite; dx/dy verschieben es (Wackeln), blitz hellt auf, dunkel blendet für den Abspann ab."""
+    if dunkel > 0.01: scr = Image.blend(scr, Image.new('RGB', scr.size, (8, 5, 9)), min(1, dunkel))
+    if blitz > 0.01: scr = Image.blend(scr, Image.new('RGB', scr.size, (255, 236, 200)), min(1, blitz))
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, GY - 6 + dy, W, GY + GH + 5 + dy), fill=(6, 5, 8, 255))
+    im.paste(scr, (dx, GY + dy))
+    d.rectangle((0, GY - 6 + dy, W, GY - 1 + dy), fill=(74, 46, 30, 255)); d.rectangle((0, GY + GH + dy, W, GY + GH + 5 + dy), fill=(74, 46, 30, 255))
 
 
 class Untertitel:
     """Gesprochene Sätze Wort für Wort; das gerade gesprochene Wort ist farbig."""
-    def __init__(self, stimme, groesse=62, breite=980):
+    def __init__(self, stimme, groesse=62, breite=860):
         self.f = AN(groesse); self.h = int(groesse * 1.3); self.s = []; self._l = {}
         cache = {}
         for name, si, at in stimme:
@@ -101,11 +94,13 @@ def knopf(im, layer, cy, k=1.0, farbe=EMBER, breite=None, schein=False, t=0.0):
         st.putalpha(ImageChops.multiply(st.getchannel('A'), m)); im.alpha_composite(st, (0, int(cy - bh / 2)))
 
 
-_BADGE = badge(340); _URL = text_layer('www.emberwrath.com', NU(38), (255, 179, 90), 3)
-def fuss(im, t):
-    """App-Store-Marke und Adresse, von Anfang an sichtbar."""
-    a = ease((t - 0.3) / 0.4)
-    paste_c(im, _BADGE, W / 2, 1716, 1, a); paste_c(im, _URL, W / 2, 1806, 1, a)
+_BADGE = badge(380); _URL = text_layer('www.emberwrath.com', NU(44), (255, 196, 120), 4)
+def aufruf(im, p, btn, cy=930, farbe=EMBER):
+    """Abspann über dem abgedunkelten Spiel: Knopf, App-Store-Marke, Adresse (p = Sekunden seit Beginn des Abspanns)."""
+    k = back(p / 0.3) if p > 0 else 0
+    knopf(im, btn, cy, k * (1 + 0.035 * (0.5 + 0.5 * math.sin(p * math.pi * 2))), farbe=farbe, breite=760, schein=p > 0.3, t=p - 0.5)
+    a = ease((p - 0.35) / 0.3)
+    paste_c(im, _BADGE, W / 2, cy + 150 + 14 * (1 - a), 1, a); paste_c(im, _URL, W / 2, cy + 245 + 14 * (1 - a), 1, ease((p - 0.5) / 0.3))
 
 
 def leiste(im, x0, y0, x1, h, anteil, farbe=(214, 46, 40), rahmen=(70, 30, 26)):

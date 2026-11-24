@@ -1,4 +1,4 @@
-# Drei Werbevideos im Handy-Stil (wie B), je eine eigene Idee und ein eigener Sprecher. Gemeinsamer Zeitplan für
+# Drei Werbevideos mit großem Spielbild (aus dem Handy-Stil von B entwickelt), je eine eigene Idee und ein eigener Sprecher. Gemeinsamer Zeitplan für
 # Bild (video_k.py, video_m.py, video_h.py) und Ton (ton2.py). Zeiten in Sekunden im fertigen Video.
 #   k = „Live-Kommentar“: ein Fußballkommentator überträgt den Kampf gegen Skalvyr.
 #   m = „Malgareths Bitte“: der Endboss bittet, das Spiel nicht herunterzuladen.
@@ -18,11 +18,12 @@ K = dict(name='k', aufnahme='k-skalvyr', dur=23.0, kill=14.15, th=18.9, boss='SK
          cine=[('subdrop', 0.0, 1.0), ('riser', 4.68 - 3.03, 0.6), ('subdrop', 4.68, 1.0), ('impact1', 14.15, 1.0), ('braam', 18.9, 0.9)],
          extra=[('publikum', 0.0, 0.5), ('jubel', 14.2, 1.0)], klang_bis=18.8)
 
-M = dict(name='m', aufnahme='m-malgareth', dur=26.6, kill=21.85, th=24.2, boss='MALGARETH',
-         stimme=[('malgareth', 0, 0.3), ('malgareth', 1, 4.6), ('malgareth', 2, 8.4), ('malgareth', 3, 11.65), ('malgareth', 4, 15.2), ('malgareth', 5, 18.7), ('malgareth', 6, 22.6)],
-         musik=_musik_a(8.38, 23.3, 24.2, 26.6, auftakt='m_a.mp3'),
-         cine=[('subdrop', 0.0, 1.0), ('riser', 8.38 - 3.03, 0.5), ('subdrop', 8.38, 1.0), ('impact1', 21.85, 1.0), ('braam', 24.2, 0.9)],
-         extra=[], klang_bis=24.0)
+# Malgareth beginnt seit 24.11. mit der Bitte (Satz 5 der Aufnahme), Satz 1 entfällt: der Einstieg zündet sofort.
+M = dict(name='m', aufnahme='m-malgareth', dur=22.9, kill=17.95, th=20.25, boss='MALGARETH',
+         stimme=[('malgareth', 5, 0.25), ('malgareth', 0, 3.5), ('malgareth', 2, 7.6), ('malgareth', 3, 10.85), ('malgareth', 4, 14.4), ('malgareth', 6, 18.65)],
+         musik=_musik_a(8.48, 18.85, 20.25, 22.9, auftakt='m_a.mp3'),
+         cine=[('subdrop', 0.0, 1.0), ('riser', 8.48 - 3.03, 0.5), ('subdrop', 8.48, 1.0), ('impact1', 17.95, 1.0), ('braam', 20.25, 0.9)],
+         extra=[], klang_bis=20.1)
 
 H = dict(name='h', aufnahme='b-ignaroth', dur=21.5, kill=12.85, th=17.5, boss='IGNAROTH', schnitte=(4.0, 7.6), tueren=14.4,
          stimme=[('bahn', 0, 0.3), ('bahn', 1, 4.3), ('bahn', 2, 7.8), ('bahn', 3, 13.2), ('bahn', 4, 15.4), ('bahn', 5, 17.8)],
